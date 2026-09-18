@@ -342,6 +342,28 @@ button.o-ung{border:0;background:transparent;font:inherit;color:var(--chu);curso
 	text-shadow:0 0 22px rgba(0,0,0,.85),0 3px 10px rgba(0,0,0,.9);
 	font-variant-numeric:tabular-nums}
 .an{display:none!important}
+
+/* ── CHUÔNG THÔNG BÁO ────────────────────────────────────────────────────────────────────
+   z-index 7 — THẤP HƠN `.mn` (9) và thấp hơn thanh tab (8). Cao bằng `.mn` thì lúc đang
+   chụp ảnh chấm công vẫn thấy cái chuông nổi trên màn tối, bấm trúng là thoát giữa chừng.
+   `top` cộng safe-area vì trên iPhone đã thêm vào màn hình chính thì mép trên bị tai che. */
+#oChuong{position:fixed;right:10px;top:calc(8px + env(safe-area-inset-top));z-index:7}
+#btChuong{position:relative;width:42px;height:42px;padding:0;border:1px solid var(--vien-dam);
+	border-radius:50%;background:var(--the);font-size:19px;line-height:1;cursor:pointer;
+	box-shadow:0 2px 10px rgba(0,0,0,.35)}
+#btChuong:active{transform:scale(.94)}
+/* Chấm đỏ đè lên góc chuông. `min-width` + `padding` ngang để '3' tròn còn '99+' thành viên
+   thuốc, chứ không phải hai kích thước khác hẳn nhau. */
+#demChuong{position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;padding:0 5px;
+	border-radius:9px;background:#dc2626;color:#fff;font-size:11px;font-weight:700;
+	line-height:18px;font-variant-numeric:tabular-nums}
+.tin{display:block;width:100%;text-align:left;padding:11px 12px;margin:0 0 8px;
+	border:1px solid var(--vien);border-radius:var(--bo-o);background:var(--the);
+	color:var(--chu);font:inherit;font-size:13.5px;cursor:pointer}
+/* Chưa đọc: viền trái dày + nền hơi sáng. KHÔNG dùng chữ đậm làm dấu duy nhất — đọc rồi thì
+   chữ nhạt đi, và trên màn hình ngoài nắng hai mức đậm nhạt ấy nhìn như nhau. */
+.tin.moi{border-left:3px solid var(--nhan);background:var(--nhan-nhat)}
+.tin .luc{display:block;margin:4px 0 0;font-size:11px;color:var(--chu-mo)}
 .mn{position:fixed;inset:0;background:rgba(2,6,23,.94);z-index:9;overflow:auto;
 	padding:14px 14px calc(20px + env(safe-area-inset-bottom))}
 .mn .bao{padding-top:8px}
@@ -380,6 +402,29 @@ a{color:var(--nhan)}
 		<div class="hang">
 			<button id="btTra" class="chinh">Tra PIN</button>
 			<button id="btDongQuen" class="phu">Đóng</button>
+		</div>
+	</div>
+</div></div>
+
+<!-- ============ CHUÔNG THÔNG BÁO ============
+     Nằm NGOÀI `#mChinh` và tự ẩn/hiện riêng, vì `#mChinh` là một khối cuộn — đặt chuông
+     trong đó thì cuộn xuống bảng công là chuông trôi mất khỏi màn hình. Ngoài ra `#mChinh`
+     bị ẩn lúc chưa đăng nhập, mà chuông cũng phải ẩn lúc ấy, nên hai thứ bật tắt cùng nhau
+     trong `vaoRoi()`. -->
+<div id="oChuong" class="an">
+	<button id="btChuong" title="Thông báo" aria-label="Thông báo">🔔<span id="demChuong" class="an"></span></button>
+</div>
+
+<!-- ============ MÀN DANH SÁCH THÔNG BÁO ============ -->
+<div id="mChuong" class="mn an"><div class="bao">
+	<h1>Thông báo</h1>
+	<p class="mo">Hộp thư chung với trang Nội bộ — đọc ở đây thì bên kia cũng hết đỏ.</p>
+	<div class="the">
+		<div id="dsTin"><p class="trong">Đang tải…</p></div>
+		<p></p>
+		<div class="hang">
+			<button id="btDocHet" class="phu">Đọc hết</button>
+			<button id="btDongChuong" class="phu">Đóng</button>
 		</div>
 	</div>
 </div></div>
@@ -1564,6 +1609,7 @@ function dangXuat(imLang){
 	var _h = el('oHoSo'); if(_h){ _h.innerHTML = '<p class="trong">Đang tải…</p>'; }
 	var _u = el('oUng'); if(_u){ _u.innerHTML = '<p class="trong">Đang tải…</p>'; }
 	hien('mChinh',false); hien('mChup',false); hien('mChon',false); hien('thanhTab',false);
+	hien('mChuong',false); hien('oChuong',false);
 	hien('mVao',true);
 	if(!imLang){ bao('loiVao','',null); }
 	else { bao('loiVao','vang','Phiên đã hết. Đăng nhập lại bằng PIN.'); }
@@ -1638,6 +1684,7 @@ function napToi(){
 		el('chuCai').textContent  = chuDau(j.hoTen || '');
 		el('btCham').disabled = false;
 		veCoSo(j);
+		veChuong(j.chuongCo, j.chuongDem);
 		/* 🔴 08/09/2026 — CHƯA CÓ CƠ SỞ THÌ KHOÁ NÚT NGAY, đừng để họ chụp ảnh xong mới biết.
 		   Hồ sơ vừa lập mà quên tích lưới Cơ sở là `dsCoSo` rỗng: máy chủ vẫn cho đăng nhập
 		   (đúng — nói được "thiếu gì" thì hơn là báo PIN sai), nhưng lượt `cham` chắc chắn bị
@@ -2299,6 +2346,113 @@ el('chCoSo').addEventListener('change', function(){ napDonCH(); napCongCH(); });
 
 /* Mở một màn của trạm từ ô trong lưới. Danh sách trắng, không mở bừa theo chuỗi máy chủ gửi:
    một tên màn lạ thì `el()` trả null và `hien()` nổ, làm chết cả khối JS phía sau. */
+/* ── CHUÔNG THÔNG BÁO ───────────────────────────────────────────────────────────────────────
+   Hộp thư là CỦA TRANG NỘI BỘ, chuông này chỉ là một cửa sổ nhìn vào. Đọc ở đây thì bên kia
+   cũng hết đỏ, và ngược lại — xem khối đầu `class-vhcc-chuong.php`. */
+
+function veChuong(co, dem){
+	/* Chưa cài plugin Nội bộ thì GIẤU HẲN cái chuông, không treo một cái rỗng đời đời không
+	   bao giờ kêu. Trang Nội bộ cũng làm đúng thế ở `VHNB_Trang`. */
+	hien('oChuong', !!co);
+	veDemChuong(dem);
+}
+
+function veDemChuong(dem){
+	var d = el('demChuong');
+	var chu = (dem === null || dem === undefined) ? '' : String(dem);
+	d.textContent = chu;
+	hien('demChuong', '' !== chu);
+}
+
+function moChuong(){
+	hien('mChuong', true);
+	napChuong();
+}
+
+function napChuong(){
+	el('dsTin').innerHTML = '<p class="trong">Đang tải…</p>';
+	goi('chuong', { token: token() })
+		.then(function(j){
+			if(!j || !j.ok){
+				el('dsTin').innerHTML = '<p class="trong">' + esc((j&&j.error)||'Không đọc được.') + '</p>';
+				return;
+			}
+			veDemChuong(j.dem);
+			veDsTin(j.ds || []);
+		})
+		.catch(function(){
+			el('dsTin').innerHTML = '<p class="trong">Mất mạng — thử lại sau.</p>';
+		});
+}
+
+function veDsTin(ds){
+	if(!ds.length){
+		el('dsTin').innerHTML = '<p class="trong">Chưa có thông báo nào.</p>';
+		return;
+	}
+	var h = '', i;
+	for(i = 0; i < ds.length; i++){
+		var t = ds[i];
+		var chu = t.chu || '';
+		/* Gộp khoá: 3 người bình luận cùng một bài thì `soLan` = 3. Nói ra con số chứ không
+		   đẻ ba dòng — xem khối "GỘP THEO khoa" ở `class-vhnb-bao.php`. */
+		if((t.soLan || 1) > 1){ chu += ' (' + t.soLan + ' lượt)'; }
+		h += '<button class="tin' + (t.daDoc ? '' : ' moi') + '" data-id="' + esc(t.id)
+			+ '" data-di="' + esc(t.duongDan || '') + '">'
+			+ esc(chu)
+			+ '<span class="luc">' + esc(gioNgan(t.luc)) + '</span>'
+			+ '</button>';
+	}
+	el('dsTin').innerHTML = h;
+
+	/* Gắn thẳng vào từng nút, đúng lối các bảng khác trong tệp này (xem `bangCongCH`,
+	   `dsNgay`). innerHTML thay hẳn nút cũ nên listener cũ đi theo nút cũ, không tồn đọng. */
+	var nt = el('dsTin').querySelectorAll('.tin');
+	for(i = 0; i < nt.length; i++){
+		nt[i].addEventListener('click', function(){
+			docTin(this.getAttribute('data-id'), this.getAttribute('data-di'));
+		});
+	}
+}
+
+/* '2026-09-17 14:05:00' -> '17/09 14:05'. Cắt chuỗi chứ KHÔNG `new Date(chuỗi)`: Safari trả
+   `Invalid Date` cho dạng có dấu cách, và lỗi ấy chỉ lộ ra trên iPhone. */
+function gioNgan(s){
+	var t = String(s || '');
+	if(t.length < 16){ return t; }
+	return t.slice(8,10) + '/' + t.slice(5,7) + ' ' + t.slice(11,16);
+}
+
+/* Bấm vào một tin: đánh dấu đã đọc, rồi mở đường dẫn nếu có.
+   ⚠️ Đường dẫn của Nội bộ là đường TRONG trang Nội bộ. Mở ở TAB MỚI chứ không điều hướng cả
+      trạm sang đó — đang chấm công dở mà bị đá đi là mất lượt chấm, và lúc quay lại phải gõ
+      PIN từ đầu. */
+function docTin(id, di){
+	goi('chuongdoc', { token: token(), id: id })
+		.then(function(j){ if(j && j.ok){ veDemChuong(j.dem); } })
+		.catch(function(){});
+	napChuong();
+	if(di){ window.open(di, '_blank', 'noopener'); }
+}
+
+el('btChuong').addEventListener('click', moChuong);
+el('btDongChuong').addEventListener('click', function(){ hien('mChuong', false); });
+
+el('btDocHet').addEventListener('click', function(){
+	goi('chuongdoc', { token: token(), id: 0 })
+		.then(function(j){ if(j && j.ok){ veDemChuong(j.dem); } napChuong(); })
+		.catch(function(){});
+});
+
+/* Quay lại trang sau khi đi đâu đó thì hỏi lại con số. Không có nhịp hỏi định kỳ: trạm mở cả
+   ngày trên máy quầy, hỏi mỗi phút là 480 lượt gọi một ngày cho một con số hiếm khi đổi. */
+document.addEventListener('visibilitychange', function(){
+	if(document.hidden || el('oChuong').classList.contains('an')){ return; }
+	goi('chuong', { token: token() })
+		.then(function(j){ if(j && j.ok){ veDemChuong(j.dem); } })
+		.catch(function(){});
+});
+
 function moMan(ten){
 	if('mThemNv' === ten){ moThemNv(); }
 	if('mPhieu'  === ten){ moPhieu(); }

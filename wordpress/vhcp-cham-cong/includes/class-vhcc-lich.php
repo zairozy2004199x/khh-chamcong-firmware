@@ -351,12 +351,19 @@ class VHCC_Lich {
 		   rồi không biết được duyệt hay chưa, phải mở app hỏi lại mấy lần trong ngày.
 		   ⚠️ Không để lượt gửi làm hỏng lượt duyệt: `class_exists` vì plugin có thể chạy với
 		      tệp push bị gỡ, và duyệt lịch thì quan trọng hơn thông báo. */
-		if ( class_exists( 'VHCC_Push' ) ) {
-			VHCC_Push::gui(
-				$r['ma_nv'],
-				$dong_y ? 'Đổi lịch được duyệt' : 'Đổi lịch bị từ chối',
-				'Ngày ' . $r['ngay'] . ( $dong_y ? ' đã được duyệt.' : ' không được duyệt.' )
-			);
+		$chu = 'Đổi lịch ngày ' . $r['ngay'] . ( $dong_y ? ' đã được duyệt.' : ' không được duyệt.' );
+
+		/* ⚠️ MỘT TIN, MỘT ĐƯỜNG ĐI. Từ 17/09/2026 chuông Nội bộ tự đẩy ra điện thoại (xem
+		   `VHCC_Push::nghe_bao()`), nên đi qua chuông là được CẢ HAI: dòng trong chuông để
+		   đọc lại, và tiếng rung trên máy. Gọi thêm `VHCC_Push::gui()` ở đây nữa là rung hai
+		   cái cho cùng một việc.
+		   Chưa cài Nội bộ thì mới đẩy thẳng — mất dòng chuông, tiếng rung vẫn còn. */
+		if ( class_exists( 'VHNB_Bao' ) && method_exists( 'VHNB_Bao', 'gui' ) ) {
+			VHNB_Bao::gui( $r['ma_nv'], 'cham_cong', $chu, '', 'cc_lich:' . (int) $r['id'],
+				isset( $u['ma_nv'] ) ? (string) $u['ma_nv'] : '' );
+		} elseif ( class_exists( 'VHCC_Push' ) && method_exists( 'VHCC_Push', 'gui' ) ) {
+			VHCC_Push::gui( $r['ma_nv'],
+				$dong_y ? 'Đổi lịch được duyệt' : 'Đổi lịch bị từ chối', $chu );
 		}
 
 		return array( 'ok' => true, 'trangThai' => $dong_y ? self::DA_DUYET : self::TU_CHOI );

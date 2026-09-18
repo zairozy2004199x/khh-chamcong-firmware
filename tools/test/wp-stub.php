@@ -117,11 +117,27 @@ $GLOBALS['VHCP_MOC']   = array();   // hook => danh sách callback
 $GLOBALS['VHCP_LUAT']  = array();   // luật đường dẫn đã gài
 $GLOBALS['VHCP_QVAR']  = array();
 $GLOBALS['VHCP_MA_HTTP'] = 0;
+$GLOBALS['VHCP_CRON'] = array();
 function add_action( $h, $cb, $uu = 10, $n = 1 ) { $GLOBALS['VHCP_MOC'][ $h ][] = array( $cb, $uu ); return true; }
 function add_filter( $h, $cb, $uu = 10, $n = 1 ) { $GLOBALS['VHCP_MOC'][ $h ][] = array( $cb, $uu ); return true; }
 function remove_action( $h, $cb, $uu = 10 ) { $GLOBALS['VHCP_MOC'][ '-' . $h ][] = array( $cb, $uu ); return true; }
 function remove_filter( $h, $cb, $uu = 10 ) { $GLOBALS['VHCP_MOC'][ '-' . $h ][] = array( $cb, $uu ); return true; }
 function apply_filters( $h, $v ) { return $v; }
+/* Lịch cron. Giữ trong một mảng thật chứ không trả bừa `false`/`true`: `init()` của mấy lớp
+   gọi `wp_next_scheduled()` rồi mới `wp_schedule_event()`, và bài kiểm nào nạp `init()` hai
+   lần mà stub luôn nói "chưa xếp" thì xếp chồng hai lượt — đúng cái lỗi ngoài đời. */
+function wp_next_scheduled( $h, $args = array() ) {
+	return isset( $GLOBALS['VHCP_CRON'][ $h ] ) ? $GLOBALS['VHCP_CRON'][ $h ] : false;
+}
+function wp_schedule_event( $khi, $nhip, $h, $args = array() ) {
+	if ( isset( $GLOBALS['VHCP_CRON'][ $h ] ) ) { return false; }
+	$GLOBALS['VHCP_CRON'][ $h ] = (int) $khi;
+	return true;
+}
+function wp_clear_scheduled_hook( $h, $args = array() ) {
+	unset( $GLOBALS['VHCP_CRON'][ $h ] );
+	return 1;
+}
 /* 🔴 `do_action` PHẢI GỌI THẬT CÁC TAI NGHE. Trước đây nó trả `null` và không làm gì — nên mọi
    đường đi qua móc (plugin này bắn, plugin kia nghe) đều XANH OAN: bỏ hẳn `add_action` đi bài
    kiểm vẫn không đỏ. Bắt được lúc dựng đường đẩy cơ sở từ plugin Ghế sang (08/09/2026).

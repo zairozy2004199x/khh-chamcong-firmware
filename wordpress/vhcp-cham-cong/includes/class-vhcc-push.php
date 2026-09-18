@@ -58,6 +58,9 @@ class VHCC_Push {
 
 	public static function init() {
 		add_action( 'vhcc_push_nhac', array( __CLASS__, 'chay_nhac' ) );
+		/* Nghe chuông của trang Nội bộ. Xem khối cảnh báo ở `nghe_bao()` trước khi sửa. */
+		add_action( 'vhnb_bao_moi', array( __CLASS__, 'nghe_bao' ), 10, 5 );
+		add_action( 'shutdown', array( __CLASS__, 'xa_so' ) );
 		if ( ! wp_next_scheduled( 'vhcc_push_nhac' ) ) {
 			/* 5 phút một lượt: nhắc chấm công trễ 15 phút mà quét 15 phút một lần thì có người
 			   nhận lúc trễ 29 phút. Lượt quét chỉ là một câu đếm trên bảng chấm công. */
@@ -309,6 +312,85 @@ class VHCC_Push {
 			}
 		}
 		return $xong;
+	}
+
+	// ==================================================================== nghe chuông Nội bộ
+
+	/**
+	 * Sổ tin chờ đẩy của LƯỢT YÊU CẦU NÀY. Khoá là id dòng chuông, nên một tin gộp khoá được
+	 * ghi hai lần trong cùng lượt thì điện thoại vẫn chỉ rung một cái.
+	 */
+	private static $so = array();
+
+	/**
+	 * CÓ TIN MỚI Ở CHUÔNG NỘI BỘ → GHI VÀO SỔ, CHƯA GỬI.
+	 *
+	 * Anh Thắng 17/09/2026 chốt: *"mỗi tin chuông đẩy luôn ra điện thoại"*.
+	 *
+	 * =========================================================================================
+	 * 🔴 TUYỆT ĐỐI KHÔNG GỬI NGAY TẠI ĐÂY
+	 * =========================================================================================
+	 * Cửa `vhnb_bao_moi` kêu GIỮA LƯỢT VẼ TRANG: đúng lúc cửa hàng trưởng vừa bấm Duyệt, đúng
+	 * lúc ai đó vừa bình luận một bài. Còn `gui()` ở dưới là mấy lượt `wp_remote_post` ra máy
+	 * chủ của Apple/Google, mỗi lượt chờ tới 8 giây khi địa chỉ đã chết (mà địa chỉ chết là
+	 * chuyện thường: gỡ app, xoá khỏi màn hình chính). Gửi tại đây là nút Duyệt đứng hình 8
+	 * giây rồi 16 giây, và người ta bấm lại lần nữa vì tưởng máy treo.
+	 *
+	 * Nên ở đây chỉ ghi một dòng vào bộ nhớ. `xa_so()` gửi lúc `shutdown`, khi trang đã trả về
+	 * xong — người bấm không phải chờ một giây nào.
+	 *
+	 * ⚠️ `$chu` LÀ CÂU CỦA BÊN GỬI, KHÔNG DIỄN GIẢI LẠI. Bên chấm công viết "Cửa hàng trưởng
+	 *    sửa giờ công ngày 17/09 của bạn"; ghép thêm chữ ở đây là hai nơi cùng viết một câu và
+	 *    sẽ lệch nhau. Chỗ này chỉ thêm một TIÊU ĐỀ ngắn theo `$nguon` để trên màn hình khoá
+	 *    nhìn phát biết là việc gì.
+	 */
+	public static function nghe_bao( $ma_nv, $chu, $duong_dan = '', $nguon = '', $id = 0 ) {
+		$ma_nv = trim( (string) $ma_nv );
+		$chu   = trim( (string) $chu );
+		if ( '' === $ma_nv || '' === $chu ) { return; }
+
+		$khoa = ( (int) $id > 0 ) ? (string) (int) $id : ( $ma_nv . '|' . md5( $chu ) );
+		self::$so[ $khoa ] = array(
+			'ma_nv'     => $ma_nv,
+			'tieu_de'   => self::ten_nguon( (string) $nguon ),
+			'than'      => $chu,
+			'duong_dan' => (string) $duong_dan,
+		);
+	}
+
+	/** Tiêu đề ngắn hiện trên màn hình khoá. Nguồn lạ thì về tên chung, không để trống. */
+	private static function ten_nguon( $nguon ) {
+		$ten = array(
+			'cham_cong' => 'Chấm công',
+			'chi_phi'   => 'Chi phí',
+			'noi_bo'    => 'Nội bộ',
+			'ghe'       => 'Ghế',
+			've'        => 'Vé',
+		);
+		$n = strtolower( trim( (string) $nguon ) );
+		return isset( $ten[ $n ] ) ? $ten[ $n ] : 'K&H';
+	}
+
+	/**
+	 * GỬI HẾT SỔ, SAU KHI TRANG ĐÃ TRẢ VỀ.
+	 *
+	 * ⚠️ `fastcgi_finish_request()` đóng kết nối với trình duyệt trước rồi mới gửi. Không có
+	 *    hàm ấy (php-fpm tắt, hoặc chạy mod_php) thì vẫn gửi, chỉ là người bấm chờ thêm — vẫn
+	 *    hơn mất thông báo. Gọi ở `shutdown` nên không có gì đang chờ in ra nữa.
+	 *
+	 * ⚠️ XOÁ SỔ TRƯỚC KHI GỬI. `gui()` có thể chạm vào thứ lại bắn `vhnb_bao_moi` một lần nữa;
+	 *    không xoá trước là quay vòng ngay trong lượt shutdown, và lỗi ấy không để lại dấu gì.
+	 */
+	public static function xa_so() {
+		if ( empty( self::$so ) ) { return; }
+		$so = self::$so;
+		self::$so = array();
+
+		if ( function_exists( 'fastcgi_finish_request' ) ) { fastcgi_finish_request(); }
+
+		foreach ( $so as $t ) {
+			self::gui( $t['ma_nv'], $t['tieu_de'], $t['than'], $t['duong_dan'] );
+		}
 	}
 
 	/** Một lượt POST rỗng tới máy chủ đẩy. Trả true khi nó nhận (201/200/202). */

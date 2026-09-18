@@ -3,7 +3,7 @@
  * Plugin Name:       Chấm Công (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Hệ thống chấm công chạy THẲNG trên host: máy chấm công, hàng đợi lệnh, cập nhật firmware và toàn bộ nghiệp vụ đều nằm trên MySQL của chính website. Không Firebase, không Google Sheet.
- * Version:           4.41.0
+ * Version:           4.42.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -34,7 +34,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHCC_VERSION', '4.41.0' );
+define( 'VHCC_VERSION', '4.42.0' );
 define( 'VHCC_FILE', __FILE__ );
 define( 'VHCC_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHCC_URL', plugin_dir_url( __FILE__ ) );
@@ -93,6 +93,7 @@ require_once VHCC_DIR . 'includes/class-vhcc-pwa.php';
 /* Thông báo đẩy. Nạp SAU class-vhcc-pwa.php: nút bật thông báo chỉ có nghĩa khi trang đã
    cài được lên màn hình chính, và worker phát ra từ đó là chỗ nhận tiếng gõ cửa. */
 require_once VHCC_DIR . 'includes/class-vhcc-push.php';
+require_once VHCC_DIR . 'includes/class-vhcc-chuong.php';
 require_once VHCC_DIR . 'includes/class-vhcc-web.php';
 /* Màn Máy & Firmware của trang web. Tách tệp riêng vì class-vhcc-web.php đã ~4500 dòng —
    dồn thêm một màn 400 dòng vào đó là không ai đọc lại được. */
@@ -130,6 +131,17 @@ register_activation_hook( __FILE__, array( 'VHCC_DB', 'install' ) );
    với plugin Vận Hành Chi Phí (cùng một option), nên khai một lần là cả hai trang cùng thấy
    bản mới. Chưa khai thì nó im lặng không làm gì. */
 VHCC_TuCapNhat::init();
+
+/* 🔴 17/09/2026 — LỚP PUSH TRƯỚC NAY CHƯA HỀ ĐƯỢC KHỞI ĐỘNG. `VHCC_Push::init()` có từ lúc
+   làm thông báo đẩy nhưng KHÔNG CÓ CHỖ NÀO GỌI, nên hai thứ trong đó chưa từng chạy trên
+   máy thật: nhịp `vhcc_5phut` không được khai, và lượt quét "ai vào rồi mà chưa ra" không
+   được xếp lịch. Không có gì báo, vì thiếu một lời nhắc thì trông y hệt như không ai quên
+   chấm ra. Phát hiện ra lúc treo chuông lên trạm — cửa `vhnb_bao_moi` cũng đăng ký trong
+   `init()`, và nó im ru.
+
+   ⚠️ ĐỂ Ở ĐÂY, KHÔNG BỌC TRONG `plugins_loaded`. `init()` chỉ khai mấy cái móc; gọi muộn hơn
+      thì `vhnb_bao_moi` có thể bắn trước khi người nghe kịp ngồi vào chỗ. */
+VHCC_Push::init();
 
 add_action( 'plugins_loaded', 'vhcc_maybe_upgrade' );
 function vhcc_maybe_upgrade() {

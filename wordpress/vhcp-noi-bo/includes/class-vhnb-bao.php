@@ -92,6 +92,7 @@ class VHNB_Bao {
 				'da_doc'    => 0,
 				'tao_luc'   => current_time( 'mysql' ),
 			), array( 'id' => (int) $cu['id'] ) );
+			self::keu( (int) $cu['id'], $ma_nv, $nguon, $chu, (string) $duong_dan );
 			return (int) $cu['id'];
 		}
 
@@ -105,7 +106,41 @@ class VHNB_Bao {
 			'da_doc'    => 0,
 			'tao_luc'   => current_time( 'mysql' ),
 		) );
-		return ( false === $ok ) ? false : (int) $wpdb->insert_id;
+		if ( false === $ok ) { return false; }
+		$id = (int) $wpdb->insert_id;
+		self::keu( $id, $ma_nv, $nguon, $chu, (string) $duong_dan );
+		return $id;
+	}
+
+	/**
+	 * CỬA RA — báo cho bên nào muốn biết là vừa có tin mới.
+	 *
+	 * =========================================================================================
+	 * 🔴 CỬA NÀY LÀ CHIỀU NGƯỢC CỦA `gui()`, VÀ ĐÓ LÀ CHỦ Ý
+	 * =========================================================================================
+	 * `gui()` là cửa NHẬN: bên nào có tin thì tự gọi vào, nội bộ không phải biết plugin kia là
+	 * cái gì. `keu()` là cửa RA của cùng một triết lý: bên nào muốn biết "có tin mới" thì tự
+	 * đăng ký nghe, nội bộ không phải biết bên ấy làm gì với tin đó.
+	 *
+	 * Người nghe đầu tiên là `VHCC_Push` bên chấm công — nó đẩy một tiếng gõ cửa ra điện thoại.
+	 * Nội bộ KHÔNG gọi thẳng `VHCC_Push::gui()`: làm thế là nội bộ phải biết chấm công có thông
+	 * báo đẩy, và gỡ plugin chấm công ra là vỡ chỗ này.
+	 *
+	 * ⚠️ NGƯỜI NGHE KHÔNG ĐƯỢC LÀM CHẬM LƯỢT VẼ TRANG. Đẩy thông báo là mấy lượt HTTP ra máy
+	 *    chủ của Apple/Google, mỗi lượt chờ tới 8 giây nếu địa chỉ chết. Nghe xong mà gửi ngay
+	 *    tại đây thì một cú bấm Duyệt đứng hình 8 giây. Nên `VHCC_Push` chỉ GHI VÀO SỔ ở đây
+	 *    rồi gửi lúc `shutdown`, sau khi trang đã trả về. Ai viết người nghe mới thì theo đúng
+	 *    lối ấy — xem khối cảnh báo ở `VHCC_Push::nghe_bao()`.
+	 *
+	 * @param int    $id        id dòng vừa ghi.
+	 * @param string $ma_nv     người nhận.
+	 * @param string $nguon     'cham_cong' · 'chi_phi' … — người nghe lọc theo cái này.
+	 * @param string $chu       câu đã viết sẵn. KHÔNG diễn giải lại ở người nghe.
+	 * @param string $duong_dan bấm vào thì đi đâu.
+	 */
+	private static function keu( $id, $ma_nv, $nguon, $chu, $duong_dan ) {
+		do_action( 'vhnb_bao_moi', (string) $ma_nv, (string) $chu, (string) $duong_dan,
+			(string) $nguon, (int) $id );
 	}
 
 	/**

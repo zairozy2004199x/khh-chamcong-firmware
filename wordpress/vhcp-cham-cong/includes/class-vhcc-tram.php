@@ -346,6 +346,11 @@ class VHCC_Tram {
 				$tt['qtUrl'] = VHCC_Web::url();
 				$tt['vaiTen'] = VHCC_Vai::ten( $u );
 			}
+			/* Số chuông đi KÈM lượt `toi`, không phải một lượt gọi riêng. Gọi riêng thì lúc
+			   vừa đăng nhập xong chuông trắng mấy trăm mili-giây rồi mới nhảy số — nhìn như
+			   trang bị giật, và ai bấm nhanh thì bấm vào cái chuông đang nói dối là rỗng. */
+			$tt['chuongCo']  = VHCC_Chuong::co();
+			$tt['chuongDem'] = VHCC_Chuong::dem( $u );
 			self::ra( $tt );
 		}
 
@@ -363,6 +368,19 @@ class VHCC_Tram {
 		if ( 'push_huy' === $viec ) {
 			$b = self::than();
 			self::ra( VHCC_Push::huy( isset( $b['endpoint'] ) ? (string) $b['endpoint'] : '' ) );
+		}
+
+		/* ============ CHUÔNG THÔNG BÁO ============
+		   Hai đầu nối này KHÔNG nhận mã NV từ thân yêu cầu — `VHCC_Chuong` lấy mã từ `$u`,
+		   tức từ thẻ phiên do máy chủ cấp. Nhận từ thân là gửi lên mã người khác thì đọc được
+		   hộp thư người ta. Xem khối cảnh báo ở đầu `class-vhcc-chuong.php`. */
+		if ( 'chuong' === $viec ) {
+			self::ra( VHCC_Chuong::ds( $u ) );
+		}
+
+		if ( 'chuongdoc' === $viec ) {
+			$b = self::than();
+			self::ra( VHCC_Chuong::doc( $u, isset( $b['id'] ) ? (int) $b['id'] : 0 ) );
 		}
 
 		if ( 'hoso' === $viec ) {
