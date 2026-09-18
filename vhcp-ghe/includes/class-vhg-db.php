@@ -203,6 +203,8 @@ class VHG_DB {
 			moc_chiso BIGINT(20) NULL,
 			moc_chiso_ngay DATE NULL,
 			an TINYINT(1) NOT NULL DEFAULT 0,
+			an_luc DATETIME NULL,
+			an_ai VARCHAR(190) NOT NULL DEFAULT '',
 			PRIMARY KEY  (id),
 			UNIQUE KEY ma (ma),
 			KEY mac (mac),

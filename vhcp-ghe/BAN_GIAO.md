@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-09-18 · Phiên bản hiện tại: **2.110.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-09-18 · Phiên bản hiện tại: **2.111.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,31 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v2.111.0 — Ghế ẩn: nói ra ở màn nhập · để lại dấu vết · chuyển cơ sở là gỡ cờ ẩn
+
+**Ca thật (18/09/2026).** Báo cáo 17/09 của **CGV Vincom Xuân Khánh** do Phan Như Hạnh nộp chỉ có
+**1 ghế (CGV-CT-02)** trong khi cơ sở có 2. Ghế **80111 / CGV-CT-01** mang cờ `an` từ 13/09 ("chỉ
+số trước 215, ngày 13/09" = lần cuối nó có mặt trong một báo cáo). Ghế KHÔNG hề bị chuyển cơ sở —
+tra mã ra đúng cơ sở, `đang dùng`. Nó hiện/mất theo luật ghế ẩn đổi qua từng bản: ≤2.106 lọc sạch
+→ 2.107 hiện lại kèm nhãn "đang ẩn" → **2.108 ẩn hẳn** (đúng yêu cầu, nhưng không còn dấu vết nào).
+
+Ba việc, đều nhắm vào cùng một thứ: **giấu một dòng nhập mà không nói tại sao giấu**.
+
+1. **Màn nhập NÓI RA.** `ds_ghe()` nhận thêm tham chiếu `$an_bo` gom ghế vừa bị giấu; `boot()` gửi
+   xuống `gheAn`; chọn cơ sở xong hiện dải cam: *"Cơ sở này còn N ghế KHÔNG hiện ở bảng vì đang
+   đánh dấu đã dọn/điều chuyển: …"*. Không dựng lại dòng nhập cho ghế ẩn (ghế ẩn vẫn ẩn), chỉ đếm
+   và gọi tên để người nộp hỏi lại trước khi ký.
+2. **Dấu vết trên chính dòng ghế.** Thêm `may.an_luc` + `may.an_ai`; `dat_an`/`dat_an_lo`/`xoa_may`
+   /`dat_coso`/`dat_coso_lo` đều ghi "ai bấm, lúc nào", router truyền `$ai['name']`. Màn **Tìm ghế**
+   in ngay dưới trạng thái. ⚠️ KHÔNG dựa vào bảng `nhat_ky`: nó chỉ giữ 500 dòng và bị log tiền vào
+   đẩy trôi trong ngày — đúng lúc cần thì không còn.
+3. **Chuyển cơ sở là gỡ cờ ẩn.** `dat_coso`/`dat_coso_lo` đặt `an=0` và báo rõ "đã hiện lại". Trước
+   đây đổi Địa điểm không đụng cờ `an`, nên ghế ẩn ở cơ sở A chuyển sang B vẫn vô hình với nhân
+   viên B, trong khi màn quản trị hiện nó nằm đúng cơ sở B.
+
+Bài kiểm `tools/test/kiem-ghe-an-dau-vet.js` canh cả ba luật (20 phép).
+
 
 ### v2.110.0 — Tắt hẳn tự vẽ lại cả trang · Bảng chéo có khung cuộn riêng, hàng ngày dính đầu
 

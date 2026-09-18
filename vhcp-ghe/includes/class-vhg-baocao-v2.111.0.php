@@ -60,7 +60,7 @@ class VHG_BaoCao {
 	   boot() trả nó kèm mọi phản hồi (`banBc`) — số ở góc nói tệp chính là bản nào, số này nói
 	   TỆP BÁO CÁO là bản nào. Hai số lệch nhau là bằng chứng tệp cũ còn sống. Phải tăng cùng
 	   VHG_VERSION mỗi lần sửa tệp này. */
-	const BAN = '2.110.0';
+	const BAN = '2.111.0';
 
 	public static function don_vi() { return VHG_Quy::don_vi(); }
 
@@ -169,7 +169,12 @@ class VHG_BaoCao {
 	 * 🔴 DUY NHẤT chỗ lọc cờ `may.an` (ghế đã dọn/điều chuyển — anh Thắng 29/08/2026). Trang quản
 	 * trị (bảng "Máy (ghế)", đối chiếu, kế toán…) đọc thẳng `VHG_May::ds_may()` không qua đây, nên
 	 * vẫn thấy đủ ghế kể cả đã dọn — chỉ MÀN NHÂN VIÊN NHẬP CHỈ SỐ (dùng đúng hàm này) mất ghế đó. */
-	public static function ds_ghe( $q, $hien_an = false ) {
+	/**
+	 * @param array|null $an_bo (tham chiếu) nhận DANH SÁCH GHẾ BỊ GIẤU khỏi màn nhập — xem
+	 *        khối "CẢNH BÁO THIẾU GHẾ" ở boot(). Giấu ghế mà không nói ra là cách mất tiền
+	 *        lặng lẽ nhất: nhân viên nộp báo cáo thiếu ghế mà màn hình không có gì bất thường.
+	 */
+	public static function ds_ghe( $q, $hien_an = false, &$an_bo = null ) {
 		/* MÀN NHẬP CHỈ HIỆN GHẾ SỐNG, ĐÚNG CƠ SỞ. Máy "đã dọn/điều chuyển" (`an`=1) mặc định KHÔNG
 		   bày ra đây — anh Thắng 12/09/2026: *"chuyển thông báo này vào tab Quản lý ghế"*. Việc phát
 		   hiện & xử lý (đưa về, đổi mã trùng) dồn về tab QUẢN LÝ GHẾ. Vẫn KHÔNG mất dữ liệu — ghế còn
@@ -197,6 +202,7 @@ class VHG_BaoCao {
 		   sạch rồi mới quyết được ghế ẩn nào đáng hiện, nên không gộp chung một vòng được. */
 		$trong = array();
 		$song  = array();   // squash(tên cơ sở) => số ghế KHÔNG ẩn nằm trong phạm vi PIN
+		if ( ! is_array( $an_bo ) ) { $an_bo = array(); }
 		foreach ( VHG_May::ds_may() as $m ) {
 			$coso = (string) ( isset( $m['coso_ten'] ) ? $m['coso_ten'] : '' );
 			if ( ! self::trong_pham_vi( $q, $coso, (string) $m['ma'] ) ) { continue; }
@@ -218,7 +224,16 @@ class VHG_BaoCao {
 				   → ghế ẩn vẫn giấu như cũ. */
 				$gan = ( $co_ghe && in_array( (string) $m['ma'], $q['ghe'], true ) )
 					|| ( $co_coso && isset( $q['coso_key'][ $t['key'] ] ) );
-				if ( ! $gan || $song[ $t['key'] ] > 0 ) { continue; }
+				if ( ! $gan || $song[ $t['key'] ] > 0 ) {
+					/* Ghi lại ghế vừa bị giấu để màn nhập CÓ THỂ NÓI RA (xem gheAn ở boot).
+					   Ghế 80111 nằm im ở cờ ẩn từ 13/09 mà không màn nào hé một chữ; người ta
+					   nộp báo cáo 1 ghế cho một cơ sở 2 ghế suốt mấy ngày, không ai biết. */
+					$an_bo[] = array(
+						'ma'   => (string) $m['ma'],
+						'ten'  => (string) ( '' !== (string) $m['ten_khai'] ? $m['ten_khai'] : $m['ma'] ),
+						'coso' => $coso );
+					continue;
+				}
 			}
 			$ra[] = array(
 				'ma'   => (string) $m['ma'],
@@ -768,7 +783,8 @@ class VHG_BaoCao {
 	 */
 	private static function pham_vi_man_( $q, $la_admin = false ) {
 			$hien_an    = $la_admin;
-			$ghe = self::ds_ghe( $q, $hien_an );
+			$an_bo = array();
+			$ghe = self::ds_ghe( $q, $hien_an, $an_bo );
 			$cs = array();
 			foreach ( $ghe as $g ) { if ( '' !== $g['coso'] ) { $cs[ $g['coso'] ] = true; } }
 			/* 🔴 CƠ SỞ ĐƯỢC GÁN LUÔN HIỆN TRONG Ô CHỌN — kể cả khi ghế bị ẩn hết. Anh Thắng 15/09/2026:
@@ -815,14 +831,15 @@ class VHG_BaoCao {
 						$q['coso'] = array_values( array_unique( $q['coso'] ) );
 						$q['ghe']  = array_values( array_unique( $q['ghe'] ) );
 						$toan_quyen = false;
-						$ghe = self::ds_ghe( $q, $hien_an );
+						$an_bo = array();
+						$ghe = self::ds_ghe( $q, $hien_an, $an_bo );
 						$cs = array();
 						foreach ( $ghe as $g ) { if ( '' !== $g['coso'] ) { $cs[ $g['coso'] ] = true; } }
 						foreach ( (array) $q['coso'] as $c ) { $c = trim( (string) $c ); if ( '' !== $c ) { $cs[ $c ] = true; } }
 					}
 				}
 			}
-		return array( 'q' => $q, 'ghe' => $ghe, 'cs' => $cs,
+		return array( 'q' => $q, 'ghe' => $ghe, 'cs' => $cs, 'an_bo' => $an_bo,
 			'toan_quyen' => ( empty( $q['coso_key'] ) && empty( $q['ghe'] ) ) );
 	}
 
@@ -856,6 +873,7 @@ class VHG_BaoCao {
 		$q          = $pv['q'];
 		$ghe        = $pv['ghe'];
 		$cs         = $pv['cs'];
+		$ghe_an     = isset( $pv['an_bo'] ) ? (array) $pv['an_bo'] : array();
 		$toan_quyen = $pv['toan_quyen'];
 		$khoa = $wpdb->get_results( 'SELECT coso, ngay FROM ' . VHG_DB::t( 'bc_khoa' ), ARRAY_A );
 		$khoa_loc = array();
@@ -908,6 +926,10 @@ class VHG_BaoCao {
 			'today' => current_time( 'Y-m-d' ), 'don_vi' => self::don_vi(),
 			'coso' => array_keys( $cs ), 'ghe' => $ghe, 'khoa' => $khoa_loc,
 			'resetCoso' => $reset_cs, 'toanQuyen' => $toan_quyen ? 1 : 0, 'nhanSu' => $nhan_su,
+			/* 🔴 GHẾ ĐANG BỊ GIẤU của chính các cơ sở người này phụ trách — màn nhập phải NÓI RA.
+			   Không phải để nhập (ghế ẩn vẫn không có dòng nhập), mà để người nộp biết cơ sở
+			   mình có 2 ghế trong khi bảng chỉ có 1, và hỏi lại trước khi nộp. */
+			'gheAn' => $ghe_an,
 			'chamCongUrl' => self::cham_cong_url(),
 			'trangChuUrl' => home_url( '/' ),
 			'banBc' => self::BAN );   // vân tay tệp báo cáo — xem const BAN

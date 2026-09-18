@@ -1351,7 +1351,7 @@ class VHG_May {
 			'thong_bao' => '💾 Đã lưu ' . $xong . ' ghế.' . ( $loi ? ( ' ⚠ ' . count( $loi ) . ' dòng lỗi.' ) : '' ) );
 	}
 
-	public static function dat_coso( $ma, $coso_id ) {
+	public static function dat_coso( $ma, $coso_id, $ai = '' ) {
 		global $wpdb;
 		$ma = trim( (string) $ma );
 		if ( '' === $ma ) { return array( 'ok' => false, 'error' => 'Thiếu mã ghế.' ); }
@@ -1360,10 +1360,22 @@ class VHG_May {
 		if ( (int) $coso_id <= 0 ) {
 			return array( 'ok' => false, 'error' => 'Chưa chọn cơ sở đích — không đổi (để tránh ghế thành "chưa gán", mất khỏi màn nhập).' );
 		}
-		$wpdb->update( VHG_DB::t( 'may' ),
-			array( 'coso_id' => (int) $coso_id, 'cap_nhat' => current_time( 'mysql' ) ),
-			array( 'ma' => $ma ) );
-		return array( 'ok' => true, 'thong_bao' => 'Đã chuyển cơ sở cho ghế ' . $ma . '.' );
+		/* 🔴 CHUYỂN GHẾ SANG MỘT CƠ SỞ THÌ GỠ LUÔN CỜ ẨN — anh Thắng 18/09/2026.
+		   Trước đây `dat_coso()` chỉ ghi `coso_id`; cờ `an` chỉ gỡ được bằng một nút KHÁC ("Đưa
+		   về"). Nên có một đường đi lặng lẽ: ghế bị ẩn ở cơ sở A → ai đó đổi Địa điểm sang B →
+		   sang B rồi mà vẫn `an=1` → nhân viên ở B không bao giờ thấy, trong khi màn quản trị
+		   hiện nó nằm đúng cơ sở B. Chuyển ghế về một nơi tức là định DÙNG nó ở đó; bắt người ta
+		   nhớ bấm thêm một nút nữa mới thấy ghế là một cái bẫy, không phải một bước. */
+		$hien_lai = (int) $wpdb->get_var( $wpdb->prepare(
+			'SELECT an FROM ' . VHG_DB::t( 'may' ) . ' WHERE ma=%s LIMIT 1', $ma ) ) === 1;
+		$dat = array( 'coso_id' => (int) $coso_id, 'cap_nhat' => current_time( 'mysql' ), 'an' => 0 );
+		if ( $hien_lai ) {
+			$dat['an_luc'] = current_time( 'mysql' );
+			$dat['an_ai']  = mb_substr( (string) $ai, 0, 190 );
+		}
+		$wpdb->update( VHG_DB::t( 'may' ), $dat, array( 'ma' => $ma ) );
+		return array( 'ok' => true, 'thong_bao' => 'Đã chuyển cơ sở cho ghế ' . $ma . '.'
+			. ( $hien_lai ? ' Ghế đang bị ẩn nên đã HIỆN LẠI luôn ở màn thu tiền của nhân viên.' : '' ) );
 	}
 
 	/**
@@ -1491,7 +1503,7 @@ class VHG_May {
 					. 'ĐỪNG tạo lại ghế trùng mã đã xoá — nó sẽ nhặt lại toàn bộ lịch sử ấy.' ) : '' ) );
 	}
 
-	public static function xoa_may( $ma ) {
+	public static function xoa_may( $ma, $ai = '' ) {
 		global $wpdb;
 		$ma = trim( (string) $ma );
 		if ( '' === $ma ) { return array( 'ok' => false, 'error' => 'Thiếu mã ghế.' ); }
@@ -1506,7 +1518,9 @@ class VHG_May {
 		$so_thu  = (int) $wpdb->get_var( $wpdb->prepare(
 			'SELECT COUNT(*) FROM ' . VHG_DB::t( 'thu' ) . ' WHERE ma_may=%s', $ma ) );
 
-		$wpdb->update( VHG_DB::t( 'may' ), array( 'an' => 1 ), array( 'ma' => $ma ) );
+		$wpdb->update( VHG_DB::t( 'may' ), array( 'an' => 1,
+			'an_luc' => current_time( 'mysql' ), 'an_ai' => mb_substr( (string) $ai, 0, 190 ) ),
+			array( 'ma' => $ma ) );
 
 		$co_su = ( $so_dong > 0 || $so_thu > 0 );
 		return array( 'ok' => true, 'thong_bao' => 'Đã ẩn ghế ' . $ma . ' — nằm mờ trong khối '
@@ -1528,7 +1542,7 @@ class VHG_May {
 	 * ĐIỀU CHUYỂN NHIỀU GHẾ MỘT LƯỢT — tích chọn rồi ấn đi. Đánh dấu ẩn/hiện hàng loạt, KHÔNG xoá:
 	 * chỉ số, doanh thu, log của từng ghế giữ nguyên (xem `dat_an`). `$an=false` = đưa về dùng lại.
 	 */
-	public static function dat_an_lo( $ds_ma, $an ) {
+	public static function dat_an_lo( $ds_ma, $an, $ai = '' ) {
 		global $wpdb;
 		$sach = array();
 		foreach ( (array) $ds_ma as $m ) {
@@ -1539,8 +1553,9 @@ class VHG_May {
 		$bang = VHG_DB::t( 'may' );
 		$cho  = implode( ',', array_fill( 0, count( $sach ), '%s' ) );
 		$wpdb->query( $wpdb->prepare(
-			"UPDATE $bang SET an=%d WHERE ma IN ($cho)",
-			array_merge( array( $an ? 1 : 0 ), $sach ) ) );
+			"UPDATE $bang SET an=%d, an_luc=%s, an_ai=%s WHERE ma IN ($cho)",
+			array_merge( array( $an ? 1 : 0, current_time( 'mysql' ),
+				mb_substr( (string) $ai, 0, 190 ) ), $sach ) ) );
 		return array( 'ok' => true, 'so' => count( $sach ), 'thong_bao' => $an
 			? ( 'Đã điều chuyển (ẩn) ' . count( $sach ) . ' ghế — nhân viên hết thấy ở trang thu tiền. '
 				. 'Chỉ số và doanh thu cũ giữ nguyên.' )
@@ -1551,7 +1566,7 @@ class VHG_May {
 	 * ĐỔI CƠ SỞ NHIỀU GHẾ MỘT LƯỢT — cùng cách giữ chỉ số như `dat_coso`, chỉ là chuyển cả cụm sang
 	 * một cơ sở đang có trong hệ thống (khác với `dat_an_lo` là ẩn ghế đã dời khỏi hệ).
 	 */
-	public static function dat_coso_lo( $ds_ma, $coso_id ) {
+	public static function dat_coso_lo( $ds_ma, $coso_id, $ai = '' ) {
 		global $wpdb;
 		$sach = array();
 		foreach ( (array) $ds_ma as $m ) {
@@ -1566,11 +1581,16 @@ class VHG_May {
 		}
 		$bang = VHG_DB::t( 'may' );
 		$cho  = implode( ',', array_fill( 0, count( $sach ), '%s' ) );
+		/* Gỡ cờ ẩn cho cả lô — cùng lý do với dat_coso(): chuyển về một cơ sở là để dùng. */
+		$hien_lai = (int) $wpdb->get_var( $wpdb->prepare(
+			"SELECT COUNT(*) FROM $bang WHERE an=1 AND ma IN ($cho)", $sach ) );
 		$wpdb->query( $wpdb->prepare(
-			"UPDATE $bang SET coso_id=%d, cap_nhat=%s WHERE ma IN ($cho)",
-			array_merge( array( (int) $coso_id, current_time( 'mysql' ) ), $sach ) ) );
+			"UPDATE $bang SET coso_id=%d, cap_nhat=%s, an=0, an_luc=%s, an_ai=%s WHERE ma IN ($cho)",
+			array_merge( array( (int) $coso_id, current_time( 'mysql' ), current_time( 'mysql' ),
+				mb_substr( (string) $ai, 0, 190 ) ), $sach ) ) );
 		return array( 'ok' => true, 'so' => count( $sach ),
-			'thong_bao' => 'Đã đổi cơ sở cho ' . count( $sach ) . ' ghế.' );
+			'thong_bao' => 'Đã đổi cơ sở cho ' . count( $sach ) . ' ghế.'
+				. ( $hien_lai ? ( ' Trong đó ' . $hien_lai . ' ghế đang bị ẩn đã HIỆN LẠI ở màn thu tiền.' ) : '' ) );
 	}
 
 	/* ══════════════════════════════ GHẾ CẦN BẢO TRÌ (đọc/đóng/xoá) — quản trị ══════════════════
@@ -1604,11 +1624,23 @@ class VHG_May {
 		return array( 'ok' => true, 'thong_bao' => 'Đã xoá dòng báo bảo trì.' );
 	}
 
-	public static function dat_an( $ma, $an ) {
+	/**
+	 * 🔴 MỖI LẦN ĐỔI CỜ ẨN PHẢI ĐỂ LẠI DẤU VẾT (`an_luc`, `an_ai`) — anh Thắng 18/09/2026.
+	 *
+	 * Ghế 80111 nằm im ở cờ ẩn từ 13/09; cơ sở nộp báo cáo thiếu một ghế suốt mấy ngày mà không
+	 * ai truy được ai bật cờ, lúc nào. Nhật ký `nhat_ky` CÓ ghi câu chữ, nhưng nó chỉ giữ 500
+	 * dòng và bị log tiền vào đẩy trôi trong ngày — tức là đúng lúc cần thì không còn. Dấu vết
+	 * phải nằm NGAY TRÊN DÒNG GHẾ mới sống lâu bằng chính cái ghế.
+	 *
+	 * @param string $ai Ai bấm (tên người đăng nhập). Rỗng = không rõ, vẫn ghi mốc thời gian.
+	 */
+	public static function dat_an( $ma, $an, $ai = '' ) {
 		global $wpdb;
 		$ma = trim( (string) $ma );
 		if ( '' === $ma ) { return array( 'ok' => false, 'error' => 'Thiếu mã máy.' ); }
-		$wpdb->update( VHG_DB::t( 'may' ), array( 'an' => $an ? 1 : 0 ), array( 'ma' => $ma ) );
+		$wpdb->update( VHG_DB::t( 'may' ), array( 'an' => $an ? 1 : 0,
+			'an_luc' => current_time( 'mysql' ), 'an_ai' => mb_substr( (string) $ai, 0, 190 ) ),
+			array( 'ma' => $ma ) );
 		return array( 'ok' => true, 'thong_bao' => $an
 			? ( 'Đã đánh dấu ghế ' . $ma . ' ĐÃ DỌN/ĐIỀU CHUYỂN — nhân viên hết thấy ghế này ở trang '
 				. 'thu tiền. Dữ liệu cũ vẫn giữ nguyên.' )

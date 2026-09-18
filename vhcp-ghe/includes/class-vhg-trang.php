@@ -1238,7 +1238,7 @@ JS;
 			self::tra( $r ); return;
 		}
 		if ( 'may_xoa' === $viec ) {
-			$r = VHG_May::xoa_may( isset( $d['ma'] ) ? (string) $d['ma'] : '' );
+			$r = VHG_May::xoa_may( isset( $d['ma'] ) ? (string) $d['ma'] : '', $ai['name'] );
 			if ( ! empty( $r['ok'] ) ) {
 				VHG_Nhat_Ky::ghi( array( 'nguon' => 'he-thong', 'ghi_chu' =>
 					$ai['name'] . ' xoá ghế: ' . (string) ( isset( $d['ma'] ) ? $d['ma'] : '' ) ) );
@@ -1266,7 +1266,12 @@ JS;
 		}
 		if ( 'may_coso' === $viec ) {
 			$r = VHG_May::dat_coso( isset( $d['ma'] ) ? (string) $d['ma'] : '',
-				isset( $d['coso_id'] ) ? (int) $d['coso_id'] : 0 );
+				isset( $d['coso_id'] ) ? (int) $d['coso_id'] : 0, $ai['name'] );
+			if ( ! empty( $r['ok'] ) ) {
+				VHG_Nhat_Ky::ghi( array( 'nguon' => 'he-thong',
+					'ma_may' => (string) ( isset( $d['ma'] ) ? $d['ma'] : '' ),
+					'ghi_chu' => $ai['name'] . ' doi co so ghe: ' . (string) ( isset( $d['ma'] ) ? $d['ma'] : '' ) ) );
+			}
 			self::tra( $r ); return;
 		}
 		if ( 'may_nhanban' === $viec ) {
@@ -1310,7 +1315,7 @@ JS;
 				self::tra( $r ); return;
 			}
 			if ( 'may_an' === $viec ) {
-				$r = VHG_May::dat_an( isset( $d['ma'] ) ? (string) $d['ma'] : '', ! empty( $d['an'] ) );
+				$r = VHG_May::dat_an( isset( $d['ma'] ) ? (string) $d['ma'] : '', ! empty( $d['an'] ), $ai['name'] );
 				if ( ! empty( $r['ok'] ) ) {
 					VHG_Nhat_Ky::ghi( array( 'nguon' => 'he-thong', 'ghi_chu' => $ai['name']
 						. ( ! empty( $d['an'] ) ? ' dieu chuyen (an) ghe: ' : ' dua ve lai ghe: ' )
@@ -1320,7 +1325,7 @@ JS;
 			}
 			if ( 'may_an_lo' === $viec ) {
 				$ds_ma = isset( $d['ma'] ) ? (array) $d['ma'] : array();
-				$r = VHG_May::dat_an_lo( $ds_ma, ! empty( $d['an'] ) );
+				$r = VHG_May::dat_an_lo( $ds_ma, ! empty( $d['an'] ), $ai['name'] );
 				if ( ! empty( $r['ok'] ) ) {
 					VHG_Nhat_Ky::ghi( array( 'nguon' => 'he-thong', 'ghi_chu' => $ai['name']
 						. ( ! empty( $d['an'] ) ? ' dieu chuyen (an) ' : ' dua ve lai ' )
@@ -1331,7 +1336,7 @@ JS;
 			}
 			if ( 'may_coso_lo' === $viec ) {
 				$ds_ma = isset( $d['ma'] ) ? (array) $d['ma'] : array();
-				$r = VHG_May::dat_coso_lo( $ds_ma, isset( $d['coso_id'] ) ? (int) $d['coso_id'] : 0 );
+				$r = VHG_May::dat_coso_lo( $ds_ma, isset( $d['coso_id'] ) ? (int) $d['coso_id'] : 0, $ai['name'] );
 				if ( ! empty( $r['ok'] ) ) {
 					VHG_Nhat_Ky::ghi( array( 'nguon' => 'he-thong', 'ghi_chu' => $ai['name']
 						. ' doi co so ' . (int) ( isset( $r['so'] ) ? $r['so'] : 0 ) . ' ghe: '
@@ -1768,6 +1773,10 @@ JS;
 				'khoa'    => ! empty( $m['khoa'] ) ? 1 : 0,   // ghế đang KHÓA lỗi
 				'kt'      => ! empty( $m['kt'] ) ? 1 : 0,     // ghế đang chế độ KỸ THUẬT (test)
 				'an'      => ! empty( $m['an'] ) ? 1 : 0,     // ghế ĐÃ DỌN/ĐIỀU CHUYỂN nơi khác
+				/* Dấu vết lần đổi cờ ẩn gần nhất — để màn "Tìm ghế" trả lời được câu hỏi thật sự
+				   của người đi tìm: ghế này ai làm cho biến mất, lúc nào (anh Thắng 18/09/2026). */
+				'anLuc'   => (string) ( isset( $m['an_luc'] ) ? $m['an_luc'] : '' ),
+				'anAi'    => (string) ( isset( $m['an_ai'] ) ? $m['an_ai'] : '' ),
 			);
 		}
 		/* Ghế đang chờ gán mã + danh sách cơ sở: gửi kèm luôn trong lượt số liệu, không thêm
@@ -2973,6 +2982,7 @@ JS;
       var cu=document.querySelector('.bc-nhac-reset'); if(cu && cu.parentNode) cu.parentNode.removeChild(cu);
       var neo=$('bc-lock');
       if(neo && neo.parentNode) veNhacReset2(neo);
+      veNhacGheAn(neo, loc);
     })();
     body.textContent='';
     if(!ghe.length){ body.appendChild(elEmptyRow('Cơ sở này chưa có ghế.')); tinhTong(); return; }
@@ -4768,6 +4778,31 @@ JS;
   function veNhacReset2(neo){
     if(!cosoResetMoiLan()) return;
     var d=dungNhacReset();
+    if(neo.nextSibling) neo.parentNode.insertBefore(d, neo.nextSibling);
+    else neo.parentNode.appendChild(d);
+  }
+  /* 🔴 CẢNH BÁO THIẾU GHẾ — anh Thắng 18/09/2026. Ngày 17/09 cơ sở CGV Vincom Xuân Khánh nộp
+     báo cáo CHỈ CÓ 1 ghế (CGV-CT-02) trong khi cơ sở có 2: ghế 80111 đang mang cờ ẩn nên bảng
+     không vẽ dòng nào cho nó, và KHÔNG MÀN NÀO HÉ MỘT CHỮ. Người nộp thấy một bảng đủ và bình
+     thường, ký nộp; phải năm ngày sau, đối chiếu chỉ số mới lòi ra.
+     Giấu một dòng nhập thì phải nói tại sao giấu — nếu không, cái bảng trông "đủ" chính là thứ
+     nói dối. Dải này KHÔNG dựng lại dòng nhập cho ghế ẩn (ghế ẩn vẫn ẩn, đúng yêu cầu), nó chỉ
+     đếm và gọi tên, để người nộp hỏi lại trước khi ký. */
+  function dungNhacGheAn(ds){
+    var d=el('div','bc-nhac-ghean');
+    d.style.cssText='margin:8px 0;padding:9px 12px;border-radius:8px;background:#fff7ed;'
+      +'border:1px solid #fdba74;color:#7c2d12;font-size:12.5px;font-weight:600';
+    var ten=ds.map(function(g){ return (g.ten||g.ma)+' ('+g.ma+')'; }).join(', ');
+    d.textContent='⚠ Cơ sở này còn '+ds.length+' ghế KHÔNG hiện ở bảng vì đang được đánh dấu '
+      +'đã dọn/điều chuyển: '+ten+'. Nếu ghế vẫn đang chạy ở đây thì báo quản lý mở lại '
+      +'(Quản lý ghế → Đưa về) rồi hãy nộp — nộp bây giờ là báo cáo thiếu ghế.';
+    return d;
+  }
+  function veNhacGheAn(neo, loc){
+    var cu=document.querySelector('.bc-nhac-ghean'); if(cu && cu.parentNode) cu.parentNode.removeChild(cu);
+    var ds=(BC.gheAn||[]).filter(function(g){ return String(g.coso||'').trim()===String(loc).trim(); });
+    if(!ds.length || !neo || !neo.parentNode) return;
+    var d=dungNhacGheAn(ds);
     if(neo.nextSibling) neo.parentNode.insertBefore(d, neo.nextSibling);
     else neo.parentNode.appendChild(d);
   }
@@ -10345,8 +10380,14 @@ function qlTimGhe(){
   kq.forEach(function(m){
     h += '<tr><td><b>' + esc(m.ma) + '</b></td><td class="mut">' + esc(m.ten || '') + '</td>'
       + '<td>' + (m.coso ? esc(m.coso) : '<span style="color:#b45309">' + L('(chưa gán)','(unassigned)') + '</span>') + '</td>'
+      /* Kèm DẤU VẾT lần đổi cờ ẩn gần nhất. Người gõ mã vào đây hầu như luôn đang đi tìm câu
+         "sao ghế này biến mất khỏi màn nhân viên" — trả lời "đã ẩn" không thôi thì họ vẫn phải
+         đi hỏi vòng quanh xem ai bấm, lúc nào (anh Thắng 18/09/2026, ghế 80111 mất 5 ngày). */
       + '<td>' + (m.an ? '<span style="color:#dc2626">' + L('đã ẩn','hidden') + '</span>'
-                      : '<span style="color:#15803d">' + L('đang dùng','active') + '</span>') + '</td></tr>';
+                      : '<span style="color:#15803d">' + L('đang dùng','active') + '</span>')
+        + (m.anLuc ? ('<div class="mut" style="font-weight:400">' + esc(String(m.anLuc).slice(0,16))
+             + (m.anAi ? (' · ' + esc(m.anAi)) : '') + '</div>') : '')
+        + '</td></tr>';
   });
   box.innerHTML = h + '</table>';
 }
