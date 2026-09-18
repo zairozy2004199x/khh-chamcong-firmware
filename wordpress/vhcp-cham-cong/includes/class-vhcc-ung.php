@@ -284,6 +284,26 @@ class VHCC_Ung {
 			) );
 		}
 
+		/* ---- 10b. Giờ công lương -----------------------------------------------------------
+		   Anh Thắng 18/09/2026: *"Trong app chấm công online có tab Giờ Công Lương. Nhân viên sẽ
+		   thấy giờ làm mình trong ngày hoặc ngày trước và tự bấm set loại giờ làm trong những
+		   ngày đó và gửi cửa hàng trưởng duyệt. Cũng cho phép bật tắt"*.
+
+		   🔴 Ô NÀY CHỈ HIỆN Ở CƠ SỞ ĐÃ BẬT. Đang thử nghiệm từng cơ sở — bày ô ở nơi chưa bật
+		      là người ta bấm vào rồi gặp một màn chối, và đi hỏi vòng quanh. `self::o( false, … )`
+		      vẽ ô KHOÁ, còn ở đây phải không vẽ gì cả: tính năng chưa tồn tại với họ. */
+		if ( class_exists( 'VHCC_LoaiGio' ) && method_exists( 'VHCC_LoaiGio', 'bat_tab' )
+			&& VHCC_LoaiGio::bat_tab( isset( $u['coso'] ) ? $u['coso'] : '' ) ) {
+			$o[] = self::o( true, array(
+				'ten'  => 'Giờ công lương',
+				'nhom' => 'Của tôi',
+				'mo'   => 'Khai việc mình làm từng ngày — gửi cửa hàng trưởng duyệt',
+				'man'  => 'mGioLuong',
+				'icon' => '🧾',
+				'mau'  => 'luc',
+			) );
+		}
+
 		/* ---- 10. Xin bù giờ ---------------------------------------------------------------
 		   Anh Thắng 18/09/2026: *"lệnh bù giờ từ nhân viên gửi lên, CHT sẽ nhận và duyệt và đẩy
 		   tiếp lên cho kế toán"*. Nhân viên nào cũng gửi được — không gác gì thêm. */

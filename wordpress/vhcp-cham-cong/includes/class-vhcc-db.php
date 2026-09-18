@@ -403,6 +403,18 @@ class VHCC_DB {
 		 *    hai ô giữa CHÍNH LÀ hai đầu của khoảng nghỉ.
 		 *
 		 * ⚠️ NULL = ngày ấy không có ca gãy. KHÔNG dùng 0 — 0 giây là 00:00:00, một mốc có thật.
+		 *
+		 * ═══════════════════════════════════════════════════════════════════════════════════
+		 * CỘT `loai_gio` — LOẠI GIỜ LƯƠNG CỦA CHÍNH LƯỢT NÀY
+		 * ═══════════════════════════════════════════════════════════════════════════════════
+		 * Tên việc người ấy làm trong ca, do CHÍNH NGƯỜI ẤY chọn lúc kết ca — xem `VHCC_LoaiGio`
+		 * và câu của anh Thắng 18/09/2026 ghi ở đầu lớp ấy.
+		 *
+		 * ⚠️ RỖNG = CHƯA KHAI, và chưa khai thì lượt ấy thuộc về GIỜ CHÍNH. Không đoán: đoán ở
+		 *    đây là đoán ra đơn giá, tức đoán ra tiền.
+		 * ⚠️ Lưu TÊN việc (bản người gõ), không lưu khoá tra. Khoá bỏ dấu bỏ hoa thường nên in
+		 *    ra màn thành `laitau`; tên thì đọc được. Tra giá vẫn qua `VHCC_GiaGio::khoa_cv()`
+		 *    như mọi nơi khác trong hệ.
 		 * ═══════════════════════════════════════════════════════════════════════════════════ */
 		$b['cham_cong'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
@@ -421,6 +433,7 @@ class VHCC_DB {
 			nguon VARCHAR(20) NOT NULL DEFAULT '',
 			ghi_chu VARCHAR(255) NOT NULL DEFAULT '',
 			ghi_luc DATETIME NULL,
+			loai_gio VARCHAR(80) NOT NULL DEFAULT '',
 			PRIMARY KEY  (id),
 			UNIQUE KEY o (coso,ngay,ma_nv,hau_to),
 			KEY thang (coso,ngay),
@@ -1066,6 +1079,39 @@ class VHCC_DB {
 			tao_luc DATETIME NULL,
 			PRIMARY KEY  (id),
 			KEY ma_nv_luc (ma_nv,tao_luc)";
+
+		/* ===== 24. ĐƠN XIN ĐẶT / ĐỔI LOẠI GIỜ LƯƠNG ========================================
+		   Anh Thắng 18/09/2026: *"Nhân viên sẽ thấy giờ làm mình trong ngày hoặc ngày trước và
+		   tự bấm set loại giờ làm trong những ngày đó và gửi cửa hàng trưởng duyệt"*.
+
+		   🔴 VÌ SAO KHÔNG GHI THẲNG VÀO `cham_cong.loai_gio`.
+		   Loại giờ là thứ QUYẾT ĐỊNH ĐƠN GIÁ — đổi một chữ ở đây là đổi tiền của chính người
+		   gõ. Lúc KẾT CA thì ghi thẳng được: họ đang khai việc mình vừa làm xong, cửa hàng
+		   trưởng còn ở đó, và giờ ra vừa mới ghi nên không ai sửa ngược được quá khứ. Còn sửa
+		   NGÀY CŨ thì phải qua người duyệt — không thì cuối tháng ai cũng đổi hết ca của mình
+		   sang việc có đơn giá cao nhất, và bảng lương vẫn trông bình thường.
+
+		   ⚠️ Giữ `viec_cu` để còn đối chiếu. Duyệt xong mà không biết trước đó là gì thì không
+		      lần ngược được lượt nào đã đổi. */
+		$b['don_loai_gio'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			coso VARCHAR(120) NOT NULL,
+			ngay DATE NOT NULL,
+			ma_nv VARCHAR(40) NOT NULL,
+			hau_to VARCHAR(4) NOT NULL DEFAULT '',
+			ho_ten VARCHAR(190) NOT NULL DEFAULT '',
+			viec_cu VARCHAR(80) NOT NULL DEFAULT '',
+			viec VARCHAR(80) NOT NULL DEFAULT '',
+			ly_do VARCHAR(255) NOT NULL DEFAULT '',
+			trang_thai VARCHAR(20) NOT NULL DEFAULT 'cho',
+			gui_luc DATETIME NULL,
+			ma_nv_duyet VARCHAR(40) NOT NULL DEFAULT '',
+			ten_duyet VARCHAR(190) NOT NULL DEFAULT '',
+			duyet_luc DATETIME NULL,
+			ly_do_choi VARCHAR(255) NOT NULL DEFAULT '',
+			PRIMARY KEY  (id),
+			KEY cho (coso,trang_thai),
+			KEY nguoi (ma_nv,ngay)";
 
 		return $b;
 	}

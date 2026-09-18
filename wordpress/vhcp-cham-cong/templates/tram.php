@@ -963,6 +963,64 @@ a{color:var(--nhan)}
 	<button id="btDongNs" class="phu to">Đóng</button>
 </div></div>
 
+<!-- ============ MÀN GIỜ CÔNG LƯƠNG ============
+     Anh Thắng 18/09/2026: *"Nhân viên sẽ thấy giờ làm mình trong ngày hoặc ngày trước và tự bấm
+     set loại giờ làm trong những ngày đó và gửi cửa hàng trưởng duyệt"*.
+
+     🔴 HAI ĐƯỜNG KHÁC NHAU, VÀ MÀN NÀY LÀ ĐƯỜNG CHẬM. Lúc KẾT CA thì chọn xong là ghi luôn
+        (hộp `mKetCa` bên dưới). Ở đây là sửa NGÀY CŨ, nên mọi dòng đều phải qua cửa hàng trưởng
+        duyệt — loại giờ quyết định đơn giá, và sửa được quá khứ mà không ai duyệt thì cuối
+        tháng ai cũng đổi ca của mình sang việc có giá cao nhất.
+
+     ⚠️ Ô XỔ DỰNG TỪ DANH SÁCH MÁY CHỦ TRẢ VỀ, không gõ cứng trong HTML. Danh sách ấy chính là
+        mấy dòng đơn giá đã khai cho người ấy — gõ cứng là chọn được một việc không có giá. -->
+<div id="mGioLuong" class="mn an"><div class="bao">
+	<h1>Giờ công lương</h1>
+	<p class="mo">Mỗi ngày chọn <b>việc mình đã làm</b> hôm ấy. Đổi ngày cũ thì phải chờ
+		<b>cửa hàng trưởng duyệt</b> — chưa duyệt thì bảng lương vẫn giữ cái cũ.</p>
+
+	<div id="lgBao"></div>
+
+	<div class="the">
+		<label for="lgLyDo">Lý do đổi <span class="mo">(một lý do cho cả lượt gửi)</span></label>
+		<input id="lgLyDo" maxlength="250" placeholder="VD: hôm ấy tôi dẫn chương trình">
+	</div>
+
+	<div id="lgDs"><p class="trong">—</p></div>
+
+	<p></p>
+	<button id="btLgGui" class="chinh to">Gửi cửa hàng trưởng duyệt</button>
+	<p></p>
+	<button id="btDongLg" class="phu to">Đóng</button>
+</div></div>
+
+<!-- ============ HỘP HỎI LOẠI GIỜ LÚC KẾT CA ============
+     Anh Thắng 18/09/2026: *"Khi bấm check in giờ ra nó sẽ hỏi ca1,2,3 bạn làm nhiệm vụ gì. Để
+     nhân viên tự set luôn"*.
+
+     🔴 HIỆN SAU KHI GIỜ RA ĐÃ GHI XONG, KHÔNG PHẢI TRƯỚC. Chặn trước là một câu hỏi đứng giữa
+        người ta và cái nút họ tới đây để bấm — mạng chậm hay hộp lỗi là mất luôn lượt chấm.
+        Ghi giờ trước thì dù họ tắt máy ngay sau đó, công vẫn nguyên; chỉ thiếu mỗi loại giờ,
+        mà cái ấy vào tab Giờ công lương khai bù được.
+
+     ⚠️ KHÔNG CÓ NÚT "BỎ QUA" RIÊNG — nút Đóng chính là bỏ qua, và dòng chữ nói rõ bỏ qua thì
+        ra sao. Một nút "Bỏ qua" nằm cạnh nút "Lưu" là thứ người ta bấm theo phản xạ. -->
+<div id="mKetCa" class="mn an"><div class="bao">
+	<h1>Ca vừa xong, bạn làm việc gì?</h1>
+	<p class="mo" id="kcMo">Chọn đúng việc thì lương tính đúng đơn giá của việc ấy.</p>
+	<div class="the">
+		<label for="kcViec">Việc trong ca này</label>
+		<select id="kcViec"></select>
+	</div>
+	<div id="kcBao"></div>
+	<p></p>
+	<button id="btKcLuu" class="chinh to">Lưu loại giờ</button>
+	<p></p>
+	<button id="btKcBo" class="phu to">Để sau</button>
+	<p class="mo" style="font-size:12px">Để sau thì ca này chưa có loại giờ — vào
+		<b>Ứng dụng → Giờ công lương</b> khai bù, nhưng lúc ấy phải chờ cửa hàng trưởng duyệt.</p>
+</div></div>
+
 <!-- ============ MÀN THÊM NHÂN SỰ ============
      🔴 MỘT TÍNH NĂNG RIÊNG, KHÔNG PHẢI MỘT KHỐI DƯỚI ĐÁY TAB. Anh Thắng 17/09/2026: *"Chuyển
         sang thêm nhân sự là 1 tính năng"*, kèm ảnh khoanh đúng ô trống trong lưới Ứng dụng.
@@ -1761,6 +1819,9 @@ function moManChinh(){
 	   ra. Lượt hỏi này KHÔNG nằm trong `Promise.all` dưới: hỏng nó thì chỉ thiếu một nút, còn
 	   `Promise.all` hỏng là màn hình đứng ở "đang gọi máy chủ". */
 	doCuaHang();
+	/* Hỏi cơ sở này có bật khai loại giờ không — cùng lý do với `doCuaHang()` ở trên: hỏng nó
+	   thì chỉ thiếu một câu hỏi lúc kết ca, không được kéo cả màn hình đứng lại. */
+	napLoaiGio();
 	/* Chờ CẢ HAI lượt rồi mới tắt đồng hồ — tắt sớm là màn hình lại trông như đã xong trong
 	   khi một nửa vẫn đang treo. */
 	Promise.all([ napGio().then(nhipDongHo), napToi() ])
@@ -2579,7 +2640,129 @@ function moMan(ten){
 	if('mNhanSu' === ten){ moNhanSu(); }
 	if('mKhaiGio' === ten){ moKhaiGio(); }
 	if('mXinBu' === ten){ moXinBu(); }
+	if('mGioLuong' === ten){ moGioLuong(); }
 }
+
+/* ── LOẠI GIỜ LƯƠNG ─────────────────────────────────────────────────────────────────────────
+   Hai đường: hộp KẾT CA ghi thẳng, còn màn Giờ công lương gửi cửa hàng trưởng duyệt. Xem khối
+   chú thích "HAI CỬA" ở `VHCC_LoaiGio` — chúng cố ý không giống nhau. */
+
+var LG = null;          // { hoi, tab, ds:[{khoa,ten,gia}] } — nạp một lần sau khi đăng nhập
+var LG_NGAY = [];       // mấy ngày đang bày trên màn Giờ công lương
+
+function napLoaiGio(){
+	return goi('lgviec', { token: token() }).then(function(j){
+		LG = (j && j.ok) ? j : null;
+	}).catch(function(){ LG = null; });
+}
+
+/* Mấy thẻ <option> của danh sách việc — dựng từ danh sách MÁY CHỦ trả về, không gõ cứng trong
+   HTML. Trả riêng phần option để dùng được cả cho ô có sẵn (`#kcViec`) lẫn ô sinh ra trong
+   danh sách ngày. */
+function optViec(dangChon){
+	var o = ['<option value="">— chưa chọn —</option>'];
+	var ds = (LG && LG.ds) || [];
+	for(var i=0;i<ds.length;i++){
+		var t = ds[i].ten;
+		o.push('<option value="' + esc(t) + '"' + (t === dangChon ? ' selected' : '') + '>'
+			+ esc(t) + (ds[i].gia ? ' — ' + Number(ds[i].gia).toLocaleString('vi-VN') + 'đ/h' : '')
+			+ '</option>');
+	}
+	return o.join('');
+}
+
+/* ---- hộp hỏi lúc kết ca ---- */
+var KC = null;          // { ngay, ma } của lượt giờ ra vừa ghi
+
+function hoiKetCa(ngay, ma){
+	if(!LG || !LG.hoi){ return; }
+	KC = { ngay: ngay, ma: ma };
+	el('kcViec').innerHTML = optViec('');
+	el('kcMo').textContent = 'Ca ngày ' + ngay + '. Chọn đúng việc thì lương tính đúng đơn giá của việc ấy.';
+	bao('kcBao', '', '');
+	hien('mKetCa', true);
+}
+
+el('btKcLuu').addEventListener('click', function(){
+	var v = el('kcViec').value;
+	if(!v){ bao('kcBao','dong','Chọn một việc, hoặc bấm Để sau.'); return; }
+	if(!KC){ hien('mKetCa', false); return; }
+	var b = this; b.disabled = true;
+	goi('lgdat', { token: token(), ngay: KC.ngay, ma: KC.ma, viec: v }).then(function(j){
+		if(!j || !j.ok){ bao('kcBao','dong',(j&&j.error)||'Không lưu được.'); return; }
+		hien('mKetCa', false);
+		el('baoCham').innerHTML += '<div class="xanh">✔ Loại giờ ca này: <b>'
+			+ esc(j.viec) + '</b></div>';
+	}).catch(function(e){
+		bao('kcBao','dong',(e&&e.message)||'Lỗi mạng — chưa lưu được loại giờ.');
+	}).then(function(){ b.disabled = false; });
+});
+el('btKcBo').addEventListener('click', function(){ hien('mKetCa', false); });
+
+/* ---- màn Giờ công lương ---- */
+function moGioLuong(){
+	hien('mGioLuong', true);
+	el('lgDs').innerHTML = '<p class="trong">Đang nạp…</p>';
+	goi('lgds', { token: token(), soNgay: 14 }).then(function(j){
+		if(!j || !j.ok){ el('lgDs').innerHTML = '<p class="trong">'
+			+ esc((j&&j.error)||'Không nạp được.') + '</p>'; return; }
+		if(j.viec){ LG = LG || {}; LG.ds = j.viec; }
+		LG_NGAY = j.ds || [];
+		veGioLuong();
+	}).catch(function(e){
+		el('lgDs').innerHTML = '<p class="trong">' + esc((e&&e.message)||'Lỗi mạng.') + '</p>';
+	});
+}
+
+function veGioLuong(){
+	if(!LG_NGAY.length){
+		el('lgDs').innerHTML = '<p class="trong">Nửa tháng nay chưa có lượt chấm công nào.</p>';
+		return;
+	}
+	var o = [];
+	for(var i=0;i<LG_NGAY.length;i++){
+		var d = LG_NGAY[i];
+		var gio = (d.gio === null || d.gio === undefined) ? '' : (d.gio + 'h');
+		o.push('<div class="the"><div class="hang" style="align-items:center;gap:8px">'
+			+ '<b style="flex:0 0 auto">' + esc(d.ngay) + (d.hauTo ? ' · ' + esc(d.hauTo) : '') + '</b>'
+			+ '<span class="mo" style="flex:1">' + esc(d.vao || '—') + ' → ' + esc(d.ra || '—')
+			+ (gio ? ' · ' + gio : '') + '</span></div>');
+		/* 🔴 ĐANG CHỜ DUYỆT THÌ KHÔNG MỜI GỬI TIẾP. Bày ô xổ nữa là người ta gửi lần hai cho
+		   cùng một ngày, và cửa hàng trưởng thấy hai dòng nói hai điều khác nhau. */
+		if(d.dangCho){
+			o.push('<p class="vang" style="margin:8px 0 0">⏳ Đang chờ duyệt: <b>'
+				+ esc(d.dangCho) + '</b>' + (d.viec ? ' (hiện đang là ' + esc(d.viec) + ')' : '')
+				+ '</p></div>');
+			continue;
+		}
+		o.push('<div style="margin:8px 0 0"><select id="lgV' + i + '">'
+			+ optViec(d.viec || '') + '</select></div></div>');
+	}
+	el('lgDs').innerHTML = o.join('');
+}
+
+el('btLgGui').addEventListener('click', function(){
+	var dong = [];
+	for(var i=0;i<LG_NGAY.length;i++){
+		var d = LG_NGAY[i];
+		if(d.dangCho){ continue; }
+		var o = el('lgV' + i);
+		if(!o || !o.value || o.value === (d.viec || '')){ continue; }
+		dong.push({ ngay: d.ngay, hauTo: d.hauTo, viec: o.value });
+	}
+	if(!dong.length){ bao('lgBao','dong','Chưa đổi loại giờ của ngày nào.'); return; }
+	var b = this; b.disabled = true;
+	goi('lggui', { token: token(), dong: dong, lyDo: el('lgLyDo').value }).then(function(j){
+		if(!j || !j.ok){ bao('lgBao','dong',(j&&j.error)||'Không gửi được.'); return; }
+		bao('lgBao','xanh','✔ Đã gửi ' + j.so + ' ngày cho cửa hàng trưởng duyệt. '
+			+ 'Bảng lương chỉ đổi khi họ duyệt.');
+		el('lgLyDo').value = '';
+		moGioLuong();
+	}).catch(function(e){
+		bao('lgBao','dong',(e&&e.message)||'Lỗi mạng — chưa gửi được.');
+	}).then(function(){ b.disabled = false; });
+});
+el('btDongLg').addEventListener('click', function(){ hien('mGioLuong', false); });
 
 /* ── XIN BÙ GIỜ ─────────────────────────────────────────────────────────────────────────────
    Hai cấp duyệt: cửa hàng trưởng rồi kế toán. Giờ chỉ vào bảng công sau cấp hai — màn này nói
@@ -4183,6 +4366,10 @@ el('btLuu').addEventListener('click', function(){
 				+ 'vùng cơ sở</b>. ' + esc(j.viTri.chu||'') + ' Lượt công vẫn được ghi, nhưng quản '
 				+ 'lý sẽ thấy dấu này. Chọn nhầm cơ sở thì báo quản lý sửa ngay hôm nay.</div>';
 		}
+		/* 🔴 HỎI LOẠI GIỜ CHỈ Ở LƯỢT GIỜ RA, và chỉ SAU khi giờ đã ghi xong. Hỏi lúc vào thì ca
+		   còn chưa làm, chưa biết mình sẽ làm gì; hỏi trước khi ghi thì một cái hộp đứng chắn
+		   giữa người ta và lượt chấm công. */
+		if(j.loai === 'ra'){ hoiKetCa(j.ngay, j.ma); }
 		napToi();
 	}).catch(function(e){
 		/* KHÔNG dừng ở câu lỗi. Xem `soatLaiDaGhi`. */

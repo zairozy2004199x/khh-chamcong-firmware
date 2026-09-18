@@ -1000,6 +1000,9 @@ class VHCC_Web {
 		/* Khai đơn giá là việc của tab Cấu hình, không dính gì tới màn Hồ sơ. Chốt thật ở
 		   `VHCC_GiaGio::gac()` — bậc Kế toán, chặt hơn chốt dưới chứ không lỏng hơn. */
 		'gia_gio',
+		/* Công tắc "nhân viên tự khai loại giờ" — cùng cửa với đơn giá (`gia_gio`, bậc Quản lý),
+		   vì nó quyết định bảng lương đọc nguồn nào. Chốt thật ở `VHCC_LoaiGio::dat_cfg()`. */
+		'loai_gio_cfg',
 		/* Ghép hai mã: việc của màn Bảng công — đó là nơi người ta NHÌN THẤY hai hàng cùng tên.
 		   Chốt thật ở `VHCC_NhanSu::ghep_hai_ma()` (bậc Quản lý, cùng cửa với `don_ma()`) —
 		   chặt hơn chốt dưới chứ không lỏng hơn. */
@@ -1473,6 +1476,33 @@ class VHCC_Web {
 				. ' hàng trùng ngày (ngày trùng thì giữ lượt DÀI HƠN). Từ nay lượt mang mã '
 				. $r_g['phu'] . ' — kể cả lượt Nạp về từ app gốc — tự chảy vào ' . $r_g['chinh']
 				. '. Việc này KHÔNG đảo lại được.' ) );
+		}
+
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * CÔNG TẮC "NHÂN VIÊN TỰ KHAI LOẠI GIỜ" — bật/tắt theo TỪNG CƠ SỞ.
+		 *
+		 * Anh Thắng 18/09/2026: *"Tính năng này đang thử nghiệm cho từng cơ sở xem hiệu quả
+		 * không. Nên cho phép bật tắt theo từng cơ sở"*, và *"Nếu không ổn anh tắt"*.
+		 *
+		 * ⚠️ Đứng thành một `viec` RIÊNG, không nhét chung biểu mẫu đơn giá. Hai thứ ở gần nhau
+		 *    trên màn nhưng lưu chung một nút thì gạt công tắc là lưu luôn cả bảng đơn giá đang
+		 *    gõ dở — và ngược lại.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		if ( 'loai_gio_cfg' === $viec ) {
+			$cs_l = isset( $_POST['ccs'] ) ? VHCC_NhanSu::chuan_coso( wp_unslash( $_POST['ccs'] ) ) : '';
+			$r_l  = VHCC_LoaiGio::dat_cfg( $toi, $cs_l,
+				! empty( $_POST['lg_ket_ca'] ), ! empty( $_POST['lg_tab'] ) );
+			if ( empty( $r_l['ok'] ) ) { return array( array( 'loi' => $r_l['error'] ) ); }
+			$cau_l = 'Cơ sở ' . $cs_l . ': hỏi loại giờ lúc kết ca — '
+				. ( $r_l['ketCa'] ? 'BẬT' : 'tắt' ) . ' · tab Giờ công lương trên app — '
+				. ( $r_l['tab'] ? 'BẬT' : 'tắt' ) . '.';
+			if ( ! $r_l['ketCa'] && ! $r_l['tab'] ) {
+				/* ⚠️ Nói rõ TẮT KHÔNG XOÁ DỮ LIỆU. Không nói thì người ta tắt đi bật lại để
+				   "làm sạch" và tưởng đã xoá — trong khi bảng lương vẫn đọc bản khai cũ. */
+				$cau_l .= ' Mấy loại giờ đã khai VẪN CÒN và vẫn tính vào bảng lương — tắt chỉ là '
+					. 'thôi hỏi, không xoá gì.';
+			}
+			return array( array( 'ok' => true, 'thong_bao' => $cau_l ) );
 		}
 
 		if ( 'gia_gio' === $viec ) {
@@ -8975,6 +9005,58 @@ class VHCC_Web {
 	 *    khai đinh ninh xong rồi. Nên màn tự đọc ra chức vụ nào thật sự có giờ trong tháng, kèm
 	 *    số dòng, và đánh dấu cái nào chưa có giá.
 	 */
+	/**
+	 * CÔNG TẮC "NHÂN VIÊN TỰ KHAI LOẠI GIỜ", theo từng cơ sở.
+	 *
+	 * 🔴 ĐỨNG NGAY DƯỚI BẢNG ĐƠN GIÁ, cố ý. Danh sách việc người ta chọn được CHÍNH LÀ mấy dòng
+	 *    đơn giá ở trên — bật công tắc mà trên ấy chỉ có một dòng thì chẳng hỏi ai câu nào.
+	 *    Để hai khối cạnh nhau thì mối liên hệ ấy đọc được bằng mắt.
+	 */
+	private static function the_loai_gio( $ky, $toi, $cs ) {
+		if ( ! VHCC_Vai::duoc( $toi, VHCC_LoaiGio::QUYEN_CFG ) ) { return; }
+		$cs = VHCC_NhanSu::chuan_coso( $cs );
+		if ( '' === $cs ) { return; }
+
+		$bat_kc = VHCC_LoaiGio::bat_ket_ca( $cs );
+		$bat_tb = VHCC_LoaiGio::bat_tab( $cs );
+		$so_viec = count( VHCC_LoaiGio::ds_viec( $cs, '' ) );
+
+		echo '<div class="the"><details' . ( ( $bat_kc || $bat_tb ) ? ' open' : '' )
+			. '><summary><b>Nhân viên tự khai loại giờ lương</b> <span class="mo">— đang thử '
+			. 'nghiệm, bật tắt riêng từng cơ sở</span></summary>';
+		echo '<p class="mo" style="margin:10px 0">Bình thường kế toán gõ tay mấy dòng '
+			. '<b>giờ ăn giá khác</b> vào cuối tháng. Bật cái này thì <b>chính nhân viên</b> khai '
+			. 'việc mình làm — người biết chắc hôm ấy mình làm gì.</p>';
+
+		if ( $so_viec < 2 ) {
+			/* 🔴 NÓI RA TRƯỚC KHI HỌ BẬT. Dưới hai dòng đơn giá thì câu hỏi lúc kết ca không có
+			   nội dung, và `hoi_khi_ra()` sẽ im — người gạt công tắc sẽ tưởng tính năng hỏng. */
+			echo '<div class="bao canh" style="margin:0 0 12px">⚠️ Cơ sở này mới có <b>'
+				. (int) $so_viec . '</b> dòng đơn giá. Phải có <b>từ 2 dòng trở lên</b> thì lúc '
+				. 'kết ca mới có gì để hỏi — khai thêm ở khối <b>Đơn giá giờ</b> ngay trên đã.</div>';
+		}
+
+		echo '<form method="post">'
+			. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+			. '<input type="hidden" name="viec" value="loai_gio_cfg">'
+			. '<input type="hidden" name="man" value="cham">'
+			. '<input type="hidden" name="ccs" value="' . esc_attr( $cs ) . '">';
+		echo '<label style="display:block;margin:0 0 10px"><input type="checkbox" name="lg_ket_ca" '
+			. 'value="1"' . checked( $bat_kc, true, false ) . '> <b>Hỏi lúc kết ca</b> — bấm giờ '
+			. 'ra xong thì app hỏi “ca này bạn làm việc gì?”, chọn là ghi luôn.</label>';
+		echo '<label style="display:block;margin:0 0 10px"><input type="checkbox" name="lg_tab" '
+			. 'value="1"' . checked( $bat_tb, true, false ) . '> <b>Tab “Giờ công lương” trên '
+			. 'app</b> — xem lại 14 ngày gần đây và xin đổi loại giờ, <b>cửa hàng trưởng duyệt</b> '
+			. 'mới ăn.</label>';
+		echo '<button class="chinh">Lưu công tắc</button></form>';
+
+		echo '<p class="mo" style="margin:10px 0 0;font-size:12px">Bật rồi thì bảng lương của cơ '
+			. 'sở này <b>đọc bản nhân viên khai</b> thay cho mấy dòng giờ khác kế toán gõ — theo '
+			. 'từng người, ai chưa khai thì vẫn đọc bản kế toán. Cộng cả hai là đếm hai lần. '
+			. '<b>Tắt thì thôi hỏi, nhưng dữ liệu đã khai vẫn còn và vẫn tính.</b></p>';
+		echo '</details></div>';
+	}
+
 	private static function the_gia_gio( $ky, $toi, $cs ) {
 		if ( ! VHCC_Vai::duoc( $toi, VHCC_GiaGio::QUYEN ) ) { return; }
 
@@ -10546,6 +10628,9 @@ class VHCC_Web {
 		self::the_cach_tinh( $ky, $toi );
 		self::the_thieu_khai( $ky, $toi, $cs );
 		self::the_gia_gio( $ky, $toi, $cs );
+		/* Công tắc "nhân viên tự khai loại giờ" — đứng ngay dưới bảng đơn giá vì danh sách
+		   việc chọn được CHÍNH LÀ mấy dòng ấy. Xem `the_loai_gio()`. */
+		self::the_loai_gio( $ky, $toi, $cs );
 
 		if ( '' === $cs ) {
 			echo '<div class="the"><p class="mo">Chọn một cơ sở ở trên để khai <b>ca làm việc</b> '

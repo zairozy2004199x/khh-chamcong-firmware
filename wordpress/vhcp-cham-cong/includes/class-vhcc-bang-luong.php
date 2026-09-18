@@ -99,6 +99,21 @@ class VHCC_BangLuong {
 		$hs_ds = self::ho_so_cua( $coso );
 		$so_gia = VHCC_GiaGio::so();
 
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * GIỜ THEO LOẠI DO CHÍNH NHÂN VIÊN KHAI (`VHCC_LoaiGio`) — nếu cơ sở có bật.
+		 *
+		 * 🔴 NGƯỜI KHAI THẮNG KẾ TOÁN GÕ, VÀ THẮNG TRỌN GÓI CHO TỪNG NGƯỜI.
+		 *    Hai nguồn cùng nói về một thứ: mấy dòng `VHCC_ChotLuong` kế toán gõ cuối tháng, và
+		 *    mấy lượt chấm nhân viên tự khai lúc kết ca. CỘNG CẢ HAI là đếm hai lần — 2 giờ MC
+		 *    thành 4, và bảng vẫn đầy số nên không ai thấy. Nên phải chọn một, và chọn theo
+		 *    TỪNG NGƯỜI: người nào đã tự khai thì đọc bản khai của người ấy, người chưa khai
+		 *    (nghỉ việc giữa chừng, cơ sở mới bật tính năng) vẫn đọc bản kế toán gõ.
+		 *
+		 * ⚠️ Ô `nguon` đi kèm từng dòng để màn còn nói ra dòng ấy từ đâu. Không có nó thì kế
+		 *    toán sửa một dòng, lưu, và không hiểu vì sao số cũ quay lại.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$tu_khai = VHCC_LoaiGio::gio_theo_viec( $coso, $tt );
+
 		/* 🔴 GOM VỀ MỘT TỔNG MỖI NGƯỜI — KHÔNG TÁCH THEO HẬU TỐ.
 		   Anh Thắng 16/09/2026: *"trên chấm công sẽ chỉ có giờ tổng"*. Máy ghi một con số giờ cho
 		   mỗi người; trong đó có mấy giờ dẫn chương trình, mấy giờ hỗ trợ thì máy không biết, và
@@ -181,7 +196,39 @@ class VHCC_BangLuong {
 			/* 🔴 GIỜ TỔNG LÀ GIỜ CHÍNH, TRỪ ĐI MẤY DÒNG ĂN GIÁ KHÁC.
 			   Luật của anh Thắng 16/09/2026: kế toán chỉ gõ NGOẠI LỆ (MC 2h, Hỗ Trợ 6h…), phần
 			   còn lại tự là việc chính. Đối chiếu file T08: 118 + 2 + 6 = 126 giờ chấm công. */
-			$khac = VHCC_ChotLuong::cua( $coso, $tt, $g['ma'], $so_khac );
+			$khai_toi = isset( $tu_khai[ $kma ] ) ? $tu_khai[ $kma ] : array();
+			$vc_chon  = VHCC_ChotLuong::viec_chinh( $coso, $tt, $g['ma'], $so_khac );
+
+			if ( $khai_toi ) {
+				/* 🔴 CHỈ TỰ CHỌN VIỆC CHÍNH KHI BẢN KHAI PHỦ HẾT GIỜ CÔNG.
+				   Chưa ai chọn việc chính mà bản khai phủ trọn số giờ thì lấy việc NHIỀU GIỜ
+				   NHẤT — đúng câu *"chọn cái đầu tiên làm giờ chính"* của anh Thắng 16/09/2026,
+				   và tránh một dòng chính đứng ở 0 giờ trông như người ấy không đi làm.
+
+				   Nhưng CÒN GIỜ CHƯA KHAI thì tuyệt đối không tự chọn. Người làm 18 giờ mới
+				   khai 9 giờ Hỗ Trợ: lấy Hỗ Trợ làm việc chính là 9 giờ CHƯA KHAI cũng ăn giá
+				   Hỗ Trợ — một đơn giá không ai khai cho chúng, dựng ra từ một phép đoán. Để
+				   trống thì nhánh dưới lùi về chức vụ trong hồ sơ, và 9 giờ kia thành giờ
+				   khác đúng như nó được khai. */
+				$tong_khai = 0.0;
+				foreach ( $khai_toi as $g_k ) { $tong_khai += (float) $g_k; }
+				if ( '' === $vc_chon && round( $tong_khai, 2 ) >= round( $gio_tong, 2 ) ) {
+					arsort( $khai_toi );
+					$vc_chon = (string) key( $khai_toi );
+				}
+				$kvc  = VHCC_GiaGio::khoa_cv( $vc_chon );
+				$khac = array();
+				foreach ( $khai_toi as $ten_v => $gio_v ) {
+					/* Giờ của chính việc chính KHÔNG phải "giờ khác" — nó là phần còn lại, và
+					   `giờ chính = giờ tổng − giờ khác` tự ra đúng. Kể nó vào đây là trừ hai lần. */
+					if ( VHCC_GiaGio::khoa_cv( $ten_v ) === $kvc ) { continue; }
+					$khac[] = array( 'viec' => (string) $ten_v, 'gio' => (float) $gio_v,
+						'nguon' => 'nhanvien' );
+				}
+			} else {
+				$khac = VHCC_ChotLuong::cua( $coso, $tt, $g['ma'], $so_khac );
+			}
+
 			$gio_khac = 0.0;
 			foreach ( $khac as $k ) { $gio_khac += (float) $k['gio']; }
 			$gio_khac = round( $gio_khac, 2 );
@@ -259,7 +306,6 @@ class VHCC_BangLuong {
 			   Từ 16/09/2026 người chốt lương CHỌN việc chính cho từng người
 			   (`VHCC_ChotLuong::viec_chinh()`), và phần giờ còn lại ăn theo giá của việc ấy.
 			   Chưa chọn thì vẫn lùi về tên hồ sơ — không im lặng bỏ trống dòng của một người. */
-			$vc_chon = VHCC_ChotLuong::viec_chinh( $coso, $tt, $g['ma'], $so_khac );
 			$d_chinh = $mot( '' !== $vc_chon ? $vc_chon : self::chuc_vu_chinh( $hs ),
 				$gio_chinh, true );
 			$d_chinh['thieuGio'] = isset( $g['thieuGio'] ) ? (int) $g['thieuGio'] : 0;
