@@ -261,6 +261,49 @@ class VHCC_TuanCong {
 		return null;
 	}
 
+	/**
+	 * Hai giờ thành MỘT ô hai hàng. Ô trống hẳn khi chưa có giờ nào.
+	 *
+	 * ⚠️ Chỉ có giờ vào thì vẫn viết một hàng, KHÔNG viết "08:00\n" với hàng hai rỗng: Excel
+	 *    hiển thị ô ấy y hệt ô một hàng, nhưng lúc đọc lại thì ra hai mẩu và mẩu sau rỗng —
+	 *    khác nhau ở chỗ không ai nhìn thấy được.
+	 */
+	public static function o_gio( $vao, $ra ) {
+		$v = trim( (string) $vao );
+		$r = trim( (string) $ra );
+		if ( '' === $v && '' === $r ) { return ''; }
+		if ( '' === $r ) { return $v; }
+		if ( '' === $v ) { return "\n" . $r; }   // hiếm: có giờ ra mà không có giờ vào
+		return $v . "\n" . $r;
+	}
+
+	/**
+	 * Đọc ngược một ô hai hàng. Trả array( vào, ra ), hoặc null khi có mẩu không đọc được.
+	 *
+	 * ⚠️ NHẬN CẢ DẤU GẠCH VÀ MŨI TÊN. Người ta gõ tay vào ô thì hay viết `08:00-17:00` hoặc
+	 *    `08:00 → 17:00` thay vì bấm Alt+Enter. Chối mấy kiểu ấy là chối đúng thứ người ta
+	 *    định nói, và họ không đoán ra mình sai ở đâu.
+	 */
+	public static function doc_o_gio( $o ) {
+		$s = trim( (string) $o );
+		if ( '' === $s ) { return array( '', '' ); }
+
+		$p = preg_split( '/\r\n|\r|\n|\s*(?:→|->|–|—|-)\s*/u', $s );
+		$p = array_values( array_filter( array_map( 'trim', (array) $p ), function ( $x ) {
+			return '' !== $x;
+		} ) );
+
+		if ( ! $p ) { return array( '', '' ); }
+		if ( count( $p ) > 2 ) { return null; }
+
+		$v = self::doc_gio( $p[0] );
+		if ( null === $v ) { return null; }
+		if ( 1 === count( $p ) ) { return array( $v, '' ); }
+		$r = self::doc_gio( $p[1] );
+		if ( null === $r ) { return null; }
+		return array( $v, $r );
+	}
+
 	/* ====================================================================== lấy dữ liệu tuần */
 
 	/* ═══════════════════════════════════════════════════════════════════════════════════════
@@ -271,7 +314,17 @@ class VHCC_TuanCong {
 	 * thấy hết một người. Đúng: bảng công trên màn vốn nằm ngang, tờ Excel phải giống nó thì
 	 * mắt mới soát được.
 	 *
-	 *   Mã NV │ Họ tên │ T2 07/09 vào │ T2 07/09 ra │ … │ Tổng giờ │ Lý do sửa │ KHOÁ
+	 *   Mã NV │ Họ tên │ T2 07/09 │ T3 08/09 │ … │ Tổng giờ │ Lý do sửa │ KHOÁ
+	 *                    08:00       09:00
+	 *                    17:00       18:00
+	 *
+	 * MỘT Ô MỘT NGÀY, HAI HÀNG TRONG Ô — anh Thắng 18/09/2026: *"Chung 1 ô đi, làm 2 hàng trong
+	 * 1 ô cũng được"*. Tách vào/ra thành hai cột là tờ rộng gấp đôi và phải cuộn ngang; gộp lại
+	 * thì bảy ngày nằm gọn trên một màn.
+	 *
+	 * ⚠️ HAI HÀNG NGĂN BẰNG XUỐNG DÒNG TRONG Ô (Alt+Enter của Excel). Lúc đọc thì tách theo
+	 *    xuống dòng; ô một hàng thì hiểu là CHỈ CÓ GIỜ VÀO, chưa có giờ ra — đúng cảnh người
+	 *    quên bấm lúc về, và là cảnh hay gặp nhất.
 	 *
 	 * 🔴 NGÀY ĐỌC TỪ CHÍNH DÒNG TIÊU ĐỀ, KHÔNG ĐẾM THEO VỊ TRÍ CỘT. Người ta chèn thêm một cột
 	 *    để ghi chú, hay kéo cột đi chỗ khác — đếm vị trí thì mọi giờ lệch sang ngày bên cạnh,
@@ -285,21 +338,20 @@ class VHCC_TuanCong {
 
 	const C_MA  = 0;
 	const C_TEN = 1;
-	/** Cột ngày bắt đầu từ đây: mỗi ngày CHIẾM HAI Ô liền nhau (vào, ra). */
+	/** Cột ngày bắt đầu từ đây: mỗi ngày ĐÚNG MỘT Ô, hai hàng bên trong. */
 	const C_NGAY_DAU = 2;
-	const O_MOI_NGAY = 2;
+	const O_MOI_NGAY = 1;
 
 	/** Ba cột đuôi, tính từ sau 7 ngày. */
-	const C_TONG = self::C_NGAY_DAU + 7 * self::O_MOI_NGAY;      // 16
-	const C_LYDO = self::C_TONG + 1;                              // 17
-	const C_KHOA = self::C_TONG + 2;                              // 18
+	const C_TONG = self::C_NGAY_DAU + 7 * self::O_MOI_NGAY;      // 9
+	const C_LYDO = self::C_TONG + 1;                              // 10
+	const C_KHOA = self::C_TONG + 2;                              // 11
 
 	/** Dòng tiêu đề của tờ. */
 	public static function cot( $tu_ngay ) {
 		$c = array( 'Mã NV', 'Họ tên' );
 		foreach ( self::bay_ngay( $tu_ngay ) as $ng ) {
-			$c[] = self::ten_thu( $ng ) . ' ' . $ng . ' vào';
-			$c[] = self::ten_thu( $ng ) . ' ' . $ng . ' ra';
+			$c[] = self::ten_thu( $ng ) . ' ' . $ng;
 		}
 		$c[] = 'Tổng giờ tuần';
 		$c[] = 'Lý do sửa';
@@ -465,8 +517,9 @@ class VHCC_TuanCong {
 			$tong = 0.0;
 			foreach ( $bay as $ng ) {
 				$r = isset( $n['ngay'][ $ng ] ) ? $n['ngay'][ $ng ] : null;
-				$dong[] = VHCC_Xuat::chu( $r ? $r['vao'] : '' );
-				$dong[] = VHCC_Xuat::chu( $r ? $r['ra'] : '' );
+				/* Kiểu HAI_HÀNG — thiếu `wrapText` thì Excel dính hai giờ làm một hàng. */
+				$dong[] = VHCC_Xuat::o_kieu( self::o_gio( $r ? $r['vao'] : '', $r ? $r['ra'] : '' ),
+					VHCC_Xuat::HAI_HANG );
 				if ( $r && null !== $r['gio'] ) { $tong += (float) $r['gio']; }
 			}
 			$dong[] = ( $tong > 0 ? round( $tong, 2 ) : '' );
@@ -480,7 +533,7 @@ class VHCC_TuanCong {
 		$noi = VHCC_Xuat::xlsx( array( array(
 			'ten'  => 'Tuan',
 			'hang' => $hang,
-			'cot'  => array_merge( array( 18, 26 ), array_fill( 0, 14, 8 ), array( 11, 34, 30 ) ),
+			'cot'  => array_merge( array( 18, 26 ), array_fill( 0, 7, 11 ), array( 11, 34, 26 ) ),
 		) ) );
 		if ( null === $noi ) {
 			return array( 'ok' => false, 'error' => 'Không dựng được tệp .xlsx trên máy chủ này.' );
@@ -573,7 +626,7 @@ class VHCC_TuanCong {
 
 		/* 🔴 DÒ NGÀY TỪ CHÍNH DÒNG TIÊU ĐỀ. Đếm vị trí cột thì chèn thêm một cột ghi chú là mọi
 		   giờ lệch sang ngày bên cạnh, im lặng. Mỗi ô tiêu đề mang sẵn `YYYY-MM-DD` + 'vào'/'ra'. */
-		$cot_ngay = array();          // chỉ số cột -> array( ngày, 'vao'|'ra' )
+		$cot_ngay = array();          // chỉ số cột -> ngày
 		$co_khoa  = -1;
 		$co_lydo  = -1;
 		foreach ( $dau as $i_c => $o ) {
@@ -581,8 +634,7 @@ class VHCC_TuanCong {
 			if ( false !== mb_strpos( $chu, 'KHOÁ' ) ) { $co_khoa = $i_c; continue; }
 			if ( false !== mb_strpos( $chu, 'Lý do' ) ) { $co_lydo = $i_c; continue; }
 			if ( ! preg_match( '/(\d{4}-\d{2}-\d{2})/', $chu, $m ) ) { continue; }
-			$la_ra = ( false !== mb_strpos( $chu, ' ra' ) );
-			$cot_ngay[ $i_c ] = array( $m[1], $la_ra ? 'ra' : 'vao' );
+			$cot_ngay[ $i_c ] = $m[1];
 		}
 
 		if ( $co_khoa < 0 ) {
@@ -591,7 +643,7 @@ class VHCC_TuanCong {
 		}
 		$bay = self::bay_ngay( $t2 );
 		$thay = array();
-		foreach ( $cot_ngay as $x ) { $thay[ $x[0] ] = true; }
+		foreach ( $cot_ngay as $x ) { $thay[ $x ] = true; }
 		foreach ( $bay as $ng ) {
 			if ( ! isset( $thay[ $ng ] ) ) {
 				return array( 'ok' => false, 'error' => 'Tệp thiếu cột của ngày ' . $ng
@@ -628,14 +680,16 @@ class VHCC_TuanCong {
 
 			/* Gom hai ô vào/ra của từng ngày trên dòng này. */
 			$moi = array();
-			foreach ( $cot_ngay as $i_c => $x ) {
-				$g = self::doc_gio( isset( $d[ $i_c ] ) ? $d[ $i_c ] : '' );
+			foreach ( $cot_ngay as $i_c => $ng_c ) {
+				$g = self::doc_o_gio( isset( $d[ $i_c ] ) ? $d[ $i_c ] : '' );
 				if ( null === $g ) {
-					return array( 'ok' => false, 'error' => 'Dòng ' . $dong_so . ' ('
-						. $dang[ $khoa ][ $x[0] ]['ho_ten'] . ') có ô giờ ngày ' . $x[0]
-						. ' không đọc được. Gõ kiểu 24 giờ: 08:00, 17:30.' );
+					$ten_x = isset( $dang[ $khoa ][ $ng_c ]['ho_ten'] ) ? $dang[ $khoa ][ $ng_c ]['ho_ten'] : '';
+					return array( 'ok' => false, 'error' => 'Dòng ' . $dong_so . ' (' . $ten_x
+						. ') có ô giờ ngày ' . $ng_c . ' không đọc được. Trong một ô viết giờ vào ở '
+						. 'hàng trên, giờ ra ở hàng dưới (Alt+Enter để xuống hàng), kiểu 24 giờ: '
+						. '08:00 rồi 17:30.' );
 				}
-				$moi[ $x[0] ][ $x[1] ] = $g;
+				$moi[ $ng_c ] = array( 'vao' => $g[0], 'ra' => $g[1] );
 			}
 
 			$ly_do   = ( $co_lydo >= 0 && isset( $d[ $co_lydo ] ) ) ? trim( (string) $d[ $co_lydo ] ) : '';

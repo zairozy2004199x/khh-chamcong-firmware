@@ -429,6 +429,40 @@ a{color:var(--nhan)}
 	</div>
 </div></div>
 
+<!-- ============ MÀN KHAI GIỜ KHÁC ============ -->
+<div id="mKhaiGio" class="mn an"><div class="bao">
+	<h1>Khai giờ khác</h1>
+	<p class="mo">Giờ làm thêm mà máy không ghi được — khai vào đây để cửa hàng theo dõi.</p>
+	<div class="the">
+		<div class="vang" style="margin:0 0 12px">⚠️ Số này <b>KHÔNG tính vào lương</b>. Nó chỉ
+			để cửa hàng biết, và hiện ở một cột riêng trên bảng công. Muốn sửa giờ công thật thì
+			báo cửa hàng trưởng.</div>
+		<label for="kgNgay">Ngày</label>
+		<input id="kgNgay" type="date">
+		<p></p>
+		<label for="kgGio">Số giờ</label>
+		<input id="kgGio" type="tel" inputmode="decimal" placeholder="VD: 2 hoặc 2,5" maxlength="6">
+		<p></p>
+		<label for="kgViec">Làm việc gì</label>
+		<input id="kgViec" type="text" placeholder="VD: dọn kho, chạy sự kiện" maxlength="120">
+		<p></p>
+		<label for="kgGhi">Ghi chú (không bắt buộc)</label>
+		<input id="kgGhi" type="text" placeholder="thêm gì đó cho cửa hàng dễ hiểu" maxlength="250">
+		<div id="kqKhai"></div>
+		<p></p>
+		<div class="hang">
+			<button id="btKhai" class="chinh">Lưu</button>
+			<button id="btDongKhai" class="phu">Đóng</button>
+		</div>
+		<p class="mo" style="margin:10px 0 0;font-size:12px">Khai <b>0 giờ</b> cho một ngày = xoá
+			dòng đã khai của ngày ấy. Khai lại cùng một ngày thì <b>đè lên</b>, không cộng dồn.</p>
+	</div>
+	<div class="the">
+		<label style="margin:0 0 8px">Đã khai gần đây</label>
+		<div id="dsKhai"><p class="trong">Đang tải…</p></div>
+	</div>
+</div></div>
+
 <!-- ============ MÀN CHÍNH ============ -->
 <div id="mChinh" class="bao an">
 	<h1 id="tenToi">—</h1>
@@ -2459,7 +2493,91 @@ function moMan(ten){
 	if('mXinTre' === ten){ moXinTre(); }
 	if('mXinNghi' === ten){ moXinNghi(); }
 	if('mNhanSu' === ten){ moNhanSu(); }
+	if('mKhaiGio' === ten){ moKhaiGio(); }
 }
+
+/* ── KHAI GIỜ KHÁC ──────────────────────────────────────────────────────────────────────────
+   Con số này KHÔNG vào lương. Mọi chỗ bày nó ra đều phải nói thẳng điều ấy — người ta khai
+   xong mà tưởng được trả tiền thì đó là một lời hứa không ai hứa. */
+
+function moKhaiGio(){
+	hien('mKhaiGio', true);
+	if(!el('kgNgay').value){ el('kgNgay').value = (NG && NG.homNay) ? NG.homNay : ''; }
+	napKhai();
+}
+
+function napKhai(){
+	el('dsKhai').innerHTML = '<p class="trong">Đang tải…</p>';
+	goi('khaids', { token: token() })
+		.then(function(j){
+			if(!j || !j.ok){
+				el('dsKhai').innerHTML = '<p class="trong">Không đọc được.</p>';
+				return;
+			}
+			if(!el('kgNgay').value && j.homNay){ el('kgNgay').value = j.homNay; }
+			veDsKhai(j.ds || []);
+		})
+		.catch(function(){ el('dsKhai').innerHTML = '<p class="trong">Mất mạng — thử lại sau.</p>'; });
+}
+
+function veDsKhai(ds){
+	if(!ds.length){
+		el('dsKhai').innerHTML = '<p class="trong">Chưa khai ngày nào.</p>';
+		return;
+	}
+	var h = '<table><thead><tr><th>Ngày</th><th>Giờ</th><th>Việc</th></tr></thead><tbody>', i, t = 0;
+	for(i = 0; i < ds.length; i++){
+		var x = ds[i];
+		t += Number(x.so_gio) || 0;
+		h += '<tr><td>' + esc(ngayNgan(x.ngay)) + '</td>'
+			+ '<td>' + esc(soGio(x.so_gio)) + '</td>'
+			+ '<td class="mo">' + esc(x.viec || '—') + '</td></tr>';
+	}
+	h += '</tbody><tfoot><tr><td><b>Tổng</b></td><td><b>' + esc(soGio(t))
+		+ '</b></td><td class="mo">không tính lương</td></tr></tfoot></table>';
+	el('dsKhai').innerHTML = h;
+}
+
+/* '2026-09-18' -> '18/09'. Cắt chuỗi chứ không new Date — Safari trả Invalid Date. */
+function ngayNgan(s){
+	var t = String(s || '');
+	return (t.length < 10) ? t : (t.slice(8,10) + '/' + t.slice(5,7));
+}
+function soGio(v){
+	var n = Number(v) || 0;
+	return n.toFixed(2).replace('.', ',');
+}
+
+function khaiGio(){
+	var ng = el('kgNgay').value, g = el('kgGio').value;
+	if(!ng){ bao('kqKhai','dong','Chọn ngày đã.'); return; }
+    if('' === String(g).trim()){ bao('kqKhai','dong','Gõ số giờ đã.'); return; }
+	el('btKhai').disabled = true;
+	goi('khaigio', { token: token(), ngay: ng, soGio: g,
+			viec: el('kgViec').value, ghiChu: el('kgGhi').value })
+		.then(function(j){
+			el('btKhai').disabled = false;
+			if(!j || !j.ok){ bao('kqKhai','dong',(j&&j.error)||'Không lưu được.'); return; }
+			if(j.xoa){ bao('kqKhai','vang','Đã xoá dòng khai của ngày ' + ngayNgan(ng) + '.'); }
+			else { bao('kqKhai','xanh','Đã lưu ' + soGio(j.soGio) + ' giờ cho ngày '
+				+ ngayNgan(ng) + '. Số này KHÔNG tính vào lương.'); }
+			el('kgGio').value = '';
+			el('kgViec').value = '';
+			el('kgGhi').value = '';
+			napKhai();
+		})
+		.catch(function(){
+			el('btKhai').disabled = false;
+			bao('kqKhai','dong','Mất mạng — thử lại.');
+		});
+}
+
+el('btKhai').addEventListener('click', khaiGio);
+el('btDongKhai').addEventListener('click', function(){ hien('mKhaiGio', false); });
+el('kgNgay').addEventListener('change', napKhai);
+el('kgGio').addEventListener('input', function(){ bao('kqKhai','',null); });
+el('kgViec').addEventListener('input', function(){ bao('kqKhai','',null); });
+el('kgGhi').addEventListener('input', function(){ bao('kqKhai','',null); });
 
 /* ── DANH SÁCH NHÂN SỰ CỦA CƠ SỞ ────────────────────────────────────────────────────────── */
 

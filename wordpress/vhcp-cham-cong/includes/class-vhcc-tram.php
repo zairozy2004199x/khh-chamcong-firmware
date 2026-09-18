@@ -374,6 +374,24 @@ class VHCC_Tram {
 		   Hai đầu nối này KHÔNG nhận mã NV từ thân yêu cầu — `VHCC_Chuong` lấy mã từ `$u`,
 		   tức từ thẻ phiên do máy chủ cấp. Nhận từ thân là gửi lên mã người khác thì đọc được
 		   hộp thư người ta. Xem khối cảnh báo ở đầu `class-vhcc-chuong.php`. */
+		/* ============ GIỜ TỰ KHAI ============
+		   Không nhận `maNV` lẫn `coSo` từ thân: cả hai lấy từ thẻ phiên và từ hồ sơ của chính
+		   người ấy — xem `VHCC_GioKhai::coso_cua()`. Đây là cửa mở cho bậc thấp nhất trong hệ
+		   nên chốt phải chặt nhất. */
+		if ( 'khaigio' === $viec ) {
+			$b = self::than();
+			self::ra( VHCC_GioKhai::khai( $u,
+				isset( $b['ngay'] ) ? (string) $b['ngay'] : '',
+				isset( $b['soGio'] ) ? (string) $b['soGio'] : '',
+				isset( $b['viec'] ) ? (string) $b['viec'] : '',
+				isset( $b['ghiChu'] ) ? (string) $b['ghiChu'] : '' ) );
+		}
+
+		if ( 'khaids' === $viec ) {
+			self::ra( array( 'ok' => true, 'ds' => VHCC_GioKhai::cua_toi( $u ),
+				'homNay' => (string) current_time( 'Y-m-d' ) ) );
+		}
+
 		if ( 'chuong' === $viec ) {
 			self::ra( VHCC_Chuong::ds( $u ) );
 		}

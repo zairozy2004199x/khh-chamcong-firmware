@@ -284,6 +284,19 @@ class VHCC_Ung {
 			) );
 		}
 
+		/* ---- 9. Khai giờ khác -------------------------------------------------------------
+		   Anh Thắng 18/09/2026: *"Nhân viên có quyền nhập giờ khác vào đây để cửa hàng cũng biết
+		   để theo dõi"*. Nằm nhóm "Của tôi" vì đây là việc của chính người ấy, và KHÔNG gác
+		   quyền gì thêm — bậc thấp nhất cũng khai được, đó là điểm của nó. */
+		$o[] = self::o( true, array(
+			'ten'  => 'Khai giờ khác',
+			'nhom' => 'Của tôi',
+			'mo'   => 'Giờ làm thêm để cửa hàng theo dõi — không tính lương',
+			'man'  => 'mKhaiGio',
+			'icon' => '✍️',
+			'mau'  => 'cam',
+		) );
+
 		/* ---- 8. Gửi đơn xin nghỉ ----------------------------------------------------------
 		   Anh Thắng 17/09/2026 khoanh đúng khối ấy: *"Chuyển này thành 1 tính năng"*. */
 		$o[] = self::o( true, array(

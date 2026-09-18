@@ -137,6 +137,26 @@ t( 'chữ rác thì trả null', null === VHCC_TuanCong::doc_gio( 'sáng' ) );
 t( 'giờ quá 23 thì null', null === VHCC_TuanCong::doc_gio( '25:00' ) );
 t( 'phút quá 59 thì null', null === VHCC_TuanCong::doc_gio( '08:75' ) );
 
+echo "— ô hai hàng —\n";
+teq( 'ghép hai giờ thành một ô hai hàng', "08:00\n17:00", VHCC_TuanCong::o_gio( '08:00', '17:00' ) );
+teq( 'chưa có giờ nào thì ô trống hẳn', '', VHCC_TuanCong::o_gio( '', '' ) );
+/* ⚠️ Chỉ có giờ vào thì viết MỘT hàng. Viết "08:00\\n" thì Excel hiện y hệt ô một hàng nhưng
+   đọc lại ra hai mẩu — khác nhau ở chỗ không ai nhìn thấy được. */
+teq( '🔴 chỉ có giờ vào thì viết đúng một hàng, không kèm xuống dòng thừa',
+	'08:00', VHCC_TuanCong::o_gio( '08:00', '' ) );
+
+teq( 'đọc ngược ô hai hàng', array( '08:00', '17:00' ), VHCC_TuanCong::doc_o_gio( "08:00\n17:00" ) );
+teq( 'ô xuống dòng kiểu Windows', array( '08:00', '17:00' ), VHCC_TuanCong::doc_o_gio( "08:00\r\n17:00" ) );
+teq( 'ô một hàng = chỉ có giờ vào', array( '08:00', '' ), VHCC_TuanCong::doc_o_gio( '08:00' ) );
+teq( 'ô trống = xoá cả hai', array( '', '' ), VHCC_TuanCong::doc_o_gio( '' ) );
+/* 🔴 Người ta gõ tay thì hay viết gạch nối hay mũi tên thay vì bấm Alt+Enter. Chối mấy kiểu ấy
+   là chối đúng thứ họ định nói, mà họ không đoán ra mình sai ở đâu. */
+teq( '🔴 gõ tay kiểu 08:00-17:00 cũng hiểu', array( '08:00', '17:00' ), VHCC_TuanCong::doc_o_gio( '08:00-17:00' ) );
+teq( '🔴 và kiểu 08:00 → 17:00', array( '08:00', '17:00' ), VHCC_TuanCong::doc_o_gio( '08:00 → 17:00' ) );
+teq( 'phân số Excel trong ô hai hàng', array( '12:00', '18:00' ), VHCC_TuanCong::doc_o_gio( "0.5\n18:00" ) );
+t( 'ba mẩu thì chối', null === VHCC_TuanCong::doc_o_gio( "08:00\n12:00\n17:00" ) );
+t( 'mẩu rác thì chối', null === VHCC_TuanCong::doc_o_gio( "sáng\n17:00" ) );
+
 /* ================================================================= ai tải được */
 
 echo "— ai tải được —\n";
@@ -197,15 +217,15 @@ t( 'tên tệp mang cơ sở và tuần',
 $doc = VHCC_DocXlsx::doc( tep_tu( $x['noi_dung'] ) );
 t( 'đọc lại được tệp vừa xuất', ! empty( $doc['ok'] ), $doc );
 teq( 'gồm cả dòng tiêu đề', 5, count( $doc['hang'] ) );
-teq( 'tờ rộng đúng 19 cột', 19, count( $doc['hang'][0] ) );
+teq( '🔴 một ô một ngày -> tờ rộng 12 cột, không phải 19', 12, count( $doc['hang'][0] ) );
 /* 🔴 Ô tiêu đề ngày PHẢI mang ngày dạng YYYY-MM-DD — đó là thứ lúc đọc dò ngược ra, thay cho
    việc đếm vị trí cột. Mất nó là chèn một cột ghi chú làm lệch hết giờ sang ngày bên cạnh. */
 t( '🔴 tiêu đề cột ngày mang sẵn ngày ISO',
 	false !== strpos( (string) $doc['hang'][0][ VHCC_TuanCong::C_NGAY_DAU ], $NGAY[0] ),
 	$doc['hang'][0][ VHCC_TuanCong::C_NGAY_DAU ] );
-t( 'và nói rõ ô nào là vào, ô nào là ra',
-	false !== strpos( (string) $doc['hang'][0][ VHCC_TuanCong::C_NGAY_DAU ], 'vào' )
-	&& false !== strpos( (string) $doc['hang'][0][ VHCC_TuanCong::C_NGAY_DAU + 1 ], ' ra' ) );
+/* 🔴 MỘT Ô, HAI HÀNG — anh Thắng: *"Chung 1 ô đi, làm 2 hàng trong 1 ô cũng được"*. */
+teq( '🔴 ô ngày chứa hai hàng: vào xuống dòng rồi tới ra', "08:00\n17:00",
+	$doc['hang'][1][ VHCC_TuanCong::C_NGAY_DAU ] );
 teq( 'cột cuối là cột KHOÁ', 'KHOÁ — ĐỪNG SỬA', $doc['hang'][0][ VHCC_TuanCong::C_KHOA ] );
 teq( 'và cột Lý do đứng ngay trước nó', 'Lý do sửa', $doc['hang'][0][ VHCC_TuanCong::C_LYDO ] );
 
@@ -220,16 +240,15 @@ t( '🔴 nạp tệp không đổi gì thì chối, không đẻ đơn rỗng', 
 
 /* ---- sửa một ô rồi nạp ---- */
 /** Sửa ô vào/ra của MỘT NGÀY trên dòng của một người — dò cột theo dòng tiêu đề, y như mã thật. */
+/** Sửa ô của MỘT NGÀY trên dòng của một người — dò cột theo dòng tiêu đề, y như mã thật. */
 function sua_o( $hang, $khoa, $ngay, $vao, $ra, $ly_do ) {
-	$cv = -1; $cr = -1;
+	$cn = -1;
 	foreach ( $hang[0] as $i_c => $o ) {
-		if ( false === strpos( (string) $o, $ngay ) ) { continue; }
-		if ( false !== mb_strpos( (string) $o, ' ra' ) ) { $cr = $i_c; } else { $cv = $i_c; }
+		if ( false !== strpos( (string) $o, $ngay ) ) { $cn = $i_c; break; }
 	}
 	foreach ( $hang as $i => $d ) {
 		if ( ! isset( $d[ VHCC_TuanCong::C_KHOA ] ) || $d[ VHCC_TuanCong::C_KHOA ] !== $khoa ) { continue; }
-		if ( $cv >= 0 ) { $hang[ $i ][ $cv ] = $vao; }
-		if ( $cr >= 0 ) { $hang[ $i ][ $cr ] = $ra; }
+		if ( $cn >= 0 ) { $hang[ $i ][ $cn ] = VHCC_TuanCong::o_gio( $vao, $ra ); }
 		if ( '' !== $ly_do ) { $hang[ $i ][ VHCC_TuanCong::C_LYDO ] = $ly_do; }
 		return $hang;
 	}
@@ -291,7 +310,7 @@ teq( 'đúng ngày đã sửa', $NGAY[0], $r['doi'][0]['ngay'] );
 $thieu = array();
 foreach ( $sua as $d ) {
 	$m = array_values( $d );
-	array_splice( $m, VHCC_TuanCong::C_NGAY_DAU, 2 );
+	array_splice( $m, VHCC_TuanCong::C_NGAY_DAU, 1 );
 	$thieu[] = $m;
 }
 $r = VHCC_TuanCong::doi( $CS_A, $TUAN, $thieu );

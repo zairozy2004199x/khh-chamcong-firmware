@@ -77,7 +77,7 @@ class VHCC_DB {
 		return $t ? $t : '';
 	}
 
-	const SCHEMA_VERSION = '2.13.0';
+	const SCHEMA_VERSION = '2.14.0';
 
 	public static function t( $name ) {
 		global $wpdb;
@@ -545,6 +545,34 @@ class VHCC_DB {
 			PRIMARY KEY  (id),
 			KEY cho_duyet (trang_thai,tu_ngay),
 			KEY cua_tuan (coso,tu_ngay)";
+
+		/* ===== 7d. GIỜ NHÂN VIÊN TỰ KHAI ===================================================
+		   Anh Thắng 18/09/2026: *"Nhân viên có quyền nhập giờ khác vào đây để cửa hàng cũng biết
+		   để theo dõi cũng nhân viên (nó chỉ không cộng vào bảng tổng lương thôi) nhưng sẽ hiện
+		   cột tổng ở cuối trang"*.
+
+		   🔴 BẢNG RIÊNG, KHÔNG NHÉT VÀO `cham_cong`. Đây là con số NGƯỜI TA TỰ NÓI, không phải
+		      con số máy ghi. Để chung một bảng thì mọi phép cộng lương, mọi lượt xuất, mọi báo
+		      cáo đều phải nhớ loại nó ra — và chỉ cần MỘT chỗ quên là tiền sai mà không ai
+		      nghi, vì con số trông y hệt giờ thật. Tách bảng thì quên là KHÔNG THẤY, chứ không
+		      phải cộng nhầm. Hai kiểu quên, và kiểu sau rẻ hơn hẳn.
+
+		   ⚠️ Mỗi người mỗi ngày MỘT dòng (khoá duy nhất). Khai lại là ĐÈ lên, không cộng dồn —
+		      cộng dồn thì bấm Lưu hai lần là số gấp đôi mà không ai biết. */
+		$b['gio_khai'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			coso VARCHAR(120) NOT NULL,
+			ngay DATE NOT NULL,
+			ma_nv VARCHAR(40) NOT NULL,
+			ho_ten VARCHAR(190) NOT NULL DEFAULT '',
+			so_gio DECIMAL(5,2) NOT NULL DEFAULT 0,
+			viec VARCHAR(120) NOT NULL DEFAULT '',
+			ghi_chu VARCHAR(255) NOT NULL DEFAULT '',
+			tao_luc DATETIME NULL,
+			sua_luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY o (coso,ngay,ma_nv),
+			KEY cua_thang (coso,ngay)";
 
 		$b['cham_cong_nhiem_vu'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,

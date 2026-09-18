@@ -323,7 +323,9 @@ class VHCC_WebDonTuan {
 		echo '<p class="mo" style="margin:10px 0 0;font-size:12px">Tờ xếp <b>mỗi người một dòng, '
 			. 'bảy ngày nằm ngang</b> — giống lưới trên màn. ⚠️ <b>Đừng sửa cột KHOÁ</b> ở cuối '
 			. 'và <b>đừng đổi tên hay xoá cột ngày</b>: đó là hai thứ ghép giờ về đúng người, '
-			. 'đúng ngày. Chèn thêm cột ghi chú thì không sao. Dòng nào có sửa giờ thì '
+			. 'đúng ngày. Chèn thêm cột ghi chú thì không sao. Mỗi ngày là <b>một ô hai hàng</b>: '
+			. 'giờ vào ở hàng trên, giờ ra ở hàng dưới (bấm <b>Alt+Enter</b> để xuống hàng trong '
+			. 'ô; viết <code>08:00-17:00</code> cũng được). Dòng nào có sửa giờ thì '
 			. '<b>phải ghi Lý do</b>, ít nhất 5 chữ — một lý do cho cả dòng. Muốn <b>xoá giờ</b> '
 			. 'thì xoá nội dung ô, đừng xoá cả dòng.</p>';
 		echo '</details></div>';

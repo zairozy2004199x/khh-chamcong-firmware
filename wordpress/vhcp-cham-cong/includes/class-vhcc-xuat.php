@@ -170,7 +170,7 @@ class VHCC_Xuat {
 			. '<border><left style="thin"/><right style="thin"/><top style="thin"/>'
 			. '<bottom style="thin"/></border></borders>'
 			. '<cellStyleXfs count="1"><xf/></cellStyleXfs>'
-			. '<cellXfs count="10">'
+			. '<cellXfs count="11">'
 			. '<xf xfId="0"/>'
 			. '<xf xfId="0" fontId="1" applyFont="1"/>'
 			. '<xf xfId="0" fontId="2" applyFont="1" applyAlignment="1">'
@@ -187,6 +187,11 @@ class VHCC_Xuat {
 			. ' applyNumberFormat="1" applyFill="1" applyBorder="1"/>'
 			. '<xf xfId="0" borderId="1" applyBorder="1" applyAlignment="1">'
 			. '<alignment horizontal="center"/></xf>'
+			/* 10 — HAI HÀNG TRONG MỘT Ô. `wrapText` là thứ bắt Excel xuống hàng ở ký tự `\n`;
+			   thiếu nó thì ô vẫn CHỨA hai hàng nhưng hiện ra một hàng dính liền, và người ta
+			   tưởng tệp hỏng. Dùng cho ô giờ vào/ra của tệp bảng công tuần. */
+			. '<xf xfId="0" borderId="1" applyBorder="1" applyAlignment="1">'
+			. '<alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
 			. '</cellXfs>'
 			/* ⚠️ `<cellStyles>` nhìn thì thừa, nhưng thiếu nó thì một số trình đọc (openpyxl, vài bản
 			   LibreOffice) kêu "không có kiểu mặc định" rồi tự đắp kiểu của chúng vào — định dạng
@@ -194,6 +199,9 @@ class VHCC_Xuat {
 			. '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'
 			. '</styleSheet>';
 	}
+
+	/** Kiểu ô HAI HÀNG (xuống dòng trong ô). Xem chú thích ở `styles()` mục 10. */
+	const HAI_HANG = 10;
 
 	/** Một ô mang kiểu riêng: `o_kieu( 441600, VHCC_Xuat::TIEN )`. */
 	public static function o_kieu( $v, $s ) { return array( 'v' => $v, 's' => (int) $s ); }

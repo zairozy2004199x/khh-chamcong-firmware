@@ -7478,9 +7478,23 @@ class VHCC_Web {
 		   vào 40 ô thì bảng rối; nói một lần ở tiêu đề là đủ. Lối TÍNH THEO NGÀY thì cột ấy đếm
 		   CÔNG chứ không phải giờ, nên đơn vị phải đổi theo. */
 		echo '<th>TỔNG<div style="font-weight:400;opacity:.7">'
-			. ( 'ngay' === $kieu_ct ? 'công' : 'giờ' ) . '</div></th>'
-			. '<th>LƯƠNG</th></tr></thead><tbody>';
+			. ( 'ngay' === $kieu_ct ? 'công' : 'giờ' ) . '</div></th>';
+		/* 🔴 CỘT RIÊNG, ĐỨNG SAU CỘT TỔNG — anh Thắng 18/09/2026: *"Nhân viên có quyền nhập giờ
+		   khác vào đây để cửa hàng cũng biết để theo dõi… nó chỉ không cộng vào bảng tổng lương
+		   thôi, nhưng sẽ hiện cột tổng ở cuối trang"*.
+		   Đứng SAU chứ không trộn vào TỔNG, và có tiêu đề nói thẳng "tự khai": đây là con số
+		   người ta tự gõ, không phải con số máy ghi. Trộn vào là cả bảng mất nghĩa. */
+		$khai_ds = ( class_exists( 'VHCC_GioKhai' ) && method_exists( 'VHCC_GioKhai', 'thang_cua' ) )
+			? VHCC_GioKhai::thang_cua( $b['coSo'], $th ) : array();
+		/* ⚠️ ĐỨNG SAU CẢ CỘT LƯƠNG, cuối hàng. Chen giữa TỔNG và LƯƠNG thì hai cột vốn đi liền
+		   nhau bị tách ra — `kiem-bang-luong-coso.php` chốt đúng chuyện ấy, và nó đúng: mắt
+		   người đọc TỔNG rồi liếc sang LƯƠNG. Anh Thắng cũng nói *"hiện cột tổng ở cuối trang"*. */
+		echo '<th>LƯƠNG</th>';
+		echo '<th title="Giờ nhân viên TỰ KHAI — để cửa hàng theo dõi. KHÔNG cộng vào lương.">'
+			. 'KHAI THÊM<div style="font-weight:400;opacity:.7">tự khai · giờ</div></th>'
+			. '</tr></thead><tbody>';
 
+		$khai_cs = 0.0;
 		$tong_cs = 0;
 		$bc_ca = self::bc_ca( '', $tt );
 		self::bao_bc_ca( $bc_ca );
@@ -7711,6 +7725,18 @@ class VHCC_Web {
 						. 'lương cơ sở">thiếu giá</span>'
 					: '<b>' . esc_html( number_format( $t_ng['tien'], 0, ',', '.' ) ) . 'đ</b>' ) )
 				. '</td>';
+
+			/* Giờ tự khai. Không có thì in dấu chấm, KHÔNG in số 0: số 0 nghĩa là "đã khai và
+			   bằng không", còn dấu chấm là "chưa khai gì" — hai chuyện khác nhau. */
+			$k_ng = isset( $khai_ds[ strtoupper( $ma ) ] ) ? $khai_ds[ strtoupper( $ma ) ] : null;
+			if ( null === $k_ng ) {
+				echo '<td class="tong"><span class="mo">·</span></td>';
+			} else {
+				$khai_cs += (float) $k_ng['gio'];
+				echo '<td class="tong" title="' . esc_attr( (int) $k_ng['ngay']
+					. ' ngày tự khai — không cộng vào lương' ) . '">'
+					. esc_html( number_format( (float) $k_ng['gio'], 2, ',', '.' ) ) . '</td>';
+			}
 			echo '</tr>';
 
 			/* Khối chọn mã để ghép — mở ra ngay dưới hàng người vừa bấm. */
@@ -7774,7 +7800,10 @@ class VHCC_Web {
 			? '<span class="chu-hong" title="Còn dòng chưa khai đơn giá — cộng lại sẽ ra một con '
 				. 'số không phải tổng lương của ai">chưa đủ giá</span>'
 			: '<b>' . esc_html( number_format( $tien_cs, 0, ',', '.' ) ) . 'đ</b>' )
-			. '</td></tr>';
+			. '</td>';
+		echo '<td>' . ( $khai_cs > 0
+			? '<b>' . esc_html( number_format( $khai_cs, 2, ',', '.' ) ) . '</b>'
+			: '<span class="mo">·</span>' ) . '</td></tr>';
 		echo '</tbody></table></div>';
 
 		/* 🔴 PHẢI CÓ CHỖ NHÌN THẤY THỨ ĐANG ẨN. Một thứ ẩn được mà không liệt kê ra đâu cả thì
