@@ -9843,9 +9843,11 @@ class VHCC_Web {
 		 */
 		$cot_gop = array( 'stt' => 'dau', 'ten' => 'dau', 'cccd' => 'dau', 'z' => 'cong' );
 
+		$stt_ng = 0;   // đếm NGƯỜI, không đếm dòng — xem chú thích tại cột `#` bên dưới
 		foreach ( $ds_dong as $i_d => $d ) {
 			$la_c = ! empty( $d['laChinh'] );
 			$n_gop = isset( $gop[ $i_d ] ) ? (int) $gop[ $i_d ] : 0;
+			if ( $n_gop > 0 ) { $stt_ng++; }
 			/* ⚠️ MỘT thuộc tính `class`, không phải hai. Nối hai lần `class="…"` vào cùng một
 			   thẻ thì trình duyệt chỉ đọc cái ĐẦU — dòng thiếu giá mất nét đỏ, hoặc nét gộp
 			   người không chạy, tuỳ thứ tự. Và nó không kêu một tiếng nào. */
@@ -9855,30 +9857,34 @@ class VHCC_Web {
 			if ( 0 === $n_gop ) { $lop_tr[] = 'tiep-nguoi'; }
 			echo '<tr' . ( $lop_tr ? ' class="' . implode( ' ', $lop_tr ) . '"' : '' ) . '>';
 			foreach ( $hien as $c ) {
-				/* Dòng bị phủ thì KHÔNG in mấy ô ấy — ô của dòng đầu đã cao trùm xuống rồi. */
+				/* ───────────────────────────────────────────────────────────────────────
+				   MẤY CỘT THUỘC VỀ NGƯỜI — in MỘT lần cho cả cụm.
+				   ⚠️ NHÁNH NÀY LO CẢ CỤM MỘT DÒNG (`$n_gop === 1`), không chỉ cụm nhiều
+				      dòng. Để cụm một dòng rơi xuống nhánh chung thì cột `#` lại lấy số
+				      thứ tự của DÒNG, và bảng đánh số 4 → 6 (bỏ mất 5) ngay sau một người
+				      có hai dòng việc — đúng cái anh Thắng chụp lại ở 4.55.0. */
 				if ( isset( $cot_gop[ $c['k'] ] ) ) {
 					if ( 0 === $n_gop ) { continue; }
-					if ( $n_gop > 1 ) {
-						/* Ô gộp: in ngay tại đây rồi đi tiếp, vì mấy nhánh dưới không biết
-						   `rowspan`. Giữ đúng lớp/kiểu của từng cột. */
-						if ( 'cong' === $cot_gop[ $c['k'] ] ) {
-							$tg_g = 0.0;
-							for ( $j_g = 0; $j_g < $n_gop; $j_g++ ) {
-								$tg_g += (float) $o_gt( $ds_dong[ $i_d + $j_g ], $c['k'] );
-							}
-							$ch_g = $tien( $tg_g );
-							echo '<td rowspan="' . (int) $n_gop . '" class="p o-nguoi'
-								. $lop_c( $c ) . '"><b>'
-								. ( null === $ch_g ? '<span class="mo">—</span>' : esc_html( $ch_g ) )
-								. '</b></td>';
-							continue;
+					$rs = ( $n_gop > 1 ) ? ' rowspan="' . (int) $n_gop . '"' : '';
+					if ( 'cong' === $cot_gop[ $c['k'] ] ) {
+						$tg_g = 0.0;
+						for ( $j_g = 0; $j_g < $n_gop; $j_g++ ) {
+							$tg_g += (float) $o_gt( $ds_dong[ $i_d + $j_g ], $c['k'] );
 						}
-						$v_g = $o_gt( $d, $c['k'] );
-						echo '<td rowspan="' . (int) $n_gop . '" class="o-nguoi'
-							. ( empty( $c['so'] ) ? '' : ' p' ) . $lop_c( $c ) . '">'
-							. esc_html( (string) $v_g ) . '</td>';
+						$ch_g = $tien( $tg_g );
+						echo '<td' . $rs . ' class="p o-nguoi' . $lop_c( $c ) . '"><b>'
+							. ( null === $ch_g ? '<span class="mo">—</span>' : esc_html( $ch_g ) )
+							. '</b></td>';
 						continue;
 					}
+					/* 🔴 CỘT `#` ĐẾM NGƯỜI, KHÔNG ĐẾM DÒNG. `$d['stt']` là số thứ tự DÒNG do
+					   lõi đánh; gộp ô xong mà vẫn in nó thì người thứ năm mang số 6, người
+					   thứ sáu mang số 7 — bảng hai mươi người đếm ra hai mươi hai. */
+					$v_g = ( 'stt' === $c['k'] ) ? (string) $stt_ng : (string) $o_gt( $d, $c['k'] );
+					echo '<td' . $rs . ' class="o-nguoi'
+						. ( empty( $c['so'] ) ? '' : ' p' ) . $lop_c( $c ) . '">'
+						. esc_html( $v_g ) . '</td>';
+					continue;
 				}
 				$v = $o_gt( $d, $c['k'] );
 				if ( 'gc' === $c['k'] ) {

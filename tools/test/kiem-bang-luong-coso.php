@@ -1805,7 +1805,8 @@ preg_match( '/<table class="cc">.*?<\/table>/us', $h_d, $m_lt );
 $luoi_d = isset( $m_lt[0] ) ? $m_lt[0] : '';
 t( '🔴 lưới in TÊN của người dù lượt chấm để trống ho_ten',
 	false !== strpos( $luoi_d, $ten_dc ), substr( $luoi_d, 0, 400 ) );
-t( 'gieo: bảng lương thì vẫn luôn có tên', false !== strpos( $h_d_luong, '<td>' . $ten_dc . '</td>' ),
+t( 'gieo: bảng lương thì vẫn luôn có tên',
+	1 === preg_match( '#<td[^>]*>' . preg_quote( $ten_dc, '#' ) . '</td>#u', $h_d_luong ),
 	'bảng lương không in tên — fixture sai' );
 
 $o_luoi  = vhcc_tong_luoi( $h_d, $ten_dc );
@@ -2226,6 +2227,24 @@ t( '🔴 và cảnh gieo THẬT SỰ phân biệt được hai lối (tổng > s
 	$z_gp > $z_dau_gp, array( 'tong' => $z_gp, 'dau' => $z_dau_gp ) );
 teq( '🔴 TOTAL chỉ in MỘT lần cho cả cụm', 1,
 	mb_substr_count( (string) $hg_dau . (string) $hg_tiep, 'nh-tong' ) );
+
+/* ── CỘT `#` ĐẾM NGƯỜI, KHÔNG ĐẾM DÒNG ─────────────────────────────────────────────────────
+   Ảnh anh Thắng ở 4.55.0: sau anh Khang (số 4, hai dòng việc) là số 6 — bảng hai mươi người
+   đếm ra hai mươi hai. `$d['stt']` là số thứ tự DÒNG do lõi đánh; gộp ô xong phải đếm lại theo
+   người. Gieo thêm một người NỮA sau cụm để bắt đúng chỗ nhảy số. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'GP2', 'ho_ten' => 'Zz Người Sau Cụm',
+	'chuc_vu' => 'Partime', 'cua_hang' => $cs_gp, 'trang_thai_lam_viec' => 'Đang làm' ) );
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $cs_gp, 'ngay' => $th_gp . '-04',
+	'ma_nv' => 'GP2', 'ho_ten' => 'Zz Người Sau Cụm', 'gio_vao_giay' => 8 * 3600,
+	'gio_ra_giay' => 17 * 3600, 'hau_to' => '', 'nguon' => 'may' ) );
+$bl_gp2 = vhcc_khoi_bl( vhcc_man( 'KT_BL', 'Kế toán', '', vhcc_g_luong( $cs_gp, $th_gp ) ) );
+/* ⚠️ NEO VÀO `<tr>`: cột `#` là ô ĐẦU của hàng. Bắt mọi ô `o-nguoi` toàn chữ số thì ô CCCD
+   (`000000000000`) cũng lọt, và dãy ra [1, 0, 2] — em vừa dính đúng thế. */
+preg_match_all( '#<tr[^>]*><td[^>]*class="o-nguoi"[^>]*>(\d+)</td>#u', (string) $bl_gp2, $m_stt );
+$stt_ds = isset( $m_stt[1] ) ? array_map( 'intval', $m_stt[1] ) : array();
+t( 'bóc được cột # của bảng', count( $stt_ds ) >= 2, $stt_ds );
+teq( '🔴 cột # đếm NGƯỜI, chạy liền 1·2 — không nhảy cóc vì cụm nhiều dòng',
+	range( 1, count( $stt_ds ) ), $stt_ds );
 /* Và hàng TỔNG vẫn đủ cột — nó không nằm trong cụm nào nên không được thiếu ô nào. */
 $hg_tong = vhcc_hang_bl( (string) $bl_gp, '<b>TỔNG</b>' );
 teq( '🔴 hàng TỔNG vẫn đủ cột, không bị cuốn theo phép gộp', $n_dau, vhcc_dem_o( (string) $hg_tong ) );
@@ -2242,8 +2261,10 @@ t( 'hàng đầu cụm mang lớp dau-nguoi', false !== mb_strpos( $hg_dau, 'dau
       tới được). Nên hỏi ngược: ô Phạt của hàng người ta CÓ mang lớp `nh-tru` không. */
 t( '🔴 ô của cụm giảm trừ mang lớp màu nh-tru',
 	1 === preg_match( '#<td class="p nh-tru">200\.000</td>#u', (string) $hang_m2 ), $hang_m2 );
+/* ⚠️ HỎI "Ô ẤY CÓ MANG LỚP KHÔNG", đừng hỏi đúng một chuỗi lớp. Từ 4.55.x ô Total còn mang
+   thêm `o-nguoi` (ô gộp theo người) — chuỗi cứng là đỏ oan trong khi màu vẫn đúng. */
 t( '🔴 ô TOTAL SALARY mang lớp màu nh-tong',
-	false !== strpos( (string) $hang_m2, 'class="p nh-tong"' ), $hang_m2 );
+	1 === preg_match( '#<td[^>]*class="[^"]*\bnh-tong\b#u', (string) $hang_m2 ), $hang_m2 );
 t( 'tiêu đề cột cũng mang lớp ấy (để tô chữ theo cụm)',
 	1 === preg_match( '#<th class="nh-tru">Phạt</th>#u', (string) $bl_m2 ), $bl_m2 );
 t( '🔴 hàng TỔNG cũng mang lớp, không thì nó là hàng duy nhất lệch màu',

@@ -873,7 +873,7 @@ a{color:var(--nhan)}
 
 	<div id="plPhanToi">
 		<div class="the">
-			<label for="plThang" style="margin:0 0 8px">Tháng</label>
+			<label id="plNhanO" for="plThang" class="an" style="margin:0 0 8px">Tháng</label>
 			<select id="plThang" class="an"></select>
 			<div id="bangPhieu" style="margin-top:10px"><p class="trong">—</p></div>
 		</div>
@@ -3414,6 +3414,11 @@ function tienVN(n){
       tại chỗ, để mắt đọc mã thấy được nó là chữ viết sẵn hay là dữ liệu. */
 function phieuHien(){
 	el('plThang').classList.add('an');
+	/* 🔴 ẨN CẢ CÁI NHÃN, KHÔNG CHỈ Ô XỔ. Anh Thắng 18/09/2026 gửi ảnh màn Phiếu lương: chữ
+	   "Tháng" đứng chơ vơ trên một khoảng trắng rồi mới tới câu "chưa được công bố" — trông
+	   như ô chọn hỏng chứ không như "chưa có gì để chọn". Nhãn của một ô đã ẩn thì cũng phải
+	   ẩn theo; để lại là một lời hứa về một thứ không có. */
+	el('plNhanO').classList.add('an');
 }
 
 function napPhieu(){
@@ -3444,6 +3449,7 @@ function napPhieu(){
 			return;
 		}
 		el('plThang').classList.remove('an');
+		el('plNhanO').classList.remove('an');
 		/* Giá trị của mỗi dòng gói cả cơ sở lẫn tháng: một người làm hai nơi thì tháng 8 có hai
 		   phiếu khác nhau, và chỉ mang theo cái tháng thì hai dòng ấy không phân biệt được. */
 		var h = '';
