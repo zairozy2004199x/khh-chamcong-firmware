@@ -1983,6 +1983,32 @@ class VHG_KeToan {
 			. ' WHERE d.ngay BETWEEN %s AND %s'
 			. ' AND (d.chi_so_sau IS NOT NULL OR d.tong<>0 OR d.actual<>0)', $tu, $den ), ARRAY_A );
 
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 CỘT TỔNG = TIỀN THẬT, KHÔNG PHẢI SẢN LƯỢNG MÁY — anh Thắng 18/09/2026:
+		 *    *"Tổng phải là thực thu để xác định tiền, còn chỉ số trên máy nó đâu phải doanh thu,
+		 *    vì chỉ số trên máy nó còn sai số"* và *"QR là QR thực về ngân hàng, còn con số QR
+		 *    nhân viên nhập chỉ là đối chiếu thôi"*.
+		 *
+		 *    Công thức cũ: tong = tien_mat + qr(NV nhập), mà tien_mat lại = actual − qr khi nhân
+		 *    viên không gõ "Thực thu" — tức CẢ HAI VẾ đều suy ra từ chỉ số máy. Chỉ số máy đếm
+		 *    lượt chạy, không đếm tiền: ghế chạy không ăn tiền, khách bấm hụt, máy đếm lỗi — sai
+		 *    số nào cũng thành "doanh thu". Số QR nhân viên gõ thì lệch thấy rõ với sao kê: cùng
+		 *    kỳ 01→18/09, AEON Tân Phú NV khai 85,29tr trong khi bank về 91,92tr; AEON Bình Dương
+		 *    NV không khai đồng nào mà bank về 23,31tr.
+		 *
+		 *    NAY: TỔNG = thực thu tiền mặt (người đếm) + VietQR THỰC về ngân hàng (sao kê).
+		 *    Cả hai vế đều là tiền đã cầm hoặc đã vào tài khoản.
+		 *
+		 * ⚠️ CHỈ Ở MỨC CƠ SỞ. Sao kê quy được tiền về CƠ SỞ, không về từng ghế (một lần chuyển
+		 *    khoản không nói nó của ghế nào). Gộp theo "Từng ghế" vẫn giữ công thức cũ — thà nói
+		 *    rõ là số NV khai còn hơn chia bừa tiền bank cho từng ghế rồi gọi nó là tiền thật.
+		 * ⚠️ Tiền bank CHƯA QUY ĐƯỢC CƠ SỞ (`khongKhop`) không biến mất: trả ra `vqKhongKhop` để
+		 *    màn hình nói thẳng, nếu không thì đổi công thức xong tổng chuỗi tự dưng hụt mà không
+		 *    ai biết hụt ở đâu.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$vqd = ( 'coso' === $muc ) ? self::vietqr_thuc_( $tu, $den ) : array( 'co' => false, 'vq' => array(), 'khongKhop' => 0 );
+		$tong_thuc = ( 'tong' === $cot && 'coso' === $muc && ! empty( $vqd['co'] ) );
+
 		/* Danh mục CƠ SỞ và GHẾ lấy từ cấu hình, không từ dữ liệu — xem khối ⚠️ ở trên. */
 		$ma_kh = array();
 		$tinh  = array();
@@ -2009,7 +2035,10 @@ class VHG_KeToan {
 			$cs  = (string) $r['coso'];
 			$ng  = self::ngay_( $r['ngay'] );
 			$key = ( 'coso' === $muc ) ? $cs : ( $cs . '|' . (string) $r['ma_may'] );
-			$v   = (int) $r[ $cot ];
+			/* TỔNG thực: vế tiền mặt lấy `tien_mat` (= số thực thu người đếm khi có gõ), KHÔNG
+			   lấy `tong` — `tong` đã cộng sẵn QR nhân viên khai, cộng thêm QR bank nữa là tính
+			   hai lần. */
+			$v   = (int) $r[ $tong_thuc ? 'tien_mat' : $cot ];
 			if ( ! isset( $o[ $key ] ) ) { $o[ $key ] = array(); }
 			$o[ $key ][ $ng ] = ( isset( $o[ $key ][ $ng ] ) ? $o[ $key ][ $ng ] : 0 ) + $v;
 			/* Ghế có dữ liệu mà chưa nằm trong danh mục (đã xoá/đổi mã) vẫn phải hiện — số của
@@ -2017,6 +2046,16 @@ class VHG_KeToan {
 			if ( 'ghe' === $muc && ! isset( $ghe_cua[ $cs ][ (string) $r['ma_may'] ] ) ) {
 				if ( ! isset( $ghe_cua[ $cs ] ) ) { $ghe_cua[ $cs ] = array(); }
 				$ghe_cua[ $cs ][ (string) $r['ma_may'] ] = (string) $r['ten'];
+			}
+		}
+
+		if ( $tong_thuc ) {
+			foreach ( (array) $vqd['vq'] as $cs_vq => $theo_ngay ) {
+				foreach ( (array) $theo_ngay as $ng_vq => $tien_vq ) {
+					if ( ! in_array( $ng_vq, $ds_ngay, true ) ) { continue; }
+					if ( ! isset( $o[ $cs_vq ] ) ) { $o[ $cs_vq ] = array(); }
+					$o[ $cs_vq ][ $ng_vq ] = ( isset( $o[ $cs_vq ][ $ng_vq ] ) ? $o[ $cs_vq ][ $ng_vq ] : 0 ) + (int) $tien_vq;
+				}
 			}
 		}
 
@@ -2049,11 +2088,11 @@ class VHG_KeToan {
 		$kq = array( 'ok' => true, 'tu' => $tu, 'den' => $den, 'muc' => $muc, 'cot' => $cot,
 			'ngay' => $ds_ngay, 'hang' => $hang,
 			'tongCot' => array_values( $tong_cot ), 'tong' => $tong_all,
+			'tongThuc' => $tong_thuc ? 1 : 0,
 			'soGhe' => array_sum( $dem_ghe ) );
 
 		/* Lớp VietQR THỰC (đối chiếu với NV nhập) — chỉ mức CƠ SỞ, gom theo ngày giao dịch. */
 		if ( 'coso' === $muc ) {
-			$vqd = self::vietqr_thuc_( $tu, $den );
 			if ( $vqd['co'] ) {
 				$vqTongCot = array_fill( 0, count( $ds_ngay ), 0 ); $vqTongAll = 0;
 				foreach ( $kq['hang'] as $i => $hg ) {

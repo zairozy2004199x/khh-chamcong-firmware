@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-09-18 · Phiên bản hiện tại: **2.111.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-09-18 · Phiên bản hiện tại: **2.113.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,37 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v2.113.0 — Báo cáo tổng: cột TỔNG là TIỀN THẬT, không còn là sản lượng máy
+
+Anh Thắng 18/09/2026: *"Tổng phải là thực thu để xác định tiền, còn chỉ số trên máy nó đâu phải
+doanh thu, vì chỉ số trên máy nó còn sai số"* + *"QR là QR thực về ngân hàng, còn con số QR nhân
+viên nhập chỉ là đối chiếu thôi"*.
+
+**Cũ:** `tong = tien_mat + qr(NV khai)`, mà `tien_mat = actual − qr` khi nhân viên không gõ ô
+"Thực thu" — tức **cả hai vế đều suy từ chỉ số máy**. Chỉ số máy đếm lượt chạy chứ không đếm tiền.
+Số QR nhân viên khai thì lệch thấy rõ với sao kê: kỳ 01→18/09, AEON Tân Phú khai 85,29tr trong khi
+bank về **91,92tr**; AEON Bình Dương **không khai đồng nào** mà bank về **23,31tr**.
+
+**Nay:** `TỔNG = thực thu tiền mặt (người đếm) + VietQR THỰC về ngân hàng (sao kê)`.
+
+- Vế tiền mặt lấy `bc_dong.tien_mat`, **không** lấy `bc_dong.tong` — `tong` đã gồm QR nhân viên
+  khai, cộng thêm QR bank nữa là đếm tiền hai lần.
+- Tiền bank cộng vào ô **trước** khi dựng danh sách cơ sở → cơ sở có tiền về mà chưa ai nộp báo cáo
+  vẫn ra một dòng, không biến mất khỏi bảng.
+- `vietqr_thuc_()` nay gọi **một lần**, dùng chung cho cả cột TỔNG lẫn lớp đối chiếu ở nút QR.
+- **Chỉ mức Cơ sở.** Sao kê quy tiền về cơ sở, không về từng ghế — gộp "Từng ghế" giữ công thức cũ
+  và màn hình nói thẳng đó là số nhân viên khai.
+- Màn hình in công thức đang dùng, cảnh báo cam cho phần **tiền bank chưa quy được cơ sở**
+  (`vqKhongKhop` — không nằm trong bảng, phải gắn máy vào đúng cơ sở), và báo khi chưa đọc được sao
+  kê thì TỔNG đang tạm tính theo số nhân viên khai.
+
+⚠️ **Còn một nửa chưa xong:** vế tiền mặt chỉ thật sự là "thực thu" khi nhân viên CÓ gõ ô Thực thu
+tiền mặt; bỏ trống thì vẫn rơi về `actual − qr` (chỉ số máy). Muốn dứt điểm thì phải bắt buộc nhập
+ô đó cho mọi ghế — chưa làm, chờ anh Thắng chốt vì nó đổi thói quen nhập hằng ngày.
+
+Bài kiểm `tools/test/kiem-bct-tong-thuc.js` (12 phép).
+
 
 ### v2.111.0 — Ghế ẩn: nói ra ở màn nhập · để lại dấu vết · chuyển cơ sở là gỡ cờ ẩn
 

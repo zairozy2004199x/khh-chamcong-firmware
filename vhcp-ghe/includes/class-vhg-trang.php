@@ -8259,6 +8259,39 @@ function bctBang(r){
     L('Từ','From') + ' ' + r.tu + ' ' + L('đến','to') + ' ' + r.den
     + ' · ' + r.ngay.length + ' ' + L('ngày','days')
     + ' · ' + L('tổng','total') + ' ' + ktVnd(r.tong) + 'đ'));
+  /* 🔴 NÓI RÕ CỘT TỔNG ĐANG LÀ TIỀN GÌ — anh Thắng 18/09/2026 đổi TỔNG sang tiền thật. Một cột
+     tiền đổi cách tính mà màn hình im lặng thì người đọc so với bản in hôm qua, thấy lệch, và
+     không biết bên nào sai. Nói ra một dòng là hết chuyện. */
+  if (r.cot === 'tong') {
+    var ghiChu;
+    if (r.tongThuc) {
+      ghiChu = ktEl('div','mut');
+      ghiChu.innerHTML = '<b style="color:#15803d">' + L('TỔNG = thực thu tiền mặt + VietQR thực về ngân hàng',
+        'TOTAL = counted cash + actual bank VietQR') + '</b> — '
+        + L('không lấy theo chỉ số máy, và không lấy số QR nhân viên khai (số ấy chỉ để đối chiếu ở nút QR).',
+            'not derived from meters, and not the staff-entered QR (that is only for reconciliation).');
+      wrap.appendChild(ghiChu);
+      if (r.vqKhongKhop) {
+        var canh = ktEl('div');
+        canh.style.cssText = 'margin:6px 0;padding:8px 11px;border-radius:8px;background:#fff7ed;'
+          + 'border:1px solid #fdba74;color:#7c2d12;font-size:12.5px;font-weight:600';
+        canh.textContent = '⚠ ' + ktVnd(r.vqKhongKhop) + 'đ ' + L('tiền VietQR đã về ngân hàng nhưng CHƯA quy được về cơ sở nào — số này KHÔNG nằm trong bảng dưới. Gắn máy vào đúng cơ sở (Quản lý ghế / Gắn mã máy) để nó vào đúng chỗ.',
+          'of VietQR money arrived but is not linked to any site — it is NOT in the table below.');
+        wrap.appendChild(canh);
+      }
+    } else if (r.muc === 'ghe') {
+      ghiChu = ktEl('div','mut');
+      ghiChu.textContent = L('TỔNG theo từng ghế = thực thu tiền mặt + QR NHÂN VIÊN KHAI. Sao kê chỉ quy được tiền về cơ sở, không về từng ghế, nên mức này không có QR thực — gộp theo Cơ sở để xem số tiền thật.',
+        'Per-chair TOTAL uses staff-entered QR: bank data resolves to sites, not chairs.');
+      wrap.appendChild(ghiChu);
+    } else {
+      ghiChu = ktEl('div','mut');
+      ghiChu.innerHTML = '<b style="color:#b45309">' + L('Chưa đọc được sao kê','No bank data') + '</b> — '
+        + L('TỔNG đang tạm tính theo số nhân viên khai (thực thu tiền mặt + QR khai). Cài/đồng bộ plugin Sao Kê để cột này thành tiền thật.',
+            'TOTAL falls back to staff-entered figures. Install/sync the bank statement plugin.');
+      wrap.appendChild(ghiChu);
+    }
+  }
   var sc = ktEl('div','table-scroll bct-box'); var t = ktEl('table','bct');
   /* 4 cột cố định (cơ sở · mã KH · ghế · số ghế) + mỗi ngày 92px + cột Tổng. */
   t.style.minWidth = (420 + r.ngay.length*84 + 110) + 'px';
