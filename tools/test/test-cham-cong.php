@@ -18509,15 +18509,30 @@ $h_kt_bp1 = vhcc_web_nhu2( 'HTBKT', 'Kế toán', $u_2cs,
 t( '🔴 chọn một cơ sở khi đang lọc bộ phận thì CHỈ ra cơ sở đó',
 	strpos( $h_kt_bp1, 'HTB1' ) !== false && strpos( $h_kt_bp1, 'HTB2' ) === false, $h_kt_bp1 );
 
-/* 🔴 QUÁ 3 CƠ SỞ THÌ QUAY LẠI LUẬT CHỌN MỘT — coi như một vai vận hành rộng hơn CHT một-vài-
-   cửa-hàng, dựng hết một lượt là một trang không ai cuộn nổi. */
+/* 🔴 QUÁ 3 CƠ SỞ THÌ KHÔNG VẼ HẾT — dựng bốn lưới cả tháng một lượt là một trang không ai cuộn
+   nổi, và bốn lượt đọc + tính cho máy chủ.
+   🔴 NHƯNG CŨNG KHÔNG ĐỂ MÀN TRƠ — anh Thắng 18/09/2026: *"Chỗ này, em xổ sẵn bảng công nhân
+      viên chấm công, chứ để này trơ quá"*, kèm ảnh màn Bảng công của một người có 4 cơ sở: chỉ
+      có ô lọc và một dòng chữ mờ. Luật cũ ở đây là "quá 3 thì không vẽ bảng nào" — đúng về tải
+      máy, nhưng biến màn mở hằng ngày thành một việc phải làm lại mỗi lần mở.
+   Nay: vẽ ĐÚNG MỘT bảng — cơ sở chính (`coso_mac_dinh()`). Vừa không nặng, vừa không trơ. */
 vhcc_cham( 'HT_BC3', '2026-08-07', 'HTB3', '', '08:00:00', '17:00:00' );
 vhcc_cham( 'HT_BC4', '2026-08-08', 'HTB4', '', '08:00:00', '17:00:00' );
 $u_4cs = 'HT_BC1,HT_BC2,HT_BC3,HT_BC4';
 $h_4cs = vhcc_web_nhu2( 'HTBCHT2', 'CUA_HANG_TRUONG', $u_4cs,
 	array( 'man' => 'cham', 'cth' => '2026-08' ) );
-t( '🔴 quá 3 cơ sở, CHƯA lọc bộ phận: không tự vẽ bảng nào',
-	strpos( $h_4cs, 'HTB1' ) === false && strpos( $h_4cs, 'HTB4' ) === false, $h_4cs );
+t( '🔴 quá 3 cơ sở: KHÔNG vẽ hết cả bốn',
+	substr_count( $h_4cs, 'id="luoithang"' ) < 4, substr_count( $h_4cs, 'id="luoithang"' ) );
+t( '🔴 nhưng cũng KHÔNG để trơ — xổ sẵn ĐÚNG MỘT bảng',
+	1 === substr_count( $h_4cs, 'id="luoithang"' ), substr_count( $h_4cs, 'id="luoithang"' ) );
+t( '🔴 và nói ra là hệ chọn hộ, kẻo tưởng đây là tất cả công của mình',
+	false !== strpos( $h_4cs, 'Đang xổ sẵn bảng công của' ), $h_4cs );
+/* Gửi `ccs=` rỗng là CỐ Ý bỏ chọn (bấm Xem với ô "— chọn cơ sở —") — phải tôn trọng, không thì
+   không còn đường nào quay về màn không-chọn-gì. */
+$h_4cs_bo = vhcc_web_nhu2( 'HTBCHT2', 'CUA_HANG_TRUONG', $u_4cs,
+	array( 'man' => 'cham', 'cth' => '2026-08', 'ccs' => '' ) );
+t( '🔴 gửi ccs rỗng là cố ý bỏ chọn — KHÔNG chọn hộ nữa',
+	0 === substr_count( $h_4cs_bo, 'id="luoithang"' ), substr_count( $h_4cs_bo, 'id="luoithang"' ) );
 
 /* =============================================================================================
  * 🔴 TRẦN SỐ BẢNG DỰNG SẴN KHI BẤM MỘT BỘ PHẬN ĐÔNG CƠ SỞ

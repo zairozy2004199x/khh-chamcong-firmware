@@ -2954,6 +2954,21 @@ class VHCC_Web {
 			/* Cột Lương chính là con số người ta dò nhiều nhất — nhấn bằng chữ, không bằng nền,
 			   để không đẻ thêm một mảng màu nữa cạnh ba mảng trên. */
 			. 'table.b td.nh-lc{color:var(--chu-dam)}'
+			/* ═══════════════════════════════════════════════════════════════════════════════
+			 * Ô TÊN GỘP NHIỀU DÒNG — anh Thắng 18/09/2026: *"Gộp lại thành 1 tên 2 hàng cho
+			 * đẹp"*. Ô cao bằng cả cụm nên chữ phải neo LÊN TRÊN: canh giữa theo chiều dọc thì
+			 * tên trôi xuống giữa bốn dòng việc và không còn thẳng hàng với dòng đầu của chính
+			 * nó. Và mỗi cụm người cần một nét ngăn phía trên, không thì bảng gộp xong trông
+			 * như một khối liền không biết người nào tới người nào.
+			 * ⚠️ Nét vẽ ở hàng ĐẦU cụm (`tr.dau-nguoi`), không phải ở ô gộp — ô gộp chỉ có một
+			 *    cột, nét của nó không chạy hết chiều ngang bảng.
+			 * ═══════════════════════════════════════════════════════════════════════════════ */
+			. 'table.b td.o-nguoi{vertical-align:top}'
+			. 'table.b tbody tr.dau-nguoi>td{border-top:1px solid var(--vien-dam)}'
+			/* Dòng việc thứ hai trở đi của cùng một người: chữ nhạt hơn một bậc, để mắt thấy
+			   ngay nó là phần phụ của dòng trên chứ không phải một người nữa. */
+			. 'table.b tbody tr.tiep-nguoi>td{color:var(--chu-mo)}'
+			. 'table.b tbody tr.tiep-nguoi>td b{color:var(--chu)}'
 			. 'table.b th.nh-cong{color:var(--luc-dam)}'
 			. 'table.b th.nh-tru{color:var(--do)}'
 			. 'table.b th.nh-tong{color:var(--lam-dam)}'
@@ -3666,8 +3681,8 @@ class VHCC_Web {
 	/* ⚠️ `mat` đứng CUỐI, cùng lối với `may`: Quản lý mở app ra là để xem bảng công, không phải
 	   để rơi thẳng vào hàng chờ duyệt mẫu. Nhưng vẫn PHẢI có tên ở đây — có phép thử canh mọi
 	   màn khai được đều có mặt, kẻo người chỉ có màn này lại rơi vào nhánh đoán mò ở cuối hàm. */
-	const MAN_UU_TIEN = array( 'nha', 'ho_so', 'cham', 'luong', 'don_tu', 'don_tuan', 'lich_su',
-		'cong_toi', 'coso', 'cau_hinh', 'du_lieu',
+	const MAN_UU_TIEN = array( 'nha', 'ho_so', 'cham', 'luong', 'don_tu', 'don_tuan',
+		'cong_toi', 'coso', 'cau_hinh', 'du_lieu', 'lich_su',
 		'ns_coso', 'lich', 'may', 'mat' );
 
 	public static function man_mac_dinh( $ds_man ) {
@@ -3815,13 +3830,6 @@ class VHCC_Web {
 		if ( VHCC_Vai::duoc( $toi, VHCC_TuanCong::QUYEN_DUYET ) ) {
 			$ds['don_tuan'] = 'Đơn duyệt chỉnh bảng công lương';
 		}
-		/* 🔴 LỊCH SỬ SỬA BẢNG CÔNG — anh Thắng 18/09/2026: *"thêm tab lịch sử sửa bảng công"*.
-		   Cùng cửa với màn Bảng công (`cong_coso`), KHÔNG cao hơn: cửa hàng trưởng nay không sửa
-		   được giờ nữa, nên họ càng cần chỗ tra xem ai đã sửa gì ở cơ sở mình. Phạm vi cơ sở vẫn
-		   chặt như cũ — `VHCC_Bu::ds_nhat_ky()` lọc từng dòng qua `co_quyen_coso()`. */
-		if ( VHCC_Vai::duoc( $toi, VHCC_WebLichSu::QUYEN ) ) {
-			$ds['lich_su'] = 'Lịch sử sửa bảng công';
-		}
 		/* 🔴 BẢNG LƯƠNG RA TAB RIÊNG — anh Thắng 18/09/2026: *"chuyển nó ra 1 tab như tính năng,
 		   vì sau để bên báo cáo họ lấy dữ liệu lương cho dễ"*. Cùng cửa với Bảng công, vì nó
 		   dựng từ chính bảng công ấy; chốt từng cơ sở nằm trong `the_bang_luong_cs()`. */
@@ -3842,6 +3850,16 @@ class VHCC_Web {
 		   trên là người có việc ở tab này lại không thấy tab. Mỗi khối bên trong tự gác lấy. */
 		if ( VHCC_Vai::duoc( $toi, VHCC_WebMat::QUYEN ) || VHCC_Vai::duoc( $toi, 'them_nv' ) ) {
 			$ds['mat'] = 'Khuôn mặt';
+		}
+		/* 🔴 LỊCH SỬ SỬA BẢNG CÔNG — anh Thắng 18/09/2026: *"thêm tab lịch sử sửa bảng công"*,
+		   rồi *"Chỉ Lịch Sử Bảng Công Xuống Cuối"*. Nên nó khai CUỐI CÙNG, sau cả Khuôn mặt.
+		   Đúng chỗ của nó: đây là sổ tra khi có chuyện, không phải việc hằng ngày — mà nó đang
+		   nằm chen giữa Nhân sự cửa hàng và Bảng lương, hai màn người ta mở suốt.
+		   Cùng cửa với màn Bảng công (`cong_coso`), KHÔNG cao hơn: cửa hàng trưởng nay không sửa
+		   được giờ nữa, nên họ càng cần chỗ tra xem ai đã sửa gì ở cơ sở mình. Phạm vi cơ sở vẫn
+		   chặt như cũ — `VHCC_Bu::ds_nhat_ky()` lọc từng dòng qua `co_quyen_coso()`. */
+		if ( VHCC_Vai::duoc( $toi, VHCC_WebLichSu::QUYEN ) ) {
+			$ds['lich_su'] = 'Lịch sử sửa bảng công';
 		}
 		if ( ! $ds ) { $ds['cong_toi'] = 'Công của tôi'; }
 		return $ds;
@@ -4898,6 +4916,39 @@ class VHCC_Web {
 		$th    = isset( $_GET['cth'] ) ? sanitize_text_field( wp_unslash( $_GET['cth'] ) ) : '';
 		$ngay  = isset( $_GET['cng'] ) ? sanitize_text_field( wp_unslash( $_GET['cng'] ) ) : '';
 		$ma_nv = isset( $_GET['cnv'] ) ? sanitize_text_field( wp_unslash( $_GET['cnv'] ) ) : '';
+
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 CHƯA CHỌN GÌ THÌ XỔ SẴN BẢNG CÔNG CƠ SỞ MÌNH — ĐỪNG ĐỂ MÀN TRƠ.
+		 *
+		 * Anh Thắng 18/09/2026: *"Chỗ này, em xổ sẵn bảng công nhân viên chấm công, chứ để này
+		 * trơ quá"*, kèm ảnh màn Bảng công chỉ có ô lọc và một dòng chữ mờ.
+		 *
+		 * Đã có hai đường tự vẽ sẵn, nhưng cả hai đều hụt đúng người đang đứng đây:
+		 *   · `$hien_het` — vẽ HẾT, nhưng chỉ khi có ≤3 cơ sở. Chị Mai Anh có 4.
+		 *   · bấm một Bộ phận — vẽ từng cơ sở của bộ phận ấy, nhưng phải bấm mới có.
+		 * Nên ai quản 4 cơ sở trở lên, mở màn ra là một trang trống. Màn trống là một việc giao
+		 * cho người dùng, và là việc họ phải làm lại mỗi lần mở.
+		 *
+		 * Nay: chưa chọn gì thì lấy CƠ SỞ CHÍNH (`coso_mac_dinh()` — đúng hàm mấy màn khác đang
+		 * dùng) và vẽ đúng MỘT bảng của nó.
+		 *
+		 * ⚠️ ĐẶT TRƯỚC KHI VẼ Ô CHỌN, không phải sau. Đặt sau thì bảng hiện ra của cơ sở A mà ô
+		 *    chọn vẫn đứng ở "— chọn cơ sở —" — người đọc không biết mình đang xem cái gì, và
+		 *    bấm Xem một phát là bảng biến mất.
+		 * ⚠️ KHÔNG ĐÈ LÊN HAI ĐƯỜNG CŨ: có `cbp` (đang xem cả bộ phận) thì thôi, và ≤3 cơ sở thì
+		 *    vẫn vẽ hết như cũ — chọn sẵn một cái ở đó là làm NGHÈO màn đi.
+		 * ⚠️ Và chỉ chọn hộ khi người ta CHƯA hề gửi `ccs`. Gửi `ccs=` rỗng là cố ý bỏ chọn (bấm
+		 *    Xem với ô "— chọn cơ sở —"), phải tôn trọng — nếu không thì không có cách nào quay
+		 *    về màn không-chọn-gì nữa.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$cs_chon_ho = false;
+		if ( ! isset( $_GET['ccs'] ) && '' === $bp && $ds_cs && count( $ds_cs ) > 3 ) {
+			$cs_md = self::coso_mac_dinh( $toi, $ds_cs );
+			if ( '' !== $cs_md ) {
+				$cs = $cs_md;
+				$cs_chon_ho = true;
+			}
+		}
 		if ( '' === $th ) { $th = substr( (string) current_time( 'Y-m-d' ), 0, 7 ); }
 
 		/* Lọc danh sách cơ sở theo bộ phận trước khi vẽ ô chọn — chọn bộ phận mà ô cơ sở vẫn
@@ -4991,6 +5042,14 @@ class VHCC_Web {
 			. esc_attr( $ma_nv ) . '" placeholder="mã NV — trống = tất cả" style="width:170px"></div>';
 		echo '<div><button class="chinh">Xem</button></div>';
 		echo '</form>';
+
+		if ( $cs_chon_ho ) {
+			/* Nói ra là hệ chọn hộ, và chỉ luôn đường bỏ chọn. Tự chọn hộ mà im lặng thì người
+			   quản nhiều cơ sở dễ tưởng đây là TẤT CẢ công của mình. */
+			echo '<p class="mo" style="margin-top:10px">👉 Đang xổ sẵn bảng công của <b>'
+				. esc_html( $cs ) . '</b> — cơ sở chính của anh/chị. Đổi ở ô <b>Cơ sở</b> ở trên, '
+				. 'hoặc bấm một <b>Bộ phận</b> để xem cả nhóm.</p>';
+		}
 
 		self::khoi_them_nv( $ky, $toi, $cs, $ds_cs );
 
@@ -9732,10 +9791,69 @@ class VHCC_Web {
 		}
 		echo '</tr></thead><tbody>';
 
-		foreach ( $b['dong'] as $d ) {
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 MỘT NGƯỜI = MỘT Ô TÊN, DÙ CÓ MẤY DÒNG VIỆC.
+		 *
+		 * Anh Thắng 18/09/2026: *"Gộp lại thành 1 tên 2 hàng cho đẹp"*, kèm ảnh bảng của kế toán
+		 * — ở đó "NGÔ KHẢ NGỌC MẪN" và số CCCD nằm trong MỘT ô cao bằng bốn dòng việc (Partime ·
+		 * MC · Hỗ Trợ · Partime).
+		 *
+		 * Người ăn nhiều đơn giá thì mỗi việc một dòng — đó là cách duy nhất in ra được từng
+		 * mức tiền/h. Nhưng lặp lại tên và CCCD ở mỗi dòng thì đọc thành hai người trùng tên
+		 * (đúng cái ảnh anh gửi: "NGUYỄN BẢO KHANG" hiện hai lần liền nhau), và mắt phải tự
+		 * đoán xem dòng nào gộp với dòng nào.
+		 *
+		 * ⚠️ GỘP THEO MÃ, KHÔNG THEO TÊN. Hai người trùng tên thật là chuyện có thật trong sổ
+		 *    này (xem `VHCC_NhanSu::do_trung()`), gộp theo tên là nhập công của hai người làm
+		 *    một — sai mà trông rất gọn gàng.
+		 * ⚠️ VÀ CHỈ GỘP DÒNG LIỀN NHAU. `vp_bang_cong_va_luong()` xếp các dòng của một người
+		 *    liền kề; nếu ngày nào đó thứ tự đổi, đếm cụm liền kề vẫn ra đúng bảng (chỉ là gộp
+		 *    được ít hơn), còn đếm tổng số dòng theo mã thì `rowspan` vượt quá cụm và cả bảng
+		 *    lệch cột từ đó xuống.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$gop = array();                       // chỉ số dòng ĐẦU cụm => số dòng của cụm
+		$bo_qua = array();                    // chỉ số dòng bị ô tên ở trên phủ xuống
+		$ds_dong = array_values( (array) $b['dong'] );
+		for ( $i_g = 0; $i_g < count( $ds_dong ); $i_g++ ) {
+			if ( isset( $bo_qua[ $i_g ] ) ) { continue; }
+			$ma_g = strtoupper( trim( (string) $ds_dong[ $i_g ]['ma'] ) );
+			$n_g  = 1;
+			while ( $i_g + $n_g < count( $ds_dong )
+				&& strtoupper( trim( (string) $ds_dong[ $i_g + $n_g ]['ma'] ) ) === $ma_g
+				&& '' !== $ma_g ) {
+				$bo_qua[ $i_g + $n_g ] = 1;
+				$n_g++;
+			}
+			$gop[ $i_g ] = $n_g;
+		}
+		/** Mấy cột gộp theo người — thuộc về NGƯỜI, không thuộc về dòng việc. */
+		$cot_gop = array( 'stt' => 1, 'ten' => 1, 'cccd' => 1 );
+
+		foreach ( $ds_dong as $i_d => $d ) {
 			$la_c = ! empty( $d['laChinh'] );
-			echo '<tr' . ( null === $d['luongChinh'] ? ' class="hong"' : '' ) . '>';
+			$n_gop = isset( $gop[ $i_d ] ) ? (int) $gop[ $i_d ] : 0;
+			/* ⚠️ MỘT thuộc tính `class`, không phải hai. Nối hai lần `class="…"` vào cùng một
+			   thẻ thì trình duyệt chỉ đọc cái ĐẦU — dòng thiếu giá mất nét đỏ, hoặc nét gộp
+			   người không chạy, tuỳ thứ tự. Và nó không kêu một tiếng nào. */
+			$lop_tr = array();
+			if ( null === $d['luongChinh'] ) { $lop_tr[] = 'hong'; }
+			if ( $n_gop > 1 ) { $lop_tr[] = 'dau-nguoi'; }
+			if ( 0 === $n_gop ) { $lop_tr[] = 'tiep-nguoi'; }
+			echo '<tr' . ( $lop_tr ? ' class="' . implode( ' ', $lop_tr ) . '"' : '' ) . '>';
 			foreach ( $hien as $c ) {
+				/* Dòng bị phủ thì KHÔNG in mấy ô ấy — ô của dòng đầu đã cao trùm xuống rồi. */
+				if ( isset( $cot_gop[ $c['k'] ] ) ) {
+					if ( 0 === $n_gop ) { continue; }
+					if ( $n_gop > 1 ) {
+						/* Ô gộp: in ngay tại đây rồi đi tiếp, vì mấy nhánh dưới không biết
+						   `rowspan`. Giữ đúng lớp/kiểu của từng cột. */
+						$v_g = $o_gt( $d, $c['k'] );
+						echo '<td rowspan="' . (int) $n_gop . '" class="o-nguoi'
+							. ( empty( $c['so'] ) ? '' : ' p' ) . '">'
+							. esc_html( (string) $v_g ) . '</td>';
+						continue;
+					}
+				}
 				$v = $o_gt( $d, $c['k'] );
 				if ( 'gc' === $c['k'] ) {
 					$gc = array();

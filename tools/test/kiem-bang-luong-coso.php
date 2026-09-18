@@ -2149,6 +2149,60 @@ t( '🔴 và bảng rộng ra đúng hai cột: Phạt + Cộng của nhóm',
 	vhcc_dem_o( (string) $hang_m ) . ' -> ' . vhcc_dem_o( (string) $hang_m2 ) );
 t( '🔴 và số phạt in ra thật', false !== strpos( (string) $hang_m2, '200.000' ), $hang_m2 );
 
+/* ── MỘT NGƯỜI = MỘT Ô TÊN, DÙ CÓ MẤY DÒNG VIỆC ────────────────────────────────────────────
+   Anh Thắng 18/09/2026: *"Gộp lại thành 1 tên 2 hàng cho đẹp"*, kèm ảnh bảng kế toán — tên và
+   CCCD nằm trong MỘT ô cao bằng cả cụm dòng việc.
+   🔴 CANH SỐ Ô, KHÔNG CHỈ CANH CHỮ `rowspan`. Gộp sai là cả bảng LỆCH CỘT từ dòng ấy xuống —
+      tiền rơi vào cột Ghi chú — mà HTML vẫn hợp lệ nên trình duyệt không kêu. Phép đếm dưới
+      đây là phép duy nhất bắt được chuyện đó: dòng đầu cụm có đủ N ô (3 ô mang rowspan), dòng
+      tiếp theo phải có đúng N-3. */
+$cs_gp = 'KHO_GOP';
+$th_gp = '2026-08';
+$wpdb->insert( VHCC_DB::t( 'bo_phan_coso' ), array( 'coso' => $cs_gp, 'bo_phan' => 'Khu vui chơi' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'GP1', 'ho_ten' => 'Người Nhiều Việc',
+	'cccd' => '000000000000', 'chuc_vu' => 'Partime', 'cua_hang' => $cs_gp,
+	'trang_thai_lam_viec' => 'Đang làm' ) );
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $cs_gp, 'ngay' => $th_gp . '-03',
+	'ma_nv' => 'GP1', 'ho_ten' => 'Người Nhiều Việc', 'gio_vao_giay' => 8 * 3600,
+	'gio_ra_giay' => 18 * 3600, 'hau_to' => '', 'nguon' => 'may' ) );
+VHCC_GiaGio::dat_coso( $U_KT, $cs_gp, array( 'Partime' => 20000, 'MC' => 30000 ) );
+VHCC_ChotLuong::dat( $U_KT, $cs_gp, $th_gp, 'GP1',
+	array( array( 'viec' => 'MC', 'gio' => '2' ) ), 10 );
+
+$h_gp = vhcc_man( 'KT_BL', 'Kế toán', '', vhcc_g_luong( $cs_gp, $th_gp ) );
+$bl_gp = vhcc_khoi_bl( $h_gp );
+t( 'gieo được cảnh một người hai dòng việc',
+	false !== mb_strpos( (string) $bl_gp, 'Người Nhiều Việc' ), $bl_gp );
+/* 🔴 TÊN CHỈ IN MỘT LẦN. Ảnh anh Thắng gửi có "NGUYỄN BẢO KHANG" hiện hai lần liền nhau —
+   đọc ra hai người trùng tên. */
+teq( '🔴 tên chỉ in MỘT lần dù có hai dòng việc', 1,
+	mb_substr_count( (string) $bl_gp, 'Người Nhiều Việc' ) );
+teq( '🔴 CCCD cũng chỉ in một lần', 1, mb_substr_count( (string) $bl_gp, '000000000000' ) );
+t( '🔴 ô tên gộp bằng rowspan="2"',
+	false !== mb_strpos( (string) $bl_gp, '<td rowspan="2" class="o-nguoi"' ), $bl_gp );
+
+preg_match_all( '#<tr[^>]*>.*?</tr>#us', (string) $bl_gp, $m_gp );
+$hg_dau = '';
+$hg_tiep = '';
+foreach ( $m_gp[0] as $i_hg => $hg ) {
+	if ( false !== mb_strpos( $hg, 'Người Nhiều Việc' ) ) {
+		$hg_dau  = $hg;
+		$hg_tiep = isset( $m_gp[0][ $i_hg + 1 ] ) ? $m_gp[0][ $i_hg + 1 ] : '';
+		break;
+	}
+}
+t( 'bóc được hai hàng của cụm', '' !== $hg_dau && '' !== $hg_tiep, $hg_dau );
+$n_dau  = vhcc_dem_o( $hg_dau );
+$n_tiep = vhcc_dem_o( $hg_tiep );
+teq( '🔴 hàng sau thiếu đúng 3 ô (stt · họ tên · CCCD đã gộp lên trên)', 3, $n_dau - $n_tiep );
+/* Và hàng TỔNG vẫn đủ cột — nó không nằm trong cụm nào nên không được thiếu ô nào. */
+$hg_tong = vhcc_hang_bl( (string) $bl_gp, '<b>TỔNG</b>' );
+teq( '🔴 hàng TỔNG vẫn đủ cột, không bị cuốn theo phép gộp', $n_dau, vhcc_dem_o( (string) $hg_tong ) );
+/* Dòng việc thứ hai phải nhận ra được bằng lớp, để tô nhạt — không thì hai dòng trông ngang
+   hàng nhau và phép gộp chỉ giấu đi cái tên chứ không nói được quan hệ. */
+t( 'hàng tiếp theo mang lớp tiep-nguoi', false !== mb_strpos( $hg_tiep, 'tiep-nguoi' ), $hg_tiep );
+t( 'hàng đầu cụm mang lớp dau-nguoi', false !== mb_strpos( $hg_dau, 'dau-nguoi' ), $hg_dau );
+
 /* ── PHỐI MÀU CỤM CỘT ───────────────────────────────────────────────────────────────────────
    Anh Thắng 18/09/2026: *"bảng hiện phối màu theo từng nhân viên cho đẹp"*, kèm ảnh khối Quyết
    toán bên Chi phí. Cụm CỘNG lục · cụm TRỪ đỏ nhạt · TOTAL SALARY lam.
