@@ -2904,6 +2904,46 @@ class VHCC_Web {
 			   bằng nét dọc — y như tệp Excel của kế toán kẻ khung quanh nhóm. */
 			. 'table.b th[colspan]{text-align:center;border-left:1px solid var(--vien-dam);'
 			. 'border-right:1px solid var(--vien-dam);color:var(--chu);font-weight:600}'
+			/* ═══════════════════════════════════════════════════════════════════════════════
+			 * PHỐI MÀU CỤM CỘT CỦA BẢNG LƯƠNG — anh Thắng 18/09/2026: *"bảng hiện phối màu theo
+			 * từng nhân viên cho đẹp"*, kèm ảnh khối Quyết toán bên Chi phí (mỗi số một ô nền
+			 * nhạt có màu). Cộng = lục · Trừ = đỏ nhạt · TOTAL SALARY = lam · Lương chính = nhấn
+			 * nhẹ. Ba câu hỏi khác nhau thì đừng để chúng trông giống nhau.
+			 *
+			 * 🔴 MỖI CỤM PHẢI CÓ ĐỦ HAI SẮC CHẴN/LẺ. Luật sọc hàng ở trên
+			 *    (`tr:nth-child(even)>td`) có cùng độ ưu tiên với `td.nh-cong`, nên chỉ cần viết
+			 *    một sắc là sọc TẮT HẲN bên trong cụm — đúng chỗ bảng rộng nhất và mắt dễ trượt
+			 *    dòng nhất. Nên dưới đây mỗi cụm có cặp thường / chẵn, và một sắc riêng lúc rê
+			 *    chuột (nếu không thì rê vào cụm màu là không thấy hàng sáng lên, trông như
+			 *    trang bị treo).
+			 * ⚠️ Đặt SAU luật sọc, không phải trước — bằng điểm thì luật viết sau thắng.
+			 * ═══════════════════════════════════════════════════════════════════════════════ */
+			. 'table.b tbody tr>td.nh-cong{background:var(--luc-nhat)}'
+			. 'table.b tbody tr:nth-child(even)>td.nh-cong{background:color-mix(in srgb,'
+			. 'var(--luc-nhat) 82%,var(--chu))}'
+			. 'table.b tbody tr>td.nh-tru{background:var(--do-nhat)}'
+			. 'table.b tbody tr:nth-child(even)>td.nh-tru{background:color-mix(in srgb,'
+			. 'var(--do-nhat) 82%,var(--chu))}'
+			. 'table.b tbody tr>td.nh-tong{background:var(--lam-nhat);font-weight:700;'
+			. 'color:var(--lam-dam)}'
+			. 'table.b tbody tr:nth-child(even)>td.nh-tong{background:color-mix(in srgb,'
+			. 'var(--lam-nhat) 82%,var(--chu))}'
+			/* Rê chuột: cả hàng sáng lên, kể cả mấy ô đang mang màu cụm. */
+			. 'table.b tbody tr:hover>td.nh-cong,table.b tbody tr:hover>td.nh-tru,'
+			. 'table.b tbody tr:hover>td.nh-tong{background:var(--nen-2)}'
+			/* Hàng TỔNG đứng trên mọi màu cụm — nó không phải một người. */
+			. 'table.b tbody tr.tong-bl>td.nh-cong,table.b tbody tr.tong-bl>td.nh-tru,'
+			. 'table.b tbody tr.tong-bl>td.nh-tong{background:var(--nen-2)}'
+			/* Nét dọc mở/đóng ngoặc cho từng cụm, y như khung trong tệp Excel của kế toán. */
+			. 'table.b .nh-cong,table.b .nh-tong{border-left:1px solid var(--vien-dam)}'
+			. 'table.b .nh-tru{border-left:1px solid var(--vien-dam)}'
+			. 'table.b .nh-tong{border-right:1px solid var(--vien-dam)}'
+			/* Cột Lương chính là con số người ta dò nhiều nhất — nhấn bằng chữ, không bằng nền,
+			   để không đẻ thêm một mảng màu nữa cạnh ba mảng trên. */
+			. 'table.b td.nh-lc{color:var(--chu-dam)}'
+			. 'table.b th.nh-cong{color:var(--luc-dam)}'
+			. 'table.b th.nh-tru{color:var(--do)}'
+			. 'table.b th.nh-tong{color:var(--lam-dam)}'
 			/* ================================= đánh số hàng, theo mẫu HR V5.2 (ảnh 1 và 2)
 			   Mẫu có một cột số chạy dọc bên trái mọi bảng danh sách. Không phải trang trí: bảng
 			   máy có 26 dòng, bảng lịch cả tháng có mấy trăm — người trực gọi điện cho cửa hàng
@@ -9551,6 +9591,33 @@ class VHCC_Web {
 			return null;
 		};
 
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 PHỐI MÀU THEO CỤM CỘT, ĐỂ MẮT DÒ ĐƯỢC MỘT NGƯỜI QUA HAI MƯƠI MẤY CỘT.
+		 *
+		 * Anh Thắng 18/09/2026: *"bảng hiện phối màu theo từng nhân viên cho đẹp"*, kèm ảnh khối
+		 * Quyết toán bên Chi phí — mỗi con số nằm trong một ô nền nhạt có màu riêng.
+		 *
+		 * Bảng này rộng hơn màn hình: đọc dòng thứ 14 mà trượt mắt sang cột Phạt là rất dễ nhảy
+		 * nhầm sang dòng 13 hoặc 15, và một con tiền đọc nhầm dòng thì không có gì báo. Hai thứ
+		 * chữa đúng chuyện ấy:
+		 *   · SỌC HÀNG đã có sẵn — nhưng nó tắt ngay khi ô mang nền riêng, nên bên dưới mỗi cụm
+		 *     màu phải có ĐỦ hai sắc chẵn/lẻ, không thì cụm cộng/trừ thành một mảng phẳng và
+		 *     mất dấu dòng đúng ở chỗ cần dò nhất;
+		 *   · CỤM MÀU: khoản CỘNG nền lục, khoản TRỪ nền đỏ nhạt, TOTAL SALARY nền lam — ba câu
+		 *     hỏi khác nhau thì đừng để chúng trông giống nhau.
+		 *
+		 * ⚠️ MÀU THEO Ý NGHĨA CỘT, KHÔNG THEO TỪNG NGƯỜI MỘT MÀU. Hai mươi người là hai mươi màu
+		 *    thì không màu nào còn nghĩa gì, và người mù màu mất sạch thông tin. Dòng vẫn nhận ra
+		 *    bằng sọc chẵn/lẻ + nét sáng khi rê chuột, đó mới là thứ dò dòng được.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$lop_c = function ( $c ) {
+			if ( 'Các khoản cộng vào lương' === $c['nhom'] ) { return ' nh-cong'; }
+			if ( 'Các khoản giảm trừ vào lương' === $c['nhom'] ) { return ' nh-tru'; }
+			if ( 'z' === $c['k'] ) { return ' nh-tong'; }
+			if ( 'lc' === $c['k'] ) { return ' nh-lc'; }
+			return '';
+		};
+
 		/* Cột nào CẢ BẢNG không có số thì bỏ. Quyết theo cả bảng, không theo từng dòng — cột mọc
 		   ra rồi mất đi giữa các dòng thì không còn là bảng nữa. */
 		$hien = array();
@@ -9573,14 +9640,19 @@ class VHCC_Web {
 				$nh = $hien[ $i_n ]['nhom'];
 				$so = 1;
 				while ( $i_n + $so < count( $hien ) && $hien[ $i_n + $so ]['nhom'] === $nh && '' !== $nh ) { $so++; }
-				echo '<th' . ( $so > 1 ? ' colspan="' . (int) $so . '"' : '' ) . '>'
+				echo '<th' . ( $so > 1 ? ' colspan="' . (int) $so . '"' : '' )
+					. ( '' === $nh ? '' : ' class="' . trim( $lop_c( $hien[ $i_n ] ) ) . '"' ) . '>'
 					. ( '' === $nh ? '' : esc_html( $nh ) ) . '</th>';
 				$i_n += $so;
 			}
 			echo '</tr>';
 		}
 		echo '<tr>';
-		foreach ( $hien as $c ) { echo '<th>' . esc_html( $c['ten'] ) . '</th>'; }
+		foreach ( $hien as $c ) {
+			$l_h = trim( $lop_c( $c ) );
+			echo '<th' . ( '' === $l_h ? '' : ' class="' . $l_h . '"' ) . '>'
+				. esc_html( $c['ten'] ) . '</th>';
+		}
 		echo '</tr></thead><tbody>';
 
 		foreach ( $b['dong'] as $d ) {
@@ -9604,6 +9676,7 @@ class VHCC_Web {
 					echo '</td>';
 					continue;
 				}
+				$lm = $lop_c( $c );
 				if ( 'cv' === $c['k'] ) {
 					/* Dòng giờ ăn giá khác thụt vào, để mắt thấy ngay nó thuộc về người ở trên. */
 					echo '<td>' . ( $la_c ? '' : '<span class="mo">↳ </span>' )
@@ -9618,12 +9691,13 @@ class VHCC_Web {
 					continue;
 				}
 				if ( empty( $c['so'] ) ) {
-					echo '<td>' . esc_html( (string) $v ) . '</td>';
+					echo '<td' . ( '' === $lm ? '' : ' class="' . trim( $lm ) . '"' ) . '>'
+						. esc_html( (string) $v ) . '</td>';
 					continue;
 				}
 				$ch = $tien( $v );
 				$in = ( null === $ch ) ? '<span class="mo">—</span>' : esc_html( $ch );
-				echo '<td class="p">' . ( empty( $c['dam'] ) ? $in : '<b>' . $in . '</b>' ) . '</td>';
+				echo '<td class="p' . $lm . '">' . ( empty( $c['dam'] ) ? $in : '<b>' . $in . '</b>' ) . '</td>';
 			}
 			echo '</tr>';
 			if ( $la_c && $duoc_nhap && $sua_cl === $d['ma'] ) {
@@ -9643,7 +9717,11 @@ class VHCC_Web {
 				echo '<td class="mo">' . (int) $b['tong']['nguoi'] . ' dòng</td>';
 				continue;
 			}
-			if ( empty( $c['so'] ) ) { echo '<td></td>'; continue; }
+			$lm_t = $lop_c( $c );
+			if ( empty( $c['so'] ) ) {
+				echo '<td' . ( '' === $lm_t ? '' : ' class="' . trim( $lm_t ) . '"' ) . '></td>';
+				continue;
+			}
 			if ( 'gia' === $c['k'] || 'cyc' === $c['k'] || 'lcb' === $c['k'] ) {
 				/* Đơn giá và lương cơ bản KHÔNG cộng dọc — cộng mấy cái giá lại là một con số
 				   vô nghĩa mà trông vẫn như tiền. */
@@ -9656,7 +9734,8 @@ class VHCC_Web {
 				echo '<td class="p"><b>' . esc_html( number_format( $tg, 2, ',', '.' ) ) . '</b></td>';
 				continue;
 			}
-			echo '<td class="p"><b>' . esc_html( number_format( $tg, 0, ',', '.' ) ) . '</b></td>';
+			echo '<td class="p' . $lm_t . '"><b>' . esc_html( number_format( $tg, 0, ',', '.' ) )
+				. '</b></td>';
 		}
 		echo '</tr>';
 		echo '</tbody></table></div>';

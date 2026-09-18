@@ -67,6 +67,15 @@ function ket_luan() {
 
 global $wpdb;
 
+/* 🔴 HỎI "CÓ CỘT ẤY KHÔNG", ĐỪNG HỎI ĐÚNG MỘT CHUỖI THẺ. Mấy phép thử dưới từng viết
+   `strpos( $h, '<th>Phạt</th>' )`; đến lúc cột mang thêm một lớp CSS (phối màu cụm cộng/trừ,
+   18/09/2026) là cả loạt đỏ trong khi cột vẫn còn nguyên. Phép thử vỡ vì THAY ĐỔI VÔ HẠI thì
+   lần sau người ta sửa phép thử cho xanh chứ không đọc nó nữa. */
+function co_cot( $h, $ten ) {
+	return 1 === preg_match( '#<th[^>]*>' . preg_quote( $ten, '#' ) . '</th>#u', (string) $h );
+}
+
+
 /** Dựng một màn của trang quản trị bằng phiên của một người cụ thể. */
 /** Gọi một hàm `private static` — để thử thẳng bộ xử lý POST mà không phải dựng cả màn. */
 function vhcc_goi_rieng( $lop, $ham, $args ) {
@@ -687,10 +696,8 @@ t( '🔴 có đường mở khối nhập trên mỗi hàng', false !== strpos( 
    bảng lương như excel nằm dưới bảng công để check luôn"*. Tên khác tệp thì mắt không dò được
    hai bên cạnh nhau, mà đó chính là việc bảng này sinh ra để làm. */
 t( '🔴 bảng dùng tên cột của tệp Excel',
-	false !== strpos( $h_bl, '<th>Số công thực</th>' )
-	&& false !== strpos( $h_bl, '<th>Tiền/h</th>' )
-	&& false !== strpos( $h_bl, '<th>Lương chính</th>' )
-	&& false !== strpos( $h_bl, '<th>TOTAL SALARY</th>' ), $h_bl );
+	co_cot( $h_bl, 'Số công thực' ) && co_cot( $h_bl, 'Tiền/h' )
+	&& co_cot( $h_bl, 'Lương chính' ) && co_cot( $h_bl, 'TOTAL SALARY' ), $h_bl );
 
 $h_mo = vhcc_man( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT',
 	array( 'man' => 'cham', 'ccs' => 'AEON_BT', 'cth' => '2026-08', 'clm' => 'BT_MAN' ) );
@@ -2072,10 +2079,10 @@ t( '🔴 chưa ai gõ: KHÔNG có nhóm "Các khoản cộng vào lương"',
 	false === strpos( (string) $bl_m, 'Các khoản cộng vào lương' ), $bl_m );
 t( '🔴 và KHÔNG có nhóm "Các khoản giảm trừ vào lương"',
 	false === strpos( (string) $bl_m, 'Các khoản giảm trừ vào lương' ), $bl_m );
-t( '🔴 và không có cột Phạt', false === strpos( (string) $bl_m, '<th>Phạt</th>' ), $bl_m );
+t( '🔴 và không có cột Phạt', ! co_cot( $bl_m, 'Phạt' ), $bl_m );
 /* 🔴 MẤY CỘT LÕI THÌ GIỮ, kể cả khi rỗng — ô trống ở đó là một câu trả lời. */
 foreach ( array( 'Số công thực', 'Tiền/h', 'Lương chính', 'TOTAL SALARY' ) as $c_loi ) {
-	t( '🔴 cột lõi "' . $c_loi . '" vẫn còn', false !== strpos( (string) $bl_m, '<th>' . $c_loi . '</th>' ),
+	t( '🔴 cột lõi "' . $c_loi . '" vẫn còn', co_cot( $bl_m, $c_loi ),
 		$bl_m );
 }
 
@@ -2107,7 +2114,7 @@ $r_tm = VHCC_ChotLuong::dat_tien( $U_KT, $cs_m, $th_m, 'MO1', array(), array( 'p
 t( 'gieo: gõ được khoản phạt', ! empty( $r_tm['ok'] ), $r_tm );
 $h_m2  = vhcc_man( 'KT_BL', 'Kế toán', '', $g_m );
 $bl_m2 = vhcc_khoi_bl( $h_m2 );
-t( '🔴 gõ phạt vào: cột "Phạt" hiện ra', false !== strpos( (string) $bl_m2, '<th>Phạt</th>' ), $bl_m2 );
+t( '🔴 gõ phạt vào: cột "Phạt" hiện ra', co_cot( $bl_m2, 'Phạt' ), $bl_m2 );
 t( '🔴 kèm tiêu đề nhóm "Các khoản giảm trừ vào lương"',
 	false !== strpos( (string) $bl_m2, 'Các khoản giảm trừ vào lương' ), $bl_m2 );
 t( '⚠️ nhưng nhóm CỘNG vẫn thôi — nó vẫn chưa có số nào',
@@ -2122,6 +2129,43 @@ t( '🔴 và bảng rộng ra đúng hai cột: Phạt + Cộng của nhóm',
 	vhcc_dem_o( (string) $hang_m2 ) === vhcc_dem_o( (string) $hang_m ) + 2,
 	vhcc_dem_o( (string) $hang_m ) . ' -> ' . vhcc_dem_o( (string) $hang_m2 ) );
 t( '🔴 và số phạt in ra thật', false !== strpos( (string) $hang_m2, '200.000' ), $hang_m2 );
+
+/* ── PHỐI MÀU CỤM CỘT ───────────────────────────────────────────────────────────────────────
+   Anh Thắng 18/09/2026: *"bảng hiện phối màu theo từng nhân viên cho đẹp"*, kèm ảnh khối Quyết
+   toán bên Chi phí. Cụm CỘNG lục · cụm TRỪ đỏ nhạt · TOTAL SALARY lam.
+   🔴 Canh Ô THẬT, không canh dòng CSS. Một luật CSS có mặt mà không ô nào mang lớp ấy thì màu
+      không bao giờ hiện — đúng kiểu hỏng của ô "Của tôi" trên trạm hôm nay (nhánh có, không ai
+      tới được). Nên hỏi ngược: ô Phạt của hàng người ta CÓ mang lớp `nh-tru` không. */
+t( '🔴 ô của cụm giảm trừ mang lớp màu nh-tru',
+	1 === preg_match( '#<td class="p nh-tru">200\.000</td>#u', (string) $hang_m2 ), $hang_m2 );
+t( '🔴 ô TOTAL SALARY mang lớp màu nh-tong',
+	false !== strpos( (string) $hang_m2, 'class="p nh-tong"' ), $hang_m2 );
+t( 'tiêu đề cột cũng mang lớp ấy (để tô chữ theo cụm)',
+	1 === preg_match( '#<th class="nh-tru">Phạt</th>#u', (string) $bl_m2 ), $bl_m2 );
+t( '🔴 hàng TỔNG cũng mang lớp, không thì nó là hàng duy nhất lệch màu',
+	false !== strpos( (string) $hang_t2, 'nh-tru' ), $hang_t2 );
+
+/* 🔴 SỌC HÀNG PHẢI SỐNG SÓT BÊN TRONG CỤM MÀU. Luật sọc `tr:nth-child(even)>td` và luật
+   `td.nh-tru` BẰNG ĐIỂM ưu tiên, nên nếu chỉ khai MỘT sắc cho cụm thì sọc tắt hẳn đúng ở chỗ
+   bảng rộng nhất — mắt trượt dòng ở cột tiền, và một con tiền đọc nhầm dòng thì không gì báo.
+   Nên đòi: mỗi cụm có đủ cặp thường/chẵn, và có sắc riêng lúc rê chuột. */
+/* ⚠️ ĐỌC CSS TỪ CẢ TRANG, không phải từ khối bảng. `vhcc_khoi_bl()` cắt đúng khối Bảng lương,
+   mà thẻ `<style>` nằm trên `<head>` — canh trên mảnh đã cắt thì phép thử đỏ oan (em vừa dính
+   đúng thế). */
+$css_bl = (string) $h_m2;
+foreach ( array( 'nh-cong', 'nh-tru', 'nh-tong' ) as $cum ) {
+	t( '🔴 cụm ' . $cum . ' có sắc hàng LẺ',
+		false !== strpos( $css_bl, 'table.b tbody tr>td.' . $cum . '{background:' ) );
+	t( '🔴 cụm ' . $cum . ' có sắc hàng CHẴN (không thì mất sọc)',
+		false !== strpos( $css_bl, 'tr:nth-child(even)>td.' . $cum . '{background:' ) );
+	t( 'cụm ' . $cum . ' vẫn sáng lên khi rê chuột',
+		false !== strpos( $css_bl, 'tr:hover>td.' . $cum ) );
+}
+/* Và luật cụm phải nằm SAU luật sọc — bằng điểm thì viết sau mới thắng. */
+$i_soc = strpos( $css_bl, "tr:nth-child(even)>td{background" );
+$i_cum = strpos( $css_bl, "tr>td.nh-cong{background" );
+t( '🔴 luật cụm màu đặt SAU luật sọc (bằng điểm thì viết sau thắng)',
+	false !== $i_soc && false !== $i_cum && $i_cum > $i_soc, array( $i_soc, $i_cum ) );
 
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
