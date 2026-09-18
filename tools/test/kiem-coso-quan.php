@@ -283,6 +283,20 @@ echo "— dựng trang thật rồi soi xem có lọt tên ai không —\n";
       cơ sở anh Thắng đang mở là 'cong'. Thiếu một nhánh là thiếu cả phép thử. */
 $wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'CQ_KHAC', 'ho_ten' => 'NGƯỜI KHÁC HẲN',
 	'vai_tro' => 'Nhân viên', 'cua_hang' => $LAM, 'trang_thai_lam_viec' => 'Đang làm' ) );
+
+/* 🔴 NGƯỜI CHƯA CHẤM NGÀY NÀO — ĐÂY LÀ CA BA PHÉP THỬ TRƯỚC ĐỀU BỎ SÓT.
+   Lưới dựng thêm "hàng trống" cho người có hồ sơ mà chưa chấm, bằng một vòng đọc THẲNG sổ nhân
+   sự — nên phép lọc trên `rows`/`hang` không chạm tới. Gieo toàn người CÓ chấm thì mọi phép
+   thử đều xanh, mà màn thật vẫn bày ra cả cửa hàng: đúng ba lần anh Thắng phải chụp lại. */
+/* ⚠️ VÀ NGƯỜI ẤY PHẢI THUỘC MỘT CƠ SỞ MÌNH CÓ QUẢN. Vòng dựng hàng trống đi qua
+   `ds_nhan_vien()`, hàm này gác từng hồ sơ bằng `co_quyen_ho_so()` — người chỉ thuộc riêng
+   cơ sở POSH thì đằng nào cũng không lọt, nên gieo như thế là dựng một cảnh KHÔNG BAO GIỜ
+   xảy ra và phép thử xanh oan (em đã gieo sai đúng kiểu ấy một lượt).
+   Cảnh THẬT trong ảnh anh Thắng: mấy người "còn làm ở FZ_LTVT / FARM_PT" — tức thuộc cơ sở
+   chị ấy CÓ quản, và cũng làm ở POSH. Hồ sơ lọt qua cổng, rồi mọc một hàng trống ở POSH. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'CQ_TRONG', 'ho_ten' => 'NGƯỜI CHƯA CHẤM',
+	'vai_tro' => 'Nhân viên', 'cua_hang' => $CHINH, 'coso_phu' => $LAM,
+	'trang_thai_lam_viec' => 'Đang làm' ) );
 $wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $LAM, 'ngay' => $TH2 . '-03',
 	'ma_nv' => 'CQ_KHAC', 'ho_ten' => 'NGƯỜI KHÁC HẲN', 'gio_vao_giay' => 28800,
 	'gio_ra_giay' => 61200, 'hau_to' => '', 'nguon' => 'may' ) );
@@ -305,7 +319,8 @@ foreach ( array( 'gio', 'cong' ) as $cach ) {
 	$_COOKIE = array();
 
 	$ro = array();
-	foreach ( array( 'NGƯỜI KHÁC HẲN', 'CQ_KHAC', 'Em Nhân Viên', 'CQ_NV' ) as $x_r ) {
+	foreach ( array( 'NGƯỜI KHÁC HẲN', 'CQ_KHAC', 'Em Nhân Viên', 'CQ_NV',
+		'NGƯỜI CHƯA CHẤM', 'CQ_TRONG' ) as $x_r ) {
 		if ( false !== mb_strpos( $trang, $x_r ) ) { $ro[] = $x_r; }
 	}
 	t( '🔴 [' . $cach . '] KHÔNG lọt tên hay mã người khác ra trang', ! $ro, $ro );
@@ -336,6 +351,21 @@ t( '🔴 cơ sở mình QUẢN thì VẪN thấy người khác',
 	false !== mb_strpos( $trang_q, 'NGƯỜI KHÁC HẲN' ) );
 t( 'và lưới ở đó có NHIỀU HƠN một dòng',
 	substr_count( $trang_q, 'class="ten-nv"' ) > 1, substr_count( $trang_q, 'class="ten-nv"' ) );
+
+/* Chiều ngược: ở cơ sở mình QUẢN thì hàng trống VẪN phải dựng — đó là chỗ để bấm bù cho người
+   chưa chấm ngày nào. Siết chặt quá là mất luôn việc ấy. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'CQ_TRONG2', 'ho_ten' => 'CHƯA CHẤM Ở CHÍNH',
+	'vai_tro' => 'Nhân viên', 'cua_hang' => $CHINH, 'trang_thai_lam_viec' => 'Đang làm' ) );
+$_COOKIE = array( VHCC_Web::COOKIE => $tok_cht );
+$_GET    = array( 'man' => 'cham', 'ccs' => $CHINH, 'cth' => $TH2 );
+$_POST   = array();
+ob_start();
+VHCC_Web::phuc_vu();
+$trang_q2 = ob_get_clean();
+$_GET = array();
+$_COOKIE = array();
+t( '🔴 cơ sở mình QUẢN thì hàng trống VẪN dựng (để còn bấm bù)',
+	false !== mb_strpos( $trang_q2, 'CHƯA CHẤM Ở CHÍNH' ) );
 t( 'và KHÔNG có băng hẹp ở đó',
 	false === mb_strpos( $trang_q, 'không phải cơ sở anh/chị quản lý' ) );
 

@@ -5660,8 +5660,7 @@ class VHCC_Web {
 				$d_vp['tong'] = array();
 				$d_vp['tien'] = array();
 			}
-			self::ve_luoi_vp( $d_vp, $duoc_sua, $duoc_bu,
-				$ky, $toi, $cs );
+			self::ve_luoi_vp( $d_vp, $duoc_sua, $duoc_bu, $ky, $toi, $cs, $rieng_minh );
 			echo '</details></div>';   // nhánh về sớm cũng phải đóng, kẻo cả trang lọt vào trong lưới
 			return;
 		}
@@ -8107,7 +8106,7 @@ class VHCC_Web {
 
 	/** Lưới người × ngày. Tách hàm để thử được riêng, không phải dựng cả trang. */
 	private static function ve_luoi_vp( $b, $duoc_sua = false, $duoc_bu = false, $ky = '', $toi = array(),
-		$cs_bc = '' ) {
+		$cs_bc = '' , $rieng_minh = false ) {
 		$tt   = (string) $b['month'];
 		/* Cơ sở KHÔNG nằm trong `$b` của lưới công (bảng ấy dựng quanh tháng), nên nhận thẳng
 		   từ nơi gọi — nơi ấy vốn đang cầm `$cs`. Đoán ra từ dữ liệu là thêm một chỗ sai được. */
@@ -8135,7 +8134,14 @@ class VHCC_Web {
 		      chuyện của màn hình. Ở đây có sẵn `$toi`, và làm y hệt lưới theo giờ.
 		   ⚠️ Hàng thêm mang công = 0 nên KHÔNG đụng tới ô TỔNG của bảng — cộng thêm 0 vẫn là chính
 		      nó. Người ấy hiện ra với một hàng toàn dấu chấm, đúng thứ cần để bấm bù. */
-		if ( class_exists( 'VHCC_NhanSu' ) && method_exists( 'VHCC_NhanSu', 'ds_nhan_vien' ) ) {
+		/* 🔴 CƠ SỞ MÌNH CHỈ ĐI LÀM THÌ KHÔNG DỰNG HÀNG TRỐNG CHO AI CẢ.
+		   Đây là BẢN SAO THỨ BA của cùng một vòng lặp (lưới theo giờ có một cái, lưới này một
+		   cái), và là lần thứ ba cùng một kiểu rò: vòng đọc THẲNG sổ nhân sự nên mọi phép lọc
+		   đặt ở chỗ khác đều không với tới. Anh Thắng phải chụp lại ba lần mới hết.
+		   ⚠️ Hàng trống là hàng của người CHƯA CHẤM ngày nào — nên lọc `rows` ở trên không chạm
+		      tới nó, và phép thử nào chỉ gieo người CÓ chấm cũng không bắt được. */
+		if ( ! $rieng_minh
+			&& class_exists( 'VHCC_NhanSu' ) && method_exists( 'VHCC_NhanSu', 'ds_nhan_vien' ) ) {
 			$da_co = array();
 			foreach ( $rows as $r_c ) { $da_co[ strtoupper( trim( (string) $r_c['ma'] ) ) ] = 1; }
 			foreach ( VHCC_NhanSu::ds_nhan_vien( $toi, (string) $cs_bc ) as $hs_c ) {
