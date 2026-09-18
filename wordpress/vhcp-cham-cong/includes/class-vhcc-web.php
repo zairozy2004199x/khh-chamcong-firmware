@@ -8687,10 +8687,49 @@ class VHCC_Web {
 		}
 		/* Ô giờ của việc chính CHỈ ĐỌC — nó là kết quả, không phải thứ gõ vào. Vẫn hiện ra để
 		   người ta thấy ngay con số mình vừa làm đổi. */
-		echo '</div><div><input value="' . esc_attr( number_format( $gio_chinh_ht, 2, ',', '.' ) )
+		echo '</div><div><input data-clchinh="1" value="'
+			. esc_attr( number_format( $gio_chinh_ht, 2, ',', '.' ) )
 			. '" readonly style="width:110px;background:var(--nen-2)" title="Giờ chấm công trừ đi giờ '
 			. 'khác — không gõ tay được"></div>'
 			. '<div class="mo" style="align-self:center;font-size:12px">giờ tự tính</div></div>';
+
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * Ô "giờ tự tính" NHẢY NGAY KHI GÕ, không chờ bấm Lưu.
+		 *
+		 * Anh Thắng 18/09/2026: *"khi khai giờ đơn khác, nhập số vào, giờ đơn chính nhảy luôn
+		 * để xem"*. Trước bản này gõ MC = 5 mà ô trên vẫn đứng ở 9,00 cho tới lúc Lưu và tải
+		 * lại trang — nên người ta không biết mình vừa làm phần giờ chính còn mấy tiếng, và
+		 * cách duy nhất để biết là bấm Lưu rồi xem. Bấm Lưu để XEM là cách hỏng số liệu.
+		 *
+		 * ⚠️ CON SỐ Ở ĐÂY CHỈ ĐỂ NHÌN. Máy chủ vẫn tự tính lại phần còn lại lúc lưu
+		 *    (`VHCC_ChotLuong`), nên sửa đoạn dưới không đổi được một đồng lương nào.
+		 * ⚠️ TRỪ CẢ DÒNG ĐANG GÕ DỞ. Gõ "1" trong lúc định gõ "12" thì ô trên nhảy hai lần —
+		 *    đúng, vì nó phản chiếu đúng thứ đang có trong ô.
+		 * ⚠️ Nhận cả dấu phẩy lẫn dấu chấm: bàn phím điện thoại cho dấu nào thì người ta gõ dấu
+		 *    ấy, và chối một trong hai là ô trên đứng im mà không nói vì sao.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		echo '<script>/*vhcc-clchinh*/(function(){"use strict";'
+			. 'function so(v){var t=String(v==null?"":v).replace(/\s/g,"").replace(",",".");'
+			. 'var n=parseFloat(t);return isFinite(n)?n:0;}'
+			. 'function ve(n){var am=n<0;n=Math.abs(n);'
+			. 'var p=n.toFixed(2).split("."),d=p[0],r="",i;'
+			. 'for(i=0;i<d.length;i++){if(i>0&&(d.length-i)%3===0){r+=".";}r+=d.charAt(i);}'
+			. 'return (am?"-":"")+r+","+p[1];}'
+			. 'function tinh(o){var h=o.closest?o.closest(".hs-in"):null;if(!h){return;}'
+			. 'var ra=h.querySelector(\'[data-clchinh]\');'
+			. 'var ct=h.querySelector(\'input[name="cl_gio_cham"]\');if(!ra||!ct){return;}'
+			. 'var ds=h.querySelectorAll(\'input[name^="cl_gio["]\'),k=0,i;'
+			. 'for(i=0;i<ds.length;i++){k+=so(ds[i].value);}'
+			. 'var con=so(ct.value)-k;'
+			. 'ra.value=ve(con);'
+			/* Âm = gõ nhiều giờ khác hơn cả giờ chấm công. Máy chủ chối lượt lưu ấy, nhưng
+			   nói ra NGAY tại ô thì người ta sửa trước khi bấm, không phải sau. */
+			. 'ra.style.color=(con<-0.001)?"var(--do)":"";'
+			. 'ra.title=(con<-0.001)?"Giờ khác đang nhiều hơn cả giờ chấm công — xem lại":'
+			. '"Giờ chấm công trừ đi giờ khác — không gõ tay được";}'
+			. 'document.addEventListener("input",function(e){var o=e&&e.target;'
+			. 'if(!o||!o.name||o.name.indexOf("cl_gio[")!==0){return;}tinh(o);},true);'
+			. '})();</script>';
 
 		echo '<label style="margin:0 0 4px">Giờ ăn đơn giá khác</label>';
 		echo '<p class="mo" style="margin:0 0 8px">Chỉ gõ phần <b>khác</b> việc chính — phần còn '
