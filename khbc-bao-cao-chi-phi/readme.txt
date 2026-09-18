@@ -4,7 +4,7 @@ Tags: chi phí, phân bổ, báo cáo, MISA, kế toán
 Requires at least: 5.6
 Tested up to: 6.8
 Requires PHP: 7.2
-Stable tag: 1.12.0
+Stable tag: 1.13.0
 License: GPLv2 or later
 
 Phân bổ chi phí Máy tự động / Khu vui chơi ra "File tổng báo cáo" và phân bổ theo điểm để hạch toán MISA.
@@ -35,6 +35,16 @@ Nhân viên nhập khoản chi phí, kế toán duyệt, web tự tính.
 4. Nhập Excel kỳ đầu (hoặc ⋯ → Nạp dữ liệu mẫu) rồi bắt đầu.
 
 == Changelog ==
+
+= 1.13.0 =
+* **Nguồn thứ hai: doanh thu Posh / JP lấy thẳng từ plugin Ghế Massage** (khmatrix.com/ghe →
+  Báo cáo tổng). Cùng lối liên kết sống như Doanh thu FABi: nối một lần, từ đó tự về mỗi kỳ.
+* Tab Doanh thu có hai nút **⬇ Nạp từ FABi** và **⬇ Nạp từ Ghế**; cột Nguồn ghi rõ điểm đang lấy
+  từ đâu (🔗 FABi / 🔗 Ghế); dòng trạng thái tách riêng số điểm của từng nguồn.
+* **Một điểm chỉ nối MỘT nguồn** — nối nguồn này thì tự gỡ nguồn kia. Hai nguồn cùng ghi vào một
+  điểm là chúng đè nhau mỗi lần mở kỳ, và số cuối cùng phụ thuộc cái nào chạy sau.
+* Điều kiện lọc dữ liệu giống hệt màn Báo cáo tổng của chính plugin Ghế, nên hai màn không bao
+  giờ nói hai số khác nhau cho cùng một cơ sở.
 
 = 1.12.0 =
 * **FABi mở cơ sở mới → tự tách điểm mới bên này**, không còn kẹt ở "chưa ghép". Ô chọn có thêm

@@ -269,7 +269,8 @@
           <button class="btn small" data-act="addSite">+ Thêm điểm</button>
           <button class="btn small" data-act="togglePaste">Dán nhanh từ Excel</button>
           <button class="btn small ${state.options.fabiTuDong ? 'primary' : ''}" data-act="fabiTuDong" title="Bật thì doanh thu của các điểm ĐÃ LIÊN KẾT tự lấy từ Doanh thu FABi mỗi lần mở kỳ — khỏi bấm. Kỳ đã chốt thì dừng lấy, số đứng yên.">${state.options.fabiTuDong ? '🔗 Tự lấy: BẬT' : '🔗 Tự lấy: tắt'}</button>
-          <button class="btn small primary" data-act="napFabi" title="Đọc doanh thu kỳ này từ Doanh thu FABi và điền vào các điểm khớp. Có màn xem trước — đây là nơi TẠO liên kết mới.">⬇ Nạp / nối thêm điểm</button>
+          <button class="btn small primary" data-act="napFabi" data-arg="fabi" title="${esc(NGUON.fabi.mo)}">⬇ Nạp từ ${esc(NGUON.fabi.nhan)}</button>
+          <button class="btn small primary" data-act="napFabi" data-arg="ghe" title="${esc(NGUON.ghe.mo)}">⬇ Nạp từ ${esc(NGUON.ghe.nhan)}</button>
           <button class="btn small danger" data-act="zeroSites" title="Đưa doanh thu tất cả điểm đang lọc về 0">Xoá số doanh thu</button>
         </div>
         ${fabiTrangThaiHtml()}
@@ -294,10 +295,10 @@
                       <td>${sel(`sites.${i}.dept`, s.dept, deptOptions())}</td>
                       <td>${inp(`sites.${i}.code`, s.code, 'text', 'code')}</td>
                       <td>${inp(`sites.${i}.name`, s.name, 'text', 'xwide')}</td>
-                      <td>${inp(`sites.${i}.revenue`, s.revenue, 'num', '', (state.options.fabiTuDong && (s.fabiTen || '').trim() && !sync.locked) ? 'readonly title="Số này tự lấy từ Doanh thu FABi. Muốn gõ tay thì tắt Tự lấy, hoặc gỡ liên kết ở cột Nguồn."' : '')}</td>
-                      <td class="muted" style="font-size:11px">${(s.fabiTen || '').trim()
-                        ? `<span title="Đang lấy từ cửa hàng FABi: ${esc(s.fabiTen)}">🔗 FABi</span> <button class="btn small ghost" data-act="goLienKet" data-arg="${i}" title="Gỡ liên kết — điểm này quay lại gõ tay">✕</button>`
-                        : '<span title="Chưa nối với cửa hàng nào bên FABi — gõ tay">tay</span>'}</td>
+                      <td>${inp(`sites.${i}.revenue`, s.revenue, 'num', '', (state.options.fabiTuDong && nguonCua(s) && !sync.locked) ? 'readonly title="Số này tự lấy từ nguồn đã nối. Muốn gõ tay thì tắt Tự lấy, hoặc gỡ liên kết ở cột Nguồn."' : '')}</td>
+                      <td class="muted" style="font-size:11px">${(() => { const n = nguonCua(s); return n
+                        ? `<span title="Đang lấy từ ${esc(NGUON[n].ten)}: ${esc(s[NGUON[n].khoa])}">🔗 ${esc(NGUON[n].nhan)}</span> <button class="btn small ghost" data-act="goLienKet" data-arg="${i}" title="Gỡ liên kết — điểm này quay lại gõ tay">✕</button>`
+                        : '<span title="Chưa nối nguồn nào — gõ tay">tay</span>'; })()}</td>
                       <td class="num muted">${rev > 0 ? pct(E.num(s.revenue) / rev) : '—'}</td>
                       <td class="num" title="Cơ sở nghỉ / đóng cửa: vẫn ghi doanh thu, không nhận chi phí.">${chk(`sites.${i}.khongChiPhi`, s.khongChiPhi)}</td>
                       ${actBtns([{ act: 'delSite', arg: i, icon: '🗑', title: 'Xoá điểm', cls: 'danger' }])}
@@ -717,6 +718,15 @@
    *    TOÀN BỘ chi phí phân bổ sai — tổng vẫn đẹp, không ai thấy gì. Nên bảng dưới bày rõ từng
    *    dòng ghép vào đâu, vì sao, và cho đổi trước khi bấm Ghi.
    * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+  /* HAI NGUỒN doanh thu, cùng một lối liên kết sống. Gom vào một bảng để mọi chỗ trong giao diện
+     đọc từ đây — thêm nguồn thứ ba sau này chỉ là thêm một dòng, không phải đi sửa chín chỗ. */
+  const NGUON = {
+    fabi: { khoa: 'fabiTen', ten: 'Doanh thu FABi', api: 'fabiDoanhThu', nhan: 'FABi',
+            mo: 'khmatrix.com/doanh-thu-hcm — Funzone, Tutu, Event, Farm…' },
+    ghe: { khoa: 'gheTen', ten: 'Ghế Massage (Posh / JP)', api: 'gheDoanhThu', nhan: 'Ghế',
+           mo: 'khmatrix.com/ghe → Báo cáo tổng — doanh thu ghế theo cơ sở' },
+  };
+
   const FABI_CACH = {
     da_luu: { chu: 'đã lưu', mo: 'Lần trước chính anh đã chọn điểm này cho cửa hàng ấy.' },
     ten: { chu: 'trùng tên', mo: 'Tên cửa hàng và tên điểm khớp nhau sau khi bỏ dấu và đuôi pháp nhân.' },
@@ -750,7 +760,7 @@
       + `</optgroup>`;
     return `<div class="card" style="margin:0 0 10px;background:var(--panel-2)">
       <div class="card-head">
-        <h2>Doanh thu FABi ${esc(fabi.tu)} → ${esc(fabi.den)}</h2>
+        <h2>${esc((NGUON[fabi.nguon] || NGUON.fabi).ten)} ${esc(fabi.tu)} → ${esc(fabi.den)}</h2>
         <span class="hint">${ds.length} cửa hàng · đã ghép ${chon.length - soTao}${soTao ? ` · tạo mới ${soTao}` : ''} · tổng sẽ ghi ${fmt(tongChon)}</span>
         <div class="spacer"></div>
         ${chuaGhep.length ? `<button class="btn small" data-act="fabiTaoHet" title="Với mỗi cửa hàng chưa ghép, tạo một điểm mới trong bộ phận đoán được từ tên quán. Vẫn sửa được từng dòng trước khi Ghi.">➕ Tạo điểm cho ${chuaGhep.length} cửa hàng còn lại</button>` : ''}
@@ -758,7 +768,7 @@
         <button class="btn small" data-act="fabiDong">Huỷ</button>
       </div>
       <div class="table-wrap"><table class="grid-table dense">
-        <thead><tr><th>Cửa hàng (FABi)</th><th class="num">Doanh thu</th><th class="num">Ngày</th><th>Ghép vào điểm</th><th>Vì sao</th></tr></thead>
+        <thead><tr><th>Cơ sở (${esc((NGUON[fabi.nguon] || NGUON.fabi).nhan)})</th><th class="num">Doanh thu</th><th class="num">Ngày</th><th>Ghép vào điểm</th><th>Vì sao</th></tr></thead>
         <tbody>
           ${ds.map((x, k) => `<tr class="${x.siteIndex === null ? 'muted' : ''}">
             <td>${esc(x.cua_hang)}</td>
@@ -775,14 +785,22 @@
 
   /* Dòng trạng thái liên kết: đang nối bao nhiêu điểm, lấy lúc nào, có điểm nào đứt liên kết
      không. Không có dòng này thì "tự lấy" là một cái hộp đen — số tự đổi mà không ai biết vì sao. */
+  /** Điểm này đang nối nguồn nào ('fabi' | 'ghe'), hay chưa nối ('' ). */
+  function nguonCua(s) {
+    const k = Object.keys(NGUON).find((n) => (s[NGUON[n].khoa] || '').trim());
+    return k || '';
+  }
+
   function fabiTrangThaiHtml() {
-    const linh = (state.sites || []).filter((s) => (s.fabiTen || '').trim()).length;
+    const dem = {};
+    Object.keys(NGUON).forEach((n) => { dem[n] = (state.sites || []).filter((s) => nguonCua(s) === n).length; });
+    const linh = Object.values(dem).reduce((a, b) => a + b, 0);
     if (!state.options.fabiTuDong && !linh) return '';
     const mat = (fabiLan && fabiLan.mat) || [];
     const chot = sync.locked;
     return `<div class="issue ${mat.length ? 'warn' : 'info'}" style="margin:0 0 10px">
       <span class="lv">${state.options.fabiTuDong ? '🔗 TỰ LẤY' : 'LIÊN KẾT'}</span>
-      <span>${linh} điểm đang nối với Doanh thu FABi.
+      <span>${Object.keys(NGUON).filter((n) => dem[n]).map((n) => `${dem[n]} điểm ← ${esc(NGUON[n].ten)}`).join(' · ') || '0 điểm'}.
       ${!state.options.fabiTuDong ? 'Đang <strong>tắt</strong> tự lấy — số giữ nguyên như đã ghi.'
         : chot ? `Kỳ <strong>đã chốt</strong> nên dừng lấy, số đứng yên.`
         : (fabiLan && fabiLan.luc) ? `Lấy lần cuối lúc ${esc(fabiLan.luc)}${fabiLan.soDoi ? ` · đổi ${fabiLan.soDoi} điểm` : ' · không có gì đổi'}.` : 'Sẽ tự lấy khi mở kỳ.'}
@@ -792,28 +810,37 @@
 
   async function fabiLayNgay(im) {
     if (!state.options.fabiTuDong || !API.isEnabled() || sync.locked) return;
-    if (!(state.sites || []).some((s) => (s.fabiTen || '').trim())) return;
-    try {
-      const r = await API.call('fabiDoanhThu', { thang: state.period.month, nam: state.period.year });
-      const d = r && r.data ? r.data : r;
-      if (!d || d.ok === false || !d.ds) return;
-      const kq = E.dongBoFabi(state, d.ds);
-      fabiLan = { luc: new Date().toLocaleTimeString('vi-VN'), soDoi: kq.soDoi, mat: kq.mat };
-      if (kq.soDoi) { commit(); if (!im) toast(`🔗 Doanh thu FABi: cập nhật ${kq.soDoi} điểm.`); }
-      else { recompute(); renderTab(); }
-    } catch (e) { /* mạng hỏng thì thôi, số cũ vẫn còn — lần mở sau lấy lại */ }
+    /* Chạy CẢ HAI nguồn. Nguồn nào chưa có điểm nào nối thì bỏ qua, khỏi gọi máy chủ thừa. */
+    let doi = 0; const mat = [];
+    for (const n of Object.keys(NGUON)) {
+      const N = NGUON[n];
+      if (!(state.sites || []).some((s) => (s[N.khoa] || '').trim())) continue;
+      try {
+        const r = await API.call(N.api, { thang: state.period.month, nam: state.period.year });
+        const d = r && r.data ? r.data : r;
+        if (!d || d.ok === false || !d.ds) continue;
+        const kq = E.dongBoFabi(state, d.ds, N.khoa);
+        doi += kq.soDoi;
+        kq.mat.forEach((x) => mat.push(x));
+      } catch (e) { /* mạng hỏng thì thôi, số cũ vẫn còn — lần mở sau lấy lại */ }
+    }
+    fabiLan = { luc: new Date().toLocaleTimeString('vi-VN'), soDoi: doi, mat };
+    if (doi) { commit(); if (!im) toast(`🔗 Cập nhật ${doi} điểm từ nguồn đã nối.`); }
+    else { recompute(); renderTab(); }
   }
 
-  async function napTuFabi() {
+  async function napTuFabi(nguon) {
+    const N = NGUON[nguon] || NGUON.fabi;
+    const kieu = NGUON[nguon] ? nguon : 'fabi';
     if (!API.isEnabled()) return toast('Chức năng này cần đăng nhập vào máy chủ (bản chạy trên WordPress).');
-    fabi = { dangTai: true };
+    fabi = { dangTai: true, nguon: kieu };
     renderTab();
     try {
-      const r = await API.call('fabiDoanhThu', { thang: state.period.month, nam: state.period.year });
+      const r = await API.call(N.api, { thang: state.period.month, nam: state.period.year });
       const d = r && r.data ? r.data : r;
-      if (!d || d.ok === false) { fabi = { loi: (d && d.error) || 'Không đọc được doanh thu FABi.' }; renderTab(); return; }
-      if (!d.ds || !d.ds.length) { fabi = { loi: `Kỳ ${R_periodLabel()} chưa có dữ liệu nào bên Doanh thu FABi.` }; renderTab(); return; }
-      fabi = { tu: d.tu, den: d.den, ghep: E.ghepFabi(state, d.ds) };
+      if (!d || d.ok === false) { fabi = { loi: (d && d.error) || `Không đọc được ${N.ten}.` }; renderTab(); return; }
+      if (!d.ds || !d.ds.length) { fabi = { loi: `Kỳ ${R_periodLabel()} chưa có dữ liệu nào bên ${N.ten}.` }; renderTab(); return; }
+      fabi = { tu: d.tu, den: d.den, nguon: kieu, ghep: E.ghepFabi(state, d.ds, N.khoa) };
       renderTab();
     } catch (e) {
       fabi = { loi: 'Lỗi khi gọi máy chủ: ' + e.message };
@@ -1137,7 +1164,7 @@
       ui.misa50 = !ui.misa50;
       renderTab();
     },
-    napFabi() { napTuFabi(); },
+    napFabi(nguon) { napTuFabi(nguon); },
     fabiTuDong() {
       state.options.fabiTuDong = !state.options.fabiTuDong;
       commit();
@@ -1166,15 +1193,17 @@
       if (!fabi || !fabi.ghep) return;
       /* Tạo điểm mới TRƯỚC, vì napFabi ghi theo siteIndex — tạo sau thì mấy điểm mới không nhận
          được đồng doanh thu nào. */
-      const t = E.taoDiemTuFabi(state, fabi.ghep);
-      const kq = E.napFabi(state, fabi.ghep);
+      const nguonCu = fabi.nguon || 'fabi';
+      const khoa = (NGUON[nguonCu] || NGUON.fabi).khoa;
+      const t = E.taoDiemTuFabi(state, fabi.ghep, khoa);
+      const kq = E.napFabi(state, fabi.ghep, khoa);
       fabi = null;
       /* Ghi xong là đã có liên kết — bật luôn tự lấy, đó chính là thứ anh Thắng muốn ("tự link
          và lấy realtime"). Vẫn tắt được bằng nút trên thanh công cụ. */
       const bat = !state.options.fabiTuDong && kq.xong > 0;
       if (bat) state.options.fabiTuDong = true;
       commit();
-      toast(`Đã nối ${kq.xong} điểm với Doanh thu FABi`
+      toast(`Đã nối ${kq.xong} điểm với ${(NGUON[nguonCu] || NGUON.fabi).ten}`
         + (t.tao.length ? ` · tạo mới ${t.tao.length} điểm` : '')
         + (kq.boQua ? ` · bỏ qua ${kq.boQua} cửa hàng chưa ghép` : '') + '.'
         + (bat ? ' Từ nay số tự lấy, khỏi bấm.' : '')

@@ -78,6 +78,43 @@ if ( $path === '/__dev/fabi' ) {
 	echo wp_json_encode( array( 'ok' => true, 'quan' => count( $quan ) ) );
 	exit;
 }
+/* Bảng của plugin GHẾ MASSAGE + vài cơ sở thật, để kiểm đường nạp doanh thu Posh ngay tại chỗ.
+   Tên cơ sở lấy đúng màn "Báo cáo tổng" ở khmatrix.com/ghe anh Thắng gửi. */
+if ( $path === '/__dev/ghe' ) {
+	global $wpdb;
+	$d = $wpdb->prefix . 'vhg_bc_dong';
+	$h = $wpdb->prefix . 'vhg_bc';
+	$wpdb->query( "CREATE TABLE IF NOT EXISTS $h ( report_id TEXT PRIMARY KEY, coso TEXT NOT NULL DEFAULT '' )" );
+	$wpdb->query( "CREATE TABLE IF NOT EXISTS $d ( id INTEGER PRIMARY KEY AUTOINCREMENT,
+		report_id TEXT NOT NULL, ngay TEXT NOT NULL, ma_may TEXT NOT NULL DEFAULT '',
+		tong REAL NOT NULL DEFAULT 0, qr REAL NOT NULL DEFAULT 0, tien_mat REAL NOT NULL DEFAULT 0,
+		actual REAL NOT NULL DEFAULT 0, chi_so_sau INTEGER )" );
+	$wpdb->query( "DELETE FROM $d" ); $wpdb->query( "DELETE FROM $h" );
+	$cs = array(
+		array( 'AEON MALL BÌNH TÂN', 102120000 ),
+		array( 'AEON MALL TÂN PHÚ', 52990000 ),
+		array( 'BV UNG BƯỚU', 22580000 ),
+		array( 'BỆNH VIỆN 175', 2660000 ),
+		array( 'CGV BÌNH DƯƠNG', 5380000 ),
+		array( 'CGV LÝ CHÍNH THẮNG', 3220000 ),
+		array( 'COOPMART BÌNH DƯƠNG', 2930000 ),
+	);
+	$i = 0;
+	foreach ( $cs as $c ) {
+		$i++;
+		$rid = 'R' . $i;
+		$wpdb->insert( $h, array( 'report_id' => $rid, 'coso' => $c[0] ) );
+		/* Hai ngày trong kỳ + một ngày KỲ KHÁC (phải bị loại) + một dòng rác tong=0 và
+		   chi_so_sau NULL (phải bị điều kiện lọc gạt ra, y như bên plugin Ghế). */
+		$wpdb->insert( $d, array( 'report_id' => $rid, 'ngay' => '2026-08-07', 'tong' => $c[1] * 0.4, 'chi_so_sau' => 1 ) );
+		$wpdb->insert( $d, array( 'report_id' => $rid, 'ngay' => '2026-08-19', 'tong' => $c[1] * 0.6, 'chi_so_sau' => 1 ) );
+		$wpdb->insert( $d, array( 'report_id' => $rid, 'ngay' => '2026-07-10', 'tong' => 888000000, 'chi_so_sau' => 1 ) );
+		$wpdb->insert( $d, array( 'report_id' => $rid, 'ngay' => '2026-08-11', 'tong' => 0, 'actual' => 0, 'chi_so_sau' => null ) );
+	}
+	header( 'Content-Type: application/json' );
+	echo wp_json_encode( array( 'ok' => true, 'coso' => count( $cs ) ) );
+	exit;
+}
 if ( $path === '/__dev/reset' ) {
 	global $wpdb;
 	foreach ( array( 'khoan', 'ky', 'nhat_ky', 'phien' ) as $t ) { $wpdb->query( 'DELETE FROM ' . KHBC_DB::t( $t ) ); }

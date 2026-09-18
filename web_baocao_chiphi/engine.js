@@ -8,7 +8,7 @@
  *   period       {month, year}
  *   groups       [{id, name, method}]           method: 'ratio' | 'revenue' | 'equal'
  *   departments  [{id, name, group, ratio, revenue, revenueOverride, unitCode, misaPrefix}]
- *   sites        [{dept, code, name, revenue, khongChiPhi, fabiTen}]   điểm bán / cơ sở, dùng để tính doanh thu BP và phân bổ theo điểm
+ *   sites        [{dept, code, name, revenue, khongChiPhi, fabiTen, gheTen}]   điểm bán / cơ sở, dùng để tính doanh thu BP và phân bổ theo điểm
  *   costItems    [{id, kind, name, misaGeneral, misaDetail, account, total,
  *                  split, shares:{groupId: amount}, objectCode, excludeDepts:[deptId], groupKey, method, note}]
  *                  split: 'equal' (chia đều các nhóm) | '<groupId>' (100% một nhóm) | 'custom' (nhập tay shares)
@@ -504,7 +504,8 @@
    * @param {Array}  ds   [{cua_hang, thanh_tien, so_ngay}] — từ KHBC_FABi
    * @return {Array} [{cua_hang, thanh_tien, so_ngay, siteIndex, cach, diem, deNghi}]
    */
-  function ghepFabi(state, ds) {
+  function ghepFabi(state, ds, khoa) {
+    khoa = khoa || 'fabiTen';
     const sites = state.sites || [];
     const khoaSite = sites.map((s) => khoaTen(s.name));
     const ra = (ds || []).map((d) => ({
@@ -519,7 +520,7 @@
     // 1. đã lưu từ lần trước — chốt trước tiên, người dùng đã quyết rồi
     ra.forEach((r, k) => {
       if (r.siteIndex !== null || !r.cua_hang.trim()) return;
-      const i = sites.findIndex((s, ix) => !daDung[ix] && (s.fabiTen || '').trim() === r.cua_hang.trim());
+      const i = sites.findIndex((s, ix) => !daDung[ix] && (s[khoa] || '').trim() === r.cua_hang.trim());
       if (i >= 0) { nhan(k, i, 'da_luu'); }
     });
 
@@ -571,25 +572,26 @@
    *
    * Muốn thêm liên kết mới thì vẫn qua nút "Nạp từ Doanh thu FABi" — ở đó có màn xem trước.
    * ═══════════════════════════════════════════════════════════════════════════════════════════ */
-  function dongBoFabi(state, ds) {
+  function dongBoFabi(state, ds, khoa) {
+    khoa = khoa || 'fabiTen';
     const sites = state.sites || [];
     const tien = {};
     (ds || []).forEach((d) => { tien[String(d.cua_hang || '').trim()] = num(d.thanh_tien); });
     const doi = [];
     let daLinh = 0;
     sites.forEach((s, i) => {
-      const k = (s.fabiTen || '').trim();
+      const k = (s[khoa] || '').trim();
       if (!k) return;
       daLinh++;
       if (!Object.prototype.hasOwnProperty.call(tien, k)) {
         /* Cửa hàng biến mất bên FABi (đổi tên, ngừng bán). KHÔNG đưa về 0: số 0 trông y hệt một
            tháng ế, mà thật ra là mất liên kết. Báo ra để người ta đi nối lại. */
-        doi.push({ i, code: s.code, name: s.name, fabiTen: k, mat: true });
+        doi.push({ i, code: s.code, name: s.name, nguon: khoa, fabiTen: k, mat: true });
         return;
       }
       const moi = tien[k];
       if (num(s.revenue) !== moi) {
-        doi.push({ i, code: s.code, name: s.name, fabiTen: k, cu: num(s.revenue), moi });
+        doi.push({ i, code: s.code, name: s.name, nguon: khoa, fabiTen: k, cu: num(s.revenue), moi });
         s.revenue = moi;
       }
     });
@@ -645,7 +647,8 @@
    * @param {Array} ghep [{cua_hang, thanh_tien, siteIndex, taoMoi:'<deptId>'}]
    * @return {{tao:Array, ghep:Array}} ghep đã được cập nhật siteIndex trỏ vào điểm vừa tạo
    */
-  function taoDiemTuFabi(state, ghep) {
+  function taoDiemTuFabi(state, ghep, khoa) {
+    khoa = khoa || 'fabiTen';
     const tao = [];
     (ghep || []).forEach((g) => {
       const dept = (g.taoMoi || '').trim();
@@ -654,14 +657,17 @@
       const ten = tenGonFabi(g.cua_hang) || String(g.cua_hang || '').trim();
       if (!ten) return;
       state.sites = state.sites || [];
-      state.sites.push({
+      const moi = {
         dept,
         code: '',                 // 🔴 KHÔNG bịa mã đơn vị — xem khối dài ở trên
         name: ten,
         revenue: num(g.thanh_tien),
         khongChiPhi: false,
-        fabiTen: String(g.cua_hang || ''),
-      });
+        fabiTen: '',
+        gheTen: '',
+      };
+      moi[khoa] = String(g.cua_hang || '');
+      state.sites.push(moi);
       g.siteIndex = state.sites.length - 1;
       g.cach = 'tao';
       tao.push({ dept, name: ten, fabiTen: g.cua_hang });
@@ -674,7 +680,9 @@
    * người dùng bấm xác nhận.
    * @param {Array} ghep [{cua_hang, thanh_tien, siteIndex}]
    */
-  function napFabi(state, ghep) {
+  const KHOA_NGUON = ['fabiTen', 'gheTen'];
+  function napFabi(state, ghep, khoa) {
+    khoa = khoa || 'fabiTen';
     let xong = 0, bo = 0;
     (ghep || []).forEach((g) => {
       const i = g.siteIndex;
@@ -682,7 +690,11 @@
       state.sites[i].revenue = num(g.thanh_tien);
       /* Nhớ lại lựa chọn để tháng sau tự ghép — đây là thứ biến một việc làm tay hằng tháng
          thành một việc làm tay ĐÚNG MỘT LẦN. */
-      state.sites[i].fabiTen = String(g.cua_hang || '');
+      state.sites[i][khoa] = String(g.cua_hang || '');
+      /* 🔴 GỠ khoá của nguồn KIA. Một điểm nối hai nguồn thì mỗi lần mở kỳ chúng ghi đè nhau, và
+         số cuối cùng phụ thuộc cái nào chạy sau — một cái sai đổi theo thứ tự, không tài nào
+         dò ra. */
+      KHOA_NGUON.forEach((k) => { if (k !== khoa) { state.sites[i][k] = ''; } });
       xong++;
     });
     return { xong, boQua: bo };
@@ -882,7 +894,10 @@
     st.period = Object.assign({ month: 1, year: 2026 }, st.period || {});
     st.groups = (st.groups || []).map((g) => ({ method: 'revenue', ...g }));
     st.departments = (st.departments || []).map((d) => ({ ratio: 0, revenue: 0, revenueOverride: false, unitCode: '', ...d }));
-    st.sites = (st.sites || []).map((x) => ({ code: '', name: '', revenue: 0, khongChiPhi: false, fabiTen: '', ...x, khongChiPhi: !!x.khongChiPhi }));
+    /* HAI khoá liên kết, hai nguồn: `fabiTen` ← Doanh thu FABi, `gheTen` ← Ghế Massage (Posh/JP).
+       Một điểm chỉ được nối MỘT nguồn — hai nguồn cùng ghi vào một điểm là chúng đè nhau mỗi lần
+       mở kỳ, và số cuối cùng phụ thuộc vào cái nào chạy sau. napFabi() lo việc dọn khoá kia. */
+    st.sites = (st.sites || []).map((x) => ({ code: '', name: '', revenue: 0, khongChiPhi: false, fabiTen: '', gheTen: '', ...x, khongChiPhi: !!x.khongChiPhi }));
     st.costItems = (st.costItems || []).map((it) => {
       const o = { kind: 'company', name: '', misaGeneral: '', misaDetail: '', account: '', total: 0, split: 'equal', shares: {}, objectCode: '', excludeDepts: [], groupKey: '', method: '', note: '', status: '', createdBy: '', ...it };
       if (!o.id) o.id = newId('ci');

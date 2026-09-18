@@ -19,7 +19,7 @@ class KHBC_API {
 		$admin  = array( 'listUsers', 'saveUser', 'deleteUser', 'lockPeriod' );
 		/* `fabiDoanhThu` CHỈ ĐỌC, nhưng vẫn gác ở mức Kế toán: đó là doanh thu toàn chuỗi, không
 		   phải thứ để nhân viên nhập chi phí mở ra xem. */
-		$ketoan = array( 'saveState', 'setCostStatus', 'setAllStatus', 'listPeriods', 'getLog', 'fabiDoanhThu' );
+		$ketoan = array( 'saveState', 'setCostStatus', 'setAllStatus', 'listPeriods', 'getLog', 'fabiDoanhThu', 'gheDoanhThu' );
 		if ( in_array( $fn, $admin, true ) ) { return array( 'Admin' ); }
 		if ( in_array( $fn, $ketoan, true ) ) { return array( 'Admin', 'Kế toán' ); }
 		return array();
@@ -47,6 +47,7 @@ class KHBC_API {
 			'deleteUser'     => array( __CLASS__, 'delete_user' ),
 			'getLog'         => array( 'KHBC_Store', 'get_log' ),
 			'fabiDoanhThu'   => array( __CLASS__, 'fabi_doanh_thu' ),
+			'gheDoanhThu'    => array( __CLASS__, 'ghe_doanh_thu' ),
 		);
 	}
 
@@ -69,6 +70,22 @@ class KHBC_API {
 			);
 		}
 		return KHBC_FABi::theo_ky(
+			isset( $a['thang'] ) ? (int) $a['thang'] : 0,
+			isset( $a['nam'] ) ? (int) $a['nam'] : 0
+		);
+	}
+
+	/** Doanh thu theo cơ sở, đọc từ plugin Ghế Massage. Cùng hình dạng trả về với fabi_doanh_thu()
+	 *  để giao diện dùng chung một đường — xem KHBC_Ghe. */
+	public static function ghe_doanh_thu( $a ) {
+		$a = is_array( $a ) ? $a : array();
+		if ( ! empty( $a['tu'] ) || ! empty( $a['den'] ) ) {
+			return KHBC_Ghe::theo_co_so(
+				isset( $a['tu'] ) ? (string) $a['tu'] : '',
+				isset( $a['den'] ) ? (string) $a['den'] : ''
+			);
+		}
+		return KHBC_Ghe::theo_ky(
 			isset( $a['thang'] ) ? (int) $a['thang'] : 0,
 			isset( $a['nam'] ) ? (int) $a['nam'] : 0
 		);
