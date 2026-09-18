@@ -180,21 +180,6 @@
       </span></div>`;
   }
 
-  /* Hỏi ĐÚNG MỘT LẦN cho mỗi kỳ: mấy dòng có số mà chưa rõ của tháng nào thì để trống hay giữ.
-     Xem khối dài ở engine.dongChuaRoKy(). Trả lời xong là biến mất vĩnh viễn. */
-  function chuaRoKyHtml() {
-    const c = E.dongChuaRoKy(state);
-    if (!c.tong) return '';
-    return `<div class="issue warn" style="margin:0 0 12px">
-      <span class="lv">${esc(R_periodLabel())}</span>
-      <span><strong>${c.tong} dòng đang có số nhưng chưa rõ của tháng nào</strong>
-      (${c.diem.length} điểm bán · ${c.luong.length} dòng lương) — dữ liệu từ bản cũ, không ghi lại tháng.<br>
-      <button class="btn small primary" data-act="kyTrong">Để trống hết, lấy lại số ${esc(R_periodLabel())}</button>
-      <button class="btn small" data-act="kyGiu">Giữ lại — đây đúng là số ${esc(R_periodLabel())}</button>
-      <br><span class="muted">Chọn một lần thôi, từ sau máy tự biết và không hỏi lại.</span>
-      </span></div>`;
-  }
-
   function renderDashboard(root) {
     const R = report;
     const totalRev = Object.values(R.revenue).reduce((a, b) => a + b, 0);
@@ -202,7 +187,6 @@
     const totalCost = R.grandTotal + manualTotal + R.salaryDeptTotals.total + R.salarySitesTotal.actual;
     root.innerHTML = `
       ${lechKyHtml()}
-      ${chuaRoKyHtml()}
       ${soDuNguonHtml()}
       <div class="kpis">
         <div class="kpi"><div class="k">Tổng doanh thu ${R.periodLabel}</div><div class="v">${fmt(totalRev)}</div><div class="s">${state.sites.length} điểm · ${state.departments.length} bộ phận</div></div>
@@ -334,7 +318,6 @@
           <button class="btn small primary" data-act="napFabi" data-arg="ghe" title="${esc(NGUON.ghe.mo)}">⬇ Nạp từ ${esc(NGUON.ghe.nhan)}</button>
           <button class="btn small danger" data-act="zeroSites" title="Đưa doanh thu tất cả điểm đang lọc về 0">Xoá số doanh thu</button>
         </div>
-        ${chuaRoKyHtml()}
         ${fabiTrangThaiHtml()}
         ${fabiBoxHtml()}
         <div id="pasteBox" class="card" style="margin:0 0 10px;background:var(--panel-2)" hidden>
@@ -530,7 +513,6 @@
           <button class="btn small" data-act="syncSalary" title="Đặt Báo cáo và DNTT = Theo báo cáo cho tất cả dòng">Báo cáo = DNTT = Theo báo cáo</button>
           <button class="btn small primary" data-act="addSalarySite">+ Thêm dòng</button>
         </div>
-        ${chuaRoKyHtml()}
         ${luongTrangThaiHtml()}
         ${luongBoxHtml()}
         <div class="table-wrap tall"><table class="grid-table dense">
@@ -839,7 +821,7 @@
       + `</optgroup>`;
     return `<div class="card" style="margin:0 0 10px;background:var(--panel-2)">
       <div class="card-head">
-        <h2>${esc((NGUON[fabi.nguon] || NGUON.fabi).ten)} ${esc(fabi.tu)} → ${esc(fabi.den)}</h2>
+        <h2>${esc((NGUON[fabi.nguon] || NGUON.fabi).ten)} <span class="${(fabi.ky || '') === E.khoaKy(state.period) ? '' : 'bad-text'}">${esc(fabi.tu)} → ${esc(fabi.den)}</span></h2>
         <span class="hint">${ds.length} cửa hàng${soBoHan ? ` (bỏ hẳn ${soBoHan})` : ''} · <strong>nguồn có ${fmt(tongNguon)}</strong> · đã ghép ${chon.length - soTao}${soTao ? ` · tạo mới ${soTao}` : ''} · tổng sẽ ghi ${fmt(tongChon)}${tongNguon - tongChon > 0 ? ` · <strong class="bad-text">bỏ lại ${fmt(tongNguon - tongChon)}</strong>` : ''}</span>
         <div class="spacer"></div>
         ${(chuaGhep.length || soTao) ? `<label class="hint" style="display:flex;align-items:center;gap:4px">Bộ phận mặc định
@@ -1006,6 +988,11 @@
     return { n, khong, theoMd, md };
   }
 
+  /** Bỏ mọi bản nháp xem trước đang mở — dùng khi đổi kỳ. Xem khối dài ở chỗ đổi ô chọn tháng. */
+  function boBanNhap() {
+    if (fabi || luong) { fabi = null; luong = null; }
+  }
+
   async function napTuFabi(nguon) {
     const N = NGUON[nguon] || NGUON.fabi;
     const kieu = NGUON[nguon] ? nguon : 'fabi';
@@ -1017,7 +1004,7 @@
       const d = r && r.data ? r.data : r;
       if (!d || d.ok === false) { fabi = { loi: (d && d.error) || `Không đọc được ${N.ten}.` }; renderTab(); return; }
       if (!d.ds || !d.ds.length) { fabi = { loi: `Kỳ ${R_periodLabel()} chưa có dữ liệu nào bên ${N.ten}.` }; renderTab(); return; }
-      fabi = { tu: d.tu, den: d.den, nguon: kieu, ghep: E.ghepFabi(state, d.ds, N.khoa, N.bp) };
+      fabi = { tu: d.tu, den: d.den, nguon: kieu, ky: E.khoaKy(state.period), ghep: E.ghepFabi(state, d.ds, N.khoa, N.bp) };
       /* 🔴 LẤY HẾT NGAY. Anh Thắng 18/09/2026, ba lần: *"Cứ lấy hết cơ sở đó là được"*, *"Sao
          không lấy hết cơ sở đang có"*, *"nó đang bỏ lại, cần là lấy hết"*. Nên bản xem trước mở ra
          là đã chọn sẵn "tạo điểm mới" cho MỌI cửa hàng chưa ghép — bỏ lại 0đ. Vẫn là bản xem
@@ -1061,7 +1048,7 @@
       + `</optgroup>`;
     return `<div class="card" style="margin:0 0 10px;background:var(--panel-2)">
       <div class="card-head">
-        <h2>Lương theo cơ sở — Nhân sự ${esc(luong.thang || '')}</h2>
+        <h2>Lương theo cơ sở — Nhân sự <span class="${(luong.ky || '') === E.khoaKy(state.period) ? '' : 'bad-text'}">${esc(luong.thang || '')}</span></h2>
         <span class="hint">${ds.length} cơ sở · đã ghép ${chon.length - soTao}${soTao ? ` · tạo mới ${soTao}` : ''} · tổng sẽ ghi ${fmt(tongChon)}</span>
         <div class="spacer"></div>
         ${chuaGhep.length ? `<button class="btn small" data-act="luongTaoHet" title="Với mỗi cơ sở chưa ghép, tạo một dòng lương mới trong bộ phận đoán được từ tên cơ sở. Vẫn sửa được từng dòng trước khi Ghi.">➕ Tạo dòng cho ${chuaGhep.length} cơ sở còn lại</button>` : ''}
@@ -1165,7 +1152,7 @@
       const d = r && r.data ? r.data : r;
       if (!d || d.ok === false) { luong = { loi: (d && d.error) || 'Không đọc được lương từ trang Nhân sự.' }; renderTab(); return; }
       if (!d.ds || !d.ds.length) { luong = { loi: `Kỳ ${R_periodLabel()} chưa có dữ liệu chấm công nào bên Nhân sự.` }; renderTab(); return; }
-      luong = { thang: d.thang, ghep: E.ghepLuong(state, d.ds) };
+      luong = { thang: d.thang, ky: E.khoaKy(state.period), ghep: E.ghepLuong(state, d.ds) };
       /* 🔴 NẠP XONG LÀ GHÉP HẾT. Cùng lối với doanh thu — anh Thắng 18/09/2026: *"Dữ liệu lấy
          realtime + nạp"*. Cơ sở nào CÓ tiền mà chưa có dòng lương thì chọn sẵn "tạo dòng mới";
          cơ sở chưa ra tiền thì vẫn đứng ngoài, không tạo dòng rỗng. Vẫn phải bấm Ghi. */
@@ -1513,22 +1500,6 @@
     },
     fabiDong() { fabi = null; renderTab(); },
     moDoanhThu() { renderTab('revenue'); },
-    kyTrong() {
-      const c = E.dongChuaRoKy(state);
-      if (!c.tong) return;
-      prevState = JSON.parse(JSON.stringify(state));
-      E.chotDauKy(state, false);
-      commit();
-      toast(`Đã để trống ${c.tong} dòng. Bấm "Nạp" để lấy số ${E.periodLabel(state.period)}.`, { label: 'Hoàn tác', fn: undo });
-    },
-    kyGiu() {
-      const c = E.dongChuaRoKy(state);
-      if (!c.tong) return;
-      prevState = JSON.parse(JSON.stringify(state));
-      E.chotDauKy(state, true);
-      commit();
-      toast(`Đã nhận ${c.tong} dòng là số của ${E.periodLabel(state.period)}.`, { label: 'Hoàn tác', fn: undo });
-    },
     /* Gỡ những liên kết trỏ vào điểm sai bộ phận, VÀ xoá luôn con số chúng đã ghi vào đó. Giữ số
        lại mới là nguy: đó là tiền ghế nằm trong doanh thu Event, không nguồn nào nhận, không ai
        biết nó từ đâu ra, mà vẫn kéo lệch tỷ trọng phân bổ chi phí của cả hai bộ phận. */
@@ -1618,6 +1589,10 @@
     },
     luongGhi() {
       if (!luong || !luong.ghep) return;
+      if ((luong.ky || '') !== E.khoaKy(state.period)) {
+        luong = null; renderTab();
+        return toast(`Bản nháp là của kỳ khác — đã bỏ. Bấm "Nạp lương" lại để lấy số ${R_periodLabel()}.`);
+      }
       const kq = E.napLuong(state, luong.ghep);
       luong = null;
       const bat = !state.options.luongTuDong && kq.xong > 0;
@@ -1639,6 +1614,11 @@
     },
     fabiGhi() {
       if (!fabi || !fabi.ghep) return;
+      /* Chốt chặn cuối: bản nháp phải ĐÚNG kỳ đang mở. Xem khối dài ở chỗ đổi ô chọn tháng. */
+      if ((fabi.ky || '') !== E.khoaKy(state.period)) {
+        fabi = null; renderTab();
+        return toast(`Bản nháp là của kỳ khác — đã bỏ. Bấm "Nạp" lại để lấy số ${R_periodLabel()}.`);
+      }
       /* Tạo điểm mới TRƯỚC, vì napFabi ghi theo siteIndex — tạo sau thì mấy điểm mới không nhận
          được đồng doanh thu nào. */
       const nguonCu = fabi.nguon || 'fabi';
@@ -1881,8 +1861,12 @@
       if (b) renderTab(b.dataset.tab);
     });
     // kỳ
-    $('#selMonth').addEventListener('change', (e) => { state.period.month = +e.target.value; commit({ noPush: true }); sync.onPeriodChange(); });
-    $('#inpYear').addEventListener('change', (e) => { state.period.year = +e.target.value || state.period.year; commit({ noPush: true }); sync.onPeriodChange(); });
+    /* 🔴 ĐỔI KỲ LÀ BỎ BẢN NHÁP ĐANG MỞ. Anh Thắng 18/09/2026 gửi ảnh: đang ở kỳ T08 mà hộp xem
+       trước còn ghi "Ghế Massage 2026-09-01 → 2026-09-30" — bản nháp mở từ lúc còn ở T09 nằm lại
+       sau khi đổi kỳ. Bấm Ghi là số THÁNG 9 chui thẳng vào báo cáo THÁNG 8, và nó mang dấu kỳ T08
+       nên từ đó không ai còn cách nào biết. */
+    $('#selMonth').addEventListener('change', (e) => { boBanNhap(); state.period.month = +e.target.value; commit({ noPush: true }); sync.onPeriodChange(); });
+    $('#inpYear').addEventListener('change', (e) => { boBanNhap(); state.period.year = +e.target.value || state.period.year; commit({ noPush: true }); sync.onPeriodChange(); });
     // nhập liệu (uỷ quyền)
     const main = $('#main');
     main.addEventListener('change', (e) => {
@@ -2181,6 +2165,7 @@
       const k = API.periodKey(state.period);
       if (k === this.periodKey) return;
       this.periodKey = k;
+      boBanNhap();
       /* Tải kỳ xong mới lấy FABi — lấy trước thì bản kéo từ máy chủ đè lên ngay sau đó. */
       this.pull({ force: true, notify: true, initial: true })
         .then(() => donKyNgay()).then(() => fabiLayNgay(true)).then(() => luongLayNgay(true));

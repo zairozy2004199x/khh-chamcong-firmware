@@ -1151,39 +1151,22 @@ console.log(`OK — ${passed} phép so khớp với Excel đều đạt, các tr
   // -- chạy lại thì không còn gì để dọn --
   assert.strictEqual(E.donKyCu(st).tong, 0);
 
-  /* 🔴 BẢN CŨ CHƯA CÓ DẤU TỪNG DÒNG: KHÔNG đoán hộ. Bản 1.26.0 cho chúng "thừa hưởng" dấu của cả
-     kỳ — mà dấu ấy chính là kỳ đang mở, nên nó tự đóng dấu "đúng kỳ" cho mọi thứ nó gặp và chẳng
-     dọn được gì. Sự thật là dữ liệu KHÔNG chứa thông tin ấy; phải hỏi người, đúng một lần. */
+  /* 🔴 MỞ LẠI MỘT KỲ THÌ SỐ TRONG ĐÓ LÀ CỦA KỲ ẤY — KHÔNG HỎI LẠI.
+     Anh Thắng 18/09/2026: *"khi anh mở lại tháng T8 thì là tháng 8, tại sao phải lấy lại số làm
+     gì"*. Máy chủ giữ mỗi kỳ một bản riêng, nên chính khoá kỳ là bằng chứng. */
   const cu = E.normalizeState({
-    period: { month: 8, year: 2026 }, soCuaKy: '2026-08',
+    period: { month: 8, year: 2026 },
     departments: [{ id: 'tutu', name: 'Tutu', group: 'KVC' }],
     groups: [{ id: 'KVC', name: 'Khu vui chơi', method: 'revenue' }],
-    sites: [{ dept: 'tutu', code: 'A', name: 'AMTP', revenue: 29905000 }],
+    sites: [{ dept: 'tutu', code: 'A', name: 'AMTP', revenue: 29905000 },
+            { dept: 'tutu', code: 'B', name: 'Chưa có', revenue: 0 }],
     salarySites: [{ id: 'a', dept: 'tutu', name: 'AMTP', reported: 1000000 }],
   });
-  assert.strictEqual(cu.sites[0].dtKy, '', 'KHÔNG tự đoán dấu kỳ cho dòng cũ');
-  assert.strictEqual(E.donKyCu(cu).tong, 0, 'và cũng KHÔNG lặng lẽ xoá — chờ người trả lời');
+  assert.strictEqual(cu.sites[0].dtKy, '2026-08', 'dòng CÓ SỐ nhận dấu của kỳ đang mở');
+  assert.strictEqual(cu.salarySites[0].nsKy, '2026-08');
+  assert.strictEqual(cu.sites[1].dtKy, '', 'dòng TRỐNG thì để nguyên, đừng đóng dấu khống');
+  assert.strictEqual(E.donKyCu(cu).tong, 0, 'nên mở lại kỳ ấy KHÔNG bị dọn oan, cũng không hỏi gì');
   assert.strictEqual(cu.sites[0].revenue, 29905000);
 
-  const hoi = E.dongChuaRoKy(cu);
-  assert.strictEqual(hoi.tong, 2, 'thay vào đó: đếm ra để hỏi đúng một lần');
-  assert.strictEqual(hoi.diem.length, 1);
-  assert.strictEqual(hoi.luong.length, 1);
-
-  // -- trả lời "giữ lại" → đóng dấu kỳ đang mở, từ đó không hỏi nữa --
-  const giu = E.normalizeState(JSON.parse(JSON.stringify(cu)));
-  E.chotDauKy(giu, true);
-  assert.strictEqual(giu.sites[0].revenue, 29905000);
-  assert.strictEqual(giu.sites[0].dtKy, '2026-08');
-  assert.strictEqual(E.dongChuaRoKy(giu).tong, 0, 'hỏi một lần rồi thôi');
-
-  // -- trả lời "để trống hết" → xoá số, giữ danh mục --
-  const trong = E.normalizeState(JSON.parse(JSON.stringify(cu)));
-  E.chotDauKy(trong, false);
-  assert.strictEqual(trong.sites[0].revenue, 0);
-  assert.strictEqual(trong.salarySites[0].reported, 0);
-  assert.strictEqual(trong.sites[0].name, 'AMTP', 'chỉ xoá SỐ, danh mục còn nguyên');
-  assert.strictEqual(E.dongChuaRoKy(trong).tong, 0);
-
-  console.log('OK — mở kỳ nào chỉ có số của kỳ ấy, chỗ chưa có thì để trống.');
+    console.log('OK — mở kỳ nào chỉ có số của kỳ ấy, chỗ chưa có thì để trống.');
 }

@@ -971,6 +971,11 @@
       chuaNoi, tongChuaNoi: chuaNoi.reduce((a, d) => a + num(d.thanh_tien), 0) };
   }
 
+  const DONG_CO_SO = [
+    { o: 'sites', k: 'dtKy', so: 'revenue' },
+    { o: 'salarySites', k: 'nsKy', so: 'reported' },
+  ];
+
   /** Khoá kỳ dạng '2026-09' — cùng cách đặt khoá với máy chủ (BaoCaoApi.periodKey). */
   function khoaKy(p) {
     p = p || {};
@@ -990,53 +995,11 @@
    * chỗ nào chưa có số thì để trống. Dấu kỳ (`dtKy`/`nsKy`) vẫn còn nhưng là việc của máy — không
    * chữ nào của nó đi ra màn hình.
    * ═══════════════════════════════════════════════════════════════════════════════════════════ */
-  /* ═══════════════════════════════════════════════════════════════════════════════════════════
-   * DÒNG CÓ SỐ MÀ CHƯA RÕ CỦA THÁNG NÀO — HỎI ĐÚNG MỘT LẦN.
-   *
-   * Bản 1.26.0 từng cho những dòng ấy "thừa hưởng" dấu kỳ của cả bản trạng thái. Luật ấy vô nghĩa:
-   * dấu của cả bản trạng thái chính là kỳ đang mở, nên nó tự đóng dấu "đúng kỳ" cho mọi thứ mình
-   * gặp — tự khẳng định điều cần chứng minh. Anh Thắng 18/09/2026 mở T09 vẫn thấy nguyên số T08:
-   * *"vẫn kỳ t8"*.
-   *
-   * Sự thật là với dữ liệu cũ KHÔNG CÓ cách nào biết mấy con số ấy của tháng nào — nó không nằm
-   * trong dữ liệu. Đoán bừa theo hướng nào cũng sai một nửa số trường hợp: xoá sạch thì mất một kỳ
-   * đã chốt đúng, giữ hết thì đúng cái anh đang gặp. Nên hỏi NGƯỜI, đúng một lần cho mỗi kỳ; trả
-   * lời xong là mọi dòng có dấu, từ đó máy tự dọn mãi mãi, không hỏi lại.
-   * ═══════════════════════════════════════════════════════════════════════════════════════════ */
-  function dongChuaRoKy(state) {
-    const diem = [];
-    const luong = [];
-    (state.sites || []).forEach((s, i) => {
-      if (!(s.dtKy || '').trim() && num(s.revenue)) { diem.push({ i, ten: s.name || s.code }); }
-    });
-    (state.salarySites || []).forEach((r, i) => {
-      if (!(r.nsKy || '').trim() && (num(r.reported) || num(r.report) || num(r.dntt) || num(r.actual))) {
-        luong.push({ i, ten: r.name });
-      }
-    });
-    return { diem, luong, tong: diem.length + luong.length };
-  }
-
-  /** Chốt: `giu = true` → nhận là số của kỳ đang mở; `false` → để trống hết. */
-  function chotDauKy(state, giu) {
-    const ky = khoaKy(state.period);
-    const c = dongChuaRoKy(state);
-    c.diem.forEach((x) => {
-      const s = state.sites[x.i];
-      if (giu) { s.dtKy = ky; } else { s.revenue = 0; }
-    });
-    c.luong.forEach((x) => {
-      const r = state.salarySites[x.i];
-      if (giu) { r.nsKy = ky; } else { r.reported = 0; r.report = 0; r.dntt = 0; r.actual = 0; }
-    });
-    return c;
-  }
-
   function donKyCu(state) {
     const ky = khoaKy((state || {}).period);
     let diem = 0, luong = 0;
-    /* CHƯA CÓ DẤU thì KHÔNG đụng vào — đó là dữ liệu bản cũ, phần việc của dongChuaRoKy(): hỏi
-       người đúng một lần. Ở đây chỉ dọn thứ đã biết chắc là của kỳ khác. */
+    /* Dòng chưa có dấu thì normalizeState() đã đóng dấu kỳ đang mở cho nó rồi (xem khối ở đó), nên
+       tới đây chỉ còn việc dọn thứ ĐÃ BIẾT CHẮC là của kỳ khác. */
     (state.sites || []).forEach((s) => {
       const d = (s.dtKy || '').trim();
       if (!d || d === ky) return;
@@ -1227,6 +1190,16 @@
        chỉnh mà là số tháng trước, đội tên tháng này — %CP/DT sai, không ô nào đỏ. Dấu này để
        validate() và màn Tổng quan bắt được chuyện đó. */
     st.soCuaKy = String(st.soCuaKy || khoaKy(st.period));
+    /* 🔴 DỮ LIỆU LƯU THEO TỪNG KỲ, NÊN SỐ TRONG BẢN CỦA KỲ NÀO LÀ CỦA KỲ ẤY.
+       Anh Thắng 18/09/2026: *"khi anh mở lại tháng T8 thì là tháng 8, tại sao phải lấy lại số làm
+       gì"*. Máy chủ giữ mỗi kỳ một bản riêng (`saveState({period, state})`), nên chính cái khoá kỳ
+       ấy là bằng chứng — không phải hỏi ai. Dòng nào có số mà chưa mang dấu thì nhận dấu của kỳ
+       đang mở; nhập Excel vào kỳ nào cũng vậy.
+       ⚠️ Chỉ đóng dấu dòng CÓ SỐ. Dòng trống để nguyên, kẻo lần lấy sau tưởng nó đã có số của kỳ
+          này rồi bỏ qua. */
+    DONG_CO_SO.forEach((x) => {
+      (st[x.o] || []).forEach((r) => { if (!(r[x.k] || '').trim() && num(r[x.so])) { r[x.k] = khoaKy(st.period); } });
+    });
     st.groups = (st.groups || []).map((g) => ({ method: 'revenue', ...g }));
     st.departments = (st.departments || []).map((d) => ({ ratio: 0, revenue: 0, revenueOverride: false, unitCode: '', ...d }));
     /* HAI khoá liên kết, hai nguồn: `fabiTen` ← Doanh thu FABi, `gheTen` ← Ghế Massage (Posh/JP).
@@ -1348,8 +1321,6 @@
     dongBoFabi,
     batDauKyMoi,
     donKyCu,
-    dongChuaRoKy,
-    chotDauKy,
     khoaKy,
     lechKy,
     dsBoQua,

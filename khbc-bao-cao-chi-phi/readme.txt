@@ -4,7 +4,7 @@ Tags: chi phí, phân bổ, báo cáo, MISA, kế toán
 Requires at least: 5.6
 Tested up to: 6.8
 Requires PHP: 7.2
-Stable tag: 1.27.0
+Stable tag: 1.28.0
 License: GPLv2 or later
 
 Phân bổ chi phí Máy tự động / Khu vui chơi ra "File tổng báo cáo" và phân bổ theo điểm để hạch toán MISA.
@@ -35,6 +35,19 @@ Nhân viên nhập khoản chi phí, kế toán duyệt, web tự tính.
 4. Nhập Excel kỳ đầu (hoặc ⋯ → Nạp dữ liệu mẫu) rồi bắt đầu.
 
 == Changelog ==
+
+= 1.28.0 =
+* 🔴 **Sửa lỗi bản nháp của kỳ khác nằm lại sau khi đổi kỳ.** Ảnh anh Thắng gửi: đang ở kỳ
+  **T08/2026** mà hộp xem trước còn ghi *"Ghế Massage 2026-09-01 → 2026-09-30"*. Bấm Ghi là doanh
+  thu **tháng 9 chui thẳng vào báo cáo tháng 8**, lại mang dấu T08 nên sau đó không ai còn cách nào
+  biết. Nay đổi kỳ là bỏ bản nháp; và lúc bấm Ghi còn một chốt chặn nữa đối chiếu kỳ, lệch thì
+  không ghi. Khoảng ngày trên đầu hộp xem trước chuyển ĐỎ nếu không khớp kỳ đang mở.
+* **Bỏ câu hỏi "chưa rõ của tháng nào"** của bản 1.27.0 (anh Thắng: *"khi anh mở lại tháng T8 thì
+  là tháng 8, tại sao phải lấy lại số làm gì"*). Máy chủ giữ **mỗi kỳ một bản riêng**, nên chính
+  khoá kỳ là bằng chứng — số nằm trong bản của kỳ nào là của kỳ ấy, không phải hỏi ai. Nhập Excel
+  vào kỳ nào cũng vậy.
+* Vẫn giữ luật: đổi sang kỳ khác thì số không thuộc kỳ ấy **để trống**, và **⋯ → Xoá số liệu kỳ
+  này** để dọn tay một kỳ đã lỡ dính số của kỳ khác.
 
 = 1.27.0 =
 * 🔴 **Sửa lỗi 1.26.0 không dọn được gì.** Bản ấy cho những dòng chưa có dấu kỳ "thừa hưởng" dấu

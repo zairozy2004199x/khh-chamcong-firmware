@@ -71,25 +71,24 @@ const PORT = process.env.PORT || '8117';
     return { so: r.reported, sauDon: (()=>{ return r.reported; })() };});
   ok('🔴 Gõ tay xong thì lần dọn sau KHÔNG xoá mất', g.so===5000000, String(g.so));
 
-  // ── 🔴 DÒNG CŨ CHƯA RÕ THÁNG NÀO: hỏi đúng một lần, không xoá lén ──────────────────────────
+  // ── 🔴 MỞ LẠI KỲ THÌ KHÔNG HỎI GÌ, VÀ BẢN NHÁP CỦA KỲ KHÁC KHÔNG ĐƯỢC GHI ────────────────────
   await mo(p,'Tổng quan');
   const h = await p.evaluate(()=>{const s=window.BaoCaoApp.getState();
     const r=s.salarySites.find(x=>x.name==='Tàu Tân An');
-    const e=[...document.querySelectorAll('#tab-dashboard .issue')].find(x=>/chưa rõ của tháng nào/.test(x.textContent));
-    return { so: r?r.reported:null, co: !!e, chu: e?e.textContent.replace(/\s+/g,' '):'',
-      nut: e?[...e.querySelectorAll('button')].map(b=>b.dataset.act):[] };});
-  ok('🔴 Dòng bản cũ KHÔNG bị xoá lén', h.so===12133000, String(h.so));
-  ok('Hỏi một lần, nói rõ bao nhiêu dòng', h.co && /1 dòng|2 dòng/.test(h.chu), h.chu.slice(0,120));
-  ok('Có đủ hai lối trả lời', h.nut.includes('kyTrong') && h.nut.includes('kyGiu'), h.nut.join(' · '));
+    return { so: r?r.reported:null, ky: r?r.nsKy:null,
+      hoi: /chưa rõ của tháng nào/.test(document.body.textContent) };});
+  ok('🔴 Mở lại kỳ thì KHÔNG hỏi gì', !h.hoi);
+  ok('Dòng có số nhận dấu của kỳ đang mở', h.so===12133000 && h.ky==='2026-08', h.so+' · '+h.ky);
 
-  await p.click('#tab-dashboard [data-act="kyTrong"]'); await p.waitForTimeout(2000);
-  const h2 = await p.evaluate(()=>{const s=window.BaoCaoApp.getState();
-    const r=s.salarySites.find(x=>x.name==='Tàu Tân An');
-    return { bon:[r.reported,r.report,r.dntt,r.actual], ten:r.name, bp:r.dept,
-      conHoi: /chưa rõ của tháng nào/.test(document.querySelector('#tab-dashboard').textContent) };});
-  ok('🔴 Bấm "Để trống hết" là sạch cả bốn cột', h2.bon.every(v=>v===0), JSON.stringify(h2.bon));
-  ok('Giữ nguyên danh mục', h2.ten==='Tàu Tân An' && h2.bp==='tutu', h2.ten+' · '+h2.bp);
-  ok('Trả lời xong thì KHÔNG hỏi lại', !h2.conHoi);
+  // mo ban nhap o ky nay roi DOI KY -> ban nhap phai bi bo
+  await mo(p,'Doanh thu');
+  await p.click('[data-act="napFabi"][data-arg="ghe"]').catch(()=>{});
+  await p.waitForTimeout(2500);
+  const coNhap = await p.evaluate(()=>!!document.querySelector('[data-act="fabiGhi"]'));
+  await p.selectOption('#selMonth','7'); await p.waitForTimeout(3000);
+  await mo(p,'Doanh thu');
+  const conNhap = await p.evaluate(()=>!!document.querySelector('[data-act="fabiGhi"]'));
+  ok('🔴 Đổi kỳ là BỎ bản nháp của kỳ cũ', coNhap && !conNhap, 'mở '+coNhap+' → sau khi đổi kỳ '+conNhap);
 
   ok('Không lỗi JS', loi.length===0, loi.join(' | '));
   await p.screenshot({path:'/tmp/claude-0/nhan-ky.png'});
