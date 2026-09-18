@@ -97,6 +97,19 @@ class VHCC_LoaiGio {
 		return ( '' !== $k && ! empty( $c[ $k ]['tab'] ) );
 	}
 
+	/**
+	 * NGƯỜI NÀY có thấy tab "Giờ công lương" không.
+	 *
+	 * 🔴 KHÔNG PHẢI CỨ BẬT LÀ CẢ CƠ SỞ THẤY. Cùng luật với `hoi_khi_ra()`: người chỉ có một loại
+	 *    giờ thì cái tab ấy chẳng có gì để đổi, mà lại là đúng cái nút để họ thử đổi ca của
+	 *    mình sang việc giá cao hơn — anh Thắng 18/09/2026: *"tránh cập nhật nhầm hoặc gian
+	 *    lận"*. Bày một ô rồi chối ở trong còn tệ hơn: họ đi hỏi vòng quanh.
+	 */
+	public static function hien_tab( $coso, $ma_nv, $cfg = null, $so = null ) {
+		if ( ! self::bat_tab( $coso, $cfg ) ) { return false; }
+		return count( self::ds_viec( $coso, $ma_nv, $so ) ) >= 2;
+	}
+
 	/** Gạt công tắc. `null` = không đụng tới cái ấy. */
 	public static function dat_cfg( $u, $coso, $ket_ca = null, $tab = null ) {
 		if ( ! VHCC_Vai::duoc( $u, self::QUYEN_CFG ) ) {
@@ -129,7 +142,8 @@ class VHCC_LoaiGio {
 	/* ====================================================================== danh sách việc */
 
 	/**
-	 * MẤY LOẠI GIỜ MỘT NGƯỜI ĐƯỢC CHỌN, ở một cơ sở.
+	 * MỌI LOẠI GIỜ CƠ SỞ CÓ KHAI GIÁ — danh sách để CỬA HÀNG TRƯỞNG chọn khi PHÂN việc cho một
+	 * người. KHÔNG phải danh sách nhân viên được bấm; cái ấy là `ds_viec()` bên dưới.
 	 *
 	 * 🔴 LẤY TỪ CHÍNH SỔ ĐƠN GIÁ, KHÔNG DỰNG MỘT DANH SÁCH THỨ HAI. Anh Thắng: *"nhân viên đó
 	 *    có 3 giờ lương"* — ba giờ lương ấy CHÍNH LÀ ba dòng đơn giá đã khai cho người ấy hoặc
@@ -141,7 +155,7 @@ class VHCC_LoaiGio {
 	 *
 	 * @return array [ [ 'khoa' => 'mc', 'ten' => 'MC', 'gia' => 30000.0 ], … ] — xếp theo tên.
 	 */
-	public static function ds_viec( $coso, $ma_nv, $so = null ) {
+	public static function ds_gia( $coso, $ma_nv, $so = null ) {
 		$so  = ( null === $so ) ? VHCC_GiaGio::so() : $so;
 		$kcs = VHCC_GiaGio::khoa_cs( $coso );
 		$kma = VHCC_GiaGio::khoa_ma( $ma_nv );
@@ -169,12 +183,150 @@ class VHCC_LoaiGio {
 		return $ra;
 	}
 
+	/* ---------------------------------------------------------------- phân việc cho một người */
+
+	/**
+	 * MẤY LOẠI GIỜ CỬA HÀNG TRƯỞNG ĐÃ PHÂN CHO MỘT NGƯỜI. Mảng tên việc; rỗng = chưa phân.
+	 *
+	 * Anh Thắng 18/09/2026: *"Trừ khi bạn đó mới được phân thì cht sẽ set. Thì hệ thống sẽ hiểu
+	 * bạn này đang có thể làm 2 giờ lương thì sẽ hỏi lần sau chấm công"*.
+	 */
+	public static function phan( $coso, $ma_nv, $cfg = null ) {
+		$c   = ( null === $cfg ) ? self::cfg() : $cfg;
+		$kcs = self::khoa_cs( $coso );
+		$kma = VHCC_GiaGio::khoa_ma( $ma_nv );
+		if ( '' === $kcs || '' === $kma || ! isset( $c[ $kcs ]['phan'][ $kma ] ) ) { return array(); }
+		$ds = (array) $c[ $kcs ]['phan'][ $kma ];
+		$ra = array();
+		foreach ( $ds as $t ) {
+			$t = trim( (string) $t );
+			if ( '' !== $t && ! in_array( $t, $ra, true ) ) { $ra[] = $t; }
+		}
+		return $ra;
+	}
+
+	/** Cửa hàng trưởng phân việc. Mảng rỗng = bỏ phân (người ấy thôi bị hỏi). */
+	public static function dat_phan( $u, $coso, $ma_nv, $ds_viec ) {
+		$cs = VHCC_NhanSu::chuan_coso( $coso );
+		if ( ! VHCC_Vai::duoc( $u, self::QUYEN_DUYET ) ) {
+			return array( 'ok' => false,
+				'error' => VHCC_Vai::loi( $u, self::QUYEN_DUYET, 'Phân loại giờ lương' ) );
+		}
+		if ( '' === $cs || ! VHCC_NhanSu::co_quyen_coso( $u, $cs ) ) {
+			return array( 'ok' => false, 'error' => 'Không có quyền trên cơ sở này.' );
+		}
+		$kma = VHCC_GiaGio::khoa_ma( $ma_nv );
+		if ( '' === $kma ) { return array( 'ok' => false, 'error' => 'Thiếu mã nhân viên.' ); }
+
+		/* 🔴 CHỈ NHẬN VIỆC CÓ TRONG BẢNG ĐƠN GIÁ. Phân một việc chưa khai giá là người ấy bấm
+		   chọn xong rồi ăn 0đ — và màn thì vẫn xanh suốt từ đầu tới cuối. */
+		$hop_le = array();
+		foreach ( self::ds_gia( $cs, $ma_nv ) as $x ) { $hop_le[ $x['khoa'] ] = $x['ten']; }
+		$sach = array();
+		foreach ( (array) $ds_viec as $t ) {
+			$k = VHCC_GiaGio::khoa_cv( (string) $t );
+			if ( isset( $hop_le[ $k ] ) && ! in_array( $hop_le[ $k ], $sach, true ) ) {
+				$sach[] = $hop_le[ $k ];
+			}
+		}
+
+		$c   = self::cfg();
+		$kcs = self::khoa_cs( $cs );
+		if ( $sach ) {
+			$c[ $kcs ]['phan'][ $kma ] = $sach;
+		} else {
+			unset( $c[ $kcs ]['phan'][ $kma ] );
+			if ( empty( $c[ $kcs ]['phan'] ) ) { unset( $c[ $kcs ]['phan'] ); }
+			if ( empty( $c[ $kcs ] ) ) { unset( $c[ $kcs ] ); }
+		}
+		VHCC_Luong::dat_cai_dat( self::O, $c, $u );
+		return array( 'ok' => true, 'ds' => $sach );
+	}
+
+	/**
+	 * Mấy loại giờ người ấy THỰC SỰ đã làm trong THÁNG TRƯỚC — bằng chứng thứ hai.
+	 *
+	 * Anh Thắng 18/09/2026: *"Theo kiểu tháng trước nhân viên đó có 2 loại giờ lương thì tháng
+	 * sau nó sẽ hỏi"*.
+	 *
+	 * ⚠️ THÁNG DƯƠNG LỊCH TRƯỚC, không phải "30 ngày qua". Kỳ lương chốt theo tháng, nên một
+	 *    người đổi việc giữa tháng thì đúng ngày mùng 1 hệ mới nên đổi cách hỏi họ — chứ không
+	 *    phải trượt dần mỗi ngày một ít.
+	 */
+	public static function thang_truoc_da_lam( $coso, $ma_nv ) {
+		global $wpdb;
+		$cs = VHCC_NhanSu::chuan_coso( $coso );
+		$ma = trim( (string) $ma_nv );
+		if ( '' === $cs || '' === $ma ) { return array(); }
+		$tt = gmdate( 'Y-m', strtotime( substr( (string) current_time( 'Y-m-d' ), 0, 7 )
+			. '-01 00:00:00 UTC' ) - 86400 );
+		$ra = array();
+		foreach ( (array) VHCC_DB::rows( $wpdb->prepare(
+			'SELECT DISTINCT loai_gio FROM ' . VHCC_DB::t( 'cham_cong' )
+			. " WHERE LOWER(coso)=LOWER(%s) AND UPPER(ma_nv)=UPPER(%s) AND ngay LIKE %s"
+			. " AND loai_gio<>''",
+			$cs, $ma, $tt . '-%' ) ) as $r ) {
+			$t = trim( (string) $r['loai_gio'] );
+			if ( '' !== $t && ! in_array( $t, $ra, true ) ) { $ra[] = $t; }
+		}
+		return $ra;
+	}
+
+	/**
+	 * MẤY LOẠI GIỜ MỘT NGƯỜI ĐƯỢC BẤM CHỌN.
+	 *
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 KHÔNG PHẢI CẢ BẢNG ĐƠN GIÁ CỦA CƠ SỞ — ĐÓ LÀ BẢN CŨ, VÀ NÓ SAI
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * Bản 4.60.0 hỏi mọi người ở cơ sở nào có từ hai dòng đơn giá. Anh Thắng 18/09/2026 chốt
+	 * lại: *"những nhân viên 1 giờ nghĩ không nên hỏi tránh cập nhật nhầm hoặc gian lận"*.
+	 *
+	 * Câu ấy đúng theo cả hai nghĩa, và nghĩa thứ hai mới đắt:
+	 *   · CẬP NHẬT NHẦM — người cả đời chỉ đứng quầy, mỗi ca lại bị hỏi "bạn làm việc gì", ba
+	 *     lựa chọn xếp cạnh nhau. Bấm trượt một lần là một ca ăn giá của việc khác, và không có
+	 *     gì kêu lên cả.
+	 *   · GIAN LẬN — bày ra cho họ đúng cái nút để tự nâng đơn giá ca của mình. Trước đó việc
+	 *     ấy cần cửa hàng trưởng; bản cũ phát cho cả cửa hàng.
+	 *
+	 * Nên phải có BẰNG CHỨNG rằng người này thật sự làm nhiều loại việc. Hai bằng chứng, và chỉ
+	 * hai:
+	 *   1. CỬA HÀNG TRƯỞNG PHÂN (`dat_phan`) — *"mới được phân thì cht sẽ set"*. Đây là đường
+	 *      cho người mới: không có quá khứ nào để tra, phải có người chịu trách nhiệm nói ra.
+	 *   2. THÁNG TRƯỚC HỌ ĐÃ LÀM ĐỦ HAI LOẠI — *"tháng trước nhân viên đó có 2 loại giờ lương
+	 *      thì tháng sau nó sẽ hỏi"*. Việc đã diễn ra rồi thì không ai bịa ra được nữa.
+	 *
+	 * ⚠️ PHÂN THẮNG LỊCH SỬ, KHÔNG CỘNG VÀO. Cửa hàng trưởng rút một việc khỏi danh sách của ai
+	 *    đó là họ đang nói "người này thôi làm việc ấy" — cộng thêm lịch sử tháng trước vào là
+	 *    lệnh rút ấy không có tác dụng gì suốt cả tháng sau.
+	 *
+	 * ⚠️ LỌC LẠI QUA BẢNG ĐƠN GIÁ. Việc đã phân mà sau đó bị xoá khỏi bảng giá thì thôi bày ra:
+	 *    chọn nó là ăn 0đ.
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 */
+	public static function ds_viec( $coso, $ma_nv, $so = null ) {
+		$co_gia = array();
+		foreach ( self::ds_gia( $coso, $ma_nv, $so ) as $x ) { $co_gia[ $x['khoa'] ] = $x; }
+
+		$ten = self::phan( $coso, $ma_nv );
+		if ( ! $ten ) { $ten = self::thang_truoc_da_lam( $coso, $ma_nv ); }
+
+		$ra = array();
+		foreach ( $ten as $t ) {
+			$k = VHCC_GiaGio::khoa_cv( $t );
+			if ( isset( $co_gia[ $k ] ) && ! isset( $ra[ $k ] ) ) { $ra[ $k ] = $co_gia[ $k ]; }
+		}
+		$ra = array_values( $ra );
+		usort( $ra, function ( $a, $b ) { return strcasecmp( $a['ten'], $b['ten'] ); } );
+		return $ra;
+	}
+
 	/**
 	 * Có hỏi người này lúc kết ca không.
 	 *
 	 * 🔴 CHỈ HỎI KHI CÓ TỪ HAI LỰA CHỌN TRỞ LÊN. Một lựa chọn thì câu hỏi không có nội dung —
 	 *    mà mỗi ca lại chặn người ta thêm một cú bấm, và cú bấm vô nghĩa nào rồi cũng thành
-	 *    phản xạ bấm bừa.
+	 *    phản xạ bấm bừa. Từ 4.61.0 "hai lựa chọn" là hai lựa chọn CỦA CHÍNH NGƯỜI ẤY — xem
+	 *    khối chú thích ở `ds_viec()`.
 	 */
 	public static function hoi_khi_ra( $coso, $ma_nv, $cfg = null, $so = null ) {
 		if ( ! self::bat_ket_ca( $coso, $cfg ) ) { return false; }
@@ -302,6 +454,12 @@ class VHCC_LoaiGio {
 		if ( '' === $cs ) { return 'Thiếu cơ sở.'; }
 		if ( ! self::bat_tab( $cs ) ) {
 			return 'Cơ sở này chưa bật tab Giờ công lương.';
+		}
+		/* Gác lại ở CỬA GHI, không chỉ ở chỗ vẽ ô. Giấu ô đi chỉ là không mời; một lượt POST
+		   dựng tay vẫn tới đây. */
+		if ( count( self::ds_viec( $cs, $ma_nv ) ) < 2 ) {
+			return 'Anh/chị mới được phân một loại giờ lương nên không có gì để đổi. '
+				. 'Làm thêm việc khác thì báo cửa hàng trưởng phân thêm.';
 		}
 		$ng = trim( (string) $ngay );
 		if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $ng ) ) { return 'Ngày không hợp lệ.'; }

@@ -292,8 +292,9 @@ class VHCC_Ung {
 		   🔴 Ô NÀY CHỈ HIỆN Ở CƠ SỞ ĐÃ BẬT. Đang thử nghiệm từng cơ sở — bày ô ở nơi chưa bật
 		      là người ta bấm vào rồi gặp một màn chối, và đi hỏi vòng quanh. `self::o( false, … )`
 		      vẽ ô KHOÁ, còn ở đây phải không vẽ gì cả: tính năng chưa tồn tại với họ. */
-		if ( class_exists( 'VHCC_LoaiGio' ) && method_exists( 'VHCC_LoaiGio', 'bat_tab' )
-			&& VHCC_LoaiGio::bat_tab( isset( $u['coso'] ) ? $u['coso'] : '' ) ) {
+		if ( class_exists( 'VHCC_LoaiGio' ) && method_exists( 'VHCC_LoaiGio', 'hien_tab' )
+			&& VHCC_LoaiGio::hien_tab( isset( $u['coso'] ) ? $u['coso'] : '',
+				isset( $u['ma_nv'] ) ? $u['ma_nv'] : '' ) ) {
 			$o[] = self::o( true, array(
 				'ten'  => 'Giờ công lương',
 				'nhom' => 'Của tôi',

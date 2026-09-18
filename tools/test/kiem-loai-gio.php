@@ -94,26 +94,90 @@ VHCC_LoaiGio::dat_cfg( $AD, $CS, true, true );
 
 /* ================================================================= danh sách việc */
 
-echo "— danh sách việc —\n";
-$ds = VHCC_LoaiGio::ds_viec( $CS, 'LGNV' );
-teq( '🔴 ba dòng đơn giá = ba loại giờ chọn được', 3, count( $ds ) );
+echo "— bảng giá của cơ sở —\n";
+$ds = VHCC_LoaiGio::ds_gia( $CS, 'LGNV' );
+teq( 'ba dòng đơn giá của cơ sở', 3, count( $ds ) );
 $ten_ds = array();
 foreach ( $ds as $x ) { $ten_ds[] = $x['ten']; }
 sort( $ten_ds );
 teq( 'và mang đúng TÊN người gõ, không phải khoá tra',
 	array( 'Hỗ Trợ', 'MC', 'Partime' ), $ten_ds );
 
-/* 🔴 CHỈ HỎI KHI CÓ TỪ HAI LỰA CHỌN. Một lựa chọn thì câu hỏi không có nội dung, mà vẫn chặn
-   người ta thêm một cú bấm mỗi ca — và cú bấm vô nghĩa nào rồi cũng thành phản xạ bấm bừa. */
-t( '🔴 ba lựa chọn thì có hỏi', VHCC_LoaiGio::hoi_khi_ra( $CS, 'LGNV' ) );
-VHCC_LoaiGio::dat_cfg( $AD, $CS2, true, true );
-t( '🔴 cơ sở chỉ có MỘT dòng đơn giá thì KHÔNG hỏi', ! VHCC_LoaiGio::hoi_khi_ra( $CS2, 'LGNV' ) );
-
-/* Đơn giá RIÊNG của một người phải hiện thêm trong danh sách của chính họ. */
+/* Đơn giá RIÊNG của một người phải hiện thêm trong bảng giá của chính họ. */
 VHCC_GiaGio::dat_nguoi( $AD, 'LGNV2', array( 'Lái Tàu' => 35000 ) );
-$ds2 = VHCC_LoaiGio::ds_viec( $CS, 'LGNV2' );
-teq( '🔴 đơn giá riêng của người cộng thêm vào danh sách của chính họ', 4, count( $ds2 ) );
-teq( 'người khác không thấy dòng riêng ấy', 3, count( VHCC_LoaiGio::ds_viec( $CS, 'LGNV' ) ) );
+teq( '🔴 đơn giá riêng của người cộng thêm vào bảng giá của chính họ', 4,
+	count( VHCC_LoaiGio::ds_gia( $CS, 'LGNV2' ) ) );
+teq( 'người khác không thấy dòng riêng ấy', 3, count( VHCC_LoaiGio::ds_gia( $CS, 'LGNV' ) ) );
+
+/* ================================================================= HỎI AI: phải có bằng chứng */
+
+echo "— hỏi ai —\n";
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 ĐÂY LÀ CHỐT ĐẮT NHẤT CỦA CẢ TÍNH NĂNG
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * Bản 4.60.0 hỏi MỌI người ở cơ sở nào có từ hai dòng đơn giá. Anh Thắng 18/09/2026 chốt lại:
+ * *"những nhân viên 1 giờ nghĩ không nên hỏi tránh cập nhật nhầm hoặc gian lận. Trừ khi bạn đó
+ * mới được phân thì cht sẽ set"*.
+ *
+ * Bật công tắc mà chưa phân ai thì KHÔNG AI bị hỏi — kể cả khi cơ sở có ba dòng đơn giá. Bày
+ * ba lựa chọn cho người cả đời chỉ đứng quầy là vừa mời bấm nhầm, vừa phát cho họ đúng cái nút
+ * để tự nâng đơn giá ca của mình.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+t( '🔴 BẬT công tắc mà chưa phân ai thì KHÔNG hỏi ai cả',
+	! VHCC_LoaiGio::hoi_khi_ra( $CS, 'LGNV' ) );
+teq( '   và danh sách được bấm chọn là RỖNG', 0, count( VHCC_LoaiGio::ds_viec( $CS, 'LGNV' ) ) );
+t( '   tab cũng không hiện cho họ', ! VHCC_LoaiGio::hien_tab( $CS, 'LGNV' ) );
+
+/* ---- đường 1: cửa hàng trưởng phân ---- */
+$r = VHCC_LoaiGio::dat_phan( $NV, $CS, 'LGNV', array( 'MC', 'Hỗ Trợ' ) );
+t( '🔴 nhân viên KHÔNG tự phân việc cho mình', empty( $r['ok'] ), $r );
+
+$r = VHCC_LoaiGio::dat_phan( $CHT, $CS, 'LGNV', array( 'MC', 'Hỗ Trợ', 'Việc Không Có Thật' ) );
+t( 'cửa hàng trưởng phân được', ! empty( $r['ok'] ), $r );
+teq( '🔴 việc KHÔNG có trong bảng đơn giá bị loại — phân nó là người ấy ăn 0đ', 2, count( $r['ds'] ) );
+
+t( '🔴 phân 2 việc thì TỪ GIỜ có hỏi', VHCC_LoaiGio::hoi_khi_ra( $CS, 'LGNV' ) );
+teq( '   và chỉ bấm chọn được ĐÚNG 2 việc đã phân, không phải cả 3 dòng giá', 2,
+	count( VHCC_LoaiGio::ds_viec( $CS, 'LGNV' ) ) );
+$ten_duoc = array();
+foreach ( VHCC_LoaiGio::ds_viec( $CS, 'LGNV' ) as $x ) { $ten_duoc[] = $x['ten']; }
+sort( $ten_duoc );
+teq( '   đúng hai việc ấy', array( 'Hỗ Trợ', 'MC' ), $ten_duoc );
+t( '   tab cũng hiện', VHCC_LoaiGio::hien_tab( $CS, 'LGNV' ) );
+
+/* 🔴 PHÂN ĐÚNG MỘT VIỆC = THÔI HỎI. Đó là cách diễn đạt "người này chỉ làm một việc". */
+VHCC_LoaiGio::dat_phan( $CHT, $CS, 'LGNV2', array( 'Partime' ) );
+t( '🔴 phân đúng MỘT việc thì KHÔNG hỏi', ! VHCC_LoaiGio::hoi_khi_ra( $CS, 'LGNV2' ) );
+/* Bỏ phân thì quay về không hỏi. */
+VHCC_LoaiGio::dat_phan( $CHT, $CS, 'LGNV2', array() );
+t( 'bỏ phân thì thôi hỏi', ! VHCC_LoaiGio::hoi_khi_ra( $CS, 'LGNV2' ) );
+
+/* ---- đường 2: tháng trước đã làm đủ hai loại ---- */
+$THANG_TRUOC = gmdate( 'Y-m', strtotime( $THANG . '-01 00:00:00 UTC' ) - 86400 );
+foreach ( array( array( '-05', 'MC' ), array( '-06', 'Hỗ Trợ' ) ) as $x_tt ) {
+	$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $CS,
+		'ngay' => $THANG_TRUOC . $x_tt[0], 'ma_nv' => 'LGNV2', 'ho_ten' => 'Em Thứ Hai',
+		'gio_vao_giay' => 28800, 'gio_ra_giay' => 61200, 'hau_to' => '', 'nguon' => 'may',
+		'loai_gio' => $x_tt[1] ) );
+}
+teq( 'tháng trước LGNV2 đã làm 2 loại', 2, count( VHCC_LoaiGio::thang_truoc_da_lam( $CS, 'LGNV2' ) ) );
+t( '🔴 tháng trước làm 2 loại thì tháng này CÓ HỎI, dù chưa ai phân',
+	VHCC_LoaiGio::hoi_khi_ra( $CS, 'LGNV2' ) );
+
+/* 🔴 PHÂN THẮNG LỊCH SỬ, KHÔNG CỘNG VÀO. Cửa hàng trưởng rút bớt việc của ai đó là đang nói
+   "người này thôi làm việc ấy" — cộng thêm lịch sử tháng trước vào là lệnh rút ấy không có tác
+   dụng gì suốt cả tháng sau. */
+VHCC_LoaiGio::dat_phan( $CHT, $CS, 'LGNV2', array( 'Partime' ) );
+t( '🔴 phân 1 việc THẮNG lịch sử 2 loại của tháng trước',
+	! VHCC_LoaiGio::hoi_khi_ra( $CS, 'LGNV2' ) );
+VHCC_LoaiGio::dat_phan( $CHT, $CS, 'LGNV2', array() );
+
+/* Cơ sở chỉ có một dòng đơn giá thì phân kiểu gì cũng không đủ hai. */
+VHCC_LoaiGio::dat_cfg( $AD, $CS2, true, true );
+VHCC_LoaiGio::dat_phan( $AD, $CS2, 'LGNV', array( 'Partime' ) );
+t( '🔴 cơ sở chỉ có MỘT dòng đơn giá thì không cách nào đủ hai lựa chọn',
+	! VHCC_LoaiGio::hoi_khi_ra( $CS2, 'LGNV' ) );
 
 /* ================================================================= ghi lúc kết ca */
 
@@ -205,6 +269,10 @@ t( '🔴 duyệt lại chính đơn ấy thì chối', empty( $r['ok'] ), $r );
 $wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $CS, 'ngay' => $QUA,
 	'ma_nv' => 'LGCHT', 'ho_ten' => 'Chị Trưởng', 'gio_vao_giay' => 28800,
 	'gio_ra_giay' => 61200, 'hau_to' => '', 'nguon' => 'may' ) );
+/* Chính cửa hàng trưởng cũng phải được phân thì mới khai được — luật không có ngoại lệ cho
+   người ngồi ghế duyệt. Ở đây họ tự phân cho mình, và đó là chuyện hợp lệ: `dat_phan()` là
+   quyền cơ sở, còn chốt "không tự duyệt" mới là chốt canh tiền. */
+VHCC_LoaiGio::dat_phan( $CHT, $CS, 'LGCHT', array( 'MC', 'Partime' ) );
 $r = VHCC_LoaiGio::gui( $CHT, $CS, array( array( 'ngay' => $QUA, 'hauTo' => '', 'viec' => 'MC' ) ),
 	'tôi dẫn chương trình hôm ấy' );
 t( 'cửa hàng trưởng gửi được đơn cho chính mình', ! empty( $r['ok'] ), $r );

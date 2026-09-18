@@ -1003,6 +1003,9 @@ class VHCC_Web {
 		/* Công tắc "nhân viên tự khai loại giờ" — cùng cửa với đơn giá (`gia_gio`, bậc Quản lý),
 		   vì nó quyết định bảng lương đọc nguồn nào. Chốt thật ở `VHCC_LoaiGio::dat_cfg()`. */
 		'loai_gio_cfg',
+		/* Phân loại giờ cho từng người: việc của CỬA HÀNG TRƯỞNG, cửa thấp hơn công tắc trên.
+		   Chốt thật ở `VHCC_LoaiGio::dat_phan()` (cong_coso + đúng phạm vi cơ sở). */
+		'loai_gio_phan',
 		/* Ghép hai mã: việc của màn Bảng công — đó là nơi người ta NHÌN THẤY hai hàng cùng tên.
 		   Chốt thật ở `VHCC_NhanSu::ghep_hai_ma()` (bậc Quản lý, cùng cửa với `don_ma()`) —
 		   chặt hơn chốt dưới chứ không lỏng hơn. */
@@ -1503,6 +1506,27 @@ class VHCC_Web {
 					. 'thôi hỏi, không xoá gì.';
 			}
 			return array( array( 'ok' => true, 'thong_bao' => $cau_l ) );
+		}
+
+		/* PHÂN LOẠI GIỜ CHO TỪNG NGƯỜI — cửa hàng trưởng làm, xem `VHCC_LoaiGio::ds_viec()`. */
+		if ( 'loai_gio_phan' === $viec ) {
+			$cs_p = isset( $_POST['ccs'] ) ? VHCC_NhanSu::chuan_coso( wp_unslash( $_POST['ccs'] ) ) : '';
+			$ma_p = isset( $_POST['lg_ma'] ) ? sanitize_text_field( wp_unslash( $_POST['lg_ma'] ) ) : '';
+			$ds_p = isset( $_POST['lg_viec'] ) ? (array) wp_unslash( $_POST['lg_viec'] ) : array();
+			$r_p  = VHCC_LoaiGio::dat_phan( $toi, $cs_p, $ma_p, $ds_p );
+			if ( empty( $r_p['ok'] ) ) { return array( array( 'loi' => $r_p['error'] ) ); }
+			$n_p = count( $r_p['ds'] );
+			/* 🔴 NÓI RA HẬU QUẢ, ĐỪNG CHỈ BÁO "ĐÃ LƯU". Phân đúng MỘT việc là người ấy THÔI bị
+			   hỏi — đó là ý định hợp lệ, nhưng cũng là thứ rất dễ làm nhầm khi bỏ tick. */
+			$cau_p = $n_p >= 2
+				? ( 'Đã phân ' . $n_p . ' loại giờ cho ' . $ma_p . ': ' . implode( ' · ', $r_p['ds'] )
+					. '. Từ lượt chấm công sau, kết ca xong app sẽ hỏi họ làm việc gì.' )
+				: ( 0 === $n_p
+					? ( 'Đã bỏ phân cho ' . $ma_p . ' — app THÔI hỏi họ, trừ khi tháng trước họ '
+						. 'đã làm từ hai loại giờ trở lên.' )
+					: ( 'Đã phân đúng MỘT loại giờ cho ' . $ma_p . ' — app sẽ KHÔNG hỏi họ. '
+						. 'Muốn hỏi thì phải phân từ hai loại trở lên.' ) );
+			return array( array( 'ok' => true, 'thong_bao' => $cau_p ) );
 		}
 
 		if ( 'gia_gio' === $viec ) {
@@ -9036,6 +9060,15 @@ class VHCC_Web {
 				. 'kết ca mới có gì để hỏi — khai thêm ở khối <b>Đơn giá giờ</b> ngay trên đã.</div>';
 		}
 
+		/* 🔴 NÓI RA LUÔN LÀ BẬT CHƯA ĐỦ. Anh Thắng 18/09/2026: *"những nhân viên 1 giờ nghĩ
+		   không nên hỏi tránh cập nhật nhầm hoặc gian lận"*. Bật công tắc mà chưa phân ai thì
+		   KHÔNG AI bị hỏi — im lặng chuyện ấy là người gạt công tắc đi thử một ca, không thấy
+		   gì, rồi kết luận tính năng hỏng. */
+		echo '<div class="bao" style="margin:0 0 12px">Bật công tắc <b>chưa đủ</b>. App chỉ hỏi '
+			. 'người nào <b>được phân từ 2 loại giờ trở lên</b> ở bảng bên dưới, hoặc '
+			. '<b>tháng trước đã làm đủ 2 loại</b>. Người cả tháng chỉ làm một việc thì không '
+			. 'bị hỏi — đỡ bấm nhầm, và không mở cửa cho ai tự nâng đơn giá ca của mình.</div>';
+
 		echo '<form method="post">'
 			. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
 			. '<input type="hidden" name="viec" value="loai_gio_cfg">'
@@ -9054,7 +9087,90 @@ class VHCC_Web {
 			. 'sở này <b>đọc bản nhân viên khai</b> thay cho mấy dòng giờ khác kế toán gõ — theo '
 			. 'từng người, ai chưa khai thì vẫn đọc bản kế toán. Cộng cả hai là đếm hai lần. '
 			. '<b>Tắt thì thôi hỏi, nhưng dữ liệu đã khai vẫn còn và vẫn tính.</b></p>';
+
+		self::bang_phan_loai_gio( $ky, $toi, $cs, $bat_kc, $bat_tb );
 		echo '</details></div>';
+	}
+
+	/**
+	 * PHÂN LOẠI GIỜ CHO TỪNG NGƯỜI — bảng tick, mỗi người một dòng.
+	 *
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 KHÔNG BẬT LÀ HỎI CẢ CƠ SỞ. Anh Thắng 18/09/2026: *"những nhân viên 1 giờ nghĩ không
+	 *    nên hỏi tránh cập nhật nhầm hoặc gian lận. Trừ khi bạn đó mới được phân thì cht sẽ
+	 *    set"*. Bảng này là chỗ "cht set" ấy.
+	 *
+	 * ⚠️ BÀY LUÔN AI ĐANG BỊ HỎI VÀ VÌ SAO. Hai đường dẫn tới việc bị hỏi — được phân, hoặc
+	 *    tháng trước đã làm đủ hai loại — và người ngồi đây phải đọc được ngay là người này
+	 *    thuộc đường nào. Không thì họ bỏ hết tick mà vẫn thấy nhân viên bị hỏi, rồi tưởng
+	 *    tính năng hỏng.
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 */
+	private static function bang_phan_loai_gio( $ky, $toi, $cs, $bat_kc, $bat_tb ) {
+		if ( ! VHCC_Vai::duoc( $toi, VHCC_LoaiGio::QUYEN_DUYET )
+			|| ! VHCC_NhanSu::co_quyen_coso( $toi, $cs ) ) {
+			return;
+		}
+		$ds_gia = VHCC_LoaiGio::ds_gia( $cs, '' );
+		if ( count( $ds_gia ) < 2 ) { return; }          // chưa đủ dòng giá thì chưa có gì để phân
+
+		/* ⚠️ ĐỌC THẲNG, KHÔNG QUA `VHCC_NhanSu::ds_nhan_vien()`. Hàm ấy gác bằng `co_quyen_ho_so()`
+		   — quyền của màn HỒ SƠ, mà cửa hàng trưởng thì không có. Đi qua nó là bảng này rỗng
+		   đúng với người duy nhất được phân việc. Ở đây chỉ cần mã + tên của chính cơ sở họ
+		   quản, và phạm vi cơ sở đã chốt ngay đầu hàm. */
+		global $wpdb;
+		$nguoi = (array) VHCC_DB::rows( $wpdb->prepare(
+			'SELECT ma_nv, ho_ten FROM ' . VHCC_DB::t( 'nhan_vien' )
+			. " WHERE ma_nv<>'' AND LOWER(cua_hang)=LOWER(%s)"
+			. " AND trang_thai_lam_viec NOT IN ('Nghỉ việc','Nghỉ hẳn') ORDER BY ho_ten", $cs ) );
+		echo '<h4 style="margin:16px 0 6px">Phân loại giờ cho từng người</h4>';
+		echo '<p class="mo" style="margin:0 0 10px;font-size:12px">Tick <b>từ 2 việc trở lên</b> '
+			. 'thì người ấy mới bị hỏi lúc kết ca. Tick một việc, hoặc bỏ trống, thì app '
+			. '<b>không hỏi</b> họ — đúng với người cả tháng chỉ làm một việc.</p>';
+
+		if ( ! $nguoi ) {
+			echo '<p class="mo">Cơ sở này chưa có hồ sơ nhân sự nào.</p>';
+			return;
+		}
+
+		echo '<div class="cuon"><table class="b"><thead><tr><th>Mã NV</th><th>Họ tên</th>'
+			. '<th>Việc được phân</th><th>Đang bị hỏi?</th><th></th></tr></thead><tbody>';
+		foreach ( $nguoi as $r ) {
+			$ma = trim( (string) $r['ma_nv'] );
+			if ( '' === $ma ) { continue; }
+			$da_phan = VHCC_LoaiGio::phan( $cs, $ma );
+			$cu_lam  = VHCC_LoaiGio::thang_truoc_da_lam( $cs, $ma );
+			$duoc    = VHCC_LoaiGio::ds_viec( $cs, $ma );
+			$bi_hoi  = count( $duoc ) >= 2;
+
+			echo '<tr><td>' . esc_html( $ma ) . '</td><td>' . esc_html( (string) $r['ho_ten'] ) . '</td>';
+			echo '<td><form method="post" class="hang" style="gap:10px;flex-wrap:wrap;align-items:center">'
+				. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+				. '<input type="hidden" name="viec" value="loai_gio_phan">'
+				. '<input type="hidden" name="man" value="cham">'
+				. '<input type="hidden" name="ccs" value="' . esc_attr( $cs ) . '">'
+				. '<input type="hidden" name="lg_ma" value="' . esc_attr( $ma ) . '">';
+			foreach ( $ds_gia as $v ) {
+				echo '<label style="white-space:nowrap"><input type="checkbox" name="lg_viec[]" value="'
+					. esc_attr( $v['ten'] ) . '"'
+					. checked( in_array( $v['ten'], $da_phan, true ), true, false ) . '> '
+					. esc_html( $v['ten'] ) . '</label>';
+			}
+			echo ' <button class="phu">Lưu</button></form></td>';
+
+			/* Cột "đang bị hỏi" nói luôn LÝ DO — xem cảnh báo ở đầu hàm. */
+			if ( ! $bi_hoi ) {
+				echo '<td class="mo">không</td>';
+			} elseif ( $da_phan ) {
+				echo '<td><b>có</b> <span class="mo">(được phân)</span></td>';
+			} else {
+				echo '<td><b>có</b> <span class="mo">(tháng trước đã làm '
+					. count( $cu_lam ) . ' loại)</span></td>';
+			}
+			echo '<td class="mo">' . ( $bi_hoi && ! $bat_kc && ! $bat_tb
+				? 'công tắc đang tắt' : '' ) . '</td></tr>';
+		}
+		echo '</tbody></table></div>';
 	}
 
 	private static function the_gia_gio( $ky, $toi, $cs ) {

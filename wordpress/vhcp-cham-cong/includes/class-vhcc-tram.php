@@ -508,14 +508,14 @@ class VHCC_Tram {
 				   bước ấy — không bày một hộp rỗng rồi bắt người ta bấm qua. */
 				self::ra( array( 'ok' => true, 'coSo' => $cs_lg,
 					'hoi' => VHCC_LoaiGio::hoi_khi_ra( $cs_lg, $u['ma_nv'] ),
-					'tab' => VHCC_LoaiGio::bat_tab( $cs_lg ),
+					'tab' => VHCC_LoaiGio::hien_tab( $cs_lg, $u['ma_nv'] ),
 					'ds'  => VHCC_LoaiGio::ds_viec( $cs_lg, $u['ma_nv'] ) ) );
 			}
 
 			if ( 'lgds' === $viec ) {
 				$b = self::than();
 				self::ra( array( 'ok' => true, 'coSo' => $cs_lg,
-					'tab'    => VHCC_LoaiGio::bat_tab( $cs_lg ),
+					'tab'    => VHCC_LoaiGio::hien_tab( $cs_lg, $u['ma_nv'] ),
 					'ds'     => VHCC_LoaiGio::ngay_cua_toi( $cs_lg, $u['ma_nv'],
 						isset( $b['soNgay'] ) ? (int) $b['soNgay'] : 14 ),
 					'viec'   => VHCC_LoaiGio::ds_viec( $cs_lg, $u['ma_nv'] ),
