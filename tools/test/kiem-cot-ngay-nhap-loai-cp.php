@@ -320,6 +320,67 @@ t( '   và có ít nhất một `colspan` để phép trên không xanh vì vùn
 t( '🔴 dòng nhóm gộp làm MỘT ô, nhãn và tổng xếp bằng flex bên trong',
 	false !== mb_strpos( $_vung, 'display:flex;gap:12px;align-items:baseline' ) );
 
+/* ═══ 🔴 BỀ NGANG ĐO Ở KHUNG RỘNG KHÔNG NÓI ĐƯỢC GÌ VỀ MÁY ANH THẮNG ══════════════════
+ * Anh Thắng 18/09/2026, sau ba lần chữa: *"vẫn chưa được"*.
+ *
+ * Ba lần ấy đều đoán theo ảnh chụp. Lần này dựng đúng đầu bảng này + đúng `daLineCells` trong
+ * Chromium rồi ĐO:
+ *     khung 1800px → Nội dung 608px   (đẹp — nên mới tưởng đã xong)
+ *     khung 1366px → Nội dung 200px   ← màn hình anh Thắng, và đúng chỗ anh kêu
+ *
+ * Ở 1366px bảng chạm BỀ NGANG TỐI THIỂU 1372px: mọi cột đã bằng đúng nội dung, Nội dung nằm bẹp
+ * ở đáy `min-width`. Không còn "phần dư" nào để `width:1%` dồn đi đâu — muốn Nội dung dài ra thì
+ * phải LẤY px TỪ CỘT KHÁC. Mấy phép dưới canh từng chỗ đã lấy, để lần sau ai nới lại một chỗ là
+ * cột Nội dung co lại mà không ai biết.
+ * ─────────────────────────────────────────────────────────────────────────────────────── */
+/* 🔴 `thead th` TRONG `vhcp.css` ĐÃ `white-space:nowrap` CHO MỌI CỘT. Gỡ `nowrap` khỏi `style`
+   trong đầu bảng KHÔNG có tác dụng — phải ghi đè hẳn `white-space:normal`. Canh luôn cái luật
+   CSS ấy: mất nó đi thì `white-space:normal` dưới đây thành thừa, và phép này thành vô nghĩa. */
+$_css = (string) @file_get_contents( $goc . '/wordpress/vhcp-chi-phi/assets/css/vhcp.css' );
+t( 'CSS vẫn ép `thead th` nowrap (lý do phải ghi đè `normal` ở đầu bảng)',
+	1 === preg_match( '/thead th\{[^}]*white-space:nowrap/u', $_css ) );
+$_normal = array();
+foreach ( $_ths as $_x ) {
+	if ( false !== mb_strpos( $_x['attr'], 'white-space:normal' ) ) { $_normal[] = $_x['ten']; }
+}
+foreach ( array( 'Ngày nhập', 'Dự toán', 'Đơn giá', 'Thành tiền', 'Thực tế', 'Hình thức chi' ) as $_c ) {
+	t( "🔴 tiêu đề '$_c' được xuống dòng (`white-space:normal`) — nó rộng hơn cả dữ liệu trong cột",
+		in_array( $_c, $_normal, true ), implode( ' · ', $_normal ) );
+}
+/* 🔴 CỘT NỘI DUNG PHẢI CÓ SÀN ĐỦ RỘNG. `min-width` chính là bề ngang nó nhận được ở khung hẹp —
+   200px là ba chữ một dòng ("Băng / keo / trong"), đúng cái anh Thắng kêu. */
+$_mw = 0;
+if ( preg_match( '/<th style="min-width:(\d+)px">Nội dung<\/th>/u', $_dau, $_mm ) ) { $_mw = (int) $_mm[1]; }
+t( '🔴 sàn cột Nội dung ≥ 300px (đo ở khung 1366px: 200 → 365px)', $_mw >= 300, $_mw );
+t( '   và ô Nội dung lúc vẽ mang đúng cái sàn ấy',
+	false !== mb_strpos( $_vung, '<td style="min-width:' . $_mw . 'px\'+tdS+\'">' ), $_mw );
+/* 🔴 Ô CHỌN LOẠI CHI PHÍ PHẢI CHỐT BỀ NGANG, KHÔNG PHẢI `max-width`. `max-width:170px` để nó
+   phình tới sát trần theo tên loại dài nhất — đo được 168px, cột rộng thứ ba của bảng. */
+$_l0 = mb_strpos( $HTML, 'function _daOLoaiCp(' );
+$_vung_lcp = false === $_l0 ? '' : mb_substr( $HTML, $_l0, 1400 );
+t( 'đọc được hàm vẽ ô loại chi phí dự án', '' !== $_vung_lcp );
+t( '🔴 ô chọn loại chi phí chốt `width`, không để `max-width` cho nó phình',
+	false === mb_strpos( $_vung_lcp, 'max-width' )
+	&& 1 === preg_match( '/width:1\d\dpx/u', $_vung_lcp ), $_vung_lcp );
+/* 🔴 NGÀY TRÊN, GIỜ DƯỚI. "18/09/2026 11:31" một dòng `nowrap` ghì cột ~102px; tách hai dòng còn
+   ~89px mà không mất chữ nào. */
+t( '🔴 ngày nhập xếp NGÀY trên / GIỜ dưới, không phải một dòng nowrap',
+	false === mb_strpos( $_vung, 'white-space:nowrap">\'+esc(l.taoLuc)+\'</td>' )
+	&& false !== mb_strpos( $_vung, "String(l.taoLuc).split(' ')" ) );
+/* 🔴 HAI NÚT ✏️ ✕ PHẢI BÓ ĐỆM. `.btn` mặc định `padding:8px 16px` — 32px đệm cho một emoji, hai
+   nút thành ~117px ghì cột cuối. */
+t( '🔴 hai nút sửa/xoá của hàng bó đệm lại, không ăn `padding:8px 16px` mặc định',
+	1 === preg_match( '/var actP=\' style="padding:\d+px \d+px"\';/u', $_vung ), $_vung ? 'thiếu actP' : '' );
+/* ═══ 🔴 MỘT THẺ CHỈ ĐƯỢC MỘT `style` ═══════════════════════════════════════════════════
+ * Đã cắn HAI lần trong cùng bảng này: ô Nội dung (`tdS` ôm cả thuộc tính) và ô chọn loại chi phí
+ * ở đơn tuần (nối thêm `style="border-color:#dc2626"` cho dòng chưa gắn mã). Cả hai lần trình
+ * duyệt lấy `style` đầu rồi BỎ IM CÁI SAU — viền đỏ báo "chưa gắn mã" chưa bao giờ hiện ra.
+ * ─────────────────────────────────────────────────────────────────────────────────────── */
+t( '🔴 ô chọn loại chi phí đơn tuần không còn nối `style` thứ hai',
+	false === mb_strpos( $HTML, '+(ten?\'\':\' style="border-color:#dc2626"\')+' ), $HTML ? 'còn' : '' );
+t( '   viền đỏ ấy vẫn còn, chỉ là gộp vào cùng một chuỗi style',
+	false !== mb_strpos( $HTML, ";border-color:#dc2626" ) );
+
 /* Mấy ô ngắn phải `nowrap`, không thì "Có VAT" xuống hai dòng và cột vẫn không hẹp đi được. */
 t( '🔴 ô VAT và Hình thức chi không cho xuống dòng',
 	false !== mb_strpos( $HTML, "white-space:nowrap\">'+htB+'</td>" )

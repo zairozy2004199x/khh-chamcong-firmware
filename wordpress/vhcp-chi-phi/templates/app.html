@@ -696,8 +696,34 @@
                 chỗ thừa chảy về cột DUY NHẤT không khai width: cột Nội dung.
              ⚠️ `min-width` trên cột Nội dung vẫn giữ: bảng hẹp quá thì nó là cột được ưu tiên
                 giữ chỗ, chứ không phải cột đầu tiên bị bóp.
+
+             🔴 NHƯNG `width:1%` KHÔNG ĐẺ RA CHỖ. Anh Thắng vẫn kêu *"vẫn chưa được"* sau ba
+                lần chữa, và ba lần ấy đều đoán theo ảnh chụp. Lần này đo thật bằng trình duyệt
+                (Chromium, dựng đúng đầu bảng này + đúng `daLineCells`) ở nhiều bề ngang khung:
+
+                  khung 1800px →  Nội dung 608px  (nhìn ĐẸP — nên mới tưởng đã xong)
+                  khung 1366px →  Nội dung 200px  ← MÀN HÌNH ANH THẮNG
+
+                Ở 1366px bảng đã chạm BỀ NGANG TỐI THIỂU 1372px: mọi cột đang bằng đúng nội
+                dung của nó, và Nội dung nằm bẹp ở đáy `min-width`. Tức là không còn "phần dư"
+                nào để dồn — muốn Nội dung dài ra thì phải LẤY px TỪ CỘT KHÁC, chứ không phải
+                khai thêm một luật width nữa. Đo ở khung rộng rồi kết luận là cái bẫy đã làm
+                mất ba vòng đi về.
+
+             ⚠️ `thead th` TRONG `vhcp.css` ĐÃ `white-space:nowrap` CHO MỌI CỘT. Gỡ `nowrap`
+                khỏi `style` ở đây KHÔNG có tác dụng — phải ghi đè hẳn `white-space:normal`.
+                Mấy tiêu đề dưới đây rộng hơn cả dữ liệu trong cột ("Thành tiền" 68px trong khi
+                số tiền chỉ ~44px), nên cho chúng xuống dòng là đổi được px thật.
+
+             ⚠️ NƠI LẤY px (tổng ~180px, đã đo từng chỗ):
+                  · tiêu đề xuống dòng (Ngày nhập · 4 cột tiền · Hình thức chi)   −78
+                  · ô chọn Loại chi phí: `max-width:170px` → `width:116px`        −32
+                  · ngày nhập xếp NGÀY trên / GIỜ dưới thay vì một dòng `nowrap`  −13
+                  · hai nút ✏️ ✕ bỏ `padding:8px 16px` mặc định, bó lại          −36
+                Kết quả ở khung 1366px: Nội dung 200 → 365px, và bảng vừa khít khung (hết cuộn
+                ngang). Ở 1800px: 650px.
              ══════════════════════════════════════════════════════════════════════════════════ -->
-        <thead><tr><th style="width:1%;white-space:nowrap" title="Lúc dòng này được nhập vào — máy ghi, không ai gõ được">Ngày nhập</th><th style="min-width:200px">Nội dung</th><th style="width:1%;white-space:nowrap" title="Loại chi phí quyết định mã tài khoản (TK Nợ). Kế toán gắn lại được nếu chọn sai.">Loại chi phí</th><th style="width:1%;white-space:nowrap">Gian</th><th style="text-align:right;width:1%;white-space:nowrap">Dự toán</th><th style="text-align:right;width:1%;white-space:nowrap">SL</th><th style="text-align:right;width:1%;white-space:nowrap">Đơn giá</th><th style="text-align:right;width:1%;white-space:nowrap">Thành tiền</th><th style="text-align:right;width:1%;white-space:nowrap">Thực tế</th><th style="width:1%;white-space:nowrap">Hình thức chi</th><th style="width:1%;white-space:nowrap">VAT</th><th style="text-align:center;width:1%;white-space:nowrap">Ảnh</th><th style="text-align:center;width:1%;white-space:nowrap">Hồ sơ</th><th style="width:1%;white-space:nowrap">Ghi chú</th><th style="width:1%"></th></tr></thead>
+        <thead><tr><th style="width:1%;white-space:normal" title="Lúc dòng này được nhập vào — máy ghi, không ai gõ được">Ngày nhập</th><th style="min-width:300px">Nội dung</th><th style="width:1%;white-space:nowrap" title="Loại chi phí quyết định mã tài khoản (TK Nợ). Kế toán gắn lại được nếu chọn sai.">Loại chi phí</th><th style="width:1%;white-space:nowrap">Gian</th><th style="text-align:right;width:1%;white-space:normal">Dự toán</th><th style="text-align:right;width:1%;white-space:nowrap">SL</th><th style="text-align:right;width:1%;white-space:normal">Đơn giá</th><th style="text-align:right;width:1%;white-space:normal">Thành tiền</th><th style="text-align:right;width:1%;white-space:normal">Thực tế</th><th style="width:1%;white-space:normal">Hình thức chi</th><th style="width:1%;white-space:nowrap">VAT</th><th style="text-align:center;width:1%;white-space:nowrap">Ảnh</th><th style="text-align:center;width:1%;white-space:nowrap">Hồ sơ</th><th style="width:1%;white-space:nowrap">Ghi chú</th><th style="width:1%"></th></tr></thead>
         <tbody id="daLineBody"></tbody>
       </table></div>
 
@@ -3553,9 +3579,13 @@
     /* Loại của dòng nay không còn trong danh mục thì VẪN phải hiện ra — không thì mở ô chọn lên
        là ô rỗng, bấm ra ngoài một cái là dòng mất luôn loại đang có. */
     if(ten && ds.indexOf(ten)<0) ds.push(ten);
+    /* ⚠️ MỘT THẺ CHỈ ĐƯỢC MỘT `style`. Bản cũ nối thêm `style="border-color:#dc2626"` cho dòng
+       chưa gắn mã — thành HAI `style` trên cùng một `<select>`, trình duyệt lấy cái đầu rồi bỏ
+       cái sau KHÔNG BÁO GÌ, nên viền đỏ ấy chưa bao giờ hiện. Gộp làm một chuỗi.
+       `title` để rê chuột đọc đủ tên: ô chọn nay bó 116px nên tên dài bị cắt đuôi. */
+    var _selS='font-size:11.5px;width:116px'+(ten?'':';border-color:#dc2626');
     return '<td style="font-size:11.5px">'
-      +'<select onchange="saveLineNhom(\''+l.id+'\',this.value)" style="font-size:11.5px;max-width:170px"'
-      +(ten?'':' style="border-color:#dc2626"')+'>'
+      +'<select onchange="saveLineNhom(\''+l.id+'\',this.value)" title="'+esc(ten||'Chưa gắn loại chi phí')+'" style="'+_selS+'">'
       +'<option value="">— chưa gắn mã —</option>'
       +ds.map(function(v){ return '<option value="'+esc(v)+'"'+(v===ten?' selected':'')+'>'+esc(v)+'</option>'; }).join('')
       +'</select>'+(ten?badge:'<div style="font-size:10px;color:#dc2626">⚠ chưa gắn mã</div>')+'</td>';
@@ -5509,7 +5539,11 @@
         ? ('<a href="'+esc(l.anh)+'" target="_blank" data-bill="'+esc(l.anh)+'" title="Rê chuột để xem to · bấm để mở">📷</a>'
            +(canEdit?(' <button class="btn b-d" onclick="daGoAnh('+l.row+')" title="Gỡ ảnh khỏi dòng" style="padding:0 4px">✕</button>'):''))
         : (canEdit?('<button class="btn b-s" onclick="daDinhAnh('+l.row+')" title="Đính ảnh bill cho dòng này — chọn tệp là xong, khỏi mở form sửa" style="padding:0 5px">📎</button>'):'');
-      var acts=(canEdit?('<button class="btn b-s" onclick="daEditLine('+l.row+')" title="Sửa dòng">✏️</button> <button class="btn b-d" onclick="delDuAnLineUI('+l.row+')" title="Xóa dòng">✕</button>'):'')+(extraAct||'');
+      /* ⚠️ HAI NÚT NÀY MẶC ĐỊNH `padding:8px 16px` — 32px đệm cho một cái emoji, hai nút là
+         ~117px ghì cột cuối. Bó lại như mấy nút 📎 / ✕ ngay bên cạnh thì cột còn ~88px, và 30px
+         ấy chảy hết về Nội dung (bảng đang chạm bề ngang tối thiểu, xem chú thích cột Ngày). */
+      var actP=' style="padding:4px 7px"';
+      var acts=(canEdit?('<button class="btn b-s"'+actP+' onclick="daEditLine('+l.row+')" title="Sửa dòng">✏️</button> <button class="btn b-d"'+actP+' onclick="delDuAnLineUI('+l.row+')" title="Xóa dòng">✕</button>'):'')+(extraAct||'');
       var htB=indent?'':htBadge(l.hinhThuc);   // mục con (indent) không hiện hình thức
       var _docs=String(l.hoSo||'').split(/\s+/).filter(Boolean);
       var hoSoCell=_docs.map(function(u,i){return '<a href="'+esc(u)+'" target="_blank" data-bill="'+esc(u)+'" title="Hồ sơ '+(i+1)+'">📁</a>';}).join(' ')
@@ -5558,17 +5592,28 @@
            ⚠️ DẤU "≈" KHÔNG ĐƯỢC BỎ. Một dòng không thể có trước dự án chứa nó, nên ngày ấy là
               cận dưới THẬT — nhưng nó không phải ngày nhập của dòng. Bỏ dấu là biến một cận
               dưới thành một lời khai. */
+        /* ⚠️ NGÀY TRÊN, GIỜ DƯỚI — KHÔNG PHẢI MỘT DÒNG `nowrap`. Anh Thắng 18/09/2026 vẫn kêu
+           cột Nội dung hẹp sau ba lần chữa. Đo thật trong trình duyệt mới ra: ở khung 1366px
+           (máy anh) bảng đã chạm BỀ NGANG TỐI THIỂU 1372px, tức MỌI cột đang bằng đúng nội
+           dung của nó và Nội dung nằm bẹp ở đáy `min-width` — muốn Nội dung dài ra thì phải
+           lấy px từ cột khác, `width:1%` không đẻ thêm chỗ. "18/09/2026 11:31" một dòng ghì
+           cột này ~102px; xuống hai dòng còn ~62px mà không mất chữ nào. */
         +(function(){
-           if(l.taoLuc) return '<td style="font-size:11px;color:#8c8781;white-space:nowrap">'+esc(l.taoLuc)+'</td>';
+           var _hai=function(a,b,st){ return '<td style="font-size:11px;line-height:1.35;'+st+'">'
+             +'<span style="white-space:nowrap">'+esc(a)+'</span>'
+             +(b?'<br><span style="white-space:nowrap;opacity:.75">'+esc(b)+'</span>':'')+'</td>'; };
+           if(l.taoLuc){ var _p=String(l.taoLuc).split(' ');
+             return _hai(_p[0], _p.slice(1).join(' '), 'color:#8c8781'); }
            var nt=String((DA_CUR&&DA_CUR.ngayTao)||'');
            if(!nt) return '<td style="font-size:11px;color:#8c8781">—</td>';
-           return '<td style="font-size:11px;color:#b0a89e;white-space:nowrap;font-style:italic" '
+           return '<td style="font-size:11px;color:#b0a89e;line-height:1.35;font-style:italic" '
              +'title="Dòng này có trước khi hệ ghi mốc nhập — đang lấy theo NGÀY LẬP DỰ ÁN, '
-             +'không phải ngày nhập thật của dòng.">≈ '+esc(nt)+'</td>';
+             +'không phải ngày nhập thật của dòng."><span style="white-space:nowrap">≈ '
+             +esc(nt)+'</span></td>';
          })()
         /* Tên hàng được phép xuống dòng, nhưng chỉ khi thật sự dài — `min-width` giữ cho nó
            không bị mấy cột bên cạnh bóp thành từng chữ một. */
-        +'<td style="min-width:200px'+tdS+'">'
+        +'<td style="min-width:300px'+tdS+'">'
           +(indent?'↳ ':(laLon?'📦 ':''))+esc(l.noiDung)+'</td>'
         /* LOẠI CHI PHÍ tách hẳn thành CỘT RIÊNG. Trước nay nó là một dòng chữ nhỏ nép dưới Nội
            dung (`tkBadge`), nên soi cả bảng xem dòng nào chưa gắn mã là phải đọc từng ô. */
@@ -7465,7 +7510,7 @@
        là ô rỗng, bấm ra ngoài một cái là dòng mất luôn loại đang có. */
     if(ten && ds.indexOf(ten)<0) ds.push(ten);
     return '<td style="font-size:11.5px">'
-      +'<select onchange="daSaveLoaiCp('+l.row+',this.value)" style="font-size:11.5px;max-width:170px">'
+      +'<select onchange="daSaveLoaiCp('+l.row+',this.value)" title="'+esc(ten||'Chưa gắn loại chi phí')+'" style="font-size:11.5px;width:116px">'
       +'<option value="">— chưa gắn mã —</option>'
       +ds.map(function(v){ return '<option value="'+esc(v)+'"'+(v===ten?' selected':'')+'>'+esc(v)+'</option>'; }).join('')
       +'</select>'+(ten?badge:'<div>'+chuaCo+'</div>')+'</td>';
