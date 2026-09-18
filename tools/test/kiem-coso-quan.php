@@ -242,6 +242,35 @@ t( 'co_cham_coso: SAI ở cơ sở "chỉ QL" (không chấm công ở đó)',
 	! VHCC_NhanSu::co_cham_coso( $CHT, $QL ) );
 t( 'co_cham_coso: sai ở cơ sở không liên quan', ! VHCC_NhanSu::co_cham_coso( $CHT, $LA ) );
 
+/* ================================================================= tab Nhân sự: danh bạ */
+
+echo "— tab Nhân sự: ai đi làm ở đó cũng xem được danh bạ —\n";
+/* Anh Thắng 18/09/2026: *"ai quản lý hoặc chấm công thì xem được hết, vì chỉ xem được họ và
+   sđt để nv còn biết ai quản lý, ai cửa hàng trưởng, chứ không ảnh hưởng gì"*. */
+$db = VHCC_NhanSu::danh_ba( $CHT, $LAM );
+$ten_db = array();
+foreach ( $db as $x ) { $ten_db[ (string) $x['ma_nv'] ] = 1; }
+t( '🔴 cơ sở chỉ đi làm: VẪN xem được danh bạ', isset( $ten_db['CQ_NV'] ), array_keys( $ten_db ) );
+
+/* 🔴 NHƯNG ĐÚNG BỐN CỘT. Danh bạ để gọi nhau, không phải hồ sơ nhân sự. */
+$cot = array_keys( (array) $db[0] );
+sort( $cot );
+teq( '🔴 danh bạ trả đúng mấy cột đã chọn, không hơn',
+	array( 'chuc_vu', 'coso_phu', 'cua_hang', 'ho_ten', 'ma_nv', 'sdt' ), $cot );
+foreach ( array( 'pin_dang_nhap', 'cccd', 'luong_co_ban', 'so_tai_khoan', 'ngay_sinh' ) as $c_x ) {
+	t( '🔴 danh bạ KHÔNG trả ' . $c_x, ! in_array( $c_x, $cot, true ) );
+}
+
+teq( 'người ngoài cuộc thì danh bạ rỗng', array(), VHCC_NhanSu::danh_ba( $CHT, $LA ) );
+teq( 'nhân viên thường cũng xem được danh bạ chỗ mình làm', 1,
+	count( array_filter( VHCC_NhanSu::danh_ba( $NV, $LAM ),
+		function ( $x ) { return 'CQ_NV' === (string) $x['ma_nv']; } ) ) );
+
+/* 🔴 XEM ĐƯỢC KHÔNG CÓ NGHĨA LÀ SỬA ĐƯỢC. Đổi số điện thoại và CẤP PIN cho người khác thì chỉ
+   người QUẢN mới được — `co_quyen_coso()` vẫn là cổng của mấy việc ấy. */
+t( '🔴 xem danh bạ được nhưng KHÔNG quản cơ sở ấy',
+	! VHCC_NhanSu::co_quyen_coso( $CHT, $LAM ) );
+
 echo "\n";
 if ( $truot ) {
 	echo '🔴 HỎNG ' . count( $truot ) . " phép thử:\n";

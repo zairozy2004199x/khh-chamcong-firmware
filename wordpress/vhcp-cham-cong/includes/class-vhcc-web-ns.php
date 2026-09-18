@@ -83,6 +83,9 @@ class VHCC_WebNS {
 			sort( $ra );
 			return $ra;
 		}
+		/* ⚠️ Trả CẢ cơ sở chỉ đi làm — từ 18/09/2026 màn này mở danh bạ cho họ ở mức CHỈ XEM
+		   (xem khối hai mức ở `man()`). Bày thiếu thì ô xổ không có cơ sở người ta đang đứng,
+		   và họ không có đường nào tra ra ai là cửa hàng trưởng của mình. */
 		return VHCC_NhanSu::ds_coso_cua( $toi );
 	}
 
@@ -141,9 +144,38 @@ class VHCC_WebNS {
 				. '</div></div>';
 			return;
 		}
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 HAI MỨC: QUẢN thì sửa được, CHỈ ĐI LÀM thì XEM được
+		 *
+		 * Anh Thắng 18/09/2026: *"Bên tab nhân sự thì ai quản lý hoặc chấm công thì xem được
+		 * hết, vì chỉ xem được họ và sđt để nv còn biết ai quản lý, ai cửa hàng trưởng, chứ
+		 * không ảnh hưởng gì"*.
+		 *
+		 * Anh đúng: danh bạ của chỗ mình đi làm không phải là bí mật — không biết ai là cửa
+		 * hàng trưởng thì lúc cần còn không biết gọi ai. Cái phải giữ chặt là quyền SỬA: đổi số
+		 * điện thoại và CẤP PIN ĐĂNG NHẬP cho người khác thì chỉ người QUẢN mới được.
+		 *
+		 * ⚠️ MỨC XEM CẮT Ở TẦNG VẼ, VÀ CẢ Ở TẦNG VIỆC. Giấu cái nút Sửa không phải là gác cửa —
+		 *    `viec()` vẫn nhận POST từ bất cứ đâu. Nên `sua_lien_lac()`/`cap_pin()` giữ nguyên
+		 *    `co_quyen_coso()` của chúng, không nới theo.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$chi_xem = false;
 		if ( ! VHCC_NhanSu::co_quyen_coso( $toi, $cs ) ) {
-			echo '<div class="the"><div class="bao loi" style="margin:0">Anh/chị không phụ trách '
-				. 'cơ sở <b>' . esc_html( $cs ) . '</b>.</div></div>';
+			if ( ! VHCC_NhanSu::co_cham_coso( $toi, $cs ) ) {
+				echo '<div class="the"><div class="bao loi" style="margin:0">Anh/chị không phụ trách '
+					. 'cơ sở <b>' . esc_html( $cs ) . '</b> và cũng không chấm công ở đó.</div></div>';
+				return;
+			}
+			$chi_xem = true;
+			echo '<div class="the"><div class="bao canh" style="margin:0">👤 <b>' . esc_html( $cs )
+				. ' là cơ sở anh/chị CHẤM CÔNG, không phải cơ sở anh/chị quản lý</b> — xem được '
+				. 'danh bạ (họ tên, chức vụ, số điện thoại) để biết ai phụ trách, nhưng '
+				. '<b>không sửa được</b> và không cấp PIN được.</div></div>';
+		}
+
+		if ( $chi_xem ) {
+			self::the_danh_ba( $toi, $cs );
+			self::the_loi_tat( $cs );
 			return;
 		}
 
@@ -181,6 +213,40 @@ class VHCC_WebNS {
 			. '<input id="n_q" name="nq" value="' . esc_attr( $q ) . '"></div>';
 		echo '<div><button class="chinh">Xem</button></div>';
 		echo '</form></div>';
+	}
+
+	/**
+	 * DANH BẠ CHỈ-XEM — cho người chỉ đi làm ở cơ sở này.
+	 *
+	 * ⚠️ BỐN CỘT, KHÔNG HƠN. Không PIN, không trạng thái làm việc, không nút Sửa. Anh Thắng:
+	 *    *"chỉ xem được họ và sđt để nv còn biết ai quản lý, ai cửa hàng trưởng"* — đúng ngần
+	 *    ấy, và thêm cột nào cũng phải sửa `VHCC_NhanSu::danh_ba()` chứ không sửa được ở đây.
+	 */
+	private static function the_danh_ba( $toi, $cs ) {
+		$q  = isset( $_GET['nq'] ) ? trim( sanitize_text_field( wp_unslash( $_GET['nq'] ) ) ) : '';
+		$ds = VHCC_NhanSu::danh_ba( $toi, $cs, $q );
+
+		echo '<div class="the"><h3 style="margin-top:0">' . esc_html( VHCC_NhanSu::ten_coso( $cs ) )
+			. ' — <b>' . count( $ds ) . '</b> người</h3>';
+		if ( ! $ds ) {
+			echo '<p class="mo">Chưa có ai ở cơ sở này' . ( '' !== $q ? ' khớp với ô tìm' : '' )
+				. '.</p></div>';
+			return;
+		}
+		echo '<div class="cuon"><table class="cc"><thead><tr><th>Mã NV</th><th>Họ tên</th>'
+			. '<th>Chức vụ</th><th>SĐT</th></tr></thead><tbody>';
+		foreach ( $ds as $r ) {
+			$sdt = trim( (string) $r['sdt'] );
+			echo '<tr><td>' . esc_html( (string) $r['ma_nv'] ) . '</td>'
+				. '<td>' . esc_html( (string) $r['ho_ten'] ) . '</td>'
+				. '<td>' . esc_html( (string) $r['chuc_vu'] ) . '</td>'
+				/* Số điện thoại bấm gọi được — đây đúng là việc người ta mở danh bạ để làm. */
+				. '<td>' . ( '' !== $sdt
+					? ( '<a href="tel:' . esc_attr( preg_replace( '/[^0-9+]/', '', $sdt ) ) . '">'
+						. esc_html( $sdt ) . '</a>' )
+					: '<span class="mo">—</span>' ) . '</td></tr>';
+		}
+		echo '</tbody></table></div></div>';
 	}
 
 	/** Bảng người của cơ sở. */

@@ -115,6 +115,54 @@ class VHCC_NhanSu {
 		return false;
 	}
 
+	/**
+	 * DANH BẠ MỘT CƠ SỞ — cho người CHỈ ĐI LÀM ở đó, không quản.
+	 *
+	 * Anh Thắng 18/09/2026: *"ai quản lý hoặc chấm công thì xem được hết, vì chỉ xem được họ và
+	 * sđt để nv còn biết ai quản lý, ai cửa hàng trưởng, chứ không ảnh hưởng gì"*.
+	 *
+	 * =========================================================================================
+	 * 🔴 ĐƯỜNG ĐỌC RIÊNG, KHÔNG NỚI `ds_nhan_vien()`
+	 * =========================================================================================
+	 * `ds_nhan_vien()` trả về gần như cả hồ sơ — ngày sinh, CCCD, hợp đồng, PIN đã có hay chưa,
+	 * trạng thái làm việc. Nới nó ra cho người chỉ đi làm là mở luôn mười mấy trường không ai
+	 * yêu cầu, và mỗi trường thêm vào sau này lại tự động lọt theo.
+	 *
+	 * Nên ở đây là một câu truy vấn RIÊNG, chọn ĐÚNG BỐN CỘT. Muốn thêm cột thì phải sửa dòng
+	 * `SELECT` này — tức phải nghĩ một lần nữa.
+	 *
+	 * ⚠️ KHÔNG CÓ PIN, KHÔNG CÓ CCCD, KHÔNG CÓ LƯƠNG, KHÔNG CÓ SỐ TÀI KHOẢN. Đây là danh bạ để
+	 *    gọi nhau, không phải hồ sơ nhân sự.
+	 */
+	public static function danh_ba( $u, $coso, $tim = '' ) {
+		global $wpdb;
+		$cs = self::chuan_coso( $coso );
+		if ( '' === $cs ) { return array(); }
+		/* Gác lại ngay đây: hàm public thì lời gọi có thể tới từ chỗ khác, và "màn đã hỏi rồi"
+		   không phải là một lớp gác. */
+		if ( ! self::co_quyen_coso( $u, $cs ) && ! self::co_cham_coso( $u, $cs ) ) { return array(); }
+
+		/* ⚠️ `dk_sql_coso()` trả về MẢNG `array( sql, tv )`, không phải một chuỗi — nhét thẳng
+		   vào `implode()` là "Array to string conversion" và mệnh đề WHERE thành chữ "Array". */
+		$c_cs = self::dk_sql_coso( $cs );
+		$dk   = array( $c_cs['sql'] );
+		$tv   = (array) $c_cs['tv'];
+		$q  = trim( (string) $tim );
+		if ( '' !== $q ) {
+			$dk[] = '(ho_ten LIKE %s OR ma_nv LIKE %s OR sdt LIKE %s)';
+			$l    = '%' . $wpdb->esc_like( $q ) . '%';
+			$tv[] = $l;
+			$tv[] = $l;
+			$tv[] = $l;
+		}
+		$sql = 'SELECT ma_nv, ho_ten, chuc_vu, sdt, cua_hang, coso_phu FROM '
+			. VHCC_DB::t( 'nhan_vien' ) . ' WHERE ' . implode( ' AND ', $dk )
+			. " AND trang_thai_lam_viec NOT IN ('Nghỉ việc','Nghỉ hẳn')"
+			. ' ORDER BY ho_ten LIMIT 500';
+		$r = $wpdb->get_results( $tv ? $wpdb->prepare( $sql, $tv ) : $sql, ARRAY_A );
+		return is_array( $r ) ? $r : array();
+	}
+
 	/** Nhớ trong một lượt. `quen_coso_quan()` xoá — xem cảnh báo ở đó. */
 	private static $nho_quan = null;
 

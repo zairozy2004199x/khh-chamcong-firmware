@@ -20676,14 +20676,26 @@ $tok_ql = VHCC_Auth::phat_token( 'Người Thử', 'Admin', '', 'QLAD' );
 $h_ns_ql = vhcc_hr_ns( $tok_ql );
 t( 'đang soi trang /nhan-su/ thật', strpos( $h_ns_ql, 'name="cs_co[QL1]"' ) !== false,
 	substr( $h_ns_ql, 0, 300 ) );
-t( '🔴 lưới cơ sở có ô tích "chỉ QL" cho từng cơ sở',
-	strpos( $h_ns_ql, 'name="cs_ql[QL1][]" value="' . esc_attr( $_cs_ql ) . '"' ) !== false, null );
+/* 🔴 18/09/2026 — HAI Ô TÍCH THÀNH BA NÚT TRÒN. Anh Thắng chỉ vào "chỉ QL" và "quản lý" nằm
+   cạnh nhau rồi hỏi *"2 chỗ này khác gì nhau"*: hai ô tích độc lập vẽ ra bốn tổ hợp trong khi
+   nghiệp vụ chỉ có ba cảnh, và tổ hợp thứ tư trùng với "chỉ QL". Nay mỗi cơ sở một nhóm ba nút
+   `cs_muc[MA][CƠ_SỞ]` = cc (chấm công) | lq (làm & quản) | ql (chỉ quản).
+   ⚠️ CỘT TRONG CƠ SỞ DỮ LIỆU KHÔNG ĐỔI — `coso_ql` vẫn là cột ấy. Đây là đổi CÁCH HỎI. */
+t( '🔴 lưới cơ sở có nhóm ba mức cho từng cơ sở',
+	strpos( $h_ns_ql, 'name="cs_muc[QL1][' . esc_attr( $_cs_ql ) . ']" value="ql"' ) !== false, null );
+t( 'và có đủ cả ba mức, không phải hai ô tích chồng nhau',
+	strpos( $h_ns_ql, 'value="cc"' ) !== false && strpos( $h_ns_ql, 'value="lq"' ) !== false
+	&& strpos( $h_ns_ql, 'value="ql"' ) !== false, null );
 $_POST = array(
 	'o'        => array( 'QL1' => array( 'tram' => '' ) ),
 	'cs_co'    => array( 'QL1' => '1' ),
 	'cs'       => array( 'QL1' => array( 'JP_HCM', $_cs_ql, 'PINPALL_QL' ) ),
 	'cs_chinh' => array( 'QL1' => 'JP_HCM' ),
-	'cs_ql'    => array( 'QL1' => array( $_cs_ql ) ),
+	'cs_muc'   => array( 'QL1' => array(
+		'JP_HCM'      => 'lq',
+		$_cs_ql       => 'ql',
+		'PINPALL_QL'  => 'cc',
+	) ),
 );
 $bao_ql = VHCC_TrangNS::lam_viec( 'luu_quyen', $U_AD );
 $_POST = array();
@@ -20691,11 +20703,18 @@ teq( '🔴 tích ô "chỉ QL" rồi Lưu thì cột ghi thật', $_cs_ql,
 	(string) vhcc_hs( 'QL1' )['coso_ql'] );
 t( 'và màn hình nói ra là vừa đổi ô "chỉ QL"',
 	strpos( (string) wp_json_encode( $bao_ql ), 'chỉ QL' ) !== false, $bao_ql );
+/* Mức "làm & quản" của cơ sở chính cũng phải ghi thật — đó là nửa còn lại của nhóm ba nút. */
+teq( '🔴 mức "làm & quản" ghi vào cột coso_quan', 'JP_HCM',
+	(string) vhcc_hs( 'QL1' )['coso_quan'] );
 t( 'câu báo nói rõ họ VẪN quản lý nhân viên ở đó',
 	strpos( (string) wp_json_encode( $bao_ql ), 'VẪN quản lý nhân viên' ) !== false, $bao_ql );
 /* 🔴 BỎ TÍCH HẾT thì trình duyệt KHÔNG gửi `cs_ql[QL1]` nào cả — phải hiểu là "không cơ sở nào
    chỉ quản lý", không phải "hàng này không nói gì". Hiểu sai chiều này là bỏ tích xong bấm Lưu
    thấy y nguyên, bấm mấy lượt rồi thôi. */
+/* ⚠️ VỚI NÚT TRÒN, "BỎ TÍCH HẾT" NGHĨA LÀ CHỌN LẠI MỨC `cc` CHO MỌI CƠ SỞ — nút tròn luôn gửi
+   một giá trị cho mỗi cơ sở đang bày, khác ô tích (bỏ tích thì vắng mặt). Còn `cs_muc` VẮNG
+   HẲN nghĩa là hàng ấy không bày ô nào, và lúc ấy phải GIỮ NGUYÊN chứ không xoá — kiểm cả hai
+   chiều ngay dưới. */
 $_POST = array(
 	'o'        => array( 'QL1' => array( 'tram' => '' ) ),
 	'cs_co'    => array( 'QL1' => '1' ),
@@ -20704,7 +20723,25 @@ $_POST = array(
 );
 VHCC_TrangNS::lam_viec( 'luu_quyen', $U_AD );
 $_POST = array();
-teq( '🔴 bỏ tích hết ô "chỉ QL" thì cột về rỗng', '', (string) vhcc_hs( 'QL1' )['coso_ql'] );
+teq( '🔴 `cs_muc` vắng hẳn thì GIỮ NGUYÊN, không xoá sạch cờ', $_cs_ql,
+	(string) vhcc_hs( 'QL1' )['coso_ql'] );
+
+$_POST = array(
+	'o'        => array( 'QL1' => array( 'tram' => '' ) ),
+	'cs_co'    => array( 'QL1' => '1' ),
+	'cs'       => array( 'QL1' => array( 'JP_HCM', $_cs_ql, 'PINPALL_QL' ) ),
+	'cs_chinh' => array( 'QL1' => 'JP_HCM' ),
+	'cs_muc'   => array( 'QL1' => array(
+		'JP_HCM'     => 'cc',
+		$_cs_ql      => 'cc',
+		'PINPALL_QL' => 'cc',
+	) ),
+);
+VHCC_TrangNS::lam_viec( 'luu_quyen', $U_AD );
+$_POST = array();
+teq( '🔴 chọn lại mức "chấm công" cho mọi cơ sở thì cột về rỗng', '',
+	(string) vhcc_hs( 'QL1' )['coso_ql'] );
+teq( 'và cột quản lý cũng về rỗng', '', (string) vhcc_hs( 'QL1' )['coso_quan'] );
 
 /* ---- và cùng ô ấy trong biểu mẫu hồ sơ ---- */
 $h_hs_ql = vhcc_web_nhu2( 'QLAD', 'Admin', '', array( 'man' => 'ho_so', 'sua' => 'QL1' ) );

@@ -5184,6 +5184,15 @@ class VHCC_Web {
 		   nơi là có ngày bảng lệch cột mà không ai hiểu vì sao. */
 		$duoc_sua_gio = VHCC_Vai::duoc( $toi, 'sua_gio' );
 
+		/* 🔴 CƠ SỞ MÌNH CHỈ ĐI LÀM: TẮT MỌI KHỐI CỦA NGƯỜI QUẢN, một chỗ.
+		   Anh Thắng 18/09/2026: *"chấm công mà lại xem hết được của người khác là không được"*.
+		   `$b['hang']` đã lọc còn mình, nhưng màn này còn mấy khối đọc THẲNG cả cơ sở: lưới văn
+		   phòng, bảng lương cơ sở, đơn giá giờ, khai ca, lệnh đi trễ, đơn xin nghỉ. Vá từng
+		   khối là sáu chỗ phải nhớ, và khối thứ bảy thêm vào sau sẽ lọt. Nên chốt MỘT cờ ở đây
+		   rồi mỗi khối tự hỏi nó. */
+		$rieng_minh = ! empty( $b['riengMinh'] );
+		if ( $rieng_minh ) { $duoc_sua_gio = false; }
+
 		/* Lọc cho BẢNG TỔNG — bảng chi tiết dùng mảng khác trước đây, xem chú thích ở `the_bang_cham`. */
 		$loc_thang = array();
 		foreach ( $hang as $r ) {
@@ -5618,6 +5627,15 @@ class VHCC_Web {
 				. ( $duoc_sua ? '<b>Sửa giờ công</b>' : 'chỉ Admin sửa được' )
 				. ' · ô <b>trống</b> → ' . ( $duoc_bu ? '<b>Chấm công bù</b>' : 'cần quyền Cửa hàng trưởng' )
 				. '.</p>';
+		}
+		if ( $la_vp && ! empty( $b['riengMinh'] ) ) {
+			/* Lưới văn phòng dựng thẳng từ `vp_bang_cong_va_luong()` — không qua phép lọc ở cửa
+			   vào, nên ở cơ sở mình chỉ đi làm thì KHÔNG vẽ nó. Lưới giờ phía trên đã lọc rồi
+			   và đủ cho người ta xem công của mình. */
+			echo '<p class="mo" style="margin:0">Cơ sở này tính công theo khối Văn phòng. '
+				. 'Bảng đầy đủ chỉ người quản lý cơ sở mới xem được.</p>';
+			echo '</details></div>';
+			return;
 		}
 		if ( $la_vp ) {
 			self::ve_luoi_vp( VHCC_Luong::vp_bang_cong_va_luong( $cs, $th ), $duoc_sua, $duoc_bu,
@@ -7493,7 +7511,15 @@ class VHCC_Web {
 
 		   ⚠️ Gác `method_exists` cùng chỗ với lời gọi. Và nếu sổ nhân sự chưa khai ai thì lưới
 		      vẫn chạy y như cũ, chỉ là không có hàng nào thêm. */
-		if ( class_exists( 'VHCC_NhanSu' ) && method_exists( 'VHCC_NhanSu', 'ds_nhan_vien' ) ) {
+		/* 🔴 CƠ SỞ MÌNH CHỈ ĐI LÀM THÌ KHÔNG DỰNG HÀNG TRỐNG CHO AI CẢ.
+		   Anh Thắng 18/09/2026: *"chấm công mà lại xem hết được của người khác là không được"*.
+		   Vòng dưới đọc THẲNG sổ nhân sự, không đi qua `VHCC_Cham::bang_cham_cong()` — nên phép
+		   lọc "chỉ mình" ở cửa vào không với tới, và cả cửa hàng vẫn hiện ra dưới một cái băng
+		   vàng nói rằng bảng chỉ có công của chính mình. Đúng cái anh chụp lại ngay sau 4.51.0.
+		   Đây là lần THỨ HAI cùng một kiểu rò ở đúng vòng lặp này (lần trước là mã đang ẩn, xem
+		   khối ngay dưới) — bất cứ phép lọc nào đặt ở cửa vào cũng phải nhắc lại ở đây. */
+		if ( empty( $b['riengMinh'] )
+			&& class_exists( 'VHCC_NhanSu' ) && method_exists( 'VHCC_NhanSu', 'ds_nhan_vien' ) ) {
 			foreach ( VHCC_NhanSu::ds_nhan_vien( $toi, (string) $b['coSo'] ) as $hs ) {
 				$ma_hs = trim( (string) $hs['ma_nv'] );
 				if ( '' === $ma_hs ) { continue; }
