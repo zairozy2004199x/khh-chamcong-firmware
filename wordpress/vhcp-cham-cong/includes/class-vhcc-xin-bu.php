@@ -126,7 +126,7 @@ class VHCC_XinBu {
 		if ( ! empty( $da_co['co'] ) && ( '' !== $da_co['vao'] && '—' !== $da_co['vao'] ) ) {
 			return array( 'ok' => false, 'error' => 'Ngày ' . $ng . ' đã có giờ chấm ('
 				. $da_co['vao'] . '–' . $da_co['ra'] . ') nên không bù được. Giờ sai thì báo cửa '
-				. 'hàng trưởng sửa qua bảng công tuần.' );
+				. 'hàng trưởng sửa qua bảng công tháng.' );
 		}
 
 		$cu = self::dang_treo( $cs, $ng, $ma );

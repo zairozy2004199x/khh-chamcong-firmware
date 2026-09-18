@@ -1,0 +1,156 @@
+<?php
+/**
+ * Ô CHỌN THÁNG PHẢI ĐIỀU KHIỂN ĐƯỢC NÚT TẢI — và kỳ phải là THÁNG, không phải tuần.
+ *
+ * =================================================================================================
+ * 🔴 LỖI BÀI NÀY SINH RA ĐỂ CANH
+ * =================================================================================================
+ * Anh Thắng 18/09/2026, ảnh chụp màn hình ô xổ đang mở: *"Không chọn được tuần trước nữa. Chọn
+ * được nhưng bấm xuất nó cũng chỉ lấy từ ngày 7-13."*
+ *
+ * Bản trước để nút tải là một thẻ `<a href="…&tuan=2026-09-07">` DỰNG SẴN Ở MÁY CHỦ, mang đúng
+ * kỳ có trong URL lúc trang được vẽ. Đổi ô xổ thì chỉ đổi thứ hiện trên màn — cái `<a>` vẫn trỏ
+ * về kỳ cũ. Người ta chọn tháng khác rồi bấm tải, và nhận về tệp của kỳ đang hiện:
+ *
+ *   · KHÔNG có thông báo lỗi, không có dấu hiệu gì — chỉ thấy tệp "sai ngày";
+ *   · và tệp ấy vẫn nạp lại được, vì nó là tệp hợp lệ của kỳ kia. Sửa nhầm cả kỳ rồi gửi đi.
+ *
+ * Nên bài này KHÔNG hỏi "trang có ô xổ không". Nó hỏi đúng thứ đã hỏng: ô xổ và nút tải có nằm
+ * TRONG CÙNG MỘT `<form>` không, và nút tải có phải nút gửi của chính cái form ấy không. Đó là
+ * thứ duy nhất khiến trình duyệt gửi đi tháng NGƯỜI TA VỪA CHỌN.
+ *
+ * ⚠️ VÀ MỘT PHÉP THỬ ĐI VÒNG: nạp thẳng `?xuat=thang&dtm=…` rồi xem tệp nhận về mang tháng nào.
+ *    Soát HTML thôi thì mai kia ai đó đổi tên tham số ở một đầu là bài vẫn xanh.
+ *
+ * Chạy: php tools/test/kiem-tai-bang-cong-thang.php
+ */
+
+$goc = dirname( dirname( __DIR__ ) );
+require __DIR__ . '/wp-stub.php';
+vhcc_test_boot( $goc . '/wordpress/vhcp-cham-cong' );
+
+$dat = 0; $truot = array();
+function t( $ten, $dk, $them = null ) {
+	global $dat, $truot;
+	if ( $dk ) { $dat++; return; }
+	$truot[] = $ten . ( null === $them ? '' : "\n      → " . ( is_scalar( $them )
+		? substr( (string) $them, 0, 400 ) : json_encode( $them, JSON_UNESCAPED_UNICODE ) ) );
+}
+function teq( $ten, $mong, $thuc ) {
+	t( $ten . ' (mong ' . json_encode( $mong, JSON_UNESCAPED_UNICODE ) . ')', $mong === $thuc, $thuc );
+}
+
+global $wpdb;
+
+$CS  = 'TAI_SHOP';
+$CHT = array( 'name' => 'Chị Trưởng', 'role' => VHCC_Vai::CHT, 'coso' => $CS, 'ma_nv' => 'TAICHT' );
+
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'TAICHT', 'ho_ten' => 'Chị Trưởng',
+	'vai_tro' => 'Cửa hàng trưởng', 'cua_hang' => $CS, 'coso_quan' => $CS,
+	'trang_thai_lam_viec' => 'Đang làm' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'TAINV', 'ho_ten' => 'Em Nhân Viên',
+	'vai_tro' => 'Nhân viên', 'cua_hang' => $CS, 'trang_thai_lam_viec' => 'Đang làm' ) );
+
+$THANG_NAY = VHCC_TuanCong::dau_thang( (string) current_time( 'Y-m-d' ) );
+$DS        = VHCC_TuanCong::ds_thang( 6 );
+$THANG_CU  = $DS[3];                        // một tháng LÙI XA, không phải mặc định
+
+/* Gieo một lượt chấm ở tháng cũ — tờ của nó phải có dữ liệu thì mới xuất được. */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $CS, 'ngay' => substr( $THANG_CU, 0, 8 ) . '05',
+	'ma_nv' => 'TAINV', 'ho_ten' => 'Em Nhân Viên', 'gio_vao_giay' => 28800,
+	'gio_ra_giay' => 61200, 'hau_to' => '', 'nguon' => 'may' ) );
+
+/* ====================================================================== 1. ô xổ bày ra tháng */
+
+echo "— ô xổ bày ra THÁNG —\n";
+ob_start();
+VHCC_WebDonTuan::khoi_cua_hang( 'ky-thu', $CHT, $CS );
+$h = ob_get_clean();
+
+t( 'khối có vẽ ra', '' !== trim( $h ), $h );
+t( '🔴 ô xổ tên là dtm (tháng), không còn dtt (tuần)',
+	false !== strpos( $h, 'name="dtm"' ) && false === strpos( $h, 'name="dtt"' ), $h );
+t( 'nhãn ô là "Tháng"', false !== mb_strpos( $h, '>Tháng<' ), $h );
+foreach ( $DS as $th_x ) {
+	t( 'ô xổ có ' . VHCC_TuanCong::ten_thang( $th_x ),
+		false !== strpos( $h, 'value="' . $th_x . '"' ), $h );
+}
+t( '🔴 KHÔNG còn nhãn tuần kiểu "T2 … → CN …"', false === mb_strpos( $h, '→ CN' ), $h );
+
+/* ============================================ 2. NÚT TẢI NẰM TRONG CÙNG FORM VỚI Ô XỔ */
+
+echo "— nút tải đi cùng ô xổ —\n";
+
+/* 🔴 KHÔNG CÒN THẺ `<a>` TẢI. Thẻ `<a>` mang kỳ dựng sẵn ở máy chủ — đó chính là lỗi. */
+t( '🔴 không còn thẻ <a> tải tệp (đường dẫn dựng sẵn)',
+	! preg_match( '#<a[^>]+xuat=(thang|tuan)#', $h ), $h );
+
+/* Cắt ra đúng cái form chứa ô xổ, rồi hỏi trong CHÍNH nó có nút tải không. */
+$form = '';
+if ( preg_match_all( '#<form\b.*?</form>#s', $h, $m ) ) {
+	foreach ( $m[0] as $f ) {
+		if ( false !== strpos( $f, 'name="dtm"' ) ) { $form = $f; break; }
+	}
+}
+t( 'tìm được form chứa ô xổ', '' !== $form, $h );
+t( '🔴 NÚT TẢI nằm trong chính form ấy — đây là cả cái bản vá',
+	false !== strpos( $form, 'name="xuat"' ) && false !== strpos( $form, 'value="thang"' ), $form );
+t( '   và nó là <button>, tức nút gửi của form',
+	1 === preg_match( '#<button[^>]+name="xuat"#', $form ), $form );
+t( 'form đi bằng GET (tải tệp, không đổi gì trên máy chủ)',
+	false !== strpos( $form, 'method="get"' ), $form );
+t( 'form mang sẵn cơ sở', false !== strpos( $form, 'value="' . $CS . '"' ), $form );
+
+/* 🔴 `xuat` PHẢI LÀ TÊN CỦA NÚT, KHÔNG PHẢI MỘT Ô ẨN. Ô ẩn thì nút "Xem" cũng tải tệp — người
+   ta bấm Xem để soát trạng thái mà trình duyệt tụt xuống hộp tải về. */
+t( '🔴 xuat là name của nút bấm, không phải input ẩn',
+	! preg_match( '#<input[^>]+type="hidden"[^>]+name="xuat"#', $form ), $form );
+
+/* Nút Xem vẫn còn, và nó KHÔNG mang `xuat`. */
+t( 'vẫn còn nút Xem, và nó không tải tệp',
+	false !== strpos( $form, 'name="xem"' ), $form );
+
+/* ============================================ 3. ĐI VÒNG THẬT: ?xuat=thang&dtm=… ra đúng tháng */
+
+if ( ! class_exists( 'ZipArchive' ) ) {
+	echo "(bỏ qua phần tệp .xlsx: máy chạy bộ thử không có php-zip)\n";
+} else {
+	echo "— tải thật: tệp mang đúng tháng đã chọn —\n";
+
+	/* 🔴 HỎI THẲNG LỚP XUẤT, KHÔNG SOÁT CHỮ. Tên tệp mang tháng, nên nó là chỗ đối chiếu rẻ và
+	   chắc: chọn tháng nào thì tên tệp phải mang đúng tháng ấy. */
+	$x = VHCC_TuanCong::xuat( $CHT, $CS, $THANG_CU );
+	t( 'xuất được tháng cũ', ! empty( $x['ok'] ), $x );
+	teq( '🔴 tên tệp mang ĐÚNG tháng đã chọn, không phải tháng đang chạy',
+		'bang-cong-' . $CS . '-thang-' . substr( $THANG_CU, 0, 7 ) . '.xlsx', $x['ten'] );
+	t( '   và KHÔNG mang tháng đang chạy',
+		false === strpos( $x['ten'], substr( $THANG_NAY, 0, 7 ) ), $x['ten'] );
+
+	/* Tờ phải đúng số ngày của CHÍNH tháng ấy — không phải 7, không phải 31 cứng. */
+	$doc = VHCC_DocXlsx::doc( ( function ( $noi ) {
+		$d = tempnam( sys_get_temp_dir(), 'kiemtai' );
+		file_put_contents( $d, $noi );
+		return $d;
+	} )( $x['noi_dung'] ) );
+	t( 'đọc lại được tệp', ! empty( $doc['ok'] ), $doc );
+	$so_ngay = count( VHCC_TuanCong::ngay_cua( $THANG_CU ) );
+	teq( '🔴 tờ rộng đúng 5 + số ngày của tháng ấy', 5 + $so_ngay, count( $doc['hang'][0] ) );
+
+	/* Cột ngày đầu và ngày cuối phải là ngày 1 và ngày cuối THÁNG, không phải T2/CN. */
+	t( '🔴 cột ngày đầu là ngày 1 của tháng',
+		false !== strpos( (string) $doc['hang'][0][ VHCC_TuanCong::C_NGAY_DAU ], $THANG_CU ),
+		$doc['hang'][0][ VHCC_TuanCong::C_NGAY_DAU ] );
+	t( '🔴 cột ngày cuối là ngày cuối tháng',
+		false !== strpos( (string) $doc['hang'][0][ VHCC_TuanCong::C_NGAY_DAU + $so_ngay - 1 ],
+			VHCC_TuanCong::cuoi_thang( $THANG_CU ) ),
+		$doc['hang'][0][ VHCC_TuanCong::C_NGAY_DAU + $so_ngay - 1 ] );
+}
+
+echo "\n";
+if ( $truot ) {
+	echo '🔴 HỎNG ' . count( $truot ) . " phép thử:\n";
+	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }
+	echo "ĐẠT: $dat\n";
+	exit( 1 );
+}
+echo "✓ ĐẠT: $dat phép thử — chọn tháng nào thì tải đúng tháng ấy.\n";

@@ -3,7 +3,7 @@
  * MÀN "ĐƠN TỪ" — bốn khối đơn của cửa hàng, gom về một tab.
  *
  * Anh Thắng 18/09/2026: *"Chuyển cái này ra 1 tab riêng ( Đơn từ )"*, kèm ảnh bốn dòng gập nằm
- * dưới đuôi màn Bảng công: Lệnh đi trễ · Đơn xin nghỉ · Đơn xin bù giờ · Sửa bảng công tuần
+ * dưới đuôi màn Bảng công: Lệnh đi trễ · Đơn xin nghỉ · Đơn xin bù giờ · Sửa bảng công tháng
  * bằng Excel.
  *
  * =============================================================================================
@@ -43,7 +43,7 @@ class VHCC_WebDonTu {
 	public static function man( $ky, $toi ) {
 		echo '<div class="the"><h2>📨 Đơn từ</h2>';
 		echo '<p class="mo">Mọi thứ cửa hàng gửi lên hoặc chờ anh/chị duyệt, ở một chỗ: '
-			. '<b>đi trễ</b> · <b>xin nghỉ</b> · <b>xin bù giờ</b> · <b>sửa bảng công tuần bằng '
+			. '<b>đi trễ</b> · <b>xin nghỉ</b> · <b>xin bù giờ</b> · <b>sửa bảng công tháng bằng '
 			. 'Excel</b>. Khối nào đang có đơn chờ thì tự mở sẵn.</p></div>';
 
 		if ( ! self::duoc_vao( $toi ) ) {

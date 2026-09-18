@@ -496,7 +496,7 @@ a{color:var(--nhan)}
 			<button id="btDongXinBu" class="phu">Đóng</button>
 		</div>
 		<p class="mo" style="margin:10px 0 0;font-size:12px">Ngày <b>đã có giờ chấm</b> thì không
-			xin bù được — giờ sai thì báo cửa hàng trưởng sửa qua bảng công tuần.</p>
+			xin bù được — giờ sai thì báo cửa hàng trưởng sửa qua bảng công tháng.</p>
 	</div>
 	<div class="the">
 		<label style="margin:0 0 8px">Đơn đã gửi</label>

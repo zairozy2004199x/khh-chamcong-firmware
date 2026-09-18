@@ -6,7 +6,7 @@
  *   · *"Với chuyển nó ra 1 tab như tính năng, vì sau để bên báo cáo họ lấy dữ liệu lương cho
  *     dễ"* — bảng lương ra khỏi đuôi màn Bảng công;
  *   · *"Chuyển cái này ra 1 tab riêng ( Đơn từ )"* — bốn khối đơn (đi trễ · xin nghỉ · xin bù
- *     giờ · sửa bảng công tuần bằng Excel) cũng vậy.
+ *     giờ · sửa bảng công tháng bằng Excel) cũng vậy.
  *
  * =============================================================================================
  * 🔴 BÀI NÀY CANH BA THỨ, VÀ THỨ THỨ BA MỚI LÀ THỨ HAY HỎNG
@@ -100,7 +100,7 @@ t( '🔴 ?man=luong ra đúng màn Bảng lương, không rơi về Bảng công
 $h_don = tab_man( 'TAB_CHT', 'Cửa hàng trưởng', $CS, array( 'man' => 'don_tu', 'lcs' => $CS ) );
 foreach ( array( 'id="lenhtre"' => 'Lệnh đi trễ', 'Đơn xin nghỉ' => 'Đơn xin nghỉ',
 	'Đơn xin bù giờ' => 'Đơn xin bù giờ',
-	'Sửa bảng công tuần bằng Excel' => 'Sửa bảng công tuần' ) as $dau => $ten ) {
+	'Sửa bảng công tháng bằng Excel' => 'Sửa bảng công tháng' ) as $dau => $ten ) {
 	t( '🔴 màn Đơn từ có khối "' . $ten . '"', false !== mb_strpos( $h_don, $dau ), $ten );
 }
 
@@ -113,8 +113,8 @@ t( '🔴 màn Bảng công KHÔNG còn bảng lương (dời, không phải ché
 	false === mb_strpos( $h_cham, 'Bảng lương cơ sở' ) );
 t( '🔴 màn Bảng công KHÔNG còn khối Lệnh đi trễ',
 	false === mb_strpos( $h_cham, 'id="lenhtre"' ) );
-t( '🔴 màn Bảng công KHÔNG còn khối Sửa bảng công tuần',
-	false === mb_strpos( $h_cham, 'Sửa bảng công tuần bằng Excel' ) );
+t( '🔴 màn Bảng công KHÔNG còn khối Sửa bảng công tháng',
+	false === mb_strpos( $h_cham, 'Sửa bảng công tháng bằng Excel' ) );
 /* Nhưng vẫn còn LƯỚI — dời hai khối không được kéo theo thứ khác. */
 t( 'màn Bảng công vẫn còn lưới cả tháng', false !== mb_strpos( $h_cham, 'Lưới cả tháng' ) );
 /* 🔴 VÀ PHẢI CÓ DÒNG CHỈ ĐƯỜNG. Dời việc mà im lặng thì người quen tay cuộn xuống không thấy,
@@ -152,8 +152,8 @@ t( 'dựng được cảnh cách tính cong', 'cong' === VHCC_Luong::cach_tinh( 
 $h_don_c = tab_man( 'TAB_CHT', 'Cửa hàng trưởng', $CS, array( 'man' => 'don_tu', 'lcs' => $CS ) );
 t( '🔴 cơ sở THEO CÔNG vẫn có khối Lệnh đi trễ — lỗ cũ, vá nhờ dời tab',
 	false !== mb_strpos( $h_don_c, 'id="lenhtre"' ), $h_don_c );
-t( '🔴 và vẫn có khối Sửa bảng công tuần',
-	false !== mb_strpos( $h_don_c, 'Sửa bảng công tuần bằng Excel' ), $h_don_c );
+t( '🔴 và vẫn có khối Sửa bảng công tháng',
+	false !== mb_strpos( $h_don_c, 'Sửa bảng công tháng bằng Excel' ), $h_don_c );
 VHCC_Luong::dat_cach_tinh( $U_AD, array( $CS => 'gio' ) );
 
 echo "\n";

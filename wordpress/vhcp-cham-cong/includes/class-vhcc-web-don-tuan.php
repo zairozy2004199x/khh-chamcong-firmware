@@ -8,7 +8,7 @@
  * =============================================================================================
  * 🔴 MÀN NÀY BÀY RA TỪNG Ô SẼ ĐỔI, KHÔNG BÀY "CÓ 37 THAY ĐỔI"
  * =============================================================================================
- * Bấm Duyệt là ghi thẳng vào bảng công, không quay lại được, rồi khoá tuần — anh Thắng: *"chỉ
+ * Bấm Duyệt là ghi thẳng vào bảng công, không quay lại được, rồi khoá tháng — anh Thắng: *"chỉ
  * duyệt và gửi 1 lần) nên cần đảm bảo chính xác"*. Một con số tổng thì không ai soát được cái
  * gì; người ta bấm Duyệt vì đằng nào cũng không đọc được. Nên bảng dưới in **từng ô một**: ai,
  * ngày nào, giờ cũ → giờ mới, và lý do người gửi ghi.
@@ -34,7 +34,7 @@ class VHCC_WebDonTuan {
 	public static function viec( $viec, $toi ) {
 		/* 🔴 NẠP TỆP LÀ VIỆC CỦA CỬA HÀNG TRƯỞNG, cửa khác hẳn hai việc dưới. Gộp chung một
 		   chốt `sua_gio` là chối đúng người mà cả quy trình này dựng lên cho. `VHCC_TuanCong::nap()`
-		   tự hỏi `cong_coso` + phạm vi cơ sở + tuần đã khoá chưa, ngay dòng đầu. */
+		   tự hỏi `cong_coso` + phạm vi cơ sở + tháng đã khoá chưa, ngay dòng đầu. */
 		if ( 'dt_nap' === $viec ) { return self::nhan_tep( $toi ); }
 
 		/* Cấp MỘT — cửa hàng trưởng. Cửa khác hẳn hai việc của kế toán ở dưới; `duyet_cht()` tự
@@ -83,10 +83,15 @@ class VHCC_WebDonTuan {
 			if ( empty( $r['ok'] ) ) { return array( array( 'loi' => $r['error'] ) ); }
 			/* ⚠️ NÓI RA SỐ Ô TRƯỢT, ĐỪNG CHỈ BÁO "ĐÃ DUYỆT". Vài ô có thể bị `VHCC_Bu` chối
 			   (giờ của chính người duyệt, người đã đổi cơ sở…). Báo gọn "đã duyệt" là kế toán
-			   tưởng xong cả, mà tuần thì đã khoá — mấy ô ấy không còn đường nào vào nữa ngoài
+			   tưởng xong cả, mà tháng thì đã khoá — mấy ô ấy không còn đường nào vào nữa ngoài
 			   sửa tay. */
-			$cau = 'Đã duyệt. ' . (int) $r['xong'] . ' ô giờ đã lên bảng công, tuần '
+			$cau = 'Đã duyệt. ' . (int) $r['xong'] . ' ô giờ đã lên bảng công, '
 				. $r['khoa'] . ' nay khoá lại.';
+			/* Ô trùng sẵn KHÔNG phải ô trượt — nói tách ra, không thì kế toán đi tìm lỗi
+			   ở mấy ô vốn đã đúng. */
+			if ( ! empty( $r['trung'] ) ) {
+				$cau .= ' ' . (int) $r['trung'] . ' ô đã trùng sẵn với bảng công nên bỏ qua.';
+			}
 			if ( $r['truot'] ) {
 				$cau .= ' ⚠️ ' . count( $r['truot'] ) . ' ô KHÔNG ghi được — xem chi tiết ở '
 					. 'danh sách đơn đã xử bên dưới, và sửa tay mấy ô ấy.';
@@ -100,9 +105,9 @@ class VHCC_WebDonTuan {
 
 	public static function man( $ky, $toi ) {
 		echo '<div class="the"><h2>📥 Đơn duyệt chỉnh bảng công lương</h2>';
-		echo '<p class="mo">Hết mỗi tuần, cửa hàng trưởng tải bảng công tuần trước ra <b>.xlsx</b>, '
+		echo '<p class="mo">Hết mỗi tháng, cửa hàng trưởng tải bảng công tháng ấy ra <b>.xlsx</b>, '
 			. 'sửa trong đó rồi gửi lên. Duyệt ở đây là <b>ghi thẳng vào bảng công</b> rồi '
-			. '<b>khoá tuần</b> — không quay lại được, nên đọc kỹ từng ô trước khi bấm.</p></div>';
+			. '<b>khoá tháng</b> — không quay lại được, nên đọc kỹ từng ô trước khi bấm.</p></div>';
 
 		if ( ! VHCC_Vai::duoc( $toi, VHCC_TuanCong::QUYEN_DUYET ) ) {
 			echo '<div class="the"><div class="bao" style="margin:0">'
@@ -119,8 +124,8 @@ class VHCC_WebDonTuan {
 	/**
 	 * ĐƠN BÙ GIỜ LẺ ĐANG CHỜ KẾ TOÁN — cấp hai của `VHCC_XinBu`.
 	 *
-	 * ⚠️ Đứng TRÊN khối đơn tuần: đơn bù lẻ là của một người, một ngày, và người ta đang chờ đi
-	 *    làm tiếp; đơn tuần thì cả tuần đã xong rồi, chậm một hôm không ai mất gì.
+	 * ⚠️ Đứng TRÊN khối đơn tháng: đơn bù lẻ là của một người, một ngày, và người ta đang chờ đi
+	 *    làm tiếp; đơn tháng thì cả tháng đã xong rồi, chậm một hôm không ai mất gì.
 	 */
 	private static function the_bu_cho( $ky, $toi ) {
 		$ds = VHCC_XinBu::cho_duyet( VHCC_XinBu::CHO_KT, '', 100 );
@@ -224,8 +229,8 @@ class VHCC_WebDonTuan {
 	private static function the_mot( $ky, $d ) {
 		$doi = VHCC_TuanCong::doi_cua( $d );
 		echo '<div class="the">';
-		echo '<h3 style="margin:0 0 4px">' . esc_html( (string) $d['coso'] ) . ' · tuần '
-			. esc_html( VHCC_TuanCong::ten_tuan( $d['tu_ngay'] ) ) . '</h3>';
+		echo '<h3 style="margin:0 0 4px">' . esc_html( (string) $d['coso'] ) . ' · '
+			. esc_html( VHCC_TuanCong::ten_ky( $d['tu_ngay'], $d['den_ngay'] ) ) . '</h3>';
 		echo '<p class="mo" style="margin:0 0 10px">' . esc_html( (string) $d['ten_gui'] )
 			. ( '' !== trim( (string) $d['ma_nv_gui'] ) ? ( ' (' . esc_html( (string) $d['ma_nv_gui'] ) . ')' ) : '' )
 			. ' gửi lúc ' . esc_html( (string) $d['gui_luc'] ) . ' · <b>' . count( $doi )
@@ -267,8 +272,8 @@ class VHCC_WebDonTuan {
 			. '<input type="hidden" name="dt_id" value="' . (int) $d['id'] . '">'
 			. '<label style="display:block;margin:0 0 8px;font-size:13px">'
 			. '<input type="checkbox" required> Tôi đã soát từng ô ở trên. Duyệt là ghi thẳng vào '
-			. 'bảng công rồi <b>khoá tuần</b>, không quay lại được.</label>'
-			. '<button class="chinh">Duyệt &amp; khoá tuần</button></form>';
+			. 'bảng công rồi <b>khoá tháng</b>, không quay lại được.</label>'
+			. '<button class="chinh">Duyệt &amp; khoá tháng</button></form>';
 
 		echo '<form method="post" class="hang" style="gap:6px">'
 			. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
@@ -302,7 +307,7 @@ class VHCC_WebDonTuan {
 			return;
 		}
 		echo '<div class="cuon" style="margin-top:10px"><table class="b"><thead><tr>'
-			. '<th>Cơ sở</th><th>Tuần</th><th>Người gửi</th><th>Kết quả</th><th>Người xử</th>'
+			. '<th>Cơ sở</th><th>Kỳ</th><th>Người gửi</th><th>Kết quả</th><th>Người xử</th>'
 			. '<th>Lúc</th><th>Ghi chú</th></tr></thead><tbody>';
 		foreach ( $ds as $d ) {
 			$tt  = (string) $d['trang_thai'];
@@ -311,8 +316,11 @@ class VHCC_WebDonTuan {
 			$ghi = '';
 			if ( VHCC_TuanCong::DUYET === $tt && is_array( $kq ) ) {
 				$ghi = (int) $kq['xong'] . ' ô đã ghi';
+				if ( ! empty( $kq['trung'] ) ) {
+					$ghi .= ' · ' . (int) $kq['trung'] . ' ô trùng sẵn, bỏ qua';
+				}
 				if ( ! empty( $kq['truot'] ) ) {
-					/* ⚠️ Ô trượt phải kể ra TÊN và LÝ DO, không chỉ đếm. Tuần đã khoá rồi; đây là
+					/* ⚠️ Ô trượt phải kể ra TÊN và LÝ DO, không chỉ đếm. Tháng đã khoá rồi; đây là
 					   chỗ duy nhất còn nói được mấy ô ấy hỏng vì gì để kế toán sửa tay. */
 					$ghi .= ' · <span class="chu-hong">' . count( $kq['truot'] ) . ' ô trượt</span>: ';
 					$ke = array();
@@ -325,7 +333,7 @@ class VHCC_WebDonTuan {
 				$ghi = esc_html( (string) $d['ly_do_choi'] );
 			}
 			echo '<tr><td>' . esc_html( (string) $d['coso'] ) . '</td>'
-				. '<td>' . esc_html( VHCC_TuanCong::ten_tuan( $d['tu_ngay'] ) ) . '</td>'
+				. '<td>' . esc_html( VHCC_TuanCong::ten_ky( $d['tu_ngay'], $d['den_ngay'] ) ) . '</td>'
 				. '<td>' . esc_html( (string) $d['ten_gui'] ) . '</td>'
 				. '<td>' . ( VHCC_TuanCong::DUYET === $tt ? '<b>' : '<span class="mo">' )
 				. esc_html( $ten ) . ( VHCC_TuanCong::DUYET === $tt ? '</b>' : '</span>' ) . '</td>'
@@ -346,8 +354,11 @@ class VHCC_WebDonTuan {
 	 *    dẫn bất kỳ trên đĩa và bắt máy chủ mở nó ra — `/etc/passwd` chẳng hạn.
 	 */
 	private static function nhan_tep( $toi ) {
-		$cs   = isset( $_POST['ccs'] ) ? VHCC_NhanSu::chuan_coso( wp_unslash( $_POST['ccs'] ) ) : '';
-		$tuan = isset( $_POST['dt_tuan'] ) ? sanitize_text_field( wp_unslash( $_POST['dt_tuan'] ) ) : '';
+		$cs = isset( $_POST['ccs'] ) ? VHCC_NhanSu::chuan_coso( wp_unslash( $_POST['ccs'] ) ) : '';
+		/* `dt_tuan` là tên cũ đời tuần — còn đọc để một tab mở sẵn từ trước bản tháng gửi lên
+		   thì không mất kỳ rồi báo "Thiếu cơ sở hoặc tháng" một cách khó hiểu. */
+		$ky_thang = isset( $_POST['dt_thang'] ) ? sanitize_text_field( wp_unslash( $_POST['dt_thang'] ) )
+			: ( isset( $_POST['dt_tuan'] ) ? sanitize_text_field( wp_unslash( $_POST['dt_tuan'] ) ) : '' );
 
 		if ( empty( $_FILES['dt_tep'] ) || ! is_array( $_FILES['dt_tep'] ) ) {
 			return array( array( 'loi' => 'Chưa chọn tệp nào.' ) );
@@ -369,49 +380,77 @@ class VHCC_WebDonTuan {
 			return array( array( 'loi' => 'Tệp nạp lên không hợp lệ.' ) );
 		}
 
-		$r = VHCC_TuanCong::nap( $toi, $cs, $tuan, $tam );
+		$r = VHCC_TuanCong::nap( $toi, $cs, $ky_thang, $tam );
 		if ( empty( $r['ok'] ) ) { return array( array( 'loi' => $r['error'] ) ); }
 
-		return array( array( 'ok' => true, 'thong_bao' => 'Đã gửi cho kế toán: '
-			. (int) $r['soDoi'] . ' ô giờ chờ duyệt (trên ' . (int) $r['soDong'] . ' dòng). '
-			. 'Bảng công CHƯA đổi — chỉ đổi khi kế toán duyệt.' ) );
+		$cau = 'Đã gửi cho kế toán: ' . (int) $r['soDoi'] . ' ô giờ chờ duyệt (trên '
+			. (int) $r['soDong'] . ' dòng). Bảng công CHƯA đổi — chỉ đổi khi kế toán duyệt.';
+		/* Nói ra số ô bỏ qua. Tờ một tháng có hàng nghìn ô mà đơn chỉ vài ô — không nói thì
+		   người gửi tưởng tệp bị đọc sót. */
+		if ( ! empty( $r['soTrung'] ) ) {
+			$cau .= ' ' . (int) $r['soTrung'] . ' ô giữ y nguyên nên bỏ qua.';
+		}
+		if ( ! empty( $r['soLap'] ) ) {
+			$cau .= ' ⚠️ ' . (int) $r['soLap'] . ' dòng trùng khoá (dán lặp) đã bỏ qua, '
+				. 'chỉ lấy dòng đầu.';
+		}
+		return array( array( 'ok' => true, 'thong_bao' => $cau ) );
 	}
 
 	/**
-	 * KHỐI TRÊN MÀN BẢNG CÔNG — nơi cửa hàng trưởng tải tệp tuần ra và nạp tệp đã sửa lên.
+	 * KHỐI TRÊN MÀN BẢNG CÔNG — nơi cửa hàng trưởng tải tệp tháng ra và nạp tệp đã sửa lên.
 	 *
-	 * ⚠️ Vẽ cả khi tuần đã khoá, chỉ đổi nội dung. Giấu hẳn đi thì người ta tưởng tính năng
-	 *    hỏng và đi hỏi vòng quanh; nói thẳng "tuần này khoá rồi" thì họ biết phải làm gì.
+	 * ⚠️ Vẽ cả khi tháng đã khoá, chỉ đổi nội dung. Giấu hẳn đi thì người ta tưởng tính năng
+	 *    hỏng và đi hỏi vòng quanh; nói thẳng "tháng này khoá rồi" thì họ biết phải làm gì.
 	 */
 	public static function khoi_cua_hang( $ky, $toi, $cs ) {
 		if ( ! VHCC_Vai::duoc( $toi, VHCC_TuanCong::QUYEN_TAI ) ) { return; }
 		$cs = VHCC_NhanSu::chuan_coso( $cs );
 		if ( '' === $cs || ! VHCC_NhanSu::co_quyen_coso( $toi, $cs ) ) { return; }
 
-		$chon = isset( $_GET['dtt'] ) ? sanitize_text_field( wp_unslash( $_GET['dtt'] ) ) : '';
-		$ds_t = VHCC_TuanCong::ds_tuan( 8 );
+		$chon = isset( $_GET['dtm'] ) ? sanitize_text_field( wp_unslash( $_GET['dtm'] ) ) : '';
+		$ds_t = VHCC_TuanCong::ds_thang( 6 );
 		if ( ! in_array( $chon, $ds_t, true ) ) { $chon = $ds_t[0]; }
 
-		echo '<div class="the"><details><summary><b>Sửa bảng công tuần bằng Excel</b> '
+		/* `open` sẵn: đổi tháng là trang nạp lại, mà `<details>` đóng thì người ta phải mở ra
+		   lần nữa mới thấy kết quả của chính cú bấm vừa rồi — và dễ tưởng nút không ăn. */
+		echo '<div class="the"><details open><summary><b>Sửa bảng công tháng bằng Excel</b> '
 			. '<span class="mo">(tải ra · sửa · gửi kế toán duyệt)</span></summary>';
-		echo '<p class="mo" style="margin:10px 0">Tải bảng công một tuần ra <b>.xlsx</b>, sửa giờ '
+		echo '<p class="mo" style="margin:10px 0">Tải bảng công một tháng ra <b>.xlsx</b>, sửa giờ '
 			. 'trong đó rồi nạp lại. Nạp lên <b>chưa đổi gì</b> cả — nó thành một đơn chờ '
-			. '<b>kế toán duyệt</b>. Kế toán duyệt là giờ lên bảng công và <b>tuần ấy khoá lại</b>.</p>';
+			. '<b>kế toán duyệt</b>. Kế toán duyệt là giờ lên bảng công và <b>tháng ấy khoá lại</b>.</p>';
 
-		echo '<form method="get" class="hang" style="gap:8px;margin:0 0 10px">';
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 Ô CHỌN THÁNG VÀ NÚT TẢI PHẢI NẰM TRONG CÙNG MỘT `<form>`
+		 * ═══════════════════════════════════════════════════════════════════════════════════
+		 * Anh Thắng 18/09/2026: *"Chọn được nhưng bấm xuất nó cũng chỉ lấy từ ngày 7-13"*.
+		 * Bản trước để nút tải là một thẻ `<a>` dựng sẵn ở máy chủ, mang đúng kỳ đang có trong
+		 * URL. Đổi ô xổ thì chỉ đổi thứ hiện trên màn — cái `<a>` vẫn trỏ về kỳ cũ. Người ta
+		 * chọn tháng khác rồi bấm tải, và nhận về tệp của tháng đang hiện. Không báo lỗi, không
+		 * dấu hiệu gì; chỉ thấy tệp "sai ngày".
+		 *
+		 * Bỏ thẻ `<a>`, cho NÚT TẢI thành nút gửi của chính cái form chứa ô xổ. Trình duyệt gửi
+		 * giá trị đang chọn, nên tải với xem bao giờ cũng cùng một tháng.
+		 *
+		 * ⚠️ HAI NÚT GỬI, KHÁC NHAU Ở `name`. Trình duyệt chỉ gửi tên/giá trị của nút ĐƯỢC BẤM,
+		 *    nên `xuat=thang` chỉ có mặt khi người ta bấm Tải. Đừng đổi thành một `<input
+		 *    type="hidden" name="xuat">` cho gọn — làm thế thì nút Xem cũng tải tệp.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		echo '<form method="get" class="hang" style="gap:8px;margin:0 0 10px;align-items:flex-end">';
 		foreach ( array( 'vhcc_qt' => '1', 'man' => 'cham', 'ccs' => $cs ) as $k => $v ) {
 			echo '<input type="hidden" name="' . esc_attr( $k ) . '" value="' . esc_attr( $v ) . '">';
 		}
-		echo '<div><label for="dtt">Tuần</label><select id="dtt" name="dtt">';
+		echo '<div><label for="dtm">Tháng</label><select id="dtm" name="dtm">';
 		foreach ( $ds_t as $t ) {
 			echo '<option value="' . esc_attr( $t ) . '"' . selected( $t, $chon, false ) . '>'
-				. esc_html( VHCC_TuanCong::ten_tuan( $t ) )
+				. esc_html( VHCC_TuanCong::ten_thang( $t ) )
 				. ( VHCC_TuanCong::khoa_roi( $cs, $t ) ? ' — đã khoá' : '' ) . '</option>';
 		}
 		echo '</select></div>'
-			/* Nút Xem thay cho `onchange` — trang này không gài JavaScript trong HTML. Đổi ô xổ
-			   rồi phải bấm một cái nữa, nhưng bù lại nó chạy cả khi trình duyệt tắt JS. */
-			. '<div style="align-self:flex-end"><button class="phu">Xem tuần này</button></div></form>';
+			. '<div><button class="chinh" name="xuat" value="thang">⬇ Tải bảng công tháng '
+			. '(.xlsx)</button></div>'
+			/* Nút Xem thay cho `onchange` — trang này không gài JavaScript trong HTML. */
+			. '<div><button class="phu" name="xem" value="1">Xem tháng này</button></div></form>';
 
 		$chan = VHCC_TuanCong::vi_sao_khong_tai( $toi, $cs, $chon );
 		if ( '' !== $chan ) {
@@ -419,17 +458,21 @@ class VHCC_WebDonTuan {
 			return;
 		}
 
+		/* Tháng đang chạy thì tải được, nhưng phải nói ra là giờ công còn thay đổi — nạp sớm
+		   rồi kế toán duyệt là khoá mất phần còn lại của tháng. */
+		if ( $chon === VHCC_TuanCong::dau_thang( (string) current_time( 'Y-m-d' ) ) ) {
+			echo '<div class="bao canh" style="margin:0 0 10px">⚠️ <b>'
+				. esc_html( VHCC_TuanCong::ten_thang( $chon ) ) . ' đang chạy</b> — mọi người còn '
+				. 'chấm tiếp, nên giờ công còn đổi. Kế toán duyệt là <b>khoá cả tháng</b>, kể cả '
+				. 'mấy ngày chưa tới. Sửa gấp thì gửi; còn không thì chờ hết tháng.</div>';
+		}
+
 		$cho = VHCC_TuanCong::don_cho( $cs, $chon );
 		if ( $cho ) {
-			echo '<div class="bao" style="margin:0 0 10px">📤 Tuần này <b>đã gửi</b> lúc '
+			echo '<div class="bao" style="margin:0 0 10px">📤 Tháng này <b>đã gửi</b> lúc '
 				. esc_html( (string) $cho['gui_luc'] ) . ' — ' . (int) $cho['so_doi']
 				. ' ô giờ đang chờ kế toán duyệt. Gửi tệp mới thì lượt này bị thay.</div>';
 		}
-
-		echo '<p style="margin:0 0 12px"><a class="nut chinh" href="'
-			. esc_url( add_query_arg( array( 'vhcc_qt' => 1, 'xuat' => 'tuan', 'ccs' => $cs,
-				'tuan' => $chon ), home_url( '/' ) ) )
-			. '">⬇ Tải bảng công tuần (.xlsx)</a></p>';
 
 		echo '<form method="post" enctype="multipart/form-data" class="hang" style="gap:8px">'
 			. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
@@ -437,18 +480,19 @@ class VHCC_WebDonTuan {
 			. '<input type="hidden" name="man" value="cham">'
 			. '<input type="hidden" name="ccs" value="' . esc_attr( $cs ) . '">'
 			. '<input type="hidden" name="cth" value="' . esc_attr( substr( $chon, 0, 7 ) ) . '">'
-			. '<input type="hidden" name="dt_tuan" value="' . esc_attr( $chon ) . '">'
+			. '<input type="hidden" name="dt_thang" value="' . esc_attr( $chon ) . '">'
 			. '<div><input type="file" name="dt_tep" accept=".xlsx" required></div>'
 			. '<div><button class="chinh">Gửi cho kế toán</button></div></form>';
 
 		echo '<p class="mo" style="margin:10px 0 0;font-size:12px">Tờ xếp <b>mỗi người một dòng, '
-			. 'bảy ngày nằm ngang</b> — giống lưới trên màn. ⚠️ <b>Đừng sửa cột KHOÁ</b> ở cuối '
+			. 'cả tháng nằm ngang</b> — giống lưới trên màn. ⚠️ <b>Đừng sửa cột KHOÁ</b> ở cuối '
 			. 'và <b>đừng đổi tên hay xoá cột ngày</b>: đó là hai thứ ghép giờ về đúng người, '
 			. 'đúng ngày. Chèn thêm cột ghi chú thì không sao. Mỗi ngày là <b>một ô hai hàng</b>: '
 			. 'giờ vào ở hàng trên, giờ ra ở hàng dưới (bấm <b>Alt+Enter</b> để xuống hàng trong '
 			. 'ô; viết <code>08:00-17:00</code> cũng được). Dòng nào có sửa giờ thì '
 			. '<b>phải ghi Lý do</b>, ít nhất 5 chữ — một lý do cho cả dòng. Muốn <b>xoá giờ</b> '
-			. 'thì xoá nội dung ô, đừng xoá cả dòng.</p>';
+			. 'thì xoá nội dung ô, đừng xoá cả dòng. Ô nào <b>để y nguyên thì bỏ qua</b>, không '
+			. 'vào đơn — chỉ ô có sửa mới cần kế toán đọc.</p>';
 		echo '</details></div>';
 	}
 }

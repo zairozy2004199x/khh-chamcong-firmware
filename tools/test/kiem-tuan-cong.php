@@ -1,6 +1,6 @@
 <?php
 /**
- * KIỂM QUY TRÌNH SỬA BẢNG CÔNG THEO TUẦN — tải .xlsx, sửa, gửi, kế toán duyệt và khoá.
+ * KIỂM QUY TRÌNH SỬA BẢNG CÔNG THEO THÁNG — tải .xlsx, sửa, gửi, kế toán duyệt và khoá.
  *
  * =================================================================================================
  * 🔴 VÌ SAO BÀI NÀY CANH NẶNG NHẤT TRONG CẢ HỆ CHẤM CÔNG
@@ -48,8 +48,10 @@ global $wpdb;
 
 $CS_A  = 'TC_SHOP_A';
 $CS_B  = 'TC_SHOP_B';
-$TUAN  = VHCC_TuanCong::tuan_truoc();
-$NGAY  = VHCC_TuanCong::bay_ngay( $TUAN );
+/* Kỳ thử là THÁNG TRƯỚC: tháng đã xong nên số ngày trong tháng không đổi giữa chừng, và nó
+   cũng là kỳ cửa hàng trưởng thật sự ngồi sửa. */
+$TUAN  = gmdate( 'Y-m-01', strtotime( substr( (string) current_time( 'Y-m-d' ), 0, 7 ) . '-01 -1 day' ) );
+$NGAY  = VHCC_TuanCong::ngay_cua( $TUAN );
 
 $NV    = array( 'name' => 'Nhân Viên',  'role' => VHCC_Vai::NV,      'coso' => $CS_A, 'ma_nv' => 'TCNV1' );
 $CHT_A = array( 'name' => 'Trưởng A',   'role' => VHCC_Vai::CHT,     'coso' => $CS_A, 'ma_nv' => 'TCCHTA' );
@@ -89,21 +91,42 @@ $wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $CS_A, 'ngay' => $NGA
 	'ma_nv' => 'TAM-FZLTVT-008', 'ho_ten' => 'Bình Nhân Viên', 'gio_vao_giay' => 32400,
 	'gio_ra_giay' => 61200, 'hau_to' => '', 'nguon' => 'may' ) );
 
-/* ================================================================= tuần T2 → CN */
+/* ================================================================= kỳ = một tháng */
 
-echo "— tuần —\n";
-teq( 'thứ Hai của tuần là chính nó', $TUAN, VHCC_TuanCong::thu_hai( $TUAN ) );
-teq( 'ngày nào trong tuần cũng ra cùng một thứ Hai', $TUAN, VHCC_TuanCong::thu_hai( $NGAY[3] ) );
-/* 🔴 CHỦ NHẬT PHẢI THUỘC TUẦN ẤY, không phải mở tuần sau. Sai chỗ này là mọi đêm Chủ nhật
-   bảng công nhảy sang tuần khác — lỗi chỉ hiện một ngày trong bảy. */
-teq( '🔴 Chủ nhật vẫn thuộc tuần bắt đầu thứ Hai ấy', $TUAN, VHCC_TuanCong::thu_hai( $NGAY[6] ) );
-teq( 'bảy ngày, không hơn không kém', 7, count( $NGAY ) );
-teq( 'ngày đầu là thứ Hai', '1', gmdate( 'N', strtotime( $NGAY[0] . ' 00:00:00 UTC' ) ) );
-teq( 'ngày cuối là Chủ nhật', '7', gmdate( 'N', strtotime( $NGAY[6] . ' 00:00:00 UTC' ) ) );
-teq( 'chu_nhat() khớp ngày thứ bảy của mảng', $NGAY[6], VHCC_TuanCong::chu_nhat( $TUAN ) );
-t( 'ds_tuan không bao giờ kể tuần đang chạy',
-	! in_array( VHCC_TuanCong::thu_hai( (string) current_time( 'Y-m-d' ) ), VHCC_TuanCong::ds_tuan( 8 ), true ) );
-teq( 'ngày rác thì trả rỗng', '', VHCC_TuanCong::thu_hai( 'hom-qua' ) );
+echo "— tháng —\n";
+teq( 'ngày 1 của tháng là chính nó', $TUAN, VHCC_TuanCong::dau_thang( $TUAN ) );
+teq( 'ngày nào trong tháng cũng ra cùng một ngày 1', $TUAN, VHCC_TuanCong::dau_thang( $NGAY[3] ) );
+teq( 'ngày cuối mảng đúng là ngày cuối tháng', VHCC_TuanCong::cuoi_thang( $TUAN ),
+	$NGAY[ count( $NGAY ) - 1 ] );
+teq( 'số ngày khớp với chính lịch của tháng ấy',
+	(int) gmdate( 't', strtotime( $TUAN . ' 00:00:00 UTC' ) ), count( $NGAY ) );
+/* 🔴 THÁNG 2 VÀ NĂM NHUẬN. Cộng 30 ngày cho gọn là sai đúng vào tháng ai cũng soát kỹ nhất. */
+teq( '🔴 tháng 2 năm thường có 28 ngày', 28, count( VHCC_TuanCong::ngay_cua( '2026-02-01' ) ) );
+teq( '🔴 tháng 2 năm nhuận có 29 ngày', 29, count( VHCC_TuanCong::ngay_cua( '2028-02-01' ) ) );
+teq( 'cuoi_thang() của tháng 2 nhuận', '2028-02-29', VHCC_TuanCong::cuoi_thang( '2028-02-10' ) );
+teq( 'ngày rác thì trả rỗng', '', VHCC_TuanCong::dau_thang( 'hom-qua' ) );
+
+/* 🔴 Ô XỔ CÓ CẢ THÁNG ĐANG CHẠY — khác hẳn bản tuần. Chờ hết tháng mới sửa được là thấy giờ
+   sai từ mùng 2 mà tới mùng 1 tháng sau mới chữa, lúc ấy lương đã trả. */
+$thang_nay = VHCC_TuanCong::dau_thang( (string) current_time( 'Y-m-d' ) );
+$ds_th     = VHCC_TuanCong::ds_thang( 6 );
+teq( '🔴 mục đầu ô xổ là THÁNG ĐANG CHẠY', $thang_nay, $ds_th[0] );
+teq( 'và kể đủ 6 tháng, mới nhất trước', 6, count( $ds_th ) );
+t( 'tháng trước nằm ngay sau nó', $TUAN === $ds_th[1], $ds_th );
+t( 'không có tháng nào lặp lại', count( $ds_th ) === count( array_unique( $ds_th ) ), $ds_th );
+
+echo "— nhãn kỳ —\n";
+/* 🔴 ĐƠN ĐỜI TUẦN VẪN CÒN TRONG BẢNG. In nhãn tháng cho một đơn bảy ngày là nói sai kỳ ngay
+   trên màn duyệt — `ten_ky()` phải nhìn `den_ngay` mà phân biệt. */
+teq( 'nhãn tháng', 'Tháng 09/2026', VHCC_TuanCong::ten_ky( '2026-09-01', '2026-09-30' ) );
+teq( 'thiếu den_ngay thì vẫn đoán ra tháng', 'Tháng 09/2026', VHCC_TuanCong::ten_ky( '2026-09-01' ) );
+teq( '🔴 đơn đời TUẦN giữ nhãn tuần', 'T2 07/09 → CN 13/09/2026',
+	VHCC_TuanCong::ten_ky( '2026-09-07', '2026-09-13' ) );
+/* 🔴 Tháng 6/2026 bắt đầu đúng thứ Hai — chỉ `den_ngay` mới tách được hai đời ở đây. */
+teq( '🔴 tuần bắt đầu đúng ngày 1 vẫn ra nhãn tuần', 'T2 01/06 → CN 07/06/2026',
+	VHCC_TuanCong::ten_ky( '2026-06-01', '2026-06-07' ) );
+teq( 'còn cả tháng 6 thì ra nhãn tháng', 'Tháng 06/2026',
+	VHCC_TuanCong::ten_ky( '2026-06-01', '2026-06-30' ) );
 
 /* ================================================================= cột KHOÁ */
 
@@ -119,8 +142,8 @@ t( 'khoá KHÔNG còn mang ngày — ngày nằm ở dòng tiêu đề', ! isset
 /* 🔴 BA CÁCH TỆP BỊ DÙNG SAI, CẢ BA PHẢI CHỐI. */
 t( '🔴 sửa tay vào cột khoá thì chối', null === VHCC_TuanCong::doc_khoa( $k . 'x', $CS_A, $TUAN ) );
 t( '🔴 khoá của CƠ SỞ KHÁC thì chối', null === VHCC_TuanCong::doc_khoa( $k, $CS_B, $TUAN ) );
-$tuan_khac = gmdate( 'Y-m-d', strtotime( $TUAN . ' 00:00:00 UTC' ) - 7 * 86400 );
-t( '🔴 khoá của TUẦN KHÁC thì chối', null === VHCC_TuanCong::doc_khoa( $k, $CS_A, $tuan_khac ) );
+$tuan_khac = gmdate( 'Y-m-01', strtotime( $TUAN . ' 00:00:00 UTC' ) - 86400 );
+t( '🔴 khoá của THÁNG KHÁC thì chối', null === VHCC_TuanCong::doc_khoa( $k, $CS_A, $tuan_khac ) );
 t( 'khoá rỗng thì chối', null === VHCC_TuanCong::doc_khoa( '', $CS_A, $TUAN ) );
 t( 'khoá thiếu mảnh thì chối', null === VHCC_TuanCong::doc_khoa( 'TCNV1', $CS_A, $TUAN ) );
 
@@ -186,26 +209,32 @@ t( 'mẩu rác thì chối', null === VHCC_TuanCong::doc_o_gio( "sáng\n17:00" )
 echo "— ai tải được —\n";
 t( '🔴 nhân viên thường KHÔNG tải được',
 	'' !== VHCC_TuanCong::vi_sao_khong_tai( $NV, $CS_A, $TUAN ) );
-t( '🔴 trưởng B KHÔNG tải được tuần của cơ sở A',
+t( '🔴 trưởng B KHÔNG tải được tháng của cơ sở A',
 	'' !== VHCC_TuanCong::vi_sao_khong_tai( $CHT_B, $CS_A, $TUAN ) );
-teq( 'trưởng A tải được tuần trước của cơ sở mình', '',
+teq( 'trưởng A tải được tháng trước của cơ sở mình', '',
 	VHCC_TuanCong::vi_sao_khong_tai( $CHT_A, $CS_A, $TUAN ) );
 
-/* 🔴 TUẦN ĐANG CHẠY KHÔNG TẢI ĐƯỢC. Anh Thắng: *"sau hết 1 tuần, bắt đầu tuần mới"*. */
-$tuan_nay = VHCC_TuanCong::thu_hai( (string) current_time( 'Y-m-d' ) );
-$chan = VHCC_TuanCong::vi_sao_khong_tai( $CHT_A, $CS_A, $tuan_nay );
-t( '🔴 tuần ĐANG CHẠY thì chưa tải được', '' !== $chan, $chan );
-t( 'và nói rõ phải chờ hết tuần', false !== mb_strpos( $chan, 'chưa kết thúc' ), $chan );
+/* 🔴 THÁNG ĐANG CHẠY THÌ TẢI ĐƯỢC — anh Thắng 18/09/2026 đổi kỳ sang tháng, và chờ hết một
+   tháng mới sửa được là quá muộn so với kỳ lương. Chốt "duyệt một lần" không đổi: khoá vẫn
+   nằm ở tay kế toán. */
+teq( '🔴 THÁNG ĐANG CHẠY vẫn tải được', '',
+	VHCC_TuanCong::vi_sao_khong_tai( $CHT_A, $CS_A, $thang_nay ) );
 
-t( 'ngày giữa tuần (không phải thứ Hai) thì chối',
+/* 🔴 THÁNG CHƯA TỚI thì chối — tờ của nó rỗng, tải về chỉ tổ nạp nhầm. */
+$thang_sau = gmdate( 'Y-m-01', strtotime( $thang_nay . ' 00:00:00 UTC' ) + 40 * 86400 );
+$chan = VHCC_TuanCong::vi_sao_khong_tai( $CHT_A, $CS_A, $thang_sau );
+t( '🔴 tháng CHƯA TỚI thì chối', '' !== $chan, $chan );
+t( 'và nói rõ vì sao', false !== mb_strpos( $chan, 'chưa tới' ), $chan );
+
+t( 'ngày giữa tháng (không phải ngày 1) thì chối',
 	'' !== VHCC_TuanCong::vi_sao_khong_tai( $CHT_A, $CS_A, $NGAY[2] ) );
 
 /* ================================================================= dữ liệu tuần */
 
-echo "— dữ liệu tuần —\n";
-$hang = VHCC_TuanCong::hang_tuan( $CS_A, $TUAN );
-/* Bốn người của cơ sở A (TCNV1, TCNV2, TCCHTA, TCKT1) × 7 ngày. */
-teq( '🔴 bày CẢ ô trống: 4 người × 7 ngày', 28, count( $hang ) );
+echo "— dữ liệu tháng —\n";
+$hang = VHCC_TuanCong::hang_ky( $CS_A, $TUAN );
+/* Bốn người của cơ sở A (TCNV1, TCNV2, TCCHTA, TCKT1) × mọi ngày trong tháng. */
+teq( '🔴 bày CẢ ô trống: 4 người × cả tháng', 4 * count( $NGAY ), count( $hang ) );
 
 $tra = array();
 foreach ( $hang as $r ) { $tra[ $r['ma_nv'] . '|' . $r['ngay'] ] = $r; }
@@ -214,6 +243,8 @@ teq( 'giờ ra tương ứng',           '17:00', $tra[ 'TCNV1|' . $NGAY[0] ]['r
 teq( 'số giờ tính đúng',           9.0,     $tra[ 'TCNV1|' . $NGAY[0] ]['gio'] );
 teq( 'ngày chưa chấm thì để trống', '',     $tra[ 'TCNV1|' . $NGAY[4] ]['vao'] );
 t( 'ngày chưa chấm thì số giờ là null', null === $tra[ 'TCNV1|' . $NGAY[4] ]['gio'] );
+t( 'ngày cuối tháng cũng có mặt trong lưới',
+	isset( $tra[ 'TCNV1|' . $NGAY[ count( $NGAY ) - 1 ] ] ) );
 t( '🔴 KHÔNG lẫn người của cơ sở B', ! isset( $tra[ 'TCCHTB|' . $NGAY[0] ] ) );
 
 /* ================================================================= vòng tròn xuất → đọc */
@@ -234,14 +265,17 @@ function tep_tu( $noi_dung ) {
 
 $x = VHCC_TuanCong::xuat( $CHT_A, $CS_A, $TUAN );
 t( 'trưởng A xuất được tệp', ! empty( $x['ok'] ), $x );
-teq( '🔴 bốn người là BỐN dòng, không phải 28 — ngày nằm ngang', 4, $x['soDong'] );
-t( 'tên tệp mang cơ sở và tuần',
-	false !== strpos( $x['ten'], $CS_A ) && false !== strpos( $x['ten'], $TUAN ), $x['ten'] );
+teq( '🔴 bốn người là BỐN dòng, không phải một dòng mỗi ngày — ngày nằm ngang', 4, $x['soDong'] );
+t( 'tên tệp mang cơ sở và tháng',
+	false !== strpos( $x['ten'], $CS_A ) && false !== strpos( $x['ten'], substr( $TUAN, 0, 7 ) ),
+	$x['ten'] );
 
 $doc = VHCC_DocXlsx::doc( tep_tu( $x['noi_dung'] ) );
 t( 'đọc lại được tệp vừa xuất', ! empty( $doc['ok'] ), $doc );
 teq( 'gồm cả dòng tiêu đề', 5, count( $doc['hang'] ) );
-teq( '🔴 một ô một ngày -> tờ rộng 12 cột, không phải 19', 12, count( $doc['hang'][0] ) );
+/* Mã NV · Họ tên · mỗi ngày một ô · Tổng · Lý do · KHOÁ. */
+teq( '🔴 một ô một ngày -> tờ rộng đúng 5 + số ngày', 5 + count( $NGAY ), count( $doc['hang'][0] ) );
+teq( 'c_khoa() trỏ đúng cột cuối', count( $doc['hang'][0] ) - 1, VHCC_TuanCong::c_khoa( $TUAN ) );
 /* 🔴 Ô tiêu đề ngày PHẢI mang ngày dạng YYYY-MM-DD — đó là thứ lúc đọc dò ngược ra, thay cho
    việc đếm vị trí cột. Mất nó là chèn một cột ghi chú làm lệch hết giờ sang ngày bên cạnh. */
 t( '🔴 tiêu đề cột ngày mang sẵn ngày ISO',
@@ -250,8 +284,10 @@ t( '🔴 tiêu đề cột ngày mang sẵn ngày ISO',
 /* 🔴 MỘT Ô, HAI HÀNG — anh Thắng: *"Chung 1 ô đi, làm 2 hàng trong 1 ô cũng được"*. */
 teq( '🔴 ô ngày chứa hai hàng: vào xuống dòng rồi tới ra', "08:00\n17:00",
 	$doc['hang'][1][ VHCC_TuanCong::C_NGAY_DAU ] );
-teq( 'cột cuối là cột KHOÁ', 'KHOÁ — ĐỪNG SỬA', $doc['hang'][0][ VHCC_TuanCong::C_KHOA ] );
-teq( 'và cột Lý do đứng ngay trước nó', 'Lý do sửa', $doc['hang'][0][ VHCC_TuanCong::C_LYDO ] );
+teq( 'cột cuối là cột KHOÁ', 'KHOÁ — ĐỪNG SỬA',
+	$doc['hang'][0][ VHCC_TuanCong::c_khoa( $TUAN ) ] );
+teq( 'và cột Lý do đứng ngay trước nó', 'Lý do sửa',
+	$doc['hang'][0][ VHCC_TuanCong::c_lydo( $TUAN ) ] );
 
 /* 🔴 KHÔNG SỬA GÌ THÌ KHÔNG CÓ ĐƠN. Gửi lại y nguyên tệp vừa tải mà đẻ ra một đơn rỗng thì kế
    toán phải ngồi duyệt những đơn không đổi gì cả. */
@@ -261,19 +297,29 @@ teq( '🔴 và KHÔNG có ô nào đổi', 0, count( $r['doi'] ) );
 
 $r = VHCC_TuanCong::nap( $CHT_A, $CS_A, $TUAN, tep_tu( $x['noi_dung'] ) );
 t( '🔴 nạp tệp không đổi gì thì chối, không đẻ đơn rỗng', empty( $r['ok'] ), $r );
+/* Anh Thắng 18/09/2026: *"Khi up giờ trùng thì bỏ qua nhé"*. Câu chối phải nói rõ là đã BỎ QUA
+   vì trùng, không phải tệp hỏng — không thì người ta đi tải lại tệp mẫu một cách vô ích. */
+t( 'và câu chối nói rõ là do TRÙNG, đã bỏ qua', false !== mb_strpos( $r['error'], 'TRÙNG' ), $r['error'] );
 
 /* ---- sửa một ô rồi nạp ---- */
 /** Sửa ô vào/ra của MỘT NGÀY trên dòng của một người — dò cột theo dòng tiêu đề, y như mã thật. */
 /** Sửa ô của MỘT NGÀY trên dòng của một người — dò cột theo dòng tiêu đề, y như mã thật. */
 function sua_o( $hang, $khoa, $ngay, $vao, $ra, $ly_do ) {
+	/* Dò cả cột ngày LẪN cột khoá/lý do theo dòng tiêu đề, y như mã thật. Đếm vị trí thì tháng
+	   28 ngày và tháng 31 ngày lệch nhau ba cột. */
 	$cn = -1;
+	$ck = -1;
+	$cl = -1;
 	foreach ( $hang[0] as $i_c => $o ) {
-		if ( false !== strpos( (string) $o, $ngay ) ) { $cn = $i_c; break; }
+		$chu = (string) $o;
+		if ( false !== strpos( $chu, $ngay ) ) { $cn = $i_c; }
+		if ( false !== mb_strpos( $chu, 'KHOÁ' ) ) { $ck = $i_c; }
+		if ( false !== mb_strpos( $chu, 'Lý do' ) ) { $cl = $i_c; }
 	}
 	foreach ( $hang as $i => $d ) {
-		if ( ! isset( $d[ VHCC_TuanCong::C_KHOA ] ) || $d[ VHCC_TuanCong::C_KHOA ] !== $khoa ) { continue; }
+		if ( $ck < 0 || ! isset( $d[ $ck ] ) || $d[ $ck ] !== $khoa ) { continue; }
 		if ( $cn >= 0 ) { $hang[ $i ][ $cn ] = VHCC_TuanCong::o_gio( $vao, $ra ); }
-		if ( '' !== $ly_do ) { $hang[ $i ][ VHCC_TuanCong::C_LYDO ] = $ly_do; }
+		if ( '' !== $ly_do && $cl >= 0 ) { $hang[ $i ][ $cl ] = $ly_do; }
 		return $hang;
 	}
 	return $hang;
@@ -305,16 +351,36 @@ t( 'và nói rõ dòng nào', false !== mb_strpos( $r['error'], 'Lý do' ), $r['
 
 /* 🔴 SỬA TAY VÀO CỘT KHOÁ THÌ CHỐI CẢ TỆP. */
 $pha = $doc['hang'];
-$pha[1][ VHCC_TuanCong::C_KHOA ] = $pha[1][ VHCC_TuanCong::C_KHOA ] . 'z';
+$pha[1][ VHCC_TuanCong::c_khoa( $TUAN ) ] = $pha[1][ VHCC_TuanCong::c_khoa( $TUAN ) ] . 'z';
 $r = VHCC_TuanCong::doi( $CS_A, $TUAN, $pha );
 t( '🔴 cột KHOÁ bị sửa thì chối cả tệp', empty( $r['ok'] ), $r );
 t( 'và chỉ đúng dòng', false !== mb_strpos( $r['error'], 'Dòng 2' ), $r['error'] );
 
 /* 🔴 DÁN TỪ TUẦN KHÁC SANG. Đây là tai nạn hay gặp nhất — tải hai tuần rồi sửa nhầm tệp. */
 $khac = $doc['hang'];
-$khac[1][ VHCC_TuanCong::C_KHOA ] = VHCC_TuanCong::khoa_dong( $CS_A, $tuan_khac, '', 'TCNV1' );
+$khac[1][ VHCC_TuanCong::c_khoa( $TUAN ) ] = VHCC_TuanCong::khoa_dong( $CS_A, $tuan_khac, '', 'TCNV1' );
 $r = VHCC_TuanCong::doi( $CS_A, $TUAN, $khac );
-t( '🔴 dán khoá của tuần khác thì chối', empty( $r['ok'] ), $r );
+t( '🔴 dán khoá của tháng khác thì chối', empty( $r['ok'] ), $r );
+
+/* ================================================================= giờ trùng thì bỏ qua */
+
+/* 🔴 ANH THẮNG 18/09/2026: *"Khi up giờ trùng thì bỏ qua nhé"*.
+   Tờ một tháng có hàng nghìn ô mà thường chỉ vài ô đổi — ô giữ y nguyên phải rơi ra khỏi đơn,
+   và DÒNG DÁN LẶP phải bỏ qua chứ không chối cả tệp. Tờ dài nên người ta hay dán thêm một khối
+   để đối chiếu rồi quên xoá; lấy cả hai dòng thì cùng một ngày vào đơn hai lần và lúc duyệt ô
+   sau đè lên ô trước, im lặng. */
+$r = VHCC_TuanCong::doi( $CS_A, $TUAN, $sua );
+teq( '🔴 ô giữ y nguyên thì đếm vào soTrung, không vào đơn',
+	true, isset( $r['soTrung'] ) && $r['soTrung'] > 0 );
+teq( 'và vẫn đúng một ô đổi', 1, count( $r['doi'] ) );
+
+$lap = $sua;
+$lap[] = $sua[1];                 // dán lại nguyên dòng đầu xuống cuối tờ
+$r_lap = VHCC_TuanCong::doi( $CS_A, $TUAN, $lap );
+t( '🔴 dòng dán lặp KHÔNG làm chối cả tệp', ! empty( $r_lap['ok'] ), $r_lap );
+teq( '🔴 và chỉ lấy dòng đầu — vẫn đúng một ô đổi', 1, count( $r_lap['doi'] ) );
+teq( 'có đếm lại số dòng lặp đã bỏ', 1, $r_lap['soLap'] );
+teq( 'số dòng đọc được không tính dòng lặp', $r['soDong'], $r_lap['soDong'] );
 
 /* 🔴 CHÈN THÊM MỘT CỘT GHI CHÚ Ở GIỮA — đây là lý do ngày phải đọc từ dòng tiêu đề chứ không
    đếm theo vị trí. Người ta hay chèn một cột để ghi chú riêng rồi gửi nguyên thế. Đếm vị trí
@@ -415,21 +481,21 @@ $nk = VHCC_Bu::ds_nhat_ky( $ADMIN, $CS_A );
 t( '🔴 mọi ô sửa đều vào nhật ký "đã động vào giờ công"', count( $nk ) > 0, count( $nk ) );
 $co_ly_do = false;
 foreach ( $nk as $x ) {
-	if ( false !== mb_strpos( json_encode( $x, JSON_UNESCAPED_UNICODE ), 'Đơn tuần #' ) ) { $co_ly_do = true; }
+	if ( false !== mb_strpos( json_encode( $x, JSON_UNESCAPED_UNICODE ), 'Đơn tháng #' ) ) { $co_ly_do = true; }
 }
-t( '🔴 và nhật ký nói rõ ô ấy đến từ đơn tuần nào', $co_ly_do, $nk );
+t( '🔴 và nhật ký nói rõ ô ấy đến từ đơn tháng nào', $co_ly_do, $nk );
 
 /* ---- khoá ---- */
-t( '🔴 duyệt xong thì tuần KHOÁ', VHCC_TuanCong::khoa_roi( $CS_A, $TUAN ) );
+t( '🔴 duyệt xong thì THÁNG KHOÁ', VHCC_TuanCong::khoa_roi( $CS_A, $TUAN ) );
 $chan = VHCC_TuanCong::vi_sao_khong_tai( $CHT_A, $CS_A, $TUAN );
-t( '🔴 tuần đã khoá thì cửa hàng trưởng không tải được nữa', '' !== $chan, $chan );
+t( '🔴 tháng đã khoá thì cửa hàng trưởng không tải được nữa', '' !== $chan, $chan );
 t( 'và câu chối bảo báo kế toán', false !== mb_strpos( $chan, 'kế toán' ), $chan );
 /* Anh Thắng: *"admin có quyền tải nếu khóa"*. */
-teq( '🔴 nhưng ADMIN vẫn tải được tuần đã khoá', '',
+teq( '🔴 nhưng ADMIN vẫn tải được tháng đã khoá', '',
 	VHCC_TuanCong::vi_sao_khong_tai( $ADMIN, $CS_A, $TUAN ) );
 
 $r = VHCC_TuanCong::nap( $CHT_A, $CS_A, $TUAN, ghi_tep( $sua3 ) );
-t( '🔴 và không nạp thêm tệp nào cho tuần đã khoá được', empty( $r['ok'] ), $r );
+t( '🔴 và không nạp thêm tệp nào cho tháng đã khoá được', empty( $r['ok'] ), $r );
 
 /* 🔴 DUYỆT HAI LẦN — bấm hai lần trên hai tab. */
 $r = VHCC_TuanCong::duyet( $KT, $r3['id'], true );
@@ -437,8 +503,57 @@ t( '🔴 duyệt lại chính đơn ấy thì chối', empty( $r['ok'] ), $r );
 t( 'và nói là đã xử rồi', false !== mb_strpos( $r['error'], 'đã xử' ), $r['error'] );
 
 /* 🔴 CƠ SỞ KHÁC KHÔNG BỊ KHOÁ LÂY. */
-t( '🔴 khoá tuần của cơ sở A không khoá lây sang cơ sở B',
+t( '🔴 khoá tháng của cơ sở A không khoá lây sang cơ sở B',
 	! VHCC_TuanCong::khoa_roi( $CS_B, $TUAN ) );
+
+/* ============================================================ duyệt: ô trùng sẵn thì bỏ qua */
+
+/* 🔴 GIỮA LÚC GỬI VÀ LÚC DUYỆT, BẢNG CÔNG CÓ THỂ ĐÃ ĐỔI. Máy chấm công ghi thêm, hoặc một đơn
+   xin bù lẻ vừa được duyệt. Bản trước tin cờ `them` chụp lúc nạp, nên:
+     · ô nay đã có giờ mà vẫn đi đường BÙ → `VHCC_Bu::ghi()` chối "đã có đủ giờ rồi", ô trượt,
+       mà tháng thì vừa khoá xong — không còn đường nào vào ngoài sửa tay;
+     · ô nay đã đúng y giờ cần ghi → vẫn ghi một lượt nữa, đẻ thêm một dòng nhật ký cho một
+       thay đổi không có thật.
+   Anh Thắng: *"Khi up giờ trùng thì bỏ qua nhé"*. */
+echo "— duyệt: giờ trùng thì bỏ qua —\n";
+$CS_C  = 'TC_SHOP_C';
+$CHT_C = array( 'name' => 'Trưởng C', 'role' => VHCC_Vai::CHT, 'coso' => $CS_C, 'ma_nv' => 'TCCHTC' );
+foreach ( array(
+	array( 'TCNV3',  'Cường Nhân Viên', $CS_C, 'Nhân viên' ),
+	array( 'TCCHTC', 'Trưởng C',        $CS_C, 'Cửa hàng trưởng' ),
+) as $x_c ) {
+	$quan = VHCC_Vai::duoc( array( 'role' => $x_c[3] ), 'cong_coso' ) ? $x_c[2] : '';
+	$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => $x_c[0], 'ho_ten' => $x_c[1],
+		'cua_hang' => $x_c[2], 'vai_tro' => $x_c[3], 'coso_quan' => $quan,
+		'trang_thai_lam_viec' => 'Đang làm' ) );
+}
+$xc  = VHCC_TuanCong::xuat( $CHT_C, $CS_C, $TUAN );
+$dc  = VHCC_DocXlsx::doc( tep_tu( $xc['noi_dung'] ) );
+$k3  = VHCC_TuanCong::khoa_dong( $CS_C, $TUAN, '', 'TCNV3' );
+/* Hai ngày trống: một ngày sẽ bị "người khác chấm mất" trước lúc duyệt, một ngày để nguyên. */
+$sc  = sua_o( $dc['hang'], $k3, $NGAY[1], '08:00', '17:00', 'quên bấm cả hai hôm, có camera' );
+$sc  = sua_o( $sc, $k3, $NGAY[2], '09:00', '18:00', '' );
+$rc  = VHCC_TuanCong::nap( $CHT_C, $CS_C, $TUAN, ghi_tep( $sc ) );
+teq( 'gửi hai ô bù', 2, $rc['soDoi'] );
+
+/* Trong lúc đơn nằm chờ, ĐÚNG giờ ấy đã vào bảng công bằng đường khác. */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $CS_C, 'ngay' => $NGAY[1],
+	'ma_nv' => 'TCNV3', 'ho_ten' => 'Cường Nhân Viên', 'gio_vao_giay' => 28800,
+	'gio_ra_giay' => 61200, 'hau_to' => '', 'nguon' => 'may' ) );
+
+$rd = VHCC_TuanCong::duyet( $KT, $rc['id'], true );
+t( 'duyệt được', ! empty( $rd['ok'] ), $rd );
+teq( '🔴 ô đã trùng sẵn thì BỎ QUA, không tính là trượt', 1, $rd['trung'] );
+teq( '🔴 và KHÔNG có ô nào trượt', 0, count( $rd['truot'] ) );
+teq( 'ô còn lại vẫn lên bảng công', 1, $rd['xong'] );
+teq( 'ô bù thật sự đã vào', '09:00', VHCC_Bu::gio_hien_tai( $CS_C, $NGAY[2], 'TCNV3' )['vao'] );
+teq( 'ô trùng giữ nguyên giờ cũ', '08:00', VHCC_Bu::gio_hien_tai( $CS_C, $NGAY[1], 'TCNV3' )['vao'] );
+/* Ô trùng KHÔNG được đẻ thêm dòng nhật ký — nó không đổi gì cả. */
+$nk_c = 0;
+foreach ( VHCC_Bu::ds_nhat_ky( $ADMIN, $CS_C ) as $x_nk ) {
+	if ( (string) $x_nk['ngay'] === $NGAY[1] ) { $nk_c++; }
+}
+teq( '🔴 ô trùng không đẻ dòng nhật ký "đã động vào giờ công"', 0, $nk_c );
 
 foreach ( $tam as $x ) { @unlink( $x ); }
 }

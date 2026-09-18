@@ -202,14 +202,14 @@ class VHCC_WebLichSu {
 			. ' WHERE LOWER(coso)=LOWER(%s) ORDER BY id DESC LIMIT 60', $cs ), ARRAY_A );
 		$ds = is_array( $ds ) ? $ds : array();
 
-		echo '<div class="the"><details><summary><b>Đơn chỉnh bảng công theo tuần</b> — '
+		echo '<div class="the"><details><summary><b>Đơn chỉnh bảng công theo tháng</b> — '
 			. count( $ds ) . ' đơn gần đây <span class="mo">(bấm để mở)</span></summary>';
 		if ( ! $ds ) {
 			echo '<p class="mo" style="margin:10px 0 0">Chưa có đơn nào.</p></details></div>';
 			return;
 		}
 		echo '<div class="cuon" style="margin-top:10px"><table class="b"><thead><tr>'
-			. '<th>Tuần</th><th>Người gửi</th><th>Gửi lúc</th><th>Số ô đổi</th><th>Kết quả</th>'
+			. '<th>Kỳ</th><th>Người gửi</th><th>Gửi lúc</th><th>Số ô đổi</th><th>Kết quả</th>'
 			. '<th>Kế toán</th><th>Lúc xử</th><th>Ghi chú</th></tr></thead><tbody>';
 		foreach ( $ds as $d ) {
 			$tt = (string) $d['trang_thai'];
@@ -217,11 +217,12 @@ class VHCC_WebLichSu {
 			$ghi = '';
 			if ( VHCC_TuanCong::DUYET === $tt && is_array( $kq ) ) {
 				$ghi = (int) $kq['xong'] . ' ô đã ghi';
+				if ( ! empty( $kq['trung'] ) ) { $ghi .= ' · ' . (int) $kq['trung'] . ' ô trùng sẵn'; }
 				if ( ! empty( $kq['truot'] ) ) { $ghi .= ' · ' . count( $kq['truot'] ) . ' ô trượt'; }
 			} elseif ( '' !== trim( (string) $d['ly_do_choi'] ) ) {
 				$ghi = (string) $d['ly_do_choi'];
 			}
-			echo '<tr><td>' . esc_html( VHCC_TuanCong::ten_tuan( $d['tu_ngay'] ) ) . '</td>'
+			echo '<tr><td>' . esc_html( VHCC_TuanCong::ten_ky( $d['tu_ngay'], $d['den_ngay'] ) ) . '</td>'
 				. '<td>' . esc_html( (string) $d['ten_gui'] ) . '</td>'
 				. '<td class="mo">' . esc_html( (string) $d['gui_luc'] ) . '</td>'
 				. '<td>' . (int) $d['so_doi'] . '</td>'

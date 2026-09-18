@@ -1,6 +1,22 @@
 <?php
 /**
- * ĐƠN DUYỆT CHỈNH BẢNG CÔNG THEO TUẦN — cửa hàng trưởng sửa trên .xlsx, kế toán duyệt và khoá.
+ * ĐƠN DUYỆT CHỈNH BẢNG CÔNG THEO THÁNG — cửa hàng trưởng sửa trên .xlsx, kế toán duyệt và khoá.
+ *
+ * =============================================================================================
+ * 🔴 KỲ LÀ MỘT THÁNG, DÙ TÊN LỚP VẪN LÀ "TuanCong"
+ * =============================================================================================
+ * Anh Thắng 18/09/2026, ngay trong ngày chạy thử bản tuần: *"Với đi định theo tháng nhé"*. Lý do
+ * thì rõ khi nhìn việc kế tiếp: tờ này sửa xong là để TÍNH LƯƠNG, mà lương chốt theo tháng. Bản
+ * tuần bắt cửa hàng trưởng làm bốn lượt rồi kế toán duyệt bốn lượt cho một kỳ lương, và bốn ổ
+ * khoá rời nhau — sót một tuần là lương sai mà không ai thấy.
+ *
+ * ⚠️ TÊN LỚP, TÊN TỆP VÀ BẢNG `don_tuan` GIỮ NGUYÊN. Đổi tên là đổi cả tên bảng đang có dữ liệu
+ *    thật, cộng một lượt di trú — để lấy về đúng một chữ trong tên. Không đáng. Chỗ nào đọc mã
+ *    này thì nhớ: `tu_ngay` là NGÀY 1 của tháng, `den_ngay` là ngày cuối tháng.
+ *
+ * ⚠️ ĐƠN CŨ THEO TUẦN VẪN CÒN TRONG BẢNG. `ten_ky()` nhìn cặp `tu_ngay`/`den_ngay` mà đoán ra
+ *    đó là tuần hay tháng, nên màn kế toán và màn lịch sử in đúng nhãn cho cả hai đời. Đừng
+ *    thay nó bằng một câu `'Tháng ' . …` cho gọn — mấy đơn cũ sẽ mang nhãn sai.
  *
  * Anh Thắng 18/09/2026: *"sau hết 1 tuần, bắt đầu tuần mới, lúc này bảng công sẽ cho tải 1 file
  * excel của tuần trước, cửa hàng trưởng sẻ sửa trong đó, và gửi cho kế toán. kế toán sẽ xem bảng
@@ -56,76 +72,106 @@ class VHCC_TuanCong {
 
 	const TEN_TT = array(
 		self::CHO     => 'Chờ kế toán duyệt',
-		self::DUYET   => 'Đã duyệt & khoá tuần',
+		self::DUYET   => 'Đã duyệt & khoá tháng',
 		self::TU_CHOI => 'Không duyệt',
 	);
 
-	/** Lùi xa nhất được phép tải. Quá đây thì đó là việc của kế toán, không phải sửa tuần. */
-	const TUAN_LUI_TOI_DA = 12;
+	/** Lùi xa nhất được phép tải — sáu tháng là hết mọi kỳ lương còn tranh cãi được. */
+	const THANG_LUI_TOI_DA = 6;
 
-	/* ====================================================================== tuần */
+	/* ====================================================================== tháng (kỳ hiện hành) */
 
-	/**
-	 * Thứ Hai của tuần chứa `$ngay`. Tuần T2 → CN, theo đúng lời anh Thắng.
-	 *
-	 * ⚠️ Tính bằng `strtotime` trên chuỗi có hậu tố UTC, KHÔNG dùng `date('N')` của máy chủ —
-	 *    máy chủ hosting hay đặt múi giờ UTC trong khi `current_time()` đã cộng lệch sẵn, và
-	 *    trộn hai lối là lệch một ngày đúng vào đêm Chủ nhật.
-	 */
-	public static function thu_hai( $ngay ) {
+	/** Ngày 1 của tháng chứa `$ngay`. '' khi ngày rác. */
+	public static function dau_thang( $ngay ) {
 		$n = self::ngay( $ngay );
 		if ( '' === $n ) { return ''; }
-		$ts  = strtotime( $n . ' 00:00:00 UTC' );
-		$thu = (int) gmdate( 'N', $ts );          // 1 = T2 … 7 = CN
-		return gmdate( 'Y-m-d', $ts - ( $thu - 1 ) * 86400 );
+		return substr( $n, 0, 7 ) . '-01';
 	}
 
-	/** Chủ nhật của tuần bắt đầu từ `$tu_ngay`. */
-	public static function chu_nhat( $tu_ngay ) {
-		$n = self::ngay( $tu_ngay );
+	/**
+	 * Ngày cuối của tháng bắt đầu từ `$dau`.
+	 *
+	 * ⚠️ Đếm bằng `t` của `gmdate`, đừng cộng 30 ngày: tháng 2 và năm nhuận sai ngay, và sai
+	 *    đúng vào tháng mà ai cũng soát kỹ nhất.
+	 */
+	public static function cuoi_thang( $dau ) {
+		$n = self::dau_thang( $dau );
 		if ( '' === $n ) { return ''; }
-		return gmdate( 'Y-m-d', strtotime( $n . ' 00:00:00 UTC' ) + 6 * 86400 );
+		return gmdate( 'Y-m-t', strtotime( $n . ' 00:00:00 UTC' ) );
 	}
 
-	/** Thứ Hai của TUẦN TRƯỚC so với hôm nay — tuần mặc định bày ra để tải. */
-	public static function tuan_truoc() {
-		$t2 = self::thu_hai( (string) current_time( 'Y-m-d' ) );
-		return gmdate( 'Y-m-d', strtotime( $t2 . ' 00:00:00 UTC' ) - 7 * 86400 );
-	}
-
-	/** Bảy ngày của tuần. */
-	public static function bay_ngay( $tu_ngay ) {
-		$n = self::ngay( $tu_ngay );
+	/** Mọi ngày của tháng, theo thứ tự. */
+	public static function ngay_cua( $dau ) {
+		$n = self::dau_thang( $dau );
 		if ( '' === $n ) { return array(); }
-		$ts = strtotime( $n . ' 00:00:00 UTC' );
-		$ra = array();
-		for ( $i = 0; $i < 7; $i++ ) { $ra[] = gmdate( 'Y-m-d', $ts + $i * 86400 ); }
+		$ts  = strtotime( $n . ' 00:00:00 UTC' );
+		$het = (int) gmdate( 't', $ts );
+		$ra  = array();
+		for ( $i = 0; $i < $het; $i++ ) { $ra[] = gmdate( 'Y-m-d', $ts + $i * 86400 ); }
 		return $ra;
 	}
 
-	/** 'T2 14/09 → CN 20/09/2026' — để in trên nút và trên đơn. */
-	public static function ten_tuan( $tu_ngay ) {
-		$t = self::ngay( $tu_ngay );
-		if ( '' === $t ) { return ''; }
-		$c = self::chu_nhat( $t );
-		return 'T2 ' . gmdate( 'd/m', strtotime( $t . ' 00:00:00 UTC' ) )
-			. ' → CN ' . gmdate( 'd/m/Y', strtotime( $c . ' 00:00:00 UTC' ) );
+	/** 'Tháng 09/2026' — nhãn của kỳ. */
+	public static function ten_thang( $dau ) {
+		$n = self::dau_thang( $dau );
+		if ( '' === $n ) { return ''; }
+		return 'Tháng ' . gmdate( 'm/Y', strtotime( $n . ' 00:00:00 UTC' ) );
 	}
 
-	/** Mấy tuần gần đây, mới nhất trước — cho ô chọn tuần. Không bao giờ có tuần đang chạy. */
-	public static function ds_tuan( $so = 8 ) {
-		$so = max( 1, min( self::TUAN_LUI_TOI_DA, (int) $so ) );
-		$t  = self::tuan_truoc();
+	/**
+	 * Mấy tháng gần đây, mới nhất trước — cho ô chọn kỳ.
+	 *
+	 * 🔴 CÓ CẢ THÁNG ĐANG CHẠY, khác hẳn bản tuần. Một tuần chờ hết là chờ vài ngày; một tháng
+	 *    chờ hết là cửa hàng trưởng nhìn thấy giờ sai từ mùng 2 mà tới mùng 1 tháng sau mới
+	 *    sửa được. Đổi lại, khoá vẫn là việc của kế toán và vẫn phải tích ô xác nhận — chốt
+	 *    "duyệt một lần" không suy suyển.
+	 */
+	public static function ds_thang( $so = 6 ) {
+		$so = max( 1, min( self::THANG_LUI_TOI_DA, (int) $so ) );
+		$d  = self::dau_thang( (string) current_time( 'Y-m-d' ) );
 		$ra = array();
 		for ( $i = 0; $i < $so; $i++ ) {
-			$ra[] = gmdate( 'Y-m-d', strtotime( $t . ' 00:00:00 UTC' ) - $i * 7 * 86400 );
+			$ra[] = $d;
+			$d    = gmdate( 'Y-m-01', strtotime( $d . ' 00:00:00 UTC' ) - 86400 );
 		}
 		return $ra;
 	}
 
+	/**
+	 * NHÃN CỦA MỘT KỲ — tháng hay tuần, tự đoán.
+	 *
+	 * 🔴 ĐỪNG RÚT GỌN THÀNH `ten_thang()`. Bảng `don_tuan` còn giữ đơn đời tuần (18/09/2026);
+	 *    in nhãn tháng cho một đơn chỉ gồm bảy ngày là nói sai kỳ ngay trên màn duyệt.
+	 *    `den_ngay` là thứ tách bạch hai đời — có tháng mà ngày 1 rơi đúng thứ Hai.
+	 */
+	public static function ten_ky( $tu_ngay, $den_ngay = '' ) {
+		$t = self::ngay( $tu_ngay );
+		if ( '' === $t ) { return ''; }
+		$d = self::ngay( $den_ngay );
+		if ( '01' === substr( $t, 8, 2 ) && ( '' === $d || $d === self::cuoi_thang( $t ) ) ) {
+			return self::ten_thang( $t );
+		}
+		return self::ten_tuan_( $t );
+	}
+
+	/* ====================================================================== tuần (đời cũ) */
+
+	/**
+	 * 'T2 14/09 → CN 20/09/2026' — nhãn đời tuần, cho mấy đơn nạp trước 18/09/2026.
+	 *
+	 * ⚠️ Chỉ `ten_ky()` gọi tới, và chỉ để IN RA. Không còn chỗ nào dựng kỳ theo tuần nữa; mấy
+	 *    hàm mốc tuần (`thu_hai`, `bay_ngay`, `ds_tuan`…) đã gỡ cùng lượt đổi sang tháng.
+	 */
+	private static function ten_tuan_( $tu_ngay ) {
+		$t = self::ngay( $tu_ngay );
+		if ( '' === $t ) { return ''; }
+		$ts = strtotime( $t . ' 00:00:00 UTC' );
+		return 'T2 ' . gmdate( 'd/m', $ts ) . ' → CN ' . gmdate( 'd/m/Y', $ts + 6 * 86400 );
+	}
+
 	/* ====================================================================== trạng thái tuần */
 
-	/** Dòng đơn ĐÃ DUYỆT của tuần ấy, hoặc null. Có nó ⇔ tuần đã khoá. */
+	/** Dòng đơn ĐÃ DUYỆT của kỳ ấy, hoặc null. Có nó ⇔ kỳ đã khoá. */
 	public static function don_khoa( $coso, $tu_ngay ) {
 		global $wpdb;
 		$cs = VHCC_NhanSu::chuan_coso( $coso );
@@ -142,7 +188,7 @@ class VHCC_TuanCong {
 		return null !== self::don_khoa( $coso, $tu_ngay );
 	}
 
-	/** Đơn đang chờ của tuần ấy, hoặc null. */
+	/** Đơn đang chờ của kỳ ấy, hoặc null. */
 	public static function don_cho( $coso, $tu_ngay ) {
 		global $wpdb;
 		$cs = VHCC_NhanSu::chuan_coso( $coso );
@@ -168,7 +214,7 @@ class VHCC_TuanCong {
 	/* ====================================================================== khoá dòng */
 
 	/**
-	 * Chữ ký của một dòng. Gắn với CƠ SỞ, NGÀY, NGƯỜI và CẢ TUẦN — nên dán dòng từ tuần khác
+	 * Chữ ký của một dòng. Gắn với CƠ SỞ, NGÀY, NGƯỜI và CẢ KỲ — nên dán dòng từ tháng khác
 	 * sang là chữ ký không khớp.
 	 *
 	 * ⚠️ Dùng `wp_salt()` chứ không phải một hằng tự chế. Đổi khoá WordPress thì mọi tệp đang
@@ -332,8 +378,8 @@ class VHCC_TuanCong {
 	 *    im lặng. Nên mỗi ô tiêu đề mang sẵn ngày dạng `YYYY-MM-DD`, và lúc đọc thì dò ngược
 	 *    từ chữ ấy ra. Thiếu ngày nào thì chối cả tệp chứ không đoán.
 	 *
-	 * ⚠️ MỘT LÝ DO CHO CẢ DÒNG, không phải mỗi ngày một ô lý do. Bảy ô lý do nữa là tờ rộng gấp
-	 *    rưỡi và gần như luôn để trống. Đổi mấy ngày của cùng một người thì thường cùng một lý
+	 * ⚠️ MỘT LÝ DO CHO CẢ DÒNG, không phải mỗi ngày một ô lý do. Ba mươi mốt ô lý do nữa là tờ
+	 *    rộng gấp đôi và gần như luôn để trống. Đổi mấy ngày của cùng một người thì thường cùng một lý
 	 *    do ("máy hỏng hôm ấy"); cần tách bạch thì gửi hai lượt.
 	 * ═══════════════════════════════════════════════════════════════════════════════════════ */
 
@@ -343,18 +389,26 @@ class VHCC_TuanCong {
 	const C_NGAY_DAU = 2;
 	const O_MOI_NGAY = 1;
 
-	/** Ba cột đuôi, tính từ sau 7 ngày. */
-	const C_TONG = self::C_NGAY_DAU + 7 * self::O_MOI_NGAY;      // 9
-	const C_LYDO = self::C_TONG + 1;                              // 10
-	const C_KHOA = self::C_TONG + 2;                              // 11
+	/**
+	 * Ba cột đuôi. Từ bản tháng chúng KHÔNG còn ở vị trí cố định — tháng 28 ngày và tháng 31
+	 * ngày lệch nhau ba cột.
+	 *
+	 * 🔴 Đây là lý do `doi()` dò cột theo CHỮ trong dòng tiêu đề chứ không đếm. Mã nào còn đếm
+	 *    `C_NGAY_DAU + 7` là đọc nhầm sang ô giờ ngay khi qua tháng khác.
+	 */
+	public static function c_tong( $tu_ngay ) {
+		return self::C_NGAY_DAU + count( self::ngay_cua( $tu_ngay ) ) * self::O_MOI_NGAY;
+	}
+	public static function c_lydo( $tu_ngay ) { return self::c_tong( $tu_ngay ) + 1; }
+	public static function c_khoa( $tu_ngay ) { return self::c_tong( $tu_ngay ) + 2; }
 
 	/** Dòng tiêu đề của tờ. */
 	public static function cot( $tu_ngay ) {
 		$c = array( 'Mã NV', 'Họ tên' );
-		foreach ( self::bay_ngay( $tu_ngay ) as $ng ) {
+		foreach ( self::ngay_cua( $tu_ngay ) as $ng ) {
 			$c[] = self::ten_thu( $ng ) . ' ' . $ng;
 		}
-		$c[] = 'Tổng giờ tuần';
+		$c[] = 'Tổng giờ tháng';
 		$c[] = 'Lý do sửa';
 		$c[] = 'KHOÁ — ĐỪNG SỬA';
 		return $c;
@@ -367,22 +421,22 @@ class VHCC_TuanCong {
 	}
 
 	/**
-	 * Mọi dòng của tuần: MỌI NGƯỜI × BẢY NGÀY, kể cả ngày không có lượt chấm nào.
+	 * Mọi dòng của kỳ: MỌI NGƯỜI × MỌI NGÀY TRONG THÁNG, kể cả ngày không có lượt chấm nào.
 	 *
 	 * 🔴 BÀY CẢ Ô TRỐNG, ĐÓ LÀ CHỦ Ý. Tờ chỉ có những ngày đã chấm thì cửa hàng trưởng không có
 	 *    chỗ nào để điền ngày người ta quên bấm — mà đó chính là lý do quy trình này tồn tại.
 	 *    Ô trống điền vào thì lúc duyệt đi đường `VHCC_Bu::ghi()` (bù), ô có sẵn thì đi đường
 	 *    `VHCC_Bu::sua()`. Hai đường khác nhau, và khác đúng chỗ cần khác.
 	 *
-	 * ⚠️ Người đã nghỉ việc VẪN có mặt nếu tuần ấy họ còn chấm. Bỏ họ ra là tuần cuối của người
-	 *    nghỉ việc không ai sửa được, mà đó lại là tuần hay sai nhất.
+	 * ⚠️ Người đã nghỉ việc VẪN có mặt nếu tháng ấy họ còn chấm. Bỏ họ ra là tháng cuối của người
+	 *    nghỉ việc không ai sửa được, mà đó lại là tháng hay sai nhất.
 	 */
-	public static function hang_tuan( $coso, $tu_ngay ) {
+	public static function hang_ky( $coso, $tu_ngay ) {
 		global $wpdb;
 		$cs = VHCC_NhanSu::chuan_coso( $coso );
-		$t2 = self::ngay( $tu_ngay );
+		$t2 = self::dau_thang( $tu_ngay );
 		if ( '' === $cs || '' === $t2 ) { return array(); }
-		$cn = self::chu_nhat( $t2 );
+		$cn = self::cuoi_thang( $t2 );
 
 		$cham = $wpdb->get_results( $wpdb->prepare(
 			'SELECT ngay, ma_nv, hau_to, ho_ten, gio_vao_giay, gio_ra_giay FROM '
@@ -420,7 +474,7 @@ class VHCC_TuanCong {
 
 		$ra = array();
 		foreach ( $nguoi as $ma => $tn ) {
-			foreach ( self::bay_ngay( $t2 ) as $ng ) {
+			foreach ( self::ngay_cua( $t2 ) as $ng ) {
 				/* Hậu tố: mỗi hậu tố là một hàng riêng của cùng một người (ca đêm, tăng cường). */
 				$ht_co = array( '' );
 				foreach ( $co as $k => $_x ) {
@@ -458,28 +512,30 @@ class VHCC_TuanCong {
 	public static function vi_sao_khong_tai( $u, $coso, $tu_ngay ) {
 		$cs = VHCC_NhanSu::chuan_coso( $coso );
 		$t2 = self::ngay( $tu_ngay );
-		if ( '' === $cs || '' === $t2 ) { return 'Thiếu cơ sở hoặc tuần.'; }
-		if ( $t2 !== self::thu_hai( $t2 ) ) { return 'Tuần phải bắt đầu từ thứ Hai.'; }
+		if ( '' === $cs || '' === $t2 ) { return 'Thiếu cơ sở hoặc tháng.'; }
+		if ( $t2 !== self::dau_thang( $t2 ) ) { return 'Kỳ phải bắt đầu từ ngày 1 của tháng.'; }
 		if ( ! VHCC_Vai::duoc( $u, self::QUYEN_TAI ) ) {
-			return VHCC_Vai::loi( $u, self::QUYEN_TAI, 'Tải bảng công tuần' );
+			return VHCC_Vai::loi( $u, self::QUYEN_TAI, 'Tải bảng công tháng' );
 		}
 		if ( ! VHCC_NhanSu::co_quyen_coso( $u, $cs ) ) { return 'Không có quyền cơ sở này.'; }
 
-		/* 🔴 KHÔNG TẢI TUẦN ĐANG CHẠY. Anh Thắng: *"sau hết 1 tuần, bắt đầu tuần mới"*. Tuần chưa
-		   xong thì người ta còn đang chấm, và sửa một tuần đang chạy là sửa thứ chốc nữa lại đổi. */
-		if ( $t2 >= self::thu_hai( (string) current_time( 'Y-m-d' ) ) ) {
-			return 'Tuần này chưa kết thúc. Sang tuần mới rồi mới tải được bảng công của nó.';
+		/* 🔴 THÁNG CHƯA TỚI thì chối — tờ của nó rỗng, tải về chỉ tổ nạp nhầm.
+		   Nhưng THÁNG ĐANG CHẠY thì CHO, khác hẳn bản tuần. Chờ hết tuần là chờ vài ngày; chờ
+		   hết tháng là thấy giờ sai từ mùng 2 mà tới mùng 1 tháng sau mới sửa được — và lúc ấy
+		   thì lương đã trả. Khoá vẫn nằm ở tay kế toán, nên chốt "duyệt một lần" còn nguyên. */
+		if ( $t2 > self::dau_thang( (string) current_time( 'Y-m-d' ) ) ) {
+			return 'Tháng này chưa tới. Chỉ tải được tháng đang chạy hoặc tháng đã qua.';
 		}
 
-		/* Tuần đã khoá: chỉ Admin. Anh Thắng: *"admin có quyền tải nếu khóa"*. */
+		/* Tháng đã khoá: chỉ Admin. Anh Thắng: *"admin có quyền tải nếu khóa"*. */
 		if ( self::khoa_roi( $cs, $t2 ) && ! VHCC_Vai::duoc( $u, self::QUYEN_KHOA ) ) {
-			return 'Tuần ' . self::ten_tuan( $t2 ) . ' đã được kế toán duyệt và khoá — không sửa nữa. '
+			return self::ten_ky( $t2 ) . ' đã được kế toán duyệt và khoá — không sửa nữa. '
 				. 'Thấy còn sai thì báo kế toán.';
 		}
 		return '';
 	}
 
-	/** Nội dung tệp .xlsx của một tuần. `error` khi không dựng được. */
+	/** Nội dung tệp .xlsx của một tháng. `error` khi không dựng được. */
 	public static function xuat( $u, $coso, $tu_ngay ) {
 		$chan = self::vi_sao_khong_tai( $u, $coso, $tu_ngay );
 		if ( '' !== $chan ) { return array( 'ok' => false, 'error' => $chan ); }
@@ -489,11 +545,11 @@ class VHCC_TuanCong {
 		}
 
 		$cs = VHCC_NhanSu::chuan_coso( $coso );
-		$t2 = self::ngay( $tu_ngay );
-		$ds = self::hang_tuan( $cs, $t2 );
+		$t2 = self::dau_thang( $tu_ngay );
+		$ds = self::hang_ky( $cs, $t2 );
 		if ( ! $ds ) {
 			return array( 'ok' => false,
-				'error' => 'Cơ sở ' . $cs . ' chưa có người nào trong tuần ' . self::ten_tuan( $t2 ) . '.' );
+				'error' => 'Cơ sở ' . $cs . ' chưa có người nào trong ' . self::ten_ky( $t2 ) . '.' );
 		}
 
 		/* Gom theo NGƯỜI (mã + hậu tố) — mỗi người một dòng, bảy ngày nằm ngang. */
@@ -507,8 +563,8 @@ class VHCC_TuanCong {
 			$theo_nguoi[ $k ]['ngay'][ $r['ngay'] ] = $r;
 		}
 
-		$bay  = self::bay_ngay( $t2 );
-		$hang = array( self::cot( $t2 ) );
+		$ngay_ky = self::ngay_cua( $t2 );
+		$hang    = array( self::cot( $t2 ) );
 		foreach ( $theo_nguoi as $n ) {
 			$dong = array(
 				/* 🔴 Mã NV LUÔN là chữ. `0029` để Excel tự đoán là thành số 29 — xem `VHCC_Xuat::o()`.
@@ -518,7 +574,7 @@ class VHCC_TuanCong {
 				VHCC_Xuat::o_kieu( VHCC_Xuat::chu( $n['ten'] ), VHCC_Xuat::GIUA_DOC ),
 			);
 			$tong = 0.0;
-			foreach ( $bay as $ng ) {
+			foreach ( $ngay_ky as $ng ) {
 				$r = isset( $n['ngay'][ $ng ] ) ? $n['ngay'][ $ng ] : null;
 				/* Kiểu HAI_HÀNG — thiếu `wrapText` thì Excel dính hai giờ làm một hàng. */
 				$dong[] = VHCC_Xuat::o_kieu( self::o_gio( $r ? $r['vao'] : '', $r ? $r['ra'] : '' ),
@@ -527,18 +583,22 @@ class VHCC_TuanCong {
 			}
 			$dong[] = VHCC_Xuat::o_kieu( ( $tong > 0 ? round( $tong, 2 ) : '' ), VHCC_Xuat::GIUA_DOC );
 			$dong[] = VHCC_Xuat::o_kieu( '', VHCC_Xuat::GIUA_DOC );
-			/* Khoá gắn với NGƯỜI + TUẦN + CƠ SỞ. Ngày thì đọc từ dòng tiêu đề, nên một khoá cho
-			   cả dòng là đủ — và ngắn hơn hẳn chín cái khoá của bản dọc. */
+			/* Khoá gắn với NGƯỜI + KỲ + CƠ SỞ. Ngày thì đọc từ dòng tiêu đề, nên một khoá cho
+			   cả dòng là đủ — và ngắn hơn hẳn ba mươi mốt cái khoá của bản dọc. */
 			$dong[] = VHCC_Xuat::o_kieu(
 				VHCC_Xuat::chu( self::khoa_dong( $cs, $t2, '', $n['ma'], $n['ht'] ) ),
 				VHCC_Xuat::GIUA_DOC );
 			$hang[] = $dong;
 		}
 
+		/* ⚠️ Ô ngày hẹp lại còn 9 so với bản tuần (13): ba mươi mốt cột ngày ở bề rộng cũ là tờ
+		   dài gấp bốn màn hình, phải cuộn ngang mới thấy hết một người — đúng cái mà bố cục
+		   ngang sinh ra để tránh. 9 vẫn đủ cho 'HH:mm' trên hai hàng. */
 		$noi = VHCC_Xuat::xlsx( array( array(
-			'ten'  => 'Tuan',
+			'ten'  => 'Thang',
 			'hang' => $hang,
-			'cot'  => array_merge( array( 18, 26 ), array_fill( 0, 7, 13 ), array( 11, 34, 26 ) ),
+			'cot'  => array_merge( array( 18, 26 ), array_fill( 0, count( $ngay_ky ), 9 ),
+				array( 11, 34, 26 ) ),
 		) ) );
 		if ( null === $noi ) {
 			return array( 'ok' => false, 'error' => 'Không dựng được tệp .xlsx trên máy chủ này.' );
@@ -549,7 +609,8 @@ class VHCC_TuanCong {
 
 	public static function ten_tep( $coso, $tu_ngay ) {
 		$cs = preg_replace( '/[^A-Za-z0-9_-]+/', '', (string) $coso );
-		return 'bang-cong-' . ( '' !== $cs ? $cs : 'coso' ) . '-tuan-' . self::ngay( $tu_ngay ) . '.xlsx';
+		return 'bang-cong-' . ( '' !== $cs ? $cs : 'coso' ) . '-thang-'
+			. substr( self::dau_thang( $tu_ngay ), 0, 7 ) . '.xlsx';
 	}
 
 	/* ====================================================================== nạp lên */
@@ -566,10 +627,10 @@ class VHCC_TuanCong {
 		if ( '' !== $chan ) { return array( 'ok' => false, 'error' => $chan ); }
 
 		$cs = VHCC_NhanSu::chuan_coso( $coso );
-		$t2 = self::ngay( $tu_ngay );
+		$t2 = self::dau_thang( $tu_ngay );
 
 		if ( self::khoa_roi( $cs, $t2 ) ) {
-			return array( 'ok' => false, 'error' => 'Tuần này đã khoá — không nhận tệp nữa.' );
+			return array( 'ok' => false, 'error' => 'Tháng này đã khoá — không nhận tệp nữa.' );
 		}
 
 		$doc = VHCC_DocXlsx::doc( $duong_tep );
@@ -579,11 +640,13 @@ class VHCC_TuanCong {
 		if ( empty( $kq['ok'] ) ) { return $kq; }
 		if ( ! $kq['doi'] ) {
 			return array( 'ok' => false,
-				'error' => 'Tệp này không khác bảng công đang có ô nào — chưa có gì để kế toán duyệt.' );
+				'error' => 'Mọi ô giờ trong tệp đều TRÙNG với bảng công đang có, nên đã bỏ qua hết — '
+					. 'không còn gì để kế toán duyệt. Nếu vừa sửa xong thì xem lại đã lưu tệp chưa, '
+					. 'và đã gửi đúng tệp vừa sửa chưa.' );
 		}
 
 		global $wpdb;
-		/* Gửi lượt mới thì lượt chờ cũ thành "không duyệt" — hai đơn cùng chờ cho một tuần là
+		/* Gửi lượt mới thì lượt chờ cũ thành "không duyệt" — hai đơn cùng chờ cho một tháng là
 		   kế toán duyệt nhầm cái cũ. Anh Thắng: *"nếu sai, kế toán sẽ báo cht gửi lại file khác"*. */
 		$wpdb->update( VHCC_DB::t( 'don_tuan' ),
 			array( 'trang_thai' => self::TU_CHOI,
@@ -594,7 +657,7 @@ class VHCC_TuanCong {
 		$wpdb->insert( VHCC_DB::t( 'don_tuan' ), array(
 			'coso'       => $cs,
 			'tu_ngay'    => $t2,
-			'den_ngay'   => self::chu_nhat( $t2 ),
+			'den_ngay'   => self::cuoi_thang( $t2 ),
 			'ma_nv_gui'  => isset( $u['ma_nv'] ) ? (string) $u['ma_nv'] : '',
 			'ten_gui'    => isset( $u['name'] ) ? (string) $u['name'] : '',
 			'gui_luc'    => current_time( 'mysql' ),
@@ -608,7 +671,8 @@ class VHCC_TuanCong {
 		self::bao_ke_toan( $cs, $t2, $id, $u, count( $kq['doi'] ) );
 
 		return array( 'ok' => true, 'id' => $id, 'soDoi' => count( $kq['doi'] ),
-			'soDong' => (int) $kq['soDong'], 'doi' => $kq['doi'] );
+			'soDong' => (int) $kq['soDong'], 'doi' => $kq['doi'],
+			'soTrung' => (int) $kq['soTrung'], 'soLap' => (int) $kq['soLap'] );
 	}
 
 	/**
@@ -621,7 +685,7 @@ class VHCC_TuanCong {
 	 */
 	public static function doi( $coso, $tu_ngay, $hang ) {
 		$cs = VHCC_NhanSu::chuan_coso( $coso );
-		$t2 = self::ngay( $tu_ngay );
+		$t2 = self::dau_thang( $tu_ngay );
 
 		$hang = array_values( (array) $hang );
 		if ( count( $hang ) < 2 ) {
@@ -643,10 +707,10 @@ class VHCC_TuanCong {
 		}
 
 		if ( $co_khoa < 0 ) {
-			return array( 'ok' => false, 'error' => 'Tệp này không đúng mẫu bảng công tuần '
+			return array( 'ok' => false, 'error' => 'Tệp này không đúng mẫu bảng công tháng '
 				. '(thiếu cột KHOÁ). Tải lại tệp mẫu rồi sửa trên đó, đừng dựng tệp mới.' );
 		}
-		$bay = self::bay_ngay( $t2 );
+		$bay = self::ngay_cua( $t2 );
 		$thay = array();
 		foreach ( $cot_ngay as $x ) { $thay[ $x ] = true; }
 		foreach ( $bay as $ng ) {
@@ -658,25 +722,37 @@ class VHCC_TuanCong {
 
 		/* Bảng công đang có, tra theo khoá dòng rồi tới ngày. */
 		$dang = array();
-		foreach ( self::hang_tuan( $cs, $t2 ) as $r ) {
+		foreach ( self::hang_ky( $cs, $t2 ) as $r ) {
 			$dang[ $r['khoa'] ][ $r['ngay'] ] = $r;
 		}
 
-		$doi = array();
-		$so  = 0;
+		$doi      = array();
+		$so       = 0;
+		$so_lap   = 0;
+		$so_trung = 0;
+		$da_gap = array();
 		foreach ( $hang as $i_d => $d ) {
 			if ( ! is_array( $d ) ) { continue; }
 			$d    = array_values( $d );
 			$khoa = isset( $d[ $co_khoa ] ) ? trim( (string) $d[ $co_khoa ] ) : '';
 			if ( '' === $khoa ) { continue; }          // dòng người ta chèn thêm — bỏ, không đoán
+
+			/* 🔴 DÒNG LẶP LẠI CÙNG MỘT KHOÁ THÌ BỎ QUA, KHÔNG CHỐI CẢ TỆP — anh Thắng 18/09/2026:
+			   *"Khi up giờ trùng thì bỏ qua nhé"*. Tờ một tháng dài nên người ta hay dán thêm
+			   một khối để đối chiếu rồi quên xoá. Lấy cả hai dòng thì cùng một ngày vào đơn hai
+			   lần, và lúc duyệt ô sau đè lên ô trước — im lặng. Lấy dòng ĐẦU: đó là dòng nằm
+			   đúng chỗ tệp mẫu sinh ra, khối dán thêm bao giờ cũng ở dưới. */
+			if ( isset( $da_gap[ $khoa ] ) ) { $so_lap++; continue; }
+			$da_gap[ $khoa ] = true;
+
 			$so++;
 			$dong_so = $i_d + 2;
 
 			$k = self::doc_khoa( $khoa, $cs, $t2 );
 			if ( null === $k ) {
 				return array( 'ok' => false, 'error' => 'Dòng ' . $dong_so . ' có cột KHOÁ sai. '
-					. 'Thường là do dán từ tệp tuần khác sang, hoặc sửa tay vào cột ấy. '
-					. 'Tải lại tệp của đúng tuần ' . self::ten_tuan( $t2 ) . ' rồi sửa trên đó.' );
+					. 'Thường là do dán từ tệp tháng khác sang, hoặc sửa tay vào cột ấy. '
+					. 'Tải lại tệp của đúng ' . self::ten_ky( $t2 ) . ' rồi sửa trên đó.' );
 			}
 			if ( ! isset( $dang[ $khoa ] ) ) {
 				return array( 'ok' => false, 'error' => 'Dòng ' . $dong_so
@@ -705,7 +781,10 @@ class VHCC_TuanCong {
 				$cu  = $dang[ $khoa ][ $ng ];
 				$vao = isset( $moi[ $ng ]['vao'] ) ? $moi[ $ng ]['vao'] : $cu['vao'];
 				$ra  = isset( $moi[ $ng ]['ra'] ) ? $moi[ $ng ]['ra'] : $cu['ra'];
-				if ( $vao === $cu['vao'] && $ra === $cu['ra'] ) { continue; }
+				/* Ô GIỜ TRÙNG SẴN THÌ BỎ QUA — không vào đơn, không bắt kế toán đọc. Tờ một
+				   tháng có hơn ba nghìn ô mà thường chỉ vài ô đổi; đây là nhánh chạy nhiều
+				   nhất của cả hàm. */
+				if ( $vao === $cu['vao'] && $ra === $cu['ra'] ) { $so_trung++; continue; }
 				if ( '' !== $vao && '' !== $ra && $ra <= $vao ) {
 					return array( 'ok' => false, 'error' => 'Dòng ' . $dong_so . ' (' . $cu['ho_ten']
 						. ' ngày ' . $ng . ') có giờ ra không sau giờ vào.' );
@@ -727,7 +806,7 @@ class VHCC_TuanCong {
 			if ( ! $dong_doi ) { continue; }
 
 			/* ⚠️ MỘT LÝ DO CHO CẢ DÒNG. Sửa ba ngày của cùng một người thì thường cùng một lý do;
-			   bảy ô lý do nữa là tờ rộng gấp rưỡi và gần như luôn để trống. */
+			   ba mươi mốt ô lý do nữa là tờ rộng gấp đôi và gần như luôn để trống. */
 			if ( mb_strlen( $ly_do, 'UTF-8' ) < 5 ) {
 				return array( 'ok' => false, 'error' => 'Dòng ' . $dong_so . ' ('
 					. $dong_doi[0]['hoTen'] . ') có sửa giờ nhưng chưa ghi Lý do sửa. '
@@ -742,7 +821,8 @@ class VHCC_TuanCong {
 		if ( ! $so ) {
 			return array( 'ok' => false, 'error' => 'Tệp không có dòng nào mang cột KHOÁ.' );
 		}
-		return array( 'ok' => true, 'doi' => $doi, 'soDong' => $so );
+		return array( 'ok' => true, 'doi' => $doi, 'soDong' => $so,
+			'soTrung' => $so_trung, 'soLap' => $so_lap );
 	}
 
 	/**
@@ -775,7 +855,7 @@ class VHCC_TuanCong {
 
 	private static function bao_ke_toan( $cs, $t2, $id, $u, $so_doi ) {
 		if ( ! class_exists( 'VHCC_Chuong' ) || ! method_exists( 'VHCC_Chuong', 'bao' ) ) { return; }
-		$chu = 'Cửa hàng ' . $cs . ' gửi đơn chỉnh bảng công tuần ' . self::ten_tuan( $t2 )
+		$chu = 'Cửa hàng ' . $cs . ' gửi đơn chỉnh bảng công ' . self::ten_ky( $t2 )
 			. ' — ' . (int) $so_doi . ' ô giờ chờ duyệt.';
 		foreach ( self::ai_duyet() as $ma ) {
 			VHCC_Chuong::bao( $ma, $chu, 'cc_dontuan:' . (int) $id,
@@ -820,14 +900,14 @@ class VHCC_TuanCong {
 	 * =========================================================================================
 	 * 🔴 DUYỆT LÀ MỘT LƯỢT, KHÔNG QUAY LẠI ĐƯỢC
 	 * =========================================================================================
-	 * Anh Thắng: *"chỉ duyệt và gửi 1 lần) nên cần đảm bảo chính xác"*. Duyệt xong là tuần khoá:
+	 * Anh Thắng: *"chỉ duyệt và gửi 1 lần) nên cần đảm bảo chính xác"*. Duyệt xong là tháng khoá:
 	 * không tải lại, không nạp lại, không duyệt lần hai. Nên ở đây chốt kỹ hai chỗ:
 	 *   · đơn phải còn ở trạng thái CHỜ — bấm hai lần trên hai tab không ghi hai lượt;
-	 *   · tuần chưa có đơn nào đã duyệt — hai đơn của cùng một tuần thì chỉ một cái ăn.
+	 *   · tháng chưa có đơn nào đã duyệt — hai đơn của cùng một tháng thì chỉ một cái ăn.
 	 *
-	 * ⚠️ TUẦN VẪN KHOÁ DÙ CÓ Ô TRƯỢT. Mỗi ô đi qua `VHCC_Bu` với đủ gác cũ, nên vài ô có thể bị
+	 * ⚠️ THÁNG VẪN KHOÁ DÙ CÓ Ô TRƯỢT. Mỗi ô đi qua `VHCC_Bu` với đủ gác cũ, nên vài ô có thể bị
 	 *    chối (giờ của chính kế toán, người đã đổi cơ sở…). Không khoá vì vài ô trượt thì cửa
-	 *    hàng trưởng phải gửi lại cả tuần cho mấy ô mà kế toán đã cố ý chấp nhận. Ô nào trượt
+	 *    hàng trưởng phải gửi lại cả tháng cho mấy ô mà kế toán đã cố ý chấp nhận. Ô nào trượt
 	 *    ghi thẳng vào `ket_qua` của đơn, kế toán đọc lại được và xử tay từng ô.
 	 */
 	public static function duyet( $u, $id, $dong_y = true, $ly_do_choi = '' ) {
@@ -866,11 +946,25 @@ class VHCC_TuanCong {
 		}
 
 		if ( self::khoa_roi( $don['coso'], $don['tu_ngay'] ) ) {
-			return array( 'ok' => false, 'error' => 'Tuần ' . self::ten_tuan( $don['tu_ngay'] )
+			return array( 'ok' => false, 'error' => self::ten_ky( $don['tu_ngay'], $don['den_ngay'] )
 				. ' của cơ sở này đã có một đơn được duyệt rồi.' );
 		}
 
+		/* 🔴 ĐỌC LẠI BẢNG CÔNG NGAY LÚC DUYỆT, đừng tin cờ `them` chụp lúc nạp. Giữa lúc cửa
+		   hàng gửi và lúc kế toán bấm có thể vài ngày — trong quãng ấy máy chấm công đã ghi
+		   thêm, hoặc một đơn xin bù lẻ đã được duyệt. Tin cờ cũ thì:
+		     · ô nay đã có giờ mà vẫn đi đường BÙ → `VHCC_Bu::ghi()` chối "đã có đủ giờ rồi",
+		       ô trượt, mà tháng thì vừa khoá xong;
+		     · ô nay đã đúng y giờ cần ghi → vẫn ghi một lượt nữa, đẻ thêm một dòng nhật ký
+		       "đã động vào giờ công" cho một thay đổi không có thật.
+		   Anh Thắng 18/09/2026: *"Khi up giờ trùng thì bỏ qua nhé"*. */
+		$gio_nay = array();
+		foreach ( self::hang_ky( $don['coso'], $don['tu_ngay'] ) as $r ) {
+			$gio_nay[ $r['ma_nv'] . '|' . $r['hau_to'] . '|' . $r['ngay'] ] = $r;
+		}
+
 		$xong  = 0;
+		$trung = 0;
 		$truot = array();
 		foreach ( self::doi_cua( $don ) as $o ) {
 			$dat = array(
@@ -879,11 +973,24 @@ class VHCC_TuanCong {
 				'ma_nv'  => (string) $o['maNV'] . ( '' !== (string) $o['hauTo'] ? ( '-' . $o['hauTo'] ) : '' ),
 				'vao'    => (string) $o['vao'],
 				'ra'     => (string) $o['ra'],
-				'ly_do'  => 'Đơn tuần #' . (int) $don['id'] . ': ' . (string) $o['lyDo'],
+				'ly_do'  => 'Đơn tháng #' . (int) $don['id'] . ': ' . (string) $o['lyDo'],
 			);
-			/* Ô trống từ đầu thì là BÙ (điền vào chỗ chưa có), ô đã có giờ thì là SỬA ĐÈ. Hai
+
+			$k   = (string) $o['maNV'] . '|' . (string) $o['hauTo'] . '|' . (string) $o['ngay'];
+			$nay = isset( $gio_nay[ $k ] ) ? $gio_nay[ $k ] : null;
+
+			/* Đã đúng y giờ cần ghi → BỎ QUA, không tính là trượt. */
+			if ( $nay && (string) $nay['vao'] === (string) $o['vao']
+				&& (string) $nay['ra'] === (string) $o['ra'] ) {
+				$trung++;
+				continue;
+			}
+
+			/* Ô đang TRỐNG thì là BÙ (điền vào chỗ chưa có), ô đang CÓ GIỜ thì là SỬA ĐÈ. Hai
 			   đường gác khác nhau và ghi nhật ký khác nhau — xem `VHCC_Bu`. */
-			$r = ! empty( $o['them'] ) ? VHCC_Bu::ghi( $u, $dat ) : VHCC_Bu::sua( $u, $dat );
+			$dang_trong = $nay ? ( '' === (string) $nay['vao'] && '' === (string) $nay['ra'] )
+				: ! empty( $o['them'] );
+			$r = $dang_trong ? VHCC_Bu::ghi( $u, $dat ) : VHCC_Bu::sua( $u, $dat );
 			if ( ! empty( $r['ok'] ) ) {
 				$xong++;
 			} else {
@@ -894,13 +1001,14 @@ class VHCC_TuanCong {
 
 		$wpdb->update( VHCC_DB::t( 'don_tuan' ),
 			array_merge( $ai, array( 'trang_thai' => self::DUYET,
-				'ket_qua' => wp_json_encode( array( 'xong' => $xong, 'truot' => $truot ) ) ) ),
+				'ket_qua' => wp_json_encode( array( 'xong' => $xong, 'trung' => $trung,
+					'truot' => $truot ) ) ) ),
 			array( 'id' => (int) $don['id'] ) );
 
 		self::bao_gui( $don, true, '', $u, $xong, count( $truot ) );
 
-		return array( 'ok' => true, 'quyet' => self::DUYET, 'xong' => $xong,
-			'truot' => $truot, 'khoa' => self::ten_tuan( $don['tu_ngay'] ) );
+		return array( 'ok' => true, 'quyet' => self::DUYET, 'xong' => $xong, 'trung' => $trung,
+			'truot' => $truot, 'khoa' => self::ten_ky( $don['tu_ngay'], $don['den_ngay'] ) );
 	}
 
 	private static function bao_gui( $don, $dong_y, $ly_do, $u, $xong = 0, $so_truot = 0 ) {
@@ -908,11 +1016,11 @@ class VHCC_TuanCong {
 		$ma = trim( (string) $don['ma_nv_gui'] );
 		if ( '' === $ma ) { return; }
 		$chu = $dong_y
-			? ( 'Đơn chỉnh bảng công tuần ' . self::ten_tuan( $don['tu_ngay'] ) . ' đã được duyệt — '
-				. (int) $xong . ' ô đã lên bảng công'
+			? ( 'Đơn chỉnh bảng công ' . self::ten_ky( $don['tu_ngay'], $don['den_ngay'] )
+				. ' đã được duyệt — ' . (int) $xong . ' ô đã lên bảng công'
 				. ( $so_truot > 0 ? ( ', ' . (int) $so_truot . ' ô không ghi được' ) : '' )
-				. '. Tuần này đã khoá.' )
-			: ( 'Đơn chỉnh bảng công tuần ' . self::ten_tuan( $don['tu_ngay'] )
+				. '. Tháng này đã khoá.' )
+			: ( 'Đơn chỉnh bảng công ' . self::ten_ky( $don['tu_ngay'], $don['den_ngay'] )
 				. ' không được duyệt. Lý do: ' . $ly_do . ' Sửa lại rồi gửi tệp khác.' );
 		VHCC_Chuong::bao( $ma, $chu, 'cc_dontuan:' . (int) $don['id'],
 			isset( $u['ma_nv'] ) ? (string) $u['ma_nv'] : '' );

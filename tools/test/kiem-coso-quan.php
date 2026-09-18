@@ -105,11 +105,11 @@ t( 'Quản lý trở lên vẫn xem được mọi cơ sở',        VHCC_NhanSu
 /* ================================================================= mấy cửa đi qua cổng */
 
 echo "— mấy cửa lớn —\n";
-/* Tệp bảng công tuần: trước bản này chị ấy tải được cả POSH_HCM. */
-$TUAN = VHCC_TuanCong::tuan_truoc();
-teq( 'tải được tệp tuần của cơ sở mình quản', '',
+/* Tệp bảng công tháng: trước bản này chị ấy tải được cả POSH_HCM. */
+$TUAN = VHCC_TuanCong::dau_thang( (string) current_time( 'Y-m-d' ) );
+teq( 'tải được tệp tháng của cơ sở mình quản', '',
 	VHCC_TuanCong::vi_sao_khong_tai( $CHT, $CHINH, $TUAN ) );
-t( '🔴 KHÔNG tải được tệp tuần của nơi chỉ đi làm',
+t( '🔴 KHÔNG tải được tệp tháng của nơi chỉ đi làm',
 	'' !== VHCC_TuanCong::vi_sao_khong_tai( $CHT, $LAM, $TUAN ) );
 
 /* Duyệt đơn bù cấp một. */

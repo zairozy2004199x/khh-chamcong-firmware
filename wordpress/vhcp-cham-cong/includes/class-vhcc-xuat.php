@@ -189,7 +189,7 @@ class VHCC_Xuat {
 			. '<alignment horizontal="center"/></xf>'
 			/* 10 — HAI HÀNG TRONG MỘT Ô. `wrapText` là thứ bắt Excel xuống hàng ở ký tự `\n`;
 			   thiếu nó thì ô vẫn CHỨA hai hàng nhưng hiện ra một hàng dính liền, và người ta
-			   tưởng tệp hỏng. Dùng cho ô giờ vào/ra của tệp bảng công tuần. */
+			   tưởng tệp hỏng. Dùng cho ô giờ vào/ra của tệp bảng công tháng. */
 			. '<xf xfId="0" borderId="1" applyBorder="1" applyAlignment="1">'
 			. '<alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
 			/* 11 — Ô MỘT HÀNG ĐỨNG CẠNH Ô HAI HÀNG. Hàng nào có ô hai dòng thì cao gấp đôi, và

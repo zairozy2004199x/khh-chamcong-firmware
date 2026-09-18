@@ -127,7 +127,7 @@ $wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $CS_A, 'ngay' => $KIA
 	'gio_ra_giay' => 61200, 'hau_to' => '', 'nguon' => 'may' ) );
 $r = VHCC_XinBu::gui( $NV, $KIA, '07:00', '16:00', 'muốn đổi giờ ngày ấy' );
 t( '🔴 ngày đã có giờ chấm thì KHÔNG xin bù được', empty( $r['ok'] ), $r );
-t( 'và câu chối chỉ sang đường sửa', false !== mb_strpos( $r['error'], 'bảng công tuần' ), $r['error'] );
+t( 'và câu chối chỉ sang đường sửa', false !== mb_strpos( $r['error'], 'bảng công tháng' ), $r['error'] );
 
 /* ================================================================= cấp một */
 

@@ -426,14 +426,31 @@ class VHCC_Web {
 		 *    đúng cái đã làm tờ in lệch khỏi màn hình.
 		 * --------------------------------------------------------------------------------- */
 		/* -----------------------------------------------------------------------------------
-		 * BẢNG CÔNG MỘT TUẦN (.xlsx) để cửa hàng trưởng sửa rồi gửi lại — anh Thắng 18/09/2026.
-		 * Rẽ ở đây, TRƯỚC nhánh lưới tháng: nó đọc theo TUẦN chứ không theo tháng, nên tham số
-		 * `cth` phía trên không nói gì về nó.
+		 * BẢNG CÔNG MỘT THÁNG (.xlsx) để cửa hàng trưởng sửa rồi gửi lại — anh Thắng 18/09/2026.
+		 * Rẽ ở đây, TRƯỚC nhánh lưới tháng: tờ này là tờ SỬA (có cột KHOÁ, mỗi ngày một ô hai
+		 * hàng), khác hẳn tờ lưới để đọc — đi chung đường là ra nhầm tờ.
+		 *
+		 * ⚠️ Kỳ đọc từ `dtm` — CHÍNH TÊN Ô XỔ trên màn, chứ không phải `cth`. Nút Tải nay là nút
+		 *    gửi của cái form chứa ô xổ (xem `VHCC_WebDonTuan::khoi_cua_hang`), nên tháng người
+		 *    ta vừa chọn đi thẳng vào đây. Đọc `cth` thì lại ra tháng của LƯỚI đang xem — đúng
+		 *    kiểu lệch đã làm anh Thắng tải tháng khác với tháng đã chọn.
+		 *    `thang` / `tuan` là tên tham số đời cũ, còn đọc cho mấy đường dẫn đã lưu dấu trang.
 		 * --------------------------------------------------------------------------------- */
-		if ( 'tuan' === $loai ) {
-			$tuan = isset( $_GET['tuan'] ) ? sanitize_text_field( wp_unslash( $_GET['tuan'] ) ) : '';
-			if ( '' === $tuan ) { $tuan = VHCC_TuanCong::tuan_truoc(); }
-			$x = VHCC_TuanCong::xuat( $toi, $cs, $tuan );
+		if ( 'thang' === $loai || 'tuan' === $loai ) {
+			$ky_t = '';
+			foreach ( array( 'dtm', 'thang', 'tuan' ) as $ten_ts ) {
+				if ( isset( $_GET[ $ten_ts ] ) ) {
+					$ky_t = sanitize_text_field( wp_unslash( $_GET[ $ten_ts ] ) );
+					break;
+				}
+			}
+			/* Không có tham số nào thì lấy THÁNG ĐANG CHẠY — trùng với mục đầu của ô xổ
+			   (`ds_thang()`), để đường dẫn trơ và màn hình không nói hai tháng khác nhau. */
+			if ( '' === $ky_t ) { $ky_t = (string) current_time( 'Y-m-d' ); }
+			/* Đường dẫn cũ mang thứ Hai giữa tháng — quy về ngày 1 chứ đừng chối: người ta bấm
+			   lại dấu trang thì nhận đúng tháng chứa tuần ấy, không nhận một câu lỗi. */
+			$ky_t = VHCC_TuanCong::dau_thang( $ky_t );
+			$x    = VHCC_TuanCong::xuat( $toi, $cs, $ky_t );
 			if ( empty( $x['ok'] ) ) { self::loi_xuat( $x['error'] ); return; }
 			$da_gui = true;
 			VHCC_Xuat::gui( $x['ten'], $x['noi_dung'] );
@@ -754,12 +771,13 @@ class VHCC_Web {
 	}
 
 	public static function vi_sao_khong_xuat( $toi, $loai, $cs ) {
-		if ( ! in_array( $loai, array( 'ca', 'anh', 'luoi', 'luong', 'tuan' ), true ) ) {
+		if ( ! in_array( $loai, array( 'ca', 'anh', 'luoi', 'luong', 'thang', 'tuan' ), true ) ) {
 			return 'Không biết xuất kiểu "' . $loai . '".';
 		}
-		/* Tuần tự gác lấy ở `VHCC_TuanCong::vi_sao_khong_tai()` — nó còn phải hỏi tuần đã khoá
-		   chưa, tuần đã hết chưa, và những câu ấy không thuộc về chỗ này. */
-		if ( 'tuan' === $loai ) { return ''; }
+		/* Gác của tờ sửa bảng công lấy ở `VHCC_TuanCong::vi_sao_khong_tai()` — nó còn phải hỏi
+		   tháng đã khoá chưa, tháng đã tới chưa, và những câu ấy không thuộc về chỗ này.
+		   `'tuan'` là tên cũ đời tuần, giữ lại cho mấy đường dẫn đã lưu dấu trang. */
+		if ( 'thang' === $loai || 'tuan' === $loai ) { return ''; }
 		if ( ! VHCC_Vai::duoc( $toi, 'cong_coso' ) ) {
 			return 'Xuất bảng công cần quyền Cửa hàng trưởng trở lên.';
 		}
@@ -1029,7 +1047,7 @@ class VHCC_Web {
 			return VHCC_WebMat::viec( $viec, $toi );
 		}
 
-		/* Đơn chỉnh bảng công tuần — cùng lý do đứng trước chốt dưới như màn Khuôn mặt: việc của
+		/* Đơn chỉnh bảng công tháng — cùng lý do đứng trước chốt dưới như màn Khuôn mặt: việc của
 		   nó không dính gì tới hồ sơ. `VHCC_WebDonTuan::viec()` tự hỏi `sua_gio` ngay dòng đầu. */
 		if ( VHCC_WebDonTuan::la_viec( $viec ) ) {
 			return VHCC_WebDonTuan::viec( $viec, $toi );
@@ -3890,11 +3908,11 @@ class VHCC_Web {
 		'lich'     => 'Xếp ca cho cửa hàng, duyệt xin đổi lịch',
 		'may'      => 'Thiết bị, cổng nhận từ máy, nạp firmware',
 		'mat'      => 'Ảnh thẻ nhân viên và duyệt mẫu khuôn mặt',
-		'don_tuan' => 'Cửa hàng gửi .xlsx sửa bảng công tuần — duyệt là lên bảng công và khoá tuần',
+		'don_tuan' => 'Cửa hàng gửi .xlsx sửa bảng công tháng — duyệt là lên bảng công và khoá tháng',
 		'lich_su'  => 'Ai đã động vào giờ công: giờ cũ, giờ mới, ai làm, vì sao',
 		'luong'    => 'Bảng lương một cơ sở một tháng, đúng mẫu nộp kế toán'
 						. ' — xuất .xlsx ngay tại màn',
-		'don_tu'   => 'Đi trễ · xin nghỉ · xin bù giờ · sửa bảng công tuần — chờ ai duyệt',
+		'don_tu'   => 'Đi trễ · xin nghỉ · xin bù giờ · sửa bảng công tháng — chờ ai duyệt',
 	);
 
 	public static function bieu_man( $k )  {
@@ -7519,7 +7537,7 @@ class VHCC_Web {
 		};
 		echo '<div class="the"><p class="mo" style="margin:0">💵 <a href="' . $u( 'luong' )
 			. '"><b>Bảng lương</b></a> và 📨 <a href="' . $u( 'don_tu' ) . '"><b>Đơn từ</b></a> '
-			. '(đi trễ · xin nghỉ · xin bù giờ · sửa bảng công tuần) nay là <b>hai tab riêng</b> '
+			. '(đi trễ · xin nghỉ · xin bù giờ · sửa bảng công tháng) nay là <b>hai tab riêng</b> '
 			. 'ở cột bên trái — bấm là sang đúng cơ sở, đúng tháng đang xem.</p></div>';
 	}
 
