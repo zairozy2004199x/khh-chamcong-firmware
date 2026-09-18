@@ -971,10 +971,47 @@
       chuaNoi, tongChuaNoi: chuaNoi.reduce((a, d) => a + num(d.thanh_tien), 0) };
   }
 
+  const KE_THUA_DAU_KY = [
+    { o: 'sites', k: 'dtKy', so: 'revenue' },
+    { o: 'salarySites', k: 'nsKy', so: 'reported' },
+  ];
+
   /** Khoá kỳ dạng '2026-09' — cùng cách đặt khoá với máy chủ (BaoCaoApi.periodKey). */
   function khoaKy(p) {
     p = p || {};
     return `${p.year}-${String(p.month).padStart(2, '0')}`;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════════════════════
+   * DỌN SỐ KHÔNG THUỘC KỲ ĐANG MỞ — CHẠY TỰ ĐỘNG, KHÔNG HỎI, KHÔNG BÀY RA.
+   *
+   * Anh Thắng 18/09/2026: *"qua kỳ mới thì lấy số liệu tháng mới, dữ liệu nào không có thì để
+   * trống là được"*, và *"10 người nhìn chứ không phải 1 người nhìn, không có thì bỏ trống, chứ
+   * đừng cũ mới, không ai hiểu được"*.
+   *
+   * Bản trước đi đường vòng: giữ số tháng trước lại rồi dán nhãn "⚠ kỳ cũ" lên từng dòng và bắt
+   * người dùng bấm một nút để dọn. Một bảng đầy nhãn cảnh báo thì mười người đọc ra mười ý, mà
+   * con số sai vẫn nằm đó. Đơn giản hơn và đúng hơn: mở kỳ nào thì trên bảng CHỈ CÓ số của kỳ ấy;
+   * chỗ nào chưa có số thì để trống. Dấu kỳ (`dtKy`/`nsKy`) vẫn còn nhưng là việc của máy — không
+   * chữ nào của nó đi ra màn hình.
+   * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+  function donKyCu(state) {
+    const ky = khoaKy((state || {}).period);
+    let diem = 0, luong = 0;
+    (state.sites || []).forEach((s) => {
+      if ((s.dtKy || '') === ky) return;
+      if (num(s.revenue)) { s.revenue = 0; diem++; }
+      s.dtKy = '';
+    });
+    (state.salarySites || []).forEach((r) => {
+      if ((r.nsKy || '') === ky) return;
+      if (num(r.reported) || num(r.report) || num(r.dntt) || num(r.actual)) {
+        r.reported = 0; r.report = 0; r.dntt = 0; r.actual = 0;
+        luong++;
+      }
+      r.nsKy = '';
+    });
+    return { diem, luong, tong: diem + luong };
   }
 
   /** Số trên màn hình có đúng là của kỳ đang chọn không. */
@@ -1149,6 +1186,11 @@
        chỉnh mà là số tháng trước, đội tên tháng này — %CP/DT sai, không ô nào đỏ. Dấu này để
        validate() và màn Tổng quan bắt được chuyện đó. */
     st.soCuaKy = String(st.soCuaKy || khoaKy(st.period));
+    /* Bản cũ chưa có dấu kỳ trên từng dòng: cho chúng thừa hưởng dấu của cả bản trạng thái. Không
+       làm thế thì lần mở đầu tiên sau khi nâng cấp, một kỳ đang ĐÚNG cũng bị dọn sạch. */
+    KE_THUA_DAU_KY.forEach((x) => {
+      (st[x.o] || []).forEach((r) => { if (!(r[x.k] || '').trim() && num(r[x.so])) { r[x.k] = st.soCuaKy; } });
+    });
     st.groups = (st.groups || []).map((g) => ({ method: 'revenue', ...g }));
     st.departments = (st.departments || []).map((d) => ({ ratio: 0, revenue: 0, revenueOverride: false, unitCode: '', ...d }));
     /* HAI khoá liên kết, hai nguồn: `fabiTen` ← Doanh thu FABi, `gheTen` ← Ghế Massage (Posh/JP).
@@ -1269,6 +1311,7 @@
     doanBoPhan,
     dongBoFabi,
     batDauKyMoi,
+    donKyCu,
     khoaKy,
     lechKy,
     dsBoQua,

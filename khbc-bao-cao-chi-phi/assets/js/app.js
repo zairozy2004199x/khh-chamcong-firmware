@@ -104,10 +104,13 @@
   }
 
   // ------------------------------------------------------------------ Tiện ích HTML
-  function inp(path, value, type, cls, extra) {
+  /* `trong0` — số 0 thì hiện Ô TRỐNG. Anh Thắng 18/09/2026: *"không có thì bỏ trống"*. Dùng cho
+     mấy ô SỐ LIỆU TỪNG KỲ (doanh thu điểm bán, lương cơ sở): tháng này chưa có số thì ô trống nói
+     đúng điều ấy, còn số 0 thì mười người đọc ra mười ý — "chưa có" hay "có mà bằng 0"? */
+  function inp(path, value, type, cls, extra, trong0) {
     const t = type || 'text';
     let v = value;
-    if (t === 'num') v = value === 0 || value ? fmt(value, Number.isInteger(value) ? 0 : 2) : '';
+    if (t === 'num') v = (trong0 && !value) ? '' : (value === 0 || value ? fmt(value, Number.isInteger(value) ? 0 : 2) : '');
     if (t === 'pct') v = value === 0 || value ? fmt(value * 100, 2) : '';
     return `<input data-path="${path}" data-type="${t}" class="${cls || ''}${t === 'num' || t === 'pct' ? ' num' : ''}" value="${esc(v)}" ${extra || ''}>`;
   }
@@ -177,32 +180,6 @@
       </span></div>`;
   }
 
-  /* Đếm những dòng đang mang số của KỲ KHÁC — cả điểm bán lẫn dòng lương. */
-  function dongSoCu() {
-    const ky = E.khoaKy(state.period);
-    const ra = { diem: [], luong: [] };
-    (state.sites || []).forEach((x, i) => {
-      if (dauKy({ so: x.revenue, ky: x.dtKy }, ky).indexOf('cu:') === 0) { ra.diem.push({ i, ten: x.name || x.code }); }
-    });
-    (state.salarySites || []).forEach((x, i) => {
-      if (dauKy({ so: x.reported || x.report || x.dntt || x.actual, ky: x.nsKy }, ky).indexOf('cu:') === 0) { ra.luong.push({ i, ten: x.name }); }
-    });
-    return ra;
-  }
-
-  function soCuHtml() {
-    const c = dongSoCu();
-    const n = c.diem.length + c.luong.length;
-    if (!n) return '';
-    return `<div class="issue warn" style="margin:0 0 12px">
-      <span class="lv">SỐ KỲ TRƯỚC</span>
-      <span><strong>${n} dòng đang mang số của kỳ trước</strong>, không phải ${esc(E.khoaKy(state.period))}
-      (${c.diem.length} điểm bán · ${c.luong.length} dòng lương). Trong bảng chúng có nhãn <span class="chip bad-text" style="font-size:10px">⚠</span> cạnh tên.<br>
-      <span class="muted">${esc([].concat(c.diem.map((x) => x.ten), c.luong.map((x) => x.ten)).slice(0, 8).join(', '))}${n > 8 ? ` … và ${n - 8} dòng nữa` : ''}</span><br>
-      <button class="btn small primary" data-act="xoaSoCu">Đưa ${n} dòng ấy về 0</button>
-      </span></div>`;
-  }
-
   function renderDashboard(root) {
     const R = report;
     const totalRev = Object.values(R.revenue).reduce((a, b) => a + b, 0);
@@ -210,7 +187,6 @@
     const totalCost = R.grandTotal + manualTotal + R.salaryDeptTotals.total + R.salarySitesTotal.actual;
     root.innerHTML = `
       ${lechKyHtml()}
-      ${soCuHtml()}
       ${soDuNguonHtml()}
       <div class="kpis">
         <div class="kpi"><div class="k">Tổng doanh thu ${R.periodLabel}</div><div class="v">${fmt(totalRev)}</div><div class="s">${state.sites.length} điểm · ${state.departments.length} bộ phận</div></div>
@@ -364,8 +340,8 @@
                       <td>${sel(`sites.${i}.dept`, s.dept, deptOptions())}</td>
                       <td>${inp(`sites.${i}.code`, s.code, 'text', 'code')}</td>
                       <td>${inp(`sites.${i}.name`, s.name, 'text', 'xwide')}</td>
-                      <td>${inp(`sites.${i}.revenue`, s.revenue, 'num', '', (state.options.fabiTuDong && nguonCua(s) && !sync.locked) ? 'readonly title="Số này tự lấy từ nguồn đã nối. Muốn gõ tay thì tắt Tự lấy, hoặc gỡ liên kết ở cột Nguồn."' : '')}</td>
-                      <td class="muted" style="font-size:11px">${huyHieuKy({ so: s.revenue, ky: s.dtKy })}${(() => { const n = nguonCua(s); return n
+                      <td>${inp(`sites.${i}.revenue`, s.revenue, 'num', '', (state.options.fabiTuDong && nguonCua(s) && !sync.locked) ? 'readonly title="Số này tự lấy từ nguồn đã nối. Muốn gõ tay thì tắt Tự lấy, hoặc gỡ liên kết ở cột Nguồn."' : '', true)}</td>
+                      <td class="muted" style="font-size:11px">${(() => { const n = nguonCua(s); return n
                         ? `<span title="Đang lấy từ ${esc(NGUON[n].ten)}: ${esc(s[NGUON[n].khoa])}">🔗 ${esc(NGUON[n].nhan)}</span> <button class="btn small ghost" data-act="goLienKet" data-arg="${i}" title="Gỡ liên kết — điểm này quay lại gõ tay">✕</button>`
                         : '<span title="Chưa nối nguồn nào — gõ tay">tay</span>'; })()}</td>
                       <td class="num muted">${rev > 0 ? pct(E.num(s.revenue) / rev) : '—'}</td>
@@ -552,13 +528,13 @@
                         .map(({ r, i }) => `<tr>
                           <td class="sticky-col">${inp(`salarySites.${i}.groupTitle`, r.groupTitle, 'text', 'code')}</td>
                           <td>${inp(`salarySites.${i}.stt`, r.stt, 'text', 'short')}</td>
-                          <td>${inp(`salarySites.${i}.name`, r.name, 'text', 'wide')}${huyHieuKy({ so: r.reported || r.actual, ky: r.nsKy })}${(r.nsTen || '').trim()
+                          <td>${inp(`salarySites.${i}.name`, r.name, 'text', 'wide')}${(r.nsTen || '').trim()
                             ? ` <span class="muted" style="font-size:11px" title="Lương đang lấy từ Nhân sự: ${esc(r.nsTen)}">🔗 NS</span> <button class="btn small ghost" data-act="goLienKetLuong" data-arg="${i}" title="Gỡ liên kết — dòng này quay lại gõ tay">✕</button>` : ''}</td>
                           <td>${sel(`salarySites.${i}.dept`, r.dept, deptOptions())}</td>
-                          <td>${inp(`salarySites.${i}.reported`, E.num(r.reported), 'num', '', (state.options.luongTuDong && (r.nsTen || '').trim() && !sync.locked) ? 'readonly title="Số này tự lấy từ Nhân sự. Muốn gõ tay thì tắt Tự lấy, hoặc gỡ liên kết cạnh tên cơ sở."' : '')}</td>
-                          <td>${inp(`salarySites.${i}.report`, E.num(r.report), 'num')}</td>
-                          <td>${inp(`salarySites.${i}.dntt`, E.num(r.dntt), 'num')}</td>
-                          <td>${inp(`salarySites.${i}.actual`, E.num(r.actual), 'num')}</td>
+                          <td>${inp(`salarySites.${i}.reported`, E.num(r.reported), 'num', '', (state.options.luongTuDong && (r.nsTen || '').trim() && !sync.locked) ? 'readonly title="Số này tự lấy từ Nhân sự. Muốn gõ tay thì tắt Tự lấy, hoặc gỡ liên kết cạnh tên cơ sở."' : '', true)}</td>
+                          <td>${inp(`salarySites.${i}.report`, E.num(r.report), 'num', '', '', true)}</td>
+                          <td>${inp(`salarySites.${i}.dntt`, E.num(r.dntt), 'num', '', '', true)}</td>
+                          <td>${inp(`salarySites.${i}.actual`, E.num(r.actual), 'num', '', '', true)}</td>
                           ${tdn(E.num(r.actual) - E.num(r.reported), 'muted')}
                           <td>${inp(`salarySites.${i}.unitCode`, r.unitCode, 'text', 'code')}</td>
                           <td>${inp(`salarySites.${i}.misaGeneral`, r.misaGeneral, 'text', 'xwide')}</td>
@@ -954,10 +930,19 @@
         ${esc(NGUON.ghe.nhan)} nhưng điểm lại nằm ngoài ${esc((NGUON.ghe.bp || []).map(deptName).join(' / '))},
         nên tiền ghế đang cộng vào bộ phận khác. Em đã <strong>ngừng ghi</strong> vào mấy điểm ấy.
         <button class="btn small" data-act="goSaiBp">Gỡ ${sai.length} liên kết sai & xoá số đã ghi nhầm</button>` : ''}
-      ${ve0.length ? `<br><strong>${ve0.length} điểm đưa về 0</strong> vì kỳ này nguồn chưa có số liệu (số cũ là của kỳ trước):
+      ${ve0.length ? `<br><strong>${ve0.length} điểm chưa có số liệu ${esc(R_periodLabel())}</strong> — để trống:
         ${esc(ve0.map((x) => x.code || x.name).join(', '))}.` : ''}
-      ${mat.length ? `<br><strong>⚠ ${mat.length} điểm mất liên kết</strong> (cửa hàng không còn bên FABi): ${esc(mat.map((x) => x.code || x.name).join(', '))} — số cũ được giữ nguyên, vào cột Nguồn gỡ liên kết rồi nối lại.` : ''}
+      ${mat.length ? `<br><strong>⚠ ${mat.length} điểm mất liên kết</strong> (cửa hàng không còn bên nguồn): ${esc(mat.map((x) => x.code || x.name).join(', '))} — vào cột Nguồn gỡ liên kết rồi nối lại.` : ''}
       </span></div>`;
+  }
+
+  /* Mở kỳ nào thì trên bảng chỉ còn số của kỳ ấy — chạy một lần lúc mở trang và lúc đổi kỳ.
+     Không hỏi, không bày nhãn; chỉ một dòng nhắc ngắn nếu có dọn. */
+  function donKyNgay() {
+    const kq = E.donKyCu(state);
+    if (!kq.tong) return;
+    commit();
+    toast(`${kq.tong} dòng chưa có số liệu ${E.periodLabel(state.period)} — đã để trống.`);
   }
 
   async function fabiLayNgay(im) {
@@ -981,7 +966,7 @@
       } catch (e) { /* mạng hỏng thì thôi, số cũ vẫn còn — lần mở sau lấy lại */ }
     }
     fabiLan = { luc: new Date().toLocaleTimeString('vi-VN'), soDoi: doi, mat, soDu, sai, ve0 };
-    if (doi || ve0.length) { commit(); if (!im) toast(`🔗 Cập nhật ${doi} điểm từ nguồn đã nối.` + (ve0.length ? ` ${ve0.length} điểm về 0 vì kỳ này chưa có số.` : '')); }
+    if (doi || ve0.length) { commit(); if (!im) toast(`🔗 Cập nhật ${doi} điểm từ nguồn đã nối.` + (ve0.length ? ` ${ve0.length} điểm chưa có số liệu ${R_periodLabel()} — để trống.` : '')); }
     else { recompute(); renderTab(); }
   }
 
@@ -1102,10 +1087,10 @@
       ${!state.options.luongTuDong ? 'Đang <strong>tắt</strong> tự lấy — số giữ nguyên như đã ghi.'
         : sync.locked ? 'Kỳ <strong>đã chốt</strong> nên dừng lấy, số đứng yên.'
         : (luongLan && luongLan.luc) ? `Lấy lần cuối lúc ${esc(luongLan.luc)}${luongLan.soDoi ? ` · đổi ${luongLan.soDoi} dòng` : ' · không có gì đổi'}.` : 'Sẽ tự lấy khi mở kỳ.'}
-      ${mat.length ? `<br><strong>⚠ ${mat.length} dòng mất liên kết</strong> (cơ sở không còn bên Nhân sự): ${esc(mat.map((x) => x.name).join(', '))} — số cũ được giữ nguyên.` : ''}
-      ${lve0.length ? `<br><strong>${lve0.length} dòng đưa về 0</strong> vì kỳ này Nhân sự chưa có số liệu (số cũ là của kỳ trước):
+      ${mat.length ? `<br><strong>⚠ ${mat.length} dòng mất liên kết</strong> (cơ sở không còn bên Nhân sự): ${esc(mat.map((x) => x.name).join(', '))}.` : ''}
+      ${lve0.length ? `<br><strong>${lve0.length} dòng chưa có số liệu ${esc(R_periodLabel())}</strong> — để trống:
         ${esc(lve0.map((x) => x.name).join(', '))}.` : ''}
-      ${chuaGia.length ? `<br><strong>⚠ ${chuaGia.length} dòng kỳ này chưa khai giá giờ</strong>: ${esc(chuaGia.map((x) => x.name).join(', '))} — <strong>giữ số cũ</strong>, em không ghi 0 đè lên.` : ''}
+      ${chuaGia.length ? `<br><strong>⚠ ${chuaGia.length} dòng chưa khai giá giờ bên Chấm công</strong> nên chưa ra tiền: ${esc(chuaGia.map((x) => x.name).join(', '))}.` : ''}
       ${chuaNoi.length ? `<br><strong>⚠ ${fmt(luongLan.tongChuaNoi)} lương bên Nhân sự chưa nối vào dòng nào</strong> (${chuaNoi.length} cơ sở: ${esc(chuaNoi.slice(0, 6).map((x) => x.cua_hang).join(', '))}${chuaNoi.length > 6 ? '…' : ''}) — chỗ này KHÔNG vào báo cáo, bấm "⬇ Nạp lương từ Nhân sự" để ghép.` : ''}
       </span></div>`;
   }
@@ -1120,29 +1105,9 @@
       const kq = E.dongBoLuong(state, d.ds);
       luongLan = { luc: new Date().toLocaleTimeString('vi-VN'), soDoi: kq.soDoi, mat: kq.mat,
         chuaGia: kq.chuaGia, chuaNoi: kq.chuaNoi, tongChuaNoi: kq.tongChuaNoi, ve0: kq.veKhong };
-      if (kq.soDoi || kq.veKhong.length) { commit(); if (!im) toast(`🔗 Cập nhật ${kq.soDoi} dòng lương từ Nhân sự.` + (kq.veKhong.length ? ` ${kq.veKhong.length} dòng về 0 vì kỳ này chưa có số.` : '')); }
+      if (kq.soDoi || kq.veKhong.length) { commit(); if (!im) toast(`🔗 Cập nhật ${kq.soDoi} dòng lương từ Nhân sự.` + (kq.veKhong.length ? ` ${kq.veKhong.length} dòng chưa có số liệu ${R_periodLabel()} — để trống.` : '')); }
       else { recompute(); renderTab(); }
     } catch (e) { /* mạng hỏng thì thôi, số cũ vẫn còn */ }
-  }
-
-  /* 🔴 DÒNG NÀY LÀ SỐ THẬT CỦA KỲ NÀY, HAY CÒN SÓT TỪ KỲ TRƯỚC?
-     Anh Thắng 18/09/2026: *"nó như này chả biết dữ liệu nào thật, dữ liệu nào giả"*. Một bảng đầy
-     số mà không nói được số nào thuộc kỳ nào thì người đọc buộc phải tin hết — hoặc nghi hết.
-     Trả về: 'nay' (số của kỳ đang mở) · 'cu:<kỳ>' (số kỳ trước) · '' (chưa có số). */
-  function dauKy(gt, ky) {
-    if (!E.num(gt.so)) return '';
-    const k = (gt.ky || '').trim();
-    if (!k) return 'cu:?';
-    return k === ky ? 'nay' : 'cu:' + k;
-  }
-
-  /** Huy hiệu nhỏ đặt cạnh tên, nói con số của dòng ấy thuộc kỳ nào. */
-  function huyHieuKy(gt) {
-    const d = dauKy(gt, E.khoaKy(state.period));
-    if (!d) return '';
-    if (d === 'nay') return ` <span class="chip ok-text" style="font-size:10px" title="Số của kỳ đang mở — đã kiểm">kỳ này</span>`;
-    const cu = d.slice(3);
-    return ` <span class="chip bad-text" style="font-size:10px" title="Con số này là của kỳ ${esc(cu)}, KHÔNG phải kỳ đang mở. Nạp lại từ nguồn, hoặc gõ số của kỳ này đè lên.">⚠ ${esc(cu === '?' ? 'kỳ cũ' : cu)}</span>`;
   }
 
   /** Bộ phận mặc định cho dòng lương: suy từ các dòng ĐANG NỐI trang Nhân sự. */
@@ -1291,9 +1256,8 @@
     } else val = el.value;
     if (type === 'text' && /\.(stt)$/.test(path)) val = /^\d+$/.test(String(val).trim()) ? +val : val;
     setPath(state, path, val);
-    /* 🔴 GÕ TAY CŨNG LÀ SỐ CỦA KỲ NÀY — đóng dấu kỳ luôn. Không đóng thì lần lấy sau em coi nó là
-       số kỳ trước rồi xoá mất con số anh vừa gõ. Và bảng cũng cần dấu này để nói được dòng nào là
-       số thật của kỳ này, dòng nào còn sót lại từ kỳ trước. */
+    /* Gõ tay là số của kỳ đang mở — đóng dấu kỳ cho dòng ấy. Không đóng thì lần dọn sau em coi nó
+       không thuộc kỳ này rồi xoá mất con số anh vừa gõ. Dấu này là việc của máy, không hiện ra. */
     const mDT = /^sites\.(\d+)\.revenue$/.exec(path);
     if (mDT && state.sites[+mDT[1]]) { state.sites[+mDT[1]].dtKy = E.khoaKy(state.period); }
     const mL = /^salarySites\.(\d+)\.(reported|report|dntt|actual)$/.exec(path);
@@ -1531,20 +1495,6 @@
     },
     fabiDong() { fabi = null; renderTab(); },
     moDoanhThu() { renderTab('revenue'); },
-    /* Đưa về 0 những dòng còn mang số kỳ trước. Chỉ động vào SỐ, giữ nguyên danh mục và liên kết. */
-    xoaSoCu() {
-      const c = dongSoCu();
-      const n = c.diem.length + c.luong.length;
-      if (!n) return;
-      if (!confirm(`Đưa ${n} dòng đang mang số của kỳ trước về 0?\n\n`
-        + `${c.diem.length} điểm bán · ${c.luong.length} dòng lương.\n\n`
-        + `Giữ nguyên tên, mã đơn vị, bộ phận và liên kết với nguồn — chỉ xoá SỐ.`)) return;
-      prevState = JSON.parse(JSON.stringify(state));
-      c.diem.forEach((x) => { state.sites[x.i].revenue = 0; });
-      c.luong.forEach((x) => { const r = state.salarySites[x.i]; r.reported = 0; r.report = 0; r.dntt = 0; r.actual = 0; });
-      commit();
-      toast(`Đã đưa ${n} dòng về 0.`, { label: 'Hoàn tác', fn: undo });
-    },
     /* Gỡ những liên kết trỏ vào điểm sai bộ phận, VÀ xoá luôn con số chúng đã ghi vào đó. Giữ số
        lại mới là nguy: đó là tiền ghế nằm trong doanh thu Event, không nguồn nào nhận, không ai
        biết nó từ đâu ra, mà vẫn kéo lệch tỷ trọng phân bổ chi phí của cả hai bộ phận. */
@@ -2179,6 +2129,7 @@
          thì còn tệ hơn là biết mình phải bấm.
          10 phút một lần: đủ tươi cho việc xem trong ngày, mà không nện vào cơ sở dữ liệu của
          plugin Ghế / FABi mỗi phút. */
+      donKyNgay();
       fabiLayNgay(true);
       luongLayNgay(true);
       this.nguonTimer = setInterval(() => { fabiLayNgay(true); luongLayNgay(true); }, 600000);
@@ -2197,7 +2148,8 @@
       if (k === this.periodKey) return;
       this.periodKey = k;
       /* Tải kỳ xong mới lấy FABi — lấy trước thì bản kéo từ máy chủ đè lên ngay sau đó. */
-      this.pull({ force: true, notify: true, initial: true }).then(() => fabiLayNgay(true)).then(() => luongLayNgay(true));
+      this.pull({ force: true, notify: true, initial: true })
+        .then(() => donKyNgay()).then(() => fabiLayNgay(true)).then(() => luongLayNgay(true));
     },
     schedulePush() {
       if (!this.on) return;

@@ -121,7 +121,9 @@ const PORT = process.env.PORT || '8113';
   const z = await p.evaluate(()=>{const s=window.BaoCaoApp.getState();
     return { so: s.salarySites[0].reported, tt: (document.querySelector('#tab-salary .issue')||{}).textContent||'' };});
   ok('🔴 Số của kỳ TRƯỚC mà kỳ này chưa có số liệu → VỀ 0', z.so===0, 'còn '+z.so);
-  ok('Nói rõ đã đưa bao nhiêu dòng về 0 và vì sao', /đưa về 0/.test(z.tt) && /kỳ trước/.test(z.tt),
+  /* Từ 1.26.0: dọn ngay lúc mở kỳ, không dán nhãn "kỳ cũ" lên bảng nữa — anh Thắng: *"đừng cũ
+     mới, không ai hiểu được"*. */
+  ok('🔴 Không còn chữ "kỳ cũ / kỳ trước" trên màn Lương', !/kỳ cũ|kỳ trước/.test(z.tt),
      z.tt.replace(/\s+/g,' ').slice(0,130));
 
   ok('Không lỗi JS', loi.length===0, loi.join(' | '));

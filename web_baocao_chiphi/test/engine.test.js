@@ -1107,3 +1107,62 @@ console.log(`OK — ${passed} phép so khớp với Excel đều đạt, các tr
 
   console.log('OK — sang kỳ mới chưa có số thì về 0; số đúng của kỳ này thì giữ.');
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// MỞ KỲ NÀO CHỈ CÓ SỐ CỦA KỲ ẤY  (anh Thắng 18/09/2026: "qua kỳ mới thì lấy số liệu tháng mới,
+// dữ liệu nào không có thì để trống là được" · "10 người nhìn chứ không phải 1 người nhìn, không
+// có thì bỏ trống, chứ đừng cũ mới, không ai hiểu được")
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+{
+  const st = E.normalizeState(window.SAMPLE_DATA);
+  st.period = { month: 9, year: 2026 };
+  st.soCuaKy = '2026-09';
+  st.sites = [
+    { dept: 'tutu', code: 'A', name: 'AMTP', revenue: 29905000, dtKy: '2026-08' },
+    { dept: 'tutu', code: 'B', name: 'AMBT', revenue: 18719350, dtKy: '2026-09' },
+    { dept: 'tutu', code: 'C', name: 'Chưa có', revenue: 0, dtKy: '' },
+  ];
+  st.salarySites = [
+    { id: 'a', dept: 'posh', name: 'Posh HCM', reported: 111649262, report: 111649262,
+      dntt: 111649262, actual: 111649262, nsKy: '2026-08' },
+    { id: 'b', dept: 'jp', name: 'BP JP HCM', reported: 41635755, report: 41635755,
+      dntt: 41635755, actual: 41435755, nsKy: '2026-09' },
+  ];
+
+  const kq = E.donKyCu(st);
+  assert.strictEqual(kq.diem, 1);
+  assert.strictEqual(kq.luong, 1);
+  assert.strictEqual(kq.tong, 2);
+
+  assert.strictEqual(st.sites[0].revenue, 0, 'số không thuộc kỳ đang mở → để trống');
+  assert.strictEqual(st.sites[1].revenue, 18719350, 'số của kỳ đang mở thì giữ nguyên');
+  assert.strictEqual(st.salarySites[0].reported, 0);
+  assert.strictEqual(st.salarySites[0].report, 0, 'dọn là dọn CẢ BỐN cột, không nửa vời');
+  assert.strictEqual(st.salarySites[0].dntt, 0);
+  assert.strictEqual(st.salarySites[0].actual, 0);
+  assert.strictEqual(st.salarySites[1].reported, 41635755);
+
+  // -- danh mục không suy suyển: chỉ số bị dọn --
+  assert.strictEqual(st.sites[0].name, 'AMTP');
+  assert.strictEqual(st.sites[0].code, 'A');
+  assert.strictEqual(st.salarySites[0].dept, 'posh');
+  assert.strictEqual(st.salarySites[0].name, 'Posh HCM');
+
+  // -- chạy lại thì không còn gì để dọn --
+  assert.strictEqual(E.donKyCu(st).tong, 0);
+
+  // 🔴 BẢN CŨ CHƯA CÓ DẤU TỪNG DÒNG: thừa hưởng dấu của cả kỳ, đừng dọn oan một kỳ đang ĐÚNG.
+  const cu = E.normalizeState({
+    period: { month: 8, year: 2026 }, soCuaKy: '2026-08',
+    departments: [{ id: 'tutu', name: 'Tutu', group: 'KVC' }],
+    groups: [{ id: 'KVC', name: 'Khu vui chơi', method: 'revenue' }],
+    sites: [{ dept: 'tutu', code: 'A', name: 'AMTP', revenue: 29905000 }],
+    salarySites: [{ id: 'a', dept: 'tutu', name: 'AMTP', reported: 1000000 }],
+  });
+  assert.strictEqual(cu.sites[0].dtKy, '2026-08', 'dòng chưa có dấu thì lấy dấu của cả kỳ');
+  assert.strictEqual(cu.salarySites[0].nsKy, '2026-08');
+  assert.strictEqual(E.donKyCu(cu).tong, 0, 'nên mở lại kỳ ấy KHÔNG bị dọn oan');
+  assert.strictEqual(cu.sites[0].revenue, 29905000);
+
+  console.log('OK — mở kỳ nào chỉ có số của kỳ ấy, chỗ chưa có thì để trống.');
+}
