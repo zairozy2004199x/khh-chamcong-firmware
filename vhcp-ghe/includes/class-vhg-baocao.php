@@ -60,7 +60,7 @@ class VHG_BaoCao {
 	   boot() trả nó kèm mọi phản hồi (`banBc`) — số ở góc nói tệp chính là bản nào, số này nói
 	   TỆP BÁO CÁO là bản nào. Hai số lệch nhau là bằng chứng tệp cũ còn sống. Phải tăng cùng
 	   VHG_VERSION mỗi lần sửa tệp này. */
-	const BAN = '2.111.0';
+	const BAN = '2.112.0';
 
 	public static function don_vi() { return VHG_Quy::don_vi(); }
 
@@ -848,16 +848,30 @@ class VHG_BaoCao {
 		$q = self::pin_info( $pin );
 		if ( ! $q ) { return array( 'ok' => false, 'pinOk' => false, 'error' => 'PIN không đúng hoặc đã ngừng dùng.' ); }
 		$toan_quyen = empty( $q['coso_key'] ) && empty( $q['ghe'] );
-		/* 🔴 GÁC CHẤM CÔNG — anh Thắng 15/09/2026: nhân viên hôm nay CHƯA chấm công thì chưa cho vào
-		   màn báo cáo, hiện lời chào + nút chấm công; chấm xong bấm vào lại là vào. Chốt AN TOÀN =
-		   FAIL-OPEN: chỉ chặn khi CHẮC CHẮN người này có hồ sơ chấm công mà chưa chấm vào hôm nay;
-		   thiếu plugin Chấm Công / không tra ra hồ sơ / PIN toàn quyền (admin) → KHÔNG chặn, vì chặn
-		   nhầm là khoá luôn đường nộp doanh thu. Xem cham_cong_chua_(). */
-		if ( self::cham_cong_chua_( $pin, $la_admin ) ) {
-			return array( 'ok' => true, 'pinOk' => true, 'staff' => $q['ten'], 'chuaChamCong' => 1,
-				'today' => current_time( 'Y-m-d' ), 'chamCongUrl' => self::cham_cong_url(),
-				'trangChuUrl' => home_url( '/' ) );
-		}
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 CHẤM CÔNG NAY CHỈ LÀ LỜI NHẮC, KHÔNG CÒN LÀ CỬA GÁC.
+		 *
+		 * Anh Thắng 18/09/2026: *"hãy loại bỏ tính năng bắt checkin mới nộp báo cáo, mà hãy chỉ
+		 * đưa cảnh báo thôi"*.
+		 *
+		 * VÌ SAO BỎ — không phải vì khó, mà vì cửa này HỎNG THEO MỘT KIỂU KHÔNG SỬA ĐƯỢC:
+		 *   · Nó hỏi "PIN này hôm nay chấm công chưa". Mà `/cham-cong-online` có PHIÊN RIÊNG:
+		 *     người mở trạm có thể đang đăng nhập bằng TÀI KHOẢN KHÁC. Anh Thắng 18/09/2026:
+		 *     *"anh nghi khả năng đăng nhập 2 tài khoản, mà gặp cảnh báo kia nên nhảy sang trang
+		 *     là nó không hiểu dẫn đến đơ"*. Đúng: chấm công xong bằng tài khoản B, quay lại bấm
+		 *     "Tôi đã chấm công xong" thì máy chủ vẫn soi tài khoản A và vẫn chối — người dùng
+		 *     kẹt trong một vòng không có lối ra, và không có gì nói cho họ biết vì sao.
+		 *   · Nút "Chấm công ngay" mở tab mới (`target=_blank`). Trong PWA / trình duyệt trong
+		 *     app trên điện thoại, tab mới rất hay không có đường quay lại.
+		 *
+		 * VÀ CÁI GIÁ CỦA VIỆC CHẶN LÀ SAI CHỖ: nó đem kỷ luật giờ giấc ra khoá việc ghi nhận
+		 * TIỀN MẶT. Tiền không vào sổ là mất thật; quên chấm công thì mai bù được.
+		 *
+		 * Nên: vẫn tính, nhưng chỉ để màn hiện một dải vàng. `boot()` trả về gói ĐẦY ĐỦ như mọi
+		 * lượt khác — không còn gói ngắn "ok + pinOk + chuaChamCong" nữa, và cũng không còn
+		 * đường nào rẽ sang một màn chào riêng.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$nhac_cham = self::cham_cong_chua_( $pin, $la_admin ) ? 1 : 0;
 		/* 🔴 HÀNG ĐỎ (máy 'đã dọn' + ghế 'lạc') CHỈ HIỆN CHO ADMIN THẬT ($la_admin) — anh Thắng
 		   12/09/2026: "Đã bảo ghế ẩn không hiện vào tài khoản nhân viên mà… chưa ẩn cho tài khoản
 		   nhân viên". PIN TOÀN QUYỀN KHÔNG còn tính là admin: nhiều nhân viên (vd DƯƠNG TRUNG TÍN)
@@ -931,6 +945,8 @@ class VHG_BaoCao {
 			   mình có 2 ghế trong khi bảng chỉ có 1, và hỏi lại trước khi nộp. */
 			'gheAn' => $ghe_an,
 			'chamCongUrl' => self::cham_cong_url(),
+			/* Dải nhắc chấm công — chỉ để HIỆN CHỮ. Không có cửa nào đọc cờ này để chối ai. */
+			'nhacChamCong' => $nhac_cham,
 			'trangChuUrl' => home_url( '/' ),
 			'banBc' => self::BAN );   // vân tay tệp báo cáo — xem const BAN
 		if ( $chan_doan ) { $out['chanDoan'] = $chan_doan; }
@@ -959,7 +975,12 @@ class VHG_BaoCao {
 	/**
 	 * NHÂN VIÊN NÀY HÔM NAY ĐÃ CHẤM CÔNG CHƯA — trả TRUE chỉ khi CHẮC CHẮN chưa chấm.
 	 *
-	 * 🔴 FAIL-OPEN. Đây là cửa đứng trước đường NỘP DOANH THU: chặn nhầm là khoá tiền của cả ca.
+	 * ⚠️ TỪ 2.112.0 HÀM NÀY CHỈ NUÔI MỘT DẢI CHỮ, KHÔNG CÒN CHẶN AI (xem khối dài ở `boot()`).
+	 *    Ai đọc sau này đừng nối nó lại vào một cửa gác: nó hỏi về PIN báo cáo, mà người ta có
+	 *    thể đã chấm công bằng một tài khoản khác ở trạm — câu trả lời "chưa" của nó KHÔNG đủ
+	 *    chắc để chối một lượt nộp tiền.
+	 *
+	 * 🔴 FAIL-OPEN. Vẫn giữ: một dải vàng nói sai cũng là nói sai.
 	 *    Nên mọi trường hợp không chắc đều cho QUA (trả false):
 	 *      · PIN toàn quyền (admin / quản lý nhiều cơ sở) — không phải người "vào ca".
 	 *      · Chưa cài plugin Chấm Công (không có VHCC_Tram / VHCC_DB).

@@ -1,22 +1,39 @@
 <?php
 /**
- * CỬA CHẤM CÔNG PHẢI GÁC MỌI ĐƯỜNG VÀO MÀN BÁO CÁO.
+ * CHẤM CÔNG CHỈ LÀ LỜI NHẮC TRÊN MÀN BÁO CÁO — KHÔNG CÒN LÀ CỬA GÁC.
  *
  * ==============================================================================================
- * 🔴 LỖI 16/09/2026 — LUẬT CÓ HAI ĐƯỜNG VÀO, CHỈ MỘT ĐƯỜNG ĐƯỢC VÁ.
+ * 🔴 LUẬT ĐÃ ĐẢO — 18/09/2026. Anh Thắng: *"hãy loại bỏ tính năng bắt checkin mới nộp báo cáo,
+ *    mà hãy chỉ đưa cảnh báo thôi"*.
  *
- *    Cửa "chưa chấm công hôm nay thì chưa cho vào báo cáo" thêm ngày 15/09, gắn ở đường PIN
- *    (`thu()` → `bc_boot`). Sót đường thứ hai: `moBaoCaoTuDuLieu()` — đường mà nhân viên mở báo
- *    cáo từ SPA /ghe, không phải gõ PIN.
+ *    Trước đó bài này canh chiều NGƯỢC LẠI: cửa "chưa chấm công thì chưa cho vào báo cáo" phải
+ *    gác đủ MỌI đường vào. Không xoá bài, ĐẢO nó — xoá đi là mở đường cho ai đó nối lại cửa ấy
+ *    mà không ai biết vì sao nó từng bị bỏ.
  *
- *    Vì sao nó CÂM: `boot()` trả cho ca chưa chấm công một phản hồi rất ngắn — ok + pinOk +
- *    chuaChamCong, KHÔNG có `coso`, KHÔNG có `banBc`. Đường sót không hỏi gì cứ thế `veChinh()`,
- *    nên màn hiện "phạm vi 0 cơ sở · mã báo cáo ?" — TRÔNG Y HỆT lỗi opcache đã mất cả buổi
- *    chiều 15/09 để lần ra. Và khối chẩn đoán còn kết luận "mã cũ / bộ đệm", cử người đi xoá
- *    opcache cho một lỗi nằm ở chỗ khác hẳn.
+ * ==============================================================================================
+ * 🔴 VÌ SAO BỎ CỬA — HAI CHỖ HỎNG KHÔNG SỬA ĐƯỢC BẰNG CÁCH VÁ THÊM
+ * ==============================================================================================
+ *   1. CỬA HỎI SAI NGƯỜI. Nó soi "PIN báo cáo này hôm nay chấm công chưa", mà
+ *      `/cham-cong-online` có PHIÊN ĐĂNG NHẬP RIÊNG — người mở trạm rất hay đang là TÀI KHOẢN
+ *      KHÁC. Anh Thắng 18/09/2026: *"anh nghi khả năng đăng nhập 2 tài khoản, mà gặp cảnh báo
+ *      kia nên nhảy sang trang là nó không hiểu dẫn đến đơ"*. Chấm công xong bằng tài khoản B,
+ *      quay lại bấm "Tôi đã chấm công xong" thì máy chủ vẫn soi tài khoản A và vẫn chối —
+ *      người dùng kẹt trong một vòng không có lối ra.
+ *   2. NÚT "CHẤM CÔNG NGAY" MỞ TAB MỚI (`target=_blank`). Trong PWA / trình duyệt trong app
+ *      trên điện thoại, tab mới thường không có đường quay lại.
  *
- * 🔴 NÊN BÀI NÀY ĐẾM CHỖ GỌI, KHÔNG ĐẾM CHUỖI (CLAUDE.md §6, bài học 0.18.1). Đúng cùng một
- *    hình dạng: luật đúng, một bản sao không được vá, bộ thử vẫn xanh, màn hình vẫn sai.
+ *   Và cái giá của việc chặn là sai chỗ: nó đem KỶ LUẬT GIỜ GIẤC ra khoá việc ghi nhận TIỀN
+ *   MẶT. Tiền không vào sổ là mất thật; quên chấm công thì mai bù được.
+ *
+ * ==============================================================================================
+ * 🔴 BỎ CỬA CÒN DỌN LUÔN MỘT HỌ LỖI (giữ nguyên bài học 16/09/2026)
+ * ==============================================================================================
+ *    Ca "chưa chấm công" từng trả về một phản hồi RẤT NGẮN — ok + pinOk + chuaChamCong, KHÔNG
+ *    có `coso`, KHÔNG có `banBc`. Đường vào nào quên kiểm là màn hiện "phạm vi 0 cơ sở · mã báo
+ *    cáo ?" — TRÔNG Y HỆT lỗi opcache, và khối chẩn đoán còn cử người đi xoá opcache cho một
+ *    lỗi nằm chỗ khác. Nay `boot()` LUÔN trả gói đầy đủ, nên không còn ca ngắn nào để sót.
+ *
+ * ⚠️ BÀI NÀY ĐẾM CHỖ GỌI, KHÔNG ĐẾM CHUỖI (CLAUDE.md §6, bài học 0.18.1).
  *
  * Chạy: php tools/test/kiem-ghe-cua-cham-cong.php   (chay-het.sh tự gom)
  */
@@ -30,44 +47,52 @@ function t( $ten, $ok ) {
 	if ( ! $ok ) { $LOI++; }
 }
 
-echo "── Máy chủ ──\n";
-t( 'boot() còn nhánh trả về sớm cho ca chưa chấm công',
-	false !== strpos( $bc, "'chuaChamCong' => 1," ) );
-/* Nhánh ấy KHÔNG kèm banBc — đó chính là thứ làm màn hình nói dối. Ghim lại để ai thêm banBc
-   vào đó thì phải đọc bài này trước và hiểu vì sao màn hình từng đổ oan cho opcache. */
+echo "── Máy chủ: không còn cửa chặn ──\n";
+t( '🔴 boot() KHÔNG còn nhánh trả về sớm chặn ca chưa chấm công',
+	false === strpos( $bc, "'chuaChamCong' => 1," ) );
+t( '🔴 nhưng VẪN tính được, để còn nhắc',
+	false !== strpos( $bc, '$nhac_cham = self::cham_cong_chua_(' ) );
+t( '🔴 và gửi cờ ấy trong gói ĐẦY ĐỦ', false !== strpos( $bc, "'nhacChamCong' => \$nhac_cham," ) );
+t( 'hàm dò vẫn còn (chỉ đổi vai trò, không xoá)',
+	false !== strpos( $bc, 'private static function cham_cong_chua_(' ) );
+/* FAIL-OPEN vẫn phải nguyên: một dải vàng nói sai cũng là nói sai. */
+t( 'fail-open giữ nguyên — lỗi gì cũng cho qua',
+	false !== strpos( $bc, 'return false;       // lỗi gì cũng CHO QUA' ) );
+
+/* 🔴 MỌI ĐƯỜNG RA CỦA boot() PHẢI MANG VÂN TAY. Đây chính là thứ ca ngắn ngày xưa thiếu, và là
+   gốc của cả buổi chiều 16/09 đổ oan cho opcache. Nay chỉ còn một đường ra thành công. */
 if ( preg_match( '/public static function boot\(.*?\n\t\}/s', $bc, $mb ) ) {
 	$than = $mb[0];
-	$vi_cc = strpos( $than, "'chuaChamCong' => 1," );
-	$vi_bb = strpos( $than, "'banBc' => self::BAN" );
-	t( 'boot(): nhánh chưa-chấm-công nằm TRƯỚC chỗ gắn banBc (nên phản hồi ấy thiếu vân tay)',
-		false !== $vi_cc && false !== $vi_bb && $vi_cc < $vi_bb );
+	$so_ok = preg_match_all( "/'pinOk' => true/", $than );
+	$so_ban = preg_match_all( "/'banBc' => self::BAN/", $than );
+	t( "boot(): mọi đường ra thành công đều mang banBc (ok=$so_ok · banBc=$so_ban)",
+		$so_ok > 0 && $so_ok === $so_ban );
 } else {
 	t( 'đọc được thân boot()', false );
 }
 
-echo "── Mọi đường vào màn báo cáo ──\n";
-/* Đường vào = chỗ gán `BC=` rồi gọi `veChinh()`. Mỗi chỗ như thế phải có một cửa chuaChamCong
-   đứng trước. Đếm theo CHỖ GỌI: veChinh() chỉ được gọi từ những chỗ đã qua cửa. */
-$cua = preg_match_all( '/\.chuaChamCong/', $js );
-t( "cửa chuaChamCong xuất hiện đúng 3 chỗ (PIN · nút 'đã chấm công' · đường token) — đang có $cua",
-	3 === $cua );
+echo "── Giao diện: nhắc, không chặn ──\n";
+t( '🔴 không còn màn chào "chưa chấm công"', false === strpos( $js, 'function veChuaChamCong' ) );
+t( '🔴 và không còn lời gọi nào tới nó', false === strpos( $js, 'veChuaChamCong(' ) );
+$con = preg_match_all( '/\.chuaChamCong/', $js );
+t( "🔴 không còn nhánh nào rẽ theo chuaChamCong — đang có $con", 0 === $con );
 
-foreach ( array(
-	'đường PIN (thu())'                 => "if(r.chuaChamCong){ veChuaChamCong(v, r); return; }",
-	'đường token (moBaoCaoTuDuLieu())'  => "if (r.chuaChamCong) {",
-) as $ten => $dau ) {
-	t( "$ten có cửa", false !== strpos( $js, $dau ) );
-}
+t( '🔴 có dải nhắc trên màn báo cáo', false !== strpos( $js, 'if (BC.nhacChamCong) {' ) );
+t( 'dải nói rõ VẪN nộp được', false !== strpos( $js, 'Vẫn nộp báo cáo bình thường' ) );
+/* 🔴 NÓI RA CHUYỆN HAI TÀI KHOẢN. Đây chính là chỗ làm người dùng kẹt ở bản trước; im lặng thì
+   họ lại tưởng hệ đếm sai. */
+t( '🔴 và nói ra chuyện hai tài khoản',
+	false !== strpos( $js, 'trang chấm công đăng nhập riêng' ) );
+/* 🔴 KHÔNG TẮT NÚT NÀO. Cái dễ hỏng ở đây không phải dải cảnh báo, mà là người sau đọc thấy nó
+   rồi "làm cho chặt" bằng một dòng disabled. */
+$i_d = strpos( $js, 'if (BC.nhacChamCong) {' );
+t( '🔴 dải nhắc KHÔNG tắt nút nào',
+	false !== $i_d && false === strpos( substr( $js, $i_d, 1400 ), 'disabled' ) );
+/* Dải phải đứng TRƯỚC mọi ô nhập — đọc sau khi đã nộp xong thì bằng không đọc. */
+$i_wrap = strpos( $js, "var wrap=el('div','bc-wrap bc-app-in');" );
+t( 'dải đứng TRƯỚC khối nhập', false !== $i_d && false !== $i_wrap && $i_d < $i_wrap );
 
-/* 🔴 Đường token phải gác TRƯỚC khi vẽ màn chính, không phải sau. */
-$vi_cua = strpos( $js, 'if (r.chuaChamCong) {' );
-$vi_ve  = strpos( $js, "PIN=r.pin||''; BC=r; NGAY=r.today||''; LOC='';" );
-t( 'đường token: cửa đứng TRƯỚC chỗ gán BC và veChinh()',
-	false !== $vi_cua && false !== $vi_ve && $vi_cua < $vi_ve );
-
-echo "── Khối chẩn đoán không được đổ oan ──\n";
-/* Có banBc = mã đang chạy đúng là bản này. Kết luận "opcache giữ tệp cũ" lúc ấy là sai, và nó
-   cử người đi làm một việc không ăn thua — 16/09/2026 đã mất một vòng vì thế. */
+echo "── Khối chẩn đoán không được đổ oan (giữ nguyên) ──\n";
 t( 'chỉ kết luận "mã cũ" khi THIẾU banBc', false !== strpos( $js, 'var maCu=!BC.banBc;' ) );
 t( 'có nhánh nói thẳng "KHÔNG phải lỗi opcache" khi vân tay vẫn đúng',
 	false !== strpos( $js, 'KHÔNG phải lỗi opcache' ) );

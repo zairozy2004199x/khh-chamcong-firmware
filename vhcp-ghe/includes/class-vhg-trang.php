@@ -2556,9 +2556,9 @@ JS;
         b.disabled=false;
         if(!r){ er.textContent='Không nhận được trả lời máy chủ.'; return; }
         if(!r.ok || !r.pinOk){ er.textContent=(r.error||'PIN không đúng.'); inp.value=''; inp.focus(); return; }
-        /* 🔴 CHƯA CHẤM CÔNG HÔM NAY → chào + mời chấm công trước, chưa cho vào báo cáo (anh Thắng
-           15/09/2026). Chấm xong bấm "đã chấm công" là boot lại, qua cửa này thì vào luôn. */
-        if(r.chuaChamCong){ veChuaChamCong(v, r); return; }
+        /* 🔴 KHÔNG CÒN RẼ SANG MÀN "CHƯA CHẤM CÔNG" — anh Thắng 18/09/2026: *"hãy loại bỏ tính
+           năng bắt checkin mới nộp báo cáo, mà hãy chỉ đưa cảnh báo thôi"*. Vào thẳng báo cáo;
+           chưa chấm công thì `veChinh()` treo một dải vàng lên đầu màn. Xem `daiNhacCham()`. */
         PIN=v; BC=r; NGAY=r.today||''; LOC='';
         veChinh();
       });
@@ -2568,44 +2568,17 @@ JS;
     inp.focus();
   }
 
-  /* MÀN "CHƯA CHẤM CÔNG" — anh Thắng 15/09/2026: nhân viên chưa chấm công hôm nay thì chào + mời
-     chấm công trước, chấm xong bấm là vào báo cáo luôn. Chốt thật ở máy chủ (boot → chuaChamCong),
-     đây chỉ là màn chào + hai nút. */
-  function veChuaChamCong(pin, r){
-    var app=$('bc-app'); app.textContent='';
-    var g=el('div'); g.style.cssText='max-width:430px;margin:36px auto;padding:22px;border:1px solid #e2e8f0;'
-      +'border-radius:14px;background:#fff;text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.06)';
-    var h=el('div'); h.style.cssText='font-size:20px;font-weight:800;color:#111827;margin-bottom:6px';
-    h.textContent='👋 Xin chào'+(r.staff?(', '+r.staff):'')+'!';
-    g.appendChild(h);
-    var p=el('div'); p.style.cssText='color:#334155;font-size:15px;line-height:1.5;margin-bottom:16px';
-    p.textContent='Vui lòng CHẤM CÔNG trước khi vào làm nhé. Chấm công xong bấm nút bên dưới để vào màn Báo cáo doanh thu.';
-    g.appendChild(p);
-    var bCC=el('a','bc-btn pri'); bCC.textContent='⏱ Chấm công ngay';
-    bCC.href=r.chamCongUrl||'#'; bCC.target='_blank'; bCC.rel='noopener';
-    bCC.style.cssText='display:inline-block;margin:0 6px 10px;font-weight:700';
-    g.appendChild(bCC);
-    var er=el('div','bc-mut'); er.style.marginTop='10px';
-    var bVao=el('button','bc-btn'); bVao.type='button'; bVao.textContent='✅ Tôi đã chấm công xong → Vào báo cáo';
-    bVao.style.cssText='display:block;margin:4px auto 0;font-weight:700';
-    bVao.onclick=function(){
-      bVao.disabled=true; er.className='bc-mut'; er.textContent='Đang kiểm tra chấm công…';
-      goi('bc_boot',{pin:pin},function(r2){
-        bVao.disabled=false;
-        if(!r2||!r2.ok||!r2.pinOk){ er.className='bc-mut bc-err'; er.textContent=(r2&&r2.error)||'Lỗi.'; return; }
-        if(r2.chuaChamCong){ er.className='bc-mut bc-err';
-          er.textContent='Chưa thấy chấm công hôm nay — anh/chị chấm công xong rồi bấm lại nút này nhé.'; return; }
-        PIN=pin; BC=r2; NGAY=r2.today||''; LOC=''; veChinh();
-      });
-    };
-    g.appendChild(bVao);
-    g.appendChild(er);
-    var back=el('button','bc-btn'); back.type='button'; back.textContent='Đổi PIN';
-    back.style.cssText='display:block;margin:12px auto 0';
-    back.onclick=function(){ try{ location.reload(); }catch(e){} };
-    g.appendChild(back);
-    app.appendChild(g);
-  }
+  /* 🔴 MÀN "CHƯA CHẤM CÔNG" ĐÃ XOÁ (2.112.0) — anh Thắng 18/09/2026: *"hãy loại bỏ tính năng
+     bắt checkin mới nộp báo cáo, mà hãy chỉ đưa cảnh báo thôi"*.
+     Nó gồm một lời chào, nút "⏱ Chấm công ngay" mở TAB MỚI, và nút "✅ Tôi đã chấm công xong"
+     để boot lại. Hai chỗ chết người:
+       · tab mới (`target=_blank`) trong PWA / trình duyệt trong app thường không có đường quay
+         lại — người ta chấm công xong là lạc;
+       · `/cham-cong-online` có PHIÊN RIÊNG, nên rất hay là một TÀI KHOẢN KHÁC. Chấm xong bằng
+         tài khoản B rồi bấm "Tôi đã chấm công xong" thì máy chủ vẫn soi tài khoản A và vẫn
+         chối — kẹt trong một vòng không lối ra. Đúng cái anh Thắng tả: *"bấm chấm công đến
+         đoạn lưu là nó đơ và không nhảy sang tab báo"*.
+     Thay bằng `daiNhacCham()`: một dải vàng trên đầu màn báo cáo, không chặn gì. */
 
   // ---------------- MÀN CHÍNH ----------------
   function veChinh(){
@@ -2655,6 +2628,26 @@ JS;
     };
     top.appendChild(out);
     app.appendChild(top);
+
+    /* 🔴 DẢI NHẮC CHẤM CÔNG — NHẮC, KHÔNG CHẶN. Thay cho cả màn "chưa chấm công" đã bỏ ở
+       2.112.0 (anh Thắng 18/09/2026: *"hãy loại bỏ tính năng bắt checkin mới nộp báo cáo, mà
+       hãy chỉ đưa cảnh báo thôi"*).
+       ⚠️ ĐẶT NGAY DƯỚI THANH TRÊN, TRƯỚC MỌI Ô NHẬP — người ta đọc từ trên xuống rồi mới gõ số;
+          để xuống cuối là đọc sau khi đã nộp xong, tức không đọc.
+       ⚠️ VÀ NÓI RÕ CHUYỆN HAI TÀI KHOẢN. `/cham-cong-online` có phiên riêng, rất hay là một tài
+          khoản khác — chính chỗ ấy làm người dùng kẹt ở bản trước. Nói ra thì họ tự hiểu, thay
+          vì tưởng hệ đếm sai. */
+    if (BC.nhacChamCong) {
+      var nc=el('div');
+      nc.style.cssText='max-width:1080px;margin:10px auto 0;padding:11px 14px;border-radius:10px;'
+        +'border:1px solid #f0b429;background:#fffbeb;color:#7c5e10;font-size:14px;line-height:1.5';
+      var nb=el('b',null,'⏰ Hôm nay chưa thấy lượt chấm công của '+(BC.staff||'tài khoản này')+'. ');
+      nc.appendChild(nb);
+      nc.appendChild(document.createTextNode(
+        'Vẫn nộp báo cáo bình thường — nhưng nhớ chấm công, kẻo cuối tháng thiếu công. '
+        + 'Nếu anh/chị đã chấm bằng tài khoản khác thì bỏ qua dòng này: trang chấm công đăng nhập riêng.'));
+      app.appendChild(nc);
+    }
 
     var wrap=el('div','bc-wrap bc-app-in');
 
@@ -5004,21 +4997,13 @@ JS;
       return;
     }
     styleOnce();
-    /* 🔴 CỬA CHẤM CÔNG PHẢI GÁC CẢ ĐƯỜNG NÀY — LỖI 16/09/2026.
-       Cửa `chuaChamCong` thêm ngày 15/09 chỉ được gắn ở đường PIN (`thu()`), sót đúng đường mà
-       nhân viên mở báo cáo từ SPA /ghe. Mà `boot()` trả cho ca chưa chấm công một phản hồi RẤT
-       NGẮN: ok + pinOk + chuaChamCong, KHÔNG có cơ sở, KHÔNG có banBc. Đường này không hỏi gì
-       cứ thế veChinh(), nên màn hiện ra "phạm vi 0 cơ sở · mã báo cáo ?" — trông y hệt lỗi
-       opcache đã mất cả buổi chiều 15/09 để lần ra, và khối chẩn đoán còn đổ oan cho opcache
-       một lần nữa. Chị Võ Nguyễn Hồng Nhung dính đúng ca này.
-       ⚠️ Thêm một đường vào màn báo cáo thì PHẢI qua cửa này. `kiem-ghe-cua-cham-cong.php` đếm
-          chỗ gọi để không ai mở đường thứ ba mà quên. */
-    if (r.chuaChamCong) {
-      var app0=$('bc-app'); app0.className='mo'; app0.textContent='';
-      TU_SPA=true;
-      veChuaChamCong(r.pin||'', r);
-      return;
-    }
+    /* 🔴 CỬA CHẤM CÔNG ĐÃ BỎ HẲN (2.112.0) — cả ở đường này lẫn đường PIN.
+       Lịch sử để lại đây vì nó dạy đúng một bài: cửa ấy thêm 15/09 chỉ gắn ở đường PIN, sót
+       đúng đường SPA, và ca sót ấy trả về một gói RẤT NGẮN (ok + pinOk + chuaChamCong, không
+       cơ sở, không banBc) nên màn hiện "phạm vi 0 cơ sở · mã báo cáo ?" — mất cả buổi chiều
+       16/09 mới lần ra, còn đổ oan cho opcache. Chị Võ Nguyễn Hồng Nhung dính đúng ca đó.
+       Nay `boot()` LUÔN trả gói đầy đủ, nên không còn ca ngắn nào để sót nữa — bỏ cửa đồng
+       thời bỏ luôn cả một họ lỗi. */
     TU_SPA=true;   // mở từ trang quản trị → cho nút "Về trang quản lý"
     PIN=r.pin||''; BC=r; NGAY=r.today||''; LOC='';
     var app=$('bc-app'); app.className='mo'; app.textContent='';
