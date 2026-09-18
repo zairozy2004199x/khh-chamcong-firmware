@@ -97,6 +97,24 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.44.0 =
+* 🔴 **Sửa ngày không còn làm màn chớp trắng rồi nhảy về đầu trang.** `<input type="date">` bắn
+  sự kiện *ngay giữa lúc gõ*: xoá một ô để sửa là giá trị thành rỗng và hệ đi hỏi máy chủ một
+  khoảng rỗng; gõ tiếp, vừa đủ một ngày hợp lệ là nó hỏi lần nữa, dù còn đang gõ dở. Nay ô ngày
+  **bỏ qua giá trị rỗng hoặc gõ dở**, **chờ một nhịp** để gõ xong mới chạy một lượt, và **rời ô
+  thì chạy ngay** (chọn xong trên lịch không phải đợi).
+* **Đang tải lại thì giữ nguyên số cũ trên màn**, chỉ mờ đi một chút — thay vì xoá trắng cả
+  bảng mỗi lượt. Lần đầu mở tab thì vẫn hiện "Đang tải…" như cũ.
+* **Lượt trả về trễ không đè lượt mới.** Đổi ngày rồi đổi tiếp là hai lượt hỏi chạy song song;
+  lượt đầu về sau thì màn hiện số của khoảng cũ trong khi thanh ngày ghi khoảng mới — sai mà
+  trông như thật.
+* Bài kiểm mới `tools/test/kiem-o-ngay.js` — **22 phép**, chạy thật hàm nối ô ngày trên ô giả
+  và bộ hẹn giờ giả, chứ không chỉ dò chuỗi trong mã.
+* **Bệ đỡ bài thử**: thư mục tạm nay riêng cho từng lượt chạy và tự dọn lúc thoát. Trước đây nó
+  đặt tên theo số hiệu tiến trình mà không ai dọn — máy chạy bài thử quay vòng số hiệu ở 32768
+  và đã có 2.053 thư mục cũ nằm lại, nên một lượt chạy mới có thể thừa hưởng tệp của lượt cũ và
+  đỏ một lần rồi xanh lại, không lần ra nguyên do.
+
 = 1.43.0 =
 * 🔴 **Ghép cơ sở vào tài khoản MoMo ngay trên màn Đối soát.** K&H có hai pháp nhân và **phí
   hai tài khoản khác nhau**, nên phép "chia tạm" của 1.41.0 (gộp mọi cơ sở chưa có chủ vào một

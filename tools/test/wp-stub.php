@@ -47,10 +47,69 @@ register_shutdown_function( function () {
 	exit( 1 );
 } );
 
-$GLOBALS['VHCP_TMP'] = sys_get_temp_dir() . '/vhcp-test-' . getmypid();
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 THƯ MỤC TẠM PHẢI RIÊNG CHO TỪNG LƯỢT CHẠY, VÀ PHẢI DỌN.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * Trước đây tên thư mục là `vhcp-test-<số hiệu tiến trình>` và không ai dọn. Hai chuyện cộng
+ * lại thành một cái bẫy:
+ *
+ *   · máy chạy bài thử có `pid_max` = 32768, tức số hiệu tiến trình QUAY VÒNG;
+ *   · tới lúc phát hiện đã có 2.053 thư mục cũ nằm lại trong /tmp.
+ *
+ * Nên một lượt chạy mới rất dễ nhận đúng số hiệu của một lượt cũ, rồi thừa hưởng nguyên đống
+ * tệp nó để lại — mà `uploads/` thì hàng chục chỗ trong kho có ghi vào (ảnh chấm công, ảnh
+ * chi phí, file nội bộ…). Bài thử đọc phải tệp của bài khác là đỏ một lượt rồi xanh lại ở lượt
+ * sau, không lần nào ra nguyên do. 18/09/2026 đã có đúng một lượt `test-flows.php` đỏ như thế.
+ *
+ * Nay: tên có thêm phần ngẫu nhiên (hết đụng), và dọn sạch lúc thoát (hết chất đống). Kèm một
+ * lượt quét thư mục quá một giờ, cho những lượt chạy bị giết ngang không kịp dọn.
+ *
+ * ⚠️ ĐĂNG KÝ HÀM DỌN Ở NGAY ĐÂY, TRƯỚC HÀM BÁO CẢNH BÁO PHÍA TRÊN THÌ KHÔNG ĐƯỢC — mà phải
+ *    hiểu thứ tự: PHP chạy các hàm `register_shutdown_function` theo đúng thứ tự đăng ký, và
+ *    hàm báo cảnh báo ở trên có `exit(1)`, mà `exit()` trong một hàm shutdown thì CHẶN mọi hàm
+ *    shutdown đăng ký sau nó. Nên lượt chạy nào có cảnh báo PHP sẽ không dọn được — chính vì
+ *    thế mới cần thêm lượt quét thư mục cũ ở dưới, chứ không trông cả vào hàm dọn.
+ */
+$GLOBALS['VHCP_TMP'] = sys_get_temp_dir() . '/vhcp-test-' . getmypid() . '-' . bin2hex( random_bytes( 5 ) );
 @mkdir( $GLOBALS['VHCP_TMP'] . '/wp-admin/includes', 0777, true );
 @mkdir( $GLOBALS['VHCP_TMP'] . '/uploads', 0777, true );
 file_put_contents( $GLOBALS['VHCP_TMP'] . '/wp-admin/includes/upgrade.php', "<?php\n" );
+
+/** Xoá đệ quy MỘT thư mục tạm của bài thử. Chỉ nhận đường dẫn trong /tmp và đúng tiền tố. */
+function vhcp_don_thu_muc_tam( $d ) {
+	$goc = sys_get_temp_dir() . '/vhcp-test-';
+	/* 🔴 RÀO BẮT BUỘC. Đây là hàm xoá đệ quy; gọi nhầm một lần là mất thứ không lấy lại được.
+	   Nên nó CHỈ chịu xoá đường dẫn bắt đầu đúng bằng tiền tố thư mục tạm của bài thử. */
+	if ( 0 !== strpos( $d, $goc ) || ! is_dir( $d ) ) {
+		return;
+	}
+	$ds = @scandir( $d );
+	foreach ( is_array( $ds ) ? $ds : array() as $x ) {
+		if ( '.' === $x || '..' === $x ) {
+			continue;
+		}
+		$p = $d . '/' . $x;
+		if ( is_dir( $p ) && ! is_link( $p ) ) {
+			vhcp_don_thu_muc_tam( $p );
+		} else {
+			@unlink( $p );
+		}
+	}
+	@rmdir( $d );
+}
+
+register_shutdown_function( function () {
+	vhcp_don_thu_muc_tam( $GLOBALS['VHCP_TMP'] );
+} );
+
+/* Quét thư mục của những lượt chạy cũ đã bỏ lại (bị giết ngang, hoặc thoát sớm vì cảnh báo
+   PHP nên không chạy tới hàm dọn). Quá một giờ thì chắc chắn không còn ai dùng. */
+foreach ( (array) @glob( sys_get_temp_dir() . '/vhcp-test-*' ) as $_cu ) {
+	if ( is_dir( $_cu ) && $_cu !== $GLOBALS['VHCP_TMP'] && @filemtime( $_cu ) < time() - 3600 ) {
+		vhcp_don_thu_muc_tam( $_cu );
+	}
+}
+unset( $_cu );
 
 define( 'ABSPATH', $GLOBALS['VHCP_TMP'] . '/' );
 define( 'ARRAY_A', 'ARRAY_A' );

@@ -286,3 +286,13 @@ body.khh-dt-body{margin:0;background:#f2f1ee}
 .khh-dt .lich-chu span{display:flex;align-items:center;gap:6px}
 .khh-dt .lich-chu i.lo{display:inline-block;width:18px;height:18px;min-height:18px;line-height:18px;
   text-align:center;border-radius:5px;font-style:normal;font-size:10px;font-weight:700;flex:none;padding:0}
+
+/* Đang tải lại NHƯNG vẫn còn số cũ trên màn: mờ đi một chút cho biết là đang chạy, chứ KHÔNG
+   xoá trắng. Xoá trắng mỗi lượt tải là mỗi lần sửa ngày màn lại chớp rồi nhảy về đầu trang —
+   anh Thắng 18/09/2026 gọi là "trắng xíu trong nhảy ra".
+   `pointer-events:none` để không ai kịp bấm vào bảng số sắp bị thay. */
+#dtTabDoiSoat[aria-busy="true"] {
+  opacity: .55;
+  pointer-events: none;
+  transition: opacity .15s ease;
+}

@@ -107,6 +107,40 @@
 
   function tinhKy() { return tinhKyCua(S); }
 
+  /* ═══ Ô NGÀY: ĐỪNG CHẠY LÚC NGƯỜI TA ĐANG GÕ ═══════════════════════════════════════
+     Anh Thắng 18/09/2026: *"cứ bấm sửa số ngày nó trắng xíu trong nhảy ra, sao không bấm số,
+     rồi chọn mới chạy"*.
+
+     `<input type="date">` bắn `change` NGAY GIỮA LÚC GÕ, không đợi gõ xong:
+       · xoá một ô để sửa -> giá trị thành RỖNG -> `change` -> đi hỏi máy chủ một khoảng rỗng;
+       · gõ tiếp ngày mới -> vừa đủ một ngày hợp lệ là `change` lần nữa, dù còn đang gõ tháng.
+     Mỗi lần như thế là một lượt tải, mà lượt tải lại xoá trắng cả màn -> "trắng xíu rồi nhảy
+     ra". Ba luật ở đây:
+
+       1. Giá trị chưa đủ một ngày (rỗng, gõ dở) thì KHÔNG làm gì. Đây là luật quan trọng nhất
+          — rỗng mà vẫn chạy là hỏi máy chủ một khoảng vô nghĩa.
+       2. Đủ rồi thì vẫn chờ một nhịp, để gõ nốt ngày/tháng/năm mới chạy MỘT lượt.
+       3. Rời ô (bấm ra ngoài, chọn xong trên lịch) thì chạy ngay, không bắt đợi.
+
+     Và nhớ giá trị đã chạy: rời ô sau khi nhịp chờ đã chạy rồi thì KHÔNG chạy lại. */
+  var NGAY_DU = /^\d{4}-\d{2}-\d{2}$/;
+  function noiONgay(o, dat) {
+    if (!o) return;
+    var hen = null, xong = o.value;
+    var chay = function (ngay) {
+      clearTimeout(hen); hen = null;
+      if (!NGAY_DU.test(o.value) || o.value === xong) return;
+      xong = o.value;
+      dat(xong);
+    };
+    o.addEventListener('change', function () {
+      if (!NGAY_DU.test(o.value)) return;          // luật 1
+      clearTimeout(hen);
+      hen = setTimeout(chay, 500);                 // luật 2
+    });
+    o.addEventListener('blur', chay);              // luật 3
+  }
+
   function tai() {
     if (S.dangTai) return;
     var k = tinhKy();
@@ -681,8 +715,8 @@
     Array.prototype.forEach.call(G.querySelectorAll('.loc .vien'), function (c) {
       c.addEventListener('click', function () { S.ky = c.dataset.k; tai(); });
     });
-    q('#dtTu').addEventListener('change', function () { S.ky = 'tay'; S.tu = q('#dtTu').value; tai(); });
-    q('#dtDen').addEventListener('change', function () { S.ky = 'tay'; S.den = q('#dtDen').value; tai(); });
+    noiONgay(q('#dtTu'), function (v) { S.ky = 'tay'; S.tu = v; tai(); });
+    noiONgay(q('#dtDen'), function (v) { S.ky = 'tay'; S.den = v; tai(); });
     q('#dtChonCH').addEventListener('change', function () { S.ch = q('#dtChonCH').value; ve(); });
     q('#dtXepR').addEventListener('click', function () { S.xepMon = 'r'; ve(); });
     q('#dtXepQ').addEventListener('click', function () { S.xepMon = 'q'; ve(); });
@@ -1112,13 +1146,30 @@
   }
 
   /* ================= tab ĐỐI SOÁT ================= */
+  var dsLuot = 0;   // đếm lượt gọi, xem chú thích trong `taiDoiSoat`
   function taiDoiSoat() {
     var o = q('#dtTabDoiSoat');
     var k = tinhKyCua(S.ds);
-    o.innerHTML = '<div class="khung"><div class="trong">Đang tải…</div></div>';
+    /* 🔴 LƯỢT TRẢ VỀ CŨ KHÔNG ĐƯỢC ĐÈ LƯỢT MỚI. Đổi ngày rồi đổi tiếp là hai lượt hỏi chạy
+       song song; lượt đầu về sau thì màn hiện số của khoảng CŨ, mà thanh ngày lại ghi khoảng
+       MỚI — sai mà trông như thật. Đánh số lượt, về trễ thì bỏ. */
+    var luot = ++dsLuot;
+    /* 🔴 CHỈ XOÁ TRẮNG KHI CHƯA CÓ GÌ ĐỂ GIỮ. Xoá trắng mỗi lượt tải là mỗi lần đổi ngày màn
+       lại chớp một cái rồi nhảy về đầu trang — anh Thắng gọi là *"trắng xíu trong nhảy ra"*. */
+    if (!S.dsR) {
+      o.innerHTML = '<div class="khung"><div class="trong">Đang tải…</div></div>';
+    } else {
+      o.setAttribute('aria-busy', 'true');
+    }
     api('doi-soat?tu=' + k.tu + '&den=' + k.den + '&cua_hang=' + encodeURIComponent(S.ds.ch))
-      .then(function (r) { veDoiSoat(o, r, k); })
+      .then(function (r) {
+        if (luot !== dsLuot) return;
+        o.removeAttribute('aria-busy');
+        veDoiSoat(o, r, k);
+      })
       .catch(function (e) {
+        if (luot !== dsLuot) return;
+        o.removeAttribute('aria-busy');
         o.innerHTML = '<div class="khung"><div class="trong">' + esc(e.message || e) + '</div></div>';
       });
   }
@@ -1153,8 +1204,8 @@
     });
     var t = o.querySelector('#dsTu'), d = o.querySelector('#dsDen'),
         c = o.querySelector('#dsCH'), k = o.querySelector('#dsCanh');
-    if (t) t.addEventListener('change', function () { S.ds.ky = 'tay'; S.ds.tu = t.value; taiDoiSoat(); });
-    if (d) d.addEventListener('change', function () { S.ds.ky = 'tay'; S.ds.den = d.value; taiDoiSoat(); });
+    noiONgay(t, function (v) { S.ds.ky = 'tay'; S.ds.tu = v; taiDoiSoat(); });
+    noiONgay(d, function (v) { S.ds.ky = 'tay'; S.ds.den = v; taiDoiSoat(); });
     if (c) c.addEventListener('change', function () { S.ds.ch = c.value; taiDoiSoat(); });
     /* Lọc "chỉ dòng cần xem" vẽ lại tại chỗ, không hỏi lại máy chủ — cùng một bộ số. */
     if (k) k.addEventListener('change', function () { S.ds.chiCanh = k.checked; veDoiSoat(q('#dtTabDoiSoat'), S.dsR, S.dsK); });
