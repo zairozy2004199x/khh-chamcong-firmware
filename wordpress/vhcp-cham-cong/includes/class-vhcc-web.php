@@ -5546,6 +5546,14 @@ class VHCC_Web {
 	private static function the_luoi_thang( $cs, $th, $ky, $toi ) {
 		if ( '' === $cs ) { return; }
 		$la_vp    = ( 'cong' === VHCC_Luong::cach_tinh( $cs ) );
+		/* 🔴 TỰ HỎI LẤY, ĐỪNG ĐỌC `$b['riengMinh']` — HÀM NÀY KHÔNG CÓ `$b`.
+		   Bản 4.52.0 gác bằng `! empty( $b['riengMinh'] )` ở đây, mà `the_luoi_thang()` chỉ nhận
+		   `$cs, $th, $ky, $toi`. Biến không tồn tại thì `empty()` trả true, chốt không bao giờ
+		   nổ, và lưới Văn phòng vẫn vẽ cả cửa hàng — đúng cái anh Thắng chụp lại.
+		   ⚠️ Đây là kiểu hỏng KHÔNG ai thấy: PHP không kêu gì, phép thử chạy ở chế độ THEO GIỜ
+		      thì không đi qua nhánh này, và màn vẫn có băng vàng nói rằng đã lọc. */
+		$rieng_minh = ( ! VHCC_NhanSu::co_quyen_coso( $toi, $cs )
+			&& VHCC_NhanSu::co_cham_coso( $toi, $cs ) );
 		$khai_roi = VHCC_Luong::cach_tinh_da_khai( $cs );
 		$vi_sao   = $khai_roi ? 'đã khai thẳng'
 			: 'suy theo bộ phận <b>' . esc_html( VHCC_Luong::bo_phan_cua( $cs ) ) . '</b>';
@@ -5628,7 +5636,7 @@ class VHCC_Web {
 				. ' · ô <b>trống</b> → ' . ( $duoc_bu ? '<b>Chấm công bù</b>' : 'cần quyền Cửa hàng trưởng' )
 				. '.</p>';
 		}
-		if ( $la_vp && ! empty( $b['riengMinh'] ) ) {
+		if ( $la_vp && $rieng_minh ) {
 			/* Lưới văn phòng dựng thẳng từ `vp_bang_cong_va_luong()` — không qua phép lọc ở cửa
 			   vào, nên ở cơ sở mình chỉ đi làm thì KHÔNG vẽ nó. Lưới giờ phía trên đã lọc rồi
 			   và đủ cho người ta xem công của mình. */

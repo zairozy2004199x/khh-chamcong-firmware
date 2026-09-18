@@ -271,6 +271,68 @@ teq( 'nhân viên thường cũng xem được danh bạ chỗ mình làm', 1,
 t( '🔴 xem danh bạ được nhưng KHÔNG quản cơ sở ấy',
 	! VHCC_NhanSu::co_quyen_coso( $CHT, $LAM ) );
 
+/* ================================================================= màn thật, CẢ HAI cách tính */
+
+echo "— dựng trang thật rồi soi xem có lọt tên ai không —\n";
+/* 🔴 SOI TRANG ĐÃ VẼ, KHÔNG SOI HÀM. Lọc ở `bang_cham_cong()` xanh không có nghĩa là màn kín:
+   màn còn mấy khối đọc THẲNG cả cơ sở. Riêng lưới Văn phòng (`cach_tinh = cong`) đi một nhánh
+   khác hẳn, và chính nhánh ấy rò ở 4.52.0 — chốt gác viết `$b['riengMinh']` trong một hàm
+   KHÔNG CÓ `$b`, nên biến không tồn tại, `empty()` trả true, và chốt không bao giờ nổ. PHP
+   không kêu một tiếng nào.
+   ⚠️ CHẠY CẢ 'gio' LẪN 'cong'. Bài dò đầu tiên của em chỉ chạy 'gio' nên báo sạch, trong khi
+      cơ sở anh Thắng đang mở là 'cong'. Thiếu một nhánh là thiếu cả phép thử. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'CQ_KHAC', 'ho_ten' => 'NGƯỜI KHÁC HẲN',
+	'vai_tro' => 'Nhân viên', 'cua_hang' => $LAM, 'trang_thai_lam_viec' => 'Đang làm' ) );
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $LAM, 'ngay' => $TH2 . '-03',
+	'ma_nv' => 'CQ_KHAC', 'ho_ten' => 'NGƯỜI KHÁC HẲN', 'gio_vao_giay' => 28800,
+	'gio_ra_giay' => 61200, 'hau_to' => '', 'nguon' => 'may' ) );
+
+$tok_cht = VHCC_Auth::phat_token( 'Chị Trưởng', 'Cửa hàng trưởng', $CHINH . ', ' . $LAM, 'CQ_CHT' );
+
+foreach ( array( 'gio', 'cong' ) as $cach ) {
+	$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cai_dat' ) . " WHERE khoa='CACH_TINH_COSO'" );
+	$wpdb->insert( VHCC_DB::t( 'cai_dat' ), array( 'khoa' => 'CACH_TINH_COSO',
+		'gia_tri' => wp_json_encode( array( $LAM => $cach ) ) ) );
+	teq( 'dựng được cảnh cách tính ' . $cach, $cach, VHCC_Luong::cach_tinh( $LAM ) );
+
+	$_COOKIE = array( VHCC_Web::COOKIE => $tok_cht );
+	$_GET    = array( 'man' => 'cham', 'ccs' => $LAM, 'cth' => $TH2 );
+	$_POST   = array();
+	ob_start();
+	VHCC_Web::phuc_vu();
+	$trang = ob_get_clean();
+	$_GET  = array();
+	$_COOKIE = array();
+
+	$ro = array();
+	foreach ( array( 'NGƯỜI KHÁC HẲN', 'CQ_KHAC', 'Em Nhân Viên', 'CQ_NV' ) as $x_r ) {
+		if ( false !== mb_strpos( $trang, $x_r ) ) { $ro[] = $x_r; }
+	}
+	t( '🔴 [' . $cach . '] KHÔNG lọt tên hay mã người khác ra trang', ! $ro, $ro );
+	t( '[' . $cach . '] vẫn thấy công của chính mình',
+		false !== mb_strpos( $trang, 'Chị Trưởng' ) || false !== mb_strpos( $trang, 'CQ_CHT' ) );
+	t( '[' . $cach . '] có băng nói rõ vì sao bảng hẹp',
+		false !== mb_strpos( $trang, 'không phải cơ sở anh/chị quản lý' ) );
+}
+
+/* Ở cơ sở mình QUẢN thì trang phải hiện đủ — nới không được thành siết nhầm. */
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cai_dat' ) . " WHERE khoa='CACH_TINH_COSO'" );
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $CHINH, 'ngay' => $TH2 . '-03',
+	'ma_nv' => 'CQ_KHAC', 'ho_ten' => 'NGƯỜI KHÁC HẲN', 'gio_vao_giay' => 28800,
+	'gio_ra_giay' => 61200, 'hau_to' => '', 'nguon' => 'may' ) );
+$_COOKIE = array( VHCC_Web::COOKIE => $tok_cht );
+$_GET    = array( 'man' => 'cham', 'ccs' => $CHINH, 'cth' => $TH2 );
+$_POST   = array();
+ob_start();
+VHCC_Web::phuc_vu();
+$trang_q = ob_get_clean();
+$_GET = array();
+$_COOKIE = array();
+t( '🔴 cơ sở mình QUẢN thì VẪN thấy người khác',
+	false !== mb_strpos( $trang_q, 'NGƯỜI KHÁC HẲN' ) );
+t( 'và KHÔNG có băng hẹp ở đó',
+	false === mb_strpos( $trang_q, 'không phải cơ sở anh/chị quản lý' ) );
+
 echo "\n";
 if ( $truot ) {
 	echo '🔴 HỎNG ' . count( $truot ) . " phép thử:\n";
