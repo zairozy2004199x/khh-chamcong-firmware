@@ -3,7 +3,7 @@
  * Plugin Name:       Chấm Công (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Hệ thống chấm công chạy THẲNG trên host: máy chấm công, hàng đợi lệnh, cập nhật firmware và toàn bộ nghiệp vụ đều nằm trên MySQL của chính website. Không Firebase, không Google Sheet.
- * Version:           4.47.1
+ * Version:           4.48.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -34,7 +34,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHCC_VERSION', '4.47.1' );
+define( 'VHCC_VERSION', '4.48.0' );
 define( 'VHCC_FILE', __FILE__ );
 define( 'VHCC_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHCC_URL', plugin_dir_url( __FILE__ ) );
@@ -98,6 +98,7 @@ require_once VHCC_DIR . 'includes/class-vhcc-pwa.php';
 require_once VHCC_DIR . 'includes/class-vhcc-push.php';
 require_once VHCC_DIR . 'includes/class-vhcc-chuong.php';
 require_once VHCC_DIR . 'includes/class-vhcc-gio-khai.php';
+require_once VHCC_DIR . 'includes/class-vhcc-xin-bu.php';
 require_once VHCC_DIR . 'includes/class-vhcc-web.php';
 /* Màn Máy & Firmware của trang web. Tách tệp riêng vì class-vhcc-web.php đã ~4500 dòng —
    dồn thêm một màn 400 dòng vào đó là không ai đọc lại được. */

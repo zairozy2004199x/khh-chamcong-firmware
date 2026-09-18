@@ -3076,6 +3076,14 @@ class VHCC_Web {
 			. 'text-decoration:none;border-radius:3px}'
 			. 'table.cc a.o-sua:hover{background:var(--nhan);color:#fff;box-shadow:0 0 0 2px var(--nhan)}'
 			. 'table.cc a.o-sua:focus-visible{outline:2px solid var(--nhan);outline-offset:1px}'
+			/* 🔴 GIỜ ĐANG XIN BÙ — anh Thắng 18/09/2026: *"chữ màu nhạt hơn (vàng) để biết mình
+			   đã xin nhưng chờ duyệt, khi duyệt thì nó nhập vào và đổi về màu chuẩn"*.
+			   Chữ NGHIÊNG cộng với màu vàng, không chỉ màu: một ô vàng nhạt giữa lưới nhiều màu
+			   theo ca thì mắt không tách ra được, và người mù màu thì không thấy gì cả. Viền
+			   đứt nói thêm lần nữa rằng ô này chưa chắc chắn. */
+			. 'table.cc td.o-cho-bu{background:var(--vang-nhat,#fffbeb);'
+			. 'outline:1px dashed var(--vang-dam,#b45309);outline-offset:-2px}'
+			. 'table.cc .o-xin{color:var(--vang-dam,#b45309);font-style:italic;font-weight:600}'
 			/* Ô đang mở để sửa: viền đậm để mắt tìm lại được nó giữa 600 ô. */
 			/* 🔴 BẤM SỬA THÌ ĐỪNG NHẢY LÊN ĐỈNH. Anh Thắng 27/08/2026: *"khi bấm sửa công nó cứ
 			   nhảy lên như này, chỉnh đứng yên cho anh"*.
@@ -5481,6 +5489,7 @@ class VHCC_Web {
 			self::the_don_nghi( $cs, $ky, $toi );
 			/* Sửa bảng công tuần bằng .xlsx — anh Thắng 18/09/2026. Đứng cạnh hai khối đơn ở
 			   trên vì cùng một loại việc: thứ cửa hàng gửi đi rồi chờ người khác duyệt. */
+			VHCC_WebDonTuan::khoi_bu_cht( $ky, $toi, $cs );
 			VHCC_WebDonTuan::khoi_cua_hang( $ky, $toi, $cs );
 		}
 	}
@@ -7486,6 +7495,14 @@ class VHCC_Web {
 		   người ta tự gõ, không phải con số máy ghi. Trộn vào là cả bảng mất nghĩa. */
 		$khai_ds = ( class_exists( 'VHCC_GioKhai' ) && method_exists( 'VHCC_GioKhai', 'thang_cua' ) )
 			? VHCC_GioKhai::thang_cua( $b['coSo'], $th ) : array();
+		/* 🔴 GIỜ ĐANG XIN BÙ, VẼ BẰNG MÀU VÀNG — anh Thắng 18/09/2026: *"nhân viên thêm bù giờ
+		   thì trên bảng công cũng sẽ hiện luôn giờ bạn xin, nhưng chữ màu nhạt hơn (vàng) để
+		   biết mình đã xin nhưng chờ duyệt, khi duyệt thì nó nhập vào và đổi về màu chuẩn"*.
+		   Đọc từ bảng `xin_bu` CHỈ ĐỂ VẼ — con số ấy không vào TỔNG, không vào lương, và không
+		   nằm trong `cham_cong`. Duyệt xong thì nó rời bảng kia sang bảng chấm công thật, và ô
+		   tự khắc đổi sang màu chuẩn vì lúc ấy nó là giờ thật. */
+		$bu_treo = ( class_exists( 'VHCC_XinBu' ) && method_exists( 'VHCC_XinBu', 'treo_thang' ) )
+			? VHCC_XinBu::treo_thang( $b['coSo'], $th ) : array();
 		/* ⚠️ ĐỨNG SAU CẢ CỘT LƯƠNG, cuối hàng. Chen giữa TỔNG và LƯƠNG thì hai cột vốn đi liền
 		   nhau bị tách ra — `kiem-bang-luong-coso.php` chốt đúng chuyện ấy, và nó đúng: mắt
 		   người đọc TỔNG rồi liếc sang LƯƠNG. Anh Thắng cũng nói *"hiện cột tổng ở cuối trang"*. */
@@ -7663,10 +7680,25 @@ class VHCC_Web {
 						$chu_o = $f_bc['chu'];
 					}
 				}
-				echo '<td class="' . $lop_o . ( $dang ? ' dang-sua' : '' ) . '"'
+				/* Ô TRỐNG mà có đơn bù đang chờ: vẽ số giờ XIN, màu vàng nhạt. Ô đã có giờ thì
+				   thôi — giờ thật luôn thắng, và `VHCC_Bu::ghi()` lúc duyệt cũng sẽ chối. */
+				$noi_o = $c_chinh['noi'];
+				$treo  = ( null === $r_chinh && '' === $duoi
+					&& isset( $bu_treo[ strtoupper( (string) $ma ) ][ $i ] ) )
+					? $bu_treo[ strtoupper( (string) $ma ) ][ $i ] : null;
+				if ( null !== $treo ) {
+					$noi_o = '<span class="o-xin">'
+						. esc_html( null === $treo['gio'] ? '?' : VHCC_Cham::gio_tp( (int) round( $treo['gio'] * 60 ) ) )
+						. '</span>';
+					$chu_o = 'Đang xin bù ' . $treo['vao'] . '–' . $treo['ra'] . ' · '
+						. VHCC_XinBu::ten_tt( $treo['trangThai'] )
+						. ' — CHƯA vào bảng công, chưa tính lương.';
+				}
+				echo '<td class="' . $lop_o . ( $dang ? ' dang-sua' : '' )
+					. ( null !== $treo ? ' o-cho-bu' : '' ) . '"'
 					. ( $dang ? ' id="suaday"' : '' )
 					. ( '' !== $chu_o ? ' title="' . esc_attr( $chu_o ) . '"' : '' ) . '>'
-					. self::o_sua( $c_chinh['noi'], $ngay_o, $ma, null !== $r_chinh, $duoc_sua, $duoc_bu )
+					. self::o_sua( $noi_o, $ngay_o, $ma, null !== $r_chinh, $duoc_sua, $duoc_bu )
 					. $duoi . '</td>';
 			}
 			/* TỔNG vẫn là tổng CẢ NGƯỜI (mọi hàng), y như trước — chỉ khác chỗ nó không còn phải

@@ -49,9 +49,17 @@ class VHCC_Bu {
 	 * Tách riêng khỏi `ghi()` vì màn hình cần hỏi TRƯỚC (để ẩn ô nhập) còn `ghi()` phải hỏi LẠI
 	 * lúc ghi — ẩn cái ô không phải là gác cửa, người ta dựng form ở đâu cũng gửi lên được.
 	 */
-	public static function vi_sao_khong_duoc( $u, $coso, $ma_nv ) {
-		if ( ! VHCC_Vai::duoc( $u, 'cham_bu' ) ) {
-			return 'Chấm công bù cần quyền Cửa hàng trưởng trở lên.';
+	public static function vi_sao_khong_duoc( $u, $coso, $ma_nv, $quyen = 'cham_bu' ) {
+		/* ⚠️ `$quyen` ĐỂ NƠI GỌI NÓI RÕ MÌNH ĐANG LÀM VIỆC GÌ — 18/09/2026.
+		   Từ hôm nay `cham_bu` và `sua_gio` đều ở bậc Kế toán, và cả hai chỉ định được cho từng
+		   người bằng một dòng ngoại lệ. Nhưng `sua()`/`xoa()` gọi hàm này để dùng mấy chốt PHẠM
+		   VI (cơ sở, hồ sơ thật, không tự sửa cho mình) — nếu hàm cứ hỏi cứng `cham_bu` thì
+		   người được chỉ định `sua_gio` phải khai THÊM một dòng `cham_bu` nữa mới sửa được, mà
+		   hai dòng cho một việc thì sớm muộn có người khai thiếu một. */
+		$q = (string) $quyen;
+		if ( ! isset( VHCC_Vai::QUYEN[ $q ] ) ) { $q = 'cham_bu'; }
+		if ( ! VHCC_Vai::duoc( $u, $q ) ) {
+			return VHCC_Vai::loi( $u, $q, 'cham_bu' === $q ? 'Chấm công bù' : 'Sửa giờ đã có' );
 		}
 		$coso = VHCC_NhanSu::chuan_coso( $coso );
 		if ( '' === $coso ) { return 'Chưa chọn cơ sở.'; }
@@ -314,7 +322,7 @@ class VHCC_Bu {
 				'error' => VHCC_Vai::loi( $u, 'sua_gio', 'Sửa giờ đã có' )
 					. ' Trong lúc chờ mở, thấy giờ sai thì gắn cờ để cấp trên sửa.' );
 		}
-		$chan = self::vi_sao_khong_duoc( $u, $coso, $ma_nv );
+		$chan = self::vi_sao_khong_duoc( $u, $coso, $ma_nv, 'sua_gio' );
 		if ( '' !== $chan ) { return array( 'ok' => false, 'error' => $chan ); }
 
 		$ngay = trim( (string) ( isset( $dat['ngay'] ) ? $dat['ngay'] : '' ) );
@@ -490,7 +498,7 @@ class VHCC_Bu {
 				'error' => VHCC_Vai::loi( $u, 'sua_gio', 'Xoá dòng chấm công' )
 					. ' Trong lúc chờ mở, thấy dòng sai thì gắn cờ để cấp trên xử.' );
 		}
-		$chan = self::vi_sao_khong_duoc( $u, $coso, $ma_nv );
+		$chan = self::vi_sao_khong_duoc( $u, $coso, $ma_nv, 'sua_gio' );
 		if ( '' !== $chan ) { return array( 'ok' => false, 'error' => $chan ); }
 
 		$ngay = trim( (string) ( isset( $dat['ngay'] ) ? $dat['ngay'] : '' ) );

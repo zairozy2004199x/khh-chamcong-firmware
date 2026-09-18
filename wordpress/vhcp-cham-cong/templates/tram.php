@@ -429,6 +429,38 @@ a{color:var(--nhan)}
 	</div>
 </div></div>
 
+<!-- ============ MÀN XIN BÙ GIỜ ============ -->
+<div id="mXinBu" class="mn an"><div class="bao">
+	<h1>Xin bù giờ</h1>
+	<p class="mo">Quên bấm máy hôm nào thì xin bù ở đây. Cửa hàng trưởng duyệt trước, kế toán duyệt sau.</p>
+	<div class="the">
+		<label for="xbNgay">Ngày</label>
+		<input id="xbNgay" type="date">
+		<p></p>
+		<div class="hang">
+			<div style="flex:1"><label for="xbVao">Giờ vào</label>
+				<input id="xbVao" type="tel" inputmode="numeric" placeholder="08:00" maxlength="5"></div>
+			<div style="flex:1"><label for="xbRa">Giờ ra</label>
+				<input id="xbRa" type="tel" inputmode="numeric" placeholder="17:00" maxlength="5"></div>
+		</div>
+		<p></p>
+		<label for="xbLyDo">Vì sao thiếu giờ hôm ấy</label>
+		<input id="xbLyDo" type="text" placeholder="VD: máy hỏng sáng hôm ấy, có camera" maxlength="250">
+		<div id="kqXinBu"></div>
+		<p></p>
+		<div class="hang">
+			<button id="btXinBu" class="chinh">Gửi đơn</button>
+			<button id="btDongXinBu" class="phu">Đóng</button>
+		</div>
+		<p class="mo" style="margin:10px 0 0;font-size:12px">Ngày <b>đã có giờ chấm</b> thì không
+			xin bù được — giờ sai thì báo cửa hàng trưởng sửa qua bảng công tuần.</p>
+	</div>
+	<div class="the">
+		<label style="margin:0 0 8px">Đơn đã gửi</label>
+		<div id="dsXinBu"><p class="trong">Đang tải…</p></div>
+	</div>
+</div></div>
+
 <!-- ============ MÀN KHAI GIỜ KHÁC ============ -->
 <div id="mKhaiGio" class="mn an"><div class="bao">
 	<h1>Khai giờ khác</h1>
@@ -2494,7 +2526,73 @@ function moMan(ten){
 	if('mXinNghi' === ten){ moXinNghi(); }
 	if('mNhanSu' === ten){ moNhanSu(); }
 	if('mKhaiGio' === ten){ moKhaiGio(); }
+	if('mXinBu' === ten){ moXinBu(); }
 }
+
+/* ── XIN BÙ GIỜ ─────────────────────────────────────────────────────────────────────────────
+   Hai cấp duyệt: cửa hàng trưởng rồi kế toán. Giờ chỉ vào bảng công sau cấp hai — màn này nói
+   rõ điều ấy ở mọi chỗ, vì người gửi hay tưởng gửi xong là xong. */
+
+function moXinBu(){
+	hien('mXinBu', true);
+	if(!el('xbNgay').value){ el('xbNgay').value = (NG && NG.homNay) ? NG.homNay : ''; }
+	napXinBu();
+}
+
+function napXinBu(){
+	el('dsXinBu').innerHTML = '<p class="trong">Đang tải…</p>';
+	goi('xinbuds', { token: token() })
+		.then(function(j){
+			if(!j || !j.ok){ el('dsXinBu').innerHTML = '<p class="trong">Không đọc được.</p>'; return; }
+			if(!el('xbNgay').value && j.homNay){ el('xbNgay').value = j.homNay; }
+			veDsXinBu(j.ds || [], j.ten || {});
+		})
+		.catch(function(){ el('dsXinBu').innerHTML = '<p class="trong">Mất mạng — thử lại sau.</p>'; });
+}
+
+function veDsXinBu(ds, ten){
+	if(!ds.length){
+		el('dsXinBu').innerHTML = '<p class="trong">Chưa gửi đơn nào.</p>';
+		return;
+	}
+	var h = '', i;
+	for(i = 0; i < ds.length; i++){
+		var x = ds[i];
+		var tt = ten[x.trang_thai] || x.trang_thai;
+		h += '<div class="tin' + ('duyet' === x.trang_thai ? '' : ' moi') + '">'
+			+ '<b>' + esc(ngayNgan(x.ngay)) + '</b> · ' + esc(x.vao) + '–' + esc(x.ra)
+			+ '<span class="luc">' + esc(tt)
+			+ (x.ly_do_choi ? (' — ' + esc(x.ly_do_choi)) : '') + '</span></div>';
+	}
+	el('dsXinBu').innerHTML = h;
+}
+
+function xinBu(){
+	if(!el('xbNgay').value){ bao('kqXinBu','dong','Chọn ngày đã.'); return; }
+	el('btXinBu').disabled = true;
+	goi('xinbu', { token: token(), ngay: el('xbNgay').value, vao: el('xbVao').value,
+			ra: el('xbRa').value, lyDo: el('xbLyDo').value })
+		.then(function(j){
+			el('btXinBu').disabled = false;
+			if(!j || !j.ok){ bao('kqXinBu','dong',(j&&j.error)||'Không gửi được.'); return; }
+			bao('kqXinBu','xanh','Đã gửi. Chờ cửa hàng trưởng duyệt, rồi kế toán duyệt thì giờ mới vào bảng công.');
+			el('xbVao').value = '';
+			el('xbRa').value = '';
+			el('xbLyDo').value = '';
+			napXinBu();
+		})
+		.catch(function(){
+			el('btXinBu').disabled = false;
+			bao('kqXinBu','dong','Mất mạng — thử lại.');
+		});
+}
+
+el('btXinBu').addEventListener('click', xinBu);
+el('btDongXinBu').addEventListener('click', function(){ hien('mXinBu', false); });
+el('xbNgay').addEventListener('change', function(){ bao('kqXinBu','',null); });
+el('xbVao').addEventListener('input', function(){ bao('kqXinBu','',null); });
+el('xbRa').addEventListener('input', function(){ bao('kqXinBu','',null); });
+el('xbLyDo').addEventListener('input', function(){ bao('kqXinBu','',null); });
 
 /* ── KHAI GIỜ KHÁC ──────────────────────────────────────────────────────────────────────────
    Con số này KHÔNG vào lương. Mọi chỗ bày nó ra đều phải nói thẳng điều ấy — người ta khai

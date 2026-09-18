@@ -110,7 +110,16 @@ t( 'Nhân viên chỉ có đúng hai quyền', 2 === count( array_filter(
 	array_map( function ( $q ) { return VHCC_Vai::duoc( array( 'role' => VHCC_Vai::NV ), $q ); },
 		array_keys( VHCC_Vai::QUYEN ) ) ) ) );
 
-t( 'CHT: chấm công bù',      VHCC_Vai::duoc( $U[ VHCC_Vai::CHT ], 'cham_bu' ) );
+/* 🔴 18/09/2026 — CHT KHÔNG CÒN BÙ GIỜ. Anh Thắng: *"Cửa hàng trưởng không được bù giờ công,
+   nếu thiếu thì chỗ file excel"*. Họ còn hai đường, cả hai đều qua kế toán: tệp .xlsx tuần
+   (`VHCC_TuanCong`) và duyệt CẤP MỘT đơn xin bù của nhân viên (`VHCC_XinBu`). */
+t( '🔴 CHT: KHÔNG chấm công bù',  ! VHCC_Vai::duoc( $U[ VHCC_Vai::CHT ], 'cham_bu' ) );
+t( 'CHT: KHÔNG sửa giờ đã có',    ! VHCC_Vai::duoc( $U[ VHCC_Vai::CHT ], 'sua_gio' ) );
+t( 'nhưng CHT vẫn duyệt được cấp một đơn xin bù',
+	VHCC_Vai::duoc( $U[ VHCC_Vai::CHT ], VHCC_XinBu::QUYEN_CHT ) );
+t( 'và kế toán mới là người duyệt cấp hai',
+	VHCC_Vai::duoc( $U[ VHCC_Vai::KE_TOAN ], VHCC_XinBu::QUYEN_KT )
+	&& ! VHCC_Vai::duoc( $U[ VHCC_Vai::CHT ], VHCC_XinBu::QUYEN_KT ) );
 t( 'CHT: lên lịch cửa hàng', VHCC_Vai::duoc( $U[ VHCC_Vai::CHT ], 'lich_lam' ) );
 t( 'CHT: báo lỗi lên trên',  VHCC_Vai::duoc( $U[ VHCC_Vai::CHT ], 'bao_loi' ) );
 t( 'CHT: KHÔNG xem mọi cơ sở', ! VHCC_Vai::duoc( $U[ VHCC_Vai::CHT ], 'cong_tat_ca' ) );

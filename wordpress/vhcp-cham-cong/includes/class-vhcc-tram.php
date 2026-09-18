@@ -374,6 +374,42 @@ class VHCC_Tram {
 		   Hai đầu nối này KHÔNG nhận mã NV từ thân yêu cầu — `VHCC_Chuong` lấy mã từ `$u`,
 		   tức từ thẻ phiên do máy chủ cấp. Nhận từ thân là gửi lên mã người khác thì đọc được
 		   hộp thư người ta. Xem khối cảnh báo ở đầu `class-vhcc-chuong.php`. */
+		/* ============ XIN BÙ GIỜ ============
+		   Mã NV và cơ sở lấy từ thẻ phiên + hồ sơ, không nhận từ thân — nhận từ thân là xin bù
+		   hộ người khác. Xem khối đầu `class-vhcc-xin-bu.php`. */
+		if ( 'xinbu' === $viec ) {
+			$b = self::than();
+			self::ra( VHCC_XinBu::gui( $u,
+				isset( $b['ngay'] ) ? (string) $b['ngay'] : '',
+				isset( $b['vao'] ) ? (string) $b['vao'] : '',
+				isset( $b['ra'] ) ? (string) $b['ra'] : '',
+				isset( $b['lyDo'] ) ? (string) $b['lyDo'] : '' ) );
+		}
+
+		if ( 'xinbuds' === $viec ) {
+			self::ra( array( 'ok' => true, 'ds' => VHCC_XinBu::cua_toi( $u ),
+				'ten' => VHCC_XinBu::TEN_TT, 'homNay' => (string) current_time( 'Y-m-d' ) ) );
+		}
+
+		/* Cửa hàng trưởng duyệt CẤP MỘT ngay trên điện thoại — đó là chỗ họ đứng cả ngày. */
+		if ( 'buchocht' === $viec ) {
+			$b  = self::than();
+			$cs = VHCC_NhanSu::chuan_coso( isset( $b['coSo'] ) ? (string) $b['coSo'] : '' );
+			if ( '' === $cs || ! VHCC_NhanSu::co_quyen_coso( $u, $cs ) ) {
+				self::ra( array( 'ok' => false, 'error' => 'Không có quyền cơ sở này.' ) );
+			}
+			self::ra( array( 'ok' => true, 'coSo' => $cs,
+				'ds' => VHCC_XinBu::cho_duyet( VHCC_XinBu::CHO_CHT, $cs ) ) );
+		}
+
+		if ( 'buduyet' === $viec ) {
+			$b = self::than();
+			self::ra( VHCC_XinBu::duyet_cht( $u,
+				isset( $b['id'] ) ? (int) $b['id'] : 0,
+				! empty( $b['dongY'] ),
+				isset( $b['lyDo'] ) ? (string) $b['lyDo'] : '' ) );
+		}
+
 		/* ============ GIỜ TỰ KHAI ============
 		   Không nhận `maNV` lẫn `coSo` từ thân: cả hai lấy từ thẻ phiên và từ hồ sơ của chính
 		   người ấy — xem `VHCC_GioKhai::coso_cua()`. Đây là cửa mở cho bậc thấp nhất trong hệ

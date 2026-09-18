@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class VHCC_WebDonTuan {
 
-	const VIEC = array( 'dt_duyet', 'dt_choi', 'dt_nap' );
+	const VIEC = array( 'dt_duyet', 'dt_choi', 'dt_nap', 'xb_duyet', 'xb_choi', 'xb_cht' );
 
 	public static function la_viec( $viec ) { return in_array( (string) $viec, self::VIEC, true ); }
 
@@ -36,6 +36,34 @@ class VHCC_WebDonTuan {
 		   chốt `sua_gio` là chối đúng người mà cả quy trình này dựng lên cho. `VHCC_TuanCong::nap()`
 		   tự hỏi `cong_coso` + phạm vi cơ sở + tuần đã khoá chưa, ngay dòng đầu. */
 		if ( 'dt_nap' === $viec ) { return self::nhan_tep( $toi ); }
+
+		/* Cấp MỘT — cửa hàng trưởng. Cửa khác hẳn hai việc của kế toán ở dưới; `duyet_cht()` tự
+		   hỏi `cong_coso` + phạm vi cơ sở + không-tự-duyệt-đơn-mình ngay dòng đầu. */
+		if ( 'xb_cht' === $viec ) {
+			$id = isset( $_POST['xb_id'] ) ? (int) $_POST['xb_id'] : 0;
+			$ly = isset( $_POST['xb_ly_do'] ) ? sanitize_text_field( wp_unslash( $_POST['xb_ly_do'] ) ) : '';
+			$oke = ! empty( $_POST['xb_ok'] );
+			$r  = VHCC_XinBu::duyet_cht( $toi, $id, $oke, $ly );
+			return array( empty( $r['ok'] ) ? array( 'loi' => $r['error'] )
+				: array( 'ok' => true, 'thong_bao' => $oke
+					? 'Đã đẩy lên kế toán. Giờ chỉ vào bảng công khi kế toán duyệt.'
+					: 'Đã báo lại cho người gửi.' ) );
+		}
+
+		/* Cấp HAI — kế toán. Đây mới là chỗ giờ vào bảng công. */
+		if ( 'xb_duyet' === $viec || 'xb_choi' === $viec ) {
+			if ( ! VHCC_Vai::duoc( $toi, VHCC_XinBu::QUYEN_KT ) ) {
+				return array( array( 'loi' => VHCC_Vai::loi( $toi, VHCC_XinBu::QUYEN_KT,
+					'Duyệt bù giờ vào bảng công' ) ) );
+			}
+			$id  = isset( $_POST['xb_id'] ) ? (int) $_POST['xb_id'] : 0;
+			$ly  = isset( $_POST['xb_ly_do'] ) ? sanitize_text_field( wp_unslash( $_POST['xb_ly_do'] ) ) : '';
+			$oke = ( 'xb_duyet' === $viec );
+			$r   = VHCC_XinBu::duyet_kt( $toi, $id, $oke, $ly );
+			return array( empty( $r['ok'] ) ? array( 'loi' => $r['error'] )
+				: array( 'ok' => true, 'thong_bao' => $oke
+					? 'Đã duyệt — giờ đã vào bảng công.' : 'Đã báo lại cho người gửi.' ) );
+		}
 
 		if ( ! VHCC_Vai::duoc( $toi, VHCC_TuanCong::QUYEN_DUYET ) ) {
 			return array( array( 'loi' => VHCC_Vai::loi( $toi, VHCC_TuanCong::QUYEN_DUYET,
@@ -83,8 +111,101 @@ class VHCC_WebDonTuan {
 			return;
 		}
 
+		self::the_bu_cho( $ky, $toi );
 		self::the_cho( $ky, $toi );
 		self::the_xong( $toi );
+	}
+
+	/**
+	 * ĐƠN BÙ GIỜ LẺ ĐANG CHỜ KẾ TOÁN — cấp hai của `VHCC_XinBu`.
+	 *
+	 * ⚠️ Đứng TRÊN khối đơn tuần: đơn bù lẻ là của một người, một ngày, và người ta đang chờ đi
+	 *    làm tiếp; đơn tuần thì cả tuần đã xong rồi, chậm một hôm không ai mất gì.
+	 */
+	private static function the_bu_cho( $ky, $toi ) {
+		$ds = VHCC_XinBu::cho_duyet( VHCC_XinBu::CHO_KT, '', 100 );
+		echo '<div class="the"><h3 style="margin:0 0 8px">Đơn bù giờ lẻ — ' . count( $ds )
+			. ' đơn chờ</h3>';
+		echo '<p class="mo" style="margin:0 0 10px">Nhân viên xin bù, cửa hàng trưởng đã duyệt. '
+			. 'Duyệt ở đây là <b>ghi thẳng vào bảng công</b> ngày ấy.</p>';
+		if ( ! $ds ) {
+			echo '<p class="mo" style="margin:0">Chưa có đơn nào.</p></div>';
+			return;
+		}
+		echo '<div class="cuon"><table class="b"><thead><tr>'
+			. '<th>Cơ sở</th><th>Ngày</th><th>Mã NV</th><th>Họ tên</th><th>Giờ xin</th>'
+			. '<th>Lý do</th><th>CHT duyệt</th><th></th></tr></thead><tbody>';
+		foreach ( $ds as $d ) {
+			echo '<tr><td>' . esc_html( (string) $d['coso'] ) . '</td>'
+				. '<td>' . esc_html( (string) $d['ngay'] ) . '</td>'
+				. '<td>' . esc_html( (string) $d['ma_nv'] ) . '</td>'
+				. '<td>' . esc_html( (string) $d['ho_ten'] ) . '</td>'
+				. '<td><b>' . esc_html( (string) $d['vao'] ) . '–' . esc_html( (string) $d['ra'] ) . '</b></td>'
+				. '<td class="mo">' . esc_html( (string) $d['ly_do'] ) . '</td>'
+				. '<td class="mo">' . esc_html( (string) $d['cht_ten'] ) . '</td>'
+				. '<td>' . self::nut_bu( $ky, (int) $d['id'] ) . '</td></tr>';
+		}
+		echo '</tbody></table></div></div>';
+	}
+
+	/** Hai nút Duyệt / Không duyệt cho một đơn bù. */
+	private static function nut_bu( $ky, $id ) {
+		$an = '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+			. '<input type="hidden" name="man" value="don_tuan">'
+			. '<input type="hidden" name="xb_id" value="' . (int) $id . '">';
+		return '<form method="post" style="display:inline">' . $an
+			. '<input type="hidden" name="viec" value="xb_duyet">'
+			. '<button class="chinh">Duyệt</button></form> '
+			. '<form method="post" style="display:inline">' . $an
+			. '<input type="hidden" name="viec" value="xb_choi">'
+			. '<input name="xb_ly_do" placeholder="vì sao" style="width:150px" maxlength="250" required>'
+			. '<button class="phu">Chối</button></form>';
+	}
+
+	/**
+	 * KHỐI CẤP MỘT TRÊN MÀN BẢNG CÔNG — cửa hàng trưởng nhận đơn của cơ sở mình.
+	 *
+	 * ⚠️ Vẽ ngay cả khi không có đơn nào, và nói rõ *"duyệt xong vẫn chờ kế toán"*: cửa hàng
+	 *    trưởng bấm Duyệt rồi tưởng giờ đã vào bảng công, hôm sau thấy ô vẫn trống thì họ đi
+	 *    bù tay — mà nay họ không bù được nữa, nên chỉ còn bực.
+	 */
+	public static function khoi_bu_cht( $ky, $toi, $cs ) {
+		if ( ! VHCC_Vai::duoc( $toi, VHCC_XinBu::QUYEN_CHT ) ) { return; }
+		$cs = VHCC_NhanSu::chuan_coso( $cs );
+		if ( '' === $cs || ! VHCC_NhanSu::co_quyen_coso( $toi, $cs ) ) { return; }
+
+		$ds = VHCC_XinBu::cho_duyet( VHCC_XinBu::CHO_CHT, $cs, 100 );
+		echo '<div class="the" id="xinbu"><details' . ( $ds ? ' open' : '' ) . '>';
+		echo '<summary><b>Đơn xin bù giờ</b> — '
+			. ( $ds ? ( '<b style="color:var(--vang-dam)">' . count( $ds ) . ' đơn đang chờ anh/chị duyệt</b>' )
+				: 'không có đơn nào chờ' ) . '</summary>';
+		echo '<p class="mo" style="margin:10px 0">Nhân viên quên bấm máy thì xin bù ở trang chấm '
+			. 'công online. Anh/chị duyệt là đơn <b>đẩy tiếp lên kế toán</b> — giờ chỉ vào bảng '
+			. 'công khi <b>kế toán duyệt</b>, không phải ngay lúc anh/chị bấm.</p>';
+		if ( ! $ds ) { echo '</details></div>'; return; }
+
+		echo '<div class="cuon"><table class="b"><thead><tr>'
+			. '<th>Ngày</th><th>Mã NV</th><th>Họ tên</th><th>Giờ xin</th><th>Lý do</th><th></th>'
+			. '</tr></thead><tbody>';
+		foreach ( $ds as $d ) {
+			$an = '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+				. '<input type="hidden" name="viec" value="xb_cht">'
+				. '<input type="hidden" name="man" value="cham">'
+				. '<input type="hidden" name="ccs" value="' . esc_attr( $cs ) . '">'
+				. '<input type="hidden" name="xb_id" value="' . (int) $d['id'] . '">';
+			echo '<tr><td>' . esc_html( (string) $d['ngay'] ) . '</td>'
+				. '<td>' . esc_html( (string) $d['ma_nv'] ) . '</td>'
+				. '<td>' . esc_html( (string) $d['ho_ten'] ) . '</td>'
+				. '<td><b>' . esc_html( (string) $d['vao'] ) . '–' . esc_html( (string) $d['ra'] ) . '</b></td>'
+				. '<td class="mo">' . esc_html( (string) $d['ly_do'] ) . '</td>'
+				. '<td><form method="post" style="display:inline">' . $an
+				. '<input type="hidden" name="xb_ok" value="1">'
+				. '<button class="chinh">Duyệt, gửi kế toán</button></form> '
+				. '<form method="post" style="display:inline">' . $an
+				. '<input name="xb_ly_do" placeholder="vì sao" style="width:150px" maxlength="250" required>'
+				. '<button class="phu">Chối</button></form></td></tr>';
+		}
+		echo '</tbody></table></div></details></div>';
 	}
 
 	private static function the_cho( $ky, $toi ) {

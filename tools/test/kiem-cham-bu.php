@@ -77,9 +77,20 @@ function hang( $ma = 'NV001', $ngay = null, $hau = '' ) {
 // ============================================================ 1. GÁC CỬA
 echo "— gác cửa —\n";
 $r = bu( $NV );
-t( 'Nhân viên KHÔNG bù được',
-	empty( $r['ok'] ) && false !== strpos( $r['error'], 'Cửa hàng trưởng' ), $r );
+t( 'Nhân viên KHÔNG bù được', empty( $r['ok'] ), $r );
 teq( 'và KHÔNG có hàng nào được tạo', null, hang() );
+
+/* 🔴 18/09/2026 — CỬA HÀNG TRƯỞNG CŨNG KHÔNG BÙ ĐƯỢC NỮA. Anh Thắng: *"Cửa hàng trưởng không
+   được bù giờ công, nếu thiếu thì chỗ file excel"*. `cham_bu` lên bậc Kế toán, và ai được bù
+   thì chỉ định từng người bằng một dòng ngoại lệ — y như `sua_gio`. */
+$r = bu( $CHT );
+t( '🔴 cửa hàng trưởng CHƯA được chỉ định thì không bù được', empty( $r['ok'] ), $r );
+t( 'câu chối nói ra cần bậc nào',
+	! empty( $r['error'] ) && false !== mb_strpos( $r['error'], 'Kế toán trở lên' ), $r );
+teq( 'và vẫn KHÔNG có hàng nào được tạo', null, hang() );
+
+/* Chỉ định người này được bù. Từ đây trở xuống bài canh CƠ CHẾ bù, không canh cái gác bậc. */
+VHCC_Vai::dat_ngoai_le( $ADMIN, 'nv:' . $CHT['ma_nv'], 'cham_bu', 'mo' );
 
 /* 🔴 Chốt nặng nhất của lớp này: bù công là đổi thẳng ra tiền, nên không ai tự ký duyệt tiền
    của mình được — kể cả Admin. */

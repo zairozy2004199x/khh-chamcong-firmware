@@ -378,8 +378,11 @@ t( '🔴 chỉnh giờ công ở bậc KẾ TOÁN — cửa hàng trưởng và 
 	VHCC_Vai::KE_TOAN === VHCC_Vai::QUYEN['sua_gio'] );
 t( '🔴 và đúng là người mà mọi câu chối chỉ tới ("liên hệ kế toán")',
 	VHCC_Vai::BAC[ VHCC_Vai::QUYEN['sua_gio'] ] <= VHCC_Vai::BAC[ VHCC_Vai::ADMIN ] );
-t( '🔴 bù vào ô trống VẪN ở bậc Cửa hàng trưởng — siết sửa đè không siết bù',
-	VHCC_Vai::CHT === VHCC_Vai::QUYEN['cham_bu'] );
+/* 🔴 18/09/2026 BÙ CŨNG LÊN BẬC KẾ TOÁN. Anh Thắng: *"Cửa hàng trưởng không được bù giờ công,
+   nếu thiếu thì chỗ file excel"*. Cửa hàng trưởng nay có hai đường, cả hai đều qua kế toán:
+   tệp .xlsx tuần, và đơn xin bù của nhân viên (`VHCC_XinBu`) mà họ duyệt cấp một. */
+t( '🔴 bù vào ô trống nay cũng ở bậc KẾ TOÁN',
+	VHCC_Vai::KE_TOAN === VHCC_Vai::QUYEN['cham_bu'] );
 t( '⚠️ và sửa đè nay CAO HƠN cả nạp .csv — đè lên giờ máy ghi là việc đắt nhất',
 	VHCC_Vai::BAC[ VHCC_Vai::QUYEN['sua_gio'] ] > VHCC_Vai::BAC[ VHCC_Vai::QUYEN['nap_cong'] ] );
 
@@ -522,9 +525,19 @@ t( 'dòng hôm qua vẫn còn nguyên', $con, $sau_cu['ngay'] );
 /* ⚠️ BÙ THÌ KHÔNG KHOÁ. Bù là điền vào ô TRỐNG — đó chính là việc màn trạm đang giục làm
    ("lượt thiếu một đầu giờ, bổ sung trước khi kế toán chốt lương"), và mấy lượt ấy gần như
    luôn là của hôm trước. Khoá bù theo ngày là vừa giục vừa chặn. */
+/* 🔴 CỬA HÀNG TRƯỞNG KHÔNG CÒN BÙ ĐƯỢC (18/09/2026) — kể cả ô trống, kể cả ngày cũ. */
 $r = VHCC_Bu::ghi( $CHT_A, array( 'coso' => $CS_A, 'ma_nv' => 'CH001', 'ngay' => $TH . '-03',
 	'ra' => '17:00', 'ly_do' => 'bổ sung giờ ra bị thiếu hôm ấy' ) );
-t( '⚠️ BÙ vào ô trống của ngày cũ thì VẪN ĐƯỢC', ! empty( $r['ok'] ), $r );
+t( '🔴 cửa hàng trưởng KHÔNG tự bù được nữa', empty( $r['ok'] ), $r );
+
+/* Nhưng cái KHOÁ THEO NGÀY thì vẫn không áp cho bù — người được chỉ định bù vẫn bù được ngày
+   cũ. Bù là điền vào ô TRỐNG, đó chính là việc màn trạm đang giục làm, và mấy lượt ấy gần như
+   luôn là của hôm trước. Khoá bù theo ngày là vừa giục vừa chặn. */
+VHCC_Vai::dat_ngoai_le( $ADMIN, 'nv:' . $CHT_A['ma_nv'], 'cham_bu', 'mo' );
+$r = VHCC_Bu::ghi( $CHT_A, array( 'coso' => $CS_A, 'ma_nv' => 'CH001', 'ngay' => $TH . '-03',
+	'ra' => '17:00', 'ly_do' => 'bổ sung giờ ra bị thiếu hôm ấy' ) );
+t( '⚠️ được chỉ định thì BÙ vào ô trống của ngày cũ VẪN ĐƯỢC', ! empty( $r['ok'] ), $r );
+VHCC_Vai::dat_ngoai_le( $ADMIN, 'nv:' . $CHT_A['ma_nv'], 'cham_bu', '' );
 
 /* Máy chủ trả sẵn câu nhắc cho màn — màn không tự chế luật. */
 t( 'máy chủ trả câu nhắc cho người bị khoá',

@@ -77,7 +77,7 @@ class VHCC_DB {
 		return $t ? $t : '';
 	}
 
-	const SCHEMA_VERSION = '2.14.0';
+	const SCHEMA_VERSION = '2.15.0';
 
 	public static function t( $name ) {
 		global $wpdb;
@@ -573,6 +573,42 @@ class VHCC_DB {
 			PRIMARY KEY  (id),
 			UNIQUE KEY o (coso,ngay,ma_nv),
 			KEY cua_thang (coso,ngay)";
+
+		/* ===== 7e. ĐƠN XIN BÙ GIỜ — HAI CẤP DUYỆT =========================================
+		   Anh Thắng 18/09/2026: *"Cửa hàng trưởng không được bù giờ công… Còn lệnh bù giờ từ
+		   nhân viên gửi lên, CHT sẽ nhận và duyệt và đẩy tiếp lên cho kế toán, kế toán duyệt mới
+		   đẩy vào bảng công."*
+
+		   🔴 HAI CẤP, KHÔNG PHẢI MỘT. `cho_cht` → `cho_kt` → `duyet`. Bỏ một cấp đi thì hoặc kế
+		      toán ngập trong đơn lẻ của 26 cửa hàng, hoặc cửa hàng trưởng lại tự bù được — đúng
+		      hai thứ quy trình này sinh ra để tránh.
+
+		   ⚠️ GIỜ XIN NẰM Ở ĐÂY CHO TỚI KHI DUYỆT XONG, không bao giờ nằm tạm trong `cham_cong`.
+		      Để tạm bên ấy rồi "đánh dấu chờ duyệt" thì mọi phép cộng lương phải nhớ loại nó
+		      ra — một chỗ quên là trả tiền cho giờ chưa ai duyệt. */
+		$b['xin_bu'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			coso VARCHAR(120) NOT NULL,
+			ngay DATE NOT NULL,
+			ma_nv VARCHAR(40) NOT NULL,
+			hau_to VARCHAR(4) NOT NULL DEFAULT '',
+			ho_ten VARCHAR(190) NOT NULL DEFAULT '',
+			vao VARCHAR(5) NOT NULL DEFAULT '',
+			ra VARCHAR(5) NOT NULL DEFAULT '',
+			ly_do VARCHAR(255) NOT NULL DEFAULT '',
+			trang_thai VARCHAR(12) NOT NULL DEFAULT 'cho_cht',
+			cht_ma VARCHAR(40) NOT NULL DEFAULT '',
+			cht_ten VARCHAR(190) NOT NULL DEFAULT '',
+			cht_luc DATETIME NULL,
+			kt_ma VARCHAR(40) NOT NULL DEFAULT '',
+			kt_ten VARCHAR(190) NOT NULL DEFAULT '',
+			kt_luc DATETIME NULL,
+			ly_do_choi VARCHAR(255) NOT NULL DEFAULT '',
+			tao_luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			KEY cho_duyet (coso,trang_thai),
+			KEY cua_thang (coso,ngay),
+			KEY cua_nguoi (ma_nv,ngay)";
 
 		$b['cham_cong_nhiem_vu'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,

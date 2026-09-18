@@ -7782,11 +7782,11 @@ t( 'và liệt kê đúng dòng cảnh báo của CSV', strpos( $h_bug_csv, 'hà
 VHCC_NguoiDung::luu( '', 'CHT Soát Công', '357913', 'Cửa hàng trưởng', 'TUTU_BT' );
 $h_cht = vhcc_web( '357913', array(), $g_qtc );
 t( 'Cửa hàng trưởng vào được màn bảng công', strpos( $h_cht, 'name="pin"' ) === false, $h_cht );
-/* 🔴 "id=\"bucong\"" (sổ nhật ký) đã bỏ khỏi màn 07/09/2026 — không còn dùng được làm dấu hiệu
-   "thấy khối Chấm công bù" nữa. Bù/sửa nay là Ô BẤM được ngay trong lưới (`class="o-sua"`,
-   xem `the_luoi_thang()` dòng ~5017): role CHT trở lên mới có cả hai quyền `cham_bu`/`sua_gio`
-   nên ô nào của họ cũng bấm được — đó mới là dấu hiệu đúng của quyền bù/sửa còn hay mất. */
-t( 'và THẤY được ô bấm để bù/sửa (class="o-sua")', strpos( $h_cht, 'class="o-sua"' ) !== false, $h_cht );
+/* 🔴 18/09/2026 — CỬA HÀNG TRƯỞNG KHÔNG CÒN Ô BẤM ĐỂ BÙ/SỬA. Anh Thắng thu cả hai quyền:
+   `sua_gio` (17/09) rồi `cham_bu` (18/09). Ô bấm `class="o-sua"` chỉ vẽ cho ai có một trong
+   hai — nên với CHT chưa được chỉ định thì lưới không còn ô nào bấm được. Họ sửa qua tệp
+   .xlsx tuần, và duyệt CẤP MỘT đơn xin bù của nhân viên. */
+t( '🔴 và KHÔNG còn ô bấm để bù/sửa', strpos( $h_cht, 'class="o-sua"' ) === false, $h_cht );
 t( 'nhưng KHÔNG thấy khối Nạp công', strpos( $h_cht, 'id="napcong"' ) === false, $h_cht );
 /* Ẩn cái khối không phải là gác cửa — gửi thẳng lượt POST cũng phải bị chối. */
 $_POST = array( 'viec' => 'nap_cong' );
@@ -7983,6 +7983,11 @@ teq( '🔴 giờ vào đã đổi thật trong sổ', '09:30', (string) $d_sua['
 teq( 'và giờ ra cũng vậy', '18:15', (string) $d_sua['ra'] );
 
 /* ---- (b) BÙ giờ vào ô trống ("thêm giờ công") ---- */
+/* 🔴 18/09/2026 — bù cũng cần chỉ định, y như sửa. Khối này canh CƠ CHẾ bù (tên ô, đường ghi),
+   không canh cái gác bậc — cái ấy có bài riêng ở `kiem-cham-bu.php`. */
+VHCC_Vai::dat_ngoai_le(
+	array( 'name' => 'Quản trị', 'role' => VHCC_Vai::ADMIN, 'coso' => '', 'ma_nv' => 'ADSUA' ),
+	'nv:CHTG1', 'cham_bu', 'mo' );
 /* ⚠️ Đường bù dùng TÊN Ô KHÁC (`bu_vao`/`bu_ra`) chứ không phải `sg_*` — xem `o_cap_gio()`.
    Gõ nhầm sang `sg_*` thì lượt gửi vẫn đến nơi, vẫn không báo lỗi quyền, mà chẳng ghi gì. */
 $_POST = array( 'viec' => 'bu', 'ky' => VHCC_Web::chu_ky( $tok_chtg ),
@@ -9456,7 +9461,10 @@ t( 'không thấy việc hồ sơ', strpos( $h_nha_nv, 'Hồ sơ &amp; tài kho�
    lịch làm việc có tab riêng. Canh thẻ Lịch: nhân viên THẤY nó (xem lịch của mình) nhưng thẻ
    Cấu hình thì không. */
 t( 'không thấy việc cấu hình', strpos( $h_nha_nv, 'Cấu hình</b>' ) === false, $h_nha_nv );
-t( 'Cửa hàng trưởng thấy việc chấm công bù', strpos( $h_nha_ch, 'Chấm công bù</b>' ) !== false, $h_nha_ch );
+/* 🔴 Thẻ "Chấm công bù" ở Trang chính đi theo quyền `cham_bu` — thu quyền thì thẻ cũng mất.
+   Bày một thẻ dẫn tới việc người ta không làm được là mời họ đi một vòng rồi ăn câu chối. */
+t( '🔴 cửa hàng trưởng KHÔNG còn thấy việc chấm công bù',
+	strpos( $h_nha_ch, 'Chấm công bù</b>' ) === false, $h_nha_ch );
 t( 'và thấy việc lịch làm việc', strpos( $h_nha_ch, 'Lịch làm việc</b>' ) !== false, $h_nha_ch );
 t( 'nhân viên cũng thấy thẻ Lịch (xem ca của mình)',
 	strpos( $h_nha_nv, 'Lịch làm việc</b>' ) !== false, $h_nha_nv );
@@ -15442,7 +15450,12 @@ teq( '🔴 trả về loại RIÊNG "giu-tay", không gộp vào "trung"', 'giu-
 t( 'và kể ra ô nào bị giữ', in_array( 'ra', (array) $kq_de['giuO'], true ), $kq_de );
 
 /* ---- Cảnh 2: Cửa hàng trưởng BÙ giờ vào, rồi máy sống lại đẩy lô cũ ---- */
+/* Người được CHỈ ĐỊNH bù (18/09/2026) — cảnh này canh chuyện máy sống lại đẩy lô cũ, không
+   canh cái gác bậc. */
 $u_cht_de = array( 'role' => 'Cửa hàng trưởng', 'name' => 'Chị Trưởng', 'coso' => $D_CS2, 'ma_nv' => 'DECHT' );
+VHCC_Vai::dat_ngoai_le(
+	array( 'name' => 'Quản trị', 'role' => VHCC_Vai::ADMIN, 'coso' => '', 'ma_nv' => 'ADSUA' ),
+	'nv:DECHT', 'cham_bu', 'mo' );
 $r_de = VHCC_Bu::ghi( $u_cht_de, array( 'coso' => $D_CS2, 'ngay' => '2026-07-07', 'ma_nv' => 'DE2',
 	'vao' => '08:00', 'ly_do' => 'máy hỏng sáng nay, có camera' ) );
 t( 'dựng cảnh: bù được giờ vào', ! empty( $r_de['ok'] ), $r_de );

@@ -284,6 +284,18 @@ class VHCC_Ung {
 			) );
 		}
 
+		/* ---- 10. Xin bù giờ ---------------------------------------------------------------
+		   Anh Thắng 18/09/2026: *"lệnh bù giờ từ nhân viên gửi lên, CHT sẽ nhận và duyệt và đẩy
+		   tiếp lên cho kế toán"*. Nhân viên nào cũng gửi được — không gác gì thêm. */
+		$o[] = self::o( true, array(
+			'ten'  => 'Xin bù giờ',
+			'nhom' => 'Của tôi',
+			'mo'   => 'Quên bấm máy — xin bù giờ cho một ngày',
+			'man'  => 'mXinBu',
+			'icon' => '⏱️',
+			'mau'  => 'xanh',
+		) );
+
 		/* ---- 9. Khai giờ khác -------------------------------------------------------------
 		   Anh Thắng 18/09/2026: *"Nhân viên có quyền nhập giờ khác vào đây để cửa hàng cũng biết
 		   để theo dõi"*. Nằm nhóm "Của tôi" vì đây là việc của chính người ấy, và KHÔNG gác

@@ -88,7 +88,21 @@ class VHCC_Vai {
 
 		/* --- bậc 2: cửa hàng trưởng --- */
 		'cong_coso'    => self::CHT,      // xem bảng công cơ sở mình (còn phải qua co_quyen_coso)
-		'cham_bu'      => self::CHT,      // chấm công bù cho nhân viên cơ sở mình
+		'cham_bu'      => self::KE_TOAN,  // chấm công bù vào ô trống
+		                                  /* 🔴 NÂNG TỪ CỬA HÀNG TRƯỞNG LÊN KẾ TOÁN — 18/09/2026.
+		                                     Anh Thắng: *"Cửa hàng trưởng không được bù giờ công,
+		                                     nếu thiếu thì chỗ file excel"*.
+
+		                                     Cửa hàng trưởng nay có HAI đường, và cả hai đều đi
+		                                     qua kế toán:
+		                                       · thiếu giờ cả tuần → sửa trong tệp .xlsx tuần
+		                                         (`VHCC_TuanCong`), kế toán duyệt cả lượt;
+		                                       · nhân viên xin bù lẻ → `VHCC_XinBu`, cửa hàng
+		                                         trưởng duyệt cấp một rồi kế toán duyệt cấp hai.
+
+		                                     ⚠️ ĐỪNG HẠ LẠI CHO TIỆN. Hạ một bậc là mở lại cho
+		                                        TOÀN BỘ cửa hàng trưởng, và hai quy trình trên
+		                                        thành đường vòng không ai đi nữa. */
 		'lich_lam'     => self::CHT,      // lên lịch làm việc cho cửa hàng
 		'bao_loi'      => self::CHT,      // gắn cờ / báo lỗi lên trên
 		'ho_so_xem'    => self::CHT,      // xem hồ sơ người CỦA CƠ SỞ MÌNH (không có ô lương)
