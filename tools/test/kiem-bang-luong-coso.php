@@ -2194,7 +2194,38 @@ foreach ( $m_gp[0] as $i_hg => $hg ) {
 t( 'bóc được hai hàng của cụm', '' !== $hg_dau && '' !== $hg_tiep, $hg_dau );
 $n_dau  = vhcc_dem_o( $hg_dau );
 $n_tiep = vhcc_dem_o( $hg_tiep );
-teq( '🔴 hàng sau thiếu đúng 3 ô (stt · họ tên · CCCD đã gộp lên trên)', 3, $n_dau - $n_tiep );
+teq( '🔴 hàng sau thiếu đúng 4 ô (stt · họ tên · CCCD · TOTAL đã gộp lên trên)',
+	4, $n_dau - $n_tiep );
+
+/* ── TOTAL SALARY: MỘT HÀNG, VÀ LÀ TỔNG CỦA CẢ CỤM ────────────────────────────────────────
+   Anh Thắng 18/09/2026: *"Cái chỗ Total cho anh 1 hàng thôi"*, kèm ảnh anh Khang có 492.800 ở
+   dòng Partime và 600.000 ở dòng Hỗ Trợ.
+   🔴 ĐÂY LÀ PHÉP QUAN TRỌNG NHẤT CỦA CẢ MỤC GỘP. Gộp ô mà quên CỘNG thì ô Total hiện mỗi con
+      số của dòng đầu, và phần tiền của mấy dòng sau biến mất khỏi bảng — trong khi hàng TỔNG
+      dưới cùng vẫn cộng đủ, nên tổng cột vẫn đúng. Tức là sai đúng một dòng, và không con số
+      nào tố giác. Bảng lương mà hỏng kiểu ấy thì nhìn càng sạch càng nguy. */
+$b_gp = VHCC_BangLuong::dung( $cs_gp, $th_gp );
+$z_gp = 0.0;
+foreach ( (array) $b_gp['dong'] as $d_gp ) {
+	if ( 'GP1' !== (string) $d_gp['ma'] ) { continue; }
+	$z_gp += (float) $d_gp['luongChinh'] + (float) $d_gp['tongCong'] - (float) $d_gp['tongTru'];
+}
+t( 'gieo được cụm có tiền ở CẢ HAI dòng việc', $z_gp > 0, $z_gp );
+t( '🔴 ô TOTAL gộp mang TỔNG của cả cụm, không phải số của dòng đầu',
+	false !== mb_strpos( (string) $hg_dau, '<td rowspan="2" class="p o-nguoi nh-tong"><b>'
+		. number_format( $z_gp, 0, ',', '.' ) . '</b></td>' ), $hg_dau );
+/* Và con số ấy phải LỚN HƠN số của riêng dòng đầu — nếu không thì phép trên xanh cả khi dòng
+   thứ hai tình cờ bằng 0, tức là không thử được gì. */
+$z_dau_gp = 0.0;
+foreach ( (array) $b_gp['dong'] as $d_gp ) {
+	if ( 'GP1' !== (string) $d_gp['ma'] ) { continue; }
+	$z_dau_gp = (float) $d_gp['luongChinh'] + (float) $d_gp['tongCong'] - (float) $d_gp['tongTru'];
+	break;
+}
+t( '🔴 và cảnh gieo THẬT SỰ phân biệt được hai lối (tổng > số dòng đầu)',
+	$z_gp > $z_dau_gp, array( 'tong' => $z_gp, 'dau' => $z_dau_gp ) );
+teq( '🔴 TOTAL chỉ in MỘT lần cho cả cụm', 1,
+	mb_substr_count( (string) $hg_dau . (string) $hg_tiep, 'nh-tong' ) );
 /* Và hàng TỔNG vẫn đủ cột — nó không nằm trong cụm nào nên không được thiếu ô nào. */
 $hg_tong = vhcc_hang_bl( (string) $bl_gp, '<b>TỔNG</b>' );
 teq( '🔴 hàng TỔNG vẫn đủ cột, không bị cuốn theo phép gộp', $n_dau, vhcc_dem_o( (string) $hg_tong ) );

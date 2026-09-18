@@ -9826,8 +9826,22 @@ class VHCC_Web {
 			}
 			$gop[ $i_g ] = $n_g;
 		}
-		/** Mấy cột gộp theo người — thuộc về NGƯỜI, không thuộc về dòng việc. */
-		$cot_gop = array( 'stt' => 1, 'ten' => 1, 'cccd' => 1 );
+		/**
+		 * Mấy cột gộp theo người — thuộc về NGƯỜI, không thuộc về dòng việc.
+		 *
+		 * Giá trị `'dau'` = lấy của dòng đầu cụm (tên, CCCD — cả cụm vốn giống nhau).
+		 * Giá trị `'cong'` = CỘNG cả cụm lại.
+		 *
+		 * 🔴 TOTAL SALARY LÀ `'cong'`, VÀ ĐÓ LÀ ĐIỂM KHÁC HẲN. Anh Thắng 18/09/2026: *"Cái chỗ
+		 * Total cho anh 1 hàng thôi"*, kèm ảnh anh Khang có 492.800 ở dòng Partime và 600.000 ở
+		 * dòng Hỗ Trợ. Hai con số ấy là tiền của MỘT người trong MỘT tháng — ai cầm bảng này đi
+		 * trả lương thì thứ họ cần là 1.092.800, còn hai dòng kia là cách nó tạo thành.
+		 * ⚠️ NẾU CHỈ LẤY DÒNG ĐẦU (`'dau'`) THÌ MẤT TIỀN. Gộp ô mà quên cộng là ô Total của anh
+		 *    Khang hiện 492.800 và 600.000 biến mất khỏi bảng — vẫn còn trong hàng TỔNG dưới
+		 *    cùng nên tổng cột vẫn đúng, tức là SAI ĐÚNG MỘT DÒNG và không con số nào tố giác.
+		 *    Đây là kiểu hỏng tệ nhất của bảng lương: nhìn thì sạch sẽ.
+		 */
+		$cot_gop = array( 'stt' => 'dau', 'ten' => 'dau', 'cccd' => 'dau', 'z' => 'cong' );
 
 		foreach ( $ds_dong as $i_d => $d ) {
 			$la_c = ! empty( $d['laChinh'] );
@@ -9847,9 +9861,21 @@ class VHCC_Web {
 					if ( $n_gop > 1 ) {
 						/* Ô gộp: in ngay tại đây rồi đi tiếp, vì mấy nhánh dưới không biết
 						   `rowspan`. Giữ đúng lớp/kiểu của từng cột. */
+						if ( 'cong' === $cot_gop[ $c['k'] ] ) {
+							$tg_g = 0.0;
+							for ( $j_g = 0; $j_g < $n_gop; $j_g++ ) {
+								$tg_g += (float) $o_gt( $ds_dong[ $i_d + $j_g ], $c['k'] );
+							}
+							$ch_g = $tien( $tg_g );
+							echo '<td rowspan="' . (int) $n_gop . '" class="p o-nguoi'
+								. $lop_c( $c ) . '"><b>'
+								. ( null === $ch_g ? '<span class="mo">—</span>' : esc_html( $ch_g ) )
+								. '</b></td>';
+							continue;
+						}
 						$v_g = $o_gt( $d, $c['k'] );
 						echo '<td rowspan="' . (int) $n_gop . '" class="o-nguoi'
-							. ( empty( $c['so'] ) ? '' : ' p' ) . '">'
+							. ( empty( $c['so'] ) ? '' : ' p' ) . $lop_c( $c ) . '">'
 							. esc_html( (string) $v_g ) . '</td>';
 						continue;
 					}
