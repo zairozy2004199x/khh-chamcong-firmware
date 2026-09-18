@@ -4,7 +4,7 @@ Tags: chi phí, phân bổ, báo cáo, MISA, kế toán
 Requires at least: 5.6
 Tested up to: 6.8
 Requires PHP: 7.2
-Stable tag: 1.16.0
+Stable tag: 1.17.0
 License: GPLv2 or later
 
 Phân bổ chi phí Máy tự động / Khu vui chơi ra "File tổng báo cáo" và phân bổ theo điểm để hạch toán MISA.
@@ -35,6 +35,21 @@ Nhân viên nhập khoản chi phí, kế toán duyệt, web tự tính.
 4. Nhập Excel kỳ đầu (hoặc ⋯ → Nạp dữ liệu mẫu) rồi bắt đầu.
 
 == Changelog ==
+
+= 1.17.0 =
+* **"Lấy hết" cơ sở của một nguồn bằng một nút.** Dòng THIẾU LIÊN KẾT trên Tổng quan có nút
+  *Lấy hết N cơ sở của Ghế* — mở nguồn, chọn sẵn tạo điểm mới cho mọi cơ sở chưa ghép, rồi dừng ở
+  bản xem trước để anh bấm Ghi.
+* Thêm ô **Bộ phận mặc định** trong hộp xem trước. Tên bên Ghế là tên địa điểm ("VINCOM BIÊN HÒA",
+  "SÂN BAY PHÚ QUỐC") nên không có chữ hiệu nào để đoán bộ phận. Chọn một lần cho mỗi nguồn, plugin
+  nhớ: từ đó cơ sở nào đoán được theo tên thì theo tên, còn lại vào bộ phận mặc định.
+* **Bỏ hẳn cơ sở không thuộc báo cáo này.** Báo cáo đang làm là **MN**, còn trang Ghế liệt kê cơ
+  sở cả nước. Mỗi dòng trong hộp xem trước có lựa chọn *🚫 Bỏ hẳn — không thuộc báo cáo này, đừng
+  hỏi lại*: cơ sở ấy không ghép, **không bị "Lấy hết" kéo vào** làm phồng doanh thu MN, và không
+  còn kêu ở dòng THIẾU LIÊN KẾT. Nhớ theo từng nguồn, chọn một lần dùng mãi; muốn lấy lại thì chỉ
+  cần chọn dòng khác cho cơ sở ấy.
+* Vẫn **không tự ghi**: tạo điểm bán mới là việc phải nhìn trước khi bấm, không để chạy sau lưng.
+  Mã đơn vị của điểm mới vẫn để trống và tab Kiểm tra vẫn cảnh báo cho tới khi điền.
 
 = 1.16.0 =
 * 🔴 **Hiện phần doanh thu bên nguồn chưa nối vào điểm nào.** Trang Ghế 01→17/09 tổng

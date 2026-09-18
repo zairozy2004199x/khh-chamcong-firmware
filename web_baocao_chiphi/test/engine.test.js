@@ -922,3 +922,60 @@ console.log(`OK — ${passed} phép so khớp với Excel đều đạt, các tr
 
   console.log('OK — tiền bên nguồn chưa nối vào điểm nào: đếm được, không im lặng biến mất.');
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// CƠ SỞ BỎ HẲN  (anh Thắng 18/09/2026: "Cứ lấy hết cơ sở đó là được" + "Cái anh đang làm là MN")
+//
+// Trang Ghế liệt kê cơ sở CẢ NƯỚC; báo cáo này chỉ của miền Nam. Phải bỏ hẳn được những cơ sở
+// ngoài vùng: không ghép, không kéo vào khi bấm "Lấy hết", và KHÔNG kêu ở dòng THIẾU LIÊN KẾT —
+// kêu mãi thì người ta thôi đọc, rồi hôm có cơ sở MN thật sự rơi ra ngoài cũng chẳng ai để ý.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+{
+  const st = E.normalizeState(window.SAMPLE_DATA);
+  st.sites = [{ dept: 'posh', code: 'PAMBD', name: 'POSH AMBD', revenue: 0, gheTen: 'AEON MALL BÌNH DƯƠNG' }];
+  const DS = [
+    { cua_hang: 'AEON MALL BÌNH DƯƠNG', thanh_tien: 300000000 },
+    { cua_hang: 'LOTTE MART NAM SÀI GÒN', thanh_tien: 34940000 },
+    { cua_hang: 'KUBO GO BUÔN MÊ THUỘT', thanh_tien: 2220000 },
+    { cua_hang: 'AEON MALL HÀ ĐÔNG', thanh_tien: 51000000 },
+  ];
+
+  // -- chưa bỏ hẳn cái nào: 3 cơ sở chưa nối, tiền đang rơi --
+  let kq = E.dongBoFabi(st, DS, 'gheTen');
+  assert.strictEqual(kq.chuaNoi.length, 3);
+  assert.strictEqual(kq.tongChuaNoi, 88160000);
+
+  // -- bỏ hẳn hai cơ sở ngoài MN --
+  st.options.boQuaNguon = { gheTen: ['KUBO GO BUÔN MÊ THUỘT', 'AEON MALL HÀ ĐÔNG'] };
+  assert.deepStrictEqual(E.dsBoQua(st, 'gheTen'), ['KUBO GO BUÔN MÊ THUỘT', 'AEON MALL HÀ ĐÔNG']);
+  kq = E.dongBoFabi(st, DS, 'gheTen');
+  assert.strictEqual(kq.chuaNoi.length, 1, 'chỉ còn cơ sở MN thật sự chưa nối');
+  assert.strictEqual(kq.tongChuaNoi, 34940000, 'cơ sở đã bỏ hẳn KHÔNG tính là tiền đang rơi');
+  assert.strictEqual(kq.chuaNoi[0].cua_hang, 'LOTTE MART NAM SÀI GÒN');
+
+  // -- ghép: dòng bỏ hẳn được đánh dấu, không ăn mất điểm bán nào --
+  const ghep = E.ghepFabi(st, DS, 'gheTen');
+  assert.strictEqual(ghep[0].cach, 'da_luu');
+  assert.strictEqual(ghep[2].boHan, true);
+  assert.strictEqual(ghep[2].cach, 'bo_han');
+  assert.strictEqual(ghep[3].boHan, true);
+  assert.strictEqual(ghep[2].siteIndex, null, 'đã bỏ hẳn thì KHÔNG ghép vào đâu cả');
+  assert.strictEqual(ghep[1].boHan, false, 'cơ sở MN thì không bị đánh dấu bỏ hẳn');
+
+  // 🔴 "Lấy hết" không được kéo cơ sở đã bỏ hẳn vào — đó đúng là cái làm phồng doanh thu MN.
+  ghep.forEach((g) => { if (!g.boHan && g.siteIndex === null && !g.taoMoi) { g.taoMoi = 'posh'; } });
+  assert.strictEqual(ghep.filter((g) => g.taoMoi).length, 1, 'chỉ cơ sở MN còn lại được tạo điểm');
+  const t = E.taoDiemTuFabi(st, ghep, 'gheTen');
+  assert.strictEqual(t.tao.length, 1);
+  const kqNap = E.napFabi(st, ghep, 'gheTen');
+  assert.strictEqual(kqNap.boQua, 0, 'bỏ hẳn là một quyết định, đừng báo lại như việc còn dang dở');
+  assert.strictEqual(st.sites.length, 2);
+  const tongDT = st.sites.reduce((a, s) => a + E.num(s.revenue), 0);
+  assert.strictEqual(tongDT, 334940000, 'chỉ cộng cơ sở thuộc báo cáo, không cộng cơ sở ngoài vùng');
+
+  // -- sau khi ghép hết phần MN thì không còn gì "đang rơi" --
+  kq = E.dongBoFabi(st, DS, 'gheTen');
+  assert.strictEqual(kq.tongChuaNoi, 0);
+
+  console.log('OK — cơ sở bỏ hẳn: không ghép, không kéo vào khi "Lấy hết", không kêu oan.');
+}

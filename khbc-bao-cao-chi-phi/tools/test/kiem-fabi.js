@@ -50,7 +50,8 @@ const ok=(t,c,g)=>(c?KQ.pass:KQ.fail).push(t+(g?' — '+g:''));
   const truoc = await p.evaluate(()=>document.querySelectorAll('select[data-fabi]').length);
   await p.evaluate(()=>{
     const s=[...document.querySelectorAll('select[data-fabi]')].find(x=>x.value==='');
-    if(s){ s.value=[...s.options].find(o=>o.value!=='').value; s.dispatchEvent(new Event('change',{bubbles:true})); }
+    /* Chọn một ĐIỂM BÁN thật (value là số), chứ không phải 'bo_han' hay 'new:<bộ phận>'. */
+    if(s){ s.value=[...s.options].find(o=>/^\d+$/.test(o.value)).value; s.dispatchEvent(new Event('change',{bubbles:true})); }
   });
   await p.waitForTimeout(600);
   const sau = await p.evaluate(()=>({

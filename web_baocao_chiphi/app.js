@@ -172,7 +172,8 @@
       ${soDu.map((x) => `${esc(NGUON[x.nguon].ten)}: ${x.ds.length} cơ sở = ${fmt(x.tien)} / tổng ${fmt(x.tongNguon)}`).join(' · ')}.<br>
       <span class="muted">${esc(soDu.map((x) => x.ds.slice(0, 6).map((d) => d.cua_hang).join(', ')
         + (x.ds.length > 6 ? ` … và ${x.ds.length - 6} cơ sở nữa` : '')).join(' · '))}</span><br>
-      <button class="btn small primary" data-act="moDoanhThu">Sang tab Doanh thu để ghép</button>
+      ${soDu.map((x) => `<button class="btn small primary" data-act="layHetNguon" data-arg="${esc(x.nguon)}">Lấy hết ${x.ds.length} cơ sở của ${esc(NGUON[x.nguon].nhan)}</button>`).join(' ')}
+      <button class="btn small" data-act="moDoanhThu">Sang tab Doanh thu để ghép tay</button>
       </span></div>`;
   }
 
@@ -780,6 +781,7 @@
     khong: { chu: 'chưa ghép', mo: 'Không đoán được. Tự chọn điểm, hoặc để nguyên thì bỏ qua cửa hàng này.' },
     tay: { chu: 'anh chọn', mo: 'Anh vừa chọn tay — sẽ được nhớ cho kỳ sau.' },
     tao: { chu: '➕ tạo điểm mới', mo: 'Cửa hàng mới bên FABi — sẽ tạo một điểm mới bên này. Mã đơn vị để trống, nhớ điền sau.' },
+    bo_han: { chu: '🚫 đã bỏ hẳn', mo: 'Cơ sở không thuộc báo cáo này (VD: ngoài miền Nam). Không ghép, không tính vào phần thiếu liên kết, và không hỏi lại. Chọn lại dòng khác là lấy lại.' },
   };
 
   function fabiBoxHtml() {
@@ -793,15 +795,17 @@
     const ds = fabi.ghep || [];
     const chon = ds.filter((x) => x.siteIndex !== null || x.taoMoi);
     const soTao = ds.filter((x) => x.siteIndex === null && x.taoMoi).length;
-    const chuaGhep = ds.filter((x) => x.siteIndex === null && !x.taoMoi);
+    const chuaGhep = ds.filter((x) => x.siteIndex === null && !x.taoMoi && !x.boHan);
+    const soBoHan = ds.filter((x) => x.boHan).length;
     const tongChon = chon.reduce((a, x) => a + x.thanh_tien, 0);
     /* Tổng của CHÍNH NGUỒN, để đối chiếu thẳng với con số trên trang nguồn. Không bày ra thì
        không ai thấy phần bị bỏ lại — đúng chỗ 670 triệu của anh Thắng đã rơi mất. */
-    const tongNguon = ds.reduce((a, x) => a + x.thanh_tien, 0);
+    const tongNguon = ds.filter((x) => !x.boHan).reduce((a, x) => a + x.thanh_tien, 0);
     /* Ô chọn có BA nhóm: bỏ qua · ghép vào điểm sẵn có · TẠO ĐIỂM MỚI trong một bộ phận.
        Nhóm thứ ba là chỗ gỡ cái kẹt anh Thắng nói: cửa hàng mới bên FABi không còn phải đứng mãi
        ở "— chưa ghép —" rồi rơi ra ngoài báo cáo. */
-    const opt = (x) => `<option value="" ${x.siteIndex === null && !x.taoMoi ? 'selected' : ''}>— chưa ghép (bỏ qua) —</option>`
+    const opt = (x) => `<option value="" ${x.siteIndex === null && !x.taoMoi && !x.boHan ? 'selected' : ''}>— chưa ghép (bỏ qua kỳ này) —</option>`
+      + `<option value="bo_han" ${x.boHan ? 'selected' : ''}>🚫 Bỏ hẳn — không thuộc báo cáo này, đừng hỏi lại</option>`
       + `<optgroup label="Ghép vào điểm sẵn có">` + state.sites
         .map((s, i) => `<option value="${i}" ${i === x.siteIndex ? 'selected' : ''}>${esc(deptName(s.dept))} · ${esc(s.name || s.code || '(chưa đặt tên)')}</option>`).join('')
       + `</optgroup><optgroup label="➕ Tạo điểm mới trong bộ phận">` + state.departments
@@ -810,16 +814,21 @@
     return `<div class="card" style="margin:0 0 10px;background:var(--panel-2)">
       <div class="card-head">
         <h2>${esc((NGUON[fabi.nguon] || NGUON.fabi).ten)} ${esc(fabi.tu)} → ${esc(fabi.den)}</h2>
-        <span class="hint">${ds.length} cửa hàng · <strong>nguồn có ${fmt(tongNguon)}</strong> · đã ghép ${chon.length - soTao}${soTao ? ` · tạo mới ${soTao}` : ''} · tổng sẽ ghi ${fmt(tongChon)}${tongNguon - tongChon > 0 ? ` · <strong class="bad-text">bỏ lại ${fmt(tongNguon - tongChon)}</strong>` : ''}</span>
+        <span class="hint">${ds.length} cửa hàng${soBoHan ? ` (bỏ hẳn ${soBoHan})` : ''} · <strong>nguồn có ${fmt(tongNguon)}</strong> · đã ghép ${chon.length - soTao}${soTao ? ` · tạo mới ${soTao}` : ''} · tổng sẽ ghi ${fmt(tongChon)}${tongNguon - tongChon > 0 ? ` · <strong class="bad-text">bỏ lại ${fmt(tongNguon - tongChon)}</strong>` : ''}</span>
         <div class="spacer"></div>
-        ${chuaGhep.length ? `<button class="btn small" data-act="fabiTaoHet" title="Với mỗi cửa hàng chưa ghép, tạo một điểm mới trong bộ phận đoán được từ tên quán. Vẫn sửa được từng dòng trước khi Ghi.">➕ Tạo điểm cho ${chuaGhep.length} cửa hàng còn lại</button>` : ''}
+        ${chuaGhep.length ? `<label class="hint" style="display:flex;align-items:center;gap:4px">Bộ phận mặc định
+          <select data-bpmd title="Cơ sở nào đoán được bộ phận từ tên thì theo tên; còn lại vào bộ phận này. Nhớ cho những lần sau.">
+            <option value="">— đoán theo tên —</option>
+            ${state.departments.map((d) => `<option value="${esc(d.id)}" ${bpMacDinh(fabi.nguon) === d.id ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}
+          </select></label>
+          <button class="btn small primary" data-act="fabiTaoHet" title="Lấy hết: cửa hàng nào đoán được bộ phận từ tên thì theo tên, còn lại vào bộ phận mặc định. Vẫn sửa được từng dòng trước khi Ghi.">➕ Lấy hết ${chuaGhep.length} cửa hàng còn lại</button>` : ''}
         <button class="btn small primary" data-act="fabiGhi" ${chon.length ? '' : 'disabled'}>Ghi ${chon.length} điểm vào báo cáo</button>
         <button class="btn small" data-act="fabiDong">Huỷ</button>
       </div>
       <div class="table-wrap"><table class="grid-table dense">
         <thead><tr><th>Cơ sở (${esc((NGUON[fabi.nguon] || NGUON.fabi).nhan)})</th><th class="num">Doanh thu</th><th class="num">Ngày</th><th>Ghép vào điểm</th><th>Vì sao</th></tr></thead>
         <tbody>
-          ${ds.map((x, k) => `<tr class="${x.siteIndex === null ? 'muted' : ''}">
+          ${ds.map((x, k) => `<tr class="${x.siteIndex === null || x.boHan ? 'muted' : ''}">
             <td>${esc(x.cua_hang)}</td>
             ${tdn(x.thanh_tien)}
             <td class="num muted">${x.so_ngay}</td>
@@ -834,6 +843,15 @@
 
   /* Dòng trạng thái liên kết: đang nối bao nhiêu điểm, lấy lúc nào, có điểm nào đứt liên kết
      không. Không có dòng này thì "tự lấy" là một cái hộp đen — số tự đổi mà không ai biết vì sao. */
+  /* Bộ phận mặc định cho những cơ sở KHÔNG đoán được bộ phận từ tên — anh Thắng 18/09/2026:
+     *"Cứ lấy hết cơ sở đó là được"*. Tên bên Ghế là tên địa điểm ("VINCOM BIÊN HÒA", "SÂN BAY PHÚ
+     QUỐC") nên chẳng có chữ hiệu nào để đoán, mà đoán bừa thì doanh thu vào nhầm bộ phận. Nên:
+     anh chọn MỘT LẦN cho mỗi nguồn, em nhớ, từ đó bấm một nút là lấy hết. */
+  function bpMacDinh(nguon) {
+    const m = (state.options && state.options.bpMacDinh) || {};
+    return m[nguon || 'fabi'] || '';
+  }
+
   /** Điểm này đang nối nguồn nào ('fabi' | 'ghe'), hay chưa nối ('' ). */
   function nguonCua(s) {
     const k = Object.keys(NGUON).find((n) => (s[NGUON[n].khoa] || '').trim());
@@ -1341,6 +1359,15 @@
     },
     fabiDong() { fabi = null; renderTab(); },
     moDoanhThu() { renderTab('revenue'); },
+    /* "Cứ lấy hết cơ sở đó là được" — mở nguồn, chọn sẵn tạo mới cho mọi cửa hàng chưa ghép, rồi
+       DỪNG Ở BẢN XEM TRƯỚC. Vẫn phải bấm Ghi: đây là thứ tạo ra điểm bán mới trong sổ, không phải
+       thứ nên tự chạy sau lưng. */
+    async layHetNguon(nguon) {
+      renderTab('revenue');
+      await napTuFabi(nguon);
+      if (!fabi || !fabi.ghep) return;
+      ACTIONS.fabiTaoHet();
+    },
     /* Hai nút của dòng "SAI KỲ" — một đường dựng kỳ mới, một đường quay lại. */
     dungKyMoi() { xoaSoKyNay(); },
     veKyCu() {
@@ -1400,14 +1427,18 @@
     },
     fabiTaoHet() {
       if (!fabi || !fabi.ghep) return;
-      let n = 0, khong = 0;
+      const md = bpMacDinh(fabi.nguon);
+      let n = 0, khong = 0, theoMd = 0;
       fabi.ghep.forEach((g) => {
-        if (g.siteIndex !== null || g.taoMoi) return;
-        const d = E.doanBoPhan(g.cua_hang, state.departments);
+        if (g.boHan || g.siteIndex !== null || g.taoMoi) return;
+        /* Đoán theo TÊN trước; không ra thì mới dùng bộ phận mặc định anh đã chọn. */
+        let d = E.doanBoPhan(g.cua_hang, state.departments);
+        if (!d && md) { d = md; theoMd++; }
         if (d) { g.taoMoi = d; g.cach = 'tao'; n++; } else { khong++; }
       });
       renderTab();
-      toast(`Đã chọn tạo mới ${n} điểm.` + (khong ? ` ${khong} cửa hàng không đoán được bộ phận — tự chọn giúp em.` : ''));
+      toast(`Đã chọn tạo mới ${n} điểm` + (theoMd ? ` (${theoMd} theo bộ phận mặc định ${deptName(md)})` : '') + '.'
+        + (khong ? ` ${khong} cửa hàng không đoán được bộ phận — chọn "Bộ phận mặc định" rồi bấm lại là lấy hết.` : ''));
     },
     fabiGhi() {
       if (!fabi || !fabi.ghep) return;
@@ -1417,6 +1448,16 @@
       const khoa = (NGUON[nguonCu] || NGUON.fabi).khoa;
       const t = E.taoDiemTuFabi(state, fabi.ghep, khoa);
       const kq = E.napFabi(state, fabi.ghep, khoa);
+      /* Nhớ danh sách BỎ HẲN của nguồn này. Anh Thắng: báo cáo đang làm là MN, mà trang Ghế liệt
+         kê cơ sở cả nước — không nhớ thì mỗi kỳ lại phải bỏ lại từng cái một, và dòng THIẾU LIÊN
+         KẾT kêu suốt đời cho những cơ sở vốn không thuộc báo cáo này. */
+      const bqCu = E.dsBoQua(state, khoa);
+      const them = fabi.ghep.filter((g) => g.boHan).map((g) => String(g.cua_hang || '').trim());
+      const boRa = fabi.ghep.filter((g) => !g.boHan).map((g) => String(g.cua_hang || '').trim());
+      state.options.boQuaNguon = Object.assign({}, state.options.boQuaNguon);
+      state.options.boQuaNguon[khoa] = bqCu.filter((x) => boRa.indexOf(x) < 0)
+        .concat(them.filter((x) => x && bqCu.indexOf(x) < 0));
+      const soBoHan = them.length;
       fabi = null;
       /* Ghi xong là đã có liên kết — bật luôn tự lấy, đó chính là thứ anh Thắng muốn ("tự link
          và lấy realtime"). Vẫn tắt được bằng nút trên thanh công cụ. */
@@ -1429,7 +1470,8 @@
       fabiLayNgay(true);
       toast(`Đã nối ${kq.xong} điểm với ${(NGUON[nguonCu] || NGUON.fabi).ten}`
         + (t.tao.length ? ` · tạo mới ${t.tao.length} điểm` : '')
-        + (kq.boQua ? ` · bỏ qua ${kq.boQua} cửa hàng chưa ghép` : '') + '.'
+        + (kq.boQua ? ` · bỏ qua ${kq.boQua} cửa hàng chưa ghép` : '')
+        + (soBoHan ? ` · bỏ hẳn ${soBoHan} cơ sở (không hỏi lại)` : '') + '.'
         + (bat ? ' Từ nay số tự lấy, khỏi bấm.' : '')
         + (t.tao.length ? ' Nhớ điền Mã đơn vị cho điểm mới.' : ''));
     },
@@ -1655,11 +1697,16 @@
         if (fabi && fabi.ghep && fabi.ghep[k]) {
           const g = fabi.ghep[k];
           const raw = el.value;
-          if (raw.indexOf('new:') === 0) {
+          if (raw === 'bo_han') {
+            /* Bỏ HẲN: nhớ vào state lúc bấm Ghi, để lần sau khỏi hiện lại. Vẫn chỉ là bản nháp
+               tới lúc ấy. */
+            g.siteIndex = null; g.taoMoi = ''; g.boHan = true; g.cach = 'bo_han';
+          } else if (raw.indexOf('new:') === 0) {
             /* Chưa tạo ngay — chỉ ghi ý định. Tạo thật lúc bấm Ghi, để anh còn đổi ý hoặc Huỷ mà
                không để lại một điểm rác trong danh sách. */
-            g.siteIndex = null; g.taoMoi = raw.slice(4); g.cach = 'tao';
+            g.siteIndex = null; g.taoMoi = raw.slice(4); g.boHan = false; g.cach = 'tao';
           } else {
+            g.boHan = false;
             g.taoMoi = '';
             /* Một điểm chỉ nhận MỘT cửa hàng: gán cho dòng này thì gỡ khỏi dòng kia, không thì
                hai cửa hàng cùng ghi vào một điểm và cái sau đè mất cái trước. */
@@ -1669,6 +1716,12 @@
           }
           renderTab();
         }
+        return;
+      }
+      if (el.matches('[data-bpmd]')) {
+        state.options.bpMacDinh = Object.assign({}, state.options.bpMacDinh);
+        state.options.bpMacDinh[(fabi && fabi.nguon) || 'fabi'] = el.value;
+        commit();
         return;
       }
       /* Đổi dòng lương cho một cơ sở bên Nhân sự — cũng chỉ ghi vào BẢN NHÁP. */

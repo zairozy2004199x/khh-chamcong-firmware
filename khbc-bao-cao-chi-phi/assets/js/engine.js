@@ -499,6 +499,17 @@
   const NGUONG_TU = 2;      // ít nhất 2 từ đặc trưng chung
   const NGUONG_TY_LE = 0.6; // và phủ ít nhất 60% cái tên ngắn hơn
 
+  /* 🔴 CƠ SỞ BỎ HẲN. Anh Thắng 18/09/2026: *"Cái anh đang làm là MN"* — trang Ghế liệt kê cơ sở
+     CẢ NƯỚC, còn báo cáo này chỉ của miền Nam. Không có chỗ đánh dấu "cơ sở này không thuộc báo
+     cáo" thì hai chuyện xấu xảy ra: hoặc "Lấy hết" kéo luôn cơ sở ngoài vùng vào làm phồng doanh
+     thu MN, hoặc chúng đứng mãi ở "chưa ghép" và dòng THIẾU LIÊN KẾT kêu suốt đời — kêu mãi thì
+     người ta thôi đọc, rồi hôm có cơ sở MN thật sự rơi ra ngoài cũng chẳng ai để ý.
+     Nên: bỏ hẳn được, nhớ theo từng nguồn, và bỏ rồi thì thôi không hỏi lại. */
+  function dsBoQua(state, khoa) {
+    const m = ((state || {}).options || {}).boQuaNguon || {};
+    return (m[khoa || 'fabiTen'] || []).map((x) => String(x).trim()).filter(Boolean);
+  }
+
   /**
    * @param {object} state
    * @param {Array}  ds   [{cua_hang, thanh_tien, so_ngay}] — từ KHBC_FABi
@@ -508,25 +519,29 @@
     khoa = khoa || 'fabiTen';
     const sites = state.sites || [];
     const khoaSite = sites.map((s) => khoaTen(s.name));
+    const bq = dsBoQua(state, khoa);
     const ra = (ds || []).map((d) => ({
       cua_hang: String(d.cua_hang || ''),
       thanh_tien: num(d.thanh_tien),
       so_ngay: num(d.so_ngay),
+      /* Cơ sở đã BỎ HẲN thì không ghép, không đoán, không tính vào phần "đang rơi" — xem dsBoQua. */
+      boHan: bq.indexOf(String(d.cua_hang || '').trim()) >= 0,
       siteIndex: null, cach: 'khong', diem: 0,
     }));
+    ra.forEach((r) => { if (r.boHan) r.cach = 'bo_han'; });
     const daDung = {};
     const nhan = (k, i, cach, diem) => { ra[k].siteIndex = i; ra[k].cach = cach; ra[k].diem = diem || 0; daDung[i] = true; };
 
     // 1. đã lưu từ lần trước — chốt trước tiên, người dùng đã quyết rồi
     ra.forEach((r, k) => {
-      if (r.siteIndex !== null || !r.cua_hang.trim()) return;
+      if (r.boHan || r.siteIndex !== null || !r.cua_hang.trim()) return;
       const i = sites.findIndex((s, ix) => !daDung[ix] && (s[khoa] || '').trim() === r.cua_hang.trim());
       if (i >= 0) { nhan(k, i, 'da_luu'); }
     });
 
     // 2. khoá tên trùng khít (sau khi cắt đuôi pháp nhân)
     ra.forEach((r, k) => {
-      if (r.siteIndex !== null) return;
+      if (r.boHan || r.siteIndex !== null) return;
       const kh = khoaTen(tenGonFabi(r.cua_hang));
       if (!kh) return;
       const i = khoaSite.findIndex((x, ix) => !daDung[ix] && x && x === kh);
@@ -539,7 +554,7 @@
        chẳng liên quan gì tới chuyện ghép. */
     const cap = [];
     ra.forEach((r, k) => {
-      if (r.siteIndex !== null) return;
+      if (r.boHan || r.siteIndex !== null) return;
       let top1 = 0, top2 = 0;
       sites.forEach((s, i) => {
         if (daDung[i]) return;
@@ -602,7 +617,11 @@
        giao diện bày thành số, đừng để nó biến mất. */
     const daNoi = {};
     sites.forEach((x) => { const k = (x[khoa] || '').trim(); if (k) daNoi[k] = true; });
-    const chuaNoi = (ds || []).filter((d) => !daNoi[String(d.cua_hang || '').trim()] && num(d.thanh_tien) !== 0);
+    const bq = dsBoQua(state, khoa);
+    const chuaNoi = (ds || []).filter((d) => {
+      const t = String(d.cua_hang || '').trim();
+      return !daNoi[t] && bq.indexOf(t) < 0 && num(d.thanh_tien) !== 0;
+    });
     return { daLinh, doi, soDoi: doi.filter((x) => !x.mat).length, mat: doi.filter((x) => x.mat),
       chuaNoi, tongNguon: (ds || []).reduce((a, d) => a + num(d.thanh_tien), 0),
       tongChuaNoi: chuaNoi.reduce((a, d) => a + num(d.thanh_tien), 0) };
@@ -695,6 +714,9 @@
     khoa = khoa || 'fabiTen';
     let xong = 0, bo = 0;
     (ghep || []).forEach((g) => {
+      /* Bỏ HẲN là một quyết định, không phải một dòng "chưa kịp ghép" — đừng đếm vào `boQua` rồi
+         báo lại như thể còn việc phải làm. */
+      if (g.boHan) return;
       const i = g.siteIndex;
       if (i === null || i === undefined || !state.sites[i]) { bo++; return; }
       state.sites[i].revenue = num(g.thanh_tien);
@@ -1094,6 +1116,13 @@
     /* `luongTuDong` — cùng ý với `fabiTuDong` nhưng cho Mục III: lương của các dòng ĐÃ LIÊN KẾT
        (`nsTen`) tự lấy từ trang Nhân sự mỗi lần mở kỳ. */
     st.options = Object.assign({ includePending: false, fabiTuDong: false, luongTuDong: false }, st.options || {});
+    /* `bpMacDinh` — bộ phận cho những cơ sở KHÔNG đoán được bộ phận từ tên, chọn một lần cho mỗi
+       nguồn rồi nhớ. Tên bên Ghế là tên địa điểm ("VINCOM BIÊN HÒA") nên không có chữ hiệu nào để
+       đoán; đoán bừa thì doanh thu vào nhầm bộ phận mà tổng vẫn cộng đẹp. */
+    st.options.bpMacDinh = Object.assign({}, st.options.bpMacDinh || {});
+    /* `boQuaNguon` — danh sách cơ sở BỎ HẲN của từng nguồn, khoá theo tên cột liên kết
+       ('fabiTen' | 'gheTen'). Xem khối dài ở dsBoQua(). */
+    st.options.boQuaNguon = Object.assign({}, st.options.boQuaNguon || {});
     /* ═════════════════════════════════════════════════════════════════════════════════════════
      * `misaPrefix` = phần giữa của SỐ CHỨNG TỪ (`NVK<prefix><ngày><tháng><stt>`).
      *
@@ -1178,6 +1207,7 @@
     batDauKyMoi,
     khoaKy,
     lechKy,
+    dsBoQua,
     khoaTen,
     tenGonFabi,
     parseAccount,
