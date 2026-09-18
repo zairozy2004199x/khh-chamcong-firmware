@@ -2097,7 +2097,16 @@ function napUng(){
 				   của ô khoá, nên ở đây không có gì để bấm vào — kể cả một dòng CSS sửa nhầm
 				   cũng không biến nó thành bấm được. Dùng <a> rồi chặn bằng JS thì chỉ cần một
 				   lượt JS hỏng là năm cái ô khoá thành năm cái link sống. */
-				var mo = !!x.mo_duoc && !!x.url;
+				/* 🔴 Ô MỞ MÀN TRONG TRẠM CŨNG LÀ Ô MỞ. Anh Thắng 18/09/2026, ảnh chụp tab
+				   Ứng dụng của một nhân viên: cả nhóm "CỦA TÔI" (Phiếu lương · Xin bù giờ ·
+				   Khai giờ khác · Xin nghỉ · Gửi đơn đi trễ) xám hết, kèm dòng "chưa được cấp"
+				   — trong khi máy chủ dựng cả năm ô ấy bằng `o( true, … )`, tức KHÔNG gác gì.
+				   Vì sao: chốt này đòi `x.url`, mà năm ô ấy không có `url` — chúng mở một màn
+				   NGAY TRONG TRẠM bằng `x.man`. Nên nhánh `if(mo && x.man)` ngay dưới là mã
+				   CHẾT, không lượt nào chạy tới, và mọi ô `man` đều rơi xuống nhánh khoá.
+				   ⚠️ Vẫn an toàn: `VHCC_Ung::o()` đã `unset()` CẢ `url` LẪN `man` của ô khoá,
+				      nên ô khoá thật không có đường nào lọt qua chốt này. */
+				var mo = !!x.mo_duoc && (!!x.url || !!x.man);
 				var ruot = '<span class="o-icon o-' + thoat(x.mau||'xanh') + '">'
 				         + thoat(x.icon||'') + '</span>'
 				         + '<b>' + thoat(x.ten||'') + '</b>';
