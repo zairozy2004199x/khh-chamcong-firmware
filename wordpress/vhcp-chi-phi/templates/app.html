@@ -6767,11 +6767,17 @@
     if(daCap.length){
       var daTong=_daCapTong(d), con=_conPhaiCap(d);
       h+='<div style="font-size:11px;color:#0f766e;font-weight:700;margin:6px 0 2px">💵 Đã cấp</div>';
-      daCap.forEach(function(y,i){
+      /* 🔴 KHỐI NÀY KHÔNG ĐÁNH SỐ LẦN. Anh Thắng 18/09/2026, sau khi hai khối đã nói chung một
+         từ: *"cũng lấy 1 chữ lần 1 đi"* — trong cùng một lệnh mà có hai dòng "Lần 1" thì người
+         đọc tự ghép chúng làm một, và đó đúng là cái ghép BỊA mà cả khối này sinh ra để tránh:
+         kế toán đưa 15tr trong khi lịch hẹn 10tr, gộp hai lần hẹn làm một, hay đưa sớm một hôm.
+         "Lần N" nay chỉ còn một nghĩa: lần mà người xin ĐÃ XẾP HÀNG VÀO ở trên. Còn mỗi lần cấp
+         thật đã có NGÀY + UỶ NHIỆM CHI + tên người cấp — ba thứ ấy mới là thứ đem đi đối chiếu,
+         chứ không phải một con số thứ tự. */
+      daCap.forEach(function(y){
         h+='<div style="font-size:11.5px;margin:1px 0 1px 10px">'
-          +'<b>Lần '+(Number(y.lan)||(i+1))+'</b>'
-          +(y.ngay?(' · '+esc(_dmy(y.ngay))):'')
-          +' · <b>'+money(y.soTien)+'đ</b>'
+          +(y.ngay?('<b>'+esc(_dmy(y.ngay))+'</b> · '):'')
+          +'<b>'+money(y.soTien)+'đ</b>'
           +(y.unc?(' · <span style="color:#2545ff">UNC '+esc(y.unc)+'</span>'):'')
           +(y.nguoi?(' <span style="color:#8c8781">— '+esc(y.nguoi)+'</span>'):'')
           +'</div>';

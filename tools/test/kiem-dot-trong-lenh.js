@@ -116,11 +116,31 @@ const F = new Function('esc', 'money', '_dmy', 'DA_CUR',
  * ấy đẻ ra câu hỏi *"đợt 1 là 10tr, sao lại ghi trong này là 68tr"*.
  * ────────────────────────────────────────────────────────────────────────────────────────── */
 {
-  const h = F.blk({ soTien: 68790000, lich: [{ lan: 1, ngay: '03/09/2026', soTien: 10000000 }],
-    daCap: [{ lan: 1, ngay: '17/09/2026', soTien: 15000000, unc: 'UNC-1', nguoi: 'Chị Nhân' }] });
-  t('🔴 khối "Lịch nhận tiền" và khối "Đã cấp" gọi CÙNG một từ: Lần',
-    (h.match(/<b>Lần \d<\/b>/g) || []).length === 2, h);
+  const h = F.blk({ soTien: 68790000,
+    lich: [{ lan: 1, ngay: '03/09/2026', soTien: 10000000 },
+           { lan: 2, ngay: '10/09/2026', soTien: 20000000 }],
+    daCap: [{ lan: 1, ngay: '17/09/2026', soTien: 15000000, unc: 'UNC-1', nguoi: 'Chị Nhân' },
+            { lan: 2, ngay: '19/09/2026', soTien: 5000000, unc: 'UNC-2', nguoi: 'Chị Nhân' }] });
   t('🔴 và chữ "đợt" KHÔNG còn xuất hiện ở đâu trong khối này', !/[Đđ]ợt/.test(h), h);
+  /* 🔴 "LẦN N" CHỈ ĐƯỢC CÓ MỘT NGHĨA. Anh Thắng 18/09, sau khi hai khối đã nói chung một từ:
+     *"cũng lấy 1 chữ lần 1 đi"*. Hai dòng "Lần 1" trong cùng một lệnh thì người đọc tự ghép
+     chúng làm một — và đó đúng là cái ghép BỊA mà khối "Đã cấp" sinh ra để tránh (kế toán đưa
+     15tr trong khi lịch hẹn 10tr). Nay chỉ khối LỊCH đánh số; khối ĐÃ CẤP đi bằng ngày. */
+  t('🔴 chỉ khối "Lịch nhận tiền" đánh số Lần — hai lần hẹn, đúng hai nhãn',
+    (h.match(/<b>Lần \d<\/b>/g) || []).length === 2, h);
+  const daCapHtml = h.slice(h.indexOf('💵 Đã cấp'));
+  t('🔴 khối "Đã cấp" KHÔNG còn đánh số lần (hai "Lần 1" là mời người ta ghép bịa)',
+    !/Lần \d/.test(daCapHtml), daCapHtml);
+  t('   nhưng vẫn giữ đủ NGÀY · SỐ TIỀN · UNC · ai cấp — thứ đem đi đối chiếu thật',
+    /19\/09\/2026/.test(daCapHtml) && /5\.000\.000đ/.test(daCapHtml)
+    && /UNC-2/.test(daCapHtml) && /Chị Nhân/.test(daCapHtml), daCapHtml);
+  t('   và ngày đứng đầu dòng cho dễ dò', /<b>17\/09\/2026<\/b> · <b>15\.000\.000đ/.test(daCapHtml), daCapHtml);
+}
+{
+  /* Lần cấp chưa ghi ngày vẫn phải đọc được — không thì dòng ấy mở đầu bằng một dấu chấm giữa. */
+  const h = F.blk({ soTien: 5000000, lich: [], daCap: [{ lan: 1, soTien: 5000000 }] });
+  t('lần cấp thiếu ngày → dòng mở đầu thẳng bằng số tiền, không bằng một dấu chấm giữa lửng lơ',
+    /margin:1px 0 1px 10px"><b>5\.000\.000đ<\/b><\/div>/.test(h), h);
 }
 /* Canh CẢ MÃ NGUỒN, không chỉ một cảnh dựng ra: một chỗ còn sót thì người dùng vẫn gặp hai từ,
    chỉ là gặp ở màn khác.
