@@ -4,7 +4,7 @@ Tags: chi phí, phân bổ, báo cáo, MISA, kế toán
 Requires at least: 5.6
 Tested up to: 6.8
 Requires PHP: 7.2
-Stable tag: 1.20.0
+Stable tag: 1.21.0
 License: GPLv2 or later
 
 Phân bổ chi phí Máy tự động / Khu vui chơi ra "File tổng báo cáo" và phân bổ theo điểm để hạch toán MISA.
@@ -35,6 +35,16 @@ Nhân viên nhập khoản chi phí, kế toán duyệt, web tự tính.
 4. Nhập Excel kỳ đầu (hoặc ⋯ → Nạp dữ liệu mẫu) rồi bắt đầu.
 
 == Changelog ==
+
+= 1.21.0 =
+* Thêm nút **🔍 Khám plugin Nhân sự** trên tab Lương. Nút 🔧 cho thấy: với Khu vui chơi,
+  `bang_cong_va_luong()` trả về `kieu = tho`, `coLuong = false` và **chỉ có giờ vào / giờ ra thô**
+  — không một con số tiền nào. Vậy đó không phải hàm tính ra con số trên màn "Bảng lương cơ sở";
+  màn ấy tính bằng chỗ khác (giờ công × đơn giá từ sổ đơn giá).
+* Nút này liệt kê **lớp, hàm công khai và bảng dữ liệu** của plugin Chấm công để tìm đúng hàm mà
+  gọi — thay vì tự cộng giờ vào/ra rồi nhân đơn giá ở bên này, tức là chép lại luật tính lương
+  (còn làm tròn, lượt thiếu giờ, ngày lễ, phụ cấp) rồi ôm một bản sao sẽ lệch dần.
+* **Chỉ in TÊN** lớp / hàm / bảng và số dòng — không đọc nội dung bảng nào. Chỉ Admin dùng được.
 
 = 1.20.0 =
 * 🔴 **Lương đọc sai chỗ — chưa sửa xong, nhưng thôi ghi số 0 giả.** Cơ sở FZ_SC_VIVO_T4 bên Nhân

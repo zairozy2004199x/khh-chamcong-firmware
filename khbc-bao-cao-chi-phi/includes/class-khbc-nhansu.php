@@ -150,6 +150,47 @@ class KHBC_NhanSu {
 		);
 	}
 
+	/**
+	 * KHÁM PLUGIN CHẤM CÔNG — liệt kê lớp, hàm công khai và bảng dữ liệu của nó.
+	 *
+	 * Anh Thắng 18/09/2026 bấm 🔧 ở FZ_SC_VIVO_T4: `kieu = tho`, `coLuong = false`, và trong dữ
+	 * liệu CHỈ CÓ `tho.rows[].ngay[].date/vao/ra` — giờ vào giờ ra thô, không một con số tiền nào.
+	 * Nghĩa là `bang_cong_va_luong()` KHÔNG phải hàm tính ra 52.287.040 trên màn "Bảng lương cơ
+	 * sở"; màn ấy tính bằng chỗ khác (giờ công × đơn giá lấy từ sổ đơn giá).
+	 *
+	 * Tự cộng giờ vào/ra rồi nhân đơn giá ở bên này chính là chép lại luật tính lương — đúng thứ
+	 * đã hứa không làm, vì luật của họ còn làm tròn, lượt thiếu giờ, ngày lễ, phụ cấp. Nên việc
+	 * cần là TÌM ĐÚNG HÀM của họ mà gọi. Nút này in ra danh sách để tìm.
+	 *
+	 * ⚠️ CHỈ IN TÊN: tên lớp, tên hàm, tên bảng, số dòng. Không đọc nội dung bảng nào.
+	 */
+	public static function kham() {
+		global $wpdb;
+		$lop = array();
+		foreach ( get_declared_classes() as $c ) {
+			if ( stripos( $c, 'vhcc' ) !== 0 && stripos( $c, 'vhcp' ) !== 0 ) { continue; }
+			$ham = array();
+			foreach ( get_class_methods( $c ) as $m ) {
+				try {
+					$rm = new ReflectionMethod( $c, $m );
+					if ( ! $rm->isPublic() ) { continue; }
+					$ts = array();
+					foreach ( $rm->getParameters() as $pr ) { $ts[] = '$' . $pr->getName(); }
+					$ham[] = ( $rm->isStatic() ? '::' : '->' ) . $m . '(' . implode( ', ', $ts ) . ')';
+				} catch ( Exception $e ) { $ham[] = $m . '(?)'; }
+			}
+			sort( $ham );
+			$lop[] = array( 'lop' => $c, 'ham' => $ham );
+		}
+		$bang = array();
+		$ds = $wpdb->get_col( $wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->prefix . 'vhcc%' ) );
+		foreach ( (array) $ds as $t ) {
+			$bang[] = array( 'bang' => $t, 'so_dong' => (int) $wpdb->get_var( "SELECT COUNT(*) FROM `$t`" ) );
+		}
+		return array( 'ok' => true, 'lop' => $lop, 'bang' => $bang,
+			'ghi_chu' => 'Chỉ in TÊN lớp / hàm / bảng và số dòng. Không đọc nội dung bảng nào.' );
+	}
+
 	/** Đi khắp mảng, gom số kèm đường dẫn. Chuỗi chỉ ghi nhận tên khoá. */
 	private static function di( $x, $duong, &$so, &$khs, $sau = 0 ) {
 		if ( $sau > 6 || count( $so ) > 400 ) { return; }

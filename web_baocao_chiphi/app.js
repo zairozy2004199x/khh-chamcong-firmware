@@ -506,6 +506,7 @@
           <div class="spacer"></div>
           <button class="btn small ${state.options.luongTuDong ? 'primary' : ''}" data-act="luongTuDong" title="Bật thì lương của các dòng ĐÃ LIÊN KẾT tự lấy từ trang Nhân sự mỗi lần mở kỳ. Kỳ đã chốt thì dừng lấy, số đứng yên.">${state.options.luongTuDong ? '🔗 Tự lấy: BẬT' : '🔗 Tự lấy: tắt'}</button>
           <button class="btn small primary" data-act="napLuong" title="quan-tri-cham-cong — tổng lương mỗi cơ sở của kỳ này">⬇ Nạp lương từ Nhân sự</button>
+          <button class="btn small ghost" data-act="nsKham" title="Liệt kê lớp / hàm / bảng của plugin Chấm công, để tìm đúng hàm tính lương. Chỉ in TÊN, không đọc nội dung bảng nào.">🔍 Khám plugin Nhân sự</button>
           <button class="btn small" data-act="syncSalary" title="Đặt Báo cáo và DNTT = Theo báo cáo cho tất cả dòng">Báo cáo = DNTT = Theo báo cáo</button>
           <button class="btn small primary" data-act="addSalarySite">+ Thêm dòng</button>
         </div>
@@ -1476,6 +1477,24 @@
     napLuong() { napTuNhanSu(); },
     /* 🔧 Chẩn đoán: in ra đúng cấu trúc dữ liệu bên Chấm công cho một cơ sở, để sửa cho trúng chỗ
        để tiền thay vì đoán. Chỉ in SỐ — họ tên và CCCD của nhân viên bị giấu ngay từ máy chủ. */
+    /* 🔍 Khám: in ra lớp / hàm / bảng của plugin Chấm công. `bang_cong_va_luong()` với Khu vui
+       chơi chỉ trả giờ vào/ra thô, không có tiền — nên phải tìm ĐÚNG hàm tính lương của họ mà gọi,
+       chứ không tự cộng giờ rồi nhân đơn giá ở bên này. */
+    async nsKham() {
+      if (!API.isEnabled()) return toast('Chức năng này cần đăng nhập vào máy chủ.');
+      try {
+        const r = await API.call('nsKham', {});
+        const d = r && r.data ? r.data : r;
+        if (!d || d.ok === false) return toast('Không đọc được: ' + ((d && d.error) || '?'));
+        const log = [{ level: 'info', msg: d.ghi_chu }];
+        (d.lop || []).forEach((x) => {
+          log.push({ level: 'warn', msg: `class ${x.lop} — ${x.ham.length} hàm` });
+          x.ham.forEach((h) => log.push({ level: 'ok', msg: `  ${x.lop}${h}` }));
+        });
+        (d.bang || []).forEach((x) => log.push({ level: 'info', msg: `bảng ${x.bang} — ${x.so_dong} dòng` }));
+        showLog('Lớp / hàm / bảng của plugin Chấm công', log);
+      } catch (e) { toast('Lỗi: ' + e.message); }
+    },
     async nsChuanDoan(coso) {
       if (!API.isEnabled()) return toast('Chức năng này cần đăng nhập vào máy chủ.');
       try {

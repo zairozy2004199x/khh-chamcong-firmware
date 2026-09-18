@@ -17,7 +17,7 @@ class KHBC_API {
 	/** Hàm chỉ cho vai nhất định. Nhân viên (Nhân viên) chỉ được nhóm 'nhap'. */
 	private static function required_roles( $fn ) {
 		/* `nsChuanDoan` đọc thẳng cấu trúc dữ liệu của plugin khác — để ở mức Admin. */
-		$admin  = array( 'listUsers', 'saveUser', 'deleteUser', 'lockPeriod', 'nsChuanDoan' );
+		$admin  = array( 'listUsers', 'saveUser', 'deleteUser', 'lockPeriod', 'nsChuanDoan', 'nsKham' );
 		/* `fabiDoanhThu` CHỈ ĐỌC, nhưng vẫn gác ở mức Kế toán: đó là doanh thu toàn chuỗi, không
 		   phải thứ để nhân viên nhập chi phí mở ra xem. */
 		$ketoan = array( 'saveState', 'setCostStatus', 'setAllStatus', 'listPeriods', 'getLog', 'fabiDoanhThu', 'gheDoanhThu', 'nsLuong' );
@@ -51,6 +51,7 @@ class KHBC_API {
 			'gheDoanhThu'    => array( __CLASS__, 'ghe_doanh_thu' ),
 			'nsLuong'        => array( __CLASS__, 'ns_luong' ),
 			'nsChuanDoan'    => array( __CLASS__, 'ns_chuan_doan' ),
+			'nsKham'         => array( __CLASS__, 'ns_kham' ),
 		);
 	}
 
@@ -95,6 +96,9 @@ class KHBC_API {
 	}
 
 	/** Lương theo cơ sở, đọc từ plugin Chấm công — xem KHBC_NhanSu. */
+	/** Liệt kê lớp / hàm / bảng của plugin Chấm công — chỉ Admin, chỉ in TÊN (xem KHBC_NhanSu). */
+	public static function ns_kham( $a ) { return KHBC_NhanSu::kham(); }
+
 	/** Chẩn đoán cấu trúc dữ liệu bên Chấm công — chỉ Admin, và KHÔNG in chuỗi (xem KHBC_NhanSu). */
 	public static function ns_chuan_doan( $a ) {
 		$a = is_array( $a ) ? $a : array();

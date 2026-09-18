@@ -93,6 +93,17 @@ const PORT = process.env.PORT || '8113';
      !/NGUYỄN VĂN A/.test(s2.than) && !/079300000001/.test(s2.than) && /\(chuỗi\)/.test(s2.than),
      'đã giấu');
 
+  // ── 🔍 Khám plugin: liệt kê lớp / hàm / bảng để tìm đúng hàm tính lương ─────────────────────
+  await p.evaluate(()=>{document.querySelector('#logModal').hidden=true;});  // đóng hộp vừa mở
+  await p.waitForTimeout(400);
+  await p.click('[data-act="nsKham"]'); await p.waitForTimeout(2500);
+  const s3 = await p.evaluate(()=>({ hien: !document.querySelector('#logModal').hidden,
+    than: (document.querySelector('#logBody')||{}).textContent||'' }));
+  ok('🔍 Khám liệt kê được lớp và hàm của plugin Chấm công',
+     s3.hien && /VHCC_Luong/.test(s3.than) && /bang_cong_va_luong/.test(s3.than),
+     s3.than.replace(/\s+/g,' ').slice(0,140));
+  ok('🔴 Khám chỉ in TÊN, không đọc nội dung bảng', /Không đọc nội dung bảng nào/.test(s3.than));
+
   ok('Không lỗi JS', loi.length===0, loi.join(' | '));
   await p.screenshot({path:'/tmp/claude-0/luong-ns.png'});
   await b.close();
