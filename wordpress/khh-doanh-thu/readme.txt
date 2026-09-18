@@ -97,6 +97,17 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.36.0 =
+* **Thoát đăng nhập có cho CẢ HAI lối vào.** Trước đây nút "Thoát" chỉ hiện với người vào bằng
+  PIN; người văn phòng vào bằng tài khoản WordPress không có đường nào ra khỏi trang. Đây là
+  trang mở trên máy dùng chung ở cửa hàng và điện thoại chuyền tay — không thoát được nghĩa là
+  người sau ngồi vào vẫn đang là người trước, xem đúng những gì người trước xem.
+* Hai lối thoát tách riêng, không dùng chung một đường: vào bằng PIN thì đóng phiên PIN qua REST
+  `dang-xuat` (không đụng đăng nhập WordPress); vào bằng tài khoản thì đi `wp_logout_url()`.
+* Lối thứ hai là **link người bấm**, không gọi bằng fetch: `wp_logout_url()` mang nonce nên
+  WordPress sẽ chối — mà chối im lặng, người dùng chỉ thấy nút bấm không phản hồi.
+* Bài kiểm mới `tools/test/kiem-thoat-dang-nhap.py` — 16 phép.
+
 = 1.35.0 =
 * **Nạp được báo cáo của cửa hàng chạy hệ Bes** (không phải FABi): thẻ mới "Bán hàng (Bes)" đọc
   báo cáo *TỔNG HỢP MÓN ĂN BÁN* xuất ra `.csv`. Không phải khai cơ sở ở đâu — danh sách cơ sở

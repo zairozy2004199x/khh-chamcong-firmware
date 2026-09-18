@@ -789,8 +789,23 @@
     if (!o) return;
     if (!cf.ten_toi) { o.hidden = true; return; }
     o.hidden = false;
+    /* THOÁT PHẢI CÓ CHO CẢ HAI LỐI VÀO.
+       Trước 18/09/2026 nút này chỉ hiện khi `bang_pin` — tức chỉ cửa hàng trưởng vào bằng PIN mới
+       thoát được. Người văn phòng vào bằng tài khoản WordPress thì không có đường nào ra, và đây
+       là trang mở trên máy dùng chung ở cửa hàng: không thoát được nghĩa là người sau ngồi vào
+       vẫn đang là người trước, xem được đúng những gì người trước xem.
+
+       Hai lối thoát KHÁC NHAU, không dùng chung một đường:
+         · vào bằng PIN  -> REST `dang-xuat`: đóng phiên PIN, KHÔNG đụng đăng nhập WordPress.
+         · vào bằng tài khoản -> `cf.link_ra` (wp_logout_url): thoát hẳn khỏi WordPress.
+       ⚠️ Lối thứ hai phải là <a> cho người BẤM, vì wp_logout_url mang nonce — gọi bằng fetch là
+          WordPress chối, và chối im lặng nên người dùng chỉ thấy nút bấm không phản hồi. */
     o.innerHTML = '<span class="ten">' + esc(cf.ten_toi) + '</span>' +
-      (cf.bang_pin ? '<button class="vien" type="button" id="dtThoat">Thoát</button>' : '');
+      (cf.bang_pin
+        ? '<button class="vien" type="button" id="dtThoat">Thoát</button>'
+        : (cf.link_ra
+            ? '<a class="vien" href="' + esc(cf.link_ra) + '">Thoát</a>'
+            : ''));
     var t = q('#dtThoat');
     if (t) t.addEventListener('click', thoatPin);
   }
