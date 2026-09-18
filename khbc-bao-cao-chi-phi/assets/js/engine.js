@@ -739,6 +739,138 @@
     return st;
   }
 
+  /* ═══════════════════════════════════════════════════════════════════════════════════════════
+   * LƯƠNG TỪ PLUGIN CHẤM CÔNG — MỖI CƠ SỞ MỘT DÒNG
+   *
+   * Anh Thắng 18/09/2026: *"giờ Lương lấy từ trang nhân sự theo cơ sở"*, và chọn "tổng mỗi cơ sở
+   * một dòng" (không kéo từng nhân viên sang).
+   *
+   * Dùng lại đúng lối đã làm cho doanh thu: ghép có xem trước → nhớ liên kết (`nsTen`) → kỳ sau
+   * tự về. Khác một điểm: ghép vào DÒNG LƯƠNG (Mục III) chứ không vào điểm bán.
+   *
+   * 🔴 CƠ SỞ CHƯA CÓ GIÁ GIỜ THÌ KHÔNG GHI SỐ 0. Bên Chấm công, Khu vui chơi trả `co_luong=false`
+   *    vì chưa khai giá giờ. Ghi 0 vào báo cáo thì nhìn y hệt "tháng này không có lương" — và chi
+   *    phí lương của cả một nhóm biến mất mà tổng vẫn cộng đẹp. Những dòng ấy bị BỎ QUA, và giao
+   *    diện phải bày lý do.
+   * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+
+  /** Ghép cơ sở bên Chấm công với dòng lương (Mục III). Cùng luật với ghepFabi. */
+  function ghepLuong(state, ds) {
+    const rows = state.salarySites || [];
+    const khoaRow = rows.map((r) => khoaTen(r.name));
+    const ra = (ds || []).map((d) => ({
+      cua_hang: String(d.cua_hang || ''),
+      thanh_tien: num(d.thanh_tien),
+      co_luong: d.co_luong !== false,
+      ghi_chu: String(d.ghi_chu || ''),
+      bo_phan: String(d.bo_phan || ''),
+      rowIndex: null, cach: 'khong', diem: 0,
+    }));
+    const daDung = {};
+    const nhan = (k, i, cach, diem) => { ra[k].rowIndex = i; ra[k].cach = cach; ra[k].diem = diem || 0; daDung[i] = true; };
+
+    ra.forEach((r, k) => {
+      const i = rows.findIndex((x, ix) => !daDung[ix] && (x.nsTen || '').trim() === r.cua_hang.trim() && r.cua_hang.trim() !== '');
+      if (i >= 0) { nhan(k, i, 'da_luu'); }
+    });
+    ra.forEach((r, k) => {
+      if (r.rowIndex !== null) return;
+      const kh = khoaTen(tenGonFabi(r.cua_hang));
+      if (!kh) return;
+      const i = khoaRow.findIndex((x, ix) => !daDung[ix] && x && x === kh);
+      if (i >= 0) { nhan(k, i, 'ten'); }
+    });
+    const cap = [];
+    ra.forEach((r, k) => {
+      if (r.rowIndex !== null) return;
+      let top1 = 0, top2 = 0;
+      rows.forEach((x, i) => {
+        if (daDung[i]) return;
+        const d = diemGhep_(tenGonFabi(r.cua_hang), x.name);
+        if (d.chung < NGUONG_TU || d.ty_le < NGUONG_TY_LE) return;
+        if (d.chung > top1) { top2 = top1; top1 = d.chung; } else if (d.chung > top2) { top2 = d.chung; }
+        cap.push({ k, i, chung: d.chung, ty_le: d.ty_le });
+      });
+      if (top1 > 0 && top1 === top2) {
+        for (let x = cap.length - 1; x >= 0 && cap[x].k === k; x--) { cap.pop(); }
+      }
+    });
+    cap.sort((a, b) => (b.chung - a.chung) || (b.ty_le - a.ty_le));
+    cap.forEach((c) => {
+      if (ra[c.k].rowIndex !== null || daDung[c.i]) return;
+      nhan(c.k, c.i, 'gan', c.chung);
+    });
+    return ra;
+  }
+
+  /**
+   * Ghi lương đã ghép vào Mục III. Dòng nào chọn "tạo mới" (`taoMoi` = deptId) thì thêm một dòng
+   * lương mới cho cơ sở ấy — cùng ý với việc tự tách điểm bán khi FABi mở quán mới.
+   */
+  function napLuong(state, ghep) {
+    let xong = 0, bo = 0, tao = 0, chuaGia = 0;
+    state.salarySites = state.salarySites || [];
+    (ghep || []).forEach((g) => {
+      /* 🔴 Chưa có giá giờ thì BỎ QUA, không ghi 0 — xem khối dài ở trên. */
+      if (g.co_luong === false) { chuaGia++; return; }
+      let i = g.rowIndex;
+      if ((i === null || i === undefined) && (g.taoMoi || '').trim()) {
+        const ten = tenGonFabi(g.cua_hang) || String(g.cua_hang || '').trim();
+        if (!ten) { bo++; return; }
+        state.salarySites.push({
+          id: newId('ss'), dept: g.taoMoi, groupTitle: '', stt: state.salarySites.length + 1,
+          name: ten, reported: 0, report: 0, dntt: 0, actual: 0, unitCode: '',
+          misaGeneral: '', misaDetail: '', nsTen: String(g.cua_hang || ''),
+        });
+        i = state.salarySites.length - 1;
+        tao++;
+      }
+      if (i === null || i === undefined || !state.salarySites[i]) { bo++; return; }
+      const r = state.salarySites[i];
+      /* `reported` là ô đi vào cột "Lương NV" của phân bổ (xem allocateSites); `actual` là thực
+         lĩnh. Lương từ chấm công là số ĐÃ TÍNH nên điền cả hai — để trống `actual` thì Mục III
+         cộng ra một tổng, phân bổ lại ăn một tổng khác. */
+      r.reported = num(g.thanh_tien);
+      r.actual = num(g.thanh_tien);
+      r.nsTen = String(g.cua_hang || '');
+      xong++;
+    });
+    return { xong, boQua: bo, tao, chuaGia };
+  }
+
+  /** Liên kết sống: chỉ đi theo `nsTen` đã chốt, không đoán. Cùng luật với dongBoFabi. */
+  function dongBoLuong(state, ds) {
+    const rows = state.salarySites || [];
+    const tien = {};
+    const coGia = {};
+    (ds || []).forEach((d) => {
+      const k = String(d.cua_hang || '').trim();
+      tien[k] = num(d.thanh_tien);
+      coGia[k] = d.co_luong !== false;
+    });
+    const doi = [];
+    let daLinh = 0;
+    rows.forEach((r, i) => {
+      const k = (r.nsTen || '').trim();
+      if (!k) return;
+      daLinh++;
+      if (!Object.prototype.hasOwnProperty.call(tien, k)) {
+        doi.push({ i, name: r.name, nsTen: k, mat: true });
+        return;
+      }
+      /* Tháng này bên ấy chưa khai giá thì GIỮ SỐ CŨ, y như khi mất liên kết. */
+      if (!coGia[k]) { doi.push({ i, name: r.name, nsTen: k, chuaGia: true }); return; }
+      const moi = tien[k];
+      if (num(r.reported) !== moi) {
+        doi.push({ i, name: r.name, nsTen: k, cu: num(r.reported), moi });
+        r.reported = moi;
+        r.actual = moi;
+      }
+    });
+    return { daLinh, doi, soDoi: doi.filter((x) => !x.mat && !x.chuaGia).length,
+      mat: doi.filter((x) => x.mat), chuaGia: doi.filter((x) => x.chuaGia) };
+  }
+
   /** Kiểm tra dữ liệu, trả về danh sách {level:'error'|'warn'|'info', msg}. */
   function validate(state) {
     const issues = [];
@@ -916,7 +1048,9 @@
     /* `fabiTuDong` — bật thì doanh thu của các điểm ĐÃ LIÊN KẾT tự lấy từ Doanh thu FABi mỗi lần
        mở kỳ, khỏi bấm. Mặc định TẮT: bật sẵn cho mọi site là tự ý đổi cách một cái app đang chạy
        lấy số, mà người dùng không hề yêu cầu. */
-    st.options = Object.assign({ includePending: false, fabiTuDong: false }, st.options || {});
+    /* `luongTuDong` — cùng ý với `fabiTuDong` nhưng cho Mục III: lương của các dòng ĐÃ LIÊN KẾT
+       (`nsTen`) tự lấy từ trang Nhân sự mỗi lần mở kỳ. */
+    st.options = Object.assign({ includePending: false, fabiTuDong: false, luongTuDong: false }, st.options || {});
     /* ═════════════════════════════════════════════════════════════════════════════════════════
      * `misaPrefix` = phần giữa của SỐ CHỨNG TỪ (`NVK<prefix><ngày><tháng><stt>`).
      *
@@ -966,7 +1100,10 @@
         misaObjectCode2: r.misaObjectCode2 || '',
       };
     });
-    st.salarySites = (st.salarySites || []).map((r) => ({ reported: 0, report: 0, dntt: 0, actual: 0, unitCode: '', misaGeneral: '', misaDetail: '', ...r, id: r.id || newId('ss') }));
+    /* `nsTen` = tên cơ sở bên plugin Chấm công mà dòng lương này lấy số về. Cùng lối liên kết
+       sống như `fabiTen`/`gheTen` ở điểm bán, nhưng nằm trên DÒNG LƯƠNG vì anh Thắng chọn
+       "tổng mỗi cơ sở một dòng" chứ không kéo từng nhân viên. */
+    st.salarySites = (st.salarySites || []).map((r) => ({ reported: 0, report: 0, dntt: 0, actual: 0, unitCode: '', misaGeneral: '', misaDetail: '', nsTen: '', ...r, id: r.id || newId('ss') }));
     return st;
   }
 
@@ -989,6 +1126,9 @@
     misaRows,
     ghepFabi,
     napFabi,
+    ghepLuong,
+    napLuong,
+    dongBoLuong,
     taoDiemTuFabi,
     doanBoPhan,
     dongBoFabi,

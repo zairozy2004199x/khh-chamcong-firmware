@@ -4,7 +4,7 @@ Tags: chi phí, phân bổ, báo cáo, MISA, kế toán
 Requires at least: 5.6
 Tested up to: 6.8
 Requires PHP: 7.2
-Stable tag: 1.13.0
+Stable tag: 1.14.0
 License: GPLv2 or later
 
 Phân bổ chi phí Máy tự động / Khu vui chơi ra "File tổng báo cáo" và phân bổ theo điểm để hạch toán MISA.
@@ -35,6 +35,21 @@ Nhân viên nhập khoản chi phí, kế toán duyệt, web tự tính.
 4. Nhập Excel kỳ đầu (hoặc ⋯ → Nạp dữ liệu mẫu) rồi bắt đầu.
 
 == Changelog ==
+
+= 1.14.0 =
+* **Lương Mục III lấy thẳng từ trang Nhân sự (Chấm công), mỗi cơ sở một dòng.** Nút
+  **⬇ Nạp lương từ Nhân sự** trên Mục III: xem trước từng cơ sở → ghép vào dòng lương (hoặc tạo
+  dòng mới) → bấm Ghi. Ghi xong là **nhớ liên kết**, kỳ sau số tự về như doanh thu.
+* Số lấy bằng cách **gọi đúng hàm tính lương của bên Chấm công**, không chép lại luật tính sang
+  đây — một bản sao luật lương sẽ lệch dần mỗi lần bên kia sửa, mà lệch về tiền lương thì không
+  ai phát hiện bằng mắt.
+* 🔴 **Cơ sở chưa khai giá giờ thì KHÔNG ghi số 0.** Khu vui chơi (Funzone, Tutu, Event, Farm,
+  Pinball) bên Chấm công mới có giờ công, chưa ra tiền. Ghi 0 vào báo cáo thì nhìn y hệt "tháng
+  này không có lương" — lương của cả một nhóm biến mất mà tổng vẫn cộng đẹp. Những cơ sở ấy bị
+  **bỏ qua**, giữ nguyên số cũ, và giao diện bày rõ **lý do** thay vì bày số 0.
+* Cột "Theo báo cáo" của dòng đã liên kết chuyển sang chỉ đọc khi bật **🔗 Tự lấy** — gỡ liên kết
+  cạnh tên cơ sở hoặc tắt Tự lấy là gõ tay lại được.
+* Mất liên kết (cơ sở không còn bên Nhân sự) cũng **giữ số cũ** và báo ra, không ghi đè bằng 0.
 
 = 1.13.0 =
 * **Nguồn thứ hai: doanh thu Posh / JP lấy thẳng từ plugin Ghế Massage** (khmatrix.com/ghe →

@@ -32,6 +32,10 @@
   let fabi = null;
   /* Lần lấy tự động gần nhất — chỉ để hiện trạng thái, KHÔNG lưu vào state. */
   let fabiLan = null;
+  /* Bản nháp ghép LƯƠNG từ plugin Chấm công, và lần đồng bộ gần nhất. Cùng lý do như `fabi`:
+     không lưu localStorage. */
+  let luong = null;
+  let luongLan = null;
   let saveTimer = null;
 
   function loadJSON(key) {
@@ -462,9 +466,13 @@
           <h2>Mục III — Lương nhân viên cơ sở ${R.periodLabel}</h2>
           <span class="hint">"Theo báo cáo" = cột bộ phận trong Bảng tổng lương; "Thực lĩnh" = cột Số tiền. Nhóm hiển thị = tiêu đề khối trên báo cáo (POSH - JP, Tàu HCM…).</span>
           <div class="spacer"></div>
+          <button class="btn small ${state.options.luongTuDong ? 'primary' : ''}" data-act="luongTuDong" title="Bật thì lương của các dòng ĐÃ LIÊN KẾT tự lấy từ trang Nhân sự mỗi lần mở kỳ. Kỳ đã chốt thì dừng lấy, số đứng yên.">${state.options.luongTuDong ? '🔗 Tự lấy: BẬT' : '🔗 Tự lấy: tắt'}</button>
+          <button class="btn small primary" data-act="napLuong" title="quan-tri-cham-cong — tổng lương mỗi cơ sở của kỳ này">⬇ Nạp lương từ Nhân sự</button>
           <button class="btn small" data-act="syncSalary" title="Đặt Báo cáo và DNTT = Theo báo cáo cho tất cả dòng">Báo cáo = DNTT = Theo báo cáo</button>
           <button class="btn small primary" data-act="addSalarySite">+ Thêm dòng</button>
         </div>
+        ${luongTrangThaiHtml()}
+        ${luongBoxHtml()}
         <div class="table-wrap tall"><table class="grid-table dense">
           <thead><tr><th class="sticky-col">Nhóm hiển thị</th><th>STT</th><th>Tên cơ sở</th><th>Bộ phận</th><th class="num">Theo báo cáo (Lương NV)</th><th class="num">Báo cáo</th><th class="num">DNTT</th><th class="num">Thực lĩnh</th><th class="num">Lệch</th><th>Mã đơn vị</th><th>Nội dung chung MISA</th><th>Nội dung chi tiết MISA</th><th></th></tr></thead>
           <tbody>${
@@ -478,9 +486,10 @@
                         .map(({ r, i }) => `<tr>
                           <td class="sticky-col">${inp(`salarySites.${i}.groupTitle`, r.groupTitle, 'text', 'code')}</td>
                           <td>${inp(`salarySites.${i}.stt`, r.stt, 'text', 'short')}</td>
-                          <td>${inp(`salarySites.${i}.name`, r.name, 'text', 'wide')}</td>
+                          <td>${inp(`salarySites.${i}.name`, r.name, 'text', 'wide')}${(r.nsTen || '').trim()
+                            ? ` <span class="muted" style="font-size:11px" title="Lương đang lấy từ Nhân sự: ${esc(r.nsTen)}">🔗 NS</span> <button class="btn small ghost" data-act="goLienKetLuong" data-arg="${i}" title="Gỡ liên kết — dòng này quay lại gõ tay">✕</button>` : ''}</td>
                           <td>${sel(`salarySites.${i}.dept`, r.dept, deptOptions())}</td>
-                          <td>${inp(`salarySites.${i}.reported`, E.num(r.reported), 'num')}</td>
+                          <td>${inp(`salarySites.${i}.reported`, E.num(r.reported), 'num', '', (state.options.luongTuDong && (r.nsTen || '').trim() && !sync.locked) ? 'readonly title="Số này tự lấy từ Nhân sự. Muốn gõ tay thì tắt Tự lấy, hoặc gỡ liên kết cạnh tên cơ sở."' : '')}</td>
                           <td>${inp(`salarySites.${i}.report`, E.num(r.report), 'num')}</td>
                           <td>${inp(`salarySites.${i}.dntt`, E.num(r.dntt), 'num')}</td>
                           <td>${inp(`salarySites.${i}.actual`, E.num(r.actual), 'num')}</td>
@@ -849,6 +858,114 @@
   }
   function R_periodLabel() { return E.periodLabel(state.period); }
 
+  /* ═══════════════════════════════════════════════════════════════════════════════════════════
+   * LƯƠNG TỪ TRANG NHÂN SỰ (Mục III) — cùng lối "xem trước → ghi → liên kết sống" của doanh thu.
+   *
+   * 🔴 CƠ SỞ CHƯA KHAI GIÁ GIỜ THÌ BÀY LÝ DO, KHÔNG BÀY SỐ 0. Khu vui chơi bên Chấm công chỉ có
+   *    giờ công, chưa ra tiền. Ghi 0 vào đây thì nhìn y hệt "tháng này không có lương" — lương của
+   *    cả một nhóm biến mất mà tổng vẫn cộng đẹp, không dòng nào báo.
+   * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+  function luongBoxHtml() {
+    if (!luong) return '';
+    if (luong.dangTai) return `<div class="card" style="margin:0 0 10px;background:var(--panel-2)"><p class="hint">Đang đọc lương từ trang Nhân sự…</p></div>`;
+    if (luong.loi) {
+      return `<div class="card" style="margin:0 0 10px;background:var(--panel-2)">
+        <div class="issue error"><span class="lv">LỖI</span><span>${esc(luong.loi)}</span></div>
+        <div class="toolbar" style="margin-top:6px"><button class="btn small" data-act="luongDong">Đóng</button></div></div>`;
+    }
+    const ds = luong.ghep || [];
+    const coGia = ds.filter((x) => x.co_luong !== false);
+    const chuaGia = ds.filter((x) => x.co_luong === false);
+    const chon = coGia.filter((x) => x.rowIndex !== null || x.taoMoi);
+    const soTao = coGia.filter((x) => x.rowIndex === null && x.taoMoi).length;
+    const chuaGhep = coGia.filter((x) => x.rowIndex === null && !x.taoMoi);
+    const tongChon = chon.reduce((a, x) => a + x.thanh_tien, 0);
+    const opt = (x) => `<option value="" ${x.rowIndex === null && !x.taoMoi ? 'selected' : ''}>— chưa ghép (bỏ qua) —</option>`
+      + `<optgroup label="Ghép vào dòng lương sẵn có">` + state.salarySites
+        .map((r, i) => `<option value="${i}" ${i === x.rowIndex ? 'selected' : ''}>${esc(deptName(r.dept))} · ${esc(r.name || '(chưa đặt tên)')}</option>`).join('')
+      + `</optgroup><optgroup label="➕ Tạo dòng lương mới trong bộ phận">` + state.departments
+        .map((d) => `<option value="new:${esc(d.id)}" ${x.taoMoi === d.id ? 'selected' : ''}>➕ ${esc(d.name)} — "${esc(E.tenGonFabi(x.cua_hang))}"</option>`).join('')
+      + `</optgroup>`;
+    return `<div class="card" style="margin:0 0 10px;background:var(--panel-2)">
+      <div class="card-head">
+        <h2>Lương theo cơ sở — Nhân sự ${esc(luong.thang || '')}</h2>
+        <span class="hint">${ds.length} cơ sở · đã ghép ${chon.length - soTao}${soTao ? ` · tạo mới ${soTao}` : ''} · tổng sẽ ghi ${fmt(tongChon)}</span>
+        <div class="spacer"></div>
+        ${chuaGhep.length ? `<button class="btn small" data-act="luongTaoHet" title="Với mỗi cơ sở chưa ghép, tạo một dòng lương mới trong bộ phận đoán được từ tên cơ sở. Vẫn sửa được từng dòng trước khi Ghi.">➕ Tạo dòng cho ${chuaGhep.length} cơ sở còn lại</button>` : ''}
+        <button class="btn small primary" data-act="luongGhi" ${chon.length ? '' : 'disabled'}>Ghi ${chon.length} dòng lương</button>
+        <button class="btn small" data-act="luongDong">Huỷ</button>
+      </div>
+      ${chuaGia.length ? `<div class="issue warn"><span class="lv">CHƯA CÓ LƯƠNG</span><span>
+        <strong>${chuaGia.length} cơ sở bên Nhân sự chưa tính ra tiền</strong> (Khu vui chơi chưa khai giá giờ):
+        ${esc(chuaGia.map((x) => x.cua_hang).join(', '))}.<br>
+        Những cơ sở này <strong>bị bỏ qua</strong> — em cố ý <strong>không ghi số 0</strong>, vì số 0 nhìn y hệt
+        "tháng này không có lương" mà thật ra là <em>chưa khai giá</em>. Khai giá giờ bên Chấm công rồi nạp lại.
+      </span></div>` : ''}
+      <div class="table-wrap"><table class="grid-table dense">
+        <thead><tr><th>Cơ sở (Nhân sự)</th><th class="num">Lương tháng</th><th>Ghép vào dòng lương</th><th>Vì sao</th></tr></thead>
+        <tbody>
+          ${ds.map((x, k) => x.co_luong === false
+            ? `<tr class="muted"><td>${esc(x.cua_hang)}</td><td class="num">—</td>
+                <td colspan="2" class="muted">chưa khai giá giờ${x.ghi_chu ? ` · ${esc(x.ghi_chu)}` : ''} — bỏ qua, không ghi 0</td></tr>`
+            : `<tr class="${x.rowIndex === null && !x.taoMoi ? 'muted' : ''}">
+              <td>${esc(x.cua_hang)}</td>
+              ${tdn(x.thanh_tien)}
+              <td><select data-luong="${k}" style="min-width:260px">${opt(x)}</select></td>
+              <td class="muted" title="${esc((FABI_CACH[x.cach] || {}).mo || '')}">${esc((FABI_CACH[x.cach] || {}).chu || x.cach)}${x.diem ? ` (${x.diem} từ chung)` : ''}${x.ghi_chu ? ` · ⚠ ${esc(x.ghi_chu)}` : ''}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table></div>
+      <p class="hint">Cơ sở để "— chưa ghép —" sẽ <strong>bỏ qua</strong>. Dòng nào được ghi sẽ <strong>nhớ liên kết</strong>, kỳ sau số tự về.</p>
+    </div>`;
+  }
+
+  function luongTrangThaiHtml() {
+    const linh = (state.salarySites || []).filter((r) => (r.nsTen || '').trim()).length;
+    if (!state.options.luongTuDong && !linh) return '';
+    const mat = (luongLan && luongLan.mat) || [];
+    const chuaGia = (luongLan && luongLan.chuaGia) || [];
+    return `<div class="issue ${mat.length || chuaGia.length ? 'warn' : 'info'}" style="margin:0 0 10px">
+      <span class="lv">${state.options.luongTuDong ? '🔗 TỰ LẤY' : 'LIÊN KẾT'}</span>
+      <span>${linh} dòng lương ← trang Nhân sự.
+      ${!state.options.luongTuDong ? 'Đang <strong>tắt</strong> tự lấy — số giữ nguyên như đã ghi.'
+        : sync.locked ? 'Kỳ <strong>đã chốt</strong> nên dừng lấy, số đứng yên.'
+        : (luongLan && luongLan.luc) ? `Lấy lần cuối lúc ${esc(luongLan.luc)}${luongLan.soDoi ? ` · đổi ${luongLan.soDoi} dòng` : ' · không có gì đổi'}.` : 'Sẽ tự lấy khi mở kỳ.'}
+      ${mat.length ? `<br><strong>⚠ ${mat.length} dòng mất liên kết</strong> (cơ sở không còn bên Nhân sự): ${esc(mat.map((x) => x.name).join(', '))} — số cũ được giữ nguyên.` : ''}
+      ${chuaGia.length ? `<br><strong>⚠ ${chuaGia.length} dòng kỳ này chưa khai giá giờ</strong>: ${esc(chuaGia.map((x) => x.name).join(', '))} — <strong>giữ số cũ</strong>, em không ghi 0 đè lên.` : ''}
+      </span></div>`;
+  }
+
+  async function luongLayNgay(im) {
+    if (!state.options.luongTuDong || !API.isEnabled() || sync.locked) return;
+    if (!(state.salarySites || []).some((r) => (r.nsTen || '').trim())) return;
+    try {
+      const r = await API.call('nsLuong', { thang: state.period.month, nam: state.period.year });
+      const d = r && r.data ? r.data : r;
+      if (!d || d.ok === false || !d.ds) return;
+      const kq = E.dongBoLuong(state, d.ds);
+      luongLan = { luc: new Date().toLocaleTimeString('vi-VN'), soDoi: kq.soDoi, mat: kq.mat, chuaGia: kq.chuaGia };
+      if (kq.soDoi) { commit(); if (!im) toast(`🔗 Cập nhật ${kq.soDoi} dòng lương từ Nhân sự.`); }
+      else { recompute(); renderTab(); }
+    } catch (e) { /* mạng hỏng thì thôi, số cũ vẫn còn */ }
+  }
+
+  async function napTuNhanSu() {
+    if (!API.isEnabled()) return toast('Chức năng này cần đăng nhập vào máy chủ (bản chạy trên WordPress).');
+    luong = { dangTai: true };
+    renderTab();
+    try {
+      const r = await API.call('nsLuong', { thang: state.period.month, nam: state.period.year });
+      const d = r && r.data ? r.data : r;
+      if (!d || d.ok === false) { luong = { loi: (d && d.error) || 'Không đọc được lương từ trang Nhân sự.' }; renderTab(); return; }
+      if (!d.ds || !d.ds.length) { luong = { loi: `Kỳ ${R_periodLabel()} chưa có dữ liệu chấm công nào bên Nhân sự.` }; renderTab(); return; }
+      luong = { thang: d.thang, ghep: E.ghepLuong(state, d.ds) };
+      renderTab();
+    } catch (e) {
+      luong = { loi: 'Lỗi khi gọi máy chủ: ' + e.message };
+      renderTab();
+    }
+  }
+
   // ------------------------------------------------------------------ Tab: Kiểm tra
   function renderCheck(root) {
     const R = report;
@@ -1178,6 +1295,49 @@
       commit();
     },
     fabiDong() { fabi = null; renderTab(); },
+    /* ---------------- Lương từ trang Nhân sự ---------------- */
+    napLuong() { napTuNhanSu(); },
+    luongDong() { luong = null; renderTab(); },
+    luongTuDong() {
+      state.options.luongTuDong = !state.options.luongTuDong;
+      commit();
+      if (state.options.luongTuDong) { toast('Đã bật tự lấy lương từ trang Nhân sự.'); luongLayNgay(); }
+      else { toast('Đã tắt tự lấy — lương giữ nguyên, gõ tay được.'); }
+    },
+    goLienKetLuong(i) {
+      const r = state.salarySites[Number(i)];
+      if (!r || !confirm(`Gỡ liên kết của "${r.name}" với cơ sở "${r.nsTen}" bên Nhân sự?\n\nLương giữ nguyên số hiện tại, từ nay gõ tay.`)) return;
+      r.nsTen = '';
+      commit();
+    },
+    luongTaoHet() {
+      if (!luong || !luong.ghep) return;
+      let n = 0, khong = 0;
+      luong.ghep.forEach((g) => {
+        if (g.co_luong === false || g.rowIndex !== null || g.taoMoi) return;
+        /* Đoán theo TÊN trước; `bo_phan` bên Chấm công là cách phân loại của họ, chỉ dùng khi nó
+           trùng đúng id bộ phận bên này — không thì đoán bừa một bộ phận là lương vào nhầm chỗ. */
+        let d = E.doanBoPhan(g.cua_hang, state.departments);
+        if (!d && (g.bo_phan || '').trim() && state.departments.some((x) => x.id === g.bo_phan)) { d = g.bo_phan; }
+        if (d) { g.taoMoi = d; g.cach = 'tao'; n++; } else { khong++; }
+      });
+      renderTab();
+      toast(`Đã chọn tạo mới ${n} dòng lương.` + (khong ? ` ${khong} cơ sở không đoán được bộ phận — tự chọn giúp em.` : ''));
+    },
+    luongGhi() {
+      if (!luong || !luong.ghep) return;
+      const kq = E.napLuong(state, luong.ghep);
+      luong = null;
+      const bat = !state.options.luongTuDong && kq.xong > 0;
+      if (bat) state.options.luongTuDong = true;
+      commit();
+      toast(`Đã ghi ${kq.xong} dòng lương từ Nhân sự`
+        + (kq.tao ? ` · tạo mới ${kq.tao} dòng` : '')
+        + (kq.boQua ? ` · bỏ qua ${kq.boQua} cơ sở chưa ghép` : '')
+        + (kq.chuaGia ? ` · ${kq.chuaGia} cơ sở CHƯA KHAI GIÁ GIỜ nên không ghi (không ghi 0)` : '') + '.'
+        + (bat ? ' Từ nay số tự lấy, khỏi bấm.' : '')
+        + (kq.tao ? ' Nhớ điền Mã đơn vị cho dòng mới.' : ''));
+    },
     fabiTaoHet() {
       if (!fabi || !fabi.ghep) return;
       let n = 0, khong = 0;
@@ -1445,6 +1605,27 @@
         }
         return;
       }
+      /* Đổi dòng lương cho một cơ sở bên Nhân sự — cũng chỉ ghi vào BẢN NHÁP. */
+      if (el.matches('[data-luong]')) {
+        const k = Number(el.getAttribute('data-luong'));
+        const v = el.value === '' ? null : Number(el.value);
+        if (luong && luong.ghep && luong.ghep[k]) {
+          const g = luong.ghep[k];
+          const raw = el.value;
+          if (raw.indexOf('new:') === 0) {
+            g.rowIndex = null; g.taoMoi = raw.slice(4); g.cach = 'tao';
+          } else {
+            g.taoMoi = '';
+            /* Một dòng lương chỉ nhận MỘT cơ sở — không thì hai cơ sở ghi vào một dòng và cái sau
+               đè mất cái trước, tổng lương thiếu hẳn một cơ sở. */
+            if (v !== null) { luong.ghep.forEach((o, i) => { if (i !== k && o.rowIndex === v) { o.rowIndex = null; o.cach = 'khong'; } }); }
+            g.rowIndex = v;
+            g.cach = v === null ? 'khong' : 'tay';
+          }
+          renderTab();
+        }
+        return;
+      }
       if (el.matches('[data-path]')) onFieldChange(el);
     });
     main.addEventListener('keydown', (e) => {
@@ -1663,7 +1844,7 @@
       if (k === this.periodKey) return;
       this.periodKey = k;
       /* Tải kỳ xong mới lấy FABi — lấy trước thì bản kéo từ máy chủ đè lên ngay sau đó. */
-      this.pull({ force: true, notify: true, initial: true }).then(() => fabiLayNgay(true));
+      this.pull({ force: true, notify: true, initial: true }).then(() => fabiLayNgay(true)).then(() => luongLayNgay(true));
     },
     schedulePush() {
       if (!this.on) return;

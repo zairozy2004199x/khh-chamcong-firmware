@@ -36,7 +36,7 @@ const ok=(t,c,g)=>(c?KQ.pass:KQ.fail).push(t+(g?' — '+g:''));
     const head=(document.querySelector('[data-act="fabiGhi"]')||{}).textContent||'';
     return { so: sel.length, rows, head, loi: (document.querySelector('.issue.error')||{}).textContent||'' };
   });
-  ok('Đọc được 13 cửa hàng từ bảng FABi', r.so===13, r.so+' dòng · '+(r.loi||''));
+  ok('Đọc được 15 cửa hàng từ bảng FABi', r.so===15, r.so+' dòng · '+(r.loi||''));
   const q=(t)=>r.rows.find(x=>x.quan.indexOf(t)===0);
   // 🔴 CONG THEO KY: moi quan 2 dong trong ky (0.4+0.6) + 1 dong thang 7 phai BI LOAI
   ok('Cộng đúng theo kỳ, không lẫn kỳ khác',

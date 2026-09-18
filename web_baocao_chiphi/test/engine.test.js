@@ -738,3 +738,88 @@ console.log(`OK — ${passed} phép so khớp với Excel đều đạt, các tr
 
   console.log('OK — cơ sở mới bên FABi: tự tách điểm, đoán bộ phận, không bịa mã đơn vị.');
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// LƯƠNG TỪ TRANG NHÂN SỰ  (anh Thắng 18/09/2026: "giờ Lương lấy từ trang nhân sự theo cơ sở",
+// chọn "Tổng mỗi cơ sở một dòng")
+//
+// Luật quan trọng nhất ở đây là luật KHÔNG ghi:
+//   Bên Chấm công, Khu vui chơi trả co_luong=false vì chưa khai giá giờ. Ghi 0 vào báo cáo thì
+//   nhìn y hệt "tháng này không có lương" — chi phí lương của cả một nhóm biến mất mà tổng vẫn
+//   cộng đẹp, không ai nghi. Những dòng ấy phải bị BỎ QUA và đếm riêng để giao diện bày lý do.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+{
+  const st = E.normalizeState(window.SAMPLE_DATA);
+  st.salarySites = [
+    { id: 'ss1', dept: 'posh', stt: 1, name: 'POSH MN AEON MALL BÌNH DƯƠNG', reported: 10, actual: 10 },
+    { id: 'ss2', dept: 'jp',   stt: 2, name: 'JP MN AEON MALL BÌNH TÂN',     reported: 20, actual: 20 },
+    { id: 'ss3', dept: 'funzone', stt: 3, name: 'FUNZONE CITY VŨNG TÀU',     reported: 30, actual: 30 },
+  ];
+
+  const DS = [
+    { cua_hang: 'POSH MN AEON MALL BÌNH DƯƠNG', thanh_tien: 111649262, co_luong: true,  bo_phan: 'posh' },
+    { cua_hang: 'JP MN AEON MALL BÌNH TÂN',     thanh_tien: 41635755,  co_luong: true,  bo_phan: 'jp' },
+    { cua_hang: 'FUNZONE CITY VŨNG TÀU',        thanh_tien: 0, co_luong: false, ghi_chu: 'Chưa khai giá giờ' },
+    { cua_hang: 'TUTU MN AEON MALL TÂN PHÚ',    thanh_tien: 8000000,   co_luong: true },
+  ];
+
+  // -- ghép: 3 dòng khớp tên, dòng thứ 4 chưa có chỗ --
+  const ghep = E.ghepLuong(st, DS);
+  assert.strictEqual(ghep.length, 4);
+  assert.strictEqual(ghep[0].rowIndex, 0);
+  assert.strictEqual(ghep[1].rowIndex, 1);
+  assert.strictEqual(ghep[2].rowIndex, 2);
+  assert.strictEqual(ghep[3].rowIndex, null, 'cơ sở chưa có dòng lương thì để người chọn, không ghép bừa');
+  assert.strictEqual(ghep[2].co_luong, false, 'phải mang cờ chưa có giá sang cho giao diện bày ra');
+  assert.strictEqual(ghep[2].ghi_chu, 'Chưa khai giá giờ');
+
+  // -- nạp --
+  ghep[3].taoMoi = 'tutu';
+  const r = E.napLuong(st, ghep);
+  assert.strictEqual(r.xong, 3, '2 dòng cũ + 1 dòng vừa tạo');
+  assert.strictEqual(r.tao, 1);
+  assert.strictEqual(r.chuaGia, 1, 'dòng chưa khai giá giờ phải được ĐẾM RIÊNG, không lẫn vào bỏ qua');
+  assert.strictEqual(st.salarySites[0].reported, 111649262);
+  assert.strictEqual(st.salarySites[0].actual, 111649262,
+    'phải điền cả actual — bỏ trống thì Mục III cộng một tổng, phân bổ ăn một tổng khác');
+  assert.strictEqual(st.salarySites[0].nsTen, 'POSH MN AEON MALL BÌNH DƯƠNG', 'nhớ liên kết cho kỳ sau');
+
+  // 🔴 Dòng chưa khai giá giờ KHÔNG được ghi 0 — giữ nguyên số cũ.
+  assert.strictEqual(st.salarySites[2].reported, 30, 'chưa có giá giờ thì GIỮ SỐ CŨ, không ghi 0');
+  assert.strictEqual(st.salarySites[2].actual, 30);
+  assert.strictEqual(st.salarySites[2].nsTen || '', '', 'và cũng không chốt liên kết cho một số chưa có');
+
+  // -- dòng mới --
+  assert.strictEqual(st.salarySites.length, 4);
+  const tutu = st.salarySites[3];
+  assert.strictEqual(tutu.dept, 'tutu');
+  assert.strictEqual(tutu.name, 'TUTU MN AEON MALL TÂN PHÚ');
+  assert.strictEqual(tutu.reported, 8000000);
+  assert.strictEqual(tutu.unitCode, '', 'KHÔNG bịa mã đơn vị — mã đơn vị là mã trong sổ MISA');
+
+  // -- liên kết sống: kỳ sau số tự về, không phải ghép lại --
+  const kq = E.dongBoLuong(st, [
+    { cua_hang: 'POSH MN AEON MALL BÌNH DƯƠNG', thanh_tien: 120000000, co_luong: true },
+    { cua_hang: 'TUTU MN AEON MALL TÂN PHÚ',    thanh_tien: 0, co_luong: false, ghi_chu: 'Chưa khai giá giờ' },
+  ]);
+  assert.strictEqual(kq.daLinh, 3, '3 dòng đã chốt liên kết (ss1, ss2, dòng tutu mới)');
+  assert.strictEqual(st.salarySites[0].reported, 120000000);
+  assert.strictEqual(st.salarySites[0].actual, 120000000);
+  assert.strictEqual(kq.soDoi, 1);
+  assert.strictEqual(kq.mat.length, 1, 'JP không còn trong danh sách kỳ này → báo MẤT LIÊN KẾT');
+  assert.strictEqual(st.salarySites[1].reported, 41635755, 'mất liên kết thì GIỮ SỐ CŨ, không ghi 0');
+  assert.strictEqual(kq.chuaGia.length, 1);
+  assert.strictEqual(st.salarySites[3].reported, 8000000,
+    'tháng này bên ấy chưa khai giá → giữ số cũ, y như khi mất liên kết');
+
+  // -- một cơ sở chỉ nối vào đúng một dòng lương --
+  const st2 = E.normalizeState(window.SAMPLE_DATA);
+  st2.salarySites = [
+    { id: 'a', dept: 'posh', name: 'POSH MN AEON MALL BÌNH DƯƠNG', reported: 0, actual: 0 },
+    { id: 'b', dept: 'posh', name: 'POSH MN AEON MALL BÌNH DƯƠNG', reported: 0, actual: 0 },
+  ];
+  const g2 = E.ghepLuong(st2, [{ cua_hang: 'POSH MN AEON MALL BÌNH DƯƠNG', thanh_tien: 5, co_luong: true }]);
+  assert.strictEqual(g2[0].rowIndex, 0, 'chỉ một dòng nhận, không nhân đôi lương');
+
+  console.log('OK — lương từ Nhân sự: mỗi cơ sở một dòng, chưa khai giá giờ thì KHÔNG ghi 0.');
+}

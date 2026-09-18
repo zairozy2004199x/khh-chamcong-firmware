@@ -45,7 +45,9 @@ const moDT = async (p) => { await p.evaluate(()=>{ const x=[...document.querySel
   ok('🔴 Đổi kỳ đi rồi về: số TỰ VỀ, không phải bấm lại',
      veLai.length>0 && JSON.stringify(veLai)===JSON.stringify(truoc), veLai.slice(0,3).join(' · '));
   const tt = await p.evaluate(()=>(document.querySelector('#tab-revenue .issue')||{}).textContent||'');
-  ok('Có dòng trạng thái nói đang nối bao nhiêu điểm', /điểm đang nối/.test(tt), tt.replace(/\s+/g,' ').slice(0,90));
+  /* Chữ của dòng trạng thái đổi từ 1.13.0 (tách theo nguồn: "N điểm ← Doanh thu FABi") — bám
+     theo chữ mới, đừng bám câu cũ rồi báo đỏ ở chỗ không có lỗi. */
+  ok('Có dòng trạng thái nói đang nối bao nhiêu điểm', /\d+ điểm ← Doanh thu FABi/.test(tt), tt.replace(/\s+/g,' ').slice(0,90));
 
   // go lien ket thi quay lai go tay
   const truocGo = await p.evaluate(()=>document.querySelectorAll('[data-act="goLienKet"]').length);

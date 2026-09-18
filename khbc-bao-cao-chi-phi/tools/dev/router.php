@@ -14,6 +14,34 @@
  */
 require_once __DIR__ . '/wp-stub.php';
 $PLUGIN = dirname( dirname( __DIR__ ) );
+
+/* ─────────────────────────────────────────────────────────────────────────────────────────────
+ * GIẢ LẬP plugin "Chấm công" (VHCC_Luong) để kiểm đường nạp lương mà không cần cài plugin kia.
+ *
+ * Bắt chước ĐÚNG ba dạng trả về của bên ấy, vì cái cần kiểm chính là dạng thứ ba:
+ *   · 'mtd' — Máy tự động (Posh, JP): tiền ở mtd.tong.tong
+ *   · 'vp'  — Văn phòng: tiền ở vp.tien.tongTien
+ *   · 'tho' — Khu vui chơi: coLuong = false, CHỈ CÓ GIỜ, chưa khai giá giờ nên chưa ra tiền
+ * Dạng 'tho' phải đi tới giao diện thành LÝ DO, không thành số 0.
+ * ───────────────────────────────────────────────────────────────────────────────────────────── */
+class VHCC_Luong {
+	/** Số giả lập, khoá theo tên cơ sở — dev_nhansu_seed() ghi vào option cùng lúc với chấm công. */
+	public static function bang_cong_va_luong( $coso, $thang ) {
+		$ds = get_option( 'dev_ns_luong', array() );
+		$k  = $coso . '|' . $thang;
+		if ( ! isset( $ds[ $k ] ) ) { return array( 'ok' => false, 'error' => 'Không có bảng công.' ); }
+		$r = $ds[ $k ];
+		if ( 'tho' === $r['kieu'] ) {
+			return array( 'ok' => true, 'kieu' => 'tho', 'coLuong' => false, 'boPhan' => $r['bp'] );
+		}
+		if ( 'vp' === $r['kieu'] ) {
+			return array( 'ok' => true, 'kieu' => 'vp', 'coLuong' => true, 'boPhan' => $r['bp'],
+				'vp' => array( 'tien' => array( 'tongTien' => $r['tien'] ) ) );
+		}
+		return array( 'ok' => true, 'kieu' => 'mtd', 'coLuong' => true, 'boPhan' => $r['bp'],
+			'mtd' => array( 'tong' => array( 'tong' => $r['tien'] ), 'chuaKhaiGia' => $r['thieu'] ) );
+	}
+}
 require_once $PLUGIN . '/khbc-bao-cao-chi-phi.php';
 
 if ( get_option( 'khbc_db_version' ) !== KHBC_DB::SCHEMA_VERSION ) { KHBC_DB::install(); }
@@ -111,6 +139,35 @@ if ( $path === '/__dev/ghe' ) {
 		$wpdb->insert( $d, array( 'report_id' => $rid, 'ngay' => '2026-07-10', 'tong' => 888000000, 'chi_so_sau' => 1 ) );
 		$wpdb->insert( $d, array( 'report_id' => $rid, 'ngay' => '2026-08-11', 'tong' => 0, 'actual' => 0, 'chi_so_sau' => null ) );
 	}
+	header( 'Content-Type: application/json' );
+	echo wp_json_encode( array( 'ok' => true, 'coso' => count( $cs ) ) );
+	exit;
+}
+/* Dựng bảng chấm công + số lương giả lập. Cơ sở cuối CỐ Ý là dạng 'tho' (chưa khai giá giờ) —
+   đúng trường hợp Khu vui chơi trong ảnh anh Thắng gửi. */
+if ( $path === '/__dev/nhansu' ) {
+	global $wpdb;
+	$b = $wpdb->prefix . 'vhcc_cham_cong';
+	$wpdb->query( "CREATE TABLE IF NOT EXISTS $b ( id INTEGER PRIMARY KEY AUTOINCREMENT,
+		coso TEXT NOT NULL DEFAULT '', ngay TEXT NOT NULL DEFAULT '', nhan_vien TEXT NOT NULL DEFAULT '' )" );
+	$wpdb->query( "DELETE FROM $b" );
+	$cs = array(
+		array( 'POSH MN AEON MALL BÌNH DƯƠNG', 'mtd', 111649262.0, 'posh', array() ),
+		array( 'JP MN AEON MALL BÌNH TÂN', 'mtd', 41635755.0, 'jp', array( 'Nguyễn Văn A' ) ),
+		array( 'VĂN PHÒNG HCM', 'vp', 88000000.0, '', array() ),
+		array( 'FUNZONE CITY VŨNG TÀU', 'tho', 0.0, 'funzone', array() ),
+		array( 'TUTU MN AEON MALL TÂN PHÚ', 'tho', 0.0, 'tutu', array() ),
+	);
+	$luong = array();
+	foreach ( $cs as $c ) {
+		/* Hai ngày TRONG kỳ + một ngày kỳ khác (phải bị loại khỏi danh sách cơ sở của tháng). */
+		$wpdb->insert( $b, array( 'coso' => $c[0], 'ngay' => '2026-08-07', 'nhan_vien' => 'NV1' ) );
+		$wpdb->insert( $b, array( 'coso' => $c[0], 'ngay' => '2026-08-19', 'nhan_vien' => 'NV2' ) );
+		$luong[ $c[0] . '|2026-08' ] = array( 'kieu' => $c[1], 'tien' => $c[2], 'bp' => $c[3], 'thieu' => $c[4] );
+	}
+	/* Cơ sở CHỈ có chấm công ở kỳ khác — tháng 8 không được thấy nó. */
+	$wpdb->insert( $b, array( 'coso' => 'KHO LẠNH THÁNG 7', 'ngay' => '2026-07-10', 'nhan_vien' => 'NV9' ) );
+	update_option( 'dev_ns_luong', $luong );
 	header( 'Content-Type: application/json' );
 	echo wp_json_encode( array( 'ok' => true, 'coso' => count( $cs ) ) );
 	exit;

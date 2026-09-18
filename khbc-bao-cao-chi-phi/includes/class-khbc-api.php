@@ -19,7 +19,7 @@ class KHBC_API {
 		$admin  = array( 'listUsers', 'saveUser', 'deleteUser', 'lockPeriod' );
 		/* `fabiDoanhThu` CHỈ ĐỌC, nhưng vẫn gác ở mức Kế toán: đó là doanh thu toàn chuỗi, không
 		   phải thứ để nhân viên nhập chi phí mở ra xem. */
-		$ketoan = array( 'saveState', 'setCostStatus', 'setAllStatus', 'listPeriods', 'getLog', 'fabiDoanhThu', 'gheDoanhThu' );
+		$ketoan = array( 'saveState', 'setCostStatus', 'setAllStatus', 'listPeriods', 'getLog', 'fabiDoanhThu', 'gheDoanhThu', 'nsLuong' );
 		if ( in_array( $fn, $admin, true ) ) { return array( 'Admin' ); }
 		if ( in_array( $fn, $ketoan, true ) ) { return array( 'Admin', 'Kế toán' ); }
 		return array();
@@ -48,6 +48,7 @@ class KHBC_API {
 			'getLog'         => array( 'KHBC_Store', 'get_log' ),
 			'fabiDoanhThu'   => array( __CLASS__, 'fabi_doanh_thu' ),
 			'gheDoanhThu'    => array( __CLASS__, 'ghe_doanh_thu' ),
+			'nsLuong'        => array( __CLASS__, 'ns_luong' ),
 		);
 	}
 
@@ -86,6 +87,15 @@ class KHBC_API {
 			);
 		}
 		return KHBC_Ghe::theo_ky(
+			isset( $a['thang'] ) ? (int) $a['thang'] : 0,
+			isset( $a['nam'] ) ? (int) $a['nam'] : 0
+		);
+	}
+
+	/** Lương theo cơ sở, đọc từ plugin Chấm công — xem KHBC_NhanSu. */
+	public static function ns_luong( $a ) {
+		$a = is_array( $a ) ? $a : array();
+		return KHBC_NhanSu::theo_ky(
 			isset( $a['thang'] ) ? (int) $a['thang'] : 0,
 			isset( $a['nam'] ) ? (int) $a['nam'] : 0
 		);
