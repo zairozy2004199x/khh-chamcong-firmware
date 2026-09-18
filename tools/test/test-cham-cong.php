@@ -9732,22 +9732,32 @@ t( 'khai email rồi thì dòng Email hiện ra',
    đã thử ở đầu khối này. */
 delete_option( 'vhg_chan' );
 teq( 'lúc này quả thật chưa nạp plugin Ghế', false, class_exists( 'VHG_Chan' ) );
-require_once $goc . '/wordpress/vhcp-ghe/includes/class-vhg-chan.php';
-$t_md = VHCC_Cty::thong_tin();
-t( '🔴 ô cài đặt trống thì lấy bảng mặc định TỪ plugin Ghế',
-	isset( $t_md['mst'] ) && '0106924989' === $t_md['mst'], $t_md );
-t( 'và trang hiện ra đúng thông tin ấy',
-	strpos( vhcc_web( '135791' ), 'Thôn Mai Nội' ) !== false );
+/* 🔴 PLUGIN GHẾ KHÔNG CÒN Ở NHÁNH NÀY — 18/09/2026. Nhà của nó là nhánh
+   `claude/posh-qr-kh1urz`, thư mục `vhcp-ghe/` ngay gốc kho (xem
+   wordpress/DOC-TRUOC-KHI-DONG-GOI.md: bản 1.48.0 lạc ở đây suýt được đóng gói đè lên bản
+   2.111.0 đang chạy).
+   ⚠️ NÊN KHÚC NÀY BỎ QUA KHI KHÔNG CÓ TỆP, VÀ PHẢI KÊU TO. Bỏ qua im lặng là mất một mảng
+      kiểm mà bảng kết quả vẫn xanh — đúng kiểu hỏng mà cả bộ thử này sinh ra để chặn. */
+if ( vhcc_nap_ghe( 'class-vhg-chan.php' ) ) {
+	$t_md = VHCC_Cty::thong_tin();
+	t( '🔴 ô cài đặt trống thì lấy bảng mặc định TỪ plugin Ghế',
+		isset( $t_md['mst'] ) && '0106924989' === $t_md['mst'], $t_md );
+	t( 'và trang hiện ra đúng thông tin ấy',
+		strpos( vhcc_web( '135791' ), 'Thôn Mai Nội' ) !== false );
 
-/* 🔴 Ô CỐ Ý ĐỂ TRỐNG PHẢI GIỮ ĐƯỢC TRẠNG THÁI TRỐNG.
-   Anh Thắng xoá ô "Cơ quan quản lý thuế" đi vì không muốn hiện nữa. Nếu chỗ trộn dùng
-   `! empty()` thay vì `array_key_exists()` thì giá trị mặc định nhảy vào lấp lại — xoá xong
-   vẫn thấy, sửa mãi không mất, mà chẳng có gì giải thích vì sao. */
-update_option( 'vhg_chan', array_merge( VHG_Chan::mac_dinh(), array( 'co_quan' => '' ) ) );
-$h_ct3 = vhcc_web( '135791' );
-t( 'xoá trắng ô Cơ quan quản lý thuế thì dòng đó BIẾN MẤT',
-	strpos( $h_ct3, 'Cơ quan quản lý thuế' ) === false, $h_ct3 );
-t( 'nhưng mấy ô khác vẫn còn', strpos( $h_ct3, '0106924989' ) !== false );
+	/* 🔴 Ô CỐ Ý ĐỂ TRỐNG PHẢI GIỮ ĐƯỢC TRẠNG THÁI TRỐNG.
+	   Anh Thắng xoá ô "Cơ quan quản lý thuế" đi vì không muốn hiện nữa. Nếu chỗ trộn dùng
+	   `! empty()` thay vì `array_key_exists()` thì giá trị mặc định nhảy vào lấp lại — xoá xong
+	   vẫn thấy, sửa mãi không mất, mà chẳng có gì giải thích vì sao. */
+	update_option( 'vhg_chan', array_merge( VHG_Chan::mac_dinh(), array( 'co_quan' => '' ) ) );
+	$h_ct3 = vhcc_web( '135791' );
+	t( 'xoá trắng ô Cơ quan quản lý thuế thì dòng đó BIẾN MẤT',
+		strpos( $h_ct3, 'Cơ quan quản lý thuế' ) === false, $h_ct3 );
+	t( 'nhưng mấy ô khác vẫn còn', strpos( $h_ct3, '0106924989' ) !== false );
+} else {
+	echo "  ⏭ BỎ QUA phần 'đọc thông tin công ty từ plugin Ghế' — plugin ấy ở nhánh"
+		. " claude/posh-qr-kh1urz.\n";
+}
 
 delete_option( 'vhg_chan' );
 
@@ -9948,8 +9958,12 @@ function vhcc_hr_ns( $tok, $get = array() ) {
    ở đây thì cả khối này chạy trên nhánh "chưa cài", và mọi phép thử đều xanh vì lý do sai. */
 /* `VHG_Auth::users()` đọc bảng qua `VHG_DB` khi nguồn là 'chung' — nạp cả hai, không thì
    phép thử chuyển nguồn chết giữa đường vì thiếu lớp chứ không vì lỗi thật. */
-require_once $goc . '/wordpress/vhcp-ghe/includes/class-vhg-db.php';
-require_once $goc . '/wordpress/vhcp-ghe/includes/class-vhg-auth.php';
+/* Plugin Ghế ở nhánh `claude/posh-qr-kh1urz` — `vhcc_nap_ghe()` đọc thẳng từ đó, không chép
+   một bản thứ hai vào cây này. Xem chú thích dài ở `wp-stub.php`. */
+$_co_ghe = vhcc_nap_ghe( 'class-vhg-db.php' ) && vhcc_nap_ghe( 'class-vhg-auth.php' );
+if ( ! $_co_ghe ) {
+	echo "  ⏭ BỎ QUA khối 'đẩy người sang hệ Ghế' — chưa fetch nhánh claude/posh-qr-kh1urz.\n";
+} else {
 t( 'dựng cảnh: có plugin ghế trên site thì cột mới có nghĩa', VHCC_DayGhe::co_he_ghe() );
 
 delete_option( VHCC_DayGhe::O_SO );
@@ -10528,6 +10542,7 @@ t( '🔴 khối "không khai được" tách rõ MÀN KHÁCH khỏi màn quản 
 t( 'và chỉ sang cột Ghế massage cho màn quản trị',
 	strpos( $g_h, '<b>màn quản trị</b> của hệ ghế thì khai được' ) !== false
 	&& strpos( $g_h, 'người thật</b> sang sổ người dùng của hệ ghế' ) !== false, $g_h );
+}   // hết khối cần plugin Ghế — xem `$_co_ghe` phía trên
 
 /* ---- 60c. NGOẠI LỆ ĐÈ LÊN VAI, CẢ HAI CHIỀU ---- */
 $ns_kq = VHCC_Cong::dat( $ns_kt, 'QN2', 'cham_cong', 'khoa' );
@@ -10892,6 +10907,7 @@ t( '🔴 đặt chốt một-giờ TRƯỚC khi bật cờ nạp lại — đặ
    🔴 NHƯNG KHÔNG PHẢI Ô TÍCH ☑. Ô tích chỉ có HAI trạng thái, ô này có BA. Ép xuống hai là
    mất trạng thái "theo vai" — mà mất nó thì gỡ một ngoại lệ đã đặt là không gỡ được nữa. */
 delete_option( VHCC_Cong::O );
+
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
  * TÁCH TAB: NHÂN SỰ ↔ QUYỀN VÀO TRANG
  * ═════════════════════════════════════════════════════════════════════════════════════════════

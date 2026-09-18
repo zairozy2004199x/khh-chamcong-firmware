@@ -79,7 +79,17 @@ case "$CHON" in
   hop-dong) dong_goi "Thư Viện Hợp Đồng" vhcp-hop-dong ;;
   cham-cong) dong_goi "Chấm Công" vhcp-cham-cong ;;
   cc-app)    dong_goi "App Chấm Công K&H" vhcp-cc-app ;;
-  ghe)       dong_goi "Ghế Massage" vhcp-ghe ;;
+  # 🔴 "ghe" KHÔNG ĐÓNG GÓI Ở ĐÂY NỮA — 18/09/2026. Plugin Ghế Massage sống ở nhánh
+  #    `claude/posh-qr-kh1urz` (thư mục `vhcp-ghe/` ngay gốc kho), có script đóng gói riêng
+  #    `tools/build-ghe.sh`. Nhánh này từng giữ một bản 1.48.0 lạc lối trong khi host chạy
+  #    2.111.0, và đúng dòng lệnh dưới đây đã đóng gói bản cũ ấy gửi đi cài — suýt nữa xoá mất
+  #    hơn sáu mươi bản cập nhật. Chối thẳng còn hơn đóng gói một bản mà không ai kiểm.
+  ghe)
+    echo "✗ Plugin Ghế Massage không nằm ở nhánh này."
+    echo "  Nhà của nó: nhánh claude/posh-qr-kh1urz, thư mục vhcp-ghe/ — đóng gói bằng tools/build-ghe.sh."
+    echo "  Xem wordpress/DOC-TRUOC-KHI-DONG-GOI.md."
+    exit 2
+    ;;
   noi-bo)    dong_goi "Nội Bộ K&H" vhcp-noi-bo ;;
   du-an)     dong_goi "Dự Án & Tiến Độ K&H" vhcp-du-an ;;
   doanh-thu) dong_goi "Báo Cáo Doanh Thu FABi" khh-doanh-thu ;;
@@ -90,7 +100,7 @@ case "$CHON" in
     dong_goi "Thư Viện Hợp Đồng" vhcp-hop-dong
     dong_goi "Chấm Công" vhcp-cham-cong
     dong_goi "App Chấm Công K&H" vhcp-cc-app
-    dong_goi "Ghế Massage" vhcp-ghe
+    # Ghế Massage: xem chú thích ở nhánh `ghe)` bên trên — không nằm ở nhánh này.
     dong_goi "Nội Bộ K&H" vhcp-noi-bo
     dong_goi "Dự Án & Tiến Độ K&H" vhcp-du-an
     # ── MỌI BẢN CHI PHÍ RỜI, DÒ THEO THƯ MỤC ────────────────────────────────────────────────

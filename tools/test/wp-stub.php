@@ -800,6 +800,60 @@ function vhcc_dung_bang() {
 	vhcc_test_create_tables();
 }
 
+/**
+ * NẠP MỘT LỚP CỦA PLUGIN GHẾ — plugin ấy KHÔNG nằm ở nhánh này.
+ *
+ * =================================================================================================
+ * 🔴 VÌ SAO PHẢI CÓ HÀM NÀY
+ * =================================================================================================
+ * Nhà của plugin Ghế là nhánh `claude/posh-qr-kh1urz` (thư mục `vhcp-ghe/` ngay gốc kho). Nhánh
+ * chấm công từng giữ một bản chép 1.48.0 trong khi host chạy 2.111.0, và bản chép ấy suýt được
+ * đóng gói đè lên bản thật — xem `wordpress/DOC-TRUOC-KHI-DONG-GOI.md`. Nên bản chép đã gỡ.
+ *
+ * Nhưng vài bài kiểm của NHÁNH NÀY có việc thật với plugin ấy: `VHCC_DayGhe` đẩy người sang sổ
+ * người dùng bên ghế, `VHCC_Cty` đọc thông tin công ty từ `VHG_Chan`. Bỏ luôn mấy phép ấy là mất
+ * đúng phần kiểm chỗ HAI PLUGIN GẶP NHAU — chỗ hay hỏng nhất.
+ *
+ * 🔴 NÊN: ĐỌC THẲNG TỪ NHÁNH KIA BẰNG `git show`, KHÔNG CHÉP LẠI MỘT BẢN THỨ HAI.
+ *    Một bản chép là một bản sẽ cũ đi, và lần này ta đã biết cái giá của nó.
+ *
+ * ⚠️ THIẾU THÌ BÁO FALSE, ĐỪNG GIẢ LỚP. Máy nào chưa `git fetch` nhánh kia (bản sao nông của CI)
+ *    thì trả false để nơi gọi BỎ QUA VÀ KÊU TO. Dựng một lớp giả ở đây thì phép thử vẫn xanh mà
+ *    nó đang kiểm một thứ do chính nó bịa ra — tệ hơn hẳn việc thiếu một mảng kiểm.
+ *
+ * @param string $ten Tên tệp, ví dụ 'class-vhg-db.php'.
+ * @return bool Nạp được hay không.
+ */
+function vhcc_nap_ghe( $ten ) {
+	static $thu = null;
+	$goc = dirname( __DIR__, 2 );
+
+	/* 1. Có sẵn trong cây (nhánh khác, hoặc ai đó đã chép về) thì dùng luôn. */
+	$tai_cho = $goc . '/wordpress/vhcp-ghe/includes/' . $ten;
+	if ( is_file( $tai_cho ) ) { require_once $tai_cho; return true; }
+
+	/* 2. Lấy từ nhánh gốc của plugin ghế. Chỉ đọc, không đụng cây làm việc. */
+	if ( null === $thu ) {
+		$thu = sys_get_temp_dir() . '/vhcc-ghe-' . getmypid();
+		if ( ! is_dir( $thu ) ) { @mkdir( $thu, 0777, true ); }
+	}
+	$dich = $thu . '/' . $ten;
+	if ( ! is_file( $dich ) ) {
+		$ma = null;
+		foreach ( array( 'origin/claude/posh-qr-kh1urz', 'claude/posh-qr-kh1urz' ) as $nhanh ) {
+			$ra = array();
+			$mã = 0;
+			exec( 'git -C ' . escapeshellarg( $goc ) . ' show '
+				. escapeshellarg( $nhanh . ':vhcp-ghe/includes/' . $ten ) . ' 2>/dev/null', $ra, $mã );
+			if ( 0 === $mã && $ra ) { $ma = implode( "\n", $ra ); break; }
+		}
+		if ( null === $ma ) { return false; }
+		file_put_contents( $dich, $ma );
+	}
+	require_once $dich;
+	return true;
+}
+
 function vhcc_test_boot( $dir ) {
 	define( 'VHCC_VERSION', 'test' );
 	define( 'VHCC_DIR', $dir . '/' );
