@@ -900,6 +900,9 @@ class VHCC_TrangNS {
 		   `cs_ql[MA]` vắng nghĩa là "không cơ sở nào chỉ quản lý" — đúng ý người bỏ tích. */
 		$ql  = isset( $_POST['cs_ql'] ) ? wp_unslash( $_POST['cs_ql'] ) : array();
 		if ( ! is_array( $ql ) ) { $ql = array(); }
+		/* Ô tích "quản lý" — cùng luật với `cs_ql` ngay trên: vắng nghĩa là bỏ tích hết. */
+		$qn  = isset( $_POST['cs_quan'] ) ? wp_unslash( $_POST['cs_quan'] ) : array();
+		if ( ! is_array( $qn ) ) { $qn = array(); }
 		$ra  = array( 'doi' => 0, 'doiChinh' => 0, 'doiQL' => 0, 'go' => 0, 'loi' => array() );
 		if ( ! is_array( $gui ) ) { $gui = array(); }
 		if ( ! is_array( $co ) || ! $co ) { return $ra; }
@@ -914,7 +917,11 @@ class VHCC_TrangNS {
 			foreach ( (array) ( isset( $ql[ $ma ] ) ? $ql[ $ma ] : array() ) as $x_q ) {
 				$ds_ql[] = sanitize_text_field( (string) $x_q );
 			}
-			$r = VHCC_NhanSu::dat_ds_coso( $toi, $ma_s, $ds_cs, $c_ch, $ds_ql );
+			$ds_qn = array();
+			foreach ( (array) ( isset( $qn[ $ma ] ) ? $qn[ $ma ] : array() ) as $x_n ) {
+				$ds_qn[] = sanitize_text_field( (string) $x_n );
+			}
+			$r = VHCC_NhanSu::dat_ds_coso( $toi, $ma_s, $ds_cs, $c_ch, $ds_ql, $ds_qn );
 			if ( empty( $r['ok'] ) ) {
 				$ra['loi'][ $r['error'] ] = $ma_s . ': ' . $r['error'];
 				continue;
@@ -3154,6 +3161,7 @@ class VHCC_TrangNS {
 		$chinh   = isset( $dang[0] ) ? $dang[0] : '';
 		$ten_ch  = 'cs_chinh[' . esc_attr( $ma ) . ']';
 		$ten_ql  = 'cs_ql[' . esc_attr( $ma ) . '][]';
+		$ten_qn  = 'cs_quan[' . esc_attr( $ma ) . '][]';
 		$ve_chinh = count( $bay ) > 1;
 		/* Cờ "chỉ quản lý — không chấm công" đang đặt ở những cơ sở nào (xem
 		   `VHCC_NhanSu::ds_coso_ql()`). Cũng chỉ có nghĩa khi bày từ hai cơ sở trở lên: một cơ
@@ -3162,6 +3170,13 @@ class VHCC_TrangNS {
 		foreach ( VHCC_NhanSu::ds_coso_ql( is_array( $hs ) && $hs
 			? $hs : array( 'cua_hang' => $cs_cu, 'coso_phu' => '', 'coso_ql' => '' ) ) as $c_q ) {
 			$co_ql[ VHCC_NhanSu::chu_thuong( $c_q ) ] = 1;
+		}
+		/* Cơ sở người này QUẢN — đọc CỘT THÔ, không gộp `coso_ql`: ô tích dưới tự cộng hai thứ
+		   lại khi vẽ, còn ở đây gộp sẵn thì lượt Lưu chép luôn `coso_ql` sang cột kia. */
+		$co_qn = array();
+		foreach ( VHCC_NhanSu::ds_coso_quan_tho( is_array( $hs ) && $hs
+			? $hs : array( 'cua_hang' => $cs_cu, 'coso_phu' => '', 'coso_quan' => '' ) ) as $c_n ) {
+			$co_qn[ VHCC_NhanSu::chu_thuong( $c_n ) ] = 1;
 		}
 
 		$h = '<div class="o-cs-tich">';
@@ -3247,6 +3262,25 @@ class VHCC_TrangNS {
 				   trách cơ sở ấy lặng lẽ bật lại chấm công ở đó. */
 				if ( ! $duoc && $la_ql ) {
 					$h .= '<input type="hidden" name="' . $ten_ql . '" value="' . esc_attr( $c ) . '">';
+				}
+
+				/* 🔴 QUẢN LÝ — CÓ HAY KHÔNG CHẤM CÔNG CŨNG ĐƯỢC. Anh Thắng 18/09/2026: *"nếu
+				   chấm công thì xem quản thân chứ, còn quản lý mới xem được cả cửa hàng"*.
+				   Đây là ô quyết định người này XEM ĐƯỢC CẢ CỬA HÀNG hay chỉ thấy công của
+				   chính mình. Trước bản này không có ô nào nói điều ấy — hễ tích một cơ sở là
+				   quản được cơ sở đó, nên cửa hàng trưởng sang cơ sở khác làm một ca là quản
+				   luôn cả cơ sở ấy.
+				   ⚠️ Tích "chỉ QL" thì ô này thừa (`ds_coso_quan()` gộp cả hai), nên khoá lại
+				      và tích sẵn cho khỏi ai tưởng mình phải tích thêm. */
+				$la_qn = isset( $co_qn[ VHCC_NhanSu::chu_thuong( $c ) ] );
+				$h .= '<label class="cs-qn" title="QUẢN LÝ ở cơ sở này — xem được bảng công cả'
+					. ' cửa hàng, duyệt đơn, thêm nhân sự. Không tích thì người này chỉ thấy công'
+					. ' của chính mình ở đây. Ô \'chỉ QL\' đã bao gồm quyền này.">'
+					. '<input type="checkbox" name="' . $ten_qn . '" value="' . esc_attr( $c ) . '"'
+					. checked( true, $la_qn || $la_ql, false )
+					. ( ( $duoc && ! $la_ql ) ? '' : ' disabled' ) . '>quản lý</label>';
+				if ( ( ! $duoc || $la_ql ) && $la_qn ) {
+					$h .= '<input type="hidden" name="' . $ten_qn . '" value="' . esc_attr( $c ) . '">';
 				}
 			}
 			$h .= '</div>';

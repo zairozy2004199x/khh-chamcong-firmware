@@ -77,7 +77,7 @@ class VHCC_DB {
 		return $t ? $t : '';
 	}
 
-	const SCHEMA_VERSION = '2.15.0';
+	const SCHEMA_VERSION = '2.16.0';
 
 	public static function t( $name ) {
 		global $wpdb;
@@ -340,6 +340,7 @@ class VHCC_DB {
 			bo_phan VARCHAR(120) NOT NULL DEFAULT '',
 			coso_phu TEXT NULL,
 			coso_ql TEXT NULL,
+			coso_quan TEXT NULL,
 			pin_dang_nhap VARCHAR(20) NOT NULL DEFAULT '',
 			vai_tro VARCHAR(60) NOT NULL DEFAULT '',
 			anh_the LONGTEXT NULL,

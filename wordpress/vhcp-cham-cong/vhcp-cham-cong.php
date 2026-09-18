@@ -3,7 +3,7 @@
  * Plugin Name:       Chấm Công (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Hệ thống chấm công chạy THẲNG trên host: máy chấm công, hàng đợi lệnh, cập nhật firmware và toàn bộ nghiệp vụ đều nằm trên MySQL của chính website. Không Firebase, không Google Sheet.
- * Version:           4.49.0
+ * Version:           4.50.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -34,7 +34,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHCC_VERSION', '4.49.0' );
+define( 'VHCC_VERSION', '4.50.0' );
 define( 'VHCC_FILE', __FILE__ );
 define( 'VHCC_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHCC_URL', plugin_dir_url( __FILE__ ) );
@@ -157,6 +157,9 @@ function vhcc_maybe_upgrade() {
 		/* Gieo vai "Cửa hàng phó" (ngang Cửa hàng trưởng) — một lần, thêm chứ không đè danh sách
 		   vai tự tạo đang có. Xem chú thích ở VHCC_Vai::gieo_cua_hang_pho(). */
 		VHCC_Vai::gieo_cua_hang_pho();
+		/* 🔴 Gieo `coso_quan` cho hồ sơ đã có — không gieo thì mọi cửa hàng trưởng mất quyền ở
+		   chính cửa hàng mình ngay lúc cài bản này. Xem `VHCC_NhanSu::gieo_coso_quan()`. */
+		VHCC_NhanSu::gieo_coso_quan();
 		update_option( 'vhcc_ver', VHCC_VERSION );
 		update_option( 'vhcc_flush_rewrite', 1 );
 	}

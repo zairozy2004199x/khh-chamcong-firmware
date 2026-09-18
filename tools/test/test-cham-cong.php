@@ -478,10 +478,17 @@ t( 'vp_ngay_cong.ngay_cong cho phép NULL và KHÔNG có mặc định — khôn
 t( 'phan_quyen.vai_tro là VARCHAR (Apps Script ghi chuỗi tự do), không ENUM',
 	preg_match( '/vai_tro VARCHAR\(60\)/', $so_do['phan_quyen'] ) === 1 );
 t( 'nhan_vien giữ đủ 26 cột nghiệp vụ của NV_HEADERS + vai_tro + anh_the + ba ô chờ trả về'
-	. ' + coso_ql + mang + bo_phan',
-	count( $cot_thuc['nhan_vien'] ) === 35,
+	. ' + coso_ql + coso_quan + mang + bo_phan',
+	count( $cot_thuc['nhan_vien'] ) === 36,
 	implode( ', ', $cot_thuc['nhan_vien'] ) );
-// 26 + id + vai_tro + anh_the + cho_tra_ve/luc/boi + coso_ql + mang + bo_phan
+// 26 + id + vai_tro + anh_the + cho_tra_ve/luc/boi + coso_ql + coso_quan + mang + bo_phan
+
+/* 🔴 `coso_quan` — CƠ SỞ NGƯỜI NÀY QUẢN LÝ NGƯỜI KHÁC. Anh Thắng 18/09/2026: *"nếu chấm công
+   thì xem quản thân chứ, còn quản lý mới xem được cả cửa hàng"*. Khác `coso_ql` ở đúng một
+   chỗ: `coso_ql` là quản NHƯNG KHÔNG chấm công, còn cột này là quản DÙ CÓ chấm công hay không
+   — cảnh thường nhất, cửa hàng trưởng vừa đứng bán vừa quản chính cửa hàng mình. */
+t( 'nhan_vien có cột cơ sở quản lý (coso_quan)',
+	in_array( 'coso_quan', $cot_thuc['nhan_vien'], true ) );
 /* 🔴 CỜ "CHỈ QUẢN LÝ — KHÔNG CHẤM CÔNG" là MỘT CỘT TRONG HỒ SƠ, không phải một sổ rời.
    Anh Thắng 09/09/2026: *"đối với cửa hàng chỉ quản lý nhân viên không chấm công thì làm sao để
    loại ra khỏi bảng chấm công, nhưng vẫn quản lý được nhân viên cơ sở đó"*. Cờ này là thuộc
@@ -7937,8 +7944,11 @@ t( 'và đánh dấu lượt này là "sửa đè", không phải "bù"',
 $giay_cu_chtg = $GLOBALS['VHCP_GIAY_BAY_GIO'];
 $GLOBALS['VHCP_GIAY_BAY_GIO'] = strtotime( '2026-09-15 10:00:00 UTC' );
 $cs_cht = 'CHTG_BT';
+/* ⚠️ `coso_quan` = cơ sở người này QUẢN người khác. Từ 18/09/2026 `co_quyen_coso()` hỏi cột
+   này chứ không hỏi danh sách cơ sở đã tích — thiếu nó là trưởng mất quyền chính cửa hàng mình. */
 $wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'CHTG1', 'ho_ten' => 'Trưởng Giờ',
-	'cua_hang' => $cs_cht, 'vai_tro' => 'Cửa hàng trưởng', 'pin_dang_nhap' => '551122' ) );
+	'cua_hang' => $cs_cht, 'coso_quan' => $cs_cht,
+	'vai_tro' => 'Cửa hàng trưởng', 'pin_dang_nhap' => '551122' ) );
 $wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'CHTG2', 'ho_ten' => 'Nhân Viên Giờ',
 	'cua_hang' => $cs_cht, 'vai_tro' => 'Nhân viên' ) );
 /* Một ngày ĐÃ CÓ giờ → đường `sua_gio`. Một ngày ĐỂ TRỐNG → đường `bu`. */

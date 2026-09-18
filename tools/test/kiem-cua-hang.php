@@ -389,8 +389,11 @@ t( '⚠️ và sửa đè nay CAO HƠN cả nạp .csv — đè lên giờ máy 
 /* 🔴 KHÔNG AI TỰ SỬA GIỜ CỦA CHÍNH MÌNH, KỂ CẢ ADMIN. Đây là chốt đỡ quan trọng nhất cho việc
    hạ `sua_gio` xuống bậc 2: cửa hàng trưởng viết lại được bảng công của cửa hàng mình, nhưng
    KHÔNG viết lại được của chính mình — nên giờ của người ký duyệt luôn là giờ máy ghi. */
+/* ⚠️ `coso_quan` phải có, kẻo từ dòng này trở xuống trưởng A mất quyền cơ sở mình: từ
+   18/09/2026 `co_quyen_coso()` hỏi cột ấy chứ không hỏi danh sách cơ sở đã tích. */
 $wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'CHTA',
-	'ho_ten' => 'Trưởng A', 'cua_hang' => $CS_A, 'trang_thai_lam_viec' => 'Đang làm' ) );
+	'ho_ten' => 'Trưởng A', 'cua_hang' => $CS_A, 'coso_quan' => $CS_A,
+	'vai_tro' => 'Cửa hàng trưởng', 'trang_thai_lam_viec' => 'Đang làm' ) );
 $wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'ma_nv' => 'CHTA', 'ho_ten' => 'Trưởng A',
 	'coso' => $CS_A, 'ngay' => $HOM, 'gio_vao_giay' => 28800,
 	'gio_ra_giay' => 61200, 'hau_to' => '', 'nguon' => 'may' ) );

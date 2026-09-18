@@ -89,10 +89,48 @@ class VHCC_NhanSu {
 		if ( VHCC_Vai::duoc( $u, 'cong_tat_ca' ) ) { return self::qua_bo_mang( $u, $coso ); }
 		$coso = self::chuan_coso( $coso );
 		if ( '' === $coso ) { return false; }
-		foreach ( self::ds_coso_cua( $u ) as $x ) {
+		foreach ( self::ds_coso_quan_cua( $u ) as $x ) {
 			if ( strtolower( $x ) === strtolower( $coso ) ) { return true; }
 		}
 		return false;
+	}
+
+	/** Nhớ trong một lượt. `quen_coso_quan()` xoá — xem cảnh báo ở đó. */
+	private static $nho_quan = null;
+
+	/**
+	 * XOÁ BỘ NHỚ ĐỆM CƠ SỞ QUẢN LÝ.
+	 *
+	 * ⚠️ PHẢI GỌI SAU MỌI LƯỢT LƯU CƠ SỞ. Sửa hồ sơ rồi mà cổng còn nhớ danh sách cũ thì trong
+	 *    đúng lượt ấy người ta vẫn quản được cơ sở vừa gỡ — và cái màn vẽ ra ngay sau đó nói
+	 *    ngược lại với thứ vừa lưu.
+	 */
+	public static function quen_coso_quan() { self::$nho_quan = array(); }
+
+	/**
+	 * CƠ SỞ NGƯỜI ĐANG ĐĂNG NHẬP QUẢN LÝ — đọc từ hồ sơ, không từ thẻ phiên.
+	 *
+	 * 🔴 ĐÂY LÀ CÁI CỔNG. Anh Thắng 18/09/2026: *"nếu chấm công thì xem quản thân chứ, còn quản
+	 *    lý mới xem được cả cửa hàng"*. Trước bản này chỗ này hỏi `ds_coso_cua()` — thẻ phiên
+	 *    chở MỌI cơ sở đã tích — nên chấm công ở đâu là quản được ở đó.
+	 *
+	 * ⚠️ NHỚ TRONG MỘT LƯỢT. Hàm này bị gọi mỗi hàng của mỗi bảng; hỏi cơ sở dữ liệu từng lượt
+	 *    là một bảng 200 người thành 200 truy vấn.
+	 *
+	 * ⚠️ KHÔNG CÓ MÃ NV THÌ LÙI VỀ LỐI CŨ. Tài khoản dựng ở màn Người dùng không gắn mã nên
+	 *    không tra được hồ sơ — khoá cứng họ lại là mấy tài khoản quản trị cũ mất sạch quyền
+	 *    ngay lúc cài bản này, mà không ai hiểu vì sao.
+	 */
+	public static function ds_coso_quan_cua( $u ) {
+		if ( null === self::$nho_quan ) { self::$nho_quan = array(); }
+		$nho = &self::$nho_quan;
+		$ma = strtoupper( trim( (string) ( isset( $u['ma_nv'] ) ? $u['ma_nv'] : '' ) ) );
+		if ( '' === $ma ) { return self::ds_coso_cua( $u ); }
+		if ( isset( $nho[ $ma ] ) ) { return $nho[ $ma ]; }
+		$hs = self::ho_so( $ma );
+		if ( ! $hs ) { return self::ds_coso_cua( $u ); }
+		$nho[ $ma ] = self::ds_coso_quan( $hs );
+		return $nho[ $ma ];
 	}
 
 	public static function ds_coso_cua( $u ) {
@@ -292,6 +330,95 @@ class VHCC_NhanSu {
 			$x = self::chuan_coso( $x );
 			if ( '' === $x ) { continue; }
 			$k = self::chu_thuong( $x );
+			if ( ! isset( $co[ $k ] ) || isset( $ra[ $k ] ) ) { continue; }
+			$ra[ $k ] = $co[ $k ];
+		}
+		return array_values( $ra );
+	}
+
+	/**
+	 * CƠ SỞ NGƯỜI NÀY QUẢN LÝ NGƯỜI KHÁC — cộng cả hai kiểu quản.
+	 *
+	 * =========================================================================================
+	 * 🔴 QUẢN LÝ VÀ CHẤM CÔNG LÀ HAI CHUYỆN RỜI NHAU
+	 * =========================================================================================
+	 * Anh Thắng 18/09/2026: *"nếu chấm công thì xem quản thân chứ, còn quản lý mới xem được cả
+	 * cửa hàng"*. Trước bản này `co_quyen_coso()` hỏi `ds_coso_cua()` — MỌI cơ sở đã tích — nên
+	 * hễ ai chấm công ở đâu là xem được cả bảng công cửa hàng đó, duyệt được đơn của người ở đó,
+	 * thêm được nhân sự vào đó. Một cửa hàng trưởng thỉnh thoảng sang cơ sở khác làm một ca là
+	 * lập tức quản được cả cơ sở ấy.
+	 *
+	 * Một người ở một cơ sở nay có đúng bốn cảnh, và cột nào lo cảnh nào:
+	 *   · chấm công, không quản   → tích, không cờ nào       (nhân viên; CHT đi làm nhờ)
+	 *   · chấm công VÀ quản       → tích + `coso_quan`        (CHT ở chính cửa hàng mình)
+	 *   · quản, không chấm công   → tích + `coso_ql`          (CHT trông coi cơ sở vệ tinh)
+	 *   · không thuộc về          → không tích
+	 *
+	 * ⚠️ `coso_ql` ĐÃ HÀM Ý QUẢN LÝ nên gộp vào đây, không bắt khai hai lần. Bắt khai hai lần
+	 *    là mọi hồ sơ đang chạy phải sửa tay, và sửa sót một dòng thì người ta lặng lẽ mất quyền.
+	 */
+	/**
+	 * GIEO `coso_quan` MỘT LẦN cho hồ sơ đã có — chạy lúc nâng lược đồ.
+	 *
+	 * =========================================================================================
+	 * 🔴 KHÔNG GIEO THÌ CÀI XONG LÀ CẢ CHUỖI MẤT QUYỀN CÙNG LÚC
+	 * =========================================================================================
+	 * Trước bản này không có cột nào nói "quản ở đâu" — `co_quyen_coso()` suy ra từ danh sách
+	 * đã tích. Đổi cổng sang hỏi `coso_quan` mà cột ấy rỗng thì mọi cửa hàng trưởng mất quyền ở
+	 * CHÍNH cửa hàng mình ngay lúc bấm Kích hoạt, và không ai đoán ra vì sao.
+	 *
+	 * Gieo bằng `cua_hang` — CƠ SỞ CHÍNH. Đó đúng là cửa hàng người ta phụ trách, và là cách
+	 * duy nhất dựng lại được ý định cũ từ dữ liệu đang có.
+	 *
+	 * ⚠️ CHỈ GIEO CHO AI QUA BẬC `cong_coso`. Nhân viên thường không quản ai; gieo cho họ là
+	 *    phát quyền quản lý cho cả chuỗi bằng một lượt nâng cấp im lặng.
+	 * ⚠️ CHỈ GIEO KHI CỘT CÒN RỖNG. Chạy lại lượt nâng cấp không được đè lên thứ người ta đã
+	 *    khai tay sau đó.
+	 */
+	public static function gieo_coso_quan() {
+		global $wpdb;
+		$t  = VHCC_DB::t( 'nhan_vien' );
+		$ds = $wpdb->get_results(
+			"SELECT ma_nv, cua_hang, vai_tro FROM $t"
+			. " WHERE cua_hang <> '' AND (coso_quan IS NULL OR coso_quan = '')", ARRAY_A );
+		$so = 0;
+		foreach ( (array) $ds as $r ) {
+			if ( ! VHCC_Vai::duoc( array( 'role' => (string) $r['vai_tro'] ), 'cong_coso' ) ) { continue; }
+			$cs = self::chuan_coso( $r['cua_hang'] );
+			if ( '' === $cs ) { continue; }
+			$wpdb->update( $t, array( 'coso_quan' => $cs ), array( 'ma_nv' => (string) $r['ma_nv'] ) );
+			$so++;
+		}
+		return $so;
+	}
+
+	/** CHỈ cột `coso_quan`, KHÔNG gộp `coso_ql` — dùng lúc LƯU, để hai cột không nuốt nhau. */
+	public static function ds_coso_quan_tho( $hs ) {
+		$co = array();
+		foreach ( self::ds_coso_hs( $hs ) as $x ) { $co[ self::chu_thuong( $x ) ] = $x; }
+		$ra = array();
+		foreach ( explode( ',', isset( $hs['coso_quan'] ) ? (string) $hs['coso_quan'] : '' ) as $x ) {
+			$x = self::chuan_coso( $x );
+			if ( '' === $x ) { continue; }
+			$k = self::chu_thuong( $x );
+			if ( ! isset( $co[ $k ] ) || isset( $ra[ $k ] ) ) { continue; }
+			$ra[ $k ] = $co[ $k ];
+		}
+		return array_values( $ra );
+	}
+
+	public static function ds_coso_quan( $hs ) {
+		$co = array();
+		foreach ( self::ds_coso_hs( $hs ) as $x ) { $co[ self::chu_thuong( $x ) ] = $x; }
+		$ra = array();
+		foreach ( self::ds_coso_ql( $hs ) as $x ) { $ra[ self::chu_thuong( $x ) ] = $x; }
+		$goc = isset( $hs['coso_quan'] ) ? (string) $hs['coso_quan'] : '';
+		foreach ( explode( ',', $goc ) as $x ) {
+			$x = self::chuan_coso( $x );
+			if ( '' === $x ) { continue; }
+			$k = self::chu_thuong( $x );
+			/* Lọc lại theo danh sách ĐÃ TÍCH: cờ sót của một cơ sở đã bỏ tích mà còn tính thì
+			   người ta vẫn quản được một chỗ hồ sơ không còn nói họ thuộc về. */
 			if ( ! isset( $co[ $k ] ) || isset( $ra[ $k ] ) ) { continue; }
 			$ra[ $k ] = $co[ $k ];
 		}
@@ -2175,7 +2302,16 @@ class VHCC_NhanSu {
 	 * @return array `ok` · `doi`(bool) · `doiChinh`(bool) · `doiQL`(bool) · `tu` · `den` · `go`,
 	 *               hoặc `error`.
 	 */
-	public static function dat_ds_coso( $u, $ma_nv, $ds, $chinh = '', $ds_ql = null ) {
+	public static function dat_ds_coso( $u, $ma_nv, $ds, $chinh = '', $ds_ql = null, $ds_quan = null ) {
+		/* 🔴 XOÁ BỘ NHỚ ĐỆM CẢ TRƯỚC LẪN SAU.
+		   Trước: hàm này tự hỏi quyền mấy lần, và mỗi lượt hỏi lại nạp bản CŨ vào bộ nhớ.
+		   Sau (`shutdown` của chính hàm, xem `$xoa_sau`): nạp trước rồi ghi sau thì bản vừa nạp
+		   là bản cũ — màn vẽ ngay sau lượt Lưu sẽ nói ngược lại với thứ vừa lưu. */
+		self::quen_coso_quan();
+		$xoa_sau = new class {
+			public function __destruct() { VHCC_NhanSu::quen_coso_quan(); }
+		};
+		unset( $xoa_sau );   // ⚠️ chỉ để soát mã thấy nó có dùng; bản thân đối tượng sống tới cuối hàm
 		global $wpdb;
 		if ( ! self::co_sua_ho_so( $u ) ) {
 			return array( 'ok' => false, 'error' => 'Đổi cơ sở là chuyển cả công và lương giữa các '
@@ -2246,6 +2382,23 @@ class VHCC_NhanSu {
 					. 'sở người này CÓ chấm công, rồi lưu lại.' );
 		}
 		$ql_moi = array_values( $ql_moi );
+
+		/* ---- CƠ SỞ QUẢN LÝ (xem `ds_coso_quan()`) ----
+		   `null` = lượt gửi không nói gì -> giữ nguyên. Lọc lại theo danh sách vừa tích, cùng
+		   một luật với cờ trên. KHÔNG chối khi trùng với `coso_ql`: trùng là thừa, không phải
+		   sai, và `ds_coso_quan()` gộp hai danh sách nên kết quả vẫn đúng. */
+		$qn_nguon = ( null === $ds_quan ) ? self::ds_coso_quan_tho( $cu_hs ) : (array) $ds_quan;
+		$qn_moi   = array();
+		foreach ( $qn_nguon as $x_n ) {
+			foreach ( explode( ',', (string) $x_n ) as $m_n ) {
+				$m_n = self::chuan_coso( $m_n );
+				if ( '' === $m_n ) { continue; }
+				$k_n = self::chu_thuong( $m_n );
+				if ( ! isset( $co_moi[ $k_n ] ) || isset( $qn_moi[ $k_n ] ) ) { continue; }
+				$qn_moi[ $k_n ] = $co_moi[ $k_n ];
+			}
+		}
+		$qn_moi = array_values( $qn_moi );
 		$sx_ql_cu  = array_map( array( __CLASS__, 'chu_thuong' ), self::ds_coso_ql( $cu_hs ) );
 		$sx_ql_moi = array_map( array( __CLASS__, 'chu_thuong' ), $ql_moi );
 		sort( $sx_ql_cu );
@@ -2273,7 +2426,17 @@ class VHCC_NhanSu {
 			/* 🔴 CỜ "CHỈ QUẢN LÝ" ĐỔI CŨNG PHẢI GHI, dù tập hợp cơ sở y nguyên — đây là đường
 			   chính của việc này: không thêm không bớt cơ sở nào, chỉ nói cơ sở nào thôi chấm
 			   công. Thiếu vế `$doi_ql` là tích ô xong bấm Lưu thấy "Không có ô nào đổi". */
-			if ( ! $doi_chinh && ! $doi_ql ) {
+			/* 🔴 CỜ "QUẢN LÝ" ĐỔI CŨNG PHẢI GHI — cùng lý do với `$doi_ql` ngay trên, và đây
+			   là đường CHÍNH của cột `coso_quan`: không thêm không bớt cơ sở nào, chỉ nói cơ
+			   sở nào người này quản. Thiếu vế này thì tích/bỏ tích ô "quản lý" bấm Lưu xong
+			   thấy "Không có ô nào đổi" — và quyền không đổi thật. */
+			$sx_qn_cu  = array_map( array( __CLASS__, 'chu_thuong' ), self::ds_coso_quan_tho( $cu_hs ) );
+			$sx_qn_moi = array_map( array( __CLASS__, 'chu_thuong' ), $qn_moi );
+			sort( $sx_qn_cu );
+			sort( $sx_qn_moi );
+			$doi_qn = ( $sx_qn_cu !== $sx_qn_moi );
+
+			if ( ! $doi_chinh && ! $doi_ql && ! $doi_qn ) {
 				return array( 'ok' => true, 'doi' => false, 'go' => 0 );
 			}
 			/* Phụ trách CẢ hai đầu — cùng luật với thêm/bỏ cơ sở: cơ sở chính là cơ sở mặc định
@@ -2285,6 +2448,12 @@ class VHCC_NhanSu {
 				array_diff( $sx_ql_cu, $sx_ql_moi ) ) as $x_ql ) {
 				$soat_q[] = $x_ql;
 			}
+			/* Cờ "quản lý" cũng vậy: phát hay thu quyền quản một cơ sở thì phải đang phụ trách
+			   đúng cơ sở ấy — không thì đây là đường tự phát quyền cho mình ở chỗ người khác. */
+			foreach ( array_merge( array_diff( $sx_qn_moi, $sx_qn_cu ),
+				array_diff( $sx_qn_cu, $sx_qn_moi ) ) as $x_qn ) {
+				$soat_q[] = $x_qn;
+			}
 			foreach ( $soat_q as $x_q ) {
 				if ( self::co_quyen_coso( $u, $x_q ) ) { continue; }
 				return array( 'ok' => false,
@@ -2295,8 +2464,10 @@ class VHCC_NhanSu {
 				'cua_hang' => array_shift( $dat_c ),
 				'coso_phu' => implode( ', ', $dat_c ),
 				'coso_ql'  => implode( ', ', $ql_moi ),
+				'coso_quan' => implode( ', ', $qn_moi ),
 				'cap_nhat' => current_time( 'mysql' ),
 			), array( 'ma_nv' => $ma ) );
+		self::quen_coso_quan();   // bản vừa nhớ là bản TRƯỚC lượt ghi này
 			if ( false === $ok_c ) {
 				return array( 'ok' => false, 'error' => 'MySQL: ' . $wpdb->last_error );
 			}
@@ -2325,8 +2496,10 @@ class VHCC_NhanSu {
 			'cua_hang' => $dat ? array_shift( $dat ) : '',
 			'coso_phu' => implode( ', ', $dat ),
 			'coso_ql'  => implode( ', ', $ql_moi ),
+			'coso_quan' => implode( ', ', $qn_moi ),
 			'cap_nhat' => current_time( 'mysql' ),
 		), array( 'ma_nv' => $ma ) );
+		self::quen_coso_quan();   // bản vừa nhớ là bản TRƯỚC lượt ghi này
 		if ( false === $ok ) {
 			return array( 'ok' => false, 'error' => 'MySQL: ' . $wpdb->last_error );
 		}

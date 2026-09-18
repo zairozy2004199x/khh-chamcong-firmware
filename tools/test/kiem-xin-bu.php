@@ -57,8 +57,15 @@ foreach ( array(
 	array( 'XBCHTB', 'Trưởng B',       $CS_B, 'Cửa hàng trưởng' ),
 	array( 'XBKT1',  'Kế Toán',        $CS_A, 'Kế toán' ),
 ) as $x ) {
+	/* 🔴 `coso_quan` = cơ sở người này QUẢN LÝ người khác. Từ 18/09/2026 `co_quyen_coso()` hỏi
+	   cột này chứ không hỏi danh sách cơ sở đã tích — anh Thắng: *"nếu chấm công thì xem quản
+	   thân chứ, còn quản lý mới xem được cả cửa hàng"*. Cửa hàng trưởng quản chính cửa hàng
+	   mình; nhân viên không quản ai, nên để rỗng. Lượt nâng cấp thật gieo y như thế
+	   (`VHCC_NhanSu::gieo_coso_quan()`). */
+	$quan = VHCC_Vai::duoc( array( 'role' => $x[3] ), 'cong_coso' ) ? $x[2] : '';
 	$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => $x[0], 'ho_ten' => $x[1],
-		'cua_hang' => $x[2], 'vai_tro' => $x[3], 'trang_thai_lam_viec' => 'Đang làm' ) );
+		'cua_hang' => $x[2], 'vai_tro' => $x[3], 'coso_quan' => $quan,
+		'trang_thai_lam_viec' => 'Đang làm' ) );
 }
 
 $NV    = array( 'name' => 'An Nhân Viên', 'role' => VHCC_Vai::NV,      'coso' => $CS_A, 'ma_nv' => 'XBNV1' );
