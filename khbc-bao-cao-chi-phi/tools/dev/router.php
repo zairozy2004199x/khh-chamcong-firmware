@@ -62,6 +62,10 @@ if ( $path === '/__dev/fabi' ) {
 		array( 'Tutu Train - Estella ( Dịch vụ K&H )', 20770000 ),
 		array( 'VR FUN - SC Vivo Q7 ( Dịch Vụ và Giải Trí K&H )', 3680000 ),
 		array( 'VR Fun Aeon Tân An ( Dịch Vụ K&H )', 3120000 ),
+		/* HAI QUÁN MỚI — chưa có điểm nào bên báo cáo. Đây là cảnh anh Thắng nói: FABi tách cơ sở
+		   mới thì bên này phải tự tách điểm, chứ không đứng kẹt ở "chưa ghép". */
+		array( 'Ngôi Nhà Ma - Aeon Bình Dương ( Dịch Vụ K&H )', 216545000 ),
+		array( 'SNOW FUN AEON BÌNH DƯƠNG ( Dịch Vụ K&H )', 209735000 ),
 	);
 	/* Chia đều ra 2 ngày trong tháng 8/2026 — cốt để phép CỘNG THEO KỲ có việc mà làm; một dòng
 	   một cửa hàng thì không kiểm được là nó có cộng hay chỉ lấy dòng cuối. */

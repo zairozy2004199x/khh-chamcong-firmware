@@ -4,7 +4,7 @@ Tags: chi phí, phân bổ, báo cáo, MISA, kế toán
 Requires at least: 5.6
 Tested up to: 6.8
 Requires PHP: 7.2
-Stable tag: 1.11.0
+Stable tag: 1.12.0
 License: GPLv2 or later
 
 Phân bổ chi phí Máy tự động / Khu vui chơi ra "File tổng báo cáo" và phân bổ theo điểm để hạch toán MISA.
@@ -35,6 +35,16 @@ Nhân viên nhập khoản chi phí, kế toán duyệt, web tự tính.
 4. Nhập Excel kỳ đầu (hoặc ⋯ → Nạp dữ liệu mẫu) rồi bắt đầu.
 
 == Changelog ==
+
+= 1.12.0 =
+* **FABi mở cơ sở mới → tự tách điểm mới bên này**, không còn kẹt ở "chưa ghép". Ô chọn có thêm
+  nhóm **"➕ Tạo điểm mới trong <bộ phận>"**, và một nút tạo hàng loạt cho mọi cửa hàng còn lại
+  (đoán bộ phận từ tên quán: Tutu · VR FUN/FUNZONE → Funzone · ECO FARM → Farm · GHOST/SNOW/Ngôi
+  Nhà Ma → Event). Vẫn sửa được từng dòng trước khi Ghi.
+* Điểm mới nhận luôn doanh thu kỳ này và **nối sẵn** với cửa hàng FABi, nên từ kỳ sau tự cập nhật.
+* **Không bịa Mã đơn vị** — đó là mã trong sổ MISA; bịa ra thì bút toán hạch toán vào một đơn vị
+  không tồn tại mà nhìn tờ nhập vẫn thấy có mã. Để trống, và màn Kiểm tra có cảnh báo riêng cho
+  điểm có doanh thu mà thiếu mã.
 
 = 1.11.0 =
 * **Liên kết sống với Doanh thu FABi** — anh Thắng: *"thay vì đẩy thì nó tự link và lấy realtime"*.

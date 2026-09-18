@@ -596,6 +596,79 @@
     return { daLinh, doi, soDoi: doi.filter((x) => !x.mat).length, mat: doi.filter((x) => x.mat) };
   }
 
+  /* ═══════════════════════════════════════════════════════════════════════════════════════════
+   * CƠ SỞ MỚI BÊN FABi → TỰ TÁCH ĐIỂM MỚI BÊN NÀY
+   *
+   * Anh Thắng 18/09/2026: *"Sau khi FABi đổi cơ sở mới, thì bên FABi tự tách điểm mới, thì bên
+   * doanh thu cũng phải tự tách điểm mới, chứ đừng kẹt nhé"*.
+   *
+   * Trước đó cửa hàng không khớp điểm nào thì đứng mãi ở "— chưa ghép —" và doanh thu của nó rơi
+   * ra ngoài báo cáo — im lặng. Mở một quán mới là tháng ấy báo cáo thiếu nguyên một cơ sở.
+   *
+   * ⚠️ ĐOÁN BỘ PHẬN, KHÔNG ĐOÁN MÃ ĐƠN VỊ. Bộ phận đoán sai thì thấy ngay trên màn xem trước và
+   *    sửa một cái là xong. Còn "Mã đơn vị" là mã trong sổ MISA — bịa ra một mã trông hợp lý thì
+   *    nó đi thẳng vào tờ nhập MISA và hạch toán vào một đơn vị KHÔNG TỒN TẠI. Nên để TRỐNG, và
+   *    validate() có một dòng cảnh báo riêng cho điểm có doanh thu mà thiếu mã.
+   * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+
+  /* Chữ hiệu của từng bộ phận, dùng để đoán cửa hàng mới thuộc về đâu. Đọc từ tên quán thật trên
+     trang Doanh thu FABi của anh Thắng. Đoán sai cũng không sao — người dùng đổi trên màn xem
+     trước trước khi ghi. */
+  const DAU_HIEU_BP = {
+    tutu: ['TUTU'],
+    funzone: ['FUNZONE', 'VRFUN', 'VR'],
+    farm: ['FARM', 'ECOFARM'],
+    event: ['GHOST', 'SNOW', 'NGOINHAMA', 'MA', 'BRIDE'],
+    pinball: ['PINBALL'],
+    posh: ['POSH'],
+    jp: ['JP'],
+  };
+
+  /** Đoán bộ phận cho một cửa hàng FABi mới. '' = không đoán được. */
+  function doanBoPhan(tenCuaHang, departments) {
+    const t = khoaTen(tenGonFabi(tenCuaHang));
+    const co = (departments || []).map((d) => d.id);
+    let nhat = '', daiNhat = 0;
+    Object.keys(DAU_HIEU_BP).forEach((dept) => {
+      if (co.indexOf(dept) < 0) return;
+      DAU_HIEU_BP[dept].forEach((h) => {
+        /* Lấy dấu hiệu DÀI NHẤT khớp được: "VRFUN" thắng "VR", "ECOFARM" thắng "FARM".
+           Không thì một chữ hai ký tự vô tình nằm trong tên quán là đủ kéo nó sang bộ phận khác. */
+        if (h.length > daiNhat && t.indexOf(h) >= 0) { daiNhat = h.length; nhat = dept; }
+      });
+    });
+    return nhat;
+  }
+
+  /**
+   * Tạo điểm mới cho những dòng người dùng đã chọn "tạo mới".
+   * @param {Array} ghep [{cua_hang, thanh_tien, siteIndex, taoMoi:'<deptId>'}]
+   * @return {{tao:Array, ghep:Array}} ghep đã được cập nhật siteIndex trỏ vào điểm vừa tạo
+   */
+  function taoDiemTuFabi(state, ghep) {
+    const tao = [];
+    (ghep || []).forEach((g) => {
+      const dept = (g.taoMoi || '').trim();
+      if (!dept || g.siteIndex !== null) return;
+      if (!(state.departments || []).some((d) => d.id === dept)) return;
+      const ten = tenGonFabi(g.cua_hang) || String(g.cua_hang || '').trim();
+      if (!ten) return;
+      state.sites = state.sites || [];
+      state.sites.push({
+        dept,
+        code: '',                 // 🔴 KHÔNG bịa mã đơn vị — xem khối dài ở trên
+        name: ten,
+        revenue: num(g.thanh_tien),
+        khongChiPhi: false,
+        fabiTen: String(g.cua_hang || ''),
+      });
+      g.siteIndex = state.sites.length - 1;
+      g.cach = 'tao';
+      tao.push({ dept, name: ten, fabiTen: g.cua_hang });
+    });
+    return { tao, ghep };
+  }
+
   /**
    * Ghi doanh thu đã ghép vào state. Trả về {xong, boQua} — KHÔNG tự gọi, giao diện gọi sau khi
    * người dùng bấm xác nhận.
@@ -692,6 +765,14 @@
         issues.push({ level: 'info', msg: `Bộ phận "${d.name}": ${nghi.length} cơ sở không nhận chi phí (${nghi.map((x) => x.code || x.name).join(', ')}) — vẫn ghi doanh thu, phần chi phí chia lại cho các cơ sở còn lại.` });
       }
     });
+
+    /* 🔴 ĐIỂM CÓ DOANH THU MÀ THIẾU MÃ ĐƠN VỊ. Hay gặp nhất với điểm vừa tự tách từ cửa hàng mới
+       bên FABi: mã đơn vị là mã trong sổ MISA, app cố ý KHÔNG bịa. Thiếu thì tờ nhập MISA có cột
+       "Mã đơn vị" trống, và bút toán không biết thuộc đơn vị nào. */
+    const thieuMa = (state.sites || []).filter((s) => num(s.revenue) > 0 && !String(s.code || '').trim());
+    if (thieuMa.length) {
+      issues.push({ level: 'warn', msg: `${thieuMa.length} điểm có doanh thu nhưng chưa có Mã đơn vị (${thieuMa.slice(0, 5).map((s) => s.name).join(', ')}${thieuMa.length > 5 ? '…' : ''}) — tờ nhập MISA sẽ trống cột "Mã đơn vị".` });
+    }
 
     groups.forEach((g) => {
       const gd = depts.filter((d) => d.group === g.id);
@@ -893,6 +974,8 @@
     misaRows,
     ghepFabi,
     napFabi,
+    taoDiemTuFabi,
+    doanBoPhan,
     dongBoFabi,
     batDauKyMoi,
     khoaTen,

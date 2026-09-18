@@ -678,3 +678,63 @@ console.log(`OK — ${passed} phép so khớp với Excel đều đạt, các tr
 
   console.log('OK — liên kết sống FABi: chỉ theo liên kết đã chốt, mất liên kết thì giữ số cũ.');
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// CƠ SỞ MỚI BÊN FABi → TỰ TÁCH ĐIỂM MỚI  (anh Thắng 18/09/2026: "chứ đừng kẹt nhé")
+//
+// Tên quán lấy đúng trang khmatrix.com/doanh-thu-hcm, gồm mấy quán mới chưa có điểm bên này:
+// "Ngôi Nhà Ma - Aeon Bình Dương", "SNOW FUN AEON BÌNH DƯƠNG", "VR FUN - SC Vivo Q7".
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+{
+  const st = E.normalizeState(window.SAMPLE_DATA);
+  st.sites = [{ dept: 'tutu', code: 'TTAMTP', name: 'TUTU MN AEON MALL TÂN PHÚ', revenue: 0 }];
+
+  // -- đoán bộ phận theo chữ hiệu --
+  const dp = st.departments;
+  assert.strictEqual(E.doanBoPhan('Tutu Train - Aeon Tân An ( Dịch vụ K&H )', dp), 'tutu');
+  assert.strictEqual(E.doanBoPhan('VR FUN - SC Vivo Q7 ( Dịch Vụ và Giải Trí K&H )', dp), 'funzone');
+  assert.strictEqual(E.doanBoPhan('FUNZONE CITY VŨNG TÀU ( Dịch Vụ và Giải Trí K&H )', dp), 'funzone');
+  assert.strictEqual(E.doanBoPhan('ECO FARM LOTTE PHAN THIẾT ( Dịch Vụ K&H )', dp), 'farm',
+    '"ECOFARM" phải thắng "FARM" — lấy dấu hiệu DÀI NHẤT');
+  assert.strictEqual(E.doanBoPhan('SNOW FUN AEON BÌNH DƯƠNG ( Dịch Vụ K&H )', dp), 'event');
+  assert.strictEqual(E.doanBoPhan('Ngôi Nhà Ma - Aeon Bình Dương ( Dịch Vụ K&H )', dp), 'event');
+  assert.strictEqual(E.doanBoPhan('COFFE GO AN LẠC ( Dịch Vụ K&H )', dp), '',
+    'không có chữ hiệu nào thì ĐỪNG đoán — để người chọn');
+
+  // -- tạo điểm mới --
+  const ghep = [
+    { cua_hang: 'VR FUN - SC Vivo Q7 ( Dịch Vụ và Giải Trí K&H )', thanh_tien: 32460000, siteIndex: null, taoMoi: 'funzone' },
+    { cua_hang: 'Ngôi Nhà Ma - Aeon Bình Dương ( Dịch Vụ K&H )', thanh_tien: 216545000, siteIndex: null, taoMoi: 'event' },
+    { cua_hang: 'COFFE GO AN LẠC ( Dịch Vụ K&H )', thanh_tien: 19705000, siteIndex: null, taoMoi: '' },
+  ];
+  const r = E.taoDiemTuFabi(st, ghep);
+  assert.strictEqual(r.tao.length, 2, 'chỉ tạo những dòng người dùng đã chọn bộ phận');
+  assert.strictEqual(st.sites.length, 3, 'thêm 2 điểm vào danh sách');
+
+  const vr = st.sites.find((s) => s.name.indexOf('VR FUN') === 0);
+  assert.strictEqual(vr.dept, 'funzone');
+  assert.strictEqual(vr.name, 'VR FUN - SC Vivo Q7', 'tên điểm CẮT đuôi pháp nhân');
+  assert.strictEqual(vr.revenue, 32460000, 'và nhận luôn doanh thu của kỳ này');
+  assert.strictEqual(vr.fabiTen, 'VR FUN - SC Vivo Q7 ( Dịch Vụ và Giải Trí K&H )',
+    'giữ NGUYÊN tên gốc làm khoá liên kết — cắt đuôi ở đây là tháng sau không ghép lại được');
+
+  // 🔴 KHÔNG BỊA MÃ ĐƠN VỊ. Mã đơn vị là mã trong sổ MISA; bịa ra thì bút toán hạch toán vào một
+  //    đơn vị KHÔNG TỒN TẠI, mà nhìn tờ nhập thì thấy có mã nên chẳng ai nghi.
+  assert.strictEqual(vr.code, '', 'để trống mã đơn vị');
+  const canhBao = E.validate(st).filter((i) => i.msg.indexOf('chưa có Mã đơn vị') >= 0);
+  assert(canhBao.length && canhBao[0].level === 'warn', 'nhưng phải CẢNH BÁO ra, không im lặng');
+
+  // -- dòng chưa chọn bộ phận thì để nguyên, không tạo bừa --
+  assert.strictEqual(ghep[2].siteIndex, null);
+
+  // -- tạo xong thì liên kết sống hoạt động luôn --
+  const kq = E.dongBoFabi(st, [
+    { cua_hang: 'VR FUN - SC Vivo Q7 ( Dịch Vụ và Giải Trí K&H )', thanh_tien: 40000000 },
+    { cua_hang: 'Ngôi Nhà Ma - Aeon Bình Dương ( Dịch Vụ K&H )', thanh_tien: 216545000 },
+  ]);
+  assert.strictEqual(st.sites.find((s) => s.name.indexOf('VR FUN') === 0).revenue, 40000000,
+    'điểm vừa tạo phải tự cập nhật ở các kỳ sau');
+  assert.strictEqual(kq.daLinh, 2);
+
+  console.log('OK — cơ sở mới bên FABi: tự tách điểm, đoán bộ phận, không bịa mã đơn vị.');
+}

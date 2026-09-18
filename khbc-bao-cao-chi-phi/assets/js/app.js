@@ -723,6 +723,7 @@
     gan: { chu: 'gần đúng', mo: 'Đoán theo số từ chung — nên nhìn lại trước khi ghi.' },
     khong: { chu: 'chưa ghép', mo: 'Không đoán được. Tự chọn điểm, hoặc để nguyên thì bỏ qua cửa hàng này.' },
     tay: { chu: 'anh chọn', mo: 'Anh vừa chọn tay — sẽ được nhớ cho kỳ sau.' },
+    tao: { chu: '➕ tạo điểm mới', mo: 'Cửa hàng mới bên FABi — sẽ tạo một điểm mới bên này. Mã đơn vị để trống, nhớ điền sau.' },
   };
 
   function fabiBoxHtml() {
@@ -734,15 +735,25 @@
         <div class="toolbar" style="margin-top:6px"><button class="btn small" data-act="fabiDong">Đóng</button></div></div>`;
     }
     const ds = fabi.ghep || [];
-    const chon = ds.filter((x) => x.siteIndex !== null);
+    const chon = ds.filter((x) => x.siteIndex !== null || x.taoMoi);
+    const soTao = ds.filter((x) => x.siteIndex === null && x.taoMoi).length;
+    const chuaGhep = ds.filter((x) => x.siteIndex === null && !x.taoMoi);
     const tongChon = chon.reduce((a, x) => a + x.thanh_tien, 0);
-    const opt = (sel) => `<option value="">— chưa ghép —</option>` + state.sites
-      .map((s, i) => `<option value="${i}" ${i === sel ? 'selected' : ''}>${esc(deptName(s.dept))} · ${esc(s.name || s.code)}</option>`).join('');
+    /* Ô chọn có BA nhóm: bỏ qua · ghép vào điểm sẵn có · TẠO ĐIỂM MỚI trong một bộ phận.
+       Nhóm thứ ba là chỗ gỡ cái kẹt anh Thắng nói: cửa hàng mới bên FABi không còn phải đứng mãi
+       ở "— chưa ghép —" rồi rơi ra ngoài báo cáo. */
+    const opt = (x) => `<option value="" ${x.siteIndex === null && !x.taoMoi ? 'selected' : ''}>— chưa ghép (bỏ qua) —</option>`
+      + `<optgroup label="Ghép vào điểm sẵn có">` + state.sites
+        .map((s, i) => `<option value="${i}" ${i === x.siteIndex ? 'selected' : ''}>${esc(deptName(s.dept))} · ${esc(s.name || s.code || '(chưa đặt tên)')}</option>`).join('')
+      + `</optgroup><optgroup label="➕ Tạo điểm mới trong bộ phận">` + state.departments
+        .map((d) => `<option value="new:${esc(d.id)}" ${x.taoMoi === d.id ? 'selected' : ''}>➕ ${esc(d.name)} — "${esc(E.tenGonFabi(x.cua_hang))}"</option>`).join('')
+      + `</optgroup>`;
     return `<div class="card" style="margin:0 0 10px;background:var(--panel-2)">
       <div class="card-head">
         <h2>Doanh thu FABi ${esc(fabi.tu)} → ${esc(fabi.den)}</h2>
-        <span class="hint">${ds.length} cửa hàng · đã ghép ${chon.length} · tổng sẽ ghi ${fmt(tongChon)}</span>
+        <span class="hint">${ds.length} cửa hàng · đã ghép ${chon.length - soTao}${soTao ? ` · tạo mới ${soTao}` : ''} · tổng sẽ ghi ${fmt(tongChon)}</span>
         <div class="spacer"></div>
+        ${chuaGhep.length ? `<button class="btn small" data-act="fabiTaoHet" title="Với mỗi cửa hàng chưa ghép, tạo một điểm mới trong bộ phận đoán được từ tên quán. Vẫn sửa được từng dòng trước khi Ghi.">➕ Tạo điểm cho ${chuaGhep.length} cửa hàng còn lại</button>` : ''}
         <button class="btn small primary" data-act="fabiGhi" ${chon.length ? '' : 'disabled'}>Ghi ${chon.length} điểm vào báo cáo</button>
         <button class="btn small" data-act="fabiDong">Huỷ</button>
       </div>
@@ -753,7 +764,7 @@
             <td>${esc(x.cua_hang)}</td>
             ${tdn(x.thanh_tien)}
             <td class="num muted">${x.so_ngay}</td>
-            <td><select data-fabi="${k}" style="min-width:230px">${opt(x.siteIndex)}</select></td>
+            <td><select data-fabi="${k}" style="min-width:260px">${opt(x)}</select></td>
             <td class="muted" title="${esc((FABI_CACH[x.cach] || {}).mo || '')}">${esc((FABI_CACH[x.cach] || {}).chu || x.cach)}${x.diem ? ` (${x.diem} từ chung)` : ''}</td>
           </tr>`).join('')}
         </tbody>
@@ -1140,8 +1151,22 @@
       commit();
     },
     fabiDong() { fabi = null; renderTab(); },
+    fabiTaoHet() {
+      if (!fabi || !fabi.ghep) return;
+      let n = 0, khong = 0;
+      fabi.ghep.forEach((g) => {
+        if (g.siteIndex !== null || g.taoMoi) return;
+        const d = E.doanBoPhan(g.cua_hang, state.departments);
+        if (d) { g.taoMoi = d; g.cach = 'tao'; n++; } else { khong++; }
+      });
+      renderTab();
+      toast(`Đã chọn tạo mới ${n} điểm.` + (khong ? ` ${khong} cửa hàng không đoán được bộ phận — tự chọn giúp em.` : ''));
+    },
     fabiGhi() {
       if (!fabi || !fabi.ghep) return;
+      /* Tạo điểm mới TRƯỚC, vì napFabi ghi theo siteIndex — tạo sau thì mấy điểm mới không nhận
+         được đồng doanh thu nào. */
+      const t = E.taoDiemTuFabi(state, fabi.ghep);
       const kq = E.napFabi(state, fabi.ghep);
       fabi = null;
       /* Ghi xong là đã có liên kết — bật luôn tự lấy, đó chính là thứ anh Thắng muốn ("tự link
@@ -1149,8 +1174,11 @@
       const bat = !state.options.fabiTuDong && kq.xong > 0;
       if (bat) state.options.fabiTuDong = true;
       commit();
-      toast(`Đã nối ${kq.xong} điểm với Doanh thu FABi${kq.boQua ? ` · bỏ qua ${kq.boQua} cửa hàng chưa ghép` : ''}.`
-        + (bat ? ' Từ nay số tự lấy, khỏi bấm.' : ''));
+      toast(`Đã nối ${kq.xong} điểm với Doanh thu FABi`
+        + (t.tao.length ? ` · tạo mới ${t.tao.length} điểm` : '')
+        + (kq.boQua ? ` · bỏ qua ${kq.boQua} cửa hàng chưa ghép` : '') + '.'
+        + (bat ? ' Từ nay số tự lấy, khỏi bấm.' : '')
+        + (t.tao.length ? ' Nhớ điền Mã đơn vị cho điểm mới.' : ''));
     },
     /* 🔴 XUẤT RIÊNG TỜ NHẬP MISA. File tổng có 17 sheet và sheet ĐẦU là "File tổng báo cáo" —
        bố cục khác hẳn; đưa nguyên file ấy cho MISA là nó đọc trúng sheet đầu rồi báo sai cột, dù
@@ -1370,11 +1398,20 @@
         const k = Number(el.getAttribute('data-fabi'));
         const v = el.value === '' ? null : Number(el.value);
         if (fabi && fabi.ghep && fabi.ghep[k]) {
-          /* Một điểm chỉ nhận MỘT cửa hàng: gán cho dòng này thì gỡ khỏi dòng kia, không thì
-             hai cửa hàng cùng ghi vào một điểm và cái sau đè mất cái trước. */
-          if (v !== null) { fabi.ghep.forEach((g, i) => { if (i !== k && g.siteIndex === v) { g.siteIndex = null; g.cach = 'khong'; } }); }
-          fabi.ghep[k].siteIndex = v;
-          fabi.ghep[k].cach = v === null ? 'khong' : 'tay';
+          const g = fabi.ghep[k];
+          const raw = el.value;
+          if (raw.indexOf('new:') === 0) {
+            /* Chưa tạo ngay — chỉ ghi ý định. Tạo thật lúc bấm Ghi, để anh còn đổi ý hoặc Huỷ mà
+               không để lại một điểm rác trong danh sách. */
+            g.siteIndex = null; g.taoMoi = raw.slice(4); g.cach = 'tao';
+          } else {
+            g.taoMoi = '';
+            /* Một điểm chỉ nhận MỘT cửa hàng: gán cho dòng này thì gỡ khỏi dòng kia, không thì
+               hai cửa hàng cùng ghi vào một điểm và cái sau đè mất cái trước. */
+            if (v !== null) { fabi.ghep.forEach((o, i) => { if (i !== k && o.siteIndex === v) { o.siteIndex = null; o.cach = 'khong'; } }); }
+            g.siteIndex = v;
+            g.cach = v === null ? 'khong' : 'tay';
+          }
           renderTab();
         }
         return;
