@@ -322,8 +322,10 @@ t('🔴 đính ảnh đi đường RIÊNG, không ghi lại cả dòng qua updat
   b.F.mo();
   t('🔴 hàng để "chưa xếp" → nói ra số tiền ấy',
     /2300000đ/.test(b.O.daLichNhac.innerHTML), b.O.daLichNhac.innerHTML);
-  t('   và gọi đúng tên: "dự kiến đợt tiếp theo"',
-    /dự kiến đợt tiếp theo/.test(b.O.daLichNhac.innerHTML), b.O.daLichNhac.innerHTML);
+  t('   và gọi đúng tên: "dự kiến lần tiếp theo" — CÙNG một từ với bảng lệnh (anh Thắng '
+    + '18/09: *"2 từ ngữ khác nhau, đồng nhất lại là lần 1,2,3"*)',
+    /dự kiến lần tiếp theo/.test(b.O.daLichNhac.innerHTML), b.O.daLichNhac.innerHTML);
+  t('   và chữ "đợt" không lọt vào dòng nhắc', !/đợt/.test(b.O.daLichNhac.innerHTML), b.O.daLichNhac.innerHTML);
   t('   KHÔNG gắn dấu cảnh báo cho một việc đúng quy trình',
     b.O.daLichNhac.innerHTML.indexOf('⚠️') < 0, b.O.daLichNhac.innerHTML);
   xep(b, 5, 2); b.F.xep();
@@ -465,10 +467,14 @@ t('🔴 bảng hạng mục của màn Duyệt không nổ khi chưa mở màn �
     daVaoLenh: 68790000, daChiTU: 0, tongDuToan: 0 }, 0);
   /* Khoá theo CẶP nhãn–số, không khoá mỗi con số: cả hai con số đều có mặt trên thẻ (68.79tr ở
      dòng "dự kiến tổng đơn"), nên dò số trần thì phép xanh kể cả khi hai dòng đổi chỗ cho nhau. */
-  t('🔴 "đã xin" là tổng các đợt (30tr), không phải cả lệnh (68.79tr)',
+  t('🔴 "đã xin" là tổng các lần đã khai (30tr), không phải cả lệnh (68.79tr)',
     /Số tiền đã xin tạm ứng<\/span><b[^>]*>30000000đ</.test(h), h);
-  t('🔴 và bày "dự kiến đợt tiếp theo" 38.790.000đ',
-    /dự kiến đợt tiếp theo/.test(h) && />38790000đ</.test(h), h);
+  t('🔴 và bày "dự kiến lần tiếp theo" 38.790.000đ',
+    /dự kiến lần tiếp theo/.test(h) && />38790000đ</.test(h), h);
+  /* 🔴 THẺ NÀY CŨNG PHẢI DÙNG CHUNG TỪ VỚI BẢNG LỆNH — anh Thắng 18/09: *"2 từ ngữ khác nhau,
+     đồng nhất lại là lần 1,2,3"*. Nó nằm ở đầu trang, ngay trên bảng; hai từ cho một thứ mà
+     đứng cách nhau một gang tay là chỗ dễ đọc nhầm nhất. */
+  t('   và chữ "đợt" không còn trên thẻ', !/đợt/.test(h), h);
   t('   đưa hết hạng mục vào lệnh rồi thì dòng chân báo xong, không đòi thêm',
     /đã đưa hết hạng mục vào lệnh/.test(h), h);
 }
@@ -619,7 +625,7 @@ const q = (row, tien, checked) => ({ checked: !!checked, value: '',
   const dagui = f({ tt: 'xong', dot: 1, qtDot: 2 }, 2300000);
   t('🔴 đã nằm trong lệnh quyết toán → KHÔNG còn ô tích (gửi hai lần là tất toán gấp đôi)',
     !/data-xqt/.test(dagui), dagui);
-  t('   nhưng cho biết đã gửi đợt mấy', /đã gửi QT đợt 2/.test(dagui), dagui);
+  t('   nhưng cho biết đã gửi lệnh mấy', /đã gửi QT lệnh 2/.test(dagui), dagui);
   const chuaXong = f({ tt: 'ung', dot: 1, qtDot: 0 }, 2300000);
   t('🔴 hạng mục CHƯA chốt hoá đơn → không có ô tích quyết toán', !/data-xqt/.test(chuaXong), chuaXong);
   t('   mà có nút chốt xong trước đã', /hmMoChot/.test(chuaXong), chuaXong);
@@ -873,7 +879,7 @@ const HM2 = [
   const f = new Function('moi', `with(moi){ ${boc('_uncGon')}\n return _uncGon; }`)(moi);
   const dai = f('https://khmatrix.com/wp-content/uploads/vhcp/HoSo_DuAn/DA_rat_dai.jpg', 2);
   t('🔴 UNC là liên kết → rút thành một chữ bấm được, KHÔNG in cả địa chỉ',
-    /📎 UNC · đợt 2/.test(dai) && dai.indexOf('>https://') < 0, dai);
+    /📎 UNC · lệnh 2/.test(dai) && dai.indexOf('>https://') < 0, dai);
   t('   và rê chuột vào vẫn xem được ảnh', /data-bill=/.test(dai), dai);
   const so = f('UNC-88', 1);
   t('🔴 UNC là SỐ gõ tay → in nguyên (số ấy ngắn, và chính nó mới là thông tin)',

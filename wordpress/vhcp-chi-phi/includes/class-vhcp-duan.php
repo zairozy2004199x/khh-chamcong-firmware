@@ -922,7 +922,7 @@ class VHCP_DuAn {
 			'role'   => VHCP_Auth::vai_tro(),
 			'action' => 'Đổi trạng thái hạng mục dự án',
 			'target' => (string) $ma_da . '#' . $k,
-			'detail' => $cu['tt'] . ' → ' . $moi['tt'] . ( $moi['dot'] ? ( ' · đợt ' . $moi['dot'] ) : '' ),
+			'detail' => $cu['tt'] . ' → ' . $moi['tt'] . ( $moi['dot'] ? ( ' · lệnh ' . $moi['dot'] ) : '' ),
 		) );
 		return $moi;
 	}
@@ -1074,7 +1074,7 @@ class VHCP_DuAn {
 			'actor'  => VHCP_Auth::nguoi(),
 			'role'   => VHCP_Auth::vai_tro(),
 			'action' => (string) $viec,
-			'target' => (string) $ma_da . ' · đợt ' . $k,
+			'target' => (string) $ma_da . ' · lệnh ' . $k,
 			'detail' => 'trạng thái ' . $moi['tt'] . ' · ' . count( $moi['rows'] ) . ' hạng mục · '
 				. number_format( (float) $moi['soTien'], 0, ',', '.' ) . 'đ'
 				. ( '' !== $moi['unc'] ? ( ' · UNC ' . $moi['unc'] ) : '' )
@@ -1265,11 +1265,11 @@ class VHCP_DuAn {
 			foreach ( (array) ( isset( $x['rows'] ) ? $x['rows'] : array() ) as $rr ) {
 				$rr = (int) $rr;
 				if ( ! isset( $trong_lenh[ $rr ] ) ) {
-					return VHCP_Util::err( 'Dòng ' . $rr . ' được xếp vào một đợt nhận tiền nhưng '
+					return VHCP_Util::err( 'Dòng ' . $rr . ' được xếp vào một lần nhận tiền nhưng '
 						. 'không nằm trong lệnh này.' );
 				}
 				if ( isset( $da_gan[ $rr ] ) ) {
-					return VHCP_Util::err( '"' . $lon[ $rr ] . '" bị xếp vào hai đợt nhận tiền — '
+					return VHCP_Util::err( '"' . $lon[ $rr ] . '" bị xếp vào hai lần nhận tiền — '
 						. 'một khoản chỉ nhận một lần.' );
 				}
 				$da_gan[ $rr ] = 1;
@@ -1329,7 +1329,7 @@ class VHCP_DuAn {
 	public static function cap_tien_phan( $ma_da, $dot, $them = array() ) {
 		if ( ! self::find( $ma_da ) ) { return VHCP_Util::err( 'Không tìm thấy dự án' ); }
 		$d = self::dot_cua( $ma_da, $dot );
-		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy lệnh tạm ứng đợt ' . (int) $dot ); }
+		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy lệnh tạm ứng ' . (int) $dot ); }
 		$vai = VHCP_Auth::vai_tro();
 		if ( ! in_array( $vai, array( 'Admin', 'Kế toán cá nhân', 'Kế toán NCC' ), true ) ) {
 			return VHCP_Util::err( 'Chỉ kế toán cấp tạm ứng được.' );
@@ -1387,7 +1387,7 @@ class VHCP_DuAn {
 		$tt = (string) $tt;
 		if ( ! in_array( $tt, self::TT_DOT, true ) ) { return VHCP_Util::err( 'Trạng thái không hợp lệ' ); }
 		$d = self::dot_cua( $ma_da, $dot );
-		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy lệnh tạm ứng đợt ' . (int) $dot ); }
+		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy lệnh tạm ứng ' . (int) $dot ); }
 		$them = (array) $them;
 		$vai  = VHCP_Auth::vai_tro();
 		$duyet_duoc = in_array( $vai, array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC' ), true );
@@ -1397,7 +1397,7 @@ class VHCP_DuAn {
 			return VHCP_Util::err( 'Chỉ quản lý hoặc kế toán duyệt / trả lại được.' );
 		}
 		if ( 'ung' === $tt && ! $ke_toan ) { return VHCP_Util::err( 'Chỉ kế toán cấp tạm ứng được.' ); }
-		if ( 'ung' === $d['tt'] ) { return VHCP_Util::err( 'Lệnh đợt ' . $d['dot'] . ' đã cấp tiền rồi.' ); }
+		if ( 'ung' === $d['tt'] ) { return VHCP_Util::err( 'Lệnh ' . $d['dot'] . ' đã cấp tiền rồi.' ); }
 		if ( 'duyet' === $tt && 'xin' !== $d['tt'] ) { return VHCP_Util::err( 'Chỉ duyệt được lệnh đang xin tạm ứng.' ); }
 		if ( 'ung' === $tt && 'duyet' !== $d['tt'] ) { return VHCP_Util::err( 'Chỉ cấp tiền cho lệnh đã duyệt.' ); }
 		if ( 'tra' === $tt && ! in_array( $d['tt'], array( 'xin', 'duyet' ), true ) ) {
@@ -1625,12 +1625,12 @@ class VHCP_DuAn {
 		$tt = (string) $tt;
 		if ( ! in_array( $tt, array( 'xong', 'tra' ), true ) ) { return VHCP_Util::err( 'Trạng thái không hợp lệ' ); }
 		$d = self::dot_cua( $ma_da, $dot, 'qt' );
-		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy lệnh quyết toán đợt ' . (int) $dot ); }
+		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy lệnh quyết toán ' . (int) $dot ); }
 		$vai = VHCP_Auth::vai_tro();
 		if ( ! in_array( $vai, array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC' ), true ) ) {
 			return VHCP_Util::err( 'Chỉ quản lý hoặc kế toán chốt / trả lại quyết toán được.' );
 		}
-		if ( 'xong' === $d['tt'] ) { return VHCP_Util::err( 'Lệnh quyết toán đợt ' . $d['dot'] . ' đã chốt sổ rồi.' ); }
+		if ( 'xong' === $d['tt'] ) { return VHCP_Util::err( 'Lệnh quyết toán ' . $d['dot'] . ' đã chốt sổ rồi.' ); }
 
 		$sua = array( 'tt' => $tt );
 		if ( isset( $them['lyDo'] ) ) { $sua['lyDo'] = trim( (string) $them['lyDo'] ); }
@@ -2146,7 +2146,7 @@ class VHCP_DuAn {
 		if ( ! $khoa_row || ! self::hm_khoa( $ma_da, $khoa_row ) ) { return ''; }
 		$h = self::hm_cua( $ma_da, $khoa_row );
 		return 'Hạng mục đã chốt là chi thực tế — không ' . $viec . ' được nữa'
-			. ( $h['qtDot'] > 0 ? ( ' (đã gửi quyết toán đợt ' . $h['qtDot'] . ')' ) : '' )
+			. ( $h['qtDot'] > 0 ? ( ' (đã gửi quyết toán lệnh ' . $h['qtDot'] . ')' ) : '' )
 			. '. Kế toán bấm "🔓 Mở lại" thì mới đụng được.';
 	}
 
