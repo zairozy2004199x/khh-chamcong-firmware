@@ -132,6 +132,31 @@ input,select{width:100%;padding:12px 13px;font-size:16px;border-radius:var(--bo-
 	border:1px solid var(--vien-dam);background:var(--nen);color:var(--chu);font-family:inherit}
 input:focus,select:focus{outline:none;border-color:var(--nhan);
 	box-shadow:0 0 0 3px rgba(56,189,248,.22)}
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 Ô NGÀY / GIỜ TRÊN iOS TRÀN RA NGOÀI THẺ.
+ *
+ * Anh Thắng 18/09/2026, hai ảnh chụp iPhone (màn Xin phép đi trễ và Xin nghỉ): *"Lệch ô"* — ô
+ * NGÀY thò hẳn ra khỏi mép phải tấm thẻ trắng, trong khi ô Lý do ngay dưới thì vừa khít.
+ *
+ * Vì sao: `width:100%` KHÔNG thắng được chiều rộng nội tại của ô ngày trên Safari. Safari dựng
+ * `input[type=date]` bằng một hộp flex chứa mấy ô con (ngày / tháng / năm) và đặt cho nó một
+ * `min-width` tối thiểu đủ chứa chuỗi dài nhất — với định dạng tiếng Việt là *"ngày 18 thg 9,
+ * 2026"*. Khi `min-width` nội tại lớn hơn 100% của thẻ cha, nó thắng, và ô đè ra ngoài.
+ *
+ * `box-sizing:border-box` (đã có ở `*`) KHÔNG chữa được chuyện này: nó chỉ tính padding vào
+ * chiều rộng, không hạ được chiều rộng tối thiểu.
+ *
+ * Chữa bằng đúng hai thứ:
+ *   · `min-width:0` — gỡ cái sàn nội tại, cho `width:100%` có hiệu lực;
+ *   · `-webkit-appearance:none` — bỏ vỏ native, không thì Safari tự đặt lại kích thước.
+ * Thêm `max-width:100%` làm chốt chặn cuối: dù ngày nào Safari đổi cách dựng, ô cũng không
+ * tràn được ra khỏi thẻ nữa.
+ *
+ * ⚠️ CHỈ ĐỘNG TỚI Ô NGÀY/GIỜ. Gỡ `appearance` của mọi ô là mất luôn mũi tên của `<select>` —
+ *    người dùng không biết ô ấy bấm được.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+input[type=date],input[type=month],input[type=time],input[type=datetime-local]{
+	min-width:0;max-width:100%;-webkit-appearance:none;appearance:none}
 /* Nút nhún khi bấm — cùng nhịp với bảng công, để hai màn nói một thứ tiếng. Ở đây nó còn
    đáng giá hơn: người bấm đang cầm điện thoại một tay, cần biết ngay là đã trúng nút. */
 button{font-family:inherit;font-size:15px;border:0;border-radius:var(--bo-nut);padding:13px var(--d4);

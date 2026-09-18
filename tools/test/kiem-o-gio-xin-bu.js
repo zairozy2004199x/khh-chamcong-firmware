@@ -117,7 +117,25 @@ t('🔴 và cắt bằng object-fit:cover, không bóp méo hình',
 t('🔴 ảnh lưu vẫn lấy từ videoWidth/videoHeight, không lấy từ khung đã cắt',
   TPL.indexOf('v.videoWidth / v.videoHeight') >= 0);
 
-/* ── 6. MÁY CHỦ VẪN CHẶT ───────────────────────────────────────────────────────────────── */
+/* ── 6. Ô NGÀY KHÔNG ĐƯỢC TRÀN RA NGOÀI THẺ (iOS) ──────────────────────────────────────── */
+/* Anh Thắng 18/09/2026, ảnh iPhone màn Xin phép đi trễ và Xin nghỉ: *"Lệch ô"* — ô NGÀY thò
+   hẳn ra khỏi mép phải thẻ trắng. Safari đặt cho `input[type=date]` một `min-width` nội tại đủ
+   chứa "ngày 18 thg 9, 2026", và nó THẮNG `width:100%`. */
+const RULE = (TPL.match(/input\[type=date\][^}]*}/) || [''])[0];
+t('🔴 có luật riêng cho ô ngày/giờ', RULE.length > 0);
+t('🔴 gỡ sàn chiều rộng nội tại (min-width:0)', /min-width:\s*0/.test(RULE), RULE);
+t('🔴 bỏ vỏ native, không thì Safari tự đặt lại kích thước',
+  /-webkit-appearance:\s*none/.test(RULE), RULE);
+t('   và có chốt chặn cuối max-width:100%', /max-width:\s*100%/.test(RULE), RULE);
+/* Luật phải phủ cả `month`/`time` — màn Bảng công và Phiếu lương dùng ô tháng. */
+t('luật phủ cả ô tháng và ô giờ',
+  /input\[type=month\]/.test(TPL) && /input\[type=time\]/.test(TPL));
+/* 🔴 KHÔNG ĐƯỢC GỠ `appearance` CỦA MỌI Ô. Gỡ cả `select` là mất mũi tên xổ — người dùng
+   không còn biết ô ấy bấm được. */
+t('🔴 KHÔNG gỡ appearance của select',
+  !/^\s*select\s*{[^}]*appearance:\s*none/m.test(TPL));
+
+/* ── 7. MÁY CHỦ VẪN CHẶT ───────────────────────────────────────────────────────────────── */
 /* 🔴 Đây là vế dễ quên nhất: sửa cho người dùng đỡ khổ rồi tiện tay nới luôn cửa cuối. `phut()`
    là chỗ cuối cùng trước khi một con giờ thành công thành tiền. */
 t('🔴 VHCC_XinBu::phut() VẪN đòi đúng HH:mm',
