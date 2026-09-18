@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.73.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-09-17 · Phiên bản hiện tại: **2.108.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,27 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v2.108.0 — Ghế ẩn biến mất khỏi màn nhập của nhân viên (thu hẹp ngoại lệ của 2.107)
+
+Anh Thắng 17/09/2026: *"những mã ghế ẩn, cho ẩn khỏi màn nhập nhân viên"*. Bản 15/09 chữa lỗi "0
+ghế" bằng cách cho MỌI ghế `an`=1 hiện lại khi PIN gán tường minh ghế/cơ sở ấy — chữa đúng bệnh
+nhưng quá tay: cơ sở còn ghế sống vẫn phải nhìn cả loạt hàng gắn nhãn "đang ẩn" (VD Vạn Hạnh Mall:
+`80143`, `80144`, `VC-TDUC-1`, `VC-TDUC-2`).
+
+- `VHG_BaoCao::ds_ghe()` tách làm **2 lượt**: lượt 1 gom ghế trong phạm vi + đếm **ghế sống của
+  từng cơ sở**; lượt 2 mới dựng danh sách trả về.
+- Luật mới cho ghế ẩn: hiện **chỉ khi** PIN gán đích danh ghế/cơ sở ấy **VÀ** cơ sở đó không còn
+  ghế sống nào trong phạm vi PIN. Cơ sở còn dù một ghế sống → ghế ẩn biến mất.
+- **Lưới chống khoá cửa giữ nguyên**: cơ sở bị ẩn sạch (điều chuyển/dọn tạm) thì ghế ẩn vẫn hiện để
+  nhân viên nộp được — không tái phát lỗi "0 ghế" của 2.85/2.86.
+- PIN toàn quyền (màn admin / quản nhiều nơi): không đổi, ghế ẩn vẫn giấu như cũ.
+- Tab **Quản lý ghế**, đối chiếu, kế toán đọc thẳng `VHG_May::ds_may()` nên **vẫn thấy đủ** ghế ẩn;
+  dữ liệu không mất, gỡ cờ `an` là ghế về lại màn nhập ngay.
+
+Đã chạy bệ thử gọi thẳng `ds_ghe()` với 5 tình huống (cơ sở còn ghế sống / ẩn sạch / PIN gán đích
+danh ghế ẩn / PIN toàn quyền) — kết quả đúng như luật trên.
+
 
 ### v1.73.0 — "Xác nhận đã nộp" thay cho dữ liệu cũ/đã nhập ở "Ai đang cầm tiền"
 

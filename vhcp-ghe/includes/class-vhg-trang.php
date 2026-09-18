@@ -2194,7 +2194,31 @@ JS;
 			/* Chân trang pháp lý — DỰNG Ở MÁY CHỦ, ngoài `#app`. Nằm trong JS thì JS hỏng là
 			   thông tin công ty biến mất; xem VHG_Chan::html(). */
 			. VHG_Chan::html()
+			/* ĐƯỜNG VỀ TRẠM CHẤM CÔNG — chỉ hiện khi trang này mở từ lưới Ứng dụng bên ấy
+			   (`?ve=tram`). App điện thoại chạy chế độ standalone, mà ở đó iOS KHÔNG có nút
+			   back: không có đường về thì nhân viên đóng hẳn app rồi mở lại, mất chỗ đang làm.
+			   Lý do đầy đủ ở `vhcp-cham-cong/includes/class-vhcc-ve-tram.php`.
+
+			   ⚠️ DÒ CẢ HÀM, không chỉ tên lớp — hai plugin cài độc lập nên bản có thể lệch;
+			      lớp CÓ mà hàm KHÔNG là Fatal error, trắng cả trang ghế vì một cái nút phụ.
+			      Đúng luật đã ghi ở `VHCP_App::chan_block()`.
+			   ⚠️ Cũng DỰNG Ở MÁY CHỦ như chân trang, ngoài `#app`: JS của trang này hỏng thì
+			      đường về vẫn còn — mà lúc JS hỏng mới đúng là lúc người ta cần thoát ra. */
+			. self::ve_tram()
 			. '</body></html>';
+	}
+
+	/**
+	 * Đường về trạm chấm công, dạng chuỗi (trang này ghép HTML bằng chuỗi chứ không echo).
+	 *
+	 * Trả rỗng khi: không có plugin Chấm Công, bản bên ấy chưa có hàm, hoặc trang này KHÔNG
+	 * được mở từ lưới Ứng dụng. Ba trường hợp đều là "không có gì để hiện", không phải lỗi.
+	 */
+	private static function ve_tram() {
+		if ( ! class_exists( 'VHCC_VeTram' ) || ! method_exists( 'VHCC_VeTram', 'nut' ) ) { return ''; }
+		ob_start();
+		VHCC_VeTram::nut();
+		return (string) ob_get_clean();
 	}
 
 	/**

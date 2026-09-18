@@ -60,7 +60,7 @@ class VHG_BaoCao {
 	   boot() trả nó kèm mọi phản hồi (`banBc`) — số ở góc nói tệp chính là bản nào, số này nói
 	   TỆP BÁO CÁO là bản nào. Hai số lệch nhau là bằng chứng tệp cũ còn sống. Phải tăng cùng
 	   VHG_VERSION mỗi lần sửa tệp này. */
-	const BAN = '2.106.0';
+	const BAN = '2.108.0';
 
 	public static function don_vi() { return VHG_Quy::don_vi(); }
 
@@ -176,27 +176,49 @@ class VHG_BaoCao {
 		   nguyên trong danh mục, chỉ là màn thu tiền của nhân viên gọn lại, không còn hàng đỏ.
 		   ($hien_an giữ lại cho tương thích chữ ký; không còn dùng để bơm hàng đỏ ở đây.)
 
-		   🔴 NGOẠI LỆ — GHẾ ẨN VẪN HIỆN CHO PIN ĐƯỢC GÁN ĐÍCH DANH CƠ SỞ/GHẾ ẤY. Anh Thắng
+		   🔴 NGOẠI LỆ — CHỈ CÒN LÀ LƯỚI CHỐNG KHOÁ CỬA, KHÔNG CÒN BÀY RA HÀNG NGÀY. Anh Thắng
 		   15/09/2026: *"cơ sở tự ẩn, chứ ghế không bao giờ rời khỏi cơ sở"* + *"hiện lại ẩn cho nhân
 		   viên nộp"*. Cả một cơ sở có thể bị ẩn hết ghế (điều chuyển/dọn tạm) mà nhân viên được gán
 		   cơ sở đó VẪN phải nộp doanh thu được — trước đây ds_ghe() lọc sạch `an` nên họ vào thấy "0
-		   ghế", cơ sở rớt khỏi phạm vi (lỗi 2.85/2.86 chưa dứt điểm). Nay: ghế `an`=1 vẫn hiện NẾU
-		   PIN gán tường minh ghế đó (`ghe`) hoặc cơ sở của nó (`coso_key`). PIN TOÀN QUYỀN (màn
-		   admin / quản nhiều nơi) giữ nguyên — ghế ẩn vẫn giấu để bảng gọn. Cờ `an` gửi ĐÚNG giá trị
-		   thật để màn nhập gắn nhãn "đang ẩn", không giả 0 như trước. */
+		   ghế", cơ sở rớt khỏi phạm vi (lỗi 2.85/2.86 chưa dứt điểm). Bản 15/09 chữa bằng cách cho
+		   MỌI ghế ẩn hiện lại khi PIN gán tường minh ghế/cơ sở ấy — chữa đúng bệnh nhưng quá tay:
+		   cơ sở còn ghế sống vẫn phải nhìn cả đống hàng "đang ẩn".
+
+		   Anh Thắng 17/09/2026: *"những mã ghế ẩn, cho ẩn khỏi màn nhập nhân viên"*. Nay thu hẹp
+		   lại đúng phần lưới: ghế `an`=1 CHỈ hiện khi PIN gán tường minh ghế đó (`ghe`) hoặc cơ sở
+		   của nó (`coso_key`) **VÀ** cơ sở ấy KHÔNG CÒN GHẾ SỐNG NÀO trong phạm vi PIN. Cơ sở còn
+		   dù chỉ một ghế sống → ghế ẩn biến mất khỏi màn nhập; cơ sở ẩn sạch → ghế ẩn hiện lại để
+		   nhân viên vẫn nộp được, không tái phát "0 ghế". PIN TOÀN QUYỀN (màn admin / quản nhiều
+		   nơi) giữ nguyên — ghế ẩn vẫn giấu để bảng gọn. Cờ `an` vẫn gửi ĐÚNG giá trị thật để màn
+		   nhập gắn nhãn "đang ẩn" cho số ít còn sót lại. */
 		$co_coso = ! empty( $q['coso_key'] );
 		$co_ghe  = ! empty( $q['ghe'] );
-		$ra = array();
+		/* LƯỢT 1 — gom ghế trong phạm vi + ĐẾM GHẾ SỐNG của từng cơ sở. Phải biết cơ sở nào đã ẩn
+		   sạch rồi mới quyết được ghế ẩn nào đáng hiện, nên không gộp chung một vòng được. */
+		$trong = array();
+		$song  = array();   // squash(tên cơ sở) => số ghế KHÔNG ẩn nằm trong phạm vi PIN
 		foreach ( VHG_May::ds_may() as $m ) {
 			$coso = (string) ( isset( $m['coso_ten'] ) ? $m['coso_ten'] : '' );
 			if ( ! self::trong_pham_vi( $q, $coso, (string) $m['ma'] ) ) { continue; }
-			$an = ! empty( $m['an'] );
+			$an  = ! empty( $m['an'] );
+			$key = self::squash( $coso );
+			if ( ! isset( $song[ $key ] ) ) { $song[ $key ] = 0; }
+			if ( ! $an ) { $song[ $key ]++; }
+			$trong[] = array( 'm' => $m, 'coso' => $coso, 'an' => $an, 'key' => $key );
+		}
+		/* LƯỢT 2 — dựng danh sách trả về. */
+		$ra = array();
+		foreach ( $trong as $t ) {
+			$m    = $t['m'];
+			$coso = $t['coso'];
+			$an   = $t['an'];
 			if ( $an ) {
-				/* Ghế ẩn: chỉ hiện khi PIN gán ĐÍCH DANH ghế này hoặc cơ sở này (PIN có phạm vi).
-				   PIN toàn quyền (cả hai rỗng) → `$gan` false → ghế ẩn vẫn giấu như cũ. */
+				/* Ghế ẩn: chỉ hiện khi PIN gán ĐÍCH DANH ghế này hoặc cơ sở này (PIN có phạm vi)
+				   VÀ cơ sở ấy không còn ghế sống nào. PIN toàn quyền (cả hai rỗng) → `$gan` false
+				   → ghế ẩn vẫn giấu như cũ. */
 				$gan = ( $co_ghe && in_array( (string) $m['ma'], $q['ghe'], true ) )
-					|| ( $co_coso && isset( $q['coso_key'][ self::squash( $coso ) ] ) );
-				if ( ! $gan ) { continue; }
+					|| ( $co_coso && isset( $q['coso_key'][ $t['key'] ] ) );
+				if ( ! $gan || $song[ $t['key'] ] > 0 ) { continue; }
 			}
 			$ra[] = array(
 				'ma'   => (string) $m['ma'],
