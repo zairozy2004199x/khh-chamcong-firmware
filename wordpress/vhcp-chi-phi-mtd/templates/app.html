@@ -681,12 +681,23 @@
       <!-- id để bài kiểm neo vào ĐÚNG BẢNG NÀY. Neo bằng "cột đầu là Nội dung" thì đổi thứ tự
            cột một cái là ba bài kiểm đỏ vì không tìm thấy bảng — chứ không phải vì có lỗi. -->
       <div class="tw"><table id="daLineTable">
-        <!-- 🔴 BỀ RỘNG ĐẶT TAY CHO TỪNG CỘT — anh Thắng 18/09/2026: *"cân đối cột nội dung lại"*.
-             Để trình duyệt tự chia thì nó chia theo NỘI DUNG ĐANG CÓ: cột Gian rỗng vẫn được
-             một khoảng rộng, cột Hồ sơ chỉ có mấy cái kẹp giấy cũng vậy, còn cột NỘI DUNG —
-             thứ người ta thật sự dò — bị bóp lại tới mức "Băng keo trong" xuống ba dòng.
-             Mấy cột chỉ chứa biểu tượng hoặc số ngắn thì ghim hẹp; phần dư dồn cho Nội dung. -->
-        <thead><tr><th style="width:104px" title="Lúc dòng này được nhập vào — máy ghi, không ai gõ được">Ngày nhập</th><th style="width:240px;min-width:200px">Nội dung</th><th style="width:186px" title="Loại chi phí quyết định mã tài khoản (TK Nợ). Kế toán gắn lại được nếu chọn sai.">Loại chi phí</th><th style="width:84px">Gian</th><th style="text-align:right;width:104px">Dự toán</th><th style="text-align:right;width:48px">SL</th><th style="text-align:right;width:92px">Đơn giá</th><th style="text-align:right;width:104px">Thành tiền</th><th style="text-align:right;width:104px">Thực tế</th><th style="width:92px">Hình thức chi</th><th style="width:56px">VAT</th><th style="text-align:center;width:46px">Ảnh</th><th style="text-align:center;width:46px">Hồ sơ</th><th style="width:104px">Ghi chú</th><th style="width:36px"></th></tr></thead>
+        <!-- ══════════════════════════════════════════════════════════════════════════════════
+             CÂN CỘT: MỌI CỘT CO VỀ ĐÚNG BỀ RỘNG NỘI DUNG, PHẦN DƯ DỒN HẾT CHO "NỘI DUNG".
+
+             Anh Thắng 18/09/2026: *"cân đối cột nội dung lại"*, rồi *"Lệch rồi, từ ảnh đến ghi
+             chú hơi dãn"*.
+
+             🔴 ĐẶT `width:...px` CHO TỪNG CỘT LÀ SAI — đã thử và hỏng. Bảng này chạy
+                `table-layout:auto`, ở đó `width` chỉ là GỢI Ý: trình duyệt vẫn tự cân theo nội
+                dung, rồi dồn phần dư vào mấy cột cuối. Kết quả là tiêu đề trôi khỏi ô của nó
+                (nhãn HỒ SƠ nằm cách cái kẹp giấy cả gang tay) và bảng tràn sang phải.
+             🔴 CÁCH ĐÚNG VỚI `auto` LÀ `width:1%` + `white-space:nowrap`. Nó bảo trình duyệt
+                "cột này chỉ cần vừa đủ chữ" — mọi cột hẹp lại đúng bằng nội dung, và toàn bộ
+                chỗ thừa chảy về cột DUY NHẤT không khai width: cột Nội dung.
+             ⚠️ `min-width` trên cột Nội dung vẫn giữ: bảng hẹp quá thì nó là cột được ưu tiên
+                giữ chỗ, chứ không phải cột đầu tiên bị bóp.
+             ══════════════════════════════════════════════════════════════════════════════════ -->
+        <thead><tr><th style="width:1%;white-space:nowrap" title="Lúc dòng này được nhập vào — máy ghi, không ai gõ được">Ngày nhập</th><th style="min-width:200px">Nội dung</th><th style="width:1%;white-space:nowrap" title="Loại chi phí quyết định mã tài khoản (TK Nợ). Kế toán gắn lại được nếu chọn sai.">Loại chi phí</th><th style="width:1%;white-space:nowrap">Gian</th><th style="text-align:right;width:1%;white-space:nowrap">Dự toán</th><th style="text-align:right;width:1%;white-space:nowrap">SL</th><th style="text-align:right;width:1%;white-space:nowrap">Đơn giá</th><th style="text-align:right;width:1%;white-space:nowrap">Thành tiền</th><th style="text-align:right;width:1%;white-space:nowrap">Thực tế</th><th style="width:1%;white-space:nowrap">Hình thức chi</th><th style="width:1%;white-space:nowrap">VAT</th><th style="text-align:center;width:1%;white-space:nowrap">Ảnh</th><th style="text-align:center;width:1%;white-space:nowrap">Hồ sơ</th><th style="width:1%;white-space:nowrap">Ghi chú</th><th style="width:1%"></th></tr></thead>
         <tbody id="daLineBody"></tbody>
       </table></div>
 
@@ -5568,7 +5579,11 @@
         +o('donGia',  money(l.donGia),  khoaDT)
         +'<td class="money">'+money(l.thanhTien)+'</td>'
         +o('thucTe',  money(l.thucTe),  false)
-        +'<td>'+htB+'</td><td>'+esc(l.vat)+'</td><td style="text-align:center">'+img+'</td><td style="text-align:center">'+hoSoCell+'</td>'
+        /* ⚠️ NOWRAP CHO MẤY Ô NGẮN. Không có nó thì "Có VAT" xuống hai dòng, "Hình thức chi"
+           cũng vậy — hàng cao gấp đôi mà cột vẫn không hẹp đi được. */
+        +'<td style="white-space:nowrap">'+htB+'</td><td style="white-space:nowrap">'+esc(l.vat)+'</td>'
+        +'<td style="text-align:center;white-space:nowrap">'+img+'</td>'
+        +'<td style="text-align:center;white-space:nowrap">'+hoSoCell+'</td>'
         +(canEdit?('<td class="o-sua" data-osua="'+l.row+'|note" onclick="daOSua(this)" title="Bấm để sửa ngay tại đây">'+esc(l.note)+'</td>')
                  :('<td>'+esc(l.note)+'</td>'))
         +'<td style="text-align:center;white-space:nowrap">'+acts+'</td></tr>';

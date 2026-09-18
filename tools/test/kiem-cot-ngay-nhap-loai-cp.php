@@ -234,8 +234,12 @@ VHCP_DuAn::delete( $maD );
 /* ⚠️ NEO VÀO `id="daLineTable"`, không neo vào "cột đầu là Nội dung". Anh Thắng 18/09/2026 đổi
    thứ tự cột (*"Cho cột ngày ra ngoài"*) và ba bài kiểm đỏ vì không tìm thấy bảng — chứ không
    phải vì có lỗi. Thứ tự cột là chuyện sẽ còn đổi; cái bảng thì không. */
-$_da = mb_strpos( $HTML, 'id="daLineTable"' );
-$_dau = false === $_da ? '' : mb_substr( $HTML, $_da, 1400 );
+/* ⚠️ CẮT TỚI `</thead>`, ĐỪNG CẮT THEO SỐ KÝ TỰ. Bản đầu lấy 1400 ký tự từ `id=` — đầu bảng
+   dài hơn thế (mỗi `<th>` còn mang `title`), nên cửa sổ đứt giữa chừng và phép "đếm cột" chỉ
+   thấy 2 trong 15 cột. Nó báo đỏ một chuyện không có thật, mà lại trông rất giống thật. */
+$_da  = mb_strpos( $HTML, 'id="daLineTable"' );
+$_het = false === $_da ? false : mb_strpos( $HTML, '</thead>', $_da );
+$_dau = ( false === $_da || false === $_het ) ? '' : mb_substr( $HTML, $_da, $_het - $_da );
 t( '🔴 bảng DỰ ÁN có mã id để neo', false !== $_da );
 t( '🔴 đầu bảng DỰ ÁN có cột "Ngày nhập"', false !== mb_strpos( $_dau, '>Ngày nhập</th>' ) );
 /* 🔴 VÀ NÓ ĐỨNG CỘT ĐẦU — đúng lời anh Thắng, và khớp bảng đơn tuần (ở đó cột ngày cũng đứng
@@ -247,13 +251,42 @@ t( '🔴 và nó đứng CỘT ĐẦU, trước cả Nội dung',
 	false !== mb_strpos( $_dau, '>Ngày nhập</th>' )
 	&& false !== mb_strpos( $_dau, '>Nội dung</th>' )
 	&& mb_strpos( $_dau, '>Ngày nhập</th>' ) < mb_strpos( $_dau, '>Nội dung</th>' ), $_dau );
-/* 🔴 CỘT NỘI DUNG PHẢI CÓ BỀ RỘNG ĐẶT TAY. Anh Thắng 18/09/2026: *"cân đối cột nội dung lại"*.
-   Để trình duyệt tự chia thì nó chia theo nội dung đang có: cột Gian rỗng vẫn rộng, còn cột
-   Nội dung — thứ người ta thật sự dò — bị bóp tới mức "Băng keo trong" xuống ba dòng. */
-t( '🔴 cột Nội dung được ghim bề rộng, không để trình duyệt tự chia',
-	1 === preg_match( '/<th style="width:\d+px;min-width:\d+px">Nội dung<\/th>/u', $_dau ), $_dau );
-t( '   và mấy cột chỉ chứa biểu tượng thì ghim HẸP, để phần dư dồn cho Nội dung',
-	1 === preg_match( '/width:4\dpx[^>]*>Ảnh<\/th>/u', $_dau ), $_dau );
+/* ═══ CÂN CỘT: MỌI CỘT CO VỀ ĐÚNG NỘI DUNG, PHẦN DƯ DỒN HẾT CHO "NỘI DUNG" ════════════
+ * Anh Thắng 18/09/2026: *"cân đối cột nội dung lại"*, rồi *"Lệch rồi, từ ảnh đến ghi chú hơi
+ * dãn"*.
+ *
+ * 🔴 ĐẶT `width:...px` CHO TỪNG CỘT LÀ SAI — đã thử và hỏng, nên phép này canh đúng chỗ ấy.
+ *    Bảng chạy `table-layout:auto`, ở đó `width` chỉ là GỢI Ý: trình duyệt vẫn tự cân theo nội
+ *    dung rồi dồn phần dư vào mấy cột cuối, làm tiêu đề trôi khỏi ô của nó và bảng tràn phải.
+ *    Cách đúng là `width:1%` + `nowrap` cho mọi cột hẹp; cột DUY NHẤT không khai width sẽ hút
+ *    trọn chỗ thừa — và nó phải là cột Nội dung.
+ * ─────────────────────────────────────────────────────────────────────────────────────── */
+$_ths = array();
+/* ⚠️ `<th([^>]*)>` KHỚP LUÔN CẢ `<thead>` — attr thành "ead", và cột đầu tiên bị báo là thiếu
+   `width:1%` trong khi nó có. Phải đòi một khoảng trắng sau `th`, hoặc đóng ngay. */
+if ( preg_match_all( '/<th(\s[^>]*)?>(.*?)<\/th>/u', $_dau, $_m, PREG_SET_ORDER ) ) {
+	foreach ( $_m as $_x ) {
+		$_ths[] = array(
+			'attr' => isset( $_x[1] ) ? $_x[1] : '',
+			'ten'  => trim( wp_strip_all_tags( isset( $_x[2] ) ? $_x[2] : '' ) ),
+		);
+	}
+}
+t( 'đọc được đầu bảng dự án', count( $_ths ) >= 10, count( $_ths ) );
+$_khong_width = array();
+foreach ( $_ths as $_x ) {
+	if ( false === mb_strpos( $_x['attr'], 'width:1%' ) ) { $_khong_width[] = $_x['ten']; }
+}
+/* 🔴 ĐÚNG MỘT CỘT ĐƯỢC PHÉP KHÔNG KHAI `width:1%`, và nó là Nội dung. Hai cột trở lên là chỗ
+   thừa chia đôi, và cột Nội dung lại hẹp đi — đúng cái vừa phải sửa. */
+teq( '🔴 chỉ MỘT cột không co lại — và đó là cột Nội dung',
+	array( 'Nội dung' ), $_khong_width );
+t( '   cột Nội dung vẫn giữ `min-width` để bảng hẹp thì nó là cột được ưu tiên giữ chỗ',
+	1 === preg_match( '/<th style="min-width:\d+px">Nội dung<\/th>/u', $_dau ), $_dau );
+/* Mấy ô ngắn phải `nowrap`, không thì "Có VAT" xuống hai dòng và cột vẫn không hẹp đi được. */
+t( '🔴 ô VAT và Hình thức chi không cho xuống dòng',
+	false !== mb_strpos( $HTML, "white-space:nowrap\">'+htB+'</td>" )
+	&& false !== mb_strpos( $HTML, "white-space:nowrap\">'+esc(l.vat)+'</td>" ) );
 t( '   và mỗi hàng dự án vẽ ô loại chi phí riêng', false !== strpos( $HTML, '+_daOLoaiCp(l)' ) );
 t( '🔴 mục con KHÔNG bày ô chọn (mã đi theo hạng mục lớn — hai mã cho một khoản tiền)',
 	false !== strpos( $HTML, 'if(laCon || !_laKeToan()){' ) );
