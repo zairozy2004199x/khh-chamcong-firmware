@@ -869,3 +869,56 @@ console.log(`OK — ${passed} phép so khớp với Excel đều đạt, các tr
 
   console.log('OK — số của kỳ nào: đổi nhãn tháng mà không nạp lại số thì phải báo đỏ.');
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// TIỀN BÊN NGUỒN CHƯA NỐI VÀO ĐIỂM NÀO  (anh Thắng 18/09/2026: "Sai số doanh thu từ ghế")
+//
+// Trang Ghế 01→17/09: tổng 1.216.383.000 trên 416 ghế. Báo cáo chỉ thấy Posh 546.005.000, JP 0.
+// Chênh ~670 triệu nằm ở những cơ sở bên Ghế chưa ai ghép vào điểm bán — bản trước lặng lẽ bỏ
+// qua, nên nhìn Tổng quan thì tưởng tháng này bán kém. Phần dôi ra phải ĐẾM ĐƯỢC.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+{
+  const st = E.normalizeState(window.SAMPLE_DATA);
+  st.sites = [
+    { dept: 'posh', code: 'PAMBD', name: 'POSH AMBD', revenue: 0, gheTen: 'AEON MALL BÌNH DƯƠNG' },
+    { dept: 'posh', code: 'PAMTP', name: 'POSH AMTP', revenue: 0, gheTen: 'AEON MALL TÂN PHÚ' },
+  ];
+  const DS = [
+    { cua_hang: 'AEON MALL BÌNH DƯƠNG', thanh_tien: 300000000 },
+    { cua_hang: 'AEON MALL TÂN PHÚ', thanh_tien: 246005000 },
+    { cua_hang: 'SÂN BAY PHÚ QUỐC', thanh_tien: 58840000 },
+    { cua_hang: 'SÂN BAY CẦN THƠ', thanh_tien: 31140000 },
+    { cua_hang: 'SENSE CITY CÀ MAU', thanh_tien: 9940000 },
+    { cua_hang: 'TTC TÂY NINH', thanh_tien: 0 },
+  ];
+  const kq = E.dongBoFabi(st, DS, 'gheTen');
+  assert.strictEqual(kq.daLinh, 2);
+  assert.strictEqual(kq.tongNguon, 645925000, 'tổng của CHÍNH nguồn, để đối chiếu với trang Ghế');
+  assert.strictEqual(st.sites[0].revenue + st.sites[1].revenue, 546005000, 'phần đã nối');
+
+  // 🔴 phần rơi ra ngoài
+  assert.strictEqual(kq.tongChuaNoi, 99920000, 'chênh lệch phải ĐẾM ĐƯỢC, không im lặng biến mất');
+  assert.strictEqual(kq.chuaNoi.length, 3, 'cơ sở 0đ không tính là "tiền đang rơi" — đừng báo động giả');
+  assert(kq.chuaNoi.every((x) => !/TÂY NINH/.test(x.cua_hang)));
+  assert.strictEqual(kq.tongNguon - kq.tongChuaNoi, 546005000,
+    'nguồn = phần vào báo cáo + phần chưa nối, không hụt đi đâu cả');
+
+  // -- nối nốt thì hết dôi --
+  st.sites.push({ dept: 'jp', code: 'JSBPQ', name: 'JP SÂN BAY PHÚ QUỐC', revenue: 0, gheTen: 'SÂN BAY PHÚ QUỐC' });
+  const kq2 = E.dongBoFabi(st, DS, 'gheTen');
+  assert.strictEqual(kq2.tongChuaNoi, 41080000, 'nối thêm một cơ sở thì phần dôi giảm đúng bằng nó');
+  assert.strictEqual(st.sites[2].revenue, 58840000);
+
+  // -- lương cũng cùng luật, và cơ sở chưa khai giá KHÔNG bị tính là "tiền đang rơi" --
+  const sl = E.normalizeState(window.SAMPLE_DATA);
+  sl.salarySites = [{ id: 'a', dept: 'posh', name: 'POSH AMBD', reported: 0, actual: 0, nsTen: 'POSH MN AEON MALL BÌNH DƯƠNG' }];
+  const kl = E.dongBoLuong(sl, [
+    { cua_hang: 'POSH MN AEON MALL BÌNH DƯƠNG', thanh_tien: 111649262, co_luong: true },
+    { cua_hang: 'JP MN AEON MALL BÌNH TÂN', thanh_tien: 41635755, co_luong: true },
+    { cua_hang: 'FUNZONE CITY VŨNG TÀU', thanh_tien: 0, co_luong: false },
+  ]);
+  assert.strictEqual(kl.tongChuaNoi, 41635755);
+  assert.strictEqual(kl.chuaNoi.length, 1, 'cơ sở chưa khai giá giờ đã có lời cảnh báo riêng, đừng đếm hai lần');
+
+  console.log('OK — tiền bên nguồn chưa nối vào điểm nào: đếm được, không im lặng biến mất.');
+}

@@ -158,6 +158,24 @@
       </span></div>`;
   }
 
+  /* 🔴 TIỀN BÊN NGUỒN CHƯA NỐI VÀO ĐIỂM NÀO. Anh Thắng 18/09/2026: trang Ghế 01→17/09 tổng
+     1.216.383.000 mà báo cáo chỉ thấy 546.005.000 — chênh 670 triệu nằm ở những cơ sở chưa ai
+     ghép. Bản trước im lặng bỏ qua, nên nhìn Tổng quan thì tưởng tháng này bán kém chứ không ai
+     nghĩ là thiếu liên kết. Số dôi ra phải hiện ngay cạnh doanh thu. */
+  function soDuNguonHtml() {
+    const soDu = (fabiLan && fabiLan.soDu) || [];
+    if (!soDu.length) return '';
+    const tong = soDu.reduce((a, x) => a + x.tien, 0);
+    return `<div class="issue warn" style="margin:0 0 12px">
+      <span class="lv">THIẾU LIÊN KẾT</span>
+      <span><strong>${fmt(tong)} bên nguồn chưa nối vào điểm bán nào</strong> nên KHÔNG vào báo cáo này.
+      ${soDu.map((x) => `${esc(NGUON[x.nguon].ten)}: ${x.ds.length} cơ sở = ${fmt(x.tien)} / tổng ${fmt(x.tongNguon)}`).join(' · ')}.<br>
+      <span class="muted">${esc(soDu.map((x) => x.ds.slice(0, 6).map((d) => d.cua_hang).join(', ')
+        + (x.ds.length > 6 ? ` … và ${x.ds.length - 6} cơ sở nữa` : '')).join(' · '))}</span><br>
+      <button class="btn small primary" data-act="moDoanhThu">Sang tab Doanh thu để ghép</button>
+      </span></div>`;
+  }
+
   function renderDashboard(root) {
     const R = report;
     const totalRev = Object.values(R.revenue).reduce((a, b) => a + b, 0);
@@ -165,6 +183,7 @@
     const totalCost = R.grandTotal + manualTotal + R.salaryDeptTotals.total + R.salarySitesTotal.actual;
     root.innerHTML = `
       ${lechKyHtml()}
+      ${soDuNguonHtml()}
       <div class="kpis">
         <div class="kpi"><div class="k">Tổng doanh thu ${R.periodLabel}</div><div class="v">${fmt(totalRev)}</div><div class="s">${state.sites.length} điểm · ${state.departments.length} bộ phận</div></div>
         <div class="kpi"><div class="k">Chi phí phân bổ (Mục I)</div><div class="v">${fmt(R.grandTotal)}</div><div class="s">${state.costItems.length} khoản → ${R.columns.length} cột báo cáo</div></div>
@@ -776,6 +795,9 @@
     const soTao = ds.filter((x) => x.siteIndex === null && x.taoMoi).length;
     const chuaGhep = ds.filter((x) => x.siteIndex === null && !x.taoMoi);
     const tongChon = chon.reduce((a, x) => a + x.thanh_tien, 0);
+    /* Tổng của CHÍNH NGUỒN, để đối chiếu thẳng với con số trên trang nguồn. Không bày ra thì
+       không ai thấy phần bị bỏ lại — đúng chỗ 670 triệu của anh Thắng đã rơi mất. */
+    const tongNguon = ds.reduce((a, x) => a + x.thanh_tien, 0);
     /* Ô chọn có BA nhóm: bỏ qua · ghép vào điểm sẵn có · TẠO ĐIỂM MỚI trong một bộ phận.
        Nhóm thứ ba là chỗ gỡ cái kẹt anh Thắng nói: cửa hàng mới bên FABi không còn phải đứng mãi
        ở "— chưa ghép —" rồi rơi ra ngoài báo cáo. */
@@ -788,7 +810,7 @@
     return `<div class="card" style="margin:0 0 10px;background:var(--panel-2)">
       <div class="card-head">
         <h2>${esc((NGUON[fabi.nguon] || NGUON.fabi).ten)} ${esc(fabi.tu)} → ${esc(fabi.den)}</h2>
-        <span class="hint">${ds.length} cửa hàng · đã ghép ${chon.length - soTao}${soTao ? ` · tạo mới ${soTao}` : ''} · tổng sẽ ghi ${fmt(tongChon)}</span>
+        <span class="hint">${ds.length} cửa hàng · <strong>nguồn có ${fmt(tongNguon)}</strong> · đã ghép ${chon.length - soTao}${soTao ? ` · tạo mới ${soTao}` : ''} · tổng sẽ ghi ${fmt(tongChon)}${tongNguon - tongChon > 0 ? ` · <strong class="bad-text">bỏ lại ${fmt(tongNguon - tongChon)}</strong>` : ''}</span>
         <div class="spacer"></div>
         ${chuaGhep.length ? `<button class="btn small" data-act="fabiTaoHet" title="Với mỗi cửa hàng chưa ghép, tạo một điểm mới trong bộ phận đoán được từ tên quán. Vẫn sửa được từng dòng trước khi Ghi.">➕ Tạo điểm cho ${chuaGhep.length} cửa hàng còn lại</button>` : ''}
         <button class="btn small primary" data-act="fabiGhi" ${chon.length ? '' : 'disabled'}>Ghi ${chon.length} điểm vào báo cáo</button>
@@ -838,7 +860,7 @@
   async function fabiLayNgay(im) {
     if (!state.options.fabiTuDong || !API.isEnabled() || sync.locked) return;
     /* Chạy CẢ HAI nguồn. Nguồn nào chưa có điểm nào nối thì bỏ qua, khỏi gọi máy chủ thừa. */
-    let doi = 0; const mat = [];
+    let doi = 0; const mat = []; const soDu = [];
     for (const n of Object.keys(NGUON)) {
       const N = NGUON[n];
       if (!(state.sites || []).some((s) => (s[N.khoa] || '').trim())) continue;
@@ -849,9 +871,11 @@
         const kq = E.dongBoFabi(state, d.ds, N.khoa);
         doi += kq.soDoi;
         kq.mat.forEach((x) => mat.push(x));
+        /* Phần tiền bên nguồn chưa nối vào điểm nào — xem khối dài trong engine.dongBoFabi. */
+        if (kq.tongChuaNoi > 0) soDu.push({ nguon: n, ds: kq.chuaNoi, tien: kq.tongChuaNoi, tongNguon: kq.tongNguon });
       } catch (e) { /* mạng hỏng thì thôi, số cũ vẫn còn — lần mở sau lấy lại */ }
     }
-    fabiLan = { luc: new Date().toLocaleTimeString('vi-VN'), soDoi: doi, mat };
+    fabiLan = { luc: new Date().toLocaleTimeString('vi-VN'), soDoi: doi, mat, soDu };
     if (doi) { commit(); if (!im) toast(`🔗 Cập nhật ${doi} điểm từ nguồn đã nối.`); }
     else { recompute(); renderTab(); }
   }
@@ -942,7 +966,8 @@
     if (!state.options.luongTuDong && !linh) return '';
     const mat = (luongLan && luongLan.mat) || [];
     const chuaGia = (luongLan && luongLan.chuaGia) || [];
-    return `<div class="issue ${mat.length || chuaGia.length ? 'warn' : 'info'}" style="margin:0 0 10px">
+    const chuaNoi = (luongLan && luongLan.chuaNoi) || [];
+    return `<div class="issue ${mat.length || chuaGia.length || chuaNoi.length ? 'warn' : 'info'}" style="margin:0 0 10px">
       <span class="lv">${state.options.luongTuDong ? '🔗 TỰ LẤY' : 'LIÊN KẾT'}</span>
       <span>${linh} dòng lương ← trang Nhân sự.
       ${!state.options.luongTuDong ? 'Đang <strong>tắt</strong> tự lấy — số giữ nguyên như đã ghi.'
@@ -950,6 +975,7 @@
         : (luongLan && luongLan.luc) ? `Lấy lần cuối lúc ${esc(luongLan.luc)}${luongLan.soDoi ? ` · đổi ${luongLan.soDoi} dòng` : ' · không có gì đổi'}.` : 'Sẽ tự lấy khi mở kỳ.'}
       ${mat.length ? `<br><strong>⚠ ${mat.length} dòng mất liên kết</strong> (cơ sở không còn bên Nhân sự): ${esc(mat.map((x) => x.name).join(', '))} — số cũ được giữ nguyên.` : ''}
       ${chuaGia.length ? `<br><strong>⚠ ${chuaGia.length} dòng kỳ này chưa khai giá giờ</strong>: ${esc(chuaGia.map((x) => x.name).join(', '))} — <strong>giữ số cũ</strong>, em không ghi 0 đè lên.` : ''}
+      ${chuaNoi.length ? `<br><strong>⚠ ${fmt(luongLan.tongChuaNoi)} lương bên Nhân sự chưa nối vào dòng nào</strong> (${chuaNoi.length} cơ sở: ${esc(chuaNoi.slice(0, 6).map((x) => x.cua_hang).join(', '))}${chuaNoi.length > 6 ? '…' : ''}) — chỗ này KHÔNG vào báo cáo, bấm "⬇ Nạp lương từ Nhân sự" để ghép.` : ''}
       </span></div>`;
   }
 
@@ -961,7 +987,8 @@
       const d = r && r.data ? r.data : r;
       if (!d || d.ok === false || !d.ds) return;
       const kq = E.dongBoLuong(state, d.ds);
-      luongLan = { luc: new Date().toLocaleTimeString('vi-VN'), soDoi: kq.soDoi, mat: kq.mat, chuaGia: kq.chuaGia };
+      luongLan = { luc: new Date().toLocaleTimeString('vi-VN'), soDoi: kq.soDoi, mat: kq.mat,
+        chuaGia: kq.chuaGia, chuaNoi: kq.chuaNoi, tongChuaNoi: kq.tongChuaNoi };
       if (kq.soDoi) { commit(); if (!im) toast(`🔗 Cập nhật ${kq.soDoi} dòng lương từ Nhân sự.`); }
       else { recompute(); renderTab(); }
     } catch (e) { /* mạng hỏng thì thôi, số cũ vẫn còn */ }
@@ -1313,6 +1340,7 @@
       commit();
     },
     fabiDong() { fabi = null; renderTab(); },
+    moDoanhThu() { renderTab('revenue'); },
     /* Hai nút của dòng "SAI KỲ" — một đường dựng kỳ mới, một đường quay lại. */
     dungKyMoi() { xoaSoKyNay(); },
     veKyCu() {
@@ -1362,6 +1390,7 @@
       const bat = !state.options.luongTuDong && kq.xong > 0;
       if (bat) state.options.luongTuDong = true;
       commit();
+      luongLayNgay(true);
       toast(`Đã ghi ${kq.xong} dòng lương từ Nhân sự`
         + (kq.tao ? ` · tạo mới ${kq.tao} dòng` : '')
         + (kq.boQua ? ` · bỏ qua ${kq.boQua} cơ sở chưa ghép` : '')
@@ -1394,6 +1423,10 @@
       const bat = !state.options.fabiTuDong && kq.xong > 0;
       if (bat) state.options.fabiTuDong = true;
       commit();
+      /* Chạy luôn một lượt lấy sống: vừa xác nhận liên kết chạy được, vừa đếm ngay phần tiền bên
+         nguồn CHƯA nối vào điểm nào để Tổng quan báo. Đợi tới lần đổi kỳ sau mới đếm thì người ta
+         đã đóng máy đi rồi, mà báo cáo thì đang thiếu tiền. */
+      fabiLayNgay(true);
       toast(`Đã nối ${kq.xong} điểm với ${(NGUON[nguonCu] || NGUON.fabi).ten}`
         + (t.tao.length ? ` · tạo mới ${t.tao.length} điểm` : '')
         + (kq.boQua ? ` · bỏ qua ${kq.boQua} cửa hàng chưa ghép` : '') + '.'

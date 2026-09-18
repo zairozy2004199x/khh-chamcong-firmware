@@ -595,7 +595,17 @@
         s.revenue = moi;
       }
     });
-    return { daLinh, doi, soDoi: doi.filter((x) => !x.mat).length, mat: doi.filter((x) => x.mat) };
+    /* 🔴 TIỀN BÊN NGUỒN KHÔNG NỐI VÀO ĐIỂM NÀO THÌ RƠI RA NGOÀI BÁO CÁO — VÀ IM LẶNG.
+       Anh Thắng 18/09/2026: trang Ghế 01→17/09 tổng 1.216.383.000, báo cáo chỉ thấy 546.005.000.
+       Chênh 670 triệu vì phần lớn cơ sở bên Ghế chưa ai nối vào điểm nào; không dòng nào nói ra,
+       nên nhìn màn Tổng quan thì tưởng doanh thu tháng này thấp. Đếm phần dôi ra và trả về để
+       giao diện bày thành số, đừng để nó biến mất. */
+    const daNoi = {};
+    sites.forEach((x) => { const k = (x[khoa] || '').trim(); if (k) daNoi[k] = true; });
+    const chuaNoi = (ds || []).filter((d) => !daNoi[String(d.cua_hang || '').trim()] && num(d.thanh_tien) !== 0);
+    return { daLinh, doi, soDoi: doi.filter((x) => !x.mat).length, mat: doi.filter((x) => x.mat),
+      chuaNoi, tongNguon: (ds || []).reduce((a, d) => a + num(d.thanh_tien), 0),
+      tongChuaNoi: chuaNoi.reduce((a, d) => a + num(d.thanh_tien), 0) };
   }
 
   /* ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -869,8 +879,14 @@
         r.actual = moi;
       }
     });
+    /* Cùng luật với dongBoFabi: lương bên Nhân sự không nối vào dòng nào thì cũng phải đếm ra. */
+    const daNoi = {};
+    rows.forEach((x) => { const k = (x.nsTen || '').trim(); if (k) daNoi[k] = true; });
+    const chuaNoi = (ds || []).filter((d) => !daNoi[String(d.cua_hang || '').trim()]
+      && d.co_luong !== false && num(d.thanh_tien) !== 0);
     return { daLinh, doi, soDoi: doi.filter((x) => !x.mat && !x.chuaGia).length,
-      mat: doi.filter((x) => x.mat), chuaGia: doi.filter((x) => x.chuaGia) };
+      mat: doi.filter((x) => x.mat), chuaGia: doi.filter((x) => x.chuaGia),
+      chuaNoi, tongChuaNoi: chuaNoi.reduce((a, d) => a + num(d.thanh_tien), 0) };
   }
 
   /** Khoá kỳ dạng '2026-09' — cùng cách đặt khoá với máy chủ (BaoCaoApi.periodKey). */

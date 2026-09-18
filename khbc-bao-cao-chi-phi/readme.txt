@@ -4,7 +4,7 @@ Tags: chi phí, phân bổ, báo cáo, MISA, kế toán
 Requires at least: 5.6
 Tested up to: 6.8
 Requires PHP: 7.2
-Stable tag: 1.15.0
+Stable tag: 1.16.0
 License: GPLv2 or later
 
 Phân bổ chi phí Máy tự động / Khu vui chơi ra "File tổng báo cáo" và phân bổ theo điểm để hạch toán MISA.
@@ -35,6 +35,17 @@ Nhân viên nhập khoản chi phí, kế toán duyệt, web tự tính.
 4. Nhập Excel kỳ đầu (hoặc ⋯ → Nạp dữ liệu mẫu) rồi bắt đầu.
 
 == Changelog ==
+
+= 1.16.0 =
+* 🔴 **Hiện phần doanh thu bên nguồn chưa nối vào điểm nào.** Trang Ghế 01→17/09 tổng
+  1.216.383.000 mà báo cáo chỉ thấy 546.005.000 — chênh nằm ở những cơ sở bên Ghế chưa ai ghép
+  vào điểm bán. Bản trước lặng lẽ bỏ qua, nên nhìn Tổng quan thì tưởng tháng này bán kém chứ
+  không ai nghĩ là **thiếu liên kết**.
+* Tổng quan có dòng **THIẾU LIÊN KẾT**: bao nhiêu tiền, bao nhiêu cơ sở, tên vài cơ sở đầu, và
+  nút sang thẳng tab Doanh thu để ghép.
+* Hộp xem trước khi nạp ghi rõ **tổng của chính nguồn** và **phần sẽ bỏ lại** — đối chiếu thẳng
+  được với con số trên trang nguồn, khỏi phải cộng tay.
+* Tab Lương cũng vậy: lương bên Nhân sự chưa nối vào dòng nào thì nói ra bằng số.
 
 = 1.15.0 =
 * 🔴 **Sửa lỗi Tổng quan trộn hai kỳ.** Đổi ô chọn tháng chỉ đổi cái *nhãn* — doanh thu, lương,
