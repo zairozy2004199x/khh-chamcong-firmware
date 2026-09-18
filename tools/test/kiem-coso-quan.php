@@ -303,6 +303,19 @@ $wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $LAM, 'ngay' => $TH2 
 
 $tok_cht = VHCC_Auth::phat_token( 'Chị Trưởng', 'Cửa hàng trưởng', $CHINH . ', ' . $LAM, 'CQ_CHT' );
 
+/* Đọc TÊN của từng dòng trong lưới — soi đúng ô tên, không soi cả trang. */
+function cq_ten_hang( $trang ) {
+	$m = array();
+	preg_match_all( '#class="ten-nv"[^>]*>(.*?)</a>#s', $trang, $m );
+	return isset( $m[1] ) ? $m[1] : array();
+}
+function cq_co_ten( $trang, $ten ) {
+	foreach ( cq_ten_hang( $trang ) as $x ) {
+		if ( false !== mb_strpos( $x, $ten ) ) { return true; }
+	}
+	return false;
+}
+
 foreach ( array( 'gio', 'cong' ) as $cach ) {
 	$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cai_dat' ) . " WHERE khoa='CACH_TINH_COSO'" );
 	$wpdb->insert( VHCC_DB::t( 'cai_dat' ), array( 'khoa' => 'CACH_TINH_COSO',
@@ -330,8 +343,53 @@ foreach ( array( 'gio', 'cong' ) as $cach ) {
 	   phép thử vẫn báo "vẫn thấy". Anh Thắng: *"phải xem được chính mình chứ"*. */
 	teq( '🔴 [' . $cach . '] lưới có ĐÚNG MỘT dòng người — của chính mình', 1,
 		substr_count( $trang, 'class="ten-nv"' ) );
+	/* 🔴 VÀ DÒNG ẤY PHẢI LÀ MÌNH. Đếm "đúng một" thôi thì một lưới rỗng cũng trượt qua được
+	   (0 ≠ 1 nên còn bắt được), nhưng một lưới có đúng một dòng CỦA NGƯỜI KHÁC thì không —
+	   mà đó mới là kiểu rò tệ nhất. Đọc thẳng chữ trong ô tên. */
+	t( '🔴 [' . $cach . '] và dòng ấy đúng là của mình',
+		cq_co_ten( $trang, 'Chị Trưởng' ) || cq_co_ten( $trang, 'CQ_CHT' ),
+		cq_ten_hang( $trang ) );
 	t( '[' . $cach . '] có băng nói rõ vì sao bảng hẹp',
 		false !== mb_strpos( $trang, 'không phải cơ sở anh/chị quản lý' ) );
+}
+
+/* ================================================== tháng mình CHƯA chấm lần nào ở đó */
+
+echo "— cơ sở chỉ đi làm, tháng chưa chấm lần nào: vẫn phải thấy hàng của mình —\n";
+/* 🔴 ĐÂY LÀ CA BẢN 4.52.3 LÀM TỊT. Anh Thắng ngay sau đó: *"Giờ tịt cả trang cá nhân luôn"* —
+   màn POSH_HCM chỉ còn đúng câu "Tháng 2026-09 chưa có dữ liệu chấm công nào ở cơ sở này".
+   Vì sao trượt khỏi mọi phép thử trước: bài nào cũng gieo cho người đăng nhập một lượt chấm,
+   nên `rows` không bao giờ rỗng và vòng dựng HÀNG TRỐNG không cần chạy. Ở cơ sở mình chỉ đi
+   làm, tháng mình chưa bấm lần nào mới là cảnh thật — và 4.52.3 gác cả vòng ấy nên không còn
+   hàng nào, mất luôn chỗ bấm ô trống để xin bù.
+   ⚠️ CHẠY CẢ HAI CÁCH TÍNH, và đòi cả hai vế một lúc: CÓ hàng của mình, KHÔNG có ai khác. Đòi
+      mỗi vế "không lọt ai" thì lưới rỗng cũng xanh — đúng cái bẫy đã sập một lần. */
+$TH3 = '2026-10';
+foreach ( array( 'gio', 'cong' ) as $cach_t ) {
+	$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cai_dat' ) . " WHERE khoa='CACH_TINH_COSO'" );
+	$wpdb->insert( VHCC_DB::t( 'cai_dat' ), array( 'khoa' => 'CACH_TINH_COSO',
+		'gia_tri' => wp_json_encode( array( $LAM => $cach_t ) ) ) );
+	$_COOKIE = array( VHCC_Web::COOKIE => $tok_cht );
+	$_GET    = array( 'man' => 'cham', 'ccs' => $LAM, 'cth' => $TH3 );
+	$_POST   = array();
+	ob_start();
+	VHCC_Web::phuc_vu();
+	$trang_t = ob_get_clean();
+	$_GET = array();
+	$_COOKIE = array();
+
+	t( '🔴 [' . $cach_t . '] tháng chưa chấm: KHÔNG rơi vào câu "chưa có dữ liệu"',
+		false === mb_strpos( $trang_t, 'chưa có dữ liệu chấm công' ) );
+	teq( '🔴 [' . $cach_t . '] tháng chưa chấm: vẫn đúng MỘT dòng', 1,
+		substr_count( $trang_t, 'class="ten-nv"' ) );
+	t( '🔴 [' . $cach_t . '] tháng chưa chấm: dòng ấy là của mình',
+		cq_co_ten( $trang_t, 'Chị Trưởng' ), cq_ten_hang( $trang_t ) );
+	$ro_t = array();
+	foreach ( array( 'NGƯỜI KHÁC HẲN', 'CQ_KHAC', 'Em Nhân Viên', 'CQ_NV',
+		'NGƯỜI CHƯA CHẤM', 'CQ_TRONG' ) as $x_t ) {
+		if ( false !== mb_strpos( $trang_t, $x_t ) ) { $ro_t[] = $x_t; }
+	}
+	t( '🔴 [' . $cach_t . '] tháng chưa chấm: vẫn KHÔNG lọt ai khác', ! $ro_t, $ro_t );
 }
 
 /* Ở cơ sở mình QUẢN thì trang phải hiện đủ — nới không được thành siết nhầm. */

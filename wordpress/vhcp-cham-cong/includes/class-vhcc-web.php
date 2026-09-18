@@ -7539,6 +7539,26 @@ class VHCC_Web {
 		   vàng nói rằng bảng chỉ có công của chính mình. Đúng cái anh chụp lại ngay sau 4.51.0.
 		   Đây là lần THỨ HAI cùng một kiểu rò ở đúng vòng lặp này (lần trước là mã đang ẩn, xem
 		   khối ngay dưới) — bất cứ phép lọc nào đặt ở cửa vào cũng phải nhắc lại ở đây. */
+		/* 🔴 CHỈ MÌNH THÌ VẪN PHẢI CÓ HÀNG CỦA MÌNH — xem chú thích dài cùng việc trong
+		   `ve_luoi_vp()`. Anh Thắng 18/09/2026: *"Giờ tịt cả trang cá nhân luôn"*. Tháng nào
+		   mình chưa bấm lần nào ở cơ sở chỉ đi làm thì `$ten` rỗng, và màn rơi vào nhánh "chưa
+		   có dữ liệu" — mất luôn cả chỗ để bấm ô trống xin bù. Dựng ĐÚNG MỘT hàng: của mình.
+		   ⚠️ Không hỏi `ds_nhan_vien()` ở nhánh này: hàm ấy gác bằng `co_quyen_ho_so()`, tức
+		      bằng chính cái quyền đang FALSE ở cơ sở này. Hồ sơ của mình thì khỏi hỏi ai. */
+		if ( ! empty( $b['riengMinh'] ) ) {
+			$ma_toi_g = trim( (string) ( isset( $toi['ma_nv'] ) ? $toi['ma_nv'] : '' ) );
+			if ( '' !== $ma_toi_g && ! isset( $ten[ $ma_toi_g ] ) ) {
+				$ten_g = '';
+				if ( class_exists( 'VHCC_NhanSu' ) && method_exists( 'VHCC_NhanSu', 'ho_so' ) ) {
+					$hs_g = VHCC_NhanSu::ho_so( $ma_toi_g );
+					if ( $hs_g && isset( $hs_g['ho_ten'] ) ) { $ten_g = trim( (string) $hs_g['ho_ten'] ); }
+				}
+				if ( '' === $ten_g ) { $ten_g = trim( (string) ( isset( $toi['name'] ) ? $toi['name'] : '' ) ); }
+				$ten[ $ma_toi_g ]        = $ten_g;
+				$o[ $ma_toi_g ]          = array( '' => array() );
+				$khong_cham[ $ma_toi_g ] = true;
+			}
+		}
 		if ( empty( $b['riengMinh'] )
 			&& class_exists( 'VHCC_NhanSu' ) && method_exists( 'VHCC_NhanSu', 'ds_nhan_vien' ) ) {
 			foreach ( VHCC_NhanSu::ds_nhan_vien( $toi, (string) $b['coSo'] ) as $hs ) {
@@ -8140,6 +8160,40 @@ class VHCC_Web {
 		   đặt ở chỗ khác đều không với tới. Anh Thắng phải chụp lại ba lần mới hết.
 		   ⚠️ Hàng trống là hàng của người CHƯA CHẤM ngày nào — nên lọc `rows` ở trên không chạm
 		      tới nó, và phép thử nào chỉ gieo người CÓ chấm cũng không bắt được. */
+		/* 🔴 NHƯNG "KHÔNG DỰNG CHO AI CẢ" KHÔNG ĐƯỢC GỒM CẢ CHÍNH MÌNH.
+		   Anh Thắng 18/09/2026, ngay sau 4.52.3: *"Giờ tịt cả trang cá nhân luôn"* — màn POSH_HCM
+		   chỉ còn đúng câu "Tháng 2026-09 chưa có dữ liệu chấm công nào ở cơ sở này".
+		   Vì sao: bản 4.52.3 gác CẢ vòng dựng hàng trống. Mà ở cơ sở mình chỉ đi làm, tháng nào
+		   mình chưa bấm lần nào thì `rows` rỗng ngay từ đầu — không còn hàng trống nào để dựng,
+		   nên lưới rỗng và màn rơi vào nhánh "chưa có dữ liệu". Tức là vá chỗ rò xong thì bịt
+		   luôn việc chính của màn: XEM CÔNG CỦA CHÍNH MÌNH, và bấm ô trống để xin bù.
+		   Nên: vẫn dựng hàng trống, nhưng ĐÚNG MỘT hàng — của mình.
+		   ⚠️ KHÔNG đi qua `ds_nhan_vien()` ở nhánh này. Hàm ấy gác từng hồ sơ bằng
+		      `co_quyen_ho_so()`, tức bằng chính `co_quyen_coso()` đang trả FALSE ở cơ sở này —
+		      nên người chỉ thuộc riêng cơ sở này sẽ không lọt, và họ lại "tịt" y như cũ. Hồ sơ
+		      của CHÍNH MÌNH thì không cần hỏi quyền ai.
+		   ⚠️ Gác `class_exists` + `method_exists` CÙNG HÀM với lời gọi — luật `kiem-goi-cheo.php`. */
+		if ( $rieng_minh ) {
+			$ma_toi_t = strtoupper( trim( (string) ( isset( $toi['ma_nv'] ) ? $toi['ma_nv'] : '' ) ) );
+			$co_toi   = false;
+			foreach ( $rows as $r_t ) {
+				if ( strtoupper( trim( (string) $r_t['ma'] ) ) === $ma_toi_t ) { $co_toi = true; break; }
+			}
+			if ( ! $co_toi && '' !== $ma_toi_t ) {
+				$ten_toi = '';
+				if ( class_exists( 'VHCC_NhanSu' ) && method_exists( 'VHCC_NhanSu', 'ho_so' ) ) {
+					$hs_toi = VHCC_NhanSu::ho_so( trim( (string) $toi['ma_nv'] ) );
+					if ( $hs_toi && isset( $hs_toi['ho_ten'] ) ) { $ten_toi = trim( (string) $hs_toi['ho_ten'] ); }
+				}
+				if ( '' === $ten_toi ) { $ten_toi = trim( (string) ( isset( $toi['name'] ) ? $toi['name'] : '' ) ); }
+				$rows[] = array(
+					'ma' => trim( (string) $toi['ma_nv'] ), 'ten' => $ten_toi, 'laKeToan' => false,
+					'congNgay' => 0.0, 'congTangCa' => 0.0, 'congDem' => 0.0, 'congBu' => 0.0,
+					'tong' => 0.0, 'soNgayCaLa' => 0, 'soNgayDemThieuGio' => 0,
+					'soNgayDemChuaDuCap' => 0,
+				);
+			}
+		}
 		if ( ! $rieng_minh
 			&& class_exists( 'VHCC_NhanSu' ) && method_exists( 'VHCC_NhanSu', 'ds_nhan_vien' ) ) {
 			$da_co = array();
