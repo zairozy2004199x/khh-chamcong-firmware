@@ -536,7 +536,15 @@ function khh_dt_rest_momo_phi_dat( $req ) {
 }
 
 function khh_dt_rest_momo_phi_xoa( $req ) {
-	return array( 'xong' => khh_dt_momo_phi_xoa( (int) $req->get_param( 'id' ) ) );
+	/* 🔴 THIẾU `id` LÀ BÁO LỖI, KHÔNG PHẢI XOÁ HÀNG SỐ 0.
+	   Bản trước ép thẳng `(int)` nên `id` rỗng thành 0, `$wpdb->delete` không khớp hàng nào, rồi
+	   trả về `xong:false` kèm mã 200 — màn hình vẽ lại y như cũ và người bấm tưởng mình bấm hụt.
+	   Đúng là chuyện đã xảy ra: thân multipart của DELETE không được PHP bóc, `id` tới đây rỗng. */
+	$id = (int) $req->get_param( 'id' );
+	if ( $id <= 0 ) {
+		return new WP_Error( 'khh_dt_phi_id', 'Thiếu mã lượt phí cần xoá.', array( 'status' => 400 ) );
+	}
+	return array( 'xong' => khh_dt_momo_phi_xoa( $id ) );
 }
 
 /**

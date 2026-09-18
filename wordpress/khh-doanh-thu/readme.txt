@@ -97,6 +97,19 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.42.0 =
+* 🔴 **Nút Xoá lượt phí giờ xoá thật.** Trước đây bấm Xoá là không có gì xảy ra và cũng không
+  câu báo nào. Màn hình gửi mã lượt phí trong *thân* một yêu cầu DELETE dạng multipart — mà PHP
+  chỉ tự bóc thân multipart cho POST, còn WordPress chỉ bóc JSON và form-urlencoded. Mã tới máy
+  chủ là rỗng nên nó đi xoá "lượt phí số 0", không có, rồi trả về mã 200 như thường. Nay mã đi
+  trên đường dẫn — phương thức nào cũng đọc được.
+* **Xoá hụt thì kêu lên.** Màn hình trước đây bỏ qua hẳn kết quả máy chủ trả về, nên một lượt
+  xoá hụt trông y hệt một lượt xoá được. Nay không xoá được là hiện lời báo.
+* **Máy chủ chối lượt xoá thiếu mã** thay vì lặng lẽ trả "không xoá được" — thiếu tham số là
+  lỗi, không phải kết quả.
+* `tools/test/kiem-momo-phi.php` lên **60 phép**, `tools/test/kiem-sua-phi-momo.py` lên **32
+  phép** — khoá cả vế máy chủ lẫn vế màn hình.
+
 = 1.41.0 =
 * **Nút Sửa trên từng lượt phí đã nhập.** Bấm là đổ nguyên lượt ấy (tài khoản, khoảng ngày, số
   tiền) lên ô nhập ở trên, bôi sẵn con số cũ, cuộn ô vào tầm mắt — gõ số mới rồi bấm Lưu là ghi

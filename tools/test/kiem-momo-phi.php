@@ -228,6 +228,39 @@ $ten = '' === $ten ? 'KHCHUAAI' : $ten;
 phep( '🔴 chia tạm CHỈ đụng cơ sở chưa có chủ',
 	array_keys( $c9['co_so'] ) === array( $ten ) && 1000 === (int) $c9['co_so'][ $ten ] );
 
+/* ⑤ 🔴 BẤM XOÁ MÀ KHÔNG XOÁ ĐƯỢC (anh Thắng, 18/09/2026) — VÀ KHÔNG CÂU BÁO NÀO.
+      Màn hình gửi `id` trong THÂN multipart của một yêu cầu DELETE. PHP chỉ tự bóc thân
+      multipart cho POST; với DELETE thì `$_POST` rỗng, mà `WP_REST_Request` cũng chỉ bóc JSON
+      và form-urlencoded. Nên `id` tới đây là RỖNG -> `(int) null` = 0 -> xoá hàng số 0 -> không
+      hàng nào khớp -> `xong:false` kèm mã 200. Màn hình vẽ lại y như cũ.
+
+      Bài này khoá vế MÁY CHỦ: thiếu `id` phải là LỖI, không được im lặng trả về "không xoá
+      được". Vế màn hình (`id` đi trên đường dẫn) do `kiem-sua-phi-momo.py` khoá. */
+dung_bang();
+gd( 'x1', '2026-09-01', 1000000, 'KHX' );
+khh_dt_momo_tk_hoc( array( 'KHX' ), 'KH785' );
+khh_dt_momo_phi_dat( '2026-09-01', '2026-09-01', 'KH785', 3300 );
+$ds_x = khh_dt_momo_phi_ds( '2026-09-01', '2026-09-01' );
+phep( 'có một lượt phí để xoá', 1 === count( $ds_x ) );
+
+$loi = khh_dt_rest_momo_phi_xoa( new WP_REST_Request( array() ) );
+phep( '🔴 thiếu id thì BÁO LỖI, không lặng lẽ trả "không xoá được"', is_wp_error( $loi ) );
+phep( 'id rỗng cũng vậy', is_wp_error( khh_dt_rest_momo_phi_xoa( new WP_REST_Request( array( 'id' => '' ) ) ) ) );
+phep( 'và lượt phí vẫn còn nguyên sau lượt gọi hụt',
+	1 === count( khh_dt_momo_phi_ds( '2026-09-01', '2026-09-01' ) ) );
+
+/* Chốt xuôi: có id thì xoá THẬT, và nói là xong. */
+$ok = khh_dt_rest_momo_phi_xoa( new WP_REST_Request( array( 'id' => $ds_x[0]['id'] ) ) );
+phep( 'có id thì xoá được', ! is_wp_error( $ok ) && ! empty( $ok['xong'] ) );
+phep( '🔴 và hàng BIẾN MẤT thật khỏi sổ', array() === khh_dt_momo_phi_ds( '2026-09-01', '2026-09-01' ) );
+/* Xoá xong thì phép chia cũng không còn kể tới nó nữa. */
+$c10 = khh_dt_momo_phi_chia( '2026-09-01', '2026-09-16' );
+phep( 'xoá xong thì phí không còn trong phép chia', 0 === (int) $c10['tong'] );
+/* Id không có thật: xoá hụt, nhưng là "không tìm thấy", không phải lỗi thiếu tham số. */
+$hut = khh_dt_rest_momo_phi_xoa( new WP_REST_Request( array( 'id' => 999999 ) ) );
+phep( 'id không có thật thì báo chưa xong (để màn hình kêu lên)',
+	! is_wp_error( $hut ) && empty( $hut['xong'] ) );
+
 if ( $hong ) {
 	echo "\n✗ HỎNG " . count( $hong ) . " phép (đạt $dat):\n";
 	foreach ( $hong as $h ) { echo "   · 🔴 $h\n"; }

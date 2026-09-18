@@ -747,10 +747,24 @@
       if (!b) return;
       e.preventDefault();
       if (!window.confirm('Xoá lượt phí này?')) return;
-      var fd = new FormData(); fd.append('id', b.getAttribute('data-phi-xoa'));
-      api('momo-phi', { method: 'DELETE', body: fd }).then(taiDoiSoat).catch(function (err) {
-        window.alert(err.message || err);
-      });
+      /* 🔴 `id` ĐI TRONG ĐƯỜNG DẪN, KHÔNG PHẢI TRONG THÂN.
+         Anh Thắng 18/09/2026: *"bấm xóa mà không xóa được"* — và không câu báo nào. PHP chỉ tự
+         đọc thân multipart/form-data cho phương thức POST; với DELETE thì `$_POST` rỗng, mà
+         WP_REST_Request cũng không bóc multipart (nó chỉ bóc JSON và form-urlencoded). Nên
+         `id` tới máy chủ là RỖNG -> xoá hàng số 0 -> không hàng nào -> trả về `xong:false`,
+         mã 200, màn hình vẽ lại y như cũ. Tham số trên đường dẫn thì phương thức nào cũng đọc
+         được. */
+      api('momo-phi?id=' + encodeURIComponent(b.getAttribute('data-phi-xoa')), { method: 'DELETE' })
+        .then(function (j) {
+          /* Và PHẢI xem máy chủ có xoá thật không. Trước đây chỗ này bỏ qua hẳn kết quả, nên
+             một lượt xoá hụt trông y hệt một lượt xoá được. */
+          if (!j || !j.xong) {
+            throw new Error('Máy chủ không xoá được lượt phí này. Anh tải lại trang rồi thử lại; ' +
+              'còn báo lỗi thì chụp màn hình gửi em.');
+          }
+          return taiDoiSoat();
+        })
+        .catch(function (err) { window.alert(err.message || err); });
     });
     /* Lưu phí MoMo. Cũng uỷ quyền, vì khối này nằm trong phần được vẽ lại mỗi lần đổi kỳ. */
     G.addEventListener('click', function (e) {

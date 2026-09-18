@@ -97,9 +97,30 @@ t('co cau "Dang chia TAM" tren man', 'Đang chia TẠM' in ma)
 t('cau chia tam co chi duong nap lai sao ke kem ma tai khoan',
   re.search(r'Đang chia TẠM.*?Sao kê MoMo', ma, re.S) is not None)
 
+# ---- 5. nút Xoá: id phải đi trên ĐƯỜNG DẪN, và kết quả phải được xem ----
+# 🔴 *"bấm xóa mà không xóa được"* (18/09/2026), và không câu báo nào. Màn hình gửi `id` trong
+#    thân multipart của một yêu cầu DELETE; PHP chỉ tự bóc thân multipart cho POST, còn
+#    WP_REST_Request chỉ bóc JSON và form-urlencoded. `id` tới máy chủ là rỗng -> xoá hàng số 0
+#    -> `xong:false` kèm mã 200 -> màn hình vẽ lại y như cũ.
+m = re.search(r"closest\('\[data-phi-xoa\]'\)(.*?)\n    \}\);", ma, re.S)
+t('co bo xu ly cho nut Xoa', m is not None)
+if m:
+    than = m.group(1)
+    mg = re.search(r"api\((.*?)\)\s*\n?", than, re.S)
+    t('bo xu ly Xoa co goi api()', mg is not None)
+    t('🔴 id di tren DUONG DAN (momo-phi?id=...)', "momo-phi?id=" in than)
+    t('🔴 KHONG gui FormData trong than mot yeu cau DELETE',
+      'FormData' not in than and 'body:' not in than)
+    t('van la phuong thuc DELETE', "'DELETE'" in than)
+    t('id duoc ma hoa truoc khi ghep vao duong dan', 'encodeURIComponent' in than)
+    t('🔴 co XEM ket qua may chu tra ve (khong bo qua)', re.search(r'\.xong\b', than) is not None)
+    t('xoa hut thi KEU len (nem loi), khong im lang', 'throw' in than)
+    t('xoa duoc thi nap lai phan Doi soat', 'taiDoiSoat' in than)
+    t('van hoi lai mot cau truoc khi xoa', 'confirm' in than)
+
 if hong:
     print('\n✗ HỎNG %d phép (đạt %d):' % (len(hong), dat))
     for h in hong:
         print('   · 🔴 %s' % h)
     sys.exit(1)
-print('\n✓ SẠCH — %d phép: nút Sửa phí đổ lại được biểu mẫu, và chia tạm thì nói là tạm.' % dat)
+print('\n✓ SẠCH — %d phép: nút Sửa đổ lại được biểu mẫu, nút Xoá xoá thật, chia tạm thì nói là tạm.' % dat)
