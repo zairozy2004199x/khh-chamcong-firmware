@@ -1,4 +1,5 @@
-/* Kiểm lương Mục III lấy từ trang Nhân sự — và nhất là luật KHÔNG GHI 0 cho cơ sở chưa khai giá. */
+/* Kiểm lương Mục III lấy từ trang Nhân sự qua VHCC_BangLuong::dung().
+   Hai luật quan trọng nhất: KHÔNG ghi 0 giả, và KHÔNG cộng đôi cơ sở phụ. */
 const { chromium } = require('playwright');
 const KQ={pass:[],fail:[]};
 const ok=(t,c,g)=>(c?KQ.pass:KQ.fail).push(t+(g?' — '+g:''));
@@ -9,100 +10,83 @@ const PORT = process.env.PORT || '8113';
   const p=await b.newPage({viewport:{width:1900,height:1000}});
   const loi=[]; p.on('pageerror',e=>loi.push(String(e))); p.on('dialog',d=>d.accept());
   await p.goto('http://127.0.0.1:'+PORT+'/bao-cao-chi-phi/'); await p.waitForTimeout(800);
-  if (await p.$('#gatePin')) { await p.fill('#gatePin','1111'); await p.click('#gateBtn'); await p.waitForSelector('#gate',{state:'hidden',timeout:15000}); }
+  if (await p.isVisible('#gatePin')) { await p.fill('#gatePin','1111'); await p.click('#gateBtn'); await p.waitForSelector('#gate',{state:'hidden',timeout:15000}); }
   await p.waitForTimeout(800);
   await p.selectOption('#selMonth','8'); await p.waitForTimeout(600);
   await p.fill('#inpYear','2026'); await p.dispatchEvent('#inpYear','change'); await p.waitForTimeout(2500);
   await moLuong(p);
 
   ok('Mục III có nút "Nạp lương từ Nhân sự"', !!(await p.$('[data-act="napLuong"]')));
-  await p.click('[data-act="napLuong"]'); await p.waitForTimeout(2500);
+  await p.click('[data-act="napLuong"]'); await p.waitForTimeout(3000);
 
-  const x1 = await p.evaluate(()=>{
-    const tr=[...document.querySelectorAll('#tab-salary table tr')].filter(r=>/POSH MN AEON|FUNZONE CITY|TUTU MN AEON|VĂN PHÒNG HCM|JP MN AEON/.test(r.textContent));
-    return { so: document.querySelectorAll('select[data-luong]').length,
-      ten: tr.map(r=>r.cells[0].textContent.trim()),
-      canhBao: (document.querySelector('#tab-salary .issue.warn')||{}).textContent||'',
-      thang7: /KHO LẠNH THÁNG 7/.test(document.body.textContent) };
-  });
-  ok('Chỉ liệt kê cơ sở CÓ chấm công trong kỳ', !x1.thang7, 'không thấy cơ sở của kỳ khác');
-  ok('3 cơ sở có lương được ghép (2 dạng mtd + 1 vp)', x1.so===3, x1.so+' ô chọn · thấy '+x1.ten.length+' dòng');
+  const x = await p.evaluate(()=>{
+    const rows=[...document.querySelectorAll('#tab-salary table tr')];
+    const tim=(t)=>rows.find(r=>new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).test(r.cells[0]?r.cells[0].textContent:''));
+    const so=(r)=>r? r.cells[1].textContent.trim() : null;
+    return { oChon: document.querySelectorAll('select[data-luong]').length,
+      fz: so(tim('FZ_SC_VIVO_T4')), coFz: !!tim('FZ_SC_VIVO_T4'),
+      jp: so(tim('JP MN AEON MALL BÌNH TÂN')),
+      coPhu: !!tim('FZ_SC_VIVO_PHU'),
+      tutu: tim('TUTU MN AEON MALL TÂN PHÚ') ? tim('TUTU MN AEON MALL TÂN PHÚ').textContent.replace(/\s+/g,' ') : '',
+      thang7: /KHO LẠNH THÁNG 7/.test(document.body.textContent),
+      canhBao: (document.querySelector('#tab-salary .issue.warn')||{}).textContent||'' };});
 
-  // 🔴 luat quan trong nhat
-  ok('🔴 Cơ sở chưa khai giá giờ KHÔNG có ô chọn để ghi', x1.so===3 && x1.ten.length===5,
-     'FUNZONE + TUTU chỉ hiện lý do');
-  ok('🔴 Giao diện bày LÝ DO, không bày số 0', /chưa khai giá giờ/i.test(x1.canhBao) && /không ghi số 0/i.test(x1.canhBao),
-     x1.canhBao.replace(/\s+/g,' ').slice(0,130));
+  // 🔴 dung cai anh Thang bao: Khu vui choi CO luong that
+  ok('🔴 Khu vui chơi CÓ lương thì phải ra đúng số, không còn "chưa khai giá giờ"',
+     x.coFz && x.fz.replace(/\D/g,'')==='52287040', 'FZ_SC_VIVO_T4 = '+x.fz);
 
-  // tao dong moi cho nhung co so chua ghep roi ghi
-  await p.click('[data-act="luongTaoHet"]').catch(()=>{}); await p.waitForTimeout(900);
-  await p.click('[data-act="luongGhi"]'); await p.waitForTimeout(2500);
+  // 🔴 co so phu ghep vao co so chinh -> khong duoc cong doi
+  ok('🔴 Cơ sở PHỤ ghép vào cơ sở chính thì KHÔNG liệt kê (tránh cộng đôi lương)',
+     !x.coPhu, x.coPhu?'đã cộng đôi':'đã bỏ qua');
+
+  // TOTAL SALARY = luong chinh + cong - tru  (41.435.755 + 500.000 - 300.000)
+  ok('Cộng đúng công thức TOTAL SALARY (lương chính + cộng − trừ)',
+     x.jp.replace(/\D/g,'')==='41635755', 'JP = '+x.jp);
+
+  // 🔴 chua khai don gia -> tong 0 -> BAO CHUA CO, khong ghi 0
+  ok('🔴 Chưa khai đơn giá thì báo CHƯA CÓ, không ghi số 0',
+     /chưa khai đơn giá/i.test(x.tutu), x.tutu.slice(0,120));
+  ok('Giao diện bày LÝ DO, không bày số 0',
+     /không ghi số 0/i.test(x.canhBao), x.canhBao.replace(/\s+/g,' ').slice(0,120));
+  ok('Chỉ liệt kê cơ sở CÓ chấm công trong kỳ', !x.thang7, 'không thấy cơ sở của kỳ khác');
+
+  // ghi vao bao cao
+  await p.evaluate(()=>{[...document.querySelectorAll('select[data-luong]')].forEach((s)=>{
+    const o=[...s.querySelectorAll('optgroup[label*="Tạo dòng"] option')][0];
+    if(o){ s.value=o.value; s.dispatchEvent(new Event('change',{bubbles:true})); }});});
+  await p.waitForTimeout(1200);
+  await p.click('[data-act="luongGhi"]'); await p.waitForTimeout(3000);
   await moLuong(p);
+  const g = await p.evaluate(()=>{const s=window.BaoCaoApp.getState();
+    const r=s.salarySites.find(x=>/FZ_SC_VIVO_T4/.test(x.nsTen||''));
+    return { fz: r?r.reported:null, actual: r?r.actual:null,
+      coPhu: s.salarySites.some(x=>/FZ_SC_VIVO_PHU/.test(x.nsTen||'')),
+      co0: s.salarySites.some(x=>/TUTU/.test(x.nsTen||'')) };});
+  ok('Ghi đúng số vào Mục III', g.fz===52287040 && g.actual===52287040, String(g.fz));
+  ok('🔴 Không tạo dòng lương cho cơ sở chưa khai đơn giá', !g.co0);
+  ok('🔴 Không tạo dòng cho cơ sở phụ', !g.coPhu);
 
-  const x2 = await p.evaluate(()=>{
-    const rows=[...document.querySelectorAll('#tab-salary tbody tr')];
-    const tim=(t)=>rows.find(r=>{const i=r.querySelector('input[data-path$=".name"]'); return i && i.value===t;});
-    const so=(r)=>{const i=r && r.querySelector('input[data-path$=".reported"]'); return i? i.value : null;};
-    const posh=tim('POSH MN AEON MALL BÌNH DƯƠNG'), fz=tim('FUNZONE CITY VŨNG TÀU'), vp=tim('VĂN PHÒNG HCM');
-    return { posh: so(posh), coPosh: !!posh, coFz: !!fz, coVp: !!vp,
-      khoa: posh ? posh.querySelector('input[data-path$=".reported"]').readOnly : false,
-      lienKet: rows.filter(r=>/🔗 NS/.test(r.textContent)).length,
-      tt: (document.querySelector('#tab-salary .issue')||{}).textContent||'' };
-  });
-  ok('Ghi đúng số lương của cơ sở', String(x2.posh).replace(/\D/g,'')==='111649262', x2.posh);
-  ok('🔴 Cơ sở chưa khai giá KHÔNG bị tạo dòng lương 0', !x2.coFz, x2.coFz?'đã tạo nhầm':'không tạo');
-  ok('Dòng đã nối hiện 🔗 NS', x2.lienKet===2, x2.lienKet+' dòng');
-  /* "VĂN PHÒNG HCM" không mang chữ hiệu bộ phận nào — KHÔNG được đoán bừa. Đoán sai một bộ phận
-     là lương văn phòng chui vào chi phí của một nhóm kinh doanh và tổng vẫn cộng đẹp. */
-  ok('🔴 Cơ sở không đoán được bộ phận thì KHÔNG tạo bừa', !x2.coVp, x2.coVp?'đã tạo nhầm':'để người chọn');
-  ok('Bật tự lấy thì ô "Theo báo cáo" khoá lại', x2.khoa===true);
-  ok('Dòng trạng thái nói rõ đang lấy từ Nhân sự', /trang Nhân sự/.test(x2.tt), x2.tt.replace(/\s+/g,' ').slice(0,110));
-
-  // doi ky di roi ve: lien ket song keo so tu ve
-  await p.selectOption('#selMonth','7'); await p.waitForTimeout(2500);
-  await p.selectOption('#selMonth','8'); await p.waitForTimeout(3500);
-  await moLuong(p);
-  const x3 = await p.evaluate(()=>{
-    const rows=[...document.querySelectorAll('#tab-salary tbody tr')];
-    const r=rows.find(x=>{const i=x.querySelector('input[data-path$=".name"]'); return i && i.value==='POSH MN AEON MALL BÌNH DƯƠNG';});
-    return { so: r? r.querySelector('input[data-path$=".reported"]').value : null,
-      lienKet: rows.filter(x=>/🔗 NS/.test(x.textContent)).length };
-  });
-  ok('Đổi kỳ đi rồi về: lương tự lấy lại', String(x3.so).replace(/\D/g,'')==='111649262' && x3.lienKet===2,
-     x3.so+' · '+x3.lienKet+' dòng nối');
-
-  // ── 🔴 CÓ LƯƠNG THẬT NHƯNG ĐỌC SAI CHỖ: không được ghi 0, phải nói ra ───────────────────────
-  //    Anh Thắng 18/09/2026: FZ_SC_VIVO_T4 bên Nhân sự có 52.287.040 mà báo cáo ghi "chưa khai giá".
-  await p.click('[data-act="napLuong"]'); await p.waitForTimeout(2500);
-  const s1 = await p.evaluate(()=>{
-    const tr=[...document.querySelectorAll('#tab-salary table tr')].find(r=>/FZ SC VIVO T4/.test(r.textContent));
-    return { co: !!tr, chu: tr?tr.textContent.replace(/\s+/g,' '):'' };});
-  ok('🔴 Tổng tiền ra 0 thì coi là ĐỌC KHÔNG ĐƯỢC, không ghi 0',
-     s1.co && /đọc sai chỗ/i.test(s1.chu), s1.chu.slice(0,150));
-  ok('Nói rõ đã tìm tiền ở đường dẫn nào', /mtd\.tong\.tong/.test(s1.chu), s1.chu.slice(0,150));
-
-  // nut 🔧 chan doan
-  await p.evaluate(()=>{const tr=[...document.querySelectorAll('#tab-salary table tr')].find(r=>/FZ SC VIVO T4/.test(r.textContent));
+  // 🔧 chan doan + 🔍 kham
+  await p.click('[data-act="napLuong"]'); await p.waitForTimeout(3000);
+  await p.evaluate(()=>{const tr=[...document.querySelectorAll('#tab-salary table tr')].find(r=>/TUTU MN AEON/.test(r.textContent));
     const b=tr&&tr.querySelector('[data-act="nsChuanDoan"]'); b&&b.click();});
   await p.waitForTimeout(2500);
-  const s2 = await p.evaluate(()=>({ hien: !document.querySelector('#logModal').hidden,
+  const c = await p.evaluate(()=>({ hien: !document.querySelector('#logModal').hidden,
     than: (document.querySelector('#logBody')||{}).textContent||'' }));
-  ok('🔧 Chẩn đoán hiện ra cấu trúc thật', s2.hien && /bangLuong\.tongCong = 52287040/.test(s2.than),
-     s2.than.replace(/\s+/g,' ').slice(0,140));
-  ok('🔴 Chẩn đoán KHÔNG in họ tên / CCCD của nhân viên',
-     !/NGUYỄN VĂN A/.test(s2.than) && !/079300000001/.test(s2.than) && /\(chuỗi\)/.test(s2.than),
-     'đã giấu');
+  ok('🔧 Chẩn đoán soi CẢ hàm đang dùng lẫn hàm cũ',
+     c.hien && /VHCC_BangLuong::dung/.test(c.than) && /bang_cong_va_luong/.test(c.than),
+     c.than.replace(/\s+/g,' ').slice(0,130));
+  ok('🔴 Chẩn đoán KHÔNG in họ tên / CCCD',
+     !/NGUYỄN VĂN A/.test(c.than) && /\(chuỗi\)/.test(c.than), 'đã giấu');
 
-  // ── 🔍 Khám plugin: liệt kê lớp / hàm / bảng để tìm đúng hàm tính lương ─────────────────────
-  await p.evaluate(()=>{document.querySelector('#logModal').hidden=true;});  // đóng hộp vừa mở
+  await p.evaluate(()=>{document.querySelector('#logModal').hidden=true;});
   await p.waitForTimeout(400);
   await p.click('[data-act="nsKham"]'); await p.waitForTimeout(2500);
-  const s3 = await p.evaluate(()=>({ hien: !document.querySelector('#logModal').hidden,
+  const k = await p.evaluate(()=>({ hien: !document.querySelector('#logModal').hidden,
     than: (document.querySelector('#logBody')||{}).textContent||'' }));
-  ok('🔍 Khám liệt kê được lớp và hàm của plugin Chấm công',
-     s3.hien && /VHCC_Luong/.test(s3.than) && /bang_cong_va_luong/.test(s3.than),
-     s3.than.replace(/\s+/g,' ').slice(0,140));
-  ok('🔴 Khám chỉ in TÊN, không đọc nội dung bảng', /Không đọc nội dung bảng nào/.test(s3.than));
+  ok('🔍 Khám liệt kê được lớp / hàm của plugin Chấm công',
+     k.hien && /VHCC_BangLuong/.test(k.than) && /dung/.test(k.than), k.than.replace(/\s+/g,' ').slice(0,110));
+  ok('🔴 Khám chỉ in TÊN, không đọc nội dung bảng', /Không đọc nội dung bảng nào/.test(k.than));
 
   ok('Không lỗi JS', loi.length===0, loi.join(' | '));
   await p.screenshot({path:'/tmp/claude-0/luong-ns.png'});

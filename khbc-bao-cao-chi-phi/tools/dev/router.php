@@ -16,41 +16,58 @@ require_once __DIR__ . '/wp-stub.php';
 $PLUGIN = dirname( dirname( __DIR__ ) );
 
 /* ─────────────────────────────────────────────────────────────────────────────────────────────
- * GIẢ LẬP plugin "Chấm công" (VHCC_Luong) để kiểm đường nạp lương mà không cần cài plugin kia.
+ * GIẢ LẬP plugin "Chấm công" để kiểm đường nạp lương mà không cần cài plugin kia.
  *
- * Bắt chước ĐÚNG ba dạng trả về của bên ấy, vì cái cần kiểm chính là dạng thứ ba:
- *   · 'mtd' — Máy tự động (Posh, JP): tiền ở mtd.tong.tong
- *   · 'vp'  — Văn phòng: tiền ở vp.tien.tongTien
- *   · 'tho' — Khu vui chơi: coLuong = false, CHỈ CÓ GIỜ, chưa khai giá giờ nên chưa ra tiền
- * Dạng 'tho' phải đi tới giao diện thành LÝ DO, không thành số 0.
+ * Bắt chước ĐÚNG hình dạng thật của `VHCC_BangLuong::dung()` (đọc từ mã nguồn anh Thắng gửi
+ * 18/09/2026): `dong[]` mỗi dòng có `luongChinh` (null = CHƯA KHAI ĐƠN GIÁ, không phải 0),
+ * `tongCong`, `tongTru`; kèm `tong.gio` và `thieu.{gia,gio,congChuan}`.
+ * Và `VHCC_Luong::ghep_vao()` để kiểm cái bẫy cơ sở phụ bị cộng đôi.
  * ───────────────────────────────────────────────────────────────────────────────────────────── */
 class VHCC_Luong {
-	/** Số giả lập, khoá theo tên cơ sở — dev_nhansu_seed() ghi vào option cùng lúc với chấm công. */
+	/** Cơ sở phụ ghép vào cơ sở chính — '' nếu đứng riêng. */
+	public static function ghep_vao( $coso ) {
+		$m = get_option( 'dev_ns_ghep', array() );
+		return isset( $m[ $coso ] ) ? (string) $m[ $coso ] : '';
+	}
+	public static function bo_phan_cua( $coso ) {
+		$d = get_option( 'dev_ns_luong', array() );
+		foreach ( $d as $k => $v ) {
+			if ( 0 === strpos( $k, $coso . '|' ) ) { return (string) $v['bp']; }
+		}
+		return '';
+	}
+	/** Hàm CŨ em từng gọi nhầm — giữ lại để nút 🔧 còn chỗ soi, và để nhớ vì sao nó không dùng được. */
 	public static function bang_cong_va_luong( $coso, $thang ) {
+		return array( 'ok' => true, 'kieu' => 'tho', 'coLuong' => false,
+			'boPhan' => self::bo_phan_cua( $coso ),
+			'tho' => array( 'station' => $coso, 'month' => $thang,
+				'rows' => array( array( 'ma' => 'NV1', 'ten' => 'NGUYỄN VĂN A',
+					'ngay' => array( array( 'date' => $thang . '-07', 'vao' => '08:00', 'ra' => '17:00' ) ) ) ) ) );
+	}
+}
+
+class VHCC_BangLuong {
+	public static function dung( $coso, $thang ) {
 		$ds = get_option( 'dev_ns_luong', array() );
 		$k  = $coso . '|' . $thang;
 		if ( ! isset( $ds[ $k ] ) ) { return array( 'ok' => false, 'error' => 'Không có bảng công.' ); }
 		$r = $ds[ $k ];
-		if ( 'tho' === $r['kieu'] ) {
-			return array( 'ok' => true, 'kieu' => 'tho', 'coLuong' => false, 'boPhan' => $r['bp'] );
+		$dong = array();
+		if ( $r['tien'] > 0 ) {
+			$dong[] = array( 'ten' => 'NGUYỄN VĂN A', 'cccd' => '000000000000', 'laChinh' => true,
+				'luongChinh' => $r['tien'], 'tongCong' => $r['cong'], 'tongTru' => $r['tru'], 'thieuGio' => 0 );
 		}
-		/* Giả lập ĐÚNG lỗi anh Thắng gặp: có lương thật nhưng tiền KHÔNG nằm ở chỗ plugin đang đọc
-		   (`mtd.tong.tong` = 0, tiền thật ở `bangLuong.tongCong`). Dùng để kiểm luật "0 = đọc không
-		   được" và nút 🔧 chẩn đoán. */
-		if ( 'mtd_sai' === $r['kieu'] ) {
-			return array( 'ok' => true, 'kieu' => 'mtd', 'coLuong' => true, 'boPhan' => $r['bp'],
-				'mtd' => array( 'tong' => array( 'tong' => 0 ), 'chuaKhaiGia' => array() ),
-				'bangLuong' => array( 'tongCong' => $r['tien'], 'soDong' => 20,
-					'dong' => array( array( 'hoTen' => 'NGUYỄN VĂN A', 'cccd' => '079300000001', 'tien' => 1665300 ) ) ) );
+		/* Dòng CHƯA KHAI ĐƠN GIÁ: luongChinh = null, không phải 0. */
+		for ( $i = 0; $i < (int) $r['thieu_gia']; $i++ ) {
+			$dong[] = array( 'ten' => 'TRẦN THỊ B', 'cccd' => '000000000000', 'laChinh' => false,
+				'luongChinh' => null, 'tongCong' => 0, 'tongTru' => 0, 'thieuGio' => 0 );
 		}
-		if ( 'vp' === $r['kieu'] ) {
-			return array( 'ok' => true, 'kieu' => 'vp', 'coLuong' => true, 'boPhan' => $r['bp'],
-				'vp' => array( 'tien' => array( 'tongTien' => $r['tien'] ) ) );
-		}
-		return array( 'ok' => true, 'kieu' => 'mtd', 'coLuong' => true, 'boPhan' => $r['bp'],
-			'mtd' => array( 'tong' => array( 'tong' => $r['tien'] ), 'chuaKhaiGia' => $r['thieu'] ) );
+		return array( 'ok' => true, 'coso' => $coso, 'thang' => $thang, 'dong' => $dong,
+			'tong'  => array( 'nguoi' => count( $dong ), 'gio' => $r['gio'], 'luongChinh' => $r['tien'] ),
+			'thieu' => array( 'gia' => (int) $r['thieu_gia'], 'congChuan' => false, 'gio' => (int) $r['thieu_gio'] ) );
 	}
 }
+
 require_once $PLUGIN . '/khbc-bao-cao-chi-phi.php';
 
 if ( get_option( 'khbc_db_version' ) !== KHBC_DB::SCHEMA_VERSION ) { KHBC_DB::install(); }
@@ -160,23 +177,28 @@ if ( $path === '/__dev/nhansu' ) {
 	$wpdb->query( "CREATE TABLE IF NOT EXISTS $b ( id INTEGER PRIMARY KEY AUTOINCREMENT,
 		coso TEXT NOT NULL DEFAULT '', ngay TEXT NOT NULL DEFAULT '', nhan_vien TEXT NOT NULL DEFAULT '' )" );
 	$wpdb->query( "DELETE FROM $b" );
+	/* [ tên, tiền lương chính, bộ phận, cộng, trừ, giờ, số dòng chưa khai giá, lượt thiếu giờ ] */
 	$cs = array(
-		array( 'POSH MN AEON MALL BÌNH DƯƠNG', 'mtd', 111649262.0, 'posh', array() ),
-		array( 'JP MN AEON MALL BÌNH TÂN', 'mtd', 41635755.0, 'jp', array( 'Nguyễn Văn A' ) ),
-		array( 'VĂN PHÒNG HCM', 'vp', 88000000.0, '', array() ),
-		array( 'FZ SC VIVO T4', 'mtd_sai', 52287040.0, 'funzone', array() ),
-		array( 'FUNZONE CITY VŨNG TÀU', 'tho', 0.0, 'funzone', array() ),
-		array( 'TUTU MN AEON MALL TÂN PHÚ', 'tho', 0.0, 'tutu', array() ),
+		array( 'POSH MN AEON MALL BÌNH DƯƠNG', 111649262.0, 'posh',  0,       0, 900.0, 0, 0 ),
+		array( 'JP MN AEON MALL BÌNH TÂN',      41435755.0, 'jp',  500000, 300000, 400.0, 1, 2 ),
+		array( 'VĂN PHÒNG HCM',                 88000000.0, '',         0,      0, 500.0, 0, 0 ),
+		/* Đúng cảnh anh Thắng gửi: Khu vui chơi CÓ lương thật. */
+		array( 'FZ_SC_VIVO_T4',                 52287040.0, 'funzone',  0,      0, 2011.04, 0, 6 ),
+		/* Cơ sở PHỤ ghép vào FZ_SC_VIVO_T4 — phải BỊ BỎ QUA, không cộng đôi. */
+		array( 'FZ_SC_VIVO_PHU',                 9000000.0, 'funzone',  0,      0, 100.0, 0, 0 ),
+		/* Chưa ai khai đơn giá: tổng ra 0 -> báo CHƯA CÓ, không ghi 0. */
+		array( 'TUTU MN AEON MALL TÂN PHÚ',            0.0, 'tutu',     0,      0, 300.0, 4, 0 ),
 	);
 	$luong = array();
 	foreach ( $cs as $c ) {
-		/* Hai ngày TRONG kỳ + một ngày kỳ khác (phải bị loại khỏi danh sách cơ sở của tháng). */
 		$wpdb->insert( $b, array( 'coso' => $c[0], 'ngay' => '2026-08-07', 'nhan_vien' => 'NV1' ) );
 		$wpdb->insert( $b, array( 'coso' => $c[0], 'ngay' => '2026-08-19', 'nhan_vien' => 'NV2' ) );
-		$luong[ $c[0] . '|2026-08' ] = array( 'kieu' => $c[1], 'tien' => $c[2], 'bp' => $c[3], 'thieu' => $c[4] );
+		$luong[ $c[0] . '|2026-08' ] = array( 'tien' => $c[1], 'bp' => $c[2], 'cong' => $c[3],
+			'tru' => $c[4], 'gio' => $c[5], 'thieu_gia' => $c[6], 'thieu_gio' => $c[7] );
 	}
 	/* Cơ sở CHỈ có chấm công ở kỳ khác — tháng 8 không được thấy nó. */
 	$wpdb->insert( $b, array( 'coso' => 'KHO LẠNH THÁNG 7', 'ngay' => '2026-07-10', 'nhan_vien' => 'NV9' ) );
+	update_option( 'dev_ns_ghep', array( 'FZ_SC_VIVO_PHU' => 'FZ_SC_VIVO_T4' ) );
 	update_option( 'dev_ns_luong', $luong );
 	header( 'Content-Type: application/json' );
 	echo wp_json_encode( array( 'ok' => true, 'coso' => count( $cs ) ) );

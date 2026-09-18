@@ -4,7 +4,7 @@ Tags: chi phí, phân bổ, báo cáo, MISA, kế toán
 Requires at least: 5.6
 Tested up to: 6.8
 Requires PHP: 7.2
-Stable tag: 1.21.0
+Stable tag: 1.22.0
 License: GPLv2 or later
 
 Phân bổ chi phí Máy tự động / Khu vui chơi ra "File tổng báo cáo" và phân bổ theo điểm để hạch toán MISA.
@@ -35,6 +35,22 @@ Nhân viên nhập khoản chi phí, kế toán duyệt, web tự tính.
 4. Nhập Excel kỳ đầu (hoặc ⋯ → Nạp dữ liệu mẫu) rồi bắt đầu.
 
 == Changelog ==
+
+= 1.22.0 =
+* ✅ **Lương từ Nhân sự chạy đúng.** Gọi đúng hàm: **`VHCC_BangLuong::dung()`** — chính hàm dựng ra
+  màn "Bảng lương cơ sở" mà cửa hàng trưởng xuất nộp kế toán. Cơ sở FZ_SC_VIVO_T4 nay ra đúng
+  **52.287.040** thay vì "chưa khai giá giờ".
+* Trước đó gọi nhầm `VHCC_Luong::bang_cong_va_luong()` — hàm ấy chỉ trả **giờ vào / giờ ra thô**,
+  với Khu vui chơi còn trả thẳng `coLuong = false`. Nên Khu vui chơi báo "chưa khai giá", Posh / JP
+  ra 0.
+* Tổng mỗi cơ sở cộng đúng công thức của chính bảng lương bên ấy:
+  **TOTAL SALARY = Lương chính + Tổng các khoản cộng − Tổng các khoản trừ**. (BHXH và phụ cấp bên
+  ấy cố ý để trống cho kế toán gõ thẳng vào tệp .xlsx nên không vào đây.)
+* 🔴 **Cơ sở PHỤ ghép vào cơ sở chính thì bỏ qua** — bảng lương của cơ sở chính đã gộp sẵn cả chùm.
+  Liệt kê thêm cơ sở phụ là một phần lương bị **đếm hai lần**, mà tổng vẫn ra con số trông bình
+  thường, không ô nào đỏ.
+* 🔴 **Dòng chưa khai đơn giá không được cộng như 0** — bên ấy cố ý để trống. Loại khỏi tổng và
+  báo rõ "N dòng chưa khai đơn giá — số này còn thiếu"; kèm cả số lượt thiếu giờ vào/ra.
 
 = 1.21.0 =
 * Thêm nút **🔍 Khám plugin Nhân sự** trên tab Lương. Nút 🔧 cho thấy: với Khu vui chơi,
