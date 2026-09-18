@@ -405,9 +405,29 @@ button.o-ung{border:0;background:transparent;font:inherit;color:var(--chu);curso
    chữ nhạt đi, và trên màn hình ngoài nắng hai mức đậm nhạt ấy nhìn như nhau. */
 .tin.moi{border-left:3px solid var(--nhan);background:var(--nhan-nhat)}
 .tin .luc{display:block;margin:4px 0 0;font-size:11px;color:var(--chu-mo)}
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 NỀN PHỦ LUÔN TỐI, NÊN CHỮ NẰM TRỰC TIẾP TRÊN NÓ PHẢI SÁNG
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * `.mn` cố định nền `rgba(2,6,23,.94)` — nó là lớp phủ, không đổi theo giao diện. Nhưng chữ
+ * bên trong vẫn thừa kế `--chu`, mà từ lúc trang chuyển sang NỀN SÁNG (17/09/2026) `--chu` gần
+ * như đen. Hậu quả: TIÊU ĐỀ của mọi màn phủ — Xin bù giờ · Xin nghỉ · Phiếu lương · Khai giờ
+ * khác… — là chữ đen trên nền đen. Người ta mở một màn ra và không đọc được tên của chính cái
+ * màn mình vừa mở; chỉ mấy thẻ `.the` màu trắng bên trong là còn thấy.
+ *
+ * Lỗi này sống sót lâu vì nó KHÔNG làm gì hỏng: bấm vẫn chạy, biểu mẫu vẫn gửi được. Nó chỉ
+ * âm thầm lấy mất dòng chữ nói cho người dùng biết họ đang ở đâu.
+ *
+ * ⚠️ ĐẶT MÀU Ở `.mn`, RỒI TRẢ LẠI `--chu` CHO `.the`. Thẻ trắng bên trong phải giữ chữ tối —
+ *    đặt màu sáng cho cả cây con là mọi biểu mẫu thành trắng trên trắng, đổi một lỗi lấy một
+ *    lỗi to hơn hẳn. Cùng lý do cho `.phu`: nút viền nằm thẳng trên nền phủ.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
 .mn{position:fixed;inset:0;background:rgba(2,6,23,.94);z-index:9;overflow:auto;
-	padding:14px 14px calc(20px + env(safe-area-inset-bottom))}
+	padding:14px 14px calc(20px + env(safe-area-inset-bottom));color:#eef2f8}
 .mn .bao{padding-top:8px}
+.mn>.bao>.mo,.mn>.bao>.ct{color:#b9c4d4}
+.mn>.bao>.phu{color:#dbe3ee;border-color:rgba(255,255,255,.34)}
+.mn .the,.mn .the .mo,.mn .the .ct{color:var(--chu)}
+.mn .the .mo,.mn .the .ct{color:var(--chu-mo)}
 .mmau{width:96px;border-radius:var(--bo-nho);border:1px solid var(--vien-dam);float:right;margin:0 0 var(--d2) 10px}
 a{color:var(--nhan)}
 .ct{text-align:center;color:var(--chu-mo);font-size:11.5px;margin:var(--d4) 0 0}
@@ -3113,13 +3133,27 @@ function moPhieu(){
 }
 
 /* `cs` = true thì mở phần CẢ CỬA HÀNG. Nút nào đang chọn thì mang kiểu `chinh`, nút kia `phu` —
-   không có nút nào "đang chọn" thì người ta không biết mình đang xem cái gì. */
+   không có nút nào "đang chọn" thì người ta không biết mình đang xem cái gì.
+
+   🔴 ĐỔI KIỂU BẰNG `classList`, KHÔNG GÁN ĐÈ `className`. Bản trước gán
+   `el('btPlCs').className = 'phu'`, và câu ấy XOÁ LUÔN lớp `an` mà markup đặt sẵn để giấu nút
+   "Cả cửa hàng". Hậu quả: MỌI nhân viên mở Phiếu lương đều thấy nút ấy hiện ra — `napPhieu()`
+   chỉ biết BỎ `an` khi máy chủ gửi danh sách cơ sở quản lý, nó không bao giờ thêm `an` lại.
+   Bấm vào thì cửa `phieucs` ở máy chủ chối, nên không lộ dữ liệu của ai; nhưng người dùng nhận
+   một nút dẫn tới câu lỗi, và đó là thứ họ sẽ đi hỏi. */
 function phanPhieu(cs){
 	hien('plPhanToi', !cs);
 	hien('plPhanCs', cs);
-	el('btPlToi').className = cs ? 'phu' : 'chinh';
-	el('btPlCs').className  = cs ? 'chinh' : 'phu';
+	kieuNutPl(el('btPlToi'), !cs);
+	kieuNutPl(el('btPlCs'),  cs);
 	if(cs){ veThangPlCs(); }
+}
+
+/* Chỉ đụng vào hai lớp kiểu, mọi lớp khác (`an`…) giữ nguyên. */
+function kieuNutPl(o, dang){
+	if(!o){ return; }
+	o.classList.toggle('chinh', !!dang);
+	o.classList.toggle('phu', !dang);
 }
 
 function veThangPlCs(){
