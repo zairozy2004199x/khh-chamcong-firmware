@@ -890,8 +890,14 @@
       if ((i === null || i === undefined) && (g.taoMoi || '').trim()) {
         const ten = tenGonFabi(g.cua_hang) || String(g.cua_hang || '').trim();
         if (!ten) { bo++; return; }
+        /* 🔴 NHÓM HIỂN THỊ PHẢI THEO BỘ PHẬN, ĐỪNG ĐỂ TRỐNG.
+           Bảng Mục III gom dòng theo `groupTitle` ("POSH - JP", "Tàu HCM"…). Dòng tạo mới mà để
+           trống nhóm thì nó rơi xuống một khối KHÔNG TÊN ở cuối bảng — anh Thắng 18/09/2026:
+           *"anh bấm nạp lại thấy, anh bấm ghi lại mất"*. Số có ghi, chỉ là nằm ở chỗ không ai
+           ngờ tới. Lấy nhóm của một dòng cùng bộ phận đang có. */
+        const cungBp = state.salarySites.find((x) => x.dept === g.taoMoi && (x.groupTitle || '').trim());
         state.salarySites.push({
-          id: newId('ss'), dept: g.taoMoi, groupTitle: '', stt: state.salarySites.length + 1,
+          id: newId('ss'), dept: g.taoMoi, groupTitle: cungBp ? cungBp.groupTitle : '', stt: state.salarySites.length + 1,
           name: ten, reported: 0, report: 0, dntt: 0, actual: 0, unitCode: '',
           misaGeneral: '', misaDetail: '', nsTen: String(g.cua_hang || ''),
         });

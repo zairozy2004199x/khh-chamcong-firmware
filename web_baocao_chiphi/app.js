@@ -526,7 +526,7 @@
                     return (
                       rows
                         .map(({ r, i }) => `<tr>
-                          <td class="sticky-col">${inp(`salarySites.${i}.groupTitle`, r.groupTitle, 'text', 'code')}</td>
+                          <td class="sticky-col">${inp(`salarySites.${i}.groupTitle`, r.groupTitle, 'text', 'code', (r.groupTitle || '').trim() ? '' : 'placeholder="chưa xếp nhóm"')}</td>
                           <td>${inp(`salarySites.${i}.stt`, r.stt, 'text', 'short')}</td>
                           <td>${inp(`salarySites.${i}.name`, r.name, 'text', 'wide')}${(r.nsTen || '').trim()
                             ? ` <span class="muted" style="font-size:11px" title="Lương đang lấy từ Nhân sự: ${esc(r.nsTen)}">🔗 NS</span> <button class="btn small ghost" data-act="goLienKetLuong" data-arg="${i}" title="Gỡ liên kết — dòng này quay lại gõ tay">✕</button>` : ''}</td>
@@ -546,7 +546,7 @@
                           ])}
                         </tr>`)
                         .join('') +
-                      `<tr class="subtotal"><td class="sticky-col">Cộng ${esc(title || 'Khác')}</td><td colspan="3"></td>${tdn(g.sub.reported)}${tdn(g.sub.report)}${tdn(g.sub.dntt)}${tdn(g.sub.actual)}${tdn(g.sub.actual - g.sub.reported)}<td colspan="4"></td></tr>`
+                      `<tr class="subtotal"><td class="sticky-col">Cộng ${esc(title || 'Chưa xếp nhóm')}</td><td colspan="3"></td>${tdn(g.sub.reported)}${tdn(g.sub.report)}${tdn(g.sub.dntt)}${tdn(g.sub.actual)}${tdn(g.sub.actual - g.sub.reported)}<td colspan="4"></td></tr>`
                     );
                   })
                   .join('')

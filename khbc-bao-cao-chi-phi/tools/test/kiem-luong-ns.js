@@ -126,6 +126,24 @@ const PORT = process.env.PORT || '8113';
   ok('🔴 Không còn chữ "kỳ cũ / kỳ trước" trên màn Lương', !/kỳ cũ|kỳ trước/.test(z.tt),
      z.tt.replace(/\s+/g,' ').slice(0,130));
 
+  // ── 🔴 DÒNG TỰ TẠO PHẢI VÀO ĐÚNG KHỐI, KHÔNG RƠI XUỐNG KHỐI KHÔNG TÊN ───────────────────────
+  //    Anh Thắng 18/09/2026: "anh bấm nạp lại thấy, anh bấm ghi lại mất".
+  await p.evaluate(()=>{document.querySelector('#logModal').hidden=true;});
+  await p.evaluate(()=>{const s=window.BaoCaoApp.getState();
+    s.salarySites=[{id:'k',dept:'funzone',groupTitle:'Funzone HCM',name:'FZ có sẵn',reported:1,actual:1,nsKy:'2026-08'}];
+    window.BaoCaoApp.setState(s);});
+  await p.waitForTimeout(2000);
+  await moLuong(p);
+  await p.click('[data-act="napLuong"]'); await p.waitForTimeout(3000);
+  await p.click('[data-act="luongGhi"]'); await p.waitForTimeout(3000);
+  const n = await p.evaluate(()=>{const s=window.BaoCaoApp.getState();
+    const r=s.salarySites.find(x=>/FZ_SC_VIVO_T4/.test(x.nsTen||''));
+    return { co: !!r, so: r?r.reported:null, nhom: r?(r.groupTitle||''):null,
+      trong: s.salarySites.filter(x=>!(x.groupTitle||'').trim()).length };});
+  ok('🔴 Dòng tự tạo lấy đúng nhóm của bộ phận, không rơi xuống khối không tên',
+     n.co && n.nhom==='Funzone HCM', 'nhóm = "'+n.nhom+'"');
+  ok('Và số vẫn nằm đó sau khi Ghi', n.so===52287040, String(n.so));
+
   ok('Không lỗi JS', loi.length===0, loi.join(' | '));
   await p.screenshot({path:'/tmp/claude-0/luong-ns.png'});
   await b.close();

@@ -4,7 +4,7 @@ Tags: chi phí, phân bổ, báo cáo, MISA, kế toán
 Requires at least: 5.6
 Tested up to: 6.8
 Requires PHP: 7.2
-Stable tag: 1.29.0
+Stable tag: 1.30.0
 License: GPLv2 or later
 
 Phân bổ chi phí Máy tự động / Khu vui chơi ra "File tổng báo cáo" và phân bổ theo điểm để hạch toán MISA.
@@ -35,6 +35,13 @@ Nhân viên nhập khoản chi phí, kế toán duyệt, web tự tính.
 4. Nhập Excel kỳ đầu (hoặc ⋯ → Nạp dữ liệu mẫu) rồi bắt đầu.
 
 == Changelog ==
+
+= 1.30.0 =
+* 🔴 **Sửa "bấm nạp lại thấy, bấm ghi lại mất".** Số CÓ được ghi — chỉ là dòng tự tạo để trống
+  **Nhóm hiển thị**, nên nó rơi xuống một khối **không tên ở cuối bảng** Mục III, nhìn không thấy
+  đâu. Nay dòng mới lấy nhóm của một dòng cùng bộ phận đang có (POSH - JP, Tàu HCM, Funzone HCM…).
+* Dòng nào thật sự chưa xếp nhóm thì khối ấy có tên **"Chưa xếp nhóm"** và ô nhập ghi gợi ý, thay
+  vì một khối trống trơn.
 
 = 1.29.0 =
 * ✅ **Tự động hẳn — không phải bấm "Nạp" nữa** (anh Thắng: *"đọc chuẩn rồi, mình tự động luôn,
