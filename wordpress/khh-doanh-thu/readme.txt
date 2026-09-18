@@ -97,6 +97,22 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.38.0 =
+* Bảng Đối soát MoMo có thêm **cột Phí** và **cột Doanh thu MoMo đã trừ phí**, đặt ngay sau cột
+  MoMo theo sao kê.
+* Phí **nhập tay theo khoảng ngày × tài khoản** — đã kiểm cả ba nguồn của MoMo (Transaction
+  report, daily report, màn Đối soát) và chỉ màn Đối soát có phí, dưới dạng MỘT SỐ TỔNG. Nhập
+  gộp 2-3 ngày một lượt cũng được.
+* Hệ **tự chia phí về từng cơ sở theo % doanh thu**, và cộng các phần lại **đúng bằng số đã
+  nhập** (phép phần dư lớn nhất — chia tỷ lệ rồi làm tròn thường lệch vài đồng).
+* 🔴 **Chối lượt nhập chồng ngày.** Nhập ngày 17 rồi nhập gộp "17→19" là phí ngày 17 vào sổ hai
+  lần, không dòng nào sai và không gì báo.
+* Ngày nào có doanh thu MoMo mà chưa nhập phí thì màn hình **nhắc, kèm ô nhập ngay tại chỗ**.
+* Phí của tài khoản nào chỉ chia cho cơ sở của tài khoản ấy. Bảng `mã cửa hàng → tài khoản` học
+  từ lượt nạp sao kê — thẻ "Sao kê MoMo" có thêm ô gõ mã tài khoản (ví dụ KH785).
+* **Lệch vẫn không trừ phí**, cố ý: phí là khoản MoMo thu, không phải chỗ hai bên ghi khác nhau.
+* Bài kiểm mới `tools/test/kiem-momo-phi.php` — 29 phép.
+
 = 1.37.0 =
 * **Trạm nghe IPN MoMo** — mở đường `…/wp-json/khh-dt/v1/momo-ipn` để dán vào trang quản trị
   MoMo. Bước MỘT: chỉ nghe và ghi nguyên văn payload vào nhật ký.

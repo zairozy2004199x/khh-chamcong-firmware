@@ -424,7 +424,13 @@
             '<li>Ghép theo <b>Mã giao dịch</b> — chính là Mã đối tác bên FABi — nên không phụ thuộc ' +
             'tên quán. Nạp lại cùng kỳ thì ghi đè, không cộng dồn.</li>' +
             '<li>Sổ MoMo thường chỉ có mấy quán dùng mã MoMo riêng; những quán ngoài sổ em để ' +
-            'riêng một nhóm, <b>không</b> kể là lệch.</li></ol></div>' +
+            'riêng một nhóm, <b>không</b> kể là lệch.</li>' +
+            '<li><b>Gõ mã tài khoản quyết toán</b> của bản sao kê này (ví dụ <code>KH785</code>). ' +
+            'K&amp;H có hai pháp nhân MoMo, mỗi bên một tài khoản và một mức phí — hệ ghi nhớ mấy ' +
+            'mã cửa hàng trong file thuộc tài khoản nào, để sau này chia phí cho đúng.</li></ol>' +
+            '<label class="o" for="dtTkMomo" style="margin:6px 0 10px">Tài khoản quyết toán' +
+            '<input type="text" id="dtTkMomo" placeholder="KH785" style="flex:1"></label>' +
+          '</div>' +
           '<div id="dtHdSk" hidden>' +
             '<ol><li>Tải sao kê tài khoản nhận tiền nộp của các cơ sở — bản <b>bảng</b> (.xlsx hoặc .csv), không phải PDF.</li>' +
             '<li>Em <b>chỉ lấy tiền vào</b>, bỏ mọi khoản chi. Nạp lại cùng một kỳ không cộng dồn (khoá theo mã giao dịch).</li>' +
@@ -536,6 +542,9 @@
          trong file và số liệu vào sai cơ sở. */
       var o_cs = nen && nen.querySelector('#dtCoSo');
       if (o_cs && o_cs.value.trim()) { fd.append('co_so', o_cs.value.trim()); }
+      /* Cùng lý do như ô tên cơ sở: gửi kèm MỌI mẩu, vì máy chủ đọc file ở mẩu CUỐI. */
+      var o_tk = nen && nen.querySelector('#dtTkMomo');
+      if (o_tk && o_tk.value.trim()) { fd.append('tai_khoan', o_tk.value.trim()); }
       fd.append('mau', f.slice(i * MAU, (i + 1) * MAU), 'mau.bin');
       trangThai.textContent = (i === tong - 1)
         ? 'Đã gửi xong, máy chủ đang đọc file…'
@@ -690,6 +699,26 @@
       if (!b) return;
       e.preventDefault();
       moHop(b.getAttribute('data-mo-nap'));
+    });
+    /* Lưu phí MoMo. Cũng uỷ quyền, vì khối này nằm trong phần được vẽ lại mỗi lần đổi kỳ. */
+    G.addEventListener('click', function (e) {
+      var b = e.target.closest ? e.target.closest('[data-phi-luu]') : null;
+      if (!b) return;
+      e.preventDefault();
+      var hop = b.parentNode;
+      var lay = function (n) { var o = hop.querySelector('[data-phi="' + n + '"]'); return o ? o.value.trim() : ''; };
+      var fd = new FormData();
+      fd.append('tai_khoan', b.getAttribute('data-phi-luu'));
+      fd.append('tu', lay('tu')); fd.append('den', lay('den')); fd.append('phi', lay('so'));
+      b.disabled = true; b.textContent = 'Đang lưu…';
+      api('momo-phi', { method: 'POST', body: fd }).then(function () {
+        tai();
+      }).catch(function (err) {
+        b.disabled = false; b.textContent = 'Lưu phí';
+        /* Câu chối của máy chủ (chồng ngày, ngày sai…) PHẢI hiện ra — nuốt nó đi là người dùng
+           bấm hoài mà không hiểu vì sao không lưu được. */
+        window.alert(err.message || err);
+      });
     });
     q('#dtXoa').addEventListener('click', function () {
       if (!window.confirm('Xoá toàn bộ số liệu trong kho? Số trong FABi và file gốc không bị ảnh hưởng.')) return;
@@ -1321,6 +1350,11 @@
     if (!(S.dsR && S.dsR.co_momo)) return '';
     var co = {}; (S.dsR.momo_ngay_co || []).forEach(function (n) { co[n] = true; });
     var sk = S.dsR.momo || {};
+    /* Phí MoMo đã được máy chủ chia sẵn về từng cơ sở (theo % doanh thu, trong phạm vi của
+       chính lượt nhập). Ở đây chỉ việc bày ra — KHÔNG chia lại, vì chia lại theo khoảng đang
+       xem thì cùng một lượt phí sẽ ra số khác nhau tuỳ người đang nhìn kỳ nào. */
+    var phiCS = (S.dsR.momo_phi && S.dsR.momo_phi.co_so) || {};
+    var phiThieu = S.dsR.momo_phi_thieu || {};
     var theo = {}, ten = [], ngayThieu = {};
     ds.forEach(function (x) {
       if (!theo[x.cua_hang]) { theo[x.cua_hang] = { pos: 0, mm: 0, ngay: 0, bo: 0 }; ten.push(x.cua_hang); }
@@ -1369,11 +1403,16 @@
     });
     if (!ten.length && !chuaSo.length) return '';
 
-    var TP = 0, TM = 0;
+    var TP = 0, TM = 0, TF = 0;
     var hang = ten.map(function (c) {
       var t = theo[c]; TP += t.pos; TM += t.mm;
+      var f = phiCS[c] || 0; TF += f;
       return '<tr><td style="text-align:left">' + esc(String(c).slice(0, 34)) + '</td>' +
         '<td class="s">' + tien(t.pos) + '</td><td class="s">' + tien(t.mm) + '</td>' +
+        /* Phí và Thực nhận. Ô nào chưa có phí thì để dấu — chứ KHÔNG in 0đ: 0 nghĩa là "MoMo
+           không thu phí", còn đây là "chưa ai nhập" — hai chuyện khác hẳn nhau. */
+        '<td class="s">' + (f ? tien(f) : '<span style="color:var(--ink-3)">—</span>') + '</td>' +
+        '<td class="s">' + (f ? tien(t.mm - f) : '<span style="color:var(--ink-3)">—</span>') + '</td>' +
         '<td class="s">' + (Math.abs(t.pos - t.mm) < 1000
           ? '<span style="color:var(--tot)">0</span>'
           : '<b style="color:var(--xau)">' + (t.pos - t.mm > 0 ? '+' : '') + nguyen(t.pos - t.mm) + '</b>') + '</td>' +
@@ -1382,6 +1421,30 @@
     }).join('');
 
     var thieu = Object.keys(ngayThieu).sort();
+
+    /* Nhắc ngày CÓ doanh thu MoMo mà chưa ai nhập phí, kèm ô nhập ngay tại chỗ.
+       ⚠️ Khác hẳn khối "thiếu file" ở trên: thiếu file là chưa có SỐ LIỆU nên không so được;
+          thiếu phí là số liệu có đủ, chỉ chưa biết MoMo trừ bao nhiêu. Gộp hai câu làm một thì
+          người đọc không biết phải đi tải file hay đi tra màn đối soát bên MoMo. */
+    var khoiPhi = '';
+    var tkThieu = Object.keys(phiThieu);
+    if (tkThieu.length && (S.cf && S.cf.duoc_ghi)) {
+      khoiPhi = tkThieu.map(function (tk) {
+        var ng = phiThieu[tk] || [];
+        if (!ng.length) return '';
+        return '<div class="canh-ghep" style="margin-top:10px">' +
+          'Tài khoản <b>' + esc(tk) + '</b> chưa nhập phí cho <b>' + ng.length + ' ngày</b>: ' +
+          esc(ng.map(ngayVN).join(' · ')) + '.<br>' +
+          'MoMo không đưa phí theo từng giao dịch — chỉ có một số tổng ở màn <b>Đối soát</b> ' +
+          '(ô "Số tiền điều chỉnh"). Nhập số ấy vào đây, hệ chia về từng cơ sở theo % doanh thu.' +
+          '<div class="loc" style="margin-top:8px;gap:6px">' +
+            '<label class="o">Từ<input type="date" data-phi="tu" value="' + esc(ng[0]) + '"></label>' +
+            '<label class="o">Đến<input type="date" data-phi="den" value="' + esc(ng[ng.length - 1]) + '"></label>' +
+            '<label class="o">Phí<input type="number" min="0" step="1" data-phi="so" placeholder="8118"></label>' +
+            '<button class="nut chinh" type="button" data-phi-luu="' + esc(tk) + '">Lưu phí</button>' +
+          '</div></div>';
+      }).join('');
+    }
 
     var TC = 0;
     chuaSo.forEach(function (c) { TC += theo[c].pos; });
@@ -1421,18 +1484,25 @@
       (ten.length
         ? '<div class="bang-cuon" style="margin-top:10px"><table><thead><tr>' +
             '<th style="text-align:left">Cơ sở</th><th>MoMo trên máy POS</th><th>MoMo theo sao kê</th>' +
+            '<th>Phí</th><th>Doanh thu MoMo đã trừ phí</th>' +
             '<th>Lệch</th><th>Ngày so được</th><th>Ngày thiếu file</th>' +
           '</tr></thead><tbody>' + hang +
           '<tr style="font-weight:700;border-top:2px solid var(--line-2)">' +
             '<td style="text-align:left">Tất cả ' + ten.length + ' cơ sở <b>so được</b></td>' +
             '<td class="s">' + tien(TP) + '</td><td class="s">' + tien(TM) + '</td>' +
+            '<td class="s">' + (TF ? tien(TF) : '—') + '</td>' +
+            '<td class="s">' + (TF ? tien(TM - TF) : '—') + '</td>' +
             '<td class="s">' + nguyen(TP - TM) + '</td><td></td><td></td></tr>' +
           '</tbody></table></div>'
         : '<div class="trong" style="margin-top:10px">Chưa cơ sở nào so được — sổ MoMo đang nạp ' +
-          'không phủ cơ sở nào có doanh thu MoMo trong kỳ.</div>') + khoiChuaSo +
+          'không phủ cơ sở nào có doanh thu MoMo trong kỳ.</div>') + khoiPhi + khoiChuaSo +
       '<div class="chu-them" style="margin-top:10px"><b>Cách đọc:</b> lệch <b>dương</b> là máy POS ' +
       'ghi nhiều hơn MoMo nhận — thường do bấm nhầm hình thức thanh toán, hoặc đơn huỷ mà máy vẫn ' +
-      'ghi. Lệch <b>âm</b> nặng hơn: MoMo nhận tiền mà máy không ghi.</div></div>';
+      'ghi. Lệch <b>âm</b> nặng hơn: MoMo nhận tiền mà máy không ghi.<br>' +
+      '<b>Lệch KHÔNG trừ phí</b> — cố ý. Phí là khoản MoMo thu, không phải chỗ hai bên ghi khác ' +
+      'nhau; trừ phí vào Lệch thì cơ sở nào cũng "lệch" đúng bằng phí và cột ấy hết tác dụng. ' +
+      'Phí nhập tay theo khoảng ngày × tài khoản (MoMo chỉ đưa một số tổng ở màn Đối soát), rồi ' +
+      'chia về cơ sở theo <b>% doanh thu</b>; cộng các phần lại đúng bằng số đã nhập.</div></div>';
   }
 
   /**

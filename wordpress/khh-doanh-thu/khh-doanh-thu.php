@@ -3,7 +3,7 @@
  * Plugin Name:       K&H — Báo cáo doanh thu FABi
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Nạp file "Báo cáo bán hàng" xuất từ máy POS FABi (iPOS) và dựng báo cáo doanh thu theo ngày, cửa hàng, khung giờ, hình thức thanh toán, tại chỗ/mang về và món bán chạy. Có sẵn đường nối API FABi để bật khi iPOS cấp khoá.
- * Version:           1.37.0
+ * Version:           1.38.0
  * Requires at least: 5.8
  * Requires PHP:      7.2
  * Author:            K&H
@@ -26,7 +26,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'KHH_DT_VERSION', '1.37.0' );
+define( 'KHH_DT_VERSION', '1.38.0' );
 define( 'KHH_DT_FILE', __FILE__ );
 define( 'KHH_DT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KHH_DT_URL', plugin_dir_url( __FILE__ ) );
@@ -46,6 +46,7 @@ require_once KHH_DT_DIR . 'sao-ke.php';
 require_once KHH_DT_DIR . 'momo.php';
 require_once KHH_DT_DIR . 'bes.php';
 require_once KHH_DT_DIR . 'momo-ipn.php';
+require_once KHH_DT_DIR . 'momo-phi.php';
 
 /** Đường dẫn ngoài của báo cáo, ví dụ khmatrix.com/doanh-thu-hcm */
 function khh_dt_slug() {
@@ -119,6 +120,7 @@ function khh_dt_kich_hoat() {
 	khh_dt_tao_bang_sk();
 	khh_dt_tao_bang_momo();
 	khh_dt_tao_bang_momo_ipn();
+	khh_dt_tao_bang_momo_phi();
 	khh_dt_tao_bang_momo_sk();
 	update_option( 'khh_dt_version', KHH_DT_VERSION );
 	khh_dt_rewrite();
@@ -566,6 +568,15 @@ function khh_dt_rest_nap_mau( $req ) {
 		}
 		$n   = khh_dt_ghi_momo_sk( $kq['dong'] );
 		$hoc = khh_dt_hoc_ma_ch_momo();
+		/* Ghi nhớ mấy mã cửa hàng trong file này thuộc TÀI KHOẢN quyết toán nào (KH785…).
+		   Không có bảng ấy thì phí nhập vào không biết chia cho cơ sở nào — K&H hai pháp nhân,
+		   mỗi bên một tài khoản và một mức phí. Học từ chính lượt nạp, đúng lối bảng
+		   `mã cửa hàng -> cơ sở` đang chạy, nên anh Thắng chỉ gõ mã tài khoản một lần mỗi lần nạp. */
+		$hoc_tk = 0;
+		$tk_nap = isset( $_REQUEST['tai_khoan'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['tai_khoan'] ) ) : '';
+		if ( '' !== trim( $tk_nap ) && function_exists( 'khh_dt_momo_tk_hoc' ) ) {
+			$hoc_tk = khh_dt_momo_tk_hoc( array_keys( (array) $kq['quan'] ), $tk_nap );
+		}
 		return array(
 			'xong'    => true,
 			'loai'    => 'momo_sk',
@@ -574,6 +585,8 @@ function khh_dt_rest_nap_mau( $req ) {
 			'bo_qua'  => (int) $kq['bo_qua'],
 			'quan'    => $kq['quan'],
 			'hoc'     => (int) $hoc['hoc'],
+			'hoc_tk'  => (int) $hoc_tk,
+			'tai_khoan' => khh_dt_momo_tk_chuan( $tk_nap ),
 			'lan_can' => $hoc['lan_can'],
 			'bang_hoc' => $hoc['bang'],
 		);

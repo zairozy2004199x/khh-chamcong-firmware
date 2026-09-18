@@ -583,6 +583,11 @@ function khh_dt_rest_doi_soat( $req ) {
 		'ngay_nhac' => khh_dt_ngay_nhac(),
 		'momo'      => $momo['tong'],
 		'momo_ngay_co' => array_keys( $momo['ngay_co'] ),
+		/* Phí MoMo: nhập tay theo khoảng ngày × tài khoản (MoMo không đưa phí theo giao dịch —
+		   đã kiểm cả Transaction report lẫn daily report), rồi chia về cơ sở theo % doanh thu.
+		   `momo_phi_thieu` là mấy ngày có doanh thu MoMo mà chưa ai nhập phí, để màn hình nhắc. */
+		'momo_phi'  => function_exists( 'khh_dt_momo_phi_chia' ) ? khh_dt_momo_phi_chia( $tu, $den ) : array( 'co_so' => array(), 'tong' => 0 ),
+		'momo_phi_thieu' => function_exists( 'khh_dt_momo_phi_thieu' ) ? khh_dt_momo_phi_thieu( $tu, $den ) : array(),
 		/* Ô nào lấy từ sổ gộp thì chỉ có TỔNG ngày — không tra ngược xuống giao dịch được. Bày ra
 		   để bảng đừng hứa điều nó không làm được. */
 		'momo_nguon_o' => isset( $momo['nguon_o'] ) ? $momo['nguon_o'] : array(),
