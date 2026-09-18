@@ -222,8 +222,11 @@ function veForm(ham, ...them) {
       scrollIntoView() {},
     }) },
   };
+  /* `_hmCoCT` phải bóc theo: từ 18/09/2026 hai bảng chốt đều hỏi nó xem dòng đã có ảnh bill /
+     hồ sơ chưa (anh Thắng: *"Chỗ ảnh là hóa đơn rồi mà, sao add rồi, bắt phải add lại"*). Thiếu
+     nó là hai bảng nổ ReferenceError chứ không phải đỏ một phép — nhìn y như bài kiểm hỏng. */
   const src = `${boc('_dotHien')}\n${boc('_dotHienCua')}\n${boc('_hmO')}\n${boc('_hmMo')}\n${boc('_hmTen')}
-    ${boc('_hmOTep')}\n${boc('_hmNutDay')}\n${boc(ham)}\n return ${ham};`;
+    ${boc('_hmCoCT')}\n${boc('_hmOTep')}\n${boc('_hmNutDay')}\n${boc(ham)}\n return ${ham};`;
   new Function('moi', `with(moi){ ${src} }`)(moi)('P7', 'DA1', 7, ...them);
   return NK;
 }
@@ -245,8 +248,13 @@ function veForm(ham, ...them) {
     /data-hmhd="P7"/.test(f) && /hmDinhTep\(/.test(f), f);
   t('   nhưng KHÔNG hỏi uỷ nhiệm chi (đó là chứng từ của bước cấp tiền)',
     !/data-hmunc=/.test(f), f);
-  t('🔴 chốt xong nói rõ hoá đơn là BẮT BUỘC (máy chủ chối, người dùng phải biết trước)',
-    /Hoá đơn[^]{0,80}bắt buộc/.test(f), f);
+  /* 🔴 HOÁ ĐƠN KHÔNG CÒN BẮT BUỘC — 18/09/2026. Anh Thắng: *"Với trường hợp không có hóa đơn,
+     nên không ép phải có hóa đơn khi chốt"*. Thợ phụ, tiền ăn + xăng xe, khách sạn lẻ thì không
+     có hoá đơn nào để đính; ép thì đơn nằm treo và khoản tạm ứng không tất toán khỏi TK 141.
+     Đường ra là MỘT Ô TÍCH, và máy chủ ghi lại lời khai ấy (`khongHD`) để kế toán soát. */
+  t('🔴 chốt xong KHÔNG còn ép hoá đơn', !/bắt buộc/.test(f), f);
+  t('   mà cho tích "Không có hoá đơn" để chốt luôn',
+    /data-hmkhd="P7"/.test(f) && /Không có hoá đơn/.test(f), f);
 }
 /* 🔴 NÚT CHỌN TỆP PHẢI NHÌN THẤY ĐƯỢC. Nút còn trong mã mà bị giấu đi thì cũng như không có —
    kế toán lại phải tự tải tệp lên chỗ khác rồi quay lại dán liên kết. */
@@ -391,22 +399,26 @@ t('   bảng hạng mục nay chỉ lo NHẮC CHỐT hoá đơn, không còn l�
 
 
 /* ── 5. GỬI ĐI ─────────────────────────────────────────────────────────────────────────── */
-function chayGui(vals) {
+function chayGui(vals, lines) {
   const NK = { gui: null, toast: [], sau: null };
   const moi = {
-    DA_CUR: { maDA: 'DA1' },
+    /* `lines` = mấy dòng của dự án đang mở, để `_hmCoCT()` đọc ra cột ẢNH / HỒ SƠ. Không truyền
+       thì dự án coi như chưa đính gì — đúng cảnh cũ của mấy phép bên dưới. */
+    DA_CUR: { maDA: 'DA1', lines: lines || [] }, HM_ITEMS: [],
     toast: (k, m) => NK.toast.push([k, m]),
     _tienSo: v => { const s = String(v == null ? '' : v).replace(/[^0-9-]/g, ''); return s === '' || s === '-' ? '' : String(Number(s)); },
     hmDat: (maDA, row, tt, them, sau) => { NK.gui = { maDA, row, tt, them }; NK.sau = sau; },
     hmLaiDA: function hmLaiDA() {}, loadDonHM: function loadDonHM() {},
     document: { querySelector: sel => {
-      const m = sel.match(/data-(xnd|xst|hmunc|hmhd)="([^"]+)"/);
+      const m = sel.match(/data-(xnd|xst|hmunc|hmhd|hmkhd)="([^"]+)"/);
       if (!m) return null;
       const k = m[1] + ':' + m[2];
+      /* Ô tích: có trong `vals` thì trả một ô đã tích, không có thì coi như không có ô nào. */
+      if (m[1] === 'hmkhd') return (k in vals) ? { checked: !!vals[k] } : null;
       return (k in vals) ? { value: vals[k] } : (m[1] === 'xnd' || m[1] === 'xst' ? { value: '' } : null);
     } },
   };
-  const f = new Function('moi', `with(moi){ ${boc('_hmSau')}\n${boc('_hmVal')}
+  const f = new Function('moi', `with(moi){ ${boc('_hmSau')}\n${boc('_hmVal')}\n${boc('_hmCoCT')}
     ${boc('hmGuiCap')}\n${boc('hmGuiChot')}\n${boc('hmNccChot')}
     return { cap: hmGuiCap, chot: hmGuiChot, ncc: hmNccChot }; }`)(moi);
   return { NK, f };
@@ -422,9 +434,40 @@ function chayGui(vals) {
 {
   const { NK, f } = chayGui({ 'hmhd:P7': '  ' });
   f.chot('P7', 'DA1', 7);
-  t('🔴 chốt xong THIẾU HOÁ ĐƠN → chối ngay ở màn, khỏi phải chờ máy chủ ném lỗi',
+  t('🔴 chốt xong mà TRẮNG CẢ BA (không hoá đơn, dòng không có ảnh/hồ sơ, không tích) → chối ngay ở màn',
     NK.gui === null, NK.gui);
-  t('   và nói rõ vì sao', NK.toast.some(x => /hoá đơn/.test(x[1])), NK.toast);
+  t('   và nói rõ hai đường ra', NK.toast.some(x => /hoá đơn/.test(x[1])), NK.toast);
+}
+/* ── 🔴 CHỨNG TỪ ĐÃ CÓ TRÊN DÒNG, VÀ KHOẢN KHÔNG CÓ HOÁ ĐƠN — 18/09/2026 ────────────────
+ * Anh Thắng: *"Chỗ ảnh là hóa đơn rồi mà, sao add rồi, bắt phải add lại"*, và *"Với trường hợp
+ * không có hóa đơn, nên không ép phải có hóa đơn khi chốt"*.
+ * ─────────────────────────────────────────────────────────────────────────────────────── */
+{
+  const { NK, f } = chayGui({}, [{ row: 7, noiDung: 'Vận chuyển (E.Nhật)', anh: 'https://kho/bill.jpg' }]);
+  f.chot('P7', 'DA1', 7);
+  t('🔴 dòng đã có ảnh bill → chốt đi được, KHÔNG đòi đính lại hoá đơn',
+    NK.gui && NK.gui.tt === 'xong', NK.gui);
+  t('   và KHÔNG gửi ô hoá đơn trống lên (gửi là xoá mất hoá đơn đã lưu)',
+    NK.gui && !('hoaDon' in NK.gui.them), NK.gui);
+}
+{
+  const { NK, f } = chayGui({}, [{ row: 7, noiDung: 'Thợ Phụ' },
+    { row: 8, noiDung: 'Lưới cưa', capCha: 'Thợ Phụ', hoSo: 'https://kho/hs.pdf' }]);
+  f.chot('P7', 'DA1', 7);
+  t('🔴 hồ sơ đính ở MỤC CON cũng tính là chứng từ của hạng mục cha (tiền cũng nằm ở con)',
+    NK.gui && NK.gui.tt === 'xong', NK.gui);
+}
+{
+  const { NK, f } = chayGui({ 'hmkhd:P7': true });
+  f.chot('P7', 'DA1', 7);
+  t('🔴 tích "Không có hoá đơn" → chốt được, và lời khai đi cùng lên máy chủ',
+    NK.gui && NK.gui.tt === 'xong' && NK.gui.them.khongHD === 1, NK.gui);
+}
+{
+  const { NK, f } = chayGui({ 'hmhd:P7': 'https://hd/9', 'hmkhd:P7': true });
+  f.chot('P7', 'DA1', 7);
+  t('   có hoá đơn thì vẫn gửi hoá đơn (máy chủ tự bỏ dấu "không hoá đơn")',
+    NK.gui && NK.gui.them.hoaDon === 'https://hd/9', NK.gui);
 }
 {
   const { NK, f } = chayGui({ 'hmunc:P7': 'UNC-77' });
@@ -463,8 +506,22 @@ function chayGui(vals) {
   f.ncc('P7','DA1',7);
   t('🔴 TRỐNG CẢ HAI → chối (khoá một con số không có gì đỡ thì lúc đối chiếu không gỡ ra được)',
     NK.gui === null, NK.gui);
-  t('   và nói rõ cần ít nhất một',
-    NK.toast.some(x => /ít nhất một chứng từ/.test(x[1])), NK.toast);
+  t('   và nói rõ hai đường ra: đính chứng từ, hoặc tích "không có chứng từ nào"',
+    NK.toast.some(x => /uỷ nhiệm chi \/ hoá đơn/.test(x[1]) && /Không có chứng từ nào/.test(x[1])), NK.toast);
+}
+{
+  /* 🔴 Đơn NCC cũng nhận chứng từ đã nằm trên dòng, và cũng khoá được khi thật sự không có gì —
+     cùng một luật với đơn tạm ứng (18/09/2026). */
+  const { NK, f } = chayGui({}, [{ row: 7, noiDung: 'Bốc xếp', anh: 'https://kho/bill.jpg' }]);
+  f.ncc('P7', 'DA1', 7);
+  t('🔴 đơn NCC: dòng đã có ảnh bill → khoá được, không đòi đính lại',
+    NK.gui && NK.gui.tt === 'xong' && !('hoaDon' in NK.gui.them), NK.gui);
+}
+{
+  const { NK, f } = chayGui({ 'hmkhd:P7': true });
+  f.ncc('P7', 'DA1', 7);
+  t('🔴 đơn NCC: tích "không có chứng từ nào" → khoá được, lời khai đi cùng',
+    NK.gui && NK.gui.tt === 'xong' && NK.gui.them.khongHD === 1, NK.gui);
 }
 
 /* ═════════════════════════════════════════════════════════════════════════════════════════ */

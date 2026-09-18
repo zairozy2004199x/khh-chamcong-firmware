@@ -170,6 +170,30 @@ t( '   rồi khoá lại được, uỷ nhiệm chi vẫn còn nguyên',
 	! empty( $x['success'] ) && 'UNC-10' === VHCP_DuAn::hm_cua( $ma, $ncc2 )['unc'], $x );
 teq( '   và hoá đơn cũng vào', 'https://hd/cau', VHCP_DuAn::hm_cua( $ma, $ncc2 )['hoaDon'] );
 
+/* ═══ 8. 🔴 CHỨNG TỪ CÓ THỂ ĐANG NẰM Ở CỘT ẢNH / HỒ SƠ CỦA DÒNG — 18/09/2026 ═══════════════
+ * Anh Thắng: *"Chỗ ảnh là hóa đơn rồi mà, sao add rồi, bắt phải add lại"*. Đơn NCC ăn đúng luật
+ * mới ấy: ảnh bill trên dòng LÀ chứng từ; còn khoản thật sự không có chứng từ thì khai một câu
+ * rồi khoá — nhưng sổ giữ dấu để kế toán soát ra được.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+vai( 'Admin', 'KT' );
+VHCP_DuAn::add_line( $ma, array( 'noiDung' => 'Bốc xếp', 'thucTe' => 400000, 'hinhThuc' => 'Trực tiếp' ) );
+VHCP_DuAn::add_line( $ma, array( 'noiDung' => 'Nước uống công trường', 'thucTe' => 120000, 'hinhThuc' => 'Trực tiếp' ) );
+$d4 = VHCP_DuAn::get_du_an( $ma ); $ncc4 = null; $ncc5 = null;
+foreach ( $d4['lines'] as $l ) {
+	if ( 'Bốc xếp' === $l['noiDung'] )               { $ncc4 = $l['row']; }
+	if ( 'Nước uống công trường' === $l['noiDung'] ) { $ncc5 = $l['row']; }
+}
+t( 'dựng được hai hạng mục NCC nữa', null !== $ncc4 && null !== $ncc5, $d4['lines'] );
+vai( 'Kế toán NCC', 'KT NCC' );
+t( 'đính ảnh bill lên dòng Bốc xếp',
+	! empty( VHCP_DuAn::dat_anh_line( $ma, $ncc4, 'https://kho/bill-boc-xep.jpg' )['success'] ) );
+$x = VHCP_DuAn::dat_hm( $ma, $ncc4, 'xong', array() );
+t( '🔴 đơn NCC có ảnh bill trên dòng → khoá được, KHÔNG đòi đính lại', ! empty( $x['success'] ), $x );
+teq( '   và không mang dấu "không chứng từ" (chứng từ có thật)', 0, VHCP_DuAn::hm_cua( $ma, $ncc4 )['khongHD'] );
+$x = VHCP_DuAn::dat_hm( $ma, $ncc5, 'xong', array( 'khongHD' => 1 ) );
+t( '🔴 khoản thật sự không có chứng từ → khai rồi khoá được', ! empty( $x['success'] ), $x );
+teq( '🔴 và sổ GIỮ DẤU để soát', 1, VHCP_DuAn::hm_cua( $ma, $ncc5 )['khongHD'] );
+
 /* ═════════════════════════════════════════════════════════════════════════════════════════ */
 if ( $TRUOT ) {
 	echo "\n✗ TRƯỢT " . count( $TRUOT ) . " phép (đạt $DAT):\n";

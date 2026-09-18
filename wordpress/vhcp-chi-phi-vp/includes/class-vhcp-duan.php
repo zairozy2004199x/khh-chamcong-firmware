@@ -267,10 +267,18 @@ class VHCPVP_DuAn {
 			/* Tiền của một "đơn": hạng mục có con thì tiền nằm ở CON, không có con thì ở chính
 			   nó. Cộng cả hai là đếm hai lần — và đây là con số kế toán chuẩn bị tiền. */
 			$con = array();
+			/* Dòng nào đã có ảnh bill / hồ sơ — cộng theo tên hạng mục cha, cùng luật "có con thì
+			   đọc ở con" của tiền. Màn Duyệt cần biết để bảng chốt khỏi đòi đính lại tấm ảnh đã
+			   có (anh Thắng 18/09/2026). Tính ngay trong vòng lặp này: `lines` đã nằm sẵn trong
+			   tay, gọi `hm_co_tep()` cho từng hàng là thêm một lượt đọc sổ cho mỗi hàng. */
+			$tep_con = array();
 			foreach ( $r['lines'] as $x ) {
 				$cap = trim( (string) $x['cap_cha'] );
 				if ( '' !== $cap && '(Phát sinh)' !== $cap ) {
 					$con[ $cap ] = ( isset( $con[ $cap ] ) ? $con[ $cap ] : 0 ) + VHCPVP_Util::num( $x['thuc_te'] );
+					if ( '' !== trim( (string) $x['anh'] ) || '' !== trim( (string) $x['ho_so'] ) ) {
+						$tep_con[ $cap ] = true;
+					}
 				}
 			}
 			foreach ( $r['lines'] as $x ) {
@@ -292,6 +300,10 @@ class VHCPVP_DuAn {
 					'hinhThuc'  => trim( (string) $x['hinh_thuc'] ),
 					'duToan'    => VHCPVP_Util::num( $x['du_toan'] ),
 					'thucTe'    => ( isset( $con[ $nd ] ) && $con[ $nd ] > 0 ) ? $con[ $nd ] : VHCPVP_Util::num( $x['thuc_te'] ),
+					/* Đã có ảnh bill / hồ sơ trên dòng (của chính nó hoặc của mục con) → bảng chốt
+					   nói "đã có chứng từ", khỏi đòi đính lại. Chốt thật vẫn ở `hm_co_tep()`. */
+					'coCT'      => ( '' !== trim( (string) $x['anh'] ) || '' !== trim( (string) $x['ho_so'] )
+						|| ! empty( $tep_con[ $nd ] ) ) ? 1 : 0,
 					'hm'        => $h,
 					'dotHien'   => $bd_tu,
 					'qtDotHien' => $bd_qt,
@@ -880,6 +892,10 @@ class VHCPVP_DuAn {
 			/* Hạng mục này đã nằm trong LỆNH QUYẾT TOÁN nào chưa (0 = chưa gửi). Anh Thắng:
 			   *"khi đơn này đã xong, tích chọn để gửi quyết toán theo đơn"*. */
 			'qtDot'  => isset( $x['qtDot'] ) ? (int) $x['qtDot'] : 0,
+			/* Đã khoá mà KHÔNG có chứng từ nào — lời khai của người chốt (anh Thắng 18/09/2026:
+			   *"trường hợp không có hóa đơn, nên không ép phải có hóa đơn khi chốt"*). Giữ lại
+			   để kế toán soát: khoản nào tính là chi thực tế mà không có gì đỡ. Xem `dat_hm()`. */
+			'khongHD' => isset( $x['khongHD'] ) ? (int) $x['khongHD'] : 0,
 		);
 	}
 
@@ -1138,6 +1154,38 @@ class VHCPVP_DuAn {
 			if ( trim( (string) $l['cap_cha'] ) === $nd ) { $co_con = true; $con += VHCPVP_Util::num( $l['thuc_te'] ); }
 		}
 		return $co_con ? $con : $tu_than;
+	}
+
+	/**
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * CHỨNG TỪ ĐÃ ĐÍNH SẴN TRÊN DÒNG — ảnh bill (cột ẢNH) hoặc hồ sơ (cột HỒ SƠ).
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 18/09/2026: *"Chỗ ảnh là hóa đơn rồi mà, sao add rồi, bắt phải add lại"*. Hàng
+	 * nào đã có ảnh bill thì chứng từ CÓ RỒI — chỉ là nó nằm ở `da_line.anh` / `da_line.ho_so`
+	 * chứ không ở ô `hm.hoaDon` mà bảng chốt soi. Đây là chỗ nhìn cả ba ô.
+	 *
+	 * 🔴 ĐỌC TỪ SỔ, KHÔNG NHẬN TỪ MÀN — cùng luật với `hinh_thuc_hm()`. Để màn gửi lên "dòng này
+	 *    đã có ảnh" thì ai cũng khai được câu ấy rồi khoá đơn trắng chứng từ.
+	 * ⚠️ CÓ CON THÌ ĐỌC CẢ Ở CON, đúng luật của `tien_hm()`: tiền nằm ở mục con thì ảnh bill của
+	 *    khoản ấy cũng đính vào dòng con, không ai đính lên dòng cha. Chỉ soi dòng cha là hạng
+	 *    mục có đủ bill ở mọi dòng con vẫn bị đòi "chưa có chứng từ nào".
+	 */
+	public static function hm_co_tep( $ma_da, $row ) {
+		$lines = self::lines_of( $ma_da );
+		$co_tep = static function ( $l ) {
+			return '' !== trim( (string) $l['anh'] ) || '' !== trim( (string) $l['ho_so'] );
+		};
+		$nd = '';
+		foreach ( $lines as $l ) {
+			if ( (int) $l['row_no'] !== (int) $row ) { continue; }
+			if ( $co_tep( $l ) ) { return true; }
+			$nd = trim( (string) $l['noi_dung'] );
+		}
+		if ( '' === $nd ) { return false; }
+		foreach ( $lines as $l ) {
+			if ( trim( (string) $l['cap_cha'] ) === $nd && $co_tep( $l ) ) { return true; }
+		}
+		return false;
 	}
 
 	/**
@@ -1852,25 +1900,57 @@ class VHCPVP_DuAn {
 				return VHCPVP_Util::err( 'Chỉ cấp tạm ứng cho hạng mục đã duyệt.' );
 			}
 		}
-		/* 🔴 XONG PHẢI CÓ HOÁ ĐƠN. Anh Thắng: *"tích hoàn thành và bổ sung hóa đơn nó sẽ khóa
-		   đơn đó lại"*. Khoá mà chưa có chứng từ là chốt một con số không có gì đỡ. */
-		$hd = isset( $them['hoaDon'] ) ? trim( (string) $them['hoaDon'] ) : $cu['hoaDon'];
+		/* ═════════════════════════════════════════════════════════════════════════════════════
+		 * XONG — NHẬN CHỨNG TỪ ĐÃ CÓ, VÀ KHÔNG ÉP KHI THẬT SỰ KHÔNG CÓ (18/09/2026).
+		 * ═════════════════════════════════════════════════════════════════════════════════════
+		 * Anh Thắng, nhìn hàng "Vận chuyển (E.Nhật)" đã có ảnh bill ở cột ẢNH mà bảng chốt vẫn
+		 * đòi *"Hoá đơn (bắt buộc)"*: *"Chỗ ảnh là hóa đơn rồi mà, sao add rồi, bắt phải add
+		 * lại"*, và *"Với trường hợp không có hóa đơn, nên không ép phải có hóa đơn khi chốt"*.
+		 *
+		 * Bản trước chỉ soi ĐÚNG MỘT Ô (`hm.hoaDon`), nên hai chuyện thật đều bị chối:
+		 *   · ảnh bill / hồ sơ đã đính NGAY TRÊN DÒNG (cột ẢNH · HỒ SƠ) — chứng từ có rồi, chỉ
+		 *     nằm ở ô khác. Bắt đính lại là bắt tải cùng một tấm ảnh hai lần.
+		 *   · khoản KHÔNG CÓ hoá đơn thật (thợ phụ, tiền ăn + xăng xe, khách sạn lẻ) — ép đủ hoá
+		 *     đơn thì đơn nằm treo, và khoản tạm ứng không bao giờ tất toán khỏi TK 141.
+		 *
+		 * Nay 'xong' cần MỘT trong ba:
+		 *   1. hoá đơn — vừa đính, HOẶC đã lưu từ lượt trước
+		 *   2. chứng từ đã đính sẵn trên dòng (`hm_co_tep()`, đọc từ SỔ chứ không nhận từ màn)
+		 *   3. lời khai "không có hoá đơn" (`khongHD`) — GHI LẠI vào sổ hạng mục, để kế toán soát
+		 *      được khoản nào đã khoá mà không có chứng từ nào đỡ
+		 *
+		 * ⚠️ VẪN PHẢI CÓ MỘT TRONG BA. Trắng cả ba thì "khoá" là một cú bấm không nghĩa gì: không
+		 *    chứng từ, mà cũng không ai nhận là không có chứng từ.
+		 * ⚠️ Ô HOÁ ĐƠN TRỐNG NGHĨA LÀ "KHÔNG ĐỔI", KHÔNG PHẢI "XOÁ". Bảng chốt mở ra với ô trống
+		 *    dù hạng mục đã có hoá đơn từ lượt trước, nên lượt "mở lại → chốt lại" gửi lên đúng
+		 *    một chuỗi rỗng. Hiểu chuỗi ấy là lời khai thì hai chuyện hỏng cùng lúc: hoá đơn đã
+		 *    đính bị xoá sạch (im lặng), và lượt chốt bị chối vì "không có chứng từ" — trong khi
+		 *    chứng từ vẫn nằm trong sổ. Màn không có nút xoá hoá đơn nào, nên không mất gì.
+		 */
+		$hd_gui = isset( $them['hoaDon'] ) ? trim( (string) $them['hoaDon'] ) : null;
+		$hd     = ( null === $hd_gui || '' === $hd_gui ) ? $cu['hoaDon'] : $hd_gui;
+		$khong_hd = 0;
 		if ( 'xong' === $tt ) {
 			/* 🏢 ĐƠN NCC: MỘT CHỨNG TỪ LÀ ĐỦ. Anh Thắng: *"chỗ này nhập tối thiểu 1 ảnh là
 			   được"*. Kế toán trả thẳng nhà cung cấp thì có khi cầm về uỷ nhiệm chi trước, hoá
 			   đơn nhà cung cấp xuất sau vài hôm — bắt đủ cả hai là đơn nằm treo dù tiền đã đi
 			   và đã có chứng từ chuyển khoản.
-			   ⚠️ ĐƠN TẠM ỨNG THÌ VẪN BẮT HOÁ ĐƠN. Nhân viên cầm tiền đi mua, thứ chứng minh
-			      khoản chi là hoá đơn — uỷ nhiệm chi ở đó chỉ nói kế toán đã đưa tiền cho họ,
-			      không nói họ đã tiêu vào đâu. */
+			   ⚠️ UỶ NHIỆM CHI KHÔNG THAY ĐƯỢC HOÁ ĐƠN Ở ĐƠN TẠM ỨNG. Nhân viên cầm tiền đi mua;
+			      uỷ nhiệm chi chỉ nói kế toán đã đưa tiền cho họ, không nói họ tiêu vào đâu. Đơn
+			      tạm ứng không có chứng từ thì đi lối 3 (khai "không có hoá đơn"), chứ không mượn
+			      tờ uỷ nhiệm chi làm chứng từ chi. */
 			$unc_moi = isset( $them['unc'] ) ? trim( (string) $them['unc'] ) : $cu['unc'];
-			if ( $la_ncc ) {
-				if ( '' === $hd && '' === $unc_moi ) {
-					return VHCPVP_Util::err( 'Phải đính ít nhất một chứng từ (uỷ nhiệm chi hoặc hoá đơn) trước khi khoá đơn.' );
-				}
-			} elseif ( '' === $hd ) {
-				return VHCPVP_Util::err( 'Phải đính hoá đơn trước khi chốt hoàn thành.' );
+			$co_tep  = self::hm_co_tep( $ma_da, $row );
+			$khai_ko = ! empty( $them['khongHD'] );
+			$co_ct   = ( '' !== $hd ) || $co_tep || ( $la_ncc && '' !== $unc_moi );
+			if ( ! $co_ct && ! $khai_ko ) {
+				return VHCPVP_Util::err( 'Hạng mục này chưa có chứng từ nào: ô hoá đơn trống, mà cột ẢNH / '
+					. 'HỒ SƠ của dòng cũng trống. Đính hoá đơn (hoặc ảnh bill ngay trên dòng) — '
+					. 'hoặc tích "Không có hoá đơn" rồi chốt, nếu khoản này thật sự không có.' );
 			}
+			/* Chỉ ghi cờ khi THẬT SỰ không có chứng từ nào. Người dùng tích ô sẵn rồi vẫn đính
+			   được hoá đơn — lúc ấy có chứng từ, đừng đóng cho nó cái dấu "không hoá đơn". */
+			$khong_hd = $co_ct ? 0 : 1;
 			/* ═══════════════════════════════════════════════════════════════════════════════════
 			 * 🔴 CHỐT HOÀN THÀNH MÀ SỐ TIỀN LÀ 0 THÌ CHỐT CÁI GÌ — 17/09/2026.
 			 * ═══════════════════════════════════════════════════════════════════════════════════
@@ -1903,7 +1983,11 @@ class VHCPVP_DuAn {
 			$sua['dot'] = isset( $them['dot'] ) ? max( 1, (int) $them['dot'] ) : ( $cu['dot'] > 0 ? $cu['dot'] : 1 );
 			if ( isset( $them['unc'] ) ) { $sua['unc'] = trim( (string) $them['unc'] ); }
 		}
-		if ( isset( $them['hoaDon'] ) ) { $sua['hoaDon'] = $hd; }
+		/* Ô trống = "không đổi" (xem khối trên), nên chỉ ghi khi người ta thật sự gửi một số. */
+		if ( null !== $hd_gui && '' !== $hd_gui ) { $sua['hoaDon'] = $hd_gui; }
+		/* Cờ "khoá mà không có hoá đơn" — ghi mỗi lượt chốt (kể cả chốt lại sau khi đã đính bù
+		   chứng từ, để cờ tự tắt), và xoá hẳn khi kế toán mở lại đơn. */
+		if ( 'xong' === $tt ) { $sua['khongHD'] = $khong_hd; }
 		/* Uỷ nhiệm chi đi kèm cả lúc KHOÁ, không riêng lúc cấp tạm ứng: đơn NCC chỉ có một
 		   bước duy nhất (kế toán tích đã chi + khoá), mà uỷ nhiệm chi chính là chứng từ ấy. */
 		if ( 'xong' === $tt && isset( $them['unc'] ) ) { $sua['unc'] = trim( (string) $them['unc'] ); }
@@ -1924,7 +2008,9 @@ class VHCPVP_DuAn {
 			}
 			$sua['lich'] = $ds;
 		}
-		if ( 'nhap' === $tt ) { $sua['dot'] = 0; }
+		/* Mở lại thì xoá cả cờ "không có hoá đơn": lời khai ấy nói về LƯỢT CHỐT vừa bị mở ra, giữ
+		   lại là hạng mục đang nháp mà vẫn mang dấu của một lượt khoá không còn nữa. */
+		if ( 'nhap' === $tt ) { $sua['dot'] = 0; $sua['khongHD'] = 0; }
 		$moi = self::hm_ghi_( $ma_da, $row, $sua );
 
 		/* 🔴 MÓC 2/2 CỦA LUẬT "ĐƠN CƠ SỞ TỰ QUYẾT TOÁN": vừa CHỐT HOÁ ĐƠN xong. Nếu khoản này

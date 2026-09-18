@@ -6092,20 +6092,64 @@
     hmDat(maDA,row,'ung',{dot:dot, unc:_hmVal('unc',k)},_hmSau(k));
   }
 
+  /* ═══ CHỨNG TỪ ĐÃ CÓ SẴN CỦA MỘT HẠNG MỤC ═══════════════════════════════════════════════
+     Anh Thắng 18/09/2026: *"Chỗ ảnh là hóa đơn rồi mà, sao add rồi, bắt phải add lại"*.
+     Ảnh bill nằm ở cột ẢNH của dòng (`l.anh`) và hồ sơ ở cột HỒ SƠ (`l.hoSo`) — hai ô khác hẳn
+     ô hoá đơn của bảng chốt, nên bảng chốt cũ không thấy gì và đòi đính lại.
+     🔑 Trả về CHỮ để bày ra ("ảnh bill", "hồ sơ"…), '' nghĩa là chưa có gì.
+     ⚠️ Đây chỉ là phần NÓI CHO NGƯỜI DÙNG BIẾT. Chốt thật nằm ở máy chủ (`hm_co_tep()`), vì màn
+        khai gì cũng được — xem chốt dài ở đó. */
+  function _hmCoCT(maDA,row){
+    var anh=false, hs=false;
+    (HM_ITEMS||[]).forEach(function(x){
+      if(String(x.maDA)===String(maDA) && x.row===row && x.coCT) anh=true;   // màn Duyệt: máy chủ gộp thành một cờ
+    });
+    if(DA_CUR && String(DA_CUR.maDA)===String(maDA)){
+      var ten='';
+      (DA_CUR.lines||[]).forEach(function(l){
+        if(l.row!==row) return;
+        ten=String(l.noiDung||'');
+        if(String(l.anh||'').trim())  anh=true;
+        if(String(l.hoSo||'').trim()) hs=true;
+      });
+      /* Có mục con thì ảnh bill đính ở CON — cùng luật "tiền nằm ở con" của bảng. */
+      if(ten) (DA_CUR.lines||[]).forEach(function(l){
+        if(String(l.capCha||'')!==ten) return;
+        if(String(l.anh||'').trim())  anh=true;
+        if(String(l.hoSo||'').trim()) hs=true;
+      });
+    }
+    return (anh&&hs)?'ảnh bill + hồ sơ':(anh?'ảnh bill':(hs?'hồ sơ':''));
+  }
+
   /* ── 🧾 CHỐT XONG (đơn tạm ứng) ────────────────────────────────────────────────────── */
   function hmMoChot(k, maDA, row){
+    /* Hoá đơn KHÔNG còn là ô bắt buộc — anh Thắng 18/09/2026: *"Với trường hợp không có hóa
+       đơn, nên không ép phải có hóa đơn khi chốt"*. Có sẵn chứng từ trên dòng thì nói ra và
+       khỏi bày ô tích; trắng trơn thì phải tích một cái để nhận là không có. */
+    var ct=_hmCoCT(maDA,row);
     _hmMo(k, '<b>🧾 Chốt hoàn thành — '+esc(_hmTen(maDA,row))+'</b>'
       +'<div style="font-size:11.5px;color:#8c8781;margin:4px 0 8px">Chốt xong hạng mục sẽ <b>khoá lại</b> và tính là chi thực tế.</div>'
+      +(ct?('<div style="font-size:11.5px;color:#166534;margin:0 0 8px">✓ Dòng này đã có <b>'+ct+'</b> đính kèm — không phải đính lại. Có hoá đơn riêng thì thêm bên dưới.</div>'):'')
       +'<div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;align-items:center">'
-      +_hmOTep(k,maDA,'hd','Hoá đơn',true,220)+'</div>'
+      +_hmOTep(k,maDA,'hd','Hoá đơn',false,220)+'</div>'
+      +(ct?'':('<label style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#b45309;cursor:pointer;margin-top:8px"'
+        +' title="Khoản không có hoá đơn (thợ phụ, tiền ăn, xăng xe…) — tích để chốt, và sổ ghi lại là đã khoá không chứng từ">'
+        +'<input type="checkbox" data-hmkhd="'+k+'" style="margin:0;cursor:pointer">Không có hoá đơn — chốt luôn</label>'))
       +_hmNutDay(k,'hmGuiChot',maDA,row,'✓ Chốt &amp; khoá đơn'));
   }
   function hmGuiChot(k, maDA, row){
-    /* 🔴 HOÁ ĐƠN LÀ BẮT BUỘC — máy chủ cũng chối nếu thiếu. Chốt mà chưa có chứng từ là khoá
-       một con số không có gì đỡ. */
-    var hd=_hmVal('hd',k);
-    if(!hd){ toast('warn','Phải có hoá đơn mới chốt được'); return; }
-    hmDat(maDA,row,'xong',{hoaDon:hd},_hmSau(k));
+    /* Một trong ba là đủ: hoá đơn vừa đính · chứng từ đã có trên dòng · lời khai "không có hoá
+       đơn". Trắng cả ba thì chặn ngay tại đây cho đỡ một lượt đi máy chủ — nhưng máy chủ vẫn
+       chối độc lập, vì màn không phải chỗ chốt. */
+    var hd=_hmVal('hd',k), ct=_hmCoCT(maDA,row), o=document.querySelector('[data-hmkhd="'+k+'"]');
+    var khd=!!(o&&o.checked);
+    if(!hd && !ct && !khd){ toast('warn','Đính hoá đơn, hoặc tích «Không có hoá đơn» rồi chốt'); return; }
+    /* ⚠️ Ô TRỐNG THÌ KHÔNG GỬI KHOÁ `hoaDon` LÊN. Bảng chốt mở ra với ô trống dù hạng mục đã có
+       hoá đơn từ lượt trước; gửi chuỗi rỗng là xoá sạch số cũ (máy chủ cũng đã chặn vế này). */
+    var them={khongHD:khd?1:0};
+    if(hd) them.hoaDon=hd;
+    hmDat(maDA,row,'xong',them,_hmSau(k));
   }
 
   /* ── 🏢 KẾ TOÁN TÍCH ĐÃ CHI ĐƠN TRẢ THẲNG NCC ──────────────────────────────────────── */
@@ -6113,20 +6157,28 @@
     /* 🏢 MỘT CHỨNG TỪ LÀ ĐỦ. Anh Thắng: *"chỗ này nhập tối thiểu 1 ảnh là được"*. Kế toán trả
        thẳng nhà cung cấp thì có khi cầm về uỷ nhiệm chi trước, hoá đơn nhà cung cấp xuất sau
        vài hôm — bắt đủ cả hai là đơn nằm treo dù tiền đã đi và đã có chứng từ chuyển khoản. */
+    var ct=_hmCoCT(maDA,row);
     _hmMo(k, '<b>🏢 Kế toán xác nhận ĐÃ TRẢ nhà cung cấp — '+esc(_hmTen(maDA,row))+'</b>'
       +'<div style="font-size:11.5px;color:#8c8781;margin:4px 0 8px">Tích xong đơn sẽ <b>khoá lại</b> và tính là chi thực tế; nhân viên nhìn bảng là biết khoản này kế toán đã đi rồi. '
       +'Đính <b>ít nhất một</b> trong hai — có cái nào trước thì đính cái ấy.</div>'
+      +(ct?('<div style="font-size:11.5px;color:#166534;margin:0 0 8px">✓ Dòng này đã có <b>'+ct+'</b> đính kèm — không phải đính lại.</div>'):'')
       +'<div style="display:flex;flex-wrap:wrap;gap:8px 16px;font-size:12px;align-items:center">'
       +_hmOTep(k,maDA,'unc','Uỷ nhiệm chi',false,200)
       +_hmOTep(k,maDA,'hd','Hoá đơn',false,220)+'</div>'
+      +(ct?'':('<label style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#b45309;cursor:pointer;margin-top:8px"'
+        +' title="Khoản không có chứng từ nào — tích để khoá, và sổ ghi lại là đã khoá không chứng từ">'
+        +'<input type="checkbox" data-hmkhd="'+k+'" style="margin:0;cursor:pointer">Không có chứng từ nào — khoá luôn</label>'))
       +_hmNutDay(k,'hmNccChot',maDA,row,'✅ Tích đã chi &amp; khoá đơn'));
   }
   function hmNccChot(k, maDA, row){
-    /* 🔴 KHOÁ THÌ PHẢI CÓ CHỨNG TỪ — ít nhất một. Máy chủ cũng chối nếu trống cả hai. Khoá một
-       con số không có gì đỡ thì lúc đối chiếu không ai gỡ ra được. */
-    var hd=_hmVal('hd',k), unc=_hmVal('unc',k);
-    if(!hd && !unc){ toast('warn','Đính ít nhất một chứng từ — uỷ nhiệm chi hoặc hoá đơn'); return; }
-    hmDat(maDA,row,'xong',{hoaDon:hd, unc:unc},_hmSau(k));
+    /* Chứng từ có thể đã nằm sẵn ở cột ẢNH / HỒ SƠ của dòng — nhận luôn, khỏi đòi đính lại
+       (anh Thắng 18/09/2026). Không có gì thật thì tích một cái để nhận, và sổ ghi lại. */
+    var hd=_hmVal('hd',k), unc=_hmVal('unc',k), ct=_hmCoCT(maDA,row);
+    var o=document.querySelector('[data-hmkhd="'+k+'"]'), khd=!!(o&&o.checked);
+    if(!hd && !unc && !ct && !khd){ toast('warn','Đính uỷ nhiệm chi / hoá đơn, hoặc tích «Không có chứng từ nào»'); return; }
+    var them={unc:unc, khongHD:khd?1:0};
+    if(hd) them.hoaDon=hd;   // ô trống không được xoá hoá đơn đã lưu — xem `hmGuiChot`
+    hmDat(maDA,row,'xong',them,_hmSau(k));
   }
 
   /* ═══ NÚT TRẠNG THÁI NGAY TRÊN BẢNG DỰ ÁN ═══════════════════════════════════════════════
@@ -6154,8 +6206,15 @@
      và cấp tiền được — hai chuyện khác nhau). */
   function hmNhanChung(hinhThuc, h){
     var n=_hmNhanCua((h&&h.tt)||'nhap', String(hinhThuc||'')==='Trực tiếp');
+    /* 🔴 KHOÁ MÀ KHÔNG CÓ CHỨNG TỪ NÀO THÌ PHẢI THẤY ĐƯỢC. Từ 18/09/2026 chốt được kể cả khi
+       không có hoá đơn (anh Thắng: *"trường hợp không có hóa đơn, nên không ép"*) — nhưng đó là
+       khoản tính vào chi thực tế mà không có gì đỡ, nên nó mang một nhãn riêng. Không bày ra thì
+       lúc soát sổ không cách nào lọc ra mấy khoản ấy giữa hàng trăm dòng "đã khoá" giống nhau. */
     return '<span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;color:'
-      +n[1]+';background:'+n[2]+'">'+n[0]+'</span>';
+      +n[1]+';background:'+n[2]+'">'+n[0]+'</span>'
+      +((h&&h.khongHD&&String((h&&h.tt)||'')==='xong')
+        ? '<span style="display:inline-block;margin-left:4px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;color:#b45309;background:#fef3c7" title="Chốt khi không có hoá đơn — người chốt đã khai là khoản này không có chứng từ">🚫 không hoá đơn</span>'
+        : '');
   }
   function hmNutChung(k, maDA, row, hinhThuc, h, suaDuoc, khongNhan){
     h=h||{};
@@ -6916,7 +6975,7 @@
     var suaDuoc=!!(DA_CUR.editable||DA_CUR.thiCong||DA_CUR.isCoSo);
     var h=p.hm||{};
     /* Gắn tiền vào ô tích để thanh tổng cộng lên được mà không phải dò ngược bảng. */
-    h={tt:h.tt,dot:h.dot,unc:h.unc,hoaDon:h.hoaDon,lich:h.lich,qtDot:Number(h.qtDot)||0,tienHM:Number(tienHM)||0};
+    h={tt:h.tt,dot:h.dot,unc:h.unc,hoaDon:h.hoaDon,khongHD:Number(h.khongHD)||0,lich:h.lich,qtDot:Number(h.qtDot)||0,tienHM:Number(tienHM)||0};
     return hmNutChung(_hmKeyDA(p.row), DA_CUR.maDA, p.row, p.hinhThuc, h, suaDuoc);
   }
   /* Hàng trống nằm ngay dưới mỗi hạng mục lớn — chỗ mở ô nhập, khỏi phải bày hộp thoại. */
