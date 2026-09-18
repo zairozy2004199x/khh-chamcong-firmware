@@ -922,7 +922,7 @@ class VHCP_DuAn {
 			'role'   => VHCP_Auth::vai_tro(),
 			'action' => 'Đổi trạng thái hạng mục dự án',
 			'target' => (string) $ma_da . '#' . $k,
-			'detail' => $cu['tt'] . ' → ' . $moi['tt'] . ( $moi['dot'] ? ( ' · đợt ' . $moi['dot'] ) : '' ),
+			'detail' => $cu['tt'] . ' → ' . $moi['tt'] . ( $moi['dot'] ? ( ' · lệnh ' . $moi['dot'] ) : '' ),
 		) );
 		return $moi;
 	}
@@ -1008,6 +1008,42 @@ class VHCP_DuAn {
 		return $t;
 	}
 
+	/**
+	 * Tổng đã cấp GẮN VÀO TỪNG LẦN của lịch — trả về map  lần => số tiền.
+	 *
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 CHỈ ĐẾM THỨ ĐÃ GẮN. Anh Thắng 18/09/2026: *"Xin lần 1 thì cấp lần 1 chứ"*.
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * Trước 1.201.0 sổ cấp tiền không biết mình đang trả cho lần nào, nên màn chỉ còn cách ghép
+	 * theo THỨ TỰ — và ghép theo thứ tự là BỊA: kế toán đưa 15tr trong khi lần 1 hẹn 10tr, hay
+	 * gộp hai lần làm một, thì "lần 1 đã nhận đủ" là một câu không ai kiểm được.
+	 * Nay kế toán CHỌN lần lúc cấp, nên con số này là thứ có người khai, không phải suy ra.
+	 *
+	 * ⚠️ Dòng `choLan = 0` (cấp chung, không gắn lần nào — lối "cấp trọn" cũ và mọi dòng trong
+	 *    sổ trước 1.201.0) KHÔNG rơi vào lần nào cả. Nhét đại nó vào lần 1 là dựng lại đúng cái
+	 *    ghép bịa vừa bỏ đi.
+	 */
+	public static function da_cap_theo_lan( $d ) {
+		$m = array();
+		foreach ( (array) ( isset( $d['daCap'] ) ? $d['daCap'] : array() ) as $x ) {
+			$l = (int) ( isset( $x['choLan'] ) ? $x['choLan'] : 0 );
+			if ( $l <= 0 ) { continue; }
+			if ( ! isset( $m[ $l ] ) ) { $m[ $l ] = 0; }
+			$m[ $l ] += VHCP_Util::num( isset( $x['soTien'] ) ? $x['soTien'] : 0 );
+		}
+		return $m;
+	}
+
+	/** Số tiền của MỘT lần trong lịch (0 nếu không có lần ấy). */
+	public static function tien_lan_lich( $d, $lan ) {
+		foreach ( (array) ( isset( $d['lich'] ) ? $d['lich'] : array() ) as $y ) {
+			if ( (int) ( isset( $y['lan'] ) ? $y['lan'] : 0 ) === (int) $lan ) {
+				return VHCP_Util::num( isset( $y['soTien'] ) ? $y['soTien'] : 0 );
+			}
+		}
+		return 0;
+	}
+
 	/** Còn phải cấp bao nhiêu nữa cho một lệnh (không bao giờ âm). */
 	public static function con_phai_cap( $d ) {
 		$con = VHCP_Util::num( isset( $d['soTien'] ) ? $d['soTien'] : 0 ) - self::da_cap_tong( $d );
@@ -1074,7 +1110,7 @@ class VHCP_DuAn {
 			'actor'  => VHCP_Auth::nguoi(),
 			'role'   => VHCP_Auth::vai_tro(),
 			'action' => (string) $viec,
-			'target' => (string) $ma_da . ' · đợt ' . $k,
+			'target' => (string) $ma_da . ' · lệnh ' . $k,
 			'detail' => 'trạng thái ' . $moi['tt'] . ' · ' . count( $moi['rows'] ) . ' hạng mục · '
 				. number_format( (float) $moi['soTien'], 0, ',', '.' ) . 'đ'
 				. ( '' !== $moi['unc'] ? ( ' · UNC ' . $moi['unc'] ) : '' )
@@ -1265,11 +1301,11 @@ class VHCP_DuAn {
 			foreach ( (array) ( isset( $x['rows'] ) ? $x['rows'] : array() ) as $rr ) {
 				$rr = (int) $rr;
 				if ( ! isset( $trong_lenh[ $rr ] ) ) {
-					return VHCP_Util::err( 'Dòng ' . $rr . ' được xếp vào một đợt nhận tiền nhưng '
+					return VHCP_Util::err( 'Dòng ' . $rr . ' được xếp vào một lần nhận tiền nhưng '
 						. 'không nằm trong lệnh này.' );
 				}
 				if ( isset( $da_gan[ $rr ] ) ) {
-					return VHCP_Util::err( '"' . $lon[ $rr ] . '" bị xếp vào hai đợt nhận tiền — '
+					return VHCP_Util::err( '"' . $lon[ $rr ] . '" bị xếp vào hai lần nhận tiền — '
 						. 'một khoản chỉ nhận một lần.' );
 				}
 				$da_gan[ $rr ] = 1;
@@ -1329,7 +1365,7 @@ class VHCP_DuAn {
 	public static function cap_tien_phan( $ma_da, $dot, $them = array() ) {
 		if ( ! self::find( $ma_da ) ) { return VHCP_Util::err( 'Không tìm thấy dự án' ); }
 		$d = self::dot_cua( $ma_da, $dot );
-		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy lệnh tạm ứng đợt ' . (int) $dot ); }
+		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy lệnh tạm ứng ' . (int) $dot ); }
 		$vai = VHCP_Auth::vai_tro();
 		if ( ! in_array( $vai, array( 'Admin', 'Kế toán cá nhân', 'Kế toán NCC' ), true ) ) {
 			return VHCP_Util::err( 'Chỉ kế toán cấp tạm ứng được.' );
@@ -1352,14 +1388,54 @@ class VHCP_DuAn {
 				. 'Cần đưa thêm thì nhân viên xin một lệnh mới — lệnh mới có người duyệt.' );
 		}
 
-		$ghi = $d['daCap'];
+		/* 🔴 KHÔNG CHỌN NGÀY THÌ LẤY ĐÚNG LÚC BẤM — KÈM GIỜ. Anh Thắng 18/09/2026: *"Nếu kế toán
+		   bấm cấp tiền mà không chọn ngày thì tự hiểu là lấy ngày bấm cấp làm ngày cấp tiền
+		   (kèm giờ luôn cho đầy đủ)"*, kèm ảnh sổ "Đã cấp" có ba dòng mà hai dòng trống ngày.
+		   Ô ngày là tuỳ chọn, và đường cấp TRỌN MỘT LẦN (`dat_tt_dot('ung')`) còn chẳng có ô
+		   nào — nên bỏ trống là ca thường, không phải ca hiếm. Để trống thì sổ chi tiền mất mốc
+		   thời gian, mà đối chiếu ngân hàng thì mốc ấy là thứ đầu tiên người ta dò.
+		   ⚠️ GHI VÀO `ngay` chứ không chỉ vá lúc hiển thị: ai đọc sổ qua đường khác (xuất MISA,
+		      tra lịch sử) cũng phải thấy cùng một ngày, không phải mỗi màn hình mới có. */
+		/* ─────────────────────────────────────────────────────────────────────────────────────
+		 * 🔴 CẤP CHO LẦN NÀO — KẾ TOÁN KHAI, KHÔNG SUY RA.
+		 *
+		 * Anh Thắng 18/09/2026: *"Xin lần 1 thì cấp lần 1 chứ"*. Nhân viên đã xếp từng hạng mục
+		 * vào lần 1 / lần 2 lúc xin; lúc đưa tiền mà không nói đưa cho lần nào thì cả cái xếp ấy
+		 * thành vô nghĩa — sổ chỉ biết "đã đưa tổng bao nhiêu".
+		 *
+		 * ⚠️ CHỐI SỐ VƯỢT PHẦN CỦA LẦN ẤY. Lần 1 hẹn 10tr mà gắn 20tr vào nó thì lần 2 vĩnh viễn
+		 *    trông như chưa nhận, trong khi tiền đã ra. Câu chối nói cả số còn lại của lần ấy —
+		 *    kế toán sửa được ngay tại chỗ, khỏi đi tra.
+		 * ⚠️ `choLan = 0` LÀ HỢP LỆ: lệnh không khai lịch (nhận một lần) thì chẳng có lần nào để
+		 *    gắn, và ép gắn là bịa ra một cái lịch không ai lập.
+		 * ─────────────────────────────────────────────────────────────────────────────────────── */
+		$cho_lan = (int) ( isset( $them['choLan'] ) ? $them['choLan'] : 0 );
+		if ( $cho_lan > 0 ) {
+			$tien_lan = self::tien_lan_lich( $d, $cho_lan );
+			if ( $tien_lan <= 0 ) {
+				return VHCP_Util::err( 'Lệnh này không có lần nhận tiền số ' . $cho_lan . '.' );
+			}
+			$da_lan  = self::da_cap_theo_lan( $d );
+			$con_lan = $tien_lan - ( isset( $da_lan[ $cho_lan ] ) ? $da_lan[ $cho_lan ] : 0 );
+			if ( $so > $con_lan ) {
+				return VHCP_Util::err( 'Lần ' . $cho_lan . ' chỉ còn '
+					. number_format( (float) $con_lan, 0, ',', '.' ) . 'đ chưa nhận, không gắn '
+					. number_format( (float) $so, 0, ',', '.' ) . 'đ vào đó được. '
+					. 'Đưa thêm cho lần khác thì chọn đúng lần ấy.' );
+			}
+		}
+
+		$luc   = VHCP_Util::now()->format( 'd/m/Y H:i' );
+		$ngay  = trim( (string) ( isset( $them['ngay'] ) ? $them['ngay'] : '' ) );
+		$ghi   = $d['daCap'];
 		$ghi[] = array(
 			'lan'    => count( $ghi ) + 1,
+			'choLan' => $cho_lan,
 			'soTien' => $so,
-			'ngay'   => trim( (string) ( isset( $them['ngay'] ) ? $them['ngay'] : '' ) ),
+			'ngay'   => ( '' !== $ngay ? $ngay : $luc ),
 			'unc'    => trim( (string) ( isset( $them['unc'] ) ? $them['unc'] : '' ) ),
 			'nguoi'  => VHCP_Auth::nguoi(),
-			'luc'    => VHCP_Util::now()->format( 'd/m/Y H:i' ),
+			'luc'    => $luc,
 		);
 		$het = ( $so >= $con );   // lượt này trả nốt phần còn lại
 
@@ -1387,7 +1463,7 @@ class VHCP_DuAn {
 		$tt = (string) $tt;
 		if ( ! in_array( $tt, self::TT_DOT, true ) ) { return VHCP_Util::err( 'Trạng thái không hợp lệ' ); }
 		$d = self::dot_cua( $ma_da, $dot );
-		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy lệnh tạm ứng đợt ' . (int) $dot ); }
+		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy lệnh tạm ứng ' . (int) $dot ); }
 		$them = (array) $them;
 		$vai  = VHCP_Auth::vai_tro();
 		$duyet_duoc = in_array( $vai, array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC' ), true );
@@ -1397,7 +1473,7 @@ class VHCP_DuAn {
 			return VHCP_Util::err( 'Chỉ quản lý hoặc kế toán duyệt / trả lại được.' );
 		}
 		if ( 'ung' === $tt && ! $ke_toan ) { return VHCP_Util::err( 'Chỉ kế toán cấp tạm ứng được.' ); }
-		if ( 'ung' === $d['tt'] ) { return VHCP_Util::err( 'Lệnh đợt ' . $d['dot'] . ' đã cấp tiền rồi.' ); }
+		if ( 'ung' === $d['tt'] ) { return VHCP_Util::err( 'Lệnh ' . $d['dot'] . ' đã cấp tiền rồi.' ); }
 		if ( 'duyet' === $tt && 'xin' !== $d['tt'] ) { return VHCP_Util::err( 'Chỉ duyệt được lệnh đang xin tạm ứng.' ); }
 		if ( 'ung' === $tt && 'duyet' !== $d['tt'] ) { return VHCP_Util::err( 'Chỉ cấp tiền cho lệnh đã duyệt.' ); }
 		if ( 'tra' === $tt && ! in_array( $d['tt'], array( 'xin', 'duyet' ), true ) ) {
@@ -1414,14 +1490,29 @@ class VHCP_DuAn {
 		if ( 'ung' === $tt ) {
 			$con_lai = self::con_phai_cap( $d );
 			if ( $con_lai > 0 ) {
+				$luc_c   = VHCP_Util::now()->format( 'd/m/Y H:i' );
 				$ghi_c   = $d['daCap'];
+				/* Lối này đưa NỐT phần còn lại, không hỏi cho lần nào. Gắn được đúng một ca:
+				   lịch chỉ có MỘT lần và nó còn thiếu — lúc ấy không có gì để nhầm. Lịch nhiều
+				   lần thì một lượt đưa này trả cho nhiều lần cùng lúc, gắn vào một lần là bịa. */
+				$cho_c    = 0;
+				$lich_c   = isset( $d['lich'] ) ? (array) $d['lich'] : array();
+				if ( 1 === count( $lich_c ) ) {
+					$l1     = (int) ( isset( $lich_c[0]['lan'] ) ? $lich_c[0]['lan'] : 0 );
+					$da_c   = self::da_cap_theo_lan( $d );
+					$con_c  = self::tien_lan_lich( $d, $l1 ) - ( isset( $da_c[ $l1 ] ) ? $da_c[ $l1 ] : 0 );
+					if ( $l1 > 0 && $con_lai <= $con_c ) { $cho_c = $l1; }
+				}
 				$ghi_c[] = array(
 					'lan'    => count( $ghi_c ) + 1,
+					'choLan' => $cho_c,
 					'soTien' => $con_lai,
-					'ngay'   => '',
+					/* Đường này KHÔNG có ô ngày nào để kế toán chọn, nên mốc duy nhất đúng là
+					   lúc bấm. Xem khối 🔴 ở `cap_tien_phan()`. */
+					'ngay'   => $luc_c,
 					'unc'    => isset( $sua['unc'] ) ? $sua['unc'] : $d['unc'],
 					'nguoi'  => VHCP_Auth::nguoi(),
-					'luc'    => VHCP_Util::now()->format( 'd/m/Y H:i' ),
+					'luc'    => $luc_c,
 				);
 				$sua['daCap'] = $ghi_c;
 			}
@@ -1625,12 +1716,12 @@ class VHCP_DuAn {
 		$tt = (string) $tt;
 		if ( ! in_array( $tt, array( 'xong', 'tra' ), true ) ) { return VHCP_Util::err( 'Trạng thái không hợp lệ' ); }
 		$d = self::dot_cua( $ma_da, $dot, 'qt' );
-		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy lệnh quyết toán đợt ' . (int) $dot ); }
+		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy lệnh quyết toán ' . (int) $dot ); }
 		$vai = VHCP_Auth::vai_tro();
 		if ( ! in_array( $vai, array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC' ), true ) ) {
 			return VHCP_Util::err( 'Chỉ quản lý hoặc kế toán chốt / trả lại quyết toán được.' );
 		}
-		if ( 'xong' === $d['tt'] ) { return VHCP_Util::err( 'Lệnh quyết toán đợt ' . $d['dot'] . ' đã chốt sổ rồi.' ); }
+		if ( 'xong' === $d['tt'] ) { return VHCP_Util::err( 'Lệnh quyết toán ' . $d['dot'] . ' đã chốt sổ rồi.' ); }
 
 		$sua = array( 'tt' => $tt );
 		if ( isset( $them['lyDo'] ) ) { $sua['lyDo'] = trim( (string) $them['lyDo'] ); }
@@ -2146,7 +2237,7 @@ class VHCP_DuAn {
 		if ( ! $khoa_row || ! self::hm_khoa( $ma_da, $khoa_row ) ) { return ''; }
 		$h = self::hm_cua( $ma_da, $khoa_row );
 		return 'Hạng mục đã chốt là chi thực tế — không ' . $viec . ' được nữa'
-			. ( $h['qtDot'] > 0 ? ( ' (đã gửi quyết toán đợt ' . $h['qtDot'] . ')' ) : '' )
+			. ( $h['qtDot'] > 0 ? ( ' (đã gửi quyết toán lệnh ' . $h['qtDot'] . ')' ) : '' )
 			. '. Kế toán bấm "🔓 Mở lại" thì mới đụng được.';
 	}
 

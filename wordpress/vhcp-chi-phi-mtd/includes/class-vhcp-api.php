@@ -330,6 +330,7 @@ class VHCPMTD_API {
 			'listDonHangMuc'        => array( 'VHCPMTD_DuAn', 'list_don_hm' ),
 			'xinTamUngDuAn'         => array( 'VHCPMTD_DuAn', 'xin_tam_ung_dot' ),
 			'datTrangThaiLenhDuAn'  => array( 'VHCPMTD_DuAn', 'dat_tt_dot' ),
+			'capTienPhanDuAn'       => array( 'VHCPMTD_DuAn', 'cap_tien_phan' ),
 			'listLenhDuAn'          => array( 'VHCPMTD_DuAn', 'list_lenh_da' ),
 			'xinQuyetToanDuAn'      => array( 'VHCPMTD_DuAn', 'xin_quyet_toan_dot' ),
 			'datTrangThaiQTDuAn'    => array( 'VHCPMTD_DuAn', 'dat_tt_qt' ),

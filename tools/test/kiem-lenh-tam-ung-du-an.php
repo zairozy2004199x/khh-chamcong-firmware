@@ -436,9 +436,9 @@ $xd = VHCP_DuAn::xin_tam_ung_dot( $maX, $ba, array(
 t( '🔴 xếp MỘT hàng vào hai đợt → chối', empty( $xd['success'] ), $xd );
 /* Câu chối phải nói ĐÚNG CHUYỆN: gọi tên hàng, và nói rõ vướng ở chỗ HAI ĐỢT. Chỉ canh cái tên
    thì câu chối cũ ("hạng mục đã nằm trong lệnh") cũng khớp, và phép này xanh oan. */
-t( '   gọi TÊN hàng đang vướng, và nói rõ vướng vì HAI ĐỢT',
+t( '   gọi TÊN hàng đang vướng, và nói rõ vướng vì HAI LẦN NHẬN TIỀN',
 	isset( $xd['error'] ) && false !== mb_strpos( $xd['error'], 'Thợ Phụ' )
-	&& false !== mb_strpos( $xd['error'], 'hai đợt' ), $xd );
+	&& false !== mb_strpos( $xd['error'], 'hai lần nhận tiền' ), $xd );
 teq( '   và lệnh KHÔNG được dựng ra dở dang', 'nhap', VHCP_DuAn::hm_cua( $maX, $RX['Thợ Phụ'] )['tt'] );
 
 /* 🔴 CHỐI HÀNG KHÔNG NẰM TRONG LỆNH — xếp một dòng lạ vào đợt là hứa đưa tiền cho một khoản

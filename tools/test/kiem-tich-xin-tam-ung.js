@@ -322,8 +322,10 @@ t('🔴 đính ảnh đi đường RIÊNG, không ghi lại cả dòng qua updat
   b.F.mo();
   t('🔴 hàng để "chưa xếp" → nói ra số tiền ấy',
     /2300000đ/.test(b.O.daLichNhac.innerHTML), b.O.daLichNhac.innerHTML);
-  t('   và gọi đúng tên: "dự kiến đợt tiếp theo"',
-    /dự kiến đợt tiếp theo/.test(b.O.daLichNhac.innerHTML), b.O.daLichNhac.innerHTML);
+  t('   và gọi đúng tên: "dự kiến lần tiếp theo" — CÙNG một từ với bảng lệnh (anh Thắng '
+    + '18/09: *"2 từ ngữ khác nhau, đồng nhất lại là lần 1,2,3"*)',
+    /dự kiến lần tiếp theo/.test(b.O.daLichNhac.innerHTML), b.O.daLichNhac.innerHTML);
+  t('   và chữ "đợt" không lọt vào dòng nhắc', !/đợt/.test(b.O.daLichNhac.innerHTML), b.O.daLichNhac.innerHTML);
   t('   KHÔNG gắn dấu cảnh báo cho một việc đúng quy trình',
     b.O.daLichNhac.innerHTML.indexOf('⚠️') < 0, b.O.daLichNhac.innerHTML);
   xep(b, 5, 2); b.F.xep();
@@ -408,6 +410,51 @@ t('   và nạp lại đúng màn đang đứng sau khi bấm',
 t('🔴 bảng hạng mục của màn Duyệt không nổ khi chưa mở màn ấy',
   HTML.indexOf("if(!el('hmBody')) return;") >= 0);
 
+/* ── 4b2. 🔴 FORM CẤP TIỀN CHỌN ĐÚNG LẦN, KHÔNG PHẢI TỰ DÒ ────────────────────────────
+ * Anh Thắng 18/09/2026: *"Xin lần 1 thì cấp lần 1 chứ.."*.
+ *
+ * Trả đúng lần rồi bấm là việc THƯỜNG NHẤT, nên nó phải là đường không phải thao tác gì: lần
+ * còn thiếu sớm nhất chọn sẵn, và ô tiền điền sẵn đúng phần CỦA LẦN ẤY — chứ không phải cả phần
+ * còn lại của lệnh. Điền cả phần còn lại là mời kế toán bấm một phát trả hết cho "lần 1".
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+{
+  const src = `${boc('_daCapTheoLan')}\n${boc('_capLanCon')}\n${boc('_capLanGoiY')}
+    ${boc('_capSoGoiY')}\n${boc('_capChonLan')}
+    return { con:_capLanCon, goiY:_capLanGoiY, so:_capSoGoiY, o:_capChonLan };`;
+  const F = new Function('moi', `with(moi){ ${src} }`)({
+    esc: x => String(x == null ? '' : x), money: x => String(x), _dmy: x => String(x) });
+
+  /* Lệnh 30tr: lần 1 (10tr) đã nhận đủ, lần 2 (20tr) mới nhận 8tr. */
+  const x = { soTien: 30000000,
+    lich: [{ lan: 1, ngay: '03/09/2026', soTien: 10000000 },
+           { lan: 2, ngay: '10/09/2026', soTien: 20000000 }],
+    daCap: [{ choLan: 1, soTien: 10000000 }, { choLan: 2, soTien: 8000000 }] };
+  t('🔴 chọn sẵn lần CÒN THIẾU SỚM NHẤT, không phải lần 1 cứng', F.goiY(x) === 2, F.goiY(x));
+  t('🔴 ô tiền điền sẵn phần còn thiếu CỦA LẦN ẤY (12tr), không phải cả phần còn lại của lệnh',
+    F.so(x, 12000000) === 12000000, F.so(x, 12000000));
+  const o = F.o('K1', x, 12000000);
+  t('   bày đủ mọi lần để chọn lại', /value="1"/.test(o) && /value="2"/.test(o), o);
+  t('🔴 lần đã nhận đủ vẫn bày ra nhưng NÓI RÕ là đủ (giấu đi thì sửa nhầm không quay lại được)',
+    /Lần 1[^<]*— đã nhận đủ/.test(o), o);
+  t('   lần nhận dở nói rõ còn bao nhiêu', /Lần 2[^<]*\(còn 12000000đ\)/.test(o), o);
+  t('   và lần 2 là cái được chọn sẵn', /value="2" selected/.test(o), o);
+  t('   mỗi lựa chọn mang theo phần còn thiếu để ô tiền chạy theo', /data-con="12000000"/.test(o), o);
+  t('   vẫn cho "không gắn lần nào" — kế toán gộp trả thì đừng ép khai sai',
+    /value="0"/.test(o), o);
+
+  /* 🔴 LỆNH KHÔNG KHAI LỊCH: không bày ô nào. Nhận một lần là ca thường; một ô chọn trống rỗng
+     là thêm một câu hỏi không có câu trả lời. */
+  const k = { soTien: 4000000, lich: [], daCap: [] };
+  t('🔴 lệnh không khai lịch → KHÔNG bày ô chọn lần', F.o('K2', k, 4000000) === '', F.o('K2', k, 4000000));
+  t('   và ô tiền lùi về cả phần còn lại như cũ', F.so(k, 4000000) === 4000000, F.so(k, 4000000));
+
+  /* Mọi lần đã đủ mà lệnh vẫn còn nợ (kế toán từng cấp không gắn lần) — đừng chọn bừa một lần. */
+  const z = { soTien: 30000000, lich: [{ lan: 1, ngay: '03/09/2026', soTien: 10000000 }],
+    daCap: [{ choLan: 1, soTien: 10000000 }] };
+  t('mọi lần đã nhận đủ → không chọn sẵn lần nào', F.goiY(z) === 0, F.goiY(z));
+  t('   và ô tiền lùi về phần còn lại của lệnh', F.so(z, 20000000) === 20000000, F.so(z, 20000000));
+}
+
 /* ── 4c. 💵 THẺ BA CON SỐ TẠM ỨNG ─────────────────────────────────────────────────────
  * Anh Thắng: *"chỗ này sẽ hiện (Số tiền đã xin tạm ứng / Số tiền kế toán đã chi tạm ứng)"* và
  * *"Dự kiến tạm ứng tổng đơn"*.
@@ -465,10 +512,14 @@ t('🔴 bảng hạng mục của màn Duyệt không nổ khi chưa mở màn �
     daVaoLenh: 68790000, daChiTU: 0, tongDuToan: 0 }, 0);
   /* Khoá theo CẶP nhãn–số, không khoá mỗi con số: cả hai con số đều có mặt trên thẻ (68.79tr ở
      dòng "dự kiến tổng đơn"), nên dò số trần thì phép xanh kể cả khi hai dòng đổi chỗ cho nhau. */
-  t('🔴 "đã xin" là tổng các đợt (30tr), không phải cả lệnh (68.79tr)',
+  t('🔴 "đã xin" là tổng các lần đã khai (30tr), không phải cả lệnh (68.79tr)',
     /Số tiền đã xin tạm ứng<\/span><b[^>]*>30000000đ</.test(h), h);
-  t('🔴 và bày "dự kiến đợt tiếp theo" 38.790.000đ',
-    /dự kiến đợt tiếp theo/.test(h) && />38790000đ</.test(h), h);
+  t('🔴 và bày "dự kiến lần tiếp theo" 38.790.000đ',
+    /dự kiến lần tiếp theo/.test(h) && />38790000đ</.test(h), h);
+  /* 🔴 THẺ NÀY CŨNG PHẢI DÙNG CHUNG TỪ VỚI BẢNG LỆNH — anh Thắng 18/09: *"2 từ ngữ khác nhau,
+     đồng nhất lại là lần 1,2,3"*. Nó nằm ở đầu trang, ngay trên bảng; hai từ cho một thứ mà
+     đứng cách nhau một gang tay là chỗ dễ đọc nhầm nhất. */
+  t('   và chữ "đợt" không còn trên thẻ', !/đợt/.test(h), h);
   t('   đưa hết hạng mục vào lệnh rồi thì dòng chân báo xong, không đòi thêm',
     /đã đưa hết hạng mục vào lệnh/.test(h), h);
 }
@@ -619,7 +670,7 @@ const q = (row, tien, checked) => ({ checked: !!checked, value: '',
   const dagui = f({ tt: 'xong', dot: 1, qtDot: 2 }, 2300000);
   t('🔴 đã nằm trong lệnh quyết toán → KHÔNG còn ô tích (gửi hai lần là tất toán gấp đôi)',
     !/data-xqt/.test(dagui), dagui);
-  t('   nhưng cho biết đã gửi đợt mấy', /đã gửi QT đợt 2/.test(dagui), dagui);
+  t('   nhưng cho biết đã gửi lệnh mấy', /đã gửi QT lệnh 2/.test(dagui), dagui);
   const chuaXong = f({ tt: 'ung', dot: 1, qtDot: 0 }, 2300000);
   t('🔴 hạng mục CHƯA chốt hoá đơn → không có ô tích quyết toán', !/data-xqt/.test(chuaXong), chuaXong);
   t('   mà có nút chốt xong trước đã', /hmMoChot/.test(chuaXong), chuaXong);
@@ -873,7 +924,7 @@ const HM2 = [
   const f = new Function('moi', `with(moi){ ${boc('_uncGon')}\n return _uncGon; }`)(moi);
   const dai = f('https://khmatrix.com/wp-content/uploads/vhcp/HoSo_DuAn/DA_rat_dai.jpg', 2);
   t('🔴 UNC là liên kết → rút thành một chữ bấm được, KHÔNG in cả địa chỉ',
-    /📎 UNC · đợt 2/.test(dai) && dai.indexOf('>https://') < 0, dai);
+    /📎 UNC · lệnh 2/.test(dai) && dai.indexOf('>https://') < 0, dai);
   t('   và rê chuột vào vẫn xem được ảnh', /data-bill=/.test(dai), dai);
   const so = f('UNC-88', 1);
   t('🔴 UNC là SỐ gõ tay → in nguyên (số ấy ngắn, và chính nó mới là thông tin)',

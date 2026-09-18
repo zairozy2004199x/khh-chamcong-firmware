@@ -90,8 +90,8 @@ function nut(opt) {
 
   const roi = nut({ tt: 'xong', qtDot: 2, editable: true });
   t('đã gửi rồi thì CÓ nhãn', roi.indexOf('đã gửi QT') >= 0, roi);
-  t('   kèm số đợt, không phải undefined',
-    /đã gửi QT đợt 2</.test(roi) && roi.indexOf('undefined') < 0, roi);
+  t('   kèm số lệnh, không phải undefined',
+    /đã gửi QT lệnh 2</.test(roi) && roi.indexOf('undefined') < 0, roi);
 
   /* Hàng chưa chốt hoàn thành thì càng không có nhãn — dù sổ có lỡ ghi qtDot. */
   const nhap = nut({ tt: 'nhap', qtDot: 3, editable: true });
@@ -260,7 +260,7 @@ function veForm(ham, ...them) {
   const f = veForm('hmMoCap', 2).html;
   t('🔴 cấp tạm ứng đính được uỷ nhiệm chi của ĐỢT ấy',
     /data-hmunc="P7"/.test(f) && /hmGuiCap\('P7','DA1',7,2\)/.test(f), f);
-  t('   nói rõ đang cấp đợt mấy', /đợt 2/.test(f), f);
+  t('   nói rõ đang cấp lệnh mấy', /lệnh 2/.test(f), f);
   t('   và KHÔNG đòi hoá đơn ở bước cấp tiền (hoá đơn về sau, lúc chốt)',
     !/data-hmhd=/.test(f), f);
 }

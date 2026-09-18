@@ -226,17 +226,34 @@ class VHCPMTD_App {
 	 * bịa ra một bản thông tin pháp lý thứ hai không ai cập nhật.
 	 */
 	public static function chan_block() {
+		/* ĐƯỜNG VỀ TRẠM CHẤM CÔNG — chỉ hiện khi trang này được mở từ lưới Ứng dụng bên ấy
+		   (`?ve=tram`). Lý do đầy đủ ở `vhcpmtd-cham-cong/includes/class-vhcc-ve-tram.php`: tóm
+		   tắt là app điện thoại chạy chế độ standalone, mà ở đó iOS KHÔNG có nút back.
+
+		   ⚠️ DÒ CẢ HÀM, không chỉ tên lớp — đúng luật đã ghi ngay dưới đây cho `VHG_Chan`, và
+		      `tools/test/kiem-goi-cheo.php` canh nó. Bản đầu của chỗ này chỉ dò tên lớp: plugin
+		      Chấm Công cài độc lập nên bản có thể lệch, lớp CÓ mà hàm KHÔNG là trắng cả trang
+		      chi phí vì một cái nút phụ. Đặt trong `chan_block()` vì nút dùng `position:fixed`,
+		      nằm cuối body hay đầu body đều hiện đúng chỗ.
+		   ⚠️ Bắt output bằng ob_* vì hàm này TRẢ VỀ chuỗi, còn `nut()` thì `echo`. */
+		$ve = '';
+		if ( class_exists( 'VHCC_VeTram' ) && method_exists( 'VHCC_VeTram', 'nut' ) ) {
+			ob_start();
+			VHCC_VeTram::nut();
+			$ve = (string) ob_get_clean();
+		}
+
 		// ⚠️ HAI PLUGIN CÀI ĐỘC LẬP -> DÒ TỪNG HÀM, KHÔNG DÒ MỖI TÊN LỚP.
 		//
 		// class_exists() chỉ nói "có plugin Ghế", KHÔNG nói "bản Ghế này có hàm mình định
 		// gọi". Bản trước gọi thẳng một hàm mới thêm bên Ghế: máy anh Thắng đang chạy Ghế
 		// bản cũ -> lớp CÓ, hàm KHÔNG -> lỗi nghiêm trọng, trắng cả trang WordPress. Cài
 		// hai plugin lệch bản là chuyện bình thường, nên chỗ nối phải chịu được điều đó.
-		if ( ! class_exists( 'VHG_Chan' ) || ! method_exists( 'VHG_Chan', 'html' ) ) { return ''; }
+		if ( ! class_exists( 'VHG_Chan' ) || ! method_exists( 'VHG_Chan', 'html' ) ) { return $ve; }
 		$h = VHG_Chan::html();
-		if ( '' === trim( (string) $h ) ) { return ''; }
+		if ( '' === trim( (string) $h ) ) { return $ve; }
 		$css = method_exists( 'VHG_Chan', 'css' ) ? VHG_Chan::css() : '';
-		return '<style>' . $css . self::chan_css_sang() . '</style>' . $h;
+		return $ve . '<style>' . $css . self::chan_css_sang() . '</style>' . $h;
 	}
 
 	/**

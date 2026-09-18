@@ -126,12 +126,12 @@ $x = VHCP_DuAn::update_line( $ma, $con['row'], array( 'noiDung' => 'Bóng đèn'
 t( '🔴 SỬA tiền về 0 → CHỐI (xoá trá hình, chỉ khác cái tên)', empty( $x['success'] ), $x );
 teq( '   tiền giữ nguyên', 2000000.0, (float) dong( $ma, 'Bóng đèn' )['thucTe'] );
 
-/* Đã gửi quyết toán thì câu chối nói luôn đợt nào — để người ta biết đi hỏi kế toán về cái gì. */
+/* Đã gửi quyết toán thì câu chối nói luôn lệnh nào — để người ta biết đi hỏi kế toán về cái gì. */
 vai( 'Nhân viên', 'NV' );
 VHCP_DuAn::xin_quyet_toan_dot( $ma, array( $cha['row'] ) );
 $x = VHCP_DuAn::delete_line( $ma, $con['row'] );
-t( '🔴 đã gửi quyết toán → câu chối nói rõ đợt nào',
-	isset( $x['error'] ) && false !== mb_strpos( $x['error'], 'quyết toán đợt 1' ), $x );
+t( '🔴 đã gửi quyết toán → câu chối nói rõ lệnh nào',
+	isset( $x['error'] ) && false !== mb_strpos( $x['error'], 'quyết toán lệnh 1' ), $x );
 
 /* Mở lại thì xoá / sửa được — đó là đường chính thức. */
 vai( 'Kế toán cá nhân', 'KT' );

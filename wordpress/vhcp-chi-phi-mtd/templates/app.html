@@ -716,7 +716,7 @@
       <div id="daQtBox" style="display:none;margin:10px 0 0">
         <div style="font-size:12.5px;font-weight:700;color:#171417;margin-bottom:4px">🧾 Lệnh quyết toán của dự án</div>
         <div class="tw"><table>
-          <thead><tr><th style="width:64px">Đợt</th><th>Hạng mục trong lệnh</th>
+          <thead><tr><th style="width:74px">Lệnh</th><th>Hạng mục trong lệnh</th>
             <th style="text-align:right">Số tiền</th><th>Trạng thái</th><th>Mốc</th>
             <th style="text-align:center">Thao tác</th></tr></thead>
           <tbody id="daQtBody"></tbody>
@@ -1940,9 +1940,106 @@
     window.addEventListener('scroll',an,true);
   }
 
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+     BẤM ẢNH BILL -> MỞ TRONG TRANG, KHÔNG RỜI TRANG.
+
+     🔴 LỖI ĐÃ SỬA (anh Thắng 17/09/2026): *"bấm ảnh lên xem muốn tắt, bấm x hoặc quay lại
+        trang là nó tự quay lại trang chủ, lại phải mở lại đơn từ đầu"*.
+
+        Ảnh bill là thẻ `<a target="_blank">`. Trên MÁY TÍNH nó mở tab mới, đóng tab là về chỗ
+        cũ — không sao. Nhưng trong app điện thoại (chế độ standalone) KHÔNG CÓ TAB: `_blank`
+        thành điều hướng ngay trong cửa sổ duy nhất ấy. Bấm quay lại thì `/chi-phi` nạp mới, mà
+        đơn đang mở KHÔNG nằm trong địa chỉ — nên nó về màn đầu, và người ta phải chọn lại đơn,
+        cuộn lại tới đúng dòng. Soát 23 dòng bill là 23 lần như vậy.
+
+     ⚠️ CHỮA Ở CHỖ NÀO. Hai đường:
+          a) nhét mã đơn vào địa chỉ để quay lại còn dựng lại được — đúng về lâu dài, nhưng
+             đụng vào định tuyến của cả app, và vẫn còn một lượt rời trang.
+          b) đừng rời trang nữa: mở ảnh trong một lớp phủ ngay tại chỗ.
+        Chọn (b): nó xoá hẳn nguyên nhân thay vì dựng đường lùi cho nó, và gói gọn trong một
+        hàm. Đường (a) vẫn nên làm, nhưng là việc khác.
+
+     ⚠️ KHÔNG ĐỤNG NHÁNH RÊ CHUỘT ở trên. Máy tính giữ nguyên thói quen cũ (rê xem nhanh, bấm
+        mở ảnh gốc ở tab mới); lớp phủ này chỉ chen vào khi máy KHÔNG có chuột thật.
+     ══════════════════════════════════════════════════════════════════════════════════════════ */
+  function _billTapInit(){
+    /* Máy có chuột thật thì thôi — `hover: hover` là phép thử chuẩn, đúng cả với iPad có bàn
+       phím rời (lúc ấy nó BÁO có hover, và người dùng cũng thật sự có trỏ chuột). */
+    var coChuot = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+    if (coChuot) { return; }
+
+    var lp = null, img = null;
+
+    function dung(){
+      if (lp) { return lp; }
+      lp = document.createElement('div');
+      lp.id = 'billTap';
+      lp.innerHTML = '<img alt="Ảnh chứng từ"><button type="button" aria-label="Đóng">✕</button>';
+      document.body.appendChild(lp);
+      img = lp.querySelector('img');
+      /* Bấm bất kỳ đâu trên lớp phủ là đóng — kể cả trúng ảnh. Người đang cầm điện thoại một
+         tay thì ngón cái với tới nút ✕ ở góc là chuyện khó; cả tấm màn là nút đóng thì không
+         phải với. */
+      lp.addEventListener('click', dongTay);
+      return lp;
+    }
+
+    /* Có đang giữ một lượt history của riêng mình không. Xem `mo()` / `dongTay()`. */
+    var daDay = false;
+
+    function mo(url){
+      var o = dung();
+      if (img.getAttribute('src') !== url) { img.setAttribute('src', url); }
+      o.classList.add('hien');
+      /* Khoá cuộn nền: không khoá thì vuốt trên ảnh làm bảng phía sau chạy, đóng ra mất chỗ. */
+      document.body.style.overflow = 'hidden';
+
+      /* 🔴 ĐẨY MỘT LƯỢT HISTORY GIẢ. Đây mới là thứ làm nút back (Android) và vuốt mép (iOS)
+         ĐÓNG ẢNH thay vì rời khỏi trang chi phí. Không có nó thì `popstate` bên dưới có nghe
+         cũng vô ích: lượt back ấy là lượt rời trang thật, và người ta lại về màn đầu — đúng
+         cái lỗi này sinh ra để chữa.
+         ⚠️ Chỉ đẩy khi CHƯA đẩy: mở ảnh này rồi bấm sang ảnh khác mà đẩy thêm một lượt nữa là
+            phải back hai lần mới ra. */
+      if (!daDay) {
+        try { history.pushState({ billTap: 1 }, ''); daDay = true; } catch (e) {}
+      }
+    }
+
+    /* Ẩn thôi, KHÔNG đụng history — dùng khi chính `popstate` gọi tới. */
+    function an_(){
+      if (!lp) { return; }
+      lp.classList.remove('hien');
+      document.body.style.overflow = '';
+    }
+
+    /* Người dùng bấm để đóng. Nếu đang giữ lượt history của mình thì lùi nó ra, để lượt back
+       kế tiếp của họ là lượt back THẬT — không để lại một bậc thang rỗng trong lịch sử. */
+    function dongTay(){
+      if (daDay) { daDay = false; try { history.back(); return; } catch (e) {} }
+      an_();
+    }
+
+    document.addEventListener('click', function(e){
+      var t = e.target && e.target.closest ? e.target.closest('[data-bill]') : null;
+      if (!t) { return; }
+      var u = t.getAttribute('data-bill');
+      if (!u) { return; }
+      /* 🔴 CHẶN CẢ HAI: `preventDefault` bỏ lượt điều hướng của thẻ <a>, `stopPropagation`
+         chặn mấy handler khác của bảng (bấm dòng để sửa). Thiếu cái thứ hai thì mở ảnh xong
+         màn sửa dòng cũng bật lên phía sau. */
+      e.preventDefault();
+      e.stopPropagation();
+      mo(u);
+    }, true);
+
+    /* Lượt back rơi vào đây: ẩn ảnh, và bỏ cờ vì lượt history của mình vừa bị tiêu. */
+    window.addEventListener('popstate', function(){ daDay = false; an_(); });
+  }
+
   window.onload=initApp;
   function initApp(){
     _billZoomInit();
+    _billTapInit();
     _tienGanHet();   // ô tiền hiện dấu chấm nghìn ngay lúc gõ
     // SSO: có danh tính từ trang tổng → tự đăng nhập, bỏ cổng PIN (xác thực lại mỗi lần tải từ token)
     if(typeof SSO_USER!=='undefined' && SSO_USER && SSO_USER.role){
@@ -4298,10 +4395,20 @@
   /* Thẻ TẠM ỨNG của dự án — ba con số xếp dọc, thay cho ô "Tổng dự toán" cũ. */
   function _tqCardTU(r, hmDT){
     var dk=Number(r.duKienTU)||0, xin=Number(r.daXinTU)||0, chi=Number(r.daChiTU)||0;
-    /* Còn phải xin = phần chưa gửi lệnh nào. Âm thì kẹp về 0: xin nhiều hơn dự kiến là chuyện
-       có thật (phát sinh thêm sau khi gửi), mà bày "-2.000.000đ còn phải xin" thì đọc ra vô
-       nghĩa — chỗ ấy nói thẳng là đã xin vượt. */
-    var con=dk-xin;
+    /* 🔴 BA CON SỐ, BA CÂU HỎI KHÁC NHAU — 17/09/2026.
+       Anh Thắng: *"Số tiền xin tạm ứng đợt 1, chứ xin tổng vẫn chưa mà"*, rồi *"Tạm ứng xin đợt
+       1, đợt 2… còn số nào chưa lên thì ghi là dự kiến đợt tiếp theo"*.
+         · `xin`  = tổng các ĐỢT đã khai — nhân viên xin CẦM VỀ bấy nhiêu
+         · `sau`  = phần của lệnh chưa xếp vào đợt nào — "dự kiến đợt tiếp theo"
+         · `con`  = phần hạng mục CHƯA ĐƯA VÀO LỆNH NÀO — câu khác hẳn hai cái trên
+       Trước đây `xin` ôm cả lệnh nên nó vừa trả lời câu một vừa trả lời câu ba, và trả lời sai
+       cả hai: thẻ báo đã xin 68.790.000đ trong khi nhân viên mới xin nhận 30.000.000đ.
+       ⚠️ `con` nay đo bằng `daVaoLenh`, không đo bằng `xin` — không thì phần chưa xếp đợt bị
+          đếm lần thứ hai thành "chưa gửi xin", và một đơn đã gửi hết hạng mục vẫn báo còn thiếu. */
+    var sau=Number(r.duKienDotSau)||0;
+    /* Âm thì kẹp về 0: đưa hạng mục vào lệnh nhiều hơn dự kiến là chuyện có thật (phát sinh thêm
+       sau khi gửi), mà bày "-2.000.000đ còn phải xin" thì đọc ra vô nghĩa. */
+    var con=dk-(Number(r.daVaoLenh)||0);
     function dong(nhan, so, mau, dam){
       return '<div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline;'
         +(dam?'margin-bottom:4px':'margin-top:3px')+'">'
@@ -4311,10 +4418,14 @@
     return '<div style="flex:1;min-width:250px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px 14px">'
       +dong('Dự kiến tạm ứng tổng đơn', dk, '#1e40af', true)
       +dong('Số tiền đã xin tạm ứng', xin, '#b45309')
+      +(sau?('<div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline;'
+        +'margin-top:1px;padding-left:10px"><span style="font-size:11px;color:#8c8781">↳ dự kiến '
+        +'lần tiếp theo</span><b style="font-size:12.5px;font-weight:700;color:#8c8781;'
+        +'white-space:nowrap">'+money(sau)+'đ</b></div>'):'')
       +dong('Số tiền kế toán đã chi tạm ứng', chi, '#2545ff')
       +'<div style="border-top:1px dashed #bfdbfe;margin-top:6px;padding-top:5px;font-size:11px;color:#1e40af;opacity:.85">'
-      +(con>0 ? ('còn <b>'+money(con)+'đ</b> chưa gửi xin')
-              : (con<0 ? ('⚠️ đã xin vượt dự kiến <b>'+money(-con)+'đ</b>') : '✓ đã gửi xin hết'))
+      +(con>0 ? ('còn <b>'+money(con)+'đ</b> hạng mục chưa đưa vào lệnh nào')
+              : (con<0 ? ('⚠️ lệnh đã gửi vượt dự kiến <b>'+money(-con)+'đ</b>') : '✓ đã đưa hết hạng mục vào lệnh'))
       +' · dự toán '+money(Number(r.tongDuToan)||0)+'đ (hạng mục '+money(hmDT)+'đ)</div>'
       +'</div>';
   }
@@ -5273,10 +5384,41 @@
     phatSinh=_daGomGian(phatSinh);
     Object.keys(childrenBy).forEach(function(c){ childrenBy[c]=_daGomGian(childrenBy[c]); });
     // Đổ danh sách hạng mục lớn vào bộ chọn "Thuộc" (giữ lựa chọn hiện tại nếu còn hợp lệ)
+    /* ══════════════════════════════════════════════════════════════════════════════════════════
+       Ô "THUỘC" — THÔI BÀY ĐƯỜNG TẠO MỤC CON MỚI.
+
+       Anh Thắng 17/09/2026: *"Đối với chi phí dự án, hạng mục con bỏ đi, vì các chi phí đều là
+       hạng mục lớn"*, và chốt: giữ nguyên mục con ĐANG CÓ, chỉ cấm tạo mới — không một con số
+       nào của dự án cũ được phép đổi.
+
+       🔴 CÁI BẪY Ở ĐÂY, VÀ NÓ ĐỔI TIỀN. Bỏ thẳng mấy option "↳ mục con của: X" đi là xong về
+          mặt giao diện — nhưng `daEditLine()` sửa một MỤC CON CŨ sẽ đặt `da_capCha.value` bằng
+          tên cha, mà option ấy không còn tồn tại, nên trình duyệt lặng lẽ để ô ở giá trị rỗng.
+          Bấm Cập nhật là dòng ấy được ghi với `capCha=''` → nó NHẢY LÊN thành hạng mục lớn.
+          Hậu quả tiền: cha cũ mất con nên tiền của cha chuyển từ "tổng con" sang "thực tế của
+          chính nó" (`tien_hm()`), và dòng vừa nhảy lên được cộng thêm một lần nữa. Tổng dự án
+          đổi, không câu cảnh báo nào, chỉ vì người ta mở ra sửa mỗi cái ghi chú.
+
+       Nên: chỉ bày option cha của CHÍNH dòng đang sửa. Dòng mới thì không có option cha nào —
+       hết đường tạo mục con; dòng con cũ thì giữ đúng cha của nó, sửa gì cũng không rơi cấp.
+       ══════════════════════════════════════════════════════════════════════════════════════════ */
     var selCap=el('da_capCha');
     if(selCap){ var cur=selCap.value;
+      /* Cha của dòng ĐANG SỬA (nếu nó vốn là mục con). `DA_EDIT_ROW` là số dòng đang mở form. */
+      var _chaGiu='';
+      if(DA_EDIT_ROW){
+        L.forEach(function(x){
+          if(Number(x.row)===Number(DA_EDIT_ROW)){
+            var c=String(x.capCha||'');
+            if(c && c!=='(Phát sinh)') _chaGiu=c;
+          }
+        });
+      }
+      /* Ô đang giữ sẵn một tên cha (form vừa được `daEditLine` điền) thì cũng phải giữ lấy —
+         thứ tự hai lượt vẽ không phải lúc nào cũng như nhau, và mất option là mất cấp. */
+      if(!_chaGiu && cur && cur!=='(Phát sinh)') _chaGiu=cur;
       selCap.innerHTML='<option value="">— Hạng mục lớn (mới) —</option>'+
-        parents.map(function(p){return '<option value="'+esc(p.noiDung)+'">↳ mục con của: '+esc(p.noiDung)+'</option>';}).join('')+
+        (_chaGiu?('<option value="'+esc(_chaGiu)+'">↳ mục con của: '+esc(_chaGiu)+' (dòng cũ)</option>'):'')+
         '<option value="(Phát sinh)">➕ Phát sinh (độc lập)</option>';
       if(cur){ for(var oi=0;oi<selCap.options.length;oi++){ if(selCap.options[oi].value===cur){ selCap.value=cur; break; } } } }
     // Hình thức chi CHỈ hiện ở hạng mục lớn / phát sinh; mục con theo hình thức của cha -> để trống
@@ -5308,21 +5450,20 @@
       var html='';
       ds.forEach(function(p){
       var kids=childrenBy[p.noiDung]||[];
-      var addChild=canEdit?(' <button class="btn b-s" onclick="daAddChild(this.getAttribute(\'data-p\'))" data-p="'+esc(p.noiDung)+'" title="Thêm mục con">＋ con</button>'):'';
-      /* Nút gộp một hạng mục lớn vào hạng mục lớn khác. Anh Thắng 10/09/2026: *"cái xe 3 tấn gõ
-         nhầm, nó là con của xe vận chuyển, muốn chuyển nó thành con của xe vận chuyển"*.
-         Vốn vẫn làm được — bấm ✏️ rồi đổi ô "Thuộc" — nhưng phải nhớ là ô ấy có, mà nhìn hàng
-         thì không có gì gợi ra. Đặt nút ngay cạnh "＋ con" cho thấy đường.
-         ⚠️ CHỈ HIỆN KHI HẠNG MỤC ẤY CHƯA CÓ CON. Gộp một hạng mục đang có con vào hạng mục
-            khác là lồng ba cấp, mà bảng chỉ vẽ hai — mấy dòng con sẽ biến khỏi màn tuy vẫn
-            nằm trong sổ và vẫn cộng vào tổng. */
-      /* 🔴 NÚT HIỆN Ở MỌI HẠNG MỤC LỚN, chốt nằm TRONG hàm. Anh Thắng 10/09/2026: *"Sao có đơn
-         chuyển được, có đơn không chuyển được"* — bản trước ẩn nút với hạng mục đang có mục
-         con, nên người dùng phải tự đoán ra luật. Ẩn im lặng là bắt người ta đoán; hiện nút
-         rồi nói rõ lý do thì họ biết phải làm gì (gỡ mục con ra trước). */
-      var goNut=(canEdit && parents.length>1)
-        ? (' <span data-gop="'+p.row+'"><button class="btn b-x" onclick="daGopVaoMuc('+p.row+')" title="Gộp hạng mục LỚN này thành mục con của hạng mục lớn khác — dùng khi lỡ gõ nó thành mục lớn">↳ vào mục</button></span>') : '';
-      addChild+=goNut;
+      /* ══════════════════════════════════════════════════════════════════════════════════════
+         KHÔNG CÒN ĐƯỜNG TẠO MỤC CON MỚI.
+
+         Anh Thắng 17/09/2026: *"Đối với chi phí dự án, hạng mục con bỏ đi, vì các chi phí đều
+         là hạng mục lớn"*. Hai nút đã gỡ, vì cả hai đều SINH RA quan hệ cha–con:
+           · `＋ con`      — thêm thẳng một mục con cho hạng mục này
+           · `↳ vào mục`  — hạ một hạng mục lớn xuống làm con của hạng mục lớn khác
+
+         ⚠️ CHỈ GỠ ĐƯỜNG TẠO, KHÔNG GỠ ĐƯỜNG VẼ. Dự án cũ còn mục con thì vẫn phải hiện đủ và
+            tính đúng y như trước — anh Thắng chốt: không một con số nào của dự án cũ được đổi.
+            Nút `↳ đổi mục` ở hàng con vẫn còn, nhưng nay chỉ để ĐƯA LÊN hạng mục lớn (xem chỗ
+            gọi `daGopVaoMuc` bên dưới) — tức đường một chiều, dọn được chứ không tạo thêm.
+         ══════════════════════════════════════════════════════════════════════════════════════ */
+      var addChild='';
       /* Tiền của hạng mục = tổng CON nếu có con, không thì thực tế của chính nó — đúng luật
          `tongNhom()` bên dưới và `VHCPMTD_DuAn::tien_hm()` bên máy chủ. Cộng cả cha lẫn con là
          đếm hai lần, mà đây là con số kế toán chuẩn bị tiền. */
@@ -5375,15 +5516,43 @@
     }
     /* Tổng của một bảng = thực tế của MỤC CON (hạng mục lớn có con thì tiền nằm ở con) cộng
        thực tế của hạng mục không có con, cộng phát sinh. Cộng cả cha lẫn con là đếm hai lần. */
+    /* ══════════════════════════════════════════════════════════════════════════════════════════
+       TỔNG CỦA MỘT NHÓM — TRẢ VỀ HAI SỐ, VÌ Ở ĐÂY CÓ HAI SỰ THẬT.
+
+       🔴 17/09/2026, anh Thắng: *"đã nhập số liệu thì cần cộng vào luôn để biết bao nhiêu"*, kèm
+          ảnh một dự án 125.907.312đ dự toán mà dòng tổng nhóm "NV TỰ TRẢ" đứng **0**.
+
+          Bản trước chỉ cộng `thucTe`. Đúng luật của bảng — nhưng ở giai đoạn LẬP DỰ TOÁN thì
+          chưa ai tiêu đồng nào, nên con số duy nhất trên dòng tổng luôn là 0, trong khi ngay
+          dưới nó là mười mấy dòng có tiền. Người nhập không có cách nào biết mình đã gõ vào
+          bao nhiêu ngoài việc tự cộng nhẩm — đúng việc máy phải làm hộ.
+
+       ⚠️ KHÔNG GỘP HAI SỐ LÀM MỘT. Cách rẻ là cho dòng tổng "lấy thực tế, chưa có thì lấy dự
+          toán". Làm thế thì một nhóm nửa đã chi nửa chưa ra một con số không phải cái nào cả,
+          và không có gì trên màn hình nói ra điều đó. Dự toán và thực chi là hai đại lượng
+          khác nhau; bày cả hai, mỗi cái một nhãn.
+       ══════════════════════════════════════════════════════════════════════════════════════════ */
     function tongNhom(ds, ps){
-      var t=0;
+      var dt=0, t=0;
       ds.forEach(function(p){
         var kids=childrenBy[p.noiDung]||[];
+        /* Dự toán chỉ nằm ở HẠNG MỤC LỚN (mục con không nhập dự toán — xem `daCapChaHint()`),
+           nên cộng dự toán của cha là đủ, và cộng thêm của con thì cũng không có gì để cộng. */
+        dt+=Number(p.duToan)||0;
         if(kids.length) kids.forEach(function(k){ t+=Number(k.thucTe)||0; });
         else t+=Number(p.thucTe)||0;
       });
       ps.forEach(function(k){ t+=Number(k.thucTe)||0; });
-      return t;
+      return { duToan:dt, thucTe:t };
+    }
+    /* Dòng tổng của nhóm, dạng chữ. Chỉ bày phần có số — một nhóm chưa chi đồng nào mà vẫn in
+       "thực tế 0đ" thì con số 0 ấy lại là thứ đập vào mắt trước, đúng cái vừa phải sửa. */
+    function tongNhomChu(o){
+      var p=[];
+      if(o.duToan) p.push('dự toán <b>'+money(o.duToan)+'đ</b>');
+      if(o.thucTe) p.push('thực tế <b>'+money(o.thucTe)+'đ</b>');
+      if(!p.length) p.push('<span style="font-weight:400;opacity:.75">chưa có số nào</span>');
+      return p.join(' · ');
     }
     var html='';
     if(coHai){
@@ -5400,11 +5569,20 @@
         var k=g[0];
         if(!nhomHt[k].length && !psHt[k].length) return;
         html+='<tr><td colspan="12" style="background:'+g[2]+';color:'+g[3]+';font-weight:800;padding:7px 10px">'+g[1]+'</td>'
-          +'<td style="background:'+g[2]+';color:'+g[3]+';font-weight:800;text-align:right;padding:7px 10px;white-space:nowrap">'+money(tongNhom(nhomHt[k],psHt[k]))+'</td></tr>';
+          +'<td style="background:'+g[2]+';color:'+g[3]+';font-weight:800;text-align:right;padding:7px 10px;white-space:nowrap">'+tongNhomChu(tongNhom(nhomHt[k],psHt[k]))+'</td></tr>';
         html+=veNhom(nhomHt[k])+vePhatSinh(psHt[k]);
       });
     } else {
+      /* 🔴 MỘT HÌNH THỨC CHI THÌ CŨNG PHẢI CÓ DÒNG TỔNG. Bản trước chỉ vẽ dòng tổng khi dự án
+         có CẢ HAI hình thức (vì dòng tổng đi kèm nhãn nhóm). Nên đúng cái dự án đơn giản nhất —
+         một hình thức, mười mấy dòng — lại là dự án KHÔNG có chỗ nào nói tổng bao nhiêu, và
+         người nhập phải cộng nhẩm. Đúng việc anh Thắng vừa bảo máy phải làm hộ. */
+      var _tg=tongNhom(parents, phatSinh);
       html=veNhom(parents)+vePhatSinh(phatSinh);
+      if(html){
+        html+='<tr><td colspan="12" style="background:#f4f1ec;font-weight:800;padding:7px 10px">TỔNG</td>'
+          +'<td style="background:#f4f1ec;font-weight:800;text-align:right;padding:7px 10px;white-space:nowrap">'+tongNhomChu(_tg)+'</td></tr>';
+      }
     }
     el('daLineBody').innerHTML=html||'<tr><td colspan="13" style="text-align:center;color:#8c8781;padding:12px">Chưa có dòng chi phí — thêm ở trên.</td></tr>';
     /* Thanh tích + bảng lệnh dựng SAU khi bảng đã vẽ: ô tích nằm trong bảng, dựng trước thì
@@ -5540,7 +5718,7 @@
           +'<span style="min-width:150px"><b>'+esc(x.noiDung)+'</b></span>'
           +'<span style="font-size:11px;color:#64748b;white-space:nowrap">'+(String(x.hinhThuc||'')==='Trực tiếp'?'🏢':'💰')+' '+money(x.thucTe)+'đ</span>'
           +hmNhanChung(x.hinhThuc, h)
-          +_uncGon(h.unc, h.dot)
+          +_uncGon(h.unc, _dotHienCua(h.dot, x.dotHien))
           +(h.hoaDon?('<a href="'+esc(h.hoaDon)+'" target="_blank" data-bill="'+esc(h.hoaDon)+'" style="font-size:11px;color:#2545ff;white-space:nowrap" title="Hoá đơn">🧾 hoá đơn</a>'):'')
           +lich
           +'<span style="flex:1"></span>'
@@ -5597,7 +5775,7 @@
   function _uncGon(unc, dot){
     var u=String(unc||'').trim();
     if(!u) return '';
-    var d=dot?(' · đợt '+dot):'';
+    var d=dot?(' · lệnh '+dot):'';
     if(/^https?:\/\//i.test(u)){
       return '<a href="'+esc(u)+'" target="_blank" data-bill="'+esc(u)+'" style="font-size:11px;color:#2545ff;white-space:nowrap" title="'+esc(u)+'">📎 UNC'+esc(d)+'</a>';
     }
@@ -5633,7 +5811,7 @@
       var gc=x.lyDo?('<div style="font-size:10.5px;color:#64748b">'+esc(x.lyDo)+'</div>'):'';
       return '<tr><td><a href="javascript:void(0)" onclick="showPage(\'duan\');openDuAn(\''+ma+'\')">'+esc(x.tenDA)+'</a>'
         +'<div style="font-size:10.5px;color:#8c8781">'+esc(x.loaiDA)+' · '+esc(x.nguoiTao||'')+'</div></td>'
-        +'<td style="white-space:nowrap"><b>Đợt '+x.dot+'</b></td>'
+        +'<td style="white-space:nowrap">'+_nhanDot(x)+'</td>'
         +'<td style="font-size:12px">'+(x.tenHM||[]).map(esc).join(' · ')
         +'<div style="font-size:10.5px;color:#8c8781">'+(x.rows||[]).length+' hạng mục</div>'+lich+gc+'</td>'
         +'<td style="white-space:nowrap;font-size:12px">'+_hmNgay(x.kyDA, x.isCoSo)+'</td>'
@@ -5651,7 +5829,7 @@
     loading(true);
     google.script.run.withSuccessHandler(function(r){ loading(false);
       if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
-      toast('ok','Đã đổi trạng thái lệnh đợt '+dot);
+      toast('ok','Đã đổi trạng thái lệnh tạm ứng');
       if(typeof sau==='function'){ sau(); return; }
       loadLenhDA(); loadDonHM();
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);})
@@ -5663,7 +5841,7 @@
   function lenhTra(maDA,dot,k){
     /* Trả lại phải NÓI VÌ SAO — nhân viên nhận đơn về mà không biết sửa cái gì thì gửi lại y
        nguyên, và vòng ấy quay mãi. */
-    var ly=prompt('Trả lệnh đợt '+dot+' về cho nhân viên.\n\nVì sao trả? (nhân viên đọc câu này)','');
+    var ly=prompt('Trả lệnh tạm ứng này về cho nhân viên.\n\nVì sao trả? (nhân viên đọc câu này)','');
     if(ly===null) return;
     lenhDat(maDA,dot,'tra',{lyDo:String(ly||'').trim()},_lenhSau(k||''));
   }
@@ -5677,20 +5855,121 @@
     }
     return x;
   }
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+     TIỀN ĐÃ CẤP CHO MỘT LỆNH — đọc từ sổ các lần cấp, không đọc theo trạng thái.
+     Anh Thắng 17/09/2026: *"nếu xin nhiều lần và cấp nhiều lần thì sao"*. Lệnh 48tr mà kế toán
+     mới đưa 20tr thì trạng thái vẫn là "chờ cấp tiền" — đúng, vì chưa đủ — nhưng 20tr ấy ĐÃ RA
+     KHỎI KÉT. Con số ấy phải hiện ra, không thì không ai biết còn phải đưa bao nhiêu.
+     ══════════════════════════════════════════════════════════════════════════════════════════ */
+  function _daCapTong(x){
+    var t=0; ((x&&x.daCap)||[]).forEach(function(y){ t+=Number(y.soTien)||0; });
+    return t;
+  }
+  function _conPhaiCap(x){
+    var c=(Number(x&&x.soTien)||0)-_daCapTong(x);
+    return c>0?c:0;
+  }
+  /* Dòng phụ dưới số tiền của lệnh: chỉ hiện khi đã đưa một phần — đưa đủ hay chưa đưa gì thì
+     con số tổng ở trên đã nói hết, thêm một dòng nữa chỉ làm bảng ồn. */
+  function _capChu(x){
+    var da=_daCapTong(x);
+    if(!da || da>=(Number(x&&x.soTien)||0)) return '';
+    return '<div style="font-size:10.5px;color:#0f766e;font-weight:600">đã cấp '+money(da)
+      +'đ · còn <b>'+money(_conPhaiCap(x))+'đ</b></div>';
+  }
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+     CHỌN ĐANG CẤP CHO LẦN NÀO.
+
+     Anh Thắng 18/09/2026: *"Xin lần 1 thì cấp lần 1 chứ"*.
+
+     🔴 LẦN CÒN THIẾU SỚM NHẤT ĐƯỢC CHỌN SẴN, và ô tiền điền sẵn ĐÚNG PHẦN CỦA LẦN ẤY — không
+        phải cả phần còn lại của lệnh. Trả đúng lần rồi bấm là việc thường nhất; bắt kế toán mỗi
+        lượt phải tự chọn lần rồi tự sửa số là bắt họ làm hai thao tác cho cái đáng lẽ không
+        phải làm gì, và thao tác nào cũng gõ nhầm được.
+     🔴 LỆNH KHÔNG KHAI LỊCH THÌ KHÔNG BÀY Ô NÀY. Nhận một lần là ca thường; bày một ô chọn
+        trống rỗng ở đó là thêm một câu hỏi không có câu trả lời.
+     ══════════════════════════════════════════════════════════════════════════════════════════ */
+  function _capLanCon(x){
+    var cap=_daCapTheoLan(x), ra=[];
+    ((x&&x.lich)||[]).forEach(function(y,i){
+      var l=Number(y.lan)||(i+1), tien=Number(y.soTien)||0;
+      ra.push({ lan:l, ngay:y.ngay, tien:tien, con:Math.max(0, tien-(Number(cap[l])||0)) });
+    });
+    return ra;
+  }
+  /** Lần còn thiếu sớm nhất — 0 nếu lệnh không khai lịch, hoặc mọi lần đã nhận đủ. */
+  function _capLanGoiY(x){
+    var d=_capLanCon(x).filter(function(o){ return o.con>0; });
+    return d.length?d[0].lan:0;
+  }
+  /** Số điền sẵn: phần còn thiếu của lần được chọn sẵn, không có lần nào thì cả phần còn lại. */
+  function _capSoGoiY(x, con){
+    var g=_capLanGoiY(x); if(!g) return con;
+    var o=_capLanCon(x).filter(function(z){ return z.lan===g; })[0];
+    return o?Math.min(o.con, con):con;
+  }
+  function _capChonLan(k, x, con){
+    var ds=_capLanCon(x); if(!ds.length) return '';
+    var g=_capLanGoiY(x);
+    return '<div style="font-size:12px;margin:0 0 6px">Cấp cho: '
+      +'<select data-hmcaplan="'+k+'" onchange="capLanDoi(\''+k+'\')" style="font-size:12px">'
+      +ds.map(function(o){
+        return '<option value="'+o.lan+'"'+(o.lan===g?' selected':'')+' data-con="'+o.con+'">'
+          +'Lần '+o.lan+' · hẹn '+esc(_dmy(o.ngay))+' · '+money(o.tien)+'đ'
+          +(o.con>0?(o.con<o.tien?(' (còn '+money(o.con)+'đ)'):''):' — đã nhận đủ')+'</option>';
+      }).join('')
+      +'<option value="0"'+(g?'':' selected')+'>— không gắn lần nào —</option>'
+      +'</select></div>';
+  }
+  /* Đổi lần thì ô tiền chạy theo phần còn thiếu của lần ấy — hai ô luôn khớp nhau, khỏi tự dò. */
+  function capLanDoi(k){
+    var sel=document.querySelector('[data-hmcaplan="'+k+'"]');
+    var o=document.querySelector('[data-hmcap="'+k+'"]');
+    if(!sel||!o) return;
+    var op=sel.options[sel.selectedIndex]; if(!op) return;
+    var con=Number(op.getAttribute('data-con'))||0;
+    if(con>0) o.value=money(con);
+  }
   function lenhMoCap(k,maDA,dot){
     var x=_lenhTim(maDA,dot);
     if(!x){ toast('err','Không tìm thấy lệnh'); return; }
-    _hmMo(k, '<b>💵 Cấp tạm ứng — '+esc(x.tenDA)+' · đợt '+dot+'</b>'
-      +'<div style="font-size:11.5px;color:#8c8781;margin:4px 0 8px">Cấp <b>'+money(x.soTien)+'đ</b> cho '
-      +(x.rows||[]).length+' hạng mục trong lệnh này — <b>một lần chuyển, một uỷ nhiệm chi</b>. '
-      +'Trả tiền mặt thì để trống cũng được.</div>'
+    var con=_conPhaiCap(x), da=_daCapTong(x);
+    /* 🔴 Ô SỐ TIỀN ĐIỀN SẴN PHẦN CÒN LẠI. Đưa trọn là việc thường nhất, nên nó phải là đường
+       KHÔNG phải gõ gì. Ai đưa một phần thì sửa số — chứ không phải ngược lại, bắt mọi người
+       gõ số mỗi lần chỉ vì thỉnh thoảng có người đưa dở. */
+    _hmMo(k, '<b>💵 Cấp tạm ứng — '+esc(x.tenDA)+' · lệnh '+_dotHien(x)+'</b>'
+      +'<div style="font-size:11.5px;color:#8c8781;margin:4px 0 8px">Lệnh <b>'+money(x.soTien)+'đ</b> cho '
+      +(x.rows||[]).length+' hạng mục.'
+      +(da?(' Đã đưa <b>'+money(da)+'đ</b>, còn <b>'+money(con)+'đ</b>.'):'')
+      +' Đưa hết một lần thì để nguyên số; đưa làm nhiều lần thì sửa lại — mỗi lần một dòng '
+      +'trong sổ, có uỷ nhiệm chi riêng.</div>'
+      +_capChonLan(k, x, con)
       +'<div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;align-items:center">'
+      +'<span style="white-space:nowrap">Số tiền đưa lần này: <input type="text" inputmode="numeric" '
+      +'data-hmcap="'+k+'" value="'+money(_capSoGoiY(x,con))+'" style="width:130px;font-size:12px;text-align:right"> đ</span>'
+      +'<span style="white-space:nowrap">Ngày đưa: <input type="text" data-hmcapngay="'+k+'" '
+      +'placeholder="dd/mm/yyyy" style="width:110px;font-size:12px"></span>'
       +_hmOTep(k,maDA,'unc','Uỷ nhiệm chi',false,220)+'</div>'
-      +'<div style="margin-top:8px"><button class="btn b-g" onclick="lenhGuiCap(\''+k+'\',\''+esc(maDA)+'\','+dot+')">✓ Cấp '+money(x.soTien)+'đ</button>'
+      +'<div style="margin-top:8px"><button class="btn b-g" onclick="lenhGuiCap(\''+k+'\',\''+esc(maDA)+'\','+dot+')">✓ Cấp tiền</button>'
       +' <button class="btn b-x" onclick="hmDongLai(\''+k+'\')">✕ Thôi</button></div>');
   }
   function lenhGuiCap(k,maDA,dot){
-    lenhDat(maDA,dot,'ung',{unc:_hmVal('unc',k)},_lenhSau(k));
+    var o=document.querySelector('[data-hmcap="'+k+'"]');
+    var od=document.querySelector('[data-hmcapngay="'+k+'"]');
+    var ol=document.querySelector('[data-hmcaplan="'+k+'"]');
+    /* Bỏ dấu chấm nghìn trước khi gửi — ô này người ta gõ "20.000.000" như mọi ô tiền khác. */
+    var so=o?Number(String(o.value||'').replace(/[^0-9]/g,'')):0;
+    if(!so){ toast('warn','Nhập số tiền đưa lần này'); return; }
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
+      toast('ok', r.xong ? ('Đã cấp đủ '+money(r.daCap)+'đ cho lệnh này')
+                         : ('Đã cấp '+money(so)+'đ — còn '+money(r.con)+'đ'));
+      _log('Cấp tạm ứng dự án', maDA, money(so)+'đ'+(r.xong?' (đủ)':(' · còn '+money(r.con)+'đ')));
+      var sau=_lenhSau(k); if(typeof sau==='function') sau();
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);})
+      .capTienPhanDuAn(maDA, dot, { soTien:so, ngay:(od?String(od.value||'').trim():''),
+        choLan:(ol?Number(ol.value)||0:0), unc:_hmVal('unc',k) });
   }
   /* Bộ nút của MỘT lệnh — dùng chung cho bảng ở màn Duyệt và bảng trong trang dự án.
      Anh Thắng: *"cho nút duyệt trực tiếp trong trang luôn"* — kế toán đang mở dự án để soi
@@ -5799,11 +6078,15 @@
 
   /* ── 💵 KẾ TOÁN CẤP TẠM ỨNG TỪNG ĐỢT ──────────────────────────────────────────────── */
   function hmMoCap(k, maDA, row, dot){
-    _hmMo(k, '<b>💵 Cấp tạm ứng đợt '+dot+' — '+esc(_hmTen(maDA,row))+'</b>'
-      +'<div style="font-size:11.5px;color:#8c8781;margin:4px 0 8px">Đính uỷ nhiệm chi của đợt này để sau còn đối chiếu. Trả tiền mặt thì để trống cũng được.</div>'
+    /* Kế toán phải biết mình đang cấp đợt mấy. Dịch qua bản đồ của dự án đang mở —
+       `_dotHienCua` là hàm THUẦN nên không kéo theo `_lenhTim`/`LENH_ITEMS`; chưa mở dự án
+       thì nó lùi về số trong sổ, thà số cũ còn hơn không có số nào. */
+    var _dN=_dotHienCua(dot, DA_CUR&&DA_CUR.dotHien);
+    _hmMo(k, '<b>💵 Cấp tạm ứng lệnh '+_dN+' — '+esc(_hmTen(maDA,row))+'</b>'
+      +'<div style="font-size:11.5px;color:#8c8781;margin:4px 0 8px">Đính uỷ nhiệm chi của lệnh này để sau còn đối chiếu. Trả tiền mặt thì để trống cũng được.</div>'
       +'<div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;align-items:center">'
       +_hmOTep(k,maDA,'unc','Uỷ nhiệm chi',false,200)+'</div>'
-      +_hmNutDay(k,'hmGuiCap',maDA,row,'✓ Cấp đợt '+dot,dot));
+      +_hmNutDay(k,'hmGuiCap',maDA,row,'✓ Cấp lệnh '+_dN,dot));
   }
   function hmGuiCap(k, maDA, row, dot){
     hmDat(maDA,row,'ung',{dot:dot, unc:_hmVal('unc',k)},_hmSau(k));
@@ -5925,8 +6208,17 @@
         +' title="Tích rồi bấm «Gửi quyết toán» ở thanh dưới bảng — mấy hạng mục đã tích gộp thành MỘT lệnh quyết toán">'
         +'<input type="checkbox" data-xqt="'+row+'" data-tien="'+(Number(h.tienHM)||0)+'" onchange="daTichQtDoi()" style="margin:0;cursor:pointer">tích để quyết toán</label>';
     }
-    if(tt==='xong' && h.qtDot>0)
-      out+=' <span style="font-size:11px;color:#7c3aed;white-space:nowrap" title="Đã nằm trong lệnh quyết toán đợt '+h.qtDot+'">🧾 đã gửi QT đợt '+h.qtDot+'</span>';
+    /* ⚠️ NGOẶC NHỌN LÀ BẮT BUỘC Ở ĐÂY — 17/09/2026, lỗi đã cắn thật.
+       Dòng `if` này vốn KHÔNG có ngoặc, thân chỉ một câu lệnh. Bản 1.192.0 chèn thêm một dòng
+       `var` vào giữa để dịch số đợt, và thế là thân `if` ăn mất dòng `var`, còn dòng vẽ huy
+       hiệu tụt ra NGOÀI — thành vô điều kiện. Kết quả trên màn anh Thắng: MỌI hàng đều mang
+       nhãn "🧾 đã gửi QT đợt undefined", kể cả hàng chưa gửi quyết toán lần nào.
+       Đây là bẫy của `if` không ngoặc: thêm một dòng vào thân là đổi luôn ý nghĩa của dòng kế
+       tiếp, mà cú pháp vẫn đúng nên không có gì báo. */
+    if(tt==='xong' && h.qtDot>0){
+      var _qtN=_dotHienCua(h.qtDot, DA_CUR&&DA_CUR.qtDotHien);
+      out+=' <span style="font-size:11px;color:#7c3aed;white-space:nowrap" title="Đã nằm trong lệnh quyết toán '+_qtN+'">🧾 đã gửi QT lệnh '+_qtN+'</span>';
+    }
     if(tt==='xong'&&laKT)    out+=datNut('b-x','nhap','🔓 Mở lại','Mở lại hạng mục đã chốt');
     return out;
   }
@@ -6014,91 +6306,136 @@
     if(!ds.length){ toast('warn','Tích ít nhất một hạng mục đã'); return; }
     var tong=ds.reduce(function(a,o){ return a+(Number(o.getAttribute('data-tien'))||0); },0);
     var o=el('daXinForm'); if(!o) return;
-    /* 🔴 LẦN 1 ĐIỀN SẴN CẢ TỔNG. Anh Thắng: *"Lần 1 hiện luôn tổng, nếu nhập nhỏ hơn chuyển qua
-       lần 2, không được nhập lớn hơn"*.
-       Phần đông nhận tiền một lần — bày ba ô trống là bắt họ tự gõ lại con số máy vừa cộng ra,
-       và gõ lại là chỗ gõ lệch. Ai cần chia thì sửa lần 1 nhỏ đi, phần dư TỰ chảy sang lần sau.
-       ⚠️ NGÀY LẦN 1 ĐIỀN SẴN HÔM NAY. Có tiền mà thiếu ngày thì lúc gửi bị chối (xem
-          `daGuiXinTU`) — mở form ra đã đỏ sẵn thì khó chịu. */
+    /* ══════════════════════════════════════════════════════════════════════════════════════════
+       GÁN TỪNG HÀNG VÀO LẦN CHI — TIỀN MỖI LẦN TỰ CỘNG, KHÔNG GÕ TAY.
+
+       Anh Thắng 17/09/2026: *"Anh muốn xác định chi phí từng hàng là chi lần 1, hay chi lần 2"*.
+
+       🔴 VÌ SAO BỎ BA Ô GÕ TIỀN CŨ. Bản trước cho gõ tay số tiền từng lần, và con số ấy không
+          dính gì tới hàng nào — không ai trả lời được "lần 1 gồm những gì". Nó còn lệch được
+          với tổng lệnh: đơn của anh khai 10tr + 20tr cho một lệnh 68.790.000đ, và 38.790.000đ
+          không thuộc lần nào mà chẳng có gì nói ra. Gán theo HÀNG thì hai chuyện ấy hết cùng
+          lúc: mỗi lần biết gồm những gì, và tổng các lần không thể vượt tổng lệnh.
+
+       ⚠️ MẶC ĐỊNH MỌI HÀNG VÀO LẦN 1. Phần đông nhận một lần; mở form ra đã xếp sẵn thì họ chỉ
+          việc bấm Gửi. Ai cần chia thì đổi vài hàng sang lần 2 — đúng chiều anh Thắng vẫn dặn:
+          việc thường nhất phải là đường KHÔNG phải thao tác gì.
+       ⚠️ NGÀY LẦN 1 ĐIỀN SẴN HÔM NAY. Có hàng mà thiếu ngày thì lúc gửi bị chối; mở form ra đã
+          đỏ sẵn thì khó chịu.
+       ══════════════════════════════════════════════════════════════════════════════════════════ */
     o.setAttribute('data-tong', String(tong));
     var homNay=_ngayISO(new Date());
+    var hang=ds.map(function(x){
+      var row=Number(x.getAttribute('data-xtu'))||0;
+      return { row:row, tien:Number(x.getAttribute('data-tien'))||0, ten:_daTenHang(row) };
+    });
     o.innerHTML='<b>📤 Gửi lệnh tạm ứng — '+ds.length+' hạng mục · tổng '+money(tong)+'đ</b>'
       +'<div style="font-size:11.5px;color:#8c8781;margin:4px 0 8px">Cả '+ds.length
-      +' hạng mục này đi thành <b>MỘT lệnh</b>: quản lý duyệt một lần, kế toán cấp một lần kèm '
-      +'<b>một uỷ nhiệm chi</b>. Nhận hết trong một hôm thì để nguyên; cần chia ra thì '
-      +'<b>sửa số tiền lần 1 nhỏ đi</b> — phần còn lại tự nhảy sang lần sau.</div>'
-      +'<div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px">'
+      +' hạng mục này đi thành <b>MỘT lệnh</b>: quản lý duyệt một lần. Bên dưới chọn <b>mỗi hàng '
+      +'nhận tiền lần mấy</b> — số tiền từng lần máy tự cộng, khỏi gõ. Nhận hết trong một hôm thì '
+      +'để nguyên lần 1.</div>'
+      +'<div style="max-height:260px;overflow:auto;border:1px solid #e2d6c7;border-radius:8px">'
+      +'<table style="width:100%;font-size:12px;border-collapse:collapse">'
+      +'<thead><tr style="background:#f4f1ec"><th style="text-align:left;padding:4px 8px">Hạng mục</th>'
+      +'<th style="text-align:right;padding:4px 8px">Số tiền</th>'
+      +'<th style="text-align:center;padding:4px 8px;width:96px">Nhận lần</th></tr></thead><tbody>'
+      +hang.map(function(h){
+        return '<tr style="border-top:1px solid #f0ece6"><td style="padding:3px 8px">'+esc(h.ten)+'</td>'
+          +'<td style="padding:3px 8px;text-align:right;font-variant-numeric:tabular-nums">'+money(h.tien)+'</td>'
+          +'<td style="padding:3px 8px;text-align:center">'
+          +'<select data-xlan="'+h.row+'" data-tien="'+h.tien+'" onchange="daLanDoi()" style="font-size:12px">'
+          +[1,2,3].map(function(i){ return '<option value="'+i+'"'+(i===1?' selected':'')+'>Lần '+i+'</option>'; }).join('')
+          +'<option value="0">— chưa xếp —</option>'
+          +'</select></td></tr>';
+      }).join('')
+      +'</tbody></table></div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;margin-top:8px">'
       +[1,2,3].map(function(i){
-        var ro=(i===3);   // lần 3 luôn là PHẦN CÒN LẠI, không có lần 4 để đẩy tiếp
-        return '<span style="white-space:nowrap">Lần '+i+': '
+        return '<span style="white-space:nowrap" data-lanbox="'+i+'">Lần '+i+': '
           +'<input type="date" data-lnd="'+i+'" value="'+(i===1?homNay:'')+'" style="font-size:12px">'
-          +' <input type="text" data-lst="'+i+'" value="'+(i===1?_tienDep(tong):'')+'" placeholder="số tiền"'
-          +' inputmode="numeric"'+(ro?' readonly title="Tự tính — phần còn lại sau lần 1 và lần 2"':'')
-          +' onfocus="'+(ro?'':'tienVao(this)')+'" onblur="'+(ro?'':'tienRa(this);daLichDoi('+i+')')+'"'
-          +' style="width:110px;font-size:12px;text-align:right'+(ro?';background:#f4f1ec;color:#8c8781':'')+'"></span>';
+          +' <b data-lsum="'+i+'" style="font-variant-numeric:tabular-nums">0đ</b></span>';
       }).join('')+'</div>'
       +'<div id="daLichNhac" style="font-size:11px;color:#b45309;margin-top:4px"></div>'
       +'<div style="margin-top:6px;font-size:12px">Ghi chú cho kế toán: <input type="text" id="daXinGhiChu" placeholder="VD: mua vật tư đợt đầu" style="width:280px;font-size:12px"></div>'
       +'<div style="margin-top:8px"><button class="btn b-g" onclick="daGuiXinTU()">✓ Gửi lệnh tạm ứng</button>'
       +' <button class="btn b-x" onclick="el(\'daXinForm\').style.display=\'none\'">✕ Thôi</button></div>';
     o.style.display='';
+    daLanDoi();
     try{ o.scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){}
   }
-  /* ── Chia tiền giữa ba lần nhận ────────────────────────────────────────────────────────
-     Anh Thắng: *"Lần 1 hiện luôn tổng, nếu nhập nhỏ hơn chuyển qua lần 2, không được nhập lớn
-     hơn"*.
-     🔴 TỔNG BA LẦN LUÔN BẰNG TỔNG LỆNH. Cho gõ tuỳ ý thì tổng lịch lệch với số tiền của lệnh —
-        kế toán chuẩn bị tiền theo lịch, mà lệnh lại đòi con số khác, và không ai biết bên nào
-        đúng. Nên: gõ quá phần còn lại thì KẸP LẠI và nói ra; gõ ít đi thì phần dư chảy sang
-        lần sau; lần 3 không sửa được vì nó chính là phần còn lại. */
-  function _daLichO(i, cot){ return document.querySelector('[data-l'+(cot==='ngay'?'nd':'st')+'="'+i+'"]'); }
-  function _daLichSo(i){ var o=_daLichO(i,'tien'); return o?(Number(_tienSo(o.value))||0):0; }
-  function _daLichDat(i, v){ var o=_daLichO(i,'tien'); if(o) o.value=(v>0?_tienDep(v):''); }
-  function _daXinTongLenh(){
-    var o=el('daXinForm');
-    return o?(Number(o.getAttribute('data-tong'))||0):0;
+  /* Tên hạng mục của một dòng, tra từ dự án đang mở. Không tra được thì gọi theo số dòng — thà
+     "Dòng 7" còn hơn một ô trống, vì đây là bảng người ta soát trước khi gửi tiền đi. */
+  function _daTenHang(row){
+    var ten='';
+    ((DA_CUR&&DA_CUR.lines)||[]).forEach(function(l){ if(Number(l.row)===Number(row)) ten=String(l.noiDung||''); });
+    return ten || ('Dòng '+row);
   }
-  function daLichDoi(i){
-    var tong=_daXinTongLenh(); if(tong<=0) return;
-    var truoc=0; for(var j=1;j<i;j++) truoc+=_daLichSo(j);
-    var conLai=Math.max(0, tong-truoc);
-    var v=_daLichSo(i);
+  /* Đổi ô chọn lần → cộng lại tổng từng lần, và bật/tắt ô ngày theo lần CÓ hàng.
+     🔴 Ô NGÀY CỦA LẦN KHÔNG CÓ HÀNG PHẢI MỜ ĐI. Để nó sáng là mời người ta chọn một cái ngày
+        cho một lần rỗng, rồi tưởng đã hẹn được gì đó. */
+  function daLanDoi(){
+    var t=[0,0,0,0], chua=0;
+    Array.prototype.forEach.call(document.querySelectorAll('[data-xlan]'), function(sel){
+      var i=Number(sel.value)||0, tien=Number(sel.getAttribute('data-tien'))||0;
+      if(i>=1&&i<=3) t[i]+=tien; else chua+=tien;
+    });
+    for(var i=1;i<=3;i++){
+      var b=document.querySelector('[data-lsum="'+i+'"]');
+      if(b) b.textContent=money(t[i])+'đ';
+      var d=_daLichO(i);
+      if(d){ d.disabled=(t[i]<=0); d.style.opacity=(t[i]>0?'1':'.45'); }
+      var box=document.querySelector('[data-lanbox="'+i+'"]');
+      if(box) box.style.opacity=(t[i]>0?'1':'.55');
+    }
     var nhac=el('daLichNhac');
-    if(v>conLai){
-      v=conLai; _daLichDat(i, v);
-      if(nhac) nhac.textContent='⚠️ Lần '+i+' không được quá '+money(conLai)+'đ — đó là phần còn lại của lệnh. Đã kẹp về đúng số.';
-    } else if(nhac){ nhac.textContent=''; }
-    /* Phần dư chảy sang lần kế; các lần sau nữa dọn trắng, kẻo còn số cũ của lần chia trước. */
-    var du=conLai-v;
-    if(i<3) _daLichDat(i+1, du);
-    for(var k=i+2;k<=3;k++) _daLichDat(k, 0);
+    if(nhac){
+      nhac.innerHTML = chua
+        ? ('↳ <b>'+money(chua)+'đ</b> chưa xếp lần nào — phần này thành <b>dự kiến lần tiếp theo</b>, '
+           +'xin sau ở một lệnh khác.')
+        : '';
+      nhac.style.color='#8c8781';
+    }
   }
+  /* `_daLichSo` / `_daLichDat` / `daLichDoi` / `_daXinTongLenh` đã GỠ 17/09/2026 cùng ba ô gõ
+     tiền tay. Từ khi mỗi hàng tự chọn "nhận lần mấy", số tiền của từng lần do máy chủ cộng từ
+     danh sách hàng — không còn gì để gõ, nên cũng không còn gì để kẹp lại cho khỏi vượt tổng.
+     Giữ lại `_daLichO` vì ô NGÀY vẫn dùng nó — nay nó chỉ còn một nghĩa, khỏi tham số thứ hai. */
+  function _daLichO(i){ return document.querySelector('[data-lnd="'+i+'"]'); }
   function daGuiXinTU(){
     if(!DA_CUR) return;
     var rows=_daOTich().filter(function(o){ return o.checked; })
       .map(function(o){ return Number(o.getAttribute('data-xtu')); });
     if(!rows.length){ toast('warn','Tích ít nhất một hạng mục đã'); return; }
+    /* Gom hàng theo LẦN. Số tiền KHÔNG gửi lên — máy chủ tự cộng từ chính mấy hàng này, nên
+       danh sách hàng và con số không thể lệch nhau (xem 🔴 ở `xin_tam_ung_dot`). */
+    var theoLan={1:[],2:[],3:[]}, tienLan={1:0,2:0,3:0};
+    Array.prototype.forEach.call(document.querySelectorAll('[data-xlan]'), function(sel){
+      var i=Number(sel.value)||0;
+      if(i<1||i>3) return;
+      theoLan[i].push(Number(sel.getAttribute('data-xlan'))||0);
+      tienLan[i]+=Number(sel.getAttribute('data-tien'))||0;
+    });
     var lich=[];
     for(var i=1;i<=3;i++){
-      var d=_daLichO(i,'ngay');
+      var d=_daLichO(i);
       var ngay=d?String(d.value||'').trim():'';
-      var so=_daLichSo(i);
-      /* 🔴 CÓ TIỀN MÀ THIẾU NGÀY THÌ CHỐI, KHÔNG BỎ QUA IM LẶNG. Máy chủ bỏ dòng thiếu ngày;
-         nếu màn cũng lặng lẽ bỏ thì người dùng nhìn thấy 3.000.000đ ở lần 2 rồi gửi đi, mà lệnh
-         chỉ ghi nhận lần 1 — kế toán chuẩn bị thiếu tiền và không ai biết vì sao. */
-      if(so>0 && !ngay){
-        toast('warn','Lần '+i+' có '+money(so)+'đ mà chưa chọn ngày — kế toán chuẩn bị tiền vào hôm nào?');
+      /* 🔴 CÓ HÀNG MÀ THIẾU NGÀY THÌ CHỐI, KHÔNG BỎ QUA IM LẶNG. Máy chủ bỏ đợt thiếu ngày;
+         nếu màn cũng lặng lẽ bỏ thì người dùng vừa xếp 3 hàng vào lần 2 rồi gửi đi, mà lệnh
+         không ghi nhận lần ấy — kế toán chuẩn bị thiếu tiền và không ai biết vì sao. */
+      if(theoLan[i].length && !ngay){
+        toast('warn','Lần '+i+' có '+theoLan[i].length+' hạng mục ('+money(tienLan[i])
+          +'đ) mà chưa chọn ngày — kế toán chuẩn bị tiền vào hôm nào?');
         return;
       }
-      if(!ngay) continue;
-      lich.push({ngay:ngay, soTien:so});
+      if(!ngay || !theoLan[i].length) continue;
+      lich.push({ngay:ngay, rows:theoLan[i]});
     }
     var gc=String((el('daXinGhiChu')&&el('daXinGhiChu').value)||'').trim();
     loading(true);
     google.script.run.withSuccessHandler(function(r){ loading(false);
       if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
-      _log('Xin tạm ứng dự án', DA_CUR.ten, 'đợt '+r.dot.dot+' · '+r.so+' hạng mục · '+money(r.soTien)+'đ');
-      toast('ok','Đã gửi lệnh tạm ứng đợt '+r.dot.dot+' — '+r.so+' hạng mục, '+money(r.soTien)+'đ');
+      _log('Xin tạm ứng dự án', DA_CUR.ten, 'lệnh '+_dotHien(r.dot)+' · '+r.so+' hạng mục · '+money(r.soTien)+'đ');
+      toast('ok','Đã gửi lệnh tạm ứng '+_dotHien(r.dot)+' — '+r.so+' hạng mục, '+money(r.soTien)+'đ');
       if(el('daXinForm')) el('daXinForm').style.display='none';
       openDuAn(DA_CUR.maDA); loadDuAn();
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);})
@@ -6238,8 +6575,8 @@
     loading(true);
     google.script.run.withSuccessHandler(function(r){ loading(false);
       if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
-      _log('Gửi quyết toán dự án', DA_CUR.ten, 'đợt '+r.dot.dot+' · '+r.so+' hạng mục · '+money(r.soTien)+'đ');
-      toast('ok','Đã gửi quyết toán đợt '+r.dot.dot+' — '+r.so+' hạng mục, '+money(r.soTien)+'đ');
+      _log('Gửi quyết toán dự án', DA_CUR.ten, 'lệnh '+_dotHien(r.dot)+' · '+r.so+' hạng mục · '+money(r.soTien)+'đ');
+      toast('ok','Đã gửi quyết toán lệnh '+_dotHien(r.dot)+' — '+r.so+' hạng mục, '+money(r.soTien)+'đ');
       if(el('daQtForm')) el('daQtForm').style.display='none';
       openDuAn(DA_CUR.maDA); loadDuAn();
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);})
@@ -6304,7 +6641,7 @@
       }
       return '<tr><td><a href="javascript:void(0)" onclick="showPage(\'duan\');openDuAn(\''+ma+'\')">'+esc(x.tenDA)+'</a>'
         +'<div style="font-size:10.5px;color:#8c8781">'+esc(x.loaiDA)+' · '+esc(x.nguoiTao||'')+'</div></td>'
-        +'<td style="white-space:nowrap"><b>Đợt '+x.dot+'</b></td>'
+        +'<td style="white-space:nowrap">'+_nhanDot(x)+'</td>'
         +'<td style="font-size:12px">'+(x.tenHM||[]).map(esc).join(' · ')
         +'<div style="font-size:10.5px;color:#8c8781">'+(x.rows||[]).length+' hạng mục</div>'
         +(x.lyDo?('<div style="font-size:10.5px;color:#64748b">'+esc(x.lyDo)+'</div>'):'')+'</td>'
@@ -6321,12 +6658,12 @@
     loading(true);
     google.script.run.withSuccessHandler(function(r){ loading(false);
       if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
-      toast('ok','Đã đổi lệnh quyết toán đợt '+dot); loadQtLenh();
+      toast('ok','Đã đổi lệnh quyết toán'); loadQtLenh();
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);})
       .datTrangThaiQTDuAn(maDA,dot,tt,them||{});
   }
   function qtTraTab(maDA,dot){
-    var ly=prompt('Trả lệnh quyết toán đợt '+dot+' về cho nhân viên.\n\nVì sao trả? (nhân viên đọc câu này)','');
+    var ly=prompt('Trả lệnh quyết toán này về cho nhân viên.\n\nVì sao trả? (nhân viên đọc câu này)','');
     if(ly===null) return;
     qtDatTab(maDA,dot,'tra',{lyDo:String(ly||'').trim()});
   }
@@ -6341,12 +6678,12 @@
     loading(true);
     google.script.run.withSuccessHandler(function(r){ loading(false);
       if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
-      toast('ok','Đã đổi lệnh quyết toán đợt '+dot); hmLaiDA();
+      toast('ok','Đã đổi lệnh quyết toán'); hmLaiDA();
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);})
       .datTrangThaiQTDuAn(maDA,dot,tt,them||{});
   }
   function qtTra(maDA,dot){
-    var ly=prompt('Trả lệnh quyết toán đợt '+dot+' về cho nhân viên.\n\nVì sao trả? (nhân viên đọc câu này)','');
+    var ly=prompt('Trả lệnh quyết toán này về cho nhân viên.\n\nVì sao trả? (nhân viên đọc câu này)','');
     if(ly===null) return;
     qtDat(maDA,dot,'tra',{lyDo:String(ly||'').trim()});
   }
@@ -6363,7 +6700,7 @@
         nut+=' <button class="btn b-g" onclick="qtDat(\''+ma+'\','+d.dot+',\'xong\')" title="Đối chiếu xong — chốt sổ lệnh quyết toán này">✔ Chốt sổ</button>'
           +' <button class="btn b-d" onclick="qtTra(\''+ma+'\','+d.dot+')">↩ Trả</button>';
       }
-      return '<tr><td><b>Đợt '+d.dot+'</b></td>'
+      return '<tr><td>'+_nhanDot(d)+'</td>'
         +'<td style="font-size:12px">'+(d.tenHM||[]).map(esc).join(' · ')
         +(d.lyDo?('<div style="font-size:10.5px;color:#64748b">'+esc(d.lyDo)+'</div>'):'')+'</td>'
         +'<td class="money"><b>'+money(d.soTien)+'</b></td>'
@@ -6372,6 +6709,55 @@
         +'<td style="text-align:center;white-space:nowrap">'+(nut||'<span style="color:#e2d6c7">—</span>')+'</td></tr>';
     }).join('');
   }
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+     SỐ ĐỢT NGƯỜI TA NHÌN THẤY — LỆNH BỊ TRẢ LẠI KHÔNG TÍNH LÀ MỘT ĐỢT.
+
+     Anh Thắng 17/09/2026: *"khi trả đơn thì phải hiểu không tính đó là 1 đợt"*.
+
+     🔴 MỘT HÀM DUY NHẤT, VÌ SỐ ĐỢT IN RA Ở BỐN CHỖ: bảng lệnh tạm ứng của dự án, bảng lệnh
+        quyết toán, nhãn UNC trên hàng hạng mục, và huy hiệu "đã gửi QT đợt". Bốn chỗ tự tính
+        lấy là bốn cơ hội lệch nhau, mà đây là con số kế toán dùng để gọi tên một lệnh khi nói
+        chuyện ("cấp tiền đợt mấy rồi") — lệch là hai bên nói hai chuyện.
+
+     ⚠️ SỐ TRONG SỔ KHÔNG ĐỔI. `d.dot` vẫn là khoá thật, mọi nút bấm vẫn gửi nó đi; chỉ con số
+        HIỆN RA mới đếm lại. Đổi khoá là mọi tham chiếu cũ trỏ sang lệnh khác, im lặng.
+     ══════════════════════════════════════════════════════════════════════════════════════════ */
+  function _dotHien(d){
+    /* Máy chủ gửi kèm `soHien` trên từng lệnh. Bản cũ chưa có thì lùi về số trong sổ — thà in
+       số cũ còn hơn in số 0 cho mọi dòng. */
+    return (d && typeof d.soHien === 'number') ? d.soHien : (d ? Number(d.dot) || 0 : 0);
+  }
+  function _nhanDot(d){
+    var n=_dotHien(d);
+    /* 🔴 "LỆNH", KHÔNG PHẢI "ĐỢT" — 17/09/2026. Anh Thắng nhìn dòng 68.790.000đ ghi "Đợt 1" và
+       hỏi *"đợt 1 là 10tr, sao lại ghi trong này là 68tr"*. Vì hệ có HAI tầng mà cột này gọi
+       nhầm tầng: LỆNH là lô hạng mục gửi xin cùng lúc (68.79tr, một lượt duyệt), còn ĐỢT là mỗi
+       lần thật sự đi nhận tiền trong lô ấy (10tr ngày 03/09). Chính bảng cũng đang tự mâu thuẫn:
+       tiêu đề ghi "Lệnh tạm ứng của dự án", cột đầu ghi "Đợt". Mã nguồn gọi đúng từ lâu —
+       `lenh` cho lô, `lich`/`daCap` cho từng lần — chỉ cái nhãn trên màn là sai. */
+    if(n) return '<b>Lệnh '+n+'</b>';
+    /* Lệnh đã trả: giữ dòng để còn dấu vết ai trả, lúc nào, vì sao — nhưng KHÔNG mang số đợt.
+       Giấu dòng đi thì mốc "xin lúc mấy giờ / duyệt lúc mấy giờ" của nó mất theo. */
+    return '<span style="color:#b91c1c;font-weight:700" title="Lệnh này bị trả lại nên không '
+      +'tính là một lệnh">— đã trả</span>';
+  }
+  /* Số đợt hiện ra của một số đợt TRONG SỔ, tra qua bản đồ máy chủ gửi kèm dự án. */
+  function _dotHienCua(dot, banDo){
+    var k=String(dot||'');
+    if(!k || k==='0') return 0;
+    if(banDo && Object.prototype.hasOwnProperty.call(banDo, k)) return Number(banDo[k])||0;
+    return Number(dot)||0;   // chưa có bản đồ (bản cũ) -> in số sổ
+  }
+
+  /* 🔴 CÂU BÁO THOÁNG QUA KHÔNG NÓI SỐ ĐỢT NỮA — 17/09/2026.
+     Mấy chỗ dưới (toast sau khi đổi trạng thái, hộp hỏi lý do trả) chỉ cầm SỐ TRONG SỔ, không
+     cầm bản đồ số hiện ra. In số sổ ở đó là hai con số cho một lệnh: bảng ghi "Đợt 1", câu báo
+     nói "đợt 2" — đúng thứ mà cả việc "trả lại không tính là một đợt" sinh ra để dẹp.
+     Lấy số hiện ra ở đấy thì phải kéo theo `_lenhTim` → `LENH_ITEMS` → `DA_CUR`, tức ba phụ
+     thuộc nữa cho một dòng chữ. Nên: bỏ con số đi. Người dùng vừa bấm nút ĐÚNG hàng ấy, họ
+     biết mình đang nói về lệnh nào; bảng ngay đó mới là chỗ ghi số.
+     ⚠️ Chỗ nào CÓ SẴN đối tượng lệnh (nó mang `soHien`) thì vẫn in số — xem `hmMoCapLenh`. */
+
   /* Bảng các lệnh đã gửi của chính dự án đang mở. */
   var LENH_NHAN={ xin:['Chờ duyệt','#b45309','#fef3c7'], duyet:['Chờ cấp tiền','#1d4ed8','#dbeafe'],
     ung:['✔ Đã cấp tiền','#0f766e','#ccfbf1'], tra:['↩ Bị trả lại','#b91c1c','#fee2e2'] };
@@ -6380,6 +6766,120 @@
     return '<span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;color:'
       +n[1]+';background:'+n[2]+'">'+n[0]+'</span>';
   }
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+     MỖI ĐỢT MỘT DÒNG — dưới mỗi LỆNH.
+
+     Anh Thắng 17/09/2026: *"đợt 1 là 10tr, sao lại ghi trong này là 68tr"*. Hệ có hai tầng và
+     bảng chỉ vẽ tầng ngoài, nên tầng trong — thứ anh gọi là "đợt" — không có chỗ nào hiện ra:
+       · LỆNH = lô hạng mục gửi xin cùng lúc, một tổng tiền, một lượt duyệt   (68.790.000đ)
+       · ĐỢT  = mỗi lần thật sự đi nhận tiền trong lô ấy                      (03/09 · 10tr)
+
+     🔴 KHÔNG GHÉP LỊCH VỚI LẦN CẤP THẬT THEO THỨ TỰ. Cám dỗ là in "Đợt 1: hẹn 10tr → đã cấp
+        10tr" cho gọn. Nhưng hai danh sách ấy độc lập: kế toán có thể đưa 15tr thay vì 10tr, đưa
+        gộp hai đợt làm một, hay đưa sớm một hôm. Ghép theo chỉ số là BỊA ra một sự thật thứ ba —
+        và nó trông đáng tin hơn hẳn hai cái thật. Nên: lịch hẹn là lịch hẹn, đã cấp là đã cấp,
+        hai khối riêng, ai đọc cũng tự đối chiếu được.
+
+     🔴 NÓI RA PHẦN CHƯA XẾP ĐỢT. Lịch của anh khai 10tr + 20tr = 30tr cho một lệnh 68.790.000đ —
+        còn 38.790.000đ không nằm trong đợt nào, mà chẳng có gì trên màn nói thế. Kế toán nhìn
+        lịch mà liệu tiền thì chuẩn bị thiếu hơn một nửa.
+     ⚠️ CHỈ KÊU KHI CÓ KHAI LỊCH MÀ THIẾU. Lệnh không khai lịch nào là chuyện thường (nhận một
+        lần); kêu ở đó thì mọi lệnh đều có một dòng cảnh báo, và người ta thôi đọc nó.
+     ══════════════════════════════════════════════════════════════════════════════════════════ */
+  /* Đã cấp cho từng LẦN — bản song sinh của `VHCPMTD_DuAn::da_cap_theo_lan()`. Chỉ cộng lượt CÓ
+     gắn lần; lượt `choLan = 0` (sổ cũ, và lối cấp trọn nhiều lần) không rơi vào lần nào. */
+  function _daCapTheoLan(d){
+    var m={};
+    ((d&&d.daCap)||[]).forEach(function(x){
+      var l=Number(x.choLan)||0; if(l<=0) return;
+      m[l]=(Number(m[l])||0)+(Number(x.soTien)||0);
+    });
+    return m;
+  }
+  function _dotBlock(d){
+    var lich=(d&&d.lich)||[], daCap=(d&&d.daCap)||[];
+    /* Không có đường thoát sớm cho "rỗng cả hai": hai vòng dưới không chạy thì `h` vốn đã là
+       chuỗi rỗng. Bản nháp có một dòng `if(...) return ''` ở đây; phá nó thì bài kiểm KHÔNG đỏ
+       — đúng như phải thế, vì nó không gánh gì. Hai dòng cho một kết quả là chỗ để người sau
+       sửa nhầm dòng không gánh rồi tưởng đã sửa. Đã bỏ. */
+    var tong=Number(d&&d.soTien)||0, h='';
+
+    if(lich.length){
+      var tongLich=0;
+      lich.forEach(function(y){ tongLich+=Number(y.soTien)||0; });
+      h+='<div style="font-size:11px;color:#7c3aed;font-weight:700;margin:0 0 2px">📅 Lịch nhận tiền</div>';
+      /* 🔴 MỖI LẦN NÓI RA ĐÃ NHẬN TỚI ĐÂU. Anh Thắng 18/09/2026: *"Xin lần 1 thì cấp lần 1
+         chứ"*. Xếp hàng vào lần 1 / lần 2 lúc xin mà lúc đọc lại không thấy lần nào đã nhận,
+         lần nào chưa, thì cái xếp ấy chỉ là một con số chết.
+         ⚠️ CHỈ NÓI KHI BIẾT. Số này cộng từ mấy lượt cấp CÓ GẮN LẦN; lệnh cũ trong sổ (và lối
+            cấp trọn nhiều lần) không gắn gì, nên ở đó không in dòng nào — thà im còn hơn báo
+            "chưa nhận" cho một lần mà tiền đã ra. */
+      var capLan=_daCapTheoLan(d);
+      lich.forEach(function(y,i){
+        /* Kể TÊN mấy hàng của đợt ấy — đó chính là câu anh Thắng hỏi: "chi phí từng hàng là
+           chi lần 1 hay lần 2". Một con số tiền không trả lời được nó. */
+        var tenHang=(y.rows||[]).map(_daTenHang).join(' · ');
+        var sl=Number(y.lan)||(i+1), cap=Number(capLan[sl])||0, tien=Number(y.soTien)||0;
+        var tt='';
+        if(cap>0){
+          tt = cap>=tien
+            ? ' · <span style="color:#0f766e;font-weight:700">✓ đã nhận đủ</span>'
+            : ' · <span style="color:#0f766e">đã nhận <b>'+money(cap)+'đ</b></span>'
+              +' · <span style="color:#b45309">còn <b>'+money(tien-cap)+'đ</b></span>';
+        }
+        h+='<div style="font-size:11.5px;margin:1px 0 1px 10px">'
+          +'<b>Lần '+sl+'</b> · hẹn '+esc(_dmy(y.ngay))
+          +(y.soTien?(' · <b>'+money(y.soTien)+'đ</b>'):' · <span style="color:#8c8781">chưa ghi số tiền</span>')
+          +tt
+          +(tenHang?('<div style="color:#8c8781;padding-left:14px">'+esc(tenHang)+'</div>'):'')
+          +'</div>';
+      });
+      /* 🔴 KHÔNG GỌI ĐÂY LÀ LỖI. Bản trước in một dòng cam "⚠️ chưa xếp vào đợt nào". Nhưng
+         anh Thắng chốt 17/09: *"còn số nào chưa lên thì ghi là dự kiến đợt tiếp theo"* — xin
+         từng đợt là ĐÚNG QUY TRÌNH, phần chưa khai chỉ là đợt chưa tới lượt. Gắn dấu cảnh báo
+         lên một việc bình thường thì mọi lệnh đều có một dòng cam, rồi người ta thôi đọc màu ấy
+         — và bỏ qua luôn cái cam THẬT nằm cạnh. */
+      var thieu=tong-tongLich;
+      if(thieu>0){
+        h+='<div style="font-size:11.5px;margin:2px 0 0 10px;color:#8c8781">'
+          +'↳ dự kiến lần tiếp theo: <b>'+money(thieu)+'đ</b></div>';
+      }
+    }
+
+    if(daCap.length){
+      var daTong=_daCapTong(d), con=_conPhaiCap(d);
+      h+='<div style="font-size:11px;color:#0f766e;font-weight:700;margin:6px 0 2px">💵 Đã cấp</div>';
+      /* 🔴 KHỐI NÀY KHÔNG ĐÁNH SỐ LẦN. Anh Thắng 18/09/2026, sau khi hai khối đã nói chung một
+         từ: *"cũng lấy 1 chữ lần 1 đi"* — trong cùng một lệnh mà có hai dòng "Lần 1" thì người
+         đọc tự ghép chúng làm một, và đó đúng là cái ghép BỊA mà cả khối này sinh ra để tránh:
+         kế toán đưa 15tr trong khi lịch hẹn 10tr, gộp hai lần hẹn làm một, hay đưa sớm một hôm.
+         "Lần N" nay chỉ còn một nghĩa: lần mà người xin ĐÃ XẾP HÀNG VÀO ở trên. Còn mỗi lần cấp
+         thật đã có NGÀY + UỶ NHIỆM CHI + tên người cấp — ba thứ ấy mới là thứ đem đi đối chiếu,
+         chứ không phải một con số thứ tự. */
+      daCap.forEach(function(y){
+        /* `y.luc` là lưới cho mấy dòng ĐÃ NẰM TRONG SỔ trước 18/09/2026 — hồi ấy để trống ngày
+           là để trống hẳn. Máy chủ nay điền sẵn `ngay`, nhưng sổ cũ thì không ai đi sửa lại. */
+        var khi=String(y.ngay||y.luc||'');
+        /* 🔴 SỐ LẦN Ở ĐÂY LÀ THỨ KẾ TOÁN KHAI (`choLan`), KHÔNG PHẢI THỨ TỰ DÒNG. Bản 1.199.0
+           gỡ hẳn số ở khối này vì hồi ấy nó chỉ là thứ tự lượt chi — in ra cạnh khối lịch là
+           mời người đọc ghép hai danh sách theo chỉ số, tức bịa. Nay kế toán CHỌN lần lúc cấp
+           nên cái ghép ấy có người khai, và đúng là thứ anh Thắng đòi: xin lần 1, cấp lần 1. */
+        var cl=Number(y.choLan)||0;
+        h+='<div style="font-size:11.5px;margin:1px 0 1px 10px">'
+          +(cl?('<b>Lần '+cl+'</b> · '):'')
+          +(khi?('<b>'+esc(_dmy(khi))+'</b> · '):'')
+          +'<b>'+money(y.soTien)+'đ</b>'
+          +(y.unc?(' · <span style="color:#2545ff">UNC '+esc(y.unc)+'</span>'):'')
+          +(y.nguoi?(' <span style="color:#8c8781">— '+esc(y.nguoi)+'</span>'):'')
+          +'</div>';
+      });
+      h+='<div style="font-size:11.5px;margin:2px 0 0 10px;color:#0f766e;font-weight:600">'
+        +'tổng đã đưa <b>'+money(daTong)+'đ</b>'
+        +(con?(' · còn phải đưa <b>'+money(con)+'đ</b>'):' · <b>đủ</b>')+'</div>';
+    }
+    return h;
+  }
+
   function renderDaLenh(r){
     var box=el('daLenhBox'), body=el('daLenhBody');
     if(!box||!body) return;
@@ -6393,14 +6893,17 @@
     var ma=String(r&&r.maDA||'');
     body.innerHTML=ds.map(function(d){
       var k='Q'+ma.replace(/[^A-Za-z0-9_-]/g,'')+'_'+d.dot;
-      var lich=(d.lich||[]).length?('<div style="font-size:10.5px;color:#7c3aed">lịch: '
-        +(d.lich||[]).map(function(y){ return _dmy(y.ngay)+(y.soTien?(' · '+money(y.soTien)):''); }).join(' · ')+'</div>'):'';
+      /* Khối "mỗi đợt một dòng" thay cho dòng lịch gộp một hàng của bản trước — xem 🔴 ở
+         `_dotBlock()`. Dòng gộp ấy bắt người đọc tự cộng nhẩm, và nó không nói được phần chưa
+         xếp đợt lẫn phần đã cấp thật. */
+      var lich=_dotBlock(d);
+      if(lich) lich='<div style="margin-top:4px;padding-left:8px;border-left:2px solid #e2d6c7">'+lich+'</div>';
       var moc=Object.keys(d.moc||{}).map(function(x){ return esc(x)+': '+esc(d.moc[x]); }).join('<br>');
       var nut=lenhNutChung(k, ma, d.dot, d.tt);
-      return '<tr><td><b>Đợt '+d.dot+'</b></td>'
+      return '<tr><td>'+_nhanDot(d)+'</td>'
         +'<td style="font-size:12px">'+(d.tenHM||[]).map(esc).join(' · ')+lich
         +(d.lyDo?('<div style="font-size:10.5px;color:#64748b">'+esc(d.lyDo)+'</div>'):'')+'</td>'
-        +'<td class="money"><b>'+money(d.soTien)+'</b></td>'
+        +'<td class="money"><b>'+money(d.soTien)+'</b>'+_capChu(d)+'</td>'
         +'<td>'+lenhNhan(d.tt)+'</td>'
         +'<td style="font-size:11.5px;color:#2545ff">'+(d.unc?esc(d.unc):'—')+'</td>'
         +'<td style="font-size:10.5px;color:#8c8781">'+moc+'</td>'
@@ -6451,6 +6954,24 @@
     if(!l){ toast('err','Không tìm thấy dòng'); return; }
     var chaCu=String(l.capCha||'');
     var laCon=(chaCu!=='' && chaCu!=='(Phát sinh)');
+    /* ══════════════════════════════════════════════════════════════════════════════════════════
+       17/09/2026 — ĐƯỜNG MỘT CHIỀU: chỉ còn ĐƯA LÊN, không còn HẠ XUỐNG.
+
+       Anh Thắng: *"hạng mục con bỏ đi, vì các chi phí đều là hạng mục lớn"*. Hàm này vốn làm hai
+       việc ngược nhau — đưa một mục con lên làm hạng mục lớn, VÀ hạ một hạng mục lớn xuống làm
+       con. Việc thứ hai là một đường tạo mục con mới, nên nó đi.
+
+       ⚠️ GIỮ LẠI VIỆC THỨ NHẤT. Dự án cũ còn mục con, và đây là đường duy nhất dọn chúng lên mà
+          không phải xoá dòng rồi nhập lại — xoá rồi nhập lại là mất ảnh bill, mất hồ sơ đính
+          kèm, mất mã tài khoản đã gắn. Cấm tạo mới thì phải chừa lối ra, không thì người ta sẽ
+          đi xoá dòng.
+       ⚠️ Hàng KHÔNG phải mục con thì nút này không còn việc gì để làm — nói thẳng thay vì bày
+          một hộp chọn rỗng rồi để họ đoán. */
+    if(!laCon){
+      toast('warn','Chi phí dự án nay chỉ có hạng mục lớn — không hạ một hạng mục xuống làm mục '
+        +'con nữa. Nút này chỉ dùng để ĐƯA mục con cũ lên thành hạng mục lớn.');
+      return;
+    }
     /* 🔴 HẠNG MỤC ĐANG CÓ CON THÌ KHÔNG GỘP ĐƯỢC — và phải NÓI RA. Gộp nó vào hạng mục khác
        là lồng ba cấp, mà bảng chỉ vẽ hai: mấy dòng con sẽ biến khỏi màn tuy vẫn nằm trong sổ
        và vẫn cộng vào tổng.
@@ -6465,21 +6986,13 @@
         return;
       }
     }
-    /* Danh sách đích: mọi HẠNG MỤC LỚN, trừ chính nó và trừ hạng mục lớn nó đang thuộc về
-       (dời vào đúng chỗ đang đứng thì không phải là dời). */
-    var cha=(DA_CUR.lines||[]).filter(function(x){
-      return String(x.capCha||'')==='' && x.row!==row && String(x.noiDung||'')!==chaCu;
-    }).map(function(x){ return String(x.noiDung||''); }).filter(Boolean);
-    if(!cha.length && !laCon){ toast('warn','Chưa có hạng mục lớn nào khác để gộp vào'); return; }
     var o=document.querySelector('[data-gop="'+row+'"]');
     if(!o){ toast('err','Không tìm thấy chỗ đặt hộp chọn'); return; }
-    /* Mục con còn một đường nữa: ĐƯA LÊN thành hạng mục lớn. Gõ nhầm theo chiều nào cũng có
-       lối về, khỏi phải xoá dòng rồi nhập lại. */
-    var dsChon=cha.map(function(c){ return '<option value="'+esc(c)+'">↳ '+esc(c)+'</option>'; });
-    if(laCon){ dsChon.push('<option value="__LEN__">⬆ Đưa lên thành hạng mục lớn</option>'); }
+    /* Chỉ còn MỘT đích. Vẫn giữ hộp chọn (thay vì làm thẳng) để bấm nhầm nút còn có một nhịp
+       xác nhận — dòng này đang mang tiền, và đưa lên cấp trên là đổi cách tính tổng của cha. */
     o.innerHTML='<select data-gopsel="'+row+'" style="max-width:170px;font-size:12px">'
-      +dsChon.join('')
-      +'</select> <button class="btn b-g" onclick="daGopChot('+row+')" title="'+(laCon?'Dời sang chỗ đã chọn':'Gộp vào hạng mục đã chọn')+'">✓</button>'
+      +'<option value="__LEN__">⬆ Đưa lên thành hạng mục lớn</option>'
+      +'</select> <button class="btn b-g" onclick="daGopChot('+row+')" title="Đưa mục con này lên thành hạng mục lớn">✓</button>'
       +' <button class="btn b-x" onclick="openDuAn(DA_CUR.maDA)" title="Thôi">✕</button>';
   }
   function daGopChot(row){
@@ -6516,12 +7029,9 @@
       openDuAn(DA_CUR.maDA); loadDuAn();
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).updateDuAnLine(DA_CUR.maDA, row, rec);
   }
-  function daAddChild(parentName){
-    if(el('da_capCha')) el('da_capCha').value=parentName;
-    daCapChaHint();
-    try{ el('daLineForm').scrollIntoView({block:'center'}); el('da_nd').focus(); }catch(e){}
-    toast('ok','Đang thêm MỤC CON cho: '+parentName+' (điền Chi phí thực tế)');
-  }
+  /* `daAddChild()` đã gỡ 17/09/2026 cùng nút `＋ con` — anh Thắng: *"hạng mục con bỏ đi, vì các
+     chi phí đều là hạng mục lớn"*. Chốt thật nằm ở `VHCPMTD_DuAn::loi_mo_muc_con_()` bên máy chủ,
+     không ở nút bấm; xem khối 🔴 ở đó. Mục con CŨ vẫn hiện và vẫn tính đúng như trước. */
   // Xuất báo cáo gom theo nhánh -> mở cửa sổ in (Lưu thành PDF) để gửi bộ phận
   function exportDuAnPDF(){
     if(!DA_CUR){ toast('warn','Chưa mở dự án'); return; }
@@ -6621,7 +7131,26 @@
   function daEditLine(row){ if(!DA_CUR)return; var l=null; (DA_CUR.lines||[]).forEach(function(x){ if(x.row===row) l=x; }); if(!l)return;
     el('da_nd').value=l.noiDung||''; el('da_gian').value=l.gian||''; _datTien('da_dt',(l.duToan||l.duToan===0)?l.duToan:''); el('da_sl').value=l.soLuong||''; _datTien('da_dg', l.donGia); daCalcTT();
     _datTien('da_thucte', l.thucTe); el('da_vat').value=l.vat||''; el('da_note').value=l.note||''; el('da_anh').value=l.anh||''; el('daImgBtn').textContent=l.anh?'✓ Đã đính ảnh':'📎 Đính ảnh';
-    if(el('da_capCha')) el('da_capCha').value=l.capCha||''; if(el('da_httt')) el('da_httt').value=l.hinhThuc||''; if(el('da_hoso')) el('da_hoso').value=l.hoSo||''; _daDocLbl(); daCapChaHint();
+    /* 🔴 CHÊM LẠI OPTION CHA TRƯỚC KHI GÁN — không thì dòng con cũ lặng lẽ rơi lên cấp trên.
+       Từ 17/09/2026 ô "Thuộc" thôi bày đường tạo mục con mới (xem khối 🔴 ở chỗ dựng `selCap`),
+       nên lúc mở sửa một MỤC CON CŨ thì option mang tên cha của nó chưa chắc có mặt. Gán một
+       giá trị không có option là trình duyệt lặng lẽ để ô ở rỗng, và bấm Cập nhật là dòng ấy
+       nhảy lên thành hạng mục lớn — đổi tổng tiền của dự án mà không một dòng cảnh báo nào.
+       Chêm đúng MỘT option, của đúng cha dòng này; không mở lại đường tạo con mới. */
+    if(el('da_capCha')){
+      var _cc=String(l.capCha||'');
+      if(_cc && _cc!=='(Phát sinh)'){
+        var _co=false, _s=el('da_capCha');
+        for(var _i=0;_i<_s.options.length;_i++){ if(_s.options[_i].value===_cc){ _co=true; break; } }
+        if(!_co){
+          var _op=document.createElement('option');
+          _op.value=_cc; _op.textContent='↳ mục con của: '+_cc+' (dòng cũ)';
+          _s.insertBefore(_op, _s.options[_s.options.length-1]||null);
+        }
+      }
+      el('da_capCha').value=_cc;
+    }
+    if(el('da_httt')) el('da_httt').value=l.hinhThuc||''; if(el('da_hoso')) el('da_hoso').value=l.hoSo||''; _daDocLbl(); daCapChaHint();
     _fillLoaiCp('da_loaicp', l.loaiCp||'', _daCoso(), l.tkNo||'', l.hinhThuc||''); daTkHint();
     DA_EDIT_ROW=row; el('daAddBtn').textContent='💾 Cập nhật dòng'; el('daCancelEdit').style.display='inline-block';
     try{ el('da_nd').scrollIntoView({block:'center'}); el('da_nd').focus(); }catch(e){}
