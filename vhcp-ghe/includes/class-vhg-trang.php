@@ -5109,6 +5109,28 @@ td{padding:9px 8px;border-bottom:1px solid #eef1f5;vertical-align:middle;color:v
   box-shadow:1px 0 0 var(--line);min-width:190px;max-width:230px}
 .bct th.bct-dinh{z-index:3}
 .bct th{white-space:nowrap;font-size:10.5px;line-height:1.25}
+/* 🔴 KHUNG CUỘN CÓ TRẦN CAO + HÀNG NGÀY DÍNH ĐẦU — anh Thắng 18/09/2026: *"có cách nào kéo
+   sang mà nhìn được ngày, giờ muốn kéo được phải kéo xuống cuối trang"*.
+
+   Trước đây `.table-scroll` chỉ có `overflow-x` mà KHÔNG có trần cao, nên khung cuộn cao đúng
+   bằng cả bảng — sáu chục cơ sở là cao mấy màn hình. Thanh cuộn ngang nằm ở ĐÁY khung, tức đáy
+   bảng, tức phải cuộn dọc xuống hết trang mới với tới; kéo ngang xong lại phải cuộn ngược lên
+   mới đọc được hàng mình cần. Hai việc đó thành một cái vòng.
+
+   Chặn trần cao theo màn hình thì khung tự nằm gọn trong tầm nhìn: thanh cuộn ngang luôn ở mép
+   dưới màn, hàng tiêu đề ngày dính mép trên, nên kéo ngang tới cột nào cũng biết đó là ngày nào.
+   Nhân tiện hàng TỔNG dính đáy (khai sẵn từ lâu ở dưới) NAY MỚI THẬT SỰ CHẠY — `sticky bottom`
+   cần một khung cuộn có trần, không trần thì nó chẳng dính vào đâu.
+
+   ⚠️ `overflow:auto` cả hai chiều chứ không chỉ `overflow-x`: có trần cao rồi mà chỉ cuộn ngang
+      thì phần bảng vượt trần bị cắt mất.
+   ⚠️ `min-height` giữ cho màn hình thấp không co khung còn vài dòng — lúc ấy thà cuộn cả trang
+      như cũ còn hơn đọc bảng qua một khe hẹp. */
+.bct-box{max-height:calc(100vh - 210px);min-height:320px;overflow:auto}
+/* Hàng tiêu đề dính đầu khung. Thứ tự chồng lớp: ô góc (vừa dính trái vừa dính đầu) trên cùng,
+   rồi hàng tiêu đề, rồi cột tên cơ sở, cuối là hàng TỔNG dính đáy. */
+.bct th{position:sticky;top:0;z-index:5}
+.bct th.bct-dinh{z-index:6}
 .bct .bct-ng{font-size:11.5px}
 .bct td{white-space:nowrap;font-variant-numeric:tabular-nums}
 /* VietQR thực nhận = TIỀN VỀ THẬT -> luôn ĐỎ để ai nhìn cũng biết; lệch với số NV nhập -> đỏ đậm. */
@@ -5493,6 +5515,9 @@ function datNN(n){
  * Và số đếm ngược tự trừ MỖI GIÂY giữa hai lượt hỏi, chứ không đứng im rồi nhảy 5 giây một
  * lần: một con số đứng im là dấu hiệu ghế treo, đừng để giao diện tự tạo ra dấu hiệu đó.
  * ============================================================================================ */
+/* ⚠️ Từ 2.110.0 chỉ còn 'dieu-khien' được dùng thật (xem henLai(): các tab khác không tự vẽ
+   lại nữa). Giữ mấy số kia làm ghi chú nhịp mong muốn, phòng khi dựng lại kiểu cập-nhật-tại-chỗ
+   cho tab đó — ĐỪNG đọc bảng này mà tưởng Đối soát/Ghế lỗi đang tự làm mới. */
 var NHIP_MS = { 'dieu-khien': 2000, 'doi-soat': 30000, 'ghe-loi': 5000, 'nhat-ky-may': 20000 };
 /* Ví nhân viên vừa tra — giữ để lượt bấm "Trừ ví, chạy ghế" biết đang làm cho số nào. */
 var NV_VI = null;
@@ -6006,40 +6031,34 @@ function tai(im){
 function henLai(){
   if (hen) { clearTimeout(hen); hen = null; }
   if (!TOK) return;
-  /* Tab QUẢN LÝ không tự hỏi lại: vẽ lại giữa chừng sẽ xoá ô đang gõ (thêm ghế/địa điểm).
-     Dữ liệu quản lý ít đổi; muốn mới thì bấm ↻, còn mỗi thao tác thêm/xoá đã tự tải lại. */
-  if (TAB === 'quan-ly') return;
-  /* Tab DUYỆT BÁO CÁO cũng không tự vẽ lại cả trang — anh Thắng: "vẫn còn tình trạng F5 trang…
-     chỉ f5 chỗ đó thôi" (chỗ đó = phần máy/kết nối, không phải cả trang). `veKtDuyet()` tự quản
-     lý dữ liệu của nó qua KTD_THANG/KTD_TRANG/KTD_COSO và tự tải lại đúng lúc (đổi tháng, đổi
-     trang, Duyệt/Khoá/Đổi ngày) — vẽ lại CẢ TRANG mỗi 30 giây sẽ bung lại mọi thẻ đã "Đóng",
-     nhảy về trang 1, và có thể cắt ngang đúng lúc đang bấm Duyệt. */
-  if (TAB === 'kt-duyet') return;
-  /* Tab HỖ TRỢ KHÁCH (Hotline) cũng không tự vẽ lại cả trang, cùng lý do 'quan-ly' ở trên: có
-     form nhập số lượt kích + tiền hoàn, vẽ lại giữa chừng là xoá số đang gõ dở. */
-  if (TAB === 'hl-hotro') return;
-  /* Tab MÃ GIẢM GIÁ: từ 2.26+ có khối "Cấu hình khuyến mãi" và "Trang giới thiệu" (block editor)
-     — vẽ lại cả tab mỗi 30 giây là ĐÓNG khối đang mở, xoá ảnh/chữ đang soạn dở (anh Thắng: "tab
-     cứ F5 liên tục không làm được"). Các con số ở đây không cần realtime — bấm ↻ khi cần. */
-  if (TAB === 'ma') return;
-  /* Tab BÁO CÁO DOANH THU: ĐANG NHẬP là mất ẢNH. Chỉ số gõ vào có lưu nháp (localStorage) nên
-     sống qua lượt vẽ lại; nhưng ẢNH chọn (File/_bulkFile trong bộ nhớ) KHÔNG lưu nháp được →
-     vẽ lại 30 giây là xoá sạch ảnh vừa chọn, gửi xong "thành công" mà báo cáo THIẾU ẢNH (anh
-     Thắng 11/09/2026: "chọn ảnh hàng loạt, báo thành công mà xem lại không thấy ảnh"). Muốn số
-     mới thì bấm ↻; còn khi đang soạn thì không tự vẽ lại. */
-  if (TAB === 'bc-doanhthu') return;
-  /* Tab Điều khiển: người dùng tắt "Tự làm mới" -> không tự hỏi lại (chỉ bấm ↻ hoặc bấm tác vụ). */
-  if (TAB === 'dieu-khien' && !DK_AUTO) return;
+  /* 🔴 KHÔNG CÒN TỰ VẼ LẠI CẢ TRANG — anh Thắng 18/09/2026: *"web cứ mấy giây lại nhảy trang
+     một lần, tắt tính năng đó luôn"*.
+
+     Danh sách miễn trừ ở chỗ này từng dài dần theo từng lần bị dính, mỗi dòng một tab và một
+     lần mất việc: 'quan-ly' (vẽ lại là xoá ô đang gõ), 'kt-duyet' (*"chỉ f5 chỗ đó thôi"* —
+     bung hết thẻ đã đóng, nhảy về trang 1, cắt ngang lúc đang bấm Duyệt), 'hl-hotro' (mất số
+     lượt kích / tiền hoàn đang gõ), 'ma' (đóng khối khuyến mãi đang soạn), 'bc-doanhthu' (xoá
+     ẢNH vừa chọn — gửi xong báo "thành công" mà báo cáo thiếu ảnh). Lần này tới Báo cáo tổng:
+     bảng cuộn ngang 18-30 cột ngày, vẽ lại là văng về đầu bảng.
+
+     Sáu lần cùng một lỗi thì cái sai không nằm ở danh sách miễn trừ, nó nằm ở chỗ tự vẽ lại
+     được bật MẶC ĐỊNH — mỗi tab mới thêm vào là một lần nữa dính, và người dùng phải kêu thì
+     mới biết. Nay lật mặc định: KHÔNG tab nào tự vẽ lại; muốn số mới thì bấm ↻ (hoặc mỗi thao
+     tác thêm/sửa/xoá vẫn tự tải lại như cũ, không đổi).
+
+     HAI THỨ VẪN SỐNG, vì chúng cập nhật TẠI CHỖ chứ không vẽ lại trang nên không gây nhảy:
+       · đồng hồ đầu trang + đếm ngược ghế đang chạy — dhTop() / chayDongHo(), chỉ đổi CHỮ;
+       · lưới ghế tab Điều khiển khi người dùng BẬT "Tự làm mới" — capNhatDieuKhien(), thay mỗi
+         lưới và giữ nguyên ô Số phút/Tiền mặt đang gõ dở. Tab này là màn trực ghế: không có
+         nhịp thì không thấy ghế nào vừa chạy/vừa mất kết nối. Tắt công tắc là đứng hẳn. */
+  if (TAB !== 'dieu-khien' || !DK_AUTO) return;
   hen = setTimeout(function(){
     /* KHÔNG hỏi khi: người dùng đang chờ một lệnh chạy xong, đang mở bảng chốt ca (vẽ lại là
        xoá mất số họ đang gõ), đang GÕ vào một ô nào đó, hoặc trang đang ẩn (điện thoại trong túi
        — hỏi cũng không ai đọc, chỉ tốn 4G). */
     if (ban || CHOT || document.hidden || dangGoField()) { henLai(); return; }
-    /* Tab Điều khiển: CHỈ cập nhật lưới ghế TẠI CHỖ (ghế chạy/mất kết nối/đếm ngược), KHÔNG vẽ
-       lại cả trang — vẽ lại mỗi 2 giây là xoá số phút/tiền mặt anh vừa gõ trên thẻ ghế. */
-    if (TAB === 'dieu-khien') { capNhatDieuKhien(); return; }
-    tai(true);
-  }, NHIP_MS[TAB] || 30000);
+    capNhatDieuKhien();
+  }, NHIP_MS['dieu-khien'] || 2000);
 }
 
 /* Có đang gõ vào ô nhập nào không (input/textarea/select đang được chọn). Đang gõ thì hoãn lượt
@@ -6092,7 +6111,9 @@ function chayDongHo(){
     });
     /* Hết giờ: CHỈ tự hỏi lại khi đang BẬT "Tự làm mới". Tắt thì để yên (bấm ↻ khi cần) —
        không tự F5 sau lưng người đang thao tác. */
-    if (!co) { clearInterval(demGiay); demGiay = null; if (DK_AUTO && !ban && !CHOT) tai(true); }
+    /* Hết giờ thì hỏi lại số liệu, nhưng CẬP NHẬT TẠI CHỖ — tai(true) vẽ lại cả trang, đúng
+       thứ đã tắt ở henLai(). */
+    if (!co) { clearInterval(demGiay); demGiay = null; if (DK_AUTO && !ban && !CHOT) capNhatDieuKhien(); }
   }, 1000);
 }
 
@@ -8218,7 +8239,7 @@ function bctBang(r){
     L('Từ','From') + ' ' + r.tu + ' ' + L('đến','to') + ' ' + r.den
     + ' · ' + r.ngay.length + ' ' + L('ngày','days')
     + ' · ' + L('tổng','total') + ' ' + ktVnd(r.tong) + 'đ'));
-  var sc = ktEl('div','table-scroll'); var t = ktEl('table','bct');
+  var sc = ktEl('div','table-scroll bct-box'); var t = ktEl('table','bct');
   /* 4 cột cố định (cơ sở · mã KH · ghế · số ghế) + mỗi ngày 92px + cột Tổng. */
   t.style.minWidth = (420 + r.ngay.length*84 + 110) + 'px';
   var cotGhe = (r.muc === 'ghe');
@@ -8400,7 +8421,7 @@ function kcgNgay(x){
  * @param coCs có in chỉ số máy hay không — chỉ bảng thực thu mới in
  */
 function kcgBang(r, khoa, coCs){
-  var sc = ktEl('div','table-scroll'); var t = ktEl('table','bct');
+  var sc = ktEl('div','table-scroll bct-box'); var t = ktEl('table','bct');
   t.style.minWidth = (300 + r.ngay.length*84 + 110) + 'px';
   var h1 = '<tr><th class="bct-dinh">' + L('Ghế','Chair') + '</th>'
     + (coCs ? ('<th>' + L('Chỉ số đầu→cuối','Meter start→end') + '</th>') : '')
@@ -12478,10 +12499,16 @@ function noi(){
   });
 }
 
-/* Mở lại trang sau khi khoá màn: hỏi NGAY chứ đừng đợi hết nhịp. Người ta mở ra là để xem
-   ngay bây giờ, không phải để nhìn số liệu của 30 giây trước. */
+/* Mở lại trang sau khi khoá màn / chuyển sang tab khác rồi quay về.
+   🔴 CHỈ TAB ĐIỀU KHIỂN, VÀ CẬP NHẬT TẠI CHỖ — anh Thắng 18/09/2026 tắt hẳn kiểu tự vẽ lại cả
+      trang (xem henLai()). Chỗ này là lối cuối cùng còn sót: đang đọc Báo cáo tổng, liếc sang
+      tab khác một cái rồi quay lại là bảng dựng lại từ đầu, về "Đang tải…", cuộn văng lên đỉnh
+      — đúng cái vừa tắt, chỉ khác cái cớ.
+      Màn trực ghế thì vẫn nên tươi ngay khi mở lại (mở ra là để xem ghế nào đang chạy BÂY GIỜ),
+      nên giữ, nhưng đi qua capNhatDieuKhien() — thay mỗi lưới, không đụng phần còn lại. */
 document.addEventListener('visibilitychange', function(){
-  if (!document.hidden && TOK && !ban && !CHOT) tai(true);
+  if (document.hidden || !TOK || ban || CHOT) return;
+  if (TAB === 'dieu-khien' && DK_AUTO) capNhatDieuKhien();
 });
 
 if (TOK) tai(); else veLogin('');

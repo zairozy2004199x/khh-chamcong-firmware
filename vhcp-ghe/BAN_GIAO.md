@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-09-18 · Phiên bản hiện tại: **2.109.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-09-18 · Phiên bản hiện tại: **2.110.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,42 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v2.110.0 — Tắt hẳn tự vẽ lại cả trang · Bảng chéo có khung cuộn riêng, hàng ngày dính đầu
+
+Hai việc anh Thắng nêu 18/09/2026.
+
+**1. *"Web cứ mấy giây lại nhảy trang một lần, tắt tính năng đó luôn"*.** `henLai()` hẹn giờ gọi
+`tai(true)` → `ve()` dựng lại cả trang; đang đọc Báo cáo tổng thì bảng biến về "Đang tải…", cuộn
+văng về đầu.
+
+Danh sách tab được miễn trừ ở `henLai()` đã dài dần theo từng lần bị dính: `quan-ly` (xoá ô đang
+gõ), `kt-duyet` (*"chỉ f5 chỗ đó thôi"*), `hl-hotro`, `ma` (đóng khối đang soạn), `bc-doanhthu`
+(xoá ẢNH vừa chọn). Sáu lần cùng một lỗi thì cái sai nằm ở chỗ **tự vẽ lại được bật mặc định** —
+tab mới nào cũng dính, và phải có người kêu mới biết. Nay lật mặc định: **không tab nào tự vẽ lại
+cả trang**, muốn số mới thì bấm ↻ (mỗi thao tác thêm/sửa/xoá vẫn tự tải lại như cũ).
+
+Hai thứ vẫn sống vì cập nhật TẠI CHỖ, không gây nhảy: đồng hồ đầu trang + đếm ngược ghế đang chạy
+(`dhTop`/`chayDongHo`), và lưới ghế tab **Điều khiển** khi bật "Tự làm mới" (`capNhatDieuKhien()`
+— thay mỗi lưới, giữ nguyên ô Số phút/Tiền mặt đang gõ). Chỗ đếm ngược hết giờ cũng đổi từ
+`tai(true)` sang `capNhatDieuKhien()`, cùng lý do.
+
+⚠️ Lối thứ ba dễ sót: handler `visibilitychange` (mở lại màn / quay về từ tab khác) trước đây gọi
+thẳng `tai(true)` — liếc sang tab khác rồi quay lại là bảng dựng lại từ đầu, y hệt cái vừa tắt,
+chỉ khác cái cớ. Nay chỉ còn tác dụng ở tab Điều khiển và cũng đi qua `capNhatDieuKhien()`.
+
+**2. *"Có cách nào kéo sang mà nhìn được ngày, giờ muốn kéo được phải kéo xuống cuối trang"*.**
+`.table-scroll` chỉ có `overflow-x`, không có trần cao → khung cuộn cao bằng cả bảng (sáu chục cơ
+sở = mấy màn hình), nên thanh cuộn ngang nằm tận đáy bảng: phải cuộn dọc hết trang mới với tới,
+kéo xong lại cuộn ngược lên mới đọc được hàng cần.
+
+- Lớp `.bct-box` mới cho hai bảng chéo (Báo cáo tổng · Ngày×Ghế): `max-height:calc(100vh - 210px)`
+  + `overflow:auto` → khung nằm gọn trong màn, thanh cuộn ngang luôn ở mép dưới.
+- `.bct th` nay `position:sticky;top:0` → **hàng ngày dính đầu khung**, kéo ngang tới cột nào cũng
+  biết là ngày nào. Ô góc (vừa dính trái vừa dính đầu) z-index cao nhất.
+- Hàng **TỔNG dính đáy** (đã khai từ lâu) nay mới thật sự chạy — `sticky bottom` cần khung cuộn có
+  trần, trước không có trần nên nó chẳng dính vào đâu.
+
 
 ### v2.109.0 — Báo cáo tổng: cột Tổng đứng ngay sau Số ghế, không còn ở cuối bảng
 

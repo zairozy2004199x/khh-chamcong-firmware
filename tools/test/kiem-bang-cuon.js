@@ -49,7 +49,11 @@ t('🔴 kèm max-width:100% để vùng cuộn không đẩy cả trang trôi ng
 /* Đặt `min-width` mà không có khung cuộn bọc ngoài chính là công thức sinh ra lỗi này. */
 const co_minwidth = (src.match(/\.style\.minWidth\s*=/g) || []).length;
 t('có bảng đặt minWidth (nếu 0 thì phép dưới vô nghĩa)', co_minwidth > 0, co_minwidth);
-const so_dung_ts = (src.match(/'table-scroll'/g) || []).length;
+/* ⚠️ ĐẾM THEO TIỀN TỐ, không khớp nguyên chuỗi `'table-scroll'`: từ 2.110.0 hai bảng chéo dùng
+   `'table-scroll bct-box'` (thêm trần cao + tiêu đề dính), vẫn là khung cuộn ấy. Khớp cứng thì
+   bài này báo đỏ đúng lúc người ta LÀM TỐT HƠN — và cái nó canh (bảng rộng có nằm trong vùng
+   cuộn không) thì vẫn nguyên. */
+const so_dung_ts = (src.match(/'table-scroll[ ']/g) || []).length;
 t('và chúng dùng khung .table-scroll', so_dung_ts >= co_minwidth - 1,
 	{ minWidth: co_minwidth, tableScroll: so_dung_ts });
 
