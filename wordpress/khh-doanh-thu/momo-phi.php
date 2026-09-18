@@ -427,3 +427,15 @@ function khh_dt_rest_momo_phi_dat( $req ) {
 function khh_dt_rest_momo_phi_xoa( $req ) {
 	return array( 'xong' => khh_dt_momo_phi_xoa( (int) $req->get_param( 'id' ) ) );
 }
+
+/** Mấy tài khoản quyết toán hệ đã biết (học từ lượt nạp sao kê, hoặc đã từng nhập phí). */
+function khh_dt_momo_tk_ds() {
+	$ds = array_values( array_unique( array_values( khh_dt_momo_tk_bang() ) ) );
+	foreach ( khh_dt_momo_phi_ds( '', '' ) as $p ) {
+		if ( ! in_array( $p['tai_khoan'], $ds, true ) ) {
+			$ds[] = $p['tai_khoan'];
+		}
+	}
+	sort( $ds );
+	return $ds;
+}

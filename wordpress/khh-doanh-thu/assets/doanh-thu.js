@@ -700,6 +700,29 @@
       e.preventDefault();
       moHop(b.getAttribute('data-mo-nap'));
     });
+    /* Bấm số trang. Uỷ quyền một lần, dùng cho MỌI bảng có phân trang.
+       ⚠️ Đổi trang KHÔNG gọi lại máy chủ — số liệu đã có sẵn trong S, chỉ vẽ lại. Gọi lại là
+          mỗi lần bấm Sau lại một lượt tải, và trên 3G ngoài cửa hàng thì nó giật. */
+    G.addEventListener('click', function (e) {
+      var b = e.target.closest ? e.target.closest('[data-trang]') : null;
+      if (!b || b.disabled) return;
+      e.preventDefault();
+      S.trang = S.trang || {};
+      S.trang[b.getAttribute('data-trang')] = parseInt(b.getAttribute('data-so'), 10) || 1;
+      ve();
+    });
+    /* Xoá một lượt phí đã nhập — cần có, vì nhập chồng ngày bị chối nên muốn sửa thì phải xoá
+       lượt cũ trước. Hỏi lại một câu: đây là con số tiền. */
+    G.addEventListener('click', function (e) {
+      var b = e.target.closest ? e.target.closest('[data-phi-xoa]') : null;
+      if (!b) return;
+      e.preventDefault();
+      if (!window.confirm('Xoá lượt phí này?')) return;
+      var fd = new FormData(); fd.append('id', b.getAttribute('data-phi-xoa'));
+      api('momo-phi', { method: 'DELETE', body: fd }).then(tai).catch(function (err) {
+        window.alert(err.message || err);
+      });
+    });
     /* Lưu phí MoMo. Cũng uỷ quyền, vì khối này nằm trong phần được vẽ lại mỗi lần đổi kỳ. */
     G.addEventListener('click', function (e) {
       var b = e.target.closest ? e.target.closest('[data-phi-luu]') : null;
@@ -707,8 +730,10 @@
       e.preventDefault();
       var hop = b.parentNode;
       var lay = function (n) { var o = hop.querySelector('[data-phi="' + n + '"]'); return o ? o.value.trim() : ''; };
+      if (!lay('tk')) { window.alert('Gõ mã tài khoản trước (ví dụ KH785).'); return; }
+      if (!lay('so')) { window.alert('Gõ số phí — lấy ở ô "Số tiền điều chỉnh" trên màn Đối soát của MoMo.'); return; }
       var fd = new FormData();
-      fd.append('tai_khoan', b.getAttribute('data-phi-luu'));
+      fd.append('tai_khoan', lay('tk'));
       fd.append('tu', lay('tu')); fd.append('den', lay('den')); fd.append('phi', lay('so'));
       b.disabled = true; b.textContent = 'Đang lưu…';
       api('momo-phi', { method: 'POST', body: fd }).then(function () {
@@ -1069,6 +1094,39 @@
     if (k) k.addEventListener('change', function () { S.ds.chiCanh = k.checked; veDoiSoat(q('#dtTabDoiSoat'), S.dsR, S.dsK); });
   }
 
+  /* ═══ PHÂN TRANG DÙNG CHUNG ═══════════════════════════════════════════════════════════
+     Anh Thắng 18/09/2026: *"hiện 10 giao dịch cho 1 trang cho gọn nhé"*, rồi *"trang này cũng
+     vậy"* cho bảng đối soát cơ sở. Hai chỗ, một bộ — viết hai bản là sớm muộn một bên đổi số
+     dòng mỗi trang mà bên kia không đổi.
+
+     ⚠️ SỐ TRANG NHỚ THEO TỪNG BẢNG. Ba bảng lệch giao dịch nằm cùng một màn; dùng chung một ô
+        nhớ thì bấm sang trang 3 ở bảng này là hai bảng kia cũng nhảy sang trang 3 — mà chúng
+        thường không dài bằng nhau, nên hai bảng kia sẽ trống trơn.
+
+     ⚠️ KẸP LẠI TRONG KHOẢNG HỢP LỆ mỗi lần cắt. Đang ở trang 9 rồi đổi kỳ sang một khoảng chỉ
+        có 2 trang thì không kẹp là màn trắng, mà người dùng không hiểu vì sao — trông y như mất
+        dữ liệu. */
+  var MOI_TRANG = 20;
+
+  function catTrang(khoa, ds) {
+    var so = Math.max(1, Math.ceil(ds.length / MOI_TRANG));
+    var t  = Math.min(Math.max(1, (S.trang && S.trang[khoa]) || 1), so);
+    return { dong: ds.slice((t - 1) * MOI_TRANG, t * MOI_TRANG), trang: t, so_trang: so, tong: ds.length };
+  }
+
+  function thanhTrang(khoa, p) {
+    if (p.so_trang <= 1) return '';
+    var nut = function (t, chu, tat) {
+      return '<button class="vien" type="button" data-trang="' + esc(khoa) + '" data-so="' + t + '"' +
+        (tat ? ' disabled' : '') + '>' + chu + '</button>';
+    };
+    return '<div class="loc" style="margin-top:8px;justify-content:flex-end;align-items:center">' +
+      '<span class="nho">' + nguyen(p.tong) + ' dòng · trang ' + p.trang + '/' + p.so_trang + '</span>' +
+      nut(p.trang - 1, '← Trước', p.trang <= 1) +
+      nut(p.trang + 1, 'Sau →', p.trang >= p.so_trang) +
+      '</div>';
+  }
+
   function veDoiSoat(o, r, k) {
     /* Giữ lại bộ số và kỳ vừa tải, để nút "chỉ dòng cần xem" vẽ lại được mà không gọi lại máy chủ. */
     S.dsR = r; S.dsK = k;
@@ -1161,7 +1219,8 @@
         '<th>Ngân hàng nhận</th><th>Đang treo</th>' +
         '<th>Đếm két</th><th>Lệch</th><th>Bill huỷ</th><th>Khách − vé</th><th>Người nhập</th>' +
       '</tr></thead><tbody>';
-    hien.forEach(function (x) {
+    var ptDS = catTrang('doi_soat', hien);
+    ptDS.dong.forEach(function (x) {
       var do_ = canhBao(x, ng, r.ngay_nhac);
       h += '<tr' + (do_ ? ' class="canh"' : '') + '>' +
         '<td>' + esc(ngayVN(x.ngay)) + '</td>' +
@@ -1426,26 +1485,6 @@
        ⚠️ Khác hẳn khối "thiếu file" ở trên: thiếu file là chưa có SỐ LIỆU nên không so được;
           thiếu phí là số liệu có đủ, chỉ chưa biết MoMo trừ bao nhiêu. Gộp hai câu làm một thì
           người đọc không biết phải đi tải file hay đi tra màn đối soát bên MoMo. */
-    var khoiPhi = '';
-    var tkThieu = Object.keys(phiThieu);
-    if (tkThieu.length && (S.cf && S.cf.duoc_ghi)) {
-      khoiPhi = tkThieu.map(function (tk) {
-        var ng = phiThieu[tk] || [];
-        if (!ng.length) return '';
-        return '<div class="canh-ghep" style="margin-top:10px">' +
-          'Tài khoản <b>' + esc(tk) + '</b> chưa nhập phí cho <b>' + ng.length + ' ngày</b>: ' +
-          esc(ng.map(ngayVN).join(' · ')) + '.<br>' +
-          'MoMo không đưa phí theo từng giao dịch — chỉ có một số tổng ở màn <b>Đối soát</b> ' +
-          '(ô "Số tiền điều chỉnh"). Nhập số ấy vào đây, hệ chia về từng cơ sở theo % doanh thu.' +
-          '<div class="loc" style="margin-top:8px;gap:6px">' +
-            '<label class="o">Từ<input type="date" data-phi="tu" value="' + esc(ng[0]) + '"></label>' +
-            '<label class="o">Đến<input type="date" data-phi="den" value="' + esc(ng[ng.length - 1]) + '"></label>' +
-            '<label class="o">Phí<input type="number" min="0" step="1" data-phi="so" placeholder="8118"></label>' +
-            '<button class="nut chinh" type="button" data-phi-luu="' + esc(tk) + '">Lưu phí</button>' +
-          '</div></div>';
-      }).join('');
-    }
-
     var TC = 0;
     chuaSo.forEach(function (c) { TC += theo[c].pos; });
     var khoiChuaSo = !chuaSo.length ? '' :
@@ -1466,6 +1505,57 @@
         '<td style="text-align:left">Cộng</td><td class="s">' + tien(TC) + '</td></tr>' +
       '</tbody></table></div>' +
       '<div style="margin-top:8px">' + NUT_NAP_MOMO_SK + '</div></div>';
+
+    /* ═══ KHỐI NHẬP PHÍ — LÚC NÀO CŨNG MỞ ĐƯỢC ═══════════════════════════════════════════
+       Bản 1.38.0 chỉ hiện ô nhập khi hệ biết ngày nào còn thiếu phí; mà muốn biết thì phải nạp
+       lại sao kê kèm mã tài khoản trước. Anh Thắng cài xong hỏi *"Nhập phí chỗ nào theo KH785
+       và KH989 chỗ nào"* — đúng: tính năng có mà không có cửa vào. Nay khối này luôn có mặt cho
+       người được ghi, và tự điền sẵn khoảng ngày đang xem. */
+    var phiDs = S.dsR.momo_phi_ds || [];
+    var tkDs  = S.dsR.momo_tk_ds || [];
+    var khoiPhi = '';
+    if (S.cf && S.cf.duoc_ghi) {
+      var tkThieu = Object.keys(phiThieu);
+      var nhac = tkThieu.map(function (tk) {
+        var ng = phiThieu[tk] || [];
+        if (!ng.length) return '';
+        return '<div style="margin-top:6px">Tài khoản <b>' + esc(tk) + '</b> chưa nhập phí cho <b>' +
+          ng.length + ' ngày</b>: ' + esc(ng.map(ngayVN).join(' · ')) + '.</div>';
+      }).join('');
+
+      var daNhap = !phiDs.length ? '' :
+        '<div class="bang-cuon" style="margin-top:8px"><table><thead><tr>' +
+          '<th style="text-align:left">Tài khoản</th><th style="text-align:left">Khoảng ngày</th>' +
+          '<th>Phí</th><th></th></tr></thead><tbody>' +
+        phiDs.map(function (x) {
+          return '<tr><td style="text-align:left"><b>' + esc(x.tai_khoan) + '</b></td>' +
+            '<td style="text-align:left">' + esc(ngayVN(x.tu)) + ' → ' + esc(ngayVN(x.den)) + '</td>' +
+            '<td class="s">' + tien(x.phi) + '</td>' +
+            '<td><button class="vien" type="button" data-phi-xoa="' + esc(x.id) + '">Xoá</button></td></tr>';
+        }).join('') + '</tbody></table></div>';
+
+      /* Không bọc `.khung` — khối này nằm BÊN TRONG khung Đối soát MoMo, lồng khung vào khung
+         là hai lớp viền và hai lớp nền chồng nhau. */
+      khoiPhi = '<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">' +
+        '<h3 class="tieu-nho">Phí MoMo</h3>' +
+        '<div class="chu-them">MoMo <b>không</b> đưa phí theo từng giao dịch — cả Transaction report ' +
+        'lẫn báo cáo chi tiết đều không có. Chỉ màn <b>Đối soát</b> bên MoMo mới có, ở ô ' +
+        '<b>"Số tiền điều chỉnh"</b>, và là một số tổng. Nhập số ấy vào đây (gộp 2-3 ngày cũng được), ' +
+        'hệ chia về từng cơ sở theo <b>% doanh thu</b>.' +
+        (tkDs.length
+          ? ' Tài khoản đã biết: <b>' + tkDs.map(esc).join('</b> · <b>') + '</b>.'
+          : ' <b>Chưa biết cơ sở nào thuộc tài khoản nào</b> — nạp lại sao kê MoMo có gõ mã tài khoản ' +
+            '(thẻ Sao kê MoMo) thì hệ mới chia phí về đúng cơ sở được.') +
+        '</div>' + nhac +
+        '<div class="loc" style="margin-top:10px;gap:6px">' +
+          '<label class="o">Tài khoản<input type="text" data-phi="tk" list="dtTkGoi" placeholder="KH785" style="width:110px"></label>' +
+          '<datalist id="dtTkGoi">' + tkDs.map(function (t) { return '<option value="' + esc(t) + '">'; }).join('') + '</datalist>' +
+          '<label class="o">Từ<input type="date" data-phi="tu" value="' + esc(k.tu) + '"></label>' +
+          '<label class="o">Đến<input type="date" data-phi="den" value="' + esc(k.den) + '"></label>' +
+          '<label class="o">Phí<input type="number" min="0" step="1" data-phi="so" placeholder="8118"></label>' +
+          '<button class="nut chinh" type="button" data-phi-luu="1">Lưu phí</button>' +
+        '</div>' + daNhap + '</div>';
+    }
 
     return '<div class="khung"><header><h2>Đối soát MoMo</h2>' +
       '<span class="goi">' + ngayVN(k.tu) + ' → ' + ngayVN(k.den) + '</span></header>' +
@@ -1572,13 +1662,18 @@
         (r.so_ngoai_sk ? the_nho('Ngoài kỳ kho POS', nguyen(r.so_ngoai_sk) + ' · ' + tien(r.tien_ngoai_sk), '') : '') +
         '</div>';
 
-      function bang(tieu, cot, dong, ghi) {
+      /* `khoa` là ô nhớ số trang RIÊNG của từng bảng — ba bảng này nằm cùng một màn và không
+         dài bằng nhau, dùng chung một ô nhớ thì bấm sang trang 3 ở bảng dài là hai bảng ngắn
+         trống trơn. */
+      function bang(tieu, cot, dong, ghi, khoa) {
         if (!dong.length) return '';
+        var pt = catTrang(khoa || tieu, dong);
         return '<h3 class="tieu-nho">' + esc(tieu) + '</h3>' +
           (ghi ? '<div class="chu-them">' + ghi + '</div>' : '') +
           '<div class="bang-cuon" style="margin-top:8px"><table><thead><tr>' +
           cot.map(function (c) { return '<th style="text-align:left">' + esc(c) + '</th>'; }).join('') +
-          '</tr></thead><tbody>' + dong.join('') + '</tbody></table></div>';
+          '</tr></thead><tbody>' + pt.dong.join('') + '</tbody></table></div>' +
+          thanhTrang(khoa || tieu, pt);
       }
 
       h += bang('Máy POS ghi mà sổ MoMo không có (' + nguyen(r.so_chi_pos) + ')',
@@ -1591,7 +1686,8 @@
             '<td class="s">' + tien(x.so_tien) + '</td></tr>';
         }),
         'Máy tính tiền ghi là khách đã trả qua MoMo, nhưng sổ MoMo không có giao dịch ấy — ' +
-        'thường là bấm nhầm hình thức thanh toán, hoặc giao dịch rớt giữa chừng mà máy vẫn chốt đơn.');
+        'thường là bấm nhầm hình thức thanh toán, hoặc giao dịch rớt giữa chừng mà máy vẫn chốt đơn.',
+        'gd_chi_pos');
 
       h += bang('Sổ MoMo có mà máy POS không ghi (' + nguyen(r.so_chi_sk) + ')',
         ['Ngày', 'Tên bên MoMo', 'Mã giao dịch', 'Số tiền'],
@@ -1602,7 +1698,8 @@
             '<td class="s">' + tien(x.tien) + '</td></tr>';
         }),
         '<b>Nhóm này nặng hơn:</b> MoMo đã nhận tiền của khách mà máy tính tiền không ghi đơn nào — ' +
-        'tiền vào tài khoản nhưng không nằm trong doanh thu.');
+        'tiền vào tài khoản nhưng không nằm trong doanh thu.',
+        'gd_chi_sk');
 
       h += bang('Khớp mã nhưng lệch số tiền (' + nguyen(r.so_lech) + ')',
         ['Ngày', 'Cơ sở', 'Mã đối tác', 'Máy POS', 'Sổ MoMo', 'Lệch'],
@@ -1721,7 +1818,7 @@
         : (coNgay ? '<span style="color:var(--tot)">sạch</span>' : '—')) + '</td></tr>';
       h += o_;
     });
-    h += '</tbody></table></div>';
+    h += '</tbody></table></div>' + thanhTrang('doi_soat', ptDS);
 
     /* Chú giải luôn có mặt — ký hiệu + chữ, để không ai phải đoán màu nghĩa là gì. */
     h += '<div class="lich-chu">' +
@@ -1873,10 +1970,11 @@
           'khai theo mẩu chữ ở bảng dưới.') + '</div>';
 
       if (maLa.length) {
+        var ptMa = catTrang('ma_la', maLa);
         h += '<div class="bang-cuon" style="margin-top:10px"><table><thead><tr>' +
             '<th style="text-align:left">Mã đọc được</th><th>Số khoản</th><th>Tổng tiền</th>' +
             '<th style="text-align:left">Cơ sở nào?</th></tr></thead><tbody>' +
-          maLa.map(function (m) {
+          ptMa.dong.map(function (m) {
             return '<tr><td style="text-align:left"><code class="nd">' + esc(m.ma) + '</code>' +
               '<span class="nho" style="display:block">' + esc(String(m.vi_du).slice(0, 70)) + '</span></td>' +
               '<td class="s">' + nguyen(m.so_lan) + '</td><td class="s">' + tien(m.so_tien) + '</td>' +
@@ -1884,7 +1982,7 @@
                 '<option value="">— chọn cơ sở để gán —</option>' +
                 ch.map(function (t) { return '<option value="' + esc(t) + '">' + esc(t) + '</option>'; }).join('') +
               '</select></td></tr>';
-          }).join('') + '</tbody></table></div>';
+          }).join('') + '</tbody></table></div>' + thanhTrang('ma_la', ptMa);
       }
 
       h += '<details style="margin-top:10px"><summary>Xem từng khoản chưa gán (' + nguyen(chua.length) + ')</summary>' +

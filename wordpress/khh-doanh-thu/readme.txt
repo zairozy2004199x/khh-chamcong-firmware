@@ -97,6 +97,20 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.39.0 =
+* **Ô nhập phí MoMo giờ lúc nào cũng vào được.** Bản 1.38.0 chỉ hiện ô nhập khi hệ đã biết ngày
+  nào còn thiếu phí — mà muốn biết thì phải nạp lại sao kê kèm mã tài khoản trước. Thành ra tính
+  năng có mà không có cửa vào. Nay khối "Phí MoMo" luôn nằm dưới bảng Đối soát MoMo, tự điền sẵn
+  khoảng ngày đang xem, gợi ý mấy tài khoản đã biết, và liệt kê các lượt đã nhập kèm nút Xoá.
+* **Phân trang 20 dòng một trang** cho bốn bảng dài: Đối soát cơ sở với máy POS, ba bảng Lệch
+  giao dịch MoMo, và bảng mã nộp tiền lạ ở màn Sao kê ngân hàng.
+* Mỗi bảng **nhớ số trang riêng** — ba bảng lệch nằm cùng một màn, dùng chung một ô nhớ thì bấm
+  sang trang 3 ở bảng dài là hai bảng ngắn trống trơn.
+* Số trang được **kẹp lại trong khoảng hợp lệ**: đang xem trang 9 rồi đổi kỳ sang khoảng chỉ có
+  2 trang thì về trang cuối, chứ không trả màn trắng trông như mất dữ liệu.
+* Đổi trang **không gọi lại máy chủ** — số liệu đã có sẵn, chỉ vẽ lại.
+* Bài kiểm mới `tools/test/kiem-phan-trang.js` — 18 phép.
+
 = 1.38.0 =
 * Bảng Đối soát MoMo có thêm **cột Phí** và **cột Doanh thu MoMo đã trừ phí**, đặt ngay sau cột
   MoMo theo sao kê.

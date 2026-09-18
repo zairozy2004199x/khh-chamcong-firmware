@@ -588,6 +588,12 @@ function khh_dt_rest_doi_soat( $req ) {
 		   `momo_phi_thieu` là mấy ngày có doanh thu MoMo mà chưa ai nhập phí, để màn hình nhắc. */
 		'momo_phi'  => function_exists( 'khh_dt_momo_phi_chia' ) ? khh_dt_momo_phi_chia( $tu, $den ) : array( 'co_so' => array(), 'tong' => 0 ),
 		'momo_phi_thieu' => function_exists( 'khh_dt_momo_phi_thieu' ) ? khh_dt_momo_phi_thieu( $tu, $den ) : array(),
+		/* Tài khoản hệ đã biết, và mấy lượt phí đã nhập trong kỳ — để ô nhập LÚC NÀO CŨNG mở
+		   được, không phải chờ hệ đoán ra ngày nào còn thiếu. Bản 1.38.0 chỉ hiện ô nhập khi có
+		   ngày thiếu, mà muốn có ngày thiếu thì phải nạp lại sao kê kèm mã tài khoản trước —
+		   thành ra tính năng có mà không ai vào được. */
+		'momo_tk_ds'  => function_exists( 'khh_dt_momo_tk_ds' ) ? khh_dt_momo_tk_ds() : array(),
+		'momo_phi_ds' => function_exists( 'khh_dt_momo_phi_ds' ) ? khh_dt_momo_phi_ds( $tu, $den ) : array(),
 		/* Ô nào lấy từ sổ gộp thì chỉ có TỔNG ngày — không tra ngược xuống giao dịch được. Bày ra
 		   để bảng đừng hứa điều nó không làm được. */
 		'momo_nguon_o' => isset( $momo['nguon_o'] ) ? $momo['nguon_o'] : array(),
