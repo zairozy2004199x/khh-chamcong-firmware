@@ -291,11 +291,11 @@ teq( 'và cột Lý do đứng ngay trước nó', 'Lý do sửa',
 
 /* 🔴 KHÔNG SỬA GÌ THÌ KHÔNG CÓ ĐƠN. Gửi lại y nguyên tệp vừa tải mà đẻ ra một đơn rỗng thì kế
    toán phải ngồi duyệt những đơn không đổi gì cả. */
-$r = VHCC_TuanCong::doi( $CS_A, $TUAN, $doc['hang'] );
+$r = VHCC_TuanCong::doi( $CS_A, $TUAN, '', $doc['hang'] );
 t( 'tệp y nguyên thì đối chiếu vẫn chạy', ! empty( $r['ok'] ), $r );
 teq( '🔴 và KHÔNG có ô nào đổi', 0, count( $r['doi'] ) );
 
-$r = VHCC_TuanCong::nap( $CHT_A, $CS_A, $TUAN, tep_tu( $x['noi_dung'] ) );
+$r = VHCC_TuanCong::nap( $CHT_A, $CS_A, $TUAN, '', tep_tu( $x['noi_dung'] ) );
 t( '🔴 nạp tệp không đổi gì thì chối, không đẻ đơn rỗng', empty( $r['ok'] ), $r );
 /* Anh Thắng 18/09/2026: *"Khi up giờ trùng thì bỏ qua nhé"*. Câu chối phải nói rõ là đã BỎ QUA
    vì trùng, không phải tệp hỏng — không thì người ta đi tải lại tệp mẫu một cách vô ích. */
@@ -337,7 +337,7 @@ function ghi_tep( $hang ) {
 $khoa_nv1 = VHCC_TuanCong::khoa_dong( $CS_A, $TUAN, '', 'TCNV1' );
 $sua = sua_o( $doc['hang'], $khoa_nv1, $NGAY[0], '08:30', '17:00', 'máy lệch đồng hồ, đối chiếu camera' );
 
-$r = VHCC_TuanCong::doi( $CS_A, $TUAN, $sua );
+$r = VHCC_TuanCong::doi( $CS_A, $TUAN, '', $sua );
 teq( 'sửa một ô thì đối chiếu ra đúng một ô đổi', 1, count( $r['doi'] ) );
 teq( 'ghi đúng giờ cũ', '08:00', $r['doi'][0]['vaoCu'] );
 teq( 'và giờ mới',      '08:30', $r['doi'][0]['vao'] );
@@ -345,21 +345,21 @@ teq( 'ô đã có giờ thì KHÔNG phải dòng bù', false, $r['doi'][0]['them
 
 /* 🔴 SỬA MÀ KHÔNG GHI LÝ DO THÌ CHỐI. Lý do là thứ duy nhất còn tra ngược được sau ba tháng. */
 $khong_ly_do = sua_o( $doc['hang'], $khoa_nv1, $NGAY[0], '08:30', '17:00', '' );
-$r = VHCC_TuanCong::doi( $CS_A, $TUAN, $khong_ly_do );
+$r = VHCC_TuanCong::doi( $CS_A, $TUAN, '', $khong_ly_do );
 t( '🔴 sửa giờ mà bỏ trống Lý do thì chối cả tệp', empty( $r['ok'] ), $r );
 t( 'và nói rõ dòng nào', false !== mb_strpos( $r['error'], 'Lý do' ), $r['error'] );
 
 /* 🔴 SỬA TAY VÀO CỘT KHOÁ THÌ CHỐI CẢ TỆP. */
 $pha = $doc['hang'];
 $pha[1][ VHCC_TuanCong::c_khoa( $TUAN ) ] = $pha[1][ VHCC_TuanCong::c_khoa( $TUAN ) ] . 'z';
-$r = VHCC_TuanCong::doi( $CS_A, $TUAN, $pha );
+$r = VHCC_TuanCong::doi( $CS_A, $TUAN, '', $pha );
 t( '🔴 cột KHOÁ bị sửa thì chối cả tệp', empty( $r['ok'] ), $r );
 t( 'và chỉ đúng dòng', false !== mb_strpos( $r['error'], 'Dòng 2' ), $r['error'] );
 
 /* 🔴 DÁN TỪ TUẦN KHÁC SANG. Đây là tai nạn hay gặp nhất — tải hai tuần rồi sửa nhầm tệp. */
 $khac = $doc['hang'];
 $khac[1][ VHCC_TuanCong::c_khoa( $TUAN ) ] = VHCC_TuanCong::khoa_dong( $CS_A, $tuan_khac, '', 'TCNV1' );
-$r = VHCC_TuanCong::doi( $CS_A, $TUAN, $khac );
+$r = VHCC_TuanCong::doi( $CS_A, $TUAN, '', $khac );
 t( '🔴 dán khoá của tháng khác thì chối', empty( $r['ok'] ), $r );
 
 /* ================================================================= giờ trùng thì bỏ qua */
@@ -369,14 +369,14 @@ t( '🔴 dán khoá của tháng khác thì chối', empty( $r['ok'] ), $r );
    và DÒNG DÁN LẶP phải bỏ qua chứ không chối cả tệp. Tờ dài nên người ta hay dán thêm một khối
    để đối chiếu rồi quên xoá; lấy cả hai dòng thì cùng một ngày vào đơn hai lần và lúc duyệt ô
    sau đè lên ô trước, im lặng. */
-$r = VHCC_TuanCong::doi( $CS_A, $TUAN, $sua );
+$r = VHCC_TuanCong::doi( $CS_A, $TUAN, '', $sua );
 teq( '🔴 ô giữ y nguyên thì đếm vào soTrung, không vào đơn',
 	true, isset( $r['soTrung'] ) && $r['soTrung'] > 0 );
 teq( 'và vẫn đúng một ô đổi', 1, count( $r['doi'] ) );
 
 $lap = $sua;
 $lap[] = $sua[1];                 // dán lại nguyên dòng đầu xuống cuối tờ
-$r_lap = VHCC_TuanCong::doi( $CS_A, $TUAN, $lap );
+$r_lap = VHCC_TuanCong::doi( $CS_A, $TUAN, '', $lap );
 t( '🔴 dòng dán lặp KHÔNG làm chối cả tệp', ! empty( $r_lap['ok'] ), $r_lap );
 teq( '🔴 và chỉ lấy dòng đầu — vẫn đúng một ô đổi', 1, count( $r_lap['doi'] ) );
 teq( 'có đếm lại số dòng lặp đã bỏ', 1, $r_lap['soLap'] );
@@ -391,7 +391,7 @@ foreach ( $sua as $i_d => $d ) {
 	array_splice( $m, VHCC_TuanCong::C_NGAY_DAU, 0, array( 0 === $i_d ? 'ghi chú riêng' : 'abc' ) );
 	$chen[] = $m;
 }
-$r = VHCC_TuanCong::doi( $CS_A, $TUAN, $chen );
+$r = VHCC_TuanCong::doi( $CS_A, $TUAN, '', $chen );
 t( '🔴 chèn thêm một cột giữa tờ thì vẫn đọc đúng', ! empty( $r['ok'] ), $r );
 teq( 'và vẫn ra đúng một ô đổi, không lệch ngày', 1, count( $r['doi'] ) );
 teq( 'đúng ngày đã sửa', $NGAY[0], $r['doi'][0]['ngay'] );
@@ -403,19 +403,19 @@ foreach ( $sua as $d ) {
 	array_splice( $m, VHCC_TuanCong::C_NGAY_DAU, 1 );
 	$thieu[] = $m;
 }
-$r = VHCC_TuanCong::doi( $CS_A, $TUAN, $thieu );
+$r = VHCC_TuanCong::doi( $CS_A, $TUAN, '', $thieu );
 t( '🔴 thiếu cột của một ngày thì chối', empty( $r['ok'] ), $r );
 t( 'và nói rõ thiếu ngày nào', false !== strpos( $r['error'], $NGAY[0] ), $r['error'] );
 
 /* Tệp không đúng mẫu — thiếu cột KHOÁ. */
-$r = VHCC_TuanCong::doi( $CS_A, $TUAN, array( array( 'Mã NV', 'Họ tên' ), array( 'X', 'Y' ) ) );
+$r = VHCC_TuanCong::doi( $CS_A, $TUAN, '', array( array( 'Mã NV', 'Họ tên' ), array( 'X', 'Y' ) ) );
 t( 'tệp tự dựng (không có cột KHOÁ) thì chối', empty( $r['ok'] ), $r );
 t( 'và bảo tải lại tệp mẫu', false !== mb_strpos( $r['error'], 'mẫu' ), $r['error'] );
 
 /* ---- nạp thật ---- */
 echo "— nạp và duyệt —\n";
 $truoc_cham = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) );
-$r = VHCC_TuanCong::nap( $CHT_A, $CS_A, $TUAN, ghi_tep( $sua ) );
+$r = VHCC_TuanCong::nap( $CHT_A, $CS_A, $TUAN, '', ghi_tep( $sua ) );
 t( 'nạp được', ! empty( $r['ok'] ), $r );
 teq( 'đơn ghi đúng một ô đổi', 1, $r['soDoi'] );
 $don_id = (int) $r['id'];
@@ -431,7 +431,7 @@ t( '🔴 tuần vẫn CHƯA khoá khi đơn mới chỉ nằm chờ',
 
 /* Gửi lượt mới thì lượt chờ cũ phải bị thay, không để hai đơn cùng chờ. */
 $sua2 = sua_o( $doc['hang'], $khoa_nv1, $NGAY[0], '08:45', '17:00', 'đối chiếu lại camera lần hai' );
-$r2 = VHCC_TuanCong::nap( $CHT_A, $CS_A, $TUAN, ghi_tep( $sua2 ) );
+$r2 = VHCC_TuanCong::nap( $CHT_A, $CS_A, $TUAN, '', ghi_tep( $sua2 ) );
 t( 'gửi lại tệp khác thì nạp được', ! empty( $r2['ok'] ), $r2 );
 teq( '🔴 lượt chờ cũ bị thay, chỉ còn MỘT đơn chờ cho tuần ấy', 1,
 	(int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'don_tuan' )
@@ -459,7 +459,7 @@ teq( 'và bảng công vẫn nguyên', '08:00',
    làm được mà bố cục dọc thì phải sửa hai dòng rời. */
 $sua3 = sua_o( $doc['hang'], $khoa_nv1, $NGAY[0], '08:30', '17:00', 'máy lệch đồng hồ, đối chiếu camera' );
 $sua3 = sua_o( $sua3, $khoa_nv1, $NGAY[4], '09:00', '18:00', '' );
-$r3 = VHCC_TuanCong::nap( $CHT_A, $CS_A, $TUAN, ghi_tep( $sua3 ) );
+$r3 = VHCC_TuanCong::nap( $CHT_A, $CS_A, $TUAN, '', ghi_tep( $sua3 ) );
 t( 'gửi lại sau khi bị chối', ! empty( $r3['ok'] ), $r3 );
 teq( '🔴 một dòng, hai ngày đổi -> hai ô', 2, $r3['soDoi'] );
 
@@ -494,7 +494,7 @@ t( 'và câu chối bảo báo kế toán', false !== mb_strpos( $chan, 'kế to
 teq( '🔴 nhưng ADMIN vẫn tải được tháng đã khoá', '',
 	VHCC_TuanCong::vi_sao_khong_tai( $ADMIN, $CS_A, $TUAN ) );
 
-$r = VHCC_TuanCong::nap( $CHT_A, $CS_A, $TUAN, ghi_tep( $sua3 ) );
+$r = VHCC_TuanCong::nap( $CHT_A, $CS_A, $TUAN, '', ghi_tep( $sua3 ) );
 t( '🔴 và không nạp thêm tệp nào cho tháng đã khoá được', empty( $r['ok'] ), $r );
 
 /* 🔴 DUYỆT HAI LẦN — bấm hai lần trên hai tab. */
@@ -533,7 +533,7 @@ $k3  = VHCC_TuanCong::khoa_dong( $CS_C, $TUAN, '', 'TCNV3' );
 /* Hai ngày trống: một ngày sẽ bị "người khác chấm mất" trước lúc duyệt, một ngày để nguyên. */
 $sc  = sua_o( $dc['hang'], $k3, $NGAY[1], '08:00', '17:00', 'quên bấm cả hai hôm, có camera' );
 $sc  = sua_o( $sc, $k3, $NGAY[2], '09:00', '18:00', '' );
-$rc  = VHCC_TuanCong::nap( $CHT_C, $CS_C, $TUAN, ghi_tep( $sc ) );
+$rc  = VHCC_TuanCong::nap( $CHT_C, $CS_C, $TUAN, '', ghi_tep( $sc ) );
 teq( 'gửi hai ô bù', 2, $rc['soDoi'] );
 
 /* Trong lúc đơn nằm chờ, ĐÚNG giờ ấy đã vào bảng công bằng đường khác. */

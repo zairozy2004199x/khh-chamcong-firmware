@@ -359,6 +359,9 @@ class VHCC_WebDonTuan {
 		   thì không mất kỳ rồi báo "Thiếu cơ sở hoặc tháng" một cách khó hiểu. */
 		$ky_thang = isset( $_POST['dt_thang'] ) ? sanitize_text_field( wp_unslash( $_POST['dt_thang'] ) )
 			: ( isset( $_POST['dt_tuan'] ) ? sanitize_text_field( wp_unslash( $_POST['dt_tuan'] ) ) : '' );
+		$ma_ky = isset( $_POST['dt_ky'] ) ? sanitize_text_field( wp_unslash( $_POST['dt_ky'] ) ) : '';
+		if ( ! VHCC_TuanCong::la_ky( $ma_ky ) ) { $ma_ky = VHCC_TuanCong::KY_CA; }
+		list( $tu_k, $den_k ) = VHCC_TuanCong::khoang( $ky_thang, $ma_ky );
 
 		if ( empty( $_FILES['dt_tep'] ) || ! is_array( $_FILES['dt_tep'] ) ) {
 			return array( array( 'loi' => 'Chưa chọn tệp nào.' ) );
@@ -380,7 +383,7 @@ class VHCC_WebDonTuan {
 			return array( array( 'loi' => 'Tệp nạp lên không hợp lệ.' ) );
 		}
 
-		$r = VHCC_TuanCong::nap( $toi, $cs, $ky_thang, $tam );
+		$r = VHCC_TuanCong::nap( $toi, $cs, $tu_k, $den_k, $tam );
 		if ( empty( $r['ok'] ) ) { return array( array( 'loi' => $r['error'] ) ); }
 
 		$cau = 'Đã gửi cho kế toán: ' . (int) $r['soDoi'] . ' ô giờ chờ duyệt (trên '
@@ -412,13 +415,24 @@ class VHCC_WebDonTuan {
 		$ds_t = VHCC_TuanCong::ds_thang( 6 );
 		if ( ! in_array( $chon, $ds_t, true ) ) { $chon = $ds_t[0]; }
 
+		$ds_k  = VHCC_TuanCong::ds_ky();
+		$ky    = isset( $_GET['dtk'] ) ? sanitize_text_field( wp_unslash( $_GET['dtk'] ) ) : '';
+		if ( ! VHCC_TuanCong::la_ky( $ky ) ) { $ky = VHCC_TuanCong::KY_CA; }
+		list( $tu, $den ) = VHCC_TuanCong::khoang( $chon, $ky );
+
 		/* `open` sẵn: đổi tháng là trang nạp lại, mà `<details>` đóng thì người ta phải mở ra
 		   lần nữa mới thấy kết quả của chính cú bấm vừa rồi — và dễ tưởng nút không ăn. */
 		echo '<div class="the"><details open><summary><b>Sửa bảng công tháng bằng Excel</b> '
 			. '<span class="mo">(tải ra · sửa · gửi kế toán duyệt)</span></summary>';
-		echo '<p class="mo" style="margin:10px 0">Tải bảng công một tháng ra <b>.xlsx</b>, sửa giờ '
+		echo '<p class="mo" style="margin:10px 0">Tải bảng công một kỳ ra <b>.xlsx</b>, sửa giờ '
 			. 'trong đó rồi nạp lại. Nạp lên <b>chưa đổi gì</b> cả — nó thành một đơn chờ '
-			. '<b>kế toán duyệt</b>. Kế toán duyệt là giờ lên bảng công và <b>tháng ấy khoá lại</b>.</p>';
+			. '<b>kế toán duyệt</b>. Kế toán duyệt là giờ lên bảng công và <b>kỳ ấy khoá lại</b>.</p>';
+		/* Nói ra cách chia kỳ NGAY TRÊN Ô CHỌN. Không nói thì người ta chọn "Cả tháng" giữa
+		   tháng, duyệt, và khoá mất nửa sau chưa ai chấm. */
+		echo '<p class="mo" style="margin:0 0 10px;font-size:12px">Giữa tháng thì chọn '
+			. '<b>Kỳ 1</b> để chốt nửa đầu trước — nửa sau vẫn sửa được. Hết tháng thì chọn '
+			. '<b>Kỳ 2</b>. Chốt cả hai nửa là đủ dữ liệu tính lương tháng, y như chốt một lượt '
+			. '<b>Cả tháng</b>. Kỳ nào đã khoá thì kỳ chồng lên nó cũng thôi tải được.</p>';
 
 		/* ═══════════════════════════════════════════════════════════════════════════════════
 		 * 🔴 Ô CHỌN THÁNG VÀ NÚT TẢI PHẢI NẰM TRONG CÙNG MỘT `<form>`
@@ -446,30 +460,52 @@ class VHCC_WebDonTuan {
 				. esc_html( VHCC_TuanCong::ten_thang( $t ) )
 				. ( VHCC_TuanCong::khoa_roi( $cs, $t ) ? ' — đã khoá' : '' ) . '</option>';
 		}
-		echo '</select></div>'
-			. '<div><button class="chinh" name="xuat" value="thang">⬇ Tải bảng công tháng '
+		echo '</select></div>';
+
+		/* Ô KỲ đứng cùng form với ô tháng và nút tải — cùng một lý do: trình duyệt chỉ gửi đi
+		   thứ nằm trong form được bấm. */
+		echo '<div><label for="dtk">Kỳ</label><select id="dtk" name="dtk">';
+		foreach ( $ds_k as $ma_k => $ten_k ) {
+			list( $tu_k, $den_k ) = VHCC_TuanCong::khoang( $chon, $ma_k );
+			if ( '' === $tu_k ) { continue; }          // tháng ngắn hơn mốc: không có kỳ ấy
+			echo '<option value="' . esc_attr( $ma_k ) . '"' . selected( $ma_k, $ky, false ) . '>'
+				. esc_html( $ten_k )
+				. ( VHCC_TuanCong::khoa_roi( $cs, $tu_k, $den_k ) ? ' — đã khoá' : '' ) . '</option>';
+		}
+		echo '</select></div>';
+
+		echo '<div><button class="chinh" name="xuat" value="thang">⬇ Tải bảng công kỳ này '
 			. '(.xlsx)</button></div>'
 			/* Nút Xem thay cho `onchange` — trang này không gài JavaScript trong HTML. */
-			. '<div><button class="phu" name="xem" value="1">Xem tháng này</button></div></form>';
+			. '<div><button class="phu" name="xem" value="1">Xem kỳ này</button></div></form>';
 
-		$chan = VHCC_TuanCong::vi_sao_khong_tai( $toi, $cs, $chon );
+		$chan = VHCC_TuanCong::vi_sao_khong_tai( $toi, $cs, $tu, $den );
 		if ( '' !== $chan ) {
 			echo '<div class="bao canh" style="margin:0">' . esc_html( $chan ) . '</div></details></div>';
 			return;
 		}
 
-		/* Tháng đang chạy thì tải được, nhưng phải nói ra là giờ công còn thay đổi — nạp sớm
-		   rồi kế toán duyệt là khoá mất phần còn lại của tháng. */
-		if ( $chon === VHCC_TuanCong::dau_thang( (string) current_time( 'Y-m-d' ) ) ) {
-			echo '<div class="bao canh" style="margin:0 0 10px">⚠️ <b>'
-				. esc_html( VHCC_TuanCong::ten_thang( $chon ) ) . ' đang chạy</b> — mọi người còn '
-				. 'chấm tiếp, nên giờ công còn đổi. Kế toán duyệt là <b>khoá cả tháng</b>, kể cả '
-				. 'mấy ngày chưa tới. Sửa gấp thì gửi; còn không thì chờ hết tháng.</div>';
+		echo '<p style="margin:0 0 10px">Đang chọn: <b>'
+			. esc_html( VHCC_TuanCong::ten_ky( $tu, $den ) ) . '</b> — ngày '
+			. esc_html( $tu ) . ' → ' . esc_html( $den ) . '.</p>';
+
+		/* 🔴 CẢNH BÁO CHỈ KHI KỲ ĐANG CHỌN THẬT SỰ CÒN NGÀY CHƯA TỚI. Giữa tháng mà chọn Kỳ 1
+		   (đã qua hết) thì không có gì để cảnh báo — báo bừa là người ta quen tay bỏ qua, rồi
+		   tới lúc cảnh báo thật cũng bỏ qua nốt. */
+		$hom_nay = (string) current_time( 'Y-m-d' );
+		if ( $den >= $hom_nay ) {
+			$con = count( VHCC_TuanCong::ngay_cua( max( $tu, $hom_nay ), $den ) );
+			echo '<div class="bao canh" style="margin:0 0 10px">⚠️ Kỳ này <b>còn ' . (int) $con
+				. ' ngày chưa xong</b> — mọi người còn chấm tiếp, nên giờ công còn đổi. Kế toán '
+				. 'duyệt là <b>khoá hết cả kỳ</b>, kể cả mấy ngày chưa tới.'
+				. ( VHCC_TuanCong::KY_CA === $ky
+					? ' Giữa tháng thì nên chọn <b>Kỳ 1</b> cho gọn, chốt nửa đầu thôi.' : '' )
+				. '</div>';
 		}
 
-		$cho = VHCC_TuanCong::don_cho( $cs, $chon );
+		$cho = VHCC_TuanCong::don_cho( $cs, $tu, $den );
 		if ( $cho ) {
-			echo '<div class="bao" style="margin:0 0 10px">📤 Tháng này <b>đã gửi</b> lúc '
+			echo '<div class="bao" style="margin:0 0 10px">📤 Kỳ này <b>đã gửi</b> lúc '
 				. esc_html( (string) $cho['gui_luc'] ) . ' — ' . (int) $cho['so_doi']
 				. ' ô giờ đang chờ kế toán duyệt. Gửi tệp mới thì lượt này bị thay.</div>';
 		}
@@ -481,11 +517,12 @@ class VHCC_WebDonTuan {
 			. '<input type="hidden" name="ccs" value="' . esc_attr( $cs ) . '">'
 			. '<input type="hidden" name="cth" value="' . esc_attr( substr( $chon, 0, 7 ) ) . '">'
 			. '<input type="hidden" name="dt_thang" value="' . esc_attr( $chon ) . '">'
+			. '<input type="hidden" name="dt_ky" value="' . esc_attr( $ky ) . '">'
 			. '<div><input type="file" name="dt_tep" accept=".xlsx" required></div>'
 			. '<div><button class="chinh">Gửi cho kế toán</button></div></form>';
 
 		echo '<p class="mo" style="margin:10px 0 0;font-size:12px">Tờ xếp <b>mỗi người một dòng, '
-			. 'cả tháng nằm ngang</b> — giống lưới trên màn. ⚠️ <b>Đừng sửa cột KHOÁ</b> ở cuối '
+			. 'cả kỳ nằm ngang</b> — giống lưới trên màn. ⚠️ <b>Đừng sửa cột KHOÁ</b> ở cuối '
 			. 'và <b>đừng đổi tên hay xoá cột ngày</b>: đó là hai thứ ghép giờ về đúng người, '
 			. 'đúng ngày. Chèn thêm cột ghi chú thì không sao. Mỗi ngày là <b>một ô hai hàng</b>: '
 			. 'giờ vào ở hàng trên, giờ ra ở hàng dưới (bấm <b>Alt+Enter</b> để xuống hàng trong '

@@ -146,6 +146,108 @@ if ( ! class_exists( 'ZipArchive' ) ) {
 		$doc['hang'][0][ VHCC_TuanCong::C_NGAY_DAU + $so_ngay - 1 ] );
 }
 
+/* ====================================================================== 4. kỳ nửa tháng */
+
+echo "— kỳ nửa tháng —\n";
+
+/* 🔴 ANH THẮNG 18/09/2026: *"Tức trọng tháng, nhưng vẫn chọn kỳ để sửa. Tới tháng mà đang giữa
+   kỳ thì tách cho sửa để up tháng đó để tính lương"*. Tháng là khung tính lương, nhưng giữa
+   tháng phải chốt được nửa đầu — duyệt là KHOÁ, mà khoá cả tháng lúc mới mùng 15 là mười lăm
+   ngày còn lại hết đường sửa. */
+list( $t1, $d1 ) = VHCC_TuanCong::khoang( $THANG_CU, VHCC_TuanCong::KY_1 );
+list( $t2, $d2 ) = VHCC_TuanCong::khoang( $THANG_CU, VHCC_TuanCong::KY_2 );
+list( $tc, $dc ) = VHCC_TuanCong::khoang( $THANG_CU, VHCC_TuanCong::KY_CA );
+
+teq( 'kỳ 1 bắt đầu ngày 1', substr( $THANG_CU, 0, 8 ) . '01', $t1 );
+teq( 'kỳ 1 hết ngày 15',    substr( $THANG_CU, 0, 8 ) . '15', $d1 );
+teq( 'kỳ 2 bắt đầu ngày 16', substr( $THANG_CU, 0, 8 ) . '16', $t2 );
+teq( 'kỳ 2 hết vào ngày cuối tháng', VHCC_TuanCong::cuoi_thang( $THANG_CU ), $d2 );
+/* 🔴 HAI NỬA GHÉP LẠI ĐÚNG BẰNG CẢ THÁNG, không hụt không chồng — chốt cả hai kỳ phải đủ dữ
+   liệu tính lương tháng, y như chốt một lượt cả tháng. */
+teq( '🔴 kỳ 1 + kỳ 2 = đúng số ngày của cả tháng',
+	count( VHCC_TuanCong::ngay_cua( $tc, $dc ) ),
+	count( VHCC_TuanCong::ngay_cua( $t1, $d1 ) ) + count( VHCC_TuanCong::ngay_cua( $t2, $d2 ) ) );
+teq( 'không chồng ngày nào', 1,
+	(int) ( strtotime( $t2 . ' UTC' ) - strtotime( $d1 . ' UTC' ) ) / 86400 );
+/* Tháng 2 chỉ 28 ngày vẫn có kỳ 2 (16→28). Tháng nào ngắn hơn mốc thì `khoang()` trả rỗng. */
+teq( 'tháng 2 vẫn có kỳ 2', '2026-02-28',
+	VHCC_TuanCong::khoang( '2026-02-01', VHCC_TuanCong::KY_2 )[1] );
+
+teq( 'nhãn kỳ 1 nói rõ là nửa tháng', 'Tháng ' . gmdate( 'm/Y', strtotime( $THANG_CU . ' UTC' ) )
+	. ' · ' . VHCC_TuanCong::ds_ky()[ VHCC_TuanCong::KY_1 ], VHCC_TuanCong::ten_ky( $t1, $d1 ) );
+teq( 'nhãn cả tháng vẫn gọn', VHCC_TuanCong::ten_thang( $THANG_CU ),
+	VHCC_TuanCong::ten_ky( $tc, $dc ) );
+
+/* ---- ô xổ kỳ có mặt trên màn, cùng form với nút tải ---- */
+ob_start();
+VHCC_WebDonTuan::khoi_cua_hang( 'ky-thu', $CHT, $CS );
+$h2 = ob_get_clean();
+t( '🔴 màn có ô xổ KỲ', false !== strpos( $h2, 'name="dtk"' ), $h2 );
+$form2 = '';
+if ( preg_match_all( '#<form\b.*?</form>#s', $h2, $m2 ) ) {
+	foreach ( $m2[0] as $f ) {
+		if ( false !== strpos( $f, 'name="dtm"' ) ) { $form2 = $f; break; }
+	}
+}
+t( '🔴 ô KỲ nằm CÙNG form với ô tháng và nút tải',
+	false !== strpos( $form2, 'name="dtk"' ) && false !== strpos( $form2, 'name="xuat"' ), $form2 );
+foreach ( array_keys( VHCC_TuanCong::ds_ky() ) as $ma_k ) {
+	t( 'ô xổ có kỳ ' . $ma_k, false !== strpos( $form2, 'value="' . $ma_k . '"' ), $form2 );
+}
+
+if ( class_exists( 'ZipArchive' ) ) {
+	/* ---- tệp hai kỳ phải KHÁC NHAU, và chữ ký không dùng chéo được ---- */
+	echo "— tệp mỗi kỳ một chữ ký —
+";
+	$x1 = VHCC_TuanCong::xuat( $CHT, $CS, $t1, $d1 );
+	t( 'xuất được kỳ 1', ! empty( $x1['ok'] ), $x1 );
+	teq( 'tờ kỳ 1 rộng đúng 5 + 15 ngày', 5 + 15,
+		count( VHCC_DocXlsx::doc( ( function ( $n ) {
+			$f = tempnam( sys_get_temp_dir(), 'kk' ); file_put_contents( $f, $n ); return $f;
+		} )( $x1['noi_dung'] ) )['hang'][0] ) );
+	t( '🔴 tên tệp kỳ 1 khác tên tệp cả tháng — hai tệp cùng tháng mà trùng tên là gửi nhầm ngay',
+		$x1['ten'] !== VHCC_TuanCong::ten_tep( $CS, $tc, $dc ), $x1['ten'] );
+
+	/* 🔴 DÁN DÒNG TỪ TỆP CẢ THÁNG SANG TỆP KỲ 1. Hai tệp bắt đầu cùng ngày 1 và trông rất
+	   giống nhau; ký mỗi `tu_ngay` thì chữ ký khớp, và giờ của nửa sau chui vào một đơn chỉ
+	   được phép động tới nửa đầu. Chữ ký phải ôm CẢ HAI đầu khoảng ngày. */
+	$k_ca = VHCC_TuanCong::khoa_dong( $CS, $tc, $dc, 'TAINV' );
+	$k_k1 = VHCC_TuanCong::khoa_dong( $CS, $t1, $d1, 'TAINV' );
+	t( '🔴 khoá của cả tháng KHÁC khoá của kỳ 1 (cùng ngày bắt đầu)', $k_ca !== $k_k1 );
+	t( '🔴 dán khoá tệp cả tháng vào tệp kỳ 1 thì chối',
+		null === VHCC_TuanCong::doc_khoa( $k_ca, $CS, $t1, $d1 ) );
+	t( 'và ngược lại cũng chối',
+		null === VHCC_TuanCong::doc_khoa( $k_k1, $CS, $tc, $dc ) );
+}
+
+/* ---- khoá kỳ 1 thì kỳ 2 vẫn sửa được, còn cả tháng thì không ---- */
+echo "— khoá một kỳ —
+";
+$wpdb->insert( VHCC_DB::t( 'don_tuan' ), array( 'coso' => $CS, 'tu_ngay' => $t1,
+	'den_ngay' => $d1, 'ma_nv_gui' => 'TAICHT', 'ten_gui' => 'Chị Trưởng',
+	'gui_luc' => current_time( 'mysql' ), 'trang_thai' => VHCC_TuanCong::DUYET,
+	'so_dong' => 1, 'so_doi' => 1, 'doi' => '[]' ) );
+
+t( '🔴 kỳ 1 đã khoá', VHCC_TuanCong::khoa_roi( $CS, $t1, $d1 ) );
+t( '🔴 KỲ 2 VẪN SỬA ĐƯỢC — đây là cả lý do tách kỳ',
+	! VHCC_TuanCong::khoa_roi( $CS, $t2, $d2 ) );
+teq( '   và tải được thật', '', VHCC_TuanCong::vi_sao_khong_tai( $CHT, $CS, $t2, $d2 ) );
+
+/* 🔴 CẢ THÁNG THÌ KHÔNG — nó chồng lên nửa đã chốt lương. Hỏi `tu_ngay=` thôi thì lượt duyệt
+   sau ghi đè lên chính nửa đầu vừa khoá. */
+$chan_ca = VHCC_TuanCong::vi_sao_khong_tai( $CHT, $CS, $tc, $dc );
+t( '🔴 kỳ CẢ THÁNG chồng lên kỳ 1 đã khoá thì chối', '' !== $chan_ca, $chan_ca );
+t( '   và câu chối chỉ đúng kỳ đang vướng',
+	false !== mb_strpos( $chan_ca, 'Kỳ 1' ), $chan_ca );
+
+/* Khoảng tự chế (gõ tay đường dẫn) phải chối — không thì ai cũng khoá được một mẩu tháng, và
+   mấy mẩu ấy không ghép lại thành tháng nào cả. */
+$chan_la = VHCC_TuanCong::vi_sao_khong_tai( $CHT, $CS, $t2, substr( $THANG_CU, 0, 8 ) . '20' );
+t( '🔴 khoảng ngày tự chế thì chối', '' !== $chan_la, $chan_la );
+t( '   và nói rõ phải chọn kỳ có thật',
+	false !== mb_strpos( $chan_la, 'Kỳ 1' ) || false !== mb_strpos( $chan_la, 'không hợp lệ' ),
+	$chan_la );
+
 echo "\n";
 if ( $truot ) {
 	echo '🔴 HỎNG ' . count( $truot ) . " phép thử:\n";
@@ -153,4 +255,4 @@ if ( $truot ) {
 	echo "ĐẠT: $dat\n";
 	exit( 1 );
 }
-echo "✓ ĐẠT: $dat phép thử — chọn tháng nào thì tải đúng tháng ấy.\n";
+echo "✓ ĐẠT: $dat phép thử — chọn tháng và kỳ nào thì tải đúng kỳ ấy.\n";

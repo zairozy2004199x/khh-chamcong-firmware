@@ -449,8 +449,11 @@ class VHCC_Web {
 			if ( '' === $ky_t ) { $ky_t = (string) current_time( 'Y-m-d' ); }
 			/* Đường dẫn cũ mang thứ Hai giữa tháng — quy về ngày 1 chứ đừng chối: người ta bấm
 			   lại dấu trang thì nhận đúng tháng chứa tuần ấy, không nhận một câu lỗi. */
-			$ky_t = VHCC_TuanCong::dau_thang( $ky_t );
-			$x    = VHCC_TuanCong::xuat( $toi, $cs, $ky_t );
+			$ky_t  = VHCC_TuanCong::dau_thang( $ky_t );
+			$ma_ky = isset( $_GET['dtk'] ) ? sanitize_text_field( wp_unslash( $_GET['dtk'] ) ) : '';
+			if ( ! VHCC_TuanCong::la_ky( $ma_ky ) ) { $ma_ky = VHCC_TuanCong::KY_CA; }
+			list( $tu_x, $den_x ) = VHCC_TuanCong::khoang( $ky_t, $ma_ky );
+			$x = VHCC_TuanCong::xuat( $toi, $cs, $tu_x, $den_x );
 			if ( empty( $x['ok'] ) ) { self::loi_xuat( $x['error'] ); return; }
 			$da_gui = true;
 			VHCC_Xuat::gui( $x['ten'], $x['noi_dung'] );
