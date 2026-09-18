@@ -61,7 +61,7 @@ class KHBC_NhanSu {
 	/** Plugin Chấm công có trên site này và đủ hàm để hỏi không. */
 	public static function co_nguon() {
 		return class_exists( 'VHCC_BangLuong' ) && method_exists( 'VHCC_BangLuong', 'dung' )
-			&& class_exists( 'VHCC_Luong' );
+			&& class_exists( 'VHCC_Luong' ) && method_exists( 'VHCC_Luong', 'bang_cong_va_luong' );
 	}
 
 	/**
@@ -98,55 +98,101 @@ class KHBC_NhanSu {
 			   bình thường, không ô nào đỏ. */
 			if ( $co_ghep && '' !== VHCC_Luong::ghep_vao( $ten ) ) { continue; }
 
-			$r = VHCC_BangLuong::dung( $ten, $tt );
-			$bp = ( method_exists( 'VHCC_Luong', 'bo_phan_cua' ) ) ? (string) VHCC_Luong::bo_phan_cua( $ten ) : '';
-			if ( ! is_array( $r ) || empty( $r['ok'] ) ) {
-				$ds[] = self::dong( $ten, 0, false, isset( $r['error'] ) ? (string) $r['error'] : 'Không dựng được bảng lương.', $bp );
-				continue;
-			}
-
-			/* ═══════════════════════════════════════════════════════════════════════════════════
-			 * TỔNG = cộng cột TOTAL SALARY, đúng công thức của chính bảng lương bên ấy:
-			 *     z = Lương chính + Tổng các khoản cộng − Tổng các khoản trừ
-			 * (`VHCC_Web` dựng cột 'z' y hệt; BHXH và giờ thêm bên ấy để trống cho kế toán điền
-			 * nên không vào đây.)
-			 *
-			 * 🔴 DÒNG CHƯA KHAI ĐƠN GIÁ CÓ `luongChinh = null` — KHÔNG ĐƯỢC COI LÀ 0.
-			 *    Bên ấy cố ý để trống chứ không điền 0, vì "ô trống thì người đọc dừng lại hỏi;
-			 *    số 0 thì người đọc tin". Cộng chúng như 0 là bê đúng cái sai ấy sang đây dưới
-			 *    dạng một tổng thiếu tiền mà trông vẫn đủ. Nên: bỏ ra khỏi tổng, và ĐẾM để báo.
-			 * ═══════════════════════════════════════════════════════════════════════════════════ */
-			$tong = 0.0;
-			$gio  = 0.0;
-			$thieu_gia = 0;
-			foreach ( (array) $r['dong'] as $d ) {
-				$lc = isset( $d['luongChinh'] ) ? $d['luongChinh'] : null;
-				if ( null === $lc ) { $thieu_gia++; continue; }
-				$tong += (float) $lc
-					+ (float) ( isset( $d['tongCong'] ) ? $d['tongCong'] : 0 )
-					- (float) ( isset( $d['tongTru'] ) ? $d['tongTru'] : 0 );
-			}
-			if ( isset( $r['tong']['gio'] ) ) { $gio = (float) $r['tong']['gio']; }
-
-			$ghi = array();
-			if ( $thieu_gia > 0 ) { $ghi[] = $thieu_gia . ' dòng chưa khai đơn giá — số này còn thiếu.'; }
-			if ( ! empty( $r['thieu']['gio'] ) ) { $ghi[] = (int) $r['thieu']['gio'] . ' lượt thiếu giờ vào/ra — chưa tính được.'; }
-			if ( ! empty( $r['thieu']['congChuan'] ) ) { $ghi[] = 'Chưa khai Số công chuẩn của cơ sở — người ăn lương tháng chưa ra tiền.'; }
-
-			/* Tổng ra 0 thì nói thẳng là CHƯA CÓ, đừng ghi 0 vào báo cáo — xem khối đầu tệp. */
-			if ( $tong <= 0 ) {
-				$ds[] = self::dong( $ten, 0, false,
-					$ghi ? implode( ' ', $ghi ) : 'Bảng lương tháng này chưa ra tiền (chưa khai đơn giá).', $bp );
-				continue;
-			}
-			$d = self::dong( $ten, $tong, true, implode( ' ', $ghi ), $bp );
-			$d['so_ngay'] = (int) round( $gio );   /* cột "Số công thực" — để đối chiếu bằng mắt */
-			$ds[] = $d;
+			$x = self::mot_co_so( $ten, $tt );
+			$ds[] = $x;
 		}
 		$tong = 0;
 		foreach ( $ds as $x ) { $tong += $x['thanh_tien']; }
 		return array( 'ok' => true, 'ds' => $ds, 'thang' => $tt,
 			'so_cua_hang' => count( $ds ), 'tong' => $tong );
+	}
+
+	/**
+	 * Lương của MỘT cơ sở — ba lối tính, dùng CHÍNH bộ phân loại của plugin Chấm công.
+	 *
+	 * 🔴 BA LỐI, KHÔNG PHẢI MỘT. `VHCC_Luong::bang_cong_va_luong()` phân loại sẵn:
+	 *     · `mtd` — Máy tự động (Posh, JP): lõi riêng, tiền ở `mtd.tong.tong`
+	 *     · `vp`  — Văn phòng: lõi riêng, tiền ở `vp.tien.tongTien`
+	 *     · `tho` — còn lại (Khu vui chơi): chỉ có giờ thô, tiền phải dựng bằng
+	 *               `VHCC_BangLuong::dung()` (giờ × đơn giá)
+	 *
+	 * Bản 1.22.0 đưa TẤT CẢ qua `VHCC_BangLuong::dung()`. Với Posh / JP thì hàm ấy đi tra sổ đơn
+	 * giá theo giờ — thứ cơ sở máy tự động không khai — nên mọi dòng ra `null` và báo "30 dòng
+	 * chưa khai đơn giá", trong khi lương của họ vẫn tính được bằng lõi MTĐ. Dùng đúng bộ phân
+	 * loại của họ thì không có cửa nào lệch.
+	 */
+	private static function mot_co_so( $ten, $tt ) {
+		$bp = ( method_exists( 'VHCC_Luong', 'bo_phan_cua' ) ) ? (string) VHCC_Luong::bo_phan_cua( $ten ) : '';
+		$r  = VHCC_Luong::bang_cong_va_luong( $ten, $tt );
+		if ( ! is_array( $r ) || empty( $r['ok'] ) ) {
+			return self::dong( $ten, 0, false, isset( $r['error'] ) ? (string) $r['error'] : 'Không đọc được bảng công.', $bp );
+		}
+		$kieu = isset( $r['kieu'] ) ? (string) $r['kieu'] : '';
+
+		if ( 'mtd' === $kieu ) {
+			$tien = isset( $r['mtd']['tong']['tong'] ) ? (float) $r['mtd']['tong']['tong'] : 0;
+			if ( ! empty( $r['mtd']['chuaKhaiGia'] ) ) {
+				return self::dong( $ten, 0, false, 'Máy tự động: chưa khai đơn giá bên Chấm công nên chưa ra tiền.', $bp );
+			}
+			$d = self::dong( $ten, $tien, $tien > 0, $tien > 0 ? '' : 'Lõi Máy tự động tính ra 0 — kiểm lại bên Chấm công.', $bp );
+			if ( isset( $r['mtd']['tong']['soGio'] ) ) { $d['so_ngay'] = (int) round( $r['mtd']['tong']['soGio'] ); }
+			return $d;
+		}
+
+		if ( 'vp' === $kieu ) {
+			$tien = isset( $r['vp']['tien']['tongTien'] ) ? (float) $r['vp']['tien']['tongTien'] : 0;
+			$ghi  = array();
+			if ( ! empty( $r['vp']['tien']['chuaKhaiNgayCong'] ) ) { $ghi[] = 'Chưa khai Ngày công tháng — số này chưa đủ.'; }
+			$thieu = isset( $r['vp']['tien']['thieuLuong'] ) ? (array) $r['vp']['tien']['thieuLuong'] : array();
+			if ( $thieu ) { $ghi[] = count( $thieu ) . ' người chưa khai lương cơ bản — số này còn thiếu.'; }
+			if ( $tien <= 0 ) {
+				return self::dong( $ten, 0, false, $ghi ? implode( ' ', $ghi ) : 'Văn phòng: chưa ra tiền.', $bp );
+			}
+			return self::dong( $ten, $tien, true, implode( ' ', $ghi ), $bp );
+		}
+
+		/* `tho` — Khu vui chơi: dựng bảng lương giờ × đơn giá. */
+		$r = VHCC_BangLuong::dung( $ten, $tt );
+		if ( ! is_array( $r ) || empty( $r['ok'] ) ) {
+			return self::dong( $ten, 0, false, isset( $r['error'] ) ? (string) $r['error'] : 'Không dựng được bảng lương.', $bp );
+		}
+
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * TỔNG = cộng cột TOTAL SALARY, đúng công thức của chính bảng lương bên ấy:
+		 *     z = Lương chính + Tổng các khoản cộng − Tổng các khoản trừ
+		 * (`VHCC_Web` dựng cột 'z' y hệt; BHXH và giờ thêm bên ấy để trống cho kế toán điền
+		 * nên không vào đây.)
+		 *
+		 * 🔴 DÒNG CHƯA KHAI ĐƠN GIÁ CÓ `luongChinh = null` — KHÔNG ĐƯỢC COI LÀ 0.
+		 *    Bên ấy cố ý để trống chứ không điền 0, vì "ô trống thì người đọc dừng lại hỏi;
+		 *    số 0 thì người đọc tin". Cộng chúng như 0 là bê đúng cái sai ấy sang đây dưới
+		 *    dạng một tổng thiếu tiền mà trông vẫn đủ. Nên: bỏ ra khỏi tổng, và ĐẾM để báo.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$tong = 0.0;
+		$gio  = 0.0;
+		$thieu_gia = 0;
+		foreach ( (array) $r['dong'] as $d ) {
+			$lc = isset( $d['luongChinh'] ) ? $d['luongChinh'] : null;
+			if ( null === $lc ) { $thieu_gia++; continue; }
+			$tong += (float) $lc
+				+ (float) ( isset( $d['tongCong'] ) ? $d['tongCong'] : 0 )
+				- (float) ( isset( $d['tongTru'] ) ? $d['tongTru'] : 0 );
+		}
+		if ( isset( $r['tong']['gio'] ) ) { $gio = (float) $r['tong']['gio']; }
+
+		$ghi = array();
+		if ( $thieu_gia > 0 ) { $ghi[] = $thieu_gia . ' dòng chưa khai đơn giá — số này còn thiếu.'; }
+		if ( ! empty( $r['thieu']['gio'] ) ) { $ghi[] = (int) $r['thieu']['gio'] . ' lượt thiếu giờ vào/ra — chưa tính được.'; }
+		if ( ! empty( $r['thieu']['congChuan'] ) ) { $ghi[] = 'Chưa khai Số công chuẩn của cơ sở — người ăn lương tháng chưa ra tiền.'; }
+
+		/* Tổng ra 0 thì nói thẳng là CHƯA CÓ, đừng ghi 0 vào báo cáo — xem khối đầu tệp. */
+		if ( $tong <= 0 ) {
+			return self::dong( $ten, 0, false,
+				$ghi ? implode( ' ', $ghi ) : 'Bảng lương tháng này chưa ra tiền (chưa khai đơn giá).', $bp );
+		}
+		$d = self::dong( $ten, $tong, true, implode( ' ', $ghi ), $bp );
+		$d['so_ngay'] = (int) round( $gio );   /* cột "Số công thực" — để đối chiếu bằng mắt */
+		return $d;
 	}
 
 	/**

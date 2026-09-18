@@ -4,7 +4,7 @@ Tags: chi phí, phân bổ, báo cáo, MISA, kế toán
 Requires at least: 5.6
 Tested up to: 6.8
 Requires PHP: 7.2
-Stable tag: 1.22.0
+Stable tag: 1.23.0
 License: GPLv2 or later
 
 Phân bổ chi phí Máy tự động / Khu vui chơi ra "File tổng báo cáo" và phân bổ theo điểm để hạch toán MISA.
@@ -35,6 +35,18 @@ Nhân viên nhập khoản chi phí, kế toán duyệt, web tự tính.
 4. Nhập Excel kỳ đầu (hoặc ⋯ → Nạp dữ liệu mẫu) rồi bắt đầu.
 
 == Changelog ==
+
+= 1.23.0 =
+* 🔴 **Posh / JP / Văn phòng tính bằng LÕI RIÊNG.** Bản 1.22.0 đưa mọi cơ sở qua
+  `VHCC_BangLuong::dung()`, nhưng hàm ấy tra **sổ đơn giá theo giờ** — thứ cơ sở Máy tự động
+  không khai. Nên Posh HCM, JP_HCM, JP_SANBAY báo "30 dòng chưa khai đơn giá" trong khi lương của
+  họ vẫn tính được. Nay đi đúng bộ phân loại của plugin Chấm công:
+  **mtd** (Máy tự động — Posh, JP) · **vp** (Văn phòng) · **tho** (Khu vui chơi, giờ × đơn giá).
+* **Nạp xong là ghép hết luôn**, cùng lối với doanh thu: cơ sở nào CÓ tiền mà chưa có dòng lương
+  thì chọn sẵn "tạo dòng mới" (đoán bộ phận theo tên, không ra thì theo các dòng đang nối). Vẫn
+  phải bấm Ghi.
+* Cơ sở **chưa ra tiền thì không tạo dòng** — một dòng lương 0 đồng trong danh mục cũng là "ghi 0",
+  chỉ khác chỗ nó nằm.
 
 = 1.22.0 =
 * ✅ **Lương từ Nhân sự chạy đúng.** Gọi đúng hàm: **`VHCC_BangLuong::dung()`** — chính hàm dựng ra

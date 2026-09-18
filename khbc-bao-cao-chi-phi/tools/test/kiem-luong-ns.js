@@ -26,6 +26,13 @@ const PORT = process.env.PORT || '8113';
     return { oChon: document.querySelectorAll('select[data-luong]').length,
       fz: so(tim('FZ_SC_VIVO_T4')), coFz: !!tim('FZ_SC_VIVO_T4'),
       jp: so(tim('JP MN AEON MALL BÌNH TÂN')),
+      posh: so(tim('POSH MN AEON MALL BÌNH DƯƠNG')),
+      ev: so(tim('EVENT VR TÂN AN')),
+      vpChon: (()=>{const r=[...document.querySelectorAll('#tab-salary table tr')].find(x=>/VĂN PHÒNG HCM/.test(x.textContent));
+        const sl=r&&r.querySelector('select'); return sl? sl.value : '?';})(),
+      vp: so(tim('VĂN PHÒNG HCM')),
+      daChon: [...document.querySelectorAll('select[data-luong]')].filter(s=>s.value!=='').length,
+      tongChon: document.querySelectorAll('select[data-luong]').length,
       coPhu: !!tim('FZ_SC_VIVO_PHU'),
       tutu: tim('TUTU MN AEON MALL TÂN PHÚ') ? tim('TUTU MN AEON MALL TÂN PHÚ').textContent.replace(/\s+/g,' ') : '',
       thang7: /KHO LẠNH THÁNG 7/.test(document.body.textContent),
@@ -35,13 +42,21 @@ const PORT = process.env.PORT || '8113';
   ok('🔴 Khu vui chơi CÓ lương thì phải ra đúng số, không còn "chưa khai giá giờ"',
      x.coFz && x.fz.replace(/\D/g,'')==='52287040', 'FZ_SC_VIVO_T4 = '+x.fz);
 
+  // 🔴 Posh / JP la MAY TU DONG — VHCC_BangLuong::dung() KHONG tinh duoc cho nhom nay
+  ok('🔴 Posh (Máy tự động) tính bằng lõi riêng, không báo "chưa khai đơn giá"',
+     x.posh && x.posh.replace(/\D/g,'')==='111649262', 'Posh = '+x.posh);
+  ok('🔴 Văn phòng cũng có lõi riêng', x.vp && x.vp.replace(/\D/g,'')==='88000000', 'VP = '+x.vp);
+
   // 🔴 co so phu ghep vao co so chinh -> khong duoc cong doi
   ok('🔴 Cơ sở PHỤ ghép vào cơ sở chính thì KHÔNG liệt kê (tránh cộng đôi lương)',
      !x.coPhu, x.coPhu?'đã cộng đôi':'đã bỏ qua');
 
   // TOTAL SALARY = luong chinh + cong - tru  (41.435.755 + 500.000 - 300.000)
+  /* Khoản cộng / trừ chỉ có ở lối 'tho' (VHCC_BangLuong::dung): 10.000.000 + 500.000 − 300.000. */
   ok('Cộng đúng công thức TOTAL SALARY (lương chính + cộng − trừ)',
-     x.jp.replace(/\D/g,'')==='41635755', 'JP = '+x.jp);
+     x.ev && x.ev.replace(/\D/g,'')==='10200000', 'Event VR Tân An = '+x.ev);
+  ok('Máy tự động lấy đúng tổng của lõi MTĐ (không có cộng/trừ)',
+     x.jp.replace(/\D/g,'')==='41435755', 'JP = '+x.jp);
 
   // 🔴 chua khai don gia -> tong 0 -> BAO CHUA CO, khong ghi 0
   ok('🔴 Chưa khai đơn giá thì báo CHƯA CÓ, không ghi số 0',
@@ -50,11 +65,13 @@ const PORT = process.env.PORT || '8113';
      /không ghi số 0/i.test(x.canhBao), x.canhBao.replace(/\s+/g,' ').slice(0,120));
   ok('Chỉ liệt kê cơ sở CÓ chấm công trong kỳ', !x.thang7, 'không thấy cơ sở của kỳ khác');
 
-  // ghi vao bao cao
-  await p.evaluate(()=>{[...document.querySelectorAll('select[data-luong]')].forEach((s)=>{
-    const o=[...s.querySelectorAll('optgroup[label*="Tạo dòng"] option')][0];
-    if(o){ s.value=o.value; s.dispatchEvent(new Event('change',{bubbles:true})); }});});
-  await p.waitForTimeout(1200);
+  // 🔴 "+ nap": nap xong la ghep het luon, khong phai chon tay
+  /* "Văn phòng HCM" không mang chữ hiệu bộ phận nào, mà lương văn phòng vốn thuộc Mục II chứ
+     không phải Mục III — nên nó ĐỨNG NGOÀI, để người chọn. Mọi cơ sở còn lại ghép sẵn hết. */
+  ok('🔴 Nạp xong là ghép hết những cơ sở đoán được, khỏi chọn tay',
+     x.daChon===x.tongChon-1 && x.tongChon>=5, x.daChon+'/'+x.tongChon+' cơ sở đã chọn sẵn');
+  ok('🔴 Cơ sở không đoán được bộ phận thì để yên, không nhét bừa', x.vpChon==='', 'VP = "'+x.vpChon+'"');
+
   await p.click('[data-act="luongGhi"]'); await p.waitForTimeout(3000);
   await moLuong(p);
   const g = await p.evaluate(()=>{const s=window.BaoCaoApp.getState();

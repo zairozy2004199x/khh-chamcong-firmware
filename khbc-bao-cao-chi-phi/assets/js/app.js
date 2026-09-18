@@ -1091,6 +1091,34 @@
     } catch (e) { /* mạng hỏng thì thôi, số cũ vẫn còn */ }
   }
 
+  /** Bộ phận mặc định cho dòng lương: suy từ các dòng ĐANG NỐI trang Nhân sự. */
+  function bpLuongMacDinh() {
+    const dem = {};
+    (state.salarySites || []).forEach((r) => {
+      if ((r.nsTen || '').trim() && r.dept) { dem[r.dept] = (dem[r.dept] || 0) + 1; }
+    });
+    let bp = '', n = 0;
+    Object.keys(dem).forEach((d) => { if (dem[d] > n) { n = dem[d]; bp = d; } });
+    return bp;
+  }
+
+  /** Chọn sẵn "tạo dòng mới" cho mọi cơ sở CÓ TIỀN mà chưa ghép. */
+  function layHetLuongVaoNhap() {
+    if (!luong || !luong.ghep) return { n: 0, khong: 0 };
+    const md = bpLuongMacDinh();
+    let n = 0, khong = 0;
+    luong.ghep.forEach((g) => {
+      /* Cơ sở chưa ra tiền thì KHÔNG tạo dòng — tạo ra một dòng lương 0 đồng là đúng cái sai
+         "ghi 0" chỉ khác chỗ nó nằm ở danh mục thay vì ở con số. */
+      if (g.co_luong === false || g.rowIndex !== null || g.taoMoi) return;
+      let d = E.doanBoPhan(g.cua_hang, state.departments);
+      if (!d && (g.bo_phan || '').trim() && state.departments.some((x) => x.id === g.bo_phan)) { d = g.bo_phan; }
+      if (!d && md) { d = md; }
+      if (d) { g.taoMoi = d; g.cach = 'tao'; n++; } else { khong++; }
+    });
+    return { n, khong };
+  }
+
   async function napTuNhanSu() {
     if (!API.isEnabled()) return toast('Chức năng này cần đăng nhập vào máy chủ (bản chạy trên WordPress).');
     luong = { dangTai: true };
@@ -1101,6 +1129,10 @@
       if (!d || d.ok === false) { luong = { loi: (d && d.error) || 'Không đọc được lương từ trang Nhân sự.' }; renderTab(); return; }
       if (!d.ds || !d.ds.length) { luong = { loi: `Kỳ ${R_periodLabel()} chưa có dữ liệu chấm công nào bên Nhân sự.` }; renderTab(); return; }
       luong = { thang: d.thang, ghep: E.ghepLuong(state, d.ds) };
+      /* 🔴 NẠP XONG LÀ GHÉP HẾT. Cùng lối với doanh thu — anh Thắng 18/09/2026: *"Dữ liệu lấy
+         realtime + nạp"*. Cơ sở nào CÓ tiền mà chưa có dòng lương thì chọn sẵn "tạo dòng mới";
+         cơ sở chưa ra tiền thì vẫn đứng ngoài, không tạo dòng rỗng. Vẫn phải bấm Ghi. */
+      layHetLuongVaoNhap();
       renderTab();
     } catch (e) {
       luong = { loi: 'Lỗi khi gọi máy chủ: ' + e.message };
@@ -1521,18 +1553,9 @@
       commit();
     },
     luongTaoHet() {
-      if (!luong || !luong.ghep) return;
-      let n = 0, khong = 0;
-      luong.ghep.forEach((g) => {
-        if (g.co_luong === false || g.rowIndex !== null || g.taoMoi) return;
-        /* Đoán theo TÊN trước; `bo_phan` bên Chấm công là cách phân loại của họ, chỉ dùng khi nó
-           trùng đúng id bộ phận bên này — không thì đoán bừa một bộ phận là lương vào nhầm chỗ. */
-        let d = E.doanBoPhan(g.cua_hang, state.departments);
-        if (!d && (g.bo_phan || '').trim() && state.departments.some((x) => x.id === g.bo_phan)) { d = g.bo_phan; }
-        if (d) { g.taoMoi = d; g.cach = 'tao'; n++; } else { khong++; }
-      });
+      const r = layHetLuongVaoNhap();
       renderTab();
-      toast(`Đã chọn tạo mới ${n} dòng lương.` + (khong ? ` ${khong} cơ sở không đoán được bộ phận — tự chọn giúp em.` : ''));
+      toast(`Đã chọn tạo mới ${r.n} dòng lương.` + (r.khong ? ` ${r.khong} cơ sở không đoán được bộ phận — tự chọn giúp em.` : ''));
     },
     luongGhi() {
       if (!luong || !luong.ghep) return;

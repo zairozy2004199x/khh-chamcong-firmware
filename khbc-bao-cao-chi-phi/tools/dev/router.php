@@ -36,8 +36,26 @@ class VHCC_Luong {
 		}
 		return '';
 	}
-	/** Hàm CŨ em từng gọi nhầm — giữ lại để nút 🔧 còn chỗ soi, và để nhớ vì sao nó không dùng được. */
+	/**
+	 * Bộ PHÂN LOẠI ba lối tính của bên ấy — plugin báo cáo chi phí đi theo đúng cái này:
+	 *   mtd = Máy tự động (Posh, JP) · vp = Văn phòng · tho = còn lại (Khu vui chơi).
+	 */
 	public static function bang_cong_va_luong( $coso, $thang ) {
+		$d = get_option( 'dev_ns_luong', array() );
+		$k = $coso . '|' . $thang;
+		$r = isset( $d[ $k ] ) ? $d[ $k ] : null;
+		if ( ! $r ) { return array( 'ok' => false, 'error' => 'Không có bảng công.' ); }
+		$kieu = isset( $r['kieu'] ) ? $r['kieu'] : 'tho';
+		if ( 'mtd' === $kieu ) {
+			return array( 'ok' => true, 'kieu' => 'mtd', 'coLuong' => true, 'boPhan' => 'Máy tự động',
+				'mtd' => array( 'tong' => array( 'tong' => $r['tien'], 'soGio' => $r['gio'] ),
+					'chuaKhaiGia' => ( $r['tien'] <= 0 ) ) );
+		}
+		if ( 'vp' === $kieu ) {
+			return array( 'ok' => true, 'kieu' => 'vp', 'coLuong' => true, 'boPhan' => 'Văn phòng',
+				'vp' => array( 'tien' => array( 'tongTien' => $r['tien'],
+					'chuaKhaiNgayCong' => false, 'thieuLuong' => array() ) ) );
+		}
 		return array( 'ok' => true, 'kieu' => 'tho', 'coLuong' => false,
 			'boPhan' => self::bo_phan_cua( $coso ),
 			'tho' => array( 'station' => $coso, 'month' => $thang,
@@ -177,15 +195,18 @@ if ( $path === '/__dev/nhansu' ) {
 	$wpdb->query( "CREATE TABLE IF NOT EXISTS $b ( id INTEGER PRIMARY KEY AUTOINCREMENT,
 		coso TEXT NOT NULL DEFAULT '', ngay TEXT NOT NULL DEFAULT '', nhan_vien TEXT NOT NULL DEFAULT '' )" );
 	$wpdb->query( "DELETE FROM $b" );
-	/* [ tên, tiền lương chính, bộ phận, cộng, trừ, giờ, số dòng chưa khai giá, lượt thiếu giờ ] */
+	/* [ tên, tiền, bộ phận, cộng, trừ, giờ, số dòng chưa khai giá, lượt thiếu giờ, kiểu ] */
 	$cs = array(
-		array( 'POSH MN AEON MALL BÌNH DƯƠNG', 111649262.0, 'posh',  0,       0, 900.0, 0, 0 ),
-		array( 'JP MN AEON MALL BÌNH TÂN',      41435755.0, 'jp',  500000, 300000, 400.0, 1, 2 ),
-		array( 'VĂN PHÒNG HCM',                 88000000.0, '',         0,      0, 500.0, 0, 0 ),
+		/* Máy tự động: lõi RIÊNG, `VHCC_BangLuong::dung()` không tính được cho nhóm này. */
+		array( 'POSH MN AEON MALL BÌNH DƯƠNG', 111649262.0, 'posh',  0,       0, 900.0, 0, 0, 'mtd' ),
+		array( 'JP MN AEON MALL BÌNH TÂN',      41435755.0, 'jp',  500000, 300000, 400.0, 1, 2, 'mtd' ),
+		array( 'VĂN PHÒNG HCM',                 88000000.0, '',         0,      0, 500.0, 0, 0, 'vp' ),
 		/* Đúng cảnh anh Thắng gửi: Khu vui chơi CÓ lương thật. */
 		array( 'FZ_SC_VIVO_T4',                 52287040.0, 'funzone',  0,      0, 2011.04, 0, 6 ),
 		/* Cơ sở PHỤ ghép vào FZ_SC_VIVO_T4 — phải BỊ BỎ QUA, không cộng đôi. */
 		array( 'FZ_SC_VIVO_PHU',                 9000000.0, 'funzone',  0,      0, 100.0, 0, 0 ),
+		/* Khu vui chơi có khoản CỘNG / TRỪ do kế toán nhập — chỉ lối 'tho' mới có. */
+		array( 'EVENT VR TÂN AN',               10000000.0, 'event', 500000, 300000, 150.0, 0, 0 ),
 		/* Chưa ai khai đơn giá: tổng ra 0 -> báo CHƯA CÓ, không ghi 0. */
 		array( 'TUTU MN AEON MALL TÂN PHÚ',            0.0, 'tutu',     0,      0, 300.0, 4, 0 ),
 	);
@@ -194,7 +215,8 @@ if ( $path === '/__dev/nhansu' ) {
 		$wpdb->insert( $b, array( 'coso' => $c[0], 'ngay' => '2026-08-07', 'nhan_vien' => 'NV1' ) );
 		$wpdb->insert( $b, array( 'coso' => $c[0], 'ngay' => '2026-08-19', 'nhan_vien' => 'NV2' ) );
 		$luong[ $c[0] . '|2026-08' ] = array( 'tien' => $c[1], 'bp' => $c[2], 'cong' => $c[3],
-			'tru' => $c[4], 'gio' => $c[5], 'thieu_gia' => $c[6], 'thieu_gio' => $c[7] );
+			'tru' => $c[4], 'gio' => $c[5], 'thieu_gia' => $c[6], 'thieu_gio' => $c[7],
+			'kieu' => isset( $c[8] ) ? $c[8] : 'tho' );
 	}
 	/* Cơ sở CHỈ có chấm công ở kỳ khác — tháng 8 không được thấy nó. */
 	$wpdb->insert( $b, array( 'coso' => 'KHO LẠNH THÁNG 7', 'ngay' => '2026-07-10', 'nhan_vien' => 'NV9' ) );
