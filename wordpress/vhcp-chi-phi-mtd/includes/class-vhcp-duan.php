@@ -1008,6 +1008,42 @@ class VHCPMTD_DuAn {
 		return $t;
 	}
 
+	/**
+	 * Tổng đã cấp GẮN VÀO TỪNG LẦN của lịch — trả về map  lần => số tiền.
+	 *
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 CHỈ ĐẾM THỨ ĐÃ GẮN. Anh Thắng 18/09/2026: *"Xin lần 1 thì cấp lần 1 chứ"*.
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * Trước 1.201.0 sổ cấp tiền không biết mình đang trả cho lần nào, nên màn chỉ còn cách ghép
+	 * theo THỨ TỰ — và ghép theo thứ tự là BỊA: kế toán đưa 15tr trong khi lần 1 hẹn 10tr, hay
+	 * gộp hai lần làm một, thì "lần 1 đã nhận đủ" là một câu không ai kiểm được.
+	 * Nay kế toán CHỌN lần lúc cấp, nên con số này là thứ có người khai, không phải suy ra.
+	 *
+	 * ⚠️ Dòng `choLan = 0` (cấp chung, không gắn lần nào — lối "cấp trọn" cũ và mọi dòng trong
+	 *    sổ trước 1.201.0) KHÔNG rơi vào lần nào cả. Nhét đại nó vào lần 1 là dựng lại đúng cái
+	 *    ghép bịa vừa bỏ đi.
+	 */
+	public static function da_cap_theo_lan( $d ) {
+		$m = array();
+		foreach ( (array) ( isset( $d['daCap'] ) ? $d['daCap'] : array() ) as $x ) {
+			$l = (int) ( isset( $x['choLan'] ) ? $x['choLan'] : 0 );
+			if ( $l <= 0 ) { continue; }
+			if ( ! isset( $m[ $l ] ) ) { $m[ $l ] = 0; }
+			$m[ $l ] += VHCPMTD_Util::num( isset( $x['soTien'] ) ? $x['soTien'] : 0 );
+		}
+		return $m;
+	}
+
+	/** Số tiền của MỘT lần trong lịch (0 nếu không có lần ấy). */
+	public static function tien_lan_lich( $d, $lan ) {
+		foreach ( (array) ( isset( $d['lich'] ) ? $d['lich'] : array() ) as $y ) {
+			if ( (int) ( isset( $y['lan'] ) ? $y['lan'] : 0 ) === (int) $lan ) {
+				return VHCPMTD_Util::num( isset( $y['soTien'] ) ? $y['soTien'] : 0 );
+			}
+		}
+		return 0;
+	}
+
 	/** Còn phải cấp bao nhiêu nữa cho một lệnh (không bao giờ âm). */
 	public static function con_phai_cap( $d ) {
 		$con = VHCPMTD_Util::num( isset( $d['soTien'] ) ? $d['soTien'] : 0 ) - self::da_cap_tong( $d );
@@ -1360,11 +1396,41 @@ class VHCPMTD_DuAn {
 		   thời gian, mà đối chiếu ngân hàng thì mốc ấy là thứ đầu tiên người ta dò.
 		   ⚠️ GHI VÀO `ngay` chứ không chỉ vá lúc hiển thị: ai đọc sổ qua đường khác (xuất MISA,
 		      tra lịch sử) cũng phải thấy cùng một ngày, không phải mỗi màn hình mới có. */
+		/* ─────────────────────────────────────────────────────────────────────────────────────
+		 * 🔴 CẤP CHO LẦN NÀO — KẾ TOÁN KHAI, KHÔNG SUY RA.
+		 *
+		 * Anh Thắng 18/09/2026: *"Xin lần 1 thì cấp lần 1 chứ"*. Nhân viên đã xếp từng hạng mục
+		 * vào lần 1 / lần 2 lúc xin; lúc đưa tiền mà không nói đưa cho lần nào thì cả cái xếp ấy
+		 * thành vô nghĩa — sổ chỉ biết "đã đưa tổng bao nhiêu".
+		 *
+		 * ⚠️ CHỐI SỐ VƯỢT PHẦN CỦA LẦN ẤY. Lần 1 hẹn 10tr mà gắn 20tr vào nó thì lần 2 vĩnh viễn
+		 *    trông như chưa nhận, trong khi tiền đã ra. Câu chối nói cả số còn lại của lần ấy —
+		 *    kế toán sửa được ngay tại chỗ, khỏi đi tra.
+		 * ⚠️ `choLan = 0` LÀ HỢP LỆ: lệnh không khai lịch (nhận một lần) thì chẳng có lần nào để
+		 *    gắn, và ép gắn là bịa ra một cái lịch không ai lập.
+		 * ─────────────────────────────────────────────────────────────────────────────────────── */
+		$cho_lan = (int) ( isset( $them['choLan'] ) ? $them['choLan'] : 0 );
+		if ( $cho_lan > 0 ) {
+			$tien_lan = self::tien_lan_lich( $d, $cho_lan );
+			if ( $tien_lan <= 0 ) {
+				return VHCPMTD_Util::err( 'Lệnh này không có lần nhận tiền số ' . $cho_lan . '.' );
+			}
+			$da_lan  = self::da_cap_theo_lan( $d );
+			$con_lan = $tien_lan - ( isset( $da_lan[ $cho_lan ] ) ? $da_lan[ $cho_lan ] : 0 );
+			if ( $so > $con_lan ) {
+				return VHCPMTD_Util::err( 'Lần ' . $cho_lan . ' chỉ còn '
+					. number_format( (float) $con_lan, 0, ',', '.' ) . 'đ chưa nhận, không gắn '
+					. number_format( (float) $so, 0, ',', '.' ) . 'đ vào đó được. '
+					. 'Đưa thêm cho lần khác thì chọn đúng lần ấy.' );
+			}
+		}
+
 		$luc   = VHCPMTD_Util::now()->format( 'd/m/Y H:i' );
 		$ngay  = trim( (string) ( isset( $them['ngay'] ) ? $them['ngay'] : '' ) );
 		$ghi   = $d['daCap'];
 		$ghi[] = array(
 			'lan'    => count( $ghi ) + 1,
+			'choLan' => $cho_lan,
 			'soTien' => $so,
 			'ngay'   => ( '' !== $ngay ? $ngay : $luc ),
 			'unc'    => trim( (string) ( isset( $them['unc'] ) ? $them['unc'] : '' ) ),
@@ -1426,8 +1492,20 @@ class VHCPMTD_DuAn {
 			if ( $con_lai > 0 ) {
 				$luc_c   = VHCPMTD_Util::now()->format( 'd/m/Y H:i' );
 				$ghi_c   = $d['daCap'];
+				/* Lối này đưa NỐT phần còn lại, không hỏi cho lần nào. Gắn được đúng một ca:
+				   lịch chỉ có MỘT lần và nó còn thiếu — lúc ấy không có gì để nhầm. Lịch nhiều
+				   lần thì một lượt đưa này trả cho nhiều lần cùng lúc, gắn vào một lần là bịa. */
+				$cho_c    = 0;
+				$lich_c   = isset( $d['lich'] ) ? (array) $d['lich'] : array();
+				if ( 1 === count( $lich_c ) ) {
+					$l1     = (int) ( isset( $lich_c[0]['lan'] ) ? $lich_c[0]['lan'] : 0 );
+					$da_c   = self::da_cap_theo_lan( $d );
+					$con_c  = self::tien_lan_lich( $d, $l1 ) - ( isset( $da_c[ $l1 ] ) ? $da_c[ $l1 ] : 0 );
+					if ( $l1 > 0 && $con_lai <= $con_c ) { $cho_c = $l1; }
+				}
 				$ghi_c[] = array(
 					'lan'    => count( $ghi_c ) + 1,
+					'choLan' => $cho_c,
 					'soTien' => $con_lai,
 					/* Đường này KHÔNG có ô ngày nào để kế toán chọn, nên mốc duy nhất đúng là
 					   lúc bấm. Xem khối 🔴 ở `cap_tien_phan()`. */

@@ -40,7 +40,8 @@ const DA_GIA = { lines: [
   { row: 5, noiDung: 'Vật tư điện' },
 ] };
 const F = new Function('esc', 'money', '_dmy', 'DA_CUR',
-  boc('_daCapTong') + '\n' + boc('_conPhaiCap') + '\n' + boc('_daTenHang') + '\n' + boc('_dotBlock')
+  boc('_daCapTong') + '\n' + boc('_conPhaiCap') + '\n' + boc('_daTenHang') + '\n'
+  + boc('_daCapTheoLan') + '\n' + boc('_dotBlock')
   + '\nreturn { blk: _dotBlock, tong: _daCapTong, con: _conPhaiCap, ten: _daTenHang };')(
   x => String(x == null ? '' : x),
   n => String(Number(n) || 0).replace(/\B(?=(\d{3})+(?!\d))/g, '.'),
@@ -173,6 +174,54 @@ const F = new Function('esc', 'money', '_dmy', 'DA_CUR',
   t('🔴 "' + a.trim() + '…" viết bằng từ mới, không còn "đợt"', HTML.indexOf(mong) >= 0,
     (() => { const i = HTML.indexOf(a); return i < 0 ? 'KHÔNG TÌM THẤY ' + a : HTML.slice(i, i + 70); })());
 });
+
+/* ── 3c. 🔴 XIN LẦN 1 THÌ CẤP LẦN 1 ─────────────────────────────────────────────────────
+ * Anh Thắng 18/09/2026, nhìn khối "Đã cấp" không nói gì về lần: *"Phía dưới phải có — Xin lần 1
+ * thì cấp lần 1 chứ.."*.
+ *
+ * =============================================================================================
+ * Bản 1.199.0 gỡ số ở khối "Đã cấp" là ĐÚNG với dữ liệu hồi ấy: số đó chỉ là thứ tự lượt chi,
+ * in ra cạnh khối lịch là mời người đọc ghép hai danh sách theo chỉ số, tức bịa. Nay kế toán
+ * CHỌN lần lúc cấp (`choLan`), nên cái ghép ấy có người khai — và số được phép quay lại.
+ * ────────────────────────────────────────────────────────────────────────────────────────── */
+{
+  const d = { soTien: 30000000,
+    lich: [{ lan: 1, ngay: '03/09/2026', soTien: 10000000 },
+           { lan: 2, ngay: '10/09/2026', soTien: 20000000 }],
+    daCap: [{ choLan: 1, ngay: '03/09/2026', soTien: 10000000, nguoi: 'Chị Nhân' },
+            { choLan: 2, ngay: '18/09/2026 09:27', soTien: 8000000, nguoi: 'Chị Nhân' }] };
+  const h = F.blk(d);
+  const [lichHtml, capHtml] = [h.slice(0, h.indexOf('💵 Đã cấp')), h.slice(h.indexOf('💵 Đã cấp'))];
+  t('🔴 dòng cấp nói rõ đang trả cho LẦN NÀO', /<b>Lần 1<\/b> · <b>03\/09\/2026/.test(capHtml), capHtml);
+  t('   và lượt của lần 2 gắn đúng lần 2', /<b>Lần 2<\/b> · <b>18\/09\/2026 09:27/.test(capHtml), capHtml);
+  /* Đây mới là phần trả lời câu anh hỏi: đọc khối LỊCH là biết lần nào xong, lần nào còn. */
+  t('🔴 lần 1 nhận đủ → khối lịch nói "đã nhận đủ"',
+    /Lần 1<\/b> · hẹn 03\/09\/2026 · <b>10\.000\.000đ<\/b> · <span[^>]*>✓ đã nhận đủ/.test(lichHtml), lichHtml);
+  t('🔴 lần 2 mới nhận dở → nói ra đã nhận bao nhiêu VÀ còn bao nhiêu',
+    /Lần 2[^]*?đã nhận <b>8\.000\.000đ<\/b>[^]*?còn <b>12\.000\.000đ<\/b>/.test(lichHtml), lichHtml);
+}
+{
+  /* 🔴 KHÔNG BÁO "CHƯA NHẬN" CHO MỘT LẦN MÀ TIỀN ĐÃ RA. Sổ cũ (và lối cấp trọn nhiều lần) không
+     gắn lần nào; suy ra "lần 1 chưa nhận" từ chỗ không biết là nói sai — thà im. */
+  const h = F.blk({ soTien: 30000000,
+    lich: [{ lan: 1, ngay: '03/09/2026', soTien: 10000000 },
+           { lan: 2, ngay: '10/09/2026', soTien: 20000000 }],
+    daCap: [{ choLan: 0, ngay: '18/09/2026 09:29', soTien: 30000000, nguoi: 'Chị Nhân' }] });
+  t('🔴 lượt cấp KHÔNG gắn lần → khối lịch không phán gì về lần nào',
+    h.indexOf('đã nhận') < 0 && h.indexOf('✓ đã nhận đủ') < 0, h);
+  t('   và dòng cấp ấy cũng không bịa ra một số lần', !/<b>Lần \d<\/b> · <b>18/.test(h), h);
+  t('   nhưng tổng vẫn đúng, vẫn nói đã đưa đủ', /tổng đã đưa <b>30\.000\.000đ<\/b> · <b>đủ/.test(h), h);
+}
+/* Hàm cộng theo lần — chạy thật, vì cả khối lịch lẫn ô chọn lần trong form đều dựa vào nó. */
+{
+  const F2 = new Function('return ' + boc('_daCapTheoLan').replace(/^\s*function /, 'function ') + ';')();
+  const m = F2({ daCap: [{ choLan: 1, soTien: 10 }, { choLan: 2, soTien: 20 },
+                         { choLan: 1, soTien: 5 }, { choLan: 0, soTien: 999 }] });
+  t('🔴 cộng dồn nhiều lượt vào cùng một lần', m[1] === 15, m);
+  t('   mỗi lần một ngăn riêng', m[2] === 20, m);
+  t('🔴 lượt không gắn lần KHÔNG rơi vào lần nào (nhét đại vào lần 1 là dựng lại đúng cái ghép bịa)',
+    m[0] === undefined && Object.keys(m).length === 2, m);
+}
 
 /* ── 4. NHÃN CỘT: LỆNH, KHÔNG PHẢI ĐỢT ──────────────────────────────────────────────── */
 t('🔴 cột đầu của bảng lệnh ghi "Lệnh"', /<th style="width:74px">Lệnh<\/th>/.test(HTML));

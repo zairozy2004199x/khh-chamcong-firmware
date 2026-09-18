@@ -410,6 +410,51 @@ t('   và nạp lại đúng màn đang đứng sau khi bấm',
 t('🔴 bảng hạng mục của màn Duyệt không nổ khi chưa mở màn ấy',
   HTML.indexOf("if(!el('hmBody')) return;") >= 0);
 
+/* ── 4b2. 🔴 FORM CẤP TIỀN CHỌN ĐÚNG LẦN, KHÔNG PHẢI TỰ DÒ ────────────────────────────
+ * Anh Thắng 18/09/2026: *"Xin lần 1 thì cấp lần 1 chứ.."*.
+ *
+ * Trả đúng lần rồi bấm là việc THƯỜNG NHẤT, nên nó phải là đường không phải thao tác gì: lần
+ * còn thiếu sớm nhất chọn sẵn, và ô tiền điền sẵn đúng phần CỦA LẦN ẤY — chứ không phải cả phần
+ * còn lại của lệnh. Điền cả phần còn lại là mời kế toán bấm một phát trả hết cho "lần 1".
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+{
+  const src = `${boc('_daCapTheoLan')}\n${boc('_capLanCon')}\n${boc('_capLanGoiY')}
+    ${boc('_capSoGoiY')}\n${boc('_capChonLan')}
+    return { con:_capLanCon, goiY:_capLanGoiY, so:_capSoGoiY, o:_capChonLan };`;
+  const F = new Function('moi', `with(moi){ ${src} }`)({
+    esc: x => String(x == null ? '' : x), money: x => String(x), _dmy: x => String(x) });
+
+  /* Lệnh 30tr: lần 1 (10tr) đã nhận đủ, lần 2 (20tr) mới nhận 8tr. */
+  const x = { soTien: 30000000,
+    lich: [{ lan: 1, ngay: '03/09/2026', soTien: 10000000 },
+           { lan: 2, ngay: '10/09/2026', soTien: 20000000 }],
+    daCap: [{ choLan: 1, soTien: 10000000 }, { choLan: 2, soTien: 8000000 }] };
+  t('🔴 chọn sẵn lần CÒN THIẾU SỚM NHẤT, không phải lần 1 cứng', F.goiY(x) === 2, F.goiY(x));
+  t('🔴 ô tiền điền sẵn phần còn thiếu CỦA LẦN ẤY (12tr), không phải cả phần còn lại của lệnh',
+    F.so(x, 12000000) === 12000000, F.so(x, 12000000));
+  const o = F.o('K1', x, 12000000);
+  t('   bày đủ mọi lần để chọn lại', /value="1"/.test(o) && /value="2"/.test(o), o);
+  t('🔴 lần đã nhận đủ vẫn bày ra nhưng NÓI RÕ là đủ (giấu đi thì sửa nhầm không quay lại được)',
+    /Lần 1[^<]*— đã nhận đủ/.test(o), o);
+  t('   lần nhận dở nói rõ còn bao nhiêu', /Lần 2[^<]*\(còn 12000000đ\)/.test(o), o);
+  t('   và lần 2 là cái được chọn sẵn', /value="2" selected/.test(o), o);
+  t('   mỗi lựa chọn mang theo phần còn thiếu để ô tiền chạy theo', /data-con="12000000"/.test(o), o);
+  t('   vẫn cho "không gắn lần nào" — kế toán gộp trả thì đừng ép khai sai',
+    /value="0"/.test(o), o);
+
+  /* 🔴 LỆNH KHÔNG KHAI LỊCH: không bày ô nào. Nhận một lần là ca thường; một ô chọn trống rỗng
+     là thêm một câu hỏi không có câu trả lời. */
+  const k = { soTien: 4000000, lich: [], daCap: [] };
+  t('🔴 lệnh không khai lịch → KHÔNG bày ô chọn lần', F.o('K2', k, 4000000) === '', F.o('K2', k, 4000000));
+  t('   và ô tiền lùi về cả phần còn lại như cũ', F.so(k, 4000000) === 4000000, F.so(k, 4000000));
+
+  /* Mọi lần đã đủ mà lệnh vẫn còn nợ (kế toán từng cấp không gắn lần) — đừng chọn bừa một lần. */
+  const z = { soTien: 30000000, lich: [{ lan: 1, ngay: '03/09/2026', soTien: 10000000 }],
+    daCap: [{ choLan: 1, soTien: 10000000 }] };
+  t('mọi lần đã nhận đủ → không chọn sẵn lần nào', F.goiY(z) === 0, F.goiY(z));
+  t('   và ô tiền lùi về phần còn lại của lệnh', F.so(z, 20000000) === 20000000, F.so(z, 20000000));
+}
+
 /* ── 4c. 💵 THẺ BA CON SỐ TẠM ỨNG ─────────────────────────────────────────────────────
  * Anh Thắng: *"chỗ này sẽ hiện (Số tiền đã xin tạm ứng / Số tiền kế toán đã chi tạm ứng)"* và
  * *"Dự kiến tạm ứng tổng đơn"*.
