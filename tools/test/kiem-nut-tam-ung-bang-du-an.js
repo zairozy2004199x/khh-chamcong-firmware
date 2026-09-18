@@ -412,10 +412,48 @@ t('   và mở sửa một dòng thì gọi khoá', /_daKhoaDuToanO\(l\);/.test(
     (h.match(/<td/g) || []).length === soCot, { hang: (h.match(/<td/g) || []).length, dauBang: soCot });
 
   const h2 = F({ row: 4, noiDung: 'Dòng cũ', loaiCp: '', duToan: 0, capCha: '' }, false, '', true);
-  t('🔴 dòng nhập TRƯỚC khi có cột này → in "—", KHÔNG bịa ra một ngày', /—/.test(h2), h2);
-  t('   và vẫn đủ số ô, không thiếu một ô nào',
+  t('   dòng cũ vẫn đủ số ô, không thiếu một ô nào',
     (h2.match(/<td/g) || []).length === soCot, (h2.match(/<td/g) || []).length);
 }
+/* ── 🔴 DÒNG CŨ KHÔNG CÓ MỐC → LÙI VỀ NGÀY LẬP DỰ ÁN, KÈM DẤU "≈" ───────────────────────
+ * Anh Thắng 18/09/2026, nhìn cả cột toàn dấu gạch: *"thiếu cột ngày nhập"*. Đúng — một cột
+ * trống trơn ở MỌI dòng của MỌI dự án đang có thì trông y như hỏng, dù nó đang nói thật.
+ *
+ * ⚠️ NHƯNG DẤU "≈" LÀ BẮT BUỘC. Một dòng không thể có trước dự án chứa nó, nên ngày ấy là cận
+ *    dưới THẬT — nhưng nó KHÔNG phải ngày nhập của dòng. Bỏ dấu là biến một cận dưới thành một
+ *    lời khai, và người đọc sổ không còn cách nào biết dòng nào có mốc thật.
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+{
+  const i = HTML.indexOf('    function daLineCells(');
+  const src = HTML.slice(i, HTML.indexOf('\n    }', i) + 6);
+  const dung = (daCur) => new Function('moi', `with(moi){ ${src}\n return daLineCells; }`)({
+    esc: x => String(x == null ? '' : x), money: n => String(Number(n) || 0),
+    canEdit: true, htBadge: () => 'HT', tkBadge: () => '',
+    _daTtHang: () => 'nhap', _daOLoaiCp: () => '<td>L</td>', DA_CUR: daCur });
+
+  const cu = { row: 4, noiDung: 'Băng keo trong', loaiCp: '', duToan: 0, capCha: '' };
+  const h = dung({ maDA: 'DA1', ngayTao: '13/09/2026', lines: [] })(cu, false, '', true);
+  t('🔴 dòng cũ (chưa có mốc) → lùi về NGÀY LẬP DỰ ÁN, không để cột trống trơn',
+    h.indexOf('13/09/2026') >= 0, h);
+  t('🔴 và KÈM DẤU "≈" — nó là cận dưới, không phải ngày nhập thật của dòng',
+    /≈ 13\/09\/2026/.test(h), h);
+  t('   kèm lời giải thích lúc rê chuột, để không ai đọc nhầm thành mốc thật',
+    /title="[^"]*NGÀY LẬP DỰ ÁN/.test(h), h);
+
+  /* Có mốc thật thì in THẲNG, không kèm "≈" — hai thứ phải phân biệt được bằng mắt. */
+  const moi = { row: 5, noiDung: 'Mới', taoLuc: '18/09/2026', loaiCp: '', duToan: 0, capCha: '' };
+  const h3 = dung({ maDA: 'DA1', ngayTao: '13/09/2026', lines: [] })(moi, false, '', true);
+  t('🔴 dòng CÓ mốc thật → in thẳng, KHÔNG kèm "≈" (hai thứ phải phân biệt được bằng mắt)',
+    h3.indexOf('18/09/2026') >= 0 && h3.indexOf('≈') < 0, h3);
+
+  /* Không biết cả ngày lập dự án thì mới in "—". Bịa ra một ngày ở đây là bịa thật. */
+  const h4 = dung({ maDA: 'DA1', lines: [] })(cu, false, '', true);
+  t('   không biết cả ngày lập dự án → mới in "—"', /—/.test(h4) && h4.indexOf('≈') < 0, h4);
+}
+t('🔴 máy chủ gửi kèm ngày lập dự án (thiếu nó thì cả lối lùi trên vô dụng)',
+  /'ngayTao'\s*=> VHCP_Util::fmt\( \$f\['ngay_tao'\] \),/.test(
+    require('fs').readFileSync(require('path').join(GOC,
+      'wordpress/vhcp-chi-phi/includes/class-vhcp-duan.php'), 'utf8')));
 
 /* ── 4b. 📎 ĐÍNH TỆP THẬT CHO UỶ NHIỆM CHI VÀ HOÁ ĐƠN ──────────────────────────────────
  * Uỷ nhiệm chi và hoá đơn là ảnh chụp / bản PDF nằm trong máy kế toán, không phải một địa chỉ

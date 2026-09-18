@@ -5523,9 +5523,24 @@
         : '<td class="money"></td>';
       return '<tr'+trS+'><td'+tdS+'>'+(indent?'↳ ':(laLon?'📦 ':''))+esc(l.noiDung)+'</td>'
         /* NGÀY NHẬP — mốc máy ghi lúc dòng vào sổ. Bảng dự án trước nay không có ô ngày nào, mà
-           dự án kéo dài mấy tuần: nhìn một hàng thì không biết nó vào sổ hôm nào. Dòng nhập
-           trước 1.208.0 không có mốc, nên in '—' chứ không bịa ra một ngày. */
-        +'<td style="font-size:11px;color:#8c8781;white-space:nowrap">'+(l.taoLuc?esc(l.taoLuc):'—')+'</td>'
+           dự án kéo dài mấy tuần: nhìn một hàng thì không biết nó vào sổ hôm nào.
+           🔴 DÒNG CŨ KHÔNG CÓ MỐC THÌ LÙI VỀ NGÀY LẬP DỰ ÁN, KÈM DẤU "≈". Anh Thắng 18/09/2026
+              nhìn cả cột toàn dấu gạch: *"thiếu cột ngày nhập"* — đúng, một cột trống trơn ở
+              MỌI dòng của MỌI dự án đang có thì trông y như hỏng, dù nó đang nói thật.
+           ⚠️ KHÔNG GHI SỐ XẤP XỈ ẤY XUỐNG SỔ. Trong sổ, trống = KHÔNG BIẾT; nhét ngày lập dự án
+              vào đó là trộn mốc thật với mốc đoán trong cùng một cột, và về sau không ai tách
+              lại được. Đây là việc của lúc VẼ, không phải của lúc ghi.
+           ⚠️ DẤU "≈" KHÔNG ĐƯỢC BỎ. Một dòng không thể có trước dự án chứa nó, nên ngày ấy là
+              cận dưới THẬT — nhưng nó không phải ngày nhập của dòng. Bỏ dấu là biến một cận
+              dưới thành một lời khai. */
+        +(function(){
+           if(l.taoLuc) return '<td style="font-size:11px;color:#8c8781;white-space:nowrap">'+esc(l.taoLuc)+'</td>';
+           var nt=String((DA_CUR&&DA_CUR.ngayTao)||'');
+           if(!nt) return '<td style="font-size:11px;color:#8c8781">—</td>';
+           return '<td style="font-size:11px;color:#b0a89e;white-space:nowrap;font-style:italic" '
+             +'title="Dòng này có trước khi hệ ghi mốc nhập — đang lấy theo NGÀY LẬP DỰ ÁN, '
+             +'không phải ngày nhập thật của dòng.">≈ '+esc(nt)+'</td>';
+         })()
         /* LOẠI CHI PHÍ tách hẳn thành CỘT RIÊNG. Trước nay nó là một dòng chữ nhỏ nép dưới Nội
            dung (`tkBadge`), nên soi cả bảng xem dòng nào chưa gắn mã là phải đọc từng ô. */
         +_daOLoaiCp(l)

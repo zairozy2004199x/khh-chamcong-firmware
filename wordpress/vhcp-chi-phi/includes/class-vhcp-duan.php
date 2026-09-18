@@ -621,6 +621,10 @@ class VHCP_DuAn {
 			'chenh'           => ( $tt + $sc_tien ) - ( $dt + $sc_du_toan ),
 			/* Con số dự phòng của kế toán + phần đã ứng thật, để màn tính ra "còn dự phòng". */
 			'duToanDA'        => self::get_du_toan_da( $ma_da ),
+			/* Ngày lập DỰ ÁN — màn dùng nó làm mốc xấp xỉ cho mấy dòng nhập TRƯỚC 1.209.0, hồi
+			   `da_line` chưa có cột `tao_luc`. Một dòng không thể có trước dự án chứa nó, nên
+			   đây là cận dưới THẬT, không phải số bịa — và màn in kèm dấu "≈" để nói rõ. */
+			'ngayTao'         => VHCP_Util::fmt( $f['ngay_tao'] ),
 			'kyDA'            => self::get_ky_da( $ma_da ),
 			'lenh'            => $lenh,
 			'lenhQT'          => $lenhQT,
