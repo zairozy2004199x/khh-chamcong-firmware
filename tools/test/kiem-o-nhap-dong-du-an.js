@@ -50,8 +50,11 @@ t('   và mở đúng theo dự án "Chi phí cơ sở (chung)"',
 {
   const _d = HTML.slice(HTML.indexOf('id="daLineTable"'));
   const _h = _d.slice(0, _d.indexOf('</thead>'));
-  t('   cột Nội dung của bảng dòng chi vẫn còn', /<th>Nội dung<\/th>/.test(_h), _h.slice(0, 200));
-  t('   và cột Gian vẫn còn', /<th>Gian<\/th>/.test(_h), _h.slice(0, 320));
+  /* ⚠️ CHỪA CHỖ CHO THUỘC TÍNH. Canh đúng chuỗi `<th>Nội dung</th>` thì thêm một bề rộng vào
+     thẻ ấy là phép đỏ — vì markup đổi, chứ không phải vì cột biến mất. Cột CÒN HAY KHÔNG mới
+     là điều nó sinh ra để bắt. */
+  t('   cột Nội dung của bảng dòng chi vẫn còn', /<th[^>]*>Nội dung<\/th>/.test(_h), _h.slice(0, 260));
+  t('   và cột Gian vẫn còn', /<th[^>]*>Gian<\/th>/.test(_h), _h.slice(0, 400));
 }
 
 /* ── 2. GIAN LẤY TỪ ĐÂU — CHẠY THẬT ────────────────────────────────────────────────────── */

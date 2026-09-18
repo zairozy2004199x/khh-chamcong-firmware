@@ -241,9 +241,19 @@ t( '🔴 đầu bảng DỰ ÁN có cột "Ngày nhập"', false !== mb_strpos( 
 /* 🔴 VÀ NÓ ĐỨNG CỘT ĐẦU — đúng lời anh Thắng, và khớp bảng đơn tuần (ở đó cột ngày cũng đứng
    trước Nội dung). Kẹp giữa Nội dung và Loại chi phí thì cột Nội dung bị bóp, tên hàng xuống
    ba dòng — mà tên hàng mới là thứ người ta dò. */
+/* ⚠️ CHỪA CHỖ CHO THUỘC TÍNH: cột Nội dung nay mang bề rộng, nên không dò chuỗi `<th>Nội
+   dung</th>` nguyên si. So VỊ TRÍ của hai cái tên trong đầu bảng là đủ và bền. */
 t( '🔴 và nó đứng CỘT ĐẦU, trước cả Nội dung',
 	false !== mb_strpos( $_dau, '>Ngày nhập</th>' )
-	&& mb_strpos( $_dau, '>Ngày nhập</th>' ) < mb_strpos( $_dau, '<th>Nội dung</th>' ), $_dau );
+	&& false !== mb_strpos( $_dau, '>Nội dung</th>' )
+	&& mb_strpos( $_dau, '>Ngày nhập</th>' ) < mb_strpos( $_dau, '>Nội dung</th>' ), $_dau );
+/* 🔴 CỘT NỘI DUNG PHẢI CÓ BỀ RỘNG ĐẶT TAY. Anh Thắng 18/09/2026: *"cân đối cột nội dung lại"*.
+   Để trình duyệt tự chia thì nó chia theo nội dung đang có: cột Gian rỗng vẫn rộng, còn cột
+   Nội dung — thứ người ta thật sự dò — bị bóp tới mức "Băng keo trong" xuống ba dòng. */
+t( '🔴 cột Nội dung được ghim bề rộng, không để trình duyệt tự chia',
+	1 === preg_match( '/<th style="width:\d+px;min-width:\d+px">Nội dung<\/th>/u', $_dau ), $_dau );
+t( '   và mấy cột chỉ chứa biểu tượng thì ghim HẸP, để phần dư dồn cho Nội dung',
+	1 === preg_match( '/width:4\dpx[^>]*>Ảnh<\/th>/u', $_dau ), $_dau );
 t( '   và mỗi hàng dự án vẽ ô loại chi phí riêng', false !== strpos( $HTML, '+_daOLoaiCp(l)' ) );
 t( '🔴 mục con KHÔNG bày ô chọn (mã đi theo hạng mục lớn — hai mã cho một khoản tiền)',
 	false !== strpos( $HTML, 'if(laCon || !_laKeToan()){' ) );

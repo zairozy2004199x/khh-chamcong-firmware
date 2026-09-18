@@ -454,6 +454,43 @@ t('🔴 máy chủ gửi kèm ngày lập dự án (thiếu nó thì cả lối 
     require('fs').readFileSync(require('path').join(GOC,
       'wordpress/vhcp-chi-phi/includes/class-vhcp-duan.php'), 'utf8')));
 
+/* ── 4a5. 📋 MÀN NGOÀI CHỈ HIỆN TỔNG, CHI TIẾT GẬP LẠI ────────────────────────────────
+ * Anh Thắng 18/09/2026: *"Chỗ màn ngoài chỉ cần hiện tổng rõ thông tin, không cần hiện chi
+ * tiết đơn"*.
+ *
+ * Một đơn 14 hạng mục đang chiếm 14 dòng ở màn danh sách; bốn đơn như thế là màn hình chẳng
+ * còn là danh sách nữa, và cái người ta vào đây để tìm — đơn nào đang vướng — chìm mất.
+ *
+ * 🔴 GẬP, KHÔNG XOÁ. Mấy nút trong đó ("Chốt xong", "KT đã chi — khoá đơn") là VIỆC kế toán làm
+ *    ngay tại màn này. Xoá đi là bắt họ mở từng dự án mới bấm được — gọn màn hình bằng cách
+ *    thêm việc cho người dùng thì không phải là gọn.
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+t('🔴 hàng chi tiết của đơn GẬP SẴN ở màn ngoài',
+  /<tr data-hmctr="'\+esc\(ma\)\+'" style="display:none">/.test(HTML));
+t('   và có nút bung ra, mang luôn con số cho biết bên trong bao nhiêu dòng',
+  /data-hmct="'\+esc\(ma\)\+'"[^]{0,200}▸ Chi tiết \('\+hs\.length\+'\)/.test(HTML));
+t('🔴 mấy nút thao tác VẪN CÒN trong khối gập (gập là để gọn, không phải để bỏ việc)',
+  /var nut=hmNutChung\(k, x\.maDA, x\.row, x\.hinhThuc, h, false, true\);/.test(HTML));
+/* Dòng tóm tắt phải gánh phần việc của khối vừa gập: nói ra ĐANG CHỜ AI, không chỉ đếm. */
+t('🔴 dòng tóm tắt nói rõ đang chờ KẾ TOÁN hay chờ HOÁ ĐƠN, không chỉ đếm "N chưa chốt"',
+  /chờ kế toán/.test(HTML) && /chờ hoá đơn/.test(HTML));
+{
+  /* Chạy thật hàm bung/gập: bấm một cái phải ĐỔI CẢ MŨI TÊN trên nút — bấm mà nút không đổi
+     gì thì người ta bấm lại lần nữa, và lần ấy gập nó lại, trông như nút hỏng. */
+  const i = HTML.indexOf('  function hmMoChiTiet(');
+  const src = HTML.slice(i, HTML.indexOf('\n  }', i) + 4);
+  t('bốc được hmMoChiTiet()', i >= 0);
+  const O = { r: { style: { display: 'none' } }, b: { innerHTML: '▸ Chi tiết (14)' } };
+  const F = new Function('moi', `with(moi){ ${src}\n return hmMoChiTiet; }`)({
+    document: { querySelector: sel => (/data-hmctr/.test(sel) ? O.r : O.b) } });
+  F('DA1');
+  t('🔴 bấm một cái → khối chi tiết bung ra', O.r.style.display === '', O.r.style);
+  t('🔴 và mũi tên đổi theo, giữ nguyên con số', O.b.innerHTML === '▾ Chi tiết (14)', O.b.innerHTML);
+  F('DA1');
+  t('   bấm lại → gập vào, mũi tên trả về', O.r.style.display === 'none' && O.b.innerHTML === '▸ Chi tiết (14)',
+    { d: O.r.style.display, b: O.b.innerHTML });
+}
+
 /* ── 4b. 📎 ĐÍNH TỆP THẬT CHO UỶ NHIỆM CHI VÀ HOÁ ĐƠN ──────────────────────────────────
  * Uỷ nhiệm chi và hoá đơn là ảnh chụp / bản PDF nằm trong máy kế toán, không phải một địa chỉ
  * web có sẵn để dán. Bắt dán liên kết là bắt họ tự đi tải lên chỗ khác trước rồi mới quay lại.
