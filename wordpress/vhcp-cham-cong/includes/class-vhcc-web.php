@@ -5636,17 +5636,31 @@ class VHCC_Web {
 				. ' · ô <b>trống</b> → ' . ( $duoc_bu ? '<b>Chấm công bù</b>' : 'cần quyền Cửa hàng trưởng' )
 				. '.</p>';
 		}
-		if ( $la_vp && $rieng_minh ) {
-			/* Lưới văn phòng dựng thẳng từ `vp_bang_cong_va_luong()` — không qua phép lọc ở cửa
-			   vào, nên ở cơ sở mình chỉ đi làm thì KHÔNG vẽ nó. Lưới giờ phía trên đã lọc rồi
-			   và đủ cho người ta xem công của mình. */
-			echo '<p class="mo" style="margin:0">Cơ sở này tính công theo khối Văn phòng. '
-				. 'Bảng đầy đủ chỉ người quản lý cơ sở mới xem được.</p>';
-			echo '</details></div>';
-			return;
-		}
 		if ( $la_vp ) {
-			self::ve_luoi_vp( VHCC_Luong::vp_bang_cong_va_luong( $cs, $th ), $duoc_sua, $duoc_bu,
+			$d_vp = VHCC_Luong::vp_bang_cong_va_luong( $cs, $th );
+			/* 🔴 LỌC CÒN MÌNH, ĐỪNG CHẶN CẢ LƯỚI. Anh Thắng 18/09/2026: *"phải xem được chính
+			   mình chứ"* — bản 4.52.1 chặn thẳng nhánh này và người ta không còn thấy công của
+			   chính họ ở cơ sở mình đang đứng làm, tức mất luôn việc chính của màn.
+			   Lưới Văn phòng dựng thẳng từ `vp_bang_cong_va_luong()`, không qua phép lọc ở cửa
+			   vào — nên lọc TẠI ĐÂY, trên đúng hai mảng nó bày ra. */
+			if ( $rieng_minh ) {
+				$ma_toi = strtoupper( trim( (string) ( isset( $toi['ma_nv'] ) ? $toi['ma_nv'] : '' ) ) );
+				foreach ( array( 'rows', 'detail' ) as $k_vp ) {
+					if ( ! isset( $d_vp[ $k_vp ] ) || ! is_array( $d_vp[ $k_vp ] ) ) { continue; }
+					$giu = array();
+					foreach ( $d_vp[ $k_vp ] as $r_vp ) {
+						if ( isset( $r_vp['ma'] )
+							&& strtoupper( trim( (string) $r_vp['ma'] ) ) === $ma_toi ) { $giu[] = $r_vp; }
+					}
+					$d_vp[ $k_vp ] = $giu;
+				}
+				/* ⚠️ `tong` và `tien` là tổng CẢ CƠ SỞ — cắt hẳn, đừng để lại. Một dòng tổng
+				   gồm tiền của hai mươi người nằm dưới một bảng chỉ có một dòng là lộ đúng thứ
+				   vừa che, chỉ khác là gộp lại. */
+				$d_vp['tong'] = array();
+				$d_vp['tien'] = array();
+			}
+			self::ve_luoi_vp( $d_vp, $duoc_sua, $duoc_bu,
 				$ky, $toi, $cs );
 			echo '</details></div>';   // nhánh về sớm cũng phải đóng, kẻo cả trang lọt vào trong lưới
 			return;

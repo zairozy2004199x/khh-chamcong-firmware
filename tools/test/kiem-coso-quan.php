@@ -309,8 +309,12 @@ foreach ( array( 'gio', 'cong' ) as $cach ) {
 		if ( false !== mb_strpos( $trang, $x_r ) ) { $ro[] = $x_r; }
 	}
 	t( '🔴 [' . $cach . '] KHÔNG lọt tên hay mã người khác ra trang', ! $ro, $ro );
-	t( '[' . $cach . '] vẫn thấy công của chính mình',
-		false !== mb_strpos( $trang, 'Chị Trưởng' ) || false !== mb_strpos( $trang, 'CQ_CHT' ) );
+	/* 🔴 ĐẾM DÒNG TRONG LƯỚI, ĐỪNG TÌM TÊN TRONG CẢ TRANG. Tên người đang đăng nhập nằm sẵn ở
+	   thanh bên, nên `strpos($trang,'Chị Trưởng')` xanh kể cả khi lưới rỗng — và bản 4.52.1
+	   đúng là như thế: em chặn cả lưới Văn phòng, người ta mất luôn công của chính mình, mà
+	   phép thử vẫn báo "vẫn thấy". Anh Thắng: *"phải xem được chính mình chứ"*. */
+	teq( '🔴 [' . $cach . '] lưới có ĐÚNG MỘT dòng người — của chính mình', 1,
+		substr_count( $trang, 'class="ten-nv"' ) );
 	t( '[' . $cach . '] có băng nói rõ vì sao bảng hẹp',
 		false !== mb_strpos( $trang, 'không phải cơ sở anh/chị quản lý' ) );
 }
@@ -330,6 +334,8 @@ $_GET = array();
 $_COOKIE = array();
 t( '🔴 cơ sở mình QUẢN thì VẪN thấy người khác',
 	false !== mb_strpos( $trang_q, 'NGƯỜI KHÁC HẲN' ) );
+t( 'và lưới ở đó có NHIỀU HƠN một dòng',
+	substr_count( $trang_q, 'class="ten-nv"' ) > 1, substr_count( $trang_q, 'class="ten-nv"' ) );
 t( 'và KHÔNG có băng hẹp ở đó',
 	false === mb_strpos( $trang_q, 'không phải cơ sở anh/chị quản lý' ) );
 
