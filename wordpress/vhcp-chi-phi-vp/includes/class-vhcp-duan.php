@@ -1836,6 +1836,14 @@ class VHCPVP_DuAn {
 					'rows'     => $d['rows'],
 					'tenHM'    => $ten,
 					'soTien'   => $d['soTien'],
+					/* 🔴 PHẢI GỬI KÈM SỔ CẤP TIỀN. Thiếu nó thì màn Duyệt đọc "đã đưa" ra 0 với
+					   MỌI lệnh, nên ô "Số tiền đưa lần này" điền sẵn TRỌN số lệnh kể cả lúc đã
+					   đưa một phần — bấm lần hai là mời chuyển đi lần nữa. Máy chủ chặn được
+					   (`cap_tien_phan` chối khi vượt phần còn lại), nhưng lúc ấy màn đã nói dối
+					   rồi, và kế toán đọc con số chứ không đọc mã nguồn.
+					   Anh Thắng 18/09/2026: *"bấm cấp lần 2,3 là số tiền còn lại hoặc thấp hơn
+					   chứ"*. Trang dự án vốn đúng (nó gửi trọn `$d`); chỉ màn Duyệt lọc bớt. */
+					'daCap'    => $d['daCap'],
 					'unc'      => $d['unc'],
 					'lyDo'     => $d['lyDo'],
 					'lich'     => $d['lich'],

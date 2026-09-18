@@ -5988,12 +5988,28 @@
       +_capChonLan(k, x, con)
       +'<div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;align-items:center">'
       +'<span style="white-space:nowrap">Số tiền đưa lần này: <input type="text" inputmode="numeric" '
-      +'data-hmcap="'+k+'" value="'+money(_capSoGoiY(x,con))+'" style="width:130px;font-size:12px;text-align:right"> đ</span>'
+      +'data-hmcap="'+k+'" value="'+money(_capSoGoiY(x,con))+'" onfocus="tienVao(this)" '
+      +'onblur="lenhCapKep(this,'+con+')" style="width:130px;font-size:12px;text-align:right"> đ</span>'
+      +'<span style="font-size:11px;color:#8c8781;white-space:nowrap">tối đa '+money(con)+'đ</span>'
       +'<span style="white-space:nowrap">Ngày đưa: <input type="text" data-hmcapngay="'+k+'" '
       +'placeholder="dd/mm/yyyy" style="width:110px;font-size:12px"></span>'
       +_hmOTep(k,maDA,'unc','Uỷ nhiệm chi',false,220)+'</div>'
       +'<div style="margin-top:8px"><button class="btn b-g" onclick="lenhGuiCap(\''+k+'\',\''+esc(maDA)+'\','+dot+')">✓ Cấp tiền</button>'
       +' <button class="btn b-x" onclick="hmDongLai(\''+k+'\')">✕ Thôi</button></div>');
+  }
+  /* 🔴 KẸP SỐ ĐƯA VỀ PHẦN CÒN LẠI. Anh Thắng 18/09/2026: *"bấm cấp lần 2,3 là số tiền còn lại
+     hoặc thấp hơn chứ"*. Máy chủ vẫn là chốt thật (`cap_tien_phan` chối khi vượt), nhưng để
+     người ta gõ xong rồi mới bị chối là bắt họ đoán con số đúng — mà con số ấy màn hình đang
+     giữ sẵn. Kẹp ngay tại ô, và NÓI RA vì sao, chứ không lặng lẽ đổi số dưới tay người gõ. */
+  function lenhCapKep(o, con){
+    if(!o) return;
+    var so=Number(String(o.value||'').replace(/[^0-9]/g,''))||0;
+    con=Number(con)||0;
+    if(con>0 && so>con){
+      so=con;
+      toast('warn','Lệnh này chỉ còn '+money(con)+'đ chưa cấp — đã kẹp lại. Cần đưa thêm thì nhân viên xin một lệnh mới.');
+    }
+    o.value=money(so);
   }
   function lenhGuiCap(k,maDA,dot){
     var o=document.querySelector('[data-hmcap="'+k+'"]');
@@ -6002,6 +6018,13 @@
     /* Bỏ dấu chấm nghìn trước khi gửi — ô này người ta gõ "20.000.000" như mọi ô tiền khác. */
     var so=o?Number(String(o.value||'').replace(/[^0-9]/g,'')):0;
     if(!so){ toast('warn','Nhập số tiền đưa lần này'); return; }
+    /* Lưới thứ hai: ô mất tiêu điểm thì `lenhCapKep` đã kẹp, nhưng bấm thẳng nút Cấp tiền lúc
+       con trỏ còn trong ô thì `onblur` chạy sau — không canh lại ở đây là số vượt vẫn bay lên. */
+    var _x=_lenhTim(maDA,dot), _con=_x?_conPhaiCap(_x):0;
+    if(_con>0 && so>_con){
+      toast('warn','Lệnh này chỉ còn '+money(_con)+'đ chưa cấp, không đưa được '+money(so)+'đ.');
+      return;
+    }
     loading(true);
     google.script.run.withSuccessHandler(function(r){ loading(false);
       if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
