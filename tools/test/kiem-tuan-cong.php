@@ -59,7 +59,10 @@ $ADMIN = array( 'name' => 'Quản Trị',   'role' => VHCC_Vai::ADMIN,   'coso' 
 
 foreach ( array(
 	array( 'TCNV1',  'An Nhân Viên', $CS_A, 'Nhân viên' ),
-	array( 'TCNV2',  'Bình Nhân Viên', $CS_A, 'Nhân viên' ),
+	/* 🔴 MÃ NV CÓ DẤU GẠCH — mã thật của chuỗi có dạng `TAM-FZLTVT-008`. Bản đầu cắt hậu tố
+	   theo dấu gạch nên mã kiểu này vỡ chữ ký và cả tệp bị chối ngay dòng đầu (18/09/2026).
+	   Giữ một người mang mã kiểu ấy trong mọi phép thử dưới, đừng đổi về mã trơn cho gọn. */
+	array( 'TAM-FZLTVT-008', 'Bình Nhân Viên', $CS_A, 'Nhân viên' ),
 	array( 'TCCHTA', 'Trưởng A',     $CS_A, 'Cửa hàng trưởng' ),
 	array( 'TCCHTB', 'Trưởng B',     $CS_B, 'Cửa hàng trưởng' ),
 	array( 'TCKT1',  'Kế Toán',      $CS_A, 'Kế toán' ),
@@ -76,8 +79,8 @@ $wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $CS_A, 'ngay' => $NGA
 	'ma_nv' => 'TCNV1', 'ho_ten' => 'An Nhân Viên', 'gio_vao_giay' => 28800, 'gio_ra_giay' => 57600,
 	'hau_to' => '', 'nguon' => 'may' ) );
 $wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $CS_A, 'ngay' => $NGAY[0],
-	'ma_nv' => 'TCNV2', 'ho_ten' => 'Bình Nhân Viên', 'gio_vao_giay' => 32400, 'gio_ra_giay' => 61200,
-	'hau_to' => '', 'nguon' => 'may' ) );
+	'ma_nv' => 'TAM-FZLTVT-008', 'ho_ten' => 'Bình Nhân Viên', 'gio_vao_giay' => 32400,
+	'gio_ra_giay' => 61200, 'hau_to' => '', 'nguon' => 'may' ) );
 
 /* ================================================================= tuần T2 → CN */
 
@@ -113,6 +116,20 @@ $tuan_khac = gmdate( 'Y-m-d', strtotime( $TUAN . ' 00:00:00 UTC' ) - 7 * 86400 )
 t( '🔴 khoá của TUẦN KHÁC thì chối', null === VHCC_TuanCong::doc_khoa( $k, $CS_A, $tuan_khac ) );
 t( 'khoá rỗng thì chối', null === VHCC_TuanCong::doc_khoa( '', $CS_A, $TUAN ) );
 t( 'khoá thiếu mảnh thì chối', null === VHCC_TuanCong::doc_khoa( 'TCNV1', $CS_A, $TUAN ) );
+
+/* 🔴 MÃ NV CÓ DẤU GẠCH phải đi qua khoá nguyên vẹn. Đây là lỗi anh Thắng gặp lúc nạp tệp thật
+   18/09/2026: `TAM-FZLTVT-008` bị cắt thành mã `TAM` + hậu tố `FZLTVT-008`, chữ ký không khớp,
+   và MỌI dòng của cơ sở dùng mã kiểu ấy bị chối. */
+foreach ( array( 'TAM-FZLTVT-008', 'MNNV2KVC0045', '077306007803', 'A-B-C-D' ) as $ma_thu ) {
+	$kx = VHCC_TuanCong::khoa_dong( $CS_A, $TUAN, '', $ma_thu );
+	$dx = VHCC_TuanCong::doc_khoa( $kx, $CS_A, $TUAN );
+	teq( '🔴 mã "' . $ma_thu . '" qua khoá rồi đọc lại vẫn nguyên',
+		strtoupper( $ma_thu ), is_array( $dx ) ? $dx['ma_nv'] : null );
+}
+$k_gach = VHCC_TuanCong::khoa_dong( $CS_A, $TUAN, '', 'TAM-FZLTVT-008', 'CD' );
+$d_gach = VHCC_TuanCong::doc_khoa( $k_gach, $CS_A, $TUAN );
+teq( '🔴 mã có gạch + hậu tố: tách đúng phần mã', 'TAM-FZLTVT-008', $d_gach['ma_nv'] );
+teq( 'và đúng phần hậu tố', 'CD', $d_gach['hau_to'] );
 
 $k2 = VHCC_TuanCong::khoa_dong( $CS_A, $TUAN, '', 'TCNV1', 'CD' );
 $d2 = VHCC_TuanCong::doc_khoa( $k2, $CS_A, $TUAN );

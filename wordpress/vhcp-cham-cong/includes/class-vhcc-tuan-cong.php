@@ -183,20 +183,21 @@ class VHCC_TuanCong {
 		$than = strtolower( VHCC_NhanSu::chuan_coso( $coso ) ) . '|' . self::ngay( $tu_ngay )
 			. '|' . $ma . '|' . $ht;
 		$ky = substr( hash_hmac( 'sha256', $than, self::muoi() ), 0, 10 );
-		return $ma . ( '' !== $ht ? ( '-' . $ht ) : '' ) . '~' . $ky;
+		/* 🔴 BA PHẦN, HẬU TỐ CÓ CHỖ RIÊNG — kể cả khi rỗng (`MA~~ký`).
+		   Bản đầu viết `MA-HT~ký` và cắt hậu tố theo dấu gạch. Sai, vì MÃ NV CỦA CHÍNH HỆ NÀY
+		   CÓ DẤU GẠCH: `TAM-FZLTVT-008` bị cắt thành mã `TAM` + hậu tố `FZLTVT-008`, chữ ký
+		   dựng lại không khớp, và MỌI tệp tuần của cơ sở dùng mã kiểu ấy đều bị chối ngay dòng
+		   đầu. Anh Thắng gặp đúng lúc nạp thật (18/09/2026).
+		   ⚠️ Đừng quay lại lối một dấu ngăn: dấu nào cũng có ngày lọt vào mã NV. */
+		return $ma . '~' . $ht . '~' . $ky;
 	}
 
 	/** Đọc ngược một khoá dòng. null = hỏng, hoặc không thuộc tuần / cơ sở này. */
 	public static function doc_khoa( $khoa, $coso, $tu_ngay ) {
 		$p = explode( '~', trim( (string) $khoa ) );
-		if ( 2 !== count( $p ) ) { return null; }
+		if ( 3 !== count( $p ) ) { return null; }
 		$ma = strtoupper( trim( $p[0] ) );
-		$ht = '';
-		if ( false !== strpos( $ma, '-' ) ) {
-			$c  = explode( '-', $ma, 2 );
-			$ma = $c[0];
-			$ht = $c[1];
-		}
+		$ht = trim( $p[1] );
 		if ( '' === $ma ) { return null; }
 		/* So bằng `hash_equals` — so bằng `===` trên chuỗi băm là hở kênh phụ về thời gian.
 		   Ở đây gần như vô hại, nhưng viết đúng một lần thì không phải nhớ chỗ nào hại chỗ nào. */
@@ -510,9 +511,11 @@ class VHCC_TuanCong {
 		$hang = array( self::cot( $t2 ) );
 		foreach ( $theo_nguoi as $n ) {
 			$dong = array(
-				/* 🔴 Mã NV LUÔN là chữ. `0029` để Excel tự đoán là thành số 29 — xem `VHCC_Xuat::o()`. */
-				VHCC_Xuat::chu( $n['ma'] . ( '' !== $n['ht'] ? ( '-' . $n['ht'] ) : '' ) ),
-				VHCC_Xuat::chu( $n['ten'] ),
+				/* 🔴 Mã NV LUÔN là chữ. `0029` để Excel tự đoán là thành số 29 — xem `VHCC_Xuat::o()`.
+				   Kiểu GIUA_DOC vì ô ngày bên cạnh cao hai dòng. */
+				VHCC_Xuat::o_kieu( VHCC_Xuat::chu( $n['ma']
+					. ( '' !== $n['ht'] ? ( '-' . $n['ht'] ) : '' ) ), VHCC_Xuat::GIUA_DOC ),
+				VHCC_Xuat::o_kieu( VHCC_Xuat::chu( $n['ten'] ), VHCC_Xuat::GIUA_DOC ),
 			);
 			$tong = 0.0;
 			foreach ( $bay as $ng ) {
@@ -522,18 +525,20 @@ class VHCC_TuanCong {
 					VHCC_Xuat::HAI_HANG );
 				if ( $r && null !== $r['gio'] ) { $tong += (float) $r['gio']; }
 			}
-			$dong[] = ( $tong > 0 ? round( $tong, 2 ) : '' );
-			$dong[] = '';
+			$dong[] = VHCC_Xuat::o_kieu( ( $tong > 0 ? round( $tong, 2 ) : '' ), VHCC_Xuat::GIUA_DOC );
+			$dong[] = VHCC_Xuat::o_kieu( '', VHCC_Xuat::GIUA_DOC );
 			/* Khoá gắn với NGƯỜI + TUẦN + CƠ SỞ. Ngày thì đọc từ dòng tiêu đề, nên một khoá cho
 			   cả dòng là đủ — và ngắn hơn hẳn chín cái khoá của bản dọc. */
-			$dong[] = VHCC_Xuat::chu( self::khoa_dong( $cs, $t2, '', $n['ma'], $n['ht'] ) );
+			$dong[] = VHCC_Xuat::o_kieu(
+				VHCC_Xuat::chu( self::khoa_dong( $cs, $t2, '', $n['ma'], $n['ht'] ) ),
+				VHCC_Xuat::GIUA_DOC );
 			$hang[] = $dong;
 		}
 
 		$noi = VHCC_Xuat::xlsx( array( array(
 			'ten'  => 'Tuan',
 			'hang' => $hang,
-			'cot'  => array_merge( array( 18, 26 ), array_fill( 0, 7, 11 ), array( 11, 34, 26 ) ),
+			'cot'  => array_merge( array( 18, 26 ), array_fill( 0, 7, 13 ), array( 11, 34, 26 ) ),
 		) ) );
 		if ( null === $noi ) {
 			return array( 'ok' => false, 'error' => 'Không dựng được tệp .xlsx trên máy chủ này.' );
