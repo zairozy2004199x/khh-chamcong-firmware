@@ -231,8 +231,19 @@ t( '   và nói đúng câu cũ: mở lại thì mới đụng được',
 VHCP_DuAn::delete( $maD );
 
 /* ── Màn hình của bảng dự án ───────────────────────────────────────────────────────────── */
-t( '🔴 đầu bảng DỰ ÁN có cột "Ngày nhập"',
-	false !== mb_strpos( $HTML, '<th>Nội dung</th><th title="Lúc dòng này được nhập vào' ) );
+/* ⚠️ NEO VÀO `id="daLineTable"`, không neo vào "cột đầu là Nội dung". Anh Thắng 18/09/2026 đổi
+   thứ tự cột (*"Cho cột ngày ra ngoài"*) và ba bài kiểm đỏ vì không tìm thấy bảng — chứ không
+   phải vì có lỗi. Thứ tự cột là chuyện sẽ còn đổi; cái bảng thì không. */
+$_da = mb_strpos( $HTML, 'id="daLineTable"' );
+$_dau = false === $_da ? '' : mb_substr( $HTML, $_da, 1400 );
+t( '🔴 bảng DỰ ÁN có mã id để neo', false !== $_da );
+t( '🔴 đầu bảng DỰ ÁN có cột "Ngày nhập"', false !== mb_strpos( $_dau, '>Ngày nhập</th>' ) );
+/* 🔴 VÀ NÓ ĐỨNG CỘT ĐẦU — đúng lời anh Thắng, và khớp bảng đơn tuần (ở đó cột ngày cũng đứng
+   trước Nội dung). Kẹp giữa Nội dung và Loại chi phí thì cột Nội dung bị bóp, tên hàng xuống
+   ba dòng — mà tên hàng mới là thứ người ta dò. */
+t( '🔴 và nó đứng CỘT ĐẦU, trước cả Nội dung',
+	false !== mb_strpos( $_dau, '>Ngày nhập</th>' )
+	&& mb_strpos( $_dau, '>Ngày nhập</th>' ) < mb_strpos( $_dau, '<th>Nội dung</th>' ), $_dau );
 t( '   và mỗi hàng dự án vẽ ô loại chi phí riêng', false !== strpos( $HTML, '+_daOLoaiCp(l)' ) );
 t( '🔴 mục con KHÔNG bày ô chọn (mã đi theo hạng mục lớn — hai mã cho một khoản tiền)',
 	false !== strpos( $HTML, 'if(laCon || !_laKeToan()){' ) );

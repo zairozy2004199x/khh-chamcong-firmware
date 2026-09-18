@@ -206,8 +206,7 @@ t('   hàng hạng mục lớn có chỗ mở ô nhập ngay dưới', HTML.inde
    Gõ cứng thì thêm cột là phép đỏ vì con số hết hạn, rồi người sửa chỉ đổi số mà không ai soi
    xem hàng ô nhập còn trải hết bảng không. Đếm thì nó bắt đúng cái nó sinh ra để bắt. */
 {
-  const _b = HTML.slice(HTML.indexOf('id="daLineTable"') >= 0
-    ? HTML.indexOf('id="daLineTable"') : HTML.indexOf('<th>Nội dung</th><th title="Lúc dòng này'));
+  const _b = HTML.slice(HTML.indexOf('id="daLineTable"'));
   const _dau = _b.slice(0, _b.indexOf('</thead>'));
   const _so = (_dau.match(/<th[ >]/g) || []).length;
   const _khai = (HTML.match(/hmDongForm\(_hmKeyDA\(p\.row\), (\d+)\)/) || [])[1];
@@ -401,7 +400,7 @@ t('   và mở sửa một dòng thì gọi khoá', /_daKhoaDuToanO\(l\);/.test(
     DA_CUR: { maDA: 'DA1', lines: [] } });
 
   /* Số ô của HÀNG phải bằng số cột của ĐẦU BẢNG — lệch một ô là cả bảng trượt cột. */
-  const dau = HTML.slice(HTML.indexOf('<thead><tr><th>Nội dung</th>'));
+  const dau = HTML.slice(HTML.indexOf('id="daLineTable"'));
   const soCot = (dau.slice(0, dau.indexOf('</thead>')).match(/<th[ >]/g) || []).length;
 
   const h = F({ row: 3, noiDung: 'Thợ Phụ', taoLuc: '18/09/2026',

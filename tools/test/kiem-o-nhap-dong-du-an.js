@@ -48,10 +48,10 @@ t('   và mở đúng theo dự án "Chi phí cơ sở (chung)"',
    vào giữa (Ngày nhập · Loại chi phí); canh chuỗi liền nhau thì phép đỏ vì bảng thêm cột, chứ
    không phải vì cột Nội dung mất đi — mà mất cột Nội dung mới là điều nó sinh ra để bắt. */
 {
-  const _d = HTML.slice(HTML.indexOf('<thead><tr><th>Nội dung</th>'));
+  const _d = HTML.slice(HTML.indexOf('id="daLineTable"'));
   const _h = _d.slice(0, _d.indexOf('</thead>'));
-  t('   cột Nội dung của bảng dòng chi vẫn còn', /<tr><th>Nội dung<\/th>/.test(_h), _h.slice(0, 120));
-  t('   và cột Gian vẫn còn', /<th>Gian<\/th>/.test(_h), _h.slice(0, 260));
+  t('   cột Nội dung của bảng dòng chi vẫn còn', /<th>Nội dung<\/th>/.test(_h), _h.slice(0, 200));
+  t('   và cột Gian vẫn còn', /<th>Gian<\/th>/.test(_h), _h.slice(0, 320));
 }
 
 /* ── 2. GIAN LẤY TỪ ĐÂU — CHẠY THẬT ────────────────────────────────────────────────────── */
