@@ -375,8 +375,14 @@ t( 'JS không bày "còn lại" khi công ty chưa đặt trần',
 
 $web = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-web.php' );
 t( 'trang quản trị có khối duyệt đơn nghỉ', false !== strpos( $web, 'the_don_nghi' ) );
-t( 'khối duyệt nằm cạnh khối lệnh đi trễ',
-	strpos( $web, 'self::the_don_nghi(' ) > strpos( $web, 'self::the_lenh_tre(' ) );
+/* 🔴 HAI KHỐI ĐÃ DỜI SANG MÀN "ĐƠN TỪ" — anh Thắng 18/09/2026: *"Chuyển cái này ra 1 tab riêng
+   ( Đơn từ )"*. Nên hỏi ở `class-vhcc-web.php` là hỏi sai tệp từ bản 4.54.0.
+   ⚠️ Ý phép thử giữ NGUYÊN: hai khối phải đứng CẠNH NHAU và đúng thứ tự (đi trễ trước, xin
+      nghỉ sau) — chúng trả lời cùng một câu hỏi, tách nhau ra là người trực phải tìm hai chỗ. */
+$don_tu = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-web-don-tu.php' );
+t( 'khối duyệt nằm cạnh khối lệnh đi trễ, trong màn Đơn từ',
+	strpos( $don_tu, 'VHCC_Web::the_don_nghi(' ) > strpos( $don_tu, 'VHCC_Web::the_lenh_tre(' )
+	&& false !== strpos( $don_tu, 'VHCC_Web::the_lenh_tre(' ), $don_tu );
 foreach ( array( 'duyet_nghi', 'choi_nghi', 'phep_nam' ) as $v ) {
 	t( 'có cửa xử lý ' . $v, false !== strpos( $web, "'" . $v . "'" ), $v );
 }

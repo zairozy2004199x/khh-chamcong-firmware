@@ -3,7 +3,7 @@
  * Plugin Name:       Chấm Công (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Hệ thống chấm công chạy THẲNG trên host: máy chấm công, hàng đợi lệnh, cập nhật firmware và toàn bộ nghiệp vụ đều nằm trên MySQL của chính website. Không Firebase, không Google Sheet.
- * Version:           4.53.0
+ * Version:           4.54.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -34,7 +34,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHCC_VERSION', '4.53.0' );
+define( 'VHCC_VERSION', '4.54.0' );
 define( 'VHCC_FILE', __FILE__ );
 define( 'VHCC_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHCC_URL', plugin_dir_url( __FILE__ ) );
@@ -74,6 +74,8 @@ require_once VHCC_DIR . 'includes/class-vhcc-doc-xlsx.php';
 require_once VHCC_DIR . 'includes/class-vhcc-tuan-cong.php';
 require_once VHCC_DIR . 'includes/class-vhcc-web-don-tuan.php';
 require_once VHCC_DIR . 'includes/class-vhcc-web-lich-su.php';
+require_once VHCC_DIR . 'includes/class-vhcc-web-luong.php';
+require_once VHCC_DIR . 'includes/class-vhcc-web-don-tu.php';
 require_once VHCC_DIR . 'includes/class-vhcc-cty.php';
 require_once VHCC_DIR . 'includes/class-vhcc-nap-cong.php';
 require_once VHCC_DIR . 'includes/class-vhcc-yeucau.php';

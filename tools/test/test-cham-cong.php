@@ -12721,9 +12721,19 @@ vhcc_cham( 'LW_VP', '2026-08-03', 'LW1', '', '08:00:00', '17:00:00' );
 vhcc_cham( 'POSH_HCM', '2026-08-03', 'LW2', '', '08:00:00', '17:00:00' );
 vhcc_cham( 'LW_THO', '2026-08-03', 'LW3', '', '08:00:00', '17:00:00' );
 
-t( '🔴 KHÔNG còn tab "Giờ & Lương" riêng — nó nằm trong Bảng công',
-	! isset( VHCC_Web::man_cua( $U_KT )['luong'] ), VHCC_Web::man_cua( $U_KT ) );
-t( 'Admin cũng không có tab riêng', ! isset( VHCC_Web::man_cua( $U_AD )['luong'] ) );
+/* 🔴 LUẬT NÀY ĐÃ ĐẢO — 18/09/2026, anh Thắng: *"Với chuyển nó ra 1 tab như tính năng, vì sau
+   để bên báo cáo họ lấy dữ liệu lương cho dễ"*. Tab `luong` nay LÀ một màn thật
+   (`VHCC_WebLuong`), có địa chỉ riêng `?man=luong&lcs=…&lth=…` để bên báo cáo trỏ thẳng vào.
+   ⚠️ KHÔNG XOÁ PHÉP THỬ, ĐẢO NÓ. Xoá đi thì lần sau ai lỡ bỏ mất tab cũng không ai biết —
+      mà cái tab này sinh ra chính vì người ngoài cần một đường ổn định tới nó. */
+t( '🔴 CÓ tab "Bảng lương" riêng — bên báo cáo cần một địa chỉ ổn định',
+	isset( VHCC_Web::man_cua( $U_KT )['luong'] ), VHCC_Web::man_cua( $U_KT ) );
+t( 'Admin cũng có tab ấy', isset( VHCC_Web::man_cua( $U_AD )['luong'] ) );
+/* Và `?man=luong` KHÔNG còn bị bí danh cũ nuốt về màn Bảng công. */
+t( '🔴 bí danh cũ `luong -> cham` đã bỏ',
+	false === strpos( file_get_contents( dirname( __DIR__, 2 )
+		. '/wordpress/vhcp-cham-cong/includes/class-vhcc-web.php' ),
+		"if ( 'luong' === \$man ) { \$man = 'cham'; }" ) );
 t( 'và Bảng công vẫn còn', isset( VHCC_Web::man_cua( $U_KT )['cham'] ) );
 
 /* ⚠️ CƠ SỞ CỦA THẺ PHIÊN PHẢI KHỚP CƠ SỞ ĐANG XEM khi thử vai Cửa hàng trưởng — nếu không thì
@@ -17878,8 +17888,14 @@ t( 'chú thích nói rõ là nhờ đơn được duyệt',
 
 /* ---- 5. TRÊN MÀN: khối Lệnh đi trễ của cửa hàng trưởng ---- */
 VHCC_XinTre::nop( $xt_nv, array( 'ngay' => $ng3, 'so_phut' => 20, 'ly_do' => 'xe hỏng' ) );
+/* 🔴 KHỐI NÀY ĐÃ DỜI SANG TAB "ĐƠN TỪ" — anh Thắng 18/09/2026: *"Chuyển cái này ra 1 tab riêng
+   ( Đơn từ )"*. Cùng bốn khối: Lệnh đi trễ · Đơn xin nghỉ · Đơn xin bù giờ · Sửa bảng công
+   tuần bằng Excel. Xem `VHCC_WebDonTu`.
+   ⚠️ Dời cũng vá một lỗ: ở chỗ cũ bốn khối nằm trong chốt `'cong' !== cach_tinh()` (chốt của
+      khối KHAI CA), nên cơ sở tính THEO CÔNG không có cửa nào duyệt đơn. Tab mới không hỏi
+      cách tính công nữa — và phép thử ngay dưới đây canh đúng chuyện ấy. */
 $h_lenh = vhcc_web_nhu2( 'XTCHT', 'Cửa hàng trưởng', $cs_xt,
-	array( 'man' => 'cham', 'ccs' => $cs_xt, 'cth' => $xt_th ) );
+	array( 'man' => 'don_tu', 'lcs' => $cs_xt ) );
 t( 'Cửa hàng trưởng thấy khối Lệnh đi trễ', strpos( $h_lenh, 'id="lenhtre"' ) !== false, $h_lenh );
 t( '🔴 có đơn chờ thì khối MỞ SẴN — đơn gập kín là đơn chờ mãi',
 	preg_match( '/id="lenhtre"><details open>/', $h_lenh ) === 1, $h_lenh );
@@ -17888,6 +17904,16 @@ t( 'hiện lý do người ta xin', strpos( $h_lenh, 'xe hỏng' ) !== false, $h
 t( 'có nút Duyệt', strpos( $h_lenh, 'value="duyet_tre"' ) !== false, $h_lenh );
 t( 'và nút Không duyệt', strpos( $h_lenh, 'value="choi_tre"' ) !== false, $h_lenh );
 t( 'có ô đặt mức trễ ngay tại đó', strpos( $h_lenh, 'name="muc"' ) !== false, $h_lenh );
+/* 🔴 VÀ CƠ SỞ TÍNH THEO CÔNG CŨNG PHẢI CÓ KHỐI ẤY. Đây là cái lỗ chỗ cũ: bốn khối đơn nằm
+   trong chốt của khối Khai ca (`'cong' !== cach_tinh()`), nên cửa hàng trưởng một cơ sở Văn
+   phòng không có cửa nào duyệt đơn đi trễ — mà không dòng nào nói ra. */
+VHCC_Luong::dat_cach_tinh( $U_AD, array( $cs_xt => 'cong' ) );
+$h_lenh_cong = vhcc_web_nhu2( 'XTCHT', 'Cửa hàng trưởng', $cs_xt,
+	array( 'man' => 'don_tu', 'lcs' => $cs_xt ) );
+t( '🔴 cơ sở tính THEO CÔNG vẫn có khối Lệnh đi trễ (lỗ cũ)',
+	strpos( $h_lenh_cong, 'id="lenhtre"' ) !== false, $h_lenh_cong );
+VHCC_Luong::dat_cach_tinh( $U_AD, array( $cs_xt => 'gio' ) );
+
 t( 'và nói rõ đây là cảnh báo, không phải trừ tiền',
 	strpos( $h_lenh, 'không phải máy tự trừ tiền' ) !== false, $h_lenh );
 /* 🔴 SOI THẲNG VÀO KHỐI, KHÔNG SOI QUA CẢ TRANG. Nhân viên bị hàng rào của TẦNG TRÊN chặn từ

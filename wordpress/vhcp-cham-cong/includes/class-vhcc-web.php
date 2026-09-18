@@ -2918,22 +2918,35 @@ class VHCC_Web {
 			 *    trang bị treo).
 			 * ⚠️ Đặt SAU luật sọc, không phải trước — bằng điểm thì luật viết sau thắng.
 			 * ═══════════════════════════════════════════════════════════════════════════════ */
-			. 'table.b tbody tr>td.nh-cong{background:var(--luc-nhat)}'
-			. 'table.b tbody tr:nth-child(even)>td.nh-cong{background:color-mix(in srgb,'
-			. 'var(--luc-nhat) 82%,var(--chu))}'
-			. 'table.b tbody tr>td.nh-tru{background:var(--do-nhat)}'
-			. 'table.b tbody tr:nth-child(even)>td.nh-tru{background:color-mix(in srgb,'
-			. 'var(--do-nhat) 82%,var(--chu))}'
-			. 'table.b tbody tr>td.nh-tong{background:var(--lam-nhat);font-weight:700;'
+			/* 🔴 SỌC BẰNG MỘT LỚP ĐEN RẤT MỎNG, KHÔNG PHẢI BẰNG MỘT MÀU THỨ HAI.
+			   Bản đầu (4.53.0) pha `color-mix(… , var(--chu))` — trộn nền nhạt với màu CHỮ, tức
+			   với gần-đen. Anh Thắng nhìn xong: *"Giao diện chưa đẹp"*, và đúng: cột TOTAL
+			   SALARY thành hai sắc lam/xám-chì so le, trông như bảng bị lỗi in chứ không như
+			   sọc. Pha với đen thì màu vừa TỐI vừa ĐỤC (mất bão hoà), và mỗi cụm đục một kiểu
+			   nên ba cụm không còn ra một bộ.
+			   Nay: nền cụm giữ NGUYÊN một màu cho cả cột — đọc dọc là một dải liền, đúng thứ
+			   mắt cần khi dò một cụm tiền. Sọc hàng chồng lên bằng `linear-gradient` đen 3%:
+			   cùng một lớp cho cả ba cụm nên sọc đều nhau, và 3% thì thấy được mà không đổi
+			   màu cụm. `background-image` không đụng `background-color`, nên cũng hết cảnh
+			   luật này đè luật kia. */
+			. 'table.b tbody tr>td.nh-cong{background-color:var(--luc-nhat)}'
+			. 'table.b tbody tr>td.nh-tru{background-color:var(--do-nhat)}'
+			. 'table.b tbody tr>td.nh-tong{background-color:var(--lam-nhat);font-weight:700;'
 			. 'color:var(--lam-dam)}'
-			. 'table.b tbody tr:nth-child(even)>td.nh-tong{background:color-mix(in srgb,'
-			. 'var(--lam-nhat) 82%,var(--chu))}'
+			. 'table.b tbody tr:nth-child(even)>td.nh-cong,'
+			. 'table.b tbody tr:nth-child(even)>td.nh-tru,'
+			. 'table.b tbody tr:nth-child(even)>td.nh-tong{'
+			. 'background-image:linear-gradient(rgba(0,0,0,.03),rgba(0,0,0,.03))}'
 			/* Rê chuột: cả hàng sáng lên, kể cả mấy ô đang mang màu cụm. */
+			/* Rê chuột: xoá cả lớp sọc (`background-image:none`), không thì hàng chẵn vẫn còn
+			   vệt tối chồng lên màu sáng và hàng đang rê trông bẩn hơn hàng thường. */
 			. 'table.b tbody tr:hover>td.nh-cong,table.b tbody tr:hover>td.nh-tru,'
-			. 'table.b tbody tr:hover>td.nh-tong{background:var(--nen-2)}'
+			. 'table.b tbody tr:hover>td.nh-tong{background-color:var(--nen-2);'
+			. 'background-image:none}'
 			/* Hàng TỔNG đứng trên mọi màu cụm — nó không phải một người. */
 			. 'table.b tbody tr.tong-bl>td.nh-cong,table.b tbody tr.tong-bl>td.nh-tru,'
-			. 'table.b tbody tr.tong-bl>td.nh-tong{background:var(--nen-2)}'
+			. 'table.b tbody tr.tong-bl>td.nh-tong{background-color:var(--nen-2);'
+			. 'background-image:none}'
 			/* Nét dọc mở/đóng ngoặc cho từng cụm, y như khung trong tệp Excel của kế toán. */
 			. 'table.b .nh-cong,table.b .nh-tong{border-left:1px solid var(--vien-dam)}'
 			. 'table.b .nh-tru{border-left:1px solid var(--vien-dam)}'
@@ -3459,7 +3472,11 @@ class VHCC_Web {
 		$ds_man = self::man_cua( $toi );
 		$man    = isset( $_GET['man'] ) ? sanitize_text_field( wp_unslash( $_GET['man'] ) ) : '';
 		if ( 'vp' === $man )    { $man = 'cham'; }
-		if ( 'luong' === $man ) { $man = 'cham'; }
+		/* 🔴 BỎ BÍ DANH `luong -> cham`. Nó có từ hồi khối lương bị gộp vào màn Bảng công; nay
+		   `luong` LÀ một màn thật (`VHCC_WebLuong`), nên để nguyên bí danh là mọi liên kết
+		   `?man=luong` lặng lẽ rơi về màn Bảng công — màn vẫn vẽ ra nên không ai thấy hỏng, chỉ
+		   là không bao giờ tới được tab mới. Em đã mất một lượt chạy phép thử vì đúng dòng này.
+		   ⚠️ `vp -> cham` thì GIỮ: `vp` chưa bao giờ là màn riêng, nó là lối cũ của Bảng công. */
 		if ( ! isset( $ds_man[ $man ] ) ) { $man = self::man_mac_dinh( $ds_man ); }
 
 		self::cot_doc( $man, $ds_man, $ky, $toi );
@@ -3546,6 +3563,18 @@ class VHCC_Web {
 
 		if ( 'lich_su' === $man ) {
 			VHCC_WebLichSu::man( $ky, $toi );
+			self::dong_trang();
+			return;
+		}
+
+		if ( 'luong' === $man ) {
+			VHCC_WebLuong::man( $ky, $toi );
+			self::dong_trang();
+			return;
+		}
+
+		if ( 'don_tu' === $man ) {
+			VHCC_WebDonTu::man( $ky, $toi );
 			self::dong_trang();
 			return;
 		}
@@ -3637,7 +3666,8 @@ class VHCC_Web {
 	/* ⚠️ `mat` đứng CUỐI, cùng lối với `may`: Quản lý mở app ra là để xem bảng công, không phải
 	   để rơi thẳng vào hàng chờ duyệt mẫu. Nhưng vẫn PHẢI có tên ở đây — có phép thử canh mọi
 	   màn khai được đều có mặt, kẻo người chỉ có màn này lại rơi vào nhánh đoán mò ở cuối hàm. */
-	const MAN_UU_TIEN = array( 'nha', 'ho_so', 'cham', 'don_tuan', 'lich_su', 'cong_toi', 'coso', 'cau_hinh', 'du_lieu',
+	const MAN_UU_TIEN = array( 'nha', 'ho_so', 'cham', 'luong', 'don_tu', 'don_tuan', 'lich_su',
+		'cong_toi', 'coso', 'cau_hinh', 'du_lieu',
 		'ns_coso', 'lich', 'may', 'mat' );
 
 	public static function man_mac_dinh( $ds_man ) {
@@ -3792,6 +3822,14 @@ class VHCC_Web {
 		if ( VHCC_Vai::duoc( $toi, VHCC_WebLichSu::QUYEN ) ) {
 			$ds['lich_su'] = 'Lịch sử sửa bảng công';
 		}
+		/* 🔴 BẢNG LƯƠNG RA TAB RIÊNG — anh Thắng 18/09/2026: *"chuyển nó ra 1 tab như tính năng,
+		   vì sau để bên báo cáo họ lấy dữ liệu lương cho dễ"*. Cùng cửa với Bảng công, vì nó
+		   dựng từ chính bảng công ấy; chốt từng cơ sở nằm trong `the_bang_luong_cs()`. */
+		if ( VHCC_Vai::duoc( $toi, VHCC_WebLuong::QUYEN ) ) { $ds['luong'] = 'Bảng lương'; }
+		/* 🔴 ĐƠN TỪ RA TAB RIÊNG — anh Thắng 18/09/2026: *"Chuyển cái này ra 1 tab riêng (Đơn
+		   từ)"*. Hai cửa một tab (xem `VHCC_WebDonTu::duoc_vao()`): hai khối đơn gác `lich_lam`,
+		   hai khối tuần gác `cong_coso`, hỏi mỗi một cửa là nửa kia mất tab. */
+		if ( VHCC_WebDonTu::duoc_vao( $toi ) ) { $ds['don_tu'] = 'Đơn từ'; }
 		if ( VHCC_Vai::duoc( $toi, 'cham_online' ) ) { $ds['lich']     = 'Lịch làm việc'; }
 		if ( VHCC_Vai::duoc( $toi, 'may' ) )        { $ds['may']      = 'Máy & Firmware'; }
 		/* 🔴 KHUÔN MẶT LÀ BẬC QUẢN LÝ / ADMIN (`ngoai_coso`) — anh Thắng 08/09/2026, khi em hỏi
@@ -3818,6 +3856,7 @@ class VHCC_Web {
 		'nha'      => '🏠', 'cong_toi' => '🕐', 'cham'    => '📋', 'ho_so' => '👤',
 		'cau_hinh' => '⚙️', 'du_lieu'  => '🗂️', 'lich'    => '📅', 'may'   => '🖥️',
 		'ns_coso'  => '🏪', 'coso'     => '🏬', 'mat'   => '🙂', 'don_tuan' => '📥', 'lich_su' => '🕘',
+		'luong'    => '💵', 'don_tu'   => '📨',
 	);
 
 	/** Một câu nói màn ấy để làm gì — hiện trên thẻ Truy cập nhanh và dưới tiêu đề màn. */
@@ -3835,6 +3874,9 @@ class VHCC_Web {
 		'mat'      => 'Ảnh thẻ nhân viên và duyệt mẫu khuôn mặt',
 		'don_tuan' => 'Cửa hàng gửi .xlsx sửa bảng công tuần — duyệt là lên bảng công và khoá tuần',
 		'lich_su'  => 'Ai đã động vào giờ công: giờ cũ, giờ mới, ai làm, vì sao',
+		'luong'    => 'Bảng lương một cơ sở một tháng, đúng mẫu nộp kế toán'
+						. ' — xuất .xlsx ngay tại màn',
+		'don_tu'   => 'Đi trễ · xin nghỉ · xin bù giờ · sửa bảng công tuần — chờ ai duyệt',
 	);
 
 	public static function bieu_man( $k )  {
@@ -5097,7 +5139,11 @@ class VHCC_Web {
 			   `VHCC_GiaGio` là chỗ khai ấy. Nhưng đây là khối KHÁC: khối cũ quy tổng công ra
 			   tiền theo engine từng bộ phận, khối này dựng đúng BỐ CỤC FILE KẾ TOÁN từ giờ và
 			   đơn giá — hai thứ khác nhau, nên `the_khoi_luong()` vẫn nằm im chỗ cũ. */
-			self::the_bang_luong_cs( $toi, $mot_cs, $th, $ky );
+			/* 🔴 BẢNG LƯƠNG ĐÃ DỜI SANG TAB "BẢNG LƯƠNG" — anh Thắng 18/09/2026: *"chuyển nó
+			   ra 1 tab như tính năng, vì sau để bên báo cáo họ lấy dữ liệu lương cho dễ"*.
+			   Xem `VHCC_WebLuong`; đường thẳng tới nó là `?man=luong&lcs=…&lth=…`.
+			   ⚠️ CHỈ BỎ LỜI GỌI. `the_bang_luong_cs()` vẫn nguyên (nay `public`), và khối đơn
+			      giá dưới nó cũng vậy — màn mới gọi đúng hàm ấy, không có bản sao thứ hai. */
 			/* 🔴 16/09/2026 — KHỐI "IN BẢNG CHẤM CÔNG" ĐÃ BỎ KHỎI ĐÂY. Anh Thắng: *"trên bảng
 			   công ngày có sẵn rồi, phía dưới xóa luôn"*.
 			   Cùng một tờ in, hai chỗ mời bấm: một ở màn Bảng công ngày, một nữa nằm dưới đáy
@@ -5719,13 +5765,15 @@ class VHCC_Web {
 		   Cửa hàng trưởng chỉ khai được cửa hàng mình — thêm chỗ vẽ, không nới quyền. */
 		if ( 'cong' !== VHCC_Luong::cach_tinh( $cs ) ) {
 			self::the_khai_ca( $cs, $ky, $toi );
-			self::the_lenh_tre( $cs, $ky, $toi );
-			self::the_don_nghi( $cs, $ky, $toi );
-			/* Sửa bảng công tuần bằng .xlsx — anh Thắng 18/09/2026. Đứng cạnh hai khối đơn ở
-			   trên vì cùng một loại việc: thứ cửa hàng gửi đi rồi chờ người khác duyệt. */
-			VHCC_WebDonTuan::khoi_bu_cht( $ky, $toi, $cs );
-			VHCC_WebDonTuan::khoi_cua_hang( $ky, $toi, $cs );
 		}
+		/* 🔴 BỐN KHỐI ĐƠN ĐÃ DỜI SANG TAB "ĐƠN TỪ" — anh Thắng 18/09/2026: *"Chuyển cái này ra
+		   1 tab riêng ( Đơn từ )"* (Lệnh đi trễ · Đơn xin nghỉ · Đơn xin bù giờ · Sửa bảng công
+		   tuần bằng Excel). Xem `VHCC_WebDonTu`.
+		   ⚠️ DỜI CŨNG VÁ LUÔN MỘT LỖ. Ở chỗ cũ cả bốn nằm TRONG chốt `'cong' !== cach_tinh()`
+		      — chốt ấy sinh ra cho khối KHAI CA, rồi bốn khối đơn mọc dần vào trong nó. Nên cửa
+		      hàng trưởng của một cơ sở tính THEO CÔNG không có cửa nào duyệt đơn, mà không dòng
+		      nào nói ra. Tab mới không hỏi cách tính công nữa. */
+		self::nhac_tab_moi( $cs, $th );
 	}
 
 	/**
@@ -7238,7 +7286,8 @@ class VHCC_Web {
 	 * 🔴 KHỐI TỰ MỞ KHI CÓ ĐƠN CHỜ. Đơn nghỉ chờ trong một khối gập kín thì nó chờ tới đúng ngày
 	 *    người ta định nghỉ — và lúc đó thì duyệt hay không cũng đã muộn.
 	 */
-	private static function the_don_nghi( $cs, $ky, $toi ) {
+	/* `public` vì màn Đơn từ gọi từ ngoài — chốt bên trong hàm giữ nguyên. */
+	public static function the_don_nghi( $cs, $ky, $toi ) {
 		if ( ! VHCC_Vai::duoc( $toi, 'lich_lam' ) ) { return; }
 		if ( '' === $cs || ! VHCC_NhanSu::co_quyen_coso( $toi, $cs ) ) { return; }
 		if ( ! class_exists( 'VHCC_XinNghi' ) || ! method_exists( 'VHCC_XinNghi', 'cho_duyet' ) ) { return; }
@@ -7312,7 +7361,8 @@ class VHCC_Web {
 		echo '</tbody></table></div></details></div>';
 	}
 
-	private static function the_lenh_tre( $cs, $ky, $toi ) {
+	/* `public` vì màn Đơn từ gọi từ ngoài — chốt bên trong hàm giữ nguyên. */
+	public static function the_lenh_tre( $cs, $ky, $toi ) {
 		if ( ! VHCC_Vai::duoc( $toi, 'lich_lam' ) ) { return; }
 		if ( '' === $cs || ! VHCC_NhanSu::co_quyen_coso( $toi, $cs ) ) { return; }
 		if ( ! class_exists( 'VHCC_XinTre' ) || ! method_exists( 'VHCC_XinTre', 'cho_duyet' ) ) { return; }
@@ -7390,6 +7440,30 @@ class VHCC_Web {
 	 * một dòng script, và một cái nút "＋ Thêm ca" chạy bằng script thì bộ thử PHP không với tới.
 	 * Muốn thêm ca thứ ba trở lên thì lưu một lượt rồi hai dòng trống mới lại hiện ra.
 	 */
+
+	/**
+	 * HAI DÒNG CHỈ ĐƯỜNG SANG TAB MỚI — Bảng lương và Đơn từ.
+	 *
+	 * 🔴 DỜI VIỆC THÌ PHẢI NÓI RA, ĐÚNG CHỖ NGƯỜI TA ĐANG ĐỨNG TÌM. Hai khối ấy nằm dưới đuôi
+	 * màn này đã mấy tuần; bỏ đi im lặng thì người mở màn quen tay sẽ cuộn xuống, không thấy,
+	 * rồi kết luận là hệ hỏng — và họ không có cách nào biết nó đã sang đâu.
+	 *
+	 * ⚠️ MỘT DÒNG, KHÔNG PHẢI MỘT KHỐI. Đây là lời nhắc trong lúc chuyển, không phải một tính
+	 *    năng: nó không được chiếm chỗ bằng thứ nó thay thế. Mang sẵn `lcs`/`lth` nên bấm sang
+	 *    là đúng cơ sở, đúng tháng đang xem — sang tới nơi mà phải chọn lại thì thà không có.
+	 */
+	private static function nhac_tab_moi( $cs, $th ) {
+		if ( '' === $cs ) { return; }
+		$u = function ( $man ) use ( $cs, $th ) {
+			return esc_url( add_query_arg(
+				array( 'man' => $man, 'lcs' => $cs, 'lth' => $th ), self::url() ) );
+		};
+		echo '<div class="the"><p class="mo" style="margin:0">💵 <a href="' . $u( 'luong' )
+			. '"><b>Bảng lương</b></a> và 📨 <a href="' . $u( 'don_tu' ) . '"><b>Đơn từ</b></a> '
+			. '(đi trễ · xin nghỉ · xin bù giờ · sửa bảng công tuần) nay là <b>hai tab riêng</b> '
+			. 'ở cột bên trái — bấm là sang đúng cơ sở, đúng tháng đang xem.</p></div>';
+	}
+
 	private static function the_khai_ca( $cs, $ky, $toi ) {
 		if ( ! VHCC_Vai::duoc( $toi, 'lich_lam' ) ) { return; }
 		/* 🔴 CHỐT CƠ SỞ NGAY TẠI KHỐI VẼ. Khối này nay còn được vẽ trên màn Bảng công (xem
@@ -9436,7 +9510,10 @@ class VHCC_Web {
 		echo '</details></div>';
 	}
 
-	private static function the_bang_luong_cs( $toi, $cs, $th, $ky = '' ) {
+	/* 🔴 `public` VÌ MÀN BẢNG LƯƠNG GỌI TỪ NGOÀI (`VHCC_WebLuong`). Anh Thắng 18/09/2026:
+	   *"chuyển nó ra 1 tab như tính năng, vì sau để bên báo cáo họ lấy dữ liệu lương cho dễ"*.
+	   Chỉ đổi tầm nhìn, KHÔNG nới quyền: ba chốt ngay dòng đầu hàm vẫn nguyên. */
+	public static function the_bang_luong_cs( $toi, $cs, $th, $ky = '' ) {
 		if ( '' === $cs ) { return; }
 		if ( ! VHCC_Vai::duoc( $toi, 'cong_coso' ) ) { return; }
 		if ( ! VHCC_NhanSu::co_quyen_coso( $toi, $cs ) ) { return; }
