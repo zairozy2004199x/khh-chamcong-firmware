@@ -939,9 +939,15 @@
           doi.push(mat ? { i, name: r.name, nsTen: k, mat: true } : { i, name: r.name, nsTen: k, chuaGia: true });
           return;
         }
-        if (num(r.reported) !== 0 || num(r.actual) !== 0) {
+        /* 🔴 VỀ 0 THÌ VỀ CẢ BỐN CỘT. Bản trước chỉ xoá `reported` và `actual`, còn `report`
+           (Báo cáo) và `dntt` giữ nguyên số kỳ trước — ra một dòng "Theo báo cáo 0 · Báo cáo
+           111.649.262 · Thực lĩnh 0", nhìn vào không biết con nào thật. Anh Thắng 18/09/2026:
+           *"nó như này chả biết dữ liệu nào thật, dữ liệu nào giả"*. Nửa vời còn tệ hơn để yên. */
+        if (num(r.reported) || num(r.report) || num(r.dntt) || num(r.actual)) {
           doi.push({ i, name: r.name, nsTen: k, cu: num(r.reported), moi: 0, veKhong: true });
           r.reported = 0;
+          r.report = 0;
+          r.dntt = 0;
           r.actual = 0;
         }
         return;

@@ -4,7 +4,7 @@ Tags: chi phí, phân bổ, báo cáo, MISA, kế toán
 Requires at least: 5.6
 Tested up to: 6.8
 Requires PHP: 7.2
-Stable tag: 1.24.0
+Stable tag: 1.25.0
 License: GPLv2 or later
 
 Phân bổ chi phí Máy tự động / Khu vui chơi ra "File tổng báo cáo" và phân bổ theo điểm để hạch toán MISA.
@@ -35,6 +35,17 @@ Nhân viên nhập khoản chi phí, kế toán duyệt, web tự tính.
 4. Nhập Excel kỳ đầu (hoặc ⋯ → Nạp dữ liệu mẫu) rồi bắt đầu.
 
 == Changelog ==
+
+= 1.25.0 =
+* 🔴 **Nhìn là biết số nào của kỳ này, số nào còn sót từ kỳ trước** (anh Thắng: *"nó như này chả
+  biết dữ liệu nào thật, dữ liệu nào giả"*). Mỗi dòng có nhãn cạnh tên: **kỳ này** (xanh) hoặc
+  **⚠ 2026-08** (đỏ). Áp dụng cho cả bảng Điểm bán và Mục III.
+* 🔴 **Đưa về 0 thì về CẢ BỐN CỘT.** Bản 1.24.0 chỉ xoá "Theo báo cáo" và "Thực lĩnh", còn
+  "Báo cáo" và "DNTT" giữ nguyên số kỳ trước — ra một dòng *Theo báo cáo 0 · Báo cáo 111.649.262 ·
+  Thực lĩnh 0*, nửa vời còn khó đọc hơn để yên.
+* Tổng quan có dòng **SỐ KỲ TRƯỚC**: bao nhiêu dòng, tên vài dòng đầu, và nút **Đưa về 0** — chỉ
+  xoá số, giữ nguyên tên, mã đơn vị, bộ phận và liên kết với nguồn (có Hoàn tác).
+* Gõ tay một con số cũng **đóng dấu kỳ** cho dòng ấy, nên lần lấy sau không xoá mất số vừa gõ.
 
 = 1.24.0 =
 * 🔴 **Sang kỳ mới mà nguồn chưa có số liệu thì ĐƯA VỀ 0** (anh Thắng: *"Nguyên tắc, sang tháng mới
