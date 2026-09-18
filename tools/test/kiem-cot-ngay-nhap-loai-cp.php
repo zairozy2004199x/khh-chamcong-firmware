@@ -283,6 +283,43 @@ teq( '🔴 chỉ MỘT cột không co lại — và đó là cột Nội dung',
 	array( 'Nội dung' ), $_khong_width );
 t( '   cột Nội dung vẫn giữ `min-width` để bảng hẹp thì nó là cột được ưu tiên giữ chỗ',
 	1 === preg_match( '/<th style="min-width:\d+px">Nội dung<\/th>/u', $_dau ), $_dau );
+/* ═══ 🔴 MỌI `colspan` CỦA BẢNG DỰ ÁN PHẢI BẰNG ĐÚNG SỐ CỘT ═══════════════════════════
+ * Anh Thắng 18/09/2026: *"gọn nhỏ lại, để cho nội dung dài ra"* — mấy cột phải vẫn rộng dù đã
+ * `width:1%`.
+ *
+ * Thủ phạm là DÒNG NHÓM: nó còn `colspan="12"` + một ô tổng riêng (cộng lại 13) từ hồi bảng có
+ * 13 cột, trong khi bảng nay 15. Ô `colspan` có sức ghì cột y như ô thường, và ô tổng ấy mang
+ * `nowrap` nên ghì MỘT cột rộng bằng cả câu "dự toán 53.820.000đ · thực tế 1.590.000đ".
+ *
+ * ⚠️ KHÔNG BÀI NÀO BẮT ĐƯỢC CHUYỆN ẤY. Mấy phép cũ chỉ canh từng `colspan` rời (hàng ô nhập,
+ *    hàng phát sinh) — thêm cột vào bảng thì mấy chỗ KHÁC lặng lẽ lệch. Phép dưới đây quét
+ *    TOÀN BỘ `colspan` trong vùng dựng bảng và so với số cột đọc từ chính đầu bảng, nên lần sau
+ *    thêm cột mà quên chỗ nào là nó chỉ tận nơi.
+ * ─────────────────────────────────────────────────────────────────────────────────────── */
+/* Vùng dựng bảng = từ hàm vẽ một dòng (`daLineCells`) tới chỗ gán vào `daLineBody`. Neo bằng
+   tên hàm có thật, đừng đoán — bản đầu neo vào `renderDaLines(` (hàm KHÔNG tồn tại, bảng nằm
+   trong `renderDuAnDetail`), nên vùng rỗng và phép "mọi colspan đúng" XANH OAN. */
+$_r0 = mb_strpos( $HTML, 'function daLineCells(' );
+$_r1 = false === $_r0 ? false : mb_strpos( $HTML, "el('daLineBody').innerHTML=", $_r0 );
+/* +400 để ôm luôn chính dòng gán (nó cũng có một `colspan`). */
+$_vung = ( false === $_r0 || false === $_r1 ) ? '' : mb_substr( $HTML, $_r0, $_r1 - $_r0 + 400 );
+t( 'đọc được vùng dựng bảng dự án', '' !== $_vung );
+$_so_cot = count( $_ths );
+$_lech = array();
+/* ⚠️ CHỈ QUÉT `colspan` THẬT SỰ ĐEM IN RA (`<td colspan=`). Quét chữ trần thì nó khớp luôn
+   chính dòng chú thích kể lại lỗi cũ — phép đỏ vì một câu văn, chứ không phải vì markup. */
+if ( preg_match_all( '/<td colspan="(\d+)"/u', $_vung, $_cm ) ) {
+	foreach ( $_cm[1] as $_c ) { if ( (int) $_c !== $_so_cot ) { $_lech[] = (int) $_c; } }
+}
+t( '🔴 mọi `colspan` trong bảng dự án bằng đúng số cột (' . $_so_cot . ')',
+	empty( $_lech ), $_lech );
+t( '   và có ít nhất một `colspan` để phép trên không xanh vì vùng rỗng',
+	! empty( $_cm[1] ), $_vung ? mb_substr( $_vung, 0, 80 ) : '' );
+/* 🔴 DÒNG NHÓM PHẢI LÀ MỘT Ô TRẢI HẾT BẢNG, không phải "một ô dài + một ô tổng". Tách hai ô là
+   ô tổng ghì riêng một cột rộng bằng cả câu — đúng lỗi vừa sửa. */
+t( '🔴 dòng nhóm gộp làm MỘT ô, nhãn và tổng xếp bằng flex bên trong',
+	false !== mb_strpos( $_vung, 'display:flex;gap:12px;align-items:baseline' ) );
+
 /* Mấy ô ngắn phải `nowrap`, không thì "Có VAT" xuống hai dòng và cột vẫn không hẹp đi được. */
 t( '🔴 ô VAT và Hình thức chi không cho xuống dòng',
 	false !== mb_strpos( $HTML, "white-space:nowrap\">'+htB+'</td>" )

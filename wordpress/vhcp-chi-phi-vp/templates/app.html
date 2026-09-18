@@ -5710,8 +5710,25 @@
       .forEach(function(g){
         var k=g[0];
         if(!nhomHt[k].length && !psHt[k].length) return;
-        html+='<tr><td colspan="12" style="background:'+g[2]+';color:'+g[3]+';font-weight:800;padding:7px 10px">'+g[1]+'</td>'
-          +'<td style="background:'+g[2]+';color:'+g[3]+';font-weight:800;text-align:right;padding:7px 10px;white-space:nowrap">'+tongNhomChu(tongNhom(nhomHt[k],psHt[k]))+'</td></tr>';
+        /* ══════════════════════════════════════════════════════════════════════════════════
+           DÒNG NHÓM LÀ **MỘT Ô** TRẢI HẾT BẢNG, KHÔNG PHẢI HAI Ô.
+
+           Anh Thắng 18/09/2026: *"gọn nhỏ lại, để cho nội dung dài ra"* — mấy cột phải (Ảnh ·
+           Hồ sơ · Ghi chú) vẫn rộng dù đã `width:1%`.
+
+           🔴 THỦ PHẠM LÀ DÒNG NÀY. Nó vốn là `colspan="12"` + một ô tổng riêng — cộng lại 13,
+              trong khi bảng nay 15 cột (lệch từ lúc thêm Ngày nhập · Loại chi phí). Tệ hơn: ô
+              tổng ấy mang `nowrap`, nên MỘT cột bị ghì rộng bằng cả câu "dự toán 53.820.000đ ·
+              thực tế 1.590.000đ". Ô `colspan` có sức ghì cột y như ô thường — `width:1%` ở đầu
+              bảng không cứu được.
+           ⚠️ GỘP LÀM MỘT Ô rồi xếp bằng flex: sức ghì chia đều cho 15 cột nên gần như bằng 0,
+              mà nhãn trái / tổng phải vẫn nằm đúng chỗ cũ.
+           ══════════════════════════════════════════════════════════════════════════════════ */
+        html+='<tr><td colspan="15" style="background:'+g[2]+';color:'+g[3]+';font-weight:800;padding:7px 10px">'
+          +'<div style="display:flex;gap:12px;align-items:baseline">'
+          +'<span>'+g[1]+'</span><span style="flex:1"></span>'
+          +'<span style="white-space:nowrap">'+tongNhomChu(tongNhom(nhomHt[k],psHt[k]))+'</span>'
+          +'</div></td></tr>';
         html+=veNhom(nhomHt[k])+vePhatSinh(psHt[k]);
       });
     } else {
@@ -5722,8 +5739,11 @@
       var _tg=tongNhom(parents, phatSinh);
       html=veNhom(parents)+vePhatSinh(phatSinh);
       if(html){
-        html+='<tr><td colspan="12" style="background:#f4f1ec;font-weight:800;padding:7px 10px">TỔNG</td>'
-          +'<td style="background:#f4f1ec;font-weight:800;text-align:right;padding:7px 10px;white-space:nowrap">'+tongNhomChu(_tg)+'</td></tr>';
+        /* Cùng lý do với dòng nhóm ở trên: một ô trải hết bảng, xếp bằng flex. */
+        html+='<tr><td colspan="15" style="background:#f4f1ec;font-weight:800;padding:7px 10px">'
+          +'<div style="display:flex;gap:12px;align-items:baseline"><span>TỔNG</span>'
+          +'<span style="flex:1"></span>'
+          +'<span style="white-space:nowrap">'+tongNhomChu(_tg)+'</span></div></td></tr>';
       }
     }
     el('daLineBody').innerHTML=html||'<tr><td colspan="15" style="text-align:center;color:#8c8781;padding:12px">Chưa có dòng chi phí — thêm ở trên.</td></tr>';
