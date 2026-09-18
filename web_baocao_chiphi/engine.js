@@ -561,6 +561,41 @@
     return ra;
   }
 
+  /* ═══════════════════════════════════════════════════════════════════════════════════════════
+   * LIÊN KẾT SỐNG VỚI DOANH THU FABi — anh Thắng 18/09/2026: *"thay vì đẩy thì nó vậy tự link và
+   * lấy dữ liệu realtime qua"*.
+   *
+   * Khác hẳn `ghepFabi` ở một điểm sống còn: đường TỰ ĐỘNG **chỉ đi theo liên kết người đã chốt**
+   * (`site.fabiTen`), TUYỆT ĐỐI không đoán tên. Đoán thì phải có người nhìn; chạy ngầm mà đoán là
+   * một ngày nào đó doanh thu tự nhảy vào nhầm điểm, không ai bấm gì, không ai biết gì.
+   *
+   * Muốn thêm liên kết mới thì vẫn qua nút "Nạp từ Doanh thu FABi" — ở đó có màn xem trước.
+   * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+  function dongBoFabi(state, ds) {
+    const sites = state.sites || [];
+    const tien = {};
+    (ds || []).forEach((d) => { tien[String(d.cua_hang || '').trim()] = num(d.thanh_tien); });
+    const doi = [];
+    let daLinh = 0;
+    sites.forEach((s, i) => {
+      const k = (s.fabiTen || '').trim();
+      if (!k) return;
+      daLinh++;
+      if (!Object.prototype.hasOwnProperty.call(tien, k)) {
+        /* Cửa hàng biến mất bên FABi (đổi tên, ngừng bán). KHÔNG đưa về 0: số 0 trông y hệt một
+           tháng ế, mà thật ra là mất liên kết. Báo ra để người ta đi nối lại. */
+        doi.push({ i, code: s.code, name: s.name, fabiTen: k, mat: true });
+        return;
+      }
+      const moi = tien[k];
+      if (num(s.revenue) !== moi) {
+        doi.push({ i, code: s.code, name: s.name, fabiTen: k, cu: num(s.revenue), moi });
+        s.revenue = moi;
+      }
+    });
+    return { daLinh, doi, soDoi: doi.filter((x) => !x.mat).length, mat: doi.filter((x) => x.mat) };
+  }
+
   /**
    * Ghi doanh thu đã ghép vào state. Trả về {xong, boQua} — KHÔNG tự gọi, giao diện gọi sau khi
    * người dùng bấm xác nhận.
@@ -782,7 +817,10 @@
       delete o.kvc;
       return o;
     });
-    st.options = Object.assign({ includePending: false }, st.options || {});
+    /* `fabiTuDong` — bật thì doanh thu của các điểm ĐÃ LIÊN KẾT tự lấy từ Doanh thu FABi mỗi lần
+       mở kỳ, khỏi bấm. Mặc định TẮT: bật sẵn cho mọi site là tự ý đổi cách một cái app đang chạy
+       lấy số, mà người dùng không hề yêu cầu. */
+    st.options = Object.assign({ includePending: false, fabiTuDong: false }, st.options || {});
     /* ═════════════════════════════════════════════════════════════════════════════════════════
      * `misaPrefix` = phần giữa của SỐ CHỨNG TỪ (`NVK<prefix><ngày><tháng><stt>`).
      *
@@ -855,6 +893,7 @@
     misaRows,
     ghepFabi,
     napFabi,
+    dongBoFabi,
     batDauKyMoi,
     khoaTen,
     tenGonFabi,

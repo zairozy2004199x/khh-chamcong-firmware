@@ -30,6 +30,8 @@
      nháp của một lượt thao tác, để nó sống qua lần tải trang sau là người ta quay lại thấy một
      bảng số cũ của kỳ nào đó rồi bấm Ghi. */
   let fabi = null;
+  /* Lần lấy tự động gần nhất — chỉ để hiện trạng thái, KHÔNG lưu vào state. */
+  let fabiLan = null;
   let saveTimer = null;
 
   function loadJSON(key) {
@@ -266,9 +268,11 @@
           </label>
           <button class="btn small" data-act="addSite">+ Thêm điểm</button>
           <button class="btn small" data-act="togglePaste">Dán nhanh từ Excel</button>
-          <button class="btn small primary" data-act="napFabi" title="Đọc doanh thu kỳ này từ trang Doanh thu FABi (khmatrix.com/doanh-thu-hcm) và điền vào các điểm khớp. Có màn xem trước, không ghi thẳng.">⬇ Nạp từ Doanh thu FABi</button>
+          <button class="btn small ${state.options.fabiTuDong ? 'primary' : ''}" data-act="fabiTuDong" title="Bật thì doanh thu của các điểm ĐÃ LIÊN KẾT tự lấy từ Doanh thu FABi mỗi lần mở kỳ — khỏi bấm. Kỳ đã chốt thì dừng lấy, số đứng yên.">${state.options.fabiTuDong ? '🔗 Tự lấy: BẬT' : '🔗 Tự lấy: tắt'}</button>
+          <button class="btn small primary" data-act="napFabi" title="Đọc doanh thu kỳ này từ Doanh thu FABi và điền vào các điểm khớp. Có màn xem trước — đây là nơi TẠO liên kết mới.">⬇ Nạp / nối thêm điểm</button>
           <button class="btn small danger" data-act="zeroSites" title="Đưa doanh thu tất cả điểm đang lọc về 0">Xoá số doanh thu</button>
         </div>
+        ${fabiTrangThaiHtml()}
         ${fabiBoxHtml()}
         <div id="pasteBox" class="card" style="margin:0 0 10px;background:var(--panel-2)" hidden>
           <p class="hint">Mỗi dòng: <kbd>Mã đơn vị</kbd> <kbd>Tab</kbd> <kbd>Tên điểm</kbd> <kbd>Tab</kbd> <kbd>Doanh thu</kbd> (tuỳ chọn thêm <kbd>Tab</kbd> <kbd>Bộ phận</kbd>). Điểm trùng mã sẽ được cập nhật doanh thu.</p>
@@ -279,7 +283,7 @@
           </div>
         </div>
         <div class="table-wrap tall"><table class="grid-table dense">
-          <thead><tr><th>#</th><th>Bộ phận</th><th>Mã đơn vị</th><th>Tên điểm</th><th class="num">Doanh thu</th><th class="num">Tỷ trọng trong BP</th><th title="Cơ sở nghỉ / đóng cửa: VẪN ghi doanh thu, nhưng không nhận chi phí phân bổ. Phần chi phí đó chia lại cho các cơ sở còn lại — tổng chi phí bộ phận không đổi.">Không nhận<br>chi phí</th><th></th></tr></thead>
+          <thead><tr><th>#</th><th>Bộ phận</th><th>Mã đơn vị</th><th>Tên điểm</th><th class="num">Doanh thu</th><th title="Số này lấy từ đâu: liên kết sống với Doanh thu FABi, hay gõ tay.">Nguồn</th><th class="num">Tỷ trọng trong BP</th><th title="Cơ sở nghỉ / đóng cửa: VẪN ghi doanh thu, nhưng không nhận chi phí phân bổ. Phần chi phí đó chia lại cho các cơ sở còn lại — tổng chi phí bộ phận không đổi.">Không nhận<br>chi phí</th><th></th></tr></thead>
           <tbody>${
             sites.length
               ? sites
@@ -290,16 +294,19 @@
                       <td>${sel(`sites.${i}.dept`, s.dept, deptOptions())}</td>
                       <td>${inp(`sites.${i}.code`, s.code, 'text', 'code')}</td>
                       <td>${inp(`sites.${i}.name`, s.name, 'text', 'xwide')}</td>
-                      <td>${inp(`sites.${i}.revenue`, s.revenue, 'num')}</td>
+                      <td>${inp(`sites.${i}.revenue`, s.revenue, 'num', '', (state.options.fabiTuDong && (s.fabiTen || '').trim() && !sync.locked) ? 'readonly title="Số này tự lấy từ Doanh thu FABi. Muốn gõ tay thì tắt Tự lấy, hoặc gỡ liên kết ở cột Nguồn."' : '')}</td>
+                      <td class="muted" style="font-size:11px">${(s.fabiTen || '').trim()
+                        ? `<span title="Đang lấy từ cửa hàng FABi: ${esc(s.fabiTen)}">🔗 FABi</span> <button class="btn small ghost" data-act="goLienKet" data-arg="${i}" title="Gỡ liên kết — điểm này quay lại gõ tay">✕</button>`
+                        : '<span title="Chưa nối với cửa hàng nào bên FABi — gõ tay">tay</span>'}</td>
                       <td class="num muted">${rev > 0 ? pct(E.num(s.revenue) / rev) : '—'}</td>
                       <td class="num" title="Cơ sở nghỉ / đóng cửa: vẫn ghi doanh thu, không nhận chi phí.">${chk(`sites.${i}.khongChiPhi`, s.khongChiPhi)}</td>
                       ${actBtns([{ act: 'delSite', arg: i, icon: '🗑', title: 'Xoá điểm', cls: 'danger' }])}
                     </tr>`;
                   })
                   .join('')
-              : `<tr><td colspan="8" class="empty">Chưa có điểm nào. Nhập Excel, dán nhanh, hoặc thêm từng điểm.</td></tr>`
+              : `<tr><td colspan="9" class="empty">Chưa có điểm nào. Nhập Excel, dán nhanh, hoặc thêm từng điểm.</td></tr>`
           }
-          ${sites.length ? `<tr class="total"><td colspan="4">Cộng (${sites.length} điểm)${(() => { const n = sites.filter((x) => x.s.khongChiPhi).length; return n ? ` · <span class="muted">${n} điểm không nhận chi phí</span>` : ''; })()}</td>${tdn(sites.reduce((a, x) => a + E.num(x.s.revenue), 0))}<td></td><td></td><td></td></tr>` : ''}
+          ${sites.length ? `<tr class="total"><td colspan="4">Cộng (${sites.length} điểm)${(() => { const n = sites.filter((x) => x.s.khongChiPhi).length; return n ? ` · <span class="muted">${n} điểm không nhận chi phí</span>` : ''; })()}</td>${tdn(sites.reduce((a, x) => a + E.num(x.s.revenue), 0))}<td></td><td></td><td></td><td></td></tr>` : ''}
           </tbody>
         </table></div>
       </div>`;
@@ -755,6 +762,37 @@
     </div>`;
   }
 
+  /* Dòng trạng thái liên kết: đang nối bao nhiêu điểm, lấy lúc nào, có điểm nào đứt liên kết
+     không. Không có dòng này thì "tự lấy" là một cái hộp đen — số tự đổi mà không ai biết vì sao. */
+  function fabiTrangThaiHtml() {
+    const linh = (state.sites || []).filter((s) => (s.fabiTen || '').trim()).length;
+    if (!state.options.fabiTuDong && !linh) return '';
+    const mat = (fabiLan && fabiLan.mat) || [];
+    const chot = sync.locked;
+    return `<div class="issue ${mat.length ? 'warn' : 'info'}" style="margin:0 0 10px">
+      <span class="lv">${state.options.fabiTuDong ? '🔗 TỰ LẤY' : 'LIÊN KẾT'}</span>
+      <span>${linh} điểm đang nối với Doanh thu FABi.
+      ${!state.options.fabiTuDong ? 'Đang <strong>tắt</strong> tự lấy — số giữ nguyên như đã ghi.'
+        : chot ? `Kỳ <strong>đã chốt</strong> nên dừng lấy, số đứng yên.`
+        : (fabiLan && fabiLan.luc) ? `Lấy lần cuối lúc ${esc(fabiLan.luc)}${fabiLan.soDoi ? ` · đổi ${fabiLan.soDoi} điểm` : ' · không có gì đổi'}.` : 'Sẽ tự lấy khi mở kỳ.'}
+      ${mat.length ? `<br><strong>⚠ ${mat.length} điểm mất liên kết</strong> (cửa hàng không còn bên FABi): ${esc(mat.map((x) => x.code || x.name).join(', '))} — số cũ được giữ nguyên, vào cột Nguồn gỡ liên kết rồi nối lại.` : ''}
+      </span></div>`;
+  }
+
+  async function fabiLayNgay(im) {
+    if (!state.options.fabiTuDong || !API.isEnabled() || sync.locked) return;
+    if (!(state.sites || []).some((s) => (s.fabiTen || '').trim())) return;
+    try {
+      const r = await API.call('fabiDoanhThu', { thang: state.period.month, nam: state.period.year });
+      const d = r && r.data ? r.data : r;
+      if (!d || d.ok === false || !d.ds) return;
+      const kq = E.dongBoFabi(state, d.ds);
+      fabiLan = { luc: new Date().toLocaleTimeString('vi-VN'), soDoi: kq.soDoi, mat: kq.mat };
+      if (kq.soDoi) { commit(); if (!im) toast(`🔗 Doanh thu FABi: cập nhật ${kq.soDoi} điểm.`); }
+      else { recompute(); renderTab(); }
+    } catch (e) { /* mạng hỏng thì thôi, số cũ vẫn còn — lần mở sau lấy lại */ }
+  }
+
   async function napTuFabi() {
     if (!API.isEnabled()) return toast('Chức năng này cần đăng nhập vào máy chủ (bản chạy trên WordPress).');
     fabi = { dangTai: true };
@@ -1089,13 +1127,30 @@
       renderTab();
     },
     napFabi() { napTuFabi(); },
+    fabiTuDong() {
+      state.options.fabiTuDong = !state.options.fabiTuDong;
+      commit();
+      if (state.options.fabiTuDong) { toast('Đã bật tự lấy doanh thu từ FABi.'); fabiLayNgay(); }
+      else { toast('Đã tắt tự lấy — doanh thu giữ nguyên, gõ tay được.'); }
+    },
+    goLienKet(i) {
+      const s = state.sites[Number(i)];
+      if (!s || !confirm(`Gỡ liên kết của "${s.name || s.code}" với cửa hàng FABi "${s.fabiTen}"?\n\nDoanh thu giữ nguyên số hiện tại, từ nay gõ tay.`)) return;
+      s.fabiTen = '';
+      commit();
+    },
     fabiDong() { fabi = null; renderTab(); },
     fabiGhi() {
       if (!fabi || !fabi.ghep) return;
       const kq = E.napFabi(state, fabi.ghep);
       fabi = null;
+      /* Ghi xong là đã có liên kết — bật luôn tự lấy, đó chính là thứ anh Thắng muốn ("tự link
+         và lấy realtime"). Vẫn tắt được bằng nút trên thanh công cụ. */
+      const bat = !state.options.fabiTuDong && kq.xong > 0;
+      if (bat) state.options.fabiTuDong = true;
       commit();
-      toast(`Đã ghi doanh thu cho ${kq.xong} điểm${kq.boQua ? ` · bỏ qua ${kq.boQua} cửa hàng chưa ghép` : ''}.`);
+      toast(`Đã nối ${kq.xong} điểm với Doanh thu FABi${kq.boQua ? ` · bỏ qua ${kq.boQua} cửa hàng chưa ghép` : ''}.`
+        + (bat ? ' Từ nay số tự lấy, khỏi bấm.' : ''));
     },
     /* 🔴 XUẤT RIÊNG TỜ NHẬP MISA. File tổng có 17 sheet và sheet ĐẦU là "File tổng báo cáo" —
        bố cục khác hẳn; đưa nguyên file ấy cho MISA là nó đọc trúng sheet đầu rồi báo sai cột, dù
@@ -1541,7 +1596,8 @@
       const k = API.periodKey(state.period);
       if (k === this.periodKey) return;
       this.periodKey = k;
-      this.pull({ force: true, notify: true, initial: true });
+      /* Tải kỳ xong mới lấy FABi — lấy trước thì bản kéo từ máy chủ đè lên ngay sau đó. */
+      this.pull({ force: true, notify: true, initial: true }).then(() => fabiLayNgay(true));
     },
     schedulePush() {
       if (!this.on) return;

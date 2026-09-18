@@ -629,3 +629,52 @@ console.log(`OK — ${passed} phép so khớp với Excel đều đạt, các tr
 
   console.log('OK — bắt đầu kỳ mới: giữ danh mục, xoá sạch số.');
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// LIÊN KẾT SỐNG VỚI FABi  (anh Thắng 18/09/2026: "tự link và lấy dữ liệu realtime qua")
+//
+// Đường TỰ ĐỘNG khác đường bấm-nút ở một điểm sống còn: nó CHỈ đi theo liên kết người đã chốt,
+// tuyệt đối không đoán tên. Đoán thì phải có người nhìn; chạy ngầm mà đoán là doanh thu tự nhảy
+// vào nhầm điểm, không ai bấm gì, không ai biết gì.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+{
+  const st = E.normalizeState(window.SAMPLE_DATA);
+  st.sites = [
+    { dept: 'tutu', code: 'TTAMTP', name: 'TUTU MN AEON TÂN PHÚ', revenue: 0, fabiTen: 'TuTu Train - Aeon Tân Phú ( Dịch Vụ và Giải Trí K&H )' },
+    { dept: 'tutu', code: 'TTEST', name: 'TUTU MN ESTELLA', revenue: 5, fabiTen: 'Tutu Train - Estella ( Dịch vụ K&H )' },
+    { dept: 'funzone', code: 'FZVT', name: 'FUNZONE CITY VŨNG TÀU', revenue: 777, fabiTen: '' },
+    { dept: 'event', code: 'EVCU', name: 'EVENT MN QUÁN CŨ', revenue: 123456, fabiTen: 'QUÁN ĐÃ ĐÓNG ( Dịch vụ K&H )' },
+  ];
+  const DS = [
+    { cua_hang: 'TuTu Train - Aeon Tân Phú ( Dịch Vụ và Giải Trí K&H )', thanh_tien: 29905000 },
+    { cua_hang: 'Tutu Train - Estella ( Dịch vụ K&H )', thanh_tien: 20770000 },
+    { cua_hang: 'FUNZONE CITY VŨNG TÀU ( Dịch Vụ và Giải Trí K&H )', thanh_tien: 27667000 },
+  ];
+
+  const r = E.dongBoFabi(st, DS);
+  assert.strictEqual(st.sites[0].revenue, 29905000, 'điểm đã liên kết phải tự nhận số mới');
+  assert.strictEqual(st.sites[1].revenue, 20770000);
+
+  // 🔴 KHÔNG ĐOÁN: FZVT không có fabiTen nên dù tên trùng khít vẫn phải đứng ngoài.
+  assert.strictEqual(st.sites[2].revenue, 777,
+    'chưa liên kết thì đường tự động KHÔNG được đụng vào, dù tên khớp');
+
+  // 🔴 CỬA HÀNG BIẾN MẤT BÊN FABi: KHÔNG đưa về 0. Số 0 trông y hệt một tháng ế, mà thật ra là
+  //    mất liên kết — người ta sẽ chốt sổ với một điểm doanh thu 0 mà không biết vì sao.
+  assert.strictEqual(st.sites[3].revenue, 123456, 'mất liên kết thì GIỮ số cũ, không về 0');
+  assert.strictEqual(r.mat.length, 1, 'và phải báo ra');
+  assert.strictEqual(r.mat[0].code, 'EVCU');
+
+  assert.strictEqual(r.daLinh, 3, 'đếm đúng số điểm đang liên kết');
+  assert.strictEqual(r.soDoi, 2, 'đếm đúng số điểm vừa đổi số');
+
+  // -- chạy lại mà số không đổi thì KHÔNG báo đổi (khỏi làm bẩn nhật ký/đồng bộ) --
+  const r2 = E.dongBoFabi(st, DS);
+  assert.strictEqual(r2.soDoi, 0, 'chạy lại không đổi gì thì không báo đổi');
+  assert.strictEqual(r2.mat.length, 1, 'nhưng vẫn báo cái mất liên kết');
+
+  // -- công tắc mặc định TẮT: không tự ý đổi cách app đang lấy số --
+  assert.strictEqual(E.normalizeState({}).options.fabiTuDong, false);
+
+  console.log('OK — liên kết sống FABi: chỉ theo liên kết đã chốt, mất liên kết thì giữ số cũ.');
+}

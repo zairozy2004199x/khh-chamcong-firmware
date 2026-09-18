@@ -4,7 +4,7 @@ Tags: chi phí, phân bổ, báo cáo, MISA, kế toán
 Requires at least: 5.6
 Tested up to: 6.8
 Requires PHP: 7.2
-Stable tag: 1.10.0
+Stable tag: 1.11.0
 License: GPLv2 or later
 
 Phân bổ chi phí Máy tự động / Khu vui chơi ra "File tổng báo cáo" và phân bổ theo điểm để hạch toán MISA.
@@ -35,6 +35,17 @@ Nhân viên nhập khoản chi phí, kế toán duyệt, web tự tính.
 4. Nhập Excel kỳ đầu (hoặc ⋯ → Nạp dữ liệu mẫu) rồi bắt đầu.
 
 == Changelog ==
+
+= 1.11.0 =
+* **Liên kết sống với Doanh thu FABi** — anh Thắng: *"thay vì đẩy thì nó tự link và lấy realtime"*.
+  Nối một lần, từ đó doanh thu tự về mỗi khi mở kỳ; ô doanh thu của điểm đã nối thành chỉ-đọc,
+  cột **Nguồn** cho biết số đến từ đâu (🔗 FABi hay gõ tay), gỡ liên kết được bằng một nút.
+* Công tắc **🔗 Tự lấy** trên tab Doanh thu (tự bật sau lần nối đầu tiên), kèm dòng trạng thái:
+  đang nối bao nhiêu điểm, lấy lúc nào, có điểm nào đứt liên kết.
+* **Đường tự động chỉ đi theo liên kết đã chốt, tuyệt đối không đoán tên.** Muốn nối thêm thì qua
+  nút "⬇ Nạp / nối thêm điểm" — ở đó có màn xem trước để người nhìn rồi mới quyết.
+* **Kỳ đã chốt thì dừng lấy**, số đứng yên. Cửa hàng biến mất bên FABi thì **giữ số cũ** và báo
+  ra — đưa về 0 thì trông y hệt một tháng ế, mà thật ra là mất liên kết.
 
 = 1.10.0 =
 * **Sửa: kỳ mới mở ra mang nguyên số liệu kỳ trước.** Đổi sang kỳ chưa có, app hỏi "đẩy dữ liệu
