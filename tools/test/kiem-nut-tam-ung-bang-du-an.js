@@ -321,6 +321,55 @@ function veForm(ham, ...them) {
     i >= 0 && HTML.slice(i, HTML.indexOf('\n  }', i)).indexOf('prompt(') < 0);
 });
 
+/* ── 4a3. 🔒 ĐÃ LÊN LỆNH THÌ KHOÁ MẤY Ô SINH RA TIỀN ─────────────────────────────────
+ * Anh Thắng 18/09/2026: *"Số dự toán đã xin và lên thì không được sửa"*.
+ *
+ * Chốt THẬT nằm ở máy chủ (`loi_sua_du_toan_`, bài kiểm ở `kiem-lenh-tam-ung-du-an.php`). Khoá
+ * ở màn chỉ để người ta khỏi gõ xong mới biết là không được — gõ rồi bị chối là mất công, và
+ * mất cả tin vào màn hình.
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+{
+  const O = {};
+  const oMoi = id => (O[id] = O[id] || { readOnly: false, style: {}, title: '', innerHTML: '', value: '' });
+  const F = new Function('moi', `with(moi){ ${boc('_daKhoaDuToanO')}\n return _daKhoaDuToanO; }`)({
+    el: oMoi,
+    DA_CUR: { maDA: 'DA1', lines: [
+      { row: 3, noiDung: 'Thợ Phụ', capCha: '', hm: { tt: 'ung' } },
+      { row: 4, noiDung: 'Ốc vít',  capCha: 'Thợ Phụ' },
+      { row: 9, noiDung: 'Vật tư',  capCha: '', hm: { tt: 'nhap' } } ] },
+  });
+
+  F({ row: 3, noiDung: 'Thợ Phụ', capCha: '', hm: { tt: 'ung' } });
+  t('🔴 hạng mục ĐÃ LÊN LỆNH → khoá ô dự toán, số lượng, đơn giá',
+    O.da_dt.readOnly && O.da_sl.readOnly && O.da_dg.readOnly, O);
+  t('🔴 nhưng ô CHI PHÍ THỰC TẾ KHÔNG bị khoá (khoá luôn thì không ai quyết toán được nữa)',
+    !O.da_thucte, O.da_thucte);
+  t('   ô khoá đổi màu cho thấy rõ, và rê chuột vào nói vì sao',
+    O.da_dt.style.background === '#f1efec' && /trả lệnh/.test(O.da_dt.title), O.da_dt);
+  t('🔴 và có một dòng nhắc chỉ đường ra: trả lệnh về trước',
+    /đã lên lệnh tạm ứng/.test(O.daKhoaNhac.innerHTML) && /trả lệnh/.test(O.daKhoaNhac.innerHTML),
+    O.daKhoaNhac.innerHTML);
+
+  /* Mục con đi theo cha — tiền của hạng mục lớn cộng từ con. */
+  F({ row: 4, noiDung: 'Ốc vít', capCha: 'Thợ Phụ' });
+  t('🔴 mục con của hạng mục đã lên lệnh cũng khoá theo cha', O.da_dt.readOnly, O);
+
+  F({ row: 9, noiDung: 'Vật tư', capCha: '', hm: { tt: 'nhap' } });
+  t('🔴 hạng mục CÒN NHÁP thì mở hết — đang lập dự toán mà khoá là khoá sai bước',
+    !O.da_dt.readOnly && !O.da_sl.readOnly && !O.da_dg.readOnly, O);
+  t('   và dòng nhắc biến mất', O.daKhoaNhac.innerHTML === '' && O.daKhoaNhac.style.display === 'none',
+    O.daKhoaNhac);
+
+  /* 🔴 THOÁT SỬA PHẢI MỞ KHOÁ LẠI. Bỏ dở việc sửa một hàng đã lên lệnh rồi quay sang THÊM DÒNG
+     MỚI mà ô vẫn khoá thì không gõ được dự toán, và chẳng có gì nói vì sao. */
+  F({ row: 3, noiDung: 'Thợ Phụ', capCha: '', hm: { tt: 'ung' } });
+  F(null);
+  t('🔴 thoát chế độ sửa → mở khoá lại mấy ô (không thì thêm dòng mới cũng gõ không được)',
+    !O.da_dt.readOnly && O.daKhoaNhac.innerHTML === '', O);
+}
+t('🔴 thoát sửa dòng có gọi mở khoá', /daCancelEditLine\(\)\{[^]{0,400}_daKhoaDuToanO\(null\)/.test(HTML));
+t('   và mở sửa một dòng thì gọi khoá', /_daKhoaDuToanO\(l\);/.test(HTML));
+
 /* ── 4b. 📎 ĐÍNH TỆP THẬT CHO UỶ NHIỆM CHI VÀ HOÁ ĐƠN ──────────────────────────────────
  * Uỷ nhiệm chi và hoá đơn là ảnh chụp / bản PDF nằm trong máy kế toán, không phải một địa chỉ
  * web có sẵn để dán. Bắt dán liên kết là bắt họ tự đi tải lên chỗ khác trước rồi mới quay lại.

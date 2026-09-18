@@ -115,8 +115,11 @@ t( '   câu chối chỉ ra cả lối đính ngay trên hàng, không chỉ ô 
  * ⚠️ VẪN CHỐI KHI HÀNG TRỐNG TRƠN (phép ngay trên). Chỉ khác chỗ: nay hỏi "có chứng từ nào
  *    chưa", không hỏi "có đúng cái ô này chưa".
  * ─────────────────────────────────────────────────────────────────────────────────────── */
-VHCP_DuAn::update_line( $ma, $row2, array( 'noiDung' => 'Thuê xe cẩu', 'thucTe' => 6000000,
-	'anh' => 'https://kho/bill-xe-cau.jpg' ) );
+/* ⚠️ ĐÍNH ẢNH BẰNG CỬA RIÊNG (`dat_anh_line`), KHÔNG qua `update_line`. Từ 1.203.0 hạng mục
+   đã lên lệnh thì khoá cột dự toán, mà `update_line` ghi lại CẢ DÒNG — gọi nó với mỗi vài ô là
+   mấy ô còn lại bị dọn về 0, tức đúng cái chốt kia chặn. Màn web đính tệp qua cửa một-ô, nên
+   fixture cũng phải đi đúng cửa ấy; đi cửa sai là bài kiểm thử một đường không ai dùng. */
+VHCP_DuAn::dat_anh_line( $ma, $row2, 'https://kho/bill-xe-cau.jpg' );
 $x = VHCP_DuAn::dat_hm( $ma, $row2, 'xong' );
 t( '🔴 hàng đã có ẢNH BILL → chốt được, không đòi tải lên lần hai', ! empty( $x['success'] ), $x );
 teq( '🔴 và sổ GHI LẠI tấm ấy làm hoá đơn (để trống thì lệnh quyết toán trắng chứng từ)',

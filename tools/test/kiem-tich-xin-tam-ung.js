@@ -374,6 +374,34 @@ const L1 = [
   { dot: 3, tt: 'ung', rows: [9], tenHM: ['Xe cẩu'], soTien: 900000,
     unc: 'UNC-9', lyDo: '', lich: [], moc: {} },
 ];
+/* ── 4b3. ⏪ ADMIN THU HỒI LỆNH ĐÃ CẤP TIỀN ───────────────────────────────────────────
+ * Anh Thắng 18/09/2026: *"Cấp quyền cho admin trả đơn"*. Chốt thật nằm ở máy chủ
+ * (`dat_tt_dot`, bài kiểm ở `kiem-lenh-tam-ung-du-an.php`); ở đây soi cái nút.
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+{
+  const r = veLenhDA('Admin', L1);
+  t('🔴 Admin thấy nút thu hồi trên lệnh ĐÃ CẤP TIỀN (lệnh đợt 3)',
+    /lenhTra\('DA1',3,'QDA1_3',1\)/.test(r.html), r.html);
+  /* ⚠️ KHÔNG gọi là "Trả" như nút kia: trả là đưa về cho nhân viên sửa, còn đây là gỡ ngược một
+     khoản đã ra khỏi két. Cùng một chữ cho hai việc khác nhau là mời bấm nhầm. */
+  t('🔴 và gọi đúng tên là THU HỒI, không dùng chung chữ "Trả"',
+    /⏪ Thu hồi/.test(r.html), r.html);
+  t('   tham số cuối bật cờ "đã cấp" để hộp hỏi nói rõ hệ quả trước khi gõ',
+    /lenhTra\('DA1',3,'QDA1_3',1\)/.test(r.html), r.html);
+}
+{
+  const r = veLenhDA('Kế toán cá nhân', L1);
+  t('🔴 kế toán KHÔNG thấy nút thu hồi (người giữ két không tự gỡ khoản mình vừa đưa)',
+    !/Thu hồi/.test(r.html), r.html);
+}
+{
+  const r = veLenhDA('Quản lý', L1);
+  t('🔴 quản lý cũng không thấy nút thu hồi', !/Thu hồi/.test(r.html), r.html);
+}
+{
+  const r = veLenhDA('Nhân viên', L1);
+  t('   nhân viên lại càng không', !/Thu hồi/.test(r.html), r.html);
+}
 {
   const r = veLenhDA('Kế toán cá nhân', L1);
   t('🔴 lệnh chờ duyệt → duyệt được NGAY TRONG TRANG dự án',

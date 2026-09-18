@@ -520,7 +520,11 @@ class VHCP_DuAn {
 			   trong khi lệnh còn ở 'duyet'. Đếm theo trạng thái là bỏ sót đúng phần đang dở dang,
 			   và con số "còn treo trên TK 141" nói thiếu. Lượt cấp trọn cũng ghi vào `daCap`
 			   (xem `dat_tt_dot`), nên lối cũ ra đúng con số cũ. */
-			$da_chi += self::da_cap_tong( $d );
+			/* 🔴 LỆNH ĐÃ THU HỒI THÌ THÔI TÍNH LÀ ĐÃ CHI. Anh Thắng 18/09/2026 chốt *"coi như
+			   chưa chi — gỡ khỏi TK 141"*. Mấy lượt cấp tiền vẫn nằm nguyên trong sổ của lệnh
+			   ấy để tra; chỉ con số TỔNG thôi đếm chúng. Không gỡ thì thu hồi xong màn vẫn báo
+			   "còn treo 68.790.000đ" cho một lệnh không còn tồn tại. */
+			if ( 'tra' !== $d['tt'] ) { $da_chi += self::da_cap_tong( $d ); }
 		}
 
 		/* 🔴 DỰ KIẾN TẠM ỨNG = tổng tiền của mọi hạng mục 💰 NV TỰ TRẢ, kể cả cái còn nháp.
@@ -1498,10 +1502,49 @@ class VHCP_DuAn {
 			return VHCP_Util::err( 'Chỉ quản lý hoặc kế toán duyệt / trả lại được.' );
 		}
 		if ( 'ung' === $tt && ! $ke_toan ) { return VHCP_Util::err( 'Chỉ kế toán cấp tạm ứng được.' ); }
-		if ( 'ung' === $d['tt'] ) { return VHCP_Util::err( 'Lệnh ' . $d['dot'] . ' đã cấp tiền rồi.' ); }
+		/* ═════════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 ADMIN THU HỒI ĐƯỢC MỘT LỆNH ĐÃ CẤP TIỀN — 18/09/2026.
+		 *
+		 * Anh Thắng: *"Cấp quyền cho admin trả đơn"*, sau khi một đơn 68.790.000đ đã cấp tiền mà
+		 * số liệu sai và không còn đường nào quay lại.
+		 *
+		 * Luật cũ chặn tuyệt đối ("tiền đã ra khỏi két, trả lại là xoá dấu vết") — đúng về ý,
+		 * sai về hệ quả: một hệ không có đường lùi thì người ta không sửa sổ, họ BỊA sổ. Thà mở
+		 * một cửa hẹp có tên, có lý do, có vết, còn hơn để họ gõ đè lên mấy con số cũ.
+		 *
+		 * ⚠️ CHỈ ADMIN. Quản lý và kế toán vẫn chỉ trả được lệnh chưa cấp tiền — đây là việc gỡ
+		 *    một khoản đã ra khỏi két, không phải việc thường ngày.
+		 * ⚠️ BẮT BUỘC CÓ LÝ DO. Đây là chỗ duy nhất trong hệ gỡ ngược một khoản tiền thật; không
+		 *    ghi vì sao thì ba tháng sau không ai dựng lại được chuyện gì đã xảy ra.
+		 * ⚠️ MẤY LƯỢT CẤP TIỀN VẪN NẰM NGUYÊN TRONG SỔ CỦA LỆNH — không xoá dòng nào. Cái đổi là
+		 *    lệnh 'tra' thôi được cộng vào "đã chi" / "còn treo trên TK 141" (xem `get_du_an`),
+		 *    đúng lựa chọn anh Thắng chốt: *"coi như chưa chi"*.
+		 * ⚠️ CHỐI NẾU TRONG LỆNH ĐÃ CÓ HẠNG MỤC CHỐT XONG hoặc đã gửi quyết toán. Gỡ tạm ứng
+		 *    dưới chân một khoản đã quyết toán là sổ 141 âm mà không ai hiểu vì sao — phải mở
+		 *    khoá / trả lệnh quyết toán ấy trước.
+		 * ═════════════════════════════════════════════════════════════════════════════════════ */
+		if ( 'ung' === $d['tt'] ) {
+			if ( 'tra' !== $tt ) { return VHCP_Util::err( 'Lệnh ' . $d['dot'] . ' đã cấp tiền rồi.' ); }
+			if ( 'Admin' !== $vai ) {
+				return VHCP_Util::err( 'Lệnh ' . $d['dot'] . ' đã cấp tiền rồi — chỉ Admin thu hồi được.' );
+			}
+			if ( '' === trim( (string) ( isset( $them['lyDo'] ) ? $them['lyDo'] : '' ) ) ) {
+				return VHCP_Util::err( 'Thu hồi một lệnh ĐÃ CẤP TIỀN thì phải ghi lý do — '
+					. 'đây là chỗ duy nhất gỡ ngược một khoản tiền thật.' );
+			}
+			foreach ( $d['rows'] as $r ) {
+				$h = self::hm_cua( $ma_da, $r );
+				if ( 'xong' === $h['tt'] || (int) $h['qtDot'] > 0 ) {
+					return VHCP_Util::err( 'Trong lệnh này có hạng mục đã chốt xong'
+						. ( (int) $h['qtDot'] > 0 ? ( ' / đã gửi quyết toán lệnh ' . (int) $h['qtDot'] ) : '' )
+						. '. Mở khoá (hoặc trả lệnh quyết toán) cho hạng mục ấy trước, '
+						. 'rồi mới thu hồi lệnh tạm ứng — không thì sổ 141 âm mà không ai hiểu vì sao.' );
+				}
+			}
+		}
 		if ( 'duyet' === $tt && 'xin' !== $d['tt'] ) { return VHCP_Util::err( 'Chỉ duyệt được lệnh đang xin tạm ứng.' ); }
 		if ( 'ung' === $tt && 'duyet' !== $d['tt'] ) { return VHCP_Util::err( 'Chỉ cấp tiền cho lệnh đã duyệt.' ); }
-		if ( 'tra' === $tt && ! in_array( $d['tt'], array( 'xin', 'duyet' ), true ) ) {
+		if ( 'tra' === $tt && ! in_array( $d['tt'], array( 'xin', 'duyet', 'ung' ), true ) ) {
 			return VHCP_Util::err( 'Lệnh này không ở bước trả lại được.' );
 		}
 
@@ -2188,6 +2231,8 @@ class VHCP_DuAn {
 		$data     = self::line_data( $rec );
 		$_mc = self::loi_mo_muc_con_( $data['cap_cha'], (string) $cur['cap_cha'] );
 		if ( '' !== $_mc ) { return VHCP_Util::err( $_mc ); }
+		$_dt = self::loi_sua_du_toan_( $ma_da, $row, $cur, $data );
+		if ( '' !== $_dt ) { return VHCP_Util::err( $_dt ); }
 		$wpdb->update( $t, $data, array( 'ma_da' => (string) $ma_da, 'row_no' => $row ) );
 		if ( $data['cap_cha'] === '' && $old_name !== '' && $old_name !== $data['noi_dung'] ) {
 			self::relink_children( $ma_da, $old_name, $data['noi_dung'] );   // hạng mục lớn đổi tên -> cập nhật mục con
@@ -2270,20 +2315,84 @@ class VHCP_DuAn {
 		return VHCP_Util::ok( array( 'items' => $items ) );
 	}
 
+	/**
+	 * Dòng này thuộc HẠNG MỤC LỚN nào — trả số dòng của hạng mục ấy, 0 nếu không tra được.
+	 *
+	 * Dòng cha thì là chính nó; mục con thì tra ngược theo tên ở cột "Thuộc". Dòng `(Phát sinh)`
+	 * không thuộc hạng mục nào nên trả 0.
+	 */
+	private static function hm_lon_cua_dong_( $ma_da, $row, $cur ) {
+		$cap = trim( (string) $cur['cap_cha'] );
+		if ( '' === $cap ) { return (int) $row; }
+		if ( '(Phát sinh)' === $cap ) { return 0; }
+		foreach ( self::lines_of( $ma_da ) as $l ) {
+			if ( trim( (string) $l['cap_cha'] ) === '' && trim( (string) $l['noi_dung'] ) === $cap ) {
+				return (int) $l['row_no'];
+			}
+		}
+		return 0;
+	}
+
+	/**
+	 * Sửa SỐ DỰ TOÁN của một hạng mục đã lên lệnh — trả câu lỗi, '' nghĩa là sửa được.
+	 *
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 ĐÃ XIN VÀ ĐÃ LÊN LỆNH THÌ SỐ DỰ TOÁN ĐÓNG LẠI.
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 18/09/2026: *"Số dự toán đã xin và lên thì không được sửa"*, kèm ảnh một đơn có
+	 * thẻ đỏ *"⚠️ lệnh đã gửi vượt dự kiến 14.970.000đ"* — vì mấy dòng dự toán bị gõ về 0 SAU
+	 * khi lệnh 68.790.000đ đã gửi và đã cấp tiền.
+	 *
+	 * Số tiền của LỆNH chốt cứng lúc gửi (đúng thế), nhưng "dự kiến tạm ứng" thì cộng lại từ
+	 * mấy dòng này mỗi lần mở trang. Sửa dòng sau khi gửi là hai con số tách nhau ra, và màn
+	 * hình bắt đầu tố cáo một chuyện không có thật: lệnh trông như xin vượt dự toán, trong khi
+	 * lúc gửi nó khớp. Người đọc không có cách nào biết bên nào mới đúng.
+	 *
+	 * ⚠️ CHỈ KHOÁ CỘT DỰ TOÁN (dự toán · số lượng · đơn giá · thành tiền). CỘT THỰC TẾ VẪN MỞ —
+	 *    đó là cả quy trình: cầm tiền đi tiêu rồi mới về ghi số thật. Khoá luôn cột ấy là không
+	 *    ai quyết toán được nữa.
+	 * ⚠️ MỞ LẠI BẰNG CÁCH TRẢ LỆNH, không phải bằng một cái nút riêng. Trả lệnh đưa hạng mục về
+	 *    'tra' và ở đó sửa thoải mái — đường ấy có người duyệt, còn một nút "mở khoá dự toán"
+	 *    thì không.
+	 * ⚠️ ÁP CHO CẢ MỤC CON: tiền của hạng mục cha cộng từ con, nên sửa con là đổi số của cha.
+	 */
+	private static function loi_sua_du_toan_( $ma_da, $row, $cur, $data ) {
+		$lon = self::hm_lon_cua_dong_( $ma_da, $row, $cur );
+		if ( ! $lon ) { return ''; }
+		$h = self::hm_cua( $ma_da, $lon );
+		if ( in_array( $h['tt'], array( 'nhap', 'tra' ), true ) ) { return ''; }
+		$doi = array();
+		foreach ( array( 'du_toan' => 'dự toán', 'so_luong' => 'số lượng',
+			'don_gia' => 'đơn giá', 'thanh_tien' => 'thành tiền' ) as $cot => $ten ) {
+			if ( ! array_key_exists( $cot, $data ) ) { continue; }
+			/* ⚠️ ÉP KIỂU `(float)` CẢ HAI BÊN — ĐÂY MỚI LÀ CHỖ GÁNH. Sổ trả về chuỗi "0.00", còn
+			   `line_data()` trả số nguyên 0; trong PHP `0 !== 0.0` là ĐÚNG, nên so chặt hai thứ
+			   ấy là mọi lần sửa đều bị chặn oan, kể cả lúc chẳng đụng tới đồng nào. Đã cắn thật
+			   lúc dựng chốt này: sáu phép đỏ, mà không phép nào nói ra nguyên nhân.
+			   Khe hở 0,5đ là lưới đỡ thêm cho sai số dấu phẩy động của cột DECIMAL — tiền ở đây
+			   là số nguyên đồng nên không có thay đổi thật nào nhỏ hơn thế. */
+			$moi = (float) VHCP_Util::num( $data[ $cot ] );
+			$cu  = (float) VHCP_Util::num( isset( $cur[ $cot ] ) ? $cur[ $cot ] : 0 );
+			if ( abs( $moi - $cu ) >= 0.5 ) { $doi[] = $ten; }
+		}
+		if ( ! $doi ) { return ''; }
+		$ten_lon = '';
+		foreach ( self::lines_of( $ma_da ) as $l ) {
+			if ( (int) $l['row_no'] === $lon ) { $ten_lon = trim( (string) $l['noi_dung'] ); }
+		}
+		return 'Hạng mục "' . $ten_lon . '" đã lên lệnh tạm ứng rồi — không sửa '
+			. implode( ' / ', $doi ) . ' được nữa. '
+			. 'Số tiền của lệnh đã chốt lúc gửi; sửa ở đây là hai con số tách nhau ra. '
+			. 'Cần sửa thì trả lệnh về trước, rồi gửi lại. '
+			. '(Cột "Chi phí thực tế" vẫn ghi được bình thường.)';
+	}
+
 	public static function loi_hang_muc_da_chot_( $ma_da, $row, $viec = 'sửa' ) {
 		global $wpdb;
 		$t   = VHCP_DB::t( 'da_line' );
 		$cur = VHCP_DB::row( $wpdb->prepare( "SELECT * FROM $t WHERE ma_da=%s AND row_no=%d", (string) $ma_da, (int) $row ) );
 		if ( ! $cur ) { return ''; }   // dòng không có thật thì để lối gọi tự báo
-		$cap = trim( (string) $cur['cap_cha'] );
-		$khoa_row = ( '' === $cap ) ? (int) $row : 0;
-		if ( ! $khoa_row && '(Phát sinh)' !== $cap ) {
-			foreach ( self::lines_of( $ma_da ) as $l ) {
-				if ( trim( (string) $l['cap_cha'] ) === '' && trim( (string) $l['noi_dung'] ) === $cap ) {
-					$khoa_row = (int) $l['row_no'];
-				}
-			}
-		}
+		$khoa_row = self::hm_lon_cua_dong_( $ma_da, (int) $row, $cur );
 		if ( ! $khoa_row || ! self::hm_khoa( $ma_da, $khoa_row ) ) { return ''; }
 		$h = self::hm_cua( $ma_da, $khoa_row );
 		return 'Hạng mục đã chốt là chi thực tế — không ' . $viec . ' được nữa'

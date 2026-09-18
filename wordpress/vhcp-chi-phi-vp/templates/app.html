@@ -676,6 +676,8 @@
         <button class="btn b-p" id="daAddBtn" onclick="saveDuAnLineUI()">＋ Thêm dòng</button>
         <button class="btn b-x" id="daCancelEdit" onclick="daCancelEditLine()" style="display:none">✖ Hủy sửa</button>
       </div>
+      <!-- Hiện khi mở sửa một hạng mục ĐÃ LÊN LỆNH — xem 🔴 ở `_daKhoaDuToanO()`. -->
+      <div id="daKhoaNhac" style="display:none;font-size:11.5px;color:#b45309;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:6px 10px;margin:0 0 8px"></div>
       <div class="tw"><table>
         <thead><tr><th>Nội dung</th><th>Gian</th><th style="text-align:right">Dự toán</th><th style="text-align:right">SL</th><th style="text-align:right">Đơn giá</th><th style="text-align:right">Thành tiền</th><th style="text-align:right">Thực tế</th><th>Hình thức chi</th><th>VAT</th><th style="text-align:center">Ảnh</th><th style="text-align:center">Hồ sơ</th><th>Ghi chú</th><th style="width:36px"></th></tr></thead>
         <tbody id="daLineBody"></tbody>
@@ -5838,11 +5840,19 @@
   /* Khoá hàng ô nhập bắt đầu bằng 'Q' = đang đứng ở TRANG DỰ ÁN. Hai màn cùng nằm trong trang
      (một cái đang ẩn) nên khoá phải khác nhau, không thì bấm bên này mở ô nhập bên kia. */
   function _lenhSau(k){ return (String(k).charAt(0)==='Q') ? function(){ hmLaiDA(); } : function(){ loadLenhDA(); loadDonHM(); }; }
-  function lenhTra(maDA,dot,k){
+  function lenhTra(maDA,dot,k,daCap){
     /* Trả lại phải NÓI VÌ SAO — nhân viên nhận đơn về mà không biết sửa cái gì thì gửi lại y
-       nguyên, và vòng ấy quay mãi. */
-    var ly=prompt('Trả lệnh tạm ứng này về cho nhân viên.\n\nVì sao trả? (nhân viên đọc câu này)','');
+       nguyên, và vòng ấy quay mãi.
+       🔴 LỆNH ĐÃ CẤP TIỀN THÌ HỎI KHÁC HẲN. Đây là chỗ duy nhất trong hệ gỡ ngược một khoản
+          tiền thật, nên câu hỏi phải nói thẳng hệ quả trước khi người ta gõ — chứ không dùng
+          chung một câu với việc trả một lệnh chưa ai đưa đồng nào. */
+    var ly=prompt(daCap
+      ? ('⚠️ THU HỒI MỘT LỆNH ĐÃ CẤP TIỀN.\n\nKhoản này sẽ thôi tính là "đã chi" và được gỡ '
+         + 'khỏi "còn treo trên TK 141" — coi như chưa chi. Mấy lượt cấp tiền vẫn nằm trong sổ '
+         + 'của lệnh để tra.\n\nVì sao thu hồi? (bắt buộc)')
+      : 'Trả lệnh tạm ứng này về cho nhân viên.\n\nVì sao trả? (nhân viên đọc câu này)','');
     if(ly===null) return;
+    if(daCap && !String(ly||'').trim()){ toast('warn','Thu hồi lệnh đã cấp tiền thì phải ghi lý do'); return; }
     lenhDat(maDA,dot,'tra',{lyDo:String(ly||'').trim()},_lenhSau(k||''));
   }
   /* Tra lệnh ở CẢ HAI nguồn: `LENH_ITEMS` là của màn Duyệt, `DA_CUR.lenh` là của trang dự án.
@@ -5983,6 +5993,14 @@
       out+=' <button class="btn b-g" onclick="lenhMoCap(\''+k+'\',\''+ma+'\','+dot+')" title="Đính uỷ nhiệm chi rồi cấp tiền cho cả lệnh">💵 Cấp tiền</button>';
     if((tt==='xin'||tt==='duyet')&&laDuyet)
       out+=' <button class="btn b-d" onclick="lenhTra(\''+ma+'\','+dot+',\''+k+'\')" title="Trả lệnh về cho nhân viên sửa">↩ Trả</button>';
+    /* 🔴 LỆNH ĐÃ CẤP TIỀN: CHỈ ADMIN, VÀ GỌI ĐÚNG TÊN LÀ "THU HỒI". Anh Thắng 18/09/2026:
+       *"Cấp quyền cho admin trả đơn"* — một đơn 68.790.000đ đã cấp tiền mà số liệu sai thì
+       trước nay không có đường nào quay lại. Một hệ không có đường lùi thì người ta không sửa
+       sổ, họ BỊA sổ.
+       ⚠️ KHÔNG gọi là "Trả" như nút trên: trả là đưa về cho nhân viên sửa, còn đây là gỡ ngược
+          một khoản đã ra khỏi két. Cùng một chữ cho hai việc khác nhau là mời bấm nhầm. */
+    if(tt==='ung' && String((CURUSER&&CURUSER.role)||'')==='Admin')
+      out+=' <button class="btn b-d" onclick="lenhTra(\''+ma+'\','+dot+',\''+k+'\',1)" title="Gỡ lệnh đã cấp tiền — khoản này thôi tính là đã chi">⏪ Thu hồi</button>';
     return out;
   }
 
@@ -7150,7 +7168,10 @@
     }; inp.click();
   }
   function daClearLineForm(){ ['da_nd','da_gian','da_dt','da_sl','da_dg','da_tt','da_thucte','da_note','da_anh'].forEach(function(i){el(i).value='';}); el('da_vat').value=''; if(el('da_httt')) el('da_httt').value=''; if(el('da_capCha')) el('da_capCha').value=''; if(el('da_hoso')) el('da_hoso').value=''; _daDocLbl(); daCapChaHint(); el('daImgBtn').textContent='📎 Đính ảnh'; }
-  function daCancelEditLine(){ DA_EDIT_ROW=null; daClearLineForm(); if(el('daAddBtn')) el('daAddBtn').textContent='＋ Thêm dòng'; if(el('daCancelEdit')) el('daCancelEdit').style.display='none'; }
+  function daCancelEditLine(){ DA_EDIT_ROW=null; daClearLineForm(); if(el('daAddBtn')) el('daAddBtn').textContent='＋ Thêm dòng'; if(el('daCancelEdit')) el('daCancelEdit').style.display='none';
+    /* Mở khoá lại mấy ô: bỏ dở việc sửa một hàng đã lên lệnh rồi quay sang THÊM DÒNG MỚI mà ô
+       vẫn khoá thì không gõ được dự toán, và chẳng có gì nói vì sao. */
+    _daKhoaDuToanO(null); }
   function daEditLine(row){ if(!DA_CUR)return; var l=null; (DA_CUR.lines||[]).forEach(function(x){ if(x.row===row) l=x; }); if(!l)return;
     el('da_nd').value=l.noiDung||''; el('da_gian').value=l.gian||''; _datTien('da_dt',(l.duToan||l.duToan===0)?l.duToan:''); el('da_sl').value=l.soLuong||''; _datTien('da_dg', l.donGia); daCalcTT();
     _datTien('da_thucte', l.thucTe); el('da_vat').value=l.vat||''; el('da_note').value=l.note||''; el('da_anh').value=l.anh||''; el('daImgBtn').textContent=l.anh?'✓ Đã đính ảnh':'📎 Đính ảnh';
@@ -7176,7 +7197,44 @@
     if(el('da_httt')) el('da_httt').value=l.hinhThuc||''; if(el('da_hoso')) el('da_hoso').value=l.hoSo||''; _daDocLbl(); daCapChaHint();
     _fillLoaiCp('da_loaicp', l.loaiCp||'', _daCoso(), l.tkNo||'', l.hinhThuc||''); daTkHint();
     DA_EDIT_ROW=row; el('daAddBtn').textContent='💾 Cập nhật dòng'; el('daCancelEdit').style.display='inline-block';
+    _daKhoaDuToanO(l);
     try{ el('da_nd').scrollIntoView({block:'center'}); el('da_nd').focus(); }catch(e){}
+  }
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+     ĐÃ LÊN LỆNH THÌ KHOÁ MẤY Ô SINH RA TIỀN.
+
+     Anh Thắng 18/09/2026: *"Số dự toán đã xin và lên thì không được sửa"*, kèm ảnh một đơn có
+     thẻ đỏ *"⚠️ lệnh đã gửi vượt dự kiến 14.970.000đ"* — vì mấy dòng dự toán bị gõ về 0 SAU khi
+     lệnh 68.790.000đ đã gửi và đã cấp tiền.
+
+     🔴 CHỐT THẬT NẰM Ở MÁY CHỦ (`loi_sua_du_toan_`). Khoá ở đây chỉ để người ta khỏi gõ xong mới
+        biết là không được — gõ rồi bị chối là đã mất công và mất cả tin vào màn hình.
+     🔴 CHỈ KHOÁ CỘT DỰ TOÁN · SỐ LƯỢNG · ĐƠN GIÁ. Ô CHI PHÍ THỰC TẾ VẪN MỞ — đó là cả quy trình:
+        cầm tiền đi tiêu rồi mới về ghi số thật. Khoá luôn ô ấy là không ai quyết toán được nữa.
+     ══════════════════════════════════════════════════════════════════════════════════════════ */
+  function _daKhoaDuToanO(l){
+    var tt=String((l&&l.hm&&l.hm.tt)||'nhap');
+    var cha=String((l&&l.capCha)||'');
+    /* Mục con đi theo cha: tiền của hạng mục lớn cộng từ con, nên sửa con là đổi số của cha. */
+    if(cha && cha!=='(Phát sinh)'){
+      ((DA_CUR&&DA_CUR.lines)||[]).forEach(function(x){
+        if(String(x.capCha||'')==='' && String(x.noiDung||'')===cha) tt=String((x.hm&&x.hm.tt)||'nhap');
+      });
+    }
+    var khoa=(['nhap','tra'].indexOf(tt)<0);
+    ['da_dt','da_sl','da_dg'].forEach(function(id){
+      var o=el(id); if(!o) return;
+      o.readOnly=khoa; o.style.background=khoa?'#f1efec':''; o.style.color=khoa?'#8c8781':'';
+      o.title=khoa?'Hạng mục đã lên lệnh tạm ứng — số dự toán đóng lại. Cần sửa thì trả lệnh về trước.':'';
+    });
+    var n=el('daKhoaNhac');
+    if(n){
+      n.innerHTML=khoa
+        ? '🔒 Hạng mục này <b>đã lên lệnh tạm ứng</b> — dự toán / số lượng / đơn giá đóng lại. '
+          +'Ô <b>Chi phí thực tế</b> vẫn ghi bình thường; cần sửa dự toán thì <b>trả lệnh</b> về trước.'
+        : '';
+      n.style.display=khoa?'':'none';
+    }
   }
   function saveDuAnLineUI(){
     if(!DA_CUR){ toast('warn','Chưa mở dự án'); return; }
