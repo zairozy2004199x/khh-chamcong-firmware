@@ -1352,14 +1352,24 @@ class VHCP_DuAn {
 				. 'Cần đưa thêm thì nhân viên xin một lệnh mới — lệnh mới có người duyệt.' );
 		}
 
-		$ghi = $d['daCap'];
+		/* 🔴 KHÔNG CHỌN NGÀY THÌ LẤY ĐÚNG LÚC BẤM — KÈM GIỜ. Anh Thắng 18/09/2026: *"Nếu kế toán
+		   bấm cấp tiền mà không chọn ngày thì tự hiểu là lấy ngày bấm cấp làm ngày cấp tiền
+		   (kèm giờ luôn cho đầy đủ)"*, kèm ảnh sổ "Đã cấp" có ba dòng mà hai dòng trống ngày.
+		   Ô ngày là tuỳ chọn, và đường cấp TRỌN MỘT LẦN (`dat_tt_dot('ung')`) còn chẳng có ô
+		   nào — nên bỏ trống là ca thường, không phải ca hiếm. Để trống thì sổ chi tiền mất mốc
+		   thời gian, mà đối chiếu ngân hàng thì mốc ấy là thứ đầu tiên người ta dò.
+		   ⚠️ GHI VÀO `ngay` chứ không chỉ vá lúc hiển thị: ai đọc sổ qua đường khác (xuất MISA,
+		      tra lịch sử) cũng phải thấy cùng một ngày, không phải mỗi màn hình mới có. */
+		$luc   = VHCP_Util::now()->format( 'd/m/Y H:i' );
+		$ngay  = trim( (string) ( isset( $them['ngay'] ) ? $them['ngay'] : '' ) );
+		$ghi   = $d['daCap'];
 		$ghi[] = array(
 			'lan'    => count( $ghi ) + 1,
 			'soTien' => $so,
-			'ngay'   => trim( (string) ( isset( $them['ngay'] ) ? $them['ngay'] : '' ) ),
+			'ngay'   => ( '' !== $ngay ? $ngay : $luc ),
 			'unc'    => trim( (string) ( isset( $them['unc'] ) ? $them['unc'] : '' ) ),
 			'nguoi'  => VHCP_Auth::nguoi(),
-			'luc'    => VHCP_Util::now()->format( 'd/m/Y H:i' ),
+			'luc'    => $luc,
 		);
 		$het = ( $so >= $con );   // lượt này trả nốt phần còn lại
 
@@ -1414,14 +1424,17 @@ class VHCP_DuAn {
 		if ( 'ung' === $tt ) {
 			$con_lai = self::con_phai_cap( $d );
 			if ( $con_lai > 0 ) {
+				$luc_c   = VHCP_Util::now()->format( 'd/m/Y H:i' );
 				$ghi_c   = $d['daCap'];
 				$ghi_c[] = array(
 					'lan'    => count( $ghi_c ) + 1,
 					'soTien' => $con_lai,
-					'ngay'   => '',
+					/* Đường này KHÔNG có ô ngày nào để kế toán chọn, nên mốc duy nhất đúng là
+					   lúc bấm. Xem khối 🔴 ở `cap_tien_phan()`. */
+					'ngay'   => $luc_c,
 					'unc'    => isset( $sua['unc'] ) ? $sua['unc'] : $d['unc'],
 					'nguoi'  => VHCP_Auth::nguoi(),
-					'luc'    => VHCP_Util::now()->format( 'd/m/Y H:i' ),
+					'luc'    => $luc_c,
 				);
 				$sua['daCap'] = $ghi_c;
 			}

@@ -259,6 +259,11 @@ class VHCPVP_DuAn {
 				&& ! VHCPVP_DonVi::duoc_xem( VHCPVP_DonVi::cua_nguoi( isset( $r['nguoi_tao'] ) ? $r['nguoi_tao'] : '' ) ) ) { continue; }
 			$ma_da = (string) $r['ma_da'];
 			$hm_all = self::get_hm( $ma_da );
+			/* Bản đồ số đợt của dự án này — tính MỘT lần cho cả dự án, không tính lại theo từng
+			   hạng mục (mỗi lượt là một lượt đọc sổ lệnh). Màn Duyệt in "đợt mấy" trên nhãn UNC
+			   của từng hàng, mà lệnh bị trả không tính là một đợt — xem 🔴 ở `ds_dot()`. */
+			$bd_tu = self::ban_do_so_dot( $ma_da );
+			$bd_qt = self::ban_do_so_dot( $ma_da, 'qt' );
 			/* Tiền của một "đơn": hạng mục có con thì tiền nằm ở CON, không có con thì ở chính
 			   nó. Cộng cả hai là đếm hai lần — và đây là con số kế toán chuẩn bị tiền. */
 			$con = array();
@@ -288,6 +293,8 @@ class VHCPVP_DuAn {
 					'duToan'    => VHCPVP_Util::num( $x['du_toan'] ),
 					'thucTe'    => ( isset( $con[ $nd ] ) && $con[ $nd ] > 0 ) ? $con[ $nd ] : VHCPVP_Util::num( $x['thuc_te'] ),
 					'hm'        => $h,
+					'dotHien'   => $bd_tu,
+					'qtDotHien' => $bd_qt,
 					'kyDA'      => self::get_ky_da( $ma_da ),
 				);
 			}
@@ -451,6 +458,11 @@ class VHCPVP_DuAn {
 		$ten_cua = array();
 		foreach ( self::lines_of( $ma_da ) as $r2 ) { $ten_cua[ (int) $r2['row_no'] ] = trim( (string) $r2['noi_dung'] ); }
 		$da_xin = 0; $da_chi = 0;
+		/* `du_kien_sau` = phần của lệnh chưa được xếp vào đợt nào — anh Thắng gọi là "dự kiến
+		   đợt tiếp theo". `da_vao_lenh` giữ NGHĨA CŨ của `da_xin` (tổng mọi lệnh đã gửi) vì
+		   dòng chân thẻ vẫn cần nó để nói "đã đưa hết hạng mục vào lệnh chưa" — một câu
+		   khác hẳn "đã xin nhận bao nhiêu". Gộp hai câu vào một con số là chỗ vừa phải tách. */
+		$du_kien_sau = 0; $da_vao_lenh = 0;
 		$lenhQT = array(); $qt_gui = 0; $qt_chot = 0;
 		foreach ( self::ds_dot( $ma_da, 'qt' ) as $q ) {
 			$tq = array();
@@ -472,8 +484,43 @@ class VHCPVP_DuAn {
 			/* 🔴 LỆNH BỊ TRẢ LẠI KHÔNG TÍNH LÀ ĐÃ XIN. Nó đã quay về cho nhân viên sửa; cộng vào
 			   là con số "đã xin" phình lên bởi những lệnh không còn tồn tại, rồi nhân viên gửi
 			   lại là cộng thêm lần nữa. */
-			if ( in_array( $d['tt'], array( 'xin', 'duyet', 'ung' ), true ) ) { $da_xin += $d['soTien']; }
-			if ( 'ung' === $d['tt'] ) { $da_chi += $d['soTien']; }
+			if ( in_array( $d['tt'], array( 'xin', 'duyet', 'ung' ), true ) ) {
+				/* ═══════════════════════════════════════════════════════════════════════════════
+				 * 🔴 "ĐÃ XIN TẠM ỨNG" = TỔNG CÁC ĐỢT ĐÃ KHAI, KHÔNG PHẢI TỔNG CẢ LỆNH.
+				 * ═══════════════════════════════════════════════════════════════════════════════
+				 * Anh Thắng 17/09/2026, nhìn thẻ ghi 68.790.000đ: *"Số tiền xin tạm ứng đợt 1,
+				 * chứ xin tổng vẫn chưa mà"*; rồi chốt: *"Tạm ứng xin đợt 1, đợt 2… còn số nào
+				 * chưa lên thì ghi là dự kiến đợt tiếp theo"*.
+				 *
+				 * Một LỆNH xin duyệt chi cho cả lô hạng mục (68.79tr), nhưng nhân viên chỉ xin
+				 * CẦM VỀ theo từng đợt (10tr ngày 03/09, 20tr ngày 10/09). Cộng cả lệnh vào ô
+				 * "đã xin" là nói nhân viên đã xin 68.79tr trong khi họ mới xin nhận 30tr — kế
+				 * toán đọc con số ấy để liệu tiền, nên nó phóng đại đúng khoản phải chuẩn bị.
+				 *
+				 * ⚠️ LỆNH KHÔNG KHAI LỊCH THÌ LẤY TRỌN SỐ LỆNH. Đó là ca thường nhất — nhận một
+				 *    lần, không chia đợt — và ở đó "đã xin" đúng bằng cả lệnh. Lấy tổng lịch
+				 *    (bằng 0) là mọi lệnh không chia đợt bỗng thành "chưa xin đồng nào".
+				 * ⚠️ LỊCH CÓ DÒNG MÀ KHÔNG GHI SỐ TIỀN (chỉ hẹn ngày) cũng rơi về trọn số lệnh:
+				 *    tổng lịch bằng 0 thì nó không nói được gì về tiền. */
+				$tong_lich = 0;
+				foreach ( (array) $d['lich'] as $lx ) {
+					$tong_lich += VHCPVP_Util::num( isset( $lx['soTien'] ) ? $lx['soTien'] : 0 );
+				}
+				if ( $tong_lich > 0 ) {
+					$da_xin += $tong_lich;
+					$con_lich = $d['soTien'] - $tong_lich;
+					if ( $con_lich > 0 ) { $du_kien_sau += $con_lich; }
+				} else {
+					$da_xin += $d['soTien'];
+				}
+				$da_vao_lenh += $d['soTien'];
+			}
+			/* 🔴 "ĐÃ CHI" ĐỌC THEO TIỀN THẬT ĐÃ ĐƯA, KHÔNG THEO TRẠNG THÁI LỆNH. Từ 1.194.0 kế
+			   toán cấp được làm nhiều lần: lệnh 48tr mới đưa 20tr thì tiền ẤY ĐÃ RA KHỎI KÉT,
+			   trong khi lệnh còn ở 'duyet'. Đếm theo trạng thái là bỏ sót đúng phần đang dở dang,
+			   và con số "còn treo trên TK 141" nói thiếu. Lượt cấp trọn cũng ghi vào `daCap`
+			   (xem `dat_tt_dot`), nên lối cũ ra đúng con số cũ. */
+			$da_chi += self::da_cap_tong( $d );
 		}
 
 		/* 🔴 DỰ KIẾN TẠM ỨNG = tổng tiền của mọi hạng mục 💰 NV TỰ TRẢ, kể cả cái còn nháp.
@@ -486,7 +533,10 @@ class VHCPVP_DuAn {
 			if ( ! self::is_real( $r3 ) ) { continue; }
 			if ( trim( (string) $r3['cap_cha'] ) !== '' ) { continue; }
 			if ( 'Trực tiếp' === trim( (string) $r3['hinh_thuc'] ) ) { continue; }
-			$du_kien += self::tien_hm( $ma_da, (int) $r3['row_no'] );
+			/* ⚠️ `tien_hm_du_kien`, KHÔNG phải `tien_hm`. Chú thích ngay trên nói con số này để
+			   kế toán liệu tiền TRƯỚC khi nhân viên bấm xin — mà `tien_hm()` chỉ đọc thực tế,
+			   nên trước lúc xin nó luôn bằng 0. Xem khối 🔴 ở `tien_hm_du_kien()`. */
+			$du_kien += self::tien_hm_du_kien( $ma_da, (int) $r3['row_no'] );
 		}
 
 		$dt = 0; $tt = 0; $du_tu = 0; $du_tt = 0; $tt_tu = 0; $tt_tt = 0; $tt_vat = 0; $tt_novat = 0;
@@ -569,10 +619,17 @@ class VHCPVP_DuAn {
 			'kyDA'            => self::get_ky_da( $ma_da ),
 			'lenh'            => $lenh,
 			'lenhQT'          => $lenhQT,
+			/* Bản đồ `số đợt trong sổ` -> `số đợt hiện ra`. Màn hình in số đợt ở BỐN chỗ (bảng
+			   lệnh, bảng quyết toán, nhãn UNC trên hàng hạng mục, huy hiệu "đã gửi QT đợt"); gửi
+			   một bản đồ chung thì bốn chỗ ấy không thể lệch nhau. Xem 🔴 ở `ds_dot()`. */
+			'dotHien'         => self::ban_do_so_dot( $ma_da ),
+			'qtDotHien'       => self::ban_do_so_dot( $ma_da, 'qt' ),
 			'qtDaGui'         => $qt_gui,
 			'qtDaChot'        => $qt_chot,
 			'duKienTU'        => $du_kien,
 			'daXinTU'         => $da_xin,
+			'duKienDotSau'    => $du_kien_sau,
+			'daVaoLenh'       => $da_vao_lenh,
 			'daChiTU'         => $da_chi,
 			'canTamUng'       => $du_tu,
 			'traTrucTiep'     => $du_tt,
@@ -865,7 +922,7 @@ class VHCPVP_DuAn {
 			'role'   => VHCPVP_Auth::vai_tro(),
 			'action' => 'Đổi trạng thái hạng mục dự án',
 			'target' => (string) $ma_da . '#' . $k,
-			'detail' => $cu['tt'] . ' → ' . $moi['tt'] . ( $moi['dot'] ? ( ' · đợt ' . $moi['dot'] ) : '' ),
+			'detail' => $cu['tt'] . ' → ' . $moi['tt'] . ( $moi['dot'] ? ( ' · lệnh ' . $moi['dot'] ) : '' ),
 		) );
 		return $moi;
 	}
@@ -928,11 +985,58 @@ class VHCPVP_DuAn {
 			'unc'    => isset( $x['unc'] ) ? (string) $x['unc'] : '',
 			'lyDo'   => isset( $x['lyDo'] ) ? (string) $x['lyDo'] : '',
 			'lich'   => isset( $x['lich'] ) && is_array( $x['lich'] ) ? array_values( $x['lich'] ) : array(),
+			/* ═══════════════════════════════════════════════════════════════════════════════════
+			 * SỔ CÁC LẦN CẤP TIỀN THẬT — khác hẳn `lich` ở ngay trên.
+			 * ═══════════════════════════════════════════════════════════════════════════════════
+			 * `lich` là KẾ HOẠCH nhân viên khai lúc xin ("ngày 3 lấy 10tr, ngày 10 lấy 20tr") để
+			 * kế toán liệu tiền. `daCap` là thứ ĐÃ XẢY RA: mỗi lần kế toán đưa tiền là một dòng,
+			 * có số tiền, ngày, uỷ nhiệm chi và tên người cấp.
+			 * Trộn hai thứ làm một là không bao giờ trả lời được câu "còn phải đưa bao nhiêu" —
+			 * kế hoạch thì luôn đủ, còn tiền thật thì chưa.
+			 */
+			'daCap'  => isset( $x['daCap'] ) && is_array( $x['daCap'] ) ? array_values( $x['daCap'] ) : array(),
 			'moc'    => isset( $x['moc'] ) && is_array( $x['moc'] ) ? $x['moc'] : array(),
 		);
 	}
 
-	/** Mọi lệnh của một dự án, đợt nhỏ trước. */
+	/** Tổng tiền THẬT đã cấp cho một lệnh. */
+	public static function da_cap_tong( $d ) {
+		$t = 0;
+		foreach ( (array) ( isset( $d['daCap'] ) ? $d['daCap'] : array() ) as $x ) {
+			$t += VHCPVP_Util::num( isset( $x['soTien'] ) ? $x['soTien'] : 0 );
+		}
+		return $t;
+	}
+
+	/** Còn phải cấp bao nhiêu nữa cho một lệnh (không bao giờ âm). */
+	public static function con_phai_cap( $d ) {
+		$con = VHCPVP_Util::num( isset( $d['soTien'] ) ? $d['soTien'] : 0 ) - self::da_cap_tong( $d );
+		return $con > 0 ? $con : 0;
+	}
+
+	/**
+	 * Mọi lệnh của một dự án, đợt nhỏ trước — kèm `soHien`, SỐ ĐỢT NGƯỜI TA NHÌN THẤY.
+	 *
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 LỆNH BỊ TRẢ LẠI KHÔNG TÍNH LÀ MỘT ĐỢT. Anh Thắng 17/09/2026: *"khi trả đơn thì phải
+	 *    hiểu không tính đó là 1 đợt"*.
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * Trước đây gửi lại sau khi bị trả thì ra "Đợt 2", trong khi thực tế tiền mới đi đúng một
+	 * lần. Đọc bảng thành ra dự án này ứng làm hai đợt — mà đợt 1 là một lệnh không tồn tại
+	 * nữa. Con số đợt là thứ kế toán dùng để nói chuyện ("cấp tiền đợt mấy rồi"), nên nó đếm
+	 * sai là hai bên nói hai chuyện.
+	 *
+	 * ⚠️ KHOÁ LƯU TRỮ (`dot`) GIỮ NGUYÊN, KHÔNG ĐÁNH SỐ LẠI. Nó là khoá của cả sổ lệnh lẫn cột
+	 *    `dot` trên từng hạng mục; đánh số lại là mọi tham chiếu cũ trỏ sang lệnh khác — im
+	 *    lặng, và đúng vào chỗ tiền. Chỉ con số HIỆN RA mới đếm lại.
+	 *
+	 * ⚠️ `soHien = 0` nghĩa là "không tính" — màn hình in một dấu gạch kèm chữ đã trả, chứ
+	 *    không giấu dòng đi. Giấu là mất dấu vết ai trả, trả lúc nào, vì sao; mà dòng ấy còn
+	 *    mang cả mốc thời gian của lượt xin và lượt duyệt trước đó.
+	 *
+	 * ⚠️ Lệnh đã trả là TẬN CÙNG — `dat_tt_dot()` chỉ cho 'tra' từ 'xin'/'duyet' và không có
+	 *    đường nào quay lại 'xin'. Nên số hiện của mấy lệnh sau nó không bao giờ nhảy lại.
+	 */
 	public static function ds_dot( $ma_da, $loai = 'tu' ) {
 		$ra = array();
 		foreach ( array_keys( self::get_dot( $ma_da, $loai ) ) as $k ) {
@@ -940,7 +1044,20 @@ class VHCPVP_DuAn {
 			if ( $d ) { $ra[] = $d; }
 		}
 		usort( $ra, function ( $a, $b ) { return $a['dot'] - $b['dot']; } );
+		$dem = 0;
+		foreach ( $ra as $i => $d ) {
+			if ( 'tra' === $d['tt'] ) { $ra[ $i ]['soHien'] = 0; continue; }
+			$dem++;
+			$ra[ $i ]['soHien'] = $dem;
+		}
 		return $ra;
+	}
+
+	/** Bản đồ `số đợt trong sổ` -> `số đợt hiện ra`. Màn hình nào in số đợt cũng dịch qua đây. */
+	public static function ban_do_so_dot( $ma_da, $loai = 'tu' ) {
+		$m = array();
+		foreach ( self::ds_dot( $ma_da, $loai ) as $d ) { $m[ (string) $d['dot'] ] = (int) $d['soHien']; }
+		return $m;
 	}
 
 	private static function dot_ghi_( $ma_da, $dot, $sua, $viec, $loai = 'tu' ) {
@@ -957,7 +1074,7 @@ class VHCPVP_DuAn {
 			'actor'  => VHCPVP_Auth::nguoi(),
 			'role'   => VHCPVP_Auth::vai_tro(),
 			'action' => (string) $viec,
-			'target' => (string) $ma_da . ' · đợt ' . $k,
+			'target' => (string) $ma_da . ' · lệnh ' . $k,
 			'detail' => 'trạng thái ' . $moi['tt'] . ' · ' . count( $moi['rows'] ) . ' hạng mục · '
 				. number_format( (float) $moi['soTien'], 0, ',', '.' ) . 'đ'
 				. ( '' !== $moi['unc'] ? ( ' · UNC ' . $moi['unc'] ) : '' )
@@ -985,6 +1102,72 @@ class VHCPVP_DuAn {
 			if ( trim( (string) $l['cap_cha'] ) === $nd ) { $co_con = true; $con += VHCPVP_Util::num( $l['thuc_te'] ); }
 		}
 		return $co_con ? $con : $tu_than;
+	}
+
+	/**
+	 * TIỀN DỰ KIẾN CỦA MỘT HẠNG MỤC — dùng cho mọi con số đứng TRƯỚC lúc tiền ra khỏi két.
+	 *
+	 * =============================================================================================
+	 * 🔴 VÌ SAO PHẢI CÓ HÀM THỨ HAI — 17/09/2026, anh Thắng: *"đã nhập số liệu thì cần cộng vào
+	 *    luôn để biết bao nhiêu"*, kèm ảnh một dự án có 125.907.312đ dự toán mà thẻ
+	 *    *"Dự kiến tạm ứng tổng đơn"* đứng **0đ**, và *"Số tiền đã xin tạm ứng"* cũng **0đ** dù
+	 *    dòng ghi chú ngay cạnh nói *"✓ đã gửi xin hết"*.
+	 * =============================================================================================
+	 * `tien_hm()` chỉ đọc cột `thuc_te`. Điều ấy ĐÚNG cho quyết toán — quyết toán là đối chiếu
+	 * tiền đã tiêu thật. Nhưng nó SAI cho hai chỗ đứng trước đó:
+	 *
+	 *   · thẻ "Dự kiến tạm ứng tổng đơn" — chú thích của chính nó ghi *"để kế toán liệu tiền
+	 *     TRƯỚC khi nhân viên bấm xin"*. Trước khi xin thì chưa tiêu đồng nào, nên nó bằng 0
+	 *     đúng vào lúc người ta cần nó nhất.
+	 *   · `xin_tam_ung_dot()` — SỐ TIỀN CỦA LỆNH XIN TẠM ỨNG. Đây mới là chỗ đắt: nhân viên
+	 *     tích đủ hạng mục, bấm xin, và hệ thống dựng một lệnh xin **0đ**. Không câu lỗi nào,
+	 *     màn hình vẫn báo đã gửi. Kế toán mở ra thấy một lệnh rỗng, còn nhân viên thì tưởng
+	 *     mình đã xin xong 125 triệu. Đó chính là hai con số 0 trong ảnh.
+	 *
+	 * 🔴 BA CỘT TIỀN, KHÔNG PHẢI HAI — chỗ này suýt sửa hụt. Một dòng chi phí có `thuc_te`,
+	 *    `du_toan` VÀ `thanh_tien` (= số lượng × đơn giá, xem `line_data()`). Đơn **chi phí cơ
+	 *    sở** không dùng ô Dự toán chút nào: nhân viên gõ số lượng và đơn giá, tiền nằm trọn ở
+	 *    `thanh_tien`. Bản đầu của hàm này chỉ nhìn `thuc_te` + `du_toan`, nên nó vá xong đơn dự
+	 *    án mà đơn cơ sở VẪN xin 0đ — cùng một lỗi, ở cột thứ ba.
+	 *    `kiem-don-coso-tu-quyet-toan.php` bắt được ngay, và đó là lý do bài ấy đáng giá.
+	 *
+	 * LUẬT: lấy số ĐÃ BIẾT TỐT NHẤT — thực tế → dự toán → thành tiền.
+	 *   · Hạng mục có mục con: tổng thực tế của con; con chưa nhập gì thì lùi về số của cha.
+	 *   · Hạng mục không con: thực tế của chính nó, rồi dự toán, rồi thành tiền.
+	 *   Dự toán đứng TRƯỚC thành tiền vì ở màn dự án nó là ô người ta cố ý gõ "xin bấy nhiêu",
+	 *   còn thành tiền là số máy tự nhân ra. Một dòng hiếm khi có cả hai — đơn cơ sở chỉ có
+	 *   thành tiền, đơn dự án chỉ có dự toán — nên thứ tự này phục vụ đủ cả hai mà không phải đoán.
+	 *
+	 * ⚠️ HÀM RIÊNG, KHÔNG SỬA `tien_hm()`. Hàm ấy còn hai nơi gọi nữa — `gui_quyet_toan()` và
+	 *    đường quyết toán tự động — và cả hai PHẢI giữ nguyên "chỉ thực tế". Cho quyết toán lùi
+	 *    về dự toán là chốt sổ bằng con số kế hoạch khi chưa ai nhập tiền thật: sổ khớp đẹp,
+	 *    tiền thì không ai biết đã đi đâu. Đây đúng là loại hỏng im lặng mà đổi một hàm dùng
+	 *    chung sẽ gây ra, nên tách làm hai cái tên.
+	 *
+	 * ⚠️ 0 KHÔNG PHẢI "CHƯA NHẬP" theo nghĩa tuyệt đối — một hạng mục thực chi đúng 0đ là có
+	 *    thật (hàng được tặng). Nhưng nó lùi về dự toán thì cũng chỉ ra đúng con số kế hoạch,
+	 *    và người dùng thấy nó trên màn để sửa. Ngược lại — báo 0 cho một khoản 48 triệu — thì
+	 *    không có gì trên màn hình chỉ ra là sai.
+	 */
+	public static function tien_hm_du_kien( $ma_da, $row ) {
+		$lines = self::lines_of( $ma_da );
+		$nd = ''; $tu_than = 0; $ke_hoach = 0;
+		foreach ( $lines as $l ) {
+			if ( (int) $l['row_no'] === (int) $row ) {
+				$nd      = trim( (string) $l['noi_dung'] );
+				$tu_than = VHCPVP_Util::num( $l['thuc_te'] );
+				$dt      = VHCPVP_Util::num( $l['du_toan'] );
+				$tht     = VHCPVP_Util::num( $l['thanh_tien'] );
+				$ke_hoach = $dt > 0 ? $dt : $tht;
+			}
+		}
+		if ( '' === $nd ) { return 0; }
+		$con = 0; $co_con = false;
+		foreach ( $lines as $l ) {
+			if ( trim( (string) $l['cap_cha'] ) === $nd ) { $co_con = true; $con += VHCPVP_Util::num( $l['thuc_te'] ); }
+		}
+		if ( $co_con ) { return $con > 0 ? $con : $ke_hoach; }
+		return $tu_than > 0 ? $tu_than : $ke_hoach;
 	}
 
 	/**
@@ -1023,7 +1206,22 @@ class VHCPVP_DuAn {
 				return VHCPVP_Util::err( '"' . $lon[ $r ] . '" đã nằm trong một lệnh tạm ứng rồi.' );
 			}
 			$nhan[] = $r;
-			$tong  += self::tien_hm( $ma_da, $r );
+			/* ⚠️ `tien_hm_du_kien`, KHÔNG phải `tien_hm`. Đây là SỐ TIỀN CỦA LỆNH XIN TẠM ỨNG —
+			   tiền chưa tiêu, nên hỏi cột thực tế thì được đúng số 0. Xem khối 🔴 ở
+			   `tien_hm_du_kien()`; đây là chỗ đắt nhất của lỗi ấy. */
+			$tong  += self::tien_hm_du_kien( $ma_da, $r );
+		}
+
+		/* 🔴 KHÔNG DỰNG LỆNH XIN 0đ. 17/09/2026 — đây là cái đã xảy ra thật: mọi hạng mục mới
+		   chỉ có dự toán, `tien_hm()` đọc cột thực tế nên `$tong` ra 0, và hệ thống vẫn dựng
+		   một lệnh xin tạm ứng rỗng rồi báo "đã gửi". Nhân viên tưởng đã xin xong 125 triệu;
+		   kế toán mở ra thấy một lệnh không đồng nào; không bên nào có gì trên màn hình để nghi.
+		   Nay `tien_hm_du_kien()` lùi về dự toán nên ca ấy hết. Chốt này là LƯỚI CUỐI cho những
+		   ca còn lại — hạng mục chưa gõ cả dự toán lẫn thực tế — và nó nói thẳng phải làm gì. */
+		if ( $tong <= 0 ) {
+			return VHCPVP_Util::err( 'Mấy hạng mục vừa tích đều chưa có số tiền nào — Dự toán, '
+				. 'Số lượng × Đơn giá và Chi phí thực tế đều trống hoặc 0. Điền số vào rồi xin '
+				. 'tạm ứng; gửi một lệnh 0đ thì kế toán không có gì để cấp.' );
 		}
 
 		$ds  = self::get_dot( $ma_da );
@@ -1031,16 +1229,55 @@ class VHCPVP_DuAn {
 		foreach ( array_keys( $ds ) as $k ) { $dot = max( $dot, (int) $k ); }
 		$dot++;
 
-		/* Lịch đi nhận tiền: dòng thiếu ngày thì bỏ — một đợt không ngày thì kế toán chuẩn bị
-		   tiền vào hôm nào? */
-		$lc = array(); $lan = 0;
+		/* ═════════════════════════════════════════════════════════════════════════════════════
+		 * LỊCH NHẬN TIỀN = TỪNG ĐỢT GÁN LẤY MẤY HẠNG MỤC, TIỀN DO MÁY CHỦ CỘNG.
+		 * ═════════════════════════════════════════════════════════════════════════════════════
+		 * Anh Thắng 17/09/2026: *"Anh muốn xác định chi phí từng hàng là chi lần 1, hay chi lần 2"*.
+		 *
+		 * Bản trước cho gõ TAY số tiền của từng lần. Hai cái giá đã trả:
+		 *   · Số ấy không dính gì tới hàng nào cả — không ai trả lời được "lần 1 gồm những gì".
+		 *   · Và nó lệch được với tổng lệnh: đơn của anh khai 10tr + 20tr cho một lệnh
+		 *     68.790.000đ, còn 38.790.000đ không thuộc lần nào mà chẳng có gì nói ra.
+		 *
+		 * Nay mỗi đợt mang DANH SÁCH HÀNG (`rows`), và `soTien` do đây cộng từ chính mấy hàng ấy.
+		 *
+		 * 🔴 KHÔNG NHẬN `soTien` TỪ MÀN. Nhận là mở đường cho hai con số: danh sách hàng nói một
+		 *    đằng, số tiền nói một nẻo, và không ai biết bên nào đúng. Máy chủ cộng thì con số ấy
+		 *    KHÔNG THỂ lệch với danh sách — đó là cả điểm của việc này.
+		 * 🔴 CỘNG BẰNG `tien_hm_du_kien()`, đúng hàm dựng nên `$tong` của cả lệnh ở trên. Dùng
+		 *    hàm khác là tổng các đợt không bao giờ khớp tổng lệnh.
+		 *
+		 * ⚠️ MỘT HÀNG KHÔNG ĐƯỢC NẰM TRONG HAI ĐỢT — cùng một khoản mà hẹn nhận hai lần thì tổng
+		 *    các đợt vượt tổng lệnh, và kế toán chuẩn bị thừa tiền.
+		 * ⚠️ HÀNG KHÔNG THUỘC LỆNH NÀY THÌ CHỐI, không lặng lẽ bỏ: người dùng thấy nó trong danh
+		 *    sách lúc gửi, mà lệnh lại không có nó.
+		 * ⚠️ Dòng thiếu NGÀY vẫn bỏ như cũ — một đợt không ngày thì kế toán chuẩn bị tiền hôm nào?
+		 * ⚠️ Hàng KHÔNG gán vào đợt nào là chuyện bình thường: đó là "dự kiến đợt tiếp theo"
+		 *    (xem `get_du_an`), không phải lỗi.
+		 */
+		$lc = array(); $lan = 0; $da_gan = array();
+		$trong_lenh = array_fill_keys( $nhan, 1 );
 		foreach ( (array) $lich as $x ) {
-			$x = (array) $x;
+			$x    = (array) $x;
 			$ngay = isset( $x['ngay'] ) ? trim( (string) $x['ngay'] ) : '';
 			if ( '' === $ngay ) { continue; }
+			$rows_dot = array(); $tien_dot = 0;
+			foreach ( (array) ( isset( $x['rows'] ) ? $x['rows'] : array() ) as $rr ) {
+				$rr = (int) $rr;
+				if ( ! isset( $trong_lenh[ $rr ] ) ) {
+					return VHCPVP_Util::err( 'Dòng ' . $rr . ' được xếp vào một lần nhận tiền nhưng '
+						. 'không nằm trong lệnh này.' );
+				}
+				if ( isset( $da_gan[ $rr ] ) ) {
+					return VHCPVP_Util::err( '"' . $lon[ $rr ] . '" bị xếp vào hai lần nhận tiền — '
+						. 'một khoản chỉ nhận một lần.' );
+				}
+				$da_gan[ $rr ] = 1;
+				$rows_dot[]    = $rr;
+				$tien_dot     += self::tien_hm_du_kien( $ma_da, $rr );
+			}
 			$lan++;
-			$lc[] = array( 'lan' => $lan, 'ngay' => $ngay,
-				'soTien' => VHCPVP_Util::num( isset( $x['soTien'] ) ? $x['soTien'] : 0 ) );
+			$lc[] = array( 'lan' => $lan, 'ngay' => $ngay, 'soTien' => $tien_dot, 'rows' => $rows_dot );
 		}
 
 		$moi = self::dot_ghi_( $ma_da, $dot, array(
@@ -1048,6 +1285,10 @@ class VHCPVP_DuAn {
 			'lyDo' => trim( (string) $ghi_chu ), 'unc' => '',
 		), 'Xin tạm ứng cho dự án' );
 		foreach ( $nhan as $r ) { self::hm_ghi_( $ma_da, $r, array( 'tt' => 'xin', 'dot' => $dot ) ); }
+		/* Câu báo trên màn phải nói ĐÚNG con số mà bảng ngay dưới nó sắp in ra — lệnh bị trả
+		   không tính là một đợt (🔴 ở `ds_dot()`). Gửi kèm `soHien` thay vì để màn tự đoán. */
+		$__bd = self::ban_do_so_dot( $ma_da, 'tu' );
+		$moi['soHien'] = isset( $__bd[ (string) $dot ] ) ? (int) $__bd[ (string) $dot ] : 0;
 		return VHCPVP_Util::ok( array( 'dot' => $moi, 'soTien' => $tong, 'so' => count( $nhan ) ) );
 	}
 
@@ -1057,12 +1298,106 @@ class VHCPVP_DuAn {
 	 * 🔴 CHỐT THEO VAI. Ẩn nút trên màn chỉ là tiện tay; ai gọi thẳng API vẫn phải bị chặn,
 	 *    nếu không thì nhân viên tự duyệt rồi tự cấp tạm ứng cho chính mình.
 	 */
+	/**
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * CẤP TIỀN LÀM NHIỀU LẦN CHO MỘT LỆNH.
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 10/09/2026: *"nếu 1 lần mà đi tạm ứng nhiều lần thì nv có thể lịch chọn ngày đi
+	 * tạm ứng lần 1,2,3"*; rồi 17/09/2026 hỏi thẳng *"nếu xin nhiều lần và cấp nhiều lần thì
+	 * sao"*. Phần HẸN LỊCH đã có từ lâu (`lich`); phần GHI NHẬN TỪNG LẦN NHẬN thì chưa — cấp
+	 * tiền vốn là một cú lật duy nhất, cấp là cấp trọn lệnh.
+	 *
+	 * Hệ quả của việc thiếu nó: lệnh 48 triệu mà kế toán mới đưa 20 triệu thì không có chỗ nào
+	 * ghi lại. Muốn biết "còn phải đưa bao nhiêu" thì hỏi mồm — đúng thứ hệ này sinh ra để bỏ.
+	 *
+	 * 🔴 KHÔNG THÊM TRẠNG THÁI MỚI CHO LỆNH. Thêm 'đang cấp' vào `TT_DOT` là nó chảy xuống trạng
+	 *    thái của TỪNG HẠNG MỤC (`dat_tt_dot` đẩy `tt` của lệnh xuống mọi hàng), rồi vào
+	 *    `hm_du_tu_qt()`, vào bảng Duyệt, vào mọi phép so `'ung' === $h['tt']`. Một trạng thái
+	 *    mới là một nhánh chưa ai đi trong hàng chục phép so — và chúng hỏng im lặng.
+	 *    Nên: lệnh vẫn ở 'duyet' cho tới khi cấp ĐỦ, rồi mới sang 'ung'. Phần "đang cấp dở" nằm
+	 *    ở SỐ TIỀN (`daCap`), không nằm ở trạng thái. Màn hình đọc số ấy mà nói "đã cấp 20/48".
+	 *
+	 * 🔴 CẤP ĐỦ THÌ ĐI ĐÚNG ĐƯỜNG CŨ. Lượt cấp cuối gọi thẳng `dat_tt_dot(...,'ung')`, nên mọi
+	 *    thứ móc vào lượt ấy — hạng mục sang 'ung', `tu_quyet_toan_coso()` của đơn cơ sở, mốc
+	 *    thời gian, nhật ký — chạy y như trước. Chép lại một bản rút gọn ở đây là hai đường cấp
+	 *    tiền, và sớm muộn một đường quên một việc.
+	 *
+	 * ⚠️ KHÔNG CHO CẤP QUÁ SỐ CỦA LỆNH. Đưa dư là tiền ra khỏi két nhiều hơn số đã duyệt, mà
+	 *    lệnh thì chỉ được duyệt tới đấy. Cần đưa thêm thì xin một lệnh mới — ở đó có người duyệt.
+	 * ⚠️ 0đ HAY SỐ ÂM THÌ CHỐI. Một dòng cấp 0đ chỉ làm sổ dài ra mà không nói gì.
+	 */
+	public static function cap_tien_phan( $ma_da, $dot, $them = array() ) {
+		if ( ! self::find( $ma_da ) ) { return VHCPVP_Util::err( 'Không tìm thấy dự án' ); }
+		$d = self::dot_cua( $ma_da, $dot );
+		if ( ! $d ) { return VHCPVP_Util::err( 'Không tìm thấy lệnh tạm ứng ' . (int) $dot ); }
+		$vai = VHCPVP_Auth::vai_tro();
+		if ( ! in_array( $vai, array( 'Admin', 'Kế toán cá nhân', 'Kế toán NCC' ), true ) ) {
+			return VHCPVP_Util::err( 'Chỉ kế toán cấp tạm ứng được.' );
+		}
+		if ( 'ung' === $d['tt'] ) { return VHCPVP_Util::err( 'Lệnh này đã cấp đủ tiền rồi.' ); }
+		if ( 'duyet' !== $d['tt'] ) {
+			return VHCPVP_Util::err( 'Chỉ cấp tiền cho lệnh ĐÃ DUYỆT. Lệnh này đang ở bước "'
+				. $d['tt'] . '".' );
+		}
+
+		$them   = (array) $them;
+		$so     = VHCPVP_Util::num( isset( $them['soTien'] ) ? $them['soTien'] : 0 );
+		$con    = self::con_phai_cap( $d );
+		if ( $so <= 0 ) {
+			return VHCPVP_Util::err( 'Nhập số tiền thật sự đưa lần này (lớn hơn 0).' );
+		}
+		if ( $so > $con ) {
+			return VHCPVP_Util::err( 'Lệnh này chỉ còn ' . number_format( (float) $con, 0, ',', '.' )
+				. 'đ chưa cấp, không đưa được ' . number_format( (float) $so, 0, ',', '.' ) . 'đ. '
+				. 'Cần đưa thêm thì nhân viên xin một lệnh mới — lệnh mới có người duyệt.' );
+		}
+
+		/* 🔴 KHÔNG CHỌN NGÀY THÌ LẤY ĐÚNG LÚC BẤM — KÈM GIỜ. Anh Thắng 18/09/2026: *"Nếu kế toán
+		   bấm cấp tiền mà không chọn ngày thì tự hiểu là lấy ngày bấm cấp làm ngày cấp tiền
+		   (kèm giờ luôn cho đầy đủ)"*, kèm ảnh sổ "Đã cấp" có ba dòng mà hai dòng trống ngày.
+		   Ô ngày là tuỳ chọn, và đường cấp TRỌN MỘT LẦN (`dat_tt_dot('ung')`) còn chẳng có ô
+		   nào — nên bỏ trống là ca thường, không phải ca hiếm. Để trống thì sổ chi tiền mất mốc
+		   thời gian, mà đối chiếu ngân hàng thì mốc ấy là thứ đầu tiên người ta dò.
+		   ⚠️ GHI VÀO `ngay` chứ không chỉ vá lúc hiển thị: ai đọc sổ qua đường khác (xuất MISA,
+		      tra lịch sử) cũng phải thấy cùng một ngày, không phải mỗi màn hình mới có. */
+		$luc   = VHCPVP_Util::now()->format( 'd/m/Y H:i' );
+		$ngay  = trim( (string) ( isset( $them['ngay'] ) ? $them['ngay'] : '' ) );
+		$ghi   = $d['daCap'];
+		$ghi[] = array(
+			'lan'    => count( $ghi ) + 1,
+			'soTien' => $so,
+			'ngay'   => ( '' !== $ngay ? $ngay : $luc ),
+			'unc'    => trim( (string) ( isset( $them['unc'] ) ? $them['unc'] : '' ) ),
+			'nguoi'  => VHCPVP_Auth::nguoi(),
+			'luc'    => $luc,
+		);
+		$het = ( $so >= $con );   // lượt này trả nốt phần còn lại
+
+		if ( $het ) {
+			/* Ghi sổ TRƯỚC rồi mới lật trạng thái: `dat_tt_dot` đọc lại lệnh từ sổ, nên ghi sau
+			   là lượt cấp cuối biến mất khỏi sổ. */
+			self::dot_ghi_( $ma_da, $dot, array( 'daCap' => $ghi ), 'Cấp tạm ứng (lần cuối) cho dự án' );
+			$kq = self::dat_tt_dot( $ma_da, $dot, 'ung',
+				isset( $them['unc'] ) ? array( 'unc' => trim( (string) $them['unc'] ) ) : array() );
+			if ( empty( $kq['success'] ) ) { return $kq; }
+			$moi = self::dot_cua( $ma_da, $dot );
+			return VHCPVP_Util::ok( array( 'dot' => $moi, 'daCap' => self::da_cap_tong( $moi ),
+				'con' => 0, 'xong' => true,
+				'tuQuyetToan' => isset( $kq['tuQuyetToan'] ) ? (int) $kq['tuQuyetToan'] : 0 ) );
+		}
+
+		$moi = self::dot_ghi_( $ma_da, $dot, array( 'daCap' => $ghi ), 'Cấp tạm ứng từng phần cho dự án' );
+		$moi = self::dot_cua( $ma_da, $dot );
+		return VHCPVP_Util::ok( array( 'dot' => $moi, 'daCap' => self::da_cap_tong( $moi ),
+			'con' => self::con_phai_cap( $moi ), 'xong' => false ) );
+	}
+
 	public static function dat_tt_dot( $ma_da, $dot, $tt, $them = array() ) {
 		if ( ! self::find( $ma_da ) ) { return VHCPVP_Util::err( 'Không tìm thấy dự án' ); }
 		$tt = (string) $tt;
 		if ( ! in_array( $tt, self::TT_DOT, true ) ) { return VHCPVP_Util::err( 'Trạng thái không hợp lệ' ); }
 		$d = self::dot_cua( $ma_da, $dot );
-		if ( ! $d ) { return VHCPVP_Util::err( 'Không tìm thấy lệnh tạm ứng đợt ' . (int) $dot ); }
+		if ( ! $d ) { return VHCPVP_Util::err( 'Không tìm thấy lệnh tạm ứng ' . (int) $dot ); }
 		$them = (array) $them;
 		$vai  = VHCPVP_Auth::vai_tro();
 		$duyet_duoc = in_array( $vai, array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC' ), true );
@@ -1072,7 +1407,7 @@ class VHCPVP_DuAn {
 			return VHCPVP_Util::err( 'Chỉ quản lý hoặc kế toán duyệt / trả lại được.' );
 		}
 		if ( 'ung' === $tt && ! $ke_toan ) { return VHCPVP_Util::err( 'Chỉ kế toán cấp tạm ứng được.' ); }
-		if ( 'ung' === $d['tt'] ) { return VHCPVP_Util::err( 'Lệnh đợt ' . $d['dot'] . ' đã cấp tiền rồi.' ); }
+		if ( 'ung' === $d['tt'] ) { return VHCPVP_Util::err( 'Lệnh ' . $d['dot'] . ' đã cấp tiền rồi.' ); }
 		if ( 'duyet' === $tt && 'xin' !== $d['tt'] ) { return VHCPVP_Util::err( 'Chỉ duyệt được lệnh đang xin tạm ứng.' ); }
 		if ( 'ung' === $tt && 'duyet' !== $d['tt'] ) { return VHCPVP_Util::err( 'Chỉ cấp tiền cho lệnh đã duyệt.' ); }
 		if ( 'tra' === $tt && ! in_array( $d['tt'], array( 'xin', 'duyet' ), true ) ) {
@@ -1082,6 +1417,28 @@ class VHCPVP_DuAn {
 		$sua = array( 'tt' => $tt );
 		if ( isset( $them['unc'] ) ) { $sua['unc'] = trim( (string) $them['unc'] ); }
 		if ( isset( $them['lyDo'] ) ) { $sua['lyDo'] = trim( (string) $them['lyDo'] ); }
+		/* 🔴 CẤP TRỌN MỘT LẦN CŨNG PHẢI VÀO SỔ CÁC LẦN CẤP. Nếu chỉ `cap_tien_phan()` ghi sổ thì
+		   sổ ấy thủng đúng ở lối đang được dùng nhiều nhất, và con số "đã chi" đọc theo nó sẽ
+		   thiếu mất phần lớn tiền. Ghi nốt phần CÒN LẠI — lượt cấp cuối của đường từng phần đã
+		   ghi dòng của nó rồi, nên ở đây `con` bằng 0 và không sinh dòng thừa. */
+		if ( 'ung' === $tt ) {
+			$con_lai = self::con_phai_cap( $d );
+			if ( $con_lai > 0 ) {
+				$luc_c   = VHCPVP_Util::now()->format( 'd/m/Y H:i' );
+				$ghi_c   = $d['daCap'];
+				$ghi_c[] = array(
+					'lan'    => count( $ghi_c ) + 1,
+					'soTien' => $con_lai,
+					/* Đường này KHÔNG có ô ngày nào để kế toán chọn, nên mốc duy nhất đúng là
+					   lúc bấm. Xem khối 🔴 ở `cap_tien_phan()`. */
+					'ngay'   => $luc_c,
+					'unc'    => isset( $sua['unc'] ) ? $sua['unc'] : $d['unc'],
+					'nguoi'  => VHCPVP_Auth::nguoi(),
+					'luc'    => $luc_c,
+				);
+				$sua['daCap'] = $ghi_c;
+			}
+		}
 		$viec = array( 'duyet' => 'Duyệt lệnh tạm ứng dự án', 'tra' => 'Trả lại lệnh tạm ứng dự án',
 			'ung' => 'Cấp tạm ứng cho dự án', 'xin' => 'Xin tạm ứng cho dự án' );
 		$moi = self::dot_ghi_( $ma_da, $dot, $sua, isset( $viec[ $tt ] ) ? $viec[ $tt ] : 'Đổi lệnh tạm ứng' );
@@ -1157,6 +1514,9 @@ class VHCPVP_DuAn {
 			'lyDo' => trim( (string) $ghi_chu ), 'unc' => '',
 		), 'Gửi quyết toán dự án', 'qt' );
 		foreach ( $nhan as $r ) { self::hm_ghi_( $ma_da, $r, array( 'qtDot' => $dot ) ); }
+		/* Cùng lý do với lệnh tạm ứng: câu báo phải nói đúng con số bảng sắp in. */
+		$__bd = self::ban_do_so_dot( $ma_da, 'qt' );
+		$moi['soHien'] = isset( $__bd[ (string) $dot ] ) ? (int) $__bd[ (string) $dot ] : 0;
 		return VHCPVP_Util::ok( array( 'dot' => $moi, 'soTien' => $tong, 'so' => count( $nhan ) ) );
 	}
 
@@ -1278,12 +1638,12 @@ class VHCPVP_DuAn {
 		$tt = (string) $tt;
 		if ( ! in_array( $tt, array( 'xong', 'tra' ), true ) ) { return VHCPVP_Util::err( 'Trạng thái không hợp lệ' ); }
 		$d = self::dot_cua( $ma_da, $dot, 'qt' );
-		if ( ! $d ) { return VHCPVP_Util::err( 'Không tìm thấy lệnh quyết toán đợt ' . (int) $dot ); }
+		if ( ! $d ) { return VHCPVP_Util::err( 'Không tìm thấy lệnh quyết toán ' . (int) $dot ); }
 		$vai = VHCPVP_Auth::vai_tro();
 		if ( ! in_array( $vai, array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC' ), true ) ) {
 			return VHCPVP_Util::err( 'Chỉ quản lý hoặc kế toán chốt / trả lại quyết toán được.' );
 		}
-		if ( 'xong' === $d['tt'] ) { return VHCPVP_Util::err( 'Lệnh quyết toán đợt ' . $d['dot'] . ' đã chốt sổ rồi.' ); }
+		if ( 'xong' === $d['tt'] ) { return VHCPVP_Util::err( 'Lệnh quyết toán ' . $d['dot'] . ' đã chốt sổ rồi.' ); }
 
 		$sua = array( 'tt' => $tt );
 		if ( isset( $them['lyDo'] ) ) { $sua['lyDo'] = trim( (string) $them['lyDo'] ); }
@@ -1324,6 +1684,8 @@ class VHCPVP_DuAn {
 					'isCoSo'   => self::la_don_coso( $r['loai'] ),
 					'nguoiTao' => isset( $r['nguoi_tao'] ) ? (string) $r['nguoi_tao'] : '',
 					'dot'      => $d['dot'],
+					/* Số đợt HIỆN RA — lệnh bị trả không tính là một đợt (🔴 ở `ds_dot()`). */
+					'soHien'   => isset( $d['soHien'] ) ? (int) $d['soHien'] : 0,
 					'tt'       => $d['tt'],
 					'rows'     => $d['rows'],
 					'tenHM'    => $ten,
@@ -1431,6 +1793,31 @@ class VHCPVP_DuAn {
 			} elseif ( '' === $hd ) {
 				return VHCPVP_Util::err( 'Phải đính hoá đơn trước khi chốt hoàn thành.' );
 			}
+			/* ═══════════════════════════════════════════════════════════════════════════════════
+			 * 🔴 CHỐT HOÀN THÀNH MÀ SỐ TIỀN LÀ 0 THÌ CHỐT CÁI GÌ — 17/09/2026.
+			 * ═══════════════════════════════════════════════════════════════════════════════════
+			 * 'xong' nghĩa là *"đây là chi thực tế"*. Bản trước chỉ đòi có hoá đơn, không đòi có
+			 * SỐ TIỀN. Nên chốt được một hạng mục 48 triệu với thực tế bằng 0, rồi đem đi quyết
+			 * toán — `xin_quyet_toan_dot()` và `tu_quyet_toan_coso()` đều cộng bằng `tien_hm()`,
+			 * tức đúng cột thực tế ấy. Lệnh quyết toán ra 0đ, khoản tạm ứng 48 triệu vẫn treo
+			 * nguyên trên TK 141, và sổ thì trông như đã tất toán.
+			 *
+			 * Đây là cùng một họ với lỗi lệnh xin 0đ vừa vá hôm nay, chỉ khác đầu kia của chuỗi:
+			 * một đầu xin 0đ, một đầu quyết toán 0đ. Vá một đầu mà bỏ đầu kia là còn nguyên nửa.
+			 *
+			 * ⚠️ ĐO BẰNG `tien_hm()`, KHÔNG PHẢI `tien_hm_du_kien()`. Phải đúng con số sẽ đi vào
+			 *    lệnh quyết toán; hỏi bản "dự kiến" thì một hạng mục mới có dự toán cũng lọt, và
+			 *    lệnh quyết toán vẫn ra 0đ — chốt thành ra không canh gì cả.
+			 * ⚠️ Hạng mục có mục con thì `tien_hm()` lấy tổng con, nên câu chối phải nói cả hai
+			 *    đường sửa; người đọc không nhớ luật "tiền nằm ở con".
+			 * ⚠️ Màn web tự điền thực tế = thành tiền khi ô ấy trống, nên đơn cơ sở nhập bình
+			 *    thường không vướng chốt này. Nó chặn đúng mấy đường ghi KHÔNG qua màn. */
+			if ( self::tien_hm( $ma_da, $row ) <= 0 ) {
+				return VHCPVP_Util::err( 'Hạng mục này chưa có số tiền thực tế nào (đang là 0đ) — '
+					. 'chốt hoàn thành thì lệnh quyết toán cũng ra 0đ và khoản tạm ứng vẫn treo '
+					. 'nguyên. Điền ô "Chi phí thực tế" cho hạng mục (hoặc cho các mục con của nó) '
+					. 'rồi chốt lại.' );
+			}
 		}
 
 		$sua = array( 'tt' => $tt );
@@ -1490,7 +1877,17 @@ class VHCPVP_DuAn {
 			'ma_dt'      => $loai_cp !== '' ? $tk['ma_dt'] : '',
 			'noi_dung'   => VHCPVP_Util::st( $g( 'noiDung' ) ),
 			'du_toan'    => ( $cap === '' ) ? VHCPVP_Util::num( $g( 'duToan' ) ) : 0,   // chỉ hạng mục lớn có dự toán
-			'thuc_te'    => VHCPVP_Util::num( $g( 'thucTe' ) ),
+			/* 🔴 THỰC TẾ TRỐNG -> LẤY THÀNH TIỀN (SL × ĐƠN GIÁ). Chuyển luật này TỪ MÀN HÌNH
+			   XUỐNG MÁY CHỦ, 17/09/2026.
+			   Màn web vẫn tự điền (`app.html`: *"thực tế trống -> = thành tiền"*), nhưng đó là
+			   luật của MỘT đường ghi. Mọi đường khác — cửa API, nạp tệp, một bản app.html cũ
+			   trong bộ nhớ đệm — đều ghi thực tế bằng 0 trong khi tiền nằm ở `thanh_tien`. Hàng
+			   ấy trông có tiền trên bảng mà `tien_hm()` đọc ra 0, nên lệnh QUYẾT TOÁN của nó ra
+			   0đ và khoản tạm ứng vẫn treo trên TK 141 — im lặng.
+			   ⚠️ CHỈ LÙI KHI Ô ẤY THẬT SỰ TRỐNG. Gửi thẳng số 0 là lời khai có chủ ý ("hàng được
+			      tặng"), giữ nguyên 0; đè nó là tự sinh ra một khoản chi không có thật. */
+			'thuc_te'    => ( ( null === $g( 'thucTe' ) || '' === $g( 'thucTe' ) ) && $sl * $dg > 0 )
+				? ( $sl * $dg ) : VHCPVP_Util::num( $g( 'thucTe' ) ),
 			'so_luong'   => $sl,
 			'don_gia'    => $dg,
 			'thanh_tien' => $sl * $dg,
@@ -1504,6 +1901,64 @@ class VHCPVP_DuAn {
 		);
 	}
 
+	/**
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 CHI PHÍ DỰ ÁN KHÔNG ĐẺ THÊM MỤC CON NỮA — CHỐT Ở ĐÂY, KHÔNG PHẢI Ở NÚT BẤM.
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 17/09/2026: *"Đối với chi phí dự án, hạng mục con bỏ đi, vì các chi phí đều là
+	 * hạng mục lớn"*, và chốt tiếp: giữ nguyên mục con ĐANG CÓ, chỉ cấm tạo mới.
+	 *
+	 * Gỡ nút `＋ con` và `↳ vào mục` trên màn là ĐỦ CHO NGƯỜI DÙNG, nhưng không đủ cho hệ thống:
+	 * `saveDuAnLine` là một cửa API công khai, và mọi đường ghi khác (nạp tệp, gọi từ bộ khác,
+	 * một bản app.html cũ còn nằm trong bộ nhớ đệm của trình duyệt ai đó) đều đi thẳng vào đây.
+	 * Chốt ở nút bấm thì mục con vẫn mọc lại được, và mọc IM LẶNG — nó chỉ lộ ra ở chỗ tiền của
+	 * hạng mục cha bỗng chuyển sang tính bằng "tổng con".
+	 *
+	 * ⚠️ `(Phát sinh)` KHÔNG PHẢI MỤC CON. Nó là khoản nảy ra lúc thi công, đứng độc lập, không
+	 *    thuộc hạng mục nào — anh Thắng không bảo bỏ nó, và bỏ nhầm là mất một loại chi phí thật.
+	 * ⚠️ DÒNG CŨ SỬA ĐƯỢC MÀ KHÔNG RƠI CẤP. Giữ nguyên cha của chính nó thì cho qua; chỉ chặn
+	 *    khi ai đó gán một cha MỚI. Không có vế ấy thì mở một mục con cũ ra sửa mỗi cái ghi chú
+	 *    cũng bị chối, và người ta sẽ đi xoá dòng — mất luôn ảnh bill lẫn hồ sơ đính kèm.
+	 *
+	 * @param string $cap_moi Cha mà lượt ghi này muốn đặt.
+	 * @param string $cap_cu  Cha dòng ấy đang có ('' nếu là dòng mới).
+	 * @return string Câu chối, '' nghĩa là cho qua.
+	 */
+	private static function loi_mo_muc_con_( $cap_moi, $cap_cu = '' ) {
+		$moi = trim( (string) $cap_moi );
+		$cu  = trim( (string) $cap_cu );
+		if ( '' === $moi || '(Phát sinh)' === $moi ) { return ''; }
+		if ( $moi === $cu ) { return ''; }   // dòng con cũ, giữ nguyên cha -> sửa thoải mái
+		return 'Chi phí dự án nay chỉ có hạng mục lớn — không thêm mục con nữa. '
+			. 'Nhập "' . $moi . '" thành một hạng mục lớn đứng riêng, hoặc chọn "Phát sinh" nếu '
+			. 'đây là khoản nảy ra lúc thi công.';
+	}
+
+	/**
+	 * DỰNG LẠI MỘT DÒNG MỤC CON CŨ — CỬA DUY NHẤT ĐI VÒNG QUA `loi_mo_muc_con_()`.
+	 *
+	 * 🔴 KHÔNG PHẢI ĐƯỜNG CHO NGƯỜI DÙNG, và không có mặt trong bảng cửa API
+	 *    (`class-vhcp-api.php`) — cố ý. Nó tồn tại vì đúng một lẽ: mục con CŨ có thật trong sổ
+	 *    đang chạy, nên phải có cách dựng lại đúng hình dạng ấy để còn kiểm được rằng chúng vẫn
+	 *    hiện đủ và vẫn tính đúng sau khi đóng đường tạo mới.
+	 *
+	 * ⚠️ Không có cửa này thì bộ thử KHÔNG dựng nổi dữ liệu cũ, và "giữ nguyên mục con đang có"
+	 *    thành một lời hứa không ai kiểm được — thứ tệ hơn cả không hứa.
+	 * ⚠️ Ai định dùng nó cho một tính năng mới thì dừng lại: anh Thắng đã chốt chi phí dự án chỉ
+	 *    còn hạng mục lớn. Đây là cửa DI TRÚ, không phải cửa nghiệp vụ.
+	 */
+	public static function them_dong_muc_con_cu( $ma_da, $rec ) {
+		global $wpdb;
+		$f = self::find( $ma_da );
+		if ( ! $f ) { return VHCPVP_Util::err( 'Không tìm thấy dự án' ); }
+		$data           = self::line_data( $rec );
+		$data['ma_da']  = (string) $ma_da;
+		$data['row_no'] = self::next_row( $ma_da );
+		$wpdb->insert( VHCPVP_DB::t( 'da_line' ), $data );
+		self::push_nd( $f['loai'], $data['noi_dung'] );
+		return VHCPVP_Util::ok();
+	}
+
 	public static function add_line( $ma_da, $rec ) {
 		global $wpdb;
 		$f = self::find( $ma_da );
@@ -1515,6 +1970,8 @@ class VHCPVP_DuAn {
 			return VHCPVP_Util::err( 'Dự án đã đóng — bấm "Mở lại" rồi nhập' );
 		}
 		$data           = self::line_data( $rec );
+		$_mc = self::loi_mo_muc_con_( $data['cap_cha'] );
+		if ( '' !== $_mc ) { return VHCPVP_Util::err( $_mc ); }
 		$data['ma_da']  = (string) $ma_da;
 		$data['row_no'] = self::next_row( $ma_da );
 		$wpdb->insert( VHCPVP_DB::t( 'da_line' ), $data );
@@ -1601,6 +2058,8 @@ class VHCPVP_DuAn {
 		if ( ! $cur ) { return VHCPVP_Util::err( 'Dòng không hợp lệ' ); }
 		$old_name = trim( (string) $cur['noi_dung'] );
 		$data     = self::line_data( $rec );
+		$_mc = self::loi_mo_muc_con_( $data['cap_cha'], (string) $cur['cap_cha'] );
+		if ( '' !== $_mc ) { return VHCPVP_Util::err( $_mc ); }
 		$wpdb->update( $t, $data, array( 'ma_da' => (string) $ma_da, 'row_no' => $row ) );
 		if ( $data['cap_cha'] === '' && $old_name !== '' && $old_name !== $data['noi_dung'] ) {
 			self::relink_children( $ma_da, $old_name, $data['noi_dung'] );   // hạng mục lớn đổi tên -> cập nhật mục con
@@ -1700,7 +2159,7 @@ class VHCPVP_DuAn {
 		if ( ! $khoa_row || ! self::hm_khoa( $ma_da, $khoa_row ) ) { return ''; }
 		$h = self::hm_cua( $ma_da, $khoa_row );
 		return 'Hạng mục đã chốt là chi thực tế — không ' . $viec . ' được nữa'
-			. ( $h['qtDot'] > 0 ? ( ' (đã gửi quyết toán đợt ' . $h['qtDot'] . ')' ) : '' )
+			. ( $h['qtDot'] > 0 ? ( ' (đã gửi quyết toán lệnh ' . $h['qtDot'] . ')' ) : '' )
 			. '. Kế toán bấm "🔓 Mở lại" thì mới đụng được.';
 	}
 

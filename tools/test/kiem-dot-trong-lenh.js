@@ -137,9 +137,26 @@ const F = new Function('esc', 'money', '_dmy', 'DA_CUR',
   t('   và ngày đứng đầu dòng cho dễ dò', /<b>17\/09\/2026<\/b> · <b>15\.000\.000đ/.test(daCapHtml), daCapHtml);
 }
 {
-  /* Lần cấp chưa ghi ngày vẫn phải đọc được — không thì dòng ấy mở đầu bằng một dấu chấm giữa. */
+  /* 🔴 SỔ CŨ KHÔNG CÓ NGÀY THÌ ĐỌC `luc`. Anh Thắng 18/09/2026: *"Nếu kế toán bấm cấp tiền mà
+     không chọn ngày thì tự hiểu là lấy ngày bấm cấp làm ngày cấp tiền (kèm giờ luôn cho đầy
+     đủ)"*, kèm ảnh sổ ba dòng mà hai dòng trống ngày. Máy chủ nay điền sẵn `ngay`, nhưng mấy
+     dòng ĐÃ NẰM TRONG SỔ trước hôm ấy thì không ai đi sửa lại — chúng chỉ còn `luc`. */
+  const h = F.blk({ soTien: 5000000, lich: [],
+    daCap: [{ lan: 1, soTien: 5000000, luc: '18/09/2026 09:29', nguoi: 'Chị Nhân' }] });
+  t('🔴 dòng sổ cũ không có ngày → lấy `luc` (lúc bấm cấp), KÈM GIỜ',
+    /<b>18\/09\/2026 09:29<\/b> · <b>5\.000\.000đ/.test(h), h);
+}
+{
+  /* Có ngày thì ngày THẮNG — `luc` chỉ là lưới đỡ, không được đè lên thứ kế toán tự khai. */
+  const h = F.blk({ soTien: 5000000, lich: [],
+    daCap: [{ lan: 1, soTien: 5000000, ngay: '03/09/2026', luc: '18/09/2026 09:29' }] });
+  t('🔴 có ngày kế toán khai thì in ngày ấy, KHÔNG để lúc bấm đè lên',
+    /<b>03\/09\/2026<\/b> · <b>5\.000\.000đ/.test(h) && h.indexOf('09:29') < 0, h);
+}
+{
+  /* Dòng không có cả hai (sổ rất cũ): vẫn phải đọc được, không mở đầu bằng dấu chấm giữa. */
   const h = F.blk({ soTien: 5000000, lich: [], daCap: [{ lan: 1, soTien: 5000000 }] });
-  t('lần cấp thiếu ngày → dòng mở đầu thẳng bằng số tiền, không bằng một dấu chấm giữa lửng lơ',
+  t('không có cả ngày lẫn `luc` → dòng mở đầu thẳng bằng số tiền, không bằng dấu chấm lửng lơ',
     /margin:1px 0 1px 10px"><b>5\.000\.000đ<\/b><\/div>/.test(h), h);
 }
 /* Canh CẢ MÃ NGUỒN, không chỉ một cảnh dựng ra: một chỗ còn sót thì người dùng vẫn gặp hai từ,

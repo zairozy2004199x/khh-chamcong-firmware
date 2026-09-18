@@ -248,6 +248,33 @@
 /* Ảnh nhỏ trong bảng: cho biết nó rê được. */
 [data-bill]{cursor:zoom-in}
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+   BẤM ẢNH BILL TRÊN MÁY CẢM ỨNG -> LỚP PHỦ NGAY TẠI TRANG (anh Thắng 17/09/2026)
+
+   🔴 Trước đây bấm ảnh là đi tới `<a target="_blank">`. Máy tính mở tab mới nên không sao,
+      nhưng app điện thoại KHÔNG CÓ TAB: đó là một lượt rời trang, và quay lại thì đơn đang mở
+      biến mất vì nó không nằm trong địa chỉ. Xem `_billTapInit()` trong app.html.
+
+   ⚠️ `position:fixed` + `inset:0` — KHÔNG đặt trong ô bảng. Bảng có `overflow-x:auto`, một
+      lớp phủ bên trong nó sẽ bị chính khung cuộn ấy CẮT, đúng lỗi mà `#billZoom` đã ghi.
+   ⚠️ z-index 3000 — trên cả cổng PIN (`#gate` 3000) thì thôi, nhưng phải trên `#lo` (1500) và
+      toast (2000): mở ảnh mà một cái toast nằm đè lên là bấm đóng trúng toast.
+   ══════════════════════════════════════════════════════════════════════════════════════════ */
+#billTap{display:none;position:fixed;inset:0;z-index:2900;
+  background:rgba(12,23,84,.92);
+  align-items:center;justify-content:center;padding:10px;
+  -webkit-tap-highlight-color:transparent}
+#billTap.hien{display:flex}
+/* Ảnh vừa khung, KHÔNG phóng quá cỡ thật: bill chụp bằng điện thoại vốn đã 3000px, kéo to hơn
+   chỉ làm nó nhoè. `object-fit:contain` giữ đúng tỉ lệ cho bill dọc. */
+#billTap img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;
+  background:#fff}
+/* Nút ✕ chỉ là dấu hiệu — cả tấm màn đều bấm đóng được (xem chú thích ở `dung()`), vì ngón cái
+   một tay khó với tới góc trên phải. */
+#billTap button{position:absolute;top:calc(10px + env(safe-area-inset-top));right:12px;
+  width:40px;height:40px;border:0;border-radius:50%;
+  background:rgba(255,255,255,.18);color:#fff;font-size:17px;line-height:1;cursor:pointer}
+
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════
    DÒNG "CHÌM" TRONG BẢNG CHỜ QUYẾT TOÁN (anh Thắng 07/09/2026)

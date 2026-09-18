@@ -6775,8 +6775,11 @@
          thật đã có NGÀY + UỶ NHIỆM CHI + tên người cấp — ba thứ ấy mới là thứ đem đi đối chiếu,
          chứ không phải một con số thứ tự. */
       daCap.forEach(function(y){
+        /* `y.luc` là lưới cho mấy dòng ĐÃ NẰM TRONG SỔ trước 18/09/2026 — hồi ấy để trống ngày
+           là để trống hẳn. Máy chủ nay điền sẵn `ngay`, nhưng sổ cũ thì không ai đi sửa lại. */
+        var khi=String(y.ngay||y.luc||'');
         h+='<div style="font-size:11.5px;margin:1px 0 1px 10px">'
-          +(y.ngay?('<b>'+esc(_dmy(y.ngay))+'</b> · '):'')
+          +(khi?('<b>'+esc(_dmy(khi))+'</b> · '):'')
           +'<b>'+money(y.soTien)+'đ</b>'
           +(y.unc?(' · <span style="color:#2545ff">UNC '+esc(y.unc)+'</span>'):'')
           +(y.nguoi?(' <span style="color:#8c8781">— '+esc(y.nguoi)+'</span>'):'')

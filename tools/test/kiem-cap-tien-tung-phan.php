@@ -164,6 +164,54 @@ teq( '   dòng thứ hai chỉ ghi phần CÒN LẠI (3tr), không ghi lại c�
 	3000000, (int) $L3['daCap'][1]['soTien'] );
 teq( '🔴 tổng đã cấp đúng 5tr, không đếm hai lần', 5000000, (int) VHCP_DuAn::da_cap_tong( $L3 ) );
 
+/* ═══ 7c. 🔴 KHÔNG CHỌN NGÀY → LẤY ĐÚNG LÚC BẤM, KÈM GIỜ ══════════════════════════════
+ * Anh Thắng 18/09/2026: *"Nếu kế toán bấm cấp tiền mà không chọn ngày thì tự hiểu là lấy ngày
+ * bấm cấp làm ngày cấp tiền (kèm giờ luôn cho đầy đủ)"*, kèm ảnh sổ "Đã cấp" ba dòng mà hai
+ * dòng trống ngày, và ảnh dòng mốc `ung: 18/09/2026 09:29` — *"giống như này"*.
+ *
+ * =========================================================================================
+ * 🔴 BỎ TRỐNG LÀ CA THƯỜNG, KHÔNG PHẢI CA HIẾM. Ô ngày là tuỳ chọn, và đường cấp TRỌN MỘT LẦN
+ *    (`dat_tt_dot('ung')`) còn chẳng có ô nào để chọn — tức lối đang dùng nhiều nhất luôn ghi
+ *    sổ không ngày. Đối chiếu ngân hàng thì mốc thời gian là thứ đầu tiên người ta dò.
+ * 🔴 GHI VÀO SỔ, KHÔNG CHỈ VÁ LÚC HIỂN THỊ. Vá ở màn thì ai đọc sổ qua đường khác (xuất MISA,
+ *    tra lịch sử) vẫn thấy trống, và hai nơi nói hai chuyện.
+ * ─────────────────────────────────────────────────────────────────────────────────────── */
+/* Khuôn `dd/mm/yyyy HH:MM` — chính khuôn của dòng mốc trong ảnh anh gửi. */
+$KHUON_LUC = '#^\d{2}/\d{2}/\d{4} \d{2}:\d{2}$#';
+
+/* Lối cấp TỪNG PHẦN, bỏ trống ô ngày. */
+vai( 'Admin', 'KT' );
+$maN = VHCP_DuAn::create_du_an( 'Setup lắp đặt', 'Gian không chọn ngày', 'NV' )['maDA'];
+VHCP_DuAn::add_line( $maN, array( 'noiDung' => 'Thợ', 'duToan' => 5000000, 'thucTe' => 5000000 ) );
+$rowN = 0;
+foreach ( VHCP_DuAn::get_du_an( $maN )['lines'] as $l ) { if ( 'Thợ' === $l['noiDung'] ) { $rowN = (int) $l['row']; } }
+vai( 'Nhân viên', 'NV' );
+VHCP_DuAn::xin_tam_ung_dot( $maN, array( $rowN ), array(), '' );
+vai( 'Quản lý', 'QL' );
+VHCP_DuAn::dat_tt_dot( $maN, 1, 'duyet' );
+vai( 'Kế toán cá nhân', 'KTCN' );
+VHCP_DuAn::cap_tien_phan( $maN, 1, array( 'soTien' => 2000000 ) );
+$LN = VHCP_DuAn::dot_cua( $maN, 1 );
+$ng = (string) $LN['daCap'][0]['ngay'];
+t( '🔴 cấp từng phần không chọn ngày → sổ KHÔNG còn để trống', '' !== $ng, $LN['daCap'][0] );
+t( '🔴 và ngày ấy KÈM GIỜ, đúng khuôn dd/mm/yyyy HH:MM như dòng mốc', 1 === preg_match( $KHUON_LUC, $ng ), $ng );
+teq( '   đúng bằng lúc bấm (`luc`), không phải một mốc thứ hai lệch đi',
+	(string) $LN['daCap'][0]['luc'], $ng );
+
+/* Lối cấp TRỌN MỘT LẦN — lối không có ô ngày nào cả. */
+VHCP_DuAn::dat_tt_dot( $maN, 1, 'ung', array( 'unc' => 'UNC-N' ) );
+$LN2 = VHCP_DuAn::dot_cua( $maN, 1 );
+teq( '   cấp nốt phần còn lại → sổ có hai dòng', 2, count( $LN2['daCap'] ) );
+$ng2 = (string) $LN2['daCap'][1]['ngay'];
+t( '🔴 lối cấp trọn (không có ô ngày nào) cũng ghi mốc, không để trống',
+	1 === preg_match( $KHUON_LUC, $ng2 ), $LN2['daCap'][1] );
+
+/* 🔴 CHỌN NGÀY THÌ GIỮ NGUYÊN NGÀY NGƯỜI TA CHỌN. Đè lên bằng lúc bấm là xoá mất chuyện
+   "tiền ra khỏi két hôm 03/09, mãi 17/09 kế toán mới vào sổ" — đúng thứ đem đi đối chiếu. */
+teq( '🔴 có chọn ngày thì giữ NGUYÊN, không bị lúc bấm đè lên',
+	'17/09/2026', (string) VHCP_DuAn::dot_cua( $ma, 1 )['daCap'][2]['ngay'] );
+VHCP_DuAn::delete( $maN );
+
 /* ═══ 7b. MÀN HÌNH — phần người dùng thật sự nhìn và bấm ══════════════════════════════ */
 $HTML = file_get_contents( $goc . '/wordpress/vhcp-chi-phi/templates/app.html' );
 
@@ -171,6 +219,9 @@ t( '🔴 form cấp tiền có ô SỐ TIỀN ĐƯA LẦN NÀY', false !== mb_st
 t( '🔴 ô ấy điền sẵn phần CÒN LẠI (đưa trọn là việc thường nhất, phải khỏi gõ)',
 	false !== strpos( $HTML, "value=\"'+money(con)+'\"" ) );
 t( '   có ô ngày đưa để sau còn đối chiếu', false !== strpos( $HTML, 'data-hmcapngay=' ) );
+/* Sổ cũ (ghi trước 18/09/2026) để trống ngày hẳn — máy chủ nay điền sẵn, nhưng không ai đi sửa
+   lại mấy dòng đã nằm trong sổ, nên màn vẫn phải có lưới đỡ bằng `luc`. */
+t( '🔴 màn đọc `luc` khi dòng cũ trong sổ không có ngày', false !== strpos( $HTML, 'var khi=String(y.ngay||y.luc||\'\');' ) );
 t( '   và vẫn đính được uỷ nhiệm chi của riêng lần ấy',
 	false !== strpos( $HTML, "_hmOTep(k,maDA,'unc'" ) );
 
