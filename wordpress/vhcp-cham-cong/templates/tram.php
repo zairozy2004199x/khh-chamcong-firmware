@@ -443,6 +443,7 @@ a{color:var(--nhan)}
 			<div style="flex:1"><label for="xbRa">Giờ ra</label>
 				<input id="xbRa" type="tel" inputmode="numeric" placeholder="17:00" maxlength="5"></div>
 		</div>
+		<div id="xbTong" class="mo" style="margin:6px 0 0;font-size:13px"></div>
 		<p></p>
 		<label for="xbLyDo">Vì sao thiếu giờ hôm ấy</label>
 		<input id="xbLyDo" type="text" placeholder="VD: máy hỏng sáng hôm ấy, có camera" maxlength="250">
@@ -2599,8 +2600,80 @@ function xinBu(){
 el('btXinBu').addEventListener('click', xinBu);
 el('btDongXinBu').addEventListener('click', function(){ hien('mXinBu', false); });
 el('xbNgay').addEventListener('change', function(){ bao('kqXinBu','',null); });
-el('xbVao').addEventListener('input', function(){ bao('kqXinBu','',null); });
-el('xbRa').addEventListener('input', function(){ bao('kqXinBu','',null); });
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 TỰ CHÈN DẤU HAI CHẤM, VÀ NÓI RA ĐANG XIN MẤY GIỜ.
+ *
+ * Anh Thắng 18/09/2026 gửi ảnh màn này: ô Giờ vào gõ `1000`, Giờ ra `1700`.
+ *
+ * Đó là cách gõ TỰ NHIÊN NHẤT trên bàn phím số của điện thoại — ô này là `inputmode=numeric`,
+ * tức chính mình mời người ta gõ toàn số. Mà máy chủ đòi đúng `HH:mm`
+ * (`VHCC_XinBu::phut()` khớp `/^(\d{2}):(\d{2})$/`), nên `1000` bị chối thẳng.
+ *
+ * ⚠️ VÀ NÓ CHỐI Ở MỘT CHỖ KHÔNG AI NGỜ. Màn kiểm lý do TRƯỚC, nên người ta thấy "ghi rõ vì sao,
+ *    ít nhất 5 chữ", gõ lý do, bấm lại — lúc ấy mới ăn lỗi giờ. Hai lần bị chối cho một lần
+ *    điền, và lần thứ hai nói về một ô họ tưởng đã xong.
+ *
+ * 🔴 SỬA Ở PHÍA GÕ, KHÔNG NỚI Ở MÁY CHỦ. `phut()` chặt là đúng: nó là chỗ cuối cùng trước khi
+ *    một con giờ thành công thành tiền. Nới nó ra để nhận `1000` là mở cho cả `10 0`, `1:0:0`
+ *    và mọi thứ na ná. Ở đây chuẩn hoá NGAY LÚC GÕ, người dùng thấy `10:00` hiện ra dưới ngón
+ *    tay mình — họ biết hệ hiểu đúng, trước cả khi bấm gửi.
+ *
+ * ⚠️ CHÈN KHI ĐỦ 3 CHỮ SỐ, không chèn ngay ở chữ số thứ 2. Chèn sớm thì người gõ `1` rồi `0`
+ *    thấy `10:` nhảy ra giữa chừng và tưởng mình gõ nhầm; chờ tới chữ số thứ ba thì đúng lúc
+ *    họ đang chuyển sang phần phút.
+ * ⚠️ KHÔNG đụng khi người ta đang XOÁ. Tự chèn lại dấu vừa xoá là ô không xoá nổi.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+function xbChuanGio(o, xoa){
+	var so = (o.value || '').replace(/\D/g, '').slice(0, 4);
+	if(xoa){ return; }
+	o.value = (so.length >= 3) ? (so.slice(0, 2) + ':' + so.slice(2)) : so;
+}
+
+/** Số phút của một ô giờ, hoặc null nếu chưa ra hình HH:mm. Cùng luật với máy chủ. */
+function xbPhut(v){
+	var m = /^(\d{2}):(\d{2})$/.exec(String(v || '').trim());
+	if(!m){ return null; }
+	var g = +m[1], p = +m[2];
+	if(g > 23 || p > 59){ return null; }
+	return g * 60 + p;
+}
+
+/* 🔴 NÓI RA ĐANG XIN MẤY GIỜ. Người gửi đơn đang nhớ lại một ngày đã qua; con số giờ là thứ
+   cửa hàng trưởng và kế toán sẽ nhìn để duyệt, nên người gửi phải thấy nó TRƯỚC khi gửi.
+   Và bắt được ngay hai lỗi hay gặp mà máy chủ chỉ nói bằng một câu cụt: giờ ra sớm hơn giờ
+   vào (gõ ngược hai ô), và giờ quá dài (gõ nhầm 0700 thành 1700). */
+function xbHienTong(){
+	var a = xbPhut(el('xbVao').value), b = xbPhut(el('xbRa').value), o = el('xbTong');
+	if(null === a || null === b){ o.textContent = ''; o.className = 'mo'; return; }
+	if(b <= a){
+		o.className = 'mo chu-hong';
+		o.textContent = '⚠ Giờ ra phải sau giờ vào — có phải hai ô đang ngược nhau không?';
+		return;
+	}
+	var p = b - a;
+	o.className = 'mo';
+	o.textContent = '= xin bù ' + Math.floor(p / 60) + 'h'
+		+ (p % 60 ? String(p % 60).padStart(2, '0') : '')
+		+ (p > 16 * 60 ? ' — dài bất thường, xem lại giúp em' : '');
+}
+
+[['xbVao'], ['xbRa']].forEach(function(x){
+	var o = el(x[0]);
+	/* `keydown` chỉ để biết người ta đang XOÁ; việc chuẩn hoá làm ở `input` (bàn phím ảo trên
+	   điện thoại không bắn keydown đáng tin cho mọi phím). */
+	var dang_xoa = false;
+	o.addEventListener('keydown', function(e){
+		dang_xoa = ('Backspace' === e.key || 'Delete' === e.key);
+	});
+	o.addEventListener('input', function(){
+		bao('kqXinBu','',null);
+		xbChuanGio(o, dang_xoa);
+		dang_xoa = false;
+		xbHienTong();
+	});
+	/* Rời ô thì chuẩn hoá lần cuối, kể cả khi vừa xoá — lúc ấy người ta đã gõ xong. */
+	o.addEventListener('blur', function(){ xbChuanGio(o, false); xbHienTong(); });
+});
 el('xbLyDo').addEventListener('input', function(){ bao('kqXinBu','',null); });
 
 /* ── KHAI GIỜ KHÁC ──────────────────────────────────────────────────────────────────────────
