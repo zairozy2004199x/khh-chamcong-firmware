@@ -8225,12 +8225,17 @@ function bctBang(r){
   var h = '<tr><th class="bct-dinh">' + L('Tên cơ sở','Site') + '</th><th>' + L('Mã KH','Cust.') + '</th>'
     + (cotGhe ? ('<th>' + L('Ghế','Chair') + '</th>') : '')
     + '<th class="r">' + L('Số ghế','Chairs') + '</th>'
+    /* 🔴 CỘT TỔNG ĐỨNG NGAY SAU SỐ GHẾ, KHÔNG Ở CUỐI — anh Thắng 18/09/2026. Khoảng xem thường
+       là nửa tháng trở lên, tức 15-30 cột ngày: để Tổng ở cuối thì muốn biết một cơ sở thu được
+       bao nhiêu phải cuộn ngang hết bảng, mà cuộn xong lại không còn thấy tên cơ sở nào ứng với
+       dòng nào. Đứng cạnh Số ghế thì con số đáng đọc nhất nằm sẵn trong tầm mắt đầu tiên. */
+    + '<th class="r">' + L('Tổng','Total') + '</th>'
     + r.ngay.map(function(n){
         var th = bctThu(n);
         return '<th class="r"><span class="bct-ng">' + esc(n.slice(8,10) + '/' + n.slice(5,7)) + '</span>'
           + '<br><span class="mut" style="font-weight:400">' + th + '</span></th>';
       }).join('')
-    + '<th class="r">' + L('Tổng','Total') + '</th></tr>';
+    + '</tr>';
   var body = r.hang.map(function(g){
     return '<tr><td class="bct-dinh"><b>' + esc(g.coso) + '</b></td>'
       + '<td class="mut">' + esc(g.maKH || '—') + '</td>'
@@ -8238,6 +8243,9 @@ function bctBang(r){
           + (g.maGhe && g.tenGhe && g.maGhe !== g.tenGhe ? '<br><span class="mut">' + esc(g.maGhe) + '</span>' : '')
           + '</td>') : '')
       + '<td class="r mut">' + (g.soGhe || '') + '</td>'
+      + '<td class="r"><b>' + (g.tong ? ktVnd(g.tong) : '<span class="mut">–</span>') + '</b>'
+        + ((r.vqCo && r.cot === 'qr' && g.vq) ? ('<br><span class="' + ((g.vqTong||0)!==(g.tong||0)?'bct-lech':'bct-vq') + '">VietQR ' + (g.vqTong ? ktVnd(g.vqTong) : '–') + '</span>') : '')
+        + '</td>'
       /* 🔴 SỐ 0 HIỆN DẤU GẠCH, KHÔNG HIỆN "0". Ảnh mẫu cũng vậy, và có lý do: một bảng ba mươi
          cột toàn số 0 thì mắt không tìm ra chỗ CÓ tiền. Gạch mờ đi thì số nổi lên. */
       + g.so.map(function(v,i){
@@ -8249,9 +8257,7 @@ function bctBang(r){
           }
           return '<td class="r">' + cell + '</td>';
         }).join('')
-      + '<td class="r"><b>' + (g.tong ? ktVnd(g.tong) : '<span class="mut">–</span>') + '</b>'
-        + ((r.vqCo && r.cot === 'qr' && g.vq) ? ('<br><span class="' + ((g.vqTong||0)!==(g.tong||0)?'bct-lech':'bct-vq') + '">VietQR ' + (g.vqTong ? ktVnd(g.vqTong) : '–') + '</span>') : '')
-        + '</td></tr>';
+      + '</tr>';
   }).join('');
   /* Hàng TỔNG ở cuối — ảnh mẫu để trên đầu, nhưng bảng này dài và cuộn dọc, để cuối thì nó
      nằm ngay chỗ mắt dừng lại sau khi đọc hết. */
@@ -8259,19 +8265,22 @@ function bctBang(r){
   var chan = '<tr class="bct-tong"><td class="bct-dinh"><b>' + L('TỔNG','TOTAL') + '</b></td><td></td>'
     + (cotGhe ? '<td></td>' : '')
     + '<td class="r"><b>' + (r.soGhe || '') + '</b></td>'
+    + '<td class="r"><b>' + ktVnd(r.tong) + '</b>'
+      + (vqOn ? ('<br><span class="'+((r.vqTong||0)!==(r.tong||0)?'bct-lech':'bct-vq')+'">VietQR '+ktVnd(r.vqTong||0)+'</span>') : '')
+      + '</td>'
     + (r.tongCot || []).map(function(v,i){
         var c = '<b>' + (v ? ktVnd(v) : '–') + '</b>';
         if (vqOn) { var q=(r.vqTongCot&&r.vqTongCot[i])||0; c += '<br><span class="'+((q||0)!==(v||0)?'bct-lech':'bct-vq')+'">◆ '+(q?ktVnd(q):'–')+'</span>'; }
         return '<td class="r">' + c + '</td>';
       }).join('')
-    + '<td class="r"><b>' + ktVnd(r.tong) + '</b>'
-      + (vqOn ? ('<br><span class="'+((r.vqTong||0)!==(r.tong||0)?'bct-lech':'bct-vq')+'">VietQR '+ktVnd(r.vqTong||0)+'</span>') : '')
-      + '</td></tr>';
+    + '</tr>';
   if (vqOn) {
     var note = '<b style="color:#dc2626">VietQR</b> = ' + L('tiền về THẬT từ ngân hàng (Sao Kê, theo ngày giao dịch) — số đỏ đậm là ĐANG LỆCH với số nhân viên nhập.',
                  'actual bank money (Sao Kê, by transaction date) — bold red means it DIFFERS from staff-entered.');
     if (r.vqKhongKhop) { note += ' · ' + L('Chưa quy được cơ sở','Unmatched') + ': <b style="color:#dc2626">' + ktVnd(r.vqKhongKhop) + '</b> (' + L('máy chưa gắn cơ sở bên Ghế','link machine to a site in Ghế') + ')'; }
-    chan += '<tr><td colspan="' + (cotGhe?4:3) + '"></td><td colspan="' + ((r.ngay||[]).length+1) + '" class="mut" style="font-weight:400;padding-top:6px">' + note + '</td></tr>';
+    /* Khối trái nay là 5 cột (cơ sở · mã KH · ghế · số ghế · TỔNG) hoặc 4 khi gộp theo cơ sở;
+       phần còn lại đúng bằng số cột ngày — Tổng đã dọn sang trái, không cộng thêm 1 nữa. */
+    chan += '<tr><td colspan="' + (cotGhe?5:4) + '"></td><td colspan="' + ((r.ngay||[]).length) + '" class="mut" style="font-weight:400;padding-top:6px">' + note + '</td></tr>';
   }
   t.innerHTML = h + body + chan;
   sc.appendChild(t); wrap.appendChild(sc);
@@ -8285,14 +8294,16 @@ function bctXuat(){
   var cotGhe = (r.muc === 'ghe');
   function o(x){ var s = String(x == null ? '' : x); return /[",\n;]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; }
   var dong = [];
+  /* Thứ tự cột theo ĐÚNG bảng đang nhìn (Tổng đứng sau Số ghế) — tệp tải về mà xếp khác màn
+     hình là kế toán dán sang Excel rồi dò nhầm cột. */
   dong.push([L('Tên cơ sở','Site'), L('Mã KH','Cust.')].concat(cotGhe ? [L('Ghế','Chair')] : [])
-    .concat([L('Số ghế','Chairs')]).concat(r.ngay).concat([L('Tổng','Total')]).map(o).join(','));
+    .concat([L('Số ghế','Chairs'), L('Tổng','Total')]).concat(r.ngay).map(o).join(','));
   r.hang.forEach(function(g){
     dong.push([g.coso, g.maKH].concat(cotGhe ? [g.tenGhe || g.maGhe] : [])
-      .concat([g.soGhe]).concat(g.so).concat([g.tong]).map(o).join(','));
+      .concat([g.soGhe, g.tong]).concat(g.so).map(o).join(','));
   });
-  dong.push([L('TỔNG','TOTAL'), ''].concat(cotGhe ? [''] : []).concat([r.soGhe])
-    .concat(r.tongCot || []).concat([r.tong]).map(o).join(','));
+  dong.push([L('TỔNG','TOTAL'), ''].concat(cotGhe ? [''] : []).concat([r.soGhe, r.tong])
+    .concat(r.tongCot || []).map(o).join(','));
   /* BOM để Excel tiếng Việt mở ra không thành rác — không có nó thì mọi tên cơ sở có dấu đều vỡ. */
   var blob = new Blob(['\ufeff' + dong.join('\n')], { type: 'text/csv;charset=utf-8' });
   var a = document.createElement('a');

@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-09-17 · Phiên bản hiện tại: **2.108.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-09-18 · Phiên bản hiện tại: **2.109.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,24 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v2.109.0 — Báo cáo tổng: cột Tổng đứng ngay sau Số ghế, không còn ở cuối bảng
+
+Anh Thắng 18/09/2026: *"cột tổng doanh thu đẩy ra trước, cạnh cột số ghế"*. Khoảng xem thường là
+nửa tháng trở lên (ảnh 01/09–18/09 = 18 cột ngày), nên muốn biết một cơ sở thu được bao nhiêu
+phải cuộn ngang hết bảng — cuộn xong thì chỉ còn cột tên cơ sở dính lại, số ghế và mã KH đã trôi
+mất. Con số đáng đọc nhất lại là con số phải đi xa nhất mới thấy.
+
+- `bctBang()` dời ô Tổng (cả tiêu đề, thân bảng, hàng TỔNG ở chân) lên ngay sau **Số ghế**.
+- Lớp VietQR thực (nhãn đỏ dưới số, khi xem cột QR) đi theo cột Tổng sang chỗ mới, không tách rời.
+- Dòng chú thích VietQR ở chân: khối trái nay **5 cột** (4 khi gộp theo cơ sở), phần còn lại đúng
+  bằng số cột ngày — trước cộng thêm 1 cho cột Tổng ở cuối, nay không còn.
+- `bctXuat()` (CSV) xếp cột **y hệt bảng đang nhìn**: tệp tải về mà khác thứ tự màn hình là kế
+  toán dán sang Excel rồi dò nhầm cột.
+
+Kiểm bằng bệ thử đếm ô: cả hai kiểu gộp (Cơ sở · Từng ghế), mọi hàng — tiêu đề, thân, hàng TỔNG,
+dòng chú thích VietQR — đều bằng số ô nhau (7 và 8), thứ tự tiêu đề đúng Số ghế → Tổng → ngày.
+
 
 ### v2.108.0 — Ghế ẩn biến mất khỏi màn nhập của nhân viên (thu hẹp ngoại lệ của 2.107)
 
