@@ -119,8 +119,12 @@ const F = new Function(bocHam('hmDongForm') + '\nreturn hmDongForm;')();
 t('không truyền viền → không có cạnh phải', F('k', 13).indexOf('border-right') < 0, F('k', 13));
 t('   vẫn giữ gáy xanh lá vốn có',          F('k', 13).indexOf('border-left:3px solid #16a34a') >= 0, F('k', 13));
 t('truyền viền → có cạnh phải',             F('k', 8, ';border-right:2px solid #e2d6c7').indexOf('border-right') > 0);
+/* ⚠️ CANH "KHÔNG CÓ THAM SỐ THỨ BA", đừng gõ cứng số cột. Phép này sinh ra để giữ một chuyện:
+   bảng dự án gọi `hmDongForm` KHÔNG kèm viền. Số cột là chuyện khác, và nó đổi thật — thêm hai
+   cột Ngày nhập · Loại chi phí (18/09/2026) làm phép này đỏ vì một con số hết hạn, chứ không
+   phải vì cái viền quay lại. */
 t('🔴 bảng dự án gọi hmDongForm KHÔNG kèm viền (giữ nguyên như cũ)',
-  /hmDongForm\(_hmKeyDA\(p\.row\), 13\)/.test(HTML));
+  /hmDongForm\(_hmKeyDA\(p\.row\), \d+\)/.test(HTML));
 
 /* ─────────────────────────────────────────────────────────────────────────────────────────── */
 if (TRUOT.length) {

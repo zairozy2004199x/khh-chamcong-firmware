@@ -420,6 +420,58 @@ teq( '🔴 lịch NHIỀU lần → lối "cấp trọn" trả cho nhiều lần
 	. 'để 0', 0, (int) VHCP_DuAn::dot_cua( $maH, 1 )['daCap'][0]['choLan'] );
 foreach ( array( $maL, $maK, $maT, $maH ) as $x ) { VHCP_DuAn::delete( $x ); }
 
+/* ═══ 7f. 🔴 MÀN DUYỆT PHẢI BIẾT LỆNH ẤY ĐÃ ĐƯA BAO NHIÊU ═════════════════════════════
+ * Anh Thắng 18/09/2026, nhìn form cấp tiền của lệnh 3 điền sẵn trọn 53.820.000đ: *"bấm cấp lần
+ * 2,3 là số tiền còn lại hoặc thấp hơn chứ"*.
+ *
+ * =========================================================================================
+ * `list_lenh_da()` (nguồn của màn Duyệt) lọc bớt trường, và `daCap` rơi mất. Màn đọc "đã đưa"
+ * ra 0 với MỌI lệnh, nên ô "Số tiền đưa lần này" điền sẵn TRỌN số lệnh kể cả lúc đã đưa một
+ * phần — bấm lần hai là mời chuyển đi lần nữa. Máy chủ chặn được (`cap_tien_phan` chối khi
+ * vượt), nhưng lúc ấy màn đã nói dối rồi, và kế toán đọc con số chứ không đọc mã nguồn.
+ *
+ * ⚠️ TRANG DỰ ÁN VỐN ĐÚNG — nó gửi trọn `$d`. Chỉ màn Duyệt thủng. Hai nguồn cho cùng một bảng
+ *    là chỗ lệch nhau, nên phép dưới soi CẢ HAI.
+ * ─────────────────────────────────────────────────────────────────────────────────────── */
+vai( 'Admin', 'KT' );
+$maM = VHCP_DuAn::create_du_an( 'Setup lắp đặt', 'Gian màn duyệt', 'NV' )['maDA'];
+VHCP_DuAn::add_line( $maM, array( 'noiDung' => 'Thợ', 'thucTe' => 50000000 ) );
+$rM = 0;
+foreach ( VHCP_DuAn::get_du_an( $maM )['lines'] as $l ) { if ( 'Thợ' === $l['noiDung'] ) { $rM = (int) $l['row']; } }
+vai( 'Nhân viên', 'NV' );
+VHCP_DuAn::xin_tam_ung_dot( $maM, array( $rM ), array(), '' );
+vai( 'Quản lý', 'QL' );
+VHCP_DuAn::dat_tt_dot( $maM, 1, 'duyet' );
+vai( 'Kế toán cá nhân', 'KTCN' );
+VHCP_DuAn::cap_tien_phan( $maM, 1, array( 'soTien' => 20000000, 'unc' => 'UNC-M1' ) );
+
+function _lenh_cua( $ma ) {
+	foreach ( VHCP_DuAn::list_lenh_da()['items'] as $i ) {
+		if ( $i['maDA'] === $ma ) { return $i; }
+	}
+	return null;
+}
+$L = _lenh_cua( $maM );
+t( '🔴 màn Duyệt nhận được SỔ CẤP TIỀN của lệnh (thiếu nó là ô tiền điền sẵn trọn số lệnh)',
+	is_array( $L ) && isset( $L['daCap'] ), $L ? array_keys( $L ) : null );
+teq( '   đủ một dòng đã cấp', 1, count( $L['daCap'] ) );
+teq( '🔴 nên "đã đưa" đọc ra đúng 20tr, không phải 0', 20000000, (int) VHCP_DuAn::da_cap_tong( $L ) );
+teq( '🔴 và "còn phải đưa" ra 30tr — đúng con số ô tiền phải điền sẵn ở lần cấp thứ hai',
+	30000000, (int) VHCP_DuAn::con_phai_cap( $L ) );
+
+/* Trang dự án vốn đúng — soi luôn để hai nguồn không lệch nhau. */
+$LD = null;
+foreach ( VHCP_DuAn::get_du_an( $maM )['lenh'] as $d ) { if ( 1 === (int) $d['dot'] ) { $LD = $d; } }
+teq( '   trang dự án cũng ra đúng con số ấy (hai nguồn không được lệch nhau)',
+	30000000, (int) VHCP_DuAn::con_phai_cap( $LD ) );
+
+/* 🔴 VÀ MÁY CHỦ VẪN LÀ CHỐT THẬT: gõ vượt phần còn lại thì chối, dù màn có điền sẵn gì. */
+$x = VHCP_DuAn::cap_tien_phan( $maM, 1, array( 'soTien' => 50000000 ) );
+t( '🔴 đưa lại trọn 50tr khi chỉ còn 30tr → CHỐI (đây là lưới cuối, không phải lưới duy nhất)',
+	empty( $x['success'] ), $x );
+t( '   và nói đúng phần còn lại', isset( $x['error'] ) && false !== mb_strpos( $x['error'], '30.000.000' ), $x );
+VHCP_DuAn::delete( $maM );
+
 /* ═══ 7b. MÀN HÌNH — phần người dùng thật sự nhìn và bấm ══════════════════════════════ */
 $HTML = file_get_contents( $goc . '/wordpress/vhcp-chi-phi/templates/app.html' );
 
@@ -430,6 +482,14 @@ t( '🔴 form cấp tiền có ô SỐ TIỀN ĐƯA LẦN NÀY', false !== mb_st
 t( '🔴 ô ấy điền sẵn phần của lần đang chọn (trả đúng lần rồi bấm — khỏi gõ)',
 	false !== strpos( $HTML, "value=\"'+money(_capSoGoiY(x,con))+'\"" ) );
 t( '   có ô ngày đưa để sau còn đối chiếu', false !== strpos( $HTML, 'data-hmcapngay=' ) );
+/* 🔴 KẸP SỐ NGAY TẠI Ô, và nói ra trần. Để người ta gõ xong rồi mới bị máy chủ chối là bắt họ
+   đoán con số đúng — mà con số ấy màn hình đang giữ sẵn. */
+t( '🔴 ô tiền kẹp lại theo phần còn lại ngay khi rời ô', false !== strpos( $HTML, 'onblur="lenhCapKep(this,' ) );
+t( '   và bày sẵn trần cho biết tối đa bao nhiêu', false !== mb_strpos( $HTML, 'tối đa \'+money(con)+\'đ' ) );
+/* ⚠️ LƯỚI THỨ HAI Ở NÚT GỬI: bấm thẳng nút lúc con trỏ còn trong ô thì `onblur` chạy SAU, nên
+   không canh lại là số vượt vẫn bay lên máy chủ. */
+t( '🔴 nút Cấp tiền canh lại lần nữa trước khi gửi (onblur chạy sau cú bấm)',
+	false !== strpos( $HTML, 'var _x=_lenhTim(maDA,dot), _con=_x?_conPhaiCap(_x):0;' ) );
 /* Sổ cũ (ghi trước 18/09/2026) để trống ngày hẳn — máy chủ nay điền sẵn, nhưng không ai đi sửa
    lại mấy dòng đã nằm trong sổ, nên màn vẫn phải có lưới đỡ bằng `luc`. */
 t( '🔴 màn đọc `luc` khi dòng cũ trong sổ không có ngày', false !== strpos( $HTML, 'var khi=String(y.ngay||y.luc||\'\');' ) );

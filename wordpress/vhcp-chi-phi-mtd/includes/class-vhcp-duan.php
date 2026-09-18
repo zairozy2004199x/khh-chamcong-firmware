@@ -409,6 +409,7 @@ class VHCPMTD_DuAn {
 			$lines[] = array(
 				'row'       => (int) $r['row_no'],
 				'noiDung'   => (string) $r['noi_dung'],
+				'taoLuc'    => VHCPMTD_Util::fmt( isset( $r['tao_luc'] ) ? $r['tao_luc'] : '' ),
 				'duToan'    => VHCPMTD_Util::num( $r['du_toan'] ),
 				'thucTe'    => VHCPMTD_Util::num( $r['thuc_te'] ),
 				'soLuong'   => VHCPMTD_Util::num( $r['so_luong'] ),
@@ -520,7 +521,11 @@ class VHCPMTD_DuAn {
 			   trong khi lệnh còn ở 'duyet'. Đếm theo trạng thái là bỏ sót đúng phần đang dở dang,
 			   và con số "còn treo trên TK 141" nói thiếu. Lượt cấp trọn cũng ghi vào `daCap`
 			   (xem `dat_tt_dot`), nên lối cũ ra đúng con số cũ. */
-			$da_chi += self::da_cap_tong( $d );
+			/* 🔴 LỆNH ĐÃ THU HỒI THÌ THÔI TÍNH LÀ ĐÃ CHI. Anh Thắng 18/09/2026 chốt *"coi như
+			   chưa chi — gỡ khỏi TK 141"*. Mấy lượt cấp tiền vẫn nằm nguyên trong sổ của lệnh
+			   ấy để tra; chỉ con số TỔNG thôi đếm chúng. Không gỡ thì thu hồi xong màn vẫn báo
+			   "còn treo 68.790.000đ" cho một lệnh không còn tồn tại. */
+			if ( 'tra' !== $d['tt'] ) { $da_chi += self::da_cap_tong( $d ); }
 		}
 
 		/* 🔴 DỰ KIẾN TẠM ỨNG = tổng tiền của mọi hạng mục 💰 NV TỰ TRẢ, kể cả cái còn nháp.
@@ -616,6 +621,10 @@ class VHCPMTD_DuAn {
 			'chenh'           => ( $tt + $sc_tien ) - ( $dt + $sc_du_toan ),
 			/* Con số dự phòng của kế toán + phần đã ứng thật, để màn tính ra "còn dự phòng". */
 			'duToanDA'        => self::get_du_toan_da( $ma_da ),
+			/* Ngày lập DỰ ÁN — màn dùng nó làm mốc xấp xỉ cho mấy dòng nhập TRƯỚC 1.209.0, hồi
+			   `da_line` chưa có cột `tao_luc`. Một dòng không thể có trước dự án chứa nó, nên
+			   đây là cận dưới THẬT, không phải số bịa — và màn in kèm dấu "≈" để nói rõ. */
+			'ngayTao'         => VHCPMTD_Util::fmt( $f['ngay_tao'] ),
 			'kyDA'            => self::get_ky_da( $ma_da ),
 			'lenh'            => $lenh,
 			'lenhQT'          => $lenhQT,
@@ -1032,6 +1041,31 @@ class VHCPMTD_DuAn {
 			$m[ $l ] += VHCPMTD_Util::num( isset( $x['soTien'] ) ? $x['soTien'] : 0 );
 		}
 		return $m;
+	}
+
+	/**
+	 * Chứng từ SẴN CÓ trên một dòng — ảnh bill trước, rồi tới hồ sơ. '' nếu chưa có gì.
+	 *
+	 * Cột ẢNH của hàng là chỗ chụp bill, cột HỒ SƠ là bản PDF / hoá đơn điện tử. Hai cột ấy
+	 * đứng trước ô "Hoá đơn" của bước chốt về mặt thời gian — người ta đính lúc đi mua về, chứ
+	 * không đợi tới lúc chốt. Xem 🔴 ở `dat_hm()`.
+	 *
+	 * ⚠️ HỒ SƠ CÓ THỂ LÀ NHIỀU TỆP ngăn nhau bằng xuống dòng (`them_ho_so_line`). Lấy tệp ĐẦU —
+	 *    nhét cả chùm vào ô hoá đơn thì bản xuất ra một ô dài mấy dòng.
+	 */
+	private static function chung_tu_san_( $ma_da, $row ) {
+		$d = self::get_du_an( $ma_da );
+		foreach ( (array) ( isset( $d['lines'] ) ? $d['lines'] : array() ) as $l ) {
+			if ( (int) $l['row'] !== (int) $row ) { continue; }
+			$anh = trim( (string) ( isset( $l['anh'] ) ? $l['anh'] : '' ) );
+			if ( '' !== $anh ) { return $anh; }
+			$hs = trim( (string) ( isset( $l['hoSo'] ) ? $l['hoSo'] : '' ) );
+			if ( '' !== $hs ) {
+				$mot = preg_split( '/[\r\n]+/', $hs );
+				return trim( (string) $mot[0] );
+			}
+		}
+		return '';
 	}
 
 	/** Số tiền của MỘT lần trong lịch (0 nếu không có lần ấy). */
@@ -1473,10 +1507,49 @@ class VHCPMTD_DuAn {
 			return VHCPMTD_Util::err( 'Chỉ quản lý hoặc kế toán duyệt / trả lại được.' );
 		}
 		if ( 'ung' === $tt && ! $ke_toan ) { return VHCPMTD_Util::err( 'Chỉ kế toán cấp tạm ứng được.' ); }
-		if ( 'ung' === $d['tt'] ) { return VHCPMTD_Util::err( 'Lệnh ' . $d['dot'] . ' đã cấp tiền rồi.' ); }
+		/* ═════════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 ADMIN THU HỒI ĐƯỢC MỘT LỆNH ĐÃ CẤP TIỀN — 18/09/2026.
+		 *
+		 * Anh Thắng: *"Cấp quyền cho admin trả đơn"*, sau khi một đơn 68.790.000đ đã cấp tiền mà
+		 * số liệu sai và không còn đường nào quay lại.
+		 *
+		 * Luật cũ chặn tuyệt đối ("tiền đã ra khỏi két, trả lại là xoá dấu vết") — đúng về ý,
+		 * sai về hệ quả: một hệ không có đường lùi thì người ta không sửa sổ, họ BỊA sổ. Thà mở
+		 * một cửa hẹp có tên, có lý do, có vết, còn hơn để họ gõ đè lên mấy con số cũ.
+		 *
+		 * ⚠️ CHỈ ADMIN. Quản lý và kế toán vẫn chỉ trả được lệnh chưa cấp tiền — đây là việc gỡ
+		 *    một khoản đã ra khỏi két, không phải việc thường ngày.
+		 * ⚠️ BẮT BUỘC CÓ LÝ DO. Đây là chỗ duy nhất trong hệ gỡ ngược một khoản tiền thật; không
+		 *    ghi vì sao thì ba tháng sau không ai dựng lại được chuyện gì đã xảy ra.
+		 * ⚠️ MẤY LƯỢT CẤP TIỀN VẪN NẰM NGUYÊN TRONG SỔ CỦA LỆNH — không xoá dòng nào. Cái đổi là
+		 *    lệnh 'tra' thôi được cộng vào "đã chi" / "còn treo trên TK 141" (xem `get_du_an`),
+		 *    đúng lựa chọn anh Thắng chốt: *"coi như chưa chi"*.
+		 * ⚠️ CHỐI NẾU TRONG LỆNH ĐÃ CÓ HẠNG MỤC CHỐT XONG hoặc đã gửi quyết toán. Gỡ tạm ứng
+		 *    dưới chân một khoản đã quyết toán là sổ 141 âm mà không ai hiểu vì sao — phải mở
+		 *    khoá / trả lệnh quyết toán ấy trước.
+		 * ═════════════════════════════════════════════════════════════════════════════════════ */
+		if ( 'ung' === $d['tt'] ) {
+			if ( 'tra' !== $tt ) { return VHCPMTD_Util::err( 'Lệnh ' . $d['dot'] . ' đã cấp tiền rồi.' ); }
+			if ( 'Admin' !== $vai ) {
+				return VHCPMTD_Util::err( 'Lệnh ' . $d['dot'] . ' đã cấp tiền rồi — chỉ Admin thu hồi được.' );
+			}
+			if ( '' === trim( (string) ( isset( $them['lyDo'] ) ? $them['lyDo'] : '' ) ) ) {
+				return VHCPMTD_Util::err( 'Thu hồi một lệnh ĐÃ CẤP TIỀN thì phải ghi lý do — '
+					. 'đây là chỗ duy nhất gỡ ngược một khoản tiền thật.' );
+			}
+			foreach ( $d['rows'] as $r ) {
+				$h = self::hm_cua( $ma_da, $r );
+				if ( 'xong' === $h['tt'] || (int) $h['qtDot'] > 0 ) {
+					return VHCPMTD_Util::err( 'Trong lệnh này có hạng mục đã chốt xong'
+						. ( (int) $h['qtDot'] > 0 ? ( ' / đã gửi quyết toán lệnh ' . (int) $h['qtDot'] ) : '' )
+						. '. Mở khoá (hoặc trả lệnh quyết toán) cho hạng mục ấy trước, '
+						. 'rồi mới thu hồi lệnh tạm ứng — không thì sổ 141 âm mà không ai hiểu vì sao.' );
+				}
+			}
+		}
 		if ( 'duyet' === $tt && 'xin' !== $d['tt'] ) { return VHCPMTD_Util::err( 'Chỉ duyệt được lệnh đang xin tạm ứng.' ); }
 		if ( 'ung' === $tt && 'duyet' !== $d['tt'] ) { return VHCPMTD_Util::err( 'Chỉ cấp tiền cho lệnh đã duyệt.' ); }
-		if ( 'tra' === $tt && ! in_array( $d['tt'], array( 'xin', 'duyet' ), true ) ) {
+		if ( 'tra' === $tt && ! in_array( $d['tt'], array( 'xin', 'duyet', 'ung' ), true ) ) {
 			return VHCPMTD_Util::err( 'Lệnh này không ở bước trả lại được.' );
 		}
 
@@ -1768,6 +1841,14 @@ class VHCPMTD_DuAn {
 					'rows'     => $d['rows'],
 					'tenHM'    => $ten,
 					'soTien'   => $d['soTien'],
+					/* 🔴 PHẢI GỬI KÈM SỔ CẤP TIỀN. Thiếu nó thì màn Duyệt đọc "đã đưa" ra 0 với
+					   MỌI lệnh, nên ô "Số tiền đưa lần này" điền sẵn TRỌN số lệnh kể cả lúc đã
+					   đưa một phần — bấm lần hai là mời chuyển đi lần nữa. Máy chủ chặn được
+					   (`cap_tien_phan` chối khi vượt phần còn lại), nhưng lúc ấy màn đã nói dối
+					   rồi, và kế toán đọc con số chứ không đọc mã nguồn.
+					   Anh Thắng 18/09/2026: *"bấm cấp lần 2,3 là số tiền còn lại hoặc thấp hơn
+					   chứ"*. Trang dự án vốn đúng (nó gửi trọn `$d`); chỉ màn Duyệt lọc bớt. */
+					'daCap'    => $d['daCap'],
 					'unc'      => $d['unc'],
 					'lyDo'     => $d['lyDo'],
 					'lich'     => $d['lich'],
@@ -1869,7 +1950,32 @@ class VHCPMTD_DuAn {
 					return VHCPMTD_Util::err( 'Phải đính ít nhất một chứng từ (uỷ nhiệm chi hoặc hoá đơn) trước khi khoá đơn.' );
 				}
 			} elseif ( '' === $hd ) {
-				return VHCPMTD_Util::err( 'Phải đính hoá đơn trước khi chốt hoàn thành.' );
+				/* ═══════════════════════════════════════════════════════════════════════════════
+				 * 🔴 BILL ĐÃ ĐÍNH TRÊN HÀNG CHÍNH LÀ HOÁ ĐƠN — ĐỪNG BẮT TẢI LÊN LẦN THỨ HAI.
+				 *
+				 * Anh Thắng 18/09/2026, ảnh một hàng đã có ảnh bill ở cột ẢNH mà bấm Chốt xong
+				 * vẫn hiện "Hoá đơn (bắt buộc)": *"Chỗ ảnh đã add hóa đơn, tạo sao chốt lại hỏi
+				 * hóa đơn lần 2, nó là 1 mà"*.
+				 *
+				 * Đúng vậy. Cột ẢNH của hàng vốn là chỗ chụp bill (chính nó mang `data-bill` để
+				 * rê chuột phóng to), cột HỒ SƠ là bản PDF / hoá đơn điện tử. Bắt tải lại đúng
+				 * cái tệp ấy vào một ô thứ hai là làm hai lần một việc, và tệ hơn: người ta sẽ
+				 * dán bừa một thứ khác cho qua cửa — cửa vẫn đóng, chứng từ thì sai.
+				 *
+				 * ⚠️ VẪN CHỐI KHI HÀNG TRỐNG TRƠN. Chốt là khoá lại và tính thành chi thực tế;
+				 *    không có mảnh chứng từ nào thì vẫn không chốt được. Chỉ khác chỗ: nay hỏi
+				 *    "có chứng từ nào chưa", không hỏi "có đúng cái ô này chưa".
+				 * ⚠️ GHI LẠI VÀO SỔ chứ không chỉ cho qua: lệnh quyết toán và bản xuất đọc ô
+				 *    `hoaDon`, để trống thì chốt xong mà sổ vẫn trắng chứng từ. Gán vào
+				 *    `$them['hoaDon']` là để mở cổng `isset()` ở dưới — con số ghi xuống là `$hd`.
+				 * ═══════════════════════════════════════════════════════════════════════════════ */
+				$san = self::chung_tu_san_( $ma_da, $row );
+				if ( '' === $san ) {
+					return VHCPMTD_Util::err( 'Phải đính hoá đơn trước khi chốt hoàn thành — '
+						. 'đính ảnh bill hoặc hồ sơ ngay trên hàng cũng được.' );
+				}
+				$hd             = $san;
+				$them['hoaDon'] = $san;
 			}
 			/* ═══════════════════════════════════════════════════════════════════════════════════
 			 * 🔴 CHỐT HOÀN THÀNH MÀ SỐ TIỀN LÀ 0 THÌ CHỐT CÁI GÌ — 17/09/2026.
@@ -2032,6 +2138,7 @@ class VHCPMTD_DuAn {
 		$data           = self::line_data( $rec );
 		$data['ma_da']  = (string) $ma_da;
 		$data['row_no'] = self::next_row( $ma_da );
+		$data['tao_luc'] = VHCPMTD_Util::now_sql();   // xem 🔴 ở `add_line()`
 		$wpdb->insert( VHCPMTD_DB::t( 'da_line' ), $data );
 		self::push_nd( $f['loai'], $data['noi_dung'] );
 		return VHCPMTD_Util::ok();
@@ -2052,6 +2159,16 @@ class VHCPMTD_DuAn {
 		if ( '' !== $_mc ) { return VHCPMTD_Util::err( $_mc ); }
 		$data['ma_da']  = (string) $ma_da;
 		$data['row_no'] = self::next_row( $ma_da );
+		/* 🔴 NGÀY NHẬP — mốc máy ghi, không ai gõ được. Bảng dự án trước nay KHÔNG có ô ngày nào
+		   (`da_line` không có cả `ngay` lẫn `tao_luc`), mà dự án kéo dài mấy tuần: nhìn một hàng
+		   thì không biết nó vào sổ hôm nào. Anh Thắng 18/09/2026, sau khi thấy cột này ở đơn
+		   tuần: *"vậy cột ngày chưa có rồi"*.
+		   ⚠️ CHỈ ĐẶT LÚC THÊM DÒNG. `update_line()` không đụng tới nó — sửa lại một dòng cũ mà
+		      mốc nhảy sang hôm nay thì nó thành mốc "lần sửa gần nhất", tức mất đúng thứ cần giữ.
+		   ⚠️ Đặt ở ĐÂY chứ không ở `line_data()`: hàm ấy dùng chung với `update_line()`, nhét vào
+		      đó là mỗi lần sửa một ô lại đóng dấu lại. Đã đặt nhầm chỗ một lần lúc dựng (rơi vào
+		      `them_dong_muc_con_cu` vì mẩu neo trùng nhau ở hai hàm). */
+		$data['tao_luc'] = VHCPMTD_Util::now_sql();
 		$wpdb->insert( VHCPMTD_DB::t( 'da_line' ), $data );
 		self::push_nd( $f['loai'], $data['noi_dung'] );
 		return VHCPMTD_Util::ok();
@@ -2072,6 +2189,140 @@ class VHCPMTD_DuAn {
 	 * ⚠️ HỒ SƠ THÌ CỘNG THÊM, ẢNH THÌ THAY. Một dòng có nhiều hồ sơ (hợp đồng, biên bản, báo
 	 *    giá) nhưng chỉ một tấm bill; đính hồ sơ thứ hai mà đè mất cái thứ nhất là mất chứng từ.
 	 */
+	/**
+	 * SỬA ĐÚNG MỘT Ô CỦA MỘT DÒNG — cho lối gõ thẳng trong bảng.
+	 *
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 Anh Thắng 18/09/2026: *"thay vì bấm sửa, thì cho sửa thẳng trong từng dòng đơn được
+	 *    không"*. Bấm ✏️ là cả dòng nhảy lên cái form ở đầu trang, sửa một con số xong phải cuộn
+	 *    lại tìm chỗ cũ — với bảng mười mấy dòng thì mỗi lần sửa là một vòng đi về.
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 *
+	 * ⚠️ KHÔNG ĐI QUA `update_line()`. Hàm ấy ghi lại CẢ DÒNG từ những gì màn gửi lên, nên gửi
+	 *    thiếu ô nào là ô ấy bị dọn về rỗng — im lặng. Một ô thì ghi đúng một ô.
+	 * ⚠️ CHỈ MỞ MẤY Ô SỐ + GHI CHÚ. Hình thức chi, VAT, loại chi phí, "Thuộc" kéo theo cả dây
+	 *    (mã tài khoản, đường tạm ứng, quan hệ cha–con) — mấy thứ ấy để form lo, vì ở đó còn có
+	 *    dòng gợi ý và chốt đi kèm.
+	 * ⚠️ ĐI QUA ĐỦ HAI CHỐT như `update_line`: hạng mục đã chốt sổ thì không đụng, và dự toán đã
+	 *    lên lệnh thì đóng (`loi_sua_du_toan_`). Mở một cửa mới mà quên chốt cũ là chốt ấy coi
+	 *    như không có — người ta chỉ cần đổi lối vào.
+	 * ⚠️ SỐ LƯỢNG / ĐƠN GIÁ ĐỔI THÌ TÍNH LẠI THÀNH TIỀN ngay trong cùng một lượt ghi. Để màn tự
+	 *    tính rồi gửi thêm một lượt nữa là có lúc lệch — và lệch ở cột tiền.
+	 */
+	public static function dat_o_line( $ma_da, $row, $cot, $gt ) {
+		global $wpdb;
+		$f = self::find( $ma_da );
+		if ( ! $f ) { return VHCPMTD_Util::err( 'Không tìm thấy dự án' ); }
+		$st = (string) ( $f['trang_thai'] !== '' ? $f['trang_thai'] : 'Đang làm' );
+		if ( 'Đã đóng' === $st ) { return VHCPMTD_Util::err( 'Dự án đã đóng — bấm "Mở lại" rồi sửa' ); }
+		$row = (int) $row;
+		$cot = trim( (string) $cot );
+		$map = array(
+			'duToan'  => 'du_toan',
+			'soLuong' => 'so_luong',
+			'donGia'  => 'don_gia',
+			'thucTe'  => 'thuc_te',
+			'note'    => 'note',
+		);
+		if ( ! isset( $map[ $cot ] ) ) {
+			return VHCPMTD_Util::err( 'Ô "' . $cot . '" không sửa thẳng trong bảng được — bấm ✏️ để mở form.' );
+		}
+		$_c = self::loi_hang_muc_da_chot_( $ma_da, $row, 'sửa dòng' );
+		if ( '' !== $_c ) { return VHCPMTD_Util::err( $_c ); }
+		$t   = VHCPMTD_DB::t( 'da_line' );
+		$cur = VHCPMTD_DB::row( $wpdb->prepare( "SELECT * FROM $t WHERE ma_da=%s AND row_no=%d", (string) $ma_da, $row ) );
+		if ( ! $cur ) { return VHCPMTD_Util::err( 'Dòng không hợp lệ' ); }
+
+		$sua = array();
+		if ( 'note' === $cot ) {
+			$sua['note'] = VHCPMTD_Util::st( $gt );
+		} else {
+			$so = VHCPMTD_Util::num( $gt );
+			/* Mục con không có dự toán riêng — tiền của nó nằm ở cột thực tế / thành tiền. */
+			if ( 'duToan' === $cot && '' !== trim( (string) $cur['cap_cha'] ) ) {
+				return VHCPMTD_Util::err( 'Mục con không có ô dự toán riêng — dự toán nằm ở hạng mục lớn.' );
+			}
+			$sua[ $map[ $cot ] ] = $so;
+			if ( 'soLuong' === $cot || 'donGia' === $cot ) {
+				$sl = ( 'soLuong' === $cot ) ? $so : VHCPMTD_Util::num( $cur['so_luong'] );
+				$dg = ( 'donGia' === $cot )  ? $so : VHCPMTD_Util::num( $cur['don_gia'] );
+				$sua['thanh_tien'] = $sl * $dg;
+			}
+		}
+		$_dt = self::loi_sua_du_toan_( $ma_da, $row, $cur, $sua );
+		if ( '' !== $_dt ) { return VHCPMTD_Util::err( $_dt ); }
+
+		$wpdb->update( $t, $sua, array( 'ma_da' => (string) $ma_da, 'row_no' => $row ) );
+		VHCPMTD_Log::log_action( array(
+			'actor'  => VHCPMTD_Auth::nguoi(),
+			'role'   => VHCPMTD_Auth::vai_tro(),
+			'action' => 'Sửa ô trong bảng dự án',
+			'target' => (string) $ma_da . '#' . $row,
+			'detail' => $cot . ': ' . VHCPMTD_Util::st( $gt ),
+		) );
+		return VHCPMTD_Util::ok();
+	}
+
+	/**
+	 * GẮN LẠI LOẠI CHI PHÍ CHO MỘT DÒNG DỰ ÁN — kế toán sửa khi chọn sai.
+	 *
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 Anh Thắng 18/09/2026: *"cột loại chi phí (kế toán có thể [sửa] loại chi phí nếu nó
+	 *    sai). Còn chưa có thì báo chưa gắn mã"* — hôm ấy nói về đơn tuần; rồi nhìn bảng dự án:
+	 *    *"vậy cột ngày chưa có rồi"*. Bảng dự án cần đúng hai cột ấy.
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * Loại chi phí quyết định TK Nợ / TK Có / mã đối tượng (`VHCPMTD_Cfg::resolve_tk`). Chọn sai là
+	 * dòng ấy vào sai tài khoản, và cái sai chỉ lộ ra lúc xuất MISA — khi đã quá muộn để hỏi lại
+	 * người nhập họ mua cái gì.
+	 *
+	 * ⚠️ CHỈ KẾ TOÁN — cùng luật với `VHCPMTD_Don::set_line_nhom()` bên đơn tuần. Gắn mã hạch toán
+	 *    không phải sửa nội dung dòng; người nhập đổi được là con số nhảy tài khoản sau lưng
+	 *    kế toán.
+	 * ⚠️ KHÔNG đi qua `update_line()`: hàm ấy ghi lại CẢ DÒNG, gửi thiếu ô nào là ô ấy bị dọn về
+	 *    rỗng, im lặng. Một ô thì ghi đúng một ô + ba mã nó sinh ra.
+	 * ⚠️ KHÔNG áp chốt "dự toán đã lên lệnh" ở đây: gắn mã KHÔNG đổi một đồng nào của dòng, mà
+	 *    dòng sai mã thì phải sửa được kể cả lúc lệnh đã cấp tiền — không thì nó kẹt tới lúc
+	 *    xuất MISA mà vẫn sai. Chốt "hạng mục đã chốt sổ" thì VẪN áp, vì lúc ấy số đã vào sổ.
+	 */
+	public static function dat_loai_cp_line( $ma_da, $row, $loai_cp ) {
+		global $wpdb;
+		$f = self::find( $ma_da );
+		if ( ! $f ) { return VHCPMTD_Util::err( 'Không tìm thấy dự án' ); }
+		$st = (string) ( $f['trang_thai'] !== '' ? $f['trang_thai'] : 'Đang làm' );
+		if ( 'Đã đóng' === $st ) { return VHCPMTD_Util::err( 'Dự án đã đóng — bấm "Mở lại" rồi sửa' ); }
+		$vai = VHCPMTD_Auth::vai_tro();
+		if ( ! in_array( $vai, array( 'Admin', 'Kế toán cá nhân', 'Kế toán NCC' ), true ) ) {
+			return VHCPMTD_Util::err( 'Chỉ kế toán gắn lại loại chi phí được — '
+				. 'đây là mã hạch toán, không phải nội dung dòng.' );
+		}
+		$row = (int) $row;
+		$_c  = self::loi_hang_muc_da_chot_( $ma_da, $row, 'gắn lại loại chi phí' );
+		if ( '' !== $_c ) { return VHCPMTD_Util::err( $_c ); }
+		$t   = VHCPMTD_DB::t( 'da_line' );
+		$cur = VHCPMTD_DB::row( $wpdb->prepare( "SELECT * FROM $t WHERE ma_da=%s AND row_no=%d", (string) $ma_da, $row ) );
+		if ( ! $cur ) { return VHCPMTD_Util::err( 'Dòng không hợp lệ' ); }
+		$loai_cp = trim( (string) $loai_cp );
+		if ( '' === $loai_cp ) { return VHCPMTD_Util::err( 'Chọn loại chi phí' ); }
+
+		$tk = VHCPMTD_Cfg::resolve_tk( $loai_cp, (string) $cur['hinh_thuc'],
+			array( 'tkNo' => '', 'tkCo' => '', 'maDt' => '' ), (string) $cur['gian'] );
+		$wpdb->update( $t, array(
+			'loai_cp' => $loai_cp,
+			'tk_no'   => $tk['tk_no'],
+			'tk_co'   => $tk['tk_co'],
+			'ma_dt'   => $tk['ma_dt'],
+		), array( 'ma_da' => (string) $ma_da, 'row_no' => $row ) );
+		VHCPMTD_Log::log_action( array(
+			'actor'  => VHCPMTD_Auth::nguoi(),
+			'role'   => $vai,
+			'action' => 'Gắn lại loại chi phí cho dòng dự án',
+			'target' => (string) $ma_da . '#' . $row,
+			'detail' => (string) $cur['loai_cp'] . ' → ' . $loai_cp
+				. ( '' !== $tk['tk_no'] ? ( ' · Nợ ' . $tk['tk_no'] ) : ' · CHƯA GẮN MÃ' ),
+		) );
+		return VHCPMTD_Util::ok( array( 'loaiCp' => $loai_cp, 'tkNo' => $tk['tk_no'], 'tkCo' => $tk['tk_co'] ) );
+	}
+
 	public static function dat_anh_line( $ma_da, $row, $url ) {
 		return self::sua_o_line_( $ma_da, $row, 'anh', trim( (string) $url ), false, 'Đính ảnh vào dòng dự án' );
 	}
@@ -2138,6 +2389,8 @@ class VHCPMTD_DuAn {
 		$data     = self::line_data( $rec );
 		$_mc = self::loi_mo_muc_con_( $data['cap_cha'], (string) $cur['cap_cha'] );
 		if ( '' !== $_mc ) { return VHCPMTD_Util::err( $_mc ); }
+		$_dt = self::loi_sua_du_toan_( $ma_da, $row, $cur, $data );
+		if ( '' !== $_dt ) { return VHCPMTD_Util::err( $_dt ); }
 		$wpdb->update( $t, $data, array( 'ma_da' => (string) $ma_da, 'row_no' => $row ) );
 		if ( $data['cap_cha'] === '' && $old_name !== '' && $old_name !== $data['noi_dung'] ) {
 			self::relink_children( $ma_da, $old_name, $data['noi_dung'] );   // hạng mục lớn đổi tên -> cập nhật mục con
@@ -2220,20 +2473,84 @@ class VHCPMTD_DuAn {
 		return VHCPMTD_Util::ok( array( 'items' => $items ) );
 	}
 
+	/**
+	 * Dòng này thuộc HẠNG MỤC LỚN nào — trả số dòng của hạng mục ấy, 0 nếu không tra được.
+	 *
+	 * Dòng cha thì là chính nó; mục con thì tra ngược theo tên ở cột "Thuộc". Dòng `(Phát sinh)`
+	 * không thuộc hạng mục nào nên trả 0.
+	 */
+	private static function hm_lon_cua_dong_( $ma_da, $row, $cur ) {
+		$cap = trim( (string) $cur['cap_cha'] );
+		if ( '' === $cap ) { return (int) $row; }
+		if ( '(Phát sinh)' === $cap ) { return 0; }
+		foreach ( self::lines_of( $ma_da ) as $l ) {
+			if ( trim( (string) $l['cap_cha'] ) === '' && trim( (string) $l['noi_dung'] ) === $cap ) {
+				return (int) $l['row_no'];
+			}
+		}
+		return 0;
+	}
+
+	/**
+	 * Sửa SỐ DỰ TOÁN của một hạng mục đã lên lệnh — trả câu lỗi, '' nghĩa là sửa được.
+	 *
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 ĐÃ XIN VÀ ĐÃ LÊN LỆNH THÌ SỐ DỰ TOÁN ĐÓNG LẠI.
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 18/09/2026: *"Số dự toán đã xin và lên thì không được sửa"*, kèm ảnh một đơn có
+	 * thẻ đỏ *"⚠️ lệnh đã gửi vượt dự kiến 14.970.000đ"* — vì mấy dòng dự toán bị gõ về 0 SAU
+	 * khi lệnh 68.790.000đ đã gửi và đã cấp tiền.
+	 *
+	 * Số tiền của LỆNH chốt cứng lúc gửi (đúng thế), nhưng "dự kiến tạm ứng" thì cộng lại từ
+	 * mấy dòng này mỗi lần mở trang. Sửa dòng sau khi gửi là hai con số tách nhau ra, và màn
+	 * hình bắt đầu tố cáo một chuyện không có thật: lệnh trông như xin vượt dự toán, trong khi
+	 * lúc gửi nó khớp. Người đọc không có cách nào biết bên nào mới đúng.
+	 *
+	 * ⚠️ CHỈ KHOÁ CỘT DỰ TOÁN (dự toán · số lượng · đơn giá · thành tiền). CỘT THỰC TẾ VẪN MỞ —
+	 *    đó là cả quy trình: cầm tiền đi tiêu rồi mới về ghi số thật. Khoá luôn cột ấy là không
+	 *    ai quyết toán được nữa.
+	 * ⚠️ MỞ LẠI BẰNG CÁCH TRẢ LỆNH, không phải bằng một cái nút riêng. Trả lệnh đưa hạng mục về
+	 *    'tra' và ở đó sửa thoải mái — đường ấy có người duyệt, còn một nút "mở khoá dự toán"
+	 *    thì không.
+	 * ⚠️ ÁP CHO CẢ MỤC CON: tiền của hạng mục cha cộng từ con, nên sửa con là đổi số của cha.
+	 */
+	private static function loi_sua_du_toan_( $ma_da, $row, $cur, $data ) {
+		$lon = self::hm_lon_cua_dong_( $ma_da, $row, $cur );
+		if ( ! $lon ) { return ''; }
+		$h = self::hm_cua( $ma_da, $lon );
+		if ( in_array( $h['tt'], array( 'nhap', 'tra' ), true ) ) { return ''; }
+		$doi = array();
+		foreach ( array( 'du_toan' => 'dự toán', 'so_luong' => 'số lượng',
+			'don_gia' => 'đơn giá', 'thanh_tien' => 'thành tiền' ) as $cot => $ten ) {
+			if ( ! array_key_exists( $cot, $data ) ) { continue; }
+			/* ⚠️ ÉP KIỂU `(float)` CẢ HAI BÊN — ĐÂY MỚI LÀ CHỖ GÁNH. Sổ trả về chuỗi "0.00", còn
+			   `line_data()` trả số nguyên 0; trong PHP `0 !== 0.0` là ĐÚNG, nên so chặt hai thứ
+			   ấy là mọi lần sửa đều bị chặn oan, kể cả lúc chẳng đụng tới đồng nào. Đã cắn thật
+			   lúc dựng chốt này: sáu phép đỏ, mà không phép nào nói ra nguyên nhân.
+			   Khe hở 0,5đ là lưới đỡ thêm cho sai số dấu phẩy động của cột DECIMAL — tiền ở đây
+			   là số nguyên đồng nên không có thay đổi thật nào nhỏ hơn thế. */
+			$moi = (float) VHCPMTD_Util::num( $data[ $cot ] );
+			$cu  = (float) VHCPMTD_Util::num( isset( $cur[ $cot ] ) ? $cur[ $cot ] : 0 );
+			if ( abs( $moi - $cu ) >= 0.5 ) { $doi[] = $ten; }
+		}
+		if ( ! $doi ) { return ''; }
+		$ten_lon = '';
+		foreach ( self::lines_of( $ma_da ) as $l ) {
+			if ( (int) $l['row_no'] === $lon ) { $ten_lon = trim( (string) $l['noi_dung'] ); }
+		}
+		return 'Hạng mục "' . $ten_lon . '" đã lên lệnh tạm ứng rồi — không sửa '
+			. implode( ' / ', $doi ) . ' được nữa. '
+			. 'Số tiền của lệnh đã chốt lúc gửi; sửa ở đây là hai con số tách nhau ra. '
+			. 'Cần sửa thì trả lệnh về trước, rồi gửi lại. '
+			. '(Cột "Chi phí thực tế" vẫn ghi được bình thường.)';
+	}
+
 	public static function loi_hang_muc_da_chot_( $ma_da, $row, $viec = 'sửa' ) {
 		global $wpdb;
 		$t   = VHCPMTD_DB::t( 'da_line' );
 		$cur = VHCPMTD_DB::row( $wpdb->prepare( "SELECT * FROM $t WHERE ma_da=%s AND row_no=%d", (string) $ma_da, (int) $row ) );
 		if ( ! $cur ) { return ''; }   // dòng không có thật thì để lối gọi tự báo
-		$cap = trim( (string) $cur['cap_cha'] );
-		$khoa_row = ( '' === $cap ) ? (int) $row : 0;
-		if ( ! $khoa_row && '(Phát sinh)' !== $cap ) {
-			foreach ( self::lines_of( $ma_da ) as $l ) {
-				if ( trim( (string) $l['cap_cha'] ) === '' && trim( (string) $l['noi_dung'] ) === $cap ) {
-					$khoa_row = (int) $l['row_no'];
-				}
-			}
-		}
+		$khoa_row = self::hm_lon_cua_dong_( $ma_da, (int) $row, $cur );
 		if ( ! $khoa_row || ! self::hm_khoa( $ma_da, $khoa_row ) ) { return ''; }
 		$h = self::hm_cua( $ma_da, $khoa_row );
 		return 'Hạng mục đã chốt là chi thực tế — không ' . $viec . ' được nữa'

@@ -479,6 +479,191 @@ t( '🔴 phần chưa xếp đợt nào = dự kiến đợt tiếp theo (48.790
 t( '   còn "đã xin" chỉ đếm đợt đã khai', 10000000 == $ddx['daXinTU'], $ddx['daXinTU'] );
 VHCP_DuAn::delete( $maX );
 
+/* ═══ 8d. 🔴 ĐÃ LÊN LỆNH THÌ SỐ DỰ TOÁN ĐÓNG LẠI ═══════════════════════════════════════
+ * Anh Thắng 18/09/2026: *"Số dự toán đã xin và lên thì không được sửa"*, kèm ảnh một đơn có
+ * thẻ đỏ *"⚠️ lệnh đã gửi vượt dự kiến 14.970.000đ"* — vì mấy dòng dự toán bị gõ về 0 SAU khi
+ * lệnh 68.790.000đ đã gửi và đã cấp tiền.
+ *
+ * =========================================================================================
+ * Số tiền của LỆNH chốt cứng lúc gửi (đúng thế — xem mục 5). Nhưng "dự kiến tạm ứng" thì cộng
+ * lại từ mấy dòng này mỗi lần mở trang. Sửa dòng sau khi gửi là hai con số tách nhau ra, rồi
+ * màn hình tố cáo một chuyện không có thật: lệnh trông như xin vượt dự toán, trong khi lúc gửi
+ * nó khớp. Người đọc không có cách nào biết bên nào mới đúng.
+ * ─────────────────────────────────────────────────────────────────────────────────────── */
+vai( 'Admin', 'KT' );
+$maK2 = VHCP_DuAn::create_du_an( 'Setup lắp đặt', 'Gian khoá dự toán', 'NV' )['maDA'];
+VHCP_DuAn::add_line( $maK2, array( 'noiDung' => 'Thợ Phụ', 'duToan' => 48000000, 'thucTe' => 0 ) );
+VHCP_DuAn::add_line( $maK2, array( 'noiDung' => 'Vật tư', 'duToan' => 5000000, 'thucTe' => 0 ) );
+$RK = array();
+foreach ( VHCP_DuAn::get_du_an( $maK2 )['lines'] as $l ) { $RK[ $l['noiDung'] ] = (int) $l['row']; }
+
+/* Còn nháp thì sửa thoải mái — chốt này không được cản lúc đang lập dự toán. */
+$x = VHCP_DuAn::update_line( $maK2, $RK['Thợ Phụ'], array( 'noiDung' => 'Thợ Phụ', 'duToan' => 47000000 ) );
+t( '🔴 hạng mục CÒN NHÁP thì sửa dự toán thoải mái (đang lập dự toán mà cản là cản sai bước)',
+	! empty( $x['success'] ), $x );
+teq( '   và số mới vào sổ thật', 47000000, (int) VHCP_DuAn::get_du_an( $maK2 )['lines'][0]['duToan'] );
+
+vai( 'Nhân viên', 'NV' );
+VHCP_DuAn::xin_tam_ung_dot( $maK2, array( $RK['Thợ Phụ'] ), array(), '' );
+$x = VHCP_DuAn::update_line( $maK2, $RK['Thợ Phụ'], array( 'noiDung' => 'Thợ Phụ', 'duToan' => 0 ) );
+t( '🔴 đã lên lệnh → gõ dự toán về 0 bị CHỐI (đúng cảnh ảnh anh Thắng gửi)', empty( $x['success'] ), $x );
+t( '   câu chối gọi TÊN hạng mục và chỉ đường ra: trả lệnh về rồi gửi lại',
+	isset( $x['error'] ) && false !== mb_strpos( $x['error'], 'Thợ Phụ' )
+	&& false !== mb_strpos( $x['error'], 'trả lệnh' ), $x );
+teq( '🔴 và số trong sổ KHÔNG đổi', 47000000, (int) VHCP_DuAn::get_du_an( $maK2 )['lines'][0]['duToan'] );
+
+/* 🔴 CỘT THỰC TẾ VẪN MỞ — đó là cả quy trình: cầm tiền đi tiêu rồi mới về ghi số thật. Khoá
+   luôn cột ấy là không ai quyết toán được nữa. */
+$x = VHCP_DuAn::update_line( $maK2, $RK['Thợ Phụ'],
+	array( 'noiDung' => 'Thợ Phụ', 'duToan' => 47000000, 'thucTe' => 46500000 ) );
+t( '🔴 nhưng CHI PHÍ THỰC TẾ vẫn ghi được (khoá luôn thì không ai quyết toán được nữa)',
+	! empty( $x['success'] ), $x );
+teq( '   và số thực tế vào sổ', 46500000, (int) VHCP_DuAn::get_du_an( $maK2 )['lines'][0]['thucTe'] );
+
+/* Hạng mục KHÔNG nằm trong lệnh thì không bị vạ lây. */
+$x = VHCP_DuAn::update_line( $maK2, $RK['Vật tư'], array( 'noiDung' => 'Vật tư', 'duToan' => 6000000 ) );
+t( '🔴 hạng mục chưa vào lệnh nào KHÔNG bị vạ lây', ! empty( $x['success'] ), $x );
+
+/* ⚠️ ÁP CHO CẢ MỤC CON: tiền của cha cộng từ con, nên sửa con là đổi số của cha. */
+vai( 'Admin', 'KT' );
+VHCP_DuAn::them_dong_muc_con_cu( $maK2, array( 'noiDung' => 'Ốc vít', 'capCha' => 'Thợ Phụ', 'thucTe' => 100000 ) );
+$rCon = 0;
+foreach ( VHCP_DuAn::get_du_an( $maK2 )['lines'] as $l ) { if ( 'Ốc vít' === $l['noiDung'] ) { $rCon = (int) $l['row']; } }
+$x = VHCP_DuAn::update_line( $maK2, $rCon, array( 'noiDung' => 'Ốc vít', 'capCha' => 'Thợ Phụ',
+	'soLuong' => 5, 'donGia' => 200000 ) );
+t( '🔴 mục con của hạng mục đã lên lệnh cũng khoá (tiền của cha cộng từ con)',
+	empty( $x['success'] ), $x );
+t( '   và câu chối gọi tên HẠNG MỤC LỚN, không gọi tên dòng con',
+	isset( $x['error'] ) && false !== mb_strpos( $x['error'], 'Thợ Phụ' ), $x );
+
+/* 🔴 KHOÁ CẢ BA CỘT SINH RA TIỀN, không chỉ ô "dự toán". Đơn cơ sở không dùng ô dự toán — tiền
+   của nó nằm trọn ở SỐ LƯỢNG × ĐƠN GIÁ, và `tien_hm_du_kien()` đọc luôn `thành tiền`. Khoá mỗi
+   cột dự toán là đơn cơ sở sửa tiền thoải mái sau khi đã lên lệnh, tức chốt này thủng đúng ở
+   loại đơn nhiều nhất. Mỗi cột thử RIÊNG một phép: gộp lại thì bỏ sót một cột vẫn xanh. */
+vai( 'Admin', 'KT' );
+$maC2 = VHCP_DuAn::tao_don_coso( 'Tuần thử khoá', 'Sếp', '14/09/2026', '20/09/2026' )['maDA'];
+VHCP_DuAn::add_line( $maC2, array( 'noiDung' => 'Cáp màn hình', 'gian' => 'G1', 'soLuong' => 2, 'donGia' => 500000 ) );
+$rC = 0;
+foreach ( VHCP_DuAn::get_du_an( $maC2 )['lines'] as $l ) { if ( 'Cáp màn hình' === $l['noiDung'] ) { $rC = (int) $l['row']; } }
+vai( 'Nhân viên', 'NV' );
+VHCP_DuAn::xin_tam_ung_dot( $maC2, array( $rC ), array(), '' );
+vai( 'Admin', 'KT' );
+$x = VHCP_DuAn::update_line( $maC2, $rC, array( 'noiDung' => 'Cáp màn hình', 'gian' => 'G1',
+	'soLuong' => 2, 'donGia' => 900000 ) );
+t( '🔴 đơn cơ sở đã lên lệnh → sửa riêng ĐƠN GIÁ cũng bị chối', empty( $x['success'] ), $x );
+t( '   và câu chối gọi đúng tên cột đang vướng', isset( $x['error'] )
+	&& false !== mb_strpos( $x['error'], 'đơn giá' ), $x );
+$x = VHCP_DuAn::update_line( $maC2, $rC, array( 'noiDung' => 'Cáp màn hình', 'gian' => 'G1',
+	'soLuong' => 7, 'donGia' => 500000 ) );
+t( '🔴 sửa riêng SỐ LƯỢNG cũng bị chối', empty( $x['success'] ), $x );
+t( '   gọi đúng tên cột ấy', isset( $x['error'] ) && false !== mb_strpos( $x['error'], 'số lượng' ), $x );
+$x = VHCP_DuAn::update_line( $maC2, $rC, array( 'noiDung' => 'Cáp màn hình (E.Nhật)', 'gian' => 'G1',
+	'soLuong' => 2, 'donGia' => 500000 ) );
+t( '   nhưng sửa thứ KHÔNG phải tiền (đổi tên, ghi chú) thì vẫn cho — chốt này giữ con số, '
+	. 'không giữ cả dòng', ! empty( $x['success'] ), $x );
+VHCP_DuAn::delete( $maC2 );
+
+/* 🔴 ĐƯỜNG RA LÀ TRẢ LỆNH — không phải một nút "mở khoá dự toán" riêng. */
+vai( 'Quản lý', 'QL' );
+VHCP_DuAn::dat_tt_dot( $maK2, 1, 'tra' );
+vai( 'Admin', 'KT' );
+$x = VHCP_DuAn::update_line( $maK2, $RK['Thợ Phụ'],
+	array( 'noiDung' => 'Thợ Phụ', 'duToan' => 30000000, 'thucTe' => 46500000 ) );
+t( '🔴 TRẢ LỆNH xong thì sửa lại được — đường ra có người duyệt, khác một nút mở khoá tự do',
+	! empty( $x['success'] ), $x );
+teq( '   và số mới vào sổ', 30000000, (int) VHCP_DuAn::get_du_an( $maK2 )['lines'][0]['duToan'] );
+VHCP_DuAn::delete( $maK2 );
+
+/* ═══ 8e. 🔴 ADMIN THU HỒI ĐƯỢC LỆNH ĐÃ CẤP TIỀN ═══════════════════════════════════════
+ * Anh Thắng 18/09/2026: *"Cấp quyền cho admin trả đơn"*, sau khi một đơn 68.790.000đ đã cấp
+ * tiền mà số liệu sai và không còn đường nào quay lại. Chốt về tiền: *"coi như chưa chi — gỡ
+ * khỏi TK 141"*.
+ *
+ * =========================================================================================
+ * Luật cũ chặn tuyệt đối ("tiền đã ra khỏi két, trả lại là xoá dấu vết") — đúng về ý, sai về
+ * hệ quả: một hệ không có đường lùi thì người ta không sửa sổ, họ BỊA sổ. Thà mở một cửa hẹp
+ * có tên, có lý do, có vết.
+ * ─────────────────────────────────────────────────────────────────────────────────────── */
+vai( 'Admin', 'KT' );
+$maT2 = VHCP_DuAn::create_du_an( 'Setup lắp đặt', 'Gian thu hồi', 'NV' )['maDA'];
+VHCP_DuAn::add_line( $maT2, array( 'noiDung' => 'Thợ Phụ', 'thucTe' => 48000000 ) );
+$rT = 0;
+foreach ( VHCP_DuAn::get_du_an( $maT2 )['lines'] as $l ) { if ( 'Thợ Phụ' === $l['noiDung'] ) { $rT = (int) $l['row']; } }
+vai( 'Nhân viên', 'NV' );
+VHCP_DuAn::xin_tam_ung_dot( $maT2, array( $rT ), array(), '' );
+vai( 'Quản lý', 'QL' );
+VHCP_DuAn::dat_tt_dot( $maT2, 1, 'duyet' );
+vai( 'Kế toán cá nhân', 'KTCN' );
+VHCP_DuAn::dat_tt_dot( $maT2, 1, 'ung', array( 'unc' => 'UNC-TH' ) );
+teq( 'dựng được một lệnh ĐÃ CẤP TIỀN', 'ung', VHCP_DuAn::dot_cua( $maT2, 1 )['tt'] );
+teq( '   và nó đang tính là đã chi', 48000000, (int) VHCP_DuAn::get_du_an( $maT2 )['daChiTU'] );
+
+/* ── Ai KHÔNG thu hồi được ──────────────────────────────────────────────────────────────── */
+vai( 'Quản lý', 'QL' );
+$x = VHCP_DuAn::dat_tt_dot( $maT2, 1, 'tra', array( 'lyDo' => 'Sai số liệu' ) );
+t( '🔴 QUẢN LÝ không thu hồi được lệnh đã cấp tiền (đây không phải việc thường ngày)',
+	empty( $x['success'] ), $x );
+t( '   và câu chối chỉ đúng người làm được', isset( $x['error'] )
+	&& false !== mb_strpos( $x['error'], 'chỉ Admin' ), $x );
+vai( 'Kế toán cá nhân', 'KTCN' );
+$x = VHCP_DuAn::dat_tt_dot( $maT2, 1, 'tra', array( 'lyDo' => 'Sai số liệu' ) );
+t( '🔴 KẾ TOÁN cũng không — người giữ két không tự gỡ khoản mình vừa đưa', empty( $x['success'] ), $x );
+
+/* ── Admin: bắt buộc có lý do ───────────────────────────────────────────────────────────── */
+vai( 'Admin', 'KT' );
+$x = VHCP_DuAn::dat_tt_dot( $maT2, 1, 'tra' );
+t( '🔴 Admin thu hồi mà KHÔNG ghi lý do → chối (ba tháng sau không ai dựng lại được chuyện gì '
+	. 'đã xảy ra)', empty( $x['success'] ), $x );
+t( '   nói rõ là phải ghi lý do', isset( $x['error'] )
+	&& false !== mb_strpos( $x['error'], 'lý do' ), $x );
+teq( '   và lệnh KHÔNG bị đụng', 'ung', VHCP_DuAn::dot_cua( $maT2, 1 )['tt'] );
+
+/* ── Đường đi đúng ──────────────────────────────────────────────────────────────────────── */
+$x = VHCP_DuAn::dat_tt_dot( $maT2, 1, 'tra', array( 'lyDo' => 'Gõ nhầm dự toán, tiền chưa chuyển' ) );
+t( '🔴 Admin ghi lý do → thu hồi được', ! empty( $x['success'] ), $x );
+teq( '   lệnh về "tra"', 'tra', VHCP_DuAn::dot_cua( $maT2, 1 )['tt'] );
+teq( '   lý do ghi vào lệnh', 'Gõ nhầm dự toán, tiền chưa chuyển', VHCP_DuAn::dot_cua( $maT2, 1 )['lyDo'] );
+teq( '🔴 hạng mục về "tra" và GỠ số lệnh (không thì nhân viên gửi lại bị chối)',
+	0, (int) VHCP_DuAn::hm_cua( $maT2, $rT )['dot'] );
+
+/* 🔴 CHỐT VỀ TIỀN — đúng lựa chọn anh Thắng: "coi như chưa chi". */
+$dT = VHCP_DuAn::get_du_an( $maT2 );
+teq( '🔴 "đã chi" gỡ khoản ấy ra — coi như chưa chi', 0, (int) $dT['daChiTU'] );
+t( '🔴 nhưng SỔ CỦA LỆNH vẫn giữ nguyên mấy lượt cấp tiền để tra (không xoá dấu vết)',
+	1 === count( VHCP_DuAn::dot_cua( $maT2, 1 )['daCap'] )
+	&& 48000000 == VHCP_DuAn::dot_cua( $maT2, 1 )['daCap'][0]['soTien'],
+	VHCP_DuAn::dot_cua( $maT2, 1 )['daCap'] );
+vai( 'Nhân viên', 'NV' );
+$x = VHCP_DuAn::xin_tam_ung_dot( $maT2, array( $rT ), array(), '' );
+t( '   sửa xong gửi lại được', ! empty( $x['success'] ), $x );
+
+/* ── 🔴 CHỐI KHI ĐÃ QUYẾT TOÁN: gỡ tạm ứng dưới chân một khoản đã chốt sổ là 141 âm ────── */
+vai( 'Admin', 'KT' );
+$maQ2 = VHCP_DuAn::create_du_an( 'Setup lắp đặt', 'Gian đã chốt', 'NV' )['maDA'];
+VHCP_DuAn::add_line( $maQ2, array( 'noiDung' => 'Thợ', 'thucTe' => 5000000, 'anh' => 'https://kho/b.jpg' ) );
+$rQ = 0;
+foreach ( VHCP_DuAn::get_du_an( $maQ2 )['lines'] as $l ) { if ( 'Thợ' === $l['noiDung'] ) { $rQ = (int) $l['row']; } }
+vai( 'Nhân viên', 'NV' );
+VHCP_DuAn::xin_tam_ung_dot( $maQ2, array( $rQ ), array(), '' );
+vai( 'Quản lý', 'QL' );
+VHCP_DuAn::dat_tt_dot( $maQ2, 1, 'duyet' );
+vai( 'Kế toán cá nhân', 'KTCN' );
+VHCP_DuAn::dat_tt_dot( $maQ2, 1, 'ung', array( 'unc' => 'UNC-Q' ) );
+VHCP_DuAn::dat_hm( $maQ2, $rQ, 'xong' );
+teq( 'dựng được hạng mục ĐÃ CHỐT XONG', 'xong', VHCP_DuAn::hm_cua( $maQ2, $rQ )['tt'] );
+vai( 'Admin', 'KT' );
+$x = VHCP_DuAn::dat_tt_dot( $maQ2, 1, 'tra', array( 'lyDo' => 'Muốn làm lại' ) );
+t( '🔴 trong lệnh có hạng mục ĐÃ CHỐT XONG → chối, kể cả Admin', empty( $x['success'] ), $x );
+t( '   và chỉ đúng đường: mở khoá hạng mục ấy trước',
+	isset( $x['error'] ) && false !== mb_strpos( $x['error'], 'Mở khoá' ), $x );
+teq( '   lệnh vẫn nguyên', 'ung', VHCP_DuAn::dot_cua( $maQ2, 1 )['tt'] );
+vai( 'Kế toán cá nhân', 'KTCN' );
+VHCP_DuAn::dat_hm( $maQ2, $rQ, 'nhap' );
+vai( 'Admin', 'KT' );
+$x = VHCP_DuAn::dat_tt_dot( $maQ2, 1, 'tra', array( 'lyDo' => 'Muốn làm lại' ) );
+t( '   mở khoá xong thì thu hồi được', ! empty( $x['success'] ), $x );
+foreach ( array( $maT2, $maQ2 ) as $z ) { VHCP_DuAn::delete( $z ); }
+
 /* ═══ 9. CỬA API ═══════════════════════════════════════════════════════════════════════ */
 $src = file_get_contents( $goc . '/wordpress/vhcp-chi-phi/includes/class-vhcp-api.php' );
 foreach ( array(

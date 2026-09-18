@@ -284,3 +284,9 @@
    đọc — đây là mấy đơn đang treo tiền, thứ cần nhắc chứ không phải thứ cần giấu. */
 tr.qt-chim > td{background:#fafafa;color:#64748b}
 tr.qt-chim > td .badge{opacity:.8}
+
+/* Ô GÕ THẲNG TRONG BẢNG DỰ ÁN — anh Thắng 18/09/2026: *"thay vì bấm sửa, thì cho sửa thẳng
+   trong từng dòng đơn"*. Ô sửa được phải TRÔNG khác ô chỉ để đọc, không thì người ta không
+   biết bấm vào được; nhưng cũng không được viền sẵn như ô nhập, kẻo bảng đọc thành một tờ khai. */
+.o-sua{ cursor:text; border-radius:4px; }
+.o-sua:hover{ background:#eef2ff; box-shadow:inset 0 0 0 1px #c7d2fe; }

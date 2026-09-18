@@ -44,8 +44,18 @@ t('🔴 mặc định hộp Gian ĐÓNG — chỉ mở ở dự án gom nhiều 
   HTML.indexOf('id="daGianBox" style="display:none"') >= 0);
 t('   và mở đúng theo dự án "Chi phí cơ sở (chung)"',
   HTML.indexOf("el('daGianBox').style.display=isCoSo?'':'none'") >= 0);
-t('   cột Nội dung của bảng dòng chi vẫn còn',
-  HTML.indexOf('<thead><tr><th>Nội dung</th><th>Gian</th>') >= 0);
+/* ⚠️ CANH "CÒN CỘT NỘI DUNG", không canh nó ĐỨNG CẠNH cột Gian. Từ 18/09/2026 có hai cột chen
+   vào giữa (Ngày nhập · Loại chi phí); canh chuỗi liền nhau thì phép đỏ vì bảng thêm cột, chứ
+   không phải vì cột Nội dung mất đi — mà mất cột Nội dung mới là điều nó sinh ra để bắt. */
+{
+  const _d = HTML.slice(HTML.indexOf('id="daLineTable"'));
+  const _h = _d.slice(0, _d.indexOf('</thead>'));
+  /* ⚠️ CHỪA CHỖ CHO THUỘC TÍNH. Canh đúng chuỗi `<th>Nội dung</th>` thì thêm một bề rộng vào
+     thẻ ấy là phép đỏ — vì markup đổi, chứ không phải vì cột biến mất. Cột CÒN HAY KHÔNG mới
+     là điều nó sinh ra để bắt. */
+  t('   cột Nội dung của bảng dòng chi vẫn còn', /<th[^>]*>Nội dung<\/th>/.test(_h), _h.slice(0, 260));
+  t('   và cột Gian vẫn còn', /<th[^>]*>Gian<\/th>/.test(_h), _h.slice(0, 400));
+}
 
 /* ── 2. GIAN LẤY TỪ ĐÂU — CHẠY THẬT ────────────────────────────────────────────────────── */
 function gian(hienBox, oGian, duAn) {

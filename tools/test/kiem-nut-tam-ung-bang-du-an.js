@@ -202,7 +202,17 @@ function nut(opt) {
 t('🔴 nút trạng thái nằm NGOÀI nhánh canEdit (kế toán không sửa được dòng vẫn phải thấy nút)',
   HTML.indexOf("</button>'):'')+addChild+'</td></tr>'") >= 0);
 t('   hàng hạng mục lớn có chỗ mở ô nhập ngay dưới', HTML.indexOf("function hmDongXin(p){") >= 0);
-t('   hàng ấy trải hết bề ngang bảng', /function hmDongXin\(p\)\{ return hmDongForm\(_hmKeyDA\(p\.row\), 13\)/.test(HTML));
+/* ⚠️ ĐẾM TỪ CHÍNH ĐẦU BẢNG, đừng gõ cứng con số — cùng bài học với `test-o-loai-chi-phi.js`.
+   Gõ cứng thì thêm cột là phép đỏ vì con số hết hạn, rồi người sửa chỉ đổi số mà không ai soi
+   xem hàng ô nhập còn trải hết bảng không. Đếm thì nó bắt đúng cái nó sinh ra để bắt. */
+{
+  const _b = HTML.slice(HTML.indexOf('id="daLineTable"'));
+  const _dau = _b.slice(0, _b.indexOf('</thead>'));
+  const _so = (_dau.match(/<th[ >]/g) || []).length;
+  const _khai = (HTML.match(/hmDongForm\(_hmKeyDA\(p\.row\), (\d+)\)/) || [])[1];
+  t('   hàng ấy trải hết bề ngang bảng (' + _so + ' cột)',
+    _so > 0 && Number(_khai) === _so, { dauBang: _so, khaiTrongMa: _khai });
+}
 /* 🔴 MÃ CHẾT PHẢI BỎ HẲN, không để lại cho gọn mắt: máy chủ nay CHỐI đường xin lẻ từng hạng
    mục, nên để `hmMoXin` nằm đó là mời người sau nối lại một cái nút bấm vào chỉ ra câu lỗi. */
 t('🔴 đường xin lẻ từng hạng mục đã bỏ HẲN khỏi mã nguồn',
@@ -212,18 +222,24 @@ t('   và có ghi lại vì sao bỏ, kẻo người sau tưởng quên',
 /* Vẽ THẬT ba cái ô nhập rồi soi, thay vì dò chuỗi: tên thuộc tính được ghép động
    ('data-hm'+o) nên trong mã nguồn không có chuỗi nào để dò. */
 function veForm(ham, ...them) {
-  const NK = { html: '', hien: false };
+  /* `daCur` đi kèm ở cuối khi bài kiểm cần một dự án đang mở (để `_hmChungTuSan` tra được ảnh
+     bill trên hàng). Không truyền thì `DA_CUR` là null, đúng cảnh chưa mở dự án nào. */
+  let daCur = null;
+  if (them.length && them[them.length - 1] && them[them.length - 1].__daCur) {
+    daCur = them.pop().__daCur;
+  }
+  const NK = { html: '', hien: false, oHd: { value: '' } };
   const moi = {
     esc: x => String(x == null ? '' : x),
-    toast: () => {}, HM_ITEMS: [], DA_CUR: null,
-    document: { querySelector: () => ({
+    toast: () => {}, HM_ITEMS: [], DA_CUR: daCur,
+    document: { querySelector: sel => (/data-hmhd=/.test(String(sel)) ? NK.oHd : {
       querySelector: () => ({ set innerHTML(v) { NK.html = v; }, get innerHTML() { return NK.html; } }),
       style: { set display(v) { NK.hien = (v === ''); } },
       scrollIntoView() {},
     }) },
   };
   const src = `${boc('_dotHien')}\n${boc('_dotHienCua')}\n${boc('_hmO')}\n${boc('_hmMo')}\n${boc('_hmTen')}
-    ${boc('_hmOTep')}\n${boc('_hmNutDay')}\n${boc(ham)}\n return ${ham};`;
+    ${boc('_hmOTep')}\n${boc('_hmNutDay')}\n${boc('_hmChungTuSan')}\n${boc(ham)}\n return ${ham};`;
   new Function('moi', `with(moi){ ${src} }`)(moi)('P7', 'DA1', 7, ...them);
   return NK;
 }
@@ -245,8 +261,43 @@ function veForm(ham, ...them) {
     /data-hmhd="P7"/.test(f) && /hmDinhTep\(/.test(f), f);
   t('   nhưng KHÔNG hỏi uỷ nhiệm chi (đó là chứng từ của bước cấp tiền)',
     !/data-hmunc=/.test(f), f);
-  t('🔴 chốt xong nói rõ hoá đơn là BẮT BUỘC (máy chủ chối, người dùng phải biết trước)',
+  t('🔴 hàng TRỐNG chứng từ → vẫn nói rõ hoá đơn là BẮT BUỘC (máy chủ chối, phải biết trước)',
     /Hoá đơn[^]{0,80}bắt buộc/.test(f), f);
+}
+/* ── 4a2. 🔴 BILL ĐÃ ĐÍNH TRÊN HÀNG CHÍNH LÀ HOÁ ĐƠN ──────────────────────────────────
+ * Anh Thắng 18/09/2026, ảnh một hàng đã có ảnh bill ở cột ẢNH mà bấm Chốt xong vẫn hiện
+ * "Hoá đơn (bắt buộc)": *"Chỗ ảnh đã add hóa đơn, tạo sao chốt lại hỏi hóa đơn lần 2, nó là
+ * 1 mà"*.
+ *
+ * Cột ẢNH của hàng vốn là chỗ chụp bill (chính nó mang `data-bill` để rê chuột phóng to), cột
+ * HỒ SƠ là bản PDF. Bắt tải lại đúng tệp ấy vào ô thứ hai là làm hai lần một việc — và tệ hơn:
+ * người ta sẽ dán bừa thứ gì đó cho qua cửa, tức cửa vẫn đóng mà chứng từ thì sai.
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+{
+  const r = veForm('hmMoChot', { __daCur: { maDA: 'DA1', lines: [
+    { row: 7, noiDung: 'Vận chuyển (E.Nhật)', anh: 'https://kho/bill-7.jpg', hoSo: '' } ] } });
+  t('🔴 hàng ĐÃ CÓ ảnh bill → nói ra là đã có, không hỏi lại như chưa có gì',
+    /đã có chứng từ đính sẵn/.test(r.html), r.html);
+  t('   và cho xem lại đúng tấm ấy trước khi khoá', /https:\/\/kho\/bill-7\.jpg/.test(r.html), r.html);
+  t('🔴 ô hoá đơn thôi gắn nhãn (bắt buộc) — nó đã có rồi', !/bắt buộc/.test(r.html), r.html);
+  t('🔴 và ĐIỀN SẴN vào ô, bấm Chốt là xong, khỏi tải lên lần hai',
+    r.oHd.value === 'https://kho/bill-7.jpg', r.oHd);
+}
+{
+  /* Chưa có ảnh nhưng có hồ sơ (hoá đơn điện tử .pdf) — cũng là chứng từ. */
+  const r = veForm('hmMoChot', { __daCur: { maDA: 'DA1', lines: [
+    { row: 7, noiDung: 'Vận chuyển', anh: '', hoSo: 'https://kho/hd-7.pdf\nhttps://kho/phu-luc.pdf' } ] } });
+  t('🔴 không có ảnh thì lấy HỒ SƠ (hoá đơn điện tử cũng là hoá đơn)',
+    r.oHd.value === 'https://kho/hd-7.pdf', r.oHd);
+  t('   nhiều hồ sơ thì lấy tệp ĐẦU, không nhét cả chùm vào một ô',
+    r.oHd.value.indexOf('phu-luc') < 0, r.oHd);
+}
+{
+  const r = veForm('hmMoChot', { __daCur: { maDA: 'DA1', lines: [
+    { row: 7, noiDung: 'Vận chuyển', anh: '', hoSo: '' } ] } });
+  t('🔴 hàng thật sự trống trơn → vẫn đòi hoá đơn (chốt là khoá và tính thành chi thực tế)',
+    /bắt buộc/.test(r.html) && r.oHd.value === '', r.html);
+  t('   và KHÔNG khoe "đã có chứng từ" khống', !/đã có chứng từ đính sẵn/.test(r.html), r.html);
 }
 /* 🔴 NÚT CHỌN TỆP PHẢI NHÌN THẤY ĐƯỢC. Nút còn trong mã mà bị giấu đi thì cũng như không có —
    kế toán lại phải tự tải tệp lên chỗ khác rồi quay lại dán liên kết. */
@@ -279,6 +330,166 @@ function veForm(ham, ...them) {
   t('🔴 ' + ten + '() không hỏi chứng từ / ngày / số tiền bằng prompt',
     i >= 0 && HTML.slice(i, HTML.indexOf('\n  }', i)).indexOf('prompt(') < 0);
 });
+
+/* ── 4a3. 🔒 ĐÃ LÊN LỆNH THÌ KHOÁ MẤY Ô SINH RA TIỀN ─────────────────────────────────
+ * Anh Thắng 18/09/2026: *"Số dự toán đã xin và lên thì không được sửa"*.
+ *
+ * Chốt THẬT nằm ở máy chủ (`loi_sua_du_toan_`, bài kiểm ở `kiem-lenh-tam-ung-du-an.php`). Khoá
+ * ở màn chỉ để người ta khỏi gõ xong mới biết là không được — gõ rồi bị chối là mất công, và
+ * mất cả tin vào màn hình.
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+{
+  const O = {};
+  const oMoi = id => (O[id] = O[id] || { readOnly: false, style: {}, title: '', innerHTML: '', value: '' });
+  const F = new Function('moi', `with(moi){ ${boc('_daKhoaDuToanO')}\n return _daKhoaDuToanO; }`)({
+    el: oMoi,
+    DA_CUR: { maDA: 'DA1', lines: [
+      { row: 3, noiDung: 'Thợ Phụ', capCha: '', hm: { tt: 'ung' } },
+      { row: 4, noiDung: 'Ốc vít',  capCha: 'Thợ Phụ' },
+      { row: 9, noiDung: 'Vật tư',  capCha: '', hm: { tt: 'nhap' } } ] },
+  });
+
+  F({ row: 3, noiDung: 'Thợ Phụ', capCha: '', hm: { tt: 'ung' } });
+  t('🔴 hạng mục ĐÃ LÊN LỆNH → khoá ô dự toán, số lượng, đơn giá',
+    O.da_dt.readOnly && O.da_sl.readOnly && O.da_dg.readOnly, O);
+  t('🔴 nhưng ô CHI PHÍ THỰC TẾ KHÔNG bị khoá (khoá luôn thì không ai quyết toán được nữa)',
+    !O.da_thucte, O.da_thucte);
+  t('   ô khoá đổi màu cho thấy rõ, và rê chuột vào nói vì sao',
+    O.da_dt.style.background === '#f1efec' && /trả lệnh/.test(O.da_dt.title), O.da_dt);
+  t('🔴 và có một dòng nhắc chỉ đường ra: trả lệnh về trước',
+    /đã lên lệnh tạm ứng/.test(O.daKhoaNhac.innerHTML) && /trả lệnh/.test(O.daKhoaNhac.innerHTML),
+    O.daKhoaNhac.innerHTML);
+
+  /* Mục con đi theo cha — tiền của hạng mục lớn cộng từ con. */
+  F({ row: 4, noiDung: 'Ốc vít', capCha: 'Thợ Phụ' });
+  t('🔴 mục con của hạng mục đã lên lệnh cũng khoá theo cha', O.da_dt.readOnly, O);
+
+  F({ row: 9, noiDung: 'Vật tư', capCha: '', hm: { tt: 'nhap' } });
+  t('🔴 hạng mục CÒN NHÁP thì mở hết — đang lập dự toán mà khoá là khoá sai bước',
+    !O.da_dt.readOnly && !O.da_sl.readOnly && !O.da_dg.readOnly, O);
+  t('   và dòng nhắc biến mất', O.daKhoaNhac.innerHTML === '' && O.daKhoaNhac.style.display === 'none',
+    O.daKhoaNhac);
+
+  /* 🔴 THOÁT SỬA PHẢI MỞ KHOÁ LẠI. Bỏ dở việc sửa một hàng đã lên lệnh rồi quay sang THÊM DÒNG
+     MỚI mà ô vẫn khoá thì không gõ được dự toán, và chẳng có gì nói vì sao. */
+  F({ row: 3, noiDung: 'Thợ Phụ', capCha: '', hm: { tt: 'ung' } });
+  F(null);
+  t('🔴 thoát chế độ sửa → mở khoá lại mấy ô (không thì thêm dòng mới cũng gõ không được)',
+    !O.da_dt.readOnly && O.daKhoaNhac.innerHTML === '', O);
+}
+t('🔴 thoát sửa dòng có gọi mở khoá', /daCancelEditLine\(\)\{[^]{0,400}_daKhoaDuToanO\(null\)/.test(HTML));
+t('   và mở sửa một dòng thì gọi khoá', /_daKhoaDuToanO\(l\);/.test(HTML));
+
+/* ── 4a4. 📅 HAI CỘT MỚI CỦA BẢNG DỰ ÁN — VẼ THẬT MỘT HÀNG RỒI ĐẾM ─────────────────────
+ * Anh Thắng 18/09/2026, nhìn bảng dự án sau khi thấy hai cột mới ở đơn tuần: *"vậy cột ngày
+ * chưa có rồi"*.
+ *
+ * ⚠️ VẼ THẬT, ĐỪNG DÒ CHUỖI TRONG MÃ NGUỒN. Dò chuỗi chỉ thấy đầu bảng có `<th>`, không thấy
+ *    HÀNG có `<td>` — gỡ ô ra khỏi hàng mà vẫn để `<th>` thì bảng lệch cột mà phép vẫn xanh.
+ *    Đúng chỗ ấy đã xanh oan một lần lúc dựng bài này.
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+{
+  const i = HTML.indexOf('    function daLineCells(');
+  const src = HTML.slice(i, HTML.indexOf('\n    }', i) + 6);
+  t('bốc được daLineCells()', i >= 0);
+  const F = new Function('moi', `with(moi){ ${src}\n return daLineCells; }`)({
+    esc: x => String(x == null ? '' : x), money: n => String(Number(n) || 0),
+    canEdit: true, htBadge: () => 'HT',
+    tkBadge: (a, b) => (b ? ('[' + a + ' No ' + b + ']') : (a ? ('[' + a + ' chua ma]') : '')),
+    _daTtHang: () => 'nhap', _daOLoaiCp: l => '<td>LOAI:' + String(l.loaiCp || '') + '</td>',
+    DA_CUR: { maDA: 'DA1', lines: [] } });
+
+  /* Số ô của HÀNG phải bằng số cột của ĐẦU BẢNG — lệch một ô là cả bảng trượt cột. */
+  const dau = HTML.slice(HTML.indexOf('id="daLineTable"'));
+  const soCot = (dau.slice(0, dau.indexOf('</thead>')).match(/<th[ >]/g) || []).length;
+
+  const h = F({ row: 3, noiDung: 'Thợ Phụ', taoLuc: '18/09/2026',
+    loaiCp: 'Chi phí nuôi thú', duToan: 1, capCha: '' }, false, '', true);
+  t('🔴 hàng dự án IN RA ngày nhập', h.indexOf('18/09/2026') >= 0, h);
+  t('🔴 và có ô loại chi phí riêng', h.indexOf('LOAI:Chi phí nuôi thú') >= 0, h);
+  t('🔴 số ô của hàng bằng đúng số cột đầu bảng (' + soCot + ')',
+    (h.match(/<td/g) || []).length === soCot, { hang: (h.match(/<td/g) || []).length, dauBang: soCot });
+
+  const h2 = F({ row: 4, noiDung: 'Dòng cũ', loaiCp: '', duToan: 0, capCha: '' }, false, '', true);
+  t('   dòng cũ vẫn đủ số ô, không thiếu một ô nào',
+    (h2.match(/<td/g) || []).length === soCot, (h2.match(/<td/g) || []).length);
+}
+/* ── 🔴 DÒNG CŨ KHÔNG CÓ MỐC → LÙI VỀ NGÀY LẬP DỰ ÁN, KÈM DẤU "≈" ───────────────────────
+ * Anh Thắng 18/09/2026, nhìn cả cột toàn dấu gạch: *"thiếu cột ngày nhập"*. Đúng — một cột
+ * trống trơn ở MỌI dòng của MỌI dự án đang có thì trông y như hỏng, dù nó đang nói thật.
+ *
+ * ⚠️ NHƯNG DẤU "≈" LÀ BẮT BUỘC. Một dòng không thể có trước dự án chứa nó, nên ngày ấy là cận
+ *    dưới THẬT — nhưng nó KHÔNG phải ngày nhập của dòng. Bỏ dấu là biến một cận dưới thành một
+ *    lời khai, và người đọc sổ không còn cách nào biết dòng nào có mốc thật.
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+{
+  const i = HTML.indexOf('    function daLineCells(');
+  const src = HTML.slice(i, HTML.indexOf('\n    }', i) + 6);
+  const dung = (daCur) => new Function('moi', `with(moi){ ${src}\n return daLineCells; }`)({
+    esc: x => String(x == null ? '' : x), money: n => String(Number(n) || 0),
+    canEdit: true, htBadge: () => 'HT', tkBadge: () => '',
+    _daTtHang: () => 'nhap', _daOLoaiCp: () => '<td>L</td>', DA_CUR: daCur });
+
+  const cu = { row: 4, noiDung: 'Băng keo trong', loaiCp: '', duToan: 0, capCha: '' };
+  const h = dung({ maDA: 'DA1', ngayTao: '13/09/2026', lines: [] })(cu, false, '', true);
+  t('🔴 dòng cũ (chưa có mốc) → lùi về NGÀY LẬP DỰ ÁN, không để cột trống trơn',
+    h.indexOf('13/09/2026') >= 0, h);
+  t('🔴 và KÈM DẤU "≈" — nó là cận dưới, không phải ngày nhập thật của dòng',
+    /≈ 13\/09\/2026/.test(h), h);
+  t('   kèm lời giải thích lúc rê chuột, để không ai đọc nhầm thành mốc thật',
+    /title="[^"]*NGÀY LẬP DỰ ÁN/.test(h), h);
+
+  /* Có mốc thật thì in THẲNG, không kèm "≈" — hai thứ phải phân biệt được bằng mắt. */
+  const moi = { row: 5, noiDung: 'Mới', taoLuc: '18/09/2026', loaiCp: '', duToan: 0, capCha: '' };
+  const h3 = dung({ maDA: 'DA1', ngayTao: '13/09/2026', lines: [] })(moi, false, '', true);
+  t('🔴 dòng CÓ mốc thật → in thẳng, KHÔNG kèm "≈" (hai thứ phải phân biệt được bằng mắt)',
+    h3.indexOf('18/09/2026') >= 0 && h3.indexOf('≈') < 0, h3);
+
+  /* Không biết cả ngày lập dự án thì mới in "—". Bịa ra một ngày ở đây là bịa thật. */
+  const h4 = dung({ maDA: 'DA1', lines: [] })(cu, false, '', true);
+  t('   không biết cả ngày lập dự án → mới in "—"', /—/.test(h4) && h4.indexOf('≈') < 0, h4);
+}
+t('🔴 máy chủ gửi kèm ngày lập dự án (thiếu nó thì cả lối lùi trên vô dụng)',
+  /'ngayTao'\s*=> VHCP_Util::fmt\( \$f\['ngay_tao'\] \),/.test(
+    require('fs').readFileSync(require('path').join(GOC,
+      'wordpress/vhcp-chi-phi/includes/class-vhcp-duan.php'), 'utf8')));
+
+/* ── 4a5. 📋 MÀN NGOÀI CHỈ HIỆN TỔNG, CHI TIẾT GẬP LẠI ────────────────────────────────
+ * Anh Thắng 18/09/2026: *"Chỗ màn ngoài chỉ cần hiện tổng rõ thông tin, không cần hiện chi
+ * tiết đơn"*.
+ *
+ * Một đơn 14 hạng mục đang chiếm 14 dòng ở màn danh sách; bốn đơn như thế là màn hình chẳng
+ * còn là danh sách nữa, và cái người ta vào đây để tìm — đơn nào đang vướng — chìm mất.
+ *
+ * 🔴 GẬP, KHÔNG XOÁ. Mấy nút trong đó ("Chốt xong", "KT đã chi — khoá đơn") là VIỆC kế toán làm
+ *    ngay tại màn này. Xoá đi là bắt họ mở từng dự án mới bấm được — gọn màn hình bằng cách
+ *    thêm việc cho người dùng thì không phải là gọn.
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+t('🔴 hàng chi tiết của đơn GẬP SẴN ở màn ngoài',
+  /<tr data-hmctr="'\+esc\(ma\)\+'" style="display:none">/.test(HTML));
+t('   và có nút bung ra, mang luôn con số cho biết bên trong bao nhiêu dòng',
+  /data-hmct="'\+esc\(ma\)\+'"[^]{0,200}▸ Chi tiết \('\+hs\.length\+'\)/.test(HTML));
+t('🔴 mấy nút thao tác VẪN CÒN trong khối gập (gập là để gọn, không phải để bỏ việc)',
+  /var nut=hmNutChung\(k, x\.maDA, x\.row, x\.hinhThuc, h, false, true\);/.test(HTML));
+/* Dòng tóm tắt phải gánh phần việc của khối vừa gập: nói ra ĐANG CHỜ AI, không chỉ đếm. */
+t('🔴 dòng tóm tắt nói rõ đang chờ KẾ TOÁN hay chờ HOÁ ĐƠN, không chỉ đếm "N chưa chốt"',
+  /chờ kế toán/.test(HTML) && /chờ hoá đơn/.test(HTML));
+{
+  /* Chạy thật hàm bung/gập: bấm một cái phải ĐỔI CẢ MŨI TÊN trên nút — bấm mà nút không đổi
+     gì thì người ta bấm lại lần nữa, và lần ấy gập nó lại, trông như nút hỏng. */
+  const i = HTML.indexOf('  function hmMoChiTiet(');
+  const src = HTML.slice(i, HTML.indexOf('\n  }', i) + 4);
+  t('bốc được hmMoChiTiet()', i >= 0);
+  const O = { r: { style: { display: 'none' } }, b: { innerHTML: '▸ Chi tiết (14)' } };
+  const F = new Function('moi', `with(moi){ ${src}\n return hmMoChiTiet; }`)({
+    document: { querySelector: sel => (/data-hmctr/.test(sel) ? O.r : O.b) } });
+  F('DA1');
+  t('🔴 bấm một cái → khối chi tiết bung ra', O.r.style.display === '', O.r.style);
+  t('🔴 và mũi tên đổi theo, giữ nguyên con số', O.b.innerHTML === '▾ Chi tiết (14)', O.b.innerHTML);
+  F('DA1');
+  t('   bấm lại → gập vào, mũi tên trả về', O.r.style.display === 'none' && O.b.innerHTML === '▸ Chi tiết (14)',
+    { d: O.r.style.display, b: O.b.innerHTML });
+}
 
 /* ── 4b. 📎 ĐÍNH TỆP THẬT CHO UỶ NHIỆM CHI VÀ HOÁ ĐƠN ──────────────────────────────────
  * Uỷ nhiệm chi và hoá đơn là ảnh chụp / bản PDF nằm trong máy kế toán, không phải một địa chỉ
@@ -391,10 +602,12 @@ t('   bảng hạng mục nay chỉ lo NHẮC CHỐT hoá đơn, không còn l�
 
 
 /* ── 5. GỬI ĐI ─────────────────────────────────────────────────────────────────────────── */
-function chayGui(vals) {
+function chayGui(vals, lines) {
   const NK = { gui: null, toast: [], sau: null };
   const moi = {
-    DA_CUR: { maDA: 'DA1' },
+    /* `lines` để `_hmChungTuSan` tra được ảnh bill / hồ sơ đã đính trên hàng. Không truyền thì
+       dự án không có dòng nào — đúng cảnh hàng trống trơn chứng từ. */
+    DA_CUR: { maDA: 'DA1', lines: lines || [] },
     toast: (k, m) => NK.toast.push([k, m]),
     _tienSo: v => { const s = String(v == null ? '' : v).replace(/[^0-9-]/g, ''); return s === '' || s === '-' ? '' : String(Number(s)); },
     hmDat: (maDA, row, tt, them, sau) => { NK.gui = { maDA, row, tt, them }; NK.sau = sau; },
@@ -406,7 +619,7 @@ function chayGui(vals) {
       return (k in vals) ? { value: vals[k] } : (m[1] === 'xnd' || m[1] === 'xst' ? { value: '' } : null);
     } },
   };
-  const f = new Function('moi', `with(moi){ ${boc('_hmSau')}\n${boc('_hmVal')}
+  const f = new Function('moi', `with(moi){ ${boc('_hmSau')}\n${boc('_hmVal')}\n${boc('_hmChungTuSan')}
     ${boc('hmGuiCap')}\n${boc('hmGuiChot')}\n${boc('hmNccChot')}
     return { cap: hmGuiCap, chot: hmGuiChot, ncc: hmNccChot }; }`)(moi);
   return { NK, f };
@@ -422,9 +635,29 @@ function chayGui(vals) {
 {
   const { NK, f } = chayGui({ 'hmhd:P7': '  ' });
   f.chot('P7', 'DA1', 7);
-  t('🔴 chốt xong THIẾU HOÁ ĐƠN → chối ngay ở màn, khỏi phải chờ máy chủ ném lỗi',
+  t('🔴 hàng trống trơn + ô hoá đơn rỗng → chối ngay ở màn, khỏi chờ máy chủ ném lỗi',
     NK.gui === null, NK.gui);
-  t('   và nói rõ vì sao', NK.toast.some(x => /hoá đơn/.test(x[1])), NK.toast);
+  t('   và nói rõ vì sao, kèm lối thoát (đính ngay trên hàng cũng được)',
+    NK.toast.some(x => /hoá đơn/.test(x[1]) && /trên hàng/.test(x[1])), NK.toast);
+}
+{
+  /* 🔴 Ô RỖNG NHƯNG HÀNG ĐÃ CÓ BILL → CHỐT ĐƯỢC, và gửi lên chính tấm bill ấy.
+     Anh Thắng: *"Chỗ ảnh đã add hóa đơn, tạo sao chốt lại hỏi hóa đơn lần 2, nó là 1 mà"*. */
+  const { NK, f } = chayGui({ 'hmhd:P7': '' },
+    [{ row: 7, noiDung: 'Vận chuyển (E.Nhật)', anh: 'https://kho/bill-7.jpg', hoSo: '' }]);
+  f.chot('P7', 'DA1', 7);
+  t('🔴 ô rỗng nhưng hàng đã có bill → CHỐT ĐƯỢC, không chối',
+    NK.gui && NK.gui.tt === 'xong', NK.gui);
+  t('🔴 và gửi lên chính tấm bill ấy làm hoá đơn (không gửi rỗng rồi để sổ trắng chứng từ)',
+    NK.gui && NK.gui.them.hoaDon === 'https://kho/bill-7.jpg', NK.gui);
+}
+{
+  /* Gõ tệp khác vào ô thì tệp ấy THẮNG — bill trên hàng chỉ là mặc định, không phải cái khoá. */
+  const { NK, f } = chayGui({ 'hmhd:P7': 'https://hd/khac.pdf' },
+    [{ row: 7, noiDung: 'Vận chuyển', anh: 'https://kho/bill-7.jpg', hoSo: '' }]);
+  f.chot('P7', 'DA1', 7);
+  t('   thay tệp khác vào ô thì tệp ấy thắng, bill trên hàng chỉ là mặc định',
+    NK.gui && NK.gui.them.hoaDon === 'https://hd/khac.pdf', NK.gui);
 }
 {
   const { NK, f } = chayGui({ 'hmunc:P7': 'UNC-77' });

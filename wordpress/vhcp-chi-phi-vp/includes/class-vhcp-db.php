@@ -22,7 +22,7 @@ class VHCPVP_DB {
 	/* 1.10.0: thêm cột `ngay_gui_qt` — mốc NHÂN VIÊN BẤM GỬI quyết toán. Khác hẳn `ngay_qt`
 	   (mốc KẾ TOÁN xác nhận), và trước bản này không có gì ghi lại lượt gửi, nên bảng "Chờ
 	   quyết toán" không xếp được theo "ai gửi trước xử trước". */
-	const SCHEMA_VERSION = '1.10.0';   // 1.9.0: bảng lenh_tu · 1.10.0: don.ngay_gui_qt
+	const SCHEMA_VERSION = '1.11.0';   // 1.9.0: bảng lenh_tu · 1.10.0: don.ngay_gui_qt · 1.11.0: da_line.tao_luc
 	const DATA_ROW       = 5;   // DA_DATA_ROW / BP_DATA_ROW của app cũ
 
 	public static function t( $name ) {
@@ -224,6 +224,7 @@ class VHCPVP_DB {
 			tk_no VARCHAR(20) NOT NULL DEFAULT '',
 			tk_co VARCHAR(20) NOT NULL DEFAULT '',
 			ma_dt VARCHAR(60) NOT NULL DEFAULT '',
+			tao_luc DATETIME NULL,
 			PRIMARY KEY  (id),
 			UNIQUE KEY da_row (ma_da,row_no),
 			KEY tk_no (tk_no)

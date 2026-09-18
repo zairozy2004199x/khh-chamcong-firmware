@@ -98,8 +98,57 @@ t( '   có mốc thời gian từng bước để tra', ! empty( $h['moc']['ung'
  * 2. 🔴 XONG PHẢI CÓ HOÁ ĐƠN, VÀ XONG LÀ KHOÁ
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
 $x = VHCP_DuAn::dat_hm( $ma, $row, 'xong' );
-t( '🔴 chốt hoàn thành mà chưa có hoá đơn → CHỐI', empty( $x['success'] ), $x );
+t( '🔴 chốt hoàn thành mà chưa có chứng từ NÀO → CHỐI', empty( $x['success'] ), $x );
 teq( '   và trạng thái không đổi', 'ung', VHCP_DuAn::hm_cua( $ma, $row )['tt'] );
+t( '   câu chối chỉ ra cả lối đính ngay trên hàng, không chỉ ô hoá đơn',
+	isset( $x['error'] ) && false !== mb_strpos( $x['error'], 'trên hàng' ), $x );
+
+/* ═══ 2b. 🔴 BILL ĐÃ ĐÍNH TRÊN HÀNG CHÍNH LÀ HOÁ ĐƠN ═══════════════════════════════════
+ * Anh Thắng 18/09/2026, ảnh một hàng đã có ảnh bill ở cột ẢNH mà bấm Chốt xong vẫn hiện
+ * "Hoá đơn (bắt buộc)": *"Chỗ ảnh đã add hóa đơn, tạo sao chốt lại hỏi hóa đơn lần 2, nó là
+ * 1 mà"*.
+ *
+ * =========================================================================================
+ * Cột ẢNH của hàng vốn là chỗ chụp bill, cột HỒ SƠ là bản PDF / hoá đơn điện tử. Bắt tải lại
+ * ĐÚNG TỆP ẤY vào một ô thứ hai là làm hai lần một việc — và tệ hơn: người ta sẽ dán bừa thứ
+ * gì đó cho qua cửa, tức cửa vẫn đóng mà chứng từ thì sai.
+ * ⚠️ VẪN CHỐI KHI HÀNG TRỐNG TRƠN (phép ngay trên). Chỉ khác chỗ: nay hỏi "có chứng từ nào
+ *    chưa", không hỏi "có đúng cái ô này chưa".
+ * ─────────────────────────────────────────────────────────────────────────────────────── */
+/* ⚠️ ĐÍNH ẢNH BẰNG CỬA RIÊNG (`dat_anh_line`), KHÔNG qua `update_line`. Từ 1.203.0 hạng mục
+   đã lên lệnh thì khoá cột dự toán, mà `update_line` ghi lại CẢ DÒNG — gọi nó với mỗi vài ô là
+   mấy ô còn lại bị dọn về 0, tức đúng cái chốt kia chặn. Màn web đính tệp qua cửa một-ô, nên
+   fixture cũng phải đi đúng cửa ấy; đi cửa sai là bài kiểm thử một đường không ai dùng. */
+VHCP_DuAn::dat_anh_line( $ma, $row2, 'https://kho/bill-xe-cau.jpg' );
+$x = VHCP_DuAn::dat_hm( $ma, $row2, 'xong' );
+t( '🔴 hàng đã có ẢNH BILL → chốt được, không đòi tải lên lần hai', ! empty( $x['success'] ), $x );
+teq( '🔴 và sổ GHI LẠI tấm ấy làm hoá đơn (để trống thì lệnh quyết toán trắng chứng từ)',
+	'https://kho/bill-xe-cau.jpg', VHCP_DuAn::hm_cua( $ma, $row2 )['hoaDon'] );
+VHCP_DuAn::dat_hm( $ma, $row2, 'nhap' );
+
+/* Chưa có ảnh nhưng có HỒ SƠ (hoá đơn điện tử) — cũng là chứng từ.
+   ⚠️ DÙNG MỘT DÒNG MỚI, không tái dùng dòng trên: chốt xong là `hoaDon` nằm lại trên hạng mục
+      (mở lại không xoá nó — đúng thế, chứng từ đã đính thì đừng tự xoá), nên thử tiếp trên
+      cùng dòng là luôn đọc được hoá đơn CŨ và nhánh mới chẳng bao giờ chạy. */
+VHCP_DuAn::add_line( $ma, array( 'noiDung' => 'In ấn', 'thucTe' => 800000,
+	'hoSo' => "https://kho/hd-dt.pdf\nhttps://kho/phu-luc.pdf" ) );
+$rowH = null;
+foreach ( VHCP_DuAn::get_du_an( $ma )['lines'] as $l ) { if ( 'In ấn' === $l['noiDung'] ) { $rowH = $l['row']; } }
+vai( 'Kế toán cá nhân', 'KTCN' );
+$x = VHCP_DuAn::dat_hm( $ma, $rowH, 'xong' );
+t( '🔴 không có ảnh thì lấy HỒ SƠ (hoá đơn điện tử cũng là hoá đơn)', ! empty( $x['success'] ), $x );
+teq( '   nhiều hồ sơ thì lấy tệp ĐẦU, không nhét cả chùm vào một ô',
+	'https://kho/hd-dt.pdf', VHCP_DuAn::hm_cua( $ma, $rowH )['hoaDon'] );
+
+/* 🔴 HOÁ ĐƠN GỬI LÊN VẪN THẮNG BILL TRÊN HÀNG — bill chỉ là mặc định, không phải cái khoá. */
+VHCP_DuAn::add_line( $ma, array( 'noiDung' => 'Bảng hiệu', 'thucTe' => 900000,
+	'anh' => 'https://kho/bill-bang-hieu.jpg' ) );
+$rowB = null;
+foreach ( VHCP_DuAn::get_du_an( $ma )['lines'] as $l ) { if ( 'Bảng hiệu' === $l['noiDung'] ) { $rowB = $l['row']; } }
+$x = VHCP_DuAn::dat_hm( $ma, $rowB, 'xong', array( 'hoaDon' => 'https://kho/hd-that.pdf' ) );
+t( 'chốt kèm hoá đơn riêng → chạy', ! empty( $x['success'] ), $x );
+teq( '🔴 gửi kèm hoá đơn riêng thì hoá đơn ấy THẮNG bill trên hàng',
+	'https://kho/hd-that.pdf', VHCP_DuAn::hm_cua( $ma, $rowB )['hoaDon'] );
 $x = VHCP_DuAn::dat_hm( $ma, $row, 'xong', array( 'hoaDon' => 'hd-001.pdf' ) );
 t( '🔴 chốt hoá đơn vẫn theo TỪNG HẠNG MỤC (mỗi hạng mục một hoá đơn riêng)', ! empty( $x['success'] ), $x );
 t( '🔴 và hạng mục KHOÁ lại', VHCP_DuAn::hm_khoa( $ma, $row ) );

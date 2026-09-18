@@ -374,6 +374,34 @@ const L1 = [
   { dot: 3, tt: 'ung', rows: [9], tenHM: ['Xe cẩu'], soTien: 900000,
     unc: 'UNC-9', lyDo: '', lich: [], moc: {} },
 ];
+/* ── 4b3. ⏪ ADMIN THU HỒI LỆNH ĐÃ CẤP TIỀN ───────────────────────────────────────────
+ * Anh Thắng 18/09/2026: *"Cấp quyền cho admin trả đơn"*. Chốt thật nằm ở máy chủ
+ * (`dat_tt_dot`, bài kiểm ở `kiem-lenh-tam-ung-du-an.php`); ở đây soi cái nút.
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+{
+  const r = veLenhDA('Admin', L1);
+  t('🔴 Admin thấy nút thu hồi trên lệnh ĐÃ CẤP TIỀN (lệnh đợt 3)',
+    /lenhTra\('DA1',3,'QDA1_3',1\)/.test(r.html), r.html);
+  /* ⚠️ KHÔNG gọi là "Trả" như nút kia: trả là đưa về cho nhân viên sửa, còn đây là gỡ ngược một
+     khoản đã ra khỏi két. Cùng một chữ cho hai việc khác nhau là mời bấm nhầm. */
+  t('🔴 và gọi đúng tên là THU HỒI, không dùng chung chữ "Trả"',
+    /⏪ Thu hồi/.test(r.html), r.html);
+  t('   tham số cuối bật cờ "đã cấp" để hộp hỏi nói rõ hệ quả trước khi gõ',
+    /lenhTra\('DA1',3,'QDA1_3',1\)/.test(r.html), r.html);
+}
+{
+  const r = veLenhDA('Kế toán cá nhân', L1);
+  t('🔴 kế toán KHÔNG thấy nút thu hồi (người giữ két không tự gỡ khoản mình vừa đưa)',
+    !/Thu hồi/.test(r.html), r.html);
+}
+{
+  const r = veLenhDA('Quản lý', L1);
+  t('🔴 quản lý cũng không thấy nút thu hồi', !/Thu hồi/.test(r.html), r.html);
+}
+{
+  const r = veLenhDA('Nhân viên', L1);
+  t('   nhân viên lại càng không', !/Thu hồi/.test(r.html), r.html);
+}
 {
   const r = veLenhDA('Kế toán cá nhân', L1);
   t('🔴 lệnh chờ duyệt → duyệt được NGAY TRONG TRANG dự án',
@@ -418,8 +446,11 @@ t('🔴 bảng hạng mục của màn Duyệt không nổ khi chưa mở màn �
  * còn lại của lệnh. Điền cả phần còn lại là mời kế toán bấm một phát trả hết cho "lần 1".
  * ───────────────────────────────────────────────────────────────────────────────────────── */
 {
-  const src = `${boc('_daCapTheoLan')}\n${boc('_capLanCon')}\n${boc('_capLanGoiY')}
-    ${boc('_capSoGoiY')}\n${boc('_capChonLan')}
+  /* `_capLanCon` nay kẹp phần còn lại của từng lần vào phần còn lại của CẢ LỆNH, nên nó cần
+     `_daCapTong` / `_conPhaiCap` thật — chặn bằng bản rút gọn là phép kiểm mất đúng cái đang
+     kiểm. */
+  const src = `${boc('_daCapTong')}\n${boc('_conPhaiCap')}\n${boc('_daCapTheoLan')}
+    ${boc('_capLanCon')}\n${boc('_capLanGoiY')}\n${boc('_capSoGoiY')}\n${boc('_capChonLan')}
     return { con:_capLanCon, goiY:_capLanGoiY, so:_capSoGoiY, o:_capChonLan };`;
   const F = new Function('moi', `with(moi){ ${src} }`)({
     esc: x => String(x == null ? '' : x), money: x => String(x), _dmy: x => String(x) });
@@ -442,6 +473,54 @@ t('🔴 bảng hạng mục của màn Duyệt không nổ khi chưa mở màn �
   t('   vẫn cho "không gắn lần nào" — kế toán gộp trả thì đừng ép khai sai',
     /value="0"/.test(o), o);
 
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+     🔴 ĐÚNG CẢNH ẢNH ANH THẮNG GỬI 18/09/2026 — *"Sai chỗ báo số lần rồi"*.
+
+     Lệnh 53.820.000đ, lịch một lần 53.820.000đ. Kế toán đã đưa 10tr + 30tr = 40tr nhưng hai
+     lượt ấy KHÔNG gắn lần nào (`choLan = 0` — lối cấp trọn, hoặc sổ ghi trước 1.201.0). Khối
+     "Đã cấp" ngay trên nói "tổng đã đưa 40.000.000đ · còn phải đưa 13.820.000đ", còn ô chọn
+     lại ghi "Lần 1 · 53.820.000đ" trần trụi — hai khối cạnh nhau nói hai chuyện.
+     ══════════════════════════════════════════════════════════════════════════════════════════ */
+  {
+    const a = { soTien: 53820000,
+      lich: [{ lan: 1, ngay: '18/09/2026', soTien: 53820000 }],
+      daCap: [{ choLan: 0, soTien: 10000000 }, { choLan: 0, soTien: 30000000 }] };
+    t('🔴 phần còn lại của LẦN 1 phải là 13.820.000đ, không phải trọn 53.820.000đ',
+      F.con(a)[0].con === 13820000, F.con(a));
+    const h = F.o('K9', a, 13820000);
+    t('🔴 ô chọn NÓI RA phần còn lại, khớp với khối "Đã cấp" ngay trên',
+      /\(còn 13820000đ\)/.test(h), h);
+    t('   và KHÔNG còn khoe trần 53.820.000 như chưa ai đưa đồng nào',
+      !/53820000đ<\/option>/.test(h.replace(/·\s*53820000đ\s*\(còn/, '·(còn')), h);
+    /* ⚠️ `data-con` CŨNG PHẢI KẸP. Đổi ô chọn là `capLanDoi()` chép `data-con` xuống ô tiền;
+       để nguyên số cũ thì ô tiền nhảy về 53.820.000 và ĐÈ MẤT con số đúng đã điền sẵn — tức
+       người ta bấm Cấp tiền và đưa đi một con số không ai định đưa. */
+    t('🔴 `data-con` kẹp theo, không thì đổi ô chọn là ô tiền nhảy về 53.820.000',
+      /data-con="13820000"/.test(h), h);
+    t('   ô tiền điền sẵn cũng đúng 13.820.000', F.so(a, 13820000) === 13820000, F.so(a, 13820000));
+  }
+  {
+    /* Nhiều lần mà tiền chưa gắn: mỗi lần nói "còn tối đa <phần còn lại của lệnh>" — câu nào
+       cũng ĐÚNG, và không lần nào mời đưa quá phần lệnh còn nợ. */
+    const b = { soTien: 50000000,
+      lich: [{ lan: 1, ngay: '03/09/2026', soTien: 20000000 },
+             { lan: 2, ngay: '10/09/2026', soTien: 30000000 }],
+      daCap: [{ choLan: 0, soTien: 45000000 }] };
+    const ds = F.con(b);
+    t('🔴 lệnh chỉ còn 5tr → KHÔNG lần nào được nói là còn thiếu hơn 5tr',
+      ds[0].con === 5000000 && ds[1].con === 5000000, ds);
+  }
+  {
+    /* Đã gắn lần đàng hoàng thì phép trừ theo lần vẫn thắng — kẹp không được nuốt mất nó. */
+    const c = { soTien: 30000000,
+      lich: [{ lan: 1, ngay: '03/09/2026', soTien: 10000000 },
+             { lan: 2, ngay: '10/09/2026', soTien: 20000000 }],
+      daCap: [{ choLan: 1, soTien: 10000000 }] };
+    const ds = F.con(c);
+    t('🔴 lần đã gắn đủ → còn 0, dù cả lệnh vẫn nợ 20tr (kẹp không được nuốt phép trừ theo lần)',
+      ds[0].con === 0 && ds[1].con === 20000000, ds);
+    t('   và lần gợi ý nhảy sang lần 2', F.goiY(c) === 2, F.goiY(c));
+  }
   /* 🔴 LỆNH KHÔNG KHAI LỊCH: không bày ô nào. Nhận một lần là ca thường; một ô chọn trống rỗng
      là thêm một câu hỏi không có câu trả lời. */
   const k = { soTien: 4000000, lich: [], daCap: [] };
@@ -454,6 +533,92 @@ t('🔴 bảng hạng mục của màn Duyệt không nổ khi chưa mở màn �
   t('mọi lần đã nhận đủ → không chọn sẵn lần nào', F.goiY(z) === 0, F.goiY(z));
   t('   và ô tiền lùi về phần còn lại của lệnh', F.so(z, 20000000) === 20000000, F.so(z, 20000000));
 }
+
+/* ── 4b4. 🔴 CẤP LẦN 2, LẦN 3 LÀ PHẦN CÒN LẠI — KHÔNG PHẢI TRỌN SỐ LỆNH ──────────────
+ * Anh Thắng 18/09/2026, nhìn form cấp tiền của lệnh 3 điền sẵn trọn 53.820.000đ: *"bấm cấp lần
+ * 2,3 là số tiền còn lại hoặc thấp hơn chứ"*.
+ *
+ * =============================================================================================
+ * Máy chủ vẫn là chốt thật (`cap_tien_phan` chối khi vượt phần còn lại). Nhưng để người ta gõ
+ * xong rồi mới bị chối là bắt họ ĐOÁN con số đúng — mà con số ấy màn hình đang giữ sẵn. Tệ hơn:
+ * ô điền sẵn trọn số lệnh là lời mời bấm một phát chuyển đi lần nữa.
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+{
+  const NK = { toast: [] };
+  const F = new Function('moi', `with(moi){ ${boc('lenhCapKep')}\n return lenhCapKep; }`)({
+    money: x => String(x), toast: (k, m) => NK.toast.push([k, m]) });
+
+  const o = { value: '53.820.000' };
+  F(o, 30000000);
+  t('🔴 gõ quá phần còn lại → KẸP về đúng phần còn lại', o.value === '30000000', o.value);
+  /* Đổi số dưới tay người gõ mà không nói gì là tệ hơn cả không kẹp: họ bấm Cấp tiền và tưởng
+     mình vừa đưa con số vừa gõ. */
+  t('🔴 và NÓI RA vì sao, kèm lối đi tiếp (xin một lệnh mới)',
+    NK.toast.some(x => /chỉ còn 30000000đ/.test(x[1]) && /lệnh mới/.test(x[1])), NK.toast);
+
+  NK.toast.length = 0;
+  const o2 = { value: '10.000.000' };
+  F(o2, 30000000);
+  t('gõ thấp hơn phần còn lại → để nguyên, không kêu', o2.value === '10000000' && !NK.toast.length, o2.value);
+  const o3 = { value: '30.000.000' };
+  F(o3, 30000000);
+  t('gõ đúng bằng phần còn lại → cho qua', o3.value === '30000000', o3.value);
+  /* Lệnh chưa biết còn bao nhiêu (con = 0) thì đừng kẹp về 0 — kẹp là cấm cấp luôn. */
+  const o4 = { value: '5.000.000' };
+  F(o4, 0);
+  t('🔴 chưa biết phần còn lại (0) thì KHÔNG kẹp — kẹp về 0 là cấm cấp luôn', o4.value === '5000000', o4.value);
+}
+{
+  /* Ô điền sẵn: đã đưa 20tr của lệnh 50tr thì lần sau phải là 30tr, không phải 50tr. */
+  const src = `${boc('_daCapTong')}\n${boc('_conPhaiCap')}\n${boc('_daCapTheoLan')}
+    ${boc('_capLanCon')}\n${boc('_capLanGoiY')}\n${boc('_capSoGoiY')}
+    return { con:_conPhaiCap, so:_capSoGoiY };`;
+  const F = new Function('moi', `with(moi){ ${src} }`)({ money: x => String(x) });
+  const x = { soTien: 50000000, lich: [], daCap: [{ choLan: 0, soTien: 20000000 }] };
+  t('🔴 lệnh 50tr đã đưa 20tr → phần còn lại là 30tr', F.con(x) === 30000000, F.con(x));
+  t('🔴 nên ô tiền điền sẵn 30tr, KHÔNG phải trọn 50tr (điền trọn là mời chuyển đi lần nữa)',
+    F.so(x, F.con(x)) === 30000000, F.so(x, F.con(x)));
+  /* 🔴 CHÍNH CHỖ THỦNG: `list_lenh_da()` từng lọc mất `daCap`, nên màn Duyệt đọc "đã đưa" ra 0
+     với MỌI lệnh. Bệ đỡ dưới đây giả đúng cảnh ấy — phải ra con số SAI, để phép trên có nghĩa. */
+  const thieu = { soTien: 50000000, lich: [] };
+  t('   (bằng chứng chỗ thủng: thiếu `daCap` thì nó đọc ra trọn 50tr)',
+    F.con(thieu) === 50000000, F.con(thieu));
+}
+{
+  /* 🔴 LƯỚI THỨ HAI, CHẠY THẬT. Bấm thẳng nút Cấp tiền lúc con trỏ còn trong ô thì `onblur`
+     (chỗ kẹp) chạy SAU cú bấm — không canh lại ở nút gửi là số vượt vẫn bay lên máy chủ. Canh
+     bằng cách dò chuỗi thì gỡ mất câu lệnh mà đổi cách viết vẫn xanh; nên chạy hàm. */
+  const NK = { gui: null, toast: [] };
+  const moi = {
+    money: x => String(x), toast: (k, m) => NK.toast.push([k, m]), loading: () => {}, _log: () => {},
+    _lenhTim: () => ({ soTien: 50000000, daCap: [{ choLan: 0, soTien: 20000000 }] }),
+    document: { querySelector: sel => (/data-hmcap=/.test(sel) ? { value: '50.000.000' } : null) },
+    _hmVal: () => '', _lenhSau: () => (function () {}),
+    google: { script: { run: {
+      withSuccessHandler(f) { this._ok = f; return this; },
+      withFailureHandler() { return this; },
+      capTienPhanDuAn(ma, dot, them) { NK.gui = { ma, dot, them }; this._ok({ success: true }); },
+    } } },
+  };
+  const F = new Function('moi', `with(moi){ ${boc('_daCapTong')}\n${boc('_conPhaiCap')}\n${boc('lenhGuiCap')}
+    return lenhGuiCap; }`)(moi);
+  F('K1', 'DA1', 3);
+  t('🔴 bấm Cấp tiền với số VƯỢT phần còn lại → KHÔNG gửi lên máy chủ', NK.gui === null, NK.gui);
+  t('   và nói rõ còn bao nhiêu, đang đưa bao nhiêu',
+    NK.toast.some(x => /chỉ còn 30000000đ/.test(x[1]) && /50000000đ/.test(x[1])), NK.toast);
+
+  /* Số hợp lệ thì vẫn đi bình thường — lưới không được chặn cả việc đúng. */
+  const moi2 = Object.assign({}, moi, {
+    document: { querySelector: sel => (/data-hmcap=/.test(sel) ? { value: '30.000.000' } : null) } });
+  NK.gui = null;
+  new Function('moi', `with(moi){ ${boc('_daCapTong')}\n${boc('_conPhaiCap')}\n${boc('lenhGuiCap')}
+    return lenhGuiCap; }`)(moi2)('K1', 'DA1', 3);
+  t('   đưa đúng phần còn lại thì vẫn gửi bình thường',
+    NK.gui && NK.gui.them.soTien === 30000000, NK.gui);
+}
+t('🔴 `daCap` phải đi kèm lệnh xuống màn Duyệt — không thì mọi thứ trên đây tính trên số 0',
+  /'daCap'\s*=> \$d\['daCap'\],/.test(
+    require('fs').readFileSync(require('path').join(GOC, 'wordpress/vhcp-chi-phi/includes/class-vhcp-duan.php'), 'utf8')));
 
 /* ── 4c. 💵 THẺ BA CON SỐ TẠM ỨNG ─────────────────────────────────────────────────────
  * Anh Thắng: *"chỗ này sẽ hiện (Số tiền đã xin tạm ứng / Số tiền kế toán đã chi tạm ứng)"* và

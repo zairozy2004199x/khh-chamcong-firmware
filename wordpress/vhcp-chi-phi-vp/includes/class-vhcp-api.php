@@ -83,6 +83,11 @@ class VHCPVP_API {
 			   kế toán đang soát, lúc ấy chỉ người duyệt/kế toán được đụng. Gác ở lõi thì mọi
 			   đường vào đều đi qua, kể cả bản giao diện cũ còn nằm trong bộ nhớ đệm. */
 			'setLineCN',
+			/* 🔴 GẮN MÃ HẠCH TOÁN LÀ VIỆC CỦA KẾ TOÁN. Anh Thắng 18/09/2026: *"kế toán có thể
+			   [sửa] loại chi phí nếu nó sai"*. Loại chi phí suy ra TK Nợ, nên người nhập đổi được
+			   là con số nhảy tài khoản sau lưng kế toán — và cái sai chỉ lộ ra lúc xuất MISA.
+			   Lõi `set_line_nhom()` cũng gác, đây là lớp thứ hai ở cổng. */
+			'setLineNhom', 'datLoaiCpDuAnLine',
 			/* Đẩy tiền sang sổ của đơn vị khác — không phải việc của nhân viên. */
 			'chuyenDonVi',
 			/* 🔴 NHẢY ĐƠN SANG TUẦN KHÁC — anh Thắng 31/08/2026: *"kế toán sẽ gửi lệnh nhảy đơn
@@ -251,6 +256,7 @@ class VHCPVP_API {
 			'setLineCN'             => array( 'VHCPVP_Don', 'set_line_cn' ),
 			'setLineAnh'            => array( 'VHCPVP_Don', 'set_line_anh' ),
 			'setLineNgay'           => array( 'VHCPVP_Don', 'set_line_ngay' ),
+			'setLineNhom'           => array( 'VHCPVP_Don', 'set_line_nhom' ),
 			'setDonNgay'            => array( 'VHCPVP_Don', 'set_don_ngay' ),
 			'suaNamVoLy'            => array( 'VHCPVP_Don', 'sua_nam_vo_ly' ),
 			'suaNgayHong'           => array( 'VHCPVP_Don', 'sua_ngay_hong' ),
@@ -335,6 +341,8 @@ class VHCPVP_API {
 			'xinQuyetToanDuAn'      => array( 'VHCPVP_DuAn', 'xin_quyet_toan_dot' ),
 			'datTrangThaiQTDuAn'    => array( 'VHCPVP_DuAn', 'dat_tt_qt' ),
 			'datAnhDuAnLine'        => array( 'VHCPVP_DuAn', 'dat_anh_line' ),
+			'datODuAnLine'          => array( 'VHCPVP_DuAn', 'dat_o_line' ),
+			'datLoaiCpDuAnLine'     => array( 'VHCPVP_DuAn', 'dat_loai_cp_line' ),
 			'goAnhDuAnLine'         => array( 'VHCPVP_DuAn', 'go_anh_line' ),
 			'themHoSoDuAnLine'      => array( 'VHCPVP_DuAn', 'them_ho_so_line' ),
 			'datKyDuAn'             => array( 'VHCPVP_DuAn', 'set_ky_da' ),
