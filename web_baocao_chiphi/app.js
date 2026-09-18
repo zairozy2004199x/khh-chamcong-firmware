@@ -1043,10 +1043,10 @@
         <thead><tr><th>Cơ sở (Nhân sự)</th><th class="num">Lương tháng</th><th>Ghép vào dòng lương</th><th>Vì sao</th></tr></thead>
         <tbody>
           ${ds.map((x, k) => x.co_luong === false
-            ? `<tr class="muted"><td>${esc(x.cua_hang)}</td><td class="num">—</td>
+            ? `<tr class="muted"><td>${esc(x.cua_hang)} <button class="btn small ghost" data-act="nsChuanDoan" data-arg="${esc(x.cua_hang)}" title="Xem cấu trúc dữ liệu thật bên Chấm công cho cơ sở này (chỉ in SỐ, giấu hết họ tên / CCCD)">🔧</button></td><td class="num">—</td>
                 <td colspan="2" class="muted">chưa khai giá giờ${x.ghi_chu ? ` · ${esc(x.ghi_chu)}` : ''} — bỏ qua, không ghi 0</td></tr>`
             : `<tr class="${x.rowIndex === null && !x.taoMoi ? 'muted' : ''}">
-              <td>${esc(x.cua_hang)}</td>
+              <td>${esc(x.cua_hang)} <button class="btn small ghost" data-act="nsChuanDoan" data-arg="${esc(x.cua_hang)}" title="Xem cấu trúc dữ liệu thật bên Chấm công cho cơ sở này (chỉ in SỐ, giấu hết họ tên / CCCD)">🔧</button></td>
               ${tdn(x.thanh_tien)}
               <td><select data-luong="${k}" style="min-width:260px">${opt(x)}</select></td>
               <td class="muted" title="${esc((FABI_CACH[x.cach] || {}).mo || '')}">${esc((FABI_CACH[x.cach] || {}).chu || x.cach)}${x.diem ? ` (${x.diem} từ chung)` : ''}${x.ghi_chu ? ` · ⚠ ${esc(x.ghi_chu)}` : ''}</td>
@@ -1474,6 +1474,20 @@
     },
     /* ---------------- Lương từ trang Nhân sự ---------------- */
     napLuong() { napTuNhanSu(); },
+    /* 🔧 Chẩn đoán: in ra đúng cấu trúc dữ liệu bên Chấm công cho một cơ sở, để sửa cho trúng chỗ
+       để tiền thay vì đoán. Chỉ in SỐ — họ tên và CCCD của nhân viên bị giấu ngay từ máy chủ. */
+    async nsChuanDoan(coso) {
+      if (!API.isEnabled()) return toast('Chức năng này cần đăng nhập vào máy chủ.');
+      try {
+        const r = await API.call('nsChuanDoan', { coso, thang: state.period.month, nam: state.period.year });
+        const d = r && r.data ? r.data : r;
+        if (!d || d.ok === false) return toast('Không đọc được: ' + ((d && d.error) || '?'));
+        const log = [{ level: 'info', msg: `${d.coso} · ${d.thang} · ${d.ghi_chu}` }]
+          .concat((d.so || []).map((x) => ({ level: 'ok', msg: `${x.duong} = ${x.gia_tri}` })))
+          .concat((d.khoa || []).map((x) => ({ level: 'warn', msg: `${x.duong} = ${x.gia_tri}` })));
+        showLog(`Cấu trúc dữ liệu Nhân sự — ${coso}`, log);
+      } catch (e) { toast('Lỗi: ' + e.message); }
+    },
     luongDong() { luong = null; renderTab(); },
     luongTuDong() {
       state.options.luongTuDong = !state.options.luongTuDong;

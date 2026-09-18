@@ -3,7 +3,7 @@
  * Plugin Name:       Báo Cáo Chi Phí (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Phân bổ chi phí Máy tự động / Khu vui chơi ra "File tổng báo cáo" + phân bổ theo điểm để hạch toán MISA. Nhân viên nhập khoản chi phí, kế toán duyệt, web tự tính. Dữ liệu nằm trong bảng MySQL riêng của WordPress.
- * Version:           1.19.0
+ * Version:           1.20.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
  * Nó đi vào ?ver= của CSS/JS để trình duyệt bỏ bộ nhớ đệm, và là mốc để bước nâng cấp chạy.
  * Phép thử: tools/kiem-phien-ban.sh
  */
-define( 'KHBC_VERSION', '1.19.0' );
+define( 'KHBC_VERSION', '1.20.0' );
 define( 'KHBC_FILE', __FILE__ );
 define( 'KHBC_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KHBC_URL', plugin_dir_url( __FILE__ ) );

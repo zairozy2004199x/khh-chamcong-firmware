@@ -4,7 +4,7 @@ Tags: chi phí, phân bổ, báo cáo, MISA, kế toán
 Requires at least: 5.6
 Tested up to: 6.8
 Requires PHP: 7.2
-Stable tag: 1.19.0
+Stable tag: 1.20.0
 License: GPLv2 or later
 
 Phân bổ chi phí Máy tự động / Khu vui chơi ra "File tổng báo cáo" và phân bổ theo điểm để hạch toán MISA.
@@ -35,6 +35,18 @@ Nhân viên nhập khoản chi phí, kế toán duyệt, web tự tính.
 4. Nhập Excel kỳ đầu (hoặc ⋯ → Nạp dữ liệu mẫu) rồi bắt đầu.
 
 == Changelog ==
+
+= 1.20.0 =
+* 🔴 **Lương đọc sai chỗ — chưa sửa xong, nhưng thôi ghi số 0 giả.** Cơ sở FZ_SC_VIVO_T4 bên Nhân
+  sự có lương 52.287.040 mà báo cáo ghi "chưa khai giá giờ"; mấy cơ sở Posh / JP thì ra 0. Đường
+  dẫn tới tổng tiền trong dữ liệu plugin Chấm công không như plugin này đang giả định.
+* Tổng tiền đọc ra **0 giờ bị coi là ĐỌC KHÔNG ĐƯỢC**, không phải "lương bằng 0": cơ sở có người
+  chấm công cả tháng thì không thể hết 0 đồng, mà ghi 0 là mất nguyên phần lương của cơ sở ấy
+  trong khi tổng vẫn cộng đẹp. Dòng ấy bị bỏ qua và nói rõ đã tìm tiền ở đường dẫn nào.
+* Thêm nút **🔧 chẩn đoán** cạnh mỗi cơ sở trong hộp xem trước: in ra đúng cấu trúc dữ liệu thật
+  bên Chấm công để sửa cho trúng, thay vì đoán về tiền lương.
+  **Chỉ in SỐ và tên khoá** — họ tên, CCCD của nhân viên bị giấu ngay từ máy chủ, không chạy qua
+  màn hình và không lọt vào ảnh chụp. Chỉ Admin dùng được.
 
 = 1.19.0 =
 * 🔴 **"Tự lấy" giờ mới thật sự tự.** Bản trước chỉ lấy khi **đổi kỳ** — mở lại trang ở đúng kỳ ấy

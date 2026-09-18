@@ -71,6 +71,28 @@ const PORT = process.env.PORT || '8113';
   ok('Đổi kỳ đi rồi về: lương tự lấy lại', String(x3.so).replace(/\D/g,'')==='111649262' && x3.lienKet===2,
      x3.so+' · '+x3.lienKet+' dòng nối');
 
+  // ── 🔴 CÓ LƯƠNG THẬT NHƯNG ĐỌC SAI CHỖ: không được ghi 0, phải nói ra ───────────────────────
+  //    Anh Thắng 18/09/2026: FZ_SC_VIVO_T4 bên Nhân sự có 52.287.040 mà báo cáo ghi "chưa khai giá".
+  await p.click('[data-act="napLuong"]'); await p.waitForTimeout(2500);
+  const s1 = await p.evaluate(()=>{
+    const tr=[...document.querySelectorAll('#tab-salary table tr')].find(r=>/FZ SC VIVO T4/.test(r.textContent));
+    return { co: !!tr, chu: tr?tr.textContent.replace(/\s+/g,' '):'' };});
+  ok('🔴 Tổng tiền ra 0 thì coi là ĐỌC KHÔNG ĐƯỢC, không ghi 0',
+     s1.co && /đọc sai chỗ/i.test(s1.chu), s1.chu.slice(0,150));
+  ok('Nói rõ đã tìm tiền ở đường dẫn nào', /mtd\.tong\.tong/.test(s1.chu), s1.chu.slice(0,150));
+
+  // nut 🔧 chan doan
+  await p.evaluate(()=>{const tr=[...document.querySelectorAll('#tab-salary table tr')].find(r=>/FZ SC VIVO T4/.test(r.textContent));
+    const b=tr&&tr.querySelector('[data-act="nsChuanDoan"]'); b&&b.click();});
+  await p.waitForTimeout(2500);
+  const s2 = await p.evaluate(()=>({ hien: !document.querySelector('#logModal').hidden,
+    than: (document.querySelector('#logBody')||{}).textContent||'' }));
+  ok('🔧 Chẩn đoán hiện ra cấu trúc thật', s2.hien && /bangLuong\.tongCong = 52287040/.test(s2.than),
+     s2.than.replace(/\s+/g,' ').slice(0,140));
+  ok('🔴 Chẩn đoán KHÔNG in họ tên / CCCD của nhân viên',
+     !/NGUYỄN VĂN A/.test(s2.than) && !/079300000001/.test(s2.than) && /\(chuỗi\)/.test(s2.than),
+     'đã giấu');
+
   ok('Không lỗi JS', loi.length===0, loi.join(' | '));
   await p.screenshot({path:'/tmp/claude-0/luong-ns.png'});
   await b.close();

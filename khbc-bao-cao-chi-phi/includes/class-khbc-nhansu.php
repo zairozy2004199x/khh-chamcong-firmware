@@ -95,12 +95,86 @@ class KHBC_NhanSu {
 				$tien = isset( $r['vp']['tien']['tongTien'] ) ? (float) $r['vp']['tien']['tongTien'] : 0;
 				if ( ! empty( $r['vp']['tien']['chuaKhaiNgayCong'] ) ) { $ghi = 'Chưa khai ngày công tháng — số này chưa đủ.'; }
 			}
+			/* 🔴 TIỀN RA 0 THÌ KHÔNG PHẢI "LƯƠNG BẰNG 0", MÀ LÀ EM ĐỌC SAI CHỖ.
+			   Cơ sở có người chấm công cả tháng thì không thể hết 0 đồng. Ghi 0 vào báo cáo là mất
+			   nguyên phần lương của cơ sở ấy mà tổng vẫn cộng đẹp. Nên coi như CHƯA ĐỌC ĐƯỢC và
+			   nói rõ chỗ em đã tìm, kèm lối bấm 🔧 xem cấu trúc thật. */
+			if ( $tien <= 0 ) {
+				$duong = ( 'mtd' === $kieu ) ? 'mtd.tong.tong' : ( ( 'vp' === $kieu ) ? 'vp.tien.tongTien' : '?' );
+				$ds[] = self::dong( $ten, 0, false,
+					'Đọc được bảng công (kiểu ' . $kieu . ') nhưng tổng tiền ở "' . $duong . '" = 0 — nhiều khả năng đọc sai chỗ. Bấm 🔧 để xem cấu trúc thật.',
+					$bp );
+				continue;
+			}
 			$ds[] = self::dong( $ten, $tien, true, $ghi, $bp );
 		}
 		$tong = 0.0;
 		foreach ( $ds as $x ) { $tong += $x['thanh_tien']; }
 		return array( 'ok' => true, 'ds' => $ds, 'thang' => $tt,
 			'so_cua_hang' => count( $ds ), 'tong' => $tong );
+	}
+
+	/**
+	 * CHẨN ĐOÁN — liệt kê mọi SỐ trong kết quả `bang_cong_va_luong()` kèm đường dẫn của nó.
+	 *
+	 * Anh Thắng 18/09/2026 gửi ảnh: cơ sở FZ_SC_VIVO_T4 bên Nhân sự có lương 52.287.040, mà báo
+	 * cáo này lại ghi "chưa khai giá giờ". Nghĩa là em đang đọc SAI CHỖ ĐỂ TIỀN. Không có mã nguồn
+	 * plugin Chấm công trong tay thì đoán tiếp là đoán về tiền lương — việc không được phép đoán.
+	 * Nút này in ra đúng cấu trúc thật để sửa cho trúng, rồi sẽ bỏ đi.
+	 *
+	 * 🔴 KHÔNG IN CHUỖI. Bảng công có họ tên và CCCD của nhân viên — dữ liệu cá nhân, không có việc
+	 *    gì phải chạy qua màn hình kế toán hay đi vào ảnh chụp màn hình. Chỉ in SỐ và tên khoá; mọi
+	 *    chuỗi thành "(chuỗi)", trừ vài khoá cấu trúc vô hại.
+	 */
+	public static function chuan_doan( $coso, $thang, $nam ) {
+		if ( ! self::co_nguon() ) {
+			return array( 'ok' => false, 'error' => 'Site này chưa cài plugin "Chấm công".' );
+		}
+		$m  = max( 1, min( 12, (int) $thang ) );
+		$y  = (int) $nam;
+		$tt = sprintf( '%04d-%02d', $y, $m );
+		$r  = VHCC_Luong::bang_cong_va_luong( (string) $coso, $tt );
+		if ( ! is_array( $r ) ) { return array( 'ok' => false, 'error' => 'Hàm bên Chấm công không trả về mảng.' ); }
+		$so  = array();
+		$khs = array();
+		self::di( $r, '', $so, $khs );
+		/* Số to thì nhiều khả năng là tiền — xếp lên đầu cho dễ nhìn. */
+		usort( $so, function ( $a, $b ) { return $b['gia_tri'] <=> $a['gia_tri']; } );
+		return array(
+			'ok'      => true,
+			'coso'    => (string) $coso,
+			'thang'   => $tt,
+			'khoa'    => array_slice( $khs, 0, 200 ),
+			'so'      => array_slice( $so, 0, 200 ),
+			'ghi_chu' => 'Chỉ in SỐ và tên khoá. Mọi chuỗi (họ tên, CCCD…) đã bị giấu.',
+		);
+	}
+
+	/** Đi khắp mảng, gom số kèm đường dẫn. Chuỗi chỉ ghi nhận tên khoá. */
+	private static function di( $x, $duong, &$so, &$khs, $sau = 0 ) {
+		if ( $sau > 6 || count( $so ) > 400 ) { return; }
+		if ( is_array( $x ) ) {
+			$i = 0;
+			foreach ( $x as $k => $v ) {
+				/* Mảng danh sách nhân viên có thể rất dài — 3 phần tử đầu là đủ thấy hình dạng. */
+				if ( is_int( $k ) && $i++ >= 3 ) { break; }
+				self::di( $v, '' === $duong ? (string) $k : $duong . '.' . $k, $so, $khs, $sau + 1 );
+			}
+			return;
+		}
+		if ( is_int( $x ) || is_float( $x ) ) {
+			$so[] = array( 'duong' => $duong, 'gia_tri' => (float) $x );
+			return;
+		}
+		if ( is_bool( $x ) || null === $x ) {
+			$so[] = array( 'duong' => $duong, 'gia_tri' => null === $x ? 'null' : ( $x ? 'true' : 'false' ) );
+			return;
+		}
+		/* Chuỗi: chỉ mấy khoá cấu trúc mới in ra, còn lại giấu. */
+		$cuoi = strtolower( substr( strrchr( '.' . $duong, '.' ), 1 ) );
+		$cho  = array( 'kieu', 'bophan', 'error', 'loai', 'type' );
+		$khs[] = array( 'duong' => $duong,
+			'gia_tri' => in_array( $cuoi, $cho, true ) ? (string) $x : '(chuỗi)' );
 	}
 
 	/** Cùng hình dạng khoá với KHBC_FABi / KHBC_Ghe để giao diện dùng chung một đường. */

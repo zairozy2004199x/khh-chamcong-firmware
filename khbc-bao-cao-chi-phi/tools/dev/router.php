@@ -34,6 +34,15 @@ class VHCC_Luong {
 		if ( 'tho' === $r['kieu'] ) {
 			return array( 'ok' => true, 'kieu' => 'tho', 'coLuong' => false, 'boPhan' => $r['bp'] );
 		}
+		/* Giả lập ĐÚNG lỗi anh Thắng gặp: có lương thật nhưng tiền KHÔNG nằm ở chỗ plugin đang đọc
+		   (`mtd.tong.tong` = 0, tiền thật ở `bangLuong.tongCong`). Dùng để kiểm luật "0 = đọc không
+		   được" và nút 🔧 chẩn đoán. */
+		if ( 'mtd_sai' === $r['kieu'] ) {
+			return array( 'ok' => true, 'kieu' => 'mtd', 'coLuong' => true, 'boPhan' => $r['bp'],
+				'mtd' => array( 'tong' => array( 'tong' => 0 ), 'chuaKhaiGia' => array() ),
+				'bangLuong' => array( 'tongCong' => $r['tien'], 'soDong' => 20,
+					'dong' => array( array( 'hoTen' => 'NGUYỄN VĂN A', 'cccd' => '079300000001', 'tien' => 1665300 ) ) ) );
+		}
 		if ( 'vp' === $r['kieu'] ) {
 			return array( 'ok' => true, 'kieu' => 'vp', 'coLuong' => true, 'boPhan' => $r['bp'],
 				'vp' => array( 'tien' => array( 'tongTien' => $r['tien'] ) ) );
@@ -155,6 +164,7 @@ if ( $path === '/__dev/nhansu' ) {
 		array( 'POSH MN AEON MALL BÌNH DƯƠNG', 'mtd', 111649262.0, 'posh', array() ),
 		array( 'JP MN AEON MALL BÌNH TÂN', 'mtd', 41635755.0, 'jp', array( 'Nguyễn Văn A' ) ),
 		array( 'VĂN PHÒNG HCM', 'vp', 88000000.0, '', array() ),
+		array( 'FZ SC VIVO T4', 'mtd_sai', 52287040.0, 'funzone', array() ),
 		array( 'FUNZONE CITY VŨNG TÀU', 'tho', 0.0, 'funzone', array() ),
 		array( 'TUTU MN AEON MALL TÂN PHÚ', 'tho', 0.0, 'tutu', array() ),
 	);
