@@ -175,21 +175,22 @@ class VHCC_TuanCong {
 	 *    lưu hành mất hiệu lực — đúng, vì lúc ấy phiên đăng nhập cũng mất hết.
 	 */
 	public static function khoa_dong( $coso, $tu_ngay, $ngay, $ma_nv, $hau_to = '' ) {
-		$than = strtolower( VHCC_NhanSu::chuan_coso( $coso ) ) . '|' . self::ngay( $tu_ngay ) . '|'
-			. self::ngay( $ngay ) . '|' . strtoupper( trim( (string) $ma_nv ) ) . '|'
-			. trim( (string) $hau_to );
+		/* `$ngay` giữ lại trong chữ ký hàm cho nơi gọi cũ, nhưng KHÔNG dùng: từ bản ngang
+		   18/09/2026 mỗi NGƯỜI một dòng, ngày đọc từ dòng tiêu đề. Một khoá cho cả dòng. */
+		unset( $ngay );
+		$ma = strtoupper( trim( (string) $ma_nv ) );
+		$ht = trim( (string) $hau_to );
+		$than = strtolower( VHCC_NhanSu::chuan_coso( $coso ) ) . '|' . self::ngay( $tu_ngay )
+			. '|' . $ma . '|' . $ht;
 		$ky = substr( hash_hmac( 'sha256', $than, self::muoi() ), 0, 10 );
-		return self::ngay( $ngay ) . '~' . strtoupper( trim( (string) $ma_nv ) )
-			. ( '' !== trim( (string) $hau_to ) ? ( '-' . trim( (string) $hau_to ) ) : '' ) . '~' . $ky;
+		return $ma . ( '' !== $ht ? ( '-' . $ht ) : '' ) . '~' . $ky;
 	}
 
-	/** Đọc ngược một khoá. null = hỏng hoặc không thuộc tuần / cơ sở này. */
+	/** Đọc ngược một khoá dòng. null = hỏng, hoặc không thuộc tuần / cơ sở này. */
 	public static function doc_khoa( $khoa, $coso, $tu_ngay ) {
 		$p = explode( '~', trim( (string) $khoa ) );
-		if ( 3 !== count( $p ) ) { return null; }
-		$ngay = self::ngay( $p[0] );
-		if ( '' === $ngay ) { return null; }
-		$ma = strtoupper( trim( $p[1] ) );
+		if ( 2 !== count( $p ) ) { return null; }
+		$ma = strtoupper( trim( $p[0] ) );
 		$ht = '';
 		if ( false !== strpos( $ma, '-' ) ) {
 			$c  = explode( '-', $ma, 2 );
@@ -199,9 +200,9 @@ class VHCC_TuanCong {
 		if ( '' === $ma ) { return null; }
 		/* So bằng `hash_equals` — so bằng `===` trên chuỗi băm là hở kênh phụ về thời gian.
 		   Ở đây gần như vô hại, nhưng viết đúng một lần thì không phải nhớ chỗ nào hại chỗ nào. */
-		$mong = self::khoa_dong( $coso, $tu_ngay, $ngay, $ma, $ht );
+		$mong = self::khoa_dong( $coso, $tu_ngay, '', $ma, $ht );
 		if ( ! hash_equals( $mong, trim( (string) $khoa ) ) ) { return null; }
-		return array( 'ngay' => $ngay, 'ma_nv' => $ma, 'hau_to' => $ht );
+		return array( 'ma_nv' => $ma, 'hau_to' => $ht );
 	}
 
 	private static function muoi() {
@@ -262,21 +263,51 @@ class VHCC_TuanCong {
 
 	/* ====================================================================== lấy dữ liệu tuần */
 
-	/** Cột của tờ .xlsx. Đổi thứ tự ở đây là đổi cả lúc xuất lẫn lúc đọc — một nguồn duy nhất. */
-	const COT = array( 'Ngày', 'Thứ', 'Mã NV', 'Họ tên', 'Giờ vào', 'Giờ ra', 'Số giờ',
-		'Lý do sửa', 'KHOÁ — ĐỪNG SỬA' );
+	/* ═══════════════════════════════════════════════════════════════════════════════════════
+	 * BỐ CỤC TỜ: MỘT NGƯỜI MỘT DÒNG, BẢY NGÀY NẰM NGANG
+	 *
+	 * Anh Thắng 18/09/2026: *"File excel sửa bảng công thì hiện ngày theo chiều ngang để dễ
+	 * nhìn"*, kèm ảnh tờ bản đầu — mỗi người bảy dòng, tên lặp lại bảy lần, và phải cuộn mới
+	 * thấy hết một người. Đúng: bảng công trên màn vốn nằm ngang, tờ Excel phải giống nó thì
+	 * mắt mới soát được.
+	 *
+	 *   Mã NV │ Họ tên │ T2 07/09 vào │ T2 07/09 ra │ … │ Tổng giờ │ Lý do sửa │ KHOÁ
+	 *
+	 * 🔴 NGÀY ĐỌC TỪ CHÍNH DÒNG TIÊU ĐỀ, KHÔNG ĐẾM THEO VỊ TRÍ CỘT. Người ta chèn thêm một cột
+	 *    để ghi chú, hay kéo cột đi chỗ khác — đếm vị trí thì mọi giờ lệch sang ngày bên cạnh,
+	 *    im lặng. Nên mỗi ô tiêu đề mang sẵn ngày dạng `YYYY-MM-DD`, và lúc đọc thì dò ngược
+	 *    từ chữ ấy ra. Thiếu ngày nào thì chối cả tệp chứ không đoán.
+	 *
+	 * ⚠️ MỘT LÝ DO CHO CẢ DÒNG, không phải mỗi ngày một ô lý do. Bảy ô lý do nữa là tờ rộng gấp
+	 *    rưỡi và gần như luôn để trống. Đổi mấy ngày của cùng một người thì thường cùng một lý
+	 *    do ("máy hỏng hôm ấy"); cần tách bạch thì gửi hai lượt.
+	 * ═══════════════════════════════════════════════════════════════════════════════════════ */
 
-	const C_NGAY = 0;
-	const C_THU  = 1;
-	const C_MA   = 2;
-	const C_TEN  = 3;
-	const C_VAO  = 4;
-	const C_RA   = 5;
-	const C_GIO  = 6;
-	const C_LYDO = 7;
-	const C_KHOA = 8;
+	const C_MA  = 0;
+	const C_TEN = 1;
+	/** Cột ngày bắt đầu từ đây: mỗi ngày CHIẾM HAI Ô liền nhau (vào, ra). */
+	const C_NGAY_DAU = 2;
+	const O_MOI_NGAY = 2;
 
-	private static function ten_thu( $ngay ) {
+	/** Ba cột đuôi, tính từ sau 7 ngày. */
+	const C_TONG = self::C_NGAY_DAU + 7 * self::O_MOI_NGAY;      // 16
+	const C_LYDO = self::C_TONG + 1;                              // 17
+	const C_KHOA = self::C_TONG + 2;                              // 18
+
+	/** Dòng tiêu đề của tờ. */
+	public static function cot( $tu_ngay ) {
+		$c = array( 'Mã NV', 'Họ tên' );
+		foreach ( self::bay_ngay( $tu_ngay ) as $ng ) {
+			$c[] = self::ten_thu( $ng ) . ' ' . $ng . ' vào';
+			$c[] = self::ten_thu( $ng ) . ' ' . $ng . ' ra';
+		}
+		$c[] = 'Tổng giờ tuần';
+		$c[] = 'Lý do sửa';
+		$c[] = 'KHOÁ — ĐỪNG SỬA';
+		return $c;
+	}
+
+	public static function ten_thu( $ngay ) {
 		$t = (int) gmdate( 'N', strtotime( $ngay . ' 00:00:00 UTC' ) );
 		$b = array( 1 => 'T2', 2 => 'T3', 3 => 'T4', 4 => 'T5', 5 => 'T6', 6 => 'T7', 7 => 'CN' );
 		return isset( $b[ $t ] ) ? $b[ $t ] : '';
@@ -412,32 +443,50 @@ class VHCC_TuanCong {
 				'error' => 'Cơ sở ' . $cs . ' chưa có người nào trong tuần ' . self::ten_tuan( $t2 ) . '.' );
 		}
 
-		$hang = array( self::COT );
+		/* Gom theo NGƯỜI (mã + hậu tố) — mỗi người một dòng, bảy ngày nằm ngang. */
+		$theo_nguoi = array();
 		foreach ( $ds as $r ) {
-			$hang[] = array(
-				VHCC_Xuat::chu( $r['ngay'] ),
-				VHCC_Xuat::chu( $r['thu'] ),
+			$k = $r['ma_nv'] . '|' . $r['hau_to'];
+			if ( ! isset( $theo_nguoi[ $k ] ) ) {
+				$theo_nguoi[ $k ] = array( 'ma' => $r['ma_nv'], 'ht' => $r['hau_to'],
+					'ten' => $r['ho_ten'], 'ngay' => array() );
+			}
+			$theo_nguoi[ $k ]['ngay'][ $r['ngay'] ] = $r;
+		}
+
+		$bay  = self::bay_ngay( $t2 );
+		$hang = array( self::cot( $t2 ) );
+		foreach ( $theo_nguoi as $n ) {
+			$dong = array(
 				/* 🔴 Mã NV LUÔN là chữ. `0029` để Excel tự đoán là thành số 29 — xem `VHCC_Xuat::o()`. */
-				VHCC_Xuat::chu( $r['ma_nv'] . ( '' !== $r['hau_to'] ? ( '-' . $r['hau_to'] ) : '' ) ),
-				VHCC_Xuat::chu( $r['ho_ten'] ),
-				VHCC_Xuat::chu( $r['vao'] ),
-				VHCC_Xuat::chu( $r['ra'] ),
-				( null === $r['gio'] ? '' : (float) $r['gio'] ),
-				'',
-				VHCC_Xuat::chu( $r['khoa'] ),
+				VHCC_Xuat::chu( $n['ma'] . ( '' !== $n['ht'] ? ( '-' . $n['ht'] ) : '' ) ),
+				VHCC_Xuat::chu( $n['ten'] ),
 			);
+			$tong = 0.0;
+			foreach ( $bay as $ng ) {
+				$r = isset( $n['ngay'][ $ng ] ) ? $n['ngay'][ $ng ] : null;
+				$dong[] = VHCC_Xuat::chu( $r ? $r['vao'] : '' );
+				$dong[] = VHCC_Xuat::chu( $r ? $r['ra'] : '' );
+				if ( $r && null !== $r['gio'] ) { $tong += (float) $r['gio']; }
+			}
+			$dong[] = ( $tong > 0 ? round( $tong, 2 ) : '' );
+			$dong[] = '';
+			/* Khoá gắn với NGƯỜI + TUẦN + CƠ SỞ. Ngày thì đọc từ dòng tiêu đề, nên một khoá cho
+			   cả dòng là đủ — và ngắn hơn hẳn chín cái khoá của bản dọc. */
+			$dong[] = VHCC_Xuat::chu( self::khoa_dong( $cs, $t2, '', $n['ma'], $n['ht'] ) );
+			$hang[] = $dong;
 		}
 
 		$noi = VHCC_Xuat::xlsx( array( array(
 			'ten'  => 'Tuan',
 			'hang' => $hang,
-			'cot'  => array( 12, 6, 18, 26, 10, 10, 9, 34, 30 ),
+			'cot'  => array_merge( array( 18, 26 ), array_fill( 0, 14, 8 ), array( 11, 34, 30 ) ),
 		) ) );
 		if ( null === $noi ) {
 			return array( 'ok' => false, 'error' => 'Không dựng được tệp .xlsx trên máy chủ này.' );
 		}
 		return array( 'ok' => true, 'ten' => self::ten_tep( $cs, $t2 ), 'noi_dung' => $noi,
-			'soDong' => count( $ds ) );
+			'soDong' => count( $theo_nguoi ) );
 	}
 
 	public static function ten_tep( $coso, $tu_ngay ) {
@@ -520,69 +569,115 @@ class VHCC_TuanCong {
 		if ( count( $hang ) < 2 ) {
 			return array( 'ok' => false, 'error' => 'Tệp không có dòng dữ liệu nào.' );
 		}
-		$dau = array_shift( $hang );
-		if ( ! is_array( $dau ) || ! isset( $dau[ self::C_KHOA ] )
-			|| false === mb_strpos( (string) $dau[ self::C_KHOA ], 'KHOÁ' ) ) {
-			return array( 'ok' => false, 'error' => 'Tệp này không đúng mẫu bảng công tuần '
-				. '(thiếu cột KHOÁ ở cuối). Tải lại tệp mẫu rồi sửa trên đó, đừng dựng tệp mới.' );
+		$dau = array_values( (array) array_shift( $hang ) );
+
+		/* 🔴 DÒ NGÀY TỪ CHÍNH DÒNG TIÊU ĐỀ. Đếm vị trí cột thì chèn thêm một cột ghi chú là mọi
+		   giờ lệch sang ngày bên cạnh, im lặng. Mỗi ô tiêu đề mang sẵn `YYYY-MM-DD` + 'vào'/'ra'. */
+		$cot_ngay = array();          // chỉ số cột -> array( ngày, 'vao'|'ra' )
+		$co_khoa  = -1;
+		$co_lydo  = -1;
+		foreach ( $dau as $i_c => $o ) {
+			$chu = trim( (string) $o );
+			if ( false !== mb_strpos( $chu, 'KHOÁ' ) ) { $co_khoa = $i_c; continue; }
+			if ( false !== mb_strpos( $chu, 'Lý do' ) ) { $co_lydo = $i_c; continue; }
+			if ( ! preg_match( '/(\d{4}-\d{2}-\d{2})/', $chu, $m ) ) { continue; }
+			$la_ra = ( false !== mb_strpos( $chu, ' ra' ) );
+			$cot_ngay[ $i_c ] = array( $m[1], $la_ra ? 'ra' : 'vao' );
 		}
 
-		/* Bảng công đang có, tra theo chính cái khoá in trong tệp. */
+		if ( $co_khoa < 0 ) {
+			return array( 'ok' => false, 'error' => 'Tệp này không đúng mẫu bảng công tuần '
+				. '(thiếu cột KHOÁ). Tải lại tệp mẫu rồi sửa trên đó, đừng dựng tệp mới.' );
+		}
+		$bay = self::bay_ngay( $t2 );
+		$thay = array();
+		foreach ( $cot_ngay as $x ) { $thay[ $x[0] ] = true; }
+		foreach ( $bay as $ng ) {
+			if ( ! isset( $thay[ $ng ] ) ) {
+				return array( 'ok' => false, 'error' => 'Tệp thiếu cột của ngày ' . $ng
+					. '. Đừng xoá hay đổi tên cột ngày — tải lại tệp mẫu rồi sửa trên đó.' );
+			}
+		}
+
+		/* Bảng công đang có, tra theo khoá dòng rồi tới ngày. */
 		$dang = array();
-		foreach ( self::hang_tuan( $cs, $t2 ) as $r ) { $dang[ $r['khoa'] ] = $r; }
+		foreach ( self::hang_tuan( $cs, $t2 ) as $r ) {
+			$dang[ $r['khoa'] ][ $r['ngay'] ] = $r;
+		}
 
 		$doi = array();
 		$so  = 0;
-		foreach ( $hang as $i => $d ) {
+		foreach ( $hang as $i_d => $d ) {
 			if ( ! is_array( $d ) ) { continue; }
-			$khoa = isset( $d[ self::C_KHOA ] ) ? trim( (string) $d[ self::C_KHOA ] ) : '';
+			$d    = array_values( $d );
+			$khoa = isset( $d[ $co_khoa ] ) ? trim( (string) $d[ $co_khoa ] ) : '';
 			if ( '' === $khoa ) { continue; }          // dòng người ta chèn thêm — bỏ, không đoán
 			$so++;
+			$dong_so = $i_d + 2;
 
 			$k = self::doc_khoa( $khoa, $cs, $t2 );
 			if ( null === $k ) {
-				return array( 'ok' => false, 'error' => 'Dòng ' . ( $i + 2 ) . ' có cột KHOÁ sai. '
+				return array( 'ok' => false, 'error' => 'Dòng ' . $dong_so . ' có cột KHOÁ sai. '
 					. 'Thường là do dán từ tệp tuần khác sang, hoặc sửa tay vào cột ấy. '
 					. 'Tải lại tệp của đúng tuần ' . self::ten_tuan( $t2 ) . ' rồi sửa trên đó.' );
 			}
 			if ( ! isset( $dang[ $khoa ] ) ) {
-				return array( 'ok' => false, 'error' => 'Dòng ' . ( $i + 2 )
+				return array( 'ok' => false, 'error' => 'Dòng ' . $dong_so
 					. ' không còn khớp với bảng công (người này có thể đã đổi cơ sở). Tải lại tệp mới.' );
 			}
-			$cu = $dang[ $khoa ];
 
-			$vao = self::doc_gio( isset( $d[ self::C_VAO ] ) ? $d[ self::C_VAO ] : '' );
-			$ra  = self::doc_gio( isset( $d[ self::C_RA ] ) ? $d[ self::C_RA ] : '' );
-			if ( null === $vao || null === $ra ) {
-				return array( 'ok' => false, 'error' => 'Dòng ' . ( $i + 2 ) . ' (' . $cu['ho_ten']
-					. ' ngày ' . $cu['ngay'] . ') có ô giờ không đọc được. Gõ kiểu 24 giờ: 08:00, 17:30.' );
+			/* Gom hai ô vào/ra của từng ngày trên dòng này. */
+			$moi = array();
+			foreach ( $cot_ngay as $i_c => $x ) {
+				$g = self::doc_gio( isset( $d[ $i_c ] ) ? $d[ $i_c ] : '' );
+				if ( null === $g ) {
+					return array( 'ok' => false, 'error' => 'Dòng ' . $dong_so . ' ('
+						. $dang[ $khoa ][ $x[0] ]['ho_ten'] . ') có ô giờ ngày ' . $x[0]
+						. ' không đọc được. Gõ kiểu 24 giờ: 08:00, 17:30.' );
+				}
+				$moi[ $x[0] ][ $x[1] ] = $g;
 			}
-			if ( $vao === $cu['vao'] && $ra === $cu['ra'] ) { continue; }
 
-			$ly_do = trim( (string) ( isset( $d[ self::C_LYDO ] ) ? $d[ self::C_LYDO ] : '' ) );
+			$ly_do   = ( $co_lydo >= 0 && isset( $d[ $co_lydo ] ) ) ? trim( (string) $d[ $co_lydo ] ) : '';
+			$dong_doi = array();
+
+			foreach ( $bay as $ng ) {
+				if ( ! isset( $dang[ $khoa ][ $ng ] ) ) { continue; }
+				$cu  = $dang[ $khoa ][ $ng ];
+				$vao = isset( $moi[ $ng ]['vao'] ) ? $moi[ $ng ]['vao'] : $cu['vao'];
+				$ra  = isset( $moi[ $ng ]['ra'] ) ? $moi[ $ng ]['ra'] : $cu['ra'];
+				if ( $vao === $cu['vao'] && $ra === $cu['ra'] ) { continue; }
+				if ( '' !== $vao && '' !== $ra && $ra <= $vao ) {
+					return array( 'ok' => false, 'error' => 'Dòng ' . $dong_so . ' (' . $cu['ho_ten']
+						. ' ngày ' . $ng . ') có giờ ra không sau giờ vào.' );
+				}
+				$dong_doi[] = array(
+					'khoa'  => $khoa,
+					'ngay'  => $ng,
+					'maNV'  => $cu['ma_nv'],
+					'hauTo' => $cu['hau_to'],
+					'hoTen' => $cu['ho_ten'],
+					'vaoCu' => $cu['vao'],
+					'raCu'  => $cu['ra'],
+					'vao'   => $vao,
+					'ra'    => $ra,
+					'them'  => ( '' === $cu['vao'] && '' === $cu['ra'] ),
+				);
+			}
+
+			if ( ! $dong_doi ) { continue; }
+
+			/* ⚠️ MỘT LÝ DO CHO CẢ DÒNG. Sửa ba ngày của cùng một người thì thường cùng một lý do;
+			   bảy ô lý do nữa là tờ rộng gấp rưỡi và gần như luôn để trống. */
 			if ( mb_strlen( $ly_do, 'UTF-8' ) < 5 ) {
-				return array( 'ok' => false, 'error' => 'Dòng ' . ( $i + 2 ) . ' (' . $cu['ho_ten']
-					. ' ngày ' . $cu['ngay'] . ') có sửa giờ nhưng chưa ghi Lý do sửa. '
-					. 'Mỗi ô giờ sửa đều phải nói vì sao, ít nhất 5 chữ.' );
+				return array( 'ok' => false, 'error' => 'Dòng ' . $dong_so . ' ('
+					. $dong_doi[0]['hoTen'] . ') có sửa giờ nhưng chưa ghi Lý do sửa. '
+					. 'Mỗi dòng có sửa đều phải nói vì sao, ít nhất 5 chữ.' );
 			}
-			if ( '' !== $vao && '' !== $ra && $ra <= $vao ) {
-				return array( 'ok' => false, 'error' => 'Dòng ' . ( $i + 2 ) . ' (' . $cu['ho_ten']
-					. ' ngày ' . $cu['ngay'] . ') có giờ ra không sau giờ vào.' );
+			foreach ( $dong_doi as $o ) {
+				$o['lyDo'] = mb_substr( $ly_do, 0, 200 );
+				$doi[]     = $o;
 			}
-
-			$doi[] = array(
-				'khoa'   => $khoa,
-				'ngay'   => $cu['ngay'],
-				'maNV'   => $cu['ma_nv'],
-				'hauTo'  => $cu['hau_to'],
-				'hoTen'  => $cu['ho_ten'],
-				'vaoCu'  => $cu['vao'],
-				'raCu'   => $cu['ra'],
-				'vao'    => $vao,
-				'ra'     => $ra,
-				'lyDo'   => mb_substr( $ly_do, 0, 200 ),
-				'them'   => ( '' === $cu['vao'] && '' === $cu['ra'] ),
-			);
 		}
 
 		if ( ! $so ) {

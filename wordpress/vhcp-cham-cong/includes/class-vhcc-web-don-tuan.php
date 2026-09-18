@@ -320,10 +320,12 @@ class VHCC_WebDonTuan {
 			. '<div><input type="file" name="dt_tep" accept=".xlsx" required></div>'
 			. '<div><button class="chinh">Gửi cho kế toán</button></div></form>';
 
-		echo '<p class="mo" style="margin:10px 0 0;font-size:12px">⚠️ <b>Đừng sửa cột KHOÁ</b> ở '
-			. 'cuối tệp — đó là thứ ghép giờ về đúng người. Mỗi ô giờ sửa <b>phải ghi Lý do</b>, '
-			. 'ít nhất 5 chữ, không thì tệp bị chối. Muốn <b>xoá giờ</b> thì xoá nội dung ô, '
-			. 'đừng xoá cả dòng.</p>';
+		echo '<p class="mo" style="margin:10px 0 0;font-size:12px">Tờ xếp <b>mỗi người một dòng, '
+			. 'bảy ngày nằm ngang</b> — giống lưới trên màn. ⚠️ <b>Đừng sửa cột KHOÁ</b> ở cuối '
+			. 'và <b>đừng đổi tên hay xoá cột ngày</b>: đó là hai thứ ghép giờ về đúng người, '
+			. 'đúng ngày. Chèn thêm cột ghi chú thì không sao. Dòng nào có sửa giờ thì '
+			. '<b>phải ghi Lý do</b>, ít nhất 5 chữ — một lý do cho cả dòng. Muốn <b>xoá giờ</b> '
+			. 'thì xoá nội dung ô, đừng xoá cả dòng.</p>';
 		echo '</details></div>';
 	}
 }
