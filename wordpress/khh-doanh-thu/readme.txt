@@ -97,6 +97,20 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.37.0 =
+* **Trạm nghe IPN MoMo** — mở đường `…/wp-json/khh-dt/v1/momo-ipn` để dán vào trang quản trị
+  MoMo. Bước MỘT: chỉ nghe và ghi nguyên văn payload vào nhật ký.
+* 🔴 **Chưa ghi một dòng nào vào sổ MoMo**, và có phép thử khoá điều đó. Cổng này công khai
+  (MoMo không đăng nhập được), nên chừng nào chưa kiểm được chữ ký thì một dòng vào sổ cũng là
+  một dòng quá nhiều — ai biết đường dẫn cũng bơm được doanh thu giả vào đối soát.
+* Chặn theo IP `118.69.210.244` (cột Outcoming trong tài liệu MoMo), sửa được bằng lọc
+  `khh_dt_momo_ip_cho_phep` mà không phải sửa mã. Chối thì trả 204 chứ không 403 — nói "IP sai"
+  là chỉ đường cho người đang dò.
+* Lượt bị chối **vẫn được ghi** kèm lý do: "MoMo bảo đã gọi mà hệ không thấy gì" là ca tốn thời
+  gian nhất, có nhật ký thì thành câu trả lời trong ba mươi giây.
+* Mở đường dẫn bằng trình duyệt (GET) thì nó nói đang sống và in ra IP của người mở.
+* Bài kiểm mới `tools/test/kiem-momo-ipn.php` — 18 phép.
+
 = 1.36.0 =
 * **Thoát đăng nhập có cho CẢ HAI lối vào.** Trước đây nút "Thoát" chỉ hiện với người vào bằng
   PIN; người văn phòng vào bằng tài khoản WordPress không có đường nào ra khỏi trang. Đây là

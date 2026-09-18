@@ -402,9 +402,23 @@ function plugin_dir_url( $f ) { return 'http://example.test/wp-content/plugins/v
 class WP_REST_Request {
 	private $p;
 	private $h;
-	public function __construct( $p = array(), $h = array() ) { $this->p = $p; $this->h = $h; }
+	private $body = '';
+	private $method = 'POST';
+	/* Tham số đầu nhận CẢ mảng tham số (lối cũ) lẫn tên phương thức (lối của WP thật:
+	   `new WP_REST_Request( 'POST' )`). Không nhận cả hai thì bài nào dựng theo lối WP thật sẽ
+	   lặng lẽ có một mảng tham số tên 'POST'. */
+	public function __construct( $p = array(), $h = array() ) {
+		if ( is_string( $p ) ) { $this->method = $p; $p = array(); }
+		$this->p = $p; $this->h = $h;
+	}
 	public function get_param( $k ) { return array_key_exists( $k, $this->p ) ? $this->p[ $k ] : null; }
+	public function set_param( $k, $v ) { $this->p[ $k ] = $v; }
 	public function get_header( $k ) { return array_key_exists( $k, $this->h ) ? $this->h[ $k ] : ''; }
+	public function set_header( $k, $v ) { $this->h[ $k ] = $v; }
+	public function get_method() { return $this->method; }
+	public function set_method( $m ) { $this->method = $m; }
+	public function get_body() { return $this->body; }
+	public function set_body( $b ) { $this->body = (string) $b; }
 }
 
 class WP_REST_Response {
