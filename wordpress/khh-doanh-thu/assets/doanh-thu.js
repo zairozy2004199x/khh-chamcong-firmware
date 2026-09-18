@@ -719,7 +719,7 @@
       e.preventDefault();
       if (!window.confirm('Xoá lượt phí này?')) return;
       var fd = new FormData(); fd.append('id', b.getAttribute('data-phi-xoa'));
-      api('momo-phi', { method: 'DELETE', body: fd }).then(tai).catch(function (err) {
+      api('momo-phi', { method: 'DELETE', body: fd }).then(taiDoiSoat).catch(function (err) {
         window.alert(err.message || err);
       });
     });
@@ -736,8 +736,12 @@
       fd.append('tai_khoan', lay('tk'));
       fd.append('tu', lay('tu')); fd.append('den', lay('den')); fd.append('phi', lay('so'));
       b.disabled = true; b.textContent = 'Đang lưu…';
+      /* 🔴 GỌI `taiDoiSoat()`, KHÔNG PHẢI `tai()`. Phí nằm trong `S.dsR` — bộ số của màn Đối
+         soát — còn `tai()` chỉ nạp lại `S.ngay` rồi vẽ lại bằng `S.dsR` CŨ. Nên lưu xong màn
+         đứng im, phải F5 mới thấy: đúng cái anh Thắng gặp. Và `tai()` còn tự thoát khi đang có
+         một lượt tải khác chạy, nên có lúc nó chẳng làm gì cả. */
       api('momo-phi', { method: 'POST', body: fd }).then(function () {
-        tai();
+        taiDoiSoat();
       }).catch(function (err) {
         b.disabled = false; b.textContent = 'Lưu phí';
         /* Câu chối của máy chủ (chồng ngày, ngày sai…) PHẢI hiện ra — nuốt nó đi là người dùng
@@ -1512,7 +1516,12 @@
        và KH989 chỗ nào"* — đúng: tính năng có mà không có cửa vào. Nay khối này luôn có mặt cho
        người được ghi, và tự điền sẵn khoảng ngày đang xem. */
     var phiDs = S.dsR.momo_phi_ds || [];
-    var tkDs  = S.dsR.momo_tk_ds || [];
+    var tkDs  = S.dsR.momo_tk_ds || [];      // để gợi ý ô gõ
+    /* CHỈ tài khoản đã ghép được cơ sở. Dùng `tkDs` để quyết định cảnh báo là lỗi của 1.39.0:
+       nó có cả tài khoản mới chỉ xuất hiện trong lượt nhập phí, nên màn báo "đã biết KH785"
+       trong khi bảng ghép còn rỗng và phí không chia được. */
+    var tkGhep = S.dsR.momo_tk_ghep || [];
+    var chuaChia = (S.dsR.momo_phi && S.dsR.momo_phi.chua_chia) || [];
     var khoiPhi = '';
     if (S.cf && S.cf.duoc_ghi) {
       var tkThieu = Object.keys(phiThieu);
@@ -1542,17 +1551,32 @@
         'lẫn báo cáo chi tiết đều không có. Chỉ màn <b>Đối soát</b> bên MoMo mới có, ở ô ' +
         '<b>"Số tiền điều chỉnh"</b>, và là một số tổng. Nhập số ấy vào đây (gộp 2-3 ngày cũng được), ' +
         'hệ chia về từng cơ sở theo <b>% doanh thu</b>.' +
-        (tkDs.length
-          ? ' Tài khoản đã biết: <b>' + tkDs.map(esc).join('</b> · <b>') + '</b>.'
-          : ' <b>Chưa biết cơ sở nào thuộc tài khoản nào</b> — nạp lại sao kê MoMo có gõ mã tài khoản ' +
-            '(thẻ Sao kê MoMo) thì hệ mới chia phí về đúng cơ sở được.') +
-        '</div>' + nhac +
+        (tkGhep.length
+          ? ' Tài khoản đã ghép được cơ sở: <b>' + tkGhep.map(esc).join('</b> · <b>') + '</b>.'
+          : ' <b>Chưa cơ sở nào được ghép vào tài khoản nào</b> — nạp lại sao kê MoMo có gõ mã tài ' +
+            'khoản (thẻ Sao kê MoMo) thì hệ mới chia phí về đúng cơ sở được.') +
+        '</div>' +
+        /* 🔴 Phí đã nhập mà chưa chia được thì PHẢI nói ra. Im lặng ở đây là anh Thắng gõ tiền
+           vào rồi nhìn cột Phí trống trơn, không có gì để lần ra nguyên nhân. */
+        (chuaChia.length
+          ? '<div class="canh-ghep" style="margin-top:8px"><b>Đã nhập phí nhưng CHƯA chia được:</b> ' +
+            chuaChia.map(function (x) {
+              return esc(x.tai_khoan) + ' ' + esc(ngayVN(x.tu)) + '→' + esc(ngayVN(x.den)) +
+                ' · ' + tien(x.phi);
+            }).join(' · ') +
+            '.<br>Hoặc chưa cơ sở nào được ghép vào tài khoản ấy (nạp lại sao kê MoMo có gõ mã tài ' +
+            'khoản), hoặc khoảng ngày ấy không có giao dịch MoMo nào để chia.</div>'
+          : '') + nhac +
         '<div class="loc" style="margin-top:10px;gap:6px">' +
           '<label class="o">Tài khoản<input type="text" data-phi="tk" list="dtTkGoi" placeholder="KH785" style="width:110px"></label>' +
           '<datalist id="dtTkGoi">' + tkDs.map(function (t) { return '<option value="' + esc(t) + '">'; }).join('') + '</datalist>' +
           '<label class="o">Từ<input type="date" data-phi="tu" value="' + esc(k.tu) + '"></label>' +
           '<label class="o">Đến<input type="date" data-phi="den" value="' + esc(k.den) + '"></label>' +
-          '<label class="o">Phí<input type="number" min="0" step="1" data-phi="so" placeholder="8118"></label>' +
+          /* ⚠️ type="text", KHÔNG phải "number". Màn Đối soát của MoMo in "68.866" và người ta
+             chép y như thế — mà ô number hiểu dấu chấm là dấu THẬP PHÂN, nên 68.866 vào sổ
+             thành 69đ. Máy chủ đọc bằng `khh_dt_so()`, hiểu cả dấu chấm lẫn dấu phẩy. */
+          '<label class="o">Phí<input type="text" inputmode="numeric" data-phi="so" ' +
+            'placeholder="68.866" style="width:120px"></label>' +
           '<button class="nut chinh" type="button" data-phi-luu="1">Lưu phí</button>' +
         '</div>' + daNhap + '</div>';
     }

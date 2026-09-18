@@ -145,6 +145,49 @@ phep( 'nhắc đúng 2 ngày chưa nhập', array( '2026-09-18', '2026-09-19' ) 
 khh_dt_momo_phi_dat( '2026-09-18', '2026-09-19', 'KH785', 660 );
 phep( '🔴 nhập đủ thì KHÔNG nhắc nữa', array() === khh_dt_momo_phi_thieu( '2026-09-17', '2026-09-19' ) );
 
+/* ── 7. 🔴 BA LỖI ANH THẮNG GẶP KHI DÙNG THẬT (18/09/2026) ─────────────────────────────── */
+
+/* ① Gõ "68.866" (đúng như MoMo in) mà vào sổ thành 69đ — mất 68.797đ, không câu báo nào, vì 69
+      vẫn là một con số hợp lệ. Ô nhập là type="number" nên trình duyệt hiểu dấu chấm là dấu
+      THẬP PHÂN. Nay ô là text và máy chủ đọc bằng `khh_dt_so()`. */
+require_once dirname( __DIR__, 2 ) . '/wordpress/khh-doanh-thu/doc-file.php';
+phep( '🔴 "68.866" đọc ra 68.866đ, không phải 69đ', 68866.0 === (float) khh_dt_so( '68.866' ) );
+phep( '"68,866" (dấu phẩy) cũng ra 68.866đ', 68866.0 === (float) khh_dt_so( '68,866' ) );
+phep( '"68866" trơn vẫn đúng', 68866.0 === (float) khh_dt_so( '68866' ) );
+
+/* ② Gõ lại ĐÚNG khoảng cũ là SỬA, không phải chồng — nếu không thì gõ sai một lần là phải xoá
+      rồi nhập lại, mà anh Thắng chỉ muốn sửa con số. */
+dung_bang();
+khh_dt_momo_phi_dat( '2026-09-02', '2026-09-02', 'KH785', 69 );
+$sua = khh_dt_momo_phi_dat( '2026-09-02', '2026-09-02', 'KH785', 68866 );
+phep( '🔴 gõ lại đúng khoảng cũ thì SỬA được, không bị chối là chồng', ! is_wp_error( $sua ) );
+$ds_sua = khh_dt_momo_phi_ds( '2026-09-02', '2026-09-02' );
+phep( 'sửa xong chỉ còn MỘT dòng', 1 === count( $ds_sua ) );
+phep( 'và mang số mới', 68866.0 === (float) $ds_sua[0]['phi'] );
+/* Chốt ngược: khoảng KHÁC mà chồng ngày thì vẫn phải chối. */
+phep( 'khoảng khác mà chồng ngày thì VẪN chối',
+	is_wp_error( khh_dt_momo_phi_dat( '2026-09-01', '2026-09-03', 'KH785', 100 ) ) );
+
+/* ③ Nhập phí mà chưa ghép được cơ sở nào vào tài khoản -> PHẢI nói ra, không im lặng. */
+dung_bang();
+gd( 'k1', '2026-09-01', 5000000, 'KHTUTU2' );   // có giao dịch, nhưng CHƯA học tài khoản
+khh_dt_momo_phi_dat( '2026-09-01', '2026-09-01', 'KH785', 62447 );
+$c7 = khh_dt_momo_phi_chia( '2026-09-01', '2026-09-16' );
+phep( 'chưa ghép cơ sở thì chia ra 0', 0 === (int) $c7['tong'] );
+phep( '🔴 nhưng PHẢI báo là có lượt phí chưa chia được', 1 === count( $c7['chua_chia'] ) );
+phep( 'báo đúng tài khoản và số tiền',
+	'KH785' === $c7['chua_chia'][0]['tai_khoan'] && 62447.0 === (float) $c7['chua_chia'][0]['phi'] );
+/* Và `tk_da_ghep` KHÔNG được kể tài khoản mới chỉ nhập phí — đó là lỗi làm màn báo "đã biết
+   KH785" trong khi bảng ghép rỗng. */
+phep( '🔴 tài khoản chỉ mới nhập phí KHÔNG tính là "đã ghép cơ sở"',
+	! in_array( 'KH785', khh_dt_momo_tk_da_ghep(), true ) );
+phep( 'nhưng vẫn được gợi ý ở ô gõ', in_array( 'KH785', khh_dt_momo_tk_ds(), true ) );
+/* Ghép xong thì hết báo. */
+khh_dt_momo_tk_hoc( array( 'KHTUTU2' ), 'KH785' );
+$c8 = khh_dt_momo_phi_chia( '2026-09-01', '2026-09-16' );
+phep( 'ghép xong thì chia được', 62447 === (int) $c8['tong'] );
+phep( 'và hết báo "chưa chia được"', array() === $c8['chua_chia'] );
+
 if ( $hong ) {
 	echo "\n✗ HỎNG " . count( $hong ) . " phép (đạt $dat):\n";
 	foreach ( $hong as $h ) { echo "   · 🔴 $h\n"; }

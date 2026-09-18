@@ -593,6 +593,9 @@ function khh_dt_rest_doi_soat( $req ) {
 		   ngày thiếu, mà muốn có ngày thiếu thì phải nạp lại sao kê kèm mã tài khoản trước —
 		   thành ra tính năng có mà không ai vào được. */
 		'momo_tk_ds'  => function_exists( 'khh_dt_momo_tk_ds' ) ? khh_dt_momo_tk_ds() : array(),
+		/* CHỈ tài khoản đã ghép được cơ sở — dùng để quyết định có cảnh báo hay không. Gộp với
+		   `momo_tk_ds` (có cả tài khoản mới chỉ nhập phí) là lỗi của 1.39.0. */
+		'momo_tk_ghep' => function_exists( 'khh_dt_momo_tk_da_ghep' ) ? khh_dt_momo_tk_da_ghep() : array(),
 		'momo_phi_ds' => function_exists( 'khh_dt_momo_phi_ds' ) ? khh_dt_momo_phi_ds( $tu, $den ) : array(),
 		/* Ô nào lấy từ sổ gộp thì chỉ có TỔNG ngày — không tra ngược xuống giao dịch được. Bày ra
 		   để bảng đừng hứa điều nó không làm được. */

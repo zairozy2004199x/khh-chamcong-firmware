@@ -97,6 +97,24 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.40.0 =
+* 🔴 **Nhập phí xong mà cột Phí vẫn trống — đã sửa.** Màn hình báo "Tài khoản đã biết: KH785"
+  trong khi bảng ghép `mã cửa hàng -> tài khoản` còn rỗng, vì bản trước gộp hai thứ khác hẳn
+  nhau làm một: tài khoản ĐÃ GHÉP được cơ sở, và tài khoản mới chỉ từng thấy trong lượt nhập
+  phí. Nay `khh_dt_momo_tk_da_ghep()` lo phần gác, `khh_dt_momo_tk_ds()` chỉ còn gợi ý cho ô gõ.
+* **Phí không chia được thì nói ra**, kèm tài khoản, khoảng ngày và số tiền — trước đây hệ
+  `continue` lặng lẽ, tiền đã gõ vào mà màn hình coi như chưa có, không gì lần ra nguyên nhân.
+* **Bấm Lưu là thấy ngay, không phải F5.** Nút Lưu và nút Xoá gọi lại đúng phần Đối soát chứ
+  không phải phần Doanh thu theo ngày — phí nằm ở phần Đối soát nên màn hình cứ đứng im.
+* 🔴 **"68.866" không còn vào sổ thành 69đ.** Ô nhập là `type="number"` nên trình duyệt đọc dấu
+  chấm thành dấu thập phân; chép y con số trên màn MoMo là mất 68.797đ, không câu báo nào vì 69
+  vẫn là số hợp lệ. Nay ô là `type="text"`, còn máy chủ đọc bằng `khh_dt_so()` — hiểu cả
+  "68.866", "68,866" lẫn "68866".
+* **Gõ lại đúng khoảng cũ là SỬA, không phải chồng ngày.** Trước đây muốn chữa một con số gõ sai
+  thì phải Xoá rồi nhập lại, vì hệ coi chính lượt ấy là lượt chồng. Chối chồng ngày vẫn giữ
+  nguyên cho mọi khoảng KHÁC.
+* `tools/test/kiem-momo-phi.php` lên **43 phép**.
+
 = 1.39.0 =
 * **Ô nhập phí MoMo giờ lúc nào cũng vào được.** Bản 1.38.0 chỉ hiện ô nhập khi hệ đã biết ngày
   nào còn thiếu phí — mà muốn biết thì phải nạp lại sao kê kèm mã tài khoản trước. Thành ra tính

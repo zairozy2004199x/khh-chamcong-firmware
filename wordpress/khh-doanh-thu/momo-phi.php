@@ -160,8 +160,17 @@ function khh_dt_momo_phi_dat( $tu, $den, $tk, $phi, $ghi_chu = '' ) {
 		return new WP_Error( 'khh_dt_phi', 'Phí không được âm — MoMo trừ phí nên con số phải dương.' );
 	}
 
-	/* 🔴 CHỐI CHỒNG NGÀY. Xem chú thích đầu tệp: chồng là tính phí hai lần, im lặng. */
-	$chong = khh_dt_momo_phi_chong( $tu, $den, $tk );
+	/* 🔴 CHỐI CHỒNG NGÀY. Xem chú thích đầu tệp: chồng là tính phí hai lần, im lặng.
+	   ⚠️ NHƯNG GÕ LẠI ĐÚNG KHOẢNG CŨ LÀ SỬA, KHÔNG PHẢI CHỒNG. Anh Thắng 18/09/2026 gõ nhầm
+	      "68.866" vào ô số (trình duyệt hiểu dấu chấm là thập phân -> lưu 69đ) rồi muốn sửa lại
+	      — mà bản trước chối luôn vì coi chính nó là lượt chồng, nên cách duy nhất là xoá rồi
+	      nhập lại. Nay cùng (từ, đến, tài khoản) thì ghi đè. */
+	$chong = array_filter(
+		khh_dt_momo_phi_chong( $tu, $den, $tk ),
+		function ( $c ) use ( $tu, $den ) {
+			return ! ( $c['tu'] === $tu && $c['den'] === $den );
+		}
+	);
 	if ( $chong ) {
 		$ke = array();
 		foreach ( $chong as $c ) {
@@ -313,9 +322,20 @@ function khh_dt_chia_tron( $tong, $trong_so ) {
 function khh_dt_momo_phi_chia( $tu, $den ) {
 	$ra   = array();
 	$tong = 0.0;
+	$ket  = array();   // lượt phí KHÔNG chia được — phải nói ra, xem dưới
 	foreach ( khh_dt_momo_phi_ds( $tu, $den ) as $p ) {
 		$o = khh_dt_momo_o_theo_tk( $p['tu'], $p['den'], $p['tai_khoan'] );
 		if ( ! $o ) {
+			/* 🔴 KHÔNG ĐƯỢC IM LẶNG. Không ô nào nghĩa là chưa cơ sở nào được ghép vào tài khoản
+			   ấy (chưa nạp sao kê kèm mã tài khoản), hoặc khoảng ngày ấy không có giao dịch nào.
+			   Bản 1.39.0 `continue` lặng lẽ: anh Thắng nhập 62.447đ, cột Phí vẫn trống trơn và
+			   không có gì để lần ra nguyên nhân. Tiền đã gõ vào mà màn hình coi như chưa có. */
+			$ket[] = array(
+				'tai_khoan' => $p['tai_khoan'],
+				'tu'        => $p['tu'],
+				'den'       => $p['den'],
+				'phi'       => (float) $p['phi'],
+			);
 			continue;
 		}
 		$chia = khh_dt_chia_tron( (float) $p['phi'], $o );
@@ -328,7 +348,7 @@ function khh_dt_momo_phi_chia( $tu, $den ) {
 			$tong     += $tien;
 		}
 	}
-	return array( 'co_so' => $ra, 'tong' => $tong );
+	return array( 'co_so' => $ra, 'tong' => $tong, 'chua_chia' => $ket );
 }
 
 /**
@@ -411,11 +431,15 @@ function khh_dt_momo_phi_route() {
 }
 
 function khh_dt_rest_momo_phi_dat( $req ) {
+	/* 🔴 ĐỌC SỐ KIỂU VIỆT NAM. Màn Đối soát của MoMo in "68.866", anh Thắng chép y như thế —
+	   mà `(float) "68.866"` trong PHP ra 68.866, rồi vào sổ thành 69đ. Mất 68.797đ mà không câu
+	   báo nào, vì 69 vẫn là một con số hợp lệ. `khh_dt_so()` là hàm cả plugin dùng để đọc tiền
+	   trong file, hiểu cả "68.866" lẫn "68,866" lẫn "68866". */
 	$r = khh_dt_momo_phi_dat(
 		(string) $req->get_param( 'tu' ),
 		(string) $req->get_param( 'den' ),
 		(string) $req->get_param( 'tai_khoan' ),
-		(float) $req->get_param( 'phi' ),
+		function_exists( 'khh_dt_so' ) ? khh_dt_so( $req->get_param( 'phi' ) ) : (float) $req->get_param( 'phi' ),
 		(string) $req->get_param( 'ghi_chu' )
 	);
 	if ( is_wp_error( $r ) ) {
@@ -428,9 +452,23 @@ function khh_dt_rest_momo_phi_xoa( $req ) {
 	return array( 'xong' => khh_dt_momo_phi_xoa( (int) $req->get_param( 'id' ) ) );
 }
 
-/** Mấy tài khoản quyết toán hệ đã biết (học từ lượt nạp sao kê, hoặc đã từng nhập phí). */
-function khh_dt_momo_tk_ds() {
+/**
+ * Tài khoản đã GHÉP ĐƯỢC cơ sở — tức đã học từ lượt nạp sao kê.
+ *
+ * 🔴 KHÁC HẲN "tài khoản từng thấy trong lượt nhập phí", và trộn hai thứ ấy là lỗi đã xảy ra:
+ *    bản 1.39.0 gộp chung nên màn hình báo "Tài khoản đã biết: KH785" trong khi bảng ghép còn
+ *    RỖNG. Anh Thắng nhập 62.447đ, cột Phí vẫn trống, và không dòng nào nói vì sao — vì theo
+ *    màn thì mọi thứ đều ổn. Chỉ hàm này mới được dùng để quyết định có cảnh báo hay không.
+ */
+function khh_dt_momo_tk_da_ghep() {
 	$ds = array_values( array_unique( array_values( khh_dt_momo_tk_bang() ) ) );
+	sort( $ds );
+	return $ds;
+}
+
+/** Gợi ý cho ô gõ: cả tài khoản đã ghép lẫn tài khoản từng nhập phí. Chỉ để gợi ý, KHÔNG để gác. */
+function khh_dt_momo_tk_ds() {
+	$ds = khh_dt_momo_tk_da_ghep();
 	foreach ( khh_dt_momo_phi_ds( '', '' ) as $p ) {
 		if ( ! in_array( $p['tai_khoan'], $ds, true ) ) {
 			$ds[] = $p['tai_khoan'];
