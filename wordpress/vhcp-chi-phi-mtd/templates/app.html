@@ -5446,7 +5446,39 @@
         +(canEdit?((_docs.length?' ':'')+'<button class="btn b-s" onclick="daDinhHoSo('+l.row+')" title="Đính thêm hồ sơ cho dòng này — cộng thêm, không đè cái đã có" style="padding:0 5px">📎</button>'):'');
       var trS=indent?' style="background:#fcfdff"':(laLon?' style="background:#eef2ff;font-weight:700"':'');
       var tdS=indent?' style="padding-left:26px;color:#8c8781"':'';
-      return '<tr'+trS+'><td'+tdS+'>'+(indent?'↳ ':(laLon?'📦 ':''))+esc(l.noiDung)+tkBadge(l.loaiCp,l.tkNo,l.tkCo)+'</td><td>'+esc(l.gian)+'</td><td class="money">'+(String(l.capCha||'')===''?money(l.duToan):'')+'</td><td class="money">'+money(l.soLuong)+'</td><td class="money">'+money(l.donGia)+'</td><td class="money">'+money(l.thanhTien)+'</td><td class="money">'+money(l.thucTe)+'</td><td>'+htB+'</td><td>'+esc(l.vat)+'</td><td style="text-align:center">'+img+'</td><td style="text-align:center">'+hoSoCell+'</td><td>'+esc(l.note)+'</td><td style="text-align:center;white-space:nowrap">'+acts+'</td></tr>';
+      /* ══════════════════════════════════════════════════════════════════════════════════════
+         GÕ THẲNG TRONG Ô, KHỎI MỞ FORM.
+
+         Anh Thắng 18/09/2026: *"thay vì bấm sửa, thì cho sửa thẳng trong từng dòng đơn được
+         không"*. Bấm ✏️ là cả dòng nhảy lên cái form ở đầu trang; sửa một con số xong phải cuộn
+         lại tìm chỗ cũ — bảng mười mấy dòng thì mỗi lần sửa là một vòng đi về.
+
+         🔴 CHỈ MẤY Ô SỐ + GHI CHÚ. Hình thức chi, VAT, loại chi phí, "Thuộc" kéo theo cả dây
+            (mã tài khoản, đường tạm ứng, quan hệ cha–con) — để form lo, vì ở đó có dòng gợi ý
+            và chốt đi kèm. Nút ✏️ vẫn còn nguyên cho mấy ô ấy.
+         🔴 Ô THÀNH TIỀN KHÔNG GÕ ĐƯỢC: nó là số lượng × đơn giá, máy tính. Cho gõ là đẻ ra một
+            con số thứ ba không khớp hai cái sinh ra nó.
+         🔴 Ô ĐÃ KHOÁ THÌ KHÔNG MỜI GÕ. Hạng mục đã lên lệnh thì dự toán / SL / đơn giá đóng
+            (xem `_daKhoaDuToanO`); bày con trỏ gõ ở đó là mời gõ rồi báo lỗi. */
+      var khoaDT=(['nhap','tra'].indexOf(String(_daTtHang(l))) < 0);
+      function o(cot, chu, khoa){
+        if(!canEdit || khoa) return '<td class="money">'+chu+'</td>';
+        return '<td class="money o-sua" data-osua="'+l.row+'|'+cot+'" onclick="daOSua(this)" '
+          +'title="Bấm để sửa ngay tại đây">'+chu+'</td>';
+      }
+      var oDT=(String(l.capCha||'')==='')
+        ? o('duToan', money(l.duToan), khoaDT)
+        : '<td class="money"></td>';
+      return '<tr'+trS+'><td'+tdS+'>'+(indent?'↳ ':(laLon?'📦 ':''))+esc(l.noiDung)+tkBadge(l.loaiCp,l.tkNo,l.tkCo)+'</td><td>'+esc(l.gian)+'</td>'
+        +oDT
+        +o('soLuong', money(l.soLuong), khoaDT)
+        +o('donGia',  money(l.donGia),  khoaDT)
+        +'<td class="money">'+money(l.thanhTien)+'</td>'
+        +o('thucTe',  money(l.thucTe),  false)
+        +'<td>'+htB+'</td><td>'+esc(l.vat)+'</td><td style="text-align:center">'+img+'</td><td style="text-align:center">'+hoSoCell+'</td>'
+        +(canEdit?('<td class="o-sua" data-osua="'+l.row+'|note" onclick="daOSua(this)" title="Bấm để sửa ngay tại đây">'+esc(l.note)+'</td>')
+                 :('<td>'+esc(l.note)+'</td>'))
+        +'<td style="text-align:center;white-space:nowrap">'+acts+'</td></tr>';
     }
     function veNhom(ds){
       var html='';
@@ -7199,6 +7231,74 @@
     DA_EDIT_ROW=row; el('daAddBtn').textContent='💾 Cập nhật dòng'; el('daCancelEdit').style.display='inline-block';
     _daKhoaDuToanO(l);
     try{ el('da_nd').scrollIntoView({block:'center'}); el('da_nd').focus(); }catch(e){}
+  }
+  /* Trạng thái hạng mục mà một DÒNG đi theo — dòng cha thì của chính nó, mục con thì của cha.
+     Tiền của hạng mục lớn cộng từ con, nên con phải khoá theo cha. */
+  function _daTtHang(l){
+    var cha=String((l&&l.capCha)||'');
+    if(!cha || cha==='(Phát sinh)') return String((l&&l.hm&&l.hm.tt)||'nhap');
+    var tt='nhap';
+    ((DA_CUR&&DA_CUR.lines)||[]).forEach(function(x){
+      if(String(x.capCha||'')==='' && String(x.noiDung||'')===cha) tt=String((x.hm&&x.hm.tt)||'nhap');
+    });
+    return tt;
+  }
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+     GÕ THẲNG TRONG Ô CỦA BẢNG — xem 🔴 ở `daLineCells()`.
+
+     🔴 GHI ĐÚNG MỘT Ô, qua cửa `datODuAnLine`. KHÔNG đi `updateDuAnLine`: hàm ấy ghi lại CẢ
+        DÒNG từ những gì màn gửi lên, nên gửi thiếu ô nào là ô ấy bị dọn về rỗng — im lặng.
+     🔴 KHÔNG ĐỔI THÌ KHÔNG GỬI. Bấm vào ô rồi bấm ra ngoài là chuyện xảy ra suốt; mỗi lần ấy
+        một lượt ghi là nhật ký đầy rác và sổ bị đụng vô cớ.
+     ══════════════════════════════════════════════════════════════════════════════════════════ */
+  var DA_O_DANG=null;   // ô đang mở, để bấm sang ô khác thì đóng ô cũ trước
+  function daOSua(td){
+    if(!td || DA_O_DANG===td) return;
+    if(DA_O_DANG) { daODong(DA_O_DANG, true); }
+    var k=String(td.getAttribute('data-osua')||'').split('|');
+    var row=Number(k[0])||0, cot=k[1]||'';
+    if(!row || !cot) return;
+    var cu=String(td.textContent||'').trim();
+    td.setAttribute('data-ocu', cu);
+    var so=(cot!=='note');
+    td.innerHTML='<input type="text"'+(so?' inputmode="numeric"':'')+' value="'+esc(cu)+'" '
+      +'style="width:100%;box-sizing:border-box;font-size:12px;'+(so?'text-align:right;':'')+'border:1px solid #2545ff;border-radius:4px;padding:1px 3px">';
+    var o=td.firstChild; DA_O_DANG=td;
+    o.onkeydown=function(e){
+      if(e.key==='Enter'){ e.preventDefault(); daOLuu(td); }
+      else if(e.key==='Escape'){ e.preventDefault(); daODong(td, true); }
+    };
+    o.onblur=function(){ daOLuu(td); };
+    try{ o.focus(); o.select(); }catch(e){}
+  }
+  /* Đóng ô, trả lại chữ cũ. `huy` = bỏ thay đổi (Esc, hoặc bấm sang ô khác). */
+  function daODong(td, huy){
+    if(!td) return;
+    if(DA_O_DANG===td) DA_O_DANG=null;
+    if(huy) td.innerHTML=esc(String(td.getAttribute('data-ocu')||''));
+  }
+  function daOLuu(td){
+    if(!td || DA_O_DANG!==td) return;
+    var o=td.firstChild; if(!o||undefined===o.value){ daODong(td,true); return; }
+    var k=String(td.getAttribute('data-osua')||'').split('|');
+    var row=Number(k[0])||0, cot=k[1]||'';
+    var cu=String(td.getAttribute('data-ocu')||'').trim();
+    var moi=String((o&&o.value)||'').trim();
+    /* Ô tiền người ta gõ "1.500.000" như mọi ô tiền khác; gửi nguyên chuỗi ấy lên là máy chủ
+       đọc ra 1 — tức một đồng rưỡi. */
+    var gui=(cot==='note')?moi:String(moi).replace(/[^0-9-]/g,'');
+    if(cot!=='note' ? (String(cu).replace(/[^0-9-]/g,'')===gui) : (cu===moi)){ daODong(td,true); return; }
+    DA_O_DANG=null;
+    td.innerHTML='<span style="color:#8c8781">…</span>';
+    google.script.run.withSuccessHandler(function(r){
+      if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); td.innerHTML=esc(cu); return; }
+      _log('Sửa ô dự án', (DA_CUR&&DA_CUR.ten)||'', cot+' dòng '+row+': '+cu+' → '+moi);
+      toast('ok','Đã lưu');
+      /* Nạp lại cả dự án: đổi một ô là đổi tổng nhóm, thẻ dự kiến tạm ứng, và thành tiền của
+         chính dòng ấy. Vẽ lại mỗi ô thì ba chỗ kia nói số cũ. */
+      openDuAn(DA_CUR.maDA); loadDuAn();
+    }).withFailureHandler(function(e){ toast('err',e.message); td.innerHTML=esc(cu); })
+      .datODuAnLine(DA_CUR.maDA, row, cot, gui);
   }
   /* ══════════════════════════════════════════════════════════════════════════════════════════
      ĐÃ LÊN LỆNH THÌ KHOÁ MẤY Ô SINH RA TIỀN.

@@ -2165,6 +2165,80 @@ class VHCPVP_DuAn {
 	 * ⚠️ HỒ SƠ THÌ CỘNG THÊM, ẢNH THÌ THAY. Một dòng có nhiều hồ sơ (hợp đồng, biên bản, báo
 	 *    giá) nhưng chỉ một tấm bill; đính hồ sơ thứ hai mà đè mất cái thứ nhất là mất chứng từ.
 	 */
+	/**
+	 * SỬA ĐÚNG MỘT Ô CỦA MỘT DÒNG — cho lối gõ thẳng trong bảng.
+	 *
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 Anh Thắng 18/09/2026: *"thay vì bấm sửa, thì cho sửa thẳng trong từng dòng đơn được
+	 *    không"*. Bấm ✏️ là cả dòng nhảy lên cái form ở đầu trang, sửa một con số xong phải cuộn
+	 *    lại tìm chỗ cũ — với bảng mười mấy dòng thì mỗi lần sửa là một vòng đi về.
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 *
+	 * ⚠️ KHÔNG ĐI QUA `update_line()`. Hàm ấy ghi lại CẢ DÒNG từ những gì màn gửi lên, nên gửi
+	 *    thiếu ô nào là ô ấy bị dọn về rỗng — im lặng. Một ô thì ghi đúng một ô.
+	 * ⚠️ CHỈ MỞ MẤY Ô SỐ + GHI CHÚ. Hình thức chi, VAT, loại chi phí, "Thuộc" kéo theo cả dây
+	 *    (mã tài khoản, đường tạm ứng, quan hệ cha–con) — mấy thứ ấy để form lo, vì ở đó còn có
+	 *    dòng gợi ý và chốt đi kèm.
+	 * ⚠️ ĐI QUA ĐỦ HAI CHỐT như `update_line`: hạng mục đã chốt sổ thì không đụng, và dự toán đã
+	 *    lên lệnh thì đóng (`loi_sua_du_toan_`). Mở một cửa mới mà quên chốt cũ là chốt ấy coi
+	 *    như không có — người ta chỉ cần đổi lối vào.
+	 * ⚠️ SỐ LƯỢNG / ĐƠN GIÁ ĐỔI THÌ TÍNH LẠI THÀNH TIỀN ngay trong cùng một lượt ghi. Để màn tự
+	 *    tính rồi gửi thêm một lượt nữa là có lúc lệch — và lệch ở cột tiền.
+	 */
+	public static function dat_o_line( $ma_da, $row, $cot, $gt ) {
+		global $wpdb;
+		$f = self::find( $ma_da );
+		if ( ! $f ) { return VHCPVP_Util::err( 'Không tìm thấy dự án' ); }
+		$st = (string) ( $f['trang_thai'] !== '' ? $f['trang_thai'] : 'Đang làm' );
+		if ( 'Đã đóng' === $st ) { return VHCPVP_Util::err( 'Dự án đã đóng — bấm "Mở lại" rồi sửa' ); }
+		$row = (int) $row;
+		$cot = trim( (string) $cot );
+		$map = array(
+			'duToan'  => 'du_toan',
+			'soLuong' => 'so_luong',
+			'donGia'  => 'don_gia',
+			'thucTe'  => 'thuc_te',
+			'note'    => 'note',
+		);
+		if ( ! isset( $map[ $cot ] ) ) {
+			return VHCPVP_Util::err( 'Ô "' . $cot . '" không sửa thẳng trong bảng được — bấm ✏️ để mở form.' );
+		}
+		$_c = self::loi_hang_muc_da_chot_( $ma_da, $row, 'sửa dòng' );
+		if ( '' !== $_c ) { return VHCPVP_Util::err( $_c ); }
+		$t   = VHCPVP_DB::t( 'da_line' );
+		$cur = VHCPVP_DB::row( $wpdb->prepare( "SELECT * FROM $t WHERE ma_da=%s AND row_no=%d", (string) $ma_da, $row ) );
+		if ( ! $cur ) { return VHCPVP_Util::err( 'Dòng không hợp lệ' ); }
+
+		$sua = array();
+		if ( 'note' === $cot ) {
+			$sua['note'] = VHCPVP_Util::st( $gt );
+		} else {
+			$so = VHCPVP_Util::num( $gt );
+			/* Mục con không có dự toán riêng — tiền của nó nằm ở cột thực tế / thành tiền. */
+			if ( 'duToan' === $cot && '' !== trim( (string) $cur['cap_cha'] ) ) {
+				return VHCPVP_Util::err( 'Mục con không có ô dự toán riêng — dự toán nằm ở hạng mục lớn.' );
+			}
+			$sua[ $map[ $cot ] ] = $so;
+			if ( 'soLuong' === $cot || 'donGia' === $cot ) {
+				$sl = ( 'soLuong' === $cot ) ? $so : VHCPVP_Util::num( $cur['so_luong'] );
+				$dg = ( 'donGia' === $cot )  ? $so : VHCPVP_Util::num( $cur['don_gia'] );
+				$sua['thanh_tien'] = $sl * $dg;
+			}
+		}
+		$_dt = self::loi_sua_du_toan_( $ma_da, $row, $cur, $sua );
+		if ( '' !== $_dt ) { return VHCPVP_Util::err( $_dt ); }
+
+		$wpdb->update( $t, $sua, array( 'ma_da' => (string) $ma_da, 'row_no' => $row ) );
+		VHCPVP_Log::log_action( array(
+			'actor'  => VHCPVP_Auth::nguoi(),
+			'role'   => VHCPVP_Auth::vai_tro(),
+			'action' => 'Sửa ô trong bảng dự án',
+			'target' => (string) $ma_da . '#' . $row,
+			'detail' => $cot . ': ' . VHCPVP_Util::st( $gt ),
+		) );
+		return VHCPVP_Util::ok();
+	}
+
 	public static function dat_anh_line( $ma_da, $row, $url ) {
 		return self::sua_o_line_( $ma_da, $row, 'anh', trim( (string) $url ), false, 'Đính ảnh vào dòng dự án' );
 	}

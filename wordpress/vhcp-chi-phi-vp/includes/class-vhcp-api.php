@@ -335,6 +335,7 @@ class VHCPVP_API {
 			'xinQuyetToanDuAn'      => array( 'VHCPVP_DuAn', 'xin_quyet_toan_dot' ),
 			'datTrangThaiQTDuAn'    => array( 'VHCPVP_DuAn', 'dat_tt_qt' ),
 			'datAnhDuAnLine'        => array( 'VHCPVP_DuAn', 'dat_anh_line' ),
+			'datODuAnLine'          => array( 'VHCPVP_DuAn', 'dat_o_line' ),
 			'goAnhDuAnLine'         => array( 'VHCPVP_DuAn', 'go_anh_line' ),
 			'themHoSoDuAnLine'      => array( 'VHCPVP_DuAn', 'them_ho_so_line' ),
 			'datKyDuAn'             => array( 'VHCPVP_DuAn', 'set_ky_da' ),

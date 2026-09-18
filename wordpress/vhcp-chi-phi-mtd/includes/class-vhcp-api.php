@@ -335,6 +335,7 @@ class VHCPMTD_API {
 			'xinQuyetToanDuAn'      => array( 'VHCPMTD_DuAn', 'xin_quyet_toan_dot' ),
 			'datTrangThaiQTDuAn'    => array( 'VHCPMTD_DuAn', 'dat_tt_qt' ),
 			'datAnhDuAnLine'        => array( 'VHCPMTD_DuAn', 'dat_anh_line' ),
+			'datODuAnLine'          => array( 'VHCPMTD_DuAn', 'dat_o_line' ),
 			'goAnhDuAnLine'         => array( 'VHCPMTD_DuAn', 'go_anh_line' ),
 			'themHoSoDuAnLine'      => array( 'VHCPMTD_DuAn', 'them_ho_so_line' ),
 			'datKyDuAn'             => array( 'VHCPMTD_DuAn', 'set_ky_da' ),
