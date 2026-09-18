@@ -711,8 +711,37 @@
       S.trang[b.getAttribute('data-trang')] = parseInt(b.getAttribute('data-so'), 10) || 1;
       ve();
     });
-    /* Xoá một lượt phí đã nhập — cần có, vì nhập chồng ngày bị chối nên muốn sửa thì phải xoá
-       lượt cũ trước. Hỏi lại một câu: đây là con số tiền. */
+    /* Sửa một lượt phí: đổ lại vào chính ô nhập ở trên rồi bấm Lưu phí là ghi đè.
+       Làm được là nhờ 1.40.0 — gõ lại ĐÚNG khoảng cũ nay tính là sửa, không bị chối là chồng
+       ngày nữa (`khh_dt_momo_phi_dat` bỏ chính nó ra khỏi phép dò chồng, rồi INSERT ... ON
+       DUPLICATE KEY UPDATE trên khoá `(tu,den,tai_khoan)`). Trước đó muốn chữa một con số gõ
+       sai thì chỉ còn cách Xoá rồi nhập lại — anh Thắng gõ nhầm "68.866" thành 69đ và mắc
+       đúng chỗ này. */
+    G.addEventListener('click', function (e) {
+      var b = e.target.closest ? e.target.closest('[data-phi-sua]') : null;
+      if (!b) return;
+      e.preventDefault();
+      var dat = function (n, v) {
+        var o = G.querySelector('[data-phi="' + n + '"]');
+        if (o) { o.value = v; }
+        return o;
+      };
+      dat('tk', b.getAttribute('data-phi-tk'));
+      dat('tu', b.getAttribute('data-phi-tu'));
+      dat('den', b.getAttribute('data-phi-den'));
+      var oSo = dat('so', b.getAttribute('data-phi-so'));
+      /* Bôi sẵn số cũ: gõ số mới là đè thẳng, không phải xoá từng chữ. Và cuộn ô nhập vào tầm
+         mắt — bảng đã nhập nằm DƯỚI ô nhập, nên bấm Sửa ở dòng cuối mà không cuộn thì màn hình
+         y như không có gì xảy ra. */
+      if (oSo) {
+        if (oSo.scrollIntoView) { oSo.scrollIntoView({ block: 'center' }); }
+        oSo.focus();
+        if (oSo.select) { oSo.select(); }
+      }
+      var nut = G.querySelector('[data-phi-luu]');
+      if (nut) { nut.textContent = 'Lưu đè'; }
+    });
+    /* Xoá một lượt phí đã nhập. Hỏi lại một câu: đây là con số tiền. */
     G.addEventListener('click', function (e) {
       var b = e.target.closest ? e.target.closest('[data-phi-xoa]') : null;
       if (!b) return;
@@ -1522,6 +1551,7 @@
        trong khi bảng ghép còn rỗng và phí không chia được. */
     var tkGhep = S.dsR.momo_tk_ghep || [];
     var chuaChia = (S.dsR.momo_phi && S.dsR.momo_phi.chua_chia) || [];
+    var chiaTam  = (S.dsR.momo_phi && S.dsR.momo_phi.chia_tam) || [];
     var khoiPhi = '';
     if (S.cf && S.cf.duoc_ghi) {
       var tkThieu = Object.keys(phiThieu);
@@ -1540,7 +1570,15 @@
           return '<tr><td style="text-align:left"><b>' + esc(x.tai_khoan) + '</b></td>' +
             '<td style="text-align:left">' + esc(ngayVN(x.tu)) + ' → ' + esc(ngayVN(x.den)) + '</td>' +
             '<td class="s">' + tien(x.phi) + '</td>' +
-            '<td><button class="vien" type="button" data-phi-xoa="' + esc(x.id) + '">Xoá</button></td></tr>';
+            /* ⚠️ `data-phi-so` là số TRẦN ("62447"), không phải "62.447". Ô nhập nay là ô chữ
+               và máy chủ đọc được cả hai, nhưng đổ số đã chấm phẩy vào rồi lưu lại là một
+               vòng đọc-ghi thừa, chỉ chực sai. */
+            '<td style="white-space:nowrap">' +
+              '<button class="vien" type="button" data-phi-sua="1" data-phi-tk="' + esc(x.tai_khoan) +
+              '" data-phi-tu="' + esc(x.tu) + '" data-phi-den="' + esc(x.den) +
+              '" data-phi-so="' + esc(String(Math.round(Number(x.phi) || 0))) + '">Sửa</button> ' +
+              '<button class="vien" type="button" data-phi-xoa="' + esc(x.id) + '">Xoá</button>' +
+            '</td></tr>';
         }).join('') + '</tbody></table></div>';
 
       /* Không bọc `.khung` — khối này nằm BÊN TRONG khung Đối soát MoMo, lồng khung vào khung
@@ -1566,6 +1604,21 @@
             }).join(' · ') +
             '.<br>Hoặc chưa cơ sở nào được ghép vào tài khoản ấy (nạp lại sao kê MoMo có gõ mã tài ' +
             'khoản), hoặc khoảng ngày ấy không có giao dịch MoMo nào để chia.</div>'
+          : '') +
+        /* Chia tạm thì PHẢI nói là tạm. Con số trong cột Phí lúc này là phỏng đoán "cơ sở nào
+           chưa có chủ thì chắc của tài khoản này" — đúng khi cả hệ mới có một tài khoản, mà
+           chẳng còn đúng ngay khi tài khoản thứ hai có phí. Im lặng là để lại một cột số trông
+           y hệt số đã ghép đàng hoàng. */
+        (chiaTam.length
+          ? '<div class="canh-ghep" style="margin-top:8px"><b>Đang chia TẠM:</b> ' +
+            chiaTam.map(function (x) {
+              return esc(x.tai_khoan) + ' ' + esc(ngayVN(x.tu)) + '→' + esc(ngayVN(x.den)) +
+                ' · ' + tien(x.phi) + ' chia cho ' + (x.so_co_so || 0) + ' cơ sở';
+            }).join(' · ') +
+            '.<br>Tài khoản này chưa ghép được cơ sở nào, nên hệ tạm chia cho <b>mọi cơ sở chưa ' +
+            'thuộc tài khoản nào khác</b> — theo % doanh thu MoMo, y như lúc đã ghép. Đúng khi cả ' +
+            'hệ chỉ có một tài khoản chưa ghép; có tài khoản thứ hai thì <b>nạp lại sao kê MoMo có ' +
+            'gõ mã tài khoản</b> (thẻ Sao kê MoMo) để chia cho đúng pháp nhân.</div>'
           : '') + nhac +
         '<div class="loc" style="margin-top:10px;gap:6px">' +
           '<label class="o">Tài khoản<input type="text" data-phi="tk" list="dtTkGoi" placeholder="KH785" style="width:110px"></label>' +

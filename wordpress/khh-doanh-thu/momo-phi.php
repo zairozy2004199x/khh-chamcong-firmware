@@ -269,6 +269,48 @@ function khh_dt_momo_o_theo_tk( $tu, $den, $tk ) {
 }
 
 /**
+ * Doanh thu MoMo theo (ngày × cơ sở) của mấy mã cửa hàng CHƯA ghép vào tài khoản nào.
+ *
+ * Dùng cho phép "chia tạm" — xem chú thích trong `khh_dt_momo_phi_chia()`.
+ */
+function khh_dt_momo_o_chua_chu( $tu, $den ) {
+	global $wpdb;
+	$bang = khh_dt_bang_momo_sk();
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	if ( ! $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $bang ) ) ) {
+		return array();
+	}
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$ds = (array) $wpdb->get_results(
+		$wpdb->prepare(
+			"SELECT ngay, ma_ch, SUM(so_tien) tien FROM $bang
+			 WHERE ngay >= %s AND ngay <= %s GROUP BY ngay, ma_ch",
+			$tu,
+			$den
+		),
+		ARRAY_A
+	);
+	$o = array();
+	foreach ( $ds as $r ) {
+		if ( '' !== khh_dt_momo_tk_cua_ma_ch( $r['ma_ch'] ) ) {
+			continue;   // đã có chủ — không phải phần "chưa ai nhận"
+		}
+		$cs = function_exists( 'khh_dt_ma_ch_toi_co_so' ) ? khh_dt_ma_ch_toi_co_so( $r['ma_ch'] ) : '';
+		if ( '' === $cs ) {
+			$cs = $r['ma_ch'];
+		}
+		$k       = $r['ngay'] . '|' . $cs;
+		$o[ $k ] = ( isset( $o[ $k ] ) ? $o[ $k ] : 0 ) + (float) $r['tien'];
+	}
+	return $o;
+}
+
+/** Tài khoản này đã ghép được cơ sở nào chưa? */
+function khh_dt_momo_tk_co_co_so( $tk ) {
+	return in_array( khh_dt_momo_tk_chuan( $tk ), khh_dt_momo_tk_da_ghep(), true );
+}
+
+/**
  * Chia MỘT số tiền cho các ô theo tỷ lệ, sao cho tổng các phần BẰNG ĐÚNG số gốc.
  *
  * 🔴 PHÉP PHẦN DƯ LỚN NHẤT. Chia theo tỷ lệ rồi làm tròn từng phần thì tổng thường lệch số gốc
@@ -317,14 +359,45 @@ function khh_dt_chia_tron( $tong, $trong_so ) {
  *    một lượt phí sẽ ra số khác nhau tuỳ người đang nhìn kỳ nào. Nên chia theo đúng mấy ngày mà
  *    lượt phí ấy phủ, xuống tới từng (ngày × cơ sở), rồi cộng lại những ô nằm trong khoảng xem.
  *
- * @return array [ 'co_so' => [ tên cơ sở => phí ], 'tong' => tổng phí rơi vào khoảng xem ]
+ * @return array [ 'co_so' => [ tên cơ sở => phí ], 'tong' => tổng phí rơi vào khoảng xem,
+ *               'chua_chia' => [ lượt phí không chia được ],
+ *               'chia_tam'  => [ lượt phí chia tạm cho cơ sở chưa có chủ ] ]
  */
 function khh_dt_momo_phi_chia( $tu, $den ) {
 	$ra   = array();
 	$tong = 0.0;
 	$ket  = array();   // lượt phí KHÔNG chia được — phải nói ra, xem dưới
-	foreach ( khh_dt_momo_phi_ds( $tu, $den ) as $p ) {
-		$o = khh_dt_momo_o_theo_tk( $p['tu'], $p['den'], $p['tai_khoan'] );
+	$tam  = array();   // lượt phí chia TẠM cho cơ sở chưa có chủ — cũng phải nói ra
+	$ds_p = khh_dt_momo_phi_ds( $tu, $den );
+
+	/* ═══ CHIA TẠM KHI CHƯA GHÉP ĐƯỢC TÀI KHOẢN ═══════════════════════════════════════════
+	   Anh Thắng 18/09/2026: *"Đã có phí sao không chia cho cửa hàng luôn đi"*. Đúng — bảng
+	   ghép `mã cửa hàng -> tài khoản` chỉ học được từ lượt nạp sao kê CÓ gõ mã tài khoản, mà
+	   sao kê thì đã nạp từ trước khi có ô ấy. Bắt nạp lại cả tháng chỉ để chia một con số phí
+	   là bắt làm lại việc đã làm.
+
+	   Nên: tài khoản nào chưa ghép được cơ sở nào thì phí của nó chia cho mấy cơ sở CHƯA ghép
+	   vào tài khoản nào khác — tức phần "chưa ai nhận".
+
+	   🔴 NHƯNG CHỈ KHI CÓ ĐÚNG MỘT TÀI KHOẢN NHƯ THẾ. Hai tài khoản cùng chưa ghép mà cùng
+	      chia vào một rổ cơ sở thì mỗi cơ sở gánh phí của CẢ HAI pháp nhân — tổng toàn hệ vẫn
+	      đúng nên không gì báo, mà từng cơ sở thì sai, đúng kiểu sai khó thấy nhất. Hai tài
+	      khoản trở lên thì thà để "chưa chia được" và bảo người ta nạp lại sao kê kèm mã. */
+	$mo_coi = array();
+	foreach ( $ds_p as $p ) {
+		if ( ! khh_dt_momo_tk_co_co_so( $p['tai_khoan'] ) ) {
+			$mo_coi[ khh_dt_momo_tk_chuan( $p['tai_khoan'] ) ] = 1;
+		}
+	}
+	$duoc_tam = ( 1 === count( $mo_coi ) );
+
+	foreach ( $ds_p as $p ) {
+		$la_tam = false;
+		$o      = khh_dt_momo_o_theo_tk( $p['tu'], $p['den'], $p['tai_khoan'] );
+		if ( ! $o && $duoc_tam && ! khh_dt_momo_tk_co_co_so( $p['tai_khoan'] ) ) {
+			$o      = khh_dt_momo_o_chua_chu( $p['tu'], $p['den'] );
+			$la_tam = (bool) $o;
+		}
 		if ( ! $o ) {
 			/* 🔴 KHÔNG ĐƯỢC IM LẶNG. Không ô nào nghĩa là chưa cơ sở nào được ghép vào tài khoản
 			   ấy (chưa nạp sao kê kèm mã tài khoản), hoặc khoảng ngày ấy không có giao dịch nào.
@@ -338,6 +411,20 @@ function khh_dt_momo_phi_chia( $tu, $den ) {
 			);
 			continue;
 		}
+		if ( $la_tam ) {
+			$cs_tam = array();
+			foreach ( array_keys( $o ) as $k ) {
+				list( , $c )    = explode( '|', $k, 2 );
+				$cs_tam[ $c ] = 1;
+			}
+			$tam[] = array(
+				'tai_khoan' => $p['tai_khoan'],
+				'tu'        => $p['tu'],
+				'den'       => $p['den'],
+				'phi'       => (float) $p['phi'],
+				'so_co_so'  => count( $cs_tam ),
+			);
+		}
 		$chia = khh_dt_chia_tron( (float) $p['phi'], $o );
 		foreach ( $chia as $k => $tien ) {
 			list( $ngay, $cs ) = explode( '|', $k, 2 );
@@ -348,7 +435,7 @@ function khh_dt_momo_phi_chia( $tu, $den ) {
 			$tong     += $tien;
 		}
 	}
-	return array( 'co_so' => $ra, 'tong' => $tong, 'chua_chia' => $ket );
+	return array( 'co_so' => $ra, 'tong' => $tong, 'chua_chia' => $ket, 'chia_tam' => $tam );
 }
 
 /**

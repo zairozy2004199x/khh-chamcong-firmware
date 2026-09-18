@@ -168,25 +168,65 @@ phep( 'và mang số mới', 68866.0 === (float) $ds_sua[0]['phi'] );
 phep( 'khoảng khác mà chồng ngày thì VẪN chối',
 	is_wp_error( khh_dt_momo_phi_dat( '2026-09-01', '2026-09-03', 'KH785', 100 ) ) );
 
-/* ③ Nhập phí mà chưa ghép được cơ sở nào vào tài khoản -> PHẢI nói ra, không im lặng. */
+/* ③ Nhập phí mà chưa ghép được cơ sở nào vào tài khoản.
+      Anh Thắng: *"Đã có phí sao không chia cho cửa hàng luôn đi"* — nên hệ CHIA TẠM cho mấy cơ
+      sở chưa thuộc tài khoản nào, và nói rõ là tạm. Trước đó nó trả về 0 và chỉ báo suông. */
 dung_bang();
 gd( 'k1', '2026-09-01', 5000000, 'KHTUTU2' );   // có giao dịch, nhưng CHƯA học tài khoản
+gd( 'k2', '2026-09-01', 5000000, 'KHVRFUN' );
 khh_dt_momo_phi_dat( '2026-09-01', '2026-09-01', 'KH785', 62447 );
 $c7 = khh_dt_momo_phi_chia( '2026-09-01', '2026-09-16' );
-phep( 'chưa ghép cơ sở thì chia ra 0', 0 === (int) $c7['tong'] );
-phep( '🔴 nhưng PHẢI báo là có lượt phí chưa chia được', 1 === count( $c7['chua_chia'] ) );
-phep( 'báo đúng tài khoản và số tiền',
-	'KH785' === $c7['chua_chia'][0]['tai_khoan'] && 62447.0 === (float) $c7['chua_chia'][0]['phi'] );
-/* Và `tk_da_ghep` KHÔNG được kể tài khoản mới chỉ nhập phí — đó là lỗi làm màn báo "đã biết
+phep( '🔴 chưa ghép tài khoản thì vẫn CHIA TẠM, không bỏ trống', 62447 === (int) $c7['tong'] );
+phep( 'chia tạm xong cộng lại vẫn đúng số gốc',
+	62447 === (int) array_sum( array_map( 'intval', $c7['co_so'] ) ) );
+phep( 'chia tạm cho cả 2 cơ sở chưa có chủ', 2 === count( $c7['co_so'] ) );
+phep( '🔴 và PHẢI nói rõ là đang chia TẠM', 1 === count( $c7['chia_tam'] ) );
+phep( 'báo tạm kèm đúng tài khoản, số tiền và số cơ sở',
+	'KH785' === $c7['chia_tam'][0]['tai_khoan']
+	&& 62447.0 === (float) $c7['chia_tam'][0]['phi']
+	&& 2 === (int) $c7['chia_tam'][0]['so_co_so'] );
+phep( 'chia tạm được thì không còn kể là "chưa chia được"', array() === $c7['chua_chia'] );
+
+/* 🔴 CHỐT NGƯỢC — HAI TÀI KHOẢN CÙNG CHƯA GHÉP THÌ CẤM CHIA TẠM.
+   Cùng đổ vào một rổ cơ sở là mỗi cơ sở gánh phí của CẢ HAI pháp nhân. Tổng toàn hệ vẫn đúng
+   nên không gì báo, mà từng cơ sở thì sai — đúng kiểu sai khó thấy nhất. */
+khh_dt_momo_phi_dat( '2026-09-01', '2026-09-01', 'KH989', 10000 );
+$c7b = khh_dt_momo_phi_chia( '2026-09-01', '2026-09-16' );
+phep( '🔴 hai tài khoản cùng chưa ghép thì KHÔNG chia tạm nữa', 0 === (int) $c7b['tong'] );
+phep( 'mà báo cả hai là chưa chia được', 2 === count( $c7b['chua_chia'] ) );
+phep( 'và không báo tạm cái nào', array() === $c7b['chia_tam'] );
+
+/* `tk_da_ghep` KHÔNG được kể tài khoản mới chỉ nhập phí — đó là lỗi làm màn báo "đã biết
    KH785" trong khi bảng ghép rỗng. */
 phep( '🔴 tài khoản chỉ mới nhập phí KHÔNG tính là "đã ghép cơ sở"',
 	! in_array( 'KH785', khh_dt_momo_tk_da_ghep(), true ) );
 phep( 'nhưng vẫn được gợi ý ở ô gõ', in_array( 'KH785', khh_dt_momo_tk_ds(), true ) );
-/* Ghép xong thì hết báo. */
+
+/* Ghép đàng hoàng thì mỗi tài khoản về đúng cơ sở của mình, và hết báo tạm. */
 khh_dt_momo_tk_hoc( array( 'KHTUTU2' ), 'KH785' );
+khh_dt_momo_tk_hoc( array( 'KHVRFUN' ), 'KH989' );
 $c8 = khh_dt_momo_phi_chia( '2026-09-01', '2026-09-16' );
-phep( 'ghép xong thì chia được', 62447 === (int) $c8['tong'] );
+phep( 'ghép xong thì chia thật', 72447 === (int) $c8['tong'] );
 phep( 'và hết báo "chưa chia được"', array() === $c8['chua_chia'] );
+phep( '🔴 và hết báo "chia tạm"', array() === $c8['chia_tam'] );
+$ten785 = khh_dt_ma_ch_toi_co_so( 'KHTUTU2' );
+$ten989 = khh_dt_ma_ch_toi_co_so( 'KHVRFUN' );
+$ten785 = '' === $ten785 ? 'KHTUTU2' : $ten785;
+$ten989 = '' === $ten989 ? 'KHVRFUN' : $ten989;
+phep( '🔴 phí KH785 không rơi sang cơ sở của KH989',
+	62447 === (int) $c8['co_so'][ $ten785 ] && 10000 === (int) $c8['co_so'][ $ten989 ] );
+
+/* ④ Cơ sở ĐÃ có chủ thì phép chia tạm không được đụng tới. */
+dung_bang();
+gd( 'm1', '2026-09-01', 5000000, 'KHDAGHEP' );
+gd( 'm2', '2026-09-01', 5000000, 'KHCHUAAI' );
+khh_dt_momo_tk_hoc( array( 'KHDAGHEP' ), 'KH989' );
+khh_dt_momo_phi_dat( '2026-09-01', '2026-09-01', 'KH785', 1000 );
+$c9  = khh_dt_momo_phi_chia( '2026-09-01', '2026-09-16' );
+$ten = khh_dt_ma_ch_toi_co_so( 'KHCHUAAI' );
+$ten = '' === $ten ? 'KHCHUAAI' : $ten;
+phep( '🔴 chia tạm CHỈ đụng cơ sở chưa có chủ',
+	array_keys( $c9['co_so'] ) === array( $ten ) && 1000 === (int) $c9['co_so'][ $ten ] );
 
 if ( $hong ) {
 	echo "\n✗ HỎNG " . count( $hong ) . " phép (đạt $dat):\n";

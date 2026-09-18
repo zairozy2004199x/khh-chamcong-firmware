@@ -97,6 +97,24 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.41.0 =
+* **Nút Sửa trên từng lượt phí đã nhập.** Bấm là đổ nguyên lượt ấy (tài khoản, khoảng ngày, số
+  tiền) lên ô nhập ở trên, bôi sẵn con số cũ, cuộn ô vào tầm mắt — gõ số mới rồi bấm Lưu là ghi
+  đè. Trước đây muốn chữa một con số gõ sai thì phải Xoá dòng rồi nhập lại từ đầu.
+* 🔴 **Đã nhập phí là chia cho cửa hàng, không để trống.** Bảng ghép `mã cửa hàng → tài khoản`
+  chỉ học được từ lượt nạp sao kê CÓ gõ mã tài khoản, mà sao kê thì đã nạp từ trước khi có ô ấy
+  — nên phí nhập vào nằm im, cột Phí trống trơn. Nay tài khoản nào chưa ghép được cơ sở nào thì
+  phí của nó **chia tạm cho mọi cơ sở chưa thuộc tài khoản nào khác**, vẫn theo % doanh thu và
+  vẫn cộng lại đúng số đã nhập.
+* **Chia tạm thì màn hình nói rõ là tạm**, kèm tài khoản, khoảng ngày, số tiền và chia cho mấy
+  cơ sở — cùng đường đi để chia cho đúng pháp nhân (nạp lại sao kê MoMo có gõ mã tài khoản).
+* 🔴 **Hai tài khoản cùng chưa ghép thì KHÔNG chia tạm.** Cùng đổ vào một rổ cơ sở là mỗi cơ sở
+  gánh phí của cả hai pháp nhân — tổng toàn hệ vẫn đúng nên không gì báo, mà từng cơ sở thì sai.
+  Trường hợp ấy hệ giữ nguyên "chưa chia được" và chỉ đường nạp lại sao kê kèm mã.
+* Cơ sở **đã có chủ thì phép chia tạm không đụng tới**.
+* `tools/test/kiem-momo-phi.php` lên **52 phép**; thêm `tools/test/kiem-sua-phi-momo.py` — **22
+  phép** cho phần màn hình.
+
 = 1.40.0 =
 * 🔴 **Nhập phí xong mà cột Phí vẫn trống — đã sửa.** Màn hình báo "Tài khoản đã biết: KH785"
   trong khi bảng ghép `mã cửa hàng -> tài khoản` còn rỗng, vì bản trước gộp hai thứ khác hẳn
