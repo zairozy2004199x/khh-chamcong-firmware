@@ -4,7 +4,7 @@ Tags: chi phí, phân bổ, báo cáo, MISA, kế toán
 Requires at least: 5.6
 Tested up to: 6.8
 Requires PHP: 7.2
-Stable tag: 1.28.0
+Stable tag: 1.29.0
 License: GPLv2 or later
 
 Phân bổ chi phí Máy tự động / Khu vui chơi ra "File tổng báo cáo" và phân bổ theo điểm để hạch toán MISA.
@@ -35,6 +35,20 @@ Nhân viên nhập khoản chi phí, kế toán duyệt, web tự tính.
 4. Nhập Excel kỳ đầu (hoặc ⋯ → Nạp dữ liệu mẫu) rồi bắt đầu.
 
 == Changelog ==
+
+= 1.29.0 =
+* ✅ **Tự động hẳn — không phải bấm "Nạp" nữa** (anh Thắng: *"đọc chuẩn rồi, mình tự động luôn,
+  không cần bấm chữ nạp nữa"*). Cơ sở MỚI bên nguồn nay được **tự nối, tự tạo điểm / dòng lương**
+  ngay trong lượt lấy tự động (mở trang · đổi kỳ · 10 phút một lần), thay vì đứng chờ ở dòng
+  "thiếu liên kết".
+* Hai chốt vẫn giữ, vì chúng chặn hai cái sai **không nhìn thấy được**:
+  · **Không đoán bừa bộ phận** — đoán được từ tên, hoặc có bộ phận mặc định của nguồn, thì mới tạo;
+  không thì để nguyên và báo ra. Doanh thu vào nhầm bộ phận là tỷ trọng phân bổ chi phí sai cho
+  cả hai bên mà tổng vẫn cộng đẹp.
+  · **Không bịa Mã đơn vị** — điểm mới để trống mã, dòng trạng thái nhắc *"nhớ điền Mã đơn vị"* và
+  tab Kiểm tra vẫn cảnh báo cho tới khi điền.
+* Dòng trạng thái ghi rõ **vừa tự tạo mấy điểm / dòng nào**. Nút "Nạp" vẫn còn cho ai muốn xem
+  trước từng dòng.
 
 = 1.28.0 =
 * 🔴 **Sửa lỗi bản nháp của kỳ khác nằm lại sau khi đổi kỳ.** Ảnh anh Thắng gửi: đang ở kỳ

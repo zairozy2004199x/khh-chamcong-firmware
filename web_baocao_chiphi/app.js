@@ -812,7 +812,7 @@
     /* Ô chọn có BA nhóm: bỏ qua · ghép vào điểm sẵn có · TẠO ĐIỂM MỚI trong một bộ phận.
        Nhóm thứ ba là chỗ gỡ cái kẹt anh Thắng nói: cửa hàng mới bên FABi không còn phải đứng mãi
        ở "— chưa ghép —" rồi rơi ra ngoài báo cáo. */
-    const opt = (x) => `<option value="" ${x.siteIndex === null && !x.taoMoi && !x.boHan ? 'selected' : ''}>— chưa ghép (bỏ qua kỳ này) —</option>`
+    const opt = (x) => `<option value="" ${x.siteIndex === null && !x.taoMoi && !x.boHan ? 'selected' : ''}>— chưa ghép (tự lấy sẽ nối lại) —</option>`
       + `<option value="bo_han" ${x.boHan ? 'selected' : ''}>🚫 Bỏ hẳn — không thuộc báo cáo này, đừng hỏi lại</option>`
       + `<optgroup label="Ghép vào điểm sẵn có">` + state.sites
         .map((s, i) => `<option value="${i}" ${i === x.siteIndex ? 'selected' : ''}>${esc(deptName(s.dept))} · ${esc(s.name || s.code || '(chưa đặt tên)')}</option>`).join('')
@@ -880,12 +880,15 @@
     return ra;
   }
 
-  /** Các bộ phận mà nguồn đang mở được phép dùng (Ghế → Posh/JP; FABi → tất cả). */
-  function bpCuaNguon() {
-    const N = NGUON[(fabi && fabi.nguon) || 'fabi'] || NGUON.fabi;
+  /** Các bộ phận một nguồn được phép dùng (Ghế → Posh/JP; FABi → tất cả). */
+  function bpTheoNguon(nguon) {
+    const N = NGUON[nguon] || NGUON.fabi;
     if (!N.bp || !N.bp.length) return state.departments;
     return state.departments.filter((d) => N.bp.indexOf(d.id) >= 0);
   }
+
+  /** Bộ phận của nguồn đang mở trong hộp xem trước. */
+  function bpCuaNguon() { return bpTheoNguon((fabi && fabi.nguon) || 'fabi'); }
 
   function bpTuNguon(nguon) {
     const N = NGUON[nguon] || NGUON.fabi;
@@ -930,6 +933,7 @@
         ${esc(NGUON.ghe.nhan)} nhưng điểm lại nằm ngoài ${esc((NGUON.ghe.bp || []).map(deptName).join(' / '))},
         nên tiền ghế đang cộng vào bộ phận khác. Em đã <strong>ngừng ghi</strong> vào mấy điểm ấy.
         <button class="btn small" data-act="goSaiBp">Gỡ ${sai.length} liên kết sai & xoá số đã ghi nhầm</button>` : ''}
+      ${(fabiLan && fabiLan.tao) ? `<br><strong>✚ Vừa tự tạo ${fabiLan.tao} điểm mới</strong> từ cơ sở mới bên nguồn: ${esc((fabiLan.moi || []).map((x) => x.name).slice(0, 8).join(', '))} — <strong>nhớ điền Mã đơn vị</strong>.` : ''}
       ${ve0.length ? `<br><strong>${ve0.length} điểm chưa có số liệu ${esc(R_periodLabel())}</strong> — để trống:
         ${esc(ve0.map((x) => x.code || x.name).join(', '))}.` : ''}
       ${mat.length ? `<br><strong>⚠ ${mat.length} điểm mất liên kết</strong> (cửa hàng không còn bên nguồn): ${esc(mat.map((x) => x.code || x.name).join(', '))} — vào cột Nguồn gỡ liên kết rồi nối lại.` : ''}
@@ -948,7 +952,7 @@
   async function fabiLayNgay(im) {
     if (!state.options.fabiTuDong || !API.isEnabled() || sync.locked) return;
     /* Chạy CẢ HAI nguồn. Nguồn nào chưa có điểm nào nối thì bỏ qua, khỏi gọi máy chủ thừa. */
-    let doi = 0; const mat = []; const soDu = []; const sai = []; const ve0 = [];
+    let doi = 0, tao = 0; const mat = []; const soDu = []; const sai = []; const ve0 = []; const moi = [];
     for (const n of Object.keys(NGUON)) {
       const N = NGUON[n];
       if (!(state.sites || []).some((s) => (s[N.khoa] || '').trim())) continue;
@@ -961,12 +965,52 @@
         kq.mat.forEach((x) => mat.push(x));
         kq.saiBp.forEach((x) => sai.push(x));
         kq.veKhong.forEach((x) => ve0.push(x));
-        /* Phần tiền bên nguồn chưa nối vào điểm nào — xem khối dài trong engine.dongBoFabi. */
-        if (kq.tongChuaNoi > 0) soDu.push({ nguon: n, ds: kq.chuaNoi, tien: kq.tongChuaNoi, tongNguon: kq.tongNguon });
+        /* ═══════════════════════════════════════════════════════════════════════════════════
+         * 🔴 CƠ SỞ MỚI BÊN NGUỒN → TỰ NỐI LUÔN, KHÔNG BẮT BẤM "NẠP".
+         *
+         * Anh Thắng 18/09/2026: *"đọc chuẩn rồi, mình tự động luôn, không cần bấm chữ nạp nữa"*.
+         *
+         * Hai chốt vẫn giữ nguyên, vì chúng chống hai cái sai KHÔNG nhìn thấy được:
+         *   · Không đoán bừa bộ phận. Đoán được từ tên, hoặc có bộ phận mặc định của nguồn, thì
+         *     mới tạo; không thì để nguyên và BÁO RA — doanh thu vào nhầm bộ phận là tỷ trọng
+         *     phân bổ chi phí sai cho cả hai bên mà tổng vẫn cộng đẹp.
+         *   · Không bịa Mã đơn vị (xem taoDiemTuFabi) — mã bịa là bút toán hạch toán vào một đơn
+         *     vị không tồn tại, mà nhìn tờ nhập thì thấy có mã nên chẳng ai nghi.
+         * ═══════════════════════════════════════════════════════════════════════════════════ */
+        if (kq.tongChuaNoi > 0) {
+          /* 🔴 GHÉP TRÊN CẢ DANH SÁCH, KHÔNG PHẢI MỖI PHẦN CHƯA NỐI.
+             Đưa mỗi phần chưa nối vào thì lượt ghép gần đúng không thấy các điểm ĐÃ nối, nên nó
+             cấp một điểm đang thuộc cửa hàng khác cho một cửa hàng mới — điểm ấy mất liên kết cũ
+             và ăn doanh thu của cửa hàng mới. Chạy trên cả `d.ds` thì lượt đầu (theo liên kết đã
+             lưu) chiếm lại đúng các điểm ấy trước, không cửa nào lệch. */
+          const g = E.ghepFabi(state, d.ds, N.khoa, N.bp);
+          const md = bpMacDinh(n);
+          g.forEach((x) => {
+            if (x.boHan || x.siteIndex !== null) return;
+            let bp = E.doanBoPhan(x.cua_hang, bpTheoNguon(n));
+            if (!bp && md) { bp = md; }
+            if (bp) { x.taoMoi = bp; x.cach = 'tao'; }
+          });
+          const t = E.taoDiemTuFabi(state, g, N.khoa);
+          const kq2 = E.napFabi(state, g, N.khoa);
+          tao += t.tao.length;
+          doi += kq2.xong;
+          t.tao.forEach((x) => moi.push(x));
+          const conDu = g.filter((x) => !x.boHan && x.siteIndex === null && !x.taoMoi);
+          const tienDu = conDu.reduce((a, x) => a + E.num(x.thanh_tien), 0);
+          if (tienDu > 0) soDu.push({ nguon: n, ds: conDu, tien: tienDu, tongNguon: kq.tongNguon });
+        }
       } catch (e) { /* mạng hỏng thì thôi, số cũ vẫn còn — lần mở sau lấy lại */ }
     }
-    fabiLan = { luc: new Date().toLocaleTimeString('vi-VN'), soDoi: doi, mat, soDu, sai, ve0 };
-    if (doi || ve0.length) { commit(); if (!im) toast(`🔗 Cập nhật ${doi} điểm từ nguồn đã nối.` + (ve0.length ? ` ${ve0.length} điểm chưa có số liệu ${R_periodLabel()} — để trống.` : '')); }
+    fabiLan = { luc: new Date().toLocaleTimeString('vi-VN'), soDoi: doi, mat, soDu, sai, ve0, tao, moi };
+    if (doi || ve0.length || tao) {
+      commit();
+      if (!im) {
+        toast(`🔗 Cập nhật ${doi} điểm từ nguồn đã nối.`
+          + (tao ? ` Tự tạo ${tao} điểm mới — nhớ điền Mã đơn vị.` : '')
+          + (ve0.length ? ` ${ve0.length} điểm chưa có số liệu ${R_periodLabel()} — để trống.` : ''));
+      }
+    }
     else { recompute(); renderTab(); }
   }
 
@@ -1091,8 +1135,9 @@
       <span>${linh} dòng lương ← trang Nhân sự.
       ${!state.options.luongTuDong ? 'Đang <strong>tắt</strong> tự lấy — số giữ nguyên như đã ghi.'
         : sync.locked ? 'Kỳ <strong>đã chốt</strong> nên dừng lấy, số đứng yên.'
-        : (luongLan && luongLan.luc) ? `Lấy lần cuối lúc ${esc(luongLan.luc)}${luongLan.soDoi ? ` · đổi ${luongLan.soDoi} dòng` : ' · không có gì đổi'}.` : 'Sẽ tự lấy khi mở kỳ.'}
+        : (luongLan && luongLan.luc) ? `Lấy lần cuối lúc ${esc(luongLan.luc)}${luongLan.soDoi ? ` · đổi ${luongLan.soDoi} dòng` : ' · không có gì đổi'} — tự lấy lại mỗi khi mở trang, mỗi khi đổi kỳ và <strong>10 phút một lần</strong>, khỏi bấm.` : 'Sẽ tự lấy khi mở trang.'}
       ${mat.length ? `<br><strong>⚠ ${mat.length} dòng mất liên kết</strong> (cơ sở không còn bên Nhân sự): ${esc(mat.map((x) => x.name).join(', '))}.` : ''}
+      ${(luongLan && luongLan.tao) ? `<br><strong>✚ Vừa tự tạo ${luongLan.tao} dòng lương mới</strong> từ cơ sở mới bên Nhân sự: ${esc((luongLan.moi || []).map((x) => x.name).slice(0, 8).join(', '))} — <strong>nhớ điền Mã đơn vị</strong>.` : ''}
       ${lve0.length ? `<br><strong>${lve0.length} dòng chưa có số liệu ${esc(R_periodLabel())}</strong> — để trống:
         ${esc(lve0.map((x) => x.name).join(', '))}.` : ''}
       ${chuaGia.length ? `<br><strong>⚠ ${chuaGia.length} dòng chưa khai giá giờ bên Chấm công</strong> nên chưa ra tiền: ${esc(chuaGia.map((x) => x.name).join(', '))}.` : ''}
@@ -1108,9 +1153,37 @@
       const d = r && r.data ? r.data : r;
       if (!d || d.ok === false || !d.ds) return;
       const kq = E.dongBoLuong(state, d.ds);
+      /* Cơ sở mới bên Nhân sự → tự tạo dòng lương luôn. Cùng hai chốt như bên doanh thu: không
+         đoán bừa bộ phận, không bịa mã đơn vị. Xem khối dài ở fabiLayNgay(). */
+      let tao = 0; const moi = [];
+      if (kq.chuaNoi && kq.chuaNoi.length) {
+        const g = E.ghepLuong(state, kq.chuaNoi);
+        const md = bpLuongMacDinh();
+        g.forEach((x) => {
+          if (x.co_luong === false || x.rowIndex !== null) return;
+          let bp = E.doanBoPhan(x.cua_hang, state.departments);
+          if (!bp && (x.bo_phan || '').trim() && state.departments.some((y) => y.id === x.bo_phan)) { bp = x.bo_phan; }
+          if (!bp && md) { bp = md; }
+          if (bp) { x.taoMoi = bp; x.cach = 'tao'; }
+        });
+        const r2 = E.napLuong(state, g);
+        tao = r2.tao;
+        g.forEach((x) => { if (x.taoMoi) moi.push({ name: E.tenGonFabi(x.cua_hang) || x.cua_hang }); });
+        kq.soDoi += r2.xong;
+        kq.chuaNoi = g.filter((x) => x.co_luong !== false && x.rowIndex === null && !x.taoMoi);
+        kq.tongChuaNoi = kq.chuaNoi.reduce((a, x) => a + E.num(x.thanh_tien), 0);
+      }
       luongLan = { luc: new Date().toLocaleTimeString('vi-VN'), soDoi: kq.soDoi, mat: kq.mat,
-        chuaGia: kq.chuaGia, chuaNoi: kq.chuaNoi, tongChuaNoi: kq.tongChuaNoi, ve0: kq.veKhong };
-      if (kq.soDoi || kq.veKhong.length) { commit(); if (!im) toast(`🔗 Cập nhật ${kq.soDoi} dòng lương từ Nhân sự.` + (kq.veKhong.length ? ` ${kq.veKhong.length} dòng chưa có số liệu ${R_periodLabel()} — để trống.` : '')); }
+        chuaGia: kq.chuaGia, chuaNoi: kq.chuaNoi, tongChuaNoi: kq.tongChuaNoi, ve0: kq.veKhong,
+        tao, moi };
+      if (kq.soDoi || kq.veKhong.length || tao) {
+        commit();
+        if (!im) {
+          toast(`🔗 Cập nhật ${kq.soDoi} dòng lương từ Nhân sự.`
+            + (tao ? ` Tự tạo ${tao} dòng mới — nhớ điền Mã đơn vị.` : '')
+            + (kq.veKhong.length ? ` ${kq.veKhong.length} dòng chưa có số liệu ${R_periodLabel()} — để trống.` : ''));
+        }
+      }
       else { recompute(); renderTab(); }
     } catch (e) { /* mạng hỏng thì thôi, số cũ vẫn còn */ }
   }
