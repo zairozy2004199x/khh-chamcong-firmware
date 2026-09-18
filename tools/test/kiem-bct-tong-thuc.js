@@ -58,7 +58,12 @@ t('trả cờ tongThuc cho màn hình', /'tongThuc'\s*=>/.test(b));
 
 console.log('── Màn hình phải nói ra ───────────────────────────────────────');
 t('in công thức khi TỔNG là tiền thật', /r\.tongThuc/.test(trang) && /thực thu tiền mặt \+ VietQR thực/.test(trang));
-t('cảnh báo tiền bank chưa quy được cơ sở', /r\.vqKhongKhop/.test(trang) && /CHƯA quy được về cơ sở/.test(trang));
+/* 🔴 ĐẢO LẠI TỪ 2.114.0 — anh Thắng 19/09/2026: *"Dữ liệu QR từ nhiều nguồn mà, nếu không biết
+   thì bỏ qua"*. Tài khoản nhận VietQR không chỉ có ghế; phần không khớp đo trên host ra 725 TỶ
+   trong khi cả bảng ghế kỳ ấy là 1,24 tỷ. Báo nó lên là báo tiền của mảng khác. Bài kiểm nay canh
+   chiều NGƯỢC: không được có dải cảnh báo ấy nữa. */
+t('KHÔNG báo "tiền chưa quy được cơ sở" (tiền nhiều nguồn, không phải của ghế)',
+  !/CHƯA quy được về cơ sở/.test(trang) && !/Chưa quy được cơ sở/.test(trang));
 t('nói rõ mức Từng ghế là số nhân viên khai', /QR NHÂN VIÊN KHAI/.test(trang));
 t('nói rõ khi chưa đọc được sao kê', /Chưa đọc được sao kê/.test(trang));
 

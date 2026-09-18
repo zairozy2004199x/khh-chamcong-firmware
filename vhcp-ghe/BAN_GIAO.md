@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-09-18 · Phiên bản hiện tại: **2.113.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-09-18 · Phiên bản hiện tại: **2.114.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,21 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v2.114.0 — Bỏ cảnh báo "tiền VietQR chưa quy được cơ sở"
+
+Anh Thắng 19/09/2026: *"Dữ liệu QR từ nhiều nguồn mà, nếu không biết thì bỏ qua"*.
+
+Bản 2.113.0 thêm dải cam báo phần tiền VietQR về bank mà không quy được về cơ sở nào, phòng ca
+"máy chưa gắn cơ sở → tiền thật rơi ra ngoài bảng". Đo trên host thật thì con số ấy ra
+**725.709.481.314đ** trong khi cả bảng ghế cùng kỳ chỉ **1,24 tỷ** — tức tài khoản nhận VietQR
+phục vụ nhiều mảng, gần như toàn bộ phần không khớp là tiền của mảng khác chứ không phải ghế lạc
+mất tiền. Một cảnh báo lệch 500 lần thì không ai đọc, và nó che mất cảnh báo thật.
+
+Bỏ ở **hai chỗ**: dải cam dưới cột TỔNG, và dòng "Chưa quy được cơ sở" trong lớp đối chiếu ở nút
+QR. Không khớp = không phải của ghế ⇒ bỏ qua, không cộng vào TỔNG và cũng không kêu.
+`kiem-bct-tong-thuc.js` nay canh chiều ngược: không được có dải cảnh báo ấy.
+
 
 ### v2.113.0 — Báo cáo tổng: cột TỔNG là TIỀN THẬT, không còn là sản lượng máy
 

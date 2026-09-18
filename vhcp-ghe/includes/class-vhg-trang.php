@@ -8271,14 +8271,12 @@ function bctBang(r){
         + L('không lấy theo chỉ số máy, và không lấy số QR nhân viên khai (số ấy chỉ để đối chiếu ở nút QR).',
             'not derived from meters, and not the staff-entered QR (that is only for reconciliation).');
       wrap.appendChild(ghiChu);
-      if (r.vqKhongKhop) {
-        var canh = ktEl('div');
-        canh.style.cssText = 'margin:6px 0;padding:8px 11px;border-radius:8px;background:#fff7ed;'
-          + 'border:1px solid #fdba74;color:#7c2d12;font-size:12.5px;font-weight:600';
-        canh.textContent = '⚠ ' + ktVnd(r.vqKhongKhop) + 'đ ' + L('tiền VietQR đã về ngân hàng nhưng CHƯA quy được về cơ sở nào — số này KHÔNG nằm trong bảng dưới. Gắn máy vào đúng cơ sở (Quản lý ghế / Gắn mã máy) để nó vào đúng chỗ.',
-          'of VietQR money arrived but is not linked to any site — it is NOT in the table below.');
-        wrap.appendChild(canh);
-      }
+      /* 🔴 KHÔNG BÁO "tiền chưa quy được cơ sở" — anh Thắng 19/09/2026: *"Dữ liệu QR từ nhiều
+         nguồn mà, nếu không biết thì bỏ qua"*. Tài khoản nhận VietQR không chỉ có ghế: đo trên
+         host thật, phần không khớp ra 725.709.481.314đ trong khi cả bảng ghế kỳ ấy là 1,24 tỷ —
+         tức gần như toàn bộ số đó là tiền của mảng khác, không phải ghế lạc mất tiền. Một cảnh
+         báo đỏ sai lệch 500 lần thì không ai đọc nữa, và nó che mất những cảnh báo thật.
+         Không khớp = không phải của ghế ⇒ bỏ qua, không cộng vào TỔNG và cũng không kêu. */
     } else if (r.muc === 'ghe') {
       ghiChu = ktEl('div','mut');
       ghiChu.textContent = L('TỔNG theo từng ghế = thực thu tiền mặt + QR NHÂN VIÊN KHAI. Sao kê chỉ quy được tiền về cơ sở, không về từng ghế, nên mức này không có QR thực — gộp theo Cơ sở để xem số tiền thật.',
@@ -8351,7 +8349,7 @@ function bctBang(r){
   if (vqOn) {
     var note = '<b style="color:#dc2626">VietQR</b> = ' + L('tiền về THẬT từ ngân hàng (Sao Kê, theo ngày giao dịch) — số đỏ đậm là ĐANG LỆCH với số nhân viên nhập.',
                  'actual bank money (Sao Kê, by transaction date) — bold red means it DIFFERS from staff-entered.');
-    if (r.vqKhongKhop) { note += ' · ' + L('Chưa quy được cơ sở','Unmatched') + ': <b style="color:#dc2626">' + ktVnd(r.vqKhongKhop) + '</b> (' + L('máy chưa gắn cơ sở bên Ghế','link machine to a site in Ghế') + ')'; }
+
     /* Khối trái nay là 5 cột (cơ sở · mã KH · ghế · số ghế · TỔNG) hoặc 4 khi gộp theo cơ sở;
        phần còn lại đúng bằng số cột ngày — Tổng đã dọn sang trái, không cộng thêm 1 nữa. */
     chan += '<tr><td colspan="' + (cotGhe?5:4) + '"></td><td colspan="' + ((r.ngay||[]).length) + '" class="mut" style="font-weight:400;padding-top:6px">' + note + '</td></tr>';
