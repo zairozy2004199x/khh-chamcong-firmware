@@ -336,6 +336,22 @@ button.o-ung{border:0;background:transparent;font:inherit;color:var(--chu);curso
 .thanh button{flex:1;padding:11px 8px;font-size:14px}
 /* Chừa chỗ cho thanh dính, không thì nó che mất đầu khối vừa nhảy tới. */
 .khung{position:relative}
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 KHUNG XEM CAMERA PHẢI THẤP LẠI, KHÔNG THÌ NÚT CHỤP RƠI KHỎI MÀN.
+ *
+ * Anh Thắng 18/09/2026, hai ảnh chụp iPhone: *"Đẩy màn chụp nhỏ lại 1/2 để cho nút chụp lên
+ * cao. Gọn lại"*. Camera trước của điện thoại cho khung DỌC; `width:100%` thì chiều cao tự
+ * kéo theo tỷ lệ, và trên máy màn hẹp nó đẩy nút "Chụp ngay" xuống tận mép dưới — người đang
+ * đứng chấm công phải cuộn mới bấm được, giữa lúc một tay cầm máy tự chụp mặt mình.
+ *
+ * `max-height` theo `vh` chứ không theo pixel: màn nào cũng chừa đúng nửa trên cho khung xem,
+ * nửa dưới cho nút — không phụ thuộc máy.
+ *
+ * ⚠️ `object-fit:cover` chỉ CẮT PHẦN NHÌN, không đụng tới ảnh lưu. Ảnh chấm công vẽ từ
+ *    `video.videoWidth/videoHeight` sang một canvas riêng (xem `chup()`), nên vẫn đủ khung như
+ *    cũ. Nếu ngày nào đó đổi sang lưu chính canvas đang bày thì phải đọc lại chỗ này.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+.khung video,.khung canvas.xem{max-height:46vh;object-fit:cover}
 .dem{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
 	pointer-events:none;border-radius:var(--bo-the)}
 .dem span{font-size:96px;font-weight:800;color:#fff;line-height:1;
@@ -1055,17 +1071,17 @@ a{color:var(--nhan)}
 <!-- ============ MÀN CHỤP ẢNH ============ -->
 <div id="mChup" class="mn an"><div class="bao">
 	<h1>Chụp ảnh</h1>
-	<p class="mo">Đưa mặt vào khung, đủ sáng, rồi bấm <b>Chụp ngay</b>. Ảnh được đóng dấu giờ máy chủ.</p>
-	<div class="the" id="oMau"></div>
-	<div class="the" style="padding:10px">
+	<p class="mo" style="margin:0 0 8px">Đưa mặt vào khung, đủ sáng, rồi bấm <b>Chụp ngay</b>.
+		Ảnh được đóng dấu giờ máy chủ.</p>
+	<div class="the" id="oMau" style="margin:0 0 8px"></div>
+	<div class="the" style="padding:10px;margin:0">
 		<div class="khung">
 			<video id="vid" playsinline autoplay muted></video>
 			<canvas id="xem" class="xem an"></canvas>
 			<div id="oDem" class="dem an"><span id="soDem">5</span></div>
 		</div>
 		<div id="loiChup"></div>
-		<p></p>
-		<div class="hang" id="nhomChup">
+		<div class="hang" id="nhomChup" style="margin-top:10px">
 			<button id="btChup" class="chinh">Chụp ngay</button>
 			<button id="btHuyChup" class="phu">Huỷ</button>
 		</div>

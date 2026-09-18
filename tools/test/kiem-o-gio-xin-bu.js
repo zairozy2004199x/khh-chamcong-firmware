@@ -101,7 +101,23 @@ t('🔴 máy chủ cộng thêm một ngày cho ca qua nửa đêm',
 t('   và mã NV lấy từ thẻ phiên, không nhận từ thân',
   TRAM.indexOf("VHCC_Lich::lich_cua_nguoi( $u['ma_nv'], $ng, $ng )") >= 0);
 
-/* ── 5. MÁY CHỦ VẪN CHẶT ───────────────────────────────────────────────────────────────── */
+/* ── 5. KHUNG XEM CAMERA KHÔNG ĐƯỢC ĐẨY NÚT CHỤP KHỎI MÀN ──────────────────────────────── */
+/* Anh Thắng 18/09/2026, ảnh chụp iPhone: *"Đẩy màn chụp nhỏ lại 1/2 để cho nút chụp lên cao"*.
+   Camera trước cho khung DỌC; `width:100%` thì chiều cao kéo theo tỷ lệ và nút "Chụp ngay" rơi
+   xuống mép dưới — người đang một tay cầm máy tự chụp mặt mình phải cuộn mới bấm được. */
+t('🔴 khung xem camera có trần chiều cao', /\.khung video[^}]*max-height:\s*\d+vh/.test(TPL), 
+  (TPL.match(/\.khung video[^}]*}/) || [''])[0]);
+t('   trần tính theo vh, không theo pixel (màn nào cũng chừa đúng nửa)',
+  /\.khung video[^}]*max-height:\s*\d+vh/.test(TPL));
+/* 🔴 CẮT PHẦN NHÌN THÌ PHẢI CẮT CHO ĐẸP. Không có `object-fit:cover` thì trần chiều cao bóp
+   méo hình — mặt người bị dẹt, và đó là ảnh dùng để đối chiếu nhận diện. */
+t('🔴 và cắt bằng object-fit:cover, không bóp méo hình',
+  /\.khung video[^}]*object-fit:\s*cover/.test(TPL));
+/* Ảnh LƯU vẫn vẽ từ kích thước thật của video, không phải từ khung đã cắt. */
+t('🔴 ảnh lưu vẫn lấy từ videoWidth/videoHeight, không lấy từ khung đã cắt',
+  TPL.indexOf('v.videoWidth / v.videoHeight') >= 0);
+
+/* ── 6. MÁY CHỦ VẪN CHẶT ───────────────────────────────────────────────────────────────── */
 /* 🔴 Đây là vế dễ quên nhất: sửa cho người dùng đỡ khổ rồi tiện tay nới luôn cửa cuối. `phut()`
    là chỗ cuối cùng trước khi một con giờ thành công thành tiền. */
 t('🔴 VHCC_XinBu::phut() VẪN đòi đúng HH:mm',
