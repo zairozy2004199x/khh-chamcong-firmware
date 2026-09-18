@@ -375,67 +375,6 @@ class VHG_Trang {
 	 * Gọi tách ra bốn lượt thì trên 4G ở trung tâm thương mại là bốn cơ hội hỏng, và màn hình
 	 * hiện nửa vời — doanh thu có mà tình trạng ghế trống, người đọc không biết đang xem cái gì.
 	 */
-	/**
-	 * HÔM NAY NGƯỜI NÀY ĐÃ CHẤM CÔNG CHƯA — để NHẮC, không để CHẶN.
-	 *
-	 * =========================================================================================
-	 * Anh Thắng 18/09/2026: *"hãy loại bỏ tính năng bắt checkin mới nộp báo cáo, mà hãy chỉ đưa
-	 * cảnh báo thôi"*.
-	 * =========================================================================================
-	 * 🔴 NHẮC, KHÔNG CHẶN — VÀ ĐÓ LÀ MỘT QUYẾT ĐỊNH, KHÔNG PHẢI LÀM CHO NHANH.
-	 * Chặn nộp báo cáo vì chưa chấm công là đem một việc (kỷ luật giờ giấc) ra khoá một việc
-	 * khác hẳn (tiền mặt trong ngăn ghế phải được ghi nhận). Đêm nào máy chấm công hỏng, hoặc
-	 * người ta quên bấm, thì tiền không vào sổ — và tiền không vào sổ là mất thật, còn quên
-	 * chấm công thì bù được ngày mai. Nên ở đây chỉ có một dải vàng.
-	 *
-	 * 🔴 KHÔNG ĐOÁN NGƯỜI. Phiên của `/ghe` chỉ mang HỌ TÊN + vai trò + cơ sở, không mang mã NV
-	 *    (xem đầu `VHG_Auth`), nên phải tra ngược qua sổ người dùng — chính sổ mà
-	 *    `VHCC_DayGhe` đẩy sang, ở đó mỗi người có `maNV`.
-	 *    ⚠️ TRÙNG TÊN THÌ IM LẶNG. Hai người cùng tên là chuyện có thật trong sổ nhân sự; đoán
-	 *       bừa một mã là dải vàng nói sai về người đang đứng đọc nó — tệ hơn hẳn không nói gì.
-	 *    ⚠️ Không tra ra mã cũng IM LẶNG: người ngoài sổ chấm công (cộng tác viên, tài khoản
-	 *       dựng tay bên ghế) thì câu "bạn chưa chấm công" vừa sai vừa không sửa được.
-	 *
-	 * ⚠️ Gác `class_exists` + `method_exists` CÙNG HÀM với lời gọi — luật `kiem-goi-cheo.php`.
-	 *    Hai plugin cài độc lập, bản có thể lệch; thiếu hàm thì thôi nhắc, không nổ cả trang.
-	 *
-	 * @return array|null `array( 'chua' => bool, 'ten' => …, 'coso' => … )`, hoặc null khi
-	 *                    không đủ cơ sở để nói gì.
-	 */
-	private static function nhac_cham_cong( $ai ) {
-		$ten = trim( (string) ( isset( $ai['name'] ) ? $ai['name'] : '' ) );
-		if ( '' === $ten ) { return null; }
-		if ( ! class_exists( 'VHCC_Online' ) || ! method_exists( 'VHCC_Online', 'hom_nay' ) ) {
-			return null;
-		}
-		if ( ! class_exists( 'VHG_Auth' ) || ! method_exists( 'VHG_Auth', 'users' ) ) { return null; }
-
-		$users = VHG_Auth::users();
-		if ( is_wp_error( $users ) || ! is_array( $users ) ) { return null; }
-		$ma = '';
-		foreach ( $users as $u ) {
-			if ( 0 !== strcasecmp( trim( (string) $u['ten'] ), $ten ) ) { continue; }
-			$m = isset( $u['maNV'] ) ? trim( (string) $u['maNV'] ) : '';
-			if ( '' === $m ) { continue; }
-			if ( '' !== $ma && 0 !== strcasecmp( $ma, $m ) ) { return null; }   // trùng tên -> im
-			$ma = $m;
-		}
-		if ( '' === $ma ) { return null; }
-
-		/* Cơ sở của phiên có thể là một dãy ngăn bởi dấu phẩy — chấm ở BẤT KỲ cơ sở nào trong
-		   đó cũng tính là đã đi làm. Hỏi từng cái, thấy một lượt là thôi. */
-		$ds_cs = array_filter( array_map( 'trim',
-			explode( ',', (string) ( isset( $ai['coso'] ) ? $ai['coso'] : '' ) ) ) );
-		if ( ! $ds_cs ) { return null; }
-		foreach ( $ds_cs as $cs ) {
-			$hn = VHCC_Online::hom_nay( $cs, $ma );
-			if ( is_array( $hn ) && $hn ) {
-				return array( 'chua' => false, 'ten' => $ten, 'coso' => $cs );
-			}
-		}
-		return array( 'chua' => true, 'ten' => $ten, 'coso' => (string) reset( $ds_cs ) );
-	}
-
 	private static function so_lieu( $ky, $ai ) {
 		$ky  = in_array( $ky, array( 'today', 'week', 'month', 'year', 'all' ), true ) ? $ky : 'today';
 
@@ -530,9 +469,6 @@ class VHG_Trang {
 			);
 		}
 		return array( 'ok' => true, 'ky' => $ky, 'ai' => $ai, 'tong' => $t,
-			/* Dải nhắc chấm công — cả quản trị cũng nhận. Cửa hàng trưởng cũng phải chấm công,
-			   và chính họ là người hay quên nhất vì mở thẳng app này ra làm việc. */
-			'nhacCham' => self::nhac_cham_cong( $ai ),
 			'may' => $may, 'cho' => $cho, 'gd' => $gd,
 			'choGan' => $cho_gan, 'coso' => $ds_coso,
 			'bat' => array( 'ky' => $bat_ky, 'thang' => $bat_thang,
@@ -749,8 +685,6 @@ class VHG_Trang {
 			'may' => $may, 'cho' => array(), 'gd' => array(),
 			'choGan' => array(), 'coso' => array(),
 			'quy' => $quy, 'quyen' => $q,
-			/* Dải nhắc chấm công — xem `nhac_cham_cong()`. `null` = không nói gì. */
-			'nhacCham' => self::nhac_cham_cong( $ai ),
 			'luc' => current_time( 'H:i:s' ) );
 
 		/* Bạn Hotline cần BẢNG GIÁ để chọn gói khi tiêu ví hộ khách, và danh sách lượt đã trả
@@ -1905,31 +1839,12 @@ function veCauHinh(){
   return h;
 }
 
-/* 🔴 DẢI NHẮC CHẤM CÔNG — NHẮC, KHÔNG CHẶN.
-   Anh Thắng 18/09/2026: *"hãy loại bỏ tính năng bắt checkin mới nộp báo cáo, mà hãy chỉ đưa
-   cảnh báo thôi"*. Chặn nộp báo cáo vì chưa chấm công là đem kỷ luật giờ giấc ra khoá việc ghi
-   nhận tiền mặt — mà tiền không vào sổ là mất thật, còn quên chấm công thì bù được ngày mai.
-   ⚠️ KHÔNG CÓ NÚT NÀO BỊ TẮT Ở ĐÂY. Ai đọc mã sau này mà thấy dải này rồi thêm `disabled` vào
-      nút Chốt ca là đi ngược đúng câu trên. Dải này chỉ có chữ.
-   ⚠️ `D.nhacCham` là `null` khi máy chủ KHÔNG CHẮC (không tra ra mã NV, hoặc trùng tên) — im
-      lặng, đừng đoán. Xem `VHG_Trang::nhac_cham_cong()`. */
-function daiNhacCham(){
-  var n = D && D.nhacCham;
-  if (!n || !n.chua) return '';
-  return '<div class="card" style="border-color:#f0b429">'
-    + '<p style="margin:0"><b>⏰ ' + L('Hôm nay bạn chưa chấm công.','You have not clocked in today.')
-    + '</b> '
-    + L('Vẫn nộp báo cáo và chốt ca bình thường — nhưng nhớ chấm công ở trạm, kẻo cuối tháng thiếu công.',
-        'You can still submit and close the shift — just remember to clock in, or the month will be short.')
-    + '</p></div>';
-}
-
 function veQuy(){
   var q = (D.quy || null);
-  if (!q) return daiNhacCham() + '<div class="card"><p class="mut">'
+  if (!q) return '<div class="card"><p class="mut">'
     + L('Chưa có số liệu quỹ.','No cash-float data.') + '</p></div>';
 
-  var h = daiNhacCham() + '<div class="kpis">'
+  var h = '<div class="kpis">'
     + kpi(L('Đang trên tay nhân viên','Held by staff'), tien(q.tong.tren_tay),
         L('chưa nộp về quầy','not handed in yet'), q.tong.tren_tay > 0 ? 'c' : 'd')
     + kpi(L('Chờ xác nhận','Awaiting confirmation'), tien(q.tong.cho_xac_nhan),
