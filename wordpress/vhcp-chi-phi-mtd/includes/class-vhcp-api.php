@@ -83,6 +83,11 @@ class VHCPMTD_API {
 			   kế toán đang soát, lúc ấy chỉ người duyệt/kế toán được đụng. Gác ở lõi thì mọi
 			   đường vào đều đi qua, kể cả bản giao diện cũ còn nằm trong bộ nhớ đệm. */
 			'setLineCN',
+			/* 🔴 GẮN MÃ HẠCH TOÁN LÀ VIỆC CỦA KẾ TOÁN. Anh Thắng 18/09/2026: *"kế toán có thể
+			   [sửa] loại chi phí nếu nó sai"*. Loại chi phí suy ra TK Nợ, nên người nhập đổi được
+			   là con số nhảy tài khoản sau lưng kế toán — và cái sai chỉ lộ ra lúc xuất MISA.
+			   Lõi `set_line_nhom()` cũng gác, đây là lớp thứ hai ở cổng. */
+			'setLineNhom',
 			/* Đẩy tiền sang sổ của đơn vị khác — không phải việc của nhân viên. */
 			'chuyenDonVi',
 			/* 🔴 NHẢY ĐƠN SANG TUẦN KHÁC — anh Thắng 31/08/2026: *"kế toán sẽ gửi lệnh nhảy đơn
@@ -251,6 +256,7 @@ class VHCPMTD_API {
 			'setLineCN'             => array( 'VHCPMTD_Don', 'set_line_cn' ),
 			'setLineAnh'            => array( 'VHCPMTD_Don', 'set_line_anh' ),
 			'setLineNgay'           => array( 'VHCPMTD_Don', 'set_line_ngay' ),
+			'setLineNhom'           => array( 'VHCPMTD_Don', 'set_line_nhom' ),
 			'setDonNgay'            => array( 'VHCPMTD_Don', 'set_don_ngay' ),
 			'suaNamVoLy'            => array( 'VHCPMTD_Don', 'sua_nam_vo_ly' ),
 			'suaNgayHong'           => array( 'VHCPMTD_Don', 'sua_ngay_hong' ),

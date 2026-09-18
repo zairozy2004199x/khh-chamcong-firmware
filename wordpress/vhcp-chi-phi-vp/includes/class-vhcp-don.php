@@ -1221,6 +1221,11 @@ class VHCPVP_Don {
 				'phatSinh'   => VHCPVP_Util::is_phat_sinh( $x['phat_sinh'] ),
 				'tkNo'       => (string) $x['tk_no'],
 				'tkCo'       => (string) $x['tk_co'],
+				/* NGÀY NHẬP — khác hẳn cột `ngay` (ngày chi, người nhập tự khai và sửa được).
+				   Anh Thắng 18/09/2026 xin thêm cột này: ngày chi khai lại lúc nào cũng được,
+				   nên khi hai người nhớ khác nhau thì phải có một mốc không ai gõ được. Nó vốn
+				   đã nằm trong sổ (`tao_luc`), chỉ chưa bao giờ xuống tới màn. */
+				'taoLuc'     => VHCPVP_Util::fmt( $x['tao_luc'] ),
 			);
 		}
 
@@ -1979,6 +1984,55 @@ class VHCPVP_Don {
 		}
 		$wpdb->update( VHCPVP_DB::t( 'chiphi' ), array( 'ngay' => $moi ), array( 'id' => (string) $id ) );
 		return VHCPVP_Util::ok( array( 'ngay' => VHCPVP_Util::fmt( $moi ) ) );
+	}
+
+	/**
+	 * SỬA LOẠI CHI PHÍ CỦA MỘT DÒNG — kế toán gắn lại mã khi nhóm bị chọn sai.
+	 *
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 Anh Thắng 18/09/2026: *"cột loại chi phí (kế toán có thể [sửa] loại chi phí nếu nó sai).
+	 *    Còn chưa có thì báo chưa gắn mã"*.
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * Loại chi phí ở đơn tuần chính là NHÓM MẶT HÀNG: nó suy ra TK Nợ (`VHCPVP_Cfg::tkno_loai`).
+	 * Người nhập chọn nhóm lúc gõ dòng; chọn sai là dòng ấy vào sai tài khoản, và cái sai chỉ lộ
+	 * ra lúc xuất MISA — khi đã quá muộn để hỏi lại người nhập họ mua cái gì.
+	 *
+	 * ⚠️ CHỈ KẾ TOÁN. Đây là việc gắn mã hạch toán, không phải sửa nội dung dòng. Người nhập đổi
+	 *    được thì con số nhảy tài khoản sau lưng kế toán, và không ai biết vì sao.
+	 * ⚠️ TÍNH LẠI TK NGAY. Đổi nhóm mà giữ mã cũ thì màn hình nói một đằng, tệp MISA đi một nẻo.
+	 * ⚠️ CHỈ ĐỔI NHÓM + MÃ, không đụng ô nào khác — `update_line()` ghi lại cả dòng, đi nhờ nó là
+	 *    mấy ô không gửi lên bị dọn về rỗng, im lặng.
+	 */
+	public static function set_line_nhom( $id, $nhom ) {
+		$_loi = self::loi_khong_phai_dong_minh( $id );
+		if ( '' !== $_loi ) { return VHCPVP_Util::err( $_loi ); }
+
+		global $wpdb;
+		$cur = self::line_row( $id );
+		if ( ! $cur ) { return VHCPVP_Util::err( 'Không tìm thấy dòng' ); }
+		$vai = VHCPVP_Auth::vai_tro();
+		if ( ! in_array( $vai, array( 'Admin', 'Kế toán cá nhân', 'Kế toán NCC' ), true ) ) {
+			return VHCPVP_Util::err( 'Chỉ kế toán gắn lại loại chi phí được — '
+				. 'đây là mã hạch toán, không phải nội dung dòng.' );
+		}
+		$nhom = trim( (string) $nhom );
+		if ( '' === $nhom ) { return VHCPVP_Util::err( 'Chọn loại chi phí' ); }
+
+		$tk = self::tk_of_line( $nhom, (string) $cur['phan_loai_tt'], (string) $cur['coso'] );
+		$wpdb->update( VHCPVP_DB::t( 'chiphi' ), array(
+			'nhom'  => $nhom,
+			'tk_no' => $tk['tk_no'],
+			'tk_co' => $tk['tk_co'],
+		), array( 'id' => (string) $id ) );
+		VHCPVP_Log::log_action( array(
+			'actor'  => VHCPVP_Auth::nguoi(),
+			'role'   => $vai,
+			'action' => 'Gắn lại loại chi phí cho dòng',
+			'target' => (string) $cur['ma_don'] . '#' . (string) $id,
+			'detail' => (string) $cur['nhom'] . ' → ' . $nhom
+				. ( '' !== $tk['tk_no'] ? ( ' · Nợ ' . $tk['tk_no'] ) : ' · CHƯA GẮN MÃ' ),
+		) );
+		return VHCPVP_Util::ok( array( 'nhom' => $nhom, 'tkNo' => $tk['tk_no'], 'tkCo' => $tk['tk_co'] ) );
 	}
 
 	/**

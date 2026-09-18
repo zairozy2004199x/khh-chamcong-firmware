@@ -123,8 +123,21 @@ const CSS = fs.readFileSync(path.join(GOC, 'wordpress/vhcp-chi-phi/assets/css/vh
 t('ẩn cột Cơ sở bằng LỚP CSS (đầu bảng + mọi dòng cùng lúc)',
   /#lineTable\.anCoso \.colCoso\{display:none\}/.test(CSS));
 t('đầu bảng và ô của dòng dùng CHUNG một lớp', (HTML.match(/class="colCoso"/g) || []).length >= 1 && /'<td class="colCoso"'/.test(HTML));
-// Bỏ ô ở dòng mà giữ ô ở đầu bảng là cả bảng trượt cột -> colspan phải giữ nguyên 13.
-t('giữ nguyên 13 ô, không đổi colspan theo trạng thái', /var COLS=13, html='';/.test(HTML));
+/* Bỏ ô ở dòng mà giữ ô ở đầu bảng là cả bảng trượt cột -> colspan phải bằng ĐÚNG số cột thật
+   và không đổi theo trạng thái.
+   ⚠️ ĐẾM TỪ CHÍNH ĐẦU BẢNG, đừng gõ cứng con số. Bản trước ghi thẳng "13"; thêm hai cột (Ngày
+      nhập · Loại chi phí, 18/09/2026) là phép này đỏ vì một con số hết hạn, chứ không phải vì
+      có lỗi — rồi người sửa chỉ việc đổi 13 thành 15 mà không ai soi xem hai bên còn khớp không.
+      Đếm thì nó tự đúng mãi, và bắt được đúng cái nó sinh ra để bắt: hai bên lệch nhau. */
+{
+  const th = HTML.slice(HTML.indexOf('<table id="lineTable">'));
+  const dau = th.slice(0, th.indexOf('</thead>'));
+  const soCot = (dau.match(/<th[ >]/g) || []).length;
+  const khai = (HTML.match(/var COLS=(\d+), html='';/) || [])[1];
+  t('colspan của dải gộp bằng ĐÚNG số cột ở đầu bảng (' + soCot + ')',
+    soCot > 0 && Number(khai) === soCot, { dauBang: soCot, khaiTrongMa: khai });
+  t('   và không đổi theo trạng thái', /var COLS=\d+, html='';/.test(HTML));
+}
 // Đơn cũ trộn cơ sở thì KHÔNG được giấu — ẩn đi là giấu mất một sai lệch có thật.
 t('đơn trộn cơ sở thì cột hiện lại', /classList\[lechCs\?'remove':'add'\]\('anCoso'\)/.test(HTML));
 t('và dòng lệch cơ sở bị tô đỏ', /Dòng này khác cơ sở của đơn/.test(HTML));
