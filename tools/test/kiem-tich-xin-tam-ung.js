@@ -446,8 +446,11 @@ t('🔴 bảng hạng mục của màn Duyệt không nổ khi chưa mở màn �
  * còn lại của lệnh. Điền cả phần còn lại là mời kế toán bấm một phát trả hết cho "lần 1".
  * ───────────────────────────────────────────────────────────────────────────────────────── */
 {
-  const src = `${boc('_daCapTheoLan')}\n${boc('_capLanCon')}\n${boc('_capLanGoiY')}
-    ${boc('_capSoGoiY')}\n${boc('_capChonLan')}
+  /* `_capLanCon` nay kẹp phần còn lại của từng lần vào phần còn lại của CẢ LỆNH, nên nó cần
+     `_daCapTong` / `_conPhaiCap` thật — chặn bằng bản rút gọn là phép kiểm mất đúng cái đang
+     kiểm. */
+  const src = `${boc('_daCapTong')}\n${boc('_conPhaiCap')}\n${boc('_daCapTheoLan')}
+    ${boc('_capLanCon')}\n${boc('_capLanGoiY')}\n${boc('_capSoGoiY')}\n${boc('_capChonLan')}
     return { con:_capLanCon, goiY:_capLanGoiY, so:_capSoGoiY, o:_capChonLan };`;
   const F = new Function('moi', `with(moi){ ${src} }`)({
     esc: x => String(x == null ? '' : x), money: x => String(x), _dmy: x => String(x) });
@@ -470,6 +473,54 @@ t('🔴 bảng hạng mục của màn Duyệt không nổ khi chưa mở màn �
   t('   vẫn cho "không gắn lần nào" — kế toán gộp trả thì đừng ép khai sai',
     /value="0"/.test(o), o);
 
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+     🔴 ĐÚNG CẢNH ẢNH ANH THẮNG GỬI 18/09/2026 — *"Sai chỗ báo số lần rồi"*.
+
+     Lệnh 53.820.000đ, lịch một lần 53.820.000đ. Kế toán đã đưa 10tr + 30tr = 40tr nhưng hai
+     lượt ấy KHÔNG gắn lần nào (`choLan = 0` — lối cấp trọn, hoặc sổ ghi trước 1.201.0). Khối
+     "Đã cấp" ngay trên nói "tổng đã đưa 40.000.000đ · còn phải đưa 13.820.000đ", còn ô chọn
+     lại ghi "Lần 1 · 53.820.000đ" trần trụi — hai khối cạnh nhau nói hai chuyện.
+     ══════════════════════════════════════════════════════════════════════════════════════════ */
+  {
+    const a = { soTien: 53820000,
+      lich: [{ lan: 1, ngay: '18/09/2026', soTien: 53820000 }],
+      daCap: [{ choLan: 0, soTien: 10000000 }, { choLan: 0, soTien: 30000000 }] };
+    t('🔴 phần còn lại của LẦN 1 phải là 13.820.000đ, không phải trọn 53.820.000đ',
+      F.con(a)[0].con === 13820000, F.con(a));
+    const h = F.o('K9', a, 13820000);
+    t('🔴 ô chọn NÓI RA phần còn lại, khớp với khối "Đã cấp" ngay trên',
+      /\(còn 13820000đ\)/.test(h), h);
+    t('   và KHÔNG còn khoe trần 53.820.000 như chưa ai đưa đồng nào',
+      !/53820000đ<\/option>/.test(h.replace(/·\s*53820000đ\s*\(còn/, '·(còn')), h);
+    /* ⚠️ `data-con` CŨNG PHẢI KẸP. Đổi ô chọn là `capLanDoi()` chép `data-con` xuống ô tiền;
+       để nguyên số cũ thì ô tiền nhảy về 53.820.000 và ĐÈ MẤT con số đúng đã điền sẵn — tức
+       người ta bấm Cấp tiền và đưa đi một con số không ai định đưa. */
+    t('🔴 `data-con` kẹp theo, không thì đổi ô chọn là ô tiền nhảy về 53.820.000',
+      /data-con="13820000"/.test(h), h);
+    t('   ô tiền điền sẵn cũng đúng 13.820.000', F.so(a, 13820000) === 13820000, F.so(a, 13820000));
+  }
+  {
+    /* Nhiều lần mà tiền chưa gắn: mỗi lần nói "còn tối đa <phần còn lại của lệnh>" — câu nào
+       cũng ĐÚNG, và không lần nào mời đưa quá phần lệnh còn nợ. */
+    const b = { soTien: 50000000,
+      lich: [{ lan: 1, ngay: '03/09/2026', soTien: 20000000 },
+             { lan: 2, ngay: '10/09/2026', soTien: 30000000 }],
+      daCap: [{ choLan: 0, soTien: 45000000 }] };
+    const ds = F.con(b);
+    t('🔴 lệnh chỉ còn 5tr → KHÔNG lần nào được nói là còn thiếu hơn 5tr',
+      ds[0].con === 5000000 && ds[1].con === 5000000, ds);
+  }
+  {
+    /* Đã gắn lần đàng hoàng thì phép trừ theo lần vẫn thắng — kẹp không được nuốt mất nó. */
+    const c = { soTien: 30000000,
+      lich: [{ lan: 1, ngay: '03/09/2026', soTien: 10000000 },
+             { lan: 2, ngay: '10/09/2026', soTien: 20000000 }],
+      daCap: [{ choLan: 1, soTien: 10000000 }] };
+    const ds = F.con(c);
+    t('🔴 lần đã gắn đủ → còn 0, dù cả lệnh vẫn nợ 20tr (kẹp không được nuốt phép trừ theo lần)',
+      ds[0].con === 0 && ds[1].con === 20000000, ds);
+    t('   và lần gợi ý nhảy sang lần 2', F.goiY(c) === 2, F.goiY(c));
+  }
   /* 🔴 LỆNH KHÔNG KHAI LỊCH: không bày ô nào. Nhận một lần là ca thường; một ô chọn trống rỗng
      là thêm một câu hỏi không có câu trả lời. */
   const k = { soTien: 4000000, lich: [], daCap: [] };

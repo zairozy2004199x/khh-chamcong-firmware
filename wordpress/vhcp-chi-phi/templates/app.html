@@ -5933,9 +5933,25 @@
      ══════════════════════════════════════════════════════════════════════════════════════════ */
   function _capLanCon(x){
     var cap=_daCapTheoLan(x), ra=[];
+    /* 🔴 PHẦN CÒN LẠI CỦA MỘT LẦN KHÔNG BAO GIỜ VƯỢT PHẦN CÒN LẠI CỦA CẢ LỆNH.
+       Anh Thắng 18/09/2026, nhìn ô chọn ghi *"Lần 1 · hẹn 18/09/2026 · 53.820.000đ"* ngay dưới
+       khối "tổng đã đưa 40.000.000đ · còn phải đưa 13.820.000đ": *"Sai chỗ báo số lần rồi"*.
+
+       Hai lượt cấp 10tr + 30tr ấy KHÔNG gắn lần nào (`choLan = 0` — lối cấp trọn, hoặc sổ ghi
+       trước 1.201.0), nên phép trừ theo lần ra 53.820.000 − 0 = 53.820.000: ô chọn nói lần 1
+       chưa nhận đồng nào, trong khi 40tr đã ra khỏi két. Hai khối cạnh nhau nói hai chuyện.
+
+       ⚠️ KHÔNG ĐOÁN tiền chưa gắn thuộc lần nào — đó vẫn là bịa (xem 🔴 ở `da_cap_theo_lan`).
+          Nhưng có một sự thật số học không cần đoán: cả lệnh chỉ còn 13,82tr, nên KHÔNG lần nào
+          còn thiếu hơn 13,82tr. Kẹp vào đó là câu nào cũng đúng.
+       ⚠️ Kẹp cả `data-con` chứ không chỉ cái nhãn: đổi ô chọn là `capLanDoi()` chép `data-con`
+          xuống ô tiền, nên để nguyên số cũ thì ô tiền nhảy về 53.820.000 và đè mất con số đúng
+          đã điền sẵn. */
+    var conLenh=_conPhaiCap(x);
     ((x&&x.lich)||[]).forEach(function(y,i){
       var l=Number(y.lan)||(i+1), tien=Number(y.soTien)||0;
-      ra.push({ lan:l, ngay:y.ngay, tien:tien, con:Math.max(0, tien-(Number(cap[l])||0)) });
+      var con=Math.max(0, tien-(Number(cap[l])||0));
+      ra.push({ lan:l, ngay:y.ngay, tien:tien, con:Math.min(con, conLenh) });
     });
     return ra;
   }
