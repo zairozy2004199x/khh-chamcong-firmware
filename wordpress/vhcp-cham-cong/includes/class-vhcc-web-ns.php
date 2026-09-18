@@ -132,7 +132,7 @@ class VHCC_WebNS {
 		$cs    = self::coso_xem();
 		/* Quản một cơ sở thì không hỏi — mở thẳng. Hỏi một câu chỉ có một câu trả lời là bắt
 		   người ta bấm thêm một lần mỗi ngày để nói lại điều máy đã biết. */
-		if ( '' === $cs && 1 === count( $ds_cs ) ) { $cs = $ds_cs[0]; }
+		if ( '' === $cs ) { $cs = VHCC_Web::coso_mac_dinh( $toi, $ds_cs ); }
 
 		self::the_chon( $ds_cs, $cs );
 

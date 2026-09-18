@@ -202,6 +202,46 @@ t( '🔴 không có mã NV thì lùi về lối cũ, không mất sạch quyền
 t( 'nhưng vẫn chỉ trong mấy cơ sở thẻ phiên chở',
 	! VHCC_NhanSu::co_quyen_coso( $KHONG_MA, 'CS_Z' ) );
 
+/* ================================================================= xem quản thân */
+
+echo "— cơ sở chỉ đi làm: xem công CỦA MÌNH —\n";
+/* 🔴 VẾ THỨ HAI của câu anh Thắng nói: *"nếu chấm công thì xem quản thân chứ"*. Bản 4.50.0 chỉ
+   làm vế đầu rồi chối thẳng vế sau — ô xổ bày ra POSH_HCM mà bấm vào ăn đúng một câu "Không có
+   quyền cơ sở này." Bày một lựa chọn rồi chối nó tệ hơn cả không bày. */
+VHCC_NhanSu::dat_ds_coso( $AD, 'CQ_CHT', array( $CHINH, $LAM, $QL ), $CHINH, array( $QL ), array( $CHINH ) );
+$TH2 = '2026-09';
+foreach ( array( 'CQ_CHT', 'CQ_NV' ) as $m_x ) {
+	$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $LAM, 'ngay' => $TH2 . '-02',
+		'ma_nv' => $m_x, 'ho_ten' => $m_x, 'gio_vao_giay' => 28800, 'gio_ra_giay' => 61200,
+		'hau_to' => '', 'nguon' => 'may' ) );
+}
+
+$b = VHCC_Cham::bang_cham_cong( $CHT, $LAM, $TH2 );
+t( '🔴 cơ sở chỉ đi làm KHÔNG còn chối thẳng — mở được', ! empty( $b['ok'] ), $b );
+t( '🔴 và màn biết mình đang ở mức hẹp', ! empty( $b['riengMinh'] ) );
+$ma_thay = array();
+foreach ( (array) $b['hang'] as $h_x ) { $ma_thay[ (string) $h_x['maNV'] ] = 1; }
+teq( '🔴 chỉ thấy công CỦA MÌNH, không thấy người khác', array( 'CQ_CHT' ), array_keys( $ma_thay ) );
+
+/* Ở cơ sở mình QUẢN thì vẫn thấy cả cửa hàng — vế đầu không bị nới theo. */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $CHINH, 'ngay' => $TH2 . '-02',
+	'ma_nv' => 'CQ_NV', 'ho_ten' => 'Em Nhân Viên', 'gio_vao_giay' => 28800,
+	'gio_ra_giay' => 61200, 'hau_to' => '', 'nguon' => 'may' ) );
+$b2 = VHCC_Cham::bang_cham_cong( $CHT, $CHINH, $TH2 );
+t( 'cơ sở mình QUẢN thì không bị hẹp', empty( $b2['riengMinh'] ), $b2 );
+$ma2 = array();
+foreach ( (array) $b2['hang'] as $h_x ) { $ma2[ (string) $h_x['maNV'] ] = 1; }
+t( '🔴 và thấy cả người khác ở đó', isset( $ma2['CQ_NV'] ), array_keys( $ma2 ) );
+
+/* Cơ sở không dính dáng gì thì vẫn chối — nới vế hai không được nới thành nới hết. */
+$b3 = VHCC_Cham::bang_cham_cong( $CHT, $LA, $TH2 );
+t( '🔴 cơ sở không liên quan thì VẪN chối', empty( $b3['ok'] ), $b3 );
+
+t( 'co_cham_coso: đúng ở nơi mình đi làm', VHCC_NhanSu::co_cham_coso( $CHT, $LAM ) );
+t( 'co_cham_coso: SAI ở cơ sở "chỉ QL" (không chấm công ở đó)',
+	! VHCC_NhanSu::co_cham_coso( $CHT, $QL ) );
+t( 'co_cham_coso: sai ở cơ sở không liên quan', ! VHCC_NhanSu::co_cham_coso( $CHT, $LA ) );
+
 echo "\n";
 if ( $truot ) {
 	echo '🔴 HỎNG ' . count( $truot ) . " phép thử:\n";

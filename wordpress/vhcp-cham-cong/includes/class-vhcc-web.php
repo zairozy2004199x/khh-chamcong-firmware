@@ -3978,6 +3978,56 @@ class VHCC_Web {
 		echo '</select>';
 	}
 
+	/**
+	 * CƠ SỞ CHỌN SẴN khi người ta chưa chọn gì — thay cho "— chọn cơ sở —" rồi màn trống.
+	 *
+	 * =========================================================================================
+	 * 🔴 MÀN TRỐNG LÀ MỘT CÔNG VIỆC GIAO CHO NGƯỜI DÙNG
+	 * =========================================================================================
+	 * Anh Thắng 18/09/2026: *"Luôn hiện trang mặc định mình đang làm việc đi, giống trên app
+	 * mình cho hiện danh sách nhân sự"*, kèm ảnh màn Nhân sự cửa hàng chỉ có một câu vàng "Chọn
+	 * một cơ sở ở trên."
+	 *
+	 * Gần hết người mở mấy màn này đều mở để xem ĐÚNG MỘT cơ sở — cơ sở họ đang đứng. Bắt chọn
+	 * mỗi lần là bắt làm một việc mà chín trên mười lần câu trả lời đã biết trước.
+	 *
+	 * Thứ tự chọn, và vì sao theo thứ tự ấy:
+	 *   1. CƠ SỞ CHÍNH trong hồ sơ — nơi người ta thật sự đứng làm;
+	 *   2. cơ sở đầu tiên họ QUẢN — nếu cơ sở chính không nằm trong danh sách xem được
+	 *      (VD kế toán khai cơ sở chính là văn phòng);
+	 *   3. cơ sở đầu danh sách — thà mở sẵn một cái còn hơn một màn trống.
+	 *
+	 * ⚠️ CHỌN SẴN KHÔNG PHẢI LÀ MỞ QUYỀN. Nó chỉ điền hộ một ô; mọi cửa phía sau vẫn hỏi lại
+	 *    `co_quyen_coso()`. Và chỉ chọn trong `$ds` — danh sách người ấy vốn đã xem được.
+	 *
+	 * ⚠️ KHÔNG CHỌN SẴN CHO NGƯỜI XEM ĐƯỢC MỌI CƠ SỞ. Quản lý trở lên mở màn này để so nhiều
+	 *    cơ sở; ghim sẵn một cái là mỗi lượt vào họ phải đổi đi, và có ngày quên đổi rồi đọc
+	 *    nhầm số của cơ sở khác.
+	 */
+	public static function coso_mac_dinh( $toi, $ds ) {
+		$ds = array_values( (array) $ds );
+		if ( ! $ds ) { return ''; }
+		if ( VHCC_Vai::duoc( $toi, 'cong_tat_ca' ) ) { return ''; }
+
+		$trong = function ( $x ) use ( $ds ) {
+			foreach ( $ds as $y ) {
+				if ( 0 === strcasecmp( (string) $y, (string) $x ) ) { return (string) $y; }
+			}
+			return '';
+		};
+
+		$hs = VHCC_NhanSu::ho_so( isset( $toi['ma_nv'] ) ? $toi['ma_nv'] : '' );
+		if ( $hs ) {
+			$ch = $trong( VHCC_NhanSu::chuan_coso( isset( $hs['cua_hang'] ) ? $hs['cua_hang'] : '' ) );
+			if ( '' !== $ch ) { return $ch; }
+			foreach ( VHCC_NhanSu::ds_coso_quan( $hs ) as $x ) {
+				$q = $trong( $x );
+				if ( '' !== $q ) { return $q; }
+			}
+		}
+		return (string) $ds[0];
+	}
+
 	private static function o_coso_mot( $x, $chon ) {
 		echo '<option value="' . esc_attr( $x ) . '"' . selected( $x, $chon, false ) . '>'
 			. esc_html( $x ) . '</option>';
@@ -4781,6 +4831,9 @@ class VHCC_Web {
 			   hề trỏ tới. */
 			if ( '' !== $cs && ! in_array( $cs, $ds_cs, true ) ) { $cs = ''; }
 		}
+		/* ⚠️ MÀN BẢNG CÔNG KHÔNG CHỌN SẴN MỘT CƠ SỞ. Nó đã có luật riêng và tốt hơn: từ ba
+		   cơ sở trở xuống thì VẼ HẾT một lượt, quá ba mới bắt chọn một (xem khối dưới).
+		   Ghim sẵn một cái ở đây là cửa hàng trưởng hai cơ sở chỉ còn thấy một. */
 		if ( '' === $cs && 1 === count( $ds_cs ) ) { $cs = $ds_cs[0]; }
 
 		echo '<div class="the">';
@@ -4970,6 +5023,15 @@ class VHCC_Web {
 				echo '<div class="bao loi">' . esc_html( $b['error'] ) . '</div>';
 				echo '</details></div>';
 				continue;
+			}
+			/* 🔴 NÓI RA VÌ SAO BẢNG CHỈ CÓ MỘT CÁI TÊN. Không nói thì người ta tưởng cơ sở
+			   này mất dữ liệu, hoặc tưởng cả cửa hàng hôm ấy nghỉ. Câu này cũng là chỗ duy
+			   nhất giải thích được luật mới cho người đang đứng trước nó. */
+			if ( ! empty( $b['riengMinh'] ) ) {
+				echo '<div class="bao canh" style="margin:0 0 10px">👤 <b>' . esc_html( $mot_cs )
+					. ' là cơ sở anh/chị CHẤM CÔNG, không phải cơ sở anh/chị quản lý</b> — nên '
+					. 'bảng dưới chỉ có công của chính anh/chị. Muốn xem cả cửa hàng thì nhờ '
+					. 'quản lý tích ô <b>"quản lý"</b> cho cơ sở này trong hồ sơ.</div>';
 			}
 			self::ve_bang_cham( $b, $mot_cs, $th, $ngay, $ma_nv, $ky, $toi );
 
@@ -10021,7 +10083,7 @@ class VHCC_Web {
 		$ds_cs = self::ds_coso_xem( $toi );
 		$cs    = isset( $_GET['ccs'] ) ? VHCC_NhanSu::chuan_coso( wp_unslash( $_GET['ccs'] ) ) : '';
 		if ( '' !== $cs && ! in_array( $cs, $ds_cs, true ) ) { $cs = ''; }
-		if ( '' === $cs && 1 === count( $ds_cs ) ) { $cs = $ds_cs[0]; }
+		if ( '' === $cs ) { $cs = self::coso_mac_dinh( $toi, $ds_cs ); }
 
 		echo '<div class="the"><h2>Cấu hình chấm công</h2>';
 		echo '<p class="mo">Khai <b>một lần rồi thôi</b>. Mỗi ô ở đây đổi <b>cách tính ra tiền</b> '

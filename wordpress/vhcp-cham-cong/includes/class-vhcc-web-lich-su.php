@@ -50,7 +50,7 @@ class VHCC_WebLichSu {
 
 		$ds_cs = VHCC_Web::ds_coso_xem( $toi );
 		$cs    = isset( $_GET['lcs'] ) ? VHCC_NhanSu::chuan_coso( wp_unslash( $_GET['lcs'] ) ) : '';
-		if ( '' === $cs && 1 === count( $ds_cs ) ) { $cs = $ds_cs[0]; }
+		if ( '' === $cs ) { $cs = VHCC_Web::coso_mac_dinh( $toi, $ds_cs ); }
 		$th = isset( $_GET['lth'] ) ? sanitize_text_field( wp_unslash( $_GET['lth'] ) ) : '';
 		if ( ! preg_match( '/^\d{4}-\d{2}$/', $th ) ) { $th = substr( (string) current_time( 'Y-m-d' ), 0, 7 ); }
 

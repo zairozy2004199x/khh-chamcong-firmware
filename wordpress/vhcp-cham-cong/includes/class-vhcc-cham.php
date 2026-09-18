@@ -200,13 +200,38 @@ class VHCC_Cham {
 	 */
 	public static function bang_cham_cong( $u, $coso, $thang ) {
 		$coso = VHCC_NhanSu::chuan_coso( $coso );
+
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 HAI MỨC, KHÔNG PHẢI MỘT CỬA ĐÓNG/MỞ
+		 *
+		 * Anh Thắng 18/09/2026: *"nếu chấm công thì xem quản thân chứ, còn quản lý mới xem được
+		 * cả cửa hàng"*. Câu ấy có hai vế:
+		 *   · QUẢN cơ sở này        -> thấy cả cửa hàng;
+		 *   · chỉ CHẤM CÔNG ở đây   -> thấy công của CHÍNH MÌNH, không thấy người khác.
+		 *
+		 * Bản 4.50.0 chỉ làm vế đầu rồi chối thẳng vế sau, nên ô xổ bày ra một cơ sở mà bấm vào
+		 * ăn đúng một câu "Không có quyền cơ sở này." — anh gặp ngay hôm ấy. Bày một lựa chọn
+		 * rồi chối nó là kiểu hỏng tệ hơn cả không bày.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$rieng_minh = '';
 		if ( ! VHCC_NhanSu::co_quyen_coso( $u, $coso ) ) {
-			return array( 'ok' => false, 'error' => 'Không có quyền cơ sở này.' );
+			if ( ! VHCC_NhanSu::co_cham_coso( $u, $coso ) ) {
+				return array( 'ok' => false, 'error' => 'Không có quyền cơ sở này.' );
+			}
+			$rieng_minh = strtoupper( trim( (string) ( isset( $u['ma_nv'] ) ? $u['ma_nv'] : '' ) ) );
+			if ( '' === $rieng_minh ) {
+				return array( 'ok' => false, 'error' => 'Không có quyền cơ sở này.' );
+			}
 		}
 		$tt = VHCC_Luong::tien_to_thang( $thang );
 		if ( '' === $tt ) { return array( 'ok' => false, 'error' => 'Tháng không hợp lệ.' ); }
 		$hang = array();
 		foreach ( VHCC_Luong::doc_thang( $coso, $tt ) as $r ) {
+			/* Cơ sở mình chỉ đi làm: lọc còn đúng hàng của mình. Lọc Ở ĐÂY chứ không ở màn —
+			   màn chỉ vẽ thứ hàm này trả về, nên lọc tại nguồn thì mọi đường đọc (lưới, xuất
+			   Excel, xuất ảnh, bảng lương) đều được che cùng một lúc. */
+			if ( '' !== $rieng_minh
+				&& strtoupper( trim( (string) $r['ma_nv'] ) ) !== $rieng_minh ) { continue; }
 			$hang[] = array(
 				'ngay' => $r['ngay'], 'maNV' => $r['ma_nv'], 'hauTo' => (string) $r['hau_to'],
 				'hoTen' => $r['ho_ten'],
@@ -228,7 +253,10 @@ class VHCC_Cham {
 				'nguon'  => isset( $r['nguon'] ) ? (string) $r['nguon'] : '',
 			);
 		}
+		/* Nói ra cho màn biết đang ở mức nào — để nó dán một dòng giải thích, chứ không để
+		   người ta ngồi đoán vì sao bảng chỉ có một cái tên. */
 		return array( 'ok' => true, 'coSo' => $coso, 'thang' => $tt, 'hang' => $hang,
+			'riengMinh' => ( '' !== $rieng_minh ),
 			'tong' => self::gom_tong( $hang ),
 			'co' => self::ds_ghi_chu( $u, $coso, $tt ) );
 	}

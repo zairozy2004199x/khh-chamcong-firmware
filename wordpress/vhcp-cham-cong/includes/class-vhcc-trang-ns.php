@@ -1359,8 +1359,19 @@ class VHCC_TrangNS {
 			. '.pin-nhac{color:var(--chu-mo);font-size:11px;margin-left:6px}'
 			/* Lưới ô tích cơ sở trong cột hẹp: xếp dọc, chữ nhỏ, cuộn khi quá dài. Một người
 			   hiếm khi quá 3–4 cơ sở, nhưng cột này còn phải sống được ở chuỗi 26 cửa hàng. */
-			. '.o-cs-tich{display:flex;flex-direction:column;gap:1px;max-height:112px;overflow:auto;'
-			. 'min-width:186px}'
+			. '.o-cs-tich{display:flex;flex-direction:column;gap:1px;min-width:186px}'
+			/* 🔴 GẤP LẠI THÌ CHỈ MỘT DÒNG; MỞ RA THÌ CAO HẲN. Trần cũ 112px nén cả danh sách
+			   vào một khung cuộn hai chiều — xem khối chú thích ở `o_coso()`. Mở ra vẫn có
+			   trần, nhưng rộng gấp bốn: người có hai mươi cơ sở thì vẫn phải cuộn, chỉ là
+			   không phải cuộn cho MỌI người. */
+			. 'details.cs-xo>summary{cursor:pointer;font-size:11.5px;list-style:none;'
+			. 'padding:2px 0;white-space:nowrap}'
+			. 'details.cs-xo>summary::-webkit-details-marker{display:none}'
+			. 'details.cs-xo>summary::before{content:"▸ ";color:var(--chu-mo)}'
+			. 'details.cs-xo[open]>summary::before{content:"▾ "}'
+			. 'details.cs-xo[open]>summary{margin-bottom:4px}'
+			. 'details.cs-xo[open] .o-cs-tich{max-height:420px;overflow:auto;'
+			. 'border-left:2px solid var(--vien-dam);padding-left:8px}'
 			. '.o-cs-tich label{display:flex;align-items:center;gap:5px;font-size:11.5px;'
 			. 'white-space:nowrap;cursor:pointer}'
 			. '.o-cs-tich input[disabled]+*,.o-cs-tich label:has(input[disabled]){color:var(--chu-mo)}'
@@ -1459,6 +1470,7 @@ class VHCC_TrangNS {
 			. 'table.b-ns select.o-q-vai{max-width:152px;font-size:12px}'
 			. 'table.b-ns .mb-suy{max-width:158px}'
 			. 'table.b-ns .o-cs-tich{min-width:0;font-size:11px}'
+			. 'table.b-ns details.cs-xo[open] .o-cs-tich{min-width:300px}'
 			. 'table.b-ns .o-cs-tich label{font-size:11px}'
 			. 'table.b-ns .o-cs-tich .cs-hang{gap:6px}'
 			/* Màn hẹp (máy tính xách tay 13", máy bảng) thì KHÔNG bóp tiếp nữa — bóp nữa là
@@ -3179,7 +3191,40 @@ class VHCC_TrangNS {
 			$co_qn[ VHCC_NhanSu::chu_thuong( $c_n ) ] = 1;
 		}
 
-		$h = '<div class="o-cs-tich">';
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 GẤP LẠI, BẤM MỚI XỔ TO RA
+		 *
+		 * Anh Thắng 18/09/2026: *"Bấm vào nv nó xổ to ra được không"*, kèm ảnh ô cơ sở bị nén
+		 * trong một khung cao 112px có thanh cuộn cả dọc lẫn ngang — từ khi thêm ô tích thứ ba
+		 * ("quản lý") và ba dòng nhãn nhóm thì mỗi hàng chiếm gấp đôi chỗ cũ, và cái khung ấy
+		 * chỉ còn hiện nổi hai cơ sở một lúc.
+		 *
+		 * Dùng `<details>` chứ KHÔNG dùng JavaScript: bảng này có hàng trăm hàng, mỗi hàng một
+		 * khối — gài JS cho từng khối là hàng trăm người nghe, còn `<details>` thì trình duyệt
+		 * lo, chạy cả khi JS tắt, và hợp với luật "không thuộc tính on* trong HTML" của trang.
+		 *
+		 * ⚠️ TÓM TẮT PHẢI NÓI ĐỦ ĐỂ KHÔNG CẦN MỞ. Gấp lại mà chỉ ghi "3 cơ sở" thì soát một bảng
+		 *    200 người phải mở 200 lần. Nên dòng tóm tắt kể thẳng: quản mấy chỗ, làm mấy chỗ.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$so_cham = 0;
+		$so_quan = 0;
+		foreach ( $bay as $b_d ) {
+			if ( empty( $b_d[1] ) ) { continue; }
+			$k_d = VHCC_NhanSu::chu_thuong( $b_d[0] );
+			if ( isset( $co_ql[ $k_d ] ) ) { $so_quan++; continue; }
+			$so_cham++;
+			if ( isset( $co_qn[ $k_d ] ) ) { $so_quan++; }
+		}
+		$tom = array();
+		if ( $so_cham ) { $tom[] = 'chấm công ' . $so_cham; }
+		if ( $so_quan ) { $tom[] = 'quản lý ' . $so_quan; }
+		$chinh_ten = ( '' !== $chinh ) ? $chinh : ( isset( $bay[0][0] ) ? $bay[0][0] : '' );
+
+		$h  = '<details class="cs-xo">';
+		$h .= '<summary><b>' . esc_html( '' !== $chinh_ten ? $chinh_ten : '— chưa có —' ) . '</b>'
+			. ( $tom ? ( ' <span class="mo">· ' . esc_html( implode( ' · ', $tom ) ) . '</span>' ) : '' )
+			. '</summary>';
+		$h .= '<div class="o-cs-tich">';
 		/* 🔴 Ô ẨN CHỞ CƠ SỞ CHÍNH ĐANG CÓ, ĐẶT TRƯỚC MỌI NÚT TRÒN. Hai lý do, cả hai đều là mất
 		   dữ liệu im lặng nếu thiếu: (1) nút tròn của cơ sở mình KHÔNG phụ trách bị khoá nên
 		   không gửi gì lên — không chở thì mỗi lượt Lưu là cơ sở chính của người ta nhảy về cơ
@@ -3289,7 +3334,7 @@ class VHCC_TrangNS {
 		   tử nào, và nơi xử không phân biệt nổi "người ta bỏ hết" với "hàng này không có trên
 		   trang" — đoán sai chiều nào cũng hỏng: một bên xoá oan, một bên không xoá được. */
 		$h .= '<input type="hidden" name="cs_co[' . esc_attr( $ma ) . ']" value="1">';
-		return $h . '</div>';
+		return $h . '</div></details>';
 	}
 
 	/**

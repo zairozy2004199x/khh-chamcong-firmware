@@ -95,6 +95,26 @@ class VHCC_NhanSu {
 		return false;
 	}
 
+	/**
+	 * NGƯỜI NÀY CÓ CHẤM CÔNG Ở CƠ SỞ NÀY KHÔNG — không hỏi chuyện quản lý.
+	 *
+	 * 🔴 CẶP VỚI `co_quyen_coso()`, KHÔNG THAY NÓ. Anh Thắng 18/09/2026: *"nếu chấm công thì xem
+	 *    quản thân chứ, còn quản lý mới xem được cả cửa hàng"*. Câu ấy có HAI vế, và vế đầu cần
+	 *    một hàm riêng: cơ sở mình chỉ đi làm thì vẫn phải MỞ ĐƯỢC, chỉ là thấy mỗi công của
+	 *    mình. Chối thẳng cả màn là ô xổ bày ra một cơ sở mà bấm vào chỉ ăn câu từ chối — đúng
+	 *    thứ anh gặp ngay sau bản 4.50.0.
+	 */
+	public static function co_cham_coso( $u, $coso ) {
+		$coso = self::chuan_coso( $coso );
+		if ( '' === $coso ) { return false; }
+		$hs = self::ho_so( isset( $u['ma_nv'] ) ? $u['ma_nv'] : '' );
+		if ( ! $hs ) { return false; }
+		foreach ( self::ds_coso_cham( $hs ) as $x ) {
+			if ( 0 === strcasecmp( (string) $x, $coso ) ) { return true; }
+		}
+		return false;
+	}
+
 	/** Nhớ trong một lượt. `quen_coso_quan()` xoá — xem cảnh báo ở đó. */
 	private static $nho_quan = null;
 
