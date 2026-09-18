@@ -212,18 +212,24 @@ t('   và có ghi lại vì sao bỏ, kẻo người sau tưởng quên',
 /* Vẽ THẬT ba cái ô nhập rồi soi, thay vì dò chuỗi: tên thuộc tính được ghép động
    ('data-hm'+o) nên trong mã nguồn không có chuỗi nào để dò. */
 function veForm(ham, ...them) {
-  const NK = { html: '', hien: false };
+  /* `daCur` đi kèm ở cuối khi bài kiểm cần một dự án đang mở (để `_hmChungTuSan` tra được ảnh
+     bill trên hàng). Không truyền thì `DA_CUR` là null, đúng cảnh chưa mở dự án nào. */
+  let daCur = null;
+  if (them.length && them[them.length - 1] && them[them.length - 1].__daCur) {
+    daCur = them.pop().__daCur;
+  }
+  const NK = { html: '', hien: false, oHd: { value: '' } };
   const moi = {
     esc: x => String(x == null ? '' : x),
-    toast: () => {}, HM_ITEMS: [], DA_CUR: null,
-    document: { querySelector: () => ({
+    toast: () => {}, HM_ITEMS: [], DA_CUR: daCur,
+    document: { querySelector: sel => (/data-hmhd=/.test(String(sel)) ? NK.oHd : {
       querySelector: () => ({ set innerHTML(v) { NK.html = v; }, get innerHTML() { return NK.html; } }),
       style: { set display(v) { NK.hien = (v === ''); } },
       scrollIntoView() {},
     }) },
   };
   const src = `${boc('_dotHien')}\n${boc('_dotHienCua')}\n${boc('_hmO')}\n${boc('_hmMo')}\n${boc('_hmTen')}
-    ${boc('_hmOTep')}\n${boc('_hmNutDay')}\n${boc(ham)}\n return ${ham};`;
+    ${boc('_hmOTep')}\n${boc('_hmNutDay')}\n${boc('_hmChungTuSan')}\n${boc(ham)}\n return ${ham};`;
   new Function('moi', `with(moi){ ${src} }`)(moi)('P7', 'DA1', 7, ...them);
   return NK;
 }
@@ -245,8 +251,43 @@ function veForm(ham, ...them) {
     /data-hmhd="P7"/.test(f) && /hmDinhTep\(/.test(f), f);
   t('   nhưng KHÔNG hỏi uỷ nhiệm chi (đó là chứng từ của bước cấp tiền)',
     !/data-hmunc=/.test(f), f);
-  t('🔴 chốt xong nói rõ hoá đơn là BẮT BUỘC (máy chủ chối, người dùng phải biết trước)',
+  t('🔴 hàng TRỐNG chứng từ → vẫn nói rõ hoá đơn là BẮT BUỘC (máy chủ chối, phải biết trước)',
     /Hoá đơn[^]{0,80}bắt buộc/.test(f), f);
+}
+/* ── 4a2. 🔴 BILL ĐÃ ĐÍNH TRÊN HÀNG CHÍNH LÀ HOÁ ĐƠN ──────────────────────────────────
+ * Anh Thắng 18/09/2026, ảnh một hàng đã có ảnh bill ở cột ẢNH mà bấm Chốt xong vẫn hiện
+ * "Hoá đơn (bắt buộc)": *"Chỗ ảnh đã add hóa đơn, tạo sao chốt lại hỏi hóa đơn lần 2, nó là
+ * 1 mà"*.
+ *
+ * Cột ẢNH của hàng vốn là chỗ chụp bill (chính nó mang `data-bill` để rê chuột phóng to), cột
+ * HỒ SƠ là bản PDF. Bắt tải lại đúng tệp ấy vào ô thứ hai là làm hai lần một việc — và tệ hơn:
+ * người ta sẽ dán bừa thứ gì đó cho qua cửa, tức cửa vẫn đóng mà chứng từ thì sai.
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+{
+  const r = veForm('hmMoChot', { __daCur: { maDA: 'DA1', lines: [
+    { row: 7, noiDung: 'Vận chuyển (E.Nhật)', anh: 'https://kho/bill-7.jpg', hoSo: '' } ] } });
+  t('🔴 hàng ĐÃ CÓ ảnh bill → nói ra là đã có, không hỏi lại như chưa có gì',
+    /đã có chứng từ đính sẵn/.test(r.html), r.html);
+  t('   và cho xem lại đúng tấm ấy trước khi khoá', /https:\/\/kho\/bill-7\.jpg/.test(r.html), r.html);
+  t('🔴 ô hoá đơn thôi gắn nhãn (bắt buộc) — nó đã có rồi', !/bắt buộc/.test(r.html), r.html);
+  t('🔴 và ĐIỀN SẴN vào ô, bấm Chốt là xong, khỏi tải lên lần hai',
+    r.oHd.value === 'https://kho/bill-7.jpg', r.oHd);
+}
+{
+  /* Chưa có ảnh nhưng có hồ sơ (hoá đơn điện tử .pdf) — cũng là chứng từ. */
+  const r = veForm('hmMoChot', { __daCur: { maDA: 'DA1', lines: [
+    { row: 7, noiDung: 'Vận chuyển', anh: '', hoSo: 'https://kho/hd-7.pdf\nhttps://kho/phu-luc.pdf' } ] } });
+  t('🔴 không có ảnh thì lấy HỒ SƠ (hoá đơn điện tử cũng là hoá đơn)',
+    r.oHd.value === 'https://kho/hd-7.pdf', r.oHd);
+  t('   nhiều hồ sơ thì lấy tệp ĐẦU, không nhét cả chùm vào một ô',
+    r.oHd.value.indexOf('phu-luc') < 0, r.oHd);
+}
+{
+  const r = veForm('hmMoChot', { __daCur: { maDA: 'DA1', lines: [
+    { row: 7, noiDung: 'Vận chuyển', anh: '', hoSo: '' } ] } });
+  t('🔴 hàng thật sự trống trơn → vẫn đòi hoá đơn (chốt là khoá và tính thành chi thực tế)',
+    /bắt buộc/.test(r.html) && r.oHd.value === '', r.html);
+  t('   và KHÔNG khoe "đã có chứng từ" khống', !/đã có chứng từ đính sẵn/.test(r.html), r.html);
 }
 /* 🔴 NÚT CHỌN TỆP PHẢI NHÌN THẤY ĐƯỢC. Nút còn trong mã mà bị giấu đi thì cũng như không có —
    kế toán lại phải tự tải tệp lên chỗ khác rồi quay lại dán liên kết. */
@@ -391,10 +432,12 @@ t('   bảng hạng mục nay chỉ lo NHẮC CHỐT hoá đơn, không còn l�
 
 
 /* ── 5. GỬI ĐI ─────────────────────────────────────────────────────────────────────────── */
-function chayGui(vals) {
+function chayGui(vals, lines) {
   const NK = { gui: null, toast: [], sau: null };
   const moi = {
-    DA_CUR: { maDA: 'DA1' },
+    /* `lines` để `_hmChungTuSan` tra được ảnh bill / hồ sơ đã đính trên hàng. Không truyền thì
+       dự án không có dòng nào — đúng cảnh hàng trống trơn chứng từ. */
+    DA_CUR: { maDA: 'DA1', lines: lines || [] },
     toast: (k, m) => NK.toast.push([k, m]),
     _tienSo: v => { const s = String(v == null ? '' : v).replace(/[^0-9-]/g, ''); return s === '' || s === '-' ? '' : String(Number(s)); },
     hmDat: (maDA, row, tt, them, sau) => { NK.gui = { maDA, row, tt, them }; NK.sau = sau; },
@@ -406,7 +449,7 @@ function chayGui(vals) {
       return (k in vals) ? { value: vals[k] } : (m[1] === 'xnd' || m[1] === 'xst' ? { value: '' } : null);
     } },
   };
-  const f = new Function('moi', `with(moi){ ${boc('_hmSau')}\n${boc('_hmVal')}
+  const f = new Function('moi', `with(moi){ ${boc('_hmSau')}\n${boc('_hmVal')}\n${boc('_hmChungTuSan')}
     ${boc('hmGuiCap')}\n${boc('hmGuiChot')}\n${boc('hmNccChot')}
     return { cap: hmGuiCap, chot: hmGuiChot, ncc: hmNccChot }; }`)(moi);
   return { NK, f };
@@ -422,9 +465,29 @@ function chayGui(vals) {
 {
   const { NK, f } = chayGui({ 'hmhd:P7': '  ' });
   f.chot('P7', 'DA1', 7);
-  t('🔴 chốt xong THIẾU HOÁ ĐƠN → chối ngay ở màn, khỏi phải chờ máy chủ ném lỗi',
+  t('🔴 hàng trống trơn + ô hoá đơn rỗng → chối ngay ở màn, khỏi chờ máy chủ ném lỗi',
     NK.gui === null, NK.gui);
-  t('   và nói rõ vì sao', NK.toast.some(x => /hoá đơn/.test(x[1])), NK.toast);
+  t('   và nói rõ vì sao, kèm lối thoát (đính ngay trên hàng cũng được)',
+    NK.toast.some(x => /hoá đơn/.test(x[1]) && /trên hàng/.test(x[1])), NK.toast);
+}
+{
+  /* 🔴 Ô RỖNG NHƯNG HÀNG ĐÃ CÓ BILL → CHỐT ĐƯỢC, và gửi lên chính tấm bill ấy.
+     Anh Thắng: *"Chỗ ảnh đã add hóa đơn, tạo sao chốt lại hỏi hóa đơn lần 2, nó là 1 mà"*. */
+  const { NK, f } = chayGui({ 'hmhd:P7': '' },
+    [{ row: 7, noiDung: 'Vận chuyển (E.Nhật)', anh: 'https://kho/bill-7.jpg', hoSo: '' }]);
+  f.chot('P7', 'DA1', 7);
+  t('🔴 ô rỗng nhưng hàng đã có bill → CHỐT ĐƯỢC, không chối',
+    NK.gui && NK.gui.tt === 'xong', NK.gui);
+  t('🔴 và gửi lên chính tấm bill ấy làm hoá đơn (không gửi rỗng rồi để sổ trắng chứng từ)',
+    NK.gui && NK.gui.them.hoaDon === 'https://kho/bill-7.jpg', NK.gui);
+}
+{
+  /* Gõ tệp khác vào ô thì tệp ấy THẮNG — bill trên hàng chỉ là mặc định, không phải cái khoá. */
+  const { NK, f } = chayGui({ 'hmhd:P7': 'https://hd/khac.pdf' },
+    [{ row: 7, noiDung: 'Vận chuyển', anh: 'https://kho/bill-7.jpg', hoSo: '' }]);
+  f.chot('P7', 'DA1', 7);
+  t('   thay tệp khác vào ô thì tệp ấy thắng, bill trên hàng chỉ là mặc định',
+    NK.gui && NK.gui.them.hoaDon === 'https://hd/khac.pdf', NK.gui);
 }
 {
   const { NK, f } = chayGui({ 'hmunc:P7': 'UNC-77' });

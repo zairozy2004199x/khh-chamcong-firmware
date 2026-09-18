@@ -6093,18 +6093,41 @@
   }
 
   /* ── 🧾 CHỐT XONG (đơn tạm ứng) ────────────────────────────────────────────────────── */
+  /* Chứng từ SẴN CÓ trên hàng — ảnh bill trước, rồi hồ sơ. Bản song sinh của
+     `VHCPMTD_DuAn::chung_tu_san_()`; xem 🔴 ở đó. */
+  function _hmChungTuSan(maDA,row){
+    var ra='';
+    if(DA_CUR && String(DA_CUR.maDA)===String(maDA)){
+      (DA_CUR.lines||[]).forEach(function(x){
+        if(x.row!==row || ra) return;
+        var a=String(x.anh||'').trim(); if(a){ ra=a; return; }
+        var h=String(x.hoSo||'').trim(); if(h){ ra=String(h.split(/[\r\n]+/)[0]||'').trim(); }
+      });
+    }
+    return ra;
+  }
   function hmMoChot(k, maDA, row){
+    /* 🔴 ĐÃ CÓ BILL TRÊN HÀNG THÌ ĐIỀN SẴN, ĐỪNG HỎI LẠI. Anh Thắng 18/09/2026: *"Chỗ ảnh đã
+       add hóa đơn, tạo sao chốt lại hỏi hóa đơn lần 2, nó là 1 mà"*. Cột ẢNH của hàng vốn là
+       chỗ chụp bill; bắt tải lại đúng tệp ấy vào ô thứ hai là làm hai lần một việc — và người
+       ta sẽ dán bừa thứ gì đó cho qua cửa, tức cửa vẫn đóng mà chứng từ thì sai. */
+    var san=_hmChungTuSan(maDA,row);
     _hmMo(k, '<b>🧾 Chốt hoàn thành — '+esc(_hmTen(maDA,row))+'</b>'
       +'<div style="font-size:11.5px;color:#8c8781;margin:4px 0 8px">Chốt xong hạng mục sẽ <b>khoá lại</b> và tính là chi thực tế.</div>'
+      +(san?('<div style="font-size:11.5px;color:#166534;margin:0 0 6px">✓ Hàng này đã có chứng từ đính sẵn — '
+          +'<a href="'+esc(san)+'" target="_blank" data-bill="'+esc(san)+'" style="color:#2545ff">xem</a>'
+          +'. Bấm <b>Chốt</b> là lấy luôn cái ấy làm hoá đơn; muốn dùng tệp khác thì thay ở ô dưới.</div>'):'')
       +'<div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;align-items:center">'
-      +_hmOTep(k,maDA,'hd','Hoá đơn',true,220)+'</div>'
+      +_hmOTep(k,maDA,'hd','Hoá đơn',!san,220)+'</div>'
       +_hmNutDay(k,'hmGuiChot',maDA,row,'✓ Chốt &amp; khoá đơn'));
+    if(san){ var o=document.querySelector('[data-hmhd="'+k+'"]'); if(o) o.value=san; }
   }
   function hmGuiChot(k, maDA, row){
-    /* 🔴 HOÁ ĐƠN LÀ BẮT BUỘC — máy chủ cũng chối nếu thiếu. Chốt mà chưa có chứng từ là khoá
-       một con số không có gì đỡ. */
-    var hd=_hmVal('hd',k);
-    if(!hd){ toast('warn','Phải có hoá đơn mới chốt được'); return; }
+    /* 🔴 VẪN PHẢI CÓ MỘT CHỨNG TỪ — máy chủ cũng chối nếu trống trơn. Chốt là khoá lại và tính
+       thành chi thực tế; không có mảnh nào đỡ thì không chốt. Chỉ khác: nay hỏi "có chứng từ
+       nào chưa", không hỏi "có đúng cái ô này chưa". */
+    var hd=_hmVal('hd',k) || _hmChungTuSan(maDA,row);
+    if(!hd){ toast('warn','Phải có hoá đơn mới chốt được — đính ảnh bill hoặc hồ sơ ngay trên hàng cũng được'); return; }
     hmDat(maDA,row,'xong',{hoaDon:hd},_hmSau(k));
   }
 

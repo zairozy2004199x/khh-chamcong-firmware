@@ -1034,6 +1034,31 @@ class VHCP_DuAn {
 		return $m;
 	}
 
+	/**
+	 * Chứng từ SẴN CÓ trên một dòng — ảnh bill trước, rồi tới hồ sơ. '' nếu chưa có gì.
+	 *
+	 * Cột ẢNH của hàng là chỗ chụp bill, cột HỒ SƠ là bản PDF / hoá đơn điện tử. Hai cột ấy
+	 * đứng trước ô "Hoá đơn" của bước chốt về mặt thời gian — người ta đính lúc đi mua về, chứ
+	 * không đợi tới lúc chốt. Xem 🔴 ở `dat_hm()`.
+	 *
+	 * ⚠️ HỒ SƠ CÓ THỂ LÀ NHIỀU TỆP ngăn nhau bằng xuống dòng (`them_ho_so_line`). Lấy tệp ĐẦU —
+	 *    nhét cả chùm vào ô hoá đơn thì bản xuất ra một ô dài mấy dòng.
+	 */
+	private static function chung_tu_san_( $ma_da, $row ) {
+		$d = self::get_du_an( $ma_da );
+		foreach ( (array) ( isset( $d['lines'] ) ? $d['lines'] : array() ) as $l ) {
+			if ( (int) $l['row'] !== (int) $row ) { continue; }
+			$anh = trim( (string) ( isset( $l['anh'] ) ? $l['anh'] : '' ) );
+			if ( '' !== $anh ) { return $anh; }
+			$hs = trim( (string) ( isset( $l['hoSo'] ) ? $l['hoSo'] : '' ) );
+			if ( '' !== $hs ) {
+				$mot = preg_split( '/[\r\n]+/', $hs );
+				return trim( (string) $mot[0] );
+			}
+		}
+		return '';
+	}
+
 	/** Số tiền của MỘT lần trong lịch (0 nếu không có lần ấy). */
 	public static function tien_lan_lich( $d, $lan ) {
 		foreach ( (array) ( isset( $d['lich'] ) ? $d['lich'] : array() ) as $y ) {
@@ -1869,7 +1894,32 @@ class VHCP_DuAn {
 					return VHCP_Util::err( 'Phải đính ít nhất một chứng từ (uỷ nhiệm chi hoặc hoá đơn) trước khi khoá đơn.' );
 				}
 			} elseif ( '' === $hd ) {
-				return VHCP_Util::err( 'Phải đính hoá đơn trước khi chốt hoàn thành.' );
+				/* ═══════════════════════════════════════════════════════════════════════════════
+				 * 🔴 BILL ĐÃ ĐÍNH TRÊN HÀNG CHÍNH LÀ HOÁ ĐƠN — ĐỪNG BẮT TẢI LÊN LẦN THỨ HAI.
+				 *
+				 * Anh Thắng 18/09/2026, ảnh một hàng đã có ảnh bill ở cột ẢNH mà bấm Chốt xong
+				 * vẫn hiện "Hoá đơn (bắt buộc)": *"Chỗ ảnh đã add hóa đơn, tạo sao chốt lại hỏi
+				 * hóa đơn lần 2, nó là 1 mà"*.
+				 *
+				 * Đúng vậy. Cột ẢNH của hàng vốn là chỗ chụp bill (chính nó mang `data-bill` để
+				 * rê chuột phóng to), cột HỒ SƠ là bản PDF / hoá đơn điện tử. Bắt tải lại đúng
+				 * cái tệp ấy vào một ô thứ hai là làm hai lần một việc, và tệ hơn: người ta sẽ
+				 * dán bừa một thứ khác cho qua cửa — cửa vẫn đóng, chứng từ thì sai.
+				 *
+				 * ⚠️ VẪN CHỐI KHI HÀNG TRỐNG TRƠN. Chốt là khoá lại và tính thành chi thực tế;
+				 *    không có mảnh chứng từ nào thì vẫn không chốt được. Chỉ khác chỗ: nay hỏi
+				 *    "có chứng từ nào chưa", không hỏi "có đúng cái ô này chưa".
+				 * ⚠️ GHI LẠI VÀO SỔ chứ không chỉ cho qua: lệnh quyết toán và bản xuất đọc ô
+				 *    `hoaDon`, để trống thì chốt xong mà sổ vẫn trắng chứng từ. Gán vào
+				 *    `$them['hoaDon']` là để mở cổng `isset()` ở dưới — con số ghi xuống là `$hd`.
+				 * ═══════════════════════════════════════════════════════════════════════════════ */
+				$san = self::chung_tu_san_( $ma_da, $row );
+				if ( '' === $san ) {
+					return VHCP_Util::err( 'Phải đính hoá đơn trước khi chốt hoàn thành — '
+						. 'đính ảnh bill hoặc hồ sơ ngay trên hàng cũng được.' );
+				}
+				$hd             = $san;
+				$them['hoaDon'] = $san;
 			}
 			/* ═══════════════════════════════════════════════════════════════════════════════════
 			 * 🔴 CHỐT HOÀN THÀNH MÀ SỐ TIỀN LÀ 0 THÌ CHỐT CÁI GÌ — 17/09/2026.
