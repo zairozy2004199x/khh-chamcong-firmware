@@ -59,6 +59,24 @@ const moDT = async (p) => { await p.evaluate(()=>{ const x=[...document.querySel
     ok('Gỡ liên kết được', false, 'không thấy nút gỡ sau khi quay lại kỳ');
   }
 
+  // ── 🔴 MỞ LẠI TRANG Ở ĐÚNG KỲ ẤY: vẫn phải tự lấy, không đợi đổi kỳ ────────────────────────
+  //    Anh Thắng 18/09/2026: "các lần sau nó tự đẩy qua luôn hay phải bấm nạp".
+  await p.evaluate(()=>{const s=window.BaoCaoApp.getState();
+    const i=s.sites.findIndex(x=>(x.fabiTen||'').trim());
+    if(i>=0) s.sites[i].revenue = 1;      // phá số đi, mở lại trang phải tự kéo về
+    window.BaoCaoApp.setState(s);});
+  await p.waitForTimeout(2500);
+  await p.reload(); await p.waitForTimeout(1200);
+  /* Sau khi tải lại, phiên vẫn còn nên ô PIN có trong DOM mà ẩn — phải hỏi "có HIỆN không". */
+  if (await p.isVisible('#gatePin')) { await p.fill('#gatePin','1111'); await p.click('#gateBtn'); await p.waitForSelector('#gate',{state:'hidden',timeout:15000}); }
+  await p.waitForTimeout(5000);
+  await moDT(p);
+  const mo = await p.evaluate(()=>{const s=window.BaoCaoApp.getState();
+    const x=s.sites.find(y=>(y.fabiTen||'').trim());
+    return { rev: x?x.revenue:0, tt: (document.querySelector('#tab-revenue .issue')||{}).textContent||'' };});
+  ok('🔴 Mở lại trang ở đúng kỳ ấy vẫn TỰ LẤY, không phải bấm Nạp', mo.rev>1, 'doanh thu = '+mo.rev);
+  ok('Dòng trạng thái nói rõ nhịp tự lấy', /10 phút một lần/.test(mo.tt), mo.tt.replace(/\s+/g,' ').slice(0,120));
+
   ok('Không lỗi JS', loi.length===0, loi.join(' | '));
   await p.screenshot({path:'/tmp/claude-0/fabi-live.png'});
   await b.close();

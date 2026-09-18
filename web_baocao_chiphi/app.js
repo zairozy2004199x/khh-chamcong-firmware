@@ -919,7 +919,7 @@
       <span>${Object.keys(NGUON).filter((n) => dem[n]).map((n) => `${dem[n]} điểm ← ${esc(NGUON[n].ten)}`).join(' · ') || '0 điểm'}.
       ${!state.options.fabiTuDong ? 'Đang <strong>tắt</strong> tự lấy — số giữ nguyên như đã ghi.'
         : chot ? `Kỳ <strong>đã chốt</strong> nên dừng lấy, số đứng yên.`
-        : (fabiLan && fabiLan.luc) ? `Lấy lần cuối lúc ${esc(fabiLan.luc)}${fabiLan.soDoi ? ` · đổi ${fabiLan.soDoi} điểm` : ' · không có gì đổi'}.` : 'Sẽ tự lấy khi mở kỳ.'}
+        : (fabiLan && fabiLan.luc) ? `Lấy lần cuối lúc ${esc(fabiLan.luc)}${fabiLan.soDoi ? ` · đổi ${fabiLan.soDoi} điểm` : ' · không có gì đổi'} — tự lấy lại mỗi khi mở trang, mỗi khi đổi kỳ và <strong>10 phút một lần</strong>, khỏi bấm.` : 'Sẽ tự lấy khi mở trang.'}
       ${sai.length ? `<br><strong style="color:var(--bad,#c00)">🔴 ${sai.length} điểm nối SAI BỘ PHẬN</strong>:
         ${esc(sai.map((x) => `${x.name || x.code} (${deptName(x.dept)})`).join(', '))} — đây là cơ sở bên
         ${esc(NGUON.ghe.nhan)} nhưng điểm lại nằm ngoài ${esc((NGUON.ghe.bp || []).map(deptName).join(' / '))},
@@ -2013,6 +2013,9 @@
     costSnap: {},
     pushTimer: null,
     pollTimer: null,
+    /* Hẹn giờ lấy số từ NGUỒN (FABi / Ghế / Nhân sự) — khác pollTimer, cái kia chỉ hỏi máy chủ của
+       chính plugin này. */
+    nguonTimer: null,
     pendingPush: false,
 
     indicator(kind, text) {
@@ -2033,14 +2036,26 @@
     async start(opts) {
       this.on = API.isEnabled();
       clearInterval(this.pollTimer);
+      clearInterval(this.nguonTimer);
       if (!this.on) { this.indicator('', 'Cục bộ'); renderTab(); return; }
       this.periodKey = API.periodKey(state.period);
       await this.pull({ force: true, notify: true, initial: true });
       this.pollTimer = setInterval(() => this.pull({}), 60000);
+      /* 🔴 LẤY NGAY KHI MỞ TRANG, VÀ LẤY LẠI ĐỀU ĐỀU.
+         Anh Thắng 18/09/2026: *"các lần sau nó tự đẩy qua luôn hay phải bấm nạp"*. Bản trước chỉ
+         lấy khi ĐỔI KỲ — mở lại trang ở đúng kỳ ấy thì không lấy gì, nên sáng ra mở lên vẫn là số
+         hôm qua mà dòng trạng thái lại ghi "TỰ LẤY: BẬT". Tin là đang tự lấy trong khi không phải
+         thì còn tệ hơn là biết mình phải bấm.
+         10 phút một lần: đủ tươi cho việc xem trong ngày, mà không nện vào cơ sở dữ liệu của
+         plugin Ghế / FABi mỗi phút. */
+      fabiLayNgay(true);
+      luongLayNgay(true);
+      this.nguonTimer = setInterval(() => { fabiLayNgay(true); luongLayNgay(true); }, 600000);
     },
     stop() {
       this.on = false;
       clearInterval(this.pollTimer);
+      clearInterval(this.nguonTimer);
       clearTimeout(this.pushTimer);
       this.indicator('', 'Cục bộ');
       renderTab();

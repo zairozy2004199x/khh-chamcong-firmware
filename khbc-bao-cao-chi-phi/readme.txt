@@ -4,7 +4,7 @@ Tags: chi phí, phân bổ, báo cáo, MISA, kế toán
 Requires at least: 5.6
 Tested up to: 6.8
 Requires PHP: 7.2
-Stable tag: 1.18.0
+Stable tag: 1.19.0
 License: GPLv2 or later
 
 Phân bổ chi phí Máy tự động / Khu vui chơi ra "File tổng báo cáo" và phân bổ theo điểm để hạch toán MISA.
@@ -35,6 +35,16 @@ Nhân viên nhập khoản chi phí, kế toán duyệt, web tự tính.
 4. Nhập Excel kỳ đầu (hoặc ⋯ → Nạp dữ liệu mẫu) rồi bắt đầu.
 
 == Changelog ==
+
+= 1.19.0 =
+* 🔴 **"Tự lấy" giờ mới thật sự tự.** Bản trước chỉ lấy khi **đổi kỳ** — mở lại trang ở đúng kỳ ấy
+  thì không lấy gì, nên sáng ra mở lên vẫn là số hôm qua trong khi dòng trạng thái ghi
+  *"🔗 Tự lấy: BẬT"*. Tin là đang tự lấy trong khi không phải thì còn tệ hơn là biết mình phải bấm.
+* Từ nay lấy lại: **mỗi khi mở trang**, mỗi khi đổi kỳ, **10 phút một lần** khi đang mở, và ngay
+  sau khi Ghi. Áp dụng cho cả doanh thu (FABi / Ghế) lẫn lương (Nhân sự).
+* Dòng trạng thái ghi rõ nhịp lấy, khỏi phải đoán.
+* Vẫn giữ nguyên hai luật cũ: **kỳ đã chốt thì dừng lấy**, và tự lấy chỉ cập nhật **số** cho các
+  điểm đã nối — cơ sở MỚI bên nguồn vẫn hiện ở dòng THIẾU LIÊN KẾT để anh bấm *Lấy hết* một lần.
 
 = 1.18.0 =
 * 🔴 **Nguồn Ghế chỉ được vào Posh / JP.** Nguồn có 1.243.443.000, ghép đủ 56 cửa hàng, mà Posh chỉ
