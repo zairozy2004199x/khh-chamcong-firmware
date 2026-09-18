@@ -303,11 +303,12 @@ class VHCC_Bu {
 		$coso  = VHCC_NhanSu::chuan_coso( isset( $dat['coso'] ) ? $dat['coso'] : '' );
 		$ma_nv = trim( (string) ( isset( $dat['ma_nv'] ) ? $dat['ma_nv'] : '' ) );
 
-		/* 🔴 Gác quyền RIÊNG, gác TRƯỚC — và vẫn giữ nguyên dù ngưỡng đã hạ.
-		   `sua_gio` nay ở bậc Cửa hàng trưởng (anh Thắng 28/08/2026: *"Cửa hàng trưởng được
-		   phép sửa cả giờ công đã chấm"*), nhưng nó vẫn là một đầu việc RIÊNG, tách khỏi
-		   `vi_sao_khong_duoc()`. Giữ tách vì hai lý do: khoá lẻ được cho từng người ở màn Quản
-		   lý nhân sự, và nếu mai anh Thắng muốn siết lại thì sửa MỘT dòng trong bảng vai. */
+		/* 🔴 Gác quyền RIÊNG, gác TRƯỚC.
+		   `sua_gio` ở bậc Kế toán từ 18/09/2026 (anh Thắng: *"cửa hàng trưởng không được sửa
+		   công nữa mà theo người được chỉ định bật quyền mới được sửa thôi"*). Nó là một đầu
+		   việc RIÊNG, tách khỏi `vi_sao_khong_duoc()` — và chính nhờ tách mà chỉ định được cho
+		   từng người bằng một dòng `nv:<Mã NV> · sua_gio · mo` ở bảng ngoại lệ. Gộp vào là mất
+		   đường chỉ định, chỉ còn đường nâng cả vai. */
 		if ( ! VHCC_Vai::duoc( $u, 'sua_gio' ) ) {
 			return array( 'ok' => false,
 				'error' => VHCC_Vai::loi( $u, 'sua_gio', 'Sửa giờ đã có' )

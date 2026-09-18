@@ -77,7 +77,7 @@ class VHCC_DB {
 		return $t ? $t : '';
 	}
 
-	const SCHEMA_VERSION = '2.12.0';
+	const SCHEMA_VERSION = '2.13.0';
 
 	public static function t( $name ) {
 		global $wpdb;
@@ -511,6 +511,40 @@ class VHCC_DB {
 			PRIMARY KEY  (id),
 			KEY cua_nguoi (ma_nv,tu_ngay),
 			KEY cho_duyet (coso,trang_thai)";
+
+		/* ===== 7c. ĐƠN DUYỆT CHỈNH BẢNG CÔNG THEO TUẦN ======================================
+		   Anh Thắng 18/09/2026: hết một tuần thì cửa hàng trưởng tải bảng công tuần trước ra
+		   .xlsx, sửa trong đó, gửi kế toán; kế toán duyệt là đẩy lên bảng công rồi KHOÁ tuần ấy.
+
+		   🔴 KHÔNG CÓ BẢNG "TUẦN ĐÃ KHOÁ" RIÊNG. Một tuần khoá rồi ⇔ có đúng một dòng ở đây với
+		      `trang_thai='duyet'`. Dựng bảng thứ hai là hai nguồn sự thật cho cùng một câu hỏi,
+		      và tới ngày chúng lệch nhau thì không ai biết tin cái nào.
+
+		   ⚠️ KHÔNG khoá duy nhất theo (coso,tu_ngay): kế toán chối một lượt thì cửa hàng trưởng
+		      gửi lại lượt khác (*"nếu sai, kế toán sẽ báo cht gửi lại file khác"*), nên một tuần
+		      có nhiều dòng là chuyện thường. Cái duy nhất là dòng ĐÃ DUYỆT, và nó chốt ở tầng
+		      nghiệp vụ (`VHCC_TuanCong::duyet`) chứ không phải bằng khoá — khoá chỉ nói được
+		      "trùng", không nói được "tuần này khoá rồi nên thôi". */
+		$b['don_tuan'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			coso VARCHAR(120) NOT NULL,
+			tu_ngay DATE NOT NULL,
+			den_ngay DATE NOT NULL,
+			ma_nv_gui VARCHAR(40) NOT NULL DEFAULT '',
+			ten_gui VARCHAR(190) NOT NULL DEFAULT '',
+			gui_luc DATETIME NULL,
+			trang_thai VARCHAR(12) NOT NULL DEFAULT 'cho',
+			ma_nv_duyet VARCHAR(40) NOT NULL DEFAULT '',
+			ten_duyet VARCHAR(190) NOT NULL DEFAULT '',
+			duyet_luc DATETIME NULL,
+			ly_do_choi VARCHAR(255) NOT NULL DEFAULT '',
+			so_dong INT NOT NULL DEFAULT 0,
+			so_doi INT NOT NULL DEFAULT 0,
+			doi LONGTEXT NULL,
+			ket_qua LONGTEXT NULL,
+			PRIMARY KEY  (id),
+			KEY cho_duyet (trang_thai,tu_ngay),
+			KEY cua_tuan (coso,tu_ngay)";
 
 		$b['cham_cong_nhiem_vu'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,

@@ -425,6 +425,21 @@ class VHCC_Web {
 		 *    màn. Dựng lại phép tính ở đây là thêm một bản luật thứ hai cho cùng một câu hỏi —
 		 *    đúng cái đã làm tờ in lệch khỏi màn hình.
 		 * --------------------------------------------------------------------------------- */
+		/* -----------------------------------------------------------------------------------
+		 * BẢNG CÔNG MỘT TUẦN (.xlsx) để cửa hàng trưởng sửa rồi gửi lại — anh Thắng 18/09/2026.
+		 * Rẽ ở đây, TRƯỚC nhánh lưới tháng: nó đọc theo TUẦN chứ không theo tháng, nên tham số
+		 * `cth` phía trên không nói gì về nó.
+		 * --------------------------------------------------------------------------------- */
+		if ( 'tuan' === $loai ) {
+			$tuan = isset( $_GET['tuan'] ) ? sanitize_text_field( wp_unslash( $_GET['tuan'] ) ) : '';
+			if ( '' === $tuan ) { $tuan = VHCC_TuanCong::tuan_truoc(); }
+			$x = VHCC_TuanCong::xuat( $toi, $cs, $tuan );
+			if ( empty( $x['ok'] ) ) { self::loi_xuat( $x['error'] ); return; }
+			$da_gui = true;
+			VHCC_Xuat::gui( $x['ten'], $x['noi_dung'] );
+			return;
+		}
+
 		if ( 'luoi' === $loai ) {
 			self::xuat_luoi( $toi, $cs, $th, $da_gui );   // $da_gui đi THAM CHIẾU — xem chữ ký
 			return;
@@ -739,9 +754,12 @@ class VHCC_Web {
 	}
 
 	public static function vi_sao_khong_xuat( $toi, $loai, $cs ) {
-		if ( ! in_array( $loai, array( 'ca', 'anh', 'luoi', 'luong' ), true ) ) {
+		if ( ! in_array( $loai, array( 'ca', 'anh', 'luoi', 'luong', 'tuan' ), true ) ) {
 			return 'Không biết xuất kiểu "' . $loai . '".';
 		}
+		/* Tuần tự gác lấy ở `VHCC_TuanCong::vi_sao_khong_tai()` — nó còn phải hỏi tuần đã khoá
+		   chưa, tuần đã hết chưa, và những câu ấy không thuộc về chỗ này. */
+		if ( 'tuan' === $loai ) { return ''; }
 		if ( ! VHCC_Vai::duoc( $toi, 'cong_coso' ) ) {
 			return 'Xuất bảng công cần quyền Cửa hàng trưởng trở lên.';
 		}
@@ -1009,6 +1027,12 @@ class VHCC_Web {
 		   lỏng hơn. */
 		if ( VHCC_WebMat::la_viec( $viec ) ) {
 			return VHCC_WebMat::viec( $viec, $toi );
+		}
+
+		/* Đơn chỉnh bảng công tuần — cùng lý do đứng trước chốt dưới như màn Khuôn mặt: việc của
+		   nó không dính gì tới hồ sơ. `VHCC_WebDonTuan::viec()` tự hỏi `sua_gio` ngay dòng đầu. */
+		if ( VHCC_WebDonTuan::la_viec( $viec ) ) {
+			return VHCC_WebDonTuan::viec( $viec, $toi );
 		}
 
 		if ( ! in_array( $viec, self::VIEC_CHAM, true ) && ! self::co_ho_so( $toi ) ) {
@@ -3466,6 +3490,12 @@ class VHCC_Web {
 			return;
 		}
 
+		if ( 'don_tuan' === $man ) {
+			VHCC_WebDonTuan::man( $ky, $toi );
+			self::dong_trang();
+			return;
+		}
+
 		/* ===========================================================================
 		 *  "HỒ SƠ MỚI" NAY LÀ `sua=moi`, KHÔNG CÒN LÀ DẤU `+`
 		 * ---------------------------------------------------------------------------
@@ -3553,7 +3583,7 @@ class VHCC_Web {
 	/* ⚠️ `mat` đứng CUỐI, cùng lối với `may`: Quản lý mở app ra là để xem bảng công, không phải
 	   để rơi thẳng vào hàng chờ duyệt mẫu. Nhưng vẫn PHẢI có tên ở đây — có phép thử canh mọi
 	   màn khai được đều có mặt, kẻo người chỉ có màn này lại rơi vào nhánh đoán mò ở cuối hàm. */
-	const MAN_UU_TIEN = array( 'nha', 'ho_so', 'cham', 'cong_toi', 'coso', 'cau_hinh', 'du_lieu',
+	const MAN_UU_TIEN = array( 'nha', 'ho_so', 'cham', 'don_tuan', 'cong_toi', 'coso', 'cau_hinh', 'du_lieu',
 		'ns_coso', 'lich', 'may', 'mat' );
 
 	public static function man_mac_dinh( $ds_man ) {
@@ -3693,6 +3723,14 @@ class VHCC_Web {
 		   đúng là màn dựng cho người không có bậc hồ sơ. Kế toán và Admin vẫn thấy nó, vì thang
 		   quyền là thang — nhưng họ có thêm màn Hồ sơ & tài khoản đầy đủ. */
 		if ( VHCC_Vai::duoc( $toi, 'ho_so_coso' ) ) { $ds['ns_coso']  = 'Nhân sự cửa hàng'; }
+		/* 🔴 ĐƠN DUYỆT CHỈNH BẢNG CÔNG — anh Thắng 18/09/2026: *"Tài khoản kế toán chỉnh định
+		   quản lý bảng lương sẽ hiện chỗ này: Đơn duyệt chỉnh bảng công lương"*.
+		   Gác bằng `VHCC_TuanCong::QUYEN_DUYET` (= `sua_gio`), KHÔNG khai một tên quyền thứ hai:
+		   duyệt một đơn CHÍNH LÀ sửa hàng trăm ô giờ công cùng lúc, nên ai duyệt được phải đúng
+		   là ai sửa được. Hai tên quyền cho cùng một việc là hai chỗ phải nhớ siết. */
+		if ( VHCC_Vai::duoc( $toi, VHCC_TuanCong::QUYEN_DUYET ) ) {
+			$ds['don_tuan'] = 'Đơn duyệt chỉnh bảng công lương';
+		}
 		if ( VHCC_Vai::duoc( $toi, 'cham_online' ) ) { $ds['lich']     = 'Lịch làm việc'; }
 		if ( VHCC_Vai::duoc( $toi, 'may' ) )        { $ds['may']      = 'Máy & Firmware'; }
 		/* 🔴 KHUÔN MẶT LÀ BẬC QUẢN LÝ / ADMIN (`ngoai_coso`) — anh Thắng 08/09/2026, khi em hỏi
@@ -3718,7 +3756,7 @@ class VHCC_Web {
 	const MAN_BIEU = array(
 		'nha'      => '🏠', 'cong_toi' => '🕐', 'cham'    => '📋', 'ho_so' => '👤',
 		'cau_hinh' => '⚙️', 'du_lieu'  => '🗂️', 'lich'    => '📅', 'may'   => '🖥️',
-		'ns_coso'  => '🏪', 'coso'     => '🏬', 'mat'   => '🙂',
+		'ns_coso'  => '🏪', 'coso'     => '🏬', 'mat'   => '🙂', 'don_tuan' => '📥',
 	);
 
 	/** Một câu nói màn ấy để làm gì — hiện trên thẻ Truy cập nhanh và dưới tiêu đề màn. */
@@ -3734,6 +3772,7 @@ class VHCC_Web {
 		'lich'     => 'Xếp ca cho cửa hàng, duyệt xin đổi lịch',
 		'may'      => 'Thiết bị, cổng nhận từ máy, nạp firmware',
 		'mat'      => 'Ảnh thẻ nhân viên và duyệt mẫu khuôn mặt',
+		'don_tuan' => 'Cửa hàng gửi .xlsx sửa bảng công tuần — duyệt là lên bảng công và khoá tuần',
 	);
 
 	public static function bieu_man( $k )  {
@@ -5440,6 +5479,9 @@ class VHCC_Web {
 			self::the_khai_ca( $cs, $ky, $toi );
 			self::the_lenh_tre( $cs, $ky, $toi );
 			self::the_don_nghi( $cs, $ky, $toi );
+			/* Sửa bảng công tuần bằng .xlsx — anh Thắng 18/09/2026. Đứng cạnh hai khối đơn ở
+			   trên vì cùng một loại việc: thứ cửa hàng gửi đi rồi chờ người khác duyệt. */
+			VHCC_WebDonTuan::khoi_cua_hang( $ky, $toi, $cs );
 		}
 	}
 
