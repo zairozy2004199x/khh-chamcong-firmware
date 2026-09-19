@@ -354,6 +354,28 @@ class VHCC_Ung {
 			'mau'  => 'vang',
 		) );
 
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 GẮN VÉ DANH TÍNH VÀO MỌI Ô DẪN SANG APP KHÁC — MỘT CHỖ DUY NHẤT
+		 * ═══════════════════════════════════════════════════════════════════════════════════
+		 * Anh Thắng 19/09/2026, hai ảnh cạnh nhau: trạm đang là *Trần Ngọc Minh Truyền · TUTU_TP*,
+		 * bấm sang Vận Hành Chi Phí thì hiện *Nguyễn Văn Bin · FARM_PT*. *"Phải tự link chung 1
+		 * tk chứ"*.
+		 *
+		 * Ô Ứng dụng vốn chỉ là một đường dẫn TRƠN. Sang tới nơi, app kia không biết ai vừa bấm
+		 * nên lấy thẻ cũ còn sót trong máy — thẻ của người gần nhất gõ PIN trên điện thoại ấy.
+		 * Hậu quả thật: người này tạo và duyệt đơn chi phí dưới danh nghĩa người kia.
+		 *
+		 * 🔴 GẮN Ở ĐÂY, KHÔNG GẮN Ở TỪNG Ô. Bốn ô dựng ở bốn khối cách xa nhau; thêm ô thứ năm
+		 *    mà quên gắn là ô ấy lặng lẽ quay về lối cũ — và lối cũ không báo lỗi, nó chỉ hiện
+		 *    sai tên. Vòng lặp này bắt mọi ô có `url`, kể cả ô sẽ thêm sau.
+		 * ⚠️ Ô KHOÁ KHÔNG CÓ `url` (xem `o()`) nên không tốn vé. Ô mở màn trong trạm (`man`)
+		 *    cũng vậy — nó không đi đâu cả.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		foreach ( $o as &$o_x ) {
+			if ( ! empty( $o_x['url'] ) ) { $o_x['url'] = VHCC_Ve::gan( $o_x['url'], $u ); }
+		}
+		unset( $o_x );
+
 		return $o;
 	}
 

@@ -19,6 +19,28 @@
 	function getToken() { try { return localStorage.getItem( TOKEN_KEY ) || ''; } catch ( e ) { return ''; } }
 	function setToken( t ) { try { localStorage.setItem( TOKEN_KEY, t ); } catch ( e ) {} }
 
+	/* ═══════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 VÀO BẰNG SSO THÌ THẺ MỚI PHẢI ĐÈ THẺ CŨ, NGAY TRƯỚC LỆNH GỌI ĐẦU TIÊN
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 19/09/2026: trạm đang là *Trần Ngọc Minh Truyền*, bấm sang đây thì hiện
+	 * *Nguyễn Văn Bin*. *"Phải tự link chung 1 tk chứ"*.
+	 *
+	 * Shim này gắn thẻ trong `localStorage` vào MỌI lệnh gọi, mà nó chỉ cất thẻ sau lượt gõ
+	 * PIN (`fn === 'login'`). Nên vào bằng SSO thì tên trên thanh tiêu đề là người mới, còn
+	 * thẻ gửi lên máy chủ vẫn là của người cũ — ghi sổ sai tên, và không gì báo. Máy chủ nay
+	 * gửi kèm `ssoToken`; ghi đè ở đây, trước khi bất cứ lệnh nào chạy.
+	 *
+	 * ⚠️ GHI ĐÈ, KHÔNG PHẢI "ghi nếu chưa có". Cả cái lỗi nằm ở chỗ ĐÃ CÓ một thẻ cũ.
+	 * ⚠️ Và thẻ ấy sống tiếp trong máy, nên lần mở sau — lúc vé đã chết — app vẫn là đúng
+	 *    người, không lùi về thẻ của người lạ nữa.
+	 * ═══════════════════════════════════════════════════════════════════════════════════════ */
+	if ( CFG.ssoToken ) {
+		setToken( CFG.ssoToken );
+		/* Bản nhớ danh tính cũ cũng phải đi — nó là thứ màn vẽ ngay lúc mở, trước khi hỏi
+		   máy chủ. Để lại là người dùng thấy tên người cũ nháy lên một nhịp. */
+		try { sessionStorage.removeItem( USER_KEY ); } catch ( e ) {}
+	}
+
 	function clearSession() {
 		try { localStorage.removeItem( TOKEN_KEY ); } catch ( e ) {}
 		try { sessionStorage.removeItem( USER_KEY ); } catch ( e ) {}
