@@ -425,6 +425,32 @@ t( '🔴 chèn thêm một cột giữa tờ thì vẫn đọc đúng', ! empty(
 teq( 'và vẫn ra đúng một ô đổi, không lệch ngày', 1, count( $r['doi'] ) );
 teq( 'đúng ngày đã sửa', $NGAY[0], $r['doi'][0]['ngay'] );
 
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 GỬI TỆP CỦA THÁNG KHÁC — anh Thắng 19/09/2026
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * Ô Tháng để Tháng Chín, tệp gửi lên là bảng công tháng 8. Câu chối cũ nói *"Tệp thiếu cột của
+ * ngày 2026-09-01. Đừng xoá hay đổi tên cột ngày"* — đổ lỗi cho người dùng về một việc họ
+ * không làm, và chỉ sang cách sửa tốn cả buổi (tải lại tệp mẫu, sửa lại từ đầu). Việc phải làm
+ * thật ra là ĐỔI Ô THÁNG, mất ba giây.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+$thang_khac = gmdate( 'Y-m-01', strtotime( $TUAN . ' 00:00:00 UTC' ) - 86400 );
+$x_khac = VHCC_TuanCong::xuat( $ADMIN, $CS_A, $thang_khac );
+if ( ! empty( $x_khac['ok'] ) ) {
+	$doc_khac = VHCC_DocXlsx::doc( tep_tu( $x_khac['noi_dung'] ) );
+	$r = VHCC_TuanCong::doi( $CS_A, $TUAN, '', $doc_khac['hang'] );
+	t( '🔴 gửi tệp của tháng khác thì chối', empty( $r['ok'] ), $r );
+	t( '   và nói rõ TỆP LÀ THÁNG NÀO',
+		false !== mb_strpos( (string) $r['error'], VHCC_TuanCong::ten_thang( $thang_khac ) ),
+		$r['error'] );
+	t( '   kèm tháng đang chọn trên màn',
+		false !== mb_strpos( (string) $r['error'], VHCC_TuanCong::ten_thang( $TUAN ) ), $r['error'] );
+	/* 🔴 CHỈ ĐÚNG VIỆC PHẢI LÀM. Bảo "tải lại tệp mẫu" là bắt họ sửa lại cả tháng từ đầu. */
+	t( '   và chỉ đúng việc phải làm: đổi ô Tháng, KHÔNG phải tải tệp mới',
+		false !== mb_strpos( (string) $r['error'], 'KHÔNG phải tải tệp mới' ), $r['error'] );
+	t( '   nên KHÔNG còn câu đổ lỗi xoá cột',
+		false === mb_strpos( (string) $r['error'], 'Đừng xoá hay đổi tên cột ngày' ), $r['error'] );
+}
+
 /* 🔴 XOÁ MẤT MỘT CỘT NGÀY thì CHỐI, không lặng lẽ bỏ qua ngày ấy. */
 $thieu = array();
 foreach ( $sua as $d ) {

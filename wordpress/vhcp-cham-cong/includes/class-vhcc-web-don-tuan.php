@@ -510,6 +510,14 @@ class VHCC_WebDonTuan {
 				. ' ô giờ đang chờ kế toán duyệt. Gửi tệp mới thì lượt này bị thay.</div>';
 		}
 
+		/* 🔴 NÓI RA ĐANG CHỜ TỆP CỦA KỲ NÀO, NGAY CẠNH Ô CHỌN TỆP. Máy đọc kỳ từ HAI Ô XỔ trên
+		   màn, KHÔNG đọc từ tên tệp — nên tải tệp tháng 8 về rồi vô tình đổi ô sang tháng 9 là
+		   gửi lên bị chối. Một dòng chữ ở đúng chỗ tay đang bấm rẻ hơn hẳn một câu chối sau
+		   khi họ đã ngồi sửa xong. */
+		echo '<p class="mo" style="margin:0 0 6px;font-size:12px">Đang chờ tệp của: <b>'
+			. esc_html( VHCC_TuanCong::ten_ky( $tu, $den ) ) . '</b> · cơ sở <b>'
+			. esc_html( $cs ) . '</b> — máy đọc kỳ từ hai ô xổ ở trên, <b>không</b> đọc từ tên '
+			. 'tệp. Gửi tệp của kỳ khác thì bị chối, chọn lại đúng kỳ là gửi được ngay.</p>';
 		echo '<form method="post" enctype="multipart/form-data" class="hang" style="gap:8px">'
 			. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
 			. '<input type="hidden" name="viec" value="dt_nap">'

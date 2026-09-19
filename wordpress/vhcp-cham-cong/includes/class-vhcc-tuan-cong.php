@@ -881,8 +881,33 @@ class VHCC_TuanCong {
 		$bay = self::ngay_cua( $t2, $cn );
 		$thay = array();
 		foreach ( $cot_ngay as $x ) { $thay[ $x ] = true; }
+
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 TỆP CỦA THÁNG KHÁC THÌ NÓI THẲNG LÀ THÁNG KHÁC
+		 * ═══════════════════════════════════════════════════════════════════════════════════
+		 * Anh Thắng 19/09/2026: ô Tháng đang để **Tháng Chín**, tệp gửi lên là bảng công
+		 * **tháng 8**. Câu chối cũ nói *"Tệp thiếu cột của ngày 2026-09-01. Đừng xoá hay đổi
+		 * tên cột ngày"* — đổ lỗi cho người dùng về một việc họ không làm, và chỉ sang một
+		 * cách sửa (tải lại tệp mẫu) tốn cả buổi sửa lại từ đầu. Việc phải làm thật ra là
+		 * ĐỔI Ô THÁNG, mất ba giây, và tệp đang cầm vẫn dùng được nguyên.
+		 *
+		 * Nhận ra rất dễ: mọi cột ngày trong tệp cùng rơi vào MỘT tháng khác. Nhận ra được mà
+		 * vẫn để câu chối cũ thì đó là hệ thống biết câu trả lời nhưng không chịu nói.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$thang_tep = array();
+		foreach ( $cot_ngay as $x ) { $thang_tep[ substr( (string) $x, 0, 7 ) ] = true; }
+		$thang_can = substr( $t2, 0, 7 );
+		if ( 1 === count( $thang_tep ) && ! isset( $thang_tep[ $thang_can ] ) ) {
+			$tt_tep = self::ten_thang( array_keys( $thang_tep )[0] . '-01' );
+			return array( 'ok' => false, 'error' => 'Tệp này là bảng công của ' . $tt_tep
+				. ', nhưng ô Tháng trên màn đang chọn ' . self::ten_ky( $t2, $cn ) . '. '
+				. 'Chọn lại ' . $tt_tep . ' ở ô Tháng rồi bấm Gửi lại — KHÔNG phải tải tệp mới, '
+				. 'tệp đang cầm vẫn dùng được nguyên.' );
+		}
+
 		foreach ( $bay as $ng ) {
 			if ( ! isset( $thay[ $ng ] ) ) {
+				/* Tới đây thì tệp ĐÚNG tháng nhưng thiếu ngày — lúc ấy mới là xoá cột thật. */
 				return array( 'ok' => false, 'error' => 'Tệp thiếu cột của ngày ' . $ng
 					. '. Đừng xoá hay đổi tên cột ngày — tải lại tệp mẫu rồi sửa trên đó.' );
 			}
