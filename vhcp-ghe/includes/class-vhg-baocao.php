@@ -60,7 +60,7 @@ class VHG_BaoCao {
 	   boot() trả nó kèm mọi phản hồi (`banBc`) — số ở góc nói tệp chính là bản nào, số này nói
 	   TỆP BÁO CÁO là bản nào. Hai số lệch nhau là bằng chứng tệp cũ còn sống. Phải tăng cùng
 	   VHG_VERSION mỗi lần sửa tệp này. */
-	const BAN = '2.117.0';
+	const BAN = '2.118.0';
 
 	/** Ghế từng thu tiền trong bao nhiêu ngày gần đây thì vẫn phải hiện ở màn nhập — xem ds_ghe(). */
 	const GHE_LS_NGAY = 45;
@@ -563,11 +563,23 @@ class VHG_BaoCao {
 	 *
 	 * @return array `cs` (int|null) · `ngay` (yyyy-mm-dd, '' nếu không có)
 	 */
-	public static function chi_so_ke_ct_( $ma_may, $ngay ) {
+	public static function chi_so_ke_ct_( $ma_may, $ngay, $coso = '' ) {
 		global $wpdb;
 		$ma   = (string) $ma_may;
 		$ngay = self::ngay_( $ngay );
 		if ( '' === $ma || '' === $ngay ) { return array( 'cs' => null, 'ngay' => '' ); }
+		/* Cùng luật với chi_so_truoc_ct_: ưu tiên lịch sử CỦA CHÍNH CƠ SỞ NÀY. Cái trần lấy nhầm
+		   của ghế trùng mã nơi khác thì hoặc chặn oan một số đúng, hoặc thả lọt một số sai. */
+		if ( '' !== trim( (string) $coso ) ) {
+			$rc = $wpdb->get_row( $wpdb->prepare(
+				'SELECT d.chi_so_sau cs, d.ngay d FROM ' . VHG_DB::t( 'bc_dong' ) . ' d'
+				. ' JOIN ' . VHG_DB::t( 'bc' ) . ' h ON h.report_id = d.report_id'
+				. ' WHERE d.ma_may=%s AND d.ngay > %s AND d.chi_so_sau IS NOT NULL AND h.coso_key=%s'
+				. ' ORDER BY d.ngay ASC, d.lan ASC, d.chi_so_sau ASC LIMIT 1',
+				$ma, $ngay, self::squash( $coso ) ), ARRAY_A );
+			if ( $rc ) { return array( 'cs' => (int) $rc['cs'], 'ngay' => (string) $rc['d'] ); }
+			return array( 'cs' => null, 'ngay' => '' );
+		}
 		/* Hàng gần nhất SAU ngày này mà thật sự có chỉ số — hàng chưa nhập chỉ số không phải một
 		   cái trần, nó chỉ là một hàng trống. Sắp `lan ASC` để lấy LẦN THU ĐẦU của ngày ấy: đó
 		   mới là mốc nối tiếp của ngày đang nhập; lấy lần cuối là bỏ qua cả phần giữa. */
@@ -580,10 +592,10 @@ class VHG_BaoCao {
 		return array( 'cs' => (int) $r['cs'], 'ngay' => (string) $r['d'] );
 	}
 
-	public static function lay_chiso_ke( $codes, $ngay ) {
+	public static function lay_chiso_ke( $codes, $ngay, $coso = '' ) {
 		$out = array();
 		foreach ( (array) $codes as $c ) {
-			$x = self::chi_so_ke_ct_( $c, $ngay );
+			$x = self::chi_so_ke_ct_( $c, $ngay, $coso );
 			/* Chỉ trả ghế NÀO CÓ trần. Trả cả ghế không có (null) là bắt giao diện lọc lại một
 			   lần nữa, và mỗi nơi lọc là một nơi quên lọc. */
 			if ( null !== $x['cs'] ) { $out[ (string) $c ] = $x; }
@@ -629,13 +641,27 @@ class VHG_BaoCao {
 	 *    (kich_tien không lưu ở bc_dong nên coi như 0 khi nối lại — lượt kích hiếm; nếu có, số lệch
 	 *    nhẹ và lộ ra ở đối chiếu, không âm thầm sai sổ.)
 	 */
-	public static function noi_tiep( $ma_may, $ngay ) {
+	/**
+	 * Mệnh đề lọc "thuộc cơ sở này" cho truy vấn trên `bc_dong` (không có cột cơ sở, phải soi
+	 * ngược qua `bc`). Trả chuỗi rỗng khi không biết cơ sở → giữ nguyên hành vi cũ.
+	 *
+	 * ⚠️ AN TOÀN SQL: `squash()` chỉ chừa lại A-Z0-9 nên nhúng thẳng được; đừng đổi nó thành hàm
+	 *    khác mà quên chỗ này.
+	 */
+	private static function loc_coso_( $coso ) {
+		$k = self::squash( (string) $coso );
+		if ( '' === $k ) { return ''; }
+		return " AND report_id IN (SELECT report_id FROM " . VHG_DB::t( 'bc' ) . " WHERE coso_key='" . $k . "')";
+	}
+
+	public static function noi_tiep( $ma_may, $ngay, $coso = '' ) {
 		global $wpdb;
 		$ma = (string) $ma_may; $d = self::ngay_( $ngay );
 		if ( '' === $ma || '' === $d ) { return; }
 		$r = $wpdb->get_row( $wpdb->prepare(
 			'SELECT * FROM ' . VHG_DB::t( 'bc_dong' )
-			. ' WHERE ma_may=%s AND ngay > %s AND chi_so_sau IS NOT NULL ORDER BY ngay ASC LIMIT 1',
+			. ' WHERE ma_may=%s AND ngay > %s AND chi_so_sau IS NOT NULL'
+			. self::loc_coso_( $coso ) . ' ORDER BY ngay ASC LIMIT 1',
 			$ma, $d ), ARRAY_A );
 		if ( $r ) { self::ap_moc_( $r ); }
 	}
@@ -645,13 +671,14 @@ class VHG_BaoCao {
 	 * báo cáo đó vừa bị đổi ngày (doi_ngay) — chỉ số trước của nó phải theo mốc mới, không phải mốc
 	 * của ngày cũ. chi_so_truoc() luôn nhìn ngày < ngày hàng nên không tự lấy chính nó.
 	 */
-	public static function noi_hang( $ma_may, $ngay ) {
+	public static function noi_hang( $ma_may, $ngay, $coso = '' ) {
 		global $wpdb;
 		$ma = (string) $ma_may; $d = self::ngay_( $ngay );
 		if ( '' === $ma || '' === $d ) { return; }
 		$r = $wpdb->get_row( $wpdb->prepare(
 			'SELECT * FROM ' . VHG_DB::t( 'bc_dong' )
-			. ' WHERE ma_may=%s AND ngay=%s AND chi_so_sau IS NOT NULL ORDER BY id ASC LIMIT 1',
+			. ' WHERE ma_may=%s AND ngay=%s AND chi_so_sau IS NOT NULL'
+			. self::loc_coso_( $coso ) . ' ORDER BY id ASC LIMIT 1',
 			$ma, $d ), ARRAY_A );
 		if ( $r ) { self::ap_moc_( $r ); }
 	}
@@ -670,7 +697,16 @@ class VHG_BaoCao {
 		   đè lên (anh Thắng 11/09/2026). Không có cột này thì mọi lần chèn/sửa ngày trước lại kéo mốc
 		   tay về số auto, đúng cái "tự ý nhảy số" mà kế toán vừa sửa xong. */
 		if ( ! empty( $r['moc_tay'] ) ) { return; }
-		$moi = self::chi_so_truoc( $ma, (string) $r['ngay'] );   // mốc sống (ngày < ngày hàng này)
+		/* 🔴 MỐC PHẢI TÍNH THEO CƠ SỞ CỦA CHÍNH HÀNG NÀY — anh Thắng 19/09/2026 (xem
+		   chi_so_truoc_ct_). Không suy cơ sở ra thì hàm này lấy mốc theo mã ghế trên toàn hệ, và
+		   với mã trùng thì nó GHI ĐÈ chi_so_truoc của một hàng đã chốt bằng chỉ số của ghế nơi
+		   khác — tức tự tay làm sai tiền của một báo cáo đang đúng.
+		   Suy ngay tại đây, không bắt người gọi truyền: hàm này được gọi từ bảy chỗ (luu, sua_dong,
+		   duyệt, xoá, đổi ngày…), sót một chỗ là sót âm thầm. */
+		$cs_r = (string) $wpdb->get_var( $wpdb->prepare(
+			'SELECT coso FROM ' . VHG_DB::t( 'bc' ) . ' WHERE report_id=%s LIMIT 1',
+			(string) ( isset( $r['report_id'] ) ? $r['report_id'] : '' ) ) );
+		$moi = self::chi_so_truoc( $ma, (string) $r['ngay'], false, $cs_r );   // mốc sống (ngày < ngày hàng này)
 		if ( null === $moi ) { return; }
 		$truoc_cu = self::so_chiso_( $r['chi_so_truoc'] );
 		if ( null !== $truoc_cu && abs( (float) $truoc_cu - (float) $moi ) < 0.005 ) { return; }   // không đổi
@@ -1514,7 +1550,7 @@ class VHG_BaoCao {
 		   report_id cũ, ghế nào rớt khỏi lượt gửi này thì xoá số của ghế đó". Report_id giờ LUÔN
 		   MỚI (không còn `$prev`/"gửi lại = sửa đè"), nên một report_id vừa tạo không thể có ghế
 		   nào từ trước để mà "bỏ" — khối đó không còn đường nào chạy tới, xoá hẳn thay vì để chết. */
-		foreach ( array_keys( $gui_ma ) as $ma_nt ) { self::noi_tiep( $ma_nt, $ngay ); }
+		foreach ( array_keys( $gui_ma ) as $ma_nt ) { self::noi_tiep( $ma_nt, $ngay, $coso ); }
 
 		$dong_yc = self::dong_yeucau_( $coso, $ngay, $q['ten'] . ' · ' . $rid );
 		$phien = self::phien_upsert_( $pin, $ngay );   // cập nhật tiến độ phiên thu ngày
@@ -2223,7 +2259,7 @@ class VHG_BaoCao {
 			'tao_luc' => current_time( 'mysql' ) ) );
 		$wpdb->update( VHG_DB::t( 'bc_dong' ), $data_up, array( 'id' => (int) $d['id'] ) );
 		$wpdb->update( VHG_DB::t( 'bc' ), array( 'sua_luc' => current_time( 'mysql' ) ), array( 'report_id' => $rid ) );
-		self::noi_tiep( $ma, $h['ngay'] );   // sửa chỉ số sau → ngày kế tiếp tự nối lại chỉ số trước
+		self::noi_tiep( $ma, $h['ngay'], (string) $h['coso'] );   // sửa chỉ số sau → ngày kế tiếp tự nối lại chỉ số trước
 		$yc = self::dong_yeucau_( $h['coso'], $h['ngay'], $q['ten'] . ' · sửa 24h · ' . $rid );
 		return array( 'ok' => true, 'dongYeuCau' => $yc );
 	}

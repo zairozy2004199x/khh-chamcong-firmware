@@ -96,5 +96,15 @@ t('màn nhập gửi kèm cơ sở khi hỏi chỉ số', /bc_lastmeters'[^)]*co
 t('router chuyền cơ sở xuống cả ba hàm lấy chỉ số',
   (trang.match(/\$cs_bc/g) || []).length >= 3);
 
+/* Rà cả hệ (19/09): mọi chỗ ĐỌC CHỈ SỐ trên bc_dong đều phải chốt được cơ sở, không chỉ mỗi
+   chi_so_truoc. ap_moc_ là chỗ nguy nhất — nó GHI ĐÈ chi_so_truoc của hàng đã chốt. */
+t('ap_moc_ tự suy cơ sở từ báo cáo của chính hàng (không chờ người gọi truyền)',
+  /SELECT coso FROM/.test(than(bc, 'ap_moc_')) && /chi_so_truoc\( \$ma, \(string\) \$r\['ngay'\], false, \$cs_r \)/.test(bc));
+t('chi_so_ke_ct_ ("trần" ngày đang nhập) cũng chốt cơ sở', /function chi_so_ke_ct_\([^)]*\$coso/.test(bc)
+  && /h\.coso_key=%s/.test(than(bc, 'chi_so_ke_ct_')));
+t('noi_tiep / noi_hang lọc được theo cơ sở', /function loc_coso_/.test(bc)
+  && /loc_coso_\( \$coso \)/.test(than(bc, 'noi_tiep'))
+  && /loc_coso_\( \$coso \)/.test(than(bc, 'noi_hang')));
+
 console.log(hong ? '\n🔴 TRƯỢT: ' + hong : '\n✓ SẠCH');
 process.exit(hong ? 1 : 0);

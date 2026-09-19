@@ -780,7 +780,7 @@ JS;
 				self::tra( array( 'ok' => true,
 					'map'  => VHG_BaoCao::lay_chiso_truoc( $ma_ds, $ng_bc, ! empty( $d['toi'] ), $cs_bc ),
 					'mapd' => VHG_BaoCao::lay_chiso_truoc_ngay( $ma_ds, $ng_bc, ! empty( $d['toi'] ), $cs_bc ),
-					'ke'   => VHG_BaoCao::lay_chiso_ke( $ma_ds, $ng_bc ) ) );
+					'ke'   => VHG_BaoCao::lay_chiso_ke( $ma_ds, $ng_bc, $cs_bc ) ) );
 				return;
 			}
 			/* Xem trước lượt kích ghế từ xa cần trừ — cho nhân viên thấy TRƯỚC khi Gửi, khớp đúng

@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-09-18 · Phiên bản hiện tại: **2.117.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-09-18 · Phiên bản hiện tại: **2.118.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,38 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v2.118.0 — Rà cả hệ: mọi chỗ đọc chỉ số đều phải chốt cơ sở
+
+Anh Thắng 19/09/2026, sau khi 2.117 chữa xong màn nhập: *"đã đúng cho cơ sở đó, check lại xem tất
+cả hệ thống có đang lấy nhầm không"*.
+
+Rà hết các truy vấn tra theo `ma_may`. Ba chỗ nữa cùng bệnh, đều đụng tiền:
+
+1. **`ap_moc_()`** — chỗ NGUY NHẤT. Nó **ghi đè `chi_so_truoc` của hàng đã chốt** mỗi khi có
+   chèn/sửa/xoá/đổi ngày ở ngày trước. Lấy mốc theo mã ghế trên toàn hệ nghĩa là với mã trùng, nó
+   tự tay sửa sai tiền của một báo cáo đang đúng ở cơ sở khác. Nay **tự suy cơ sở** từ báo cáo của
+   chính hàng ấy — không bắt người gọi truyền, vì hàm này được gọi từ bảy chỗ (luu, sua_dong,
+   duyệt, xoá, đổi ngày…), sót một chỗ là sót âm thầm.
+2. **`chi_so_ke_ct_()`** — cái "trần" cho ngày đang nhập. Trần lấy nhầm thì hoặc chặn oan một số
+   đúng, hoặc thả lọt một số sai. Nay cùng luật ưu tiên cơ sở; router `bc_lastmeters` truyền xuống.
+3. **`noi_tiep()` / `noi_hang()`** — tìm hàng kế tiếp để nối lại mốc. Thêm `loc_coso_()`; `luu()` và
+   `sua_dong()` truyền cơ sở của chính báo cáo.
+
+**Còn lại — CHƯA sửa, và nói rõ vì sao.** Mấy bảng này **không có cột cơ sở** nên không chốt được
+nếu không có bản đồ mã→cơ sở, mà chính bản đồ ấy cũng nhập nhằng khi mã trùng:
+
+| Chỗ | Bảng | Ảnh hưởng |
+|---|---|---|
+| `kich_xa_tru()` | `lenh` | lượt kích ghế từ xa bị trừ vào actual — trừ nhầm của ghế trùng mã |
+| `VHG_KeToan` (~1170) | `thu` | tiền QR theo ghế/ngày |
+| `bao_tri()` | `bao_tri` | báo lỗi có thể cập nhật dòng của cơ sở khác |
+| đếm bật/tắt máy | `bat_tat` | chỉ là thống kê |
+| `vietqr_thuc_()` | bản đồ mã→cơ sở | mã trùng thì một cơ sở "ăn" hết tiền QR |
+
+**Cách chữa dứt điểm cho nhóm này là bỏ mã trùng**, không phải vá thêm: đổi mã một bên bằng *Nhân
+bản ghế* (chép sẵn mốc chỉ số nên không nhảy về 0).
+
 
 ### v2.117.0 — Chỉ số trước phải của ĐÚNG ghế ở ĐÚNG cơ sở
 
