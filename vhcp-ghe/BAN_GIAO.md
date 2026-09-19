@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-09-18 · Phiên bản hiện tại: **2.118.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-09-18 · Phiên bản hiện tại: **2.119.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,31 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v2.119.0 — Chặn luật lịch sử sinh rác, và cho xoá hẳn mã rác
+
+Anh Thắng 19/09/2026: *"lại tiếp tục sinh rác"*, *"dữ liệu tiền bạc mà cứ sinh rác"*, *"cho xoá
+hẳn được không"*.
+
+**Rác là gì.** Vạn Hạnh Mall có **18 mã trong khối "Ghế đã ẩn"**, phần lớn là **mã cũ của chính
+những ghế đang chạy**: VHM-1 (801351 sống / 80135 ẩn), VHM-11 (80145 / 80192), VHM-12 (80146 /
+80193). Ai đó tạo mã mới thay vì dùng "đổi mã", nên lịch sử kẹt ở mã cũ. Luật cứu-theo-lịch-sử của
+2.115 lôi hết chúng ra → màn nhập hiện **từng cặp trùng tên**. Nhân viên không biết điền hàng nào;
+điền cả hai là **doanh thu đếm đôi**.
+
+Hai tầng chặn ở `ds_ghe()`:
+
+1. **Không dựng dậy ghế đang nằm trong khối "đã ẩn".** Cờ ẩn là ý định tường minh của quản trị;
+   luật lịch sử không được cãi lại nó. Ca GO-TDM vẫn được cứu vì mấy ghế ấy KHÔNG bị ẩn — chúng rơi
+   khỏi cơ sở, chuyện khác hẳn. (Từ 2.115 không ai bật thêm cờ ẩn được nữa nên danh sách chỉ teo.)
+2. **Không dựng dậy mã cũ khi cơ sở đã có ghế SỐNG cùng TÊN.** Lưới thứ hai cho mã trùng tên mà
+   không nằm trong khối ẩn. So theo TÊN chứ không theo mã — mã chính là thứ đã đổi.
+
+**Xoá hẳn:** `xoa_han_may()` trước chỉ chịu xoá mã **chưa gán**, mà mã rác thì vẫn dính cơ sở nên
+không có đường dọn. Nay nới đúng một bậc: **ghế đang ẩn cũng xoá hẳn được**. Không nới cho ghế đang
+chạy. Chốt dữ liệu giữ nguyên: **còn một dòng dữ liệu là không xoá** — mã rác có tiền thì phải GỘP
+vào ghế đang chạy trước (đổi mã), xoá thẳng là bỏ lại mấy dòng tiền không tra ra ghế nào.
+
 
 ### v2.118.0 — Rà cả hệ: mọi chỗ đọc chỉ số đều phải chốt cơ sở
 

@@ -1460,10 +1460,20 @@ class VHG_May {
 
 		foreach ( $ma_sach as $ma ) {
 			$hang = $wpdb->get_row( $wpdb->prepare(
-				"SELECT ma, coso_id FROM $t_may WHERE ma=%s LIMIT 1", $ma ), ARRAY_A );
+				"SELECT ma, coso_id, an FROM $t_may WHERE ma=%s LIMIT 1", $ma ), ARRAY_A );
 			if ( ! $hang ) { $khong_thay[] = $ma; continue; }
-			if ( (int) $hang['coso_id'] !== 0 ) {
-				$giu[] = array( 'ma' => $ma, 'ly_do' => 'đang thuộc một cơ sở — hàm này chỉ xoá mã CHƯA GÁN' );
+			/* 🔴 XOÁ HẲN ĐƯỢC CẢ GHẾ ĐANG NẰM TRONG KHỐI "ĐÃ ẨN" — anh Thắng 19/09/2026: *"cho xoá
+			   hẳn được không"*, *"dữ liệu tiền bạc mà cứ sinh rác"*. Vạn Hạnh Mall có 18 mã trong
+			   khối ẩn, phần lớn là mã cũ của chính những ghế đang chạy (VHM-11 có cả 80145 lẫn
+			   80192). Trước đây hàm này chỉ chịu xoá mã CHƯA GÁN, mà mã rác thì vẫn dính cơ sở —
+			   nên không có đường nào dọn, rác nằm đó mãi.
+			   Nới đúng một bậc: ghế ĐANG ẨN cũng xoá hẳn được. Không nới cho ghế đang chạy — xoá
+			   nhầm một ghế đang thu tiền là mất cả lối vào doanh thu của nó.
+			   ⚠️ CHỐT DỮ LIỆU GIỮ NGUYÊN (khối ngay dưới): còn một dòng dữ liệu là KHÔNG xoá. Mã
+			      rác mà có tiền thì phải GỘP vào ghế đang chạy trước (đổi mã), xoá thẳng là bỏ
+			      lại mấy dòng tiền không tra ra ghế nào. */
+			if ( (int) $hang['coso_id'] !== 0 && empty( $hang['an'] ) ) {
+				$giu[] = array( 'ma' => $ma, 'ly_do' => 'đang thuộc một cơ sở và KHÔNG bị ẩn — chỉ xoá hẳn được mã chưa gán hoặc mã trong khối "đã ẩn"' );
 				continue;
 			}
 			$dau_vet = array(); $tong = 0;
@@ -1490,7 +1500,8 @@ class VHG_May {
 
 		$da = 0;
 		foreach ( $xoa as $ma ) {
-			$da += (int) $wpdb->query( $wpdb->prepare( "DELETE FROM $t_may WHERE ma=%s AND coso_id=0", $ma ) );
+			$da += (int) $wpdb->query( $wpdb->prepare(
+				"DELETE FROM $t_may WHERE ma=%s AND (coso_id=0 OR an=1)", $ma ) );
 		}
 		$tong_mo_coi = 0;
 		foreach ( $mo_coi as $mc ) { $tong_mo_coi += (int) $mc['so_dong']; }

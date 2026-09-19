@@ -60,7 +60,7 @@ class VHG_BaoCao {
 	   boot() trả nó kèm mọi phản hồi (`banBc`) — số ở góc nói tệp chính là bản nào, số này nói
 	   TỆP BÁO CÁO là bản nào. Hai số lệch nhau là bằng chứng tệp cũ còn sống. Phải tăng cùng
 	   VHG_VERSION mỗi lần sửa tệp này. */
-	const BAN = '2.118.0';
+	const BAN = '2.119.0';
 
 	/** Ghế từng thu tiền trong bao nhiêu ngày gần đây thì vẫn phải hiện ở màn nhập — xem ds_ghe(). */
 	const GHE_LS_NGAY = 45;
@@ -274,7 +274,23 @@ class VHG_BaoCao {
 		 * ═══════════════════════════════════════════════════════════════════════════════════ */
 		global $wpdb;
 		$da_co = array();
-		foreach ( $ra as $x ) { $da_co[ self::squash( $x['coso'] ) . '|' . $x['ma'] ] = true; }
+		$ten_song = array();   // squash(cơ sở)|squash(TÊN ghế) => đã có một ghế SỐNG mang tên ấy
+		foreach ( $ra as $x ) {
+			$da_co[ self::squash( $x['coso'] ) . '|' . $x['ma'] ] = true;
+			$ten_song[ self::squash( $x['coso'] ) . '|' . self::squash( $x['ten'] ) ] = true;
+		}
+		/* 🔴 KHÔNG DỰNG DẬY GHẾ ĐANG NẰM TRONG KHỐI "ĐÃ ẨN" — anh Thắng 19/09/2026: *"lại tiếp tục
+		   sinh rác"*, *"dữ liệu tiền bạc mà cứ sinh rác"*. Vạn Hạnh Mall có 18 ghế trong khối ẩn;
+		   luật cứu-theo-lịch-sử lôi hết ra, thành từng cặp trùng tên: VHM-1 (801351 sống / 80135
+		   ẩn), VHM-11 (80145 / 80192), VHM-12 (80146 / 80193)… Nhân viên không biết điền hàng
+		   nào, điền cả hai là doanh thu ĐẾM ĐÔI — sinh rác ngay giữa dữ liệu tiền.
+		   Cờ ẩn là ý định TƯỜNG MINH của quản trị; luật lịch sử không được cãi lại nó. Ca GO-TDM
+		   vẫn được cứu vì mấy ghế ấy KHÔNG hề bị ẩn — chúng rơi khỏi cơ sở, đó là chuyện khác.
+		   (Từ 2.115 không ai bật thêm cờ ẩn được nữa, nên danh sách này chỉ teo đi.) */
+		$an_map = array();
+		foreach ( (array) $wpdb->get_results( 'SELECT ma, an FROM ' . VHG_DB::t( 'may' ), ARRAY_A ) as $mx ) {
+			if ( ! empty( $mx['an'] ) ) { $an_map[ (string) $mx['ma'] ] = true; }
+		}
 		$moc_ls = gmdate( 'Y-m-d', current_time( 'timestamp' ) - self::GHE_LS_NGAY * 86400 );
 		$ls = $wpdb->get_results( $wpdb->prepare(
 			'SELECT h.coso, d.ma_may, MAX(d.ten) AS ten FROM ' . VHG_DB::t( 'bc_dong' ) . ' d'
@@ -288,6 +304,20 @@ class VHG_BaoCao {
 			if ( '' === $cs_ls || '' === $ma_ls ) { continue; }
 			if ( isset( $da_co[ self::squash( $cs_ls ) . '|' . $ma_ls ] ) ) { continue; }
 			if ( ! self::trong_pham_vi( $q, $cs_ls, $ma_ls ) ) { continue; }
+			if ( isset( $an_map[ $ma_ls ] ) ) { continue; }   // đang nằm trong khối "đã ẩn" — xem trên
+			/* 🔴 ĐỪNG DỰNG DẬY MÃ CŨ CỦA MỘT GHẾ ĐÃ ĐỔI MÃ — anh Thắng 19/09/2026: *"lại tiếp tục
+			   sinh rác"*. Vạn Hạnh Mall hiện HAI hàng cùng tên VHM-1: mã 801351 (đang trong danh
+			   mục, số mới 19/09) và mã 80135 (số cuối 11/09). Đó là MỘT cái ghế, ai đó tạo mã mới
+			   thay vì dùng "đổi mã" nên lịch sử kẹt lại ở mã cũ — và luật cứu-theo-lịch-sử kéo mã
+			   cũ sống dậy.
+			   Hai hàng cùng tên ở cùng một cơ sở không giúp được ai: nhân viên không biết điền
+			   hàng nào, điền cả hai là doanh thu đếm đôi. Cơ sở đã có một ghế SỐNG mang đúng tên
+			   ấy thì hàng lịch sử kia là mã cũ, bỏ qua.
+			   ⚠️ Chỉ so theo TÊN, không so theo mã: mã chính là thứ đã đổi. Và chỉ bỏ khi có ghế
+			      sống cùng tên — ghế thật sự rơi khỏi danh mục (ca GO-TDM) không có ai trùng tên
+			      nên vẫn được cứu như thường. */
+			$ten_ls = trim( (string) $x['ten'] );
+			if ( '' !== $ten_ls && isset( $ten_song[ self::squash( $cs_ls ) . '|' . self::squash( $ten_ls ) ] ) ) { continue; }
 			$ra[] = array(
 				'ma'      => $ma_ls,
 				'ten'     => (string) ( '' !== trim( (string) $x['ten'] ) ? $x['ten'] : $ma_ls ),
