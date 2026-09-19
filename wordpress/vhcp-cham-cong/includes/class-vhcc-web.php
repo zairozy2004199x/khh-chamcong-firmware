@@ -1298,6 +1298,8 @@ class VHCC_Web {
 		   hình. Chốt thật ở `VHCC_NgayLe::` (cửa `ngay_le`, Kế toán trở lên) và
 		   `VHCC_QuyCong::dat()` (cửa `gia_gio`) — ở đây chỉ là cho phép định tuyến tới. */
 		'le_hs', 'le_them', 'le_xoa', 'qc_dat', 'qc_mac_dinh',
+		/* Sổ BHXH — cửa KẾ TOÁN. Chốt thật ở `VHCC_Bhxh::dat()` / `::xoa()`. */
+		'bh_dat', 'bh_xoa',
 		/* Phân loại giờ cho từng người: việc của CỬA HÀNG TRƯỞNG, cửa thấp hơn công tắc trên.
 		   Chốt thật ở `VHCC_LoaiGio::dat_phan()` (cong_coso + đúng phạm vi cơ sở). */
 		'loai_gio_phan',
@@ -1838,6 +1840,32 @@ class VHCC_Web {
 			if ( empty( $r_qc['ok'] ) ) { return array( array( 'loi' => $r_qc['error'] ) ); }
 			return array( array( 'ok' => true, 'thong_bao' => 'Đã về bảng mặc định: '
 				. $r_qc['moTa'] . '.' ) );
+		}
+
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * SỔ BHXH — anh Thắng 19/09/2026. Xem `VHCC_Bhxh`.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		if ( 'bh_dat' === $viec ) {
+			$r_bh = VHCC_Bhxh::dat( $toi,
+				isset( $_POST['bh_ma'] ) ? sanitize_text_field( wp_unslash( $_POST['bh_ma'] ) ) : '',
+				isset( $_POST['bh_tien'] ) ? sanitize_text_field( wp_unslash( $_POST['bh_tien'] ) ) : '',
+				isset( $_POST['bh_tu'] ) ? sanitize_text_field( wp_unslash( $_POST['bh_tu'] ) ) : '' );
+			if ( empty( $r_bh['ok'] ) ) { return array( array( 'loi' => $r_bh['error'] ) ); }
+			if ( ! empty( $r_bh['bo'] ) ) {
+				return array( array( 'ok' => true, 'thong_bao' => 'Đã bỏ ' . $r_bh['ma']
+					. ' khỏi sổ BHXH — từ nay bảng lương không trừ khoản này nữa.' ) );
+			}
+			return array( array( 'ok' => true, 'thong_bao' => 'Sổ BHXH: ' . $r_bh['ma'] . ' trừ '
+				. number_format( (float) $r_bh['tien'], 0, ',', '.' ) . 'đ mỗi tháng, kể từ tháng '
+				. $r_bh['tu'] . '. Tháng trước đó không bị trừ.' ) );
+		}
+
+		if ( 'bh_xoa' === $viec ) {
+			$r_bh = VHCC_Bhxh::xoa( $toi,
+				isset( $_POST['bh_ma'] ) ? sanitize_text_field( wp_unslash( $_POST['bh_ma'] ) ) : '' );
+			if ( empty( $r_bh['ok'] ) ) { return array( array( 'loi' => $r_bh['error'] ) ); }
+			return array( array( 'ok' => true, 'thong_bao' => 'Đã bỏ ' . $r_bh['ten']
+				. ' khỏi sổ BHXH — từ nay bảng lương không trừ khoản này nữa.' ) );
 		}
 
 		if ( 'loai_gio_cfg' === $viec ) {
@@ -9575,6 +9603,90 @@ class VHCC_Web {
 	}
 
 	/**
+	 * SỔ BHXH — ai đóng, mỗi tháng trừ bao nhiêu.
+	 *
+	 * Anh Thắng 19/09/2026: *"Đối với nhân viên cố định sẽ có thêm bảo hiểm xã hội. Bổ sung tab
+	 * bên Phân Quyền Kế toán để kế toán chốt BHXH bạn nào đóng sẽ được thêm vào bảng"*.
+	 *
+	 * ⚠️ MỘT SỔ CHUNG CẢ CHUỖI, KHÔNG CHIA THEO THÁNG. Khai một lần, tự lặp mọi tháng kể từ
+	 *    tháng bắt đầu — xem khối chú thích đầu `VHCC_Bhxh`.
+	 */
+	private static function the_bhxh( $ky, $toi ) {
+		if ( ! VHCC_Vai::duoc( $toi, VHCC_Bhxh::QUYEN ) ) { return; }
+		$ds = VHCC_Bhxh::ds();
+		$th_nay = substr( (string) current_time( 'Y-m-d' ), 0, 7 );
+
+		echo '<div class="the"><details' . ( $ds ? ' open' : '' )
+			. '><summary><b>Sổ BHXH</b> <span class="mo">— ai đóng, mỗi tháng trừ bao nhiêu · '
+			. 'chung cả chuỗi</span></summary>';
+		echo '<p class="mo" style="margin:10px 0">Người có tên trong sổ này thì bảng lương '
+			. '<b>tháng nào cũng</b> trừ đúng số tiền đã khai, ở cột <b>BHXH</b> — không phải gõ '
+			. 'lại mỗi tháng. Vào bảo hiểm thì thêm một lần, nghỉ thì xoá.</p>';
+
+		/* 🔴 NÓI THẲNG LÀ MÁY KHÔNG TỰ TÍNH. Người khai rất dễ tưởng gõ lương cơ bản vào đây là
+		   xong — rồi số tiền trừ sai gấp mấy lần. Mức đóng bảo hiểm là một con số NẰM NGOÀI hệ,
+		   khác hẳn lương cơ bản (tờ của anh Thắng: lương cb 4.000.000, BHXH 596.610). */
+		echo '<div class="bao" style="margin:0 0 12px">Gõ <b>số tiền trừ mỗi tháng</b>, không '
+			. 'phải mức lương đóng và cũng không phải tỉ lệ. Máy <b>không tự tính</b> — mức đóng '
+			. 'bảo hiểm nằm ngoài hệ này.</div>';
+
+		$an = '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+			. '<input type="hidden" name="man" value="cau_hinh">';
+
+		if ( $ds ) {
+			$tong = VHCC_Bhxh::tong_thang( $th_nay );
+			echo '<div class="cuon"><table class="b"><thead><tr><th>Mã NV</th><th>Họ tên</th>'
+				. '<th>Trừ mỗi tháng</th><th>Từ tháng</th><th></th></tr></thead><tbody>';
+			foreach ( $ds as $x ) {
+				/* Chưa tới tháng bắt đầu thì nói ra — dòng có mặt mà bảng lương chưa trừ là
+				   thứ người khai sẽ tưởng hỏng. */
+				$chua = ( '' !== $x['tu'] && $th_nay < $x['tu'] );
+				echo '<tr><td><code>' . esc_html( $x['ma'] ) . '</code></td>'
+					. '<td>' . esc_html( '' !== $x['ten'] ? $x['ten'] : '—' ) . '</td>'
+					. '<td><b>' . esc_html( number_format( $x['tien'], 0, ',', '.' ) ) . 'đ</b></td>'
+					. '<td>' . esc_html( '' !== $x['tu'] ? $x['tu'] : '—' )
+					. ( $chua ? ' <span class="mo">(chưa tới — tháng này chưa trừ)</span>' : '' )
+					. '</td>'
+					. '<td><form method="post" style="display:inline">' . $an
+					. '<input type="hidden" name="viec" value="bh_xoa">'
+					. '<input type="hidden" name="bh_ma" value="' . esc_attr( $x['ma'] ) . '">'
+					. '<button class="phu">Xoá khỏi sổ</button></form></td></tr>';
+			}
+			echo '</tbody></table></div>';
+			echo '<p class="mo" style="margin:8px 0 0">Tháng ' . esc_html( $th_nay ) . ': '
+				. '<b>' . esc_html( count( $ds ) ) . '</b> người trong sổ, tổng trừ '
+				. '<b>' . esc_html( number_format( $tong, 0, ',', '.' ) ) . 'đ</b>.</p>';
+		} else {
+			echo '<p class="mo" style="margin:0 0 10px">Sổ còn trống — chưa ai bị trừ BHXH.</p>';
+		}
+
+		echo '<form method="post" class="hang" style="gap:8px;align-items:flex-end;margin:12px 0 0">'
+			. $an . '<input type="hidden" name="viec" value="bh_dat">'
+			. '<div><label for="bh_ma">Mã NV</label>'
+			. '<input id="bh_ma" name="bh_ma" style="width:170px" placeholder="MNNV2KVC0166" required></div>'
+			. '<div><label for="bh_tien">Trừ mỗi tháng (đ)</label>'
+			. '<input id="bh_tien" name="bh_tien" style="width:140px" placeholder="596610" required></div>'
+			. '<div><label for="bh_tu">Từ tháng</label>'
+			. '<input id="bh_tu" name="bh_tu" style="width:110px" placeholder="'
+			. esc_attr( $th_nay ) . '"></div>'
+			. '<div><button class="chinh">Thêm / sửa</button></div></form>';
+
+		/* 🔴 NÓI RA VÌ SAO CÓ Ô "TỪ THÁNG". Bỏ trống thì mặc định là tháng đang chạy, và đó là
+		   thứ người khai đang nghĩ — nhưng nếu không có ô ấy thì khai hôm nay là bảng lương
+		   MỌI THÁNG TRƯỚC cũng mọc thêm một khoản trừ, tức viết lại mấy tháng đã trả tiền xong. */
+		echo '<p class="mo" style="margin:10px 0 0;font-size:12px">Ô <b>Từ tháng</b> để trống là '
+			. '<b>' . esc_html( $th_nay ) . '</b> — tức từ nay trở đi. Mấy tháng trước đó '
+			. '<b>không</b> bị trừ, nên khai hôm nay không viết lại bảng lương đã chốt. Gõ mã '
+			. 'của người đã có trong sổ là <b>sửa</b> dòng ấy. Gõ số tiền <b>0</b> cũng là bỏ '
+			. 'khỏi sổ.</p>';
+		echo '<p class="mo" style="margin:8px 0 0;font-size:12px">⚠️ Số này <b>trừ thẳng vào '
+			. 'tổng lương</b> và hiện trên <b>phiếu lương nhân viên tự xem</b>. Sửa một con số ở '
+			. 'đây là đổi tiền của người ấy ở <b>mọi tháng</b> từ tháng bắt đầu trở đi, kể cả '
+			. 'tháng đã xem xong — bảng lương tính lại mỗi lần mở.</p>';
+		echo '</details></div>';
+	}
+
+	/**
 	 * BẢNG QUY ĐỔI GIỜ RA CÔNG — cho người ăn lương tháng.
 	 *
 	 * Anh Thắng 19/09/2026: *"nhân viên tính theo công tháng thì khi tích vào đó, nv sẽ quy đổi
@@ -10565,12 +10677,20 @@ class VHCC_Web {
 				case 'gio':  return ( 'thang' === $d['cheDo'] ) ? $d['congThuc'] : $d['gio'];
 				case 'gia':  return $d['gia'];
 				case 'lc':   return $d['luongChinh'];
-				case 'bhxh': return null;      /* kế toán điền — hệ không có dữ liệu */
+				/* BHXH nay là số của hệ — kế toán chốt sổ ở tab riêng, xem `VHCC_Bhxh`.
+				   Ai không có trong sổ thì `null` (ô trống), KHÔNG phải 0: một cột đầy số 0
+				   trông như đã xét hết mọi người và ai cũng không đóng. */
+				case 'bhxh':
+					return ( $la_c && ! empty( $d['bhxh'] ) ) ? (float) $d['bhxh'] : null;
 				case 'u':    return $la_c ? $d['tongCong'] : null;
 				case 'y':    return $la_c ? $d['tongTru'] : null;
 				case 'z':
+					/* 🔴 TRỪ CẢ BHXH. Cột này là con số CHUYỂN KHOẢN; quên một khoản trừ ở đây
+					   là tờ lương hứa nhiều hơn số thật, và người nhận sẽ đi hỏi. Đối chiếu tờ
+					   thật anh Thắng gửi: 4.000.000 − 596.610 = 3.403.390. */
 					return ( null === $d['luongChinh'] ) ? null
-						: round( (float) $d['luongChinh'] + (float) $d['tongCong'] - (float) $d['tongTru'], 2 );
+						: round( (float) $d['luongChinh'] + (float) $d['tongCong']
+							- (float) $d['tongTru'] - (float) ( $la_c ? $d['bhxh'] : 0 ), 2 );
 			}
 			if ( 0 === strpos( $k, 'c_' ) ) {
 				$x = substr( $k, 2);
@@ -11441,6 +11561,7 @@ class VHCC_Web {
 		   từng cửa hàng. */
 		self::the_ngay_le( $ky, $toi );
 		self::the_quy_cong( $ky, $toi );
+		self::the_bhxh( $ky, $toi );
 		self::the_thieu_khai( $ky, $toi, $cs );
 		self::the_gia_gio( $ky, $toi, $cs );
 		/* Công tắc "nhân viên tự khai loại giờ" — đứng ngay dưới bảng đơn giá vì danh sách

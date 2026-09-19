@@ -142,6 +142,12 @@ class VHCC_Vai {
 		/* --- bậc 4: kế toán ("full quyền ngoài admin") --- */
 		'luong'        => self::KE_TOAN,  // bảng lương, đơn giá, ngày công chuẩn
 		'ngay_le'      => self::KE_TOAN,  // lịch nghỉ lễ
+		'bhxh'         => self::KE_TOAN,  // sổ BHXH: ai đóng, mỗi tháng trừ bao nhiêu
+		                                  // 🔴 CỬA KẾ TOÁN, KHÔNG PHẢI CỬA HÀNG TRƯỞNG. Đây là
+		                                  // một khoản TRỪ THẲNG vào lương và nó tự lặp mọi
+		                                  // tháng — gõ một lần, trừ mãi. Anh Thắng 19/09/2026:
+		                                  // *"Bổ sung tab bên Phân Quyền Kế toán để kế toán
+		                                  // chốt BHXH bạn nào đóng"*.
 		'ho_so'        => self::KE_TOAN,  // sửa hồ sơ nhân sự, cấp PIN, cho nghỉ việc
 		'xem_luong_hs' => self::KE_TOAN,  // ô Lương cơ bản / số tài khoản trong hồ sơ
 
@@ -253,6 +259,7 @@ class VHCC_Vai {
 		'gia_gio'      => 'SỬA đơn giá giờ của cơ sở',
 		'luong'        => 'Bảng lương, ngày công chuẩn',
 		'ngay_le'      => 'Lịch nghỉ lễ',
+		'bhxh'         => 'Sổ BHXH: ai đóng, trừ bao nhiêu',
 		'ho_so'        => 'Hồ sơ nhân sự, cấp PIN',
 		'xem_luong_hs' => 'Ô Lương cơ bản / số tài khoản',
 		'he_thong'     => 'Cài đặt hệ thống, nguồn người dùng',

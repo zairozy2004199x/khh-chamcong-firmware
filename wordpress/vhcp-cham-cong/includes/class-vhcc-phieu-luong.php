@@ -193,13 +193,17 @@ class VHCC_PhieuLuong {
 
 		/* Tổng cộng lại TỪ MẤY DÒNG ĐÃ LỌC. Mấy khoản cộng/trừ chỉ gắn ở DÒNG CHÍNH (xem
 		   `VHCC_BangLuong::dung`), nên cộng thẳng mọi dòng cũng không nhân đôi. */
-		$luong_chinh = 0.0; $tong_cong = 0.0; $tong_tru = 0.0;
+		$luong_chinh = 0.0; $tong_cong = 0.0; $tong_tru = 0.0; $tong_bh = 0.0;
 		$thieu_gia = 0; $thieu_gio = 0; $gio = 0.0;
 		foreach ( $dong as $d ) {
 			if ( null === $d['luongChinh'] ) { $thieu_gia++; } else { $luong_chinh += (float) $d['luongChinh']; }
 			if ( null !== $d['gio'] ) { $gio += (float) $d['gio']; }
 			$tong_cong += (float) $d['tongCong'];
 			$tong_tru  += (float) $d['tongTru'];
+			/* 🔴 BHXH NAY LÀ SỐ CỦA HỆ, KHÔNG CÒN "NGOÀI HỆ". Anh Thắng 19/09/2026 cho kế toán
+			   chốt sổ BHXH (`VHCC_Bhxh`), nên phiếu lương phải trừ nó — không thì con số nhân
+			   viên nhìn thấy cao hơn số thật vào tài khoản, và họ sẽ đi hỏi. */
+			$tong_bh += (float) ( isset( $d['bhxh'] ) ? $d['bhxh'] : 0 );
 			$thieu_gio += (int) $d['thieuGio'];
 		}
 
@@ -220,13 +224,16 @@ class VHCC_PhieuLuong {
 			'luongChinh' => $du ? round( $luong_chinh, 2 ) : null,
 			'tongCong'   => round( $tong_cong, 2 ),
 			'tongTru'    => round( $tong_tru, 2 ),
-			'tong'       => $du ? round( $luong_chinh + $tong_cong - $tong_tru, 2 ) : null,
+			'bhxh'       => round( $tong_bh, 2 ),
+			'tong'       => $du ? round( $luong_chinh + $tong_cong - $tong_tru - $tong_bh, 2 ) : null,
 			'daDu'       => $du,
 			'thieuGia'   => $thieu_gia,
 			'thieuGio'   => $thieu_gio,
-			/* ⚠️ Xem chốt 3: BHXH và giờ thêm nằm ngoài hệ, nên con số trên đây KHÔNG phải số
-			   chuyển khoản. Màn phải nói ra, và trả cờ để nó khỏi tự đoán. */
-			'ngoaiHe'    => array( 'BHXH', 'Lương giờ thêm' ),
+			/* ⚠️ Chốt 3 nay chỉ còn MỘT vế. BHXH đã vào hệ (kế toán chốt sổ, xem `VHCC_Bhxh`),
+			   nên nó không còn nằm trong danh sách "ngoài hệ" nữa — để lại là nói dối theo
+			   chiều ngược: người đọc tưởng còn một khoản trừ chưa tính, trong khi đã trừ rồi.
+			   Người KHÔNG có trong sổ BHXH thì `bhxh` = 0 và phiếu không hiện dòng ấy. */
+			'ngoaiHe'    => array( 'Lương giờ thêm' ),
 		);
 	}
 

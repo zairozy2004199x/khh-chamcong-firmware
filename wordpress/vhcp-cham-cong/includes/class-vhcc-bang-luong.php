@@ -220,6 +220,12 @@ class VHCC_BangLuong {
 			? (float) $cfg['ngayCongThang'] : 0.0;
 
 		$so_khac = VHCC_ChotLuong::so();
+		/* Sổ BHXH — đọc MỘT LẦN cho cả bảng. Anh Thắng 19/09/2026: *"Đối với nhân viên cố định
+		   sẽ có thêm bảo hiểm xã hội"*. Xem `VHCC_Bhxh`: kế toán gõ thẳng số tiền, khai một lần
+		   rồi tự lặp hằng tháng kể từ tháng bắt đầu.
+		   ⚠️ Gác `class_exists` cùng hàm với lời gọi — luật của `kiem-goi-cheo.php`. */
+		$so_bh = ( class_exists( 'VHCC_Bhxh' ) && method_exists( 'VHCC_Bhxh', 'so' )
+			&& method_exists( 'VHCC_Bhxh', 'cua' ) ) ? VHCC_Bhxh::so() : null;
 		/* Bảng quy đổi giờ → công, đọc MỘT LẦN cho cả bảng lương. Chỉ người ăn lương tháng đi
 		   qua nó; xem khối chú thích ở chỗ tính `$cong_thuc` bên dưới.
 		   ⚠️ Gác `class_exists` cùng hàm với lời gọi — luật của `kiem-goi-cheo.php`. */
@@ -404,6 +410,21 @@ class VHCC_BangLuong {
 			 *    KHÔNG biết mấy giờ hôm mùng 2 là giờ MC hay giờ Hỗ Trợ — không dữ liệu nào nói
 			 *    ra điều đó. Nên phụ trội tính theo giá việc chính, và màn nói rõ như vậy.
 			 * ═══════════════════════════════════════════════════════════════════════════════ */
+			/* ═══════════════════════════════════════════════════════════════════════════════
+			 * BHXH — KHOẢN TRỪ, GẮN VÀO DÒNG CHÍNH
+			 * ═══════════════════════════════════════════════════════════════════════════════
+			 * Đối chiếu tờ thật anh Thắng gửi: 4.000.000 − 596.610 = 3.403.390.
+			 *
+			 * ⚠️ GẮN TRỌN VÀO DÒNG CHÍNH, cùng luật với mấy khoản cộng/trừ: một người có thể ra
+			 *    ba dòng (chính + MC + Hỗ Trợ) nhưng bảo hiểm chỉ trừ MỘT LẦN. Rải ra mỗi dòng
+			 *    là trừ ba lần — và bảng vẫn đầy số nên không ai thấy.
+			 * ⚠️ KHÔNG TRỪ VÀO `luongChinh`. Cột Lương chính là tiền công làm ra; BHXH là một
+			 *    cột RIÊNG của tờ nộp (cột L) và tổng lương trừ nó ở bước sau (`M = I + K − L`).
+			 *    Trộn vào lương chính là hai cột nói cùng một chuyện và tờ in ra lệch mẫu.
+			 * ═══════════════════════════════════════════════════════════════════════════════ */
+			$d_chinh['bhxh'] = ( null === $so_bh ) ? 0.0
+				: round( VHCC_Bhxh::cua( $g['ma'], $tt, $so_bh ), 2 );
+
 			$d_chinh['gioLe']     = 0.0;
 			$d_chinh['phuTroiLe'] = 0.0;
 			$d_chinh['leTheo']    = array();
@@ -441,6 +462,7 @@ class VHCC_BangLuong {
 				   người ra ba dòng nhưng mấy giờ lễ ấy chỉ được trả thêm một lần. Mấy khoá này
 				   vẫn có mặt, để nơi đọc khỏi phải `isset` từng dòng. */
 				$d_k['gioLe'] = 0.0; $d_k['phuTroiLe'] = 0.0; $d_k['leTheo'] = array();
+				$d_k['bhxh']  = 0.0;   // trừ một lần ở dòng chính — xem chú thích trên
 				$dong[] = $d_k;
 			}
 		}
@@ -667,16 +689,22 @@ class VHCC_BangLuong {
 				$la_c = ! empty( $x['laChinh'] );
 				$v_u = $la_c ? (float) $x['tongCong'] : 0.0;
 				$v_y = $la_c ? (float) $x['tongTru'] : 0.0;
+				/* 🔴 BHXH TRỪ VÀO ĐÂY NỮA. Ô L đổ số thật rồi mà `$v_z` quên trừ thì công thức
+				   trong tệp ra một số, còn giá trị kèm theo ô ấy ra số khác — mở bằng ứng dụng
+				   chịu tính lại thì thấy số này, xem nhanh trên điện thoại thì thấy số kia. */
+				$v_l = round( (float) ( isset( $x['bhxh'] ) ? $x['bhxh'] : 0 ), 2 );
+				$v_m = ( null === $v_i ) ? null : round( $v_i - $v_l, 2 );
 				$v_z = ( null === $v_i ) ? null
-					: round( $v_i + (float) $v_u - (float) $v_y, 2 );
+					: round( $v_i - $v_l + (float) $v_u - (float) $v_y, 2 );
 				$dong[] = ( 'thang' === $x['cheDo'] )
 					? $ct( 'E' . $r . '*G' . $r . '/F' . $r, $T, $v_i )
 					: $ct( 'G' . $r . '*H' . $r, $T, $v_i );              // I
 				$dong[] = $trong( $G );                                   // J giờ thêm
 				$dong[] = $trong( $T );                                   // K lương giờ thêm
-				$dong[] = $trong( $T );                                   // L BHXH
-				/* K và L để trống nên M = I. */
-				$dong[] = $ct( 'I' . $r . '+K' . $r . '-L' . $r, $T, $v_i );   // M tổng lương
+				/* L BHXH — nay có dữ liệu thật (`VHCC_Bhxh`), trước bản này luôn để trống. */
+				$dong[] = ( $v_l > 0 ) ? $o( $v_l, $T ) : $trong( $T );   // L BHXH
+				/* K vẫn trống, nên M = I − L. */
+				$dong[] = $ct( 'I' . $r . '+K' . $r . '-L' . $r, $T, $v_m );   // M tổng lương
 				/* 🔴 BẢY CỘT CỘNG ĐỔ THẲNG TỪ SỐ CỬA HÀNG TRƯỞNG ĐÃ GÕ — anh Thắng 16/09/2026
 				   đổi quyết định hôm trước ("để trống, kế toán điền"): *"mấy cột đó sẽ do cửa
 				   hàng trưởng nhập"*. Ô nào chưa gõ vẫn để TRỐNG chứ không ghi 0: một tờ lương
