@@ -17308,7 +17308,26 @@ $hang_cp = null;
 foreach ( $so_cp as $x ) { if ( 'Người Đẩy Chi Phí' === $x[0] ) { $hang_cp = $x; } }
 t( 'hàng mới mang đúng tên', null !== $hang_cp, $so_cp );
 teq( 'và đúng PIN chấm công', '778899', (string) $hang_cp[1] );
-teq( 'cơ sở theo hồ sơ', 'TUTU_BT', (string) $hang_cp[3] );
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 Ô CƠ SỞ PHẢI ĐỂ TRỐNG — ĐẨY THÔNG TIN, KHÔNG ĐẨY QUYỀN
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 19/09/2026: *"cơ sở chấm công thì nó không liên quan đến chi phí. Khi đẩy nhân sự
+ * qua thì đẩy THÔNG TIN qua, chứ không phải đẩy QUYỀN QUẢN LÝ qua rồi chèn đi cơ sở hiện có"*.
+ *
+ * Bài này TRƯỚC ĐÂY canh điều ngược lại — và chính nó là thứ giữ cho cái lỗi sống. Hai danh mục
+ * khác hẳn nhau, chung mỗi cái tên gọi "cơ sở": bên nhân sự là MÃ cửa hàng (`TUTU_BD`), bên chi
+ * phí là TÊN gian (`NHÀ MA BÌNH DƯƠNG`). Chốt phạm vi bên ấy so chuỗi bằng nhau, nên một mã cửa
+ * hàng ghi vào đó không khớp gian nào — và hậu quả không phải "hiện thiếu" mà là HIỆN TRẮNG:
+ * người ấy mở app không thấy đơn nào, kể cả đơn chính họ vừa lập.
+ *
+ * Đã xảy ra thật hai lần cùng một nguyên nhân (14/09 và 19/09/2026).
+ *
+ * ⚠️ TRỐNG LÀ AN TOÀN: bên ấy đòi CÓ cơ sở mới mở tầm nhìn theo gian, nên người vừa đẩy sang
+ *    chỉ thấy đơn của chính mình cho tới khi kế toán phân. Nhét một mã không khớp thì họ không
+ *    thấy GÌ.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+teq( '🔴 ô cơ sở để TRỐNG — mã cửa hàng KHÔNG phải tên gian bên chi phí',
+	'', (string) $hang_cp[3] );
 /* 🔴 CỬA HÀNG TRƯỞNG -> 'Nhân viên', KHÔNG phải 'Quản lý': bên chi phí 'Quản lý' duyệt được chi
    của MỌI cơ sở, mà cửa hàng trưởng là người ĐỀ NGHỊ chi. */
 teq( 'nhân viên sang vai Nhân viên', 'Nhân viên', (string) $hang_cp[2] );
@@ -17317,6 +17336,28 @@ VHCC_DayChiPhi::dong_bo( 'CP1' );
 $hang_cp = null;
 foreach ( VHCP_Cfg::read( VHCP_Cfg::USER ) as $x ) { if ( 'Người Đẩy Chi Phí' === $x[0] ) { $hang_cp = $x; } }
 teq( '🔴 cửa hàng trưởng sang vai Nhân viên, KHÔNG phải Quản lý', 'Nhân viên', (string) $hang_cp[2] );
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 ĐẨY LẠI KHÔNG ĐƯỢC XOÁ GIAN KẾ TOÁN ĐÃ PHÂN
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * Đây mới là ca đắt nhất, và trước bản này KHÔNG có phép nào canh. Ô cơ sở để trống lúc thêm
+ * mới thì vô hại; nhưng người ta được đẩy sang từ tuần trước, kế toán đã phân gian cho họ, rồi
+ * một lượt đẩy lại (đổi tên, đổi PIN, đổi vai) ĐÈ MẤT phân công ấy. Người ấy đang xem được sổ
+ * của gian mình, sáng hôm sau mở ra thì trắng — và không ai nối được chuyện đó với việc vừa có
+ * ai đó bấm "đẩy nhân sự".
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+$so_cp2 = VHCP_Cfg::read( VHCP_Cfg::USER );
+foreach ( $so_cp2 as $i_cp => $x ) {
+	if ( 'Người Đẩy Chi Phí' === $x[0] ) { $so_cp2[ $i_cp ][3] = 'NHÀ MA BÌNH DƯƠNG'; }
+}
+VHCP_Cfg::write( VHCP_Cfg::USER, $so_cp2 );
+VHCC_NhanSu::dat_vai_tro( $U_AD, 'CP1', 'Nhân viên' );
+VHCC_DayChiPhi::dong_bo( 'CP1' );
+$hang_cp = null;
+foreach ( VHCP_Cfg::read( VHCP_Cfg::USER ) as $x ) { if ( 'Người Đẩy Chi Phí' === $x[0] ) { $hang_cp = $x; } }
+teq( '🔴 đẩy lại VẪN giữ nguyên gian kế toán đã phân',
+	'NHÀ MA BÌNH DƯƠNG', (string) $hang_cp[3] );
+teq( '   mà vai vẫn được cập nhật', 'Nhân viên', (string) $hang_cp[2] );
+
 teq( 'Admin thì sang Admin', 'Admin', VHCC_DayChiPhi::vai_chi_phi( 'Admin' ) );
 teq( 'Kế toán sang Kế toán cá nhân', 'Kế toán cá nhân', VHCC_DayChiPhi::vai_chi_phi( 'Kế toán' ) );
 teq( 'Quản lý sang Quản lý', 'Quản lý', VHCC_DayChiPhi::vai_chi_phi( 'Quản lý' ) );
