@@ -290,6 +290,59 @@ class VHCC_Web {
 	}
 
 	/**
+	 * MỌI CHỮ KÝ CÒN HỢP LỆ CHO CHÍNH NGƯỜI NÀY — gồm cả mấy đời chữ ký cũ.
+	 *
+	 * =========================================================================================
+	 * 🔴 VÌ SAO PHẢI NHẬN CẢ ĐỜI CŨ
+	 * =========================================================================================
+	 * Anh Thắng 19/09/2026 gặp câu chối BA LẦN LIÊN TIẾP, mỗi lần ngay sau khi cài một bản vá:
+	 *   · 4.61 và trước  — ký theo THẺ PHIÊN (`vhcc-qt|<thẻ>`);
+	 *   · 4.62           — ký theo `vhcc-qt2|mã|vai|cơ sở`;
+	 *   · 4.63.1         — ký theo `vhcc-qt3|mã`.
+	 * Mỗi bản vá chữa đúng cái gốc của nó, nhưng TRANG ĐANG MỞ trên máy người dùng vẫn mang
+	 * chữ ký của bản TRƯỚC. Bấm Gửi là chối, và câu chối bảo "tải lại trang" — trong khi họ
+	 * vừa tải lại xong, chỉ là tải trước lúc cài bản mới.
+	 *
+	 * Vá từng nấc kiểu ấy thì mỗi lần nâng cấp lại đốt của người dùng một lượt sửa. Nên ở đây
+	 * nhận HẾT mọi đời chữ ký, miễn là nó thuộc về ĐÚNG người đang đăng nhập.
+	 *
+	 * 🔴 NHẬN NHIỀU ĐỜI KHÔNG LÀM YẾU CHỐT CHỐNG GIẢ MẠO. Đời nào cũng là HMAC với
+	 *    `wp_salt('nonce')` trên dữ liệu gắn với CHÍNH người này. Kẻ ngoài không dựng nổi một
+	 *    đời nào, nên nhận thêm mấy đời cũ không mở thêm cửa nào — chỉ thôi đóng sập cửa vào
+	 *    mặt người đang dùng.
+	 *
+	 * ⚠️ KỂ CẢ THẺ PHIÊN KHÁC CỦA CÙNG NGƯỜI. Đời đầu ký theo thẻ, mà một người có thể có
+	 *    nhiều hàng phiên còn hạn (đăng nhập bên app, bên trang quản trị, máy khác…). Chỉ so
+	 *    với thẻ đang nằm trong cookie là bỏ sót đúng cái tab cũ cần cứu.
+	 *
+	 * ⚠️ Mấy nhánh đời cũ xoá được sau chừng một tháng, khi không còn tab nào mở từ bản cũ.
+	 */
+	private static function chu_ky_con_nhan( $toi ) {
+		global $wpdb;
+		$ds = array( self::chu_ky_cua( $toi ) );
+
+		$lay = function ( $k ) use ( $toi ) {
+			return strtolower( trim( (string) ( isset( $toi[ $k ] ) ? $toi[ $k ] : '' ) ) );
+		};
+		/* Đời 4.62 — ký kèm vai và cơ sở của chính hàng phiên đang dùng. */
+		$ds[] = hash_hmac( 'sha256',
+			'vhcc-qt2|' . $lay( 'ma_nv' ) . '|' . $lay( 'role' ) . '|' . $lay( 'coso' ),
+			wp_salt( 'nonce' ) );
+
+		/* Đời đầu — ký theo thẻ. Lấy MỌI thẻ còn hạn của cùng mã NV, không chỉ thẻ trong cookie. */
+		$ma = trim( (string) ( isset( $toi['ma_nv'] ) ? $toi['ma_nv'] : '' ) );
+		if ( '' !== $ma ) {
+			$the = $wpdb->get_col( $wpdb->prepare(
+				'SELECT token FROM ' . VHCC_DB::t( 'session' )
+				. ' WHERE ma_nv=%s AND het_han > UTC_TIMESTAMP() LIMIT 50', $ma ) );
+			foreach ( (array) $the as $t ) { $ds[] = self::chu_ky_the_( (string) $t ); }
+		}
+		$tok = isset( $_COOKIE[ self::COOKIE ] ) ? (string) $_COOKIE[ self::COOKIE ] : '';
+		if ( '' !== $tok ) { $ds[] = self::chu_ky_the_( $tok ); }
+		return $ds;
+	}
+
+	/**
 	 * Chữ ký gửi lên có đúng không.
 	 *
 	 * ⚠️ VẪN NHẬN CHỮ KÝ ĐỜI CŨ. Lúc nâng cấp, mọi tab đang mở trên máy người dùng đều mang chữ
@@ -299,11 +352,15 @@ class VHCC_Web {
 	public static function chu_ky_dung( $toi = null ) {
 		$gui = isset( $_POST['ky'] ) ? (string) wp_unslash( $_POST['ky'] ) : '';
 		if ( '' === $gui ) { return false; }
-		if ( is_array( $toi ) && hash_equals( self::chu_ky_cua( $toi ), $gui ) ) { return true; }
-		$tok = isset( $_COOKIE[ self::COOKIE ] ) ? (string) $_COOKIE[ self::COOKIE ] : '';
-		if ( '' === $tok ) { return false; }
-		if ( ! is_array( $toi ) && hash_equals( self::chu_ky( $tok ), $gui ) ) { return true; }
-		return hash_equals( self::chu_ky_the_( $tok ), $gui );
+		if ( ! is_array( $toi ) ) { $toi = self::nguoi_vao(); }
+		if ( ! is_array( $toi ) ) { return false; }
+		foreach ( self::chu_ky_con_nhan( $toi ) as $mong ) {
+			/* `hash_equals` chứ không phải `===` — so chuỗi băm bằng `===` là hở kênh phụ về
+			   thời gian. Ở đây gần như vô hại, nhưng viết đúng một lần thì khỏi phải nhớ chỗ
+			   nào hại chỗ nào. */
+			if ( hash_equals( $mong, $gui ) ) { return true; }
+		}
+		return false;
 	}
 
 	/**

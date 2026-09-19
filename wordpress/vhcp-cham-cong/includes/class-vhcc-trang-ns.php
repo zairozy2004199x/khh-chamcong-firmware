@@ -2405,7 +2405,14 @@ class VHCC_TrangNS {
 			echo '<td class="mo">' . esc_html( (string) $r['tao_luc'] ) . '</td>';
 			/* Mỗi hàng một biểu mẫu RIÊNG — hai nút cùng một hàng, mỗi nút mang việc của nó. Gom
 			   cả bảng vào một form thì bấm Duyệt ở hàng ba lại gửi cả chín hàng. */
+			/* 🔴 THIẾU Ô CHỮ KÝ THÌ HAI NÚT NÀY KHÔNG BAO GIỜ ĂN. Anh Thắng 19/09/2026 bấm Duyệt
+			   ở khối này và nhận "Biểu mẫu gửi lên THIẾU chữ ký" — không phải phiên hỏng, mà
+			   chính cái form ở đây chưa bao giờ gài chữ ký. Mọi form POST của trang đều đi qua
+			   `ky_dung()`, nên form nào quên ô này là một cái nút chết, im lặng, từ ngày nó
+			   được viết ra. Xem `tools/test/kiem-form-co-chu-ky.php` — bài kiểm sinh ra để
+			   không bao giờ sót thêm một cái nữa. */
 			echo '<td><form method="post" class="hang" style="gap:6px;margin:0">'
+				. '<input type="hidden" name="ky" value="' . esc_attr( self::ky() ) . '">'
 				. '<input type="hidden" name="op_id" value="' . esc_attr( (string) $r['op_id'] ) . '">'
 				. '<button class="chinh" name="viec" value="duyet_may">Duyệt</button>'
 				. '<button class="nut-do" name="viec" value="tu_choi_may">Từ chối</button>'
