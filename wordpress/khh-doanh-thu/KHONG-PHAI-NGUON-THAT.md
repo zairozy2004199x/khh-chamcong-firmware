@@ -1,11 +1,11 @@
 # ⚠️ THƯ MỤC NÀY LÀ BẢN CHỤP CŨ — ĐỪNG ĐÓNG GÓI ĐEM CÀI
 
-Mã `vhcp-chi-phi-vp` **không** được nuôi ở kho này. Kho này nuôi đúng một plugin:
+Mã `khh-doanh-thu` **không** được nuôi ở kho này. Kho này nuôi đúng một plugin:
 `vhcp-cham-cong`. Mọi thư mục khác chỉ là bản chụp, phần lớn từ lần gói chung
 `1c781a5` (Chấm Công 4.16.0), và **đứng im từ đó** — trong khi bản chạy thật
 ngoài host đã đi xa hơn nhiều chục phiên bản.
 
-Số bản trong thư mục này: **1.186.0**. Đừng tin nó là bản mới nhất.
+Số bản trong thư mục này: **1.29.0**. Đừng tin nó là bản mới nhất.
 
 ## Chuyện đã xảy ra, 19/09/2026
 

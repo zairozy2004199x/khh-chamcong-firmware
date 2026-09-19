@@ -29,11 +29,30 @@
 
 $goc = dirname( dirname( __DIR__ ) );
 
-/* Thư mục nuôi ở NƠI KHÁC. Thêm plugin vào đây khi phát hiện thêm một bản chụp cũ. */
-$BAN_CHUP = array(
-	'vhcp-chi-phi', 'vhcp-chi-phi-hn', 'vhcp-chi-phi-mtd', 'vhcp-chi-phi-vp',
-);
+/* ═════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 DANH SÁCH NGƯỢC: KHAI THỨ ĐƯỢC NUÔI Ở ĐÂY, KHÔNG KHAI THỨ KHÔNG ĐƯỢC NUÔI
+ * ═════════════════════════════════════════════════════════════════════════════════════════════
+ * Bản đầu của bài này gõ tay bốn thư mục chi phí — đúng bốn cái em vừa vá. Sai kiểu quen thuộc:
+ * hôm sau anh Thắng hỏi *"còn báo cáo Fabi nữa"*, và `khh-doanh-thu` cũng là bản chụp cũ y như
+ * thế, mà bài thử thì xanh vì nó không có trong danh sách.
+ *
+ * Soi lại cả kho thì ra: **chỉ `vhcp-cham-cong` được nuôi ở đây** (75 commit). Mười ba thư mục
+ * còn lại đều 1–5 commit, phần lớn chỉ có đúng lần gói chung `1c781a5`.
+ *
+ * Nên khai NGƯỢC: kể tên thứ được nuôi, còn lại đều phải có mốc. Thêm một bản chụp mới vào kho
+ * mà quên đánh dấu là bài này đỏ ngay — chứ không phải chờ tới lúc có người gói nhầm rồi gửi đi.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+$NUOI_O_DAY = array( 'vhcp-cham-cong' );
 const MOC = 'KHONG-PHAI-NGUON-THAT.md';
+
+$BAN_CHUP = array();
+foreach ( (array) scandir( $goc . '/wordpress' ) as $x ) {
+	if ( '.' === $x || '..' === $x ) { continue; }
+	if ( ! is_dir( $goc . '/wordpress/' . $x ) ) { continue; }
+	if ( in_array( $x, $NUOI_O_DAY, true ) ) { continue; }
+	$BAN_CHUP[] = $x;
+}
+sort( $BAN_CHUP );
 
 $dat = 0; $truot = array();
 function t( $ten, $dk, $them = null ) {
@@ -43,6 +62,11 @@ function t( $ten, $dk, $them = null ) {
 }
 
 echo "— bản chụp cũ phải có mốc cảnh báo —\n";
+/* Không tìm ra thư mục nào thì bài này đang chạy đúng ngần ấy vòng lặp rồi báo "SẠCH" — cùng
+   thứ nó sẽ làm khi đường dẫn sai. Đếm trước. */
+t( 'tìm thấy thư mục để soi', count( $BAN_CHUP ) >= 10, count( $BAN_CHUP ) . ' thư mục' );
+t( '🔴 `vhcp-cham-cong` KHÔNG bị kể là bản chụp — nó là thứ kho này thật sự nuôi',
+	! in_array( 'vhcp-cham-cong', $BAN_CHUP, true ) );
 foreach ( $BAN_CHUP as $d ) {
 	$thu_muc = $goc . '/wordpress/' . $d;
 	if ( ! is_dir( $thu_muc ) ) { continue; }   // gỡ hẳn khỏi kho thì càng tốt
@@ -56,6 +80,18 @@ foreach ( $BAN_CHUP as $d ) {
 	t( $d . ': mốc nói rõ ĐỪNG ĐÓNG GÓI', false !== mb_strpos( $n, 'ĐỪNG ĐÓNG GÓI' ), 'mốc rỗng nghĩa' );
 	t( $d . ': mốc chỉ ra phải vá lên nguồn thật',
 		false !== mb_strpos( $n, 'nguồn thật' ), 'mốc không chỉ đường' );
+	/* ⚠️ MỐC PHẢI GHI SỐ BẢN ĐANG NẰM TRONG KHO. Không có con số ấy thì người đọc vẫn không
+	   biết mình đang cầm bản bao nhiêu để mà đối chiếu với bản đang chạy — và đó chính là
+	   phép so đã cứu vụ 19/09 (1.212.0 so với 1.188.0). */
+	$chinh = $thu_muc . '/' . $d . '.php';
+	if ( file_exists( $chinh ) ) {
+		$m_v = array();
+		if ( preg_match( '/^\s*\*\s*Version:\s*([0-9][0-9.]*)/m',
+			(string) file_get_contents( $chinh ), $m_v ) ) {
+			t( $d . ': mốc ghi đúng số bản trong kho (' . $m_v[1] . ')',
+				false !== strpos( $n, $m_v[1] ), 'mốc không có số bản' );
+		}
+	}
 }
 
 /* 🔴 VÀ MỐC PHẢI ĐI VÀO BẢN GÓI. `build-plugin-zip.sh` có thể lọc bớt tệp; lọc mất cái mốc thì
