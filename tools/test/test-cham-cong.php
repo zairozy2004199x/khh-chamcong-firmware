@@ -6092,6 +6092,9 @@ function vhcc_goi_rieng( $lop, $ham, $args ) {
 }
 
 function vhcc_web( $pin_vai_tro = null, $post = array(), $get = array() ) {
+	/* ⚠️ Ghim lối THẬP PHÂN — cùng lý do với `vhcc_web_nhu2()` ngay dưới. Lối mặc định mới
+	   (giờ:phút) có bài riêng canh: `tools/test/kiem-viet-gio.php`. */
+	if ( ! isset( $get['cgh'] ) ) { $get['cgh'] = VHCC_Cham::KIEU_TP; }
 	$_POST = $post; $_GET = $get; $_COOKIE = array();
 	if ( null !== $pin_vai_tro ) {
 		VHCC_Auth::mo_khoa();
@@ -10791,6 +10794,20 @@ function vhcc_than_luoi( $html ) {
 
 /** Như `vhcc_web_nhu` nhưng chọn được CƠ SỞ — cần cho các phép thử soi chốt cơ sở. */
 function vhcc_web_nhu2( $ma_nv, $vai, $coso, $get = array() ) {
+	/* ═══════════════════════════════════════════════════════════════════════════════════════
+	 * ⚠️ VẼ MÀN Ở LỐI **THẬP PHÂN**, TRỪ KHI BÀI THỬ NÓI KHÁC.
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 * Từ 19/09/2026 lưới mặc định viết **giờ:phút** — anh Thắng: *"mình quy ra tiếng là 5h20
+	 * phút chứ, 5,33 là sai rồi"*. Mấy phép thử trong tệp này viết ra để canh PHÉP TÍNH đằng
+	 * sau con số (chú giải cộng lại bằng ô TỔNG, ô TỔNG bằng cột Số giờ của bảng lương), và
+	 * chúng bóc số bằng cách đọc chuỗi thập phân. Đổi cách IN không được phép làm mất mấy
+	 * phép canh ấy, nên ở đây ghim lối cũ lại.
+	 *
+	 * 🔴 CÁI MẶC ĐỊNH MỚI CÓ BÀI RIÊNG CANH: `tools/test/kiem-viet-gio.php` — nó canh cả hai
+	 *    lối ra đúng cùng một đại lượng, và canh nút đổi KHÔNG chạm vào một đồng nào.
+	 * ═══════════════════════════════════════════════════════════════════════════════════════ */
+	if ( ! isset( $get['cgh'] ) ) { $get['cgh'] = VHCC_Cham::KIEU_TP; }
+
 	$_GET = $get; $_POST = array();
 	$_COOKIE = array( VHCC_Web::COOKIE => VHCC_Auth::phat_token( 'Người Thử', $vai, $coso, $ma_nv ) );
 	ob_start(); VHCC_Web::phuc_vu(); $h = ob_get_clean();
@@ -13478,7 +13495,10 @@ teq( 'tháng khác -> rỗng', array(), VHCC_Cham::ngay_o_coso_khac( array( 'HC1
    nên sổ nhân sự vừa bị dọn sạch — `vhcc_web('135791')` sẽ rơi vào màn nhập PIN, và mọi phép
    thử dưới đây đỏ vì không có lưới chứ không phải vì lưới thiếu dòng. Đã vấp đúng chuyện này. */
 $_COOKIE[ VHCC_Web::COOKIE ] = VHCC_Auth::phat_token( 'Quản trị', 'Admin', $CS_A . ',' . $CS_B, 'HCAD' );
-$_GET = array( 'man' => 'vp', 'ccs' => $CS_A, 'cth' => '2026-07' );
+/* ⚠️ `cgh=tp` — ghim lối THẬP PHÂN, cùng lý do với mấy hàm vẽ màn ở trên: khối này canh CON SỐ
+   (9 tiếng, không phải 15), và nó bóc số bằng chuỗi thập phân. Lối mặc định mới (giờ:phút) có
+   bài riêng canh: `tools/test/kiem-viet-gio.php`. */
+$_GET = array( 'man' => 'vp', 'ccs' => $CS_A, 'cth' => '2026-07', 'cgh' => VHCC_Cham::KIEU_TP );
 $_POST = array();
 ob_start(); VHCC_Web::phuc_vu(); $h_hc = ob_get_clean();
 $_GET = array(); $_COOKIE = array();

@@ -421,10 +421,14 @@ class VHCC_Cham {
 	 * `186,50` cạnh `186:30`. Hai lối viết cho CÙNG một đại lượng, và lối thập phân đọc rất dễ
 	 * nhầm: `5.3` trông như "5 giờ 3 phút" trong khi nó là 5 giờ 20 phút.
 	 *
-	 * Số thập phân vẫn là mặc định, vì đó là con số NHÂN THẲNG với đơn giá ra tiền. Nhưng lúc
-	 * ngồi đối chiếu với một tệp viết bằng giờ:phút thì bắt người ta quy đổi trong đầu 31 lần
-	 * một hàng là mời họ nhầm — và cái nhầm ấy đã xảy ra thật: tệp của anh nhân với `186,3`
-	 * thay vì `186,5`, lệch 4.800đ trên đúng một người.
+	 * 🔴 GIỜ:PHÚT LÀ MẶC ĐỊNH. Anh Thắng 19/09/2026, dứt khoát: *"mình quy ra tiếng là 5h20
+	 *    phút chứ, 5,33 là sai rồi"*. Đây là lưới người ta ĐỌC giờ công, không phải chỗ nhân
+	 *    tiền — mà `5,33` thì ai cũng đọc thành "5 giờ 33 phút" trước khi kịp nghĩ.
+	 *
+	 * ⚠️ NHƯNG CỘT "SỐ GIỜ" CỦA BẢNG LƯƠNG THÌ KHÔNG ĐI QUA ĐÂY, và cố ý. Đó là con số NHÂN
+	 *    THẲNG với đơn giá; viết `186:30` ở đó thì không ai nhân ra tiền được, và người ta sẽ
+	 *    tự quy đổi lấy — đúng cái đã làm tệp của anh nhân với `186,3` thay vì `186,5`, lệch
+	 *    4.800đ trên một người. Nút này cho đổi lưới sang thập phân khi cần khớp hai màn.
 	 *
 	 * ⚠️ CÔNG TẮC ĐẶT Ở `gio_tp()`, nơi DUY NHẤT in giờ ra màn quản trị. Để mỗi nơi tự đổi lấy
 	 *    là sớm muộn có một chỗ quên, và lúc ấy trên cùng một màn lại có hai lối viết — đúng
@@ -435,10 +439,11 @@ class VHCC_Cham {
 	const KIEU_TP = 'tp';
 	const KIEU_HM = 'hm';
 
-	private static $kieu_gio = self::KIEU_TP;
+	private static $kieu_gio = self::KIEU_HM;
 
+	/** Trống / lạ = về MẶC ĐỊNH (giờ:phút). Chỉ `tp` mới chuyển sang thập phân. */
 	public static function dat_kieu_gio( $k ) {
-		self::$kieu_gio = ( self::KIEU_HM === (string) $k ) ? self::KIEU_HM : self::KIEU_TP;
+		self::$kieu_gio = ( self::KIEU_TP === (string) $k ) ? self::KIEU_TP : self::KIEU_HM;
 	}
 
 	public static function kieu_gio() { return self::$kieu_gio; }

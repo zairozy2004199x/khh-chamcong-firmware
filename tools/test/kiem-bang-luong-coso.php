@@ -94,6 +94,20 @@ function vhcc_g_luong( $ccs, $cth, $them = array() ) {
 }
 
 function vhcc_man( $ma_nv, $vai, $coso, $get = array() ) {
+	/* ═══════════════════════════════════════════════════════════════════════════════════════
+	 * ⚠️ VẼ MÀN Ở LỐI **THẬP PHÂN**, TRỪ KHI BÀI THỬ NÓI KHÁC.
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 * Từ 19/09/2026 lưới mặc định viết **giờ:phút** — anh Thắng: *"mình quy ra tiếng là 5h20
+	 * phút chứ, 5,33 là sai rồi"*. Mấy phép thử trong tệp này viết ra để canh PHÉP TÍNH đằng
+	 * sau con số (chú giải cộng lại bằng ô TỔNG, ô TỔNG bằng cột Số giờ của bảng lương), và
+	 * chúng bóc số bằng cách đọc chuỗi thập phân. Đổi cách IN không được phép làm mất mấy
+	 * phép canh ấy, nên ở đây ghim lối cũ lại.
+	 *
+	 * 🔴 CÁI MẶC ĐỊNH MỚI CÓ BÀI RIÊNG CANH: `tools/test/kiem-viet-gio.php` — nó canh cả hai
+	 *    lối ra đúng cùng một đại lượng, và canh nút đổi KHÔNG chạm vào một đồng nào.
+	 * ═══════════════════════════════════════════════════════════════════════════════════════ */
+	if ( ! isset( $get['cgh'] ) ) { $get['cgh'] = VHCC_Cham::KIEU_TP; }
+
 	$_GET = $get; $_POST = array();
 	$_COOKIE = array( VHCC_Web::COOKIE => VHCC_Auth::phat_token( 'Người ' . $ma_nv, $vai, $coso, $ma_nv ) );
 	ob_start(); VHCC_Web::phuc_vu(); $h = ob_get_clean();

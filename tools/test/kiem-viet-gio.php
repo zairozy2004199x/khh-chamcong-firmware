@@ -38,11 +38,17 @@ function teq( $ten, $mong, $thuc ) {
 	t( $ten . ' (mong ' . json_encode( $mong, JSON_UNESCAPED_UNICODE ) . ')', $mong === $thuc, $thuc );
 }
 
-/* ================================================================== 1. thập phân (mặc định) */
+/* ================================================================== 1. giờ:phút là MẶC ĐỊNH */
 
-echo "— lối thập phân, mặc định —\n";
+echo "— mặc định là giờ:phút —\n";
 VHCC_Cham::dat_kieu_gio( '' );
-t( 'mặc định là thập phân', ! VHCC_Cham::la_hm() );
+/* 🔴 Anh Thắng 19/09/2026, dứt khoát: *"mình quy ra tiếng là 5h20 phút chứ, 5,33 là sai rồi"*.
+   Lưới bảng công là chỗ người ta ĐỌC giờ, không phải chỗ nhân tiền. */
+t( '🔴 mặc định là giờ:phút', VHCC_Cham::la_hm() );
+t( '   tham số lạ cũng về mặc định', ( VHCC_Cham::dat_kieu_gio( 'xyz' ) === null ) && VHCC_Cham::la_hm() );
+
+VHCC_Cham::dat_kieu_gio( VHCC_Cham::KIEU_TP );
+t( 'đổi sang thập phân được', ! VHCC_Cham::la_hm() );
 
 /* 🔴 MẤY CON SỐ THẬT TRONG ẢNH ANH THẮNG GỬI. */
 teq( '🔴 320 phút (16:40→22:00) = 5,33 — KHÔNG phải 5,3', '5,33', VHCC_Cham::gio_tp( 320 ) );
@@ -61,7 +67,7 @@ t( '   còn 186,3 × 24.000 thì thiếu 4.800đ', 4800.0 === round( 4476000 - 1
 
 echo "— lối giờ:phút —\n";
 VHCC_Cham::dat_kieu_gio( VHCC_Cham::KIEU_HM );
-t( 'bật được', VHCC_Cham::la_hm() );
+t( 'quay lại giờ:phút được', VHCC_Cham::la_hm() );
 teq( '🔴 320 phút = 5:20', '5:20', VHCC_Cham::gio_tp( 320 ) );
 teq( '🔴 11190 phút = 186:30', '186:30', VHCC_Cham::gio_tp( 11190 ) );
 teq( '   810 phút = 13:30', '13:30', VHCC_Cham::gio_tp( 810 ) );
@@ -89,7 +95,7 @@ for ( $i = 1; $i <= 10; $i++ ) {
 }
 VHCC_Cham::dat_kieu_gio( VHCC_Cham::KIEU_HM );
 $b_hm = VHCC_BangLuong::dung( 'VG_SHOP', '2026-11' );
-VHCC_Cham::dat_kieu_gio( 'tp' );
+VHCC_Cham::dat_kieu_gio( VHCC_Cham::KIEU_TP );
 $b_tp = VHCC_BangLuong::dung( 'VG_SHOP', '2026-11' );
 
 teq( 'giờ tổng: 10 ca × 5h20 = 53,33', 53.33, $b_tp['dong'][0]['gio'] );
@@ -100,7 +106,30 @@ teq( '🔴 và KHÔNG đổi một đồng lương nào',
    53,3333… giờ; nhân đơn giá rồi mới làm tròn. */
 teq( '   lương = 53,33 × 24.000', round( 53.33 * 24000, 2 ), $b_tp['dong'][0]['luongChinh'] );
 
-VHCC_Cham::dat_kieu_gio( 'tp' );
+/* ═════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 HAI LỐI VIẾT PHẢI NÓI VỀ ĐÚNG MỘT ĐẠI LƯỢNG — canh bằng PHÉP TÍNH, không so chuỗi
+ * ═════════════════════════════════════════════════════════════════════════════════════════════
+ * Cột "Số giờ" của BẢNG LƯƠNG cố ý KHÔNG đi qua `gio_tp()`: đó là con số nhân thẳng với đơn giá,
+ * viết `186:30` ở đó thì không ai nhân ra tiền được. Nên hai màn có thể viết khác kiểu — nhưng
+ * không bao giờ được nói khác SỐ. Đây là chỗ phải canh, chứ không phải cái chuỗi.
+ * ------------------------------------------------------------------------------------------- */
+echo "— hai lối, một đại lượng —\n";
+foreach ( array( 320, 810, 11190, 4770, 305, 480, 1, 59, 60 ) as $p_x ) {
+	VHCC_Cham::dat_kieu_gio( VHCC_Cham::KIEU_HM );
+	$hm = VHCC_Cham::gio_tp( $p_x );
+	VHCC_Cham::dat_kieu_gio( VHCC_Cham::KIEU_TP );
+	$tp = VHCC_Cham::gio_tp( $p_x );
+
+	list( $h, $m ) = array_map( 'intval', explode( ':', $hm ) );
+	$tu_hm = $h + $m / 60;
+	$tu_tp = (float) str_replace( ',', '.', str_replace( '.', '', $tp ) );
+	/* Lệch tối đa nửa đơn vị cuối của lối thập phân (0,005) — đó là phép làm tròn, không phải
+	   hai con số khác nhau. Lớn hơn thế là một trong hai lối đang nói sai. */
+	t( '🔴 ' . $p_x . ' phút: "' . $hm . '" và "' . $tp . '" cùng một đại lượng',
+		abs( $tu_hm - $tu_tp ) < 0.0051, $hm . ' vs ' . $tp );
+}
+
+VHCC_Cham::dat_kieu_gio( VHCC_Cham::KIEU_HM );
 
 echo "\n";
 if ( $truot ) {

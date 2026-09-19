@@ -5436,7 +5436,7 @@ class VHCC_Web {
 		/* Giữ tháng / ngày / mã NV khi đổi bộ phận — đổi bộ phận không phải là bắt đầu lại từ
 		   đầu. KHÔNG giữ `ccs`: cơ sở cũ có thể không thuộc bộ phận mới. */
 		$giu = array( 'man' => 'cham' );
-		if ( VHCC_Cham::la_hm() ) { $giu['cgh'] = VHCC_Cham::KIEU_HM; }
+		if ( ! VHCC_Cham::la_hm() ) { $giu['cgh'] = VHCC_Cham::KIEU_TP; }
 		if ( '' !== $th )    { $giu['cth'] = $th; }
 		if ( '' !== $ngay )  { $giu['cng'] = $ngay; }
 		if ( '' !== $ma_nv ) { $giu['cnv'] = $ma_nv; }
@@ -5467,17 +5467,20 @@ class VHCC_Web {
 		 *    (phép thử "màn quản trị KHÔNG có thẻ <script>"), nên không tự gửi biểu mẫu được.
 		 * ═══════════════════════════════════════════════════════════════════════════════════ */
 		$hm  = VHCC_Cham::la_hm();
-		$u_g = add_query_arg( array( 'cgh' => $hm ? 'tp' : VHCC_Cham::KIEU_HM ), self::url_hien() );
+		$u_g = add_query_arg( array( 'cgh' => $hm ? VHCC_Cham::KIEU_TP : VHCC_Cham::KIEU_HM ),
+			self::url_hien() );
 		echo '<div class="loc-bp" style="margin-top:6px"><span class="nhan-bp">Viết giờ</span>'
 			. '<span class="nut chinh">' . ( $hm ? 'giờ:phút' : 'thập phân' ) . '</span>'
 			. '<a class="nut" href="' . esc_url( $u_g ) . '">đổi sang <b>'
 			. ( $hm ? 'thập phân' : 'giờ:phút' ) . '</b></a>'
 			. '<span class="mo" style="font-size:12px">'
 			. ( $hm
-				? 'Đang viết <b>5:20</b>. Đây là kiểu dễ đối chiếu với tệp Excel — nhưng '
-					. '<b>không nhân thẳng với đơn giá được</b>.'
-				: 'Đang viết <b>5,33</b> — số nhân thẳng với đơn giá ra tiền. '
-					. '<b>5,33 là 5 giờ 20 phút</b>, không phải 5 giờ 33 phút.' )
+				? 'Đang viết <b>5:20</b> — 5 giờ 20 phút. Cột <b>Số giờ</b> bên bảng lương vẫn '
+					. 'là thập phân (<b>5,33</b>) vì đó là số <b>nhân với đơn giá</b>; '
+					. 'muốn khớp hai màn thì bấm đổi.'
+				: 'Đang viết <b>5,33</b> — số nhân thẳng với đơn giá ra tiền, khớp với cột '
+					. '<b>Số giờ</b> bên bảng lương. <b>5,33 là 5 giờ 20 phút</b>, không phải '
+					. '5 giờ 33 phút.' )
 			. '</span></div>';
 
 		echo '<form method="get" class="hang" style="margin-top:10px">';
