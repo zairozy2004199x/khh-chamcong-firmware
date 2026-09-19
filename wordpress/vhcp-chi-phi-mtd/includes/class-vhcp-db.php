@@ -22,8 +22,43 @@ class VHCPMTD_DB {
 	/* 1.10.0: thêm cột `ngay_gui_qt` — mốc NHÂN VIÊN BẤM GỬI quyết toán. Khác hẳn `ngay_qt`
 	   (mốc KẾ TOÁN xác nhận), và trước bản này không có gì ghi lại lượt gửi, nên bảng "Chờ
 	   quyết toán" không xếp được theo "ai gửi trước xử trước". */
-	const SCHEMA_VERSION = '1.11.0';   // 1.9.0: bảng lenh_tu · 1.10.0: don.ngay_gui_qt · 1.11.0: da_line.tao_luc
+	const SCHEMA_VERSION = '1.12.0';   // 1.9.0: bảng lenh_tu · 1.10.0: don.ngay_gui_qt · 1.11.0: da_line.tao_luc · 1.12.0: cột `mang`
 	const DATA_ROW       = 5;   // DA_DATA_ROW / BP_DATA_ROW của app cũ
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * MẢNG — KVC · MTD · VP TRONG CÙNG MỘT KHO.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 19/09/2026: *"Chia 3 tab (KVC, MTD, VP)"*, và chọn **gộp thật làm một app** chứ
+	 * không phải ba đường dẫn đặt cạnh nhau. Đây là BƯỚC 1: mở chỗ trong sơ đồ bảng, chưa đổi
+	 * một nét nào trên màn.
+	 *
+	 * 🔴 CỘT NÀY CHỈ ĐẶT Ở BẢN GHI ĐẦU (đơn · dự án · marketing · công tác · lệnh tạm ứng · sổ
+	 *    chi · nhật ký · thùng rác). DÒNG CON KHÔNG CÓ — `chiphi`, `da_line`, `mk_line`,
+	 *    `bp_line`, `tamung` đều đã khoá theo mã của bản ghi cha, nên mảng của chúng suy ra từ
+	 *    cha. Đặt thêm một bản sao ở dòng con là hai nơi cùng giữ MỘT sự thật, và ngày chúng
+	 *    lệch nhau thì tiền của một hạng mục nằm ở mảng này còn đơn chứa nó nằm ở mảng kia —
+	 *    không màn nào cộng ra đúng nữa, mà cũng không màn nào báo sai.
+	 *    `so_chi` thì CÓ, vì nó là sổ đứng riêng: dòng của nó không treo vào đơn nào.
+	 *
+	 * 🔴 KHÔNG BAO GIỜ ĐỂ RỖNG. Rỗng nghĩa là "không biết mảng nào", mà mọi màn sẽ lọc theo
+	 *    mảng — một bản ghi rỗng là một bản ghi KHÔNG TAB NÀO THẤY: tiền có thật, đơn có thật,
+	 *    mà mở app ra thì như chưa từng tồn tại. Nên cột khai `NOT NULL DEFAULT` và `install()`
+	 *    còn quét lại một lượt lấp nốt (xem `lap_mang()`).
+	 *
+	 * ⚠️ HẰNG NÀY ĐỔI THEO TỪNG BẢN. `tools/tach-ban-vung.sh` viết lại nó thành mã vùng khi
+	 *    sinh bản Máy Tự Động / Văn Phòng, y như `TEN_MAC_DINH`. Để nguyên 'kvc' ở bản mảng
+	 *    khác thì dữ liệu họ nhập vào lúc này mang nhãn sai, và bước dời dữ liệu về sau sẽ dời
+	 *    nhầm chỗ.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	const MANG = 'mtd';
+
+	/** Các bảng mang cột `mang` — dùng cho cả `install()` lẫn bài kiểm, để hai bên không lệch. */
+	const BANG_CO_MANG = array( 'don', 'so_chi', 'da_index', 'mk_don', 'bp_index', 'lenh_tu', 'log', 'thungrac' );
+
+	/** Mảng của bản đang chạy. Bước 2 sẽ cho nó trả về mảng đang chọn trên thanh tab. */
+	public static function mang() {
+		return self::MANG;
+	}
 
 	public static function t( $name ) {
 		global $wpdb;
@@ -63,6 +98,7 @@ class VHCPMTD_DB {
 		global $wpdb;
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 		$c = $wpdb->get_charset_collate();
+		$m = self::MANG;   /* hằng lớp không nội suy vào chuỗi nháy kép — phải qua biến */
 
 		$sql = array();
 
@@ -105,7 +141,9 @@ class VHCPMTD_DB {
 			du_phong DECIMAL(18,2) NULL,
 			bu_tru DECIMAL(18,2) NULL,
 			stt BIGINT(20) NOT NULL AUTO_INCREMENT,
+			mang VARCHAR(20) NOT NULL DEFAULT '$m',
 			PRIMARY KEY  (ma_don),
+			KEY mang (mang),
 			UNIQUE KEY stt (stt),
 			KEY trang_thai (trang_thai),
 			KEY ky (ky)
@@ -180,7 +218,9 @@ class VHCPMTD_DB {
 			tao_luc DATETIME NULL,
 			ngay_xuat DATETIME NULL,
 			stt BIGINT(20) NOT NULL AUTO_INCREMENT,
+			mang VARCHAR(20) NOT NULL DEFAULT '$m',
 			PRIMARY KEY  (id),
+			KEY mang (mang),
 			UNIQUE KEY stt (stt),
 			KEY ngay (ngay),
 			KEY coso (coso),
@@ -198,7 +238,9 @@ class VHCPMTD_DB {
 			ngay_tao DATETIME NULL,
 			nguoi_tao VARCHAR(120) NOT NULL DEFAULT '',
 			stt BIGINT(20) NOT NULL AUTO_INCREMENT,
+			mang VARCHAR(20) NOT NULL DEFAULT '$m',
 			PRIMARY KEY  (ma_da),
+			KEY mang (mang),
 			UNIQUE KEY stt (stt),
 			KEY loai (loai)
 		) $c";
@@ -240,7 +282,9 @@ class VHCPMTD_DB {
 			ngay_tao VARCHAR(40) NOT NULL DEFAULT '',
 			nguoi_tao VARCHAR(120) NOT NULL DEFAULT '',
 			stt BIGINT(20) NOT NULL AUTO_INCREMENT,
+			mang VARCHAR(20) NOT NULL DEFAULT '$m',
 			PRIMARY KEY  (ma),
+			KEY mang (mang),
 			UNIQUE KEY stt (stt),
 			KEY coso (coso)
 		) $c";
@@ -280,7 +324,9 @@ class VHCPMTD_DB {
 			ngay_tao VARCHAR(40) NOT NULL DEFAULT '',
 			nguoi_tao VARCHAR(120) NOT NULL DEFAULT '',
 			stt BIGINT(20) NOT NULL AUTO_INCREMENT,
+			mang VARCHAR(20) NOT NULL DEFAULT '$m',
 			PRIMARY KEY  (ma),
+			KEY mang (mang),
 			UNIQUE KEY stt (stt),
 			KEY loai (loai)
 		) $c";
@@ -336,7 +382,9 @@ class VHCPMTD_DB {
 			hanh_dong VARCHAR(190) NOT NULL DEFAULT '',
 			doi_tuong VARCHAR(190) NOT NULL DEFAULT '',
 			chi_tiet TEXT NULL,
+			mang VARCHAR(20) NOT NULL DEFAULT '$m',
 			PRIMARY KEY  (id),
+			KEY mang (mang),
 			KEY tg (tg)
 		) $c";
 
@@ -369,7 +417,9 @@ class VHCPMTD_DB {
 			da_hoan TINYINT(1) NOT NULL DEFAULT 0,
 			hoan_luc DATETIME NULL,
 			hoan_nguoi VARCHAR(120) NOT NULL DEFAULT '',
+			mang VARCHAR(20) NOT NULL DEFAULT '$m',
 			PRIMARY KEY  (id),
+			KEY mang (mang),
 			KEY luc (luc),
 			KEY khoa (khoa)
 		) $c";
@@ -404,7 +454,9 @@ class VHCPMTD_DB {
 			so_coso INT NOT NULL DEFAULT 0,
 			chi_tiet LONGTEXT NULL,
 			stt BIGINT(20) NOT NULL AUTO_INCREMENT,
+			mang VARCHAR(20) NOT NULL DEFAULT '$m',
 			PRIMARY KEY  (id),
+			KEY mang (mang),
 			UNIQUE KEY stt (stt),
 			KEY luc (luc)
 		) $c";
@@ -433,6 +485,7 @@ class VHCPMTD_DB {
 		   chỗ này. */
 		foreach ( $sql as $q ) { dbDelta( $q ); }
 
+		self::lap_mang();
 		self::bo_khau_gom();
 
 		update_option( 'vhcpmtd_db_version', self::SCHEMA_VERSION );
@@ -444,6 +497,38 @@ class VHCPMTD_DB {
 		if ( method_exists( 'VHCPMTD_Cfg', 'va_quyen_quyet_toan' ) ) {
 			VHCPMTD_Cfg::va_quyen_quyet_toan();
 		}
+	}
+
+	/**
+	 * LẤP MẢNG CHO MỌI BẢN GHI CHƯA CÓ.
+	 *
+	 * 🔴 RỖNG LÀ MẤT TÍCH, KHÔNG PHẢI "CHƯA KHAI". Từ bước 2 trở đi mọi màn lọc theo mảng, nên
+	 *    một bản ghi mang chuỗi rỗng là bản ghi KHÔNG TAB NÀO THẤY: đơn có thật, tiền có thật,
+	 *    mà mở app ra thì như chưa từng tồn tại — và không câu lỗi nào báo, vì đứng về phía máy
+	 *    thì bộ lọc chạy đúng y như được bảo.
+	 *
+	 * ⚠️ VÌ SAO VẪN QUÉT DÙ CỘT ĐÃ CÓ `DEFAULT`. `dbDelta()` thêm cột NOT NULL kèm mặc định thì
+	 *    MySQL tự lấp cho dòng cũ — đúng, NHƯNG chỉ ở lượt THÊM CỘT. Cột đã có sẵn từ một bản
+	 *    nửa vời trước đó (hoặc ai đó thêm tay, hoặc `dbDelta` đã chạy rồi mà đổi mặc định sau)
+	 *    thì dòng cũ giữ nguyên chuỗi rỗng và không ai lấp hộ. Quét một lượt là rẻ: chạy đúng
+	 *    lúc đổi số sơ đồ bảng, và cột đã đánh chỉ mục.
+	 *
+	 * ⚠️ GÁC `SHOW TABLES`: lượt cài mới chạy `install()` khi bảng vừa dựng xong, nhưng một
+	 *    bảng lỡ trượt `dbDelta()` (xem chốt "không viết chú thích trong chuỗi CREATE TABLE")
+	 *    thì UPDATE vào bảng không có là một câu lỗi MySQL đổ ra giữa trang quản trị.
+	 *
+	 * @return array [bảng => số dòng vừa lấp]
+	 */
+	public static function lap_mang() {
+		global $wpdb;
+		$ra = array();
+		foreach ( self::BANG_CO_MANG as $ten ) {
+			$t = self::t( $ten );
+			if ( (string) $wpdb->get_var( "SHOW TABLES LIKE '$t'" ) !== $t ) { continue; }
+			$n = $wpdb->query( $wpdb->prepare( "UPDATE $t SET mang=%s WHERE mang=''", self::MANG ) );
+			if ( $n ) { $ra[ $ten ] = (int) $n; }
+		}
+		return $ra;
 	}
 
 	/**
