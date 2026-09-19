@@ -8942,7 +8942,11 @@ t( 'và chỉ thẳng chỗ đổi cách tính',
 t( 'nói rõ vì sao đang tính kiểu đó',
 	strpos( $h_gio, 'suy theo bộ phận' ) !== false || strpos( $h_gio, 'đã khai thẳng' ) !== false, $h_gio );
 /* 🔴 Số giờ phải là số giờ THẬT, không phải số công lẻ. 08:00 -> 17:30 = 9.5 giờ. */
-t( 'ô hiện đúng số giờ làm (9.5)', strpos( $h_gio, '>9.5</b>' ) !== false, $h_gio );
+/* ⚠️ Ô NGÀY IN HAI CHỮ SỐ, CÙNG LỐI VỚI CỘT TỔNG VÀ BẢNG LƯƠNG (`VHCC_Cham::gio_tp()`).
+   Bản trước ô ngày làm tròn MỘT chữ số còn cột tổng hai — cùng một màn, hai lối viết. Anh
+   Thắng 19/09/2026 gửi ảnh ô `5.3` cạnh `05:20`: 5 giờ 20 phút in thành "5.3" thì đọc y như
+   5 giờ 3 phút. Xem `tools/test/kiem-viet-gio.php`. */
+t( 'ô hiện đúng số giờ làm (9,50)', strpos( $h_gio, '>9,50</b>' ) !== false, $h_gio );
 t( 'KHÔNG có ô nào mang số công lẻ kiểu 0.63', strpos( $h_gio, '>0.63<' ) === false, $h_gio );
 /* Ba trạng thái, ba ký hiệu — gộp lại là xoá mất đúng ngày cần soi.
    ⚠️ Bóc lớp <a class="o-sua"> ra trước khi soi ô: từ 26/08/2026 mỗi ô là một đường bấm được
@@ -17705,8 +17709,8 @@ vhcc_cham( $cs_tron, '2026-07-03', 'TR1', '', '06:10', '14:00' );  /* trễ 10 p
    không có bảng nào. */
 $h_tron = vhcc_web_nhu2( 'TRAD1', 'Admin', $cs_tron,
 	array( 'man' => 'cham', 'ccs' => $cs_tron, 'cth' => '2026-07' ) );
-t( '🔴 ô hết số lẻ: 8.1 thành 8', strpos( $h_tron, '>8.1<' ) === false, $h_tron );
-t( 'và in ra đúng 8', strpos( $h_tron, '<b>8</b>' ) !== false, $h_tron );
+t( '🔴 ô hết số lẻ: 8,10 thành 8,00', strpos( $h_tron, '>8,10<' ) === false, $h_tron );
+t( 'và in ra đúng 8,00', strpos( $h_tron, '<b>8,00</b>' ) !== false, $h_tron );
 /* Bấm sớm/về muộn: ô bị CẮT xuống đúng ca — chú thích phải nói ra, để còn đối chiếu được với
    giờ máy ghi. */
 t( 'chú thích nói giờ công theo ca khác giờ chấm thật',
@@ -17730,7 +17734,7 @@ t( 'khối Cách tính công bày ra lựa chọn mới',
 VHCC_Luong::dat_cach_tinh( $ADMIN_W, array( $cs_tron => 'gio' ) );
 $h_tho = vhcc_web_nhu2( 'TRAD1', 'Admin', $cs_tron,
 	array( 'man' => 'cham', 'ccs' => $cs_tron, 'cth' => '2026-07' ) );
-t( 'trả về theo giờ thì số lẻ quay lại nguyên vẹn', strpos( $h_tho, '>8.1<' ) !== false, $h_tho );
+t( 'trả về theo giờ thì số lẻ quay lại nguyên vẹn', strpos( $h_tho, '>8,10<' ) !== false, $h_tho );
 
 
 /* ==================================================================================
@@ -18059,7 +18063,9 @@ t( 'và mang dấu riêng để còn nhìn ra chỗ nào là do đơn',
 /* 🔴 BỎ CẢNH BÁO, KHÔNG BỎ SỐ. Nếu đơn cộng bù giờ thì nó thành một cửa cấp công không qua
    chấm công, và cửa ấy không có ai gác. 06:40–14:00 = 7h20m, làm tròn không được vì trễ quá
    ngưỡng -> ô vẫn phải là 7.3. */
-t( '🔴 số giờ trong ô KHÔNG đổi vì có đơn', strpos( $h_sau, '<b>7.3</b>' ) !== false, $h_sau );
+/* 06:40–14:00 = 440 phút = 7,33 giờ. Bản trước ô in "7.3" (một chữ số); thứ phép thử này
+   canh là con số KHÔNG ĐỔI vì có đơn, không phải cách viết nó. */
+t( '🔴 số giờ trong ô KHÔNG đổi vì có đơn', strpos( $h_sau, '<b>7,33</b>' ) !== false, $h_sau );
 t( 'chú thích nói rõ là nhờ đơn được duyệt',
 	strpos( $h_sau, 'đã có đơn xin phép đi trễ được duyệt' ) !== false, $h_sau );
 

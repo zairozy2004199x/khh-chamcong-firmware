@@ -1149,7 +1149,7 @@ class VHCC_Web {
 	      danh sách này là thứ `o_loc()` đọc để chở tham số qua một lượt POST, và thiếu nó thì
 	      chọn máy xong bấm một nút bất kỳ là ô chọn nhảy về máy đầu tiên. */
 	const THAM_SO = array( 'cs', 'q', 'loc', 'sua', 'pin', 'man', 'ccs', 'cth', 'cbp', 'cbp_het',
-		'cng', 'cnv', 'ctk',
+		'cng', 'cnv', 'ctk', 'cgh',
 		'lcs', 'lth', 'ltu', 'lden', 'msoma', 'ncs', 'nma', 'nq', 'mloc' );
 
 	/**
@@ -3909,6 +3909,11 @@ class VHCC_Web {
 
 		$GLOBALS['VHCC_FORM_ROI'] = '';
 
+		/* Công tắc GIỜ:PHÚT — đặt TRƯỚC khi vẽ bất cứ thứ gì, vì nó đổi cách in của mọi con số
+		   giờ trên màn. Xem `VHCC_Cham::dat_kieu_gio()`. Chỉ đổi cách in, không đổi phép tính. */
+		VHCC_Cham::dat_kieu_gio(
+			isset( $_GET['cgh'] ) ? sanitize_text_field( wp_unslash( $_GET['cgh'] ) ) : '' );
+
 		echo self::dau( 'Quản trị Chấm Công' );
 		$ds_man = self::man_cua( $toi );
 		$man    = isset( $_GET['man'] ) ? sanitize_text_field( wp_unslash( $_GET['man'] ) ) : '';
@@ -5431,6 +5436,7 @@ class VHCC_Web {
 		/* Giữ tháng / ngày / mã NV khi đổi bộ phận — đổi bộ phận không phải là bắt đầu lại từ
 		   đầu. KHÔNG giữ `ccs`: cơ sở cũ có thể không thuộc bộ phận mới. */
 		$giu = array( 'man' => 'cham' );
+		if ( VHCC_Cham::la_hm() ) { $giu['cgh'] = VHCC_Cham::KIEU_HM; }
 		if ( '' !== $th )    { $giu['cth'] = $th; }
 		if ( '' !== $ngay )  { $giu['cng'] = $ngay; }
 		if ( '' !== $ma_nv ) { $giu['cnv'] = $ma_nv; }
@@ -5446,6 +5452,33 @@ class VHCC_Web {
 				. ' <span class="sl">' . (int) $sl . '</span></a>';
 		}
 		echo '</div>';
+
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * NÚT ĐỔI CÁCH VIẾT GIỜ — anh Thắng 19/09/2026.
+		 *
+		 * Anh gửi ảnh ô `5.3` nằm cạnh `05:20` trong tệp của anh; trước đó là `186,50` cạnh
+		 * `186:30`, và tệp ấy đã nhân nhầm với `186,3` — lệch tiền thật trên một người.
+		 *
+		 * Thập phân vẫn là MẶC ĐỊNH, vì đó là con số nhân thẳng với đơn giá ra tiền. Nút này
+		 * cho lúc ngồi đối chiếu với một tệp viết bằng giờ:phút — bắt người ta quy đổi trong
+		 * đầu 31 lần một hàng là mời họ nhầm.
+		 *
+		 * ⚠️ LÀ MỘT LIÊN KẾT, không phải ô tích. Màn này cố ý KHÔNG có một dòng script nào
+		 *    (phép thử "màn quản trị KHÔNG có thẻ <script>"), nên không tự gửi biểu mẫu được.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$hm  = VHCC_Cham::la_hm();
+		$u_g = add_query_arg( array( 'cgh' => $hm ? 'tp' : VHCC_Cham::KIEU_HM ), self::url_hien() );
+		echo '<div class="loc-bp" style="margin-top:6px"><span class="nhan-bp">Viết giờ</span>'
+			. '<span class="nut chinh">' . ( $hm ? 'giờ:phút' : 'thập phân' ) . '</span>'
+			. '<a class="nut" href="' . esc_url( $u_g ) . '">đổi sang <b>'
+			. ( $hm ? 'thập phân' : 'giờ:phút' ) . '</b></a>'
+			. '<span class="mo" style="font-size:12px">'
+			. ( $hm
+				? 'Đang viết <b>5:20</b>. Đây là kiểu dễ đối chiếu với tệp Excel — nhưng '
+					. '<b>không nhân thẳng với đơn giá được</b>.'
+				: 'Đang viết <b>5,33</b> — số nhân thẳng với đơn giá ra tiền. '
+					. '<b>5,33 là 5 giờ 20 phút</b>, không phải 5 giờ 33 phút.' )
+			. '</span></div>';
 
 		echo '<form method="get" class="hang" style="margin-top:10px">';
 		if ( ! get_option( 'permalink_structure' ) ) { echo '<input type="hidden" name="vhcc_qt" value="1">'; }
@@ -6874,9 +6907,15 @@ class VHCC_Web {
 					. 'Khung ca của cửa hàng có thể đang khai lệch.';
 			}
 		}
+		/* 🔴 Ô NGÀY IN BẰNG `gio_tp()`, CÙNG LỐI VIẾT VỚI CỘT TỔNG VÀ VỚI BẢNG LƯƠNG.
+		   Bản trước ô ngày làm tròn một chữ số (`round(…, 1)`) còn cột tổng hai chữ số: cùng một
+		   màn, hai lối viết. Anh Thắng 19/09/2026 gửi ảnh ô `5.3` cạnh `05:20` — 16:40→22:00 là
+		   5 giờ 20 phút, tức 5,33; in `5.3` vừa lệch với cột tổng vừa đọc y như "5 giờ 3 phút".
+		   Tiền chưa bao giờ dùng con số làm tròn ấy (tổng tính từ phút thật), nhưng người đối
+		   chiếu bằng mắt thì dùng — và đó là chỗ họ nhầm. */
 		$so = ( 'ngay' === $kieu )
 			? '<b>' . (int) $cong . '</b>'
-			: '<b>' . self::so_vp( round( $phut_o / 60, 1 ) ) . '</b>';
+			: '<b>' . esc_html( VHCC_Cham::gio_tp( $phut_o ) ) . '</b>';
 		return array(
 			'noi'     => $so . ( '' !== $ma_o ? '<div class="mca">' . esc_html( $ma_o ) . '</div>' : '' ),
 			'noi_tho' => $so,

@@ -1,0 +1,112 @@
+<?php
+/**
+ * MỘT LỐI VIẾT GIỜ DUY NHẤT TRÊN CẢ MÀN — và nút đổi sang giờ:phút.
+ *
+ * =================================================================================================
+ * 🔴 LỖI BÀI NÀY SINH RA ĐỂ CANH — VÀ NÓ ĐÃ LÀM MẤT TIỀN THẬT
+ * =================================================================================================
+ * Anh Thắng 19/09/2026 gửi hai ảnh đặt cạnh nhau:
+ *   · tệp của anh ghi tổng `186:30`, ô lương nhân với `186,3`, ra 4.471.200;
+ *   · hệ thống ghi `186,50`, ra 4.476.000.
+ * Lệch đúng 4.800đ = 0,2 giờ × 24.000, trên MỘT người. `186:30` là 186 giờ 30 phút, tức 186,5 —
+ * đổi giờ:phút sang thập phân là CHIA PHÚT CHO 60, không phải thay dấu hai chấm bằng dấu chấm.
+ *
+ * Rồi anh gửi tiếp ảnh ô `5.3` nằm cạnh `05:20` của cùng một ca 16:40 → 22:00. Ở đây lỗi là của
+ * MÀN CHÚNG TA: ô ngày làm tròn MỘT chữ số trong khi cột tổng và bảng lương làm tròn HAI. Cùng
+ * một màn, hai lối viết — và `5.3` thì đọc y như "5 giờ 3 phút".
+ *
+ * Bài này canh ba thứ:
+ *   1. phép đổi giờ:phút ↔ thập phân ra đúng số (mấy con số thật anh đã gửi);
+ *   2. ô ngày và cột tổng in CÙNG một lối, cùng số chữ số;
+ *   3. nút đổi sang giờ:phút đổi cách IN mà KHÔNG đụng một phép tính nào.
+ *
+ * Chạy: php tools/test/kiem-viet-gio.php
+ */
+
+$goc = dirname( dirname( __DIR__ ) );
+require __DIR__ . '/wp-stub.php';
+vhcc_test_boot( $goc . '/wordpress/vhcp-cham-cong' );
+
+$dat = 0; $truot = array();
+function t( $ten, $dk, $them = null ) {
+	global $dat, $truot;
+	if ( $dk ) { $dat++; return; }
+	$truot[] = $ten . ( null === $them ? '' : "\n      → " . ( is_scalar( $them )
+		? substr( (string) $them, 0, 400 ) : json_encode( $them, JSON_UNESCAPED_UNICODE ) ) );
+}
+function teq( $ten, $mong, $thuc ) {
+	t( $ten . ' (mong ' . json_encode( $mong, JSON_UNESCAPED_UNICODE ) . ')', $mong === $thuc, $thuc );
+}
+
+/* ================================================================== 1. thập phân (mặc định) */
+
+echo "— lối thập phân, mặc định —\n";
+VHCC_Cham::dat_kieu_gio( '' );
+t( 'mặc định là thập phân', ! VHCC_Cham::la_hm() );
+
+/* 🔴 MẤY CON SỐ THẬT TRONG ẢNH ANH THẮNG GỬI. */
+teq( '🔴 320 phút (16:40→22:00) = 5,33 — KHÔNG phải 5,3', '5,33', VHCC_Cham::gio_tp( 320 ) );
+teq( '🔴 11190 phút = 186,50 — KHÔNG phải 186,30', '186,50', VHCC_Cham::gio_tp( 11190 ) );
+teq( '   810 phút = 13,50', '13,50', VHCC_Cham::gio_tp( 810 ) );
+teq( '   4770 phút = 79,50', '79,50', VHCC_Cham::gio_tp( 4770 ) );
+teq( '   300 phút = 5,00', '5,00', VHCC_Cham::gio_tp( 300 ) );
+teq( 'không có giờ thì gạch, không phải 0', '—', VHCC_Cham::gio_tp( null ) );
+
+/* ⚠️ ĐÂY LÀ CHÍNH PHÉP NHÂN ĐÃ SAI 4.800đ. Giữ nó trong bài thử để con số ấy có một chỗ đứng
+   mà không ai lặng lẽ sửa lại được. */
+teq( '🔴 186,5 × 24.000 = 4.476.000 (số đúng)', 4476000.0, round( 11190 / 60 * 24000, 2 ) );
+t( '   còn 186,3 × 24.000 thì thiếu 4.800đ', 4800.0 === round( 4476000 - 186.3 * 24000, 2 ) );
+
+/* ================================================================== 2. lối giờ:phút */
+
+echo "— lối giờ:phút —\n";
+VHCC_Cham::dat_kieu_gio( VHCC_Cham::KIEU_HM );
+t( 'bật được', VHCC_Cham::la_hm() );
+teq( '🔴 320 phút = 5:20', '5:20', VHCC_Cham::gio_tp( 320 ) );
+teq( '🔴 11190 phút = 186:30', '186:30', VHCC_Cham::gio_tp( 11190 ) );
+teq( '   810 phút = 13:30', '13:30', VHCC_Cham::gio_tp( 810 ) );
+/* ⚠️ PHÚT LUÔN HAI CHỮ SỐ. `5:2` đọc thành 5 giờ 2 phút hay 5 giờ 20 phút thì tuỳ người — mà
+   đây đang là màn người ta ngồi đối chiếu từng ô. */
+teq( '🔴 phút một chữ số vẫn in hai chữ số', '5:05', VHCC_Cham::gio_tp( 305 ) );
+teq( '   tròn giờ thì :00', '8:00', VHCC_Cham::gio_tp( 480 ) );
+teq( '   vẫn gạch khi không có giờ', '—', VHCC_Cham::gio_tp( null ) );
+
+/* 🔴 ĐỔI CÁCH IN, KHÔNG ĐỔI PHÉP TÍNH. Nút này mà chạm được vào tiền thì nó là một cái bẫy chứ
+   không phải một tiện ích — người xem đổi cách nhìn rồi bảng lương ra số khác. */
+echo "— nút chỉ đổi cách IN —\n";
+global $wpdb;
+$U_KT = array( 'name' => 'Kế toán', 'role' => VHCC_Vai::KE_TOAN, 'ma_nv' => 'VGKT' );
+VHCC_GiaGio::dat_coso( $U_KT, 'VG_SHOP', array( 'NV' => 24000 ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'VG_VY', 'ho_ten' => 'Bạn Thử',
+	'cua_hang' => 'VG_SHOP', 'chuc_vu' => 'NV', 'vai_tro' => 'Nhân viên',
+	'trang_thai_lam_viec' => 'Đang làm' ) );
+/* 16:40 → 22:00, đúng ca trong ảnh. Mười ngày = 3200 phút = 53,33 giờ. */
+for ( $i = 1; $i <= 10; $i++ ) {
+	$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'ma_nv' => 'VG_VY', 'ho_ten' => '',
+		'coso' => 'VG_SHOP', 'ngay' => sprintf( '2026-11-%02d', $i ),
+		'gio_vao_giay' => 16 * 3600 + 40 * 60, 'gio_ra_giay' => 22 * 3600,
+		'hau_to' => '', 'nguon' => 'may' ) );
+}
+VHCC_Cham::dat_kieu_gio( VHCC_Cham::KIEU_HM );
+$b_hm = VHCC_BangLuong::dung( 'VG_SHOP', '2026-11' );
+VHCC_Cham::dat_kieu_gio( 'tp' );
+$b_tp = VHCC_BangLuong::dung( 'VG_SHOP', '2026-11' );
+
+teq( 'giờ tổng: 10 ca × 5h20 = 53,33', 53.33, $b_tp['dong'][0]['gio'] );
+teq( '🔴 bật giờ:phút KHÔNG đổi số giờ', $b_tp['dong'][0]['gio'], $b_hm['dong'][0]['gio'] );
+teq( '🔴 và KHÔNG đổi một đồng lương nào',
+	$b_tp['dong'][0]['luongChinh'], $b_hm['dong'][0]['luongChinh'] );
+/* ⚠️ TIỀN TÍNH TỪ PHÚT THẬT, không từ con số đã làm tròn để hiện lên màn. 3200 phút là
+   53,3333… giờ; nhân đơn giá rồi mới làm tròn. */
+teq( '   lương = 53,33 × 24.000', round( 53.33 * 24000, 2 ), $b_tp['dong'][0]['luongChinh'] );
+
+VHCC_Cham::dat_kieu_gio( 'tp' );
+
+echo "\n";
+if ( $truot ) {
+	echo '🔴 HỎNG ' . count( $truot ) . " phép thử:\n";
+	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }
+	echo "ĐẠT: $dat\n";
+	exit( 1 );
+}
+echo "✓ ĐẠT: $dat phép thử — một lối viết giờ, và nút đổi không chạm vào tiền.\n";
