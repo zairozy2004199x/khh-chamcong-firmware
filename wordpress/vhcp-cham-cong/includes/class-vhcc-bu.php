@@ -49,9 +49,17 @@ class VHCC_Bu {
 	 * Tách riêng khỏi `ghi()` vì màn hình cần hỏi TRƯỚC (để ẩn ô nhập) còn `ghi()` phải hỏi LẠI
 	 * lúc ghi — ẩn cái ô không phải là gác cửa, người ta dựng form ở đâu cũng gửi lên được.
 	 */
-	public static function vi_sao_khong_duoc( $u, $coso, $ma_nv ) {
-		if ( ! VHCC_Vai::duoc( $u, 'cham_bu' ) ) {
-			return 'Chấm công bù cần quyền Cửa hàng trưởng trở lên.';
+	public static function vi_sao_khong_duoc( $u, $coso, $ma_nv, $quyen = 'cham_bu' ) {
+		/* ⚠️ `$quyen` ĐỂ NƠI GỌI NÓI RÕ MÌNH ĐANG LÀM VIỆC GÌ — 18/09/2026.
+		   Từ hôm nay `cham_bu` và `sua_gio` đều ở bậc Kế toán, và cả hai chỉ định được cho từng
+		   người bằng một dòng ngoại lệ. Nhưng `sua()`/`xoa()` gọi hàm này để dùng mấy chốt PHẠM
+		   VI (cơ sở, hồ sơ thật, không tự sửa cho mình) — nếu hàm cứ hỏi cứng `cham_bu` thì
+		   người được chỉ định `sua_gio` phải khai THÊM một dòng `cham_bu` nữa mới sửa được, mà
+		   hai dòng cho một việc thì sớm muộn có người khai thiếu một. */
+		$q = (string) $quyen;
+		if ( ! isset( VHCC_Vai::QUYEN[ $q ] ) ) { $q = 'cham_bu'; }
+		if ( ! VHCC_Vai::duoc( $u, $q ) ) {
+			return VHCC_Vai::loi( $u, $q, 'cham_bu' === $q ? 'Chấm công bù' : 'Sửa giờ đã có' );
 		}
 		$coso = VHCC_NhanSu::chuan_coso( $coso );
 		if ( '' === $coso ) { return 'Chưa chọn cơ sở.'; }
@@ -81,6 +89,53 @@ class VHCC_Bu {
 	private static function ma_goc( $ma ) {
 		list( $goc, ) = VHCC_Nhan::tach_hau_to( $ma );
 		return $goc;
+	}
+
+	/* ═══════════════════════════════════════════════════════════════════════════════════════
+	 * HẾT NGÀY LÀ KHOÁ — cửa hàng trưởng chỉ sửa được giờ của CHÍNH HÔM NAY
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 17/09/2026: *"Hiện quản lý không cho cửa hàng trưởng sửa nữa… hết 24h hôm nay
+	 * không cho phép sửa giờ công. Vui lòng liên hệ kế toán"*.
+	 *
+	 * 🔴 KHOÁ THEO NGÀY, KHÔNG PHẢI THU QUYỀN. Hai cách làm ra hai kết quả rất khác:
+	 *    · Hạ `sua_gio` khỏi bậc Cửa hàng trưởng thì họ mất luôn cả đường sửa cái vừa gõ nhầm
+	 *      năm phút trước — mỗi lỗi vặt thành một cuộc gọi cho kế toán.
+	 *    · Khoá theo ngày thì hôm nay họ tự dọn, còn hôm qua trở về trước đã đóng — đúng cái
+	 *      anh Thắng nói, và đúng chỗ rủi ro thật: sửa ngược quá khứ là thứ không ai nhìn thấy.
+	 *
+	 * 🔴 AI KHÔNG BỊ KHOÁ: người có `cong_tat_ca` (Quản lý · Kế toán · Admin). Chốt bằng QUYỀN
+	 *    chứ không bằng tên vai — thêm một vai mới mai sau thì nó tự rơi đúng phía.
+	 *
+	 * ⚠️ CHỈ KHOÁ **SỬA** VÀ **XOÁ**, KHÔNG KHOÁ **BÙ**. Bù là điền vào ô TRỐNG — đó chính là
+	 *    việc màn trạm đang giục làm ("4 lượt thiếu một đầu giờ, bổ sung trước khi kế toán chốt
+	 *    lương"), và mấy lượt ấy gần như luôn là của ngày hôm trước. Khoá bù theo ngày là vừa
+	 *    giục người ta làm vừa chặn không cho làm. Sửa và xoá thì ĐÈ LÊN thứ đã có — khác hẳn.
+	 *
+	 * ⚠️ SO BẰNG NGÀY CỦA MÁY CHỦ (`current_time`), không bằng giờ trình duyệt. Điện thoại lệch
+	 *    múi giờ hoặc để sai ngày là tự mở thêm cho mình một ngày.
+	 */
+	public static function bi_khoa_ngay_cu( $u ) {
+		return ! VHCC_Vai::duoc( $u, 'cong_tat_ca' );
+	}
+
+	/** '' = qua được; khác rỗng = câu chối, nói đúng phải liên hệ ai. */
+	public static function han_ngay( $u, $ngay, $viec = 'sửa' ) {
+		if ( ! self::bi_khoa_ngay_cu( $u ) ) { return ''; }
+		$hom_nay = (string) current_time( 'Y-m-d' );
+		if ( (string) $ngay === $hom_nay ) { return ''; }
+		return 'Hết 24h ngày ' . $ngay . ' thì không ' . $viec . ' giờ công của ngày ấy nữa. '
+			. 'Vui lòng liên hệ kế toán.';
+	}
+
+	/** Câu nhắc bày sẵn ở đầu màn Cửa hàng — '' nếu người này không bị khoá. */
+	public static function nhac_han_ngay( $u ) {
+		if ( ! self::bi_khoa_ngay_cu( $u ) ) { return ''; }
+		/* ⚠️ 18/09/2026 — KHÔNG NHẮC HẠN CHO NGƯỜI VỐN KHÔNG SỬA ĐƯỢC. Từ hôm nay `sua_gio` là
+		   bậc Admin + chỉ định từng người, nên phần lớn cửa hàng trưởng không sửa được ngày
+		   NÀO cả. Bày câu "hết 24h hôm nay thì không sửa nữa" cho họ là nói sai theo hướng tệ
+		   nhất: nó ngụ ý hôm nay thì sửa được, và họ đi tìm cái nút không tồn tại. */
+		if ( ! VHCC_Vai::duoc( $u, 'sua_gio' ) ) { return ''; }
+		return 'Hết 24h hôm nay thì không cho phép sửa giờ công nữa. Vui lòng liên hệ kế toán.';
 	}
 
 	/* ===================================================================== ghi */
@@ -256,22 +311,27 @@ class VHCC_Bu {
 		$coso  = VHCC_NhanSu::chuan_coso( isset( $dat['coso'] ) ? $dat['coso'] : '' );
 		$ma_nv = trim( (string) ( isset( $dat['ma_nv'] ) ? $dat['ma_nv'] : '' ) );
 
-		/* 🔴 Gác quyền RIÊNG, gác TRƯỚC — và vẫn giữ nguyên dù ngưỡng đã hạ.
-		   `sua_gio` nay ở bậc Cửa hàng trưởng (anh Thắng 28/08/2026: *"Cửa hàng trưởng được
-		   phép sửa cả giờ công đã chấm"*), nhưng nó vẫn là một đầu việc RIÊNG, tách khỏi
-		   `vi_sao_khong_duoc()`. Giữ tách vì hai lý do: khoá lẻ được cho từng người ở màn Quản
-		   lý nhân sự, và nếu mai anh Thắng muốn siết lại thì sửa MỘT dòng trong bảng vai. */
+		/* 🔴 Gác quyền RIÊNG, gác TRƯỚC.
+		   `sua_gio` ở bậc Kế toán từ 18/09/2026 (anh Thắng: *"cửa hàng trưởng không được sửa
+		   công nữa mà theo người được chỉ định bật quyền mới được sửa thôi"*). Nó là một đầu
+		   việc RIÊNG, tách khỏi `vi_sao_khong_duoc()` — và chính nhờ tách mà chỉ định được cho
+		   từng người bằng một dòng `nv:<Mã NV> · sua_gio · mo` ở bảng ngoại lệ. Gộp vào là mất
+		   đường chỉ định, chỉ còn đường nâng cả vai. */
 		if ( ! VHCC_Vai::duoc( $u, 'sua_gio' ) ) {
 			return array( 'ok' => false,
 				'error' => VHCC_Vai::loi( $u, 'sua_gio', 'Sửa giờ đã có' )
 					. ' Trong lúc chờ mở, thấy giờ sai thì gắn cờ để cấp trên sửa.' );
 		}
-		$chan = self::vi_sao_khong_duoc( $u, $coso, $ma_nv );
+		$chan = self::vi_sao_khong_duoc( $u, $coso, $ma_nv, 'sua_gio' );
 		if ( '' !== $chan ) { return array( 'ok' => false, 'error' => $chan ); }
 
 		$ngay = trim( (string) ( isset( $dat['ngay'] ) ? $dat['ngay'] : '' ) );
 		$loi  = self::ngay_hop_le( $ngay );
 		if ( '' !== $loi ) { return array( 'ok' => false, 'error' => $loi ); }
+
+		/* Hết ngày là khoá — xem khối chú thích `han_ngay()`. */
+		$han = self::han_ngay( $u, $ngay, 'sửa' );
+		if ( '' !== $han ) { return array( 'ok' => false, 'error' => $han, 'quaHan' => true ); }
 
 		$ly_do = trim( (string) ( isset( $dat['ly_do'] ) ? $dat['ly_do'] : '' ) );
 		if ( mb_strlen( $ly_do, 'UTF-8' ) < 5 ) {
@@ -395,6 +455,89 @@ class VHCC_Bu {
 		}
 
 		return array( 'ok' => true, 'coSo' => $coso, 'ngay' => $ngay, 'maNV' => $ma_nv, 'doi' => $doi );
+	}
+
+	/**
+	 * XOÁ HẲN MỘT DÒNG CHẤM CÔNG.
+	 *
+	 * =============================================================================================
+	 * Anh Thắng 17/09/2026: *"làm nút xóa hẳn dòng công"*. Trước bản này chỉ có cách xoá TRẮNG hai
+	 * ô giờ (`sua` + `xoa_vao` + `xoa_ra`): dòng ở lại, không còn giờ. Anh muốn dòng biến mất khỏi
+	 * lưới, và đó là một việc khác — nên là một hàm khác, không nhét thêm một ô tích vào `sua()`.
+	 *
+	 * =============================================================================================
+	 * 🔴 ĐÂY LÀ VIỆC PHÁ NHIỀU NHẤT TRONG CẢ LỚP — GÁC Y HỆT `sua()`, KHÔNG BỚT MỘT CHỐT
+	 * =============================================================================================
+	 * Xoá trắng giờ còn để lại dấu "hôm ấy có một dòng". Xoá hẳn thì lưới trông y như người ta
+	 * KHÔNG ĐI LÀM hôm đó — và không còn gì trên màn hình mâu thuẫn với chuyện ấy. Nên nó dùng
+	 * đúng bộ gác của `sua()`, không rẻ hơn một li:
+	 *   · quyền `sua_gio` (Cửa hàng trưởng trở lên);
+	 *   · `vi_sao_khong_duoc()` — đúng cơ sở mình, mã có hồ sơ, và KHÔNG TỰ XOÁ CỦA CHÍNH MÌNH;
+	 *   · bắt ghi VÌ SAO, tối thiểu 5 ký tự.
+	 *
+	 * 🔴 GHI NHẬT KÝ TRƯỚC, XOÁ SAU — thứ tự này là cố ý.
+	 * Hai thứ tự đều có một nhánh hỏng, và phải chọn nhánh hỏng NÀO chịu được:
+	 *   · Xoá trước, ghi sổ sau: sổ hỏng thì dòng đã mất mà KHÔNG CÒN GÌ nói nó từng tồn tại.
+	 *     Không ai lần lại được, và cũng không ai biết là có chuyện để lần.
+	 *   · Ghi sổ trước, xoá sau: xoá hỏng thì sổ có một dòng "đã xoá" trong khi dòng vẫn còn —
+	 *     đọc lên thấy mâu thuẫn ngay, và hàm trả về câu lỗi nói đúng chuyện đó.
+	 * Cái thứ hai sai một cách NHÌN THẤY ĐƯỢC. Bằng chứng không bao giờ được là thứ thiếu.
+	 *
+	 * ⚠️ GHI CẢ HAI Ô vào sổ, kể cả ô vốn đã trống. Ở `sua()` thì chỉ ghi ô THẬT SỰ đổi, vì ghi
+	 *    cả ô không đổi là sổ đầy dòng vô nghĩa. Ở đây ngược lại: cả dòng biến mất, nên "ô giờ ra
+	 *    vốn đã trống" cũng là một sự thật cần giữ — thiếu nó thì sau này đọc sổ không biết được
+	 *    lúc xoá dòng ấy đang thiếu giờ ra hay đã đủ.
+	 */
+	public static function xoa( $u, $dat ) {
+		global $wpdb;
+		$coso  = VHCC_NhanSu::chuan_coso( isset( $dat['coso'] ) ? $dat['coso'] : '' );
+		$ma_nv = trim( (string) ( isset( $dat['ma_nv'] ) ? $dat['ma_nv'] : '' ) );
+
+		if ( ! VHCC_Vai::duoc( $u, 'sua_gio' ) ) {
+			return array( 'ok' => false,
+				'error' => VHCC_Vai::loi( $u, 'sua_gio', 'Xoá dòng chấm công' )
+					. ' Trong lúc chờ mở, thấy dòng sai thì gắn cờ để cấp trên xử.' );
+		}
+		$chan = self::vi_sao_khong_duoc( $u, $coso, $ma_nv, 'sua_gio' );
+		if ( '' !== $chan ) { return array( 'ok' => false, 'error' => $chan ); }
+
+		$ngay = trim( (string) ( isset( $dat['ngay'] ) ? $dat['ngay'] : '' ) );
+		$loi  = self::ngay_hop_le( $ngay );
+		if ( '' !== $loi ) { return array( 'ok' => false, 'error' => $loi ); }
+
+		/* Xoá cũng là đè lên thứ đã có, nên chịu cùng cái khoá với sửa. Mở một trong hai mà
+		   khoá cái kia là để hở đúng đường phá nhiều hơn. */
+		$han = self::han_ngay( $u, $ngay, 'xoá' );
+		if ( '' !== $han ) { return array( 'ok' => false, 'error' => $han, 'quaHan' => true ); }
+
+		$ly_do = trim( (string) ( isset( $dat['ly_do'] ) ? $dat['ly_do'] : '' ) );
+		if ( mb_strlen( $ly_do, 'UTF-8' ) < 5 ) {
+			return array( 'ok' => false,
+				'error' => 'Ghi rõ vì sao xoá dòng này (ít nhất 5 ký tự) — VD: "máy chấm nhầm '
+					. 'sang mã người khác, đã đối chiếu camera".' );
+		}
+
+		$cu = self::hang( $coso, $ngay, $ma_nv );
+		if ( ! $cu ) {
+			return array( 'ok' => false, 'error' => 'Ngày này không có dòng chấm công nào để xoá.' );
+		}
+		$vao_cu = ( null !== $cu['gio_vao_giay'] && '' !== $cu['gio_vao_giay'] ) ? (int) $cu['gio_vao_giay'] : null;
+		$ra_cu  = ( null !== $cu['gio_ra_giay'] && '' !== $cu['gio_ra_giay'] ) ? (int) $cu['gio_ra_giay'] : null;
+
+		/* Bằng chứng trước — xem khối chú thích trên. */
+		self::nhat_ky( $u, $coso, $ngay, $ma_nv, 'vao', null, $ly_do, 'xoa', $vao_cu );
+		self::nhat_ky( $u, $coso, $ngay, $ma_nv, 'ra',  null, $ly_do, 'xoa', $ra_cu );
+
+		$bo = $wpdb->delete( VHCC_DB::t( 'cham_cong' ), array( 'id' => (int) $cu['id'] ) );
+		if ( false === $bo || 0 === (int) $bo ) {
+			return array( 'ok' => false, 'error' => 'Không xoá được dòng (MySQL: '
+				. ( $wpdb->last_error ? $wpdb->last_error : 'không rõ' ) . '). '
+				. 'Sổ "Đã động vào giờ công" đã ghi một dòng XOÁ cho lượt này — nếu dòng chấm '
+				. 'công vẫn còn thì hai chỗ đang nói khác nhau, báo quản trị soát lại.' );
+		}
+		return array( 'ok' => true, 'coSo' => $coso, 'ngay' => $ngay, 'maNV' => $ma_nv,
+			'daXoa' => array( 'vao' => self::hhmm_hoac_trong( $vao_cu ),
+				'ra' => self::hhmm_hoac_trong( $ra_cu ) ) );
 	}
 
 	/**

@@ -95,6 +95,11 @@ class VHCPMTD_API {
 			   ứng đã cấp, tức đụng vào báo cáo của HAI tuần cùng lúc — người lập đơn không được
 			   tự làm, kẻo tuần nào sắp bị soi thì đơn lặng lẽ trôi sang tuần sau. */
 			'chuyenKy',
+			/* 🔴 ĐỔI CƠ SỞ CỦA CẢ ĐƠN — anh Thắng 19/09/2026: *"cho quyền admin đổi đơn sang cơ
+			   sở khác là được"*, để dọn mấy đơn đã lỡ lập dưới một cơ sở ảo. Nó dời tiền đã
+			   nhập sang sổ của gian khác nên đứng cùng nhóm với `chuyenKy`: người lập đơn không
+			   được tự làm. Chính hàm còn chặn thêm một tầng — chỉ Admin. */
+			'doiCoSoDon',
 			'datKhoangKyDon',
 			/* Đổi con số tiền quản lý đã duyệt — việc của chính người duyệt, không phải người xin. */
 			'duyetLaiTamUng',
@@ -282,6 +287,7 @@ class VHCPMTD_API {
 			'chuyenDonVi'           => array( 'VHCPMTD_Don', 'chuyen_don_vi' ),
 			/* Nhảy đơn sang tuần khác khi không quyết toán kịp trong tuần của nó. */
 			'chuyenKy'              => array( 'VHCPMTD_Don', 'chuyen_ky' ),
+			'doiCoSoDon'            => array( 'VHCPMTD_Don', 'doi_coso_don' ),
 			'datKhoangKyDon'        => array( 'VHCPMTD_Don', 'dat_khoang_ky' ),
 			'dsKyQuanh'             => array( 'VHCPMTD_Don', 'ds_ky_quanh_api' ),
 			/* Tổng xin đổi sau khi duyệt (nhân viên sửa hạng mục, hoặc luật tính đổi) — cho

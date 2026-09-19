@@ -2759,7 +2759,29 @@ class VHCPVP_Cfg {
 	 *  Bốn bảng có cột cơ sở: tạm ứng · chi phí · sổ chi · đơn mua. Quét đủ cả bốn, vì tên lệch
 	 *  chỉ ở một bảng cũng đủ làm số liệu không khớp.
 	 * ========================================================================================== */
-	const COSO_BANG = array( 'tamung', 'chiphi', 'so_chi', 'mk_don' );
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * MỌI CHỖ CÓ TÊN CƠ SỞ NẰM TRONG DỮ LIỆU — bảng => TÊN CỘT.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 CỘT CỦA DỰ ÁN TÊN LÀ `gian`, KHÔNG PHẢI `coso` — VÀ NÓ TỪNG BỊ BỎ SÓT. Hằng này trước
+	 *    đây chỉ là danh sách TÊN BẢNG, ngầm hiểu cột nào cũng tên `coso`. Bảng `da_line` giữ
+	 *    đúng loại giá trị ấy (tên gian hàng, chọn từ cùng một danh mục) nhưng dưới tên cột
+	 *    khác, nên nó rơi ra ngoài cả hai đường:
+	 *      · `coso_la()` không bao giờ thấy một cơ sở lạ chỉ dùng ở dự án -> không ai biết nó có;
+	 *      · `doi_ten_coso()` đổi xong vẫn để nguyên dòng dự án -> tiền của một gian tách làm
+	 *        đôi, nửa mang tên mới nửa mang tên cũ, mà màn nào cũng trông như đã đổi xong.
+	 *    Hỏng im lặng theo hướng tệ nhất: người ta TIN là đã dọn sạch.
+	 *
+	 * ⚠️ `bp_index.dia_diem` CỐ Ý KHÔNG CÓ TRONG ĐÂY. Nó là chỗ người ta ĐI TỚI (một tỉnh, một
+	 *    hội chợ), gõ tự do, không lấy từ danh mục cơ sở — xem chốt ở `VHCPVP_BP::don_vi_cua()`.
+	 *    Gộp nó vào là một lượt đổi tên cơ sở đi sửa cả địa điểm công tác.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	const COSO_BANG = array(
+		'tamung'  => 'coso',
+		'chiphi'  => 'coso',
+		'so_chi'  => 'coso',
+		'mk_don'  => 'coso',
+		'da_line' => 'gian',
+	);
 
 	/** cosoLa(): [ ['ten'=>…, 'dong'=>['chiphi'=>12,…], 'tong'=>12], … ] */
 	public static function coso_la() {
@@ -2770,9 +2792,9 @@ class VHCPVP_Cfg {
 			if ( '' !== $k ) { $khai[ $k ] = 1; }
 		}
 		$gom = array();
-		foreach ( self::COSO_BANG as $b ) {
+		foreach ( self::COSO_BANG as $b => $cot ) {
 			$t = VHCPVP_DB::t( $b );
-			foreach ( VHCPVP_DB::rows( "SELECT coso, COUNT(*) AS n FROM $t WHERE coso<>'' GROUP BY coso" ) as $r ) {
+			foreach ( VHCPVP_DB::rows( "SELECT $cot AS coso, COUNT(*) AS n FROM $t WHERE $cot<>'' GROUP BY $cot" ) as $r ) {
 				$ten = trim( (string) $r['coso'] );
 				$k   = mb_strtolower( $ten );
 				if ( '' === $k || isset( $khai[ $k ] ) ) { continue; }
@@ -2793,6 +2815,10 @@ class VHCPVP_Cfg {
 	 *   · đổi tên một cơ sở đã khai  -> đổi cả dòng trong bảng Cấu hình
 	 *   · gộp một cơ sở lạ về cơ sở đã khai -> chỉ đổi dữ liệu, không thêm dòng nào
 	 *
+	 * Anh Thắng 19/09/2026: *"nhân viên lỡ tạo cơ sở ảo, giờ làm sao chuyển qua cơ sở, vì đã
+	 * nhập dữ liệu"* — đúng việc thứ hai. Cơ sở ảo ở đây sinh ra từ lượt đẩy nhân sự cũ, mang
+	 * MÃ cửa hàng (`FZ_SC_VIVO_T4`) thay vì TÊN gian hàng.
+	 *
 	 * 🔴 KHÔNG để người ta sửa ô tên trong bảng rồi tự đi sửa dữ liệu sau. Sửa ô tên là việc
 	 *    một giây, còn dữ liệu cũ thì nằm ở bốn bảng cộng danh sách cơ sở của từng nhân viên —
 	 *    làm tay kiểu gì cũng sót một chỗ, và chỗ sót đó im lặng cho tới lúc đối chiếu tiền.
@@ -2805,8 +2831,8 @@ class VHCPVP_Cfg {
 		if ( mb_strtolower( $cu ) === mb_strtolower( $moi ) ) { return VHCPVP_Util::err( 'Hai tên giống nhau' ); }
 
 		$dem = array();
-		foreach ( self::COSO_BANG as $b ) {
-			$n = $wpdb->update( VHCPVP_DB::t( $b ), array( 'coso' => $moi ), array( 'coso' => $cu ) );
+		foreach ( self::COSO_BANG as $b => $cot ) {
+			$n = $wpdb->update( VHCPVP_DB::t( $b ), array( $cot => $moi ), array( $cot => $cu ) );
 			$dem[ $b ] = (int) $n;
 		}
 

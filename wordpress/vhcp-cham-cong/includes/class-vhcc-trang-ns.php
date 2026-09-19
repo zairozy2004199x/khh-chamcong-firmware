@@ -95,10 +95,19 @@ class VHCC_TrangNS {
 		return VHCC_Web::chu_ky( $tok );
 	}
 
-	private static function ky_dung() {
-		$tok = isset( $_COOKIE[ VHCC_Web::COOKIE ] ) ? (string) $_COOKIE[ VHCC_Web::COOKIE ] : '';
-		$gui = isset( $_POST['ky'] ) ? (string) wp_unslash( $_POST['ky'] ) : '';
-		return ( '' !== $tok && '' !== $gui && hash_equals( VHCC_Web::chu_ky( $tok ), $gui ) );
+	/**
+	 * 🔴 MƯỢN THẲNG BỘ KIỂM CỦA `VHCC_Web`, KHÔNG CHÉP LẠI.
+	 *
+	 * Anh Thắng 19/09/2026 gặp *"Phiên đã hết hoặc biểu mẫu không hợp lệ"* ở CẢ hai màn — Bảng
+	 * công và Quản lý nhân sự. Cùng một gốc (chữ ký buộc vào thẻ phiên, mà cookie sống 12 giờ
+	 * còn hàng phiên sống 30 ngày — xem `VHCC_Web::chu_ky`), nhưng màn này có bản kiểm CHÉP
+	 * RIÊNG, nên vá một chỗ thì chỗ kia vẫn hỏng. Chép luật là hai bản luật.
+	 *
+	 * Cùng plugin nên gọi thẳng, không cần gác `method_exists` — luật ấy chỉ áp cho lời gọi
+	 * chéo SANG PLUGIN KHÁC (`tools/test/kiem-goi-cheo.php`).
+	 */
+	private static function ky_dung( $toi = null ) {
+		return VHCC_Web::chu_ky_dung( $toi );
 	}
 
 	/* ==================================================================== địa chỉ & báo */
@@ -207,9 +216,9 @@ class VHCC_TrangNS {
 		elseif ( isset( $_POST['xoa_may'] ) ) { $viec_gui = 'xoa_may_nv'; }
 
 		if ( ! empty( $_POST ) && '' !== $viec_gui ) {
-			$bao = self::ky_dung()
+			$bao = self::ky_dung( $toi )
 				? self::lam_viec( sanitize_text_field( $viec_gui ), $toi )
-				: array( array( 'loi' => 'Phiên đã hết hoặc biểu mẫu không hợp lệ. Tải lại trang rồi làm lại.' ) );
+				: array( array( 'loi' => VHCC_Web::vi_sao_chan_post() ) );
 			self::cat_bao( $bao );
 			self::ve( self::url_hien() );
 		}
@@ -898,8 +907,16 @@ class VHCC_TrangNS {
 		/* Ô tích "chỉ QL" — mảng, và BỎ TÍCH HẾT thì trình duyệt không gửi phần tử nào. Nên
 		   danh sách "hàng nào có gửi" vẫn là `cs_co[MA]` (ô ẩn luôn có mặt), và với hàng ấy thì
 		   `cs_ql[MA]` vắng nghĩa là "không cơ sở nào chỉ quản lý" — đúng ý người bỏ tích. */
-		$ql  = isset( $_POST['cs_ql'] ) ? wp_unslash( $_POST['cs_ql'] ) : array();
-		if ( ! is_array( $ql ) ) { $ql = array(); }
+		/* 🔴 MỘT Ô HỎI, HAI DANH SÁCH RA. Từ 18/09/2026 biểu mẫu hỏi bằng BA NÚT TRÒN mỗi cơ
+		   sở (`cs_muc[MA][CƠ_SỞ]` = cc | lq | ql) thay cho hai ô tích chồng nhau — anh Thắng
+		   chỉ vào hai ô ấy và hỏi *"2 chỗ này khác gì nhau"*, xem khối dài ở `o_coso()`.
+		   Ở đây tách ngược ra hai danh sách mà `dat_ds_coso()` vẫn nhận, nên tầng dưới không
+		   phải biết gì về cách hỏi.
+		   ⚠️ Nút tròn LUÔN gửi một giá trị cho mỗi cơ sở đang bày (khác ô tích: bỏ tích thì
+		      vắng mặt). Nên `cs_muc[MA]` vắng nghĩa là hàng ấy không bày ô nào — giữ nguyên,
+		      chứ KHÔNG phải "xoá hết cờ". */
+		$muc = isset( $_POST['cs_muc'] ) ? wp_unslash( $_POST['cs_muc'] ) : array();
+		if ( ! is_array( $muc ) ) { $muc = array(); }
 		$ra  = array( 'doi' => 0, 'doiChinh' => 0, 'doiQL' => 0, 'go' => 0, 'loi' => array() );
 		if ( ! is_array( $gui ) ) { $gui = array(); }
 		if ( ! is_array( $co ) || ! $co ) { return $ra; }
@@ -910,11 +927,21 @@ class VHCC_TrangNS {
 			$ds_cs = array();
 			foreach ( (array) $v as $x ) { $ds_cs[] = sanitize_text_field( (string) $x ); }
 			$c_ch = isset( $ch[ $ma ] ) ? sanitize_text_field( (string) $ch[ $ma ] ) : '';
-			$ds_ql = array();
-			foreach ( (array) ( isset( $ql[ $ma ] ) ? $ql[ $ma ] : array() ) as $x_q ) {
-				$ds_ql[] = sanitize_text_field( (string) $x_q );
+			$co_muc = isset( $muc[ $ma ] ) && is_array( $muc[ $ma ] );
+			$ds_ql  = null;
+			$ds_qn  = null;
+			if ( $co_muc ) {
+				$ds_ql = array();
+				$ds_qn = array();
+				foreach ( $muc[ $ma ] as $cs_m => $v_m ) {
+					$cs_m = sanitize_text_field( (string) $cs_m );
+					$v_m  = sanitize_text_field( (string) $v_m );
+					if ( '' === $cs_m ) { continue; }
+					if ( 'ql' === $v_m ) { $ds_ql[] = $cs_m; }
+					elseif ( 'lq' === $v_m ) { $ds_qn[] = $cs_m; }
+				}
 			}
-			$r = VHCC_NhanSu::dat_ds_coso( $toi, $ma_s, $ds_cs, $c_ch, $ds_ql );
+			$r = VHCC_NhanSu::dat_ds_coso( $toi, $ma_s, $ds_cs, $c_ch, $ds_ql, $ds_qn );
 			if ( empty( $r['ok'] ) ) {
 				$ra['loi'][ $r['error'] ] = $ma_s . ': ' . $r['error'];
 				continue;
@@ -1352,13 +1379,36 @@ class VHCC_TrangNS {
 			. '.pin-nhac{color:var(--chu-mo);font-size:11px;margin-left:6px}'
 			/* Lưới ô tích cơ sở trong cột hẹp: xếp dọc, chữ nhỏ, cuộn khi quá dài. Một người
 			   hiếm khi quá 3–4 cơ sở, nhưng cột này còn phải sống được ở chuỗi 26 cửa hàng. */
-			. '.o-cs-tich{display:flex;flex-direction:column;gap:1px;max-height:112px;overflow:auto;'
-			. 'min-width:186px}'
+			. '.o-cs-tich{display:flex;flex-direction:column;gap:1px;min-width:186px}'
+			/* 🔴 GẤP LẠI THÌ CHỈ MỘT DÒNG; MỞ RA THÌ CAO HẲN. Trần cũ 112px nén cả danh sách
+			   vào một khung cuộn hai chiều — xem khối chú thích ở `o_coso()`. Mở ra vẫn có
+			   trần, nhưng rộng gấp bốn: người có hai mươi cơ sở thì vẫn phải cuộn, chỉ là
+			   không phải cuộn cho MỌI người. */
+			. 'details.cs-xo>summary{cursor:pointer;font-size:11.5px;list-style:none;'
+			. 'padding:2px 0;white-space:nowrap}'
+			. 'details.cs-xo>summary::-webkit-details-marker{display:none}'
+			. 'details.cs-xo>summary::before{content:"▸ ";color:var(--chu-mo)}'
+			. 'details.cs-xo[open]>summary::before{content:"▾ "}'
+			. 'details.cs-xo[open]>summary{margin-bottom:4px}'
+			. 'details.cs-xo[open] .o-cs-tich{max-height:420px;overflow:auto;'
+			. 'border-left:2px solid var(--vien-dam);padding-left:8px}'
+			. '.cs-muc{display:flex;gap:7px;align-items:center}'
+			. '.cs-muc label{gap:3px;white-space:nowrap}'
+			. '.cs-muc input:disabled+*,.cs-muc label:has(input:disabled){opacity:.45}'
 			. '.o-cs-tich label{display:flex;align-items:center;gap:5px;font-size:11.5px;'
 			. 'white-space:nowrap;cursor:pointer}'
 			. '.o-cs-tich input[disabled]+*,.o-cs-tich label:has(input[disabled]){color:var(--chu-mo)}'
 			/* Một hàng = một cơ sở: ô tích bên trái, nút tròn "chính" dạt sang phải. */
 			. '.o-cs-tich .cs-hang{display:flex;align-items:center;gap:8px;justify-content:space-between}'
+			/* Nhãn nhóm cơ sở — chấm công / chỉ quản lý / chưa tích. Dính lại khi cuộn trong
+			   khung hẹp, không thì cuộn xuống giữa danh sách là mất luôn cái nhãn. */
+			. '.o-cs-tich .cs-nhan{position:sticky;top:0;z-index:1;background:var(--nen-2);'
+			. 'margin:6px -6px 3px;padding:3px 6px;font-size:10.5px;font-weight:700;'
+			. 'text-transform:uppercase;letter-spacing:.3px;color:var(--chu-dam);'
+			. 'border-radius:3px;line-height:1.35}'
+			. '.o-cs-tich .cs-nhan:first-child{margin-top:0}'
+			. '.o-cs-tich .cs-nhan span{font-weight:400;text-transform:none;letter-spacing:0;'
+			. 'color:var(--chu-mo)}'
 			. '.o-cs-tich .cs-ch{color:var(--chu-mo);font-size:10.5px;gap:3px;flex:0 0 auto}'
 			. '.o-cs-tich .cs-ch:has(input:checked){color:var(--xanh,#0369a1);font-weight:600}'
 			. '.o-cs-tich .cs-ql{color:var(--chu-mo);font-size:10.5px;gap:3px;flex:0 0 auto}'
@@ -1443,6 +1493,7 @@ class VHCC_TrangNS {
 			. 'table.b-ns select.o-q-vai{max-width:152px;font-size:12px}'
 			. 'table.b-ns .mb-suy{max-width:158px}'
 			. 'table.b-ns .o-cs-tich{min-width:0;font-size:11px}'
+			. 'table.b-ns details.cs-xo[open] .o-cs-tich{min-width:300px}'
 			. 'table.b-ns .o-cs-tich label{font-size:11px}'
 			. 'table.b-ns .o-cs-tich .cs-hang{gap:6px}'
 			/* Màn hẹp (máy tính xách tay 13", máy bảng) thì KHÔNG bóp tiếp nữa — bóp nữa là
@@ -2354,7 +2405,14 @@ class VHCC_TrangNS {
 			echo '<td class="mo">' . esc_html( (string) $r['tao_luc'] ) . '</td>';
 			/* Mỗi hàng một biểu mẫu RIÊNG — hai nút cùng một hàng, mỗi nút mang việc của nó. Gom
 			   cả bảng vào một form thì bấm Duyệt ở hàng ba lại gửi cả chín hàng. */
+			/* 🔴 THIẾU Ô CHỮ KÝ THÌ HAI NÚT NÀY KHÔNG BAO GIỜ ĂN. Anh Thắng 19/09/2026 bấm Duyệt
+			   ở khối này và nhận "Biểu mẫu gửi lên THIẾU chữ ký" — không phải phiên hỏng, mà
+			   chính cái form ở đây chưa bao giờ gài chữ ký. Mọi form POST của trang đều đi qua
+			   `ky_dung()`, nên form nào quên ô này là một cái nút chết, im lặng, từ ngày nó
+			   được viết ra. Xem `tools/test/kiem-form-co-chu-ky.php` — bài kiểm sinh ra để
+			   không bao giờ sót thêm một cái nữa. */
 			echo '<td><form method="post" class="hang" style="gap:6px;margin:0">'
+				. '<input type="hidden" name="ky" value="' . esc_attr( self::ky() ) . '">'
 				. '<input type="hidden" name="op_id" value="' . esc_attr( (string) $r['op_id'] ) . '">'
 				. '<button class="chinh" name="viec" value="duyet_may">Duyệt</button>'
 				. '<button class="nut-do" name="viec" value="tu_choi_may">Từ chối</button>'
@@ -2881,8 +2939,32 @@ class VHCC_TrangNS {
 			return;
 		}
 		if ( '' === (string) $r['pin'] ) {
-			echo '<div class="pin-o">Người này <b>chưa có PIN</b> — cấp ở ô <b>sửa ▾</b> hoặc ở '
-				. 'màn Nhân sự cửa hàng.</div>';
+			/* ═══════════════════════════════════════════════════════════════════════════════
+			 * 🔴 NÓI RA ĐƯỜNG TỰ ĐẶT PIN TRƯỚC, CẤP TAY SAU — anh Thắng 17/09/2026: *"khi cửa
+			 *    hàng trưởng tạo nv mới, thì cho quyền nhân viên quên pin để tạo pin mới luôn"*.
+			 *
+			 * Quyền ấy VỐN ĐÃ CÓ: `VHCC_QuenPin::tra()` chỉ hỏi họ tên + căn cước, không đòi
+			 * PIN cũ, nên hồ sơ `TAM-` vừa mở đã đi qua được (thử cả luồng: tra → đặt PIN →
+			 * đăng nhập trạm, chạy thẳng). Thứ sai là DÒNG CHỮ NÀY: nó chỉ kể hai cách CẤP TAY
+			 * và không nhắc đường tự phục vụ, nên cửa hàng trưởng đọc xong là đi cấp PIN hộ —
+			 * rồi phải đọc con số ấy cho người ta qua điện thoại.
+			 *
+			 * Tự đặt tốt hơn ở đúng một chỗ quan trọng: KHÔNG AI phải biết PIN của ai, kể cả
+			 * cửa hàng trưởng.
+			 *
+			 * ⚠️ NHƯNG ĐƯỜNG ẤY CẦN CĂN CƯỚC. Hồ sơ chưa khai căn cước thì `tra()` không khớp
+			 *    nổi, và bảo người ta "bấm Quên PIN" là chỉ họ tới một cửa đóng. Nên câu chữ
+			 *    phải rẽ theo đúng cái điều kiện ấy, chứ không nói chung một câu cho cả hai.
+			 * ═══════════════════════════════════════════════════════════════════════════════ */
+			$hs_p = VHCC_NhanSu::ho_so( $ma );
+			$co_cccd = ( $hs_p && '' !== trim( (string) $hs_p['cccd'] ) );
+			echo '<div class="pin-o">Người này <b>chưa có PIN</b> — ' . ( $co_cccd
+				? 'và <b>không cần ai cấp</b>. Bảo họ mở trang <b>chấm công online</b>, bấm '
+					. '<b>Quên PIN</b>, gõ đúng họ tên + số căn cước trong hồ sơ rồi tự đặt PIN. '
+					. 'Cách này không ai phải đọc PIN của ai. Vẫn muốn cấp tay thì ô <b>sửa ▾</b>.'
+				: 'và hồ sơ <b>chưa khai căn cước</b>, nên đường tự đặt PIN (<b>Quên PIN</b>) '
+					. 'đang tắc. Khai căn cước vào hồ sơ là họ tự đặt được; hoặc cấp tay ở ô '
+					. '<b>sửa ▾</b>.' ) . '</div>';
 			return;
 		}
 		/* Số to, giãn chữ: người ta mở ô này ra để ĐỌC CHO AI ĐÓ QUA ĐIỆN THOẠI, và 6 chữ số
@@ -3120,7 +3202,6 @@ class VHCC_TrangNS {
 		}
 		$chinh   = isset( $dang[0] ) ? $dang[0] : '';
 		$ten_ch  = 'cs_chinh[' . esc_attr( $ma ) . ']';
-		$ten_ql  = 'cs_ql[' . esc_attr( $ma ) . '][]';
 		$ve_chinh = count( $bay ) > 1;
 		/* Cờ "chỉ quản lý — không chấm công" đang đặt ở những cơ sở nào (xem
 		   `VHCC_NhanSu::ds_coso_ql()`). Cũng chỉ có nghĩa khi bày từ hai cơ sở trở lên: một cơ
@@ -3130,8 +3211,48 @@ class VHCC_TrangNS {
 			? $hs : array( 'cua_hang' => $cs_cu, 'coso_phu' => '', 'coso_ql' => '' ) ) as $c_q ) {
 			$co_ql[ VHCC_NhanSu::chu_thuong( $c_q ) ] = 1;
 		}
+		/* Cơ sở người này QUẢN — đọc CỘT THÔ, không gộp `coso_ql`: ô tích dưới tự cộng hai thứ
+		   lại khi vẽ, còn ở đây gộp sẵn thì lượt Lưu chép luôn `coso_ql` sang cột kia. */
+		$co_qn = array();
+		foreach ( VHCC_NhanSu::ds_coso_quan_tho( is_array( $hs ) && $hs
+			? $hs : array( 'cua_hang' => $cs_cu, 'coso_phu' => '', 'coso_quan' => '' ) ) as $c_n ) {
+			$co_qn[ VHCC_NhanSu::chu_thuong( $c_n ) ] = 1;
+		}
 
-		$h = '<div class="o-cs-tich">';
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 GẤP LẠI, BẤM MỚI XỔ TO RA
+		 *
+		 * Anh Thắng 18/09/2026: *"Bấm vào nv nó xổ to ra được không"*, kèm ảnh ô cơ sở bị nén
+		 * trong một khung cao 112px có thanh cuộn cả dọc lẫn ngang — từ khi thêm ô tích thứ ba
+		 * ("quản lý") và ba dòng nhãn nhóm thì mỗi hàng chiếm gấp đôi chỗ cũ, và cái khung ấy
+		 * chỉ còn hiện nổi hai cơ sở một lúc.
+		 *
+		 * Dùng `<details>` chứ KHÔNG dùng JavaScript: bảng này có hàng trăm hàng, mỗi hàng một
+		 * khối — gài JS cho từng khối là hàng trăm người nghe, còn `<details>` thì trình duyệt
+		 * lo, chạy cả khi JS tắt, và hợp với luật "không thuộc tính on* trong HTML" của trang.
+		 *
+		 * ⚠️ TÓM TẮT PHẢI NÓI ĐỦ ĐỂ KHÔNG CẦN MỞ. Gấp lại mà chỉ ghi "3 cơ sở" thì soát một bảng
+		 *    200 người phải mở 200 lần. Nên dòng tóm tắt kể thẳng: quản mấy chỗ, làm mấy chỗ.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$so_cham = 0;
+		$so_quan = 0;
+		foreach ( $bay as $b_d ) {
+			if ( empty( $b_d[1] ) ) { continue; }
+			$k_d = VHCC_NhanSu::chu_thuong( $b_d[0] );
+			if ( isset( $co_ql[ $k_d ] ) ) { $so_quan++; continue; }
+			$so_cham++;
+			if ( isset( $co_qn[ $k_d ] ) ) { $so_quan++; }
+		}
+		$tom = array();
+		if ( $so_cham ) { $tom[] = 'chấm công ' . $so_cham; }
+		if ( $so_quan ) { $tom[] = 'quản lý ' . $so_quan; }
+		$chinh_ten = ( '' !== $chinh ) ? $chinh : ( isset( $bay[0][0] ) ? $bay[0][0] : '' );
+
+		$h  = '<details class="cs-xo">';
+		$h .= '<summary><b>' . esc_html( '' !== $chinh_ten ? $chinh_ten : '— chưa có —' ) . '</b>'
+			. ( $tom ? ( ' <span class="mo">· ' . esc_html( implode( ' · ', $tom ) ) . '</span>' ) : '' )
+			. '</summary>';
+		$h .= '<div class="o-cs-tich">';
 		/* 🔴 Ô ẨN CHỞ CƠ SỞ CHÍNH ĐANG CÓ, ĐẶT TRƯỚC MỌI NÚT TRÒN. Hai lý do, cả hai đều là mất
 		   dữ liệu im lặng nếu thiếu: (1) nút tròn của cơ sở mình KHÔNG phụ trách bị khoá nên
 		   không gửi gì lên — không chở thì mỗi lượt Lưu là cơ sở chính của người ta nhảy về cơ
@@ -3140,8 +3261,49 @@ class VHCC_TrangNS {
 		if ( '' !== $chinh ) {
 			$h .= '<input type="hidden" name="' . $ten_ch . '" value="' . esc_attr( $chinh ) . '">';
 		}
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 XẾP THÀNH BA KHỐI CÓ NHÃN, ĐỪNG ĐỔ MỘT MẠCH
+		 *
+		 * Anh Thắng 18/09/2026: *"Đang hiểu sai giữa cửa hàng quản lý và cửa hàng chấm công.
+		 * Tách ra cho anh"*, rồi *"chỗ này lẫn lộn hết"*.
+		 *
+		 * Bản cũ liệt kê thẳng một mạch theo bảng chữ cái, và sự khác nhau giữa "chấm công ở
+		 * đây" với "chỉ trông coi ở đây" nằm gọn trong MỘT ô tích nhỏ tên `chỉ QL` ở cuối hàng.
+		 * Người đọc phải rà từng hàng mới dựng lại được trong đầu hai danh sách — mà hai danh
+		 * sách ấy quyết định hai thứ khác hẳn nhau: nơi tính LƯƠNG của người này, và nơi họ
+		 * QUẢN người khác.
+		 *
+		 * Nên xếp lại: chấm công lên trước, chỉ quản lý sau, chưa tích xuống cuối. TÊN Ô GIỮ
+		 * NGUYÊN — đây là đổi cách bày, không đổi dữ liệu, nên `luu()` không phải biết gì.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$nhom = array( 'cham' => array(), 'ql' => array(), 'khong' => array() );
+		foreach ( $bay as $b ) {
+			if ( empty( $b[1] ) ) { $nhom['khong'][] = $b; continue; }
+			$nhom[ isset( $co_ql[ VHCC_NhanSu::chu_thuong( $b[0] ) ] ) ? 'ql' : 'cham' ][] = $b;
+		}
+		$nhan = array(
+			'cham'  => array( 'Cơ sở CHẤM CÔNG', 'nơi người này làm — giờ công và lương tính ở đây' ),
+			'ql'    => array( 'Cơ sở QUẢN LÝ', 'chỉ trông coi nhân sự — KHÔNG chấm công, không có giờ ở đây' ),
+			'khong' => array( 'Chưa tích', 'không thuộc về cơ sở nào dưới đây' ),
+		);
+		$xep = array();
+		foreach ( array( 'cham', 'ql', 'khong' ) as $k ) {
+			if ( ! $nhom[ $k ] ) { continue; }
+			/* Chỉ đắp nhãn khi ô này CÓ vẽ cột "chính/chỉ QL" — hàng không vẽ hai cột ấy thì
+			   phép chia không có nghĩa, và một dòng nhãn thừa chỉ tổ rối. */
+			if ( $ve_chinh ) { $xep[] = array( '__nhan__', $k, false ); }
+			foreach ( $nhom[ $k ] as $b ) { $xep[] = $b; }
+		}
+		$bay = $xep;
+
 		foreach ( $bay as $b ) {
 			list( $c, $tich, $duoc ) = $b;
+			if ( '__nhan__' === $c ) {
+				$h .= '<div class="cs-nhan" title="' . esc_attr( $nhan[ $tich ][1] ) . '">'
+					. esc_html( $nhan[ $tich ][0] ) . ' <span>· ' . esc_html( $nhan[ $tich ][1] )
+					. '</span></div>';
+				continue;
+			}
 			$h .= '<div class="cs-hang">';
 			$h .= '<label' . ( $duoc ? '' : ' title="Cơ sở bạn không phụ trách — giữ nguyên"' ) . '>'
 				. '<input type="checkbox" name="' . $ten . '" value="' . esc_attr( $c ) . '"'
@@ -3157,22 +3319,49 @@ class VHCC_TrangNS {
 					. ' mở trang chấm công. Chấm ở cơ sở nào trong danh sách cũng được tính đủ.">'
 					. '<input type="radio" name="' . $ten_ch . '" value="' . esc_attr( $c ) . '"'
 					. checked( true, $la_ch, false ) . ( $duoc ? '' : ' disabled' ) . '>chính</label>';
-				/* 🔴 CHỈ QUẢN LÝ — KHÔNG CHẤM CÔNG. Anh Thắng 09/09/2026: *"đối với cửa hàng chỉ
-				   quản lý nhân viên không chấm công thì làm sao để loại ra khỏi bảng chấm công,
-				   nhưng vẫn quản lý được nhân viên cơ sở đó"*. Tích ô này thì cơ sở ấy biến khỏi
-				   ô xổ cơ sở trên trạm và khỏi lưới bảng công của người này — nhưng ô TÍCH vẫn
-				   nguyên, nên quyền quản lý ở đó không đổi một chút nào. */
+				/* ═══════════════════════════════════════════════════════════════════════════
+				 * 🔴 MỘT LỰA CHỌN BA MỨC, KHÔNG PHẢI HAI Ô TÍCH
+				 *
+				 * Anh Thắng 18/09/2026 chỉ vào hai ô "chỉ QL" và "quản lý" cạnh nhau: *"2 chỗ
+				 * này khác gì nhau"*. Anh hỏi đúng — và câu hỏi ấy là câu trả lời.
+				 *
+				 * Hai ô tích độc lập vẽ ra BỐN tổ hợp, trong khi nghiệp vụ chỉ có BA cảnh, và
+				 * tổ hợp thứ tư (tích cả hai) thì trùng với "chỉ QL". Người khai phải tự dựng
+				 * lại phép ánh xạ ấy trong đầu, mỗi hàng một lần.
+				 *
+				 * Ba nút tròn thì mỗi cảnh một tên, đọc là hiểu, và không có tổ hợp vô nghĩa
+				 * nào để mà chọn nhầm:
+				 *   · Chấm công        — đi làm ở đây, không quản ai
+				 *   · Làm & quản       — vừa đi làm vừa quản (cửa hàng trưởng ở cửa hàng mình)
+				 *   · Chỉ quản         — trông coi, KHÔNG chấm công ở đây
+				 *
+				 * ⚠️ TÊN Ô GỬI LÊN GIỮ NGUYÊN `cs_ql[]` và `cs_quan[]` — đây là đổi cách hỏi,
+				 *    không đổi dữ liệu. Ba nút tròn cùng tên `cs_muc[...]`, rồi dựng lại hai ô
+				 *    ẩn từ mức đã chọn, nên đường lưu không phải biết gì.
+				 * ═══════════════════════════════════════════════════════════════════════════ */
 				$la_ql = isset( $co_ql[ VHCC_NhanSu::chu_thuong( $c ) ] );
-				$h .= '<label class="cs-ql" title="CHỈ QUẢN LÝ — không chấm công ở cơ sở này.'
-					. ' Cơ sở sẽ không hiện trong ô chọn lúc chấm và không mọc hàng trống trong'
-					. ' bảng công, nhưng người này VẪN quản lý nhân viên ở đó. Không đặt được cho'
-					. ' cơ sở chính.">'
-					. '<input type="checkbox" name="' . $ten_ql . '" value="' . esc_attr( $c ) . '"'
-					. checked( true, $la_ql, false ) . ( $duoc ? '' : ' disabled' ) . '>chỉ QL</label>';
-				/* Ô khoá không gửi giá trị — chở bằng ô ẩn, kẻo lượt Lưu của người không phụ
-				   trách cơ sở ấy lặng lẽ bật lại chấm công ở đó. */
-				if ( ! $duoc && $la_ql ) {
-					$h .= '<input type="hidden" name="' . $ten_ql . '" value="' . esc_attr( $c ) . '">';
+				$la_qn = isset( $co_qn[ VHCC_NhanSu::chu_thuong( $c ) ] );
+				$muc   = $la_ql ? 'ql' : ( $la_qn ? 'lq' : 'cc' );
+				$ten_m = 'cs_muc[' . esc_attr( $ma ) . '][' . esc_attr( $c ) . ']';
+				$nhan_m = array(
+					'cc' => array( 'Chấm công', 'Đi làm ở đây. Không xem được công của người khác.' ),
+					'lq' => array( 'Làm &amp; quản', 'Vừa đi làm vừa quản: có giờ công ở đây, VÀ xem được bảng công cả cửa hàng, duyệt đơn, thêm nhân sự.' ),
+					'ql' => array( 'Chỉ quản', 'Trông coi nhân sự, KHÔNG chấm công ở đây — không mọc hàng trống trong bảng công, không hiện trong ô chọn lúc chấm.' ),
+				);
+				$h .= '<span class="cs-muc">';
+				foreach ( $nhan_m as $k_m => $n_m ) {
+					/* Cơ sở CHÍNH không đặt được "chỉ quản" — xem chốt ở `dat_ds_coso()`. */
+					$khoa_m = ! $duoc || ( 'ql' === $k_m && $la_ch );
+					$h .= '<label title="' . esc_attr( wp_strip_all_tags( $n_m[1] ) ) . '">'
+						. '<input type="radio" name="' . $ten_m . '" value="' . $k_m . '"'
+						. checked( $k_m, $muc, false ) . ( $khoa_m ? ' disabled' : '' ) . '>'
+						. $n_m[0] . '</label>';
+				}
+				$h .= '</span>';
+				/* Ô khoá không gửi gì lên — chở mức đang có bằng ô ẩn, kẻo lượt Lưu của người
+				   không phụ trách cơ sở ấy lặng lẽ hạ nó về "Chấm công". */
+				if ( ! $duoc ) {
+					$h .= '<input type="hidden" name="' . $ten_m . '" value="' . esc_attr( $muc ) . '">';
 				}
 			}
 			$h .= '</div>';
@@ -3181,7 +3370,7 @@ class VHCC_TrangNS {
 		   tử nào, và nơi xử không phân biệt nổi "người ta bỏ hết" với "hàng này không có trên
 		   trang" — đoán sai chiều nào cũng hỏng: một bên xoá oan, một bên không xoá được. */
 		$h .= '<input type="hidden" name="cs_co[' . esc_attr( $ma ) . ']" value="1">';
-		return $h . '</div>';
+		return $h . '</div></details>';
 	}
 
 	/**

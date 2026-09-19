@@ -153,6 +153,19 @@ class VHCC_XinTre {
 				? mb_substr( trim( (string) $ly_do_choi ), 0, 250 ) : '',
 			'duyet_luc'      => current_time( 'mysql' ),
 		), array( 'id' => (int) $don['id'] ) );
+
+		/* Báo cho người xin — cùng lối với đơn nghỉ và đơn đổi lịch. Chỉ báo khi đã CHỐT;
+		   kéo đơn về lại trạng thái chờ (`self::CHO`) thì không rung chuông, vì lúc ấy chưa
+		   có kết quả gì để nói. */
+		if ( self::CHO !== $dat ) {
+			$chu = ( self::DUYET === $dat )
+				? ( 'Đơn đi trễ ngày ' . (string) $don['ngay'] . ' đã được duyệt.' )
+				: ( 'Đơn đi trễ ngày ' . (string) $don['ngay'] . ' không được duyệt.'
+					. ( '' !== trim( (string) $ly_do_choi ) ? ' Lý do: ' . trim( (string) $ly_do_choi ) : '' ) );
+			VHCC_Chuong::bao( (string) $don['ma_nv'], $chu, 'cc_tre:' . (int) $don['id'],
+				isset( $u['ma_nv'] ) ? (string) $u['ma_nv'] : '' );
+		}
+
 		return array( 'ok' => true, 'id' => (int) $don['id'], 'trang_thai' => $dat,
 			'ma_nv' => (string) $don['ma_nv'], 'ngay' => (string) $don['ngay'] );
 	}

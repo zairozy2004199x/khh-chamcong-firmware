@@ -368,6 +368,53 @@ class VHCC_ChotLuong {
 	/**
 	 * @param string|null $viec_chinh  null = không đụng tới; '' = bỏ khai; chuỗi = đặt việc chính.
 	 */
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 ĐỌC SỐ GIỜ NGƯỜI TA GÕ — NHẬN CẢ `63:30` LẪN `63,5`
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 19/09/2026, ảnh ô "Giờ ăn đơn giá khác" đang có `63:00`: *"chỗ này đáng lẽ là
+	 * nhập số giờ chứ, sao lại ,"*.
+	 *
+	 * Từ 19/09 cả màn viết giờ:phút, nên người ta sẽ gõ `63:30` vào ô này — đó là điều ĐÚNG để
+	 * làm, và cho tới bản này máy đọc nó bằng `(float)"63:30"` = **63**. Nửa giờ biến mất không
+	 * một lời báo: 0,5 × 24.000 = 12.000đ, và bảng vẫn đầy số nên không ai thấy. Với `63:45`
+	 * thì mất 45 phút.
+	 *
+	 * Nên ô này nhận CẢ HAI lối, và lối nào cũng đọc đúng:
+	 *   `63` · `63,5` · `63.5` · `63:30` · `63h30` · `63h`
+	 *
+	 * ⚠️ TRẢ `null` KHI KHÔNG ĐỌC ĐƯỢC, đừng đoán. `(float)` của một chuỗi lạ ra 0 hoặc ra phần
+	 *    đầu của nó — cả hai đều là một con số trông như thật. Nơi gọi chối và nói ra.
+	 * ⚠️ PHÚT PHẢI < 60. `63:70` không phải 64:10 — đó là gõ nhầm, và đoán hộ là ghi một con số
+	 *    không ai gõ.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	public static function doc_gio( $s ) {
+		$t = trim( (string) $s );
+		if ( '' === $t ) { return null; }
+		$t = str_replace( array( ' ', 'H' ), array( '', 'h' ), $t );
+
+		/* `63:30`, `63h30`, `63h` — giờ:phút. `63h` là 63 giờ chẵn, không phải thiếu phút. */
+		if ( 1 === preg_match( '/^(\d{1,4})[:h](\d{0,2})$/', $t, $m ) ) {
+			$ph = ( '' === $m[2] ) ? 0 : (int) $m[2];
+			if ( $ph > 59 ) { return null; }
+			return round( (int) $m[1] + $ph / 60, 4 );
+		}
+		/* `63`, `63,5`, `63.5` — thập phân. */
+		$d = str_replace( ',', '.', $t );
+		if ( 1 !== preg_match( '/^\d{1,4}(\.\d{1,4})?$/', $d ) ) { return null; }
+		return round( (float) $d, 4 );
+	}
+
+	/** Viết một số giờ ra ô nhập, theo đúng lối cả màn đang dùng. */
+	public static function viet_gio( $gio ) {
+		$g = (float) $gio;
+		if ( class_exists( 'VHCC_Cham' ) && method_exists( 'VHCC_Cham', 'la_hm' )
+			&& method_exists( 'VHCC_Cham', 'gio_tp' ) && VHCC_Cham::la_hm() ) {
+			return VHCC_Cham::gio_tp( (int) round( $g * 60 ) );
+		}
+		/* Lối thập phân: bỏ mấy số 0 thừa — ô NHẬP khác ô đọc, `63` gọn hơn `63,00`. */
+		return rtrim( rtrim( number_format( $g, 2, ',', '' ), '0' ), ',' );
+	}
+
 	public static function dat( $u, $coso, $thang, $ma_nv, $dong, $gio_cham, $viec_chinh = null ) {
 		$chan = self::gac( $u, $coso );
 		if ( '' !== $chan ) { return array( 'ok' => false, 'error' => $chan ); }
@@ -388,7 +435,12 @@ class VHCC_ChotLuong {
 			if ( '' === $viec ) {
 				return array( 'ok' => false, 'error' => 'Có dòng gõ số giờ mà chưa đặt tên việc.' );
 			}
-			$gio = (float) str_replace( ',', '.', $gio_s );
+			$gio = self::doc_gio( $gio_s );
+			if ( null === $gio ) {
+				return array( 'ok' => false, 'error' => 'Không đọc được số giờ của "' . $viec
+					. '" — đang là "' . esc_html( mb_substr( $gio_s, 0, 20 ) ) . '". Gõ '
+					. '<b>63:30</b> (giờ:phút) hoặc <b>63,5</b> (số giờ) đều được.' );
+			}
 			if ( $gio <= 0 ) {
 				return array( 'ok' => false, 'error' => 'Số giờ của "' . $viec . '" phải lớn hơn 0.' );
 			}

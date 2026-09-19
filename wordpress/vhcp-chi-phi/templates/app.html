@@ -234,6 +234,13 @@
            tiền đã cấp. -->
       <button class="btn b-x" id="btnChuyenKy" style="display:none" onclick="moChuyenKy()"
         title="Đơn chưa quyết toán kịp tuần này — cho nó nhảy sang tuần sau (hoặc tuần chỉ định), tạm ứng đi theo">📅➜ Nhảy sang tuần khác</button>
+      <!-- 🔴 ĐỔI CƠ SỞ CỦA CẢ ĐƠN — anh Thắng 19/09/2026: *"nhân viên lỡ tạo cơ sở ảo, giờ làm
+           sao chuyển qua cơ sở, vì đã nhập dữ liệu"*, rồi chốt: *"cho quyền admin đổi đơn sang
+           cơ sở khác là được"*.
+           Chỉ Admin — nó dời tiền đã nhập sang sổ của gian khác, cùng bậc với xoá đơn chứ không
+           phải với sửa một dòng. Máy chủ chặn lại lần nữa, ẩn nút chỉ là tiện tay. -->
+      <button class="btn b-x" id="btnDoiCoSo" style="display:none" onclick="moDoiCoSoDon()"
+        title="Đơn lập nhầm dưới một cơ sở ảo — dời cả đơn (dòng chi + tạm ứng) sang cơ sở có thật">🏪➜ Đổi cơ sở của đơn</button>
       <!-- 🔴 ĐẶT LẠI KHOẢNG NGÀY — anh Thắng, về đơn cơ sở của Kỹ thuật: "quyết toán theo tuần
            (nhưng không ép buộc tuần nào, khi nào gửi quyết toán thì mới chốt)". Khác nút bên
            trên: nút kia nhảy sang một TUẦN LỊCH có sẵn (việc của kế toán khi đơn trễ hạn), nút
@@ -2751,6 +2758,59 @@
 
      ⚠️ NÓI TRƯỚC HẬU QUẢ: tuần cũ mất đơn này khỏi bảng quyết toán, tuần mới nhận thêm. Người
         bấm cần biết TRƯỚC khi bấm — hai tuần cùng đổi số một lúc. */
+  /**
+   * ĐỔI CƠ SỞ CỦA CẢ MỘT ĐƠN — Admin, và chỉ Admin.
+   *
+   * Anh Thắng 19/09/2026: *"nhân viên lỡ tạo cơ sở ảo, giờ làm sao chuyển qua cơ sở, vì đã nhập
+   * dữ liệu"* → *"cho quyền admin đổi đơn sang cơ sở khác là được"*.
+   *
+   * 🔴 CHỈ CHO CHỌN TRONG DANH MỤC, KHÔNG CHO GÕ TAY. Gõ tay chính là cách đẻ ra con cơ sở ảo
+   *    đang phải dọn — mở lại đúng cái cửa ấy ngay trong công cụ dọn nó thì vô nghĩa. Máy chủ
+   *    cũng chối tên ngoài danh mục, đây chỉ là chặn sớm cho đỡ một vòng đi về.
+   * 🔴 ĐƠN GHÉP NHIỀU GIAN thì phải chỉ rõ đổi gian NÀO — máy chủ chối nếu không nói, và ở đây
+   *    hỏi thêm một bước thay vì đoán bừa.
+   */
+  function moDoiCoSoDon(){
+    if(!(CUR&&CUR.don)) return;
+    if(!_laAdmin()){ toast('warn','Chỉ Admin đổi cơ sở của đơn được'); return; }
+    var m=CUR.don.maDon;
+    var dsCu=(CUR.cosoTrongDon||[]);
+    if(!dsCu.length){ toast('warn','Đơn này chưa có dòng nào mang cơ sở'); return; }
+    var cu=dsCu[0];
+    if(dsCu.length>1){
+      var c1=prompt('Đơn '+m+' đang có '+dsCu.length+' cơ sở.\n\n'
+        +'Đổi cơ sở NÀO? Gõ số thứ tự:\n\n'
+        +dsCu.map(function(x,i){return (i+1)+'. '+x;}).join('\n'), '1');
+      if(c1===null) return;
+      var j=parseInt(String(c1).trim(),10)-1;
+      if(!(j>=0&&dsCu[j])){ toast('warn','Số thứ tự không có trong danh sách'); return; }
+      cu=dsCu[j];
+    }
+    var ds=(CFG.coso||[]).map(function(x){return x.ten;}).filter(function(x){ return x&&x!==cu; });
+    if(!ds.length){ toast('err','Danh mục cơ sở đang trống — khai ở Cấu hình → 🏢 Mã đơn vị theo Cơ sở trước'); return; }
+    var chon=prompt('Đơn '+m+' — chuyển cơ sở:\n\n    '+cu+'   ➜   ?\n\n'
+      +'Gõ SỐ THỨ TỰ cơ sở đích:\n\n'
+      +ds.map(function(x,i){return (i+1)+'. '+x;}).join('\n'), '1');
+    if(chon===null) return;
+    var i=parseInt(String(chon).trim(),10)-1;
+    if(!(i>=0&&ds[i])){ toast('warn','Số thứ tự không có trong danh sách'); return; }
+    var moi=ds[i];
+    var lyDo=prompt('Lý do đổi (ghi vào lịch sử chỉnh đơn):', 'Lập nhầm cơ sở');
+    if(lyDo===null) return;
+    if(!confirm('Chuyển đơn '+m+'\n\n    '+cu+'\n  ➜ '+moi+'\n\n'
+      +'Mọi dòng chi và dòng tạm ứng của cơ sở "'+cu+'" trong đơn này sẽ sang "'+moi+'".\n'
+      +'Tiền đi theo — sổ của hai gian đều đổi. Không có nút hoàn tác.')) return;
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(r&&r.success){
+        toast('ok','Đã chuyển '+(r.dongChi||0)+' dòng chi'+(r.tamUng?' · cả dòng tạm ứng':'')
+          +' sang "'+(r.cosoMoi||moi)+'"');
+        _log('Đổi cơ sở của đơn', m, (r.cosoCu||cu)+' -> '+(r.cosoMoi||moi));
+        openDon(m); boot();
+      } else toast('err',(r&&r.error)||'Lỗi');
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);})
+      .doiCoSoDon(m, moi, cu, String(lyDo||''));
+  }
   function moChuyenKy(){
     if(!(CUR&&CUR.don)) return;
     var m=CUR.don.maDon;
@@ -3271,6 +3331,12 @@
       if(el('btnChuyenKy')){
         var _ck=!CUR.stChot && (canDo('duyetTU')||canDo('capTU')||_laAdmin());
         el('btnChuyenKy').style.display=_ck?'inline-block':'none';
+      }
+      /* 🔴 ĐỔI CƠ SỞ: CHỈ ADMIN, hẹp hơn hẳn hai nút trên. Nhảy tuần hay đẩy đơn vị là dời chỗ
+         CHỐT của khoản tiền; đổi cơ sở là dời chính khoản tiền sang sổ của gian khác, và sổ gian
+         là thứ người ta đối chiếu hằng tuần. Cùng ranh giới "đã vào sổ" (`stChot`). */
+      if(el('btnDoiCoSo')){
+        el('btnDoiCoSo').style.display=(!CUR.stChot && _laAdmin())?'inline-block':'none';
       }
       /* Đặt lại khoảng ngày: cửa quyền là CHÍNH NGƯỜI ĐƯỢC CHỌN KỲ TỰ DO (`_kyTuDo`), không
          phải quyền kế toán — đây là đơn của họ, và anh Thắng muốn họ tự chốt kỳ lúc gửi quyết
@@ -12117,7 +12183,7 @@
    * trong một lượt.
    */
   function moGopCoSo(cu){
-    if(!_laAdmin()){ toast('warn','Chỉ Admin đổi tên cơ sở được — đây là sửa hàng loạt trên bốn bảng dữ liệu'); return; }
+    if(!_laAdmin()){ toast('warn','Chỉ Admin đổi tên cơ sở được — đây là sửa hàng loạt trên năm bảng dữ liệu'); return; }
     var ds=(CFG.coso||[]).map(function(x){return x.ten;});
     var moi=prompt('Cơ sở "'+cu+'" chưa có trong bảng.\n\n'
       +'Gõ TÊN ĐÍCH để đổi mọi dòng mang tên "'+cu+'" sang tên đó.\n'
@@ -12127,7 +12193,7 @@
     if(moi===null) return;
     moi=String(moi).trim();
     if(!moi||moi===cu){ toast('warn','Chưa đổi gì'); return; }
-    if(!confirm('Đổi MỌI dòng "'+cu+'" thành "'+moi+'"?\n\nSửa trên 4 bảng dữ liệu và cả danh sách cơ sở của từng nhân viên. Không có nút hoàn tác.')) return;
+    if(!confirm('Đổi MỌI dòng "'+cu+'" thành "'+moi+'"?\n\nSửa trên 5 bảng dữ liệu (tạm ứng · dòng chi · sổ chi phí · marketing · GIAN CỦA DỰ ÁN) và cả danh sách cơ sở của từng nhân viên. Không có nút hoàn tác.')) return;
     loading(true);
     google.script.run.withSuccessHandler(function(r){ loading(false);
       if(r&&r.success){

@@ -1178,6 +1178,12 @@ class VHCPVP_Don {
 		// và trả kèm lý do để giao diện nói rõ số ở đâu ra — ô nhập nay chỉ để xem.
 		// Cơ sở đã chốt của đơn (mỗi đơn 1 cơ sở) — giao diện khóa ô chọn theo cái này
 		$don['cosoDon'] = self::coso_cua_don( $ma_don );
+		/* ⚠️ KHÁC `cosoDon` MỘT BẬC, và cố ý gửi cả hai. `cosoDon` là cơ sở đã CHỐT của đơn —
+		   nó trả rỗng với đơn vị cho ghép nhiều gian, và đó là thứ mấy chốt khoá ô nhập đang
+		   hỏi. `cosoTrongDon` là những gì đang THẬT SỰ nằm trong dữ liệu, kể cả cơ sở ảo không
+		   có trong danh mục. Nút "Đổi cơ sở của đơn" cần đúng cái sau: nó sinh ra để dọn chính
+		   mấy cái tên mà `cosoDon` cố tình không thừa nhận. */
+		$don['cosoTrongDon'] = self::ds_coso_cua_don( $ma_don );
 		/* Giao diện cần BIẾT VÌ SAO ô cơ sở đang mở: đơn chưa có dòng nào (sắp chốt), hay đơn
 		   vị này vốn cho ghép nhiều gian (không bao giờ chốt). Hai ca ấy phải nhắc khác nhau —
 		   nhắc "thêm hạng mục đầu tiên là chốt cơ sở" cho đơn POSH là nói sai. */
@@ -3624,6 +3630,131 @@ class VHCPVP_Don {
 			'tu'    => $tu_m,
 			'den'   => $den_m,
 		) );
+	}
+
+	/**
+	 * ĐỔI CƠ SỞ CỦA CẢ MỘT ĐƠN — việc của Admin, và chỉ Admin.
+	 *
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 19/09/2026: *"nhân viên lỡ tạo cơ sở ảo, giờ làm sao chuyển qua cơ sở, vì đã nhập
+	 * dữ liệu"*, rồi chốt cách làm: *"cho quyền admin đổi đơn sang cơ sở khác là được"*.
+	 *
+	 * 🔴 VÌ SAO KHÔNG DÙNG `doi_ten_coso()` CHO CA NÀY. Hàm ấy đổi MỌI dòng mang cái tên ấy, ở
+	 *    mọi đơn của mọi người — đúng khi cần dọn hẳn một cơ sở ảo khỏi hệ, nhưng quá tay khi
+	 *    chỉ một đơn lạc chỗ. Hai việc khác nhau nên để hai cửa: cửa này sửa ĐÚNG MỘT đơn.
+	 *
+	 * 🔴 CƠ SỞ CỦA ĐƠN KHÔNG NẰM Ở BẢNG `don`. Nó nằm rải trên `chiphi` (từng dòng chi) và
+	 *    `tamung` (số xin theo cơ sở) — nhãn cơ sở trên đầu đơn là kết quả gom lại từ hai bảng
+	 *    ấy. Nên đổi mà chỉ đụng một bảng thì đầu đơn hiện tên mới còn tiền vẫn nằm ở tên cũ.
+	 *
+	 * ⚠️ `tamung` KHOÁ DUY NHẤT THEO (ma_don, coso). Đơn đang có dòng tạm ứng cho CẢ tên cũ lẫn
+	 *    tên đích thì một câu UPDATE thẳng sẽ đụng khoá và MySQL chối im — số tạm ứng ở lại tên
+	 *    cũ, còn dòng chi thì đã sang tên mới. Phải CỘNG DỒN hai dòng làm một.
+	 *
+	 * ⚠️ KHÔNG ĐỤNG NGÀY, KHÔNG ĐỤNG KỲ, y như `chuyen_ky()`: đây là sửa chỗ ĐỨNG của khoản
+	 *    tiền, không phải sửa chuyện đã xảy ra.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 */
+	public static function doi_coso_don( $ma_don, $coso_moi = '', $coso_cu = '', $ly_do = '' ) {
+		global $wpdb;
+		/* 🔴 CHỈ ADMIN. Đây là sửa hàng loạt trên dữ liệu đã nhập, và nó dời tiền sang sổ của
+		   một gian khác — cùng bậc với xoá đơn, không phải với sửa một dòng. */
+		if ( 'Admin' !== VHCPVP_Auth::vai_tro() ) {
+			return VHCPVP_Util::err( 'Đổi cơ sở của cả đơn là việc của Admin — '
+				. 'nó dời tiền đã nhập sang sổ của gian khác.' );
+		}
+		$d = self::don_row( $ma_don );
+		if ( ! $d ) { return VHCPVP_Util::err( 'Không tìm thấy đơn' ); }
+
+		/* Đã quyết toán / đã xuất MISA thì thôi — cùng lý do với `chuyen_ky()`: số đã vào sổ,
+		   kéo sang gian khác là báo cáo của CẢ HAI gian cùng sai. */
+		$_c = self::vi_sao_khong_sua( $ma_don );
+		if ( '' !== $_c ) { return VHCPVP_Util::err( $_c ); }
+
+		$coso_moi = trim( (string) $coso_moi );
+		if ( '' === $coso_moi ) { return VHCPVP_Util::err( 'Chưa chọn cơ sở đích' ); }
+		/* 🔴 CƠ SỞ ĐÍCH PHẢI CÓ TRONG DANH MỤC. Nhận bừa một chuỗi là đẻ ra đúng con cơ sở ảo
+		   mà việc này sinh ra để dọn. */
+		$_khai = false;
+		foreach ( VHCPVP_Cfg::cfg_static()['coso'] as $_x ) {
+			if ( mb_strtolower( trim( (string) $_x['ten'] ) ) === mb_strtolower( $coso_moi ) ) { $_khai = true; break; }
+		}
+		if ( ! $_khai ) {
+			return VHCPVP_Util::err( 'Cơ sở "' . $coso_moi . '" chưa có trong danh mục. '
+				. 'Khai ở Cấu hình → 🏢 Mã đơn vị theo Cơ sở trước, rồi đổi.' );
+		}
+
+		$ds_cu = self::ds_coso_cua_don( $ma_don );
+		$coso_cu = trim( (string) $coso_cu );
+		if ( '' === $coso_cu ) {
+			/* Không chỉ đích danh thì chỉ tự suy được khi đơn CHỈ có một cơ sở. Đơn ghép nhiều
+			   gian mà đoán bừa là gom nhầm tiền của gian không liên quan. */
+			if ( count( $ds_cu ) > 1 ) {
+				return VHCPVP_Util::err( 'Đơn này đang có ' . count( $ds_cu ) . ' cơ sở ('
+					. implode( ' · ', $ds_cu ) . ') — phải chỉ rõ đổi cơ sở nào.' );
+			}
+			$coso_cu = $ds_cu ? $ds_cu[0] : '';
+		}
+		if ( '' === $coso_cu ) { return VHCPVP_Util::err( 'Đơn này chưa có dòng nào mang cơ sở.' ); }
+		if ( mb_strtolower( $coso_cu ) === mb_strtolower( $coso_moi ) ) {
+			return VHCPVP_Util::err( 'Đơn này đang ở cơ sở "' . $coso_cu . '" rồi.' );
+		}
+
+		$t_cp = VHCPVP_DB::t( 'chiphi' );
+		$t_tu = VHCPVP_DB::t( 'tamung' );
+
+		/* ── tạm ứng: cộng dồn nếu tên đích đã có dòng, vì (ma_don, coso) là khoá duy nhất ── */
+		$cu_row = VHCPVP_DB::row( $wpdb->prepare(
+			"SELECT * FROM $t_tu WHERE ma_don=%s AND coso=%s", $ma_don, $coso_cu ) );
+		$moi_row = VHCPVP_DB::row( $wpdb->prepare(
+			"SELECT * FROM $t_tu WHERE ma_don=%s AND coso=%s", $ma_don, $coso_moi ) );
+		$n_tu = 0;
+		if ( $cu_row ) {
+			if ( $moi_row ) {
+				$wpdb->update( $t_tu,
+					array( 'so' => VHCPVP_Util::num( $moi_row['so'] ) + VHCPVP_Util::num( $cu_row['so'] ) ),
+					array( 'id' => $moi_row['id'] ) );
+				$wpdb->delete( $t_tu, array( 'id' => $cu_row['id'] ) );
+			} else {
+				$wpdb->update( $t_tu, array( 'coso' => $coso_moi ), array( 'id' => $cu_row['id'] ) );
+			}
+			$n_tu = 1;
+		}
+
+		$n_cp = (int) $wpdb->update( $t_cp, array( 'coso' => $coso_moi ),
+			array( 'ma_don' => $ma_don, 'coso' => $coso_cu ) );
+
+		$ly_do = trim( (string) $ly_do );
+		self::ghi_vet( $ma_don, 'Đổi cơ sở của đơn',
+			$coso_cu . '  →  ' . $coso_moi . ' · ' . $n_cp . ' dòng chi'
+			. ( $n_tu ? ' · cả dòng tạm ứng' : '' )
+			. ( '' !== $ly_do ? ' — ' . $ly_do : '' ) );
+
+		return VHCPVP_Util::ok( array(
+			'maDon'  => (string) $ma_don,
+			'cosoCu' => $coso_cu,
+			'cosoMoi'=> $coso_moi,
+			'dongChi'=> $n_cp,
+			'tamUng' => $n_tu,
+		) );
+	}
+
+	/** Các cơ sở đang có mặt trên một đơn (dòng chi + dòng tạm ứng), không trùng.
+	 *  ⚠️ KHÁC `coso_cua_don()` — hàm ấy trả MỘT chuỗi: cơ sở đã CHỐT của đơn, và cố ý trả rỗng
+	 *     với đơn vị cho ghép nhiều gian. Hàm này trả DANH SÁCH những gì đang thật sự nằm trong
+	 *     dữ liệu, kể cả cơ sở ảo — vì nó dùng để dọn chính mấy cơ sở ấy. */
+	public static function ds_coso_cua_don( $ma_don ) {
+		global $wpdb;
+		$ra = array();
+		foreach ( array( 'chiphi', 'tamung' ) as $b ) {
+			$t = VHCPVP_DB::t( $b );
+			foreach ( VHCPVP_DB::rows( $wpdb->prepare(
+				"SELECT DISTINCT coso FROM $t WHERE ma_don=%s AND coso<>''", (string) $ma_don ) ) as $r ) {
+				$c = trim( (string) $r['coso'] );
+				if ( '' !== $c && ! in_array( $c, $ra, true ) ) { $ra[] = $c; }
+			}
+		}
+		return $ra;
 	}
 
 	/** Các dòng chi của một đơn (đọc thô, không qua lớp bày biện). */

@@ -53,14 +53,40 @@ class VHCC_CuaHang {
 	}
 
 	/**
-	 * Cơ sở người này phụ trách.
+	 * CƠ SỞ NGƯỜI NÀY PHỤ TRÁCH — lọc qua CHÍNH phép gác sẽ dùng khi bấm.
 	 *
-	 * ⚠️ DÙNG `ds_coso_cua()` — CÙNG MỘT NGUỒN với `co_quyen_coso()`. Dựng danh sách riêng ở đây
-	 *    là hai danh sách, và cái lệch sẽ là một cơ sở hiện trong ô chọn nhưng mọi lượt gửi lên
-	 *    đều bị chối: người dùng thấy tên cửa hàng mình mà bấm vào thì báo "không có quyền".
+	 * =============================================================================================
+	 * 🔴 BẢN TRƯỚC TRẢ THẲNG `ds_coso_cua()` VÀ CHÚ THÍCH Ở ĐÂY NÓI NÓ "CÙNG MỘT NGUỒN VỚI
+	 *    `co_quyen_coso()`". SAI, và anh Thắng gặp đúng hậu quả 17/09/2026: ô xổ bày hai cơ sở,
+	 *    chọn cái nào cũng ra *"Không có quyền cơ sở này"*.
+	 *
+	 * Cùng ĐẦU VÀO thì đúng, nhưng `co_quyen_coso()` còn chồng thêm mấy lớp nữa lên trên:
+	 *   · phải có quyền `cong_coso`;
+	 *   · ai có `cong_tat_ca` (Quản lý trở lên) thì đi nhánh `qua_bo_mang()` — bó theo MẢNG, và
+	 *     mảng không liên quan gì tới danh sách cơ sở trong thẻ phiên.
+	 * Nên "cùng đầu vào" KHÔNG phải "cùng kết quả". Một danh sách bày ra mà bấm vào cái nào cũng
+	 * bị chối còn tệ hơn danh sách rỗng: người dùng thấy tên cửa hàng MÌNH ở đó và kết luận hệ
+	 * thống hỏng, chứ không nghĩ là mình không được giao.
+	 *
+	 * 🔴 CÁCH CHỮA LÀ HỎI ĐÚNG CÁI SẼ HỎI LÚC BẤM, chứ không phải chép luật gác sang đây. Lọc
+	 *    bằng chính `co_quyen_coso()` thì bất kể mai này nó mọc thêm lớp nào nữa, hai bên vẫn
+	 *    khớp — vì chỉ còn MỘT bên.
+	 *
+	 * ⚠️ ĐÂY LÀ CƠ SỞ PHỤ TRÁCH, KHÔNG PHẢI CƠ SỞ CHẤM CÔNG. Anh Thắng 17/09/2026: *"Cơ sở được
+	 *    chọn để chấm công là cơ sở người đang đăng nhập chấm công và tính lương. Cơ sở phụ
+	 *    trách là cơ sở theo dõi nhân sự, thêm nhân sự, chứ không có chấm công trong đó, trừ nó
+	 *    có tên trong chọn cơ sở chấm công"*.
+	 *    Hai danh sách khác nhau và CỐ Ý khác: `VHCC_Online::ds_coso_cham_cua_nv()` (dùng cho ô
+	 *    chấm công) TRỪ ĐI mấy cơ sở đặt cờ "chỉ quản lý", còn tab này thì lấy đúng mấy cơ sở
+	 *    ấy. Lẫn hai danh sách là hoặc cho người ta chấm công ở nơi họ chỉ theo dõi, hoặc giấu
+	 *    mất cửa hàng họ đang quản.
 	 */
 	public static function ds_coso( $u ) {
-		return VHCC_NhanSu::ds_coso_cua( $u );
+		$ra = array();
+		foreach ( VHCC_NhanSu::ds_coso_cua( $u ) as $x ) {
+			if ( VHCC_NhanSu::co_quyen_coso( $u, $x ) ) { $ra[] = $x; }
+		}
+		return $ra;
 	}
 
 	/** Cơ sở gửi lên có thật là của người này không. Trả tên đã chuẩn hoá, hoặc '' nếu không. */
@@ -275,6 +301,11 @@ class VHCC_CuaHang {
 			'gioThang' => round( $phut / 60, 2 ),
 			/* Người sửa cần biết mình CÓ được sửa không TRƯỚC khi gõ xong rồi mới bị chối. */
 			'duocSua' => VHCC_Vai::duoc( $u, 'sua_gio' ),
+			/* Và biết NGÀY NÀO còn sửa được — xem `VHCC_Bu::han_ngay()`. Trả cả hai thứ để màn
+			   khỏi tự suy ra luật: nó chỉ so `ngay === homNay` khi `khoaNgayCu` bật. */
+			'khoaNgayCu' => VHCC_Bu::bi_khoa_ngay_cu( $u ),
+			'homNay'     => (string) current_time( 'Y-m-d' ),
+			'nhacHan'    => VHCC_Bu::nhac_han_ngay( $u ),
 		);
 	}
 
@@ -305,6 +336,25 @@ class VHCC_CuaHang {
 			'nghi_tu'  => isset( $dat['nghiTu'] ) ? $dat['nghiTu'] : '',
 			'nghi_den' => isset( $dat['nghiDen'] ) ? $dat['nghiDen'] : '',
 			'ly_do'    => isset( $dat['lyDo'] ) ? $dat['lyDo'] : '',
+		) );
+	}
+
+	/**
+	 * XOÁ HẲN MỘT DÒNG CHẤM CÔNG — chuyển thẳng cho `VHCC_Bu::xoa`.
+	 *
+	 * 🔴 KHÁC HẲN "xoá giờ" của `sua_gio()`. Xoá giờ để dòng ở lại với hai ô trống, tức lưới vẫn
+	 *    nói "hôm ấy có một dòng". Hàm này bỏ cả dòng: lưới trông y như người ta KHÔNG ĐI LÀM.
+	 *    Hai việc khác nhau nên là hai cửa khác nhau, chứ không phải một ô tích thêm — ô tích
+	 *    thì bấm nhầm được, còn hai nút thì phải chọn.
+	 */
+	public static function xoa_cong( $u, $dat ) {
+		$cs = self::chot_coso( $u, isset( $dat['coSo'] ) ? $dat['coSo'] : '' );
+		if ( '' === $cs ) { return array( 'ok' => false, 'error' => 'Không có quyền cơ sở này.' ); }
+		return VHCC_Bu::xoa( $u, array(
+			'coso'  => $cs,
+			'ma_nv' => isset( $dat['maNV'] ) ? $dat['maNV'] : '',
+			'ngay'  => isset( $dat['ngay'] ) ? $dat['ngay'] : '',
+			'ly_do' => isset( $dat['lyDo'] ) ? $dat['lyDo'] : '',
 		) );
 	}
 
@@ -393,6 +443,66 @@ class VHCC_CuaHang {
 
 		return array( 'ok' => true, 'coSo' => $cs, 'thang' => $tt, 'maNV' => $ma,
 			'gioCham' => $n['gioThang'] );
+	}
+
+	/* ====================================================================== danh sách nhân sự */
+
+	/** Xem danh sách người của cơ sở mình — bậc Cửa hàng trưởng, đúng cửa với trang Nhân sự cửa hàng. */
+	const QUYEN_NS = 'ho_so_xem';
+
+	/**
+	 * DANH SÁCH NHÂN SỰ CỦA MỘT CƠ SỞ, gọn lại cho màn điện thoại.
+	 *
+	 * =============================================================================================
+	 * Anh Thắng 17/09/2026: *"Thêm tab Nhân Sự trong Quản Lý Cửa Hàng"*, kèm ảnh màn "Danh sách
+	 * nhân sự" của một app HRM (tên · mã · phòng ban · trạng thái).
+	 *
+	 * 🔴 GỌI LẠI `VHCC_NhanSu::ds_nhan_vien()`, KHÔNG TỰ VIẾT CÂU SQL. Hàm ấy đã làm ba việc mà
+	 *    một câu SQL mới ở đây chắc chắn sẽ làm thiếu:
+	 *      · lọc cơ sở tính CẢ `coso_phu` — hỏi mỗi `cua_hang` là sót đúng những người chạy giữa
+	 *        hai chi nhánh, tức những người cần theo dõi nhất;
+	 *      · gác từng dòng bằng `co_quyen_ho_so()`;
+	 *      · CẮT ô lương khỏi dữ liệu (không phải ẩn bằng CSS) khi người xem không có quyền lương.
+	 *    Việc thứ ba là lý do nặng nhất: cửa hàng trưởng KHÔNG được thấy lương, và nếu tự viết
+	 *    `SELECT *` ở đây thì con số ấy đi thẳng xuống trình duyệt — ẩn trên màn hay không cũng
+	 *    đã muộn.
+	 *
+	 * ⚠️ CHỈ TRẢ MẤY Ô CẦN VẼ. `ds_nhan_vien()` trả nguyên hàng hồ sơ (căn cước, số tài khoản,
+	 *    ngày sinh…). Màn này chỉ cần tên · mã · chức vụ · điện thoại · có PIN chưa · trạng thái,
+	 *    nên chọn ra đúng ngần ấy. Gửi cả hàng rồi để giao diện chọn là bày căn cước của cả cửa
+	 *    hàng xuống một cái điện thoại, chỉ vì màn tình cờ không vẽ nó ra.
+	 *
+	 * ⚠️ KHÔNG BAO GIỜ TRẢ PIN — chỉ trả CÓ hay CHƯA. Cùng luật với trang Nhân sự cửa hàng:
+	 *    *"không in PIN, kể cả cho chính cửa hàng trưởng"*. Biết PIN của một người là đăng nhập
+	 *    thay họ được, mà màn hình của họ không có gì đổi.
+	 */
+	public static function nhan_su( $u, $coso, $tim = '' ) {
+		if ( ! VHCC_Vai::duoc( $u, self::QUYEN_NS ) ) {
+			return array( 'ok' => false,
+				'error' => VHCC_Vai::loi( $u, self::QUYEN_NS, 'Xem danh sách nhân sự' ) );
+		}
+		$cs = self::chot_coso( $u, $coso );
+		if ( '' === $cs ) { return array( 'ok' => false, 'error' => 'Không có quyền cơ sở này.' ); }
+
+		$ds = array(); $chua_pin = 0;
+		foreach ( VHCC_NhanSu::ds_nhan_vien( $u, $cs, (string) $tim ) as $r ) {
+			$co_pin = ( '' !== trim( (string) ( isset( $r['pin_dang_nhap'] ) ? $r['pin_dang_nhap'] : '' ) ) );
+			if ( ! $co_pin ) { $chua_pin++; }
+			$ds[] = array(
+				'maNV'   => (string) $r['ma_nv'],
+				'hoTen'  => (string) $r['ho_ten'],
+				'chucVu' => trim( (string) ( isset( $r['chuc_vu'] ) ? $r['chuc_vu'] : '' ) ),
+				'sdt'    => trim( (string) ( isset( $r['sdt'] ) ? $r['sdt'] : '' ) ),
+				'coPin'  => $co_pin,
+				/* ⚠️ CÓ CĂN CƯỚC HAY KHÔNG, chứ không phải SỐ căn cước. Màn cần biết đúng một
+				   điều: người này tự đặt PIN được chưa (đường "Quên PIN" đòi căn cước). */
+				'coCccd' => ( '' !== trim( (string) ( isset( $r['cccd'] ) ? $r['cccd'] : '' ) ) ),
+				'trangThai' => trim( (string) ( isset( $r['trang_thai_lam_viec'] ) ? $r['trang_thai_lam_viec'] : '' ) ),
+				'coSo'   => trim( (string) ( isset( $r['cua_hang'] ) ? $r['cua_hang'] : '' ) ),
+			);
+		}
+		return array( 'ok' => true, 'coSo' => $cs, 'nguoi' => $ds, 'so' => count( $ds ),
+			'chuaPin' => $chua_pin );
 	}
 
 	/* ====================================================================== thêm người */

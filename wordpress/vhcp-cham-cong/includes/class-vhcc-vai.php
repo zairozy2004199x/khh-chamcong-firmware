@@ -88,7 +88,21 @@ class VHCC_Vai {
 
 		/* --- bậc 2: cửa hàng trưởng --- */
 		'cong_coso'    => self::CHT,      // xem bảng công cơ sở mình (còn phải qua co_quyen_coso)
-		'cham_bu'      => self::CHT,      // chấm công bù cho nhân viên cơ sở mình
+		'cham_bu'      => self::KE_TOAN,  // chấm công bù vào ô trống
+		                                  /* 🔴 NÂNG TỪ CỬA HÀNG TRƯỞNG LÊN KẾ TOÁN — 18/09/2026.
+		                                     Anh Thắng: *"Cửa hàng trưởng không được bù giờ công,
+		                                     nếu thiếu thì chỗ file excel"*.
+
+		                                     Cửa hàng trưởng nay có HAI đường, và cả hai đều đi
+		                                     qua kế toán:
+		                                       · thiếu giờ cả tuần → sửa trong tệp .xlsx tuần
+		                                         (`VHCC_TuanCong`), kế toán duyệt cả lượt;
+		                                       · nhân viên xin bù lẻ → `VHCC_XinBu`, cửa hàng
+		                                         trưởng duyệt cấp một rồi kế toán duyệt cấp hai.
+
+		                                     ⚠️ ĐỪNG HẠ LẠI CHO TIỆN. Hạ một bậc là mở lại cho
+		                                        TOÀN BỘ cửa hàng trưởng, và hai quy trình trên
+		                                        thành đường vòng không ai đi nữa. */
 		'lich_lam'     => self::CHT,      // lên lịch làm việc cho cửa hàng
 		'bao_loi'      => self::CHT,      // gắn cờ / báo lỗi lên trên
 		'ho_so_xem'    => self::CHT,      // xem hồ sơ người CỦA CƠ SỞ MÌNH (không có ô lương)
@@ -128,6 +142,12 @@ class VHCC_Vai {
 		/* --- bậc 4: kế toán ("full quyền ngoài admin") --- */
 		'luong'        => self::KE_TOAN,  // bảng lương, đơn giá, ngày công chuẩn
 		'ngay_le'      => self::KE_TOAN,  // lịch nghỉ lễ
+		'bhxh'         => self::KE_TOAN,  // sổ BHXH: ai đóng, mỗi tháng trừ bao nhiêu
+		                                  // 🔴 CỬA KẾ TOÁN, KHÔNG PHẢI CỬA HÀNG TRƯỞNG. Đây là
+		                                  // một khoản TRỪ THẲNG vào lương và nó tự lặp mọi
+		                                  // tháng — gõ một lần, trừ mãi. Anh Thắng 19/09/2026:
+		                                  // *"Bổ sung tab bên Phân Quyền Kế toán để kế toán
+		                                  // chốt BHXH bạn nào đóng"*.
 		'ho_so'        => self::KE_TOAN,  // sửa hồ sơ nhân sự, cấp PIN, cho nghỉ việc
 		'xem_luong_hs' => self::KE_TOAN,  // ô Lương cơ bản / số tài khoản trong hồ sơ
 
@@ -145,41 +165,52 @@ class VHCC_Vai {
 		                                  // Mặc định VẪN là Admin, y như đang chạy — bản này
 		                                  // không nới của ai. Nới thì khai một dòng ngoại lệ ở
 		                                  // bảng dưới, có tên, có chỗ soát lại.
-		'sua_gio'      => self::CHT,      // SỬA ĐÈ lên giờ đã có (kể cả giờ máy ghi), và xoá giờ
-		                                  /* 🔴 HẠ TỪ ADMIN XUỐNG CỬA HÀNG TRƯỞNG — 28/08/2026.
-		                                     Anh Thắng 26/08 chốt Admin, rồi 28/08 đổi ý:
-		                                     *"Cửa hàng trưởng được phép sửa cả giờ công đã
-		                                     chấm"*. Đây là quyết định của anh, không phải em
-		                                     nới, và nó có giá: cửa hàng trưởng viết lại được
-		                                     bảng công của chính cửa hàng mình.
-		                                     Ba thứ GIỮ NGUYÊN, không được bỏ theo:
+		'sua_gio'      => self::KE_TOAN,  // SỬA ĐÈ lên giờ đã có (kể cả giờ máy ghi), và xoá giờ
+		                                  /* 🔴 NÂNG TỪ CỬA HÀNG TRƯỞNG LÊN KẾ TOÁN — 18/09/2026.
+		                                     Anh Thắng: *"cơ chế hiện tại là cửa hàng trưởng
+		                                     không được sửa công nữa mà theo người được chỉ định
+		                                     bật quyền mới được sửa thôi"*.
+
+		                                     ĐÚNG BẬC KẾ TOÁN, KHÔNG PHẢI ADMIN. Mọi câu chối
+		                                     trong hệ đều bảo "vui lòng liên hệ kế toán" — đẩy
+		                                     lên Admin là chỉ người ta tới một cửa không mở, và
+		                                     kế toán chính là người ngồi chữa bảng công.
+
+		                                     CÒN CHỈ ĐỊNH THÌ KHÔNG PHẢI VIỆC CỦA BẬC. Cửa hàng
+		                                     trưởng nào được sửa thì Kế toán trở lên khai một
+		                                     dòng `nv:<Mã NV> · sua_gio · mo` ở bảng ngoại lệ
+		                                     (`dat_ngoai_le`) — có tên người, có chỗ soát lại,
+		                                     gỡ được bằng một dòng, và `khoa` thắng `mo`.
+
+		                                     ⚠️ ĐỪNG HẠ LẠI XUỐNG CHT CHO TIỆN. Hạ một bậc là mở
+		                                        lại cho TOÀN BỘ cửa hàng trưởng cùng lúc, lặng
+		                                        lẽ, và không ai thấy gì đổi cho tới lúc một ô
+		                                        giờ công sai không tra ra ai sửa.
+		                                     ⚠️ Chỉ định theo `nv:` cần người ấy CÓ MÃ NV. Tài
+		                                        khoản dựng ở màn Người dùng mà không gắn mã thì
+		                                        chỉ khai được theo `vai:`, tức mở cho cả vai. */
+		                                  /* BỐN CHỐT ĐI KÈM, KHÔNG PHỤ THUỘC VÀO BẬC — bậc đổi
+		                                     ba lần rồi, bốn cái này chưa đổi lần nào và đừng bỏ:
 		                                     · chốt cơ sở (`VHCC_Bu::vi_sao_khong_duoc`) — chỉ
 		                                       sửa người cơ sở mình;
 		                                     · bắt ghi VÌ SAO, tối thiểu 5 ký tự;
 		                                     · mọi lượt sửa vào sổ "Đã động vào giờ công", giữ
-		                                       giờ cũ, và KHÔNG xoá được.
-		                                     Đó là ba thứ khiến việc này còn tra ngược được. */
-		                                  /* ⚠️ CHÚ THÍCH CŨ Ở ĐÂY ĐÃ SAI SO VỚI MÃ — sửa 17/09/2026
-		                                     khi anh Thắng hỏi lại *"ai phân quyền mới được chỉnh
-		                                     giờ công phải không (cửa hàng trưởng)"*.
-		                                     Nó viết: *"Cố ý ĐẶT TRÊN cả `nap_cong`… đúng chữ
-		                                     ADMIN, không nới xuống Quản lý"*. Đó là chú thích của
-		                                     bản 26/08, khi `sua_gio` còn là Admin. Ngày 28/08 anh
-		                                     hạ xuống Cửa hàng trưởng (xem khối 🔴 ngay trên) mà
-		                                     mấy dòng này không ai sửa theo — nên suốt từ đó nó
-		                                     nói NGƯỢC với con số ngay bên cạnh: `sua_gio` là bậc
-		                                     2, còn `nap_cong` là bậc 3, tức nó nằm DƯỚI.
-		                                     Chú thích sai nguy hơn không có chú thích: người đọc
-		                                     tin nó và bỏ qua con số.
+		                                       giờ cũ, và KHÔNG xoá được;
+		                                     · KHÔNG AI TỰ SỬA GIỜ CỦA CHÍNH MÌNH, kể cả Admin.
+		                                     Đó là bốn thứ khiến việc này còn tra ngược được.
 
-		                                     PHẦN CÒN ĐÚNG, giữ lại vì nó là lý do thiết kế: bù
-		                                     và nạp chỉ THÊM vào ô trống, còn việc này ĐÈ LÊN thứ
-		                                     máy đã ghi — tức xoá mất bằng chứng gốc. Đó là việc
-		                                     rủi ro nhất trong ba cái, nhưng nay lại ở bậc thấp
-		                                     nhất. Anh Thắng biết và chọn vậy; cái đỡ cho nó
-		                                     không phải BẬC mà là ba chốt kể ở khối 🔴 trên, cộng
-		                                     một chốt nữa từ `vi_sao_khong_duoc()`: KHÔNG AI TỰ
-		                                     SỬA GIỜ CỦA CHÍNH MÌNH, kể cả Admin. */
+		                                     LÝ DO VÌ SAO NÓ ĐẮT: bù và nạp chỉ THÊM vào ô trống,
+		                                     còn việc này ĐÈ LÊN thứ máy đã ghi — tức xoá mất
+		                                     bằng chứng gốc. Rủi ro nhất trong ba cái.
+
+		                                     LỊCH SỬ, để khỏi ai đào lại: 26/08 Admin → 28/08 hạ
+		                                     xuống Cửa hàng trưởng theo yêu cầu của anh Thắng →
+		                                     18/09 nâng lại Admin + chỉ định từng người (khối 🔴
+		                                     ở trên). Giữa 28/08 và 17/09 chú thích ở đây còn ghi
+		                                     "đúng chữ ADMIN" trong khi mã đã là bậc 2 — nói
+		                                     ngược với con số ngay bên cạnh suốt ba tuần. Chú
+		                                     thích sai nguy hơn không có chú thích: người đọc tin
+		                                     nó và bỏ qua con số. Đổi bậc thì sửa luôn chỗ này. */
 		'xem_pin'      => self::ADMIN,    // nhìn thấy PIN của người khác.
 		                                  // 🔴 CAO HƠN `ho_so` (cấp PIN) MỘT BẬC, CỐ Ý. Cấp PIN là
 		                                  // đặt số MỚI — người ta biết ngay, vì số cũ thôi vào
@@ -228,6 +259,7 @@ class VHCC_Vai {
 		'gia_gio'      => 'SỬA đơn giá giờ của cơ sở',
 		'luong'        => 'Bảng lương, ngày công chuẩn',
 		'ngay_le'      => 'Lịch nghỉ lễ',
+		'bhxh'         => 'Sổ BHXH: ai đóng, trừ bao nhiêu',
 		'ho_so'        => 'Hồ sơ nhân sự, cấp PIN',
 		'xem_luong_hs' => 'Ô Lương cơ bản / số tài khoản',
 		'he_thong'     => 'Cài đặt hệ thống, nguồn người dùng',

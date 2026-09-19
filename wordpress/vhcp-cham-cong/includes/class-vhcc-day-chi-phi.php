@@ -77,7 +77,7 @@ class VHCC_DayChiPhi {
 	 *
 	 * ⚠️ MÃ CỬA HÀNG VẪN ĐI CÙNG — DƯỚI DẠNG THÔNG TIN. `$hs['coso']` vẫn dựng và vẫn bày ở màn
 	 *    soát ("Cơ sở · chức vụ") để kế toán biết người này làm ở đâu mà chọn đúng gian. Bày ra
-	 *    thì giúp; ghi xuống thì hỏng. Đúng nghĩa "đẩy thông tin, không đẩy quyền".
+	 *    thì giúp; ghi xuống thì hỏng.
 	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
 	const C_COSO = 3;
 	const C_BO_PHAN = 6;
