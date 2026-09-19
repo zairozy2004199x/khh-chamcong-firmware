@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-09-18 · Phiên bản hiện tại: **2.119.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-09-18 · Phiên bản hiện tại: **2.120.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,23 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v2.120.0 — Nút 🗑 ở Quản lý ghế nay là XOÁ HẲN
+
+Anh Thắng 19/09/2026: *"cho phép xoá hẳn"* — bấm 🗑 chỉ nhận được lời từ chối *"Ẩn / điều chuyển
+ghế đã khoá từ bản 2.115.0"*.
+
+Đúng vậy: 2.115 khoá ẩn ghế, mà nút 🗑 xưa nay chính là **ẩn mềm** (`may_xoa` → `an=1`), nên nó rơi
+vào cửa đã khoá. Hệ quả là màn Quản lý ghế **không còn đường nào dọn mã rác**, trong khi Vạn Hạnh
+Mall đang có 18 mã rác.
+
+- Nút 🗑 (cả bảng chính lẫn khối "Ghế đã ẩn") nay đi thẳng `may_xoa_han`: **xem trước** để biết mã
+  ấy còn dữ liệu không, rồi mới hỏi, rồi mới xoá.
+- Mã còn dữ liệu → nói thẳng lý do và nhắc: nếu đây là **mã cũ của một ghế đang chạy** thì phải
+  **gộp** (đổi mã) vào ghế ấy trước; xoá thẳng là bỏ lại mấy dòng tiền không tra ra ghế nào.
+- Sửa lại tooltip và lời hướng dẫn cuối tab — chúng vẫn đang nói "Xoá = ẩn mềm, không có đường nào
+  làm mất hẳn một ghế", tức là mô tả một hệ đã không còn đúng.
+
 
 ### v2.119.0 — Chặn luật lịch sử sinh rác, và cho xoá hẳn mã rác
 
