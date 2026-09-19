@@ -192,53 +192,17 @@ t( '🔴 xoá người không có trong sổ thì chối, không im lặng',
 
 
 /* =================================================================================================
- * 5. NÚT SỬA TRÊN SỔ
+ * 5. MÀN RIÊNG, DỰNG QUANH DANH SÁCH NGƯỜI — PARTTIME KHÔNG CÓ MẶT
  * =================================================================================================
- * Anh Thắng 19/09/2026: *"thêm nút sửa"* (nói về bảng ngày lễ, và sổ này cùng một lối). Không có
- * nó thì muốn đổi một con số phải gõ lại cả ba ô — gõ nhầm mã là thêm một người THỨ HAI vào sổ
- * chứ không sửa được người cũ, và người cũ vẫn bị trừ tiếp.
+ * Anh Thắng 19/09/2026, hai nhịp:
+ *   · *"Tách nó ra dạng 1 tính năng đi, sau này nv sẽ yêu cầu có bhxh nên sẽ nhiều dữ liệu"*;
+ *   · *"nếu là nhân viên Lương theo công thì sẽ hiện hết vào này để tính bhxh, còn nhân viên
+ *     Parttime thì không cần"*.
+ *
+ * Bản đầu bắt gõ tay Mã NV. Gõ tay một mã dạng `MNNV2KVC0166` là mời gõ nhầm — mà gõ nhầm ở đây
+ * là trừ tiền của NGƯỜI KHÁC, và tháng sau mới lộ. Tệ hơn: không ai nhìn ra được AI CÒN THIẾU.
  * ------------------------------------------------------------------------------------------- */
-echo "— nút sửa trên sổ —\n";
-VHCC_Bhxh::dat( $KT, 'BH_TRUYEN', '596610', '2026-08' );
-$m_bh = new ReflectionMethod( 'VHCC_Web', 'the_bhxh' );
-$m_bh->setAccessible( true );
-
-$_GET = array();
-ob_start(); $m_bh->invoke( null, 'KYTHU', $KT ); $h_b0 = ob_get_clean();
-t( '🔴 dòng trong sổ có nút Sửa', false !== mb_strpos( $h_b0, '>Sửa</a>' ), $h_b0 );
-t( '   chưa bấm thì nút là "Thêm vào sổ"', false !== mb_strpos( $h_b0, '>Thêm vào sổ<' ), $h_b0 );
-t( '   và ô Mã NV để trống', 1 === preg_match( '/name="bh_ma"[^>]*value=""/', $h_b0 ), $h_b0 );
-
-$_GET = array( 'bh_sua' => 'BH_TRUYEN' );
-ob_start(); $m_bh->invoke( null, 'KYTHU', $KT ); $h_b1 = ob_get_clean();
-$_GET = array();
-t( 'bấm Sửa thì nút đổi thành "Lưu thay đổi"',
-	false !== mb_strpos( $h_b1, '>Lưu thay đổi<' ), $h_b1 );
-t( '   ô Mã NV điền sẵn', 1 === preg_match( '/name="bh_ma"[^>]*value="BH_TRUYEN"/', $h_b1 ), $h_b1 );
-/* ⚠️ SỐ TIỀN ĐIỀN SẴN PHẢI LÀ SỐ TRƠN, không có dấu chấm ngăn nghìn — ô này gõ lại rồi gửi đi,
-   và `596.610` đi qua một phép đọc số lỏng tay có thể thành 596. */
-t( '🔴 ô tiền điền sẵn là số trơn 596610, không phải 596.610',
-	1 === preg_match( '/name="bh_tien"[^>]*value="596610"/', $h_b1 ), $h_b1 );
-t( '   ô Từ tháng điền sẵn', 1 === preg_match( '/name="bh_tu"[^>]*value="2026-08"/', $h_b1 ), $h_b1 );
-t( '   có đường "Thôi" để bỏ dở', false !== mb_strpos( $h_b1, '>Thôi<' ), $h_b1 );
-
-/* Sửa thật: đổi số tiền, sổ vẫn đúng MỘT dòng. */
-VHCC_Bhxh::dat( $KT, 'BH_TRUYEN', '700000', '2026-08' );
-teq( '🔴 sửa xong sổ vẫn đúng một dòng', 1, count( VHCC_Bhxh::ds() ) );
-teq( '   và số tiền đã đổi', 700000.0, VHCC_Bhxh::cua( 'BH_TRUYEN', '2026-08' ) );
-VHCC_Bhxh::xoa( $KT, 'BH_TRUYEN' );
-
-
-/* =================================================================================================
- * 6. LÀ MỘT MÀN RIÊNG, KHÔNG PHẢI MỘT KHỐI TRONG CẤU HÌNH
- * =================================================================================================
- * Anh Thắng 19/09/2026: *"Tách nó ra dạng 1 tính năng đi, sau này nv sẽ yêu cầu có bhxh nên sẽ
- * nhiều dữ liệu"*. Cấu hình là chỗ khai MỘT LẦN RỒI THÔI; sổ này mỗi người một dòng và chỉ dài
- * thêm — nhét một danh sách đang lớn vào giữa mấy công tắc là đẩy hết phần dưới ra ngoài tầm mắt.
- * ------------------------------------------------------------------------------------------- */
-echo "— màn riêng —\n";
-VHCC_Bhxh::dat( $KT, 'BH_TRUYEN', '596610', '2026-08' );
-VHCC_Bhxh::dat( $KT, 'BH_GIO', '300000', '2026-08' );
+echo "— màn riêng, danh sách người —\n";
 
 function vhcc_bh_man( $get ) {
 	$_GET = $get; $_POST = array();
@@ -248,43 +212,89 @@ function vhcc_bh_man( $get ) {
 	return $h;
 }
 
+VHCC_Bhxh::dat( $KT, 'BH_TRUYEN', '596610', '2026-08' );
 $h_m = vhcc_bh_man( array( 'man' => 'bhxh' ) );
+
 t( '🔴 có màn riêng ?man=bhxh', false !== mb_strpos( $h_m, 'Sổ BHXH' ), substr( $h_m, 0, 300 ) );
 t( '   và có mục BHXH trên thanh bên', false !== mb_strpos( $h_m, '>BHXH<' ), $h_m );
-t( '   hai người trong sổ đều hiện', false !== strpos( $h_m, 'BH_TRUYEN' )
-	&& false !== strpos( $h_m, 'BH_GIO' ), $h_m );
-t( '   nói ra tổng trừ của tháng này', false !== mb_strpos( $h_m, 'người trong sổ' ), $h_m );
 
-/* 🔴 KHÔNG CÒN NẰM TRONG MÀN CẤU HÌNH NỮA — để lại cả hai chỗ là hai lối vào cùng một sổ, và
-   người ta sẽ sửa ở chỗ này rồi đi tìm ở chỗ kia. */
+/* 🔴 CHỐT CHÍNH: người ăn lương tháng CÓ MẶT, parttime thì KHÔNG. */
+t( '🔴 người ăn lương tháng hiện sẵn, không phải gõ mã',
+	false !== strpos( $h_m, '<code>BH_TRUYEN</code>' ), $h_m );
+t( '🔴 parttime (tính theo giờ) KHÔNG có mặt',
+	false === strpos( $h_m, '<code>BH_GIO</code>' ), 'BH_GIO lọt vào danh sách' );
+t( '   màn nói rõ vì sao parttime không hiện',
+	false !== mb_strpos( $h_m, 'Parttime tính theo giờ không cần' ), $h_m );
+
+/* ⚠️ HAI ĐƯỜNG VÀO "LƯƠNG THÁNG", CHỈ CẦN MỘT ĐÚNG. BH_TRUYEN không có `luong_co_ban` trong hồ
+   sơ — anh ấy được khai ăn lương tháng THẲNG TRÊN BẢNG LƯƠNG. Chỉ hỏi hồ sơ là sót hẳn nhóm
+   này: họ đang ăn lương tháng thật mà không bao giờ hiện ra để khai BHXH. */
+$ds_lt = VHCC_Bhxh::ds_luong_thang();
+$ma_lt = array();
+foreach ( $ds_lt as $x ) { $ma_lt[] = $x['ma']; }
+t( '🔴 người khai ăn lương tháng TRÊN BẢNG LƯƠNG cũng được kể',
+	in_array( 'BH_TRUYEN', $ma_lt, true ), $ma_lt );
+t( '   và parttime thì không', ! in_array( 'BH_GIO', $ma_lt, true ), $ma_lt );
+
+/* ---- số tiền gõ ngay tại dòng, điền sẵn nếu đã khai ---- */
+t( '🔴 mỗi dòng có ô gõ số tiền kèm mã của chính người ấy',
+	1 === preg_match( '/name="bh_ma" value="BH_TRUYEN"/', $h_m ), $h_m );
+/* ⚠️ SỐ TRƠN, không dấu chấm ngăn nghìn: ô này gõ lại rồi gửi đi, và `596.610` đi qua một phép
+   đọc số lỏng tay có thể thành 596. */
+t( '🔴 ô tiền điền sẵn là số trơn 596610, không phải 596.610',
+	1 === preg_match( '/name="bh_tien"[^>]*value="596610"/', $h_m ), $h_m );
+t( '   và ô Từ tháng điền sẵn',
+	1 === preg_match( '/name="bh_tu"[^>]*value="2026-08"/', $h_m ), $h_m );
+t( '   nói ra đã khai mấy / tổng mấy người',
+	false !== mb_strpos( $h_m, 'nhân viên lương tháng' ), $h_m );
+
+/* ---- chưa khai thì tô vàng và nói ra ---- */
+VHCC_Bhxh::xoa( $KT, 'BH_TRUYEN' );
+$h_c = vhcc_bh_man( array( 'man' => 'bhxh' ) );
+t( '🔴 người chưa khai thì nói rõ "chưa khai"',
+	false !== mb_strpos( $h_c, 'chưa khai' ), $h_c );
+t( '   và ô tiền để trống', 1 === preg_match( '/name="bh_tien"[^>]*value=""/', $h_c ), $h_c );
+VHCC_Bhxh::dat( $KT, 'BH_TRUYEN', '596610', '2026-08' );
+
+/* ---- ô lọc ---- */
+$h_t = vhcc_bh_man( array( 'man' => 'bhxh', 'bhq' => 'Lương Tháng' ) );
+t( '🔴 lọc theo TÊN ra đúng người', false !== strpos( $h_t, '<code>BH_TRUYEN</code>' ), $h_t );
+$h_t3 = vhcc_bh_man( array( 'man' => 'bhxh', 'bhq' => 'khongcoai' ) );
+/* ⚠️ Lọc không ra thì NÓI RA, đừng bày một bảng rỗng — bảng rỗng trông y hệt "chưa có ai". */
+t( '🔴 lọc không ra thì nói rõ, không bày bảng rỗng',
+	false !== mb_strpos( $h_t3, 'Không có ai khớp' ), $h_t3 );
+$h_x = vhcc_bh_man( array( 'man' => 'bhxh', 'bhx' => '1' ) );
+t( '   lọc "chỉ chưa khai" thì bỏ người đã khai ra',
+	false === strpos( $h_x, '<code>BH_TRUYEN</code>' ), $h_x );
+
+/* ---- 🔴 NGƯỜI TRONG SỔ MÀ KHÔNG PHẢI LƯƠNG THÁNG PHẢI BÀY RIÊNG, ĐỪNG GIẤU ----
+   Hồ sơ bị gỡ lương cơ bản, hay ai đó khai nhầm một parttime: dòng ấy vẫn đang trừ tiền thật
+   mỗi tháng mà không còn nằm trong bảng chính. Không bày ra thì nó trừ mãi ngoài tầm mắt. */
+VHCC_Bhxh::dat( $KT, 'BH_GIO', '300000', '2026-08' );
+$h_ng = vhcc_bh_man( array( 'man' => 'bhxh' ) );
+t( '🔴 parttime lỡ bị khai thì bày RIÊNG kèm cảnh báo',
+	false !== mb_strpos( $h_ng, 'KHÔNG phải lương tháng' )
+	&& false !== strpos( $h_ng, '<code>BH_GIO</code>' ), $h_ng );
+teq( '   và hàm trả đúng một người như vậy', 1, count( VHCC_Bhxh::ds_ngoai_luong_thang() ) );
+VHCC_Bhxh::xoa( $KT, 'BH_GIO' );
+
+/* 🔴 KHÔNG CÒN NẰM TRONG MÀN CẤU HÌNH — để lại cả hai chỗ là hai lối vào cùng một sổ, và người
+   ta sẽ sửa ở chỗ này rồi đi tìm ở chỗ kia. */
 $h_ch = vhcc_bh_man( array( 'man' => 'cau_hinh' ) );
 t( '🔴 màn Cấu hình KHÔNG còn khối BHXH', false === mb_strpos( $h_ch, 'Sổ BHXH' ), 'vẫn còn' );
 t( '   nhưng vẫn còn lịch nghỉ lễ và quy đổi giờ',
 	false !== mb_strpos( $h_ch, 'Lịch nghỉ lễ' ) && false !== mb_strpos( $h_ch, 'Quy đổi giờ' ), $h_ch );
 
-/* ---- ô tìm: vì sổ này chỉ dài thêm ---- */
-$h_t = vhcc_bh_man( array( 'man' => 'bhxh', 'bhq' => 'Theo Giờ' ) );
-t( '🔴 tìm theo TÊN ra đúng một dòng', false !== strpos( $h_t, 'BH_GIO' )
-	&& false === strpos( $h_t, '<code>BH_TRUYEN</code>' ), $h_t );
-$h_t2 = vhcc_bh_man( array( 'man' => 'bhxh', 'bhq' => 'BH_TRUYEN' ) );
-t( '   tìm theo MÃ cũng được', false !== strpos( $h_t2, '<code>BH_TRUYEN</code>' )
-	&& false === strpos( $h_t2, '<code>BH_GIO</code>' ), $h_t2 );
-/* ⚠️ Tìm không ra thì NÓI RA, đừng bày một bảng rỗng — bảng rỗng trông y hệt "sổ chưa có ai". */
-$h_t3 = vhcc_bh_man( array( 'man' => 'bhxh', 'bhq' => 'khongcoai' ) );
-t( '🔴 tìm không ra thì nói rõ, không bày bảng rỗng',
-	false !== mb_strpos( $h_t3, 'Không có ai khớp' ), $h_t3 );
-
-/* ---- cửa: ai không có quyền thì không thấy mục, và vào thẳng cũng bị chối ---- */
+/* ---- cửa ---- */
 $_GET = array( 'man' => 'bhxh' ); $_POST = array();
 $_COOKIE = array( VHCC_Web::COOKIE => VHCC_Auth::phat_token( 'CHT', 'Cửa hàng trưởng', 'BH_SHOP', 'BHCHT' ) );
-ob_start(); VHCC_Web::phuc_vu(); $h_c = ob_get_clean();
+ob_start(); VHCC_Web::phuc_vu(); $h_q = ob_get_clean();
 $_GET = array(); $_COOKIE = array();
 t( '🔴 cửa hàng trưởng KHÔNG thấy mục BHXH trên thanh bên',
-	false === mb_strpos( $h_c, '>BHXH<' ), 'vẫn thấy' );
+	false === mb_strpos( $h_q, '>BHXH<' ), 'vẫn thấy' );
 t( '   và gõ thẳng ?man=bhxh cũng không vào được sổ',
-	false === mb_strpos( $h_c, 'Trừ mỗi tháng' ), 'vào được' );
+	false === mb_strpos( $h_q, 'Trừ mỗi tháng' ), 'vào được' );
 
-VHCC_Bhxh::xoa( $KT, 'BH_GIO' );
 VHCC_Bhxh::xoa( $KT, 'BH_TRUYEN' );
 
 echo "\n";

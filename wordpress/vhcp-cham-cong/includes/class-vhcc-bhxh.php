@@ -111,6 +111,104 @@ class VHCC_Bhxh {
 		return round( $t, 2 );
 	}
 
+	/**
+	 * NHỮNG NGƯỜI ĂN LƯƠNG THÁNG — danh sách gợi ý để kế toán khai BHXH.
+	 *
+	 * =============================================================================================
+	 * 🔴 VÌ SAO CÓ HÀM NÀY
+	 * =============================================================================================
+	 * Anh Thắng 19/09/2026: *"nếu là nhân viên Lương theo công thì sẽ hiện hết vào này để tính
+	 * bhxh, còn nhân viên Parttime thì không cần"*.
+	 *
+	 * Bản trước bắt gõ tay Mã NV. Gõ tay một mã dạng `MNNV2KVC0166` là mời gõ nhầm — mà gõ nhầm
+	 * ở đây là trừ tiền của người khác, và tháng sau mới lộ. Tệ hơn: không ai nhìn ra được
+	 * **ai còn thiếu**, nên một người mới vào bảo hiểm có thể nằm ngoài sổ hết tháng này sang
+	 * tháng khác mà không có gì báo.
+	 *
+	 * ⚠️ AI LÀ "LƯƠNG THEO CÔNG" — HAI ĐƯỜNG, CHỈ CẦN MỘT ĐÚNG. Đúng hai đường mà
+	 *    `VHCC_BangLuong::dung()` dùng để rẽ sang lối tính theo tháng:
+	 *      · **lương cơ bản trong hồ sơ** (`nhan_vien.luong_co_ban`), và
+	 *      · **khai ăn lương tháng ngay trên bảng lương** (`VHCC_ChotLuong`, theo từng tháng).
+	 *    Chỉ hỏi hồ sơ thì sót hẳn những người kế toán khai thẳng trên bảng lương — họ đang ăn
+	 *    lương tháng thật mà không bao giờ hiện ra để khai BHXH. Bộ thử bắt được đúng chỗ này.
+	 *    Người tính theo giờ (parttime) không có mặt ở cả hai đường, nên không lọt vào danh
+	 *    sách này — đúng ý anh Thắng.
+	 *
+	 * ⚠️ KHÔNG TỰ THÊM VÀO SỔ, chỉ BÀY RA. Có lương cơ bản không có nghĩa là đang đóng bảo hiểm;
+	 *    số tiền đóng thì máy không biết (xem khối chú thích đầu lớp). Tự thêm với số 0 là đẻ ra
+	 *    một sổ đầy dòng 0đ, trông như đã xét hết mọi người và ai cũng không đóng.
+	 */
+	public static function ds_luong_thang( $so = null ) {
+		global $wpdb;
+		$s = ( null === $so ) ? self::so() : $so;
+
+		/* ĐƯỜNG HAI: ai được khai ăn lương tháng trên bảng lương, ở bất kỳ cơ sở / tháng nào.
+		   ⚠️ Gác `class_exists` cùng hàm với lời gọi — luật của `kiem-goi-cheo.php`. */
+		$khai = array();
+		if ( class_exists( 'VHCC_ChotLuong' ) && method_exists( 'VHCC_ChotLuong', 'so' ) ) {
+			foreach ( (array) VHCC_ChotLuong::so() as $cs_x ) {
+				if ( ! is_array( $cs_x ) ) { continue; }
+				foreach ( $cs_x as $th_x ) {
+					if ( ! is_array( $th_x ) || empty( $th_x['luongThang'] ) ) { continue; }
+					foreach ( (array) $th_x['luongThang'] as $m_x => $d_x ) {
+						if ( ! empty( $d_x['lcb'] ) ) { $khai[ self::khoa_ma( $m_x ) ] = (float) $d_x['lcb']; }
+					}
+				}
+			}
+		}
+
+		/* 🔴 MỘT LƯỢT ĐỌC CHO CẢ SỔ NHÂN SỰ, rồi tự dò — KHÔNG hỏi `VHCC_NhanSu::ho_so()` từng
+		   mã một. Hai lý do, lý do sau mới là lý do thật:
+		     · mỗi mã một câu truy vấn thì danh sách càng dài càng chậm;
+		     · và `ho_so()` so mã CÓ PHÂN BIỆT HOA THƯỜNG, trong khi khoá của `VHCC_ChotLuong`
+		       lưu ở dạng thường. Hỏi nó bằng `bh_truyen` thì không thấy ai, nên cả nhóm "khai
+		       ăn lương tháng trên bảng lương" lặng lẽ biến mất khỏi màn — bộ thử bắt đúng chỗ
+		       này. Dò trên mảng thì tự mình nắm được luật so khoá. */
+		$r = $wpdb->get_results(
+			'SELECT ma_nv, ho_ten, cua_hang, chuc_vu, luong_co_ban FROM ' . VHCC_DB::t( 'nhan_vien' )
+			. " WHERE trang_thai_lam_viec NOT IN ('Nghỉ việc','Nghỉ hẳn')"
+			. ' ORDER BY cua_hang, ho_ten', ARRAY_A );
+
+		$ra = array();
+		foreach ( (array) $r as $x ) {
+			$ma = trim( (string) $x['ma_nv'] );
+			if ( '' === $ma ) { continue; }
+			$k   = self::khoa_ma( $ma );
+			$lcb = (float) $x['luong_co_ban'];
+			if ( $lcb <= 0 && isset( $khai[ $k ] ) ) { $lcb = (float) $khai[ $k ]; }
+			/* Không có ở đường nào thì đây là người tính theo giờ — parttime, bỏ qua. */
+			if ( $lcb <= 0 ) { continue; }
+			$ra[] = array(
+				'ma'    => $ma,
+				'ten'   => (string) $x['ho_ten'],
+				'coso'  => (string) $x['cua_hang'],
+				'cv'    => (string) $x['chuc_vu'],
+				'lcb'   => $lcb,
+				/* Đã có trong sổ chưa, và đang trừ bao nhiêu — để màn bày một bảng duy nhất
+				   thay vì bắt người đọc đối chiếu hai danh sách bằng mắt. */
+				'trong' => isset( $s[ $k ] ) && ! empty( $s[ $k ]['tien'] ),
+				'tien'  => ( isset( $s[ $k ]['tien'] ) ? (float) $s[ $k ]['tien'] : 0.0 ),
+				'tu'    => ( isset( $s[ $k ]['tu'] ) ? (string) $s[ $k ]['tu'] : '' ),
+			);
+		}
+		return $ra;
+	}
+
+	/**
+	 * Người đang có trong sổ mà KHÔNG phải lương tháng — nghĩa là parttime, hoặc hồ sơ vừa bị
+	 * gỡ lương cơ bản. Bày riêng để không ai lặng lẽ bị trừ ngoài tầm mắt.
+	 */
+	public static function ds_ngoai_luong_thang( $so = null ) {
+		$s  = ( null === $so ) ? self::so() : $so;
+		$lt = array();
+		foreach ( self::ds_luong_thang( $s ) as $x ) { $lt[ self::khoa_ma( $x['ma'] ) ] = true; }
+		$ra = array();
+		foreach ( self::ds( $s ) as $x ) {
+			if ( ! isset( $lt[ self::khoa_ma( $x['ma'] ) ] ) ) { $ra[] = $x; }
+		}
+		return $ra;
+	}
+
 	/* ====================================================================== ghi */
 
 	private static function gac( $u ) {

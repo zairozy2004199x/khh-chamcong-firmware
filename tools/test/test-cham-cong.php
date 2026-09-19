@@ -478,10 +478,20 @@ t( 'vp_ngay_cong.ngay_cong cho phép NULL và KHÔNG có mặc định — khôn
 t( 'phan_quyen.vai_tro là VARCHAR (Apps Script ghi chuỗi tự do), không ENUM',
 	preg_match( '/vai_tro VARCHAR\(60\)/', $so_do['phan_quyen'] ) === 1 );
 t( 'nhan_vien giữ đủ 26 cột nghiệp vụ của NV_HEADERS + vai_tro + anh_the + ba ô chờ trả về'
-	. ' + coso_ql + coso_quan + mang + bo_phan',
-	count( $cot_thuc['nhan_vien'] ) === 36,
+	. ' + coso_ql + coso_quan + mang + bo_phan + 12 ô hồ sơ mở rộng',
+	count( $cot_thuc['nhan_vien'] ) === 48,
 	implode( ', ', $cot_thuc['nhan_vien'] ) );
 // 26 + id + vai_tro + anh_the + cho_tra_ve/luc/boi + coso_ql + coso_quan + mang + bo_phan
+// + 12 ô mở rộng (19/09/2026, anh Thắng: *"Trên app ứng dụng bổ sung thêm các trường"*):
+// chu_tk · ma_bhxh · ma_so_thue · cccd_ngay_cap · cccd_noi_cap · que_quan · dan_toc · hon_nhan
+// · trinh_do · chuyen_mon · so_phu_thuoc · giay_to
+/* ⚠️ MẤY Ô MỞ RỘNG PHẢI CÓ MẶT ĐỦ. Đếm suông thì thêm một cột rồi bớt một cột vẫn xanh — mà
+   thiếu đúng `ma_bhxh` hay `so_tai_khoan` là kế toán lại phải đi hỏi từng người. */
+foreach ( array( 'chu_tk', 'ma_bhxh', 'ma_so_thue', 'cccd_ngay_cap', 'cccd_noi_cap', 'que_quan',
+	'dan_toc', 'hon_nhan', 'trinh_do', 'chuyen_mon', 'so_phu_thuoc', 'giay_to' ) as $c_mr ) {
+	t( 'nhan_vien có ô hồ sơ mở rộng: ' . $c_mr,
+		in_array( $c_mr, $cot_thuc['nhan_vien'], true ), implode( ', ', $cot_thuc['nhan_vien'] ) );
+}
 
 /* 🔴 `coso_quan` — CƠ SỞ NGƯỜI NÀY QUẢN LÝ NGƯỜI KHÁC. Anh Thắng 18/09/2026: *"nếu chấm công
    thì xem quản thân chứ, còn quản lý mới xem được cả cửa hàng"*. Khác `coso_ql` ở đúng một
