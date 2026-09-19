@@ -248,6 +248,78 @@ t( '   và nói rõ phải chọn kỳ có thật',
 	false !== mb_strpos( $chan_la, 'Kỳ 1' ) || false !== mb_strpos( $chan_la, 'không hợp lệ' ),
 	$chan_la );
 
+
+/* =================================================================================================
+ * 6. BẤM NÚT Ở MÀN ĐƠN TỪ THÌ Ở LẠI MÀN ĐƠN TỪ
+ * =================================================================================================
+ * Anh Thắng 19/09/2026: *"Bấm xem kỳ, thì đứng ở đơn từ luôn, không nhảy sang bảng công nhé"*,
+ * rồi *"nhảy sang bảng công, bấm đơn từ nó lại ra tháng 9, không về tháng 8 được"*.
+ *
+ * Khối này gốc chỉ nằm ở màn Bảng công nên mọi biểu mẫu bên trong đóng cứng `man=cham`. Bài này
+ * soi ĐÚNG mấy ô ẩn ấy — không soi "trang có vẽ ra không", vì cái đó xanh cả khi nút ném người
+ * ta sang màn khác.
+ * ------------------------------------------------------------------------------------------- */
+echo "— bấm ở màn Đơn từ thì ở lại màn Đơn từ —\n";
+
+$_GET = array();
+ob_start();
+VHCC_WebDonTuan::khoi_cua_hang( 'ky-thu', $CHT, $CS, 'don_tu' );
+$h_dt = ob_get_clean();
+
+t( '🔴 biểu mẫu mang man=don_tu, KHÔNG phải man=cham',
+	false !== strpos( $h_dt, 'name="man" value="don_tu"' )
+	&& false === strpos( $h_dt, 'name="man" value="cham"' ), $h_dt );
+t( '   và mang cả lcs (tên ô cơ sở của màn Đơn từ)',
+	false !== strpos( $h_dt, 'name="lcs" value="' . $CS . '"' ), $h_dt );
+t( '🔴 vẫn mang ccs — nút tải và lượt nạp tệp chỉ đọc tên này',
+	false !== strpos( $h_dt, 'name="ccs" value="' . $CS . '"' ), $h_dt );
+
+/* Ở màn Bảng công thì vẫn y như cũ — đừng sửa một màn mà làm hỏng màn kia. */
+ob_start();
+VHCC_WebDonTuan::khoi_cua_hang( 'ky-thu', $CHT, $CS );
+$h_cham = ob_get_clean();
+t( 'màn Bảng công vẫn man=cham', false !== strpos( $h_cham, 'name="man" value="cham"' ), $h_cham );
+t( '   và không chen lcs vào', false === strpos( $h_cham, 'name="lcs"' ), $h_cham );
+
+/* ---- CHỮ KÝ BIỂU MẪU KHÔNG ĐƯỢC BỊ Ô KỲ ĐÈ LÊN ----
+   Bản trước để kỳ đang chọn vào chính `$ky` — cái biến đang giữ CHỮ KÝ — nên ô ẩn `name="ky"`
+   của biểu mẫu nạp tệp gửi lên 'ca'/'k1'/'k2'. Lượt gửi chỉ lọt nhờ lớp đỡ cùng-nguồn. */
+t( '🔴 ô ẩn name="ky" mang CHỮ KÝ, không mang mã kỳ',
+	false !== strpos( $h_dt, 'name="ky" value="ky-thu"' )
+	&& false === strpos( $h_dt, 'name="ky" value="ca"' ), $h_dt );
+
+/* ---- CHƯA CÓ dtm THÌ ĐỌC cth — tháng đang xem ở màn Bảng công ---- */
+$_GET = array( 'cth' => substr( $THANG_CU, 0, 7 ) );
+ob_start();
+VHCC_WebDonTuan::khoi_cua_hang( 'ky-thu', $CHT, $CS, 'don_tu' );
+$h_cth = ob_get_clean();
+t( '🔴 không có dtm thì lấy tháng theo cth, không nhảy về tháng mới nhất',
+	false !== strpos( $h_cth, 'value="' . $THANG_CU . '" selected' ), $h_cth );
+
+/* ---- CÓ dtm THÌ dtm THẮNG — ô xổ vẫn là thứ quyết định ---- */
+$_GET = array( 'cth' => substr( $THANG_NAY, 0, 7 ), 'dtm' => $THANG_CU );
+ob_start();
+VHCC_WebDonTuan::khoi_cua_hang( 'ky-thu', $CHT, $CS, 'don_tu' );
+$h_uu = ob_get_clean();
+t( '🔴 dtm thắng cth', false !== strpos( $h_uu, 'value="' . $THANG_CU . '" selected' ), $h_uu );
+t( '   và cth gửi đi là tháng ĐANG CHỌN, để nó theo sang màn Bảng công',
+	false !== strpos( $h_uu, 'name="cth" value="' . substr( $THANG_CU, 0, 7 ) . '"' ), $h_uu );
+$_GET = array();
+
+
+/* ---- VÀ MÀN ĐƠN TỪ THẬT SỰ TRUYỀN TÊN MÀN XUỐNG ----
+   Gọi thẳng `khoi_cua_hang(..., 'don_tu')` mà xanh thì mới chứng minh được cái hàm; còn có
+   truyền hay không lại là chuyện của nơi gọi. Vẽ cả màn ra mới bắt được chỗ quên truyền. */
+$_GET = array( 'lcs' => $CS, 'man' => 'don_tu' );
+ob_start();
+VHCC_WebDonTu::man( 'ky-thu', $CHT );
+$h_man = ob_get_clean();
+$_GET = array();
+t( 'màn Đơn từ có vẽ khối Excel', false !== mb_strpos( $h_man, 'name="dtm"' ), substr( $h_man, 0, 300 ) );
+t( '🔴 và nút trong đó trỏ về chính màn Đơn từ',
+	false !== strpos( $h_man, 'name="man" value="don_tu"' )
+	&& false === strpos( $h_man, 'name="man" value="cham"' ), $h_man );
+
 echo "\n";
 if ( $truot ) {
 	echo '🔴 HỎNG ' . count( $truot ) . " phép thử:\n";

@@ -74,14 +74,23 @@ class VHCC_WebDonTu {
 		/* Thứ tự: hai khối đơn lẻ trước (việc hằng ngày), rồi hai khối của cả tuần. */
 		VHCC_Web::the_lenh_tre( $cs, $ky, $toi );
 		VHCC_Web::the_don_nghi( $cs, $ky, $toi );
-		VHCC_WebDonTuan::khoi_bu_cht( $ky, $toi, $cs );
-		VHCC_WebDonTuan::khoi_cua_hang( $ky, $toi, $cs );
+		/* 🔴 TRUYỀN TÊN MÀN XUỐNG. Hai khối này gốc là của màn Bảng công; không nói cho chúng
+		   biết đang đứng ở đâu thì mọi nút bên trong ném người ta sang `man=cham`. Anh Thắng
+		   19/09/2026: *"Bấm xem kỳ, thì đứng ở đơn từ luôn, không nhảy sang bảng công nhé"*. */
+		VHCC_WebDonTuan::khoi_bu_cht( $ky, $toi, $cs, 'don_tu' );
+		VHCC_WebDonTuan::khoi_cua_hang( $ky, $toi, $cs, 'don_tu' );
 	}
 
 	private static function o_loc( $ds_cs, $cs, $toi ) {
 		echo '<div class="the"><form method="get" class="hang" style="gap:10px;margin:0">';
 		if ( ! get_option( 'permalink_structure' ) ) { echo '<input type="hidden" name="vhcc_qt" value="1">'; }
 		echo '<input type="hidden" name="man" value="don_tu">';
+		/* Tháng đang xem đi theo cú đổi cơ sở. Đổi cơ sở không phải là bắt đầu lại từ đầu —
+		   rơi mất tháng ở đây là khối Excel bên dưới nhảy về tháng mới nhất ngay sau cú bấm. */
+		$th_dang = isset( $_GET['cth'] ) ? sanitize_text_field( wp_unslash( $_GET['cth'] ) ) : '';
+		if ( 1 === preg_match( '/^\d{4}-\d{2}$/', $th_dang ) ) {
+			echo '<input type="hidden" name="cth" value="' . esc_attr( $th_dang ) . '">';
+		}
 		echo '<div><label for="lcs">Cơ sở</label>';
 		VHCC_Web::o_chon_coso( 'lcs', $cs, $toi, $ds_cs, '— chọn —' );
 		echo '</div>';

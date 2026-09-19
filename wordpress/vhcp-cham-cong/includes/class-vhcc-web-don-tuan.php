@@ -174,8 +174,9 @@ class VHCC_WebDonTuan {
 	 *    trưởng bấm Duyệt rồi tưởng giờ đã vào bảng công, hôm sau thấy ô vẫn trống thì họ đi
 	 *    bù tay — mà nay họ không bù được nữa, nên chỉ còn bực.
 	 */
-	public static function khoi_bu_cht( $ky, $toi, $cs ) {
+	public static function khoi_bu_cht( $ky, $toi, $cs, $man_ve = 'cham' ) {
 		if ( ! VHCC_Vai::duoc( $toi, VHCC_XinBu::QUYEN_CHT ) ) { return; }
+		$man_ve = self::man_dang( $man_ve );
 		$cs = VHCC_NhanSu::chuan_coso( $cs );
 		if ( '' === $cs || ! VHCC_NhanSu::co_quyen_coso( $toi, $cs ) ) { return; }
 
@@ -195,8 +196,8 @@ class VHCC_WebDonTuan {
 		foreach ( $ds as $d ) {
 			$an = '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
 				. '<input type="hidden" name="viec" value="xb_cht">'
-				. '<input type="hidden" name="man" value="cham">'
-				. '<input type="hidden" name="ccs" value="' . esc_attr( $cs ) . '">'
+				. '<input type="hidden" name="man" value="' . esc_attr( $man_ve ) . '">'
+				. self::o_coso_an( $man_ve, $cs )
 				. '<input type="hidden" name="xb_id" value="' . (int) $d['id'] . '">';
 			echo '<tr><td>' . esc_html( (string) $d['ngay'] ) . '</td>'
 				. '<td>' . esc_html( (string) $d['ma_nv'] ) . '</td>'
@@ -400,25 +401,79 @@ class VHCC_WebDonTuan {
 		return array( array( 'ok' => true, 'thong_bao' => $cau ) );
 	}
 
+	/* ═══════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 HAI KHỐI DƯỚI ĐÂY MỌC TRÊN HAI MÀN KHÁC NHAU — ĐỪNG ĐÓNG CỨNG `man=cham`
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 19/09/2026: *"Bấm xem kỳ, thì đứng ở đơn từ luôn, không nhảy sang bảng công
+	 * nhé"* — rồi *"nhảy sang bảng công, bấm đơn từ nó lại ra tháng 9, không về tháng 8 được"*.
+	 *
+	 * Khối này viết ra hồi nó chỉ nằm trên màn Bảng công, nên mọi biểu mẫu bên trong đóng cứng
+	 * `man=cham`. Nay `VHCC_WebDonTu::man()` cũng vẽ nó, thành ra bấm một nút ở màn Đơn từ là
+	 * bị ném sang màn khác — mất cả chỗ đang đứng lẫn tháng đang chọn, vì hai màn gọi tên ô
+	 * cơ sở khác nhau (`ccs` ở Bảng công, `lcs` ở Đơn từ) nên cái này không đọc được cái kia.
+	 *
+	 * ⚠️ ĐỔI MÀN THÌ PHẢI ĐỔI CẢ TÊN Ô CƠ SỞ. Giữ `man` mới mà vẫn gửi `ccs` thì màn Đơn từ
+	 *    không thấy cơ sở nào, rơi về cơ sở mặc định — hỏng còn khó hiểu hơn nhảy màn.
+	 * ═══════════════════════════════════════════════════════════════════════════════════════ */
+
+	/** Màn đang đứng — chỉ nhận tên màn có thật, lạ thì về Bảng công như đời cũ. */
+	private static function man_dang( $man_ve ) {
+		$m = (string) $man_ve;
+		return in_array( $m, array( 'cham', 'don_tu', 'don_tuan' ), true ) ? $m : 'cham';
+	}
+
 	/**
-	 * KHỐI TRÊN MÀN BẢNG CÔNG — nơi cửa hàng trưởng tải tệp tháng ra và nạp tệp đã sửa lên.
+	 * Ô ẩn mang cơ sở đi theo — GỬI CẢ HAI TÊN.
+	 *
+	 * 🔴 `ccs` KHÔNG BAO GIỜ ĐƯỢC BỎ. Nút tải tệp đi qua `VHCC_Web::xuat_tep()`, và chỗ ấy chỉ
+	 *    đọc `ccs`; bỏ nó để gửi mỗi `lcs` là màn Đơn từ giữ được cơ sở nhưng nút tải chối
+	 *    "thiếu cơ sở". Biểu mẫu nạp tệp (`nhan_tep()`) cũng chỉ đọc `ccs`.
+	 *    Còn màn Đơn từ thì đọc `lcs`. Hai tên cùng trỏ một cơ sở nên gửi cả hai là xong,
+	 *    không phải chọn bên nào thiệt.
+	 */
+	private static function o_coso_an( $man_ve, $cs ) {
+		$ra = '<input type="hidden" name="ccs" value="' . esc_attr( $cs ) . '">';
+		if ( 'don_tu' === self::man_dang( $man_ve ) ) {
+			$ra .= '<input type="hidden" name="lcs" value="' . esc_attr( $cs ) . '">';
+		}
+		return $ra;
+	}
+
+	/**
+	 * KHỐI TẢI / NẠP BẢNG CÔNG THÁNG — nơi cửa hàng trưởng tải tệp tháng ra và nạp tệp đã sửa
+	 * lên. Vẽ trên màn Bảng công và trên màn Đơn từ; `$man_ve` là màn đang đứng.
 	 *
 	 * ⚠️ Vẽ cả khi tháng đã khoá, chỉ đổi nội dung. Giấu hẳn đi thì người ta tưởng tính năng
 	 *    hỏng và đi hỏi vòng quanh; nói thẳng "tháng này khoá rồi" thì họ biết phải làm gì.
 	 */
-	public static function khoi_cua_hang( $ky, $toi, $cs ) {
+	public static function khoi_cua_hang( $ky, $toi, $cs, $man_ve = 'cham' ) {
+		$man_ve = self::man_dang( $man_ve );
 		if ( ! VHCC_Vai::duoc( $toi, VHCC_TuanCong::QUYEN_TAI ) ) { return; }
 		$cs = VHCC_NhanSu::chuan_coso( $cs );
 		if ( '' === $cs || ! VHCC_NhanSu::co_quyen_coso( $toi, $cs ) ) { return; }
 
 		$chon = isset( $_GET['dtm'] ) ? sanitize_text_field( wp_unslash( $_GET['dtm'] ) ) : '';
 		$ds_t = VHCC_TuanCong::ds_thang( 6 );
-		if ( ! in_array( $chon, $ds_t, true ) ) { $chon = $ds_t[0]; }
+		/* 🔴 CHƯA CÓ `dtm` THÌ HỎI `cth` — THÁNG NGƯỜI TA ĐANG XEM Ở MÀN BẢNG CÔNG.
+		   Anh Thắng 19/09/2026: *"bấm đơn từ nó lại ra tháng 9, không về tháng 8 được"*. Hai
+		   màn gọi tháng bằng hai tên (`cth` ở Bảng công, `dtm` ở khối này), nên bấm qua lại là
+		   khối này không thấy tên mình đâu và rơi về tháng mới nhất — người ta vừa chọn tháng 8
+		   xong, quay lại thấy tháng 9, tưởng máy không nhớ. Ô xổ vẫn là thứ quyết định khi nó
+		   có mặt; `cth` chỉ đỡ lúc nó vắng. */
+		if ( ! in_array( $chon, $ds_t, true ) ) {
+			$cth  = isset( $_GET['cth'] ) ? sanitize_text_field( wp_unslash( $_GET['cth'] ) ) : '';
+			$chon = ( '' !== $cth && in_array( substr( $cth, 0, 7 ) . '-01', $ds_t, true ) )
+				? substr( $cth, 0, 7 ) . '-01' : $ds_t[0];
+		}
 
-		$ds_k  = VHCC_TuanCong::ds_ky();
-		$ky    = isset( $_GET['dtk'] ) ? sanitize_text_field( wp_unslash( $_GET['dtk'] ) ) : '';
-		if ( ! VHCC_TuanCong::la_ky( $ky ) ) { $ky = VHCC_TuanCong::KY_CA; }
-		list( $tu, $den ) = VHCC_TuanCong::khoang( $chon, $ky );
+		/* 🔴 KỲ ĐANG CHỌN ĐỂ TRONG `$ky_chon`, KHÔNG PHẢI `$ky`. `$ky` là CHỮ KÝ biểu mẫu do
+		   hàm gọi truyền vào; bản trước ghi đè nó bằng 'ca'/'k1'/'k2', nên ô ẩn `name="ky"` ở
+		   biểu mẫu nạp tệp phía dưới gửi lên chữ ký rỗng nghĩa — cú gửi chỉ lọt được nhờ lớp đỡ
+		   cùng-nguồn của `VHCC_Web::chu_ky_dung()`. Hai thứ khác hẳn nhau, đừng dùng chung tên. */
+		$ds_k    = VHCC_TuanCong::ds_ky();
+		$ky_chon = isset( $_GET['dtk'] ) ? sanitize_text_field( wp_unslash( $_GET['dtk'] ) ) : '';
+		if ( ! VHCC_TuanCong::la_ky( $ky_chon ) ) { $ky_chon = VHCC_TuanCong::KY_CA; }
+		list( $tu, $den ) = VHCC_TuanCong::khoang( $chon, $ky_chon );
 
 		/* `open` sẵn: đổi tháng là trang nạp lại, mà `<details>` đóng thì người ta phải mở ra
 		   lần nữa mới thấy kết quả của chính cú bấm vừa rồi — và dễ tưởng nút không ăn. */
@@ -451,9 +506,13 @@ class VHCC_WebDonTuan {
 		 *    type="hidden" name="xuat">` cho gọn — làm thế thì nút Xem cũng tải tệp.
 		 * ═══════════════════════════════════════════════════════════════════════════════════ */
 		echo '<form method="get" class="hang" style="gap:8px;margin:0 0 10px;align-items:flex-end">';
-		foreach ( array( 'vhcc_qt' => '1', 'man' => 'cham', 'ccs' => $cs ) as $k => $v ) {
+		/* ⚠️ `cth` ĐI KÈM để tháng đang chọn theo được sang màn Bảng công — xem lời bàn ở chỗ
+		      đọc `cth` phía trên. Nó là bản sao của ô xổ, không phải nguồn. */
+		foreach ( array( 'vhcc_qt' => '1', 'man' => $man_ve,
+			'cth' => substr( $chon, 0, 7 ) ) as $k => $v ) {
 			echo '<input type="hidden" name="' . esc_attr( $k ) . '" value="' . esc_attr( $v ) . '">';
 		}
+		echo self::o_coso_an( $man_ve, $cs );
 		echo '<div><label for="dtm">Tháng</label><select id="dtm" name="dtm">';
 		foreach ( $ds_t as $t ) {
 			echo '<option value="' . esc_attr( $t ) . '"' . selected( $t, $chon, false ) . '>'
@@ -468,7 +527,7 @@ class VHCC_WebDonTuan {
 		foreach ( $ds_k as $ma_k => $ten_k ) {
 			list( $tu_k, $den_k ) = VHCC_TuanCong::khoang( $chon, $ma_k );
 			if ( '' === $tu_k ) { continue; }          // tháng ngắn hơn mốc: không có kỳ ấy
-			echo '<option value="' . esc_attr( $ma_k ) . '"' . selected( $ma_k, $ky, false ) . '>'
+			echo '<option value="' . esc_attr( $ma_k ) . '"' . selected( $ma_k, $ky_chon, false ) . '>'
 				. esc_html( $ten_k )
 				. ( VHCC_TuanCong::khoa_roi( $cs, $tu_k, $den_k ) ? ' — đã khoá' : '' ) . '</option>';
 		}
@@ -498,7 +557,7 @@ class VHCC_WebDonTuan {
 			echo '<div class="bao canh" style="margin:0 0 10px">⚠️ Kỳ này <b>còn ' . (int) $con
 				. ' ngày chưa xong</b> — mọi người còn chấm tiếp, nên giờ công còn đổi. Kế toán '
 				. 'duyệt là <b>khoá hết cả kỳ</b>, kể cả mấy ngày chưa tới.'
-				. ( VHCC_TuanCong::KY_CA === $ky
+				. ( VHCC_TuanCong::KY_CA === $ky_chon
 					? ' Giữa tháng thì nên chọn <b>Kỳ 1</b> cho gọn, chốt nửa đầu thôi.' : '' )
 				. '</div>';
 		}
@@ -521,11 +580,13 @@ class VHCC_WebDonTuan {
 		echo '<form method="post" enctype="multipart/form-data" class="hang" style="gap:8px">'
 			. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
 			. '<input type="hidden" name="viec" value="dt_nap">'
-			. '<input type="hidden" name="man" value="cham">'
-			. '<input type="hidden" name="ccs" value="' . esc_attr( $cs ) . '">'
+			. '<input type="hidden" name="man" value="' . esc_attr( $man_ve ) . '">'
+			. self::o_coso_an( $man_ve, $cs )
 			. '<input type="hidden" name="cth" value="' . esc_attr( substr( $chon, 0, 7 ) ) . '">'
+			. '<input type="hidden" name="dtm" value="' . esc_attr( $chon ) . '">'
+			. '<input type="hidden" name="dtk" value="' . esc_attr( $ky_chon ) . '">'
 			. '<input type="hidden" name="dt_thang" value="' . esc_attr( $chon ) . '">'
-			. '<input type="hidden" name="dt_ky" value="' . esc_attr( $ky ) . '">'
+			. '<input type="hidden" name="dt_ky" value="' . esc_attr( $ky_chon ) . '">'
 			. '<div><input type="file" name="dt_tep" accept=".xlsx" required></div>'
 			. '<div><button class="chinh">Gửi cho kế toán</button></div></form>';
 
