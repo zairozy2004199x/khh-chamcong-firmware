@@ -315,7 +315,17 @@ $d2 = $b2['dong'][0];
 teq( '🔴 người có lương cơ bản thì tính THEO THÁNG', 'thang', $d2['cheDo'] );
 teq( 'lương cơ bản vào đúng cột của nó', 4000000.0, $d2['luongCb'] );
 teq( 'số công yêu cầu lấy từ cấu hình', 26.0, $d2['congYc'] );
-teq( 'số công thực = số ngày có chấm', 26, $d2['congThuc'] );
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 SỐ CÔNG THỰC NAY QUY ĐỔI TỪ GIỜ, KHÔNG CÒN ĐẾM ĐẦU NGÀY
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 19/09/2026: *"nhân viên tính theo công tháng thì khi tích vào đó, nv sẽ quy đổi
+ * theo 4 tiếng 1/2 công và 8h là 1 công (bổ sung bảng set)"* — xem `VHCC_QuyCong`.
+ *
+ * Hai mươi sáu ngày ĐỦ 8 GIỜ vẫn ra đúng 26 công như xưa, nên con số không đổi. Cái đổi là
+ * KIỂU: nay là số thực (một tháng có thể ra 22,5 công), không còn là số đếm ngày.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+teq( 'số công thực: 26 ngày đủ 8 giờ = 26 công', 26.0, $d2['congThuc'] );
+teq( '   và số NGÀY vẫn đếm riêng', 26, $d2['soNgay'] );
 teq( '🔴 lương chính 4.000.000đ — đúng số kế toán đã trả', 4000000.0, $d2['luongChinh'] );
 teq( '🔴 lối theo tháng KHÔNG dùng đơn giá giờ', null, $d2['gia'] );
 
@@ -359,8 +369,15 @@ $d_ch = null;
 foreach ( $b6['dong'] as $d ) { if ( 'TP_TRUYEN' === $d['ma'] ) { $d_ch = $d; } }
 teq( '🔴 vẫn ĐÚNG MỘT dòng cho người ấy', 1,
 	count( array_filter( $b6['dong'], function ( $x ) { return 'TP_TRUYEN' === $x['ma']; } ) ) );
-teq( 'ngày mang hậu tố đếm vào số công như mọi ngày', 27, $d_ch['congThuc'] );
-teq( '🔴 lương tháng theo số công thực: 4.000.000 × 27/26', 4153846.15, $d_ch['luongChinh'] );
+/* 🔴 NGÀY ẤY CHỈ LÀM 5 GIỜ (ca đêm 22h, 300 phút) NÊN LÀ NỬA CÔNG, không phải trọn một công.
+   Bản trước bài này canh con số 27 — đúng với luật cũ "mỗi ngày có chấm là một công", và đó
+   chính là luật anh Thắng bảo bỏ: tạt vào mấy tiếng rồi về mà ăn trọn một công. Nay 26 + 0,5.
+   ⚠️ Thứ bài này sinh ra để canh thì KHÔNG đổi: hậu tố vẫn không đẻ ra dòng lương thứ hai —
+      phép đếm dòng ngay trên vẫn là 1. */
+teq( 'ngày ca đêm 5 giờ = nửa công, không phải trọn một công', 26.5, $d_ch['congThuc'] );
+teq( '   nhưng vẫn đếm là một NGÀY có chấm', 27, $d_ch['soNgay'] );
+teq( '🔴 lương tháng theo số công thực: 4.000.000 × 26,5/26',
+	round( 4000000 * 26.5 / 26, 2 ), $d_ch['luongChinh'] );
 
 /* 🔴 KẾ TOÁN CŨNG NHẬP ĐƯỢC, KHÔNG CHỈ CỬA HÀNG TRƯỞNG.
    Anh Thắng 16/09/2026: *"kế toán và cửa hàng trưởng chứ em, anh nói là từ dưới đi lên"* —

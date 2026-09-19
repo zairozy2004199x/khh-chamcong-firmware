@@ -1294,6 +1294,10 @@ class VHCC_Web {
 		/* Công tắc "nhân viên tự khai loại giờ" — cùng cửa với đơn giá (`gia_gio`, bậc Quản lý),
 		   vì nó quyết định bảng lương đọc nguồn nào. Chốt thật ở `VHCC_LoaiGio::dat_cfg()`. */
 		'loai_gio_cfg',
+		/* Lịch nghỉ lễ và bảng quy đổi giờ ra công: hai thứ CHUNG CẢ CHUỖI, khai trên màn Cấu
+		   hình. Chốt thật ở `VHCC_NgayLe::` (cửa `ngay_le`, Kế toán trở lên) và
+		   `VHCC_QuyCong::dat()` (cửa `gia_gio`) — ở đây chỉ là cho phép định tuyến tới. */
+		'le_hs', 'le_them', 'le_xoa', 'qc_dat', 'qc_mac_dinh',
 		/* Phân loại giờ cho từng người: việc của CỬA HÀNG TRƯỞNG, cửa thấp hơn công tắc trên.
 		   Chốt thật ở `VHCC_LoaiGio::dat_phan()` (cong_coso + đúng phạm vi cơ sở). */
 		'loai_gio_phan',
@@ -1782,6 +1786,60 @@ class VHCC_Web {
 		 *    trên màn nhưng lưu chung một nút thì gạt công tắc là lưu luôn cả bảng đơn giá đang
 		 *    gõ dở — và ngược lại.
 		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * LỊCH NGHỈ LỄ — anh Thắng 18/09/2026. Xem `VHCC_NgayLe`.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		if ( 'le_hs' === $viec ) {
+			$r_le = VHCC_NgayLe::dat_he_so( $toi,
+				isset( $_POST['le_hs'] ) ? sanitize_text_field( wp_unslash( $_POST['le_hs'] ) ) : '' );
+			if ( empty( $r_le['ok'] ) ) { return array( array( 'loi' => $r_le['error'] ) ); }
+			$h = (float) $r_le['heSo'];
+			return array( array( 'ok' => true, 'thong_bao' => 'Hệ số giờ lễ nay là ×'
+				. VHCC_NgayLe::so( $h ) . '.'
+				/* ⚠️ Nói ra khi hệ số về 1. Người gõ tưởng mình vừa "đặt lại", thật ra vừa TẮT
+				   cả tính năng — và mấy ngày trong lịch vẫn nằm đó trông như đang chạy. */
+				. ( $h <= 1.0 ? ' ⚠️ Hệ số 1 nghĩa là ngày lễ ăn Y NHƯ ngày thường — tức đang TẮT. '
+					. 'Mấy ngày trong lịch vẫn còn nhưng không nhân gì cả.' : '' ) ) );
+		}
+
+		if ( 'le_them' === $viec ) {
+			$r_le = VHCC_NgayLe::them( $toi,
+				isset( $_POST['le_ngay'] ) ? sanitize_text_field( wp_unslash( $_POST['le_ngay'] ) ) : '',
+				isset( $_POST['le_ten'] ) ? sanitize_text_field( wp_unslash( $_POST['le_ten'] ) ) : '',
+				isset( $_POST['le_rieng'] ) ? sanitize_text_field( wp_unslash( $_POST['le_rieng'] ) ) : '' );
+			if ( empty( $r_le['ok'] ) ) { return array( array( 'loi' => $r_le['error'] ) ); }
+			return array( array( 'ok' => true, 'thong_bao' => 'Đã thêm ngày lễ '
+				. $r_le['ngay'] . ( 5 === strlen( (string) $r_le['ngay'] )
+					? ' — lặp lại hằng năm.' : ' — chỉ đúng ngày này.' ) ) );
+		}
+
+		if ( 'le_xoa' === $viec ) {
+			$r_le = VHCC_NgayLe::xoa( $toi,
+				isset( $_POST['le_ngay'] ) ? sanitize_text_field( wp_unslash( $_POST['le_ngay'] ) ) : '' );
+			if ( empty( $r_le['ok'] ) ) { return array( array( 'loi' => $r_le['error'] ) ); }
+			return array( array( 'ok' => true, 'thong_bao' => 'Đã bỏ ngày ' . $r_le['ngay']
+				. ' khỏi lịch nghỉ lễ.' ) );
+		}
+
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * BẢNG QUY ĐỔI GIỜ RA CÔNG — anh Thắng 19/09/2026. Xem `VHCC_QuyCong`.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		if ( 'qc_dat' === $viec ) {
+			$r_qc = VHCC_QuyCong::dat( $toi,
+				isset( $_POST['qc_gio'] ) ? (array) wp_unslash( $_POST['qc_gio'] ) : array(),
+				isset( $_POST['qc_cong'] ) ? (array) wp_unslash( $_POST['qc_cong'] ) : array() );
+			if ( empty( $r_qc['ok'] ) ) { return array( array( 'loi' => $r_qc['error'] ) ); }
+			return array( array( 'ok' => true, 'thong_bao' => 'Bảng quy đổi nay là: '
+				. $r_qc['moTa'] . '. Chỉ người ăn lương tháng đi qua bảng này.' ) );
+		}
+
+		if ( 'qc_mac_dinh' === $viec ) {
+			$r_qc = VHCC_QuyCong::ve_mac_dinh( $toi );
+			if ( empty( $r_qc['ok'] ) ) { return array( array( 'loi' => $r_qc['error'] ) ); }
+			return array( array( 'ok' => true, 'thong_bao' => 'Đã về bảng mặc định: '
+				. $r_qc['moTa'] . '.' ) );
+		}
+
 		if ( 'loai_gio_cfg' === $viec ) {
 			$cs_l = isset( $_POST['ccs'] ) ? VHCC_NhanSu::chuan_coso( wp_unslash( $_POST['ccs'] ) ) : '';
 			$r_l  = VHCC_LoaiGio::dat_cfg( $toi, $cs_l,
@@ -9329,6 +9387,168 @@ class VHCC_Web {
 	 *    đơn giá ở trên — bật công tắc mà trên ấy chỉ có một dòng thì chẳng hỏi ai câu nào.
 	 *    Để hai khối cạnh nhau thì mối liên hệ ấy đọc được bằng mắt.
 	 */
+	/**
+	 * LỊCH NGHỈ LỄ CỦA CẢ CHUỖI + HỆ SỐ GIỜ LỄ.
+	 *
+	 * Anh Thắng 18/09/2026: *"Cho anh hỏi chỗ set lịch lương lễ và ngày lễ, ngày đó x2 hay x3"*.
+	 * Trước bản này câu trả lời thật là KHÔNG CÓ CHỖ NÀO — xem `VHCC_NgayLe`.
+	 *
+	 * ⚠️ MỘT MÀN, KHÔNG CHIA THEO CƠ SỞ. Anh chọn *"Chung cả chuỗi"*: Tết là Tết ở mọi cửa hàng,
+	 *    để từng nơi tự khai là chắc chắn có nơi quên, và sai ấy chỉ lộ ở bảng lương tháng sau.
+	 */
+	private static function the_ngay_le( $ky, $toi ) {
+		if ( ! VHCC_Vai::duoc( $toi, VHCC_NgayLe::QUYEN ) ) { return; }
+		$cfg  = VHCC_NgayLe::cfg();
+		$ds   = VHCC_NgayLe::ds( $cfg );
+		$chay = VHCC_NgayLe::dang_chay( $cfg );
+
+		echo '<div class="the"><details' . ( $chay ? ' open' : '' )
+			. '><summary><b>Lịch nghỉ lễ &amp; hệ số giờ lễ</b> <span class="mo">— chung cả '
+			. 'chuỗi</span></summary>';
+		echo '<p class="mo" style="margin:10px 0">Giờ làm rơi vào ngày trong danh sách này được '
+			. 'trả <b>gấp hệ số</b> lần giờ thường. Đơn giá của từng người <b>không đổi</b> — '
+			. 'hệ số chỉ nhân lên phần giờ của đúng mấy ngày ấy.</p>';
+
+		/* 🔴 NÓI RA KHI NÓ CHƯA CHẠY. Hệ số 1 nghĩa là chưa nhân gì cả; danh sách rỗng cũng vậy.
+		   Không nói thì người khai gõ xong mấy ngày, thấy bảng lương y như cũ, và kết luận
+		   tính năng hỏng — trong khi chỉ là chưa đặt hệ số. */
+		if ( ! $chay ) {
+			echo '<div class="bao canh" style="margin:0 0 12px">⚠️ <b>Chưa chạy.</b> '
+				. ( $ds ? 'Đã có ngày trong lịch nhưng hệ số vẫn là <b>1</b> — tức ngày lễ ăn y '
+					. 'như ngày thường. Đặt hệ số lớn hơn 1 thì nó mới bắt đầu tính.'
+					: 'Lịch còn trống. Thêm ngày ở ô bên dưới đã.' ) . '</div>';
+		}
+
+		$an = '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+			. '<input type="hidden" name="man" value="cau_hinh">';
+
+		/* ---- hệ số chung ---- */
+		echo '<form method="post" class="hang" style="gap:8px;align-items:flex-end;margin:0 0 14px">'
+			. $an . '<input type="hidden" name="viec" value="le_hs">'
+			. '<div><label for="le_hs">Hệ số giờ lễ (dùng chung)</label>'
+			. '<input id="le_hs" name="le_hs" style="width:90px" value="'
+			. esc_attr( VHCC_NgayLe::so( VHCC_NgayLe::he_so_chung( $cfg ) ) ) . '"></div>'
+			. '<div><button class="chinh">Lưu hệ số</button></div></form>';
+		echo '<p class="mo" style="margin:-8px 0 14px;font-size:12px">Gõ <b>2</b> là giờ ngày lễ '
+			. 'ăn gấp đôi giờ thường, <b>3</b> là gấp ba. Gõ <b>1</b> là tắt hẳn. Anh/chị tự đặt '
+			. 'theo cơ chế công ty — máy <b>không</b> đoán hộ con số này.</p>';
+
+		/* ---- danh sách ---- */
+		if ( $ds ) {
+			echo '<div class="cuon"><table class="b"><thead><tr><th>Ngày</th><th>Tên ngày</th>'
+				. '<th>Hệ số</th><th></th></tr></thead><tbody>';
+			foreach ( $ds as $x ) {
+				echo '<tr><td><b>' . esc_html( self::ngay_le_chu( $x ) ) . '</b></td>'
+					. '<td>' . esc_html( '' !== $x['ten'] ? $x['ten'] : '—' ) . '</td>'
+					. '<td>×' . esc_html( VHCC_NgayLe::so( $x['heSo'] ) )
+					. ( $x['rieng'] ? '' : ' <span class="mo">(theo hệ số chung)</span>' ) . '</td>'
+					. '<td><form method="post" style="display:inline">' . $an
+					. '<input type="hidden" name="viec" value="le_xoa">'
+					. '<input type="hidden" name="le_ngay" value="' . esc_attr( $x['ngay'] ) . '">'
+					. '<button class="phu">Xoá</button></form></td></tr>';
+			}
+			echo '</tbody></table></div>';
+		} else {
+			echo '<p class="mo" style="margin:0 0 10px">Lịch còn trống.</p>';
+		}
+
+		/* ---- thêm ngày ---- */
+		echo '<form method="post" class="hang" style="gap:8px;align-items:flex-end;margin:12px 0 0">'
+			. $an . '<input type="hidden" name="viec" value="le_them">'
+			. '<div><label for="le_ngay">Ngày</label>'
+			. '<input id="le_ngay" name="le_ngay" style="width:130px" placeholder="2-9" required></div>'
+			. '<div><label for="le_ten">Tên ngày</label>'
+			. '<input id="le_ten" name="le_ten" style="width:190px" placeholder="Quốc khánh" maxlength="60"></div>'
+			. '<div><label for="le_rieng">Hệ số riêng</label>'
+			. '<input id="le_rieng" name="le_rieng" style="width:90px" placeholder="theo chung"></div>'
+			. '<div><button class="chinh">Thêm ngày</button></div></form>';
+
+		/* ⚠️ VÍ DỤ PHẢI VIẾT ĐÚNG KIỂU NGƯỜI TA GÕ: ngày trước, tháng sau. Ví dụ sai ở đây là
+		   sai hàng loạt — ai cũng làm theo cái mẫu trên màn. */
+		echo '<p class="mo" style="margin:10px 0 0;font-size:12px">Gõ <b>ngày-tháng</b> thôi '
+			. '(<b>2-9</b>, <b>30-4</b>, <b>1-5</b>, <b>1-1</b>) thì năm nào cũng là lễ. Gõ đủ '
+			. 'cả năm <b>17/02/2027</b> thì chỉ đúng năm ấy — hợp cho Tết âm và ngày nghỉ bù. '
+			. 'Ô <b>Hệ số riêng</b> để trống là theo hệ số chung; điền vào khi một ngày trả khác '
+			. 'mọi ngày còn lại (Tết ×3 trong khi lễ thường ×2).</p>';
+		echo '<p class="mo" style="margin:8px 0 0;font-size:12px">⚠️ Phụ trội lễ tính theo '
+			. '<b>đơn giá việc chính</b> của từng người và hiện thành một khoản riêng trên bảng '
+			. 'lương. Máy biết hôm ấy người ta làm mấy giờ, <b>không</b> biết mấy giờ đó là việc '
+			. 'nào — không dữ liệu nào nói ra điều đó. <b>Người ăn lương tháng không có phụ '
+			. 'trội lễ</b>: lương của họ không có đơn giá giờ để nhân, muốn trả thêm thì gõ tay '
+			. 'một khoản cộng trên bảng lương.</p>';
+		echo '</details></div>';
+	}
+
+	/**
+	 * Một ngày lễ VIẾT RA CHO NGƯỜI ĐỌC — ngày trước, tháng sau.
+	 *
+	 * 🔴 KHO LƯU `MM-DD`, MÀN PHẢI ĐỌC NGƯỢC LẠI. Người ta gõ "2-9" (mùng 2 tháng 9), kho cất
+	 *    thành `09-02`, và bản trước in thẳng cái khoá ấy ra bảng. Họ nhìn thấy "09-02" ngay
+	 *    dưới ô mình vừa gõ "2-9" và kết luận máy hiểu nhầm — rồi đi sửa lại cho "đúng", tức
+	 *    là làm hỏng thật một dòng vốn đang đúng.
+	 */
+	private static function ngay_le_chu( $x ) {
+		$n = (string) $x['ngay'];
+		if ( $x['lap'] ) {
+			return (int) substr( $n, 3, 2 ) . '/' . (int) substr( $n, 0, 2 ) . ' — hằng năm';
+		}
+		return substr( $n, 8, 2 ) . '/' . substr( $n, 5, 2 ) . '/' . substr( $n, 0, 4 );
+	}
+
+	/**
+	 * BẢNG QUY ĐỔI GIỜ RA CÔNG — cho người ăn lương tháng.
+	 *
+	 * Anh Thắng 19/09/2026: *"nhân viên tính theo công tháng thì khi tích vào đó, nv sẽ quy đổi
+	 * theo 4 tiếng 1/2 công và 8h là 1 công (bổ sung bảng set)"*. Xem `VHCC_QuyCong`.
+	 */
+	private static function the_quy_cong( $ky, $toi ) {
+		if ( ! VHCC_Vai::duoc( $toi, VHCC_QuyCong::QUYEN ) ) { return; }
+		$bac = VHCC_QuyCong::bac();
+
+		echo '<div class="the"><details><summary><b>Quy đổi giờ làm ra số công</b> '
+			. '<span class="mo">— chung cả chuỗi · chỉ dùng cho người ăn lương tháng</span>'
+			. '</summary>';
+		echo '<p class="mo" style="margin:10px 0">Người <b>ăn lương tháng</b> tính bằng '
+			. '<b>Lương cơ bản × Số công thực ÷ Số công chuẩn</b>. Bảng này quyết định '
+			. '<b>một ngày làm mấy giờ thì được mấy công</b>.</p>';
+		echo '<div class="bao" style="margin:0 0 12px">Đang dùng: <b>'
+			. esc_html( VHCC_QuyCong::mo_ta( $bac ) ) . '</b>'
+			. ( VHCC_QuyCong::la_mac_dinh() ? ' <span class="mo">(mặc định, chưa ai đổi)</span>' : '' )
+			. '</div>';
+
+		echo '<form method="post">'
+			. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+			. '<input type="hidden" name="man" value="cau_hinh">'
+			. '<input type="hidden" name="viec" value="qc_dat">';
+		echo '<div class="cuon"><table class="b"><thead><tr><th>Làm từ (giờ)</th>'
+			. '<th>thì được (công)</th></tr></thead><tbody>';
+		for ( $i = 0; $i < VHCC_QuyCong::SO_BAC_TOI_DA; $i++ ) {
+			$g = isset( $bac[ $i ] ) ? VHCC_QuyCong::so( $bac[ $i ]['gio'] ) : '';
+			$c = isset( $bac[ $i ] ) ? VHCC_QuyCong::so( $bac[ $i ]['cong'] ) : '';
+			echo '<tr><td><input name="qc_gio[]" style="width:90px" value="' . esc_attr( $g ) . '"></td>'
+				. '<td><input name="qc_cong[]" style="width:90px" value="' . esc_attr( $c ) . '"></td></tr>';
+		}
+		echo '</tbody></table></div>';
+		echo '<div class="hang" style="gap:8px;margin-top:10px"><button class="chinh">Lưu bảng'
+			. '</button></div></form>';
+		echo '<form method="post" style="margin-top:8px">'
+			. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+			. '<input type="hidden" name="man" value="cau_hinh">'
+			. '<input type="hidden" name="viec" value="qc_mac_dinh">'
+			. '<button class="phu">Về mặc định (8h = 1 công · 4h = 0,5 công)</button></form>';
+
+		echo '<p class="mo" style="margin:12px 0 0;font-size:12px">Máy đọc bảng <b>từ bậc cao '
+			. 'xuống</b> và dừng ở bậc đầu tiên đủ giờ. <b>Làm dư không thành công lẻ</b>: 12 giờ '
+			. 'vẫn là 1 công, không phải 1,5 — giờ làm thêm là chuyện của khoản cộng, không phải '
+			. 'của mẫu số lương tháng. Ngày làm ít hơn bậc thấp nhất thì <b>0 công</b>. '
+			. 'Muốn bỏ một bậc thì xoá trống <b>cả hai ô</b> của dòng ấy.</p>';
+		echo '<p class="mo" style="margin:8px 0 0;font-size:12px">⚠️ Đổi bảng này là '
+			. '<b>đổi lương của mọi người ăn lương tháng</b>, ở mọi cơ sở, kể cả mấy tháng đã '
+			. 'xem xong — bảng lương tính lại mỗi lần mở. Người tính theo giờ <b>không</b> đi '
+			. 'qua bảng này.</p>';
+		echo '</details></div>';
+	}
+
 	private static function the_loai_gio( $ky, $toi, $cs ) {
 		if ( ! VHCC_Vai::duoc( $toi, VHCC_LoaiGio::QUYEN_CFG ) ) { return; }
 		$cs = VHCC_NhanSu::chuan_coso( $cs );
@@ -11035,6 +11255,12 @@ class VHCC_Web {
 		   cửa hàng mới là việc của người quản trị chuỗi, còn chỉnh khung ca là việc của người
 		   tính lương — mà trước đó chúng nằm chen nhau trên một màn dài. */
 		self::the_cach_tinh( $ky, $toi );
+		/* Hai khối CHUNG CẢ CHUỖI, không phụ thuộc ô chọn cơ sở ở trên — nên đứng ngay đây,
+		   trước mấy khối của một cơ sở. Anh Thắng 18/09/2026 chọn *"Chung cả chuỗi"* cho lịch
+		   nghỉ lễ; bảng quy đổi giờ ra công cũng là một quy ước của công ty, không phải của
+		   từng cửa hàng. */
+		self::the_ngay_le( $ky, $toi );
+		self::the_quy_cong( $ky, $toi );
 		self::the_thieu_khai( $ky, $toi, $cs );
 		self::the_gia_gio( $ky, $toi, $cs );
 		/* Công tắc "nhân viên tự khai loại giờ" — đứng ngay dưới bảng đơn giá vì danh sách

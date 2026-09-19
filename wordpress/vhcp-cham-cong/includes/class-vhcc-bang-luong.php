@@ -98,6 +98,22 @@ class VHCC_BangLuong {
 
 		$hs_ds = self::ho_so_cua( $coso );
 		$so_gia = VHCC_GiaGio::so();
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * LỊCH NGHỈ LỄ — ĐỌC MỘT LẦN CHO CẢ BẢNG.
+		 *
+		 * Anh Thắng 18/09/2026: *"chỗ set lịch lương lễ và ngày lễ, ngày đó x2 hay x3"*, và anh
+		 * chọn hệ số TỰ SET, danh sách CHUNG CẢ CHUỖI. Xem `VHCC_NgayLe`.
+		 *
+		 * ⚠️ Chưa khai ngày nào (hoặc hệ số vẫn là 1) thì `dang_chay()` trả `false` và cả nhánh
+		 *    này đứng im — mọi cơ sở đang chạy không đổi một đồng nào sau khi cài bản này.
+		 * ⚠️ Gác `class_exists` cùng hàm với lời gọi — luật của `kiem-goi-cheo.php`.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$le_cfg = null;
+		if ( class_exists( 'VHCC_NgayLe' ) && method_exists( 'VHCC_NgayLe', 'cfg' )
+			&& method_exists( 'VHCC_NgayLe', 'dang_chay' ) && method_exists( 'VHCC_NgayLe', 'he_so_cua' ) ) {
+			$c_le = VHCC_NgayLe::cfg();
+			if ( VHCC_NgayLe::dang_chay( $c_le ) ) { $le_cfg = $c_le; }
+		}
 
 		/* ═══════════════════════════════════════════════════════════════════════════════════
 		 * GIỜ THEO LOẠI DO CHÍNH NHÂN VIÊN KHAI (`VHCC_LoaiGio`) — nếu cơ sở có bật.
@@ -136,6 +152,7 @@ class VHCC_BangLuong {
 			$key = strtolower( $ma );
 			if ( ! isset( $gom[ $key ] ) ) {
 				$gom[ $key ] = array( 'ma' => $ma, 'phut' => 0.0, 'ngay' => array(),
+					'phutLe' => array(), 'phutNgay' => array(),
 					'ten' => trim( (string) $r['ho_ten'] ) );
 			}
 			$v = $r['gio_vao_giay'];
@@ -169,10 +186,32 @@ class VHCC_BangLuong {
 			 * ═══════════════════════════════════════════════════════════════════════════════ */
 			/* ⚠️ CA GÃY — khoảng nghỉ giữa ca đi kèm, `phut_ca()` trừ nó bên trong. Đây là con số
 			   NHÂN VỚI ĐƠN GIÁ, nên quên ở đây là trả dư tiền thật cho mấy giờ người ta về nhà. */
-			$gom[ $key ]['phut'] += VHCC_Luong::phut_ca( intdiv( (int) $v, 60 ), intdiv( (int) $x, 60 ),
+			$p_ca = VHCC_Luong::phut_ca( intdiv( (int) $v, 60 ), intdiv( (int) $x, 60 ),
 				isset( $r['nghi_tu_giay'] ) ? $r['nghi_tu_giay'] : null,
 				isset( $r['nghi_den_giay'] ) ? $r['nghi_den_giay'] : null );
+			$gom[ $key ]['phut'] += $p_ca;
 			$gom[ $key ]['ngay'][ $r['ngay'] ] = true;
+			/* Phút của TỪNG NGÀY — mẫu số lương tháng quy đổi theo bậc giờ, và phải quy đổi
+			   trên từng ngày một. Xem `VHCC_QuyCong::cong_cua_thang()`. */
+			$nd = (string) $r['ngay'];
+			$gom[ $key ]['phutNgay'][ $nd ] = ( isset( $gom[ $key ]['phutNgay'][ $nd ] )
+				? $gom[ $key ]['phutNgay'][ $nd ] : 0.0 ) + $p_ca;
+
+			/* 🔴 PHÚT CỦA NGÀY LỄ ĐỂ RIÊNG, GOM THEO HỆ SỐ — và VẪN NẰM TRONG `phut`.
+			   Giờ lễ không phải một loại giờ khác: nó vẫn là giờ làm của người ấy, vẫn vào giờ
+			   tổng, vẫn trừ ra giờ khác như mọi giờ. Chỗ khác duy nhất là nó được trả THÊM. Tách
+			   hẳn ra khỏi `phut` là giờ tổng tụt xuống, và mọi con số đối chiếu với bảng công
+			   lệch theo — sai ở chỗ không ai ngờ tới.
+			   Gom theo hệ số vì hai ngày lễ có thể khai hai hệ số khác nhau (Tết x3, Quốc khánh
+			   x2); cộng chung rồi nhân một lần là trả sai cả hai. */
+			if ( null !== $le_cfg && $p_ca > 0 ) {
+				$hs_le = VHCC_NgayLe::he_so_cua( (string) $r['ngay'], $le_cfg );
+				if ( $hs_le > 1.0 ) {
+					$kh = (string) $hs_le;
+					$gom[ $key ]['phutLe'][ $kh ] = ( isset( $gom[ $key ]['phutLe'][ $kh ] )
+						? $gom[ $key ]['phutLe'][ $kh ] : 0.0 ) + $p_ca;
+				}
+			}
 		}
 
 		/* Số công chuẩn của tháng — cho lối TÍNH THEO THÁNG. Chưa khai thì KHÔNG đoán. */
@@ -181,6 +220,11 @@ class VHCC_BangLuong {
 			? (float) $cfg['ngayCongThang'] : 0.0;
 
 		$so_khac = VHCC_ChotLuong::so();
+		/* Bảng quy đổi giờ → công, đọc MỘT LẦN cho cả bảng lương. Chỉ người ăn lương tháng đi
+		   qua nó; xem khối chú thích ở chỗ tính `$cong_thuc` bên dưới.
+		   ⚠️ Gác `class_exists` cùng hàm với lời gọi — luật của `kiem-goi-cheo.php`. */
+		$bac_cong = ( class_exists( 'VHCC_QuyCong' ) && method_exists( 'VHCC_QuyCong', 'bac' )
+			&& method_exists( 'VHCC_QuyCong', 'cong_cua_thang' ) ) ? VHCC_QuyCong::bac() : null;
 		$dong = array();
 		$vuot  = 0;
 		foreach ( $gom as $g ) {
@@ -191,7 +235,33 @@ class VHCC_BangLuong {
 			$ten = ( '' !== trim( (string) ( isset( $hs['ho_ten'] ) ? $hs['ho_ten'] : '' ) ) )
 				? trim( (string) $hs['ho_ten'] ) : $g['ten'];
 			$cccd = trim( (string) ( isset( $hs['cccd'] ) ? $hs['cccd'] : '' ) );
-			$cong_thuc = count( $g['ngay'] );
+			$so_ngay = count( $g['ngay'] );
+
+			/* ═══════════════════════════════════════════════════════════════════════════════
+			 * 🔴 SỐ CÔNG THỰC CỦA NGƯỜI ĂN LƯƠNG THÁNG: QUY ĐỔI TỪ GIỜ, KHÔNG ĐẾM ĐẦU NGÀY
+			 * ═══════════════════════════════════════════════════════════════════════════════
+			 * Anh Thắng 19/09/2026: *"nhân viên tính theo công tháng thì khi tích vào đó, nv sẽ
+			 * quy đổi theo 4 tiếng 1/2 công và 8h là 1 công (bổ sung bảng set)"*.
+			 *
+			 * Lối cũ đếm SỐ NGÀY CÓ CHẤM, không nhìn ngày ấy làm mấy giờ: tạt vào hai tiếng rồi
+			 * về cũng trọn một công, y như người làm mười hai tiếng. Với người ăn lương tháng
+			 * thì đó là sai tiền theo cả hai chiều — và bảng vẫn đầy số nên không ai kêu.
+			 *
+			 * ⚠️ NGÀY THIẾU MỘT ĐẦU GIỜ NAY RA 0 CÔNG, khác lối cũ (nó đếm trọn một ngày).
+			 *    Không có giờ ra thì không biết ca dài bao lâu, mà đây là MẪU SỐ của lương —
+			 *    đoán trọn một công là trả tiền cho một ngày chưa ai xác nhận. Mấy ngày ấy đã
+			 *    được đếm riêng trong `thieuGio` và màn bảng lương nói ra; sửa lượt chấm hoặc
+			 *    duyệt đơn bù là nó vào lại ngay.
+			 * ⚠️ Chỉ chạm tới người ăn lương tháng. Người tính theo giờ vẫn lấy giờ nhân đơn
+			 *    giá, không đi qua bảng bậc một bước nào.
+			 * ═══════════════════════════════════════════════════════════════════════════════ */
+			$gio_ngay = array();
+			foreach ( ( isset( $g['phutNgay'] ) ? $g['phutNgay'] : array() ) as $n_x => $p_x ) {
+				$gio_ngay[ $n_x ] = round( $p_x / 60, 2 );
+			}
+			$cong_thuc = ( null !== $bac_cong )
+				? VHCC_QuyCong::cong_cua_thang( $gio_ngay, $bac_cong )
+				: $so_ngay;
 
 			/* 🔴 GIỜ TỔNG LÀ GIỜ CHÍNH, TRỪ ĐI MẤY DÒNG ĂN GIÁ KHÁC.
 			   Luật của anh Thắng 16/09/2026: kế toán chỉ gõ NGOẠI LỆ (MC 2h, Hỗ Trợ 6h…), phần
@@ -265,7 +335,7 @@ class VHCC_BangLuong {
 
 			$theo_thang = ( $lcb > 0 );
 			$mot = function ( $cv, $gio, $la_chinh ) use ( $coso, $g, $so_gia, $ten, $cccd,
-				$theo_thang, $lcb, $cong_yc_ng, $cong_thuc, $gio_tong, $gio_khac ) {
+				$theo_thang, $lcb, $cong_yc_ng, $cong_thuc, $so_ngay, $gio_tong, $gio_khac ) {
 				$cong_yc = $cong_yc_ng;
 				$gia = VHCC_GiaGio::tra( $coso, $cv, $g['ma'], $so_gia );
 				$luong = null;
@@ -288,7 +358,10 @@ class VHCC_BangLuong {
 					'gia'   => ( $la_chinh && $theo_thang ) ? null : ( $gia['gia'] > 0 ? $gia['gia'] : null ),
 					'giaTu' => $gia['tu'],
 					'luongChinh' => $luong,
-					'soNgay' => $cong_thuc,
+					/* 🔴 `soNgay` LÀ SỐ NGÀY CÓ CHẤM, KHÔNG PHẢI SỐ CÔNG QUY ĐỔI. Hai con số
+					   nay khác nhau (25 ngày có thể ra 23,5 công). Trộn chúng là cột "số ngày
+					   làm" trên tờ nộp bỗng hiện số lẻ, và không ai hiểu vì sao. */
+					'soNgay' => $so_ngay,
 					'gioTong' => $gio_tong,
 					'gioKhac' => $gio_khac,
 					/* Dòng giờ khác KHÔNG mang khoản tiền nào — xem chú thích ở dòng chính. */
@@ -309,6 +382,48 @@ class VHCC_BangLuong {
 			$d_chinh = $mot( '' !== $vc_chon ? $vc_chon : self::chuc_vu_chinh( $hs ),
 				$gio_chinh, true );
 			$d_chinh['thieuGio'] = isset( $g['thieuGio'] ) ? (int) $g['thieuGio'] : 0;
+
+			/* ═══════════════════════════════════════════════════════════════════════════════
+			 * PHỤ TRỘI NGÀY LỄ — CỘNG PHẦN CHÊNH, KHÔNG TÍNH LẠI TỪ ĐẦU
+			 * ═══════════════════════════════════════════════════════════════════════════════
+			 * Giờ lễ đã được trả một lần rồi, ở trong `gio_chinh × đơn giá` như mọi giờ khác.
+			 * Nên ở đây chỉ cộng PHẦN CÒN THIẾU: `giờ lễ × đơn giá × (hệ số − 1)`. Tính lại
+			 * trọn gói `giờ lễ × đơn giá × hệ số` là trả hai lần cho cùng mấy giờ ấy.
+			 *
+			 * ⚠️ ĐI VÀO `luongChinh`, KHÔNG chen vào mảng `cong`. Mảng ấy là mấy ô tiền KẾ TOÁN
+			 *    GÕ (`VHCC_ChotLuong::CONG`), mỗi ô ứng một cột cố định của tờ nộp; nhét một
+			 *    khoản máy tự tính vào đó là kế toán mở ra thấy một con số mình không gõ, sửa
+			 *    đi, lưu, và tháng sau nó quay lại.
+			 *
+			 * ⚠️ NGƯỜI ĂN LƯƠNG THÁNG THÌ KHÔNG. Lương của họ là `lcb × công thực / công chuẩn`
+			 *    — không có đơn giá giờ nào để nhân, và một ngày lễ đã nằm sẵn trong tháng
+			 *    lương ấy. Dựng ra một đơn giá giờ cho họ là bịa. Ai muốn trả thêm thì gõ tay
+			 *    một khoản cộng, đúng cửa của nó.
+			 *
+			 * ⚠️ TÍNH THEO ĐƠN GIÁ CỦA DÒNG CHÍNH. Máy chỉ biết người ấy làm mấy giờ ngày nào,
+			 *    KHÔNG biết mấy giờ hôm mùng 2 là giờ MC hay giờ Hỗ Trợ — không dữ liệu nào nói
+			 *    ra điều đó. Nên phụ trội tính theo giá việc chính, và màn nói rõ như vậy.
+			 * ═══════════════════════════════════════════════════════════════════════════════ */
+			$d_chinh['gioLe']     = 0.0;
+			$d_chinh['phuTroiLe'] = 0.0;
+			$d_chinh['leTheo']    = array();
+			if ( ! empty( $g['phutLe'] ) && 'gio' === $d_chinh['cheDo']
+				&& null !== $d_chinh['gia'] && $d_chinh['gia'] > 0 ) {
+				$them = 0.0;
+				foreach ( $g['phutLe'] as $hs_k => $p_le ) {
+					$h  = (float) $hs_k;
+					$gl = round( $p_le / 60, 2 );
+					$t  = round( $gl * (float) $d_chinh['gia'] * ( $h - 1.0 ), 2 );
+					$d_chinh['gioLe'] += $gl;
+					$d_chinh['leTheo'][] = array( 'heSo' => $h, 'gio' => $gl, 'tien' => $t );
+					$them += $t;
+				}
+				$d_chinh['gioLe']     = round( $d_chinh['gioLe'], 2 );
+				$d_chinh['phuTroiLe'] = round( $them, 2 );
+				if ( null !== $d_chinh['luongChinh'] ) {
+					$d_chinh['luongChinh'] = round( (float) $d_chinh['luongChinh'] + $them, 2 );
+				}
+			}
 			/* 🔴 KHOẢN CỘNG / TRỪ GẮN VÀO DÒNG CHÍNH, KHÔNG RẢI RA MỌI DÒNG.
 			   Một người có thể ra ba dòng (chính + MC + Hỗ Trợ) nhưng cái cọc 200.000 chỉ trừ
 			   MỘT LẦN. Rải ra mỗi dòng là trừ ba lần — và bảng vẫn có số nên không ai thấy. */
@@ -322,6 +437,10 @@ class VHCC_BangLuong {
 			foreach ( $khac as $k ) {
 				$d_k = $mot( (string) $k['viec'], round( (float) $k['gio'], 2 ), false );
 				$d_k['thieuGio'] = 0;
+				/* Phụ trội lễ gắn TRỌN VÀO DÒNG CHÍNH — cùng lý do với khoản cộng/trừ: một
+				   người ra ba dòng nhưng mấy giờ lễ ấy chỉ được trả thêm một lần. Mấy khoá này
+				   vẫn có mặt, để nơi đọc khỏi phải `isset` từng dòng. */
+				$d_k['gioLe'] = 0.0; $d_k['phuTroiLe'] = 0.0; $d_k['leTheo'] = array();
 				$dong[] = $d_k;
 			}
 		}
