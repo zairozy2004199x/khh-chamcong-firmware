@@ -2774,7 +2774,13 @@
     if(!(CUR&&CUR.don)) return;
     if(!_laAdmin()){ toast('warn','Chỉ Admin đổi cơ sở của đơn được'); return; }
     var m=CUR.don.maDon;
-    var dsCu=(CUR.cosoTrongDon||[]);
+    /* ⚠️ `CUR.don.…`, KHÔNG PHẢI `CUR.cosoTrongDon`. Gói `getDon` trả về có hai tầng: `CUR` là
+       cả gói (đơn · dòng chi · đối chiếu…), còn các ô của chính cái đơn nằm trong `CUR.don` —
+       xem `CUR.don.cosoDon` ngay cạnh. Bản đầu của nút này đọc thiếu một tầng nên `dsCu` luôn
+       rỗng, và nút báo "Đơn này chưa có dòng nào mang cơ sở" ĐÚNG TRÊN CÁI ĐƠN đang hiện rõ
+       cơ sở FZ_SC_VIVO_T4 và 6.136.000đ tạm ứng. Đọc hụt một tầng thì `undefined||[]` ra mảng
+       rỗng — không lỗi, không cảnh báo, chỉ là một câu chối vô lý. */
+    var dsCu=((CUR.don&&CUR.don.cosoTrongDon)||[]);
     if(!dsCu.length){ toast('warn','Đơn này chưa có dòng nào mang cơ sở'); return; }
     var cu=dsCu[0];
     if(dsCu.length>1){
