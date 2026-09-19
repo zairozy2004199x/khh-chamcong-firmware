@@ -3630,9 +3630,16 @@ class VHCC_NhanSu {
 		}
 		$trung = self::ho_so_theo_cccd( $cccd );
 		if ( $trung ) {
+			/* Nói rõ trùng Ở ĐÂU. Hồ sơ lấy chính số căn cước làm mã NV trông không giống một
+			   hồ sơ "có căn cước", nên báo trống không là cửa hàng trưởng mở sổ ra dò cột CCCD,
+			   không thấy gì, rồi kết luận hệ báo nhầm. */
+			$o_dau = ( isset( $trung['khop'] ) && 'ma' === $trung['khop'] )
+				? ' — hồ sơ ấy lấy CHÍNH số căn cước làm mã NV (kéo về từ máy chấm công hoặc nạp '
+					. 'từ tệp), nên cột Căn cước của nó đang trống'
+				: '';
 			return array( 'ok' => false, 'error' => 'Số căn cước này đã có hồ sơ: '
-				. $trung['ho_ten'] . ' (' . $trung['ma_nv'] . ', cơ sở ' . $trung['cua_hang'] . '). '
-				. 'Người làm ở hai cơ sở thì khai thêm vào ô "Cơ sở phụ" của hồ sơ ấy, '
+				. $trung['ho_ten'] . ' (' . $trung['ma_nv'] . ', cơ sở ' . $trung['cua_hang'] . ')'
+				. $o_dau . '. Người làm ở hai cơ sở thì khai thêm vào ô "Cơ sở phụ" của hồ sơ ấy, '
 				. 'đừng mở hồ sơ thứ hai — bảng lương sẽ tính người đó hai lần.' );
 		}
 
@@ -3905,12 +3912,48 @@ class VHCC_NhanSu {
 	}
 
 	/** Hồ sơ mang số căn cước này — null là chưa ai. So bằng CHỮ SỐ, bỏ mọi dấu cách / gạch. */
+	/**
+	 * HỒ SƠ NÀO ĐANG MANG SỐ CĂN CƯỚC NÀY. null = chưa ai.
+	 *
+	 * =========================================================================================
+	 * 🔴 SỐ CĂN CƯỚC NẰM Ở HAI CHỖ, KHÔNG PHẢI MỘT
+	 * =========================================================================================
+	 * Anh Thắng 19/09/2026 gửi ảnh PINPALL_HCM: một người có HAI hồ sơ, một mang mã tạm kiểu
+	 * `TAM-…-001`, một mang CHÍNH SỐ CĂN CƯỚC LÀM MÃ NV. Chốt chống trùng ở
+	 * `them_nv_cua_hang()` đã có từ lâu và vẫn chạy — nó chỉ không nhìn thấy hồ sơ thứ hai.
+	 *
+	 * Vì hai đường tạo hồ sơ đặt số ấy vào hai cột khác nhau:
+	 *   · cửa hàng trưởng thêm người  → số vào cột `cccd`, mã NV là mã tạm;
+	 *   · kéo từ máy chấm công / nạp .csv → số thành luôn MÃ NV, cột `cccd` thường để trống.
+	 * Dò mỗi cột `cccd` thì đường thứ hai vô hình, và cửa hàng trưởng gõ đúng số ấy vào vẫn
+	 * được cho tạo — ra hồ sơ thứ hai, rồi bảng lương tính người đó hai lần.
+	 *
+	 * ⚠️ CHỈ COI `ma_nv` LÀ CĂN CƯỚC KHI CẢ MÃ LÀ 9–12 CHỮ SỐ. Đừng bóc chữ số ra khỏi mã:
+	 *    `TAM-PINPALLH-001` bóc ra thành `001`, so kiểu ấy là báo trùng bừa.
+	 *
+	 * @return array|null Kèm `khop` = 'cccd' | 'ma' để câu báo nói đúng nó trùng ở đâu.
+	 */
 	public static function ho_so_theo_cccd( $cccd ) {
 		$so = preg_replace( '/\D+/', '', (string) $cccd );
 		if ( '' === $so ) { return null; }
-		foreach ( (array) VHCC_DB::rows( 'SELECT ma_nv, ho_ten, cua_hang, cccd FROM '
-			. VHCC_DB::t( 'nhan_vien' ) . " WHERE TRIM(cccd) <> ''" ) as $r ) {
-			if ( preg_replace( '/\D+/', '', (string) $r['cccd'] ) === $so ) { return $r; }
+		$ds = (array) VHCC_DB::rows( 'SELECT ma_nv, ho_ten, cua_hang, cccd FROM '
+			. VHCC_DB::t( 'nhan_vien' ) );
+
+		/* Cột `cccd` xét TRƯỚC — nó là chỗ khai có chủ ý, đáng tin hơn cái mã. */
+		foreach ( $ds as $r ) {
+			if ( '' === trim( (string) $r['cccd'] ) ) { continue; }
+			if ( preg_replace( '/\D+/', '', (string) $r['cccd'] ) === $so ) {
+				$r['khop'] = 'cccd';
+				return $r;
+			}
+		}
+		foreach ( $ds as $r ) {
+			$ma = trim( (string) $r['ma_nv'] );
+			if ( ! ctype_digit( $ma ) || strlen( $ma ) < 9 || strlen( $ma ) > 12 ) { continue; }
+			if ( $ma === $so ) {
+				$r['khop'] = 'ma';
+				return $r;
+			}
 		}
 		return null;
 	}

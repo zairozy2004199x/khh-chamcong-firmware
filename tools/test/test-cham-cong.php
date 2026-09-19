@@ -16328,6 +16328,56 @@ $wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'cccd' => '0123-4567-8905' ),
 $r_tn4b = VHCC_NhanSu::them_nv_cua_hang( $U_TN, array( 'ho_ten' => 'Người Nữa',
 	'cccd' => '012345678905' ) );
 t( '🔴 sổ lưu kèm gạch nối vẫn nhận ra là trùng', empty( $r_tn4b['ok'] ), $r_tn4b );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 SỐ CĂN CƯỚC NẰM Ở HAI CHỖ — anh Thắng 19/09/2026
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * Ảnh PINPALL_HCM: một người có HAI hồ sơ, một mang mã tạm `TAM-…-001`, một mang CHÍNH số căn
+ * cước làm MÃ NV. Chốt chống trùng vẫn chạy — nó chỉ không nhìn thấy hồ sơ thứ hai, vì hai
+ * đường tạo hồ sơ đặt số ấy vào hai cột khác nhau: cửa hàng trưởng thêm người thì số vào cột
+ * `cccd`, còn kéo từ máy chấm công / nạp .csv thì số thành luôn mã NV và cột `cccd` để trống.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array(
+	'ma_nv' => '000000000000', 'ho_ten' => 'Người Kéo Từ Máy', 'cua_hang' => 'TUTU_BT',
+	'cccd' => '', 'vai_tro' => 'Nhân viên', 'trang_thai_lam_viec' => 'Đang làm' ) );
+
+$tra_ma = VHCC_NhanSu::ho_so_theo_cccd( '000000000000' );
+t( '🔴 tra ra được hồ sơ lấy CHÍNH căn cước làm mã NV', is_array( $tra_ma ), $tra_ma );
+teq( '   và nói rõ nó trùng ở CỘT MÃ', 'ma', isset( $tra_ma['khop'] ) ? $tra_ma['khop'] : null );
+
+$r_tn4c = VHCC_NhanSu::them_nv_cua_hang( $U_TN, array( 'ho_ten' => 'Người Trùng Mã',
+	'cccd' => '000000000000' ) );
+t( '🔴 gõ đúng số ấy vào ô Căn cước thì CHỐI — đây là lỗ đã đẻ ra hai hồ sơ',
+	empty( $r_tn4c['ok'] ), $r_tn4c );
+t( '   và chỉ đúng tên người đang giữ số ấy',
+	isset( $r_tn4c['error'] ) && strpos( $r_tn4c['error'], 'Người Kéo Từ Máy' ) !== false, $r_tn4c );
+t( '   kèm lời giải thích vì sao cột Căn cước của hồ sơ ấy trống',
+	isset( $r_tn4c['error'] ) && strpos( $r_tn4c['error'], 'làm mã NV' ) !== false, $r_tn4c );
+
+/* 🔴 ĐỪNG BÓC CHỮ SỐ RA KHỎI MÃ. `TAM-PINPALLH-001` bóc ra là `001`; so kiểu ấy là báo trùng
+   bừa cho bất kỳ ai có căn cước kết thúc bằng mấy số đó. Chỉ coi mã LÀ căn cước khi cả mã là
+   9–12 chữ số. */
+t( '🔴 mã tạm kiểu TAM-…-001 KHÔNG bị coi là căn cước',
+	null === VHCC_NhanSu::ho_so_theo_cccd( '001' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array(
+	'ma_nv' => 'TAM-TNSHOP-007', 'ho_ten' => 'Người Mã Tạm', 'cua_hang' => 'TUTU_BT',
+	'cccd' => '', 'vai_tro' => 'Nhân viên', 'trang_thai_lam_viec' => 'Đang làm' ) );
+t( '   và mã ngắn có chữ số cũng không',
+	null === VHCC_NhanSu::ho_so_theo_cccd( '007' ) );
+
+/* Cột `cccd` phải THẮNG cột mã khi cả hai cùng khớp — nó là chỗ khai có chủ ý. */
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'cccd' => '000000000001' ),
+	array( 'ma_nv' => 'TAM-TNSHOP-007' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array(
+	'ma_nv' => '000000000001', 'ho_ten' => 'Hồ Sơ Máy', 'cua_hang' => 'TUTU_BT',
+	'cccd' => '', 'vai_tro' => 'Nhân viên', 'trang_thai_lam_viec' => 'Đang làm' ) );
+$tra_uu = VHCC_NhanSu::ho_so_theo_cccd( '000000000001' );
+teq( '🔴 cột Căn cước thắng cột Mã khi cả hai cùng khớp', 'cccd',
+	isset( $tra_uu['khop'] ) ? $tra_uu['khop'] : null );
+teq( '   nên trả về đúng hồ sơ có khai căn cước', 'TAM-TNSHOP-007', $tra_uu['ma_nv'] );
+
+$wpdb->query( "DELETE FROM " . VHCC_DB::t( 'nhan_vien' )
+	. " WHERE ma_nv IN ('000000000000','000000000001','TAM-TNSHOP-007')" );
 $wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'cccd' => '012345678901' ),
 	array( 'ma_nv' => $r_tn['ma_nv'] ) );
 
