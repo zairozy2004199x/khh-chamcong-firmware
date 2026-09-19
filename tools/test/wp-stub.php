@@ -114,6 +114,16 @@ unset( $_cu );
 define( 'ABSPATH', $GLOBALS['VHCP_TMP'] . '/' );
 define( 'ARRAY_A', 'ARRAY_A' );
 
+/* Hằng thời gian của WordPress. Mã trong kho dùng chúng như thứ luôn có (vì trong WordPress
+   thật thì có), nên thiếu ở đây là bài thử nổ ngay dòng đầu — mà nổ vì BỆ ĐỠ thiếu, không phải
+   vì mã sai. */
+define( 'MINUTE_IN_SECONDS', 60 );
+define( 'HOUR_IN_SECONDS', 3600 );
+define( 'DAY_IN_SECONDS', 86400 );
+define( 'WEEK_IN_SECONDS', 604800 );
+define( 'MONTH_IN_SECONDS', 2592000 );
+define( 'YEAR_IN_SECONDS', 31536000 );
+
 $GLOBALS['VHCP_OPT'] = array();
 $GLOBALS['VHCP_TR']  = array();
 

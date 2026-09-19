@@ -97,6 +97,35 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.45.0 =
+* **NHẬN BÁO CÁO QUA HỘP THƯ.** FABi gửi báo cáo kèm tệp đính kèm về một hộp thư riêng, web tự
+  vào lấy theo giờ (mặc định 2 tiếng, chỉnh được 1–24) rồi nạp vào kho. Màn cấu hình nằm trong
+  tab **Quản trị**, kèm nút **"Lấy thư ngay"** và **nhật ký 50 lượt gần nhất**.
+* Tệp lấy về đi qua **đúng bộ đọc mà đường nạp tay vẫn dùng** — `khh_dt_nap_tep()` được tách ra
+  để cả hai đường dùng chung. Chép luật đọc file ra bản thứ hai là sớm muộn hai bên lệch nhau,
+  mà lệch kiểu ấy im thin thít: file nạp vào, không báo lỗi, chỉ là đọc sai kiểu.
+* Nhận đủ 5 loại: báo cáo bán hàng FABi, sao kê ngân hàng, MoMo trên POS, sao kê MoMo, Bes.
+* 🔴 **Bỏ trống ô "Chỉ nhận thư từ" là chối hết** — cố ý. Hộp thư nào cũng nhận thư rác, mà một
+  tệp .csv của người lạ đi thẳng vào kho doanh thu thì không ai nhìn ra ngay. Khớp được cả một
+  tên miền (`@fabi.vn`), và `@fabi.vn` **không** khớp `fabi.vn.ke-gian.com`.
+* Đuôi tệp vẫn gác y như đường nạp tay (.xlsx/.csv/.tsv/.txt), thêm ô **mẫu tên tệp**.
+* **Không nạp trùng**: nhớ Message-ID của 300 thư gần nhất. Thư của người lạ **không** bị đánh
+  dấu đã đọc — hệ không được lặng lẽ giấu thư trong hộp thư của người khác.
+* 🔴 **Màn hình cảnh báo nếu quá hạn mà chưa chạy.** Lịch của WordPress chỉ chạy khi có người mở
+  trang; ban đêm không ai vào là cả đêm không lấy thư mà màn hình vẫn trông bình thường. Màn
+  cấu hình in sẵn đường dẫn `wp-cron.php` để dán vào Cron Jobs bên hosting.
+* **Không dùng phần mở rộng `imap` của PHP** — từ PHP 8.4 nó đã bị tách khỏi bản gốc nên có thể
+  biến mất sau một lượt nâng cấp PHP của hosting. Nói IMAP thẳng bằng socket + TLS.
+* **Mật khẩu hộp thư không bao giờ đi ngược ra trình duyệt**, và nên đặt bằng
+  `define( 'KHH_DT_MAIL_PASS', '…' )` trong `wp-config.php` để nó không nằm trong cơ sở dữ liệu.
+  Lời báo đăng nhập hỏng cũng không in lại phản hồi máy chủ — có máy chủ nhắc lại cả dòng lệnh,
+  mà dòng ấy có mật khẩu.
+* 🔴 **Sửa luôn một lỗi cũ**: đường nạp file một lượt (`POST /nap`) tính ra `loai` rồi bỏ đấy,
+  luôn đọc như báo cáo FABi — tải file MoMo hay sao kê qua đường ấy là đọc sai kiểu mà không
+  báo. Nay cả hai đường cùng đi qua `khh_dt_nap_tep()`.
+* Bài kiểm mới `tools/test/kiem-hop-thu.php` — **46 phép**, phần IMAP diễn lại nguyên lượt đối
+  đáp trên một **cặp socket thật**, gồm cả phản hồi có literal (chỗ dễ sai nhất).
+
 = 1.44.0 =
 * 🔴 **Sửa ngày không còn làm màn chớp trắng rồi nhảy về đầu trang.** `<input type="date">` bắn
   sự kiện *ngay giữa lúc gõ*: xoá một ô để sửa là giá trị thành rỗng và hệ đi hỏi máy chủ một

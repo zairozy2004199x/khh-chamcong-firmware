@@ -2112,9 +2112,187 @@
       veQuanTri(o, kq[0]);
       veGhep(o, kq[1]);
       veSaoKe(o, kq[2]);
+      /* Hộp thư xin riêng, và KHÔNG được làm hỏng cả tab nếu hỏng: cấu hình hộp thư chỉ quản
+         trị viên mới đọc được, nên người dùng thường sẽ nhận 403 ở đây. Gộp vào `Promise.all`
+         ở trên là một cái 403 làm trắng cả tab Quản trị của họ. */
+      api('hop-thu').then(function (r) { veHopThu(o, r); }).catch(function () {});
     }).catch(function (e) {
       o.innerHTML = '<div class="khung"><div class="trong">' + esc(e.message || e) + '</div></div>';
     });
+  }
+
+  /* ---- NHẬN BÁO CÁO QUA HỘP THƯ ----
+     Anh Thắng 19/09/2026: *"đẩy dữ liệu fabi về mail hosting, xong web sẽ đọc mail lấy file đó,
+     định kì 2 tiếng lần (có thể chỉnh được)"*. */
+  var THU_LOAI = [
+    ['pos', 'Báo cáo bán hàng FABi'],
+    ['sao_ke', 'Sao kê ngân hàng'],
+    ['momo_pos', 'MoMo trên máy POS'],
+    ['momo_sk', 'Sao kê MoMo'],
+    ['bes', 'Báo cáo Bes']
+  ];
+
+  function veHopThu(o, r) {
+    var c = (r && r.cf) || {};
+    var h = '<div class="khung" id="dtHopThu"><header><h2>Nhận báo cáo qua hộp thư</h2>' +
+      '<span class="goi">' + (c.bat
+        ? 'đang bật · mỗi ' + (c.gio || 2) + ' giờ'
+        : 'đang tắt') + '</span></header>' +
+      '<div class="chu-them">FABi gửi báo cáo về một hộp thư riêng, hệ tự vào lấy tệp đính kèm ' +
+      'theo giờ rồi nạp vào kho — <b>y như anh bấm nạp tay</b>, cùng một bộ đọc.</div>';
+
+    /* 🔴 WP-Cron chỉ chạy khi CÓ NGƯỜI MỞ TRANG. Không nói ra chỗ này thì hệ đứng im cả đêm mà
+       màn hình vẫn trông bình thường, tới lúc phát hiện là mất mấy ngày số liệu. */
+    h += '<div class="canh-ghep" style="margin-top:10px">🔴 <b>Phải bật Cron Jobs bên hosting.</b> ' +
+      'Lịch của WordPress chỉ chạy khi có người mở trang web — ban đêm không ai vào là cả đêm ' +
+      'không lấy thư, mà màn hình vẫn trông bình thường. Vào hPanel → <b>Cron Jobs</b>, cho gọi ' +
+      '<code>' + esc((r && r.cron_url) || 'wp-cron.php') + '</code> mỗi 5–10 phút. Nhịp mấy tiếng một ' +
+      'lượt thì hệ tự giữ, cron kia chỉ để đánh thức.</div>';
+
+    if (r && r.qua_han) {
+      h += '<div class="canh-ghep" style="margin-top:8px;border-color:var(--xau)">⚠️ <b>Quá hạn mà ' +
+        'chưa chạy.</b> Lượt lấy thư gần nhất đã lâu hơn hai nhịp — nhiều khả năng Cron Jobs bên ' +
+        'hosting chưa bật, hoặc đang sai đường dẫn.</div>';
+    }
+
+    var o1 = function (nhan, ten, gt, kieu, rong) {
+      return '<label class="o" style="margin:0 8px 8px 0">' + esc(nhan) +
+        '<input type="' + (kieu || 'text') + '" data-thu="' + ten + '" value="' + esc(gt == null ? '' : gt) +
+        '" style="width:' + (rong || 160) + 'px"></label>';
+    };
+
+    h += '<div style="margin-top:12px">' +
+      '<label class="o" style="margin:0 8px 8px 0"><input type="checkbox" data-thu="bat"' +
+        (c.bat ? ' checked' : '') + '> Bật tự lấy</label>' +
+      o1('Nhịp (giờ)', 'gio', c.gio, 'number', 70) +
+      '<label class="o" style="margin:0 8px 8px 0">Loại báo cáo<select data-thu="loai">' +
+        THU_LOAI.map(function (x) {
+          return '<option value="' + x[0] + '"' + (c.loai === x[0] ? ' selected' : '') + '>' + esc(x[1]) + '</option>';
+        }).join('') + '</select></label>' +
+      '</div><div>' +
+      o1('Máy chủ thư', 'may', c.may, 'text', 200) +
+      o1('Cổng', 'cong', c.cong, 'number', 80) +
+      '<label class="o" style="margin:0 8px 8px 0">Bảo mật<select data-thu="bao_mat">' +
+        ['ssl', 'starttls', 'khong'].map(function (x) {
+          return '<option value="' + x + '"' + (c.bao_mat === x ? ' selected' : '') + '>' + x.toUpperCase() + '</option>';
+        }).join('') + '</select></label>' +
+      o1('Thư mục', 'thu_muc', c.thu_muc, 'text', 110) +
+      '</div><div>' +
+      o1('Địa chỉ hộp thư', 'nguoi', c.nguoi, 'text', 250) +
+      '<label class="o" style="margin:0 8px 8px 0">Mật khẩu' +
+        '<input type="password" data-thu="mat_khau" placeholder="' +
+        (c.co_mat_khau ? '••••••• (đã đặt — bỏ trống là giữ nguyên)' : 'chưa đặt') +
+        '" style="width:230px"' + (c.khoa_o_config ? ' disabled' : '') + '></label>' +
+      '</div>';
+
+    /* Mật khẩu nằm trong wp-config.php thì hơn — nói ra, đừng để người ta không biết là có lối ấy. */
+    h += '<div class="chu-them">' + (c.khoa_o_config
+      ? '✓ Mật khẩu đang lấy từ <code>KHH_DT_MAIL_PASS</code> trong <code>wp-config.php</code> — ' +
+        'không nằm trong cơ sở dữ liệu. Ô trên khoá lại là đúng.'
+      : 'Nên đặt mật khẩu bằng dòng <code>define( \'KHH_DT_MAIL_PASS\', \'…\' );</code> trong ' +
+        '<code>wp-config.php</code>: để ở đó thì nó không nằm trong cơ sở dữ liệu, nên một bản ' +
+        'sao lưu lọt ra ngoài cũng không kèm mật khẩu hộp thư.') + '</div>';
+
+    h += '<div style="margin-top:10px">' +
+      o1('Chỉ nhận thư từ', 'nguoi_gui', c.nguoi_gui, 'text', 280) +
+      o1('Tên tệp khớp', 'mau_ten', c.mau_ten, 'text', 200) +
+      '</div>' +
+      '<div class="chu-them">🔴 <b>Bỏ trống ô "Chỉ nhận thư từ" là hệ chối hết</b> — cố ý. Hộp thư ' +
+      'nào cũng nhận được thư rác, mà một tệp .csv của người lạ đi thẳng vào kho doanh thu thì ' +
+      'không ai nhìn ra ngay. Gõ đúng địa chỉ FABi gửi, hoặc cả tên miền kiểu <code>@fabi.vn</code>. ' +
+      'Nhiều địa chỉ thì cách nhau dấu phẩy.</div>';
+
+    if ('bes' === c.loai) {
+      h += '<div>' + o1('Tên cơ sở (Bes)', 'co_so', c.co_so, 'text', 250) + '</div>';
+    }
+    if ('momo_sk' === c.loai) {
+      h += '<div>' + o1('Tài khoản MoMo', 'tai_khoan', c.tai_khoan, 'text', 120) + '</div>';
+    }
+
+    h += '<div style="margin-top:10px">' +
+      '<button class="nut chinh" type="button" id="dtThuLuu">Lưu</button> ' +
+      '<button class="nut" type="button" id="dtThuChay">Lấy thư ngay</button>' +
+      (r && r.lan_sau ? '<span class="chu-them" style="margin-left:10px">Lượt sau: ' +
+        esc(new Date(r.lan_sau).toLocaleString('vi-VN')) + '</span>' : '') +
+      '</div>';
+
+    h += veThuNhatKy((r && r.nhat_ky) || []);
+    h += '</div>';
+
+    var cu = o.querySelector('#dtHopThu');
+    if (cu) { cu.outerHTML = h; } else { o.insertAdjacentHTML('beforeend', h); }
+    noiHopThu(o);
+  }
+
+  function veThuNhatKy(nk) {
+    if (!nk.length) {
+      return '<div class="chu-them" style="margin-top:12px">Chưa chạy lượt nào.</div>';
+    }
+    return '<h3 class="tieu-nho" style="margin-top:14px">Nhật ký 50 lượt gần nhất</h3>' +
+      '<div class="bang-cuon"><table><thead><tr><th style="text-align:left">Lúc</th>' +
+      '<th>Thư xem</th><th>Nạp được</th><th style="text-align:left">Chi tiết</th>' +
+      '</tr></thead><tbody>' +
+      nk.slice(0, 50).map(function (x) {
+        var ct = x.loi
+          ? '<span style="color:var(--xau)">' + esc(x.loi) + '</span>'
+          : (x.nap || []).map(function (n) {
+              return esc(n.ten) + ' (' + nguyen(n.da_ghi || 0) + ' dòng)';
+            }).concat((x.bo || []).map(function (b) {
+              return '<span class="chu-them">bỏ qua: ' + esc(b.ten || b.tu || '') + ' — ' + esc(b.vi) + '</span>';
+            })).join(' · ') || '<span class="chu-them">không có gì mới</span>';
+        return '<tr><td style="text-align:left" class="s">' + esc(x.luc) + '</td>' +
+          '<td>' + nguyen(x.xem || 0) + '</td><td>' + nguyen(x.so_nap || 0) + '</td>' +
+          '<td style="text-align:left">' + ct + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+  }
+
+  function noiHopThu(o) {
+    var k = o.querySelector('#dtHopThu');
+    if (!k) return;
+    var thu = function () {
+      var fd = new FormData();
+      Array.prototype.forEach.call(k.querySelectorAll('[data-thu]'), function (x) {
+        var n = x.getAttribute('data-thu');
+        if ('checkbox' === x.type) { fd.append(n, x.checked ? '1' : ''); return; }
+        /* 🔴 Ô mật khẩu trống nghĩa là GIỮ NGUYÊN, không phải xoá — màn hình không bao giờ nhận
+           được mật khẩu cũ nên nó không có gì để gửi lại. Gửi chuỗi rỗng lên là xoá mất. */
+        if ('mat_khau' === n && '' === x.value) return;
+        fd.append(n, x.value);
+      });
+      return fd;
+    };
+    var luu = k.querySelector('#dtThuLuu');
+    if (luu) {
+      luu.addEventListener('click', function () {
+        luu.disabled = true; luu.textContent = 'Đang lưu…';
+        api('hop-thu', { method: 'POST', body: thu() }).then(function (r) {
+          veHopThu(o, r);
+        }).catch(function (e) {
+          luu.disabled = false; luu.textContent = 'Lưu';
+          window.alert(e.message || e);
+        });
+      });
+    }
+    var chay = k.querySelector('#dtThuChay');
+    if (chay) {
+      chay.addEventListener('click', function () {
+        chay.disabled = true; chay.textContent = 'Đang lấy…';
+        /* Lưu trước rồi mới chạy: bấm "Lấy thư ngay" sau khi vừa sửa ô mà chưa Lưu thì nó chạy
+           bằng cấu hình CŨ, rồi báo lỗi của cấu hình cũ — không cách nào hiểu nổi. */
+        api('hop-thu', { method: 'POST', body: thu() })
+          .then(function () { return api('hop-thu-chay', { method: 'POST' }); })
+          .then(function (r) {
+            veHopThu(o, r.xem);
+            var c = r.chay || {};
+            window.alert(c.loi ? c.loi
+              : 'Xem ' + (c.xem || 0) + ' thư, nạp được ' + (c.so_nap || 0) + ' tệp.');
+          })
+          .catch(function (e) {
+            chay.disabled = false; chay.textContent = 'Lấy thư ngay';
+            window.alert(e.message || e);
+          });
+      });
+    }
   }
 
   /* ---- SAO KÊ NGÂN HÀNG: giờ cắt + bảng nhận mặt cơ sở ----

@@ -3,7 +3,7 @@
  * Plugin Name:       K&H — Báo cáo doanh thu FABi
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Nạp file "Báo cáo bán hàng" xuất từ máy POS FABi (iPOS) và dựng báo cáo doanh thu theo ngày, cửa hàng, khung giờ, hình thức thanh toán, tại chỗ/mang về và món bán chạy. Có sẵn đường nối API FABi để bật khi iPOS cấp khoá.
- * Version:           1.44.0
+ * Version:           1.45.0
  * Requires at least: 5.8
  * Requires PHP:      7.2
  * Author:            K&H
@@ -26,7 +26,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'KHH_DT_VERSION', '1.44.0' );
+define( 'KHH_DT_VERSION', '1.45.0' );
 define( 'KHH_DT_FILE', __FILE__ );
 define( 'KHH_DT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KHH_DT_URL', plugin_dir_url( __FILE__ ) );
@@ -47,6 +47,7 @@ require_once KHH_DT_DIR . 'momo.php';
 require_once KHH_DT_DIR . 'bes.php';
 require_once KHH_DT_DIR . 'momo-ipn.php';
 require_once KHH_DT_DIR . 'momo-phi.php';
+require_once KHH_DT_DIR . 'hop-thu.php';
 
 /** Đường dẫn ngoài của báo cáo, ví dụ khmatrix.com/doanh-thu-hcm */
 function khh_dt_slug() {
@@ -437,24 +438,20 @@ function khh_dt_rest_nap( $req ) {
 		return new WP_Error( 'khh_dt_file', 'File tải lên không hợp lệ.', array( 'status' => 400 ) );
 	}
 
-	@set_time_limit( 300 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
-	$kq = khh_dt_phan_tich( $tam, $ten );
-	if ( is_wp_error( $kq ) ) {
-		return $kq;
-	}
-	$n = khh_dt_ghi_kho( $kq['ngay'] );
-
-	$meta = array(
-		'nguon'   => $ten,
-		'nap_luc' => current_time( 'mysql' ),
-		'ky'      => $kq['tom_tat']['ky'],
-		'trang'   => $kq['tom_tat']['trang'],
-		'boi'     => wp_get_current_user()->display_name,
+	/* 🔴 ĐI QUA `khh_dt_nap_tep`, ĐỪNG GỌI THẲNG `khh_dt_phan_tich`.
+	   Trước đây chỗ này tính ra `$loai` rồi… bỏ đấy, và luôn luôn đọc như báo cáo bán hàng
+	   FABi. Tức tải một file MoMo hay sao kê qua đường này là nó đọc sai kiểu mà không báo
+	   một câu — đúng loại lỗi mà chú thích trong `khh_dt_rest_nap_mau` đã cảnh báo, chỉ là
+	   đường kia được vá còn đường này thì không. Một luật, một chỗ. */
+	return khh_dt_nap_tep(
+		$tam,
+		$ten,
+		$loai,
+		array(
+			'co_so'     => isset( $_REQUEST['co_so'] ) ? wp_unslash( $_REQUEST['co_so'] ) : '',       // phpcs:ignore WordPress.Security
+			'tai_khoan' => isset( $_REQUEST['tai_khoan'] ) ? wp_unslash( $_REQUEST['tai_khoan'] ) : '', // phpcs:ignore WordPress.Security
+		)
 	);
-	update_option( 'khh_dt_meta', $meta, false );
-
-	$kq['tom_tat']['da_ghi'] = $n;
-	return $kq['tom_tat'];
 }
 
 /**
@@ -517,10 +514,39 @@ function khh_dt_rest_nap_mau( $req ) {
 
 	@set_time_limit( 300 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
 
+	return khh_dt_nap_tep(
+		$dich,
+		$ten,
+		$loai,
+		array(
+			'co_so'     => isset( $_REQUEST['co_so'] ) ? wp_unslash( $_REQUEST['co_so'] ) : '',       // phpcs:ignore WordPress.Security
+			'tai_khoan' => isset( $_REQUEST['tai_khoan'] ) ? wp_unslash( $_REQUEST['tai_khoan'] ) : '', // phpcs:ignore WordPress.Security
+		)
+	);
+}
+
+/**
+ * ĐỌC MỘT TỆP ĐÃ NẰM SẴN TRÊN ĐĨA RỒI GHI VÀO KHO — dùng chung cho MỌI đường vào.
+ *
+ * Trước đây đoạn này nằm thẳng trong `khh_dt_rest_nap_mau`, tức chỉ đường TẢI LÊN TỪ TRÌNH
+ * DUYỆT mới đi qua được. 19/09/2026 anh Thắng chốt hướng mới: *"đẩy dữ liệu fabi về mail
+ * hosting, xong web sẽ đọc mail lấy file đó, định kì 2 tiếng"*. Bộ nhận thư cũng cần đúng luật
+ * này — mà chép luật ra bản thứ hai thì sớm muộn hai bên lệch nhau, và lệch kiểu ấy im thin
+ * thít: file nạp vào, không báo lỗi, chỉ là đọc sai kiểu.
+ *
+ * @param string $dich  Đường dẫn tệp trên đĩa. HÀM NÀY XOÁ TỆP khi đọc xong, kể cả khi lỗi.
+ * @param string $ten   Tên tệp gốc — vài bộ đọc lấy ngày/ngân hàng từ đây.
+ * @param string $loai  'pos' | 'sao_ke' | 'momo_pos' | 'momo_sk' | 'bes'.
+ * @param array  $them  Tham số phụ: 'co_so' (Bes), 'tai_khoan' (sao kê MoMo).
+ * @return array|WP_Error Tóm tắt y như đường tải lên vẫn trả về.
+ */
+function khh_dt_nap_tep( $dich, $ten, $loai, $them = array() ) {
+	$them = is_array( $them ) ? $them : array();
+	@set_time_limit( 300 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
 	if ( 'bes' === $loai ) {
 		/* Cửa hàng chạy hệ Bes, không phải FABi. Tên cơ sở lấy từ ô người nạp gõ — "FUNZONE" trơ
 		   trong file sẽ đụng `FUNZONE CITY VŨNG TÀU` và `FUNZONE ADVENTURE GO AN LẠC` đang có. */
-		$ten_cs = isset( $_REQUEST['co_so'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['co_so'] ) ) : '';
+		$ten_cs = isset( $them['co_so'] ) ? sanitize_text_field( (string) $them['co_so'] ) : '';
 		try {
 			$kq = khh_dt_doc_bes( $dich, $ten_cs );
 		} catch ( Throwable $t ) {
@@ -573,7 +599,7 @@ function khh_dt_rest_nap_mau( $req ) {
 		   mỗi bên một tài khoản và một mức phí. Học từ chính lượt nạp, đúng lối bảng
 		   `mã cửa hàng -> cơ sở` đang chạy, nên anh Thắng chỉ gõ mã tài khoản một lần mỗi lần nạp. */
 		$hoc_tk = 0;
-		$tk_nap = isset( $_REQUEST['tai_khoan'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['tai_khoan'] ) ) : '';
+		$tk_nap = isset( $them['tai_khoan'] ) ? sanitize_text_field( (string) $them['tai_khoan'] ) : '';
 		if ( '' !== trim( $tk_nap ) && function_exists( 'khh_dt_momo_tk_hoc' ) ) {
 			$hoc_tk = khh_dt_momo_tk_hoc( array_keys( (array) $kq['quan'] ), $tk_nap );
 		}
@@ -692,7 +718,7 @@ function khh_dt_rest_nap_mau( $req ) {
 			'nap_luc' => current_time( 'mysql' ),
 			'ky'      => $kq['tom_tat']['ky'],
 			'trang'   => $kq['tom_tat']['trang'],
-			'boi'     => wp_get_current_user()->display_name,
+			'boi'     => khh_dt_ten_ghi_so(),
 		),
 		false
 	);
