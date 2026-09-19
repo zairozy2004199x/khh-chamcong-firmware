@@ -160,6 +160,66 @@ teq( '🔴 12210 phút = 203:30 — đúng ô tổng trong ảnh', '203:30', VHC
 VHCC_Cham::dat_kieu_gio( VHCC_Cham::KIEU_TP );
 teq( '   và cùng số ấy ở lối thập phân là 203,50', '203,50', VHCC_Cham::gio_tp( 12210 ) );
 
+/* ═════════════════════════════════════════════════════════════════════════════════════════════
+ * CHÚ GIẢI Ô TỔNG VIẾT CẢ BA VẾ: GIỜ:PHÚT → SỐ GIỜ → NHÂN GIÁ → RA TIỀN
+ * ═════════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 19/09/2026: *"Chuyển dạng cơ hệ giờ nhé, xong lấy giờ nhân giá tiền (lương đang tính
+ * là 22k/h)"*.
+ *
+ * Giữa `70:12` và cục tiền cuối hàng có HAI bước người đọc phải nhẩm: đổi ra `70,20`, rồi nhân
+ * `22.000`. Bước thứ nhất chính là chỗ đã sai thật — `186:30` bị đổi thành `186,3`, thiếu 4.800đ.
+ * ------------------------------------------------------------------------------------------- */
+echo "— chú giải viết cả phép nhân —\n";
+
+$wpdb->insert( VHCC_DB::t( 'bo_phan_coso' ), array( 'coso' => 'VG_SHOP', 'bo_phan' => 'Khu vui chơi' ) );
+VHCC_GiaGio::dat_coso( $U_KT, 'VG_SHOP', array( 'Nhân Viên' => 22000, 'Lái Tàu' => 24000 ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'VG_HIEP', 'ho_ten' => 'Bạn Hai Việc',
+	'cua_hang' => 'VG_SHOP', 'chuc_vu' => 'Nhân Viên', 'vai_tro' => 'Nhân viên',
+	'trang_thai_lam_viec' => 'Đang làm' ) );
+/* Mười ngày 8 giờ = 80 giờ chẵn; khai 9,5 giờ Lái Tàu, còn 70,5 giờ Nhân Viên. */
+for ( $i = 1; $i <= 10; $i++ ) {
+	$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'ma_nv' => 'VG_HIEP', 'ho_ten' => '',
+		'coso' => 'VG_SHOP', 'ngay' => sprintf( '2026-12-%02d', $i ),
+		'gio_vao_giay' => 8 * 3600, 'gio_ra_giay' => 16 * 3600, 'hau_to' => '', 'nguon' => 'may' ) );
+}
+VHCC_ChotLuong::dat( $U_KT, 'VG_SHOP', '2026-12', 'VG_HIEP',
+	array( array( 'viec' => 'Lái Tàu', 'gio' => '9.5' ) ), '80', 'Nhân Viên' );
+
+function vhcc_vg_chu( $kieu ) {
+	$_GET = array( 'man' => 'cham', 'ccs' => 'VG_SHOP', 'cth' => '2026-12', 'cgh' => $kieu );
+	$_POST = array();
+	$_COOKIE = array( VHCC_Web::COOKIE => VHCC_Auth::phat_token( 'KT', 'Kế toán', 'VG_SHOP', 'VGKT' ) );
+	ob_start(); VHCC_Web::phuc_vu(); $h = ob_get_clean();
+	$_GET = array(); $_COOKIE = array();
+	if ( ! preg_match( '/<td class="tong" title="([^"]*)"><b>([^<]*)<\/b>/u', $h, $m ) ) {
+		return array( '', '', $h );
+	}
+	return array( html_entity_decode( $m[1], ENT_QUOTES ), html_entity_decode( $m[2], ENT_QUOTES ), $h );
+}
+
+list( $chu_hm, $o_hm ) = vhcc_vg_chu( VHCC_Cham::KIEU_HM );
+teq( 'ô TỔNG ở lối giờ:phút', '80:00', $o_hm );
+t( '🔴 chú giải đổi 70:30 ra 70,50 giờ',
+	false !== mb_strpos( $chu_hm, '70:30 = 70,50h' ), $chu_hm );
+t( '🔴 rồi nhân đơn giá 22.000 và ra tiền',
+	false !== mb_strpos( $chu_hm, '× 22.000 = 1.551.000đ' ), $chu_hm );
+t( '   dòng Lái Tàu cũng đủ ba vế',
+	false !== mb_strpos( $chu_hm, '9:30 = 9,50h × 24.000 = 228.000đ' ), $chu_hm );
+
+/* ⚠️ TIỀN TRONG CHÚ GIẢI LẤY TỪ `VHCC_BangLuong::dung()`, không nhân lại tại chỗ. Cộng hai dòng
+   phải bằng đúng lương của người ấy — lệch là hai bộ luật cho cùng một câu hỏi. */
+$bl_vg = VHCC_BangLuong::dung( 'VG_SHOP', '2026-12' );
+$tong_vg = 0.0;
+foreach ( $bl_vg['dong'] as $d_vg ) { $tong_vg += (float) $d_vg['luongChinh']; }
+teq( '🔴 hai dòng trong chú giải cộng lại = lương thật', 1779000.0, round( $tong_vg, 2 ) );
+
+/* Lối thập phân thì KHÔNG nhắc lại "= 70,50h" — con số ấy đã nằm ngay trước mắt. */
+list( $chu_tp, $o_tp ) = vhcc_vg_chu( VHCC_Cham::KIEU_TP );
+teq( 'ô TỔNG ở lối thập phân', '80,00', $o_tp );
+t( 'lối thập phân vẫn có phép nhân',
+	false !== mb_strpos( $chu_tp, '70,50 × 22.000 = 1.551.000đ' ), $chu_tp );
+t( '   nhưng không nhắc lại "= …h" thừa', false === mb_strpos( $chu_tp, 'h ×' ), $chu_tp );
+
 VHCC_Cham::dat_kieu_gio( VHCC_Cham::KIEU_HM );
 
 echo "\n";

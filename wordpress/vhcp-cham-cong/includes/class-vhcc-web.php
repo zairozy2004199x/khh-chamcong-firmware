@@ -8334,6 +8334,10 @@ class VHCC_Web {
 					'cv'  => (string) $d_bl['cv'],
 					'gio' => (float) $d_bl['gio'],
 					'ch'  => ! empty( $d_bl['laChinh'] ),
+					/* Đơn giá và tiền của chính dòng ấy — để chú giải viết ra CẢ PHÉP NHÂN,
+					   xem khối "GIỜ ĐỔI RA SỐ, RỒI NHÂN GIÁ" ở chỗ dựng chú giải. */
+					'gia'  => ( null === $d_bl['gia'] ) ? null : (float) $d_bl['gia'],
+					'tien' => ( null === $d_bl['luongChinh'] ) ? null : (float) $d_bl['luongChinh'],
 				);
 			}
 		}
@@ -8583,6 +8587,25 @@ class VHCC_Web {
 			 * ⚠️ KHÔNG CÓ GÌ ĐỂ NÓI THÌ KHÔNG GẮN `title`. Một chú giải rỗng vẫn hiện ra một
 			 *    khung trống khi rê chuột — người ta tưởng hỏng.
 			 * ═══════════════════════════════════════════════════════════════════════════════ */
+			/* ═══════════════════════════════════════════════════════════════════════════════
+			 * 🔴 GIỜ ĐỔI RA SỐ, RỒI NHÂN GIÁ — VIẾT CẢ PHÉP TÍNH RA, ĐỪNG BẮT NHẨM
+			 * ═══════════════════════════════════════════════════════════════════════════════
+			 * Anh Thắng 19/09/2026: *"Chuyển dạng cơ hệ giờ nhé, xong lấy giờ nhân giá tiền
+			 * (lương đang tính là 22k/h)"*.
+			 *
+			 * Chú giải cũ chỉ kể `Nhân Viên 70:12`, rồi ở cuối hàng là một cục tiền. Giữa hai
+			 * con số ấy có HAI bước mà người đọc phải tự làm trong đầu: đổi `70:12` ra `70,20`,
+			 * rồi nhân `22.000`. Bước thứ nhất chính là chỗ đã sai — tệp của anh đổi `186:30`
+			 * thành `186,3` và thiếu 4.800đ. Viết thẳng cả ba vế ra thì không còn gì để nhẩm:
+			 *
+			 *     Nhân Viên 70:12 = 70,20h × 22.000 = 1.544.400đ
+			 *
+			 * ⚠️ TIỀN LẤY TỪ `VHCC_BangLuong::dung()`, KHÔNG nhân lại ở đây. Nhân lại là dựng
+			 *    bộ luật thứ hai cho cùng một câu hỏi, và hai bộ ấy sẽ lệch nhau vào đúng ngày
+			 *    có người thêm một khoản phụ trội. Ba vế in ra là ba con số CỦA CÙNG MỘT DÒNG.
+			 * ⚠️ CHƯA KHAI ĐƠN GIÁ thì chỉ in giờ, không in `× (trống) = 0đ`. Một phép nhân ra
+			 *    0đ trông như đã tính xong và bằng không.
+			 * ═══════════════════════════════════════════════════════════════════════════════ */
 			$chu_viec = '';
 			if ( 'ngay' !== $kieu_ct && isset( $viec_ds[ strtoupper( (string) $ma ) ] ) ) {
 				$mau_v = array();
@@ -8590,9 +8613,23 @@ class VHCC_Web {
 					$ten_v = ( '' !== trim( $v_x['cv'] ) )
 						? $v_x['cv']
 						: ( $v_x['ch'] ? 'chưa chọn việc chính' : '(không tên)' );
-					$mau_v[] = $ten_v . ' ' . VHCC_Cham::gio_tp( (int) round( $v_x['gio'] * 60 ) );
+					$d_v = $ten_v . ' ' . VHCC_Cham::gio_tp( (int) round( $v_x['gio'] * 60 ) );
+					if ( VHCC_Cham::la_hm() ) {
+						/* Chỉ nói "= 70,20h" khi ô đang viết giờ:phút. Lối thập phân thì con số
+						   ấy đã nằm ngay trước mắt rồi, nhắc lại chỉ tổ dài dòng. */
+						$d_v .= ' = ' . number_format( (float) $v_x['gio'], 2, ',', '.' ) . 'h';
+					}
+					if ( null !== $v_x['gia'] && $v_x['gia'] > 0 ) {
+						$d_v .= ' × ' . number_format( (float) $v_x['gia'], 0, ',', '.' );
+						if ( null !== $v_x['tien'] ) {
+							$d_v .= ' = ' . number_format( (float) $v_x['tien'], 0, ',', '.' ) . 'đ';
+						}
+					} else {
+						$d_v .= ' — chưa khai đơn giá';
+					}
+					$mau_v[] = $d_v;
 				}
-				if ( $mau_v ) { $chu_viec = implode( ' · ', $mau_v ); }
+				if ( $mau_v ) { $chu_viec = implode( "\n", $mau_v ); }
 			}
 			echo '<td class="tong"'
 				. ( '' !== $chu_viec ? ' title="' . esc_attr( $chu_viec ) . '"' : '' )
