@@ -60,7 +60,7 @@ class VHG_BaoCao {
 	   boot() trả nó kèm mọi phản hồi (`banBc`) — số ở góc nói tệp chính là bản nào, số này nói
 	   TỆP BÁO CÁO là bản nào. Hai số lệch nhau là bằng chứng tệp cũ còn sống. Phải tăng cùng
 	   VHG_VERSION mỗi lần sửa tệp này. */
-	const BAN = '2.115.0';
+	const BAN = '2.116.0';
 
 	/** Ghế từng thu tiền trong bao nhiêu ngày gần đây thì vẫn phải hiện ở màn nhập — xem ds_ghe(). */
 	const GHE_LS_NGAY = 45;
@@ -1700,6 +1700,24 @@ class VHG_BaoCao {
 		return is_array( $tmp ) ? array_values( array_filter( $tmp ) ) : array();
 	}
 
+	/**
+	 * DANH SÁCH GHẾ CỦA MỘT PHẠM VI PIN — cửa duy nhất cho các màn KHÔNG phải màn nhập (Sửa 24h,
+	 * sua_dong…). Dựng qua `pham_vi_man_()` đúng như boot(), nên không màn nào ra danh sách ghế
+	 * khác màn nào cho cùng một PIN.
+	 *
+	 * ⚠️ CÓ NHỚ TRONG MỘT LƯỢT GỌI. ds_24h() duyệt nhiều báo cáo, mỗi báo cáo lại cần danh sách
+	 *    ghế — dựng lại mỗi vòng là quét cả bảng máy + cả bảng báo cáo cho từng dòng.
+	 */
+	private static $ghe_pin_nho_ = array();
+	private static function ghe_cua_pin_( $q ) {
+		$k = md5( wp_json_encode( array( $q['ten'], $q['coso'], $q['ghe'] ) ) );
+		if ( ! isset( self::$ghe_pin_nho_[ $k ] ) ) {
+			$pv = self::pham_vi_man_( $q );
+			self::$ghe_pin_nho_[ $k ] = $pv['ghe'];
+		}
+		return self::$ghe_pin_nho_[ $k ];
+	}
+
 	public static function ds_24h( $pin ) {
 		global $wpdb;
 		$q = self::pin_info( $pin );
@@ -1732,6 +1750,36 @@ class VHG_BaoCao {
 					'actual' => (int) $d['actual'], 'cash' => (int) $d['tien_mat'], 'qr' => (int) $d['qr'],
 					'adjust' => $co_ghi_de ? (int) $d['dieu_chinh'] : null, 'note' => $d['ghi_chu'], 'anh' => $anh_ds );
 			}
+			/* ═══════════════════════════════════════════════════════════════════════════════
+			 * 🔴 TRẢ ĐỦ GHẾ CỦA CƠ SỞ, KHÔNG CHỈ GHẾ ĐÃ NHẬP — anh Thắng 19/09/2026: *"trả lại
+			 *    để nhập lại, hoặc bấm sửa thì nó phải có cả ghế chưa nhập chứ"*.
+			 *
+			 *    Truy vấn trên lọc `chi_so_sau IS NOT NULL OR tong<>0 OR actual<>0`, nên báo cáo
+			 *    nộp thiếu ghế thì màn Sửa 24h cũng chỉ thấy đúng những ghế ĐÃ nhập — tức là đúng
+			 *    lúc người ta mở ra để BỔ SUNG phần còn thiếu thì màn hình lại giấu mất phần ấy.
+			 *    GO Thủ Dầu Một 19/09 nộp 1 ghế trong khi cơ sở có 4: mở Sửa ra vẫn 1 ghế, không
+			 *    có đường nào nhập nốt 3 ghế kia.
+			 *
+			 *    Nay ghép thêm những ghế của cơ sở mà báo cáo chưa có dòng, để trống, kèm cờ
+			 *    `chuaNhap` cho màn hình đánh dấu. Danh sách ghế lấy từ ds_ghe() — tức đã gồm cả
+			 *    ghế cứu theo lịch sử (xem GHE_LS_NGAY), nên ghế rơi khỏi danh mục vẫn nhập được.
+			 *    `chi_so_truoc` tính sẵn để hàng trống dùng được ngay, khỏi bắt gõ mò.
+			 * ═══════════════════════════════════════════════════════════════════════════════ */
+			$da_nhap = array();
+			foreach ( $ghe as $g ) { $da_nhap[ (string) $g['chairCode'] ] = true; }
+			/* ⚠️ ĐI QUA pham_vi_man_(), KHÔNG gọi thẳng ds_ghe(): luật "một nguồn phạm vi duy nhất"
+			   (xem chú thích ở boot(), và bài kiem-ghe-ban-baocao.php canh đúng chuyện này). Gọi
+			   thẳng là màn Sửa 24h có thể ra danh sách ghế khác màn nhập cho cùng một PIN. */
+			if ( ! isset( $ds_ghe_pv ) ) { $ds_ghe_pv = self::ghe_cua_pin_( $q ); }
+			foreach ( (array) $ds_ghe_pv as $g0 ) {
+				if ( self::squash( $g0['coso'] ) !== self::squash( (string) $h['coso'] ) ) { continue; }
+				if ( isset( $da_nhap[ (string) $g0['ma'] ] ) ) { continue; }
+				$ghe[] = array( 'chairCode' => (string) $g0['ma'], 'chairName' => (string) $g0['ten'],
+					'meterBefore' => self::chi_so_truoc( (string) $g0['ma'], (string) $h['ngay'] ),
+					'meterAfter' => null, 'actual' => 0, 'cash' => 0, 'qr' => 0,
+					'adjust' => null, 'note' => '', 'anh' => array(), 'chuaNhap' => 1 );
+			}
+
 			/* 🔴 TRẢ KÈM TRẠNG THÁI NỘP VÀ KHOÁ — anh Thắng 05/09/2026 muốn khối 24h nói được
 			   từng cơ sở đã nộp hay chưa, và khoá thì phải hiện ra chứ không để người ta gõ xong
 			   mới biết. Ba trạng thái, khớp nguyên vòng `bc.nop_id` -> `nop.trang_thai` mà quỹ
@@ -2004,7 +2052,30 @@ class VHG_BaoCao {
 		}
 		if ( self::dang_khoa( $h['coso'], $h['ngay'] ) ) { return array( 'ok' => false, 'message' => 'Ngày này đang KHOÁ — nhờ kế toán.' ); }
 		$d = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . VHG_DB::t( 'bc_dong' ) . ' WHERE report_id=%s AND ma_may=%s LIMIT 1', $rid, $ma ), ARRAY_A );
-		if ( ! $d ) { return array( 'ok' => false, 'message' => 'Không thấy dòng cần sửa.' ); }
+		if ( ! $d ) {
+			/* 🔴 GHẾ CHƯA NHẬP THÌ TẠO DÒNG, ĐỪNG CHỐI — anh Thắng 19/09/2026. Từ 2.116.0 màn Sửa
+			   24h bày cả ghế chưa nhập (xem ds_24h), nên bấm "Lưu ghế này" ở một hàng trống là
+			   chuyện bình thường, không phải thao tác lạ. Chối ở đây thì hàng trống bày ra chỉ để
+			   trêu người ta.
+			   ⚠️ VẪN CHỐT PHẠM VI: chỉ tạo khi ghế ấy thuộc cơ sở của chính báo cáo này và nằm
+			      trong phạm vi PIN — không thì đây thành đường chèn dòng vào báo cáo cơ sở khác. */
+			$h0 = $wpdb->get_row( $wpdb->prepare(
+				'SELECT coso, ngay, lan FROM ' . VHG_DB::t( 'bc' ) . ' WHERE report_id=%s LIMIT 1', $rid ), ARRAY_A );
+			if ( ! $h0 || ! self::trong_pham_vi( $q, (string) $h0['coso'], $ma ) ) {
+				return array( 'ok' => false, 'message' => 'Không thấy dòng cần sửa.' );
+			}
+			$ten_ghe = $ma;
+			foreach ( (array) self::ghe_cua_pin_( $q ) as $g0 ) {
+				if ( (string) $g0['ma'] === (string) $ma ) { $ten_ghe = (string) $g0['ten']; break; }
+			}
+			$wpdb->insert( VHG_DB::t( 'bc_dong' ), array(
+				'report_id' => $rid, 'ma_may' => $ma, 'ten' => $ten_ghe,
+				'ngay' => (string) $h0['ngay'], 'lan' => (int) $h0['lan'],
+				'chi_so_truoc' => self::chi_so_truoc( $ma, (string) $h0['ngay'] ),
+			) );
+			$d = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . VHG_DB::t( 'bc_dong' ) . ' WHERE report_id=%s AND ma_may=%s LIMIT 1', $rid, $ma ), ARRAY_A );
+			if ( ! $d ) { return array( 'ok' => false, 'message' => 'Không tạo được dòng cho ghế ' . $ma . '.' ); }
+		}
 		$patch = is_array( $patch ) ? $patch : array();
 		/* 🔴 KHÔNG CHO XOÁ TRẮNG CHỈ SỐ SAU — vá R3 (12/09/2026): meterAfter rỗng → chi_so_sau NULL,
 		   actual về 0, mất số âm thầm. Chặn thẳng. */

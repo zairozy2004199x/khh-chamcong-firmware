@@ -4597,6 +4597,15 @@ JS;
   function theGheSua(rp,c){
     var card=el('div'); card.style.cssText='border:1px solid #e2e8f0;border-radius:9px;padding:9px;margin-top:6px';
     card.appendChild(el('b',null,c.chairName||c.chairCode));
+    /* 🔴 GHẾ CHƯA NHẬP PHẢI NHÌN RA NGAY — anh Thắng 19/09/2026: màn Sửa 24h nay bày cả ghế của
+       cơ sở chưa có trong báo cáo (xem ds_24h). Không đánh dấu thì mấy hàng trống trông y như
+       hàng đã nhập rồi bị xoá số, và người sửa không biết hàng nào mới là phần còn thiếu. */
+    if (c.chuaNhap) {
+      var nh=el('span',null,'CHƯA NHẬP');
+      nh.style.cssText='margin-left:7px;padding:1px 7px;border-radius:999px;background:#fff7ed;'
+        +'border:1px solid #fdba74;color:#7c2d12;font-size:11px;font-weight:800;vertical-align:middle';
+      card.appendChild(nh);
+    }
     card.appendChild(el('div','bc-mut','Chỉ số trước: '+((c.meterBefore==null||c.meterBefore==='')?'—':csFmt(c.meterBefore))+' (khoá)'));
     /* 🔴 HIỆN LẠI TIỀN MẶT ĐỦ + THỰC THU NGAY TẠI ĐÂY — anh Thắng 29/08/2026: "chỗ báo cáo 24h
        vẫn sẽ hiện số tiền thực thu và chỉ số tiền mặt đủ như lúc nhập gửi báo cáo". Trước đây

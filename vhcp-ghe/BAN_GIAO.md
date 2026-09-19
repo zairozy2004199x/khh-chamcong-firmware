@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-09-18 · Phiên bản hiện tại: **2.115.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-09-18 · Phiên bản hiện tại: **2.116.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,23 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v2.116.0 — Sửa 24h bày CẢ ghế chưa nhập, và lưu được luôn
+
+Anh Thắng 19/09/2026: *"trả lại để nhập lại, hoặc bấm sửa thì nó phải có cả ghế chưa nhập chứ"*.
+
+`ds_24h()` lọc hàng `chi_so_sau IS NOT NULL OR tong<>0 OR actual<>0`, nên báo cáo nộp thiếu ghế thì
+mở Sửa 24h ra **vẫn thiếu đúng chỗ ấy** — đúng lúc người ta mở để bổ sung thì màn hình giấu mất
+phần cần bổ sung. GO Thủ Dầu Một 19/09 nộp 1 ghế / 4 ghế: mở Sửa vẫn 1 ghế, không có đường nhập nốt.
+
+- `ds_24h()` ghép thêm ghế của cơ sở chưa có dòng, để trống, cờ `chuaNhap`, kèm `chi_so_truoc` tính
+  sẵn. Danh sách lấy từ `ds_ghe()` nên đã gồm ghế cứu theo lịch sử (2.115) — ghế rơi khỏi danh mục
+  vẫn nhập được.
+- `sua_dong()` trước đây chối "Không thấy dòng cần sửa" nếu ghế chưa có dòng — nay **tạo dòng** rồi
+  sửa, vẫn chốt phạm vi PIN và đúng cơ sở của báo cáo (không thành đường chèn dòng vào báo cáo cơ
+  sở khác).
+- Màn Sửa 24h gắn nhãn cam **CHƯA NHẬP** để không lẫn với hàng đã nhập rồi bị xoá số.
+
 
 ### v2.115.0 — Màn nhập dựng theo LỊCH SỬ THU TIỀN · khoá tính năng ẩn ghế
 

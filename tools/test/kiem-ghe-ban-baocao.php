@@ -94,7 +94,11 @@ t( 'tools/build-ghe.sh có mặt và xoá bản sao cũ trước khi chép bản
 echo "── Một nguồn phạm vi (pham_vi_man_) ──\n";
 $goiPv = preg_match_all( '/self::pham_vi_man_\(/', $bc );
 $goiDs = preg_match_all( '/self::ds_ghe\(/', $bc );
-t( "🔴 pham_vi_man_ được gọi đúng 3 chỗ (boot · phien_tinh · doi_chieu) — đang có $goiPv", 3 === $goiPv );
+/* 🔴 CHỖ THỨ TƯ, THÊM 19/09/2026: ghe_cua_pin_() — cửa cho các màn KHÔNG phải màn nhập (Sửa 24h,
+   sua_dong) lấy danh sách ghế. Vẫn đúng tinh thần "một nguồn": chúng KHÔNG tự dựng phạm vi, chúng
+   đi qua pham_vi_man_ y như boot. Đếm 4 chứ không nới thành "tuỳ ý" — nới ra là mất luôn cái bẫy
+   đã bắt được vụ 0 cơ sở / 67 cơ sở. */
+t( "🔴 pham_vi_man_ được gọi đúng 4 chỗ (boot · phien_tinh · doi_chieu · ghe_cua_pin_) — đang có $goiPv", 4 === $goiPv );
 t( "🔴 ds_ghe chỉ còn gọi TRONG pham_vi_man_ (2 lượt: dựng + dựng lại sau cứu-theo-tên) — đang có $goiDs", 2 === $goiDs );
 t( 'pham_vi_man_ trả đủ q/ghe/cs/toan_quyen',
 	1 === preg_match( "/return array\( 'q' => \\\$q, 'ghe' => \\\$ghe, 'cs' => \\\$cs,/", $bc )

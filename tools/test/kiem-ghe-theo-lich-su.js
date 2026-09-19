@@ -65,5 +65,19 @@ t('không còn chỗ nào bấm để BẬT cờ ẩn',
   && !/lam\('may_an_lo',\s*\{\s*ma:[^}]*an:\s*1/.test(trang)
   && !/lam\('may_xoa',/.test(trang));
 
+console.log('── Sửa 24h phải bày cả ghế chưa nhập ─────────────────────────');
+/* Anh Thắng 19/09: *"trả lại để nhập lại, hoặc bấm sửa thì nó phải có cả ghế chưa nhập chứ"*.
+   ds_24h() lọc hàng CÓ dữ liệu, nên báo cáo nộp thiếu ghế thì mở Sửa ra vẫn thiếu đúng chỗ ấy —
+   đúng lúc người ta mở để bổ sung thì màn hình giấu mất phần cần bổ sung. */
+const ds24 = than(bc, 'ds_24h');
+t('ds_24h() ghép thêm ghế của cơ sở chưa có dòng', /chuaNhap/.test(ds24) && /ds_ghe\(/.test(ds24));
+t('ghế ghép thêm có sẵn chỉ số trước (khỏi gõ mò)', /chi_so_truoc\(/.test(ds24));
+t('chỉ ghép ghế ĐÚNG cơ sở của báo cáo', /squash\(\s*\$g0\['coso'\]\s*\)\s*!==\s*self::squash/.test(ds24));
+const sd = than(bc, 'sua_dong');
+t('sua_dong() TẠO dòng cho ghế chưa nhập thay vì chối', /\$wpdb->insert\(\s*VHG_DB::t\( 'bc_dong' \)/.test(sd));
+t('… nhưng vẫn chốt phạm vi PIN + đúng cơ sở của báo cáo',
+  /trong_pham_vi\(\s*\$q\s*,\s*\(string\) \$h0\['coso'\]\s*,\s*\$ma\s*\)/.test(sd));
+t('màn Sửa 24h đánh dấu hàng CHƯA NHẬP', /c\.chuaNhap/.test(trang) && /CHƯA NHẬP/.test(trang));
+
 console.log(hong ? '\n🔴 TRƯỢT: ' + hong : '\n✓ SẠCH');
 process.exit(hong ? 1 : 0);
