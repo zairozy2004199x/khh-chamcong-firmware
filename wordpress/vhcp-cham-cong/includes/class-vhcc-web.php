@@ -274,7 +274,7 @@ class VHCC_Web {
 	 *    ký ký theo thẻ; chối hết là ai đang gõ dở một biểu mẫu đều mất trắng, ngay trong phút
 	 *    cài bản mới. Nhánh này chỉ để đỡ quãng chuyển, bỏ đi lúc nào cũng được.
 	 */
-	private static function chu_ky_dung( $toi = null ) {
+	public static function chu_ky_dung( $toi = null ) {
 		$gui = isset( $_POST['ky'] ) ? (string) wp_unslash( $_POST['ky'] ) : '';
 		if ( '' === $gui ) { return false; }
 		if ( is_array( $toi ) && hash_equals( self::chu_ky_cua( $toi ), $gui ) ) { return true; }
@@ -292,7 +292,7 @@ class VHCC_Web {
 	 *    lại, người có tab cũ chỉ cần tải lại trang, còn người bị máy chủ cắt mất thân yêu cầu
 	 *    thì tải lại bao nhiêu lần cũng thế.
 	 */
-	private static function vi_sao_chan_post() {
+	public static function vi_sao_chan_post() {
 		$tok = isset( $_COOKIE[ self::COOKIE ] ) ? (string) $_COOKIE[ self::COOKIE ] : '';
 		if ( '' === $tok ) {
 			return 'Phiên đăng nhập đã hết. Đăng nhập lại rồi làm lại — mọi thứ đã lưu vẫn còn.';

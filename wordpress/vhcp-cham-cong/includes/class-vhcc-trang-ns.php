@@ -95,10 +95,19 @@ class VHCC_TrangNS {
 		return VHCC_Web::chu_ky( $tok );
 	}
 
-	private static function ky_dung() {
-		$tok = isset( $_COOKIE[ VHCC_Web::COOKIE ] ) ? (string) $_COOKIE[ VHCC_Web::COOKIE ] : '';
-		$gui = isset( $_POST['ky'] ) ? (string) wp_unslash( $_POST['ky'] ) : '';
-		return ( '' !== $tok && '' !== $gui && hash_equals( VHCC_Web::chu_ky( $tok ), $gui ) );
+	/**
+	 * 🔴 MƯỢN THẲNG BỘ KIỂM CỦA `VHCC_Web`, KHÔNG CHÉP LẠI.
+	 *
+	 * Anh Thắng 19/09/2026 gặp *"Phiên đã hết hoặc biểu mẫu không hợp lệ"* ở CẢ hai màn — Bảng
+	 * công và Quản lý nhân sự. Cùng một gốc (chữ ký buộc vào thẻ phiên, mà cookie sống 12 giờ
+	 * còn hàng phiên sống 30 ngày — xem `VHCC_Web::chu_ky`), nhưng màn này có bản kiểm CHÉP
+	 * RIÊNG, nên vá một chỗ thì chỗ kia vẫn hỏng. Chép luật là hai bản luật.
+	 *
+	 * Cùng plugin nên gọi thẳng, không cần gác `method_exists` — luật ấy chỉ áp cho lời gọi
+	 * chéo SANG PLUGIN KHÁC (`tools/test/kiem-goi-cheo.php`).
+	 */
+	private static function ky_dung( $toi = null ) {
+		return VHCC_Web::chu_ky_dung( $toi );
 	}
 
 	/* ==================================================================== địa chỉ & báo */
@@ -207,9 +216,9 @@ class VHCC_TrangNS {
 		elseif ( isset( $_POST['xoa_may'] ) ) { $viec_gui = 'xoa_may_nv'; }
 
 		if ( ! empty( $_POST ) && '' !== $viec_gui ) {
-			$bao = self::ky_dung()
+			$bao = self::ky_dung( $toi )
 				? self::lam_viec( sanitize_text_field( $viec_gui ), $toi )
-				: array( array( 'loi' => 'Phiên đã hết hoặc biểu mẫu không hợp lệ. Tải lại trang rồi làm lại.' ) );
+				: array( array( 'loi' => VHCC_Web::vi_sao_chan_post() ) );
 			self::cat_bao( $bao );
 			self::ve( self::url_hien() );
 		}
