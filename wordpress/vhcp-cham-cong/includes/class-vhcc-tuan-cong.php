@@ -446,12 +446,30 @@ class VHCC_TuanCong {
 	 * ⚠️ NHẬN CẢ DẤU GẠCH VÀ MŨI TÊN. Người ta gõ tay vào ô thì hay viết `08:00-17:00` hoặc
 	 *    `08:00 → 17:00` thay vì bấm Alt+Enter. Chối mấy kiểu ấy là chối đúng thứ người ta
 	 *    định nói, và họ không đoán ra mình sai ở đâu.
+	 *
+	 * =========================================================================================
+	 * 🔴 VÀ NHẬN CẢ DẤU CÁCH — `08:30 18:00` (19/09/2026)
+	 * =========================================================================================
+	 * Anh Thắng gửi tệp bảng công tháng 8 của TUTU_TP: trong 138 ô có giờ thì **68 ô** viết hai
+	 * giờ cách nhau bằng một DẤU CÁCH thay vì Alt+Enter — lẫn lộn với 69 ô đúng kiểu hai hàng,
+	 * trên cùng một tờ. Bản trước không tách theo khoảng trắng, nên ô đầu tiên gặp phải là trả
+	 * `null`, và `doi()` CHỐI CẢ TỆP ngay tại đó.
+	 *
+	 * Người gõ không sai về nghĩa: `08:30 18:00` chỉ có đúng một cách hiểu. Bắt họ sửa 68 ô
+	 * bằng tay, trên một tờ 31 cột, chỉ vì cái ngăn cách vô hình — đó là hệ thống bắt người
+	 * phục vụ nó, không phải ngược lại. Mà người ta sẽ không sửa: họ bỏ luôn quy trình.
+	 *
+	 * ⚠️ TÁCH THEO KHOẢNG TRẮNG ĐỨNG CUỐI DÃY. Nhánh mũi tên/gạch nuốt sẵn khoảng trắng hai
+	 *    bên (`\s*…\s*`), nên `08:00 - 17:00` phải khớp nhánh ấy TRƯỚC; để `\s+` lên trước là
+	 *    cắt ở dấu cách rồi còn lại một mẩu `-` vô nghĩa.
+	 * ⚠️ VẪN CHỐI KHI RA BA MẨU. `08:00 12:00 17:00` không có cách hiểu nào chắc chắn — chốt
+	 *    `count($p) > 2` bên dưới giữ nguyên.
 	 */
 	public static function doc_o_gio( $o ) {
 		$s = trim( (string) $o );
 		if ( '' === $s ) { return array( '', '' ); }
 
-		$p = preg_split( '/\r\n|\r|\n|\s*(?:→|->|–|—|-)\s*/u', $s );
+		$p = preg_split( '/\r\n|\r|\n|\s*(?:→|->|–|—|-)\s*|\s+/u', $s );
 		$p = array_values( array_filter( array_map( 'trim', (array) $p ), function ( $x ) {
 			return '' !== $x;
 		} ) );
@@ -916,10 +934,15 @@ class VHCC_TuanCong {
 				$g = self::doc_o_gio( isset( $d[ $i_c ] ) ? $d[ $i_c ] : '' );
 				if ( null === $g ) {
 					$ten_x = isset( $dang[ $khoa ][ $ng_c ]['ho_ten'] ) ? $dang[ $khoa ][ $ng_c ]['ho_ten'] : '';
+					/* 🔴 IN RA CHÍNH NỘI DUNG Ô. Câu chối không kèm thứ nó chối thì người ta phải
+					   dò tay qua 31 cột để đoán xem ô nào hỏng — và họ sẽ đoán sai. */
+					$tho = trim( (string) ( isset( $d[ $i_c ] ) ? $d[ $i_c ] : '' ) );
+					$tho = str_replace( array( "\r\n", "\n", "\r" ), ' ⏎ ', $tho );
 					return array( 'ok' => false, 'error' => 'Dòng ' . $dong_so . ' (' . $ten_x
-						. ') có ô giờ ngày ' . $ng_c . ' không đọc được. Trong một ô viết giờ vào ở '
-						. 'hàng trên, giờ ra ở hàng dưới (Alt+Enter để xuống hàng), kiểu 24 giờ: '
-						. '08:00 rồi 17:30.' );
+						. ') có ô giờ ngày ' . $ng_c . ' không đọc được — trong ô đang là "'
+						. mb_substr( $tho, 0, 40 ) . '". Một ô chỉ được chứa TỐI ĐA HAI giờ: giờ '
+						. 'vào rồi giờ ra, kiểu 24 giờ. Ngăn nhau bằng Alt+Enter, dấu cách, hay '
+						. 'dấu gạch đều được — 08:00 rồi 17:30.' );
 				}
 				$moi[ $ng_c ] = array( 'vao' => $g[0], 'ra' => $g[1] );
 			}

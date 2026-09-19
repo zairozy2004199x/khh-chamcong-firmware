@@ -216,20 +216,96 @@ class VHCC_Web {
 	}
 
 	/**
-	 * Chữ ký chống giả mạo biểu mẫu.
+	 * CHỮ KÝ CHỐNG GIẢ MẠO BIỂU MẪU — buộc vào TÀI KHOẢN, không buộc vào thẻ phiên.
 	 *
-	 * Cookie đã SameSite=Lax nên POST từ trang khác không mang phiên sang, nhưng SameSite là
-	 * hàng rào của TRÌNH DUYỆT — trình duyệt cũ không có nó. Thêm một chữ ký buộc vào chính
-	 * token thì hàng rào nằm ở máy chủ, không phụ thuộc trình duyệt của người dùng.
+	 * =========================================================================================
+	 * 🔴 VÌ SAO KHÔNG KÝ THEO THẺ PHIÊN NỮA (19/09/2026)
+	 * =========================================================================================
+	 * Anh Thắng tải tệp bảng công tháng 8 của TUTU_TP về, sửa trong Excel, rồi quay lại bấm
+	 * "Gửi cho kế toán" và nhận: *"Phiên đã hết hoặc biểu mẫu không hợp lệ"*. Tệp KHÔNG hề được
+	 * đọc tới — chốt này chặn trước.
+	 *
+	 * Gốc nằm ở chỗ hai cái hạn KHÔNG bằng nhau:
+	 *   · hàng phiên trong CSDL sống **30 ngày** (`VHCC_Auth::TTL`);
+	 *   · cookie trên máy chỉ sống **12 giờ** (`dat_cookie()`).
+	 *
+	 * Nên cảnh này xảy ra với BẤT KỲ AI làm việc lâu hơn 12 giờ trên một tab:
+	 *   1. sáng mở trang → biểu mẫu mang chữ ký của thẻ A;
+	 *   2. cookie hết hạn (hoặc họ đăng nhập lại ở máy khác) → `phat_token()` đẻ thẻ B, và
+	 *      KHÔNG xoá thẻ A (nó còn hạn 30 ngày);
+	 *   3. quay lại cái tab cũ bấm Gửi → chữ ký ký theo A, cookie mang B → chối.
+	 *
+	 * Và nó chối đúng vào lúc đắt nhất: sau khi người ta đã ngồi sửa xong cả tờ Excel.
+	 *
+	 * 🔴 KÝ THEO DANH TÍNH THÌ VẪN CHỐNG ĐƯỢC CSRF. Mục đích của chữ ký là chặn một trang LẠ
+	 *    POST sang; kẻ tấn công không có `wp_salt('nonce')` nên không dựng được chữ ký, dù ký
+	 *    theo thẻ hay theo danh tính. Đổi lại, đăng nhập lại bằng CÙNG tài khoản thì biểu mẫu
+	 *    đang mở vẫn dùng được — còn tài khoản KHÁC thì chữ ký khác, vẫn bị chối.
+	 *    (WordPress cũng làm đúng thế: `wp_create_nonce` buộc vào user ID, không buộc vào thẻ.)
+	 *
+	 * ⚠️ `$tok` giữ nguyên trong chữ ký hàm cho mọi nơi gọi cũ. Thẻ nào không tra ra người thì
+	 *    lùi về lối cũ — để hai thẻ rác vẫn ra hai chữ ký khác nhau, và để bộ thử soi được.
 	 */
 	public static function chu_ky( $tok ) {
+		$u = VHCC_Auth::user_by_token( (string) $tok );
+		if ( ! $u ) { return self::chu_ky_the_( (string) $tok ); }
+		return self::chu_ky_cua( $u );
+	}
+
+	/** Chữ ký của một danh tính đã biết — khỏi tra lại CSDL khi nơi gọi đã có `$toi`. */
+	public static function chu_ky_cua( $toi ) {
+		$lay = function ( $k ) use ( $toi ) {
+			return strtolower( trim( (string) ( isset( $toi[ $k ] ) ? $toi[ $k ] : '' ) ) );
+		};
+		return hash_hmac( 'sha256',
+			'vhcc-qt2|' . $lay( 'ma_nv' ) . '|' . $lay( 'role' ) . '|' . $lay( 'coso' ),
+			wp_salt( 'nonce' ) );
+	}
+
+	/** Chữ ký đời cũ, ký theo thẻ phiên. Chỉ còn để NHẬN, không còn để phát. */
+	private static function chu_ky_the_( $tok ) {
 		return hash_hmac( 'sha256', 'vhcc-qt|' . (string) $tok, wp_salt( 'nonce' ) );
 	}
 
-	private static function chu_ky_dung() {
-		$tok = isset( $_COOKIE[ self::COOKIE ] ) ? (string) $_COOKIE[ self::COOKIE ] : '';
+	/**
+	 * Chữ ký gửi lên có đúng không.
+	 *
+	 * ⚠️ VẪN NHẬN CHỮ KÝ ĐỜI CŨ. Lúc nâng cấp, mọi tab đang mở trên máy người dùng đều mang chữ
+	 *    ký ký theo thẻ; chối hết là ai đang gõ dở một biểu mẫu đều mất trắng, ngay trong phút
+	 *    cài bản mới. Nhánh này chỉ để đỡ quãng chuyển, bỏ đi lúc nào cũng được.
+	 */
+	private static function chu_ky_dung( $toi = null ) {
 		$gui = isset( $_POST['ky'] ) ? (string) wp_unslash( $_POST['ky'] ) : '';
-		return ( '' !== $tok && '' !== $gui && hash_equals( self::chu_ky( $tok ), $gui ) );
+		if ( '' === $gui ) { return false; }
+		if ( is_array( $toi ) && hash_equals( self::chu_ky_cua( $toi ), $gui ) ) { return true; }
+		$tok = isset( $_COOKIE[ self::COOKIE ] ) ? (string) $_COOKIE[ self::COOKIE ] : '';
+		if ( '' === $tok ) { return false; }
+		if ( ! is_array( $toi ) && hash_equals( self::chu_ky( $tok ), $gui ) ) { return true; }
+		return hash_equals( self::chu_ky_the_( $tok ), $gui );
+	}
+
+	/**
+	 * Vì sao lượt POST này bị chối — để câu báo nói đúng việc phải làm.
+	 *
+	 * 🔴 BA CẢNH KHÁC HẲN NHAU, TRƯỚC ĐÂY CHUNG MỘT CÂU. *"Phiên đã hết hoặc biểu mẫu không hợp
+	 *    lệ"* đúng với cả ba nhưng không giúp được cảnh nào: người mất cookie phải đăng nhập
+	 *    lại, người có tab cũ chỉ cần tải lại trang, còn người bị máy chủ cắt mất thân yêu cầu
+	 *    thì tải lại bao nhiêu lần cũng thế.
+	 */
+	private static function vi_sao_chan_post() {
+		$tok = isset( $_COOKIE[ self::COOKIE ] ) ? (string) $_COOKIE[ self::COOKIE ] : '';
+		if ( '' === $tok ) {
+			return 'Phiên đăng nhập đã hết. Đăng nhập lại rồi làm lại — mọi thứ đã lưu vẫn còn.';
+		}
+		if ( ! isset( $_POST['ky'] ) || '' === trim( (string) wp_unslash( $_POST['ky'] ) ) ) {
+			return 'Biểu mẫu gửi lên THIẾU chữ ký. Thường là máy chủ cắt bớt lượt gửi vì tệp quá '
+				. 'nặng — giới hạn đang là ' . esc_html( (string) ini_get( 'post_max_size' ) )
+				. ' cho cả lượt gửi và ' . esc_html( (string) ini_get( 'upload_max_filesize' ) )
+				. ' cho một tệp. Tải lại trang rồi thử lại; vẫn vậy thì nhờ hosting nâng hai mức ấy.';
+		}
+		return 'Trang này mở từ một lượt đăng nhập cũ nên chữ ký biểu mẫu không còn khớp '
+			. '(hay gặp khi để tab mở qua đêm, hoặc vừa đăng nhập lại ở máy khác). '
+			. 'Bấm F5 tải lại trang rồi làm lại — KHÔNG mất gì, tệp chọn lại là xong.';
 	}
 
 	// ======================================================================= phục vụ
@@ -346,10 +422,25 @@ class VHCC_Web {
 		   và mọi bộ lọc — cơ sở, ô Tìm, trạng thái — biến mất vì chúng nằm ở query mà POST không
 		   mang theo. Nay: làm việc xong thì CẤT kết quả, chuyển hướng về đúng địa chỉ CÓ BỘ LỌC,
 		   rồi mới vẽ. F5 chỉ tải lại một trang GET — không lặp lại việc gì, không mất bộ lọc. */
+		/* 🔴 THÂN YÊU CẦU BỊ MÁY CHỦ NUỐT THÌ PHẢI KÊU LÊN.
+		   Lượt POST vượt `post_max_size` bị PHP vứt sạch: `$_POST` rỗng, `$_FILES` rỗng, KHÔNG
+		   có lỗi nào được ném ra. Nhánh dưới đòi `isset($_POST['viec'])` nên lượt ấy rơi thẳng
+		   xuống `trang_chinh()` và vẽ lại y như cũ — người dùng bấm "Gửi cho kế toán", trang
+		   nháy một cái, không một dòng chữ nào. Họ sẽ bấm lại năm lần rồi đi báo "nút hỏng".
+		   Nhận ra bằng `CONTENT_LENGTH`: có gửi lên mà chẳng nhận được gì thì đúng là bị cắt. */
+		if ( 'POST' === ( isset( $_SERVER['REQUEST_METHOD'] ) ? $_SERVER['REQUEST_METHOD'] : '' )
+			&& empty( $_POST ) && empty( $_FILES )
+			&& (int) ( isset( $_SERVER['CONTENT_LENGTH'] ) ? $_SERVER['CONTENT_LENGTH'] : 0 ) > 0 ) {
+			self::cat_bao( array( array( 'loi' => 'Máy chủ đã CẮT BỎ lượt gửi vì nó nặng hơn mức '
+				. 'cho phép (' . esc_html( (string) ini_get( 'post_max_size' ) ) . '). Không có gì '
+				. 'được lưu. Nhờ bên hosting nâng post_max_size và upload_max_filesize lên.' ) ) );
+			self::ve( self::url_hien_sua() );
+		}
+
 		if ( ! empty( $_POST ) && isset( $_POST['viec'] ) ) {
-			$bao = self::chu_ky_dung()
+			$bao = self::chu_ky_dung( $toi )
 				? self::lam_viec( sanitize_text_field( wp_unslash( $_POST['viec'] ) ), $toi )
-				: array( array( 'loi' => 'Phiên đã hết hoặc biểu mẫu không hợp lệ. Tải lại trang rồi làm lại.' ) );
+				: array( array( 'loi' => self::vi_sao_chan_post() ) );
 			self::cat_bao( $bao );
 			self::ve( self::url_hien_sua() );
 		}
@@ -3551,7 +3642,9 @@ class VHCC_Web {
 
 	private static function trang_chinh( $toi, $bao ) {
 		global $wpdb;
-		$ky  = self::chu_ky( (string) $_COOKIE[ self::COOKIE ] );
+		/* Phát chữ ký từ chính danh tính đang đăng nhập — `chu_ky()` cũng ra đúng ngần ấy,
+		   nhưng nó phải tra lại CSDL một lượt để đổi thẻ ra người. */
+		$ky  = self::chu_ky_cua( $toi );
 		$la  = VHCC_Vai::duoc( $toi, 'he_thong' );   // khối hệ thống: nguồn người dùng, xoá sạch, khai Admin
 		$bang = VHCC_DB::t( 'nhan_vien' );
 		$tong = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $bang" );

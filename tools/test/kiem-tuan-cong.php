@@ -201,8 +201,37 @@ teq( 'ô trống = xoá cả hai', array( '', '' ), VHCC_TuanCong::doc_o_gio( ''
 teq( '🔴 gõ tay kiểu 08:00-17:00 cũng hiểu', array( '08:00', '17:00' ), VHCC_TuanCong::doc_o_gio( '08:00-17:00' ) );
 teq( '🔴 và kiểu 08:00 → 17:00', array( '08:00', '17:00' ), VHCC_TuanCong::doc_o_gio( '08:00 → 17:00' ) );
 teq( 'phân số Excel trong ô hai hàng', array( '12:00', '18:00' ), VHCC_TuanCong::doc_o_gio( "0.5\n18:00" ) );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 HAI GIỜ CÁCH NHAU BẰNG DẤU CÁCH — anh Thắng 19/09/2026
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * Tệp bảng công tháng 8 của TUTU_TP: trong 138 ô có giờ thì 68 ô viết `17:00 22:00` bằng một
+ * dấu cách thay vì Alt+Enter, lẫn với 69 ô đúng kiểu hai hàng trên CÙNG một tờ. Bản trước
+ * không tách theo khoảng trắng nên ô đầu tiên gặp phải trả `null`, và `doi()` chối cả tệp —
+ * sau khi người ta đã ngồi sửa xong cả tháng.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+teq( '🔴 hai giờ cách nhau bằng DẤU CÁCH', array( '17:00', '22:00' ),
+	VHCC_TuanCong::doc_o_gio( '17:00 22:00' ) );
+teq( '🔴 nhiều dấu cách cũng thế', array( '08:30', '18:00' ),
+	VHCC_TuanCong::doc_o_gio( "08:30   18:00" ) );
+teq( 'tab cũng là khoảng trắng', array( '08:30', '18:00' ),
+	VHCC_TuanCong::doc_o_gio( "08:30\t18:00" ) );
+/* ⚠️ Nhánh gạch/mũi tên phải THẮNG nhánh khoảng trắng — để `\s+` lên trước là cắt ở dấu cách
+   rồi còn lại một mẩu `-` vô nghĩa, và ô nào viết `08:00 - 17:00` đều hỏng. */
+teq( '🔴 gạch có khoảng trắng hai bên vẫn đi đường gạch', array( '08:00', '17:00' ),
+	VHCC_TuanCong::doc_o_gio( '08:00 - 17:00' ) );
+teq( 'mũi tên có khoảng trắng cũng vậy', array( '08:00', '17:00' ),
+	VHCC_TuanCong::doc_o_gio( '08:00  →  17:00' ) );
+teq( 'gõ liền bốn số, cách nhau bằng dấu cách', array( '08:00', '17:30' ),
+	VHCC_TuanCong::doc_o_gio( '0800 1730' ) );
+/* 🔴 BA MẨU VẪN CHỐI. `08:00 12:00 17:00` không có cách hiểu nào chắc chắn — đoán bừa ở đây là
+   đoán ra giờ công, tức đoán ra tiền. */
+t( '🔴 ba giờ cách nhau bằng dấu cách thì VẪN chối',
+	null === VHCC_TuanCong::doc_o_gio( '08:00 12:00 17:00' ) );
+
 t( 'ba mẩu thì chối', null === VHCC_TuanCong::doc_o_gio( "08:00\n12:00\n17:00" ) );
 t( 'mẩu rác thì chối', null === VHCC_TuanCong::doc_o_gio( "sáng\n17:00" ) );
+t( 'rác có dấu cách cũng chối', null === VHCC_TuanCong::doc_o_gio( 'sáng 17:00' ) );
 
 /* ================================================================= ai tải được */
 
@@ -411,6 +440,25 @@ t( 'và nói rõ thiếu ngày nào', false !== strpos( $r['error'], $NGAY[0] ),
 $r = VHCC_TuanCong::doi( $CS_A, $TUAN, '', array( array( 'Mã NV', 'Họ tên' ), array( 'X', 'Y' ) ) );
 t( 'tệp tự dựng (không có cột KHOÁ) thì chối', empty( $r['ok'] ), $r );
 t( 'và bảo tải lại tệp mẫu', false !== mb_strpos( $r['error'], 'mẫu' ), $r['error'] );
+
+/* 🔴 CÂU CHỐI PHẢI IN RA CHÍNH NỘI DUNG Ô. Không kèm thứ nó chối thì người ta phải dò tay qua
+   31 cột để đoán ô nào hỏng — và họ sẽ đoán sai. */
+$rac = sua_o( $doc['hang'], $khoa_nv1, $NGAY[0], '', '', 'thử ô rác' );
+$c_rac = -1;
+foreach ( $rac[0] as $i_c => $o_c ) {
+	if ( false !== strpos( (string) $o_c, $NGAY[0] ) ) { $c_rac = $i_c; break; }
+}
+foreach ( $rac as $i_d => $d_d ) {
+	if ( isset( $d_d[ VHCC_TuanCong::c_khoa( $TUAN ) ] )
+		&& $d_d[ VHCC_TuanCong::c_khoa( $TUAN ) ] === $khoa_nv1 ) {
+		$rac[ $i_d ][ $c_rac ] = 'sáng sớm tinh mơ';
+	}
+}
+$r = VHCC_TuanCong::doi( $CS_A, $TUAN, '', $rac );
+t( '🔴 ô giờ đọc không ra thì chối', empty( $r['ok'] ), $r );
+t( '   và in ra CHÍNH nội dung ô ấy',
+	false !== mb_strpos( (string) $r['error'], 'sáng sớm tinh mơ' ), $r['error'] );
+t( '   kèm cả ngày của ô', false !== strpos( (string) $r['error'], $NGAY[0] ), $r['error'] );
 
 /* ---- nạp thật ---- */
 echo "— nạp và duyệt —\n";

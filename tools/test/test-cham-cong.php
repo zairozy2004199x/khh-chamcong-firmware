@@ -7002,15 +7002,45 @@ teq( 'dọn xong còn đúng 1 hồ sơ', 1,
 /* 🔴 CHỮ KÝ CHỐNG GIẢ MẠO. Không có chữ ký đúng thì không việc gì được chạy — kẻo một trang
    khác dụ anh Thắng bấm vào là xoá sạch hồ sơ của cả chuỗi. */
 $h_w = vhcc_web( '246813', array( 'viec' => 'xoa_het', 'xac_nhan' => 'XOA HET' ) );
-t( 'POST thiếu chữ ký thì KHÔNG làm gì', strpos( $h_w, 'biểu mẫu không hợp lệ' ) !== false );
+t( 'POST thiếu chữ ký thì KHÔNG làm gì', strpos( $h_w, 'THIẾU chữ ký' ) !== false, $h_w );
 teq( 'và hồ sơ vẫn còn nguyên', 1, count( VHCC_DB::rows( 'SELECT id FROM ' . VHCC_DB::t( 'nhan_vien' ) ) ) );
 $h_w = vhcc_web( '246813', array( 'viec' => 'xoa_het', 'xac_nhan' => 'XOA HET', 'ky' => 'chu-ky-bia' ) );
-t( 'chữ ký bịa cũng bị chối', strpos( $h_w, 'biểu mẫu không hợp lệ' ) !== false );
+t( 'chữ ký bịa cũng bị chối', strpos( $h_w, 'không còn khớp' ) !== false, $h_w );
 teq( 'hồ sơ vẫn còn', 1, count( VHCC_DB::rows( 'SELECT id FROM ' . VHCC_DB::t( 'nhan_vien' ) ) ) );
 
-/* Chữ ký buộc vào ĐÚNG token của phiên đó — token khác thì chữ ký khác. */
-t( 'chữ ký khác nhau theo từng phiên',
+/* 🔴 BA CẢNH BỊ CHỐI PHẢI RA BA CÂU KHÁC NHAU — anh Thắng 19/09/2026 gặp câu gộp *"Phiên đã
+   hết hoặc biểu mẫu không hợp lệ"* sau khi ngồi sửa xong cả tờ Excel, và câu ấy không nói được
+   phải làm gì: người mất cookie phải đăng nhập lại, người có tab cũ chỉ cần F5, còn người bị
+   máy chủ cắt mất thân yêu cầu thì F5 bao nhiêu lần cũng thế. */
+t( '🔴 thiếu chữ ký thì mách luôn hai mức giới hạn của máy chủ',
+	strpos( $h_w, 'không còn khớp' ) !== false
+	|| strpos( $h_w, 'post_max_size' ) !== false, $h_w );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 CHỮ KÝ BUỘC VÀO TÀI KHOẢN, KHÔNG BUỘC VÀO THẺ PHIÊN (19/09/2026)
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * Hàng phiên sống 30 ngày, cookie chỉ sống 12 giờ. Ai để một tab mở qua đêm rồi quay lại bấm
+ * Gửi là: chữ ký ký theo thẻ A, cookie đã thành thẻ B — chối, sau khi họ đã sửa xong cả tờ
+ * Excel. Ký theo tài khoản thì đăng nhập lại vẫn dùng được biểu mẫu đang mở, mà tài khoản khác
+ * thì vẫn chối.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+VHCC_Auth::mo_khoa();
+$p_a = VHCC_Auth::login( '246813' );
+VHCC_Auth::mo_khoa();
+$p_b = VHCC_Auth::login( '246813' );
+t( 'hai lượt đăng nhập ra hai thẻ khác nhau', $p_a['token'] !== $p_b['token'] );
+teq( '🔴 nhưng CÙNG một tài khoản thì CÙNG một chữ ký — tab mở qua đêm vẫn gửi được',
+	VHCC_Web::chu_ky( $p_a['token'] ), VHCC_Web::chu_ky( $p_b['token'] ) );
+
+VHCC_Auth::mo_khoa();
+$p_kt = VHCC_Auth::login( '468024' );
+t( '🔴 tài khoản KHÁC thì chữ ký khác — chốt chống giả mạo còn nguyên',
+	VHCC_Web::chu_ky( $p_a['token'] ) !== VHCC_Web::chu_ky( $p_kt['token'] ) );
+
+/* Thẻ rác (không tra ra người) vẫn ra hai chữ ký khác nhau — nhánh lùi về lối cũ. */
+t( 'thẻ không tra ra người thì vẫn mỗi thẻ một chữ ký',
 	VHCC_Web::chu_ky( 'tok-a' ) !== VHCC_Web::chu_ky( 'tok-b' ) );
+$_POST = array(); $_COOKIE = array();
 
 /* Xoá sạch: phải gõ đúng chữ, và chỉ Admin. */
 VHCC_Auth::mo_khoa();
