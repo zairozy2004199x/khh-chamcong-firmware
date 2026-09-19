@@ -252,14 +252,36 @@ class VHCC_Web {
 		return self::chu_ky_cua( $u );
 	}
 
-	/** Chữ ký của một danh tính đã biết — khỏi tra lại CSDL khi nơi gọi đã có `$toi`. */
+	/**
+	 * Chữ ký của một danh tính đã biết — khỏi tra lại CSDL khi nơi gọi đã có `$toi`.
+	 *
+	 * =========================================================================================
+	 * 🔴 CHỈ KÝ THEO MÃ NV. KHÔNG ký kèm vai trò, KHÔNG ký kèm cơ sở.
+	 * =========================================================================================
+	 * Bản 4.62.0 ký theo `ma_nv|role|coso`, và anh Thắng 19/09/2026 vẫn gặp lỗi sau khi cài.
+	 * Vì HAI ĐƯỜNG ĐĂNG NHẬP ĐIỀN HAI THỨ KHÁC NHAU vào cùng một hàng phiên:
+	 *   · `VHCC_Auth::login()`  (trang quản trị) lấy `coso` từ bảng `nguoi_dung`;
+	 *   · `VHCC_Tram`           (app chấm công)  lấy `coso` từ bảng `nhan_vien`.
+	 * Hai bảng ấy không buộc phải ghi giống nhau. Nên cùng một người, đăng nhập bên app rồi
+	 * bấm sang trang quản trị, là ra một hàng phiên mang `coso` khác — và chữ ký lệch, y như
+	 * cũ. Vai trò cũng thế: nó đổi khi Admin nâng bậc, mà biểu mẫu đang mở thì không biết.
+	 *
+	 * Mã NV là thứ DUY NHẤT hai đường đều lấy từ một chỗ và không đổi theo thời gian.
+	 *
+	 * 🔴 BỎ BỚT TRƯỜNG KHÔNG LÀM YẾU CHỐT CHỐNG GIẢ MẠO. Sức mạnh nằm ở `wp_salt('nonce')` —
+	 *    kẻ ngoài không dựng được chữ ký dù ta ký một trường hay mười. Thêm trường chỉ làm
+	 *    chữ ký GÃY khi trường ấy đổi, tức là tự bắn vào chân mình.
+	 *
+	 * ⚠️ Tài khoản KHÔNG CÓ MÃ NV (mấy tài khoản quản trị thuần) thì lùi về tên + vai — hiếm,
+	 *    và chúng không đăng nhập bên app nên không dính cảnh lệch ở trên.
+	 */
 	public static function chu_ky_cua( $toi ) {
 		$lay = function ( $k ) use ( $toi ) {
 			return strtolower( trim( (string) ( isset( $toi[ $k ] ) ? $toi[ $k ] : '' ) ) );
 		};
-		return hash_hmac( 'sha256',
-			'vhcc-qt2|' . $lay( 'ma_nv' ) . '|' . $lay( 'role' ) . '|' . $lay( 'coso' ),
-			wp_salt( 'nonce' ) );
+		$ai = $lay( 'ma_nv' );
+		if ( '' === $ai ) { $ai = 'khongma|' . $lay( 'name' ) . '|' . $lay( 'role' ); }
+		return hash_hmac( 'sha256', 'vhcc-qt3|' . $ai, wp_salt( 'nonce' ) );
 	}
 
 	/** Chữ ký đời cũ, ký theo thẻ phiên. Chỉ còn để NHẬN, không còn để phát. */
@@ -303,9 +325,22 @@ class VHCC_Web {
 				. ' cho cả lượt gửi và ' . esc_html( (string) ini_get( 'upload_max_filesize' ) )
 				. ' cho một tệp. Tải lại trang rồi thử lại; vẫn vậy thì nhờ hosting nâng hai mức ấy.';
 		}
+		/* 🔴 NÓI RA BẢN ĐANG CHẠY VÀ TÀI KHOẢN ĐANG ĐĂNG NHẬP.
+		   Anh Thắng 19/09/2026 cài bản vá xong vẫn gặp lại câu này, và không có cách nào biết
+		   là "trang cũ chưa tải lại" hay "bản vá chưa ăn" hay "tab kia đang là tài khoản
+		   khác" — ba việc phải làm khác hẳn nhau. Hai mẩu tin này phân biệt được cả ba, và
+		   không lộ gì: số bản thì ai xem mã nguồn cũng biết, còn tên tài khoản thì chính họ
+		   đang đăng nhập. */
+		$ai = self::nguoi_vao();
+		$ten_ai = ( is_array( $ai ) && '' !== trim( (string) $ai['name'] ) )
+			? ( trim( (string) $ai['name'] )
+				. ( '' !== trim( (string) $ai['ma_nv'] ) ? ( ' · ' . trim( (string) $ai['ma_nv'] ) ) : '' ) )
+			: 'không rõ';
 		return 'Trang này mở từ một lượt đăng nhập cũ nên chữ ký biểu mẫu không còn khớp '
 			. '(hay gặp khi để tab mở qua đêm, hoặc vừa đăng nhập lại ở máy khác). '
-			. 'Bấm F5 tải lại trang rồi làm lại — KHÔNG mất gì, tệp chọn lại là xong.';
+			. 'Bấm F5 tải lại trang rồi làm lại — KHÔNG mất gì, tệp chọn lại là xong. '
+			. '[bản ' . esc_html( defined( 'VHCC_VERSION' ) ? VHCC_VERSION : '?' )
+			. ' · đang đăng nhập: ' . esc_html( $ten_ai ) . ']';
 	}
 
 	// ======================================================================= phục vụ

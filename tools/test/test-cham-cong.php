@@ -7037,6 +7037,35 @@ $p_kt = VHCC_Auth::login( '468024' );
 t( '🔴 tài khoản KHÁC thì chữ ký khác — chốt chống giả mạo còn nguyên',
 	VHCC_Web::chu_ky( $p_a['token'] ) !== VHCC_Web::chu_ky( $p_kt['token'] ) );
 
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 HAI ĐƯỜNG ĐĂNG NHẬP ĐIỀN HAI THỨ KHÁC NHAU VÀO CÙNG MỘT HÀNG PHIÊN
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * Bản 4.62.0 ký theo `ma_nv|role|coso` và anh Thắng VẪN gặp lỗi sau khi cài. Vì:
+ *   · `VHCC_Auth::login()` (trang quản trị) lấy `coso` từ bảng `nguoi_dung`;
+ *   · `VHCC_Tram` (app chấm công)          lấy `coso` từ bảng `nhan_vien`.
+ * Hai bảng không buộc ghi giống nhau, nên cùng một người đăng nhập hai đường là ra hai hàng
+ * phiên mang `coso` khác — chữ ký lệch y như cũ. Vai trò cũng đổi khi Admin nâng bậc.
+ * Mã NV là thứ duy nhất hai đường cùng lấy từ một chỗ và không đổi theo thời gian.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+$tok_cs1 = VHCC_Auth::phat_token( 'Người Hai Đường', 'Kế toán', 'TUTU_BT', 'HAIDUONG1' );
+$tok_cs2 = VHCC_Auth::phat_token( 'Người Hai Đường', 'Kế toán', 'FZ_LTVT', 'HAIDUONG1' );
+teq( '🔴 cùng MÃ NV mà khác CƠ SỞ trong hàng phiên vẫn phải CÙNG chữ ký',
+	VHCC_Web::chu_ky( $tok_cs1 ), VHCC_Web::chu_ky( $tok_cs2 ) );
+
+$tok_vai = VHCC_Auth::phat_token( 'Người Hai Đường', 'Quản lý', 'TUTU_BT', 'HAIDUONG1' );
+teq( '🔴 và Admin nâng bậc giữa chừng cũng không làm gãy biểu mẫu đang mở',
+	VHCC_Web::chu_ky( $tok_cs1 ), VHCC_Web::chu_ky( $tok_vai ) );
+
+$tok_ng2 = VHCC_Auth::phat_token( 'Người Hai Đường', 'Kế toán', 'TUTU_BT', 'HAIDUONG2' );
+t( '🔴 nhưng KHÁC mã NV thì vẫn khác chữ ký — chốt chống giả mạo còn nguyên',
+	VHCC_Web::chu_ky( $tok_cs1 ) !== VHCC_Web::chu_ky( $tok_ng2 ) );
+
+/* Tài khoản quản trị thuần (không có mã NV) lùi về tên + vai, và hai người khác tên vẫn khác. */
+$tok_km1 = VHCC_Auth::phat_token( 'Quản Trị A', 'Admin', '', '' );
+$tok_km2 = VHCC_Auth::phat_token( 'Quản Trị B', 'Admin', '', '' );
+t( 'tài khoản không có mã NV: khác tên thì khác chữ ký',
+	VHCC_Web::chu_ky( $tok_km1 ) !== VHCC_Web::chu_ky( $tok_km2 ) );
+
 /* Thẻ rác (không tra ra người) vẫn ra hai chữ ký khác nhau — nhánh lùi về lối cũ. */
 t( 'thẻ không tra ra người thì vẫn mỗi thẻ một chữ ký',
 	VHCC_Web::chu_ky( 'tok-a' ) !== VHCC_Web::chu_ky( 'tok-b' ) );
