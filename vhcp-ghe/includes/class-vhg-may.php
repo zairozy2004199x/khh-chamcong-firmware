@@ -1504,6 +1504,8 @@ class VHG_May {
 	}
 
 	public static function xoa_may( $ma, $ai = '' ) {
+		/* "Xoá" ở đây xưa nay chỉ là đặt an=1 — cùng một cửa với ẩn ghế, nên khoá cùng lúc. */
+		return self::chan_an_();
 		global $wpdb;
 		$ma = trim( (string) $ma );
 		if ( '' === $ma ) { return array( 'ok' => false, 'error' => 'Thiếu mã ghế.' ); }
@@ -1543,6 +1545,7 @@ class VHG_May {
 	 * chỉ số, doanh thu, log của từng ghế giữ nguyên (xem `dat_an`). `$an=false` = đưa về dùng lại.
 	 */
 	public static function dat_an_lo( $ds_ma, $an, $ai = '' ) {
+		if ( $an ) { return self::chan_an_(); }
 		global $wpdb;
 		$sach = array();
 		foreach ( (array) $ds_ma as $m ) {
@@ -1634,7 +1637,28 @@ class VHG_May {
 	 *
 	 * @param string $ai Ai bấm (tên người đăng nhập). Rỗng = không rõ, vẫn ghi mốc thời gian.
 	 */
+	/**
+	 * 🔴 KHOÁ TÍNH NĂNG ẨN GHẾ — anh Thắng 19/09/2026: *"không có dữ liệu xoá nào, khoá lại ẩn
+	 *    ghế đi"*.
+	 *
+	 * Cờ `an` là nguồn của mọi vụ "tự nhiên mất ghế": ghế 80111 nằm im ở cờ ẩn từ 13/09 khiến
+	 * một cơ sở 2 ghế nộp báo cáo 1 ghế suốt năm ngày. Mà nghiệp vụ thì KHÔNG cần nó nữa: từ
+	 * 2.115.0 màn nhập dựng danh sách theo LỊCH SỬ THU TIỀN (xem VHG_BaoCao::ds_ghe) — ghế nào
+	 * còn thu thì còn hiện, ghế tháo thật thì hết GHE_LS_NGAY ngày không thu là tự rụng. Tức là
+	 * việc mà nút "ẩn" từng làm, nay dữ liệu tự làm, và làm đúng hơn: không ai phải nhớ bấm, và
+	 * không ai bấm nhầm được.
+	 *
+	 * Vẫn cho GỠ cờ (đưa về) để dọn những ghế đang mắc kẹt cờ cũ. Chỉ chặn chiều BẬT.
+	 */
+	private static function chan_an_() {
+		return array( 'ok' => false, 'error' => 'Tính năng ẩn/điều chuyển ghế đã khoá từ bản 2.115.0. '
+			. 'Màn nhập nay dựng theo lịch sử thu tiền: ghế còn thu thì còn hiện, ghế tháo thật thì '
+			. 'sau ' . VHG_BaoCao::GHE_LS_NGAY . ' ngày không thu sẽ tự rụng — không cần ẩn tay nữa. '
+			. 'Ghế gán nhầm cơ sở thì đổi Địa điểm, đừng ẩn.' );
+	}
+
 	public static function dat_an( $ma, $an, $ai = '' ) {
+		if ( $an ) { return self::chan_an_(); }
 		global $wpdb;
 		$ma = trim( (string) $ma );
 		if ( '' === $ma ) { return array( 'ok' => false, 'error' => 'Thiếu mã máy.' ); }

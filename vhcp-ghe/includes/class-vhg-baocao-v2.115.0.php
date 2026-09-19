@@ -60,7 +60,10 @@ class VHG_BaoCao {
 	   boot() trả nó kèm mọi phản hồi (`banBc`) — số ở góc nói tệp chính là bản nào, số này nói
 	   TỆP BÁO CÁO là bản nào. Hai số lệch nhau là bằng chứng tệp cũ còn sống. Phải tăng cùng
 	   VHG_VERSION mỗi lần sửa tệp này. */
-	const BAN = '2.114.0';
+	const BAN = '2.115.0';
+
+	/** Ghế từng thu tiền trong bao nhiêu ngày gần đây thì vẫn phải hiện ở màn nhập — xem ds_ghe(). */
+	const GHE_LS_NGAY = 45;
 
 	public static function don_vi() { return VHG_Quy::don_vi(); }
 
@@ -248,6 +251,63 @@ class VHG_BaoCao {
 				'an'   => $an ? 1 : 0,
 			);
 		}
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 ĐI TỪ ĐẦU ĐẾN CUỐI DỮ LIỆU — "HÔM TRƯỚC CÓ THÌ NAY PHẢI CÓ" (anh Thắng 19/09/2026).
+		 *
+		 * Mọi lần "mất ghế" tới giờ đều cùng một dạng: danh mục sai một kiểu nào đó thì ghế biến
+		 * mất khỏi màn nhập, và không ai biết. 80111 là do cờ `an`. GO-TDM-1/2/3 thì không dính
+		 * cờ ẩn (màn nhập 2.114 không hiện dải cảnh báo ghế ẩn nào) mà vẫn mất — tức là rơi khỏi
+		 * cơ sở: mất gán `coso_id`, bị đổi cơ sở nhầm, hoặc tên cơ sở lệch. Vá từng kiểu một thì
+		 * kiểu thứ tư lại tới.
+		 *
+		 * Đảo lại nguồn sự thật: DANH MỤC CÓ THỂ SAI, LỊCH SỬ THU TIỀN THÌ KHÔNG. Ghế nào đã từng
+		 * thu tiền ở cơ sở này trong GHE_LS_NGAY ngày gần đây thì nó CÓ THẬT ở đây, bất kể danh
+		 * mục đang nói gì — phải hiện để người ta nhập tiếp.
+		 *
+		 * ⚠️ Khớp theo `bc.coso` (tên cơ sở ĐÓNG BĂNG trong báo cáo), không theo `may.coso_id` —
+		 *    chính cái `coso_id` ấy là thứ đang sai, tra lại nó thì vá không ăn gì.
+		 * ⚠️ Có cửa sổ ngày, không lấy vô hạn: ghế tháo thật vẫn phải rụng khỏi màn, nếu không
+		 *    thì danh sách phình mãi và không có đường dọn. Hết GHE_LS_NGAY ngày không thu đồng
+		 *    nào là nó tự rụng.
+		 * ⚠️ Ghế thêm theo đường này KHÔNG tính là "ghế sống" của cơ sở (không đụng vào luật ghế
+		 *    ẩn ở trên) và được đánh dấu `tu_ls` để màn nhập nói rõ nó hiện vì lịch sử.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		global $wpdb;
+		$da_co = array();
+		foreach ( $ra as $x ) { $da_co[ self::squash( $x['coso'] ) . '|' . $x['ma'] ] = true; }
+		$moc_ls = gmdate( 'Y-m-d', current_time( 'timestamp' ) - self::GHE_LS_NGAY * 86400 );
+		$ls = $wpdb->get_results( $wpdb->prepare(
+			'SELECT h.coso, d.ma_may, MAX(d.ten) AS ten FROM ' . VHG_DB::t( 'bc_dong' ) . ' d'
+			. ' JOIN ' . VHG_DB::t( 'bc' ) . ' h ON h.report_id = d.report_id'
+			. ' WHERE d.ngay >= %s AND d.ma_may <> %s'
+			. ' AND (d.chi_so_sau IS NOT NULL OR d.tong <> 0 OR d.actual <> 0)'
+			. ' GROUP BY h.coso, d.ma_may', $moc_ls, '' ), ARRAY_A );
+		foreach ( (array) $ls as $x ) {
+			$cs_ls = trim( (string) $x['coso'] );
+			$ma_ls = trim( (string) $x['ma_may'] );
+			if ( '' === $cs_ls || '' === $ma_ls ) { continue; }
+			if ( isset( $da_co[ self::squash( $cs_ls ) . '|' . $ma_ls ] ) ) { continue; }
+			if ( ! self::trong_pham_vi( $q, $cs_ls, $ma_ls ) ) { continue; }
+			$ra[] = array(
+				'ma'      => $ma_ls,
+				'ten'     => (string) ( '' !== trim( (string) $x['ten'] ) ? $x['ten'] : $ma_ls ),
+				'ten_goi' => '',
+				'coso'    => $cs_ls,
+				'an'      => 0,
+				'tu_ls'   => 1,
+			);
+			$da_co[ self::squash( $cs_ls ) . '|' . $ma_ls ] = true;
+		}
+		/* Ghế đã được lịch sử kéo về thì không còn là "ghế bị giấu" nữa — bỏ khỏi dải cảnh báo,
+		   nếu không màn nhập vừa hiện dòng nhập vừa kêu là đang giấu chính nó. */
+		if ( is_array( $an_bo ) && $an_bo ) {
+			$loc = array();
+			foreach ( $an_bo as $x ) {
+				if ( ! isset( $da_co[ self::squash( $x['coso'] ) . '|' . $x['ma'] ] ) ) { $loc[] = $x; }
+			}
+			$an_bo = $loc;
+		}
+
 		/* Xếp theo cơ sở → TÊN GHẾ dạng người-đọc: VHM-1, VHM-2, … VHM-10 (không phải VHM-1, VHM-10,
 		   VHM-2). `strnatcasecmp` hiểu số trong tên nên "-2" đứng trước "-10"; sắp ở NGUỒN để cả bảng
 		   nhập chỉ số lẫn ô xổ ghế đều cùng thứ tự, khỏi mỗi màn một kiểu. */

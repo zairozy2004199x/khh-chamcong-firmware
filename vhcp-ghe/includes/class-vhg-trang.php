@@ -10751,6 +10751,16 @@ function veQuanLy(){
 }
 
 /* Cac ma ghe dang tich chon (bo ma da bien mat khoi du lieu). */
+/* 🔴 NÚT ẨN/XOÁ GHẾ ĐÃ KHOÁ — anh Thắng 19/09/2026: *"không có dữ liệu xoá nào, khoá lại ẩn
+   ghế đi"*. Máy chủ chặn ở VHG_May::chan_an_(); ở đây chặn luôn tại nút để người ta không phải
+   bấm rồi mới nhận lỗi. Việc mà nút này từng làm, nay dữ liệu tự làm: màn nhập dựng theo lịch sử
+   thu tiền, ghế còn thu thì còn hiện, ghế tháo thật thì hết 45 ngày không thu là tự rụng. */
+function khoaAnGhe(){
+  alert(L('Ẩn / điều chuyển ghế đã khoá từ bản 2.115.0.\n\nMàn nhập nay dựng theo LỊCH SỬ THU TIỀN: '
+        + 'ghế còn thu thì còn hiện, ghế tháo thật thì sau 45 ngày không thu sẽ tự rụng — không cần ẩn tay nữa. '
+        + 'Ghế gán nhầm cơ sở thì bấm đổi Địa điểm, đừng ẩn.',
+        'Hiding chairs is locked since 2.115.0 — the entry screen now follows collection history.'));
+}
 function qlChon(){ var r = []; for (var k in QL_SEL){ if (QL_SEL[k]) r.push(k); } return r; }
 /* Dung o xo co so (dung cho tung dong lan cho o "doi co so hang loat"). */
 function qlCsOpt(coso, chonTen){
@@ -10875,9 +10885,7 @@ function qlTimTrung(){
     var ds = [];
     [].forEach.call(box.querySelectorAll('.ql-tt-ck'), function(c){ if (c.checked) ds.push(c.getAttribute('data-ma')); });
     if (!ds.length){ alert(L('Chua tich ghe nao.','Nothing ticked.')); return; }
-    if (!confirm(L('An (dieu chuyen) ' + ds.length + ' ghe trung ten?\nChi so & doanh thu giu nguyen, dua ve lai duoc.',
-      'Hide ' + ds.length + ' duplicate chairs?\nMeter & revenue kept, reversible.'))) return;
-    lam('may_an_lo', { ma: ds, an: 1 });
+    khoaAnGhe();
   };
 }
 
@@ -11201,9 +11209,7 @@ function qlGheRender(){
   });
   [].forEach.call(box.querySelectorAll('[data-man]'), function(b){
     b.onclick = function(){ var m = b.getAttribute('data-man');
-      if (!confirm(L('Dieu chuyen ghe ' + m + ' di?\nGhe an khoi trang thu tien cua nhan vien — chi so & doanh thu GIU NGUYEN, khong mat.',
-        'Move chair ' + m + ' out?\nIt hides from staff — meter & revenue are KEPT.'))) return;
-      lam('may_an', { ma: m, an: 1 }); };
+      khoaAnGhe(); };
   });
   [].forEach.call(box.querySelectorAll('[data-mhien]'), function(b){
     b.onclick = function(){ lam('may_an', { ma: b.getAttribute('data-mhien'), an: 0 }); };
@@ -11229,18 +11235,14 @@ function qlGheRender(){
       /* Từ 2.23.0 "Xoá" KHÔNG xoá cứng nữa mà ẨN MỀM (an=1) — ghế rơi xuống khối "Ghế đã điều
          chuyển" ở cuối bảng, chỉ số/lịch sử còn nguyên, "Đưa về" là phục hồi. Không còn đường
          nào làm mất một ghế khỏi hệ (đúng vụ "tự nhiên mất máy"). Nói đúng thứ sắp xảy ra. */
-      if (!confirm(L('Ẩn ghế ' + m + ' khỏi danh sách?\nGhế chìm xuống khối "Ghế đã điều chuyển" (mờ) ở cuối bảng — KHÔNG mất dữ liệu, chỉ số & lịch sử còn nguyên. Đưa về lại được bất cứ lúc nào.',
-        'Hide chair ' + m + '?\nIt sinks to the dimmed "Moved-out chairs" block — nothing is lost, meter & history stay. You can bring it back anytime.'))) return;
-      lam('may_xoa', { ma: m });
+      khoaAnGhe();
     };
   });
   var e;
   if ((e = document.getElementById('ql-boc'))) e.onclick = function(){ QL_SEL = {}; qlGheRender(); };
   if ((e = document.getElementById('ql-dc'))) e.onclick = function(){
     var ds = qlChon(); if (!ds.length) return;
-    if (!confirm(L('Dieu chuyen ' + ds.length + ' ghe da chon di?\nCac ghe an khoi trang thu tien — chi so & doanh thu GIU NGUYEN, khong mat. Dua ve lai duoc.',
-      'Move ' + ds.length + ' selected chairs out?\nThey hide from staff — meter & revenue are KEPT. Reversible.'))) return;
-    QL_SEL = {}; lam('may_an_lo', { ma: ds, an: 1 });
+    khoaAnGhe();
   };
   if ((e = document.getElementById('ql-doics'))) e.onclick = function(){
     var ds = qlChon(); if (!ds.length) return;

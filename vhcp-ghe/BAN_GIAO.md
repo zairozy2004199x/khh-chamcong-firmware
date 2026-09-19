@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-09-18 · Phiên bản hiện tại: **2.114.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-09-18 · Phiên bản hiện tại: **2.115.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,32 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v2.115.0 — Màn nhập dựng theo LỊCH SỬ THU TIỀN · khoá tính năng ẩn ghế
+
+Anh Thắng 19/09/2026: *"nguyên tắc đi từ đầu đến cuối dữ liệu"*, *"hôm trước có, nay phải có chứ"*,
+*"không có dữ liệu xoá nào, khoá lại ẩn ghế đi"*.
+
+**Ca mới:** GO Thủ Dầu Một có 4 ghế, báo cáo ra **1 ghế** (GO-TDM-4). Khác ca 80111: lần này màn
+nhập (2.114) **không hiện dải cảnh báo ghế ẩn nào** — tức GO-TDM-1/2/3 không dính cờ `an`, chúng
+rơi khỏi cơ sở (mất gán `coso_id` / đổi cơ sở nhầm / tên cơ sở lệch).
+
+Ba lần mất ghế, ba nguyên nhân khác nhau. Vá từng nguyên nhân thì nguyên nhân thứ tư lại tới, mà
+mỗi lần tới là một cơ sở nộp thiếu ghế nhiều ngày không ai thấy. Nên **đảo nguồn sự thật**:
+
+1. **`ds_ghe()` bổ sung ghế theo lịch sử.** Ghế nào đã từng thu tiền ở cơ sở này trong
+   `GHE_LS_NGAY` (45) ngày gần đây thì vẫn hiện, bất kể danh mục đang nói gì. Khớp theo `bc.coso`
+   (tên cơ sở đóng băng trong báo cáo) chứ **không** theo `may.coso_id` — chính `coso_id` là thứ
+   đang sai. Vẫn chốt theo phạm vi PIN, không thêm trùng, và ghế kéo về từ lịch sử thì bỏ khỏi dải
+   cảnh báo "đang bị giấu".
+   Cửa sổ 45 ngày là đường rụng cho ghế tháo thật: hết 45 ngày không thu đồng nào thì tự rụng.
+2. **Khoá tính năng ẩn ghế.** `dat_an` / `dat_an_lo` / `xoa_may` (xoá mềm = `an=1`) đều chặn chiều
+   BẬT qua `chan_an_()`; **vẫn cho gỡ** để dọn cờ cũ. Bốn nút bấm bên Quản lý ghế nay nói lý do
+   thay vì gọi máy chủ rồi nhận lỗi. Việc mà nút ẩn từng làm, nay dữ liệu tự làm và làm đúng hơn:
+   không ai phải nhớ bấm, và không ai bấm nhầm được.
+
+Bài kiểm `tools/test/kiem-ghe-theo-lich-su.js` (14 phép).
+
 
 ### v2.114.0 — Bỏ cảnh báo "tiền VietQR chưa quy được cơ sở"
 
