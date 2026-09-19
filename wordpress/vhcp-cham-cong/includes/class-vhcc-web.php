@@ -275,13 +275,66 @@ class VHCC_Web {
 	 * ⚠️ Tài khoản KHÔNG CÓ MÃ NV (mấy tài khoản quản trị thuần) thì lùi về tên + vai — hiếm,
 	 *    và chúng không đăng nhập bên app nên không dính cảnh lệch ở trên.
 	 */
+	/**
+	 * KHOÁ KÝ BIỂU MẪU — của CHÍNH HỆ NÀY, cất trong bảng `cai_dat`.
+	 *
+	 * =========================================================================================
+	 * 🔴 VÌ SAO THÔI MƯỢN `wp_salt('nonce')`
+	 * =========================================================================================
+	 * Anh Thắng 19/09/2026 bị chối qua BỐN bản vá, mà ba trong số đó dùng ba cách ký KHÁC HẲN
+	 * nhau. Ba cách khác nhau cùng hỏng thì nghi vấn thôi nằm ở cách ký — nó nằm ở CÁI KHOÁ.
+	 *
+	 * `wp_salt('nonce')` đọc hằng `NONCE_SALT` trong `wp-config.php`; hằng ấy KHÔNG có thì
+	 * WordPress tự sinh một chuỗi rồi cất vào bảng `options`. Trên hosting dùng nhiều tiến
+	 * trình PHP, hoặc có plugin bảo mật "đổi khoá định kỳ", chuỗi ấy đổi được giữa lúc VẼ
+	 * trang và lúc NHẬN biểu mẫu — và mọi chữ ký của mọi người hỏng cùng lúc, im lặng.
+	 *
+	 * Khoá ở đây sinh MỘT LẦN rồi nằm yên trong bảng của chính plugin. Không ai đổi nó ngoài
+	 * ta, nên không còn cửa nào cho cảnh "hôm qua chạy, hôm nay không".
+	 *
+	 * ⚠️ `INSERT IGNORE` rồi ĐỌC LẠI, không phải "chưa có thì ghi". Hai lượt truy cập cùng lúc
+	 *    mà mỗi lượt tự sinh một khoá rồi cùng ghi đè là hai chữ ký khác nhau — đúng cái bệnh
+	 *    đang chữa, chỉ hiếm hơn.
+	 * ⚠️ Thiếu `random_bytes` (PHP quá cũ) thì LÙI VỀ `wp_salt` chứ không bịa một khoá đoán
+	 *    được. Chữ ký yếu còn hơn chữ ký giả vờ.
+	 */
+	private static function muoi_ky() {
+		static $nho = null;
+		if ( null !== $nho ) { return $nho; }
+		global $wpdb;
+		$bang = VHCC_DB::t( 'cai_dat' );
+		$doc  = function () use ( $wpdb, $bang ) {
+			$v = $wpdb->get_var( $wpdb->prepare(
+				"SELECT gia_tri FROM $bang WHERE khoa=%s", 'KY_BIEU_MAU' ) );
+			$v = trim( (string) $v, " \t\n\r\0\x0B\"" );
+			return ( 64 === strlen( $v ) && ctype_xdigit( $v ) ) ? $v : '';
+		};
+		$k = $doc();
+		if ( '' === $k && function_exists( 'random_bytes' ) ) {
+			try {
+				$moi = bin2hex( random_bytes( 32 ) );
+				$wpdb->query( $wpdb->prepare(
+					"INSERT IGNORE INTO $bang (khoa, gia_tri, cap_nhat, nguoi_sua)"
+					. ' VALUES (%s, %s, %s, %s)',
+					'KY_BIEU_MAU', $moi, current_time( 'mysql' ), 'he-thong' ) );
+				$k = $doc();
+				if ( '' === $k ) { $k = $moi; }
+			} catch ( Exception $e ) {
+				$k = '';
+			}
+		}
+		if ( '' === $k ) { $k = (string) wp_salt( 'nonce' ); }
+		$nho = $k;
+		return $nho;
+	}
+
 	public static function chu_ky_cua( $toi ) {
 		$lay = function ( $k ) use ( $toi ) {
 			return strtolower( trim( (string) ( isset( $toi[ $k ] ) ? $toi[ $k ] : '' ) ) );
 		};
 		$ai = $lay( 'ma_nv' );
 		if ( '' === $ai ) { $ai = 'khongma|' . $lay( 'name' ) . '|' . $lay( 'role' ); }
-		return hash_hmac( 'sha256', 'vhcc-qt3|' . $ai, wp_salt( 'nonce' ) );
+		return hash_hmac( 'sha256', 'vhcc-qt3|' . $ai, self::muoi_ky() );
 	}
 
 	/** Chữ ký đời cũ, ký theo thẻ phiên. Chỉ còn để NHẬN, không còn để phát. */
@@ -350,17 +403,72 @@ class VHCC_Web {
 	 *    cài bản mới. Nhánh này chỉ để đỡ quãng chuyển, bỏ đi lúc nào cũng được.
 	 */
 	public static function chu_ky_dung( $toi = null ) {
-		$gui = isset( $_POST['ky'] ) ? (string) wp_unslash( $_POST['ky'] ) : '';
-		if ( '' === $gui ) { return false; }
 		if ( ! is_array( $toi ) ) { $toi = self::nguoi_vao(); }
 		if ( ! is_array( $toi ) ) { return false; }
-		foreach ( self::chu_ky_con_nhan( $toi ) as $mong ) {
-			/* `hash_equals` chứ không phải `===` — so chuỗi băm bằng `===` là hở kênh phụ về
-			   thời gian. Ở đây gần như vô hại, nhưng viết đúng một lần thì khỏi phải nhớ chỗ
-			   nào hại chỗ nào. */
-			if ( hash_equals( $mong, $gui ) ) { return true; }
+
+		$gui = isset( $_POST['ky'] ) ? (string) wp_unslash( $_POST['ky'] ) : '';
+		if ( '' !== $gui ) {
+			foreach ( self::chu_ky_con_nhan( $toi ) as $mong ) {
+				/* `hash_equals` chứ không phải `===` — so chuỗi băm bằng `===` là hở kênh phụ
+				   về thời gian. Ở đây gần như vô hại, nhưng viết đúng một lần thì khỏi phải
+				   nhớ chỗ nào hại chỗ nào. */
+				if ( hash_equals( $mong, $gui ) ) { return true; }
+			}
 		}
-		return false;
+		return self::cung_nguon();
+	}
+
+	/**
+	 * LƯỚI ĐỠ: LƯỢT GỬI NÀY CÓ ĐẾN TỪ CHÍNH TRANG NÀY KHÔNG.
+	 *
+	 * =========================================================================================
+	 * 🔴 VÌ SAO PHẢI CÓ LƯỚI ĐỠ, VÀ VÌ SAO NÓ KHÔNG PHẢI LÀ "BỎ CHỐT"
+	 * =========================================================================================
+	 * Anh Thắng 19/09/2026, sau BỐN lượt vá liên tiếp vẫn bị chối: *"bỏ chữ ký đi, vẫn không
+	 * được"*. Câu ấy đúng về mặt nghiệp vụ — một chốt an ninh mà chặn đúng người chủ, ngày này
+	 * qua ngày khác, thì nó đang bảo vệ dữ liệu khỏi chính người có quyền trên dữ liệu ấy.
+	 * Nhưng bỏ hẳn thì trang này — xoá được hồ sơ, sửa được giờ công, chốt được lương — nhận
+	 * mọi lượt POST từ bất kỳ trang lạ nào mà anh lỡ bấm vào.
+	 *
+	 * Nên thay vì bỏ, đổi câu hỏi: **lượt gửi này có xuất phát từ chính trang của mình không.**
+	 *
+	 * Trình duyệt LUÔN gắn `Origin` vào mọi lượt POST đi sang tên miền khác — đó là thứ kẻ tấn
+	 * công không tắt được, vì nó do trình duyệt của NẠN NHÂN đặt. Nên:
+	 *   · `Origin`/`Referer` mang tên miền LẠ  → chối, đây đúng là lượt giả mạo;
+	 *   · mang tên miền của mình               → nhận;
+	 *   · KHÔNG có cái nào                     → CHỐI.
+	 *
+	 * 🔴 NHÁNH CUỐI PHẢI LÀ CHỐI, DÙ NÓ CÁM DỖ. Bản đầu của lưới này nhận luôn cảnh "không có
+	 *    tiêu đề nào", với lý lẽ rằng lượt giả mạo bao giờ cũng mang `Origin`. Bộ thử đỏ ngay:
+	 *    mấy phép thử canh chốt chống giả mạo gửi POST trần không tiêu đề, và chúng XOÁ SẠCH
+	 *    được hồ sơ. Lý lẽ kia đúng với trình duyệt, nhưng chốt an ninh không được dựa vào
+	 *    việc phía bên kia là một trình duyệt tử tế. Một lượt POST không tiêu đề thì không
+	 *    chứng minh được nó đến từ đâu — mà không chứng minh được thì chối.
+	 *
+	 *    Người dùng thật không rơi vào nhánh ấy: trình duyệt gửi biểu mẫu cùng tên miền bao
+	 *    giờ cũng kèm `Referer`, hoặc `Origin`, hoặc cả hai.
+	 *
+	 * Cộng thêm cookie đã `SameSite=Lax` (trang khác POST sang không mang phiên theo) thì còn
+	 * hai lớp. Chữ ký vẫn chạy và vẫn là lớp đầu — lưới này chỉ đỡ khi nó trượt.
+	 *
+	 * ⚠️ SO TÊN MIỀN BẰNG `parse_url`, KHÔNG BẰNG `strpos`. `strpos($ref, $nha)` cho
+	 *    `https://khmatrix.com.ke-gia-mao.net/` đi lọt — tên miền của mình nằm gọn trong chuỗi
+	 *    ấy. Đó là lỗi kinh điển của mọi phép kiểm Referer viết vội.
+	 * ⚠️ `Origin: null` (trang đặt `Referrer-Policy` chặt, hoặc khung sandbox) KHÔNG phải tên
+	 *    miền của mình — `parse_url` trả rỗng và nhánh dưới chối. Đúng ý.
+	 */
+	private static function cung_nguon() {
+		$nha = wp_parse_url( home_url( '/' ), PHP_URL_HOST );
+		if ( ! $nha ) { return false; }
+		$khop = false;
+		foreach ( array( 'HTTP_ORIGIN', 'HTTP_REFERER' ) as $k ) {
+			$v = isset( $_SERVER[ $k ] ) ? trim( (string) $_SERVER[ $k ] ) : '';
+			if ( '' === $v ) { continue; }
+			$h = wp_parse_url( $v, PHP_URL_HOST );
+			if ( ! $h || 0 !== strcasecmp( (string) $h, (string) $nha ) ) { return false; }
+			$khop = true;
+		}
+		return $khop;
 	}
 
 	/**

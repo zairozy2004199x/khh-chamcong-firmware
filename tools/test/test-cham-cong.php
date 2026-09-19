@@ -7066,6 +7066,58 @@ $tok_km2 = VHCC_Auth::phat_token( 'Quản Trị B', 'Admin', '', '' );
 t( 'tài khoản không có mã NV: khác tên thì khác chữ ký',
 	VHCC_Web::chu_ky( $tok_km1 ) !== VHCC_Web::chu_ky( $tok_km2 ) );
 
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 LƯỚI ĐỠ THEO NGUỒN GỬI — anh Thắng 19/09/2026: *"bỏ chữ ký đi, vẫn không được"*
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * Sau bốn lượt vá vẫn bị chối, anh xin bỏ hẳn chốt. Bỏ hẳn thì trang này — xoá được hồ sơ,
+ * sửa được giờ công, chốt được lương — nhận mọi lượt POST từ bất kỳ trang lạ nào. Nên đổi câu
+ * hỏi: lượt gửi này có xuất phát từ CHÍNH trang của mình không.
+ *
+ * Ba nhánh, và nhánh thứ ba mới là nhánh dễ viết sai:
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+VHCC_Auth::mo_khoa();
+$p_ln = VHCC_Auth::login( '246813' );
+$_COOKIE[ VHCC_Web::COOKIE ] = $p_ln['token'];
+
+/** POST với chữ ký SAI, đặt sẵn mấy tiêu đề nguồn — để soi riêng lưới đỡ. */
+function vhcc_post_nguon( $them ) {
+	unset( $_SERVER['HTTP_ORIGIN'], $_SERVER['HTTP_REFERER'] );
+	foreach ( $them as $k => $v ) { $_SERVER[ $k ] = $v; }
+	$_POST = array( 'viec' => 'khai_admin', 'ky' => 'chu-ky-sai-hoan-toan', 'ten' => 'Kẻ Lạ' );
+	ob_start(); VHCC_Web::phuc_vu(); $h = ob_get_clean();
+	$_POST = array();
+	unset( $_SERVER['HTTP_ORIGIN'], $_SERVER['HTTP_REFERER'] );
+	return $h;
+}
+$nha_url = home_url( '/' );
+
+$h_ng = vhcc_post_nguon( array( 'HTTP_ORIGIN' => 'https://ke-gia-mao.net' ) );
+t( '🔴 Origin tên miền LẠ thì chối', false !== mb_strpos( $h_ng, 'không còn khớp' ), $h_ng );
+
+/* ⚠️ Kinh điển: `strpos($ref, $nha)` cho tên miền của mình nằm gọn trong tên miền của kẻ giả
+   mạo đi lọt. Phải so bằng `parse_url`, không so bằng chuỗi con. */
+$h_ng = vhcc_post_nguon( array( 'HTTP_REFERER' => 'https://example.test.ke-gia-mao.net/x' ) );
+t( '🔴 tên miền của mình nằm TRONG tên miền lạ vẫn phải chối',
+	false !== mb_strpos( $h_ng, 'không còn khớp' ), $h_ng );
+
+$h_ng = vhcc_post_nguon( array( 'HTTP_ORIGIN' => 'null' ) );
+t( '🔴 Origin: null thì chối', false !== mb_strpos( $h_ng, 'không còn khớp' ), $h_ng );
+
+/* 🔴 KHÔNG CÓ TIÊU ĐỀ NÀO CŨNG CHỐI. Bản đầu của lưới này nhận luôn, lý lẽ là "lượt giả mạo
+   bao giờ cũng mang Origin" — đúng với trình duyệt, nhưng chốt an ninh không được dựa vào
+   việc phía bên kia là một trình duyệt tử tế. Bộ thử đỏ ngay ở đây, và nó đúng. */
+$h_ng = vhcc_post_nguon( array() );
+t( '🔴 POST trần KHÔNG tiêu đề nào thì chối', false !== mb_strpos( $h_ng, 'không còn khớp' ), $h_ng );
+
+/* Còn lượt gửi từ chính trang mình thì QUA — đây là cái cứu anh Thắng khỏi bị chặn. */
+$h_ng = vhcc_post_nguon( array( 'HTTP_REFERER' => $nha_url . '?vhcc_qt=1&man=cham' ) );
+t( '🔴 Referer cùng tên miền thì QUA, dù chữ ký sai',
+	false === mb_strpos( $h_ng, 'không còn khớp' ), mb_substr( $h_ng, 0, 300 ) );
+$h_ng = vhcc_post_nguon( array( 'HTTP_ORIGIN' => rtrim( $nha_url, '/' ) ) );
+t( '   Origin cùng tên miền cũng qua',
+	false === mb_strpos( $h_ng, 'không còn khớp' ), mb_substr( $h_ng, 0, 300 ) );
+$_COOKIE = array();
+
 /* Thẻ rác (không tra ra người) vẫn ra hai chữ ký khác nhau — nhánh lùi về lối cũ. */
 t( 'thẻ không tra ra người thì vẫn mỗi thẻ một chữ ký',
 	VHCC_Web::chu_ky( 'tok-a' ) !== VHCC_Web::chu_ky( 'tok-b' ) );
