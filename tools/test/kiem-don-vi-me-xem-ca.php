@@ -153,6 +153,24 @@ VHCP_Cfg::clear_cache();
 vai( 'KT KVC', 'Kế toán cá nhân' );
 teq( '🔴 Kế toán nhà KVC chỉ đọc sổ KVC', array( 'KVC' ), VHCP_DonVi::xem_duoc() );
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 TÊN NHÀ MẸ PHẢI XUỐNG TỚI GIAO DIỆN — KHÔNG THÌ LUẬT NÀY CHỈ ĐÚNG MỘT NỬA
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * Mọi phép trên canh luật ở MÁY CHỦ, và chúng đã xanh suốt. Nhưng hộp chọn cơ sở bên giao diện
+ * giữ MỘT BẢN KHÁC của cùng luật ấy — nó so bằng nhau, vì chưa bao giờ được cho biết nhà nào là
+ * nhà mẹ. Hậu quả (anh Thắng 19/09/2026, khối "🏢 ĐƠN VỊ KVC · 21 cơ sở"): *"rồi này thì không
+ * thấy đâu"* — 21 gian KVC bị giấu khỏi mọi tài khoản K&H, tức khỏi đúng người đáng thấy tất.
+ * Người khai mở hộp ra thấy thiếu thì gõ tay một mã, và mã ấy không khớp gian nào.
+ *
+ * ⚠️ Một luật mà hai nơi giữ hai bản thì phải có phép nối hai bản ấy lại. Đây là phép đó: máy
+ *    chủ có gửi `donViMe` xuống không. `kiem-o-coso-theo-don-vi.js` canh nửa còn lại — giao diện
+ *    có dùng đúng nó không.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+$_don = (string) @file_get_contents( dirname( dirname( __DIR__ ) ) . '/wordpress/vhcp-chi-phi/includes/class-vhcp-don.php' );
+t( '🔴 gói khởi động có gửi `donViMe` xuống giao diện',
+	1 === preg_match( "/'donViMe'\s*=>\s*VHCP_DonVi::don_vi_me\(\)/u", $_don ),
+	$_don ? 'không thấy trong class-vhcp-don.php' : 'không đọc được tệp' );
+
 /* ─────────────────────────────────────────────────────────────────────────────────────────── */
 echo "\n";
 if ( $TRUOT ) {

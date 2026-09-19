@@ -17021,7 +17021,22 @@ $hang_cp = null;
 foreach ( $so_cp as $x ) { if ( 'Người Đẩy Chi Phí' === $x[0] ) { $hang_cp = $x; } }
 t( 'hàng mới mang đúng tên', null !== $hang_cp, $so_cp );
 teq( 'và đúng PIN chấm công', '778899', (string) $hang_cp[1] );
-teq( 'cơ sở theo hồ sơ', 'TUTU_BT', (string) $hang_cp[3] );
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 Ô CƠ SỞ PHẢI TRỐNG — ĐẨY THÔNG TIN, KHÔNG ĐẨY QUYỀN
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * Phép này trước đây đòi NGƯỢC LẠI: `teq( 'cơ sở theo hồ sơ', 'TUTU_BT', $hang_cp[3] )` — tức
+ * nó CHỐT CỨNG chính cái lỗi, nên suốt thời gian ấy bộ thử bảo vệ hành vi sai.
+ *
+ * Anh Thắng 19/09/2026: *"cơ sở chấm công thì nó không liên quan đến chi phí. Khi đẩy nhân sự
+ * qua thì đẩy THÔNG TIN qua, chứ không phải đẩy QUYỀN QUẢN LÝ qua rồi chèn đi cơ sở hiện có"*.
+ *
+ * Hai danh mục khác hẳn nhau, chung mỗi cái tên gọi: bên nhân sự là MÃ cửa hàng (`TUTU_BT`),
+ * bên chi phí là TÊN gian hàng (`NHÀ MA BÌNH DƯƠNG`). `VHCP_Auth::trong_coso()` so chuỗi bằng
+ * nhau, nên mã ghi vào đó không khớp gian nào — người ấy mở app ra thấy TRẮNG, kể cả đơn chính
+ * mình vừa lập. Trống thì an toàn: `nv_co_coso()` đòi CÓ cơ sở mới mở tầm nhìn theo gian, nên
+ * người vừa đẩy sang chỉ thấy đơn của mình cho tới khi kế toán phân.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+teq( '🔴 ô cơ sở để TRỐNG, không nhét mã cửa hàng bên nhân sự vào', '', (string) $hang_cp[3] );
 /* 🔴 CỬA HÀNG TRƯỞNG -> 'Nhân viên', KHÔNG phải 'Quản lý': bên chi phí 'Quản lý' duyệt được chi
    của MỌI cơ sở, mà cửa hàng trưởng là người ĐỀ NGHỊ chi. */
 teq( 'nhân viên sang vai Nhân viên', 'Nhân viên', (string) $hang_cp[2] );
@@ -17055,6 +17070,7 @@ $wpdb->query( 'SELECT 1' );
 $so_ke = VHCP_Cfg::read( VHCP_Cfg::USER );
 foreach ( $so_ke as $i_ke => $x_ke ) {
 	if ( 'Người Đẩy Chi Phí' === $x_ke[0] ) {
+		$so_ke[ $i_ke ][3] = 'NHÀ MA BÌNH DƯƠNG';
 		$so_ke[ $i_ke ][4] = '1388';
 		$so_ke[ $i_ke ][5] = 'NV777';
 		$so_ke[ $i_ke ][7] = 'HCM';
@@ -17066,6 +17082,11 @@ VHCC_DayChiPhi::dong_bo( 'CP1' );
 $hang_cp = null;
 foreach ( VHCP_Cfg::read( VHCP_Cfg::USER ) as $x ) { if ( 'Người Đẩy Chi Phí' === $x[0] ) { $hang_cp = $x; } }
 teq( 'PIN đã theo bản gốc', '445566', (string) $hang_cp[1] );
+/* 🔴 CƠ SỞ KẾ TOÁN ĐÃ PHÂN LÀ THỨ DỄ MẤT NHẤT, VÌ SỔ NHÂN SỰ CÓ MỘT Ô TRÔNG GIỐNG HỆT. Ba ô
+   kia (TK Có · Mã đối tượng · Đơn vị) bên nhân sự không có nên không ai nghĩ tới việc ghi đè;
+   riêng "cửa hàng" thì có, và mỗi lượt đồng bộ nó lại đè lên phân công của kế toán. Đúng chỗ
+   anh Thắng gọi là *"chèn đi cơ sở hiện có"*. */
+teq( '🔴 cơ sở kế toán đã phân KHÔNG bị lượt đồng bộ đè mất', 'NHÀ MA BÌNH DƯƠNG', (string) $hang_cp[3] );
 teq( '🔴 nhưng TK Có của kế toán còn nguyên', '1388', (string) $hang_cp[4] );
 teq( 'và Mã đối tượng còn nguyên', 'NV777', (string) $hang_cp[5] );
 teq( 'và Đơn vị còn nguyên', 'HCM', (string) $hang_cp[7] );

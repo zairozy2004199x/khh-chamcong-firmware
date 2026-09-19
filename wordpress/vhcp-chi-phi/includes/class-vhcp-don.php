@@ -593,6 +593,14 @@ class VHCP_Don {
 			'boPhanBo'   => VHCP_Auth::bo_phan_bo(),
 			'loaiChuaBP' => self::dem_loai_chua_bo_phan( $cp ),
 			'donVi'      => VHCP_DonVi::ds(),
+			/* 🔴 TÊN NHÀ MẸ PHẢI XUỐNG TỚI GIAO DIỆN. Luật "nhà mẹ đọc cả hệ" trước nay CHỈ có
+			   ở máy chủ (`VHCP_DonVi::la_don_vi_me()`), nên hộp chọn cơ sở bên kia đành so
+			   bằng nhau — và giấu mọi gian KVC / POSH khỏi tài khoản K&H, tức khỏi đúng người
+			   đáng thấy tất. Người khai mở hộp ra thấy thiếu thì gõ tay một chuỗi ("TUTU_BD"),
+			   và chuỗi ấy không khớp gian nào. Một luật mà hai nơi giữ hai bản là thế.
+			   ⚠️ '' nghĩa là KHÔNG CÓ NHÀ MẸ (khoá `vhcp_dv_me` để trống) — mọi đơn vị ngang
+			      hàng. Giao diện phải hiểu đúng nghĩa ấy, đừng coi rỗng là "K&H". */
+			'donViMe'    => VHCP_DonVi::don_vi_me(),
 			/* Ai đang khai ô "Xem đơn vị" lạc ra ngoài danh sách — họ là người sắp ngồi trước
 			   một màn trắng. Xem chốt dài ở `VHCP_DonVi::ai_khai_lac()`. */
 			'khaiLac'    => VHCP_DonVi::ai_khai_lac(),

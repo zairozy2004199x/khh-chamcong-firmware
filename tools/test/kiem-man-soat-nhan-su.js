@@ -132,6 +132,25 @@ t('🔴 thêm dòng xong cũng chỉ vẽ lại, KHÔNG tự lưu',
   /renderUsers\(\)/.test(THEM) && !/_saveCfg\s*\(/.test(THEM), null);
 t('🔴 không thêm trùng người đã có trong bảng', /da\s*\)\s*\{/.test(THEM) && /toLowerCase\(\)/.test(THEM), null);
 t('   dòng mới mang sẵn mã NV', /maNv:\s*String\(maNv/.test(THEM), null);
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 DÒNG MỚI KHÔNG ĐƯỢC MANG SẴN CƠ SỞ BÊN NHÂN SỰ
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 19/09/2026: *"đẩy thông tin qua, chứ không phải đẩy quyền quản lý qua rồi chèn đi
+ * cơ sở hiện có"*.
+ *
+ * Bản cũ có điền, kèm lời hứa *"ô chọn cơ sở sẽ bỏ qua giá trị lạ, và người khai thấy ngay là
+ * phải chọn lại"*. Cả hai vế đều sai: `_cosoSel()` cố ý GIỮ giá trị lạ (xoá là âm thầm đổi phân
+ * quyền người khác), còn cảnh báo "ô khai chết" thì đã gỡ hẳn ở 1.174.0. Nên mã cửa hàng nằm đó
+ * trông y như một lựa chọn hợp lệ — và người mang nó mở app ra thấy TRẮNG, vì chốt phạm vi bên
+ * chi phí so TÊN gian hàng chứ không so mã.
+ *
+ * ⚠️ MÃ ẤY KHÔNG ĐƯỢC VỨT ĐI, chỉ đổi chỗ: nó phải còn trong câu thông báo để kế toán biết
+ *    người này làm ở đâu mà chọn đúng gian. Bày ra thì giúp; ghi xuống thì hỏng.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+t('🔴 dòng mới KHÔNG mang sẵn cơ sở — ô quyền, không phải ô thông tin',
+  /coso:\s*''/.test(THEM) && !/coso:\s*String\(coso/.test(THEM), THEM.slice(0, 400));
+t('   nhưng cửa hàng bên nhân sự vẫn được nhắc trong câu thông báo',
+  /toast\([^)]*_ch/.test(THEM) && /String\(coso\|\|''\)\.trim\(\)/.test(THEM), THEM.slice(0, 400));
 
 /* ═══ 5. CỘT MÃ NV TRÊN BẢNG NGƯỜI DÙNG ══════════════════════════════════════════
  * 🔴 `saveCfgUsers()` GOM TỪ MÀN và lượt Lưu GHI ĐÈ cả bảng. Ô nào không dựng ra trên màn thì

@@ -11396,8 +11396,38 @@
         đang trống, và trống nghĩa là K&H — bày hết là y như chưa lọc.
      ⚠️ GỌI KHÔNG KÈM ĐƠN VỊ (bảng đăng nhập Google) thì KHÔNG lọc gì, y như trước. Bảng ấy
         chưa có cột Đơn vị; lọc bừa theo nhà mặc định là nuốt mất mọi cơ sở POSH của nó. */
-  function _dvChuan(v){ var x=String(v==null?'':v).trim(); return x||((BOOT.donVi&&BOOT.donVi[0])||'K&H'); }
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * NHÀ MẸ ĐỌC CẢ HỆ — LUẬT NÀY PHẢI GIỐNG HỆT BÊN MÁY CHỦ
+   * ══════════════════════════════════════════════════════════════════════════════════════════
+   * 🔴 BẢN CŨ SO BẰNG NHAU, HẾT. `VHCP_DonVi` bên máy chủ chốt: K&H là NHÀ MẸ, đọc cả hệ; POSH
+   *    và KVC là hai mảng tách ra từ đó, chỉ đọc nhà mình. Giao diện không hề biết chuyện ấy —
+   *    máy chủ chưa từng gửi tên nhà mẹ xuống — nên nó lọc phẳng `'kvc' !== 'k&h'` và GIẤU sạch
+   *    21 gian KVC khỏi tài khoản K&H.
+   *
+   *    Dây chuyền hỏng đầy đủ (anh Thắng 19/09/2026, ảnh danh mục "ĐƠN VỊ KVC · 21 cơ sở"):
+   *    hộp chọn mở ra thiếu → người khai gõ tay một mã (`TUTU_BD`, `FZ_LTVT`, `VP_KH-HCM`) →
+   *    mã ấy không khớp tên gian nào → người được phân mở app ra TRẮNG. Ba lần báo lỗi khác
+   *    nhau, cùng một gốc.
+   *
+   * ⚠️ Ô TRỐNG QUY VỀ NHÀ MẸ ĐÍCH DANH, KHÔNG PHẢI `donVi[0]`. `VHCP_DonVi::ds()` trả danh sách
+   *    ĐÃ SẮP a→z; hôm nay 'K&H' tình cờ đứng đầu nên trông vẫn đúng. Khai thêm một đơn vị có
+   *    tên xếp trước nó là MỌI tài khoản bỏ trống ô Đơn vị lặng lẽ đổi nhà — mà ô ấy phần lớn
+   *    đang để trống.
+   *
+   * ⚠️ `donViMe` RỖNG nghĩa là KHÔNG CÓ nhà mẹ (khoá `vhcp_dv_me` để trống), mọi đơn vị ngang
+   *    hàng. Lúc ấy không ai được nhìn xuyên, và ô trống quy về `VHCP_DonVi::MAC_DINH`.
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  function _dvMe(){ return String((BOOT&&BOOT.donViMe)!=null?BOOT.donViMe:'K&H').trim(); }
+  function _dvChuan(v){ var x=String(v==null?'':v).trim(); return x||_dvMe()||'K&H'; }
+  /* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG, ghi lại để lần sau khỏi đuổi theo: bỏ vế `me!==''` KHÔNG đổi kết
+     quả hôm nay, vì `_dvChuan()` không bao giờ trả chuỗi rỗng (nó đã lùi về nhà mẹ rồi tới
+     'K&H'), nên `x === ''` không thể đúng. Giữ vế ấy vì nó nói ra Ý ĐỊNH — "không có nhà mẹ thì
+     không ai nhìn xuyên" — và vì cái "không bao giờ" kia là chuyện của MỘT hàm khác: ngày
+     `_dvChuan()` thôi lùi, mất vế này là mọi dòng bỏ trống ô Đơn vị bỗng đọc được cả hệ. */
+  function _laDvMe(dv){ var me=_dvMe(); return me!=='' && _dvChuan(dv).toLowerCase()===me.toLowerCase(); }
   function _cosoTheoDv(dv){
+    /* Nhà mẹ nhìn cả hệ — trả nguyên danh mục, giữ đúng thứ tự đã khai. */
+    if(_laDvMe(dv)) return (CFG.coso||[]).map(function(x){return x.ten;});
     var d=_dvChuan(dv).toLowerCase();
     return (CFG.coso||[]).filter(function(x){ return _dvChuan(x.donVi).toLowerCase()===d; }).map(function(x){return x.ten;});
   }
@@ -11961,12 +11991,30 @@
   function themUserTuNs(ten, maNv, coso){
     var da=(CFGUSERS||[]).some(function(u){ return String(u.ten||'').trim().toLowerCase()===String(ten).trim().toLowerCase(); });
     if(da){ toast('warn','"'+ten+'" đã có trong bảng rồi'); return; }
-    /* Cơ sở bên Nhân sự là tên cửa hàng, có thể không trùng tên cơ sở khai bên này — cứ điền
-       vào, ô chọn cơ sở sẽ bỏ qua giá trị lạ, và người khai thấy ngay là phải chọn lại. */
+    /* ══════════════════════════════════════════════════════════════════════════════════════
+     * 🔴 KHÔNG ĐIỀN Ô CƠ SỞ BẰNG MÃ CỬA HÀNG BÊN NHÂN SỰ.
+     * ══════════════════════════════════════════════════════════════════════════════════════
+     * Bản cũ có điền, kèm lời hứa: *"ô chọn cơ sở sẽ bỏ qua giá trị lạ, và người khai thấy
+     * ngay là phải chọn lại"*. CẢ HAI VẾ ĐỀU SAI:
+     *   · `_cosoSel()` KHÔNG bỏ giá trị lạ — nó cố ý GIỮ (`sel.forEach(... arr.push(s))`) và
+     *     giữ luôn dấu tích, vì xoá đi là âm thầm đổi phân quyền của người khác;
+     *   · cảnh báo "ô khai chết" thì đã gỡ hẳn ở 1.174.0 theo yêu cầu *"loại bỏ cảnh báo"*.
+     * Nên cái mã ấy nằm đó trông y như một lựa chọn hợp lệ, không ai thấy gì để sửa.
+     *
+     * Anh Thắng 19/09/2026: *"đẩy thông tin qua, chứ không phải đẩy quyền quản lý qua"*. Cơ sở
+     * phụ trách là Ô QUYỀN — nó quyết định đọc được sổ tiền của gian nào. Để TRỐNG thì người
+     * mới chỉ thấy đơn của chính mình (`nv_co_coso()` đòi có cơ sở mới mở tầm nhìn theo gian),
+     * còn nhét một mã không khớp gian nào thì họ không thấy GÌ — kể cả đơn mình vừa lập.
+     *
+     * ⚠️ MÃ CỬA HÀNG KHÔNG MẤT, nó chuyển thành LỜI NHẮC trong câu thông báo: kế toán cần biết
+     *    người này làm ở đâu để chọn đúng gian. Bày ra thì giúp; ghi xuống thì hỏng.
+     * ══════════════════════════════════════════════════════════════════════════════════════ */
     CFGUSERS=(CFGUSERS||[]).concat([{ten:String(ten).trim(), maNv:String(maNv||'').trim(), pin:'',
-      vaiTro:'Nhân viên', boPhan:'', coso:String(coso||'').trim(), maDt:'', donVi:''}]);
+      vaiTro:'Nhân viên', boPhan:'', coso:'', maDt:'', donVi:''}]);
     renderUsers();
-    toast('ok','Đã thêm dòng cho "'+ten+'" — chọn vai trò · cơ sở rồi bấm 💾 Lưu');
+    var _ch=String(coso||'').trim();
+    toast('ok','Đã thêm dòng cho "'+ten+'"'+(_ch?(' — bên Nhân sự ghi cửa hàng "'+_ch+'"'):'')
+      +' — chọn vai trò · cơ sở rồi bấm 💾 Lưu');
   }
   /**
    * ĐỔI TÊN MỘT NGƯỜI trên mọi bảng cùng lúc.
