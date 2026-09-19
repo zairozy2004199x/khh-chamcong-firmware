@@ -10000,11 +10000,30 @@ class VHCC_Web {
 		}
 		/* Ô giờ của việc chính CHỈ ĐỌC — nó là kết quả, không phải thứ gõ vào. Vẫn hiện ra để
 		   người ta thấy ngay con số mình vừa làm đổi. */
-		echo '</div><div><input data-clchinh="1" value="'
-			. esc_attr( number_format( $gio_chinh_ht, 2, ',', '.' ) )
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 Ô NÀY VIẾT CÙNG LỐI VỚI LƯỚI — VÀ NÓI LUÔN SỐ THẬP PHÂN BÊN CẠNH
+		 * ═══════════════════════════════════════════════════════════════════════════════════
+		 * Anh Thắng 19/09/2026, ảnh chụp ô tổng của lưới `203:30` đặt cạnh ô này `203,50`:
+		 * *"khác hệ, chỉnh lại về 203.3"*. Hai ô cùng một màn, cùng một người, cùng một tháng,
+		 * mà viết hai kiểu — đúng thứ `VHCC_Cham::gio_tp()` sinh ra để dẹp.
+		 *
+		 * ⚠️ NHƯNG KHÔNG BỎ HẲN SỐ THẬP PHÂN. Con số NHÂN VỚI ĐƠN GIÁ là `203,50`, không phải
+		 *    `203:30` — nhân `203,30` là đúng cái đã làm tệp của anh thiếu 4.800đ. Nên ô lớn
+		 *    viết theo lưới, và ngay dưới nó ghi `= 203,50 × đơn giá` để phép nhân luôn nhìn
+		 *    thấy được. Giấu số nhân đi thì người ta tự quy đổi lấy, và họ sẽ quy đổi sai.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$phut_chinh_ht = (int) round( $gio_chinh_ht * 60 );
+		echo '</div><div><input data-clchinh="1"'
+			. ' data-clhm="' . ( VHCC_Cham::la_hm() ? '1' : '0' ) . '" value="'
+			. esc_attr( VHCC_Cham::gio_tp( $phut_chinh_ht ) )
 			. '" readonly style="width:110px;background:var(--nen-2)" title="Giờ chấm công trừ đi giờ '
 			. 'khác — không gõ tay được"></div>'
-			. '<div class="mo" style="align-self:center;font-size:12px">giờ tự tính</div></div>';
+			. '<div class="mo" style="align-self:center;font-size:12px">giờ tự tính'
+			. ( VHCC_Cham::la_hm()
+				? ( '<br><span data-clthap="1">' . esc_html( number_format( $gio_chinh_ht, 2, ',', '.' ) )
+					. '</span> × đơn giá' )
+				: '' )
+			. '</div></div>';
 
 		/* ═══════════════════════════════════════════════════════════════════════════════════
 		 * Ô "giờ tự tính" NHẢY NGAY KHI GÕ, không chờ bấm Lưu.
@@ -10028,13 +10047,22 @@ class VHCC_Web {
 			. 'var p=n.toFixed(2).split("."),d=p[0],r="",i;'
 			. 'for(i=0;i<d.length;i++){if(i>0&&(d.length-i)%3===0){r+=".";}r+=d.charAt(i);}'
 			. 'return (am?"-":"")+r+","+p[1];}'
+			/* ⚠️ GIỜ:PHÚT TÍNH TỪ PHÚT, không phải cắt phần thập phân. `203.5` giờ là 203:30;
+			   lấy ".5" làm phút thì ra 203:05. Làm tròn ra phút trước rồi mới chia, để 59,999
+			   phút không thành ":59" trong khi ô kia đã nhích lên một giờ. */
+			. 'function vehm(n){var am=n<0;var t=Math.round(Math.abs(n)*60);'
+			. 'var h=Math.floor(t/60),m=t%60;'
+			. 'return (am?"-":"")+h+":"+(m<10?"0":"")+m;}'
 			. 'function tinh(o){var h=o.closest?o.closest(".hs-in"):null;if(!h){return;}'
 			. 'var ra=h.querySelector(\'[data-clchinh]\');'
 			. 'var ct=h.querySelector(\'input[name="cl_gio_cham"]\');if(!ra||!ct){return;}'
 			. 'var ds=h.querySelectorAll(\'input[name^="cl_gio["]\'),k=0,i;'
 			. 'for(i=0;i<ds.length;i++){k+=so(ds[i].value);}'
 			. 'var con=so(ct.value)-k;'
-			. 'ra.value=ve(con);'
+			/* Ô lớn theo lối đang bật; dòng nhỏ dưới nó LUÔN là thập phân — đó là số nhân. */
+			. 'var hm=ra.getAttribute("data-clhm")==="1";'
+			. 'ra.value=hm?vehm(con):ve(con);'
+			. 'var tp=h.querySelector(\'[data-clthap]\');if(tp){tp.textContent=ve(con);}'
 			/* Âm = gõ nhiều giờ khác hơn cả giờ chấm công. Máy chủ chối lượt lưu ấy, nhưng
 			   nói ra NGAY tại ô thì người ta sửa trước khi bấm, không phải sau. */
 			. 'ra.style.color=(con<-0.001)?"var(--do)":"";'

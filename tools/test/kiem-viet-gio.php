@@ -129,6 +129,37 @@ foreach ( array( 320, 810, 11190, 4770, 305, 480, 1, 59, 60 ) as $p_x ) {
 		abs( $tu_hm - $tu_tp ) < 0.0051, $hm . ' vs ' . $tp );
 }
 
+/* ═════════════════════════════════════════════════════════════════════════════════════════════
+ * Ô "GIỜ TỰ TÍNH" VIẾT CÙNG LỐI VỚI LƯỚI — VÀ VẪN NÓI RA SỐ NHÂN
+ * ═════════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 19/09/2026, ảnh ô tổng lưới `203:30` đặt cạnh ô này `203,50`: *"khác hệ, chỉnh lại
+ * về 203.3"*. Cùng một màn, cùng một người, hai lối viết.
+ *
+ * ⚠️ Nhưng số NHÂN VỚI ĐƠN GIÁ là `203,50`. Bỏ hẳn nó đi thì người ta tự quy đổi lấy — và
+ *    `203,30` là đúng cái đã làm tệp của anh thiếu tiền. Nên ô lớn theo lưới, dòng nhỏ dưới nó
+ *    giữ số thập phân.
+ * ------------------------------------------------------------------------------------------- */
+echo "— ô giờ tự tính —\n";
+$ma_js = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-web.php' );
+
+/* Ô lớn in bằng `gio_tp()`, không còn `number_format()` thẳng tay. */
+t( '🔴 ô giờ tự tính in bằng gio_tp(), theo lối đang bật',
+	false !== strpos( $ma_js, "esc_attr( VHCC_Cham::gio_tp( \$phut_chinh_ht ) )" ), 'không thấy' );
+t( '   và vẫn giữ số thập phân bên cạnh làm SỐ NHÂN',
+	false !== strpos( $ma_js, 'data-clthap' )
+	&& false !== mb_strpos( $ma_js, '× đơn giá' ), 'không thấy' );
+
+/* 🔴 PHÉP ĐỔI TRONG JAVASCRIPT PHẢI TÍNH TỪ PHÚT. `203.5` giờ là 203:30; cắt phần thập phân
+   làm phút thì ra `203:05`, và đó là con số sẽ nằm cạnh ô tổng `203:30` của chính lưới ấy. */
+t( '🔴 hàm đổi trong JS tính từ PHÚT, không cắt phần thập phân',
+	false !== strpos( $ma_js, 'Math.round(Math.abs(n)*60)' ), 'không thấy' );
+
+/* Đối chiếu chính con số trong ảnh: 203 giờ 30 phút. */
+VHCC_Cham::dat_kieu_gio( VHCC_Cham::KIEU_HM );
+teq( '🔴 12210 phút = 203:30 — đúng ô tổng trong ảnh', '203:30', VHCC_Cham::gio_tp( 12210 ) );
+VHCC_Cham::dat_kieu_gio( VHCC_Cham::KIEU_TP );
+teq( '   và cùng số ấy ở lối thập phân là 203,50', '203,50', VHCC_Cham::gio_tp( 12210 ) );
+
 VHCC_Cham::dat_kieu_gio( VHCC_Cham::KIEU_HM );
 
 echo "\n";

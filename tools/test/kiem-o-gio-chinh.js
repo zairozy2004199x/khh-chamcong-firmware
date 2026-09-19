@@ -45,12 +45,23 @@ t('bốc ra được đoạn JS', JS.length > 200, JS.length);
 try { new Function(JS); t('🔴 đoạn JS đúng cú pháp', true); }
 catch (e) { t('🔴 đoạn JS đúng cú pháp', false, String(e)); }
 
-/* ---- DOM giả: một khối .hs-in, ô tổng, ba ô giờ khác, ô kết quả ---- */
-const oRa = { value: '', style: {}, title: '' };
+/* ---- DOM giả: một khối .hs-in, ô tổng, ba ô giờ khác, ô kết quả, dòng thập phân ----
+   ⚠️ DOM GIẢ PHẢI CÓ ĐÚNG NHỮNG GÌ ĐOẠN JS ĐỤNG TỚI. Thiếu `getAttribute` là bài đỏ với một
+   câu lỗi chẳng liên quan gì tới thứ nó định canh — đã vấp đúng thế khi thêm lối giờ:phút. */
+const oRa = {
+	value: '', style: {}, title: '',
+	thuoc: { 'data-clchinh': '1', 'data-clhm': '0' },
+	getAttribute(k) { return Object.prototype.hasOwnProperty.call(this.thuoc, k) ? this.thuoc[k] : null; },
+};
+const oThap = { textContent: '' };
 const oTong = { value: '9' };
 const oGio = [0, 1, 2].map((i) => ({ name: 'cl_gio[' + i + ']', value: '' }));
 const khoi = {
-	querySelector: (s) => (s.indexOf('clchinh') >= 0 ? oRa : oTong),
+	querySelector: (s) => {
+		if (s.indexOf('clchinh') >= 0) { return oRa; }
+		if (s.indexOf('clthap') >= 0) { return oThap; }
+		return oTong;
+	},
 	querySelectorAll: () => oGio,
 };
 oGio.forEach((o) => { o.closest = () => khoi; });
@@ -87,6 +98,39 @@ teq('số lớn ngăn nghìn đúng lối Việt', '1.234,50', go(0, '0'));
 /* Chữ rác trong ô không được làm hỏng cả phép tính — coi như 0. */
 oTong.value = '9';
 teq('gõ chữ rác thì tính như 0', '9,00', go(0, 'abc'));
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 LỐI GIỜ:PHÚT — VÀ DÒNG THẬP PHÂN BÊN DƯỚI VẪN PHẢI ĐÚNG
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 19/09/2026, ảnh ô tổng lưới `203:30` cạnh ô này `203,50`: *"khác hệ, chỉnh lại về
+ * 203.3"*. Ô lớn nay viết theo lưới.
+ *
+ * ⚠️ NHƯNG SỐ NHÂN VỚI ĐƠN GIÁ VẪN LÀ THẬP PHÂN, và nó nằm ở dòng nhỏ ngay dưới. Hai chỗ phải
+ *    nhảy CÙNG LÚC: ô lớn nói `203:30` mà dòng dưới còn đứng ở số cũ thì tệ hơn hẳn chỉ có một
+ *    con số, vì người ta sẽ nhân cái đứng im.
+ * ---------------------------------------------------------------------------------------------- */
+oRa.thuoc['data-clhm'] = '1';
+oTong.value = '9';
+teq('🔴 bật giờ:phút: gõ MC = 5 thì ô lớn ra 4:00', '4:00', go(0, '5'));
+teq('   và dòng thập phân dưới nó ra 4,00', '4,00', oThap.textContent);
+teq('🔴 nửa giờ ra :30, KHÔNG phải :50', '3:30', go(0, '5,5'));
+teq('   dòng thập phân cùng lúc là 3,50', '3,50', oThap.textContent);
+/* 🔴 CHÍNH CON SỐ TRONG ẢNH. 203,5 giờ là 203:30; cắt phần thập phân làm phút thì ra 203:05 —
+   và nó sẽ nằm ngay cạnh ô tổng `203:30` của chính lưới ấy. */
+oTong.value = '203.5';
+teq('🔴 203,5 giờ = 203:30 (không phải 203:05)', '203:30', go(0, ''));
+teq('   dòng thập phân là 203,50', '203,50', oThap.textContent);
+/* 5 giờ 20 phút — ca 16:40 → 22:00 trong ảnh. 1/3 giờ không chia chẵn ra phút. */
+oTong.value = '5.3333333';
+teq('🔴 5,3333 giờ = 5:20', '5:20', go(0, ''));
+teq('   số âm vẫn đọc được', '-1:30', (function () { oTong.value = '0'; return go(0, '1,5'); })());
+oTong.value = '9';
+go(0, '');
+
+/* Tắt lại lối giờ:phút thì mọi thứ về y như cũ — người bấm nút không mất gì. */
+oRa.thuoc['data-clhm'] = '0';
+teq('tắt đi thì ô lớn về thập phân', '4,00', go(0, '5'));
+go(0, '');
 
 /* ---- ô kết quả phải là ô CHỈ ĐỌC, và phải có dấu để JS tìm ra ---- */
 t('🔴 ô giờ chính có readonly — nó là kết quả, không phải chỗ gõ',
