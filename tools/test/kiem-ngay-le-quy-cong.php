@@ -266,6 +266,87 @@ ob_start(); $m_qc->invoke( null, 'KYTHU', $AD ); $h_qc = ob_get_clean();
 t( 'khối quy đổi có vẽ ra', false !== strpos( $h_qc, 'name="qc_gio[]"' ), substr( $h_qc, 0, 200 ) );
 t( '   và nói ra bảng đang dùng', false !== mb_strpos( $h_qc, '8h → 1 công' ), $h_qc );
 
+
+/* =================================================================================================
+ * 7. NÚT SỬA
+ * =================================================================================================
+ * Anh Thắng 19/09/2026: *"thêm nút sửa"*. Bản trước chỉ có Xoá — muốn đổi tên hay hệ số của một
+ * ngày thì phải xoá rồi gõ lại cả ba ô, và trong lúc ấy ngày lễ biến mất khỏi lịch.
+ * ------------------------------------------------------------------------------------------- */
+echo "— nút sửa —\n";
+
+$_GET = array();
+ob_start(); $m_le->invoke( null, 'KYTHU', $AD ); $h_s0 = ob_get_clean();
+t( '🔴 mỗi dòng có nút Sửa', substr_count( $h_s0, '>Sửa</a>' ) >= 2, $h_s0 );
+t( '   chưa bấm Sửa thì nút là "Thêm ngày"',
+	false !== mb_strpos( $h_s0, '>Thêm ngày<' ), $h_s0 );
+
+$_GET = array( 'le_sua' => '09-02' );
+ob_start(); $m_le->invoke( null, 'KYTHU', $AD ); $h_s1 = ob_get_clean();
+$_GET = array();
+t( 'bấm Sửa thì nút đổi thành "Lưu thay đổi"',
+	false !== mb_strpos( $h_s1, '>Lưu thay đổi<' ), $h_s1 );
+t( '   và có đường "Thôi" để bỏ dở', false !== mb_strpos( $h_s1, '>Thôi<' ), $h_s1 );
+t( '   ô Tên điền sẵn', false !== strpos( $h_s1, 'value="Quốc khánh"' ), $h_s1 );
+/* Dòng 2/9 trong cảnh này đi theo HỆ SỐ CHUNG, nên ô Hệ số riêng phải để TRỐNG — điền số
+   chung vào đó là biến một dòng "theo chung" thành một dòng khai riêng chỉ vì bấm Sửa. */
+t( '🔴 dòng theo hệ số chung thì ô Hệ số riêng để TRỐNG',
+	1 === preg_match( '/name="le_rieng"[^>]*value=""/', $h_s1 ), $h_s1 );
+
+/* Dựng lại dòng Tết: khối bảng lương ở mục 5 đã xoá nó để tắt hệ số. */
+VHCC_NgayLe::them( $AD, '17/02/2027', 'Mùng 1 Tết', '3' );
+$_GET = array( 'le_sua' => '2027-02-17' );
+ob_start(); $m_le->invoke( null, 'KYTHU', $AD ); $h_s2 = ob_get_clean();
+$_GET = array();
+t( '   còn dòng có hệ số riêng thì điền sẵn số ấy',
+	1 === preg_match( '/name="le_rieng"[^>]*value="3"/', $h_s2 ), $h_s2 );
+t( '   và ô Ngày của dòng một-lần giữ nguyên dạng đủ năm',
+	1 === preg_match( '/name="le_ngay"[^>]*value="2027-02-17"[^>]*required/', $h_s2 ), $h_s2 );
+
+/* 🔴 XOÁ MỘT NGÀY LẶP HẰNG NĂM PHẢI ĂN. Bản trước `xoa()` đọc lại khoá đã lưu bằng
+   `chuan_ngay()` và lật `09-02` thành `02-09`, nên nút Xoá ở mọi dòng hằng năm đi tìm một khoá
+   không tồn tại — tức CHƯA BAO GIỜ xoá được một ngày lễ hằng năm. */
+VHCC_NgayLe::them( $AD, '30-4', 'Thống nhất', '' );
+teq( 'dựng cảnh: 30/4 vào lịch', 2.0, VHCC_NgayLe::he_so_cua( '2026-04-30' ) );
+t( '🔴 xoá một ngày LẶP HẰNG NĂM thì ăn thật',
+	! empty( VHCC_NgayLe::xoa( $AD, '04-30' )['ok'] ) );
+teq( '   và nó biến khỏi lịch', 1.0, VHCC_NgayLe::he_so_cua( '2026-04-30' ) );
+
+/* 🔴 CHỖ NÀY LÀ CÁI BẪY THẬT. Ô nhập phải điền `2-9` (kiểu người ta gõ), KHÔNG phải khoá `09-02`.
+   Điền khoá vào rồi bấm Lưu là `chuan_ngay()` đọc nó theo kiểu DD-MM và lật thành 9 tháng 2 —
+   một cú bấm Sửa rồi Lưu mà không đổi gì cũng làm hỏng dòng đó. */
+t( '🔴 ô Ngày điền "2-9" (kiểu người gõ), KHÔNG phải khoá "09-02"',
+	1 === preg_match( '/name="le_ngay"[^>]*value="2-9"/', $h_s1 )
+	&& 1 !== preg_match( '/name="le_ngay"[^>]*value="09-02"[^>]*required/', $h_s1 ), $h_s1 );
+t( '   và chở theo khoá cũ để biết đang sửa dòng nào',
+	1 === preg_match( '/name="le_cu"[^>]*value="09-02"/', $h_s1 ), $h_s1 );
+
+/* ---- sửa thật: đổi tên và hệ số, KHÔNG đổi ngày ---- */
+$so_truoc = count( VHCC_NgayLe::ds() );
+VHCC_NgayLe::them( $AD, '2-9', 'Quốc khánh 2/9', '2.5' );
+teq( '🔴 sửa không đổi ngày thì KHÔNG đẻ thêm dòng', $so_truoc, count( VHCC_NgayLe::ds() ) );
+teq( '   tên đã đổi', 'Quốc khánh 2/9', VHCC_NgayLe::ten_cua( '2026-09-02' ) );
+teq( '   hệ số đã đổi', 2.5, VHCC_NgayLe::he_so_cua( '2026-09-02' ) );
+
+/* 🔴 SỬA MÀ ĐỔI LUÔN NGÀY THÌ PHẢI BỎ DÒNG CŨ. Không thì ra HAI dòng: dòng mới vừa thêm, dòng
+   cũ vẫn nằm đó và vẫn nhân hệ số cho một ngày người ta vừa sửa đi. Đường đi qua `lam_viec()`
+   vì chốt ấy nằm ở nơi gọi, không nằm trong `them()`. */
+$_POST = array( 'viec' => 'le_them', 'le_cu' => '09-02', 'le_ngay' => '3-9',
+	'le_ten' => 'Dời sang 3/9', 'le_rieng' => '2' );
+$m_lv = new ReflectionMethod( 'VHCC_Web', 'lam_viec' );
+$m_lv->setAccessible( true );
+$kq_s = $m_lv->invoke( null, 'le_them', $AD );
+$_POST = array();
+t( 'lượt sửa chạy được', ! empty( $kq_s[0]['ok'] ), $kq_s );
+teq( '🔴 ngày mới ăn hệ số', 2.0, VHCC_NgayLe::he_so_cua( '2026-09-03' ) );
+teq( '🔴 và ngày CŨ đã bỏ hẳn — không còn hai dòng', 1.0, VHCC_NgayLe::he_so_cua( '2026-09-02' ) );
+t( '   câu báo nói rõ đã bỏ dòng cũ',
+	false !== mb_strpos( (string) $kq_s[0]['thong_bao'], 'Dòng cũ' ), $kq_s );
+
+/* Dọn lại cho mấy phép sau (nếu có) đọc đúng cảnh cũ. */
+VHCC_NgayLe::xoa( $AD, '09-03' );
+VHCC_NgayLe::them( $AD, '2-9', 'Quốc khánh', '' );
+
 echo "\n";
 if ( $truot ) {
 	echo '🔴 HỎNG ' . count( $truot ) . " phép thử:\n";

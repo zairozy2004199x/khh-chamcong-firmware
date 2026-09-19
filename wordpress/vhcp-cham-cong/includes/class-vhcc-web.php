@@ -1149,7 +1149,7 @@ class VHCC_Web {
 	      danh sách này là thứ `o_loc()` đọc để chở tham số qua một lượt POST, và thiếu nó thì
 	      chọn máy xong bấm một nút bất kỳ là ô chọn nhảy về máy đầu tiên. */
 	const THAM_SO = array( 'cs', 'q', 'loc', 'sua', 'pin', 'man', 'ccs', 'cth', 'cbp', 'cbp_het',
-		'cng', 'cnv', 'ctk', 'cgh',
+		'cng', 'cnv', 'ctk', 'cgh', 'le_sua', 'bh_sua',
 		'lcs', 'lth', 'ltu', 'lden', 'msoma', 'ncs', 'nma', 'nq', 'mloc' );
 
 	/**
@@ -1805,14 +1805,22 @@ class VHCC_Web {
 		}
 
 		if ( 'le_them' === $viec ) {
+			$cu_le = isset( $_POST['le_cu'] ) ? sanitize_text_field( wp_unslash( $_POST['le_cu'] ) ) : '';
 			$r_le = VHCC_NgayLe::them( $toi,
 				isset( $_POST['le_ngay'] ) ? sanitize_text_field( wp_unslash( $_POST['le_ngay'] ) ) : '',
 				isset( $_POST['le_ten'] ) ? sanitize_text_field( wp_unslash( $_POST['le_ten'] ) ) : '',
 				isset( $_POST['le_rieng'] ) ? sanitize_text_field( wp_unslash( $_POST['le_rieng'] ) ) : '' );
 			if ( empty( $r_le['ok'] ) ) { return array( array( 'loi' => $r_le['error'] ) ); }
-			return array( array( 'ok' => true, 'thong_bao' => 'Đã thêm ngày lễ '
-				. $r_le['ngay'] . ( 5 === strlen( (string) $r_le['ngay'] )
-					? ' — lặp lại hằng năm.' : ' — chỉ đúng ngày này.' ) ) );
+			/* 🔴 SỬA MÀ ĐỔI LUÔN NGÀY THÌ PHẢI BỎ DÒNG CŨ. Không thì ra HAI dòng: dòng mới vừa
+			   thêm, dòng cũ vẫn nằm đó và vẫn nhân hệ số cho một ngày người ta vừa sửa đi.
+			   Bỏ SAU khi thêm thành công — thêm hỏng mà đã xoá là mất trắng dòng ấy. */
+			$doi_ngay = ( '' !== $cu_le && $cu_le !== (string) $r_le['ngay'] );
+			if ( $doi_ngay ) { VHCC_NgayLe::xoa( $toi, $cu_le ); }
+			return array( array( 'ok' => true, 'thong_bao' => ( '' !== $cu_le ? 'Đã sửa ngày lễ '
+				: 'Đã thêm ngày lễ ' ) . $r_le['ngay']
+				. ( 5 === strlen( (string) $r_le['ngay'] )
+					? ' — lặp lại hằng năm.' : ' — chỉ đúng ngày này.' )
+				. ( $doi_ngay ? ' Dòng cũ (' . $cu_le . ') đã bỏ.' : '' ) ) );
 		}
 
 		if ( 'le_xoa' === $viec ) {
@@ -3987,6 +3995,12 @@ class VHCC_Web {
 			return;
 		}
 
+		if ( 'bhxh' === $man ) {
+			self::the_bhxh( $ky, $toi );
+			self::dong_trang();
+			return;
+		}
+
 		if ( 'cau_hinh' === $man ) {
 			self::the_man_cau_hinh( $ky, $toi );
 			self::dong_trang();
@@ -4140,7 +4154,7 @@ class VHCC_Web {
 	/* ⚠️ `mat` đứng CUỐI, cùng lối với `may`: Quản lý mở app ra là để xem bảng công, không phải
 	   để rơi thẳng vào hàng chờ duyệt mẫu. Nhưng vẫn PHẢI có tên ở đây — có phép thử canh mọi
 	   màn khai được đều có mặt, kẻo người chỉ có màn này lại rơi vào nhánh đoán mò ở cuối hàm. */
-	const MAN_UU_TIEN = array( 'nha', 'ho_so', 'cham', 'luong', 'don_tu', 'don_tuan',
+	const MAN_UU_TIEN = array( 'nha', 'ho_so', 'cham', 'luong', 'bhxh', 'don_tu', 'don_tuan',
 		'cong_toi', 'coso', 'cau_hinh', 'du_lieu', 'lich_su',
 		'ns_coso', 'lich', 'may', 'mat' );
 
@@ -4297,6 +4311,12 @@ class VHCC_Web {
 		   từ)"*. Hai cửa một tab (xem `VHCC_WebDonTu::duoc_vao()`): hai khối đơn gác `lich_lam`,
 		   hai khối tuần gác `cong_coso`, hỏi mỗi một cửa là nửa kia mất tab. */
 		if ( VHCC_WebDonTu::duoc_vao( $toi ) ) { $ds['don_tu'] = 'Đơn từ'; }
+		/* 🔴 BHXH LÀ MỘT MÀN RIÊNG, KHÔNG PHẢI MỘT KHỐI TRONG CẤU HÌNH.
+		   Anh Thắng 19/09/2026: *"Tách nó ra dạng 1 tính năng đi, sau này nv sẽ yêu cầu có bhxh
+		   nên sẽ nhiều dữ liệu"*. Đúng: Cấu hình là chỗ khai MỘT LẦN RỒI THÔI, còn sổ này mỗi
+		   người một dòng và chỉ dài thêm — nhét một danh sách đang lớn vào giữa mấy công tắc là
+		   đẩy hết phần dưới xuống ngoài tầm mắt. */
+		if ( VHCC_Vai::duoc( $toi, VHCC_Bhxh::QUYEN ) ) { $ds['bhxh'] = 'BHXH'; }
 		if ( VHCC_Vai::duoc( $toi, 'cham_online' ) ) { $ds['lich']     = 'Lịch làm việc'; }
 		if ( VHCC_Vai::duoc( $toi, 'may' ) )        { $ds['may']      = 'Máy & Firmware'; }
 		/* 🔴 KHUÔN MẶT LÀ BẬC QUẢN LÝ / ADMIN (`ngoai_coso`) — anh Thắng 08/09/2026, khi em hỏi
@@ -4333,7 +4353,7 @@ class VHCC_Web {
 		'nha'      => '🏠', 'cong_toi' => '🕐', 'cham'    => '📋', 'ho_so' => '👤',
 		'cau_hinh' => '⚙️', 'du_lieu'  => '🗂️', 'lich'    => '📅', 'may'   => '🖥️',
 		'ns_coso'  => '🏪', 'coso'     => '🏬', 'mat'   => '🙂', 'don_tuan' => '📥', 'lich_su' => '🕘',
-		'luong'    => '💵', 'don_tu'   => '📨',
+		'luong'    => '💵', 'don_tu'   => '📨', 'bhxh'     => '🛡️',
 	);
 
 	/** Một câu nói màn ấy để làm gì — hiện trên thẻ Truy cập nhanh và dưới tiêu đề màn. */
@@ -4354,6 +4374,7 @@ class VHCC_Web {
 		'luong'    => 'Bảng lương một cơ sở một tháng, đúng mẫu nộp kế toán'
 						. ' — xuất .xlsx ngay tại màn',
 		'don_tu'   => 'Đi trễ · xin nghỉ · xin bù giờ · sửa bảng công tháng — chờ ai duyệt',
+		'bhxh'     => 'Ai đóng bảo hiểm, mỗi tháng trừ bao nhiêu — bảng lương tự trừ',
 	);
 
 	public static function bieu_man( $k )  {
@@ -9540,16 +9561,37 @@ class VHCC_Web {
 			. 'ăn gấp đôi giờ thường, <b>3</b> là gấp ba. Gõ <b>1</b> là tắt hẳn. Anh/chị tự đặt '
 			. 'theo cơ chế công ty — máy <b>không</b> đoán hộ con số này.</p>';
 
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 NÚT SỬA — anh Thắng 19/09/2026: *"thêm nút sửa"*.
+		 * ═══════════════════════════════════════════════════════════════════════════════════
+		 * Bản trước chỉ có Xoá. Muốn đổi tên hay hệ số của một ngày thì phải xoá rồi gõ lại cả
+		 * ba ô — và trong lúc ấy ngày lễ biến mất khỏi lịch. Gõ lại sai một ký tự là mất luôn.
+		 *
+		 * ⚠️ SỬA LÀ MỘT LIÊN KẾT, không phải ô tích hay nút JS: màn này cố ý không có một dòng
+		 *    script nào (phép thử "màn quản trị KHÔNG có thẻ <script>"). Bấm Sửa là tải lại
+		 *    trang với `le_sua=<khoá>`, biểu mẫu dưới tự điền sẵn.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$le_sua = isset( $_GET['le_sua'] ) ? sanitize_text_field( wp_unslash( $_GET['le_sua'] ) ) : '';
+		$dang_sua = null;
+
 		/* ---- danh sách ---- */
 		if ( $ds ) {
 			echo '<div class="cuon"><table class="b"><thead><tr><th>Ngày</th><th>Tên ngày</th>'
 				. '<th>Hệ số</th><th></th></tr></thead><tbody>';
 			foreach ( $ds as $x ) {
-				echo '<tr><td><b>' . esc_html( self::ngay_le_chu( $x ) ) . '</b></td>'
+				$la_sua = ( '' !== $le_sua && $x['ngay'] === $le_sua );
+				if ( $la_sua ) { $dang_sua = $x; }
+				echo '<tr' . ( $la_sua ? ' style="background:var(--vang-nhat,#fffbeb)"' : '' )
+					. '><td><b>' . esc_html( self::ngay_le_chu( $x ) ) . '</b></td>'
 					. '<td>' . esc_html( '' !== $x['ten'] ? $x['ten'] : '—' ) . '</td>'
 					. '<td>×' . esc_html( VHCC_NgayLe::so( $x['heSo'] ) )
 					. ( $x['rieng'] ? '' : ' <span class="mo">(theo hệ số chung)</span>' ) . '</td>'
-					. '<td><form method="post" style="display:inline">' . $an
+					. '<td>'
+					. ( $la_sua
+						? '<b>đang sửa ↓</b>'
+						: '<a class="nut" href="' . esc_url( add_query_arg(
+								array( 'le_sua' => $x['ngay'] ), self::url_hien() ) ) . '">Sửa</a> ' )
+					. '<form method="post" style="display:inline">' . $an
 					. '<input type="hidden" name="viec" value="le_xoa">'
 					. '<input type="hidden" name="le_ngay" value="' . esc_attr( $x['ngay'] ) . '">'
 					. '<button class="phu">Xoá</button></form></td></tr>';
@@ -9559,16 +9601,31 @@ class VHCC_Web {
 			echo '<p class="mo" style="margin:0 0 10px">Lịch còn trống.</p>';
 		}
 
-		/* ---- thêm ngày ---- */
+		/* ---- thêm / sửa một ngày ----
+		   ⚠️ `le_cu` CHỞ THEO KHOÁ CŨ. Sửa mà đổi luôn cả ngày (gõ nhầm 1-9 thành 2-9) thì
+		      không có nó là ra HAI dòng: dòng mới thêm vào, dòng cũ vẫn nằm đó trừ tiền tiếp. */
+		$gt_ngay  = $dang_sua ? self::ngay_le_o( $dang_sua ) : '';
+		$gt_ten   = $dang_sua ? $dang_sua['ten'] : '';
+		$gt_rieng = ( $dang_sua && $dang_sua['rieng'] ) ? VHCC_NgayLe::so( $dang_sua['heSo'] ) : '';
 		echo '<form method="post" class="hang" style="gap:8px;align-items:flex-end;margin:12px 0 0">'
 			. $an . '<input type="hidden" name="viec" value="le_them">'
+			. ( $dang_sua
+				? '<input type="hidden" name="le_cu" value="' . esc_attr( $dang_sua['ngay'] ) . '">' : '' )
 			. '<div><label for="le_ngay">Ngày</label>'
-			. '<input id="le_ngay" name="le_ngay" style="width:130px" placeholder="2-9" required></div>'
+			. '<input id="le_ngay" name="le_ngay" style="width:130px" placeholder="2-9" value="'
+			. esc_attr( $gt_ngay ) . '" required></div>'
 			. '<div><label for="le_ten">Tên ngày</label>'
-			. '<input id="le_ten" name="le_ten" style="width:190px" placeholder="Quốc khánh" maxlength="60"></div>'
+			. '<input id="le_ten" name="le_ten" style="width:190px" placeholder="Quốc khánh" '
+			. 'maxlength="60" value="' . esc_attr( $gt_ten ) . '"></div>'
 			. '<div><label for="le_rieng">Hệ số riêng</label>'
-			. '<input id="le_rieng" name="le_rieng" style="width:90px" placeholder="theo chung"></div>'
-			. '<div><button class="chinh">Thêm ngày</button></div></form>';
+			. '<input id="le_rieng" name="le_rieng" style="width:90px" placeholder="theo chung" '
+			. 'value="' . esc_attr( $gt_rieng ) . '"></div>'
+			. '<div><button class="chinh">' . ( $dang_sua ? 'Lưu thay đổi' : 'Thêm ngày' )
+			. '</button></div>'
+			. ( $dang_sua
+				? '<div><a class="nut" href="' . esc_url( remove_query_arg( 'le_sua', self::url_hien() ) )
+					. '">Thôi</a></div>' : '' )
+			. '</form>';
 
 		/* ⚠️ VÍ DỤ PHẢI VIẾT ĐÚNG KIỂU NGƯỜI TA GÕ: ngày trước, tháng sau. Ví dụ sai ở đây là
 		   sai hàng loạt — ai cũng làm theo cái mẫu trên màn. */
@@ -9594,6 +9651,18 @@ class VHCC_Web {
 	 *    dưới ô mình vừa gõ "2-9" và kết luận máy hiểu nhầm — rồi đi sửa lại cho "đúng", tức
 	 *    là làm hỏng thật một dòng vốn đang đúng.
 	 */
+	/**
+	 * Giá trị điền sẵn vào Ô NHẬP khi bấm Sửa — viết đúng kiểu người ta gõ vào, không phải khoá.
+	 *
+	 * 🔴 Điền khoá `09-02` vào ô ấy rồi bấm Lưu là `chuan_ngay()` đọc nó theo kiểu DD-MM và lật
+	 *    thành 9 tháng 2 — một cú bấm Sửa rồi Lưu mà không đổi gì cũng làm hỏng dòng đó.
+	 */
+	private static function ngay_le_o( $x ) {
+		$n = (string) $x['ngay'];
+		if ( $x['lap'] ) { return (int) substr( $n, 3, 2 ) . '-' . (int) substr( $n, 0, 2 ); }
+		return $n;
+	}
+
 	private static function ngay_le_chu( $x ) {
 		$n = (string) $x['ngay'];
 		if ( $x['lap'] ) {
@@ -9603,74 +9672,111 @@ class VHCC_Web {
 	}
 
 	/**
-	 * SỔ BHXH — ai đóng, mỗi tháng trừ bao nhiêu.
+	 * MÀN BHXH — sổ ai đóng bảo hiểm, mỗi tháng trừ bao nhiêu.
 	 *
 	 * Anh Thắng 19/09/2026: *"Đối với nhân viên cố định sẽ có thêm bảo hiểm xã hội. Bổ sung tab
-	 * bên Phân Quyền Kế toán để kế toán chốt BHXH bạn nào đóng sẽ được thêm vào bảng"*.
+	 * bên Phân Quyền Kế toán để kế toán chốt BHXH bạn nào đóng"*, rồi *"Tách nó ra dạng 1 tính
+	 * năng đi, sau này nv sẽ yêu cầu có bhxh nên sẽ nhiều dữ liệu"*.
+	 *
+	 * 🔴 MÀN RIÊNG, KHÔNG PHẢI KHỐI TRONG CẤU HÌNH. Cấu hình là chỗ khai MỘT LẦN RỒI THÔI; sổ
+	 *    này mỗi người một dòng và chỉ dài thêm. Nhét một danh sách đang lớn vào giữa mấy công
+	 *    tắc là đẩy hết phần dưới xuống ngoài tầm mắt.
 	 *
 	 * ⚠️ MỘT SỔ CHUNG CẢ CHUỖI, KHÔNG CHIA THEO THÁNG. Khai một lần, tự lặp mọi tháng kể từ
 	 *    tháng bắt đầu — xem khối chú thích đầu `VHCC_Bhxh`.
 	 */
 	private static function the_bhxh( $ky, $toi ) {
-		if ( ! VHCC_Vai::duoc( $toi, VHCC_Bhxh::QUYEN ) ) { return; }
-		$ds = VHCC_Bhxh::ds();
+		if ( ! VHCC_Vai::duoc( $toi, VHCC_Bhxh::QUYEN ) ) {
+			echo '<div class="the"><div class="bao" style="margin:0">'
+				. esc_html( VHCC_Vai::loi( $toi, VHCC_Bhxh::QUYEN, 'Sổ BHXH' ) )
+				. '</div></div>';
+			return;
+		}
+		$ds_het = VHCC_Bhxh::ds();
 		$th_nay = substr( (string) current_time( 'Y-m-d' ), 0, 7 );
 
-		echo '<div class="the"><details' . ( $ds ? ' open' : '' )
-			. '><summary><b>Sổ BHXH</b> <span class="mo">— ai đóng, mỗi tháng trừ bao nhiêu · '
-			. 'chung cả chuỗi</span></summary>';
-		echo '<p class="mo" style="margin:10px 0">Người có tên trong sổ này thì bảng lương '
-			. '<b>tháng nào cũng</b> trừ đúng số tiền đã khai, ở cột <b>BHXH</b> — không phải gõ '
-			. 'lại mỗi tháng. Vào bảo hiểm thì thêm một lần, nghỉ thì xoá.</p>';
-
+		echo '<div class="the"><h2>🛡️ Sổ BHXH</h2>';
+		echo '<p class="mo">Người có tên trong sổ này thì bảng lương <b>tháng nào cũng</b> trừ '
+			. 'đúng số tiền đã khai, ở cột <b>BHXH</b> — không phải gõ lại mỗi tháng. Vào bảo '
+			. 'hiểm thì thêm một lần, nghỉ thì xoá.</p>';
 		/* 🔴 NÓI THẲNG LÀ MÁY KHÔNG TỰ TÍNH. Người khai rất dễ tưởng gõ lương cơ bản vào đây là
 		   xong — rồi số tiền trừ sai gấp mấy lần. Mức đóng bảo hiểm là một con số NẰM NGOÀI hệ,
 		   khác hẳn lương cơ bản (tờ của anh Thắng: lương cb 4.000.000, BHXH 596.610). */
-		echo '<div class="bao" style="margin:0 0 12px">Gõ <b>số tiền trừ mỗi tháng</b>, không '
+		echo '<div class="bao" style="margin:10px 0 0">Gõ <b>số tiền trừ mỗi tháng</b>, không '
 			. 'phải mức lương đóng và cũng không phải tỉ lệ. Máy <b>không tự tính</b> — mức đóng '
-			. 'bảo hiểm nằm ngoài hệ này.</div>';
+			. 'bảo hiểm nằm ngoài hệ này.</div></div>';
 
 		$an = '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
-			. '<input type="hidden" name="man" value="cau_hinh">';
+			. '<input type="hidden" name="man" value="bhxh">';
 
-		if ( $ds ) {
-			$tong = VHCC_Bhxh::tong_thang( $th_nay );
-			echo '<div class="cuon"><table class="b"><thead><tr><th>Mã NV</th><th>Họ tên</th>'
-				. '<th>Trừ mỗi tháng</th><th>Từ tháng</th><th></th></tr></thead><tbody>';
-			foreach ( $ds as $x ) {
-				/* Chưa tới tháng bắt đầu thì nói ra — dòng có mặt mà bảng lương chưa trừ là
-				   thứ người khai sẽ tưởng hỏng. */
-				$chua = ( '' !== $x['tu'] && $th_nay < $x['tu'] );
-				echo '<tr><td><code>' . esc_html( $x['ma'] ) . '</code></td>'
-					. '<td>' . esc_html( '' !== $x['ten'] ? $x['ten'] : '—' ) . '</td>'
-					. '<td><b>' . esc_html( number_format( $x['tien'], 0, ',', '.' ) ) . 'đ</b></td>'
-					. '<td>' . esc_html( '' !== $x['tu'] ? $x['tu'] : '—' )
-					. ( $chua ? ' <span class="mo">(chưa tới — tháng này chưa trừ)</span>' : '' )
-					. '</td>'
-					. '<td><form method="post" style="display:inline">' . $an
-					. '<input type="hidden" name="viec" value="bh_xoa">'
-					. '<input type="hidden" name="bh_ma" value="' . esc_attr( $x['ma'] ) . '">'
-					. '<button class="phu">Xoá khỏi sổ</button></form></td></tr>';
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * Ô TÌM — vì sổ này CHỈ DÀI THÊM.
+		 *
+		 * Anh Thắng: *"sau này nv sẽ yêu cầu có bhxh nên sẽ nhiều dữ liệu"*. Một danh sách vài
+		 * trăm dòng mà muốn sửa một người thì phải cuộn đi tìm; và cuộn tìm trên một bảng toàn
+		 * số tiền là đúng lúc người ta bấm nhầm dòng bên cạnh.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$q = isset( $_GET['bhq'] ) ? trim( sanitize_text_field( wp_unslash( $_GET['bhq'] ) ) ) : '';
+		$ds = $ds_het;
+		if ( '' !== $q ) {
+			$kq = VHCC_Luong::bo_chu( $q );
+			$ds = array();
+			foreach ( $ds_het as $x ) {
+				if ( false !== stripos( $x['ma'], $q )
+					|| ( '' !== $kq && false !== strpos( VHCC_Luong::bo_chu( $x['ten'] ), $kq ) ) ) {
+					$ds[] = $x;
+				}
 			}
-			echo '</tbody></table></div>';
-			echo '<p class="mo" style="margin:8px 0 0">Tháng ' . esc_html( $th_nay ) . ': '
-				. '<b>' . esc_html( count( $ds ) ) . '</b> người trong sổ, tổng trừ '
-				. '<b>' . esc_html( number_format( $tong, 0, ',', '.' ) ) . 'đ</b>.</p>';
-		} else {
-			echo '<p class="mo" style="margin:0 0 10px">Sổ còn trống — chưa ai bị trừ BHXH.</p>';
 		}
 
-		echo '<form method="post" class="hang" style="gap:8px;align-items:flex-end;margin:12px 0 0">'
+		echo '<div class="the"><form method="get" class="hang" style="gap:8px;align-items:flex-end;margin:0">';
+		if ( ! get_option( 'permalink_structure' ) ) { echo '<input type="hidden" name="vhcc_qt" value="1">'; }
+		echo '<input type="hidden" name="man" value="bhxh">'
+			. '<div><label for="bhq">Tìm theo tên hoặc mã</label>'
+			. '<input id="bhq" name="bhq" style="width:240px" value="' . esc_attr( $q ) . '"></div>'
+			. '<div><button class="chinh">Tìm</button></div>'
+			. ( '' !== $q
+				? '<div><a class="nut" href="' . esc_url( add_query_arg( array( 'man' => 'bhxh' ),
+					self::url() ) ) . '">Xem hết</a></div>' : '' )
+			. '</form>';
+
+		$tong = VHCC_Bhxh::tong_thang( $th_nay );
+		echo '<p class="mo" style="margin:10px 0 0">Tháng <b>' . esc_html( $th_nay ) . '</b>: '
+			. '<b>' . (int) count( $ds_het ) . '</b> người trong sổ, tổng trừ <b>'
+			. esc_html( number_format( $tong, 0, ',', '.' ) ) . 'đ</b>'
+			. ( '' !== $q ? ' · đang lọc: <b>' . (int) count( $ds ) . '</b> dòng khớp "'
+				. esc_html( $q ) . '"' : '' ) . '.</p></div>';
+
+		/* ---- thêm / sửa ---- */
+		$bh_sua  = isset( $_GET['bh_sua'] ) ? sanitize_text_field( wp_unslash( $_GET['bh_sua'] ) ) : '';
+		$bh_dang = null;
+		foreach ( $ds_het as $x ) {
+			if ( '' !== $bh_sua && 0 === strcasecmp( $x['ma'], $bh_sua ) ) { $bh_dang = $x; }
+		}
+
+		echo '<div class="the"><h3 style="margin:0 0 10px">'
+			. ( $bh_dang ? 'Sửa: ' . esc_html( '' !== $bh_dang['ten'] ? $bh_dang['ten'] : $bh_dang['ma'] )
+				: 'Thêm người vào sổ' ) . '</h3>';
+		echo '<form method="post" class="hang" style="gap:8px;align-items:flex-end;margin:0">'
 			. $an . '<input type="hidden" name="viec" value="bh_dat">'
+			. ( '' !== $q ? '<input type="hidden" name="bhq" value="' . esc_attr( $q ) . '">' : '' )
 			. '<div><label for="bh_ma">Mã NV</label>'
-			. '<input id="bh_ma" name="bh_ma" style="width:170px" placeholder="MNNV2KVC0166" required></div>'
+			. '<input id="bh_ma" name="bh_ma" style="width:170px" placeholder="MNNV2KVC0166" '
+			. 'value="' . esc_attr( $bh_dang ? $bh_dang['ma'] : '' ) . '" required></div>'
 			. '<div><label for="bh_tien">Trừ mỗi tháng (đ)</label>'
-			. '<input id="bh_tien" name="bh_tien" style="width:140px" placeholder="596610" required></div>'
+			/* ⚠️ SỐ TRƠN, không dấu chấm ngăn nghìn: ô này gõ lại rồi gửi đi, và `596.610` đi
+			   qua một phép đọc số lỏng tay có thể thành 596. */
+			. '<input id="bh_tien" name="bh_tien" style="width:140px" placeholder="596610" '
+			. 'value="' . esc_attr( $bh_dang ? (string) (int) $bh_dang['tien'] : '' ) . '" required></div>'
 			. '<div><label for="bh_tu">Từ tháng</label>'
 			. '<input id="bh_tu" name="bh_tu" style="width:110px" placeholder="'
-			. esc_attr( $th_nay ) . '"></div>'
-			. '<div><button class="chinh">Thêm / sửa</button></div></form>';
-
+			. esc_attr( $th_nay ) . '" value="' . esc_attr( $bh_dang ? $bh_dang['tu'] : '' ) . '"></div>'
+			. '<div><button class="chinh">' . ( $bh_dang ? 'Lưu thay đổi' : 'Thêm vào sổ' )
+			. '</button></div>'
+			. ( $bh_dang
+				? '<div><a class="nut" href="' . esc_url( remove_query_arg( 'bh_sua', self::url_hien() ) )
+					. '">Thôi</a></div>' : '' )
+			. '</form>';
 		/* 🔴 NÓI RA VÌ SAO CÓ Ô "TỪ THÁNG". Bỏ trống thì mặc định là tháng đang chạy, và đó là
 		   thứ người khai đang nghĩ — nhưng nếu không có ô ấy thì khai hôm nay là bảng lương
 		   MỌI THÁNG TRƯỚC cũng mọc thêm một khoản trừ, tức viết lại mấy tháng đã trả tiền xong. */
@@ -9682,8 +9788,45 @@ class VHCC_Web {
 		echo '<p class="mo" style="margin:8px 0 0;font-size:12px">⚠️ Số này <b>trừ thẳng vào '
 			. 'tổng lương</b> và hiện trên <b>phiếu lương nhân viên tự xem</b>. Sửa một con số ở '
 			. 'đây là đổi tiền của người ấy ở <b>mọi tháng</b> từ tháng bắt đầu trở đi, kể cả '
-			. 'tháng đã xem xong — bảng lương tính lại mỗi lần mở.</p>';
-		echo '</details></div>';
+			. 'tháng đã xem xong — bảng lương tính lại mỗi lần mở.</p></div>';
+
+		/* ---- danh sách ---- */
+		echo '<div class="the">';
+		if ( ! $ds_het ) {
+			echo '<p class="mo" style="margin:0">Sổ còn trống — chưa ai bị trừ BHXH.</p></div>';
+			return;
+		}
+		if ( ! $ds ) {
+			echo '<p class="mo" style="margin:0">Không có ai khớp "' . esc_html( $q )
+				. '". Bấm <b>Xem hết</b> ở trên để bỏ lọc.</p></div>';
+			return;
+		}
+		echo '<div class="cuon"><table class="b"><thead><tr><th>Mã NV</th><th>Họ tên</th>'
+			. '<th>Trừ mỗi tháng</th><th>Từ tháng</th><th></th></tr></thead><tbody>';
+		foreach ( $ds as $x ) {
+			/* Chưa tới tháng bắt đầu thì nói ra — dòng có mặt mà bảng lương chưa trừ là thứ
+			   người khai sẽ tưởng hỏng. */
+			$chua = ( '' !== $x['tu'] && $th_nay < $x['tu'] );
+			$la_s = ( null !== $bh_dang && $bh_dang['ma'] === $x['ma'] );
+			echo '<tr' . ( $la_s ? ' style="background:var(--vang-nhat,#fffbeb)"' : '' )
+				. '><td><code>' . esc_html( $x['ma'] ) . '</code></td>'
+				. '<td>' . esc_html( '' !== $x['ten'] ? $x['ten'] : '—' ) . '</td>'
+				. '<td><b>' . esc_html( number_format( $x['tien'], 0, ',', '.' ) ) . 'đ</b></td>'
+				. '<td>' . esc_html( '' !== $x['tu'] ? $x['tu'] : '—' )
+				. ( $chua ? ' <span class="mo">(chưa tới — tháng này chưa trừ)</span>' : '' )
+				. '</td>'
+				. '<td>'
+				. ( $la_s
+					? '<b>đang sửa ↑</b>'
+					: '<a class="nut" href="' . esc_url( add_query_arg(
+							array( 'bh_sua' => $x['ma'] ), self::url_hien() ) ) . '">Sửa</a> ' )
+				. '<form method="post" style="display:inline">' . $an
+				. ( '' !== $q ? '<input type="hidden" name="bhq" value="' . esc_attr( $q ) . '">' : '' )
+				. '<input type="hidden" name="viec" value="bh_xoa">'
+				. '<input type="hidden" name="bh_ma" value="' . esc_attr( $x['ma'] ) . '">'
+				. '<button class="phu">Xoá khỏi sổ</button></form></td></tr>';
+		}
+		echo '</tbody></table></div></div>';
 	}
 
 	/**
@@ -11561,7 +11704,6 @@ class VHCC_Web {
 		   từng cửa hàng. */
 		self::the_ngay_le( $ky, $toi );
 		self::the_quy_cong( $ky, $toi );
-		self::the_bhxh( $ky, $toi );
 		self::the_thieu_khai( $ky, $toi, $cs );
 		self::the_gia_gio( $ky, $toi, $cs );
 		/* Công tắc "nhân viên tự khai loại giờ" — đứng ngay dưới bảng đơn giá vì danh sách

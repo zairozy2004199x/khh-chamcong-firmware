@@ -271,10 +271,30 @@ class VHCC_NgayLe {
 		return array( 'ok' => true, 'ngay' => $k );
 	}
 
+	/**
+	 * 🔴 KHOÁ ĐÃ LƯU THÌ DÙNG NGUYÊN, KHÔNG ĐỌC LẠI BẰNG `chuan_ngay()`.
+	 *
+	 * Kho lưu `MM-DD`; `chuan_ngay()` đọc hai số theo kiểu người gõ là `DD-MM`. Đem một khoá
+	 * đã chuẩn qua nó là LẬT NGƯỢC: `09-02` (2 tháng 9) thành `02-09` (9 tháng 2).
+	 *
+	 * Đây đúng là lỗi đã có trong `xoa()`: nút **Xoá** ở một dòng lặp hằng năm đi tìm một khoá
+	 * không tồn tại rồi trả về "không có ngày ấy trong lịch" — tức là **chưa bao giờ xoá được
+	 * một ngày lễ hằng năm**. Bài `kiem-ngay-le-quy-cong.php` bắt được nó khi thêm nút Sửa.
+	 * Cùng họ với lỗi đã sửa trong `ds()`.
+	 *
+	 * Luật phân biệt: khoá đến TỪ KHO (ô ẩn trên màn) thì đã đúng hình dạng — dùng nguyên.
+	 * Chuỗi đến TỪ NGƯỜI GÕ thì mới đọc nghĩa.
+	 */
+	private static function khoa_da_luu( $s ) {
+		$k = trim( (string) $s );
+		if ( 1 === preg_match( '/^(\d{4}-\d{2}-\d{2}|\d{2}-\d{2})$/', $k ) ) { return $k; }
+		return self::chuan_ngay( $k );
+	}
+
 	public static function xoa( $u, $ngay ) {
 		$loi = self::gac( $u );
 		if ( '' !== $loi ) { return array( 'ok' => false, 'error' => $loi ); }
-		$k = self::chuan_ngay( $ngay );
+		$k = self::khoa_da_luu( $ngay );
 		$c = self::cfg();
 		if ( '' === $k || ! isset( $c['ngay'][ $k ] ) ) {
 			return array( 'ok' => false, 'error' => 'Không có ngày ấy trong lịch.' );
