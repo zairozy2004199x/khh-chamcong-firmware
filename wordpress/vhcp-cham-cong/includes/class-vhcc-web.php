@@ -10766,11 +10766,42 @@ class VHCC_Web {
 						. esc_html( (string) $v ) . '</td>';
 					continue;
 				}
+				/* ═══════════════════════════════════════════════════════════════════════════
+				 * 🔴 CỘT NÀY LÀ **GIỜ** VỚI NGƯỜI TÍNH THEO GIỜ — VIẾT GIỜ:PHÚT
+				 * ═══════════════════════════════════════════════════════════════════════════
+				 * Anh Thắng 19/09/2026: *"Số công thực là số giờ : chứ, ra phảy là sai nữa"*.
+				 *
+				 * Một cột, hai đại lượng: người ăn lương tháng thì đây là SỐ CÔNG (26 công),
+				 * người tính theo giờ thì đây là SỐ GIỜ. Viết số giờ bằng dấu phẩy giữa một màn
+				 * toàn dấu hai chấm là đúng cái đã làm `186:30` bị đọc thành `186,3`.
+				 *
+				 * ⚠️ SỐ CÔNG THÌ KHÔNG ĐỔI. `26 công` không có phút; in `26:00` là bịa ra một
+				 *    đơn vị không tồn tại.
+				 * ⚠️ TỆP .XLSX XUẤT RA KHÔNG ĐI QUA ĐÂY (`VHCC_BangLuong` tự dựng hàng), nên nó
+				 *    vẫn mang SỐ THẬT để Excel cộng nhân được. Nhét `53:00` vào ô Excel là mọi
+				 *    công thức bên tệp kế toán chết.
+				 * ⚠️ PHÉP NHÂN VẪN PHẢI SOI ĐƯỢC: rê chuột vào ô là hiện `53,00 giờ × 22.000 =
+				 *    …`. Bỏ hẳn số thập phân đi thì người ta tự quy đổi lấy, và họ sẽ quy đổi
+				 *    sai — đúng vết đã mất 4.800đ.
+				 * ═══════════════════════════════════════════════════════════════════════════ */
 				if ( 'gio' === $c['k'] ) {
-					echo '<td class="p">' . ( null === $v ? '<span class="mo">—</span>'
-						: ( ( 'thang' === $d['cheDo'] )
-							? esc_html( (string) $v ) . ' <span class="mo">công</span>'
-							: esc_html( number_format( (float) $v, 2, ',', '.' ) ) ) ) . '</td>';
+					if ( null === $v ) {
+						echo '<td class="p"><span class="mo">—</span></td>';
+					} elseif ( 'thang' === $d['cheDo'] ) {
+						echo '<td class="p">' . esc_html( self::so_vp( $v ) )
+							. ' <span class="mo">công</span></td>';
+					} else {
+						$g_f  = (float) $v;
+						$chu_g = number_format( $g_f, 2, ',', '.' ) . ' giờ';
+						if ( null !== $d['gia'] && $d['gia'] > 0 ) {
+							$chu_g .= ' × ' . number_format( (float) $d['gia'], 0, ',', '.' );
+							if ( null !== $d['luongChinh'] ) {
+								$chu_g .= ' = ' . number_format( (float) $d['luongChinh'], 0, ',', '.' ) . 'đ';
+							}
+						}
+						echo '<td class="p" title="' . esc_attr( $chu_g ) . '">'
+							. esc_html( VHCC_Cham::gio_tp( (int) round( $g_f * 60 ) ) ) . '</td>';
+					}
 					continue;
 				}
 				if ( empty( $c['so'] ) ) {
@@ -10813,8 +10844,33 @@ class VHCC_Web {
 			}
 			$tg = 0.0;
 			foreach ( $b['dong'] as $d_t ) { $tg += (float) $o_gt( $d_t, $c['k'] ); }
+			/* ═══════════════════════════════════════════════════════════════════════════════
+			 * 🔴 HÀNG TỔNG: GIỜ CỘNG VỚI GIỜ, CÔNG CỘNG VỚI CÔNG — ĐỪNG GỘP HAI ĐƠN VỊ
+			 * ═══════════════════════════════════════════════════════════════════════════════
+			 * Cột này mang hai đại lượng (xem ô thân bảng ngay trên). Bản cũ cộng thẳng tất cả
+			 * vào một con số: 26 công + 80,83 giờ = `106,83`. Con số ấy không phải giờ, cũng
+			 * không phải công — nó không là gì cả, mà trông y hệt một con số dùng được, và nó
+			 * nằm đúng chỗ người ta liếc để đối chiếu với tệp kế toán.
+			 *
+			 * Viết nó thành `106:50` thì còn tệ hơn hẳn: cái dấu hai chấm KHẲNG ĐỊNH đó là giờ.
+			 * Nên tách hẳn: `80:50 giờ · 26 công`.
+			 *
+			 * ⚠️ CỘNG BẰNG PHÚT, không cộng mấy con số đã làm tròn. Chín người mỗi người lệch
+			 *    0,004 giờ là hàng tổng lệch nửa phút so với tổng thật.
+			 * ═══════════════════════════════════════════════════════════════════════════════ */
 			if ( 'gio' === $c['k'] ) {
-				echo '<td class="p"><b>' . esc_html( number_format( $tg, 2, ',', '.' ) ) . '</b></td>';
+				$p_t = 0;
+				$c_t = 0.0;
+				foreach ( $b['dong'] as $d_t ) {
+					if ( 'thang' === $d_t['cheDo'] ) { $c_t += (float) $d_t['congThuc']; }
+					else { $p_t += (int) round( (float) $d_t['gio'] * 60 ); }
+				}
+				$phan_t = array();
+				if ( $p_t > 0 ) { $phan_t[] = VHCC_Cham::gio_tp( $p_t ) . ' giờ'; }
+				if ( $c_t > 0 ) { $phan_t[] = self::so_vp( $c_t ) . ' công'; }
+				echo '<td class="p" title="'
+					. esc_attr( number_format( $p_t / 60, 2, ',', '.' ) . ' giờ' )
+					. '"><b>' . esc_html( $phan_t ? implode( ' · ', $phan_t ) : '—' ) . '</b></td>';
 				continue;
 			}
 			echo '<td class="p' . $lm_t . '"><b>' . esc_html( number_format( $tg, 0, ',', '.' ) )

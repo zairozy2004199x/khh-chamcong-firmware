@@ -267,6 +267,91 @@ $gio_lt = null;
 foreach ( $bl_g['dong'] as $d_g ) { if ( 'Lái Tàu' === $d_g['cv'] ) { $gio_lt = $d_g['gio']; } }
 teq( '🔴 và bảng lương nhận đúng 9,5 giờ — không phải 9', 9.5, $gio_lt );
 
+/* ═════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 CỘT "SỐ CÔNG THỰC" CỦA BẢNG LƯƠNG — GIỜ THÌ VIẾT GIỜ:PHÚT, CÔNG THÌ VẪN LÀ CÔNG
+ * ═════════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 19/09/2026: *"Số công thực là số giờ : chứ, ra phảy là sai nữa"*.
+ *
+ * Một cột, hai đại lượng. Người ăn lương tháng thì đây là SỐ CÔNG (26 công — không có phút, in
+ * `26:00` là bịa ra một đơn vị không tồn tại). Người tính theo giờ thì đây là SỐ GIỜ.
+ * ------------------------------------------------------------------------------------------- */
+echo "— cột Số công thực —\n";
+
+$wpdb->insert( VHCC_DB::t( 'bo_phan_coso' ), array( 'coso' => 'BL_SHOP', 'bo_phan' => 'Khu vui chơi' ) );
+VHCC_GiaGio::dat_coso( $U_KT, 'BL_SHOP', array( 'Nhân Viên' => 22000 ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'BL_GIO', 'ho_ten' => 'Bạn Theo Giờ',
+	'cua_hang' => 'BL_SHOP', 'chuc_vu' => 'Nhân Viên', 'vai_tro' => 'Nhân viên',
+	'trang_thai_lam_viec' => 'Đang làm' ) );
+/* 10 ngày × 8h05 = 80h50 — cố ý lẻ phút, vì `:50` với `,83` là hai con số trông khác hẳn nhau. */
+for ( $i = 1; $i <= 10; $i++ ) {
+	$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'ma_nv' => 'BL_GIO', 'ho_ten' => '',
+		'coso' => 'BL_SHOP', 'ngay' => sprintf( '2027-01-%02d', $i ),
+		'gio_vao_giay' => 8 * 3600, 'gio_ra_giay' => 16 * 3600 + 5 * 60,
+		'hau_to' => '', 'nguon' => 'may' ) );
+}
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'BL_TH', 'ho_ten' => 'Bạn Lương Tháng',
+	'cua_hang' => 'BL_SHOP', 'chuc_vu' => 'Nhân Viên', 'vai_tro' => 'Nhân viên',
+	'trang_thai_lam_viec' => 'Đang làm' ) );
+for ( $i = 1; $i <= 26; $i++ ) {
+	$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'ma_nv' => 'BL_TH', 'ho_ten' => '',
+		'coso' => 'BL_SHOP', 'ngay' => sprintf( '2027-01-%02d', $i ),
+		'gio_vao_giay' => 8 * 3600, 'gio_ra_giay' => 16 * 3600, 'hau_to' => '', 'nguon' => 'may' ) );
+}
+VHCC_ChotLuong::dat_thang( $U_KT, 'BL_SHOP', '2027-01', 'BL_TH', true, '6000000', '26' );
+
+$_GET = array( 'man' => 'luong', 'lcs' => 'BL_SHOP', 'lth' => '2027-01' );
+$_POST = array();
+$_COOKIE = array( VHCC_Web::COOKIE => VHCC_Auth::phat_token( 'KT', 'Kế toán', 'BL_SHOP', 'BLKT' ) );
+ob_start(); VHCC_Web::phuc_vu(); $h_bl = ob_get_clean();
+$_GET = array(); $_COOKIE = array();
+
+t( 'bảng lương có vẽ ra', false !== mb_strpos( $h_bl, 'Số công thực' ), substr( $h_bl, 0, 200 ) );
+t( '🔴 dòng theo giờ viết 80:50, KHÔNG phải 80,83',
+	false !== strpos( $h_bl, '>80:50<' ) && false === strpos( $h_bl, '>80,83<' ), $h_bl );
+t( '   và rê chuột vào là thấy cả phép nhân',
+	false !== mb_strpos( $h_bl, '80,83 giờ × 22.000 = 1.778.260đ' ), $h_bl );
+/* ⚠️ SỐ CÔNG KHÔNG CÓ PHÚT. `26:00` là bịa ra một đơn vị không tồn tại. */
+t( '🔴 dòng ăn lương tháng vẫn là "26 công", không thành 26:00',
+	false !== mb_strpos( $h_bl, '26 <span class="mo">công</span>' )
+	&& false === strpos( $h_bl, '>26:00<' ), $h_bl );
+
+/* 🔴 HÀNG TỔNG KHÔNG ĐƯỢC GỘP HAI ĐƠN VỊ. Bản cũ cộng 26 công + 80,83 giờ = `106,83` — con số
+   ấy không phải giờ, cũng không phải công. Viết thành `106:50` thì còn tệ hơn: dấu hai chấm
+   KHẲNG ĐỊNH đó là giờ. */
+t( '🔴 hàng TỔNG tách hai đơn vị: "80:50 giờ · 26 công"',
+	false !== mb_strpos( $h_bl, '80:50 giờ · 26 công' ), $h_bl );
+t( '   và KHÔNG còn con số gộp 106,83 / 106:50',
+	false === strpos( $h_bl, '106,83' ) && false === strpos( $h_bl, '106:50' ), $h_bl );
+
+/* ⚠️ TỆP .XLSX KHÔNG ĐI QUA MÀN — nó phải mang SỐ THẬT để Excel cộng nhân được. Nhét `80:50`
+   vào ô Excel là mọi công thức bên tệp kế toán chết. */
+$x_bl = VHCC_BangLuong::to_xlsx( 'BL_SHOP', '2027-01' );
+t( 'dựng được tờ xuất', ! empty( $x_bl['ok'] ), $x_bl );
+if ( ! empty( $x_bl['ok'] ) ) {
+	/* Gom mọi ô của tờ ra một chuỗi để soi. */
+	$o_het = array();
+	foreach ( $x_bl['to'][0]['hang'] as $h_x ) {
+		foreach ( (array) $h_x as $o_x ) {
+			if ( is_array( $o_x ) ) {
+				/* Ô có công thức thì mang cả `v` (giá trị đã tính) lẫn `f` (công thức) — soi cả
+				   hai, vì con số có thể nằm ở một trong hai chỗ. */
+				foreach ( array( 'v', 'f' ) as $kh_x ) {
+					if ( isset( $o_x[ $kh_x ] ) && ! is_array( $o_x[ $kh_x ] ) ) {
+						$o_het[] = (string) $o_x[ $kh_x ];
+					}
+				}
+			} else {
+				$o_het[] = (string) $o_x;
+			}
+		}
+	}
+	$chuoi_x = implode( '|', $o_het );
+	t( '🔴 tờ xuất KHÔNG có ô "80:50" — ô ấy phải là SỐ để Excel còn cộng nhân được',
+		false === strpos( $chuoi_x, '80:50' ), 'tờ có chuỗi 80:50' );
+	t( '   và vẫn mang con số thật 80.83',
+		false !== strpos( $chuoi_x, '80.83' ), substr( $chuoi_x, 0, 300 ) );
+}
+
 VHCC_Cham::dat_kieu_gio( VHCC_Cham::KIEU_HM );
 
 echo "\n";
