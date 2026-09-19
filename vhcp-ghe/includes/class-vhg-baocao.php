@@ -60,7 +60,7 @@ class VHG_BaoCao {
 	   boot() trả nó kèm mọi phản hồi (`banBc`) — số ở góc nói tệp chính là bản nào, số này nói
 	   TỆP BÁO CÁO là bản nào. Hai số lệch nhau là bằng chứng tệp cũ còn sống. Phải tăng cùng
 	   VHG_VERSION mỗi lần sửa tệp này. */
-	const BAN = '2.116.0';
+	const BAN = '2.117.0';
 
 	/** Ghế từng thu tiền trong bao nhiêu ngày gần đây thì vẫn phải hiện ở màn nhập — xem ds_ghe(). */
 	const GHE_LS_NGAY = 45;
@@ -465,7 +465,25 @@ class VHG_BaoCao {
 	/** Dọn đệm — gọi sau khi đổi cấu hình cơ sở, không thì lượt sau còn đọc số cũ. */
 	public static function quen_reset_memo() { self::$reset_memo = null; }
 
-	private static function chi_so_truoc_ct_( $ma_may, $ngay, $toi = false ) {
+	/**
+	 * @param string $coso Tên cơ sở đang nhập. Có truyền thì ƯU TIÊN lịch sử CỦA CHÍNH CƠ SỞ ẤY.
+	 *
+	 * 🔴 VÌ SAO PHẢI CÓ THAM SỐ NÀY — anh Thắng 19/09/2026: *"dữ liệu ghế này lại đi đọc dữ liệu
+	 *    của ghế khác là sao"*. GO Thủ Dầu Một: GO-TDM-1 (80016) ra chỉ số trước **7.868 ngày
+	 *    17/09** trong khi lần nhập gần nhất của chính nó ở cơ sở này là **25.166 ngày 09/09**;
+	 *    GO-TDM-2 (80017) ra 9.119 thay vì 28.295. Hàm này tra theo MỖI `ma_may`, không đếm xỉa
+	 *    cơ sở — mà mã ghế thì đã từng dùng trùng ở nơi khác (xem `nhan_ban()`, vụ 12/09 "2 cơ sở
+	 *    chung 1 mã"). Thế là chỉ số của ghế nơi khác nhảy vào làm mốc cho ghế ở đây, và
+	 *    actual = (sau − trước) ra một con số tiền hoàn toàn bịa.
+	 *
+	 * ⚠️ ƯU TIÊN, KHÔNG PHẢI LỌC CỨNG. Ghế được điều chuyển thật sang cơ sở khác vẫn cần nối
+	 *    tiếp chỉ số cũ của nó — cơ sở mới chưa có lịch sử nào thì vẫn phải lùi về tra toàn hệ.
+	 *    Chỉ khi cơ sở NÀY đã có lịch sử của chính mã ấy thì lịch sử ấy mới là mốc đúng.
+	 * ⚠️ Bảng `chot` (chốt ca quét QR) KHÔNG có cột cơ sở nên không quy được về đâu; đã bắt được
+	 *    mốc cùng cơ sở thì không cho `chot` đè lên nữa, vì chính nó cũng có thể là của ghế trùng
+	 *    mã nơi khác.
+	 */
+	private static function chi_so_truoc_ct_( $ma_may, $ngay, $toi = false, $coso = '' ) {
 		global $wpdb;
 		$ma = (string) $ma_may;
 		$ngay = self::ngay_( $ngay );
@@ -481,6 +499,25 @@ class VHG_BaoCao {
 		   để "thu lần nữa" nối tiếp lần trước; sắp lan DESC để lấy đúng lần thu MỚI NHẤT trong ngày.
 		   $toi=false (mặc định) giữ nguyên: chỉ lấy chỉ số sau của ngày TRƯỚC ngày báo cáo. */
 		$ss = $toi ? '<=' : '<';
+		/* Lượt 1: lịch sử CỦA CHÍNH CƠ SỞ NÀY (khớp qua `bc.coso` đóng băng trong báo cáo). */
+		if ( '' !== trim( (string) $coso ) ) {
+			$rc = $wpdb->get_row( $wpdb->prepare(
+				'SELECT d.chi_so_sau cs, d.ngay d FROM ' . VHG_DB::t( 'bc_dong' ) . ' d'
+				. ' JOIN ' . VHG_DB::t( 'bc' ) . ' h ON h.report_id = d.report_id'
+				. " WHERE d.ma_may=%s AND d.ngay $ss %s AND d.chi_so_sau IS NOT NULL AND h.coso_key=%s"
+				. ' ORDER BY d.ngay DESC, d.lan DESC, d.chi_so_sau DESC LIMIT 1',
+				$ma, $ngay, self::squash( $coso ) ), ARRAY_A );
+			if ( $rc ) {
+				$found_cs = (int) $rc['cs']; $found_d = (string) $rc['d'];
+				$mo0 = $wpdb->get_row( $wpdb->prepare(
+					'SELECT moc_chiso cs, moc_chiso_ngay d FROM ' . VHG_DB::t( 'may' ) . ' WHERE ma=%s LIMIT 1', $ma ), ARRAY_A );
+				if ( $mo0 && null !== $mo0['cs'] && $mo0['d'] ) {
+					$od0 = self::ngay_( $mo0['d'] );
+					if ( $od0 && $od0 <= $ngay && $found_d < $od0 ) { return array( 'cs' => (int) $mo0['cs'], 'ngay' => $od0 ); }
+				}
+				return array( 'cs' => $found_cs, 'ngay' => $found_d );
+			}
+		}
 		$r1 = $wpdb->get_row( $wpdb->prepare(
 			'SELECT chi_so_sau cs, ngay d FROM ' . VHG_DB::t( 'bc_dong' )
 			. " WHERE ma_may=%s AND ngay $ss %s AND chi_so_sau IS NOT NULL ORDER BY ngay DESC, lan DESC, chi_so_sau DESC LIMIT 1",
@@ -502,8 +539,8 @@ class VHG_BaoCao {
 		return array( 'cs' => null === $found_cs ? null : (int) $found_cs, 'ngay' => $found_d );
 	}
 
-	public static function chi_so_truoc( $ma_may, $ngay, $toi = false ) {
-		return self::chi_so_truoc_ct_( $ma_may, $ngay, $toi )['cs'];
+	public static function chi_so_truoc( $ma_may, $ngay, $toi = false, $coso = '' ) {
+		return self::chi_so_truoc_ct_( $ma_may, $ngay, $toi, $coso )['cs'];
 	}
 
 	/**
@@ -554,9 +591,9 @@ class VHG_BaoCao {
 		return $out;
 	}
 
-	public static function lay_chiso_truoc( $codes, $ngay, $toi = false ) {
+	public static function lay_chiso_truoc( $codes, $ngay, $toi = false, $coso = '' ) {
 		$out = array();
-		foreach ( (array) $codes as $c ) { $out[ (string) $c ] = self::chi_so_truoc( $c, $ngay, $toi ); }
+		foreach ( (array) $codes as $c ) { $out[ (string) $c ] = self::chi_so_truoc( $c, $ngay, $toi, $coso ); }
 		return $out;
 	}
 
@@ -565,10 +602,10 @@ class VHG_BaoCao {
 	 * ngày nào", giống bản điện thoại (anh Thắng 07/09/2026). Chỉ trả ghế NÀO có ngày (bỏ ghế
 	 * chưa có mốc), khỏi bắt giao diện lọc lại. yyyy-mm-dd.
 	 */
-	public static function lay_chiso_truoc_ngay( $codes, $ngay, $toi = false ) {
+	public static function lay_chiso_truoc_ngay( $codes, $ngay, $toi = false, $coso = '' ) {
 		$out = array();
 		foreach ( (array) $codes as $c ) {
-			$x = self::chi_so_truoc_ct_( $c, $ngay, $toi );
+			$x = self::chi_so_truoc_ct_( $c, $ngay, $toi, $coso );
 			if ( null !== $x['cs'] && '' !== (string) $x['ngay'] ) { $out[ (string) $c ] = (string) $x['ngay']; }
 		}
 		return $out;
@@ -1269,7 +1306,7 @@ class VHG_BaoCao {
 			if ( '' === (string) $after || null === $after ) { continue; }
 			/* Mỗi lượt gửi LUÔN là một lần thu mới (xem khối 🔴 ở dưới) → mốc lấy CẢ chỉ số sau của
 			   các lần thu trước trong CHÍNH ngày đó (toi=true), để nối tiếp lần gần nhất. */
-			$truoc_ht = self::chi_so_truoc( $ma, $ngay, true );
+			$truoc_ht = self::chi_so_truoc( $ma, $ngay, true, $coso );
 			$before = ( null !== $truoc_ht ) ? $truoc_ht : self::so_chiso_( isset( $r0['meterBefore'] ) ? $r0['meterBefore'] : '' );
 			/* CHỈ SỐ BẤT THƯỜNG (sau < trước) — anh Thắng 28/08: "hiện ra lý do lỗi tại hàng máy
 			   lỗi, nhân viên nhập lý do. Khi nhập lý do thì lần 2 sẽ cho gửi báo cáo (nó sẽ báo
@@ -1775,7 +1812,7 @@ class VHG_BaoCao {
 				if ( self::squash( $g0['coso'] ) !== self::squash( (string) $h['coso'] ) ) { continue; }
 				if ( isset( $da_nhap[ (string) $g0['ma'] ] ) ) { continue; }
 				$ghe[] = array( 'chairCode' => (string) $g0['ma'], 'chairName' => (string) $g0['ten'],
-					'meterBefore' => self::chi_so_truoc( (string) $g0['ma'], (string) $h['ngay'] ),
+					'meterBefore' => self::chi_so_truoc( (string) $g0['ma'], (string) $h['ngay'], false, (string) $h['coso'] ),
 					'meterAfter' => null, 'actual' => 0, 'cash' => 0, 'qr' => 0,
 					'adjust' => null, 'note' => '', 'anh' => array(), 'chuaNhap' => 1 );
 			}
@@ -2071,7 +2108,7 @@ class VHG_BaoCao {
 			$wpdb->insert( VHG_DB::t( 'bc_dong' ), array(
 				'report_id' => $rid, 'ma_may' => $ma, 'ten' => $ten_ghe,
 				'ngay' => (string) $h0['ngay'], 'lan' => (int) $h0['lan'],
-				'chi_so_truoc' => self::chi_so_truoc( $ma, (string) $h0['ngay'] ),
+				'chi_so_truoc' => self::chi_so_truoc( $ma, (string) $h0['ngay'], false, (string) $h0['coso'] ),
 			) );
 			$d = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . VHG_DB::t( 'bc_dong' ) . ' WHERE report_id=%s AND ma_may=%s LIMIT 1', $rid, $ma ), ARRAY_A );
 			if ( ! $d ) { return array( 'ok' => false, 'message' => 'Không tạo được dòng cho ghế ' . $ma . '.' ); }

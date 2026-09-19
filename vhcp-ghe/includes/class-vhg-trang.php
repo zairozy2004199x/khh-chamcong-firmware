@@ -772,9 +772,14 @@ JS;
 				/* `ke` = chỉ số của lần đọc KẾ TIẾP (trần cho ngày đang nhập) — chỉ có khi đang
 				   nhập vào một ngày NẰM GIỮA. Trả kèm ở đây, không thêm một lượt gọi nữa: giao
 				   diện đang chờ đúng lượt này để vẽ bảng, thêm lượt là thêm một chỗ chờ. */
+				/* 🔴 CHUYỀN CẢ CƠ SỞ — anh Thắng 19/09/2026: *"dữ liệu ghế này lại đi đọc dữ liệu
+				   của ghế khác"*. Thiếu cơ sở thì chi_so_truoc() tra theo mỗi mã ghế trên toàn
+				   hệ, và mã trùng ở nơi khác sẽ nhảy vào làm mốc (GO-TDM-1 ra 7.868 của ghế khác
+				   thay vì 25.166 của chính nó). */
+				$cs_bc = isset( $d['coso'] ) ? (string) $d['coso'] : '';
 				self::tra( array( 'ok' => true,
-					'map'  => VHG_BaoCao::lay_chiso_truoc( $ma_ds, $ng_bc, ! empty( $d['toi'] ) ),
-					'mapd' => VHG_BaoCao::lay_chiso_truoc_ngay( $ma_ds, $ng_bc, ! empty( $d['toi'] ) ),
+					'map'  => VHG_BaoCao::lay_chiso_truoc( $ma_ds, $ng_bc, ! empty( $d['toi'] ), $cs_bc ),
+					'mapd' => VHG_BaoCao::lay_chiso_truoc_ngay( $ma_ds, $ng_bc, ! empty( $d['toi'] ), $cs_bc ),
 					'ke'   => VHG_BaoCao::lay_chiso_ke( $ma_ds, $ng_bc ) ) );
 				return;
 			}
@@ -2984,7 +2989,7 @@ JS;
     ghe.forEach(function(g){ _gan(body, veDong(g,null)); });
     tinhTong();
     bcDocNhap();
-    goi('bc_lastmeters',{codes:codes,ngay:NGAY,toi:1},function(r){
+    goi('bc_lastmeters',{codes:codes,ngay:NGAY,toi:1,coso:loc},function(r){
       LAST=(r&&r.map)||{};
       LASTD=(r&&r.mapd)||{};
       KE=(r&&r.ke)||{};

@@ -79,5 +79,22 @@ t('… nhưng vẫn chốt phạm vi PIN + đúng cơ sở của báo cáo',
   /trong_pham_vi\(\s*\$q\s*,\s*\(string\) \$h0\['coso'\]\s*,\s*\$ma\s*\)/.test(sd));
 t('màn Sửa 24h đánh dấu hàng CHƯA NHẬP', /c\.chuaNhap/.test(trang) && /CHƯA NHẬP/.test(trang));
 
+console.log('── Chỉ số trước phải của ĐÚNG ghế ở ĐÚNG cơ sở ───────────────');
+/* Anh Thắng 19/09: *"dữ liệu ghế này lại đi đọc dữ liệu của ghế khác là sao"*. GO-TDM-1 (80016)
+   ra chỉ số trước 7.868 ngày 17/09 trong khi lần nhập gần nhất của chính nó ở cơ sở này là
+   25.166 ngày 09/09 — vì chi_so_truoc() tra theo mỗi ma_may trên toàn hệ, mà mã ghế đã từng
+   dùng trùng ở nơi khác. Lấy nhầm mốc là actual = (sau − trước) ra một con số tiền bịa. */
+const csct = than(bc, 'chi_so_truoc_ct_');
+t('chi_so_truoc_ct_ nhận tham số cơ sở', /function chi_so_truoc_ct_\([^)]*\$coso/.test(bc));
+t('ưu tiên lịch sử CÙNG CƠ SỞ (join bc, lọc coso_key)', /h\.coso_key=%s/.test(csct));
+t('bắt được mốc cùng cơ sở thì không cho bảng chot đè lên',
+  csct.indexOf('h.coso_key=%s') < csct.indexOf("VHG_DB::t( 'chot' )"));
+t('vẫn lùi về tra toàn hệ khi cơ sở này chưa có lịch sử (ghế điều chuyển thật)',
+  /if \( '' !== trim\( \(string\) \$coso \) \)/.test(csct) && /VHG_DB::t\( 'chot' \)/.test(csct));
+t('lúc GỬI báo cáo cũng lấy mốc theo cơ sở', /chi_so_truoc\( \$ma, \$ngay, true, \$coso \)/.test(bc));
+t('màn nhập gửi kèm cơ sở khi hỏi chỉ số', /bc_lastmeters'[^)]*coso:\s*loc/.test(trang));
+t('router chuyền cơ sở xuống cả ba hàm lấy chỉ số',
+  (trang.match(/\$cs_bc/g) || []).length >= 3);
+
 console.log(hong ? '\n🔴 TRƯỢT: ' + hong : '\n✓ SẠCH');
 process.exit(hong ? 1 : 0);

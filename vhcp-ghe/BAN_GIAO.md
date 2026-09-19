@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-09-18 · Phiên bản hiện tại: **2.116.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-09-18 · Phiên bản hiện tại: **2.117.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,28 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v2.117.0 — Chỉ số trước phải của ĐÚNG ghế ở ĐÚNG cơ sở
+
+Anh Thắng 19/09/2026: *"dữ liệu ghế này lại đi đọc dữ liệu của ghế khác là sao"*.
+
+GO Thủ Dầu Một, màn nhập: **GO-TDM-1 (80016)** ra chỉ số trước **7.868 ngày 17/09**, **GO-TDM-2
+(80017)** ra **9.119** — trong khi báo cáo 09/09 của chính cơ sở ấy ghi 25.166 và 28.295 (khớp
+bảng tay của nhân viên: 25.166→25.283, 28.295→28.481). TDM-3/TDM-4 thì đúng.
+
+**Gốc:** `chi_so_truoc_ct_()` tra theo **mỗi `ma_may`**, không đếm xỉa cơ sở. Mã ghế đã từng dùng
+trùng ở nơi khác (vụ 12/09 *"2 cơ sở chung 1 mã"*), nên chỉ số của ghế nơi khác nhảy vào làm mốc.
+Lấy nhầm mốc thì `actual = (sau − trước)` ra một con số tiền hoàn toàn bịa — sai mốc là sai tiền,
+không phải sai hiển thị.
+
+- Thêm tham số `$coso`: **ưu tiên** lịch sử của chính cơ sở ấy (JOIN `bc`, lọc `coso_key`).
+- **Ưu tiên chứ không lọc cứng**: ghế điều chuyển thật sang cơ sở mới chưa có lịch sử ở đó thì vẫn
+  lùi về tra toàn hệ, để nối tiếp chỉ số cũ của nó.
+- Bắt được mốc cùng cơ sở thì **không cho bảng `chot`** (chốt ca quét QR, không có cột cơ sở) đè
+  lên — chính nó cũng có thể là của ghế trùng mã nơi khác.
+- Chuyền `$coso` xuống: `bc_lastmeters` (màn nhập gửi kèm cơ sở đang chọn), `luu()` lúc gửi báo
+  cáo, và hai chỗ mới của 2.116 (`ds_24h`, `sua_dong`).
+
 
 ### v2.116.0 — Sửa 24h bày CẢ ghế chưa nhập, và lưu được luôn
 
