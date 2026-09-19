@@ -525,6 +525,19 @@ class VHCPVP_DB {
 		foreach ( self::BANG_CO_MANG as $ten ) {
 			$t = self::t( $ten );
 			if ( (string) $wpdb->get_var( "SHOW TABLES LIKE '$t'" ) !== $t ) { continue; }
+			/* 🔴 HỎI CỘT TRƯỚC KHI GHI. Gác `SHOW TABLES` ở trên chỉ chắc có BẢNG; nhưng
+			   `dbDelta()` có thể thêm bảng mà TRƯỢT một cột — nó tách câu theo từng dòng rồi dò
+			   bằng biểu thức, gặp chỗ nó không hiểu là bỏ qua và KHÔNG ném lỗi ra ngoài (xem
+			   chốt dài cuối `install()`, đã cắn thật với bảng `lenh_tu` ngày 07/09/2026).
+			   Lúc ấy câu UPDATE dưới đây thành "Unknown column 'mang'", mà `$wpdb` trong
+			   wp-admin thì IN THẲNG lỗi SQL ra màn hình — người ta cài xong plugin và thấy một
+			   trang đỏ, trong khi chuyện duy nhất hỏng là một cột chưa kịp thêm. Thiếu cột thì
+			   bỏ qua bảng ấy: lượt `install()` sau sẽ thêm được và lấp nốt. */
+			$co_cot = false;
+			foreach ( (array) $wpdb->get_col( "SHOW COLUMNS FROM $t" ) as $c ) {
+				if ( 'mang' === $c ) { $co_cot = true; break; }
+			}
+			if ( ! $co_cot ) { continue; }
 			$n = $wpdb->query( $wpdb->prepare( "UPDATE $t SET mang=%s WHERE mang=''", self::MANG ) );
 			if ( $n ) { $ra[ $ten ] = (int) $n; }
 		}
