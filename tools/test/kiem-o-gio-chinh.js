@@ -132,7 +132,34 @@ oRa.thuoc['data-clhm'] = '0';
 teq('tắt đi thì ô lớn về thập phân', '4,00', go(0, '5'));
 go(0, '');
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 Ô NHẬP CŨNG PHẢI ĐỌC ĐƯỢC `63:30`
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 19/09/2026, ảnh ô "Giờ ăn đơn giá khác" đang có `63:00`: *"chỗ này đáng lẽ là nhập
+ * số giờ chứ, sao lại ,"*. Cả màn viết giờ:phút nên người ta sẽ gõ lối ấy vào đây.
+ *
+ * Máy chủ đã hiểu (`VHCC_ChotLuong::doc_gio`). Nếu ô "giờ tự tính" ở đây vẫn đọc bằng
+ * `parseFloat("63:30")` = 63 thì nó nhảy ra một con số KHÁC con số sắp được lưu — và người ta
+ * tin cái đang nhìn, không tin cái chưa thấy.
+ * ---------------------------------------------------------------------------------------------- */
+oTong.value = '100';
+teq('🔴 gõ 63:30 thì trừ đúng 63,5 giờ', '36,50', go(0, '63:30'));
+teq('   gõ 63h30 cũng vậy', '36,50', go(0, '63h30'));
+teq('   gõ 63:00 là 63 giờ chẵn', '37,00', go(0, '63:00'));
+teq('   gõ 63h là 63 giờ chẵn', '37,00', go(0, '63h'));
+teq('   gõ 0:45 là 45 phút', '99,25', go(0, '0:45'));
+/* ⚠️ PHÚT ≥ 60 KHÔNG ĐƯỢC ĐOÁN HỘ. `63:70` không phải 64:10 — đó là gõ nhầm; coi như 0 rồi để
+   máy chủ chối khi bấm Lưu, chứ đừng ghi một con số không ai gõ. */
+teq('🔴 63:70 thì KHÔNG đoán thành 64:10', '100,00', go(0, '63:70'));
+teq('   thập phân vẫn ăn như cũ', '36,50', go(0, '63,5'));
+oTong.value = '9';
+go(0, '');
+
 /* ---- ô kết quả phải là ô CHỈ ĐỌC, và phải có dấu để JS tìm ra ---- */
+t('🔴 ô nhập giờ khác gợi ý đúng lối giờ:phút', PHP.indexOf("'số giờ — 63:30'") >= 0);
+t('   và giá trị đã lưu viết lại bằng viet_gio()',
+	PHP.indexOf('VHCC_ChotLuong::viet_gio( $g )') >= 0);
+
 t('🔴 ô giờ chính có readonly — nó là kết quả, không phải chỗ gõ',
 	/data-clchinh="1"[\s\S]{0,200}readonly/.test(PHP) || /readonly[\s\S]{0,200}data-clchinh="1"/.test(PHP));
 t('ô tổng giờ chấm công có mặt để trừ', PHP.indexOf('name="cl_gio_cham"') >= 0);

@@ -220,6 +220,53 @@ t( 'lối thập phân vẫn có phép nhân',
 	false !== mb_strpos( $chu_tp, '70,50 × 22.000 = 1.551.000đ' ), $chu_tp );
 t( '   nhưng không nhắc lại "= …h" thừa', false === mb_strpos( $chu_tp, 'h ×' ), $chu_tp );
 
+/* ═════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 Ô NHẬP GIỜ NHẬN CẢ `63:30` LẪN `63,5` — VÀ KHÔNG BAO GIỜ NUỐT MẤT PHÚT
+ * ═════════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 19/09/2026, ảnh ô "Giờ ăn đơn giá khác" đang có `63:00`: *"chỗ này đáng lẽ là nhập
+ * số giờ chứ, sao lại ,"*.
+ *
+ * Trước bản này máy đọc ô ấy bằng `(float)"63:30"` = **63**. Nửa giờ biến mất không một lời báo
+ * — 0,5 × 24.000 = 12.000đ, và bảng vẫn đầy số nên không ai thấy. Đây là kiểu hỏng tệ nhất:
+ * người gõ làm ĐÚNG (gõ theo lối cả màn đang viết) và bị trừ tiền vì thế.
+ * ------------------------------------------------------------------------------------------- */
+echo "— ô nhập giờ —\n";
+foreach ( array(
+	'63'     => 63.0,
+	'63,5'   => 63.5,
+	'63.5'   => 63.5,
+	'63:30'  => 63.5,   // 🔴 chỗ đã nuốt mất nửa giờ
+	'63h30'  => 63.5,
+	'63:45'  => 63.75,
+	'63:00'  => 63.0,
+	'63h'    => 63.0,
+	'0:45'   => 0.75,
+	'0:06'   => 0.1,
+) as $vao => $ra ) {
+	teq( 'gõ "' . $vao . '"', $ra, VHCC_ChotLuong::doc_gio( $vao ) );
+}
+/* ⚠️ KHÔNG ĐỌC ĐƯỢC THÌ TRẢ null, ĐỪNG ĐOÁN. `(float)` của chuỗi lạ ra 0 hoặc ra phần đầu của
+   nó — cả hai đều là một con số trông như thật, và nó đi thẳng vào lương. */
+foreach ( array( '63:70', 'abc', '', '  ', '63:5:5', '-3' ) as $xau ) {
+	teq( '🔴 "' . $xau . '" thì chối, không đoán', null, VHCC_ChotLuong::doc_gio( $xau ) );
+}
+
+/* Máy chủ chối nguyên lượt lưu và NÓI RA lối gõ đúng, chứ không lặng lẽ ghi 0. */
+$r_xau = VHCC_ChotLuong::dat( $U_KT, 'VG_SHOP', '2026-12', 'VG_HIEP',
+	array( array( 'viec' => 'Lái Tàu', 'gio' => '9:70' ) ), '80', 'Nhân Viên' );
+t( '🔴 gõ 9:70 thì lượt lưu bị chối', empty( $r_xau['ok'] ), $r_xau );
+t( '   và câu chối chỉ ra lối gõ đúng',
+	false !== mb_strpos( $r_xau['error'], '63:30' ), $r_xau );
+
+/* Gõ giờ:phút thì lưu ra ĐÚNG số giờ, và bảng lương nhân đúng số ấy. */
+$r_ok = VHCC_ChotLuong::dat( $U_KT, 'VG_SHOP', '2026-12', 'VG_HIEP',
+	array( array( 'viec' => 'Lái Tàu', 'gio' => '9:30' ) ), '80', 'Nhân Viên' );
+t( 'gõ 9:30 thì lưu được', ! empty( $r_ok['ok'] ), $r_ok );
+$bl_g = VHCC_BangLuong::dung( 'VG_SHOP', '2026-12' );
+$gio_lt = null;
+foreach ( $bl_g['dong'] as $d_g ) { if ( 'Lái Tàu' === $d_g['cv'] ) { $gio_lt = $d_g['gio']; } }
+teq( '🔴 và bảng lương nhận đúng 9,5 giờ — không phải 9', 9.5, $gio_lt );
+
 VHCC_Cham::dat_kieu_gio( VHCC_Cham::KIEU_HM );
 
 echo "\n";

@@ -10078,7 +10078,15 @@ class VHCC_Web {
 		 *    ấy, và chối một trong hai là ô trên đứng im mà không nói vì sao.
 		 * ═══════════════════════════════════════════════════════════════════════════════════ */
 		echo '<script>/*vhcc-clchinh*/(function(){"use strict";'
-			. 'function so(v){var t=String(v==null?"":v).replace(/\s/g,"").replace(",",".");'
+			/* 🔴 ĐỌC ĐƯỢC CẢ `63:30`. Cả màn viết giờ:phút nên người ta sẽ gõ lối ấy vào ô
+			   này — máy chủ đã hiểu (`VHCC_ChotLuong::doc_gio`), mà ô "giờ tự tính" ở đây lại
+			   đọc bằng `parseFloat("63:30")` = 63 thì nó nhảy ra một con số khác hẳn con số
+			   sắp được lưu. Người ta tin cái đang nhìn, không tin cái chưa thấy. */
+			. 'function so(v){var t=String(v==null?"":v).replace(/\s/g,"").replace("H","h")'
+			. '.replace(",",".");'
+			. 'var m=t.match(/^(\\d{1,4})[:h](\\d{0,2})$/);'
+			. 'if(m){var ph=m[2]===""?0:parseInt(m[2],10);if(ph>59){return 0;}'
+			. 'return parseInt(m[1],10)+ph/60;}'
 			. 'var n=parseFloat(t);return isFinite(n)?n:0;}'
 			. 'function ve(n){var am=n<0;n=Math.abs(n);'
 			. 'var p=n.toFixed(2).split("."),d=p[0],r="",i;'
@@ -10111,7 +10119,8 @@ class VHCC_Web {
 
 		echo '<label style="margin:0 0 4px">Giờ ăn đơn giá khác</label>';
 		echo '<p class="mo" style="margin:0 0 8px">Chỉ gõ phần <b>khác</b> việc chính — phần còn '
-			. 'lại tự là giờ chính. Bỏ trống hết = cả tháng ăn giá chính.</p>';
+			. 'lại tự là giờ chính. Bỏ trống hết = cả tháng ăn giá chính. Gõ <b>63:30</b> '
+			. '(giờ:phút) hay <b>63,5</b> (số giờ) đều được — máy hiểu cả hai.</p>';
 		/* ═══════════════════════════════════════════════════════════════════════════════════
 		 * 🔴 TÊN VIỆC CHỌN SẴN TỪ SỔ ĐƠN GIÁ, KHÔNG GÕ TAY NỮA.
 		 *
@@ -10132,6 +10141,8 @@ class VHCC_Web {
 		 *    nhất việc vẫn ghi lại được, và câu nhắc chỉ thẳng xuống bảng đơn giá.
 		 * ═══════════════════════════════════════════════════════════════════════════════════ */
 		/* Hiện mấy dòng đã có, cộng ba dòng trống để gõ thêm. */
+		/* Gợi ý trong ô trống viết đúng lối đang bật — đó là cái người ta sẽ gõ theo. */
+		$cho_gio = VHCC_Cham::la_hm() ? 'số giờ — 63:30' : 'số giờ — 63,5';
 		$n = max( 3, count( $gk ) + 2 );
 		for ( $i = 0; $i < $n; $i++ ) {
 			$v = isset( $gk[ $i ]['viec'] ) ? $gk[ $i ]['viec'] : '';
@@ -10144,8 +10155,14 @@ class VHCC_Web {
 					. 'style="width:210px" value="' . esc_attr( $v ) . '">';
 			}
 			echo '</div>'
-				. '<div><input name="cl_gio[' . $i . ']" inputmode="decimal" placeholder="số giờ" '
-				. 'style="width:110px" value="' . esc_attr( '' === $g ? '' : (string) $g ) . '"></div>'
+				/* 🔴 VIẾT LẠI THEO ĐÚNG LỐI CẢ MÀN ĐANG DÙNG. Anh Thắng 19/09/2026, ảnh ô này
+				   đang có `63:00`: *"chỗ này đáng lẽ là nhập số giờ chứ, sao lại ,"*. Kho lưu
+				   số thập phân, nhưng ô NHẬP phải nói cùng thứ tiếng với ô đọc ngay cạnh nó —
+				   bày `63,5` giữa một màn toàn `63:30` là mời người ta gõ nhầm lối.
+				   Gõ lối nào cũng nhận: `VHCC_ChotLuong::doc_gio()`. */
+				. '<div><input name="cl_gio[' . $i . ']" placeholder="' . esc_attr( $cho_gio ) . '" '
+				. 'style="width:110px" value="'
+				. esc_attr( '' === $g ? '' : VHCC_ChotLuong::viet_gio( $g ) ) . '"></div>'
 				. '<div class="mo" style="align-self:center;font-size:12px">'
 				. ( $ds_ten ? '' : 'chưa khai đơn giá nào — gõ tay, rồi khai giá ở bảng dưới' )
 				. '</div></div>';
