@@ -142,6 +142,53 @@ foreach ( $ban as $thu_muc => $tien_to ) {
 		1 === preg_match( '/CFG\.ssoToken[\s\S]{0,400}removeItem\( USER_KEY \)/', $mj ), 'không thấy' );
 }
 
+/* =================================================================================================
+ * 5. BÁO CÁO FABi (`khh-doanh-thu`) — CÙNG VÉ, NHƯNG KHỚP THEO MÃ NHÂN VIÊN
+ * =================================================================================================
+ * Anh Thắng 19/09/2026: *"còn báo cáo Fabi nữa"*.
+ *
+ * FABi giữ phiên theo cách riêng (thẻ gửi bằng header `X-KHH-Phien`, người nhận diện bằng MÃ NV),
+ * nên bản vá khác mấy bản chi phí ở chỗ ĐỔI VÉ RA CÁI GÌ — nhưng cùng một cái bẫy: thẻ cũ nằm
+ * trong `localStorage` sống rất lâu, và nó thắng nếu không ai ghi đè.
+ * ------------------------------------------------------------------------------------------- */
+echo "— báo cáo FABi —\n";
+$f_php = $goc . '/wordpress/khh-doanh-thu/khh-doanh-thu.php';
+$f_js  = $goc . '/wordpress/khh-doanh-thu/assets/doanh-thu.js';
+$m  = file_exists( $f_php ) ? file_get_contents( $f_php ) : '';
+$mj = file_exists( $f_js ) ? file_get_contents( $f_js ) : '';
+
+t( 'FABi: đọc vé `ccve`', false !== strpos( $m, "\$_GET['ccve']" ), 'không thấy' );
+t( 'FABi: gác class_exists trước khi gọi sang', false !== strpos( $m, "class_exists( 'VHCC_Ve' )" ), 'không thấy' );
+
+/* 🔴 KHỚP THEO **MÃ NHÂN VIÊN**, KHÔNG THEO TÊN. Tên người Việt trùng rất nhiều — khớp theo tên
+   là mở phiên nhầm người, mà đây là chỗ ghi sổ tiền. */
+t( 'FABi: 🔴 khớp theo MÃ NV', false !== strpos( $m, "\$d['ma_nv']" ), 'không thấy' );
+t( 'FABi:    và KHÔNG khớp theo tên', false === strpos( $m, "\$d['name']" ), 'đang khớp theo tên' );
+
+/* ⚠️ Chưa được đẩy sang sổ người của FABi thì THÔI. Mở phiên cho một mã không có trong sổ là
+   dựng ra một người không ai cấp quyền. */
+t( 'FABi: 🔴 mã chưa có trong sổ người thì KHÔNG mở phiên',
+	false !== strpos( $m, '! khh_dt_nguoi( $ma )' ), 'không thấy chốt' );
+t( 'FABi: mở phiên bằng hàm sẵn có', false !== strpos( $m, 'khh_dt_mo_phien( $ma )' ), 'không thấy' );
+
+/* 🔴 ĐỔI ĐÚNG MỘT LẦN CHO CẢ LƯỢT DỰNG TRANG. `khh_dt_cau_hinh_js()` được gọi ba chỗ; vé thì
+   dùng một lần rồi chết — không nhớ lại thì chỗ gọi đầu nuốt mất vé, hai chỗ sau nhận rỗng, mà
+   chính hai chỗ sau mới là thứ in ra trang. */
+t( 'FABi: 🔴 nhớ lại để ba chỗ gọi cùng nhận một thẻ',
+	false !== strpos( $m, 'khh_dt_the_ve' )
+	&& 1 === preg_match( "/array_key_exists\( 'khh_dt_the_ve'/", $m ), 'không thấy bộ nhớ' );
+t( 'FABi: đưa thẻ xuống giao diện qua `ve`', false !== strpos( $m, 'khh_dt_the_tu_ve()' ), 'không thấy' );
+
+t( 'FABi: 🔴 giao diện GHI ĐÈ thẻ cũ', false !== strpos( $mj, 'if (CF.ve) datThe(CF.ve);' ), 'không thấy' );
+/* Ghi đè phải đứng TRƯỚC hàm gọi máy chủ — không thì lệnh đầu tiên vẫn mang thẻ cũ đi. */
+t( 'FABi: 🔴 ghi đè đứng TRƯỚC hàm gọi máy chủ',
+	false !== strpos( $mj, 'if (CF.ve) datThe(CF.ve);' )
+	&& strpos( $mj, 'if (CF.ve) datThe(CF.ve);' ) < strpos( $mj, 'function api(duong' ),
+	'ghi đè nằm sau hàm api()' );
+
+/* ⚠️ Ô FABi trên trạm phải có thật, không thì vá xong chẳng ai đi qua đường ấy. */
+t( 'trạm có ô "Báo cáo FABi"', false !== mb_strpos( $ma_ung, 'Báo cáo FABi' ), 'không thấy ô' );
+
 echo "\n";
 if ( $truot ) {
 	echo '🔴 HỎNG ' . count( $truot ) . " phép thử:\n";

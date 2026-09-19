@@ -731,6 +731,59 @@ function khh_dt_rest_xoa() {
  * Giao diện
  * ------------------------------------------------------------------ */
 
+/**
+ * VÉ DANH TÍNH MANG SANG TỪ TRẠM CHẤM CÔNG.
+ *
+ * =================================================================================================
+ * 🔴 LỖI NÀY LÀ LỖI ĐỔI NGƯỜI, KHÔNG PHẢI LỖI HIỂN THỊ
+ * =================================================================================================
+ * Anh Thắng 19/09/2026: trạm Chấm công đang là một người, bấm ô Ứng dụng sang app khác thì hiện
+ * TÊN NGƯỜI KHÁC. *"Phải tự link chung 1 tk chứ"*.
+ *
+ * Mỗi app giữ phiên ở một chỗ rời nhau. Ô Ứng dụng bên trạm chỉ là một đường dẫn TRƠN, nên sang
+ * tới đây app lấy thẻ cũ còn sót trong máy — thẻ của người gần nhất gõ PIN trên chiếc điện thoại
+ * ấy. Hậu quả thật: người này ghi sổ doanh thu dưới danh nghĩa người kia.
+ *
+ * Trạm nay phát một VÉ một lần (sống 15 phút) gắn vào đường dẫn; ở đây đổi vé lấy mã nhân viên
+ * rồi mở phiên cho đúng người ấy.
+ *
+ * ⚠️ KHỚP THEO **MÃ NHÂN VIÊN**, không theo tên. Tên người Việt trùng rất nhiều — khớp theo tên
+ *    là mở phiên nhầm người, mà chỗ này ghi sổ tiền.
+ * ⚠️ CHƯA ĐƯỢC ĐẨY SANG SỔ NGƯỜI CỦA FABi THÌ THÔI. Mở phiên cho một mã không có trong sổ là
+ *    dựng ra một người không ai cấp quyền. Không có thì rơi về cổng PIN như cũ — đúng câu trả
+ *    lời thật thà.
+ * ⚠️ Gác `function_exists`/`class_exists` cùng chỗ với lời gọi: plugin chấm công có thể chưa cài,
+ *    hoặc cài bản cũ chưa có lớp vé.
+ *
+ * 🔴 ĐỔI ĐÚNG MỘT LẦN CHO CẢ LƯỢT DỰNG TRANG. `khh_dt_cau_hinh_js()` được gọi ba chỗ (một lượt
+ *    `wp_localize_script` và hai chỗ nhúng thẳng). Vé thì DÙNG MỘT LẦN RỒI CHẾT — không nhớ lại
+ *    thì chỗ gọi đầu tiên nuốt mất vé và hai chỗ sau nhận rỗng, mà chính hai chỗ sau mới là thứ
+ *    in ra trang. Nhớ trong `$GLOBALS` để ba chỗ cùng nhận một thẻ.
+ */
+function khh_dt_the_tu_ve() {
+	if ( array_key_exists( 'khh_dt_the_ve', $GLOBALS ) ) {
+		return $GLOBALS['khh_dt_the_ve'];
+	}
+	$GLOBALS['khh_dt_the_ve'] = '';
+
+	if ( empty( $_GET['ccve'] ) ) {
+		return '';
+	}
+	if ( ! class_exists( 'VHCC_Ve' ) || ! method_exists( 'VHCC_Ve', 'doi' ) ) {
+		return '';
+	}
+	$d = VHCC_Ve::doi( sanitize_text_field( wp_unslash( $_GET['ccve'] ) ) );
+	if ( ! is_array( $d ) || empty( $d['ma_nv'] ) ) {
+		return '';
+	}
+	$ma = strtoupper( trim( (string) $d['ma_nv'] ) );
+	if ( '' === $ma || ! khh_dt_nguoi( $ma ) ) {
+		return '';
+	}
+	$GLOBALS['khh_dt_the_ve'] = (string) khh_dt_mo_phien( $ma );
+	return $GLOBALS['khh_dt_the_ve'];
+}
+
 function khh_dt_cau_hinh_js() {
 	/* ⚠️ KHÔNG hỏi phiên PIN ở đây. Hàm này chạy lúc DỰNG TRANG, mà thẻ phiên PIN đi kèm từng lượt
 	   gọi REST (header) chứ không nằm trong trang — nên ở đây luôn thấy "chưa đăng nhập" kể cả khi
@@ -739,6 +792,8 @@ function khh_dt_cau_hinh_js() {
 		'rest'  => esc_url_raw( rest_url( 'khh-dt/v1/' ) ),
 		'nonce' => wp_create_nonce( 'wp_rest' ),
 		'ghi'   => khh_dt_duoc_ghi(),
+		/* Thẻ đổi từ vé của trạm. Rỗng = không có vé, giao diện giữ nguyên thẻ đang có. */
+		've'    => khh_dt_the_tu_ve(),
 	);
 }
 
