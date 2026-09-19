@@ -595,8 +595,9 @@ class VHCC_WebDonTuan {
 			. 'và <b>đừng đổi tên hay xoá cột ngày</b>: đó là hai thứ ghép giờ về đúng người, '
 			. 'đúng ngày. Chèn thêm cột ghi chú thì không sao. Mỗi ngày là <b>một ô hai hàng</b>: '
 			. 'giờ vào ở hàng trên, giờ ra ở hàng dưới (bấm <b>Alt+Enter</b> để xuống hàng trong '
-			. 'ô; viết <code>08:00-17:00</code> cũng được). Dòng nào có sửa giờ thì '
-			. '<b>phải ghi Lý do</b>, ít nhất 5 chữ — một lý do cho cả dòng. Muốn <b>xoá giờ</b> '
+			. 'ô; viết <code>08:00-17:00</code> cũng được). Ô <b>Lý do sửa</b> là '
+			. '<b>tuỳ</b> — tệp này kế toán đọc từng ô rồi mới duyệt, nên bỏ trống vẫn gửi được; '
+			. 'ghi vào thì câu ấy theo lên nhật ký. Muốn <b>xoá giờ</b> '
 			. 'thì xoá nội dung ô, đừng xoá cả dòng. Ô nào <b>để y nguyên thì bỏ qua</b>, không '
 			. 'vào đơn — chỉ ô có sửa mới cần kế toán đọc.</p>';
 		echo '</details></div>';

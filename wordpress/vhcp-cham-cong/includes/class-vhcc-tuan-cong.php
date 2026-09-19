@@ -547,7 +547,7 @@ class VHCC_TuanCong {
 			$c[] = self::ten_thu( $ng ) . ' ' . $ng;
 		}
 		$c[] = 'Tổng giờ kỳ';
-		$c[] = 'Lý do sửa';
+		$c[] = 'Lý do sửa (nếu có)';
 		$c[] = 'KHOÁ — ĐỪNG SỬA';
 		return $c;
 	}
@@ -1004,13 +1004,23 @@ class VHCC_TuanCong {
 
 			if ( ! $dong_doi ) { continue; }
 
-			/* ⚠️ MỘT LÝ DO CHO CẢ DÒNG. Sửa ba ngày của cùng một người thì thường cùng một lý do;
-			   ba mươi mốt ô lý do nữa là tờ rộng gấp đôi và gần như luôn để trống. */
-			if ( mb_strlen( $ly_do, 'UTF-8' ) < 5 ) {
-				return array( 'ok' => false, 'error' => 'Dòng ' . $dong_so . ' ('
-					. $dong_doi[0]['hoTen'] . ') có sửa giờ nhưng chưa ghi Lý do sửa. '
-					. 'Mỗi dòng có sửa đều phải nói vì sao, ít nhất 5 chữ.' );
-			}
+			/* ═══════════════════════════════════════════════════════════════════════════════
+			 * 🔴 LÝ DO LÀ TUỲ, KHÔNG BẮT BUỘC — VÀ ĐỪNG ĐEM NÓ VỀ
+			 * ═══════════════════════════════════════════════════════════════════════════════
+			 * Anh Thắng 19/09/2026: *"đang upload file duyệt trên kế toán, nên không cần lý
+			 * do"*. Bản trước chối cả tệp khi một dòng có sửa mà ô Lý do để trống — nghĩa là
+			 * sửa xong 40 dòng, bấm gửi, và nhận về đúng MỘT dòng bị nêu tên; sửa dòng ấy rồi
+			 * gửi lại thì tới lượt dòng sau. Cả buổi chiều đi hết vòng này tới vòng khác.
+			 *
+			 * ⚠️ VÀ CÁI ĐƯỜNG NÀY KHÔNG GIỐNG `VHCC_Bu::sua`. Ở đó một người sửa thẳng vào
+			 *    bảng công, nên lý do là thứ DUY NHẤT tra ngược được — bài `kiem-cua-hang.php`
+			 *    canh đúng chỗ ấy, và nó vẫn phải xanh. Còn đường này thì mọi ô đều nằm chờ
+			 *    KẾ TOÁN đọc từng ô rồi mới duyệt: chính lượt duyệt ấy là dấu vết, có tên
+			 *    người duyệt, có số đơn, có giờ cũ giờ mới trong nhật ký. Bắt ghi thêm một câu
+			 *    trước mặt người sẽ đọc nó ngay sau đó là bắt gõ cho có.
+			 *
+			 * Ô Lý do vẫn còn trên tờ, ai ghi thì vào nhật ký y như cũ.
+			 * ═══════════════════════════════════════════════════════════════════════════════ */
 			foreach ( $dong_doi as $o ) {
 				$o['lyDo'] = mb_substr( $ly_do, 0, 200 );
 				$doi[]     = $o;
@@ -1173,7 +1183,10 @@ class VHCC_TuanCong {
 				'ma_nv'  => (string) $o['maNV'] . ( '' !== (string) $o['hauTo'] ? ( '-' . $o['hauTo'] ) : '' ),
 				'vao'    => (string) $o['vao'],
 				'ra'     => (string) $o['ra'],
-				'ly_do'  => 'Đơn tháng #' . (int) $don['id'] . ': ' . (string) $o['lyDo'],
+				/* Không ai ghi lý do thì đừng để lại dấu hai chấm cụt lủn trong nhật ký —
+				   số đơn vẫn tra ngược ra được đủ mọi thứ. */
+				'ly_do'  => 'Đơn tháng #' . (int) $don['id']
+					. ( '' !== trim( (string) $o['lyDo'] ) ? ( ': ' . (string) $o['lyDo'] ) : '' ),
 			);
 
 			$k   = (string) $o['maNV'] . '|' . (string) $o['hauTo'] . '|' . (string) $o['ngay'];

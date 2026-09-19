@@ -315,7 +315,7 @@ teq( '🔴 ô ngày chứa hai hàng: vào xuống dòng rồi tới ra', "08:00
 	$doc['hang'][1][ VHCC_TuanCong::C_NGAY_DAU ] );
 teq( 'cột cuối là cột KHOÁ', 'KHOÁ — ĐỪNG SỬA',
 	$doc['hang'][0][ VHCC_TuanCong::c_khoa( $TUAN ) ] );
-teq( 'và cột Lý do đứng ngay trước nó', 'Lý do sửa',
+teq( 'và cột Lý do đứng ngay trước nó', 'Lý do sửa (nếu có)',
 	$doc['hang'][0][ VHCC_TuanCong::c_lydo( $TUAN ) ] );
 
 /* 🔴 KHÔNG SỬA GÌ THÌ KHÔNG CÓ ĐƠN. Gửi lại y nguyên tệp vừa tải mà đẻ ra một đơn rỗng thì kế
@@ -372,11 +372,31 @@ teq( 'ghi đúng giờ cũ', '08:00', $r['doi'][0]['vaoCu'] );
 teq( 'và giờ mới',      '08:30', $r['doi'][0]['vao'] );
 teq( 'ô đã có giờ thì KHÔNG phải dòng bù', false, $r['doi'][0]['them'] );
 
-/* 🔴 SỬA MÀ KHÔNG GHI LÝ DO THÌ CHỐI. Lý do là thứ duy nhất còn tra ngược được sau ba tháng. */
+/* =================================================================================================
+ * 🔴 SỬA MÀ KHÔNG GHI LÝ DO THÌ VẪN GỬI ĐƯỢC
+ * =================================================================================================
+ * Anh Thắng 19/09/2026: *"đang upload file duyệt trên kế toán, nên không cần lý do"*.
+ *
+ * Bài này TRƯỚC ĐÂY canh điều ngược lại, và canh có lý của nó: lý do là thứ tra ngược được sau
+ * ba tháng. Nhưng đường này khác đường `VHCC_Bu::sua` — ở đó người ta ghi thẳng vào bảng công,
+ * còn ở đây mọi ô nằm chờ KẾ TOÁN đọc rồi mới duyệt, và chính lượt duyệt ấy đã là dấu vết có
+ * tên người, có số đơn, có giờ cũ giờ mới. Cái giá của luật cũ: một tệp 40 dòng sửa xong bị
+ * chối vì đúng một ô trống, sửa rồi gửi lại thì tới lượt dòng sau.
+ *
+ * ⚠️ `kiem-cua-hang.php` vẫn canh luật <5 ký tự của `VHCC_Bu::sua`. Hai đường khác nhau, đừng
+ *    lấy bài này làm cớ nới bài kia.
+ * ----------------------------------------------------------------------------------------------- */
 $khong_ly_do = sua_o( $doc['hang'], $khoa_nv1, $NGAY[0], '08:30', '17:00', '' );
 $r = VHCC_TuanCong::doi( $CS_A, $TUAN, '', $khong_ly_do );
-t( '🔴 sửa giờ mà bỏ trống Lý do thì chối cả tệp', empty( $r['ok'] ), $r );
-t( 'và nói rõ dòng nào', false !== mb_strpos( $r['error'], 'Lý do' ), $r['error'] );
+t( '🔴 sửa giờ mà bỏ trống Lý do thì VẪN nhận', ! empty( $r['ok'] ), $r );
+teq( '   và ô sửa vẫn vào đơn đủ', 1, count( $r['doi'] ) );
+teq( '   lý do để rỗng, không bịa chữ nào', '', $r['doi'][0]['lyDo'] );
+
+/* Ghi lý do thì nó vẫn theo vào đơn y như cũ — bỏ luật bắt buộc không phải là bỏ cả cái ô. */
+$co_ly_do = sua_o( $doc['hang'], $khoa_nv1, $NGAY[0], '08:30', '17:00', 'quên bấm máy lúc vào ca' );
+$r = VHCC_TuanCong::doi( $CS_A, $TUAN, '', $co_ly_do );
+t( 'có ghi lý do thì nhận', ! empty( $r['ok'] ), $r );
+teq( '   và câu ấy theo vào đơn', 'quên bấm máy lúc vào ca', $r['doi'][0]['lyDo'] );
 
 /* 🔴 SỬA TAY VÀO CỘT KHOÁ THÌ CHỐI CẢ TỆP. */
 $pha = $doc['hang'];
