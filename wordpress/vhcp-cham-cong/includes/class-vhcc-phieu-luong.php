@@ -287,13 +287,17 @@ class VHCC_PhieuLuong {
 			if ( ! isset( $gom[ $k ] ) ) {
 				$gom[ $k ] = array( 'maNV' => $d['ma'], 'hoTen' => $d['ten'], 'gio' => 0.0,
 					'luongChinh' => 0.0, 'thieuGia' => 0, 'thieuGio' => 0,
-					'tongCong' => 0.0, 'tongTru' => 0.0 );
+					'tongCong' => 0.0, 'tongTru' => 0.0, 'bhxh' => 0.0 );
 			}
 			if ( null === $d['luongChinh'] ) { $gom[ $k ]['thieuGia']++; }
 			else { $gom[ $k ]['luongChinh'] += (float) $d['luongChinh']; }
 			if ( null !== $d['gio'] ) { $gom[ $k ]['gio'] += (float) $d['gio']; }
 			$gom[ $k ]['tongCong'] += (float) $d['tongCong'];
 			$gom[ $k ]['tongTru']  += (float) $d['tongTru'];
+			/* 🔴 BHXH CŨNG PHẢI VÀO ĐÂY. Bảng cả cửa hàng cộng ra một con số cho từng người rồi
+			   cộng tiếp thành tổng cơ sở; bỏ sót một khoản TRỪ là mọi con số ấy cao hơn thật,
+			   và nó lệch với chính phiếu riêng của người đó ở màn bên cạnh. */
+			$gom[ $k ]['bhxh'] += (float) ( isset( $d['bhxh'] ) ? $d['bhxh'] : 0 );
 			$gom[ $k ]['thieuGio'] += (int) $d['thieuGio'];
 		}
 
@@ -301,12 +305,13 @@ class VHCC_PhieuLuong {
 		foreach ( $gom as $g ) {
 			$du = ( 0 === $g['thieuGia'] );
 			if ( ! $du ) { $du_ca = false; }
-			$t = $du ? round( $g['luongChinh'] + $g['tongCong'] - $g['tongTru'], 2 ) : null;
+			$t = $du ? round( $g['luongChinh'] + $g['tongCong'] - $g['tongTru'] - $g['bhxh'], 2 ) : null;
 			if ( null !== $t ) { $tong += $t; }
 			$dong[] = array(
 				'maNV'  => $g['maNV'],
 				'hoTen' => $g['hoTen'],
 				'gio'   => round( $g['gio'], 2 ),
+				'bhxh'  => round( $g['bhxh'], 2 ),
 				'tong'  => $t,
 				'thieuGia' => $g['thieuGia'],
 				'thieuGio' => $g['thieuGio'],

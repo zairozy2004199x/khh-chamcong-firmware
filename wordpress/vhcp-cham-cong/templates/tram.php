@@ -3204,11 +3204,19 @@ function napPhieuCs(){
 				  +  '<td style="text-align:left">' + esc(d.hoTen)
 				  +  (d.thieuGio ? ' <b>· thiếu ' + esc(d.thieuGio) + '</b>' : '') + '</td>'
 				  +  '<td>' + esc(d.gio) + '</td>'
-				  +  '<td>' + (d.tong === null ? '<b>chưa đủ giá</b>' : tienVN(d.tong)) + '</td></tr>';
+				  /* Ai có trừ BHXH thì nói ra ngay dưới con số — bảng này gọn, không có chỗ cho
+				     một cột riêng, nhưng một con số nhỏ hơn thật mà không giải thích thì cửa
+				     hàng trưởng sẽ đi hỏi kế toán. */
+				  +  '<td>' + (d.tong === null ? '<b>chưa đủ giá</b>' : tienVN(d.tong))
+				  +  ((+d.bhxh > 0) ? '<div class="ct">đã trừ BHXH ' + tienVN(d.bhxh) + '</div>' : '')
+				  +  '</td></tr>';
 			}
 			h += '</tbody></table>'
+			  /* ⚠️ Từ 19/09/2026 BHXH đã vào hệ (kế toán chốt sổ) và đã được trừ ngay trong
+			     cột Tổng ở trên — kể nó là "ngoài hệ" là nói dối theo chiều ngược. Chỉ còn
+			     lương giờ thêm là thật sự ngoài hệ. */
 			  +  '<p class="ct" style="text-align:left;margin:10px 0 0">Đây là số <b>hệ thống tính '
-			  +  'được</b>. <b>BHXH</b> và <b>lương giờ thêm</b> kế toán tính ngoài hệ, nên số '
+			  +  'được</b>, đã trừ BHXH. <b>Lương giờ thêm</b> kế toán tính ngoài hệ, nên số '
 			  +  'chuyển khoản có thể khác.</p>';
 			el('bangPhieuCs').innerHTML = h;
 		}).catch(function(){
@@ -3768,7 +3776,8 @@ function guiChot(){
  *    lần mở tab người ta lại đọc lại một câu không giúp được gì, và ô rỗng trên màn lương thì
  *    ai cũng bấm thử vài lần trước khi tin. Chưa có gì để xem thì không bày gì cả.
  *
- * ⚠️ MỌI CON SỐ Ở ĐÂY LÀ SỐ CỦA HỆ, KHÔNG PHẢI SỐ CHUYỂN KHOẢN. BHXH và lương giờ thêm kế toán
+ * ⚠️ MỌI CON SỐ Ở ĐÂY LÀ SỐ CỦA HỆ, KHÔNG PHẢI SỐ CHUYỂN KHOẢN. Lương giờ thêm kế toán
+ *    (BHXH đã vào hệ từ 19/09/2026 — kế toán chốt sổ, và phiếu trừ thẳng)
  *    điền ngoài hệ (xem đầu class-vhcc-bang-luong.php), nên câu ấy phải nằm ngay dưới con số
  *    tổng — không phải ở cuối trang, không phải trong một dấu hỏi phải bấm mới ra.
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
@@ -3894,6 +3903,26 @@ function vePhieu(){
 				+ '<b>' + tienVN(j.tongCong) + '</b></div>'
 				+ '<div class="hang" style="justify-content:space-between"><span>Trừ</span>'
 				+ '<b>' + tienVN(j.tongTru) + '</b></div>'
+				/* ═══════════════════════════════════════════════════════════════════════════
+				 * 🔴 BHXH PHẢI CÓ MỘT DÒNG RIÊNG — anh Thắng 19/09/2026, ảnh chụp phiếu:
+				 *    *"Trên app thiếu khoảng trừ như bhxh lại không có"*.
+				 *
+				 * Lúc ấy phiếu ghi Lương chính 4.000.000 · Cộng 0 · Trừ 0 · **Tổng 3.403.390**.
+				 * Tiền đã bị trừ 596.610 thật (đúng sổ BHXH), nhưng KHÔNG dòng nào nói ra — nên
+				 * bốn con số trên màn cộng lại không ra con số dưới cùng. Đó là kiểu phiếu tệ
+				 * nhất: người đọc tính nhẩm thấy vênh, không biết vênh vì đâu, và họ sẽ nghĩ hệ
+				 * thống tính sai chứ không nghĩ tới bảo hiểm.
+				 *
+				 * ⚠️ KHÔNG GỘP VÀO Ô "TRỪ". Ô ấy là mấy khoản cửa hàng trưởng gõ (phạt, đặt
+				 *    cọc); BHXH là khoản của kế toán và có cột riêng bên bảng lương. Gộp lại là
+				 *    người ta đi hỏi cửa hàng trưởng về một khoản anh ta không gõ.
+				 * ⚠️ KHÔNG ĐÓNG KHAI: `bhxh` bằng 0 thì KHÔNG vẽ dòng nào. Một dòng "BHXH 0đ"
+				 *    trên phiếu của người không đóng bảo hiểm là mời họ đi hỏi vì sao có nó.
+				 * ═══════════════════════════════════════════════════════════════════════════ */
+				+ ( (+j.bhxh > 0)
+					? ('<div class="hang" style="justify-content:space-between"><span>BHXH</span>'
+						+ '<b>-' + tienVN(j.bhxh) + '</b></div>')
+					: '' )
 				+ '<div class="hang" style="justify-content:space-between;font-size:17px">'
 				+ '<span><b>Tổng</b></span><b>' + tienVN(j.tong) + '</b></div></div>';
 		}
@@ -3905,10 +3934,18 @@ function vePhieu(){
 		}
 
 		/* ⚠️ Xem khối chú thích đầu hàm: câu này nằm dưới con số tổng, không nằm cuối trang. */
+		/* ⚠️ CÂU NÀY PHẢI THEO KỊP THỰC TẾ. Từ 19/09/2026 BHXH đã vào hệ (kế toán chốt sổ), nên
+		   kể nó là "ngoài hệ" là nói dối theo chiều ngược: người đọc tưởng còn một khoản trừ
+		   chưa tính, trong khi đã trừ rồi — và họ sẽ tự trừ thêm một lần nữa trong đầu.
+		   Máy chủ trả `ngoaiHe` để màn khỏi tự đoán; dựng câu từ chính mảng ấy. */
+		var ngoai = (j.ngoaiHe && j.ngoaiHe.length) ? j.ngoaiHe : [];
 		h += '<p class="ct" style="text-align:left;margin:10px 0 0">Đây là số <b>hệ thống tính '
-			+ 'được</b> từ giờ đã chấm và các khoản kế toán đã nhập. <b>BHXH</b> và <b>lương giờ '
-			+ 'thêm</b> kế toán tính ngoài hệ, nên số chuyển khoản có thể khác. Lệch thì hỏi cửa '
-			+ 'hàng trưởng — đừng tự cộng lại.</p>';
+			+ 'được</b> từ giờ đã chấm và các khoản kế toán đã nhập.'
+			+ ( ngoai.length
+				? (' <b>' + ngoai.map(esc).join('</b> và <b>') + '</b> kế toán tính ngoài hệ, nên '
+					+ 'số chuyển khoản có thể khác.')
+				: '' )
+			+ ' Lệch thì hỏi cửa hàng trưởng — đừng tự cộng lại.</p>';
 		el('bangPhieu').innerHTML = h;
 	}).catch(function(){
 		el('bangPhieu').innerHTML = '<p class="trong">Chưa đọc được phiếu — kiểm tra mạng rồi chọn lại tháng.</p>';

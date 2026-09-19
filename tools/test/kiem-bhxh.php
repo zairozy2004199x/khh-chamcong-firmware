@@ -297,6 +297,61 @@ t( '   và gõ thẳng ?man=bhxh cũng không vào được sổ',
 
 VHCC_Bhxh::xoa( $KT, 'BH_TRUYEN' );
 
+/* =================================================================================================
+ * 7. PHIẾU LƯƠNG TRÊN APP PHẢI NÓI RA KHOẢN TRỪ
+ * =================================================================================================
+ * Anh Thắng 19/09/2026, ảnh chụp phiếu trên app: *"Trên app thiếu khoảng trừ như bhxh lại không
+ * có"*. Lúc ấy phiếu ghi Lương chính 4.000.000 · Cộng 0 · Trừ 0 · **Tổng 3.403.390**.
+ *
+ * Tiền đã bị trừ 596.610 thật và đúng, nhưng KHÔNG dòng nào nói ra — bốn con số trên màn cộng
+ * lại không ra con số dưới cùng. Người đọc tính nhẩm thấy vênh, không biết vênh vì đâu, và sẽ
+ * nghĩ hệ thống tính sai chứ không nghĩ tới bảo hiểm.
+ * ------------------------------------------------------------------------------------------- */
+echo "— phiếu lương trên app —\n";
+VHCC_Bhxh::dat( $KT, 'BH_TRUYEN', '596610', '2026-08' );
+VHCC_PhieuLuong::cong_bo( $KT, 'BH_SHOP', '2026-08', true );
+$U_TR2 = array( 'name' => 'Người Lương Tháng', 'role' => VHCC_Vai::NV,
+	'coso' => 'BH_SHOP', 'ma_nv' => 'BH_TRUYEN' );
+$pl2 = VHCC_PhieuLuong::phieu( $U_TR2, 'BH_SHOP', '2026-08' );
+t( 'lấy được phiếu', ! empty( $pl2['ok'] ), $pl2 );
+
+/* 🔴 BỐN CON SỐ TRÊN PHIẾU PHẢI CỘNG RA ĐÚNG CON SỐ DƯỚI CÙNG. Đây là phép canh thật, không
+   phải canh có dòng hay không: có dòng mà số sai thì còn khó lần ra hơn. */
+teq( '🔴 lương chính + cộng − trừ − BHXH = tổng',
+	round( (float) $pl2['luongChinh'] + (float) $pl2['tongCong']
+		- (float) $pl2['tongTru'] - (float) $pl2['bhxh'], 2 ),
+	(float) $pl2['tong'] );
+teq( '   và đúng con số trong ảnh', 3403390.0, (float) $pl2['tong'] );
+
+/* ---- bảng CẢ CỬA HÀNG cũng phải trừ ---- */
+$U_CHT2 = array( 'name' => 'Anh Trưởng', 'role' => VHCC_Vai::CHT,
+	'coso' => 'BH_SHOP', 'ma_nv' => 'BHCHT' );
+$cs2 = VHCC_PhieuLuong::ca_coso( $U_CHT2, 'BH_SHOP', '2026-08' );
+t( 'lấy được bảng cả cửa hàng', ! empty( $cs2['ok'] ), $cs2 );
+if ( ! empty( $cs2['ok'] ) ) {
+	$d_tr = null;
+	foreach ( $cs2['dong'] as $x ) { if ( 'BH_TRUYEN' === $x['maNV'] ) { $d_tr = $x; } }
+	t( 'tìm thấy dòng của người ấy', null !== $d_tr, $cs2['dong'] );
+	/* 🔴 KHÔNG ĐƯỢC LỆCH VỚI PHIẾU RIÊNG Ở MÀN BÊN CẠNH. Hai màn nói hai con số cho cùng một
+	   người là thứ không ai lần ra được — họ chỉ biết một trong hai sai. */
+	teq( '🔴 dòng cả cửa hàng khớp ĐÚNG phiếu riêng', (float) $pl2['tong'], (float) $d_tr['tong'] );
+	teq( '   và kể ra khoản BHXH của người ấy', 596610.0, (float) $d_tr['bhxh'] );
+}
+
+/* ---- màn app có vẽ dòng ấy ra không ---- */
+$tram_js = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/templates/tram.php' );
+t( '🔴 phiếu trên app có dòng BHXH', false !== mb_strpos( $tram_js, '<span>BHXH</span>' ), 'không thấy' );
+/* ⚠️ KHÔNG ĐÓNG KHAI: `bhxh` bằng 0 thì không vẽ dòng nào. Một dòng "BHXH 0đ" trên phiếu của
+   người không đóng bảo hiểm là mời họ đi hỏi vì sao có nó. */
+t( '   và chỉ vẽ khi lớn hơn 0', false !== strpos( $tram_js, '(+j.bhxh > 0)' ), 'không thấy chốt' );
+/* Câu chân phiếu phải theo kịp: BHXH đã vào hệ, kể nó là "ngoài hệ" là nói dối chiều ngược —
+   người đọc tưởng còn một khoản trừ chưa tính và tự trừ thêm lần nữa trong đầu. */
+t( '🔴 câu chân phiếu dựng từ `ngoaiHe`, không đóng cứng chữ "BHXH"',
+	false !== strpos( $tram_js, 'j.ngoaiHe' )
+	&& false === mb_strpos( $tram_js, '<b>BHXH</b> và <b>lương giờ ' ), $tram_js );
+
+VHCC_Bhxh::xoa( $KT, 'BH_TRUYEN' );
+
 echo "\n";
 if ( $truot ) {
 	echo '🔴 HỎNG ' . count( $truot ) . " phép thử:\n";
