@@ -57,6 +57,14 @@ class VHCC_Push {
 	const HONG_TOI_DA = 3;
 
 	public static function init() {
+		/* 🔴 KHAI NHỊP TRƯỚC KHI XẾP LỊCH. `wp_schedule_event()` tra tên nhịp trong danh sách do
+		   bộ lọc `cron_schedules` dựng ra; gọi nó trước khi `add_filter` chạy thì `vhcc_5phut`
+		   chưa có trong danh sách và WordPress trả WP_Error rồi thôi — lịch KHÔNG được xếp, lượt
+		   tải trang sau cũng vậy, mãi mãi. Trước 20/09/2026 dòng `add_filter` nằm ở CUỐI hàm
+		   này, nên lượt quét "ai vào rồi mà chưa ra" chưa từng chạy trên máy thật — không có gì
+		   báo, vì thiếu một lời nhắc thì trông y hệt như không ai quên chấm ra. Đúng cái bẫy đã
+		   ghi ở đầu tệp plugin, lần này nằm sâu hơn một tầng. */
+		add_filter( 'cron_schedules', array( __CLASS__, 'nhip' ) );
 		add_action( 'vhcc_push_nhac', array( __CLASS__, 'chay_nhac' ) );
 		/* Nghe chuông của trang Nội bộ. Xem khối cảnh báo ở `nghe_bao()` trước khi sửa. */
 		add_action( 'vhnb_bao_moi', array( __CLASS__, 'nghe_bao' ), 10, 5 );
@@ -66,7 +74,6 @@ class VHCC_Push {
 			   nhận lúc trễ 29 phút. Lượt quét chỉ là một câu đếm trên bảng chấm công. */
 			wp_schedule_event( time() + 300, 'vhcc_5phut', 'vhcc_push_nhac' );
 		}
-		add_filter( 'cron_schedules', array( __CLASS__, 'nhip' ) );
 	}
 
 	public static function nhip( $ds ) {

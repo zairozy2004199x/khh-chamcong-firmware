@@ -289,6 +289,33 @@ class VHCC_Tram {
 			$dm = VHCC_Mat::dem();
 			echo 'mau khuon mat : ' . (int) $dm['tong'] . ' (cho duyet ' . (int) $dm['cho'] . ")\n";
 
+			/* ĐỊA CHỈ: trả lời thẳng câu *"Do định vị hay do app. Chưa lấy được"* (20/09/2026).
+			   Truyền `?lat=&lng=` để chẩn đoán đúng chỗ đang đứng; không truyền thì chỉ báo
+			   trạng thái chung. Chỗ này CÓ ra mạng — người mở trang này là mở có chủ đích. */
+			echo "\n-- dia chi (toa do -> ten duong) --\n";
+			echo 'bang dia_chi  : '
+				. ( VHCC_DB::co_bang( VHCC_DB::t( 'dia_chi' ) ) ? 'co' : 'CHUA CO (chua nang cap bang)' ) . "\n";
+			$lich_dc = wp_next_scheduled( 'vhcc_dia_chi_dien' );
+			/* 🔴 DÒNG NÀY LÀ THỨ BẮT ĐƯỢC LỖI XẾP LỊCH IM LẶNG. `wp_schedule_event()` trả WP_Error
+			   khi nhịp chưa được khai, rồi thôi — không báo gì, plugin chạy bình thường, chỉ có
+			   tên đường là không bao giờ hiện. Không in con số này ra thì không ai biết. */
+			echo 'lich dien dan : ' . ( $lich_dc
+				? gmdate( 'Y-m-d H:i:s', (int) $lich_dc + (int) ( (float) get_option( 'gmt_offset' ) * 3600 ) )
+				: 'CHUA XEP DUOC LICH -- cron khong chay, dia chi se khong bao gio tu dien' ) . "\n";
+			$so_dc = VHCC_DB::co_bang( VHCC_DB::t( 'dia_chi' ) )
+				? (int) $GLOBALS['wpdb']->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'dia_chi' ) ) : 0;
+			echo 'da nho        : ' . $so_dc . " o luoi\n";
+			$la_cd = isset( $_GET['lat'] ) ? sanitize_text_field( wp_unslash( $_GET['lat'] ) ) : '';
+			$ln_cd = isset( $_GET['lng'] ) ? sanitize_text_field( wp_unslash( $_GET['lng'] ) ) : '';
+			if ( '' !== $la_cd && '' !== $ln_cd ) {
+				$cd = VHCC_DiaChi::chan_doan( $la_cd, $ln_cd );
+				echo 'thu toa do    : ' . $la_cd . ',' . $ln_cd . "\n";
+				echo 'ket qua       : ' . $cd['ket'] . "\n";
+				echo 'giai thich    : ' . $cd['chu'] . "\n";
+			} else {
+				echo "thu mot cho   : them &lat=9.9191&lng=106.3427 vao duong dan nay\n";
+			}
+
 			echo "\n-- duong dan --\n";
 			echo 'tram          : ' . self::url() . "\n";
 			echo 'quan tri      : ' . VHCC_Web::url() . "\n";

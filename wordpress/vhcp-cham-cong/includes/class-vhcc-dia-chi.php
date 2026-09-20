@@ -70,14 +70,29 @@ class VHCC_DiaChi {
 	/** Một lượt cron điền tối đa bấy nhiêu ô. 1 giây/ô -> khoảng 20 giây, không nghẽn cron. */
 	const MOI_LUOT = 20;
 
+	/**
+	 * 🔴 KHAI NHỊP TRƯỚC, XẾP LỊCH SAU. THỨ TỰ HAI DÒNG NÀY LÀ CẢ TÍNH NĂNG.
+	 *
+	 * `wp_schedule_event()` tra tên nhịp trong danh sách do bộ lọc `cron_schedules` dựng ra. Gọi
+	 * nó TRƯỚC khi `add_filter` chạy thì `vhcc_15phut` chưa có trong danh sách, WordPress trả về
+	 * một WP_Error rồi thôi — KHÔNG xếp lịch gì cả. Lượt tải trang sau lại y như vậy, nên lịch
+	 * không bao giờ được xếp.
+	 *
+	 * Và nó hỏng IM LẶNG hoàn hảo: không báo lỗi, không dòng nhật ký, plugin chạy bình thường,
+	 * chỉ có tên đường là không bao giờ hiện ra. Anh Thắng 20/09/2026: *"Do định vị hay do app.
+	 * Chưa lấy được"* — đúng câu hỏi mà một lỗi kiểu này bắt người ta phải hỏi.
+	 *
+	 * ⚠️ `VHCC_Push::init()` từng mắc y hệt, đã sửa cùng lượt. Ai thêm cron mới cho plugin này
+	 *    thì đọc lại chỗ này trước.
+	 */
 	public static function init() {
+		add_filter( 'cron_schedules', array( __CLASS__, 'nhip' ) );
 		add_action( 'vhcc_dia_chi_dien', array( __CLASS__, 'dien_dan' ) );
 		if ( ! wp_next_scheduled( 'vhcc_dia_chi_dien' ) ) {
 			/* 15 phút một lượt, mỗi lượt 20 ô. Đủ để địa chỉ của hôm nay hiện ra trong ngày,
 			   mà không bao giờ giống một đợt tra hàng loạt. */
 			wp_schedule_event( time() + 600, 'vhcc_15phut', 'vhcc_dia_chi_dien' );
 		}
-		add_filter( 'cron_schedules', array( __CLASS__, 'nhip' ) );
 	}
 
 	public static function nhip( $ds ) {
@@ -227,6 +242,77 @@ class VHCC_DiaChi {
 		$cho   = 1.0 - ( microtime( true ) - $truoc );
 		if ( $cho > 0 && $cho <= 1.0 ) { usleep( (int) round( $cho * 1000000 ) ); }
 		update_option( self::O_NHIP, microtime( true ), false );
+	}
+
+	/* ========================================================================== chẩn đoán */
+
+	/**
+	 * VÌ SAO CHỖ NÀY CHƯA CÓ TÊN ĐƯỜNG — trả lời bằng câu tiếng Việt, không bắt ai đoán.
+	 *
+	 * Anh Thắng 20/09/2026, kèm ảnh một lượt chấm có GPS ±11m mà ô địa chỉ trống: *"Do định vị
+	 * hay do app. Chưa lấy được"*.
+	 *
+	 * 🔴 CÂU HỎI ẤY LÀ MỘT LỖI CỦA HỆ, KHÔNG PHẢI CỦA NGƯỜI HỎI. Một ô trống có thể là năm
+	 *    chuyện hoàn toàn khác nhau — máy chưa bắt được GPS, toạ độ ngoài khung, chưa tra bao
+	 *    giờ, đã tra mà chỗ đó không có tên, hay hosting chặn đường ra internet — và bốn trong
+	 *    năm chuyện ấy KHÔNG phải lỗi định vị. Bắt người dùng phân biệt bằng mắt là bắt họ làm
+	 *    việc của máy. Hàm này đi hỏi thật rồi nói thẳng ra cái nào.
+	 *
+	 * ⚠️ HÀM NÀY CÓ RA MẠNG (và có thể ngủ tới 1 giây). Chỉ gọi từ trang chẩn đoán — người ta
+	 *    mở nó có chủ đích, mỗi lần một lượt. Đừng gọi từ chỗ vẽ màn.
+	 *
+	 * @return array array('ket' => mã, 'chu' => câu tiếng Việt)
+	 */
+	public static function chan_doan( $lat, $lng ) {
+		$o = self::o( $lat, $lng );
+		if ( '' === $o ) {
+			return array( 'ket' => 'ngoai_khung', 'chu' => 'Toa do khong dung duoc (rong, sai, '
+				. 'hoac ngoai khung Viet Nam) nen KHONG tra. Day khong phai loi mang.' );
+		}
+
+		$da = self::nho( $lat, $lng );
+		if ( '' !== $da ) {
+			return array( 'ket' => 'co', 'chu' => 'DA CO trong so nho: ' . $da );
+		}
+
+		/* Chưa có trong sổ. Đi hỏi THẬT để biết đường ra internet có thông không — đây mới là
+		   thứ trang chẩn đoán cần trả lời, và là thứ không suy ra được từ cơ sở dữ liệu. */
+		self::cho_nhip();
+		list( $la, $ln ) = explode( ',', $o );
+		$url = 'https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&addressdetails=0'
+			. '&accept-language=vi&lat=' . rawurlencode( $la ) . '&lon=' . rawurlencode( $ln );
+		$kq = wp_remote_get( $url, array(
+			'timeout' => 10,
+			'headers' => array(
+				'User-Agent' => 'VHCC-ChamCong/' . VHCC_VERSION . ' (+' . home_url( '/' ) . ')',
+				'Referer'    => home_url( '/' ),
+			),
+		) );
+
+		if ( is_wp_error( $kq ) ) {
+			return array( 'ket' => 'khong_ra_duoc_mang', 'chu' => 'MAY CHU KHONG RA DUOC INTERNET '
+				. 'toi nominatim.openstreetmap.org: ' . $kq->get_error_message()
+				. ' -- Hosting dang chan ket noi ra ngoai. Day KHONG phai loi dinh vi va cung '
+				. 'khong phai loi app; nho ben hosting mo cho ten mien nay (giong nhu da mo cho '
+				. 'tile.openstreetmap.org de o anh ban do chay duoc).' );
+		}
+		$ma = (int) wp_remote_retrieve_response_code( $kq );
+		if ( 200 !== $ma ) {
+			return array( 'ket' => 'bi_choi', 'chu' => 'May chu ban do TRA LOI ' . $ma
+				. ' (khong phai 200). 403/429 thuong la bi chan vi goi qua day hoac thieu khai '
+				. 'danh tinh. Day khong phai loi dinh vi.' );
+		}
+
+		$j = json_decode( (string) wp_remote_retrieve_body( $kq ), true );
+		if ( ! is_array( $j ) || ! isset( $j['display_name'] ) || '' === trim( (string) $j['display_name'] ) ) {
+			return array( 'ket' => 'cho_nay_khong_co_ten', 'chu' => 'Ra duoc internet, may chu ban '
+				. 'do tra loi BINH THUONG nhung CHO NAY KHONG CO TEN DUONG trong ban do (ruong, '
+				. 'duong moi mo, hem chua ai ve). Toa do van dung. Khong sua duoc tu phia minh.' );
+		}
+
+		return array( 'ket' => 'tra_duoc', 'chu' => 'TRA DUOC ngay bay gio: '
+			. mb_substr( trim( (string) $j['display_name'] ), 0, 120 )
+			. ' -- Neu o dia chi van trong thi la lich nen chua chay (xem dong "lich dien dan").' );
 	}
 
 	/* ============================================================================== cron */

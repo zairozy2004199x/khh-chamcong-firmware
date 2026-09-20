@@ -925,7 +925,18 @@ foreach ( array( '\bpin\b', '\btoken\b', 'KHOA', 'ho_ten', '\bcccd\b', 'vector',
 	t( "chẩn đoán KHÔNG in \"$cam_cd\"",
 		0 === preg_match( '/' . $cam_cd . '/i', $khoi_cd ), $cam_cd );
 }
-t( 'khối chẩn đoán cắt đúng, không trùm sang mã khác', strlen( $khoi_cd ) < 2600, strlen( $khoi_cd ) );
+/* 🔴 CANH BẰNG RANH GIỚI THẬT, KHÔNG BẰNG ĐỘ DÀI.
+   Bản cũ đòi khối này ngắn hơn 2600 ký tự — một con số chỉ đúng vào ngày nó được viết. Hôm
+   20/09/2026 khối chẩn đoán mọc thêm phần địa chỉ và vượt ngưỡng, thế là bài kiểm báo đỏ cho
+   một thay đổi hoàn toàn đúng. Mà điều cần canh chưa bao giờ là độ dài: nó là "lát cắt có
+   dừng đúng ở khối này không". Hỏi thẳng điều ấy thì phép thử không bao giờ hết hạn, và mấy
+   phép cấm-in-bí-mật ở trên mới thật sự được bảo đảm. */
+/* ⚠️ Dò từ SAU dòng mở. Lát cắt bắt đầu bằng đúng chuỗi `'chan_doan' === $viec`, nên dò từ
+   đầu là luôn trúng chính nó — bản đầu của phép thử này báo đỏ vì thế. */
+t( '🔴 lát cắt dừng trước tuyến kế tiếp, không trùm sang mã khác',
+	false === strpos( $khoi_cd, '=== $viec', 30 ),
+	mb_substr( $khoi_cd, -160 ) );
+t( '   và lát cắt không rỗng (tìm được `exit;` để dừng)', strlen( $khoi_cd ) > 200, strlen( $khoi_cd ) );
 t( 'chẩn đoán đứng TRƯỚC phép đòi thẻ phiên (mở được khi chưa đăng nhập)',
 	strpos( $src_tram2, "'chan_doan' === \$viec" ) < strpos( $src_tram2, "\$u = self::nguoi(" ) );
 

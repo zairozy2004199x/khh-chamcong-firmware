@@ -241,6 +241,104 @@ t( '🔴 cửa `diachi` gọi `tra_nhanh`, KHÔNG gọi `tra` (hàm có ngủ)',
 	false !== strpos( $khoi, 'VHCC_DiaChi::tra_nhanh' )
 	&& false === strpos( $khoi, 'VHCC_DiaChi::tra(' ), $khoi );
 
+/* ══════════════════════════ 11. XẾP LỊCH CRON: KHAI NHỊP TRƯỚC, XẾP SAU */
+
+/* 🔴 LỖI NÀY HỎNG IM LẶNG HOÀN HẢO, NÊN PHẢI CANH BẰNG PHÉP THỬ CHỨ KHÔNG BẰNG MẮT.
+   `wp_schedule_event()` tra tên nhịp trong danh sách do bộ lọc `cron_schedules` dựng ra. Gọi nó
+   TRƯỚC khi `add_filter` chạy thì tên nhịp chưa có trong danh sách, WordPress trả về WP_Error
+   rồi thôi — KHÔNG xếp lịch gì cả. Lượt tải trang sau lại y như vậy, mãi mãi.
+
+   Không báo lỗi, không dòng nhật ký, plugin chạy bình thường, chỉ có việc nền là không bao giờ
+   chạy. Anh Thắng 20/09/2026: *"Do định vị hay do app. Chưa lấy được"* — đúng câu hỏi mà một
+   lỗi kiểu này bắt người ta phải hỏi.
+
+   ⚠️ CANH CẢ `VHCC_Push` nữa: nó mắc y hệt và đã im lặng như thế nhiều tuần. Phép thử canh mã
+      nguồn chứ không canh hành vi, vì hành vi ở đây là "không có gì xảy ra" — không quan sát
+      được từ bên trong một bài kiểm không có cron thật. */
+function vhcc_thu_tu_cron( $tep, $ten_nhip ) {
+	$src = file_get_contents( $tep );
+	$vt  = strpos( $src, 'public static function init()' );
+	if ( false === $vt ) { return 'khong thay init()'; }
+	$khoi = substr( $src, $vt, 2600 );
+	/* ⚠️ BỎ CHÚ THÍCH TRƯỚC KHI SOI. Bản đầu của phép thử này báo đỏ oan: chính khối chú thích
+	   giải thích lỗi có chứa chuỗi `wp_schedule_event()`, và nó nằm TRƯỚC dòng `add_filter` —
+	   nên phép thử kết luận thứ tự sai trong khi mã hoàn toàn đúng. Một phép thử đọc cả chú
+	   thích là một phép thử phạt người viết chú thích tử tế. */
+	$khoi = preg_replace( '#/\*.*?\*/#s', '', $khoi );
+	$khoi = preg_replace( '#//[^\n]*#', '', $khoi );
+	$a = strpos( $khoi, "add_filter( 'cron_schedules'" );
+	$b = strpos( $khoi, "wp_schedule_event(" );
+	if ( false === $a ) { return 'khong khai cron_schedules'; }
+	if ( false === $b ) { return 'khong xep lich'; }
+	if ( false === strpos( $khoi, "'" . $ten_nhip . "'" ) ) { return 'khong thay nhip ' . $ten_nhip; }
+	return ( $a < $b ) ? 'ok' : 'XEP LICH TRUOC KHI KHAI NHIP';
+}
+
+$f_dc = $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-dia-chi.php';
+$f_ps = $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-push.php';
+t( '🔴 VHCC_DiaChi khai nhịp TRƯỚC khi xếp lịch',
+	'ok' === vhcc_thu_tu_cron( $f_dc, 'vhcc_15phut' ), vhcc_thu_tu_cron( $f_dc, 'vhcc_15phut' ) );
+t( '🔴 VHCC_Push cũng vậy (từng mắc y hệt)',
+	'ok' === vhcc_thu_tu_cron( $f_ps, 'vhcc_5phut' ), vhcc_thu_tu_cron( $f_ps, 'vhcc_5phut' ) );
+
+/* Và lớp phải được khởi động thật — `init()` có mà không ai gọi thì cũng bằng không. Đúng cái
+   đã xảy ra với `VHCC_Push` (xem khối 17/09/2026 ở đầu tệp plugin). */
+$f_pl = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/vhcp-cham-cong.php' );
+t( '🔴 VHCC_DiaChi::init() CÓ NGƯỜI GỌI', false !== strpos( $f_pl, 'VHCC_DiaChi::init();' ) );
+t( '   và tệp lớp có được nạp', false !== strpos( $f_pl, 'class-vhcc-dia-chi.php' ) );
+
+/* ════════════════════════════════════════ 12. CHẨN ĐOÁN NÓI ĐÚNG TỪNG NGUYÊN NHÂN */
+
+/* 🔴 Một ô địa chỉ trống có thể là năm chuyện khác nhau, và BỐN trong năm KHÔNG phải lỗi định
+   vị. Bắt người dùng phân biệt bằng mắt là bắt họ làm việc của máy. */
+$c = VHCC_DiaChi::chan_doan( 48.8566, 2.3522 );
+t( '🔴 ngoài khung -> nói đúng là ngoài khung', 'ngoai_khung' === $c['ket'], $c );
+t( '   và nói rõ KHÔNG phải lỗi mạng', false !== mb_strpos( $c['chu'], 'khong phai loi mang' ), $c );
+
+$GLOBALS['VHCP_HTTP']['nominatim.openstreetmap.org'] = array( 'code' => 200,
+	'body' => wp_json_encode( array( 'display_name' => 'Đường Chẩn Đoán, Việt Nam' ) ) );
+update_option( 'vhcc_dia_chi_nhip', microtime( true ) - 5 );
+$c = VHCC_DiaChi::chan_doan( 10.930001, 106.930001 );
+t( 'ra được mạng -> nói là tra được', 'tra_duoc' === $c['ket'], $c );
+
+/* Đã nhớ rồi thì nói là đã có, không đi hỏi lại. */
+VHCC_DiaChi::tra( 10.930001, 106.930001 );
+$c = VHCC_DiaChi::chan_doan( 10.930001, 106.930001 );
+t( 'đã nhớ -> nói là đã có', 'co' === $c['ket'], $c );
+
+/* 🔴 CHỖ QUAN TRỌNG NHẤT: hosting chặn đường ra ngoài. Đây là nguyên nhân mà nhìn màn hình
+   không bao giờ đoán ra, và cũng là nguyên nhân người dùng KHÔNG tự sửa được — câu trả lời
+   phải chỉ thẳng sang bên hosting, chứ không để họ đi chỉnh lại GPS. */
+unset( $GLOBALS['VHCP_HTTP']['nominatim.openstreetmap.org'] );
+update_option( 'vhcc_dia_chi_nhip', microtime( true ) - 5 );
+$c = VHCC_DiaChi::chan_doan( 10.940001, 106.940001 );
+t( '🔴 hosting chặn -> nói đúng là không ra được internet',
+	'khong_ra_duoc_mang' === $c['ket'], $c );
+t( '   và nói rõ KHÔNG phải lỗi định vị',
+	false !== mb_strpos( $c['chu'], 'KHONG phai loi dinh vi' ), $c );
+t( '   và chỉ đúng chỗ phải sửa (hosting)', false !== mb_strpos( $c['chu'], 'hosting' ), $c );
+
+/* Máy chủ bản đồ trả lời nhưng chỗ đó không có tên -> KHÁC HẲN hai ca trên. */
+$GLOBALS['VHCP_HTTP']['nominatim.openstreetmap.org'] = array( 'code' => 200,
+	'body' => wp_json_encode( array( 'error' => 'Unable to geocode' ) ) );
+update_option( 'vhcc_dia_chi_nhip', microtime( true ) - 5 );
+$c = VHCC_DiaChi::chan_doan( 10.960001, 106.960001 );
+t( '🔴 chỗ không có tên -> nói đúng, không đổ cho mạng',
+	'cho_nay_khong_co_ten' === $c['ket'], $c );
+
+/* Bị chối (403/429) cũng phải tách riêng khỏi "mất mạng": hai chuyện, hai cách sửa. */
+$GLOBALS['VHCP_HTTP']['nominatim.openstreetmap.org'] = array( 'code' => 403, 'body' => 'nope' );
+update_option( 'vhcc_dia_chi_nhip', microtime( true ) - 5 );
+$c = VHCC_DiaChi::chan_doan( 10.970001, 106.970001 );
+t( '🔴 bị chối 403 -> tách riêng khỏi mất mạng', 'bi_choi' === $c['ket'], $c );
+
+/* Trang chẩn đoán của trạm phải IN RA lịch cron — không in thì lỗi xếp lịch vẫn im lặng. */
+$src_t2 = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-tram.php' );
+t( '🔴 trang chẩn đoán in ra lịch của cron điền địa chỉ',
+	false !== strpos( $src_t2, "wp_next_scheduled( 'vhcc_dia_chi_dien' )" ) );
+t( '   và nói rõ khi CHƯA xếp được lịch',
+	false !== strpos( $src_t2, 'CHUA XEP DUOC LICH' ) );
+
 echo "\n";
 if ( $truot ) {
 	echo 'TRƯỢT ' . count( $truot ) . ":\n";
