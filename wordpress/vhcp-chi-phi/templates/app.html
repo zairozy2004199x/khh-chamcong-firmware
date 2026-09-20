@@ -69,6 +69,32 @@
           thanh tìm đơn ngay dưới đây (26/08/2026). -->
   <div id="bpBanner" style="display:none;margin:10px 16px 0;padding:10px 14px;border-radius:10px;background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;font-size:12.5px"></div>
 
+  <!-- 🏢 THANH KHỐI — KVC · MTĐ · VP.
+       ══════════════════════════════════════════════════════════════════════════════════════
+       Anh Thắng 19/09/2026: *"Chia 3 tab (KVC, MTĐ, VP)"*. Rồi 20/09, sau khi nghĩ tới màn
+       duyệt: *"3 mảng từ các tab duyệt quyết toán nếu không chia tab riêng thì kế toán sẽ
+       rối… khi kế toán rê vào Duyệt quyết toán hoặc Duyệt tạm ứng, có nó ra 3 đơn vị, để xem
+       từng trang đơn vị, tránh duyệt lộn đơn vị"*.
+
+       🔴 NÊN THANH NÀY ĐỨNG NGOÀI MỌI TAB. Bản đầu em đặt trong `#page-don`, tức nó biến mất
+          đúng ở hai màn nguy nhất — Duyệt tạm ứng và Quyết toán, nơi một cú bấm nhầm là duyệt
+          tiền của đơn vị khác.
+
+       ⚠️ ĐỨNG NGOÀI `#donBar` (thanh dính) NỮA. Khối là thứ chọn một lần rồi làm việc cả buổi,
+          còn thanh dính chỉ nên chứa nút thao tác — và `#donBar` cao quá màn thì cả trang
+          không cuộn được (bài học 06/09/2026, xem chú thích ở hàng 2).
+       ══════════════════════════════════════════════════════════════════════════════════════ -->
+  <div class="wrap" id="khoiWrap" style="display:none;padding-top:0;padding-bottom:0">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 8px">
+      <span style="font-size:11.5px;color:#8c8781;font-weight:700;letter-spacing:.3px">KHỐI</span>
+      <span id="khoiBar" style="display:flex;gap:6px;flex-wrap:wrap"></span>
+    </div>
+    <div id="khoiNhac" style="display:none;margin:0 0 10px;padding:9px 13px;border-radius:10px;
+         background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:12.5px"></div>
+  </div>
+
+
+
   <!-- 🔴 TÌM ĐƠN LÀ THANH CHUNG, NẰM NGOÀI MỌI TAB.
        Anh Thắng 26/08: *"đầu trang bổ sung tìm kiếm đơn"* → dựng xong nhưng đặt trong thanh của
        tab "Đơn chi phí". Anh nhắn lại: *"Lọc tìm kiếm chung theo loại chi phí lẻ anh chưa thấy"*
@@ -271,20 +297,6 @@
        ⚠️ CHỈ THỨ THẤP MỚI ĐƯỢC DÍNH. `#donBar` nay chỉ còn hàng nút (một hàng), đúng thứ sticky
           sinh ra để giữ: đang xem giữa trang vẫn đổi đơn và bấm nút được. Hàng 2 là thứ để ĐỌC,
           đọc xong thì cuộn qua — không có lý do gì dính. -->
-  <!-- 🏢 THANH KHỐI — KVC · MTĐ · VP. Anh Thắng 19/09/2026: *"Chia 3 tab (KVC, MTĐ, VP). Hiện
-       khu vui chơi đã có 2 tab con là chi phí kỹ thuật và chi phí cơ sở"*.
-       ⚠️ ĐỨNG NGOÀI `#donBar` (thanh dính). Khối là thứ chọn một lần rồi làm việc cả buổi, còn
-          thanh dính chỉ nên chứa nút thao tác — và `#donBar` cao quá màn thì cả trang không
-          cuộn được nữa (bài học 06/09/2026, xem chú thích ở hàng 2). -->
-  <div class="wrap" style="padding-top:0;padding-bottom:0">
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 8px">
-      <span style="font-size:11.5px;color:#8c8781;font-weight:700;letter-spacing:.3px">KHỐI</span>
-      <span id="khoiBar" style="display:flex;gap:6px;flex-wrap:wrap"></span>
-    </div>
-    <div id="khoiNhac" style="display:none;margin:0 0 10px;padding:9px 13px;border-radius:10px;
-         background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:12.5px"></div>
-  </div>
-
   <div class="don-hang2 db-hang2">
       <span id="donBadge"></span>
       <!-- 🔴 LỊCH SỬ CHỈNH ĐƠN, ĐẶT NGAY CẠNH DẢI TRẠNG THÁI.
@@ -2546,6 +2558,15 @@
    *    được.
    * ══════════════════════════════════════════════════════════════════════════════════════════ */
   var KHOI_DS=[{ma:'kvc',ten:'Khu vui chơi'},{ma:'mtd',ten:'Máy tự động'},{ma:'vp',ten:'Văn phòng'}];
+  /* ⚠️ CHỈ BÀY NÚT CỦA KHỐI NGƯỜI ẤY ĐỌC ĐƯỢC — lấy từ `BOOT.khoiXem` (máy chủ suy từ cột Đơn
+     vị). `null` = nhà mẹ, bày đủ ba.
+     🔴 ĐÂY KHÔNG PHẢI CỔNG QUYỀN, chỉ là giấu mấy nút chắc chắn rỗng: dữ liệu sau mỗi nút đã bị
+        chốt đơn vị bên máy chủ cắt rồi. Coi nó là cổng quyền là lại có HAI bản luật. */
+  function _khoiDuoc(){
+    var ds=(window.BOOT&&BOOT.khoiXem);
+    if(!ds||!ds.length) return KHOI_DS;
+    return KHOI_DS.filter(function(x){ return ds.indexOf(x.ma)>=0; });
+  }
   var KHOI_DANG=(function(){
     try{ var v=localStorage.getItem('vhcp_khoi'); if(v) return String(v); }catch(e){}
     return (window.BOOT&&BOOT.khoiBan)||'kvc';
@@ -2556,6 +2577,14 @@
     return k==='' || k===String(KHOI_DANG).toLowerCase();   // chưa có dấu -> hiện ở mọi khối
   }
   function doiKhoi(ma){
+    /* ⚠️ CHỐI Ở ĐÂY NỮA, ĐỪNG CHỈ DỰA VÀO `disabled`. Thuộc tính ấy là chuyện của thẻ HTML —
+       gọi thẳng `doiKhoi('vp')` từ thanh địa chỉ là qua được. Chốt thật vẫn là cột Đơn vị ở
+       máy chủ, nhưng chặn sớm ở đây thì người ta không rơi vào một trang rỗng khó hiểu. */
+    var duoc=_khoiDuoc().map(function(x){ return x.ma; });
+    if(duoc.indexOf(String(ma||'').toLowerCase())<0){
+      toast('warn','Tài khoản của bạn thuộc đơn vị khác — không đổi sang khối này được');
+      return;
+    }
     KHOI_DANG=String(ma||'kvc');
     try{ localStorage.setItem('vhcp_khoi', KHOI_DANG); }catch(e){}
     veThanhKhoi();
@@ -2570,11 +2599,36 @@
   }
   function veThanhKhoi(){
     var o=el('khoiBar'); if(!o) return;
+    /* ══════════════════════════════════════════════════════════════════════════════════════
+     * 🔴 BÀY ĐỦ BA NÚT, NHƯNG NÚT KHÔNG THUỘC THÌ KHÔNG BẤM ĐƯỢC.
+     * ══════════════════════════════════════════════════════════════════════════════════════
+     * Anh Thắng 20/09/2026: *"ai thuộc đơn vị nào thì bấm được, không thuộc thì chỉ hiện chứ
+     * không bấm được"*.
+     *
+     * Bản đầu em ẨN hẳn nút của khối người ta không thuộc. Sai theo hai đường: người dùng
+     * không biết hệ có ba khối (nên tưởng thiếu), và người quản lý nhìn màn nhân viên cũng
+     * không đoán ra vì sao nó khác màn mình. Hiện mà mờ thì nói được cả hai chuyện: có ba
+     * khối, và bạn làm ở khối này.
+     *
+     * ⚠️ ĐÂY VẪN KHÔNG PHẢI CỔNG QUYỀN — chốt thật là cột Đơn vị ở máy chủ, nó đã cắt dữ liệu
+     *    trước khi gửi xuống. Khoá nút chỉ để khỏi bấm nhầm sang một trang rỗng.
+     * ══════════════════════════════════════════════════════════════════════════════════════ */
+    var duoc=_khoiDuoc().map(function(x){ return x.ma; });
+    if(duoc.indexOf(String(KHOI_DANG).toLowerCase())<0 && duoc.length){
+      KHOI_DANG=duoc[0];
+      try{ localStorage.setItem('vhcp_khoi', KHOI_DANG); }catch(e){}
+    }
     var dem={};
     (BOOT.dons||[]).forEach(function(d){ var k=_khoiCua(d)||'(chưa)'; dem[k]=(dem[k]||0)+1; });
     o.innerHTML=KHOI_DS.map(function(x){
       var dang=(String(KHOI_DANG).toLowerCase()===x.ma);
+      var mo=(duoc.indexOf(x.ma)>=0);
       var n=dem[x.ma]||0;
+      if(!mo){
+        return '<button type="button" class="btn b-x" disabled title="Tài khoản của bạn thuộc đơn vị khác — '
+          +'xem được nhưng không đổi sang khối này. Đổi ở Cấu hình → Người dùng, cột Đơn vị." '
+          +'style="opacity:.45;cursor:not-allowed">🔒 '+esc(x.ten)+'</button>';
+      }
       return '<button type="button" class="btn '+(dang?'b-g':'b-x')+'" onclick="doiKhoi(\''+x.ma+'\')" '
         +'style="font-weight:'+(dang?'700':'500')+'">'+esc(x.ten)
         +' <span style="opacity:.7;font-size:11px">'+n+'</span></button>';
@@ -4390,6 +4444,18 @@
        riêng tab đơn. Bỏ sót là đứng ở Sổ chi phí thấy ô "mọi loại chi phí" rỗng trơn.
        `_fillTimDonOpts()` tự bỏ qua nếu đã nạp rồi, nên gọi nhiều lượt không tốn thêm gì. */
     try{ _fillTimDonOpts(); }catch(e){}
+    /* ══════════════════════════════════════════════════════════════════════════════════════
+     * THANH KHỐI HIỆN Ở ĐÂU. Anh Thắng 20/09/2026: *"3 mảng từ các tab duyệt quyết toán nếu
+     * không chia tab riêng thì kế toán sẽ rối… tránh duyệt lộn đơn vị"*.
+     * Bốn màn có đơn của cả ba khối trộn nhau: Đơn chi phí · Dự án · Duyệt tạm ứng · Quyết
+     * toán. Mấy màn còn lại (Cấu hình, Nhật ký…) không bày đơn nên không cần.
+     * ⚠️ Danh sách khai TƯỜNG MINH, đừng dùng "mọi màn trừ…": thêm màn mới mà quên là thanh
+     *    tự mọc ra ở chỗ vô nghĩa, hoặc tệ hơn, biến mất ở chỗ cần. */
+    try{
+      var _kw=el('khoiWrap');
+      if(_kw) _kw.style.display=(['don','duan','duyet','qt'].indexOf(p)>=0)?'':'none';
+      if(_kw && _kw.style.display==='') veThanhKhoi();
+    }catch(e){}
     var targetPage=(p==='congtac'||p==='setup')?'bp':p;   // 2 tab Công tác/Setup dùng chung trang page-bp
     ['tongquan','don','sochi','duan','mkt','bp','vhtuan','trama','duyet','qt','tattoan','xuat','cauhinh','log'].forEach(function(x){
       var pg=el('page-'+x); if(pg) pg.style.display=(x===targetPage)?'':'none';
@@ -9528,11 +9594,16 @@
   /** Đơn có thuộc màn Quyết toán không — dùng để DỰNG Ô LỌC, nên chưa tính mấy ô lọc ấy.
       Ẩn đơn nào thì bỏ luôn tuần của nó khỏi ô xổ: bày ra một tuần không còn đơn nào là mời
       người ta chọn rồi nhận bảng rỗng. */
+  /* ⚠️ BA CHỐT CỦA MÀN QUYẾT TOÁN ĐỀU PHẢI LỌC KHỐI. Chúng là ba cửa vào của cùng một bảng
+     (đang chờ · đang cầm tiền · đã xong); sót một cửa là một phần bảng vẫn trộn ba khối, mà
+     nhìn bảng thì không có gì báo — đúng thứ anh Thắng gọi là *"duyệt lộn đơn vị"*. */
   function _qtTrongMan(d){
+    if(!_hopKhoi(d)) return false;
     if(_anVaoMo(d)) return false;
     return d.trangThai==='Chờ quyết toán'||_daQT(d)||d.trangThai==='Đã cấp tạm ứng';
   }
   function _qtLoc(d){
+    if(!_hopKhoi(d)) return false;   /* xem chốt ở `_qtTrongMan()` */
     if(_anVaoMo(d)) return false;
     var fT=el('qtThang')?el('qtThang').value:'', fK=el('qtKy')?el('qtKy').value:'', fC=el('qtCoso')?el('qtCoso').value:'';
     if(fT && _thangCuaKy(d.ky)!==fT) return false;
@@ -9553,6 +9624,7 @@
      của chính nó. Ô THÁNG và Ô CƠ SỞ chung vẫn áp — hai thứ ấy là lọc chung của cả màn, không
      phải chuyện "tuần nào đang làm". */
   function _qtLocXong(d){
+    if(!_hopKhoi(d)) return false;   /* xem chốt ở `_qtTrongMan()` */
     if(_anVaoMo(d)) return false;
     var kR=el('qtKyXong')?el('qtKyXong').value:'';
     if(kR && String(d.ky||'')!==kR) return false;
@@ -9629,7 +9701,7 @@
     /* Ô tuần riêng của bảng "Đã quyết toán" dựng từ CHÍNH những đơn đã quyết toán — không phải
        từ mọi đơn của màn. Bày ra một tuần không có đơn đã quyết toán nào là mời người ta chọn
        rồi nhận bảng rỗng. */
-    _napKyRieng('qtKyXong', (BOOT.dons||[]).filter(function(d){ return _daQT(d) && !_anVaoMo(d); }));
+    _napKyRieng('qtKyXong', (BOOT.dons||[]).filter(function(d){ return _daQT(d) && !_anVaoMo(d) && _hopKhoi(d); }));
     var all=(BOOT.dons||[]).filter(function(d){ return _qtLoc(d) && (d.trangThai==='Chờ quyết toán' || _daQT(d)); });
     var tuan=(QT_XEM==='tuan');
     if(el('qtXemBang')) el('qtXemBang').className='btn '+(tuan?'b-x':'b-p');
@@ -10052,7 +10124,10 @@
   function renderDuyet(){
     _renderTongLH('duyetTongLH');
     var f=el('duyetFilter').value;
-    var all=(BOOT.dons||[]);
+    /* 🔴 LỌC THEO KHỐI Ở ĐÂY NỮA — đây mới là màn nguy nhất. Anh Thắng 20/09/2026: *"tránh
+       duyệt lộn đơn vị"*. Trộn ba khối trong một bảng duyệt thì một cú bấm nhầm là duyệt tiền
+       của đơn vị khác, mà nhìn bảng không có gì báo. */
+    var all=(BOOT.dons||[]).filter(_hopKhoi);
     _napLocDon(all, 'dvThang', 'dvKy', 'dvCoso');
     var fT=el('dvThang')?el('dvThang').value:'', fK=el('dvKy')?el('dvKy').value:'', fC=el('dvCoso')?el('dvCoso').value:'';
     // KHÂU TẠM ỨNG gồm đúng 3 trạng thái. Kể cả "Tất cả" cũng không kéo đơn của khâu sau

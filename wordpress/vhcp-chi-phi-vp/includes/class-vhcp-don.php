@@ -601,6 +601,12 @@ class VHCPVP_Don {
 			   ⚠️ '' nghĩa là KHÔNG CÓ NHÀ MẸ (khoá `vhcpvp_dv_me` để trống) — mọi đơn vị ngang
 			      hàng. Giao diện phải hiểu đúng nghĩa ấy, đừng coi rỗng là "K&H". */
 			'donViMe'    => VHCPVP_DonVi::don_vi_me(),
+			/* Khối nào được bày nút trên thanh KHỐI — `null` = đủ ba. Đi thẳng từ `xem_duoc()`
+			   nên không đẻ thêm trục quyền nào; xem chốt dài ở `VHCPVP_DonVi::khoi_xem_duoc()`. */
+			'khoiXem'    => VHCPVP_DonVi::khoi_xem_duoc(),
+			/* Khối mặc định lúc mở lần đầu = khối của chính nhà người dùng, để họ không phải
+			   bấm một nhịp mới thấy việc của mình. */
+			'khoiBan'    => ( VHCPVP_DonVi::khoi_cua( VHCPVP_DonVi::cua_toi() ) ?: VHCPVP_DB::KHOI ),
 			/* Ai đang khai ô "Xem đơn vị" lạc ra ngoài danh sách — họ là người sắp ngồi trước
 			   một màn trắng. Xem chốt dài ở `VHCPVP_DonVi::ai_khai_lac()`. */
 			'khaiLac'    => VHCPVP_DonVi::ai_khai_lac(),

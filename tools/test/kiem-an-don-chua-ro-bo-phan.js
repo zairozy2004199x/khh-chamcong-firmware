@@ -58,9 +58,13 @@ t('bốc được renderBpBanner()', fnBanner.length > 40);
 
 /** Dựng bộ lọc thật, với `_AN_MO` đặt theo ý mình. */
 function locVoi(anMo) {
-  return new Function('el', '_thangCuaKy', '_AN_MO',
+  /* ⚠️ `_hopKhoi` LÀ CHỐT KHỐI (KVC · MTĐ · VP, 20/09/2026) — bài này soi chuyện khác, nên cho
+     nó luôn `true` để phần ấy đứng ngoài. Thiếu hẳn thì bài VĂNG LỖI chứ không đỏ một phép,
+     và đọc ra không biết hỏng gì. */
+  return new Function('el', '_thangCuaKy', '_AN_MO', '_hopKhoi',
     fnAnVaoMo + '\n' + fnQtLoc + '\n' + fnQtLocXong +
-    '\nreturn { loc:_qtLoc, locXong:_qtLocXong, an:_anVaoMo };')(el, _thangCuaKy, anMo);
+    '\nreturn { loc:_qtLoc, locXong:_qtLocXong, an:_anVaoMo };')(el, _thangCuaKy, anMo,
+    function () { return true; });
 }
 
 const D_RO = { maDon: 'D_MTD', ky: 'Tuần 1 · 09/2026', coso: 'CS1', trangThai: 'Chờ quyết toán', bpMo: false };
@@ -221,8 +225,10 @@ t('và vẽ lại cả màn Duyệt tạm ứng', goi.indexOf('duyet') >= 0, goi
 const fnTrongMan = bocHam('_qtTrongMan');
 t('bốc được _qtTrongMan()', fnTrongMan.length > 40);
 function trongManVoi(anMo) {
-  return new Function('_AN_MO',
-    fnDaQT + '\n' + fnAnVaoMo + '\n' + fnTrongMan + '\nreturn _qtTrongMan;')(anMo);
+  /* ⚠️ `_hopKhoi` cho luôn `true` — xem chú thích ở `locVoi()`. */
+  return new Function('_AN_MO', '_hopKhoi',
+    fnDaQT + '\n' + fnAnVaoMo + '\n' + fnTrongMan + '\nreturn _qtTrongMan;')(anMo,
+    function () { return true; });
 }
 const D_CHIM = { maDon: 'D_TU', ky: 'Tuần 3 · 09/2026', trangThai: 'Đã cấp tạm ứng', bpMo: true };
 let tm = trongManVoi(false);
@@ -240,12 +246,12 @@ teq('🔴 và đơn đã rõ vẫn góp tuần như thường',               tr
    là bộ thử vẫn xanh. */
 const fnQTList = bocHam('renderQTList');
 t('bốc được renderQTList()', fnQTList.length > 800);
-function chayQTList(dons, anMo) {
+function chayQTList(dons, anMo, hopKhoi) {
   const thu = { loc: null, kyRieng: null, cho: null, xong: null };
   const el4 = function (id) { return Object.prototype.hasOwnProperty.call(O, id) ? { value: O[id] } : null; };
   new Function('el', 'BOOT', '_AN_MO', 'QT_XEM', '_thangCuaKy', 'canDo', 'renderBpBanner',
     '_napLocDon', '_napKyRieng', '_qtVeBang', '_qtVeChuaNop', '_qtEmptyXongText', 'qtUpdateBar',
-    '_laChim', '_kyVal', 'thu',
+    '_laChim', '_kyVal', '_hopKhoi', 'thu',
     fnDaQT + '\n' + fnAnVaoMo + '\n' + fnTrongMan + '\n' + fnQtLoc + '\n' + fnQtLocXong + '\n' +
     fnQTList + '\nrenderQTList();')(
     el4, { dons: dons }, anMo, 'bang', _thangCuaKy, function () { return false; }, function () {},
@@ -254,7 +260,7 @@ function chayQTList(dons, anMo) {
     function (ten, l) { thu[ten] = l.map(function (x) { return x.maDon; }); },
     function () {}, function () {}, function () {},
     function (x) { return x && x.trangThai === 'Đã cấp tạm ứng'; },
-    function () { return 0; }, thu);
+    function () { return 0; }, (hopKhoi || function () { return true; }), thu);
   return thu;
 }
 const Q_RO = { maDon: 'Q_MTD', ky: 'Tuần 1 · 09/2026', coso: 'CS1', trangThai: 'Chờ quyết toán', bpMo: false };
@@ -281,21 +287,21 @@ teq('🔴 ô tích BẬT · bảng đã xong cũng bỏ',           [], R.xong);
  * ═════════════════════════════════════════════════════════════════════════════════════════════ */
 const fnDuyet = bocHam('renderDuyet');
 t('bốc được renderDuyet()', fnDuyet.length > 400);
-function duyetVoi(dons, anMo) {
+function duyetVoi(dons, anMo, hopKhoi) {
   let thay = null;
   const O3 = {
     duyetFilter: { value: 'all' }, dvThang: { value: '' }, dvKy: { value: '' }, dvCoso: { value: '' },
     duyetEmpty: { style: {} }, duyetBody: { innerHTML: '' },
   };
   new Function('el', 'esc', 'money', 'canDo', 'stCls', 'BOOT', 'CURUSER', '_AN_MO',
-    '_thangCuaKy', '_napLocDon', '_renderTongLH', '_tachDonVi', 'dvUpdateBar', 'ghiLai',
+    '_thangCuaKy', '_napLocDon', '_renderTongLH', '_tachDonVi', 'dvUpdateBar', 'ghiLai', '_hopKhoi',
     fnAnVaoMo + '\n' + fnDuyet + '\nrenderDuyet();')(
     function (id) { return Object.prototype.hasOwnProperty.call(O3, id) ? O3[id] : null; },
     esc, function (x) { return String(Number(x) || 0); }, function () { return true; },
     function () { return 'st-duyet'; }, { dons: dons }, { role: 'Kế toán máy tự động' }, anMo,
     _thangCuaKy, function () {}, function () {},
     function (l) { thay = l.map(function (x) { return x.maDon; }); return ''; },
-    function () {}, function () {});
+    function () {}, function () {}, (hopKhoi || function () { return true; }));
   return thay;
 }
 const TU_RO = { maDon: 'T_MTD', ky: 'K', trangThai: 'Chờ duyệt tạm ứng', bpMo: false };
@@ -326,6 +332,43 @@ t('đối chứng · `#main` do openDon bật / logout tắt', /el\('main'\)\.st
 t('🔴 và dải nhắc được vẽ lại ở MỌI lượt đổi tab', /showPage[\s\S]{0,4000}?renderBpBanner\(\)/.test(HTML));
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 KHỐI PHẢI CẮT CẢ HAI MÀN DUYỆT — ĐÂY LÀ CHỖ TIỀN DỄ DUYỆT NHẦM NHẤT
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 20/09/2026: *"3 mảng từ các tab duyệt quyết toán nếu không chia tab riêng thì kế
+ * toán sẽ rối… khi kế toán rê vào Duyệt quyết toán hoặc Duyệt tạm ứng, có nó ra 3 đơn vị, để
+ * xem từng trang đơn vị, TRÁNH DUYỆT LỘN ĐƠN VỊ"*.
+ *
+ * ⚠️ PHÉP NGUỒN KHÔNG ĐỦ Ở ĐÂY. Bộ lọc khối đi qua BỐN cửa (`renderDuyet` · `_qtTrongMan` ·
+ *    `_qtLoc` · `_qtLocXong`); soi chuỗi thì sót một cửa là vẫn xanh. Nên chạy thật cả hai màn
+ *    với một `_hopKhoi` chối đúng một đơn, rồi đòi đơn ấy KHÔNG có mặt ở bất kỳ bảng nào.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+const K_TRONG = { maDon: 'K_TRONG', ky: 'Tuần 1 · 09/2026', coso: 'CS1', trangThai: 'Chờ quyết toán', bpMo: false };
+const K_NGOAI = { maDon: 'K_NGOAI', ky: 'Tuần 1 · 09/2026', coso: 'CS1', trangThai: 'Chờ quyết toán', bpMo: false };
+const chiTrong = function (d) { return d && d.maDon !== 'K_NGOAI'; };
+const qtK = chayQTList([K_TRONG, K_NGOAI], false, chiTrong);
+teq('🔴 màn Quyết toán: đơn khối khác KHÔNG lọt vào bảng chờ', ['K_TRONG'], qtK.cho);
+t('   và cũng không lọt vào ô lọc tuần',
+  (qtK.loc || []).indexOf('K_NGOAI') < 0, qtK.loc);
+/* ⚠️ CỬA THỨ TƯ (`_qtLocXong`) CẦN ĐƠN ĐÃ XONG MỚI ĐI QUA. Không dựng ca ấy thì đột biến "bỏ
+   lọc khối ở `_qtLocXong`" vẫn XANH — đã thử và nó xanh thật. Bảng "đã quyết toán" chính là
+   chỗ kế toán rà lại số cuối, trộn khối ở đó là đối chiếu sai mà không ai nghi. */
+const K_XONG_T = { maDon: 'X_TRONG', ky: 'Tuần 1 · 09/2026', coso: 'CS1', trangThai: 'Đã xuất MISA', bpMo: false };
+const K_XONG_N = { maDon: 'X_NGOAI', ky: 'Tuần 1 · 09/2026', coso: 'CS1', trangThai: 'Đã xuất MISA', bpMo: false };
+const qtX = chayQTList([K_XONG_T, K_XONG_N], false, function (d) { return d && d.maDon !== 'X_NGOAI'; });
+teq('🔴 bảng ĐÃ quyết toán cũng không lọt đơn khối khác', ['X_TRONG'], qtX.xong);
+teq('   đối chứng · không lọc khối thì cả hai đều có',
+  ['X_TRONG', 'X_NGOAI'], chayQTList([K_XONG_T, K_XONG_N], false).xong);
+
+const K_TU_T = { maDon: 'T_TRONG', ky: 'Tuần 1 · 09/2026', coso: 'CS1', trangThai: 'Chờ duyệt tạm ứng', bpMo: false };
+const K_TU_N = { maDon: 'T_NGOAI', ky: 'Tuần 1 · 09/2026', coso: 'CS1', trangThai: 'Chờ duyệt tạm ứng', bpMo: false };
+const dvK = duyetVoi([K_TU_T, K_TU_N], false, function (d) { return d && d.maDon !== 'T_NGOAI'; });
+teq('🔴 màn Duyệt tạm ứng: đơn khối khác KHÔNG lọt vào bảng', ['T_TRONG'], dvK);
+/* Đối chứng: không chối gì thì cả hai đơn phải có mặt — nếu không, phép trên xanh vì bảng rỗng
+   sẵn chứ không phải vì bộ lọc chạy đúng. */
+teq('   đối chứng · không lọc khối thì cả hai đơn đều có', ['T_TRONG', 'T_NGOAI'],
+  duyetVoi([K_TU_T, K_TU_N], false));
+
 if (TRUOT.length) {
   console.error('\n✗ TRƯỢT ' + TRUOT.length + ' phép (đạt ' + DAT + '):');
   TRUOT.forEach(function (x) { console.error('  · ' + x); });

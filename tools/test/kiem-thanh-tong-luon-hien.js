@@ -383,11 +383,15 @@ function locXong(d, oChung, oRieng) {
   };
   /* Hai bộ lọc nay còn hỏi `_anVaoMo()` — ô tích "Ẩn hẳn đơn chưa rõ bộ phận" của 1.92.0.
      Bài này soi mấy Ô LỌC TUẦN, nên để ô tích TẮT cho phần ấy đứng ngoài. */
-  const f = new Function('el', '_thangCuaKy', '_anVaoMo',
+  /* ⚠️ `_hopKhoi` LÀ CHỐT KHỐI (KVC · MTĐ · VP, 20/09/2026) — bài này soi chuyện khác, nên cho
+     nó luôn `true` để phần ấy đứng ngoài. Thiếu hẳn thì bài VĂNG LỖI chứ không đỏ một phép,
+     và đọc ra không biết hỏng gì. */
+  const f = new Function('el', '_thangCuaKy', '_anVaoMo', '_hopKhoi',
     fnLoc + '\n' + fnLocXong + '\nreturn _qtLocXong;')(
     function (id) { return o[id] || null; },
     function (k) { const m = /^T(\d+)\/(\d+)/.exec(String(k || '')); return m ? (m[2] + '-' + m[1]) : ''; },
-    function () { return false; });
+    function () { return false; },
+    function () { return true; });
   return f(d);
 }
 
