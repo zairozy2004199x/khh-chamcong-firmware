@@ -401,7 +401,14 @@ function wp_parse_url( $u, $c = -1 ) { return parse_url( $u, $c ); }
    khai vào đây, đừng đợi nó ngã. */
 function wp_parse_str( $s, &$a ) { parse_str( (string) $s, $a ); return $a; }
 function rest_url( $p = '' ) { return 'http://example.test/wp-json/' . ltrim( $p, '/' ); }
-function home_url( $p = '/' ) { return 'http://example.test' . $p; }
+/* ⚠️ Biến môi trường chỉ cho bộ xem trước. Trang trạm dựng địa chỉ cổng bằng chính hàm này rồi
+   nhét vào JavaScript, nên để nguyên `example.test` thì trình duyệt gọi ra một tên miền không
+   tồn tại — màn hình hiện "Không gửi được lên máy chủ" và không chụp nổi màn nào sau màn gõ
+   PIN. Bộ thử không đặt biến này, nên nó vẫn thấy đúng `example.test` như trước. */
+function home_url( $p = '/' ) {
+	$goc = getenv( 'VHCC_STUB_HOME' );
+	return ( $goc ? rtrim( $goc, '/' ) : 'http://example.test' ) . $p;
+}
 /* Bản giả CŨ trả '' — vô hại cho tới lúc có màn hình in ra địa chỉ dựng bằng hàm này, rồi phép
    thử báo "không hiện địa chỉ" mà mã nguồn thì đúng. Một hàm giả trả rỗng là một phép thử tự
    nói dối, nên dựng cho đúng: add_query_arg( $mang, $url ) và add_query_arg( $k, $v, $url ). */
@@ -447,7 +454,15 @@ class VHCP_Test_WPDB {
 	private $pdo;
 
 	public function __construct() {
-		$this->pdo = new PDO( 'sqlite::memory:' );
+		/* Mặc định là CSDL trong bộ nhớ — mỗi bài kiểm một sổ sạch, không bài nào dây sang bài
+		   nào. Đó là điều đúng cho bộ thử và không được đổi.
+
+		   ⚠️ Lối thoát bằng biến môi trường CHỈ cho bộ xem trước (`tools/xem/`): máy chủ xem
+		      trước phục vụ NHIỀU lượt gọi, mà thẻ phiên thì nằm trong bảng `session` — sổ trong
+		      bộ nhớ chết theo từng lượt, nên đăng nhập xong lượt sau đã quên. Không có lối này
+		      thì không chụp nổi bất kỳ màn nào sau màn gõ PIN. */
+		$tep = getenv( 'VHCC_STUB_DB' );
+		$this->pdo = new PDO( $tep ? ( 'sqlite:' . $tep ) : 'sqlite::memory:' );
 		$this->pdo->setAttribute( PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION );
 	}
 
@@ -455,7 +470,17 @@ class VHCP_Test_WPDB {
 
 	public function esc_like( $t ) { return addcslashes( (string) $t, '_%\\' ); }
 
-	public function exec_raw( $sql ) { return $this->pdo->exec( $sql ); }
+	public function exec_raw( $sql ) {
+		/* ⚠️ `CREATE TABLE` -> `CREATE TABLE IF NOT EXISTS`.
+		   Với sổ trong bộ nhớ thì thừa (sổ nào cũng trống). Nhưng máy chủ xem trước
+		   (`tools/xem/may-chu-tram.php`) dùng sổ nằm trong TỆP và khởi động lại bệ đỡ ở MỖI
+		   lượt gọi — lượt thứ hai đâm vào "table already exists" và chết, nên chụp được đúng
+		   một màn rồi thôi. Sửa ở đây là sửa cho cả hai bộ bảng, không phải đi thêm `IF NOT
+		   EXISTS` vào hai chục câu khai. */
+		$sql = preg_replace( '/^(\s*)CREATE\s+TABLE\s+(?!IF\s+NOT\s+EXISTS)/i',
+			'$1CREATE TABLE IF NOT EXISTS ', (string) $sql );
+		return $this->pdo->exec( $sql );
+	}
 
 	private function tr( $sql ) {
 		// SQLite không có SHOW TABLES — plugin dùng câu đó để hỏi "bảng của plugin kia có không".
