@@ -125,6 +125,14 @@ class VHCPMTD_SoChi {
 		$data               = self::data( $rec, $nguoi );
 		$data['id']         = VHCPMTD_Util::uid( 'C' );
 		$data['tao_luc']    = VHCPMTD_Util::now_sql();
+		/* 🔴 ĐÓNG DẤU MẢNG NGAY LÚC GHI SỔ. Anh Thắng 20/09/2026: *"nhớ tách ra từng mảng, thì
+		   dữ liệu nhớ định dạng sau để tìm biết chi đó của mảng nào"*. Sổ chi phí mới là chỗ
+		   người ta tra và là nguồn của bản xuất MISA, nên nó phải mang dấu — không thể suy
+		   ngược từ đơn, vì dòng sổ lẻ không treo vào đơn nào.
+		   ⚠️ GHI THẲNG, ĐỪNG DỰA VÀO `DEFAULT` CỦA CỘT. Mặc định là 'kvc' (hằng của bản gốc);
+		      tới lúc dữ liệu MTĐ / VP về chung kho, một dòng VP ghi ra mà dựa vào mặc định thì
+		      nó đóng dấu 'kvc' — tiền của mảng này chạy sang sổ mảng kia, im lặng. */
+		$data['khoi']       = VHCPMTD_DB::khoi();
 		$wpdb->insert( VHCPMTD_DB::t( 'so_chi' ), $data );
 		return VHCPMTD_Util::ok( array( 'id' => $data['id'], 'tkNo' => $data['tk_no'], 'tkCo' => $data['tk_co'], 'soTien' => VHCPMTD_Util::num( $data['so_tien'] ) ) );
 	}

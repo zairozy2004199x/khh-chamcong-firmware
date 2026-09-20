@@ -139,9 +139,24 @@ t( '🔴 chỗ lưu nối các ô ĐÃ TÍCH bằng dấu phẩy — đúng dạ
 	&& false !== strpos( $HTML, "function(c){ return c.value; }).join(', ')" ), '' );
 t( '   nói rõ không tích gì = mọi bộ phận',
 	false !== mb_strpos( $HTML, 'không tích = mọi bộ phận' ), '' );
-t( '🔴 lọc danh mục lúc nhập cũng so theo DANH SÁCH, không so nguyên chuỗi',
-	false !== strpos( $HTML, 'if(bp && bpLoai.length && bpLoai.indexOf(bp)<0) return false;' )
-	&& false === strpos( $HTML, "var b=String(x.boPhan||'').trim();\n      if(bp && b && b!==bp) return false;" ), '' );
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 TỪ 20/09/2026 Ô CHỌN LOẠI KHÔNG CÒN LỌC THEO BỘ PHẬN NGƯỜI ĐĂNG NHẬP.
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * Phép này trước đây đòi CÓ dòng lọc ấy (`bpLoai.indexOf(bp)<0 → return false`). Anh Thắng:
+ * *"Vừa phân theo bộ phận, vừa phân theo mảng. Dẫn đến xung đột"* — ô chọn bị ba bộ lọc nhân
+ * nhau (mã theo mảng · nút "Chọn chi phí nào" · bộ phận), mà dòng nhắc chỉ kể được một lý do.
+ *
+ * ⚠️ CỘT BỘ PHẬN KHÔNG BỎ, NÓ ĐỔI VAI: nay chỉ dùng để DỰNG mấy nút "Chọn chi phí nào" — tức
+ *    người nhập TỰ CHỌN Cơ sở hay Văn phòng, thay vì bị cắt ngầm theo danh tính. Mọi phép ở
+ *    trên (tách nhiều bộ phận, ô trống = mọi bộ phận) vẫn giữ nguyên vì vai ấy vẫn cần.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+t( '🔴 ô chọn loại KHÔNG còn cắt theo bộ phận của người đăng nhập',
+	false === strpos( $HTML, 'if(bp && bpLoai.length && bpLoai.indexOf(bp)<0) return false;' ), '' );
+t( '   và mấy nút "Chọn chi phí nào" cũng thôi cắt theo danh tính',
+	false === strpos( $HTML, 'if(bp && bds.length && bds.indexOf(bp)<0) return;' ), '' );
+/* Nhưng cột ấy PHẢI còn được dùng để gom loại về đúng nút — bỏ nốt là ba nút gộp làm một. */
+t( '🔴 cột Bộ phận vẫn dựng nên mấy nút ấy (`_khoaNhom` gom theo nó)',
+	false !== strpos( $HTML, '_khoaNhom((bp && bpLoai.indexOf(bp)>=0)?bp:(bpLoai[0]||\'\'), x.ten)' ), '' );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════ */
 if ( $TRUOT ) {

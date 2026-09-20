@@ -86,6 +86,8 @@ class VHCPVP_BP {
 		$ky   = trim( (string) $ky );
 		if ( $ky === '' ) { $ky = VHCPVP_Util::now()->format( 'm/Y' ); }
 		$wpdb->insert( VHCPVP_DB::t( 'bp_index' ), array(
+			/* Mảng đóng dấu lúc lập — xem chốt ở `VHCPVP_SoChi::add()`. */
+			'khoi'       => VHCPVP_DB::khoi(),
 			'ma'         => $ma,
 			'loai'       => $loai,
 			'ten'        => VHCPVP_Util::san( $ten ) !== '' ? VHCPVP_Util::san( $ten ) : $ma,
@@ -109,6 +111,8 @@ class VHCPVP_BP {
 		if ( $ky === '' ) { $ky = VHCPVP_Util::now()->format( 'm/Y' ); }
 		$ma = VHCPVP_Util::uid( 'BP' );
 		$wpdb->insert( VHCPVP_DB::t( 'bp_index' ), array(
+			/* Mảng đóng dấu lúc lập — xem chốt ở `VHCPVP_SoChi::add()`. */
+			'khoi'       => VHCPVP_DB::khoi(),
 			'ma'         => $ma,
 			'loai'       => $loai,
 			'ten'        => $ten,

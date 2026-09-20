@@ -837,7 +837,7 @@ class VHCP_Don {
 				'donVi'       => VHCP_DonVi::chuan( isset( $r['don_vi'] ) ? $r['don_vi'] : '' ),
 				/* Mảng của đơn — thanh KVC · MTĐ · VP lọc theo ô này. Đơn cũ (trước khi có cột)
 				   đã được `VHCP_DB::lap_mang()` lấp sẵn, nên ở đây không cần đoán gì. */
-				'mang'        => trim( (string) ( isset( $r['mang'] ) ? $r['mang'] : '' ) ),
+				'khoi'        => trim( (string) ( isset( $r['khoi'] ) ? $r['khoi'] : '' ) ),
 				'coso'        => $coso,
 				'ngayTao'     => VHCP_Util::fmt( $r['ngay_tao'] ),
 				'trangThai'   => ( $r['trang_thai'] !== '' ? $r['trang_thai'] : 'Nháp' ),
@@ -1119,7 +1119,7 @@ class VHCP_Don {
 			   `NOT NULL DEFAULT` ở `VHCP_DB`: rỗng nghĩa là mất tích, không phải "chưa khai".
 			   ⚠️ KHÔNG có ô cho người dùng chọn — y như `don_vi` ngay trên: một ô chọn là một
 			      chỗ chọn nhầm, mà chọn nhầm ở đây là đơn rơi sang sổ của mảng khác. */
-			'mang'       => VHCP_DB::mang(),
+			'khoi'       => VHCP_DB::khoi(),
 			'ngay_tao'   => VHCP_Util::now_sql(),
 			'trang_thai' => 'Nháp',
 			'ghi_chu'    => '',
@@ -3057,7 +3057,7 @@ class VHCP_Don {
 		$wpdb->insert( VHCP_DB::t( 'thungrac' ), array(
 			/* Thùng rác cũng mang dấu mảng: hoàn lại một đơn đã xoá mà không biết nó của mảng
 			   nào thì hoàn xong nó rơi vào tab khác. */
-			'mang'    => VHCP_DB::mang(),
+			'khoi'    => VHCP_DB::khoi(),
 			'luc'     => current_time( 'mysql' ),
 			'loai'    => (string) $loai,
 			'khoa'    => (string) $khoa,
@@ -3165,9 +3165,9 @@ class VHCP_Don {
 			 *    chơi. Lấp bằng ô `mang` CỦA CHÍNH DÒNG THÙNG RÁC: dòng ấy ghi lúc xoá, nên nó
 			 *    biết đơn thuộc mảng nào, còn mảng đang đứng thì không.
 			 * ══════════════════════════════════════════════════════════════════════════════ */
-			if ( ! isset( $don['mang'] ) || '' === trim( (string) $don['mang'] ) ) {
-				$don['mang'] = trim( (string) ( isset( $r['mang'] ) ? $r['mang'] : '' ) );
-				if ( '' === $don['mang'] ) { $don['mang'] = VHCP_DB::mang(); }
+			if ( ! isset( $don['khoi'] ) || '' === trim( (string) $don['khoi'] ) ) {
+				$don['khoi'] = trim( (string) ( isset( $r['khoi'] ) ? $r['khoi'] : '' ) );
+				if ( '' === $don['khoi'] ) { $don['khoi'] = VHCP_DB::khoi(); }
 			}
 			$wpdb->insert( VHCP_DB::t( 'don' ), $don );
 			$so = 0;
@@ -3879,7 +3879,7 @@ class VHCP_Don {
 			'id'       => $id,
 			/* Mảng đóng dấu lúc lập lệnh — xem chốt ở `VHCP_SoChi::add()`. Lệnh tạm ứng là tờ
 			   kế toán cầm đi phát tiền, nên nó phải nói rõ tiền của mảng nào. */
-			'mang'     => VHCP_DB::mang(),
+			'khoi'     => VHCP_DB::khoi(),
 			'luc'      => $luc,
 			'nguoi'    => (string) $nguoi,
 			'don_vi'   => $dv,

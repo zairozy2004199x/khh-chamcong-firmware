@@ -91,12 +91,23 @@ t('nói rõ ẩn bao nhiêu và VÌ SAO', /ẩn:/.test(viF.chu) && /chưa khai m
 t('gọi đúng tên mảng đang thiếu', /FARM MN/.test(viF.chu), viF);
 t('đang hiện bao nhiêu trên tổng bao nhiêu', /Đang hiện \d+\/5 loại/.test(viF.chu), viF);
 
-// ---------------------------------------------------------------- 3. rỗng hẳn thì chỉ luôn lối ra
+// ------------------------------------------------- 3. bộ phận KHÔNG còn là lý do ẩn (20/09/2026)
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 20/09/2026: *"Vừa phân theo bộ phận, vừa phân theo mảng. Dẫn đến xung đột — chọn
+ * mảng thì sai, bộ phận cũng không có"*. Ô chọn loại thôi cắt theo bộ phận của người đăng nhập;
+ * cột ấy nay chỉ dựng mấy nút "Chọn chi phí nào" để người nhập TỰ CHỌN.
+ *
+ * Ba phép ở đây trước đòi ngược lại: người Marketing mở ra thấy RỖNG, và dòng nhắc kể "thuộc bộ
+ * phận khác". Chính cảnh rỗng ấy là thứ phải bỏ — từ bản bỏ ô "Nội dung hạng mục" thì ô chọn
+ * rỗng nghĩa là KHÔNG NHẬP ĐƯỢC DÒNG NÀO.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
 const M2 = moi(NHOM_CP_CS, { boPhan: 'Marketing' });   // bộ phận không khớp loại nào
-teq('bộ phận khác -> không loại nào', 0, M2.list('TÀU ESTELLA', '', '').length);
+t('🔴 bộ phận khác VẪN chọn được — không còn ô trống trơn', M2.list('TÀU ESTELLA', '', '').length > 0,
+  M2.list('TÀU ESTELLA', '', '').length);
 const vi2 = M2.vi('TÀU ESTELLA', '', '');
-t('rỗng hẳn -> chỉ luôn nút khai nhanh', /Thêm loại chi phí mới/.test(vi2.chu), vi2);
-t('và đếm đủ lý do bộ phận', /thuộc bộ phận khác/.test(vi2.chu), vi2);
+t('🔴 và "thuộc bộ phận khác" thôi là lý do ẩn', !/thuộc bộ phận khác/.test(vi2.chu), vi2);
+/* ⚠️ Hai lý do CÒN LẠI vẫn phải kể ra — chúng là thứ cắt thật, và đều nhìn thấy được. */
+t('   nhưng thiếu mã theo mảng thì vẫn nói rõ', /chưa khai mã cho mảng/.test(vi2.chu), vi2);
 
 // ---------------------------------------------------------------- 4. đủ dùng thì đừng làm ồn
 const M3 = moi('', NV_CS);

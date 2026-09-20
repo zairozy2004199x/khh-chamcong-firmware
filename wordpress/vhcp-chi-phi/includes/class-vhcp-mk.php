@@ -65,7 +65,7 @@ class VHCP_MK {
 		if ( $ky === '' ) { $ky = VHCP_Util::now()->format( 'm/Y' ); }
 		$wpdb->insert( VHCP_DB::t( 'mk_don' ), array(
 			/* Mảng đóng dấu lúc lập — xem chốt ở `VHCP_SoChi::add()`. */
-			'mang'       => VHCP_DB::mang(),
+			'khoi'       => VHCP_DB::khoi(),
 			'ma'         => $ma,
 			'coso'       => $coso,
 			'ten'        => $ten,

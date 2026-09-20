@@ -1888,7 +1888,6 @@
     var co={}, ds=[];
     (BOOT.loaiChiPhi||[]).forEach(function(x){
       var bds=_bpTach(x.boPhan);                       // loại chi phí thuộc được NHIỀU bộ phận
-      if(bp && bds.length && bds.indexOf(bp)<0) return; // không phải bộ phận của mình
       /* Gom về nút nào ở "Chọn chi phí nào": ưu tiên chính bộ phận của người đang xem, để
          loại dùng chung không bị dồn hết vào nút của bộ phận đứng đầu chuỗi. */
       var k=_khoaNhom((bp && bds.indexOf(bp)>=0)?bp:(bds[0]||''), x.ten);
@@ -8369,10 +8368,9 @@
       // Ô "Chọn chi phí nào" ở mục 1 -> chỉ hiện loại của mảng đang chọn
       var bpLoai=_bpTach(x.boPhan);
       if(NHOM_CP && _khoaNhom((bp && bpLoai.indexOf(bp)>=0)?bp:(bpLoai[0]||''), x.ten)!==NHOM_CP) return false;
-      /* Loại chi phí thuộc được NHIỀU bộ phận. So nguyên chuỗi thì loại khai "Kỹ thuật,
-         Setup" không khớp bộ phận nào, và ô chọn Loại chi phí của người ấy TRỐNG TRƠN — đúng
-         cái anh Thắng gặp 10/09/2026. Không khai bộ phận nào thì vẫn dùng chung như cũ. */
-      if(bp && bpLoai.length && bpLoai.indexOf(bp)<0) return false;
+      /* 🔴 KHÔNG LỌC THEO BỘ PHẬN CỦA NGƯỜI ĐĂNG NHẬP — xem chốt dài ở khối dưới `_cacNhomCp()`.
+         Cột Bộ phận nay chỉ để DỰNG mấy nút "Chọn chi phí nào" (Cơ sở · Văn phòng · Setup…),
+         tức người nhập TỰ CHỌN; nó thôi cắt ngầm theo người đang đăng nhập. */
       var lt=String(x.loaiTt||'').trim();
       if(loaiTt && lt && lt!=='both' && lt!==loaiTt) return false;
       if(!mang) return true;                                   // chưa khai mảng cho cơ sở -> hiện hết
@@ -8524,17 +8522,15 @@
     }
     var mang=_mangCua(coso);
     var bp=String((CURUSER&&CURUSER.boPhan)||'').trim();
-    var nMa=0, nBp=0, nNhom=0;
+    var nMa=0, nNhom=0;
     (BOOT.loaiChiPhi||[]).forEach(function(x){
       var bds=_bpTach(x.boPhan);
       if(!_tkNoCua(x.ten, coso) && !_tkNoList(x.ten, coso).length){ nMa++; return; }
       if(NHOM_CP && _khoaNhom((bp && bds.indexOf(bp)>=0)?bp:(bds[0]||''), x.ten)!==NHOM_CP){ nNhom++; return; }
-      if(bp && bds.length && bds.indexOf(bp)<0){ nBp++; return; }
     });
     var ly=[];
     if(nMa)  ly.push(nMa+' chưa khai mã cho mảng <b>'+esc(mang||'(cơ sở chưa khai mảng)')+'</b>');
     if(nNhom) ly.push(nNhom+' thuộc nút khác ở "Chọn chi phí nào"');
-    if(nBp)  ly.push(nBp+' thuộc bộ phận khác');
     if(!hien){
       return {chu:'Không có loại nào dùng được ở đây' + (ly.length?(' — '+ly.join(' · ')):'')
         + '. Bấm <b>＋ Thêm loại chi phí mới…</b> trong ô trên để khai ngay.', mau:'#dc2626', thieuMa:nMa};

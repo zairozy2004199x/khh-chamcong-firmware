@@ -186,9 +186,9 @@ if ! grep -q "TEN_MAC_DINH = \"$TEN_TRANG\"" "$DICH/includes/class-vhcp-app.php"
   exit 5
 fi
 
-# ── MẢNG của bản này (cột `mang` trong mọi bảng) ───────────────────────────────────────────
+# ── KHỐI của bản này (cột `khoi` trong mọi bảng) ───────────────────────────────────────────
 #
-# 🔴 ANH THẮNG 19/09/2026 CHỐT GỘP BA MẢNG LÀM MỘT APP. Bước 1 mở cột `mang` trong sơ đồ bảng
+# 🔴 ANH THẮNG 19/09/2026 CHỐT GỘP BA MẢNG LÀM MỘT APP. Bước 1 mở cột `khoi` trong sơ đồ bảng
 #    của bản gốc, mặc định 'kvc'. Chuỗi 'kvc' là chữ thường không dấu, nên lượt đổi TIỀN TỐ ở
 #    trên KHÔNG chạm tới nó — chép sang bản Máy Tự Động thì mọi dòng họ nhập vẫn đóng dấu 'kvc'.
 #
@@ -199,11 +199,11 @@ fi
 # ⚠️ CÙNG KHUÔN VỚI `TEN_MAC_DINH` NGAY TRÊN: thay xong thì SOÁT LẠI và dừng hẳn nếu trượt.
 #    Một lượt thay lặng lẽ không khớp còn tệ hơn không thay, vì nó trông y như đã xong.
 perl -pi -e '
-  s{const MANG = .[^\x27"]*.;}{const MANG = \x27$ENV{MA}\x27;}g;
+  s{const KHOI = .[^\x27"]*.;}{const KHOI = \x27$ENV{MA}\x27;}g;
 ' "$DICH/includes/class-vhcp-db.php"
-if ! grep -q "const MANG = '$MA';" "$DICH/includes/class-vhcp-db.php"; then
-  echo "✗ Mảng chưa đổi — dữ liệu bản này sẽ đóng dấu 'kvc' và lẫn vào sổ khu vui chơi."
-  grep -n "const MANG" "$DICH/includes/class-vhcp-db.php" | head -3
+if ! grep -q "const KHOI = '$MA';" "$DICH/includes/class-vhcp-db.php"; then
+  echo "✗ Khối chưa đổi — dữ liệu bản này sẽ đóng dấu 'kvc' và lẫn vào sổ khu vui chơi."
+  grep -n "const KHOI" "$DICH/includes/class-vhcp-db.php" | head -3
   exit 6
 fi
 
