@@ -782,6 +782,18 @@ la('🔴 màn không lọc lại phạm vi, để máy chủ giữ một bản l
    'function _trongPhamVi(d){ return true; }' in src)
 la('   và không còn bản chép so ô Cơ sở với chuỗi trên đơn',
    'd.nguoiLap===CURUSER.name || _trongCoSoToi(d)' not in src)
+# ── THANH KHỐI (20/09/2026) KHÔNG ĐƯỢC NÚP SAU CHỐT PHẠM VI ─────────────────────────────────
+# 🔴 Lọc theo KHỐI là chuyện CHỌN TAB: người dùng tự bấm, tự đổi lại, và thanh khối hiện SỐ ĐƠN
+#    của từng khối nên không gì bị giấu lặng lẽ. Phạm vi QUYỀN thì khác hẳn — máy chủ giữ một
+#    bản luật duy nhất. Nhét khối vào `_trongPhamVi()` là phá luôn cái guard ngay trên, và
+#    khiến người sau tưởng khối là chuyện quyền hạn rồi đi thêm luật vào đó.
+la('🔴 khối lọc ở hàm RIÊNG, không nhét vào chốt phạm vi',
+   'function _hopKhoi(d)' in src and 'function _donHienDuoc(d){ return _trongPhamVi(d) && _hopKhoi(d); }' in src)
+la('   và hai chỗ bày đơn (ô Chọn đơn · Danh sách đơn) dùng CHUNG chốt ấy',
+   src.count('.filter(_donHienDuoc)') >= 2, [l.strip() for l in src.split('\n') if '_donHienDuoc)' in l][:3])
+# ⚠️ Đơn CHƯA có dấu khối vẫn phải hiện: ẩn một bản ghi lọt lưới là tiền có thật mà không tab
+#    nào thấy — hỏng theo hướng MẤT DỮ LIỆU, nặng hơn hẳn hướng bày thừa.
+la('🔴 đơn chưa có dấu khối vẫn hiện ở mọi khối', "return k==='' || k===String(KHOI_DANG).toLowerCase();" in src)
 # Dải phạm vi ĐÃ GỠ — anh Thắng 14/09/2026: *"loại bỏ này cho anh"*. Nó dựng để CHẨN ĐOÁN và
 # đã làm xong việc ấy (chỉ ra "108 đơn của cơ sở khác", tìm đúng chốt sau bốn lượt vá mò). Xong
 # việc thì gỡ: một dòng nhắc mỗi ngày rằng "bạn chỉ thấy cơ sở của mình" là thứ người dùng đọc
