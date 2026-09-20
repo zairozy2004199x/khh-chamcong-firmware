@@ -97,6 +97,30 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.46.0 =
+* **SỔ KHO HÀNG HOÁ** — tab mới "Kho hàng hoá". Cuối ngày nhân viên khai **bán bao nhiêu** và
+  **đếm còn bao nhiêu**; hệ đối chiếu với số máy POS ghi (lấy thẳng từ báo cáo FABi đã nạp) rồi
+  chỉ ra **hai chỗ lệch độc lập**:
+  *Lệch khai* = nhân viên khai bán − máy ghi bán · *Lệch kho* = đếm còn − tồn tính.
+* **Danh sách mặt hàng tự sinh từ FABi** — món mới xuất hiện là tự có ô nhập, khỏi khai báo
+  trước. Món hôm nay không bán cái nào **vẫn ở lại sổ** chừng nào còn tồn, để còn đếm được.
+* 🔴 **Món trong combo tự trừ kho theo thành phần.** FABi ghi doanh thu vào tên combo chứ không
+  vào tên chai nước, nên không tách thì chai nước ấy mãi mãi "chưa bán" và tồn tính thừa dần.
+  Có khối **Thành phần combo** để khai một lần (`Nước suối x2, Kẹo cầu vồng x1`), và hệ **nhắc**
+  khi thấy món trông như combo mà chưa khai. Hệ **không tự đoán** công thức — đoán sai là trừ
+  nhầm kho hàng loạt mà không dòng nào sai.
+* 🔴 **Tồn tính lấy số MÁY, không lấy số nhân viên khai.** Lấy số khai thì người khai thiếu bao
+  nhiêu, tồn tính cũng thừa bấy nhiêu — hai vế triệt tiêu, cột lệch luôn bằng 0 dù hàng đã mất.
+* 🔴 **Mỗi lần đếm tay là một mốc mới.** Tồn đầu ngày mai lấy **số đã đếm**, không lấy số tính,
+  nên một ngày lệch không kéo theo mọi ngày sau đỏ vì một lỗi đã xử lý xong.
+* 🔴 **Ô chưa khai hiện "—", khác hẳn ô đếm được 0.** Trộn hai thứ là cả sổ trông như đã soát
+  xong và khớp, đúng điều ngược lại với sự thật.
+* **Nới trần món từ 40 lên 300 mỗi ngày mỗi cơ sở.** 40 là đủ cho màn "món bán chạy" nhưng sai
+  cho sổ kho: món rơi khỏi top 40 thành "bán 0 cái", rồi tồn tính thừa đúng bằng số đã bán —
+  trông y như nhân viên ăn bớt. Mà thất thoát thật hay nằm đúng ở mấy món bán lẻ tẻ ấy.
+* Bài kiểm mới `tools/test/kiem-kho.php` (**32 phép**) và `tools/test/kiem-kho-man.js`
+  (**28 phép**).
+
 = 1.45.0 =
 * **NHẬN BÁO CÁO QUA HỘP THƯ.** FABi gửi báo cáo kèm tệp đính kèm về một hộp thư riêng, web tự
   vào lấy theo giờ (mặc định 2 tiếng, chỉnh được 1–24) rồi nạp vào kho. Màn cấu hình nằm trong

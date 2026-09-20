@@ -3,7 +3,7 @@
  * Plugin Name:       K&H — Báo cáo doanh thu FABi
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Nạp file "Báo cáo bán hàng" xuất từ máy POS FABi (iPOS) và dựng báo cáo doanh thu theo ngày, cửa hàng, khung giờ, hình thức thanh toán, tại chỗ/mang về và món bán chạy. Có sẵn đường nối API FABi để bật khi iPOS cấp khoá.
- * Version:           1.45.0
+ * Version:           1.46.0
  * Requires at least: 5.8
  * Requires PHP:      7.2
  * Author:            K&H
@@ -26,7 +26,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'KHH_DT_VERSION', '1.45.0' );
+define( 'KHH_DT_VERSION', '1.46.0' );
 define( 'KHH_DT_FILE', __FILE__ );
 define( 'KHH_DT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KHH_DT_URL', plugin_dir_url( __FILE__ ) );
@@ -48,6 +48,7 @@ require_once KHH_DT_DIR . 'bes.php';
 require_once KHH_DT_DIR . 'momo-ipn.php';
 require_once KHH_DT_DIR . 'momo-phi.php';
 require_once KHH_DT_DIR . 'hop-thu.php';
+require_once KHH_DT_DIR . 'kho.php';
 
 /** Đường dẫn ngoài của báo cáo, ví dụ khmatrix.com/doanh-thu-hcm */
 function khh_dt_slug() {
@@ -122,6 +123,7 @@ function khh_dt_kich_hoat() {
 	khh_dt_tao_bang_momo();
 	khh_dt_tao_bang_momo_ipn();
 	khh_dt_tao_bang_momo_phi();
+	khh_dt_tao_bang_kho();
 	khh_dt_tao_bang_momo_sk();
 	update_option( 'khh_dt_version', KHH_DT_VERSION );
 	khh_dt_rewrite();

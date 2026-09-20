@@ -22,6 +22,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+/** Giữ bao nhiêu món mỗi (ngày × cơ sở). Xem chú thích ở chỗ dùng — sổ kho dựa vào con số này. */
+defined( 'KHH_DT_MON_MOI_NGAY' ) || define( 'KHH_DT_MON_MOI_NGAY', 300 );
+
 /** Máy chủ có đọc được .xlsx không. */
 function khh_dt_doc_duoc_xlsx() {
 	return class_exists( 'ZipArchive' ) && class_exists( 'XMLReader' );
@@ -492,7 +495,13 @@ function khh_dt_phan_tich( $duong_dan, $ten_file = '' ) {
 			$mon = array();
 			$i   = 0;
 			foreach ( $o['mon_r'] as $ten_mon => $r ) {
-				if ( $i++ >= 40 ) {
+				/* 🔴 TRẦN NÀY TỪNG LÀ 40, VÀ 40 THÀNH SAI TỪ KHI CÓ SỔ KHO.
+				   Giữ 40 món nhiều nhất là đủ cho màn "món bán chạy" — chỗ người ta chỉ nhìn
+				   đầu bảng. Nhưng sổ kho lấy chính con số này làm "máy POS ghi bán bao nhiêu",
+				   nên món nào rơi khỏi top 40 sẽ thành BÁN 0 CÁI, rồi tồn tính ra THỪA đúng
+				   bằng số đã bán — trông y như nhân viên ăn bớt. Mà thất thoát thật thì hay
+				   nằm đúng ở mấy món bán lẻ tẻ cuối bảng ấy. */
+				if ( $i++ >= KHH_DT_MON_MOI_NGAY ) {
 					break;
 				}
 				$mon[] = array(
