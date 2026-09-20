@@ -522,22 +522,28 @@ function khh_dt_kho_combo_chua_khai( $tu, $den, $co_so ) {
 }
 
 /**
- * FABi CÓ TỰ TÁCH SẴN THÀNH PHẦN COMBO KHÔNG — dò từ chính số liệu, không đoán.
+ * MÓN MÁY GHI SỐ LƯỢNG MÀ DOANH THU 0đ.
  *
- * 20/09/2026 anh Thắng hỏi đúng chỗ nguy: *"Theo máy thì nó có tự tách combo có hàng trong đó
- * không"*. Câu trả lời KHÁC NHAU TUỲ BẢN XUẤT của FABi, và chọn sai là sai kiểu tệ nhất:
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 ĐÂY KHÔNG PHẢI PHÉP DÒ "FABi ĐÃ TÁCH SẴN COMBO" — BẢN TRƯỚC NÓI THẾ LÀ SAI.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 20/09/2026 anh Thắng hỏi *"Theo máy thì nó có tự tách combo có hàng trong đó không"*, và em
+ * dựng hàm này để tự trả lời, với lý lẽ: "thành phần combo thì máy ghi số lượng mà doanh thu
+ * 0đ". Lý lẽ ấy hỏng, vì `doc-file.php` CỘNG GỘP các món THEO TÊN trong mỗi (ngày × cơ sở):
  *
- *   · FABi CHƯA tách, mà mình cũng không khai thành phần -> chai nước trong combo mãi mãi
- *     "chưa bán", tồn tính thừa dần. Sổ đỏ oan.
- *   · FABi ĐÃ tách sẵn, mà mình lại khai thành phần nữa -> TRỪ KHO HAI LẦN. Tồn tính thiếu
- *     dần, sổ báo mất hàng liên tục trong khi kho vẫn đủ. Tệ hơn, vì nó tố oan người trực.
+ *   · Một mặt hàng vừa bán lẻ vừa nằm trong combo -> doanh thu phần bán lẻ kéo tổng lên > 0,
+ *     nên nó KHÔNG BAO GIỜ lọt vào danh sách này. Tức đúng trường hợp cần dò thì dò không ra.
+ *   · Thứ lọt vào lại là món LÚC NÀO CŨNG 0đ — hàng cho, khuyến mãi, vé online. Anh Thắng gửi
+ *     ảnh màn hình và nó liệt kê đúng thế: "BIMBIM LỚN MIỄN PHÍ", "NƯỚC SUỐI DANASI MIỄN PHÍ",
+ *     "TRÀ CHANH GIÃ TAY MIỄN PHÍ", "VÉ ONLINE". Không cái nào là thành phần combo.
  *
- * Dấu hiệu nhận biết: bản xuất có tách sẵn thì dòng thành phần mang SỐ LƯỢNG > 0 mà DOANH THU
- * = 0 — tiền nằm hết ở dòng combo. Món bán lẻ bình thường không bao giờ như thế.
+ * Nên hàm này nay chỉ nói ĐÚNG điều nó biết: mấy món máy ghi 0đ. Chúng CÓ trừ kho (số lượng
+ * vẫn vào `ban_may`), và chúng CÓ THỂ là hàng cho, cũng CÓ THỂ là thành phần combo máy đã tách
+ * — hệ không phân biệt được, nên phải để người xem quyết định, không được kết luận thay.
  *
- * @return array [ tên món => số lượng ] — mấy món trông như đã được FABi tách sẵn.
+ * @return array [ tên món => số lượng ] — món máy ghi số lượng mà doanh thu 0đ.
  */
-function khh_dt_kho_fabi_da_tach( $tu, $den, $co_so ) {
+function khh_dt_kho_mon_khong_tien( $tu, $den, $co_so ) {
 	global $wpdb;
 	$bang = khh_dt_bang();
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
@@ -568,13 +574,14 @@ function khh_dt_kho_fabi_da_tach( $tu, $den, $co_so ) {
 }
 
 /**
- * Mấy mặt hàng đang bị TRỪ KHO HAI LẦN: FABi đã tách sẵn, mà bảng combo lại khai thêm.
+ * Mặt hàng NGHI bị trừ kho hai lần: vừa có dòng 0đ của máy, vừa bị khai trong bảng combo.
  *
- * 🔴 Đây là cảnh báo đắt nhất trong cả sổ kho. Trừ hai lần thì ngày nào cũng báo thiếu hàng,
- *    người trực bị nghi oan, và không có dòng nào sai để lần ra.
+ * ⚠️ NGHI, KHÔNG PHẢI CHẮC — xem chú thích `khh_dt_kho_mon_khong_tien()`. Dòng 0đ có thể là
+ *    hàng cho (thì khai combo vẫn đúng), có thể là thành phần máy đã tách (thì khai combo là
+ *    trừ hai lần). Hệ nêu ra để người xem kiểm, chứ không kết luận thay.
  */
 function khh_dt_kho_tru_hai_lan( $tu, $den, $co_so ) {
-	$da_tach = khh_dt_kho_fabi_da_tach( $tu, $den, $co_so );
+	$da_tach = khh_dt_kho_mon_khong_tien( $tu, $den, $co_so );
 	if ( ! $da_tach ) {
 		return array();
 	}
@@ -643,9 +650,16 @@ function khh_dt_rest_kho_xem( $req ) {
 	if ( '' === $co_so ) {
 		return new WP_Error( 'khh_dt_kho', 'Chưa chọn cơ sở.', array( 'status' => 400 ) );
 	}
-	/* ⚠️ Màn XEM không gọi `khh_dt_duoc_cua_hang()`: hàm ấy đòi quyền GHI trước khi xét cơ sở,
-	   nên dùng ở đây là người chỉ có quyền xem sẽ bị chối cả màn kho. Gác theo cơ sở chỉ đặt ở
-	   đường GHI, đúng lối `bao-cao-ngay.php` đang làm. */
+	/* 🔴 GÁC CẢ ĐƯỜNG ĐỌC, KHÔNG CHỈ ĐƯỜNG GHI.
+	   Bản trước bỏ trống chỗ này với lý do "`khh_dt_duoc_cua_hang()` đòi quyền GHI nên không
+	   dùng được ở màn xem" — đúng về mặt hàm, sai về mặt kết luận: bỏ luôn phép gác thì cửa
+	   hàng trưởng quán này đổi một chữ trên thanh địa chỉ là đọc được sổ kho, tồn hàng và cả
+	   phần khai của quán kia. `bao-cao-ngay.php` đã vấp đúng chỗ này và xử bằng `khh_dt_co_so_ds()`
+	   — phạm vi cơ sở của người dùng, KHÔNG dính tới quyền ghi. Ở đây làm y như thế. */
+	$cho_phep = function_exists( 'khh_dt_co_so_ds' ) ? khh_dt_co_so_ds() : array();
+	if ( $cho_phep && ! in_array( $co_so, $cho_phep, true ) ) {
+		return new WP_Error( 'khh_dt_kho', 'Anh/chị không phụ trách cơ sở này.', array( 'status' => 403 ) );
+	}
 	return array(
 		'ngay'       => $ngay,
 		'co_so'      => $co_so,
@@ -658,9 +672,9 @@ function khh_dt_rest_kho_xem( $req ) {
 			$ngay,
 			$co_so
 		),
-		/* Anh Thắng hỏi "máy có tự tách combo không" — hệ tự trả lời bằng số liệu, xem chú
-		   thích ở `khh_dt_kho_fabi_da_tach()`. */
-		'fabi_da_tach'  => khh_dt_kho_fabi_da_tach(
+		/* Món máy ghi 0đ — CHỈ vậy thôi, không kết luận là thành phần combo. Xem chú thích
+		   dài ở `khh_dt_kho_mon_khong_tien()`: phép dò cũ nói quá điều nó biết. */
+		'mon_khong_tien' => khh_dt_kho_mon_khong_tien(
 			gmdate( 'Y-m-d', strtotime( $ngay ) - 30 * DAY_IN_SECONDS ),
 			$ngay,
 			$co_so

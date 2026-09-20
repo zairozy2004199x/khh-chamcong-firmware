@@ -206,18 +206,24 @@ phep( '🔴 "1.200" đọc ra 1200, không phải 1,2', 1200.0 === (float) $d['n
 phep( 'tồn tính = 1200 − 200 = 1000', 1000.0 === (float) $d['ton_tinh'] );
 phep( 'đếm "1.000" khớp, lệch 0', 0.0 === (float) $d['lech_kho'] );
 
-/* ── 9. 🔴 FABi CÓ TỰ TÁCH SẴN THÀNH PHẦN COMBO KHÔNG ───────────────────────────────
-      Anh Thắng 20/09/2026: *"Theo máy thì nó có tự tách combo có hàng trong đó không"*. Câu
-      trả lời khác nhau tuỳ bản xuất, và chọn sai là sai kiểu tệ nhất:
-        · FABi chưa tách + mình không khai  -> tồn thừa dần, sổ đỏ oan;
-        · FABi đã tách  + mình khai thêm    -> TRỪ KHO HAI LẦN, sổ báo mất hàng mỗi ngày
-                                                trong khi kho vẫn đủ, người trực bị nghi oan.
-      Dấu hiệu: dòng thành phần có SỐ LƯỢNG > 0 mà DOANH THU = 0 (tiền nằm ở dòng combo). */
+/* ── 9. MÓN MÁY GHI 0đ — VÀ VÌ SAO NÓ KHÔNG TRẢ LỜI ĐƯỢC CÂU HỎI VỀ COMBO ───────────
+      Anh Thắng 20/09/2026 hỏi *"Theo máy thì nó có tự tách combo có hàng trong đó không"*, và
+      em dựng phép dò với lý lẽ "thành phần combo thì máy ghi số lượng mà doanh thu 0đ".
+
+      🔴 LÝ LẼ ẤY HỎNG, và bài này khoá luôn chỗ hỏng để không ai dựng lại nó:
+      `doc-file.php` CỘNG GỘP món THEO TÊN trong mỗi (ngày × cơ sở). Nên mặt hàng vừa bán lẻ
+      vừa nằm trong combo sẽ có tổng doanh thu > 0 và KHÔNG BAO GIỜ lọt vào danh sách — tức
+      đúng trường hợp cần dò thì dò không ra. Thứ lọt vào lại là món LÚC NÀO CŨNG 0đ: hàng cho,
+      khuyến mãi, vé online. Ảnh màn hình anh Thắng gửi đúng thế: toàn "… MIỄN PHÍ" và
+      "VÉ ONLINE", không cái nào là thành phần combo.
+
+      Nên hàm nay chỉ nói ĐÚNG điều nó biết: món máy ghi 0đ. Chúng vẫn trừ kho. Còn là hàng cho
+      hay thành phần combo thì để người xem quyết — hệ không được kết luận thay. */
 dung_bang();
 /* Bản xuất KHÔNG tách: chỉ có dòng combo, có tiền. */
 fabi( '2026-09-01', $CS, array( 'Combo 2 người' => 10, 'Nước suối' => 3 ) );
 phep( 'bản xuất không tách sẵn thì hệ nói là KHÔNG',
-	array() === khh_dt_kho_fabi_da_tach( '2026-08-01', '2026-09-01', $CS ) );
+	array() === khh_dt_kho_mon_khong_tien( '2026-08-01', '2026-09-01', $CS ) );
 
 /* Bản xuất CÓ tách: dòng combo có tiền, dòng thành phần có số lượng mà 0đ. */
 dung_bang();
@@ -230,10 +236,41 @@ fabi(
 		'Kẹo cầu vồng'  => array( 10, 0 ),
 	)
 );
-$tach = khh_dt_kho_fabi_da_tach( '2026-08-01', '2026-09-01', $CS );
-phep( '🔴 bản xuất có tách sẵn thì hệ NHẬN RA', 2 === count( $tach ) );
+$tach = khh_dt_kho_mon_khong_tien( '2026-08-01', '2026-09-01', $CS );
+phep( 'hệ nêu ra được mấy món máy ghi 0đ', 2 === count( $tach ) );
 phep( 'và nói đúng mặt hàng lẫn số lượng', 20.0 === (float) $tach['Nước suối'] );
-phep( 'món có doanh thu KHÔNG bị kể là "đã tách"', ! isset( $tach['Combo 2 người'] ) );
+phep( 'món có doanh thu KHÔNG bị kể vào', ! isset( $tach['Combo 2 người'] ) );
+
+/* 🔴 CHỐT CHỐNG NÓI QUÁ. Mặt hàng VỪA bán lẻ (có tiền) VỪA đi theo combo (0đ) thì bị cộng gộp
+   theo tên, tổng doanh thu > 0, nên KHÔNG lọt vào danh sách — dù nó đúng là thứ máy đã tách.
+   Phép này đứng đây để nhắc: đừng bao giờ đọc danh sách ấy thành "FABi đã tách sẵn combo". */
+dung_bang();
+fabi(
+	'2026-09-05',
+	$CS,
+	array( 'Nước suối' => array( 25, 150000 ) )   // 5 bán lẻ có tiền + 20 theo combo 0đ, gộp lại
+);
+phep( '🔴 mặt hàng vừa bán lẻ vừa theo combo thì KHÔNG hiện ra — phép dò không thấy được nó',
+	array() === khh_dt_kho_mon_khong_tien( '2026-09-05', '2026-09-05', $CS ) );
+
+/* Và món hàng cho, lúc nào cũng 0đ, thì LỌT vào — đúng thứ anh Thắng thấy trên màn. */
+dung_bang();
+fabi( '2026-09-05', $CS, array( 'Bimbim lớn miễn phí' => array( 139, 0 ), 'Vé online' => array( 7, 0 ) ) );
+$kt = khh_dt_kho_mon_khong_tien( '2026-09-05', '2026-09-05', $CS );
+phep( 'hàng cho / vé online thì lọt vào danh sách 0đ', 2 === count( $kt ) );
+phep( 'và chúng KHÔNG phải thành phần combo — hệ không được kết luận thay người dùng',
+	isset( $kt['Bimbim lớn miễn phí'] ) && isset( $kt['Vé online'] ) );
+
+dung_bang();
+fabi(
+	'2026-09-01',
+	$CS,
+	array(
+		'Combo 2 người' => 10,
+		'Nước suối'     => array( 20, 0 ),
+		'Kẹo cầu vồng'  => array( 10, 0 ),
+	)
+);
 
 /* Chưa khai combo thì không có gì trừ hai lần. */
 phep( 'FABi đã tách mà chưa khai combo thì KHÔNG trừ hai lần',
@@ -326,6 +363,38 @@ phep( '🔴 danh mục rỗng là THÔI LỌC, bày lại hết — không phả
 $da_thay = khh_dt_kho_mon_da_thay( '2026-08-01', '2026-09-01', $CS );
 phep( 'bày ra đủ món để chọn', 3 === count( $da_thay ) );
 phep( 'kèm số lượng đã bán, để biết món nào đáng đưa vào kho', 10.0 === (float) $da_thay['Nước suối'] );
+
+/* ── 12. 🔴 ĐƯỜNG ĐỌC PHẢI GÁC THEO CƠ SỞ, KHÔNG CHỈ ĐƯỜNG GHI ───────────────────────
+      Bản đầu của `khh_dt_rest_kho_xem()` bỏ trống phép gác, với lý do "`khh_dt_duoc_cua_hang()`
+      đòi quyền GHI nên không dùng được ở màn xem". Đúng về mặt hàm, sai về mặt kết luận: bỏ
+      luôn phép gác thì cửa hàng trưởng quán này đổi một chữ trên thanh địa chỉ là đọc được sổ
+      kho, tồn hàng và cả phần khai của quán kia. `bao-cao-ngay.php` đã vấp đúng chỗ này rồi và
+      xử bằng `khh_dt_co_so_ds()` — phạm vi cơ sở của người dùng, không dính tới quyền ghi. */
+if ( ! function_exists( 'khh_dt_co_so_ds' ) ) {
+	function khh_dt_co_so_ds() {
+		return isset( $GLOBALS['KHO_PHAM_VI'] ) ? $GLOBALS['KHO_PHAM_VI'] : array();
+	}
+}
+if ( ! function_exists( 'khh_dt_duoc_ghi' ) ) {
+	function khh_dt_duoc_ghi() { return true; }
+}
+dung_bang();
+fabi( '2026-09-01', $CS, array( 'Nước suối' => 10 ) );
+
+$GLOBALS['KHO_PHAM_VI'] = array();   // không giới hạn -> xem được
+$r = khh_dt_rest_kho_xem( new WP_REST_Request( array( 'ngay' => '2026-09-01', 'co_so' => $CS ) ) );
+phep( 'không giới hạn phạm vi thì xem được', ! is_wp_error( $r ) );
+
+$GLOBALS['KHO_PHAM_VI'] = array( 'Cơ sở khác' );   // chỉ phụ trách quán khác
+$r = khh_dt_rest_kho_xem( new WP_REST_Request( array( 'ngay' => '2026-09-01', 'co_so' => $CS ) ) );
+phep( '🔴 ĐỌC kho của cơ sở mình KHÔNG phụ trách thì bị chối', is_wp_error( $r ) );
+phep( 'và chối bằng mã 403', is_wp_error( $r ) && 403 === (int) $r->get_error_data()['status'] );
+
+$GLOBALS['KHO_PHAM_VI'] = array( $CS );
+$r = khh_dt_rest_kho_xem( new WP_REST_Request( array( 'ngay' => '2026-09-01', 'co_so' => $CS ) ) );
+phep( 'cơ sở mình phụ trách thì xem được bình thường', ! is_wp_error( $r ) );
+phep( 'và trả về đúng tên cơ sở để màn hình bày ra', $CS === $r['co_so'] );
+$GLOBALS['KHO_PHAM_VI'] = array();
 
 if ( $hong ) {
 	echo "\n✗ HỎNG " . count( $hong ) . " phép (đạt $dat):\n";

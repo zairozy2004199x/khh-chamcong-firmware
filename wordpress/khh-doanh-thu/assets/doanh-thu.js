@@ -1215,32 +1215,41 @@
         ? '<label class="o">Cơ sở<select id="khoCS">' + ds.map(function (t) {
             return '<option value="' + esc(t) + '"' + (r.co_so === t ? ' selected' : '') + '>' + esc(t) + '</option>';
           }).join('') + '</select></label>'
-        : '') +
+        /* 🔴 TÀI KHOẢN MỘT CƠ SỞ VẪN PHẢI THẤY TÊN CƠ SỞ.
+           Bản trước để rỗng — trên màn không còn chữ nào nhắc tới cơ sở, mà tên ở tiêu đề
+           khung thì cuộn khỏi tầm mắt ngay khi bắt đầu gõ. Anh Thắng nhìn màn điện thoại
+           20/09/2026 rồi hỏi thẳng "chưa tách cơ sở à" — số liệu CÓ tách theo cơ sở từ đầu,
+           nhưng màn không nói ra thì người dùng không có cách nào biết, và đó cũng là lỗi. */
+        : '<span class="o" id="khoCSMot"><label>Cơ sở</label><b>' + esc(r.co_so) + '</b></span>') +
       '</div>';
 
     /* 🔴 CẢNH BÁO ĐẮT NHẤT CỦA CẢ SỔ: đang trừ kho HAI LẦN.
        FABi đã tách sẵn thành phần combo (dòng có số lượng mà doanh thu 0đ), mà bảng combo lại
        khai thêm — thế là mỗi chai nước bị trừ hai lượt. Ngày nào cũng báo thiếu hàng, người
        trực bị nghi oan, mà không có dòng nào sai để lần ra. */
-    if ((r.tru_hai_lan || []).length) {
-      h += '<div class="canh-ghep" style="margin-top:6px;border-color:var(--xau)">' +
-        '🔴 <b>ĐANG TRỪ KHO HAI LẦN:</b> ' + r.tru_hai_lan.map(esc).join(' · ') +
-        '.<br>FABi <b>đã tự tách sẵn</b> mấy mặt hàng này ra khỏi combo (máy ghi số lượng nhưng ' +
-        'doanh thu 0đ, vì tiền nằm ở dòng combo), mà bảng <b>Thành phần combo</b> lại khai thêm ' +
-        'lần nữa. <b>Xoá thành phần combo đi</b> — để trống ô thành phần rồi Lưu. Cứ để thế này ' +
-        'thì sổ báo mất hàng mỗi ngày trong khi kho vẫn đủ.</div>';
-    } else if (r.fabi_da_tach && Object.keys(r.fabi_da_tach).length) {
-      /* Có tách sẵn mà chưa ai khai combo -> không sai gì, nhưng phải nói để khỏi đi khai thừa. */
-      h += '<div class="canh-ghep" style="margin-top:6px">✓ <b>FABi đang tự tách sẵn thành phần ' +
-        'combo.</b> Mấy món này máy ghi số lượng mà doanh thu 0đ — tiền nằm ở dòng combo: ' +
-        esc(Object.keys(r.fabi_da_tach).slice(0, 8).join(' · ')) +
-        (Object.keys(r.fabi_da_tach).length > 8 ? ' …' : '') +
-        '.<br>Nghĩa là kho đã trừ đúng rồi, <b>đừng khai thành phần combo nữa</b> — khai là trừ hai lần.</div>';
+    /* 🔴 KHÔNG CÒN KẾT LUẬN "FABi ĐÃ TÁCH SẴN COMBO" — bản trước nói thế là nói quá.
+       Món máy ghi 0đ có thể là hàng cho / khuyến mãi, cũng có thể là thành phần combo máy đã
+       tách. Hệ KHÔNG phân biệt được (xem chú thích dài ở `khh_dt_kho_mon_khong_tien` bên PHP:
+       món được cộng gộp theo tên, nên mặt hàng vừa bán lẻ vừa nằm trong combo thì tổng doanh
+       thu > 0 và không bao giờ lọt vào danh sách này). Ảnh màn hình anh Thắng gửi chứng minh:
+       danh sách toàn "… MIỄN PHÍ" và "VÉ ONLINE", không cái nào là thành phần combo. */
+    var kTien = Object.keys(r.mon_khong_tien || {});
+    if (kTien.length) {
+      h += '<div class="canh-ghep" style="margin-top:6px">ℹ️ <b>' + kTien.length +
+        ' món máy ghi số lượng mà doanh thu 0đ:</b> ' +
+        esc(kTien.slice(0, 8).join(' · ')) + (kTien.length > 8 ? ' …' : '') +
+        '.<br>Có thể là <b>hàng cho / khuyến mãi</b>, cũng có thể là <b>thành phần combo máy đã ' +
+        'tách sẵn</b> — hệ không phân biệt được hai thứ ấy. Dù là gì thì chúng <b>vẫn rời kho</b> ' +
+        'và đã được tính vào cột "Máy bán tổng".' +
+        ((r.tru_hai_lan || []).length
+          ? '<br>🔴 <b>Xem lại kẻo trừ hai lần:</b> ' + r.tru_hai_lan.map(esc).join(' · ') +
+            ' vừa có dòng 0đ của máy, vừa đang được khai trong <b>Thành phần combo</b>. Nếu dòng ' +
+            '0đ ấy là thành phần combo máy đã tách thì khai thêm là trừ hai lượt — xoá khai combo đi.'
+          : '') +
+        '</div>';
     }
 
-    /* Món trông như combo mà chưa khai thành phần -> nhắc. Không tự đoán công thức: đoán sai là
-       trừ nhầm kho hàng loạt mà không dòng nào sai. */
-    if ((r.combo_nghi || []).length && ghi && !(r.fabi_da_tach && Object.keys(r.fabi_da_tach).length)) {
+    if ((r.combo_nghi || []).length && ghi) {
       h += '<div class="canh-ghep" style="margin-top:6px">⚠️ <b>Chưa khai thành phần combo:</b> ' +
         r.combo_nghi.map(esc).join(' · ') +
         '.<br>Combo bán ra là hàng rời kho, nhưng FABi ghi doanh thu vào tên combo chứ không vào ' +

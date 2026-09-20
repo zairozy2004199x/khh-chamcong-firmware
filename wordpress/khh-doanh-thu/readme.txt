@@ -97,6 +97,25 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.51.0 =
+* 🔴 **Vá lỗ đọc chéo cơ sở ở sổ kho.** Đường ĐỌC của sổ kho không gác theo phạm vi cơ sở của
+  người dùng — cửa hàng trưởng quán này đổi một chữ trên thanh địa chỉ là đọc được sổ kho, tồn
+  hàng và phần khai của quán khác. Nay gác bằng `khh_dt_co_so_ds()`, đúng lối `bao-cao-ngay.php`
+  đã làm (đường GHI vốn đã có gác).
+* 🔴 **Rút lại một kết luận sai của 1.47.0.** Bản ấy khẳng định *"FABi đang tự tách sẵn thành
+  phần combo"* dựa trên dấu hiệu "món có số lượng mà doanh thu 0đ". Dấu hiệu ấy **hỏng**, vì
+  món được **cộng gộp theo tên** trong mỗi (ngày × cơ sở): mặt hàng vừa bán lẻ vừa nằm trong
+  combo sẽ có tổng doanh thu > 0 nên **không bao giờ** lọt vào danh sách — đúng trường hợp cần
+  dò thì dò không ra. Thứ lọt vào lại là món **lúc nào cũng 0đ**: hàng cho, khuyến mãi, vé
+  online. Nay màn chỉ nêu *"N món máy ghi số lượng mà doanh thu 0đ"*, nói rõ **không phân biệt
+  được** hàng cho với thành phần combo, và **vẫn nhắc** khai thành phần combo thay vì chặn.
+* Cảnh báo trừ hai lần giữ lại nhưng **hạ đúng mức chắc chắn**: *"xem lại kẻo trừ hai lần"*.
+* **Luôn hiện đang xem kho của cơ sở nào**, kể cả tài khoản chỉ phụ trách một cơ sở — trước đây
+  ô chọn chỉ vẽ khi có từ hai cơ sở, nên trên điện thoại không còn chữ nào nhắc tới cơ sở.
+* **Bệ đỡ bài thử**: `WP_Error` nay nhận tham số thứ ba và có `get_error_data()` — trước đây
+  nuốt mất nên không bài nào kiểm được một lượt chối là 403 hay 400.
+* `tools/test/kiem-kho.php` lên **69 phép**, `tools/test/kiem-kho-man.js` lên **57 phép**.
+
 = 1.50.0 =
 * 🔴 **Chọn mặt hàng CÓ KHO của từng cơ sở.** FABi bán cả BẠC XỈU, CACAO LATTE, COMBO TRÀ CHANH
   GIÃ TAY — đồ pha tại chỗ, không có kho để đếm. Đổ hết vào sổ thì nhân viên phải cuộn qua vài

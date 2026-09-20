@@ -423,10 +423,18 @@ function wp_strip_all_tags( $s ) { return strip_tags( (string) $s ); }
 function checked( $a, $b = true, $echo = true ) { return ( (string) $a === (string) $b ) ? " checked='checked'" : ''; }
 /** WP_Error thật của WordPress — plugin hợp đồng dùng lớp này để báo "thiếu bảng người dùng". */
 class WP_Error {
-	private $code; private $msg;
-	public function __construct( $code = '', $msg = '' ) { $this->code = $code; $this->msg = $msg; }
+	private $code; private $msg; private $data;
+	/* 🔴 PHẢI NHẬN CẢ THAM SỐ THỨ BA. Mã trong kho gọi
+	   `new WP_Error( 'x', 'y', array( 'status' => 403 ) )` ở khắp các đường REST — mã HTTP nằm
+	   trong đó. Bản trước nuốt mất tham số ấy và không có `get_error_data()`, nên bài thử KHÔNG
+	   kiểm được một lượt chối là 403 hay 400 — mà 400 với 403 là hai chuyện khác hẳn: một cái
+	   bảo "gửi thiếu", một cái bảo "không được phép". */
+	public function __construct( $code = '', $msg = '', $data = '' ) {
+		$this->code = $code; $this->msg = $msg; $this->data = $data;
+	}
 	public function get_error_message() { return $this->msg; }
 	public function get_error_code() { return $this->code; }
+	public function get_error_data() { return $this->data; }
 }
 function wp_remote_retrieve_response_code( $r ) { return isset( $r['code'] ) ? (int) $r['code'] : 200; }
 /** Header của phản hồi giả — khoá viết thường, giống WordPress thật. */

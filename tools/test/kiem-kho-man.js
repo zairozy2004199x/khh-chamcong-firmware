@@ -89,10 +89,25 @@ t('bày cả hai cột máy: bán lẻ và theo combo',
   /Máy bán lẻ/.test(boCC) && /Theo combo/.test(boCC));
 t('bày cả hai cột lệch', /Lệch khai/.test(boCC) && /Lệch kho/.test(boCC));
 t('🔴 nhắc combo chưa khai thành phần', /combo_nghi/.test(boCC));
-t('🔴 kêu to khi đang TRỪ KHO HAI LẦN', /tru_hai_lan/.test(boCC) && /TRỪ KHO HAI LẦN/.test(boCC));
-t('nói ra khi FABi đã tự tách sẵn thành phần', /fabi_da_tach/.test(boCC));
-t('🔴 FABi đã tách sẵn thì KHÔNG nhắc đi khai combo nữa (nhắc là xui trừ hai lần)',
-  /combo_nghi[\s\S]{0,160}!\(r\.fabi_da_tach/.test(boCC));
+/* Cảnh báo trừ hai lần vẫn còn, nhưng nay nói đúng mức chắc chắn của nó: "xem lại kẻo",
+   không phải "ĐANG trừ hai lần" — vì dòng 0đ có thể chỉ là hàng cho. */
+t('🔴 vẫn nêu chỗ nghi trừ hai lần',
+  /tru_hai_lan/.test(boCC) && /trừ hai lần/.test(boCC));
+t('nhưng nói đúng mức chắc chắn ("xem lại kẻo"), không khẳng định',
+  /Xem lại kẻo trừ hai lần/.test(boCC));
+t('nêu ra món máy ghi 0đ', /mon_khong_tien/.test(boCC));
+/* 🔴 KHÔNG ĐƯỢC KẾT LUẬN "FABi đã tách sẵn combo". Món máy ghi 0đ có thể là hàng cho, có thể là
+   thành phần combo — hệ không phân biệt được. Bản trước khẳng định thẳng, và ảnh anh Thắng gửi
+   cho thấy nó liệt kê toàn "… MIỄN PHÍ" với "VÉ ONLINE". */
+t('🔴 KHÔNG còn câu khẳng định "FABi đang tự tách sẵn thành phần combo"',
+  !/FABi đang tự tách sẵn/.test(boCC));
+t('nói rõ là không phân biệt được hàng cho với thành phần combo',
+  /hàng cho/.test(boCC) && /không phân biệt được/.test(boCC));
+t('và vẫn nói chúng CÓ trừ kho', /vẫn rời kho/.test(boCC));
+t('🔴 không vì món 0đ mà thôi nhắc khai combo',
+  !/!\(r\.fabi_da_tach/.test(boCC) && !/!\(r\.mon_khong_tien/.test(boCC));
+/* 🔴 Luôn nói đang xem kho của cơ sở nào — kể cả tài khoản chỉ có MỘT cơ sở. */
+t('🔴 tài khoản một cơ sở vẫn thấy tên cơ sở', /khoCSMot/.test(boCC));
 /* Nhãn phải NÓI VIỆC PHẢI LÀM, không chỉ mô tả trạng thái. "chưa có mốc" thì người trực đọc
    xong vẫn không biết phải làm gì; "đếm 1 lần để đặt mốc" thì làm được ngay. */
 t('mặt hàng chưa từng đếm tay thì gắn nhãn chỉ rõ việc phải làm',
