@@ -165,7 +165,40 @@ class VHG_Auth {
 			'quan_tri'      => self::la_quan_tri( $vai_tro ) ? 1 : 0,
 			'giup_khach'    => self::duoc_giup_khach( $vai_tro ) ? 1 : 0,
 			'chot_doanh_so' => self::duoc_chot_doanh_so( $vai_tro ) ? 1 : 0,
+			'sua_bc'        => self::duoc_sua_bc( $vai_tro ) ? 1 : 0,
 		);
+	}
+
+	/**
+	 * AI ĐƯỢC SỬA BÁO CÁO ĐÃ NỘP (đường kế toán, KHÔNG giới hạn 24 giờ).
+	 *
+	 * Anh Thắng 20/09/2026, sau khi hỏi lại luật 24h: *"hoặc anh sẽ thiết lập thêm 1 tài khoản để
+	 * thực hiện quyền đó"*.
+	 *
+	 * 🔴 VÌ SAO TÁCH KHỎI "CHỐT DOANH SỐ". Hai việc khác hẳn nhau về hậu quả. Chốt doanh số là xác
+	 *    nhận đã nhận tiền — sai thì đối chiếu ra ngay, vì tiền mặt đếm được. Sửa báo cáo đã nộp là
+	 *    ĐỔI CHÍNH CON SỐ trong sổ, không giới hạn thời gian, kể cả tháng trước đã chốt; sai (hay
+	 *    cố ý) thì không còn cái gì để đối chiếu ngược. Gộp hai thứ vào một quyền nghĩa là ai nhận
+	 *    tiền cũng sửa được sổ — mà đó đúng là hai người nên tách.
+	 *
+	 * ⚠️ CHƯA KHAI BAO GIỜ = GIỮ NGUYÊN NHƯ CŨ (lấy theo `vai_tro_chot()`). Mặc định thành danh
+	 *    sách rỗng là sáng hôm sau kế toán không sửa được gì mà không ai hiểu vì sao — một bản vá
+	 *    phân quyền không được tự ý thu hẹp quyền của người đang dùng.
+	 * ⚠️ Admin LUÔN có, như ba nhóm kia.
+	 */
+	public static function vai_tro_sua_bc() {
+		$ds = get_option( 'vhg_vai_tro_sua_bc' );
+		if ( ! is_array( $ds ) ) { return self::vai_tro_chot(); }   // chưa khai → y như trước bản này
+		$ra = array( 'Admin' );
+		foreach ( $ds as $v ) {
+			$v = (string) $v;
+			if ( in_array( $v, self::VAI_TRO_TAT_CA, true ) && ! in_array( $v, $ra, true ) ) { $ra[] = $v; }
+		}
+		return $ra;
+	}
+
+	public static function duoc_sua_bc( $vai_tro ) {
+		return in_array( (string) $vai_tro, self::vai_tro_sua_bc(), true );
 	}
 
 	/**

@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-09-18 · Phiên bản hiện tại: **2.120.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-09-18 · Phiên bản hiện tại: **2.121.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,31 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v2.121.0 — Tách quyền "Sửa báo cáo đã nộp" khỏi "Chốt doanh số"
+
+Anh Thắng 20/09/2026, sau khi hỏi lại luật 24h: *"hoặc anh sẽ thiết lập thêm 1 tài khoản để thực
+hiện quyền đó"*.
+
+**Luật đang chạy (đã kiểm lại trong code):**
+
+- Hằng `GIO_SUA = 24` chỉ áp cho **đường PIN của nhân viên** — danh sách 24h và hai đường lưu khi
+  nhân viên sửa. Quá hạn: *"Báo cáo đã quá 24 giờ nên khoá. Nhờ kế toán."*
+- `VHG_KeToan::sua()` (tab Duyệt báo cáo) **không kiểm hạn giờ**. Chốt duy nhất: ngày đó đang
+  *Khoá ngày* thì phải Bỏ khoá trước. Mỗi lần sửa lưu giá trị cũ kèm **tên người sửa** (`$boi`).
+
+**Tách quyền.** Nhận tiền và sửa sổ khác hẳn nhau về hậu quả: nhận tiền sai thì đếm lại ra ngay;
+sửa sổ sai (hay cố ý) thì không còn gì để đối chiếu ngược — mà đường này đổi được cả tháng đã chốt.
+
+- `VHG_Auth::vai_tro_sua_bc()` + `duoc_sua_bc()`, cờ `sua_bc` trong `quyen_cua()` (một nguồn cho cả
+  cổng chặn lẫn giao diện).
+- Router chặn `kt_sua` khi thiếu cờ, **trước** khi gọi `VHG_KeToan::sua`. Cổng chung cho mọi việc
+  `kt_*` (phải Quản trị hoặc Chốt doanh số) giữ nguyên.
+- Khai được ở **Cấu hình › Phân quyền**, ô thứ tư: *"Sửa báo cáo đã nộp (không giới hạn 24 giờ)"*.
+- ⚠️ **Chưa khai bao giờ = lấy y danh sách "Chốt doanh số"**, tức hệ đang chạy không đổi gì. Một
+  bản vá phân quyền không được tự thu hẹp quyền người đang dùng.
+
+Bài kiểm `tools/test/kiem-quyen-sua-bc.js` (16 phép).
 
 ### v2.120.0 — Nút 🗑 ở Quản lý ghế nay là XOÁ HẲN
 

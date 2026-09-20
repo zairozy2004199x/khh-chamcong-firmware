@@ -1019,6 +1019,17 @@ JS;
 					'error' => 'Trang kế toán chỉ dành cho vai trò Chốt doanh số, Quản lý hoặc Admin.' ) );
 				return;
 			}
+			/* 🔴 SỬA BÁO CÁO ĐÃ NỘP = QUYỀN RIÊNG — anh Thắng 20/09/2026. Đường này KHÔNG có hạn
+			   24 giờ như đường nhân viên: nó đổi thẳng con số trong sổ, kể cả tháng đã chốt. Vào
+			   được trang kế toán không có nghĩa là được sửa sổ; ai nhận tiền và ai sửa sổ nên là
+			   hai người. Mặc định (chưa khai) quyền này = nhóm chốt doanh số, tức không đổi gì cho
+			   hệ đang chạy — xem VHG_Auth::vai_tro_sua_bc(). */
+			if ( 'kt_sua' === $viec && empty( $q['sua_bc'] ) ) {
+				self::tra( array( 'ok' => false, 'ma' => 'khong_du_quyen',
+					'error' => 'Không có quyền SỬA BÁO CÁO ĐÃ NỘP. Vai trò này vào được trang kế toán '
+						. 'nhưng không sửa được số liệu — nhờ Admin cấp quyền ở tab Cấu hình › Phân quyền.' ) );
+				return;
+			}
 			$boi = (string) $ai['name'];
 			if ( 'kt_saoke_ve' === $viec ) { self::tra( self::saoke_ve_( $boi ) ); return; }
 			if ( 'kt_ds' === $viec )       { self::tra( VHG_KeToan::ds( isset( $d['thang'] ) ? $d['thang'] : '' ) ); return; }
@@ -1929,6 +1940,7 @@ JS;
 				'vai_tro'    => VHG_Auth::VAI_TRO_TAT_CA,
 				'vao'        => VHG_Auth::vai_tro_vao(),
 				'chot'       => VHG_Auth::vai_tro_chot(),
+				'suabc'      => VHG_Auth::vai_tro_sua_bc(),
 				'giup'       => VHG_Auth::vai_tro_giup_khach(),
 				'quantri'    => VHG_Auth::vai_tro_quan_tri(),
 				'nguon'      => (string) get_option( 'vhg_nguon_nguoidung', 'chung' ),
@@ -1981,6 +1993,7 @@ JS;
 			};
 			$vao     = $loc( isset( $d['vao'] ) ? $d['vao'] : array() );
 			$chot    = $loc( isset( $d['chot'] ) ? $d['chot'] : array() );
+			$suabc   = $loc( isset( $d['suabc'] ) ? $d['suabc'] : array() );
 			$giup    = $loc( isset( $d['giup'] ) ? $d['giup'] : array() );
 			$quantri = $loc( isset( $d['quantri'] ) ? $d['quantri'] : array() );
 			/* 🔴 ADMIN LUÔN CÓ, ở cả bốn danh sách. Lưu một danh sách thiếu Admin là tự khoá mình
@@ -1991,10 +2004,12 @@ JS;
 			};
 			$vao     = $them_admin( $vao );
 			$chot    = $them_admin( $chot );
+			$suabc   = $them_admin( $suabc );
 			$giup    = $them_admin( $giup );
 			$quantri = $them_admin( $quantri );
 			update_option( 'vhg_vai_tro_vao', $vao );
 			update_option( 'vhg_vai_tro_chot', $chot );
+			update_option( 'vhg_vai_tro_sua_bc', $suabc );
 			update_option( 'vhg_vai_tro_giup', $giup );
 			update_option( 'vhg_vai_tro_quantri', $quantri );
 			return array( 'ok' => true, 'thong_bao' => 'Đã lưu phân quyền.' );
@@ -9300,6 +9315,16 @@ function veCauHinh(){
     ['chot', L('Chốt doanh số (nhận tiền nhân viên nộp)','Close revenue (receive staff hand-ins)'),
              L('Kế toán xuống nhận tiền. Không kèm quyền huỷ mã hay gán ghế.',
                'The accountant receiving the cash. Does not include cancelling codes or assigning chairs.')],
+    /* 🔴 QUYỀN RIÊNG, KHÔNG GỘP VÀO "CHỐT DOANH SỐ" — anh Thắng 20/09/2026. Nhận tiền và sửa sổ
+       là hai việc khác hẳn về hậu quả: nhận tiền sai thì đếm lại ra ngay, sửa sổ sai thì không
+       còn gì để đối chiếu ngược. Chưa khai thì hệ lấy y danh sách "chốt doanh số" nên không đổi
+       gì cho hệ đang chạy; tích ở đây một lần là tách hẳn. */
+    ['suabc', L('Sửa báo cáo đã nộp (không giới hạn 24 giờ)','Edit submitted reports (no 24h limit)'),
+             L('Nhân viên chỉ sửa được trong 24 giờ kể từ lúc gửi. Vai trò tích ở đây sửa được số '
+               + 'liệu của BẤT KỲ báo cáo nào, kể cả tháng trước đã chốt — mỗi lần sửa đều lưu giá '
+               + 'trị cũ kèm TÊN người sửa. Bỏ trống ô này thì mặc định theo nhóm "Chốt doanh số".',
+               'Staff can only edit within 24h. Roles ticked here can edit any submitted report, '
+               + 'including closed months; every edit stores the old values and the editor name.')],
     ['quantri', L('Quản trị (thêm/xoá cơ sở & ghế, cấp PIN báo cáo)',
                   'Manage (add/remove sites & chairs, issue report PINs)'),
              L('Vận hành cả chuỗi: thêm/xoá/sửa cơ sở & ghế, gán/huỷ mã, xem doanh thu toàn chuỗi, '
@@ -12355,7 +12380,7 @@ function noi(){
   var chVt = document.getElementById('ch-luu-vt');
   if (chVt) chVt.onclick = function(){
     if (ban) return;
-    var g = { vao: [], giup: [], chot: [], quantri: [] };
+    var g = { vao: [], giup: [], chot: [], suabc: [], quantri: [] };
     [].forEach.call(document.querySelectorAll('[data-ph]'), function(o){
       if (o.checked) g[o.getAttribute('data-ph')].push(o.value);
     });
