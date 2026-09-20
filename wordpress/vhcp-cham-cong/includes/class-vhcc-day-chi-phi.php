@@ -50,7 +50,28 @@ class VHCC_DayChiPhi {
 	/** Vị trí các cột trong `CH_NguoiDung` — xem `VHCP_Cfg::headers()`. */
 	const C_TEN = 0;
 	const C_PIN = 1;
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 VAI TRÒ CỐ Ý KHÔNG BAO GIỜ ĐƯỢC ĐẨY — CÙNG NHÓM VỚI CƠ SỞ NGAY DƯỚI
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 20/09/2026: *"việc đẩy nhân sự sang chỉ là để đăng nhập. Sau phân quyền cho bên
+	 * chi phí quyết định. Để tránh râu ông này cắm bà kia"*.
+	 *
+	 * 🔴 LƯỢT ĐẨY CHỈ MANG BA THỨ: TÊN · PIN · MÃ NV. Đủ để người ta gõ PIN vào được, không hơn.
+	 *    Vai · bộ phận · cơ sở là bảng khai của kế toán bên chi phí.
+	 *
+	 * 🔴 VÌ SAO ĐẨY VAI LÀ NGUY. Ai là Quản lý bên chấm công thì thành Quản lý trên trang TIỀN —
+	 *    duyệt được chi của mọi cơ sở, mà không ai bên chi phí bấm nút nào. Tệ hơn: nó đè LẠI ở
+	 *    MỖI lượt đồng bộ, nên kế toán hạ vai người đó xuống hôm nay thì mai nó tự lên lại.
+	 *
+	 * ⚠️ TRỐNG LÀ VÀO ĐƯỢC, KHÔNG PHẢI BỊ KHOÁ. `login()` coi vai trống là 'Nhân viên', và
+	 *    `nv_co_coso()` đòi CÓ cơ sở mới mở tầm nhìn theo gian — nên người mới đẩy sang đăng
+	 *    nhập được và chỉ thấy đơn của chính mình. Đúng chỗ để kế toán bước vào phân quyền.
+	 *
+	 * ⚠️ `vai_chi_phi()` VẪN GIỮ dù không còn ai gọi lúc ghi: nó là bảng ánh xạ vai dùng chung
+	 *    với đường vé/SSO, và bài kiểm đang canh nó.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
 	const C_VAI = 2;
+
 	/* ══════════════════════════════════════════════════════════════════════════════════════════
 	 * 🔴 Ô NÀY CỐ Ý KHÔNG BAO GIỜ ĐƯỢC ĐẨY — CHỈ ĐỌC ĐỂ BÀY RA CHO NGƯỜI KHAI NHÌN
 	 * ══════════════════════════════════════════════════════════════════════════════════════════
@@ -508,10 +529,9 @@ class VHCC_DayChiPhi {
 			   không được đoán. */
 			$r[ self::C_TEN ]     = $hs['ho_ten'];
 			$r[ self::C_PIN ]     = $hs['pin'];
-			$r[ self::C_VAI ]     = static::vai_chi_phi( $hs['vai_cc'] );
-			/* 🔴 KHÔNG GHI Ô CƠ SỞ — xem chốt dài ở `C_COSO`. Dòng `$r[ C_COSO ] = $hs['coso']`
-			   ở đây chính là thứ đè mất phân công của kế toán mỗi lượt đẩy. */
-			if ( '' !== $hs['bo_phan'] ) { $r[ self::C_BO_PHAN ] = $hs['bo_phan']; }
+			/* 🔴 KHÔNG GHI VAI · BỘ PHẬN · CƠ SỞ — xem chốt dài ở `C_VAI`. Ba ô ấy là bảng khai
+			   của kế toán bên chi phí; lượt đồng bộ đè lên chúng là đè mất phân quyền người ta
+			   vừa đặt, và đè lại ở MỖI lượt. */
 			/* ⚠️ MÃ NV GHI ĐÈ LUÔN, không gác "chỉ ghi khi rỗng" như ô Bộ phận. Mã là danh
 			   tính, không phải lựa chọn của kế toán: hàng này vừa được nhận ra là của người
 			   mang mã ấy, nên mã ấy đúng theo định nghĩa. */
@@ -527,12 +547,10 @@ class VHCC_DayChiPhi {
 			$hang = array_fill( 0, self::SO_O, '' );
 			$hang[ self::C_TEN ]     = $hs['ho_ten'];
 			$hang[ self::C_PIN ]     = $hs['pin'];
-			$hang[ self::C_VAI ]     = static::vai_chi_phi( $hs['vai_cc'] );
-			/* Ô cơ sở để TRỐNG, không nhét mã cửa hàng vào — xem chốt ở `C_COSO`. Trống là an
-			   toàn: `VHCP_Auth::nv_co_coso()` đòi CÓ cơ sở mới mở tầm nhìn theo gian, nên người
-			   vừa đẩy sang chỉ thấy đơn của chính mình cho tới khi kế toán phân. Nhét một mã
-			   không khớp gian nào thì họ không thấy GÌ, kể cả đơn mình vừa lập. */
-			$hang[ self::C_BO_PHAN ] = $hs['bo_phan'];
+			/* 🔴 VAI · BỘ PHẬN · CƠ SỞ ĐỂ TRỐNG HẾT — xem chốt dài ở `C_VAI`. Trống là an toàn:
+			   `login()` coi vai trống là 'Nhân viên', và `nv_co_coso()` đòi CÓ cơ sở mới mở tầm
+			   nhìn theo gian — nên người vừa đẩy sang ĐĂNG NHẬP ĐƯỢC mà chỉ thấy đơn của chính
+			   mình, cho tới khi kế toán phân. Đúng nghĩa "đẩy sang chỉ để đăng nhập". */
 			$hang[ self::C_MA_NV ]   = $hs['ma_nv'];
 			$rows[] = $hang;
 		}

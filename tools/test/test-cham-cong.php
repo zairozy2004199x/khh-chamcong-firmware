@@ -17037,14 +17037,27 @@ teq( 'và đúng PIN chấm công', '778899', (string) $hang_cp[1] );
  * người vừa đẩy sang chỉ thấy đơn của mình cho tới khi kế toán phân.
  * ══════════════════════════════════════════════════════════════════════════════════════════ */
 teq( '🔴 ô cơ sở để TRỐNG, không nhét mã cửa hàng bên nhân sự vào', '', (string) $hang_cp[3] );
-/* 🔴 CỬA HÀNG TRƯỞNG -> 'Nhân viên', KHÔNG phải 'Quản lý': bên chi phí 'Quản lý' duyệt được chi
-   của MỌI cơ sở, mà cửa hàng trưởng là người ĐỀ NGHỊ chi. */
-teq( 'nhân viên sang vai Nhân viên', 'Nhân viên', (string) $hang_cp[2] );
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 LƯỢT ĐẨY KHÔNG GHI VAI TRÒ — phép này trước đây đòi ngược lại.
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 20/09/2026: *"việc đẩy nhân sự sang chỉ là để đăng nhập. Sau phân quyền cho bên chi
+ * phí quyết định. Để tránh râu ông này cắm bà kia"*.
+ *
+ * 🔴 VÌ SAO ĐẨY VAI LÀ NGUY: ai là Quản lý bên chấm công thì thành Quản lý trên trang TIỀN —
+ *    duyệt được chi của mọi cơ sở mà không ai bên chi phí bấm nút nào. Tệ hơn, nó đè LẠI ở mỗi
+ *    lượt đồng bộ, nên kế toán hạ vai người đó hôm nay thì mai nó tự lên lại.
+ *
+ * ⚠️ TRỐNG KHÔNG PHẢI BỊ KHOÁ: `login()` quy vai trống về 'Nhân viên' nên người mới đẩy sang
+ *    vẫn đăng nhập được, chỉ là chưa thấy gì — đúng chỗ để kế toán bước vào phân quyền.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+teq( '🔴 lượt đẩy để TRỐNG ô vai trò', '', trim( (string) $hang_cp[2] ) );
 VHCC_NhanSu::dat_vai_tro( $U_AD, 'CP1', 'Cửa hàng trưởng' );
 VHCC_DayChiPhi::dong_bo( 'CP1' );
 $hang_cp = null;
 foreach ( VHCP_Cfg::read( VHCP_Cfg::USER ) as $x ) { if ( 'Người Đẩy Chi Phí' === $x[0] ) { $hang_cp = $x; } }
-teq( '🔴 cửa hàng trưởng sang vai Nhân viên, KHÔNG phải Quản lý', 'Nhân viên', (string) $hang_cp[2] );
+teq( '🔴 đổi vai bên Nhân sự KHÔNG kéo sang bên Chi phí', '', trim( (string) $hang_cp[2] ) );
+/* Bảng ánh xạ vai VẪN GIỮ — đường vé/SSO còn dùng, và ba phép ngay dưới canh nó. Chỉ mỗi việc
+   GHI XUỐNG bảng người dùng là bỏ. */
 teq( 'Admin thì sang Admin', 'Admin', VHCC_DayChiPhi::vai_chi_phi( 'Admin' ) );
 teq( 'Kế toán sang Kế toán cá nhân', 'Kế toán cá nhân', VHCC_DayChiPhi::vai_chi_phi( 'Kế toán' ) );
 teq( 'Quản lý sang Quản lý', 'Quản lý', VHCC_DayChiPhi::vai_chi_phi( 'Quản lý' ) );

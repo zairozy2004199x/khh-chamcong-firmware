@@ -149,19 +149,25 @@ class VHCPMTD_App {
 			|| ! method_exists( 'VHCC_Ve', 'ma_vai' ) ) { return null; }
 		$d = VHCC_Ve::doi( sanitize_text_field( wp_unslash( $_GET['ccve'] ) ) );
 		if ( ! $d ) { return null; }
-		/* Quy về đúng hình dạng danh tính mà `resolve_sso_user()` đã biết đọc — kể cả bảng
-		   ngoại lệ theo email. Dựng một bảng ánh xạ vai riêng ở đây là hai bộ luật cho cùng
-		   một câu hỏi, và chúng sẽ lệch nhau vào ngày có người thêm một vai mới. */
+		/* 🔴 VÉ CHỈ MANG DANH TÍNH SANG — TÊN VÀ MÃ NV. Vai · cơ sở lấy từ bảng người dùng bên
+		   NÀY, trong `resolve_sso_user()`. Anh Thắng 20/09/2026: *"đẩy nhân sự sang chỉ là để
+		   đăng nhập, sau phân quyền cho bên chi phí quyết định, để tránh râu ông này cắm bà
+		   kia"*. Vẫn gửi `r`/`b` vì bên nhận biết bỏ qua, nhưng KHÔNG dựa vào chúng nữa. */
 		$u = VHCPMTD_Auth::resolve_sso_user( array(
 			'n' => (string) $d['name'],
+			'm' => (string) ( isset( $d['maNv'] ) ? $d['maNv'] : ( isset( $d['ma_nv'] ) ? $d['ma_nv'] : '' ) ),
 			'e' => '',
-			'r' => VHCC_Ve::ma_vai( (string) $d['role'] ),
-			'b' => (string) ( isset( $d['coso'] ) ? $d['coso'] : '' ),
 		) );
+		/* ⚠️ CHƯA CÓ DÒNG BÊN CHI PHÍ THÌ VÉ KHÔNG MỞ ĐƯỢC GÌ. Trả `null` để app rơi về màn gõ
+		   PIN như thường — ở đó `qua_nhan_su()` chối kèm câu nói rõ phải thêm dòng ở Cấu hình.
+		   Đẻ bừa một danh tính 'Nhân viên' ở đây là mở cửa cho cả sổ nhân sự bước vào trang
+		   tiền, đúng thứ luật trên vừa cấm. */
+		if ( ! $u ) { return null; }
 		/* 🔴 PHÁT THẺ PHIÊN NGAY, VÀ GIAO DIỆN PHẢI CẤT NÓ ĐÈ LÊN THẺ CŨ. Không có bước ấy thì
 		   thanh tiêu đề hiện đúng tên mới, nhưng MỌI lệnh gọi máy chủ vẫn đi kèm thẻ cũ — tức
 		   vẫn ghi sổ dưới tên người kia. Xem `ssoToken` ở `head_block()`. */
-		$u['token'] = VHCPMTD_Auth::issue_token( $u['name'], $u['role'], $u['coso'], '' );
+		$u['token'] = VHCPMTD_Auth::issue_token( $u['name'], $u['role'], $u['coso'],
+			isset( $u['boPhan'] ) ? $u['boPhan'] : '' );
 		return $u;
 	}
 
@@ -175,8 +181,11 @@ class VHCPMTD_App {
 		$ident = VHCPMTD_Auth::verify_sso_token( $tok );
 		if ( ! $ident ) { return null; }
 		$u = VHCPMTD_Auth::resolve_sso_user( $ident );
+		/* Cùng luật với đường vé: chưa có dòng bên chi phí thì không vào được bằng SSO. */
+		if ( ! $u ) { return null; }
 		// SSO không qua cổng PIN nên phát token phiên ngay để API nhận.
-		$u['token'] = VHCPMTD_Auth::issue_token( $u['name'], $u['role'], $u['coso'], '' );
+		$u['token'] = VHCPMTD_Auth::issue_token( $u['name'], $u['role'], $u['coso'],
+			isset( $u['boPhan'] ) ? $u['boPhan'] : '' );
 		return $u;
 	}
 
