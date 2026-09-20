@@ -97,6 +97,17 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.48.0 =
+* 🔴 **Sửa lỗi Safari phóng to trang mỗi lần chạm ô nhập, trên iPhone.** Ô nhập để 14px, mà
+  Safari trên iOS **tự phóng to cả trang** khi chạm vào ô có cỡ chữ dưới 16px — không tắt được
+  bằng CSS. Nhân viên nhập báo cáo ngoài cửa hàng gõ bằng điện thoại, nên cứ mỗi ô là màn nhảy
+  một cái rồi phải vuốt về. Nay ở bề ngang điện thoại mọi ô nhập để đúng **16px**.
+* **Ô chạm cao tối thiểu 44px** trên điện thoại (trước là ~34px — ngón tay bấm trượt), và hai
+  nút *Lưu* / *Lưu và chốt ngày* chiếm hết bề ngang, khỏi bấm nhầm sang nút kia.
+* Bài kiểm mới `tools/test/kiem-man-dien-thoai.py` — **16 phép**, canh cả cỡ chữ ô nhập, chiều
+  cao ô chạm, thẻ `viewport` (và **không** được chặn phóng to — chặn là chặn luôn người mắt
+  kém), lưới tự xuống cột, và ô số phải gợi bàn phím số chứ không dùng `type="number"`.
+
 = 1.47.0 =
 * 🔴 **Hệ tự trả lời "FABi có tách sẵn thành phần combo không"**, bằng chính số liệu đã nạp chứ
   không đoán. Dấu hiệu: bản xuất có tách sẵn thì dòng thành phần mang **số lượng > 0 mà doanh

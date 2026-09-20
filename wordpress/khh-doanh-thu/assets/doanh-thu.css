@@ -167,6 +167,23 @@ body.khh-dt-body{margin:0;background:#f2f1ee}
 @media (max-width:560px){
   .khh-dt .the-hang{grid-template-columns:1fr} .khh-dt .than{padding:14px}
   .khh-dt .ve,.khh-dt .truc,.khh-dt .ghi{padding-left:48px} .khh-dt .the.to .v{font-size:30px}
+
+  /* 🔴 16px LÀ CON SỐ BẮT BUỘC, KHÔNG PHẢI GU THẨM MỸ.
+     Safari trên iPhone TỰ PHÓNG TO cả trang mỗi khi chạm vào ô nhập có cỡ chữ dưới 16px — không
+     tắt được bằng CSS, và `user-scalable=no` thì iOS bỏ qua từ lâu (mà chặn phóng to cũng là
+     chặn luôn người mắt kém). Nhân viên nhập báo cáo ngoài cửa hàng gõ bằng điện thoại, nên cứ
+     mỗi ô là màn nhảy một cái rồi phải vuốt về. Để đúng 16px là hết.
+     Ô ngày/giờ và ô chọn cũng vậy — chúng cũng là ô nhập. */
+  .khh-dt input,.khh-dt select,.khh-dt textarea,
+  .khh-dt .bc-o input,.khh-dt .bc-o textarea{font-size:16px}
+
+  /* Ngón tay không bấm trúng ô cao 34px. 44px là mức chạm thoải mái. */
+  .khh-dt .bc-o input,.khh-dt .bc-o textarea,.khh-dt .loc input,.khh-dt .loc select{
+    min-height:44px;padding-top:10px;padding-bottom:10px}
+  .khh-dt .nut,.khh-dt .vien{min-height:44px}
+  /* Nút Lưu / Lưu và chốt: trên điện thoại cho chiếm hết bề ngang, khỏi bấm trượt sang nút kia. */
+  .khh-dt .bc-nut{gap:8px} .khh-dt .bc-nut .nut{flex:1 1 100%;justify-content:center}
+  .khh-dt .bc-nut .day{display:none}
 }
 @media print{
   .khh-dt .top,.khh-dt .loc,.khh-dt .chan,.khh-dt .nut{display:none!important}
