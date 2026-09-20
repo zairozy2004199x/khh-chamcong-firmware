@@ -123,7 +123,11 @@ t( '   nhưng đơn không có vẫn báo không có', '' !== loi( 'D_KHONG_CO' 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
  * 2. 🔴 TẠO ĐƠN KHÔNG ĐƯỢC PHÉP BÁO XONG KHI GHI HỎNG
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
-class VHCP_DB   { public static function t( $x ) { return 'wp_vhcp_' . $x; } }
+/* ⚠️ `mang()` PHẢI CÓ TRONG BỆ GIẢ. `create_don()` đóng dấu mảng cho mỗi đơn mới (19/09/2026),
+   nên bệ giả thiếu hàm ấy là bài kiểm VĂNG LỖI chứ không đỏ một phép — đọc ra không biết hỏng
+   gì. Trả 'kvc' đúng như hằng của bản gốc. */
+class VHCP_DB   { public static function t( $x ) { return 'wp_vhcp_' . $x; }
+                  public static function mang() { return 'kvc'; } }
 class VHCP_Util {
 	public static function uid( $p ) { return $p . '_TEST'; }
 	public static function now_sql() { return '2026-09-09 10:00:00'; }

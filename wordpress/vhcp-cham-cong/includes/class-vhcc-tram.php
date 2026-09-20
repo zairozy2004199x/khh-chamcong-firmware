@@ -203,6 +203,25 @@ class VHCC_Tram {
 	}
 
 	/** Thân JSON của lượt POST. Trạm gửi JSON, không gửi biểu mẫu. */
+	/**
+	 * SỐ PHÚT CỦA MỘT KHUNG CA `HH:mm` → `HH:mm`.
+	 *
+	 * ⚠️ CA QUA NỬA ĐÊM LÀ CHUYỆN THƯỜNG Ở ĐÂY — Ca 3 mặc định là 22:00→06:00. Trừ thẳng ra số
+	 *    ÂM, và một con số âm đi tiếp vào phép so "thiếu mấy giờ" thì ra một câu vô nghĩa mà
+	 *    trông vẫn như tính toán. Nên cộng thêm một ngày khi đầu ≥ cuối.
+	 * ⚠️ Khung nào không đúng hình `HH:mm` thì trả null — bỏ qua ca ấy, đừng đoán.
+	 */
+	private static function phut_ca( $tu, $den ) {
+		if ( ! preg_match( '/^(\d{1,2}):(\d{2})$/', trim( (string) $tu ), $a )
+			|| ! preg_match( '/^(\d{1,2}):(\d{2})$/', trim( (string) $den ), $b ) ) {
+			return null;
+		}
+		$p1 = (int) $a[1] * 60 + (int) $a[2];
+		$p2 = (int) $b[1] * 60 + (int) $b[2];
+		if ( $p2 <= $p1 ) { $p2 += 24 * 60; }
+		return $p2 - $p1;
+	}
+
 	private static function than() {
 		$raw = file_get_contents( 'php://input' );
 		$j   = ( '' !== $raw && false !== $raw ) ? json_decode( (string) $raw, true ) : null;
@@ -346,6 +365,11 @@ class VHCC_Tram {
 				$tt['qtUrl'] = VHCC_Web::url();
 				$tt['vaiTen'] = VHCC_Vai::ten( $u );
 			}
+			/* Số chuông đi KÈM lượt `toi`, không phải một lượt gọi riêng. Gọi riêng thì lúc
+			   vừa đăng nhập xong chuông trắng mấy trăm mili-giây rồi mới nhảy số — nhìn như
+			   trang bị giật, và ai bấm nhanh thì bấm vào cái chuông đang nói dối là rỗng. */
+			$tt['chuongCo']  = VHCC_Chuong::co();
+			$tt['chuongDem'] = VHCC_Chuong::dem( $u );
 			self::ra( $tt );
 		}
 
@@ -363,6 +387,184 @@ class VHCC_Tram {
 		if ( 'push_huy' === $viec ) {
 			$b = self::than();
 			self::ra( VHCC_Push::huy( isset( $b['endpoint'] ) ? (string) $b['endpoint'] : '' ) );
+		}
+
+		/* ============ CHUÔNG THÔNG BÁO ============
+		   Hai đầu nối này KHÔNG nhận mã NV từ thân yêu cầu — `VHCC_Chuong` lấy mã từ `$u`,
+		   tức từ thẻ phiên do máy chủ cấp. Nhận từ thân là gửi lên mã người khác thì đọc được
+		   hộp thư người ta. Xem khối cảnh báo ở đầu `class-vhcc-chuong.php`. */
+		/* ============ XIN BÙ GIỜ ============
+		   Mã NV và cơ sở lấy từ thẻ phiên + hồ sơ, không nhận từ thân — nhận từ thân là xin bù
+		   hộ người khác. Xem khối đầu `class-vhcc-xin-bu.php`. */
+		if ( 'xinbu' === $viec ) {
+			$b = self::than();
+			self::ra( VHCC_XinBu::gui( $u,
+				isset( $b['ngay'] ) ? (string) $b['ngay'] : '',
+				isset( $b['vao'] ) ? (string) $b['vao'] : '',
+				isset( $b['ra'] ) ? (string) $b['ra'] : '',
+				isset( $b['lyDo'] ) ? (string) $b['lyDo'] : '' ) );
+		}
+
+		if ( 'xinbuds' === $viec ) {
+			self::ra( array( 'ok' => true, 'ds' => VHCC_XinBu::cua_toi( $u ),
+				'ten' => VHCC_XinBu::TEN_TT, 'homNay' => (string) current_time( 'Y-m-d' ) ) );
+		}
+
+		/* ══════════════════════════════════════════════════════════════════════════════════
+		 * CA LÀM CỦA NGÀY ĐANG XIN BÙ — để màn nói ra THIẾU MẤY GIỜ SO VỚI CA.
+		 *
+		 * Anh Thắng 18/09/2026: *"Hiện giờ thiếu so với ca làm"*.
+		 *
+		 * 🔴 CON SỐ NÀY LÀ THỨ NGƯỜI DUYỆT SẼ HỎI. Cửa hàng trưởng nhìn một đơn xin 10:00–17:00
+		 *    thì câu đầu tiên trong đầu họ là *"hôm ấy bạn này trực ca mấy?"*. Người gửi không
+		 *    thấy ca của chính mình lúc gõ, nên rất hay xin lệch — rồi đơn bị chối, gửi lại,
+		 *    hai cấp duyệt lại từ đầu. Bày ca ra ngay lúc gõ là cắt trọn vòng ấy.
+		 *
+		 * ⚠️ CHỈ ĐỌC, VÀ CHỈ CỦA CHÍNH MÌNH. Mã NV lấy từ thẻ phiên (`$u`), không nhận từ thân —
+		 *    nhận từ thân là đọc được lịch của người khác. Cùng luật với mọi cửa khác của trạm.
+		 * ⚠️ KHÔNG CÓ LỊCH THÌ TRẢ RỖNG, ĐỪNG ĐOÁN. Cơ sở chưa bật phân lịch, hoặc hôm ấy không
+		 *    xếp ai — hai ca đó đều là "không biết", và một con số bịa ra ở đây sẽ đi thẳng vào
+		 *    đầu người duyệt như thể nó có thật.
+		 * ══════════════════════════════════════════════════════════════════════════════════ */
+		if ( 'xinbuca' === $viec ) {
+			$b   = self::than();
+			$ng  = isset( $b['ngay'] ) ? (string) $b['ngay'] : '';
+			if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $ng ) ) {
+				self::ra( array( 'ok' => true, 'ngay' => '', 'ca' => array(), 'tongPhut' => 0 ) );
+			}
+			$ds_ca = array();
+			$tong  = 0;
+			if ( class_exists( 'VHCC_Lich' ) && method_exists( 'VHCC_Lich', 'lich_cua_nguoi' )
+				&& class_exists( 'VHCC_Ca' ) && method_exists( 'VHCC_Ca', 'cua' ) ) {
+				foreach ( (array) VHCC_Lich::lich_cua_nguoi( $u['ma_nv'], $ng, $ng ) as $d ) {
+					$ten_ca = trim( (string) $d['ca'] );
+					if ( '' === $ten_ca ) { continue; }
+					foreach ( (array) VHCC_Ca::cua( (string) $d['coso'] ) as $k ) {
+						if ( 0 !== strcasecmp( trim( (string) $k['ten'] ), $ten_ca ) ) { continue; }
+						$p = self::phut_ca( (string) $k['tu'], (string) $k['den'] );
+						if ( null === $p ) { break; }
+						$ds_ca[] = array( 'ten' => $ten_ca, 'tu' => (string) $k['tu'],
+							'den' => (string) $k['den'], 'phut' => $p );
+						$tong += $p;
+						break;
+					}
+				}
+			}
+			self::ra( array( 'ok' => true, 'ngay' => $ng, 'ca' => $ds_ca, 'tongPhut' => $tong ) );
+		}
+
+		/* Cửa hàng trưởng duyệt CẤP MỘT ngay trên điện thoại — đó là chỗ họ đứng cả ngày. */
+		if ( 'buchocht' === $viec ) {
+			$b  = self::than();
+			$cs = VHCC_NhanSu::chuan_coso( isset( $b['coSo'] ) ? (string) $b['coSo'] : '' );
+			if ( '' === $cs || ! VHCC_NhanSu::co_quyen_coso( $u, $cs ) ) {
+				self::ra( array( 'ok' => false, 'error' => 'Không có quyền cơ sở này.' ) );
+			}
+			self::ra( array( 'ok' => true, 'coSo' => $cs,
+				'ds' => VHCC_XinBu::cho_duyet( VHCC_XinBu::CHO_CHT, $cs ) ) );
+		}
+
+		if ( 'buduyet' === $viec ) {
+			$b = self::than();
+			self::ra( VHCC_XinBu::duyet_cht( $u,
+				isset( $b['id'] ) ? (int) $b['id'] : 0,
+				! empty( $b['dongY'] ),
+				isset( $b['lyDo'] ) ? (string) $b['lyDo'] : '' ) );
+		}
+
+		/* ============ GIỜ TỰ KHAI ============
+		   Không nhận `maNV` lẫn `coSo` từ thân: cả hai lấy từ thẻ phiên và từ hồ sơ của chính
+		   người ấy — xem `VHCC_GioKhai::coso_cua()`. Đây là cửa mở cho bậc thấp nhất trong hệ
+		   nên chốt phải chặt nhất. */
+		if ( 'khaigio' === $viec ) {
+			$b = self::than();
+			self::ra( VHCC_GioKhai::khai( $u,
+				isset( $b['ngay'] ) ? (string) $b['ngay'] : '',
+				isset( $b['soGio'] ) ? (string) $b['soGio'] : '',
+				isset( $b['viec'] ) ? (string) $b['viec'] : '',
+				isset( $b['ghiChu'] ) ? (string) $b['ghiChu'] : '' ) );
+		}
+
+		if ( 'khaids' === $viec ) {
+			self::ra( array( 'ok' => true, 'ds' => VHCC_GioKhai::cua_toi( $u ),
+				'homNay' => (string) current_time( 'Y-m-d' ) ) );
+		}
+
+		/* ═════════════════════════════════════════════════════════════════════════════════
+		 * LOẠI GIỜ LƯƠNG — nhân viên tự khai việc mình làm trong ca.
+		 *
+		 * Anh Thắng 18/09/2026: *"Khi bấm check in giờ ra nó sẽ hỏi ca 1, 2, 3 bạn làm nhiệm vụ
+		 * gì. Để nhân viên tự set luôn"*, và một tab riêng để sửa mấy ngày cũ.
+		 *
+		 * 🔴 CƠ SỞ LẤY TỪ HỒ SƠ, KHÔNG NHẬN TỪ THÂN YÊU CẦU. Đây là cửa mở cho bậc thấp nhất
+		 *    trong hệ — nhận `coSo` do trình duyệt gửi lên là ai cũng khai được loại giờ ở cơ
+		 *    sở của người khác. Cùng luật với `VHCC_GioKhai` ngay bên trên.
+		 * ═════════════════════════════════════════════════════════════════════════════════ */
+		if ( 'lgviec' === $viec || 'lgds' === $viec || 'lgdat' === $viec || 'lggui' === $viec ) {
+			$cs_lg = VHCC_NhanSu::chuan_coso( isset( $u['coso'] ) ? (string) $u['coso'] : '' );
+
+			if ( 'lgviec' === $viec ) {
+				/* Trang hỏi TRƯỚC khi vẽ hộp chọn lúc kết ca. Trả `hoi=false` là trang bỏ hẳn
+				   bước ấy — không bày một hộp rỗng rồi bắt người ta bấm qua. */
+				self::ra( array( 'ok' => true, 'coSo' => $cs_lg,
+					'hoi' => VHCC_LoaiGio::hoi_khi_ra( $cs_lg, $u['ma_nv'] ),
+					'tab' => VHCC_LoaiGio::hien_tab( $cs_lg, $u['ma_nv'] ),
+					'ds'  => VHCC_LoaiGio::ds_viec( $cs_lg, $u['ma_nv'] ) ) );
+			}
+
+			if ( 'lgds' === $viec ) {
+				$b = self::than();
+				self::ra( array( 'ok' => true, 'coSo' => $cs_lg,
+					'tab'    => VHCC_LoaiGio::hien_tab( $cs_lg, $u['ma_nv'] ),
+					'ds'     => VHCC_LoaiGio::ngay_cua_toi( $cs_lg, $u['ma_nv'],
+						isset( $b['soNgay'] ) ? (int) $b['soNgay'] : 14 ),
+					'viec'   => VHCC_LoaiGio::ds_viec( $cs_lg, $u['ma_nv'] ),
+					'homNay' => (string) current_time( 'Y-m-d' ) ) );
+			}
+
+			if ( 'lgdat' === $viec ) {
+				/* Đường KẾT CA — ghi thẳng, không qua duyệt. Xem khối chú thích "HAI CỬA" ở
+				   `VHCC_LoaiGio`. Ngày lấy từ thân (lượt chấm vừa xong trả về nó), nhưng cơ sở
+				   và mã NV thì lấy từ phiên. */
+				$b = self::than();
+				self::ra( VHCC_LoaiGio::dat_khi_ra( $cs_lg,
+					isset( $b['ngay'] ) ? (string) $b['ngay'] : (string) current_time( 'Y-m-d' ),
+					isset( $b['ma'] ) ? (string) $b['ma'] : (string) $u['ma_nv'],
+					'',
+					isset( $b['viec'] ) ? (string) $b['viec'] : '' ) );
+			}
+
+			$b = self::than();
+			self::ra( VHCC_LoaiGio::gui( $u, $cs_lg,
+				isset( $b['dong'] ) && is_array( $b['dong'] ) ? $b['dong'] : array(),
+				isset( $b['lyDo'] ) ? (string) $b['lyDo'] : '' ) );
+		}
+
+		/* Cửa hàng trưởng duyệt loại giờ ngay trên điện thoại — cùng chỗ họ duyệt xin bù. */
+		if ( 'lgcho' === $viec ) {
+			$b  = self::than();
+			$cs = VHCC_NhanSu::chuan_coso( isset( $b['coSo'] ) ? (string) $b['coSo'] : '' );
+			if ( '' === $cs || ! VHCC_NhanSu::co_quyen_coso( $u, $cs ) ) {
+				self::ra( array( 'ok' => false, 'error' => 'Không có quyền cơ sở này.' ) );
+			}
+			self::ra( array( 'ok' => true, 'coSo' => $cs, 'ds' => VHCC_LoaiGio::ds_cho( $u, $cs ) ) );
+		}
+
+		if ( 'lgduyet' === $viec ) {
+			$b = self::than();
+			self::ra( VHCC_LoaiGio::duyet( $u,
+				isset( $b['id'] ) ? (int) $b['id'] : 0,
+				! empty( $b['dongY'] ),
+				isset( $b['lyDo'] ) ? (string) $b['lyDo'] : '' ) );
+		}
+
+		if ( 'chuong' === $viec ) {
+			self::ra( VHCC_Chuong::ds( $u ) );
+		}
+
+		if ( 'chuongdoc' === $viec ) {
+			$b = self::than();
+			self::ra( VHCC_Chuong::doc( $u, isset( $b['id'] ) ? (int) $b['id'] : 0 ) );
 		}
 
 		if ( 'hoso' === $viec ) {
@@ -510,6 +712,10 @@ class VHCC_Tram {
 				'duoc'   => true,
 				'dsCoSo' => VHCC_CuaHang::ds_coso( $u ),
 				'thang'  => current_time( 'Y-m' ),
+				/* Câu nhắc "hết 24h là khoá" do CHÍNH nơi thi hành luật đọc ra, không phải màn
+				   tự chế — bày một câu mà luật không làm đúng vậy là nói dối người dùng. */
+				'nhacHan' => VHCC_Bu::nhac_han_ngay( $u ),
+				'homNay'  => current_time( 'Y-m-d' ),
 			) );
 		}
 
@@ -554,6 +760,15 @@ class VHCC_Tram {
 			) ) );
 		}
 
+		if ( 'chxoadong' === $viec ) {
+			self::ra( VHCC_CuaHang::xoa_cong( $u, array(
+				'coSo' => isset( $b['coSo'] ) ? (string) $b['coSo'] : '',
+				'maNV' => isset( $b['maNV'] ) ? (string) $b['maNV'] : '',
+				'ngay' => isset( $b['ngay'] ) ? (string) $b['ngay'] : '',
+				'lyDo' => isset( $b['lyDo'] ) ? (string) $b['lyDo'] : '',
+			) ) );
+		}
+
 		if ( 'chchot' === $viec ) {
 			self::ra( VHCC_CuaHang::chot_cua( $u,
 				isset( $b['coSo'] ) ? (string) $b['coSo'] : '',
@@ -576,6 +791,12 @@ class VHCC_Tram {
 			) ) );
 		}
 
+		if ( 'chnhansu' === $viec ) {
+			self::ra( VHCC_CuaHang::nhan_su( $u,
+				isset( $b['coSo'] ) ? (string) $b['coSo'] : '',
+				isset( $b['tim'] ) ? (string) $b['tim'] : '' ) );
+		}
+
 		if ( 'chthem' === $viec ) {
 			self::ra( VHCC_CuaHang::them_nguoi( $u, array(
 				'coSo'     => isset( $b['coSo'] ) ? (string) $b['coSo'] : '',
@@ -594,11 +815,24 @@ class VHCC_Tram {
 		 *    để chỉ có MỘT nơi gác chứ không phải hai nơi gác khác nhau.
 		 */
 		if ( 'phieuluong' === $viec ) {
+			/* Cửa hàng trưởng còn xem được CẢ CƠ SỞ — anh Thắng 17/09/2026: *"nhân viên thì 1
+			   phiếu của chính mình. Cửa hàng trưởng thì có chính mình và cả cửa hàng"*. Máy chủ
+			   quyết có phần ấy hay không; màn chỉ vẽ theo. */
+			$cs_ql = VHCC_Vai::duoc( $u, VHCC_PhieuLuong::QUYEN_CS )
+				? VHCC_CuaHang::ds_coso( $u ) : array();
 			self::ra( array(
 				'ok'     => true,
 				'dsThang' => VHCC_PhieuLuong::ds_thang( $u ),
 				'khoan'  => VHCC_PhieuLuong::ten_khoan(),
+				'dsCoSoQl' => $cs_ql,
+				'thangNay' => current_time( 'Y-m' ),
 			) );
+		}
+
+		if ( 'phieucs' === $viec ) {
+			self::ra( VHCC_PhieuLuong::ca_coso( $u,
+				isset( $b['coSo'] ) ? (string) $b['coSo'] : '',
+				isset( $b['thang'] ) ? (string) $b['thang'] : '' ) );
 		}
 
 		if ( 'phieu' === $viec ) {

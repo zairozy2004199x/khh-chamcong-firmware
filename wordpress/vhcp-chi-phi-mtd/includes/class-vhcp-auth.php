@@ -587,22 +587,46 @@ class VHCPMTD_Auth {
 		 * người trùng tên thật thì nó nối vào nhầm người. Nhưng bỏ nó đi thì ngày đầu chưa
 		 * khai mã NV cho ai, không một tài khoản nào vào được — nên vẫn giữ, và đặt SAU.
 		 * ══════════════════════════════════════════════════════════════════════════════════ */
-		$k_ten = mb_strtolower( $ten );
+		$x = self::dong_chi_phi_cua( $mnv, $ten );
+		if ( $x ) { return array( 'user' => $x ); }
+
+		return array( 'error' => 'PIN đúng bên trang Nhân sự, nhưng "' . $ten . '"'
+			. ( '' !== $mnv ? ' (' . $mnv . ')' : '' ) . ' chưa được cấp quyền ở trang Chi phí. '
+			. 'Nhờ quản trị thêm một dòng cho người này ở màn Cấu hình → Người dùng & Phân quyền.' );
+	}
+
+	/**
+	 * DÒNG NGƯỜI DÙNG BÊN CHI PHÍ ỨNG VỚI MỘT NGƯỜI BÊN NHÂN SỰ — null nếu chưa có.
+	 *
+	 * ══════════════════════════════════════════════════════════════════════════════════════
+	 * NỐI HAI BÊN: MÃ NV TRƯỚC, TÊN SAU.
+	 *
+	 * Mã NV là khoá chắc chắn — mỗi hồ sơ một mã, `UNIQUE KEY ma_nv` bên ấy lo phần đó, và ô
+	 * mã NV bên này đã chặn hai người cùng mã lúc Lưu.
+	 *
+	 * Tên là khoá LỎNG, chỉ dùng khi chưa ai khai mã: gõ lệch một dấu là trượt, và hai người
+	 * trùng tên thật thì nó nối vào nhầm người. Nhưng bỏ nó đi thì ngày đầu chưa khai mã NV
+	 * cho ai, không một tài khoản nào vào được — nên vẫn giữ, và đặt SAU.
+	 *
+	 * ⚠️ TÁCH RA KHỎI `qua_nhan_su()` ĐỂ DÙNG CHUNG VỚI ĐƯỜNG VÉ / SSO. Hai cửa vào cùng một hệ
+	 *    mà nối người theo hai cách khác nhau thì cùng một người vào bằng hai cửa lại ra hai
+	 *    quyền — đúng thứ `vai_chi_phi()` bên chấm công đã ghi chú mà vẫn xảy ra.
+	 * ══════════════════════════════════════════════════════════════════════════════════════
+	 */
+	public static function dong_chi_phi_cua( $ma_nv, $ten ) {
+		$mnv      = trim( (string) $ma_nv );
+		$k_ten    = mb_strtolower( trim( (string) $ten ) );
 		$theo_ten = null;
 		foreach ( VHCPMTD_Cfg::get_users() as $x ) {
 			$m = trim( (string) ( isset( $x['maNv'] ) ? $x['maNv'] : '' ) );
 			if ( '' !== $mnv && '' !== $m && mb_strtolower( $m ) === mb_strtolower( $mnv ) ) {
-				return array( 'user' => $x );
+				return $x;
 			}
 			if ( null === $theo_ten && '' !== $k_ten && mb_strtolower( trim( (string) $x['ten'] ) ) === $k_ten ) {
 				$theo_ten = $x;
 			}
 		}
-		if ( $theo_ten ) { return array( 'user' => $theo_ten ); }
-
-		return array( 'error' => 'PIN đúng bên trang Nhân sự, nhưng "' . $ten . '"'
-			. ( '' !== $mnv ? ' (' . $mnv . ')' : '' ) . ' chưa được cấp quyền ở trang Chi phí. '
-			. 'Nhờ quản trị thêm một dòng cho người này ở màn Cấu hình → Người dùng & Phân quyền.' );
+		return $theo_ten;
 	}
 
 	/** changePin(name, oldPin, newPin) */
@@ -834,27 +858,63 @@ class VHCPMTD_Auth {
 	}
 
 	/** resolveSsoUser(): vai trò trang tổng → vai trò Chi Phí, có bảng override theo email. */
+	/**
+	 * ══════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 VÀO BẰNG VÉ / SSO CHỈ MƯỢN DANH TÍNH — QUYỀN LẤY TỪ BẢNG NGƯỜI DÙNG BÊN NÀY
+	 * ══════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 20/09/2026: *"việc đẩy nhân sự sang chỉ là để đăng nhập. Sau phân quyền cho
+	 * bên chi phí quyết định. Để tránh râu ông này cắm bà kia"*.
+	 *
+	 * 🔴 BẢN CŨ LẤY THẲNG VAI VÀ CƠ SỞ TỪ BÊN KIA (`$ident['r']`, `$ident['b']`) và KHÔNG hề
+	 *    tra bảng người dùng bên này. Nên:
+	 *      · ai là Quản lý bên chấm công thì bấm sang là Quản lý trên trang TIỀN — duyệt được
+	 *        chi của mọi cơ sở, mà không ai bên chi phí bấm nút nào;
+	 *      · cơ sở cũng bê nguyên sang, tức lại là MÃ cửa hàng (`TUTU_BD`) chứ không phải TÊN
+	 *        gian hàng — cùng cái lỗi đã sửa ở lượt đẩy hôm qua, chỉ khác cửa;
+	 *      · và nó cấp lại ở MỖI LƯỢT ĐĂNG NHẬP, không để lại dòng nào cho kế toán nhìn thấy
+	 *        mà sửa. Lỗi ở đây im hơn hẳn lượt đẩy.
+	 *
+	 *    Chính `login()` ngay trên kia đã chốt luật đúng từ lâu — *"CHỈ MƯỢN MẬT KHẨU, KHÔNG
+	 *    MƯỢN QUYỀN… người ấy phải có sẵn một dòng trong bảng người dùng của trang Chi phí, và
+	 *    vai · cơ sở · phòng ban lấy từ ĐÚNG DÒNG ĐÓ"*. Cửa vé thì chưa theo. Nay theo.
+	 *
+	 * ⚠️ CHƯA CÓ DÒNG THÌ TRẢ `null` — không tự đẻ ra một danh tính. Gọi bên ngoài hiểu `null`
+	 *    là "không vào được bằng đường này", y như `qua_nhan_su()` chối PIN với đúng lý do ấy.
+	 *    Đẻ bừa một tài khoản 'Nhân viên' là mở cửa cho cả sổ nhân sự bước vào trang tiền.
+	 *
+	 * ⚠️ BẢNG `sso_overrides()` VẪN GIỮ và vẫn thắng — nó là bảng khai BÊN NÀY (màn Cấu hình),
+	 *    tức chính là "bên chi phí quyết định", không phải dữ liệu mượn từ bên kia.
+	 *
+	 * ⚠️ `$ident['r']` / `$ident['b']` NAY CHỈ DÙNG ĐỂ… không dùng gì cả. Giữ trong chữ ký vì
+	 *    bên gọi vẫn gửi, nhưng cố ý KHÔNG đọc: đọc là mở lại đúng cái cửa vừa đóng.
+	 * ══════════════════════════════════════════════════════════════════════════════════════
+	 */
 	public static function resolve_sso_user( $ident ) {
-		$email    = trim( (string) ( isset( $ident['e'] ) ? $ident['e'] : '' ) );
-		$branches = isset( $ident['b'] ) ? $ident['b'] : '';
-		$branches = is_array( $branches ) ? implode( ', ', $branches ) : (string) $branches;
-		$hub      = (string) ( isset( $ident['r'] ) ? $ident['r'] : '' );
+		$email = trim( (string) ( isset( $ident['e'] ) ? $ident['e'] : '' ) );
+		$ten   = trim( (string) ( isset( $ident['n'] ) ? $ident['n'] : '' ) );
+		$ma_nv = trim( (string) ( isset( $ident['m'] ) ? $ident['m'] : '' ) );
 
-		if ( $hub === 'ADMIN' )                { $role = 'Admin'; }
-		elseif ( $hub === 'QUAN_LY' )          { $role = 'Quản lý'; }
-		elseif ( $hub === 'CUA_HANG_TRUONG' )  { $role = 'Nhân viên'; }
-		elseif ( $hub === 'KE_TOAN' )          { $role = 'Kế toán cá nhân'; }
-		else                                   { $role = 'Nhân viên'; }
+		$x = self::dong_chi_phi_cua( $ma_nv, $ten );
+		if ( ! $x ) { return null; }
 
-		$coso = $branches;
-		$ov   = self::sso_overrides();
-		$k    = strtolower( $email );
+		$role = trim( (string) $x['vaiTro'] );
+		if ( '' === $role ) { $role = 'Nhân viên'; }
+		$coso = (string) $x['coso'];
+
+		/* Bảng đè theo email — khai ở màn Cấu hình bên này, nên nó thắng. */
+		$ov = self::sso_overrides();
+		$k  = strtolower( $email );
 		if ( isset( $ov[ $k ] ) ) {
 			if ( ! empty( $ov[ $k ]['role'] ) ) { $role = $ov[ $k ]['role']; }
 			if ( ! empty( $ov[ $k ]['coso'] ) ) { $coso = $ov[ $k ]['coso']; }
 		}
-		return array( 'name' => (string) ( isset( $ident['n'] ) ? $ident['n'] : '' ), 'role' => $role,
-			'roleGoc' => VHCPMTD_Cfg::vai_goc( $role ), 'coso' => self::coso_hien( $coso ) );
+		return array(
+			'name'    => (string) $x['ten'],
+			'role'    => $role,
+			'roleGoc' => VHCPMTD_Cfg::vai_goc( $role ),
+			'coso'    => self::coso_hien( $coso ),
+			'boPhan'  => isset( $x['boPhan'] ) ? (string) $x['boPhan'] : '',
+		);
 	}
 
 	private static function sso_overrides() {

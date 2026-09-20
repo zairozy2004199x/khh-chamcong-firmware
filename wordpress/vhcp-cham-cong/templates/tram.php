@@ -76,27 +76,6 @@ VHCC_PWA::the_head();
 	--bong-2:0 4px 14px rgba(0,0,0,.50);
 	--bong-3:0 12px 32px rgba(0,0,0,.60);
 }
-/* ═══ MÀN CHỤP GIỮ MẶT TỐI ═════════════════════════════════════════════════════════════════
-   Chú thích đầu tệp (mục "hắt sáng") hứa đúng việc này. 17/09/2026 hoà nhánh mới phát hiện
-   lời hứa ấy CHƯA ĐƯỢC LÀM: trạm đã sang nền kem mà `#mChup` không có lấy một luật màu, và
-   `kiem-bo-ao-tron.php` cũng chưa hề được sửa như chú thích nói. Nên nguyên nỗi lo vẫn còn
-   nguyên: màn kem sáng hắt thẳng vào mặt người đang đứng chụp, ảnh bệt — mà đúng tấm ảnh ấy là
-   thứ quản lý dùng đối chiếu về sau, và trạm chạy cả ca đêm.
-
-   Chỉ đổi màu, KHÔNG đổi hình: cùng tên biến, cùng bo góc, cùng nhịp 4px với bản sáng — đúng
-   luật "sáng và tối khác màu, không khác hình" của bộ áo. Và chỉ trong năm giây đứng chụp. */
-#mChup{
-	/* Mười hai mã dưới đây CHÉP NGUYÊN từ bản tối của chính tệp này trước lượt 4.29.1 (xem
-	   `git show bb871c6d:…/tram.php`) — không tự pha màu mới, để mặt tối của trạm vẫn đúng
-	   một thứ màu với mấy trang tối khác trong bộ. */
-	--nen:#101828; --the:#1b2436; --nen-2:#243049;
-	--vien:#31405e; --vien-dam:#455873;
-	--chu:#e7ecf5; --chu-dam:#ffffff; --chu-mo:#93a3bd;
-	--nhan:#38bdf8; --nhan-dam:#0ea5e9; --nhan-nhat:#12314a;
-	--do:#f87171;
-	background:var(--nen); color:var(--chu);
-}
-
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
 /* Nền 3D mặt tối: cùng ba vầng sáng như bảng công, chỉ đậm hơn để đọc ra trên nền tối.
@@ -121,6 +100,20 @@ h1{font-size:18px;margin:0 0 2px}
 label{display:block;font-size:12.5px;color:var(--chu-mo);margin:0 0 5px}
 /* Ô TÍCH. Cả dòng chữ là vùng chạm (label `for=`), không phải mỗi cái ô vuông 16px — ngón cái
    không trúng ô vuông ấy, và trượt một nhát thì người ta tưởng máy không nhận. */
+/* NÚT PHÁ. Đỏ đặc, không phải viền đỏ — nó phải khác hẳn mọi nút khác trên màn, kể cả khi
+   nhìn lướt. ⚠️ Đỏ là để BÁO, không phải để cấm: việc này hợp lệ và có người cần làm hằng
+   tuần, nên nút vẫn nằm chỗ dễ thấy chứ không giấu sau một menu. */
+/* DÒNG BẤM ĐƯỢC trong bảng công cơ sở. Vùng chạm là cả dòng (cao ~44px nhờ đệm của ô), nên
+   không cần nút riêng — xem chú thích ở `napCongCH()`. */
+/* Dòng ĐÃ KHOÁ (ngày đã qua, cửa hàng trưởng hết hạn sửa). Mờ đủ để đọc ra là "khác", và
+   KHÔNG có con trỏ bấm — nói "đây không phải nút" trước cả khi người ta chạm vào. */
+tr.ng-khoa{opacity:.55}
+tr.hang-mo{cursor:pointer}
+tr.hang-mo:active{background:var(--nhan-nhat)}
+tr.hang-mo td{padding-top:12px;padding-bottom:12px}
+.mui{color:var(--chu-mo);font-weight:700;margin-left:2px}
+button.nguy{background:#dc2626;border-color:#dc2626;color:#fff;font-weight:700}
+button.nguy:active{background:#b91c1c}
 label.tich{display:flex;align-items:center;gap:9px;min-height:44px;margin:0;
 	font-size:13.5px;color:var(--chu);cursor:pointer}
 label.tich input{flex:0 0 auto;width:19px;height:19px;margin:0}
@@ -139,6 +132,31 @@ input,select{width:100%;padding:12px 13px;font-size:16px;border-radius:var(--bo-
 	border:1px solid var(--vien-dam);background:var(--nen);color:var(--chu);font-family:inherit}
 input:focus,select:focus{outline:none;border-color:var(--nhan);
 	box-shadow:0 0 0 3px rgba(56,189,248,.22)}
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 Ô NGÀY / GIỜ TRÊN iOS TRÀN RA NGOÀI THẺ.
+ *
+ * Anh Thắng 18/09/2026, hai ảnh chụp iPhone (màn Xin phép đi trễ và Xin nghỉ): *"Lệch ô"* — ô
+ * NGÀY thò hẳn ra khỏi mép phải tấm thẻ trắng, trong khi ô Lý do ngay dưới thì vừa khít.
+ *
+ * Vì sao: `width:100%` KHÔNG thắng được chiều rộng nội tại của ô ngày trên Safari. Safari dựng
+ * `input[type=date]` bằng một hộp flex chứa mấy ô con (ngày / tháng / năm) và đặt cho nó một
+ * `min-width` tối thiểu đủ chứa chuỗi dài nhất — với định dạng tiếng Việt là *"ngày 18 thg 9,
+ * 2026"*. Khi `min-width` nội tại lớn hơn 100% của thẻ cha, nó thắng, và ô đè ra ngoài.
+ *
+ * `box-sizing:border-box` (đã có ở `*`) KHÔNG chữa được chuyện này: nó chỉ tính padding vào
+ * chiều rộng, không hạ được chiều rộng tối thiểu.
+ *
+ * Chữa bằng đúng hai thứ:
+ *   · `min-width:0` — gỡ cái sàn nội tại, cho `width:100%` có hiệu lực;
+ *   · `-webkit-appearance:none` — bỏ vỏ native, không thì Safari tự đặt lại kích thước.
+ * Thêm `max-width:100%` làm chốt chặn cuối: dù ngày nào Safari đổi cách dựng, ô cũng không
+ * tràn được ra khỏi thẻ nữa.
+ *
+ * ⚠️ CHỈ ĐỘNG TỚI Ô NGÀY/GIỜ. Gỡ `appearance` của mọi ô là mất luôn mũi tên của `<select>` —
+ *    người dùng không biết ô ấy bấm được.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+input[type=date],input[type=month],input[type=time],input[type=datetime-local]{
+	min-width:0;max-width:100%;-webkit-appearance:none;appearance:none}
 /* Nút nhún khi bấm — cùng nhịp với bảng công, để hai màn nói một thứ tiếng. Ở đây nó còn
    đáng giá hơn: người bấm đang cầm điện thoại một tay, cần biết ngay là đã trúng nút. */
 button{font-family:inherit;font-size:15px;border:0;border-radius:var(--bo-nut);padding:13px var(--d4);
@@ -302,6 +320,10 @@ video,canvas.xem{width:100%;border-radius:var(--bo-the);background:#000;display:
 	gap:7px;text-align:center;text-decoration:none;color:var(--chu);
 	padding:8px 2px;border-radius:var(--bo-o);min-width:0;min-height:48px}
 .o-ung:active{background:var(--nen-2)}
+/* Ô MỞ MÀN TRONG TRẠM dựng bằng <button>, nên phải gỡ hết nét mặc định của nút — không gỡ thì
+   nó có viền, có nền xám và chữ font hệ thống, đứng cạnh mấy ô <a> thành một ô trông hỏng. */
+button.o-ung{border:0;background:transparent;font:inherit;color:var(--chu);cursor:pointer;
+	-webkit-appearance:none;appearance:none;width:100%}
 /* Ô CHƯA ĐƯỢC CẤP. Mờ đủ để đọc ra là "khác", KHÔNG mờ tới mức không đọc nổi: cả điểm của
    việc bày nó ra là để người ta biết thứ ấy tồn tại mà đi xin.
    ⚠️ `cursor:default` + không có :active — ô này không phải thẻ <a> nên vốn đã không bấm được;
@@ -311,7 +333,7 @@ video,canvas.xem{width:100%;border-radius:var(--bo-the);background:#000;display:
 .o-ung.o-khoa:active{background:transparent}
 .o-ung.o-khoa .o-icon{filter:grayscale(1)}
 .o-ung b{display:block;font-size:12px;font-weight:600;line-height:1.3;color:var(--chu-dam);
-	/* Tên dài ("Nộp báo cáo cửa hàng") phải xuống dòng trong cột, không đẩy toang lưới. */
+	/* Tên dài ("Gửi đơn đi trễ") phải xuống dòng trong cột, không đẩy toang lưới. */
 	overflow-wrap:anywhere}
 .o-icon{display:flex;align-items:center;justify-content:center;width:52px;height:52px;
 	border-radius:15px;font-size:25px;flex:0 0 52px}
@@ -339,15 +361,73 @@ video,canvas.xem{width:100%;border-radius:var(--bo-the);background:#000;display:
 .thanh button{flex:1;padding:11px 8px;font-size:14px}
 /* Chừa chỗ cho thanh dính, không thì nó che mất đầu khối vừa nhảy tới. */
 .khung{position:relative}
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 KHUNG XEM CAMERA PHẢI THẤP LẠI, KHÔNG THÌ NÚT CHỤP RƠI KHỎI MÀN.
+ *
+ * Anh Thắng 18/09/2026, hai ảnh chụp iPhone: *"Đẩy màn chụp nhỏ lại 1/2 để cho nút chụp lên
+ * cao. Gọn lại"*. Camera trước của điện thoại cho khung DỌC; `width:100%` thì chiều cao tự
+ * kéo theo tỷ lệ, và trên máy màn hẹp nó đẩy nút "Chụp ngay" xuống tận mép dưới — người đang
+ * đứng chấm công phải cuộn mới bấm được, giữa lúc một tay cầm máy tự chụp mặt mình.
+ *
+ * `max-height` theo `vh` chứ không theo pixel: màn nào cũng chừa đúng nửa trên cho khung xem,
+ * nửa dưới cho nút — không phụ thuộc máy.
+ *
+ * ⚠️ `object-fit:cover` chỉ CẮT PHẦN NHÌN, không đụng tới ảnh lưu. Ảnh chấm công vẽ từ
+ *    `video.videoWidth/videoHeight` sang một canvas riêng (xem `chup()`), nên vẫn đủ khung như
+ *    cũ. Nếu ngày nào đó đổi sang lưu chính canvas đang bày thì phải đọc lại chỗ này.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+.khung video,.khung canvas.xem{max-height:46vh;object-fit:cover}
 .dem{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
 	pointer-events:none;border-radius:var(--bo-the)}
 .dem span{font-size:96px;font-weight:800;color:#fff;line-height:1;
 	text-shadow:0 0 22px rgba(0,0,0,.85),0 3px 10px rgba(0,0,0,.9);
 	font-variant-numeric:tabular-nums}
 .an{display:none!important}
+
+/* ── CHUÔNG THÔNG BÁO ────────────────────────────────────────────────────────────────────
+   z-index 7 — THẤP HƠN `.mn` (9) và thấp hơn thanh tab (8). Cao bằng `.mn` thì lúc đang
+   chụp ảnh chấm công vẫn thấy cái chuông nổi trên màn tối, bấm trúng là thoát giữa chừng.
+   `top` cộng safe-area vì trên iPhone đã thêm vào màn hình chính thì mép trên bị tai che. */
+#oChuong{position:fixed;right:10px;top:calc(8px + env(safe-area-inset-top));z-index:7}
+#btChuong{position:relative;width:42px;height:42px;padding:0;border:1px solid var(--vien-dam);
+	border-radius:50%;background:var(--the);font-size:19px;line-height:1;cursor:pointer;
+	box-shadow:0 2px 10px rgba(0,0,0,.35)}
+#btChuong:active{transform:scale(.94)}
+/* Chấm đỏ đè lên góc chuông. `min-width` + `padding` ngang để '3' tròn còn '99+' thành viên
+   thuốc, chứ không phải hai kích thước khác hẳn nhau. */
+#demChuong{position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;padding:0 5px;
+	border-radius:9px;background:#dc2626;color:#fff;font-size:11px;font-weight:700;
+	line-height:18px;font-variant-numeric:tabular-nums}
+.tin{display:block;width:100%;text-align:left;padding:11px 12px;margin:0 0 8px;
+	border:1px solid var(--vien);border-radius:var(--bo-o);background:var(--the);
+	color:var(--chu);font:inherit;font-size:13.5px;cursor:pointer}
+/* Chưa đọc: viền trái dày + nền hơi sáng. KHÔNG dùng chữ đậm làm dấu duy nhất — đọc rồi thì
+   chữ nhạt đi, và trên màn hình ngoài nắng hai mức đậm nhạt ấy nhìn như nhau. */
+.tin.moi{border-left:3px solid var(--nhan);background:var(--nhan-nhat)}
+.tin .luc{display:block;margin:4px 0 0;font-size:11px;color:var(--chu-mo)}
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 NỀN PHỦ LUÔN TỐI, NÊN CHỮ NẰM TRỰC TIẾP TRÊN NÓ PHẢI SÁNG
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * `.mn` cố định nền `rgba(2,6,23,.94)` — nó là lớp phủ, không đổi theo giao diện. Nhưng chữ
+ * bên trong vẫn thừa kế `--chu`, mà từ lúc trang chuyển sang NỀN SÁNG (17/09/2026) `--chu` gần
+ * như đen. Hậu quả: TIÊU ĐỀ của mọi màn phủ — Xin bù giờ · Xin nghỉ · Phiếu lương · Khai giờ
+ * khác… — là chữ đen trên nền đen. Người ta mở một màn ra và không đọc được tên của chính cái
+ * màn mình vừa mở; chỉ mấy thẻ `.the` màu trắng bên trong là còn thấy.
+ *
+ * Lỗi này sống sót lâu vì nó KHÔNG làm gì hỏng: bấm vẫn chạy, biểu mẫu vẫn gửi được. Nó chỉ
+ * âm thầm lấy mất dòng chữ nói cho người dùng biết họ đang ở đâu.
+ *
+ * ⚠️ ĐẶT MÀU Ở `.mn`, RỒI TRẢ LẠI `--chu` CHO `.the`. Thẻ trắng bên trong phải giữ chữ tối —
+ *    đặt màu sáng cho cả cây con là mọi biểu mẫu thành trắng trên trắng, đổi một lỗi lấy một
+ *    lỗi to hơn hẳn. Cùng lý do cho `.phu`: nút viền nằm thẳng trên nền phủ.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
 .mn{position:fixed;inset:0;background:rgba(2,6,23,.94);z-index:9;overflow:auto;
-	padding:14px 14px calc(20px + env(safe-area-inset-bottom))}
+	padding:14px 14px calc(20px + env(safe-area-inset-bottom));color:#eef2f8}
 .mn .bao{padding-top:8px}
+.mn>.bao>.mo,.mn>.bao>.ct{color:#b9c4d4}
+.mn>.bao>.phu{color:#dbe3ee;border-color:rgba(255,255,255,.34)}
+.mn .the,.mn .the .mo,.mn .the .ct{color:var(--chu)}
+.mn .the .mo,.mn .the .ct{color:var(--chu-mo)}
 .mmau{width:96px;border-radius:var(--bo-nho);border:1px solid var(--vien-dam);float:right;margin:0 0 var(--d2) 10px}
 a{color:var(--nhan)}
 .ct{text-align:center;color:var(--chu-mo);font-size:11.5px;margin:var(--d4) 0 0}
@@ -384,6 +464,97 @@ a{color:var(--nhan)}
 			<button id="btTra" class="chinh">Tra PIN</button>
 			<button id="btDongQuen" class="phu">Đóng</button>
 		</div>
+	</div>
+</div></div>
+
+<!-- ============ CHUÔNG THÔNG BÁO ============
+     Nằm NGOÀI `#mChinh` và tự ẩn/hiện riêng, vì `#mChinh` là một khối cuộn — đặt chuông
+     trong đó thì cuộn xuống bảng công là chuông trôi mất khỏi màn hình. Ngoài ra `#mChinh`
+     bị ẩn lúc chưa đăng nhập, mà chuông cũng phải ẩn lúc ấy, nên hai thứ bật tắt cùng nhau
+     trong `vaoRoi()`. -->
+<div id="oChuong" class="an">
+	<button id="btChuong" title="Thông báo" aria-label="Thông báo">🔔<span id="demChuong" class="an"></span></button>
+</div>
+
+<!-- ============ MÀN DANH SÁCH THÔNG BÁO ============ -->
+<div id="mChuong" class="mn an"><div class="bao">
+	<h1>Thông báo</h1>
+	<p class="mo">Hộp thư chung với trang Nội bộ — đọc ở đây thì bên kia cũng hết đỏ.</p>
+	<div class="the">
+		<div id="dsTin"><p class="trong">Đang tải…</p></div>
+		<p></p>
+		<div class="hang">
+			<button id="btDocHet" class="phu">Đọc hết</button>
+			<button id="btDongChuong" class="phu">Đóng</button>
+		</div>
+	</div>
+</div></div>
+
+<!-- ============ MÀN XIN BÙ GIỜ ============ -->
+<div id="mXinBu" class="mn an"><div class="bao">
+	<h1>Xin bù giờ</h1>
+	<p class="mo">Quên bấm máy hôm nào thì xin bù ở đây. Cửa hàng trưởng duyệt trước, kế toán duyệt sau.</p>
+	<div class="the">
+		<label for="xbNgay">Ngày</label>
+		<input id="xbNgay" type="date">
+		<p></p>
+		<div class="hang">
+			<div style="flex:1"><label for="xbVao">Giờ vào</label>
+				<input id="xbVao" type="tel" inputmode="numeric" placeholder="08:00" maxlength="5"></div>
+			<div style="flex:1"><label for="xbRa">Giờ ra</label>
+				<input id="xbRa" type="tel" inputmode="numeric" placeholder="17:00" maxlength="5"></div>
+		</div>
+		<div id="xbCa" class="mo" style="margin:6px 0 0;font-size:13px"></div>
+		<div id="xbTong" class="mo" style="margin:4px 0 0;font-size:13px"></div>
+		<p></p>
+		<label for="xbLyDo">Vì sao thiếu giờ hôm ấy</label>
+		<input id="xbLyDo" type="text" placeholder="VD: máy hỏng sáng hôm ấy, có camera" maxlength="250">
+		<div id="kqXinBu"></div>
+		<p></p>
+		<div class="hang">
+			<button id="btXinBu" class="chinh">Gửi đơn</button>
+			<button id="btDongXinBu" class="phu">Đóng</button>
+		</div>
+		<p class="mo" style="margin:10px 0 0;font-size:12px">Ngày <b>đã có giờ chấm</b> thì không
+			xin bù được — giờ sai thì báo cửa hàng trưởng sửa qua bảng công tháng.</p>
+	</div>
+	<div class="the">
+		<label style="margin:0 0 8px">Đơn đã gửi</label>
+		<div id="dsXinBu"><p class="trong">Đang tải…</p></div>
+	</div>
+</div></div>
+
+<!-- ============ MÀN KHAI GIỜ KHÁC ============ -->
+<div id="mKhaiGio" class="mn an"><div class="bao">
+	<h1>Khai giờ khác</h1>
+	<p class="mo">Giờ làm thêm mà máy không ghi được — khai vào đây để cửa hàng theo dõi.</p>
+	<div class="the">
+		<div class="vang" style="margin:0 0 12px">⚠️ Số này <b>KHÔNG tính vào lương</b>. Nó chỉ
+			để cửa hàng biết, và hiện ở một cột riêng trên bảng công. Muốn sửa giờ công thật thì
+			báo cửa hàng trưởng.</div>
+		<label for="kgNgay">Ngày</label>
+		<input id="kgNgay" type="date">
+		<p></p>
+		<label for="kgGio">Số giờ</label>
+		<input id="kgGio" type="tel" inputmode="decimal" placeholder="VD: 2 hoặc 2,5" maxlength="6">
+		<p></p>
+		<label for="kgViec">Làm việc gì</label>
+		<input id="kgViec" type="text" placeholder="VD: dọn kho, chạy sự kiện" maxlength="120">
+		<p></p>
+		<label for="kgGhi">Ghi chú (không bắt buộc)</label>
+		<input id="kgGhi" type="text" placeholder="thêm gì đó cho cửa hàng dễ hiểu" maxlength="250">
+		<div id="kqKhai"></div>
+		<p></p>
+		<div class="hang">
+			<button id="btKhai" class="chinh">Lưu</button>
+			<button id="btDongKhai" class="phu">Đóng</button>
+		</div>
+		<p class="mo" style="margin:10px 0 0;font-size:12px">Khai <b>0 giờ</b> cho một ngày = xoá
+			dòng đã khai của ngày ấy. Khai lại cùng một ngày thì <b>đè lên</b>, không cộng dồn.</p>
+	</div>
+	<div class="the">
+		<label style="margin:0 0 8px">Đã khai gần đây</label>
+		<div id="dsKhai"><p class="trong">Đang tải…</p></div>
 	</div>
 </div></div>
 
@@ -488,26 +659,6 @@ a{color:var(--nhan)}
 	</div>
 
 
-	<!-- ============ PHIẾU LƯƠNG CỦA TÔI ============
-	     🔴 KHÔNG DÙNG CHUNG BỘ LẬT THÁNG với bảng công ngay trên. Bảng công có MỌI tháng, còn
-	        phiếu lương chỉ có tháng kế toán ĐÃ CÔNG BỐ — nối chung một bộ lật thì bảy tháng
-	        trong mười hai lật tới chỗ trống, và chỗ trống ấy đọc y như "tháng đó anh không có
-	        lương". Ô xổ chỉ liệt kê tháng thật sự mở được, nên không có cái lật nào hụt.
-     🔴 CHƯA CÔNG BỐ THÁNG NÀO THÌ KHỐI VẪN HIỆN, CHỈ ẨN Ô XỔ.
-	        Bản 4.32.0 ẩn hẳn cả khối, với lý do "chưa có gì để xem thì đừng bày". Anh Thắng là
-	        người đầu tiên mở nó và câu đầu tiên là *"chưa thấy"* — nên lý do ấy sai. Một khối
-	        vô hình không phân biệt được với một khối HỎNG, và người dùng không có cách nào
-	        biết mình đang chờ ai làm gì. Ẩn chỉ đúng khi thứ bị ẩn là thứ người ta chưa từng
-	        nghe tới; phiếu lương thì ai cũng biết là phải có.
-	     ⚠️ Khối chỉ ẩn ở trạng thái ĐẦU, trước lượt nạp — để không loé lên một thẻ rỗng rồi
-	        mới có chữ. `napPhieu()` bỏ `an` ngay khi có câu trả lời, kể cả câu trả lời là
-	        "chưa công bố" hay "mạng hỏng". -->
-	<div class="the an" id="oKhoiPhieu">
-		<label style="margin:0 0 8px">Phiếu lương của tôi</label>
-		<select id="plThang" class="an"></select>
-		<div id="bangPhieu" style="margin-top:10px"><p class="trong">—</p></div>
-	</div>
-
 	</div><!-- /tCong -->
 
 	<!-- ============ TAB CỬA HÀNG (chỉ cửa hàng trưởng) ============
@@ -519,9 +670,22 @@ a{color:var(--nhan)}
 	        nút loé lên một nhịp trước khi biến mất, và cái loé ấy đủ để người ta bấm. -->
 	<div id="tCuaHang" class="tab-o an">
 
+	<!-- ⚠️ CÂU NHẮC NẰM Ở ĐẦU TAB, TRƯỚC MỌI THỨ KHÁC — anh Thắng 17/09/2026: *"Nên chỗ đầu cửa
+	     hàng. Thông báo nội dung hết 24h hôm này không cho phép sửa giờ công. Vui lòng liên hệ
+	     kế toán"*. Nhắc ở cuối hay nhắc lúc bị chối thì người ta đã gõ xong mới biết. -->
+	<div id="nhacHan" class="an"></div>
+
 	<div class="the">
 		<label for="chCoSo" style="margin:0 0 8px">Cơ sở tôi phụ trách</label>
 		<select id="chCoSo"></select>
+		<!-- ⚠️ Anh Thắng 17/09/2026: *"Cơ sở phụ trách là cơ sở theo dõi nhân sự, thêm nhân sự,
+		     chứ không có chấm công trong đó, trừ nó có tên trong chọn cơ sở chấm công"*. Hai
+		     danh sách cố ý khác nhau, nên màn phải nói ra — không thì người ta thấy một cái tên
+		     ở đây rồi đi tìm nó trong ô chấm công, không có, và tưởng hồ sơ mình bị sót. -->
+		<p class="ct" style="text-align:left;margin:8px 0 0">Đây là cơ sở anh/chị <b>theo dõi
+			nhân sự</b> — xem công, duyệt đơn, thêm người. Nó <b>không phải</b> nơi anh/chị chấm
+			công; ô chấm công ở tab <b>Chấm công</b> là danh sách riêng. Một cơ sở có thể nằm ở
+			cả hai, hoặc chỉ một trong hai.</p>
 	</div>
 
 	<!-- ĐƠN TỪ NHÂN VIÊN — ba loại gộp một hộp. Người duyệt nghĩ theo "hôm nay còn ai chờ
@@ -538,27 +702,6 @@ a{color:var(--nhan)}
 			<button id="chThangSau" class="phu" style="flex:0 0 46px">›</button>
 		</div>
 		<div id="bangCongCH"><p class="trong">—</p></div>
-	</div>
-
-	<!-- THÊM NGƯỜI MỚI — cửa hẹp, hồ sơ TẠM. Xem chốt 4 đầu class-vhcc-cua-hang.php. -->
-	<div class="the">
-		<label style="margin:0 0 8px">Thêm nhân sự mới</label>
-		<div class="fldx"><label for="tnTen">Họ và tên</label>
-			<input id="tnTen" type="text" maxlength="120" placeholder="Nguyễn Văn A"></div>
-		<div class="fldx"><label for="tnCccd">Số căn cước</label>
-			<input id="tnCccd" type="tel" inputmode="numeric" maxlength="12" placeholder="12 số"></div>
-		<div class="fldx"><label for="tnSdt">Điện thoại</label>
-			<input id="tnSdt" type="tel" inputmode="numeric" maxlength="15" placeholder="không bắt buộc"></div>
-		<div class="fldx"><label for="tnGt">Giới tính</label>
-			<select id="tnGt"><option value="">— không khai —</option><option>Nam</option><option>Nữ</option></select></div>
-		<div id="loiThem"></div>
-		<p></p>
-		<button id="btThemNguoi" class="chinh to">THÊM VÀO CƠ SỞ NÀY</button>
-		<p class="ct" style="text-align:left;margin:10px 0 0">Hệ cấp <b>mã tạm</b> và
-			<b>không phát PIN cho ai cả</b>: người mới tự vào trang chấm công, bấm
-			<b>Quên PIN</b>, gõ họ tên + căn cước của chính mình rồi tự đặt PIN. Vì vậy
-			<b>căn cước là bắt buộc</b> — thiếu nó thì đường ấy tắc và hồ sơ vừa tạo thành
-			hồ sơ chết. Lương, vai trò, mã chuẩn do nhân sự đặt sau.</p>
 	</div>
 
 	</div><!-- /tCuaHang -->
@@ -641,39 +784,6 @@ a{color:var(--nhan)}
 	        sở nào cũng nộp được còn đơn đổi lịch chỉ có nghĩa ở cơ sở đã bật phân lịch. Gộp vào
 	        một biểu mẫu là phải ẩn/hiện quá nửa số ô theo lựa chọn — và người nộp không bao giờ
 	        biết chắc cái ô mình vừa điền có được gửi đi hay không. -->
-	<div class="the">
-		<label style="margin:0 0 8px">Xin phép đi trễ</label>
-		<p class="ct" style="text-align:left;margin:0 0 10px">Cơ sở nào cũng nộp được. Đơn được duyệt
-			thì ô vàng "chấm thiếu giờ" của ngày ấy bỏ đi — <b>số giờ trong ô không đổi</b>.</p>
-		<label for="xtNgay">Ngày xin trễ</label>
-		<input id="xtNgay" type="date">
-		<label for="xtPhut">Trễ khoảng bao nhiêu phút</label>
-		<input id="xtPhut" type="number" inputmode="numeric" min="1" step="1" placeholder="VD: 20">
-		<label for="xtLyDo">Lý do</label>
-		<input id="xtLyDo" type="text" maxlength="250" placeholder="Cửa hàng trưởng duyệt theo lý do">
-		<div id="loiTre"></div>
-		<p></p>
-		<button id="btGuiTre" class="chinh to">GỬI ĐƠN ĐI TRỄ</button>
-	</div>
-
-	<div class="the">
-		<label style="margin:0 0 8px">Xin nghỉ</label>
-		<div id="oQuyPhep"></div>
-		<p class="ct" style="text-align:left;margin:0 0 10px">Cửa hàng trưởng duyệt. <b>Đơn được
-			duyệt không tự cộng hay trừ công</b> — nó chỉ trả lời "hôm ấy vắng có phép hay không".</p>
-		<label for="xnTu">Nghỉ từ ngày</label>
-		<input id="xnTu" type="date">
-		<label for="xnDen">Đến hết ngày (để trống nếu nghỉ một ngày)</label>
-		<input id="xnDen" type="date">
-		<label for="xnLoai">Loại nghỉ</label>
-		<select id="xnLoai"></select>
-		<label for="xnLyDo">Lý do</label>
-		<input id="xnLyDo" type="text" maxlength="250" placeholder="Người duyệt quyết theo lý do">
-		<div id="loiNghi"></div>
-		<p></p>
-		<button id="btGuiNghi" class="chinh to">GỬI ĐƠN XIN NGHỈ</button>
-	</div>
-
 	<div class="the" id="oKhoiLich">
 		<label style="margin:0 0 8px">Xin đổi lịch / xin nghỉ một ngày</label>
 		<div id="oLichTat" class="an"><p class="trong">—</p></div>
@@ -744,6 +854,229 @@ a{color:var(--nhan)}
 	<button class="tab-nut" data-tab="tToi"><span>👤</span>Tôi</button>
 </nav>
 
+<!-- ============ MÀN XIN NGHỈ ============
+     🔴 MỘT TÍNH NĂNG RIÊNG — anh Thắng 17/09/2026 khoanh đúng khối này: *"Chuyển này thành 1
+        tính năng"*. Cùng lối với Thêm nhân sự · Phiếu lương · Gửi đơn đi trễ.
+     ⚠️ Ô QUỸ PHÉP ĐỨNG TRÊN BIỂU MẪU, KHÔNG PHẢI DƯỚI. Người mở màn này ra là để quyết "xin
+        mấy ngày" — con số còn lại phải đọc được TRƯỚC khi họ gõ, không phải sau. -->
+<div id="mXinNghi" class="mn an"><div class="bao">
+	<h1>Xin nghỉ</h1>
+	<p class="mo">Cửa hàng trưởng duyệt. <b>Đơn được duyệt không tự cộng hay trừ công</b> — nó
+		chỉ trả lời "hôm ấy vắng có phép hay không".</p>
+
+	<div id="oQuyPhep"></div>
+
+	<div class="the">
+		<div class="fldx"><label for="xnTu">Nghỉ từ ngày</label>
+			<input id="xnTu" type="date"></div>
+		<div class="fldx"><label for="xnDen">Đến hết ngày (để trống nếu nghỉ một ngày)</label>
+			<input id="xnDen" type="date"></div>
+		<div class="fldx"><label for="xnLoai">Loại nghỉ</label>
+			<select id="xnLoai"></select></div>
+		<div class="fldx"><label for="xnLyDo">Lý do</label>
+			<input id="xnLyDo" type="text" maxlength="250" placeholder="Người duyệt quyết theo lý do"></div>
+		<div id="loiNghi"></div>
+		<p></p>
+		<button id="btGuiNghi" class="chinh to">GỬI ĐƠN XIN NGHỈ</button>
+		<p class="ct" style="text-align:left;margin:10px 0 0">Đơn đã nộp và kết quả duyệt xem ở
+			tab <b>Tôi</b> — ở đó gom cả đơn đi trễ, xin nghỉ và đổi lịch trong một danh sách.</p>
+	</div>
+
+	<p></p>
+	<button id="btDongNghi" class="phu to">Đóng</button>
+</div></div>
+
+<!-- ============ MÀN XIN PHÉP ĐI TRỄ ============
+     🔴 MỘT TÍNH NĂNG RIÊNG — anh Thắng 17/09/2026: *"Gửi đơn đi trễ là 1 tính năng"*, khoanh
+        đúng khối này ở tab Tôi. Cùng lối với Thêm nhân sự và Phiếu lương: việc thỉnh thoảng
+        mới làm thì đừng nằm giữa một trang cuộn dài.
+     ⚠️ ĐƠN ĐÃ NỘP VẪN Ở TAB TÔI. Chỗ này là chỗ NỘP; chỗ xem kết quả là danh sách đơn bên
+        tab Tôi, và nó gom cả ba loại đơn. Tách danh sách ấy ra theo từng loại là ba chỗ phải
+        nhớ mở, mà cái quên mở là cái nằm đó cả tuần. -->
+<div id="mXinTre" class="mn an"><div class="bao">
+	<h1>Xin phép đi trễ</h1>
+	<p class="mo">Cơ sở nào cũng nộp được. Đơn được duyệt thì ô vàng "chấm thiếu giờ" của ngày
+		ấy bỏ đi — <b>số giờ trong ô không đổi</b>.</p>
+
+	<div class="the">
+		<div class="fldx"><label for="xtNgay">Ngày xin trễ</label>
+			<input id="xtNgay" type="date"></div>
+		<div class="fldx"><label for="xtPhut">Trễ khoảng bao nhiêu phút</label>
+			<input id="xtPhut" type="number" inputmode="numeric" min="1" step="1" placeholder="VD: 20"></div>
+		<div class="fldx"><label for="xtLyDo">Lý do</label>
+			<input id="xtLyDo" type="text" maxlength="250" placeholder="Cửa hàng trưởng duyệt theo lý do"></div>
+		<div id="loiTre"></div>
+		<p></p>
+		<button id="btGuiTre" class="chinh to">GỬI ĐƠN ĐI TRỄ</button>
+		<p class="ct" style="text-align:left;margin:10px 0 0">Đơn đã nộp và kết quả duyệt xem ở
+			tab <b>Tôi</b> — ở đó gom cả đơn đi trễ, xin nghỉ và đổi lịch trong một danh sách.</p>
+	</div>
+
+	<p></p>
+	<button id="btDongTre" class="phu to">Đóng</button>
+</div></div>
+
+<!-- ============ MÀN PHIẾU LƯƠNG ============
+     🔴 MỘT TÍNH NĂNG RIÊNG, KHÔNG PHẢI KHỐI CUỐI TAB CÔNG. Anh Thắng 17/09/2026 gạch chéo khối
+        ấy và chỉ sang ô trống trong lưới: *"Phiếu lương cho vào vị trí này"*.
+     🔴 HAI PHẦN, VÀ AI THẤY PHẦN NÀO LÀ DO MÁY CHỦ QUYẾT: *"nhân viên thì 1 phiếu của chính
+        mình. Cửa hàng trưởng thì có chính mình và cả cửa hàng"*. Nút "Cả cửa hàng" ẩn sẵn
+        trong HTML; `?viec=phieuluong` trả `dsCoSoQl` rỗng cho nhân viên thường nên nó không
+        bao giờ hiện — và cửa `phieucs` vẫn gác lại lần nữa ở máy chủ.
+     ⚠️ KHÔNG DÙNG CHUNG BỘ LẬT THÁNG cho hai phần. Phần "của tôi" chỉ có tháng ĐÃ CÔNG BỐ;
+        phần "cả cửa hàng" có MỌI tháng (quản lý cần thấy cả tháng đang gõ dở). Nối chung một
+        ô chọn thì một trong hai bên luôn lật tới chỗ trống. -->
+<div id="mPhieu" class="mn an"><div class="bao">
+	<h1>Phiếu lương</h1>
+
+	<div class="hang" id="plNut" style="margin:0 0 12px">
+		<button id="btPlToi" class="chinh">Của tôi</button>
+		<button id="btPlCs" class="phu an">Cả cửa hàng</button>
+	</div>
+
+	<div id="plPhanToi">
+		<div class="the">
+			<label id="plNhanO" for="plThang" class="an" style="margin:0 0 8px">Tháng</label>
+			<select id="plThang" class="an"></select>
+			<div id="bangPhieu" style="margin-top:10px"><p class="trong">—</p></div>
+		</div>
+	</div>
+
+	<div id="plPhanCs" class="an">
+		<div class="the">
+			<label for="plCsCoSo" style="margin:0 0 8px">Cơ sở</label>
+			<select id="plCsCoSo"></select>
+			<div class="hang" style="align-items:center;margin:10px 0 0">
+				<button id="plThangTruoc" class="phu" style="flex:0 0 46px">‹</button>
+				<b id="plNhanThang" style="flex:1;text-align:center;font-variant-numeric:tabular-nums;font-size:16px">—</b>
+				<button id="plThangSau" class="phu" style="flex:0 0 46px">›</button>
+			</div>
+			<div id="bangPhieuCs" style="margin-top:10px"><p class="trong">—</p></div>
+		</div>
+	</div>
+
+	<p></p>
+	<button id="btDongPhieu" class="phu to">Đóng</button>
+</div></div>
+
+<!-- ============ MÀN NHÂN SỰ (danh sách người của cơ sở) ============
+     Anh Thắng 17/09/2026: *"Thêm tab Nhân Sự trong Quản Lý Cửa Hàng"*.
+     ⚠️ DANH SÁCH, KHÔNG PHẢI BẢNG. Sáu cột của trang quản trị nhét vào 390px là không đọc nổi.
+        Mỗi người một thẻ: tên to, mấy dòng phụ nhỏ — đúng lối app anh gửi ảnh.
+     🔴 KHÔNG BAO GIỜ BÀY PIN, chỉ bày CÓ hay CHƯA — cùng luật với trang Nhân sự cửa hàng.
+        Biết PIN của một người là đăng nhập thay họ được, mà màn của họ không có gì đổi. -->
+<div id="mNhanSu" class="mn an"><div class="bao">
+	<h1>Nhân sự</h1>
+	<p class="mo" id="nsPhu">—</p>
+
+	<div class="the">
+		<div class="fldx"><label for="nsCoSo">Cơ sở</label>
+			<select id="nsCoSo"></select></div>
+		<div class="fldx"><label for="nsTim">Tìm tên hoặc mã</label>
+			<input id="nsTim" type="search" placeholder="gõ rồi bấm Tìm"></div>
+		<button id="btNsTim" class="phu">Tìm</button>
+	</div>
+
+	<div id="dsNhanSu"><p class="trong">—</p></div>
+
+	<p></p>
+	<button id="btDongNs" class="phu to">Đóng</button>
+</div></div>
+
+<!-- ============ MÀN GIỜ CÔNG LƯƠNG ============
+     Anh Thắng 18/09/2026: *"Nhân viên sẽ thấy giờ làm mình trong ngày hoặc ngày trước và tự bấm
+     set loại giờ làm trong những ngày đó và gửi cửa hàng trưởng duyệt"*.
+
+     🔴 HAI ĐƯỜNG KHÁC NHAU, VÀ MÀN NÀY LÀ ĐƯỜNG CHẬM. Lúc KẾT CA thì chọn xong là ghi luôn
+        (hộp `mKetCa` bên dưới). Ở đây là sửa NGÀY CŨ, nên mọi dòng đều phải qua cửa hàng trưởng
+        duyệt — loại giờ quyết định đơn giá, và sửa được quá khứ mà không ai duyệt thì cuối
+        tháng ai cũng đổi ca của mình sang việc có giá cao nhất.
+
+     ⚠️ Ô XỔ DỰNG TỪ DANH SÁCH MÁY CHỦ TRẢ VỀ, không gõ cứng trong HTML. Danh sách ấy chính là
+        mấy dòng đơn giá đã khai cho người ấy — gõ cứng là chọn được một việc không có giá. -->
+<div id="mGioLuong" class="mn an"><div class="bao">
+	<h1>Giờ công lương</h1>
+	<p class="mo">Mỗi ngày chọn <b>việc mình đã làm</b> hôm ấy. Đổi ngày cũ thì phải chờ
+		<b>cửa hàng trưởng duyệt</b> — chưa duyệt thì bảng lương vẫn giữ cái cũ.</p>
+
+	<div id="lgBao"></div>
+
+	<div class="the">
+		<label for="lgLyDo">Lý do đổi <span class="mo">(một lý do cho cả lượt gửi)</span></label>
+		<input id="lgLyDo" maxlength="250" placeholder="VD: hôm ấy tôi dẫn chương trình">
+	</div>
+
+	<div id="lgDs"><p class="trong">—</p></div>
+
+	<p></p>
+	<button id="btLgGui" class="chinh to">Gửi cửa hàng trưởng duyệt</button>
+	<p></p>
+	<button id="btDongLg" class="phu to">Đóng</button>
+</div></div>
+
+<!-- ============ HỘP HỎI LOẠI GIỜ LÚC KẾT CA ============
+     Anh Thắng 18/09/2026: *"Khi bấm check in giờ ra nó sẽ hỏi ca1,2,3 bạn làm nhiệm vụ gì. Để
+     nhân viên tự set luôn"*.
+
+     🔴 HIỆN SAU KHI GIỜ RA ĐÃ GHI XONG, KHÔNG PHẢI TRƯỚC. Chặn trước là một câu hỏi đứng giữa
+        người ta và cái nút họ tới đây để bấm — mạng chậm hay hộp lỗi là mất luôn lượt chấm.
+        Ghi giờ trước thì dù họ tắt máy ngay sau đó, công vẫn nguyên; chỉ thiếu mỗi loại giờ,
+        mà cái ấy vào tab Giờ công lương khai bù được.
+
+     ⚠️ KHÔNG CÓ NÚT "BỎ QUA" RIÊNG — nút Đóng chính là bỏ qua, và dòng chữ nói rõ bỏ qua thì
+        ra sao. Một nút "Bỏ qua" nằm cạnh nút "Lưu" là thứ người ta bấm theo phản xạ. -->
+<div id="mKetCa" class="mn an"><div class="bao">
+	<h1>Ca vừa xong, bạn làm việc gì?</h1>
+	<p class="mo" id="kcMo">Chọn đúng việc thì lương tính đúng đơn giá của việc ấy.</p>
+	<div class="the">
+		<label for="kcViec">Việc trong ca này</label>
+		<select id="kcViec"></select>
+	</div>
+	<div id="kcBao"></div>
+	<p></p>
+	<button id="btKcLuu" class="chinh to">Lưu loại giờ</button>
+	<p></p>
+	<button id="btKcBo" class="phu to">Để sau</button>
+	<p class="mo" style="font-size:12px">Để sau thì ca này chưa có loại giờ — vào
+		<b>Ứng dụng → Giờ công lương</b> khai bù, nhưng lúc ấy phải chờ cửa hàng trưởng duyệt.</p>
+</div></div>
+
+<!-- ============ MÀN THÊM NHÂN SỰ ============
+     🔴 MỘT TÍNH NĂNG RIÊNG, KHÔNG PHẢI MỘT KHỐI DƯỚI ĐÁY TAB. Anh Thắng 17/09/2026: *"Chuyển
+        sang thêm nhân sự là 1 tính năng"*, kèm ảnh khoanh đúng ô trống trong lưới Ứng dụng.
+        Nó là việc làm dăm bữa một lần, còn tab Cửa hàng là thứ mở hằng ngày — để nó nằm cuối
+        tab thì mỗi lần xem bảng công lại phải cuộn qua một biểu mẫu trống.
+     ⚠️ CÓ Ô CHỌN CƠ SỞ RIÊNG. Trước đây nó mượn ô của tab Cửa hàng; mở từ lưới thì không còn
+        ô ấy nữa, mà đoán bừa cơ sở là thêm người vào nhầm cửa hàng. -->
+<div id="mThemNv" class="mn an"><div class="bao">
+	<h1>Thêm nhân sự</h1>
+	<p class="mo">Mở hồ sơ <b>tạm</b> cho người vừa vào làm, để họ chấm công được ngay.</p>
+
+	<div class="the">
+		<div class="fldx"><label for="tnCoSo">Thêm vào cơ sở</label>
+			<select id="tnCoSo"></select></div>
+		<div class="fldx"><label for="tnTen">Họ và tên</label>
+			<input id="tnTen" type="text" maxlength="120" placeholder="Nguyễn Văn A"></div>
+		<div class="fldx"><label for="tnCccd">Số căn cước</label>
+			<input id="tnCccd" type="tel" inputmode="numeric" maxlength="12" placeholder="12 số"></div>
+		<div class="fldx"><label for="tnSdt">Điện thoại</label>
+			<input id="tnSdt" type="tel" inputmode="numeric" maxlength="15" placeholder="không bắt buộc"></div>
+		<div class="fldx"><label for="tnGt">Giới tính</label>
+			<select id="tnGt"><option value="">— không khai —</option><option>Nam</option><option>Nữ</option></select></div>
+		<div id="loiThem"></div>
+		<p></p>
+		<button id="btThemNguoi" class="chinh to">THÊM VÀO CƠ SỞ NÀY</button>
+		<p class="ct" style="text-align:left;margin:10px 0 0">Hệ cấp <b>mã tạm</b> và
+			<b>không phát PIN cho ai cả</b>: người mới tự vào trang chấm công, bấm
+			<b>Quên PIN</b>, gõ họ tên + căn cước của chính mình rồi tự đặt PIN. Vì vậy
+			<b>căn cước là bắt buộc</b> — thiếu nó thì đường ấy tắc và hồ sơ vừa tạo thành
+			hồ sơ chết. Lương, vai trò, mã chuẩn do nhân sự đặt sau.</p>
+	</div>
+
+	<p></p>
+	<button id="btDongThem" class="phu to">Đóng</button>
+</div></div>
+
 <!-- ============ MÀN MỘT NGƯỜI — sửa công & chốt lương ============
      🔴 MÀN PHỦ TOÀN TRANG, KHÔNG PHẢI MỘT KHỐI NHÉT THÊM VÀO TAB. Anh Thắng 17/09/2026:
         *"giao diện dùng như app nhé"*. Hai việc này là việc làm cho MỘT người, cần trọn màn
@@ -785,10 +1118,16 @@ a{color:var(--nhan)}
 		<button id="btLuuGio" class="chinh to">LƯU GIỜ</button>
 		<p></p>
 		<button id="btXoaGio" class="phu to">Xoá giờ ngày này</button>
+		<p></p>
+		<button id="btXoaDong" class="nguy to">🗑 Xoá hẳn dòng công</button>
 		<p class="ct" style="text-align:left;margin:10px 0 0">Ô để <b>trống</b> nghĩa là
-			<b>giữ nguyên</b>, không phải xoá. Muốn bỏ hẳn giờ của ngày thì bấm
-			<b>Xoá giờ ngày này</b> — dòng chấm công vẫn ở lại với giờ trống và một dòng nhật
-			ký, để sau còn lần lại được.</p>
+			<b>giữ nguyên</b>, không phải xoá.<br>
+			<b>Xoá giờ ngày này</b> — dòng còn, hai ô giờ trống. Lưới vẫn nói "hôm ấy có một
+			dòng". Dùng khi giờ sai mà chưa biết giờ đúng.<br>
+			<b>Xoá hẳn dòng công</b> — dòng biến mất khỏi lưới, trông như hôm ấy người ta
+			<b>không đi làm</b>. Chỉ dùng khi dòng ấy vốn không nên tồn tại (máy chấm nhầm sang
+			mã người khác chẳng hạn).<br>
+			Cả hai đều <b>vào sổ</b> kèm giờ cũ và lý do, nên sau còn lần lại được.</p>
 	</div>
 
 	<!-- ── CHỐT LƯƠNG THEO VIỆC ───────────────────────────────────────────────────────── -->
@@ -835,17 +1174,17 @@ a{color:var(--nhan)}
 <!-- ============ MÀN CHỤP ẢNH ============ -->
 <div id="mChup" class="mn an"><div class="bao">
 	<h1>Chụp ảnh</h1>
-	<p class="mo">Đưa mặt vào khung, đủ sáng, rồi bấm <b>Chụp ngay</b>. Ảnh được đóng dấu giờ máy chủ.</p>
-	<div class="the" id="oMau"></div>
-	<div class="the" style="padding:10px">
+	<p class="mo" style="margin:0 0 8px">Đưa mặt vào khung, đủ sáng, rồi bấm <b>Chụp ngay</b>.
+		Ảnh được đóng dấu giờ máy chủ.</p>
+	<div class="the" id="oMau" style="margin:0 0 8px"></div>
+	<div class="the" style="padding:10px;margin:0">
 		<div class="khung">
 			<video id="vid" playsinline autoplay muted></video>
 			<canvas id="xem" class="xem an"></canvas>
 			<div id="oDem" class="dem an"><span id="soDem">5</span></div>
 		</div>
 		<div id="loiChup"></div>
-		<p></p>
-		<div class="hang" id="nhomChup">
+		<div class="hang" id="nhomChup" style="margin-top:10px">
 			<button id="btChup" class="chinh">Chụp ngay</button>
 			<button id="btHuyChup" class="phu">Huỷ</button>
 		</div>
@@ -1457,6 +1796,7 @@ function dangXuat(imLang){
 	var _h = el('oHoSo'); if(_h){ _h.innerHTML = '<p class="trong">Đang tải…</p>'; }
 	var _u = el('oUng'); if(_u){ _u.innerHTML = '<p class="trong">Đang tải…</p>'; }
 	hien('mChinh',false); hien('mChup',false); hien('mChon',false); hien('thanhTab',false);
+	hien('mChuong',false); hien('oChuong',false);
 	hien('mVao',true);
 	if(!imLang){ bao('loiVao','',null); }
 	else { bao('loiVao','vang','Phiên đã hết. Đăng nhập lại bằng PIN.'); }
@@ -1499,6 +1839,9 @@ function moManChinh(){
 	   ra. Lượt hỏi này KHÔNG nằm trong `Promise.all` dưới: hỏng nó thì chỉ thiếu một nút, còn
 	   `Promise.all` hỏng là màn hình đứng ở "đang gọi máy chủ". */
 	doCuaHang();
+	/* Hỏi cơ sở này có bật khai loại giờ không — cùng lý do với `doCuaHang()` ở trên: hỏng nó
+	   thì chỉ thiếu một câu hỏi lúc kết ca, không được kéo cả màn hình đứng lại. */
+	napLoaiGio();
 	/* Chờ CẢ HAI lượt rồi mới tắt đồng hồ — tắt sớm là màn hình lại trông như đã xong trong
 	   khi một nửa vẫn đang treo. */
 	Promise.all([ napGio().then(nhipDongHo), napToi() ])
@@ -1531,6 +1874,7 @@ function napToi(){
 		el('chuCai').textContent  = chuDau(j.hoTen || '');
 		el('btCham').disabled = false;
 		veCoSo(j);
+		veChuong(j.chuongCo, j.chuongDem);
 		/* 🔴 08/09/2026 — CHƯA CÓ CƠ SỞ THÌ KHOÁ NÚT NGAY, đừng để họ chụp ảnh xong mới biết.
 		   Hồ sơ vừa lập mà quên tích lưới Cơ sở là `dsCoSo` rỗng: máy chủ vẫn cho đăng nhập
 		   (đúng — nói được "thiếu gì" thì hơn là báo PIN sai), nhưng lượt `cham` chắc chắn bị
@@ -1877,12 +2221,28 @@ function napUng(){
 				   của ô khoá, nên ở đây không có gì để bấm vào — kể cả một dòng CSS sửa nhầm
 				   cũng không biến nó thành bấm được. Dùng <a> rồi chặn bằng JS thì chỉ cần một
 				   lượt JS hỏng là năm cái ô khoá thành năm cái link sống. */
-				var mo = !!x.mo_duoc && !!x.url;
+				/* 🔴 Ô MỞ MÀN TRONG TRẠM CŨNG LÀ Ô MỞ. Anh Thắng 18/09/2026, ảnh chụp tab
+				   Ứng dụng của một nhân viên: cả nhóm "CỦA TÔI" (Phiếu lương · Xin bù giờ ·
+				   Khai giờ khác · Xin nghỉ · Gửi đơn đi trễ) xám hết, kèm dòng "chưa được cấp"
+				   — trong khi máy chủ dựng cả năm ô ấy bằng `o( true, … )`, tức KHÔNG gác gì.
+				   Vì sao: chốt này đòi `x.url`, mà năm ô ấy không có `url` — chúng mở một màn
+				   NGAY TRONG TRẠM bằng `x.man`. Nên nhánh `if(mo && x.man)` ngay dưới là mã
+				   CHẾT, không lượt nào chạy tới, và mọi ô `man` đều rơi xuống nhánh khoá.
+				   ⚠️ Vẫn an toàn: `VHCC_Ung::o()` đã `unset()` CẢ `url` LẪN `man` của ô khoá,
+				      nên ô khoá thật không có đường nào lọt qua chốt này. */
+				var mo = !!x.mo_duoc && (!!x.url || !!x.man);
 				var ruot = '<span class="o-icon o-' + thoat(x.mau||'xanh') + '">'
 				         + thoat(x.icon||'') + '</span>'
 				         + '<b>' + thoat(x.ten||'') + '</b>';
 
-				if(mo){
+				if(mo && x.man){
+					/* 🔴 Ô MỞ MÀN NGAY TRONG TRẠM — dựng bằng <button>, không phải <a href="#">.
+					   Thẻ <a> rỗng thì bấm là nhảy lên đầu trang, và trên iOS còn đổi cả địa
+					   chỉ — người dùng bấm "Thêm nhân sự" xong thấy trang giật một cái rồi
+					   không có gì. <button type="button"> thì không có hành vi mặc định nào. */
+					oG += '<button type="button" class="o-ung o-man" data-man="' + thoat(x.man)
+					   +  '" title="' + thoat(x.mo||'') + '">' + ruot + '</button>';
+				} else if(mo){
 					/* `title` mang phần mô tả đã rời khỏi ô — máy tính rê chuột là thấy, điện
 					   thoại thì không, nên nó chỉ là phần THÊM, không phải chỗ giấu thông tin
 					   cần thiết. Thứ cần thiết nằm ở danh sách chú thích dưới lưới. */
@@ -1902,6 +2262,11 @@ function napUng(){
 			  +  '<div class="luoi-ung">' + oG + '</div></div>';
 		}
 		el('oUng').innerHTML = h + (ghi ? '<div class="ghi-ung">' + ghi + '</div>' : '') + NHAC_UNG;
+		/* Ô mở màn dựng lúc chạy nên gài sự kiện sau mỗi lượt vẽ. */
+		var om = el('oUng').querySelectorAll('.o-man');
+		for(var q=0;q<om.length;q++){
+			om[q].addEventListener('click', function(){ moMan(this.getAttribute('data-man')); });
+		}
 	}).catch(function(){
 		DA_NAP_UNG = false;
 	DA_NAP_HS = false;
@@ -1932,7 +2297,7 @@ function denTab(ten){
 	});
 	var ds = document.querySelectorAll('.tab-nut');
 	for(var i=0;i<ds.length;i++){ ds[i].classList.toggle('dang', ds[i].getAttribute('data-tab') === ten); }
-	if(ten === 'tCong'){ napPhieu(); }
+
 	if(ten === 'tCuaHang'){ napCuaHang(); }
 	if(ten === 'tUng'){ napUng(); }
 	if(ten === 'tToi'){ napHoSo(); moManXin(); }
@@ -2178,12 +2543,717 @@ el('plThang').addEventListener('change', vePhieu);
 
 el('chCoSo').addEventListener('change', function(){ napDonCH(); napCongCH(); });
 
+/* Mở một màn của trạm từ ô trong lưới. Danh sách trắng, không mở bừa theo chuỗi máy chủ gửi:
+   một tên màn lạ thì `el()` trả null và `hien()` nổ, làm chết cả khối JS phía sau. */
+/* ── CHUÔNG THÔNG BÁO ───────────────────────────────────────────────────────────────────────
+   Hộp thư là CỦA TRANG NỘI BỘ, chuông này chỉ là một cửa sổ nhìn vào. Đọc ở đây thì bên kia
+   cũng hết đỏ, và ngược lại — xem khối đầu `class-vhcc-chuong.php`. */
+
+function veChuong(co, dem){
+	/* Chưa cài plugin Nội bộ thì GIẤU HẲN cái chuông, không treo một cái rỗng đời đời không
+	   bao giờ kêu. Trang Nội bộ cũng làm đúng thế ở `VHNB_Trang`. */
+	hien('oChuong', !!co);
+	veDemChuong(dem);
+}
+
+function veDemChuong(dem){
+	var d = el('demChuong');
+	var chu = (dem === null || dem === undefined) ? '' : String(dem);
+	d.textContent = chu;
+	hien('demChuong', '' !== chu);
+}
+
+function moChuong(){
+	hien('mChuong', true);
+	napChuong();
+}
+
+function napChuong(){
+	el('dsTin').innerHTML = '<p class="trong">Đang tải…</p>';
+	goi('chuong', { token: token() })
+		.then(function(j){
+			if(!j || !j.ok){
+				el('dsTin').innerHTML = '<p class="trong">' + esc((j&&j.error)||'Không đọc được.') + '</p>';
+				return;
+			}
+			veDemChuong(j.dem);
+			veDsTin(j.ds || []);
+		})
+		.catch(function(){
+			el('dsTin').innerHTML = '<p class="trong">Mất mạng — thử lại sau.</p>';
+		});
+}
+
+function veDsTin(ds){
+	if(!ds.length){
+		el('dsTin').innerHTML = '<p class="trong">Chưa có thông báo nào.</p>';
+		return;
+	}
+	var h = '', i;
+	for(i = 0; i < ds.length; i++){
+		var t = ds[i];
+		var chu = t.chu || '';
+		/* Gộp khoá: 3 người bình luận cùng một bài thì `soLan` = 3. Nói ra con số chứ không
+		   đẻ ba dòng — xem khối "GỘP THEO khoa" ở `class-vhnb-bao.php`. */
+		if((t.soLan || 1) > 1){ chu += ' (' + t.soLan + ' lượt)'; }
+		h += '<button class="tin' + (t.daDoc ? '' : ' moi') + '" data-id="' + esc(t.id)
+			+ '" data-di="' + esc(t.duongDan || '') + '">'
+			+ esc(chu)
+			+ '<span class="luc">' + esc(gioNgan(t.luc)) + '</span>'
+			+ '</button>';
+	}
+	el('dsTin').innerHTML = h;
+
+	/* Gắn thẳng vào từng nút, đúng lối các bảng khác trong tệp này (xem `bangCongCH`,
+	   `dsNgay`). innerHTML thay hẳn nút cũ nên listener cũ đi theo nút cũ, không tồn đọng. */
+	var nt = el('dsTin').querySelectorAll('.tin');
+	for(i = 0; i < nt.length; i++){
+		nt[i].addEventListener('click', function(){
+			docTin(this.getAttribute('data-id'), this.getAttribute('data-di'));
+		});
+	}
+}
+
+/* '2026-09-17 14:05:00' -> '17/09 14:05'. Cắt chuỗi chứ KHÔNG `new Date(chuỗi)`: Safari trả
+   `Invalid Date` cho dạng có dấu cách, và lỗi ấy chỉ lộ ra trên iPhone. */
+function gioNgan(s){
+	var t = String(s || '');
+	if(t.length < 16){ return t; }
+	return t.slice(8,10) + '/' + t.slice(5,7) + ' ' + t.slice(11,16);
+}
+
+/* Bấm vào một tin: đánh dấu đã đọc, rồi mở đường dẫn nếu có.
+   ⚠️ Đường dẫn của Nội bộ là đường TRONG trang Nội bộ. Mở ở TAB MỚI chứ không điều hướng cả
+      trạm sang đó — đang chấm công dở mà bị đá đi là mất lượt chấm, và lúc quay lại phải gõ
+      PIN từ đầu. */
+function docTin(id, di){
+	goi('chuongdoc', { token: token(), id: id })
+		.then(function(j){ if(j && j.ok){ veDemChuong(j.dem); } })
+		.catch(function(){});
+	napChuong();
+	if(di){ window.open(di, '_blank', 'noopener'); }
+}
+
+el('btChuong').addEventListener('click', moChuong);
+el('btDongChuong').addEventListener('click', function(){ hien('mChuong', false); });
+
+el('btDocHet').addEventListener('click', function(){
+	goi('chuongdoc', { token: token(), id: 0 })
+		.then(function(j){ if(j && j.ok){ veDemChuong(j.dem); } napChuong(); })
+		.catch(function(){});
+});
+
+/* Quay lại trang sau khi đi đâu đó thì hỏi lại con số. Không có nhịp hỏi định kỳ: trạm mở cả
+   ngày trên máy quầy, hỏi mỗi phút là 480 lượt gọi một ngày cho một con số hiếm khi đổi. */
+document.addEventListener('visibilitychange', function(){
+	if(document.hidden || el('oChuong').classList.contains('an')){ return; }
+	goi('chuong', { token: token() })
+		.then(function(j){ if(j && j.ok){ veDemChuong(j.dem); } })
+		.catch(function(){});
+});
+
+function moMan(ten){
+	if('mThemNv' === ten){ moThemNv(); }
+	if('mPhieu'  === ten){ moPhieu(); }
+	if('mXinTre' === ten){ moXinTre(); }
+	if('mXinNghi' === ten){ moXinNghi(); }
+	if('mNhanSu' === ten){ moNhanSu(); }
+	if('mKhaiGio' === ten){ moKhaiGio(); }
+	if('mXinBu' === ten){ moXinBu(); }
+	if('mGioLuong' === ten){ moGioLuong(); }
+}
+
+/* ── LOẠI GIỜ LƯƠNG ─────────────────────────────────────────────────────────────────────────
+   Hai đường: hộp KẾT CA ghi thẳng, còn màn Giờ công lương gửi cửa hàng trưởng duyệt. Xem khối
+   chú thích "HAI CỬA" ở `VHCC_LoaiGio` — chúng cố ý không giống nhau. */
+
+var LG = null;          // { hoi, tab, ds:[{khoa,ten,gia}] } — nạp một lần sau khi đăng nhập
+var LG_NGAY = [];       // mấy ngày đang bày trên màn Giờ công lương
+
+function napLoaiGio(){
+	return goi('lgviec', { token: token() }).then(function(j){
+		LG = (j && j.ok) ? j : null;
+	}).catch(function(){ LG = null; });
+}
+
+/* Mấy thẻ <option> của danh sách việc — dựng từ danh sách MÁY CHỦ trả về, không gõ cứng trong
+   HTML. Trả riêng phần option để dùng được cả cho ô có sẵn (`#kcViec`) lẫn ô sinh ra trong
+   danh sách ngày. */
+function optViec(dangChon){
+	var o = ['<option value="">— chưa chọn —</option>'];
+	var ds = (LG && LG.ds) || [];
+	for(var i=0;i<ds.length;i++){
+		var t = ds[i].ten;
+		o.push('<option value="' + esc(t) + '"' + (t === dangChon ? ' selected' : '') + '>'
+			+ esc(t) + (ds[i].gia ? ' — ' + Number(ds[i].gia).toLocaleString('vi-VN') + 'đ/h' : '')
+			+ '</option>');
+	}
+	return o.join('');
+}
+
+/* ---- hộp hỏi lúc kết ca ---- */
+var KC = null;          // { ngay, ma } của lượt giờ ra vừa ghi
+
+function hoiKetCa(ngay, ma){
+	if(!LG || !LG.hoi){ return; }
+	KC = { ngay: ngay, ma: ma };
+	el('kcViec').innerHTML = optViec('');
+	el('kcMo').textContent = 'Ca ngày ' + ngay + '. Chọn đúng việc thì lương tính đúng đơn giá của việc ấy.';
+	bao('kcBao', '', '');
+	hien('mKetCa', true);
+}
+
+el('btKcLuu').addEventListener('click', function(){
+	var v = el('kcViec').value;
+	if(!v){ bao('kcBao','dong','Chọn một việc, hoặc bấm Để sau.'); return; }
+	if(!KC){ hien('mKetCa', false); return; }
+	var b = this; b.disabled = true;
+	goi('lgdat', { token: token(), ngay: KC.ngay, ma: KC.ma, viec: v }).then(function(j){
+		if(!j || !j.ok){ bao('kcBao','dong',(j&&j.error)||'Không lưu được.'); return; }
+		hien('mKetCa', false);
+		el('baoCham').innerHTML += '<div class="xanh">✔ Loại giờ ca này: <b>'
+			+ esc(j.viec) + '</b></div>';
+	}).catch(function(e){
+		bao('kcBao','dong',(e&&e.message)||'Lỗi mạng — chưa lưu được loại giờ.');
+	}).then(function(){ b.disabled = false; });
+});
+el('btKcBo').addEventListener('click', function(){ hien('mKetCa', false); });
+
+/* ---- màn Giờ công lương ---- */
+function moGioLuong(){
+	hien('mGioLuong', true);
+	el('lgDs').innerHTML = '<p class="trong">Đang nạp…</p>';
+	goi('lgds', { token: token(), soNgay: 14 }).then(function(j){
+		if(!j || !j.ok){ el('lgDs').innerHTML = '<p class="trong">'
+			+ esc((j&&j.error)||'Không nạp được.') + '</p>'; return; }
+		if(j.viec){ LG = LG || {}; LG.ds = j.viec; }
+		LG_NGAY = j.ds || [];
+		veGioLuong();
+	}).catch(function(e){
+		el('lgDs').innerHTML = '<p class="trong">' + esc((e&&e.message)||'Lỗi mạng.') + '</p>';
+	});
+}
+
+function veGioLuong(){
+	if(!LG_NGAY.length){
+		el('lgDs').innerHTML = '<p class="trong">Nửa tháng nay chưa có lượt chấm công nào.</p>';
+		return;
+	}
+	var o = [];
+	for(var i=0;i<LG_NGAY.length;i++){
+		var d = LG_NGAY[i];
+		var gio = (d.gio === null || d.gio === undefined) ? '' : (d.gio + 'h');
+		o.push('<div class="the"><div class="hang" style="align-items:center;gap:8px">'
+			+ '<b style="flex:0 0 auto">' + esc(d.ngay) + (d.hauTo ? ' · ' + esc(d.hauTo) : '') + '</b>'
+			+ '<span class="mo" style="flex:1">' + esc(d.vao || '—') + ' → ' + esc(d.ra || '—')
+			+ (gio ? ' · ' + gio : '') + '</span></div>');
+		/* 🔴 ĐANG CHỜ DUYỆT THÌ KHÔNG MỜI GỬI TIẾP. Bày ô xổ nữa là người ta gửi lần hai cho
+		   cùng một ngày, và cửa hàng trưởng thấy hai dòng nói hai điều khác nhau. */
+		if(d.dangCho){
+			o.push('<p class="vang" style="margin:8px 0 0">⏳ Đang chờ duyệt: <b>'
+				+ esc(d.dangCho) + '</b>' + (d.viec ? ' (hiện đang là ' + esc(d.viec) + ')' : '')
+				+ '</p></div>');
+			continue;
+		}
+		o.push('<div style="margin:8px 0 0"><select id="lgV' + i + '">'
+			+ optViec(d.viec || '') + '</select></div></div>');
+	}
+	el('lgDs').innerHTML = o.join('');
+}
+
+el('btLgGui').addEventListener('click', function(){
+	var dong = [];
+	for(var i=0;i<LG_NGAY.length;i++){
+		var d = LG_NGAY[i];
+		if(d.dangCho){ continue; }
+		var o = el('lgV' + i);
+		if(!o || !o.value || o.value === (d.viec || '')){ continue; }
+		dong.push({ ngay: d.ngay, hauTo: d.hauTo, viec: o.value });
+	}
+	if(!dong.length){ bao('lgBao','dong','Chưa đổi loại giờ của ngày nào.'); return; }
+	var b = this; b.disabled = true;
+	goi('lggui', { token: token(), dong: dong, lyDo: el('lgLyDo').value }).then(function(j){
+		if(!j || !j.ok){ bao('lgBao','dong',(j&&j.error)||'Không gửi được.'); return; }
+		bao('lgBao','xanh','✔ Đã gửi ' + j.so + ' ngày cho cửa hàng trưởng duyệt. '
+			+ 'Bảng lương chỉ đổi khi họ duyệt.');
+		el('lgLyDo').value = '';
+		moGioLuong();
+	}).catch(function(e){
+		bao('lgBao','dong',(e&&e.message)||'Lỗi mạng — chưa gửi được.');
+	}).then(function(){ b.disabled = false; });
+});
+el('btDongLg').addEventListener('click', function(){ hien('mGioLuong', false); });
+
+/* ── XIN BÙ GIỜ ─────────────────────────────────────────────────────────────────────────────
+   Hai cấp duyệt: cửa hàng trưởng rồi kế toán. Giờ chỉ vào bảng công sau cấp hai — màn này nói
+   rõ điều ấy ở mọi chỗ, vì người gửi hay tưởng gửi xong là xong. */
+
+function moXinBu(){
+	hien('mXinBu', true);
+	if(!el('xbNgay').value){ el('xbNgay').value = (NG && NG.homNay) ? NG.homNay : ''; }
+	napXinBu();
+	napXbCa();
+}
+
+function napXinBu(){
+	el('dsXinBu').innerHTML = '<p class="trong">Đang tải…</p>';
+	goi('xinbuds', { token: token() })
+		.then(function(j){
+			if(!j || !j.ok){ el('dsXinBu').innerHTML = '<p class="trong">Không đọc được.</p>'; return; }
+			if(!el('xbNgay').value && j.homNay){ el('xbNgay').value = j.homNay; }
+			veDsXinBu(j.ds || [], j.ten || {});
+		})
+		.catch(function(){ el('dsXinBu').innerHTML = '<p class="trong">Mất mạng — thử lại sau.</p>'; });
+}
+
+function veDsXinBu(ds, ten){
+	if(!ds.length){
+		el('dsXinBu').innerHTML = '<p class="trong">Chưa gửi đơn nào.</p>';
+		return;
+	}
+	var h = '', i;
+	for(i = 0; i < ds.length; i++){
+		var x = ds[i];
+		var tt = ten[x.trang_thai] || x.trang_thai;
+		h += '<div class="tin' + ('duyet' === x.trang_thai ? '' : ' moi') + '">'
+			+ '<b>' + esc(ngayNgan(x.ngay)) + '</b> · ' + esc(x.vao) + '–' + esc(x.ra)
+			+ '<span class="luc">' + esc(tt)
+			+ (x.ly_do_choi ? (' — ' + esc(x.ly_do_choi)) : '') + '</span></div>';
+	}
+	el('dsXinBu').innerHTML = h;
+}
+
+function xinBu(){
+	if(!el('xbNgay').value){ bao('kqXinBu','dong','Chọn ngày đã.'); return; }
+	el('btXinBu').disabled = true;
+	goi('xinbu', { token: token(), ngay: el('xbNgay').value, vao: el('xbVao').value,
+			ra: el('xbRa').value, lyDo: el('xbLyDo').value })
+		.then(function(j){
+			el('btXinBu').disabled = false;
+			if(!j || !j.ok){ bao('kqXinBu','dong',(j&&j.error)||'Không gửi được.'); return; }
+			bao('kqXinBu','xanh','Đã gửi. Chờ cửa hàng trưởng duyệt, rồi kế toán duyệt thì giờ mới vào bảng công.');
+			el('xbVao').value = '';
+			el('xbRa').value = '';
+			el('xbLyDo').value = '';
+			napXinBu();
+		})
+		.catch(function(){
+			el('btXinBu').disabled = false;
+			bao('kqXinBu','dong','Mất mạng — thử lại.');
+		});
+}
+
+el('btXinBu').addEventListener('click', xinBu);
+el('btDongXinBu').addEventListener('click', function(){ hien('mXinBu', false); });
+el('xbNgay').addEventListener('change', function(){ bao('kqXinBu','',null); });
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 TỰ CHÈN DẤU HAI CHẤM, VÀ NÓI RA ĐANG XIN MẤY GIỜ.
+ *
+ * Anh Thắng 18/09/2026 gửi ảnh màn này: ô Giờ vào gõ `1000`, Giờ ra `1700`.
+ *
+ * Đó là cách gõ TỰ NHIÊN NHẤT trên bàn phím số của điện thoại — ô này là `inputmode=numeric`,
+ * tức chính mình mời người ta gõ toàn số. Mà máy chủ đòi đúng `HH:mm`
+ * (`VHCC_XinBu::phut()` khớp `/^(\d{2}):(\d{2})$/`), nên `1000` bị chối thẳng.
+ *
+ * ⚠️ VÀ NÓ CHỐI Ở MỘT CHỖ KHÔNG AI NGỜ. Màn kiểm lý do TRƯỚC, nên người ta thấy "ghi rõ vì sao,
+ *    ít nhất 5 chữ", gõ lý do, bấm lại — lúc ấy mới ăn lỗi giờ. Hai lần bị chối cho một lần
+ *    điền, và lần thứ hai nói về một ô họ tưởng đã xong.
+ *
+ * 🔴 SỬA Ở PHÍA GÕ, KHÔNG NỚI Ở MÁY CHỦ. `phut()` chặt là đúng: nó là chỗ cuối cùng trước khi
+ *    một con giờ thành công thành tiền. Nới nó ra để nhận `1000` là mở cho cả `10 0`, `1:0:0`
+ *    và mọi thứ na ná. Ở đây chuẩn hoá NGAY LÚC GÕ, người dùng thấy `10:00` hiện ra dưới ngón
+ *    tay mình — họ biết hệ hiểu đúng, trước cả khi bấm gửi.
+ *
+ * ⚠️ CHÈN KHI ĐỦ 3 CHỮ SỐ, không chèn ngay ở chữ số thứ 2. Chèn sớm thì người gõ `1` rồi `0`
+ *    thấy `10:` nhảy ra giữa chừng và tưởng mình gõ nhầm; chờ tới chữ số thứ ba thì đúng lúc
+ *    họ đang chuyển sang phần phút.
+ * ⚠️ KHÔNG đụng khi người ta đang XOÁ. Tự chèn lại dấu vừa xoá là ô không xoá nổi.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+function xbChuanGio(o, xoa){
+	var so = (o.value || '').replace(/\D/g, '').slice(0, 4);
+	if(xoa){ return; }
+	o.value = (so.length >= 3) ? (so.slice(0, 2) + ':' + so.slice(2)) : so;
+}
+
+/** Số phút của một ô giờ, hoặc null nếu chưa ra hình HH:mm. Cùng luật với máy chủ. */
+function xbPhut(v){
+	var m = /^(\d{2}):(\d{2})$/.exec(String(v || '').trim());
+	if(!m){ return null; }
+	var g = +m[1], p = +m[2];
+	if(g > 23 || p > 59){ return null; }
+	return g * 60 + p;
+}
+
+/* 🔴 NÓI RA ĐANG XIN MẤY GIỜ. Người gửi đơn đang nhớ lại một ngày đã qua; con số giờ là thứ
+   cửa hàng trưởng và kế toán sẽ nhìn để duyệt, nên người gửi phải thấy nó TRƯỚC khi gửi.
+   Và bắt được ngay hai lỗi hay gặp mà máy chủ chỉ nói bằng một câu cụt: giờ ra sớm hơn giờ
+   vào (gõ ngược hai ô), và giờ quá dài (gõ nhầm 0700 thành 1700). */
+/* Ca làm của ngày đang chọn — máy chủ trả về, xem cửa `xinbuca`. `null` = chưa hỏi xong. */
+var XB_CA = null;
+
+/** Đổi số phút ra "7h" / "7h30" — một chỗ duy nhất, để mọi dòng dưới đây nói cùng một kiểu. */
+function xbGioChu(p){
+	return Math.floor(p / 60) + 'h' + (p % 60 ? String(p % 60).padStart(2, '0') : '');
+}
+
+/* 🔴 BÀY CA LÀM CỦA HÔM ẤY RA NGAY LÚC GÕ.
+   Anh Thắng 18/09/2026: *"Hiện giờ thiếu so với ca làm"*.
+   Cửa hàng trưởng nhìn một đơn xin 10:00–17:00 thì câu đầu tiên trong đầu họ là "hôm ấy bạn
+   này trực ca mấy?". Người gửi không thấy ca của chính mình lúc gõ nên rất hay xin lệch — rồi
+   đơn bị chối, gửi lại, hai cấp duyệt lại từ đầu. Bày ra ở đây là cắt trọn vòng ấy. */
+function napXbCa(){
+	var ng = el('xbNgay').value;
+	XB_CA = null;
+	el('xbCa').textContent = '';
+	if(!ng){ xbHienTong(); return; }
+	goi('xinbuca', { token: token(), ngay: ng }).then(function(j){
+		if(!j || !j.ok || el('xbNgay').value !== ng){ return; }   // đổi ngày giữa chừng thì bỏ
+		XB_CA = j;
+		var ds = j.ca || [];
+		if(!ds.length){
+			/* 🔴 KHÔNG CÓ LỊCH THÌ NÓI LÀ KHÔNG CÓ, ĐỪNG IM. Im thì người dùng tưởng màn hỏng,
+			   hoặc tệ hơn, tưởng mình không phải trực hôm ấy. */
+			el('xbCa').textContent = 'Hôm ấy không thấy ca nào xếp cho anh/chị — cứ xin theo giờ thật.';
+		} else {
+			var t = [];
+			for(var i = 0; i < ds.length; i++){ t.push(ds[i].ten + ' ' + ds[i].tu + '–' + ds[i].den); }
+			el('xbCa').textContent = 'Ca hôm ấy: ' + t.join(' · ') + ' (' + xbGioChu(j.tongPhut) + ')';
+		}
+		xbHienTong();
+	}).catch(function(){ /* mất mạng thì thôi, đơn vẫn gửi được */ });
+}
+
+function xbHienTong(){
+	var a = xbPhut(el('xbVao').value), b = xbPhut(el('xbRa').value), o = el('xbTong');
+	if(null === a || null === b){ o.textContent = ''; o.className = 'mo'; return; }
+	if(b <= a){
+		o.className = 'mo chu-hong';
+		o.textContent = '⚠ Giờ ra phải sau giờ vào — có phải hai ô đang ngược nhau không?';
+		return;
+	}
+	var p = b - a;
+	var chu = '= xin bù ' + xbGioChu(p);
+	/* 🔴 SO VỚI CA: nói ra THIẾU hay DƯ, và bao nhiêu. Chỉ so khi máy chủ THẬT SỰ có ca —
+	   `XB_CA.tongPhut > 0`. Không có lịch mà vẫn so thì mọi đơn đều "dư", và một lời cảnh báo
+	   sai thì lần sau người ta không đọc nữa. */
+	if(XB_CA && XB_CA.tongPhut > 0){
+		var l = p - XB_CA.tongPhut;
+		if(0 === l){ chu += ' — vừa đúng ca'; }
+		else if(l < 0){ chu += ' — THIẾU ' + xbGioChu(-l) + ' so với ca'; }
+		else { chu += ' — DƯ ' + xbGioChu(l) + ' so với ca'; }
+	}
+	o.className = 'mo';
+	o.textContent = chu + (p > 16 * 60 ? ' — dài bất thường, xem lại giúp em' : '');
+}
+
+el('xbNgay').addEventListener('change', napXbCa);
+
+[['xbVao'], ['xbRa']].forEach(function(x){
+	var o = el(x[0]);
+	/* `keydown` chỉ để biết người ta đang XOÁ; việc chuẩn hoá làm ở `input` (bàn phím ảo trên
+	   điện thoại không bắn keydown đáng tin cho mọi phím). */
+	var dang_xoa = false;
+	o.addEventListener('keydown', function(e){
+		dang_xoa = ('Backspace' === e.key || 'Delete' === e.key);
+	});
+	o.addEventListener('input', function(){
+		bao('kqXinBu','',null);
+		xbChuanGio(o, dang_xoa);
+		dang_xoa = false;
+		xbHienTong();
+	});
+	/* Rời ô thì chuẩn hoá lần cuối, kể cả khi vừa xoá — lúc ấy người ta đã gõ xong. */
+	o.addEventListener('blur', function(){ xbChuanGio(o, false); xbHienTong(); });
+});
+el('xbLyDo').addEventListener('input', function(){ bao('kqXinBu','',null); });
+
+/* ── KHAI GIỜ KHÁC ──────────────────────────────────────────────────────────────────────────
+   Con số này KHÔNG vào lương. Mọi chỗ bày nó ra đều phải nói thẳng điều ấy — người ta khai
+   xong mà tưởng được trả tiền thì đó là một lời hứa không ai hứa. */
+
+function moKhaiGio(){
+	hien('mKhaiGio', true);
+	if(!el('kgNgay').value){ el('kgNgay').value = (NG && NG.homNay) ? NG.homNay : ''; }
+	napKhai();
+}
+
+function napKhai(){
+	el('dsKhai').innerHTML = '<p class="trong">Đang tải…</p>';
+	goi('khaids', { token: token() })
+		.then(function(j){
+			if(!j || !j.ok){
+				el('dsKhai').innerHTML = '<p class="trong">Không đọc được.</p>';
+				return;
+			}
+			if(!el('kgNgay').value && j.homNay){ el('kgNgay').value = j.homNay; }
+			veDsKhai(j.ds || []);
+		})
+		.catch(function(){ el('dsKhai').innerHTML = '<p class="trong">Mất mạng — thử lại sau.</p>'; });
+}
+
+function veDsKhai(ds){
+	if(!ds.length){
+		el('dsKhai').innerHTML = '<p class="trong">Chưa khai ngày nào.</p>';
+		return;
+	}
+	var h = '<table><thead><tr><th>Ngày</th><th>Giờ</th><th>Việc</th></tr></thead><tbody>', i, t = 0;
+	for(i = 0; i < ds.length; i++){
+		var x = ds[i];
+		t += Number(x.so_gio) || 0;
+		h += '<tr><td>' + esc(ngayNgan(x.ngay)) + '</td>'
+			+ '<td>' + esc(soGio(x.so_gio)) + '</td>'
+			+ '<td class="mo">' + esc(x.viec || '—') + '</td></tr>';
+	}
+	h += '</tbody><tfoot><tr><td><b>Tổng</b></td><td><b>' + esc(soGio(t))
+		+ '</b></td><td class="mo">không tính lương</td></tr></tfoot></table>';
+	el('dsKhai').innerHTML = h;
+}
+
+/* '2026-09-18' -> '18/09'. Cắt chuỗi chứ không new Date — Safari trả Invalid Date. */
+function ngayNgan(s){
+	var t = String(s || '');
+	return (t.length < 10) ? t : (t.slice(8,10) + '/' + t.slice(5,7));
+}
+function soGio(v){
+	var n = Number(v) || 0;
+	return n.toFixed(2).replace('.', ',');
+}
+
+function khaiGio(){
+	var ng = el('kgNgay').value, g = el('kgGio').value;
+	if(!ng){ bao('kqKhai','dong','Chọn ngày đã.'); return; }
+    if('' === String(g).trim()){ bao('kqKhai','dong','Gõ số giờ đã.'); return; }
+	el('btKhai').disabled = true;
+	goi('khaigio', { token: token(), ngay: ng, soGio: g,
+			viec: el('kgViec').value, ghiChu: el('kgGhi').value })
+		.then(function(j){
+			el('btKhai').disabled = false;
+			if(!j || !j.ok){ bao('kqKhai','dong',(j&&j.error)||'Không lưu được.'); return; }
+			if(j.xoa){ bao('kqKhai','vang','Đã xoá dòng khai của ngày ' + ngayNgan(ng) + '.'); }
+			else { bao('kqKhai','xanh','Đã lưu ' + soGio(j.soGio) + ' giờ cho ngày '
+				+ ngayNgan(ng) + '. Số này KHÔNG tính vào lương.'); }
+			el('kgGio').value = '';
+			el('kgViec').value = '';
+			el('kgGhi').value = '';
+			napKhai();
+		})
+		.catch(function(){
+			el('btKhai').disabled = false;
+			bao('kqKhai','dong','Mất mạng — thử lại.');
+		});
+}
+
+el('btKhai').addEventListener('click', khaiGio);
+el('btDongKhai').addEventListener('click', function(){ hien('mKhaiGio', false); });
+el('kgNgay').addEventListener('change', napKhai);
+el('kgGio').addEventListener('input', function(){ bao('kqKhai','',null); });
+el('kgViec').addEventListener('input', function(){ bao('kqKhai','',null); });
+el('kgGhi').addEventListener('input', function(){ bao('kqKhai','',null); });
+
+/* ── DANH SÁCH NHÂN SỰ CỦA CƠ SỞ ────────────────────────────────────────────────────────── */
+
+function moNhanSu(){
+	var ds = (CH && CH.dsCoSo) ? CH.dsCoSo : [];
+	if(!ds.length){
+		window.alert('Tài khoản của anh/chị chưa được giao cơ sở nào.');
+		return;
+	}
+	if(!el('nsCoSo').options.length){ el('nsCoSo').innerHTML = xoOption(ds, ds[0] || ''); }
+	hien('mNhanSu', true);
+	napNhanSu();
+}
+
+function napNhanSu(){
+	el('dsNhanSu').innerHTML = '<p class="trong">Đang tải…</p>';
+	goi('chnhansu', { token: token(), coSo: el('nsCoSo').value, tim: el('nsTim').value })
+		.then(function(j){
+			if(!j || !j.ok){
+				el('nsPhu').textContent = '';
+				el('dsNhanSu').innerHTML = '<p class="trong">' + esc((j&&j.error)||'Không đọc được.') + '</p>';
+				return;
+			}
+			el('nsPhu').textContent = j.coSo + ' · ' + j.so + ' người';
+			var ds = j.nguoi || [];
+			if(!ds.length){
+				el('dsNhanSu').innerHTML = '<p class="trong">Không có ai khớp.</p>';
+				return;
+			}
+			/* 🔴 NGƯỜI CHƯA CÓ PIN LÀ VIỆC PHẢI LÀM, NÊN NÓI NGAY Ở ĐẦU. Họ chưa đăng nhập được,
+			   tức chưa chấm công được — mà nhìn danh sách hai mươi thẻ thì không ai đếm ra. */
+			var h = '';
+			if(j.chuaPin){
+				h += '<div class="vang" style="margin:0 0 10px"><b>' + esc(j.chuaPin)
+				  +  '</b> người chưa có PIN nên chưa đăng nhập được. Bảo họ vào trang chấm công, '
+				  +  'bấm <b>Quên PIN</b>, gõ họ tên + căn cước của chính mình rồi tự đặt.</div>';
+			}
+			for(var i=0;i<ds.length;i++){
+				var x = ds[i];
+				h += '<div class="the" style="margin:0 0 10px;padding:12px">'
+				  +  '<b style="display:block;font-size:15px">' + esc(x.hoTen) + '</b>'
+				  +  '<span class="ct" style="display:block;margin:2px 0 6px">' + esc(x.maNV)
+				  +  (x.chucVu ? ' · ' + esc(x.chucVu) : '')
+				  +  (x.sdt ? ' · ' + esc(x.sdt) : '') + '</span>'
+				  +  '<span class="ct" style="display:block">'
+				  +  (x.coPin ? '✔ có PIN' : '<b>⚠️ chưa có PIN</b>')
+				  +  (x.coCccd ? '' : ' · <b>chưa khai căn cước</b> nên chưa tự đặt PIN được')
+				  +  (x.trangThai ? ' · ' + esc(x.trangThai) : '') + '</span>'
+				  +  '</div>';
+			}
+			el('dsNhanSu').innerHTML = h;
+		}).catch(function(){
+			el('dsNhanSu').innerHTML = '<p class="trong">Chưa đọc được — kiểm tra mạng rồi mở lại.</p>';
+		});
+}
+
+function moXinNghi(){
+	bao('loiNghi','',null);
+	hien('mXinNghi', true);
+	/* `napXin()` là nơi duy nhất biết hôm nay theo MÁY CHỦ là ngày nào, danh sách loại nghỉ và
+	   quỹ phép còn lại — gọi lại nó thay vì màn tự đoán. */
+	if(!XIN){ napXin(); }
+}
+
+/* Màn nộp đơn đi trễ. `napXin()` là nơi duy nhất biết "hôm nay theo MÁY CHỦ là ngày nào" và
+   mấy cái trần — nên gọi lại nó thay vì màn tự đoán. */
+function moXinTre(){
+	bao('loiTre','',null);
+	hien('mXinTre', true);
+	if(!XIN){ napXin(); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * MÀN PHIẾU LƯƠNG — hai phần, và ai thấy phần nào là do MÁY CHỦ quyết.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+var PL_CS_THANG = '';
+
+function moPhieu(){
+	hien('mPhieu', true);
+	phanPhieu(false);
+	napPhieu();
+}
+
+/* `cs` = true thì mở phần CẢ CỬA HÀNG. Nút nào đang chọn thì mang kiểu `chinh`, nút kia `phu` —
+   không có nút nào "đang chọn" thì người ta không biết mình đang xem cái gì.
+
+   🔴 ĐỔI KIỂU BẰNG `classList`, KHÔNG GÁN ĐÈ `className`. Bản trước gán
+   `el('btPlCs').className = 'phu'`, và câu ấy XOÁ LUÔN lớp `an` mà markup đặt sẵn để giấu nút
+   "Cả cửa hàng". Hậu quả: MỌI nhân viên mở Phiếu lương đều thấy nút ấy hiện ra — `napPhieu()`
+   chỉ biết BỎ `an` khi máy chủ gửi danh sách cơ sở quản lý, nó không bao giờ thêm `an` lại.
+   Bấm vào thì cửa `phieucs` ở máy chủ chối, nên không lộ dữ liệu của ai; nhưng người dùng nhận
+   một nút dẫn tới câu lỗi, và đó là thứ họ sẽ đi hỏi. */
+function phanPhieu(cs){
+	hien('plPhanToi', !cs);
+	hien('plPhanCs', cs);
+	kieuNutPl(el('btPlToi'), !cs);
+	kieuNutPl(el('btPlCs'),  cs);
+	if(cs){ veThangPlCs(); }
+}
+
+/* Chỉ đụng vào hai lớp kiểu, mọi lớp khác (`an`…) giữ nguyên. */
+function kieuNutPl(o, dang){
+	if(!o){ return; }
+	o.classList.toggle('chinh', !!dang);
+	o.classList.toggle('phu', !dang);
+}
+
+function veThangPlCs(){
+	el('plNhanThang').textContent = 'Tháng ' + (PL_CS_THANG || '—').replace(/^(\d{4})-(\d{2})$/, '$2/$1');
+	napPhieuCs();
+}
+
+function doiThangPlCs(b){
+	var p = (PL_CS_THANG || '').split('-');
+	if(p.length !== 2){ return; }
+	var d = new Date(Date.UTC(+p[0], +p[1] - 1 + b, 1));
+	PL_CS_THANG = d.getUTCFullYear() + '-' + ('0' + (d.getUTCMonth() + 1)).slice(-2);
+	veThangPlCs();
+}
+
+function napPhieuCs(){
+	el('bangPhieuCs').innerHTML = '<p class="trong">Đang tải…</p>';
+	goi('phieucs', { token: token(), coSo: el('plCsCoSo').value, thang: PL_CS_THANG })
+		.then(function(j){
+			if(!j || !j.ok){
+				el('bangPhieuCs').innerHTML = '<p class="trong">' + esc((j&&j.error)||'Không đọc được.') + '</p>';
+				return;
+			}
+			var ds = j.dong || [];
+			/* 🔴 NÓI RA NHÂN VIÊN BÊN DƯỚI ĐANG THẤY GÌ. Người quản lý xem được cả tháng kế toán
+			   còn đang gõ dở — nhưng nếu không nói rõ tháng ấy chưa công bố thì họ tưởng nhân
+			   viên cũng đang nhìn đúng mấy con số này. */
+			var h = j.daCongBo
+				? '<div class="xanh" style="margin:0 0 10px">✔ Tháng này <b>đã công bố</b> — '
+					+ 'nhân viên xem được phiếu của chính họ.</div>'
+				: '<div class="vang" style="margin:0 0 10px">Tháng này <b>chưa công bố</b>. '
+					+ 'Anh/chị xem được, nhưng nhân viên thì chưa. Kế toán bấm công bố ở trang quản trị.</div>';
+			if(!ds.length){
+				el('bangPhieuCs').innerHTML = h + '<p class="trong">Tháng này chưa có ai có giờ ở '
+					+ esc(j.coSo) + '.</p>';
+				return;
+			}
+			h += '<div class="xanh" style="margin:0 0 10px">' + esc(j.soNguoi) + ' người'
+			  +  (j.tong === null ? '' : ' · tổng <b>' + tienVN(j.tong) + '</b>') + '</div>';
+			if(!j.daDu){
+				h += '<div class="vang" style="margin:0 0 10px">Có dòng <b>chưa khai đơn giá</b> '
+				  +  'nên chưa cộng được tổng cả cơ sở.</div>';
+			}
+			h += '<table><thead><tr><th>Nhân viên</th><th>Giờ</th><th>Tổng</th></tr></thead><tbody>';
+			for(var i=0;i<ds.length;i++){
+				var d = ds[i];
+				h += '<tr' + (d.thieuGia ? ' class="hong"' : '') + '>'
+				  +  '<td style="text-align:left">' + esc(d.hoTen)
+				  +  (d.thieuGio ? ' <b>· thiếu ' + esc(d.thieuGio) + '</b>' : '') + '</td>'
+				  +  '<td>' + esc(d.gio) + '</td>'
+				  /* Ai có trừ BHXH thì nói ra ngay dưới con số — bảng này gọn, không có chỗ cho
+				     một cột riêng, nhưng một con số nhỏ hơn thật mà không giải thích thì cửa
+				     hàng trưởng sẽ đi hỏi kế toán. */
+				  +  '<td>' + (d.tong === null ? '<b>chưa đủ giá</b>' : tienVN(d.tong))
+				  +  ((+d.bhxh > 0) ? '<div class="ct">đã trừ BHXH ' + tienVN(d.bhxh) + '</div>' : '')
+				  +  '</td></tr>';
+			}
+			h += '</tbody></table>'
+			  /* ⚠️ Từ 19/09/2026 BHXH đã vào hệ (kế toán chốt sổ) và đã được trừ ngay trong
+			     cột Tổng ở trên — kể nó là "ngoài hệ" là nói dối theo chiều ngược. Chỉ còn
+			     lương giờ thêm là thật sự ngoài hệ. */
+			  +  '<p class="ct" style="text-align:left;margin:10px 0 0">Đây là số <b>hệ thống tính '
+			  +  'được</b>, đã trừ BHXH. <b>Lương giờ thêm</b> kế toán tính ngoài hệ, nên số '
+			  +  'chuyển khoản có thể khác.</p>';
+			el('bangPhieuCs').innerHTML = h;
+		}).catch(function(){
+			el('bangPhieuCs').innerHTML = '<p class="trong">Chưa đọc được — kiểm tra mạng rồi lật lại tháng.</p>';
+		});
+}
+
+function moThemNv(){
+	var ds = (CH && CH.dsCoSo) ? CH.dsCoSo : [];
+	if(!ds.length){
+		window.alert('Tài khoản của anh/chị chưa được giao cơ sở nào, nên chưa thêm người được.');
+		return;
+	}
+	if(!el('tnCoSo').options.length){ el('tnCoSo').innerHTML = xoOption(ds, ds[0] || ''); }
+	bao('loiThem','',null);
+	hien('mThemNv', true);
+}
+
+el('btDongNs').addEventListener('click', function(){ hien('mNhanSu', false); });
+el('nsCoSo').addEventListener('change', napNhanSu);
+el('btNsTim').addEventListener('click', napNhanSu);
+el('btDongNghi').addEventListener('click', function(){ hien('mXinNghi', false); });
+el('btDongTre').addEventListener('click', function(){ hien('mXinTre', false); });
+el('btDongPhieu').addEventListener('click', function(){ hien('mPhieu', false); });
+el('btPlToi').addEventListener('click', function(){ phanPhieu(false); });
+el('btPlCs').addEventListener('click', function(){ phanPhieu(true); });
+el('plCsCoSo').addEventListener('change', napPhieuCs);
+el('plThangTruoc').addEventListener('click', function(){ doiThangPlCs(-1); });
+el('plThangSau').addEventListener('click', function(){ doiThangPlCs(1); });
+el('btDongThem').addEventListener('click', function(){ hien('mThemNv', false); });
 el('btDongNguoi').addEventListener('click', function(){ hien('mNguoi', false); });
 el('sgGay').addEventListener('change', function(){ hien('oNghi', this.checked); });
 el('clThang').addEventListener('change', function(){ hien('oLuongThang', this.checked); });
 el('btThemDong').addEventListener('click', function(){ themDongGio('', ''); });
 el('btLuuGio').addEventListener('click', function(){ guiSuaGio(false); });
 el('btXoaGio').addEventListener('click', function(){ guiSuaGio(true); });
+el('btXoaDong').addEventListener('click', xoaHanDong);
 el('btLuuChot').addEventListener('click', guiChot);
 el('chThangTruoc').addEventListener('click', function(){ doiThangCH(-1); });
 el('chThangSau').addEventListener('click', function(){ doiThangCH(1); });
@@ -2191,7 +3261,7 @@ el('chThangSau').addEventListener('click', function(){ doiThangCH(1); });
 el('btThemNguoi').addEventListener('click', function(){
 	guiDon('chthem', {
 		token:    token(),
-		coSo:     el('chCoSo').value,
+		coSo:     el('tnCoSo').value,
 		hoTen:    el('tnTen').value,
 		cccd:     el('tnCccd').value,
 		sdt:      el('tnSdt').value,
@@ -2255,7 +3325,19 @@ function doCuaHang(){
 		CH = j;
 		CH_THANG = CH_THANG || j.thang || '';
 		var ds = j.dsCoSo || [];
+		/* 🔴 KHÔNG CÓ CƠ SỞ NÀO THÌ KHÔNG BÀY TAB. Bày một ô xổ rỗng rồi để mọi lượt bấm trả
+		   về "Không có quyền cơ sở này" là đúng cái anh Thắng gặp 17/09 — người ta đọc thành
+		   "hệ thống hỏng" chứ không đọc thành "mình chưa được giao cơ sở nào". Máy chủ nay chỉ
+		   trả về cơ sở ĐÃ QUA phép gác, nên danh sách rỗng nghĩa là thật sự không có việc gì
+		   để làm ở đây. */
+		if(!ds.length){ return; }
 		el('chCoSo').innerHTML = xoOption(ds, ds[0] || '');
+		/* Máy chủ quyết có nhắc hay không — người có `cong_tat_ca` không bị khoá nên không
+		   thấy câu này. Bày cho cả những người không bị khoá là dạy họ một luật sai. */
+		if(j.nhacHan){
+			el('nhacHan').innerHTML = '<div class="vang">⏰ ' + esc(j.nhacHan) + '</div>';
+			el('nhacHan').classList.remove('an');
+		}
 		el('nutCH').classList.remove('an');
 		/* Năm ô thì thu chữ — xem khối CSS `#thanhTab.tab5`. Gắn ở ĐÂY, cùng một dòng lệnh với
 		   lượt mở nút, để không bao giờ có trạng thái "năm ô mà chưa thu chữ". */
@@ -2380,25 +3462,35 @@ function napCongCH(){
 				  +  '</b> lượt thiếu một đầu giờ — mấy lượt ấy KHÔNG tính phút nào. '
 				  +  'Bổ sung trước khi kế toán chốt lương.</div>';
 			}
-			h += '<table><thead><tr><th>Nhân viên</th><th>Ngày</th><th>Giờ</th><th></th></tr>'
+			/* 🔴 CHẠM CẢ DÒNG, KHÔNG PHẢI MỘT NÚT Ở CỘT THỨ TƯ.
+			   Bản 4.35 để nút "Mở" trong một cột riêng. Anh Thắng 17/09/2026 chụp màn iPhone:
+			   *"trên điện thoại không có nút mở"* — bốn cột trên màn 390px thì cột cuối bị bóp
+			   còn vài pixel, và cái nút thực tế biến mất khỏi tầm mắt. Bảng ba cột thì vừa, nên
+			   bỏ cột ấy đi và cho CẢ DÒNG làm vùng chạm: vùng chạm to hơn hẳn một cái nút, và
+			   không có cột nào để mà bóp nữa.
+			   ⚠️ Vẫn phải có DẤU HIỆU nhìn thấy được. Một dòng bấm được mà trông y hệt một dòng
+			      chữ thì không ai thử bấm — nên có mũi › ở cuối và một dòng nhắc trên bảng. */
+			h += '<p class="ct" style="text-align:left;margin:0 0 8px">Chạm vào một dòng để '
+			  +  '<b>sửa công từng ngày</b> hoặc <b>chốt lương theo việc</b>.</p>'
+			  +  '<table><thead><tr><th>Nhân viên</th><th>Ngày</th><th>Giờ</th></tr>'
 			  +  '</thead><tbody>';
 			for(var i=0;i<ds.length;i++){
 				var d = ds[i];
-				h += '<tr' + (d.thieu ? ' class="hong"' : '') + '>'
+				h += '<tr class="hang-mo' + (d.thieu ? ' hong' : '') + '" data-ma="'
+				  +  esc(d.maNV) + '">'
 				  +  '<td style="text-align:left">' + esc(d.hoTen)
 				  +  (d.thieu ? ' <b>· thiếu ' + esc(d.thieu) + '</b>' : '') + '</td>'
 				  +  '<td>' + esc(d.soNgay) + '</td>'
-				  +  '<td>' + esc(d.gio) + '</td>'
-				  +  '<td><button class="phu ch-mo" data-ma="' + esc(d.maNV) + '">Mở</button></td>'
+				  +  '<td>' + esc(d.gio) + ' <span class="mui">›</span></td>'
 				  +  '</tr>';
 			}
 			h += '</tbody></table>'
 			  +  '<p class="ct" style="text-align:left;margin:10px 0 0">Số ở đây là <b>giờ có mặt</b>, '
 			  +  'chưa quy ra công tính lương. Cần từng ô từng ngày thì mở trang quản trị trên máy tính.</p>';
 			el('bangCongCH').innerHTML = h;
-			/* Nút dựng lúc chạy nên gài sự kiện sau mỗi lượt vẽ — cùng lý do với `gaiNutDon()`:
+			/* Dòng dựng lúc chạy nên gài sự kiện sau mỗi lượt vẽ — cùng lý do với `gaiNutDon()`:
 			   `onclick=` trong chuỗi HTML thì một dấu nháy trong dữ liệu là vỡ thẻ. */
-			var nm = el('bangCongCH').querySelectorAll('.ch-mo');
+			var nm = el('bangCongCH').querySelectorAll('.hang-mo');
 			for(var m=0;m<nm.length;m++){
 				nm[m].addEventListener('click', function(){ moNguoi(this.getAttribute('data-ma')); });
 			}
@@ -2455,29 +3547,47 @@ function veDsNgay(){
 		return;
 	}
 	if(!NG.duocSua){
-		/* Nói TRƯỚC khi người ta gõ xong rồi mới bị chối — và nói ra đường đi tiếp. */
+		/* Nói TRƯỚC khi người ta gõ xong rồi mới bị chối — và nói ra đường đi tiếp.
+		   ⚠️ KHÔNG gài sự kiện, và bỏ luôn mũi ›: dòng chỉ để xem mà vẫn trông bấm được thì
+		      người ta bấm mãi không ra gì, tệ hơn là nhìn biết ngay không bấm được. */
 		el('dsNgay').innerHTML = '<div class="vang" style="margin:0 0 10px">Tài khoản của anh/chị '
 			+ 'chưa được mở quyền <b>sửa giờ</b>, nên bảng dưới chỉ để xem. Thấy giờ sai thì báo '
-			+ 'quản lý.</div>' + bangNgay(ds);
+			+ 'quản lý.</div>' + bangNgay(ds, '').replace(/ class="ng-sua/g, ' class="')
+				.replace(/<span class="mui">›<\/span>/g, '');
 		return;
 	}
-	el('dsNgay').innerHTML = bangNgay(ds);
+	/* 🔴 NGÀY ĐÃ QUÁ HẠN THÌ KHÔNG CHO MỞ Ô SỬA, và nói ra ngay tại chỗ. Cho mở rồi mới chối
+	   lúc bấm Lưu là bắt người ta gõ cả giờ lẫn lý do cho một lượt không bao giờ đi được. */
+	var chi_nay = !!NG.khoaNgayCu;
+	var h = '';
+	if(chi_nay && NG.nhacHan){
+		h += '<div class="vang" style="margin:0 0 10px">⏰ ' + esc(NG.nhacHan)
+		  +  ' Dòng của ngày đã qua chỉ để xem.</div>';
+	}
+	el('dsNgay').innerHTML = h + bangNgay(ds, chi_nay ? NG.homNay : '');
 	var b = el('dsNgay').querySelectorAll('.ng-sua');
 	for(var i=0;i<b.length;i++){
 		b[i].addEventListener('click', function(){ moSuaNgay(this.getAttribute('data-ngay')); });
 	}
 }
 
-function bangNgay(ds){
-	var h = '<table><thead><tr><th>Ngày</th><th>Vào</th><th>Ra</th><th>Giờ</th><th></th></tr></thead><tbody>';
+/* Bốn cột, và CẢ DÒNG là vùng chạm — cùng một luật với bảng công cơ sở, cùng một lý do: cột
+   thứ năm chứa nút thì trên màn 390px nó bị bóp mất. Xem chú thích ở `napCongCH()`. */
+/* `chi_ngay` khác rỗng = CHỈ ngày ấy còn sửa được (cửa hàng trưởng, sau 24h là khoá). Dòng
+   ngoài ngày ấy mất lớp bấm và mất mũi › — nhìn là biết không bấm được, không phải bấm rồi
+   mới biết. */
+function bangNgay(ds, chi_ngay){
+	var h = '<table><thead><tr><th>Ngày</th><th>Vào</th><th>Ra</th><th>Giờ</th></tr></thead><tbody>';
 	for(var i=0;i<ds.length;i++){
 		var x = ds[i];
-		h += '<tr' + (x.thieu ? ' class="hong"' : '') + '>'
+		var mo = (!chi_ngay || x.ngay === chi_ngay);
+		h += '<tr class="' + (mo ? 'ng-sua' : 'ng-khoa') + (x.thieu ? ' hong' : '')
+		  +  '" data-ngay="' + esc(x.ngay) + '">'
 		  +  '<td>' + esc(ngayGon(x.ngay)) + (x.hauTo ? ' <b>' + esc(x.hauTo) + '</b>' : '') + '</td>'
 		  +  '<td>' + esc(x.vao || '—') + '</td>'
 		  +  '<td>' + (x.thieu ? '<b>thiếu</b>' : esc(x.ra || '—')) + '</td>'
-		  +  '<td>' + (x.gio === null ? '—' : esc(x.gio)) + '</td>'
-		  +  '<td><button class="phu ng-sua" data-ngay="' + esc(x.ngay) + '">Sửa</button></td></tr>';
+		  +  '<td>' + (x.gio === null ? '—' : esc(x.gio))
+		  +  (mo ? ' <span class="mui">›</span>' : '') + '</td></tr>';
 	}
 	return h + '</tbody></table>';
 }
@@ -2501,6 +3611,32 @@ function moSuaNgay(ngay){
 	bao('loiSua','',null);
 	hien('oSuaNgay', true);
 	el('oSuaNgay').scrollIntoView({ block:'start' });
+}
+
+/* 🔴 XOÁ HẲN DÒNG PHẢI HỎI BẰNG NGÀY, KHÔNG PHẢI MỘT CÂU "CHẮC CHƯA?".
+   Một hộp thoại đồng ý/huỷ thì ngón tay bấm qua được mà mắt chưa kịp đọc — và cái vừa bấm
+   qua là một dòng chấm công không dựng lại được. Nhắc đúng NGÀY và đúng TÊN trong câu hỏi
+   buộc người ta đối chiếu một lần với thứ mình đang định xoá. */
+function xoaHanDong(){
+	if(!NG || !NG_NGAY){ return; }
+	if(el('sgLyDo').value.trim().length < 5){
+		bao('loiSua','loi','Ghi vì sao xoá (ít nhất 5 ký tự) trước đã — sổ cần câu ấy để sau còn lần lại.');
+		el('sgLyDo').focus();
+		return;
+	}
+	if(!window.confirm('XOÁ HẲN dòng chấm công ngày ' + ngayGon(NG_NGAY) + ' của '
+		+ NG.hoTen + '?\n\nDòng sẽ biến mất khỏi lưới — nhìn vào sẽ tưởng hôm ấy không đi làm. '
+		+ 'Giờ cũ và lý do vẫn vào sổ.')){ return; }
+	guiDon('chxoadong', {
+		token: token(), coSo: el('chCoSo').value, maNV: NG.maNV,
+		ngay: NG_NGAY, lyDo: el('sgLyDo').value
+	}, 'loiSua', 'btXoaDong', function(j){
+		var ma = NG.maNV;
+		setTimeout(function(){ moNguoi(ma); napCongCH(); }, 900);
+		var d = j.daXoa || {};
+		return '✔ Đã xoá hẳn dòng ngày ' + j.ngay + ' (vào ' + (d.vao || '—')
+			+ ', ra ' + (d.ra || '—') + '). Sổ đã ghi lại giờ cũ.';
+	});
 }
 
 function guiSuaGio(xoa){
@@ -2640,7 +3776,8 @@ function guiChot(){
  *    lần mở tab người ta lại đọc lại một câu không giúp được gì, và ô rỗng trên màn lương thì
  *    ai cũng bấm thử vài lần trước khi tin. Chưa có gì để xem thì không bày gì cả.
  *
- * ⚠️ MỌI CON SỐ Ở ĐÂY LÀ SỐ CỦA HỆ, KHÔNG PHẢI SỐ CHUYỂN KHOẢN. BHXH và lương giờ thêm kế toán
+ * ⚠️ MỌI CON SỐ Ở ĐÂY LÀ SỐ CỦA HỆ, KHÔNG PHẢI SỐ CHUYỂN KHOẢN. Lương giờ thêm kế toán
+ *    (BHXH đã vào hệ từ 19/09/2026 — kế toán chốt sổ, và phiếu trừ thẳng)
  *    điền ngoài hệ (xem đầu class-vhcc-bang-luong.php), nên câu ấy phải nằm ngay dưới con số
  *    tổng — không phải ở cuối trang, không phải trong một dấu hỏi phải bấm mới ra.
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
@@ -2658,13 +3795,17 @@ function tienVN(n){
 	return (am ? '-' : '') + t + r + 'đ';
 }
 
-/* Khối HIỆN, ô xổ ẩn — ba lối ra "chưa có gì để chọn" của `napPhieu()` đều bắt đầu như nhau.
+/* Ô xổ ẩn khi không có tháng nào để chọn.
    ⚠️ Chỉ đổi lớp, KHÔNG nhận chuỗi rồi tự nhét vào innerHTML: nhận chuỗi là mở một đường cho
       dữ liệu chưa thoát đi vào HTML qua một hàm trông rất vô hại. Chữ do nơi gọi tự đặt, ngay
       tại chỗ, để mắt đọc mã thấy được nó là chữ viết sẵn hay là dữ liệu. */
 function phieuHien(){
-	el('oKhoiPhieu').classList.remove('an');
 	el('plThang').classList.add('an');
+	/* 🔴 ẨN CẢ CÁI NHÃN, KHÔNG CHỈ Ô XỔ. Anh Thắng 18/09/2026 gửi ảnh màn Phiếu lương: chữ
+	   "Tháng" đứng chơ vơ trên một khoảng trắng rồi mới tới câu "chưa được công bố" — trông
+	   như ô chọn hỏng chứ không như "chưa có gì để chọn". Nhãn của một ô đã ẩn thì cũng phải
+	   ẩn theo; để lại là một lời hứa về một thứ không có. */
+	el('plNhanO').classList.add('an');
 }
 
 function napPhieu(){
@@ -2676,6 +3817,14 @@ function napPhieu(){
 			return;
 		}
 		PL_KHOAN = j.khoan || null;
+		/* Phần "cả cửa hàng" chỉ hiện khi MÁY CHỦ gửi danh sách cơ sở — nhân viên thường nhận
+		   mảng rỗng, nên nút không bao giờ lộ ra. Cửa `phieucs` vẫn gác lại lần nữa. */
+		var dsq = j.dsCoSoQl || [];
+		if(dsq.length){
+			if(!el('plCsCoSo').options.length){ el('plCsCoSo').innerHTML = xoOption(dsq, dsq[0] || ''); }
+			PL_CS_THANG = PL_CS_THANG || j.thangNay || '';
+			el('btPlCs').classList.remove('an');
+		}
 		var ds = j.dsThang || [];
 		/* 🔴 KHÔNG ẨN KHỐI — xem khối chú thích ở markup. Nói ra đang chờ ai làm gì, vì người
 		   đọc không có cách nào tự đoán rằng có một cái nút bên trang quản trị. */
@@ -2686,8 +3835,8 @@ function napPhieu(){
 				+ 'và anh/chị không phải làm gì cả.</p>';
 			return;
 		}
-		el('oKhoiPhieu').classList.remove('an');
 		el('plThang').classList.remove('an');
+		el('plNhanO').classList.remove('an');
 		/* Giá trị của mỗi dòng gói cả cơ sở lẫn tháng: một người làm hai nơi thì tháng 8 có hai
 		   phiếu khác nhau, và chỉ mang theo cái tháng thì hai dòng ấy không phân biệt được. */
 		var h = '';
@@ -2754,6 +3903,26 @@ function vePhieu(){
 				+ '<b>' + tienVN(j.tongCong) + '</b></div>'
 				+ '<div class="hang" style="justify-content:space-between"><span>Trừ</span>'
 				+ '<b>' + tienVN(j.tongTru) + '</b></div>'
+				/* ═══════════════════════════════════════════════════════════════════════════
+				 * 🔴 BHXH PHẢI CÓ MỘT DÒNG RIÊNG — anh Thắng 19/09/2026, ảnh chụp phiếu:
+				 *    *"Trên app thiếu khoảng trừ như bhxh lại không có"*.
+				 *
+				 * Lúc ấy phiếu ghi Lương chính 4.000.000 · Cộng 0 · Trừ 0 · **Tổng 3.403.390**.
+				 * Tiền đã bị trừ 596.610 thật (đúng sổ BHXH), nhưng KHÔNG dòng nào nói ra — nên
+				 * bốn con số trên màn cộng lại không ra con số dưới cùng. Đó là kiểu phiếu tệ
+				 * nhất: người đọc tính nhẩm thấy vênh, không biết vênh vì đâu, và họ sẽ nghĩ hệ
+				 * thống tính sai chứ không nghĩ tới bảo hiểm.
+				 *
+				 * ⚠️ KHÔNG GỘP VÀO Ô "TRỪ". Ô ấy là mấy khoản cửa hàng trưởng gõ (phạt, đặt
+				 *    cọc); BHXH là khoản của kế toán và có cột riêng bên bảng lương. Gộp lại là
+				 *    người ta đi hỏi cửa hàng trưởng về một khoản anh ta không gõ.
+				 * ⚠️ KHÔNG ĐÓNG KHAI: `bhxh` bằng 0 thì KHÔNG vẽ dòng nào. Một dòng "BHXH 0đ"
+				 *    trên phiếu của người không đóng bảo hiểm là mời họ đi hỏi vì sao có nó.
+				 * ═══════════════════════════════════════════════════════════════════════════ */
+				+ ( (+j.bhxh > 0)
+					? ('<div class="hang" style="justify-content:space-between"><span>BHXH</span>'
+						+ '<b>-' + tienVN(j.bhxh) + '</b></div>')
+					: '' )
 				+ '<div class="hang" style="justify-content:space-between;font-size:17px">'
 				+ '<span><b>Tổng</b></span><b>' + tienVN(j.tong) + '</b></div></div>';
 		}
@@ -2765,10 +3934,18 @@ function vePhieu(){
 		}
 
 		/* ⚠️ Xem khối chú thích đầu hàm: câu này nằm dưới con số tổng, không nằm cuối trang. */
+		/* ⚠️ CÂU NÀY PHẢI THEO KỊP THỰC TẾ. Từ 19/09/2026 BHXH đã vào hệ (kế toán chốt sổ), nên
+		   kể nó là "ngoài hệ" là nói dối theo chiều ngược: người đọc tưởng còn một khoản trừ
+		   chưa tính, trong khi đã trừ rồi — và họ sẽ tự trừ thêm một lần nữa trong đầu.
+		   Máy chủ trả `ngoaiHe` để màn khỏi tự đoán; dựng câu từ chính mảng ấy. */
+		var ngoai = (j.ngoaiHe && j.ngoaiHe.length) ? j.ngoaiHe : [];
 		h += '<p class="ct" style="text-align:left;margin:10px 0 0">Đây là số <b>hệ thống tính '
-			+ 'được</b> từ giờ đã chấm và các khoản kế toán đã nhập. <b>BHXH</b> và <b>lương giờ '
-			+ 'thêm</b> kế toán tính ngoài hệ, nên số chuyển khoản có thể khác. Lệch thì hỏi cửa '
-			+ 'hàng trưởng — đừng tự cộng lại.</p>';
+			+ 'được</b> từ giờ đã chấm và các khoản kế toán đã nhập.'
+			+ ( ngoai.length
+				? (' <b>' + ngoai.map(esc).join('</b> và <b>') + '</b> kế toán tính ngoài hệ, nên '
+					+ 'số chuyển khoản có thể khác.')
+				: '' )
+			+ ' Lệch thì hỏi cửa hàng trưởng — đừng tự cộng lại.</p>';
 		el('bangPhieu').innerHTML = h;
 	}).catch(function(){
 		el('bangPhieu').innerHTML = '<p class="trong">Chưa đọc được phiếu — kiểm tra mạng rồi chọn lại tháng.</p>';
@@ -3260,6 +4437,10 @@ el('btLuu').addEventListener('click', function(){
 				+ 'vùng cơ sở</b>. ' + esc(j.viTri.chu||'') + ' Lượt công vẫn được ghi, nhưng quản '
 				+ 'lý sẽ thấy dấu này. Chọn nhầm cơ sở thì báo quản lý sửa ngay hôm nay.</div>';
 		}
+		/* 🔴 HỎI LOẠI GIỜ CHỈ Ở LƯỢT GIỜ RA, và chỉ SAU khi giờ đã ghi xong. Hỏi lúc vào thì ca
+		   còn chưa làm, chưa biết mình sẽ làm gì; hỏi trước khi ghi thì một cái hộp đứng chắn
+		   giữa người ta và lượt chấm công. */
+		if(j.loai === 'ra'){ hoiKetCa(j.ngay, j.ma); }
 		napToi();
 	}).catch(function(e){
 		/* KHÔNG dừng ở câu lỗi. Xem `soatLaiDaGhi`. */

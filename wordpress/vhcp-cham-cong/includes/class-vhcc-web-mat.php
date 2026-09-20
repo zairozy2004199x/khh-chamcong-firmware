@@ -140,7 +140,7 @@ class VHCC_WebMat {
 		$ds_cs = VHCC_Web::ds_coso_xem( $toi );
 		$cs    = isset( $_GET['ccs'] ) ? VHCC_NhanSu::chuan_coso( wp_unslash( $_GET['ccs'] ) ) : '';
 		/* Ai chỉ phụ trách một cơ sở thì khỏi phải chọn — đó là gần hết cửa hàng trưởng. */
-		if ( '' === $cs && 1 === count( $ds_cs ) ) { $cs = $ds_cs[0]; }
+		if ( '' === $cs ) { $cs = VHCC_Web::coso_mac_dinh( $toi, $ds_cs ); }
 
 		/* 🔴 MỘT CHỐT THÔI, VÀ LÀ CHỐT THẬT: `co_quyen_coso()`.
 		   Bản đầu của khối này còn chối thêm mọi `ccs` không nằm trong `ds_coso_xem()` — nghe thì

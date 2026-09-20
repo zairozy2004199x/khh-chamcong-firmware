@@ -84,7 +84,7 @@ class VHCC_Ung {
 	 * ⚠️ Ô mang tên nhóm KHÔNG có trong danh sách này thì rơi xuống cuối, giữ nguyên thứ tự
 	 *    khai. Thà thừa một nhóm lạ ở cuối còn hơn nuốt mất một ô người ta đang cần.
 	 */
-	const NHOM = array( 'Vận hành', 'Quản lý cửa hàng', 'Thông tin chung' );
+	const NHOM = array( 'Vận hành', 'Quản lý cửa hàng', 'Của tôi', 'Thông tin chung' );
 
 	/** Nhóm của các ô, theo đúng thứ tự trên. Ô nào không khai nhóm thì về 'Vận hành'. */
 	public static function ds_nhom( $ds ) {
@@ -146,7 +146,7 @@ class VHCC_Ung {
 			);
 		}
 
-		/* ---- 2. Nộp báo cáo cửa hàng ----------------------------------------------------
+		/* ---- 2. Báo cáo FABi ----------------------------------------------------
 		   🔴 GÁC BẰNG SỔ ĐÃ ĐẨY, KHÔNG BẰNG VAI "Cửa hàng trưởng". Hai thứ ấy KHÔNG trùng
 		      nhau: có cửa hàng trưởng mới lên chưa được đẩy, có người vai khác được đẩy vì
 		      kiêm việc. Đoán theo vai là bộ luật quyền thứ hai, mà bộ thứ hai bao giờ cũng
@@ -161,9 +161,15 @@ class VHCC_Ung {
 			$o[] = self::o(
 				VHCC_DayBaoCao::da_day( $ma ),
 				array(
-					'ten'  => 'Nộp báo cáo cửa hàng',
+					/* ⚠️ TÊN Ô ĐỔI 17/09/2026 — anh Thắng: *"Bổ sung Báo Cáo Fabi vào Vận Hành"*.
+					   Dò ra thì ô này VỐN ĐÃ là FABi: nó trỏ vào `khh-doanh-thu`, mà tên đầy đủ
+					   của plugin ấy là *"K&H — Báo cáo doanh thu FABi"* (nạp file xuất từ máy POS
+					   FABi / iPOS). Thêm một ô mới tên "Báo cáo FABi" là hai ô cạnh nhau cùng mở
+					   một trang — người dùng bấm thử cả hai rồi không hiểu khác nhau chỗ nào.
+					   Nên: ĐỔI NHÃN cho đúng cái tên người ta gọi hằng ngày, không đẻ thêm ô. */
+					'ten'  => 'Báo cáo FABi',
 					'nhom' => 'Vận hành',
-					'mo'   => 'Tiền két, tiền nộp, bill huỷ, khách vào',
+					'mo'   => 'Doanh thu POS, tiền nộp, bill huỷ',
 					'url'  => VHCC_VeTram::danh_dau( khh_dt_link() ),
 					'icon' => '🏪',
 					'mau'  => 'luc',
@@ -214,6 +220,162 @@ class VHCC_Ung {
 			);
 		}
 
+		/* ---- 5. Thêm nhân sự mới ---------------------------------------------------------
+		   Anh Thắng 17/09/2026: *"Chuyển sang thêm nhân sự là 1 tính năng"*, kèm ảnh khoanh
+		   đúng ô trống trong lưới.
+
+		   🔴 Ô NÀY KHÔNG DẪN ĐI ĐÂU — nó mở một màn NGAY TRONG TRẠM (`man`), khác hẳn bốn ô
+		      trên (mỗi ô là một địa chỉ sang app khác). Trước bản này lưới chỉ biết ô có `url`;
+		      nay biết cả hai loại, và ô khoá thì mất CẢ HAI đường (xem `o()`).
+
+		   ⚠️ GÁC BẰNG `them_nv` — đúng cái quyền mà `VHCC_NhanSu::them_nv_cua_hang()` đòi.
+		      Bày ô cho người không có quyền rồi để họ gõ xong mới bị chối là bắt người ta làm
+		      không công; còn gác ở đây bằng MỘT quyền khác với cửa thật là hai luật, và hai
+		      luật thì lệch. */
+		if ( VHCC_Vai::duoc( $u, 'them_nv' ) ) {
+			$o[] = self::o( true, array(
+				'ten'  => 'Thêm nhân sự',
+				'nhom' => 'Quản lý cửa hàng',
+				'mo'   => 'Mở hồ sơ tạm cho người mới vào làm',
+				'man'  => 'mThemNv',
+				'icon' => '🧑‍💼',
+				'mau'  => 'xanh',
+			) );
+		}
+
+		/* ---- 6. Phiếu lương ---------------------------------------------------------------
+		   Anh Thắng 17/09/2026 gạch chéo khối cuối tab Công và chỉ sang ô trống trong lưới:
+		   *"Phiếu lương cho vào vị trí này (nhân viên thì 1 phiếu của chính mình). Cửa hàng
+		   trưởng thì có chính mình và cả cửa hàng"*.
+
+		   ⚠️ NHÓM ĐỔI THEO VAI, CỐ Ý. Với nhân viên đây là giấy tờ CỦA HỌ; với cửa hàng trưởng
+		      nó còn mở ra lương cả cơ sở, tức là một công cụ quản lý — và anh Thắng khoanh đúng
+		      ô ấy trong hàng QUẢN LÝ CỬA HÀNG. Một cái tên nằm dưới đúng tiêu đề thì người ta
+		      tìm ra bằng mắt; nhét lương của chính mình vào mục "Quản lý cửa hàng" cho một
+		      nhân viên thì họ không bao giờ nghĩ để nhìn vào đó.
+
+		   🔴 Ô NÀY KHÔNG GÁC GÌ CẢ, CỐ Ý. Ai cũng có phiếu lương của chính mình; tháng nào chưa
+		      công bố thì `VHCC_PhieuLuong::phieu()` chối ngay ở máy chủ, và màn nói rõ là đang
+		      chờ kế toán. Giấu ô đi thì người chưa có tháng nào lại tưởng hệ không có mục ấy. */
+		$o[] = self::o( true, array(
+			'ten'  => 'Phiếu lương',
+			'nhom' => VHCC_Vai::duoc( $u, 'cong_coso' ) ? 'Quản lý cửa hàng' : 'Của tôi',
+			'mo'   => 'Lương tháng đã công bố',
+			'man'  => 'mPhieu',
+			'icon' => '🧾',
+			'mau'  => 'luc',
+		) );
+
+		/* ---- 9. Nhân sự cửa hàng ----------------------------------------------------------
+		   Anh Thắng 17/09/2026: *"Thêm tab Nhân Sự trong Quản Lý Cửa Hàng"*, kèm ảnh màn "Danh
+		   sách nhân sự" của một app HRM.
+
+		   ⚠️ GÁC BẰNG `ho_so_xem` — đúng quyền mà `VHCC_CuaHang::nhan_su()` đòi, không phải
+		      `cong_coso` của cả tab. Hai đầu việc khác nhau: xem bảng công là một chuyện, xem
+		      hồ sơ người ta là chuyện khác, và bảng vai tách chúng ra từ lâu. */
+		if ( VHCC_Vai::duoc( $u, VHCC_CuaHang::QUYEN_NS ) ) {
+			$o[] = self::o( true, array(
+				'ten'  => 'Nhân sự',
+				'nhom' => 'Quản lý cửa hàng',
+				'mo'   => 'Danh sách người của cơ sở mình',
+				'man'  => 'mNhanSu',
+				'icon' => '👥',
+				'mau'  => 'luc',
+			) );
+		}
+
+		/* ---- 10b. Giờ công lương -----------------------------------------------------------
+		   Anh Thắng 18/09/2026: *"Trong app chấm công online có tab Giờ Công Lương. Nhân viên sẽ
+		   thấy giờ làm mình trong ngày hoặc ngày trước và tự bấm set loại giờ làm trong những
+		   ngày đó và gửi cửa hàng trưởng duyệt. Cũng cho phép bật tắt"*.
+
+		   🔴 Ô NÀY CHỈ HIỆN Ở CƠ SỞ ĐÃ BẬT. Đang thử nghiệm từng cơ sở — bày ô ở nơi chưa bật
+		      là người ta bấm vào rồi gặp một màn chối, và đi hỏi vòng quanh. `self::o( false, … )`
+		      vẽ ô KHOÁ, còn ở đây phải không vẽ gì cả: tính năng chưa tồn tại với họ. */
+		if ( class_exists( 'VHCC_LoaiGio' ) && method_exists( 'VHCC_LoaiGio', 'hien_tab' )
+			&& VHCC_LoaiGio::hien_tab( isset( $u['coso'] ) ? $u['coso'] : '',
+				isset( $u['ma_nv'] ) ? $u['ma_nv'] : '' ) ) {
+			$o[] = self::o( true, array(
+				'ten'  => 'Giờ công lương',
+				'nhom' => 'Của tôi',
+				'mo'   => 'Khai việc mình làm từng ngày — gửi cửa hàng trưởng duyệt',
+				'man'  => 'mGioLuong',
+				'icon' => '🧾',
+				'mau'  => 'luc',
+			) );
+		}
+
+		/* ---- 10. Xin bù giờ ---------------------------------------------------------------
+		   Anh Thắng 18/09/2026: *"lệnh bù giờ từ nhân viên gửi lên, CHT sẽ nhận và duyệt và đẩy
+		   tiếp lên cho kế toán"*. Nhân viên nào cũng gửi được — không gác gì thêm. */
+		$o[] = self::o( true, array(
+			'ten'  => 'Xin bù giờ',
+			'nhom' => 'Của tôi',
+			'mo'   => 'Quên bấm máy — xin bù giờ cho một ngày',
+			'man'  => 'mXinBu',
+			'icon' => '⏱️',
+			'mau'  => 'xanh',
+		) );
+
+		/* ---- 9. Khai giờ khác -------------------------------------------------------------
+		   Anh Thắng 18/09/2026: *"Nhân viên có quyền nhập giờ khác vào đây để cửa hàng cũng biết
+		   để theo dõi"*. Nằm nhóm "Của tôi" vì đây là việc của chính người ấy, và KHÔNG gác
+		   quyền gì thêm — bậc thấp nhất cũng khai được, đó là điểm của nó. */
+		$o[] = self::o( true, array(
+			'ten'  => 'Khai giờ khác',
+			'nhom' => 'Của tôi',
+			'mo'   => 'Giờ làm thêm để cửa hàng theo dõi — không tính lương',
+			'man'  => 'mKhaiGio',
+			'icon' => '✍️',
+			'mau'  => 'cam',
+		) );
+
+		/* ---- 8. Gửi đơn xin nghỉ ----------------------------------------------------------
+		   Anh Thắng 17/09/2026 khoanh đúng khối ấy: *"Chuyển này thành 1 tính năng"*. */
+		$o[] = self::o( true, array(
+			'ten'  => 'Xin nghỉ',
+			'nhom' => 'Của tôi',
+			'mo'   => 'Nghỉ phép, nghỉ ốm, việc riêng',
+			'man'  => 'mXinNghi',
+			'icon' => '🌴',
+			'mau'  => 'tim',
+		) );
+
+		/* ---- 7. Gửi đơn đi trễ ------------------------------------------------------------
+		   Anh Thắng 17/09/2026: *"Gửi đơn đi trễ là 1 tính năng"*, khoanh đúng khối ấy ở tab
+		   Tôi. Cùng một lối với hai ô trên: việc thỉnh thoảng mới làm thì đừng nằm giữa một
+		   trang cuộn dài. */
+		$o[] = self::o( true, array(
+			'ten'  => 'Gửi đơn đi trễ',
+			'nhom' => 'Của tôi',
+			'mo'   => 'Xin phép đi trễ một buổi',
+			'man'  => 'mXinTre',
+			'icon' => '⏰',
+			'mau'  => 'vang',
+		) );
+
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 GẮN VÉ DANH TÍNH VÀO MỌI Ô DẪN SANG APP KHÁC — MỘT CHỖ DUY NHẤT
+		 * ═══════════════════════════════════════════════════════════════════════════════════
+		 * Anh Thắng 19/09/2026, hai ảnh cạnh nhau: trạm đang là *Trần Ngọc Minh Truyền · TUTU_TP*,
+		 * bấm sang Vận Hành Chi Phí thì hiện *Nguyễn Văn Bin · FARM_PT*. *"Phải tự link chung 1
+		 * tk chứ"*.
+		 *
+		 * Ô Ứng dụng vốn chỉ là một đường dẫn TRƠN. Sang tới nơi, app kia không biết ai vừa bấm
+		 * nên lấy thẻ cũ còn sót trong máy — thẻ của người gần nhất gõ PIN trên điện thoại ấy.
+		 * Hậu quả thật: người này tạo và duyệt đơn chi phí dưới danh nghĩa người kia.
+		 *
+		 * 🔴 GẮN Ở ĐÂY, KHÔNG GẮN Ở TỪNG Ô. Bốn ô dựng ở bốn khối cách xa nhau; thêm ô thứ năm
+		 *    mà quên gắn là ô ấy lặng lẽ quay về lối cũ — và lối cũ không báo lỗi, nó chỉ hiện
+		 *    sai tên. Vòng lặp này bắt mọi ô có `url`, kể cả ô sẽ thêm sau.
+		 * ⚠️ Ô KHOÁ KHÔNG CÓ `url` (xem `o()`) nên không tốn vé. Ô mở màn trong trạm (`man`)
+		 *    cũng vậy — nó không đi đâu cả.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		foreach ( $o as &$o_x ) {
+			if ( ! empty( $o_x['url'] ) ) { $o_x['url'] = VHCC_Ve::gan( $o_x['url'], $u ); }
+		}
+		unset( $o_x );
+
 		return $o;
 	}
 
@@ -240,6 +402,10 @@ class VHCC_Ung {
 		$x['mo_duoc'] = (bool) $mo_duoc;
 		if ( ! $x['mo_duoc'] ) {
 			unset( $x['url'] );
+			/* 🔴 Ô MỞ MÀN TRONG TRẠM CŨNG PHẢI MẤT ĐƯỜNG MỞ, y như ô dẫn sang app khác. Bỏ mỗi
+			   `url` mà quên `man` là ô khoá trông thì mờ nhưng bấm vẫn ra màn — đúng cái lỗi
+			   mà chú thích trên vừa nói là không được để xảy ra. */
+			unset( $x['man'] );
 			/* Dòng nhắc (như "gõ lại PIN") chỉ có nghĩa khi vào được. Giữ lại trên ô khoá là
 			   bày hai câu cùng lúc, mà câu cần đọc là câu "chưa được cấp". */
 			unset( $x['ghi_chu'] );

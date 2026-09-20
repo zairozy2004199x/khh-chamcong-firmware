@@ -544,10 +544,23 @@ class VHCC_Luong {
 		return $o;
 	}
 
-	/** Ngày lễ: 'yyyy-MM-dd' (một lần) hoặc 'MM-dd' (lặp hằng năm). */
+	/**
+	 * Ngày lễ: 'yyyy-MM-dd' (một lần) hoặc 'MM-dd' (lặp hằng năm).
+	 *
+	 * 🔴 GỘP LỊCH CHUNG CẢ CHUỖI VÀO. `MTD_NGAY_LE` là danh sách đời cũ, không có màn nào sửa
+	 *    được — khai xong chỉ nằm đó. Từ 19/09/2026 lịch nghỉ lễ có màn khai thật
+	 *    (`VHCC_NgayLe`, chung cả chuỗi theo lựa chọn của anh Thắng). Không gộp thì người ta
+	 *    khai Tết ở màn mới, thấy bảng lương theo giờ đổi, còn nhánh Máy Tự Động vẫn tính như
+	 *    ngày thường — hai bảng lương nói hai chuyện về cùng một ngày.
+	 * ⚠️ Gác `class_exists` cùng hàm với lời gọi — luật của `kiem-goi-cheo.php`.
+	 */
 	public static function mtd_ngay_le() {
 		$ds = self::cai_dat( 'MTD_NGAY_LE', array() );
-		return is_array( $ds ) ? $ds : array();
+		$ds = is_array( $ds ) ? $ds : array();
+		if ( class_exists( 'VHCC_NgayLe' ) && method_exists( 'VHCC_NgayLe', 'ds_ngay' ) ) {
+			$ds = array_merge( $ds, VHCC_NgayLe::ds_ngay() );
+		}
+		return array_values( array_unique( $ds ) );
 	}
 
 	public static function mtd_la_le( $ngay, $ds_le ) {

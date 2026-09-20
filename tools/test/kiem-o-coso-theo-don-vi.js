@@ -31,9 +31,13 @@ function bocDong(ten) {
   return (j > i) ? HTML.slice(i, j) : '';
 }
 
+const fnDvMe = bocDong('_dvMe');
+const fnLaDvMe = bocDong('_laDvMe');
 const fnDvChuan = bocDong('_dvChuan');
 const fnTheoDv = bocHam('_cosoTheoDv');
 const fnSel = bocHam('_cosoSel');
+t('bốc được _dvMe()', fnDvMe.length > 20);
+t('bốc được _laDvMe()', fnLaDvMe.length > 20);
 t('bốc được _dvChuan()', fnDvChuan.length > 30);
 t('bốc được _cosoTheoDv()', fnTheoDv.length > 40);
 t('bốc được _cosoSel()', fnSel.length > 300);
@@ -43,15 +47,21 @@ t('bốc được _cosoSel()', fnSel.length > 300);
 const CFG = { coso: [
   { ten: 'ADV GO! AN LẠC',       donVi: 'K&H',  tenMisa: 'ADV Go An Lac', maDonVi: 'EVFZADVGAL' },
   { ten: 'NHÀ MA BÌNH DƯƠNG',    donVi: '',     tenMisa: '', maDonVi: 'AMBD' },
+  { ten: 'VR SC VIVO Q7',        donVi: 'KVC',  tenMisa: 'VR SC Vivo', maDonVi: 'VRSCVV' },
   { ten: 'Cali Thảo Điền',       donVi: 'POSH', tenMisa: '', maDonVi: '' },
   { ten: 'BỆNH VIỆN 175',        donVi: 'POSH', tenMisa: '', maDonVi: '' },
 ] };
-const BOOT = { donVi: ['K&H', 'POSH'] };
+/* ⚠️ `donVi` ĐÃ SẮP a→z y như `VHCP_DonVi::ds()` trả về, và 'K&H' KHÔNG đứng đầu ở đây. Cố ý:
+   bản cũ quy ô trống về `donVi[0]`, nên bộ dữ liệu nào cũng phải để nhà mẹ đứng đầu thì phép
+   mới xanh — tức phép ấy đang canh một sự trùng hợp của phép sắp xếp. Xếp 'Cali' lên trước là
+   lỗi ấy hiện ra ngay. */
+const BOOT = { donVi: ['Cali', 'K&H', 'KVC', 'POSH'], donViMe: 'K&H' };
+const HET = ['ADV GO! AN LẠC', 'NHÀ MA BÌNH DƯƠNG', 'VR SC VIVO Q7', 'Cali Thảo Điền', 'BỆNH VIỆN 175'];   // cả hệ, đúng thứ tự khai trong danh mục
 function esc(x) { return String(x == null ? '' : x); }
 
 function moiTruong(extra) {
   return new Function('CFG', 'BOOT', 'esc', '_csLabel', '_csPhu', '_csNhan', '_bd',
-    fnDvChuan + '\n' + fnTheoDv + '\n' + fnSel + '\n' + (extra || '') +
+    fnDvMe + '\n' + fnLaDvMe + '\n' + fnDvChuan + '\n' + fnTheoDv + '\n' + fnSel + '\n' + (extra || '') +
     '\nreturn { chuan:_dvChuan, theo:_cosoTheoDv, sel:_cosoSel };')(
     CFG, BOOT, esc,
     function (s) { return s.length ? s.join(', ') : 'Tất cả cơ sở'; },
@@ -73,10 +83,34 @@ teq('có tên thì giữ nguyên','POSH', F.chuan('POSH'));
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
  * 2. LỌC THEO ĐƠN VỊ
  * ═════════════════════════════════════════════════════════════════════════════════════════════ */
-teq('🔴 chọn K&H → chỉ gian K&H, kể cả dòng bỏ trống ô Đơn vị',
-  ['ADV GO! AN LẠC', 'NHÀ MA BÌNH DƯƠNG'], F.theo('K&H'));
-teq('🔴 để trống cũng ra đúng bộ ấy',
-  ['ADV GO! AN LẠC', 'NHÀ MA BÌNH DƯƠNG'], F.theo(''));
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 NHÀ MẸ ĐỌC CẢ HỆ — PHÉP NÀY TRƯỚC ĐÂY ĐÒI NGƯỢC LẠI
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * Bản cũ: `teq('chọn K&H → CHỈ gian K&H', ...)`. Nó xanh suốt vì lúc dựng bài, danh mục thử chỉ
+ * có K&H và POSH — chưa dòng nào mang 'KVC'. Đến 19/09/2026 anh Thắng khai xong khối
+ * "🏢 ĐƠN VỊ KVC · 21 cơ sở" thì phép so-bằng-nhau ấy GIẤU sạch 21 gian khỏi mọi tài khoản K&H,
+ * và anh báo: *"rồi này thì không thấy đâu"*.
+ *
+ * Máy chủ (`VHCP_DonVi`) vốn đã chốt K&H là NHÀ MẸ đọc cả hệ; giao diện thì không biết, vì tên
+ * nhà mẹ chưa từng được gửi xuống. Một luật mà hai nơi giữ hai bản thì sớm muộn lệch — và ở đây
+ * nó lệch theo hướng tệ nhất: hộp chọn thiếu → người khai gõ tay một mã → người được phân mở
+ * app ra trắng.
+ *
+ * ⚠️ CHIỀU NGƯỢC LẠI KHÔNG ĐỔI, và mấy phép POSH ngay dưới canh đúng chỗ đó: nhà con vẫn chỉ
+ *    thấy nhà mình. Nới cả hai chiều mới là hỏng.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+teq('🔴 chọn K&H (nhà mẹ) → thấy CẢ HỆ, kể cả gian KVC và POSH',
+  HET, F.theo('K&H'));
+teq('🔴 để trống cũng là nhà mẹ → cũng cả hệ',
+  HET, F.theo(''));
+/* ⚠️ KHÔNG CÓ NHÀ MẸ thì không ai được nhìn xuyên. Khoá `vhcp_dv_me` để trống là tắt hẳn luật
+   này, và lúc ấy K&H trở lại ngang hàng mọi đơn vị khác. */
+const F_KHONG_ME = (function () {
+  const luu = BOOT.donViMe; BOOT.donViMe = '';
+  const r = moiTruong().theo('K&H'); BOOT.donViMe = luu; return r;
+})();
+teq('🔴 tắt nhà mẹ (vhcp_dv_me rỗng) → K&H lại chỉ thấy gian K&H',
+  ['ADV GO! AN LẠC', 'NHÀ MA BÌNH DƯƠNG'], F_KHONG_ME);
 teq('🔴 chọn POSH → chỉ gian POSH',
   ['Cali Thảo Điền', 'BỆNH VIỆN 175'], F.theo('POSH'));
 teq('khác hoa thường vẫn khớp', ['Cali Thảo Điền', 'BỆNH VIỆN 175'], F.theo('posh'));
@@ -92,15 +126,15 @@ function dsTrongHop(html) {
 }
 teq('🔴 dòng POSH: hộp chỉ bày gian POSH',
   ['Cali Thảo Điền', 'BỆNH VIỆN 175'], dsTrongHop(F.sel('', 'POSH')));
-teq('🔴 dòng K&H: hộp chỉ bày gian K&H',
-  ['ADV GO! AN LẠC', 'NHÀ MA BÌNH DƯƠNG'], dsTrongHop(F.sel('', 'K&H')));
-teq('dòng chưa khai đơn vị: theo nhà mặc định',
-  ['ADV GO! AN LẠC', 'NHÀ MA BÌNH DƯƠNG'], dsTrongHop(F.sel('', '')));
+teq('🔴 dòng K&H (nhà mẹ): hộp bày cả hệ — đây là chỗ 21 gian KVC từng biến mất',
+  HET, dsTrongHop(F.sel('', 'K&H')));
+teq('dòng chưa khai đơn vị: cũng là nhà mẹ',
+  HET, dsTrongHop(F.sel('', '')));
 
 /* 🔴 GỌI KHÔNG KÈM ĐƠN VỊ THÌ KHÔNG LỌC GÌ. Bảng đăng nhập Google chưa có cột Đơn vị; lọc bừa
    theo nhà mặc định là nuốt mất mọi cơ sở POSH của nó. */
 teq('🔴 gọi một tham số (bảng chưa có cột Đơn vị) → bày hết như trước',
-  ['ADV GO! AN LẠC', 'NHÀ MA BÌNH DƯƠNG', 'Cali Thảo Điền', 'BỆNH VIỆN 175'], dsTrongHop(F.sel('')));
+  HET, dsTrongHop(F.sel('')));
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
  * 4. 🔴 CƠ SỞ ĐANG CHỌN KHÔNG BAO GIỜ BỊ LỌC MẤT
@@ -134,13 +168,13 @@ t('bảng người dùng truyền đơn vị vào hộp cơ sở',
 /* Chạy thật `_dvDoi` trên một hàng giả: gõ POSH -> hộp phải đổi, và giữ nguyên gian đang tích. */
 function hangGia(selText, dvMoi) {
   const td = { innerHTML: '' };
-  const opts = ['ADV GO! AN LẠC', 'NHÀ MA BÌNH DƯƠNG', 'Cali Thảo Điền', 'BỆNH VIỆN 175']
+  const opts = ['ADV GO! AN LẠC', 'NHÀ MA BÌNH DƯƠNG', 'VR SC VIVO Q7', 'Cali Thảo Điền', 'BỆNH VIỆN 175']
     .map(function (c) { return { value: c, selected: selText.split(',').map(function (s) { return s.trim(); }).indexOf(c) >= 0 }; });
   const w = { parentNode: td, querySelectorAll: function (q) { return q === 'select option' ? opts : []; } };
   const tr = { tagName: 'TR', querySelector: function (q) { return q === '.csw' ? w : null; } };
   const o = { value: dvMoi, parentNode: tr, tagName: 'INPUT' };
   new Function('CFG', 'BOOT', 'esc', '_csLabel', '_csPhu', '_csNhan', '_bd', 'o',
-    fnDvChuan + '\n' + fnTheoDv + '\n' + fnSel + '\n' + fnDvDoi + '\n_dvDoi(o);')(
+    fnDvMe + '\n' + fnLaDvMe + '\n' + fnDvChuan + '\n' + fnTheoDv + '\n' + fnSel + '\n' + fnDvDoi + '\n_dvDoi(o);')(
     CFG, BOOT, esc,
     function (s) { return s.length ? s.join(', ') : 'Tất cả cơ sở'; },
     function () { return ''; }, function (x) { return String(x); }, function (x) { return String(x); }, o);
@@ -154,8 +188,8 @@ t('gian K&H không tích thì bỏ khỏi hộp', dsSau.indexOf('NHÀ MA BÌNH D
 teq('vẫn đúng một ô đang tích', 1, (sau.match(/ selected/g) || []).length);
 
 const sau2 = hangGia('', 'K&H');
-teq('gõ ngược lại K&H → về đúng bộ K&H',
-  ['ADV GO! AN LẠC', 'NHÀ MA BÌNH DƯƠNG'], dsTrongHop(sau2));
+teq('gõ ngược lại K&H (nhà mẹ) → về cả hệ',
+  HET, dsTrongHop(sau2));
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
  * 6. NÚT HÚT CƠ SỞ TỪ GHẾ

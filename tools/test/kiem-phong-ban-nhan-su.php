@@ -107,8 +107,31 @@ function hang_cp( $ten ) {
 }
 $hang = hang_cp( 'Anh Hai' );
 t( 'hàng đã có mặt bên chi phí', is_array( $hang ), $hang );
-teq( '🔴 ô Bộ phận bên chi phí = phòng ban đã dịch qua bản đồ', 'Kỹ thuật',
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 PHÉP NÀY TRƯỚC ĐÂY ĐÒI NGƯỢC LẠI — và nó chốt cứng một hành vi nay đã cấm.
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * Bản cũ: `teq('ô Bộ phận bên chi phí = phòng ban đã dịch qua bản đồ', 'Kỹ thuật', …)`.
+ *
+ * Anh Thắng 20/09/2026: *"việc đẩy nhân sự sang chỉ là để đăng nhập. Sau phân quyền cho bên chi
+ * phí quyết định. Để tránh râu ông này cắm bà kia"*. Lượt đẩy nay chỉ mang TÊN · PIN · MÃ NV.
+ *
+ * ⚠️ BẢN ĐỒ PHÒNG BAN (`dat_ban_do_bp`) VẪN GIỮ và vẫn được canh ở mấy phép trên — nó còn dùng
+ *    cho màn SOÁT (bày chỗ lệch giữa hai bên để người ta tự xử). Chỉ mỗi việc GHI XUỐNG là bỏ.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+teq( '🔴 lượt đẩy KHÔNG ghi ô Bộ phận — bên chi phí tự khai', '',
 	(string) $hang['boPhan'] );
+/* ⚠️ ĐỌC Ô THÔ, KHÔNG ĐỌC QUA `get_users()`. Hàm ấy quy ô vai TRỐNG về 'Nhân viên' lúc bày ra
+   (dòng `$r[2] !== '' ? $r[2] : 'Nhân viên'`), nên hỏi nó thì không phân biệt được "đẩy có ghi
+   vai" với "đẩy để trống rồi bị quy về mặc định" — đúng hai thứ phép này sinh ra để tách. */
+$_o_vai = '';
+foreach ( VHCP_Cfg::read( VHCP_Cfg::USER ) as $_r ) {
+	$_r = array_values( (array) $_r );
+	if ( 0 === strcasecmp( trim( (string) $_r[0] ), 'Anh Hai' ) ) { $_o_vai = trim( (string) $_r[2] ); }
+}
+teq( '🔴 và cũng KHÔNG ghi ô Vai trò — ai được làm gì là việc của bên chi phí', '', $_o_vai );
+/* ⚠️ Nhưng trống KHÔNG phải bị khoá: `login()` và `get_users()` đều quy về 'Nhân viên', nên
+   người mới đẩy sang vẫn đăng nhập được — đúng nghĩa "đẩy sang chỉ để đăng nhập". */
+teq( '   trống nhưng vẫn vào được: hệ quy về Nhân viên', 'Nhân viên', (string) $hang['vaiTro'] );
 teq( '🔴 ô Mã NV bên chi phí được điền',     'P002', (string) $hang['maNv'] );
 teq( '   PIN đi theo',                        '7788', (string) $hang['pin'] );
 
@@ -116,7 +139,10 @@ teq( '   PIN đi theo',                        '7788', (string) $hang['pin'] );
 VHCC_DayChiPhi::dat_ban_do_bp( $ad, 'Phòng Marketing', 'Marketing' );
 VHCC_NhanSu::dat_mang_bo_phan( $ad, 'P002', '', 'Phòng Marketing' );
 VHCC_DayChiPhi::dong_bo( 'P002' );
-teq( '🔴 đổi phòng ban bên Nhân sự -> bản sao bên Chi phí theo', 'Marketing',
+/* 🔴 VÀ ĐỔI BÊN NHÂN SỰ CŨNG KHÔNG KÉO SANG. Đây mới là vế nguy: lượt đồng bộ chạy lại nhiều
+   lần, nên nếu nó ghi đè thì kế toán hạ vai/đổi bộ phận hôm nay, mai nó tự về như cũ — sửa mà
+   không giữ được, và không ai hiểu vì sao. */
+teq( '🔴 đổi phòng ban bên Nhân sự KHÔNG kéo sang bản sao bên Chi phí', '',
 	(string) hang_cp( 'Anh Hai' )['boPhan'] );
 
 /* ⚠️ NHỮNG CỘT KẾ TOÁN TỰ KHAI PHẢI CÒN NGUYÊN. Sổ nhân sự không biết TK Có · Mã đối tượng ·
@@ -125,7 +151,7 @@ $rows = VHCP_Cfg::read( VHCP_Cfg::USER );
 foreach ( $rows as $i => $r0 ) {
 	$r0 = array_values( (array) $r0 );
 	if ( 0 === strcasecmp( trim( (string) $r0[0] ), 'Anh Hai' ) ) {
-		$r0[5] = 'DT999'; $r0[7] = 'POSH';
+		$r0[2] = 'Kế toán cá nhân'; $r0[5] = 'DT999'; $r0[6] = 'Marketing'; $r0[7] = 'POSH';
 		$rows[ $i ] = $r0;
 	}
 }
@@ -135,6 +161,11 @@ VHCC_DayChiPhi::dong_bo( 'P002' );
 $h3 = hang_cp( 'Anh Hai' );
 teq( '⚠️ Mã đối tượng kế toán khai vẫn còn', 'DT999', (string) $h3['maDt'] );
 teq( '⚠️ Đơn vị kế toán khai vẫn còn',       'POSH',  (string) $h3['donVi'] );
+/* 🔴 HAI PHÉP CỐT TỬ CỦA LUẬT MỚI. Kế toán đã phân vai và bộ phận; lượt đồng bộ chạy lại phải
+   GIỮ NGUYÊN. Đè lại là công phân quyền của họ mất sạch sau một lượt đồng bộ mà không câu nào
+   báo — và vì đồng bộ chạy nhiều lần, nó mất đi mất lại. */
+teq( '🔴 vai trò kế toán đã phân vẫn còn sau lượt đồng bộ', 'Kế toán cá nhân', (string) $h3['vaiTro'] );
+teq( '🔴 bộ phận kế toán đã khai vẫn còn sau lượt đồng bộ',  'Marketing',      (string) $h3['boPhan'] );
 teq( '   và Mã NV không bị mất khi đồng bộ lại', 'P002', (string) $h3['maNv'] );
 
 /* ═══ 3. 🔴 ĐƯỜNG ĐI — TAB ADMIN PHẢI GỌI `dong_bo()` ════════════════════════════

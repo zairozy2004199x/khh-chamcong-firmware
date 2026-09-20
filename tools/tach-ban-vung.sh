@@ -186,6 +186,27 @@ if ! grep -q "TEN_MAC_DINH = \"$TEN_TRANG\"" "$DICH/includes/class-vhcp-app.php"
   exit 5
 fi
 
+# ── MẢNG của bản này (cột `mang` trong mọi bảng) ───────────────────────────────────────────
+#
+# 🔴 ANH THẮNG 19/09/2026 CHỐT GỘP BA MẢNG LÀM MỘT APP. Bước 1 mở cột `mang` trong sơ đồ bảng
+#    của bản gốc, mặc định 'kvc'. Chuỗi 'kvc' là chữ thường không dấu, nên lượt đổi TIỀN TỐ ở
+#    trên KHÔNG chạm tới nó — chép sang bản Máy Tự Động thì mọi dòng họ nhập vẫn đóng dấu 'kvc'.
+#
+#    Nhãn sai ấy không kêu lúc nhập. Nó chỉ lộ ra ở bước DỜI DỮ LIỆU: đơn của Máy Tự Động mang
+#    dấu 'kvc' sẽ chảy vào tab Khu Vui Chơi, lẫn vào sổ của mảng khác — mà lúc đó thì không còn
+#    đường nào tách chúng ra nữa, vì chính cái cột dùng để tách đã sai.
+#
+# ⚠️ CÙNG KHUÔN VỚI `TEN_MAC_DINH` NGAY TRÊN: thay xong thì SOÁT LẠI và dừng hẳn nếu trượt.
+#    Một lượt thay lặng lẽ không khớp còn tệ hơn không thay, vì nó trông y như đã xong.
+perl -pi -e '
+  s{const MANG = .[^\x27"]*.;}{const MANG = \x27$ENV{MA}\x27;}g;
+' "$DICH/includes/class-vhcp-db.php"
+if ! grep -q "const MANG = '$MA';" "$DICH/includes/class-vhcp-db.php"; then
+  echo "✗ Mảng chưa đổi — dữ liệu bản này sẽ đóng dấu 'kvc' và lẫn vào sổ khu vui chơi."
+  grep -n "const MANG" "$DICH/includes/class-vhcp-db.php" | head -3
+  exit 6
+fi
+
 # ── Danh mục gieo sẵn: BẢN MẢNG RIÊNG KHÔNG ĐẺ DANH MỤC CỦA KHU VUI CHƠI ──────────────────
 #
 # 🔴 ANH THẮNG 14/09/2026: *"rõ ràng các trang chi phí là không dùng dữ liệu của nhau, nhỉ là

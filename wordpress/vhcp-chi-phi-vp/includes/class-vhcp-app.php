@@ -121,14 +121,71 @@ class VHCPVP_App {
 	}
 
 	/** Danh tính SSO từ trang tổng (nếu có ?sso=). */
+	/**
+	 * DANH TÍNH MANG SANG TỪ TRẠM CHẤM CÔNG — vé một lần, không cần bí mật dùng chung.
+	 *
+	 * =========================================================================================
+	 * 🔴 LỖI NÀY LÀ LỖI ĐỔI NGƯỜI, KHÔNG PHẢI LỖI HIỂN THỊ
+	 * =========================================================================================
+	 * Anh Thắng 19/09/2026, hai ảnh đặt cạnh nhau: trạm Chấm công đang là *Trần Ngọc Minh
+	 * Truyền · TUTU_TP*, bấm sang app này thì hiện *Nguyễn Văn Bin · FARM_PT*. *"Phải tự link
+	 * chung 1 tk chứ"*.
+	 *
+	 * Ô Ứng dụng bên trạm vốn chỉ là một đường dẫn TRƠN. Sang tới đây, app không biết ai vừa
+	 * bấm nên lấy thẻ cũ còn sót trong máy — thẻ của người gần nhất gõ PIN trên chiếc điện
+	 * thoại ấy. Hậu quả thật: người này tạo và duyệt đơn chi phí dưới danh nghĩa người kia.
+	 *
+	 * ⚠️ KHÔNG DÙNG `?sso=` CÓ SẴN. Đường ấy đòi một chuỗi bí mật khai TAY trong từng bản chi
+	 *    phí (năm bản), và hiện đang để trống. Chính mã nguồn này đã viết: *"nhớ vào đổi tay
+	 *    là thứ không xảy ra"*. Vé thì không cần khai gì: hai plugin nằm trên CÙNG một site,
+	 *    nên hỏi thẳng `VHCC_Ve` "vé này của ai" là xong.
+	 *
+	 * ⚠️ Gác `class_exists` cùng hàm với lời gọi — plugin chấm công có thể chưa cài, hoặc cài
+	 *    bản cũ chưa có lớp này.
+	 */
+	private static function ve_cham_cong() {
+		if ( empty( $_GET['ccve'] ) ) { return null; }
+		if ( ! class_exists( 'VHCC_Ve' ) || ! method_exists( 'VHCC_Ve', 'doi' )
+			|| ! method_exists( 'VHCC_Ve', 'ma_vai' ) ) { return null; }
+		$d = VHCC_Ve::doi( sanitize_text_field( wp_unslash( $_GET['ccve'] ) ) );
+		if ( ! $d ) { return null; }
+		/* 🔴 VÉ CHỈ MANG DANH TÍNH SANG — TÊN VÀ MÃ NV. Vai · cơ sở lấy từ bảng người dùng bên
+		   NÀY, trong `resolve_sso_user()`. Anh Thắng 20/09/2026: *"đẩy nhân sự sang chỉ là để
+		   đăng nhập, sau phân quyền cho bên chi phí quyết định, để tránh râu ông này cắm bà
+		   kia"*. Vẫn gửi `r`/`b` vì bên nhận biết bỏ qua, nhưng KHÔNG dựa vào chúng nữa. */
+		$u = VHCPVP_Auth::resolve_sso_user( array(
+			'n' => (string) $d['name'],
+			'm' => (string) ( isset( $d['maNv'] ) ? $d['maNv'] : ( isset( $d['ma_nv'] ) ? $d['ma_nv'] : '' ) ),
+			'e' => '',
+		) );
+		/* ⚠️ CHƯA CÓ DÒNG BÊN CHI PHÍ THÌ VÉ KHÔNG MỞ ĐƯỢC GÌ. Trả `null` để app rơi về màn gõ
+		   PIN như thường — ở đó `qua_nhan_su()` chối kèm câu nói rõ phải thêm dòng ở Cấu hình.
+		   Đẻ bừa một danh tính 'Nhân viên' ở đây là mở cửa cho cả sổ nhân sự bước vào trang
+		   tiền, đúng thứ luật trên vừa cấm. */
+		if ( ! $u ) { return null; }
+		/* 🔴 PHÁT THẺ PHIÊN NGAY, VÀ GIAO DIỆN PHẢI CẤT NÓ ĐÈ LÊN THẺ CŨ. Không có bước ấy thì
+		   thanh tiêu đề hiện đúng tên mới, nhưng MỌI lệnh gọi máy chủ vẫn đi kèm thẻ cũ — tức
+		   vẫn ghi sổ dưới tên người kia. Xem `ssoToken` ở `head_block()`. */
+		$u['token'] = VHCPVP_Auth::issue_token( $u['name'], $u['role'], $u['coso'],
+			isset( $u['boPhan'] ) ? $u['boPhan'] : '' );
+		return $u;
+	}
+
 	public static function sso_user() {
+		/* Vé của trạm thắng: người vừa bấm ở trạm là người đang đứng trước máy. */
+		$ve = self::ve_cham_cong();
+		if ( $ve ) { return $ve; }
+
 		if ( empty( $_GET['sso'] ) ) { return null; }
 		$tok   = sanitize_text_field( wp_unslash( $_GET['sso'] ) );
 		$ident = VHCPVP_Auth::verify_sso_token( $tok );
 		if ( ! $ident ) { return null; }
 		$u = VHCPVP_Auth::resolve_sso_user( $ident );
+		/* Cùng luật với đường vé: chưa có dòng bên chi phí thì không vào được bằng SSO. */
+		if ( ! $u ) { return null; }
 		// SSO không qua cổng PIN nên phát token phiên ngay để API nhận.
-		$u['token'] = VHCPVP_Auth::issue_token( $u['name'], $u['role'], $u['coso'], '' );
+		$u['token'] = VHCPVP_Auth::issue_token( $u['name'], $u['role'], $u['coso'],
+			isset( $u['boPhan'] ) ? $u['boPhan'] : '' );
 		return $u;
 	}
 
@@ -176,6 +233,12 @@ class VHCPVP_App {
 			'fns'      => $fns,
 			'ssoUser'  => $sso ? array( 'name' => $sso['name'], 'role' => $sso['role'],
 				'roleGoc' => VHCPVP_Cfg::vai_goc( (string) $sso['role'] ), 'coso' => $sso['coso'] ) : null,
+			/* 🔴 THẺ PHIÊN CỦA LƯỢT SSO PHẢI XUỐNG TỚI GIAO DIỆN. `gas-shim.js` gắn thẻ
+			   trong `localStorage` vào MỌI lệnh gọi, mà nó chỉ cất thẻ sau lượt gõ PIN —
+			   nên trước bản này, vào bằng SSO thì tên trên thanh tiêu đề là người mới còn
+			   thẻ gửi lên máy chủ vẫn là của người cũ: ghi sổ sai tên mà không gì báo.
+			   Shim thấy khoá này thì ghi đè thẻ cũ ngay trước lệnh gọi đầu tiên. */
+			'ssoToken' => ( $sso && ! empty( $sso['token'] ) ) ? (string) $sso['token'] : '',
 			'ver'      => VHCPVP_VERSION,
 			/* Giao diện lấy tên từ đây — xem khối dài ở `ten_trang()`. */
 			'tenTrang' => self::ten_trang(),

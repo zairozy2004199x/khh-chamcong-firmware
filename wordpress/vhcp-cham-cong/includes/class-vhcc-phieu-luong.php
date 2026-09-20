@@ -193,13 +193,17 @@ class VHCC_PhieuLuong {
 
 		/* Tổng cộng lại TỪ MẤY DÒNG ĐÃ LỌC. Mấy khoản cộng/trừ chỉ gắn ở DÒNG CHÍNH (xem
 		   `VHCC_BangLuong::dung`), nên cộng thẳng mọi dòng cũng không nhân đôi. */
-		$luong_chinh = 0.0; $tong_cong = 0.0; $tong_tru = 0.0;
+		$luong_chinh = 0.0; $tong_cong = 0.0; $tong_tru = 0.0; $tong_bh = 0.0;
 		$thieu_gia = 0; $thieu_gio = 0; $gio = 0.0;
 		foreach ( $dong as $d ) {
 			if ( null === $d['luongChinh'] ) { $thieu_gia++; } else { $luong_chinh += (float) $d['luongChinh']; }
 			if ( null !== $d['gio'] ) { $gio += (float) $d['gio']; }
 			$tong_cong += (float) $d['tongCong'];
 			$tong_tru  += (float) $d['tongTru'];
+			/* 🔴 BHXH NAY LÀ SỐ CỦA HỆ, KHÔNG CÒN "NGOÀI HỆ". Anh Thắng 19/09/2026 cho kế toán
+			   chốt sổ BHXH (`VHCC_Bhxh`), nên phiếu lương phải trừ nó — không thì con số nhân
+			   viên nhìn thấy cao hơn số thật vào tài khoản, và họ sẽ đi hỏi. */
+			$tong_bh += (float) ( isset( $d['bhxh'] ) ? $d['bhxh'] : 0 );
 			$thieu_gio += (int) $d['thieuGio'];
 		}
 
@@ -220,13 +224,113 @@ class VHCC_PhieuLuong {
 			'luongChinh' => $du ? round( $luong_chinh, 2 ) : null,
 			'tongCong'   => round( $tong_cong, 2 ),
 			'tongTru'    => round( $tong_tru, 2 ),
-			'tong'       => $du ? round( $luong_chinh + $tong_cong - $tong_tru, 2 ) : null,
+			'bhxh'       => round( $tong_bh, 2 ),
+			'tong'       => $du ? round( $luong_chinh + $tong_cong - $tong_tru - $tong_bh, 2 ) : null,
 			'daDu'       => $du,
 			'thieuGia'   => $thieu_gia,
 			'thieuGio'   => $thieu_gio,
-			/* ⚠️ Xem chốt 3: BHXH và giờ thêm nằm ngoài hệ, nên con số trên đây KHÔNG phải số
-			   chuyển khoản. Màn phải nói ra, và trả cờ để nó khỏi tự đoán. */
-			'ngoaiHe'    => array( 'BHXH', 'Lương giờ thêm' ),
+			/* ⚠️ Chốt 3 nay chỉ còn MỘT vế. BHXH đã vào hệ (kế toán chốt sổ, xem `VHCC_Bhxh`),
+			   nên nó không còn nằm trong danh sách "ngoài hệ" nữa — để lại là nói dối theo
+			   chiều ngược: người đọc tưởng còn một khoản trừ chưa tính, trong khi đã trừ rồi.
+			   Người KHÔNG có trong sổ BHXH thì `bhxh` = 0 và phiếu không hiện dòng ấy. */
+			'ngoaiHe'    => array( 'Lương giờ thêm' ),
+		);
+	}
+
+	/* ====================================================================== cả cơ sở */
+
+	/** Xem phiếu lương CẢ CƠ SỞ — bậc Cửa hàng trưởng, đúng cửa với bảng lương ở trang quản trị. */
+	const QUYEN_CS = 'cong_coso';
+
+	/**
+	 * PHIẾU LƯƠNG CỦA CẢ MỘT CƠ SỞ, gọn lại cho màn điện thoại.
+	 *
+	 * =============================================================================================
+	 * Anh Thắng 17/09/2026: *"nhân viên thì 1 phiếu của chính mình. Cửa hàng trưởng thì có chính
+	 * mình và cả cửa hàng"*.
+	 *
+	 * 🔴 KHÔNG MỞ THÊM DỮ LIỆU NÀO SO VỚI TRANG QUẢN TRỊ. Cửa hàng trưởng vốn đã xem được bảng
+	 *    lương cơ sở mình ở `VHCC_Web::the_bang_luong_cs()` với đúng quyền `cong_coso`. Cửa này
+	 *    chỉ là đường khác tới cùng con số, cho người đứng ở quầy. Nếu nó đòi một quyền THẤP hơn
+	 *    thì mới là mở thêm — nên nó dùng đúng quyền ấy, không tự đặt quyền riêng.
+	 *
+	 * 🔴 KHÔNG BỊ CHẶN BỞI "ĐÃ CÔNG BỐ". Cờ công bố sinh ra để NHÂN VIÊN khỏi thấy số nửa vời
+	 *    trong lúc kế toán còn đang gõ. Người quản lý thì cần thấy đúng cái nửa vời ấy — đó là
+	 *    việc của họ. Nhưng màn PHẢI nói ra tháng này đã công bố hay chưa, để họ biết nhân viên
+	 *    bên dưới đang thấy gì.
+	 *
+	 * ⚠️ GỠ SỐ CĂN CƯỚC. `dung()` trả kèm nó cho tệp xuất kế toán; một màn điện thoại mở giữa
+	 *    quầy thì không có lý do gì bày căn cước của hai mươi người.
+	 */
+	public static function ca_coso( $u, $coso, $thang ) {
+		if ( ! VHCC_Vai::duoc( $u, self::QUYEN_CS ) ) {
+			return array( 'ok' => false,
+				'error' => VHCC_Vai::loi( $u, self::QUYEN_CS, 'Xem phiếu lương cả cơ sở' ) );
+		}
+		$cs = VHCC_NhanSu::chuan_coso( $coso );
+		if ( '' === $cs || ! VHCC_NhanSu::co_quyen_coso( $u, $cs ) ) {
+			return array( 'ok' => false, 'error' => 'Không có quyền cơ sở này.' );
+		}
+		$tt = VHCC_Luong::tien_to_thang( $thang );
+		if ( '' === $tt ) { return array( 'ok' => false, 'error' => 'Tháng không hợp lệ.' ); }
+
+		$b = VHCC_BangLuong::dung( $cs, $tt );
+		if ( empty( $b['ok'] ) ) { return $b; }
+
+		/* Gom về MỖI NGƯỜI MỘT DÒNG. `dung()` trả mỗi người nhiều dòng (dòng chính + mấy dòng
+		   giờ ăn giá khác); bày cả ra trên điện thoại là một người hiện ba lần, và người đọc
+		   phải tự cộng. Khoản cộng/trừ chỉ gắn ở DÒNG CHÍNH nên cộng thẳng không nhân đôi. */
+		$gom = array();
+		foreach ( $b['dong'] as $d ) {
+			$k = strtolower( trim( (string) $d['ma'] ) );
+			if ( '' === $k ) { continue; }
+			if ( ! isset( $gom[ $k ] ) ) {
+				$gom[ $k ] = array( 'maNV' => $d['ma'], 'hoTen' => $d['ten'], 'gio' => 0.0,
+					'luongChinh' => 0.0, 'thieuGia' => 0, 'thieuGio' => 0,
+					'tongCong' => 0.0, 'tongTru' => 0.0, 'bhxh' => 0.0 );
+			}
+			if ( null === $d['luongChinh'] ) { $gom[ $k ]['thieuGia']++; }
+			else { $gom[ $k ]['luongChinh'] += (float) $d['luongChinh']; }
+			if ( null !== $d['gio'] ) { $gom[ $k ]['gio'] += (float) $d['gio']; }
+			$gom[ $k ]['tongCong'] += (float) $d['tongCong'];
+			$gom[ $k ]['tongTru']  += (float) $d['tongTru'];
+			/* 🔴 BHXH CŨNG PHẢI VÀO ĐÂY. Bảng cả cửa hàng cộng ra một con số cho từng người rồi
+			   cộng tiếp thành tổng cơ sở; bỏ sót một khoản TRỪ là mọi con số ấy cao hơn thật,
+			   và nó lệch với chính phiếu riêng của người đó ở màn bên cạnh. */
+			$gom[ $k ]['bhxh'] += (float) ( isset( $d['bhxh'] ) ? $d['bhxh'] : 0 );
+			$gom[ $k ]['thieuGio'] += (int) $d['thieuGio'];
+		}
+
+		$dong = array(); $tong = 0.0; $du_ca = true;
+		foreach ( $gom as $g ) {
+			$du = ( 0 === $g['thieuGia'] );
+			if ( ! $du ) { $du_ca = false; }
+			$t = $du ? round( $g['luongChinh'] + $g['tongCong'] - $g['tongTru'] - $g['bhxh'], 2 ) : null;
+			if ( null !== $t ) { $tong += $t; }
+			$dong[] = array(
+				'maNV'  => $g['maNV'],
+				'hoTen' => $g['hoTen'],
+				'gio'   => round( $g['gio'], 2 ),
+				'bhxh'  => round( $g['bhxh'], 2 ),
+				'tong'  => $t,
+				'thieuGia' => $g['thieuGia'],
+				'thieuGio' => $g['thieuGio'],
+			);
+		}
+		usort( $dong, function ( $a, $b2 ) { return strcmp( $a['hoTen'], $b2['hoTen'] ); } );
+
+		return array(
+			'ok'      => true,
+			'coSo'    => $cs,
+			'thang'   => $tt,
+			'dong'    => $dong,
+			'soNguoi' => count( $dong ),
+			/* Tổng chỉ có nghĩa khi MỌI dòng đủ giá — thiếu một người là con số ấy thấp hơn
+			   thật mà trông hoàn chỉnh. Cùng luật với phiếu của một người. */
+			'tong'    => $du_ca ? round( $tong, 2 ) : null,
+			'daDu'    => $du_ca,
+			/* Người quản lý cần biết NHÂN VIÊN BÊN DƯỚI đang thấy gì — xem chốt 2 ở trên. */
+			'daCongBo' => self::da_cong_bo( $cs, $tt ),
 		);
 	}
 
