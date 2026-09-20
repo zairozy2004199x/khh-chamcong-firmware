@@ -1,0 +1,90 @@
+# Tự dựng APK app chấm công cho nhân viên.
+#
+# VÌ SAO CÓ TỆP NÀY
+#   Dựng APK cần Android SDK — thứ không có trên máy người viết mã. Máy chạy của GitHub có sẵn;
+#   đẩy mã lên là có tệp .apk tải về, không phải chờ ai cài gì.
+#
+# 🔴 TÁCH RIÊNG KHỎI `android.yml` (app thu tiền), KHÔNG GỘP.
+#    Hai app khác nhau, sửa vào những lúc khác nhau. Gộp một luồng thì mỗi lần sửa một dòng chữ
+#    trong app thu tiền là dựng lại cả app chấm công, và ngược lại — mỗi lần năm phút máy chạy,
+#    và một bản phát hành mới cho một app không đổi một dòng nào. Người nhận bản phát hành ấy
+#    không có cách nào biết là nó y hệt bản cũ.
+#
+# 🔴 BẢN NÀY KÝ BẰNG KHOÁ GỠ LỖI (debug). Cài được ngay, chạy đầy đủ, nhưng KHÔNG cập nhật đè
+#    lên bản ký bằng khoá khác được — muốn đổi sang khoá thật thì phải gỡ app cũ rồi cài lại.
+#    Đủ cho giai đoạn này: app dùng nội bộ, phát qua đường dẫn tải chứ không qua CH Play.
+#
+# ⚠️ Máy nhân viên phải BẬT "cài từ nguồn không rõ" cho trình duyệt hoặc app quản lý tệp.
+name: Dựng APK chấm công
+
+on:
+  push:
+    paths:
+      - 'android_cham_cong/**'
+      - '.github/workflows/android-cham-cong.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Soi cấu trúc TRƯỚC khi dựng: nó chạy trong hai giây và bắt được ngoặc lệch cùng mấy
+      # dòng cấu hình WebView mà thiếu một là mất hẳn một tính năng. Dựng APK mất vài phút —
+      # đừng chờ vài phút để biết một dấu ngoặc thiếu.
+      - name: Soi mã Kotlin app chấm công
+        run: python3 tools/test/kiem-app-chamcong.py
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # 🔴 DÙNG GRADLE WRAPPER, không cài Gradle rời — cùng lý do với `android.yml`: máy CI và
+      #    máy anh Thắng phải dựng ra CÙNG MỘT THỨ.
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Dựng APK
+        working-directory: android_cham_cong
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: Đặt tên theo số bản
+        id: ten
+        working-directory: android_cham_cong
+        run: |
+          set -e
+          BAN=$(grep -o 'versionName = "[^"]*"' app/build.gradle.kts | head -1 | cut -d'"' -f2)
+          cp app/build/outputs/apk/debug/app-debug.apk "khh-cham-cong-$BAN.apk"
+          echo "ban=$BAN" >> "$GITHUB_OUTPUT"
+          echo "tep=android_cham_cong/khh-cham-cong-$BAN.apk" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: khh-cham-cong-apk
+          path: ${{ steps.ten.outputs.tep }}
+          retention-days: 30
+
+      # 🔴 PHÁT HÀNH CẢ TỪ NHÁNH LÀM VIỆC — nhưng đánh dấu là BẢN THỬ.
+      #    Artifacts của Actions chỉ tải được khi đã đăng nhập GitHub, và tải về là một tệp .zip
+      #    phải giải nén — trên điện thoại của nhân viên thì cả hai đều là ngõ cụt. Releases cho
+      #    một đường dẫn thẳng tới tệp .apk, bấm là cài.
+      - name: Phát hành để tải thẳng
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref == 'refs/heads/main' && 'apk-cham-cong' || 'apk-cham-cong-thu' }}
+          prerelease: ${{ github.ref != 'refs/heads/main' }}
+          name: App chấm công ${{ steps.ten.outputs.ban }}
+          files: ${{ steps.ten.outputs.tep }}
+          body: |
+            App Android cho nhân viên: chấm công có ảnh đóng dấu giờ máy chủ và đối chiếu vị
+            trí, xem công của mình, phiếu lương, đơn từ, và lưới Ứng dụng.
+
+            Cài: tải tệp .apk, mở ra, cho phép "cài từ nguồn không rõ" nếu máy hỏi.
+            Lần đầu mở app: nhập địa chỉ máy chủ (khmatrix.com), rồi đăng nhập bằng PIN như trên web.
+
+            Lần đầu chấm công máy sẽ hỏi quyền Máy ảnh và Vị trí — cả hai đều cần, và app chỉ
+            đọc vị trí đúng lúc bấm nút chấm công.
