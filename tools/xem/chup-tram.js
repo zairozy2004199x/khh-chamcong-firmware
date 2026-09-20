@@ -92,7 +92,39 @@ async function chup(p, ten) {
     await chup(p, ten);
   }
 
-  /* ── 5. Chuông ── */
+  /* ── 5. Nhắn tin: vào lưới Ứng dụng rồi bấm ô Nhắn tin ── */
+  const nUng = await p.$('.tab-nut[data-tab="tUng"]');
+  if (nUng) { await nUng.click(); await p.waitForTimeout(1200); }
+  const oChat = await p.$('.o-man[data-man="mChat"]');
+  if (oChat && await oChat.isVisible()) {
+    await oChat.click();
+    await p.waitForTimeout(1600);
+    await chup(p, 'chat-danh-sach');
+    /* Vào phòng cả cửa hàng, gõ một câu, gửi — chụp cả khung tin có bong bóng thật. */
+    const vao = await p.$('.chat-vao');
+    if (vao) {
+      await vao.click();
+      await p.waitForTimeout(1400);
+      await p.fill('#chatO', 'Ca chiều nay đổi người nhé cả nhà.');
+      await p.click('#btChatGui');
+      await p.waitForTimeout(1800);
+      await chup(p, 'chat-phong');
+    }
+    const ve = await p.$('#btChatVe');
+    if (ve) { await ve.click(); await p.waitForTimeout(900); }
+    const nNguoi = await p.$('#btChatNguoi');
+    if (nNguoi) {
+      await nNguoi.click();
+      await p.waitForTimeout(1400);
+      await chup(p, 'chat-chon-nguoi');
+    }
+    const dong = await p.$('#btDongChat');
+    if (dong) { await dong.click(); await p.waitForTimeout(600); }
+  } else {
+    console.log('  ⚠ không thấy ô Nhắn tin trong lưới Ứng dụng');
+  }
+
+  /* ── 6. Chuông ── */
   /* ⚠️ Chuông chỉ hiện khi site có cài trang Nội bộ (`VHNB_Bao`). Bệ đỡ xem trước không có nó,
      nên nút ẩn — ghi một dòng rồi đi tiếp, đừng chết ở đây và mất mấy dòng in ra phía dưới. */
   const ch = await p.$('#btChuong');

@@ -305,6 +305,23 @@ class VHCC_Ung {
 			) );
 		}
 
+		/* ---- 9c. Nhắn tin ------------------------------------------------------------------
+		   Anh Thắng 20/09/2026: *"Tạo tính năng mini chat trong app. Chọn thành viên cùng cửa
+		   hàng và chat"*.
+
+		   🔴 Ô NÀY KHÔNG GÁC GÌ, CỐ Ý. Ai đi làm cũng nhắn được cho người cùng chỗ mình làm —
+		      đó là việc bình thường nhất trong một cửa hàng, và gác nó là bắt người ta quay về
+		      Zalo, nơi công ty không thấy gì và người nghỉ việc vẫn còn trong nhóm.
+		      Gác thật nằm ở `VHCC_Chat::duoc_vao()`: phòng nào cũng phải là chỗ mình đang làm. */
+		$o[] = self::o( true, array(
+			'ten'  => 'Nhắn tin',
+			'nhom' => 'Của tôi',
+			'mo'   => 'Nhắn cho cả cửa hàng, hoặc riêng một người',
+			'man'  => 'mChat',
+			'icon' => '💬',
+			'mau'  => 'lam',
+		) );
+
 		/* ---- 10. Xin bù giờ ---------------------------------------------------------------
 		   Anh Thắng 18/09/2026: *"lệnh bù giờ từ nhân viên gửi lên, CHT sẽ nhận và duyệt và đẩy
 		   tiếp lên cho kế toán"*. Nhân viên nào cũng gửi được — không gác gì thêm. */

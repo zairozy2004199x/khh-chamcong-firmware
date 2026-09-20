@@ -624,12 +624,68 @@ class VHCC_Tram {
 				? VHCC_Push::nhac_cua( $u['ma_nv'] ) : array( 'ok' => true, 'nhac' => array() );
 			$kq_n['demChuong'] = ( class_exists( 'VHCC_Chuong' ) && method_exists( 'VHCC_Chuong', 'dem' ) )
 				? (string) VHCC_Chuong::dem( $u ) : '';
+			/* Tin chat chưa đọc đi CHUNG cửa này, không mở cửa thứ hai: app hỏi mỗi 15 phút,
+			   nhân với số máy — mỗi lượt gọi thừa là một lượt gọi thừa thật. */
+			$kq_n['chatChuaDoc'] = ( class_exists( 'VHCC_Chat' ) && method_exists( 'VHCC_Chat', 'chua_doc' ) )
+				? VHCC_Chat::chua_doc( $u ) : array();
 			self::ra( $kq_n );
 		}
 
 		if ( 'chuongdoc' === $viec ) {
 			$b = self::than();
 			self::ra( VHCC_Chuong::doc( $u, isset( $b['id'] ) ? (int) $b['id'] : 0 ) );
+		}
+
+		/* ───────────────────────────── DANH BẠ + CHAT NHÓM (anh Thắng 20/09/2026) ─────────
+		   🔴 CẢ BA CỬA ĐỀU ĐI QUA GÁC CỦA LỚP, KHÔNG GÁC Ở ĐÂY. Viết một phép kiểm "cơ sở này có
+		      phải của người ta không" ngay tại cổng là dựng bản thứ hai của một luật đã có, và
+		      hai bản ấy sẽ lệch. `VHCC_Chat::duoc_vao()` và `VHCC_NhanSu::danh_ba()` tự gác. */
+		if ( 'danhba' === $viec ) {
+			$b = self::than();
+			$cs_d = isset( $b['coSo'] ) ? (string) $b['coSo'] : '';
+			/* Không khai cơ sở -> lấy cơ sở chính trong thẻ phiên. */
+			if ( '' === $cs_d ) { $cs_d = VHCC_NhanSu::chuan_coso( (string) $u['coso'] ); }
+			self::ra( array( 'ok' => true, 'coSo' => $cs_d,
+				'ds' => VHCC_NhanSu::danh_ba( $u, $cs_d,
+					isset( $b['tim'] ) ? (string) $b['tim'] : '' ) ) );
+		}
+
+		if ( 'chat_phong' === $viec ) {
+			self::ra( array( 'ok' => true, 'phong' => VHCC_Chat::phong_cua( $u ),
+				'chuaDoc' => VHCC_Chat::chua_doc( $u ),
+				'rieng' => VHCC_Chat::rieng_cua( $u ) ) );
+		}
+
+		/* Mở chat riêng với một người: client gửi MÃ người kia, máy chủ tự dựng khoá phòng.
+		   🔴 KHÔNG cho client gửi thẳng khoá phòng lên. Khoá dựng ở máy chủ thì nó luôn đúng
+		      khuôn và luôn đi qua `phong_rieng()` — nơi sắp xếp hai mã và chối ký tự lạ. */
+		if ( 'chat_mo' === $viec ) {
+			$b = self::than();
+			$cs_m = isset( $b['coSo'] ) ? (string) $b['coSo'] : VHCC_NhanSu::chuan_coso( (string) $u['coso'] );
+			$p_m  = VHCC_Chat::phong_rieng( $cs_m, (string) $u['ma_nv'],
+				isset( $b['maKia'] ) ? (string) $b['maKia'] : '' );
+			if ( '' === $p_m || ! VHCC_Chat::duoc_vao( $u, $p_m ) ) {
+				self::ra( array( 'ok' => false,
+					'error' => 'Không mở được chat riêng với người này. Hai người phải cùng một cơ sở.' ) );
+			}
+			self::ra( array( 'ok' => true, 'phong' => $p_m ) );
+		}
+
+		if ( 'chat_ds' === $viec ) {
+			$b = self::than();
+			self::ra( VHCC_Chat::ds( $u, isset( $b['coSo'] ) ? $b['coSo'] : '',
+				isset( $b['tuId'] ) ? (int) $b['tuId'] : 0 ) );
+		}
+
+		if ( 'chat_gui' === $viec ) {
+			$b = self::than();
+			self::ra( VHCC_Chat::gui( $u, isset( $b['coSo'] ) ? $b['coSo'] : '',
+				isset( $b['chu'] ) ? $b['chu'] : '' ) );
+		}
+
+		if ( 'chat_xoa' === $viec ) {
+			$b = self::than();
+			self::ra( VHCC_Chat::xoa( $u, isset( $b['id'] ) ? (int) $b['id'] : 0 ) );
 		}
 
 		if ( 'hoso' === $viec ) {

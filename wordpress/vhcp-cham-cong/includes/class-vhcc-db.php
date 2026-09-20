@@ -77,7 +77,7 @@ class VHCC_DB {
 		return $t ? $t : '';
 	}
 
-	const SCHEMA_VERSION = '2.16.0';
+	const SCHEMA_VERSION = '2.17.0';
 
 	public static function t( $name ) {
 		global $wpdb;
@@ -1149,6 +1149,57 @@ class VHCC_DB {
 			dia_chi VARCHAR(200) NOT NULL DEFAULT '',
 			tra_luc DATETIME NULL,
 			PRIMARY KEY  (o)";
+
+		/* ===== CHAT NHÓM THEO CƠ SỞ ========================================================
+		   Xem khối chú thích đầu `VHCC_Chat`. Phòng LÀ cơ sở — không có bảng "nhóm" và không có
+		   bảng "thành viên", vì danh sách thành viên đã nằm sẵn trong hồ sơ: nghỉ việc là ra
+		   khỏi phòng, chuyển cơ sở là đổi phòng, không ai phải đi mời hay đi đuổi ai.
+
+		   ⚠️ `ho_ten` CHÉP VÀO HÀNG, không tra lại lúc hiện. Người đổi tên hay nghỉ việc thì mấy
+		      câu họ đã nhắn vẫn phải mang đúng cái tên lúc nhắn — đó là thứ làm nó thành một
+		      cuốn sổ đọc lại được, chứ không phải một danh sách trỏ vào hồ sơ hiện tại.
+		   ⚠️ `da_xoa` = xoá MỀM. Chỗ trống có ghi chú giữ được mạch hội thoại; xoá hẳn thì câu
+		      trả lời phía dưới treo lơ lửng. */
+		$b['chat_tin'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			phong VARCHAR(190) NOT NULL,
+			ma_nv VARCHAR(40) NOT NULL,
+			ho_ten VARCHAR(190) NOT NULL DEFAULT '',
+			chu VARCHAR(1000) NOT NULL DEFAULT '',
+			da_xoa TINYINT(1) NOT NULL DEFAULT 0,
+			tao_luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			KEY p (phong,id)";
+
+		/* ===== SỔ CUỘC NÓI CHUYỆN RIÊNG ====================================================
+		   🔴 CÓ BẢNG NÀY ĐỂ KHÔNG PHẢI DÒ BẰNG `LIKE` TRÊN KHOÁ PHÒNG.
+		      Bản đầu không có nó: khoá phòng riêng là `@CƠSỞ|MÃ_A|MÃ_B`, và muốn biết một người
+		      có những cuộc nào thì `WHERE phong LIKE '%|MÃ%'`. Hai chỗ hỏng cùng lúc:
+		        · `LIKE '%|CH_A1%'` khớp luôn `|CH_A12` — mở phòng của người khác cho người này.
+		          Phải lọc lại bằng so sánh thật ở PHP, tức là `LIKE` chỉ còn là một phép lọc thô
+		          mà vẫn kéo về cả đống hàng.
+		        · Mã NV có dấu gạch dưới (`CH_A1`), mà `_` là ký tự đại diện của `LIKE`. Thoát nó
+		          bằng `esc_like()` thì MySQL hiểu, SQLite (bệ đỡ thử) KHÔNG — cùng một câu, hai
+		          kết quả. Phép thử bắt được đúng chỗ này.
+		      Hai người trong hai CỘT RIÊNG, có khoá chỉ mục: tra bằng `=`, hết cả hai chuyện.
+
+		   ⚠️ Ghi lúc gửi tin ĐẦU TIÊN của phòng, không ghi lúc mở màn — mở ra rồi không nhắn gì
+		      thì không nên đẻ ra một dòng trong danh sách cuộc nói chuyện của người kia. */
+		$b['chat_rieng'] = "
+			phong VARCHAR(190) NOT NULL,
+			coso VARCHAR(120) NOT NULL,
+			ma_a VARCHAR(40) NOT NULL,
+			ma_b VARCHAR(40) NOT NULL,
+			PRIMARY KEY  (phong),
+			KEY a (ma_a),
+			KEY b (ma_b)";
+
+		/* Mốc "đã đọc tới đâu" của từng người trong từng phòng. Một hàng cho một cặp. */
+		$b['chat_doc'] = "
+			ma_nv VARCHAR(40) NOT NULL,
+			phong VARCHAR(190) NOT NULL,
+			id_cuoi BIGINT(20) NOT NULL DEFAULT 0,
+			PRIMARY KEY  (ma_nv,phong)";
 
 		return $b;
 	}

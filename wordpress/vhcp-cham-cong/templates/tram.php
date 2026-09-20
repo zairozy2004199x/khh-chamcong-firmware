@@ -492,6 +492,59 @@ a{color:var(--nhan)}
 </div>
 
 <!-- ============ MÀN DANH SÁCH THÔNG BÁO ============ -->
+<!-- ============ MÀN NHẮN TIN ============
+     Anh Thắng 20/09/2026: *"Tạo tính năng mini chat trong app. Chọn thành viên cùng cửa hàng
+     và chat"*.
+
+     🔴 MỘT MÀN, HAI LỚP — danh sách cuộc nói chuyện, rồi mới tới khung chat. Nhét cả hai vào
+        một lớp (danh sách bên trái, tin nhắn bên phải như máy tính) là thứ không dùng được
+        trên màn 390px: mỗi bên còn 195px.
+     ⚠️ Phòng CẢ CỬA HÀNG và phòng RIÊNG dùng CHUNG khung chat ở dưới. Tách hai khung là hai
+        chỗ phải sửa mỗi lần đổi cách hiện một bong bóng tin. -->
+<div id="mChat" class="mn an"><div class="bao">
+	<h1>Nhắn tin</h1>
+
+	<div id="chatLop1">
+		<p class="mo">Nhắn cho cả cửa hàng, hoặc chọn một người để nhắn riêng.</p>
+		<div class="the">
+			<label style="margin:0 0 8px">Phòng cửa hàng</label>
+			<div id="chatDsPhong"><p class="trong">Đang tải…</p></div>
+		</div>
+		<div class="the">
+			<label style="margin:0 0 8px">Nhắn riêng</label>
+			<div id="chatDsRieng"><p class="trong">Chưa có cuộc nào.</p></div>
+			<p></p>
+			<button id="btChatNguoi" class="phu">+ Chọn người để nhắn</button>
+		</div>
+		<div class="the an" id="chatOChon">
+			<label style="margin:0 0 8px">Người cùng cửa hàng</label>
+			<input id="chatTim" type="text" placeholder="Gõ tên để lọc" autocomplete="off">
+			<div id="chatDsNguoi"><p class="trong">Đang tải…</p></div>
+		</div>
+		<button id="btDongChat" class="phu">Đóng</button>
+	</div>
+
+	<div id="chatLop2" class="an">
+		<div class="the">
+			<div class="hang" style="margin:0 0 8px">
+				<button id="btChatVe" class="phu">← Quay lại</button>
+				<b id="chatTen" style="align-self:center">—</b>
+			</div>
+			<!-- ⚠️ Khung tin phải có CHIỀU CAO CỐ ĐỊNH và tự cuộn. Để nó cao theo nội dung thì
+			     ô gõ trôi xuống dưới màn sau vài chục tin, và người ta phải cuộn lên mới gõ
+			     được — trên điện thoại thì đó là bỏ cuộc. -->
+			<div id="chatKhung" style="height:52vh;overflow-y:auto;padding:4px 2px">
+				<p class="trong">Đang tải…</p>
+			</div>
+			<div id="chatLoi"></div>
+			<p></p>
+			<textarea id="chatO" rows="2" placeholder="Gõ tin nhắn…" maxlength="1000"></textarea>
+			<p></p>
+			<button id="btChatGui" class="chinh">Gửi</button>
+		</div>
+	</div>
+</div></div>
+
 <div id="mChuong" class="mn an"><div class="bao">
 	<h1>Thông báo</h1>
 	<p class="mo">Hộp thư chung với trang Nội bộ — đọc ở đây thì bên kia cũng hết đỏ.</p>
@@ -2615,6 +2668,204 @@ function veDemChuong(dem){
 	hien('demChuong', '' !== chu);
 }
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * NHẮN TIN — anh Thắng 20/09/2026: *"mini chat trong app. Chọn thành viên cùng cửa hàng"*.
+ *
+ * 🔴 KHOÁ PHÒNG RIÊNG DO MÁY CHỦ DỰNG, KHÔNG DỰNG Ở ĐÂY. Ghép `'@'+coSo+'|'+maToi+'|'+maKia`
+ *    ngay trong trình duyệt thì nhanh hơn một lượt gọi — nhưng hai người ghép theo hai thứ tự
+ *    khác nhau là hai cái phòng khác nhau, mỗi người thấy một nửa cuộc nói chuyện và cả hai
+ *    đều tưởng người kia không trả lời. Máy chủ sắp xếp hai mã rồi mới ghép (`chat_mo`).
+ *
+ * ⚠️ HỎI TIN MỚI BẰNG `tuId`, KHÔNG TẢI LẠI CẢ PHÒNG. Mỗi 6 giây tải lại tám mươi tin là tốn
+ *    băng thông của nhân viên và làm khung tin nhảy về đầu giữa lúc người ta đang đọc.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+var CHAT_PHONG = '';      /* phòng đang mở: tên cơ sở, hoặc khoá phòng riêng */
+var CHAT_TEN = '';
+var CHAT_CUOI = 0;        /* id tin cuối đã vẽ */
+var CHAT_NHIP = null;
+
+function moChat(){
+	hien('mChat', true);
+	chatVeLop1();
+	napChatPhong();
+}
+
+function chatVeLop1(){
+	dungNhipChat();
+	CHAT_PHONG = '';
+	el('chatLop1').classList.remove('an');
+	el('chatLop2').classList.add('an');
+	el('chatOChon').classList.add('an');
+}
+
+function dungNhipChat(){
+	if(CHAT_NHIP){ clearInterval(CHAT_NHIP); CHAT_NHIP = null; }
+}
+
+function napChatPhong(){
+	goi('chat_phong', { token: token() }).then(function(j){
+		if(!j || !j.ok) return;
+		var h = '';
+		for(var i=0;i<(j.phong||[]).length;i++){
+			var cs = j.phong[i];
+			var n = (j.chuaDoc && j.chuaDoc[cs]) ? j.chuaDoc[cs] : 0;
+			h += '<button type="button" class="phu chat-vao" data-phong="' + esc(cs) + '"'
+				+ ' data-ten="' + esc('Cả cửa hàng ' + cs) + '" style="width:100%;margin:0 0 6px">'
+				+ '🏪 ' + esc(cs) + (n ? ' <b>(' + esc(n) + ' mới)</b>' : '') + '</button>';
+		}
+		el('chatDsPhong').innerHTML = h || '<p class="trong">Chưa gắn cơ sở nào.</p>';
+
+		var r = '';
+		for(var k=0;k<(j.rieng||[]).length;k++){
+			var x = j.rieng[k];
+			r += '<button type="button" class="phu chat-vao" data-phong="' + esc(x.phong) + '"'
+				+ ' data-ten="' + esc(x.tenKia) + '" style="width:100%;margin:0 0 6px;text-align:left">'
+				+ '👤 ' + esc(x.tenKia)
+				+ (x.chuaDoc ? ' <b>(' + esc(x.chuaDoc) + ' mới)</b>' : '')
+				+ '<br><span class="trong">' + esc((x.cuoi || '').slice(0, 60)) + '</span></button>';
+		}
+		el('chatDsRieng').innerHTML = r || '<p class="trong">Chưa có cuộc nào.</p>';
+		nghenChatVao();
+	}).catch(function(){});
+}
+
+function nghenChatVao(){
+	var ds = document.querySelectorAll('.chat-vao');
+	for(var i=0;i<ds.length;i++){
+		ds[i].onclick = function(){ vaoPhongChat(this.getAttribute('data-phong'), this.getAttribute('data-ten')); };
+	}
+}
+
+function vaoPhongChat(phong, ten){
+	CHAT_PHONG = phong;
+	CHAT_TEN = ten || phong;
+	CHAT_CUOI = 0;
+	el('chatTen').textContent = CHAT_TEN;
+	el('chatKhung').innerHTML = '<p class="trong">Đang tải…</p>';
+	bao('chatLoi','',null);
+	el('chatLop1').classList.add('an');
+	el('chatLop2').classList.remove('an');
+	napChatTin(true);
+	dungNhipChat();
+	/* 6 giây một lượt, và CHỈ khi màn chat đang mở — `dungNhipChat()` gọi ở mọi đường thoát. */
+	CHAT_NHIP = setInterval(function(){ napChatTin(false); }, 6000);
+}
+
+function napChatTin(dau){
+	if(!CHAT_PHONG) return;
+	goi('chat_ds', { token: token(), coSo: CHAT_PHONG, tuId: CHAT_CUOI }).then(function(j){
+		if(!j || !j.ok){ if(dau){ bao('chatLoi','dong',(j&&j.error)||'Không mở được phòng.'); } return; }
+		veChatTin(j.ds || [], dau);
+	}).catch(function(){ /* mất mạng một nhịp: nhịp sau tự tới, đừng kêu */ });
+}
+
+function veChatTin(ds, dau){
+	var k = el('chatKhung');
+	if(dau){ k.innerHTML = ''; }
+	if(dau && !ds.length){
+		k.innerHTML = '<p class="trong" id="chatRong">Chưa có tin nào. Gõ câu đầu tiên đi.</p>';
+	}
+	/* 🔴 DỌN CÂU "CHƯA CÓ TIN NÀO" KHI TIN ĐẦU TIÊN TỚI.
+	   Bản đầu chỉ đặt câu ấy lúc mở phòng rỗng rồi thôi — tin mới nối vào PHÍA DƯỚI nó, nên
+	   màn hình vừa nói "chưa có tin nào" vừa bày một tin ngay bên dưới. Phép thử không bắt
+	   được (HTML có đủ cả hai), chỉ lộ ra khi CHỤP MÀN RA NHÌN. */
+	if(ds.length){
+		var r = el('chatRong');
+		if(r && r.parentNode){ r.parentNode.removeChild(r); }
+	}
+	/* Người đang cuộn lên đọc tin cũ thì ĐỪNG kéo họ xuống đáy — chỉ tự cuộn khi họ vốn đã ở
+	   đáy. Kéo bừa là mất chỗ đang đọc mỗi khi có tin mới. */
+	var oDay = (k.scrollTop + k.clientHeight >= k.scrollHeight - 40);
+	for(var i=0;i<ds.length;i++){
+		var x = ds[i];
+		if(x.id > CHAT_CUOI){ CHAT_CUOI = x.id; }
+		var ben = x.cuaToi ? 'right' : 'left';
+		var nen = x.cuaToi ? 'var(--nen-2)' : 'var(--the)';
+		var d = document.createElement('div');
+		d.style.cssText = 'text-align:' + ben + ';margin:0 0 8px';
+		var chu = x.daXoa
+			? '<i class="trong">(đã xoá)</i>'
+			: esc(x.chu).replace(/\n/g, '<br>');
+		d.innerHTML = '<div style="display:inline-block;max-width:84%;text-align:left;'
+			+ 'padding:7px 10px;border-radius:12px;border:1px solid var(--vien);background:' + nen + '">'
+			+ (x.cuaToi ? '' : '<b style="font-size:12px">' + esc(x.hoTen) + '</b><br>')
+			+ chu
+			+ '<div class="trong" style="font-size:11px;margin-top:2px">' + esc((x.luc||'').slice(11,16))
+			+ (x.cuaToi && !x.daXoa ? ' · <a href="#" data-xoa="' + esc(x.id) + '">xoá</a>' : '')
+			+ '</div></div>';
+		k.appendChild(d);
+	}
+	if(ds.length){ nghenXoaChat(); }
+	if(oDay || dau){ k.scrollTop = k.scrollHeight; }
+}
+
+function nghenXoaChat(){
+	var ds = el('chatKhung').querySelectorAll('[data-xoa]');
+	for(var i=0;i<ds.length;i++){
+		ds[i].onclick = function(e){
+			e.preventDefault();
+			var id = this.getAttribute('data-xoa');
+			goi('chat_xoa', { token: token(), id: id }).then(function(j){
+				if(!j || !j.ok){ bao('chatLoi','dong',(j&&j.error)||'Không xoá được.'); return; }
+				/* Vẽ lại cả phòng: tin xoá đổi thành "(đã xoá)" tại chỗ, và tải lại từ đầu là
+				   cách duy nhất chắc chắn không lệch với máy chủ. */
+				CHAT_CUOI = 0; napChatTin(true);
+			}).catch(function(){});
+		};
+	}
+}
+
+function guiChat(){
+	var chu = el('chatO').value;
+	if(!chu.trim()){ return; }
+	var b = el('btChatGui');
+	b.disabled = true;
+	goi('chat_gui', { token: token(), coSo: CHAT_PHONG, chu: chu }).then(function(j){
+		b.disabled = false;
+		if(!j || !j.ok){ bao('chatLoi','dong',(j&&j.error)||'Không gửi được.'); return; }
+		el('chatO').value = '';
+		bao('chatLoi','',null);
+		napChatTin(false);
+	}).catch(function(e){
+		b.disabled = false;
+		bao('chatLoi','dong','Mất mạng — chưa gửi được. Bấm Gửi lại.');
+	});
+}
+
+function napChatNguoi(){
+	el('chatOChon').classList.remove('an');
+	goi('danhba', { token: token(), tim: el('chatTim').value }).then(function(j){
+		if(!j || !j.ok){ el('chatDsNguoi').innerHTML = '<p class="trong">Không tải được danh bạ.</p>'; return; }
+		var h = '';
+		for(var i=0;i<(j.ds||[]).length;i++){
+			var x = j.ds[i];
+			if(TOI && x.ma_nv === TOI.maNV) continue;   /* không nhắn cho chính mình */
+			h += '<button type="button" class="phu chat-nguoi" data-ma="' + esc(x.ma_nv) + '"'
+				+ ' data-ten="' + esc(x.ho_ten) + '" style="width:100%;margin:0 0 6px;text-align:left">'
+				+ esc(x.ho_ten) + '<br><span class="trong">' + esc(x.chuc_vu || '') + '</span></button>';
+		}
+		el('chatDsNguoi').innerHTML = h || '<p class="trong">Không có ai khác ở cơ sở này.</p>';
+		var ds = document.querySelectorAll('.chat-nguoi');
+		for(var k=0;k<ds.length;k++){
+			ds[k].onclick = function(){ moChatRieng(this.getAttribute('data-ma'), this.getAttribute('data-ten')); };
+		}
+	}).catch(function(){});
+}
+
+function moChatRieng(ma, ten){
+	/* 🔴 HỎI MÁY CHỦ KHOÁ PHÒNG — xem khối chú thích đầu phần này. */
+	goi('chat_mo', { token: token(), maKia: ma }).then(function(j){
+		if(!j || !j.ok){ bao('chatLoi','dong',(j&&j.error)||'Không mở được.'); return; }
+		vaoPhongChat(j.phong, ten);
+	}).catch(function(){});
+}
+
+el('btDongChat').addEventListener('click', function(){ dungNhipChat(); hien('mChat', false); });
+el('btChatVe').addEventListener('click', function(){ chatVeLop1(); napChatPhong(); });
+el('btChatGui').addEventListener('click', guiChat);
+el('btChatNguoi').addEventListener('click', napChatNguoi);
+el('chatTim').addEventListener('input', napChatNguoi);
+
 function moChuong(){
 	hien('mChuong', true);
 	napChuong();
@@ -2713,6 +2964,10 @@ function moMan(ten){
 	if('mKhaiGio' === ten){ moKhaiGio(); }
 	if('mXinBu' === ten){ moXinBu(); }
 	if('mGioLuong' === ten){ moGioLuong(); }
+	/* ⚠️ THÊM Ô Ở `VHCC_Ung` THÔI LÀ CHƯA ĐỦ — phải thêm một dòng ở đây nữa. Thiếu nó thì ô
+	   hiện ra, bấm vào, và KHÔNG CÓ GÌ XẢY RA: `moMan()` không khớp tên nào nên im lặng thoát.
+	   Không lỗi, không cảnh báo — đúng kiểu người ta bảo "app hỏng". */
+	if('mChat' === ten){ moChat(); }
 }
 
 /* ── LOẠI GIỜ LƯƠNG ─────────────────────────────────────────────────────────────────────────

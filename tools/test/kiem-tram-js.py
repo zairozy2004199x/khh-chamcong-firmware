@@ -255,6 +255,29 @@ la('🔴 KHÔNG còn max-height trên video/canvas', 'max-height' not in c, c)
 la('khung vẫn đo bằng vh (không phụ thuộc máy)',
    bool(css_khung) and 'vh' in css_khung.group(1), css_khung.group(1) if css_khung else '')
 
+# ══════════════════════════════════════════════════════════════════════════════════════════
+# 🔴 MỌI Ô `man` KHAI Ở `VHCC_Ung` PHẢI CÓ MỘT NHÁNH TRONG `moMan()`.
+#
+# Thêm một ô vào lưới Ứng dụng là sửa HAI tệp: khai ô ở `class-vhcc-ung.php`, và thêm một dòng
+# vào `moMan()` bên `tram.php`. Quên dòng thứ hai thì ô hiện ra, bấm vào, và KHÔNG CÓ GÌ XẢY
+# RA — `moMan()` không khớp tên nào nên im lặng thoát. Không lỗi, không cảnh báo, không một
+# dấu vết nào; người dùng chỉ thấy một cái nút chết.
+#
+# Đây đúng là lớp lỗi "hai nơi phải khớp nhau" mà cả bộ thử này sinh ra để canh.
+# ══════════════════════════════════════════════════════════════════════════════════════════
+UNG = os.path.join(GOC, 'wordpress', 'vhcp-cham-cong', 'includes', 'class-vhcc-ung.php')
+if os.path.exists(UNG):
+    ung = open(UNG, encoding='utf-8').read()
+    # bỏ chú thích PHP để không bắt nhầm một tên màn nhắc trong lời giải thích
+    ung_ma = re.sub(r'/\*.*?\*/', ' ', ung, flags=re.S)
+    khai = sorted(set(re.findall(r"'man'\s*=>\s*'([A-Za-z_][\w]*)'", ung_ma)))
+    la('lưới Ứng dụng có khai ô mở màn trong trạm', bool(khai), str(khai))
+    mo_man = re.search(r'function moMan\(ten\)\{(.*?)\n\}', js, re.S)
+    than_mm = mo_man.group(1) if mo_man else ''
+    la('tìm được hàm moMan()', bool(mo_man))
+    thieu = [m for m in khai if ("'" + m + "'") not in than_mm]
+    la('🔴 mọi ô `man` đều có nhánh trong moMan()', not thieu, ', '.join(thieu))
+
 print()
 if hong:
     print('🔴 HỎNG: %d | ĐẠT: %d' % (hong, dat))
