@@ -192,6 +192,55 @@ VHCC_DiaChi::dien_dan();
 t( '🔴 chạy lại KHÔNG hỏi lại mấy ô đã nhớ', 0 === count( $GLOBALS['VHCP_DA_GET'] ),
 	$GLOBALS['VHCP_DA_GET'] );
 
+/* ══════════════════════════════════ 9. CỬA CHO NGƯỜI ĐANG ĐỨNG: KHÔNG BAO GIỜ NGỦ */
+
+/* 🔴 `tra()` giữ nhịp 1 lượt/giây bằng cách NGỦ. Ngủ trong một lượt gọi của trình duyệt là giữ
+   luôn một tiến trình PHP — tám giờ sáng cả chuỗi mở màn chấm công cùng lúc thì hosting hết
+   sạch tiến trình, và đứng cả trang web chứ không riêng ô địa chỉ. `tra_nhanh()` phải NHƯỜNG
+   khi nhịp đang bận, chứ không xếp hàng. */
+$GLOBALS['VHCP_HTTP']['nominatim.openstreetmap.org'] = array( 'code' => 200,
+	'body' => wp_json_encode( array( 'display_name' => 'Số 5 Lê Lợi, Quận 1, Việt Nam' ) ) );
+
+update_option( 'vhcc_dia_chi_nhip', microtime( true ) );   /* nhịp vừa bận */
+$GLOBALS['VHCP_DA_GET'] = array();
+$bd = microtime( true );
+$d  = VHCC_DiaChi::tra_nhanh( 10.770001, 106.660001 );
+$het = microtime( true ) - $bd;
+t( '🔴 nhịp đang bận -> `tra_nhanh()` KHÔNG ngủ', $het < 0.3, round( $het, 3 ) . 's' );
+t( '   và không gọi ra mạng', 0 === count( $GLOBALS['VHCP_DA_GET'] ), $GLOBALS['VHCP_DA_GET'] );
+t( '   trả rỗng chứ không ném', '' === $d, $d );
+
+/* Nhịp rảnh thì nó đi hỏi bình thường. */
+update_option( 'vhcc_dia_chi_nhip', microtime( true ) - 5 );
+t( 'nhịp rảnh -> tra được', false !== mb_strpos( VHCC_DiaChi::tra_nhanh( 10.770001, 106.660001 ), 'Lê Lợi' ) );
+
+/* Đã nhớ rồi thì trả ngay, KHÔNG quan tâm nhịp bận hay rảnh — đọc sổ có ra mạng đâu. */
+update_option( 'vhcc_dia_chi_nhip', microtime( true ) );
+$GLOBALS['VHCP_DA_GET'] = array();
+t( '🔴 đã nhớ thì nhịp bận vẫn trả ngay',
+	false !== mb_strpos( VHCC_DiaChi::tra_nhanh( 10.770001, 106.660001 ), 'Lê Lợi' ) );
+t( '   và vẫn không ra mạng', 0 === count( $GLOBALS['VHCP_DA_GET'] ) );
+
+/* Luật 5 vẫn áp ở cửa này — nếu không thì đây là cổng tra địa chỉ miễn phí cho người lạ. */
+update_option( 'vhcc_dia_chi_nhip', microtime( true ) - 5 );
+$GLOBALS['VHCP_DA_GET'] = array();
+t( '🔴 toạ độ ngoài Việt Nam -> cửa nhanh cũng chối', '' === VHCC_DiaChi::tra_nhanh( 48.8566, 2.3522 ) );
+t( '   và không gọi ra mạng', 0 === count( $GLOBALS['VHCP_DA_GET'] ), $GLOBALS['VHCP_DA_GET'] );
+
+/* ════════════════════════════════════════════ 10. CỬA TRẠM ĐÒI THẺ PHIÊN */
+
+/* 🔴 Không đòi thẻ thì bất kỳ ai gõ được một cặp số cũng mượn được máy chủ mình đi tra hộ —
+   đúng cái mà `VHCC_BanDo` đã phải khoá ba lớp để tránh. */
+$src_t = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-tram.php' );
+$vt_dc = strpos( $src_t, "'diachi' === \$viec" );
+t( 'cửa `diachi` có mặt', false !== $vt_dc );
+$khoi = false === $vt_dc ? '' : substr( $src_t, $vt_dc, 900 );
+t( '🔴 cửa `diachi` đòi thẻ phiên trước khi tra',
+	false !== strpos( $khoi, 'self::nguoi( $tk_d )' ), $khoi );
+t( '🔴 cửa `diachi` gọi `tra_nhanh`, KHÔNG gọi `tra` (hàm có ngủ)',
+	false !== strpos( $khoi, 'VHCC_DiaChi::tra_nhanh' )
+	&& false === strpos( $khoi, 'VHCC_DiaChi::tra(' ), $khoi );
+
 echo "\n";
 if ( $truot ) {
 	echo 'TRƯỢT ' . count( $truot ) . ":\n";

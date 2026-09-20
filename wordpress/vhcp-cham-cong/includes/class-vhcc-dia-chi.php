@@ -180,6 +180,28 @@ class VHCC_DiaChi {
 		return $d;
 	}
 
+	/**
+	 * TRA CHO MỘT NGƯỜI ĐANG ĐỨNG CHỜ — đọc sổ nhớ trước, và TUYỆT ĐỐI KHÔNG NGỦ.
+	 *
+	 * 🔴 VÌ SAO KHÔNG DÙNG THẲNG `tra()` Ở ĐÂY. `tra()` giữ nhịp 1 lượt/giây bằng cách NGỦ, và
+	 *    ngủ trong một lượt gọi của trình duyệt là giữ luôn một tiến trình PHP. Tám giờ sáng cả
+	 *    chuỗi mở màn chấm công cùng lúc: mỗi máy một tiến trình nằm ngủ chờ tới lượt, và hosting
+	 *    hết sạch tiến trình — nghĩa là cả trang web đứng, không riêng gì ô địa chỉ.
+	 *
+	 * Nên ở đây: nhịp còn trống thì đi hỏi (nhanh, hạn 4 giây); nhịp đang bận thì TRẢ RỖNG NGAY
+	 * và để lượt cron điền sau. Người dùng mất tên đường trong vài phút, không ai mất trang web.
+	 *
+	 * @return string địa chỉ, hoặc '' khi chưa có.
+	 */
+	public static function tra_nhanh( $lat, $lng ) {
+		$d = self::nho( $lat, $lng );
+		if ( '' !== $d ) { return $d; }
+		if ( '' === self::o( $lat, $lng ) ) { return ''; }
+		/* Nhịp đang bận -> nhường, không xếp hàng. */
+		if ( microtime( true ) - (float) get_option( self::O_NHIP, 0 ) < 1.0 ) { return ''; }
+		return self::tra( $lat, $lng );
+	}
+
 	private static function ghi( $o, $dia_chi ) {
 		global $wpdb;
 		$b = VHCC_DB::t( 'dia_chi' );

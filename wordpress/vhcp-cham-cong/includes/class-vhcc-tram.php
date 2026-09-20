@@ -312,6 +312,31 @@ class VHCC_Tram {
 
 		if ( 'anhmau' === $viec ) { self::ra( VHCC_Online::anh_mau_the() ); }
 
+		/* TÊN ĐƯỜNG CỦA CHỖ ĐANG ĐỨNG — anh Thắng 20/09/2026: *"Không thấy địa chỉ"*.
+		   Lưới công của quản lý đọc tên đường từ sổ nhớ, nhưng người đang đứng chấm công thì
+		   không mở lưới ấy bao giờ. Họ cần thấy ngay trên máy: cặp số 10.7755,106.7021 không nói
+		   được cho ai điều gì, còn "12 Nguyễn Huệ, Bến Nghé" thì họ tự biết mình có đứng đúng chỗ.
+
+		   🔴 ĐÒI THẺ PHIÊN. Không có thì đây là cổng tra địa chỉ miễn phí cho bất kỳ ai gõ được
+		      một cặp số — đúng cái mà `VHCC_BanDo` đã phải khoá ba lớp để tránh.
+		   ⚠️ `tra_nhanh()` chứ KHÔNG PHẢI `tra()`: hàm kia giữ nhịp bằng cách NGỦ, và ngủ trong
+		      một lượt gọi của trình duyệt là giữ luôn một tiến trình PHP. Tám giờ sáng cả chuỗi
+		      mở màn chấm công cùng lúc thì hosting hết tiến trình, và đứng cả trang — chứ không
+		      riêng ô địa chỉ. Chưa có tên thì trả rỗng, cron điền sau.
+		   ⚠️ CHƯA TRA ĐƯỢC KHÔNG PHẢI LỖI. Trả `ok` kèm chuỗi rỗng, để bên kia im lặng bỏ qua
+		      chứ không hiện một dòng đỏ cho chuyện chẳng ảnh hưởng gì tới việc chấm công. */
+		if ( 'diachi' === $viec ) {
+			$tk_d = isset( $b['token'] ) ? (string) $b['token'] : '';
+			if ( '' === $tk_d || ! self::nguoi( $tk_d ) ) {
+				self::ra( array( 'ok' => false, 'error' => 'Phiên đã hết hạn.' ) );
+			}
+			$la_d = isset( $b['lat'] ) ? $b['lat'] : '';
+			$ln_d = isset( $b['lng'] ) ? $b['lng'] : '';
+			$dc_d = ( class_exists( 'VHCC_DiaChi' ) && method_exists( 'VHCC_DiaChi', 'tra_nhanh' ) )
+				? VHCC_DiaChi::tra_nhanh( $la_d, $ln_d ) : '';
+			self::ra( array( 'ok' => true, 'diaChi' => (string) $dc_d ) );
+		}
+
 		if ( 'vao' === $viec ) {
 			$kq = self::dang_nhap( isset( $b['pin'] ) ? $b['pin'] : '' );
 			/* Mở luôn phiên của trang quản trị bằng CHÍNH thẻ này. Người đủ bậc bấm sang là vào

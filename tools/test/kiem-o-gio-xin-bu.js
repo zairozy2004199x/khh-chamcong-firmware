@@ -104,17 +104,32 @@ t('   và mã NV lấy từ thẻ phiên, không nhận từ thân',
 /* ── 5. KHUNG XEM CAMERA KHÔNG ĐƯỢC ĐẨY NÚT CHỤP KHỎI MÀN ──────────────────────────────── */
 /* Anh Thắng 18/09/2026, ảnh chụp iPhone: *"Đẩy màn chụp nhỏ lại 1/2 để cho nút chụp lên cao"*.
    Camera trước cho khung DỌC; `width:100%` thì chiều cao kéo theo tỷ lệ và nút "Chụp ngay" rơi
-   xuống mép dưới — người đang một tay cầm máy tự chụp mặt mình phải cuộn mới bấm được. */
-t('🔴 khung xem camera có trần chiều cao', /\.khung video[^}]*max-height:\s*\d+vh/.test(TPL), 
-  (TPL.match(/\.khung video[^}]*}/) || [''])[0]);
+   xuống mép dưới — người đang một tay cầm máy tự chụp mặt mình phải cuộn mới bấm được.
+
+   🔴 20/09/2026 — BA PHÉP THỬ Ở ĐÂY TỪNG CANH GIỮ CHÍNH CÁI LỖI.
+   Bản cũ đòi `max-height:…vh` VÀ `object-fit:cover` đặt thẳng lên `.khung video`. Đúng hai thứ
+   ấy sinh ra lỗi anh Thắng chụp lại: *"bấm chụp nó gom ảnh là sao vậy"*. Thẻ có kích thước gốc
+   mà chạm `max-height` thì trình duyệt co luôn CHIỀU NGANG để giữ tỷ lệ — `<video>` teo thành
+   một dải hẹp giữa hai lề trắng, còn `<canvas>` (đã khai width/height bằng thuộc tính HTML) đi
+   nhánh khác của cùng luật ấy nên giữ nguyên chiều ngang và bị `cover` cắt trên dưới. Cùng một
+   dòng CSS, hai khung khác hẳn nhau: người ta canh mặt vào một khung rồi nhận về khung khác.
+
+   Nên mấy phép thử này phải ĐỔI LUẬT, không phải nới ra. Ai đi sửa lỗi ấy mà gặp một bài thử
+   đòi giữ nguyên `max-height`/`cover` thì sẽ tưởng mình vừa làm hỏng thứ gì. Luật mới: `.khung`
+   tự giữ chiều cao, hai thẻ con phủ kín nó — chi tiết và phép thử đầy đủ ở `kiem-tram-js.py`. */
+t('🔴 khung xem camera có trần chiều cao', /\.khung\{[^}]*height:\s*\d+vh/.test(TPL),
+  (TPL.match(/\.khung\{[^}]*}/) || [''])[0]);
 t('   trần tính theo vh, không theo pixel (màn nào cũng chừa đúng nửa)',
-  /\.khung video[^}]*max-height:\s*\d+vh/.test(TPL));
-/* 🔴 CẮT PHẦN NHÌN THÌ PHẢI CẮT CHO ĐẸP. Không có `object-fit:cover` thì trần chiều cao bóp
-   méo hình — mặt người bị dẹt, và đó là ảnh dùng để đối chiếu nhận diện. */
-t('🔴 và cắt bằng object-fit:cover, không bóp méo hình',
-  /\.khung video[^}]*object-fit:\s*cover/.test(TPL));
-/* Ảnh LƯU vẫn vẽ từ kích thước thật của video, không phải từ khung đã cắt. */
-t('🔴 ảnh lưu vẫn lấy từ videoWidth/videoHeight, không lấy từ khung đã cắt',
+  /\.khung\{[^}]*height:\s*\d+vh/.test(TPL));
+/* 🔴 KHÔNG BÓP MÉO, VÀ CŨNG KHÔNG CẮT. `contain` giữ đúng tỷ lệ y như `cover`, nhưng thêm một
+   điều `cover` không cho: cái hiện trên màn ĐÚNG BẰNG cái lưu xuống. Khung xem là thứ người ta
+   dùng để canh mặt vào giữa — cắt phần nhìn trong khi ảnh lưu giữ nguyên cả khung là bắt họ
+   canh theo một tấm ảnh không tồn tại. */
+t('🔴 và giữ đúng tỷ lệ bằng object-fit:contain, không cắt phần nhìn',
+  /\.khung video[^}]*object-fit:\s*contain/.test(TPL),
+  (TPL.match(/\.khung video[^}]*}/) || [''])[0]);
+/* Ảnh LƯU vẫn vẽ từ kích thước thật của video — nay khớp luôn với cái đang bày trên màn. */
+t('🔴 ảnh lưu vẫn lấy từ videoWidth/videoHeight, không lấy từ khung đã bày',
   TPL.indexOf('v.videoWidth / v.videoHeight') >= 0);
 
 /* ── 6. Ô NGÀY KHÔNG ĐƯỢC TRÀN RA NGOÀI THẺ (iOS) ──────────────────────────────────────── */

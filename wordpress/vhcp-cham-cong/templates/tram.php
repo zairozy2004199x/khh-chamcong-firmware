@@ -360,23 +360,38 @@ button.o-ung{border:0;background:transparent;font:inherit;color:var(--chu);curso
 	display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800}
 .thanh button{flex:1;padding:11px 8px;font-size:14px}
 /* Chừa chỗ cho thanh dính, không thì nó che mất đầu khối vừa nhảy tới. */
-.khung{position:relative}
 /* ══════════════════════════════════════════════════════════════════════════════════════════
- * 🔴 KHUNG XEM CAMERA PHẢI THẤP LẠI, KHÔNG THÌ NÚT CHỤP RƠI KHỎI MÀN.
+ * 🔴 KHUNG XEM PHẢI LÀ MỘT CÁI HỘP CÓ SẴN KÍCH THƯỚC, KHÔNG PHẢI CÁI HỘP DO ẢNH QUYẾT ĐỊNH.
  *
- * Anh Thắng 18/09/2026, hai ảnh chụp iPhone: *"Đẩy màn chụp nhỏ lại 1/2 để cho nút chụp lên
- * cao. Gọn lại"*. Camera trước của điện thoại cho khung DỌC; `width:100%` thì chiều cao tự
- * kéo theo tỷ lệ, và trên máy màn hẹp nó đẩy nút "Chụp ngay" xuống tận mép dưới — người đang
- * đứng chấm công phải cuộn mới bấm được, giữa lúc một tay cầm máy tự chụp mặt mình.
+ * Anh Thắng 20/09/2026, hai ảnh chụp iPhone: *"bấm chụp nó gom ảnh là sao vậy"* — hình trực
+ * tiếp thì nhỏ, hẹp, có lề trắng hai bên; bấm Chụp ngay xong thì tấm ảnh nhảy ra to hết chiều
+ * ngang và cắt mất trên dưới. Hai khung khác hẳn nhau, nên cái người ta canh KHÔNG PHẢI cái
+ * người ta nhận.
  *
- * `max-height` theo `vh` chứ không theo pixel: màn nào cũng chừa đúng nửa trên cho khung xem,
- * nửa dưới cho nút — không phụ thuộc máy.
+ * Nguyên do: bản trước đặt `max-height` thẳng lên `<video>` và `<canvas>` mà không cho chúng
+ * một chiều cao. Với thẻ có kích thước gốc (video, canvas, img), khi `max-height` bị chạm thì
+ * trình duyệt co luôn CHIỀU NGANG để giữ tỷ lệ gốc — nên hình trực tiếp teo lại thành một dải
+ * hẹp giữa hai lề trắng. Còn `<canvas>` thì `width`/`height` đã khai bằng thuộc tính HTML nên
+ * nó đi theo nhánh khác của cùng luật ấy: giữ nguyên chiều ngang, để `object-fit:cover` cắt
+ * trên dưới. Cùng một dòng CSS, hai kết quả khác nhau — và không ai đoán được điều đó khi đọc.
  *
- * ⚠️ `object-fit:cover` chỉ CẮT PHẦN NHÌN, không đụng tới ảnh lưu. Ảnh chấm công vẽ từ
- *    `video.videoWidth/videoHeight` sang một canvas riêng (xem `chup()`), nên vẫn đủ khung như
- *    cũ. Nếu ngày nào đó đổi sang lưu chính canvas đang bày thì phải đọc lại chỗ này.
+ * Nay `.khung` tự giữ chiều cao, hai thẻ con phủ kín nó bằng `height:100%`. Không còn chỗ nào
+ * cho luật co-theo-tỷ-lệ chen vào, nên hình trực tiếp và ảnh vừa chụp CHẮC CHẮN cùng khung.
+ *
+ * ⚠️ `contain` CHỨ KHÔNG PHẢI `cover`, và đây là chỗ đáng cân nhắc nhất.
+ *    `cover` nhìn đã mắt hơn (đầy khung, không lề đen) nhưng nó CẮT — mà khung xem lại là thứ
+ *    người ta dùng để canh mặt mình vào giữa. Cắt phần nhìn trong khi ảnh lưu giữ nguyên cả
+ *    khung nghĩa là người ta canh theo một tấm ảnh không tồn tại; ngược lại, cắt cả ảnh lưu
+ *    cho khớp thì có ngày cắt mất nửa cái mặt của một phiếu chấm công đang bị tranh cãi.
+ *    `contain` chịu hai dải đen hai bên để đổi lấy: cái thấy trên màn ĐÚNG BẰNG cái lưu xuống.
+ *
+ * ⚠️ 46vh giữ nguyên — anh Thắng 18/09/2026: *"Đẩy màn chụp nhỏ lại 1/2 để cho nút chụp lên
+ *    cao. Gọn lại"*. Khung cao hơn là nút "Chụp ngay" rơi khỏi màn trên máy hẹp, và người ta
+ *    phải cuộn giữa lúc một tay đang cầm máy tự chụp mặt mình.
  * ══════════════════════════════════════════════════════════════════════════════════════════ */
-.khung video,.khung canvas.xem{max-height:46vh;object-fit:cover}
+.khung{position:relative;height:46vh;background:#000;border-radius:var(--bo-the);overflow:hidden}
+/* Phủ kín cái hộp ở trên. `height:100%` là thứ chặn luật co-theo-tỷ-lệ — xem khối `.khung`. */
+.khung video,.khung canvas.xem{width:100%;height:100%;object-fit:contain;background:#000}
 .dem{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
 	pointer-events:none;border-radius:var(--bo-the)}
 .dem span{font-size:96px;font-weight:800;color:#fff;line-height:1;
@@ -1570,12 +1585,14 @@ function veViTri(){
 		   do mình đặt, mai có người sửa thành giá trị lấy từ máy chủ thì chốt ấy phải còn. */
 		e.innerHTML = '<div class="' + ( 'tot' === m ? 'xanh' : 'vang' ) + '" style="margin:0">📍 <b>'
 			+ esc(q) + '</b>'
-			+ ' <span style="opacity:.75">(±' + dai(GPS.acc) + ')</span>' + them + '</div>'
+			+ ' <span style="opacity:.75">(±' + dai(GPS.acc) + ')</span>'
+			+ '<div id="oDiaChi" style="margin-top:4px;opacity:.9"></div>' + them + '</div>'
 			+ veBanDo(GPS.lat, GPS.lng, GPS.acc)
 			/* Vẫn giữ link ra Google Maps: bản đồ ở đây đủ để thấy "mình đang ở đâu", còn khi
 			   cần chỉ đường hay xem ảnh phố thì mở ứng dụng bản đồ thật vẫn hơn. */
 			+ lk;
 		nghenBanDo();   /* phải gọi SAU khi đã chèn HTML — trước đó chưa có thẻ nào để nghe */
+		xinDiaChi();
 		return;
 	}
 
@@ -1685,6 +1702,41 @@ function urlO(z, x, y){
  * ⚠️ Ẩn khi có BẤT KỲ ô nào hỏng, không đợi hỏng hết. Một bản đồ thủng lỗ chỗ còn khó hiểu
  *    hơn là không có bản đồ.
  */
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * TÊN ĐƯỜNG CỦA CHỖ ĐANG ĐỨNG — anh Thắng 20/09/2026: *"Không thấy địa chỉ"*.
+ *
+ * Cặp số `10.7755,106.7021` không nói được cho ai điều gì. "12 Nguyễn Huệ, Bến Nghé" thì người
+ * đang đứng tự biết mình có ở đúng chỗ hay không, và quản lý đọc bảng cũng vậy.
+ *
+ * 🔴 HỎI RỒI QUÊN ĐI. Không `await`, không chặn gì, không báo lỗi. Tên đường là thứ ĐỌC CHO
+ *    SƯỚNG MẮT, còn cặp số mới là cái đi vào phiếu công. Cho nó chặn được bất cứ thứ gì —
+ *    nút chấm công, ô bản đồ, dòng toạ độ — là đánh đổi một tính năng phụ lấy chính việc
+ *    người ta cần làm. Máy chủ chưa tra ra thì ô này trống, thế thôi.
+ *
+ * ⚠️ MỘT LƯỢT HỎI CHO MỖI Ô LƯỚI, nhớ ngay trong trang. `veViTri()` chạy lại mỗi lần GPS nhích
+ *    một chút — mà GPS thì nhích liên tục — nên không nhớ là mỗi vài giây một lượt gọi máy chủ
+ *    cho cùng một chỗ đứng. Làm tròn 4 chữ số ở đây cho khớp với ô lưới bên máy chủ.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+var DIA_CHI_NHO = {};
+function xinDiaChi(){
+	if(!GPS || !GPS.lat || !GPS.lng) return;
+	var o = GPS.lat.toFixed(4) + ',' + GPS.lng.toFixed(4);
+	var e = el('oDiaChi');
+	if(!e) return;
+	if(DIA_CHI_NHO[o]){ e.textContent = '↳ ' + DIA_CHI_NHO[o]; return; }
+	if(DIA_CHI_NHO[o] === ''){ return; }            /* đã hỏi, chưa có — đừng hỏi lại */
+	goi('diachi', { token: token(), lat: GPS.lat, lng: GPS.lng }).then(function(j){
+		DIA_CHI_NHO[o] = (j && j.ok && j.diaChi) ? j.diaChi : '';
+		if(!DIA_CHI_NHO[o]) return;
+		/* Phải kiểm lại: người dùng có thể đã đi sang màn khác, hoặc GPS đã nhảy sang ô khác,
+		   trong lúc chờ máy chủ. Dán tên đường của chỗ cũ lên toạ độ mới là nói sai. */
+		var e2 = el('oDiaChi');
+		if(e2 && GPS && (GPS.lat.toFixed(4) + ',' + GPS.lng.toFixed(4)) === o){
+			e2.textContent = '↳ ' + DIA_CHI_NHO[o];
+		}
+	}).catch(function(){ /* im lặng: xem khối chú thích trên */ });
+}
+
 function nghenBanDo(){
 	var ds = document.querySelectorAll('.bando img.o');
 	for(var i = 0; i < ds.length; i++){

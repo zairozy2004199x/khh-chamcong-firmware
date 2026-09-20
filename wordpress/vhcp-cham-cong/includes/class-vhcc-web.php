@@ -9311,22 +9311,27 @@ class VHCC_Web {
 			$dau = '';
 			if ( 'ngoai' === $v['ket'] ) { $dau = '⚠ '; }
 			if ( '' !== $v['coSoKhac'] && $v['trongCoSoKhac'] ) { $dau = '⚠ '; }
-			/* Lặng khi mọi thứ bình thường — xem chú thích trên. */
-			if ( '' === $dau && 'trong' === $v['ket'] ) { continue; }
-			if ( '' === $dau && '' === $v['ket'] && '' === $v['coSoKhac'] ) { continue; }
-			$dong = $dau . '📍 ' . $nhan . ': ' . VHCC_ViTri::chu_dong( (string) $d[ $k ] );
+
 			/* TÊN ĐƯỜNG nếu đã tra được — cặp số vẫn giữ nguyên ở dòng trên.
 			   🔴 GỌI `nho()` CHỨ KHÔNG PHẢI `tra()`. `nho()` chỉ đọc sổ đã nhớ; `tra()` đi ra
 			      internet. Một lưới công cả tháng có hàng chục ô, để chỗ vẽ màn gọi hàm có ra
 			      mạng là một lần mở bảng bắn sáu mươi lượt gọi ra ngoài — trang treo, mà bên kia
-			      thì thấy đúng một đợt tra hàng loạt và chặn cả tên miền.
-			   ⚠️ Chuỗi này do người ngoài gõ vào OpenStreetMap. Nó đi vào `title` qua `esc_attr`
-			      ở nơi gọi, nên không tự thoát lại ở đây (thoát hai lần thì dấu nháy trong tên
-			      đường hiện ra thành `&#039;`). */
-			if ( class_exists( 'VHCC_DiaChi' ) && method_exists( 'VHCC_DiaChi', 'nho_dong' ) ) {
-				$dc = VHCC_DiaChi::nho_dong( (string) $d[ $k ] );
-				if ( '' !== $dc ) { $dong .= "\n     ↳ " . $dc; }
-			}
+			      thì thấy đúng một đợt tra hàng loạt và chặn cả tên miền. */
+			$dc = ( class_exists( 'VHCC_DiaChi' ) && method_exists( 'VHCC_DiaChi', 'nho_dong' ) )
+				? VHCC_DiaChi::nho_dong( (string) $d[ $k ] ) : '';
+
+			/* 🔴 CÓ TÊN ĐƯỜNG THÌ HIỆN, DÙ LƯỢT CHẤM HOÀN TOÀN BÌNH THƯỜNG.
+			   Bản trước chỉ hiện khi có gì bất thường — giữ cho chú thích khỏi dài. Nhưng đó
+			   chính là lý do anh Thắng mở app lên và bảo *"Không thấy địa chỉ"* (20/09/2026):
+			   tính năng chạy đúng, mà đúng cái người hỏi nó lại không nhìn thấy bao giờ. Một
+			   dòng chữ người đọc được thì đáng chỗ của nó; còn một dòng toàn số thì không, nên
+			   lượt bình thường mà CHƯA tra ra tên đường vẫn im như cũ. */
+			if ( '' === $dau && '' === $dc ) { continue; }
+			$dong = $dau . '📍 ' . $nhan . ': ' . VHCC_ViTri::chu_dong( (string) $d[ $k ] );
+			/* ⚠️ Chuỗi này do người ngoài gõ vào OpenStreetMap. Nó đi vào `title` qua `esc_attr`
+			      ở nơi gọi, nên KHÔNG tự thoát lại ở đây — thoát hai lần thì dấu nháy trong tên
+			      đường hiện ra thành `&#039;` ngay giữa địa chỉ. */
+			if ( '' !== $dc ) { $dong .= "\n     ↳ " . $dc; }
 			$ra[] = $dong;
 		}
 		return $ra;
