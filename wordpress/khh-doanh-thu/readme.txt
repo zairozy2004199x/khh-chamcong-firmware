@@ -97,6 +97,22 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.49.0 =
+* **Sổ kho bày lại thành thẻ dọc trên điện thoại.** Bảng 12 cột với ba ô phải gõ, trên điện
+  thoại là dải cuộn ngang với ô bé bằng đầu ngón tay — mà đây đúng là màn nhân viên dùng hằng
+  ngày ngoài cửa hàng. Nay mỗi mặt hàng là một thẻ: tên ở trên, mấy số của máy thu lại thành
+  một hàng chữ nhỏ, còn **ba ô phải gõ** (Nhập · NV khai bán · NV đếm còn) nổi lên thành hàng ô
+  to, cao 44px, chữ 16px.
+* **Cùng một markup, đổi cách bày bằng CSS** — không dựng hai bản HTML. Hai bản thì sớm muộn
+  sửa một bên quên bên kia, và bên bị quên sẽ là bên điện thoại, vì lúc lập trình ai cũng nhìn
+  màn to.
+* Mỗi ô tự mang nhãn của nó (`data-nhan`), nên khi hàng tiêu đề ẩn đi thì không còn con số trần
+  nào không biết là số gì. Bài kiểm canh **mọi ô** đều có nhãn.
+* 🔴 Vá một lỗ trong chính bài kiểm: `kiem-man-dien-thoai.py` trước đây chỉ quét **khối @media
+  đầu tiên**, nên luật của sổ kho nằm ở khối thứ hai không bị canh — hạ ô nhập xuống 14px mà bài
+  vẫn xanh. Nay gom hết mọi khối.
+* `tools/test/kiem-kho-man.js` lên **43 phép**.
+
 = 1.48.0 =
 * 🔴 **Sửa lỗi Safari phóng to trang mỗi lần chạm ô nhập, trên iPhone.** Ô nhập để 14px, mà
   Safari trên iOS **tự phóng to cả trang** khi chạm vào ô có cỡ chữ dưới 16px — không tắt được

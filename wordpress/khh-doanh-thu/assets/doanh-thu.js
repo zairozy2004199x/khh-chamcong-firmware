@@ -1192,11 +1192,12 @@
   /* Ô lệch: trống khi CHƯA khai, xanh khi khớp, đỏ khi lệch.
      🔴 Trống và 0 phải trông khác nhau. Một ô chưa ai đếm mà hiện "0" xanh lét thì cả sổ trông
         như đã soát xong — đúng điều ngược lại với sự thật. */
-  function oLech(v) {
-    if (v === null || v === undefined) return '<td class="s chu-them">—</td>';
+  function oLech(v, nhan) {
+    var a = ' class="s o-lech" data-nhan="' + esc(nhan || '') + '"';
+    if (v === null || v === undefined) return '<td' + a + '><span class="chu-them">—</span></td>';
     var n = Number(v);
-    if (!n) return '<td class="s" style="color:var(--tot)">0</td>';
-    return '<td class="s" style="color:var(--xau);font-weight:600">' + (n > 0 ? '+' : '') + nguyen(n) + '</td>';
+    if (!n) return '<td' + a + ' style="color:var(--tot)">0</td>';
+    return '<td' + a + ' style="color:var(--xau);font-weight:600">' + (n > 0 ? '+' : '') + nguyen(n) + '</td>';
   }
 
   function veKho(o, r) {
@@ -1251,7 +1252,13 @@
     if (!dong.length) {
       h += '<div class="trong" style="margin-top:12px">Ngày này chưa có món nào của FABi, và kho cũng chưa có tồn.</div>';
     } else {
-      h += '<div class="bang-cuon" style="margin-top:8px"><table><thead><tr>' +
+      /* 🔴 MỘT DOM, HAI CÁCH BÀY — bảng trên máy tính, thẻ dọc trên điện thoại, và cả hai
+         dùng CHUNG một đoạn markup. Dựng hai bản markup riêng rồi chọn theo bề ngang màn là
+         sớm muộn sửa một bên quên bên kia, mà bên quên lại đúng là bên nhân viên dùng hằng
+         ngày ngoài cửa hàng — không ai ngồi máy tính mở màn này.
+         Mỗi ô mang `data-nhan`: trên điện thoại cái nhãn ấy chính là đầu cột, vì hàng `thead`
+         bị ẩn đi. Thiếu `data-nhan` là thẻ hiện ra một cột số trần không ai đọc nổi. */
+      h += '<div class="bang-cuon bang-the" style="margin-top:8px"><table><thead><tr>' +
         '<th style="text-align:left">Mặt hàng</th>' +
         '<th>Tồn đầu</th><th>Nhập</th>' +
         '<th>Máy bán lẻ</th><th>Theo combo</th><th>Máy bán tổng</th>' +
@@ -1260,27 +1267,33 @@
         '<th style="text-align:left">Ghi chú</th>' +
         '</tr></thead><tbody>' +
         dong.map(function (d, i) {
-          var oNhap = function (ten, gt) {
-            return '<td>' + (ghi
+          /* Ba ô PHẢI gõ — trên điện thoại chúng nổi lên thành hàng ô to, chiếm hết bề ngang. */
+          var oNhap = function (ten, nhan, gt) {
+            return '<td class="o-go" data-nhan="' + esc(nhan) + '">' + (ghi
               ? '<input type="text" inputmode="numeric" data-kho="' + ten + '" data-i="' + i +
-                '" value="' + esc(gt === null || gt === undefined ? '' : gt) + '" style="width:64px;text-align:right">'
+                '" value="' + esc(gt === null || gt === undefined ? '' : gt) + '">'
               : '<span class="s">' + soKho(gt) + '</span>') + '</td>';
           };
-          return '<tr><td style="text-align:left">' + esc(d.mat_hang) +
+          /* Số của máy — chỉ để đọc, trên điện thoại thu lại thành mấy con chữ nhỏ nằm một hàng. */
+          var oMay = function (nhan, gt, dam) {
+            return '<td class="s o-may" data-nhan="' + esc(nhan) + '">' +
+              (dam ? '<b>' + nguyen(gt) + '</b>' : nguyen(gt)) + '</td>';
+          };
+          return '<tr><td class="o-ten" data-nhan="Mặt hàng">' + esc(d.mat_hang) +
             (d.co_moc ? '' : ' <span class="chip" title="Chưa lần nào đếm tay, nên tồn đầu mới chỉ là số suy ra">chưa có mốc</span>') +
             '</td>' +
-            '<td class="s">' + nguyen(d.ton_dau) + '</td>' +
-            oNhap('nhap', d.nhap) +
-            '<td class="s">' + nguyen(d.ban_le) + '</td>' +
-            '<td class="s">' + nguyen(d.ban_combo) + '</td>' +
-            '<td class="s"><b>' + nguyen(d.ban_may) + '</b></td>' +
-            oNhap('ban_khai', d.ban_khai) +
-            oLech(d.lech_khai) +
-            '<td class="s">' + nguyen(d.ton_tinh) + '</td>' +
-            oNhap('dem', d.dem) +
-            oLech(d.lech_kho) +
-            '<td style="text-align:left">' + (ghi
-              ? '<input type="text" data-kho="ghi_chu" data-i="' + i + '" value="' + esc(d.ghi_chu || '') + '" style="width:120px">'
+            oMay('Tồn đầu', d.ton_dau) +
+            oNhap('nhap', 'Nhập', d.nhap) +
+            oMay('Máy bán lẻ', d.ban_le) +
+            oMay('Theo combo', d.ban_combo) +
+            oMay('Máy bán tổng', d.ban_may, true) +
+            oNhap('ban_khai', 'NV khai bán', d.ban_khai) +
+            oLech(d.lech_khai, 'Lệch khai') +
+            oMay('Tồn tính', d.ton_tinh) +
+            oNhap('dem', 'NV đếm còn', d.dem) +
+            oLech(d.lech_kho, 'Lệch kho') +
+            '<td class="o-ghi" data-nhan="Ghi chú">' + (ghi
+              ? '<input type="text" data-kho="ghi_chu" data-i="' + i + '" value="' + esc(d.ghi_chu || '') + '">'
               : esc(d.ghi_chu || '')) + '</td></tr>';
         }).join('') + '</tbody></table></div>';
       if (ghi) {

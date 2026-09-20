@@ -313,3 +313,52 @@ body.khh-dt-body{margin:0;background:#f2f1ee}
   pointer-events: none;
   transition: opacity .15s ease;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * BẢNG DÀI TRÊN ĐIỆN THOẠI: MỖI DÒNG THÀNH MỘT THẺ DỌC
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * Sổ kho có 12 cột và ba cột trong đó là ô phải gõ. Trên điện thoại, một bảng như thế thành
+ * dải cuộn ngang với ô bé bằng đầu ngón tay — mà đây lại đúng là màn nhân viên dùng hằng ngày
+ * ngoài cửa hàng; không ai ngồi máy tính để khai kho.
+ *
+ * 🔴 CÙNG MỘT MARKUP, đổi cách bày bằng CSS. Dựng hai bản HTML rồi chọn theo bề ngang màn là
+ *    sớm muộn sửa một bên quên bên kia — và bên bị quên sẽ là bên điện thoại, vì lúc lập trình
+ *    ai cũng nhìn màn to.
+ *
+ * Trên điện thoại: hàng tiêu đề ẩn đi, mỗi `<tr>` thành một thẻ, mỗi ô tự mang nhãn của nó qua
+ * `data-nhan`. Ba ô phải gõ nổi lên thành hàng ô to; mấy số của máy thu lại thành chữ nhỏ.
+ */
+@media (max-width:560px){
+  .khh-dt .bang-the{overflow-x:visible}
+  .khh-dt .bang-the table{display:block}
+  .khh-dt .bang-the thead{display:none}
+  .khh-dt .bang-the tbody{display:block}
+  .khh-dt .bang-the tr{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:flex-end;
+    border:1px solid var(--line-2);border-radius:10px;padding:10px 12px;margin-bottom:10px;
+    background:var(--card)}
+  .khh-dt .bang-the td{display:block;border:0;padding:0;text-align:left}
+
+  /* Tên mặt hàng: một dòng riêng, đậm, không có nhãn (nhãn thừa ở đây). */
+  .khh-dt .bang-the .o-ten{flex:1 1 100%;font-weight:600;font-size:15px;
+    padding-bottom:4px;border-bottom:1px solid var(--line)}
+
+  /* Số của máy và cột lệch: chữ nhỏ, xếp liền nhau thành một hàng đọc lướt. */
+  .khh-dt .bang-the .o-may,.khh-dt .bang-the .o-lech{flex:0 0 auto;font-size:12.5px}
+  .khh-dt .bang-the .o-may::before,.khh-dt .bang-the .o-lech::before{
+    content:attr(data-nhan) ": ";color:var(--ink-3);font-size:11px}
+
+  /* Ba ô PHẢI gõ: mỗi ô một phần ba bề ngang, nhãn nằm trên, ô cao 44px. */
+  .khh-dt .bang-the .o-go{flex:1 1 28%;min-width:88px}
+  .khh-dt .bang-the .o-go::before{content:attr(data-nhan);display:block;
+    font-size:11px;font-weight:600;color:var(--ink-3);margin-bottom:3px}
+  .khh-dt .bang-the .o-go input{width:100%;min-height:44px;font-size:16px;text-align:right;
+    padding:8px 10px;border-radius:7px;border:1px solid var(--line-2);
+    background:var(--card);color:var(--ink);font-family:var(--chu-so)}
+
+  .khh-dt .bang-the .o-ghi{flex:1 1 100%}
+  .khh-dt .bang-the .o-ghi::before{content:attr(data-nhan);display:block;
+    font-size:11px;font-weight:600;color:var(--ink-3);margin-bottom:3px}
+  .khh-dt .bang-the .o-ghi input{width:100%;min-height:44px;font-size:16px;
+    padding:8px 10px;border-radius:7px;border:1px solid var(--line-2);
+    background:var(--card);color:var(--ink)}
+}

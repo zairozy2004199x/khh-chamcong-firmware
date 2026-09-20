@@ -29,18 +29,19 @@ function boc(ten) {
   return src.slice(i, j + 4);
 }
 
-const F = new Function('nguyen',
+/* `oLech` nay có nhãn nên gọi `esc` — bơm luôn một bản `esc` tối giản vào hộp chạy. */
+const F = new Function('nguyen', 'esc',
   boc('oLech') + boc('docThanhPhan') + boc('soKho') +
   '\nreturn { oLech: oLech, docThanhPhan: docThanhPhan, soKho: soKho };'
-)((x) => String(x));
+)((x) => String(x), (x) => String(x === null || x === undefined ? '' : x));
 
 /* ── 1. ô lệch ────────────────────────────────────────────────────────────────────── */
-t('🔴 chưa khai thì hiện "—", KHÔNG phải 0', /—/.test(F.oLech(null)) && !/>0</.test(F.oLech(null)));
-t('chưa khai thì cũng không tô màu tốt/xấu', !/--tot|--xau/.test(F.oLech(null)));
-t('undefined cũng coi là chưa khai', /—/.test(F.oLech(undefined)));
-t('🔴 khai và khớp thì hiện 0 màu TỐT', />0</.test(F.oLech(0)) && /--tot/.test(F.oLech(0)));
-t('lệch âm thì màu xấu và có dấu trừ', /--xau/.test(F.oLech(-5)) && /-5/.test(F.oLech(-5)));
-t('lệch dương thì có dấu cộng', /\+5/.test(F.oLech(5)) && /--xau/.test(F.oLech(5)));
+t('🔴 chưa khai thì hiện "—", KHÔNG phải 0', /—/.test(F.oLech(null, 'Lệch kho')) && !/>0</.test(F.oLech(null, 'Lệch kho')));
+t('chưa khai thì cũng không tô màu tốt/xấu', !/--tot|--xau/.test(F.oLech(null, 'Lệch kho')));
+t('undefined cũng coi là chưa khai', /—/.test(F.oLech(undefined, 'Lệch kho')));
+t('🔴 khai và khớp thì hiện 0 màu TỐT', />0</.test(F.oLech(0, 'Lệch kho')) && /--tot/.test(F.oLech(0, 'Lệch kho')));
+t('lệch âm thì màu xấu và có dấu trừ', /--xau/.test(F.oLech(-5, 'Lệch kho')) && /-5/.test(F.oLech(-5, 'Lệch kho')));
+t('lệch dương thì có dấu cộng', /\+5/.test(F.oLech(5, 'Lệch kho')) && /--xau/.test(F.oLech(5, 'Lệch kho')));
 
 /* ── 2. soKho: 0 là số thật, null là trống ────────────────────────────────────────── */
 t('🔴 soKho(0) ra "0", không ra rỗng', '0' === F.soKho(0));
@@ -93,6 +94,45 @@ t('nói ra khi FABi đã tự tách sẵn thành phần', /fabi_da_tach/.test(bo
 t('🔴 FABi đã tách sẵn thì KHÔNG nhắc đi khai combo nữa (nhắc là xui trừ hai lần)',
   /combo_nghi[\s\S]{0,160}!\(r\.fabi_da_tach/.test(boCC));
 t('mặt hàng chưa từng đếm tay thì gắn nhãn "chưa có mốc"', /chưa có mốc/.test(boCC));
+
+/* ── 5. bày lại thành thẻ dọc trên điện thoại ─────────────────────────────────────── */
+/* 🔴 Sổ kho có 12 cột và ba cột phải gõ. Trên điện thoại bảng như thế thành dải cuộn ngang với
+   ô bé bằng đầu ngón tay — mà đây đúng là màn nhân viên dùng hằng ngày ngoài cửa hàng. Bày lại
+   bằng CSS trên CÙNG MỘT markup; hai bản HTML riêng thì bên bị quên sẽ là bên điện thoại, vì
+   lúc lập trình ai cũng nhìn màn to. */
+const css = fs.readFileSync(
+  path.join(__dirname, '..', '..', 'wordpress', 'khh-doanh-thu', 'assets', 'doanh-thu.css'),
+  'utf8'
+).replace(/\/\*[\s\S]*?\*\//g, ' ');
+
+const mMedia = css.match(/@media\s*\(max-width:\s*560px\)\s*\{([\s\S]*?)\n\}/g) || [];
+const dt = mMedia.join('\n');
+t('có khối @media điện thoại', dt.length > 0);
+t('🔴 bảng kho bày lại thành thẻ dọc trên điện thoại', /\.bang-the/.test(dt));
+t('ẩn hàng tiêu đề (vì mỗi ô tự mang nhãn)', /\.bang-the thead\{display:none\}/.test(dt));
+t('🔴 mỗi ô tự in nhãn của nó ra bằng data-nhan',
+  (dt.match(/content:attr\(data-nhan\)/g) || []).length >= 3);
+t('ô phải gõ cao 44px và chữ 16px trên điện thoại',
+  /\.o-go input\{[^}]*min-height:44px/.test(dt) && /\.o-go input\{[^}]*font-size:16px/.test(dt));
+t('thôi cuộn ngang khi đã thành thẻ', /\.bang-the\{overflow-x:visible\}/.test(dt));
+
+/* 🔴 MỌI ô trong bảng kho phải mang data-nhan. Thiếu một ô là trên điện thoại nó hiện ra một
+   con số trần không nhãn, không ai đọc nổi là số gì. */
+const mBang = boCC.match(/bang-cuon bang-the[\s\S]*?<\/tbody><\/table>/);
+t('cắt được đoạn dựng bảng kho', mBang !== null);
+if (mBang) {
+  const td = mBang[0].match(/<td[^>]*/g) || [];
+  t('có dựng ô <td> trong bảng kho', td.length > 0);
+  const thieu = td.filter((x) => !/data-nhan/.test(x) && !/o-ten/.test(x));
+  t('🔴 mọi ô <td> đều mang data-nhan (' + thieu.length + ' ô thiếu)', thieu.length === 0);
+  t('ô tên mặt hàng có lớp riêng để chiếm cả dòng', /o-ten/.test(mBang[0]));
+  t('ô phải gõ và ô chỉ đọc phân biệt được bằng lớp',
+    /o-go/.test(mBang[0]) && /o-may/.test(mBang[0]));
+}
+/* `oLech` dựng ô ở hàm riêng nên kiểm riêng. */
+const mLech = boCC.match(/function oLech\([\s\S]*?\n  \}/);
+t('ô lệch cũng mang data-nhan và lớp o-lech',
+  mLech !== null && /data-nhan/.test(mLech[0]) && /o-lech/.test(mLech[0]));
 
 if (hong.length) {
   console.log('\n✗ HỎNG ' + hong.length + ' phép (đạt ' + dat + '):');

@@ -50,19 +50,25 @@ js = JS.read_text(encoding='utf-8')
 
 
 def khoi_dien_thoai(s):
-    """Lấy thân khối @media bề ngang điện thoại."""
-    m = re.search(r'@media\s*\(max-width:\s*(?:5\d\d|6\d\d)px\)\s*\{', s)
-    if not m:
-        return ''
-    i = m.end()
-    sau, j = 1, i
-    while j < len(s) and sau:
-        if s[j] == '{':
-            sau += 1
-        elif s[j] == '}':
-            sau -= 1
-        j += 1
-    return s[i:j - 1]
+    """Thân của MỌI khối @media bề ngang điện thoại, nối lại.
+
+    🔴 PHẢI GOM HẾT, KHÔNG LẤY MỖI KHỐI ĐẦU. Bản đầu của bài này chỉ lấy khối @media đầu tiên,
+       trong khi luật bày thẻ dọc cho sổ kho nằm ở một khối @media THỨ HAI cuối tệp. Đã thử:
+       hạ ô nhập của sổ kho xuống 14px thì bài vẫn xanh — đúng cái lỗi Safari phóng to mà bài
+       này sinh ra để canh, lọt ngay ở màn nhân viên dùng nhiều nhất.
+    """
+    ra = []
+    for m in re.finditer(r'@media\s*\(max-width:\s*(?:5\d\d|6\d\d)px\)\s*\{', s):
+        i = m.end()
+        sau, j = 1, i
+        while j < len(s) and sau:
+            if s[j] == '{':
+                sau += 1
+            elif s[j] == '}':
+                sau -= 1
+            j += 1
+        ra.append(s[i:j - 1])
+    return '\n'.join(ra)
 
 
 dt = khoi_dien_thoai(css)
