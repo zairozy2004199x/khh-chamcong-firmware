@@ -1217,9 +1217,29 @@
         : '') +
       '</div>';
 
+    /* 🔴 CẢNH BÁO ĐẮT NHẤT CỦA CẢ SỔ: đang trừ kho HAI LẦN.
+       FABi đã tách sẵn thành phần combo (dòng có số lượng mà doanh thu 0đ), mà bảng combo lại
+       khai thêm — thế là mỗi chai nước bị trừ hai lượt. Ngày nào cũng báo thiếu hàng, người
+       trực bị nghi oan, mà không có dòng nào sai để lần ra. */
+    if ((r.tru_hai_lan || []).length) {
+      h += '<div class="canh-ghep" style="margin-top:6px;border-color:var(--xau)">' +
+        '🔴 <b>ĐANG TRỪ KHO HAI LẦN:</b> ' + r.tru_hai_lan.map(esc).join(' · ') +
+        '.<br>FABi <b>đã tự tách sẵn</b> mấy mặt hàng này ra khỏi combo (máy ghi số lượng nhưng ' +
+        'doanh thu 0đ, vì tiền nằm ở dòng combo), mà bảng <b>Thành phần combo</b> lại khai thêm ' +
+        'lần nữa. <b>Xoá thành phần combo đi</b> — để trống ô thành phần rồi Lưu. Cứ để thế này ' +
+        'thì sổ báo mất hàng mỗi ngày trong khi kho vẫn đủ.</div>';
+    } else if (r.fabi_da_tach && Object.keys(r.fabi_da_tach).length) {
+      /* Có tách sẵn mà chưa ai khai combo -> không sai gì, nhưng phải nói để khỏi đi khai thừa. */
+      h += '<div class="canh-ghep" style="margin-top:6px">✓ <b>FABi đang tự tách sẵn thành phần ' +
+        'combo.</b> Mấy món này máy ghi số lượng mà doanh thu 0đ — tiền nằm ở dòng combo: ' +
+        esc(Object.keys(r.fabi_da_tach).slice(0, 8).join(' · ')) +
+        (Object.keys(r.fabi_da_tach).length > 8 ? ' …' : '') +
+        '.<br>Nghĩa là kho đã trừ đúng rồi, <b>đừng khai thành phần combo nữa</b> — khai là trừ hai lần.</div>';
+    }
+
     /* Món trông như combo mà chưa khai thành phần -> nhắc. Không tự đoán công thức: đoán sai là
        trừ nhầm kho hàng loạt mà không dòng nào sai. */
-    if ((r.combo_nghi || []).length && ghi) {
+    if ((r.combo_nghi || []).length && ghi && !(r.fabi_da_tach && Object.keys(r.fabi_da_tach).length)) {
       h += '<div class="canh-ghep" style="margin-top:6px">⚠️ <b>Chưa khai thành phần combo:</b> ' +
         r.combo_nghi.map(esc).join(' · ') +
         '.<br>Combo bán ra là hàng rời kho, nhưng FABi ghi doanh thu vào tên combo chứ không vào ' +

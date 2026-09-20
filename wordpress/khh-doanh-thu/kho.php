@@ -421,6 +421,74 @@ function khh_dt_kho_combo_chua_khai( $tu, $den, $co_so ) {
 	return array_keys( $nghi );
 }
 
+/**
+ * FABi CÓ TỰ TÁCH SẴN THÀNH PHẦN COMBO KHÔNG — dò từ chính số liệu, không đoán.
+ *
+ * 20/09/2026 anh Thắng hỏi đúng chỗ nguy: *"Theo máy thì nó có tự tách combo có hàng trong đó
+ * không"*. Câu trả lời KHÁC NHAU TUỲ BẢN XUẤT của FABi, và chọn sai là sai kiểu tệ nhất:
+ *
+ *   · FABi CHƯA tách, mà mình cũng không khai thành phần -> chai nước trong combo mãi mãi
+ *     "chưa bán", tồn tính thừa dần. Sổ đỏ oan.
+ *   · FABi ĐÃ tách sẵn, mà mình lại khai thành phần nữa -> TRỪ KHO HAI LẦN. Tồn tính thiếu
+ *     dần, sổ báo mất hàng liên tục trong khi kho vẫn đủ. Tệ hơn, vì nó tố oan người trực.
+ *
+ * Dấu hiệu nhận biết: bản xuất có tách sẵn thì dòng thành phần mang SỐ LƯỢNG > 0 mà DOANH THU
+ * = 0 — tiền nằm hết ở dòng combo. Món bán lẻ bình thường không bao giờ như thế.
+ *
+ * @return array [ tên món => số lượng ] — mấy món trông như đã được FABi tách sẵn.
+ */
+function khh_dt_kho_fabi_da_tach( $tu, $den, $co_so ) {
+	global $wpdb;
+	$bang = khh_dt_bang();
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$ds = (array) $wpdb->get_results(
+		$wpdb->prepare(
+			"SELECT mon FROM $bang WHERE ngay >= %s AND ngay <= %s AND cua_hang = %s",
+			$tu,
+			$den,
+			$co_so
+		),
+		ARRAY_A
+	);
+	$ra = array();
+	foreach ( $ds as $r ) {
+		$mon = json_decode( (string) $r['mon'], true );
+		foreach ( is_array( $mon ) ? $mon : array() as $m ) {
+			$ten = isset( $m['n'] ) ? (string) $m['n'] : '';
+			$q   = isset( $m['q'] ) ? (float) $m['q'] : 0;
+			$rv  = isset( $m['r'] ) ? (float) $m['r'] : 0;
+			if ( '' === $ten || $q <= 0 || $rv > 0 ) {
+				continue;
+			}
+			$ra[ $ten ] = ( isset( $ra[ $ten ] ) ? $ra[ $ten ] : 0 ) + $q;
+		}
+	}
+	arsort( $ra );
+	return $ra;
+}
+
+/**
+ * Mấy mặt hàng đang bị TRỪ KHO HAI LẦN: FABi đã tách sẵn, mà bảng combo lại khai thêm.
+ *
+ * 🔴 Đây là cảnh báo đắt nhất trong cả sổ kho. Trừ hai lần thì ngày nào cũng báo thiếu hàng,
+ *    người trực bị nghi oan, và không có dòng nào sai để lần ra.
+ */
+function khh_dt_kho_tru_hai_lan( $tu, $den, $co_so ) {
+	$da_tach = khh_dt_kho_fabi_da_tach( $tu, $den, $co_so );
+	if ( ! $da_tach ) {
+		return array();
+	}
+	$ra = array();
+	foreach ( khh_dt_kho_combo_bang() as $combo => $tp ) {
+		foreach ( array_keys( (array) $tp ) as $mh ) {
+			if ( isset( $da_tach[ $mh ] ) && ! in_array( $mh, $ra, true ) ) {
+				$ra[] = $mh;
+			}
+		}
+	}
+	return $ra;
+}
+
 /* ================================================================== *
  * REST
  * ================================================================== */
@@ -473,6 +541,18 @@ function khh_dt_rest_kho_xem( $req ) {
 		'co_so'      => $co_so,
 		'dong'       => khh_dt_kho_bang_ngay( $ngay, $co_so ),
 		'combo'      => khh_dt_kho_combo_bang(),
+		/* Anh Thắng hỏi "máy có tự tách combo không" — hệ tự trả lời bằng số liệu, xem chú
+		   thích ở `khh_dt_kho_fabi_da_tach()`. */
+		'fabi_da_tach'  => khh_dt_kho_fabi_da_tach(
+			gmdate( 'Y-m-d', strtotime( $ngay ) - 30 * DAY_IN_SECONDS ),
+			$ngay,
+			$co_so
+		),
+		'tru_hai_lan'   => khh_dt_kho_tru_hai_lan(
+			gmdate( 'Y-m-d', strtotime( $ngay ) - 30 * DAY_IN_SECONDS ),
+			$ngay,
+			$co_so
+		),
 		'combo_nghi' => khh_dt_kho_combo_chua_khai(
 			gmdate( 'Y-m-d', strtotime( $ngay ) - 30 * DAY_IN_SECONDS ),
 			$ngay,

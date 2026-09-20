@@ -97,6 +97,18 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.47.0 =
+* 🔴 **Hệ tự trả lời "FABi có tách sẵn thành phần combo không"**, bằng chính số liệu đã nạp chứ
+  không đoán. Dấu hiệu: bản xuất có tách sẵn thì dòng thành phần mang **số lượng > 0 mà doanh
+  thu 0đ** — tiền nằm hết ở dòng combo. Món bán lẻ bình thường không bao giờ như vậy.
+* 🔴 **Cảnh báo ĐANG TRỪ KHO HAI LẦN.** Nếu FABi đã tách sẵn mà bảng Thành phần combo lại khai
+  thêm, mỗi chai nước bị trừ hai lượt: sổ báo mất hàng mỗi ngày trong khi kho vẫn đủ, và người
+  trực bị nghi oan — mà không có dòng nào sai để lần ra. Màn kho nay kêu đỏ, kèm tên đúng mấy
+  mặt hàng đang bị trừ đôi và cách gỡ.
+* Khi FABi đã tách sẵn, màn hình **thôi nhắc đi khai thành phần combo** — nhắc lúc ấy là xui
+  người ta tạo ra chính lỗi trừ hai lần.
+* `tools/test/kiem-kho.php` lên **42 phép**, `tools/test/kiem-kho-man.js` lên **31 phép**.
+
 = 1.46.0 =
 * **SỔ KHO HÀNG HOÁ** — tab mới "Kho hàng hoá". Cuối ngày nhân viên khai **bán bao nhiêu** và
   **đếm còn bao nhiêu**; hệ đối chiếu với số máy POS ghi (lấy thẳng từ báo cáo FABi đã nạp) rồi

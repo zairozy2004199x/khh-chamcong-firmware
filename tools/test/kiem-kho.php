@@ -63,11 +63,16 @@ function dung_bang() {
 	update_option( 'khh_dt_kho_combo', array() );
 }
 
-/** Giả một ngày bán hàng của FABi: [ tên món => số lượng ]. */
+/** Giả một ngày bán hàng của FABi: [ tên món => số lượng ] hoặc [ tên => [sl, doanh thu] ]. */
 function fabi( $ngay, $co_so, $mon ) {
 	global $wpdb;
 	$ds = array();
 	foreach ( $mon as $n => $q ) {
+		/* Mảng [sl, dt] để giả được dòng FABi ĐÃ TÁCH SẴN: có số lượng mà doanh thu 0đ. */
+		if ( is_array( $q ) ) {
+			$ds[] = array( 'n' => $n, 'g' => '', 'q' => $q[0], 'r' => $q[1] );
+			continue;
+		}
 		$ds[] = array( 'n' => $n, 'g' => '', 'q' => $q, 'r' => $q * 10000 );
 	}
 	$wpdb->query(
@@ -200,6 +205,52 @@ $d = dong_cua( khh_dt_kho_bang_ngay( '2026-09-01', $CS ), 'Nước suối' );
 phep( '🔴 "1.200" đọc ra 1200, không phải 1,2', 1200.0 === (float) $d['nhap'] );
 phep( 'tồn tính = 1200 − 200 = 1000', 1000.0 === (float) $d['ton_tinh'] );
 phep( 'đếm "1.000" khớp, lệch 0', 0.0 === (float) $d['lech_kho'] );
+
+/* ── 9. 🔴 FABi CÓ TỰ TÁCH SẴN THÀNH PHẦN COMBO KHÔNG ───────────────────────────────
+      Anh Thắng 20/09/2026: *"Theo máy thì nó có tự tách combo có hàng trong đó không"*. Câu
+      trả lời khác nhau tuỳ bản xuất, và chọn sai là sai kiểu tệ nhất:
+        · FABi chưa tách + mình không khai  -> tồn thừa dần, sổ đỏ oan;
+        · FABi đã tách  + mình khai thêm    -> TRỪ KHO HAI LẦN, sổ báo mất hàng mỗi ngày
+                                                trong khi kho vẫn đủ, người trực bị nghi oan.
+      Dấu hiệu: dòng thành phần có SỐ LƯỢNG > 0 mà DOANH THU = 0 (tiền nằm ở dòng combo). */
+dung_bang();
+/* Bản xuất KHÔNG tách: chỉ có dòng combo, có tiền. */
+fabi( '2026-09-01', $CS, array( 'Combo 2 người' => 10, 'Nước suối' => 3 ) );
+phep( 'bản xuất không tách sẵn thì hệ nói là KHÔNG',
+	array() === khh_dt_kho_fabi_da_tach( '2026-08-01', '2026-09-01', $CS ) );
+
+/* Bản xuất CÓ tách: dòng combo có tiền, dòng thành phần có số lượng mà 0đ. */
+dung_bang();
+fabi(
+	'2026-09-01',
+	$CS,
+	array(
+		'Combo 2 người' => 10,
+		'Nước suối'     => array( 20, 0 ),   // 10 combo x 2 chai, tiền nằm ở dòng combo
+		'Kẹo cầu vồng'  => array( 10, 0 ),
+	)
+);
+$tach = khh_dt_kho_fabi_da_tach( '2026-08-01', '2026-09-01', $CS );
+phep( '🔴 bản xuất có tách sẵn thì hệ NHẬN RA', 2 === count( $tach ) );
+phep( 'và nói đúng mặt hàng lẫn số lượng', 20.0 === (float) $tach['Nước suối'] );
+phep( 'món có doanh thu KHÔNG bị kể là "đã tách"', ! isset( $tach['Combo 2 người'] ) );
+
+/* Chưa khai combo thì không có gì trừ hai lần. */
+phep( 'FABi đã tách mà chưa khai combo thì KHÔNG trừ hai lần',
+	array() === khh_dt_kho_tru_hai_lan( '2026-08-01', '2026-09-01', $CS ) );
+/* Khai thêm combo lên trên bản đã tách -> trừ hai lần, phải kêu. */
+khh_dt_kho_combo_dat( 'Combo 2 người', array( 'Nước suối' => 2, 'Kẹo cầu vồng' => 1 ) );
+$hai = khh_dt_kho_tru_hai_lan( '2026-08-01', '2026-09-01', $CS );
+phep( '🔴 khai combo lên trên bản ĐÃ tách thì hệ kêu TRỪ HAI LẦN', 2 === count( $hai ) );
+phep( 'kêu đúng mặt hàng', in_array( 'Nước suối', $hai, true ) );
+/* Và con số chứng minh vì sao phải kêu: 20 (dòng đã tách) + 10x2 (khai thêm) = 40, gấp đôi. */
+$d = dong_cua( khh_dt_kho_bang_ngay( '2026-09-01', $CS ), 'Nước suối' );
+phep( '🔴 và đúng là trừ gấp đôi: 20 + 20 = 40 chai cho 10 combo', 40.0 === (float) $d['ban_may'] );
+/* Xoá khai combo đi là về đúng. */
+khh_dt_kho_combo_dat( 'Combo 2 người', array() );
+$d = dong_cua( khh_dt_kho_bang_ngay( '2026-09-01', $CS ), 'Nước suối' );
+phep( 'xoá khai combo thì về đúng 20 chai', 20.0 === (float) $d['ban_may'] );
+phep( 'và hết kêu', array() === khh_dt_kho_tru_hai_lan( '2026-08-01', '2026-09-01', $CS ) );
 
 if ( $hong ) {
 	echo "\n✗ HỎNG " . count( $hong ) . " phép (đạt $dat):\n";
