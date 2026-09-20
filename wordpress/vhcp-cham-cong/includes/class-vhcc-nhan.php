@@ -552,7 +552,8 @@ class VHCC_Nhan {
 	 * `$giay` phải là giờ ĐÃ trải phẳng nếu đây là hàng ca đêm — nơi gọi lo việc đó, xem
 	 * VHCC_Online::trai_phang(). `$ma_nv` nhận cả mã có hậu tố ('NV001-CD').
 	 */
-	public static function ghi_gio( $coso, $ngay, $ma_nv, $ho_ten, $giay, $anh_b64, $nguon = 'may', $ghi_chu = null ) {
+	public static function ghi_gio( $coso, $ngay, $ma_nv, $ho_ten, $giay, $anh_b64, $nguon = 'may', $ghi_chu = null,
+		$vi_tri = '' ) {
 		global $wpdb;
 		/* 🔴 LƯỚI CUỐI: tên cơ sở KHÔNG ĐƯỢC mang dấu phẩy.
 		   Mọi đường ghi vào bảng chấm công đều qua đây, nên chốt ở đây là chốt cho cả những
@@ -683,6 +684,23 @@ class VHCC_Nhan {
 		if ( $ghi_anh && ! empty( $qd['anh_vao'] ) ) { $dat['anh_vao'] = $anh_moi; }
 		if ( $ghi_anh && ! empty( $qd['anh_ra'] ) ) { $dat['anh_ra'] = $anh_moi; }
 		if ( ! empty( $qd['chuyen_anh_vao_sang_ra'] ) ) { $dat['anh_ra'] = $cu ? (string) $cu['anh_vao'] : ''; }
+
+		/* VỊ TRÍ ĐI ĐÚNG ĐƯỜNG CỦA ẢNH — cùng cặp cờ `anh_vao` / `anh_ra`, cùng phép chuyển.
+		   Chỗ đứng và tấm ảnh là hai bằng chứng của CÙNG một lượt bấm; tách chúng ra hai luật
+		   định tuyến là dựng sẵn cái ngày mà ảnh nằm ở ô ra còn toạ độ nằm ở ô vào.
+
+		   🔴 `chuyen_anh_vao_sang_ra` KHÔNG ĐƯỢC QUÊN Ở ĐÂY. Nhánh `daoThuTu` đẩy giờ vào cũ
+		      xuống làm giờ ra; toạ độ của lượt cũ phải đi theo con số của nó. Bỏ dòng ấy thì ô
+		      `vt_ra` mang toạ độ TRỐNG cho một giờ ra có thật, còn chỗ đứng của lượt cũ mất hẳn —
+		      và mất im lặng, vì bảng vẫn đủ cặp giờ.
+
+		   ⚠️ `$vi_tri` RỖNG THÌ KHÔNG GHI GÌ, không ghi chuỗi rỗng đè lên. Máy chấm vân tay và
+		      tệp .csv nạp về không có toạ độ; để chúng đè thì một lượt online buổi sáng có vị
+		      trí, lô đồng bộ buổi tối xoá mất. */
+		$co_vt = ( '' !== trim( (string) $vi_tri ) );
+		if ( $co_vt && ! empty( $qd['anh_vao'] ) ) { $dat['vt_vao'] = (string) $vi_tri; }
+		if ( $co_vt && ! empty( $qd['anh_ra'] ) ) { $dat['vt_ra'] = (string) $vi_tri; }
+		if ( ! empty( $qd['chuyen_anh_vao_sang_ra'] ) ) { $dat['vt_ra'] = $cu ? (string) $cu['vt_vao'] : ''; }
 
 		/* Ô "Thời gian trong ngày" của sheet: 'HH:mm' hoặc 'HH:mm HH:mm'. Tính lại từ cặp SAU khi
 		   đã đặt, chứ không chắp từ nhánh — chắp từ nhánh là chỗ dễ lệch nhất với bản gốc. */

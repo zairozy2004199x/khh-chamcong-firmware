@@ -9277,7 +9277,46 @@ class VHCC_Web {
 			$c[] = '⚠ ca đêm ' . self::so_vp( $d['gioDemThuc'] ) . 'h < mức tối thiểu';
 		}
 		if ( ! empty( $d['ktCnNghi'] ) )   { $c[] = '⚠ kế toán chấm chủ nhật → 0 công'; }
+		foreach ( self::dong_vi_tri( $d ) as $x ) { $c[] = $x; }
 		return implode( "\n", $c );
+	}
+
+	/**
+	 * MẤY DÒNG VỊ TRÍ CỦA MỘT NGÀY — chỗ đứng lúc chấm vào và lúc chấm ra, nói riêng từng đầu.
+	 *
+	 * Anh Thắng 20/09/2026: *"Như chấm vào. Chấm ra"* và *"khi nhân viên đi qua cơ sở khác, chấm
+	 * báo cáo cơ sở. Hệ thống tự truy vết định vị"*.
+	 *
+	 * 🔴 KHÔNG GỘP HAI ĐẦU LÀM MỘT DÒNG. Ý nghĩa của việc gác vị trí nằm đúng ở CHỖ HAI ĐẦU KHÁC
+	 *    NHAU: bấm vào tại cửa hàng rồi bấm ra ở cách đó 3km là thứ phải nhìn thấy được, mà gộp
+	 *    lại một dòng thì nó biến mất y như hồi cả hai còn chen chung một ô `ghi_chu`.
+	 *
+	 * ⚠️ CHỈ HIỆN KHI CÓ GÌ ĐỂ NÓI. Phần lớn lượt chấm là đúng chỗ, và dán thêm hai dòng toạ độ
+	 *    vào MỌI ô là làm chú thích dài gấp đôi để nói "bình thường" — người đọc thôi đọc, rồi
+	 *    thôi thấy luôn cái ô bất thường.
+	 */
+	private static function dong_vi_tri( $d ) {
+		$ra = array();
+		if ( ! class_exists( 'VHCC_ViTri' ) || ! method_exists( 'VHCC_ViTri', 'doc_dong' ) ) { return $ra; }
+		$cap = array(
+			'vtVao'   => 'chấm vào',
+			'vtRa'    => 'chấm ra',
+			'vtH2Vao' => 'hàng 2 vào',
+			'vtH2Ra'  => 'hàng 2 ra',
+		);
+		foreach ( $cap as $k => $nhan ) {
+			if ( empty( $d[ $k ] ) ) { continue; }
+			$v = VHCC_ViTri::doc_dong( (string) $d[ $k ] );
+			if ( null === $v ) { continue; }
+			$dau = '';
+			if ( 'ngoai' === $v['ket'] ) { $dau = '⚠ '; }
+			if ( '' !== $v['coSoKhac'] && $v['trongCoSoKhac'] ) { $dau = '⚠ '; }
+			/* Lặng khi mọi thứ bình thường — xem chú thích trên. */
+			if ( '' === $dau && 'trong' === $v['ket'] ) { continue; }
+			if ( '' === $dau && '' === $v['ket'] && '' === $v['coSoKhac'] ) { continue; }
+			$ra[] = $dau . '📍 ' . $nhan . ': ' . VHCC_ViTri::chu_dong( (string) $d[ $k ] );
+		}
+		return $ra;
 	}
 
 	/**

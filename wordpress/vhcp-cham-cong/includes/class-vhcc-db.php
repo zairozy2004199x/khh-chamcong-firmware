@@ -428,6 +428,14 @@ class VHCC_DB {
 		 *    ra màn thành `laitau`; tên thì đọc được. Tra giá vẫn qua `VHCC_GiaGio::khoa_cv()`
 		 *    như mọi nơi khác trong hệ.
 		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		/* 🔴 VỊ TRÍ PHẢI CÓ HAI CỘT, ĐÚNG NHƯ ẢNH CÓ HAI CỘT (`vt_vao` / `vt_ra`).
+		   Trước bản này toạ độ đi chung vào `ghi_chu` — MỘT ô cho cả ngày. Chấm vào ghi cặp số,
+		   chấm ra ghi đè lên, và chỗ đứng lúc vào biến mất. Anh Thắng 20/09/2026: *'Như chấm vào.
+		   Chấm ra'* — hai lượt là hai chỗ đứng khác nhau, và đúng cái khoảng giữa hai chỗ ấy mới
+		   nói được người ta có ở lại cửa hàng hay không.
+		   Khuôn một dòng: `lat|lng|acc|met|ket|cơ sở toạ độ rơi vào` — xem `VHCC_ViTri::dong()`.
+		   ⚠️ Chú thích để NGOÀI chuỗi khai bảng: khối `$b[...] = "…"` là chuỗi nháy kép, một dấu
+		      nháy kép trong chú thích là đóng chuỗi giữa chừng và cả tệp không dịch được. */
 		$b['cham_cong'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
 			coso VARCHAR(120) NOT NULL,
@@ -441,6 +449,8 @@ class VHCC_DB {
 			nghi_den_giay INT NULL,
 			anh_vao VARCHAR(190) NOT NULL DEFAULT '',
 			anh_ra VARCHAR(190) NOT NULL DEFAULT '',
+			vt_vao VARCHAR(160) NOT NULL DEFAULT '',
+			vt_ra VARCHAR(160) NOT NULL DEFAULT '',
 			chuan VARCHAR(190) NOT NULL DEFAULT '',
 			nguon VARCHAR(20) NOT NULL DEFAULT '',
 			ghi_chu VARCHAR(255) NOT NULL DEFAULT '',

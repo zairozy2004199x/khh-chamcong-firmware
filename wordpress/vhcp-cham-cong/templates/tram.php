@@ -4437,6 +4437,21 @@ el('btLuu').addEventListener('click', function(){
 				+ 'vùng cơ sở</b>. ' + esc(j.viTri.chu||'') + ' Lượt công vẫn được ghi, nhưng quản '
 				+ 'lý sẽ thấy dấu này. Chọn nhầm cơ sở thì báo quản lý sửa ngay hôm nay.</div>';
 		}
+		/* 🔴 TRUY VẾT: TOẠ ĐỘ RƠI VÀO VÙNG MỘT CƠ SỞ KHÁC -> NÓI NGAY VỚI CHÍNH NGƯỜI VỪA BẤM.
+		   Anh Thắng 20/09/2026: *"khi nhân viên đi qua cơ sở khác, chấm báo cáo cơ sở"*.
+
+		   ⚠️ CÂU NÀY KHÔNG PHẢI LỜI BUỘC TỘI, và phải viết cho đúng như vậy. Đi hỗ trợ cơ sở bạn
+		      là chuyện được phép; hai cửa hàng trong cùng trung tâm thương mại cách nhau 80m
+		      cũng là chuyện thường. Thứ duy nhất máy biết chắc là toạ độ, nên nó chỉ được nói
+		      đúng bấy nhiêu — và nói NGAY LÚC NÀY, khi người ta còn đứng đó và còn sửa được nếu
+		      chỉ là chọn nhầm ô cơ sở. Để tới cuối tháng thì không ai nhớ nổi hôm ấy mình ở đâu. */
+		if(j.vet && j.vet.trong && j.vet.coSo){
+			el('baoCham').innerHTML += '<div class="vang">📍 Toạ độ lúc bấm nằm trong vùng cơ sở '
+				+ '<b>' + esc(j.vet.coSo) + '</b>, còn lượt này ghi về <b>' + esc(j.coSo) + '</b>. '
+				+ 'Nếu anh/chị đang làm ở ' + esc(j.vet.coSo) + ' thì chọn lại đúng cơ sở rồi bấm '
+				+ 'lại; nếu đang đi hỗ trợ hoặc đứng gần đó thì cứ để nguyên — lượt đã ghi rồi, '
+				+ 'chỉ là bảng công có ghi dấu này.</div>';
+		}
 		/* 🔴 HỎI LOẠI GIỜ CHỈ Ở LƯỢT GIỜ RA, và chỉ SAU khi giờ đã ghi xong. Hỏi lúc vào thì ca
 		   còn chưa làm, chưa biết mình sẽ làm gì; hỏi trước khi ghi thì một cái hộp đứng chắn
 		   giữa người ta và lượt chấm công. */

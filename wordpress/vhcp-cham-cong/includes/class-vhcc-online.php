@@ -443,6 +443,8 @@ class VHCC_Online {
 		      chốt là so với mốc của cơ sở khác.
 		   🔴 CHỐI TRƯỚC KHI GHI. Đặt phép chối sau `ghi_gio()` thì hàng đã nằm trong bảng, và
 		      "lượt bị chặn" hoá ra vẫn là công. */
+		$vet = null;
+		$dong_vt = '';
 		if ( class_exists( 'VHCC_ViTri' ) ) {
 			$xv = VHCC_ViTri::xet( $coso, $gps );
 			if ( ! empty( $xv['chan'] ) ) {
@@ -452,14 +454,34 @@ class VHCC_Online {
 			if ( ! empty( $xv['gac'] ) && '' !== (string) $xv['chu'] ) {
 				$ghi_chu = ( '' !== $ghi_chu ) ? $ghi_chu . ' · ' . $xv['chu'] : $xv['chu'];
 			}
+
+			/* Gác 6: TRUY VẾT — toạ độ này rơi vào vùng của cơ sở NÀO KHÁC.
+			   🔴 CHẠY DÙ GÁC ĐANG TẮT, và chạy SAU khi `$coso` đã chốt. Đây là câu trả lời cho
+			      anh Thắng 20/09/2026: *"khi nhân viên đi qua cơ sở khác, chấm báo cáo cơ sở"* —
+			      lượt chấm tự nói ra nó được bấm ở đâu, chứ không đợi ai đi hỏi.
+			   ⚠️ CHỈ GHI CHÚ, KHÔNG CHẶN và KHÔNG TỰ ĐỔI `$coso`. Tự chuyển cơ sở theo GPS là để
+			      một phép đo sai 300m dời công của người ta sang cửa hàng khác — mà lương thì
+			      tính theo cơ sở. Người quyết định vẫn là người. */
+			if ( method_exists( 'VHCC_ViTri', 'gan_nhat' ) ) {
+				$vet = VHCC_ViTri::gan_nhat( $gps, $coso );
+				if ( $vet && ! empty( $vet['trong'] ) ) {
+					$c_vet = 'TRUY VẾT: toạ độ nằm TRONG vùng cơ sở "' . $vet['coSo'] . '" (cách '
+						. VHCC_ViTri::met( $vet['met'] ) . '), trong khi lượt chấm ghi về "' . $coso . '".';
+					$ghi_chu = ( '' !== $ghi_chu ) ? $ghi_chu . ' · ' . $c_vet : $c_vet;
+				}
+			}
+			if ( method_exists( 'VHCC_ViTri', 'dong' ) ) {
+				$dong_vt = VHCC_ViTri::dong( $gps, $xv, $vet );
+			}
 		}
 
-		$kq = VHCC_Nhan::ghi_gio( $coso, $ngay, $ma_ghi, (string) $u['ho_ten'], $giay_ghi, $b64, 'online', $ghi_chu );
+		$kq = VHCC_Nhan::ghi_gio( $coso, $ngay, $ma_ghi, (string) $u['ho_ten'], $giay_ghi, $b64, 'online', $ghi_chu,
+			$dong_vt );
 		if ( isset( $kq['loi'] ) ) { return array( 'ok' => false, 'error' => $kq['loi'] ); }
 
 		return array( 'ok' => true, 'loai' => $kq['loai'], 'coSo' => $coso, 'ngay' => $ngay,
 			'gio' => VHCC_DB::hhmmss( $giay ), 'ma' => $ma_ghi, 'img' => $kq['anh'],
-			'viTri' => ( isset( $xv ) ? $xv : null ),
+			'viTri' => ( isset( $xv ) ? $xv : null ), 'vet' => $vet,
 			'guiLai' => ( (int) $tre_gui >= self::TRE_DANG_KE ), 'treGiay' => (int) $tre_gui );
 	}
 
