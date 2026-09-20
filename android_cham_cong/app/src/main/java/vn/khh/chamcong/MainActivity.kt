@@ -5,7 +5,9 @@ import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.ApplicationInfo
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.webkit.CookieManager
 import android.webkit.WebSettings
@@ -15,6 +17,9 @@ import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import vn.khh.chamcong.nhac.Nhac
+import vn.khh.chamcong.nhac.ViecHoiNhac
 import vn.khh.chamcong.web.ChromeTram
 import vn.khh.chamcong.web.KhachTram
 
@@ -65,6 +70,21 @@ class MainActivity : AppCompatActivity() {
         chrome?.traLoiQuyen()
     }
 
+    /**
+     * Quyền thông báo (Android 13+). Xin RỜI, và xin MỘT LẦN khi mở app.
+     *
+     * ⚠️ KHÔNG gộp vào lượt xin camera/vị trí ở `ChromeTram`. Hai lượt ấy do TRANG yêu cầu, đúng
+     *    lúc người ta bấm nút chụp — kèm thêm một ô "cho phép thông báo" vào đó là biến một câu
+     *    hỏi rõ ràng ("app cần máy ảnh để chụp") thành một danh sách người ta bấm Từ chối cho
+     *    nhanh. Mất quyền thông báo thì chỉ mất lời nhắc; mất quyền camera thì không chấm công
+     *    được.
+     * ⚠️ Từ chối cũng KHÔNG hỏi lại. Android tự chặn sau hai lần từ chối, và hỏi nữa chỉ làm
+     *    phiền. Ai đổi ý thì bật trong Cài đặt máy.
+     */
+    private val xinThongBao = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* cho hay không cũng không đổi gì ở đây — `Nhac.hien` tự chịu được cả hai. */ }
+
     private val chonTep = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { kq ->
@@ -102,7 +122,20 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
+        Nhac.taoKenh(this)
+        xinQuyenThongBaoNeuCan()
+        /* Xếp lịch hỏi lời nhắc. Gọi mỗi lần mở app, nhưng `KEEP` nên nó không dựng lại lịch
+           đã có — xem `ViecHoiNhac.xepLich`. */
+        ViecHoiNhac.xepLich(this)
+
         ve()
+    }
+
+    private fun xinQuyenThongBaoNeuCan() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        val q = android.Manifest.permission.POST_NOTIFICATIONS
+        if (ContextCompat.checkSelfPermission(this, q) == PackageManager.PERMISSION_GRANTED) return
+        xinThongBao.launch(q)
     }
 
     /** Chưa có địa chỉ máy chủ thì hỏi; có rồi thì mở thẳng trang trạm. */
@@ -163,6 +196,14 @@ class MainActivity : AppCompatActivity() {
         c.allowContentAccess = false
         c.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
 
+        /* 🔴 CHO PHÉP `window.open` — THIẾU HAI DÒNG NÀY LÀ MẤT MẤY NÚT, VÀ MẤT IM LẶNG.
+           Mặc định WebView chặn `window.open()`. Đã dò trong mã và nó đụng hai chỗ có thật:
+           bấm một tin trong CHUÔNG để nhảy sang trang Nội bộ, và IN ĐƠN / XEM CHỨNG TỪ bên
+           Chi phí cơ sở. Trên trình duyệt thì chạy, nên lỗi chỉ lộ ra trong app — đúng kiểu
+           khiến người ta bảo "app hỏng, thôi mở bằng Chrome". Cách xử lý ở `onCreateWindow`. */
+        c.setSupportMultipleWindows(true)
+        c.javaScriptCanOpenWindowsAutomatically = true
+
         /* Khai danh tính để máy chủ phân biệt được lượt mở từ app với lượt mở từ trình duyệt —
            cần cho việc ẩn lời mời "Thêm vào màn hình chính" (trong app thì lời mời ấy vô nghĩa). */
         c.userAgentString = c.userAgentString + " KHChamCongApp/" + banApp()
@@ -174,6 +215,15 @@ class MainActivity : AppCompatActivity() {
             hd = this,
             xinQuyen = { ds -> xinQuyen.launch(ds) },
             moChonTep = { yd -> chonTep.launch(yd) },
+        )
+        ct.datCuaSo(
+            /* `window.open(url)` đi qua ĐÚNG luật điều hướng như mọi đường dẫn khác — không mở
+               thêm khung nổi cho một trang cùng tên miền: khung ấy không có tab dưới cùng,
+               không có nút Chấm công, và người ta lạc trong đó. */
+            coDiaChi = { u ->
+                if (KhachTram.trongNha(u, Luu.tenMien(this))) w.loadUrl(u.toString()) else moNgoai(u)
+            },
+            khungCon = { con -> moKhungCon(con) },
         )
         chrome = ct
         w.webChromeClient = ct
@@ -248,6 +298,44 @@ class MainActivity : AppCompatActivity() {
      *    Dùng nó ở đây là đổi lấy một dòng cấu hình nữa, mà dòng ấy hỏng thì cả app không dịch
      *    được, vì một tính năng chỉ người viết mã dùng.
      */
+    /**
+     * KHUNG CON cho `window.open('', '_blank')` — bản in đơn, ảnh chứng từ.
+     *
+     * Trang tự ghi nội dung vào cửa sổ con, nên thứ sắp hiện ra CHƯA TỒN TẠI ở địa chỉ nào để
+     * mà mở chỗ khác. Phải có một WebView con thật.
+     *
+     * ⚠️ Khung con KHÔNG được thừa hưởng quyền camera / vị trí, và không cần: nó chỉ để xem.
+     *    Nó cũng không có `webChromeClient` của mình, nên không mở tiếp được cửa sổ thứ ba.
+     */
+    private fun moKhungCon(con: WebView) {
+        val hop = android.app.Dialog(this, android.R.style.Theme_Black_NoTitleBar)
+        val khung = FrameLayout(this)
+        con.layoutParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT
+        )
+        khung.addView(con)
+
+        val dong = android.widget.Button(this)
+        dong.text = "Đóng"
+        dong.setAllCaps(false)
+        dong.setOnClickListener { hop.dismiss() }
+        val vt = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT
+        )
+        vt.gravity = android.view.Gravity.TOP or android.view.Gravity.END
+        dong.layoutParams = vt
+        khung.addView(dong)
+
+        hop.setContentView(khung)
+        /* Huỷ WebView con khi đóng. Bỏ qua là mỗi lần xem một chứng từ lại rò một WebView —
+           trên máy cũ thì sau vài lần là đứng máy. */
+        hop.setOnDismissListener {
+            khung.removeView(con)
+            con.destroy()
+        }
+        hop.show()
+    }
+
     private fun banGoLoi(): Boolean =
         (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
 }

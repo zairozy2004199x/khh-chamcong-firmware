@@ -28,10 +28,19 @@ class KhachTram(
      *    thì `khmatrix.com.ke-gian.vn` cũng lọt — một tên miền của người khác chạy bên trong app
      *    đã có quyền camera.
      */
-    private fun trongNha(u: Uri): Boolean {
-        val h = u.host?.lowercase() ?: return false
-        if (tenMien.isEmpty()) return false
-        return h == tenMien || h.endsWith(".$tenMien")
+    private fun trongNha(u: Uri): Boolean = trongNha(u, tenMien)
+
+    companion object {
+        /**
+         * Để ở `companion` vì `MainActivity` cũng phải hỏi đúng câu này khi xử lý
+         * `window.open(url)`. Hai chỗ tự viết lấy một phép so tên miền là sớm muộn một chỗ
+         * viết thành `contains` — và đó đúng là chỗ hở này sinh ra để bịt.
+         */
+        fun trongNha(u: Uri, tenMien: String): Boolean {
+            val h = u.host?.lowercase() ?: return false
+            if (tenMien.isEmpty()) return false
+            return h == tenMien || h.endsWith(".$tenMien")
+        }
     }
 
     override fun shouldOverrideUrlLoading(web: WebView?, yc: WebResourceRequest?): Boolean {

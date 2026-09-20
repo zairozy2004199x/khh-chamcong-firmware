@@ -614,6 +614,19 @@ class VHCC_Tram {
 			self::ra( VHCC_Chuong::ds( $u ) );
 		}
 
+		/* App Android hỏi "tôi có lời nhắc nào không" — nó không nhận được Web Push.
+		   🔴 LUẬT NẰM Ở `VHCC_Push::nhac_cua()`, KHÔNG chép sang Kotlin. Xem khối chú thích ở
+		      đó: đổi ngưỡng một chỗ mà app vẫn giữ ngưỡng cũ là kiểu lệch không ai đi tìm.
+		   ⚠️ Trả kèm số đếm chuông luôn, để app hỏi MỘT lượt thay vì hai — mỗi 15 phút, nhân
+		      với số máy, thì một lượt gọi thừa là một lượt gọi thừa thật. */
+		if ( 'nhac' === $viec ) {
+			$kq_n = ( class_exists( 'VHCC_Push' ) && method_exists( 'VHCC_Push', 'nhac_cua' ) )
+				? VHCC_Push::nhac_cua( $u['ma_nv'] ) : array( 'ok' => true, 'nhac' => array() );
+			$kq_n['demChuong'] = ( class_exists( 'VHCC_Chuong' ) && method_exists( 'VHCC_Chuong', 'dem' ) )
+				? (string) VHCC_Chuong::dem( $u ) : '';
+			self::ra( $kq_n );
+		}
+
 		if ( 'chuongdoc' === $viec ) {
 			$b = self::than();
 			self::ra( VHCC_Chuong::doc( $u, isset( $b['id'] ) ? (int) $b['id'] : 0 ) );

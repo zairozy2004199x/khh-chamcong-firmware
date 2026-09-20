@@ -60,4 +60,40 @@ object Luu {
      */
     fun tenMien(ct: Context): String =
         mayChu(ct).removePrefix("https://").substringBefore('/')
+
+    /* ───────────────────────────────────────────────── sổ nhớ của lời nhắc */
+
+    private const val KHOA_DA_HIEN = "nhac_da_hien"
+    private const val KHOA_DEM_CHUONG = "chuong_dem_cu"
+
+    /**
+     * 🔴 NHỮNG LỜI NHẮC ĐÃ HIỆN RỒI.
+     *
+     * Máy chủ trả lời theo TRẠNG THÁI ("người này đang chưa chấm ra"), nên nó trả về y hệt ở mọi
+     * lượt hỏi. Không nhớ thì cứ 15 phút một lần rung — và người ta tắt thông báo của app, mất
+     * luôn cả mấy tin cần thiết. Đây là chỗ duy nhất biết "đã rung cho cái này rồi".
+     *
+     * ⚠️ Đây là việc của MÁY, không phải của người — nên nó nằm ở app chứ không ghi ngược lên
+     *    máy chủ. Sổ `vhcc_push_da_nhac` bên kia là của đường Web Push; ghi chung vào đó là một
+     *    lượt app hỏi làm tắt mất lời nhắc đẩy của chính người đó.
+     */
+    fun daHienNhac(ct: Context): Set<String> =
+        ct.getSharedPreferences(TEP, Context.MODE_PRIVATE)
+            .getStringSet(KHOA_DA_HIEN, emptySet()) ?: emptySet()
+
+    fun datDaHienNhac(ct: Context, ds: Set<String>) {
+        ct.getSharedPreferences(TEP, Context.MODE_PRIVATE)
+            /* Chép sang một `HashSet` mới: `getStringSet` trả về đúng cái tập đang nằm trong bộ
+               nhớ của SharedPreferences, và ghi lại chính nó thì Android có thể không thấy gì
+               thay đổi — một cái bẫy có ghi rõ trong tài liệu mà vẫn cắn người ta suốt. */
+            .edit().putStringSet(KHOA_DA_HIEN, HashSet(ds)).apply()
+    }
+
+    fun demChuongCu(ct: Context): String =
+        ct.getSharedPreferences(TEP, Context.MODE_PRIVATE).getString(KHOA_DEM_CHUONG, "") ?: ""
+
+    fun datDemChuongCu(ct: Context, s: String) {
+        ct.getSharedPreferences(TEP, Context.MODE_PRIVATE)
+            .edit().putString(KHOA_DEM_CHUONG, s).apply()
+    }
 }

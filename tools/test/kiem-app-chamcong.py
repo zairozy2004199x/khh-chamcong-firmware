@@ -259,10 +259,53 @@ t('⚠️ và huỷ WebView đúng cách khi thoát (tránh rò bộ nhớ)',
 # ── ⚠️ NÚT BACK CỦA ANDROID PHẢI LÀ NÚT BACK CỦA TRANG TRƯỚC ĐÃ.
 t('⚠️ nút back lùi trong trang trước khi thoát app', 'w.canGoBack()' in mn and 'w.goBack()' in mn)
 
+# ── 🔴 CỬA SỔ MỚI (`window.open`). Thiếu là mất mấy nút, và mất im lặng.
+#    Đụng hai chỗ có thật: bấm một tin trong CHUÔNG để sang trang Nội bộ, và IN ĐƠN / XEM CHỨNG
+#    TỪ bên Chi phí cơ sở. Trên trình duyệt thì chạy, nên lỗi chỉ lộ ra trong app.
+t('🔴 cho phép window.open (nhiều cửa sổ)', 'setSupportMultipleWindows(true)' in mn)
+t('   và cho JavaScript mở được cửa sổ', 'javaScriptCanOpenWindowsAutomatically = true' in mn)
+t('🔴 có xử lý cửa sổ mới', 'onCreateWindow' in ch)
+t('   gửi lại `resultMsg`, không thì window.open trả null',
+  'ketQua.sendToTarget()' in ch)
+t('🔴 cửa sổ con được huỷ khi đóng (không rò WebView)',
+  'con.destroy()' in mn)
+# ⚠️ `window.open(url)` phải đi qua ĐÚNG phép so tên miền của điều hướng thường, không viết lại.
+t('🔴 window.open(url) dùng lại phép so tên miền chung, không viết lại',
+  'KhachTram.trongNha(' in mn)
+
+# ── 🔴 LUẬT "KHI NÀO THÌ NHẮC" PHẢI Ở MÁY CHỦ, KHÔNG CHÉP SANG KOTLIN.
+#    Đây là chốt quan trọng nhất của phần thông báo. Tự tính trong app là ba dòng và chạy ngay —
+#    rồi ngày nào đổi ngưỡng bên máy chủ, người mở bằng Chrome được nhắc theo ngưỡng mới còn
+#    người cài app vẫn theo ngưỡng cũ, và không ai nghĩ tới việc đi sửa cái app.
+nh_tep = os.path.join(NGUON, 'vn', 'khh', 'chamcong', 'nhac', 'ViecHoiNhac.kt')
+t('có bộ hỏi lời nhắc', os.path.exists(nh_tep))
+nh = ma.get(nh_tep, '')
+t('🔴 app HỎI máy chủ `viec=nhac`, không tự tính', 'viec=nhac' in nh)
+for cam in ('gio_ra', 'gioToiDa', '10 * 3600', 'nguong'):
+    t('🔴 app KHÔNG mang ngưỡng giờ của riêng nó (%s)' % cam, cam not in nh)
+
+t('🔴 dùng lại cookie của WebView, không cất bản sao thẻ phiên',
+  'CookieManager.getInstance().getCookie(' in nh)
+t('   và chưa đăng nhập thì thôi, không gọi thừa', 'banh.isNullOrBlank()' in nh)
+# ⚠️ Việc chạy LẶP: hỏng mạng thì lượt sau tự tới. `retry()` là xếp thêm lượt chồng lên lịch lặp.
+t('⚠️ hỏng mạng KHÔNG trả retry() (tránh dồn chùm)', 'Result.retry()' not in nh)
+t('🔴 nhớ lời nhắc đã hiện, không rung lại mỗi 15 phút', 'daHienNhac' in nh)
+# ⚠️ REPLACE đặt lại đồng hồ mỗi lần mở app -> người mở app nhiều thì lượt hỏi không bao giờ tới.
+t('🔴 xếp lịch bằng KEEP, không phải REPLACE',
+  'ExistingPeriodicWorkPolicy.KEEP' in nh and 'REPLACE' not in nh)
+
+nhac_tep = os.path.join(NGUON, 'vn', 'khh', 'chamcong', 'nhac', 'Nhac.kt')
+nk = ma.get(nhac_tep, '')
+# ⚠️ notify() ném SecurityException khi chưa có quyền; ném trong Worker là hỏng + thử lại mãi.
+t('⚠️ chưa có quyền thông báo thì nuốt đúng SecurityException',
+  'catch (e: SecurityException)' in nk)
+t('   PendingIntent khai IMMUTABLE (bắt buộc từ Android 12)',
+  'FLAG_IMMUTABLE' in nk)
+
 # ── Manifest: xin đúng quyền, và KHÔNG xin quyền nền.
 mf = bo_chu_thich_xml(
     open(os.path.join(GOC, 'app', 'src', 'main', 'AndroidManifest.xml'), encoding='utf-8').read())
-for q in ('INTERNET', 'CAMERA', 'ACCESS_FINE_LOCATION'):
+for q in ('INTERNET', 'CAMERA', 'ACCESS_FINE_LOCATION', 'POST_NOTIFICATIONS'):
     t('manifest xin quyền ' + q, q in mf)
 # 🔴 Hệ này CỐ Ý không theo dõi định vị — chỉ đọc toạ độ lúc người ta bấm nút. Quyền nền là
 #    mở đường cho một tính năng chưa ai quyết định làm.

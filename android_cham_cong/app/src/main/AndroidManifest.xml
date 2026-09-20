@@ -17,6 +17,9 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Nhắc chấm công ra và lệnh mới trong chuông. Từ Android 13 phải XIN LÚC CHẠY, không chỉ
+         khai ở đây — xem `MainActivity`. Máy cũ hơn thì cho sẵn. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- Máy không có camera trước, hoặc không có GPS, vẫn cài được: trạm vẫn chấm công được
          (thiếu ảnh / thiếu toạ độ thì nó nói ra, chứ không chối). -->

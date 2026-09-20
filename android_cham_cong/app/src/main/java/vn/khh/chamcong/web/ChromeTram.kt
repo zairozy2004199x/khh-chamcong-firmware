@@ -152,4 +152,80 @@ class ChromeTram(
         nhanTep?.onReceiveValue(ds)
         nhanTep = null
     }
+
+    /* ─────────────────────────────────────────────────────────── cửa sổ mới (window.open) */
+
+    /**
+     * 🔴 THIẾU HÀM NÀY LÀ MẤT MẤY NÚT, VÀ MẤT IM LẶNG.
+     *
+     * Mặc định WebView KHÔNG cho `window.open()` chạy. Trên trình duyệt thì chạy, nên lỗi chỉ
+     * lộ ra trong app — đúng kiểu khiến người ta bảo "app hỏng, thôi mở bằng Chrome". Đã dò
+     * trong mã và nó đụng ít nhất hai chỗ có thật:
+     *
+     *   · chuông thông báo: bấm vào một tin để nhảy sang trang Nội bộ
+     *     (`tram.php` -> `window.open(di, '_blank', 'noopener')`);
+     *   · Chi phí cơ sở: in đơn và xem chứng từ
+     *     (`app.html` -> `window.open('', '_blank')` rồi tự ghi nội dung vào).
+     *
+     * HAI CA KHÁC HẲN NHAU, và chỉ lo một ca là vẫn hỏng ca kia:
+     *
+     *   1. CÓ ĐỊA CHỈ (`window.open(url)`). Không cần cửa sổ thật — cho nó đi qua đúng luật
+     *      điều hướng như mọi đường dẫn khác: trong nhà thì nạp ngay tại đây, ngoài nhà thì bật
+     *      trình duyệt. Mở thêm một khung nổi cho một trang cùng tên miền chỉ tổ làm người ta
+     *      lạc: khung ấy không có tab dưới cùng, không có nút Chấm công.
+     *
+     *   2. KHÔNG CÓ ĐỊA CHỈ (`window.open('', '_blank')`). Trang định TỰ GHI nội dung vào cửa
+     *      sổ con — bản in, ảnh chứng từ. Ca này BẮT BUỘC phải có một WebView con thật, vì thứ
+     *      sắp hiện ra chưa tồn tại ở bất kỳ địa chỉ nào để mà mở chỗ khác.
+     *
+     * ⚠️ `resultMsg` PHẢI ĐƯỢC GỬI ĐI Ở CA 2. Đó là sợi dây nối cửa sổ con về cho JavaScript;
+     *    không gửi thì `window.open()` trả `null`, và trang hiện "Trình duyệt chặn cửa sổ in".
+     */
+    override fun onCreateWindow(
+        cha: WebView?,
+        hopThoai: Boolean,
+        nguoiDungBam: Boolean,
+        ketQua: android.os.Message?,
+    ): Boolean {
+        if (cha == null || ketQua == null) return false
+
+        /* Ca 1: WebView đưa địa chỉ đích qua một WebView tạm — không nạp gì, chỉ để đọc ra URL. */
+        val tam = WebView(cha.context)
+        tam.webViewClient = object : android.webkit.WebViewClient() {
+            override fun shouldOverrideUrlLoading(
+                w: WebView?,
+                yc: android.webkit.WebResourceRequest?,
+            ): Boolean {
+                yc?.url?.let { diTiep(it) }
+                tam.destroy()
+                return true
+            }
+        }
+        (ketQua.obj as? WebView.WebViewTransport)?.webView = tam
+        ketQua.sendToTarget()
+
+        /* Ca 2: sau một nhịp mà chưa có địa chỉ nào tới, nghĩa là trang sắp tự ghi nội dung vào.
+           Lúc ấy mới dựng khung con thật — dựng sẵn cho cả hai ca là ca 1 nháy một khung rồi
+           đóng ngay, nhìn như app giật. */
+        cha.postDelayed({
+            if (!tam.isAttachedToWindow) { moKhungCon(tam) }
+        }, 350)
+        return true
+    }
+
+    /** Đưa địa chỉ của `window.open(url)` về đúng luật điều hướng chung. */
+    private fun diTiep(u: Uri) { moCuaSoCoDiaChi(u) }
+
+    private var moCuaSoCoDiaChi: (Uri) -> Unit = {}
+    private var moKhungCon: (WebView) -> Unit = {}
+
+    /**
+     * Nơi gọi khai hai việc này — `ChromeTram` không tự biết đâu là "trong nhà", cũng không tự
+     * dựng được hộp thoại. Khai rời thay vì nhét vào hàm dựng để hàm dựng khỏi dài thêm hai
+     * tham số mà chín phần mười người đọc tệp này không cần biết.
+     */
+    fun datCuaSo(coDiaChi: (Uri) -> Unit, khungCon: (WebView) -> Unit) {
+        moCuaSoCoDiaChi = coDiaChi
+        moKhungCon = khungCon
+    }
 }
