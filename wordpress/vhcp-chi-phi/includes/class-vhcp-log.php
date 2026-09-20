@@ -10,6 +10,9 @@ class VHCP_Log {
 		$rec = (array) $rec;
 		$g   = function ( $k ) use ( $rec ) { return isset( $rec[ $k ] ) ? (string) $rec[ $k ] : ''; };
 		$wpdb->insert( VHCP_DB::t( 'log' ), array(
+			/* Nhật ký cũng mang dấu mảng: ba mảng chung một kho thì sổ nhật ký trộn lẫn là
+			   không truy được ai làm gì bên nào. */
+			'mang'      => VHCP_DB::mang(),
 			'tg'        => VHCP_Util::now_sql(),
 			'nguoi'     => $g( 'actor' ),
 			'vai_tro'   => $g( 'role' ),

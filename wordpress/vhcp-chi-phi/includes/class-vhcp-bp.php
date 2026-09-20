@@ -86,6 +86,8 @@ class VHCP_BP {
 		$ky   = trim( (string) $ky );
 		if ( $ky === '' ) { $ky = VHCP_Util::now()->format( 'm/Y' ); }
 		$wpdb->insert( VHCP_DB::t( 'bp_index' ), array(
+			/* Mảng đóng dấu lúc lập — xem chốt ở `VHCP_SoChi::add()`. */
+			'mang'       => VHCP_DB::mang(),
 			'ma'         => $ma,
 			'loai'       => $loai,
 			'ten'        => VHCP_Util::san( $ten ) !== '' ? VHCP_Util::san( $ten ) : $ma,
@@ -109,6 +111,8 @@ class VHCP_BP {
 		if ( $ky === '' ) { $ky = VHCP_Util::now()->format( 'm/Y' ); }
 		$ma = VHCP_Util::uid( 'BP' );
 		$wpdb->insert( VHCP_DB::t( 'bp_index' ), array(
+			/* Mảng đóng dấu lúc lập — xem chốt ở `VHCP_SoChi::add()`. */
+			'mang'       => VHCP_DB::mang(),
 			'ma'         => $ma,
 			'loai'       => $loai,
 			'ten'        => $ten,
