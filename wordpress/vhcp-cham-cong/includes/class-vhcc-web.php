@@ -9314,7 +9314,20 @@ class VHCC_Web {
 			/* Lặng khi mọi thứ bình thường — xem chú thích trên. */
 			if ( '' === $dau && 'trong' === $v['ket'] ) { continue; }
 			if ( '' === $dau && '' === $v['ket'] && '' === $v['coSoKhac'] ) { continue; }
-			$ra[] = $dau . '📍 ' . $nhan . ': ' . VHCC_ViTri::chu_dong( (string) $d[ $k ] );
+			$dong = $dau . '📍 ' . $nhan . ': ' . VHCC_ViTri::chu_dong( (string) $d[ $k ] );
+			/* TÊN ĐƯỜNG nếu đã tra được — cặp số vẫn giữ nguyên ở dòng trên.
+			   🔴 GỌI `nho()` CHỨ KHÔNG PHẢI `tra()`. `nho()` chỉ đọc sổ đã nhớ; `tra()` đi ra
+			      internet. Một lưới công cả tháng có hàng chục ô, để chỗ vẽ màn gọi hàm có ra
+			      mạng là một lần mở bảng bắn sáu mươi lượt gọi ra ngoài — trang treo, mà bên kia
+			      thì thấy đúng một đợt tra hàng loạt và chặn cả tên miền.
+			   ⚠️ Chuỗi này do người ngoài gõ vào OpenStreetMap. Nó đi vào `title` qua `esc_attr`
+			      ở nơi gọi, nên không tự thoát lại ở đây (thoát hai lần thì dấu nháy trong tên
+			      đường hiện ra thành `&#039;`). */
+			if ( class_exists( 'VHCC_DiaChi' ) && method_exists( 'VHCC_DiaChi', 'nho_dong' ) ) {
+				$dc = VHCC_DiaChi::nho_dong( (string) $d[ $k ] );
+				if ( '' !== $dc ) { $dong .= "\n     ↳ " . $dc; }
+			}
+			$ra[] = $dong;
 		}
 		return $ra;
 	}

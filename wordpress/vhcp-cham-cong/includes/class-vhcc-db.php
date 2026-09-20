@@ -1135,6 +1135,21 @@ class VHCC_DB {
 			KEY cho (coso,trang_thai),
 			KEY nguoi (ma_nv,ngay)";
 
+		/* ===== SỔ NHỚ ĐỊA CHỈ =============================================================
+		   Toạ độ -> tên đường, nhớ theo Ô LƯỚI ~11m chứ không theo từng cặp số. Xem khối chú
+		   thích đầu `VHCC_DiaChi` cho lý do: hai người đứng cạnh nhau trước cùng một cửa hàng
+		   không cho ra cùng một cặp số, nên nhớ theo cặp số thì gần như không bao giờ trúng lại
+		   — mà không trúng lại nghĩa là mỗi lượt chấm một lần đi hỏi máy chủ của người khác.
+
+		   ⚠️ HÀNG CÓ `dia_chi` RỖNG LÀ CÓ NGHĨA, không phải rác: nó nhớ rằng "đã hỏi ô này rồi,
+		      chỗ đó không có tên đường". Dọn mấy hàng ấy đi là lượt cron sau hỏi lại đúng ô ấy,
+		      mãi mãi. */
+		$b['dia_chi'] = "
+			o VARCHAR(32) NOT NULL,
+			dia_chi VARCHAR(200) NOT NULL DEFAULT '',
+			tra_luc DATETIME NULL,
+			PRIMARY KEY  (o)";
+
 		return $b;
 	}
 

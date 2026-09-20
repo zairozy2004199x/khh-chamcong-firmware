@@ -54,6 +54,13 @@ file_put_contents( $GLOBALS['VHCP_TMP'] . '/wp-admin/includes/upgrade.php', "<?p
 
 define( 'ABSPATH', $GLOBALS['VHCP_TMP'] . '/' );
 define( 'ARRAY_A', 'ARRAY_A' );
+/* Hằng thời gian của lõi WordPress. Luôn có trên máy thật, nên mã plugin dùng thoải mái — mà
+   thiếu ở đây thì bài kiểm chết bằng "Undefined constant", một câu lỗi chẳng liên quan gì tới
+   thứ đang thử. */
+define( 'MINUTE_IN_SECONDS', 60 );
+define( 'HOUR_IN_SECONDS', 3600 );
+define( 'DAY_IN_SECONDS', 86400 );
+define( 'WEEK_IN_SECONDS', 604800 );
 
 $GLOBALS['VHCP_OPT'] = array();
 $GLOBALS['VHCP_TR']  = array();
