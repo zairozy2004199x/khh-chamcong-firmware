@@ -132,7 +132,7 @@ class VHCP_SoChi {
 		   ⚠️ GHI THẲNG, ĐỪNG DỰA VÀO `DEFAULT` CỦA CỘT. Mặc định là 'kvc' (hằng của bản gốc);
 		      tới lúc dữ liệu MTĐ / VP về chung kho, một dòng VP ghi ra mà dựa vào mặc định thì
 		      nó đóng dấu 'kvc' — tiền của mảng này chạy sang sổ mảng kia, im lặng. */
-		$data['mang']       = VHCP_DB::mang();
+		$data['khoi']       = VHCP_DB::khoi();
 		$wpdb->insert( VHCP_DB::t( 'so_chi' ), $data );
 		return VHCP_Util::ok( array( 'id' => $data['id'], 'tkNo' => $data['tk_no'], 'tkCo' => $data['tk_co'], 'soTien' => VHCP_Util::num( $data['so_tien'] ) ) );
 	}

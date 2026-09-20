@@ -87,7 +87,7 @@ class VHCP_DuAn {
 			'loai'       => $loai,
 			'trang_thai' => 'Đang làm',
 			/* Mảng đóng dấu ngay lúc lập — xem chốt ở `VHCP_Don::create_don()`. */
-			'mang'       => VHCP_DB::mang(),
+			'khoi'       => VHCP_DB::khoi(),
 			'ngay_tao'   => VHCP_Util::now_sql(),
 			'nguoi_tao'  => (string) $nguoi,
 		) );
@@ -198,7 +198,7 @@ class VHCP_DuAn {
 			'loai'       => 'Chi phí cơ sở',
 			'trang_thai' => 'Đang làm',
 			/* Mảng đóng dấu ngay lúc lập — xem chốt ở `VHCP_Don::create_don()`. */
-			'mang'       => VHCP_DB::mang(),
+			'khoi'       => VHCP_DB::khoi(),
 			'ngay_tao'   => VHCP_Util::now_sql(),
 			'nguoi_tao'  => (string) $nguoi,
 		) );
@@ -236,7 +236,7 @@ class VHCP_DuAn {
 			'loai'       => 'Chi phí cơ sở',
 			'trang_thai' => 'Đang làm',
 			/* Mảng đóng dấu ngay lúc lập — xem chốt ở `VHCP_Don::create_don()`. */
-			'mang'       => VHCP_DB::mang(),
+			'khoi'       => VHCP_DB::khoi(),
 			'ngay_tao'   => VHCP_Util::now_sql(),
 			'nguoi_tao'  => (string) $nguoi,
 		) );
@@ -346,7 +346,7 @@ class VHCP_DuAn {
 				'ten'        => $r['ten'],
 				'loai'       => $r['loai'],
 				/* Mảng của dự án — thanh KVC · MTĐ · VP lọc theo ô này. */
-				'mang'       => trim( (string) ( isset( $r['mang'] ) ? $r['mang'] : '' ) ),
+				'khoi'       => trim( (string) ( isset( $r['khoi'] ) ? $r['khoi'] : '' ) ),
 				'sheet'      => '',
 				'trangThai'  => ( $r['trang_thai'] !== '' ? $r['trang_thai'] : 'Đang làm' ),
 				'ngayTao'    => VHCP_Util::fmt( $r['ngay_tao'] ),

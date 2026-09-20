@@ -835,6 +835,9 @@ class VHCPVP_Don {
 				'nguoiLap'    => (string) $r['nguoi_lap'],
 				/* Gác isset: cột `don_vi` thêm ở bản 1.43.0 — bảng nới ở lượt tải trang sau. */
 				'donVi'       => VHCPVP_DonVi::chuan( isset( $r['don_vi'] ) ? $r['don_vi'] : '' ),
+				/* Mảng của đơn — thanh KVC · MTĐ · VP lọc theo ô này. Đơn cũ (trước khi có cột)
+				   đã được `VHCPVP_DB::lap_mang()` lấp sẵn, nên ở đây không cần đoán gì. */
+				'khoi'        => trim( (string) ( isset( $r['khoi'] ) ? $r['khoi'] : '' ) ),
 				'coso'        => $coso,
 				'ngayTao'     => VHCPVP_Util::fmt( $r['ngay_tao'] ),
 				'trangThai'   => ( $r['trang_thai'] !== '' ? $r['trang_thai'] : 'Nháp' ),
@@ -1110,6 +1113,13 @@ class VHCPVP_Don {
 			   là một chỗ chọn nhầm, mà chọn nhầm ở đây là đơn rơi sang sổ của bên kia và biến
 			   mất khỏi màn của chính người vừa lập nó. */
 			'don_vi'     => $dv,
+			/* 🔴 MẢNG ĐÓNG DẤU NGAY LÚC LẬP, và không đổi nữa. Anh Thắng 19/09/2026 chốt gộp
+			   KVC · MTĐ · VP làm một app, ba tab. Đơn không mang dấu mảng là đơn KHÔNG TAB NÀO
+			   THẤY — tiền có thật mà mở app ra như chưa từng tồn tại. Cùng lý do cột ấy khai
+			   `NOT NULL DEFAULT` ở `VHCPVP_DB`: rỗng nghĩa là mất tích, không phải "chưa khai".
+			   ⚠️ KHÔNG có ô cho người dùng chọn — y như `don_vi` ngay trên: một ô chọn là một
+			      chỗ chọn nhầm, mà chọn nhầm ở đây là đơn rơi sang sổ của mảng khác. */
+			'khoi'       => VHCPVP_DB::khoi(),
 			'ngay_tao'   => VHCPVP_Util::now_sql(),
 			'trang_thai' => 'Nháp',
 			'ghi_chu'    => '',
@@ -3045,6 +3055,9 @@ class VHCPVP_Don {
 	private static function vao_thung_rac( $loai, $khoa, $nhan, $du_lieu, $don_vi = '' ) {
 		global $wpdb;
 		$wpdb->insert( VHCPVP_DB::t( 'thungrac' ), array(
+			/* Thùng rác cũng mang dấu mảng: hoàn lại một đơn đã xoá mà không biết nó của mảng
+			   nào thì hoàn xong nó rơi vào tab khác. */
+			'khoi'    => VHCPVP_DB::khoi(),
 			'luc'     => current_time( 'mysql' ),
 			'loai'    => (string) $loai,
 			'khoa'    => (string) $khoa,
@@ -3139,6 +3152,22 @@ class VHCPVP_Don {
 			if ( self::don_row( $ma ) ) {
 				return VHCPVP_Util::err( 'Mã đơn ' . $ma . ' nay đã có một đơn khác đang dùng — '
 					. 'không dựng đè lên được.' );
+			}
+			/* ══════════════════════════════════════════════════════════════════════════════
+			 * 🔴 HOÀN LẠI THÌ GIỮ MẢNG CŨ CỦA ĐƠN, KHÔNG ĐÓNG DẤU MẢNG ĐANG ĐỨNG.
+			 * ══════════════════════════════════════════════════════════════════════════════
+			 * Bản sao trong thùng rác đã mang sẵn ô `mang` của đơn lúc bị xoá — dựng lại y
+			 * nguyên là đúng: đơn của Văn phòng phải về lại tab Văn phòng, kể cả khi người bấm
+			 * hoàn đang đứng ở tab Khu vui chơi.
+			 *
+			 * ⚠️ BẢN SAO CŨ THÌ KHÔNG CÓ Ô ẤY (xoá trước ngày mở cột). Để trống là dính mặc
+			 *    định của cột — 'kvc' — nên một đơn MTĐ cũ hoàn lại sẽ rơi sang tab Khu vui
+			 *    chơi. Lấp bằng ô `mang` CỦA CHÍNH DÒNG THÙNG RÁC: dòng ấy ghi lúc xoá, nên nó
+			 *    biết đơn thuộc mảng nào, còn mảng đang đứng thì không.
+			 * ══════════════════════════════════════════════════════════════════════════════ */
+			if ( ! isset( $don['khoi'] ) || '' === trim( (string) $don['khoi'] ) ) {
+				$don['khoi'] = trim( (string) ( isset( $r['khoi'] ) ? $r['khoi'] : '' ) );
+				if ( '' === $don['khoi'] ) { $don['khoi'] = VHCPVP_DB::khoi(); }
 			}
 			$wpdb->insert( VHCPVP_DB::t( 'don' ), $don );
 			$so = 0;
@@ -3848,6 +3877,9 @@ class VHCPVP_Don {
 		$id = VHCPVP_Util::uid( 'LTU' );
 		$ok = $wpdb->insert( VHCPVP_DB::t( 'lenh_tu' ), array(
 			'id'       => $id,
+			/* Mảng đóng dấu lúc lập lệnh — xem chốt ở `VHCPVP_SoChi::add()`. Lệnh tạm ứng là tờ
+			   kế toán cầm đi phát tiền, nên nó phải nói rõ tiền của mảng nào. */
+			'khoi'     => VHCPVP_DB::khoi(),
 			'luc'      => $luc,
 			'nguoi'    => (string) $nguoi,
 			'don_vi'   => $dv,

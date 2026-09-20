@@ -64,6 +64,8 @@ class VHCPVP_MK {
 		$ky = trim( (string) $ky );
 		if ( $ky === '' ) { $ky = VHCPVP_Util::now()->format( 'm/Y' ); }
 		$wpdb->insert( VHCPVP_DB::t( 'mk_don' ), array(
+			/* Mảng đóng dấu lúc lập — xem chốt ở `VHCPVP_SoChi::add()`. */
+			'khoi'       => VHCPVP_DB::khoi(),
 			'ma'         => $ma,
 			'coso'       => $coso,
 			'ten'        => $ten,

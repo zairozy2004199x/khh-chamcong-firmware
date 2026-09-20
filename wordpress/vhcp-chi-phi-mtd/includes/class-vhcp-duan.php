@@ -86,6 +86,8 @@ class VHCPMTD_DuAn {
 			'ten'        => $ten,
 			'loai'       => $loai,
 			'trang_thai' => 'Đang làm',
+			/* Mảng đóng dấu ngay lúc lập — xem chốt ở `VHCPMTD_Don::create_don()`. */
+			'khoi'       => VHCPMTD_DB::khoi(),
 			'ngay_tao'   => VHCPMTD_Util::now_sql(),
 			'nguoi_tao'  => (string) $nguoi,
 		) );
@@ -195,6 +197,8 @@ class VHCPMTD_DuAn {
 			'ten'        => $ten,
 			'loai'       => 'Chi phí cơ sở',
 			'trang_thai' => 'Đang làm',
+			/* Mảng đóng dấu ngay lúc lập — xem chốt ở `VHCPMTD_Don::create_don()`. */
+			'khoi'       => VHCPMTD_DB::khoi(),
 			'ngay_tao'   => VHCPMTD_Util::now_sql(),
 			'nguoi_tao'  => (string) $nguoi,
 		) );
@@ -231,6 +235,8 @@ class VHCPMTD_DuAn {
 			'ten'        => $ten,
 			'loai'       => 'Chi phí cơ sở',
 			'trang_thai' => 'Đang làm',
+			/* Mảng đóng dấu ngay lúc lập — xem chốt ở `VHCPMTD_Don::create_don()`. */
+			'khoi'       => VHCPMTD_DB::khoi(),
 			'ngay_tao'   => VHCPMTD_Util::now_sql(),
 			'nguoi_tao'  => (string) $nguoi,
 		) );
@@ -339,6 +345,8 @@ class VHCPMTD_DuAn {
 				'maDA'       => $r['ma_da'],
 				'ten'        => $r['ten'],
 				'loai'       => $r['loai'],
+				/* Mảng của dự án — thanh KVC · MTĐ · VP lọc theo ô này. */
+				'khoi'       => trim( (string) ( isset( $r['khoi'] ) ? $r['khoi'] : '' ) ),
 				'sheet'      => '',
 				'trangThai'  => ( $r['trang_thai'] !== '' ? $r['trang_thai'] : 'Đang làm' ),
 				'ngayTao'    => VHCPMTD_Util::fmt( $r['ngay_tao'] ),
