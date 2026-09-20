@@ -97,6 +97,23 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.50.0 =
+* 🔴 **Chọn mặt hàng CÓ KHO của từng cơ sở.** FABi bán cả BẠC XỈU, CACAO LATTE, COMBO TRÀ CHANH
+  GIÃ TAY — đồ pha tại chỗ, không có kho để đếm. Đổ hết vào sổ thì nhân viên phải cuộn qua vài
+  chục dòng vô nghĩa mới tới chai nước, và mấy dòng ấy **mãi mãi đỏ** vì chẳng ai đếm chúng bao
+  giờ — sổ đỏ vì lý do vớ vẩn là sổ bị bỏ. Nay có khối **"Mặt hàng có kho của cơ sở này"**: tích
+  những món có hàng trên kệ, kèm **số lượng bán 90 ngày qua** để biết món nào đáng theo dõi.
+  Danh mục lưu **riêng theo từng cơ sở**.
+* ⚠️ Mặt hàng ngoài danh mục **mà đã có người khai thì vẫn hiện** — giấu đi là số người ta đã gõ
+  biến mất khỏi màn trong khi vẫn nằm trong sổ. Bỏ tích hết rồi Lưu là thôi lọc, bày lại tất cả.
+* 🔴 **Hết cảnh cả màn toàn số âm.** Trước đây hệ khởi tồn bằng 0 rồi trừ số bán ra, trong khi
+  chưa hề biết trên kệ có bao nhiêu — nên ngày đầu đã ra "BIMBIM LỚN −61", "−139", "COCA COLA
+  −14". Số âm ấy không sai một cách thú vị, nó **vô nghĩa**, mà lại tô đỏ cả sổ. Nay chưa ai đặt
+  mốc thì tồn đầu và tồn tính hiện **"—"**, và không có lệch để tô đỏ.
+* **Đặt mốc bằng một trong hai cách**: đếm tay một lần, hoặc ghi lượt nhập kho đầu tiên. Nhãn
+  trên mỗi dòng nay nói thẳng việc phải làm — **"đếm 1 lần để đặt mốc"** thay vì "chưa có mốc".
+* `tools/test/kiem-kho.php` lên **61 phép**, `tools/test/kiem-kho-man.js` lên **52 phép**.
+
 = 1.49.0 =
 * **Sổ kho bày lại thành thẻ dọc trên điện thoại.** Bảng 12 cột với ba ô phải gõ, trên điện
   thoại là dải cuộn ngang với ô bé bằng đầu ngón tay — mà đây đúng là màn nhân viên dùng hằng

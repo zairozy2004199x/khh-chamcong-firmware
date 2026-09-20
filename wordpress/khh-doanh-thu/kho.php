@@ -69,6 +69,72 @@ function khh_dt_tao_bang_kho() {
 }
 
 /* ================================================================== *
+ * Mặt hàng KHO của từng cơ sở
+ * ================================================================== */
+
+/**
+ * Cơ sở này coi những món nào là HÀNG HOÁ CÓ KHO.
+ *
+ * 20/09/2026 anh Thắng, sau khi mở thử trên điện thoại: *"Phân loại theo cơ sở đang có hàng
+ * của mình nhé"*. Đúng — FABi bán cả BẠC XỈU, CACAO LATTE, COMBO TRÀ CHANH GIÃ TAY… là đồ pha
+ * tại chỗ, không có kho để đếm. Đổ hết vào sổ kho thì nhân viên phải cuộn qua vài chục dòng vô
+ * nghĩa mới tới chai nước cần đếm, và mấy dòng ấy mãi mãi đỏ vì chẳng ai đếm chúng bao giờ.
+ * Sổ đỏ vì lý do vớ vẩn thì người ta thôi nhìn cột lệch — mất luôn tác dụng của cả sổ.
+ *
+ * @return array Danh sách mặt hàng. RỖNG nghĩa là chưa chọn, KHÔNG phải "không có gì".
+ */
+function khh_dt_kho_mh_cua( $co_so ) {
+	$b = get_option( 'khh_dt_kho_mat_hang', array() );
+	$b = is_array( $b ) ? $b : array();
+	$d = isset( $b[ $co_so ] ) ? $b[ $co_so ] : array();
+	return is_array( $d ) ? array_values( array_unique( array_map( 'strval', $d ) ) ) : array();
+}
+
+function khh_dt_kho_mh_dat( $co_so, $ds ) {
+	$b = get_option( 'khh_dt_kho_mat_hang', array() );
+	$b = is_array( $b ) ? $b : array();
+	$sach = array();
+	foreach ( (array) $ds as $x ) {
+		$x = trim( (string) $x );
+		if ( '' !== $x && ! in_array( $x, $sach, true ) ) {
+			$sach[] = $x;
+		}
+	}
+	$b[ (string) $co_so ] = $sach;
+	update_option( 'khh_dt_kho_mat_hang', $b, false );
+	return count( $sach );
+}
+
+/** Mọi món FABi từng ghi ở cơ sở này — để bày ra cho người chọn. */
+function khh_dt_kho_mon_da_thay( $tu, $den, $co_so ) {
+	global $wpdb;
+	$bang = khh_dt_bang();
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$ds = (array) $wpdb->get_results(
+		$wpdb->prepare(
+			"SELECT mon FROM $bang WHERE ngay >= %s AND ngay <= %s AND cua_hang = %s",
+			$tu,
+			$den,
+			$co_so
+		),
+		ARRAY_A
+	);
+	$ra = array();
+	foreach ( $ds as $r ) {
+		$mon = json_decode( (string) $r['mon'], true );
+		foreach ( is_array( $mon ) ? $mon : array() as $m ) {
+			$ten = isset( $m['n'] ) ? (string) $m['n'] : '';
+			if ( '' === $ten ) {
+				continue;
+			}
+			$ra[ $ten ] = ( isset( $ra[ $ten ] ) ? $ra[ $ten ] : 0 ) + ( isset( $m['q'] ) ? (float) $m['q'] : 0 );
+		}
+	}
+	ksort( $ra );
+	return $ra;
+}
+
+/* ================================================================== *
  * Thành phần combo
  * ================================================================== */
 
@@ -298,16 +364,28 @@ function khh_dt_kho_trang_thai( $co_so, $den_ngay ) {
 		);
 		foreach ( $mh_ds as $mh ) {
 			if ( ! isset( $tt[ $mh ] ) ) {
-				$tt[ $mh ] = array( 'ton' => 0.0, 'co_moc' => false );
+				/* 🔴 `null` = CHƯA BIẾT TỒN, khác hẳn 0. Bắt đầu từ 0 là sai: hệ chưa hề biết
+				   trên kệ có bao nhiêu, mà cứ trừ số bán ra thì ngày đầu đã ra tồn ÂM. Anh
+				   Thắng mở thử trên điện thoại 20/09/2026 thấy đúng thế — "BIMBIM LỚN −61",
+				   "−139", cả màn toàn số âm. Số âm ấy không sai một cách thú vị, nó chỉ vô
+				   nghĩa: chưa ai đặt mốc thì không có gì để tính. */
+				$tt[ $mh ] = array( 'ton' => null, 'co_moc' => false );
 			}
 			$d     = isset( $khai[ $ng ][ $mh ] ) ? $khai[ $ng ][ $mh ] : array();
 			$nhap  = isset( $d['nhap'] ) ? (float) $d['nhap'] : 0.0;
 			$ctay  = isset( $d['combo_tay'] ) ? (float) $d['combo_tay'] : 0.0;
 			$b_may = isset( $may[ $ng ][ $mh ] ) ? (float) $may[ $ng ][ $mh ] : 0.0;
 
-			$tt[ $mh ]['ton'] = $tt[ $mh ]['ton'] + $nhap - $b_may - $ctay;
+			/* Lượt NHẬP đầu tiên cũng là một mốc: nhập vào kho rỗng thì tồn chính bằng số nhập. */
+			if ( null === $tt[ $mh ]['ton'] && $nhap > 0 ) {
+				$tt[ $mh ]['ton'] = 0.0;
+			}
+			if ( null !== $tt[ $mh ]['ton'] ) {
+				$tt[ $mh ]['ton'] = $tt[ $mh ]['ton'] + $nhap - $b_may - $ctay;
+			}
 
-			/* Đếm tay thắng số tính — đây là chỗ cắt đứt cái lệch cũ. */
+			/* Đếm tay thắng số tính — đây là chỗ cắt đứt cái lệch cũ, và cũng là cách đặt mốc
+			   đầu tiên cho một mặt hàng chưa ai đếm bao giờ. */
 			if ( isset( $d['dem'] ) && null !== $d['dem'] && '' !== $d['dem'] ) {
 				$tt[ $mh ]['ton']    = (float) $d['dem'];
 				$tt[ $mh ]['co_moc'] = true;
@@ -346,19 +424,41 @@ function khh_dt_kho_bang_ngay( $ngay, $co_so ) {
 			$mh_ds[] = $mh;
 		}
 	}
+
+	/* 🔴 LỌC THEO DANH MỤC HÀNG HOÁ CỦA CƠ SỞ. FABi bán cả đồ pha tại chỗ (BẠC XỈU, CACAO
+	   LATTE, COMBO TRÀ CHANH…) — không có kho để đếm. Đổ hết vào sổ thì nhân viên cuộn qua vài
+	   chục dòng vô nghĩa mới tới chai nước, và mấy dòng ấy mãi mãi đỏ vì chẳng ai đếm chúng.
+	   ⚠️ NHƯNG DÒNG ĐÃ KHAI THÌ KHÔNG ĐƯỢC GIẤU, kể cả khi mặt hàng bị bỏ khỏi danh mục: giấu
+	      đi là số người ta đã gõ biến mất khỏi màn mà vẫn nằm trong sổ. Bỏ nhầm một mặt hàng
+	      rồi không hiểu vì sao tồn không khớp là chuyện không ai lần ra. */
+	$chon = khh_dt_kho_mh_cua( $co_so );
+	if ( $chon ) {
+		$mh_ds = array_values(
+			array_filter(
+				$mh_ds,
+				function ( $mh ) use ( $chon, $khai ) {
+					return in_array( $mh, $chon, true ) || isset( $khai[ $mh ] );
+				}
+			)
+		);
+	}
 	sort( $mh_ds );
 
 	$ra = array();
 	foreach ( $mh_ds as $mh ) {
 		$d      = isset( $khai[ $mh ] ) ? $khai[ $mh ] : array();
-		$t_dau  = isset( $dau[ $mh ]['ton'] ) ? (float) $dau[ $mh ]['ton'] : 0.0;
+		/* `null` = chưa ai đặt mốc, nên tồn đầu CHƯA BIẾT. Xem chú thích trong
+		   `khh_dt_kho_trang_thai()` — ép về 0 là ngày đầu cả màn ra số âm. */
+		$t_dau  = ( isset( $dau[ $mh ] ) && null !== $dau[ $mh ]['ton'] ) ? (float) $dau[ $mh ]['ton'] : null;
 		$co_moc = ! empty( $dau[ $mh ]['co_moc'] );
 		$nhap   = isset( $d['nhap'] ) ? (float) $d['nhap'] : 0.0;
 		$c_tay  = isset( $d['combo_tay'] ) ? (float) $d['combo_tay'] : 0.0;
 		$b_le   = isset( $tach[ $mh ]['le'] ) ? (float) $tach[ $mh ]['le'] : 0.0;
 		$b_cb   = isset( $tach[ $mh ]['combo'] ) ? (float) $tach[ $mh ]['combo'] : 0.0;
 		$b_may  = $b_le + $b_cb;
-		$tinh   = $t_dau + $nhap - $b_may - $c_tay;
+		/* Chưa biết tồn đầu thì KHÔNG tính ra tồn cuối. Lượt nhập đầu tiên đặt mốc = 0. */
+		$goc    = ( null === $t_dau && $nhap > 0 ) ? 0.0 : $t_dau;
+		$tinh   = ( null === $goc ) ? null : $goc + $nhap - $b_may - $c_tay;
 
 		$khai_ban = ( isset( $d['ban_khai'] ) && null !== $d['ban_khai'] && '' !== $d['ban_khai'] )
 			? (float) $d['ban_khai'] : null;
@@ -379,7 +479,7 @@ function khh_dt_kho_bang_ngay( $ngay, $co_so ) {
 			'dem'       => $dem,
 			/* `null` khi chưa khai — KHÁC HẲN số 0. Trộn hai thứ là một ô bỏ trống trông y như
 			   một ô đã đếm và đếm đúng, rồi cả sổ xanh mướt trong khi chưa ai đếm gì. */
-			'lech_kho'  => ( null === $dem ) ? null : $dem - $tinh,
+			'lech_kho'  => ( null === $dem || null === $tinh ) ? null : $dem - $tinh,
 			'lech_khai' => ( null === $khai_ban ) ? null : $khai_ban - $b_may,
 			'ghi_chu'   => isset( $d['ghi_chu'] ) ? (string) $d['ghi_chu'] : '',
 			'nguoi'     => isset( $d['nguoi'] ) ? (string) $d['nguoi'] : '',
@@ -514,6 +614,16 @@ function khh_dt_kho_route() {
 	);
 	register_rest_route(
 		'khh-dt/v1',
+		'/kho-mat-hang',
+		array(
+			'methods'             => 'POST',
+			'callback'            => 'khh_dt_rest_kho_mat_hang',
+			/* Đổi danh mục là đổi những gì cả cơ sở phải đếm mỗi ngày — chỉ người được ghi. */
+			'permission_callback' => 'khh_dt_duoc_ghi',
+		)
+	);
+	register_rest_route(
+		'khh-dt/v1',
 		'/kho-combo',
 		array(
 			'methods'             => 'POST',
@@ -541,6 +651,13 @@ function khh_dt_rest_kho_xem( $req ) {
 		'co_so'      => $co_so,
 		'dong'       => khh_dt_kho_bang_ngay( $ngay, $co_so ),
 		'combo'      => khh_dt_kho_combo_bang(),
+		/* Danh mục hàng hoá của cơ sở, và mọi món FABi từng ghi ở đây — để màn bày ra cho chọn. */
+		'mat_hang'   => khh_dt_kho_mh_cua( $co_so ),
+		'mon_da_thay' => khh_dt_kho_mon_da_thay(
+			gmdate( 'Y-m-d', strtotime( $ngay ) - 90 * DAY_IN_SECONDS ),
+			$ngay,
+			$co_so
+		),
 		/* Anh Thắng hỏi "máy có tự tách combo không" — hệ tự trả lời bằng số liệu, xem chú
 		   thích ở `khh_dt_kho_fabi_da_tach()`. */
 		'fabi_da_tach'  => khh_dt_kho_fabi_da_tach(
@@ -587,6 +704,18 @@ function khh_dt_rest_kho_luu( $req ) {
 	$r          = khh_dt_rest_kho_xem( $req );
 	$r['da_ghi'] = $n;
 	return $r;
+}
+
+function khh_dt_rest_kho_mat_hang( $req ) {
+	$co_so = (string) $req->get_param( 'co_so' );
+	if ( '' === $co_so ) {
+		return new WP_Error( 'khh_dt_kho', 'Chưa chọn cơ sở.', array( 'status' => 400 ) );
+	}
+	$tho = $req->get_param( 'ds' );
+	$ds  = is_array( $tho ) ? $tho : json_decode( (string) $tho, true );
+	/* Gửi danh sách RỖNG là hợp lệ — nghĩa là "thôi lọc, bày hết". Không được coi là lỗi. */
+	khh_dt_kho_mh_dat( $co_so, is_array( $ds ) ? $ds : array() );
+	return khh_dt_rest_kho_xem( $req );
 }
 
 function khh_dt_rest_kho_combo( $req ) {

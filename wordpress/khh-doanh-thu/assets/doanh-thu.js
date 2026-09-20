@@ -1275,12 +1275,17 @@
               : '<span class="s">' + soKho(gt) + '</span>') + '</td>';
           };
           /* Số của máy — chỉ để đọc, trên điện thoại thu lại thành mấy con chữ nhỏ nằm một hàng. */
+          /* 🔴 `null` = CHƯA BIẾT, phải hiện "—". In 0 hay in số âm ở đây là bịa ra một con
+             số hệ không hề biết — và anh Thắng đã thấy đúng cảnh ấy: cả màn "−61", "−139".
+             Chưa ai đặt mốc thì không có gì để tính, nói thẳng thế. */
           var oMay = function (nhan, gt, dam) {
-            return '<td class="s o-may" data-nhan="' + esc(nhan) + '">' +
-              (dam ? '<b>' + nguyen(gt) + '</b>' : nguyen(gt)) + '</td>';
+            var t = (gt === null || gt === undefined)
+              ? '<span class="chu-them">—</span>'
+              : (dam ? '<b>' + nguyen(gt) + '</b>' : nguyen(gt));
+            return '<td class="s o-may" data-nhan="' + esc(nhan) + '">' + t + '</td>';
           };
           return '<tr><td class="o-ten" data-nhan="Mặt hàng">' + esc(d.mat_hang) +
-            (d.co_moc ? '' : ' <span class="chip" title="Chưa lần nào đếm tay, nên tồn đầu mới chỉ là số suy ra">chưa có mốc</span>') +
+            (d.co_moc ? '' : ' <span class="chip" title="Chưa ai đếm mặt hàng này bao giờ, nên hệ chưa biết trên kệ có bao nhiêu. Gõ số đếm được vào ô &quot;NV đếm còn&quot; một lần là xong — từ hôm sau hệ tự tính.">đếm 1 lần để đặt mốc</span>') +
             '</td>' +
             oMay('Tồn đầu', d.ton_dau) +
             oNhap('nhap', 'Nhập', d.nhap) +
@@ -1309,10 +1314,46 @@
         'theo mọi ngày sau.</div>';
     }
 
-    if (ghi) { h += veKhoCombo(r.combo || {}); }
+    if (ghi) { h += veKhoMatHang(r); h += veKhoCombo(r.combo || {}); }
     h += '</div>';
     o.innerHTML = h;
     noiKho(o);
+  }
+
+  /* ---- CHỌN MẶT HÀNG CÓ KHO CỦA CƠ SỞ ----
+     Anh Thắng 20/09/2026: *"Phân loại theo cơ sở đang có hàng của mình nhé"*. FABi bán cả
+     BẠC XỈU, CACAO LATTE, COMBO TRÀ CHANH GIÃ TAY — đồ pha tại chỗ, không có kho để đếm. Đổ
+     hết vào sổ thì nhân viên cuộn qua vài chục dòng vô nghĩa mới tới chai nước, và mấy dòng
+     ấy mãi mãi đỏ vì chẳng ai đếm chúng bao giờ. Sổ đỏ vì lý do vớ vẩn là sổ bị bỏ. */
+  function veKhoMatHang(r) {
+    var daThay = r.mon_da_thay || {};
+    var chon = r.mat_hang || [];
+    var ten = Object.keys(daThay);
+    if (!ten.length) return '';
+    return '<details style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)"' +
+      (chon.length ? '' : ' open') + '>' +
+      '<summary style="cursor:pointer"><b>Mặt hàng có kho của cơ sở này</b> — ' +
+      (chon.length
+        ? 'đang theo dõi ' + chon.length + '/' + ten.length + ' món'
+        : '<b>chưa chọn — đang bày hết ' + ten.length + ' món</b>') + '</summary>' +
+      '<div class="chu-them" style="margin-top:6px">Tích những món <b>có hàng để đếm trên kệ</b> ' +
+      '(nước, kẹo, bimbim, đồ chơi…). Bỏ qua đồ pha tại chỗ và combo — không có kho thì không ' +
+      'đếm được, mà để trong sổ thì ngày nào cũng đỏ vì chẳng ai đếm chúng.' +
+      '<br>Số trong ngoặc là <b>số lượng bán 90 ngày qua</b>, để biết món nào đáng theo dõi. ' +
+      'Bỏ tích hết rồi Lưu là thôi lọc, bày lại tất cả.</div>' +
+      '<div style="margin-top:8px;max-height:320px;overflow-y:auto;display:grid;' +
+        'grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:4px 12px">' +
+      ten.map(function (t) {
+        return '<label class="o" style="justify-content:flex-start;gap:7px;padding:6px 8px">' +
+          '<input type="checkbox" data-mh="' + esc(t) + '"' +
+          (chon.indexOf(t) >= 0 ? ' checked' : '') + '>' +
+          '<span>' + esc(t) + ' <span class="chu-them">(' + nguyen(daThay[t]) + ')</span></span></label>';
+      }).join('') +
+      '</div>' +
+      '<div style="margin-top:8px">' +
+        '<button class="nut" type="button" id="mhLuu">Lưu danh mục</button> ' +
+        '<button class="vien" type="button" id="mhHet">Bỏ tích hết</button>' +
+      '</div></details>';
   }
 
   function veKhoCombo(cb) {
@@ -1381,6 +1422,34 @@
           S.khoR = r; veKho(o, r);
         }).catch(function (e) {
           luu.disabled = false; luu.textContent = 'Lưu sổ kho';
+          window.alert(e.message || e);
+        });
+      });
+    }
+
+    var mhH = k.querySelector('#mhHet');
+    if (mhH) {
+      mhH.addEventListener('click', function () {
+        Array.prototype.forEach.call(k.querySelectorAll('[data-mh]'), function (x) { x.checked = false; });
+      });
+    }
+    var mhL = k.querySelector('#mhLuu');
+    if (mhL) {
+      mhL.addEventListener('click', function () {
+        var ds = [];
+        Array.prototype.forEach.call(k.querySelectorAll('[data-mh]'), function (x) {
+          if (x.checked) ds.push(x.getAttribute('data-mh'));
+        });
+        var fd = new FormData();
+        fd.append('co_so', S.kho.cs);
+        fd.append('ngay', S.kho.ngay);
+        fd.append('ds', JSON.stringify(ds));
+        mhL.disabled = true; mhL.textContent = 'Đang lưu…';
+        /* Đổi danh mục là đổi hẳn danh sách dòng của sổ, nên nạp lại cả màn. */
+        api('kho-mat-hang', { method: 'POST', body: fd }).then(function (rr) {
+          S.khoR = rr; veKho(o, rr);
+        }).catch(function (e) {
+          mhL.disabled = false; mhL.textContent = 'Lưu danh mục';
           window.alert(e.message || e);
         });
       });

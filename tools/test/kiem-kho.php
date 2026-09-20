@@ -252,6 +252,81 @@ $d = dong_cua( khh_dt_kho_bang_ngay( '2026-09-01', $CS ), 'Nước suối' );
 phep( 'xoá khai combo thì về đúng 20 chai', 20.0 === (float) $d['ban_may'] );
 phep( 'và hết kêu', array() === khh_dt_kho_tru_hai_lan( '2026-08-01', '2026-09-01', $CS ) );
 
+/* ── 10. 🔴 CHƯA AI ĐẶT MỐC THÌ TỒN ĐẦU LÀ "CHƯA BIẾT", KHÔNG PHẢI SỐ ÂM ──────────────
+      20/09/2026 anh Thắng mở thử trên điện thoại: cả màn toàn số âm — "BIMBIM LỚN −61",
+      "BIMBIM LỚN MIỄN PHÍ −139", "COCA COLA −14". Vì hệ khởi tồn bằng 0 rồi cứ trừ số bán ra,
+      trong khi chưa hề biết trên kệ có bao nhiêu. Số âm ấy không sai một cách thú vị — nó vô
+      nghĩa, mà lại tô đỏ cả sổ làm người ta thôi nhìn cột lệch. */
+dung_bang();
+fabi( '2026-09-01', $CS, array( 'Bimbim lớn' => 61 ) );
+$d = dong_cua( khh_dt_kho_bang_ngay( '2026-09-01', $CS ), 'Bimbim lớn' );
+phep( '🔴 chưa ai đặt mốc: tồn đầu là CHƯA BIẾT, không phải −61', null === $d['ton_dau'] );
+phep( '🔴 và tồn tính cũng chưa biết, không ra số âm', null === $d['ton_tinh'] );
+phep( 'nên cũng không có lệch kho để tô đỏ', null === $d['lech_kho'] );
+phep( 'nhưng số máy bán vẫn hiện bình thường', 61.0 === (float) $d['ban_may'] );
+
+/* 🔴 VÀ PHẢI KIỂM QUA NHIỀU NGÀY, không chỉ ngày đầu.
+   Ngày đầu thì "hôm qua không có dữ liệu" nên tồn đầu null kiểu gì cũng đúng — phép trên đúng
+   kết quả nhưng chưa chạm tới hàm dựng chuỗi tồn. Đã thử: đổi mốc khởi đầu trong
+   `khh_dt_kho_trang_thai()` từ null về 0 mà bài vẫn xanh. Phải có NGÀY THỨ HAI: lúc ấy chuỗi
+   tồn mới chạy thật, và khởi bằng 0 sẽ đẻ ra đúng con số âm anh Thắng nhìn thấy. */
+fabi( '2026-09-02', $CS, array( 'Bimbim lớn' => 78 ) );
+$d2 = dong_cua( khh_dt_kho_bang_ngay( '2026-09-02', $CS ), 'Bimbim lớn' );
+phep( '🔴 sang ngày thứ hai vẫn chưa ai đặt mốc: tồn đầu vẫn là CHƯA BIẾT, không phải −61',
+	null === $d2['ton_dau'] );
+phep( 'và tồn tính ngày thứ hai cũng chưa biết', null === $d2['ton_tinh'] );
+
+/* Nhập kho lần đầu là một mốc: kho rỗng + nhập 100 − bán 61 = 39. */
+khh_dt_kho_ghi( '2026-09-01', $CS, 'Bimbim lớn', array( 'nhap' => 100 ) );
+$d = dong_cua( khh_dt_kho_bang_ngay( '2026-09-01', $CS ), 'Bimbim lớn' );
+phep( '🔴 lượt NHẬP đầu tiên đặt mốc: tồn tính = 100 − 61 = 39', 39.0 === (float) $d['ton_tinh'] );
+
+/* Hoặc đếm tay lần đầu cũng là một mốc, và hôm sau tính tiếp được. */
+dung_bang();
+fabi( '2026-09-01', $CS, array( 'Coca cola' => 14 ) );
+khh_dt_kho_ghi( '2026-09-01', $CS, 'Coca cola', array( 'dem' => 50 ) );
+fabi( '2026-09-02', $CS, array( 'Coca cola' => 10 ) );
+$d = dong_cua( khh_dt_kho_bang_ngay( '2026-09-02', $CS ), 'Coca cola' );
+phep( '🔴 đếm tay lần đầu đặt mốc, hôm sau tính tiếp được: 50 − 10 = 40',
+	50.0 === (float) $d['ton_dau'] && 40.0 === (float) $d['ton_tinh'] );
+phep( 'và mặt hàng ấy nay đã "có mốc"', true === $d['co_moc'] );
+
+/* ── 11. 🔴 PHÂN LOẠI THEO HÀNG HOÁ CƠ SỞ THẬT SỰ CÓ ─────────────────────────────────
+      Anh Thắng: *"Phân loại theo cơ sở đang có hàng của mình nhé"*. FABi bán cả đồ pha tại
+      chỗ — BẠC XỈU, CACAO LATTE, COMBO TRÀ CHANH GIÃ TAY — không có kho để đếm. Đổ hết vào sổ
+      thì nhân viên cuộn qua vài chục dòng vô nghĩa mới tới chai nước. */
+dung_bang();
+fabi( '2026-09-01', $CS, array( 'Nước suối' => 10, 'Bạc xỉu' => 8, 'Cacao latte' => 7 ) );
+phep( 'chưa chọn danh mục thì bày hết', 3 === count( khh_dt_kho_bang_ngay( '2026-09-01', $CS ) ) );
+phep( 'và danh mục đang rỗng', array() === khh_dt_kho_mh_cua( $CS ) );
+
+khh_dt_kho_mh_dat( $CS, array( 'Nước suối' ) );
+$b = khh_dt_kho_bang_ngay( '2026-09-01', $CS );
+phep( '🔴 chọn rồi thì CHỈ bày hàng hoá có kho', 1 === count( $b ) );
+phep( 'và đúng mặt hàng ấy', 'Nước suối' === $b[0]['mat_hang'] );
+
+/* ⚠️ Dòng ĐÃ KHAI thì không được giấu, kể cả khi mặt hàng bị bỏ khỏi danh mục — giấu là số
+   người ta đã gõ biến mất khỏi màn mà vẫn nằm trong sổ. */
+khh_dt_kho_ghi( '2026-09-01', $CS, 'Bạc xỉu', array( 'dem' => 3 ) );
+$b = khh_dt_kho_bang_ngay( '2026-09-01', $CS );
+phep( '🔴 mặt hàng ngoài danh mục MÀ ĐÃ KHAI thì vẫn hiện, không giấu số đã gõ',
+	null !== dong_cua( $b, 'Bạc xỉu' ) );
+phep( 'còn món ngoài danh mục chưa ai khai thì vẫn ẩn', null === dong_cua( $b, 'Cacao latte' ) );
+
+/* Danh mục lưu riêng theo cơ sở. */
+khh_dt_kho_mh_dat( 'Cơ sở khác', array( 'Kẹo' ) );
+phep( 'danh mục của cơ sở này không đụng cơ sở kia',
+	array( 'Nước suối' ) === khh_dt_kho_mh_cua( $CS ) && array( 'Kẹo' ) === khh_dt_kho_mh_cua( 'Cơ sở khác' ) );
+/* Đặt lại danh sách rỗng là "thôi lọc", không phải "ẩn hết". */
+khh_dt_kho_mh_dat( $CS, array() );
+phep( '🔴 danh mục rỗng là THÔI LỌC, bày lại hết — không phải ẩn hết',
+	3 === count( khh_dt_kho_bang_ngay( '2026-09-01', $CS ) ) );
+
+/* Và bảng chọn phải liệt kê đủ món FABi từng ghi ở cơ sở này. */
+$da_thay = khh_dt_kho_mon_da_thay( '2026-08-01', '2026-09-01', $CS );
+phep( 'bày ra đủ món để chọn', 3 === count( $da_thay ) );
+phep( 'kèm số lượng đã bán, để biết món nào đáng đưa vào kho', 10.0 === (float) $da_thay['Nước suối'] );
+
 if ( $hong ) {
 	echo "\n✗ HỎNG " . count( $hong ) . " phép (đạt $dat):\n";
 	foreach ( $hong as $h ) { echo "   · 🔴 $h\n"; }

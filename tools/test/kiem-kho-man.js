@@ -93,7 +93,31 @@ t('🔴 kêu to khi đang TRỪ KHO HAI LẦN', /tru_hai_lan/.test(boCC) && /TR�
 t('nói ra khi FABi đã tự tách sẵn thành phần', /fabi_da_tach/.test(boCC));
 t('🔴 FABi đã tách sẵn thì KHÔNG nhắc đi khai combo nữa (nhắc là xui trừ hai lần)',
   /combo_nghi[\s\S]{0,160}!\(r\.fabi_da_tach/.test(boCC));
-t('mặt hàng chưa từng đếm tay thì gắn nhãn "chưa có mốc"', /chưa có mốc/.test(boCC));
+/* Nhãn phải NÓI VIỆC PHẢI LÀM, không chỉ mô tả trạng thái. "chưa có mốc" thì người trực đọc
+   xong vẫn không biết phải làm gì; "đếm 1 lần để đặt mốc" thì làm được ngay. */
+t('mặt hàng chưa từng đếm tay thì gắn nhãn chỉ rõ việc phải làm',
+  /đếm 1 lần để đặt mốc/.test(boCC));
+
+/* ── 6. chưa biết tồn thì hiện "—", và có chỗ chọn mặt hàng có kho ────────────────── */
+/* 🔴 Anh Thắng mở thử trên điện thoại 20/09/2026: cả màn toàn số âm ("−61", "−139") vì hệ khởi
+   tồn bằng 0 rồi trừ số bán ra, trong khi chưa hề biết trên kệ có bao nhiêu. */
+const mMay = boCC.match(/var oMay = function[\s\S]*?\n          \};/);
+t('cắt được hàm dựng ô số của máy', mMay !== null);
+if (mMay) {
+  t('🔴 chưa biết thì hiện "—", không bịa ra số',
+    /gt === null \|\| gt === undefined/.test(mMay[0]) && /—/.test(mMay[0]));
+}
+t('🔴 có chỗ chọn mặt hàng có kho của cơ sở', /Mặt hàng có kho của cơ sở này/.test(boCC));
+t('màn đọc danh mục và danh sách món đã thấy từ máy chủ',
+  /mat_hang/.test(boCC) && /mon_da_thay/.test(boCC));
+t('mỗi món một ô tích', /data-mh=/.test(boCC));
+t('có nút lưu danh mục và nút bỏ tích hết', /mhLuu/.test(boCC) && /mhHet/.test(boCC));
+t('🔴 chưa chọn danh mục thì khối ấy MỞ SẴN — đó là việc còn dở',
+  /chon\.length \? '' : ' open'/.test(boCC));
+t('bày kèm số lượng đã bán để biết món nào đáng theo dõi',
+  /số lượng bán 90 ngày/.test(boCC));
+t('lưu danh mục xong thì nạp lại cả màn',
+  /api\('kho-mat-hang'[\s\S]{0,200}veKho\(o, rr\)/.test(boCC));
 
 /* ── 5. bày lại thành thẻ dọc trên điện thoại ─────────────────────────────────────── */
 /* 🔴 Sổ kho có 12 cột và ba cột phải gõ. Trên điện thoại bảng như thế thành dải cuộn ngang với
