@@ -316,6 +316,47 @@
     </div>
   </div>
 
+  <!-- 🏪 ĐỔI CƠ SỞ CỦA ĐƠN — MỞ NGAY TRÊN TRANG, KHÔNG HỘP THOẠI.
+       ══════════════════════════════════════════════════════════════════════════════════════
+       🔴 BẢN 1.217.x HỎI BẰNG BA HỘP THOẠI LIÊN TIẾP (`prompt` → `prompt` → `confirm`) VÀ NÓ
+          CHẾT TRÊN ĐIỆN THOẠI. Anh Thắng 20/09/2026 mở bằng Safari trên iPhone: *"Nút đổi đơn
+          chưa chạy"* — bấm vào không thấy gì.
+
+          Safari trên iOS gắn ngay vào hộp thoại thứ nhất một ô "Không cho trang này tạo thêm
+          hộp thoại"; người ta bấm nhầm (hoặc trình duyệt tự chặn) là MỌI hộp sau trả `null`
+          trong im lặng. Luồng ba hộp vì thế đứt giữa chừng mà không một câu lỗi nào — nút
+          trông như hỏng, trong khi mã chạy đúng tới hộp thứ hai rồi dừng.
+
+       ⚠️ ĐÂY KHÔNG PHẢI BÀI HỌC MỚI. `#datKyBox` ngay trên kia đã ghi đúng lý do ấy từ trước:
+          *"hai ô ngày mở ngay trên trang, không hộp thoại"*. Việc này lặp lại lỗi cũ vì lúc
+          dựng chỉ thử trên máy tính. Nay đi theo đúng khuôn của khối kia.
+
+       ⚠️ Ô CHỌN, KHÔNG PHẢI Ô GÕ. Gõ tay chính là cách đẻ ra con cơ sở ảo đang phải dọn. -->
+  <div id="doiCoSoBox" class="card" style="display:none;border-left:4px solid #b45309;background:#fffbeb">
+    <div style="padding:10px 14px">
+      <b>🏪➜ Đổi cơ sở của đơn</b>
+      <div style="font-size:11.5px;color:#8c8781;margin:4px 0 8px">
+        Dời <b>cả đơn</b> — mọi dòng chi và dòng tạm ứng của cơ sở đang chọn — sang một gian có
+        thật. <b>Tiền đi theo</b>, nên sổ của cả hai gian đều đổi. Việc của Admin, và
+        <b>không có nút hoàn tác</b>. Đơn đã quyết toán / đã xuất MISA thì khoá.
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px 16px;align-items:flex-end;font-size:12px">
+        <div class="fld" id="dcsCuWrap" style="display:none"><label>Đổi cơ sở nào</label>
+          <select id="dcsCu" style="min-width:190px"></select></div>
+        <div class="fld"><label>Cơ sở đang đứng</label>
+          <input type="text" id="dcsCuXem" readonly style="min-width:190px;background:#f4f1ec"></div>
+        <div class="fld"><label>Chuyển sang</label>
+          <select id="dcsMoi" style="min-width:210px"></select></div>
+        <div class="fld" style="flex:1;min-width:200px"><label>Vì sao đổi (vào nhật ký đơn)</label>
+          <input type="text" id="dcsLyDo" placeholder="VD: lập nhầm cơ sở"></div>
+      </div>
+      <div style="margin-top:8px">
+        <button class="btn b-g" onclick="chotDoiCoSoDon()">✓ Chuyển đơn sang cơ sở này</button>
+        <button class="btn b-x" onclick="dongDoiCoSoDon()">✕ Thôi</button>
+      </div>
+    </div>
+  </div>
+
   <div class="card" id="donListCard">
     <div class="ch"><h2>📋 Danh sách đơn (<span id="donListCount">0</span>)</h2>
       <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
@@ -2773,50 +2814,64 @@
   function moDoiCoSoDon(){
     if(!(CUR&&CUR.don)) return;
     if(!_laAdmin()){ toast('warn','Chỉ Admin đổi cơ sở của đơn được'); return; }
-    var m=CUR.don.maDon;
-    /* ⚠️ `CUR.don.…`, KHÔNG PHẢI `CUR.cosoTrongDon`. Gói `getDon` trả về có hai tầng: `CUR` là
-       cả gói (đơn · dòng chi · đối chiếu…), còn các ô của chính cái đơn nằm trong `CUR.don` —
-       xem `CUR.don.cosoDon` ngay cạnh. Bản đầu của nút này đọc thiếu một tầng nên `dsCu` luôn
-       rỗng, và nút báo "Đơn này chưa có dòng nào mang cơ sở" ĐÚNG TRÊN CÁI ĐƠN đang hiện rõ
-       cơ sở FZ_SC_VIVO_T4 và 6.136.000đ tạm ứng. Đọc hụt một tầng thì `undefined||[]` ra mảng
-       rỗng — không lỗi, không cảnh báo, chỉ là một câu chối vô lý. */
+    /* ⚠️ `CUR.don.…`, KHÔNG PHẢI `CUR.cosoTrongDon`. Gói `getDon` có hai tầng: `CUR` là cả gói
+       (đơn · dòng chi · đối chiếu…), còn các ô của chính cái đơn nằm trong `CUR.don` — xem
+       `CUR.don.cosoDon` ngay cạnh. Bản 1.217.0 đọc hụt một tầng nên `undefined||[]` ra mảng
+       rỗng, và nút chối ngay cái đơn nó phải sửa. */
     var dsCu=((CUR.don&&CUR.don.cosoTrongDon)||[]);
     if(!dsCu.length){ toast('warn','Đơn này chưa có dòng nào mang cơ sở'); return; }
-    var cu=dsCu[0];
-    if(dsCu.length>1){
-      var c1=prompt('Đơn '+m+' đang có '+dsCu.length+' cơ sở.\n\n'
-        +'Đổi cơ sở NÀO? Gõ số thứ tự:\n\n'
-        +dsCu.map(function(x,i){return (i+1)+'. '+x;}).join('\n'), '1');
-      if(c1===null) return;
-      var j=parseInt(String(c1).trim(),10)-1;
-      if(!(j>=0&&dsCu[j])){ toast('warn','Số thứ tự không có trong danh sách'); return; }
-      cu=dsCu[j];
-    }
-    var ds=(CFG.coso||[]).map(function(x){return x.ten;}).filter(function(x){ return x&&x!==cu; });
+    var ds=(CFG.coso||[]).map(function(x){return x.ten;}).filter(Boolean);
     if(!ds.length){ toast('err','Danh mục cơ sở đang trống — khai ở Cấu hình → 🏢 Mã đơn vị theo Cơ sở trước'); return; }
-    var chon=prompt('Đơn '+m+' — chuyển cơ sở:\n\n    '+cu+'   ➜   ?\n\n'
-      +'Gõ SỐ THỨ TỰ cơ sở đích:\n\n'
-      +ds.map(function(x,i){return (i+1)+'. '+x;}).join('\n'), '1');
-    if(chon===null) return;
-    var i=parseInt(String(chon).trim(),10)-1;
-    if(!(i>=0&&ds[i])){ toast('warn','Số thứ tự không có trong danh sách'); return; }
-    var moi=ds[i];
-    var lyDo=prompt('Lý do đổi (ghi vào lịch sử chỉnh đơn):', 'Lập nhầm cơ sở');
-    if(lyDo===null) return;
+    var o=el('doiCoSoBox'); if(!o){ toast('err','Thiếu khối đổi cơ sở'); return; }
+    /* Đơn ghép nhiều gian mới bày ô chọn gian nguồn. Đơn một gian thì bày ô CHỈ ĐỂ ĐỌC — có
+       thêm một ô chọn chỉ một dòng là mời bấm vào rồi chẳng để làm gì. */
+    var nhieu=dsCu.length>1;
+    el('dcsCuWrap').style.display=nhieu?'':'none';
+    el('dcsCuXem').parentNode.style.display=nhieu?'none':'';
+    el('dcsCu').innerHTML=dsCu.map(function(x){return '<option value="'+esc(x)+'">'+esc(x)+'</option>';}).join('');
+    el('dcsCuXem').value=dsCu[0]||'';
+    el('dcsCu').onchange=_dcsLocDich;
+    el('dcsLyDo').value='';
+    _dcsLocDich();
+    o.style.display='';
+    try{ o.scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){}
+  }
+  /** Ô đích bày mọi gian trong danh mục TRỪ chính gian đang đứng — chọn nó là một cú bấm vô nghĩa. */
+  function _dcsLocDich(){
+    var cu=_dcsCosoCu();
+    var ds=(CFG.coso||[]).map(function(x){return x.ten;})
+      .filter(function(x){ return x && String(x).toLowerCase()!==String(cu).toLowerCase(); });
+    el('dcsMoi').innerHTML=ds.map(function(x){return '<option value="'+esc(x)+'">'+esc(x)+'</option>';}).join('');
+  }
+  function _dcsCosoCu(){
+    var w=el('dcsCuWrap');
+    return (w && w.style.display!=='none') ? String(el('dcsCu').value||'') : String(el('dcsCuXem').value||'');
+  }
+  function dongDoiCoSoDon(){ var o=el('doiCoSoBox'); if(o) o.style.display='none'; }
+  function chotDoiCoSoDon(){
+    if(!(CUR&&CUR.don)) return;
+    var m=CUR.don.maDon, cu=_dcsCosoCu(), moi=String(el('dcsMoi').value||'');
+    if(!cu){ toast('warn','Chưa rõ cơ sở đang đứng'); return; }
+    if(!moi){ toast('warn','Chưa chọn cơ sở đích'); return; }
+    /* 🔴 MỘT HỘP XÁC NHẬN THÔI, VÀ LÀ HỘP CUỐI. Việc này dời tiền sang sổ gian khác và không có
+       đường về, nên vẫn phải có một cái gật. Một hộp thì iOS không chặn; chuỗi ba hộp mới là
+       thứ nó cắt giữa chừng (xem chú thích ở khối `#doiCoSoBox`). */
     if(!confirm('Chuyển đơn '+m+'\n\n    '+cu+'\n  ➜ '+moi+'\n\n'
-      +'Mọi dòng chi và dòng tạm ứng của cơ sở "'+cu+'" trong đơn này sẽ sang "'+moi+'".\n'
+      +'Mọi dòng chi và dòng tạm ứng của "'+cu+'" trong đơn này sẽ sang "'+moi+'".\n'
       +'Tiền đi theo — sổ của hai gian đều đổi. Không có nút hoàn tác.')) return;
     loading(true);
     google.script.run.withSuccessHandler(function(r){ loading(false);
       if(r&&r.success){
+        dongDoiCoSoDon();
         toast('ok','Đã chuyển '+(r.dongChi||0)+' dòng chi'+(r.tamUng?' · cả dòng tạm ứng':'')
           +' sang "'+(r.cosoMoi||moi)+'"');
         _log('Đổi cơ sở của đơn', m, (r.cosoCu||cu)+' -> '+(r.cosoMoi||moi));
         openDon(m); boot();
       } else toast('err',(r&&r.error)||'Lỗi');
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);})
-      .doiCoSoDon(m, moi, cu, String(lyDo||''));
+      .doiCoSoDon(m, moi, cu, String(el('dcsLyDo').value||''));
   }
+
   function moChuyenKy(){
     if(!(CUR&&CUR.don)) return;
     var m=CUR.don.maDon;
