@@ -271,6 +271,20 @@
        ⚠️ CHỈ THỨ THẤP MỚI ĐƯỢC DÍNH. `#donBar` nay chỉ còn hàng nút (một hàng), đúng thứ sticky
           sinh ra để giữ: đang xem giữa trang vẫn đổi đơn và bấm nút được. Hàng 2 là thứ để ĐỌC,
           đọc xong thì cuộn qua — không có lý do gì dính. -->
+  <!-- 🏢 THANH KHỐI — KVC · MTĐ · VP. Anh Thắng 19/09/2026: *"Chia 3 tab (KVC, MTĐ, VP). Hiện
+       khu vui chơi đã có 2 tab con là chi phí kỹ thuật và chi phí cơ sở"*.
+       ⚠️ ĐỨNG NGOÀI `#donBar` (thanh dính). Khối là thứ chọn một lần rồi làm việc cả buổi, còn
+          thanh dính chỉ nên chứa nút thao tác — và `#donBar` cao quá màn thì cả trang không
+          cuộn được nữa (bài học 06/09/2026, xem chú thích ở hàng 2). -->
+  <div class="wrap" style="padding-top:0;padding-bottom:0">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 8px">
+      <span style="font-size:11.5px;color:#8c8781;font-weight:700;letter-spacing:.3px">KHỐI</span>
+      <span id="khoiBar" style="display:flex;gap:6px;flex-wrap:wrap"></span>
+    </div>
+    <div id="khoiNhac" style="display:none;margin:0 0 10px;padding:9px 13px;border-radius:10px;
+         background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:12.5px"></div>
+  </div>
+
   <div class="don-hang2 db-hang2">
       <span id="donBadge"></span>
       <!-- 🔴 LỊCH SỬ CHỈNH ĐƠN, ĐẶT NGAY CẠNH DẢI TRẠNG THÁI.
@@ -2515,8 +2529,86 @@
    *    và cửa mở/sửa từng đơn thì `loi_khong_phai_don_minh()` gác riêng ở máy chủ. Giấu ở màn
    *    chưa bao giờ là chốt — nó chỉ là lớp sơn, xem chú thích ở `loi_khong_phai_don_minh()`.
    * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * THANH KHỐI — KVC · MTĐ · VP
+   * ══════════════════════════════════════════════════════════════════════════════════════════
+   * Anh Thắng 19/09/2026: *"Chia 3 tab (KVC, MTĐ, VP). Hiện khu vui chơi đã có 2 tab con là chi
+   * phí kỹ thuật và chi phí cơ sở"*, và chốt GỘP THẬT làm một app.
+   *
+   * 🔴 LỌC Ở ĐÚNG MỘT CHỖ. `_donHienDuoc()` là chốt dùng chung cho CẢ ô "Chọn đơn" lẫn bảng
+   *    Danh sách đơn — chú thích ngay chỗ gọi đã ghi: *"hai chỗ lọc khác nhau là danh sách đơn
+   *    và ô Chọn đơn hiện hai tập khác nhau, mà người dùng thì tưởng mình mất đơn"*. Gắn khối
+   *    vào đó thì cả hai theo cùng một luật, khỏi phải nhớ hai nơi.
+   *
+   * ⚠️ ĐƠN CHƯA CÓ DẤU KHỐI THÌ VẪN HIỆN. Đơn lập trước ngày mở cột đã được `lap_khoi()` lấp
+   *    sẵn, nhưng một bản ghi lọt lưới mà bị ẩn là tiền có thật không tab nào thấy — hỏng theo
+   *    hướng MẤT DỮ LIỆU. Cho hiện ở mọi khối là hỏng theo hướng thừa, nhìn thấy được và sửa
+   *    được.
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  var KHOI_DS=[{ma:'kvc',ten:'Khu vui chơi'},{ma:'mtd',ten:'Máy tự động'},{ma:'vp',ten:'Văn phòng'}];
+  var KHOI_DANG=(function(){
+    try{ var v=localStorage.getItem('vhcpvp_khoi'); if(v) return String(v); }catch(e){}
+    return (window.BOOT&&BOOT.khoiBan)||'kvc';
+  })();
+  function _khoiCua(d){ return String((d&&d.khoi)||'').trim().toLowerCase(); }
+  function _hopKhoi(d){
+    var k=_khoiCua(d);
+    return k==='' || k===String(KHOI_DANG).toLowerCase();   // chưa có dấu -> hiện ở mọi khối
+  }
+  function doiKhoi(ma){
+    KHOI_DANG=String(ma||'kvc');
+    try{ localStorage.setItem('vhcpvp_khoi', KHOI_DANG); }catch(e){}
+    veThanhKhoi();
+    /* Đổi khối là đổi tập đơn, nên đơn đang mở có thể không còn thuộc khối này — đóng lại,
+       đừng để mọi nút Sửa/Xoá trên màn nhắm vào một đơn của khối khác. */
+    CUR=null; if(el('donSel')) el('donSel').value='';
+    try{ renderDonList(); _syncDonView(); }catch(e){}
+    try{ if(typeof loadDuAn==='function' && CUR_PAGE==='duan') loadDuAn(); }catch(e){}
+    var d=_myDons();
+    if(el('donSel')) el('donSel').innerHTML='<option value="">— Chọn đơn —</option>'+d.map(function(x){
+      return '<option value="'+esc(x.maDon)+'">'+esc(x.ky||x.maDon)+(x.coso?' · '+esc(x.coso):'')+(x.nguoiLap?' · '+esc(x.nguoiLap):'')+' · '+esc(x.trangThai)+' · CL '+money(x.chenhLech)+'đ</option>';}).join('');
+  }
+  function veThanhKhoi(){
+    var o=el('khoiBar'); if(!o) return;
+    var dem={};
+    (BOOT.dons||[]).forEach(function(d){ var k=_khoiCua(d)||'(chưa)'; dem[k]=(dem[k]||0)+1; });
+    o.innerHTML=KHOI_DS.map(function(x){
+      var dang=(String(KHOI_DANG).toLowerCase()===x.ma);
+      var n=dem[x.ma]||0;
+      return '<button type="button" class="btn '+(dang?'b-g':'b-x')+'" onclick="doiKhoi(\''+x.ma+'\')" '
+        +'style="font-weight:'+(dang?'700':'500')+'">'+esc(x.ten)
+        +' <span style="opacity:.7;font-size:11px">'+n+'</span></button>';
+    }).join('');
+    /* ⚠️ KHỐI RỖNG THÌ NÓI VÌ SAO. Máy Tự Động và Văn Phòng còn là hai plugin riêng cho tới
+       bước dời dữ liệu — mở tab ra thấy trắng mà không có lời nào thì trông y như hỏng. */
+    var ten=(KHOI_DS.filter(function(x){return x.ma===String(KHOI_DANG).toLowerCase();})[0]||{}).ten||KHOI_DANG;
+    var n=dem[String(KHOI_DANG).toLowerCase()]||0;
+    var nh=el('khoiNhac');
+    if(nh){
+      nh.innerHTML = n ? '' : ('Khối <b>'+esc(ten)+'</b> chưa có đơn nào trong kho này. '
+        + (String(KHOI_DANG).toLowerCase()==='kvc' ? 'Bấm <b>＋ Tạo đơn mới</b> để lập đơn đầu tiên.'
+           : 'Dữ liệu ' + esc(ten) + ' hiện còn nằm ở plugin riêng — sẽ dời về đây ở bước sau.'));
+      nh.style.display = n ? 'none' : '';
+    }
+  }
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * 🔴 HAI THỨ NÀY PHẢI TÁCH HẲN, ĐỪNG GỘP.
+   * ══════════════════════════════════════════════════════════════════════════════════════════
+   * `_trongPhamVi()` là chốt PHẠM VI QUYỀN, và nó cố ý trả `true`: máy chủ đã lọc rồi, màn KHÔNG
+   * lọc lại. Hai bản luật phân quyền chỉ cần lệch một vế là màn GIẤU mất đơn mà máy chủ vẫn cho
+   * xem — im lặng, không câu lỗi nào. Đã xảy ra thật (14/09/2026), và `kiem-app-js.py` canh
+   * đúng dòng này.
+   *
+   * `_hopKhoi()` là chốt CHỌN TAB — người dùng tự bấm, tự đổi lại được, và thanh khối hiện SỐ
+   * ĐƠN của từng khối nên không có gì bị giấu lặng lẽ. Khác hẳn về bản chất.
+   *
+   * ⚠️ NHÉT KHỐI VÀO `_trongPhamVi()` LÀ HỎNG CẢ HAI: vừa phá cái guard kia, vừa khiến người sau
+   *    tưởng khối là chuyện quyền hạn rồi đi thêm luật vào đó.
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
   function _trongPhamVi(d){ return true; }
-  function _myDons(){ return _sapDon((BOOT.dons||[]).filter(_trongPhamVi)); }
+  /** Đơn có được BÀY RA ở màn lúc này không = trong quyền VÀ thuộc khối đang chọn. */
+  function _donHienDuoc(d){ return _trongPhamVi(d) && _hopKhoi(d); }
+  function _myDons(){ return _sapDon((BOOT.dons||[]).filter(_donHienDuoc)); }
   /** "T8/2026 (17/8-23/8/2026)" -> "T8/2026" (tháng) — phần trước dấu ngoặc. */
   function _thangCuaKy(ky){ return String(ky||'').split(' (')[0].trim(); }
   /**
@@ -3062,7 +3154,10 @@
       fillNhom(''); setProducts(BOOT.products); fillDoiTuongList();
       /* Cùng một luật với `_myDons()` — hai chỗ lọc khác nhau là danh sách đơn và ô "Chọn đơn"
          hiện hai tập khác nhau, mà người dùng thì tưởng mình mất đơn. */
-      var dons=_sapDon((b.dons||[]).filter(_trongPhamVi));
+      /* Vẽ thanh khối TRƯỚC khi lọc: nó đếm trên `BOOT.dons` (chưa lọc) để mỗi nút hiện đúng
+         số đơn của khối ấy — lọc trước thì hai nút kia luôn hiện 0. */
+      try{ veThanhKhoi(); }catch(e){}
+      var dons=_sapDon((b.dons||[]).filter(_donHienDuoc));
       el('donSel').innerHTML='<option value="">— Chọn đơn —</option>'+dons.map(function(d){
         return '<option value="'+esc(d.maDon)+'">'+esc(d.ky||d.maDon)+(d.coso?' · '+esc(d.coso):'')+(d.nguoiLap?' · '+esc(d.nguoiLap):'')+' · '+esc(d.trangThai)+' · CL '+money(d.chenhLech)+'đ</option>';}).join('');
       renderDonList(dons);
@@ -5092,7 +5187,11 @@
   function loadDuAn(){ _ensureLoaiCp(function(){ _reFillLoai('da_loaicp', _daCoso(), 'da_httt'); daTkHint(); }); loading(true);
     google.script.run.withSuccessHandler(function(r){ loading(false);
       if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
-      DA_ITEMS=r.items||[];
+      /* 🔴 DỰ ÁN CŨNG LỌC THEO KHỐI, và lọc NGAY TẠI NGUỒN (`DA_ITEMS`) chứ không ở chỗ vẽ:
+         `DA_ITEMS` còn được mấy màn khác đọc lại, lọc ở chỗ vẽ là mỗi màn một tập.
+         ⚠️ Dự án chưa có dấu khối thì vẫn hiện — cùng luật với `_hopKhoi()` bên đơn: ẩn một
+            bản ghi lọt lưới là tiền có thật mà không tab nào thấy. */
+      DA_ITEMS=(r.items||[]).filter(_hopKhoi);
       _daNapCoSoDs(r.coso);
       // bộ lọc: NV thấy "Đang xử lý"; kế toán/quản lý/admin xem thêm "Chờ duyệt" & "Đã đóng"
       var canClosed=['Admin','Quản lý','Kế toán cá nhân','Kế toán NCC'].indexOf((CURUSER&&CURUSER.role)||'')>=0;
