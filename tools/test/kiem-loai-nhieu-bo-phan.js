@@ -64,22 +64,34 @@ const DS = [
   { ten: 'Chi phí quảng cáo', boPhan: 'Marketing' },
   { ten: 'Chi phí điện nước', boPhan: '' },                  // chưa khai -> dùng chung
 ];
-teq('🔴 người Kỹ thuật thấy loại khai "Kỹ thuật, Setup"',
-  ['Chi phí setup', 'Chi phí tháo dỡ', 'Chi phí điện nước'], loc('Kỹ thuật', DS));
-teq('🔴 người Setup CŨNG thấy loại ấy — đây là chỗ bản cũ làm ô trống trơn',
-  ['Chi phí setup', 'Chi phí điện nước'], loc('Setup', DS));
-teq('   người Marketing thấy phần của mình', ['Chi phí quảng cáo', 'Chi phí điện nước'], loc('Marketing', DS));
-teq('🔴 loại CHƯA khai bộ phận hiện cho mọi người (sổ cũ còn nhiều dòng như thế)',
-  ['Chi phí điện nước'], loc('Công tác', DS));
-teq('🔴 người không bị bó bộ phận → thấy hết',
-  ['Chi phí setup', 'Chi phí tháo dỡ', 'Chi phí quảng cáo', 'Chi phí điện nước'], loc('', DS));
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 TỪ 20/09/2026: Ô CHỌN LOẠI KHÔNG CÒN CẮT THEO BỘ PHẬN CỦA NGƯỜI ĐĂNG NHẬP
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng: *"Vừa phân theo bộ phận, vừa phân theo mảng. Dẫn đến xung đột — chọn mảng thì sai,
+ * bộ phận cũng không có"*, rồi chốt bỏ trục bộ phận khỏi ô nhập.
+ *
+ * Mấy phép dưới đây TRƯỚC ĐÂY đòi ngược lại ("người Kỹ thuật chỉ thấy loại Kỹ thuật"). Chúng
+ * sinh ra ngày 10/09 khi cột Bộ phận vừa được dùng để LỌC — và đúng ở thời điểm ấy. Nay cột ấy
+ * đổi vai: nó chỉ còn để DỰNG mấy nút "Chọn chi phí nào" (Cơ sở · Văn phòng · Setup…), tức
+ * người nhập TỰ CHỌN thay vì bị cắt ngầm theo danh tính.
+ *
+ * ⚠️ Ý 10/09 KHÔNG MẤT — nó chuyển chỗ: một loại vẫn khai được nhiều bộ phận, và `_bpTach()`
+ *    vẫn phải tách đúng (mấy phép ngay trên vẫn canh). Chỉ khác: danh sách ấy nay quyết định
+ *    loại nằm dưới NÚT nào, không quyết định AI thấy nó.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+const HET = ['Chi phí setup', 'Chi phí tháo dỡ', 'Chi phí quảng cáo', 'Chi phí điện nước'];
+teq('🔴 người Kỹ thuật thấy ĐỦ danh mục — bộ phận thôi cắt ngầm', HET, loc('Kỹ thuật', DS));
+teq('🔴 người Setup cũng thấy đủ', HET, loc('Setup', DS));
+teq('   người Marketing cũng thế', HET, loc('Marketing', DS));
+teq('🔴 người Công tác cũng thế — trước đây chỉ thấy đúng một loại', HET, loc('Công tác', DS));
+teq('🔴 người không bị bó bộ phận → vẫn thấy hết (không đổi)', HET, loc('', DS));
 
-/* 🔴 Ca đúng như ảnh anh Thắng gửi: mọi loại đều khai bộ phận khác -> ô trống trơn, và từ bản
-   bỏ ô "Nội dung hạng mục" thì trống nghĩa là không nhập được dòng nào. */
-teq('người Kỹ thuật mà danh mục toàn loại của bộ phận khác → ô trống (đúng, nhưng là dấu hiệu khai thiếu)',
-  [], loc('Kỹ thuật', [{ ten: 'Chi phí quảng cáo', boPhan: 'Marketing' }]));
-teq('🔴 khai thêm Kỹ thuật vào chính loại ấy là ô có ngay, không phải đẻ loại trùng tên',
-  ['Chi phí quảng cáo'], loc('Kỹ thuật', [{ ten: 'Chi phí quảng cáo', boPhan: 'Marketing, Kỹ thuật' }]));
+/* 🔴 CA TỪNG LÀM Ô TRỐNG TRƠN — đúng ảnh anh Thắng gửi 10/09: danh mục toàn loại của bộ phận
+   khác. Trước đây ra rỗng, và từ bản bỏ ô "Nội dung hạng mục" thì rỗng nghĩa là KHÔNG NHẬP
+   ĐƯỢC DÒNG NÀO. Nay không còn cửa nào dẫn tới cảnh ấy. */
+teq('🔴 danh mục toàn loại bộ phận khác → VẪN chọn được, không còn ô trống trơn',
+  ['Chi phí quảng cáo'], loc('Kỹ thuật', [{ ten: 'Chi phí quảng cáo', boPhan: 'Marketing' }]));
+
 
 /* ── 3. 🔴 CHƯA KHAI MÃ VẪN HIỆN, NẾU ĐÃ KHAI BỘ PHẬN ──────────────────────────────────── */
 const DS2 = [
@@ -94,7 +106,11 @@ teq('🔴 nhưng dòng RÁC từ sổ cũ (không bộ phận, không mã) vẫn
 teq('   khai mã cho nó thì hiện, như trước',
   ['Chi phí tháo dỡ', 'Chi phí setup', 'Vật tư và tiếp khách từ 18-26/7'],
   loc('', DS2, ['Chi phí tháo dỡ', 'Vật tư và tiếp khách từ 18-26/7']));
-teq('   người bộ phận khác vẫn không thấy loại của Kỹ thuật', [], loc('Marketing', DS2, ['Chi phí tháo dỡ']));
+/* 🔴 VÀ NGƯỜI BỘ PHẬN KHÁC NAY CŨNG THẤY — phép này trước đòi `[]`. Cắt ngầm theo danh tính đã
+   bỏ (20/09/2026); thứ còn cắt là MÃ theo mảng và nút "Chọn chi phí nào", cả hai đều nhìn thấy
+   được và đều có dòng nhắc kể lý do. */
+teq('🔴 người bộ phận khác NAY CŨNG thấy — bộ phận thôi cắt ngầm',
+  ['Chi phí tháo dỡ', 'Chi phí setup'], loc('Marketing', DS2, ['Chi phí tháo dỡ']));
 
 /* ═════════════════════════════════════════════════════════════════════════════════════════ */
 if (TRUOT.length) {
