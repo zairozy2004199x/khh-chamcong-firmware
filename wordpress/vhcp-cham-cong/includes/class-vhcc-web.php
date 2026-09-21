@@ -12008,6 +12008,10 @@ class VHCC_Web {
 			. '4/2026"</b>, mỗi <b>ngày</b> một dòng, mỗi <b>người</b> ba cột '
 			. '<b>Check in · Check out · Số giờ làm</b>. Gửi thẳng tệp .xlsx, không cần lưu lại '
 			. 'thành .csv, không cần chép tay ô nào.</p>';
+		/* Chỉ đường NGƯỢC LẠI — xem chú thích cùng cặp ở `VHCC_WebDonTuan`. */
+		echo '<p class="mo">⚠️ Đây <b>không phải</b> chỗ nạp lại tệp do hệ tải ra ở '
+			. '<b>Đơn từ → Sửa bảng công tháng bằng Excel</b> (tệp ấy mỗi <b>người</b> một dòng '
+			. 'và có cột KHOÁ). Khối này dành cho bảng <b>tự làm</b>, hệ chưa từng thấy.</p>';
 		echo '<p class="mo">Hai cụm cột của cùng một người trong cùng một ngày (kiểu '
 			. '<b>"K.Oanh"</b> và <b>"K.Oanh (LT)"</b>) được hiểu là <b>hai ca</b>. Khoảng trống '
 			. 'giữa hai ca ghi vào ô <b>nghỉ giữa ca</b> nên <b>không</b> bị tính công — nối '
