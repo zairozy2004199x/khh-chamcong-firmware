@@ -28,7 +28,7 @@
  *        (`class-vhjp-nguon.php`) · sinh mã bản ghi (`class-vhjp-ma.php`) · đăng nhập PIN và
  *        phiên làm việc (`class-vhjp-auth.php`) · nhật ký thao tác (`class-vhjp-nhat-ky.php`)
  *        · danh mục (`class-vhjp-cau-hinh.php`) · cổng dịch `google.script.run`
- *        (`class-vhjp-cong.php`).
+ *        (`class-vhjp-cong.php`) · tính tiền dòng máy tiền (`class-vhjp-tinh.php`).
  * Chưa:  90 / 100 hàm máy chủ — `VHJP_Cong::chua_lam()` khai đủ tên, và
  *        `tools/test/kiem-jp-cong.php` đếm lại mỗi lượt chạy. Nặng nhất còn lại: tính tiền +
  *        17 cảnh báo W1–W17 · báo cáo · duyệt · ảnh · đối soát ngân hàng · kho hai tầng.
@@ -70,6 +70,7 @@ require_once VHJP_DIR . 'includes/class-vhjp-ma.php';
 require_once VHJP_DIR . 'includes/class-vhjp-nhat-ky.php';
 require_once VHJP_DIR . 'includes/class-vhjp-auth.php';
 require_once VHJP_DIR . 'includes/class-vhjp-cau-hinh.php';
+require_once VHJP_DIR . 'includes/class-vhjp-tinh.php';
 require_once VHJP_DIR . 'includes/class-vhjp-cong.php';
 require_once VHJP_DIR . 'includes/class-vhjp-tu-cap-nhat.php';
 
