@@ -19,6 +19,7 @@ set -euo pipefail
 REPO="zairozy2004199x/khh-chamcong-firmware"
 # Mỗi plugin nằm ở một nhánh khác nhau; lệnh con bên dưới tự khai nhánh của nó.
 # Đặt TREN_HOST_NHANH thì mọi lệnh đều lấy theo nhánh đó (dùng khi thử bản nháp).
+NHANH_SCRIPT="claude/chao-em-iiyx5i"   # nhánh giữ chính script này
 
 CHON="${1:-}"
 
@@ -124,9 +125,15 @@ GOC="$(find "$TAM" -maxdepth 1 -type d -name "$(basename "$REPO")-*" | head -1)"
 # raw.githubusercontent.com cache 5 phút và bỏ qua mọi tham số phá cache, nên
 # curl lại script ngay sau khi nó vừa đổi là lấy đúng bản cũ. Tarball thì không
 # cache, mà trong đó đã có sẵn bản mới của chính script này — dùng luôn.
+#
+# CHỈ lấy từ nhánh gốc của script. Các nhánh khác cũng có tệp trùng tên
+# tools/tren-host.sh nhưng là script hoàn toàn khác; cài plugin ở nhánh đó mà
+# cứ thấy khác là thay thì script tự biến thành thứ khác giữa chừng — đúng lỗi
+# này đã xảy ra khi thêm lệnh 'chiphi'.
 TOI="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 MOI="$GOC/tools/$(basename "$0")"
-if [ "${TREN_HOST_DA_TU_CAP_NHAT:-}" != "1" ] && [ -f "$MOI" ] && ! cmp -s "$MOI" "$TOI"; then
+if [ "$NHANH" = "$NHANH_SCRIPT" ] && [ "${TREN_HOST_DA_TU_CAP_NHAT:-}" != "1" ] \
+   && [ -f "$MOI" ] && ! cmp -s "$MOI" "$TOI"; then
   echo "→ Có bản script mới, đang cập nhật rồi chạy lại..."
   cp "$MOI" "$TOI"
   TREN_HOST_DA_TU_CAP_NHAT=1 exec bash "$TOI" "$@"
