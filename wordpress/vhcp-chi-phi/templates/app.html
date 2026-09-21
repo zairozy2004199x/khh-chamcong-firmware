@@ -1221,6 +1221,9 @@
       <button class="btn b-x" id="qtXemTuan" onclick="qtDoiXem('tuan')" title="Xổ theo tuần/kỳ kèm hàng đối chiếu quỹ (dư kỳ trước → giải ngân thêm)">📅 Theo tuần / kỳ</button>
       <button class="btn b-x" onclick="loadQT()">↻ Tải lại</button>
     </div>
+    <!-- Dải bàn giao: nói cho kế toán khối KHÔNG tự xuất MISA biết đơn mình duyệt đi đâu.
+         Xem chốt ở `renderQtBanGiao()`. -->
+    <div id="qtBanGiao" style="display:none;margin:0 0 10px;padding:8px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;font-size:12px;color:#1e40af"></div>
 
     <div class="card" id="qtCardCho">
       <div class="ch">
@@ -1419,6 +1422,9 @@
       </div>
       <div id="xuatWarn" style="display:none;margin:10px 14px;padding:10px 12px;background:#fef9c3;color:#854d0e;border-radius:8px;font-size:12px"></div>
       <div style="padding:8px 14px;font-size:12px;color:#64748b">Số đơn: <b id="xuatSoDon">0</b> · Số dòng hạch toán: <b id="xuatSoDong">0</b></div>
+      <!-- Dải bàn giao: đơn của khối khác đã duyệt quyết toán xong và chuyển sang đây để xuất.
+           Bàn giao mà im lặng thì y như không bàn giao — xem chốt ở `renderXuatBanGiao()`. -->
+      <div id="xuatBanGiao" style="display:none;margin:0 14px 10px;padding:8px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;font-size:12px;color:#1e40af"></div>
       <div class="tw" style="max-height:62vh;overflow:auto">
         <table id="xuatTable" style="min-width:1150px"><thead id="xuatHead"></thead><tbody id="xuatBody"></tbody></table>
         <div class="empty" id="xuatEmpty">Chưa có đơn "Đã quyết toán" để xuất.</div>
@@ -2467,6 +2473,11 @@
        để MỞ THÊM. */
     if(canDo('donDuAn')) vis.duan=1;
     if(canDo('donCoSo')) vis.don=1;
+    /* 🔴 CẮT Ở ĐÂY MỚI ĂN. Bảng `vis` trên tra theo VAI GỐC, nên "Kế Toán Máy Tự Động" thừa
+       hưởng `xuat:1` của "Kế toán cá nhân" — mà anh Thắng 21/09/2026: *"kế toán máy tự động
+       chỉ check chứ ko đẩy misa"*. `_applyTabPerms()` chỉ CỘNG THÊM tab, nó không cắt được
+       cái đã bật ở đây. Xem `_xuatMisaDuoc()`. */
+    if(!_xuatMisaDuoc()) vis.xuat=0;
     ['tongquan','don','sochi','duan','mkt','congtac','setup','vhtuan','trama','duyet','qt','tattoan','xuat','cauhinh','log'].forEach(function(x){
       var hien=(vis[x]&&!BO_TAB[x]);
       var t=el('tab-'+x); if(t) t.style.display=hien?'inline-block':'none';
@@ -2685,6 +2696,10 @@
        thấy gian của khối cũ, và kết luận là lọc không chạy.
        ⚠️ Gọi `_daLocLaiGian()`, KHÔNG gọi `_daNapCoSoDs(null)` — `null` ở hàm kia nghĩa là DỌN SẠCH. */
     try{ if(typeof _daLocLaiGian==='function') _daLocLaiGian(); }catch(e){}
+    /* Tổng quan phải tải lại chứ không chỉ vẽ lại: hai con số to nhất của nó (Chi phí xin, Chi
+       phí thực tế) do MÁY CHỦ cộng, mà nay phép cộng ấy nhận thêm tham số khối. Đứng ở Tổng quan
+       bấm sang MTĐ mà không hỏi lại máy chủ là mấy thẻ tiền vẫn là số của KVC. */
+    try{ if(typeof loadTongQuan==='function' && CUR_PAGE==='tongquan') loadTongQuan(); }catch(e){}
     var d=_myDons();
     if(el('donSel')) el('donSel').innerHTML='<option value="">— Chọn đơn —</option>'+d.map(function(x){
       return '<option value="'+esc(x.maDon)+'">'+esc(x.ky||x.maDon)+(x.coso?' · '+esc(x.coso):'')+(x.nguoiLap?' · '+esc(x.nguoiLap):'')+' · '+esc(x.trangThai)+' · CL '+money(x.chenhLech)+'đ</option>';}).join('');
@@ -3413,7 +3428,7 @@
     show('duyet', canDo('duyetTU')||canDo('capTU')||canDo('traDon'));
     // 3 tab Marketing / Công tác / Setup đã bỏ -> đừng mở lại theo phân quyền
     show('qt',    canDo('xacNhanQT')||canDo('duyetNCC')||canDo('traDon'));
-    show('xuat',  canDo('xuatMISA'));
+    show('xuat',  canDo('xuatMISA') && _xuatMisaDuoc());
   }
   function boot(cb){
     loading(true);
@@ -5156,7 +5171,10 @@
     var box=el('acctInboxCard'); if(!box) return;
     if(!isAcct){ box.style.display='none'; return; }
     boot(function(){
-      var donPend=(BOOT.dons||[]).filter(function(d){ return ['Chờ duyệt tạm ứng','Chờ cấp tạm ứng','Chờ quyết toán'].indexOf(d.trangThai)>=0; });
+      /* ⚠️ `_hopKhoi` ĐỨNG TRƯỚC phép lọc trạng thái, không phải thêm cho đủ: hộp này là thứ
+         kế toán nhìn đầu tiên mỗi sáng, bày đơn của mảng khác vào đây là họ bấm Mở rồi rơi
+         sang một tab không thuộc về mình. Xem chốt dài ở `loadTongQuan()` ngay dưới. */
+      var donPend=(BOOT.dons||[]).filter(_hopKhoi).filter(function(d){ return ['Chờ duyệt tạm ứng','Chờ cấp tạm ứng','Chờ quyết toán'].indexOf(d.trangThai)>=0; });
       google.script.run.withSuccessHandler(function(r){
         var rows=[];
         // Đưa về ĐÚNG TAB làm được việc đó. Tab Duyệt tạm ứng nay chỉ còn khâu tạm ứng, nên
@@ -5164,7 +5182,7 @@
         donPend.forEach(function(d){ rows.push({module:'Đơn vận hành', icon:'📝',
           tab:(d.trangThai==='Chờ quyết toán'?'qt':'duyet'),
           ma:d.maDon, ten:(d.ky||'')+' · '+(d.nguoiLap||''), phu:'', nguoi:d.nguoiLap||'', ngay:d.ky||'', soTien:Number(d.tamUng)||Number(d.thucChiCN)||0, trangThai:d.trangThai}); });
-        ((r&&r.items)||[]).forEach(function(m){ rows.push(m); });
+        ((r&&r.items)||[]).filter(_hopKhoi).forEach(function(m){ rows.push(m); });
         if(!rows.length){ box.style.display='none'; return; }
         box.style.display='';
         if(el('acctInboxCount')) el('acctInboxCount').textContent=rows.length+' mục cần xem';
@@ -5193,7 +5211,7 @@
     // Khối Kỹ thuật (Setup/Tháo dỡ): hiện cho quản lý/admin/kế toán + NV bộ phận Kỹ thuật
     var showKT=(role!=='Nhân viên')||(_bpCuaToi()==='Kỹ thuật');
     if(el('tqKtCard')) el('tqKtCard').style.display=showKT?'':'none';
-    if(showKT) google.script.run.withSuccessHandler(function(kr){ if(kr&&kr.success) renderKyThuatTongQuan(kr.items||[]); }).withFailureHandler(function(){}).listDuAn();
+    if(showKT) google.script.run.withSuccessHandler(function(kr){ if(kr&&kr.success) renderKyThuatTongQuan(kr.items||[]); }).withFailureHandler(function(){}).listDuAn();   // lọc khối nằm trong `renderKyThuatTongQuan`
     google.script.run.withSuccessHandler(function(r){
       if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi tải tổng quan'); return; }
       BOOT.soDuDauKy=Number(r.soDuDauKy)||0;   // giữ đồng bộ để Đối chiếu quỹ (Quyết toán) dùng số mới nhất
@@ -5202,7 +5220,7 @@
       el('tqKy').innerHTML='<option value="all">Tất cả kỳ</option>'+(r.kyList||[]).map(function(k){return '<option'+(k===cur?' selected':'')+'>'+esc(k)+'</option>';}).join('');
       renderTQView(r);
     }).withFailureHandler(function(e){ toast('err',e.message); })
-      .getFinanceReport({ ky:el('tqKy').value, tt:el('tqTT').value, coso:scope });
+      .getFinanceReport({ ky:el('tqKy').value, tt:el('tqTT').value, coso:scope, khoi:KHOI_DANG });
   }
   function saveSoDuDauKy(){
     if(!(CURUSER&&(_vaiLuat()==='Admin'||_vaiLuat()==='Quản lý'))){ toast('err','Chỉ Admin/Quản lý được đặt số dư đầu kỳ'); return; }
@@ -5214,6 +5232,20 @@
   }
   // Khối Kỹ thuật trên Tổng quan: cơ sở/gian đã Setup & Tháo dỡ + chi phí cơ sở chung
   function renderKyThuatTongQuan(items){
+    /* ═════════════════════════════════════════════════════════════════════════════════
+     * TỔNG QUAN CŨNG LỌC KHỐI — anh Thắng 21/09/2026: *"Bộ Phận MTD đang nhìn thấy dữ liệu cơ
+     * sở KVC"*, kèm ảnh thẻ "Chi phí Kỹ thuật" liệt kê NHÀ MA PHAN VĂN TRỊ · FUNZONE · TÀU
+     * ESTELLA — toàn gian khu vui chơi — trong lúc thanh khối đang đứng ở Máy tự động.
+     *
+     * 🔴 LỖI CỦA EM, VÀ LỖI KIỂU "QUÊN MỘT CHỖ". `loadDuAn()` lọc `DA_ITEMS` bằng `_hopKhoi`
+     *    từ 1.242.0, nhưng Tổng quan gọi THẲNG `listDuAn()` một lần nữa rồi vẽ nguyên si. Hai
+     *    người gọi cùng một API, chỉ một người lọc — nên bịt ở chỗ VẼ (đây) chứ không ở chỗ
+     *    gọi: thêm người gọi thứ ba thì họ cũng được lọc sẵn, khỏi phải nhớ.
+     *
+     * ⚠️ Dự án chưa đóng dấu khối vẫn hiện — cùng luật với `_hopKhoi()` ở mọi màn khác: ẩn một
+     *    bản ghi lọt lưới là tiền có thật mà không tab nào thấy.
+     * ═════════════════════════════════════════════════════════════════════════════════ */
+    items=(items||[]).filter(_hopKhoi);
     var setup=items.filter(function(x){return x.loai==='Setup lắp đặt';});
     var thao =items.filter(function(x){return x.loai==='Tháo dỡ';});
     var coso =items.filter(function(x){return x.loai==='Chi phí cơ sở';});
@@ -8418,6 +8450,43 @@
     el('xuatBody').innerHTML=(XUAT.rows||[]).map(function(r){return '<tr>'+r.map(function(v,i){
       var num=((XUAT.cols||[])[i]==='Số tiền'); return '<td'+(num?' class="money"':'')+' style="white-space:nowrap">'+(num?money(v):esc(v))+'</td>';}).join('')+'</tr>';}).join('');
     renderXuatWarn();
+    renderXuatBanGiao();
+  }
+  /* ═════════════════════════════════════════════════════════════════════════════════
+   * DẢI "ĐƠN BÀN GIAO TỪ KHỐI KHÁC".
+   *
+   * Anh Thắng 21/09/2026: *"kế toán máy tự động duyệt xong sẽ đẩy qua kế toán KVC tổng kết"*.
+   *
+   * 🔴 BÀN GIAO IM LẶNG THÌ Y NHƯ KHÔNG BÀN GIAO. Không có dải này, kế toán KVC bấm Xuất và
+   *    nhận một tệp nhiều hơn mọi khi vài chục dòng, không biết vì sao — rồi hoặc nộp luôn cả
+   *    phần mình chưa soát, hoặc dừng lại đi hỏi. Đây là chỗ DUY NHẤT nói ra việc bàn giao đã
+   *    xảy ra, vì bản thân phép bàn giao là suy ra chứ không có cột cờ nào để nhìn.
+   *
+   * ⚠️ CHỈ BÁO, KHÔNG LỌC. Tệp vẫn là tệp cũ, số vẫn là số cũ — dải này không bỏ ra dòng nào.
+   *    Cho nó quyền lọc là đẻ ra hai bản xuất khác nhau cho cùng một lượt bấm.
+   * ⚠️ KHÔNG BÀY KHỐI CỦA CHÍNH MÌNH: kế toán KVC không cần được báo rằng đơn KVC là của KVC.
+   * ═════════════════════════════════════════════════════════════════════════════════ */
+  function renderXuatBanGiao(){
+    var b=el('xuatBanGiao'); if(!b) return;
+    var tk=(XUAT&&XUAT.theoKhoi)||null;
+    /* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG, ghi lại để lần sau khỏi đuổi theo: đổi dòng này thành `tk={}` rồi
+       đi tiếp KHÔNG đổi kết quả — bảng rỗng thì vòng dưới không đẩy được mục nào, và phép
+       `if(!ds.length)` cũng ẩn dải. Giữ lối ra sớm vì nó nói ra hai chuyện KHÁC NHAU mà cùng
+       ẩn dải: "nguồn này (Kỹ thuật/Marketing/Công tác/Setup) không đếm theo khối" khác hẳn
+       "có đếm, nhưng không có đơn khối nào khác". Người đọc sau cần phân biệt được.
+       `kiem-ban-giao-misa.js` có ghi lại phép đột biến ấy sống sót, và vì sao. */
+    if(!tk){ b.style.display='none'; b.innerHTML=''; return; }   // nguồn khác (Kỹ thuật/Marketing/…) không có số này
+    var minh=String(KHOI_DANG||'').toLowerCase();
+    var ds=[];
+    Object.keys(tk).forEach(function(k){
+      if(String(k).toLowerCase()===minh) return;
+      if(!tk[k]) return;
+      ds.push('<b>'+esc(tk[k])+'</b> đơn ' + esc(_tenKhoi(k) || k));
+    });
+    if(!ds.length){ b.style.display='none'; b.innerHTML=''; return; }
+    b.style.display='block';
+    b.innerHTML='🔁 Trong bản xuất này có '+ds.join(' · ')
+      +' — đã duyệt quyết toán bên khối đó và chuyển sang đây để xuất MISA.';
   }
   // Ô CẢNH BÁO: GẬP SẴN, chỉ hiện MỘT DÒNG tóm tắt.
   // Xuất một lượt vài trăm dòng thì cảnh báo dài hơn cả bảng, đẩy bảng xuống dưới màn
@@ -9744,7 +9813,28 @@
   }
 
   // ===================== QUYẾT TOÁN (danh sách) =====================
-  function loadQT(){ boot(renderQTList); loadLenhTU(); loadQtLenh(); }
+  function loadQT(){ boot(renderQTList); loadLenhTU(); loadQtLenh(); renderQtBanGiao(); }
+  /* ═════════════════════════════════════════════════════════════════════════════════
+   * NÓI CHO KẾ TOÁN KHỐI KHÔNG TỰ XUẤT MISA BIẾT ĐƠN MÌNH DUYỆT ĐI ĐÂU.
+   *
+   * Anh Thắng 21/09/2026: *"Chỗ phần kế toán máy tự động duyệt xong sẽ đẩy qua kế toán KVC
+   * tổng kết (vì kế toán máy tự động chỉ check chứ ko đẩy misa)"*.
+   *
+   * 🔴 MẤT TAB MÀ KHÔNG AI GIẢI THÍCH LÀ NGƯỜI TA TƯỞNG HỎNG. Kế toán MTĐ hôm nay còn tab
+   *    📤 Xuất MISA, mai mở ra thì không; không có dòng này thì họ gọi điện hỏi mất tính năng,
+   *    hoặc tệ hơn: duyệt xong rồi ngồi đợi một việc không bao giờ tới lượt mình.
+   *
+   * ⚠️ HIỆN THEO LUẬT, KHÔNG GÕ CỨNG "MTĐ": dùng chính `_xuatMisaDuoc()` — cùng một phép đã
+   *    quyết định giấu tab. Gõ riêng một điều kiện ở đây là hai chỗ có thể lệch nhau, và lúc
+   *    lệch thì hoặc dải nói dối, hoặc tab biến mất mà không một chữ giải thích.
+   * ═════════════════════════════════════════════════════════════════════════════════ */
+  function renderQtBanGiao(){
+    var b=el('qtBanGiao'); if(!b) return;
+    if(_xuatMisaDuoc()){ b.style.display='none'; b.innerHTML=''; return; }
+    b.style.display='block';
+    b.innerHTML='🔁 Duyệt quyết toán xong, đơn <b>tự chuyển sang kế toán Khu vui chơi</b> để xuất MISA — '
+      +'bên mình không cần (và không có quyền) đẩy MISA.';
+  }
   // Thứ tự giai đoạn (đầu -> cuối): đơn chưa duyệt/chờ tạm ứng lên trên, đã quyết toán/đã xuất MISA xuống dưới
   var QT_ST_ORDER=['Nháp','Chờ duyệt tạm ứng','Chờ cấp tạm ứng','Đã cấp tạm ứng','Chờ quyết toán','Đã quyết toán','Đã xuất MISA'];
   // Tổng Tạm ứng / Thực chi / Thừa-thiếu của một nhóm đơn (cho kế toán xem nhanh)
@@ -11075,6 +11165,28 @@
       for(var j=0;j<k.tu.length;j++){ if(t.indexOf(' '+k.tu[j]+' ')>=0) return k.ma; }
     }
     return '';
+  }
+  /* ═════════════════════════════════════════════════════════════════════════════════
+   * KẾ TOÁN MÁY TỰ ĐỘNG CHỈ SOÁT, KHÔNG ĐẨY MISA.
+   *
+   * Anh Thắng 21/09/2026: *"Chỗ phần kế toán máy tự động duyệt xong sẽ đẩy qua kế toán KVC
+   * tổng kết (vì kế toán máy tự động chỉ check chứ ko đẩy misa)"*, và khi em hỏi lại thì chốt
+   * *"Chỉ MTĐ, Văn phòng tự xuất MISA"* + đẩy *tự động lúc duyệt quyết toán*.
+   *
+   * 🔴 BÀN GIAO KHÔNG CẦN CỜ, VÌ NÓ TỰ ĐỘNG. Đơn mang khối 'mtd' mà đã sang "Đã quyết toán"
+   *    CHÍNH LÀ đơn đã bàn giao — không có trạng thái thứ ba nào ở giữa. Đẻ thêm một cột cờ là
+   *    thêm một thứ phải nhớ đóng dấu ở hai hàm quyết toán, và quên một chỗ thì đơn duyệt xong
+   *    nằm im không ai bên KVC biết mà xuất. Chốt dài ở `VHCP_Cfg::KHOI_KHONG_XUAT_MISA`.
+   *
+   * ⚠️ ĐÂY LÀ LỚP THỨ HAI, KHÔNG PHẢI CỬA CHÍNH. Cửa chính ở `VHCP_Api::handle()` — sáu hàm
+   *    MISA đều bị chối ở máy chủ. Giấu tab chỉ để người ta khỏi bấm vào rồi ăn một câu lỗi.
+   * ⚠️ ĐỌC TÊN VAI ĐANG MANG, không phải vai gốc: "Kế Toán Máy Tự Động" và "Kế Toán Khu Vui
+   *    Chơi" cùng kế thừa "Kế toán cá nhân" — quy về vai gốc là chặn cả hai hoặc chặn không ai.
+   * ═════════════════════════════════════════════════════════════════════════════════ */
+  var KHOI_KHONG_XUAT_MISA=['mtd'];
+  function _xuatMisaDuoc(){
+    if(CURUSER && CURUSER.role==='Admin') return true;
+    return KHOI_KHONG_XUAT_MISA.indexOf(_khoiCuaVai((CURUSER&&CURUSER.role)||''))<0;
   }
   /** Vai này có được bày ở bảng của khối `khoi` không. Vai chạy ngang: mọi khối. */
   function _vaiOKhoi(ten, khoi){

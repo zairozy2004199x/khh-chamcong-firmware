@@ -187,10 +187,17 @@ t('🔴 đổi bộ lọc trạng thái → nhảy về trang 1 (không giữ tr
     showPage: () => {}, openDuAn: () => {},
     _tqCard: () => '',
     el: id => (NK[id] = NK[id] || { innerHTML: '' }),
+    /* Từ 1.244.0 chỗ vẽ này lọc khối (anh Thắng: *"Bộ Phận MTD đang nhìn thấy dữ liệu cơ sở
+       KVC"*). Bệ đỡ mượn HÀM THẬT trong trang chứ không bịa một cái luôn trả `true`: bịa thì
+       bài kiểm này vẫn xanh cả khi phép lọc kia hỏng, mà nó lại là bài duy nhất CHẠY hàm vẽ. */
+    KHOI_DANG: 'kvc',
   };
+  const bocHam = (ten) => { const a = HTML.indexOf('  function ' + ten + '('); return a < 0 ? '' : HTML.slice(a, HTML.indexOf('\n  }', a) + 4); };
+  const NEN_KHOI = bocHam('_khoiCua') + '\n' + bocHam('_hopKhoi');
+  if (NEN_KHOI.trim().length < 80) { throw new Error('không bốc được `_khoiCua`/`_hopKhoi` — bệ đỡ sẽ xanh giả'); }
   const i = HTML.indexOf('function renderKyThuatTongQuan(');
   const src = HTML.slice(i, HTML.indexOf('\n  }', i) + 4);
-  new Function('moi', `with(moi){ ${src}\n return renderKyThuatTongQuan; }`)(moi)([
+  new Function('moi', `with(moi){ ${NEN_KHOI}\n${src}\n return renderKyThuatTongQuan; }`)(moi)([
     { maDA: 'DA1', ten: 'TÀU ESTELLA', loai: 'Setup lắp đặt', tongDuToan: 0,
       tongThucTe: 22350000, chenh: 22350000, trangThai: 'Đang làm' },
   ]);
