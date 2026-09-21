@@ -106,8 +106,13 @@
       <span style="font-size:11.5px;color:#8c8781;font-weight:700;letter-spacing:.3px">KHỐI</span>
       <span id="khoiBar" style="display:flex;gap:6px;flex-wrap:wrap"></span>
     </div>
-    <div id="khoiNhac" style="display:none;margin:0 0 10px;padding:9px 13px;border-radius:10px;
-         background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:12.5px"></div>
+    <!-- ⚠️ DẢI NHẮC "KHỐI NÀY CHƯA CÓ ĐƠN NÀO" ĐÃ BỎ — anh Thắng 21/09/2026: *"chọn phía trên
+         rồi, phía dưới bỏ đi cho gọn"*.
+
+         Nó sinh ra để trả lời "mở khối ra thấy trắng, hỏng à?". Câu trả lời ấy nay đã nằm ngay
+         trên nút: mỗi nút khối mang SỐ ĐƠN của nó, nên "Văn phòng 0" tự nói hết — thêm một dải
+         vàng ba dòng bên dưới là nói lại đúng một chuyện, mà lại là dòng người ta phải đọc mỗi
+         lần đổi khối. Đừng dựng lại; nếu số trên nút biến mất thì mới cần nghĩ lại. -->
   </div>
 
 
@@ -2791,28 +2796,22 @@
       var mo=(duoc.indexOf(x.ma)>=0);
       var n=dem[x.ma]||0;
       if(!mo){
+        /* 🔴 NÚT BỊ KHOÁ CŨNG MANG SỐ. Từ lúc bỏ dải nhắc vàng (21/09/2026) thì con số này là
+           thứ DUY NHẤT nói khối ấy có gì hay rỗng — bỏ nó ở nút khoá là ba khối bày ra mà chỉ
+           hai khối nói được gì. Menu ▾ trên tab vẫn hiện số ở mục khoá; hai chỗ phải khớp, kẻo
+           người ta nhìn hai con số khác nhau cho cùng một khối. */
         return '<button type="button" class="btn b-x" disabled title="Tài khoản của bạn thuộc đơn vị khác — '
           +'xem được nhưng không đổi sang khối này. Đổi ở Cấu hình → Người dùng, cột Đơn vị." '
-          +'style="opacity:.45;cursor:not-allowed">🔒 '+esc(x.ten)+'</button>';
+          +'style="opacity:.45;cursor:not-allowed">🔒 '+esc(x.ten)
+          +' <span style="opacity:.7;font-size:11px">'+n+'</span></button>';
       }
       return '<button type="button" class="btn '+(dang?'b-g':'b-x')+'" onclick="doiKhoi(\''+x.ma+'\')" '
         +'style="font-weight:'+(dang?'700':'500')+'">'+esc(x.ten)
         +' <span style="opacity:.7;font-size:11px">'+n+'</span></button>';
     }).join('');
-    /* ⚠️ KHỐI RỖNG THÌ NÓI VÌ SAO. Máy Tự Động và Văn Phòng còn là hai plugin riêng cho tới
-       bước dời dữ liệu — mở tab ra thấy trắng mà không có lời nào thì trông y như hỏng. */
-    var ten=(KHOI_DS.filter(function(x){return x.ma===String(KHOI_DANG).toLowerCase();})[0]||{}).ten||KHOI_DANG;
-    var n=dem[String(KHOI_DANG).toLowerCase()]||0;
     /* Thanh khối vẽ lại lúc nào thì menu trên tab vẽ lại lúc ấy — hai chỗ cùng nói một chuyện,
        lệch nhau là người ta tin cái nào? */
     try{ veMenuKhoi('duyet'); veMenuKhoi('qt'); }catch(e){}
-    var nh=el('khoiNhac');
-    if(nh){
-      nh.innerHTML = n ? '' : ('Khối <b>'+esc(ten)+'</b> chưa có đơn nào trong kho này. '
-        + (String(KHOI_DANG).toLowerCase()==='kvc' ? 'Bấm <b>＋ Tạo đơn mới</b> để lập đơn đầu tiên.'
-           : 'Dữ liệu ' + esc(ten) + ' hiện còn nằm ở plugin riêng — sẽ dời về đây ở bước sau.'));
-      nh.style.display = n ? 'none' : '';
-    }
   }
   /* ══════════════════════════════════════════════════════════════════════════════════════════
    * 🔴 HAI THỨ NÀY PHẢI TÁCH HẲN, ĐỪNG GỘP.

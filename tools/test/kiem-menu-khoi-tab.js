@@ -45,7 +45,7 @@ function bocSach(ten) {
   return bocHam(ten).replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\n]*/g, ' ');
 }
 
-const TEN = ['_donTrongMan', '_demMan', '_tmDatCho', 'veMenuKhoi', 'diKhoiMan', 'dongMenuKhoi', 'bapMenuKhoi', '_tmTheoCho'];
+const TEN = ['_donTrongMan', '_demMan', '_tmDatCho', 'veMenuKhoi', 'veThanhKhoi', 'diKhoiMan', 'dongMenuKhoi', 'bapMenuKhoi', '_tmTheoCho'];
 /* 🔴 BỐC CẢ HAI TRÌNH NGHE RA CHẠY THẬT, ĐỪNG DÒ CHỮ. Bản đầu kiểm bằng một biểu thức
    `addEventListener('click' … dongMenuKhoi()` với cửa sổ 300 ký tự — và đột biến "bấm ra ngoài
    KHÔNG đóng menu" vẫn XANH, vì trong cửa sổ ấy còn trình nghe phím Esc nằm ngay dưới, cũng gọi
@@ -77,7 +77,7 @@ t('   `_donTrongMan()` có nhận và dùng tham số khối',
 function oGia() { return { innerHTML: '', style: { display: '' }, offsetWidth: 0 }; }
 function chay(o) {
   o = o || {};
-  const KHO = { 'tmBox-duyet': oGia(), 'tmBox-qt': oGia() };
+  const KHO = { 'tmBox-duyet': oGia(), 'tmBox-qt': oGia(), khoiBar: oGia() };
   const vet = [];
   const ctx = {
     BOOT: { dons: o.dons || [] },
@@ -276,6 +276,29 @@ cP = chay({ dons: DONS, dang: 'kvc', manRong: 1366, oTab: { duyet: { left: 600, 
 cP._tmTheoCho();
 teq('🔴 đặt lại chỗ cho CẢ HAI menu, không sót cái nào',
   ['600px', '800px'], [cP.KHO['tmBox-duyet'].style.left, cP.KHO['tmBox-qt'].style.left]);
+
+/* ═══ 7c. 🔴 SỐ TRÊN NÚT KHỐI LÀ THỨ DUY NHẤT CÒN NÓI "KHỐI NÀY RỖNG" ════════════
+ * Anh Thắng 21/09/2026: *"chọn phía trên rồi, phía dưới bỏ đi cho gọn"* — dải nhắc vàng
+ * "Khối Văn phòng chưa có đơn nào trong kho này…" đã bỏ.
+ *
+ * Dải ấy sinh ra để trả lời *"mở khối ra thấy trắng, hỏng à?"*. Bỏ nó đi thì câu trả lời chỉ
+ * còn nằm ở CON SỐ trên từng nút khối. Nên con số ấy từ nay là thứ chịu lực: mất nó là màn
+ * hình rỗng không còn lời giải thích nào, và người ta sẽ báo hỏng. Phép dưới canh đúng chỗ đó. */
+t('🔴 dải nhắc vàng đã gỡ khỏi trang', !/id="khoiNhac"/.test(HTML));
+t('   và không còn mã nào đụng tới nó', !/khoiNhac/.test(HTML.replace(/<!--[\s\S]*?-->/g, '')));
+const cB = chay({ dons: DONS, dang: 'kvc', duoc: ['kvc', 'mtd'] });
+cB.veThanhKhoi();
+const hb = cB.KHO.khoiBar.innerHTML;
+teq('thanh khối vẽ đủ 3 nút', 3, (hb.match(/<button/g) || []).length);
+/* DONS: 4 đơn kvc (K1·K2·K3·Z1), 3 đơn mtd, 1 đơn vp, 1 đơn chưa đóng dấu.
+   Số trên nút là TỔNG đơn của khối ấy — không lọc theo màn nào. */
+t('🔴 nút "Khu vui chơi" mang số đơn của nó', /Khu vui chơi[\s\S]{0,80}?>4</.test(hb), hb);
+t('🔴 nút "Máy tự động" mang số của nó', /Máy tự động[\s\S]{0,80}?>3</.test(hb), hb);
+/* 🔴 Nút BỊ KHOÁ cũng phải mang số. Lượt viết đầu nó không có, và thanh khối nói khác menu ▾
+   (menu thì có) — hai con số khác nhau cho cùng một khối thì người ta tin cái nào? Mà từ lúc
+   bỏ dải nhắc vàng, đây là chỗ duy nhất nói khối ấy rỗng hay không. */
+t('🔴 nút khối BỊ KHOÁ vẫn mang số đơn của nó', /🔒 Văn phòng[\s\S]{0,80}?>1</.test(hb), hb);
+t('   và thanh khối khớp với menu ▾ ở cùng con số', /🔒 Văn phòng[\s\S]{0,80}?>1</.test(hb) && cB._demMan('qt', 'vp') === 1);
 
 /* ═══ 8. 🔴 ẨN TAB THÌ ẨN CẢ VỎ BỌC, KHÔNG CHỈ CÁI NÚT ═══════════════════════════
  * Kế toán NCC không có tab Duyệt tạm ứng. Ẩn mỗi nút thì mũi ▾ còn trơ lại giữa hàng tab: một
