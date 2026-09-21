@@ -1277,6 +1277,8 @@ class VHCC_Web {
 	      (phạm vi cơ sở, bảng đã khoá, ngày hợp lệ) ngay dòng đầu. Đây chỉ là mở đúng cửa để
 	      lượt gửi đi đến được chỗ gác thật. */
 	const VIEC_CHAM = array( 'co', 'xu_ly_co', 'bu', 'sua_gio', 'xem_cong', 'nap_cong', 'ca',
+		/* Bảng công CŨ của anh Thắng (mỗi ngày một dòng) — cùng quyền `nap_cong`, khác bộ đọc. */
+		'xem_doc', 'nap_doc',
 		'cach_tinh',
 		'them_nv', 'muc_tre', 'duyet_tre', 'choi_tre', 'xin_tre', 'cho_tra',
 		/* Đối chiếu / nạp về từ app gốc: việc của màn Bảng công, KHÔNG phải việc hồ sơ. Người
@@ -2425,6 +2427,47 @@ class VHCC_Web {
 			return array( $r );
 		}
 
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * NẠP BẢNG CÔNG CŨ — khuôn "mỗi ngày một dòng, mỗi người ba cột" (`VHCC_NapDoc`).
+		 *
+		 * 🔴 HAI BƯỚC, VÀ BƯỚC HAI KHÔNG CÒN TỆP. Ô chọn tệp của trình duyệt không điền lại được
+		 *    bằng mã, nên sau khi Xem trước mà người ta sửa một ô ghép tên rồi bấm lại thì
+		 *    `$_FILES` RỖNG. Vì thế bảng vừa đọc được giữ tạm một giờ và mã giữ (`dma`) đi kèm
+		 *    trong chính cái form ghép tên. Không có đường ấy thì mỗi lần sửa một ô là phải chọn
+		 *    lại tệp — và không ai đi hết hai chục cái tên theo kiểu đó.
+		 * ⚠️ TỆP MỚI THẮNG MÃ GIỮ. Người ta chọn tệp khác nghĩa là muốn đọc tệp khác, dù ô ẩn
+		 *    vẫn chở mã của tệp cũ.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		if ( 'xem_doc' === $viec || 'nap_doc' === $viec ) {
+			$hang = null;
+			$f    = self::doc_tep_bang();
+			if ( ! empty( $f['ok'] ) ) {
+				$hang = $f['hang'];
+			} elseif ( ! empty( $_POST['dma'] ) ) {
+				$hang = VHCC_NapDoc::lay_bang( $toi, wp_unslash( $_POST['dma'] ) );
+				if ( null === $hang ) {
+					return array( array( 'loi' => 'Tệp tạm đã hết hạn (chỉ giữ 1 giờ) hoặc không '
+						. 'phải của tài khoản này. Chọn lại tệp rồi Xem trước.' ) );
+				}
+			}
+			if ( null === $hang ) { return array( array( 'loi' => $f['error'] ) ); }
+
+			$map = array();
+			if ( isset( $_POST['ghep'] ) && is_array( $_POST['ghep'] ) ) {
+				foreach ( (array) wp_unslash( $_POST['ghep'] ) as $k => $v ) {
+					$map[ (string) $k ] = sanitize_text_field( (string) $v );
+				}
+			}
+			$cs_d = isset( $_POST['dcs'] ) ? wp_unslash( $_POST['dcs'] ) : '';
+			$r = VHCC_NapDoc::nap( $toi, $cs_d, $hang, $map, 'xem_doc' === $viec );
+			$r['viec'] = $viec;
+			/* Giữ lại BẢNG cho lượt bấm sau — kể cả khi lượt này lỗi, vì lỗi hay gặp nhất là
+			   "chưa chọn cơ sở", và bắt chọn lại tệp vì chuyện đó là vô lý. */
+			$r['dma'] = VHCC_NapDoc::giu_bang( $toi, $hang );
+			$r['dcs'] = VHCC_NhanSu::chuan_coso( $cs_d );
+			return array( $r );
+		}
+
 		if ( 'xem_csv' === $viec || 'nap_csv' === $viec ) {
 			$f = self::doc_tep();
 			if ( empty( $f['ok'] ) ) { return array( array( 'loi' => $f['error'] ) ); }
@@ -2690,6 +2733,63 @@ class VHCC_Web {
 		   hàng là cái sai hoàn toàn im lặng, mà tên tệp thì nói sẵn cơ sở nào. */
 		return array( 'ok' => true, 'noi_dung' => (string) $nd,
 			'ten' => isset( $f['name'] ) ? sanitize_file_name( (string) $f['name'] ) : '' );
+	}
+
+	/**
+	 * ĐỌC TỆP BẢNG THÀNH MẢNG HAI CHIỀU — nhận cả .xlsx lẫn .csv.
+	 *
+	 * 🔴 NHẬN .XLSX LÀ CẢ MỤC ĐÍCH CỦA MÀN NÀY. Anh Thắng 21/09/2026: *"anh đang có bảng công
+	 *    cũ, làm sao để nạp vào mà không cần copy"*. Bảng ấy là một tệp Excel đang nằm trên máy
+	 *    anh. Chỉ nhận .csv là bắt anh mở ra, Lưu thành .csv, rồi mới nạp — tức vẫn còn một
+	 *    bước tay, và đúng bước hay làm sai nhất (Excel lưu .csv theo dấu phẩy hay chấm phẩy
+	 *    tuỳ vùng máy).
+	 *
+	 * ⚠️ Ô NHẬP TÊN RIÊNG (`tepd`), không dùng chung `tep` với khối nạp .csv cũ. Hai form nằm
+	 *    cùng một trang; trùng tên ô là tệp của khối này chui sang khối kia.
+	 */
+	private static function doc_tep_bang() {
+		if ( ! isset( $_FILES['tepd'] ) || ! is_array( $_FILES['tepd'] ) ) {
+			return array( 'ok' => false, 'error' => 'Chưa chọn file nào.' );
+		}
+		$f   = $_FILES['tepd'];
+		$loi = isset( $f['error'] ) ? (int) $f['error'] : UPLOAD_ERR_NO_FILE;
+		if ( UPLOAD_ERR_NO_FILE === $loi ) { return array( 'ok' => false, 'error' => 'Chưa chọn file nào.' ); }
+		if ( UPLOAD_ERR_INI_SIZE === $loi || UPLOAD_ERR_FORM_SIZE === $loi ) {
+			return array( 'ok' => false, 'error' => 'File lớn hơn mức hosting cho tải lên. '
+				. 'Xuất riêng từng cơ sở rồi tải từng file.' );
+		}
+		if ( UPLOAD_ERR_OK !== $loi ) {
+			return array( 'ok' => false, 'error' => 'Tải file lên không xong (mã lỗi ' . $loi . ').' );
+		}
+		$duong = isset( $f['tmp_name'] ) ? (string) $f['tmp_name'] : '';
+		if ( '' === $duong || ! is_uploaded_file( $duong ) ) {
+			return array( 'ok' => false, 'error' => 'File tải lên không hợp lệ.' );
+		}
+		$ten = isset( $f['name'] ) ? (string) $f['name'] : '';
+		$duoi = strtolower( (string) pathinfo( $ten, PATHINFO_EXTENSION ) );
+
+		if ( 'xlsx' === $duoi ) {
+			$d = VHCC_DocXlsx::doc( $duong );
+			if ( empty( $d['ok'] ) ) {
+				return array( 'ok' => false, 'error' => isset( $d['error'] ) ? $d['error'] : 'Không đọc được .xlsx.' );
+			}
+			return array( 'ok' => true, 'hang' => $d['hang'], 'ten' => sanitize_file_name( $ten ) );
+		}
+		if ( ! in_array( $duoi, array( 'csv', 'tsv', 'txt' ), true ) ) {
+			return array( 'ok' => false, 'error' => 'Chỉ nhận .xlsx / .csv / .tsv / .txt. '
+				. 'Bảng công Excel thì gửi thẳng tệp .xlsx, khỏi phải lưu lại.' );
+		}
+		if ( (int) filesize( $duong ) > 8 * 1024 * 1024 ) {
+			return array( 'ok' => false, 'error' => 'File lớn hơn 8 MB. Xuất riêng từng cơ sở rồi tải từng file.' );
+		}
+		$nd = file_get_contents( $duong );
+		if ( false === $nd || '' === trim( (string) $nd ) ) {
+			return array( 'ok' => false, 'error' => 'File rỗng.' );
+		}
+		if ( ! mb_check_encoding( $nd, 'UTF-8' ) ) {
+			$nd = mb_convert_encoding( $nd, 'UTF-8', 'Windows-1258, Windows-1252, ISO-8859-1' );
+		}
+		return array( 'ok' => true, 'hang' => VHCC_NapCong::tach( $nd ), 'ten' => sanitize_file_name( $ten ) );
 	}
 
 	/**
@@ -3965,7 +4065,7 @@ class VHCC_Web {
 		echo '<div class="bo">';
 
 		$bao = array_merge( self::lay_bao(), (array) $bao );
-		foreach ( $bao as $b ) { self::ve_bao( $b ); }
+		foreach ( $bao as $b ) { self::ve_bao( $b, $toi ); }
 		self::tieu_man( $man, $ds_man, $toi );
 		self::canh_lech_vai( $toi );
 
@@ -11831,6 +11931,7 @@ class VHCC_Web {
 			. 'chuyển sổ cũ sang, hoặc vá lại một tháng máy hỏng.</p>';
 		echo '</div>';
 		self::the_nap_cong( '', $ky, $toi, self::ds_coso_xem( $toi ) );
+		self::the_nap_doc( $ky, $toi, self::ds_coso_xem( $toi ) );
 	}
 
 	/**
@@ -11890,6 +11991,51 @@ class VHCC_Web {
 		echo '</form></div>';
 	}
 
+	/**
+	 * Khối NẠP BẢNG CÔNG CŨ (.xlsx — mỗi ngày một dòng).
+	 *
+	 * ⚠️ ĐỨNG RIÊNG khỏi khối nạp .csv ở trên, dù cùng quyền và cùng đích đến. Hai khuôn bảng
+	 *    khác hẳn nhau (một cái gom cột theo NGÀY, một cái gom cột theo NGƯỜI); gộp làm một ô
+	 *    chọn tệp rồi tự đoán khuôn là dựng sẵn cái ngày đoán nhầm — mà đoán nhầm khuôn thì bộ
+	 *    đọc vẫn chạy, vẫn ra số, chỉ là số sai.
+	 */
+	private static function the_nap_doc( $ky, $toi, $ds_cs = array() ) {
+		if ( ! VHCC_Vai::duoc( $toi, 'nap_cong' ) ) { return; }
+		if ( ! $ds_cs ) { $ds_cs = self::ds_coso_xem( $toi ); }
+		if ( ! $ds_cs ) { return; }
+		echo '<div class="the" id="napdoc"><h2>Nạp bảng công cũ (.xlsx — mỗi ngày một dòng)</h2>';
+		echo '<p class="mo">Dành cho bảng tự làm trên Excel: dòng đầu <b>"BẢNG CHẤM CÔNG THÁNG '
+			. '4/2026"</b>, mỗi <b>ngày</b> một dòng, mỗi <b>người</b> ba cột '
+			. '<b>Check in · Check out · Số giờ làm</b>. Gửi thẳng tệp .xlsx, không cần lưu lại '
+			. 'thành .csv, không cần chép tay ô nào.</p>';
+		echo '<p class="mo">Hai cụm cột của cùng một người trong cùng một ngày (kiểu '
+			. '<b>"K.Oanh"</b> và <b>"K.Oanh (LT)"</b>) được hiểu là <b>hai ca</b>. Khoảng trống '
+			. 'giữa hai ca ghi vào ô <b>nghỉ giữa ca</b> nên <b>không</b> bị tính công — nối '
+			. 'thẳng hai đầu là trả dư đúng bằng khoảng ấy.</p>';
+		if ( ! VHCC_DocXlsx::co() ) {
+			echo '<p class="mo">⚠️ Máy chủ chưa bật <b>php-zip</b> nên chưa đọc được .xlsx. '
+				. 'Nhờ bên hosting bật giúp; trong lúc chờ thì lưu bảng thành .csv rồi nạp ở đây '
+				. 'cũng được.</p>';
+		}
+		echo '<form method="post" enctype="multipart/form-data">'
+			. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">' . self::o_loc();
+		echo '<div class="hang">';
+		echo '<div><label for="dcs">Nạp vào cơ sở *</label><select id="dcs" name="dcs" required>';
+		echo '<option value="">— chọn cơ sở —</option>';
+		foreach ( $ds_cs as $x ) {
+			echo '<option value="' . esc_attr( $x ) . '">' . esc_html( $x ) . '</option>';
+		}
+		echo '</select></div>';
+		echo '<div><label for="dtep">Tệp bảng công *</label>'
+			. '<input id="dtep" type="file" name="tepd" accept=".xlsx,.csv,.tsv,.txt" required></div>';
+		echo '<div><button name="viec" value="xem_doc">Xem trước &amp; ghép tên</button></div>';
+		echo '</div>';
+		echo '<p class="mo">Bấm <b>Xem trước</b> trước đã — nó <b>không ghi gì</b>, chỉ đọc rồi '
+			. 'hỏi xem mỗi cái tên viết tắt trong bảng là ai. Ghép xong một lần thì lần sau hệ '
+			. 'thống <b>tự nhớ</b>, khỏi chọn lại.</p>';
+		echo '</form></div>';
+	}
+
 	/* ══════════════════════════════════════════════════════════════════════════════════════
 	 * 🔴 KHỐI "NGÀY THIẾU GIỜ RA" (RIÊNG, GỘP SỐ ĐẾM) CŨNG ĐÃ BỎ KHỎI MÀN — anh Thắng
 	 * 07/09/2026: *"bỏ chỗ này trên web quản trị chấm công"*. Hàm dựng màn từng ở đây
@@ -11914,7 +12060,11 @@ class VHCC_Web {
 	 *    Nhân sự hợp hơn: nó vốn là nơi soi từng người), chứ không kéo về đây.
 	 * ══════════════════════════════════════════════════════════════════════════════════════ */
 
-	private static function ve_bao( $b ) {
+	/**
+	 * @param array $toi Người đang xem — khối "ghép tên" cần nó để dựng ô chọn người và chữ ký
+	 *                   form. Mọi nhánh khác bỏ qua tham số này.
+	 */
+	private static function ve_bao( $b, $toi = array() ) {
 		/* 🔴 CÁC KẾT QUẢ CÓ `viec` PHẢI ĐI TRƯỚC nhánh `canh` chung bên dưới — anh Thắng
 		   29/08/2026 gặp nguyên màn "Dữ liệu đầu vào" chỉ in ra chữ "Array": VHCC_NapCong::nap()
 		   (xem_cong/nap_cong) LUÔN trả kèm khoá `canh` ở CẤP NGOÀI CÙNG, nhưng đó là một MẢNG các
@@ -11926,6 +12076,10 @@ class VHCC_Web {
 		   Xem trước/Nạp thật thật sự nữa. Phải xét đúng `viec` trước khi xét `canh` chung. */
 		if ( isset( $b['viec'] ) && ( 'nap_cong' === $b['viec'] || 'xem_cong' === $b['viec'] ) ) {
 			self::ve_bao_cong( $b );
+			return;
+		}
+		if ( isset( $b['viec'] ) && ( 'nap_doc' === $b['viec'] || 'xem_doc' === $b['viec'] ) ) {
+			self::ve_bao_doc( $b, $toi );
 			return;
 		}
 		if ( isset( $b['viec'] ) && 'doi_chieu_app' === $b['viec'] ) {
@@ -12123,6 +12277,150 @@ class VHCC_Web {
 			if ( count( $ds ) > 30 ) { echo '<span class="mo">…và ' . ( count( $ds ) - 30 ) . ' dòng nữa.</span>'; }
 			echo '</div>';
 		}
+	}
+
+	/**
+	 * KẾT QUẢ NẠP BẢNG CÔNG CŨ — kèm luôn MÀN GHÉP TÊN.
+	 *
+	 * =========================================================================================
+	 * Anh Thắng 21/09/2026 chọn *"Màn ghép tên, nhớ cho lần sau"*.
+	 * =========================================================================================
+	 *
+	 * 🔴 Ô CHỌN NGƯỜI ĐỂ TRỐNG KHI GỢI Ý RA NHIỀU HƠN MỘT NGƯỜI — cố ý, dù bất tiện.
+	 *    Bảng cũ ghi tên gọi ("Ngân", "N.Kiệt"), và một cửa hàng có hai cô cùng tên gọi là
+	 *    chuyện thường. Chọn sẵn người đầu danh sách cho xong thì lượt bấm tiếp theo rót cả
+	 *    tháng công của người này sang bảng lương người kia — sai im lặng, và sai ra tiền.
+	 *    Bỏ trống thì cùng lắm là thiếu công, mà thiếu công thì người ta kêu ngay hôm sau.
+	 *
+	 * ⚠️ NÚT "NẠP THẬT" CHỈ HIỆN KHI KHÔNG CÒN TÊN NÀO CHƯA GHÉP. Còn tên chưa ghép mà cho nạp
+	 *    là nạp một bảng THIẾU người, và con số tổng vẫn trông bình thường.
+	 */
+	private static function ve_bao_doc( $b, $toi = array() ) {
+		if ( empty( $b['ok'] ) ) {
+			echo '<div class="bao loi"><b>Không nạp được.</b> '
+				. esc_html( isset( $b['error'] ) ? $b['error'] : 'Bảng này không đúng khuôn.' ) . '</div>';
+			if ( ! empty( $b['canh'] ) ) {
+				echo '<div class="bao canh"><ul>';
+				foreach ( array_slice( (array) $b['canh'], 0, 20 ) as $c ) { echo '<li>' . esc_html( $c ) . '</li>'; }
+				echo '</ul></div>';
+			}
+			/* 🔴 ĐỌC ĐƯỢC BẢNG RỒI MÀ VƯỚNG Ở CƠ SỞ / QUYỀN THÌ ĐỪNG BẮT CHỌN LẠI TỆP.
+			   Lỗi hay gặp nhất của màn này là quên chọn cơ sở — và bắt tải lại tệp vì chuyện ấy
+			   là cách nhanh nhất để người ta bỏ màn mà quay về gõ tay. Bảng vẫn còn trong chỗ
+			   giữ tạm, chỉ cần chọn cơ sở rồi bấm lại.
+			   ⚠️ Chỉ mở lối này khi `error` có mặt (vướng cơ sở/quyền). Bảng SAI KHUÔN thì chỉ
+			      có `canh`, và mời bấm lại ở đó là mời bấm vào một cái chắc chắn hỏng. */
+			if ( ! empty( $b['error'] ) && ! empty( $b['dma'] ) ) {
+				self::ve_lai_coso_doc( $b, $toi );
+			}
+			return;
+		}
+		$xem    = ! empty( $b['chi_xem'] );
+		$thieu  = isset( $b['so_thieu'] ) ? (int) $b['so_thieu'] : 0;
+		echo '<div class="bao ' . ( $xem ? 'canh' : 'ok' ) . '">';
+		echo '<b>' . ( $xem ? 'XEM TRƯỚC — chưa ghi gì vào bảng công.' : 'Đã nạp vào bảng công.' ) . '</b><br>';
+		echo 'Cơ sở <b>' . esc_html( $b['coSo'] ) . '</b> · tháng <b>' . esc_html( $b['thang'] )
+			. '</b> · <b>' . esc_html( (string) $b['so_ngay'] ) . '</b> ngày có công · <b>'
+			. esc_html( (string) $b['so_nguoi'] ) . '</b> người · <b>'
+			. esc_html( (string) $b['so_luot'] ) . '</b> ngày công đọc được';
+		if ( ! $xem ) {
+			echo ' · đã ghi <b>' . esc_html( (string) $b['da_ghi'] ) . '</b>';
+			if ( ! empty( $b['nghi_ghi'] ) ) {
+				echo ' · <b>' . esc_html( (string) $b['nghi_ghi'] ) . '</b> ngày có nghỉ giữa ca';
+			}
+		}
+		echo '.<br><span class="mo">Ba con số đầu phải khớp với bảng đang cầm trên tay. Lệch là bộ '
+			. 'đọc hiểu nhầm bố cục cột — đừng bấm Nạp thật.</span></div>';
+
+		self::ve_ghep_ten( $b, $toi );
+
+		if ( ! empty( $b['canh'] ) ) {
+			$ds = (array) $b['canh'];
+			echo '<div class="bao canh"><b>' . count( $ds ) . ' chỗ cần biết:</b><ul>';
+			foreach ( array_slice( $ds, 0, 40 ) as $c ) { echo '<li>' . esc_html( $c ) . '</li>'; }
+			echo '</ul>';
+			if ( count( $ds ) > 40 ) { echo '<span class="mo">…và ' . ( count( $ds ) - 40 ) . ' dòng nữa.</span>'; }
+			echo '</div>';
+		}
+	}
+
+	/** Chọn lại cơ sở cho BẢNG ĐANG GIỮ TẠM — không phải tải tệp lên lần nữa. */
+	private static function ve_lai_coso_doc( $b, $toi ) {
+		$ds_cs = self::ds_coso_xem( $toi );
+		if ( ! $ds_cs ) { return; }
+		echo '<div class="the"><h2>Chọn cơ sở rồi bấm lại</h2>';
+		echo '<p class="mo">Bảng vừa tải lên <b>vẫn còn</b> (giữ tạm 1 giờ) — chỉ cần chọn cơ sở.</p>';
+		echo '<form method="post">'
+			. '<input type="hidden" name="ky" value="' . esc_attr( self::chu_ky_cua( $toi ) ) . '">'
+			. '<input type="hidden" name="dma" value="' . esc_attr( $b['dma'] ) . '">'
+			. self::o_loc();
+		echo '<div class="hang"><div><label for="dcs2">Nạp vào cơ sở *</label>'
+			. '<select id="dcs2" name="dcs" required><option value="">— chọn cơ sở —</option>';
+		foreach ( $ds_cs as $x ) {
+			echo '<option value="' . esc_attr( $x ) . '">' . esc_html( $x ) . '</option>';
+		}
+		echo '</select></div>';
+		echo '<div><button name="viec" value="xem_doc">Xem trước &amp; ghép tên</button></div></div>';
+		echo '</form></div>';
+	}
+
+	private static function ve_ghep_ten( $b, $toi ) {
+		$nguoi = isset( $b['nguoi'] ) ? (array) $b['nguoi'] : array();
+		if ( ! $nguoi ) { return; }
+		$cs    = isset( $b['coSo'] ) ? (string) $b['coSo'] : '';
+		$thieu = isset( $b['so_thieu'] ) ? (int) $b['so_thieu'] : 0;
+		$ds_nv = VHCC_NhanSu::ds_nhan_vien( $toi, $cs );
+
+		echo '<div class="the"><h2>Ghép tên trong bảng với người trong hệ thống</h2>';
+		echo '<p class="mo">Bảng cũ ghi tên gọi (<b>Ngân</b>, <b>N.Kiệt</b>), hệ thống ghi mã và '
+			. 'họ tên đầy đủ. Chọn đúng người cho từng tên — <b>chọn một lần thôi</b>, lần nạp '
+			. 'sau hệ thống tự nhớ.</p>';
+		if ( $thieu > 0 ) {
+			echo '<p class="mo">🔴 Còn <b>' . esc_html( (string) $thieu ) . '</b> tên chưa có '
+				. 'người. Ô để trống nghĩa là hệ thống <b>đoán ra nhiều hơn một người</b> (hoặc '
+				. 'không ai) — chỗ ấy phải tự chọn, vì chọn nhầm là công của người này chui vào '
+				. 'bảng lương người kia.</p>';
+		}
+		echo '<form method="post">'
+			. '<input type="hidden" name="ky" value="' . esc_attr( self::chu_ky_cua( $toi ) ) . '">'
+			. '<input type="hidden" name="dcs" value="' . esc_attr( $cs ) . '">'
+			. '<input type="hidden" name="dma" value="' . esc_attr( isset( $b['dma'] ) ? $b['dma'] : '' ) . '">'
+			. self::o_loc();
+		echo '<table class="b"><thead><tr><th>Tên trong bảng</th><th>Là ai</th></tr></thead><tbody>';
+		foreach ( $nguoi as $n ) {
+			$ten = (string) $n['ten'];
+			$ma  = (string) $n['ma'];
+			/* Chưa ghép mà gợi ý ra ĐÚNG MỘT người thì chọn sẵn người ấy; ra nhiều thì bỏ trống. */
+			$goi = isset( $n['goiY'] ) ? (array) $n['goiY'] : array();
+			$san = ( '' !== $ma ) ? $ma : ( ( 1 === count( $goi ) ) ? (string) $goi[0] : '' );
+			echo '<tr><td><b>' . esc_html( $ten ) . '</b>';
+			if ( '' === $ma && count( $goi ) > 1 ) {
+				echo '<br><span class="mo">Khớp với ' . esc_html( (string) count( $goi ) )
+					. ' người — phải tự chọn.</span>';
+			} elseif ( '' !== $ma && 'luu' === $n['tuDau'] ) {
+				echo '<br><span class="mo">đã nhớ từ lần trước</span>';
+			}
+			echo '</td><td><select name="ghep[' . esc_attr( $ten ) . ']">';
+			echo '<option value="">— chưa chọn —</option>';
+			foreach ( $ds_nv as $hs ) {
+				$m = (string) $hs['ma_nv'];
+				echo '<option value="' . esc_attr( $m ) . '"' . selected( $m, $san, false ) . '>'
+					. esc_html( $hs['ho_ten'] . ' (' . $m . ')' ) . '</option>';
+			}
+			echo '</select></td></tr>';
+		}
+		echo '</tbody></table>';
+		echo '<div class="hang"><div><button name="viec" value="xem_doc">Lưu ghép &amp; xem lại</button></div>';
+		if ( 0 === $thieu ) {
+			echo '<div><button class="chay" name="viec" value="nap_doc">Nạp thật</button></div>';
+		}
+		echo '</div>';
+		if ( $thieu > 0 ) {
+			echo '<p class="mo">Nút <b>Nạp thật</b> hiện ra khi mọi tên đã có người.</p>';
+		}
+		echo '<p class="mo">Bảng vừa tải lên được giữ tạm <b>1 giờ</b> nên sửa ô ghép rồi bấm lại '
+			. 'là đủ, không phải chọn tệp lần nữa.</p>';
+		echo '</form></div>';
 	}
 
 	/** 🔴 Kể TỪNG Ô đổi gì — chỗ này mới là thứ cho thấy bản đồ cột có sai không. */

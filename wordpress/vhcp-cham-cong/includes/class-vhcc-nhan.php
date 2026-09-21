@@ -736,6 +736,53 @@ class VHCC_Nhan {
 	}
 
 	/**
+	 * CHỈ ĐẶT KHOẢNG NGHỈ GIỮA CA — không chạm một giây nào của giờ vào / giờ ra.
+	 *
+	 * 🔴 VÌ SAO KHÔNG DÙNG `dat_gio()` CHO VIỆC NÀY. Hàm ấy ĐẶT THẲNG mọi thứ, tức là xoá được
+	 *    giờ máy đã ghi — và chú thích của nó nói rõ nó chỉ có đúng MỘT nơi gọi (`VHCC_Bu::sua`,
+	 *    nơi gác quyền Admin, đòi lý do, ghi nhật ký cũ→mới). Mở nó ra cho bộ nạp là mở lại
+	 *    đúng cái cửa ấy cho một việc chỉ cần hai cột.
+	 *
+	 * 🔴 VÌ SAO CẦN. Bảng công cũ có người làm HAI CA CÁCH QUÃNG trong một ngày (08:30–13:00 rồi
+	 *    17:05–22:00). `ghi_gio()` chỉ nới khung nên nó cho ra 08:30–22:00 = 13 giờ 30, trong
+	 *    khi thực là 9 giờ 25. Khoảng giữa phải được ghi ra, nếu không là trả dư bốn tiếng cho
+	 *    một người trong một ngày. Xem `VHCC_NapDoc`.
+	 *
+	 * ⚠️ HÀNG PHẢI CÓ SẴN. Hàm này không tạo hàng mới: khoảng nghỉ của một ngày không có giờ
+	 *    công là một con số không nói lên điều gì.
+	 */
+	public static function dat_nghi_giua( $coso, $ngay, $ma_nv, $tu_giay, $den_giay ) {
+		global $wpdb;
+		$coso = VHCC_NhanSu::chuan_coso( $coso );
+		list( $ma_goc, $hau_to ) = self::tach_hau_to( $ma_nv );
+		$bang = VHCC_DB::t( 'cham_cong' );
+		$cu = $wpdb->get_row( $wpdb->prepare(
+			"SELECT id, gio_vao_giay, gio_ra_giay FROM $bang WHERE coso=%s AND ngay=%s AND ma_nv=%s AND hau_to=%s",
+			$coso, $ngay, $ma_goc, $hau_to ), ARRAY_A );
+		if ( ! $cu ) { return false; }
+		$tu  = ( null === $tu_giay || '' === $tu_giay ) ? null : (int) $tu_giay;
+		$den = ( null === $den_giay || '' === $den_giay ) ? null : (int) $den_giay;
+		/* Khoảng rỗng hay ngược đầu thì XOÁ, không ghi. Một khoảng nghỉ 13:00–13:00 là rác, và
+		   một khoảng 17:00–13:00 thì mọi phép trừ ở nơi khác ra số âm. */
+		if ( null === $tu || null === $den || $den <= $tu ) { $tu = null; $den = null; }
+
+		/* 🔴 KHOẢNG NGHỈ PHẢI NẰM GỌN TRONG KHUNG GIỜ CỦA CHÍNH HÀNG ẤY — chối nếu không.
+		   Bộ nạp tính khoảng nghỉ từ TỆP, còn giờ trong sổ có thể đã khác: Admin sửa tay, hoặc
+		   máy chấm công đã ghi một khung khác. Đặt bừa khoảng của tệp vào khung của sổ là TRỪ
+		   mất mấy tiếng công của một người — trừ im lặng, vì bảng vẫn có đủ cặp giờ và ô nghỉ
+		   thì không ai soi. Trả `false` để nơi gọi kể ra và người ta sửa tay.
+		   ⚠️ Hàng thiếu một đầu giờ cũng chối: không biết khung thì không kiểm được. */
+		if ( null !== $tu ) {
+			$v = ( null === $cu['gio_vao_giay'] || '' === $cu['gio_vao_giay'] ) ? null : (int) $cu['gio_vao_giay'];
+			$r = ( null === $cu['gio_ra_giay'] || '' === $cu['gio_ra_giay'] ) ? null : (int) $cu['gio_ra_giay'];
+			if ( null === $v || null === $r || $tu < $v || $den > $r ) { return false; }
+		}
+		$wpdb->update( $bang, array( 'nghi_tu_giay' => $tu, 'nghi_den_giay' => $den ),
+			array( 'id' => (int) $cu['id'] ) );
+		return true;
+	}
+
+	/**
 	 * ĐẶT THẲNG giờ vào / giờ ra — cửa ghi THỨ TƯ, và là cửa duy nhất ĐÈ ĐƯỢC.
 	 *
 	 * ════════════════════════════════════════════════════════════════════════════════════════

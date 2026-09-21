@@ -48,6 +48,14 @@ $wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'FCKAD', 'ho_ten' =>
 $wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'FCKNV', 'ho_ten' => 'Em Nhân Viên',
 	'cua_hang' => $CS, 'vai_tro' => 'Nhân viên', 'chuc_vu' => 'Partime',
 	'trang_thai_lam_viec' => 'Đang làm' ) );
+/* 🔴 KHAI CƠ SỞ VÀO DANH MỤC, ĐỪNG CHỈ GIEO DỮ LIỆU MANG TÊN NÓ.
+   `ds_coso()` chỉ đọc `bo_phan_coso` và `may`; không có dòng nào ở đó thì MỌI khối có ô chọn
+   cơ sở đều rẽ vào nhánh "tài khoản này chưa được gán cơ sở nào" và KHÔNG vẽ form ra. Bài kiểm
+   khi ấy vẫn xanh — vì không còn gì để soi. Em đã mất một lượt vì đúng chỗ này: thêm màn "Dữ
+   liệu đầu vào" vào danh sách, thấy số phép thử tăng, tưởng là đã canh; phá thử (bỏ hẳn ô chữ
+   ký của khối nạp bảng cũ) thì bài VẪN xanh. */
+$wpdb->insert( VHCC_DB::t( 'bo_phan_coso' ), array( 'coso' => $CS, 'bo_phan' => 'Quầy' ) );
+
 $wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $CS,
 	'ngay' => substr( (string) current_time( 'Y-m-d' ), 0, 8 ) . '05', 'ma_nv' => 'FCKNV',
 	'ho_ten' => 'Em Nhân Viên', 'gio_vao_giay' => 28800, 'gio_ra_giay' => 61200,
@@ -101,6 +109,10 @@ $man = array(
 	array( 'qt · Cơ sở',          'qt', 'Admin',   array( 'man' => 'coso' ) ),
 	array( 'qt · Đơn duyệt tháng','qt', 'Kế toán', array( 'man' => 'don_tuan' ) ),
 	array( 'qt · Hồ sơ',          'qt', 'Admin',   array( 'man' => 'ho_so' ) ),
+	/* Màn nạp dữ liệu đầu vào: hai khối nạp (bảng .csv cũ của Sheets, và bảng .xlsx tự làm của
+	   anh Thắng). Hai form ấy là cửa DUY NHẤT đưa giờ công vào bằng tay — quên ô chữ ký ở đây
+	   là hai cái nút chết ngay lúc người ta đang rối nhất (máy hỏng, sổ cũ chưa vào). */
+	array( 'qt · Dữ liệu đầu vào','qt', 'Admin',   array( 'man' => 'du_lieu' ) ),
 	array( 'ns · Quản lý nhân sự','ns', 'Kế toán', array() ),
 	array( 'ns · Quyền vào trang','ns', 'Kế toán', array( 'tab' => 'quyen' ) ),
 );
