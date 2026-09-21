@@ -257,6 +257,40 @@ class VHJP_Nguon {
 	}
 
 	/**
+	 * KHOÁ GHI cho một báo cáo — thay `LockService` của Apps Script.
+	 *
+	 * =========================================================================================
+	 * 🔴 VÌ SAO CẦN. Lượt lưu báo cáo XOÁ SẠCH dòng cũ rồi GHI LẠI toàn bộ. Hai lượt chạy xen
+	 *    nhau (nhân viên mở hai tab, hoặc bấm Lưu hai lần vì mạng chậm) thì thứ tự
+	 *    xoá-ghi-xoá-ghi trộn lại cho ra một báo cáo THIẾU DÒNG hoặc TRÙNG DÒNG — và không
+	 *    dòng nào báo lỗi. Bản gốc chặn bằng khoá script; bên này dùng khoá tên của MySQL.
+	 * =========================================================================================
+	 *
+	 * ⚠️ KHÔNG ĐƯỢC CHẶN LƯỢT LƯU KHI MÁY CHỦ KHÔNG CÓ KHOÁ. `GET_LOCK` là của MySQL; bệ đỡ
+	 *    thử chạy SQLite và không có hàm ấy. Coi "không lấy được vì máy chủ không hỗ trợ" là
+	 *    ĐÃ LẤY ĐƯỢC — mất một lớp bảo vệ còn hơn để nhân viên gõ cả ca rồi không lưu nổi.
+	 *    Chỉ khi máy chủ TRẢ LỜI RÕ là "người khác đang giữ" mới chối.
+	 *
+	 * ⚠️ Tên khoá gắn tiền tố bảng: hai site WordPress dùng chung một máy chủ MySQL thì khoá
+	 *    tên là DÙNG CHUNG TOÀN MÁY CHỦ — không gắn tiền tố là site này khoá site kia.
+	 */
+	public static function lay_khoa( $ten, $cho_giay = 10 ) {
+		global $wpdb;
+		$k = VHJP_DB::t( 'lock_' ) . (string) $ten;
+		$r = $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s, %d)', $k, (int) $cho_giay ) );
+		if ( null === $r || '' === $r ) { return true; }   // máy chủ không có khoá -> đi tiếp
+		return '1' === (string) $r;
+	}
+
+	/** Trả khoá. Gọi trong `finally` — không trả là khoá treo tới hết phiên MySQL. */
+	public static function tra_khoa( $ten ) {
+		global $wpdb;
+		$k = VHJP_DB::t( 'lock_' ) . (string) $ten;
+		$wpdb->get_var( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', $k ) );
+		return true;
+	}
+
+	/**
 	 * Khoá chính LỚN NHẤT bắt đầu bằng một đoạn cho trước. Dùng để sinh mã chạy tiếp.
 	 *
 	 * ⚠️ Nằm ở ĐÂY chứ không ở `VHJP_Ma`, vì luật "chỉ một lớp chạm `$wpdb`" không có ngoại lệ

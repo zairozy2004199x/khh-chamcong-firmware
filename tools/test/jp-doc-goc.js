@@ -51,9 +51,20 @@ const Utilities = {
 };
 
 /* Mấy lớp Apps Script khác chỉ cần TỒN TẠI để tệp nạp trôi — không hàm nào dưới đây gọi tới. */
+/*
+ * `LockService` — khoá script của Apps Script. Node chạy một luồng nên khoá là vô nghĩa ở đây,
+ * nhưng `jpLock_` (mã GỐC, và mọi đường ghi đều đi qua nó) gọi thẳng vào nó, nên phải có mặt.
+ * Dựng một cái khoá luôn lấy được: giữ `jpLock_` là mã gốc thật, chỉ thay thứ bên dưới nó.
+ */
+const LockService = {
+  getScriptLock() {
+    return { waitLock() { return true; }, tryLock() { return true; }, releaseLock() {} };
+  },
+};
+
 const hop = {
-  Utilities, console,
-  SpreadsheetApp: {}, PropertiesService: {}, DriveApp: {}, LockService: {}, Session: {},
+  Utilities, console, LockService,
+  SpreadsheetApp: {}, PropertiesService: {}, DriveApp: {}, Session: {},
   CacheService: {}, UrlFetchApp: {}, HtmlService: {}, ScriptApp: {}, MailApp: {},
 };
 vm.createContext(hop);
@@ -107,6 +118,25 @@ if (so) {
     (ds || []).forEach(function (o) { hop.jpAppend_(tabDef, o); });
     return (ds || []).length;
   };
+  /*
+   * `jpDeleteWhere_` và `jpFields_` — hai hàm SỬA/XOÁ trên Sheets.
+   *
+   * ⚠️ `jpFields_` ghi theo SỐ DÒNG (`head._row`), đúng cái mà bản PHP cố ý bỏ đi. Bộ sổ giả
+   *    phải dựng lại cho đúng: `jpRows_`/`jpFind_` gán `_row = chỉ số trong mảng hai chiều + 1`,
+   *    mà dòng đầu của mảng ấy là header — nên dòng dữ liệu thứ k có `_row = k + 2`.
+   */
+  hop.jpDeleteWhere_ = function (tabDef, key, val) {
+    const ds = so[tabDef.name] || [];
+    const s_ = String(val);
+    so[tabDef.name] = ds.filter(function (o) { return String(o[key]) !== s_; });
+    return ds.length - so[tabDef.name].length;
+  };
+  hop.jpFields_ = function (tabDef, rowIndex, fields) {
+    const o = (so[tabDef.name] || [])[rowIndex - 2];
+    if (!o) return false;
+    Object.keys(fields || {}).forEach(function (k) { o[k] = fields[k]; });
+    return true;
+  };
   var __seq = 0;
   hop.jpNextId_ = function (prefix) {
     if (so.__maMoi) { return so.__maMoi; }
@@ -152,6 +182,9 @@ const ham = {
   vi_sao_khong_gieo: 'jpViSaoKhongGieo_', gieo_dong: 'jpGieoDongTuKyTruoc_',
   bo_dong_tra_kho: 'jpBoDongTraKho_', dong_theo_ma: 'jpDongTheoMa_',
   ton_cuoi_gieo: 'jpTonCuoiGieo_',
+  /* Lưu nháp — xoá sạch rồi ghi lại, nên cần cả `jpDeleteWhere_` lẫn `jpFields_`. */
+  luu: 'jpSaveReport', ban_do_hang: 'jpItemMap_', tra_hang: 'jpTraItem_',
+  id_moi: 'jpIdMoi_', ids_dang_dung: 'jpIdsDangDung_', diff_phan: 'jpDiffParts_',
 }[ten];
 if (!ham) { console.error('không biết hàm ' + ten); process.exit(2); }
 if (typeof hop[ham] !== 'function') { console.error('mã gốc không có ' + ham); process.exit(3); }
