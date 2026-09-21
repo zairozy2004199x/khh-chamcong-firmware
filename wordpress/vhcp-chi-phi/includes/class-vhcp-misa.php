@@ -29,10 +29,26 @@ class VHCP_Misa {
 	const MAU_CHUAN = 'chuan';   // nhật ký chung — 10 cột, mẫu đang chạy của Khu vui chơi
 	const MAU_SOCT  = 'soct';    // sổ chi tiết tài khoản — 13 cột, mẫu MTĐ / VP
 
-	public static function cols( $mau = self::MAU_CHUAN ) {
+	/**
+	 * `$gop_tk` = true khi bản xuất TRỘN nhiều tài khoản chi phí — lúc ấy thêm cột `TK Nợ` ở đầu.
+	 *
+	 * 🔴 SỔ CHI TIẾT LÀ SỔ **CỦA MỘT TÀI KHOẢN**, nên 13 cột mẫu không có chỗ nào ghi số hiệu tài
+	 *    khoản: nó nằm ở tiêu đề sổ. Đúng với một lượt xuất đã lọc về một tài khoản. Nhưng nếu
+	 *    lượt xuất ôm cả 64136 lẫn 6427 thì tệp ra TRỘN CHUNG mà không phân biệt được dòng nào
+	 *    của tài khoản nào — người nhận đọc xong cộng nhầm, và không có gì trên tệp báo cho họ.
+	 *
+	 * ⚠️ HAI HÌNH DẠNG, MỖI CÁI ĐÚNG TRONG CẢNH CỦA NÓ — không chọn bừa một cái:
+	 *      · lọc về MỘT tài khoản  -> đúng 13 cột, khớp nguyên văn mẫu MISA anh Thắng gửi;
+	 *      · để "mọi TK Nợ"        -> 13 cột ấy + cột `TK Nợ` ở đầu, tệp tự nói nó gồm những gì.
+	 *    Cột thêm đứng ĐẦU chứ không chèn giữa: người quen mẫu cũ vẫn đọc được 13 cột sau nó
+	 *    theo đúng thứ tự cũ.
+	 */
+	public static function cols( $mau = self::MAU_CHUAN, $gop_tk = false ) {
 		if ( self::MAU_SOCT === $mau ) {
-			return array( 'Ngày hạch toán', 'Ngày chứng từ', 'Số chứng từ', 'Diễn giải chung', 'Diễn giải',
+			$c = array( 'Ngày hạch toán', 'Ngày chứng từ', 'Số chứng từ', 'Diễn giải chung', 'Diễn giải',
 				'TK đối ứng', 'Phát sinh Nợ', 'Phát sinh Có', 'Dư Nợ', 'Dư Có', 'Mã đối tượng', 'Mã đơn vị', 'Tên đơn vị' );
+			if ( $gop_tk ) { array_unshift( $c, 'TK Nợ' ); }
+			return $c;
 		}
 		return array( 'Ngày chứng từ (*)', 'Ngày hạch toán (*)', 'Số chứng từ (*)', 'Diễn giải', 'Diễn giải (Hạch toán)', 'TK Nợ (*)', 'TK Có (*)', 'Số tiền', 'Mã đối tượng Có', 'Mã đơn vị' );
 	}
@@ -102,8 +118,10 @@ class VHCP_Misa {
 	}
 
 	/** exportMisa(): đơn vận hành. mode = chuaxuat|daxuat ; plF = all|cn|ncc. */
-	public static function export_misa( $ky = 'all', $mode = 'chuaxuat', $pl_f = 'all', $mau = self::MAU_CHUAN ) {
-		$mau = ( self::MAU_SOCT === $mau ) ? self::MAU_SOCT : self::MAU_CHUAN;
+	public static function export_misa( $ky = 'all', $mode = 'chuaxuat', $pl_f = 'all', $mau = self::MAU_CHUAN, $tk_f = 'all' ) {
+		$mau  = ( self::MAU_SOCT === $mau ) ? self::MAU_SOCT : self::MAU_CHUAN;
+		$tk_f = VHCP_Util::ma_so( trim( (string) $tk_f ) );
+		if ( 'ALL' === mb_strtoupper( (string) $tk_f ) ) { $tk_f = ''; }
 		$mode = $mode ? $mode : 'chuaxuat';
 		$pl_f = $pl_f ? $pl_f : 'all';
 		$cp   = VHCP_Don::cp_rows();              // đọc 1 lần, dùng cho cả cấu hình đối tượng lẫn vòng lặp dưới
@@ -183,6 +201,7 @@ class VHCP_Misa {
 		}
 
 		$rows_by_nhom = array(); $nhom_order = array(); $warn = array(); $ndon = 0; $seen_don = array(); $ngay_xau = array();
+		$tk_co_mat = array();   // những TK Nợ CÓ MẶT trong kỳ — để màn đổ ô lọc, khỏi đoán
 		$stt_chen = 0;
 		foreach ( $cp as $r ) {
 			$m = (string) $r['ma_don'];
@@ -242,6 +261,12 @@ class VHCP_Misa {
 			if ( ! empty( $m_dt_user[ $duyet_key ] ) )               { $ma_dt = $m_dt_user[ $duyet_key ]; }
 			elseif ( ! empty( $m_dt[ mb_strtolower( $dt ) ] ) )      { $ma_dt = $m_dt[ mb_strtolower( $dt ) ]; }
 
+			/* Lọc theo TK Nợ — đứng SAU lượt chốt mã (phải biết mã rồi mới lọc được), và TRƯỚC
+			   mọi phép cộng, để con số "số đơn / số dòng" khớp đúng tệp bên dưới. */
+			$tk_no_ms = VHCP_Util::ma_so( $tk_no );
+			if ( '' !== $tk_no_ms ) { $tk_co_mat[ $tk_no_ms ] = 1; }
+			if ( '' !== $tk_f && $tk_no_ms !== $tk_f ) { continue; }
+
 			if ( ! $tk_no ) { $warn[ 'Thiếu TK Nợ cho loại chi phí: ' . VHCP_Cfg::bo_duoi_nhom( $nhom ) . ( $pll !== '' ? ' (mảng ' . $pll . ')' : '' ) . ' — khai ở ⚙️ Cấu hình → Loại chi phí' ] = 1; }
 			/* Câu báo phải chỉ đúng CHỖ KHAI. Trước đây nó nói "thiếu TK Có cho người duyệt X"
 			   và người ta đi sửa bảng Người dùng — nay cột ấy không còn, nên chỉ thẳng sang
@@ -297,6 +322,8 @@ class VHCP_Misa {
 				$r_out = array( $ngay, $ngay, $m, $dg1, $dg2,
 					VHCP_Util::ma_so( $tk_co ), $sotien, 0, '', '',
 					VHCP_Util::ma_so( $ma_dt ), VHCP_Util::ma_so( $ma_dv ), $ten_misa );
+				/* Trộn nhiều tài khoản thì tệp phải tự nói dòng này của tài khoản nào — xem `cols()`. */
+				if ( '' === $tk_f ) { array_unshift( $r_out, $tk_no_ms ); }
 			} else {
 				$r_out = array( $ngay, $ngay, '', $dg1, $dg2,
 					VHCP_Util::ma_so( $tk_no ), VHCP_Util::ma_so( $tk_co ), $sotien,
@@ -353,7 +380,16 @@ class VHCP_Misa {
 			$theo_khoi[ $k ] = ( isset( $theo_khoi[ $k ] ) ? $theo_khoi[ $k ] : 0 ) + 1;
 		}
 
-		return array( 'cols' => self::cols( $mau ), 'mau' => $mau, 'rows' => $rows, 'count' => count( $rows ), 'sodon' => $ndon,
+		/* ⚠️ ÉP VỀ CHUỖI. Khoá mảng PHP tự đổi chuỗi số canonical thành SỐ NGUYÊN ('6427' -> 6427),
+		   nên `array_keys()` trả về một mảng lẫn kiểu. Hai hệ quả, cái sau nặng hơn:
+		     · màn so `o.value` (chuỗi) với mã — lẫn kiểu là phép so hụt;
+		     · mã kế toán hoàn toàn có thể mang số 0 đứng đầu, và một lượt ép số là mất nó.
+		   Ép ở đây, một chỗ, thay vì bắt mọi người đọc phải nhớ. */
+		$tk_ds = array_map( 'strval', array_keys( $tk_co_mat ) );
+		sort( $tk_ds, SORT_NATURAL );
+		return array( 'cols' => self::cols( $mau, ( self::MAU_SOCT === $mau && '' === $tk_f ) ),
+			'mau' => $mau, 'tkLoc' => $tk_f, 'tkDs' => $tk_ds,
+			'rows' => $rows, 'count' => count( $rows ), 'sodon' => $ndon,
 			'theoKhoi' => $theo_khoi,
 			'warn' => array_merge( array_keys( $warn ), VHCP_Misa::warn_ngay_xau( $ngay_xau ) ), 'maDons' => array_keys( $seen_don ) );
 	}

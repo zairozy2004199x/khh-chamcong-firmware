@@ -101,6 +101,50 @@ teq( '🔴 TK đối ứng (mẫu mới) == TK Có (mẫu cũ)', (string) $cu['r
 teq( '🔴 số tiền hai mẫu bằng nhau', $cu['rows'][0][7], $r[ $c['Phát sinh Nợ'] ] );
 teq( '   và cùng số đơn', $cu['sodon'], $o['sodon'] );
 
+/* ═══ 3b. 🔴 LỌC THEO TK NỢ — SỔ CHI TIẾT LÀ SỔ CỦA MỘT TÀI KHOẢN ════════════════
+ * 13 cột mẫu KHÔNG có chỗ nào ghi số hiệu tài khoản: nó nằm ở tiêu đề sổ. Đúng với một lượt
+ * xuất đã lọc về một tài khoản. Nhưng nếu lượt xuất ôm cả 64136 lẫn 6427 thì tệp ra TRỘN
+ * CHUNG mà không phân biệt được dòng nào của tài khoản nào — người nhận cộng nhầm, và không
+ * có gì trên tệp báo cho họ. Nên hai hình dạng, mỗi cái đúng trong cảnh của nó. */
+VHCP_Cfg::write( VHCP_Cfg::LOAI, array_merge( VHCP_Cfg::read( VHCP_Cfg::LOAI ),
+	array( array( 'Chi phí chung', '6427', '331', '', '', '', '', '', '', 'mtd' ) ) ), false );
+VHCP_Cfg::clear_cache();
+$wpdb->insert( VHCP_DB::t( 'chiphi' ), array( 'ma_don' => 'D777', 'ngay' => '2026-09-01', 'coso' => 'GIAN THỬ',
+	'nhom' => 'Chi phí chung', 'noi_dung' => 'Dau may', 'thanh_tien' => 900000,
+	'phan_loai_tt' => 'Thanh toán cá nhân', 'tk_no' => '', 'tk_co' => '141', 'doi_tuong' => '' ) );
+
+$gop = VHCP_Misa::export_misa( 'all', 'chuaxuat', 'all', VHCP_Misa::MAU_SOCT, 'all' );
+teq( '🔴 trộn nhiều TK → thêm cột `TK Nợ` ở ĐẦU', 'TK Nợ', $gop['cols'][0] );
+teq( '   và thành 14 cột', 14, count( $gop['cols'] ) );
+/* ⚠️ Cột thêm đứng ĐẦU chứ không chèn giữa: người quen mẫu cũ vẫn đọc được 13 cột sau nó theo
+   đúng thứ tự cũ. */
+teq( '⚠️ 13 cột mẫu giữ nguyên thứ tự, nằm sau cột thêm', $MONG, array_slice( $gop['cols'], 1 ) );
+teq( '   hai dòng của hai tài khoản', 2, count( $gop['rows'] ) );
+
+$loc = VHCP_Misa::export_misa( 'all', 'chuaxuat', 'all', VHCP_Misa::MAU_SOCT, '64136' );
+teq( '🔴 lọc một TK → đúng 13 cột, khớp nguyên văn mẫu MISA', $MONG, $loc['cols'] );
+teq( '🔴 và chỉ còn dòng của tài khoản ấy', 1, count( $loc['rows'] ) );
+teq( '   đúng số tiền của nó', 2500000.0, $loc['rows'][0][ array_search( 'Phát sinh Nợ', $loc['cols'], true ) ] );
+/* ⚠️ Ô lọc trên màn đổ từ mã CÓ MẶT trong kỳ, không phải từ danh mục: danh mục có hàng chục mã
+   mà phần lớn không phát sinh, bày hết là kế toán dò giữa một danh sách quá nửa chọn vào ra
+   tệp rỗng. */
+$ds = $gop['tkDs']; sort( $ds, SORT_NATURAL );
+teq( '⚠️ bản xuất kê đúng những TK Nợ CÓ MẶT', array( '6427', '64136' ), $ds );
+/* 🔴 PHẢI LÀ CHUỖI, KHÔNG PHẢI SỐ. Khoá mảng PHP tự đổi '6427' thành số nguyên 6427 — màn so
+   `o.value` (chuỗi) là hụt, và mã mang số 0 đứng đầu thì một lượt ép số là MẤT nó. Phép này
+   canh đúng cái ép kiểu ở `export_misa()`; nó từng sai thật, 21/09/2026. */
+t( '🔴 danh sách TK là CHUỖI (mã có số 0 đứng đầu không bị ăn mất)',
+	$ds === array_map( 'strval', $ds ) && is_string( $ds[0] ), $ds );
+teq( '   và nói nó đang lọc mã nào', '64136', $loc['tkLoc'] );
+teq( '   "mọi TK" thì ô lọc rỗng',    '',      $gop['tkLoc'] );
+/* ⚠️ `'all'` và chuỗi rỗng phải cùng nghĩa — màn gửi 'all', người gọi khác có thể gửi ''. */
+teq( '⚠️ `all` và rỗng cùng nghĩa "mọi TK"', count( $gop['cols'] ),
+	count( VHCP_Misa::export_misa( 'all', 'chuaxuat', 'all', VHCP_Misa::MAU_SOCT, '' )['cols'] ) );
+/* 🔴 MẪU CŨ KHÔNG CÓ KHÁI NIỆM NÀY — nhật ký chung đã có sẵn cột TK Nợ, thêm nữa là hai cột
+   cùng nghĩa cạnh nhau. */
+teq( '🔴 mẫu nhật ký chung KHÔNG đổi dù truyền tham số lọc', 10,
+	count( VHCP_Misa::export_misa( 'all', 'chuaxuat', 'all', VHCP_Misa::MAU_CHUAN, 'all' )['cols'] ) );
+
 /* ═══ 4. BẢN XUẤT NÓI RÕ NÓ LÀ MẪU NÀO ═══════════════════════════════════════════
  * Màn dùng ô này để đặt tên tệp và để biết cột nào là cột tiền. Thiếu nó thì tệp sổ chi tiết
  * mang tên của mẫu cũ, và hai tệp nằm cạnh nhau trong thư mục Tải về không phân biệt được. */
