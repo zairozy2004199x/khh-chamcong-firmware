@@ -190,11 +190,20 @@ class VHCP_Misa {
 			if ( $tk_no === '' && ! empty( $m_loai[ $nhom_k ] ) )                        { $tk_no = $m_loai[ $nhom_k ]; }
 			if ( $tk_no === '' && ! empty( $m_no_mx[ $mx_k ] ) )                         { $tk_no = $m_no_mx[ $mx_k ]; }
 			if ( $tk_no === '' && ! empty( $m_no[ $nhom ] ) && ! VHCP_Cfg::la_tk_ben_tra( $m_no[ $nhom ] ) ) { $tk_no = $m_no[ $nhom ]; }
-			// TK Có = BÊN TRẢ TIỀN, không phải "chi phí gì". Mã gắn trên dòng trước (chụp đúng
-			// lúc nhập, theo hình thức chi của chính dòng ấy), rồi tới TK Có của phân loại.
-			$tk_co = '';
-			if ( trim( (string) ( isset( $r['tk_co'] ) ? $r['tk_co'] : '' ) ) !== '' ) { $tk_co = trim( (string) $r['tk_co'] ); }
-			elseif ( ! empty( $m_co[ $co_key ] ) )     { $tk_co = $m_co[ $co_key ]; }
+			/* TK Có = BÊN TRẢ TIỀN. Ba bậc, và bậc đầu là mới (anh Thắng 21/09/2026: *"MTĐ tùy
+			   loại sẽ có TK đối ứng khác"*):
+			     1) TK đối ứng KHAI SẴN ở danh mục loại chi phí — một lời tuyên bố, nên thắng;
+			     2) mã gắn trên dòng (chụp lúc nhập, theo hình thức chi của chính dòng ấy);
+			     3) TK Có của phân loại thanh toán.
+			   Bậc 1 bỏ trống thì hai bậc sau y như cũ — xem chốt dài ở `VHCP_Cfg::tkco_xuat()`.
+			   ⚠️ Truyền KHỐI CỦA ĐƠN vào: hai khối cùng có loại trùng tên là chuyện có thật, tra
+			      không phân biệt khối là mã của bên này đè lên dòng của bên kia. */
+			$tk_co = VHCP_Cfg::tkco_xuat(
+				$nhom,
+				isset( $d['khoi'] ) ? $d['khoi'] : '',
+				isset( $r['tk_co'] ) ? $r['tk_co'] : '',
+				! empty( $m_co[ $co_key ] ) ? $m_co[ $co_key ] : ''
+			);
 			$ma_dv = isset( $m_unit[ $coso ] ) ? $m_unit[ $coso ] : '';
 			$ma_dt = '';
 			if ( ! empty( $m_dt_user[ $duyet_key ] ) )               { $ma_dt = $m_dt_user[ $duyet_key ]; }
@@ -204,7 +213,7 @@ class VHCP_Misa {
 			/* Câu báo phải chỉ đúng CHỖ KHAI. Trước đây nó nói "thiếu TK Có cho người duyệt X"
 			   và người ta đi sửa bảng Người dùng — nay cột ấy không còn, nên chỉ thẳng sang
 			   bảng Phân loại thanh toán, là nơi duy nhất còn khai được. */
-			if ( ! $tk_co ) { $warn[ 'Thiếu TK Có cho hình thức chi: ' . ( '' !== trim( (string) $co_key ) ? $co_key : '(trống)' ) . ' — khai ở ⚙️ Cấu hình → Phân loại thanh toán' ] = 1; }
+			if ( ! $tk_co ) { $warn[ 'Thiếu TK Có cho hình thức chi: ' . ( '' !== trim( (string) $co_key ) ? $co_key : '(trống)' ) . ' — khai ở ⚙️ Cấu hình → Phân loại thanh toán, hoặc khai TK đối ứng riêng cho loại "' . VHCP_Cfg::bo_duoi_nhom( $nhom ) . '"' ] = 1; }
 			if ( ! $ma_dv ) { $warn[ 'Thiếu Mã đơn vị cho cơ sở: ' . $coso ] = 1; }
 
 			$ngay = VHCP_Util::fmt( $r['ngay'] );
