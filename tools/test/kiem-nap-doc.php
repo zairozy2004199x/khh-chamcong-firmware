@@ -737,8 +737,8 @@ t( '   và nói rõ ngày nào, từ đâu thành đâu',
 		(array) $r_an['canh'] ), $r_an['canh'] );
 
 /* ── TẮT chốt -> đúng là phình ra 14 giờ. Chốt phải THẬT SỰ đang chặn một cái gì. */
-VHCC_NapDoc::nap( $AD, $CS4, $de, $MAP4, false, false );
-t( '🔴 tắt chốt thì ngày ấy phình thành 14 giờ (5 + 5 -> 14)',
+VHCC_NapDoc::nap( $AD, $CS4, $de, $MAP4, false, VHCC_NapDoc::CACH_GOP );
+t( '🔴 chế độ GỘP KHUNG thì ngày ấy phình thành 14 giờ (5 + 5 -> 14)',
 	840 === $gio_cua( '2026-04-03' ), $gio_cua( '2026-04-03' ) );
 
 /* ── Ngày mà BẢNG đúng hơn sổ thì KHÔNG phải "phình" — đừng kể chung một rổ, kẻo loãng mất
@@ -761,7 +761,7 @@ t( '   nhưng vẫn đếm là ngày trùng', $r_bao['so_trung'] > 0, $r_bao['so
    ghi_gio() cộng dat_nghi_giua(). Hai đường mà lệch nhau thì màn hình nói một đằng, sổ ghi một
    nẻo — và người ta sẽ tin màn hình. Bản đầu của gop_khung() đúng là đã lệch: nó bỏ quên khoảng
    nghỉ của BẢNG nên báo phình +4:05 cho một ngày không phình phút nào. */
-VHCC_NapDoc::nap( $AD, $CS5, $B, array(), false, false );
+VHCC_NapDoc::nap( $AD, $CS5, $B, array(), false, VHCC_NapDoc::CACH_GOP );
 $that5 = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . VHCC_DB::t( 'cham_cong' )
 	. ' WHERE coso=%s AND ma_nv=%s AND ngay=%s', $CS5, 'NK2', '2026-04-11' ), ARRAY_A );
 $p5 = (int) VHCC_Pdf::phut_lam( $that5['gio_vao_giay'], $that5['gio_ra_giay'],
@@ -769,6 +769,100 @@ $p5 = (int) VHCC_Pdf::phut_lam( $that5['gio_vao_giay'], $that5['gio_ra_giay'],
 t( '🔴 nạp đè thật -> đúng 9h25 như lời dự đoán, KHÔNG phình', 565 === $p5,
 	sprintf( '%d:%02d', intdiv( $p5, 60 ), $p5 % 60 ) );
 t( '   và khoảng nghỉ của BẢNG đã vào sổ', 13 * 3600 === (int) $that5['nghi_tu_giay'], $that5 );
+
+/* ═════════════════════════════════════════════════════════════════════════════════════════
+   9. CHỐT THEO BẢNG — anh Thắng 21/09/2026: *"bản excel tức là bản chốt, nên cầm ghi đè lên
+      bản có sẵn để chốt"*
+   ═════════════════════════════════════════════════════════════════════════════════════════
+   🔴 "GỘP KHUNG" KHÔNG PHẢI LÀ CHỐT, và đây là chỗ dễ tưởng nhầm nhất.
+   Ca thật anh gửi: máy chấm 01/08 của T.Dũng ghi 16:59:35→22:14:36, bảng ghi 17:00→22:10.
+   Khung máy BAO TRỌN khung bảng, nên gộp lại vẫn ra đúng giờ MÁY — bảng không thắng được một
+   giây nào. Người dùng bỏ dấu tích an toàn, tưởng mình vừa chốt theo bảng, mà thật ra không
+   đổi gì. Chỉ `CACH_DE` (đi qua `dat_gio()`) mới đặt đúng con số của bảng.
+   ───────────────────────────────────────────────────────────────────────────────────────── */
+
+$CS6 = 'NAPDOC_CS6';
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'TD1', 'ho_ten' => 'Nguyễn Tấn Dũng',
+	'cua_hang' => $CS6, 'vai_tro' => 'Nhân viên', 'pin_dang_nhap' => '',
+	'chuc_vu' => 'Nhân viên quầy', 'trang_thai_lam_viec' => 'Đang làm' ) );
+
+/* Bảng: N.Kiệt ngày 3 -> mượn làm ca của T.Dũng cho gọn; bảng ghi 17:00→22:10. */
+$td = $B;
+$td[4][13] = '17:00';
+$td[4][14] = '22:10';
+$td[4][15] = '05:10';
+$MAP6 = array( 'N.Kiệt' => 'TD1' );
+
+$dat_may = function () use ( $CS6, $wpdb ) {
+	$wpdb->query( $wpdb->prepare( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . ' WHERE coso=%s', $CS6 ) );
+	VHCC_Nhan::ghi_gio( $CS6, '2026-04-03', 'TD1', 'Nguyễn Tấn Dũng', 16 * 3600 + 59 * 60 + 35, '', 'may' );
+	VHCC_Nhan::ghi_gio( $CS6, '2026-04-03', 'TD1', 'Nguyễn Tấn Dũng', 22 * 3600 + 14 * 60 + 36, '', 'may' );
+};
+$khung = function () use ( $wpdb, $CS6 ) {
+	$x = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . VHCC_DB::t( 'cham_cong' )
+		. ' WHERE coso=%s AND ma_nv=%s AND ngay=%s', $CS6, 'TD1', '2026-04-03' ), ARRAY_A );
+	return $x ? VHCC_DB::hhmmss( $x['gio_vao_giay'] ) . '→' . VHCC_DB::hhmmss( $x['gio_ra_giay'] ) : '(không có)';
+};
+
+$dat_may();
+t( 'máy chấm ghi 16:59:35→22:14:36', '16:59:35→22:14:36' === $khung(), $khung() );
+
+/* 🔴 GỘP KHUNG KHÔNG ĐỔI ĐƯỢC GÌ — khung máy đã bao trọn khung bảng. */
+$dat_may();
+VHCC_NapDoc::nap( $AD, $CS6, $td, $MAP6, false, VHCC_NapDoc::CACH_GOP );
+t( '🔴 "gộp khung" KHÔNG chốt được: giờ vẫn là của MÁY',
+	'16:59:35→22:14:36' === $khung(), $khung() );
+
+/* 🔴 CHỐT THEO BẢNG thì bảng thắng, đúng đến từng giây. */
+$dat_may();
+$r_de = VHCC_NapDoc::nap( $AD, $CS6, $td, $MAP6, false, VHCC_NapDoc::CACH_DE );
+t( '🔴 "chốt theo bảng" -> giờ đúng bằng giờ trong BẢNG',
+	'17:00:00→22:10:00' === $khung(), $khung() );
+t( '   và đếm ra số ngày đã chốt đè', $r_de['de_ghi'] > 0, $r_de['de_ghi'] );
+
+/* ⚠️ NHẬT KÝ CŨ→MỚI. Đây là cửa duy nhất trong bộ nạp xoá được giờ máy; không ghi nhật ký thì
+   một tháng công biến mất mà không còn đường nào tra lại nó vốn là bao nhiêu. */
+$ky = VHCC_DB::rows( $wpdb->prepare( 'SELECT * FROM ' . VHCC_DB::t( 'cham_bu' )
+	. ' WHERE coso=%s AND ngay=%s AND viec=%s', $CS6, '2026-04-03', 'nap' ) );
+t( '🔴 có ghi nhật ký cũ→mới', 2 === count( $ky ), $ky );
+$ky_vao = null;
+foreach ( $ky as $z ) { if ( 'vao' === $z['o_gio'] ) { $ky_vao = $z; } }
+t( '   nhật ký giữ đúng giờ CŨ của máy',
+	$ky_vao && ( 16 * 3600 + 59 * 60 + 35 ) === (int) $ky_vao['gio_cu_giay'], $ky_vao );
+t( '   và giờ MỚI của bảng',
+	$ky_vao && 17 * 3600 === (int) $ky_vao['gio_giay'], $ky_vao );
+
+/* ⚠️ CHỈ GHI NHẬT KÝ KHI GIỜ THẬT SỰ ĐỔI. Nạp lại lần nữa thì không được đẻ thêm dòng nào —
+   một tháng 122 ngày mà ngày nào cũng chép một dòng thì sổ sử ngập, và ngập thì không ai đọc. */
+$truoc_ky = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_bu' )
+	. ' WHERE coso=%s AND viec=%s', $CS6, 'nap' ) );
+VHCC_NapDoc::nap( $AD, $CS6, $td, $MAP6, false, VHCC_NapDoc::CACH_DE );
+$sau_ky = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_bu' )
+	. ' WHERE coso=%s AND viec=%s', $CS6, 'nap' ) );
+t( '🔴 chốt lại lần nữa -> KHÔNG đẻ thêm dòng nhật ký nào', $truoc_ky === $sau_ky,
+	$truoc_ky . ' -> ' . $sau_ky );
+
+/* ⚠️ CHỐT LÀ CHỐT CẢ KHOẢNG NGHỈ. Sổ có khoảng nghỉ cũ, bảng ghi MỘT ca liền mạch -> khoảng ấy
+   phải bị xoá. Để nguyên là nó nằm giữa một ca không có thật, trừ oan mấy tiếng. */
+$dat_may();
+VHCC_Nhan::dat_nghi_giua( $CS6, '2026-04-03', 'TD1', 19 * 3600, 20 * 3600 );
+$co_nghi = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT nghi_tu_giay FROM ' . VHCC_DB::t( 'cham_cong' )
+	. ' WHERE coso=%s AND ma_nv=%s AND ngay=%s', $CS6, 'TD1', '2026-04-03' ) );
+t( 'sổ đang có khoảng nghỉ 19:00–20:00', 19 * 3600 === $co_nghi, $co_nghi );
+VHCC_NapDoc::nap( $AD, $CS6, $td, $MAP6, false, VHCC_NapDoc::CACH_DE );
+$con_nghi = $wpdb->get_var( $wpdb->prepare( 'SELECT nghi_tu_giay FROM ' . VHCC_DB::t( 'cham_cong' )
+	. ' WHERE coso=%s AND ma_nv=%s AND ngay=%s', $CS6, 'TD1', '2026-04-03' ) );
+t( '🔴 chốt xoá luôn khoảng nghỉ cũ (bảng ghi một ca liền mạch)',
+	null === $con_nghi || '' === $con_nghi, $con_nghi );
+
+/* Chế độ lạ gửi lên -> rơi về cái AN TOÀN, không rơi về cái phá dữ liệu. */
+t( 'chế độ lạ -> rơi về "chỉ điền ngày còn trống"',
+	VHCC_NapDoc::CACH_TRONG === VHCC_NapDoc::cach_hop_le( 'xoa_het' ),
+	VHCC_NapDoc::cach_hop_le( 'xoa_het' ) );
+t( '   chuỗi rỗng cũng thế', VHCC_NapDoc::CACH_TRONG === VHCC_NapDoc::cach_hop_le( '' ) );
+t( '   ba chế độ thật thì giữ nguyên',
+	VHCC_NapDoc::CACH_DE === VHCC_NapDoc::cach_hop_le( 'de' )
+	&& VHCC_NapDoc::CACH_GOP === VHCC_NapDoc::cach_hop_le( 'gop' ) );
 
 echo "\n";
 if ( $truot ) {

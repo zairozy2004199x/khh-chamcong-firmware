@@ -422,18 +422,45 @@ t( 'bù KHÔNG tự viết INSERT/UPDATE vào bảng chấm công',
 t( 'mà đi qua đúng VHCC_Nhan::ghi_gio', false !== strpos( $than, 'VHCC_Nhan::ghi_gio' ) );
 t( 'sửa đè cũng đi qua cổng chung VHCC_Nhan::dat_gio, không tự viết SQL',
 	false !== strpos( $than, 'VHCC_Nhan::dat_gio' ) );
-/* 🔴 `dat_gio` là cửa DUY NHẤT đè được. Chỉ `VHCC_Bu::sua()` được gọi nó — nơi gác quyền Admin,
-   đòi lý do và ghi nhật ký. Có chỗ thứ hai gọi là có đường sửa lương không dấu vết. */
-$ai_goi = array();
-foreach ( glob( $goc . '/wordpress/vhcp-cham-cong/includes/*.php' ) as $f_dg ) {
-	$ma_dg = '';
-	foreach ( token_get_all( file_get_contents( $f_dg ) ) as $tk_dg ) {
-		if ( is_array( $tk_dg ) && in_array( $tk_dg[0], array( T_COMMENT, T_DOC_COMMENT ), true ) ) { continue; }
-		$ma_dg .= is_array( $tk_dg ) ? $tk_dg[1] : $tk_dg;
+/* ═════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 `dat_gio` LÀ CỬA DUY NHẤT ĐÈ ĐƯỢC GIỜ CÔNG — AI GỌI NÓ CŨNG PHẢI GHI NHẬT KÝ.
+ *
+ * Luật cũ ở đây là "chỉ ĐÚNG MỘT tệp được gọi" (`class-vhcc-bu.php`), với lý do ghi rõ: *có
+ * chỗ thứ hai gọi là có đường sửa lương không dấu vết*. Lý do ấy vẫn đúng nguyên — nhưng nó
+ * nói về DẤU VẾT, không nói về con số một.
+ *
+ * 21/09/2026 có cửa thứ hai thật: anh Thắng *"bản excel tức là bản chốt, nên cầm ghi đè lên
+ * bản có sẵn để chốt"*, nên `VHCC_NapDoc` có chế độ chốt-theo-bảng, và chế độ ấy buộc phải đè
+ * được lên giờ máy chấm công. Nó mang theo nhật ký cũ→mới (`VHCC_Bu::nhat_ky_nap`).
+ *
+ * Nới danh sách thì phải siết bằng đúng cái điều kiện mà danh sách ấy vốn bảo vệ, chứ không
+ * chỉ thêm một cái tên rồi đi tiếp — thêm tên trơn là biến một chốt thật thành một thủ tục.
+ * Nên nay có HAI phép: danh sách ai được gọi (chặn cửa thứ ba mọc lên lặng lẽ), VÀ mỗi tệp
+ * trong danh sách phải thật sự có đường ghi nhật ký.
+ * ═════════════════════════════════════════════════════════════════════════════════════════ */
+$ma_sach = function ( $f ) {
+	$r = '';
+	foreach ( token_get_all( file_get_contents( $f ) ) as $tk ) {
+		if ( is_array( $tk ) && in_array( $tk[0], array( T_COMMENT, T_DOC_COMMENT ), true ) ) { continue; }
+		$r .= is_array( $tk ) ? $tk[1] : $tk;
 	}
-	if ( false !== strpos( $ma_dg, 'VHCC_Nhan::dat_gio(' ) ) { $ai_goi[] = basename( $f_dg ); }
+	return $r;
+};
+$ai_goi = array();
+$thieu_ky = array();
+foreach ( glob( $goc . '/wordpress/vhcp-cham-cong/includes/*.php' ) as $f_dg ) {
+	$ma_dg = $ma_sach( $f_dg );
+	if ( false === strpos( $ma_dg, 'VHCC_Nhan::dat_gio(' ) ) { continue; }
+	$ai_goi[] = basename( $f_dg );
+	/* ⚠️ Dò trên mã ĐÃ BỎ CHÚ THÍCH. Cả hai tệp này đều có đoạn văn dài giải thích vì sao phải
+	   ghi nhật ký — dò trên nguyên văn thì chính mấy đoạn văn ấy làm phép thử xanh, kể cả khi
+	   lời gọi thật đã bị gỡ. */
+	if ( false === strpos( $ma_dg, 'nhat_ky' ) ) { $thieu_ky[] = basename( $f_dg ); }
 }
-teq( '🔴 chỉ ĐÚNG MỘT tệp gọi dat_gio()', array( 'class-vhcc-bu.php' ), $ai_goi );
+sort( $ai_goi );
+teq( '🔴 chỉ hai tệp được gọi dat_gio()',
+	array( 'class-vhcc-bu.php', 'class-vhcc-nap-doc.php' ), $ai_goi );
+teq( '🔴 mọi tệp gọi dat_gio() đều có đường ghi nhật ký', array(), $thieu_ky );
 
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";

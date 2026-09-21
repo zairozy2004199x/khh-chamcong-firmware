@@ -51,6 +51,30 @@ class VHCC_NapDoc {
 	/** Một cụm của một người dài bao nhiêu cột (Check in · Check out · Số giờ làm). */
 	const CUM = 3;
 
+	/* ═════════════════════════════════════════════════════════════════════════════════════════
+	 * BA CÁCH XỬ NGÀY TRONG SỔ ĐÃ CÓ GIỜ — và ba cái này KHÁC HẲN NHAU, đừng gộp.
+	 *
+	 * `TRONG`  chỉ điền ngày còn trống, không đụng ngày đã có. Mặc định, và là cái an toàn.
+	 * `GOP`    nới khung [vào, ra] cho bao cả hai bên — đây là hành vi TỰ NHIÊN của `ghi_gio()`,
+	 *          và cũng là cái bẫy: máy chấm 08:00–13:00 gặp bảng ghi 17:00–22:00 ra 08:00–22:00
+	 *          = 14 giờ, một con số KHÔNG có ở bên nào.
+	 * `DE`     thay hẳn bằng giờ trong bảng — "bản Excel là bản chốt".
+	 *
+	 * 🔴 `GOP` KHÔNG PHẢI LÀ "CHỐT". Anh Thắng 21/09/2026: *"bản excel tức là bản chốt, nên cầm
+	 *    ghi đè lên bản có sẵn để chốt"*. Bỏ dấu tích an toàn rồi tưởng thế là chốt là hiểu sai:
+	 *    với ca T.Dũng 01/08 (máy 16:59:35→22:14:36, bảng 17:00→22:10) thì `GOP` giữ nguyên giờ
+	 *    MÁY, vì khung máy đã bao trọn khung bảng. Muốn bảng thắng thì phải là `DE`.
+	 * ═════════════════════════════════════════════════════════════════════════════════════════ */
+	const CACH_TRONG = 'trong';
+	const CACH_GOP   = 'gop';
+	const CACH_DE    = 'de';
+
+	public static function cach_hop_le( $c ) {
+		$c = trim( (string) $c );
+		return in_array( $c, array( self::CACH_TRONG, self::CACH_GOP, self::CACH_DE ), true )
+			? $c : self::CACH_TRONG;
+	}
+
 	/**
 	 * ĐỌC CẢ BẢNG.
 	 *
@@ -358,7 +382,7 @@ class VHCC_NapDoc {
 	 *                    sổ ghép đã lưu, rồi lưu lại — anh Thắng 21/09/2026 muốn "nhớ cho lần sau".
 	 * @param bool  $chi_xem true = chỉ đếm và kể, KHÔNG ghi một dòng nào. Mặc định true.
 	 */
-	public static function nap( $u, $coso, $dong, $map = array(), $chi_xem = true, $chi_trong = true ) {
+	public static function nap( $u, $coso, $dong, $map = array(), $chi_xem = true, $cach = self::CACH_TRONG ) {
 		if ( ! VHCC_Vai::duoc( $u, 'nap_cong' ) ) {
 			return array( 'ok' => false, 'error' => 'Nạp dữ liệu công cần quyền Quản lý trở lên.' );
 		}
@@ -369,6 +393,8 @@ class VHCC_NapDoc {
 		if ( ! VHCC_NhanSu::co_quyen_coso( $u, $coso ) ) {
 			return array( 'ok' => false, 'error' => 'Không có quyền cơ sở này.' );
 		}
+
+		$cach = self::cach_hop_le( $cach );
 
 		$d = self::doc( $dong );
 		if ( empty( $d['ok'] ) ) { return $d; }
@@ -442,6 +468,8 @@ class VHCC_NapDoc {
 		$bo_luot = 0;
 		$nghi_ghi = 0;
 		$bo_trung = 0;
+		$de_ghi = 0;
+		$ky_ghi = 0;
 		$phinh = array();
 		$ngay_co = array();
 		foreach ( $d['luot'] as $x ) {
@@ -473,7 +501,7 @@ class VHCC_NapDoc {
 			if ( $cu ) {
 				$hop = self::gop_khung( $cu, $x );
 				if ( $hop ) { $phinh[] = $hop; }
-				if ( $chi_trong ) { $bo_trung++; continue; }
+				if ( self::CACH_TRONG === $cach ) { $bo_trung++; continue; }
 			}
 
 			if ( $chi_xem ) { $ghi++; continue; }
@@ -492,6 +520,35 @@ class VHCC_NapDoc {
 			      hồ sơ thiếu tên. Có nhãn còn hơn có ô trắng. */
 			$ten = ( isset( $ten_hs[ $ma ] ) && '' !== trim( (string) $ten_hs[ $ma ] ) )
 				? $ten_hs[ $ma ] : $x['ten'];
+			if ( self::CACH_DE === $cach && $cu ) {
+				/* ═══════════════════════════════════════════════════════════════════════════
+				 * 🔴 CHỐT THEO BẢNG — CỬA DUY NHẤT TRONG BỘ NẠP XOÁ ĐƯỢC GIỜ MÁY ĐÃ GHI.
+				 *
+				 * Đi qua `dat_gio()` chứ không `ghi_gio()`: `ghi_gio()` chỉ NỚI nên không bao
+				 * giờ chốt được (khung máy 16:59:35–22:14:36 bao trọn khung bảng 17:00–22:10,
+				 * nới ra vẫn là chính nó). `dat_gio()` ĐẶT ĐÚNG con số được truyền.
+				 *
+				 * ⚠️ KHOẢNG NGHỈ PHẢI TRUYỀN TƯỜNG MINH, kể cả khi bảng không có. Tham số ấy có
+				 *    BA trạng thái: `false` = không đụng, `null` = xoá, số = đặt. Để mặc định
+				 *    (`false`) thì một ngày bảng ghi MỘT ca liền mạch vẫn giữ nguyên khoảng nghỉ
+				 *    cũ của sổ — và khoảng ấy nay nằm giữa một ca không có thật, trừ oan mấy
+				 *    tiếng. Chốt là chốt cả cặp giờ LẪN khoảng nghỉ.
+				 *
+				 * ⚠️ GHI NHẬT KÝ CŨ→MỚI. Đây là chỗ một tháng công có thể biến mất; không có
+				 *    nhật ký thì không còn đường nào tra lại nó vốn là bao nhiêu.
+				 * ═══════════════════════════════════════════════════════════════════════════ */
+				VHCC_Nhan::dat_gio( $coso, $x['ngay'], $ma, $ten,
+					$x['vao'], $x['ra'], null, $x['nghiTu'], $x['nghiDen'] );
+				$ly_do = 'Chốt theo bảng công cũ tháng ' . self::thang_chu( $d['thang'] );
+				if ( class_exists( 'VHCC_Bu' ) && method_exists( 'VHCC_Bu', 'nhat_ky_nap' ) ) {
+					if ( VHCC_Bu::nhat_ky_nap( $u, $coso, $x['ngay'], $ma, 'vao', $x['vao'], $cu['vao'], $ly_do ) ) { $ky_ghi++; }
+					if ( VHCC_Bu::nhat_ky_nap( $u, $coso, $x['ngay'], $ma, 'ra', $x['ra'], $cu['ra'], $ly_do ) ) { $ky_ghi++; }
+				}
+				$de_ghi++;
+				$ghi++;
+				continue;
+			}
+
 			if ( null !== $x['vao'] ) {
 				VHCC_Nhan::ghi_gio( $coso, $x['ngay'], $ma, $ten, (int) $x['vao'], '', self::NGUON );
 			}
@@ -520,35 +577,61 @@ class VHCC_NapDoc {
 				. ' lượt của họ KHÔNG được nạp. Chọn người cho từng tên rồi bấm lại.';
 		}
 
-		/* Kể ra những ngày hai bên CÙNG có giờ, và kể NẶNG nhất trước — ngày mà gộp khung lại
-		   thì giờ công PHÌNH RA hơn cả hai nguồn. Đó là ngày trả dư nếu cứ nạp đè. */
-		usort( $phinh, function ( $a, $b ) { return $b['them'] - $a['them']; } );
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * KỂ RA NGÀY HAI BÊN CÙNG CÓ GIỜ — NHƯNG KỂ THEO ĐÚNG CHẾ ĐỘ ĐANG CHỌN.
+		 *
+		 * Ba chế độ làm ba việc khác hẳn nhau trên cùng một ngày, nên một câu cảnh báo dùng
+		 * chung là câu nói sai ở hai trong ba lần. `GOP` thì nguy ở chỗ PHÌNH; `DE` thì không
+		 * phình bao giờ (bảng thắng đúng con số của bảng) nhưng nguy ở chỗ XOÁ giờ máy đã ghi,
+		 * và xoá được cả theo hướng giảm.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
 		$nang = array();
-		foreach ( $phinh as $z ) { if ( $z['them'] > 0 ) { $nang[] = $z; } }
-		if ( $nang ) {
-			$canh[] = '🔴 ' . count( $nang ) . ' ngày mà sổ và bảng ghi KHÁC nhau, gộp lại thì giờ '
-				. 'công PHÌNH RA (máy chấm ca này, bảng ghi ca kia, không có khoảng nghỉ nào ở giữa). '
-				. ( $chi_trong
-					? 'Đang bật "chỉ điền ngày còn trống" nên mấy ngày này KHÔNG bị đụng tới.'
-					: '⚠ Đang TẮT "chỉ điền ngày còn trống" — mấy ngày này SẼ bị nới rộng khung.' );
-			foreach ( array_slice( $nang, 0, 10 ) as $z ) {
-				$canh[] = '   · ' . $z['ten'] . ' ' . $z['ngay'] . ': sổ ' . $z['cu']
-					. ', bảng ' . $z['bang'] . ' → gộp thành ' . $z['moi']
-					. ' (+' . self::gio_chu( $z['them'] * 60 ) . ')';
+		if ( self::CACH_DE === $cach ) {
+			foreach ( $phinh as $z ) { if ( 0 !== $z['thay'] ) { $nang[] = $z; } }
+			usort( $nang, function ( $a, $b ) { return abs( $b['thay'] ) - abs( $a['thay'] ); } );
+			if ( $nang ) {
+				$canh[] = '🔴 CHỐT THEO BẢNG: ' . count( $nang ) . ' ngày sổ đang có giờ KHÁC bảng — '
+					. 'giờ máy chấm ở mấy ngày ấy sẽ bị THAY bằng giờ trong bảng. Có ghi nhật ký '
+					. 'cũ→mới (xem màn Lịch sử sửa bảng công), nhưng số cũ thì mất khỏi bảng công.';
+				foreach ( array_slice( $nang, 0, 10 ) as $z ) {
+					$canh[] = '   · ' . $z['ten'] . ' ' . $z['ngay'] . ': sổ ' . $z['cu']
+						. ' → bảng ' . $z['bang'] . ' (' . ( $z['thay'] > 0 ? '+' : '−' )
+						. self::gio_chu( abs( $z['thay'] ) * 60 ) . ')';
+				}
+				if ( count( $nang ) > 10 ) { $canh[] = '   …và ' . ( count( $nang ) - 10 ) . ' ngày nữa.'; }
 			}
-			if ( count( $nang ) > 10 ) { $canh[] = '   …và ' . ( count( $nang ) - 10 ) . ' ngày nữa.'; }
+		} else {
+			foreach ( $phinh as $z ) { if ( $z['them'] > 0 ) { $nang[] = $z; } }
+			usort( $nang, function ( $a, $b ) { return $b['them'] - $a['them']; } );
+			if ( $nang ) {
+				$canh[] = '🔴 ' . count( $nang ) . ' ngày mà sổ và bảng ghi KHÁC nhau, gộp lại thì giờ '
+					. 'công PHÌNH RA (máy chấm ca này, bảng ghi ca kia, không có khoảng nghỉ nào ở giữa). '
+					. ( self::CACH_TRONG === $cach
+						? 'Đang ở chế độ "chỉ điền ngày còn trống" nên mấy ngày này KHÔNG bị đụng tới.'
+						: '⚠ Đang ở chế độ "gộp khung" — mấy ngày này SẼ bị nới rộng. Muốn bảng thắng '
+							. 'đúng con số của bảng thì chọn "chốt theo bảng".' );
+				foreach ( array_slice( $nang, 0, 10 ) as $z ) {
+					$canh[] = '   · ' . $z['ten'] . ' ' . $z['ngay'] . ': sổ ' . $z['cu']
+						. ', bảng ' . $z['bang'] . ' → gộp thành ' . $z['moi']
+						. ' (+' . self::gio_chu( $z['them'] * 60 ) . ')';
+				}
+				if ( count( $nang ) > 10 ) { $canh[] = '   …và ' . ( count( $nang ) - 10 ) . ' ngày nữa.'; }
+			}
 		}
 		if ( $bo_trung > 0 ) {
-			$canh[] = 'Bỏ qua ' . $bo_trung . ' ngày đã có giờ trong sổ (đang bật "chỉ điền ngày '
-				. 'còn trống"). Muốn nạp đè thì bỏ dấu tích ấy đi — nhưng đọc kỹ mấy dòng trên trước.';
+			$canh[] = 'Bỏ qua ' . $bo_trung . ' ngày đã có giờ trong sổ (chế độ "chỉ điền ngày còn '
+				. 'trống"). Bản Excel là bản chốt thì chọn "chốt theo bảng" — đọc kỹ mấy dòng trên trước.';
 		}
-
+		if ( $de_ghi > 0 ) {
+			$canh[] = 'Đã chốt đè lên ' . $de_ghi . ' ngày đã có giờ, ghi ' . $ky_ghi
+				. ' dòng nhật ký cũ→mới.';
+		}
 		return array( 'ok' => true, 'chi_xem' => (bool) $chi_xem, 'coSo' => $coso,
 			'co_san' => $co_san,
 			'thang' => $d['thang'], 'nguoi' => $nguoi, 'so_nguoi' => count( $d['nguoi'] ),
 			'so_thieu' => $thieu, 'so_ngay' => count( $ngay_co ), 'so_luot' => count( $d['luot'] ),
 			'da_ghi' => $ghi, 'bo_luot' => $bo_luot, 'nghi_ghi' => $nghi_ghi,
-			'chi_trong' => (bool) $chi_trong, 'bo_trung' => $bo_trung,
+			'cach' => $cach, 'bo_trung' => $bo_trung, 'de_ghi' => $de_ghi, 'ky_ghi' => $ky_ghi,
 			'so_trung' => count( $phinh ), 'so_phinh' => count( $nang ), 'canh' => $canh );
 	}
 
@@ -705,6 +788,9 @@ class VHCC_NapDoc {
 			'bang' => $hm( $bv, $br ),
 			'moi'  => $hm( $mv, $mr ),
 			'them' => $p_moi - max( $p_cu, $p_bang ),
+			/* Chế độ CHỐT không gộp gì — bảng thắng đúng con số của bảng, nên mức đổi là hiệu
+			   giữa bảng và sổ, và nó ÂM ĐƯỢC (bảng ít giờ hơn máy là chuyện thường). */
+			'thay' => $p_bang - $p_cu,
 		);
 	}
 

@@ -2462,8 +2462,9 @@ class VHCC_Web {
 			/* ⚠️ Ô TÍCH KHÔNG GỬI GÌ KHI BỎ TÍCH, nên phải có một ô ẩn đi kèm để phân biệt
 			   "form có ô ấy mà người ta bỏ tích" với "form chưa có ô ấy" (lượt tải tệp đầu tiên).
 			   Thiếu ô ẩn thì bỏ tích xong bấm lại vẫn ra y như cũ, và người ta tưởng nút hỏng. */
-			$chi_trong = isset( $_POST['co_chi_trong'] ) ? isset( $_POST['chi_trong'] ) : true;
-			$r = VHCC_NapDoc::nap( $toi, $cs_d, $hang, $map, 'xem_doc' === $viec, $chi_trong );
+			/* Lượt tải tệp đầu tiên chưa có ô chọn chế độ -> `cach_hop_le()` đưa về cái AN TOÀN. */
+			$cach = isset( $_POST['cach'] ) ? sanitize_text_field( wp_unslash( $_POST['cach'] ) ) : '';
+			$r = VHCC_NapDoc::nap( $toi, $cs_d, $hang, $map, 'xem_doc' === $viec, $cach );
 			$r['viec'] = $viec;
 			/* Giữ lại BẢNG cho lượt bấm sau — kể cả khi lượt này lỗi, vì lỗi hay gặp nhất là
 			   "chưa chọn cơ sở", và bắt chọn lại tệp vì chuyện đó là vô lý. */
@@ -12356,6 +12357,9 @@ class VHCC_Web {
 			if ( ! empty( $b['bo_trung'] ) ) {
 				echo ' · giữ nguyên <b>' . esc_html( (string) $b['bo_trung'] ) . '</b> ngày đã có giờ';
 			}
+			if ( ! empty( $b['de_ghi'] ) ) {
+				echo ' · <b>chốt đè</b> lên ' . esc_html( (string) $b['de_ghi'] ) . ' ngày đã có giờ';
+			}
 		}
 		echo '.<br><span class="mo"><b>Một lần nạp là xong cả tháng</b> — không phải nạp từng ngày. '
 			. 'Con số <i>người × ngày</i> là số ô CÓ GIỜ trong bảng (một người đi làm một ngày tính '
@@ -12461,26 +12465,49 @@ class VHCC_Web {
 		}
 		echo '</tbody></table>';
 		/* ═══════════════════════════════════════════════════════════════════════════════════
-		 * 🔴 Ô TÍCH NÀY LÀ THỨ ĐỨNG GIỮA MỘT THÁNG LƯƠNG ĐÚNG VÀ MỘT THÁNG TRẢ DƯ.
-		 * Anh Thắng 21/09/2026: *"Nạp vào mà có giờ cũ, nó sẽ lấy theo giờ nạp"* — không phải.
-		 * `ghi_gio()` chỉ NỚI khung, nên máy chấm 08:00–13:00 gặp bảng ghi 17:00–22:00 ra
-		 * 08:00–22:00 = 14 giờ, thay vì 5 hay 10. Mặc định BẬT, tức không đụng ngày đã có giờ.
+		 * 🔴 BA NÚT NÀY ĐỨNG GIỮA MỘT THÁNG LƯƠNG ĐÚNG VÀ MỘT THÁNG SAI.
+		 *
+		 * Anh Thắng 21/09/2026: *"bản excel tức là bản chốt, nên cầm ghi đè lên bản có sẵn để
+		 * chốt"*. Đúng ý anh là nút thứ BA. Nhưng phải để cả ba, vì nút thứ hai ("gộp khung")
+		 * là hành vi tự nhiên của `ghi_gio()` và rất dễ bị tưởng là "ghi đè":
+		 *
+		 *   máy 16:59:35→22:14:36 · bảng 17:00→22:10  -> gộp ra 16:59:35→22:14:36 (bảng THUA)
+		 *   máy 08:00→13:00       · bảng 17:00→22:00  -> gộp ra 08:00→22:00 = 14 giờ (dư 9)
+		 *
+		 * Cái đầu không chốt được gì, cái sau thì đẻ ra một con số không có ở bên nào. Gọi tên
+		 * từng cái ra, kèm ví dụ bằng số, là cách duy nhất để người ta chọn đúng cái mình muốn.
 		 * ═══════════════════════════════════════════════════════════════════════════════════ */
-		$bat = ! isset( $b['chi_trong'] ) || ! empty( $b['chi_trong'] );
-		echo '<input type="hidden" name="co_chi_trong" value="1">';
-		echo '<p style="margin:14px 0 6px"><label><input type="checkbox" name="chi_trong" value="1"'
-			. checked( $bat, true, false ) . '> <b>Chỉ điền ngày còn trống</b> — không đụng vào '
-			. 'ngày đã có giờ trong sổ</label></p>';
-		echo '<p class="mo" style="margin:0 0 12px">Bỏ dấu tích này thì ngày nào hai bên cùng có '
-			. 'giờ sẽ bị <b>nới rộng khung</b>, không phải thay bằng giờ trong bảng: máy chấm '
-			. '<i>08:00–13:00</i> gặp bảng ghi <i>17:00–22:00</i> ra <i>08:00–22:00</i> = '
-			. '<b>14 giờ</b>, chứ không phải 5 hay 10. Xem trước sẽ kể ra từng ngày như vậy.</p>';
+		$cach = isset( $b['cach'] ) ? (string) $b['cach'] : VHCC_NapDoc::CACH_TRONG;
+		echo '<div style="margin:14px 0;padding:12px 14px;border:1px solid var(--vien);'
+			. 'border-radius:var(--bo-the)">';
+		echo '<p style="margin:0 0 8px"><b>Ngày mà sổ ĐÃ CÓ giờ thì làm gì?</b></p>';
+		$nut = array(
+			VHCC_NapDoc::CACH_TRONG => array( 'Chỉ điền ngày còn trống',
+				'Không đụng vào ngày đã có giờ. An toàn nhất — dùng khi chỉ muốn vá chỗ máy chấm bỏ sót.' ),
+			VHCC_NapDoc::CACH_GOP => array( 'Gộp khung giờ',
+				'Lấy đầu sớm nhất và đuôi muộn nhất của cả hai. ⚠️ KHÔNG phải là chốt: máy '
+				. '<i>16:59:35–22:14:36</i> gặp bảng <i>17:00–22:10</i> thì bảng THUA; còn máy '
+				. '<i>08:00–13:00</i> gặp bảng <i>17:00–22:00</i> ra <i>08:00–22:00</i> = <b>14 giờ</b>, '
+				. 'một con số không có ở bên nào.' ),
+			VHCC_NapDoc::CACH_DE => array( 'Chốt theo bảng — bảng thắng',
+				'🔴 THAY HẲN giờ trong sổ bằng giờ trong bảng, kể cả giờ máy chấm công đã ghi, kể cả '
+				. 'khoảng nghỉ giữa ca. Có ghi nhật ký cũ→mới ở màn <b>Lịch sử sửa bảng công</b>, '
+				. 'nhưng số cũ thì mất khỏi bảng công.' ),
+		);
+		foreach ( $nut as $ma_c => $mo ) {
+			echo '<p style="margin:0 0 8px"><label><input type="radio" name="cach" value="'
+				. esc_attr( $ma_c ) . '"' . checked( $ma_c, $cach, false ) . '> <b>'
+				. esc_html( $mo[0] ) . '</b></label><br>'
+				. '<span class="mo" style="margin-left:22px;display:block">' . $mo[1] . '</span></p>';
+		}
 		if ( ! empty( $b['so_trung'] ) ) {
-			echo '<p class="mo" style="margin:0 0 12px">Tháng này có <b>'
+			echo '<p class="mo" style="margin:8px 0 0">Tháng này có <b>'
 				. esc_html( (string) $b['so_trung'] ) . '</b> ngày sổ đã có giờ sẵn'
 				. ( empty( $b['so_phinh'] ) ? '' : ', trong đó <b>' . esc_html( (string) $b['so_phinh'] )
-					. '</b> ngày nếu nạp đè thì giờ công phình ra' ) . '.</p>';
+					. '</b> ngày sẽ đổi số theo chế độ đang chọn' ) . '. Bấm '
+				. '<b>Lưu ghép &amp; xem lại</b> để thấy từng ngày một, trước khi Nạp thật.</p>';
 		}
+		echo '</div>';
 		echo '<div class="hang"><div><button name="viec" value="xem_doc">Lưu ghép &amp; xem lại</button></div>';
 		if ( 0 === $thieu ) {
 			echo '<div><button class="chay" name="viec" value="nap_doc">Nạp thật</button></div>';

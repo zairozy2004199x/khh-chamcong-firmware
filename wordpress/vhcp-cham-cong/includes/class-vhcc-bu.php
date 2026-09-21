@@ -659,6 +659,28 @@ class VHCC_Bu {
 	/* ===================================================================== nhật ký */
 
 	/** Một dòng nhật ký cho MỘT ô giờ. Bảng này không có đường xoá — xem chú thích đầu tệp. */
+	/**
+	 * CỬA GHI NHẬT KÝ CHO BỘ NẠP BẢNG CÔNG CŨ — hẹp, và chỉ ghi nhật ký, không chạm giờ.
+	 *
+	 * 🔴 VÌ SAO PHẢI CÓ. Chế độ "chốt theo bảng" của `VHCC_NapDoc` đi qua `VHCC_Nhan::dat_gio()`,
+	 *    tức là XOÁ ĐƯỢC giờ máy chấm công đã ghi. Anh Thắng 21/09/2026: *"bản excel tức là bản
+	 *    chốt, nên cầm ghi đè lên bản có sẵn để chốt"* — đó là quyết định của anh, hợp lý, và
+	 *    cũng là thao tác phá dữ liệu nhất trong cả hệ.
+	 *
+	 *    Chú thích của `dat_gio()` nói rõ nó chỉ có MỘT nơi gọi (`VHCC_Bu::sua`) vì nơi ấy gác
+	 *    quyền, đòi lý do, và ghi nhật ký cũ→mới. Mở cửa ấy cho bộ nạp mà không mang theo cuốn
+	 *    nhật ký là mở đúng cái lỗ mà chú thích kia dựng lên để bịt: một tháng công biến mất và
+	 *    không còn đường nào tra lại nó vốn là bao nhiêu.
+	 *
+	 * ⚠️ CHỈ GHI KHI GIỜ THẬT SỰ ĐỔI. Một tháng 122 ngày công mà ngày nào cũng chép một dòng
+	 *    nhật ký thì sổ sử ngập, và ngập thì không ai đọc — kể cả dòng đáng đọc.
+	 */
+	public static function nhat_ky_nap( $u, $coso, $ngay, $ma_nv, $o, $giay, $giay_cu, $ly_do ) {
+		if ( (string) $giay === (string) $giay_cu ) { return false; }
+		self::nhat_ky( $u, $coso, $ngay, $ma_nv, $o, $giay, $ly_do, 'nap', $giay_cu );
+		return true;
+	}
+
 	private static function nhat_ky( $u, $coso, $ngay, $ma_nv, $o, $giay, $ly_do, $viec = 'bu', $giay_cu = null ) {
 		global $wpdb;
 		$wpdb->insert( VHCC_DB::t( 'cham_bu' ), array(
