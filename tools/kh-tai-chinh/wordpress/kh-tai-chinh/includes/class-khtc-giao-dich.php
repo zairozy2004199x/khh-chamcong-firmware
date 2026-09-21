@@ -96,7 +96,7 @@ class KHTC_GiaoDich {
 	}
 
 	/**
-	 * Dán sao kê hàng loạt: mỗi dòng là Ngày · Diễn giải · Số tiền · Thu/Chi.
+	 * Dán sao kê hàng loạt: mỗi dòng là Ngày · Diễn giải · Số tiền · Thu/Chi · Mã GD.
 	 * Cách nhau bằng Tab (copy từ Excel) hoặc dấu phẩy. Cột Thu/Chi bỏ trống thì
 	 * số dương là Thu, số âm là Chi.
 	 */
@@ -120,6 +120,9 @@ class KHTC_GiaoDich {
 					'dien_giai'    => $o[1],
 					'so_tien'      => $o[2],
 					'loai'         => isset( $o[3] ) ? ( mb_stripos( $o[3], 'chi' ) !== false ? 'chi' : 'thu' ) : '',
+					// Cột 5 không bắt buộc, nhưng có nó thì đối soát ghép được
+					// theo mã giao dịch — lượt ghép chắc chắn nhất.
+					'ma_gd'        => isset( $o[4] ) ? $o[4] : '',
 				)
 			);
 			if ( is_wp_error( $kq ) ) {
@@ -135,15 +138,18 @@ class KHTC_GiaoDich {
 	public static function loc( $l = array() ) {
 		global $wpdb;
 		$b    = KHTC_DB::bang( 'giao_dich' );
-		$dk   = array( 'cty = %s' );
+		// Mọi điều kiện đều ghi rõ bảng g. Bảng ngân hàng cũng có cột `cty`, nên
+		// một điều kiện `cty = ...` trần trong câu có JOIN là lỗi "ambiguous
+		// column" — cả trang trắng, không phải một con số sai lặng lẽ.
+		$dk   = array( 'g.cty = %s' );
 		$args = array( KHTC_Cty::dang_chon() );
 
-		if ( ! empty( $l['ngan_hang_id'] ) ) { $dk[] = 'ngan_hang_id = %d'; $args[] = (int) $l['ngan_hang_id']; }
-		if ( ! empty( $l['tu'] ) )           { $dk[] = 'ngay >= %s';        $args[] = $l['tu']; }
-		if ( ! empty( $l['den'] ) )          { $dk[] = 'ngay <= %s';        $args[] = $l['den']; }
-		if ( ! empty( $l['loai'] ) )         { $dk[] = 'loai = %s';         $args[] = $l['loai']; }
+		if ( ! empty( $l['ngan_hang_id'] ) ) { $dk[] = 'g.ngan_hang_id = %d'; $args[] = (int) $l['ngan_hang_id']; }
+		if ( ! empty( $l['tu'] ) )           { $dk[] = 'g.ngay >= %s';        $args[] = $l['tu']; }
+		if ( ! empty( $l['den'] ) )          { $dk[] = 'g.ngay <= %s';        $args[] = $l['den']; }
+		if ( ! empty( $l['loai'] ) )         { $dk[] = 'g.loai = %s';         $args[] = $l['loai']; }
 		if ( ! empty( $l['tim'] ) ) {
-			$dk[]   = 'dien_giai LIKE %s';
+			$dk[]   = 'g.dien_giai LIKE %s';
 			$args[] = '%' . $wpdb->esc_like( $l['tim'] ) . '%';
 		}
 		$where = 'WHERE ' . implode( ' AND ', $dk );
@@ -151,9 +157,9 @@ class KHTC_GiaoDich {
 		$tong = $wpdb->get_row(
 			$wpdb->prepare(
 				"SELECT COUNT(*) AS so_dong,
-					COALESCE(SUM(CASE WHEN loai='thu' THEN so_tien ELSE 0 END),0) AS thu,
-					COALESCE(SUM(CASE WHEN loai='chi' THEN so_tien ELSE 0 END),0) AS chi
-				FROM $b $where",
+					COALESCE(SUM(CASE WHEN g.loai='thu' THEN g.so_tien ELSE 0 END),0) AS thu,
+					COALESCE(SUM(CASE WHEN g.loai='chi' THEN g.so_tien ELSE 0 END),0) AS chi
+				FROM $b g $where",
 				$args
 			)
 		);

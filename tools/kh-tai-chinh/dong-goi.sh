@@ -16,6 +16,13 @@ while IFS= read -r f; do
   php -l "$f" >/dev/null || { echo "Lỗi cú pháp: $f" >&2; exit 1; }
 done < <(find "$goc" -name '*.php')
 
+# Chạy luôn bộ kiểm trước khi gói. Gói một bản sai rồi mới phát hiện thì bản
+# sai đã nằm trên host thật.
+for t in "$thu_muc"/tests/kiem-*.php; do
+  php "$t" >/dev/null || { echo "Kiểm thất bại: $t" >&2; php "$t" >&2; exit 1; }
+done
+echo "Bộ kiểm: đạt"
+
 # Hai chỗ ghi phiên bản phải khớp, không thì bản cài lên không nâng cấp bảng.
 v_header="$(sed -n 's/^ \* Version: *\([0-9.]*\).*/\1/p' "$goc/$ten.php" | head -1)"
 v_const="$(sed -n "s/^define( 'KHTC_VERSION', '\([0-9.]*\)'.*/\1/p" "$goc/$ten.php" | head -1)"

@@ -10,7 +10,7 @@ defined( 'ABSPATH' ) || exit;
 class KHTC_DB {
 
 	/** Tăng số này mỗi lần đổi cấu trúc bảng thì bản đang chạy tự nâng cấp. */
-	const SCHEMA = 1;
+	const SCHEMA = 2;
 
 	public static function bang( $ten ) {
 		global $wpdb;
@@ -24,6 +24,8 @@ class KHTC_DB {
 
 		$ngan_hang = self::bang( 'ngan_hang' );
 		$giao_dich = self::bang( 'giao_dich' );
+		$doi_soat  = self::bang( 'doi_soat' );
+		$ds_dong   = self::bang( 'ds_dong' );
 
 		// so_du_dau = số dư TÍNH ĐẾN ngay_dau; giao dịch trước ngày đó coi như đã
 		// gộp sẵn vào số dư này, không cộng lại lần nữa (giữ đúng cách bản gốc tính).
@@ -59,6 +61,44 @@ class KHTC_DB {
 				PRIMARY KEY (id),
 				KEY cty_ngay (cty, ngay),
 				KEY ngan_hang_id (ngan_hang_id),
+				KEY ma_gd (ma_gd)
+			) $collate;"
+		);
+
+		// Một ĐỢT đối soát: kênh nào, về tài khoản nào, kỳ nào.
+		dbDelta(
+			"CREATE TABLE $doi_soat (
+				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+				cty VARCHAR(20) NOT NULL DEFAULT 'kh_cu',
+				ten VARCHAR(190) NOT NULL DEFAULT '',
+				kenh VARCHAR(20) NOT NULL DEFAULT 'khac',
+				ngan_hang_id BIGINT UNSIGNED NOT NULL,
+				tu DATE NOT NULL,
+				den DATE NOT NULL,
+				chay_luc DATETIME NULL,
+				tao_luc DATETIME NOT NULL,
+				tao_boi VARCHAR(120) NOT NULL DEFAULT '',
+				PRIMARY KEY (id),
+				KEY cty (cty)
+			) $collate;"
+		);
+
+		// Từng dòng cổng thanh toán gửi về. khop_gd_id trỏ sang bảng giao dịch;
+		// 0 nghĩa là chưa ghép được với dòng sao kê nào.
+		dbDelta(
+			"CREATE TABLE $ds_dong (
+				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+				dot_id BIGINT UNSIGNED NOT NULL,
+				ngay DATE NOT NULL,
+				ma_gd VARCHAR(120) NOT NULL DEFAULT '',
+				so_tien BIGINT NOT NULL DEFAULT 0,
+				phi BIGINT NOT NULL DEFAULT 0,
+				dien_giai TEXT NULL,
+				khop_gd_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+				kieu_khop VARCHAR(20) NOT NULL DEFAULT '',
+				PRIMARY KEY (id),
+				KEY dot_id (dot_id),
+				KEY dot_tien (dot_id, so_tien),
 				KEY ma_gd (ma_gd)
 			) $collate;"
 		);

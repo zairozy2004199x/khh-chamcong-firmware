@@ -3,7 +3,7 @@
  * Plugin Name:       Tài Chính K&H
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Theo dõi ngân hàng, giao dịch và đối soát cho CÔNG TY TNHH DỊCH VỤ VÀ GIẢI TRÍ K&H — chạy thẳng trên host WordPress, dữ liệu nằm trong MySQL của chính website.
- * Version:           0.1.0
+ * Version:           0.2.0
  * Requires at least: 5.6
  * Requires PHP:      7.4
  * Author:            K&H
@@ -30,7 +30,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'KHTC_VERSION', '0.1.0' );
+define( 'KHTC_VERSION', '0.2.0' );
 define( 'KHTC_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KHTC_URL', plugin_dir_url( __FILE__ ) );
 
@@ -41,11 +41,45 @@ require_once KHTC_DIR . 'includes/class-khtc-db.php';
 require_once KHTC_DIR . 'includes/class-khtc-cty.php';
 require_once KHTC_DIR . 'includes/class-khtc-ngan-hang.php';
 require_once KHTC_DIR . 'includes/class-khtc-giao-dich.php';
+require_once KHTC_DIR . 'includes/class-khtc-doi-soat.php';
 require_once KHTC_DIR . 'includes/class-khtc-ui.php';
+require_once KHTC_DIR . 'includes/class-khtc-trang.php';
+require_once KHTC_DIR . 'includes/class-khtc-web.php';
 require_once KHTC_DIR . 'includes/class-khtc-admin.php';
 
-register_activation_hook( __FILE__, array( 'KHTC_DB', 'tao_bang' ) );
+register_activation_hook(
+	__FILE__,
+	function () {
+		KHTC_DB::tao_bang();
+		KHTC_Web::nap_lai_rule();
+	}
+);
+register_deactivation_hook( __FILE__, 'flush_rewrite_rules' );
 
 add_action( 'plugins_loaded', array( 'KHTC_DB', 'nang_cap_neu_can' ) );
 add_action( 'admin_menu', array( 'KHTC_Admin', 'menu' ) );
+add_action( 'admin_init', array( 'KHTC_Admin', 'nhay_ra_web' ) );
 add_action( 'admin_enqueue_scripts', array( 'KHTC_Admin', 'nap_style' ) );
+
+KHTC_Web::khoi_dong();
+
+// Tải CSV phải chạy TRƯỚC khi có chữ nào được in ra, nếu không header bị từ chối
+// và trình duyệt nhận một trang HTML mang tên .csv.
+add_action( 'init', array( 'KHTC_DoiSoat', 'tai_csv' ), 20 );
+
+/**
+ * Nâng cấp từ 0.1.x lên: bảng đối soát là bảng mới và luật đường dẫn /tai-chinh/
+ * chưa từng được ghi, nên phải nạp lại một lần. Cờ khtc_rule giữ cho việc này
+ * chỉ xảy ra đúng một lần chứ không phải mỗi lần tải trang — flush_rewrite_rules
+ * là thao tác nặng.
+ */
+add_action(
+	'init',
+	function () {
+		if ( get_option( 'khtc_rule' ) !== KHTC_VERSION ) {
+			flush_rewrite_rules();
+			update_option( 'khtc_rule', KHTC_VERSION );
+		}
+	},
+	99
+);

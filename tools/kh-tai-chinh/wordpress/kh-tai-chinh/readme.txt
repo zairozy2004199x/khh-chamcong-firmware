@@ -1,7 +1,7 @@
 === Tài Chính K&H ===
 Requires at least: 5.6
 Requires PHP: 7.4
-Stable tag: 0.1.0
+Stable tag: 0.2.0
 License: GPL-2.0-or-later
 
 Theo dõi ngân hàng, giao dịch và đối soát cho CÔNG TY TNHH DỊCH VỤ VÀ GIẢI TRÍ K&H.
@@ -19,12 +19,28 @@ RAM; trên shared hosting cách đó không chạy nổi.
 
 == Đang có ==
 
-* Tổng quan — tổng số dư, thu/chi tháng này, số dư từng tài khoản
+* Tổng quan — tổng số dư, thu/chi tháng này, số dư từng tài khoản, các đợt đối
+  soát gần nhất còn lệch
 * Ngân hàng — thêm/xoá tài khoản, số dư đầu tính từ một ngày mốc
 * Giao dịch / Sao kê — thêm tay, dán sao kê hàng loạt, lọc theo tài khoản /
   khoảng ngày / thu-chi / nội dung, phân trang 100 dòng
+* Đối soát — VietQR, Payoo, VNPay, Zalo Mini App, MoMo. Dán bảng cổng gửi về,
+  máy ghép với sao kê ngân hàng và chia ra Khớp / Lệch tiền / Thiếu / Thừa.
+  Ghép bốn lượt theo độ chắc chắn giảm dần: trùng mã giao dịch, trùng ngày và
+  số tiền, trùng số tiền lệch ngày trong T+3, và trùng số tiền sau khi trừ phí
+  (cổng chuyển về số ròng). Tải kết quả ra CSV.
+* Bản web ngoài — cùng các màn hình đó ở /tai-chinh/ thay vì trong wp-admin.
+  Vẫn phải đăng nhập.
+
+== Bản web ngoài ==
+
+Sau khi kích hoạt, mở https://tenmien.vn/tai-chinh/ . Nếu ra 404 thì vào
+Cài đặt → Đường dẫn tĩnh và bấm Lưu một lần để WordPress ghi lại luật đường dẫn.
+Host không bật đường dẫn tĩnh thì dùng https://tenmien.vn/?khtc_man=tong-quan .
+
+Trang đặt noindex và bắt đăng nhập, người ngoài không xem được.
 
 == Làm tiếp ==
 
-Đối soát MoMo · Zalo-VNPay-Payoo · VietQR, công nợ, hoá đơn đầu vào/đầu ra,
-chi phí, báo cáo. Bản gốc có 23.600 dòng cho các mảng này.
+Công nợ, hoá đơn đầu vào/đầu ra, chi phí và đối soát chi phí, pháp danh, hồ sơ,
+báo cáo, sao lưu. Bản gốc có khoảng 23.600 dòng cho các mảng này.
