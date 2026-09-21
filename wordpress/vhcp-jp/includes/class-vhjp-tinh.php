@@ -674,6 +674,204 @@ class VHJP_Tinh {
 		return self::dong_may_tien( $row );
 	}
 
+	/* ═══════════════════════ DÒNG MA & QR VƯỢT TIỀN ═══════════════════════ */
+
+	/**
+	 * DÒNG MA — nhân viên bấm "+ Thêm" rồi bỏ đó. KHÔNG được chặn nộp vì nó.
+	 *
+	 * =========================================================================================
+	 * 🔴 ĐO BẰNG `> 0`, TUYỆT ĐỐI KHÔNG DÙNG `blank()`.
+	 * =========================================================================================
+	 * Đây là chỗ bản gốc sai một lần và cái sai ấy chỉ chữa được ĐÚNG MẪU TÁCH. Lý do: phép
+	 * tính dòng máy tiền ghi thẳng một con SỐ vào `amount` (ra 0 với dòng chưa ai gõ), chỉ
+	 * nhánh gõ tay của mẫu TÁCH mới đi qua "giữ ô trống". ⇒ Với mẫu CHUNG — tức gần hết hệ
+	 * thống — cứ LƯU một lần là `amount` thành `0`, `blank(0)` là false, dòng ma hoá thành
+	 * "dòng có dữ liệu" và CHẶN NỘP MÃI MÃI. Đúng bệnh *"gõ thì được, lưu xong là tịt"*: đo
+	 * trên dữ liệu thật 28/08/2026, 16/20 báo cáo đang nhập dở bị chặn, 55 ô chặn đều là dòng
+	 * ma, và 61/64 dòng không danh tính KHÔNG có một số nào > 0 ở bất cứ cột nào.
+	 *
+	 * ⚠️ Đo `> 0` KHÔNG phá bất biến *"ô trống là CHƯA NHẬP, không phải 0"*. Bất biến ấy nói
+	 *    về ô của một dòng CÓ THẬT; ở đây ta đang hỏi *"dòng này có tồn tại không"*. Dòng
+	 *    không danh tính thì không ra doanh thu, không ra hàng, không ra lớp tồn — số 0 trên
+	 *    nó không mang tin gì. Có MỘT số > 0 là nó thôi làm ma và bị chặn như cũ.
+	 *
+	 * ⚠️ Không danh tính VẪN chưa đủ. Ca thật: dòng máy xu của VICOM 3/2 không chọn ô máy nào
+	 *    nhưng `mBefore 84855` · `mAfter 85710` là số THẬT (gieo từ kỳ trước + nhân viên gõ).
+	 *    Bỏ qua nó là MẤT DOANH THU XU CỦA CẢ KỲ mà không ai báo.
+	 *
+	 * ⚠️ KHÔNG đo `xuDaysJson`: máy chủ ghi chuỗi `'[]'` vào đó cho MỌI dòng.
+	 * ⚠️ Thêm ô vào danh sách là AN TOÀN (chỉ siết thêm); BỎ ô ra thì phải hỏi "ô này có bao
+	 *    giờ là số thật của nhân viên không".
+	 */
+	public static function dong_trong( $r ) {
+		if ( ! $r ) { return true; }
+		$r = (array) $r;
+		foreach ( array( 'machineId', 'machineCode', 'itemCode', 'itemMisa', 'itemName',
+			'topupNote', 'note', 'refundRowNote' ) as $c ) {
+			if ( '' !== VHJP_Doc::str( self::o( $r, $c ) ) ) { return false; }
+		}
+		foreach ( array( 'mBefore', 'mAfter', 'cBefore', 'cAfter', 'amount', 'cash', 'bank',
+			'cashReal', 'hOpen', 'hBefore', 'hAfter', 'soldQty', 'stockOut',
+			'addQty1', 'addQty2', 'stockOpen', 'stockActual', 'defectQty',
+			'returnQty', 'refundAmt', 'giaXu', 'xuTong' ) as $c ) {
+			if ( VHJP_Doc::num( self::o( $r, $c ) ) > 0 ) { return false; }
+		}
+		return true;
+	}
+
+	/**
+	 * QR KHÔNG THỂ LỚN HƠN THÀNH TIỀN — NGUỒN DUY NHẤT, và là phép CHẶN NỘP.
+	 *
+	 * Trên app của máy mẫu TÁCH, *"Thành tiền"* ĐÃ GỒM cả tiền mặt lẫn QR. Nên `QR ≤ Thành
+	 * tiền` là bất biến của NGUỒN DỮ LIỆU, không phải phỏng đoán — vượt là chắc chắn gõ sai.
+	 *
+	 * 🔴 Vì sao CHẶN chứ không chỉ cảnh báo: gõ sai kiểu này làm tiền phải nộp ra SỐ ÂM ⇒ app
+	 *    nói cơ sở KHÔNG PHẢI NỘP GÌ, thậm chí công ty nợ lại họ. Ca thật: QR 9.500.000đ trên
+	 *    Thành tiền 5.920.000đ ⇒ tiền phải nộp −1.520.000đ. Và app ĐÃ CẢNH BÁO 17 LẦN (W10)
+	 *    mà báo cáo vẫn nhập tiếp — cảnh báo ở đây không đủ.
+	 *
+	 * ⚠️ Chặn ở `>` chứ không phải `>=`: QR BẰNG Thành tiền là hợp lệ — cả ca khách quét mã
+	 *    hết, tiền mặt bằng 0. Chặn cả ca đó là chặn oan một ngày bán thật.
+	 * ⚠️ CHỈ áp cho dòng `MAY` gõ tay. Mẫu CHUNG suy tiền từ đồng hồ, ô QR ở đó là khoản
+	 *    khách quét cộng THÊM chứ không nằm trong `amount` — áp vào là chặn oan gần hết hệ.
+	 */
+	public static function qr_vuot_tien( $rows ) {
+		$xau = array(); $s_qr = 0; $s_tt = 0; $co_go_tay = false;
+		foreach ( (array) $rows as $r ) {
+			if ( self::DONG_MAY !== VHJP_Doc::str( self::o( $r, 'rowKind' ) ) ) { continue; }
+			if ( ! self::may_go_tay( $r ) ) { continue; }
+			$co_go_tay = true;
+			$qr = VHJP_Doc::num( self::o( $r, 'bank' ) );
+			$tt = VHJP_Doc::num( self::o( $r, 'amount' ) );
+			$s_qr += $qr; $s_tt += $tt;
+			if ( $qr > $tt ) {
+				$ten = VHJP_Doc::str( self::o( $r, 'itemCode' ) );
+				if ( '' === $ten ) { $ten = VHJP_Doc::str( self::o( $r, 'itemMisa' ) ); }
+				if ( '' === $ten ) { $ten = 'dòng ' . VHJP_Doc::str( self::o( $r, 'seq' ) ); }
+				$xau[] = $ten . ': QR ' . VHJP_Doc::money( $qr ) . 'đ lớn hơn Thành tiền '
+					. VHJP_Doc::money( $tt ) . 'đ';
+			}
+		}
+		/* Phép CẤP BÁO CÁO: Σ QR > Σ Thành tiền cũng bất khả thi, và nó bắt được cả những
+		   dòng lẻ mà phép từng dòng lọt qua. */
+		if ( $co_go_tay && $s_qr > $s_tt ) {
+			$xau[] = 'CẢ BÁO CÁO: tổng QR ' . VHJP_Doc::money( $s_qr )
+				. 'đ lớn hơn tổng Thành tiền ' . VHJP_Doc::money( $s_tt ) . 'đ';
+		}
+		return $xau;
+	}
+
+	/* ═══════════════════════ THIẾU ẢNH ═══════════════════════ */
+
+	/** Hai loại ảnh: chỉ số máy gán theo Ô/MÁY, Pay Box gán theo CỤM. */
+	const ANH_CHI_SO = 'METER';
+	const ANH_PAYBOX = 'PAYBOX';
+
+	/**
+	 * CẢNH BÁO THIẾU ẢNH của một báo cáo.
+	 *
+	 * ⚠️ Bảng tồn kho · kho ngoài · và HAI BẢNG của mẫu tách đều không đòi ảnh chỉ số. Dòng
+	 *    `HANG` và `MAY` không có `machineId` nên bảng máy không tra ra gì ⇒ số ảnh cần rơi về
+	 *    1 ⇒ ĐÒI ẢNH CHO TỪNG MÃ HÀNG: 54 mã ở Phú Quốc là 54 cảnh báo vô nghĩa mỗi kỳ. Ô gắn
+	 *    ảnh VẪN CÒN trên bảng — ảnh màn hình app là bằng chứng duy nhất cho số gõ tay — chỉ
+	 *    là KHÔNG ĐÒI: một ảnh app thường thấy hết các mã.
+	 *
+	 * ⚠️ Cấu hình 0 ảnh là CỐ Ý — `so_anh()` giữ 0, chỉ ô TRỐNG mới về mặc định 1.
+	 */
+	public static function kiem_anh( $rows, $zones, $photos, $ban_do_may, $ban_do_cum, $ma_coso ) {
+		$warns = array();
+		$dem = array();
+		foreach ( (array) $photos as $p ) {
+			$k = VHJP_Doc::str( self::o( $p, 'scope' ) ) . '|' . VHJP_Doc::str( self::o( $p, 'refId' ) )
+				. '|' . VHJP_Doc::str( self::o( $p, 'kind' ) );
+			$dem[ $k ] = ( isset( $dem[ $k ] ) ? $dem[ $k ] : 0 ) + 1;
+		}
+
+		foreach ( (array) $rows as $r ) {
+			$kd = VHJP_Doc::str( self::o( $r, 'rowKind' ) );
+			if ( self::DONG_STOCK === $kd || self::DONG_NGOAI === $kd
+				|| self::DONG_HANG === $kd || self::DONG_MAY === $kd ) { continue; }
+			$m = isset( $ban_do_may[ (string) self::o( $r, 'machineId' ) ] )
+				? $ban_do_may[ (string) self::o( $r, 'machineId' ) ] : null;
+			$can = $m ? VHJP_Doc::so_anh( isset( $m['photoCount'] ) ? $m['photoCount'] : '' ) : 1;
+			if ( ! $can ) { continue; }
+			$k = 'ROW|' . self::o( $r, 'id' ) . '|' . self::ANH_CHI_SO;
+			$co = isset( $dem[ $k ] ) ? $dem[ $k ] : 0;
+			if ( $co < $can ) {
+				$ten = VHJP_Doc::str( self::o( $r, 'machineCode' ) );
+				if ( '' === $ten ) { $ten = VHJP_Doc::str( self::o( $r, 'itemCode' ) ); }
+				$warns[] = self::warn( 'MISSING_PHOTO',
+					'Ô ' . $ten . ': thiếu ' . ( $can - $co ) . ' ảnh chỉ số' );
+			}
+		}
+
+		foreach ( (array) $zones as $z ) {
+			$c = isset( $ban_do_cum[ (string) self::o( $z, 'clusterId' ) ] )
+				? $ban_do_cum[ (string) self::o( $z, 'clusterId' ) ] : null;
+			$can = $c ? VHJP_Doc::so_anh( isset( $c['photoCount'] ) ? $c['photoCount'] : '',
+				'Y' === VHJP_Doc::str( isset( $c['hasQR'] ) ? $c['hasQR'] : '' ) ? 1 : 0 ) : 0;
+			if ( ! $can ) { continue; }
+			$k = 'ZONE|' . self::o( $z, 'id' ) . '|' . self::ANH_PAYBOX;
+			$co = isset( $dem[ $k ] ) ? $dem[ $k ] : 0;
+			if ( $co < $can ) {
+				$warns[] = self::warn( 'MISSING_PHOTO',
+					'Khu vực ' . VHJP_Doc::str( self::o( $z, 'name' ) )
+						. ': thiếu ' . ( $can - $co ) . ' ảnh Pay Box' );
+			}
+		}
+
+		/*
+		 * ⚠️⚠️ CÓ TIỀN QR MÀ KHÔNG CÓ CHỖ NÀO GẮN ẢNH PAY BOX — W17.
+		 *
+		 * Vòng khu vực ở trên chỉ đòi ảnh khi khu ĐÃ CHỌN một cụm mang QR: khu để trống ô
+		 * "— chọn cụm —" ra 0 ảnh cần và bị BỎ QUA IM LẶNG. Đó là cái lỗ — dải ảnh Pay Box
+		 * gắn theo CỤM nên không chọn cụm là KHÔNG CÓ CHỖ NÀO để gắn, và báo cáo vẫn nộp
+		 * được với tiền QR mà không kèm một tấm bằng chứng nào.
+		 *
+		 * ⚠️ Chốt là KHÔNG KHU NÀO chọn được cụm QR, chứ KHÔNG phải "có khu nào chưa chọn
+		 *    cụm". Máy nhận QR thường chỉ ở một khu; kêu từng khu còn lại là cảnh báo vặt, mà
+		 *    BÁO SAI VÀI LẦN LÀ KHÔNG AI ĐỌC NỮA.
+		 *
+		 * ⚠️ Đủ CẢ BA điều kiện, thiếu một là báo oan:
+		 *     · có tiền QR — không có thì không cần bằng chứng QR;
+		 *     · cơ sở CÓ cụm mang QR đang dùng — chưa cấu hình thì nhân viên KHÔNG CÓ GÌ ĐỂ
+		 *       CHỌN, kêu họ là kêu vào chỗ họ không sửa được;
+		 *     · không khu nào chọn được cụm QR.
+		 */
+		$qr = 0;
+		foreach ( (array) $rows as $r ) { $qr += VHJP_Doc::num( self::o( $r, 'bank' ) ); }
+
+		if ( $qr > 0 && '' !== VHJP_Doc::str( $ma_coso ) ) {
+			$cum_qr = array();
+			foreach ( (array) $ban_do_cum as $c ) {
+				if ( ! $c ) { continue; }
+				if ( (string) $c['locationId'] !== (string) $ma_coso ) { continue; }
+				if ( 'Y' !== strtoupper( VHJP_Doc::str( $c['hasQR'] ) ) ) { continue; }
+				if ( 'N' === strtoupper( VHJP_Doc::str( $c['active'] ) ) ) { continue; }
+				$ten = VHJP_Doc::str( $c['name'] );
+				$cum_qr[] = '' !== $ten ? $ten : VHJP_Doc::str( $c['id'] );
+			}
+			$co_khu_qr = false;
+			foreach ( (array) $zones as $z ) {
+				$c = isset( $ban_do_cum[ (string) self::o( $z, 'clusterId' ) ] )
+					? $ban_do_cum[ (string) self::o( $z, 'clusterId' ) ] : null;
+				if ( $c && 'Y' === strtoupper( VHJP_Doc::str( $c['hasQR'] ) ) ) { $co_khu_qr = true; }
+			}
+			if ( $cum_qr && ! $co_khu_qr ) {
+				/* ⚠️ Nói ra HẬU QUẢ + VIỆC PHẢI LÀM, không chỉ nói trạng thái. Câu chỉ nói
+				   trạng thái là câu người đọc tin rằng mình đã xong. */
+				$warns[] = self::warn( 'THIEU_CUM_QR',
+					'Kỳ này có ' . VHJP_Doc::money( $qr ) . 'đ vào tài khoản (QR/CK) mà chưa khu vực nào chọn '
+					. 'cụm nhận QR ⇒ KHÔNG có chỗ gắn ảnh Pay Box. Chọn cụm '
+					. ( 1 === count( $cum_qr ) ? '"' . $cum_qr[0] . '"'
+						: 'ở danh sách (' . implode( ' · ', $cum_qr ) . ')' )
+					. ' ở ô "— chọn cụm —" đầu khu vực.' );
+			}
+		}
+
+		return $warns;
+	}
+
 	/* ═══════════════════════ TỔNG CỦA CẢ BÁO CÁO ═══════════════════════ */
 
 	/** Tổng tiền hoàn khách = khoản chung ở đầu báo cáo + Σ khoản gắn theo từng mã. */

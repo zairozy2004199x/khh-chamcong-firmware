@@ -185,6 +185,9 @@ const ham = {
   /* Lưu nháp — xoá sạch rồi ghi lại, nên cần cả `jpDeleteWhere_` lẫn `jpFields_`. */
   luu: 'jpSaveReport', ban_do_hang: 'jpItemMap_', tra_hang: 'jpTraItem_',
   id_moi: 'jpIdMoi_', ids_dang_dung: 'jpIdsDangDung_', diff_phan: 'jpDiffParts_',
+  /* Nộp báo cáo, và phần ĐẾM của đường ảnh (không đụng Drive nên chạy được bằng node). */
+  nop: 'jpSubmitReport', thieu_chi_so: 'jpThieuChiSo_', dong_trong: 'jpDongTrong_',
+  qr_vuot_tien: 'jpQRVuotTien_', kiem_anh: 'jpCheckPhotos_', anh_tien_do: 'jpPhotoProgress',
 }[ten];
 if (!ham) { console.error('không biết hàm ' + ten); process.exit(2); }
 if (typeof hop[ham] !== 'function') { console.error('mã gốc không có ' + ham); process.exit(3); }

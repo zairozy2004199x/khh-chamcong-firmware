@@ -3,7 +3,7 @@
  * Plugin Name:       JP Capsule (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Báo cáo JP Capsule chạy THẲNG trên host: nhân viên nhập báo cáo từ chỉ số máy, kế toán duyệt hai phần, đối soát ngân hàng, kho hai tầng. Không Apps Script, không Google Sheets.
- * Version:           1.7.0
+ * Version:           1.8.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -21,7 +21,7 @@
  * KHÔNG chạy gì, và không nằm trong bản cài.
  *
  * ---------------------------------------------------------------------------
- * ĐANG DỰNG DỞ — ĐÃ TẠO · MỞ · LƯU ĐƯỢC BÁO CÁO. CHƯA NỘP ĐƯỢC.
+ * ĐANG DỰNG DỞ — NHÂN VIÊN ĐÃ ĐI TRỌN MỘT CA. KẾ TOÁN CHƯA DUYỆT ĐƯỢC.
  *
  * Xong:  lược đồ 23 bảng (`class-vhjp-db.php`) · lớp đổi giá trị (`class-vhjp-doc.php`, đối
  *        chiếu thẳng với mã JavaScript gốc chạy bằng node) · lớp truy cập dữ liệu DUY NHẤT
@@ -29,10 +29,11 @@
  *        phiên làm việc (`class-vhjp-auth.php`) · nhật ký thao tác (`class-vhjp-nhat-ky.php`)
  *        · danh mục (`class-vhjp-cau-hinh.php`) · cổng dịch `google.script.run`
  *        (`class-vhjp-cong.php`) · tính tiền sáu loại dòng và bản tổng (`class-vhjp-tinh.php`)
- *        · ĐỌC · TẠO · GIEO DÒNG · LƯU NHÁP báo cáo (`class-vhjp-bao-cao.php`).
- * Chưa:  84 / 100 hàm máy chủ — `VHJP_Cong::chua_lam()` khai đủ tên, và
- *        `tools/test/kiem-jp-cong.php` đếm lại mỗi lượt chạy. Nặng nhất còn lại: NỘP báo cáo
- *        · duyệt · ảnh · đối soát ngân hàng · kho hai tầng.
+ *        · ĐỌC · TẠO · GIEO DÒNG · LƯU NHÁP · NỘP báo cáo (`class-vhjp-bao-cao.php`)
+ *        · ĐẾM và CẢNH BÁO thiếu ảnh (`class-vhjp-anh.php`).
+ * Chưa:  82 / 100 hàm máy chủ — `VHJP_Cong::chua_lam()` khai đủ tên, và
+ *        `tools/test/kiem-jp-cong.php` đếm lại mỗi lượt chạy. Nặng nhất còn lại: kế toán
+ *        DUYỆT · TẢI ẢNH lên · đối soát ngân hàng · kho hai tầng · nộp tiền.
  *
  * ⚠️ ĐỌC TRƯỚC, GHI SAU — có lý do. Đường đọc dựng lại được bằng bài kiểm đối chiếu với mã gốc
  *    chạy thật, nên nó vừa là tính năng vừa là CÁI THƯỚC để đo đường ghi: `jpOpenReport` gieo
@@ -72,7 +73,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHJP_VERSION', '1.7.0' );
+define( 'VHJP_VERSION', '1.8.0' );
 define( 'VHJP_FILE', __FILE__ );
 define( 'VHJP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHJP_URL', plugin_dir_url( __FILE__ ) );
@@ -85,6 +86,7 @@ require_once VHJP_DIR . 'includes/class-vhjp-nhat-ky.php';
 require_once VHJP_DIR . 'includes/class-vhjp-auth.php';
 require_once VHJP_DIR . 'includes/class-vhjp-cau-hinh.php';
 require_once VHJP_DIR . 'includes/class-vhjp-tinh.php';
+require_once VHJP_DIR . 'includes/class-vhjp-anh.php';
 require_once VHJP_DIR . 'includes/class-vhjp-bao-cao.php';
 require_once VHJP_DIR . 'includes/class-vhjp-cong.php';
 require_once VHJP_DIR . 'includes/class-vhjp-trang.php';
