@@ -69,6 +69,137 @@ function khh_dt_tao_bang_kho() {
 }
 
 /* ================================================================== *
+ * SỔ GHI ĐỘNG — append-only, không sửa được
+ * ================================================================== */
+
+/**
+ * Lịch sử mọi lượt khai. GHI THÊM, KHÔNG BAO GIỜ SỬA.
+ *
+ * 21/09/2026, sau khi đọc lối làm của ERPNext và Odoo: cả hai đều ghi một sổ ghi động BẤT BIẾN
+ * (Stock Ledger Entry / bút toán kép), rồi tồn hiện tại chỉ là tổng của sổ ấy — "đã ghi thì
+ * không sửa, sai thì ghi một bút toán bù". Cách em làm ban đầu thì ngược: `ON DUPLICATE KEY
+ * UPDATE`, tức khai lại là GHI ĐÈ và chỉ còn người với giờ của lần cuối.
+ *
+ * 🔴 VỚI MỘT SỔ SINH RA ĐỂ BẮT THẤT THOÁT, ĐÓ LÀ LỖ TO NHẤT.
+ *    Người đang bị đối soát tự sửa lại con số mình đã khai, và không còn dấu vết nào cho thấy
+ *    đã từng có số khác. Đếm thiếu, thấy cột lệch đỏ, sửa số đếm cho khớp — xong, sổ xanh. Cả
+ *    bộ máy đối soát trở thành vô dụng đúng ở ca nó sinh ra để bắt.
+ *
+ * Nên: mỗi lượt Lưu ghi THÊM một dòng vào đây. Bảng `khh_dt_kho` vẫn giữ (nó là bản cộng dồn
+ * cho nhanh, đúng vai "Bin" của ERPNext), nhưng SỔ NÀY MỚI LÀ SỰ THẬT — và
+ * `khh_dt_kho_dung_lai()` dựng lại được bảng kia từ sổ này bất cứ lúc nào.
+ */
+function khh_dt_bang_kho_su() {
+	global $wpdb;
+	return $wpdb->prefix . 'khh_dt_kho_su';
+}
+
+function khh_dt_tao_bang_kho_su() {
+	global $wpdb;
+	$bang    = khh_dt_bang_kho_su();
+	$charset = $wpdb->get_charset_collate();
+	require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+	/* ⚠️ CỐ Ý KHÔNG CÓ UNIQUE KEY. Thêm vào là quay lại đúng chuyện ghi đè mà bảng này sinh ra
+	   để chấm dứt. Nhiều dòng cùng (ngày, cơ sở, mặt hàng) là ĐÚNG — đó là lịch sử sửa. */
+	dbDelta(
+		"CREATE TABLE $bang (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			ngay date NOT NULL,
+			co_so varchar(190) NOT NULL DEFAULT '',
+			mat_hang varchar(190) NOT NULL DEFAULT '',
+			nhap double NOT NULL DEFAULT 0,
+			ban_khai double NULL DEFAULT NULL,
+			combo_tay double NOT NULL DEFAULT 0,
+			dem double NULL DEFAULT NULL,
+			ghi_chu varchar(190) NOT NULL DEFAULT '',
+			nguoi varchar(120) NOT NULL DEFAULT '',
+			luc datetime NULL,
+			PRIMARY KEY  (id),
+			KEY mot_dong (ngay,co_so(60),mat_hang(60)),
+			KEY luc (luc)
+		) $charset;"
+	);
+}
+
+/** Mọi lượt khai của một dòng, MỚI NHẤT TRƯỚC. */
+function khh_dt_kho_su_cua( $ngay, $co_so, $mat_hang ) {
+	global $wpdb;
+	$bang = khh_dt_bang_kho_su();
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	if ( ! $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $bang ) ) ) {
+		return array();
+	}
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	return (array) $wpdb->get_results(
+		$wpdb->prepare(
+			"SELECT * FROM $bang WHERE ngay = %s AND co_so = %s AND mat_hang = %s ORDER BY id DESC",
+			$ngay,
+			$co_so,
+			$mat_hang
+		),
+		ARRAY_A
+	);
+}
+
+/** Mỗi mặt hàng của một ngày đã bị khai mấy lượt — để màn hiện "đã sửa N lần". */
+function khh_dt_kho_so_lan( $ngay, $co_so ) {
+	global $wpdb;
+	$bang = khh_dt_bang_kho_su();
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	if ( ! $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $bang ) ) ) {
+		return array();
+	}
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$ds = (array) $wpdb->get_results(
+		$wpdb->prepare(
+			"SELECT mat_hang, COUNT(*) n FROM $bang WHERE ngay = %s AND co_so = %s GROUP BY mat_hang",
+			$ngay,
+			$co_so
+		),
+		ARRAY_A
+	);
+	$ra = array();
+	foreach ( $ds as $r ) {
+		$ra[ $r['mat_hang'] ] = (int) $r['n'];
+	}
+	return $ra;
+}
+
+/**
+ * Dựng lại bảng cộng dồn từ sổ ghi động.
+ *
+ * Đây là điều làm cho "hai bảng" không thành hai sự thật: sổ ghi động là gốc, bảng kia chỉ là
+ * bản tính sẵn và dựng lại được. Y lối Bin của ERPNext. Bài thử dùng hàm này để chốt hai bảng
+ * luôn nói cùng một chuyện.
+ */
+function khh_dt_kho_dung_lai( $ngay, $co_so ) {
+	global $wpdb;
+	$su = khh_dt_bang_kho_su();
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	if ( ! $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $su ) ) ) {
+		return 0;
+	}
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$ds = (array) $wpdb->get_results(
+		$wpdb->prepare(
+			"SELECT * FROM $su WHERE ngay = %s AND co_so = %s ORDER BY id ASC",
+			$ngay,
+			$co_so
+		),
+		ARRAY_A
+	);
+	$cuoi = array();
+	foreach ( $ds as $r ) {
+		$cuoi[ $r['mat_hang'] ] = $r;   // dòng sau ghi đè dòng trước -> còn lại là lượt mới nhất
+	}
+	$n = 0;
+	foreach ( $cuoi as $mh => $r ) {
+		$n += khh_dt_kho_ghi_cong_don( $ngay, $co_so, $mh, $r ) ? 1 : 0;
+	}
+	return $n;
+}
+
+/* ================================================================== *
  * Mặt hàng KHO của từng cơ sở
  * ================================================================== */
 
@@ -139,21 +270,99 @@ function khh_dt_kho_mon_da_thay( $tu, $den, $co_so ) {
  * ================================================================== */
 
 /**
- * Bảng combo: tên món combo -> [ tên mặt hàng => số lượng trong một combo ].
+ * CÔNG THỨC COMBO CÓ NGÀY HIỆU LỰC — sửa hôm nay KHÔNG viết lại quá khứ.
  *
- * Người đặt một lần. Hệ KHÔNG tự đoán: FABi chỉ có tên combo và doanh thu, không có công thức.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 BẢN TRƯỚC ÁP CÔNG THỨC HIỆN TẠI CHO MỌI NGÀY CŨ, VÀ ĐÓ LÀ LỖI.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * `khh_dt_kho_ban_may()` đọc bảng combo rồi áp cho từng dòng lịch sử. Nên sửa một công thức
+ * hôm nay là SỐ TỒN CỦA CẢ MẤY THÁNG TRƯỚC ĐỔI THEO, im lặng: hôm qua sổ cân, hôm nay mở lại
+ * cùng ngày ấy thì lệch — mà không có gì trên màn nói vì sao. Trên một sổ dùng để đối chất với
+ * người trực thì đó là thứ không được phép tồn tại.
+ *
+ * ERPNext giải bài này bằng BOM có phiên bản và ngày hiệu lực. Ở đây làm đúng lối ấy: mỗi lượt
+ * sửa ghi THÊM một bản chụp cả bảng, kèm `tu_ngay`. Đọc ngày nào thì lấy bản có hiệu lực vào
+ * ngày ấy.
+ *
+ * ⚠️ `tu_ngay` để người đặt, mặc định là HÔM NAY. Đặt lùi là cố ý sửa lại quá khứ — có lúc
+ *    đúng (khai muộn một combo đã bán từ đầu tháng), nên cho phép, nhưng phải do người gõ
+ *    chứ không mặc định.
  */
-function khh_dt_kho_combo_bang() {
-	$b = get_option( 'khh_dt_kho_combo', array() );
-	return is_array( $b ) ? $b : array();
+function khh_dt_kho_combo_ls() {
+	$ls = get_option( 'khh_dt_kho_combo_ls', array() );
+	return is_array( $ls ) ? $ls : array();
 }
 
-function khh_dt_kho_combo_dat( $ten_combo, $thanh_phan ) {
+/**
+ * Bảng công thức có hiệu lực vào một ngày.
+ *
+ * 🔴 GHI HIỆU LỰC THEO TỪNG COMBO, KHÔNG CHỤP CẢ BẢNG.
+ *    Bản đầu lưu mỗi lượt sửa thành một BẢN CHỤP CẢ BẢNG kèm `tu_ngay`, rồi đọc ngày nào thì
+ *    lấy bản chụp mới nhất còn hiệu lực. Chính bài thử bắt được chỗ hỏng: một lượt ĐẶT LÙI
+ *    NGÀY sinh ra bản chụp của trạng thái LÚC ẤY — tức thiếu mọi công thức khai sau nó — mà
+ *    bản chụp ấy lại không lan về sau, nên đọc ngày hôm nay là mất công thức vừa đặt lùi.
+ *    Ghi theo từng combo thì tự khỏi: mỗi combo có dòng hiệu lực riêng, ghép lại theo ngày.
+ *    Đây cũng đúng lối BOM của ERPNext — hiệu lực gắn với từng công thức, không gắn với cả sổ.
+ *
+ * @param string $ngay Rỗng = bản mới nhất của mỗi combo (dùng cho màn cấu hình).
+ */
+function khh_dt_kho_combo_bang( $ngay = '' ) {
+	$ls = khh_dt_kho_combo_ls();
+	if ( ! $ls ) {
+		/* Chưa có lịch sử: đọc ô cũ, để bản cài trước không mất công thức đã khai. */
+		$b = get_option( 'khh_dt_kho_combo', array() );
+		return is_array( $b ) ? $b : array();
+	}
+	$chon = array();   // tên combo => dòng hiệu lực đang thắng
+	foreach ( $ls as $d ) {
+		$ten = isset( $d['ten'] ) ? (string) $d['ten'] : '';
+		$tu  = isset( $d['tu_ngay'] ) ? (string) $d['tu_ngay'] : '';
+		if ( '' === $ten ) {
+			continue;
+		}
+		if ( '' !== $ngay && $tu > $ngay ) {
+			continue;   // chưa có hiệu lực vào ngày đang xét
+		}
+		if ( ! isset( $chon[ $ten ] ) ) {
+			$chon[ $ten ] = $d;
+			continue;
+		}
+		$cu = $chon[ $ten ];
+		$x  = strcmp( $tu, (string) $cu['tu_ngay'] );
+		/* Ngày hiệu lực muộn hơn thì thắng; cùng ngày thì lượt ghi sau thắng. */
+		if ( $x > 0 || ( 0 === $x && strcmp( (string) $d['luc'], (string) $cu['luc'] ) >= 0 ) ) {
+			$chon[ $ten ] = $d;
+		}
+	}
+	$ra = array();
+	foreach ( $chon as $ten => $d ) {
+		$tp = isset( $d['tp'] ) && is_array( $d['tp'] ) ? $d['tp'] : array();
+		if ( $tp ) {
+			$ra[ $ten ] = $tp;   // thành phần rỗng = đã xoá combo ấy từ ngày ấy
+		}
+	}
+	ksort( $ra );
+	return $ra;
+}
+
+/**
+ * Đặt công thức cho một combo. GHI THÊM một dòng hiệu lực, không sửa dòng cũ.
+ *
+ * @param string $tu_ngay Ngày bắt đầu có hiệu lực. Rỗng = hôm nay.
+ *
+ * ⚠️ `tu_ngay` để người đặt, mặc định HÔM NAY. Đặt lùi là cố ý sửa lại quá khứ — có lúc đúng
+ *    (khai muộn một combo đã bán từ đầu tháng), nên cho phép, nhưng phải do người gõ chứ không
+ *    mặc định. Mặc định lùi là mọi lượt khai đều lặng lẽ viết lại số cũ.
+ */
+function khh_dt_kho_combo_dat( $ten_combo, $thanh_phan, $tu_ngay = '' ) {
 	$ten = trim( (string) $ten_combo );
 	if ( '' === $ten ) {
 		return false;
 	}
-	$b  = khh_dt_kho_combo_bang();
+	$tu = preg_match( '~^\d{4}-\d{2}-\d{2}$~', (string) $tu_ngay )
+		? (string) $tu_ngay
+		: current_time( 'Y-m-d' );
+
 	$tp = array();
 	foreach ( (array) $thanh_phan as $mh => $sl ) {
 		$mh = trim( (string) $mh );
@@ -162,12 +371,23 @@ function khh_dt_kho_combo_dat( $ten_combo, $thanh_phan ) {
 			$tp[ $mh ] = $sl;
 		}
 	}
-	if ( $tp ) {
-		$b[ $ten ] = $tp;
-	} else {
-		unset( $b[ $ten ] );   // bảng rỗng là lệnh xoá combo ấy
-	}
-	update_option( 'khh_dt_kho_combo', $b, false );
+
+	$ls   = khh_dt_kho_combo_ls();
+	$ls[] = array(
+		'ten'     => $ten,
+		'tu_ngay' => $tu,
+		'tp'      => $tp,   // rỗng = xoá combo ấy từ `tu_ngay` trở đi
+		'nguoi'   => function_exists( 'khh_dt_ten_ghi_so' ) ? khh_dt_ten_ghi_so() : '',
+		'luc'     => current_time( 'mysql' ),
+	);
+	usort(
+		$ls,
+		function ( $a, $b ) {
+			$x = strcmp( (string) $a['tu_ngay'], (string) $b['tu_ngay'] );
+			return 0 !== $x ? $x : strcmp( (string) $a['luc'], (string) $b['luc'] );
+		}
+	);
+	update_option( 'khh_dt_kho_combo_ls', array_slice( $ls, -300 ), false );
 	return true;
 }
 
@@ -193,14 +413,20 @@ function khh_dt_kho_ban_may( $tu, $den, $co_so ) {
 		),
 		ARRAY_A
 	);
-	$combo = khh_dt_kho_combo_bang();
 	$ra    = array();
+	$nho   = array();   // công thức theo ngày, nhớ lại để khỏi dựng lại mỗi dòng
 	foreach ( $ds as $r ) {
 		$mon = json_decode( (string) $r['mon'], true );
 		if ( ! is_array( $mon ) ) {
 			continue;
 		}
 		$ngay = (string) $r['ngay'];
+		/* 🔴 CÔNG THỨC CỦA ĐÚNG NGÀY ẤY, không phải công thức hiện tại. Lấy bảng hiện tại là
+		   sửa combo hôm nay thì số tồn mấy tháng trước đổi theo, im lặng. */
+		if ( ! isset( $nho[ $ngay ] ) ) {
+			$nho[ $ngay ] = khh_dt_kho_combo_bang( $ngay );
+		}
+		$combo = $nho[ $ngay ];
 		foreach ( $mon as $m ) {
 			$ten = isset( $m['n'] ) ? (string) $m['n'] : '';
 			$sl  = isset( $m['q'] ) ? (float) $m['q'] : 0;
@@ -236,14 +462,19 @@ function khh_dt_kho_ban_may_tach( $tu, $den, $co_so ) {
 		),
 		ARRAY_A
 	);
-	$combo = khh_dt_kho_combo_bang();
 	$ra    = array();
+	$nho   = array();
 	foreach ( $ds as $r ) {
 		$mon = json_decode( (string) $r['mon'], true );
 		if ( ! is_array( $mon ) ) {
 			continue;
 		}
 		$ngay = (string) $r['ngay'];
+		/* Công thức của đúng ngày ấy — xem chú thích ở `khh_dt_kho_ban_may()`. */
+		if ( ! isset( $nho[ $ngay ] ) ) {
+			$nho[ $ngay ] = khh_dt_kho_combo_bang( $ngay );
+		}
+		$combo = $nho[ $ngay ];
 		foreach ( $mon as $m ) {
 			$ten = isset( $m['n'] ) ? (string) $m['n'] : '';
 			$sl  = isset( $m['q'] ) ? (float) $m['q'] : 0;
@@ -296,18 +527,64 @@ function khh_dt_kho_dong( $tu, $den, $co_so ) {
 	return $ra;
 }
 
-/** Ghi một dòng khai. `null` nghĩa là "chưa khai", khác hẳn số 0 — 0 là "đếm được 0 cái". */
+/** Đọc một số người ta gõ. `null` = CHƯA KHAI, khác hẳn số 0 — 0 là "đếm được 0 cái". */
+function khh_dt_kho_so( $x ) {
+	if ( null === $x || '' === $x ) {
+		return null;
+	}
+	return function_exists( 'khh_dt_so' ) ? khh_dt_so( $x ) : (float) $x;
+}
+
+/**
+ * Ghi một lượt khai.
+ *
+ * 🔴 GHI VÀO SỔ GHI ĐỘNG TRƯỚC, RỒI MỚI CỘNG DỒN. Thứ tự ấy quan trọng: nếu cộng dồn xong mới
+ *    ghi sổ mà bước sau lỗi, thì màn hình đã đổi số trong khi sổ không có dòng nào — tức mất
+ *    đúng cái vết mà cả sổ này sinh ra để giữ. Ngược lại thì chỉ là bản cộng dồn chậm một nhịp,
+ *    và `khh_dt_kho_dung_lai()` dựng lại được.
+ */
 function khh_dt_kho_ghi( $ngay, $co_so, $mat_hang, $o ) {
 	global $wpdb;
-	$bang = khh_dt_bang_kho();
-	$sl   = function ( $x ) {
-		if ( null === $x || '' === $x ) {
-			return null;
-		}
-		return function_exists( 'khh_dt_so' ) ? khh_dt_so( $x ) : (float) $x;
-	};
-	$nhap  = $sl( isset( $o['nhap'] ) ? $o['nhap'] : null );
-	$combo = $sl( isset( $o['combo_tay'] ) ? $o['combo_tay'] : null );
+	$dong = array(
+		'nhap'      => khh_dt_kho_so( isset( $o['nhap'] ) ? $o['nhap'] : null ),
+		'ban_khai'  => khh_dt_kho_so( isset( $o['ban_khai'] ) ? $o['ban_khai'] : null ),
+		'combo_tay' => khh_dt_kho_so( isset( $o['combo_tay'] ) ? $o['combo_tay'] : null ),
+		'dem'       => khh_dt_kho_so( isset( $o['dem'] ) ? $o['dem'] : null ),
+		'ghi_chu'   => isset( $o['ghi_chu'] ) ? (string) $o['ghi_chu'] : '',
+		'nguoi'     => function_exists( 'khh_dt_ten_ghi_so' ) ? khh_dt_ten_ghi_so() : '',
+		'luc'       => current_time( 'mysql' ),
+	);
+
+	$su = khh_dt_bang_kho_su();
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $su ) ) ) {
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery
+		$wpdb->query(
+			$wpdb->prepare(
+				"INSERT INTO $su (ngay,co_so,mat_hang,nhap,ban_khai,combo_tay,dem,ghi_chu,nguoi,luc)
+				 VALUES (%s,%s,%s,%f,%s,%f,%s,%s,%s,%s)",
+				$ngay,
+				$co_so,
+				$mat_hang,
+				null === $dong['nhap'] ? 0 : $dong['nhap'],
+				$dong['ban_khai'],
+				null === $dong['combo_tay'] ? 0 : $dong['combo_tay'],
+				$dong['dem'],
+				$dong['ghi_chu'],
+				$dong['nguoi'],
+				$dong['luc']
+			)
+		);
+	}
+	return khh_dt_kho_ghi_cong_don( $ngay, $co_so, $mat_hang, $dong );
+}
+
+/** Bản cộng dồn cho nhanh — đúng vai "Bin" của ERPNext. Dựng lại được từ sổ ghi động. */
+function khh_dt_kho_ghi_cong_don( $ngay, $co_so, $mat_hang, $o ) {
+	global $wpdb;
+	$bang  = khh_dt_bang_kho();
+	$nhap  = khh_dt_kho_so( isset( $o['nhap'] ) ? $o['nhap'] : null );
+	$combo = khh_dt_kho_so( isset( $o['combo_tay'] ) ? $o['combo_tay'] : null );
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery
 	return false !== $wpdb->query(
 		$wpdb->prepare(
@@ -320,12 +597,12 @@ function khh_dt_kho_ghi( $ngay, $co_so, $mat_hang, $o ) {
 			$co_so,
 			$mat_hang,
 			null === $nhap ? 0 : $nhap,
-			$sl( isset( $o['ban_khai'] ) ? $o['ban_khai'] : null ),
+			khh_dt_kho_so( isset( $o['ban_khai'] ) ? $o['ban_khai'] : null ),
 			null === $combo ? 0 : $combo,
-			$sl( isset( $o['dem'] ) ? $o['dem'] : null ),
+			khh_dt_kho_so( isset( $o['dem'] ) ? $o['dem'] : null ),
 			isset( $o['ghi_chu'] ) ? (string) $o['ghi_chu'] : '',
-			function_exists( 'khh_dt_ten_ghi_so' ) ? khh_dt_ten_ghi_so() : '',
-			current_time( 'mysql' )
+			isset( $o['nguoi'] ) ? (string) $o['nguoi'] : '',
+			isset( $o['luc'] ) ? (string) $o['luc'] : current_time( 'mysql' )
 		)
 	);
 }
@@ -621,6 +898,15 @@ function khh_dt_kho_route() {
 	);
 	register_rest_route(
 		'khh-dt/v1',
+		'/kho-su',
+		array(
+			'methods'             => 'GET',
+			'callback'            => 'khh_dt_rest_kho_su',
+			'permission_callback' => 'khh_dt_duoc_xem',
+		)
+	);
+	register_rest_route(
+		'khh-dt/v1',
 		'/kho-mat-hang',
 		array(
 			'methods'             => 'POST',
@@ -665,6 +951,10 @@ function khh_dt_rest_kho_xem( $req ) {
 		'co_so'      => $co_so,
 		'dong'       => khh_dt_kho_bang_ngay( $ngay, $co_so ),
 		'combo'      => khh_dt_kho_combo_bang(),
+		/* Bao nhiêu lượt khai cho từng mặt hàng — màn hiện "đã sửa N lần". Đây là vế người xem
+		   của sổ ghi động: giữ vết mà không bày ra thì chẳng ai biết là có vết. */
+		'so_lan'     => khh_dt_kho_so_lan( $ngay, $co_so ),
+		'combo_ls'   => khh_dt_kho_combo_ls(),
 		/* Danh mục hàng hoá của cơ sở, và mọi món FABi từng ghi ở đây — để màn bày ra cho chọn. */
 		'mat_hang'   => khh_dt_kho_mh_cua( $co_so ),
 		'mon_da_thay' => khh_dt_kho_mon_da_thay(
@@ -720,6 +1010,22 @@ function khh_dt_rest_kho_luu( $req ) {
 	return $r;
 }
 
+/** Lịch sử khai của MỘT dòng — mọi lượt, mới nhất trước. */
+function khh_dt_rest_kho_su( $req ) {
+	$ngay  = (string) $req->get_param( 'ngay' );
+	$co_so = (string) $req->get_param( 'co_so' );
+	$mh    = (string) $req->get_param( 'mat_hang' );
+	if ( ! preg_match( '~^\d{4}-\d{2}-\d{2}$~', $ngay ) || '' === $co_so || '' === $mh ) {
+		return new WP_Error( 'khh_dt_kho', 'Thiếu ngày, cơ sở hoặc mặt hàng.', array( 'status' => 400 ) );
+	}
+	/* Gác theo cơ sở y như đường xem sổ — lịch sử khai cũng là số liệu của cơ sở ấy. */
+	$cho_phep = function_exists( 'khh_dt_co_so_ds' ) ? khh_dt_co_so_ds() : array();
+	if ( $cho_phep && ! in_array( $co_so, $cho_phep, true ) ) {
+		return new WP_Error( 'khh_dt_kho', 'Anh/chị không phụ trách cơ sở này.', array( 'status' => 403 ) );
+	}
+	return array( 'su' => khh_dt_kho_su_cua( $ngay, $co_so, $mh ) );
+}
+
 function khh_dt_rest_kho_mat_hang( $req ) {
 	$co_so = (string) $req->get_param( 'co_so' );
 	if ( '' === $co_so ) {
@@ -739,6 +1045,6 @@ function khh_dt_rest_kho_combo( $req ) {
 	if ( '' === trim( $ten ) ) {
 		return new WP_Error( 'khh_dt_kho', 'Thiếu tên combo.', array( 'status' => 400 ) );
 	}
-	khh_dt_kho_combo_dat( $ten, is_array( $tp ) ? $tp : array() );
-	return array( 'combo' => khh_dt_kho_combo_bang() );
+	khh_dt_kho_combo_dat( $ten, is_array( $tp ) ? $tp : array(), (string) $req->get_param( 'tu_ngay' ) );
+	return array( 'combo' => khh_dt_kho_combo_bang(), 'combo_ls' => khh_dt_kho_combo_ls() );
 }

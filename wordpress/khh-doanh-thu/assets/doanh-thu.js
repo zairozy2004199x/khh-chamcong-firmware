@@ -997,6 +997,10 @@
     var d = new Date(); d.setDate(d.getDate() - 1); return ymd(d);
   }
 
+  /* Ngày hôm nay, lấy theo múi giờ của MÁY NGƯỜI DÙNG qua `ymd()` — không dùng
+     `toISOString()`, hàm ấy đổi sang UTC nên buổi tối ở Việt Nam sẽ ra ngày hôm trước. */
+  function homNay() { return ymd(new Date()); }
+
   function dungNhap() {
     var o = q('#dtTabNhap');
     if (o.dataset.xong) { napBaoCao(); return; }
@@ -1258,6 +1262,7 @@
     }
 
     var dong = r.dong || [];
+    var so_lan = r.so_lan || {};
     if (!dong.length) {
       h += '<div class="trong" style="margin-top:12px">Ngày này chưa có món nào của FABi, và kho cũng chưa có tồn.</div>';
     } else {
@@ -1295,6 +1300,16 @@
           };
           return '<tr><td class="o-ten" data-nhan="Mặt hàng">' + esc(d.mat_hang) +
             (d.co_moc ? '' : ' <span class="chip" title="Chưa ai đếm mặt hàng này bao giờ, nên hệ chưa biết trên kệ có bao nhiêu. Gõ số đếm được vào ô &quot;NV đếm còn&quot; một lần là xong — từ hôm sau hệ tự tính.">đếm 1 lần để đặt mốc</span>') +
+            /* 🔴 GIỮ VẾT MÀ KHÔNG BÀY RA THÌ CHẲNG AI BIẾT LÀ CÓ VẾT.
+               Sổ ghi động giữ đủ mọi lượt khai, nhưng nếu màn không nói thì người trực vẫn
+               tưởng sửa là xoá dấu — và người soát cũng không nghĩ tới chuyện đi xem lịch sử.
+               Nhãn này chính là phần răn: nó hiện ngay cạnh tên mặt hàng. */
+            ((so_lan[d.mat_hang] || 0) > 1
+              ? ' <button class="chip" type="button" data-kho-su="' + esc(d.mat_hang) +
+                '" style="cursor:pointer;border-color:var(--xau);color:var(--xau)" ' +
+                'title="Dòng này đã được khai lại nhiều lượt. Bấm để xem đủ các lượt, kèm người và giờ.">' +
+                'đã sửa ' + (so_lan[d.mat_hang] - 1) + ' lần</button>'
+              : '') +
             '</td>' +
             oMay('Tồn đầu', d.ton_dau) +
             oNhap('nhap', 'Nhập', d.nhap) +
@@ -1388,6 +1403,10 @@
       '<div class="loc" style="margin-top:10px;gap:6px">' +
         '<label class="o">Món combo<input type="text" id="cbTen" placeholder="Combo 2 người" style="width:190px"></label>' +
         '<label class="o">Thành phần<input type="text" id="cbTP" placeholder="Nước suối x2, Kẹo cầu vồng x1" style="width:300px"></label>' +
+        /* 🔴 NGÀY HIỆU LỰC, MẶC ĐỊNH HÔM NAY. Công thức đóng băng theo ngày nên sửa hôm nay
+           KHÔNG viết lại số tồn của những ngày trước — muốn áp lùi thì phải tự gõ ngày, vì
+           áp lùi là cố ý sửa lại quá khứ. */
+        '<label class="o">Áp từ ngày<input type="date" id="cbTu" value="' + esc(homNay()) + '"></label>' +
         '<button class="nut" type="button" id="cbLuu">Lưu combo</button>' +
       '</div></details>';
   }
@@ -1436,6 +1455,30 @@
       });
     }
 
+    /* Xem đủ các lượt khai của một dòng — kèm người và giờ, để còn đối chất được. */
+    k.addEventListener('click', function (e) {
+      var b = e.target.closest ? e.target.closest('[data-kho-su]') : null;
+      if (!b) return;
+      e.preventDefault();
+      var mh = b.getAttribute('data-kho-su');
+      api('kho-su?ngay=' + encodeURIComponent(S.kho.ngay) +
+          '&co_so=' + encodeURIComponent(S.kho.cs) +
+          '&mat_hang=' + encodeURIComponent(mh))
+        .then(function (rr) {
+          var ds = (rr && rr.su) || [];
+          if (!ds.length) { window.alert('Không có lượt khai nào.'); return; }
+          window.alert(mh + ' — ' + ds.length + ' lượt khai, mới nhất trước:\n\n' +
+            ds.map(function (x, i) {
+              return (i + 1) + '. ' + (x.luc || '') + (x.nguoi ? ' · ' + x.nguoi : '') +
+                '\n   nhập ' + soKho(x.nhap) +
+                ' · khai bán ' + (soKho(x.ban_khai) || '—') +
+                ' · đếm còn ' + (soKho(x.dem) || '—') +
+                (x.ghi_chu ? '\n   ghi chú: ' + x.ghi_chu : '');
+            }).join('\n'));
+        })
+        .catch(function (err) { window.alert(err.message || err); });
+    });
+
     var mhH = k.querySelector('#mhHet');
     if (mhH) {
       mhH.addEventListener('click', function () {
@@ -1472,6 +1515,7 @@
         var fd = new FormData();
         fd.append('ten', ten.trim());
         fd.append('thanh_phan', JSON.stringify(docThanhPhan((k.querySelector('#cbTP') || {}).value)));
+        fd.append('tu_ngay', (k.querySelector('#cbTu') || {}).value || '');
         cbL.disabled = true; cbL.textContent = 'Đang lưu…';
         /* 🔴 Đổi thành phần combo là đổi cách trừ kho của MỌI ngày, nên phải nạp LẠI cả sổ —
            không thì màn vẫn bày số tính theo công thức cũ. */
