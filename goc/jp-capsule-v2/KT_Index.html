@@ -1,0 +1,1349 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>JP Capsule — Kế toán</title>
+  <?!= include('KT_Css'); ?>
+</head>
+<body>
+
+<!--═══════════════════════════════════════════════════════════
+  BỐ CỤC LẤY THEO WEB `KVC GD1 - Ke toan Kho` (Andy chốt 04/08/2026):
+  BA TẦNG — menu dọc bên trái (module) → tabs ngang → subtabs bo tròn.
+  Nav do JS sinh từ bảng `KT_NAV` trong KtJs01_Core, không viết cứng ở đây.
+
+  ⚠ ID CỦA TỪNG MÀN GIỮ NGUYÊN như bản cũ (`khNhap`, `dsSo`, `cfUsers`…).
+  KtJs02..05 gọi thẳng các id đó; đổi id là hỏng cả 5 file JS.
+  Khác bản cũ: `class="subBody"` → `class="page"`, và không còn `tabBody`.
+═══════════════════════════════════════════════════════════-->
+
+<section id="ktLogin" class="screen active">
+  <div class="loginWrap">
+    <div class="card loginCard">
+      <div class="brand">
+        <div class="logo">JP</div>
+        <div><h1>JP Capsule</h1><p class="sub">Web kế toán</p></div>
+      </div>
+      <label class="fld"><span>Mã PIN</span>
+        <input id="ktPin" type="password" inputmode="numeric" maxlength="3"
+               autocomplete="off" class="pinIn"></label>
+      <button id="ktBtnLogin" class="btn primary block">Đăng nhập</button>
+      <p id="ktLoginMsg" class="msg"></p>
+    </div>
+  </div>
+</section>
+
+<section id="ktApp" class="screen">
+ <div class="layout">
+
+  <div class="side" id="ktSide">
+    <div class="brand"><b>JP Capsule · Kế toán</b><small id="ktName">—</small></div>
+    <div class="menu" id="ktMenu"></div>
+    <div class="foot">
+      <button onclick="ktMoDoiPin()">Đổi mã PIN</button>
+      <button class="out" onclick="ktLogout()">Thoát</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="topbar">
+      <button class="ham" onclick="document.getElementById('ktSide').classList.toggle('open')">☰</button>
+      <h1 id="ktPageTitle">Tổng quan</h1>
+      <div class="me"><span id="ktRole" class="badge"></span></div>
+    </div>
+    <div class="tabs" id="ktTabs"></div>
+    <div class="subtabs" id="ktSubtabs" style="display:none"></div>
+
+    <!--──────── TỔNG QUAN ────────-->
+    <div class="page" id="tabDeNghi">
+      <div class="card">
+        <h2>Đề nghị sửa tồn đầu <span id="dnSoCho" class="pill"></span></h2>
+        <p class="hint">Nhân viên chỉ sửa được ô <b>Tồn đầu</b> vào <b>đầu tháng mới</b>;
+          ngoài lúc đó phải gửi đề nghị qua đây. Tồn đầu là <b>tồn cuối kỳ trước</b> nên
+          sửa tay là viết lại quá khứ — kho đã xuất giá vốn theo số đó.</p>
+        <label class="inline"><input type="checkbox" id="dnChiCho" checked
+          onchange="ktDeNghiLoad()"> Chỉ hiện dòng đang chờ</label>
+        <div id="dnMsg" class="hint"></div>
+        <div class="tableWrap"><table id="tblDeNghi"></table></div>
+      </div>
+    </div>
+
+    <!--──────── ẢNH THEO CƠ SỞ — nhiều kỳ một lượt (Andy 11/08/2026) ────────
+         Trước bản này ảnh chỉ xem được từ TRONG một báo cáo, nên soi lại ảnh chỉ số
+         của một cơ sở qua mấy kỳ là phải mở lần lượt từng báo cáo. -->
+    <div class="page" id="tabAnhCs">
+      <div class="card">
+        <h2>Ảnh theo cơ sở — nhiều kỳ một lượt</h2>
+        <div class="toolbar">
+          <select id="acLoc"></select>
+          <select id="acKind">
+            <option value="">— Mọi loại ảnh —</option>
+            <option value="METER">Ảnh chỉ số máy</option>
+            <option value="PAYBOX">Ảnh Pay Box</option>
+            <option value="STOCK">Ảnh hàng tồn</option>
+          </select>
+          <input type="date" id="acTu"><input type="date" id="acDen">
+          <button class="btn primary sm" onclick="ktAnhCs()">Xem ảnh</button>
+        </div>
+        <p class="hint">Mỗi kỳ một khối, kỳ <b>mới nhất lên đầu</b>; trong một kỳ thì ảnh
+          cùng <b>loại</b> và cùng <b>ô/máy</b> nằm cạnh nhau. Bấm vào ảnh để xem
+          <b>ngay tại đây</b> — dùng <b>←</b> <b>→</b> lật, <b>Esc</b> đóng.<br>
+          Kỳ nào cơ sở <b>không gửi ảnh nào</b> vẫn được liệt kê riêng bên dưới — đó là
+          thứ một màn chỉ in ảnh CÓ sẽ không bao giờ nói ra.</p>
+        <p id="acMsg" class="msg"></p>
+        <div id="acWarn"></div>
+        <div id="acBody"></div>
+      </div>
+    </div>
+
+    <div class="page" id="p_dash">
+      <!-- Ô này TỰ ẨN khi đã dựng xong (xem `ktDungXong` trong KtJs01_Core) — dựng
+           hệ thống là việc làm một lần, để lại vĩnh viễn thì chỉ làm rối màn chính. -->
+      <div class="card" id="dbSetup" style="display:none">
+        <h2>Việc cần làm để chạy được</h2>
+        <p class="hint">Thứ tự trong danh sách là <b>thứ tự phải làm</b>: nạp cơ sở phải
+          trước cấp mã PIN, vì PIN lấy loại máy theo cơ sở. Trạng thái dưới đây
+          <b>dò từ dữ liệu thật</b>, không phải đánh dấu tay.</p>
+        <div class="toolbar">
+          <button class="btn primary" onclick="ktDungMotPhat()">Làm hết bằng 1 lần bấm</button>
+          <label class="inline"><input type="checkbox" id="dbCapLai" checked>
+            Cấp LẠI PIN cho cả cơ sở đã có tài khoản</label>
+        </div>
+        <p class="hint">Chạy đúng thứ tự: nạp cơ sở + loại máy → ngưng cơ sở demo còn sót →
+          nạp 102 mã hàng → cấp PIN từng cơ sở → khai tồn đầu kỳ 31/07 cho 9 kho.<br>
+          Bấm hai lần <b>không nhân đôi gì</b>: nạp cơ sở khớp theo mã, danh mục hàng không
+          ghi khi không có gì đổi, khai tồn <b>chặn cứng</b> kho đã có phiếu đầu kỳ.<br>
+          ⚠️ Bỏ tick <b>Cấp LẠI</b> nếu đã phát PIN cho nhân viên rồi — để tick là PIN cũ
+          hết hiệu lực ngay.</p>
+        <div id="dbMotPhat"></div>
+        <div id="dbSetupList"></div>
+      </div>
+
+      <!-- Dựng xong rồi thì ô đầy đủ ở trên thu lại thành DÒNG NÀY, không ẩn hẳn.
+           Ẩn hẳn thì người đi tìm nút "Làm hết bằng 1 lần bấm" không thấy nó ở đâu,
+           và không phân biệt được "đã xong" với "đọc trạng thái bị lỗi". -->
+      <div class="card" id="dbXong" style="display:none">
+        <div class="alert ok" style="margin:0">✅ Hệ thống đã dựng xong đủ các bước.
+          <button class="btn ghost sm" onclick="ktDungHienLai()"
+            style="margin-left:8px">Xem lại / chạy lại</button></div>
+      </div>
+
+      <div class="card">
+        <h2>Luồng làm việc — bấm vào bước để đi tới</h2>
+        <div class="ovflow">
+          <div class="ovstep" onclick="ktGo('duyet')"><span class="ovic">📝</span>Nhân viên nộp báo cáo</div>
+          <span class="ovarr">→</span>
+          <div class="ovstep" onclick="ktGo('duyet')"><span class="ovic">✅</span>Kế toán ký đủ 2 phần</div>
+          <span class="ovarr">→</span>
+          <div class="ovstep" onclick="ktGo('kho','khTra','khSo632')"><span class="ovic">📗</span>Sổ 6321 / 64116</div>
+          <span class="ovarr">→</span>
+          <div class="ovstep" onclick="ktGo('ds','dsSoXn','dsSo')"><span class="ovic">💵</span>Đối soát tiền về</div>
+          <span class="ovarr">→</span>
+          <div class="ovstep" onclick="ktGo('dt','dtMisa')"><span class="ovic">📤</span>Xuất MISA</div>
+        </div>
+
+        <div class="ovsub">Kho — nhà cung cấp về kho tổng rồi rải xuống cơ sở</div>
+        <div class="ovflow">
+          <div class="ovstep" onclick="ktGo('kho','khCt','khNhap')"><span class="ovic">📥</span>Nhập kho tổng</div>
+          <span class="ovarr">→</span>
+          <div class="ovstep" onclick="ktGo('kho','khCt','khXuat')"><span class="ovic">📦</span>Xuất xuống cơ sở</div>
+          <span class="ovarr">→</span>
+          <div class="ovstep" onclick="ktGo('kho','khNxt3','khNXT')"><span class="ovic">📊</span>Nhập–Xuất–Tồn</div>
+          <span class="ovarr">→</span>
+          <div class="ovstep" onclick="ktGo('kho','khTra','khTon')"><span class="ovic">🧱</span>Tồn theo lô</div>
+          <span class="ovarr">→</span>
+          <div class="ovstep" onclick="ktGo('kho','khTq')"><span class="ovic">🗺️</span>Bản đồ kho</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Số của tháng</h2>
+        <div class="toolbar">
+          <select id="dbThang"></select>
+          <select id="dbNam"></select>
+          <button class="btn primary sm" onclick="ktDashLoad()">Xem lại</button>
+        </div>
+        <div id="dbSum" class="cards"></div>
+        <div id="dbWarn"></div>
+        <p class="hint">Số công nợ chỉ tính báo cáo đã <b>HOÀN TẤT</b>. Báo cáo còn chờ
+          duyệt được đếm riêng — duyệt xong mới thành phải thu.</p>
+      </div>
+    </div>
+
+    <!--──────── DUYỆT BÁO CÁO ────────-->
+    <div class="page" id="tabDuyet">
+      <div class="toolbar">
+        <label class="inline"><input type="checkbox" id="fOnlyMine" checked onchange="ktLoadList()">
+          Chỉ báo cáo tôi chưa ký</label>
+        <!-- KHAC o tren: "chua ky" gom ca bao cao CHUA AI KY (binh thuong, dang cho).
+             O nay chi lay bao cao ky DUNG MOT phan — trang thai KET, chua tru kho va
+             chua vao so cong no, ma nhin danh sach khong phan biet duoc. -->
+        <label class="inline"><input type="checkbox" id="fMotPhan" onchange="ktLoadList()">
+          <b>Chỉ báo cáo KẸT một chữ ký</b></label>
+        <select id="fStatus" onchange="ktLoadList()">
+          <option value="">Mọi trạng thái</option>
+          <option value="CHO_DUYET">Chờ duyệt</option>
+          <option value="CAN_SUA">Cần sửa</option>
+          <option value="HOAN_TAT">Hoàn tất</option>
+        </select>
+        <input type="date" id="fFrom" onchange="ktLoadList()">
+        <input type="date" id="fTo" onchange="ktLoadList()">
+        <button class="btn ghost sm" onclick="ktLoadList()">Tải lại</button>
+      </div>
+
+      <div class="split">
+        <div class="pane left"><div id="ktList" class="list"></div></div>
+        <div class="pane right">
+          <div id="ktDetail" class="empty">Chọn một báo cáo bên trái để xem chi tiết.</div>
+        </div>
+      </div>
+    </div>
+
+    <!--──────── DOANH THU ────────-->
+    <div class="page" id="dtBang">
+      <div class="card">
+        <h2>Doanh thu theo báo cáo</h2>
+        <div class="toolbar">
+          <input type="date" id="rFrom"><input type="date" id="rTo">
+          <button class="btn primary sm" onclick="ktRevenue()">Xem</button>
+          <button class="btn ghost sm" onclick="ktExportCsv('tblRevenue','doanh-thu')">Xuất CSV</button>
+        </div>
+        <div id="revSum" class="cards"></div>
+        <div class="tableWrap"><table id="tblRevenue"></table></div>
+      </div>
+    </div>
+
+    <div class="page" id="dtMisa">
+      <div class="card">
+        <h2>Xuất DAILY SALES REPORT cho MISA</h2>
+        <div class="toolbar">
+          <select id="dsThang"></select>
+          <select id="dsNam"></select>
+          <button class="btn primary sm" onclick="ktXuatDailySales()">Xuất file Excel</button>
+        </div>
+        <p class="hint">Đúng bố cục bản kế toán đang dùng: khối VND rồi khối SGD
+          (÷ <b>20.000</b>), chia vùng HO CHI MINH · BINH DUONG · PHU QUOC, cột là ngày
+          01–31 kèm Total và Week 1–4 (gộp 1–7 · 8–14 · 15–21 · 22–hết).
+          <b>Chỉ tính báo cáo đã HOÀN TẤT.</b> Chi nhánh <b>MTD</b>.</p>
+        <p id="dsSalesMsg" class="msg"></p>
+        <div id="dsSalesWarn"></div>
+      </div>
+    </div>
+
+    <!--──────── KHO — TỔNG QUAN ────────
+       Andy: *"Đầy đủ chức năng rồi mà a thấy kho nhìn cứ rối rối sao á em"*, và chốt
+       *"chỉ cần làm nhìn dễ hiểu nhưng phải đầy đủ"* + *"có — sơ đồ bấm được"*.
+
+       Kho có 17 màn. Cái làm rối không phải số lượng màn mà là **không biết màn nào
+       làm việc gì** — nên màn này là BẢN ĐỒ: mọi ô trong sơ đồ là một nút `ktGo`, và
+       bảng "muốn làm gì" ở dưới dẫn thẳng tới đúng màn. Không màn nào bị bỏ.
+
+       ⚠️ Mọi `ktGo('kho', tab, sub)` ở đây phải khớp `KT_NAV` trong KtJs01_Core.
+       `ktTimTab_` KHÔNG báo lỗi khi id sai — nó **rơi về tab đầu tiên**, nên đường dẫn
+       cũ vẫn bấm được mà mở sai màn, im lặng tuyệt đối. Phép soát 9 của
+       `test/soat-tinh.py` khoá lại chỗ này.
+    ────────-->
+    <div class="page" id="khTongQuan">
+      <div class="card">
+        <h2>Luồng hàng — bấm vào ô để đi tới màn đó</h2>
+
+        <div class="ovsub">Đường chính — mua về, rải xuống cơ sở, bán ra giá vốn</div>
+        <div class="ovflow">
+          <div class="ovstep" onclick="ktGo('kho','khCt','khNhap')">
+            <span class="ovic">🏭</span>Nhà cung cấp<br><small>phiếu nhập mua</small></div>
+          <span class="ovarr">→</span>
+          <div class="ovstep" onclick="ktGo('kho','khNxt3','khTonBc')">
+            <span class="ovic">🏢</span>KHO TỔNG<br><small>giữ giá mua</small></div>
+          <span class="ovarr">→</span>
+          <div class="ovstep" onclick="ktGo('kho','khCt','khXuat')">
+            <span class="ovic">📤</span>Phiếu xuất<br><small>xuống cơ sở</small></div>
+          <span class="ovarr">→</span>
+          <div class="ovstep" onclick="ktGo('kho','khNxt3','khTonBc')">
+            <span class="ovic">🏬</span>Cơ sở<br><small>tồn tại điểm bán</small></div>
+          <span class="ovarr">→</span>
+          <div class="ovstep" onclick="ktGo('duyet')">
+            <span class="ovic">✅</span>Kế toán duyệt<br><small>đủ 2 chữ ký</small></div>
+          <span class="ovarr">→</span>
+          <div class="ovstep" onclick="ktGo('kho','khTra','khSo632')">
+            <span class="ovic">📗</span>Sổ 6321<br><small>giá vốn JP</small></div>
+        </div>
+        <p class="hint">Xuất xuống cơ sở là <b>điều chuyển nội bộ — CHƯA sinh giá vốn</b>.
+          Lớp giá mua <b>đi theo hàng</b> xuống cơ sở; bán ở cơ sở mới trừ lớp của cơ sở
+          đó ⇒ 6321 đúng giá mua thật của đúng lô. Và <b>chỉ báo cáo HOÀN TẤT mới ra sổ</b>.</p>
+
+        <div class="ovsub">Ba nhánh rẽ — hàng ra khỏi kho mà không phải bán</div>
+        <div class="ovflow">
+          <div class="ovstep" onclick="ktGo('kho','khCt','khXuat')">
+            <span class="ovic">✂️</span>Xé mẫu<br><small>Nợ <b>64116</b></small></div>
+          <div class="ovstep" onclick="ktGo('kho','khCt','khXuat')">
+            <span class="ovic">🎁</span>Tặng mall<br><small>Nợ <b>64116</b></small></div>
+          <div class="ovstep" onclick="ktGo('kho','khCt','khXuat')">
+            <span class="ovic">↩️</span>Trả kho<br><small>cơ sở → kho tổng</small></div>
+        </div>
+
+        <div class="ovsub">Kiểm kê — số đếm được khác số sổ sách</div>
+        <div class="ovflow">
+          <div class="ovstep" onclick="ktGo('kho','khCt','khKiemKe')">
+            <span class="ovic">📋</span>Biên bản kiểm kê</div>
+          <span class="ovarr">→</span>
+          <div class="ovstep" onclick="ktGo('kho','khTra','khSo632')">
+            <span class="ovic">📉</span>Thiếu<br><small>Nợ <b>6321</b> / Có 1561</small></div>
+          <div class="ovstep" onclick="ktGo('kho','khTra','khBangKe')">
+            <span class="ovic">📈</span>Thừa<br><small>giảm xuất, hoặc 1561/1388</small></div>
+        </div>
+        <p class="hint">Mất hàng <b>phải có người đền</b> nên ghi thẳng <b>Nợ 6321 / Có 1561</b>
+          — không đưa vào tài sản thiếu chờ xử lý. Hàng thừa thì <b>giảm số xuất trong kỳ</b>
+          cho khớp thực tế; không giảm được mới <b>Nợ 1561 / Có 1388</b>.</p>
+      </div>
+
+      <div class="card">
+        <h2>Số của tháng</h2>
+        <div class="toolbar">
+          <select id="tqThang"></select>
+          <select id="tqNam"></select>
+          <button class="btn primary sm" onclick="ktKhoTongQuan()">Xem lại</button>
+          <button class="btn sm" onclick="ktGo('kho','khNxt3','khNXT')">Mở bảng đầy đủ 18 cột</button>
+        </div>
+        <div id="tqSum" class="cards"></div>
+        <div id="tqWarn"></div>
+        <p id="tqMsg" class="msg"></p>
+      </div>
+
+      <div class="card">
+        <h2>Muốn làm gì thì vào đâu</h2>
+        <p class="hint">Kho có <b>17 màn</b> chia bốn tab. Bảng này là đường ngắn nhất tới
+          từng việc — bấm nút bên phải là đi thẳng, không phải nhớ màn nằm ở tab nào.</p>
+        <div class="tableWrap"><table>
+          <tr><th>Muốn làm</th><th>Màn</th><th></th></tr>
+
+          <tr><td colspan="3"><b>Gõ chứng từ</b> — tab <i>Chứng từ</i></td></tr>
+          <tr><td>Mua hàng về, có giá mua</td><td>Phiếu nhập mua</td>
+            <td><button class="btn sm" onclick="ktGo('kho','khCt','khNhap')">Mở</button></td></tr>
+          <tr><td>Rải hàng xuống cơ sở, xé mẫu, tặng, điều chuyển</td><td>Phiếu xuất kho</td>
+            <td><button class="btn sm" onclick="ktGo('kho','khCt','khXuat')">Mở</button></td></tr>
+          <tr><td>Gõ nhanh cả tháng theo bố cục file kho cũ</td><td>Lưới ngày 1–31</td>
+            <td><button class="btn sm" onclick="ktGo('kho','khCt','khLuoi')">Mở</button></td></tr>
+          <tr><td>Đếm thực tế rồi lập biên bản chênh lệch</td><td>Kiểm kê kho</td>
+            <td><button class="btn sm" onclick="ktGo('kho','khCt','khKiemKe')">Mở</button></td></tr>
+          <tr><td>Khai tồn ban đầu khi mới dùng hệ thống</td><td>Số dư đầu kỳ</td>
+            <td><button class="btn sm" onclick="ktGo('kho','khCt','khDauKy')">Mở</button></td></tr>
+
+          <tr><td colspan="3"><b>Xem Nhập – Xuất – Tồn</b> — tab <i>Nhập – Xuất – Tồn</i></td></tr>
+          <tr><td>Hàng vào kho từ đâu (mua · nhận ĐC · đầu kỳ · kiểm kê thừa)</td><td>📥 Nhập kho</td>
+            <td><button class="btn sm" onclick="ktGo('kho','khNxt3','khNhapBc')">Mở</button></td></tr>
+          <tr><td>Hàng ra khỏi kho đi đâu, theo từng loại xuất</td><td>📤 Xuất kho</td>
+            <td><button class="btn sm" onclick="ktGo('kho','khNxt3','khXuatBc')">Mở</button></td></tr>
+          <tr><td>Còn bao nhiêu ở kho tổng và từng cơ sở</td><td>📦 Tồn kho</td>
+            <td><button class="btn sm" onclick="ktGo('kho','khNxt3','khTonBc')">Mở</button></td></tr>
+          <tr><td>Soát đẳng thức, xuất CSV một lần ra hết</td><td>⚖️ Cân đối (18 cột)</td>
+            <td><button class="btn sm" onclick="ktGo('kho','khNxt3','khNXT')">Mở</button></td></tr>
+
+          <tr><td colspan="3"><b>Tra cứu</b> — tab <i>Tra cứu</i></td></tr>
+          <tr><td>Một mã hàng đã vào ra thế nào trong kỳ</td><td>Thẻ kho</td>
+            <td><button class="btn sm" onclick="ktGo('kho','khTra','khThe')">Mở</button></td></tr>
+          <tr><td>Còn lô nào, mỗi lô giá mua bao nhiêu (FIFO)</td><td>Tồn theo lô</td>
+            <td><button class="btn sm" onclick="ktGo('kho','khTra','khTon')">Mở</button></td></tr>
+          <tr><td>Liệt kê phiếu nhập / phiếu xuất trong khoảng ngày</td><td>Bảng kê chứng từ</td>
+            <td><button class="btn sm" onclick="ktGo('kho','khTra','khBangKe')">Mở</button></td></tr>
+          <tr><td>Sổ chi tiết giá vốn để đối chiếu MISA</td><td>Sổ giá vốn 6321 / 64116</td>
+            <td><button class="btn sm" onclick="ktGo('kho','khTra','khSo632')">Mở</button></td></tr>
+          <tr><td>Hàng hoá nhân viên khai trong báo cáo</td><td>Hàng trong báo cáo</td>
+            <td><button class="btn sm" onclick="ktGo('kho','khTra','khBaoCao')">Mở</button></td></tr>
+
+          <tr><td colspan="3"><b>Nhà cung cấp</b> — tab <i>Nhà cung cấp</i></td></tr>
+          <tr><td>Còn nợ ai bao nhiêu (chỉ phiếu <b>MUA</b>)</td><td>Sổ công nợ</td>
+            <td><button class="btn sm" onclick="ktGo('kho','khNccT','khNcc')">Mở</button></td></tr>
+          <tr><td>Ghi nhận đã trả tiền cho nhà cung cấp</td><td>Phiếu trả tiền</td>
+            <td><button class="btn sm" onclick="ktGo('kho','khNccT','khTraNcc')">Mở</button></td></tr>
+        </table></div>
+      </div>
+
+      <div class="card">
+        <h2>Năm loại xuất — loại quyết định hạch toán</h2>
+        <div class="tableWrap"><table>
+          <tr><th>Loại</th><th>Làm gì</th><th>Tài khoản</th></tr>
+          <tr><td><b>XUAT_CS</b></td><td>xuống cơ sở — điều chuyển, CHƯA sinh giá vốn</td><td>—</td></tr>
+          <tr><td><b>TRA_KHO</b></td><td>cơ sở trả về kho tổng, ngược chiều</td><td>—</td></tr>
+          <tr><td><b>XE_MAU</b></td><td>xé trưng bày, không bán được nữa</td><td><b>Nợ 64116</b></td></tr>
+          <tr><td><b>TANG_MALL</b></td><td>tặng mall / khách</td><td><b>Nợ 64116</b></td></tr>
+          <tr><td><b>DIEU_CHUYEN</b></td><td>gửi đi tỉnh khác (Nha Trang, HN, PQ)</td><td>—</td></tr>
+        </table></div>
+        <p class="hint">Hàng vào kho có <b>ba đường</b> — <b>MUA</b> · <b>DAU_KY</b> ·
+          <b>KIEM_KE</b> — nhưng <b>chỉ MUA sinh công nợ nhà cung cấp (331)</b>. Tồn đầu kỳ
+          và kiểm kê thừa không nợ ai.</p>
+      </div>
+    </div>
+
+    <!--──────── ① NHẬP KHO TỔNG — nơi duy nhất hệ thống biết GIÁ MUA ────────-->
+    <div class="page" id="khNhap">
+      <div class="card msform">
+        <div class="mshead">
+          <div><b style="color:var(--navy);font-size:16px">Chứng từ mua hàng — Nhập kho tổng</b></div>
+          <div class="msbig"><div class="l">Tổng tiền nhập</div><div class="v" id="nkBig">0</div></div>
+        </div>
+        <p class="hint">Đây là chỗ <b>duy nhất</b> hệ thống biết giá mua. Báo cáo nhân
+          viên chỉ có giá bán (suy từ tiền tố mã hàng), nên không nhập kho thì
+          <b>không có giá vốn, không ra được sổ 6321</b>. Mỗi dòng nhập thành một
+          <b>lớp tồn</b> riêng giữ đúng giá mua của lô đó — bán ra trừ lớp cũ trước (FIFO).<br>
+          Hàng <b>luôn về kho tổng</b>, không chọn cơ sở ở đây. Muốn rải xuống cơ sở
+          thì sang ② hoặc ③.</p>
+
+        <div class="msgrid">
+          <div><label>Ngày nhập</label><input type="date" id="nkNgay"></div>
+          <div><label>Mã nhà cung cấp</label><input type="text" id="nkNccMa"></div>
+          <div><label>Tên nhà cung cấp</label><input type="text" id="nkNccTen"></div>
+          <div><label>Kho nhập</label><input type="text" value="KHO TỔNG (TONG)" readonly></div>
+          <div><label>Số phiếu nhập</label><input type="text" value="(tự sinh khi lưu)" readonly></div>
+          <div><label>Diễn giải</label><input type="text" id="nkGhiChu"></div>
+        </div>
+
+        <div class="mssec">HÀNG TIỀN</div>
+        <div class="tableWrap"><table id="tblNkRows" class="form"></table></div>
+        <div class="toolbar" style="margin-top:8px">
+          <button class="btn ghost sm" onclick="ktNkAddRow()">+ Thêm dòng hàng</button>
+        </div>
+        <div class="mstotals"><div>Tổng tiền nhập: <b id="nkTong">0</b></div></div>
+        <div class="toolbar" style="margin-top:10px">
+          <button class="btn primary" onclick="ktNkSave()">Lưu phiếu nhập</button>
+        </div>
+        <p id="nkMsg" class="msg"></p>
+      </div>
+
+      <div class="card">
+        <h2>📥 Import dòng hàng từ Excel / CSV</h2>
+        <p class="hint">File cần cột <b>Mã hàng</b> và <b>Số lượng</b>; có thêm
+          <b>Đơn giá / Giá mua</b> · <b>Tên hàng</b> · <b>Số lô</b> · <b>Ghi chú</b> thì
+          nhận luôn. Hệ thống tự dò cột theo tiêu đề, có dấu hay không dấu đều được.<br>
+          File đọc <b>ngay trên trình duyệt</b>, không tải lên Drive.
+          <b>Xem trước không ghi gì</b> — soát cột nhận đúng chưa rồi mới đổ vào phiếu.
+          Đổ vào là <b>nối thêm</b>, không xoá dòng đã gõ tay.</p>
+        <div class="toolbar">
+          <input type="file" id="nkFile" accept=".xlsx,.xls,.csv">
+          <button class="btn ghost sm" onclick="ktNkImportDoc()">① Đọc file &amp; xem trước</button>
+          <button class="btn primary sm" id="nkImpBtn" style="display:none"
+                  onclick="ktNkImportVao()">② Đổ vào phiếu bên trên</button>
+        </div>
+        <p id="nkImpMsg" class="msg"></p>
+        <div id="nkImpPreview"></div>
+      </div>
+
+      <div class="card">
+        <h2>Nhật ký nhập kho</h2>
+        <button class="btn ghost sm" onclick="ktNkHistory()">Xem 50 phiếu gần nhất</button>
+        <div id="nkHistory"></div>
+      </div>
+    </div>
+
+    <!--──────── ② PHIẾU XUẤT KHO TỔNG ────────-->
+    <div class="page" id="khXuat">
+      <div class="card msform">
+        <div class="mshead">
+          <div><b style="color:var(--navy);font-size:16px">Chứng từ xuất kho tổng</b></div>
+          <div class="msbig"><div class="l">Tổng số lượng</div><div class="v" id="xkBig">0</div></div>
+        </div>
+        <p class="hint">Chọn <b>loại xuất</b> trước — loại quyết định hạch toán.
+          Giá vốn <b>không gõ tay</b>: FIFO tự lấy giá của đúng lớp bị trừ.</p>
+
+        <div class="msgrid">
+          <div><label>Loại xuất</label><select id="xkLoai" onchange="ktXkLoaiDoi()"></select></div>
+          <div><label>Cơ sở nhận</label><select id="xkLoc"></select></div>
+          <div><label>Ngày xuất</label><input type="date" id="xkNgay"></div>
+          <div><label>Kho xuất</label><input type="text" value="KHO TỔNG (TONG)" readonly></div>
+          <div><label>Số phiếu xuất</label><input type="text" value="(tự sinh khi lưu)" readonly></div>
+          <div><label>Diễn giải</label><input type="text" id="xkGhiChu"></div>
+        </div>
+        <p id="xkGiaiThich" class="hint"></p>
+
+        <div class="mssec">HÀNG TIỀN</div>
+        <div class="tableWrap"><table id="tblXkRows" class="form"></table></div>
+        <div class="toolbar" style="margin-top:8px">
+          <button class="btn ghost sm" onclick="ktXkAddRow()">+ Thêm dòng hàng</button>
+        </div>
+        <div class="mstotals"><div>Tổng số lượng: <b id="xkTong">0</b></div></div>
+        <div class="toolbar" style="margin-top:10px">
+          <button class="btn primary" onclick="ktXkSave()">Lưu phiếu xuất</button>
+        </div>
+        <p id="xkMsg" class="msg"></p>
+      </div>
+
+      <div class="card">
+        <h2>📥 Import dòng hàng từ Excel / CSV</h2>
+        <p class="hint">File cần cột <b>Mã hàng</b> và <b>Số lượng</b>.
+          <b>Không</b> nhận cột đơn giá dù file có: giá vốn của phiếu xuất do
+          <b>FIFO</b> quyết định theo đúng lớp bị trừ, không gõ tay được.<br>
+          Chọn <b>loại xuất</b> và <b>cơ sở nhận</b> ở phiếu bên trên trước.
+          <b>Xem trước không ghi gì</b>; đổ vào là nối thêm, không xoá dòng đã gõ tay.</p>
+        <div class="toolbar">
+          <input type="file" id="xkFile" accept=".xlsx,.xls,.csv">
+          <button class="btn ghost sm" onclick="ktXkImportDoc()">① Đọc file &amp; xem trước</button>
+          <button class="btn primary sm" id="xkImpBtn" style="display:none"
+                  onclick="ktXkImportVao()">② Đổ vào phiếu bên trên</button>
+        </div>
+        <p id="xkImpMsg" class="msg"></p>
+        <div id="xkImpPreview"></div>
+      </div>
+
+      <div class="card">
+        <h2>Nhật ký phiếu xuất</h2>
+        <div class="toolbar">
+          <select id="xkFilterLoai"><option value="">— Mọi loại —</option></select>
+          <button class="btn ghost sm" onclick="ktXkHistory()">Xem</button>
+        </div>
+        <div id="xkHistory"></div>
+      </div>
+    </div>
+
+    <!--──────── ③ LƯỚI NGÀY 1–31 ────────-->
+    <div class="page" id="khLuoi">
+      <div class="card">
+        <h2>Lưới xuất theo ngày — đúng bố cục file kho đang dùng</h2>
+        <p class="hint">Chọn cơ sở và tháng, gõ số lượng vào ô của từng ngày.
+          Bấm <b>Lưu lưới</b> thì mỗi ngày có số sinh <b>một phiếu xuất riêng</b> —
+          phiếu vẫn là gốc, có số chứng từ và audit, lưới chỉ là cách gõ nhanh.<br>
+          Ô đã có phiếu thì <b>hiện số và khoá lại</b>; muốn sửa thì huỷ phiếu ở ②.</p>
+        <div class="toolbar">
+          <select id="lgLoc"></select>
+          <select id="lgThang"></select>
+          <select id="lgNam"></select>
+          <button class="btn primary sm" onclick="ktLuoiLoad()">Mở lưới</button>
+          <span class="grow"></span>
+          <b id="lgTong">Chưa nhập gì</b>
+          <button class="btn primary sm" onclick="ktLuoiSave()">Lưu lưới</button>
+        </div>
+        <p id="lgMsg" class="msg"></p>
+        <p class="hint">Vuốt ngang để xem hết ngày →</p>
+        <div class="tableWrap"><table id="tblLuoi" class="form"></table></div>
+      </div>
+
+      <div class="card">
+        <h2>📥 Import cả lưới từ Excel — đúng bố cục file <i>Kho Hàng JP HCM</i></h2>
+        <p class="hint">Bấm <b>Mở lưới</b> trước, rồi tải file. File cần một cột
+          <b>Mã hàng</b> và các cột tiêu đề là <b>số ngày 1–31</b> — chính bố cục khối
+          <i>HÀNG XUẤT JP THÁNG n</i> trong file kho đang dùng, nên dán nguyên một khối
+          cơ sở vào một sheet rồi tải lên là được.<br>
+          Tiêu đề ngày nhận cả <b>5</b> · <b>Ngày 5</b> · <b>5/8</b> · ô định dạng ngày.
+          Ô <b>đã có phiếu</b> thì bỏ qua, <b>không ghi đè</b> — muốn sửa số cũ thì huỷ
+          phiếu ở ②. Đổ vào lưới chưa tạo phiếu nào; phải bấm <b>Lưu lưới</b> mới tạo.</p>
+        <div class="toolbar">
+          <input type="file" id="lgFile" accept=".xlsx,.xls,.csv">
+          <button class="btn ghost sm" onclick="ktLuoiImportDoc()">① Đọc file &amp; xem trước</button>
+          <button class="btn primary sm" id="lgImpBtn" style="display:none"
+                  onclick="ktLuoiImportVao()">② Đổ vào lưới bên trên</button>
+        </div>
+        <p id="lgImpMsg" class="msg"></p>
+        <div id="lgImpPreview"></div>
+      </div>
+    </div>
+
+    <!--──────── ④ SỐ DƯ ĐẦU KỲ ────────-->
+    <div class="page" id="khDauKy">
+      <div class="card msform">
+        <div class="mshead">
+          <div><b style="color:var(--navy);font-size:16px">Số dư đầu kỳ — khai tồn ban đầu</b></div>
+          <!-- ⚠️ Ô này là "HỆ THỐNG ĐANG CÓ GÌ", KHÔNG phải phiếu đang gõ. Trước
+               07/08/2026 nó lấy tổng của form nên nạp xong cả 9 kho vẫn in "0",
+               ngay cạnh dòng máy chủ báo "9 kho đã có phiếu" — hai số cãi nhau.
+               `ktDkHistory` đặt giá trị này; `ktDkTong` KHÔNG được đụng vào. -->
+          <div class="msbig"><div class="l">ĐÃ KHAI trong hệ thống</div>
+            <div class="v" id="dkBig">—</div>
+            <div class="l" id="dkBigSub" style="font-weight:400">đang đọc…</div></div>
+        </div>
+        <p class="hint">Dùng <b>một lần khi bắt đầu</b> dùng hệ thống: khai tồn thực tế
+          và <b>giá vốn</b> của từng mã. Sinh lớp tồn để FIFO <b>tiêu thụ trước</b> mọi
+          phiếu nhập sau đó — nên ngày phải <b>sớm nhất</b>, mặc định 01/01.<br>
+          Khai được cho <b>cả kho tổng và từng cơ sở</b>: cơ sở đang giữ hàng sẵn thì
+          khai ở cơ sở, không phải nhập kho tổng rồi xuất xuống.</p>
+
+        <!-- Nạp cả 9 kho một lần, thay cho 9 lần chọn file. Chặn cứng kho đã khai. -->
+        <div class="toolbar">
+          <button class="btn primary sm" onclick="ktNapTon317()">Nạp tồn 31/07 cho CẢ 9 kho
+            (25.527 cái)</button>
+          <span class="hint">Số liệu từ file <b>Tồn kho JP đến 31.7</b> đã có sẵn trong hệ
+            thống — kho nào đã khai thì tự bỏ qua</span>
+        </div>
+        <!-- NAP BU phan con THIEU (Andy 10/08/2026). Nut tren chan cung kho da khai
+             nen khong con duong nao bu; nut nay so CHENH LECH voi phieu da khai. -->
+        <div class="toolbar">
+          <button class="btn ghost sm" onclick="ktNapBu317(false)">Soát phần còn thiếu
+            so với file</button>
+          <button class="btn sm" id="dkBuGhi" style="display:none"
+            onclick="ktNapBu317(true)">Ghi thật phần còn thiếu</button>
+          <span class="hint">So với <b>phần đã khai trên phiếu</b>, không so với tồn còn
+            lại — nên bấm nhiều lần không nhân đôi hàng</span>
+        </div>
+        <div id="dkBuKq"></div>
+        <div id="dkNapKq"></div>
+
+        <div class="msgrid">
+          <div><label>Kho khai tồn</label><select id="dkKho"></select></div>
+          <div><label>Ngày (để sớm nhất)</label><input type="date" id="dkNgay"></div>
+          <div><label>Diễn giải</label><input type="text" id="dkGhiChu"></div>
+        </div>
+
+        <div class="mssec">HÀNG TIỀN</div>
+        <div class="tableWrap"><table id="tblDkRows" class="form"></table></div>
+        <div class="toolbar" style="margin-top:8px">
+          <button class="btn ghost sm" onclick="ktDkAddRow()">+ Thêm dòng hàng</button>
+        </div>
+        <div class="mstotals">
+          <div>Tổng số lượng: <b id="dkTongSL">0 cái</b></div>
+          <!-- Nói rõ đây là PHIẾU NÀY, đừng để đọc nhầm thành tổng của hệ thống -->
+          <div>Giá trị <b>phiếu này</b>: <b id="dkTong">0đ</b></div>
+        </div>
+        <div class="toolbar" style="margin-top:10px">
+          <button class="btn primary" onclick="ktDkSave()">Lưu số dư đầu kỳ</button>
+        </div>
+        <p id="dkMsg" class="msg"></p>
+      </div>
+
+      <div class="card">
+        <h2>📥 Import tồn đầu kỳ từ Excel / CSV</h2>
+        <p class="hint">Chọn <b>kho</b> ở trên trước, rồi tải file. File cần có cột
+          <b>Mã hàng</b> · <b>Số lượng</b> · <b>Đơn giá vốn</b> — hệ thống tự nhận cột
+          theo tiêu đề, có dấu hay không dấu đều được.<br>
+          File đọc <b>ngay trên trình duyệt</b>, không tải lên Drive.
+          <b>Xem trước không ghi gì</b> — soát cột nhận đúng chưa rồi mới đổ vào bảng.</p>
+        <div class="toolbar">
+          <input type="file" id="dkFile" accept=".xlsx,.xls,.csv">
+          <button class="btn ghost sm" onclick="ktDkImportDoc()">① Đọc file &amp; xem trước</button>
+          <button class="btn primary sm" id="dkImpBtn" style="display:none"
+                  onclick="ktDkImportVao()">② Đổ vào bảng bên trên</button>
+        </div>
+        <p id="dkImpMsg" class="msg"></p>
+        <div id="dkImpPreview"></div>
+      </div>
+
+      <div class="card">
+        <h2>Các phiếu tồn đầu kỳ đã khai</h2>
+        <div id="dkHistory"></div>
+      </div>
+    </div>
+
+    <!--──────── ⑤ KIỂM KÊ KHO ────────-->
+    <div class="page" id="khKiemKe">
+      <div class="card msform">
+        <div class="mshead">
+          <div><b style="color:var(--navy);font-size:16px">Biên bản kiểm kê kho</b></div>
+          <div class="msbig"><div class="l">Đã đếm</div><div class="v" id="kkBig">0</div></div>
+        </div>
+        <p class="hint">Hệ thống hiện <b>tồn sổ sách</b>, kế toán gõ <b>số thực đếm</b>.
+          Lưu xong tồn tự điều chỉnh về đúng số đếm được.<br>
+          <b>Ô để trống là CHƯA đếm</b> — giữ nguyên tồn, không bị coi là đếm được 0.</p>
+        <p class="hint"><b>Hạch toán (chủ project chốt 04/08/2026):</b><br>
+          <b>THIẾU</b> → <b>Nợ 6321 / Có 1561</b>. Mất hàng thì <b>có người đền</b>, nên
+          vào giá vốn — <b>không</b> đưa vào 1381 tài sản thiếu chờ xử lý.<br>
+          <b>THỪA</b> → ưu tiên <b>giảm số lượng xuất ra trong kỳ</b> cho khớp số thực tế.
+          Hệ thống đi ngược các dòng xuất của đúng kho + mã trong kỳ, mới trước, ghi
+          <b>dòng đảo số lượng âm</b> rồi trả số về lớp cũ — dòng gốc còn nguyên nên vẫn
+          lần được lịch sử.<br>
+          Giảm hết mà vẫn còn thừa thì phần còn lại ghi <b>Nợ 1561 / Có 1388</b>.</p>
+
+        <div class="msgrid">
+          <div><label>Kho kiểm kê</label><select id="kkKho"></select></div>
+          <div><label>Ngày kiểm kê</label><input type="date" id="kkNgay"></div>
+          <div><label>Ghi chú / thành phần kiểm kê</label><input type="text" id="kkGhiChu"></div>
+        </div>
+        <div class="msradios">
+          <label><input type="radio" name="kkCheDo" value="GIAM_XUAT" checked>
+            Hàng thừa: <b>giảm số xuất trong kỳ</b> (mặc định)</label>
+          <label><input type="radio" name="kkCheDo" value="GHI_TANG">
+            Hàng thừa: <b>ghi tăng Nợ 1561 / Có 1388</b></label>
+        </div>
+        <div class="msradios">
+          <label><input type="checkbox" id="kkHetDanhMuc"> Hiện cả mã <b>chưa có tồn</b>
+            (để phát hiện hàng thừa của mã đã hết sổ sách)</label>
+          <button class="btn primary sm" onclick="ktKkMo()">Mở phiếu kiểm kê</button>
+        </div>
+        <p class="hint">⚠️ <b>Kho tổng hầu như không giảm xuất được</b>: hàng ra khỏi kho
+          tổng là <b>phiếu điều chuyển</b> xuống cơ sở, không phải dòng sổ giá vốn — giảm
+          nó là phải sửa cả lớp đã sinh ở cơ sở, có thể đã bán rồi. Nên với kho tổng phần
+          thừa thường rơi xuống nhánh 1561/1388, và hệ thống <b>nói rõ</b> chứ không im lặng.</p>
+        <p id="kkMsg" class="msg"></p>
+
+        <div class="mssec">BẢNG ĐẾM</div>
+        <div class="tableWrap"><table id="tblKkRows" class="form"></table></div>
+        <div class="mstotals"><div><b id="kkTong">chưa mở phiếu</b></div></div>
+        <div class="toolbar" style="margin-top:10px">
+          <button class="btn primary" onclick="ktKkSave()">Lưu biên bản kiểm kê</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>📥 Import số thực đếm từ Excel / CSV</h2>
+        <p class="hint">Bấm <b>Mở phiếu kiểm kê</b> trước — phải có tồn sổ sách để so.
+          File cần cột <b>Mã hàng</b> và <b>Số thực đếm</b> (cột tên <b>Số lượng</b> cũng
+          được, số đó hiểu là số đếm được); có thêm <b>Ghi chú</b> thì nhận luôn.<br>
+          Khác các màn kia: đây <b>điền vào đúng dòng</b> theo mã hàng, <b>không nối thêm
+          dòng</b> — bảng kiểm kê là tồn sổ sách do hệ thống dựng, thêm mã lạ vào là so
+          lệch thành vô nghĩa. Mã trong file mà không có trong bảng sẽ được <b>liệt kê ra</b>.<br>
+          Ô để trống là <b>chưa đếm</b>, không phải đếm được 0 — dòng trống sẽ bị bỏ qua.</p>
+        <div class="toolbar">
+          <input type="file" id="kkFile" accept=".xlsx,.xls,.csv">
+          <button class="btn ghost sm" onclick="ktKkImportDoc()">① Đọc file &amp; xem trước</button>
+          <button class="btn primary sm" id="kkImpBtn" style="display:none"
+                  onclick="ktKkImportVao()">② Điền vào bảng bên trên</button>
+        </div>
+        <p id="kkImpMsg" class="msg"></p>
+        <div id="kkImpPreview"></div>
+      </div>
+
+      <div class="card">
+        <h2>Lịch sử kiểm kê</h2>
+        <div id="kkHistory"></div>
+      </div>
+    </div>
+
+    <!--──────── ④ NHẬP – XUẤT – TỒN ────────-->
+    <!--════════ BA TAB NHẬP / XUẤT / TỒN — Andy chốt 04/08/2026 ════════
+         "cấu trúc xuất nhập tồn liên nhau nhưng trên web riêng từng tab".
+         Cả ba gọi ĐÚNG một hàm `jpKhoNhapXuatTon` như bảng ⑥ Cân đối. -->
+
+    <div class="page" id="khNhapBc">
+      <div class="card">
+        <h2>Nhập kho — tách theo nguồn hàng vào</h2>
+        <div class="toolbar">
+          <select id="n3Thang"></select>
+          <select id="n3Nam"></select>
+          <select id="n3Kho"><option value="">— Kho tổng + mọi cơ sở —</option></select>
+          <button class="btn primary sm" onclick="ktBcNhap()">Xem</button>
+          <button class="btn ghost sm" onclick="ktExportCsv('tblBcNhap','nhap-kho')">Xuất CSV</button>
+        </div>
+        <p class="hint">Bốn nguồn hàng vào kho, <b>tách riêng vì hạch toán khác nhau</b>.
+          Cột <b>TỔNG NHẬP</b> là con số nối sang tab <b>📦 Tồn kho</b>.</p>
+        <div id="n3Sum" class="cards"></div>
+        <div id="n3Warn"></div>
+        <div class="tableWrap"><table id="tblBcNhap"></table></div>
+      </div>
+    </div>
+
+    <div class="page" id="khXuatBc">
+      <div class="card">
+        <h2>Xuất kho — tách theo loại xuất</h2>
+        <div class="toolbar">
+          <select id="x3Thang"></select>
+          <select id="x3Nam"></select>
+          <select id="x3Kho"><option value="">— Kho tổng + mọi cơ sở —</option></select>
+          <button class="btn primary sm" onclick="ktBcXuat()">Xem</button>
+          <button class="btn ghost sm" onclick="ktExportCsv('tblBcXuat','xuat-kho')">Xuất CSV</button>
+        </div>
+        <p class="hint">Sáu loại xuất, <b>loại quyết định hạch toán</b>. Cột
+          <b>TỔNG XUẤT</b> là con số nối sang tab <b>📦 Tồn kho</b>.</p>
+        <div id="x3Sum" class="cards"></div>
+        <div id="x3Warn"></div>
+        <div class="tableWrap"><table id="tblBcXuat"></table></div>
+      </div>
+    </div>
+
+    <div class="page" id="khTonBc">
+      <div class="card">
+        <h2>Tồn kho — đầu kỳ đến cuối kỳ</h2>
+        <div class="toolbar">
+          <select id="t3Thang"></select>
+          <select id="t3Nam"></select>
+          <select id="t3Kho"><option value="">— Kho tổng + mọi cơ sở —</option></select>
+          <button class="btn primary sm" onclick="ktBcTon()">Xem</button>
+          <button class="btn ghost sm" onclick="ktExportCsv('tblBcTon','ton-kho')">Xuất CSV</button>
+        </div>
+        <p class="hint"><b>Tồn đầu + Nhập + Trả về − Tổng xuất = Tồn cuối.</b>
+          Đây là tab <b>đóng đẳng thức</b>, nên phép kiểm cân bằng nằm ở đây.
+          Muốn xem <b>Nhập</b> hay <b>Tổng xuất</b> tách lẻ thì sang hai tab bên cạnh.<br>
+          Tồn đầu kỳ <b>suy ra</b> ngược từ tồn hiện tại nên luôn khớp lớp tồn thật,
+          không cần chốt sổ.</p>
+        <div id="t3Sum" class="cards"></div>
+        <div id="t3Warn"></div>
+        <div class="tableWrap"><table id="tblBcTon"></table></div>
+      </div>
+    </div>
+
+    <div class="page" id="khNXT">
+      <div class="card">
+        <h2>Báo cáo Nhập – Xuất – Tồn</h2>
+        <div class="toolbar">
+          <select id="nxThang"></select>
+          <select id="nxNam"></select>
+          <select id="nxKho"><option value="">— Kho tổng + mọi cơ sở —</option></select>
+          <button class="btn primary sm" onclick="ktNXT()">Xem</button>
+          <button class="btn ghost sm" onclick="ktExportCsv('tblNXT','nhap-xuat-ton')">Xuất CSV</button>
+          <button class="btn sm" onclick="ktXuatNxtMisa()">📗 Xuất Excel khuôn MISA</button>
+        </div>
+        <p class="hint"><b>Tồn đầu + Nhập + Trả về − Tổng xuất = Tồn cuối.</b>
+          Tồn đầu kỳ được <b>suy ra</b> ngược từ tồn hiện tại nên luôn khớp lớp tồn
+          thật, không cần chốt sổ — nhưng sửa chứng từ cũ thì số này đổi theo.</p>
+        <p class="hint"><b>Hai bản xuất, hai việc khác nhau.</b>
+          <b>Xuất CSV</b> ra đúng bảng 18 cột bên dưới — mọi kho một bảng, để xem liên
+          nhau. <b>Xuất Excel khuôn MISA</b> ra form <i>Tổng hợp Nhập Xuất Tồn</i>:
+          <b>một kho một sheet</b>, 8 cột số = 4 cặp Số lượng · Giá trị, có ĐVT và nhóm
+          <i>JP_Hàng JP</i>. Bản MISA lấy số <b>suy xuôi từ chứng từ</b> nên nó hiện cả
+          tồn cuối <b>âm</b> (xuất quá tồn, in trong ngoặc) và rác làm tròn 1đ — đúng
+          những thứ MISA in ra.</p>
+        <p id="nxMisaMsg" class="msg"></p>
+        <div id="nxMisaWarn"></div>
+        <div id="nxSum" class="cards"></div>
+        <div id="nxWarn"></div>
+        <div class="tableWrap"><table id="tblNXT"></table></div>
+      </div>
+    </div>
+
+    <!--──────── ⑤ SỔ 632 / 641 ────────-->
+    <div class="page" id="khSo632">
+      <div class="card">
+        <h2>Sổ chi tiết tài khoản</h2>
+        <div class="toolbar">
+          <!-- ⚠️ Sua 06/08/2026 cung luot voi bang tai khoan that. Truoc do o nay
+               chi co `632` / `641` / `6321`(sai nhan) — tuc la sau khi doi hang so
+               sang dau cua JP thi chon `632` ra so TRONG, ma `64116` (chi phi that
+               cua JP) KHONG CO trong danh sach nen khong mo ra xem duoc.
+               Giu hai dau CU o cuoi de con doc duoc dong ghi truoc lan doi — chay
+               `jpDoiTkKhoCu` xong thi hai muc do ra rong, dung nhu vay. -->
+          <select id="soTk">
+            <option value="6321">6321 — Giá vốn JP (bán + kiểm kê thiếu)</option>
+            <option value="64116">64116 — Chi phí khác JP (xé mẫu, tặng mall)</option>
+            <option value="632">632 — dữ liệu cũ, trước lần đổi đầu 06/08</option>
+            <option value="641">641 — dữ liệu cũ, trước lần đổi đầu 06/08</option>
+          </select>
+          <select id="soThang"></select>
+          <select id="soNam"></select>
+          <input type="number" id="soDuDau" placeholder="Dư đầu kỳ (để trống = 0)">
+          <button class="btn primary sm" onclick="ktSo632()">Xem</button>
+          <button class="btn ghost sm" onclick="ktXuatSo632()">Xuất Excel</button>
+        </div>
+        <p class="hint"><b>6321</b> chỉ gồm báo cáo đã <b>HOÀN TẤT</b> — xuất kho chạy
+          đúng lúc kế toán ký đủ hai phần. <b>64116</b> là xé mẫu và tặng mall, ghi ngay
+          lúc lập phiếu xuất. <b>6321</b> là hàng mất khi kiểm kê thiếu — vào giá vốn
+          vì có người đền, tách sổ riêng để giải trình. Dòng <b>điều chỉnh giảm xuất</b>
+          (kiểm kê thừa) mang số âm, nằm cùng sổ với dòng gốc nó đảo. Chi nhánh
+          <b>MTD</b>.</p>
+        <div id="so632Sum" class="cards"></div>
+        <div id="so632Warn"></div>
+        <div class="tableWrap"><table id="tblSo632"></table></div>
+      </div>
+    </div>
+
+    <!--──────── ⑥ TỒN THEO LỚP ────────-->
+    <div class="page" id="khTon">
+      <div class="card">
+        <h2>Tồn kho theo lớp</h2>
+        <div class="toolbar">
+          <select id="tkLoc"></select>
+          <button class="btn primary sm" onclick="ktTonKho()">Xem</button>
+          <button class="btn ghost sm" onclick="ktExportCsv('tblTonKho','ton-kho')">Xuất CSV</button>
+        </div>
+        <p class="hint">Giá bình quân chỉ để xem cho nhanh — giá vốn ra sổ vẫn tính
+          theo <b>từng lớp</b>, không bình quân lại. <b>KHO TỔNG</b> luôn ở đầu bảng.</p>
+        <div class="tableWrap"><table id="tblTonKho"></table></div>
+      </div>
+    </div>
+
+    <!--──────── ⑦ HÀNG TRONG BÁO CÁO ────────-->
+    <div class="page" id="khBaoCao">
+      <div class="card">
+        <h2>Hàng hoá trong báo cáo nhân viên</h2>
+        <div class="toolbar">
+          <input type="date" id="kFrom"><input type="date" id="kTo">
+          <label class="inline"><input type="checkbox" id="kOnlyLech"> Chỉ dòng lệch</label>
+          <button class="btn primary sm" onclick="ktStock()">Xem</button>
+          <button class="btn ghost sm" onclick="ktExportCsv('tblStock','hang-hoa')">Xuất CSV</button>
+        </div>
+        <p class="hint">Số nhân viên đếm được so với số hệ thống tính. Đây là bảng
+          <b>đối soát</b>, không phải tồn kho — tồn kho thật ở ⑧.</p>
+        <div class="tableWrap"><table id="tblStock"></table></div>
+      </div>
+    </div>
+
+    <!--──────── ⑨ THẺ KHO ────────-->
+    <div class="page" id="khThe">
+      <div class="card">
+        <!-- ⚠️ Tieu de KHONG duoc ghi "cua MOT ma hang" nua — o ma de trong la xem
+             CA KHO, va tieu de noi mot dang trong khi bang in mot dang la mau thuan
+             ngay tren cung mot man. -->
+        <h2>Thẻ kho — lịch sử ra vào của hàng trong một kho</h2>
+        <div class="toolbar">
+          <select id="theKho"></select>
+          <!-- De TRONG la xem MOI MA cua kho do (ke toan yeu cau 11/08/2026).
+               ⚠️ Chu nhac phai VUA O — 230px cat mat chu cuoi thanh "= MỌ", ma o
+               trong thi chinh chu nhac la thu duy nhat noi cho ke toan biet
+               de trong nghia la gi. -->
+          <input type="text" id="theMa" list="dlMaHang" placeholder="Mã hàng — để trống = MỌI MÃ" style="min-width:290px">
+          <input type="date" id="theTu"><input type="date" id="theDen">
+          <button class="btn primary sm" onclick="ktTheKho()">Xem thẻ</button>
+          <button class="btn ghost sm" onclick="ktExportCsv('tblTheKho','the-kho')">Xuất CSV</button>
+        </div>
+        <p class="hint">Gộp <b>mọi</b> đường hàng đi qua kho đó: phiếu nhập (mua · tồn đầu
+          kỳ · kiểm kê thừa), phiếu xuất 5 loại, nhận điều chuyển, bán hàng 6321, kiểm kê
+          thiếu 6321, và <b>dòng điều chỉnh giảm xuất</b> (số âm ở cột Xuất).<br>
+          Tồn đầu kỳ được <b>suy ra ngược</b> từ tồn hiện tại nên dòng cuối luôn khớp tồn
+          thật. Thẻ <b>tự kiểm cân bằng</b> — lệch là có chứng từ ghi sai kho.</p>
+        <p id="theMsg" class="msg"></p>
+        <div id="theSum" class="cards"></div>
+        <div id="theWarn"></div>
+        <div class="tableWrap"><table id="tblTheKho"></table></div>
+      </div>
+    </div>
+
+    <!--──────── ⑩ BẢNG KÊ PHIẾU NHẬP / XUẤT ────────-->
+    <div class="page" id="khBangKe">
+      <div class="card">
+        <h2>Bảng kê chứng từ kho</h2>
+        <div class="toolbar">
+          <select id="bkKind" onchange="ktBkLoaiDoi();ktBangKe()">
+            <option value="NHAP">Bảng kê phiếu NHẬP</option>
+            <option value="XUAT">Bảng kê phiếu XUẤT</option>
+          </select>
+          <select id="bkLoai" onchange="ktBangKe()"></select>
+          <input type="date" id="bkTu"><input type="date" id="bkDen">
+          <button class="btn primary sm" onclick="ktBangKe()">Xem</button>
+          <button class="btn ghost sm" onclick="ktExportCsv('tblBangKe','bang-ke')">Xuất CSV</button>
+        </div>
+        <p class="hint">Dòng <b>tô vàng</b> là phiếu đã huỷ — vẫn liệt kê để còn dấu vết,
+          nhưng <b>không tính vào dòng TỔNG</b>.</p>
+        <div id="bkSum" class="cards"></div>
+        <div id="bkTheoLoai"></div>
+        <div class="tableWrap"><table id="tblBangKe"></table></div>
+      </div>
+    </div>
+
+    <!--──────── ⑪ SỔ CÔNG NỢ NHÀ CUNG CẤP ────────-->
+    <div class="page" id="khNcc">
+      <div class="card">
+        <h2>Công nợ nhà cung cấp</h2>
+        <div class="toolbar">
+          <select id="nccThang"></select>
+          <select id="nccNam"></select>
+          <button class="btn primary sm" onclick="ktCongNoNcc()">Xem sổ</button>
+          <button class="btn ghost sm" onclick="ktExportCsv('tblNcc','cong-no-ncc')">Xuất CSV</button>
+        </div>
+        <p class="hint">Còn phải trả = Dư đầu kỳ + Phát sinh phải trả − Đã trả. Tài khoản
+          <b>331</b>.<br>
+          <b>Chỉ phiếu nhập "Mua hàng"</b> sinh phải trả. Tồn đầu kỳ và kiểm kê thừa cũng
+          là hàng vào kho nhưng <b>không nợ ai</b>.<br>
+          Dư đầu kỳ được <b>suy ra</b> từ chính chứng từ trước tháng đó, không lưu riêng —
+          nên luôn khớp dữ liệu gốc, nhưng sửa phiếu cũ thì số này đổi theo.</p>
+        <div id="nccSum" class="cards"></div>
+        <div id="nccWarn"></div>
+        <div class="tableWrap"><table id="tblNcc"></table></div>
+      </div>
+    </div>
+
+    <!--──────── ⑫ PHIẾU TRẢ TIỀN NHÀ CUNG CẤP ────────-->
+    <div class="page" id="khTraNcc">
+      <div class="card msform">
+        <div class="mshead">
+          <div><b style="color:var(--navy);font-size:16px">Phiếu trả tiền nhà cung cấp</b></div>
+        </div>
+        <p class="hint">Đây là bên <b>Đã trả</b> của sổ công nợ nhà cung cấp. Ghi sai thì
+          <b>huỷ phiếu</b>, đừng sửa tay trong sheet — huỷ có lý do và có audit.</p>
+        <div class="msgrid">
+          <div><label>Chọn nhà cung cấp đã có</label><select id="ttNcc" onchange="ktTtChon()"></select></div>
+          <div><label>Mã nhà cung cấp</label><input type="text" id="ttMa"></div>
+          <div><label>Tên nhà cung cấp</label><input type="text" id="ttTen"></div>
+          <div><label>Ngày trả</label><input type="date" id="ttNgay"></div>
+          <div><label>Số tiền</label><input type="number" id="ttTien"></div>
+          <div><label>Hình thức</label><select id="ttHinhThuc">
+            <option value="CK">Chuyển khoản</option>
+            <option value="TM">Tiền mặt</option>
+          </select></div>
+          <div style="grid-column:span 2"><label>Diễn giải</label><input type="text" id="ttGhiChu"></div>
+        </div>
+        <div class="toolbar" style="margin-top:10px">
+          <button class="btn primary" onclick="ktTtSave()">Ghi phiếu trả tiền</button>
+        </div>
+        <p id="ttMsg" class="msg"></p>
+      </div>
+
+      <!-- Import NHIEU phieu mot lan. Khac nam man import kia: o do mot file la MOT
+           chung tu, o day MOI DONG LA MOT PHIEU rieng. -->
+      <div class="card">
+        <h2>Nhập nhiều phiếu trả tiền từ Excel</h2>
+        <p class="hint">Dùng khi trả tiền cả loạt nhà cung cấp trong tháng —
+          <b>mỗi dòng trong file là một phiếu riêng</b>, không phải một chứng từ chung.<br>
+          File cần cột <b>Nhà cung cấp</b> · <b>Số tiền</b>; thêm được
+          <b>Ngày trả</b> · <b>Hình thức</b> · <b>Diễn giải</b>. Hệ thống tự nhận cột
+          theo tiêu đề, có dấu hay không dấu đều được.<br>
+          File đọc <b>ngay trên trình duyệt</b>, không tải lên Drive.
+          <b>Xem trước không ghi gì</b> — soát kỹ rồi mới bấm ghi.</p>
+        <div class="toolbar">
+          <input type="file" id="ttFile" accept=".xlsx,.xls,.csv">
+          <button class="btn ghost sm" onclick="ktTtImportDoc()">① Đọc file &amp; xem trước</button>
+          <button class="btn primary sm" id="ttImpBtn" style="display:none"
+                  onclick="ktTtImportGhi()">② Ghi tất cả phiếu</button>
+        </div>
+        <p id="ttImpMsg" class="msg"></p>
+        <div id="ttImpPreview"></div>
+      </div>
+
+      <div class="card">
+        <h2>Lịch sử phiếu trả tiền</h2>
+        <div id="ttHistory"></div>
+      </div>
+    </div>
+
+    <!--──────── ① SỔ CÔNG NỢ THEO CƠ SỞ ────────-->
+    <div class="page" id="dsSo">
+      <div class="dsKhoi"></div>
+      <div class="card">
+        <h2>Sổ công nợ theo cơ sở</h2>
+        <div class="toolbar">
+          <select id="cnThang"></select>
+          <select id="cnNam"></select>
+          <button class="btn primary sm" onclick="ktSoCongNo()">Xem sổ</button>
+          <button class="btn ghost sm" onclick="ktExportCsv('tblCongNo','so-cong-no')">Xuất CSV</button>
+        </div>
+        <p class="hint">Dư cuối kỳ = Dư đầu kỳ + Phát sinh phải thu − Đã nhận.
+          <b>Dư cuối kỳ > 0 là còn thiếu</b> và tự thành dư đầu kỳ tháng sau.<br>
+          Chỉ tính báo cáo đã <b>HOÀN TẤT</b>. Dư đầu kỳ được <b>suy ra</b> từ chính các
+          báo cáo trước tháng đó, không lưu riêng — nên luôn khớp dữ liệu gốc, nhưng
+          sửa một báo cáo cũ thì số này đổi theo (không đóng băng).<br>
+          Ghi nhận ở ② và ③ đi thẳng vào cột <b>Đã nhận</b> của sổ này —
+          <b>không có số nào nhập tay hai lần</b>.</p>
+        <div id="cnSum" class="cards"></div>
+        <div id="cnWarn"></div>
+        <div class="tableWrap"><table id="tblCongNo"></table></div>
+      </div>
+    </div>
+
+    <!--──────── ② ĐỐI SOÁT BẰNG FILE ────────-->
+    <div class="page" id="dsFile">
+      <div class="dsKhoi"></div>
+      <div class="card">
+        <h2>Đối soát nộp tiền bằng file</h2>
+        <div class="toolbar">
+          <select id="dsKind">
+            <option value="TM">TM — Phiếu thu MISA</option>
+            <option value="CK">CK — Sao kê nộp tiền</option>
+            <option value="QR">QR — Sao kê tiền vào</option>
+          </select>
+          <input type="file" id="dsFileInput" accept=".xlsx,.xls,.csv">
+          <button class="btn ghost sm" onclick="ktReconPreview()">① Xem trước (chưa ghi)</button>
+          <button id="btnApply" class="btn primary sm" onclick="ktReconApply()" disabled>② Áp đối soát</button>
+        </div>
+        <p class="hint">File đọc ngay trên trình duyệt — không tải lên Drive.
+          <b>Xem trước không ghi bất cứ thứ gì.</b> Mỗi lần áp đều lưu <b>mã lô</b> =
+          dấu vân tay của file, nên áp lại đúng file đó sẽ bị chặn ⇒ không cộng đôi.</p>
+        <p id="dsMsg" class="msg"></p>
+      </div>
+      <div id="dsResult"></div>
+
+    </div>
+
+    <!--──────── ③ ĐỐI SOÁT CHUYỂN KHOẢN — MÀN RIÊNG ────────
+         Andy chốt 15/08/2026 (ảnh web kế toán POSH): đây là **một hạng mục riêng**, không
+         nằm lẫn dưới "đối soát bằng file". Chung màn thì phải cuộn qua hết khối chọn file
+         mới tới, mà đây là thứ chạy nền hằng ngày còn file thì thỉnh thoảng mới có. -->
+    <div class="page" id="dsCK">
+      <div class="dsKhoi"></div>
+      <div class="card">
+        <h2>Đối soát chuyển khoản — tự động từ giao dịch ngân hàng</h2>
+        <!-- ⚠️ TEN NUT khong danh so: so ① ② ③ o day dung ngay voi so cua sau hang muc
+             cong no VA voi so cua hai bang ① ② phia duoi ⇒ mot man co ba he thong so
+             khac nhau. Andy 15/08/2026: "sao lam lon xon qua". POSH dat ten theo VIEC. -->
+        <div class="toolbar">
+          <button class="btn ghost sm" onclick="ktBankDocThu()">Đọc thử &amp; xem cột</button>
+          <button class="btn ghost sm" onclick="ktBankDoiSoat(false)">Tải lại (chưa ghi)</button>
+          <button class="btn primary sm" onclick="ktBankDoiSoat(true)">Ghi ngay bây giờ</button>
+        </div>
+        <p class="hint">Đọc thẳng sheet giao dịch do API ngân hàng đẩy về, lọc đúng như câu
+          <code>lower(Col8) like '%mtdmn%' and Col5 > 0</code>, rồi khớp
+          <b>mã định danh</b> của từng cơ sở. <b>Mở tab này là tự tải, không phải bấm.</b><br>
+          Chống áp trùng theo <b>từng mã giao dịch</b>, nên bấm lại bao nhiêu lần cũng
+          không cộng đôi.<br>
+          ⚠️ <b>Luồng tự động chỉ chạy sau khi bấm "Xác nhận cột đọc đúng"</b> ở bước ①
+          — đọc nhầm cột tiền là ghi nhận nộp tiền sai số, mà sổ vẫn cân.</p>
+        <!-- Dòng chạy nền nằm NGAY ĐÂY, không phải một card riêng ở cuối màn: nó là một
+             điều khiển của chính việc này, và để cuối thì phải cuộn hai màn mới tới.
+             Đặt SAU đoạn giải thích chức năng — đọc theo thứ tự "màn này làm gì" rồi mới
+             tới "cho nó tự chạy bao lâu một lượt". -->
+        <div id="dsBankLich"></div>
+        <div id="dsBank"></div>
+      </div>
+    </div>
+
+    <!--──────── ③ XÁC NHẬN NỘP TAY ────────-->
+    <div class="page" id="dsTay">
+      <div class="dsKhoi"></div>
+      <div class="card">
+        <h2>Xác nhận nộp tiền thủ công — không cần file</h2>
+        <p class="hint">Dùng khi tiền đã về nhưng <b>chưa có phiếu thu / sao kê</b>:
+          nhân viên nộp trực tiếp, chuyển khoản sai nội dung, VP nhận tay…
+          <b>Chỉ ghi vào ô đã nhận, không đụng ô doanh thu.</b></p>
+        <div class="msgrid">
+          <div><label>Báo cáo</label><select id="mReport" onchange="ktManualXem()"></select></div>
+          <div><label>Cách ghi</label><select id="mMode" onchange="ktManualXem()">
+            <option value="ADD">Cộng thêm vào số đã nhận</option>
+            <option value="SET">Đặt lại tổng đã nhận</option>
+          </select></div>
+          <!-- BẮT BUỘC chọn, để trống có chủ ý: mặc định TM là nói sai đã nhận
+               tiền mặt. Máy chủ cũng chặn (`jpCachThu_`), không chỉ ở đây. -->
+          <div><label>Cách thu <b style="color:var(--danger)">*</b></label>
+            <select id="mMethod">
+            <option value="">— chọn cách thu —</option>
+            <option value="TM">Tiền mặt</option>
+            <option value="CK">Chuyển khoản</option>
+            <option value="QR">QR</option>
+          </select></div>
+          <div><label>Số tiền</label><input type="number" id="mAmount" oninput="ktManualXem()"></div>
+          <div><label>Ngày nhận</label><input type="date" id="mDate"></div>
+          <div style="grid-column:span 2"><label>Lý do xác nhận tay (bắt buộc — ai nộp, nộp ở đâu)</label>
+            <input type="text" id="mNote"></div>
+        </div>
+        <!-- Bảng SẼ THÀNH RA SAO — khuôn POSH. Kế toán phải thấy con số sau khi ghi
+             TRƯỚC lúc bấm, không phải bấm rồi mới biết là ghi vượt. -->
+        <div id="mTruoc"></div>
+        <div class="toolbar" style="margin-top:10px">
+          <button class="btn primary" onclick="ktManualPaid()">Xác nhận</button>
+        </div>
+        <p class="hint">Mặc định là <b>cộng thêm</b>, giống cách đối soát ghi nhận.
+          Chỉ dùng "Đặt lại tổng" khi cần sửa lại con số đã ghi sai — đặt lại là
+          <b>ghi đè</b>, số đối soát đã áp trước đó sẽ mất.</p>
+        <p id="mMsg" class="msg"></p>
+      </div>
+
+      <div class="card" id="mKhaiCard">
+        <h2>Khoản đã nhận chưa khai cách thu</h2>
+        <p class="hint">Từ nay <b>mọi đường thu đều bắt buộc chọn cách thu</b>, nên danh
+          sách này chỉ còn là <b>dữ liệu cũ</b>: khoản đối soát hoặc xác nhận tay ghi
+          trước 04/08/2026 — lúc đó hệ thống chỉ ghi tổng đã nhận, không ghi từng lần nộp.<br>
+          Khai lại <b>không đụng số đã nhận</b>, chỉ ghi tiền đó vào bằng cách nào. Khai
+          xong thì cột <b>Chưa rõ</b> ở sổ công nợ về 0 và sổ nhật ký chung có đủ bút toán
+          <b>1111 / 1121</b>.</p>
+        <div class="toolbar">
+          <button class="btn primary sm" onclick="ktChuaKhai()">Xem danh sách</button>
+        </div>
+        <p id="mKhaiMsg" class="msg"></p>
+        <div id="mKhaiKq"></div>
+      </div>
+    </div>
+
+    <!--──────── ④ THEO NHÂN VIÊN ────────-->
+    <div class="page" id="dsNV">
+      <div class="dsKhoi"></div>
+      <div class="card">
+        <h2>Công nợ theo nhân viên</h2>
+        <div class="toolbar">
+          <input type="date" id="cnnvFrom"><input type="date" id="cnnvTo">
+          <button class="btn primary sm" onclick="ktCongNoNV()">Xem</button>
+          <button class="btn ghost sm" onclick="ktExportCsv('tblCongNoNV','cong-no-nhan-vien')">Xuất CSV</button>
+        </div>
+        <p class="hint">Gộp theo <b>người tạo báo cáo</b> — báo cáo thuộc về người tạo.
+          Cột <b>Lệch tự báo</b> là chỗ nhân viên khai đã nộp nhiều hơn số kế toán
+          thực nhận: soát trước cột đó.</p>
+        <div id="cnnvSum" class="cards"></div>
+        <div class="tableWrap"><table id="tblCongNoNV"></table></div>
+      </div>
+
+      <div class="card">
+        <h2>Bảng nộp tiền theo từng báo cáo</h2>
+        <div class="toolbar">
+          <input type="date" id="pbFrom"><input type="date" id="pbTo">
+          <label class="inline"><input type="checkbox" id="pbOnlyLech"> Chỉ dòng lệch</label>
+          <button class="btn primary sm" onclick="ktPayBoard()">Xem</button>
+          <button class="btn ghost sm" onclick="ktExportCsv('tblPayBoard','nop-tien')">Xuất CSV</button>
+        </div>
+        <p class="hint">Cột <b>NV báo nộp</b> là số nhân viên tự khai ở web nhân viên;
+          cột <b>KT xác nhận</b> là số kế toán thực nhận. Hai số này <b>cố ý tách
+          bạch</b> — lệch chính là chỗ phải soát.</p>
+        <div id="pbSum" class="cards"></div>
+        <div class="tableWrap"><table id="tblPayBoard"></table></div>
+      </div>
+    </div>
+
+    <!--──────── ⑤ NHẬT KÝ & KIỂM TRA NHANH ────────-->
+    <div class="page" id="dsNhatKy">
+      <div class="dsKhoi"></div>
+      <div class="card">
+        <h2>Kiểm tra nhanh công thức tiền</h2>
+        <p class="hint">Chạy lại toàn bộ phép tính tiền bằng số thật từ form giấy —
+          máy tiền, máy xu, tồn kho. <b>Chỉ đọc, không ghi ô nào.</b>
+          Chạy sau mỗi lần deploy để biết công thức còn đúng.</p>
+        <button class="btn primary sm" onclick="ktSelfTest()">▶ Chạy kiểm tra</button>
+        <pre id="stOut" style="white-space:pre-wrap;font-size:12px;margin-top:10px"></pre>
+      </div>
+
+      <div class="card">
+        <h2>Nhật ký lô đối soát</h2>
+        <p class="hint">Áp nhầm thì huỷ đúng lô đó — hệ thống trừ lại số đã ghi theo
+          phân bổ đã lưu, không đụng số doanh thu. Huỷ rồi thì áp lại được.</p>
+        <button class="btn ghost sm" onclick="ktReconHistory()">Xem lịch sử</button>
+        <div id="dsHistory"></div>
+      </div>
+    </div>
+
+    <!--──────── CẤU HÌNH ────────-->
+    <div class="page" id="cfUsers"></div>
+    <div class="page" id="cfLocs"></div>
+    <div class="page" id="cfClusters"></div>
+    <div class="page" id="cfMachines"></div>
+    <div class="page" id="cfItems"></div>
+
+    <!--════════ KẾ TOÁN TỔNG HỢP — bút toán SUY RA, không lưu ════════-->
+
+    <!--──────── ① SỔ NHẬT KÝ CHUNG ────────-->
+    <div class="page" id="ktNkc">
+      <div class="card">
+        <h2>Sổ nhật ký chung</h2>
+        <div class="toolbar">
+          <select id="btThang"></select>
+          <select id="btNam"></select>
+          <select id="btTk"><option value="">— Cả sổ, mọi tài khoản —</option></select>
+          <button class="btn primary sm" onclick="ktNkc()">Xem</button>
+          <button class="btn ghost sm" onclick="ktExportCsv('tblNkc','nhat-ky-chung')">Xuất CSV</button>
+        </div>
+        <p class="hint">Mọi bút toán của kỳ, gom từ <b>báo cáo đã duyệt</b> · <b>lần nộp
+          tiền</b> · <b>phiếu kho</b> · <b>phiếu trả nhà cung cấp</b>. Chọn một tài khoản
+          thì thành <b>sổ chi tiết tài khoản</b> đúng khuôn MISA — có dòng số dư đầu kỳ,
+          cột TK đối ứng và dư luỹ kế.</p>
+        <div id="btSum" class="cards"></div>
+        <div id="btWarn"></div>
+        <div class="tableWrap"><table id="tblNkc"></table></div>
+      </div>
+    </div>
+
+    <!--──────── ② BẢNG CÂN ĐỐI SỐ PHÁT SINH ────────-->
+    <div class="page" id="ktCd">
+      <div class="card">
+        <h2>Bảng cân đối số phát sinh</h2>
+        <div class="toolbar">
+          <select id="cdThang"></select>
+          <select id="cdNam"></select>
+          <button class="btn primary sm" onclick="ktCanDoi()">Xem</button>
+          <button class="btn ghost sm" onclick="ktExportCsv('tblCanDoi','bang-can-doi')">Xuất CSV</button>
+        </div>
+        <p class="hint"><b>Dư đầu kỳ + Phát sinh Nợ − Phát sinh Có = Dư cuối kỳ</b> cho
+          từng tài khoản. <b>Dư đầu kỳ được suy ra</b> bằng cách cộng hết bút toán trước
+          kỳ — cùng cách sổ công nợ làm, nên luôn khớp chứng từ gốc và
+          <b>không cần chốt sổ</b>.<br>
+          Ba phép cân kiểm riêng: phát sinh · dư đầu kỳ · dư cuối kỳ. Bấm số ở cột
+          <b>Số BT</b> để mở sổ chi tiết của tài khoản đó.</p>
+        <div id="cdSum" class="cards"></div>
+        <div id="cdWarn"></div>
+        <div class="tableWrap"><table id="tblCanDoi"></table></div>
+      </div>
+    </div>
+
+    <!--──────── ③ KIỂM TRA SỔ ────────-->
+    <!--──────── ④ SỨC KHOẺ DÂY CHUYỀN ────────-->
+    <div class="page" id="ktQuet">
+      <div class="card">
+        <h2>Sức khoẻ dây chuyền — ba chỗ có thể đứt</h2>
+        <div class="toolbar">
+          <select id="qdThang"></select>
+          <select id="qdNam"></select>
+          <button class="btn primary sm" onclick="ktQuetDc()">Quét lại</button>
+        </div>
+        <p class="hint">Ba chỗ dưới đây <b>chỉ cảnh báo một lần lúc bấm duyệt rồi mất</b>.
+          Đóng thông báo là không còn dấu vết ở đâu — đó là kiểu lỗi tệ nhất, số sai mà
+          mọi bảng trông sạch sẽ. Màn này là chỗ nhìn lại.<br>
+          <b>①</b> báo cáo đã duyệt có hàng bán mà <b>6321 trống</b> ⇒ lãi gộp sai cả kỳ ·
+          <b>②</b> dòng xuất còn cờ <b>thiếu lớp</b> ⇒ giá vốn đang là số tạm ·
+          <b>③</b> số ở header <b>không khớp khi tính lại</b> từ chỉ số đồng hồ.</p>
+        <div id="qdSum" class="cards"></div>
+        <div id="qdKq"></div>
+      </div>
+    </div>
+
+    <div class="page" id="ktKiem">
+      <div class="card">
+        <h2>Kiểm tra sổ — so hai đường độc lập</h2>
+        <div class="toolbar">
+          <select id="kbThang"></select>
+          <select id="kbNam"></select>
+          <button class="btn primary sm" onclick="ktKiemSo()">Chạy kiểm tra</button>
+        </div>
+        <p class="hint">Vì <b>mọi doanh thu vào 131 và mọi lần thu tiền trừ khỏi 131</b>,
+          số dư 131 dựng từ bút toán <b>phải bằng</b> dư cuối kỳ của sổ công nợ. Hai con số
+          đi qua code hoàn toàn khác nhau — một đi qua từng cặp bút toán, một cộng thẳng
+          <code>totalSubmit − paid</code> — nên khớp là <b>bằng chứng thật</b>, không phải
+          in lại đẳng thức vừa dùng để tính.</p>
+        <div id="kbKq"></div>
+      </div>
+    </div>
+
+    <!--──────── ⑤ KẾT QUẢ KINH DOANH — kết chuyển 911 ────────
+         Andy gửi sơ đồ hệ thống tài khoản 06/08/2026. JP vốn dừng ở bảng cân
+         đối phát sinh — biết doanh thu bao nhiêu, giá vốn bao nhiêu, nhưng
+         KHÔNG TRỪ RA. Đây là bước ③④ của quy trình cuối kỳ trong sơ đồ. -->
+    <div class="page" id="ktKqkd">
+      <div class="card">
+        <h2>Kết quả kinh doanh — kết chuyển 911</h2>
+        <div class="toolbar">
+          <select id="kqThang"></select>
+          <select id="kqNam"></select>
+          <button class="btn primary sm" onclick="ktKqkd()">Xem</button>
+          <button class="btn ghost sm" onclick="ktExportCsv('tblKqkd','ket-qua-kinh-doanh')">Xuất CSV</button>
+        </div>
+        <p class="hint">Doanh thu thuần → lãi gộp → lợi nhuận trước thuế, và các
+          <b>cặp bút toán kết chuyển</b> để gõ sang MISA. <b>JP không lưu bút toán kết
+          chuyển nào</b> — suy ra mỗi lần xem, y như sổ nhật ký chung. Nhờ vậy sửa một
+          báo cáo cũ thì lãi lỗ tự đổi theo, không bao giờ lệch với chứng từ.</p>
+        <div id="kqSum" class="cards"></div>
+        <div id="kqWarn"></div>
+        <div class="tableWrap"><table id="tblKqkd"></table></div>
+        <h3 style="margin-top:18px">Bút toán kết chuyển cuối kỳ</h3>
+        <p class="hint">Gõ mấy cặp này vào MISA ngày cuối kỳ. Thứ tự đúng chuẩn VAS —
+          giảm trừ trước, rồi doanh thu thuần và thu nhập khác sang <b>911</b>, rồi mới
+          các khoản chi phí.</p>
+        <div class="tableWrap"><table id="tblKc"></table></div>
+        <div id="kqCuoi"></div>
+      </div>
+    </div>
+
+  </div>
+ </div>
+</section>
+
+<!-- Đổi PIN. Kế toán mặc định 222 — đây là chỗ để đổi ngay lần đầu đăng nhập. -->
+<div id="ktPinModal" class="modalBg hidden">
+  <div class="modalBox">
+    <h2>Đổi mã PIN</h2>
+    <p class="sub">PIN gồm 3 số và phải chưa ai dùng. Kế toán mặc định là
+      <b>222</b> — đổi ngay, vì ai biết số đó là vào được web kế toán.</p>
+    <label class="fld"><span>PIN hiện tại</span>
+      <input id="ktPinCu" class="pinIn" type="password" inputmode="numeric" maxlength="3" autocomplete="off"></label>
+    <label class="fld"><span>PIN mới</span>
+      <input id="ktPinMoi" class="pinIn" type="password" inputmode="numeric" maxlength="3" autocomplete="off"></label>
+    <label class="fld"><span>Nhập lại PIN mới</span>
+      <input id="ktPinLai" class="pinIn" type="password" inputmode="numeric" maxlength="3" autocomplete="off"></label>
+    <p id="ktPinMsg" class="msg"></p>
+    <div class="modalAct">
+      <button class="btn ghost" onclick="ktDongDoiPin()">Huỷ</button>
+      <button class="btn primary" onclick="ktLuuPinMoi()">Đổi PIN</button>
+    </div>
+  </div>
+</div>
+
+<!-- XEM ANH TAI CHO khi duyet bao cao (Andy 07/08/2026: "bam vao xem tai cho,
+     dung chuyen"). Truoc day bam anh la `window.open` sang Drive -> mat man duyet.
+     ⚠️ Phai nam NGOAI `#ktDetail`: `ktRenderDetail` ghi de ca `innerHTML` cua o do,
+     de trong la khung anh bien mat ngay lan mo bao cao ke tiep. -->
+<div id="ktLb" class="lbBg hidden" onclick="ktAnhNen(event)">
+  <div class="lbTop">
+    <b id="ktLbTen">Ảnh</b>
+    <span class="sub" id="ktLbDem"></span>
+    <span class="lbSpace"></span>
+    <button class="lbBtn" id="ktLbTruoc" onclick="ktAnhDi(-1)">‹ Trước</button>
+    <button class="lbBtn" id="ktLbSau" onclick="ktAnhDi(1)">Sau ›</button>
+    <a class="lbBtn" id="ktLbDrive" target="_blank" rel="noopener">Mở trong Drive</a>
+    <button class="lbBtn x" onclick="ktAnhDong()" title="Đóng (Esc)">✕</button>
+  </div>
+  <div class="lbMid">
+    <img id="ktLbAnh" alt="">
+    <div class="lbErr hidden" id="ktLbLoi"></div>
+  </div>
+  <div class="lbFoot" id="ktLbDai"></div>
+</div>
+
+<div id="ktToast" class="toast hidden"></div>
+<div id="ktBusy" class="busy hidden"><div class="spin"></div><span id="ktBusyText">Đang xử lý…</span></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<?!= include('KtJs01_Core'); ?>
+<?!= include('KtJs02_Duyet'); ?>
+<?!= include('KtJs03_DoiSoat'); ?>
+<?!= include('KtJs04_CauHinh'); ?>
+<?!= include('KtJs05_Kho'); ?>
+<?!= include('KtJs06_KhoNangCao'); ?>
+<?!= include('KtJs07_ButToan'); ?>
+</body>
+</html>
+

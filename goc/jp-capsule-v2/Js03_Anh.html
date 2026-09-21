@@ -1,0 +1,407 @@
+<script>
+/*═══════════════════════════════════════════════════════════
+ * JP CAPSULE v2 — Js03_Anh
+ * Chụp · nén · upload ảnh. Điểm lớn nhất tới ~138 ảnh/báo cáo.
+ * Nén xuống ~1280px/JPEG 70% rồi gửi TỪNG ẢNH MỘT, có hàng đợi và tự retry.
+ *═══════════════════════════════════════════════════════════*/
+
+var PHOTO = { queue: [], running: false, done: 0, total: 0, pending: null };
+
+var MAX_EDGE = 1280;
+var JPEG_Q = 0.7;
+var MAX_TRIES = 3;
+
+function jpPickPhoto(scope, refId, kind) {
+  if (!APP.canEdit) { toast('Báo cáo đã nộp, không thêm ảnh'); return; }
+  if (!APP.report || !APP.report.id) { toast('Lưu báo cáo trước khi chụp ảnh'); return; }
+  PHOTO.pending = { scope: scope, refId: refId, kind: kind };
+  $('filePick').value = '';
+  $('filePick').click();
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  $('filePick').addEventListener('change', function (e) {
+    var files = [].slice.call(e.target.files || []);
+    if (!files.length || !PHOTO.pending) return;
+    var ctx = PHOTO.pending;
+
+    Promise.all(files.map(compress)).then(function (list) {
+      list.forEach(function (dataUrl) {
+        PHOTO.queue.push({
+          scope: ctx.scope, refId: ctx.refId, kind: ctx.kind,
+          dataUrl: dataUrl, tries: 0
+        });
+        PHOTO.total++;
+      });
+      pump();
+    }).catch(function (err) { toast('Lỗi xử lý ảnh: ' + err.message); });
+  });
+
+  /* Ô chọn RIÊNG cho việc tải loạt. ⚠️ KHÔNG dùng chung `#filePick`: ô đó mang
+     `PHOTO.pending` — đúng MỘT dòng — nên chọn nhiều file ở đó là dồn hết vào một ô. */
+  $('filePickLoat').addEventListener('change', function (e) {
+    var files = [].slice.call(e.target.files || []);
+    if (!files.length) return;
+    files.sort(function (a, b) { return jpSoTen(a.name, b.name); });
+    LOAT.files = files;
+    jpLoatVe();
+  });
+});
+
+function compress(file) {
+  return new Promise(function (res, rej) {
+    var reader = new FileReader();
+    reader.onerror = function () { rej(new Error('Không đọc được ảnh')); };
+    reader.onload = function () {
+      var img = new Image();
+      img.onerror = function () { rej(new Error('Ảnh hỏng')); };
+      img.onload = function () {
+        var w = img.width, h = img.height;
+        var scale = Math.min(1, MAX_EDGE / Math.max(w, h));
+        var cw = Math.round(w * scale), ch = Math.round(h * scale);
+
+        var cv = document.createElement('canvas');
+        cv.width = cw; cv.height = ch;
+        cv.getContext('2d').drawImage(img, 0, 0, cw, ch);
+        res(cv.toDataURL('image/jpeg', JPEG_Q));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function pump() {
+  if (PHOTO.running) return;
+  var job = PHOTO.queue.shift();
+  if (!job) {
+    PHOTO.running = false;
+    if (PHOTO.total) {
+      busy(false);
+      toast('Đã tải xong ' + PHOTO.done + '/' + PHOTO.total + ' ảnh');
+      PHOTO.done = 0; PHOTO.total = 0;
+      refreshPhotoProgress();
+    }
+    return;
+  }
+
+  PHOTO.running = true;
+  busy(true, 'Đang tải ảnh ' + (PHOTO.done + 1) + '/' + PHOTO.total + '…');
+
+  /*
+   * ⚠️ NÉN NGAY TRƯỚC KHI GỬI, không nén cả loạt từ đầu. Đường "tải một loạt" có thể
+   * mang **138 ảnh** (SB Phú Quốc); nén hết một lượt là 138 canvas 1280px cùng nằm
+   * trong RAM của một cái điện thoại ở mall — trình duyệt giết tab, và mất trắng cả
+   * loạt đang chờ. Nén từng tấm thì lúc nào cũng chỉ có MỘT canvas sống.
+   *
+   * ⚠️ Đường cũ (`job.dataUrl` đã nén sẵn) giữ nguyên — đừng ép nó nén lại: nén JPEG
+   * hai lần là ảnh chỉ số mờ thêm một nấc mà không ai để ý.
+   */
+  var chuanBi = job.dataUrl ? Promise.resolve(job.dataUrl) : compress(job.file);
+
+  chuanBi.then(function (dataUrl) {
+    return srv('jpUploadPhoto', APP.token, {
+      reportId: APP.report.id,
+      scope: job.scope, refId: job.refId, kind: job.kind,
+      dataUrl: dataUrl, takenAt: new Date().toISOString()
+    });
+  }).then(function (r) {
+    PHOTO.running = false;
+    PHOTO.done++;
+    if (r && r.photo) {
+      APP.photos.push(r.photo);
+      repaintPhotosFor(job.scope, job.refId);
+    }
+    pump();
+  }).catch(function (e) {
+    PHOTO.running = false;
+    job.tries++;
+    if (job.tries < MAX_TRIES) {
+      PHOTO.queue.unshift(job);
+      setTimeout(pump, 1200);
+    } else {
+      PHOTO.total--;
+      toast('1 ảnh tải thất bại: ' + e.message);
+      pump();
+    }
+  });
+}
+
+/*═══════════════════════════════════════════════════════════
+ * TẢI MỘT LOẠT ẢNH — gán lần lượt theo thứ tự dòng
+ *
+ * Andy 31/08/2026: *"tải từng hình lên lâu quá, tải 1 loạt hình nhưng nó sẽ tự gán
+ * theo thứ tự máy đi"*.
+ *
+ * ⚠️⚠️ GÁN TỰ ĐỘNG THÌ SAI MỘT LÀ LỆCH CẢ LOẠT. Chụp lại một máy là mọi ảnh sau đó
+ * tụt xuống một hàng, và kế toán duyệt ảnh chỉ số của MÁY KHÁC mà không có cách nào
+ * biết. Nên luồng này **bắt buộc đi qua bảng gán**: xem tên file đứng cạnh tên ô máy,
+ * bỏ được tấm thừa (các tấm sau tự dồn lên), rồi mới tải. Đừng "cho nhanh" mà tải
+ * thẳng — cái nhanh đó đổi lấy một loại sai không ai phát hiện được.
+ *═══════════════════════════════════════════════════════════*/
+
+var LOAT = { files: [] };
+
+/** So tên file kiểu TỰ NHIÊN: `IMG_2` phải đứng TRƯỚC `IMG_10`.
+ *  ⚠️ So chuỗi thuần thì `"10" < "2"` và cả loạt ảnh lệch hàng ngay từ tấm thứ hai. */
+function jpSoTen(a, b) {
+  return String(a).localeCompare(String(b), undefined,
+    { numeric: true, sensitivity: 'base' });
+}
+
+/**
+ * Danh sách CHỖ TRỐNG cần ảnh, **đúng thứ tự hiển thị trên màn**.
+ *
+ * ⚠️ Đi theo `APP.zones` rồi mới tới `APP.rows`, y hệt `renderZones`. Duyệt thẳng
+ * `APP.rows` là sai thứ tự ngay khi báo cáo có từ hai khu vực trở lên — mà đó là lúc
+ * duy nhất tính năng này có ích.
+ *
+ * ⚠️ Chỉ đếm chỗ CÒN THIẾU (`need − đã có`): ô đã đủ ảnh thì nhảy qua, nhờ vậy tải
+ * loạt thứ hai là nối tiếp chứ không chèn lại từ đầu.
+ *
+ * ⚠️ Dòng `MAY` (mẫu TÁCH — SB Phú Quốc) máy chủ KHÔNG đòi ảnh nên `need = 0`, nhưng
+ * vẫn phải có chỗ: đó chính là báo cáo ~138 ảnh, tức nơi cần tính năng này nhất. Cho
+ * nó **một** chỗ, và bảng gán ghi rõ là ảnh thêm chứ không bắt buộc.
+ */
+function jpLoatCho() {
+  var out = [];
+  var them = function (r, ri) {
+    if (!r.id) return;                       // chưa lưu thì chưa có chỗ gắn ảnh
+    var may = (APP.boot.machines || []).filter(function (x) {
+      return String(x.id) === String(r.machineId);
+    })[0];
+    var laMay = (jpStr0(r.rowKind) === 'MAY');
+    var need = laMay ? 1 : (may ? num(may.photoCount) : 1);
+    if (need <= 0) return;
+    var co = (APP.photos || []).filter(function (p) {
+      return p.scope === 'ROW' && String(p.refId) === String(r.id) && p.kind === 'METER';
+    }).length;
+    for (var i = co; i < need; i++) {
+      out.push({ refId: r.id, batBuoc: !laMay,
+                 ten: (may ? may.code : '') || tenDeHien(r) || jpStr0(r.itemCode) ||
+                      ('dòng ' + (ri + 1)) });
+    }
+  };
+  var daXet = {};
+  (APP.zones || []).forEach(function (z, zi) {
+    (APP.rows || []).forEach(function (r, ri) {
+      if (r.zoneKey !== zi) return;
+      daXet[ri] = 1; them(r, ri);
+    });
+  });
+  /* Dòng không thuộc khu nào (bảng tồn kho / kho ngoài / bảng hàng mẫu tách) — vẫn
+     xét, nhưng xếp CUỐI, đúng như chúng nằm cuối màn. */
+  (APP.rows || []).forEach(function (r, ri) { if (!daXet[ri]) them(r, ri); });
+  return out;
+}
+
+function jpTaiLoat() {
+  if (!APP.canEdit) { toast('Báo cáo đã nộp, không thêm ảnh'); return; }
+  if (!APP.report || !APP.report.id) { toast('Bấm Lưu nháp trước khi tải ảnh'); return; }
+  if (!jpLoatCho().length) {
+    toast('Không còn chỗ nào cần ảnh — mọi dòng đã đủ, hoặc chưa lưu nháp');
+    return;
+  }
+  $('filePickLoat').value = '';
+  $('filePickLoat').click();
+}
+
+function jpLoatVe() {
+  var box = $('loatBox');
+  if (!box) return;
+  var cho = jpLoatCho();
+  var f = LOAT.files;
+  var n = Math.max(f.length, cho.length);
+
+  if (!f.length) { jpLoatHuy(); return; }
+
+  var h = '<div class="groupTitle">Bảng gán ' + f.length + ' ảnh → ' +
+          cho.length + ' chỗ</div>';
+
+  /* ⚠️ Hai lời cảnh báo KHÁC NHAU cho hai tình huống khác nhau — gộp một câu là
+     người đọc không biết mình đang thiếu hay đang thừa. */
+  if (f.length > cho.length) {
+    h += '<div class="alert warn">Thừa <b>' + (f.length - cho.length) +
+         '</b> ảnh — mấy tấm cuối sẽ KHÔNG được tải lên. ' +
+         'Bỏ bớt tấm chụp lại, hoặc tải rồi gắn tay cho đúng ô.</div>';
+  } else if (f.length < cho.length) {
+    h += '<div class="alert warn">Còn <b>' + (cho.length - f.length) +
+         '</b> chỗ chưa có ảnh — tải loạt này xong gắn thêm sau cũng được.</div>';
+  }
+
+  h += '<div class="tblWrap"><table class="form"><tr>' +
+       '<th>#</th><th>Ô máy / dòng</th><th>Tên file ảnh</th><th></th></tr>';
+  for (var i = 0; i < n; i++) {
+    var c = cho[i], t = f[i];
+    var xau = (!c && t) ? ' class="warnRow"' : '';
+    h += '<tr' + xau + '><td class="num">' + (i + 1) + '</td>' +
+      '<td class="lbl">' + (c ? esc(c.ten) + (c.batBuoc ? '' : ' <span class="sub">(thêm)</span>')
+                              : '<span class="sub">— thừa, không tải</span>') + '</td>' +
+      '<td>' + (t ? esc(t.name) : '<span class="sub">— chưa có ảnh</span>') + '</td>' +
+      '<td class="act">' + (t
+        ? '<button class="miniBtn danger" onclick="jpLoatBo(' + i + ')">×</button>' : '') +
+      '</td></tr>';
+  }
+  h += '</table></div>' +
+    '<p class="hint">Bấm <b>×</b> để bỏ một tấm — các tấm sau tự dồn lên một hàng. ' +
+    'Đó là cách chữa khi có tấm chụp lại làm lệch cả loạt.</p>' +
+    '<div class="loatNut">' +
+    '<button class="btn ghost" onclick="jpLoatHuy()">Huỷ</button>' +
+    '<button class="btn primary" onclick="jpLoatChay()">Tải lên ' +
+      Math.min(f.length, cho.length) + ' ảnh</button></div>';
+
+  box.innerHTML = h;
+  box.classList.remove('hidden');
+}
+
+function jpLoatBo(i) {
+  LOAT.files.splice(i, 1);
+  jpLoatVe();
+}
+
+function jpLoatHuy() {
+  LOAT.files = [];
+  var box = $('loatBox');
+  if (box) { box.innerHTML = ''; box.classList.add('hidden'); }
+}
+
+function jpLoatChay() {
+  var cho = jpLoatCho();
+  var n = Math.min(LOAT.files.length, cho.length);
+  if (!n) { toast('Không có ảnh nào để tải'); return; }
+  for (var i = 0; i < n; i++) {
+    /* ⚠️ Đẩy `file` chứ KHÔNG nén sẵn — `pump` nén ngay trước khi gửi. Xem chú thích
+       ở đó: nén cả loạt một lượt là giết tab trên điện thoại. */
+    PHOTO.queue.push({ scope: 'ROW', refId: cho[i].refId, kind: 'METER',
+                       file: LOAT.files[i], tries: 0 });
+    PHOTO.total++;
+  }
+  jpLoatHuy();
+  pump();
+}
+
+function renderRowPhotos(ri) {
+  var r = APP.rows[ri];
+  var box = $('ps_' + ri);
+  if (!box || !r) return;
+
+  var mine = (APP.photos || []).filter(function (p) {
+    return p.scope === 'ROW' && String(p.refId) === String(r.id) && p.kind === 'METER';
+  });
+
+  /* Nói rõ CẦN mấy tấm và ĐÃ có mấy tấm. Trước đây ô ảnh chỉ có dấu "+", nhân
+     viên không biết một ô cần bao nhiêu ảnh — mà số này cấu hình theo từng ô máy
+     (0 ảnh là cố ý, dùng cho ô không cần chụp). */
+  var m = (APP.boot.machines || []).filter(function (x) {
+    return String(x.id) === String(r.machineId);
+  })[0];
+  /*
+   * ⚠️ Dòng MÁY của mẫu TÁCH **không bị đòi ảnh** — `jpCheckPhotos_` (04_TinhToan) bỏ
+   * qua nó từ 12/08/2026, lúc bảng tiền SBPQ bỏ cột ô máy. Không có `machineId` thì
+   * `need` rơi về mặc định 1, và ô ảnh in **"0/1 ảnh" màu ĐỎ** trong khi máy chủ
+   * không đòi tấm nào ⇒ nhân viên đi tìm ảnh để chụp cho một yêu cầu không tồn tại.
+   * Chỉ ẢNH mới thấy: phép đo đếm ô ảnh vẫn ra đủ.
+   *
+   * Ô ảnh vẫn CÒN (ảnh màn hình app là bằng chứng duy nhất cho số gõ tay) — chỉ là
+   * gắn thêm được, không bắt buộc.
+   */
+  var khongDoi = (jpStr0(r.rowKind) === 'MAY');
+  var need = khongDoi ? 0 : (m ? num(m.photoCount) : 1);
+  var got = mine.length;
+  var dem = need
+    ? '<div class="photoNeed' + (got >= need ? ' du' : '') + '">' +
+        got + '/' + need + (got >= need ? ' ✓' : ' ảnh') + '</div>'
+    : '<div class="photoNeed du">' +
+      (khongDoi ? (got ? got + ' ảnh ✓' : 'gắn thêm nếu cần') : 'không cần ảnh') +
+      '</div>';
+
+  box.innerHTML = dem + mine.map(function (p) {
+    return '<div class="thumb"><img src="' + p.url + '" loading="lazy"' +
+           ' onerror="jpAnhVo(this)">' +
+           '<span class="x" onclick="jpDelPhoto(\'' + p.id + '\')">×</span></div>';
+  }).join('') +
+  (r.id
+    ? '<div class="addPhoto" onclick="jpPickPhoto(\'ROW\',\'' + r.id + '\',\'METER\')">+</div>'
+    : '<div class="addPhoto" onclick="toast(\'Bấm Lưu nháp trước khi chụp ảnh\')">+</div>');
+}
+
+/**
+ * Ô ảnh nhỏ KHÔNG tải được — thay bằng ô có dấu ✓.
+ *
+ * ⚠️ Ảnh trỏ thẳng sang `drive.google.com`, mà file ảnh chỉ có đúng một quyền —
+ * chủ sở hữu (đã tra Drive 11/08/2026). Nên trình duyệt của nhân viên tải là
+ * **403** và ô trông y như ảnh tải lỗi. Ở web kế toán chuyện đó chỉ khó xem; ở
+ * đây nó **tệ hơn** — nhân viên tưởng chụp chưa được nên **chụp lại**, sinh ảnh
+ * trùng và làm nặng thêm cái báo cáo 138 ảnh của SB Phú Quốc.
+ *
+ * Ô thay thế phải nói rõ **đã tải lên rồi**, và nút × phải còn nguyên để xoá được.
+ */
+function jpAnhVo(img) {
+  if (!img || img.dataset.vo) return;        // chặn vòng lặp onerror
+  img.dataset.vo = '1';
+  var o = document.createElement('div');
+  o.className = 'thumbVo';
+  o.innerHTML = '<b>✓</b><span>đã tải lên</span>';
+  o.title = 'Ảnh đã lưu trên Drive — máy này không xem trước được, nhưng kế toán ' +
+            'vẫn mở được bản gốc.';
+  img.parentNode.replaceChild(o, img);
+}
+
+function repaintPhotosFor(scope, refId) {
+  if (scope === 'ROW') {
+    APP.rows.forEach(function (r, i) { if (String(r.id) === String(refId)) renderRowPhotos(i); });
+  } else {
+    renderZonePhotos();
+  }
+}
+
+function renderZonePhotos() {
+  APP.zones.forEach(function (z, zi) {
+    var box = $('zp_' + zi);
+    if (!box) return;
+    var mine = (APP.photos || []).filter(function (p) {
+      return p.scope === 'ZONE' && String(p.refId) === String(z.id) && p.kind === 'PAYBOX';
+    });
+    box.innerHTML = mine.map(function (p) {
+      return '<div class="thumb"><img src="' + p.url + '" loading="lazy"' +
+             ' onerror="jpAnhVo(this)">' +
+             '<span class="x" onclick="jpDelPhoto(\'' + p.id + '\')">×</span></div>';
+    }).join('') +
+    (z.id ? '<div class="addPhoto" onclick="jpPickPhoto(\'ZONE\',\'' + z.id + '\',\'PAYBOX\')">+</div>' : '');
+  });
+}
+
+function jpDelPhoto(photoId) {
+  if (!confirm('Xoá ảnh này?')) return;
+  busy(true, 'Đang xoá…');
+  srv('jpDeletePhoto', APP.token, photoId).then(function () {
+    busy(false);
+    APP.photos = APP.photos.filter(function (p) { return p.id !== photoId; });
+    renderZones();
+    refreshPhotoProgress();
+  }).catch(function (e) { busy(false); toast(e.message); });
+}
+
+/**
+ * `sanCo` truyen vao thi ve luon, KHONG goi lai may chu — `jpGetReport` da tra kem
+ * (`anhTienDo`). Goi rong — sau khi tai / xoa mot anh — thi phai doc lai vi so vua doi.
+ *
+ * ⚠️ Dung `refreshPhotoProgress(APP.report.anhTienDo)` luc MO bao cao. Goi rong o do
+ * la them mot dot cho ~0,45s cho moi lan mo bao cao, ma do la viec nhan vien lam
+ * nhieu nhat trong ca.
+ */
+function refreshPhotoProgress(sanCo) {
+  if (!APP.report || !APP.report.id) return;
+  (sanCo ? Promise.resolve(sanCo)
+         : srv('jpPhotoProgress', APP.token, APP.report.id)).then(function (p) {
+    $('photoProgress').textContent =
+      'Đã có ' + p.got + ' / cần ' + p.need + ' ảnh' +
+      (p.missing ? ' — còn thiếu ' + p.missing + ' chỗ' : ' — đủ');
+    $('photoWarns').innerHTML = (p.warns || []).map(function (w) {
+      return '⚠ ' + esc(w.detail || w.msg);
+    }).join('<br>');
+  }).catch(function () {});
+}
+</script>
+
+
