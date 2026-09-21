@@ -39,6 +39,16 @@ $cau_noi = __DIR__ . '/jp-doc-goc.js';
 exec( 'node --version 2>/dev/null', $r_, $ma_node );
 t( '🔴 có node để chạy mã gốc', 0 === $ma_node );
 
+/** Gọi cầu nối rồi trả NGUYÊN kết quả — dùng cho thứ không phải hàm (bảng cảnh báo). */
+function goc_chay_tho( $ten, $ca ) {
+	global $cau_noi;
+	$ra = array(); $ma = 0;
+	exec( 'node ' . escapeshellarg( $cau_noi ) . ' ' . escapeshellarg( $ten ) . ' '
+		. escapeshellarg( wp_json_encode( $ca ) ) . ' 2>&1', $ra, $ma );
+	if ( 0 !== $ma ) { return implode( "\n", $ra ); }
+	return json_decode( implode( '', $ra ), true );
+}
+
 function goc_chay( $ten, $ca ) {
 	global $cau_noi;
 	$ra = array(); $ma = 0;
@@ -518,6 +528,42 @@ $cau = implode( ' ', array_column( $w, 'detail' ) );
 t( '🔴 câu cảnh báo lúc mở lại có NÊU khoản hoàn đứng giữa',
 	false !== mb_strpos( $cau, '200.000' ), $cau );
 teq( 'và tổng hoàn tính lại đúng', 200000, VHJP_Tinh::hoan_tong( $mo_lai ) );
+
+// ================================== 🔴 CẢ BẢNG CẢNH BÁO PHẢI KHỚP MÃ GỐC, KHÔNG CHỈ MẤY MÃ
+/*
+ * Phép đối chiếu dòng ở trên chỉ so MÃ (`W1`, `W9`…) của những cảnh báo mà ca thử tình cờ đi
+ * qua. Nó KHÔNG nhìn thấy hai thứ:
+ *   · mã nào có trong bảng gốc mà bản này quên khai (W7 · W11 · W17 đã từng thiếu đúng vậy —
+ *     và W11 thiếu thì `VHJP_BaoCao::lay()` dựng ra cảnh báo mang mã `?`);
+ *   · CÂU CHỮ lệch. Câu chữ là thứ kế toán ĐỌC để quyết định ký hay trả về — W14 từng bị cắt
+ *     mất đoạn "duyệt xong kho không tìm được lớp tồn nên giá vốn về 0đ (sổ 632 thiếu)", tức
+ *     là cắt đúng phần nói ra HẬU QUẢ. Không phép tính nào đỏ vì chuyện đó.
+ */
+$g_warn = goc_chay_tho( 'warn_def', array() );
+t( '🔴 đọc được bảng cảnh báo của mã gốc', is_array( $g_warn ) && count( $g_warn ) > 10,
+	is_array( $g_warn ) ? count( $g_warn ) : $g_warn );
+if ( is_array( $g_warn ) ) {
+	$php_warn = VHJP_Tinh::warn_def();
+	$ten_g = array_keys( $g_warn ); sort( $ten_g );
+	$ten_p = array_keys( $php_warn ); sort( $ten_p );
+	t( '🔴 ĐÚNG BẰNG ẤY cảnh báo, không thiếu không thừa', $ten_g === $ten_p,
+		'thiếu: ' . implode( ',', array_diff( $ten_g, $ten_p ) )
+		. ' · thừa: ' . implode( ',', array_diff( $ten_p, $ten_g ) ) );
+	foreach ( $g_warn as $ten => $d ) {
+		if ( ! isset( $php_warn[ $ten ] ) ) { continue; }
+		$p_ = $php_warn[ $ten ];
+		foreach ( array( 'code', 'part', 'msg', 'gop', 'gopDv', 'gopGhiChu' ) as $k ) {
+			$vg = isset( $d[ $k ] ) ? $d[ $k ] : null;
+			$vp = isset( $p_[ $k ] ) ? $p_[ $k ] : null;
+			t( "cảnh báo $ten · $k", $vg === $vp,
+				'gốc ' . var_export( $vg, true ) . ' · PHP ' . var_export( $vp, true ) );
+		}
+	}
+	/* Và mã phải DUY NHẤT: hai cảnh báo cùng mã là kế toán lọc theo mã ra nhầm dòng. */
+	$ma_ds = array_column( $php_warn, 'code' );
+	t( '🔴 mã cảnh báo không trùng nhau', count( $ma_ds ) === count( array_unique( $ma_ds ) ),
+		implode( ',', $ma_ds ) );
+}
 
 // ============================================================ kết
 if ( $truot ) {

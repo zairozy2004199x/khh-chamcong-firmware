@@ -310,6 +310,31 @@ class VHJP_Auth {
 	}
 
 	/**
+	 * Tên vai trò để ĐƯA VÀO CÂU CHẶN.
+	 *
+	 * 🔴 Hai câu chặn vai trò phải NÓI RA ĐANG LÀ AI và LÀM GÌ TIẾP. Cả hai màn dùng CHUNG một
+	 *    cửa đăng nhập, nên PIN kế toán mở được cả màn nhân viên và ngược lại — vào được nhưng
+	 *    bấm gì cũng bị chặn. Câu cũ của bản gốc chỉ ghi *"Chức năng này dành cho nhân viên"*:
+	 *    đúng nhưng vô dụng, người đọc không biết mình đang đăng nhập bằng PIN nào. Anh Andy
+	 *    mắc đúng chỗ này 06/08/2026 — gõ PIN kế toán vào màn nhân viên rồi bấm "Mở báo cáo".
+	 */
+	public static function ten_vai_tro( $u ) {
+		$r = VHJP_Doc::str( isset( $u['role'] ) ? $u['role'] : '' );
+		if ( self::la_kt( array( 'role' => $r ) ) ) { return 'KẾ TOÁN'; }
+		if ( self::VAI_NV === $r ) { return 'NHÂN VIÊN'; }
+		return '' !== $r ? $r : 'chưa đặt';
+	}
+
+	/** Câu chặn khi màn này của nhân viên mà người đăng nhập không phải nhân viên. */
+	public static function cau_chan_nv( $u ) {
+		return 'Màn này của NHÂN VIÊN CƠ SỞ, mà mã PIN vừa nhập là tài khoản '
+			. self::ten_vai_tro( $u ) . ' ('
+			. ( VHJP_Doc::str( isset( $u['hoTen'] ) ? $u['hoTen'] : '' ) ?: '—' ) . '). '
+			. 'Thoát ra rồi đăng nhập lại bằng mã PIN của cơ sở. '
+			. 'Quên PIN cơ sở thì vào web kế toán → Cấu hình → Tài khoản → Cấp lại.';
+	}
+
+	/**
 	 * CẤP TÀI KHOẢN ĐẦU TIÊN — chỉ khi sổ người dùng HOÀN TOÀN rỗng.
 	 *
 	 * =========================================================================================

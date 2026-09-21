@@ -84,7 +84,8 @@ class VHJP_Tinh {
 				'msg' => 'Hoàn khách không chia tròn cho giá 1 trứng' ),
 			'PRICE_NO_RATE'    => array( 'code' => 'W14', 'part' => 'REV',
 				'msg' => 'Mã hàng không suy ra được giá — không đối chiếu được với tiền, '
-					. 'và nếu mã không có trong danh mục thì kho không tìm được lớp tồn' ),
+					. 'và nếu mã không có trong danh mục thì duyệt xong kho không tìm '
+					. 'được lớp tồn nên giá vốn về 0đ (sổ 632 thiếu)' ),
 			'LECH_QUY_TRUNG'   => array( 'code' => 'W16', 'part' => 'REV',
 				'msg' => 'Tiền thừa đã được quy ra số trứng bán thêm' ),
 			'COIN_VS_MONEY'    => array( 'code' => 'W3',  'part' => 'REV',
@@ -92,10 +93,21 @@ class VHJP_Tinh {
 			'VS_PAYBOX'        => array( 'code' => 'W4',  'part' => 'REV',
 				'msg' => 'Không khớp Pay Box (tiền mặt + chuyển khoản)' ),
 			'LECH_MAY_LON'     => array( 'code' => 'W15', 'part' => 'REV',
-				'msg' => 'Lệch máy lớn — soát lại trước khi ký' ),
+				'msg' => 'Lệch máy lớn bất thường so với doanh thu' ),
 			'COIN_REMAINDER'   => array( 'code' => 'W12', 'part' => 'REV',
 				'msg' => 'Tổng xu không chia hết cho giá xu',
 				'gop' => 'DU_XU', 'gopDv' => ' xu' ),
+			/* ───────────── Ba mã KHÔNG do phép tính dòng sinh ra ─────────────
+			 * W7 và W17 là của đường ẢNH, W11 là của đường MỞ BÁO CÁO. Chúng phải nằm ở
+			 * ĐÂY chứ không nằm rải rác tại nơi dùng: bảng này là nguồn duy nhất của câu
+			 * chữ, và `kiem-jp-tinh.php` đối chiếu CẢ BẢNG với mã gốc. Khai ở chỗ dùng là
+			 * phép đối chiếu ấy không nhìn thấy, rồi câu chữ hai bản trôi khỏi nhau. */
+			'MISSING_PHOTO'    => array( 'code' => 'W7',  'part' => 'STOCK',
+				'msg' => 'Thiếu ảnh so với cấu hình' ),
+			'KY_CHONG'         => array( 'code' => 'W11', 'part' => 'REV',
+				'msg' => 'Kỳ chồng với báo cáo khác' ),
+			'THIEU_CUM_QR'     => array( 'code' => 'W17', 'part' => 'STOCK',
+				'msg' => 'Có tiền QR/CK mà chưa chọn cụm nên không có chỗ gắn ảnh Pay Box' ),
 		);
 	}
 
