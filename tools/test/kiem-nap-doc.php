@@ -195,7 +195,7 @@ t( '   và nói rõ thiếu gì', ! empty( $r4['canh'] ), $r4 );
    ═════════════════════════════════════════════════════════════════════════════════════════
    🔴 PHẦN NÀY CANH ĐÚNG MỘT CON SỐ: 9 GIỜ 25 CỦA N.KIỆT NGÀY 11.
       Bộ đọc trả về khoảng nghỉ đúng chưa đủ — khoảng ấy phải ĐẾN ĐƯỢC cột `nghi_tu_giay` của
-      hàng trong sổ, và phép tính công của chính hệ (`VHCC_PDF::phut_lam`, thứ in ra tờ A4 và
+      hàng trong sổ, và phép tính công của chính hệ (`VHCC_Pdf::phut_lam`, thứ in ra tờ A4 và
       chạy trong bảng lương) phải nhìn thấy nó. Đứt ở bất kỳ mắt nào giữa hai đầu thì ngày ấy
       thành 13 giờ 30, và không có gì kêu.
    ───────────────────────────────────────────────────────────────────────────────────────── */
@@ -301,7 +301,7 @@ t( '🔴 khoảng nghỉ giữa hai ca ĐÃ VÀO SỔ: 13:00 → 17:05',
 	$k && '13:00' === hhmm( (int) $k['nghi_tu_giay'] ) && '17:05' === hhmm( (int) $k['nghi_den_giay'] ), $k );
 /* Phép tính công của CHÍNH HỆ — thứ in ra tờ A4 và chạy trong bảng lương. Đây mới là chỗ con
    số thành tiền; khoảng nghỉ nằm đúng cột mà phép tính không nhìn thấy thì vẫn trả dư như cũ. */
-$phut = $k ? VHCC_PDF::phut_lam( (int) $k['gio_vao_giay'], (int) $k['gio_ra_giay'],
+$phut = $k ? VHCC_Pdf::phut_lam( (int) $k['gio_vao_giay'], (int) $k['gio_ra_giay'],
 	$k['nghi_tu_giay'], $k['nghi_den_giay'] ) : null;
 t( '🔴 hệ tính ra 9 GIỜ 25, KHÔNG PHẢI 13 GIỜ 30', 565 === (int) $phut,
 	( null === $phut ? 'null' : ( intdiv( $phut, 60 ) . 'h' . ( $phut % 60 ) ) ) );
@@ -682,6 +682,93 @@ t( 'in tháng theo kiểu bảng gốc: 8/2026', '8/2026' === VHCC_NapDoc::thang
 t( '   bỏ số 0 đứng đầu', '4/2026' === VHCC_NapDoc::thang_chu( '2026-04' ),
 	VHCC_NapDoc::thang_chu( '2026-04' ) );
 t( '   chuỗi lạ thì trả nguyên, không bịa', 'abc' === VHCC_NapDoc::thang_chu( 'abc' ) );
+
+/* ═════════════════════════════════════════════════════════════════════════════════════════
+   8. NẠP ĐÈ LÊN NGÀY ĐÃ CÓ GIỜ — anh Thắng 21/09/2026: *"Nạp vào mà có giờ cũ, nó sẽ lấy
+      theo giờ nạp"*
+   ═════════════════════════════════════════════════════════════════════════════════════════
+   🔴 KHÔNG PHẢI. `ghi_gio()` chỉ NỚI khung [vào, ra] — không thu hẹp, không thay. Đo thật:
+
+        máy ghi 08:00→13:00 (5 giờ) · bảng ghi 17:00→22:00 (5 giờ)  ->  08:00→22:00 = 14 GIỜ
+
+   Không phải 5, không phải 10. Hai nguồn không biết nhau nên không có khoảng nghỉ nào ở giữa,
+   trong khi hai ca cùng nằm TRONG bảng thì `dat_nghi_giua()` có ghi. Chín tiếng dư cho một
+   người một ngày, im lặng — và tháng 8/2026 của anh Thắng ĐÃ CÓ dữ liệu máy chấm sẵn.
+
+   Không tự đoán hộ được: máy 13:06→17:05 với bảng 13:00→17:05 là CÙNG một ca gõ lệch vài phút,
+   ghi khoảng nghỉ vào giữa đó là bậy. Nên để NGƯỜI quyết, mặc định là cái an toàn.
+   ───────────────────────────────────────────────────────────────────────────────────────── */
+
+$CS4 = 'NAPDOC_CS4';
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'NK1', 'ho_ten' => 'Nguyễn Tuấn Kiệt',
+	'cua_hang' => $CS4, 'vai_tro' => 'Nhân viên', 'pin_dang_nhap' => '',
+	'chuc_vu' => 'Nhân viên quầy', 'trang_thai_lam_viec' => 'Đang làm' ) );
+$MAP4 = array( 'N.Kiệt' => 'NK1' );
+
+/* Máy chấm đã ghi ngày 3 một ca SÁNG; bảng thì ghi ca CHIỀU cho chính ngày ấy.
+   (Bảng mẫu: N.Kiệt ngày 3 không có ca, nên dựng thêm cho đúng hình dạng cần thử.) */
+$de = $B;
+$de[4][13] = '17:00';
+$de[4][14] = '22:00';
+$de[4][15] = '05:00';
+VHCC_Nhan::ghi_gio( $CS4, '2026-04-03', 'NK1', 'Nguyễn Tuấn Kiệt', 8 * 3600, '', 'may' );
+VHCC_Nhan::ghi_gio( $CS4, '2026-04-03', 'NK1', 'Nguyễn Tuấn Kiệt', 13 * 3600, '', 'may' );
+
+$gio_cua = function ( $ngay ) use ( $wpdb, $CS4 ) {
+	$r = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . VHCC_DB::t( 'cham_cong' )
+		. ' WHERE coso=%s AND ma_nv=%s AND ngay=%s', $CS4, 'NK1', $ngay ), ARRAY_A );
+	return $r ? (int) VHCC_Pdf::phut_lam( $r['gio_vao_giay'], $r['gio_ra_giay'],
+		$r['nghi_tu_giay'], $r['nghi_den_giay'] ) : -1;
+};
+t( 'máy đã ghi 08:00→13:00 = 5 giờ', 300 === $gio_cua( '2026-04-03' ), $gio_cua( '2026-04-03' ) );
+
+/* ── MẶC ĐỊNH: chỉ điền ngày còn trống -> KHÔNG đụng ngày ấy */
+$r_an = VHCC_NapDoc::nap( $AD, $CS4, $de, $MAP4, false );
+t( '🔴 mặc định KHÔNG đụng ngày đã có giờ', 300 === $gio_cua( '2026-04-03' ), $gio_cua( '2026-04-03' ) );
+t( '   và đếm ra số ngày đã bỏ qua', $r_an['bo_trung'] > 0, $r_an['bo_trung'] );
+/* Ngày còn trống thì vẫn điền bình thường — chốt an toàn không được biến thành chốt vô dụng. */
+t( '   nhưng ngày còn trống VẪN được điền', $gio_cua( '2026-04-11' ) > 0, $gio_cua( '2026-04-11' ) );
+
+/* ── KỂ RA TRƯỚC KHI GHI. Người ta phải thấy ngày nào phình, phình bao nhiêu. */
+t( '🔴 kể ra ngày giờ công sẽ PHÌNH nếu nạp đè',
+	(bool) preg_grep( '/PHÌNH RA/u', (array) $r_an['canh'] ), $r_an['canh'] );
+t( '   và nói rõ ngày nào, từ đâu thành đâu',
+	(bool) preg_grep( '#N\.Kiệt 2026-04-03: sổ 08:00→13:00, bảng 17:00→22:00 → gộp thành 08:00→22:00#u',
+		(array) $r_an['canh'] ), $r_an['canh'] );
+
+/* ── TẮT chốt -> đúng là phình ra 14 giờ. Chốt phải THẬT SỰ đang chặn một cái gì. */
+VHCC_NapDoc::nap( $AD, $CS4, $de, $MAP4, false, false );
+t( '🔴 tắt chốt thì ngày ấy phình thành 14 giờ (5 + 5 -> 14)',
+	840 === $gio_cua( '2026-04-03' ), $gio_cua( '2026-04-03' ) );
+
+/* ── Ngày mà BẢNG đúng hơn sổ thì KHÔNG phải "phình" — đừng kể chung một rổ, kẻo loãng mất
+      đúng cái cảnh báo cần đọc. */
+$CS5 = 'NAPDOC_CS5';
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'NK2', 'ho_ten' => 'Nguyễn Tuấn Kiệt',
+	'cua_hang' => $CS5, 'vai_tro' => 'Nhân viên', 'pin_dang_nhap' => '',
+	'chuc_vu' => 'Nhân viên quầy', 'trang_thai_lam_viec' => 'Đang làm' ) );
+/* Sổ có 09:00→13:00 (4 giờ); bảng ngày 11 có 08:30→22:00 nghỉ giữa 13:00–17:05 = 9h25.
+   Gộp lại vẫn ra 9h25 — bảng rộng hơn và bao trọn sổ, nên nạp đè là SỬA ĐÚNG. */
+VHCC_Nhan::ghi_gio( $CS5, '2026-04-11', 'NK2', 'Nguyễn Tuấn Kiệt', 9 * 3600, '', 'may' );
+VHCC_Nhan::ghi_gio( $CS5, '2026-04-11', 'NK2', 'Nguyễn Tuấn Kiệt', 13 * 3600, '', 'may' );
+$r_bao = VHCC_NapDoc::nap( $AD, $CS5, $B, array( 'N.Kiệt' => 'NK2' ), true );
+t( 'ngày sổ nằm gọn trong bảng -> KHÔNG kể là phình',
+	0 === count( preg_grep( '/N\.Kiệt 2026-04-11: sổ/u', (array) $r_bao['canh'] ) ), $r_bao['canh'] );
+t( '   nhưng vẫn đếm là ngày trùng', $r_bao['so_trung'] > 0, $r_bao['so_trung'] );
+
+/* 🔴 LỜI DỰ ĐOÁN PHẢI KHỚP ĐÚNG VIỆC THẬT XẢY RA — đây là phép thử đóng vòng.
+   Cảnh báo "phình / không phình" tính bằng một hàm RIÊNG (gop_khung) mô phỏng lại phép nới của
+   ghi_gio() cộng dat_nghi_giua(). Hai đường mà lệch nhau thì màn hình nói một đằng, sổ ghi một
+   nẻo — và người ta sẽ tin màn hình. Bản đầu của gop_khung() đúng là đã lệch: nó bỏ quên khoảng
+   nghỉ của BẢNG nên báo phình +4:05 cho một ngày không phình phút nào. */
+VHCC_NapDoc::nap( $AD, $CS5, $B, array(), false, false );
+$that5 = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . VHCC_DB::t( 'cham_cong' )
+	. ' WHERE coso=%s AND ma_nv=%s AND ngay=%s', $CS5, 'NK2', '2026-04-11' ), ARRAY_A );
+$p5 = (int) VHCC_Pdf::phut_lam( $that5['gio_vao_giay'], $that5['gio_ra_giay'],
+	$that5['nghi_tu_giay'], $that5['nghi_den_giay'] );
+t( '🔴 nạp đè thật -> đúng 9h25 như lời dự đoán, KHÔNG phình', 565 === $p5,
+	sprintf( '%d:%02d', intdiv( $p5, 60 ), $p5 % 60 ) );
+t( '   và khoảng nghỉ của BẢNG đã vào sổ', 13 * 3600 === (int) $that5['nghi_tu_giay'], $that5 );
 
 echo "\n";
 if ( $truot ) {

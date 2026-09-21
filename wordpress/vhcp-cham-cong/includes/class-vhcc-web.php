@@ -2459,7 +2459,11 @@ class VHCC_Web {
 				}
 			}
 			$cs_d = isset( $_POST['dcs'] ) ? wp_unslash( $_POST['dcs'] ) : '';
-			$r = VHCC_NapDoc::nap( $toi, $cs_d, $hang, $map, 'xem_doc' === $viec );
+			/* ⚠️ Ô TÍCH KHÔNG GỬI GÌ KHI BỎ TÍCH, nên phải có một ô ẩn đi kèm để phân biệt
+			   "form có ô ấy mà người ta bỏ tích" với "form chưa có ô ấy" (lượt tải tệp đầu tiên).
+			   Thiếu ô ẩn thì bỏ tích xong bấm lại vẫn ra y như cũ, và người ta tưởng nút hỏng. */
+			$chi_trong = isset( $_POST['co_chi_trong'] ) ? isset( $_POST['chi_trong'] ) : true;
+			$r = VHCC_NapDoc::nap( $toi, $cs_d, $hang, $map, 'xem_doc' === $viec, $chi_trong );
 			$r['viec'] = $viec;
 			/* Giữ lại BẢNG cho lượt bấm sau — kể cả khi lượt này lỗi, vì lỗi hay gặp nhất là
 			   "chưa chọn cơ sở", và bắt chọn lại tệp vì chuyện đó là vô lý. */
@@ -12349,6 +12353,9 @@ class VHCC_Web {
 			if ( ! empty( $b['nghi_ghi'] ) ) {
 				echo ' · <b>' . esc_html( (string) $b['nghi_ghi'] ) . '</b> ngày có nghỉ giữa ca';
 			}
+			if ( ! empty( $b['bo_trung'] ) ) {
+				echo ' · giữ nguyên <b>' . esc_html( (string) $b['bo_trung'] ) . '</b> ngày đã có giờ';
+			}
 		}
 		echo '.<br><span class="mo"><b>Một lần nạp là xong cả tháng</b> — không phải nạp từng ngày. '
 			. 'Con số <i>người × ngày</i> là số ô CÓ GIỜ trong bảng (một người đi làm một ngày tính '
@@ -12453,6 +12460,27 @@ class VHCC_Web {
 			echo '</select></td></tr>';
 		}
 		echo '</tbody></table>';
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 Ô TÍCH NÀY LÀ THỨ ĐỨNG GIỮA MỘT THÁNG LƯƠNG ĐÚNG VÀ MỘT THÁNG TRẢ DƯ.
+		 * Anh Thắng 21/09/2026: *"Nạp vào mà có giờ cũ, nó sẽ lấy theo giờ nạp"* — không phải.
+		 * `ghi_gio()` chỉ NỚI khung, nên máy chấm 08:00–13:00 gặp bảng ghi 17:00–22:00 ra
+		 * 08:00–22:00 = 14 giờ, thay vì 5 hay 10. Mặc định BẬT, tức không đụng ngày đã có giờ.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$bat = ! isset( $b['chi_trong'] ) || ! empty( $b['chi_trong'] );
+		echo '<input type="hidden" name="co_chi_trong" value="1">';
+		echo '<p style="margin:14px 0 6px"><label><input type="checkbox" name="chi_trong" value="1"'
+			. checked( $bat, true, false ) . '> <b>Chỉ điền ngày còn trống</b> — không đụng vào '
+			. 'ngày đã có giờ trong sổ</label></p>';
+		echo '<p class="mo" style="margin:0 0 12px">Bỏ dấu tích này thì ngày nào hai bên cùng có '
+			. 'giờ sẽ bị <b>nới rộng khung</b>, không phải thay bằng giờ trong bảng: máy chấm '
+			. '<i>08:00–13:00</i> gặp bảng ghi <i>17:00–22:00</i> ra <i>08:00–22:00</i> = '
+			. '<b>14 giờ</b>, chứ không phải 5 hay 10. Xem trước sẽ kể ra từng ngày như vậy.</p>';
+		if ( ! empty( $b['so_trung'] ) ) {
+			echo '<p class="mo" style="margin:0 0 12px">Tháng này có <b>'
+				. esc_html( (string) $b['so_trung'] ) . '</b> ngày sổ đã có giờ sẵn'
+				. ( empty( $b['so_phinh'] ) ? '' : ', trong đó <b>' . esc_html( (string) $b['so_phinh'] )
+					. '</b> ngày nếu nạp đè thì giờ công phình ra' ) . '.</p>';
+		}
 		echo '<div class="hang"><div><button name="viec" value="xem_doc">Lưu ghép &amp; xem lại</button></div>';
 		if ( 0 === $thieu ) {
 			echo '<div><button class="chay" name="viec" value="nap_doc">Nạp thật</button></div>';

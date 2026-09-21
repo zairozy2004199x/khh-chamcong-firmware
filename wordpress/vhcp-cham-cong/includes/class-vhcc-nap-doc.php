@@ -358,7 +358,7 @@ class VHCC_NapDoc {
 	 *                    sổ ghép đã lưu, rồi lưu lại — anh Thắng 21/09/2026 muốn "nhớ cho lần sau".
 	 * @param bool  $chi_xem true = chỉ đếm và kể, KHÔNG ghi một dòng nào. Mặc định true.
 	 */
-	public static function nap( $u, $coso, $dong, $map = array(), $chi_xem = true ) {
+	public static function nap( $u, $coso, $dong, $map = array(), $chi_xem = true, $chi_trong = true ) {
 		if ( ! VHCC_Vai::duoc( $u, 'nap_cong' ) ) {
 			return array( 'ok' => false, 'error' => 'Nạp dữ liệu công cần quyền Quản lý trở lên.' );
 		}
@@ -435,16 +435,49 @@ class VHCC_NapDoc {
 			);
 		}
 
+		/* Giờ đang có sẵn trong sổ của tháng ấy — hỏi MỘT LẦN cho cả tháng, không hỏi từng ngày. */
+		$da_co = self::gio_dang_co( $coso, $d['thang'] );
+
 		$ghi = 0;
 		$bo_luot = 0;
 		$nghi_ghi = 0;
+		$bo_trung = 0;
+		$phinh = array();
 		$ngay_co = array();
 		foreach ( $d['luot'] as $x ) {
 			$ngay_co[ $x['ngay'] ] = 1;
 			if ( ! isset( $ghep[ $x['ten'] ] ) ) { $bo_luot++; continue; }
+			$ma = $ghep[ $x['ten'] ];
+
+			/* ═══════════════════════════════════════════════════════════════════════════════
+			 * 🔴 NGÀY TRONG SỔ ĐÃ CÓ GIỜ — CHỖ CHẾT CỦA CẢ BỘ NẠP.
+			 *
+			 * Anh Thắng 21/09/2026: *"Nạp vào mà có giờ cũ, nó sẽ lấy theo giờ nạp"*. KHÔNG.
+			 * `ghi_gio()` chỉ NỚI khung [vào, ra] — không thu hẹp, không thay. Đó là luật đúng
+			 * cho máy chấm công (hai lượt quẹt của cùng một ngày phải gộp lại), nhưng đem sang
+			 * đây thì thành bẫy:
+			 *
+			 *     máy ghi 08:00→13:00 (5 giờ) · bảng ghi 17:00→22:00 (5 giờ)
+			 *     -> sổ thành 08:00→22:00 = 14 GIỜ
+			 *
+			 * Không phải 5, không phải 10. Hai nguồn không biết nhau nên không có khoảng nghỉ
+			 * nào được ghi vào giữa — và cái khoảng ấy chính là thứ `dat_nghi_giua()` sinh ra khi
+			 * hai ca cùng nằm TRONG bảng. Chín tiếng dư cho một người một ngày, im lặng.
+			 *
+			 * Không thể tự đoán hộ: máy ghi 13:06→17:05 còn bảng ghi 13:00→17:05 là CÙNG một ca
+			 * gõ lệch vài phút, ghi một khoảng nghỉ vào giữa đó là bậy. Nên đây là chỗ phải để
+			 * NGƯỜI quyết, và mặc định phải là cái an toàn: KHÔNG ĐỤNG ngày đã có giờ.
+			 * ═══════════════════════════════════════════════════════════════════════════════ */
+			$k  = $ma . '|' . $x['ngay'];
+			$cu = isset( $da_co[ $k ] ) ? $da_co[ $k ] : null;
+			if ( $cu ) {
+				$hop = self::gop_khung( $cu, $x );
+				if ( $hop ) { $phinh[] = $hop; }
+				if ( $chi_trong ) { $bo_trung++; continue; }
+			}
+
 			if ( $chi_xem ) { $ghi++; continue; }
 
-			$ma  = $ghep[ $x['ten'] ];
 
 			/* 🔴 TÊN GHI VÀO SỔ LÀ TÊN TRONG HỒ SƠ, KHÔNG PHẢI TÊN VIẾT TẮT Ở BẢNG.
 			   Anh Thắng 21/09/2026 hỏi thẳng: *"nạp vào tên hệ thống tự do hay sao, có cần sửa
@@ -487,11 +520,36 @@ class VHCC_NapDoc {
 				. ' lượt của họ KHÔNG được nạp. Chọn người cho từng tên rồi bấm lại.';
 		}
 
+		/* Kể ra những ngày hai bên CÙNG có giờ, và kể NẶNG nhất trước — ngày mà gộp khung lại
+		   thì giờ công PHÌNH RA hơn cả hai nguồn. Đó là ngày trả dư nếu cứ nạp đè. */
+		usort( $phinh, function ( $a, $b ) { return $b['them'] - $a['them']; } );
+		$nang = array();
+		foreach ( $phinh as $z ) { if ( $z['them'] > 0 ) { $nang[] = $z; } }
+		if ( $nang ) {
+			$canh[] = '🔴 ' . count( $nang ) . ' ngày mà sổ và bảng ghi KHÁC nhau, gộp lại thì giờ '
+				. 'công PHÌNH RA (máy chấm ca này, bảng ghi ca kia, không có khoảng nghỉ nào ở giữa). '
+				. ( $chi_trong
+					? 'Đang bật "chỉ điền ngày còn trống" nên mấy ngày này KHÔNG bị đụng tới.'
+					: '⚠ Đang TẮT "chỉ điền ngày còn trống" — mấy ngày này SẼ bị nới rộng khung.' );
+			foreach ( array_slice( $nang, 0, 10 ) as $z ) {
+				$canh[] = '   · ' . $z['ten'] . ' ' . $z['ngay'] . ': sổ ' . $z['cu']
+					. ', bảng ' . $z['bang'] . ' → gộp thành ' . $z['moi']
+					. ' (+' . self::gio_chu( $z['them'] * 60 ) . ')';
+			}
+			if ( count( $nang ) > 10 ) { $canh[] = '   …và ' . ( count( $nang ) - 10 ) . ' ngày nữa.'; }
+		}
+		if ( $bo_trung > 0 ) {
+			$canh[] = 'Bỏ qua ' . $bo_trung . ' ngày đã có giờ trong sổ (đang bật "chỉ điền ngày '
+				. 'còn trống"). Muốn nạp đè thì bỏ dấu tích ấy đi — nhưng đọc kỹ mấy dòng trên trước.';
+		}
+
 		return array( 'ok' => true, 'chi_xem' => (bool) $chi_xem, 'coSo' => $coso,
 			'co_san' => $co_san,
 			'thang' => $d['thang'], 'nguoi' => $nguoi, 'so_nguoi' => count( $d['nguoi'] ),
 			'so_thieu' => $thieu, 'so_ngay' => count( $ngay_co ), 'so_luot' => count( $d['luot'] ),
-			'da_ghi' => $ghi, 'bo_luot' => $bo_luot, 'nghi_ghi' => $nghi_ghi, 'canh' => $canh );
+			'da_ghi' => $ghi, 'bo_luot' => $bo_luot, 'nghi_ghi' => $nghi_ghi,
+			'chi_trong' => (bool) $chi_trong, 'bo_trung' => $bo_trung,
+			'so_trung' => count( $phinh ), 'so_phinh' => count( $nang ), 'canh' => $canh );
 	}
 
 	/**
@@ -553,6 +611,101 @@ class VHCC_NapDoc {
 		$x = isset( $a['ma_nv'] ) ? strtoupper( trim( (string) $a['ma_nv'] ) ) : '';
 		if ( '' === $x ) { $x = isset( $a['name'] ) ? (string) $a['name'] : ''; }
 		return $x;
+	}
+
+	/**
+	 * GIỜ ĐANG CÓ SẴN TRONG SỔ CỦA MỘT THÁNG — hỏi MỘT LẦN cho cả tháng.
+	 *
+	 * ⚠️ Hỏi từng ngày là một tháng 122 ngày công thành 122 truy vấn, và bước Xem trước (thứ
+	 *    người ta bấm đi bấm lại mỗi lần sửa một ô ghép tên) sẽ ì ra thấy rõ.
+	 *
+	 * @return array [ "MÃ|yyyy-mm-dd" => array( vao, ra, nghiTu, nghiDen ) ] — chỉ hàng CÓ giờ.
+	 */
+	private static function gio_dang_co( $coso, $thang ) {
+		global $wpdb;
+		$bang = VHCC_DB::t( 'cham_cong' );
+		$rows = VHCC_DB::rows( $wpdb->prepare(
+			"SELECT ma_nv, ngay, gio_vao_giay, gio_ra_giay, nghi_tu_giay, nghi_den_giay
+			 FROM $bang WHERE coso=%s AND ngay >= %s AND ngay <= %s",
+			$coso, $thang . '-01', $thang . '-31' ) );
+		$ra = array();
+		foreach ( (array) $rows as $r ) {
+			$v = ( null === $r['gio_vao_giay'] || '' === $r['gio_vao_giay'] ) ? null : (int) $r['gio_vao_giay'];
+			$x = ( null === $r['gio_ra_giay'] || '' === $r['gio_ra_giay'] ) ? null : (int) $r['gio_ra_giay'];
+			if ( null === $v && null === $x ) { continue; }   // hàng rỗng không tính là "đã có giờ"
+			$ra[ $r['ma_nv'] . '|' . $r['ngay'] ] = array(
+				'vao'     => $v,
+				'ra'      => $x,
+				'nghiTu'  => ( null === $r['nghi_tu_giay'] || '' === $r['nghi_tu_giay'] ) ? null : (int) $r['nghi_tu_giay'],
+				'nghiDen' => ( null === $r['nghi_den_giay'] || '' === $r['nghi_den_giay'] ) ? null : (int) $r['nghi_den_giay'],
+			);
+		}
+		return $ra;
+	}
+
+	/**
+	 * NẾU NẠP ĐÈ THÌ KHUNG GIỜ THÀNH GÌ, VÀ DƯ RA BAO NHIÊU PHÚT.
+	 *
+	 * Mô phỏng đúng phép NỚI của `VHCC_Nhan::ghi_gio()`: lấy đầu sớm nhất và đuôi muộn nhất của
+	 * cả hai bên, và KHÔNG sinh khoảng nghỉ nào ở giữa — vì hai nguồn không biết nhau.
+	 *
+	 * 🔴 `them` là số phút DƯ RA so với nguồn NHIỀU GIỜ HƠN, không phải so với sổ. Ngày mà bảng
+	 *    đúng hơn sổ (bảng 8 giờ, sổ 4 giờ, gộp ra 8 giờ) thì nạp đè là SỬA ĐÚNG, không phải làm
+	 *    phình — kể nó ra cùng một rổ với ngày trả dư là làm loãng đúng cái cảnh báo cần đọc.
+	 */
+	private static function gop_khung( $cu, $x ) {
+		$bv = ( null === $x['vao'] ) ? null : (int) $x['vao'];
+		$br = ( null === $x['ra'] ) ? null : (int) $x['ra'];
+		$cv = $cu['vao'];
+		$cr = $cu['ra'];
+
+		$gio = function ( $v, $r, $ntu = null, $nden = null ) {
+			if ( null === $v || null === $r ) { return 0; }
+			return (int) VHCC_Pdf::phut_lam( $v, $r, $ntu, $nden );
+		};
+		$p_cu   = $gio( $cv, $cr, $cu['nghiTu'], $cu['nghiDen'] );
+		$p_bang = $gio( $bv, $br, $x['nghiTu'], $x['nghiDen'] );
+
+		$mv = ( null === $cv ) ? $bv : ( ( null === $bv ) ? $cv : min( $cv, $bv ) );
+		$mr = ( null === $cr ) ? $br : ( ( null === $br ) ? $cr : max( $cr, $br ) );
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 KHOẢNG NGHỈ SAU KHI GỘP: BẢNG THẮNG, RỒI MỚI ĐẾN SỔ. Bản đầu chỉ xét khoảng nghỉ
+		 *    của SỔ và bỏ quên của BẢNG — phép thử bắt được ngay: sổ 09:00→13:00 gặp bảng
+		 *    08:30→22:00 (nghỉ 13:00–17:05) bị báo là "phình +4:05", trong khi thật ra `nap()`
+		 *    gọi `dat_nghi_giua()` với khoảng của BẢNG và ra đúng 9h25 — không phình một phút nào.
+		 *    Một lời cảnh báo sai chỗ còn tệ hơn không cảnh báo: nó dạy người ta bỏ qua cảnh báo.
+		 *
+		 * Thứ tự phải khớp ĐÚNG việc `nap()` làm:
+		 *   · bảng CÓ khoảng nghỉ và nó nằm gọn trong khung mới -> `dat_nghi_giua()` nhận, lấy nó;
+		 *   · bảng có nhưng không lọt (hàm ấy chối) -> khoảng của sổ còn nguyên, xét tới nó;
+		 *   · bảng không có -> `nap()` không gọi gì, khoảng của sổ giữ nguyên.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$lot = function ( $tu, $den ) use ( $mv, $mr ) {
+			return ( null !== $tu && null !== $den && null !== $mv && null !== $mr
+				&& $tu >= $mv && $den <= $mr );
+		};
+		$b_tu  = isset( $x['nghiTu'] ) ? $x['nghiTu'] : null;
+		$b_den = isset( $x['nghiDen'] ) ? $x['nghiDen'] : null;
+		if ( $lot( $b_tu, $b_den ) ) {
+			$ntu = $b_tu; $nden = $b_den;
+		} elseif ( $lot( $cu['nghiTu'], $cu['nghiDen'] ) ) {
+			$ntu = $cu['nghiTu']; $nden = $cu['nghiDen'];
+		} else {
+			$ntu = null; $nden = null;
+		}
+		$p_moi = $gio( $mv, $mr, $ntu, $nden );
+
+		$hm = function ( $v, $r ) {
+			return ( null === $v ? '—' : VHCC_DB::hhmm( $v ) ) . '→' . ( null === $r ? '—' : VHCC_DB::hhmm( $r ) );
+		};
+		return array(
+			'ten'  => $x['ten'],
+			'ngay' => $x['ngay'],
+			'cu'   => $hm( $cv, $cr ),
+			'bang' => $hm( $bv, $br ),
+			'moi'  => $hm( $mv, $mr ),
+			'them' => $p_moi - max( $p_cu, $p_bang ),
+		);
 	}
 
 	/* ========================================================================== sổ ghép tên */
