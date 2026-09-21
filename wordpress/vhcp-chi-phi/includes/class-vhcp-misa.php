@@ -143,6 +143,9 @@ class VHCP_Misa {
 				'nguoiQT'    => (string) $r['nguoi_qt'],
 				'nguoiQTNCC' => (string) $r['nguoi_qt_ncc'],
 				'ngay'       => $ngay,
+				/* Mảng của đơn — để bản xuất nói được "trong đây có bao nhiêu đơn của bên kia
+				   bàn giao sang". Xem chốt ở `$theo_khoi` dưới. */
+				'khoi'       => mb_strtolower( trim( (string) ( isset( $r['khoi'] ) ? $r['khoi'] : '' ) ) ),
 			);
 		}
 
@@ -263,7 +266,28 @@ class VHCP_Misa {
 			foreach ( $rows_by_nhom[ $g ] as $x ) { $rows[] = $x['r']; }
 		}
 
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		   ĐẾM ĐƠN THEO MẢNG — để kế toán KVC biết tệp mình sắp xuất có bao nhiêu đơn của Máy
+		   tự động bàn giao sang.
+
+		   Anh Thắng 21/09/2026: *"kế toán máy tự động duyệt xong sẽ đẩy qua kế toán KVC tổng
+		   kết"*. Bàn giao mà im lặng thì y như không bàn giao: kế toán KVC bấm Xuất, ra một tệp
+		   nhiều hơn mọi khi vài chục dòng, và không biết vì sao. Con số này là chỗ duy nhất nói
+		   ra điều đó — nó KHÔNG lọc gì cả, chỉ đếm.
+
+		   ⚠️ ĐẾM TRÊN `$seen_don`, KHÔNG PHẢI `$by_don`: `$by_don` là mọi đơn ĐỦ ĐIỀU KIỆN, còn
+		      `$seen_don` mới là đơn THẬT SỰ có dòng trong tệp này (đơn không còn dòng nào sau
+		      bộ lọc CN/NCC thì rơi ra). Đếm nhầm vế là con số không khớp với chính tệp bên dưới.
+		   ═══════════════════════════════════════════════════════════════════════════════════ */
+		$theo_khoi = array();
+		foreach ( array_keys( $seen_don ) as $m ) {
+			$k = isset( $by_don[ $m ]['khoi'] ) ? $by_don[ $m ]['khoi'] : '';
+			if ( '' === $k ) { $k = '(chưa rõ)'; }
+			$theo_khoi[ $k ] = ( isset( $theo_khoi[ $k ] ) ? $theo_khoi[ $k ] : 0 ) + 1;
+		}
+
 		return array( 'cols' => self::cols(), 'rows' => $rows, 'count' => count( $rows ), 'sodon' => $ndon,
+			'theoKhoi' => $theo_khoi,
 			'warn' => array_merge( array_keys( $warn ), VHCP_Misa::warn_ngay_xau( $ngay_xau ) ), 'maDons' => array_keys( $seen_don ) );
 	}
 

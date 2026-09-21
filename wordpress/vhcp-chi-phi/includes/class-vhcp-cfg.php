@@ -1925,6 +1925,46 @@ class VHCP_Cfg {
 	}
 
 	/**
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 * KHỐI NÀO KHÔNG TỰ XUẤT MISA — ĐƠN BÀN GIAO CHO KẾ TOÁN KVC TỔNG KẾT.
+	 *
+	 * Anh Thắng 21/09/2026: *"Chỗ phần kế toán máy tự động duyệt xong sẽ đẩy qua kế toán KVC
+	 * tổng kết (vì kế toán máy tự động chỉ check chứ ko đẩy misa)"*.
+	 *
+	 * 🔴 KHÔNG CÓ CỘT "ĐÃ BÀN GIAO" NÀO CẢ, VÀ CỐ Ý. Bàn giao xảy ra TỰ ĐỘNG lúc kế toán MTĐ
+	 *    duyệt quyết toán, nên nó đã được nói trọn vẹn bởi hai thứ CÓ SẴN: đơn mang khối 'mtd',
+	 *    và trạng thái đã sang 'Đã quyết toán'. Đẻ thêm một cột cờ thì phải: nới bảng, lấp cho
+	 *    mấy chục đơn đã ở 'Đã quyết toán' từ trước, và đóng dấu ở CẢ HAI hàm quyết toán
+	 *    (`xac_nhan_quyet_toan_cn` và `..._ncc`) — quên một chỗ là đơn duyệt xong mà nằm im,
+	 *    không ai bên KVC biết mà xuất. Suy ra thì không có gì để quên, và cũng không có gì
+	 *    lệch được.
+	 *    Ai bàn giao, lúc nào: `nguoi_qt` / `ngay_qt` đã ghi sẵn, không mất mát gì.
+	 *
+	 * 🔴 CHỈ MÁY TỰ ĐỘNG. Anh Thắng chốt 21/09/2026 khi em hỏi lại: *"Chỉ MTĐ, Văn phòng tự
+	 *    xuất MISA"*. Nên đây là DANH SÁCH, không phải phép "khác kvc thì chặn" — viết kiểu
+	 *    kia là ngày mai thêm một khối thứ tư nó bị chặn oan mà không ai khai gì.
+	 *
+	 * ⚠️ ĐỌC TÊN VAI ĐANG MANG, KHÔNG PHẢI VAI GỐC. "Kế Toán Máy Tự Động" kế thừa "Kế toán cá
+	 *    nhân" — quy về vai gốc là cả nhánh kế toán mất quyền xuất MISA, kể cả kế toán KVC.
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 */
+	const KHOI_KHONG_XUAT_MISA = array( 'mtd' );
+
+	/** Người đang gọi có được xuất / chốt MISA không. Admin không bao giờ bị chặn. */
+	public static function xuat_misa_duoc() {
+		if ( 'Admin' === VHCP_Auth::vai_tro() ) { return true; }
+		$k = self::khoi_cua_vai( VHCP_Auth::vai_hien() );
+		return ! in_array( $k, self::KHOI_KHONG_XUAT_MISA, true );
+	}
+
+	/** Tên khối cho câu báo lỗi / nhãn trên màn. */
+	public static function ten_khoi( $ma ) {
+		$m = array( 'kvc' => 'Khu vui chơi', 'mtd' => 'Máy tự động', 'vp' => 'Văn phòng' );
+		$k = mb_strtolower( trim( (string) $ma ) );
+		return isset( $m[ $k ] ) ? $m[ $k ] : $ma;
+	}
+
+	/**
 	 * Vai trò này có được bày ở bảng loại chi phí của khối $khoi không.
 	 *
 	 * Bản song sinh ở màn là `_vaiOKhoi()`. Hai bên PHẢI cùng luật: lệch một vế là bài kiểm
