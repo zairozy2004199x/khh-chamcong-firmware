@@ -35,6 +35,24 @@ function bocHam(ten) {
   const j = HTML.indexOf('\n  }', i) + 4;
   return (j > i) ? HTML.slice(i, j) : '';
 }
+/* ⚠️ Hai hàm MỚI của 21/09/2026 mà mấy hàm dưới đây gọi tới: `_daChot` (ranh giới "đã chốt
+   sổ", gom về một chỗ khi thêm bước `Đã thanh toán` cho MTĐ/VP) và `_tenTT` (chữ hiện trên
+   màn, đổi theo khối của đơn).
+   🔴 MƯỢN HÀM THẬT TRONG TRANG, KHÔNG BỊA. Bịa một cái luôn trả `false` là bệ đỡ vẫn xanh cả
+      khi luật thật hỏng — mà mấy bài này lại là nơi duy nhất CHẠY mấy hàm kia. */
+function bocNenTT() {
+  const ds = ['_daChot', '_tenTT', '_luongKhoi', '_ttTrongLuong', '_nutThanhToan'];
+  const dong = (t) => { const i = HTML.indexOf('  var ' + t + '='); return i < 0 ? '' : HTML.slice(i, HTML.indexOf('\n', i)); };
+  let n = ['TT_CHOT', 'KHOI_LUONG_CHI'].map(dong).join('\n');
+  n += '\n' + ['LUONG_KVC', 'LUONG_CHI'].map((t) => {
+    const i = HTML.indexOf('  var ' + t + '='); return i < 0 ? '' : HTML.slice(i, HTML.indexOf('};', i) + 2);
+  }).join('\n');
+  n += '\n' + ds.map(bocHam).join('\n');
+  n += "\nvar KHOI_DANG='kvc';";
+  if (n.replace(/\s/g, '').length < 200) { throw new Error('không bốc được nền trạng thái — bệ đỡ sẽ xanh giả'); }
+  return n;
+}
+const NEN_TT = bocNenTT();
 
 /* ── Sân giả: mấy ô lọc của màn Quyết toán + vài mảnh vụn app dùng chung ─────────────────── */
 const O = { qtThang: '', qtKy: '', qtCoso: '', qtKyXong: '' };
@@ -62,7 +80,7 @@ function locVoi(anMo) {
      nó luôn `true` để phần ấy đứng ngoài. Thiếu hẳn thì bài VĂNG LỖI chứ không đỏ một phép,
      và đọc ra không biết hỏng gì. */
   return new Function('el', '_thangCuaKy', '_AN_MO', '_hopKhoi',
-    fnAnVaoMo + '\n' + fnQtLoc + '\n' + fnQtLocXong +
+    NEN_TT + '\n' + fnAnVaoMo + '\n' + fnQtLoc + '\n' + fnQtLocXong +
     '\nreturn { loc:_qtLoc, locXong:_qtLocXong, an:_anVaoMo };')(el, _thangCuaKy, anMo,
     function () { return true; });
 }
@@ -117,7 +135,7 @@ function noiGi(dons, anMo) {
     return Object.prototype.hasOwnProperty.call(O, id) ? { value: O[id] } : null;
   };
   new Function('el', '_thangCuaKy', '_AN_MO', 'BOOT',
-    fnDaQT + '\n' + fnAnVaoMo + '\n' + fnEmpty + '\n_qtEmptyXongText(0);')(el2, _thangCuaKy, anMo, { dons: dons });
+    NEN_TT + '\n' + fnDaQT + '\n' + fnAnVaoMo + '\n' + fnEmpty + '\n_qtEmptyXongText(0);')(el2, _thangCuaKy, anMo, { dons: dons });
   return O2.qtEmptyXong.textContent;
 }
 const XONG_MO = { maDon: 'D1', ky: 'Tuần 2 · 09/2026', trangThai: 'Đã quyết toán', bpMo: true };
@@ -144,7 +162,7 @@ xoaLoc();
 function veDai(boot, anMo) {
   const hop = { style: {}, innerHTML: '' };
   new Function('el', 'esc', 'BOOT', '_AN_MO', 'toggleAnMo',
-    fnBanner + '\nrenderBpBanner();')(
+    NEN_TT + '\n' + fnBanner + '\nrenderBpBanner();')(
     function (id) { return id === 'bpBanner' ? hop : null; }, esc, boot, anMo, function () {});
   return hop;
 }
@@ -179,7 +197,7 @@ const fnRow = bocHam('_qtRowHtml');
 t('bốc được _qtRowHtml()', fnRow.length > 200);
 function veHang(d) {
   return new Function('el', 'esc', 'money', 'canDo', '_laChim', 'stCls', 'd',
-    fnRow + '\nreturn _qtRowHtml(d, false, 9);')(
+    NEN_TT + '\n' + fnRow + '\nreturn _qtRowHtml(d, false, 9);')(
     function () { return null; }, esc,
     function (x) { return String(Number(x) || 0); },
     function () { return true; },
@@ -203,7 +221,7 @@ const KHO = {};
 const goi = [];
 function chayToggle(check) {
   const f = new Function('localStorage', 'renderBpBanner', 'renderQTList', 'renderDuyet', '_AN_MO',
-    fnToggle + '\nreturn function(o){ toggleAnMo(o); return _AN_MO; };')(
+    NEN_TT + '\n' + fnToggle + '\nreturn function(o){ toggleAnMo(o); return _AN_MO; };')(
     { getItem: function (k) { return Object.prototype.hasOwnProperty.call(KHO, k) ? KHO[k] : null; },
       setItem: function (k, v) { KHO[k] = String(v); } },
     function () { goi.push('banner'); }, function () { goi.push('qt'); }, function () { goi.push('duyet'); }, false);
@@ -227,7 +245,7 @@ t('bốc được _qtTrongMan()', fnTrongMan.length > 40);
 function trongManVoi(anMo) {
   /* ⚠️ `_hopKhoi` cho luôn `true` — xem chú thích ở `locVoi()`. */
   return new Function('_AN_MO', '_hopKhoi',
-    fnDaQT + '\n' + fnAnVaoMo + '\n' + fnTrongMan + '\nreturn _qtTrongMan;')(anMo,
+    NEN_TT + '\n' + fnDaQT + '\n' + fnAnVaoMo + '\n' + fnTrongMan + '\nreturn _qtTrongMan;')(anMo,
     function () { return true; });
 }
 const D_CHIM = { maDon: 'D_TU', ky: 'Tuần 3 · 09/2026', trangThai: 'Đã cấp tạm ứng', bpMo: true };
@@ -252,7 +270,7 @@ function chayQTList(dons, anMo, hopKhoi) {
   new Function('el', 'BOOT', '_AN_MO', 'QT_XEM', '_thangCuaKy', 'canDo', 'renderBpBanner',
     '_napLocDon', '_napKyRieng', '_qtVeBang', '_qtVeChuaNop', '_qtEmptyXongText', 'qtUpdateBar',
     '_laChim', '_kyVal', '_hopKhoi', 'thu',
-    fnDaQT + '\n' + fnAnVaoMo + '\n' + fnTrongMan + '\n' + fnQtLoc + '\n' + fnQtLocXong + '\n' +
+    NEN_TT + '\n' + fnDaQT + '\n' + fnAnVaoMo + '\n' + fnTrongMan + '\n' + fnQtLoc + '\n' + fnQtLocXong + '\n' +
     fnQTList + '\nrenderQTList();')(
     el4, { dons: dons }, anMo, 'bang', _thangCuaKy, function () { return false; }, function () {},
     function (l) { thu.loc = l.map(function (x) { return x.maDon; }); },
@@ -295,7 +313,7 @@ function duyetVoi(dons, anMo, hopKhoi) {
   };
   new Function('el', 'esc', 'money', 'canDo', 'stCls', 'BOOT', 'CURUSER', '_AN_MO',
     '_thangCuaKy', '_napLocDon', '_renderTongLH', '_tachDonVi', 'dvUpdateBar', 'ghiLai', '_hopKhoi',
-    fnAnVaoMo + '\n' + fnDuyet + '\nrenderDuyet();')(
+    NEN_TT + '\n' + fnAnVaoMo + '\n' + fnDuyet + '\nrenderDuyet();')(
     function (id) { return Object.prototype.hasOwnProperty.call(O3, id) ? O3[id] : null; },
     esc, function (x) { return String(Number(x) || 0); }, function () { return true; },
     function () { return 'st-duyet'; }, { dons: dons }, { role: 'Kế toán máy tự động' }, anMo,

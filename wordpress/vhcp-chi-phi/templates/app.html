@@ -2710,7 +2710,7 @@
     try{ if(typeof loadTongQuan==='function' && CUR_PAGE==='tongquan') loadTongQuan(); }catch(e){}
     var d=_myDons();
     if(el('donSel')) el('donSel').innerHTML='<option value="">— Chọn đơn —</option>'+d.map(function(x){
-      return '<option value="'+esc(x.maDon)+'">'+esc(x.ky||x.maDon)+(x.coso?' · '+esc(x.coso):'')+(x.nguoiLap?' · '+esc(x.nguoiLap):'')+' · '+esc(x.trangThai)+' · CL '+money(x.chenhLech)+'đ</option>';}).join('');
+      return '<option value="'+esc(x.maDon)+'">'+esc(x.ky||x.maDon)+(x.coso?' · '+esc(x.coso):'')+(x.nguoiLap?' · '+esc(x.nguoiLap):'')+' · '+esc(_tenTT(x.trangThai,x.khoi))+' · CL '+money(x.chenhLech)+'đ</option>';}).join('');
   }
   /* ══════════════════════════════════════════════════════════════════════════════════════════
    * MENU XỔ KHỐI TRÊN TAB DUYỆT TẠM ỨNG / QUYẾT TOÁN.
@@ -3019,7 +3019,7 @@
         // Mỗi đơn 1 cơ sở -> hiện thẳng ở danh sách, khỏi phải mở từng đơn ra xem
         '<td>'+(d.coso?('<b>'+esc(d.coso)+'</b>'):'<span style="color:#8c8781">chưa có dòng nào</span>')+'</td>'+
         '<td>'+esc(d.nguoiLap||'')+'</td>'+
-        '<td><span class="badge '+stCls(d.trangThai)+'">'+esc(d.trangThai)+'</span>'+(/\[KT sửa\]/.test(d.ghiChu||'')?' <span style="color:#b91c1c;font-weight:700;font-size:11px" title="Kế toán đã sửa số tiền">✎KT</span>':'')+'</td>'+
+        '<td><span class="badge '+stCls(d.trangThai)+'">'+esc(_tenTT(d.trangThai,d.khoi))+'</span>'+(/\[KT sửa\]/.test(d.ghiChu||'')?' <span style="color:#b91c1c;font-weight:700;font-size:11px" title="Kế toán đã sửa số tiền">✎KT</span>':'')+'</td>'+
         '<td class="money">'+money(d.tamUng)+'</td>'+
         '<td class="money '+cl+'">'+money(d.chenhLech)+'</td>'+
         '<td style="text-align:center;white-space:nowrap"><button class="btn '+(on?'b-p':'b-s')+'" onclick="pickDon(\''+esc(d.maDon)+'\')">'+(on?'Đang xem':'Mở')+'</button>'+(_canDelDon(d)?' <button class="btn b-d" onclick="delDon(\''+esc(d.maDon)+'\')" title="Xóa đơn nháp/lỗi">🗑</button>':'')+((CURUSER&&CURUSER.role==='Admin')?' <button class="btn b-d" onclick="delDonAdmin(\''+esc(d.maDon)+'\')" title="ADMIN: Xóa vĩnh viễn mọi trạng thái (kể cả đã xuất MISA)" style="background:#7f1d1d">🗑✕</button>':'')+'</td>'+
@@ -3477,7 +3477,7 @@
       try{ veThanhKhoi(); }catch(e){}
       var dons=_sapDon((b.dons||[]).filter(_donHienDuoc));
       el('donSel').innerHTML='<option value="">— Chọn đơn —</option>'+dons.map(function(d){
-        return '<option value="'+esc(d.maDon)+'">'+esc(d.ky||d.maDon)+(d.coso?' · '+esc(d.coso):'')+(d.nguoiLap?' · '+esc(d.nguoiLap):'')+' · '+esc(d.trangThai)+' · CL '+money(d.chenhLech)+'đ</option>';}).join('');
+        return '<option value="'+esc(d.maDon)+'">'+esc(d.ky||d.maDon)+(d.coso?' · '+esc(d.coso):'')+(d.nguoiLap?' · '+esc(d.nguoiLap):'')+' · '+esc(_tenTT(d.trangThai,d.khoi))+' · CL '+money(d.chenhLech)+'đ</option>';}).join('');
       renderDonList(dons);
       if(CUR&&CUR.don){ el('donSel').value=CUR.don.maDon; openDon(CUR.don.maDon); }   // đang mở đơn nào -> làm mới đơn đó
       else { el('donSel').value=''; _syncDonView(); }                                   // không -> hiện danh sách (không tự mở đơn)
@@ -3522,7 +3522,18 @@
   }
   function _guardTU(){ if(CUR&&CUR.lockTU){toast('warn','Tạm ứng đã duyệt — không sửa được');return true;} return false; }
   function _guardChi(){ if(CUR&&CUR.lockChi){toast('warn','Trạng thái này không cho sửa dòng chi');return true;} return false; }
-  function stCls(st){ return (st==='Đã quyết toán'||st==='Đã xuất MISA')?'st-duyet':(st==='Đã cấp tạm ứng'?'st-cap':(st==='Nháp'?'st-nhap':'st-cho')); }
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * RANH GIỚI "ĐÃ CHỐT SỔ" — MỘT CHỖ, bản song sinh của `VHCP_Don::TT_CHOT`.
+   *
+   * 🔴 TRƯỚC BẢN NÀY LUẬT ẤY NẰM RẢI RÁC SÁU CHỖ, mỗi chỗ gõ tay `st==='Đã quyết toán'||
+   *    st==='Đã xuất MISA'`. Thêm bước `Đã thanh toán` cho MTĐ/VP (21/09/2026) là phải nhớ sửa
+   *    đủ sáu — sót một chỗ thì đơn ĐÃ TRẢ TIỀN lại mở ra sửa được số, im lặng. Đúng cái mà
+   *    `VHCP_Don::TT_CHOT` bên máy chủ đã gom về một mối từ 26/08/2026, còn màn thì chưa.
+   * ⚠️ HAI BÊN PHẢI CÙNG DANH SÁCH — `kiem-luong-theo-khoi.php` canh đúng chỗ ấy.
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  var TT_CHOT=['Đã quyết toán','Đã thanh toán','Đã xuất MISA'];
+  function _daChot(st){ return TT_CHOT.indexOf(String(st||''))>=0; }
+  function stCls(st){ return _daChot(st)?'st-duyet':(st==='Đã cấp tạm ứng'?'st-cap':(st==='Nháp'?'st-nhap':'st-cho')); }
 
   /**
    * Người này có được chọn KHOẢNG NGÀY TỰ DO không?
@@ -3719,7 +3730,7 @@
          Trước đây khoá ở mọi trạng thái ngoài Nháp / Đã cấp — tức là đúng lúc quản lý trả lời
          "sửa lại rồi anh duyệt" thì nhân viên không sửa được, phải nhờ người khác trả đơn về
          Nháp. Máy chủ (`VHCP_Don::vi_sao_khong_sua`) mới là nơi gác thật; chỗ này chỉ bày nút. */
-      CUR.stChot=(st==='Đã quyết toán'||st==='Đã xuất MISA');
+      CUR.stChot=_daChot(st);
       CUR.lockChi=CUR.stChot;
       // Hiển thị card theo trạng thái (model mới: hạng mục xin trước — thực chi + phát sinh sau khi cấp)
       var _showTU=(st==='Nháp' || CUR.tuMode==='new');
@@ -3767,7 +3778,7 @@
         +'<div style="font-size:11px;color:#8c8781;margin:2px 0 6px">'+_nhanDang+'</div>'
         +'<div style="margin-bottom:5px">'+_lamDuocGi(st)+'</div>'
         +'<div style="font-size:11.5px;line-height:1.5">'+_ct.chu+'</div>'
-        +_thanhBuoc(st)+'</div>';
+        +_thanhBuoc(st, CUR&&CUR.khoi)+'</div>';
       el('donBadge').innerHTML=_dai+_traBanner+_kdBanner+_ktBanner;
       var btn=el('btnAction');
       var nhan='', tay=null, goi='';
@@ -4248,7 +4259,7 @@
     el('lineEmpty').style.display=L.length?'none':'block';
     var stNhap=(CUR&&CUR.don&&CUR.don.trangThai==='Nháp');
     var stCap =(CUR&&CUR.don&&CUR.don.trangThai==='Đã cấp tạm ứng');
-    var stFin =(CUR&&CUR.don&&(CUR.don.trangThai==='Đã quyết toán'||CUR.don.trangThai==='Đã xuất MISA'));
+    var stFin =(CUR&&CUR.don&&_daChot(CUR.don.trangThai));
     var canFlag=canDo('tichCN')&&!stFin, sd=canDo('suaDong');
     var isReturned=!!(CUR&&CUR.isReturned);
     var ktEdit=(CUR&&CUR.don&&CUR.don.trangThai==='Chờ quyết toán')&&(canDo('xacNhanQT')||canDo('duyetNCC'));   // KT sửa thẳng số tiền khi chờ quyết toán
@@ -4362,7 +4373,7 @@
                 Máy chủ (set_line_anh) mới là nơi gác thật — chỗ này chỉ bày nút ra. */
              var _vt=(CURUSER&&CURUSER.role)||'';
              var _kt=(_vt==='Kế toán cá nhân'||_vt==='Kế toán NCC'||_vt==='Admin');
-             var _chot=(CUR&&CUR.don&&(CUR.don.trangThai==='Đã quyết toán'||CUR.don.trangThai==='Đã xuất MISA'));
+             var _chot=(CUR&&CUR.don&&_daChot(CUR.don.trangThai));
              if(!(o.canThucChi||o.canEditRow) && !(_kt&&_chot)) return xem||'—';
              var _tip=_chot?'Đơn đã chốt sổ — bổ sung/đổi hóa đơn, KHÔNG đụng số tiền'
                            :(l.anh?'Đổi ảnh chứng từ dòng này':'Đính ảnh chứng từ dòng này');
@@ -4507,7 +4518,7 @@
 
        ⚠️ SỐ TẠM ỨNG KHÔNG MẤT ĐI ĐÂU: nó ở khối "Tổng tạm ứng" (`#tuCard`) phía trên, đúng chỗ
           kế toán cần để chốt số tạm ứng của tuần. */
-    var show=(st==='Đã cấp tạm ứng'||st==='Chờ quyết toán'||st==='Đã quyết toán'||st==='Đã xuất MISA');
+    var show=(st==='Đã cấp tạm ứng'||st==='Chờ quyết toán'||_daChot(st));
     el('qtCard').style.display=show?'block':'none'; if(!show) return;
     var editable=(st==='Đã cấp tạm ứng');
     var tongTU=(CUR.tongCN||{}).tamUng||0;
@@ -4597,7 +4608,7 @@
     if(st==='Chờ quyết toán'&&canDo('traDon')) h+='<button class="btn b-d" onclick="doTraLaiCur()">↩ Trả lại</button>';
     if(!h) h='<span style="font-size:12px;color:#64748b">Chỉ xem — không có thao tác cho vai trò này.</span>';
     b.innerHTML=h;
-    el('qtDone').textContent=(st==='Đã quyết toán'||st==='Đã xuất MISA')?('✅ '+st+' · CN: '+(CUR.don.ngayQT||'—')+(CUR.don.xuLy?' ('+CUR.don.xuLy+')':'')+' · NCC: '+(CUR.don.ngayQTNCC||'—')):'';
+    el('qtDone').textContent=_daChot(st)?('✅ '+st+' · CN: '+(CUR.don.ngayQT||'—')+(CUR.don.xuLy?' ('+CUR.don.xuLy+')':'')+' · NCC: '+(CUR.don.ngayQTNCC||'—')):'';
     calcQT();
   }
   function _curLoai(){ var cn=false,ncc=false; (CUR.lines||[]).forEach(function(l){ if(l.phanLoaiTT==='Nhà cung cấp'||l.cnXuLy===false)ncc=true; else cn=true; }); return {cn:cn,ncc:ncc}; }
@@ -8401,7 +8412,7 @@
         '<td>'+esc(d.ky||d.maDon)+'</td>'+'<td>'+(d.coso?esc(d.coso):'<span style="color:#8c8781">—</span>')+'</td>'+'<td>'+esc(d.nguoiLap||'')+'</td>'+
         '<td class="money">'+money(d.tamUng)+'</td><td class="money">'+money(d.thucChiCN)+'</td>'+
         '<td class="money '+ccls+'">'+(cl>0?'▲ ':(cl<0?'▼ ':''))+money(Math.abs(cl))+'</td>'+
-        '<td><span class="badge '+stCls(d.trangThai)+'">'+esc(d.trangThai)+'</span></td>'+
+        '<td><span class="badge '+stCls(d.trangThai)+'">'+esc(_tenTT(d.trangThai,d.khoi))+'</span></td>'+
         '<td style="text-align:center"><input type="checkbox" '+(d.tatToan?'checked':'')+' onchange="toggleTatToan(\''+esc(d.maDon)+'\',this.checked)" title="'+esc(tip)+'"></td>'+
       '</tr>';
     }).join('');
@@ -9179,8 +9190,42 @@
    * ⚠️ Danh sách bước phải KHỚP với `VHCP_Don::TT_LUONG` bên máy chủ. Lệch là thanh vẽ ra một
    *    luồng không có thật — và người ta tin cái hình hơn tin câu chữ.
    */
-  var TT_LUONG=['Nháp','Chờ duyệt tạm ứng','Chờ cấp tạm ứng','Đã cấp tạm ứng','Chờ quyết toán','Đã quyết toán','Đã xuất MISA'];
-  var TT_NGAN ={'Nháp':'Nháp','Chờ duyệt tạm ứng':'Chờ duyệt','Chờ cấp tạm ứng':'Chờ cấp tiền','Đã cấp tạm ứng':'Đã cấp tiền','Chờ quyết toán':'Chờ quyết toán','Đã quyết toán':'Đã quyết toán','Đã xuất MISA':'Đã xuất MISA'};
+  var TT_LUONG=['Nháp','Chờ duyệt tạm ứng','Chờ cấp tạm ứng','Đã cấp tạm ứng','Chờ quyết toán','Đã quyết toán','Đã thanh toán','Đã xuất MISA'];
+  var TT_NGAN ={'Nháp':'Nháp','Chờ duyệt tạm ứng':'Chờ duyệt','Chờ cấp tạm ứng':'Chờ cấp tiền','Đã cấp tạm ứng':'Đã cấp tiền','Chờ quyết toán':'Chờ quyết toán','Đã quyết toán':'Đã quyết toán','Đã thanh toán':'Đã thanh toán','Đã xuất MISA':'Đã xuất MISA'};
+
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * LUỒNG RIÊNG CỦA MÁY TỰ ĐỘNG / VĂN PHÒNG — bản song sinh của `VHCP_Don::LUONG_*`.
+   *
+   * Anh Thắng 21/09/2026: *"Đổi quy trình quyết toán với MTĐ và VP: Tạo Đơn · Gửi Chi · Duyệt
+   * Chi · Duyệt Quyết Toán · Thanh Toán và Xuất Misa"*, kèm *"Không đi qua đường tạm ứng"* và
+   * *"hai bước tách rời"*.
+   *
+   * 🔴 CHỈ ĐỔI CHỮ, KHÔNG ĐỔI CHUỖI LƯU TRONG SỔ — cùng luật với `_tenNhom()` ở trên. Tên trạng
+   *    thái đang được đọc ở hàng trăm chỗ; đặt bộ chuỗi mới là mỗi chốt `indexOf(...)` phải học
+   *    thêm sáu tên, và chỗ nào quên thì đơn MTĐ lọt lưới im lặng.
+   * ⚠️ HAI BÊN PHẢI CÙNG LUẬT. Lệch một vế là máy chủ chối một lượt chuyển mà màn vẫn bày nút —
+   *    người dùng bấm rồi ăn câu lỗi không hiểu. `kiem-luong-theo-khoi.php` canh đúng chỗ ấy.
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  var KHOI_LUONG_CHI=['mtd','vp'];
+  var LUONG_KVC={'Nháp':'Nháp','Chờ duyệt tạm ứng':'Chờ duyệt tạm ứng','Chờ cấp tạm ứng':'Chờ cấp tạm ứng',
+    'Đã cấp tạm ứng':'Đã cấp tạm ứng','Chờ quyết toán':'Chờ quyết toán','Đã quyết toán':'Đã quyết toán',
+    'Đã xuất MISA':'Đã xuất MISA'};
+  var LUONG_CHI={'Nháp':'Tạo đơn','Chờ duyệt tạm ứng':'Chờ duyệt chi','Đã cấp tạm ứng':'Đã duyệt chi',
+    'Chờ quyết toán':'Chờ duyệt quyết toán','Đã quyết toán':'Đã duyệt quyết toán',
+    'Đã thanh toán':'Đã thanh toán','Đã xuất MISA':'Đã xuất MISA'};
+  /** Luồng của một khối. Không truyền khối thì lấy khối đang đứng trên thanh KHỐI. */
+  function _luongKhoi(khoi){
+    var k=String(khoi===undefined?KHOI_DANG:khoi||'').toLowerCase();
+    return (KHOI_LUONG_CHI.indexOf(k)>=0)?LUONG_CHI:LUONG_KVC;
+  }
+  /* Chữ hiện trên màn cho một trạng thái. Trạng thái lạ trả NGUYÊN VĂN — đơn MTĐ lập trước bản
+     này còn đứng ở "Chờ cấp tạm ứng", vốn không có trong luồng mới; trả rỗng là màn hiện ô
+     trắng và không ai biết đơn đang ở đâu. */
+  function _tenTT(st, khoi){
+    var t=String(st||'Nháp'), l=_luongKhoi(khoi);
+    return l[t]||t;
+  }
+  function _ttTrongLuong(st, khoi){ return Object.prototype.hasOwnProperty.call(_luongKhoi(khoi), String(st||'')); }
 
   /** Một câu tiếng người trả lời đúng câu người dùng đang hỏi. */
   function _cauTrangThai(st){
@@ -9216,7 +9261,7 @@
    *    xin). Nói "sửa được" mà máy chủ chối là tệ hơn không nói gì.
    */
   function _lamDuocGi(st){
-    var chot=(st==='Đã quyết toán'||st==='Đã xuất MISA');
+    var chot=_daChot(st);
     var nhap=(st==='Nháp');
     var ds=[];
     ds.push(chot ? {ok:0,chu:'KHOÁ SỬA'} : {ok:1,chu:'SỬA ĐƯỢC'});
@@ -9306,7 +9351,7 @@
           +'<td style="padding:4px 6px">'+esc(d.ky||d.maDon)+'</td>'
           +'<td><b>'+esc(d.coso||'—')+'</b></td>'
           +'<td>'+esc(d.nguoiLap||'')+'</td>'
-          +'<td><span class="badge '+stCls(d.trangThai)+'">'+esc(d.trangThai)+'</span></td>'
+          +'<td><span class="badge '+stCls(d.trangThai)+'">'+esc(_tenTT(d.trangThai,d.khoi))+'</span></td>'
           +'<td>'+lo5+'</td>'
           +'<td style="text-align:right">'+money(d.tongTien)+'đ</td>'
           +'<td style="text-align:right"><button class="btn b-s" onclick="viewDon(\''+esc(d.maDon)+'\')">Mở</button></td>'
@@ -9454,10 +9499,14 @@
     }).join('');
   }
 
-  function _thanhBuoc(st){
-    var i=TT_LUONG.indexOf(st);
+  /* `khoi` = khối CỦA ĐƠN. Thanh bước phải vẽ luồng của đơn ấy, không phải luồng của khối
+     người xem đang đứng: kế toán KVC mở đơn MTĐ bàn giao sang (1.245.0) mà thấy thanh bước có
+     "Chờ cấp tạm ứng" thì họ đi tìm một bước không tồn tại. */
+  function _thanhBuoc(st, khoi){
+    var DS=Object.keys(_luongKhoi(khoi));
+    var i=DS.indexOf(st);
     var h='<div style="display:flex;flex-wrap:wrap;gap:3px;align-items:center;margin-top:6px">';
-    TT_LUONG.forEach(function(b,k){
+    DS.forEach(function(b,k){
       /* Ba kiểu ô: đã qua (xanh nhạt) · đang ở (đậm, viền) · chưa tới (xám). Trạng thái lạ thì
          `i` = -1, lúc ấy KHÔNG tô ô nào là "đã qua" — thà thanh trông trống còn hơn vẽ bừa một
          tiến độ không đúng. */
@@ -9465,8 +9514,8 @@
       var nen=dangO?'#0369a1':(daQua?'#e0f2fe':'#f4f1ec');
       var chu=dangO?'#fff':(daQua?'#0369a1':'#8c8781');
       h+='<span style="font-size:9.5px;font-weight:'+(dangO?'800':'600')+';padding:2px 7px;border-radius:999px;background:'+nen+';color:'+chu+';white-space:nowrap">'
-        +(daQua?'✓ ':'')+esc(TT_NGAN[b]||b)+'</span>';
-      if(k<TT_LUONG.length-1) h+='<span style="color:#e2d6c7;font-size:10px">›</span>';
+        +(daQua?'✓ ':'')+esc(_tenTT(b, khoi))+'</span>';
+      if(k<DS.length-1) h+='<span style="color:#e2d6c7;font-size:10px">›</span>';
     });
     return h+'</div>';
   }
@@ -9849,8 +9898,14 @@
     var b=el('qtBanGiao'); if(!b) return;
     if(_xuatMisaDuoc()){ b.style.display='none'; b.innerHTML=''; return; }
     b.style.display='block';
-    b.innerHTML='🔁 Duyệt quyết toán xong, đơn <b>tự chuyển sang kế toán Khu vui chơi</b> để xuất MISA — '
-      +'bên mình không cần (và không có quyền) đẩy MISA.';
+    /* ⚠️ CÂU NÀY PHẢI KỂ ĐỦ BƯỚC. Từ 1.248.0 giữa quyết toán và MISA còn một bước `Đã thanh
+       toán` (anh Thắng: *"hai bước tách rời"*) — bỏ nó khỏi câu là kế toán MTĐ duyệt xong ngồi
+       đợi, không biết còn phải bấm một nút nữa thì đơn mới sang bên kia. */
+    var _coTT=_ttTrongLuong('Đã thanh toán');
+    b.innerHTML='🔁 Duyệt quyết toán xong'
+      +(_coTT?', bấm <b>💵 Đã thanh toán</b> khi tiền đã trả — rồi đơn <b>tự chuyển sang kế toán Khu vui chơi</b>'
+             :', đơn <b>tự chuyển sang kế toán Khu vui chơi</b>')
+      +' để xuất MISA — bên mình không cần (và không có quyền) đẩy MISA.';
   }
   // Thứ tự giai đoạn (đầu -> cuối): đơn chưa duyệt/chờ tạm ứng lên trên, đã quyết toán/đã xuất MISA xuống dưới
   var QT_ST_ORDER=['Nháp','Chờ duyệt tạm ứng','Chờ cấp tạm ứng','Đã cấp tạm ứng','Chờ quyết toán','Đã quyết toán','Đã xuất MISA'];
@@ -9886,7 +9941,11 @@
      ⚠️ Bên máy chủ đã chốt đúng ranh giới này từ trước, ở `VHCP_Don::TT_CHOT`:
         'Đã xuất MISA' nằm SAU 'Đã quyết toán' trong luồng, nên nó cũng là đã chốt. Chỗ này
         chỉ là màn hình đi lệch khỏi cái chốt đó. */
-  function _daQT(d){ return d && (d.trangThai==='Đã quyết toán'||d.trangThai==='Đã xuất MISA'); }
+  /* 🔴 `Đã thanh toán` PHẢI CÓ Ở ĐÂY. Nó là bước MỚI của MTĐ/VP, đứng SAU `Đã quyết toán` —
+     thiếu nó thì đơn vừa bấm "Đã thanh toán" xong là BIẾN MẤT khỏi cả hai bảng của màn Quyết
+     toán: không còn ở "Chờ", cũng không vào "Đã". Tiền có thật mà không màn nào thấy — đúng
+     kiểu hỏng mà mọi chốt khối trong tệp này dựng lên để tránh, lần này ở trục trạng thái. */
+  function _daQT(d){ return !!d && _daChot(d.trangThai); }
   function _qtSums(rows){
     var tu=0, mua=0;
     (rows||[]).forEach(function(d){
@@ -9959,11 +10018,37 @@
       '<td class="money">'+money(d.tamUng)+'</td><td class="money">'+(chim?'—':money(mua))+'</td>'+
       '<td class="money '+(chim?'':cl)+'">'+(chim?'—':money(d.chenhLech))+'</td>'+
       '<td>'+esc(d.httt||'')+'</td>'+
-      '<td><span class="badge '+stCls(d.trangThai)+'">'+esc(d.trangThai)+'</span>'+(/\[KT sửa\]/.test(d.ghiChu||'')?' <span style="color:#b91c1c;font-weight:700;font-size:11px" title="Kế toán đã sửa số tiền">✎KT</span>':'')+
+      '<td><span class="badge '+stCls(d.trangThai)+'">'+esc(_tenTT(d.trangThai,d.khoi))+'</span>'+(/\[KT sửa\]/.test(d.ghiChu||'')?' <span style="color:#b91c1c;font-weight:700;font-size:11px" title="Kế toán đã sửa số tiền">✎KT</span>':'')+
       /* Đơn lọt vào đây mà KHÔNG dòng nào khai đúng bộ phận đang bó — đánh dấu tại chỗ, để kế
          toán biết ngay đơn nào là "chưa rõ", thay vì phải mở từng đơn ra dò. */
       (d.bpMo?' <span style="color:#b45309;font-weight:700;font-size:11px" title="Chưa rõ đơn này thuộc bộ phận nào — loại chi phí trên đơn chưa khai ô Bộ phận ở ⚙️ Cấu hình">❓BP</span>':'')+'</td>'+
-      '<td style="text-align:center;white-space:nowrap">'+duyetBtn+'<button class="btn b-s" onclick="viewDon(\''+esc(d.maDon)+'\')">📄 Chi tiết</button></td></tr>';
+      '<td style="text-align:center;white-space:nowrap">'+duyetBtn+_nutThanhToan(d)+'<button class="btn b-s" onclick="viewDon(\''+esc(d.maDon)+'\')">📄 Chi tiết</button></td></tr>';
+  }
+  /* ═════════════════════════════════════════════════════════════════════════════════
+   * NÚT "ĐÃ THANH TOÁN" — chỉ hiện với đơn của khối CÓ bước ấy, và đúng lúc.
+   *
+   * Anh Thắng 21/09/2026 chốt thanh toán và xuất MISA là *"hai bước tách rời"*: duyệt quyết
+   * toán xong tiền chưa chắc đã trả (còn nằm ở công nợ 331), mà xuất MISA lại là việc của kế
+   * toán Khu vui chơi (1.245.0). Gộp hai việc vào một nút là bấm Xuất MISA thành ra khai luôn
+   * "đã trả tiền" cho một khoản chưa trả.
+   *
+   * ⚠️ HỎI KHỐI CỦA ĐƠN, không phải khối đang đứng: kế toán KVC mở danh sách có lẫn đơn MTĐ
+   *    bàn giao sang, và nút phải theo từng dòng chứ không theo cả màn.
+   * ⚠️ CHỐT THẬT Ở MÁY CHỦ (`danh_dau_thanh_toan`). Đây chỉ là lớp bày nút.
+   * ═════════════════════════════════════════════════════════════════════════════════ */
+  function _nutThanhToan(d){
+    if(!d || d.trangThai!=='Đã quyết toán') return '';
+    if(!_ttTrongLuong('Đã thanh toán', d.khoi)) return '';
+    if(!canDo('xacNhanQT')) return '';
+    return '<button class="btn b-g" onclick="doThanhToan(\''+esc(d.maDon)+'\')" title="Tiền đã trả xong — chuyển sang chờ xuất MISA">💵 Đã thanh toán</button> ';
+  }
+  function doThanhToan(ma){
+    if(!confirm('Xác nhận đơn '+ma+' ĐÃ THANH TOÁN?\n\nSau bước này đơn mới ra bản xuất MISA.')) return;
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(r&&r.success){ toast('ok','Đã đánh dấu thanh toán'); _log('Đánh dấu đã thanh toán', ma, ''); loadQT(); }
+      else toast('err',(r&&r.error)||'Lỗi');
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).danhDauThanhToan(ma, (CURUSER&&CURUSER.name)||'');
   }
   function qtGroupToggle(gid, el){
     var open=el.getAttribute('data-open')==='1';
@@ -10616,7 +10701,7 @@
       return '<tr>'+chk+'<td>'+esc(d.ky||d.maDon)+'</td><td>'+esc(d.nguoiLap||'')+'</td><td style="font-size:12px">'+esc(d.coso||'')+'</td>'+
         '<td class="money">'+money(d.tamUng)+'</td><td class="money">'+money(d.thucChiCN)+'</td><td class="money">'+money(d.thucChiNCC)+'</td>'+
         '<td class="money '+cl+'">'+money(d.chenhLech)+'</td>'+
-        '<td><span class="badge '+stCls(st)+'">'+esc(st)+'</span>'+info+'</td>'+
+        '<td><span class="badge '+stCls(st)+'">'+esc(_tenTT(st,d.khoi))+'</span>'+info+'</td>'+
         '<td style="text-align:center;white-space:nowrap">'+act+'</td></tr>';
     });
     if(el('dvChkAll')) el('dvChkAll').checked=false;

@@ -53,7 +53,10 @@ VHCP_Cfg::write( VHCP_Cfg::COSO, array(
 VHCP_Cfg::clear_cache();
 global $wpdb;
 $wpdb->insert( VHCP_DB::t( 'don' ), array( 'ma_don' => 'D777', 'ky' => '01/09/2026', 'nguoi_lap' => 'NV Thử',
-	'don_vi' => '', 'khoi' => 'mtd', 'ngay_tao' => '2026-09-01 08:00:00', 'trang_thai' => 'Đã quyết toán',
+	'don_vi' => '', /* 🔴 `Đã thanh toán`, KHÔNG phải `Đã quyết toán`. Từ 21/09/2026 đơn MTĐ chỉ ra bản xuất SAU
+	   khi đánh dấu thanh toán — anh Thắng chốt thanh toán và xuất MISA là *"hai bước tách rời"*.
+	   Để `Đã quyết toán` ở đây là bài kiểm này xanh trong khi luật thật đã đổi. */
+	'khoi' => 'mtd', 'ngay_tao' => '2026-09-01 08:00:00', 'trang_thai' => 'Đã thanh toán',
 	'nguoi_qt' => 'KT Thử', 'ngay_qt' => '2026-09-02 08:00:00', 'ghi_chu' => '' ) );
 $wpdb->insert( VHCP_DB::t( 'chiphi' ), array( 'ma_don' => 'D777', 'ngay' => '2026-09-01', 'coso' => 'GIAN THỬ',
 	'nhom' => 'Chi phí khác', 'noi_dung' => 'Thay bo mach ghe', 'thanh_tien' => 2500000,

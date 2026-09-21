@@ -3959,7 +3959,9 @@ teq( 'và ra cùng con số với đơn kia của quản lý', VHCP_Util::num( $
    toán mới không được sửa, còn lại nhân viên đều được sửa và bổ sung đơn."*                    */
 
 /* ---- ranh giới: chỉ hai trạng thái là chốt ---- */
-teq( 'chốt sổ đúng hai trạng thái', array( 'Đã quyết toán', 'Đã xuất MISA' ), VHCP_Don::TT_CHOT );
+/* Ba, không phải hai, từ 21/09/2026: `Đã thanh toán` là bước riêng của MTĐ/VP, đứng SAU
+   `Đã quyết toán` nên đương nhiên đã chốt sổ — xem `kiem-luong-theo-khoi.php`. */
+teq( 'chốt sổ đúng ba trạng thái', array( 'Đã quyết toán', 'Đã thanh toán', 'Đã xuất MISA' ), VHCP_Don::TT_CHOT );
 foreach ( array( 'Nháp', 'Chờ duyệt tạm ứng', 'Chờ cấp tạm ứng', 'Đã cấp tạm ứng', 'Chờ quyết toán' ) as $_st_mo ) {
 	t( 'trạng thái "' . $_st_mo . '" KHÔNG phải chốt sổ', ! VHCP_Don::da_chot( $_st_mo ) );
 }

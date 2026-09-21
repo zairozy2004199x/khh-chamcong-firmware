@@ -190,8 +190,11 @@ t('đính ảnh được ngay khi đơn còn Nháp (không đợi cấp tạm �
 /* 🔴 ĐƠN ĐÃ CHỐT SỔ VẪN PHẢI BỔ SUNG ĐƯỢC HÓA ĐƠN — nhưng chỉ KẾ TOÁN. Hóa đơn giấy về sau
    ngày chốt, hoặc hóa đơn sai phải thay, là chuyện thường; khóa luôn cả ảnh là bộ chứng từ
    vĩnh viễn thiếu trong khi số tiền đã đúng rồi. */
+/* ⚠️ CANH ĐI QUA `_daChot`, KHÔNG GHIM CHUỖI. Ranh giới "đã chốt" nay là một hàm (bản song
+   sinh của `VHCP_Don::TT_CHOT`) — từ 21/09/2026 nó có thêm `Đã thanh toán` của MTĐ/VP. Ghim
+   chuỗi là mỗi lần thêm bước lại phải sửa bài, mà hành vi cần canh thì không đổi. */
 t('đơn đã chốt sổ: kế toán vẫn thấy nút đính hóa đơn',
-  /_kt&&_chot/.test(HTML) && /Đã quyết toán'\|\|CUR\.don\.trangThai==='Đã xuất MISA'/.test(HTML));
+  /_kt&&_chot/.test(HTML) && /_chot\s*=\s*\(CUR&&CUR\.don&&_daChot\(CUR\.don\.trangThai\)\)/.test(HTML));
 t('và nút đó nói rõ là KHÔNG đụng số tiền',
   /bổ sung\/đổi hóa đơn, KHÔNG đụng số tiền/.test(HTML));
 /* Máy chủ mới là nơi gác thật — giao diện chỉ bày nút. Nếu chỉ giấu nút mà máy chủ vẫn nhận

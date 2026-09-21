@@ -150,7 +150,15 @@ class VHCP_Misa {
 			$x_ncc  = ( VHCP_Util::fmt( $r['ngay_xuat_ncc'] ) !== '' );
 			if ( $pl_f === 'cn' )        { $take = $qt_cn  && ( $mode === 'daxuat' ? $x_cn  : ! $x_cn ); }
 			elseif ( $pl_f === 'ncc' )   { $take = $qt_ncc && ( $mode === 'daxuat' ? $x_ncc : ! $x_ncc ); }
-			else                         { $take = ( $mode === 'daxuat' ? ( $r['trang_thai'] === 'Đã xuất MISA' ) : ( $r['trang_thai'] === 'Đã quyết toán' ) ); }
+			else {
+				/* 🔴 "SẴN SÀNG ĐỂ XUẤT" LÀ BƯỚC NGAY TRƯỚC `Đã xuất MISA` — TUỲ KHỐI, không gõ cứng.
+				   Bên KVC đó là `Đã quyết toán`. Bên MTĐ/VP còn một bước `Đã thanh toán` chen vào
+				   giữa (anh Thắng 21/09/2026: thanh toán và xuất MISA là *"hai bước tách rời"*),
+				   nên gõ cứng là đơn MTĐ vừa duyệt quyết toán đã rơi vào bản xuất — tức xuất MISA
+				   cho một khoản chưa trả tiền. */
+				$san = VHCP_Don::tt_truoc_misa( isset( $r['khoi'] ) ? $r['khoi'] : '' );
+				$take = ( $mode === 'daxuat' ? ( $r['trang_thai'] === 'Đã xuất MISA' ) : ( $r['trang_thai'] === $san ) );
+			}
 			if ( ! $take ) { continue; }
 			/* 🔴 XUẤT MISA CŨNG PHẢI THEO ĐƠN VỊ. Đây là chỗ tiền ĐI RA sổ kế toán, nên hở ở
 			   đây nặng hơn hở ở một màn xem: kế toán POSH bấm Xuất là tệp mang luôn đơn của
