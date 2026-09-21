@@ -70,6 +70,8 @@ class KHTC_GiaoDich {
 		if ( empty( $d['ngan_hang_id'] ) ) {
 			return new WP_Error( 'nh', 'Chưa chọn tài khoản ngân hàng.' );
 		}
+		$chan = KHTC_Khoa::chan( $ngay, 'thêm' );
+		if ( $chan ) { return $chan; }
 		$so_tien = self::doc_so( $d['so_tien'] ?? '' );
 		$loai    = ( ( $d['loai'] ?? '' ) === 'chi' ) ? 'chi' : 'thu';
 		// Số âm mà không nói rõ thu/chi thì hiểu là chi — giống quy ước dán sao kê.
@@ -92,7 +94,14 @@ class KHTC_GiaoDich {
 			),
 			array( '%s', '%d', '%s', '%s', '%d', '%s', '%s', '%s', '%s' )
 		);
-		return (int) $wpdb->insert_id;
+		$moi = (int) $wpdb->insert_id;
+		KHTC_NhatKy::ghi(
+			'them',
+			'giao_dich',
+			$moi,
+			sprintf( '%s %s ngày %s — %s', 'chi' === $loai ? 'Chi' : 'Thu', number_format( $so_tien, 0, ',', '.' ) . ' đ', mysql2date( 'd/m/Y', $ngay ), (string) ( $d['dien_giai'] ?? '' ) )
+		);
+		return $moi;
 	}
 
 	/**
@@ -104,6 +113,8 @@ class KHTC_GiaoDich {
 		$dong  = preg_split( '/\r\n|\r|\n/', (string) $text );
 		$them  = 0;
 		$loi   = array();
+		// Một dòng nhật ký cho cả lô, không phải một dòng cho mỗi giao dịch.
+		KHTC_NhatKy::mo_lo();
 		foreach ( $dong as $i => $d ) {
 			$d = trim( $d );
 			if ( '' === $d ) { continue; }
@@ -131,6 +142,16 @@ class KHTC_GiaoDich {
 				$them++;
 			}
 		}
+		KHTC_NhatKy::dong_lo();
+		$nh = KHTC_NganHang::mot( $ngan_hang_id );
+		KHTC_NhatKy::ghi(
+			'nap',
+			'giao_dich',
+			0,
+			sprintf( 'Nạp %d giao dịch vào %s%s', $them, $nh ? $nh->ten : '?', $loi ? ' (' . count( $loi ) . ' dòng lỗi)' : '' ),
+			null,
+			true
+		);
 		return array( 'them' => $them, 'loi' => $loi );
 	}
 
@@ -186,6 +207,16 @@ class KHTC_GiaoDich {
 
 	public static function xoa( $id ) {
 		global $wpdb;
+		$g = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . KHTC_DB::bang( 'giao_dich' ) . ' WHERE id = %d', (int) $id ) );
+		if ( ! $g ) { return false; }
+		$chan = KHTC_Khoa::chan( $g->ngay, 'xoá', $g->cty );
+		if ( $chan ) { return $chan; }
+		KHTC_NhatKy::ghi_xoa(
+			'giao_dich',
+			$id,
+			sprintf( 'Xoá %s %s ngày %s — %s', 'chi' === $g->loai ? 'chi' : 'thu', number_format( $g->so_tien, 0, ',', '.' ) . ' đ', mysql2date( 'd/m/Y', $g->ngay ), (string) $g->dien_giai )
+		);
 		$wpdb->delete( KHTC_DB::bang( 'giao_dich' ), array( 'id' => (int) $id ), array( '%d' ) );
+		return true;
 	}
 }

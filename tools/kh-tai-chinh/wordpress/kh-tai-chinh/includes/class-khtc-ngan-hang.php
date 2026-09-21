@@ -43,15 +43,43 @@ class KHTC_NganHang {
 			),
 			array( '%s', '%s', '%s', '%d', '%s', '%s', '%s' )
 		);
-		return (int) $wpdb->insert_id;
+		$moi = (int) $wpdb->insert_id;
+		KHTC_NhatKy::ghi( 'them', 'ngan_hang', $moi, 'Thêm tài khoản ' . $ten );
+		return $moi;
 	}
 
 	public static function xoa( $id ) {
 		global $wpdb;
+		$nh = self::mot( $id );
+		if ( ! $nh ) { return false; }
+
+		// Xoá tài khoản là xoá cả giao dịch của nó, nên nếu còn dòng nào nằm
+		// trong kỳ đã khoá thì phải chặn — bằng không khoá sổ trở thành vô nghĩa,
+		// chỉ cần xoá tài khoản là mọi dòng khoá biến mất.
+		$khoa = KHTC_Khoa::ngay();
+		if ( $khoa ) {
+			$con = (int) $wpdb->get_var(
+				$wpdb->prepare(
+					'SELECT COUNT(*) FROM ' . KHTC_DB::bang( 'giao_dich' ) . ' WHERE ngan_hang_id = %d AND ngay <= %s',
+					(int) $id,
+					$khoa
+				)
+			);
+			if ( $con ) {
+				return new WP_Error(
+					'khoa',
+					'Tài khoản này còn ' . number_format( $con, 0, ',', '.' ) . ' giao dịch trong kỳ đã khoá (đến hết '
+						. mysql2date( 'd/m/Y', $khoa ) . '). Mở khoá trước nếu thật sự muốn xoá.'
+				);
+			}
+		}
+
+		KHTC_NhatKy::ghi_xoa( 'ngan_hang', $id, 'Xoá tài khoản ' . $nh->ten . ' và toàn bộ giao dịch của nó' );
 		// Xoá ngân hàng mà để lại giao dịch của nó thì số tổng vẫn cộng những dòng
 		// không còn thuộc về đâu — xoá cả hai trong một lượt.
 		$wpdb->delete( KHTC_DB::bang( 'giao_dich' ), array( 'ngan_hang_id' => (int) $id ), array( '%d' ) );
 		$wpdb->delete( KHTC_DB::bang( 'ngan_hang' ), array( 'id' => (int) $id ), array( '%d' ) );
+		return true;
 	}
 
 	/**

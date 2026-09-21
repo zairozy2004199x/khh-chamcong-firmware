@@ -54,7 +54,11 @@ class KHTC_ChiPhi {
 		if ( ! $ds ) {
 			return new WP_Error( 'trong', 'Danh mục không được để trống.' );
 		}
+		$cu = self::danh_muc( $loai, $cty );
 		update_option( 'khtc_dm_' . $loai . '_' . $cty, $ds );
+		if ( $cu !== $ds ) {
+			KHTC_NhatKy::ghi( 'danh_muc', '', 0, sprintf( 'Sửa danh mục %s: %s', 'bo_phan' === $loai ? 'bộ phận' : 'khoản mục', implode( ' · ', $ds ) ), array( 'truoc' => $cu ) );
+		}
 		return count( $ds );
 	}
 
@@ -74,6 +78,8 @@ class KHTC_ChiPhi {
 		if ( '' === $bo_phan ) {
 			return new WP_Error( 'bo_phan', 'Chưa chọn bộ phận.' );
 		}
+		$chan = KHTC_Khoa::chan( $ngay, 'thêm' );
+		if ( $chan ) { return $chan; }
 		$wpdb->insert(
 			KHTC_DB::bang( 'chi_phi' ),
 			array(
@@ -94,16 +100,35 @@ class KHTC_ChiPhi {
 			),
 			array( '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%d', '%d', '%s', '%s', '%s' )
 		);
-		return (int) $wpdb->insert_id;
+		$moi = (int) $wpdb->insert_id;
+		KHTC_NhatKy::ghi(
+			'them',
+			'chi_phi',
+			$moi,
+			sprintf( 'Chi %s ngày %s — %s / %s', number_format( $so_tien, 0, ',', '.' ) . ' đ', mysql2date( 'd/m/Y', $ngay ), $bo_phan, trim( (string) ( $d['khoan_muc'] ?? '' ) ) )
+		);
+		return $moi;
 	}
 
 	public static function xoa( $id ) {
 		global $wpdb;
-		$wpdb->delete(
-			KHTC_DB::bang( 'chi_phi' ),
-			array( 'id' => (int) $id, 'cty' => KHTC_Cty::dang_chon() ),
-			array( '%d', '%s' )
+		$c = $wpdb->get_row(
+			$wpdb->prepare(
+				'SELECT * FROM ' . KHTC_DB::bang( 'chi_phi' ) . ' WHERE id = %d AND cty = %s',
+				(int) $id,
+				KHTC_Cty::dang_chon()
+			)
 		);
+		if ( ! $c ) { return false; }
+		$chan = KHTC_Khoa::chan( $c->ngay, 'xoá' );
+		if ( $chan ) { return $chan; }
+		KHTC_NhatKy::ghi_xoa(
+			'chi_phi',
+			$id,
+			sprintf( 'Xoá chi %s ngày %s — %s / %s', number_format( $c->so_tien, 0, ',', '.' ) . ' đ', mysql2date( 'd/m/Y', $c->ngay ), $c->bo_phan, $c->khoan_muc )
+		);
+		$wpdb->delete( KHTC_DB::bang( 'chi_phi' ), array( 'id' => (int) $id ), array( '%d' ) );
+		return true;
 	}
 
 	/**
@@ -113,6 +138,7 @@ class KHTC_ChiPhi {
 	public static function dan_hang_loat( $text, $ngan_hang_id = 0, $hinh_thuc = 'chuyen_khoan' ) {
 		$them = 0;
 		$loi  = array();
+		KHTC_NhatKy::mo_lo();
 		foreach ( preg_split( '/\r\n|\r|\n/', (string) $text ) as $i => $d ) {
 			$d = trim( $d );
 			if ( '' === $d ) { continue; }
@@ -137,6 +163,8 @@ class KHTC_ChiPhi {
 			);
 			if ( is_wp_error( $kq ) ) { $loi[] = 'Dòng ' . ( $i + 1 ) . ': ' . $kq->get_error_message(); } else { $them++; }
 		}
+		KHTC_NhatKy::dong_lo();
+		KHTC_NhatKy::ghi( 'nap', 'chi_phi', 0, sprintf( 'Nạp %d khoản chi%s', $them, $loi ? ' (' . count( $loi ) . ' dòng lỗi)' : '' ), null, true );
 		return array( 'them' => $them, 'loi' => $loi );
 	}
 
@@ -263,6 +291,9 @@ class KHTC_ChiPhi {
 	 * được nhận hai lần — nên viết lại lần nữa chỉ là thêm một chỗ để sai. Chi
 	 * phí không có phí cổng, truyền phi = 0, và lượt trừ phí tự bỏ qua.
 	 *
+	 * Như đối soát cổng, KHOÁ SỔ KHÔNG CHẶN việc này: nó chỉ ghi cờ đã ghép,
+	 * không đổi ngày, số tiền hay bộ phận của khoản chi nào.
+	 *
 	 * @return array Ba nhóm: khớp, chua_chi (có chứng từ chưa thấy tiền ra),
 	 *               thua (ngân hàng chi mà không có chứng từ).
 	 */
@@ -345,6 +376,20 @@ class KHTC_ChiPhi {
 			if ( $g->ngay < $tu || $g->ngay > $den ) { continue; }
 			$thua[] = $g;
 		}
+
+		KHTC_NhatKy::ghi(
+			'doi_soat',
+			'chi_phi',
+			0,
+			sprintf(
+				'Đối soát chi phí %s → %s — khớp %d, chưa thấy tiền ra %d, tiền ra không chứng từ %d',
+				mysql2date( 'd/m/Y', $tu ),
+				mysql2date( 'd/m/Y', $den ),
+				count( $khop ),
+				count( $chua_chi ),
+				count( $thua )
+			)
+		);
 
 		return array(
 			'khop'          => $khop,

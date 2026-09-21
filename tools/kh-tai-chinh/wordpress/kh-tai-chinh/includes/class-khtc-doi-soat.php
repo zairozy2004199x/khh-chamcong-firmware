@@ -121,13 +121,16 @@ class KHTC_DoiSoat {
 			),
 			array( '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s' )
 		);
-		return (int) $wpdb->insert_id;
+		$moi = (int) $wpdb->insert_id;
+		KHTC_NhatKy::ghi( 'them', 'doi_soat', $moi, 'Tạo đợt đối soát ' . $ten );
+		return $moi;
 	}
 
 	public static function xoa_dot( $id ) {
 		global $wpdb;
 		$dot = self::mot_dot( $id );
 		if ( ! $dot ) { return; }
+		KHTC_NhatKy::ghi_xoa( 'doi_soat', $id, 'Xoá đợt đối soát ' . $dot->ten );
 		$wpdb->delete( KHTC_DB::bang( 'ds_dong' ), array( 'dot_id' => (int) $id ), array( '%d' ) );
 		$wpdb->delete( KHTC_DB::bang( 'doi_soat' ), array( 'id' => (int) $id ), array( '%d' ) );
 	}
@@ -191,6 +194,7 @@ class KHTC_DoiSoat {
 			if ( '' !== $ma ) { $da_co[ $ma ] = 1; }
 			$them++;
 		}
+		KHTC_NhatKy::ghi( 'nap', 'ds_dong', (int) $dot_id, sprintf( 'Nạp %d dòng cổng vào %s%s', $them, $dot->ten, $trung ? ', bỏ ' . $trung . ' trùng mã' : '' ) );
 		return array( 'them' => $them, 'trung' => $trung, 'loi' => $loi );
 	}
 
@@ -207,6 +211,10 @@ class KHTC_DoiSoat {
 	 * Ghép lại từ đầu mỗi lần chứ không ghép thêm: sao kê có thể vừa được nạp
 	 * bổ sung, và một dòng "Thiếu" hôm qua hôm nay đã có tiền về. Ghép thêm thì
 	 * kết quả phụ thuộc thứ tự bấm nút — chạy lại từ đầu thì không.
+	 *
+	 * KHOÁ SỔ KHÔNG CHẶN VIỆC NÀY, cố ý: phép ghép chỉ ghi cờ "dòng cổng này
+	 * ứng với dòng sao kê kia", không đụng tới ngày, số tiền hay phân loại của
+	 * bất cứ bản ghi nào. Chốt sổ xong vẫn phải đối chiếu lại được với cổng.
 	 *
 	 * @return array Thống kê từng nhóm.
 	 */
@@ -262,7 +270,14 @@ class KHTC_DoiSoat {
 			array( '%d' )
 		);
 
-		return self::ket_qua( $dot_id );
+		$kq = self::ket_qua( $dot_id );
+		KHTC_NhatKy::ghi(
+			'doi_soat',
+			'doi_soat',
+			(int) $dot_id,
+			sprintf( 'Chạy đối soát %s — khớp %d, lệch tiền %d, thiếu %d, thừa %d', $dot->ten, count( $kq['khop'] ), count( $kq['lech'] ), count( $kq['thieu'] ), count( $kq['thua'] ) )
+		);
+		return $kq;
 	}
 
 	/**

@@ -1,7 +1,7 @@
 === Tài Chính K&H ===
 Requires at least: 5.6
 Requires PHP: 7.4
-Stable tag: 0.4.0
+Stable tag: 0.5.0
 License: GPL-2.0-or-later
 
 Theo dõi ngân hàng, giao dịch và đối soát cho CÔNG TY TNHH DỊCH VỤ VÀ GIẢI TRÍ K&H.
@@ -40,6 +40,11 @@ RAM; trên shared hosting cách đó không chạy nổi.
   22 cột của file đó, đúng thứ tự, không phải sắp lại. Bảng gom theo thuế suất
   chính là mấy dòng điền vào tờ khai GTGT; gom thêm theo khu vực và dịch vụ.
   Số hoá đơn duy nhất trong mỗi pháp nhân, chặn ở tầng bảng.
+* Khoá sổ — đặt một ngày khoá cho mỗi pháp nhân; mọi bản ghi mang ngày từ đó
+  trở về trước không thêm, không xoá được. Chặn cả lối vòng: xoá tài khoản
+  ngân hàng còn giao dịch trong kỳ khoá cũng bị từ chối.
+* Nhật ký — ai làm gì lúc nào. Xoá thì giữ lại nguyên văn bản ghi nên phục hồi
+  được, đúng id cũ. Dán hàng loạt chỉ ghi một dòng tổng kết.
 * Sao lưu — tải toàn bộ kho dữ liệu ra một tệp .json và nhập lại được. Nhập là
   thêm vào, id cấp lại và mọi liên kết nối lại theo id mới.
 * Bản web ngoài — cùng các màn hình đó ở /tai-chinh/ thay vì trong wp-admin.

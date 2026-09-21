@@ -37,6 +37,7 @@ khẩu riêng. Bớt một chỗ giữ mật khẩu là bớt một chỗ có th
 | Chi phí | Ghi khoản chi theo bộ phận × khoản mục; bảng cộng chéo; lọc; danh mục sửa tại chỗ |
 | Đối soát chi phí | Ghép chứng từ chi phí với dòng chi trong sao kê |
 | Hoá đơn đầu ra | Dán vào / xuất ra đúng 22 cột file VAT; gom theo thuế suất, khu vực, dịch vụ |
+| Nhật ký | Ai làm gì lúc nào; khoá sổ theo ngày; phục hồi bản ghi đã xoá |
 | Sao lưu | Tải cả kho ra .json, nhập lại được |
 
 Mọi màn hình đều tách **KH Cũ / KH Mới**, chọn ở góc phải. Lựa chọn lưu theo
@@ -130,6 +131,52 @@ lại VAT = 0.
 Dòng nào trong file gốc có `chưa VAT + VAT ≠ có VAT` thì lấy hai số đầu làm gốc,
 tính lại có VAT, và **đếm số dòng như vậy để báo lên** — không sửa lặng lẽ.
 
+## Khoá sổ và nhật ký
+
+Hai mô hình lấy từ cách các phần mềm kế toán thật làm — QuickBooks, Zoho Books,
+NetSuite đều có khoá kỳ; LedgerSMB, NetSuite và Zoho đều có audit trail.
+
+### Khoá sổ
+
+Một **ngày khoá** cho mỗi pháp nhân. Mọi bản ghi mang ngày từ đó trở về trước
+thì không thêm, không xoá được.
+
+Vì sao cần: tờ khai GTGT nộp rồi mà ai đó thêm một hoá đơn lùi ngày vào tháng
+cũ thì bảng "theo thuế suất" đổi số ngay, trong khi tờ khai đã nộp thì không
+đổi. Lần sau mở lại, số trên màn hình khác số đã nộp và không ai biết vì sao.
+
+Khoá chỉ có giá trị nếu **không có đường vòng**, nên nó chặn cả lối gián tiếp:
+xoá một tài khoản ngân hàng còn giao dịch trong kỳ khoá bị từ chối — bằng không
+chỉ cần xoá tài khoản là mọi dòng đã khoá biến mất. Bộ kiểm đi thử từng lối ghi
+một, kể cả lối này.
+
+Hai việc **cố ý không bị khoá chặn**: chạy lại đối soát cổng và đối soát chi
+phí. Chúng chỉ ghi cờ "dòng này ứng với dòng kia", không đụng ngày, số tiền hay
+phân loại của bản ghi nào — chốt sổ xong vẫn phải đối chiếu lại được với cổng.
+
+**Cố ý không có mật khẩu riêng** như QuickBooks. Thêm một mật khẩu là thêm một
+thứ để quên và để dán lên màn hình. Ai mở được plugin thì mở được khoá — nhưng
+mọi lần đặt và mở khoá đều vào nhật ký. Biết ai mở, lúc nào, đáng giá hơn là
+chặn được ai.
+
+### Nhật ký
+
+Hai kế toán dùng chung một sổ và tiền là tiền thật, nên "ai xoá dòng này" phải
+trả lời được.
+
+**Ghi theo lô, không theo dòng.** Dán một bảng sao kê 2.000 dòng mà ghi 2.000
+dòng nhật ký thì nhật ký to hơn cả sổ và không ai đọc nổi — che mất đúng thứ cần
+thấy. Hàm dán hàng loạt bật một cờ, các hàm ghi lẻ im lặng, cuối cùng chỉ một
+dòng "nạp 2.000 giao dịch".
+
+**Xoá thì giữ lại nguyên văn bản ghi**, nên phục hồi được — và phục hồi đúng id
+cũ, vì các bảng khác trỏ vào nhau bằng id; đặt lại bằng id mới thì bản ghi sống
+lại nhưng mồ côi.
+
+Cách này gọn hơn xoá mềm: xoá mềm bắt **mọi** câu truy vấn trong plugin phải nhớ
+lọc "chưa xoá", quên một chỗ là số sai lặng lẽ. Giữ xác trong nhật ký thì không
+câu nào phải đổi.
+
 ## Sao lưu
 
 Dữ liệu giờ nằm trong MySQL của website. Website đổi host, ai đó gỡ nhầm plugin,
@@ -207,6 +254,7 @@ php tools/kh-tai-chinh/tests/kiem-ghep.php       # 23 phép thử
 php tools/kh-tai-chinh/tests/kiem-man-hinh.php   # 44 phép thử
 php tools/kh-tai-chinh/tests/kiem-chi-phi.php    # 68 phép thử
 php tools/kh-tai-chinh/tests/kiem-hoa-don.php    # 128 phép thử
+php tools/kh-tai-chinh/tests/kiem-khoa-nhat-ky.php   # 59 phép thử
 ```
 
 `dong-goi.sh` chạy cả ba trước khi gói, hỏng một phép là không ra file zip.
@@ -228,6 +276,9 @@ php tools/kh-tai-chinh/tests/kiem-hoa-don.php    # 128 phép thử
   phép chặn hồi quy cho ô thuế suất mặc định (PHP đổi khoá mảng `'8'` thành số
   nguyên `8`, so nghiêm ngặt với chuỗi thì trượt và mọi hoá đơn ghi tay mất
   thuế — lỗi này đã xảy ra thật, thấy được nhờ dựng trang ra ảnh).
+* **kiem-khoa-nhat-ky** — đi thử **từng lối ghi một** vào kỳ đã khoá, kể cả lối
+  vòng (xoá tài khoản kéo theo xoá giao dịch, phục hồi từ nhật ký). Một lối
+  quên kiểm tra là cả tính năng thành trang trí.
 
 Bộ giả lập **không thay được bản cài thật**: SQLite không phải MySQL, `dbDelta`
 bị bỏ qua và bảng được tạo tay, nên lỗi riêng của MySQL vẫn lọt. Nó bắt được hàm

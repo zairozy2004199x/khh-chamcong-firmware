@@ -127,6 +127,8 @@ class KHTC_HoaDonRa {
 		if ( self::da_co( $so_hd ) ) {
 			return new WP_Error( 'trung', 'Số hoá đơn ' . $so_hd . ' đã có trong sổ.' );
 		}
+		$chan = KHTC_Khoa::chan( $ngay, 'thêm' );
+		if ( $chan ) { return $chan; }
 
 		list( $chua, $vat, $co, $ts ) = self::tinh(
 			KHTC_GiaoDich::doc_so( $d['chua_vat'] ?? 0 ),
@@ -168,7 +170,14 @@ class KHTC_HoaDonRa {
 			),
 			array_fill( 0, 24, '%s' )
 		);
-		return (int) $wpdb->insert_id;
+		$moi = (int) $wpdb->insert_id;
+		KHTC_NhatKy::ghi(
+			'them',
+			'hd_ra',
+			$moi,
+			sprintf( 'Hoá đơn %s ngày %s — %s, %s đ (%s)', $so_hd, mysql2date( 'd/m/Y', $ngay ), trim( (string) ( $d['khach'] ?? '' ) ), number_format( $co, 0, ',', '.' ), is_numeric( $ts ) ? $ts . '%' : $ts )
+		);
+		return $moi;
 	}
 
 	/** Số hoá đơn phải duy nhất trong một pháp nhân — xuất trùng số là sai luật. */
@@ -186,11 +195,23 @@ class KHTC_HoaDonRa {
 
 	public static function xoa( $id ) {
 		global $wpdb;
-		$wpdb->delete(
-			KHTC_DB::bang( 'hd_ra' ),
-			array( 'id' => (int) $id, 'cty' => KHTC_Cty::dang_chon() ),
-			array( '%d', '%s' )
+		$h = $wpdb->get_row(
+			$wpdb->prepare(
+				'SELECT * FROM ' . KHTC_DB::bang( 'hd_ra' ) . ' WHERE id = %d AND cty = %s',
+				(int) $id,
+				KHTC_Cty::dang_chon()
+			)
 		);
+		if ( ! $h ) { return false; }
+		$chan = KHTC_Khoa::chan( $h->ngay, 'xoá' );
+		if ( $chan ) { return $chan; }
+		KHTC_NhatKy::ghi_xoa(
+			'hd_ra',
+			$id,
+			sprintf( 'Xoá hoá đơn %s ngày %s — %s, %s đ', $h->so_hd, mysql2date( 'd/m/Y', $h->ngay ), $h->khach, number_format( $h->co_vat, 0, ',', '.' ) )
+		);
+		$wpdb->delete( KHTC_DB::bang( 'hd_ra' ), array( 'id' => (int) $id ), array( '%d' ) );
+		return true;
 	}
 
 	/**
@@ -202,6 +223,7 @@ class KHTC_HoaDonRa {
 		$trung = 0;
 		$lech  = 0;
 		$loi   = array();
+		KHTC_NhatKy::mo_lo();
 		foreach ( preg_split( '/\r\n|\r|\n/', (string) $text ) as $i => $d ) {
 			if ( '' === trim( $d ) ) { continue; }
 			$o = ( strpos( $d, "\t" ) !== false ) ? explode( "\t", $d ) : str_getcsv( $d );
@@ -250,6 +272,15 @@ class KHTC_HoaDonRa {
 			if ( $kt[4] ) { $lech++; }
 			$them++;
 		}
+		KHTC_NhatKy::dong_lo();
+		KHTC_NhatKy::ghi(
+			'nap',
+			'hd_ra',
+			0,
+			sprintf( 'Nạp %d hoá đơn đầu ra%s%s', $them, $trung ? ', bỏ ' . $trung . ' trùng số' : '', $lech ? ', ' . $lech . ' dòng gốc lệch VAT' : '' ),
+			null,
+			true
+		);
 		return array( 'them' => $them, 'trung' => $trung, 'lech' => $lech, 'loi' => $loi );
 	}
 

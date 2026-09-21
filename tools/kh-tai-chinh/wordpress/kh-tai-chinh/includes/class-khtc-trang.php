@@ -22,6 +22,7 @@ class KHTC_Trang {
 			case 'chi-phi':   self::chi_phi();   break;
 			case 'doi-soat-chi-phi': self::doi_soat_chi_phi(); break;
 			case 'hoa-don-ra': self::hoa_don_ra(); break;
+			case 'nhat-ky':   self::nhat_ky();   break;
 			case 'sao-luu':   self::sao_luu();   break;
 			default:          self::tong_quan(); break;
 		}
@@ -142,8 +143,8 @@ class KHTC_Trang {
 		}
 
 		if ( isset( $_POST['khtc_xoa_nh'] ) && check_admin_referer( 'khtc_nh' ) ) {
-			KHTC_NganHang::xoa( (int) $_POST['khtc_xoa_nh'] );
-			$bao_ok = 'Đã xoá tài khoản và toàn bộ giao dịch của nó.';
+			$kq = KHTC_NganHang::xoa( (int) $_POST['khtc_xoa_nh'] );
+			if ( is_wp_error( $kq ) ) { $bao_loi = $kq->get_error_message(); } else { $bao_ok = 'Đã xoá tài khoản và toàn bộ giao dịch của nó.'; }
 		}
 
 		$ds = KHTC_NganHang::ds_kem_so_du();
@@ -217,8 +218,8 @@ class KHTC_Trang {
 		}
 
 		if ( isset( $_POST['khtc_xoa_gd'] ) && check_admin_referer( 'khtc_gd' ) ) {
-			KHTC_GiaoDich::xoa( (int) $_POST['khtc_xoa_gd'] );
-			$bao_ok = 'Đã xoá giao dịch.';
+			$kq = KHTC_GiaoDich::xoa( (int) $_POST['khtc_xoa_gd'] );
+			if ( is_wp_error( $kq ) ) { $bao_loi = $kq->get_error_message(); } else { $bao_ok = 'Đã xoá giao dịch. Phục hồi được ở mục Nhật ký.'; }
 		}
 
 		$ngan_hang = KHTC_NganHang::ds();
@@ -648,8 +649,8 @@ class KHTC_Trang {
 		}
 
 		if ( isset( $_POST['khtc_xoa_cp'] ) && check_admin_referer( 'khtc_cp' ) ) {
-			KHTC_ChiPhi::xoa( (int) $_POST['khtc_xoa_cp'] );
-			$bao_ok = 'Đã xoá khoản chi.';
+			$kq = KHTC_ChiPhi::xoa( (int) $_POST['khtc_xoa_cp'] );
+			if ( is_wp_error( $kq ) ) { $bao_loi = $kq->get_error_message(); } else { $bao_ok = 'Đã xoá khoản chi. Phục hồi được ở mục Nhật ký.'; }
 		}
 
 		if ( isset( $_POST['khtc_luu_dm'] ) && check_admin_referer( 'khtc_cp' ) ) {
@@ -1058,8 +1059,8 @@ class KHTC_Trang {
 		}
 
 		if ( isset( $_POST['khtc_xoa_hd'] ) && check_admin_referer( 'khtc_hd' ) ) {
-			KHTC_HoaDonRa::xoa( (int) $_POST['khtc_xoa_hd'] );
-			$bao_ok = 'Đã xoá hoá đơn.';
+			$kq = KHTC_HoaDonRa::xoa( (int) $_POST['khtc_xoa_hd'] );
+			if ( is_wp_error( $kq ) ) { $bao_loi = $kq->get_error_message(); } else { $bao_ok = 'Đã xoá hoá đơn. Phục hồi được ở mục Nhật ký.'; }
 		}
 
 		$thang = current_time( 'Y-m' );
@@ -1233,5 +1234,103 @@ class KHTC_Trang {
 			esc_html( KHTC_UI::tien( $t[2] ) ),
 			esc_html( KHTC_UI::tien( $t[3] ) )
 		);
+	}
+
+	// -------------------------------------------------- nhật ký và khoá sổ
+
+	public static function nhat_ky() {
+		KHTC_UI::nhan_doi_cty();
+		$bao_ok = '';
+		$bao_loi = '';
+
+		if ( isset( $_POST['khtc_khoa'] ) && check_admin_referer( 'khtc_nk' ) ) {
+			$kq = KHTC_Khoa::dat( sanitize_text_field( wp_unslash( $_POST['ngay_khoa'] ?? '' ) ) );
+			if ( is_wp_error( $kq ) ) {
+				$bao_loi = $kq->get_error_message();
+			} else {
+				$bao_ok = $kq ? ( 'Đã khoá sổ đến hết ' . KHTC_UI::ngay( $kq ) . '.' ) : 'Đã mở khoá sổ.';
+			}
+		}
+
+		if ( isset( $_POST['khtc_phuc_hoi'] ) && check_admin_referer( 'khtc_nk' ) ) {
+			$kq = KHTC_NhatKy::phuc_hoi( (int) $_POST['khtc_phuc_hoi'] );
+			if ( is_wp_error( $kq ) ) { $bao_loi = $kq->get_error_message(); } else { $bao_ok = 'Đã đặt lại bản ghi vào sổ.'; }
+		}
+
+		$khoa = KHTC_Khoa::ngay();
+		$l    = array(
+			'viec'  => sanitize_text_field( wp_unslash( $_GET['viec'] ?? '' ) ),
+			'bang'  => sanitize_text_field( wp_unslash( $_GET['bang'] ?? '' ) ),
+			'trang' => (int) ( $_GET['trang'] ?? 1 ),
+		);
+		$kq = KHTC_NhatKy::loc( $l );
+
+		echo '<div class="wrap khtc">';
+		KHTC_UI::dau_trang( 'Nhật ký' );
+		KHTC_UI::thong_bao( 'ok', $bao_ok );
+		KHTC_UI::thong_bao( 'loi', $bao_loi );
+
+		// ---- khoá sổ
+		echo '<div class="khtc-panel"><h2>Khoá sổ</h2>';
+		if ( $khoa ) {
+			printf(
+				'<div class="khtc-bao ok">Đang khoá đến hết <strong>%s</strong>. Mọi bản ghi mang ngày từ đó trở về trước không thêm, không xoá được.</div>',
+				esc_html( KHTC_UI::ngay( $khoa ) )
+			);
+		} else {
+			echo '<div class="khtc-bao loi">Chưa khoá kỳ nào. Tờ khai đã nộp vẫn có thể bị đổi số bằng một hoá đơn lùi ngày.</div>';
+		}
+		echo '<form method="post"><div class="khtc-loc">';
+		wp_nonce_field( 'khtc_nk' );
+		printf( '<label>Khoá đến hết ngày<input type="date" name="ngay_khoa" value="%s"></label>', esc_attr( $khoa ) );
+		echo '<button type="submit" name="khtc_khoa" value="1" class="button button-primary">Đặt khoá</button>';
+		echo '</div><p class="khtc-sub">Bỏ trống ô ngày rồi bấm Đặt khoá là mở khoá hoàn toàn. Nếp quen của các phần mềm kế toán: chốt xong tháng nào thì khoá tháng đó — khoá tháng 1 vào đầu tháng 2, khoá tháng 2 vào đầu tháng 3.</p>';
+		echo '<p class="khtc-sub">Không có mật khẩu riêng: ai mở được plugin thì mở được khoá. Nhưng mọi lần đặt và mở khoá đều nằm trong nhật ký bên dưới.</p></form></div>';
+
+		// ---- lọc nhật ký
+		printf( '<div class="khtc-panel"><h2>Nhật ký thay đổi</h2><form method="get" action="%s"><div class="khtc-loc">', esc_url( self::url_form( 'nhat-ky' ) ) );
+		self::an_get( 'nhat-ky' );
+		echo '<label>Việc<select name="viec"><option value="">— Tất cả —</option>';
+		foreach ( array( 'them', 'xoa', 'nap', 'doi_soat', 'khoa', 'nhap', 'phuc_hoi', 'danh_muc' ) as $v ) {
+			printf( '<option value="%s"%s>%s</option>', esc_attr( $v ), selected( $l['viec'], $v, false ), esc_html( KHTC_NhatKy::ten_viec( $v ) ) );
+		}
+		echo '</select></label>';
+		echo '<label>Bảng<select name="bang"><option value="">— Tất cả —</option>';
+		foreach ( array( 'ngan_hang', 'giao_dich', 'doi_soat', 'ds_dong', 'chi_phi', 'hd_ra' ) as $b ) {
+			printf( '<option value="%s"%s>%s</option>', esc_attr( $b ), selected( $l['bang'], $b, false ), esc_html( KHTC_NhatKy::ten_bang( $b ) ) );
+		}
+		echo '</select></label>';
+		echo '<button type="submit" class="button">Lọc</button>';
+		printf( '<a href="%s" class="button">Bỏ lọc</a>', esc_url( self::url( 'nhat-ky' ) ) );
+		echo '</div></form>';
+
+		if ( ! $kq['rows'] ) {
+			echo '<div class="khtc-trong">Chưa có dòng nhật ký nào.</div>';
+		} else {
+			echo '<table><thead><tr><th>Lúc</th><th>Ai</th><th>Việc</th><th>Mục</th><th>Nội dung</th><th></th></tr></thead><tbody>';
+			foreach ( $kq['rows'] as $g ) {
+				echo '<tr>';
+				printf(
+					'<td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td>',
+					esc_html( mysql2date( 'H:i d/m/Y', $g->luc ) ),
+					esc_html( $g->ai ? $g->ai : '—' ),
+					esc_html( KHTC_NhatKy::ten_viec( $g->viec ) ),
+					esc_html( $g->bang ? KHTC_NhatKy::ten_bang( $g->bang ) : '—' ),
+					esc_html( $g->tom_tat )
+				);
+				echo '<td>';
+				if ( 'xoa' === $g->viec && '' !== (string) $g->du_lieu ) {
+					echo '<form method="post" onsubmit="return confirm(\'Đặt lại bản ghi này vào sổ?\')">';
+					wp_nonce_field( 'khtc_nk' );
+					printf( '<button type="submit" name="khtc_phuc_hoi" value="%d" class="button button-small">Phục hồi</button>', (int) $g->id );
+					echo '</form>';
+				}
+				echo '</td></tr>';
+			}
+			echo '</tbody></table>';
+			self::phan_trang( 'nhat-ky', $kq, array( 'viec' => $l['viec'], 'bang' => $l['bang'] ) );
+		}
+		echo '<p class="khtc-sub">Xoá một bản ghi là giữ lại nguyên văn nó trong nhật ký, nên bấm <strong>Phục hồi</strong> là đặt lại đúng bản cũ, đúng id cũ — các bảng khác trỏ vào nó vẫn nối đúng. Dán hàng loạt chỉ ghi một dòng tổng kết, không ghi từng dòng, nếu không nhật ký to hơn cả sổ.</p>';
+		echo '</div></div>';
 	}
 }

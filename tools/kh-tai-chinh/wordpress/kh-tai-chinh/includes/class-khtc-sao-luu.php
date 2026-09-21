@@ -21,7 +21,7 @@ class KHTC_SaoLuu {
 	const DINH_DANG = 1;
 
 	public static function bang() {
-		return array( 'ngan_hang', 'giao_dich', 'doi_soat', 'ds_dong', 'chi_phi', 'hd_ra' );
+		return array( 'ngan_hang', 'giao_dich', 'doi_soat', 'ds_dong', 'chi_phi', 'hd_ra', 'nhat_ky' );
 	}
 
 	/** Gom cả kho dữ liệu thành một mảng. Không lọc theo pháp nhân: sao lưu là sao lưu tất. */
@@ -87,6 +87,8 @@ class KHTC_SaoLuu {
 			return new WP_Error( 'dinh_dang', 'Tệp sao lưu thuộc định dạng khác (bản ' . (int) ( $d['dinh_dang'] ?? 0 ) . '), bản này đọc định dạng ' . self::DINH_DANG . '.' );
 		}
 
+		// Nhập là một lô: từng dòng không ghi nhật ký riêng, chỉ một dòng tổng kết.
+		KHTC_NhatKy::mo_lo();
 		$moi  = array();   // bảng => [id cũ => id mới]
 		$dem  = array();
 		$bo   = array();   // dòng bị cơ sở dữ liệu từ chối, hầu hết là trùng khoá
@@ -94,7 +96,7 @@ class KHTC_SaoLuu {
 		// lúc nối lại liên kết đã có id mới mà tra. Thiếu một bảng ở đây thì
 		// xuất ra vẫn có nó mà nhập lại mất — nên danh sách này phải phủ hết
 		// self::bang().
-		$thu_tu = array( 'ngan_hang', 'doi_soat', 'giao_dich', 'ds_dong', 'chi_phi', 'hd_ra' );
+		$thu_tu = array( 'ngan_hang', 'doi_soat', 'giao_dich', 'ds_dong', 'chi_phi', 'hd_ra', 'nhat_ky' );
 		$thieu  = array_diff( self::bang(), $thu_tu );
 		if ( $thieu ) {
 			return new WP_Error( 'thu_tu', 'Lỗi lập trình: bảng ' . implode( ', ', $thieu ) . ' chưa có trong thứ tự nhập.' );
@@ -132,10 +134,22 @@ class KHTC_SaoLuu {
 			}
 		}
 
+		// Nhật ký nhập vào cũng ghi một dòng nhật ký — nếu không thì lần phục hồi
+		// lớn nhất lại là lần duy nhất không để lại vết.
+		KHTC_NhatKy::ghi(
+			'nhap',
+			'',
+			0,
+			'Nhập sao lưu từ ' . ( (string) ( $d['website'] ?? '?' ) ) . ' (' . ( (string) ( $d['luc'] ?? '?' ) ) . '): ' . implode( ' · ', array_map( function ( $t, $n ) { return $t . ' ' . $n; }, array_keys( $dem ), $dem ) ),
+			null,
+			true
+		);
+
 		foreach ( (array) ( $d['danh_muc'] ?? array() ) as $khoa => $ds ) {
 			if ( is_array( $ds ) && $ds ) { update_option( 'khtc_dm_' . $khoa, array_values( $ds ) ); }
 		}
 
+		KHTC_NhatKy::dong_lo();
 		return array( 'them' => $dem, 'bo' => array_filter( $bo ) );
 	}
 }

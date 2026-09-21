@@ -3,7 +3,7 @@
  * Plugin Name:       Tài Chính K&H
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Theo dõi ngân hàng, giao dịch và đối soát cho CÔNG TY TNHH DỊCH VỤ VÀ GIẢI TRÍ K&H — chạy thẳng trên host WordPress, dữ liệu nằm trong MySQL của chính website.
- * Version:           0.4.0
+ * Version:           0.5.0
  * Requires at least: 5.6
  * Requires PHP:      7.4
  * Author:            K&H
@@ -30,7 +30,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'KHTC_VERSION', '0.4.0' );
+define( 'KHTC_VERSION', '0.5.0' );
 define( 'KHTC_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KHTC_URL', plugin_dir_url( __FILE__ ) );
 
@@ -39,6 +39,8 @@ define( 'KHTC_CAP', 'edit_pages' );
 
 require_once KHTC_DIR . 'includes/class-khtc-db.php';
 require_once KHTC_DIR . 'includes/class-khtc-cty.php';
+require_once KHTC_DIR . 'includes/class-khtc-nhat-ky.php';
+require_once KHTC_DIR . 'includes/class-khtc-khoa.php';
 require_once KHTC_DIR . 'includes/class-khtc-ngan-hang.php';
 require_once KHTC_DIR . 'includes/class-khtc-giao-dich.php';
 require_once KHTC_DIR . 'includes/class-khtc-doi-soat.php';

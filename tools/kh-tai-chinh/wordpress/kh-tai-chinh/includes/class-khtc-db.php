@@ -10,7 +10,7 @@ defined( 'ABSPATH' ) || exit;
 class KHTC_DB {
 
 	/** Tăng số này mỗi lần đổi cấu trúc bảng thì bản đang chạy tự nâng cấp. */
-	const SCHEMA = 4;
+	const SCHEMA = 5;
 
 	public static function bang( $ten ) {
 		global $wpdb;
@@ -28,6 +28,7 @@ class KHTC_DB {
 		$ds_dong   = self::bang( 'ds_dong' );
 		$chi_phi   = self::bang( 'chi_phi' );
 		$hd_ra     = self::bang( 'hd_ra' );
+		$nhat_ky   = self::bang( 'nhat_ky' );
 
 		// so_du_dau = số dư TÍNH ĐẾN ngay_dau; giao dịch trước ngày đó coi như đã
 		// gộp sẵn vào số dư này, không cộng lại lần nữa (giữ đúng cách bản gốc tính).
@@ -165,6 +166,25 @@ class KHTC_DB {
 				UNIQUE KEY cty_so_hd (cty, so_hd),
 				KEY cty_ngay (cty, ngay),
 				KEY cty_thue_suat (cty, thue_suat)
+			) $collate;"
+		);
+
+		// Nhật ký thay đổi. du_lieu giữ nguyên văn bản ghi lúc bị xoá nên phải
+		// LONGTEXT — một hoá đơn đủ 22 trường vượt TEXT là chuyện có thật.
+		dbDelta(
+			"CREATE TABLE $nhat_ky (
+				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+				cty VARCHAR(20) NOT NULL DEFAULT 'kh_cu',
+				luc DATETIME NOT NULL,
+				ai VARCHAR(120) NOT NULL DEFAULT '',
+				viec VARCHAR(20) NOT NULL DEFAULT '',
+				bang VARCHAR(30) NOT NULL DEFAULT '',
+				ban_ghi_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+				tom_tat TEXT NULL,
+				du_lieu LONGTEXT NULL,
+				PRIMARY KEY (id),
+				KEY cty_luc (cty, luc),
+				KEY cty_viec (cty, viec)
 			) $collate;"
 		);
 
