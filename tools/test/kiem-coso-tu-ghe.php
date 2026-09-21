@@ -62,15 +62,45 @@ t( '🔴 script tách có chốt kiểm hằng ấy',
  *    đặt ghế) rồi hỏi *"tại sao xóa không được"*, *"nó thuộc bộ phận khác"*, *"bỏ vào đây là
  *    người khác khai sai"*. Xóa không được vì `vhcp_maybe_upgrade()` hút lại đủ 67 gian ấy MỖI
  *    LẦN ĐỔI PHIÊN BẢN PLUGIN — xóa xong cài bản sau là chúng về nguyên, không một câu báo. */
-teq( '🔴 bản gốc khu vui chơi: KHÔNG lấy từ Ghế (gian ghế là của POSH)',
-	false, VHCP_Cfg::LAY_COSO_GHE );
+/* 🔴 BẬT LẠI 21/09/2026 — anh Thắng: *"đẩy cơ sở bên ghế sang nhé"*, *"cơ sở bên ghế thuộc
+ *    MTĐ"*. ĐIỀU ĐÃ ĐỔI: ba khối nay chung MỘT bản cài, mỗi gian mang cột Khối của riêng nó,
+ *    nên gian ghế không còn là dòng lạ trong danh mục người khác — nó về đúng bảng Máy tự động.
+ *
+ * 🔴 NHƯNG CÁI ĐÃ LÀM ANH KHỔ HÔM 14/09 PHẢI ĐƯỢC GỠ RIÊNG, không được quay lại kèm: lượt hút
+ *    tự động nay chạy ĐÚNG MỘT LẦN cho cả đời site, không phải mỗi phiên bản — xem phép ngay
+ *    dưới. Đó mới là thứ khiến *"xóa không được"*. */
+teq( '🔴 bản gốc nay CÓ lấy từ Ghế (ba khối chung một bản cài)',
+	true, VHCP_Cfg::LAY_COSO_GHE );
+/* 🔴 VÀ ĐẦU PHÁT NGƯỢC VẪN TẮT — anh chỉ xin *"1 chiều từ ghế sang"*. Bật kèm là mỗi lượt
+   Lưu cấu hình bắn danh sách gian sang plugin Ghế — chạm vào dữ liệu của một hệ khác đang
+   chạy thật, mà không ai xin điều đó. */
+teq( '🔴 nhưng ĐẦU PHÁT ngược sang Ghế vẫn TẮT', false, VHCP_Cfg::BAO_COSO_GHE );
+/* 🔴 HAI HẰNG PHẢI RỜI NHAU THẬT. Cùng một hằng thì phép trên xanh mà chiều phát vẫn mở. */
+t( '🔴 hai chiều là hai hằng rời nhau',
+	VHCP_Cfg::LAY_COSO_GHE !== VHCP_Cfg::BAO_COSO_GHE, '' );
+/* 🔴 LƯỢT HÚT TỰ ĐỘNG CHẠY MỘT LẦN CHO CẢ ĐờI SITE. So cờ với `VHCP_VERSION` là xóa xong,
+   cài bản sau là 67 gian về nguyên — đúng câu *"tại sao xóa không được"*. */
+$boot_ma = (string) @file_get_contents( $GOC . '/wordpress/vhcp-chi-phi/vhcp-chi-phi.php' );
+t( '🔴 lượt hút tự động KHÔNG so cờ với phiên bản nữa',
+	false === strpos( $boot_ma, "get_option( 'vhcp_hut_coso_ghe' ) !== VHCP_VERSION" ), '' );
+t( '   mà chạy đúng một lần — xóa là ở yên',
+	false !== strpos( $boot_ma, "if ( ! get_option( 'vhcp_hut_coso_ghe' ) ) {" ), '' );
 $mtd_ma = @file_get_contents( $GOC . '/wordpress/vhcp-chi-phi-mtd/includes/class-vhcp-cfg.php' );
 $vp_ma  = @file_get_contents( $GOC . '/wordpress/vhcp-chi-phi-vp/includes/class-vhcp-cfg.php' );
 if ( $mtd_ma ) { t( '🔴 bản «mtd» (máy tự động): CÓ lấy từ Ghế',
 	(bool) preg_match( '#const LAY_COSO_GHE = true;#', $mtd_ma ), '' ); }
+if ( $mtd_ma ) { t( '   và bản «mtd» cũng KHÔNG phát ngược',
+	(bool) preg_match( '#const BAO_COSO_GHE = false;#', $mtd_ma ), '' ); }
 if ( $vp_ma )  { t( '🔴 bản «vp» (văn phòng): KHÔNG lấy từ Ghế',
 	(bool) preg_match( '#const LAY_COSO_GHE = false;#', $vp_ma ), '' ); }
 t( '🔴 script tách khai đúng mảng nào BẬT', (bool) preg_match( '#mtd\) GHE=true#', $sh ), '' );
+/* 🔴 CHIỀU LẬT ĐẢO TỪ 21/09/2026: bản gốc đã bật sẵn, nên script phải TẮT cho bản nào
+   không dùng ghế (vp). Giữ chiều cũ (tắt → bật cho mtd) là vp thừa hưởng luôn trạng thái bật
+   của bản gốc, và danh mục Văn phòng dài thêm mỗi lần bên Ghế mở một điểm đặt máy. */
+t( '🔴 script tách TẮT đường ghế cho bản không dùng',
+	(bool) preg_match( '#s/const LAY_COSO_GHE = true;/const LAY_COSO_GHE = false;/#', $sh ), '' );
+t( '   và chốt đầu phát ngược tắt ở MỌI bản',
+	(bool) preg_match( '#const BAO_COSO_GHE = false;#', $sh ), '' );
 /* 🔴 MẶC ĐỊNH LÀ TẮT, ĐỔI TỪ 14/09/2026. Hai kiểu hỏng không bằng nhau, nên mặc định phải
    ngả về phía hỏng TO TIẾNG:
      · quên BẬT -> danh mục cơ sở của mảng ấy trống, người dùng thấy ngay, bấm nút "Hút cơ sở
@@ -96,7 +126,6 @@ foreach ( array(
 	'hut_coso_ghe'     => 'lượt hút',
 	'moc_coso_ghe'     => 'tai nghe từ Ghế',
 	'hut_coso_ghe_api' => 'nút bấm tay',
-	'bao_coso_posh_'   => 'đầu phát ngược',
 ) as $ham => $nhan ) {
 	$than = than_ham( $cfg0, $ham );
 	/* 🔴 GÁC PHẢI GỌI HÀM `lay_coso_ghe()`, KHÔNG ĐỌC HẰNG THẲNG. Từ 14/09/2026 hằng chỉ là
@@ -106,6 +135,13 @@ foreach ( array(
 	t( '🔴 ' . $nhan . ' có gác lay_coso_ghe() trong THÂN nó',
 		'' !== $than && false !== strpos( $than, 'lay_coso_ghe()' ), $ham );
 }
+/* 🔴 ĐẦU PHÁT NGƯỢC GÁC BẰNG HẰNG RIÊNG, không dùng chung với chiều hút — 21/09/2026, anh
+   Thắng: *"bật 1 chiều từ ghế sang"*. Dùng chung thì bật hút là bật luôn phát. */
+$than_bao = than_ham( $cfg0, 'bao_coso_posh_' );
+t( '🔴 đầu phát ngược gác bằng bao_coso_ghe()',
+	'' !== $than_bao && false !== strpos( $than_bao, 'bao_coso_ghe()' ), '' );
+t( '🔴 và KHÔNG còn gác bằng lay_coso_ghe()',
+	'' !== $than_bao && false === strpos( $than_bao, 'lay_coso_ghe()' ), '' );
 /* Và hàm ấy phải ngả về hằng khi chưa ai khai khoá — ép `(bool) null` là MỌI site đều tắt,
    kể cả bản Máy tự động vốn sống nhờ đường này. */
 $than_lay = than_ham( $cfg0, 'lay_coso_ghe' );

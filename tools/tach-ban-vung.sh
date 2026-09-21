@@ -299,21 +299,32 @@ case "$MA" in
   mtd) GHE=true  ;;
   *)   GHE=false ;;
 esac
+# 🔴 BẢN GỐC NAY ĐÃ BẬT SẮN (21/09/2026, anh Thắng: *"đẩy cơ sở bên ghế sang nhé"* — ba khối
+#    nay chung một bản cài, gian ghế rơi vào đúng khối Máy tự động của nó). Nên chiều lật đảo lại:
+#    trước là "bật cho mtd", nay là "TẮT cho bản nào không dùng ghế" — tức vp.
+#    ⚠️ Quên tắt cho vp là danh mục Văn phòng dài thêm mỗi lần bên Ghế mở một điểm đặt máy, rồi
+#       người nhập chọn nhầm và tiền văn phòng rơi vào một gian ghế.
 if [ "$GHE" = "true" ]; then
-  perl -0777 -pi -e "s/const LAY_COSO_GHE = false;/const LAY_COSO_GHE = true;/" "$DICH/includes/class-vhcp-cfg.php"
   if ! grep -q "const LAY_COSO_GHE = true;" "$DICH/includes/class-vhcp-cfg.php"; then
-    echo "✗ Chưa bật được đường lấy cơ sở từ Ghế cho bản '$MA'."
+    echo "✗ Bản '$MA' phải lấy cơ sở từ Ghế mà hằng LAY_COSO_GHE đang tắt."
     grep -n "LAY_COSO_GHE" "$DICH/includes/class-vhcp-cfg.php" | head -3
     exit 9
   fi
 else
-  # Bản gốc đã tắt sẵn; chốt lại để một ngày ai đó bật lại bản gốc thì lỗi nổ ở đây,
-  # chứ không nổ ở danh mục cơ sở của khách hàng sau vài tuần.
+  perl -0777 -pi -e "s/const LAY_COSO_GHE = true;/const LAY_COSO_GHE = false;/" "$DICH/includes/class-vhcp-cfg.php"
   if ! grep -q "const LAY_COSO_GHE = false;" "$DICH/includes/class-vhcp-cfg.php"; then
-    echo "✗ Bản '$MA' không dùng cơ sở Ghế mà hằng LAY_COSO_GHE vẫn đang bật."
+    echo "✗ Chưa tắt được đường lấy cơ sở từ Ghế cho bản '$MA'."
     grep -n "LAY_COSO_GHE" "$DICH/includes/class-vhcp-cfg.php" | head -3
     exit 9
   fi
+fi
+# ⚠️ ĐẦU PHÁT NGƯỢC (chi phí → ghế) TẮT Ở MỌI BẢN — anh Thắng chỉ xin *"1 chiều từ ghế sang"*.
+#    Chốt lại ở đây để ai bật thì lỗi nổ ngay lúc dựng bản, không phải sau vài tuần ở dữ liệu
+#    của một hệ khác.
+if ! grep -q "const BAO_COSO_GHE = false;" "$DICH/includes/class-vhcp-cfg.php"; then
+  echo "✗ Bản '$MA' đang bật đầu phát ngược sang Ghế (BAO_COSO_GHE)."
+  grep -n "BAO_COSO_GHE" "$DICH/includes/class-vhcp-cfg.php" | head -3
+  exit 9
 fi
 
 # ── Tên plugin ─────────────────────────────────────────────────────────────────────────────

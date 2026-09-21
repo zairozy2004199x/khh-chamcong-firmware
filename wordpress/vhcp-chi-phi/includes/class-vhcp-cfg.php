@@ -587,7 +587,48 @@ class VHCP_Cfg {
 	 *    nghe thì phải tách đầu phát ra khỏi hằng này, đừng bật lại cả ba đường hút.
 	 * ══════════════════════════════════════════════════════════════════════════════════════════
 	 */
-	const LAY_COSO_GHE = false;
+	/* ═══════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 BẬT LẠI Ở BẢN GỐC TỪ 21/09/2026 — VÀ CHỈ CHIỀU HÚT.
+	 *
+	 * Anh Thắng 21/09/2026: *"đẩy cơ sở bên ghế sang nhé"*, *"cơ sở bên ghế thuộc MTĐ"*, và khi
+	 * em hỏi hai chiều hay một: *"bật 1 chiều từ ghế sang"*.
+	 *
+	 * ⚠️ ĐIỀU GÌ ĐÃ ĐỔI SO VỚI 14/09. Hôm ấy tắt vì 67 gian ghế là của NHÀ KHÁC, lạc vào danh
+	 *    mục của khu vui chơi: *"nó thuộc bộ phận khác"*, *"bỏ vào đây là người khác khai sai"*. Nay
+	 *    ba khối nằm chung MỘT bản cài, mỗi gian mang cột **Khối** của riêng nó, và gian ghế rơi vào
+	 *    khối Máy tự động (đơn vị POSH → `mtd`). Nó không còn là dòng lạ trong danh mục người
+	 *    khác nữa — nó ở đúng bảng của nó.
+	 *
+	 * 🔴 VÀ CÁI ĐÃ LÀM ANH KHỔ HÔM ẤY ĐÃ ĐƯỢC GỠ RIÊNG, KHÔNG ĐỂ NÓ QUAY LẠI. *"Tại sao xóa
+	 *    không được"* là vì lượt hút tự động chạy LẠI MỖI PHIÊN BẢN plugin: xóa xong, cài bản sau
+	 *    là 67 gian về nguyên, không một câu báo. Từ bản này lượt ấy chỉ chạy ĐÚNG MỘT LẦN cho cả
+	 *    đời site (xem cờ `vhcp_hut_coso_ghe` ở `vhcp-chi-phi.php`). Xóa là ở yên; muốn hút lại thì
+	 *    bấm nút 🚛 Hút cơ sở từ Ghế ở màn Cấu hình.
+	 *
+	 * ⚠️ HẰNG NÀY CHỈ CÒN GÁC CHIỀU HÚT (ghế → chi phí): lượt hút đầu, tai nghe móc
+	 *    `vhg_coso_da_luu`, và nút bấm tay. ĐẦU PHÁT ngược lại (chi phí → ghế) nay có hằng riêng
+	 *    `BAO_COSO_GHE`, và bản gốc để TẮT — anh chỉ xin một chiều. Chính chốt ⚠ cũ ở khối này đã
+	 *    dặn: ngày nào cần thì TÁCH ĐẦU PHÁT ra, đừng bật chung một hằng.
+	 * ════════════════════════════════════════════════════════════════════════════════════ */
+	const LAY_COSO_GHE = true;
+
+	/**
+	 * BẢN NÀY CÓ BÁO NGƯỢC CƠ SỞ SANG BÊN GHẾ KHÔNG — chiều PHÁT, tách hẳn khỏi chiều hút.
+	 *
+	 * Anh Thắng 21/09/2026: *"bật 1 chiều từ ghế sang"* — nên bản gốc để TẮT.
+	 *
+	 * 🔴 TÁCH RA LÀM HAI HẰNG CHÍNH VÌ CÂU ẤY. Trước 21/09 một hằng gác cả hai chiều, nên bật
+	 *    hút là bật luôn phát: mỗi lượt Lưu cấu hình sẽ bắn danh sách gian MTĐ sang plugin Ghế.
+	 *    Đó là chạm vào dữ liệu của một hệ khác đang chạy thật — không được làm kèm.
+	 */
+	const BAO_COSO_GHE = false;
+
+	/** Bản này có báo ngược sang Ghế không — đọc lúc chạy, cùng nếp với `lay_coso_ghe()`. */
+	public static function bao_coso_ghe() {
+		$v = get_option( 'vhcp_bao_coso_ghe', null );
+		if ( null === $v || '' === $v ) { return self::BAO_COSO_GHE; }
+		return (bool) (int) $v;
+	}
 
 	/**
 	 * BẢN NÀY CÓ LẤY CƠ SỞ TỪ GHẾ KHÔNG — đọc lúc chạy, không đọc hằng thẳng.
@@ -670,8 +711,11 @@ class VHCP_Cfg {
 	 *    trên đúng đường người ta bấm Lưu.
 	 */
 	private static function bao_coso_posh_( $rows ) {
-		/* Bản không dùng ghế thì cũng không báo sang — xem hằng `LAY_COSO_GHE`. */
-		if ( ! self::lay_coso_ghe() ) { return; }
+		/* 🔴 GÁC BẰNG `bao_coso_ghe()`, KHÔNG BẰNG `lay_coso_ghe()`. Từ 21/09/2026 hai chiều có
+		   hai hằng riêng — anh Thắng: *"bật 1 chiều từ ghế sang"*. Gác chung một hằng thì ngày
+		   bật chiều hút là mỗi lượt Lưu cấu hình lại bắn danh sách gian sang plugin Ghế — chạm
+		   vào dữ liệu của một hệ khác đang chạy thật, mà không ai xin điều đó. */
+		if ( ! self::bao_coso_ghe() ) { return; }
 		foreach ( (array) $rows as $r ) {
 			$r  = array_values( (array) $r );
 			$tn = trim( (string) ( isset( $r[0] ) ? $r[0] : '' ) );
