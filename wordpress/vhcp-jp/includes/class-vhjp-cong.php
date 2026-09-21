@@ -75,7 +75,7 @@ class VHJP_Cong {
 	 *    đúng cơ sở với người không phải kế toán.
 	 */
 	public static function chi_nhan_vien() {
-		return array( 'jpMyReports' );
+		return array( 'jpMyReports', 'jpOpenReport' );
 	}
 
 	/** Bảng tên hàm (như bên Apps Script) -> callable PHP. Danh sách CHO PHÉP. */
@@ -100,6 +100,7 @@ class VHJP_Cong {
 			/* báo cáo — đường ĐỌC */
 			'jpMyReports'         => array( 'VHJP_Cong', 'bc_cua_toi' ),
 			'jpGetReport'         => array( 'VHJP_Cong', 'bc_lay' ),
+			'jpOpenReport'        => array( 'VHJP_Cong', 'bc_mo' ),
 		);
 	}
 
@@ -127,7 +128,7 @@ class VHJP_Cong {
 			'jpQuetDayChuyen', 'jpSo632', 'jpSoCongNo', 'jpSoNhatKyChung',
 			/* báo cáo của nhân viên */
 			'jpBaoCaoDoanhThuNgay', 'jpGetOpening', 'jpGuiDeNghiTonDau',
-			'jpOpenReport', 'jpReopenIn24h', 'jpRevenueBoard', 'jpSaveReport',
+			'jpReopenIn24h', 'jpRevenueBoard', 'jpSaveReport',
 			'jpStockBoard', 'jpSuaKyBaoCao', 'jpSubmitReport',
 			/* cấu hình & tiện ích */
 			'jpCfgImportItems', 'jpCfgListUsers', 'jpCfgSaveUser', 'jpDungHeThongMotPhat',
@@ -302,5 +303,15 @@ class VHJP_Cong {
 	}
 	public static function bc_lay( $args, $nguoi ) {
 		return VHJP_BaoCao::lay( $nguoi, isset( $args[1] ) ? $args[1] : '' );
+	}
+	/* `jpOpenReport(token, locationId, fromDate, toDate, machineType)` — giữ đúng thứ tự tham
+	   số giao diện đang gửi, không đổi sang một object cho "gọn": đổi là phải sửa giao diện,
+	   mà giao diện thì cố ý giữ nguyên văn để hai bản còn so số được. */
+	public static function bc_mo( $args, $nguoi ) {
+		return VHJP_BaoCao::mo( $nguoi,
+			isset( $args[1] ) ? $args[1] : '',
+			isset( $args[2] ) ? $args[2] : '',
+			isset( $args[3] ) ? $args[3] : '',
+			isset( $args[4] ) ? $args[4] : '' );
 	}
 }

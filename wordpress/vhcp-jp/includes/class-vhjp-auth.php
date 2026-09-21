@@ -325,6 +325,43 @@ class VHJP_Auth {
 		return '' !== $r ? $r : 'chưa đặt';
 	}
 
+	/**
+	 * LOẠI MÁY người này được gán. Rỗng = được CẢ HAI (dùng cho người kiêm cả hai loại).
+	 * Kế toán không bị chặn — họ xem mọi báo cáo.
+	 */
+	public static function may_type_cua( $u ) {
+		if ( self::la_kt( $u ) ) { return ''; }
+		$t = strtoupper( VHJP_Doc::str( isset( $u['machineType'] ) ? $u['machineType'] : '' ) );
+		return ( VHJP_CauHinh::LOAI_XU === $t || VHJP_CauHinh::LOAI_TIEN === $t ) ? $t : '';
+	}
+
+	/**
+	 * Chặn nhân viên mở loại báo cáo không phải của mình.
+	 *
+	 * 🔴 Chặn ở ĐÂY chứ không chỉ ẩn ô chọn trên giao diện. Cổng nhận lệnh từ trình duyệt, nên
+	 *    ai cũng gọi thẳng `jpOpenReport(token, coso, ..., 'XU')` được — ẩn giao diện là chặn
+	 *    hờ, không phải chặn.
+	 */
+	public static function can_may_type( $u, $m_type ) {
+		$duoc = self::may_type_cua( $u );
+		if ( '' === $duoc ) { return; }                     // gán rỗng = cả hai loại
+		$xin = strtoupper( VHJP_Doc::str( $m_type ) );
+		if ( $xin !== $duoc ) {
+			throw new Exception( 'Tài khoản này được gán '
+				. ( VHJP_CauHinh::LOAI_XU === $duoc ? 'MÁY XU' : 'MÁY TIỀN' )
+				. ' — không mở được báo cáo '
+				. ( VHJP_CauHinh::LOAI_XU === $xin ? 'MÁY XU' : 'MÁY TIỀN' )
+				. '. Kế toán đổi loại máy trong Cấu hình → Tài khoản nếu cần.' );
+		}
+	}
+
+	/** Nhân viên chỉ được đụng cơ sở đã gán. Kế toán xem tất cả. Không được thì NÉM. */
+	public static function can_coso( $u, $ma_coso ) {
+		if ( ! self::xem_duoc_coso( $u, $ma_coso ) ) {
+			throw new Exception( 'Không có quyền với cơ sở này' );
+		}
+	}
+
 	/** Câu chặn khi màn này của nhân viên mà người đăng nhập không phải nhân viên. */
 	public static function cau_chan_nv( $u ) {
 		return 'Màn này của NHÂN VIÊN CƠ SỞ, mà mã PIN vừa nhập là tài khoản '

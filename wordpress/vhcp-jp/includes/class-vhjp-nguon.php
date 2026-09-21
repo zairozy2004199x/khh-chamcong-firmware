@@ -42,6 +42,9 @@ class VHJP_Nguon {
 	/** Nhớ lược đồ đã bóc, để khỏi phân tích lại mỗi lượt gọi. */
 	private static $cot = array();
 
+	/** Cột số nhận `NULL` — xem `cot_so_nhan_null()`. */
+	private static $cot_so = array();
+
 	/**
 	 * Danh sách cột của một tab, đọc từ chính lược đồ MySQL.
 	 *
@@ -62,6 +65,51 @@ class VHJP_Nguon {
 			if ( preg_match( '/^`?([A-Za-z_][A-Za-z0-9_]*)`?\s+[A-Z]/', $d, $m ) ) { $ra[] = $m[1]; }
 		}
 		return self::$cot[ $tab ] = $ra;
+	}
+
+	/**
+	 * Cột NÀO LÀ CỘT SỐ NHẬN NULL — đọc từ chính lược đồ, cùng một chỗ với `cot()`.
+	 *
+	 * =========================================================================================
+	 * 🔴 "CHƯA AI GÕ" PHẢI XUỐNG SỔ LÀ `NULL`, KHÔNG PHẢI CHUỖI RỖNG.
+	 * =========================================================================================
+	 * Bên Google Sheets ô trống là `''`, và ô nào cũng nhận `''` vì Sheets không có kiểu cột.
+	 * Bên này thì có: `mAfter DECIMAL(15,3) NULL`. Nhét `''` vào cột ấy thì
+	 *   · MySQL ở chế độ CHẶT (mặc định từ 5.7) CHỐI CẢ DÒNG — mất luôn dòng báo cáo;
+	 *   · MySQL ở chế độ LỎNG lặng lẽ đổi thành `0` — tức biến "chưa ai gõ" thành "đã gõ số
+	 *     0". Đó đúng là lỗi mất tiền im lặng mà `VHJP_BaoCao` dựng lên để chặn: ô "Thực thu"
+	 *     hiểu là đếm được 0 ⇒ lệch ra −(toàn bộ tiền mặt máy báo) ⇒ TỔNG PHẢI NỘP về 0, mà sổ
+	 *     vẫn cân nên không phép kiểm kế toán nào bắt được.
+	 * Cùng một câu `''` cho ra hai kết cục khác hẳn nhau tuỳ cấu hình hosting — thứ không bao
+	 * giờ được để dây dưa.
+	 *
+	 * ⚠️ ĐỔI Ở ĐÂY, MỘT CHỖ, ngay trước khi chạm sổ — chứ không bắt từng nơi gọi tự nhớ. Đường
+	 *    ghi còn dài (lưu nháp · nộp · duyệt · kho), và luật "nơi gọi phải nhớ" thì chỉ đúng
+	 *    tới người thứ hai.
+	 *
+	 * ⚠️ CHỈ cột SỐ và CHỈ khi cột ấy nhận `NULL`. Cột chữ `NOT NULL DEFAULT ''` (`note`,
+	 *    `topupNote`…) mà cũng đổi sang `NULL` là chối cả dòng vì lý do ngược lại — ở đó chuỗi
+	 *    rỗng mới là giá trị đúng.
+	 */
+	public static function cot_so_nhan_null( $tab ) {
+		if ( isset( self::$cot_so[ $tab ] ) ) { return self::$cot_so[ $tab ]; }
+		$ban_do = VHJP_DB::ban_do();
+		if ( ! isset( $ban_do[ $tab ] ) ) { return self::$cot_so[ $tab ] = array(); }
+		$than = VHJP_DB::bang();
+		$than = isset( $than[ $ban_do[ $tab ] ] ) ? $than[ $ban_do[ $tab ] ] : '';
+		$ra = array();
+		foreach ( explode( "\n", $than ) as $d ) {
+			$d = trim( $d );
+			if ( preg_match( '/^(PRIMARY KEY|UNIQUE KEY|KEY)\b/i', $d ) ) { continue; }
+			if ( ! preg_match( '/^`?([A-Za-z_][A-Za-z0-9_]*)`?\s+([A-Z]+)/', $d, $m ) ) { continue; }
+			$kieu = strtoupper( $m[2] );
+			if ( ! in_array( $kieu, array( 'INT', 'BIGINT', 'SMALLINT', 'TINYINT',
+				'DECIMAL', 'FLOAT', 'DOUBLE', 'DATE', 'DATETIME', 'TIMESTAMP' ), true ) ) { continue; }
+			/* `NOT NULL` thì để yên — ở đó `''` sẽ thành 0 đúng như cột được khai. */
+			if ( preg_match( '/\bNOT\s+NULL\b/i', $d ) ) { continue; }
+			$ra[] = $m[1];
+		}
+		return self::$cot_so[ $tab ] = $ra;
 	}
 
 	/** Cột này có thật không. Đây là chốt chặn duy nhất giữa tên cột người gọi đưa và câu SQL. */
@@ -137,9 +185,13 @@ class VHJP_Nguon {
 	 *    nổ vì mấy trường ấy là chặn đúng đường chạy bình thường.
 	 */
 	private static function loc( $tab, $obj ) {
+		$so = self::cot_so_nhan_null( $tab );
 		$ra = array();
 		foreach ( (array) $obj as $k => $v ) {
-			if ( self::co_cot( $tab, $k ) ) { $ra[ $k ] = $v; }
+			if ( ! self::co_cot( $tab, $k ) ) { continue; }
+			/* 🔴 "chưa ai gõ" -> NULL, chỉ ở cột số nhận NULL. Xem `cot_so_nhan_null()`. */
+			if ( '' === $v && in_array( $k, $so, true ) ) { $v = null; }
+			$ra[ $k ] = $v;
 		}
 		return $ra;
 	}
