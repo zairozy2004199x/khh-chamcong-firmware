@@ -12319,17 +12319,25 @@ class VHCC_Web {
 		$thieu  = isset( $b['so_thieu'] ) ? (int) $b['so_thieu'] : 0;
 		echo '<div class="bao ' . ( $xem ? 'canh' : 'ok' ) . '">';
 		echo '<b>' . ( $xem ? 'XEM TRƯỚC — chưa ghi gì vào bảng công.' : 'Đã nạp vào bảng công.' ) . '</b><br>';
+		/* 🔴 ĐỪNG DÙNG CHỮ "NGÀY" CHO HAI THỨ KHÁC NHAU TRONG CÙNG MỘT CÂU.
+		   Bản đầu in "31 ngày có công · 9 người · 122 ngày công đọc được", và anh Thắng
+		   21/09/2026 hỏi lại: *"nạp mỗi ngày, chứ không phải nguyên tháng à"*. Đọc thế là đúng
+		   — hai con số cùng gọi là "ngày" mà đếm hai thứ khác hẳn nhau, nên 122 trông như 122
+		   lượt phải làm bằng tay. Nói rõ đơn vị, và nói thẳng rằng một lần nạp là xong cả tháng. */
 		echo 'Cơ sở <b>' . esc_html( $b['coSo'] ) . '</b> · tháng <b>' . esc_html( $b['thang'] )
-			. '</b> · <b>' . esc_html( (string) $b['so_ngay'] ) . '</b> ngày có công · <b>'
-			. esc_html( (string) $b['so_nguoi'] ) . '</b> người · <b>'
-			. esc_html( (string) $b['so_luot'] ) . '</b> ngày công đọc được';
+			. '</b> · <b>' . esc_html( (string) $b['so_nguoi'] ) . '</b> người · <b>'
+			. esc_html( (string) $b['so_ngay'] ) . '</b> ngày trong tháng có người đi làm · <b>'
+			. esc_html( (string) $b['so_luot'] ) . '</b> lượt <i>người × ngày</i>';
 		if ( ! $xem ) {
 			echo ' · đã ghi <b>' . esc_html( (string) $b['da_ghi'] ) . '</b>';
 			if ( ! empty( $b['nghi_ghi'] ) ) {
 				echo ' · <b>' . esc_html( (string) $b['nghi_ghi'] ) . '</b> ngày có nghỉ giữa ca';
 			}
 		}
-		echo '.<br><span class="mo">Ba con số đầu phải khớp với bảng đang cầm trên tay. Lệch là bộ '
+		echo '.<br><span class="mo"><b>Một lần nạp là xong cả tháng</b> — không phải nạp từng ngày. '
+			. 'Con số <i>người × ngày</i> là số ô CÓ GIỜ trong bảng (một người đi làm một ngày tính '
+			. 'một lượt); ô ghi <b>0</b> là ngày nghỉ, không tính.</span>';
+		echo '<br><span class="mo">Ba con số trên phải khớp với bảng đang cầm trên tay. Lệch là bộ '
 			. 'đọc hiểu nhầm bố cục cột — đừng bấm Nạp thật.</span></div>';
 
 		self::ve_ghep_ten( $b, $toi );
@@ -12375,11 +12383,30 @@ class VHCC_Web {
 		echo '<p class="mo">Bảng cũ ghi tên gọi (<b>Ngân</b>, <b>N.Kiệt</b>), hệ thống ghi mã và '
 			. 'họ tên đầy đủ. Chọn đúng người cho từng tên — <b>chọn một lần thôi</b>, lần nạp '
 			. 'sau hệ thống tự nhớ.</p>';
+		/* 🔴 ĐẾM RIÊNG "ĐÃ CHỌN SẴN" VỚI "ĐỂ TRỐNG" — hai việc khác nhau đối với người đang ngồi
+		   trước màn. Bản đầu gộp cả hai vào một câu "còn N tên chưa có người, ô để trống nghĩa
+		   là…", nhưng với bảng tháng 8 thật thì cả 9 ô đều ĐÃ CHỌN SẴN, không ô nào trống. Đọc
+		   câu ấy rồi nhìn xuống thấy 9 ô đều có tên là mâu thuẫn ngay trước mắt — đúng kiểu hiểu
+		   nhầm mà anh Thắng vừa gặp với con số "122 ngày công". Nói đúng việc phải làm: liếc lại
+		   rồi bấm, hay tự chọn. */
+		$san_co = 0;
+		$de_trong = 0;
+		foreach ( $nguoi as $n ) {
+			if ( '' !== $n['ma'] ) { continue; }
+			if ( 1 === count( (array) $n['goiY'] ) ) { $san_co++; } else { $de_trong++; }
+		}
 		if ( $thieu > 0 ) {
-			echo '<p class="mo">🔴 Còn <b>' . esc_html( (string) $thieu ) . '</b> tên chưa có '
-				. 'người. Ô để trống nghĩa là hệ thống <b>đoán ra nhiều hơn một người</b> (hoặc '
-				. 'không ai) — chỗ ấy phải tự chọn, vì chọn nhầm là công của người này chui vào '
-				. 'bảng lương người kia.</p>';
+			echo '<p class="mo">Còn <b>' . esc_html( (string) $thieu ) . '</b> tên chưa xác nhận.';
+			if ( $san_co > 0 ) {
+				echo ' <b>' . esc_html( (string) $san_co ) . '</b> ô hệ đã <b>chọn sẵn</b> người nó '
+					. 'đoán ra — liếc lại cho chắc rồi bấm <b>Lưu ghép</b>.';
+			}
+			if ( $de_trong > 0 ) {
+				echo ' <b>' . esc_html( (string) $de_trong ) . '</b> ô <b>để trống</b> vì hệ đoán ra '
+					. 'nhiều hơn một người (hoặc không ai) — chỗ ấy phải tự chọn.';
+			}
+			echo '<br>🔴 Chọn nhầm là công của người này chui vào bảng lương người kia, và không '
+				. 'câu nào báo. Đó là lý do hệ không tự nhận bừa chỗ nào nó không chắc.</p>';
 		}
 		echo '<form method="post">'
 			. '<input type="hidden" name="ky" value="' . esc_attr( self::chu_ky_cua( $toi ) ) . '">'
