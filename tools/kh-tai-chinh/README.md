@@ -37,6 +37,7 @@ khẩu riêng. Bớt một chỗ giữ mật khẩu là bớt một chỗ có th
 | Chi phí | Ghi khoản chi theo bộ phận × khoản mục; bảng cộng chéo; lọc; danh mục sửa tại chỗ |
 | Đối soát chi phí | Ghép chứng từ chi phí với dòng chi trong sao kê |
 | Hoá đơn đầu ra | Dán vào / xuất ra đúng 22 cột file VAT; gom theo thuế suất, khu vực, dịch vụ |
+| Hoá đơn đầu vào | VAT được khấu trừ, tờ khai GTGT, ngưỡng tiền mặt |
 | Công nợ | Phải thu / phải trả, tuổi nợ theo mốc, ghi trả từng đợt, tự ghép từ sao kê |
 | Nhật ký | Ai làm gì lúc nào; khoá sổ theo ngày; phục hồi bản ghi đã xoá |
 | Sao lưu | Tải cả kho ra .json, nhập lại được |
@@ -131,6 +132,52 @@ lại VAT = 0.
 
 Dòng nào trong file gốc có `chưa VAT + VAT ≠ có VAT` thì lấy hai số đầu làm gốc,
 tính lại có VAT, và **đếm số dòng như vậy để báo lên** — không sửa lặng lẽ.
+
+## Hoá đơn đầu vào
+
+**Đây là chuyện thuế, không phải sổ phải trả thứ hai.** Công nợ phải trả đã
+dựng trên bảng chi phí; thêm hoá đơn đầu vào làm nguồn nợ nữa là quay lại đúng
+cái lỗi hai nguồn sự thật vừa bỏ ở 0.6. Màn hình này trả lời một câu khác:
+tháng này được khấu trừ bao nhiêu VAT, và phải nộp bao nhiêu.
+
+Cũng vì thế nó **không gộp vào bảng chi phí**: không phải khoản chi nào cũng có
+hoá đơn (lương, chi lặt vặt tiền mặt), và không phải hoá đơn đầu vào nào cũng
+là chi phí (mua tài sản cố định, mua hàng nhập kho). Gộp lại thì một trong hai
+bảng luôn phải mang những dòng không thuộc về nó.
+
+Phép tính VAT **dùng lại** `KHTC_HoaDonRa::tinh()` — cùng phép toán, cùng quy
+tắc "chỉ làm tròn một lần rồi lấy hiệu", đã có hàng chục phép kiểm đứng sau.
+Chỗ này dùng lại là đúng; khác với việc mượn phép ghép của đối soát cổng cho
+công nợ, vốn là hai bài toán khác nhau nên đã hỏng.
+
+### Tờ khai GTGT
+
+```
+VAT phải nộp = VAT đầu ra − VAT đầu vào ĐƯỢC KHẤU TRỪ
+```
+
+Phần không được khấu trừ **không** trừ vào đây. Ra số âm thì gọi đúng tên là
+**chuyển kỳ sau**, không phải nhà nước trả lại — hai con số này không bao giờ
+cùng dương, và có một phép kiểm buộc như vậy.
+
+Đây là chỗ hai màn hình hoá đơn gặp nhau: đổi khoảng ngày ở bộ lọc là cả bảng
+tờ khai đổi theo, số đầu ra lấy thẳng từ mục Hoá đơn đầu ra cùng kỳ.
+
+### Ngưỡng tiền mặt
+
+Hoá đơn từ **20.000.000 đ** trở lên mà trả bằng tiền mặt được đặt sẵn là
+**không khấu trừ**, kèm lý do hiện ngay trên dòng.
+
+Đây là **nhắc, không phải phán quyết**: kế toán bật lại được bằng một nút. Quy
+định thuế đổi theo thời kỳ và có ngoại lệ — phần mềm không nên quyết thay, chỉ
+nên làm cho chỗ đáng ngờ đập vào mắt.
+
+### Chặn trùng theo cặp số hoá đơn + MST
+
+Khác hoá đơn đầu ra (số do mình đánh nên duy nhất trong pháp nhân), số hoá đơn
+đầu vào do **bên bán** đánh. Hai nhà cung cấp cùng phát hành số `00000001` là
+bình thường. Chặn theo mình số hoá đơn thì nhà cung cấp thứ hai không nhập được
+hoá đơn hợp lệ của họ, nên `UNIQUE (cty, so_hd, mst)`.
 
 ## Công nợ
 
@@ -314,6 +361,7 @@ php tools/kh-tai-chinh/tests/kiem-chi-phi.php    # 68 phép thử
 php tools/kh-tai-chinh/tests/kiem-hoa-don.php    # 128 phép thử
 php tools/kh-tai-chinh/tests/kiem-khoa-nhat-ky.php   # 59 phép thử
 php tools/kh-tai-chinh/tests/kiem-cong-no.php    # 80 phép thử
+php tools/kh-tai-chinh/tests/kiem-hoa-don-vao.php   # 65 phép thử
 ```
 
 `dong-goi.sh` chạy cả ba trước khi gói, hỏng một phép là không ra file zip.
@@ -343,6 +391,9 @@ php tools/kh-tai-chinh/tests/kiem-cong-no.php    # 80 phép thử
   phải im lặng, không trả cho chứng từ chưa phát sinh, một dòng sao kê chỉ đóng
   được một chứng từ. Cộng một phép kiểm buộc màn hình Chi phí và màn hình Công
   nợ nói cùng một con số.
+* **kiem-hoa-don-vao** — ngưỡng tiền mặt ở cả ba mốc (dưới / đúng / trên), và
+  tờ khai: phần không khấu trừ phải **không** bị trừ vào số phải nộp, và
+  "phải nộp" với "chuyển kỳ sau" không bao giờ cùng dương.
 
 Bộ giả lập **không thay được bản cài thật**: SQLite không phải MySQL, `dbDelta`
 bị bỏ qua và bảng được tạo tay, nên lỗi riêng của MySQL vẫn lọt. Nó bắt được hàm
@@ -352,7 +403,7 @@ hàng cũng có cột `cty`, nên MySQL báo "ambiguous column" và trang trắn
 
 ## Còn phải làm
 
-Các mảng chưa dựng lại: công nợ, hoá đơn đầu vào, pháp danh, hồ sơ, báo cáo.
+Các mảng chưa dựng lại: pháp danh, hồ sơ, báo cáo.
 
 Đối soát ở bản này là **một engine dùng chung** cho VietQR / Payoo / VNPay /
 Zalo / MoMo, thay vì mỗi cổng một trang riêng như bản gốc (3.722 + 2.180 dòng

@@ -35,6 +35,7 @@ class KHTC_NhatKy {
 	public static function ten_viec( $v ) {
 		$ds = array(
 			'them'     => 'Thêm',
+			'sua'      => 'Sửa',
 			'xoa'      => 'Xoá',
 			'nap'      => 'Nạp hàng loạt',
 			'doi_soat' => 'Chạy đối soát',
@@ -54,6 +55,7 @@ class KHTC_NhatKy {
 			'ds_dong'   => 'Dòng cổng',
 			'chi_phi'   => 'Chi phí',
 			'hd_ra'     => 'Hoá đơn đầu ra',
+			'hd_vao'    => 'Hoá đơn đầu vào',
 			'thanh_toan' => 'Thanh toán',
 		);
 		return $ds[ $b ] ?? $b;

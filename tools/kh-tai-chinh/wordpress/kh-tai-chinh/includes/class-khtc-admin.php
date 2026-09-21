@@ -19,6 +19,7 @@ class KHTC_Admin {
 		add_submenu_page( 'khtc', 'Chi phí', 'Chi phí', KHTC_CAP, 'khtc-chi-phi', array( __CLASS__, 'chi_phi' ) );
 		add_submenu_page( 'khtc', 'Đối soát chi phí', 'Đối soát chi phí', KHTC_CAP, 'khtc-doi-soat-chi-phi', array( __CLASS__, 'doi_soat_chi_phi' ) );
 		add_submenu_page( 'khtc', 'Hoá đơn đầu ra', 'Hoá đơn đầu ra', KHTC_CAP, 'khtc-hoa-don-ra', array( __CLASS__, 'hoa_don_ra' ) );
+		add_submenu_page( 'khtc', 'Hoá đơn đầu vào', 'Hoá đơn đầu vào', KHTC_CAP, 'khtc-hoa-don-vao', array( __CLASS__, 'hoa_don_vao' ) );
 		add_submenu_page( 'khtc', 'Công nợ', 'Công nợ', KHTC_CAP, 'khtc-cong-no', array( __CLASS__, 'cong_no' ) );
 		add_submenu_page( 'khtc', 'Nhật ký', 'Nhật ký', KHTC_CAP, 'khtc-nhat-ky', array( __CLASS__, 'nhat_ky' ) );
 		add_submenu_page( 'khtc', 'Sao lưu', 'Sao lưu', KHTC_CAP, 'khtc-sao-luu', array( __CLASS__, 'sao_luu' ) );
@@ -32,6 +33,7 @@ class KHTC_Admin {
 	public static function chi_phi()   { KHTC_Trang::chi_phi(); }
 	public static function doi_soat_chi_phi() { KHTC_Trang::doi_soat_chi_phi(); }
 	public static function hoa_don_ra() { KHTC_Trang::hoa_don_ra(); }
+	public static function hoa_don_vao() { KHTC_Trang::hoa_don_vao(); }
 	public static function cong_no()   { KHTC_Trang::cong_no(); }
 	public static function nhat_ky()   { KHTC_Trang::nhat_ky(); }
 	public static function sao_luu()   { KHTC_Trang::sao_luu(); }

@@ -22,6 +22,7 @@ class KHTC_Trang {
 			case 'chi-phi':   self::chi_phi();   break;
 			case 'doi-soat-chi-phi': self::doi_soat_chi_phi(); break;
 			case 'hoa-don-ra': self::hoa_don_ra(); break;
+			case 'hoa-don-vao': self::hoa_don_vao(); break;
 			case 'cong-no':   self::cong_no();   break;
 			case 'nhat-ky':   self::nhat_ky();   break;
 			case 'sao-luu':   self::sao_luu();   break;
@@ -997,6 +998,7 @@ class KHTC_Trang {
 			'ds_dong'   => 'Dòng cổng thanh toán',
 			'chi_phi'   => 'Khoản chi phí',
 			'hd_ra'     => 'Hoá đơn đầu ra',
+			'hd_vao'    => 'Hoá đơn đầu vào',
 		);
 		foreach ( $dem as $t => $n ) {
 			printf( '<tr><td>%s</td><td class="so">%s</td></tr>', esc_html( $ten[ $t ] ?? $t ), esc_html( number_format( $n, 0, ',', '.' ) ) );
@@ -1292,12 +1294,12 @@ class KHTC_Trang {
 		printf( '<div class="khtc-panel"><h2>Nhật ký thay đổi</h2><form method="get" action="%s"><div class="khtc-loc">', esc_url( self::url_form( 'nhat-ky' ) ) );
 		self::an_get( 'nhat-ky' );
 		echo '<label>Việc<select name="viec"><option value="">— Tất cả —</option>';
-		foreach ( array( 'them', 'xoa', 'nap', 'doi_soat', 'khoa', 'nhap', 'phuc_hoi', 'danh_muc' ) as $v ) {
+		foreach ( array( 'them', 'sua', 'xoa', 'nap', 'doi_soat', 'khoa', 'nhap', 'phuc_hoi', 'danh_muc' ) as $v ) {
 			printf( '<option value="%s"%s>%s</option>', esc_attr( $v ), selected( $l['viec'], $v, false ), esc_html( KHTC_NhatKy::ten_viec( $v ) ) );
 		}
 		echo '</select></label>';
 		echo '<label>Bảng<select name="bang"><option value="">— Tất cả —</option>';
-		foreach ( array( 'ngan_hang', 'giao_dich', 'doi_soat', 'ds_dong', 'chi_phi', 'hd_ra' ) as $b ) {
+		foreach ( array( 'ngan_hang', 'giao_dich', 'doi_soat', 'ds_dong', 'chi_phi', 'hd_ra', 'hd_vao', 'thanh_toan' ) as $b ) {
 			printf( '<option value="%s"%s>%s</option>', esc_attr( $b ), selected( $l['bang'], $b, false ), esc_html( KHTC_NhatKy::ten_bang( $b ) ) );
 		}
 		echo '</select></label>';
@@ -1519,5 +1521,259 @@ class KHTC_Trang {
 			echo '</div>';
 		}
 		echo '</div>';
+	}
+
+	// ------------------------------------------------------ hoá đơn đầu vào
+
+	public static function hoa_don_vao() {
+		KHTC_UI::nhan_doi_cty();
+		$bao_ok = '';
+		$bao_loi = '';
+
+		if ( isset( $_POST['khtc_them_hdv'] ) && check_admin_referer( 'khtc_hdv' ) ) {
+			$kq = KHTC_HoaDonVao::them(
+				array(
+					'ngay'         => sanitize_text_field( wp_unslash( $_POST['ngay'] ?? '' ) ),
+					'so_hd'        => sanitize_text_field( wp_unslash( $_POST['so_hd'] ?? '' ) ),
+					'nha_cung_cap' => sanitize_text_field( wp_unslash( $_POST['nha_cung_cap'] ?? '' ) ),
+					'mst'          => sanitize_text_field( wp_unslash( $_POST['mst'] ?? '' ) ),
+					'noi_dung'     => sanitize_text_field( wp_unslash( $_POST['noi_dung'] ?? '' ) ),
+					'chua_vat'     => sanitize_text_field( wp_unslash( $_POST['chua_vat'] ?? '' ) ),
+					'co_vat'       => sanitize_text_field( wp_unslash( $_POST['co_vat'] ?? '' ) ),
+					'thue_suat'    => sanitize_text_field( wp_unslash( $_POST['thue_suat'] ?? '8' ) ),
+					'hinh_thuc'    => sanitize_text_field( wp_unslash( $_POST['hinh_thuc'] ?? '' ) ),
+				)
+			);
+			if ( is_wp_error( $kq ) ) { $bao_loi = $kq->get_error_message(); } else { $bao_ok = 'Đã ghi hoá đơn đầu vào.'; }
+		}
+
+		if ( isset( $_POST['khtc_dan_hdv'] ) && check_admin_referer( 'khtc_hdv' ) ) {
+			$kq     = KHTC_HoaDonVao::dan_hang_loat( wp_unslash( $_POST['bang_hdv'] ?? '' ) );
+			$bao_ok = 'Đã nạp ' . $kq['them'] . ' hoá đơn'
+				. ( $kq['trung'] ? ', bỏ qua ' . $kq['trung'] . ' hoá đơn đã có' : '' ) . '.';
+			if ( $kq['loi'] ) {
+				$bao_loi = implode( ' · ', array_slice( $kq['loi'], 0, 5 ) )
+					. ( count( $kq['loi'] ) > 5 ? ' … và ' . ( count( $kq['loi'] ) - 5 ) . ' dòng nữa' : '' );
+			}
+		}
+
+		if ( isset( $_POST['khtc_kt'] ) && check_admin_referer( 'khtc_hdv' ) ) {
+			list( $id, $bat ) = array_pad( explode( ':', sanitize_text_field( wp_unslash( $_POST['khtc_kt'] ) ) ), 2, '' );
+			$kq = KHTC_HoaDonVao::dat_khau_tru( (int) $id, '1' === $bat, sanitize_text_field( wp_unslash( $_POST['ly_do_' . (int) $id ] ?? 'Kế toán đánh dấu không khấu trừ' ) ) );
+			if ( is_wp_error( $kq ) ) { $bao_loi = $kq->get_error_message(); } else { $bao_ok = 'Đã đổi trạng thái khấu trừ.'; }
+		}
+
+		if ( isset( $_POST['khtc_xoa_hdv'] ) && check_admin_referer( 'khtc_hdv' ) ) {
+			$kq = KHTC_HoaDonVao::xoa( (int) $_POST['khtc_xoa_hdv'] );
+			if ( is_wp_error( $kq ) ) { $bao_loi = $kq->get_error_message(); } else { $bao_ok = 'Đã xoá hoá đơn. Phục hồi được ở mục Nhật ký.'; }
+		}
+
+		list( $d1, $d2 ) = KHTC_UI::thang_nay();
+		$loc = array(
+			'tu'        => sanitize_text_field( wp_unslash( $_GET['tu'] ?? $d1 ) ),
+			'den'       => sanitize_text_field( wp_unslash( $_GET['den'] ?? $d2 ) ),
+			'thue_suat' => sanitize_text_field( wp_unslash( $_GET['ts'] ?? '' ) ),
+			'khau_tru'  => isset( $_GET['kt'] ) ? sanitize_text_field( wp_unslash( $_GET['kt'] ) ) : '',
+			'tim'       => sanitize_text_field( wp_unslash( $_GET['tim'] ?? '' ) ),
+			'trang'     => (int) ( $_GET['trang'] ?? 1 ),
+		);
+		$kq = KHTC_HoaDonVao::loc( $loc );
+		$tk = KHTC_HoaDonVao::to_khai( $loc['tu'], $loc['den'] );
+
+		echo '<div class="wrap khtc">';
+		KHTC_UI::dau_trang( 'Hoá đơn đầu vào' );
+		KHTC_UI::thong_bao( 'ok', $bao_ok );
+		KHTC_UI::thong_bao( 'loi', $bao_loi );
+
+		KHTC_UI::the_so(
+			array(
+				array( 'Mua vào chưa VAT', KHTC_UI::tien( $kq['chua_vat'] ) ),
+				array( 'VAT được khấu trừ', KHTC_UI::tien( $kq['vat_kt'] ), 'thu' ),
+				array( 'VAT không khấu trừ', KHTC_UI::tien( $kq['vat_khong'] ), $kq['vat_khong'] ? 'chi' : '' ),
+				array( 'Số hoá đơn', number_format( $kq['so_hd'], 0, ',', '.' ) ),
+			)
+		);
+
+		// ---- tờ khai: chỗ hai màn hình hoá đơn gặp nhau
+		echo '<div class="khtc-panel"><h2>Tờ khai GTGT trong kỳ</h2><table><tbody>';
+		$dong = array(
+			array( 'Doanh thu chưa VAT (đầu ra)', $tk['dt_ra'], '' ),
+			array( 'VAT đầu ra', $tk['vat_ra'], 'thu' ),
+			array( 'Mua vào chưa VAT', $tk['mua_vao'], '' ),
+			array( 'VAT đầu vào được khấu trừ', $tk['vat_kt'], 'chi' ),
+		);
+		foreach ( $dong as $d ) {
+			printf(
+				'<tr><td>%s</td><td class="so%s">%s</td></tr>',
+				esc_html( $d[0] ),
+				$d[2] ? ' ' . $d[2] : '',
+				esc_html( KHTC_UI::tien( $d[1] ) )
+			);
+		}
+		if ( $tk['chuyen_ky'] > 0 ) {
+			printf(
+				'<tr><td><strong>Khấu trừ chuyển sang kỳ sau</strong></td><td class="so"><strong>%s</strong></td></tr>',
+				esc_html( KHTC_UI::tien( $tk['chuyen_ky'] ) )
+			);
+		} else {
+			printf(
+				'<tr><td><strong>VAT phải nộp</strong></td><td class="so chi"><strong>%s</strong></td></tr>',
+				esc_html( KHTC_UI::tien( $tk['phai_nop'] ) )
+			);
+		}
+		echo '</tbody></table>';
+		printf(
+			'<p class="khtc-sub">VAT phải nộp = VAT đầu ra − VAT đầu vào <em>được khấu trừ</em>. Phần không khấu trừ (%s) không trừ vào đây. Ra số âm thì gọi là <strong>chuyển kỳ sau</strong>, không phải nhà nước trả lại.</p>',
+			esc_html( KHTC_UI::tien( $tk['vat_khong'] ) )
+		);
+		printf(
+			'<p class="khtc-sub">Số đầu ra lấy từ mục <a href="%s">Hoá đơn đầu ra</a> cùng khoảng ngày — đổi ngày ở bộ lọc bên dưới là cả bảng này đổi theo.</p>',
+			esc_url( self::url( 'hoa-don-ra', array( 'tu' => $loc['tu'], 'den' => $loc['den'] ) ) )
+		);
+		echo '</div>';
+
+		// ---- lọc
+		printf( '<div class="khtc-panel"><h2>Lọc</h2><form method="get" action="%s"><div class="khtc-loc">', esc_url( self::url_form( 'hoa-don-vao' ) ) );
+		self::an_get( 'hoa-don-vao' );
+		printf( '<label>Từ ngày<input type="date" name="tu" value="%s"></label>', esc_attr( $loc['tu'] ) );
+		printf( '<label>Đến ngày<input type="date" name="den" value="%s"></label>', esc_attr( $loc['den'] ) );
+		echo '<label>Thuế suất<select name="ts"><option value="">— Tất cả —</option>';
+		foreach ( KHTC_HoaDonRa::thue_suat() as $k => $v ) {
+			printf( '<option value="%s"%s>%s</option>', esc_attr( $k ), selected( $loc['thue_suat'], $k, false ), esc_html( $v ) );
+		}
+		echo '</select></label>';
+		echo '<label>Khấu trừ<select name="kt"><option value="">— Cả hai —</option>';
+		printf( '<option value="1"%s>Được khấu trừ</option>', selected( $loc['khau_tru'], '1', false ) );
+		printf( '<option value="0"%s>Không khấu trừ</option>', selected( $loc['khau_tru'], '0', false ) );
+		echo '</select></label>';
+		printf( '<label>Tìm nhà cung cấp / số HĐ / MST<input type="search" name="tim" value="%s"></label>', esc_attr( $loc['tim'] ) );
+		echo '<button type="submit" class="button">Lọc</button>';
+		printf( '<a href="%s" class="button">Bỏ lọc</a>', esc_url( self::url( 'hoa-don-vao' ) ) );
+		printf(
+			'<a class="button" href="%s">Tải CSV</a>',
+			esc_url(
+				wp_nonce_url(
+					self::url(
+						'hoa-don-vao',
+						array( 'khtc_tai_hdv' => 1, 'tu' => $loc['tu'], 'den' => $loc['den'], 'ts' => $loc['thue_suat'], 'kt' => $loc['khau_tru'], 'tim' => $loc['tim'] )
+					),
+					'khtc_tai_hdv'
+				)
+			)
+		);
+		echo '</div></form></div>';
+
+		self::bang_gom_vao( 'Theo thuế suất', KHTC_HoaDonVao::gom_theo( 'thue_suat', $loc ), true );
+		self::bang_gom_vao( 'Theo nhà cung cấp', KHTC_HoaDonVao::gom_theo( 'nha_cung_cap', $loc ), false );
+
+		// ---- dán
+		echo '<div class="khtc-panel"><h2>Dán bảng hoá đơn đầu vào</h2><form method="post">';
+		wp_nonce_field( 'khtc_hdv' );
+		echo '<p class="khtc-sub">Mỗi dòng: <code>Ngày · Số HĐ · Nhà cung cấp · MST · Nội dung · Chưa VAT · VAT · Có VAT · Hình thức</code> — cách nhau bằng Tab hoặc dấu phẩy. Ba cột cuối không bắt buộc. Dòng tiêu đề dán kèm cũng được.</p>';
+		echo '<textarea name="bang_hdv" rows="7" placeholder="05/08/2026&#9;00012345&#9;EVN HCMC&#9;0300942001&#9;Tien dien thang 7&#9;2.400.000&#9;192.000&#9;2.592.000&#9;Chuyen khoan"></textarea>';
+		echo '<p><button type="submit" name="khtc_dan_hdv" value="1" class="button button-primary">Nạp hoá đơn</button></p></form></div>';
+
+		// ---- ghi một hoá đơn
+		echo '<div class="khtc-panel"><h2>Ghi một hoá đơn</h2><form method="post"><div class="khtc-loc">';
+		wp_nonce_field( 'khtc_hdv' );
+		echo '<label>Ngày HĐ<input type="date" name="ngay" required></label>';
+		echo '<label>Số HĐ<input type="text" name="so_hd" required></label>';
+		echo '<label>Nhà cung cấp<input type="text" name="nha_cung_cap" style="min-width:200px"></label>';
+		echo '<label>MST<input type="text" name="mst"></label>';
+		echo '<label>Nội dung<input type="text" name="noi_dung" style="min-width:180px"></label>';
+		echo '<label>Chưa VAT<input type="text" name="chua_vat" placeholder="2.400.000"></label>';
+		echo '<label>Thuế suất<select name="thue_suat">';
+		foreach ( KHTC_HoaDonRa::thue_suat() as $k => $v ) {
+			printf( '<option value="%s"%s>%s</option>', esc_attr( $k ), (string) $k === KHTC_HoaDonRa::TS_MAC_DINH ? ' selected' : '', esc_html( $v ) );
+		}
+		echo '</select></label>';
+		echo '<label>hoặc Có VAT<input type="text" name="co_vat"></label>';
+		echo '<label>Hình thức<select name="hinh_thuc"><option value="chuyen_khoan">Chuyển khoản</option><option value="tien_mat">Tiền mặt</option></select></label>';
+		echo '<button type="submit" name="khtc_them_hdv" value="1" class="button button-primary">Ghi</button>';
+		echo '</div><p class="khtc-sub">Hoá đơn từ <strong>' . esc_html( KHTC_UI::tien( KHTC_HoaDonVao::NGUONG_TIEN_MAT ) ) . '</strong> trở lên mà trả bằng <em>tiền mặt</em> được máy đặt sẵn là <strong>không khấu trừ</strong>. Đây là nhắc chứ không phải phán quyết — bật lại được ở cột Khấu trừ nếu trường hợp của mình khác.</p></form></div>';
+
+		// ---- danh sách
+		echo '<div class="khtc-panel"><h2>Danh sách hoá đơn đầu vào</h2>';
+		if ( ! $kq['rows'] ) {
+			echo '<div class="khtc-trong">Không có hoá đơn nào khớp bộ lọc.</div>';
+		} else {
+			echo '<table><thead><tr><th>Ngày</th><th>Số HĐ</th><th>Nhà cung cấp</th><th>MST</th><th>Nội dung</th><th class="so">Chưa VAT</th><th>TS</th><th class="so">VAT</th><th>Hình thức</th><th>Khấu trừ</th><th></th></tr></thead><tbody>';
+			foreach ( $kq['rows'] as $h ) {
+				echo '<tr>';
+				printf(
+					'<td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td>',
+					esc_html( KHTC_UI::ngay( $h->ngay ) ),
+					esc_html( $h->so_hd ),
+					esc_html( $h->nha_cung_cap ? $h->nha_cung_cap : '—' ),
+					esc_html( $h->mst ? $h->mst : '—' ),
+					esc_html( $h->noi_dung )
+				);
+				printf(
+					'<td class="so">%s</td><td>%s</td><td class="so%s">%s</td><td>%s</td>',
+					esc_html( KHTC_UI::tien( $h->chua_vat ) ),
+					esc_html( is_numeric( $h->thue_suat ) ? $h->thue_suat . '%' : $h->thue_suat ),
+					$h->khau_tru ? ' thu' : '',
+					esc_html( KHTC_UI::tien( $h->vat ) ),
+					esc_html( 'tien_mat' === $h->hinh_thuc ? 'Tiền mặt' : 'Chuyển khoản' )
+				);
+				echo '<td><form method="post">';
+				wp_nonce_field( 'khtc_hdv' );
+				if ( $h->khau_tru ) {
+					printf( '<button type="submit" name="khtc_kt" value="%d:0" class="button button-small">Có — bỏ khấu trừ</button>', (int) $h->id );
+				} else {
+					printf(
+						'<button type="submit" name="khtc_kt" value="%d:1" class="button button-small">Không — cho khấu trừ</button><div class="khtc-sub">%s</div>',
+						(int) $h->id,
+						esc_html( $h->ly_do )
+					);
+				}
+				echo '</form></td>';
+				echo '<td><form method="post" onsubmit="return confirm(\'Xoá hoá đơn này khỏi sổ?\')">';
+				wp_nonce_field( 'khtc_hdv' );
+				printf( '<button type="submit" name="khtc_xoa_hdv" value="%d" class="button button-small">Xoá</button>', (int) $h->id );
+				echo '</form></td></tr>';
+			}
+			echo '</tbody></table>';
+			self::phan_trang( 'hoa-don-vao', array( 'trang' => $kq['trang'], 'so_trang' => $kq['so_trang'] ), array( 'tu' => $loc['tu'], 'den' => $loc['den'], 'ts' => $loc['thue_suat'], 'kt' => $loc['khau_tru'], 'tim' => $loc['tim'] ) );
+		}
+		echo '</div></div>';
+	}
+
+	/** Bảng gom nhóm của hoá đơn đầu vào — có thêm cột VAT được khấu trừ. */
+	private static function bang_gom_vao( $tieu_de, $rows, $la_thue ) {
+		printf( '<div class="khtc-panel"><h2>%s</h2>', esc_html( $tieu_de ) );
+		if ( ! $rows ) {
+			echo '<div class="khtc-trong">Không có hoá đơn nào trong kỳ đang lọc.</div></div>';
+			return;
+		}
+		$nhan_thue = KHTC_HoaDonRa::thue_suat();
+		echo '<table><thead><tr><th>' . ( $la_thue ? 'Thuế suất' : 'Nhà cung cấp' ) . '</th><th class="so">Số HĐ</th><th class="so">Chưa VAT</th><th class="so">VAT</th><th class="so">Được khấu trừ</th><th class="so">Có VAT</th></tr></thead><tbody>';
+		$t = array( 0, 0, 0, 0, 0 );
+		foreach ( $rows as $r ) {
+			$ten = (string) $r->nhan;
+			if ( $la_thue ) { $ten = $nhan_thue[ $ten ] ?? $ten; } elseif ( '' === $ten ) { $ten = '(để trống)'; }
+			printf(
+				'<tr><td>%s</td><td class="so">%s</td><td class="so">%s</td><td class="so">%s</td><td class="so thu">%s</td><td class="so"><strong>%s</strong></td></tr>',
+				esc_html( $ten ),
+				esc_html( number_format( $r->so_hd, 0, ',', '.' ) ),
+				esc_html( KHTC_UI::tien( $r->chua_vat ) ),
+				esc_html( KHTC_UI::tien( $r->vat ) ),
+				esc_html( KHTC_UI::tien( $r->vat_kt ) ),
+				esc_html( KHTC_UI::tien( $r->co_vat ) )
+			);
+			$t[0] += (int) $r->so_hd;
+			$t[1] += (int) $r->chua_vat;
+			$t[2] += (int) $r->vat;
+			$t[3] += (int) $r->vat_kt;
+			$t[4] += (int) $r->co_vat;
+		}
+		printf(
+			'</tbody><tfoot><tr><th>Tổng</th><th class="so">%s</th><th class="so">%s</th><th class="so">%s</th><th class="so">%s</th><th class="so">%s</th></tr></tfoot></table></div>',
+			esc_html( number_format( $t[0], 0, ',', '.' ) ),
+			esc_html( KHTC_UI::tien( $t[1] ) ),
+			esc_html( KHTC_UI::tien( $t[2] ) ),
+			esc_html( KHTC_UI::tien( $t[3] ) ),
+			esc_html( KHTC_UI::tien( $t[4] ) )
+		);
 	}
 }

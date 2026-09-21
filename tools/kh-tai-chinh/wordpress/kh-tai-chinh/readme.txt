@@ -1,7 +1,7 @@
 === Tài Chính K&H ===
 Requires at least: 5.6
 Requires PHP: 7.4
-Stable tag: 0.6.0
+Stable tag: 0.7.0
 License: GPL-2.0-or-later
 
 Theo dõi ngân hàng, giao dịch và đối soát cho CÔNG TY TNHH DỊCH VỤ VÀ GIẢI TRÍ K&H.
@@ -40,6 +40,10 @@ RAM; trên shared hosting cách đó không chạy nổi.
   22 cột của file đó, đúng thứ tự, không phải sắp lại. Bảng gom theo thuế suất
   chính là mấy dòng điền vào tờ khai GTGT; gom thêm theo khu vực và dịch vụ.
   Số hoá đơn duy nhất trong mỗi pháp nhân, chặn ở tầng bảng.
+* Hoá đơn đầu vào — VAT được khấu trừ, gom theo thuế suất và nhà cung cấp.
+  Hoá đơn từ 20 triệu trả tiền mặt được đặt sẵn là không khấu trừ (nhắc, bật
+  lại được). Bảng tờ khai GTGT: VAT đầu ra trừ VAT đầu vào được khấu trừ ra số
+  phải nộp, hoặc phần chuyển sang kỳ sau.
 * Công nợ — phải thu (từ hoá đơn đầu ra) và phải trả (từ chi phí chuyển khoản),
   chia theo mốc tuổi nợ 1–30 / 31–60 / 61–90 / trên 90 ngày, gom theo khách
   hàng và nhà cung cấp. Ghi trả từng đợt, hoặc tự ghép từ sao kê. Một sổ thanh
@@ -64,4 +68,4 @@ Trang đặt noindex và bắt đăng nhập, người ngoài không xem đượ
 
 == Làm tiếp ==
 
-Hoá đơn đầu vào, pháp danh, hồ sơ, báo cáo.
+Pháp danh, hồ sơ, báo cáo.
