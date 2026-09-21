@@ -19,6 +19,18 @@
   /** Bản WordPress: dữ liệu nằm trên máy chủ, nhiều người dùng chung. */
   const LA_WP = !!(API && API.MODE === 'wp');
 
+  /**
+   * Trang xuất file bằng cách tự khởi tạo tải xuống (Excel, .json). Khung xem Artifact của
+   * claude.ai chặn mọi lượt tải do trang tự khởi tạo — bấm nút thì KHÔNG có gì xảy ra và cũng
+   * không có lỗi nào để bắt. Nút chết im lặng tệ hơn nút không có, nên ở đó nói thẳng ra.
+   * Chạy trên GitHub Pages hay trên WordPress thì window.claude không tồn tại → không đổi gì.
+   */
+  const CHAN_TAI_FILE = typeof window !== 'undefined' && typeof window.claude !== 'undefined';
+  const LOI_CHAN_TAI =
+    'Khung xem này chặn việc tải file xuống, nên không xuất được.\n\n' +
+    'Tra cứu và In / Lưu PDF vẫn chạy bình thường. Muốn xuất Excel thì mở bản đầy đủ ' +
+    '(GitHub Pages hoặc plugin trên hosting).';
+
   /* ===================== Trạng thái ứng dụng ===================== */
 
   const KHOA = { recs: 'unc.recs', theoDoi: 'unc.theoDoi', congTy: 'unc.congTy', tuyChon: 'unc.tuyChon', nhatKy: 'unc.nhatKy' };
@@ -905,6 +917,7 @@
   /* ===================== Lưu / mở file JSON ===================== */
 
   function luuJSON() {
+    if (CHAN_TAI_FILE) return alert(LOI_CHAN_TAI);
     const goi = { phienBan: 1, luuLuc: new Date().toISOString(), recs: S.recs, theoDoi: S.theoDoi, congTy: S.congTy, tuyChon: S.tuyChon, nhatKy: S.nhatKy };
     const b = new Blob([JSON.stringify(goi)], { type: 'application/json' });
     const a = document.createElement('a');
@@ -992,6 +1005,7 @@
     $('jsonInput').onchange = (e) => { moJSON(e.target.files[0]); e.target.value = ''; };
 
     $('btnExport').onclick = () => {
+      if (CHAN_TAI_FILE) return alert(LOI_CHAN_TAI);
       if (!DONG.length) return alert('Chưa có dữ liệu để xuất.');
       const ds = DONG_LOC.length && DONG_LOC.length < DONG.length
         ? (confirm('Xuất ' + DONG_LOC.length + ' khoản đang lọc?\n\nBấm Huỷ để xuất toàn bộ ' + DONG.length + ' khoản.') ? DONG_LOC : DONG)
@@ -1055,6 +1069,9 @@
       else DONG_LOC.forEach((d) => S.chon.add(d.rec.id));
       veLai();
     };
+
+    // Mở trang lần đầu mà chưa có file thì vẫn xem được app làm gì.
+    $('btnXemThu').onclick = napMau;
 
     $('bulkBo').onclick = () => { S.chon.clear(); veLai(); };
     document.querySelectorAll('#bulkBar button[data-bulk]').forEach((b) => {

@@ -25,8 +25,15 @@
   --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
+/*
+ * Ba trạng thái theme, không phải hai: người xem chọn tường minh thì thẻ gốc được đóng dấu
+ * data-theme="dark" / "light"; để mặc định "theo hệ thống" thì KHÔNG có dấu nào, chỉ
+ * prefers-color-scheme phân biệt. Nên bảng màu tối phải khai ở cả hai chỗ: trong media query
+ * (có chặn :not([data-theme="light"]) để lựa chọn sáng thắng được hệ điều hành đang tối) và
+ * trong [data-theme="dark"] để nút chuyển thắng theo chiều ngược lại.
+ */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #121820;
     --panel: #1a222c;
     --panel-2: #1f2833;
@@ -49,6 +56,29 @@
     --total-bg: #202b36;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 20px rgba(0, 0, 0, 0.35);
   }
+}
+:root[data-theme="dark"] {
+    --bg: #121820;
+    --panel: #1a222c;
+    --panel-2: #1f2833;
+    --line: #2d3946;
+    --text: #e6ecf2;
+    --muted: #9db0c2;
+    --brand: #5aa9e6;
+    --brand-2: #7cc0f0;
+    --brand-soft: #1b2b3a;
+    --accent: #e0a44a;
+    --danger: #ef6b62;
+    --danger-soft: #3a2220;
+    --warn: #e2b74a;
+    --warn-soft: #3a3120;
+    --ok: #6fcf86;
+    --ok-soft: #1f3324;
+    --info: #5aa9e6;
+    --info-soft: #1c2a3a;
+    --head-bg: #22303d;
+    --total-bg: #202b36;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 20px rgba(0, 0, 0, 0.35);
 }
 
 * { box-sizing: border-box; }
