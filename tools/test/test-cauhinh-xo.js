@@ -230,8 +230,14 @@ const SELECTOR = (HTML.match(/tr\.querySelectorAll\('([^']+)'\)/) || [])[1] || '
 t('đọc được chuỗi selector của _readRows', SELECTOR.indexOf('input') >= 0, SELECTOR);
 const BO_CHECKBOX = SELECTOR.indexOf(':not([type=checkbox])') >= 0;
 const BO_CSTIM    = SELECTOR.indexOf(':not(.cs-tim)') >= 0;
+/* 🔴 Ô LÁI `.vai-cha` (21/09/2026) — anh Thắng: *"chọn cha thì chỉ ra con của cha"*. Ô VAI TRÒ
+   nay là HAI ô chồng nhau: ô trên chọn nhóm, ô dưới mang giá trị. Ô trên không được đếm, y như
+   ô gõ-để-lọc `.cs-tim`. Suy từ chính bộ chọn của `_readRows()` chứ không gõ tay: hai bên lệch
+   nhau là phép này canh một thế giới khác với thế giới app đang chạy. */
+const BO_VAICHA   = SELECTOR.indexOf(':not(.vai-cha)') >= 0;
 t('🔴 _readRows loại ô gõ-để-lọc của hộp chọn cơ sở (.cs-tim)', BO_CSTIM, SELECTOR);
 t('và vẫn loại checkbox như trước', BO_CHECKBOX, SELECTOR);
+t('🔴 _readRows loại ô lái nhóm vai trò (.vai-cha)', BO_VAICHA, SELECTOR);
 
 function demO(than) {
   let n = 0;
@@ -239,6 +245,7 @@ function demO(than) {
     const the = m[1], thuoc = m[2];
     if (the === 'input' && BO_CHECKBOX && /type="checkbox"/.test(thuoc)) continue;
     if (BO_CSTIM && /class="[^"]*\bcs-tim\b/.test(thuoc)) continue;
+    if (the === 'select' && BO_VAICHA && /class="[^"]*\bvai-cha\b/.test(thuoc)) continue;
     n++;
   }
   return n;

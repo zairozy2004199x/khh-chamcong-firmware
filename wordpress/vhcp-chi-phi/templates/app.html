@@ -11403,7 +11403,10 @@
   /* ⚠️ Bảng có thể đã gỡ khỏi màn (xem `mangTkCard`) — trả mảng rỗng thay vì ném lỗi. */
   function _readRows(tbodyId){ var _tb=el(tbodyId); if(!_tb) return [];
     return Array.prototype.map.call(_tb.getElementsByTagName('tr'),function(tr){
-    return Array.prototype.map.call(tr.querySelectorAll('input:not([type=checkbox]):not(.cs-tim),select'),function(f){
+    /* 🔴 `.vai-cha` LÀ Ô LÁI, KHÔNG MANG GIÁ TRỊ — phải bỏ qua y như ô tìm `.cs-tim`.
+       Hàm này đọc theo THỨ TỰ ô, nên đếm thêm một ô là mọi cột sau nó lùi một chỗ: vai trò
+       hoá bộ phận, bộ phận hoá cơ sở… Cả bảng người dùng ghi lệch mà không câu lỗi nào. */
+    return Array.prototype.map.call(tr.querySelectorAll('input:not([type=checkbox]):not(.cs-tim),select:not(.vai-cha)'),function(f){
       if(f.tagName==='SELECT'&&f.multiple){ return Array.prototype.map.call(f.selectedOptions,function(o){return o.value;}).join(', '); }
       return f.value; }); }); }
   function _saveCfg(payload,msg){ loading(true);
@@ -11813,18 +11816,64 @@
      🔴 Vai đang khai mà không còn trong danh sách (ai đó vừa xoá vai đó) vẫn phải hiện ra —
      không thì mở bảng lên là vai của người ta lặng lẽ nhảy sang 'Admin' (dòng đầu), và bấm Lưu
      một cái là phong Admin cho cả loạt người. */
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * Ô VAI TRÒ = HAI Ô NỐI NHAU: CHA rồi CON.
+   *
+   * Anh Thắng 21/09/2026: *"chỗ vai trò và bộ phận theo cha - con"*, và *"chọn cha thì chỉ ra
+   * con của cha"*. Anh vẽ sẵn cây:
+   *     Admin
+   *     Nhân Viên  ├ Nhân Viên Cơ Sở Khu Vui Chơi  ├ Nhân Viên Kỹ Thuật Máy Tự Động  …
+   *     Quản Lý    ├ Quản Lý Khu Vui Chơi          ├ Quản Lý Chung                   …
+   *
+   * Trước bản này là MỘT danh sách phẳng, mọi vai đổ chung một chỗ kèm đuôi "(như Nhân viên)".
+   * Mười dòng thì còn đọc được; hai chục vai con thì người khai phải tự dò xem cái nào thuộc
+   * nhánh nào — và gán nhầm nhánh là gán nhầm quyền.
+   *
+   * 🔴 Ô CHA KHÔNG MANG GIÁ TRỊ, nó chỉ LÁI ô con. Giá trị lưu xuống vẫn là MỘT chuỗi vai trò
+   *    y như cũ (`CH_NguoiDung` cột 3) — không đổi sơ đồ, không đổi máy chủ. Nên ô cha mang
+   *    lớp `.vai-cha` để `_readRows()` bỏ qua; quên chốt ấy là mọi cột sau lùi một chỗ.
+   *
+   * 🔴 VAI LẠ (ai đó vừa xoá vai ấy) VẪN PHẢI HIỆN RA, giữ nguyên luật cũ: không thì mở bảng
+   *    lên là vai của người ta lặng lẽ nhảy sang dòng đầu, và bấm Lưu một cái là phong nhầm
+   *    hàng loạt. Nó hiện ở ô con, viền đỏ, cha để "— không rõ —".
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  function _vaiConCua(cha){
+    var ra=[];
+    ((CFG.vaiTro)||[]).forEach(function(x){ if(String(x.goc||'')===cha && x.ten) ra.push(x.ten); });
+    return ra;
+  }
+  /** Các lựa chọn của ô CON khi cha là `cha`; `v` là vai đang khai (để đánh dấu chọn). */
+  function _vaiConHtml(cha, v){
+    var h='<option value="'+esc(cha)+'"'+(v===cha?' selected':'')+'>— '+esc(cha)+' (không chia nhỏ) —</option>';
+    _vaiConCua(cha).forEach(function(r){
+      h+='<option value="'+esc(r)+'"'+(r===v?' selected':'')+'>'+esc(r)+'</option>';
+    });
+    return h;
+  }
   function _roleSel(v){
-    var o=['Admin'].concat(VAI_GOC);
-    ((CFG.vaiTro)||[]).forEach(function(x){ if(o.indexOf(x.ten)<0) o.push(x.ten); });
     v=String(v||'');
-    var la=(v!=='' && o.indexOf(v)<0);
-    return '<select style="width:100%'+(la?';border-color:#c0392b':'')+'">'
-      +(la?'<option selected>'+esc(v)+'</option>':'')
-      +o.map(function(r){
-          var g=_vaiGocCua(r);
-          var nh=(g&&g!==r)?(r+' (như '+g+')'):r;
-          return '<option value="'+esc(r)+'"'+(r===v?' selected':'')+'>'+esc(nh)+'</option>';
-        }).join('')+'</select>'; }
+    var chas=['Admin'].concat(VAI_GOC);
+    var cha=_vaiGocCua(v);                       // vai con -> cha của nó
+    if(!cha) cha=(chas.indexOf(v)>=0?v:'');      // chính là vai gốc; hoặc vai lạ -> chưa rõ cha
+    var la=(cha==='');
+    var oCha='<select class="vai-cha" style="width:100%;margin-bottom:3px" onchange="_vaiChaDoi(this)">'
+      +(la?'<option value="" selected>— không rõ —</option>':'')
+      +chas.map(function(c){ return '<option value="'+esc(c)+'"'+(c===cha?' selected':'')+'>'+esc(c)+'</option>'; }).join('')
+      +'</select>';
+    var oCon='<select style="width:100%'+(la?';border-color:#c0392b':'')+'">'
+      +(la?('<option value="'+esc(v)+'" selected>'+esc(v)+' (vai đã xoá)</option>'):_vaiConHtml(cha, v))
+      +'</select>';
+    return oCha+oCon;
+  }
+  /** Đổi ô CHA thì dựng lại ô CON ngay cạnh — chỉ con của đúng cha ấy. */
+  function _vaiChaDoi(sel){
+    var td=sel.parentNode; if(!td) return;
+    var con=td.querySelector('select:not(.vai-cha)'); if(!con) return;
+    var cha=String(sel.value||'');
+    if(cha===''){ return; }                      // "— không rõ —": để yên vai lạ, đừng tự sửa
+    con.innerHTML=_vaiConHtml(cha, cha);         // mặc định về chính vai gốc
+    con.style.borderColor='';
+  }
   function _vaiGocSel(v){
     return '<select style="width:100%">'+VAI_GOC.map(function(r){
       return '<option'+(r===v?' selected':'')+'>'+esc(r)+'</option>'; }).join('')+'</select>';
@@ -12321,7 +12370,7 @@
         +  '<b style="font-size:12.5px;color:#2545ff">'+esc(_uNhan(g.vai))+'</b>'
         +  '<span style="font-size:11px;color:#8c8781">'+g.ds.length+' người</span>'
         +'</div>'
-        +'<div class="tw"><table style="min-width:1090px">'+U_THEAD
+        +'<div class="tw"><table style="min-width:1190px">'+U_THEAD
         +'<tbody id="cfgUserBody'+i+'" data-user-body="1">'
         +  g.ds.map(function(u){ return _uHang(u, laAdminNay); }).join('')
         +'</tbody></table></div></div>';
@@ -12360,7 +12409,10 @@
     +'<th style="width:190px">Tên <span style="font-weight:400;color:#8c8781">(từ nhân sự)</span></th>'
     +'<th style="width:96px" title="Mã NV bên Chấm công · Nhân sự. Chỉ để phân biệt hai người TRÙNG TÊN, và để một PIN vào được cả hai trang. Đơn cũ vẫn nhận nhau bằng TÊN, không bằng mã này.">Mã NV</th>'
     +'<th style="width:96px">PIN <span style="font-weight:400;color:#8c8781">(từ nhân sự)</span></th>'
-    +'<th style="width:132px">Vai trò</th>'
+    /* 🔴 CỘT NÀY NAY CHỨA HAI Ô CHỒNG NHAU (cha rồi con — xem `_roleSel()`), nên 132px không
+       còn đủ: chụp màn ở 1250px thấy hai ô bị bóp còn "Nh" / "Qu", đọc không ra chữ nào. Tên
+       vai con lại dài ("Nhân Viên Kỹ Thuật Máy Tự Động"), nên cho hẳn 230px. */
+    +'<th style="width:230px">Vai trò <span style="font-weight:400;color:#8c8781">(nhóm → cụ thể)</span></th>'
     +'<th style="width:150px">Bộ phận / Loại NV</th>'
     +'<th style="min-width:220px" title="Nhân viên để trống = chỉ thấy đơn do chính mình lập. Quản lý để trống = trông cả đơn vị.">Cơ sở phụ trách</th>'
     +'<th style="width:126px">Mã đối tượng (khi là người duyệt)</th>'
