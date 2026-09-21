@@ -657,7 +657,7 @@
              không phải một danh sách phải xổ ra mới đọc được. -->
         <div id="daTaoNut" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <button class="btn b-p" onclick="daMoTao()">➕ Tạo đơn</button>
-          <span style="font-size:11px;color:#8c8781">Bấm <b>Tạo đơn</b> rồi chọn <b>🏢 cơ sở</b> (theo TUẦN) hay <b>🏗 dự án</b> (theo GIAN).</span>
+          <span style="font-size:11px;color:#8c8781">Bấm <b>Tạo đơn</b> rồi chọn <b>🗓 Chi phí tuần</b> (nhiều cơ sở cho 1 đơn) hay <b>🏗 Chi phí dự án</b> (1 cơ sở 1 đơn).</span>
           <button class="btn b-x" data-dcsw-di="don" onclick="showPage('don')" style="display:none;margin-left:auto">← Quay lại đơn tuần của cơ sở</button>
         </div>
         <div id="daTaoBox" style="display:none;padding:10px 12px;background:#f9f8f6;border:1px solid #f0e9e1;border-radius:10px">
@@ -674,10 +674,10 @@
           <div id="daTaoHoi" style="display:flex;gap:10px;align-items:stretch;flex-wrap:wrap">
             <span style="font-size:12px;color:#171417;font-weight:700;align-self:center">Đơn này là gì?</span>
             <button class="btn b-x" id="daNhomCs" onclick="daChonNhom('coso')" style="text-align:left;padding:9px 14px;line-height:1.35">
-              <b style="font-size:13px">🏢 Chi phí cơ sở</b><br><span class="nhomPhu" style="font-size:11px;opacity:.85">Một đơn gom NHIỀU gian · theo TUẦN</span>
+              <b style="font-size:13px">🗓 Chi phí tuần</b><br><span class="nhomPhu" style="font-size:11px;opacity:.85">Nhiều cơ sở cho 1 đơn</span>
             </button>
             <button class="btn b-x" id="daNhomDa" onclick="daChonNhom('duan')" style="text-align:left;padding:9px 14px;line-height:1.35">
-              <b style="font-size:13px">🏗 Chi phí dự án</b><br><span class="nhomPhu" style="font-size:11px;opacity:.85">Setup / Tháo dỡ một GIAN</span>
+              <b style="font-size:13px">🏗 Chi phí dự án</b><br><span class="nhomPhu" style="font-size:11px;opacity:.85">1 cơ sở 1 đơn · Setup / Tháo dỡ</span>
             </button>
             <!-- Lối thứ ba: đơn TUẦN của nhân viên cơ sở. Chỉ hiện cho người vào được cả hai —
                  cùng một câu hỏi "đơn này là gì", hỏi ở đâu cũng ra đủ lựa chọn. -->
@@ -1577,7 +1577,7 @@
     <div class="card" id="cosoCard">
       <div class="ch"><h2>🏢 Mã đơn vị theo Cơ sở</h2><div style="display:flex;gap:8px"><button class="btn b-x" id="csLockBtn" onclick="toggleCsLock()">🔒 Đang khóa — bấm để mở</button><button class="btn b-x" onclick="addCfgCoso()">＋ Thêm cơ sở</button><button class="btn b-x" id="btnHutGhe" onclick="hutCoSoGhe()" title="Kéo các địa điểm bên trang Ghế massage sang đây. Chỉ THÊM — không sửa, không xoá dòng nào đang có.">🪑 Hút cơ sở từ Ghế</button><button class="btn b-g" onclick="saveCfgCoso()">💾 Lưu</button></div></div>
       <div id="cosoLaBox" style="display:none"></div>
-      <div class="tw"><table style="min-width:820px"><thead><tr><th>Tên thường gọi (hiển thị)</th><th>Tên theo MISA</th><th>Mã đơn vị (MISA)</th><th>Phân loại lớn</th><th style="width:150px" title="Bên nào nhìn thấy chi phí của cơ sở này. Ô NHẬP kèm gợi ý — gõ tên đơn vị MỚI vào là khai xong, không phải sửa mã. Để trống = K&amp;H.">Đơn vị</th><th style="width:150px" title="Tỉnh / thành của gian này — để gom và lọc theo vùng. Ô NHẬP kèm gợi ý: gõ tên tỉnh mới vào là có. Để trống = chưa khai.">Tỉnh / Thành</th><th style="width:190px">Đóng cửa gian hàng</th><th style="width:44px"></th></tr></thead><tbody id="cfgCosoBody"></tbody></table></div>
+      <div class="tw"><table style="min-width:820px"><thead><tr><th>Tên thường gọi (hiển thị)</th><th>Tên theo MISA</th><th>Mã đơn vị (MISA)</th><th>Phân loại lớn</th><th style="width:150px" title="Khối của gian này — quyết định chi phí của nó rơi vào sổ nào. Một gian thuộc ĐÚNG MỘT khối, nên đây là ô chọn. Giá trị đơn vị cũ đã khai được giữ nguyên văn.">Khối</th><th style="width:150px" title="Tỉnh / thành của gian này — để gom và lọc theo vùng. Ô NHẬP kèm gợi ý: gõ tên tỉnh mới vào là có. Để trống = chưa khai.">Tỉnh / Thành</th><th style="width:190px">Đóng cửa gian hàng</th><th style="width:44px"></th></tr></thead><tbody id="cfgCosoBody"></tbody></table></div>
       <datalist id="dl_pll"></datalist>
       <datalist id="dl_donvi"></datalist>
       <datalist id="dl_tinh"></datalist>
@@ -1698,10 +1698,10 @@
             <b>📅 Đơn tuần của cơ sở</b><br><span style="font-size:11.5px;color:#64748b">Nhân viên cơ sở lên — xin tạm ứng cho một tuần vận hành</span>
           </button>
           <button type="button" class="btn b-x" id="ndLoaiDaCoSo" onclick="ndChonLoai('dacoso')" style="text-align:left;padding:10px 12px;line-height:1.4">
-            <b>🏢 Chi phí cơ sở · Kỹ thuật</b><br><span style="font-size:11.5px;color:#64748b">Một đơn gom NHIỀU gian, chọn theo TUẦN</span>
+            <b>🗓 Chi phí tuần · Kỹ thuật</b><br><span style="font-size:11.5px;color:#64748b">Nhiều cơ sở cho 1 đơn, chọn theo TUẦN</span>
           </button>
           <button type="button" class="btn b-x" id="ndLoaiDuAn" onclick="ndChonLoai('duan')" style="text-align:left;padding:10px 12px;line-height:1.4">
-            <b>🏗 Chi phí dự án · Kỹ thuật</b><br><span style="font-size:11.5px;color:#64748b">Setup / Tháo dỡ một GIAN — thời gian bất kỳ, tạm ứng nhiều lần</span>
+            <b>🏗 Chi phí dự án · Kỹ thuật</b><br><span style="font-size:11.5px;color:#64748b">1 cơ sở 1 đơn — Setup / Tháo dỡ, tạm ứng nhiều lần</span>
           </button>
         </div>
       </div>
@@ -1953,7 +1953,7 @@
   }
   /** Các mảng chi phí có trong danh mục (theo cột Bộ phận), lọc theo bộ phận người nhập. */
   function _cacNhomCp(){
-    var bp=String((CURUSER&&CURUSER.boPhan)||'').trim();
+    var bp=_bpCuaToi();
     var co={}, ds=[];
     (BOOT.loaiChiPhi||[]).forEach(function(x){
       if(_khoiCuaLoai(x)!==String(KHOI_DANG).toLowerCase()) return;   /* xem chốt ở `_loaiCpList()` */
@@ -2311,7 +2311,7 @@
    *    nhau: tab ẩn nhầm là người ta kêu ngay, còn nút bày nhầm thì lặng lẽ đẻ ra đơn sai.
    * ══════════════════════════════════════════════════════════════════════════════════════ */
   function _veNutChuyenDon(vis){
-    var bp=String((CURUSER&&CURUSER.boPhan)||'').trim();
+    var bp=_bpCuaToi();
     var la_nv=(_vaiLuat()==='Nhân viên');
     /* Lớp 2 chỉ siết NHÂN VIÊN. Admin / Quản lý / Kế toán vốn đi lại cả hai mảng, và họ là
        người soát chứ không phải người nhập — bày lối tắt cho họ là đúng. */
@@ -2448,7 +2448,7 @@
     //    trong bảng trên nên rơi vào nhánh mặc định {don:1} — vai vừa tạo ra chỉ còn đúng MỘT
     //    tab, tức tính năng tạo vai coi như vô nghĩa. Đây là lỗi thật, không phải giả định.
     if(_vaiLuat()==='Nhân viên'){   // NV có Bộ phận cụ thể -> chỉ thấy tab của bộ phận đó (để "— Tất cả —" thì thấy hết như cũ)
-      var bp=String((CURUSER&&CURUSER.boPhan)||'').trim();
+      var bp=_bpCuaToi();
       // 🔴 AI VÀO ĐƯỢC TAB "DỰ ÁN · GIAN THI CÔNG" — anh Thắng chốt 25/08/2026:
       //    cách lên đơn ở tab đó y hệt bên cơ sở, KHÁC DUY NHẤT ở chỗ bộ phận nào được vào.
       //      Nhân viên Cơ sở    -> chỉ "Tuần · cơ sở"
@@ -2611,6 +2611,38 @@
    *    được.
    * ══════════════════════════════════════════════════════════════════════════════════════════ */
   var KHOI_DS=[{ma:'kvc',ten:'Khu vui chơi'},{ma:'mtd',ten:'Máy tự động'},{ma:'vp',ten:'Văn phòng'}];
+  /* ═════════════════════════════════════════════════════════════════════════════════
+   * ĐƠN VỊ → KHỐI — BẢNG LẤY TỪ MÁY CHỦ, KHÔNG GÕ CỨNG Ở ĐÂY.
+   * 🔴 Chép tay một bản là hai nơi khai cùng một luật; ngày thêm một tên đơn vị là hai bên
+   *    lệch — màn xếp cơ sở vào khối này trong khi máy chủ đọc ra khối khác, không một câu
+   *    lỗi nào. Bản dự phòng dưới đây chỉ để trang còn chạy được với gói khởi động bản cũ.
+   * ═════════════════════════════════════════════════════════════════════════════════ */
+  var KHOI_DV_DUP={kvc:['KVC'],mtd:['MTĐ','MTD','POSH'],vp:['VP','VĂN PHÒNG','VAN PHONG']};
+  function _khoiDvBang(){
+    var b=(typeof BOOT!=='undefined' && BOOT) ? BOOT.khoiTheoDv : null;
+    return (b && b.kvc) ? b : KHOI_DV_DUP;
+  }
+  /** Mã khối của một đơn vị — '' nếu không ánh xạ được. Song sinh `VHCP_DonVi::khoi_cua()`. */
+  function _khoiCuaDv(dv){
+    var k=String(dv==null?'':dv).trim().toUpperCase();
+    if(!k) return '';
+    var b=_khoiDvBang();
+    for(var i=0;i<KHOI_DS.length;i++){
+      var ma=KHOI_DS[i].ma, ds=b[ma]||[];
+      for(var j=0;j<ds.length;j++){ if(String(ds[j]).toUpperCase()===k) return ma; }
+    }
+    return '';
+  }
+  /** Tên đơn vị CHUẨN của một khối = tên đầu bảng ánh xạ. */
+  function _dvChuanCuaKhoi(ma){
+    var ds=_khoiDvBang()[String(ma||'').toLowerCase()]||[];
+    return ds[0]||'';
+  }
+  /** Nhãn đẹp của một khối; không đoán ra thì trả ''. */
+  function _tenKhoi(ma){
+    for(var i=0;i<KHOI_DS.length;i++){ if(KHOI_DS[i].ma===ma) return KHOI_DS[i].ten; }
+    return '';
+  }
   /* ⚠️ CHỈ BÀY NÚT CỦA KHỐI NGƯỜI ẤY ĐỌC ĐƯỢC — lấy từ `BOOT.khoiXem` (máy chủ suy từ cột Đơn
      vị). `null` = nhà mẹ, bày đủ ba.
      🔴 ĐÂY KHÔNG PHẢI CỔNG QUYỀN, chỉ là giấu mấy nút chắc chắn rỗng: dữ liệu sau mỗi nút đã bị
@@ -3476,7 +3508,7 @@
   function _kyTuDo(){
     if(!CURUSER) return false;
     if(_vaiLuat()!=='Nhân viên') return true;
-    if(BP_KY_TU_DO.indexOf(String(CURUSER.boPhan||'').trim())>=0) return true;
+    if(BP_KY_TU_DO.indexOf(_bpCuaToi())>=0) return true;
     return canDo('kyTuDo');   // hoặc tích riêng cho vai đó ở bảng Phân quyền
   }
   /* Người này vào được tab Dự án không — một trong hai vế của `_hoiLoaiDon()` dưới kia.
@@ -3495,7 +3527,7 @@
         `vis.duan`. Hỏng theo hướng bày thêm cửa cho người không có quyền là hướng nguy. */
   function _hoiLoaiDon(){
     if(!CURUSER) return false;
-    if(BP_HOI_LOAI_DON.indexOf(String(CURUSER.boPhan||'').trim())<0) return false;
+    if(BP_HOI_LOAI_DON.indexOf(_bpCuaToi())<0) return false;
     return _vaoDuocDuAn();
   }
   /* Chọn loại đơn ở bước đầu. 'duan' -> đóng hộp này, chuyển sang tab Dự án để đặt TÊN đợt thi
@@ -4136,7 +4168,7 @@
     // ô Loại chi phí không có sẵn giá trị cũ và người sửa tưởng mất.
     (function(){
       var k=String(l.nhom||'').trim().toLowerCase(), b=null;
-      var _toi=String((CURUSER&&CURUSER.boPhan)||'').trim();
+      var _toi=_bpCuaToi();
       var _lay=function(v){ var d=_bpTach(v); return (_toi && d.indexOf(_toi)>=0) ? _toi : (d[0]||''); };
       (BOOT.loaiChiPhi||[]).forEach(function(x){ if(String(x.ten||'').trim().toLowerCase()===k) b=_lay(x.boPhan); });
       if(b===null) (BOOT.nhom||[]).forEach(function(x){ if(String(x.ten||'').trim().toLowerCase()===k) b=_lay(x.boPhan); });
@@ -5155,7 +5187,7 @@
     if(el('tqOpenRow')) el('tqOpenRow').style.display=canOpen?'flex':'none';
     if(el('tqScopeNote')){ if(isNV){ el('tqScopeNote').style.display='block'; el('tqScopeNote').innerHTML='📍 Tổng quan cơ sở bạn phụ trách: <b>'+esc(myCoso.join(', ')||'—')+'</b>'; } else el('tqScopeNote').style.display='none'; }
     // Khối Kỹ thuật (Setup/Tháo dỡ): hiện cho quản lý/admin/kế toán + NV bộ phận Kỹ thuật
-    var showKT=(role!=='Nhân viên')||(String((CURUSER&&CURUSER.boPhan)||'')==='Kỹ thuật');
+    var showKT=(role!=='Nhân viên')||(_bpCuaToi()==='Kỹ thuật');
     if(el('tqKtCard')) el('tqKtCard').style.display=showKT?'':'none';
     if(showKT) google.script.run.withSuccessHandler(function(kr){ if(kr&&kr.success) renderKyThuatTongQuan(kr.items||[]); }).withFailureHandler(function(){}).listDuAn();
     google.script.run.withSuccessHandler(function(r){
@@ -5279,7 +5311,7 @@
   };
   /** Tên + phụ đề của một nhóm ('coso' | 'duan') theo bộ phận người đang đăng nhập. */
   function _tenNhom(nhom){
-    var bp=String((CURUSER&&CURUSER.boPhan)||'').trim();
+    var bp=_bpCuaToi();
     var r=TEN_LOAI_BP[bp];
     if(r&&r[nhom]) return r[nhom];
     return (nhom==='coso')
@@ -5293,7 +5325,7 @@
    *    là thừa một lần, và cái thừa ấy làm nút dài thêm đúng chỗ màn hẹp nhất.
    */
   function _tenNhomBp(nhom){
-    var bp=String((CURUSER&&CURUSER.boPhan)||'').trim();
+    var bp=_bpCuaToi();
     var t=_tenNhom(nhom).ten;
     /* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG, ghi lại để lần sau khỏi đuổi theo: bỏ dòng này KHÔNG đổi kết
        quả — `indexOf('')` luôn trả 0, nên vế dưới cũng trả về `t` cho bộ phận rỗng. Giữ vì nó
@@ -8706,7 +8738,7 @@
    * (VD "Chi phí nuôi thú" chỉ hiện ở FARM). Loại có mã cố định thì mảng nào cũng hiện.
    */
   function _loaiCpList(coso, hinhThuc, loaiTtEx){
-    var bp=String((CURUSER&&CURUSER.boPhan)||'').trim();
+    var bp=_bpCuaToi();
     var mang=_mangCua(coso).toLowerCase();
     var mx=BOOT.tkNoMx||{};
     // "Trực tiếp…" = trả nhà cung cấp · còn lại = cá nhân ứng tiền.
@@ -8901,7 +8933,7 @@
       return {chu:'⬆ Chọn CƠ SỞ trước — mã tài khoản khai theo mảng kinh doanh của cơ sở.', mau:'#b45309'};
     }
     var mang=_mangCua(coso);
-    var bp=String((CURUSER&&CURUSER.boPhan)||'').trim();
+    var bp=_bpCuaToi();
     var nMa=0, nNhom=0;
     (BOOT.loaiChiPhi||[]).forEach(function(x){
       var bds=_bpTach(x.boPhan);
@@ -10804,6 +10836,48 @@
         là thừa/thiếu luân chuyển giữa các tuần hết đường tính (anh Thắng chốt 25/08/2026). */
   var BP_KY_TU_DO=['Văn phòng','Kỹ thuật'];
   // Bộ phận vào được tab "Dự án · gian thi công".
+  /* ═════════════════════════════════════════════════════════════════════════════════
+   * BỘ PHẬN ĐỌC RA TỪ CHÍNH TÊN VAI CON — CỘT BỘ PHẬN ĐÃ RỜI BẢNG NGƯỜI DÙNG.
+   *
+   * Anh Thắng 21/09/2026: *"bỏ cột bộ phận đi, giờ nó không còn tác dụng nữa, vì dùng hết
+   * trên vai trò cha, con rồi"*. Cột đi rồi nhưng NHỮNG LUẬT ĐỌC NÓ THÌ CÒN NGUYÊN, và chúng
+   * đọc ra chuỗi rỗng — tức là "không bó gì", tức là ai cũng vào được mọi lối.
+   *
+   * 🔴 ĐÂY CHÍNH LÀ CÁI ANH THẮNG THẤY 21/09/2026 ở thẻ 🔧 Chi phí Kỹ thuật: ba nút thay vì hai,
+   *    trong đó có cả *"📅 Đơn tuần của cơ sở"* — mà anh chốt: *"Chi Phí Cơ Sở chỉ dành cho
+   *    nhân viên cơ sở"*. Nút ấy hiện vì `_vaoDonCoSo('')` trả true khi bộ phận rỗng.
+   *    Đọc lại bộ phận từ tên vai là nút ấy tự tắt, không phải đi ẩn tay từng chỗ.
+   *
+   * ⚠️ Ô ĐÃ KHAI TAY VẪN THẮNG — `CURUSER.boPhan` còn giá trị thì dùng giá trị ấy. Sau lượt
+   *    bỏ cột, giá trị cũ vẫn nằm trong sổ và vẫn đúng; đoán đè lên nó là tự ý sửa khai báo
+   *    của người ta.
+   *
+   * ⚠️ KHÔNG ĐOÁN ĐƯỢC = ĐỂ TRỐNG, giữ đúng nghĩa cũ ("không bó gì, thấy hết"). Hiểu ngược
+   *    là ngày bản này lên, ai mang vai không nói rõ mảng (VD "Nhân Viên Marketing") mất sạch
+   *    lối vào — hỏng theo hướng khoá cửa, đúng hướng tệ nhất.
+   * ═════════════════════════════════════════════════════════════════════════════════ */
+  var BP_THEO_TEN_VAI=[
+    {bp:'Kỹ thuật', tu:['ky thuat']},
+    {bp:'Cơ sở',    tu:['co so']},
+    {bp:'Marketing', tu:['marketing']},
+    {bp:'Văn phòng', tu:['van phong']}
+  ];
+  /** Bộ phận đọc ra từ tên một vai — '' nếu tên không nói rõ mảng nào. */
+  function _bpCuaVai(ten){
+    var t=' '+_boDauVai(ten)+' ';
+    if(t===' ') return '';
+    for(var i=0;i<BP_THEO_TEN_VAI.length;i++){
+      var x=BP_THEO_TEN_VAI[i];
+      for(var j=0;j<x.tu.length;j++){ if(t.indexOf(' '+x.tu[j]+' ')>=0) return x.bp; }
+    }
+    return '';
+  }
+  /** Bộ phận của người đang đăng nhập: ô đã khai trước, không có thì đọc từ tên vai. */
+  function _bpCuaToi(){
+    var b=String((CURUSER&&CURUSER.boPhan)||'').trim();
+    if(b) return b;
+    return _bpCuaVai((CURUSER&&CURUSER.role)||'');
+  }
   var BP_VAO_DUAN=['Văn phòng','Kỹ thuật'];
   /* 🔴 BỘ PHẬN KHÔNG LÊN ĐƠN TUẦN CỦA CƠ SỞ — anh Thắng 11/09/2026, chỉ vào màn "1) Nhập hạng
      mục xin tạm ứng" của đơn tuần: *"này của nhân viên cơ sở, không phải của kỹ thuật, ẩn đi"*,
@@ -11643,7 +11717,7 @@
          tệp xuất; còn ô này quyết định BÊN NÀO NHÌN THẤY chi phí của gian. Khai nhầm chỗ là
          số của POSH nằm trong sổ K&H. Nên ô này có gợi ý sẵn từ danh sách đơn vị đang có,
          không phải gõ chay. */
-      return '<tr'+(dc?' style="background:#fef2f2"':'')+'><td>'+_inp(x.ten,'Tên thường gọi')+'</td><td>'+_inp(x.tenMisa,'Tên trong MISA')+'</td><td>'+_inp(x.maDonVi,'VD: FLMPT')+'</td><td><input value="'+esc(x.phanLoaiLon||'')+'" list="dl_pll" placeholder="Chọn/nhập (VD: FARM MN)" style="width:100%"></td><td><input value="'+esc(x.donVi||'')+'" list="dl_donvi" placeholder="'+esc(_dvMacDinh())+'" style="width:100%"></td><td><input value="'+esc(x.tinh||'')+'" list="dl_tinh" placeholder="VD: TP HCM" style="width:100%"></td><td style="white-space:nowrap">'+oDong+'</td>'+_delBtn()+'</tr>'; };
+      return '<tr'+(dc?' style="background:#fef2f2"':'')+'><td>'+_inp(x.ten,'Tên thường gọi')+'</td><td>'+_inp(x.tenMisa,'Tên trong MISA')+'</td><td>'+_inp(x.maDonVi,'VD: FLMPT')+'</td><td><input value="'+esc(x.phanLoaiLon||'')+'" list="dl_pll" placeholder="Chọn/nhập (VD: FARM MN)" style="width:100%"></td><td>'+_khoiSelCoso(x.donVi)+'</td><td><input value="'+esc(x.tinh||'')+'" list="dl_tinh" placeholder="VD: TP HCM" style="width:100%"></td><td style="white-space:nowrap">'+oDong+'</td>'+_delBtn()+'</tr>'; };
     /* 🔴 GOM THEO ĐƠN VỊ TRƯỚC, RỒI MỚI THEO PHÂN LOẠI LỚN.
        Anh Thắng 08/09/2026: *"Mỗi đơn vị tách 1 bảng riêng, để kế toán bộ phận đó tự nhìn thấy
        cơ sở của mình và tự thêm sửa mã misa"*. Trước đây bảng chỉ gom theo Phân loại lớn, nên
@@ -11678,7 +11752,10 @@
       var gr={}, ord=[];
       dvGr[d].forEach(function(x){ var g=String(x.phanLoaiLon||'').trim()||'(Chưa phân loại)'; if(!gr[g]){gr[g]=[];ord.push(g);} gr[g].push(x); });
       ord.sort();
-      return '<tr><td colspan="8" style="background:#1e3a8a;color:#fff;font-weight:800;letter-spacing:.3px;padding:9px 10px">🏢 ĐƠN VỊ '+esc(d)+' <span style="font-weight:500;opacity:.85">· '+dvGr[d].length+' cơ sở</span></td></tr>'
+      /* Tên khối cho dễ đọc; đơn vị lạ không ánh xạ được thì bày nguyên chuỗi — giấu nó
+         sau một cái tên khối đoán bừa là tệ hơn hẳn việc để người khai thấy nó lạ. */
+      var _nk=_tenKhoi(_khoiCuaDv(d));
+      return '<tr><td colspan="8" style="background:#1e3a8a;color:#fff;font-weight:800;letter-spacing:.3px;padding:9px 10px">🧩 KHỐI '+esc(_nk||d)+' <span style="font-weight:500;opacity:.85">· '+dvGr[d].length+' cơ sở</span></td></tr>'
         +ord.map(function(g){
           return '<tr><td colspan="8" style="background:#f0fdfa;font-weight:700;color:#0f766e;border-left:3px solid #0f766e">▸ '+esc(g)+' <span style="font-weight:400;color:#64748b">· '+gr[g].length+' cơ sở</span></td></tr>'+gr[g].map(rowCoso).join('');
         }).join('');
@@ -11690,6 +11767,44 @@
      gõ · thêm mới · bấm Lưu): trước đây ba chỗ chép tay cùng một danh sách cột, nên thêm cột
      thứ năm là phải nhớ sửa cả ba — mà chỗ quên sẽ ghi đè ô Đơn vị bằng rỗng, tức mọi cơ sở
      POSH lặng lẽ về K&H và bên kia nhìn thấy hết. */
+  /* ═════════════════════════════════════════════════════════════════════════════════
+   * Ô KHỐI CỦA MỘT CƠ SỞ — THAY CHỖ Ô ĐƠN VỊ GÕ TAY.
+   *
+   * Anh Thắng 21/09/2026: *"Đơn vị cơ sở theo khối, các cơ sở hiện tại đang KVC, chuyển cột
+   * Đơn Vị sang Khối"*.
+   *
+   * ⚠️ LÀ Ô CHỌN, KHÔNG PHẢI Ô TÍCH — khác hẳn cột Khối bên bảng Người dùng. Một NGƯỜI
+   *    có thể làm việc với hai khối, nhưng một GIAN HÀNG thì nằm ở đúng một khối — tiền của
+   *    nó phải rơi vào đúng một sổ.
+   *
+   * 🔴 GIỮ NGUYÊN VĂN CHUỖI ĐƠN VỊ CŨ KHI NÓ ĐÃ ĐÚNG KHỐI. Đây là chỗ dễ hỏng lặng lẽ nhất
+   *    của cả bản này: một khối có NHIỀU tên đơn vị ("MTĐ", "MTD", "POSH" cùng là khối máy
+   *    tự động). Nếu ô chọn luôn ghi tên CHUẨN thì một gian đang khai "POSH" sẽ âm thầm
+   *    thành "MTĐ" ở lượt Lưu đầu tiên. `khoi_cua()` vẫn ra đúng khối nên nhìn bên ngoài
+   *    không thấy gì, NHƯNG `VHCP_DonVi::xem_duoc()` so ĐÚNG NGUYÊN VĂN chuỗi đơn vị — nên
+   *    mọi tài khoản khai "POSH" lập tức thiếu gian ấy khỏi sổ của họ. Không một câu lỗi.
+   *    Vậy nên: ô của khối ĐANG CHỌN mang đúng chuỗi cũ; chỉ khi người khai ĐỔI sang khối
+   *    khác thì mới ghi tên chuẩn của khối mới.
+   *
+   * 🔴 GIÁ TRỊ LẠ KHÔNG ÁNH XẠ ĐƯỢC THÌ GIỮ LẠI MỘT DÒNG RIÊNG, không để nó lặng lẽ nhảy về
+   *    dòng đầu. Danh mục dựng từ sổ cũ, có gian còn mang tên đơn vị không có trong bảng ánh
+   *    xạ; bỏ nó là một cú Lưu đổi nhà cho gian đó mà không ai biết.
+   * ═════════════════════════════════════════════════════════════════════════════════ */
+  function _khoiSelCoso(dv){
+    var cu=String(dv==null?'':dv).trim();
+    var k=_khoiCuaDv(cu);
+    var h='<select style="width:100%" title="Khối của gian này — quyết định chi phí của nó rơi vào sổ nào.">';
+    if(!k){
+      h+='<option value="'+esc(cu)+'" selected>'
+        +(cu ? ('— giữ nguyên: '+esc(cu)+' —') : '— chưa khai ('+esc(_dvMacDinh())+') —')+'</option>';
+    }
+    h+=KHOI_DS.map(function(x){
+      /* Ô đang chọn giữ CHUỖI CŨ; các ô kia mang tên chuẩn — xem chốt 🔴 ở trên. */
+      var v=(x.ma===k) ? cu : _dvChuanCuaKhoi(x.ma);
+      return '<option value="'+esc(v)+'"'+(x.ma===k?' selected':'')+'>'+esc(x.ten)+'</option>';
+    }).join('');
+    return h+'</select>';
+  }
   function _dongCoso(r){
     return { ten:(r[0]||'').trim(), tenMisa:r[1]||'', maDonVi:r[2]||'', phanLoaiLon:r[3]||'',
       donVi:(r[4]||'').trim(), tinh:(r[5]||'').trim() };

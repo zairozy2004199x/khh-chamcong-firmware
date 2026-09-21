@@ -631,6 +631,13 @@ class VHCP_Don {
 			/* Khối mặc định lúc mở lần đầu = khối của chính nhà người dùng, để họ không phải
 			   bấm một nhịp mới thấy việc của mình. */
 			'khoiBan'    => ( VHCP_DonVi::khoi_cua( VHCP_DonVi::cua_toi() ) ?: VHCP_DB::KHOI ),
+			/* ẢNH XẠ ĐƠN VỊ → KHỐI, GỬI NGUYÊN BẢNG XUỐNG MÀN.
+			   Anh Thắng 21/09/2026: *"đơn vị cơ sở theo khối — chuyển cột Đơn vị sang Khối"*. Ô
+			   chọn khối ở bảng cơ sở phải biết "KVC / POSH / MTĐ thuộc khối nào".
+			   🔴 GỬI BẢNG, ĐỪNG ĐỂ MÀN CHÉP LẠI MỘT BẢN. Chép tay là hai nơi khai cùng một luật,
+			      và ngày thêm một tên đơn vị (một chi nhánh mới) là hai bên lệch — màn xếp cơ sở
+			      vào khối này trong khi máy chủ đọc ra khối khác, không một câu lỗi nào. */
+			'khoiTheoDv' => VHCP_DonVi::KHOI_THEO_DON_VI,
 			/* Ai đang khai ô "Xem đơn vị" lạc ra ngoài danh sách — họ là người sắp ngồi trước
 			   một màn trắng. Xem chốt dài ở `VHCP_DonVi::ai_khai_lac()`. */
 			'khaiLac'    => VHCP_DonVi::ai_khai_lac(),

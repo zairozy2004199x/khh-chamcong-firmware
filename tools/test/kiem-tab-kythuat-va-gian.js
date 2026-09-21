@@ -129,6 +129,34 @@ t('   đúng ô mà _daNapCoSoDs() đổ dữ liệu vào',
    "chưa chọn gian thì gom mã của MỌI mảng" lại gác sau cờ `_donNhieuCoSo()`. Đơn chi phí cơ sở
    của Kỹ thuật cũng là MỘT đơn nhiều gian nhưng không bật cờ ấy, nên mọi loại khai mã theo ma
    trận (chính là "Chi phí cơ sở") bị coi là chưa có mã và bị ẩn. */
+/* 🔴 BỐC MÃ THẬT, ĐỪNG BỊA LẠI LUẬT. Từ 21/09/2026 cột Bộ phận đã rời bảng Người dùng, nên
+   luật nào cần bộ phận thì đọc lại từ TÊN VAI CON — anh Thắng: *"dùng hết trên vai trò cha,
+   con rồi"*. Bịa một bản ở bài kiểm là nó canh luật của chính nó, xanh vĩnh viễn dù bản thật
+   đi đường khác. */
+const BP_THAT = `  var BP_THEO_TEN_VAI=[
+    {bp:'Kỹ thuật', tu:['ky thuat']},
+    {bp:'Cơ sở',    tu:['co so']},
+    {bp:'Marketing', tu:['marketing']},
+    {bp:'Văn phòng', tu:['van phong']}
+  ];
+  function _boDauVai(s){
+    return String(s==null?'':s).toLowerCase().replace(/\\u0111/g,'d')
+      .normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/\\s+/g,' ').trim();
+  }
+  function _bpCuaVai(ten){
+    var t=' '+_boDauVai(ten)+' ';
+    if(t===' ') return '';
+    for(var i=0;i<BP_THEO_TEN_VAI.length;i++){
+      var x=BP_THEO_TEN_VAI[i];
+      for(var j=0;j<x.tu.length;j++){ if(t.indexOf(' '+x.tu[j]+' ')>=0) return x.bp; }
+    }
+    return '';
+  }
+  function _bpCuaToi(){
+    var b=String((CURUSER&&CURUSER.boPhan)||'').trim();
+    if(b) return b;
+    return _bpCuaVai((CURUSER&&CURUSER.role)||'');
+  }`;
 function beLoai(opt) {
   opt = opt || {};
   const moi = {
@@ -156,7 +184,7 @@ function beLoai(opt) {
 /* ⚠️ `_khoiCuaLoai` + `KHOI_DANG` thêm 21/09/2026 — loại chi phí nay thuộc đúng một khối
      (anh Thắng: *"chia ra 3 bảng của 3 khối, để tránh dùng chung"*) và `_loaiCpList()` bỏ
      loại của khối khác. Thiếu trong bệ đỡ là bài kiểm nổ `ReferenceError`. */
-  const src = `${boc('_khoiCuaLoai')}\n${boc('_vaiDungDuocLoai')}\n${boc('_mangCua')}\n${boc('_donNhieuCoSo')}\n${boc('_mangPham')}
+  const src = `${BP_THAT}\n${boc('_khoiCuaLoai')}\n${boc('_vaiDungDuocLoai')}\n${boc('_mangCua')}\n${boc('_donNhieuCoSo')}\n${boc('_mangPham')}
     ${boc('_tkNoList')}\n${boc('_tkNoCua')}\n${boc('_bpTach')}\n${boc('_khoaNhom')}
     ${boc('_loaiCpList')}
     return { nhieu: _donNhieuCoSo, ds: _loaiCpList, tkList: _tkNoList };`;
@@ -266,7 +294,7 @@ function beNewDon(daChonTuan, bp) {
   const KHO = {};
   const moi = {
     CURUSER: { boPhan: bp === undefined ? 'Kỹ thuật' : bp, name: 'KT', role: 'Nhân viên' },
-    /* `newDon()` so luật qua `_vaiLuat()` từ 21/09/2026 — thiếu nó là hàm thật nổ ReferenceError. */
+    /* `newDon()` so luật qua `_vaiLuat()`; bộ phận thì bốc mã THẬT ở `BP_THAT` ngay dưới. */
     _vaiLuat: () => 'Nhân viên',
     QUYEN_TAB: { don: 1, duan: 1 },
     BP_HOI_LOAI_DON: ['Kỹ thuật'],
@@ -282,7 +310,7 @@ function beNewDon(daChonTuan, bp) {
   /* `newDon()` gọi `_apTenNhom()` (đặt chữ cho ba nút chọn loại theo bộ phận) — bốc cả chuỗi
      hàm thật vào, đừng khai hàm rỗng: khai rỗng là bỏ dòng gọi ấy ra khỏi tầm kiểm. */
   const bangTen = (/var TEN_LOAI_BP=\{[\s\S]*?\n  \};/.exec(HTML) || [''])[0];
-  const src = `${bangTen}\n${boc('_tenNhom')}\n${boc('_tenNhomBp')}\n${boc('_apTenNhom')}
+  const src = `${BP_THAT}\n${bangTen}\n${boc('_tenNhom')}\n${boc('_tenNhomBp')}\n${boc('_apTenNhom')}
     ${boc('_tabDuoc')}\n${boc('_vaoDuocDuAn')}\n${boc('_hoiLoaiDon')}\n${boc('newDon')}
     newDon(C); return null;`;
   new Function('moi', 'C', `with(moi){ ${src} }`)(moi, daChonTuan);
@@ -317,7 +345,7 @@ function beNutChuyen(vis, ai) {
         : String(ai.roleGoc || ai.role || ''))),
     _vaoDonCoSo: bp => !(bp && ['Kỹ thuật'].indexOf(bp) >= 0),
   };
-  new Function('moi', 'V', `with(moi){ ${boc('_veNutChuyenDon')}
+  new Function('moi', 'V', `with(moi){ ${BP_THAT}\n${boc('_veNutChuyenDon')}
     nut.forEach(function(b){ b.getAttribute=function(){ return b.di; }; });
     _veNutChuyenDon(V); }`).call(null, Object.assign(moi, { nut }), vis);
   return { don: nut[0].style.display, duan: nut[1].style.display };
@@ -346,7 +374,7 @@ t('   chưa có bảng quyền thì ẩn cả hai, không nổ', NC3.don === 'no
   };
   /* `daChonNhom()` đặt dòng "Đang lập" bằng `_tenNhomBp()` — bốc cả hàm thật, đừng khai rỗng. */
   const bangTen2 = (/var TEN_LOAI_BP=\{[\s\S]*?\n  \};/.exec(HTML) || [''])[0];
-  const chon = new Function('moi', 'N', `with(moi){ ${bangTen2}
+  const chon = new Function('moi', 'N', `with(moi){ ${BP_THAT}\n${bangTen2}
     ${boc('_tenNhom')}\n${boc('_tenNhomBp')}\n${boc('daChonNhom')}\n daChonNhom(N);
     return { cs: el('daNhomCs').style, da: el('daNhomDa').style,
              csC: el('daNhomCs').className, daC: el('daNhomDa').className }; }`);

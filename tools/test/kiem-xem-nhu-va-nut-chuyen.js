@@ -46,12 +46,38 @@ const fnNut = bocHam('_veNutChuyenDon');
 t('bốc được _veNutChuyenDon()', fnNut.length > 100, fnNut.length);
 
 /** Chạy thật với một tài khoản + bảng `vis`, trả trạng thái hiện/ẩn của hai nút. */
+/* 🔴 BỐC MÃ THẬT: từ 21/09/2026 bộ phận đọc lại từ TÊN VAI CON (cột Bộ phận đã rời bảng
+   Người dùng). Bịa một bản ở đây là bài kiểm canh luật của chính nó. */
+const BP_THAT = `  var BP_THEO_TEN_VAI=[
+    {bp:'Kỹ thuật', tu:['ky thuat']},
+    {bp:'Cơ sở',    tu:['co so']},
+    {bp:'Marketing', tu:['marketing']},
+    {bp:'Văn phòng', tu:['van phong']}
+  ];
+  function _boDauVai(s){
+    return String(s==null?'':s).toLowerCase().replace(/\\u0111/g,'d')
+      .normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/\\s+/g,' ').trim();
+  }
+  function _bpCuaVai(ten){
+    var t=' '+_boDauVai(ten)+' ';
+    if(t===' ') return '';
+    for(var i=0;i<BP_THEO_TEN_VAI.length;i++){
+      var x=BP_THEO_TEN_VAI[i];
+      for(var j=0;j<x.tu.length;j++){ if(t.indexOf(' '+x.tu[j]+' ')>=0) return x.bp; }
+    }
+    return '';
+  }
+  function _bpCuaToi(){
+    var b=String((CURUSER&&CURUSER.boPhan)||'').trim();
+    if(b) return b;
+    return _bpCuaVai((CURUSER&&CURUSER.role)||'');
+  }`;
 function nut(vai, bp, vis) {
   const B = { duan: { style: { display: '' } }, don: { style: { display: '' } } };
   /* Từ 21/09/2026 `_veNutChuyenDon()` so luật qua `_vaiLuat()` — vai con làm được việc của
      vai cha. Bệ đỡ phải có cả hai, không thì hàm thật nổ ReferenceError. */
   new Function('CURUSER', 'document', 'BP_VAO_DUAN', '_vaiGoc', '_vaiLuat', '_vaoDonCoSo', 'vis',
-    fnNut + '\n_veNutChuyenDon(vis);')(
+    BP_THAT + '\n' + fnNut + '\n_veNutChuyenDon(vis);')(
     { role: vai, roleGoc: vai, boPhan: bp },
     { querySelectorAll: () => [
       Object.assign(B.duan, { getAttribute: () => 'duan' }),

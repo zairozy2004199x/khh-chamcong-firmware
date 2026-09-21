@@ -54,7 +54,34 @@ const NHOM_CP_CS = '(cơ sở)';
 /* ⚠️ `_khoiCuaLoai` + `KHOI_DANG` thêm 21/09/2026: loại chi phí nay thuộc đúng một khối (anh Thắng: *"chia ra 3 bảng của 3 khối, để tránh dùng chung"*), và `_loaiCpList()` bỏ loại của khối khác. Không khai vào bệ đỡ là bài kiểm nổ `ReferenceError` — xem chốt "THÊM HÀM PHỤ THUỘC THÌ PHẢI KHAI VÀO ĐÂY". */
 /* ⚠️ `_vaiDungDuocLoai` thêm 21/09/2026 — anh Thắng: *"bỏ tích bộ phận đi, mà tích theo
      vai trò"*. `_loaiCpList()` gọi nó; không khai vào bệ đỡ là nổ `ReferenceError`. */
-const nguon = ['_khoiCuaLoai', '_vaiDungDuocLoai', '_mangCua', '_donNhieuCoSo', '_mangPham', '_tkNoList', '_tapTkCo', '_tkNoCua', '_khoaNhom', '_bpTach', '_loaiCpList', '_loaiCpVi'].map(layHam).join('\n')
+/* 🔴 BỐC MÃ THẬT, ĐỪNG BỊA LẠI LUẬT Ở ĐÂY. Từ 21/09/2026 cột Bộ phận đã rời bảng Người
+   dùng, nên luật nào cần bộ phận thì đọc lại từ TÊN VAI CON. Bịa một bản ở bài kiểm là nó
+   canh luật của chính nó, xanh vĩnh viễn dù bản thật đi đường khác. */
+const BP_THAT = `  var BP_THEO_TEN_VAI=[
+    {bp:'Kỹ thuật', tu:['ky thuat']},
+    {bp:'Cơ sở',    tu:['co so']},
+    {bp:'Marketing', tu:['marketing']},
+    {bp:'Văn phòng', tu:['van phong']}
+  ];
+  function _boDauVai(s){
+    return String(s==null?'':s).toLowerCase().replace(/\\u0111/g,'d')
+      .normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/\\s+/g,' ').trim();
+  }
+  function _bpCuaVai(ten){
+    var t=' '+_boDauVai(ten)+' ';
+    if(t===' ') return '';
+    for(var i=0;i<BP_THEO_TEN_VAI.length;i++){
+      var x=BP_THEO_TEN_VAI[i];
+      for(var j=0;j<x.tu.length;j++){ if(t.indexOf(' '+x.tu[j]+' ')>=0) return x.bp; }
+    }
+    return '';
+  }
+  function _bpCuaToi(){
+    var b=String((CURUSER&&CURUSER.boPhan)||'').trim();
+    if(b) return b;
+    return _bpCuaVai((CURUSER&&CURUSER.role)||'');
+  }`;
+const nguon = BP_THAT + '\n' + ['_khoiCuaLoai', '_vaiDungDuocLoai', '_mangCua', '_donNhieuCoSo', '_mangPham', '_tkNoList', '_tapTkCo', '_tkNoCua', '_khoaNhom', '_bpTach', '_loaiCpList', '_loaiCpVi'].map(layHam).join('\n')
   + '\n  return { list:_loaiCpList, vi:_loaiCpVi, dat:function(n,u){ NHOM_CP=n; CURUSER=u; } };';
 function moi(nhomCp, user, cur) {
   /* ⚠️ `_donNhieuCoSo` nay hỏi thêm `CUR_PAGE` / `DA_CUR` — xem chốt ở app.html. Bài này kiểm

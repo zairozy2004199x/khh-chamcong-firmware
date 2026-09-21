@@ -122,6 +122,34 @@ t('🔴 tên gian có thẻ HTML bị rào, không chạy được', !/<script>/
 /* ── 5. MỘT LỐI TẠO ĐƠN CHO CẢ BA LOẠI ───────────────────────────────────────────────────
    Anh Thắng: *"1. Tạo dự án / Tạo đơn. 2. Chọn: Chi Phí Setup / Chi Phí Tháo Dỡ hoặc Chi Phí
    Cơ Sở. 3. Nếu chi phí cơ sở thì chọn Tuần. 4. Nếu Setup / Tháo dỡ thì chọn gian"*. */
+/* 🔴 BỐC MÃ THẬT, ĐỪNG BỊA LẠI LUẬT. Từ 21/09/2026 cột Bộ phận đã rời bảng Người dùng, nên
+   luật nào cần bộ phận thì đọc lại từ TÊN VAI CON — anh Thắng: *"dùng hết trên vai trò cha,
+   con rồi"*. Bịa một bản ở bài kiểm là nó canh luật của chính nó, xanh vĩnh viễn dù bản thật
+   đi đường khác. */
+const BP_THAT = `  var BP_THEO_TEN_VAI=[
+    {bp:'Kỹ thuật', tu:['ky thuat']},
+    {bp:'Cơ sở',    tu:['co so']},
+    {bp:'Marketing', tu:['marketing']},
+    {bp:'Văn phòng', tu:['van phong']}
+  ];
+  function _boDauVai(s){
+    return String(s==null?'':s).toLowerCase().replace(/\\u0111/g,'d')
+      .normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/\\s+/g,' ').trim();
+  }
+  function _bpCuaVai(ten){
+    var t=' '+_boDauVai(ten)+' ';
+    if(t===' ') return '';
+    for(var i=0;i<BP_THEO_TEN_VAI.length;i++){
+      var x=BP_THEO_TEN_VAI[i];
+      for(var j=0;j<x.tu.length;j++){ if(t.indexOf(' '+x.tu[j]+' ')>=0) return x.bp; }
+    }
+    return '';
+  }
+  function _bpCuaToi(){
+    var b=String((CURUSER&&CURUSER.boPhan)||'').trim();
+    if(b) return b;
+    return _bpCuaVai((CURUSER&&CURUSER.role)||'');
+  }`;
 function beTao() {
   const NK = { goi: null, toast: [], confirm: [], mo: [] };
   const KHO = {};
@@ -172,7 +200,7 @@ function beTao() {
       chonNhom: daChonNhom, loaiChon: _daLoaiChon, doiLoai: daDoiLoai,
       tuanDs: _daTuanDs, tenTuan: _daTenTuan, mondayOf: _mondayOf };`;
   moi.moi = moi; moi.NK = NK;
-  return new Function('moi', `with(moi){ ${src} }`)(moi);
+  return new Function('moi', `with(moi){ ${BP_THAT}\n${src} }`)(moi);
 }
 
 /* 🔴 MẶC ĐỊNH KHÔNG BÀY GÌ CẢ — anh Thắng: *"khi bấm tạo đơn nó mới xổ ra"*, và về ô xổ ba

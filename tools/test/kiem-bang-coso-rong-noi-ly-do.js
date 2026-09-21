@@ -37,6 +37,48 @@ t('bốc được renderCosoBody()', fnRender.length > 500, fnRender.length);
 
 /* Bệ đỡ: giữ lại đúng thứ bài kiểm cần đọc — nội dung đổ vào `cfgCosoBody`, và có gọi khoá
    bảng lại hay không. `el()` trả về một ô giả cho MỌI id, kể cả `dl_pll`/`dl_donvi`/`dl_tinh`. */
+/* 🔴 BỐC MÃ THẬT, ĐỪNG BỊA LẠI LUẬT Ở ĐÂY. Từ 21/09/2026 cột Bộ phận đã rời bảng Người
+   dùng, nên luật nào cần bộ phận thì đọc lại từ TÊN VAI CON. Bịa một bản ở bài kiểm là nó
+   canh luật của chính nó, xanh vĩnh viễn dù bản thật đi đường khác. */
+const KHOI_THAT = `  var KHOI_DS=[{ma:'kvc',ten:'Khu vui chơi'},{ma:'mtd',ten:'Máy tự động'},{ma:'vp',ten:'Văn phòng'}];
+  var KHOI_DV_DUP={kvc:['KVC'],mtd:['MT\\u0110','MTD','POSH'],vp:['VP','V\\u0102N PH\\u00d2NG','VAN PHONG']};
+  function _khoiDvBang(){
+    var b=(typeof BOOT!=='undefined' && BOOT) ? BOOT.khoiTheoDv : null;
+    return (b && b.kvc) ? b : KHOI_DV_DUP;
+  }
+  function _khoiCuaDv(dv){
+    var k=String(dv==null?'':dv).trim().toUpperCase();
+    if(!k) return '';
+    var b=_khoiDvBang();
+    for(var i=0;i<KHOI_DS.length;i++){
+      var ma=KHOI_DS[i].ma, ds=b[ma]||[];
+      for(var j=0;j<ds.length;j++){ if(String(ds[j]).toUpperCase()===k) return ma; }
+    }
+    return '';
+  }
+  function _dvChuanCuaKhoi(ma){
+    var ds=_khoiDvBang()[String(ma||'').toLowerCase()]||[];
+    return ds[0]||'';
+  }
+  function _tenKhoi(ma){
+    for(var i=0;i<KHOI_DS.length;i++){ if(KHOI_DS[i].ma===ma) return KHOI_DS[i].ten; }
+    return '';
+  }
+  function _khoiSelCoso(dv){
+    var cu=String(dv==null?'':dv).trim();
+    var k=_khoiCuaDv(cu);
+    var h='<select style="width:100%" title="Khối của gian này — quyết định chi phí của nó rơi vào sổ nào.">';
+    if(!k){
+      h+='<option value="'+esc(cu)+'" selected>'
+        +(cu ? ('— giữ nguyên: '+esc(cu)+' —') : '— chưa khai ('+esc(_dvMacDinh())+') —')+'</option>';
+    }
+    h+=KHOI_DS.map(function(x){
+      /* Ô đang chọn giữ CHUỖI CŨ; các ô kia mang tên chuẩn — xem chốt 🔴 ở trên. */
+      var v=(x.ma===k) ? cu : _dvChuanCuaKhoi(x.ma);
+      return '<option value="'+esc(v)+'"'+(x.ma===k?' selected':'')+'>'+esc(x.ten)+'</option>';
+    }).join('');
+    return h+'</select>';
+  }`;
 function chay(coso, xemDonVi) {
   const O = {};
   const NK = { khoa: 0, doLa: 0 };
@@ -45,7 +87,7 @@ function chay(coso, xemDonVi) {
   const CFG = { coso: coso };
   const BOOT = { donVi: ['K&H', 'POSH', 'KVC'], xemDonVi: xemDonVi };
   new Function('CFG', 'BOOT', 'el', 'esc', '_inp', '_delBtn', '_dvMacDinh', '_csLock', 'doCoSoLa', 'doDongCua',
-    fnRender + '\nrenderCosoBody();')(
+    KHOI_THAT + '\n' + fnRender + '\nrenderCosoBody();')(
     CFG, BOOT, el, esc,
     function (v) { return '<input value="' + esc(v) + '">'; },
     function () { return '<td></td>'; },
@@ -93,7 +135,12 @@ t('mảng rỗng cũng là chưa khai, không phải bị bó', xemCaRong.html.i
  *    mục 2, trong khi màn thật đã hỏng với mọi người đang dùng.
  * ═════════════════════════════════════════════════════════════════════════════════════════════ */
 const coDu = chay(CS, ['KVC']);
-t('có cơ sở → vẫn dựng dải đơn vị',       coDu.html.indexOf('ĐƠN VỊ KVC') >= 0, coDu.html);
+/* Dải nhóm đổi từ "🏢 ĐƠN VỊ KVC" sang "🧩 KHỐI Khu vui chơi" 21/09/2026 — anh Thắng:
+   *"đơn vị cơ sở theo khối — chuyển cột Đơn Vị sang Khối"*. */
+t('có cơ sở → vẫn dựng dải nhóm, nay đặt tên theo KHỐI',
+  coDu.html.indexOf('KHỐI Khu vui chơi') >= 0, coDu.html);
+t('🔴 và cột đơn vị thành Ô CHỌN khối, không còn ô gõ tay',
+  coDu.html.indexOf('list="dl_donvi"') < 0 && /<select[^>]*>[\s\S]*Khu vui chơi/.test(coDu.html), coDu.html);
 t('   vẫn dựng dải phân loại lớn',        coDu.html.indexOf('EVENT FZ MN') >= 0, coDu.html);
 t('   vẫn vẽ hàng cơ sở',                 coDu.html.indexOf('EVFZADVGAL') >= 0, coDu.html);
 t('   vẫn giữ cột Tỉnh (1.137.0)',        coDu.html.indexOf('TP HCM') >= 0, coDu.html);
