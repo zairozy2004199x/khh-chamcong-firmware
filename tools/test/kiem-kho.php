@@ -44,9 +44,17 @@ if ( ! function_exists( 'khh_dt_bang' ) ) {
 
 function dung_bang() {
 	global $wpdb;
-	foreach ( array( khh_dt_bang(), khh_dt_bang_kho() ) as $b ) {
+	foreach ( array( khh_dt_bang(), khh_dt_bang_kho(), khh_dt_bang_kho_su() ) as $b ) {
 		$wpdb->exec_raw( "DROP TABLE IF EXISTS $b" );
 	}
+	/* Sổ ghi động: CỐ Ý không có UNIQUE — nhiều dòng cùng (ngày, cơ sở, mặt hàng) là lịch sử sửa. */
+	$wpdb->exec_raw(
+		'CREATE TABLE ' . khh_dt_bang_kho_su() . " ( id INTEGER PRIMARY KEY AUTOINCREMENT,
+			ngay TEXT NOT NULL, co_so TEXT NOT NULL DEFAULT '', mat_hang TEXT NOT NULL DEFAULT '',
+			nhap REAL NOT NULL DEFAULT 0, ban_khai REAL NULL DEFAULT NULL,
+			combo_tay REAL NOT NULL DEFAULT 0, dem REAL NULL DEFAULT NULL,
+			ghi_chu TEXT DEFAULT '', nguoi TEXT DEFAULT '', luc TEXT NULL )"
+	);
 	$wpdb->exec_raw(
 		'CREATE TABLE ' . khh_dt_bang() . " ( id INTEGER PRIMARY KEY AUTOINCREMENT,
 			ngay TEXT NOT NULL, cua_hang TEXT NOT NULL DEFAULT '', mon TEXT NOT NULL DEFAULT '[]',
@@ -61,6 +69,7 @@ function dung_bang() {
 			UNIQUE(ngay,co_so,mat_hang) )"
 	);
 	update_option( 'khh_dt_kho_combo', array() );
+	update_option( 'khh_dt_kho_combo_ls', array() );
 }
 
 /** Giả một ngày bán hàng của FABi: [ tên món => số lượng ] hoặc [ tên => [sl, doanh thu] ]. */
@@ -149,7 +158,7 @@ phep( '🔴 và lệch khai = 15 − 20 = −5, chỉ thẳng ra người khai t
 
 /* ── 4. 🔴 combo trừ kho theo thành phần ────────────────────────────────────────────── */
 dung_bang();
-khh_dt_kho_combo_dat( 'Combo 2 người', array( 'Nước suối' => 2, 'Kẹo cầu vồng' => 1 ) );
+khh_dt_kho_combo_dat( 'Combo 2 người', array( 'Nước suối' => 2, 'Kẹo cầu vồng' => 1 ), '2026-09-01' );
 fabi( '2026-09-01', $CS, array( 'Nước suối' => 3, 'Combo 2 người' => 10 ) );
 $b = khh_dt_kho_bang_ngay( '2026-09-01', $CS );
 $n = dong_cua( $b, 'Nước suối' );
@@ -171,9 +180,9 @@ phep( '🔴 và hệ NHẮC là món này trông như combo mà chưa khai thàn
 	in_array( 'Combo 2 người', khh_dt_kho_combo_chua_khai( '2026-08-01', '2026-09-01', $CS ), true ) );
 
 /* Xoá thành phần = xoá combo khỏi bảng. */
-khh_dt_kho_combo_dat( 'Combo 2 người', array( 'Nước suối' => 2 ) );
+khh_dt_kho_combo_dat( 'Combo 2 người', array( 'Nước suối' => 2 ), '2026-09-01' );
 phep( 'đặt được thành phần', isset( khh_dt_kho_combo_bang()['Combo 2 người'] ) );
-khh_dt_kho_combo_dat( 'Combo 2 người', array() );
+khh_dt_kho_combo_dat( 'Combo 2 người', array(), '2026-09-01' );
 phep( 'bảng thành phần rỗng là lệnh xoá combo', ! isset( khh_dt_kho_combo_bang()['Combo 2 người'] ) );
 
 /* ── 5. cơ sở khác không lẫn vào ────────────────────────────────────────────────────── */
@@ -276,7 +285,7 @@ fabi(
 phep( 'FABi đã tách mà chưa khai combo thì KHÔNG trừ hai lần',
 	array() === khh_dt_kho_tru_hai_lan( '2026-08-01', '2026-09-01', $CS ) );
 /* Khai thêm combo lên trên bản đã tách -> trừ hai lần, phải kêu. */
-khh_dt_kho_combo_dat( 'Combo 2 người', array( 'Nước suối' => 2, 'Kẹo cầu vồng' => 1 ) );
+khh_dt_kho_combo_dat( 'Combo 2 người', array( 'Nước suối' => 2, 'Kẹo cầu vồng' => 1 ), '2026-09-01' );
 $hai = khh_dt_kho_tru_hai_lan( '2026-08-01', '2026-09-01', $CS );
 phep( '🔴 khai combo lên trên bản ĐÃ tách thì hệ kêu TRỪ HAI LẦN', 2 === count( $hai ) );
 phep( 'kêu đúng mặt hàng', in_array( 'Nước suối', $hai, true ) );
@@ -284,7 +293,7 @@ phep( 'kêu đúng mặt hàng', in_array( 'Nước suối', $hai, true ) );
 $d = dong_cua( khh_dt_kho_bang_ngay( '2026-09-01', $CS ), 'Nước suối' );
 phep( '🔴 và đúng là trừ gấp đôi: 20 + 20 = 40 chai cho 10 combo', 40.0 === (float) $d['ban_may'] );
 /* Xoá khai combo đi là về đúng. */
-khh_dt_kho_combo_dat( 'Combo 2 người', array() );
+khh_dt_kho_combo_dat( 'Combo 2 người', array(), '2026-09-01' );
 $d = dong_cua( khh_dt_kho_bang_ngay( '2026-09-01', $CS ), 'Nước suối' );
 phep( 'xoá khai combo thì về đúng 20 chai', 20.0 === (float) $d['ban_may'] );
 phep( 'và hết kêu', array() === khh_dt_kho_tru_hai_lan( '2026-08-01', '2026-09-01', $CS ) );
@@ -395,6 +404,95 @@ $r = khh_dt_rest_kho_xem( new WP_REST_Request( array( 'ngay' => '2026-09-01', 'c
 phep( 'cơ sở mình phụ trách thì xem được bình thường', ! is_wp_error( $r ) );
 phep( 'và trả về đúng tên cơ sở để màn hình bày ra', $CS === $r['co_so'] );
 $GLOBALS['KHO_PHAM_VI'] = array();
+
+/* ── 13. 🔴 SỔ GHI ĐỘNG: KHAI LẠI LÀ GHI THÊM, KHÔNG PHẢI GHI ĐÈ ─────────────────────
+      21/09/2026, học lối ERPNext/Odoo: sổ ghi động BẤT BIẾN, tồn hiện tại chỉ là tổng của nó
+      — "đã ghi thì không sửa, sai thì ghi một bút toán bù". Cách làm ban đầu thì ngược:
+      `ON DUPLICATE KEY UPDATE`, khai lại là ghi đè, chỉ còn người với giờ của lần cuối.
+
+      🔴 VỚI SỔ SINH RA ĐỂ BẮT THẤT THOÁT, ĐÓ LÀ LỖ TO NHẤT: người đang bị đối soát tự sửa lại
+         con số mình đã khai, không để lại dấu vết. Đếm thiếu, thấy cột lệch đỏ, sửa số đếm cho
+         khớp — sổ xanh. Cả bộ máy đối soát vô dụng đúng ở ca nó sinh ra để bắt. */
+dung_bang();
+fabi( '2026-09-01', $CS, array( 'Nước suối' => 10 ) );
+khh_dt_kho_ghi( '2026-09-01', $CS, 'Nước suối', array( 'nhap' => 100, 'dem' => 85 ) );
+khh_dt_kho_ghi( '2026-09-01', $CS, 'Nước suối', array( 'nhap' => 100, 'dem' => 90 ) );
+khh_dt_kho_ghi( '2026-09-01', $CS, 'Nước suối', array( 'nhap' => 100, 'dem' => 90 ) );
+
+$su = khh_dt_kho_su_cua( '2026-09-01', $CS, 'Nước suối' );
+phep( '🔴 ba lượt khai thì sổ giữ ĐỦ BA dòng, không ghi đè', 3 === count( $su ) );
+phep( 'mới nhất nằm trước', 90.0 === (float) $su[0]['dem'] );
+phep( '🔴 và con số ĐẦU TIÊN vẫn còn nguyên trong sổ — đây là cái vết cần giữ',
+	85.0 === (float) $su[ count( $su ) - 1 ]['dem'] );
+$sl = khh_dt_kho_so_lan( '2026-09-01', $CS );
+phep( 'đếm được số lượt khai để màn hiện "đã sửa N lần"', 3 === (int) $sl['Nước suối'] );
+
+$b = khh_dt_kho_bang_ngay( '2026-09-01', $CS );
+phep( 'bảng cộng dồn mang số mới nhất', 90.0 === (float) dong_cua( $b, 'Nước suối' )['dem'] );
+phep( 'và chỉ MỘT dòng trên màn, không phải ba', 1 === count( $b ) );
+
+/* 🔴 HAI BẢNG KHÔNG ĐƯỢC THÀNH HAI SỰ THẬT: dựng lại bản cộng dồn từ sổ phải ra y hệt. */
+$wpdb->exec_raw( 'UPDATE ' . khh_dt_bang_kho() . " SET dem = 999 WHERE mat_hang = 'Nước suối'" );
+phep( 'đã bóp méo bản cộng dồn',
+	999.0 === (float) dong_cua( khh_dt_kho_bang_ngay( '2026-09-01', $CS ), 'Nước suối' )['dem'] );
+khh_dt_kho_dung_lai( '2026-09-01', $CS );
+phep( '🔴 dựng lại từ sổ ghi động thì về đúng số thật — sổ là gốc, bảng kia chỉ là bản tính sẵn',
+	90.0 === (float) dong_cua( khh_dt_kho_bang_ngay( '2026-09-01', $CS ), 'Nước suối' )['dem'] );
+
+/* ── 14. 🔴 SỬA CÔNG THỨC COMBO KHÔNG ĐƯỢC VIẾT LẠI QUÁ KHỨ ──────────────────────────
+      Bản trước áp bảng combo HIỆN TẠI cho mọi dòng lịch sử. Nên sửa một công thức hôm nay là
+      số tồn của cả mấy tháng trước đổi theo, im lặng: hôm qua sổ cân, hôm nay mở lại đúng ngày
+      ấy thì lệch, mà không có gì trên màn nói vì sao. Trên một sổ dùng để đối chất với người
+      trực thì đó là thứ không được phép tồn tại. ERPNext giải bằng BOM có ngày hiệu lực. */
+dung_bang();
+fabi( '2026-09-01', $CS, array( 'Combo 2 người' => 10 ) );
+fabi( '2026-09-20', $CS, array( 'Combo 2 người' => 10 ) );
+
+khh_dt_kho_combo_dat( 'Combo 2 người', array( 'Nước suối' => 2 ), '2026-09-15' );
+$n01 = dong_cua( khh_dt_kho_bang_ngay( '2026-09-01', $CS ), 'Nước suối' );
+$n20 = dong_cua( khh_dt_kho_bang_ngay( '2026-09-20', $CS ), 'Nước suối' );
+phep( '🔴 ngày TRƯỚC ngày hiệu lực: combo KHÔNG bị tách — quá khứ nằm nguyên', null === $n01 );
+phep( 'ngày SAU ngày hiệu lực: tách đúng 10×2 = 20 chai',
+	null !== $n20 && 20.0 === (float) $n20['ban_combo'] );
+phep( 'và ngày cũ vẫn để combo đứng thành một dòng như trước',
+	null !== dong_cua( khh_dt_kho_bang_ngay( '2026-09-01', $CS ), 'Combo 2 người' ) );
+
+khh_dt_kho_combo_dat( 'Combo 2 người', array( 'Nước suối' => 5 ), '2026-09-18' );
+fabi( '2026-09-16', $CS, array( 'Combo 2 người' => 10 ) );
+$n16 = dong_cua( khh_dt_kho_bang_ngay( '2026-09-16', $CS ), 'Nước suối' );
+$n20 = dong_cua( khh_dt_kho_bang_ngay( '2026-09-20', $CS ), 'Nước suối' );
+phep( '🔴 mỗi ngày theo công thức có hiệu lực vào ĐÚNG ngày ấy: 16/09 ra 20 chai',
+	null !== $n16 && 20.0 === (float) $n16['ban_combo'] );
+phep( 'còn 20/09 ra 50 chai theo công thức mới',
+	null !== $n20 && 50.0 === (float) $n20['ban_combo'] );
+
+$ls = khh_dt_kho_combo_ls();
+phep( 'lịch sử công thức giữ đủ hai dòng', 2 === count( $ls ) );
+phep( 'xếp theo ngày hiệu lực tăng dần',
+	'2026-09-15' === $ls[0]['tu_ngay'] && '2026-09-18' === $ls[1]['tu_ngay'] );
+phep( 'mỗi dòng ghi rõ combo nào', 'Combo 2 người' === $ls[1]['ten'] );
+
+/* 🔴 CHỖ BÀI THỬ NÀY ĐÃ BẮT ĐƯỢC MỘT LỖI THIẾT KẾ THẬT.
+   Bản đầu lưu mỗi lượt sửa thành một BẢN CHỤP CẢ BẢNG kèm ngày hiệu lực. Một lượt ĐẶT LÙI NGÀY
+   sinh ra bản chụp của trạng thái LÚC ẤY — thiếu mọi công thức khai sau nó — mà bản chụp ấy lại
+   không lan về sau, nên đọc ngày hôm nay là MẤT công thức vừa đặt lùi. Nay ghi hiệu lực theo
+   TỪNG COMBO nên ghép lại đúng, y lối BOM của ERPNext. Phép dưới đứng canh đúng chỗ ấy. */
+khh_dt_kho_combo_dat( 'Combo khác', array( 'Kẹo' => 1 ), '2026-09-02' );
+$b02 = khh_dt_kho_combo_bang( '2026-09-02' );
+phep( 'bản đặt lùi có hiệu lực từ đúng ngày ấy',
+	isset( $b02['Combo khác'] ) && ! isset( $b02['Combo 2 người'] ) );
+$b20 = khh_dt_kho_combo_bang( '2026-09-20' );
+phep( '🔴 đặt lùi ngày KHÔNG làm mất công thức đã khai trước đó — ngày 20 có CẢ HAI',
+	isset( $b20['Combo khác'] ) && isset( $b20['Combo 2 người'] ) );
+phep( 'và vẫn là công thức 5 chai của dòng 18/09',
+	5.0 === (float) $b20['Combo 2 người']['Nước suối'] );
+
+/* Thành phần rỗng = xoá combo TỪ ngày ấy, chứ không xoá cả quá khứ. */
+khh_dt_kho_combo_dat( 'Combo 2 người', array(), '2026-09-19' );
+phep( 'xoá từ 19/09 thì ngày 20 hết công thức',
+	! isset( khh_dt_kho_combo_bang( '2026-09-20' )['Combo 2 người'] ) );
+phep( '🔴 nhưng ngày 16 vẫn còn công thức cũ — xoá không lùi về quá khứ',
+	isset( khh_dt_kho_combo_bang( '2026-09-16' )['Combo 2 người'] ) );
 
 if ( $hong ) {
 	echo "\n✗ HỎNG " . count( $hong ) . " phép (đạt $dat):\n";

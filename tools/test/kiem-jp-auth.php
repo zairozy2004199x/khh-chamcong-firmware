@@ -252,6 +252,50 @@ VHJP_Auth::doi_pin( $md2['token'], '222', '101' );
 teq( '🔴 đổi 222 sang 101 (cũng là PIN mặc định) -> VẪN chặn', 'PHAI_DOI_PIN',
 	VHJP_Auth::kiem( $md2['token'] )['ma'] );
 
+// ============================================================ 9bb. 🔴 Tài khoản đầu tiên
+/* Cài mới thì bảng người dùng RỖNG TRƠN, mà màn đăng nhập chỉ hỏi PIN — tức KHÔNG AI VÀO
+   ĐƯỢC, kể cả người vừa cài. Bản gốc không gặp cảnh này vì sổ người dùng đã sẵn trong Sheet. */
+global $wpdb;
+$wpdb->exec_raw( 'DELETE FROM ' . VHJP_Nguon::bang( 'JP_Users' ) );
+delete_option( VHJP_Auth::O_PHIEN );
+
+teq( 'bảng rỗng thì đúng là không ai vào được', false,
+	! empty( VHJP_Auth::dang_nhap( '222' )['ok'] ) );
+
+$moi = VHJP_Auth::cap_tai_khoan_dau();
+t( '🔴 cấp được tài khoản đầu tiên', false !== $moi && null !== $moi, $moi );
+teq( 'và chỉ đúng MỘT tài khoản', 1, count( VHJP_Nguon::doc( 'JP_Users' ) ) );
+/* ⚠️ ĐỌC PIN ĐÃ LƯU TRƯỚC KHI ĐĂNG NHẬP. `dang_nhap()` cố ý BĂM LẠI mọi PIN còn ở dạng chữ
+   thô ngay tại chỗ (cho dữ liệu chuyển từ Sheets sang) — nên đăng nhập trước rồi mới đọc là
+   chính bài kiểm xoá mất bằng chứng, và lượt đục "lưu PIN chữ thô" sống sót. */
+$hs = VHJP_Nguon::doc( 'JP_Users' )[0];
+t( '🔴 PIN của tài khoản tự cấp được BĂM ngay từ lúc tạo',
+	'222' !== $hs['pin'] && '$' === substr( (string) $hs['pin'], 0, 1 ), $hs['pin'] );
+
+$vao = VHJP_Auth::dang_nhap( '222' );
+t( '🔴 vào được bằng PIN mặc định', ! empty( $vao['ok'] ), $vao );
+t( 'là vai kế toán', VHJP_Auth::VAI_KT === $vao['user']['role'], $vao );
+/* 🔴 Vào được, nhưng MỌI CỬA ĐÓNG cho tới khi đổi PIN — không thì tài khoản ai cũng đoán ra
+   lại mở sẵn toàn hệ. */
+teq( '🔴 nhưng mọi cửa thường vẫn ĐÓNG', 'PHAI_DOI_PIN', VHJP_Auth::kiem( $vao['token'] )['ma'] );
+
+/* 🔴 GỌI LẠI KHÔNG ĐƯỢC ĐẺ THÊM. Móc kích hoạt chạy lại mỗi lần bật plugin; đẻ thêm là sổ
+   người dùng phình ra một tài khoản mở sẵn sau mỗi lượt bật/tắt. */
+teq( '🔴 gọi lại khi đã có tài khoản -> KHÔNG làm gì', null, VHJP_Auth::cap_tai_khoan_dau() );
+teq( 'và vẫn đúng một tài khoản', 1, count( VHJP_Nguon::doc( 'JP_Users' ) ) );
+
+/* Và KHÔNG được đụng PIN của sổ đang dùng. */
+VHJP_Nguon::sua( 'JP_Users', $hs['id'], array( 'pin' => VHJP_Auth::bam( '789' ) ) );
+VHJP_Auth::cap_tai_khoan_dau();
+t( '🔴 KHÔNG đụng PIN của tài khoản đang dùng', ! empty( VHJP_Auth::dang_nhap( '789' )['ok'] ) );
+
+/* Màn quản trị chỉ nhắc số PIN mặc định KHI NÓ CÒN ĐÚNG. */
+teq( 'đổi PIN rồi thì thôi nhắc số mặc định', '', VHJP_Auth::con_pin_mac_dinh() );
+VHJP_Nguon::sua( 'JP_Users', $hs['id'], array( 'pin' => VHJP_Auth::bam( '222' ) ) );
+teq( 'còn mặc định thì nhắc đúng số', '222', VHJP_Auth::con_pin_mac_dinh() );
+
+jp_dung_user();
+
 // ============================================================ 9c. Quyền xem cơ sở
 $kt_u = array( 'role' => VHJP_Auth::VAI_KT, 'locationIds' => array() );
 $nv_u = array( 'role' => VHJP_Auth::VAI_NV, 'locationIds' => array( 'L-1', 'L-2' ) );

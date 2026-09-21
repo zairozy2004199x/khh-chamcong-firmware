@@ -46,6 +46,10 @@ class VHJP_Tinh {
 	const GIA_XUNG_CHO_PHEP = array( 5000, 10000 );
 	const GIA_XU       = 50000;    // một xu ăn bao nhiêu tiền ở đồng hồ COIN
 	const GIA_XU_TIEN  = 10000;    // và ở đồng hồ MONEY của cùng máy xu
+	/* Ngưỡng kêu to khi lệch máy lớn: phải vượt CẢ HAI — ít nhất 200.000đ VÀ hơn 5% doanh thu.
+	   Chỉ một điều kiện thì cơ sở nhỏ kêu suốt còn cơ sở lớn im lặng nuốt khoản lớn. */
+	const LECH_MAY_SAN = 200000;
+	const LECH_MAY_PCT = 0.05;
 
 	/* Sáu loại dòng. Mỗi loại một bảng nhập, một cách tính — xem `dong()`. */
 	const DONG_MONEY = 'MONEY';    // máy tiền  — 1 dòng = 1 ô máy (tiền + hàng)
@@ -80,16 +84,30 @@ class VHJP_Tinh {
 				'msg' => 'Hoàn khách không chia tròn cho giá 1 trứng' ),
 			'PRICE_NO_RATE'    => array( 'code' => 'W14', 'part' => 'REV',
 				'msg' => 'Mã hàng không suy ra được giá — không đối chiếu được với tiền, '
-					. 'và nếu mã không có trong danh mục thì kho không tìm được lớp tồn' ),
+					. 'và nếu mã không có trong danh mục thì duyệt xong kho không tìm '
+					. 'được lớp tồn nên giá vốn về 0đ (sổ 632 thiếu)' ),
 			'LECH_QUY_TRUNG'   => array( 'code' => 'W16', 'part' => 'REV',
 				'msg' => 'Tiền thừa đã được quy ra số trứng bán thêm' ),
 			'COIN_VS_MONEY'    => array( 'code' => 'W3',  'part' => 'REV',
 				'msg' => 'Hai đồng hồ COIN và MONEY không khớp' ),
 			'VS_PAYBOX'        => array( 'code' => 'W4',  'part' => 'REV',
 				'msg' => 'Không khớp Pay Box (tiền mặt + chuyển khoản)' ),
+			'LECH_MAY_LON'     => array( 'code' => 'W15', 'part' => 'REV',
+				'msg' => 'Lệch máy lớn bất thường so với doanh thu' ),
 			'COIN_REMAINDER'   => array( 'code' => 'W12', 'part' => 'REV',
 				'msg' => 'Tổng xu không chia hết cho giá xu',
 				'gop' => 'DU_XU', 'gopDv' => ' xu' ),
+			/* ───────────── Ba mã KHÔNG do phép tính dòng sinh ra ─────────────
+			 * W7 và W17 là của đường ẢNH, W11 là của đường MỞ BÁO CÁO. Chúng phải nằm ở
+			 * ĐÂY chứ không nằm rải rác tại nơi dùng: bảng này là nguồn duy nhất của câu
+			 * chữ, và `kiem-jp-tinh.php` đối chiếu CẢ BẢNG với mã gốc. Khai ở chỗ dùng là
+			 * phép đối chiếu ấy không nhìn thấy, rồi câu chữ hai bản trôi khỏi nhau. */
+			'MISSING_PHOTO'    => array( 'code' => 'W7',  'part' => 'STOCK',
+				'msg' => 'Thiếu ảnh so với cấu hình' ),
+			'KY_CHONG'         => array( 'code' => 'W11', 'part' => 'REV',
+				'msg' => 'Kỳ chồng với báo cáo khác' ),
+			'THIEU_CUM_QR'     => array( 'code' => 'W17', 'part' => 'STOCK',
+				'msg' => 'Có tiền QR/CK mà chưa chọn cụm nên không có chỗ gắn ảnh Pay Box' ),
 		);
 	}
 
@@ -654,6 +672,157 @@ class VHJP_Tinh {
 		if ( self::DONG_HANG  === $k ) { return self::dong_hang_tach( $row ); }
 		if ( self::DONG_MAY   === $k ) { return self::dong_may_tach( $row ); }
 		return self::dong_may_tien( $row );
+	}
+
+	/* ═══════════════════════ TỔNG CỦA CẢ BÁO CÁO ═══════════════════════ */
+
+	/** Tổng tiền hoàn khách = khoản chung ở đầu báo cáo + Σ khoản gắn theo từng mã. */
+	public static function hoan_tong( $h ) {
+		return abs( VHJP_Doc::num( self::o( $h, 'refundCustomer' ) ) )
+			+ abs( VHJP_Doc::num( self::o( $h, 'refundRows' ) ) );
+	}
+
+	/**
+	 * Tính TỔNG của cả báo cáo từ các dòng đã tính.
+	 *
+	 * =========================================================================================
+	 * 🔴 `adjMachine` CHỈ ĐƯỢC ĐẶT TỪ Σ LỆCH KHI THẬT SỰ CÓ ĐẾM.
+	 * =========================================================================================
+	 * `lech_tm()` trả 0 cho dòng chưa đếm — nên nếu cứ đặt `adjMachine = Σ lệch` bất kể có ai
+	 * đếm hay không, thì một báo cáo chưa ai đếm ô "Thực thu" nào vẫn ra tổng lệch 0 và không
+	 * sao. NHƯNG chiều ngược lại mới chết: ô "Thực thu" bị hiểu là "đếm được 0" thì Σ lệch ra
+	 * đúng `−(toàn bộ tiền mặt máy báo)`, và `cashActual` về 0 — MẤT TRẮNG MỘT KỲ, mà sổ vẫn
+	 * cân nên không phép kiểm kế toán nào bắt được.
+	 * Nên có cờ `coThucThu`: chỉ khi CÓ ít nhất một ô được đếm thật (hoặc có dòng gõ tay) mới
+	 * ghi đè `adjMachine`. Không thì giữ nguyên số kế toán đã nhập tay.
+	 *
+	 * ⚠️ BA LOẠI DÒNG KHÔNG SINH TIỀN: `HANG` (tiền nằm ở dòng `MAY`), `STOCK` và `NGOAI`.
+	 *    Cộng chúng vào là đếm doanh thu hai lần.
+	 *
+	 * ⚠️ `revHang` là ĐƯỜNG THỨ HAI để đem so, KHÔNG cộng vào doanh thu. Mẫu tách có cả hai
+	 *    đường (tiền theo máy, và tiền suy từ hàng bán) — chỗ lệch giữa chúng mới là thứ cần
+	 *    nhìn.
+	 */
+	public static function bao_cao( $head, $rows ) {
+		$head = (array) $head;
+		$rows = is_array( $rows ) ? $rows : array();
+
+		$rev_may = 0; $rev_bank = 0; $rev_hang = 0; $co_hang = false; $hoan_dong = 0;
+		foreach ( $rows as $r ) {
+			$k = VHJP_Doc::str( self::o( $r, 'rowKind' ) );
+			$hoan_dong += abs( VHJP_Doc::num( self::o( $r, 'refundAmt' ) ) );
+			if ( self::DONG_HANG === $k ) {
+				$co_hang   = true;
+				$rev_hang += VHJP_Doc::num( self::o( $r, 'soldQty' ) )
+					* VHJP_Doc::num( self::o( $r, 'price' ) );
+				continue;                       // dòng hàng KHÔNG sinh tiền
+			}
+			if ( self::DONG_STOCK === $k || self::DONG_NGOAI === $k ) { continue; }
+			$rev_may  += VHJP_Doc::num( self::o( $r, 'amount' ) );
+			$rev_bank += VHJP_Doc::num( self::o( $r, 'bank' ) );
+		}
+		$rev_tien_may = $rev_may - $rev_bank;
+
+		/* Σ lệch tiền mặt, và CÓ AI ĐẾM KHÔNG — xem khối 🔴 ở trên. */
+		$lech = 0; $co_go_tay = false; $co_thuc_thu = false;
+		foreach ( $rows as $r ) {
+			$k = VHJP_Doc::str( self::o( $r, 'rowKind' ) );
+			if ( self::DONG_MAY !== $k && self::DONG_MONEY !== $k ) { continue; }
+			if ( self::DONG_MAY === $k && self::may_go_tay( $r ) ) { $co_go_tay = true; }
+			if ( ! VHJP_Doc::blank( self::o( $r, 'cashReal', '' ) ) ) { $co_thuc_thu = true; }
+			$lech += self::lech_tm( $r );
+		}
+		$head['coThucThu'] = $co_thuc_thu;
+		if ( $co_go_tay || $co_thuc_thu ) { $head['adjMachine'] = $lech; }
+
+		$adj = VHJP_Doc::num( self::o( $head, 'adjMachine' ) );
+
+		$head['refundRows']  = $hoan_dong;
+		$hoan                = self::hoan_tong( $head );
+		$head['refundTotal'] = $hoan;
+
+		$head['revMeter']     = $rev_may;
+		$head['revBank']      = $rev_bank;
+		$head['revCashMeter'] = $rev_tien_may;
+		$head['cashActual']   = $rev_tien_may + $adj - $hoan;
+		$head['totalSubmit']  = $head['cashActual'] + $rev_bank;
+
+		$head['revHang']      = $co_hang ? $rev_hang : 0;
+		$head['revMeterRong'] = $rev_may - $hoan;        // tiền đồng hồ SAU khi trừ hoàn
+		$head['lechTienHang'] = $co_hang ? ( $head['revMeterRong'] - $rev_hang ) : 0;
+		$head['coBangTong']   = $co_hang;
+
+		$w = self::canh_bao_dau( $head );
+		$dem = 0;
+		foreach ( $rows as $r ) {
+			$dem += count( isset( $r['warns'] ) && is_array( $r['warns'] ) ? $r['warns'] : array() );
+		}
+		$head['warnCount'] = $dem + count( $w );
+		$head['warns']     = $w;
+		return $head;
+	}
+
+	/**
+	 * Cảnh báo ở ĐẦU báo cáo (không thuộc dòng nào).
+	 *
+	 * ⚠️ Tính lại `hoan_tong()` từ chính `$head` chứ không dùng trường tạm của `bao_cao()`:
+	 *    hàm này còn được gọi lúc MỞ LẠI báo cáo, khi `$head` đọc thẳng từ cơ sở dữ liệu và
+	 *    mấy trường tạm kia không có. Dựa vào trường tạm là câu cảnh báo lúc mở lại in THIẾU
+	 *    khoản hoàn.
+	 */
+	public static function canh_bao_dau( $head ) {
+		$w    = array();
+		$adj  = VHJP_Doc::num( self::o( $head, 'adjMachine' ) );
+		$hoan_chung = abs( VHJP_Doc::num( self::o( $head, 'refundCustomer' ) ) );
+		$hoan_t = self::hoan_tong( $head );
+		$rong   = VHJP_Doc::num( self::o( $head, 'revMeter' ) ) - $hoan_t;
+
+		if ( 0 != $adj && '' === VHJP_Doc::str( self::o( $head, 'adjMachineNote' ) ) ) {
+			$w[] = self::warn( 'MISSING_REASON',
+				'Lệch máy ' . VHJP_Doc::money( $adj ) . 'đ chưa có lý do' );
+		}
+
+		/* 🔴 Kêu to khi lệch máy LỚN — phải vượt CẢ HAI ngưỡng. Chỉ một điều kiện thì cơ sở
+		   nhỏ kêu suốt (rồi không ai đọc nữa) còn cơ sở lớn im lặng nuốt khoản lớn. */
+		$dt = VHJP_Doc::num( self::o( $head, 'revMeter' ) );
+		if ( abs( $adj ) >= self::LECH_MAY_SAN && abs( $adj ) > self::LECH_MAY_PCT * $dt ) {
+			$ty = $dt > 0
+				? ' (' . number_format( abs( $adj ) * 100 / $dt, 1, '.', '' ) . '% doanh thu)'
+				: ' (kỳ này KHÔNG có doanh thu theo đồng hồ)';
+			$w[] = self::warn( 'LECH_MAY_LON',
+				'Lệch máy ' . VHJP_Doc::money( $adj ) . 'đ' . $ty . ' — '
+				. ( $adj < 0
+					? 'đếm được ÍT hơn máy báo, tức quỹ đang THIẾU đúng khoản này'
+					: 'đếm được NHIỀU hơn máy báo, tức quỹ đang THỪA đúng khoản này' )
+				. '. Số này trừ thẳng vào tiền cơ sở phải nộp và ra bút toán '
+				. ( $adj < 0 ? '811' : '711' ) . ', nên soát lại trước khi ký' );
+		}
+		if ( 0 != $hoan_chung && '' === VHJP_Doc::str( self::o( $head, 'refundNote' ) ) ) {
+			$w[] = self::warn( 'MISSING_REASON',
+				'Hoàn khách ' . VHJP_Doc::money( $hoan_chung ) . 'đ chưa có lý do' );
+		}
+
+		$lech = VHJP_Doc::num( self::o( $head, 'lechTienHang' ) );
+		if ( 0 != $lech ) {
+			/* Câu chữ này là NGUỒN DUY NHẤT — dùng cho cả lúc lưu lẫn lúc mở lại, ở cả hai
+			   web. Sai ở đây là sai ở cả hai. Và phải nêu khoản hoàn đứng giữa: thấy "tiền
+			   5.000.000đ vs hàng 4.650.000đ" mà báo lệch 150.000đ thì người đọc tưởng bảng
+			   sai, phải thấy khoản hoàn 200.000đ mới cộng ra được. */
+			$nguon = VHJP_CauHinh::bc_mau( self::o( $head, 'bcMau' ) ) === VHJP_CauHinh::MAU_TACH
+				? 'tiền APP' : 'tiền đồng hồ';
+			$w[] = self::warn( 'MONEY_MISMATCH',
+				'Bảng tổng LỆCH ' . VHJP_Doc::money( abs( $lech ) ) . 'đ · ' . $nguon . ' '
+				. VHJP_Doc::money( VHJP_Doc::num( self::o( $head, 'revMeter' ) ) ) . 'đ'
+				. ( $hoan_t > 0
+					? ' − hoàn khách ' . VHJP_Doc::money( $hoan_t ) . 'đ = '
+						. VHJP_Doc::money( $rong ) . 'đ' : '' )
+				. ' vs tiền theo hàng đếm được '
+				. VHJP_Doc::money( VHJP_Doc::num( self::o( $head, 'revHang' ) ) ) . 'đ ⇒ '
+				. ( $lech > 0
+					? 'THIẾU HÀNG (tiền thu nhiều hơn hàng ra)'
+					: 'THIẾU TIỀN (hàng ra nhiều hơn tiền thu)' ) );
+		}
+		return $w;
 	}
 
 	/** Đóng gói cảnh báo vào dòng — dùng chung cho mọi loại dòng. */

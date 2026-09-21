@@ -67,6 +67,17 @@ class VHJP_Cong {
 		);
 	}
 
+	/**
+	 * Hàm nào đòi vai NHÂN VIÊN CƠ SỞ.
+	 *
+	 * ⚠️ `jpGetReport` KHÔNG nằm trong này, và đó là chủ ý: kế toán phải mở được báo cáo của
+	 *    mọi cơ sở để còn duyệt. Cửa hẹp hơn nằm bên trong — `VHJP_BaoCao::lay()` vẫn đòi
+	 *    đúng cơ sở với người không phải kế toán.
+	 */
+	public static function chi_nhan_vien() {
+		return array( 'jpMyReports' );
+	}
+
 	/** Bảng tên hàm (như bên Apps Script) -> callable PHP. Danh sách CHO PHÉP. */
 	public static function map() {
 		return array(
@@ -85,6 +96,10 @@ class VHJP_Cong {
 			'jpCfgSaveMachine'    => array( 'VHJP_Cong', 'luu_may' ),
 			'jpCfgListItems'      => array( 'VHJP_Cong', 'ds_hang' ),
 			'jpCfgSaveItem'       => array( 'VHJP_Cong', 'luu_hang' ),
+
+			/* báo cáo — đường ĐỌC */
+			'jpMyReports'         => array( 'VHJP_Cong', 'bc_cua_toi' ),
+			'jpGetReport'         => array( 'VHJP_Cong', 'bc_lay' ),
 		);
 	}
 
@@ -111,8 +126,8 @@ class VHJP_Cong {
 			'jpBangCanDoiPhatSinh', 'jpDoiTkKhoCu', 'jpKetQuaKinhDoanh', 'jpKiemTraButToan',
 			'jpQuetDayChuyen', 'jpSo632', 'jpSoCongNo', 'jpSoNhatKyChung',
 			/* báo cáo của nhân viên */
-			'jpBaoCaoDoanhThuNgay', 'jpGetOpening', 'jpGetReport', 'jpGuiDeNghiTonDau',
-			'jpMyReports', 'jpOpenReport', 'jpReopenIn24h', 'jpRevenueBoard', 'jpSaveReport',
+			'jpBaoCaoDoanhThuNgay', 'jpGetOpening', 'jpGuiDeNghiTonDau',
+			'jpOpenReport', 'jpReopenIn24h', 'jpRevenueBoard', 'jpSaveReport',
 			'jpStockBoard', 'jpSuaKyBaoCao', 'jpSubmitReport',
 			/* cấu hình & tiện ích */
 			'jpCfgImportItems', 'jpCfgListUsers', 'jpCfgSaveUser', 'jpDungHeThongMotPhat',
@@ -178,6 +193,12 @@ class VHJP_Cong {
 			VHJP_NhatKy::ghi( $kiem['user'], 'CHAN_QUYEN', '', $fn, '' );
 			return array( 'ma' => 403, 'than' => array( 'ok' => false,
 				'msg' => 'Việc này cần tài khoản kế toán' ) );
+		}
+
+		if ( in_array( $fn, self::chi_nhan_vien(), true ) && ! VHJP_Auth::la_nv( $kiem['user'] ) ) {
+			VHJP_NhatKy::ghi( $kiem['user'], 'CHAN_QUYEN', '', $fn, '' );
+			return array( 'ma' => 403, 'than' => array( 'ok' => false,
+				'msg' => VHJP_Auth::cau_chan_nv( $kiem['user'] ) ) );
 		}
 
 		return self::chay( $map[ $fn ], $args, $kiem['user'] );
@@ -271,5 +292,15 @@ class VHJP_Cong {
 	}
 	public static function luu_hang( $args, $nguoi ) {
 		return VHJP_CauHinh::luu_hang( $nguoi, isset( $args[1] ) ? $args[1] : array() );
+	}
+
+	/* ── báo cáo: đường ĐỌC ──
+	 * Đường GHI (`jpOpenReport` · `jpSaveReport` · `jpSubmitReport`) chưa chuyển, nên mở được
+	 * báo cáo ĐÃ CÓ chứ chưa tạo mới được. Giao diện vẫn nhận "chưa chuyển" ở mấy nút kia. */
+	public static function bc_cua_toi( $args, $nguoi ) {
+		return VHJP_BaoCao::cua_toi( $nguoi, isset( $args[1] ) ? $args[1] : 0 );
+	}
+	public static function bc_lay( $args, $nguoi ) {
+		return VHJP_BaoCao::lay( $nguoi, isset( $args[1] ) ? $args[1] : '' );
 	}
 }
