@@ -4,7 +4,7 @@ Tags: ke-toan, uy-nhiem-chi, cong-no, excel
 Requires at least: 5.6
 Tested up to: 6.6
 Requires PHP: 7.2
-Stable tag: 1.0.0
+Stable tag: 1.1.0
 License: GPL-2.0-or-later
 
 Theo dõi ủy nhiệm chi đã đi tiền hay chưa và công nợ phải trả từng nhà cung cấp, đọc thẳng từ
@@ -67,6 +67,14 @@ cắt request, plugin báo thẳng con số và đề nghị nâng `post_max_siz
 đè bằng danh sách rỗng.
 
 == Changelog ==
+
+= 1.1.0 =
+* Đối chiếu sao kê ngân hàng: nhập sao kê (.xlsx/.csv), trang chỉ đọc dòng tiền RA rồi khớp với
+  sổ theo số tiền + số tài khoản người thụ hưởng + ngày. Nhóm "khớp chắc" bật được "đã đi tiền"
+  một lượt; mọi nhóm khác đều chờ người quyết.
+* Bày ra CẢ HAI CHIỀU LỆCH, kể cả chiều dò tay không bao giờ thấy: giao dịch ngân hàng trừ mà sổ
+  không có dòng nào.
+* Không tự bật cho khoản kế toán đã đánh tay khác đi — xếp riêng vào nhóm "lệch" để người xem.
 
 = 1.0.0 =
 * Bản đầu tiên: đọc file Excel "Đi ủy nhiệm chi" (3 kiểu bố cục), theo dõi trạng thái đi tiền,

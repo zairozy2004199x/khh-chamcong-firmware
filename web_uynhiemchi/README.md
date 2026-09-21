@@ -131,6 +131,37 @@ File gốc không nói thẳng, nên trang cho chọn trong **⋯ → Thông tin
 
 Khoản nào kế toán đã tự đánh dấu thì **luôn theo kế toán**, lựa chọn này không đè lên.
 
+## Đối chiếu sao kê ngân hàng
+
+Tab **Đối chiếu sao kê** thay cho việc mở hai thứ cạnh nhau rồi dò từng dòng. Tải sao kê từ ngân
+hàng (`.xlsx`/`.csv`) thả vào, trang **chỉ đọc dòng tiền RA** rồi bày ra sáu nhóm:
+
+| Nhóm | Nghĩa | Làm gì |
+|---|---|---|
+| **Khớp chắc — chờ bật** | Số tiền khớp **đúng đến đồng** + **số tài khoản người thụ hưởng** khớp + ngày trong cửa sổ + chỉ có **một** ứng viên | Bấm một nút là bật *"đã đi tiền"* cho cả nhóm, ngày lấy đúng ngày ngân hàng trừ |
+| **Đã khớp, sổ đã ghi** | Sổ đã ghi *"đã đi"* và ngân hàng có lượt trừ đúng khoản ấy | Xong, để đếm lại |
+| **Cần người nhìn** | Khớp tiền + tên, hoặc nhiều khoản cùng số tiền nên máy không chọn hộ | Bấm một dòng để mở khoản ấy rồi tự đánh dấu |
+| **Lệch với sổ** | Kế toán đã đánh tay trạng thái khác, mà ngân hàng vẫn trừ đúng số tiền ấy | Xem lại — chuyển nhầm, trả đường khác, hay chính lượt đánh tay kia sai |
+| **NH trừ, sổ không có** | Tiền ra khỏi tài khoản mà sổ không có khoản nào khớp | Thường là phí/lãi/thuế — nhưng cũng là chỗ **duy nhất** lộ ra một lượt chuyển không ai đề nghị |
+| **Sổ có, NH chưa trừ** | Khoản còn phải trả mà sao kê chưa thấy lượt trừ | Quá hạn thì xử trước |
+
+Mấy chốt cố ý, để đối chiếu tự động không thành đường sai tiền:
+
+- **Chỉ nhóm khớp chắc mới bật được**, và cũng phải **bấm nút** — trang không tự đổi gì cả.
+  Tự bật một khoản là xoá nó khỏi công nợ; đoán sai theo chiều ấy thì bảng vẫn sạch, chỉ là
+  thiếu một khoản thật.
+- **Lệch một đồng là hai khoản khác nhau.** Không có chuyện "lệch dưới 1.000đ cũng coi là khớp".
+- **Một lượt trừ chỉ khớp một dòng sổ**, và ngược lại. Cùng nhà cung cấp, cùng số tiền, hai tháng
+  liền — không ràng buộc thì cả hai dòng cùng bám vào một lượt chuyển.
+- **Không đè lên thứ kế toán đã đánh tay.** Máy nghĩ khác người thì bày ra nhóm *Lệch*, để người quyết.
+- **Không đoán chiều tiền.** Sao kê có hai cột *Ghi nợ / Ghi có*, hoặc một cột *Số tiền* mang dấu
+  âm thì đọc được. Một cột số tiền **không dấu** thì trang báo lại chứ không đoán — đoán sai chiều
+  là một khoản tiền **về** cũng thành "đã trả".
+
+Cửa sổ ngày (mặc định: lệnh trước 3 ngày, tiền trừ sau 14 ngày) chỉnh được ngay trên màn.
+Sao kê **không được lưu lại** giữa hai lần mở trang — nó là bản chụp một lúc của ngân hàng;
+thứ cần giữ là trạng thái *"đã đi tiền"* sau khi bấm áp dụng, và thứ ấy lưu như mọi lượt đánh dấu khác.
+
 ## Cảnh báo tự động
 
 Tab **Tổng quan** nêu thẳng: khoản quá hạn (kèm số ngày trễ), khoản đến hạn trong 3 ngày tới,
@@ -149,11 +180,16 @@ Phím tắt: `Ctrl+O` nhập Excel, `Ctrl+S` xuất Excel, `Esc` đóng ngăn đ
 
 ```bash
 node web_uynhiemchi/test/engine.test.js
+node web_uynhiemchi/test/saoke.test.js
 ```
 
-41 bài, không cần cài gì thêm. Tập trung vào những chỗ dữ liệu thật hay làm sai: ngày ghi bằng chữ,
+41 + 31 bài, không cần cài gì thêm. Tập trung vào những chỗ dữ liệu thật hay làm sai: ngày ghi bằng chữ,
 số tiền nhiều khoản trong một ô, 16 cách viết tên ngân hàng, dòng `CÔNG TY …` **không được** nhận
 nhầm là dòng `Cộng`, và khoá dòng phải ổn định giữa 2 lần nhập.
+
+Bộ thử sao kê canh đúng mấy chỗ đối chiếu tự động hay sai **một cách im lặng**: đọc nhầm tiền về
+thành tiền ra, một lượt chuyển bị hai dòng sổ cùng nhận, tự bật cho khoản kế toán đã đánh khác đi,
+lệch một đồng mà vẫn coi là khớp, và giao dịch ngân hàng không có dòng sổ nào.
 
 ## Cấu trúc mã
 
@@ -161,6 +197,7 @@ nhầm là dòng `Cộng`, và khoá dòng phải ổn định giữa 2 lần nh
 |---|---|
 | `engine.js` | Lõi: chuẩn hoá (ngày, tiền, ngân hàng, tên NCC), trạng thái, tuổi nợ, công nợ, cảnh báo, đọc số thành chữ. Chạy được ở Node nên kiểm thử được |
 | `importer.js` | Đọc workbook Excel → danh sách khoản đã chuẩn hoá; nhận diện 3 kiểu bố cục |
+| `saoke.js` | Đọc sao kê ngân hàng (chỉ tiền ra) và đối chiếu với sổ theo 3 mức chắc chắn. Chạy được ở Node nên kiểm thử được |
 | `exporter.js` | Xuất Excel 7 sheet |
 | `mau.js` | Dựng 7 mẫu biểu in A4 |
 | `app.js` | Giao diện: tab, lọc, bảng, đánh dấu hàng loạt, ngăn chi tiết |

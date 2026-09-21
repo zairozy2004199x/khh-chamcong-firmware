@@ -28,6 +28,9 @@ jobs:
       - name: Kiểm thử engine ủy nhiệm chi
         run: node web_uynhiemchi/test/engine.test.js
 
+      - name: Kiểm thử đối chiếu sao kê
+        run: node web_uynhiemchi/test/saoke.test.js
+
       # Giao diện có MỘT nguồn duy nhất ở web_*/; plugin chỉ là bản chép. Quên chạy script đồng bộ
       # là plugin trên hosting âm thầm chạy giao diện cũ — không lỗi, không cảnh báo, chỉ là sai.
       - name: Plugin Báo cáo chi phí đã đồng bộ giao diện chưa

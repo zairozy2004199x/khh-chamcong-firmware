@@ -15,6 +15,7 @@
   const Imp = window.UNCImporter;
   const Exp = window.UNCExporter;
   const Mau = window.UNCMau;
+  const SaoKe = window.UNCSaoKe;
   const API = window.UNCApi || null;
   /** Bản WordPress: dữ liệu nằm trên máy chủ, nhiều người dùng chung. */
   const LA_WP = !!(API && API.MODE === 'wp');
@@ -58,6 +59,12 @@
     tongKy: '',
     cnGom: 'ncc',
     cnDenNgay: '',
+    /* Đối chiếu sao kê — CHỈ SỐNG TRONG PHIÊN, cố ý không lưu.
+       Sao kê là bản chụp một lúc của ngân hàng; giữ lại giữa hai lần mở trang thì lần sau
+       người ta nhìn một kết quả dựng từ một tệp không còn nhớ là tệp nào. Thứ CẦN giữ là
+       trạng thái "đã đi tiền" sau khi bấm áp dụng — và thứ ấy nằm trong `theoDoi`, lưu như mọi
+       lượt đánh dấu khác. */
+    saoKe: { gd: [], nhatKy: [], nguon: '', kq: null, nhom: 'chac', cuaSo: { truoc: 3, sau: 14 } },
   };
 
   let DONG = [];      // đã tính trạng thái
@@ -220,6 +227,11 @@
   function tinhLai() {
     DONG = E.dungDong(S.recs, S.theoDoi, S.tuyChon);
     ganLoc();
+    /* Doi chieu nam NGAY TRONG tinhLai(), khong phai mot loi goi rieng o may cho.
+       Moi luot doi so (danh dau tay, nhap lai Excel, xoa trang thai) deu di qua day — de no
+       ngoai thi som muon co mot duong quen goi, va man doi chieu bay ra mot ket qua dung cho
+       mot cuon so khong con ton tai. Do la kieu sai khong keu tieng nao. */
+    tinhLaiSaoKe();
   }
 
   function ganLoc() {
@@ -255,8 +267,8 @@
   function veLai() {
     const coDL = S.recs.length > 0;
     $('viewEmpty').hidden = coDL;
-    ['tong', 'unc', 'congno', 'mau', 'nhatky'].forEach((t) => {
-      const v = $('view' + { tong: 'Tong', unc: 'UNC', congno: 'CongNo', mau: 'Mau', nhatky: 'NhatKy' }[t]);
+    ['tong', 'unc', 'congno', 'saoke', 'mau', 'nhatky'].forEach((t) => {
+      const v = $('view' + { tong: 'Tong', unc: 'UNC', congno: 'CongNo', saoke: 'SaoKe', mau: 'Mau', nhatky: 'NhatKy' }[t]);
       if (v) v.hidden = !coDL || S.tab !== t;
     });
     document.querySelectorAll('#tabs button').forEach((b) => {
@@ -266,8 +278,14 @@
     if (!coDL) {
       $('brandSub').textContent = 'Chưa có dữ liệu — nhập file Excel để bắt đầu';
       $('pillUNC').hidden = true;
+      $('pillSaoKe').hidden = true;
       return;
     }
+    /* Huy hiệu trên tab đếm thứ ĐANG CHỜ NGƯỜI: khớp chắc chưa bấm áp dụng, cộng mấy dòng
+       lệch. Đếm cả mấy nhóm kia thì con số lúc nào cũng to và thôi có nghĩa. */
+    const cho = S.saoKe.kq ? S.saoKe.kq.tom.chac + S.saoKe.kq.tom.lech : 0;
+    $('pillSaoKe').hidden = !cho;
+    $('pillSaoKe').textContent = cho;
 
     const soQuaHan = DONG.filter((d) => d.quaHan && d.rec.loai !== 'ghichu').length;
     $('pillUNC').hidden = !soQuaHan;
@@ -281,6 +299,7 @@
     if (S.tab === 'tong') veTong();
     if (S.tab === 'unc') veUNC();
     if (S.tab === 'congno') veCongNo();
+    if (S.tab === 'saoke') veSaoKe();
     if (S.tab === 'mau') veMau();
     if (S.tab === 'nhatky') veNhatKy();
   }
@@ -878,6 +897,225 @@
     if (!S.nhatKy.length) ul.appendChild(el('li', { class: 'tin', text: 'Chưa nhập file nào.' }));
   }
 
+  /* ===================== Đối chiếu sao kê ===================== */
+
+  /**
+   * Năm nhóm, mỗi nhóm một câu giải thích NGẮN nhưng nói đúng việc người đọc phải làm.
+   *
+   * ⚠️ HAI NHÓM CUỐI MỚI LÀ THỨ KHÓ THẤY NHẤT, và cố ý đặt cuối chứ không giấu đi:
+   *    "ngân hàng trừ mà sổ không có" là tiền đã ra khỏi tài khoản mà không ai đề nghị chi;
+   *    "sổ có mà ngân hàng chưa trừ" là khoản còn phải trả thật, sắp tới hạn.
+   */
+  const SK_NHOM = {
+    chac: {
+      ten: 'Khớp chắc',
+      mo: 'Số tiền khớp đúng đến đồng, SỐ TÀI KHOẢN người thụ hưởng khớp, ngày nằm trong cửa sổ, ' +
+        'và chỉ có một ứng viên. Bấm nút ở trên là bật "đã đi tiền" cho cả nhóm.',
+    },
+    can: {
+      ten: 'Cần người nhìn',
+      mo: 'Khớp số tiền và tên, hoặc có nhiều khoản cùng số tiền nên máy không chọn hộ được. ' +
+        'Bấm một dòng để mở khoản ấy ra rồi tự đánh dấu.',
+    },
+    lech: {
+      ten: 'Lệch — sổ nói khác sao kê',
+      mo: 'Kế toán đã đánh tay một trạng thái khác, nhưng ngân hàng vẫn trừ đúng số tiền ấy. ' +
+        'Hoặc chuyển nhầm, hoặc đã trả bằng đường khác, hoặc chính lượt đánh tay kia sai — ' +
+        'cả ba đều cần người xem, nên trang KHÔNG tự đổi gì.',
+    },
+    gdle: {
+      ten: 'Ngân hàng trừ, sổ không có dòng nào',
+      mo: 'Tiền đã ra khỏi tài khoản mà sổ ủy nhiệm chi không có khoản nào khớp. Thường là phí, ' +
+        'lãi, thuế nộp thẳng — nhưng cũng là chỗ duy nhất lộ ra một lượt chuyển không ai đề nghị.',
+    },
+    dongle: {
+      ten: 'Sổ có, ngân hàng chưa trừ',
+      mo: 'Khoản còn phải trả mà sao kê chưa thấy lượt trừ nào. Nếu đã quá hạn thì đây là ' +
+        'danh sách phải xử trước.',
+    },
+    xong: {
+      ten: 'Đã khớp — sổ đã ghi "đã đi"',
+      mo: 'Sổ ghi đã đi tiền VÀ ngân hàng có lượt trừ đúng khoản ấy. Không còn việc gì phải làm; ' +
+        'giữ lại ở đây để đối chiếu xong còn kể được bao nhiêu khoản đã khớp, không phải chỉ ' +
+        'kể mấy khoản còn lệch.',
+    },
+  };
+
+  function veSaoKe() {
+    const coSK = S.saoKe.gd.length > 0;
+    $('saoKeTrong').hidden = coSK;
+    $('saoKeCo').hidden = !coSK;
+    $('skKhoiBang').hidden = !coSK;
+    $('btnSaoKeXoa').hidden = !coSK;
+    $('skTruoc').value = S.saoKe.cuaSo.truoc;
+    $('skSau').value = S.saoKe.cuaSo.sau;
+    if (!coSK) return;
+
+    const kq = S.saoKe.kq;
+    const t = kq.tom;
+    const kpi = $('skKpi');
+    kpi.innerHTML = '';
+    [
+      { l: 'Giao dịch tiền ra', v: t.soGD.toLocaleString('vi-VN'), s: S.saoKe.nguon, c: '' },
+      { l: 'Khớp chắc — chờ bật', v: t.chac.toLocaleString('vi-VN'), s: 'bật được một lượt', c: t.chac ? 'ok' : '' },
+      { l: 'Đã khớp, sổ đã ghi', v: t.xong.toLocaleString('vi-VN'), s: 'xong, không phải làm gì', c: t.xong ? 'ok' : '' },
+      { l: 'Cần người nhìn', v: (t.kha + t.ngo).toLocaleString('vi-VN'), s: 'máy không chọn hộ', c: (t.kha + t.ngo) ? 'warn' : '' },
+      { l: 'Lệch với sổ', v: t.lech.toLocaleString('vi-VN'), s: 'kế toán đã đánh khác', c: t.lech ? 'danger' : '' },
+      { l: 'NH trừ, sổ không có', v: t.gdLe.toLocaleString('vi-VN'), s: tienGon(t.tienGDLe) + ' ₫', c: t.gdLe ? 'danger' : '' },
+      { l: 'Sổ có, NH chưa trừ', v: t.dongLe.toLocaleString('vi-VN'), s: 'còn phải trả', c: t.dongLe ? 'warn' : '' },
+    ].forEach((k) => {
+      kpi.appendChild(el('div', { class: 'kpi' + (k.c ? ' ' + k.c : '') }, [
+        el('div', { class: 'k-label', text: k.l }),
+        el('div', { class: 'k-value', text: k.v }),
+        el('div', { class: 'k-sub', text: k.s }),
+      ]));
+    });
+
+    /* Thanh áp dụng chỉ hiện khi CÓ cái để áp — một cái nút bấm vào không xảy ra gì thì
+       người ta bấm vài lần rồi thôi tin cả màn. */
+    $('skThanh').hidden = !t.chac;
+    $('skChacCnt').textContent = t.chac.toLocaleString('vi-VN') + ' khoản';
+
+    $('skNhom').value = S.saoKe.nhom;
+    const nhom = SK_NHOM[S.saoKe.nhom] || SK_NHOM.chac;
+    $('skNhomTen').textContent = nhom.ten;
+    $('skNhomMo').textContent = nhom.mo;
+    veSaoKeBang();
+  }
+
+  /** Một ô hiện giao dịch ngân hàng — dùng chung cho mọi nhóm, để hai bên luôn đọc giống nhau. */
+  function skOGD(g) {
+    return '<b>' + esc(tien(g.soTien)) + ' ₫</b><br>' +
+      '<span class="hint">' + esc(ngay(g.ngay)) +
+      (g.maGD ? ' · ' + esc(g.maGD) : '') + '</span><br>' +
+      '<span class="hint">' + esc(g.noiDung || '—') + '</span>';
+  }
+
+  function skODong(d) {
+    const r = d.rec;
+    return '<b>' + esc(tien(r.soTien)) + ' ₫</b><br>' +
+      '<span class="hint">' + esc(r.noiDung || '—') + '</span><br>' +
+      '<span class="hint">' + esc(r.thuHuong || E.KHONG_TEN) +
+      (r.soTaiKhoan ? ' · ' + esc(r.soTaiKhoan) : '') + '</span>';
+  }
+
+  function veSaoKeBang() {
+    const kq = S.saoKe.kq;
+    const bang = $('skBang');
+    const n = S.saoKe.nhom;
+    let html = '';
+    let ds = [];
+
+    if (n === 'gdle') {
+      ds = kq.gdKhongKhop;
+      html = '<thead><tr><th>Ngày</th><th>Số tiền</th><th>Nội dung</th><th>Đối ứng</th><th>Mã GD</th></tr></thead><tbody>' +
+        ds.map((g) =>
+          '<tr><td>' + esc(ngay(g.ngay)) + '</td><td class="num"><b>' + esc(tien(g.soTien)) + '</b></td>' +
+          '<td>' + esc(g.noiDung || '—') + '</td>' +
+          '<td>' + esc([g.tenDoiUng, g.taiKhoanDoiUng].filter(Boolean).join(' · ') || '—') + '</td>' +
+          '<td>' + esc(g.maGD || '—') + '</td></tr>').join('') + '</tbody>';
+    } else if (n === 'dongle') {
+      ds = kq.dongChuaDi;
+      html = '<thead><tr><th>Hạn</th><th>Khoản trong sổ</th><th>Trạng thái</th><th>Quá hạn</th></tr></thead><tbody>' +
+        ds.map((d) =>
+          '<tr data-id="' + esc(d.rec.id) + '"><td>' + esc(ngay(d.han)) + '</td>' +
+          '<td>' + skODong(d) + '</td>' +
+          '<td>' + esc(d.nhanTrangThai) + '</td>' +
+          '<td class="num">' + (d.quaHan ? '<span class="tag late">trễ ' + d.treNgay + ' ngày</span>' : '—') + '</td></tr>').join('') + '</tbody>';
+    } else {
+      ds = n === 'chac' ? kq.capChac
+        : (n === 'lech' ? kq.lech
+          : (n === 'xong' ? kq.capXong : kq.capKha.concat(kq.capNgo)));
+      html = '<thead><tr><th>Khoản trong sổ</th><th>Ngân hàng trừ</th><th>Vì sao xếp vào đây</th></tr></thead><tbody>' +
+        ds.map((c) => {
+          const viSao = c.viSao ? esc(c.viSao) : [
+            c.cham.khopTK ? 'khớp số tài khoản' : '',
+            c.cham.khopTen ? 'khớp tên thụ hưởng' : '',
+            c.cham.cach == null ? 'sổ không ghi ngày' : ('lệch ' + Math.abs(c.cham.cach) + ' ngày'),
+            (c.soUngVien || 1) > 1 ? ('<b>' + c.soUngVien + ' khoản cùng số tiền</b> — máy không chọn hộ') : '',
+          ].filter(Boolean).join(' · ');
+          return '<tr data-id="' + esc(c.dong.rec.id) + '"><td>' + skODong(c.dong) + '</td>' +
+            '<td>' + skOGD(c.gd) + '</td>' +
+            '<td><span class="hint">' + esc(c.cham.nhanMuc) + ' — </span>' + viSao + '</td></tr>';
+        }).join('') + '</tbody>';
+    }
+
+    bang.innerHTML = ds.length ? html
+      : '<tbody><tr><td class="empty">Nhóm này không có dòng nào — tốt.</td></tr></tbody>';
+
+    /* Bấm một dòng là mở đúng khoản ấy trong ngăn chi tiết: chỗ duy nhất đánh dấu tay được,
+       và cũng là chỗ in được ủy nhiệm chi. Không có đường ấy thì người ta phải sang tab kia
+       rồi tự đi tìm lại bằng số tiền. */
+    Array.prototype.forEach.call(bang.querySelectorAll('tr[data-id]'), (tr) => {
+      tr.style.cursor = 'pointer';
+      tr.onclick = () => {
+        const d = DONG.find((x) => x.rec.id === tr.dataset.id);
+        if (d) moNgan(d);
+      };
+    });
+  }
+
+  function nhapSaoKe(file) {
+    if (!file) return;
+    if (!S.recs.length) return alert('Nhập file "Đi ủy nhiệm chi" trước đã — chưa có sổ thì không đối chiếu với cái gì.');
+    const fr = new FileReader();
+    fr.onload = (ev) => {
+      try {
+        const wb = XLSX.read(new Uint8Array(ev.target.result), { type: 'array', cellDates: true });
+        const kq = SaoKe.docWorkbook(XLSX, wb, { namMacDinh: new Date().getFullYear() });
+        if (!kq.gd.length) {
+          S.saoKe.nhatKy = kq.nhatKy;
+          veNhatKy();
+          return alert('Không đọc được giao dịch tiền ra nào từ file này.\n\n' +
+            kq.nhatKy.map((x) => '• ' + x.text).join('\n'));
+        }
+        S.saoKe.gd = kq.gd;
+        S.saoKe.nhatKy = kq.nhatKy;
+        S.saoKe.nguon = file.name;
+        S.saoKe.nhom = 'chac';
+        /* Nhật ký đọc sao kê nối vào chính nhật ký đang có: một chỗ để đọc "hệ đã bỏ qua
+           những gì", chứ không phải hai chỗ mà người ta chỉ nhớ một. */
+        S.nhatKy = (S.nhatKy || []).concat(kq.nhatKy);
+        tinhLai();
+        S.tab = 'saoke';
+        veLai();
+      } catch (e) {
+        alert('Không đọc được file sao kê: ' + (e && e.message));
+      }
+    };
+    fr.onerror = () => alert('Không mở được file.');
+    fr.readAsArrayBuffer(file);
+  }
+
+  function tinhLaiSaoKe() {
+    /* Gác `SaoKe`: trang vẫn phải chạy khi một tệp không tải được (mạng chập, chặn script).
+       Mất tab đối chiếu thì còn thấy được; cả trang trắng vì một `undefined` thì không. */
+    S.saoKe.kq = SaoKe && S.saoKe.gd.length
+      ? SaoKe.doiChieu(DONG, S.saoKe.gd, { cuaSo: S.saoKe.cuaSo })
+      : null;
+  }
+
+  function apSaoKe() {
+    if (LA_WP && !API.duocSua()) return alert('Tài khoản của anh/chị chỉ được xem, không đánh dấu được.');
+    const kq = S.saoKe.kq;
+    if (!kq || !kq.capChac.length) return;
+    const tong = kq.capChac.reduce((a, c) => a + c.gd.soTien, 0);
+    if (!confirm('Bật "đã đi tiền" cho ' + kq.capChac.length + ' khoản khớp chắc (' +
+      tien(tong) + ' ₫)?\n\nNgày đi tiền lấy đúng ngày ngân hàng trừ.\n' +
+      'Mỗi khoản đều ghi lại là khớp từ sao kê nào, mã giao dịch nào.')) return;
+
+    const capNhat = SaoKe.apDung(kq.capChac, { nguoi: tenDangDung() });
+    const dsId = Object.keys(capNhat);
+    if (!dsId.length) return alert('Không có khoản nào cần đổi — chúng đã ở trạng thái "đã đi tiền".');
+    dsId.forEach((id) => { S.theoDoi[id] = capNhat[id]; });
+    Kho.theoDoi(dsId);
+    /* `tinhLai()` đối chiếu lại luôn, nên mấy khoản vừa bật tự rời khỏi nhóm "khớp chắc" —
+       kẻo bấm nút xong màn vẫn y nguyên và người ta bấm lần nữa. */
+    tinhLai();
+    veLai();
+    alert('Đã bật "đã đi tiền" cho ' + dsId.length + ' khoản.');
+  }
+
   /* ===================== Nhập Excel ===================== */
 
   function nhapFile(file) {
@@ -1003,6 +1241,29 @@
 
     $('fileInput').onchange = (e) => { nhapFile(e.target.files[0]); e.target.value = ''; };
     $('jsonInput').onchange = (e) => { moJSON(e.target.files[0]); e.target.value = ''; };
+
+    /* ---- Doi chieu sao ke ---- */
+    $('saoKeInput').onchange = (e) => { nhapSaoKe(e.target.files[0]); e.target.value = ''; };
+    $('btnSaoKeApDung').onclick = apSaoKe;
+    $('btnSaoKeXoa').onclick = () => {
+      /* Chi bo BAN SAO KE dang xem, khong dung vao trang thai da bat. Gop hai viec vao mot
+         nut la bam "bo sao ke" xong mat luon may luot danh dau vua ap, ma khong ai ngo. */
+      S.saoKe.gd = [];
+      S.saoKe.kq = null;
+      S.saoKe.nguon = '';
+      veLai();
+    };
+    $('skNhom').onchange = (e) => { S.saoKe.nhom = e.target.value; veSaoKe(); };
+    ['skTruoc', 'skSau'].forEach((id) => {
+      $(id).onchange = () => {
+        S.saoKe.cuaSo = {
+          truoc: Math.max(0, Math.min(60, parseInt($('skTruoc').value, 10) || 0)),
+          sau: Math.max(0, Math.min(120, parseInt($('skSau').value, 10) || 0)),
+        };
+        tinhLaiSaoKe();
+        veLai();
+      };
+    });
 
     $('btnExport').onclick = () => {
       if (CHAN_TAI_FILE) return alert(LOI_CHAN_TAI);
