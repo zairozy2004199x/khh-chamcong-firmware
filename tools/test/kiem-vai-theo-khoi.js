@@ -9,14 +9,19 @@
  * vui chơi cho cả một khối khác.
  *
  * =============================================================================================
- * 🔴 CHỐT ĐẮT NHẤT: BỚT Ô ≠ BỎ QUYỀN ĐÃ KHAI
+ * 🔴 BẢN 1.235.0 ĐÃ HIỂU SAI, VÀ BÀI NÀY GIỮ LẠI CẢ HAI NỪA
  * =============================================================================================
- * Lượt Lưu đọc CHÍNH mấy ô tích đang hiện (`[data-vai] input:checked`). Nên một vai lạc khối mà
- * đang được tích, nếu bị giấu đi, thì lượt Lưu KẾ TIẾP xoá đúng quyền ấy — lặng lẽ, không một
- * câu nào, và người bấm Lưu chỉ định sửa một ô khác hẳn. Anh bảo *"ai có ở khối nào mới hiện
- * ra"* là bớt ô TRỐNG cho dễ dò, không phải bỏ những gì đã khai.
+ * Bản đầu giấu hẳn vai của khối khác, chỉ chừa lại những ô đã tích và còn tô cam + đóng dấu
+ * cảnh báo lên chúng. Anh Thắng chỉ ra ngay: *"1 người có thể nhận 2 vai trò của 2 khối khác
+ * nhau"* — nhân sự chung làm việc với cả hai bên, nên tích chéo khối là ĐÚNG Ý, không phải gõ
+ * nhầm. Mà giấu hẳn còn tệ hơn: không có cách nào TÍCH MỚI một vai khối khác nữa.
  *
- * Vậy nên vai lạc khối mà ĐANG TÍCH thì vẫn bày, kèm dấu ⚠ để người khai tự gỡ.
+ * Nay: vai của khối này bày thẳng (đúng *"ai có ở khối nào mới hiện ra"*), vai khối khác nằm
+ * trong nếp gấp `<details class="vaiNgoai">` — gọn mắt mà vẫn với tới được.
+ *
+ * ⚠️ DÙNG `<details>` CHỨ KHÔNG BỎ Ô RA KHỎI DOM: lượt Lưu đọc `[data-vai] input:checked`, nên
+ *    ô nằm trong nếp đóng vẫn được đọc đủ. Bỏ ra khỏi DOM là lượt Lưu kế tiếp xoá đúng quyền
+ *    ấy — lặng lẽ, và người bấm Lưu chỉ định sửa một ô khác hẳn.
  *
  * ⚠️ VÀ PHẢI CÙNG LUẬT VỚI MÁY CHỦ. Bảng vàng nằm ở `fixtures/vai-theo-khoi.json`, dùng chung
  *    với `kiem-vai-theo-khoi.php` — sửa một bên quên bên kia là một trong hai đỏ.
@@ -47,15 +52,15 @@ function bocBien(ten) {
   return (j > i) ? HTML.slice(i, j) : '';
 }
 
-['_boDauVai', '_khoiCuaVai', '_vaiOKhoi', '_vaiBay', '_vaiSelNhieu', '_khoiODoi'].forEach(function (x) {
+['_boDauVai', '_khoiCuaVai', '_vaiOKhoi', '_vaiSelNhieu', '_khoiODoi', '_khoiTichNguoi', '_khoiTichDoi'].forEach(function (x) {
   t('bốc được `' + x + '`', bocHam(x).length > 40, bocHam(x).length);
 });
 
 /* ═══ 1. CHẠY THẬT `_khoiCuaVai` QUA BẢNG VÀNG ═══════════════════════════════════
  * Dựng bằng `new Function` chứ không đọc chữ: đọc chữ thì mã sai luật vẫn xanh. */
 const NGUON = bocBien('KHOI_THEO_TEN_VAI') + '\n' + bocHam('_boDauVai') + '\n' + bocHam('_khoiCuaVai')
-  + '\n' + bocHam('_vaiOKhoi') + '\n' + bocHam('_vaiBay')
-  + '\nreturn {khoiCuaVai:_khoiCuaVai, vaiOKhoi:_vaiOKhoi, vaiBay:_vaiBay, boDau:_boDauVai};';
+  + '\n' + bocHam('_vaiOKhoi')
+  + '\nreturn {khoiCuaVai:_khoiCuaVai, vaiOKhoi:_vaiOKhoi, boDau:_boDauVai};';
 let M = null;
 try { M = new Function(NGUON)(); } catch (e) { t('dựng được mô-đun từ mã thật', false, String(e)); }
 if (M) {
@@ -76,14 +81,11 @@ if (M) {
   t('«Quản Lý Máy Tự Động» KHÔNG bày ở kvc', !M.vaiOKhoi('Quản Lý Máy Tự Động', 'kvc'));
   t('«Kế Toán VP Chung» KHÔNG bày ở mtd', !M.vaiOKhoi('Kế Toán VP Chung', 'mtd'));
 
-  /* ═══ 3. 🔴 VAI LẠC KHỐI MÀ ĐANG TÍCH THÌ VẪN PHẢI BÀY ═════════════════════════
-   * Chốt đắt nhất của bản này. Bỏ vế `da[…]` trong `_vaiBay()` là phép này đỏ. */
-  t('🔴 vai lạc khối mà ĐANG TÍCH vẫn bày ra',
-    M.vaiBay('Quản Lý Máy Tự Động', 'kvc', { 'quản lý máy tự động': 1 }));
-  t('   vai lạc khối mà KHÔNG tích thì ẩn đi',
-    !M.vaiBay('Quản Lý Máy Tự Động', 'kvc', {}));
-  t('   khoá tra là chữ THƯỜNG (ô tích lưu nguyên văn hoa/thường)',
-    M.vaiBay('QUẢN LÝ MÁY TỰ ĐỘNG', 'kvc', { 'quản lý máy tự động': 1 }));
+  /* ═══ 3. TÍCH CHÉO KHỐI LÀ HỢP LỆ ═════════════════════════════════
+   * `_vaiOKhoi` chỉ còn trả lời "vai này có thuộc khối ấy không" để XẾP CHỖ — không còn
+   * quyết định bày hay giấu. Phép đếm ô thật ở mục 5b mới là chỗ canh chuyện đó. */
+  t('«Quản Lý Máy Tự Động» không thuộc nhánh kvc', !M.vaiOKhoi('Quản Lý Máy Tự Động', 'kvc'));
+  t('   nhưng thuộc nhánh mtd', M.vaiOKhoi('Quản Lý Máy Tự Động', 'mtd'));
 
   /* ═══ 4. «vp» XÉT THEO TỪ; KVC/MTĐ XÉT TRƯỚC ══════════════════════════════════ */
   teq('🔴 «TVP» KHÔNG phải văn phòng', '', M.khoiCuaVai('Nhân Viên TVP'));
@@ -97,8 +99,10 @@ if (M) {
 /* ═══ 5. Ô TÍCH VAI NHẬN KHỐI CỦA HÀNG, VÀ HÀNG TRUYỀN KHỐI VÀO ═════════════════ */
 const SEL = bocSach('_vaiSelNhieu');
 t('🔴 `_vaiSelNhieu` nhận tham số khối', /function _vaiSelNhieu\(v,\s*khoi\)/.test(bocHam('_vaiSelNhieu')), 'không thấy');
-t('🔴 và lọc danh sách vai con qua `_vaiBay`', /_vaiConCua\(cha\)\.filter\(/.test(SEL) && /_vaiBay\(/.test(SEL), 'không thấy');
-t('   vai lạc khối được đánh dấu để người khai tự gỡ', /lacKhoi\s*=/.test(SEL), 'không thấy');
+t('🔴 và xếp vai con theo khối qua `_vaiOKhoi`', /_vaiOKhoi\(r, khoi\)/.test(SEL) && /ngoai\.push\(r\)/.test(SEL), 'không thấy');
+t('🔴 không còn tô cảnh báo lên ô tích chéo khối nữa', !/lacKhoi/.test(SEL) && SEL.indexOf('⚠') < 0, SEL);
+t('🔴 vai khối khác vào nếp gấp, không bị bỏ ra khỏi DOM', /<details class="vaiNgoai"/.test(SEL), 'không thấy');
+t('   nếp mở sẵn khi bên trong có ô đang tích', /coTich\?' open':''/.test(SEL), 'không thấy');
 t('🔴 hàng loại chi phí truyền khối của chính nó vào',
   /_vaiSelNhieu\(x\.vaiTro\|\|'',\s*_khoiCuaLoai\(x\)\)/.test(bocSach('_mxRowHtml')), 'không thấy');
 
@@ -129,32 +133,43 @@ function oTich(h) {
   while ((m = re.exec(h))) { ra.push(m[1] + (m[2] ? ' ✓' : '')); }
   return ra;
 }
+/* Hai vùng của một hộp: trước nếp gấp (vai của khối này) và trong nếp (vai khối khác).
+   ⚠️ ĐẾM RIÊNG HAI VÙNG, không đếm gộp: gộp lại thì một hàm KHÔNG xếp gì cả — đổ
+      tất mười lăm ô ra một đống phẳng như trước — vẫn đếm ra đúng con số. */
+function haiVung(h) {
+  const i = h.indexOf('<details');
+  return i < 0 ? { ngoai: oTich(h), trong: [] }
+               : { ngoai: oTich(h.slice(0, i)), trong: oTich(h.slice(i)) };
+}
 let HK = '';
 try { HK = veHop('', 'kvc'); t('vẽ thật được hộp ô tích', HK.length > 100); }
 catch (e) { t('vẽ thật được hộp ô tích', false, String(e)); }
 if (HK) {
-  const o = oTich(HK);
-  t('🔴 KHÔNG có ô tích nào tên Admin', o.indexOf('Admin') < 0, o);
-  t('🔴 bảng KVC không bay ô của Máy tự động',
-    o.indexOf('Quản Lý Máy Tự Động') < 0 && o.indexOf('Kế Toán Máy Tự Động') < 0, o);
-  t('🔴 cũng không bày ô của Văn phòng', o.indexOf('Quản Lý VP Chung') < 0, o);
-  t('   vẫn bày ô của Khu vui chơi', o.indexOf('Quản Lý Khu Vui Chơi') >= 0, o);
-  t('🔴 và vẫn bày vai chạy ngang (Marketing + bốn vai gốc)',
-    o.indexOf('Nhân Viên Marketing') >= 0 && o.indexOf('Quản lý') >= 0 && o.indexOf('Kế toán NCC') >= 0, o);
-  /* Phép đối chứng: bảng MTĐ phải ra danh sách KHÁC. Không có phép này thì một hàm trả về
-     danh sách cố định cũng qua được hết mấy phép trên. */
-  const oM = oTich(veHop('', 'mtd'));
-  t('🔴 bảng MTĐ bày ô của Máy tự Động, không bày ô của KVC',
-    oM.indexOf('Quản Lý Máy Tự Động') >= 0 && oM.indexOf('Quản Lý Khu Vui Chơi') < 0, oM);
-  /* 🔴 CHỐT ĐẮT NHẤT, đếm trên ô thật: quyền đã khai cho một vai lạc khối phải còn đó,
-     và phải còn đó Ở TRẠNG THÁI ĐANG TÍCH — bày ra mà mất dấu tích thì lượt Lưu vẫn xoá. */
-  const oL = oTich(veHop('Quản Lý Máy Tự Động', 'kvc'));
-  t('🔴 vai lạc khối ĐANG TÍCH vẫn bày, và vẫn còn dấu tích',
-    oL.indexOf('Quản Lý Máy Tự Động ✓') >= 0, oL);
-  t('   ô lạc khối được đánh dấu ⚠ để người khai tự gỡ',
-    veHop('Quản Lý Máy Tự Động', 'kvc').indexOf('⚠') >= 0);
-  t('   còn ô hợp khối đã tích thì KHÔNG bị đánh dấu',
-    veHop('Quản Lý Khu Vui Chơi', 'kvc').indexOf('⚠') < 0);
+  const V = haiVung(HK);
+  t('🔴 KHÔNG có ô tích nào tên Admin', V.ngoai.concat(V.trong).indexOf('Admin') < 0, V);
+  t('🔴 bảng KVC bày thẳng vai KVC + vai chạy ngang',
+    V.ngoai.indexOf('Quản Lý Khu Vui Chơi') >= 0 && V.ngoai.indexOf('Nhân Viên Marketing') >= 0
+      && V.ngoai.indexOf('Kế toán NCC') >= 0, V.ngoai);
+  t('🔴 và ĐẨY vai khối khác xuống nếp gấp, không bỏ đi',
+    V.ngoai.indexOf('Quản Lý Máy Tự Động') < 0 && V.trong.indexOf('Quản Lý Máy Tự Động') >= 0, V);
+  t('   ô của Văn phòng cũng ở trong nếp',
+    V.ngoai.indexOf('Quản Lý VP Chung') < 0 && V.trong.indexOf('Quản Lý VP Chung') >= 0, V);
+  /* 🔴 CHỐT ĐẮT NHẤT: KHÔNG Ô NÀO ĐƯỢC BIẾN. Anh Thắng: *"1 người có thể nhận 2
+     vai trò của 2 khối khác nhau"* — tích chéo khối phải LÀM ĐƯỢC, không phải chỉ giữ
+     lại mấy ô lỡ tích từ trước. Đếm tổng là chỗ canh điều đó. */
+  teq('🔴 tổng số ô vẫn đủ 12 vai — chỉ xếp lại, không bớt', 12, V.ngoai.length + V.trong.length);
+  const oM = haiVung(veHop('', 'mtd'));
+  t('🔴 bảng MTĐ xếp ngược lại — vai MTĐ ra ngoài, vai KVC vào nếp',
+    oM.ngoai.indexOf('Quản Lý Máy Tự Động') >= 0 && oM.trong.indexOf('Quản Lý Khu Vui Chơi') >= 0, oM);
+  const oL = haiVung(veHop('Quản Lý Máy Tự Động', 'kvc'));
+  t('🔴 vai khối khác ĐANG TÍCH vẫn giữ dấu tích trong nếp',
+    oL.trong.indexOf('Quản Lý Máy Tự Động ✓') >= 0, oL);
+  t('🔴 và nếp ấy MỞ SẴN để không ai tưởng đã mất quyền',
+    /<details class="vaiNgoai" open/.test(veHop('Quản Lý Máy Tự Động', 'kvc')));
+  t('   còn khi không có gì tích thì nếp ĐÓNG cho gọn',
+    /<details class="vaiNgoai"(?! open)/.test(HK), HK);
+  t('🔴 không còn dấu cảnh báo nào trên ô tích chéo khối',
+    veHop('Quản Lý Máy Tự Động', 'kvc').indexOf('⚠') < 0);
 }
 
 /* ═══ 6. ĐỔI Ô KHỐI THÌ DỰNG LẠI DANH SÁCH VAI NGAY, GIỮ Ô ĐANG TÍCH ═══════════
@@ -166,18 +181,64 @@ t('🔴 và nó GOM LẠI những ô đang tích trước khi dựng lại',
   /input:checked/.test(DOI) && /_vaiSelNhieu\(dang\.join/.test(DOI), 'không thấy');
 t('   chỉ dựng lại hộp vai của ĐÚNG hàng ấy', /tr\.querySelector\('\[data-vai\]'\)/.test(DOI), 'không thấy');
 
-/* ═══ 7. GỢI Ý ĐƠN VỊ THEO KHỐI Ở BẢNG NGƯỜI DÙNG ═════════════════════════════
- * Anh Thắng 21/09/2026: *"chọn nhân viên theo khối"* — ảnh anh gửi: hộp xổ ra đúng MỘT dòng
- * "K&H", nên không cách nào bỏ ai vào Máy tự động. `BOOT.donVi` dựng từ đơn vị ĐANG CÓ THẬT,
- * nên chưa ai thuộc MTĐ thì MTĐ không hiện — vòng luẩn quẩn. */
-const DV = bocSach('_dvInp');
-t('🔴 gợi ý luôn có đủ ba khối, kể cả khi sổ chưa có ai', /DV_KHOI_GOI\.forEach/.test(DV), 'không thấy');
-t('🔴 chỉ THÊM vào gợi ý, không thay danh sách thật', /BOOT\.donVi\|\|\['K&H'\]\)\.slice\(\)/.test(DV), 'không thấy');
-t('   và không thêm trùng cái đã có', /indexOf\(g\.ma\.toLowerCase\(\)\)<0/.test(DV), 'không thấy');
-t('🔴 VẪN là ô nhập kèm gợi ý, không phải ô xổ đóng (chi nhánh thứ tư khai được ngay)',
-  /<input list="dl_donvi"/.test(DV) && !/<select/.test(DV), 'không thấy');
-teq('ba gợi ý là mã máy chủ nhận, không phải tên đẹp', true,
-  /ma:'KVC'/.test(bocBien('DV_KHOI_GOI')) && /ma:'MTĐ'/.test(bocBien('DV_KHOI_GOI')) && /ma:'VP'/.test(bocBien('DV_KHOI_GOI')));
+/* ═══ 7. CỘT ĐƠN VỊ TRÊN BẢNG NGƯỜI DÙNG → CỘT KHỐI, TÍCH NHIỀU ════════════
+ * Anh Thắng 21/09/2026: *"Chỗ đơn vị thay bằng khối — tích nếu 1 người làm 2 khối thì chọn 2,
+ * vì có thể nv chung sẽ làm việc với 2 khối"*. Ảnh anh gửi: hộp ĐƠN VỊ xổ ra đúng MỘT dòng
+ * "K&H" — một ô xổ một-lựa thì không nói được "người này làm cả hai bên". */
+const KTN = bocSach('_khoiTichNguoi');
+t('🔴 là ô TÍCH, không phải ô xổ một-lựa', /type="checkbox"/.test(KTN) && !/<select/.test(KTN), KTN);
+t('   bày đủ ba khối, lấy từ cùng bảng với thanh nút khối', /KHOI_DS\.map/.test(KTN), 'không thấy');
+/* 🔴 HAI CHỐT HỎNG LẶNG LẼ, ĐẮT NHẤT CỦA BẢN ĐỔI NÀY:
+     1. `_readRows()` BỎ QUA `input[type=checkbox]`, nên giá trị phải nằm ở một ô ẩn — thiếu
+        nó là tích xong bấm Lưu không lưu gì cả, mà trông y như máy chủ nuốt mất;
+     2. đơn vị cũ vẫn là CỔNG QUYỀN THẬT ("đơn rơi về nhà nào, đọc được sổ nhà nào"), nên
+        phải đi theo trong ô ẩn thứ hai — gửi rỗng lên là lượt Lưu đầu tiên đẩy CẢ CÔNG TY
+        về nhà mẹ K&H, ai cũng đọc được sổ của mọi nhà — và không hoàn tác được. */
+t('🔴 giá trị khối nằm ở ô ẩn cho `_readRows()` đọc', /data-khoi-ng/.test(KTN), 'không thấy');
+t('🔴 đơn vị cũ đi theo trong ô ẩn thứ hai', /data-dv-cu/.test(KTN), 'không thấy');
+t('🔴 và ĐÚNG THỨ TỰ khối-trước-đơn-vị-sau', KTN.indexOf('data-khoi-ng') < KTN.indexOf('data-dv-cu'), KTN);
+t('🔴 lượt Lưu đọc đúng hai chỉ số ấy',
+  /khoi:\(r\[7\]\|\|''\)\.trim\(\), donVi:\(r\[8\]\|\|''\)\.trim\(\)/.test(HTML), 'không thấy');
+t('🔴 mỗi lượt bấm ô tích ghi lại chuỗi vào ô ẩn',
+  /onchange="_khoiTichDoi\(this\)"/.test(KTN) && bocHam('_khoiTichDoi').length > 40, 'không thấy');
+/* 🔴 CHẠY THẬT TRÊN HAI HÀNG. Dò chữ "có leo lên TD không" không đủ: đột biến đổi
+   `td.querySelector` thành `document.querySelector` vẫn còn nguyên chữ ấy, mà hậu quả là MỌI
+   hàng ghi đè vào ô ẩn của hàng ĐẦU — tích khối cho người thứ hai thì người thứ nhất ăn,
+   và đúng một lượt Lưu là sai khối cả bảng. Phải có HAI hàng mới bắt được. */
+try {
+  const hangGia = (tich) => {
+    const an = { value: '' };
+    const oT = tich.map((x) => ({ value: x.ma, checked: x.tich }));
+    return {
+      an, tagName: 'TD',
+      querySelector: (q) => (q === 'input[data-khoi-ng]' ? an : null),
+      querySelectorAll: (q) => (q === '.khoiNg input:checked' ? oT.filter((o) => o.checked) : [])
+    };
+  };
+  const td1 = hangGia([{ ma: 'kvc', tich: false }]);
+  const td2 = hangGia([{ ma: 'mtd', tich: true }, { ma: 'vp', tich: true }]);
+  /* `document` trỏ về HÀNG ĐẦU — đúng thứ mà đột biến sẽ vớ phải nếu nó bỏ mất `td.`. */
+  const doc = { querySelector: () => td1.an };
+  new Function('document', 'o', bocHam('_khoiTichDoi') + '\n_khoiTichDoi(o);')(doc, { parentNode: td2 });
+  teq('🔴 tích ở hàng 2 chỉ ghi vào ô ẩn của HÀNG 2', 'mtd, vp', td2.an.value);
+  teq('🔴 và hàng 1 không hề bị đụng tới', '', td1.an.value);
+} catch (e) { t('chạy thật được `_khoiTichDoi` trên hai hàng', false, String(e)); }
+t('🔴 đầu bảng đã đổi tên cột', HTML.indexOf('>Khối</th>') >= 0);
+
+/* Chạy thật: hai khối đã khai phải ra hai ô đang tích và một chuỗi ngăn phẩy đúng. */
+try {
+  const ve = new Function('KHOI_DS', 'khoi', 'donVi',
+    bocHam('esc') + '\n' + bocHam('_khoiTichNguoi') + '\nreturn _khoiTichNguoi(khoi, donVi);');
+  const KD = [{ ma: 'kvc', ten: 'Khu vui chơi' }, { ma: 'mtd', ten: 'Máy tự động' }, { ma: 'vp', ten: 'Văn phòng' }];
+  const h2 = ve(KD, 'kvc, mtd', 'K&H');
+  teq('🔴 khai hai khối → đúng hai ô đang tích', 2, (h2.match(/ checked/g) || []).length);
+  t('🔴 ô ẩn mang đúng chuỗi hai khối', /data-khoi-ng value="kvc, mtd"/.test(h2), h2);
+  t('🔴 và đơn vị cũ đi theo nguyên vẹn', /data-dv-cu value="K&amp;H"/.test(h2), h2);
+  const h0 = ve(KD, '', 'POSH');
+  teq('   chưa khai khối nào → không ô nào tích', 0, (h0.match(/ checked/g) || []).length);
+  t('   nhưng đơn vị cũ VẪN đi theo — đây là chỗ dễ mất nhất',
+    /data-dv-cu value="POSH"/.test(h0), h0);
+} catch (e) { t('chạy thật được `_khoiTichNguoi`', false, String(e)); }
 
 /* ═════════════════════════════════════════════════════════════════════════════════════════ */
 if (TRUOT.length) {
@@ -185,4 +246,4 @@ if (TRUOT.length) {
   TRUOT.forEach(function (x) { console.log('  · ' + x); });
   process.exit(1);
 }
-console.log('\n✓ SẠCH — ' + DAT + ' phép: ô tích vai lọc theo khối, vai lạc khối đang tích vẫn bày, gợi ý đơn vị đủ ba khối.');
+console.log('\n✓ SẠCH — ' + DAT + ' phép: ô tích vai xếp theo khối (khối khác vào nếp gấp), cột Khối tích được nhiều.');

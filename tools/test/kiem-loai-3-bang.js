@@ -164,10 +164,19 @@ t('🔴 lượt Lưu chép lại bộ phận cũ thay vì ghi rỗng', /boPhan:\
   const hv = ctxv._vaiSelNhieu('Kế Toán Máy Tự Động', 'kvc');
   /* 4 vai gốc (chạy ngang) + 2 vai con KVC + 1 vai MTĐ đang TÍCH nên vẫn được bày. */
   teq('🔴 bảng KVC bày 4 vai gốc + 2 vai con KVC + 1 vai lạc đang tích', 7, (hv.match(/type="checkbox"/g) || []).length);
-  /* 🔴 PHÉP ĐỐI CHỨNG: bỏ tích cái vai MTĐ ấy đi thì nó phải BIẾN. Không có phép này thì
-     một hàm không lọc gì cả cũng đếm ra đúng bảy. */
-  teq('   bỏ tích thì vai lạc khối biến — còn 6', 6,
-    ((ctxv._vaiSelNhieu('', 'kvc')).match(/type="checkbox"/g) || []).length);
+  /* 🔴 PHÉP ĐỐI CHỨNG — VÀ NÓ ĐÃ ĐỔI NGHĨA NGÀY 21/09/2026.
+     Bản 1.235.0 giấu hẳn vai khối khác khi chưa tích, nên ở đây đếm ra 6. Nhưng giấu hẳn
+     nghĩa là KHÔNG CÓ CÁCH NÀO tích mới một vai khối khác — mà anh Thắng nói rõ: *"1 người
+     có thể nhận 2 vai trò của 2 khối khác nhau"*. Nay chúng nằm trong nếp gấp "vai khối khác":
+     VẪN ĐỦ 7 Ô, chỉ là một ô nằm trong `<details>`. */
+  const hTrong = ctxv._vaiSelNhieu('', 'kvc');
+  teq('🔴 không tích gì thì vẫn đủ 7 ô — vai khối khác chỉ gấp lại, không biến', 7,
+    (hTrong.match(/type="checkbox"/g) || []).length);
+  t('🔴 và nếp ấy ĐÓNG khi không có ô nào đang tích',
+    /<details class="vaiNgoai"(?! open)/.test(hTrong), hTrong);
+  t('🔴 nhưng MỞ SẴN khi bên trong có ô đang tích — không để quyền đã khai nằm khuất',
+    /<details class="vaiNgoai" open/.test(hv), hv);
+  t('   và ô trong nếp vẫn giữ dấu tích', /value="Kế Toán Máy Tự Động" checked/.test(hv), hv);
   t('   vai đã tích được đánh dấu', /value="Kế Toán Máy Tự Động" checked/.test(hv), hv);
   t('   vai chưa tích thì không', !/value="Kế Toán Khu Vui Chơi" checked/.test(hv));
   /* 🔴 Admin không bao giờ bị lọc — bày ô tích cho Admin là ô bấm vào không đổi gì. */

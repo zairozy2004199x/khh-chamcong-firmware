@@ -148,7 +148,10 @@ teq('🔴 cha để "— không rõ —" thì KHÔNG tự đụng vào ô con', 
     esc: (x) => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'),
     _cosoSel: () => '<select data-o="coso"></select>',
     _inp: () => '<input data-o="inp">',
-    _dvInp: () => '<input data-o="dv">',
+    /* Cột Đơn vị đã thành cột Khối (21/09/2026): ô tích + HAI ô ẩn (khối, rồi đơn vị cũ).
+       ⚠️ Bệ đỡ phải trả đúng HAI ô `_readRows()` đọc được, không thì phép đếm ô dưới
+          đây canh một sơ đồ cột khác với sơ đồ thật. */
+    _khoiTichNguoi: () => '<input type="hidden" data-o="khoi"><input type="hidden" data-o="dv">',
     _delBtn: () => '<td><button></button></td>',
   };
   vm.createContext(ctx);
@@ -166,7 +169,9 @@ teq('🔴 cha để "— không rõ —" thì KHÔNG tự đụng vào ô con', 
     if (/class="[^"]*\bvai-cha\b/.test(x)) return false;
     return true;
   });
-  teq('🔴 hàng có đúng 8 ô đọc được: tên·mãNV·PIN·vai·bộphận(ẩn)·cơsở·mãĐT·đơnvị', 8, oDoc.length);
+  /* Từ 21/09/2026 cột Đơn vị thành cột Khối, và ô cột ấy sinh HAI ô ẩn — khối trước,
+     đơn vị cũ sau. Đơn vị không bỏ được: nó vẫn là cổng quyền đọc sổ nhà nào. */
+  teq('🔴 hàng có đúng 9 ô đọc được: tên·mãNV·PIN·vai·bộphận(ẩn)·cơsở·mãĐT·khối(ẩn)·đơnvị(ẩn)', 9, oDoc.length);
   t('   và ô thứ 5 đúng là ô bộ phận ẩn', /type="hidden"/.test(oDoc[4]), oDoc[4]);
   t('   ô thứ 4 là ô vai trò (ô con, không phải ô lái)',
     oDoc[3].indexOf('vai-cha') < 0 && oDoc[3].indexOf('<select') === 0, oDoc[3]);

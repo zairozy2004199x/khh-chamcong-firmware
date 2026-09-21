@@ -28,6 +28,16 @@ HTML = os.path.join(GOC, 'wordpress', 'vhcp-chi-phi', 'templates', 'app.html')
 hong = 0
 dat  = 0
 
+def _hamOf(_s, _ten):
+    """Thân một hàm trong app.html. Dò trong THÂN chứ không quét cả tệp: cả trang có hàng
+    trăm chỗ khác có `<select>` hay `checkbox`, quét cả tệp là bắt nhầm người khác."""
+    _i = _s.find('  function ' + _ten + '(')
+    if _i < 0:
+        return ''
+    _j = _s.find('\n  }', _i)
+    return _s[_i:_j + 4] if _j > _i else ''
+
+
 def la(ten, dieu, chi_tiet=''):
     global hong, dat
     if dieu:
@@ -490,13 +500,26 @@ la('dòng ngăn có kiểu chữ thật trong tệp css', 'tr.dv-ngan>td{' in cs
 # Cấu hình: MỘT cột Đơn vị. Anh Thắng 12/09/2026: *"Đơn vị với xem đơn vị là 1, đã thuộc đơn
 # vị đó, thì toàn quyền xem của mình"*. Cột "Xem đơn vị" và cột "TK Có" đã bỏ; chi tiết và các
 # phép canh chỉ số ô nằm ở tools/test/kiem-gop-cot-don-vi.js + test-cauhinh-xo.js.
-la('bảng người dùng có cột Đơn vị', '>Đơn vị</th>' in src)
 la('🔴 KHÔNG còn cột Xem đơn vị', '>Xem đơn vị</th>' not in src)
 la('🔴 KHÔNG còn cột TK Có', 'TK Có (khi là người duyệt)' not in src)
 la('lưu người dùng gom từ MỌI bảng vai trò', '_uMoiHang()' in src and 'data-user-body' in src)
-# Ô Đơn vị là ô NHẬP kèm gợi ý, không phải ô xổ đóng: chi nhánh mới phải khai được ngay.
-la('ô Đơn vị nhập được tự do (có datalist gợi ý)',
-   'function _dvInp(' in src and 'list="dl_donvi"' in src)
+# ═══ CỘT ĐƠN VỊ → CỘT KHỐI (21/09/2026) ════════════════════════════════
+# Anh Thắng: *"Chỗ đơn vị thay bằng khối — tích nếu 1 người làm 2 khối thì chọn 2, vì có
+# thể nv chung sẽ làm việc với 2 khối"*. Ô xổ một-lựa cũ không nói được "hai khối".
+la('bảng người dùng có cột Khối', '>Khối</th>' in src and 'function _khoiTichNguoi(' in src)
+la('   và là Ô TÍCH nhiều, không phải ô xổ một-lựa',
+   'type="checkbox"' in _hamOf(src, '_khoiTichNguoi') and '<select' not in _hamOf(src, '_khoiTichNguoi'))
+# 🔴 HAI CHỐT ĐẮT NHẤT CỦA BẢN ĐỔI NÀY — cả hai hỏng lặng lẽ:
+#   1. ô tích KHÔNG được `_readRows()` đọc, nên giá trị phải nằm ở một ô ẩn — thiếu nó là
+#      tích xong bấm Lưu không lưu gì cả;
+#   2. đơn vị cũ vẫn là CỔNG QUYỀN THẬT, phải đi theo trong ô ẩn thứ hai — gửi rỗng lên là
+#      lượt Lưu đầu tiên đẩy CẢ CÔNG TY về nhà mẹ K&H, ai cũng đọc được sổ của mọi nhà.
+la('🔴 giá trị khối nằm ở ô ẩn cho `_readRows()` đọc',
+   'data-khoi-ng' in _hamOf(src, '_khoiTichNguoi') and 'function _khoiTichDoi(' in src)
+la('🔴 đơn vị cũ đi theo trong ô ẩn, không bị ghi rỗng đè',
+   'data-dv-cu' in _hamOf(src, '_khoiTichNguoi'))
+la('🔴 và lượt Lưu đọc đúng thứ tự khối-rồi-đơn-vị',
+   "khoi:(r[7]||'').trim(), donVi:(r[8]||'').trim()" in src)
 
 # Đẩy đơn / dòng chi lẻ sang đơn vị khác.
 la('có nút đẩy sang đơn vị khác', 'id="btnChuyenDV"' in src)

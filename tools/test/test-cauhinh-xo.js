@@ -271,7 +271,7 @@ t('cắt được dòng dựng hàng người dùng', HANG.length > 50, HANG.sli
    "số ô dựng ra bằng đúng số cột dữ liệu", mà `_readRows()` đọc theo CHỈ SỐ nên lệch một ô là
    mọi cột sau đó đọc trượt sang cột bên cạnh. Sửa bằng cách dạy nó tên hàm mới, KHÔNG phải
    bằng cách nới con số cho qua. */
-const GOI = [...HANG.matchAll(/(_inp|_roleSel|_bpSel|_cosoSel|_dvInp)\(|<(input|select)\b([^>]*)>/g)]
+const GOI = [...HANG.matchAll(/(_inp|_roleSel|_bpSel|_cosoSel|_khoiTichNguoi)\(|<(input|select)\b([^>]*)>/g)]
   .filter(m => {
     if (m[1]) return true;
     if (BO_CHECKBOX && /type="checkbox"/.test(m[3] || '')) return false;
@@ -289,16 +289,25 @@ t('hàng người dùng dựng đủ ô cho mọi cột (≥8)', GOI.length >= 8
 /* Cột "Mã NV" thêm 13/09/2026 — anh Thắng: *"nếu đẩy từ nhân sự sang, mà nhân viên này trùng
    với nhân viên tạo trực tiếp trên trang chi phí thì sao"*. Nó nằm NGAY SAU Tên, nên mọi cột
    phía sau dịch đúng một nhịp — và đó chính là loại thay đổi phép này sinh ra để canh. */
-const COT = ['ten', 'maNv', 'pin', 'vaiTro', 'boPhan', 'coso', 'maDt', 'donVi'];
-teq('số hàm dựng ô bằng đúng số cột dữ liệu', COT.length, GOI.length);
+/* Cột "Đơn vị" đổi thành "Khối" 21/09/2026 — anh Thắng: *"chỗ đơn vị thay bằng khối —
+   tích nếu 1 người làm 2 khối thì chọn 2"*. 🔴 Ô ẤY SINH RA HAI Ô ẨN chứ không phải một:
+   khối trước, rồi đơn vị cũ đi theo — đơn vị vẫn là cổng quyền "đọc được sổ nhà nào",
+   gửi rỗng lên là cả công ty về nhà mẹ. Nên danh sách cột dài thêm đúng một tên, và chính
+   phép đếm dưới đây là thứ canh cho hai ô ấy không bao giờ đảo chỗ cho nhau. */
+const COT = ['ten', 'maNv', 'pin', 'vaiTro', 'boPhan', 'coso', 'maDt', 'khoi', 'donVi'];
+/* 🔴 MỘT HÀM DỰNG Ô KHÔNG CÒN BẮT BUỘC LÀ MỘT CỘT. `_khoiTichNguoi()` sinh HAI ô đọc được
+   (khối, rồi đơn vị cũ đi kèm), nên phép cũ "số HÀM bằng số cột" đếm hụt đúng một nhịp.
+   Nay đếm số Ô THẬT và phát tên cột theo đúng số ô từng hàm sinh ra — chặt hơn bản cũ,
+   vì nó còn bắt được cả trường hợp một hàm lặng lẽ thêm bớt ô bên trong thân nó. */
 const CHI_SO = {};
-let dem = 0;
-GOI.forEach((ten, i) => {
-  if (!COT[i]) return;
-  CHI_SO[COT[i]] = dem;
+let dem = 0, iCot = 0;
+GOI.forEach((ten) => {
   /* Ô viết thẳng trong hàng thì đúng một ô; ô dựng bằng hàm thì đếm trong thân hàm ấy. */
-  dem += (ten[0] === '<') ? 1 : demO(thanHam(ten));
+  const soO = (ten[0] === '<') ? 1 : demO(thanHam(ten));
+  for (let k = 0; k < soO; k++) { if (COT[iCot]) { CHI_SO[COT[iCot]] = dem + k; } iCot++; }
+  dem += soO;
 });
+teq('số ô hàng dựng ra bằng đúng số cột dữ liệu', COT.length, dem);
 /* Chỉ số mà `saveCfgUsers` ĐANG dùng — đọc từ chính mã, không chép lại. */
 const SAVE = thanHam('saveCfgUsers');
 const DUNG = {};
@@ -366,8 +375,8 @@ t('   nhìn cũng biết là khoá, không phải ô gõ được', /background:
 t('   tiêu đề cột nói rõ nguồn', HTML.indexOf('>Tên <span style="font-weight:400;color:#8c8781">(từ nhân sự)</span></th>') >= 0);
 t('   và có câu giải thích dưới bảng', HTML.indexOf('lấy từ <b>hệ thống nhân sự</b> nên khoá ở đây') >= 0);
 /* Các cột KHÁC vẫn phải sửa được — khoá quá tay thì bảng thành chỉ để ngắm. */
-t('🔴 vai trò · bộ phận · cơ sở · đơn vị vẫn sửa được',
-  !/readonly/.test(thanHam('_roleSel')) && !/readonly/.test(thanHam('_dvInp')), null);
+t('🔴 vai trò · bộ phận · cơ sở · khối vẫn sửa được',
+  !/readonly/.test(thanHam('_roleSel')) && !/readonly|disabled/.test(thanHam('_khoiTichNguoi')), null);
 
 if (hong.length) {
   console.error('\nĐẠT: ' + dat + ' phép thử');

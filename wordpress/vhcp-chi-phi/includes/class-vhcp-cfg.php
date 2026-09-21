@@ -53,7 +53,9 @@ class VHCP_Cfg {
 			   người ấy lập rơi về đâu); "Xem đơn vị" là những đơn vị người ấy ĐƯỢC ĐỌC, cách
 			   nhau dấu phẩy, để trống = theo mặc định của vai. Hai việc khác nhau nên hai cột:
 			   nhà thì phải là một, còn tầm nhìn thì có thể là nhiều. */
-			self::USER  => array( 'Tên', 'PIN', 'Vai trò', 'Cơ sở', 'TK Có', 'Mã đối tượng', 'Bộ phận', 'Đơn vị', 'Xem đơn vị' ),
+			/* ⚠️ 'Mã NV' và 'Khối' là hai ô CUỐI. 'Mã NV' đã được ghi xuống ô 10 từ lâu mà
+			   thiếu tên ở đây; bổ sung luôn cho bảng nhãn khớp đúng số ô thật. */
+			self::USER  => array( 'Tên', 'PIN', 'Vai trò', 'Cơ sở', 'TK Có', 'Mã đối tượng', 'Bộ phận', 'Đơn vị', 'Xem đơn vị', 'Mã NV', 'Khối' ),
 			self::TKNO  => array( 'Nhóm mặt hàng', 'Phân loại lớn', 'TK Nợ' ),
 			self::SSO   => array( 'Email', 'Vai trò Chi Phí', 'Cơ sở' ),
 			/* 🔴 CỘT 9 `Đơn vị` VÀ CỘT 10 `Khối` PHẢI CÓ MẶT Ở ĐÂY.
@@ -1035,7 +1037,12 @@ class VHCP_Cfg {
 				'xemDonVi' => isset( $r[8] ) ? trim( (string) $r[8] ) : '',
 				/* MÃ NV — khoá thứ hai, xem khối dài ở `VHCP_Auth::login()`. Ô cuối cùng nên
 				   dòng cũ chín ô không có nó; `isset` lo phần ấy. */
-				'maNv' => isset( $r[9] ) ? VHCP_Util::ma_so( $r[9] ) : '' );
+				'maNv' => isset( $r[9] ) ? VHCP_Util::ma_so( $r[9] ) : '',
+				/* KHỐI — anh Thắng 21/09/2026: *"chỗ đơn vị thay bằng khối, tích nếu 1 người làm 2
+				   khối thì chọn 2, vì có thể nv chung sẽ làm việc với 2 khối"*. Chuỗi ngăn phẩy,
+				   VÀ Ô TRỐNG LÀ NGHĨA CHUNG: chưa khai thì ngã về ánh xạ cũ từ đơn vị, không phải
+				   "không thuộc khối nào" — xem `VHCP_DonVi::khoi_xem_duoc()`. */
+				'khoi' => isset( $r[10] ) ? trim( (string) $r[10] ) : '' );
 		}
 
 		// Bảng tra nhanh cho việc chốt TK Nợ: cơ sở -> phân loại lớn, và
@@ -1403,7 +1410,8 @@ class VHCP_Cfg {
 					$g( $x, 'boPhan' ),
 					$g( $x, 'donVi' ),
 					$g( $x, 'xemDonVi' ),
-					VHCP_Util::ma_so( $g( $x, 'maNv' ) )
+					VHCP_Util::ma_so( $g( $x, 'maNv' ) ),
+					$g( $x, 'khoi' )
 				);
 			}
 			self::write( self::USER, $rows );

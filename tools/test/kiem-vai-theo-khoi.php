@@ -84,26 +84,52 @@ teq( '   nhưng «VP» đứng riêng thì có', 'vp', VHCP_Cfg::khoi_cua_vai( '
 teq( '🔴 «Kế Toán VP Khu Vui Chơi» về kvc, không về vp', 'kvc',
 	VHCP_Cfg::khoi_cua_vai( 'Kế Toán VP Khu Vui Chơi' ) );
 
-/* ═══ 7. GỢI Ý ĐƠN VỊ Ở MÀN PHẢI KHỚP ÁNH XẠ CỦA MÁY CHỦ ═════════════════════════
- * `_dvInp()` gợi ý ba mã đơn vị để anh Thắng *"chọn nhân viên theo khối"*. Mã nào máy chủ
- * không nhận thì khai xong vẫn như chưa khai: `khoi_cua()` trả '' và người ấy không thuộc khối
- * nào — ô trông như đã điền, nên không ai đi tìm. */
-$app = file_get_contents( $goc . '/wordpress/vhcp-chi-phi/templates/app.html' );
-if ( preg_match( '/var DV_KHOI_GOI=\[(.*?)\];/u', $app, $m ) ) {
-	preg_match_all( "/ma:'([^']+)'/u", $m[1], $mm );
-	$goi = $mm[1];
-	teq( 'màn gợi ý đúng ba khối', 3, count( $goi ) );
-	foreach ( $goi as $ma ) {
-		t( '🔴 gợi ý «' . $ma . '» được `VHCP_DonVi::khoi_cua()` nhận',
-			'' !== VHCP_DonVi::khoi_cua( $ma ), VHCP_DonVi::khoi_cua( $ma ) );
-	}
-	$ra = array();
-	foreach ( $goi as $ma ) { $ra[] = VHCP_DonVi::khoi_cua( $ma ); }
-	sort( $ra );
-	teq( '🔴 và ba gợi ý trỏ vào BA khối khác nhau', array( 'kvc', 'mtd', 'vp' ), $ra );
-} else {
-	t( 'tìm thấy `DV_KHOI_GOI` trong app.html', false, 'không thấy' );
-}
+/* ═══ 7. CỘT KHỐI TRÊN BẢNG NGƯỜI DÙNG — MỘT NGƯỜI, HAI KHỐI ═════════════
+ * Anh Thắng 21/09/2026: *"Chỗ đơn vị thay bằng khối — tích nếu 1 người làm 2 khối thì chọn 2,
+ * vì có thể nv chung sẽ làm việc với 2 khối"*.
+ *
+ * 🔴 ÁNH XẠ MỘT-MỘT TỪ ĐƠN VỊ KHÔNG NÓI ĐƯỢC ĐIỀU NÀY — mỗi người có ĐÚNG MỘT nhà,
+ *    nên `khoi_cua()` luôn ra đúng một khối. Đó là lý do có ô khai tay.
+ * ═════════════════════════════════════════════════════════════════════════════ */
+VHCP_Cfg::save_config( array( 'users' => array(
+	array( 'ten' => 'Chị Nhân', 'vaiTro' => 'Kế Toán Khu Vui Chơi', 'donVi' => 'POSH', 'khoi' => 'kvc, mtd' ),
+	array( 'ten' => 'Anh Sơn',  'vaiTro' => 'Nhân viên',            'donVi' => 'POSH', 'khoi' => '' ),
+	array( 'ten' => 'Chị Lan',  'vaiTro' => 'Nhân viên',            'donVi' => 'POSH', 'khoi' => 'vp, zz, VP' ),
+	/* 🔴 SẾP PHẢI NẰM TRONG CÙNG LƯỢT GHI NÀY, không phải một `save_config` riêng ở cuối.
+	   Lượt viết đầu đặt Sếp ở một lượt ghi sau, và phép "Admin không bị cắt" XANH VĨNH
+	   VIỄN: `VHCP_DonVi::dong_nguoi()` giữ sẵn danh sách người dùng từ lần hỏi trước, mà
+	   `VHCP_Cfg::clear_cache()` không đụng tới — nên Sếp không có trong đó, ô khối đọc ra
+	   rỗng, và hàm ngã về nhánh nhà mẹ trả `null` — đúng cái kết quả phép thử mong đợi,
+	   nhưng vì lý do hoàn toàn khác. Đột biến "bỏ ngoại lệ Admin" sống sót là vì thế. */
+	array( 'ten' => 'Sếp',     'vaiTro' => 'Admin',                 'donVi' => 'K&H',  'khoi' => 'vp' ),
+) ) );
+VHCP_Cfg::clear_cache();
+$u = array();
+foreach ( VHCP_Cfg::get_users() as $x ) { $u[ $x['ten'] ] = $x; }
+teq( '🔴 ô khối sống sót qua lượt lưu', 'kvc, mtd', $u['Chị Nhân']['khoi'] );
+teq( '🔴 và đơn vị cũ KHÔNG bị ghi rỗng đè', 'POSH', $u['Chị Nhân']['donVi'] );
+
+VHCP_Auth::dat_vai_tro( 'Nhân viên', 'Chị Nhân' );
+teq( '🔴 khai hai khối → đọc ra đúng hai', array( 'kvc', 'mtd' ), VHCP_DonVi::khoi_khai_tay( 'Chị Nhân' ) );
+teq( '🔴 và `khoi_xem_duoc()` bày đủ hai nút', array( 'kvc', 'mtd' ), VHCP_DonVi::khoi_xem_duoc() );
+/* Phép đối chứng: nếu chỉ đi theo đơn vị thì người này chỉ có 'mtd' (POSH). Có đúng một
+   'kvc' thừa ra ở trên mới chứng minh ô khai tay thật sự được đọc. */
+teq( '   để so: đơn vị POSH một mình chỉ ra mtd', 'mtd', VHCP_DonVi::khoi_cua( 'POSH' ) );
+
+VHCP_Auth::dat_vai_tro( 'Nhân viên', 'Anh Sơn' );
+teq( '🔴 ô TRỐNG = ngã về ánh xạ cũ, KHÔNG phải "không khối nào"',
+	array( 'mtd' ), VHCP_DonVi::khoi_xem_duoc() );
+
+VHCP_Auth::dat_vai_tro( 'Nhân viên', 'Chị Lan' );
+teq( '🔴 mã lạ bị loại, mã trùng chỉ lấy một lần', array( 'vp' ), VHCP_DonVi::khoi_khai_tay( 'Chị Lan' ) );
+
+/* 🔴 ADMIN KHÔNG BAO GIỜ BỊ CẮT. Anh Thắng là người ngồi khai bảng này; tích nhầm một ô
+   cho chính mình mà mất hai nút kia là không còn đường vào để sửa lại. */
+VHCP_Auth::dat_vai_tro( 'Admin', 'Sếp' );
+/* Phép đối chứng trước đã: ô khối của Sếp ĐỌC RA ĐƯỢC thật. Thiếu dòng này thì phép dưới
+   xanh cả khi nó xanh vì không tìm thấy Sếp, chứ không phải vì ngoại lệ Admin còn sống. */
+teq( '   (đối chứng) ô khối của Sếp đọc ra được', array( 'vp' ), VHCP_DonVi::khoi_khai_tay( 'Sếp' ) );
+teq( '🔴 nhưng Admin tích một khối VẪN thấy ĐỦ nút', null, VHCP_DonVi::khoi_xem_duoc() );
 
 /* ═════════════════════════════════════════════════════════════════════════════════════════ */
 if ( $TRUOT ) {
@@ -111,4 +137,4 @@ if ( $TRUOT ) {
 	foreach ( $TRUOT as $x ) { echo '  · ' . $x . "\n"; }
 	exit( 1 );
 }
-echo "\n✓ SẠCH — $DAT phép: khối đọc từ tên vai, không đoán được = mọi khối, gợi ý đơn vị khớp ánh xạ máy chủ.\n";
+echo "\n✓ SẠCH — $DAT phép: khối đọc từ tên vai, không đoán được = mọi khối, ô khối khai tay đứng trước ánh xạ đơn vị.\n";

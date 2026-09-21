@@ -2610,10 +2610,6 @@
    *    được.
    * ══════════════════════════════════════════════════════════════════════════════════════════ */
   var KHOI_DS=[{ma:'kvc',ten:'Khu vui chơi'},{ma:'mtd',ten:'Máy tự động'},{ma:'vp',ten:'Văn phòng'}];
-  /* Đơn vị đại diện cho từng khối, dùng làm gợi ý ở cột Đơn vị bảng Người dùng.
-     🔴 MỖI MÃ Ở ĐÂY PHẢI CÓ TRONG `VHCP_DonVi::KHOI_THEO_DON_VI`, không thì khai xong vẫn như
-        chưa khai. `tools/test/kiem-goi-y-don-vi-khoi.php` so hai bảng với nhau. */
-  var DV_KHOI_GOI=[{ma:'KVC',ten:'Khu vui chơi'},{ma:'MTĐ',ten:'Máy tự động'},{ma:'VP',ten:'Văn phòng'}];
   /* ⚠️ CHỈ BÀY NÚT CỦA KHỐI NGƯỜI ẤY ĐỌC ĐƯỢC — lấy từ `BOOT.khoiXem` (máy chủ suy từ cột Đơn
      vị). `null` = nhà mẹ, bày đủ ba.
      🔴 ĐÂY KHÔNG PHẢI CỔNG QUYỀN, chỉ là giấu mấy nút chắc chắn rỗng: dữ liệu sau mỗi nút đã bị
@@ -10885,39 +10881,53 @@
     var da={};
     String(v||'').split(',').forEach(function(x){ var k=x.trim().toLowerCase(); if(k) da[k]=1; });
     khoi=String(khoi||'').toLowerCase();
+    var o=function(r,dam){
+      return '<label style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;white-space:nowrap;cursor:pointer'
+        +(dam?';font-weight:700':'')+'">'
+        +'<input type="checkbox" value="'+esc(r)+'"'+(da[r.toLowerCase()]?' checked':'')+' style="margin:0;cursor:pointer">'
+        +esc(r)+'</label>';
+    };
     var h='<div data-vai style="display:flex;flex-direction:column;gap:3px;padding:2px 0" '
-      +'title="Không tích gì = MỌI vai đều dùng được loại này. Chỉ bày vai của khối này và vai chạy ngang cả công ty. Admin không bao giờ bị lọc nên không có ở đây.">';
+      +'title="Không tích gì = MỌI vai đều dùng được loại này. Admin không bao giờ bị lọc nên không có ở đây.">';
+    var ngoai=[], coTich=false;
     VAI_GOC.forEach(function(cha){
-      var con=_vaiConCua(cha).filter(function(r){ return _vaiBay(r, khoi, da); });
-      var o=function(r,dam){
-        /* Vai của khối KHÁC mà vẫn còn tích: bày kèm dấu ⚠ để người khai thấy và tự gỡ,
-           chứ máy không tự gỡ — xem chốt 🔴 ở `_vaiBay()`. */
-        /* ⚠️ TÊN BIẾN PHẢI MANG ĐUÔI `Khoi`. `tools/test/kiem-app-js.py` canh chốt *"bảng
-           Người dùng không còn gắn cờ ô Cơ sở"* (1.174.0 kết tội hàng loạt) bằng cách dò
-           TÊN của biến cờ cũ — đặt trùng tên là bài ấy đỏ oan, và cách chữa sai là đi
-           nới bài kiểm ra cho vừa mình. Đổi tên ở đây, giữ nguyên chốt của họ.
-           🔴 VÀ ĐỪNG VIẾT TÊN CŨ RA TRONG CHÚ THÍCH NÀY. Bài ấy dò trên mã CHƯA gỡ chú
-              thích, nên một dòng giải thích cũng đủ làm nó đỏ — đã cắn ngay lượt viết này. */
-        var lacKhoi=(_khoiCuaVai(r)!=='' && !_vaiOKhoi(r, khoi));
-        return '<label style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;white-space:nowrap;cursor:pointer'
-          +(dam?';font-weight:700':'')+(lacKhoi?';color:#b9770e':'')+'"'
-          +(lacKhoi?' title="Vai này thuộc khối khác nhưng đang được tích cho loại này. Bỏ tích thì nó biến khỏi đây."':'')+'>'
-          +'<input type="checkbox" value="'+esc(r)+'"'+(da[r.toLowerCase()]?' checked':'')+' style="margin:0;cursor:pointer">'
-          +esc(r)+(lacKhoi?' \u26a0':'')+'</label>';
-      };
+      var con=[];
+      _vaiConCua(cha).forEach(function(r){
+        if(_vaiOKhoi(r, khoi)){ con.push(r); return; }
+        ngoai.push(r);
+        if(da[r.toLowerCase()]) coTich=true;
+      });
       h+='<div style="display:flex;flex-wrap:wrap;gap:2px 10px">'+o(cha,true)
         +con.map(function(r){ return o(r,false); }).join('')+'</div>';
     });
+    if(ngoai.length){
+      h+='<details class="vaiNgoai"'+(coTich?' open':'')+' style="margin-top:2px">'
+        +'<summary style="font-size:11px;color:#8c8781;cursor:pointer;list-style:none">'
+        +'\u2795 vai khối khác ('+ngoai.length+')</summary>'
+        +'<div style="display:flex;flex-wrap:wrap;gap:2px 10px;padding-top:2px">'
+        +ngoai.map(function(r){ return o(r,false); }).join('')+'</div></details>';
+    }
     return h+'</div>';
   }
-  /* 🔴 VAI LẠC KHỐI MÀ ĐANG TÍCH THÌ VẪN PHẢI BÀY RA. Lượt Lưu đọc chính mấy ô tích này
-     (`[data-vai] input:checked`), nên giấu một ô đang tích là lượt Lưu kế tiếp XÓA quyền ấy —
-     lặng lẽ, không một câu nào, và người bấm Lưu chỉ định sửa một ô khác. Anh Thắng bảo *"ai có
-     ở khối nào mới hiện ra"* — đó là bớt ô TRỐNG cho dễ dò, không phải bỏ quyền đã khai. */
-  function _vaiBay(ten, khoi, da){
-    if(_vaiOKhoi(ten, khoi)) return true;
-    return !!(da && da[String(ten).toLowerCase()]);
-  }
+  /* ════════════════════════════════════════════════════════════════════════════
+     TÍCH CHÉO KHỐI LÀ CHUYỆN BÌNH THƯỜNG, KHÔNG PHẢI LỖI.
+
+     🔴 BẢN 1.235.0 ĐÃ HIỂU SAI VÀ ĐÂY LÀ CHỖ CHỮA. Nó tô cam và đóng dấu cảnh báo lên mọi
+        ô vai thuộc khối khác đang được tích, lại còn giấu những ô chưa tích đi hẳn — tức là
+        KHÔNG CÓ CÁCH NÀO tích mới một vai khối khác nữa. Anh Thắng 21/09/2026 chỉ ra ngay:
+        *"1 người có thể nhận 2 vai trò của 2 khối khác nhau"* — nhân sự chung làm việc với cả
+        hai bên, nên một loại chi phí của Khu vui chơi được mở cho "Kế Toán VP Chung" là
+        đúng ý, không phải gõ nhầm.
+
+     Nay: vai của khối này bày thẳng ra (đúng *"ai có ở khối nào mới hiện ra"*), vai khối
+     khác nằm trong một nếp gấp "➕ vai khối khác" — gọn mắt, mà vẫn với tới được bằng một
+     cú bấm. Nếp tự MỞ SẮN nếu trong đó đã có ô được tích.
+
+     ⚠️ NẾP GẤP KHÔNG LÀM MẤT DỮ LIỆU, và đây là lý do chọn `<details>` chứ không phải
+        `display:none` hay vẽ sau: ô nằm trong nếp đang đóng VẪN có trong DOM, nên lượt Lưu
+        (`[data-vai] input:checked`) vẫn đọc đủ. Bỏ ô ra khỏi DOM là lượt Lưu kế tiếp xoá đúng
+        quyền ấy — lặng lẽ, và người bấm Lưu chỉ định sửa một ô khác hẳn.
+     ════════════════════════════════════════════════════════════════════════════ */
   /* ══════════════════════════════════════════════════════════════════════════════════════
    * Ô TÍCH ĐƠN VỊ CHO LOẠI CHI PHÍ — anh Thắng 12/09/2026: *"Đối với POSH sẽ có cột Chi Phí
    * Khác, Chi Phí Chung, Chi Phí Cơ Sở, Chi Phí Setup"*.
@@ -12574,7 +12584,10 @@
        dạng ẩn để giữ giá trị và giữ đúng thứ tự cột — chỉ cái đầu bảng là bỏ. */
     +'<th style="min-width:220px" title="Nhân viên để trống = chỉ thấy đơn do chính mình lập. Quản lý để trống = trông cả đơn vị.">Cơ sở phụ trách</th>'
     +'<th style="width:126px">Mã đối tượng (khi là người duyệt)</th>'
-    +'<th style="width:110px" title="NHÀ của người này: đơn họ lập rơi về đơn vị này, và họ đọc được đúng sổ nhà này. Để trống = K&amp;H, mà K&amp;H là nhà mẹ nên đọc cả hệ.">Đơn vị</th>'
+    /* ĐƠN VỊ → KHỐI, anh Thắng 21/09/2026: *"chỗ đơn vị thay bằng khối — tích nếu 1 người
+       làm 2 khối thì chọn 2, vì có thể nv chung sẽ làm việc với 2 khối"*. Giá trị đơn vị cũ
+       không mất — nó chui vào ô ẩn, xem chốt ở `_khoiTichNguoi()`. */
+    +'<th style="width:132px" title="Những KHỐI người này làm việc cùng — quyết định họ thấy những nút khối nào. Làm cả hai bên thì tích cả hai. Để trống = theo đơn vị như cũ.">Khối</th>'
     +'<th style="width:44px"></th></tr></thead>';
   /* 🔴 MỘT CHỖ DỰNG HÀNG DUY NHẤT. Trước đây hàng thường và hàng Admin-khoá viết rời nhau,
      nên bỏ một cột phải nhớ sửa cả hai — quên một chỗ là số ô hai loại hàng lệch nhau, và
@@ -12638,15 +12651,15 @@
               Chỉ lượt mở trình duyệt ra đếm ô thật mới thấy. */
       +'<input type="hidden" value="'+esc(u.boPhan||'')+'">'
       +'</td><td>'+_cosoSel(u.coso, u.donVi)+'</td>'
-      +'<td>'+_inp(u.maDt,'VD: NV001')+'</td><td>'+_dvInp(u.donVi)+'</td>'+_delBtn()+'</tr>';
+      +'<td>'+_inp(u.maDt,'VD: NV001')+'</td><td>'+_khoiTichNguoi(u.khoi, u.donVi)+'</td>'+_delBtn()+'</tr>';
   }
   /* Thêm người vào bảng NHÂN VIÊN (vai mặc định của hàng mới). Chưa có bảng ấy — cả công ty
      toàn quản lý và kế toán — thì vẽ lại cả khối cho nó hiện ra rồi mới chèn. */
   function addCfgUser(){
     var tb=_uBody('Nhân viên');
-    if(!tb){ CFGUSERS=(CFGUSERS||[]).concat([{ten:'',maNv:'',pin:'',vaiTro:'Nhân viên',boPhan:'',coso:'',maDt:'',donVi:''}]); renderUsers(); return; }
+    if(!tb){ CFGUSERS=(CFGUSERS||[]).concat([{ten:'',maNv:'',pin:'',vaiTro:'Nhân viên',boPhan:'',coso:'',maDt:'',donVi:'',khoi:''}]); renderUsers(); return; }
     /* Hàng MỚI cũng che: người khai gõ PIN cho người khác, và họ gõ ngay giữa văn phòng. */
-    tb.insertAdjacentHTML('beforeend','<tr><td>'+_inp('','Tên')+'</td><td>'+_inp('','VD: NV012')+'</td><td><input type="password" maxlength="8" autocomplete="off" placeholder="4–8 số" style="width:100%"></td><td>'+_roleSel('Nhân viên')+'<input type="hidden" value="">'+'</td><td>'+_cosoSel('','')+'</td><td>'+_inp('','VD: NV001')+'</td><td>'+_dvInp('')+'</td>'+_delBtn()+'</tr>');
+    tb.insertAdjacentHTML('beforeend','<tr><td>'+_inp('','Tên')+'</td><td>'+_inp('','VD: NV012')+'</td><td><input type="password" maxlength="8" autocomplete="off" placeholder="4–8 số" style="width:100%"></td><td>'+_roleSel('Nhân viên')+'<input type="hidden" value="">'+'</td><td>'+_cosoSel('','')+'</td><td>'+_inp('','VD: NV001')+'</td><td>'+_khoiTichNguoi('','')+'</td>'+_delBtn()+'</tr>');
     tb.lastChild.scrollIntoView({block:'center'});
   }
   /** tbody của một vai, hoặc null nếu vai ấy chưa có bảng nào. */
@@ -12663,47 +12676,59 @@
   /* Ô "Đơn vị" là ô NHẬP KÈM GỢI Ý, không phải ô xổ đóng: đơn vị thứ ba (một chi nhánh mới)
      phải khai được ngay tại đây chứ không phải chờ sửa mã. Gợi ý lấy từ những đơn vị đang có
      thật trong sổ — bày ra một danh mục riêng là hai nơi phải khai, và hai nơi thì lệch. */
-  function _dvInp(v){
-    /* ═════════════════════════════════════════════════════════════════════════════
-       GỢI Ý LUÔN CÓ ĐỦ BA KHỐI — anh Thắng 21/09/2026: *"chọn nhân viên theo khối"*.
-
-       🔴 TRƯỚC BẢN NÀY GỢI Ý LÀ MỘT VÒNG LUẨN QUẨN. `BOOT.donVi` dựng từ đơn vị ĐANG CÓ
-          THẬT trong sổ; chưa ai thuộc Máy tự động thì nó không hiện Máy tự động, mà không hiện
-          thì không ai bỏ ai vào đó được. Ảnh anh gửi: hộp xổ ra đúng MỘT dòng "K&H", và màn
-          Đơn chi phí thì "Máy tự động 0". Đúng cái vòng đã ghi ở `VHCP_DonVi::ds()`.
-
-       ⚠️ VẪN LÀ Ô NHẬP KÈM GỢI Ý, không phải ô xổ đóng: một chi nhánh thứ tư phải khai
-          được ngay tại đây chứ không chờ sửa mã. Ba khối chỉ được THÊM vào gợi ý, không thay
-          danh sách thật — và không ghi gì xuống sổ cho tới khi có người bấm Lưu.
-
-       ⚠️ GIÁ TRỊ PHẢI ĐÚNG CÁI `VHCP_DonVi::KHOI_THEO_DON_VI` NHẬN. Gợi ý "Máy tự động" (tên
-          đẹp) thì `khoi_cua()` trả '' và người ấy không thuộc khối nào cả — hỏng lặng lẽ, vì
-          ô trông như đã khai xong. Nên value là mã (`MTĐ`), còn tên đẹp để ở `label`.
-       ═════════════════════════════════════════════════════════════════════════════ */
-    var ds=(BOOT.donVi||['K&H']).slice();
-    var nhan={};
-    DV_KHOI_GOI.forEach(function(g){
-      nhan[g.ma.toLowerCase()]=g.ten;
-      if(ds.map(function(x){return String(x).toLowerCase();}).indexOf(g.ma.toLowerCase())<0) ds.push(g.ma);
-    });
-    /* Đổi đơn vị là hộp cơ sở CÙNG HÀNG phải đổi theo ngay. Đợi tới lượt vẽ lại cả bảng thì
-       người ta gõ "POSH" xong mở hộp cơ sở ra vẫn thấy nguyên danh sách khu vui chơi, và kết
-       luận là lọc không chạy. */
-    return '<input list="dl_donvi" value="'+esc(v||'')+'" placeholder="trống = K&H (nhà mẹ)" oninput="_dvDoi(this)" '
-      +'title="Đơn vị quyết định người này đọc được sổ nhà nào và hiện ở khối nào. KVC = Khu vui chơi, MTĐ = Máy tự động, VP = Văn phòng, trống hoặc K&H = nhà mẹ đọc cả hệ." style="width:100%">'
-      +'<datalist id="dl_donvi">'+ds.map(function(x){
-          var n=nhan[String(x).toLowerCase()];
-          return '<option value="'+esc(x)+'"'+(n?(' label="'+esc(n)+'"'):'')+'>'+(n?esc(n):'')+'</option>';
-        }).join('')+'</datalist>';
+  /* ═════════════════════════════════════════════════════════════════════════════════════
+   * CỘT KHỐI TRÊN BẢNG NGƯỜI DÙNG — TÍCH NHIỀU, THAY CHỖ CỘT ĐƠN VỊ.
+   *
+   * Anh Thắng 21/09/2026: *"Chỗ đơn vị thay bằng khối — tích nếu 1 người làm 2 khối thì
+   * chọn 2, vì có thể nv chung sẽ làm việc với 2 khối"*.
+   *
+   * 🔴 VÌ SAO PHẢI LÀ Ô TÍCH CHỨ KHÔNG PHẢI Ô XỔ. Ô xổ chỉ chọn được MỘT — đúng cái hạn
+   *    làm cột Đơn vị cũ không dùng được cho việc này: một người có ĐÚNG MỘT nhà (nơi đơn
+   *    họ lập rơi về), nhưng có thể làm việc với hai khối.
+   *
+   * 🔴 GIÁ TRỊ ĐƠN VỊ CŨ ĐI THEO TRONG MỘT Ô ẨN, không bỏ. Hai lẽ, cả hai đắt:
+   *      1. `_readRows()` đọc theo THỨ TỰ Ô. Bỏ một ô là mọi cột sau lùi một chỗ — cùng cái bẫy
+   *         đã ghi ở ô Bộ phận (1.232.0).
+   *      2. ĐƠN VỊ VẪN LÀ CỔNG QUYỀN THẬT — nó quyết định đơn rơi về nhà nào và đọc được sổ
+   *         nhà nào (`VHCP_DonVi::xem_duoc()`). Gửi chuỗi rỗng lên là lượt Lưu đầu tiên đẩy CẢ
+   *         CÔNG TY về nhà mẹ K&H — mọi người đọc được sổ của mọi nhà, không một câu nào.
+   *    Khối chỉ quyết định BÀY NÚT NÀO; đằng sau nút vẫn là dữ liệu đã bị đơn vị cắt.
+   *
+   * ⚠️ Ô TÍCH KHÔNG ĐƯỢC `_readRows()` ĐỌC (nó bỏ qua `input[type=checkbox]`), nên giá trị
+   *    thật nằm ở MỘT Ô ẨN do `_khoiTichDoi()` cập nhật mỗi lượt bấm. Quên nối cái đó là tích
+   *    xong bấm Lưu không lưu gì cả — và trông y như máy chủ nuốt mất.
+   *
+   * ⚠️ THỨ TỰ HAI Ô ẨN LÀ KHỐI TRƯỚC, ĐƠN VỊ SAU — `saveCfgUsers()` đọc `r[7]`/`r[8]` theo
+   *    đúng thứ tự này. Đảo hai dòng dưới đây là khối ghi vào ô đơn vị — sai cả hai cột.
+   * ═════════════════════════════════════════════════════════════════════════════════════ */
+  function _khoiTichNguoi(khoi, donVi){
+    var da={};
+    String(khoi||'').split(',').forEach(function(x){ var k=x.trim().toLowerCase(); if(k) da[k]=1; });
+    var h='<div class="khoiNg" style="display:flex;flex-direction:column;gap:2px">'
+      +KHOI_DS.map(function(k){
+        return '<label style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;white-space:nowrap;cursor:pointer">'
+          +'<input type="checkbox" value="'+esc(k.ma)+'"'+(da[k.ma]?' checked':'')
+          +' onchange="_khoiTichDoi(this)" style="margin:0;cursor:pointer">'+esc(k.ten)+'</label>';
+      }).join('')
+      +'</div>';
+    var ds=KHOI_DS.filter(function(k){ return da[k.ma]; }).map(function(k){ return k.ma; }).join(', ');
+    return h+'<input type="hidden" data-khoi-ng value="'+esc(ds)+'">'
+      +'<input type="hidden" data-dv-cu value="'+esc(donVi||'')+'">';
   }
-  /** Ô Đơn vị vừa đổi -> vẽ lại hộp cơ sở của đúng hàng ấy, GIỮ NGUYÊN những gì đang tích. */
-  function _dvDoi(o){
-    var tr=o; while(tr && tr.tagName!=='TR') tr=tr.parentNode;
-    if(!tr) return;
-    var w=tr.querySelector('.csw'); if(!w) return;
-    var sel=[]; Array.prototype.forEach.call(w.querySelectorAll('select option'),function(op){ if(op.selected) sel.push(op.value); });
-    w.parentNode.innerHTML=_cosoSel(sel.join(', '), o.value);
+  /** Một ô tích khối vừa đổi -> ghi lại chuỗi vào ô ẩn của ĐÚNG hàng ấy. */
+  function _khoiTichDoi(o){
+    var td=o; while(td && td.tagName!=='TD') td=td.parentNode;
+    if(!td) return;
+    var an=td.querySelector('input[data-khoi-ng]'); if(!an) return;
+    var ra=[];
+    Array.prototype.forEach.call(td.querySelectorAll('.khoiNg input:checked'),function(x){ ra.push(x.value); });
+    an.value=ra.join(', ');
   }
+  /* 🔴 ĐÃ BỎ `_dvDoi()` (21/09/2026). Nó vẽ lại hộp cơ sở mỗi lượt gõ ô Đơn vị; nay ô
+     ấy là ô ẩn (cột đã thay bằng Khối) nên không ai gõ vào nó nữa. Giữ lại một hàm không
+     còn đường gọi tới chỉ tổ làm người đọc sau đi tìm chỗ nào đổi được đơn vị.
+     ⚠️ ĐỔI ĐƠN VỊ CỦA MỘT NGƯỜI NAY KHÔNG LÀM Ở BẢNG NÀY — giá trị cũ đi qua lượt Lưu
+        nguyên vẹn trong ô ẩn, không mất; chỉ là không sửa được từ đây nữa. */
   /* 🔴 ĐÃ BỎ `_xemDvSel()` (12/09/2026) — ô "Xem đơn vị" không còn trên màn. Nhà của một
      người nay quyết định cả hai việc: đơn họ lập rơi về đâu, và họ đọc được sổ nào. Xem khối
      dài ở `VHCP_DonVi::xem_duoc()` để biết vì sao gộp. */
@@ -12733,7 +12758,7 @@
     });
     return ra;
   }
-  function saveCfgUsers(){ var data=_uMoiHang().map(function(r){return {ten:(r[0]||'').trim(), maNv:(r[1]||'').trim(), pin:(r[2]||'').trim(), vaiTro:r[3]||'Nhân viên', boPhan:r[4]||'', coso:r[5]||'', tkCo:'', maDt:r[6]||'', donVi:(r[7]||'').trim(), xemDonVi:''};}).filter(function(x){return x.ten;});
+  function saveCfgUsers(){ var data=_uMoiHang().map(function(r){return {ten:(r[0]||'').trim(), maNv:(r[1]||'').trim(), pin:(r[2]||'').trim(), vaiTro:r[3]||'Nhân viên', boPhan:r[4]||'', coso:r[5]||'', tkCo:'', maDt:r[6]||'', khoi:(r[7]||'').trim(), donVi:(r[8]||'').trim(), xemDonVi:''};}).filter(function(x){return x.ten;});
     for(var i=0;i<data.length;i++){ if(data[i].pin && !/^\d{4,8}$/.test(data[i].pin)){ toast('warn','PIN của "'+data[i].ten+'" phải là 4–8 số'); return; } }
     // 🔴 LƯU DANH SÁCH RỖNG = XÓA HẾT TÀI KHOẢN. Không cho đi qua bằng một cú bấm.
     //    Máy chủ chặn lần nữa; đây chỉ là để hỏi cho tử tế trước khi tới đó.
