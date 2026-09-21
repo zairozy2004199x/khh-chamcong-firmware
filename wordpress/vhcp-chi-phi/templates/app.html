@@ -2685,6 +2685,10 @@
        thấy gian của khối cũ, và kết luận là lọc không chạy.
        ⚠️ Gọi `_daLocLaiGian()`, KHÔNG gọi `_daNapCoSoDs(null)` — `null` ở hàm kia nghĩa là DỌN SẠCH. */
     try{ if(typeof _daLocLaiGian==='function') _daLocLaiGian(); }catch(e){}
+    /* Tổng quan phải tải lại chứ không chỉ vẽ lại: hai con số to nhất của nó (Chi phí xin, Chi
+       phí thực tế) do MÁY CHỦ cộng, mà nay phép cộng ấy nhận thêm tham số khối. Đứng ở Tổng quan
+       bấm sang MTĐ mà không hỏi lại máy chủ là mấy thẻ tiền vẫn là số của KVC. */
+    try{ if(typeof loadTongQuan==='function' && CUR_PAGE==='tongquan') loadTongQuan(); }catch(e){}
     var d=_myDons();
     if(el('donSel')) el('donSel').innerHTML='<option value="">— Chọn đơn —</option>'+d.map(function(x){
       return '<option value="'+esc(x.maDon)+'">'+esc(x.ky||x.maDon)+(x.coso?' · '+esc(x.coso):'')+(x.nguoiLap?' · '+esc(x.nguoiLap):'')+' · '+esc(x.trangThai)+' · CL '+money(x.chenhLech)+'đ</option>';}).join('');
@@ -5156,7 +5160,10 @@
     var box=el('acctInboxCard'); if(!box) return;
     if(!isAcct){ box.style.display='none'; return; }
     boot(function(){
-      var donPend=(BOOT.dons||[]).filter(function(d){ return ['Chờ duyệt tạm ứng','Chờ cấp tạm ứng','Chờ quyết toán'].indexOf(d.trangThai)>=0; });
+      /* ⚠️ `_hopKhoi` ĐỨNG TRƯỚC phép lọc trạng thái, không phải thêm cho đủ: hộp này là thứ
+         kế toán nhìn đầu tiên mỗi sáng, bày đơn của mảng khác vào đây là họ bấm Mở rồi rơi
+         sang một tab không thuộc về mình. Xem chốt dài ở `loadTongQuan()` ngay dưới. */
+      var donPend=(BOOT.dons||[]).filter(_hopKhoi).filter(function(d){ return ['Chờ duyệt tạm ứng','Chờ cấp tạm ứng','Chờ quyết toán'].indexOf(d.trangThai)>=0; });
       google.script.run.withSuccessHandler(function(r){
         var rows=[];
         // Đưa về ĐÚNG TAB làm được việc đó. Tab Duyệt tạm ứng nay chỉ còn khâu tạm ứng, nên
@@ -5164,7 +5171,7 @@
         donPend.forEach(function(d){ rows.push({module:'Đơn vận hành', icon:'📝',
           tab:(d.trangThai==='Chờ quyết toán'?'qt':'duyet'),
           ma:d.maDon, ten:(d.ky||'')+' · '+(d.nguoiLap||''), phu:'', nguoi:d.nguoiLap||'', ngay:d.ky||'', soTien:Number(d.tamUng)||Number(d.thucChiCN)||0, trangThai:d.trangThai}); });
-        ((r&&r.items)||[]).forEach(function(m){ rows.push(m); });
+        ((r&&r.items)||[]).filter(_hopKhoi).forEach(function(m){ rows.push(m); });
         if(!rows.length){ box.style.display='none'; return; }
         box.style.display='';
         if(el('acctInboxCount')) el('acctInboxCount').textContent=rows.length+' mục cần xem';
@@ -5193,7 +5200,7 @@
     // Khối Kỹ thuật (Setup/Tháo dỡ): hiện cho quản lý/admin/kế toán + NV bộ phận Kỹ thuật
     var showKT=(role!=='Nhân viên')||(_bpCuaToi()==='Kỹ thuật');
     if(el('tqKtCard')) el('tqKtCard').style.display=showKT?'':'none';
-    if(showKT) google.script.run.withSuccessHandler(function(kr){ if(kr&&kr.success) renderKyThuatTongQuan(kr.items||[]); }).withFailureHandler(function(){}).listDuAn();
+    if(showKT) google.script.run.withSuccessHandler(function(kr){ if(kr&&kr.success) renderKyThuatTongQuan(kr.items||[]); }).withFailureHandler(function(){}).listDuAn();   // lọc khối nằm trong `renderKyThuatTongQuan`
     google.script.run.withSuccessHandler(function(r){
       if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi tải tổng quan'); return; }
       BOOT.soDuDauKy=Number(r.soDuDauKy)||0;   // giữ đồng bộ để Đối chiếu quỹ (Quyết toán) dùng số mới nhất
@@ -5202,7 +5209,7 @@
       el('tqKy').innerHTML='<option value="all">Tất cả kỳ</option>'+(r.kyList||[]).map(function(k){return '<option'+(k===cur?' selected':'')+'>'+esc(k)+'</option>';}).join('');
       renderTQView(r);
     }).withFailureHandler(function(e){ toast('err',e.message); })
-      .getFinanceReport({ ky:el('tqKy').value, tt:el('tqTT').value, coso:scope });
+      .getFinanceReport({ ky:el('tqKy').value, tt:el('tqTT').value, coso:scope, khoi:KHOI_DANG });
   }
   function saveSoDuDauKy(){
     if(!(CURUSER&&(_vaiLuat()==='Admin'||_vaiLuat()==='Quản lý'))){ toast('err','Chỉ Admin/Quản lý được đặt số dư đầu kỳ'); return; }
@@ -5214,6 +5221,20 @@
   }
   // Khối Kỹ thuật trên Tổng quan: cơ sở/gian đã Setup & Tháo dỡ + chi phí cơ sở chung
   function renderKyThuatTongQuan(items){
+    /* ═════════════════════════════════════════════════════════════════════════════════
+     * TỔNG QUAN CŨNG LỌC KHỐI — anh Thắng 21/09/2026: *"Bộ Phận MTD đang nhìn thấy dữ liệu cơ
+     * sở KVC"*, kèm ảnh thẻ "Chi phí Kỹ thuật" liệt kê NHÀ MA PHAN VĂN TRỊ · FUNZONE · TÀU
+     * ESTELLA — toàn gian khu vui chơi — trong lúc thanh khối đang đứng ở Máy tự động.
+     *
+     * 🔴 LỖI CỦA EM, VÀ LỖI KIỂU "QUÊN MỘT CHỖ". `loadDuAn()` lọc `DA_ITEMS` bằng `_hopKhoi`
+     *    từ 1.242.0, nhưng Tổng quan gọi THẲNG `listDuAn()` một lần nữa rồi vẽ nguyên si. Hai
+     *    người gọi cùng một API, chỉ một người lọc — nên bịt ở chỗ VẼ (đây) chứ không ở chỗ
+     *    gọi: thêm người gọi thứ ba thì họ cũng được lọc sẵn, khỏi phải nhớ.
+     *
+     * ⚠️ Dự án chưa đóng dấu khối vẫn hiện — cùng luật với `_hopKhoi()` ở mọi màn khác: ẩn một
+     *    bản ghi lọt lưới là tiền có thật mà không tab nào thấy.
+     * ═════════════════════════════════════════════════════════════════════════════════ */
+    items=(items||[]).filter(_hopKhoi);
     var setup=items.filter(function(x){return x.loai==='Setup lắp đặt';});
     var thao =items.filter(function(x){return x.loai==='Tháo dỡ';});
     var coso =items.filter(function(x){return x.loai==='Chi phí cơ sở';});
