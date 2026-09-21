@@ -70,3 +70,24 @@ phân vùng** — muốn đổi phải nạp USB lại toàn bộ máy.
 
 Nối WiFi `ChamCong-<tên cơ sở>` → mở `192.168.4.1`. Chip chưa cấu hình thì AP **mở, không mật khẩu**
 để còn vào khai được; khai xong mật khẩu AP thì lần sau AP có khoá.
+
+---
+
+## Ngoài firmware: web Chi Phí Cơ Sở trên WordPress
+
+Thư mục `wordpress/vhcp-chi-phi/` là **plugin WordPress** dựng lại app *Chi Phí Cơ Sở / Vận Hành
+Chi Phí* (bản Google Apps Script cũ) để chạy trực tiếp trên hosting, dữ liệu nằm trong bảng MySQL
+riêng thay vì Google Sheet. File cài đặt sẵn: `dist/vhcp-chi-phi.zip`.
+
+Hướng dẫn cài + mang dữ liệu cũ sang: [`docs/HUONG-DAN-CAI-DAT-WORDPRESS.md`](docs/HUONG-DAN-CAI-DAT-WORDPRESS.md).
+
+Đơn của bộ phận **Kỹ thuật** đi một luồng khác hẳn đơn tuần của cơ sở — một dự án là một đơn,
+trong đó có nhiều *lệnh* tạm ứng và quyết toán. Xem
+[`docs/DON-DU-AN-KY-THUAT.md`](docs/DON-DU-AN-KY-THUAT.md).
+
+```bash
+bash tools/build-plugin-zip.sh    # đóng gói lại plugin
+php tools/test/test-flows.php     # 300 phép thử logic, không cần WordPress/MySQL
+php tools/test/bench-queries.php  # đếm lệnh DB từng màn hình, đỏ nếu có chỗ đọc lặp
+bash tools/deploy-hosting.sh      # đẩy lên hosting qua SSH/FTP (chạy ở máy có mạng vào hosting)
+```

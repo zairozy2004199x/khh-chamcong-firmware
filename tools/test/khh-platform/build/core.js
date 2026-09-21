@@ -633,7 +633,8 @@ var IC={
   square:'<circle cx="10" cy="6.4" r="2.4"/><path d="M4.5 16.5c0-3 2.5-4.6 5.5-4.6s5.5 1.6 5.5 4.6"/><path d="M15.5 4.5h2.2M16.6 3.4v2.2"/>',
   booking:'<rect x="3" y="5" width="14" height="12" rx="1.5"/><path d="M3 9h14M7 3.5v3M13 3.5v3"/><path d="M6.5 12.5h3.5M6.5 14.8h6"/>',
   camera:'<path d="M3.5 6.5h3l1-1.6h5l1 1.6h3a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1Z"/><circle cx="10" cy="11" r="2.8"/>',
-  shield:'<path d="M10 3 4.5 5.2v4.3c0 3.4 2.3 6.5 5.5 7.5 3.2-1 5.5-4.1 5.5-7.5V5.2Z"/><path d="M7.6 10.2 9.4 12l3.2-3.4"/>'
+  shield:'<path d="M10 3 4.5 5.2v4.3c0 3.4 2.3 6.5 5.5 7.5 3.2-1 5.5-4.1 5.5-7.5V5.2Z"/><path d="M7.6 10.2 9.4 12l3.2-3.4"/>',
+  report:'<path d="M3.5 16.5h13"/><rect x="5" y="9" width="2.6" height="5.5" rx=".8"/><rect x="9" y="5.5" width="2.6" height="9" rx=".8"/><rect x="13" y="11.5" width="2.6" height="3" rx=".8"/>'
 };
 APP.icon=function(n,cls){return '<svg class="'+(cls||'ic')+'" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'+(IC[n]||'')+'</svg>'};
 
@@ -751,20 +752,109 @@ document.addEventListener('click',clearTip,true);
 document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeMenu();document.body.classList.remove('notif-open')}});
 W.addEventListener('resize',closeMenu);
 
+/* Hồ sơ nhân sự của chính người đang đăng nhập.
+   Ưu tiên mã do WordPress ghi sẵn (KH_API.staffId): tên hiển thị hay bị gõ lệch dấu
+   hoặc trùng nhau giữa hai người, dò theo tên là có lúc mở nhầm hồ sơ người khác. */
+function hoSoCuaToi(){
+  var api=W.KH_API;
+  if(api&&api.staffId){var s=APP.find('staff',api.staffId);if(s)return s}
+  return APP.staffByName(S.me)}
+
+var TT_NV={active:'Đang làm việc',probation:'Thử việc',left:'Đã nghỉ'};
+/* Các dòng hồ sơ cho người ta tự xem. Cố ý KHÔNG có ngày sinh, hôn nhân, mã số thuế,
+   số sổ BHXH, ngân hàng: chủ hồ sơ đã biết, bày ra chỉ thêm rủi ro khi ai đó ngó màn hình. */
+var DONG_HS=[
+  ['code','Mã nhân sự'],['title','Chức danh'],['dept','Bộ phận'],['unit','Mảng kinh doanh'],
+  ['office','Cơ sở'],['area','Khu vực / Chuyên môn'],['manager','Quản lý trực tiếp'],
+  ['start','Ngày vào làm','date'],['official','Ngày chính thức','date'],
+  ['worktime','Lịch làm việc'],['contract','Hợp đồng'],['contractAt','Ngày ký hợp đồng','date'],
+  ['leaveLeft','Phép còn lại','ngay'],['email','Email'],['phone','Điện thoại']];
+
+function dongHoSo(k,lab,kieu,s){
+  var v=s[k];
+  if(v===''||v==null)return '';
+  var txt;
+  if(kieu==='date')txt=fmtD(v);
+  else if(kieu==='ngay')txt=Number(v)+' ngày';
+  else if(kieu==='tien')txt=money(v);
+  else txt=String(v);
+  if(!txt)return '';
+  return '<div class="metarow"><span class="k">'+esc(lab)+'</span><span class="v">'+esc(txt)+'</span></div>'}
+
+function khoiHoSo(){
+  var api=W.KH_API;
+  if(!api||!api.tuXem)return '';
+  var s=hoSoCuaToi();
+  if(!s)
+    return '<p class="by" style="margin-top:12px">Chưa tìm thấy hồ sơ nhân sự gắn với tài khoản này. '+
+      'Nhờ văn phòng mở ứng dụng Hồ sơ nhân sự và gắn giúp.</p>';
+  var rows=DONG_HS.map(function(d){return dongHoSo(d[0],d[1],d[2],s)}).join('');
+  if(api.xemLuong)rows+=dongHoSo('salary','Lương cơ bản','tien',s)+dongHoSo('allowance','Phụ cấp','tien',s);
+  rows+='<div class="metarow"><span class="k">Tình trạng</span><span class="v">'+
+    esc(TT_NV[s.status||'active']||'Đang làm việc')+'</span></div>';
+  return '<p class="sect-t" style="margin:14px 0 4px">Hồ sơ nhân sự của bạn</p>'+rows+
+    '<p class="by" style="margin-top:8px">Chỉ để xem. Thấy sai chỗ nào thì báo văn phòng sửa trong '+
+    'ứng dụng Hồ sơ nhân sự — sửa ở đó thì bảng công, phép và lương mới khớp theo.</p>'}
+
+/* Đổi mật khẩu của chính mình. Máy chủ mới là nơi kiểm thật (mật khẩu hiện tại, độ dài,
+   khoá sau 5 lần sai); phía này chỉ chặn sớm mấy lỗi gõ cho đỡ mất một vòng gọi. */
+function doiMatKhau(){
+  var api=W.KH_API,min=Number(api.mkMin)||8,dang=false,hop;
+  /* Đọc thẳng từ ô nhập chứ không qua vals(): vals() cắt dấu cách hai đầu, mà dấu cách
+     cũng là một phần của mật khẩu — cắt đi là gõ đúng vẫn báo sai, không ai đoán ra vì sao. */
+  function raw(k){var el=hop&&hop.api.el(k);return el?el.value:''}
+  hop=APP.form({title:'Đổi mật khẩu',saveLabel:'Đổi mật khẩu',
+    note:'Nhập đúng mật khẩu hiện tại thì mới đổi được. Đổi xong, những máy khác đang mở tài khoản này phải đăng nhập lại.',
+    fields:[{k:'cu',label:'Mật khẩu hiện tại',type:'password',required:true},
+            {k:'moi',label:'Mật khẩu mới',type:'password',required:true,half:true,hint:'Tối thiểu '+min+' ký tự'},
+            {k:'lai',label:'Nhập lại mật khẩu mới',type:'password',required:true,half:true}],
+    onSave:function(){
+      if(dang)return false;
+      var cu=raw('cu'),moi=raw('moi'),lai=raw('lai');
+      if(moi.length<min){toast('Mật khẩu mới phải từ '+min+' ký tự trở lên.',true);return false}
+      if(moi!==lai){toast('Hai ô mật khẩu mới chưa giống nhau.',true);return false}
+      if(moi===cu){toast('Mật khẩu mới trùng mật khẩu cũ.',true);return false}
+      dang=true;
+      fetch(wpUrl('doi-mat-khau',''),{method:'POST',credentials:'same-origin',
+          headers:wpHeaders(true),body:JSON.stringify({cu:cu,moi:moi})})
+        .then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j}},
+                                               function(){return {ok:r.ok,j:null}})})
+        .then(function(x){
+          dang=false;
+          if(x.ok&&x.j&&x.j.ok){
+            hop.close();
+            toast('Đã đổi mật khẩu. Đang tải lại trang…');
+            /* Mật khẩu mới làm mã chống giả mạo của phiên này hết hiệu lực — tải lại
+               trang để xin mã mới, không thì mọi thao tác sau đó đều bị máy chủ từ chối. */
+            if(x.j.taiLai)setTimeout(function(){W.location.reload()},900);
+            return}
+          toast((x.j&&x.j.message)||'Chưa đổi được mật khẩu.',true)},
+        function(){dang=false;toast('Mất kết nối máy chủ — chưa đổi được mật khẩu.',true)});
+      /* Giữ hộp thoại mở tới khi máy chủ trả lời: gõ sai mật khẩu hiện tại mà hộp đóng mất
+         thì người dùng phải gõ lại từ đầu cả ba ô. */
+      return false}})}
+
 function meDialog(){
   if(W.KH_API&&W.KH_API.me){
     var api=W.KH_API;
+    var acts=[];
+    /* Vào bằng mã PIN thì không có tên đăng nhập, mà đổi mật khẩu lại cần mật khẩu
+       hiện tại — người dùng không nhớ nổi, nên giấu nút đi thay vì để họ bấm rồi hỏng. */
+    if(api.tuDoiMk&&api.login)acts.push({label:'Đổi mật khẩu',cls:'ghost',fn:function(){
+      setTimeout(doiMatKhau,0)}});
+    if(api.out)acts.push({label:'Thoát',cls:'ghost danger',fn:function(){
+      if(!confirm('Thoát khỏi nền tảng trên máy này?'))return false;
+      W.location.href=api.out}});
     APP.form({title:'Tài khoản của bạn',fields:[],cancelLabel:'Đóng',
       extra:'<div style="display:flex;gap:12px;align-items:center">'+av(S.me,'xl')+
         '<div><div style="font-size:15px;font-weight:500">'+esc(S.me)+'</div>'+
         '<div class="by">'+esc(S.role||'')+'</div>'+
         (api.login?'<div class="by">Tên đăng nhập: <b>'+esc(api.login)+'</b></div>':'')+
         '<div style="margin-top:6px"><span class="chip vio">'+esc(APP.roleLabel())+'</span></div></div></div>'+
+        khoiHoSo()+
         '<p class="by" style="margin-top:12px">Tên và quyền lấy từ tài khoản WordPress đang đăng nhập. '+
         'Muốn đổi quyền thì sửa vai trò người dùng trong WordPress.</p>',
-      actions:api.out?[{label:'Thoát',cls:'ghost danger',fn:function(){
-        if(!confirm('Thoát khỏi nền tảng trên máy này?'))return false;
-        W.location.href=api.out}}]:[]});
+      actions:acts});
     return}
   var names=APP.people();
   APP.form({title:'Bạn là ai?',

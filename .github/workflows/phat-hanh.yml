@@ -1,0 +1,118 @@
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+# PHÁT HÀNH — dựng .zip cài được rồi treo lên Releases.
+#
+# Anh Thắng 13/09/2026: *"cách kết nối github đẩy thẳng code wed lên"*.
+#
+# Trước đây mỗi bản mới phải: chờ có người dựng zip, gửi qua chat, anh tải về, vào wp-admin tải
+# lên. Bốn nhịp cho một việc. Từ nay đẩy mã lên là GitHub tự dựng zip và treo sẵn ở Releases;
+# plugin trên trang tự thấy và hiện nút "Cập nhật" như mọi plugin khác (xem lớp tự cập nhật
+# trong từng plugin).
+#
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+# 🔴 CHẠY BỘ THỬ TRƯỚC, KHÔNG SONG SONG.
+#    Phát hành một bản chưa qua bộ thử là mời người ta bấm Cập nhật lên một bản hỏng — mà trang
+#    ấy đang giữ sổ tiền thật. Bộ thử đỏ thì không có zip nào được dựng.
+#
+# 🔴 MỘT REPO, CHÍN PLUGIN -> TAG PHẢI MANG TÊN PLUGIN.
+#    `vhcp-chi-phi-v1.158.0`, `vhcp-cham-cong-v3.76.0`… Mỗi plugin chỉ nhìn tag mang tiền tố của
+#    chính nó, nên chín plugin sống chung một repo mà không ai tưởng bản của người khác là bản
+#    của mình. Dùng tag trần kiểu `v1.158.0` là đúng chỗ ấy hỏng.
+#
+# 🔴 CHỈ PHÁT HÀNH KHI SỐ PHIÊN BẢN ĐỔI. Số trong `Version:` của tệp plugin là nguồn thật duy
+#    nhất. Đẩy mười lượt mà không đổi số thì không có bản nào mọc ra — và cũng KHÔNG ghi đè bản
+#    đã phát hành, vì có thể có người vừa tải nó về.
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+name: Phát hành plugin
+
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'wordpress/**'
+      - 'tools/build-plugin-zip.sh'
+      - '.github/workflows/phat-hanh.yml'
+  workflow_dispatch:
+
+# Cần quyền ghi để tạo tag + release. Mặc định của GITHUB_TOKEN chỉ đọc.
+permissions:
+  contents: write
+
+jobs:
+  phat-hanh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # cần đủ lịch sử để tạo tag
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_sqlite, mbstring
+          coverage: none
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Python (bộ thử .py)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # 🔴 CHỐT DUY NHẤT TRƯỚC KHI PHÁT HÀNH. `chay-het.sh` gom cả ba bộ thử (PHP · JS · Python).
+      #    Đỏ một mục là cả lượt dừng, không zip nào được dựng.
+      - name: Bộ thử toàn bộ
+        run: bash tools/test/chay-het.sh
+
+      - name: Dò phiên bản, dựng zip, tạo Release cho plugin nào đổi số
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          co_ban_moi=0
+          for duong in wordpress/*/; do
+            thumuc="$(basename "$duong")"
+            chinh="$duong$thumuc.php"
+            [ -f "$chinh" ] || continue
+
+            # Số phiên bản là nguồn thật — đọc từ chính header WordPress đọc.
+            ver="$(grep -m1 -E '^\s*\*?\s*Version:' "$chinh" | sed -E 's/.*Version:[[:space:]]*//' | tr -d '[:space:]')"
+            [ -n "$ver" ] || { echo "· $thumuc — không đọc được Version, bỏ qua"; continue; }
+
+            tag="$thumuc-v$ver"
+            if gh release view "$tag" >/dev/null 2>&1; then
+              echo "· $thumuc $ver — đã phát hành rồi, bỏ qua"
+              continue
+            fi
+
+            echo "▸ $thumuc $ver — dựng zip"
+            # ⚠️ KHÔNG ĐỂ MỘT PLUGIN LÀM ĐỎ CẢ LƯỢT. Khoá của script đóng gói là tên thư mục đã
+            #    bỏ tiền tố "vhcp-", nhưng script chỉ nhận những khoá nó có khai (`vhcp-cong`
+            #    chẳng hạn thì chưa). Thư mục chưa được khai thì bỏ qua và NÓI RA, chứ chặn cả
+            #    lượt phát hành vì một plugin không ai đóng gói là hỏng việc của tám cái kia.
+            if ! bash tools/build-plugin-zip.sh "${thumuc#vhcp-}" >/dev/null 2>&1; then
+              echo "· $thumuc — tools/build-plugin-zip.sh chưa khai khoá '${thumuc#vhcp-}', bỏ qua"
+              continue
+            fi
+            [ -f "dist/$thumuc.zip" ] || { echo "· $thumuc — không thấy dist/$thumuc.zip, bỏ qua"; continue; }
+
+            ten="$(grep -m1 -E '^\s*\*?\s*Plugin Name:' "$chinh" | sed -E 's/.*Plugin Name:[[:space:]]*//')"
+            # Dòng tiêu đề của lượt commit gần nhất chạm vào plugin này — đủ để biết bản ấy làm gì.
+            mota="$(git log -1 --pretty=%s -- "$duong")"
+
+            # printf chứ không phải chuỗi nhiều dòng trong YAML: chuỗi nhiều dòng mang theo cả
+            # phần thụt lề của tệp workflow vào nội dung Release.
+            printf '%s\n\nCài: wp-admin → Plugin → Cài mới → Tải plugin lên → chọn tệp .zip bên dưới.\nHoặc bấm thẳng nút Cập nhật ở màn Plugin, nếu trang đã khai khoá GitHub.\n' \
+              "$mota" > /tmp/notes.md
+
+            gh release create "$tag" "dist/$thumuc.zip" \
+              --title "$ten $ver" \
+              --notes-file /tmp/notes.md \
+              --target "$GITHUB_SHA"
+            co_ban_moi=1
+          done
+
+          if [ "$co_ban_moi" = "0" ]; then
+            echo "Không plugin nào đổi số phiên bản — không phát hành gì."
+          fi

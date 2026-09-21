@@ -30,3 +30,11 @@ token.txt
 # Bản build Arduino: rác 42MB, và .bin/.elf/.map chứa bí mật ở dạng chữ đọc được.
 esp32_*/build/
 */build/esp32.esp32.esp32/
+
+# Thông tin đăng nhập hosting để đẩy plugin — KHÔNG commit.
+tools/deploy-hosting.env
+
+# Bản đóng gói để cài lên hosting — sinh lại bằng `bash tools/build-plugin-zip.sh` bất cứ lúc nào.
+# Không commit: nó là sản phẩm build, mà commit .zip thì mỗi lần đóng gói lại là một bản nhị phân
+# mới trong lịch sử git, phình repo mà không đọc diff được.
+dist/

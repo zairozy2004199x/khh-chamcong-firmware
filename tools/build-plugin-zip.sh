@@ -1,0 +1,166 @@
+#!/usr/bin/env bash
+# Đóng gói plugin thành file .zip cài được qua wp-admin (Plugin → Cài mới → Tải plugin lên).
+#
+#   bash tools/build-plugin-zip.sh            -> đóng gói CẢ BA plugin
+#   bash tools/build-plugin-zip.sh chi-phi    -> chỉ Vận Hành Chi Phí
+#   bash tools/build-plugin-zip.sh hop-dong   -> chỉ Thư Viện Hợp Đồng
+#   bash tools/build-plugin-zip.sh cham-cong  -> chỉ Chấm Công
+#   bash tools/build-plugin-zip.sh cc-app     -> chỉ App Chấm Công (lớp vỏ PWA)
+#   bash tools/build-plugin-zip.sh ghe        -> chỉ Ghế Massage
+#   bash tools/build-plugin-zip.sh noi-bo     -> chỉ Nội Bộ K&H
+#   bash tools/build-plugin-zip.sh du-an      -> chỉ Dự Án & Tiến Độ K&H
+#   bash tools/build-plugin-zip.sh doanh-thu  -> chỉ Báo Cáo Doanh Thu FABi
+#   bash tools/build-plugin-zip.sh khh-platform -> chỉ Nền tảng K&H
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Nơi bản cài đi ra. Mặc định là `dist/` — thứ được commit và gửi tới hosting.
+#
+# 🔴 BỘ THỬ PHẢI ĐẶT `VHCP_DIST_DIR` SANG THƯ MỤC TẠM. `test-cham-cong.php` gọi trình này để
+#    soát danh sách tệp trong bản cài; ghi đè thẳng lên `dist/` thì mỗi lượt chạy thử để lại
+#    một `dist/*.zip` khác byte (nội dung y hệt, chỉ khác dấu thời gian bên trong) — vừa làm
+#    cây thư mục bẩn sau mỗi lần chạy, vừa hỏng đúng chỗ `chay-het.sh` đang canh: phép "soát
+#    bản cài trong dist/" cố ý soi ĐÚNG TỆP SẼ ĐƯỢC COMMIT, chứ không soi cái trình đóng gói
+#    vừa dựng lại. Bị ghi đè thì từ lượt sau nó soi một tệp do chính bộ thử tạo ra, và phép
+#    canh ấy mất hết ý nghĩa — đúng cái bẫy mà khối chú thích ở đầu `chay-het.sh` kể lại.
+OUT="${VHCP_DIST_DIR:-$ROOT/dist}"
+CHON="${1:-tatca}"
+
+dong_goi() {
+  local ten="$1" thumuc="$2"
+  local SRC="$ROOT/wordpress/$thumuc"
+  local ZIP="$OUT/$thumuc.zip"
+
+  [ -f "$SRC/$thumuc.php" ] || { echo "Không thấy $SRC/$thumuc.php"; exit 1; }
+
+  # Kiểm cú pháp PHP trước khi đóng gói — thà báo lỗi ở đây hơn là trên hosting.
+  if command -v php >/dev/null 2>&1; then
+    while IFS= read -r f; do php -l "$f" >/dev/null || { echo "Lỗi cú pháp: $f"; exit 1; }; done \
+      < <(find "$SRC" -name '*.php')
+  fi
+
+  mkdir -p "$OUT"
+  rm -f "$ZIP"
+  # ⚠️ BỎ `goc/` ra khỏi bản cài — bản gốc Code.gs + Index.html giữ để lập bản đồ nghiệp vụ
+  #    (1,3 MB), KHÔNG chạy gì trên hosting. Để nó trong plugin là nó nằm dưới
+  #    wp-content/plugins/… và ĐỌC ĐƯỢC TỪ WEB bằng một địa chỉ đoán ra được — tức công bố toàn
+  #    bộ cấu trúc bảng, danh sách PIN bị chặn và cách tính lương của cả chuỗi, để đổi lấy đúng
+  #    con số không. Ai cần thì lấy trong repo.
+  #
+  # 🔴 `apps-script/` thì PHẢI GIỮ, dù nó cũng chỉ để dán tay. Bản đầu bỏ luôn cả nó, và đó là
+  #    lỗi: `VHCC_Trang::ds_ham()` ĐỌC `apps-script/cau-noi.gs` lúc chạy để lấy danh sách hàm
+  #    giao diện, còn màn Cài đặt hiện nội dung file đó cho anh Thắng copy. Thiếu file thì trang
+  #    chấm công báo "CC_CHO_PHEP còn RỖNG" — một câu chỉ sai hướng hoàn toàn, vì bên Apps
+  #    Script danh sách vẫn đủ 23 hàm. Mấy tệp .gs này không chứa bí mật nào (khoá nằm trong
+  #    Script Properties và wp-config.php), nên đọc được từ web cũng không mất gì.
+  #    Mục 37 của bộ thử canh: mọi đường `VHCC_DIR . '…'` mã có đọc thì phải CÓ TRONG ZIP.
+  ( cd "$(dirname "$SRC")" && zip -qr "$ZIP" "$(basename "$SRC")" \
+      -x '*/.git/*' -x '*/.DS_Store' -x '*/node_modules/*' \
+      -x "$(basename "$SRC")/goc/*" )
+
+  echo "Đã tạo: $ZIP  ($ten)"
+  if command -v du >/dev/null 2>&1; then du -h "$ZIP"; fi
+}
+
+case "$CHON" in
+  trang-chu) dong_goi "Trang Vận Hành K&H" vhcp-trang-chu ;;
+  chi-phi)  dong_goi "Vận Hành Chi Phí" vhcp-chi-phi ;;
+  # ── BẢN CHI PHÍ RIÊNG CHO MỘT VÙNG (sinh bằng tools/tach-ban-vung.sh) ──────────────────────
+  # Nhận `chi-phi-<mã vùng>`: chi-phi-hn, chi-phi-dn… Không khai cứng từng vùng ở đây — thêm một
+  # vùng là thêm một dòng phải nhớ sửa, và lần quên nào cũng là "không đóng gói được" giữa lúc
+  # cần bản cài. Tên hiển thị lấy từ chính `Plugin Name:` trong tệp gốc plugin, nên nó luôn khớp
+  # với thứ WordPress bày ra ở màn Plugin.
+  chi-phi-*)
+    _tm="wordpress/vhcp-$CHON"
+    [ -d "$_tm" ] || { echo "✗ Chưa có $_tm — sinh trước bằng: bash tools/tach-ban-vung.sh ${CHON#chi-phi-}"; exit 2; }
+    _ten="$(sed -n 's/^ \* Plugin Name:[[:space:]]*//p' "$_tm/vhcp-$CHON.php" | head -1)"
+    dong_goi "${_ten:-Vận Hành Chi Phí ($CHON)}" "vhcp-$CHON"
+    ;;
+  hop-dong) dong_goi "Thư Viện Hợp Đồng" vhcp-hop-dong ;;
+  cham-cong) dong_goi "Chấm Công" vhcp-cham-cong ;;
+  cc-app)    dong_goi "App Chấm Công K&H" vhcp-cc-app ;;
+  ghe)       dong_goi "Ghế Massage" vhcp-ghe ;;
+  noi-bo)    dong_goi "Nội Bộ K&H" vhcp-noi-bo ;;
+  du-an)     dong_goi "Dự Án & Tiến Độ K&H" vhcp-du-an ;;
+  doanh-thu) dong_goi "Báo Cáo Doanh Thu FABi" khh-doanh-thu ;;
+  khh-platform) dong_goi "Nền tảng K&H" khh-platform ;;
+  tatca)
+    dong_goi "Trang Vận Hành K&H" vhcp-trang-chu
+    dong_goi "Vận Hành Chi Phí" vhcp-chi-phi
+    dong_goi "Thư Viện Hợp Đồng" vhcp-hop-dong
+    dong_goi "Chấm Công" vhcp-cham-cong
+    dong_goi "App Chấm Công K&H" vhcp-cc-app
+    dong_goi "Ghế Massage" vhcp-ghe
+    dong_goi "Nội Bộ K&H" vhcp-noi-bo
+    dong_goi "Dự Án & Tiến Độ K&H" vhcp-du-an
+    # ── MỌI BẢN CHI PHÍ RỜI, DÒ THEO THƯ MỤC ────────────────────────────────────────────────
+    # 🔴 DÒ, KHÔNG LIỆT KÊ. Anh Thắng 14/09/2026 tách mỗi mảng kinh doanh một trang; số bản rời
+    #    nay là ba và sẽ còn thêm. Gõ tay từng dòng ở đây thì mảng thứ tư sinh ra tháng sau lại
+    #    thiếu bản cài đúng lúc cần — mà "thiếu bản cài" chỉ lộ ra khi người ta đang chờ để cài.
+    for _d in "$ROOT"/wordpress/vhcp-chi-phi-*/; do
+      [ -d "$_d" ] || continue
+      _t="$(basename "$_d")"
+      [ -f "$_d/$_t.php" ] || continue
+      _n="$(sed -n 's/^ \* Plugin Name:[[:space:]]*//p' "$_d/$_t.php" | head -1)"
+      dong_goi "${_n:-$_t}" "$_t"
+    done
+    dong_goi "Báo Cáo Doanh Thu FABi" khh-doanh-thu
+    dong_goi "Nền tảng K&H" khh-platform
+    ;;
+  # ══════════════════════════════════════════════════════════════════════════════════════════
+  # 🔴 NHẬN LUÔN TÊN THƯ MỤC LÀM KHOÁ — vì luồng phát hành gọi bằng tên thư mục.
+  #
+  # `.github/workflows/phat-hanh.yml` gọi `build-plugin-zip.sh "${thumuc#vhcp-}"`. Với bộ nào tên
+  # thư mục bắt đầu bằng `vhcp-` thì ra đúng khoá gõ tay ở trên; còn `khh-doanh-thu` KHÔNG có tiền
+  # tố ấy nên nó truyền nguyên `khh-doanh-thu`, mà khoá gõ tay lại là `doanh-thu`.
+  #
+  # Hậu quả, im lặng suốt từ ngày bộ ấy ra đời: rơi vào nhánh "không hiểu tham số" -> workflow ghi
+  # một dòng "chưa khai khoá, bỏ qua" giữa log rồi đi tiếp -> `khh-doanh-thu` KHÔNG CÓ LẤY MỘT TAG
+  # NÀO trên Releases, và bộ tự cập nhật của nó (đọc Releases) chưa bao giờ thấy bản mới. Không ai
+  # phát hiện vì luồng vẫn xanh: nó "bỏ qua" chứ không "hỏng".
+  #
+  # ⚠️ `khh-platform` không dính vì lúc thêm bộ ấy có khai đúng khoá `khh-platform`. Tức là cái bẫy
+  #    này chỉ rình những bộ KHÔNG mang tiền tố `vhcp-` — sẽ còn bộ nữa.
+  # ⚠️ Chốt chống sót bên dưới KHÔNG bắt được ca này: nó soát "thư mục có được đóng gói ở đâu đó
+  #    không", còn đây là "khoá workflow truyền vào có tra ra không" — hai câu hỏi khác nhau.
+  # ══════════════════════════════════════════════════════════════════════════════════════════
+  *)
+    # Thử CẢ HAI hình dạng: tên thư mục nguyên vẹn (`khh-doanh-thu`) và tên đã bị workflow cắt
+    # tiền tố (`foo` -> `vhcp-foo`). Bộ vhcp-* nào mai này quên khai khoá gõ tay vẫn dựng được,
+    # thay vì lặng lẽ bị bỏ qua đúng như `khh-doanh-thu` đã bị.
+    _tt=""
+    if   [ -f "$ROOT/wordpress/$CHON/$CHON.php" ];           then _tt="$CHON"
+    elif [ -f "$ROOT/wordpress/vhcp-$CHON/vhcp-$CHON.php" ]; then _tt="vhcp-$CHON"
+    fi
+    if [ -n "$_tt" ]; then
+      _nn="$(sed -n 's/^ \* Plugin Name:[[:space:]]*//p' "$ROOT/wordpress/$_tt/$_tt.php" | head -1)"
+      dong_goi "${_nn:-$_tt}" "$_tt"
+    else
+      echo "Tham số không hiểu: $CHON (trang-chu | chi-phi | hop-dong | cham-cong | cc-app | ghe | noi-bo | du-an | doanh-thu | khh-platform | <tên thư mục> | tatca)"; exit 1
+    fi ;;
+esac
+
+# 🔴 CHỐT CHỐNG SÓT: thư mục plugin nào có trong cây mã mà không nằm trong danh sách trên thì
+# báo ra. Danh sách gõ tay ở đây đứng im trong khi cây mã đi tiếp — `vhcp-noi-bo` vừa suýt bị
+# bỏ quên đúng kiểu ấy. Cố ý KHÔNG đóng gói thì khai vào KHONG_DONG_GOI, để chỗ bỏ qua là một
+# quyết định có ghi lại, chứ không phải một chỗ sót.
+KHONG_DONG_GOI="vhcp-cong"   # bản viết lại 25/08 đã dừng — hệ đang chạy là vhcp-cham-cong
+if [ "$CHON" = "tatca" ]; then
+  for d in "$ROOT"/wordpress/*/; do
+    ten="$(basename "$d")"
+    [ -f "$d/$ten.php" ] || continue
+    case " $KHONG_DONG_GOI " in *" $ten "*) continue ;; esac
+    # Bản chi phí rời đã được vòng dò ở nhánh `tatca` đóng gói — chốt gõ tay không thấy chúng
+    # trong mã script nên sẽ kêu oan. Kêu oan vài lần là người ta thôi đọc cảnh báo.
+    case "$ten" in vhcp-chi-phi-*) continue ;; esac
+    grep -q "dong_goi \".*\" $ten\b" "${BASH_SOURCE[0]}" || echo "⚠️  CHƯA ĐÓNG GÓI: $ten (thêm vào tools/build-plugin-zip.sh, hoặc khai vào KHONG_DONG_GOI)"
+  done
+fi
+
+echo
+echo "Cài lên hosting: wp-admin → Plugin → Cài mới → Tải plugin lên → chọn file → Cài đặt → Kích hoạt."
+echo "Các plugin cài độc lập, cài cái nào trước cũng được."
+echo
+echo "Bản cài KHÔNG có goc/ (mã gốc để tra cứu, không chạy gì)."
+echo "apps-script/ thì CÓ, và phải có: plugin đọc cau-noi.gs lúc chạy để biết cầu nối cho gọi hàm nào."
+echo "Bỏ nó ra khỏi bản cài là trang chấm công báo \"CC_CHO_PHEP còn RỖNG\" — đã xảy ra một lần." 

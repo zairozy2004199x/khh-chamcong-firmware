@@ -1,0 +1,528 @@
+<?php
+/**
+ * LÕI BẢNG TIN — đăng bài, bình luận, thả tim, ghim.
+ *
+ * Hàm ở đây KHÔNG in ra gì và không đọc `$_POST` — nhận tham số, trả mảng. Nhờ vậy thử được
+ * bằng con số, không phải dựng cả trang.
+ */
+
+if ( ! defined( 'ABSPATH' ) ) { exit; }
+
+class VHNB_Bai {
+
+	/** Bài dài hơn ngần này thì cắt — một bài 50 nghìn ký tự làm hỏng cả trang tin của mọi người. */
+	const DAI_TOI_DA = 5000;
+	const BL_TOI_DA  = 1000;
+
+	/** Mỗi trang bao nhiêu bài. */
+	const MOI_TRANG = 20;
+
+	/** Mã người đăng của bài do HỆ THỐNG dựng — xem `dang_he_thong()`. Không trùng mã NV nào. */
+	const MA_HE_THONG = '__he_thong__';
+
+	/** Tên hiện dưới ô người đăng, theo nguồn. Nguồn lạ thì gọi chung là 'Hệ thống'. */
+	const NGUON_TEN = array(
+		'chi_phi'   => 'Vận hành chi phí',
+		'cham_cong' => 'Chấm công',
+		'ghe'       => 'Ghế massage',
+		've'        => 'Bán vé',
+	);
+
+	/* ==================================================================== đăng */
+
+	/**
+	 * Đăng một bài.
+	 *
+	 * 🔴 KHÔNG cho đăng bài rỗng, và KHÔNG cho đăng thay người khác: `$u` là người đang đăng
+	 *    nhập, mã và tên lấy TỪ ĐÓ chứ không nhận từ biểu mẫu. Nhận từ biểu mẫu là ai cũng đăng
+	 *    được bài mang tên giám đốc.
+	 */
+	public static function dang( $u, $noi_dung, $nhom = '', $nhom_id = 0, $anh = '' ) {
+		global $wpdb;
+		$ten = trim( (string) ( isset( $u['name'] ) ? $u['name'] : '' ) );
+		if ( '' === $ten ) { return array( 'ok' => false, 'error' => 'Chưa đăng nhập.' ); }
+		/* 🔴 GÁC QUYỀN Ở LÕI, cả ba cửa ghi (đăng · bình luận · thả tim). Màn hình có giấu ô
+		   soạn bài thì biểu mẫu POST vẫn dựng được từ bên ngoài — giấu là trang trí, chặn ở
+		   đây mới là chặn. Xem `VHNB_Quyen`. */
+		$_q = VHNB_Quyen::vi_sao_khong( $u, 'dang' );
+		if ( '' !== $_q ) { return array( 'ok' => false, 'error' => $_q ); }
+
+		/* 🔴 ĐĂNG VÀO NHÓM TỰ TẠO THÌ PHẢI LÀ THÀNH VIÊN — gác Ở ĐÂY, không gác ở màn hình.
+		   Màn hình chỉ liệt kê nhóm của mình, nhưng biểu mẫu POST thì ai dựng ở đâu cũng gửi
+		   lên được: không chặn tại lõi là đăng được bài vào nhóm mình chưa hề được mời. */
+		$nhom_id = (int) $nhom_id;
+		if ( $nhom_id > 0 ) {
+			if ( ! VHNB_Nhom::duoc_vao( $u, $nhom_id ) ) {
+				return array( 'ok' => false, 'error' => 'Anh/chị không ở trong nhóm này.' );
+			}
+			/* Bài của nhóm KHÔNG mang thêm nhãn bộ phận: một bài chỉ thuộc đúng một chỗ, nhận
+			   cả hai là nó vừa nằm trong nhóm kín vừa nằm ở bảng tin bộ phận. */
+			$nhom = '';
+		}
+
+		$nd = self::gon( $noi_dung, self::DAI_TOI_DA );
+		/* 🔴 CÓ ẢNH THÌ KHÔNG CÒN LÀ BÀI RỖNG. Chốt "bài rỗng thì chối" ở dưới viết từ hồi
+		   chưa có ảnh; giữ nguyên là đăng ảnh không kèm chữ bị chối, mà đó là cách người ta
+		   đăng ảnh nhiều nhất. */
+		$co_anh = VHNB_Anh::hop_le( $anh );
+		if ( '' === $nd && ! $co_anh ) {
+			return array( 'ok' => false, 'error' => 'Bài rỗng thì không ai đọc được gì — gõ vài chữ, hoặc đính một tấm ảnh.' );
+		}
+		$ok = $wpdb->insert( VHNB_DB::t( 'bai' ), array(
+			'nhom'     => self::chuan_nhom( $nhom ),
+			'nhom_id'  => $nhom_id,
+			'ma_nv'    => (string) ( isset( $u['ma_nv'] ) ? $u['ma_nv'] : '' ),
+			'ho_ten'   => $ten,
+			'vai_tro'  => (string) ( isset( $u['role'] ) ? $u['role'] : '' ),
+			'noi_dung' => $nd,
+			/* ⚠️ Chỉ nhận địa chỉ nằm trong thư mục tải lên của chính web này — xem
+			   `VHNB_Anh::hop_le()`. Không hợp lệ thì BỎ ẢNH, vẫn đăng bài: mất cái ảnh còn hơn
+			   mất cả bài, và người đăng thấy ngay là ảnh không lên. */
+			'anh'      => $co_anh ? (string) $anh : '',
+			'tao_luc'  => current_time( 'mysql' ),
+		) );
+		if ( false === $ok ) { return array( 'ok' => false, 'error' => 'MySQL: ' . $wpdb->last_error ); }
+		$id = (int) $wpdb->insert_id;
+
+		/* 🔴 CHỈ BÁO CHO NHÓM RIÊNG, KHÔNG BÁO CHO BÀI CHUNG.
+		   Bài ở Bảng tin thì cả công ty đọc được — báo cho 240 người mỗi lần ai đó đăng một
+		   dòng là chuông kêu suốt ngày và không ai mở nó nữa. Nhóm riêng thì khác: người ta vào
+		   nhóm để bàn một việc, và im lặng ở đó là bỏ lỡ việc ấy. */
+		if ( $nhom_id > 0 ) {
+			$n = VHNB_Nhom::mot( $nhom_id );
+			$tom = self::gon( $nd, 60 );
+			foreach ( VHNB_Nhom::ds_thanh_vien( $nhom_id ) as $tv ) {
+				VHNB_Bao::gui( (string) $tv['ma_nv'], 'noi_bo',
+					$ten . ' đăng trong nhóm "' . ( $n ? (string) $n['ten'] : '' ) . '": ' . $tom,
+					VHNB_Trang::url() . '?g=' . $nhom_id . '#bai' . $id,
+					'nhom_bai:' . $nhom_id,
+					(string) ( isset( $u['ma_nv'] ) ? $u['ma_nv'] : '' ) );
+			}
+		}
+		return array( 'ok' => true, 'id' => $id );
+	}
+
+	/**
+	 * ĐĂNG MỘT DÒNG DO HỆ THỐNG DỰNG — không có người đăng nhập nào ở đây.
+	 *
+	 * Anh Thắng 08/09/2026: *"khi có 1 giao dịch trên vận hành chi phí, chấm công, ghế thì hiện
+	 * thông báo lên trang nội bộ, cả thông báo và trong bảng tin"*.
+	 *
+	 * 🔴 KHÔNG ĐI QUA `dang()`, VÀ ĐÓ LÀ CỐ Ý. `dang()` đòi `$u['name']` rồi hỏi
+	 *    `VHNB_Quyen::vi_sao_khong()` — đúng cho người thật, nhưng ở đây không có người thật:
+	 *    lượt gọi đến từ plugin chi phí / chấm công / ghế trong lúc ai đó bấm nút bên ấy. Nhét
+	 *    một `$u` giả vào `dang()` để lách chốt quyền là mở sẵn đường cho lần sau ai cũng lách
+	 *    được. Nên tách hàm riêng, ghi thẳng, và KHÔNG nhận `$u` để không ai truyền vào được.
+	 *
+	 * 🔴 DANH TÍNH LÀ MỘT MÃ DÀNH RIÊNG, KHÔNG PHẢI MÃ RỖNG. `duoc_xoa()` có nhánh lui: mã rỗng
+	 *    thì so TÊN. Để `ma_nv` rỗng ở đây là một người chưa có mã, tên trùng nhãn nguồn, xoá
+	 *    được thông báo của hệ thống. Mã `__he_thong__` không trùng mã nhân viên nào nên chỉ
+	 *    Admin xoá được — không phải thêm luật mới, chỉ cần không tự mở lỗ.
+	 *
+	 * 🔴 KHÔNG RUNG CHUÔNG. Bài ở bảng tin thì cả công ty đọc được, và chuông riêng của từng
+	 *    người đã do `VHNB_Bao::gui()` lo — báo cả hai đường là mỗi giao dịch kêu hai lần.
+	 *    Cùng luật với bài chung ở `dang()`: bài chung không báo cho 240 người.
+	 *
+	 * ⚠️ `$khoa` RỖNG = MỖI LƯỢT MỘT BÀI. Chỉ dùng cho việc thật sự chỉ xảy ra một lần; ghế và
+	 *    chấm công thì BẮT BUỘC có khoá, không thì bảng tin thành cột số.
+	 * ⚠️ Gộp thì `tao_luc` ĐƯỢC ĐẨY LÊN MỚI NHẤT — cố ý. Không đẩy thì bài nằm im ở chỗ cũ và
+	 *    giao dịch mới không ai thấy, tức là gộp xong hoá ra bịt luôn tin. Đổi lại, mỗi nguồn
+	 *    chỉ chiếm ĐÚNG MỘT dòng gần đầu bảng tin, không phải vài chục dòng.
+	 *
+	 * @param string $nguon 'chi_phi' · 'cham_cong' · 'ghe' · 've' — chỉ để đặt tên người đăng.
+	 * @param string $chu   câu TRUNG TÍNH, do bên gửi viết. Xem cảnh báo ở `VHNB_Bao::viec()`.
+	 * @param string $khoa  khoá gộp. Bên gửi tự đặt, nên kèm ngày nếu muốn gộp theo ngày.
+	 * @param string $co_so cơ sở của giao dịch. Rỗng = không thuộc cơ sở nào (đơn chi phí gồm
+	 *                      nhiều cơ sở), lúc ấy ai qua được bậc là đọc được.
+	 * @return int|false id bài, hoặc false nếu không ghi được.
+	 */
+	public static function dang_he_thong( $nguon, $chu, $khoa = '', $co_so = '' ) {
+		global $wpdb;
+		$chu = self::gon( $chu, 300 );
+		if ( '' === $chu ) { return false; }
+
+		$nguon = trim( (string) $nguon );
+		$ten   = isset( self::NGUON_TEN[ $nguon ] ) ? self::NGUON_TEN[ $nguon ] : 'Hệ thống';
+		$t     = VHNB_DB::t( 'bai' );
+		$khoa  = self::gon( $khoa, 120 );
+
+		/* 🔴 CHỈ TỪ CỬA HÀNG TRƯỞNG TRỞ LÊN ĐỌC ĐƯỢC — anh Thắng 09/09/2026: *"nó sẽ hiện cho
+		   cửa hàng trưởng và quản lý trở lên xem chứ ngang hàng hoặc phía dưới sẽ không xem
+		   được"*. Bậc lấy từ `VHNB_Quyen` chứ không gõ số vào đây: Admin đổi được ở màn Cấu
+		   hình, và cả hệ chỉ có MỘT chỗ giữ luật.
+		   ⚠️ Bậc ghi vào TỪNG BÀI lúc đăng, không tra lại lúc đọc. Admin siết bậc lên sau này
+		      thì bài cũ vẫn ở bậc cũ — cố ý: đổi luật không được lặng lẽ viết lại quá khứ, mà
+		      dòng bảng tin thì gộp theo ngày nên hôm sau đã theo bậc mới. */
+		$bac_can = (int) VHNB_Quyen::bac_can( 'tin_gd' );
+		/* Chuẩn hoá bằng ĐÚNG hàm mà bên chấm công dùng để đọc cơ sở của người xem — hai bên
+		   phải ra cùng một chuỗi, không thì chốt so không bao giờ khớp và cửa hàng trưởng
+		   không thấy gì. Thiếu plugin chấm công thì để nguyên, chỉ cắt khoảng trắng. */
+		$co_so = trim( (string) $co_so );
+		if ( '' !== $co_so && class_exists( 'VHCC_NhanSu' )
+			&& method_exists( 'VHCC_NhanSu', 'chuan_coso' ) ) {
+			$co_so = (string) VHCC_NhanSu::chuan_coso( $co_so );
+		}
+		$co_so = self::gon( $co_so, 60 );
+
+		if ( '' !== $khoa ) {
+			$cu = $wpdb->get_row( $wpdb->prepare(
+				"SELECT id, so_lan FROM $t WHERE khoa=%s AND ma_nv=%s LIMIT 1",
+				$khoa, self::MA_HE_THONG ), ARRAY_A );
+			if ( $cu ) {
+				$n = (int) $cu['so_lan'] + 1;
+				$wpdb->update( $t, array(
+					'ho_ten'   => $ten,
+					'co_so'    => $co_so,
+					'noi_dung' => $chu . ' · ' . $n . ' lượt',
+					'so_lan'   => $n,
+					'tao_luc'  => current_time( 'mysql' ),
+				), array( 'id' => (int) $cu['id'] ) );
+				return (int) $cu['id'];
+			}
+		}
+
+		$ok = $wpdb->insert( $t, array(
+			'nhom'     => '',
+			'nhom_id'  => 0,
+			'ma_nv'    => self::MA_HE_THONG,
+			'ho_ten'   => $ten,
+			'vai_tro'  => 'Hệ thống',
+			'noi_dung' => $chu,
+			'anh'      => '',
+			'khoa'     => $khoa,
+			'so_lan'   => 1,
+			'bac_can'  => $bac_can,
+			'co_so'    => $co_so,
+			'tao_luc'  => current_time( 'mysql' ),
+		) );
+		return ( false === $ok ) ? false : (int) $wpdb->insert_id;
+	}
+
+	public static function binh_luan( $u, $bai_id, $noi_dung ) {
+		global $wpdb;
+		$ten = trim( (string) ( isset( $u['name'] ) ? $u['name'] : '' ) );
+		if ( '' === $ten ) { return array( 'ok' => false, 'error' => 'Chưa đăng nhập.' ); }
+		$_q = VHNB_Quyen::vi_sao_khong( $u, 'dang' );
+		if ( '' !== $_q ) { return array( 'ok' => false, 'error' => $_q ); }
+		$bai_id = (int) $bai_id;
+		if ( ! self::co_bai( $bai_id ) ) { return array( 'ok' => false, 'error' => 'Bài này không còn.' ); }
+		if ( ! self::doc_duoc( $u, $bai_id ) ) {
+			return array( 'ok' => false, 'error' => 'Bài này nằm trong nhóm anh/chị không ở trong.' );
+		}
+		$nd = self::gon( $noi_dung, self::BL_TOI_DA );
+		if ( '' === $nd ) { return array( 'ok' => false, 'error' => 'Bình luận rỗng.' ); }
+
+		$wpdb->insert( VHNB_DB::t( 'binh_luan' ), array(
+			'bai_id'   => $bai_id,
+			'ma_nv'    => (string) ( isset( $u['ma_nv'] ) ? $u['ma_nv'] : '' ),
+			'ho_ten'   => $ten,
+			'noi_dung' => $nd,
+			'tao_luc'  => current_time( 'mysql' ),
+		) );
+		self::dem_lai( $bai_id );
+		self::bao_ve_bai( $u, $bai_id, 'bl', 'bình luận bài của bạn' );
+		return array( 'ok' => true );
+	}
+
+	/**
+	 * Thả tim / bỏ tim — bấm lại là bỏ.
+	 *
+	 * ⚠️ Người CHƯA có mã nhân viên thì không thả tim được: khoá UNIQUE là (bài, mã), nên mọi
+	 *    người mã rỗng sẽ chung một ô — người thứ hai thả tim là ghi đè người thứ nhất. Nói
+	 *    thẳng ra còn hơn để con số nhảy lung tung.
+	 */
+	public static function tim( $u, $bai_id ) {
+		global $wpdb;
+		$ma = trim( (string) ( isset( $u['ma_nv'] ) ? $u['ma_nv'] : '' ) );
+		if ( '' === $ma ) {
+			return array( 'ok' => false,
+				'error' => 'Tài khoản này chưa có Mã NV nên chưa thả tim được — nhờ Admin khai giúp ở hồ sơ.' );
+		}
+		$_q = VHNB_Quyen::vi_sao_khong( $u, 'dang' );
+		if ( '' !== $_q ) { return array( 'ok' => false, 'error' => $_q ); }
+		$bai_id = (int) $bai_id;
+		if ( ! self::co_bai( $bai_id ) ) { return array( 'ok' => false, 'error' => 'Bài này không còn.' ); }
+		if ( ! self::doc_duoc( $u, $bai_id ) ) {
+			return array( 'ok' => false, 'error' => 'Bài này nằm trong nhóm anh/chị không ở trong.' );
+		}
+
+		$t  = VHNB_DB::t( 'tim' );
+		$cu = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $t WHERE bai_id=%d AND ma_nv=%s", $bai_id, $ma ) );
+		if ( $cu ) { $wpdb->delete( $t, array( 'id' => (int) $cu ) ); $co = false; }
+		else {
+			$wpdb->insert( $t, array( 'bai_id' => $bai_id, 'ma_nv' => $ma,
+				'tao_luc' => current_time( 'mysql' ) ) );
+			$co = true;
+		}
+		self::dem_lai( $bai_id );
+		/* Chỉ báo lúc THẢ, không báo lúc bỏ tim: bỏ tim là chuyện riêng của người bỏ. */
+		if ( $co ) { self::bao_ve_bai( $u, $bai_id, 'tim', 'thả tim bài của bạn' ); }
+		return array( 'ok' => true, 'da_tim' => $co );
+	}
+
+	/**
+	 * Xoá bài. Tác giả xoá bài của mình; Admin xoá được mọi bài.
+	 * Xoá bài thì xoá luôn bình luận và tim của nó — để lại là rác không ai với tới được.
+	 */
+	public static function xoa( $u, $bai_id ) {
+		global $wpdb;
+		$bai_id = (int) $bai_id;
+		$bai = $wpdb->get_row( $wpdb->prepare(
+			'SELECT * FROM ' . VHNB_DB::t( 'bai' ) . ' WHERE id=%d', $bai_id ), ARRAY_A );
+		if ( ! $bai ) { return array( 'ok' => false, 'error' => 'Bài này không còn.' ); }
+		if ( ! self::duoc_xoa( $u, $bai ) ) {
+			return array( 'ok' => false, 'error' => 'Chỉ người đăng hoặc Admin mới xoá được bài này.' );
+		}
+		$wpdb->delete( VHNB_DB::t( 'binh_luan' ), array( 'bai_id' => $bai_id ) );
+		$wpdb->delete( VHNB_DB::t( 'tim' ), array( 'bai_id' => $bai_id ) );
+		$wpdb->delete( VHNB_DB::t( 'bai' ), array( 'id' => $bai_id ) );
+		return array( 'ok' => true );
+	}
+
+	/** Ai xoá được bài này. Tách hàm để màn hình hỏi được TRƯỚC khi vẽ nút. */
+	public static function duoc_xoa( $u, $bai ) {
+		if ( self::la_admin( $u ) ) { return true; }
+		$ma = trim( (string) ( isset( $u['ma_nv'] ) ? $u['ma_nv'] : '' ) );
+		/* So bằng MÃ, không bằng tên: tên trùng nhau đầy. Mã rỗng thì lui về so tên — thà chặt
+		   hơn là để một người mã rỗng xoá bài của người mã rỗng khác. */
+		if ( '' !== $ma ) { return 0 === strcasecmp( $ma, (string) $bai['ma_nv'] ); }
+		return ( '' === trim( (string) $bai['ma_nv'] ) )
+			&& 0 === strcasecmp( (string) ( isset( $u['name'] ) ? $u['name'] : '' ), (string) $bai['ho_ten'] );
+	}
+
+	/** Ghim bài lên đầu — chỉ Admin. Thông báo của công ty phải nằm trên, không trôi mất. */
+	public static function ghim( $u, $bai_id, $bat = true ) {
+		global $wpdb;
+		if ( ! self::la_admin( $u ) ) {
+			return array( 'ok' => false, 'error' => 'Chỉ Admin mới ghim được bài.' );
+		}
+		$wpdb->update( VHNB_DB::t( 'bai' ), array( 'ghim' => $bat ? 1 : 0 ),
+			array( 'id' => (int) $bai_id ) );
+		return array( 'ok' => true );
+	}
+
+	/* ==================================================================== đọc */
+
+	/**
+	 * Bảng tin. Bài GHIM luôn nằm trên, rồi tới bài mới nhất.
+	 *
+	 * @param string $nhom '' = xem tất cả; tên bộ phận = chỉ bài của bộ phận đó (kèm bài chung).
+	 * @param array|null $u NGƯỜI ĐANG XEM — cần để lọc bài có `bac_can`. Không truyền = chỉ
+	 *                      bài công khai; xem khối 🔴 ngay dưới trước khi bỏ tham số này đi.
+	 */
+	public static function bang_tin( $nhom = '', $trang = 1, $nhom_id = 0, $u = null ) {
+		global $wpdb;
+		$t  = VHNB_DB::t( 'bai' );
+		$tr = max( 1, (int) $trang );
+		$bo = ( $tr - 1 ) * self::MOI_TRANG;
+		$nhom = self::chuan_nhom( $nhom );
+		$nhom_id = (int) $nhom_id;
+
+		/* =====================================================================================
+		 * 🔴 LỌC THEO BẬC NGAY TRONG CÂU SQL, KHÔNG LỌC Ở MÀN HÌNH
+		 * =====================================================================================
+		 * Anh Thắng 09/09/2026: thông báo giao dịch *"hiện cho cửa hàng trưởng và quản lý trở
+		 * lên xem chứ ngang hàng hoặc phía dưới sẽ không xem được"*.
+		 *
+		 * Cùng luật với `dang()`: giấu ở màn hình là TRANG TRÍ. Bảng tin còn có đường phân
+		 * trang `?tr=` và mấy đường JSON — lọc ở chỗ vẽ là chỉ cần đổi một tham số trên URL là
+		 * đọc được. Chặn ở đây thì mọi đường đọc đều đi qua.
+		 *
+		 * `bac_can = 0` là bài công khai, tức MỌI bài người thật viết — bảng tin vẫn là trang
+		 * chung của cả công ty, lượt này không siết gì thêm với họ.
+		 * Người xem không đo được bậc thì `bac_nguoi()` trả 0 và chỉ còn thấy bài công khai —
+		 * cố ý đóng, xem khối cảnh báo ở hàm ấy.
+		 *
+		 * ⚠️ Ghép TRỰC TIẾP con số vào câu, KHÔNG lồng thêm một `prepare()` nữa: mảnh câu do
+		 *    `prepare()` sinh ra mà đem nhét vào một `prepare()` khác là bị xử lý hai lần, và
+		 *    `%` trong đó hoá ra thứ khác. `(int)` đã chốt đây là một con số, không phải chữ
+		 *    của người dùng. */
+		$bac = (int) VHNB_Quyen::bac_nguoi( $u );
+		$loc = ' AND bac_can <= ' . $bac;
+
+		/* ---- CƠ SỞ: cửa hàng trưởng chỉ thấy cơ sở mình, Quản lý trở lên thấy tất cả ----
+		   Anh Thắng 09/09/2026. `co_so = ''` là dòng không thuộc cơ sở nào (đơn chi phí gồm
+		   nhiều cơ sở) — ai qua được `bac_can` là đọc được.
+		   ⚠️ Không đọc ra được cơ sở nào thì CHỈ còn dòng `co_so=''`, không phải thấy hết —
+		      cùng chiều đóng với `bac_nguoi()`. Người mới, người chưa gán cơ sở rơi vào đây.
+		   ⚠️ Tên cơ sở CÓ dấu cách và dấu ngoặc (`(PART TIME )_POSH+JP` là tên thật trong sổ),
+		      nên không lọc theo bộ ký tự được. Mỗi tên đi qua `prepare('%s')` để thành một
+		      hằng đã đóng nháy và đã thoát, rồi mới ghép vào câu — và câu ghép xong KHÔNG đi
+		      qua `prepare()` lần nữa (xem cảnh báo phía trên). */
+		if ( ! VHNB_Quyen::xem_het_coso( $u ) ) {
+			$hang = array();
+			foreach ( VHNB_Quyen::coso_nguoi( $u ) as $x ) {
+				$hang[] = $wpdb->prepare( '%s', $x );
+			}
+			$loc .= $hang
+				? " AND ( co_so = '' OR co_so IN (" . implode( ',', $hang ) . ') )'
+				: " AND co_so = ''";
+		}
+
+		/* LIMIT/OFFSET ghép bằng số đã ép `(int)`, cùng lý do: câu này không còn qua `prepare()`. */
+		$duoi = ' ORDER BY ghim DESC, tao_luc DESC, id DESC LIMIT ' . (int) self::MOI_TRANG
+			. ' OFFSET ' . (int) $bo;
+
+		/* 🔴 BÀI CỦA NHÓM TỰ TẠO KHÔNG BAO GIỜ LỌT RA BẢNG TIN CHUNG.
+		   Mọi đường đọc ở dưới đều chặn `nhom_id=0`, trừ đúng đường "đang mở một nhóm". Thiếu
+		   một chỗ là bài trong nhóm kín hiện ra ở màn "Tất cả" của cả công ty — và người viết
+		   không hề biết, vì họ đăng vào nhóm. */
+		if ( $nhom_id > 0 ) {
+			return VHNB_DB::rows( "SELECT * FROM $t WHERE nhom_id=" . (int) $nhom_id . $loc . $duoi );
+		}
+
+		/* Chọn một bộ phận thì VẪN thấy bài chung (`nhom=''`): thông báo toàn công ty mà biến
+		   mất chỉ vì đang lọc bộ phận thì lọc xong là bỏ sót đúng thứ quan trọng nhất. */
+		if ( '' !== $nhom ) {
+			$lit = $wpdb->prepare( '%s', $nhom );
+			return VHNB_DB::rows(
+				"SELECT * FROM $t WHERE nhom_id=0 AND ( nhom=$lit OR nhom='' )" . $loc . $duoi );
+		}
+		return VHNB_DB::rows( "SELECT * FROM $t WHERE nhom_id=0" . $loc . $duoi );
+	}
+
+	public static function ds_binh_luan( $bai_id ) {
+		global $wpdb;
+		return VHNB_DB::rows( $wpdb->prepare(
+			'SELECT * FROM ' . VHNB_DB::t( 'binh_luan' ) . ' WHERE bai_id=%d ORDER BY tao_luc ASC, id ASC',
+			(int) $bai_id ) );
+	}
+
+	/** Những bài mà người này ĐÃ thả tim — để vẽ trái tim đặc thay vì rỗng. */
+	public static function da_tim( $u, $ds_bai ) {
+		global $wpdb;
+		$ma = trim( (string) ( isset( $u['ma_nv'] ) ? $u['ma_nv'] : '' ) );
+		if ( '' === $ma || ! $ds_bai ) { return array(); }
+		$id = array();
+		foreach ( $ds_bai as $b ) { $id[] = (int) $b['id']; }
+		$cho = implode( ',', array_map( 'intval', $id ) );
+		$ra  = array();
+		foreach ( VHNB_DB::rows( $wpdb->prepare(
+			'SELECT bai_id FROM ' . VHNB_DB::t( 'tim' ) . " WHERE ma_nv=%s AND bai_id IN ($cho)", $ma ) ) as $r ) {
+			$ra[ (int) $r['bai_id'] ] = 1;
+		}
+		return $ra;
+	}
+
+	/* ==================================================================== phụ */
+
+	/**
+	 * Đếm LẠI tim và bình luận từ chính hai bảng kia, rồi ghi vào bài.
+	 *
+	 * 🔴 KHÔNG dùng `so_tim = so_tim + 1`. Cộng dồn thì chỉ cần một lượt ghi trượt (mạng đứt,
+	 *    bấm hai lần, khoá UNIQUE chặn) là con số lệch VĨNH VIỄN — và không có cách nào biết nó
+	 *    đã lệch. Đếm lại thì mỗi lượt tự chữa cho lượt trước.
+	 */
+	public static function dem_lai( $bai_id ) {
+		global $wpdb;
+		$bai_id = (int) $bai_id;
+		$tim = (int) $wpdb->get_var( $wpdb->prepare(
+			'SELECT COUNT(*) FROM ' . VHNB_DB::t( 'tim' ) . ' WHERE bai_id=%d', $bai_id ) );
+		$bl  = (int) $wpdb->get_var( $wpdb->prepare(
+			'SELECT COUNT(*) FROM ' . VHNB_DB::t( 'binh_luan' ) . ' WHERE bai_id=%d', $bai_id ) );
+		$wpdb->update( VHNB_DB::t( 'bai' ), array( 'so_tim' => $tim, 'so_bl' => $bl ),
+			array( 'id' => $bai_id ) );
+	}
+
+	/**
+	 * Người này có được đụng vào bài này không (đọc · bình luận · thả tim).
+	 *
+	 * 🔴 Bài THƯỜNG thì ai cũng được. Bài của NHÓM TỰ TẠO thì chỉ thành viên — và chốt phải nằm
+	 *    ở LÕI, không phải ở màn hình: màn chỉ vẽ bài mình thấy được, nhưng `bai_id` thì gõ tay
+	 *    vào biểu mẫu POST là gửi lên được. Không chặn ở đây thì đoán mò vài con số là bình luận
+	 *    được vào nhóm mình chưa hề được mời — và người trong nhóm thấy bình luận ấy hiện ra.
+	 */
+	public static function doc_duoc( $u, $bai_id ) {
+		global $wpdb;
+		$b = $wpdb->get_row( $wpdb->prepare(
+			'SELECT nhom_id, bac_can, co_so FROM ' . VHNB_DB::t( 'bai' ) . ' WHERE id=%d',
+			(int) $bai_id ), ARRAY_A );
+		if ( ! $b ) { return true; }
+
+		/* 🔴 BẬC CHẶN Ở ĐÂY NỮA, KHÔNG CHỈ Ở `bang_tin()`.
+		   `bang_tin()` lọc DANH SÁCH, còn `binh_luan()` và `tim()` nhận thẳng một `bai_id` từ
+		   biểu mẫu POST. Chỉ lọc danh sách thì người không được xem vẫn đoán được id rồi bình
+		   luận vào đúng bài ấy — và câu bình luận của họ hiện ra cho cấp trên đọc, kèm theo
+		   việc lộ rằng bài đó tồn tại. Hàm này là cửa mà cả hai đường kia đều đi qua. */
+		if ( (int) $b['bac_can'] > 0
+			&& (int) VHNB_Quyen::bac_nguoi( $u ) < (int) $b['bac_can'] ) { return false; }
+
+		/* Và cơ sở, cùng luật với `bang_tin()`: cửa hàng trưởng cơ sở khác cũng là ngang hàng.
+		   ⚠️ So bằng `in_array` chặt (`true`) — cả hai bên đều là chuỗi, mà so lỏng thì
+		      `'0' == ''` và một cơ sở tên `'0'` đọc được mọi dòng. */
+		$cs = trim( (string) $b['co_so'] );
+		if ( '' !== $cs && ! VHNB_Quyen::xem_het_coso( $u )
+			&& ! in_array( $cs, VHNB_Quyen::coso_nguoi( $u ), true ) ) { return false; }
+
+		$nid = (int) $b['nhom_id'];
+		if ( $nid <= 0 ) { return true; }
+		return VHNB_Nhom::duoc_vao( $u, $nid );
+	}
+
+	/**
+	 * Báo cho CHỦ BÀI biết có người vừa động vào bài của họ.
+	 *
+	 * ⚠️ `VHNB_Bao::gui()` tự bỏ qua khi người gây ra chính là người nhận, nên ở đây không phải
+	 *    nhớ kiểm lại. Một chỗ chặn, không rải.
+	 */
+	private static function bao_ve_bai( $u, $bai_id, $loai, $viec ) {
+		global $wpdb;
+		$b = $wpdb->get_row( $wpdb->prepare(
+			'SELECT ma_nv, noi_dung FROM ' . VHNB_DB::t( 'bai' ) . ' WHERE id=%d', (int) $bai_id ), ARRAY_A );
+		if ( ! $b ) { return; }
+		$ten = trim( (string) ( isset( $u['name'] ) ? $u['name'] : '' ) );
+		$tom = self::gon( (string) $b['noi_dung'], 60 );
+		VHNB_Bao::gui(
+			(string) $b['ma_nv'], 'noi_bo',
+			$ten . ' ' . $viec . ( '' !== $tom ? ': "' . $tom . '"' : '' ),
+			VHNB_Trang::url() . '#bai' . (int) $bai_id,
+			$loai . ':' . (int) $bai_id,
+			(string) ( isset( $u['ma_nv'] ) ? $u['ma_nv'] : '' )
+		);
+	}
+
+	private static function co_bai( $id ) {
+		global $wpdb;
+		return (bool) $wpdb->get_var( $wpdb->prepare(
+			'SELECT id FROM ' . VHNB_DB::t( 'bai' ) . ' WHERE id=%d', (int) $id ) );
+	}
+
+	/**
+	 * ĐƯỢC GHIM / DỌN BÀI CỦA NGƯỜI KHÁC KHÔNG.
+	 *
+	 * ⚠️ TÊN HÀM CÒN LÀ `la_admin` VÌ NÓ ĐƯỢC GỌI Ở BỐN NƠI, nhưng câu hỏi nay là "có quyền dọn
+	 *    không", không phải "có phải Admin không" — Admin khai lại được bậc ở màn Cấu hình nội
+	 *    bộ. Mặc định vẫn là Admin, nên hành vi không đổi cho site đang chạy.
+	 */
+	public static function la_admin( $u ) {
+		return VHNB_Quyen::duoc( $u, 'don' );
+	}
+
+	/** Bỏ khoảng trắng thừa, cắt độ dài. KHÔNG lọc HTML ở đây — nơi in ra lo việc thoát chuỗi. */
+	public static function gon( $s, $toi_da ) {
+		$s = trim( (string) $s );
+		$s = preg_replace( "/\r\n?/", "\n", $s );
+		$s = preg_replace( "/\n{4,}/", "\n\n\n", $s );
+		if ( function_exists( 'mb_substr' ) ) { $s = mb_substr( $s, 0, (int) $toi_da, 'UTF-8' ); }
+		else { $s = substr( $s, 0, (int) $toi_da ); }
+		return trim( $s );
+	}
+
+	public static function chuan_nhom( $n ) {
+		$n = trim( (string) $n );
+		if ( function_exists( 'mb_substr' ) ) { $n = mb_substr( $n, 0, 60, 'UTF-8' ); }
+		return $n;
+	}
+
+	/** "3 phút trước" — người ta đọc bảng tin theo "mới hay cũ", không theo đồng hồ. */
+	public static function bao_lau( $luc ) {
+		$t = strtotime( (string) $luc );
+		if ( ! $t ) { return ''; }
+		$g = (int) current_time( 'timestamp' ) - $t;
+		if ( $g < 60 )     { return 'vừa xong'; }
+		if ( $g < 3600 )   { return intdiv( $g, 60 ) . ' phút trước'; }
+		if ( $g < 86400 )  { return intdiv( $g, 3600 ) . ' giờ trước'; }
+		if ( $g < 604800 ) { return intdiv( $g, 86400 ) . ' ngày trước'; }
+		return gmdate( 'd/m/Y', $t );
+	}
+}

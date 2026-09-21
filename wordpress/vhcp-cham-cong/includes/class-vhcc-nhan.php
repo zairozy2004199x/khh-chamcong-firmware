@@ -1,0 +1,1295 @@
+<?php
+/**
+ * CỔNG NHẬN CHẤM CÔNG TỪ MÁY — bản WordPress của `doPost` bên Apps Script.
+ *
+ * Đây là ĐƯỜNG NÓNG của cả chuỗi: mỗi lượt nhân viên bấm mặt lên đầu đọc là một lượt vào đây.
+ * Sai ở đây không hiện ra ngay — nó hiện ra cuối tháng, ở bảng lương, khi không còn cách nào
+ * dựng lại lượt bấm đã mất.
+ *
+ * =============================================================================================
+ * BỐN LUẬT CỦA FIRMWARE — đọc từ chính esp32_hik_chamcong_full.ino, không phải đoán
+ * =============================================================================================
+ *
+ * 1. FIRMWARE COI THÀNH CÔNG LÀ: `code == 200 && resp.indexOf("SUCCESS") >= 0` (dòng 880).
+ *    Tức nó tìm CHUỖI CON "SUCCESS" ở bất kỳ đâu trong thân trả về. Khác đi là nó thử lại 3 lần
+ *    rồi BỎ LUỘT BẤM ĐÓ.
+ *    Nên: gói rác, gói thử đường truyền, giờ sai khuôn, máy chưa gán cửa hàng — tất cả đều phải
+ *    trả SUCCESS. Không phải vì chúng thành công, mà vì bắt firmware thử lại một gói KHÔNG BAO
+ *    GIỜ hợp lệ là đẩy lại vô hạn. Chỉ ĐÚNG MỘT ca được trả khác SUCCESS: máy chủ hỏng thật
+ *    (mất kết nối cơ sở dữ liệu) — lúc đó thử lại là ĐÚNG, vì lượt bấm hợp lệ mà chưa ghi được.
+ *
+ * 2. FIRMWARE KHÔNG THEO CHUYỂN HƯỚNG (`HTTPC_DISABLE_FOLLOW_REDIRECTS`, dòng 856). Gặp
+ *    301/302/307 nó lấy `Location` rồi gọi lại bằng **GET** (dòng 864-871) — tức MẤT TRỌN thân
+ *    POST, mất luôn lượt bấm, mà vẫn có thể thấy chữ "SUCCESS" trong trang WordPress trả về rồi
+ *    tưởng là xong.
+ *    Nên cổng này phải KHÔNG BAO GIỜ bị chuyển hướng: xem `chan_chuyen_huong()` dưới.
+ *    Đây là cái bẫy riêng của WordPress mà Apps Script không có.
+ *
+ * 3. ĐƯỜNG 4G GỬI KHÔNG KÈM ẢNH (`"image":""`, dòng 840-845) để né giới hạn AT+HTTPDATA.
+ *    Nên "không có ảnh" là chuyện BÌNH THƯỜNG, không phải lỗi — không được vì thiếu ảnh mà bỏ giờ.
+ *
+ * 4. GÓI THỬ ĐƯỜNG TRUYỀN: mỗi lần 4G nối lại (tức mỗi lần bật máy) firmware đẩy một gói
+ *    `employeeNo:"TEST4G"`, `time:"test"` vào ĐÚNG đường ghi chấm công. Bên Sheet nó từng tạo
+ *    ra một khối tháng tên "test" trong sheet tiền lương. Chặn ở MÁY CHỦ chứ không chỉ ở
+ *    firmware, vì sửa firmware phải OTA từng máy còn máy chủ sửa một lần là mọi máy sạch ngay.
+ *
+ * =============================================================================================
+ * KHÁC APPS SCRIPT MỘT CHỖ CÓ CHỦ Ý: CỔNG NÀY ĐÒI KHOÁ
+ * =============================================================================================
+ * `/exec` của Apps Script mở ẩn danh (buộc phải vậy, vì máy gọi không đăng nhập được). Nghĩa là
+ * ai có link là ghi được chấm công cho bất kỳ ai, bất kỳ ngày nào. Ở WordPress em không phải
+ * chịu chuyện đó: cổng này đòi một khoá dùng chung.
+ *   · Giai đoạn GHI SONG SONG: người gọi là Apps Script (máy chủ tới máy chủ) — khoá nằm trong
+ *     Script Property, không xuống firmware, không xuống trình duyệt.
+ *   · Giai đoạn ĐÃ CHUYỂN: firmware mang khoá, nạp cùng lượt OTA vốn đã phải làm để trỏ máy về
+ *     WordPress. Không phát sinh thêm một lượt OTA nào.
+ * Khoá đặt trong `wp-config.php` (`VHCC_KHOA_MAY`), KHÔNG đặt trong bảng `cai_dat` — bảng đó
+ * app đọc được, mà app thì có màn hình.
+ */
+
+if ( ! defined( 'ABSPATH' ) ) { exit; }
+
+class VHCC_Nhan {
+
+	/** Đường của máy. Cố định, không có dấu gạch chéo cuối — xem chan_chuyen_huong(). */
+	const DUONG = 'cham-cong-may';
+
+	public static function init() {
+		add_rewrite_rule( '^' . self::DUONG . '/?$', 'index.php?vhcc_nhan=1', 'top' );
+		add_filter( 'query_vars', array( __CLASS__, 'query_vars' ) );
+		add_action( 'parse_request', array( __CLASS__, 'chan_chuyen_huong' ), 0 );
+		add_action( 'template_redirect', array( __CLASS__, 'phuc_vu' ), 0 );
+	}
+
+	public static function query_vars( $v ) { $v[] = 'vhcc_nhan'; return $v; }
+
+	private static function la_duong_may() {
+		$d = isset( $_SERVER['REQUEST_URI'] ) ? (string) $_SERVER['REQUEST_URI'] : '';
+		$d = trim( (string) parse_url( $d, PHP_URL_PATH ), '/' );
+		return $d === self::DUONG || substr( $d, - ( strlen( self::DUONG ) + 1 ) ) === '/' . self::DUONG;
+	}
+
+	/**
+	 * Tắt MỌI chuyển hướng trên đường của máy.
+	 *
+	 * WordPress tự chuyển hướng nhiều chỗ mà bình thường là tiện: thêm dấu gạch chéo cuối, đổi
+	 * về tên miền chuẩn trong Cài đặt, đổi http -> https. Với trình duyệt thì vô hại. Với firmware
+	 * thì MẤT LƯỢT BẤM: nó gọi lại bằng GET nên thân POST bay mất, và trang WordPress trả về có
+	 * thể tình cờ chứa chữ "SUCCESS" -> firmware báo "ĐỒNG BỘ THÀNH CÔNG" trong khi không có gì
+	 * được ghi. Hỏng kiểu này IM LẶNG, đúng loại tệ nhất.
+	 *
+	 * `redirect_canonical` trả về false là bỏ chuyển hướng. Chặn ở `parse_request` ưu tiên 0 để
+	 * chắc chắn gài xong trước khi bất cứ ai kịp chuyển hướng.
+	 */
+	public static function chan_chuyen_huong() {
+		if ( ! self::la_duong_may() ) { return; }
+		add_filter( 'redirect_canonical', '__return_false', 99 );
+		remove_action( 'template_redirect', 'redirect_canonical' );
+		add_filter( 'wp_redirect', array( __CLASS__, 'khong_chuyen_huong' ), 99, 2 );
+	}
+
+	/** Có ai đó vẫn cố chuyển hướng -> huỷ, và ghi lại để không im lặng. */
+	public static function khong_chuyen_huong( $dich, $tt ) {
+		self::ghi_loi( 'CHUYEN_HUONG', 'có nơi cố chuyển hướng đường của máy sang ' . $dich . ' (' . $tt . ')' );
+		return false;
+	}
+
+	/* ═══════════════════════════════════ BỘ ĐẾM LƯỢT (Máy → Web) ═══════════════════════════════
+	 * Nhật ký chỉ ghi cái HỎNG. Nhưng câu "đang nhận bao nhiêu, ghi được bao nhiêu, thành công
+	 * hay không" cần đếm cả cái CHẠY TỐT — nếu không, một cổng khoẻ trông y một cổng chết (nhật ký
+	 * trống cả hai). Nên đếm dương, theo từng MÁY (khoá theo MAC bo — cùng khoá với DANH SÁCH MÁY).
+	 *
+	 * 🔴 GỘP 1 LẦN MỖI REQUEST, KHÔNG GHI OPTION MỖI DÒNG. Lô 2000 lượt mà mỗi dòng một
+	 *    `update_option` là 2000 lần đọc-ghi-serialize cùng một ô — đủ để một gói lô làm nghẽn cả
+	 *    site. Cộng dồn trong RAM (`$dem_acc`), `dem_luu()` gộp vào option đúng MỘT lần, gọi ở
+	 *    `tra()` (cửa đáp duy nhất, chạy một lần rồi exit).
+	 */
+	private static $dem_acc = array();
+
+	/** Cộng 1 vào một ô đếm của máy (RAM). $key: nhan·ghi·trung·giuTay·choGan·boQua·hong. */
+	private static function dem( $mac, $key ) {
+		$mac = '' !== trim( (string) $mac ) ? trim( (string) $mac ) : 'KHONG-MAC';
+		if ( ! isset( self::$dem_acc[ $mac ] ) ) { self::$dem_acc[ $mac ] = array(); }
+		self::$dem_acc[ $mac ][ $key ] = ( isset( self::$dem_acc[ $mac ][ $key ] ) ? self::$dem_acc[ $mac ][ $key ] : 0 ) + 1;
+	}
+
+	/** Gộp bộ đếm RAM vào option `vhcc_dem_may` — gọi MỘT lần ở `tra()`. */
+	private static function dem_luu() {
+		if ( ! self::$dem_acc ) { return; }
+		$ds = get_option( 'vhcc_dem_may', array() );
+		if ( ! is_array( $ds ) ) { $ds = array(); }
+		$luc = current_time( 'mysql' );
+		foreach ( self::$dem_acc as $mac => $b ) {
+			if ( ! isset( $ds[ $mac ] ) || ! is_array( $ds[ $mac ] ) ) { $ds[ $mac ] = array(); }
+			foreach ( $b as $k => $v ) {
+				$ds[ $mac ][ $k ] = ( isset( $ds[ $mac ][ $k ] ) ? (int) $ds[ $mac ][ $k ] : 0 ) + (int) $v;
+			}
+			$ds[ $mac ]['luc'] = $luc;   // lần cuối máy này đẩy lượt (khác nhịp sống)
+		}
+		self::$dem_acc = array();
+		update_option( 'vhcc_dem_may', $ds, false );
+	}
+
+	/** Bộ đếm để màn chẩn đoán đọc. [ mac => { nhan, ghi, trung, giuTay, choGan, boQua, hong, luc } ]. */
+	public static function dem_ds() {
+		$ds = get_option( 'vhcc_dem_may', array() );
+		return is_array( $ds ) ? $ds : array();
+	}
+
+	/** Xoá bộ đếm (nút trên màn chẩn đoán) — nhật ký lỗi giữ nguyên. */
+	public static function dem_xoa() {
+		delete_option( 'vhcc_dem_may' );
+		return array( 'ok' => true, 'thong_bao' => 'Đã xoá bộ đếm lượt (nhật ký lỗi giữ nguyên).' );
+	}
+
+	/** Trả JSON rồi dừng. `status` để đầu để chữ SUCCESS chắc chắn nằm trong thân. */
+	private static function tra( $ma, $tt ) {
+		self::dem_luu();   // gộp bộ đếm đúng một lần, trước khi đáp + exit
+		if ( ! headers_sent() ) {
+			status_header( $ma );
+			nocache_headers();
+			header( 'Content-Type: application/json; charset=utf-8' );
+		}
+		/* 🔴 KHÔNG ESCAPE DẤU `/` TRONG THÂN TRẢ VỀ CHO MÁY — 09/09/2026.
+		   `json_encode` mặc định đổi `/` thành `\/`. Với mọi thứ khác thì vô hại (ArduinoJson
+		   đọc `\/` y như `/`), nhưng ẢNH KHUÔN MẶT đi qua một bộ giải mã base64 VIẾT TAY trong
+		   firmware — nó bám mốc `anh":"` rồi coi mọi ký tự sau đó là base64, không hiểu escape.
+		   Mà base64 của một tấm JPEG gần như luôn mở đầu bằng `/9j/`: gặp `\` là ký tự lạ →
+		   `err` → `fetchPhotoDecoded` trả -3 → người vào đầu đọc mà KHÔNG có khuôn mặt.
+		   Đây là lỗi THỨ HAI trên cùng một đường ảnh, độc lập với chuyện tiền tố `data:` (xem
+		   `VHCC_MayCong::b64_tron`) — sửa một cái mà quên cái kia thì ảnh vẫn không xuống được,
+		   nên phép thử dựng lại NGUYÊN bộ giải mã của firmware chứ không đo từng mảnh.
+		   ⚠️ Chỉ là chuyện in ấn: `\/` và `/` là CÙNG một chuỗi trong JSON, nên không cổng nào
+		      đọc khác đi. */
+		echo wp_json_encode( $tt, JSON_UNESCAPED_SLASHES );
+		if ( ! defined( 'VHCC_TEST' ) ) { exit; }
+	}
+
+	/** SUCCESS = "đừng đẩy lại gói này nữa", KHÔNG phải "đã ghi". Xem luật 1 ở đầu tệp. */
+	private static function xong( $them = array() ) {
+		self::tra( 200, array_merge( array( 'status' => 'SUCCESS' ), $them ) );
+	}
+
+	/** Chỉ dùng khi MÁY CHỦ hỏng: lượt bấm hợp lệ mà chưa ghi được -> firmware PHẢI thử lại. */
+	private static function loi( $vi_sao, $ma = 500 ) {
+		self::tra( $ma, array( 'status' => 'ERROR', 'message' => $vi_sao ) );
+	}
+
+	public static function phuc_vu() {
+		if ( ! get_query_var( 'vhcc_nhan' ) && ! self::la_duong_may() ) { return; }
+
+		if ( 'POST' !== ( isset( $_SERVER['REQUEST_METHOD'] ) ? $_SERVER['REQUEST_METHOD'] : '' ) ) {
+			/* GET vào đây gần như luôn là dấu hiệu của luật 2: firmware bị chuyển hướng rồi gọi
+			   lại bằng GET, thân POST đã mất. Trả 405 và KHÔNG có chữ SUCCESS trong thân, để
+			   firmware biết là thất bại và thử lại — thay vì đọc được "SUCCESS" ở đâu đó rồi
+			   tưởng đã ghi. Ghi lại luôn vì đây là triệu chứng cần thấy. */
+			self::ghi_loi( 'GET_VAO_CONG_MAY', 'có lượt GET vào cổng máy — coi như dấu hiệu bị chuyển hướng' );
+			self::tra( 405, array( 'status' => 'ERROR', 'message' => 'Cong nay chi nhan POST.' ) );
+			return;
+		}
+
+		$tho = self::than_yeu_cau();
+
+		/* ⚠️ THÂN BỊ CẮT KHÁC HẲN THÂN HỎNG — và trộn hai ca này lại là BỎ IM LẶNG lượt bấm thật.
+		   Ảnh mặt base64 có thể vài trăm KB. Vượt `post_max_size` thì PHP không báo lỗi gì cả: nó
+		   giao cho ta một thân NGẮN HƠN `Content-Length`, JSON hỏng — trông y như gói rác. Bỏ nó
+		   như bỏ gói rác là mất một lượt chấm công thật vì một dòng cấu hình PHP, không ai thấy.
+		   Nên tách riêng: so `Content-Length` với độ dài thật rồi trả ERROR. Đẩy lại trên cùng
+		   đường truyền thì vẫn cắt y vậy — nhưng ERROR để firmware ghi "thất bại" vào sổ của nó
+		   và người ta còn đọc được nhật ký, thay vì cổng lặng lẽ báo SUCCESS cho một lượt đã mất.
+		   (Đường 4G gửi KHÔNG kèm ảnh nên gói nhỏ — ca này chỉ xảy ra trên đường WiFi.) */
+		$dai_khai = isset( $_SERVER['CONTENT_LENGTH'] ) ? (int) $_SERVER['CONTENT_LENGTH'] : 0;
+		if ( $dai_khai > 0 && strlen( $tho ) < $dai_khai ) {
+			self::ghi_loi( 'THAN_BI_CAT', 'Content-Length khai ' . $dai_khai . ' byte, nhận được '
+				. strlen( $tho ) . ' byte — gần như chắc là post_max_size / upload_max_filesize quá nhỏ '
+				. 'cho ảnh mặt. MẤT lượt bấm này. Nâng post_max_size trong cài đặt PHP của hosting.' );
+			self::loi( 'Than yeu cau bi cat (post_max_size?) - MAT luot bam nay.', 413 );
+			return;
+		}
+
+		$d = json_decode( $tho, true );
+		if ( ! is_array( $d ) ) {
+			/* Thân ĐỦ mà vẫn không phải JSON -> gói rác thật; đẩy lại bao nhiêu lần cũng hỏng y
+			   vậy nên BỎ, đừng bắt đẩy lại vô hạn. Vẫn ghi lại để không im lặng. */
+			self::ghi_loi( 'JSON_HONG', 'thân yêu cầu đủ độ dài nhưng không phải JSON ('
+				. strlen( $tho ) . ' byte)' );
+			self::xong( array( 'boQua' => true, 'note' => 'Than yeu cau khong phai JSON -> bo qua.' ) );
+			return;
+		}
+
+		if ( ! self::khoa_dung( $d ) ) {
+			/* Sai khoá KHÔNG được trả SUCCESS: người gọi hợp lệ mà cấu hình thiếu khoá thì phải
+			   thấy hỏng ngay, chứ không phải im lặng mất chấm công cả cơ sở. 401 để phân biệt với
+			   máy chủ hỏng. */
+			/* 🔴 VÀ PHẢI GHI LẠI. Trước bản 2.75.0 nhánh này trả 401 rồi im — nên trạng thái "máy
+			   ĐANG tới được cổng, chỉ sai khoá" trông y hệt trạng thái "máy chưa chạy": nhật ký
+			   trống cả hai. Màn chẩn đoán khi ấy chỉ đường đi sửa ESP32, trong khi ESP32 đang
+			   chạy tốt và thứ hỏng nằm ở một dòng trong `wp-config.php`. Mất mấy ngày ở đó. */
+			self::ghi_loi( 'SAI_KHOA', self::vi_sao_khoa_hong( $d ) );
+			self::loi( 'Sai khoa hoac chua cau hinh VHCC_KHOA_MAY.', 401 );
+			return;
+		}
+
+		/* --- VIỆC KHÁC CỦA MÁY: nhịp sống, lấy lệnh, báo xong, OTA, roster… -------------------
+		   Từ bản 2.0.0 những việc này chạy thẳng trên host thay vì qua Firebase. Chúng đi CHUNG
+		   đường và CHUNG khoá với chấm công — xem đầu class-vhcc-may-cong.php để biết vì sao
+		   không mở đường riêng.
+		   Đặt SAU khối kiểm khoá và TRƯỚC phần đọc lượt bấm: gói có `viec` KHÔNG phải lượt chấm
+		   công, để nó chạy tiếp xuống dưới là sinh ra cảnh "GIO_SAI_KHUON" đầy nhật ký. */
+		if ( isset( $d['viec'] ) && '' !== trim( (string) $d['viec'] ) ) {
+			$kq = VHCC_MayCong::phuc_vu( $d['viec'], $d );
+			self::xong( is_array( $kq ) ? $kq : array() );
+			return;
+		}
+
+		/* --- GÓI THEO LÔ: một máy CHÍNH ở cơ sở đẩy về nhiều lượt bấm một lần ---------------
+		   Anh Thắng 27/08/2026: *"máy chính tại cơ sở gửi dữ liệu công về"*.
+
+		   Máy ESP32 gọi thẳng ra internet nên mỗi lượt bấm là một gói — hợp lý, vì nó chỉ có
+		   một lượt tại một thời điểm. Máy ZKTeco thì ngược: nó nằm trong mạng nội bộ
+		   (192.168.0.2x:4370), website không với tới được, nên phải có một máy CHÍNH đứng trong
+		   mạng ấy đọc log rồi đẩy về. Máy chính đọc một phát ra cả trăm lượt của cả ngày.
+
+		   🔴 GỬI TỪNG GÓI MỘT LÀ SAI CHỖ NÀO: mỗi gói là một lượt bắt tay TLS. 93 lượt của một
+		      ngày × 5 phòng là gần 500 lượt bắt tay — chậm, và nửa chừng rớt mạng thì không ai
+		      biết đã đẩy tới đâu. Một gói lô thì hoặc xong cả, hoặc trả về đúng dòng nào hỏng.
+
+		   🔴 MỖI DÒNG MANG MÃ MÁY RIÊNG. Máy chính đại diện cho NHIỀU máy con, mỗi máy con là
+		      một phòng khác nhau (Lắp Ráp · Lò Sấy · Sơ Chế · Văn Phòng · Đóng Gói). Lấy mã của
+		      máy CHÍNH để ghép cơ sở là dồn công của cả năm phòng vào một chỗ. Dòng nào thiếu
+		      thì mới lấy theo gói — để máy chỉ có một đầu đọc vẫn gửi gọn được. */
+		if ( isset( $d['logs'] ) && is_array( $d['logs'] ) ) {
+			$kq_lo = self::nhan_lo( $d );
+			if ( isset( $kq_lo['loi'] ) ) {
+				/* 🔴 CƠ SỞ DỮ LIỆU HỎNG THÌ KHÔNG ĐƯỢC ĐI QUA `xong()` — hàm ấy đáp 200 kèm chữ
+				   SUCCESS, và máy chính đọc thấy SUCCESS là xoá phần đã gửi khỏi sổ của nó. Cả lô
+				   mất hẳn, không ai biết. Đây là ca DUY NHẤT đẩy lại sẽ khác kết quả, nên phải để
+				   máy giữ lại và đẩy lại — thà thừa còn hơn mất, mà đẩy lại thì cũng không thừa:
+				   giờ vào/ra chỉ được nới rộng. */
+				self::loi( 'Khong ghi duoc lo: ' . $kq_lo['loi'] );
+				return;
+			}
+			self::xong( $kq_lo );
+			return;
+		}
+
+		$kq1 = self::mot_luot( $d );
+		if ( isset( $kq1['loi'] ) ) {
+			/* Cơ sở dữ liệu hỏng — ĐÂY là ca duy nhất phải để firmware thử lại, nên KHÔNG được
+			   đi qua `xong()` (200 + chữ SUCCESS). Máy đọc thấy SUCCESS là xoá lượt khỏi sổ
+			   của nó, và lượt bấm ấy mất hẳn. */
+			self::ghi_loi( 'GHI_HONG', $kq1['loi'] );
+			self::loi( 'Khong ghi duoc: ' . $kq1['loi'] );
+			return;
+		}
+		self::xong( $kq1 );
+	}
+
+	/**
+	 * MỘT LÔ LƯỢT BẤM — máy chính ở cơ sở đẩy về cả ngày một lần.
+	 *
+	 * =========================================================================================
+	 * VÌ SAO CÓ ĐƯỜNG NÀY
+	 * =========================================================================================
+	 * Máy ZKTeco nằm trong mạng nội bộ (`192.168.0.2x:4370`) — website ngoài internet không có
+	 * đường nào gọi vào, và không nên có: cổng 4370 phơi ra ngoài là ai cũng đọc/ghi được sổ mặt.
+	 * Nên giữ nguyên chiều "máy tự gọi ra": một máy CHÍNH đứng trong mạng ấy đọc log rồi đẩy về
+	 * đúng cổng này, đúng khoá này.
+	 *
+	 * =========================================================================================
+	 * BỐN CHỐT
+	 * =========================================================================================
+	 * 🔴 MỘT DÒNG HỎNG KHÔNG ĐƯỢC KÉO CẢ LÔ XUỐNG. Trả về đếm từng loại + danh sách dòng hỏng
+	 *    kèm SỐ THỨ TỰ, để máy chính biết đẩy lại đúng dòng nào. Bỏ cả lô vì một dòng sai khuôn
+	 *    giờ là mất công thật của cả trăm người.
+	 *
+	 * 🔴 NHƯNG CƠ SỞ DỮ LIỆU HỎNG THÌ PHẢI KÊU. Đó là ca duy nhất đẩy lại sẽ khác kết quả. Trả
+	 *    `loi` để cổng đáp 500 và máy chính giữ lại cả lô — thà đẩy lại thừa còn hơn mất.
+	 *    Ghi lại BAO NHIÊU dòng đã vào trước khi hỏng, kẻo người đọc nhật ký tưởng mất cả lô.
+	 *
+	 * 🔴 TRẦN SỐ DÒNG. Một gói vài chục nghìn dòng là PHP chạy quá `max_execution_time` rồi chết
+	 *    giữa chừng — mà chết giữa chừng thì máy chính không nhận được đáp, đẩy lại từ đầu, và
+	 *    lần nào cũng chết ở đúng chỗ ấy. Cắt ở `LO_TOI_DA` và NÓI RA còn bao nhiêu dòng chưa
+	 *    xử: máy chính đẩy nốt phần còn lại ở lượt sau. Cắt im lặng là mất công không ai thấy.
+	 *
+	 * 🔴 GHI LẠI CÔNG VIỆC LÀ VIỆC AN TOÀN KHI CHẠY LẠI. `ghi_gio()` chỉ NỚI RỘNG cặp giờ vào/ra,
+	 *    không bao giờ thu hẹp — nên đẩy lại cả lô bao nhiêu lần cũng ra một kết quả. Đó là thứ
+	 *    làm cho "đẩy lại khi nghi ngờ" trở thành nước đi an toàn.
+	 */
+	const LO_TOI_DA = 2000;
+
+	private static function nhan_lo( $d ) {
+		$logs = array_values( (array) $d['logs'] );
+		$tong = count( $logs );
+		if ( ! $tong ) {
+			return array( 'lo' => true, 'nhan' => 0, 'note' => 'Lo rong -> khong co gi de ghi.' );
+		}
+		/* Mấy trường CHUNG của gói: dòng nào thiếu thì lấy ở đây. Để máy chỉ có một đầu đọc vẫn
+		   gửi gọn được, mà máy chính nhiều đầu đọc vẫn khai riêng từng dòng. */
+		$chung = array();
+		foreach ( array( 'macAddress', 'hikSerial', 'hikModel', 'stationName' ) as $k ) {
+			if ( isset( $d[ $k ] ) ) { $chung[ $k ] = $d[ $k ]; }
+		}
+
+		$dem = array( 'ghi' => 0, 'trung' => 0, 'choGan' => 0, 'boQua' => 0, 'giuTay' => 0 );
+		$hong = array();
+		$xu   = 0;
+		foreach ( $logs as $i => $mot ) {
+			if ( $xu >= self::LO_TOI_DA ) { break; }
+			$xu++;
+			if ( ! is_array( $mot ) ) {
+				$dem['boQua']++;
+				$hong[] = array( 'i' => (int) $i, 'vi_sao' => 'dong khong phai doi tuong' );
+				continue;
+			}
+			/* Dòng ĐÈ lên gói, không phải ngược lại: mã máy con của dòng mới là thứ ghép ra cơ
+			   sở. Lấy của máy chính là dồn công cả năm phòng vào một chỗ. */
+			$kq = self::mot_luot( array_merge( $chung, $mot ) );
+			if ( isset( $kq['loi'] ) ) {
+				/* Cơ sở dữ liệu hỏng -> dừng NGAY, đừng cố chạy nốt: hỏng một lần thì gần như
+				   chắc là hỏng cả lượt, và mỗi dòng tiếp theo chỉ tốn thêm thời gian trước khi
+				   PHP hết giờ. */
+				self::ghi_loi( 'LO_GHI_HONG', 'lô ' . $tong . ' dòng: hỏng ở dòng thứ ' . ( (int) $i + 1 )
+					. ' (' . $kq['loi'] . '). ĐÃ ghi được ' . $dem['ghi'] . ' dòng trước đó — '
+					. 'máy chính đẩy lại cả lô cũng không sao, giờ vào/ra chỉ được nới rộng.' );
+				return array( 'loi' => $kq['loi'], 'dongHong' => (int) $i + 1, 'daGhi' => $dem['ghi'] );
+			}
+			if ( ! empty( $kq['choGan'] ) )       { $dem['choGan']++; continue; }
+			if ( ! empty( $kq['boQua'] ) ) {
+				$dem['boQua']++;
+				$hong[] = array( 'i' => (int) $i,
+					'vi_sao' => isset( $kq['note'] ) ? (string) $kq['note'] : 'bo qua' );
+				continue;
+			}
+			if ( isset( $kq['loai'] ) && 'trung' === $kq['loai'] ) { $dem['trung']++; continue; }
+			/* 🔴 GIỮ GIỜ NGƯỜI TA ĐÃ SỬA — đếm RIÊNG, đừng gộp vào 'trung'.
+			   "Trùng" là gói lặp, chuyện thường, không ai cần biết. "Giữ tay" nghĩa là máy vừa
+			   MUỐN đè lên một quyết định của người và bị chặn — đó là chuyện đáng nói: hoặc máy
+			   lệch đồng hồ thật, hoặc lượt sửa kia sai. Gộp vào một con số là không ai đi tìm. */
+			if ( isset( $kq['loai'] ) && 'giu-tay' === $kq['loai'] ) { $dem['giuTay']++; continue; }
+			$dem['ghi']++;
+		}
+
+		$con = $tong - $xu;
+		if ( $con > 0 ) {
+			/* 🔴 CẮT THÌ PHẢI NÓI RA. Cắt im lặng là gói trông "xong" trong khi thiếu người. */
+			self::ghi_loi( 'LO_QUA_DAI', 'lô ' . $tong . ' dòng vượt trần ' . self::LO_TOI_DA
+				. ' — đã xử ' . $xu . ', CÒN ' . $con . ' dòng chưa xử. Máy chính đẩy nốt phần còn lại.' );
+		}
+		if ( $dem['giuTay'] > 0 ) {
+			self::ghi_loi( 'LO_GIU_TAY', $dem['giuTay'] . ' lượt trong lô ĐỊNH ĐÈ lên giờ đã có '
+				. 'người sửa hoặc bù — đã giữ nguyên giờ của người. Nếu máy đúng còn lượt sửa kia '
+				. 'sai thì Admin sửa lại tay; cổng không tự quyết chuyện đó.' );
+		}
+		if ( $dem['choGan'] > 0 ) {
+			self::ghi_loi( 'LO_CHO_GAN', $dem['choGan'] . ' lượt trong lô đến từ máy CHƯA gán cơ sở — '
+				. 'đã giữ tạm. Vào tab Máy & Firmware gán cơ sở cho máy ấy là chúng tự vào bảng công.' );
+		}
+		return array(
+			'lo'     => true,
+			'nhan'   => $tong,
+			'xu'     => $xu,
+			'conLai' => $con,
+			'ghi'    => $dem['ghi'],
+			'trung'  => $dem['trung'],
+			'giuTay' => $dem['giuTay'],
+			'choGan' => $dem['choGan'],
+			'boQua'  => $dem['boQua'],
+			/* Chỉ kể 50 dòng đầu: gói đáp phải nhỏ, mà 50 dòng đã quá đủ để thấy KIỂU lỗi. */
+			'hong'   => array_slice( $hong, 0, 50 ),
+		);
+	}
+
+	/**
+	 * MỘT LƯỢT BẤM -> ghi vào sổ. Trả về đúng mảng mà cổng sẽ gửi lại cho máy.
+	 *
+	 * 🔴 Tách ra khỏi `phuc_vu()` vì từ khi có gói theo lô, đoạn này chạy hai đường: gói đơn
+	 *    (ESP32) và từng dòng của gói lô (máy chính ở cơ sở). Chép đôi là sớm muộn hai đường
+	 *    hiểu khác nhau về cùng một lượt bấm — mà "hiểu khác nhau" ở đây nghĩa là hai bảng công
+	 *    ra hai con số, và không có gì báo.
+	 *
+	 * Trả `array('loi' => …)` khi cơ sở dữ liệu hỏng — ĐÂY là ca duy nhất máy phải thử lại.
+	 * Mọi ca khác trả `boQua`/`choGan`: đẩy lại bao nhiêu lần cũng hỏng y vậy.
+	 */
+	private static function mot_luot( $d ) {
+		$ma_nv   = isset( $d['employeeNo'] ) ? trim( (string) $d['employeeNo'] ) : '';
+		$ho_ten  = isset( $d['name'] ) ? trim( (string) $d['name'] ) : '';
+		$luc     = isset( $d['time'] ) ? trim( (string) $d['time'] ) : '';
+		$anh     = isset( $d['image'] ) ? (string) $d['image'] : '';
+		$serial  = isset( $d['hikSerial'] ) ? trim( (string) $d['hikSerial'] ) : '';
+		$mac     = isset( $d['macAddress'] ) ? trim( (string) $d['macAddress'] ) : '';
+		$model   = isset( $d['hikModel'] ) ? trim( (string) $d['hikModel'] ) : '';
+		$tu_khai = isset( $d['stationName'] ) ? trim( (string) $d['stationName'] ) : '';
+
+		self::dem( $mac, 'nhan' );   // mỗi lượt vào tới đây = một lượt NHẬN (kể cả sẽ bị bỏ)
+
+		/* --- Luật 4: gói thử đường truyền. Kiểm cả cờ `selftest` lẫn mã TEST4G, y như Code.gs. */
+		if ( ( isset( $d['selftest'] ) && true === $d['selftest'] ) || 'TEST4G' === strtoupper( $ma_nv ) ) {
+			self::ghi_loi( 'GOI_THU_DUONG', 'máy ' . ( $tu_khai ? $tu_khai : $mac ) . ' đẩy gói thử đường truyền' );
+			self::dem( $mac, 'boQua' );
+			return array( 'boQua' => true, 'note' => 'Goi THU DUONG TRUYEN -> khong ghi cham cong.' );
+		}
+
+		/* --- Khuôn ngày giờ. Kiểm KHUÔN chứ không chỉ chặn đúng chữ "test": chặn theo tên là lần
+		   sau ai đổi chữ trong gói thử là lọt tiếp. Chỉ nhận 'yyyy-MM-dd HH:mm(:ss)'. */
+		$phan  = preg_split( '/\s+/', $luc );
+		$ngay  = isset( $phan[0] ) ? $phan[0] : '';
+		$gio   = isset( $phan[1] ) ? $phan[1] : '';
+		$giay  = VHCC_DB::giay( $gio );
+		if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $ngay ) || null === $giay || ! self::ngay_that( $ngay ) ) {
+			self::ghi_loi( 'GIO_SAI_KHUON', 'máy ' . ( $tu_khai ? $tu_khai : $mac ) . ' gửi time="' . $luc
+				. '" (NV ' . $ma_nv . ') -> bỏ qua' );
+			self::dem( $mac, 'boQua' );
+			return array( 'boQua' => true, 'note' => 'time="' . $luc . '" khong dung khuon -> bo qua.' );
+		}
+		if ( '' === $ma_nv ) {
+			self::ghi_loi( 'THIEU_MA_NV', 'gói không có employeeNo (máy ' . ( $tu_khai ? $tu_khai : $mac ) . ')' );
+			self::dem( $mac, 'boQua' );
+			return array( 'boQua' => true, 'note' => 'Thieu employeeNo -> bo qua.' );
+		}
+
+		/* --- Cơ sở lấy theo MÃ THIẾT BỊ, KHÔNG tin tên máy tự khai. --- */
+		$gm = self::giai_ma_tram( $serial, $mac, $tu_khai, $model );
+		if ( $gm['choGan'] ) {
+			/* Máy chưa gán cơ sở -> giữ tạm, TUYỆT ĐỐI không tạo cơ sở mới từ lời khai của máy.
+			   Bỏ lượt bấm này là mất công của người thật chỉ vì cái máy chưa được khai. */
+			$luu = self::luu_cho_gan( $serial, $mac, $tu_khai, $ma_nv, $ho_ten, $luc, strlen( $anh ) > 100 );
+			self::dem( $mac, 'choGan' );
+			return array( 'choGan' => true, 'luu' => $luu,
+				'note' => 'May chua gan co so - da giu tam, vao web gan co so cho may nay.' );
+		}
+		$coso = $gm['station'];
+
+		/* 🔴 DỊCH MÃ MÁY SANG MÃ NHÂN SỰ trước khi ghi.
+		   Anh Thắng 27/08/2026: *"bắt đầu kết nối máy chấm công để tránh mất dữ liệu"*.
+		   Máy ZKTeco ở xưởng trả `employeeNo` dạng `20000601` — mã do người dựng máy gõ vào từng
+		   đầu đọc, không ai đối chiếu với sổ nhân sự (hồ sơ ở đây dùng `MNNV1CTY0002`). Ghi thẳng
+		   mã máy vào bảng chấm công thì cả tháng công của cả xưởng nằm dưới một dãy số không có
+		   hồ sơ nào: bảng đầy số mà không số nào ra lương của ai.
+		   ⚠️ Dịch NGAY TRƯỚC KHI GHI, không dịch sớm hơn: mấy nhánh trên (gói thử, giờ sai khuôn,
+		      máy chưa gán cơ sở) đều nên kể ra ĐÚNG cái mã máy gửi lên, vì người đi soi nhật ký
+		      đang cầm cái máy trong tay chứ không cầm sổ nhân sự.
+		   ⚠️ Không khai ghép thì `ma_that()` trả lại chính mã máy — lượt ấy vẫn vào bảng và vẫn
+		      được kể ở khối "chưa có hồ sơ", chứ không biến mất. Mất một lượt bấm là mất công
+		      của người thật. */
+		$ma_ghi = VHCC_NhanSu::ma_that( $ma_nv );
+		if ( 0 !== strcasecmp( $ma_ghi, $ma_nv ) ) {
+			/* 🔴 DỊCH MÃ THÌ LẤY LUÔN TÊN TỪ HỒ SƠ. Tên trên máy do người dựng máy gõ — viết tắt,
+			   không dấu, có khi chỉ là "NV601". Giữ tên ấy là bảng công hiện một cái tên mà sổ
+			   nhân sự không có, và người đọc bảng không nối được nó với ai.
+			   ⚠️ Hồ sơ chắc chắn có: `ma_that()` chỉ đổi mã khi đầu kia CÓ hồ sơ. */
+			$hs_ghi = VHCC_NhanSu::ho_so( $ma_ghi );
+			$ho_ten = $hs_ghi ? (string) $hs_ghi['ho_ten'] : $ho_ten;
+		}
+
+		$kq = self::ghi_gio( $coso, $ngay, $ma_ghi, $ho_ten, $giay, $anh );
+		if ( isset( $kq['loi'] ) ) {
+			/* Cơ sở dữ liệu hỏng — ĐÂY là ca duy nhất phải để firmware thử lại. */
+			self::ghi_loi( 'GHI_HONG', $kq['loi'] );
+			self::dem( $mac, 'hong' );
+			return array( 'loi' => $kq['loi'] );
+		}
+		/* Đếm theo loại: vào/ra/đảo-thứ-tự = GHI được giờ mới; trùng/giữa = gói lặp; giữ-tay = đã
+		   chặn không đè lên giờ người sửa. */
+		$lo = $kq['loai'];
+		self::dem( $mac, ( 'vao' === $lo || 'ra' === $lo || 'daoThuTu' === $lo ) ? 'ghi'
+			: ( 'giu-tay' === $lo ? 'giuTay' : 'trung' ) );
+		return array( 'loai' => $kq['loai'], 'coSo' => $coso, 'img' => $kq['anh'] );
+	}
+
+	/**
+	 * Chính `_ghiGioVaoRa` của Code.gs, dịch nguyên luật.
+	 *
+	 * Ô giờ vào / giờ ra là CẶP [sớm nhất, muộn nhất] của ngày, và chỉ được NỚI RỘNG, KHÔNG BAO
+	 * GIỜ THU HẸP. Nhờ vậy nạp lại cả tháng theo thứ tự nào, đứt ở đâu, chạy lại bao nhiêu lần
+	 * cũng ra một kết quả. Đây là thứ làm cho bước GHI SONG SONG hai nơi rồi đối số hàng có nghĩa:
+	 * hai bên nhận cùng một tập lượt bấm thì phải ra cùng một cặp giờ, bất kể thứ tự đến.
+	 *
+	 * Bốn nhánh, đúng như bản gốc:
+	 *   trùng     — lượt đã có ở ô vào hoặc ô ra -> không đụng gì
+	 *   vào       — chưa có giờ vào -> đây là giờ vào
+	 *   giữa      — nằm trong khoảng đã phủ -> không đụng gì (KHÔNG thu hẹp giờ ra)
+	 *   ra        — muộn hơn khoảng -> nới giờ ra
+	 *   đảoThứTự  — sớm hơn giờ vào -> thành giờ vào mới; giờ vào CŨ chỉ tụt xuống làm giờ ra khi
+	 *               ô giờ ra còn TRỐNG (đã có giờ ra muộn hơn thì giữ nguyên, vì "muộn nhất trong
+	 *               ngày" mới đúng nghĩa ô đó).
+	 */
+	/**
+	 * QUYẾT ĐỊNH thuần: cặp giờ đang có + một lượt mới -> nhánh nào, cặp mới là gì.
+	 *
+	 * Tách riêng khỏi phần ghi cơ sở dữ liệu vì đây là chỗ duy nhất quyết định TIỀN, nên nó phải
+	 * thử được trực tiếp bằng con số, không cần bảng, không cần HTTP.
+	 *
+	 * Dùng CHUNG cho cả đường máy và đường chấm công online, kể cả hàng ca đêm. Bên Apps Script
+	 * ca đêm phải có hàm ghi RIÊNG (`_ghiGioDem`) vì ô sheet giữ chuỗi 'HH:mm:ss' nên 06:00 luôn
+	 * "sớm hơn" 22:00 -> ca đêm bị đảo thành 16 tiếng ban ngày. Ở đây giờ là SỐ GIÂY, nên chỉ cần
+	 * trải phẳng trục (giờ sau nửa đêm + 86400) TRƯỚC khi vào hàm này là cùng một luật chạy đúng
+	 * cho cả hai. Một luật thay vì hai — chính điều Code.gs tự cảnh báo: hai bản tính giờ lệch
+	 * nhau là lệch tiền lương.
+	 */
+	public static function quyet_dinh_gio( $vao, $ra, $moi ) {
+		if ( $moi === $vao || $moi === $ra ) { return array( 'loai' => 'trung' ); }
+		if ( null === $vao ) {
+			return array( 'loai' => 'vao', 'vao' => $moi, 'anh_vao' => true );
+		}
+		if ( $moi >= $vao ) {
+			// Nằm trong khoảng đã phủ -> KHÔNG thu hẹp giờ ra.
+			if ( null !== $ra && $moi < $ra ) { return array( 'loai' => 'giua' ); }
+			return array( 'loai' => 'ra', 'ra' => $moi, 'anh_ra' => true );
+		}
+		/* Sớm hơn giờ vào -> thành giờ vào mới. Giờ vào CŨ chỉ tụt xuống làm giờ ra khi ô giờ ra
+		   còn TRỐNG: đã có giờ ra muộn hơn thì giữ nguyên, vì "muộn nhất trong ngày" mới đúng
+		   nghĩa ô đó. Ghi đè vô điều kiện là ca làm mất giờ ra thật (22:05) khi lượt sớm nhất
+		   tới sau cùng — rất hay gặp lúc nạp lại vì đầu đọc trả trang không theo thứ tự. */
+		$kq = array( 'loai' => 'daoThuTu', 'vao' => $moi, 'anh_vao' => true );
+		if ( null === $ra ) { $kq['ra'] = $vao; $kq['chuyen_anh_vao_sang_ra'] = true; }
+		return $kq;
+	}
+
+	/**
+	 * Ghi một lượt vào bảng chấm công.
+	 *
+	 * `$giay` phải là giờ ĐÃ trải phẳng nếu đây là hàng ca đêm — nơi gọi lo việc đó, xem
+	 * VHCC_Online::trai_phang(). `$ma_nv` nhận cả mã có hậu tố ('NV001-CD').
+	 */
+	public static function ghi_gio( $coso, $ngay, $ma_nv, $ho_ten, $giay, $anh_b64, $nguon = 'may', $ghi_chu = null ) {
+		global $wpdb;
+		/* 🔴 LƯỚI CUỐI: tên cơ sở KHÔNG ĐƯỢC mang dấu phẩy.
+		   Mọi đường ghi vào bảng chấm công đều qua đây, nên chốt ở đây là chốt cho cả những
+		   đường sẽ mọc ra sau. Chuỗi ghép lọt xuống một lần là bảng có thêm một "cơ sở" không
+		   có thật, và nó nằm lại trong ô xổ cơ sở của màn quản trị cho tới khi có người dọn tay. */
+		$coso = VHCC_NhanSu::chuan_coso( $coso );
+		$bang = VHCC_DB::t( 'cham_cong' );
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 MÃ PHỤ ĐÃ KHAI CẶP THÌ DỊCH VỀ MÃ CHÍNH — Ở ĐÂY, CHỐT CUỐI CỦA MỌI ĐƯỜNG GHI.
+		 *
+		 * Anh Thắng 16/09/2026: *"khi đồng bộ, nó lại sinh ra nhân viên mới, do 2 mã nhân viên
+		 * khác nhau"* — và trước đó, 28/08: *"cần đồng bộ 2 mã chạy song song được không, chứ
+		 * nó đang nhân 2 nhân viên ra"*.
+		 *
+		 * Cơ chế ghép đã có từ lâu (sổ `ma_song_song` + `ma_that()`), nhưng `ma_that()` CHỈ được
+		 * gọi ở `mot_luot()` — tức chỉ lượt do MÁY CHẤM CÔNG đẩy lên. Nút **Nạp về** đi đường
+		 * `VHCC_Keo::keo_thang()` → thẳng vào hàm này, và nạp .csv cũng thế. Nên mỗi lần đồng bộ
+		 * lại rót về một lô lượt mang MÃ CŨ, và bảng công lại mọc ra người thứ hai. Khai ghép
+		 * bao nhiêu lần cũng vô ích nếu đường đổ dữ liệu vào không thèm hỏi sổ ghép.
+		 *
+		 * Chốt ở đây là chốt đúng chỗ — chú thích ngay trên đã nói: *"Mọi đường ghi vào bảng
+		 * chấm công đều qua đây, nên chốt ở đây là chốt cho cả những đường sẽ mọc ra sau."*
+		 *
+		 * ⚠️ `mot_luot()` VẪN gọi `ma_that()` trước khi vào đây, và đó KHÔNG phải thừa: nó cần
+		 *    biết mã đã đổi để lấy luôn TÊN từ hồ sơ trước mấy nhánh nhật ký. Gọi hai lần vô hại
+		 *    — `ma_that()` của một mã chính trả lại chính nó. Đừng thấy trùng rồi gỡ cái ở đây.
+		 * ⚠️ `ma_that()` chỉ đổi khi đầu kia CÓ hồ sơ; chưa khai cặp thì nó trả lại nguyên mã cũ
+		 *    và lượt ấy vẫn vào bảng như trước. Không lượt nào biến mất.
+		 * ⚠️ Dịch TRƯỚC `tach_hau_to()`: hậu tố (`-CD`, `-TC`) là chuyện của CA, không phải của
+		 *    người, còn sổ ghép khai theo mã trần. Dịch xong lắp lại đúng hậu tố cũ.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		if ( class_exists( 'VHCC_NhanSu' ) && method_exists( 'VHCC_NhanSu', 'ma_that' ) ) {
+			list( $ma_tr, $ht_tr ) = self::tach_hau_to( $ma_nv );
+			$ma_th = VHCC_NhanSu::ma_that( $ma_tr );
+			if ( '' !== $ma_th && 0 !== strcasecmp( (string) $ma_th, (string) $ma_tr ) ) {
+				$ma_nv  = $ma_th . ( '' !== $ht_tr ? '-' . $ht_tr : '' );
+				$hs_th  = VHCC_NhanSu::ho_so( $ma_th );
+				if ( $hs_th && '' !== trim( (string) $hs_th['ho_ten'] ) ) {
+					$ho_ten = (string) $hs_th['ho_ten'];
+				}
+			}
+		}
+
+		list( $ma_goc, $hau_to ) = self::tach_hau_to( $ma_nv );
+
+		$cu = $wpdb->get_row( $wpdb->prepare(
+			"SELECT * FROM $bang WHERE coso=%s AND ngay=%s AND ma_nv=%s AND hau_to=%s",
+			$coso, $ngay, $ma_goc, $hau_to ), ARRAY_A );
+
+		$vao = ( $cu && null !== $cu['gio_vao_giay'] && '' !== $cu['gio_vao_giay'] ) ? (int) $cu['gio_vao_giay'] : null;
+		$ra  = ( $cu && null !== $cu['gio_ra_giay'] && '' !== $cu['gio_ra_giay'] ) ? (int) $cu['gio_ra_giay'] : null;
+
+		$qd = self::quyet_dinh_gio( $vao, $ra, $giay );
+		if ( 'trung' === $qd['loai'] || 'giua' === $qd['loai'] ) {
+			return array( 'loai' => $qd['loai'], 'anh' => 'khong-doi' );
+		}
+
+		/* 🔴 LƯỢT MÁY KHÔNG ĐÈ LÊN Ô NGƯỜI TA ĐÃ SỬA HOẶC BÙ.
+		   Anh Thắng 27/08/2026: *"Nhớ bổ sung dữ liệu lên, chỉ đè dữ liệu khi nó trống, tránh đè
+		   lần 2"*.
+		   `quyet_dinh_gio()` đã lo phần "không thu hẹp": trùng thì bỏ, nằm giữa thì bỏ, chỉ nới
+		   ra hai đầu. Nhưng NỚI RA cũng là đè, khi cái nó đè lên là một quyết định của người:
+		     • Admin sửa giờ ra 22:00 → 17:00 (máy lệch đồng hồ, đối chiếu camera). Nạp lại tệp
+		       .csv cũ có lượt 22:00 → 22:00 muộn hơn 17:00 nên vào nhánh "ra", và giờ ra thật
+		       bị thay lại bằng con số vừa bị bác bỏ.
+		     • Cửa hàng trưởng bù giờ vào 08:00 (máy hỏng sáng ấy). Máy sống lại, đẩy nốt lô cũ
+		       có lượt 07:45 → sớm hơn nên vào nhánh "đảo thứ tự", và lượt bù bị thay.
+		   Cả hai đều IM LẶNG, và cả hai đều xoá mất một quyết định có lý do, có người ký, có
+		   dòng nhật ký. Lần nạp thứ hai không được phép làm chuyện đó.
+
+		   ⚠️ CHẶN THEO TỪNG Ô, không theo cả ngày. Bù giờ vào rồi máy gửi giờ ra thật thì giờ ra
+		      ấy VẪN PHẢI VÀO — ô đó còn trống, và chặn nó là bắt người ta bù tay cả cặp trong
+		      khi máy đã có sẵn con số đúng. Đúng chữ anh: *chỉ đè khi nó trống*.
+		   ⚠️ MIỄN cho chính hai đường tay ấy (`bu` · `sua`) là PHÒNG XA, không phải chốt đang
+		      canh gì: hôm nay `bu` tự gác "chỉ điền ô trống" nên nó không bao giờ tới được nhánh
+		      đè, còn `sua` đi đường `dat_gio()` chứ không qua đây. Đã phá thử và ghi lại để
+		      người sau khỏi đi tìm phép thử canh nó — KHÔNG CÓ. Giữ vì ngày nào đó `bu` được nới
+		      cho đè (kèm lý do chẳng hạn) thì chốt này sẽ chặn nó, và chặn IM LẶNG.
+		   ⚠️ Chỉ hỏi sổ khi THẬT SỰ sắp đè lên một ô đã có số — lô 2000 lượt thì hầu hết là ô
+		      trống hoặc trùng, và chúng không tốn thêm truy vấn nào. */
+		$de_len = ( array_key_exists( 'vao', $qd ) && null !== $vao )
+			|| ( array_key_exists( 'ra', $qd ) && null !== $ra );
+		if ( $cu && $de_len && 'bu' !== $nguon && 'sua' !== $nguon
+			&& class_exists( 'VHCC_Bu' ) && method_exists( 'VHCC_Bu', 'o_da_dong_tay' ) ) {
+			$tay = VHCC_Bu::o_da_dong_tay( $coso, $ngay, $ma_goc );
+			$giu = array();
+			foreach ( array( 'vao', 'ra' ) as $o_x ) {
+				/* ⚠️ KHÔNG đòi ô phải ĐANG CÓ SỐ. Ô có dấu tay mà đang trống là ô người ta cố ý
+				   XOÁ TRẮNG — Admin xoá một giờ ra sai chẳng hạn. Máy đẩy lại lô cũ rồi dựng
+				   đúng con số vừa bị xoá là làm hỏng chính cái quyết định ấy, và lần này còn
+				   khó thấy hơn: bảng lại đủ cặp giờ như chưa có chuyện gì. */
+				if ( array_key_exists( $o_x, $qd ) && ! empty( $tay[ $o_x ] ) ) {
+					unset( $qd[ $o_x ] );
+					$giu[] = $o_x;
+				}
+			}
+			/* 🔴 GIỮ Ô `vao` THÌ PHẢI BỎ LUÔN Ô `ra` SUY RA TỪ NÓ.
+			   Nhánh `daoThuTu` (lượt mới sớm hơn giờ vào) làm hai việc một lúc: đặt giờ vào mới,
+			   và ĐẨY GIỜ VÀO CŨ XUỐNG LÀM GIỜ RA khi ô ra còn trống. Giữ ô `vao` mà để nguyên ô
+			   `ra` là máy vừa dựng ra một "giờ ra" bằng đúng con số người ta BÙ — một giờ ra
+			   không ai bấm, sinh từ một lượt bù giờ vào.
+			   Ví dụ thật: bù giờ vào 08:00 → máy đẩy lô cũ có 07:45 → ô ra (đang trống) thành
+			   08:00. Ngày ấy hoá ra "vào 08:00, ra 08:00", tức 0 giờ làm, mà nhìn bảng thì đủ
+			   cặp giờ nên không ô nào đỏ. Đã phá thử mới thấy. */
+			if ( in_array( 'vao', $giu, true ) && 'daoThuTu' === $qd['loai'] ) {
+				unset( $qd['ra'], $qd['chuyen_anh_vao_sang_ra'] );
+			}
+			/* Không còn ô nào đổi -> lượt này không có việc gì để làm. Trả một loại RIÊNG, đừng
+			   gộp vào 'trung': hai chuyện khác hẳn nhau, và người soi nhật ký cổng cần phân biệt
+			   "gói lặp" với "đã giữ giờ người ta sửa". */
+			if ( $giu && ! array_key_exists( 'vao', $qd ) && ! array_key_exists( 'ra', $qd ) ) {
+				return array( 'loai' => 'giu-tay', 'anh' => 'khong-doi', 'giuO' => $giu );
+			}
+		}
+
+		$anh_moi = '';
+		$ghi_anh = strlen( $anh_b64 ) > 100;
+		if ( $ghi_anh ) {
+			$anh_moi = self::luu_anh( $coso, $ngay, $ma_nv, $giay, $anh_b64 );
+			/* Lưu ảnh trượt -> VẪN GHI GIỜ, chỉ mất ảnh. Giờ là tiền, ảnh là bằng chứng phụ. */
+			if ( '' === $anh_moi ) { $ghi_anh = false; }
+		}
+
+		$loai = $qd['loai'];
+		$dat  = array();
+		if ( array_key_exists( 'vao', $qd ) ) { $dat['gio_vao_giay'] = $qd['vao']; }
+		if ( array_key_exists( 'ra', $qd ) ) { $dat['gio_ra_giay'] = $qd['ra']; }
+		if ( $ghi_anh && ! empty( $qd['anh_vao'] ) ) { $dat['anh_vao'] = $anh_moi; }
+		if ( $ghi_anh && ! empty( $qd['anh_ra'] ) ) { $dat['anh_ra'] = $anh_moi; }
+		if ( ! empty( $qd['chuyen_anh_vao_sang_ra'] ) ) { $dat['anh_ra'] = $cu ? (string) $cu['anh_vao'] : ''; }
+
+		/* Ô "Thời gian trong ngày" của sheet: 'HH:mm' hoặc 'HH:mm HH:mm'. Tính lại từ cặp SAU khi
+		   đã đặt, chứ không chắp từ nhánh — chắp từ nhánh là chỗ dễ lệch nhất với bản gốc. */
+		$vao_moi = array_key_exists( 'gio_vao_giay', $dat ) ? $dat['gio_vao_giay'] : $vao;
+		$ra_moi  = array_key_exists( 'gio_ra_giay', $dat ) ? $dat['gio_ra_giay'] : $ra;
+		$dat['chuan'] = ( null === $ra_moi )
+			? VHCC_DB::hhmm( $vao_moi )
+			: VHCC_DB::hhmm( $vao_moi ) . ' ' . VHCC_DB::hhmm( $ra_moi );
+
+		if ( null !== $ghi_chu && '' !== $ghi_chu ) { $dat['ghi_chu'] = $ghi_chu; }
+		if ( $cu ) {
+			/* Hàng đã có thì `nguon` chỉ được NỚI, không được ghi đè: một ngày có thể vừa có lượt
+			   máy vừa có lượt online, và `nguon` chính là thứ phép đối số hàng dùng để chỉ đếm
+			   lượt của MÁY. Ghi đè thành cái đến sau là mất dấu, rồi phép đối chiếu báo lệch mà
+			   không ai biết lệch vì đâu. */
+			if ( trim( (string) $cu['nguon'] ) !== '' && trim( (string) $cu['nguon'] ) !== $nguon ) {
+				$dat['nguon'] = 'hon-hop';
+			}
+			$ok = $wpdb->update( $bang, $dat, array( 'id' => (int) $cu['id'] ) );
+		} else {
+			$dat['coso']   = $coso;
+			$dat['ngay']   = $ngay;
+			$dat['ma_nv']  = $ma_goc;
+			$dat['hau_to'] = $hau_to;
+			$dat['ho_ten'] = $ho_ten;
+			$dat['nguon']  = $nguon;
+			$dat['ghi_luc'] = current_time( 'mysql' );
+			$ok = $wpdb->insert( $bang, $dat );
+		}
+		if ( false === $ok ) { return array( 'loi' => 'MySQL: ' . $wpdb->last_error ); }
+
+		return array( 'loai' => $loai, 'anh' => $ghi_anh ? ( 'ok:' . $anh_moi ) : ( strlen( $anh_b64 ) > 100 ? 'ERR' : 'no-img' ) );
+	}
+
+	/**
+	 * ĐẶT THẲNG giờ vào / giờ ra — cửa ghi THỨ TƯ, và là cửa duy nhất ĐÈ ĐƯỢC.
+	 *
+	 * ════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 KHÁC HẲN `ghi_gio()`, ĐỌC KỸ TRƯỚC KHI GỌI.
+	 *
+	 *    `ghi_gio()` chỉ NỚI khung [vào, ra]: một lượt quẹt mới sớm hơn thì đẩy giờ vào sớm ra,
+	 *    muộn hơn thì đẩy giờ ra muộn vào, còn nằm giữa thì bỏ qua. Nhờ vậy nạp lại tệp cũ bao
+	 *    nhiêu lần cũng ra một kết quả, và không lượt quẹt nào làm mất lượt quẹt khác.
+	 *
+	 *    Hàm này thì ĐẶT ĐÚNG GIÁ TRỊ ĐƯỢC TRUYỀN — thu hẹp được, xoá trắng được (`null`). Tức
+	 *    là nó XOÁ MẤT thứ máy đã ghi. Đó chính là việc anh Thắng cần (26/08/2026: *"admin có
+	 *    quyền chỉnh sửa lại giờ công cho nhân viên"*), nhưng cũng chính là thứ mà cả `VHCC_Cham`
+	 *    lẫn `VHCC_Bu` viết ra để ngăn. Nên hàm này KHÔNG có ai gọi ngoài `VHCC_Bu::sua()` —
+	 *    nơi gác quyền Admin, đòi lý do, và ghi nhật ký CŨ -> MỚI.
+	 *
+	 * 🔴 `nguon` ĐỔI THÀNH 'sua', KHÔNG PHẢI 'hon-hop'.
+	 *    Hàng đã bị sửa tay thì không còn là sổ ghi máy nữa, và phép đối chiếu (chỉ đếm lượt
+	 *    `nguon='may'`) phải THÔI đếm nó. Để nguyên 'may' là bảo phép đối chiếu rằng con số này
+	 *    do máy ghi — nói dối đúng chỗ dựng ra để bắt nói dối.
+	 *
+	 * ⚠️ Cả hai `null` thì hàng vẫn còn, chỉ trống giờ — KHÔNG xoá hàng. Xoá hàng là mất luôn
+	 *    `ghi_chu` và dấu vết `ghi_luc`; để lại một hàng trống thì bảng hiện '·' y như chưa có
+	 *    dữ liệu, mà sổ vẫn nhớ là ngày này từng có gì.
+	 *
+	 * @param int|null $vao_giay Giây trong ngày, hoặc null để xoá trắng ô.
+	 * @param int|null $ra_giay  Giây trong ngày, hoặc null để xoá trắng ô.
+	 * @return array `cu` (giờ trước khi sửa) + `moi`, hoặc `loi`.
+	 */
+	public static function dat_gio( $coso, $ngay, $ma_nv, $ho_ten, $vao_giay, $ra_giay, $ghi_chu = null,
+		$nghi_tu = false, $nghi_den = false ) {
+		global $wpdb;
+		/* 🔴 LƯỚI CUỐI: tên cơ sở KHÔNG ĐƯỢC mang dấu phẩy.
+		   Mọi đường ghi vào bảng chấm công đều qua đây, nên chốt ở đây là chốt cho cả những
+		   đường sẽ mọc ra sau. Chuỗi ghép lọt xuống một lần là bảng có thêm một "cơ sở" không
+		   có thật, và nó nằm lại trong ô xổ cơ sở của màn quản trị cho tới khi có người dọn tay. */
+		$coso = VHCC_NhanSu::chuan_coso( $coso );
+		$bang = VHCC_DB::t( 'cham_cong' );
+		list( $ma_goc, $hau_to ) = self::tach_hau_to( $ma_nv );
+
+		$vao_giay = ( null === $vao_giay || '' === $vao_giay ) ? null : (int) $vao_giay;
+		$ra_giay  = ( null === $ra_giay  || '' === $ra_giay )  ? null : (int) $ra_giay;
+
+		$cu = $wpdb->get_row( $wpdb->prepare(
+			"SELECT * FROM $bang WHERE coso=%s AND ngay=%s AND ma_nv=%s AND hau_to=%s",
+			$coso, $ngay, $ma_goc, $hau_to ), ARRAY_A );
+
+		$vao_cu = ( $cu && null !== $cu['gio_vao_giay'] && '' !== $cu['gio_vao_giay'] ) ? (int) $cu['gio_vao_giay'] : null;
+		$ra_cu  = ( $cu && null !== $cu['gio_ra_giay'] && '' !== $cu['gio_ra_giay'] ) ? (int) $cu['gio_ra_giay'] : null;
+
+		/* Ô "Thời gian trong ngày" tính LẠI từ cặp mới, y như `ghi_gio()` — chắp từ nhánh là chỗ
+		   dễ lệch nhất giữa hai cửa ghi. */
+		if ( null === $vao_giay && null === $ra_giay ) { $chuan = ''; }
+		elseif ( null === $ra_giay )                   { $chuan = VHCC_DB::hhmm( $vao_giay ); }
+		elseif ( null === $vao_giay )                  { $chuan = VHCC_DB::hhmm( $ra_giay ); }
+		else { $chuan = VHCC_DB::hhmm( $vao_giay ) . ' ' . VHCC_DB::hhmm( $ra_giay ); }
+
+		$dat = array(
+			'gio_vao_giay' => $vao_giay,
+			'gio_ra_giay'  => $ra_giay,
+			'chuan'        => $chuan,
+			'nguon'        => 'sua',
+		);
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * CA GÃY — khoảng nghỉ giữa ca.
+		 *
+		 * 🔴 BA TRẠNG THÁI, KHÔNG PHẢI HAI:
+		 *      `false` (mặc định) = KHÔNG ĐỤNG TỚI — mọi nơi gọi cũ đi qua đây không mất ca gãy
+		 *                            đã khai. Quan trọng nhất: máy chấm công đẩy một lượt mới
+		 *                            về cũng không xoá mất thứ cửa hàng trưởng vừa khai tay.
+		 *      `null`              = XOÁ (bỏ tích ca gãy).
+		 *      số                  = ĐẶT.
+		 *    Dùng `null` làm "không đụng" thì không còn cách nào xoá; dùng `0` thì mất mốc
+		 *    00:00:00. Nên phải là ba.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		if ( false !== $nghi_tu ) {
+			$dat['nghi_tu_giay'] = ( null === $nghi_tu || '' === $nghi_tu ) ? null : (int) $nghi_tu;
+		}
+		if ( false !== $nghi_den ) {
+			$dat['nghi_den_giay'] = ( null === $nghi_den || '' === $nghi_den ) ? null : (int) $nghi_den;
+		}
+		if ( null !== $ghi_chu && '' !== $ghi_chu ) { $dat['ghi_chu'] = $ghi_chu; }
+
+		if ( $cu ) {
+			$ok = $wpdb->update( $bang, $dat, array( 'id' => (int) $cu['id'] ) );
+		} else {
+			$dat['coso']    = $coso;
+			$dat['ngay']    = $ngay;
+			$dat['ma_nv']   = $ma_goc;
+			$dat['hau_to']  = $hau_to;
+			$dat['ho_ten']  = $ho_ten;
+			$dat['ghi_luc'] = current_time( 'mysql' );
+			$ok = $wpdb->insert( $bang, $dat );
+		}
+		if ( false === $ok ) { return array( 'loi' => 'MySQL: ' . $wpdb->last_error ); }
+
+		$ntu_cu = ( $cu && null !== $cu['nghi_tu_giay'] && '' !== $cu['nghi_tu_giay'] )
+			? (int) $cu['nghi_tu_giay'] : null;
+		$nden_cu = ( $cu && null !== $cu['nghi_den_giay'] && '' !== $cu['nghi_den_giay'] )
+			? (int) $cu['nghi_den_giay'] : null;
+		return array(
+			'cu'  => array( 'vao' => $vao_cu,   'ra' => $ra_cu,
+				'nghiTu' => $ntu_cu, 'nghiDen' => $nden_cu ),
+			'moi' => array( 'vao' => $vao_giay, 'ra' => $ra_giay,
+				'nghiTu'  => array_key_exists( 'nghi_tu_giay', $dat ) ? $dat['nghi_tu_giay'] : $ntu_cu,
+				'nghiDen' => array_key_exists( 'nghi_den_giay', $dat ) ? $dat['nghi_den_giay'] : $nden_cu ),
+		);
+	}
+
+	/**
+	 * Tách hậu tố nhiệm vụ / ca khỏi mã — bản dịch `_tachMaNhiemVu`.
+	 * -TT Thu Tiền · -TG Trực Ghế · -CD tăng ca/ca đêm · -CT công tối (cũ) · -TC tăng cường.
+	 * KHÔNG cắt hậu tố lạ: mã `NV-XX` là mã thật tên vậy, cắt bừa là gộp công hai người.
+	 */
+	public static function tach_hau_to( $ma ) {
+		$ma = trim( (string) $ma );
+		if ( preg_match( '/^(.*?)-(TT|TG|CD|CT|TC)$/i', $ma, $m ) ) {
+			return array( trim( $m[1] ), strtoupper( $m[2] ) );
+		}
+		return array( $ma, '' );
+	}
+
+	/**
+	 * Máy -> cơ sở. Bản dịch `_giaiMaTram`: tra theo SERIAL trước, rồi MAC.
+	 * Chỉ nhận lời khai của máy khi cơ sở đó ĐÃ CÓ THẬT; không bao giờ tạo cơ sở mới từ lời khai.
+	 */
+	public static function giai_ma_tram( $serial, $mac, $tu_khai, $model ) {
+		$tu_khai = trim( preg_replace( '/^CS_/', '', (string) $tu_khai ) );
+		$m       = self::ghi_nhan_may( $serial, $mac, $tu_khai, $model );
+		$gan     = $m ? trim( preg_replace( '/^CS_/', '', (string) $m['cua_hang'] ) ) : '';
+		if ( '' !== $gan ) {
+			return array( 'station' => $gan, 'nguon' => 'bang',
+				'lech'  => ( '' !== $tu_khai && strtolower( $tu_khai ) !== strtolower( $gan ) ),
+				'choGan' => false );
+		}
+		if ( '' !== $tu_khai && self::coso_co_that( $tu_khai ) ) {
+			return array( 'station' => $tu_khai, 'nguon' => 'tu-khai', 'lech' => false, 'choGan' => false );
+		}
+		return array( 'station' => '', 'nguon' => 'tu-khai', 'lech' => false, 'choGan' => true );
+	}
+
+	/** Cơ sở "có thật" = đã có trong bảng máy hoặc đã có lượt chấm công. Không tự tạo bao giờ. */
+	private static function coso_co_that( $coso ) {
+		global $wpdb;
+		$a = $wpdb->get_var( $wpdb->prepare(
+			'SELECT 1 FROM ' . VHCC_DB::t( 'may' ) . ' WHERE LOWER(cua_hang)=LOWER(%s) LIMIT 1', $coso ) );
+		if ( $a ) { return true; }
+		$b = $wpdb->get_var( $wpdb->prepare(
+			'SELECT 1 FROM ' . VHCC_DB::t( 'cham_cong' ) . ' WHERE LOWER(coso)=LOWER(%s) LIMIT 1', $coso ) );
+		return (bool) $b;
+	}
+
+	/**
+	 * Ghi nhận máy. Bản dịch `_ghiNhanMay`, giữ nguyên chỗ QUAN TRỌNG NHẤT:
+	 * phần cứng đổi thì CHỈ GHI DẤU, KHÔNG tự sửa và KHÔNG bao giờ ghi đè cơ sở đã gán.
+	 * Vì "thay bo ESP32" và "mang bo sang cửa hàng khác" nhìn từ máy chủ giống hệt nhau — firmware
+	 * nhớ serial trong NVS nên bo mang đi vẫn khai serial cũ. Đoán sai là chấm công cửa hàng mới
+	 * chảy vào cơ sở cũ: sai người, sai lương, không ai thấy.
+	 */
+	private static function ghi_nhan_may( $serial, $mac, $tu_khai, $model ) {
+		global $wpdb;
+		$bang = VHCC_DB::t( 'may' );
+		$m = null;
+		if ( '' !== $serial ) {
+			$m = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $bang WHERE LOWER(serial)=LOWER(%s) LIMIT 1", $serial ), ARRAY_A );
+		}
+		if ( ! $m && '' !== $mac ) {
+			$m = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $bang WHERE LOWER(mac)=LOWER(%s) LIMIT 1", $mac ), ARRAY_A );
+		}
+		if ( ! $m ) {
+			$wpdb->insert( $bang, array(
+				'serial' => $serial, 'mac' => $mac, 'cua_hang' => '', 'model' => $model,
+				'ten_tu_khai' => $tu_khai, 'lan_cuoi_thay' => current_time( 'mysql' ),
+				'ghi_chu' => 'máy mới — CHƯA GÁN cơ sở',
+			) );
+			return null;
+		}
+
+		$dat = array( 'ten_tu_khai' => $tu_khai, 'lan_cuoi_thay' => current_time( 'mysql' ) );
+		// Bổ sung ô còn TRỐNG thì được; ô đã có giá trị KHÁC thì chỉ ghi dấu.
+		if ( '' === trim( (string) $m['serial'] ) && '' !== $serial ) { $dat['serial'] = $serial; }
+		if ( '' === trim( (string) $m['mac'] ) && '' !== $mac ) { $dat['mac'] = $mac; }
+		if ( '' === trim( (string) $m['model'] ) && '' !== $model ) { $dat['model'] = $model; }
+
+		$dau = array();
+		if ( '' !== $serial && '' !== trim( (string) $m['serial'] )
+			&& strtolower( trim( $m['serial'] ) ) !== strtolower( $serial ) ) {
+			$dau[] = '⚠️ SERIAL ĐẦU ĐỌC ĐỔI: ' . $m['serial'] . ' -> ' . $serial . ' lúc ' . current_time( 'mysql' )
+				. ' — kiểm xem có phải bo bị mang sang cơ sở khác. CHƯA tự sửa.';
+			self::ghi_loi( 'SERIAL_DOI', 'MAC ' . $mac . ': ' . $m['serial'] . ' -> ' . $serial );
+		}
+		if ( '' !== $mac && '' !== trim( (string) $m['mac'] )
+			&& strtolower( trim( $m['mac'] ) ) !== strtolower( $mac ) ) {
+			$dau[] = '⚠️ MAC BO ĐỔI: ' . $m['mac'] . ' -> ' . $mac . ' lúc ' . current_time( 'mysql' )
+				. ' — thay bo thì cập nhật tay. CHƯA tự sửa.';
+			self::ghi_loi( 'MAC_DOI', 'serial ' . $serial . ': ' . $m['mac'] . ' -> ' . $mac );
+		}
+		if ( $dau ) { $dat['ghi_chu'] = implode( ' | ', $dau ); }
+
+		$wpdb->update( $bang, $dat, array( 'id' => (int) $m['id'] ) );
+		return array_merge( $m, $dat );
+	}
+
+	/** Lượt bấm của máy chưa gán cơ sở. Giữ nguyên lời khai của máy, không suy diễn gì. */
+	private static function luu_cho_gan( $serial, $mac, $tu_khai, $ma_nv, $ho_ten, $luc, $co_anh ) {
+		global $wpdb;
+		$ok = $wpdb->insert( VHCC_DB::t( 'cho_gan' ), array(
+			'nhan_luc' => current_time( 'mysql' ), 'serial' => $serial, 'mac' => $mac,
+			'ten_tu_khai' => $tu_khai, 'ma_nv' => $ma_nv, 'ho_ten' => $ho_ten,
+			'thoi_diem' => $luc, 'co_anh' => $co_anh ? 1 : 0, 'da_chuyen' => '',
+		) );
+		return false === $ok ? 'loi' : 'da-giu';
+	}
+
+	/**
+	 * Ảnh chấm công. Bản gốc đẩy lên Drive; ở đây ghi vào thư mục tải lên của WordPress theo
+	 * đúng cây `<cơ sở>/Tháng MM-yyyy/` cho khớp bản gốc, và trả về đường dẫn tương đối.
+	 * Trượt thì trả rỗng — nơi gọi VẪN GHI GIỜ.
+	 */
+	private static function luu_anh( $coso, $ngay, $ma_nv, $giay, $b64 ) {
+		$nhi = base64_decode( $b64, true );
+		if ( false === $nhi || strlen( $nhi ) < 100 ) { return ''; }
+		$u = wp_upload_dir();
+		if ( ! empty( $u['error'] ) ) { return ''; }
+		$thang = 'Tháng ' . substr( $ngay, 5, 2 ) . '-' . substr( $ngay, 0, 4 );
+		$tuong = 'vhcc-anh/' . sanitize_file_name( $coso ) . '/' . sanitize_file_name( $thang );
+		$thu   = $u['basedir'] . '/' . $tuong;
+		if ( ! wp_mkdir_p( $thu ) ) { return ''; }
+		$ten = sanitize_file_name( $ma_nv . '_' . $ngay . '_' . str_replace( ':', '-', VHCC_DB::hhmmss( $giay ) ) . '.jpg' );
+		return ( false === file_put_contents( $thu . '/' . $ten, $nhi ) ) ? '' : ( $tuong . '/' . $ten );
+	}
+
+	/** Ngày có thật (chặn 2026-02-31, 2026-13-01). Khuôn đúng mà ngày không có là vẫn phải bỏ. */
+	private static function ngay_that( $ngay ) {
+		list( $y, $m, $d ) = array_map( 'intval', explode( '-', $ngay ) );
+		return checkdate( $m, $d, $y );
+	}
+
+	private static function than_yeu_cau() {
+		if ( defined( 'VHCC_TEST' ) && isset( $GLOBALS['VHCC_THAN'] ) ) { return (string) $GLOBALS['VHCC_THAN']; }
+		$t = file_get_contents( 'php://input' );
+		return false === $t ? '' : $t;
+	}
+
+	/** So khoá bằng hash_equals — so bằng `===` là rò rỉ độ dài khớp qua thời gian đáp. */
+	private static function khoa_dung( $d ) {
+		$that = defined( 'VHCC_KHOA_MAY' ) ? (string) VHCC_KHOA_MAY : '';
+		if ( '' === $that ) { return false; }          // chưa cấu hình = đóng, không phải mở
+		$gui = '';
+		if ( isset( $_SERVER['HTTP_X_VHCC_KEY'] ) ) { $gui = (string) $_SERVER['HTTP_X_VHCC_KEY']; }
+		elseif ( isset( $d['key'] ) ) { $gui = (string) $d['key']; }
+		return '' !== $gui && hash_equals( $that, $gui );
+	}
+
+	/**
+	 * VÌ SAO KHOÁ KHÔNG QUA — nói đủ để sửa được, mà TUYỆT ĐỐI không in khoá ra.
+	 *
+	 * 🔴 KHÔNG IN GIÁ TRỊ KHOÁ, DÙ CHỈ MỘT PHẦN. Nhật ký này hiện trên màn quản trị, mà màn quản
+	 *    trị thì nằm ngoài internet và ảnh chụp màn hình đi khắp nơi. Lộ khoá là ai cũng đẩy
+	 *    được lượt chấm công giả vào bảng lương.
+	 *
+	 * ⚠️ ĐỘ DÀI thì được, và cần: "máy gửi 18 ký tự" đủ để người ta nhận ra mình còn để nguyên
+	 *    chuỗi mẫu trong `secrets.h`. Còn phía máy chủ chỉ nói KHỚP hay KHÔNG KHỚP độ dài — một
+	 *    bit, đủ tách "gõ nhầm một ký tự" khỏi "hai chuỗi khác hẳn nhau", mà không kể ra gì.
+	 */
+	private static function vi_sao_khoa_hong( $d ) {
+		$that = defined( 'VHCC_KHOA_MAY' ) ? (string) VHCC_KHOA_MAY : '';
+		if ( '' === $that ) {
+			return 'gói tới được cổng, nhưng máy chủ CHƯA khai VHCC_KHOA_MAY trong wp-config.php '
+				. '— cổng đang đóng với mọi máy. Đây là lỗi ở máy chủ, không phải ở máy.';
+		}
+		$co_header = isset( $_SERVER['HTTP_X_VHCC_KEY'] );
+		$co_than   = isset( $d['key'] );
+		if ( ! $co_header && ! $co_than ) {
+			/* 🔴 CA NÀY HAY BỊ ĐỔ OAN CHO FIRMWARE. Firmware LUÔN gửi khoá ở header
+			   `X-VHCC-Key`. Không thấy header nghĩa là có thứ gì đó giữa máy và PHP đã cắt nó
+			   đi — CDN, tường lửa, hoặc PHP chạy dạng CGI mà máy chủ web không chuyển tiếp
+			   header lạ. Nạp lại firmware bao nhiêu lần cũng không chữa được. */
+			return 'gói tới được cổng nhưng KHÔNG mang khoá nào: thiếu cả header X-VHCC-Key lẫn '
+				. 'trường "key" trong thân. Firmware luôn gửi ở header — nên gần như chắc là có '
+				. 'thứ gì đó giữa máy và PHP cắt mất header (CDN, tường lửa, hoặc PHP chạy dạng '
+				. 'CGI không chuyển tiếp header lạ). Cách vòng: cho máy gửi khoá trong thân gói.';
+		}
+		$gui = $co_header ? (string) $_SERVER['HTTP_X_VHCC_KEY'] : (string) $d['key'];
+		return 'gói tới được cổng và CÓ mang khoá (' . ( $co_header ? 'ở header X-VHCC-Key' : 'ở thân gói' )
+			. ', dài ' . strlen( $gui ) . ' ký tự) nhưng khoá không khớp — độ dài '
+			. ( strlen( $gui ) === strlen( $that ) ? 'thì KHỚP, nên nhiều khả năng chỉ sai vài ký tự '
+				. 'hoặc lẫn dấu cách ở đầu/cuối' : 'cũng KHÁC, nên là hai chuỗi khác hẳn nhau — '
+				. 'gần như chắc là secrets.h còn để nguyên chuỗi mẫu' )
+			. '. Sửa cho khớp VHCC_KHOA_MAY trong wp-config.php. (Giá trị khoá cố ý không ghi ra đây.)';
+	}
+
+	/**
+	 * Nhật ký sự cố của cổng. Bản dịch `_fbGhiLoi` — ghi để đọc được, không để im lặng.
+	 *
+	 * 🔴 GỘP DÒNG LIÊN TIẾP GIỐNG HỆT NHAU, KHÔNG XẾP CHỒNG. Sổ này chỉ giữ 200 dòng gần nhất.
+	 *    Một cái máy hỏng cấu hình thì đẩy lại mỗi vài phút, không bao giờ thôi: xếp chồng thì
+	 *    trong vài giờ nó đầy 200 dòng y hệt nhau và ĐẨY VĂNG mọi dòng khác — tức là đúng lúc
+	 *    cổng hỏng nặng nhất thì sổ chẩn đoán mất sạch mọi manh mối khác.
+	 *
+	 * ⚠️ Gộp theo CẢ `ma` LẪN `loi`. Gộp theo mỗi `ma` là gom mất chi tiết: hai dòng
+	 *    `GIO_SAI_KHUON` của hai người khác nhau kể hai chuyện khác nhau, đè lên nhau thì mất
+	 *    một chuyện.
+	 *
+	 * Dòng gộp giữ `dau` (lần đầu), `luc` (lần gần nhất) và `lan` (số lần) — chính ba con số ấy
+	 * mới trả lời được câu "rải rác hay dày đặc", thứ mà đếm số DÒNG không bao giờ nói ra.
+	 */
+	private static function ghi_loi( $ma, $loi ) {
+		$ds = get_option( 'vhcc_nhat_ky_may', array() );
+		if ( ! is_array( $ds ) ) { $ds = array(); }
+		$luc = current_time( 'mysql' );
+		if ( isset( $ds[0]['ma'], $ds[0]['loi'] ) && $ma === $ds[0]['ma'] && $loi === $ds[0]['loi'] ) {
+			$ds[0]['lan'] = ( isset( $ds[0]['lan'] ) ? (int) $ds[0]['lan'] : 1 ) + 1;
+			if ( ! isset( $ds[0]['dau'] ) ) { $ds[0]['dau'] = $ds[0]['luc']; }
+			$ds[0]['luc'] = $luc;
+		} else {
+			array_unshift( $ds, array( 'luc' => $luc, 'dau' => $luc, 'ma' => $ma,
+				'loi' => $loi, 'lan' => 1 ) );
+		}
+		update_option( 'vhcc_nhat_ky_may', array_slice( $ds, 0, 200 ), false );
+	}
+
+	/**
+	 * DỌN CÁC HÀNG ĐÃ LỠ GHI VÀO "CƠ SỞ" LÀ CHUỖI GHÉP.
+	 *
+	 * 🔴 VÌ SAO CẦN: bản vá 30/08/2026 bịt cửa ghi, nhưng KHÔNG tự sửa những gì đã nằm trong
+	 *    sổ. Mà chúng còn thì ô xổ cơ sở của màn quản trị (`SELECT DISTINCT coso`) vẫn hiện
+	 *    một cơ sở không có thật, chọn phải nó là hàng chính trống trơn — đúng cái ảnh anh
+	 *    Thắng gửi. Nên phải có một nút dọn, chứ không phải bảo anh vào phpMyAdmin.
+	 *
+	 * ⚠️ HAI NHÁNH, VÀ NHÁNH THỨ HAI KHÔNG ĐỘNG VÀO SỐ ĐÃ CHỐT:
+	 *      · Cơ sở đúng CHƯA có hàng của ngày ấy -> đổi tên cơ sở tại chỗ. Giữ nguyên ảnh,
+	 *        ghi chú, nguồn, giờ — không mất gì.
+	 *      · Đã có hàng rồi -> NỚI khung [vào, ra] của hàng đúng cho trùm cả hai, rồi xoá hàng
+	 *        ghép. Nới chứ không đè: giờ trong hàng ghép là giờ THẬT của người ta, chỉ có tên
+	 *        cơ sở là sai.
+	 *      · Trừ khi hàng đúng mang nguồn `sua` hoặc `bu` — tức người ta đã chỉnh tay và có
+	 *        thể đã chốt lương trên số đó. Chỗ ấy KHÔNG tự động: kể tên ra để xử tay.
+	 *
+	 * @param bool $that Xem trước (false) hay làm thật (true).
+	 * @return array `xem`(bool) · `doi_ten` · `gop` · `de_lai`(mảng mô tả) · `cs`(mảng tên cơ sở ma)
+	 */
+	public static function don_coso_ghep( $that = false ) {
+		global $wpdb;
+		$bang = VHCC_DB::t( 'cham_cong' );
+		$ds   = VHCC_DB::rows( "SELECT * FROM $bang WHERE coso LIKE '%,%' ORDER BY id" );
+		$kq   = array( 'xem' => ! $that, 'doi_ten' => 0, 'gop' => 0,
+			'de_lai' => array(), 'cs' => array() );
+
+		foreach ( (array) $ds as $r ) {
+			$cu   = (string) $r['coso'];
+			$dung = VHCC_NhanSu::chuan_coso( $cu );
+			if ( ! in_array( $cu, $kq['cs'], true ) ) { $kq['cs'][] = $cu; }
+			if ( '' === $dung || $dung === $cu ) { continue; }
+
+			$dich = $wpdb->get_row( $wpdb->prepare(
+				"SELECT * FROM $bang WHERE coso=%s AND ngay=%s AND ma_nv=%s AND hau_to=%s",
+				$dung, $r['ngay'], $r['ma_nv'], $r['hau_to'] ), ARRAY_A );
+
+			if ( null === $dich ) {
+				$kq['doi_ten']++;
+				if ( $that ) {
+					$wpdb->update( $bang, array( 'coso' => $dung ), array( 'id' => (int) $r['id'] ) );
+				}
+				continue;
+			}
+
+			if ( 'sua' === $dich['nguon'] || 'bu' === $dich['nguon'] ) {
+				$kq['de_lai'][] = $r['ngay'] . ' · ' . $r['ma_nv'] . ' · ' . $dung
+					. ' (hàng đúng đã chỉnh tay — nguồn "' . $dich['nguon'] . '")';
+				continue;
+			}
+
+			$kq['gop']++;
+			if ( $that ) {
+				$vao = self::som_hon( $dich['gio_vao_giay'], $r['gio_vao_giay'] );
+				$ra  = self::muon_hon( $dich['gio_ra_giay'], $r['gio_ra_giay'] );
+				$wpdb->update( $bang, array(
+					'gio_vao_giay' => $vao,
+					'gio_ra_giay'  => $ra,
+					'chuan'        => self::chuan_cap( $vao, $ra ),
+				), array( 'id' => (int) $dich['id'] ) );
+				$wpdb->delete( $bang, array( 'id' => (int) $r['id'] ) );
+			}
+		}
+		return $kq;
+	}
+
+	/**
+	 * DANH SÁCH TÊN CƠ SỞ THÔ đang có trong bảng chấm công, kèm số hàng — để màn Quản trị đổ vào
+	 * ô chọn "gộp cơ sở trùng". Trả tên Y NGUYÊN như trong kho (không chuẩn hoá), vì chính mấy tên
+	 * gõ lệch nhau mới là thứ cần gộp; chuẩn hoá ở đây thì hai tên khác kiểu gõ gộp làm một trên
+	 * màn hình và người ta không chọn tách được.
+	 *
+	 * @return array array( array( 'coso' => tên, 'so' => số hàng ) ), nhiều hàng trước.
+	 */
+	public static function ds_coso_tho() {
+		global $wpdb;
+		$bang = VHCC_DB::t( 'cham_cong' );
+		$ds = $wpdb->get_results(
+			"SELECT coso, COUNT(*) so FROM $bang WHERE coso<>'' GROUP BY coso ORDER BY so DESC, coso ASC",
+			ARRAY_A );
+		$out = array();
+		foreach ( (array) $ds as $r ) {
+			$out[] = array( 'coso' => (string) $r['coso'], 'so' => (int) $r['so'] );
+		}
+		return $out;
+	}
+
+	/**
+	 * GỘP HAI CƠ SỞ TRÙNG NHAU NHƯNG GÕ KHÁC KIỂU — dời mọi lượt chấm công từ tên SAI sang tên
+	 * ĐÚNG. Sinh ra vì máy chấm công ghi `PART_TIME (POSHJP)` còn hồ sơ khai `(PART TIME )_POSH+JP`:
+	 * cùng một chỗ, khác chữ, nên lưới coi là hai cơ sở và công thật rơi rải ra hai hàng. Nút
+	 * "Dọn cơ sở ghép" chỉ chạm tên có dấu phẩy, không với tới ca này.
+	 *
+	 * ⚠️ KHÁC `don_coso_ghep` Ở CHỖ: bên kia đích đến là `chuan_coso($cu)` (tự suy ra), ở đây đích
+	 *    là tên NGƯỜI DÙNG CHỌN — vì hai tên gõ lệch không suy ra nhau được. Còn luật dời thì y hệt:
+	 *      · Đích CHƯA có hàng ngày ấy -> đổi tên tại chỗ, giữ nguyên ảnh/ghi chú/nguồn/giờ.
+	 *      · Đích ĐÃ có hàng -> NỚI khung [vào, ra] của hàng đích trùm cả hai rồi xoá hàng nguồn.
+	 *      · Hàng đích mang nguồn `sua`/`bu` (đã chỉnh tay, có thể đã chốt lương) -> KHÔNG đụng,
+	 *        kể tên ra để xử tay.
+	 *
+	 * 🔴 DỌN LUÔN HỒ SƠ. Cơ sở KHÔNG phải một bản ghi riêng — nó chỉ là chữ trong `cham_cong.coso`
+	 *    và trong `nhan_vien.cua_hang`/`coso_phu`. Dời hết lượt chấm công mà vẫn để tên sai trong hồ
+	 *    sơ thì lưới cả tháng vẫn vẽ một hàng 0h (cơ sở đã khai thì luôn hiện dù rỗng), và ô xổ cơ
+	 *    sở khắp nơi vẫn chào tên ma. Nên bước này đổi luôn tên sai -> tên đúng trong mọi hồ sơ,
+	 *    gộp phần trùng. Sau đó tên sai không còn ở đâu -> cơ sở ảo biến mất thật.
+	 *
+	 * @param string $tu  Tên cơ sở SAI (đang có trong kho) — dời đi khỏi đây.
+	 * @param string $den Tên cơ sở ĐÚNG — dồn về đây.
+	 * @param bool   $that Xem trước (false) hay làm thật (true).
+	 * @return array `xem`(bool) · `tu` · `den` · `doi_ten` · `gop` · `ho_so` · `de_lai`(mảng) · `loi`(nếu có)
+	 */
+	public static function gop_coso( $tu, $den, $that = false ) {
+		global $wpdb;
+		$bang = VHCC_DB::t( 'cham_cong' );
+		$tu   = trim( (string) $tu );
+		$den  = trim( (string) $den );
+		$kq   = array( 'xem' => ! $that, 'tu' => $tu, 'den' => $den,
+			'doi_ten' => 0, 'gop' => 0, 'ho_so' => 0, 'de_lai' => array() );
+
+		if ( '' === $tu || '' === $den ) {
+			$kq['loi'] = 'Chọn cả cơ sở nguồn (sai) lẫn cơ sở đích (đúng).';
+			return $kq;
+		}
+		if ( strtolower( $tu ) === strtolower( $den ) ) {
+			$kq['loi'] = 'Hai ô đang là một tên — không có gì để gộp.';
+			return $kq;
+		}
+		/* Đích PHẢI là tên có thật trong kho — không thì gõ nhầm một tên lạ là dời hết công sang
+		   một cơ sở không tồn tại, đúng cái đang đi sửa. So không phân biệt hoa thường cho khớp
+		   với `cham_cong()` (`strtolower`). */
+		$den_that = $wpdb->get_var( $wpdb->prepare(
+			"SELECT coso FROM $bang WHERE LOWER(coso)=LOWER(%s) LIMIT 1", $den ) );
+		/* Đích CHƯA có lượt nào vẫn nhận, MIỄN LÀ nó nằm trong DANH MỤC cơ sở đã khai.
+		   Trước 02/09/2026 chỗ này chỉ hỏi bảng chấm công, nên một cơ sở vừa khai (đã xếp bộ
+		   phận, đã gán máy) mà chưa ai chấm công buổi nào thì KHÔNG gộp về được — đúng lúc cần
+		   nhất: cơ sở mới mở, công đang nằm hết ở một cái tên gõ lệch. */
+		if ( null === $den_that ) {
+			foreach ( VHCC_NhanSu::ds_coso() as $x ) {
+				if ( 0 === strcasecmp( (string) $x, $den ) ) { $den_that = $x; break; }
+			}
+		}
+		if ( null === $den_that ) {
+			$kq['loi'] = 'Cơ sở đích "' . $den . '" không có trong danh mục và cũng chưa có lượt chấm '
+				. 'công nào — kiểm lại tên, hoặc khai nó ở khối "Cơ sở thuộc bộ phận nào" trước.';
+			return $kq;
+		}
+		$den = (string) $den_that;   // dùng đúng kiểu gõ đang có trong kho
+
+		$ds = $wpdb->get_results( $wpdb->prepare(
+			"SELECT * FROM $bang WHERE coso=%s ORDER BY id", $tu ), ARRAY_A );
+
+		foreach ( (array) $ds as $r ) {
+			$dich = $wpdb->get_row( $wpdb->prepare(
+				"SELECT * FROM $bang WHERE coso=%s AND ngay=%s AND ma_nv=%s AND hau_to=%s",
+				$den, $r['ngay'], $r['ma_nv'], $r['hau_to'] ), ARRAY_A );
+
+			if ( null === $dich ) {
+				$kq['doi_ten']++;
+				if ( $that ) {
+					$wpdb->update( $bang, array( 'coso' => $den ), array( 'id' => (int) $r['id'] ) );
+				}
+				continue;
+			}
+
+			if ( 'sua' === $dich['nguon'] || 'bu' === $dich['nguon'] ) {
+				$kq['de_lai'][] = $r['ngay'] . ' · ' . $r['ma_nv'] . ' · ' . $den
+					. ' (hàng đúng đã chỉnh tay — nguồn "' . $dich['nguon'] . '")';
+				continue;
+			}
+
+			$kq['gop']++;
+			if ( $that ) {
+				$vao = self::som_hon( $dich['gio_vao_giay'], $r['gio_vao_giay'] );
+				$ra  = self::muon_hon( $dich['gio_ra_giay'], $r['gio_ra_giay'] );
+				$wpdb->update( $bang, array(
+					'gio_vao_giay' => $vao,
+					'gio_ra_giay'  => $ra,
+					'chuan'        => self::chuan_cap( $vao, $ra ),
+				), array( 'id' => (int) $dich['id'] ) );
+				$wpdb->delete( $bang, array( 'id' => (int) $r['id'] ) );
+			}
+		}
+
+		/* Dọn HỒ SƠ: đổi tên sai -> tên đúng ở cua_hang/coso_phu của mọi nhân viên đang khai nó.
+		   ⚠️ DUYỆT CẢ BẢNG, KHÔNG LỌC BẰNG `LIKE`. Bản trước hỏi
+		      `WHERE cua_hang LIKE '%tên%' OR coso_phu LIKE '%tên%'` rồi lọc lại bằng cờ `$doi` —
+		      chạy đúng, nhưng bắt LỎNG (chuỗi con) nên vừa quét thừa vừa phụ thuộc vào một mệnh
+		      đề mà không phải nơi nào cũng hiểu; chính `doi_coso_chuoi()` mới là chỗ quyết định.
+		      Bảng nhân viên cỡ vài trăm dòng, đọc hết rẻ hơn một lần đọc nhầm. */
+		$t_nv = VHCC_DB::t( 'nhan_vien' );
+		$hs = $wpdb->get_results( "SELECT ma_nv, cua_hang, coso_phu FROM $t_nv", ARRAY_A );
+		foreach ( (array) $hs as $h ) {
+			$doi = false;
+			$ch  = self::doi_coso_chuoi( $h['cua_hang'], $tu, $den, $doi );
+			$cp  = self::doi_coso_chuoi( $h['coso_phu'], $tu, $den, $doi );
+			if ( ! $doi ) { continue; }
+			$kq['ho_so']++;
+			if ( $that ) {
+				$wpdb->update( $t_nv,
+					array( 'cua_hang' => $ch, 'coso_phu' => $cp ),
+					array( 'ma_nv' => $h['ma_nv'] ) );
+			}
+		}
+
+		return $kq;
+	}
+
+	/**
+	 * Đổi một tên cơ sở trong chuỗi cua_hang/coso_phu (có thể nối nhiều tên bằng dấu phẩy):
+	 * phần tử nào TRÙNG `$tu` (đã chuẩn hoá, không phân biệt hoa thường) thì thay bằng `$den`, rồi
+	 * bỏ trùng. Giữ nguyên các phần tử khác đúng kiểu gõ cũ. Bật `$co_doi` nếu có thật sự đổi.
+	 */
+	private static function doi_coso_chuoi( $chuoi, $tu, $den, &$co_doi ) {
+		$tu_n = strtolower( VHCC_NhanSu::chuan_coso( $tu ) );
+		$out  = array();
+		$thay = array();
+		foreach ( explode( ',', (string) $chuoi ) as $x ) {
+			$x = trim( $x );
+			if ( '' === $x ) { continue; }
+			$xn = strtolower( VHCC_NhanSu::chuan_coso( $x ) );
+			if ( $xn === $tu_n ) { $x = $den; $xn = strtolower( VHCC_NhanSu::chuan_coso( $den ) ); $co_doi = true; }
+			if ( isset( $thay[ $xn ] ) ) { continue; }   // bỏ trùng sau khi đổi
+			$thay[ $xn ] = true;
+			$out[] = $x;
+		}
+		return implode( ', ', $out );
+	}
+
+	/** Giây nhỏ hơn trong hai giá trị, bỏ qua null. */
+	private static function som_hon( $a, $b ) {
+		$a = ( null === $a || '' === $a ) ? null : (int) $a;
+		$b = ( null === $b || '' === $b ) ? null : (int) $b;
+		if ( null === $a ) { return $b; }
+		if ( null === $b ) { return $a; }
+		return min( $a, $b );
+	}
+
+	/** Giây lớn hơn trong hai giá trị, bỏ qua null. */
+	private static function muon_hon( $a, $b ) {
+		$a = ( null === $a || '' === $a ) ? null : (int) $a;
+		$b = ( null === $b || '' === $b ) ? null : (int) $b;
+		if ( null === $a ) { return $b; }
+		if ( null === $b ) { return $a; }
+		return max( $a, $b );
+	}
+
+	/** Ô "Thời gian trong ngày" từ một cặp giây — cùng khuôn với `ghi_gio()` và `dat_gio()`. */
+	private static function chuan_cap( $vao, $ra ) {
+		if ( null === $vao && null === $ra ) { return ''; }
+		if ( null === $ra )  { return VHCC_DB::hhmm( $vao ); }
+		if ( null === $vao ) { return VHCC_DB::hhmm( $ra ); }
+		return VHCC_DB::hhmm( $vao ) . ' ' . VHCC_DB::hhmm( $ra );
+	}
+}

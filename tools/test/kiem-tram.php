@@ -1,0 +1,1153 @@
+<?php
+/**
+ * KIỂM TRẠM CHẤM CÔNG — trang nhân viên tự chấm bằng điện thoại (VHCC_Tram + templates/tram.php).
+ *
+ * 🔴 VÌ SAO PHẢI KIỂM RIÊNG. Trạm mở một cửa đăng nhập THỨ HAI vào cùng một bảng `session` mà
+ * hệ quản trị đang dùng. Cửa thứ hai vào cùng một kho là chỗ dễ mở nhầm nhất trong cả plugin:
+ * sai một chút là nhân viên cơ sở cầm thẻ vào xem được bảng lương toàn công ty, mà không có gì
+ * báo — trang vẫn chạy, PIN vẫn đúng, chỉ là quyền rộng hơn ý định.
+ *
+ * Nên bài này canh HAI CHIỀU, không phải một: thẻ của trạm không mở được cửa quản trị, VÀ thẻ
+ * quản trị không đi được vào cửa trạm.
+ *
+ * Chạy: php tools/test/kiem-tram.php
+ */
+
+require_once __DIR__ . '/wp-stub.php';
+
+$goc = dirname( dirname( __DIR__ ) );
+vhcp_test_boot( $goc . '/wordpress/vhcp-chi-phi' );
+vhcc_test_boot( $goc . '/wordpress/vhcp-cham-cong' );
+
+$dat = 0; $truot = array();
+
+register_shutdown_function( function () {
+	global $dat, $truot;
+	$e = error_get_last();
+	if ( ! $e || ! in_array( $e['type'], array( E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR ), true ) ) { return; }
+	echo "\n🔴 BÀI KIỂM CHẾT GIỮA ĐƯỜNG: " . $e['message'] . "\n   tại " . $e['file'] . ':' . $e['line'] . "\n";
+	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }
+	echo "ĐẠT (tới lúc chết): $dat\n";
+} );
+
+/** Bỏ chú thích JS để phép thử soi MÃ chứ không soi lời giải thích về mã. */
+function js_sach( $src ) {
+	$src = preg_replace( '#/\*.*?\*/#s', '', $src );
+	$ra  = array();
+	foreach ( explode( "\n", $src ) as $d ) {
+		if ( preg_match( '#^\s*(//|\*)#', $d ) ) { continue; }
+		$ra[] = $d;
+	}
+	return implode( "\n", $ra );
+}
+
+function t( $ten, $dk, $them = null ) {
+	global $dat, $truot;
+	if ( $dk ) { $dat++; return; }
+	$truot[] = $ten . ( null === $them ? '' : ' — ' . ( is_scalar( $them ) ? $them : wp_json_encode( $them ) ) );
+}
+
+global $wpdb;
+
+/* ------------------------------------------------------------------ dựng dữ liệu mẫu */
+$wpdb->insert( VHCC_DB::t( 'phan_quyen' ), array(
+	'pin' => '246810', 'ho_ten' => 'Trần Văn A', 'vai_tro' => 'NHAN_VIEN',
+	'cua_hang' => 'VIVO', 'ma_cc_online' => 'NV001', 'coso_cc_online' => 'CS_VIVO' ) );
+$wpdb->insert( VHCC_DB::t( 'phan_quyen' ), array(
+	'pin' => '111222', 'ho_ten' => 'Lê Thị B', 'vai_tro' => 'NHAN_VIEN',
+	'cua_hang' => 'AEON', 'ma_cc_online' => '', 'coso_cc_online' => '' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array(
+	'ma_nv' => 'NV001', 'ho_ten' => 'Trần Văn A', 'cua_hang' => 'VIVO',
+	'coso_phu' => 'GO_AN_LAC', 'nhiem_vu' => 'Thu Tiền' ) );
+
+/* ================================================================== 1. CỬA ĐĂNG NHẬP */
+
+$r = VHCC_Tram::dang_nhap( 'abc' );
+t( 'PIN không phải số bị chối', empty( $r['ok'] ) );
+t( 'PIN không phải số — nói đúng luật 4–8 chữ số', strpos( $r['error'], '4–8' ) !== false, $r['error'] );
+
+t( 'PIN 3 số bị chối', empty( VHCC_Tram::dang_nhap( '123' )['ok'] ) );
+
+$r = VHCC_Tram::dang_nhap( '999999' );
+t( 'PIN không có trong sổ bị chối', empty( $r['ok'] ) );
+
+/* 🔴 Chỗ này là lý do có nhánh riêng: PIN ĐÚNG nhưng chưa khai mã NV KHÔNG được báo "PIN sai".
+   Báo sai hướng thì người ta gõ lại tới lúc tự khoá mình, trong khi thứ thiếu nằm ở hồ sơ. */
+$r = VHCC_Tram::dang_nhap( '111222' );
+t( 'PIN đúng mà chưa khai mã NV thì bị chối', empty( $r['ok'] ) );
+t( 'PIN đúng mà chưa khai mã NV — KHÔNG nói "PIN không đúng"',
+	strpos( $r['error'], 'PIN không đúng' ) === false, $r['error'] );
+t( 'PIN đúng mà chưa khai mã NV — chỉ đúng chỗ phải sửa',
+	strpos( $r['error'], 'Mã NV chấm công online' ) !== false, $r['error'] );
+t( 'PIN đúng mà chưa khai mã NV — gọi đúng tên người', strpos( $r['error'], 'Lê Thị B' ) !== false );
+
+$r = VHCC_Tram::dang_nhap( '246810' );
+t( 'PIN đúng + có mã NV thì vào được', ! empty( $r['ok'] ), $r );
+t( 'trả đúng mã NV', 'NV001' === $r['maNV'] );
+t( 'trả cơ sở đã cắt tiền tố CS_', 'VIVO' === $r['coSo'], $r['coSo'] );
+t( 'phát thẻ 64 ký tự hex', (bool) preg_match( '/^[0-9a-f]{64}$/', (string) $r['token'] ) );
+$TOK_TRAM = $r['token'];
+
+/* PIN kiểu Google Sheets ("246810.0") cũng phải vào được — VHCC_Auth::pin_sach lo việc đó, và
+   trạm phải GỌI nó chứ không tự so chuỗi. */
+t( 'PIN dạng "246810.0" (Sheets ép về số) vẫn vào được',
+	! empty( VHCC_Tram::dang_nhap( '246810.0' )['ok'] ) );
+
+/* ============================================ 1b. KHO THỨ HAI: HỒ SƠ NHÂN SỰ
+ *
+ * 🔴 LỖI THẬT NGÀY 25/08/2026. Cửa trạm chỉ đọc `phan_quyen` — bản sao sổ PhanQuyen của app cũ,
+ *    chỉ có nội dung nếu đã bấm nút kéo về. Trên khmatrix.com hồ sơ Nhân sự có 240 người khai
+ *    PIN, còn `phan_quyen` thì trống, nên MỌI PIN đều rơi vào nhánh "PIN không đúng hoặc chưa
+ *    được cấp". Anh Thắng gõ PIN của chính mình và bị chối, không có gì trên màn hình chỉ ra
+ *    rằng hai cửa đang đọc hai cuốn sổ khác nhau.
+ */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array(
+	'ma_nv' => 'HS01', 'ho_ten' => 'Phạm Hồ Sơ', 'cua_hang' => 'CS_TUTU_BT',
+	'vai_tro' => 'Cửa hàng trưởng', 'pin_dang_nhap' => '135791' ) );
+$r = VHCC_Tram::dang_nhap( '135791' );
+t( 'PIN khai trong HỒ SƠ NHÂN SỰ cũng vào được', ! empty( $r['ok'] ), $r );
+t( 'lấy mã NV từ hồ sơ', isset( $r['maNV'] ) && 'HS01' === $r['maNV'], $r );
+t( 'lấy cơ sở từ hồ sơ, đã cắt CS_', isset( $r['coSo'] ) && 'TUTU_BT' === $r['coSo'], $r );
+t( 'và mang VAI THẬT của người ta, không phải vai giả',
+	VHCC_Vai::CHT === VHCC_Vai::ma( VHCC_Auth::user_by_token( $r['token'] )['role'] ) );
+
+/* PIN kiểu Google Sheets ở CỘT hồ sơ: rửa cả hai bên, không chỉ bên ô người ta gõ. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array(
+	'ma_nv' => 'HS02', 'ho_ten' => 'Đỗ Chấm Không', 'cua_hang' => 'TUTU_BT',
+	'vai_tro' => 'Nhân viên', 'pin_dang_nhap' => '864209.0' ) );
+t( 'PIN trong hồ sơ lưu dạng "864209.0" vẫn vào được',
+	! empty( VHCC_Tram::dang_nhap( '864209' )['ok'] ) );
+
+/* Đã nghỉ việc: chối, và nói RÕ là đã nghỉ — đừng để họ đứng gõ lại PIN. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array(
+	'ma_nv' => 'HS03', 'ho_ten' => 'Vũ Đã Nghỉ', 'cua_hang' => 'TUTU_BT',
+	'vai_tro' => 'Nhân viên', 'pin_dang_nhap' => '975310',
+	'trang_thai_lam_viec' => 'Đã nghỉ 2026-07-01' ) );
+$r = VHCC_Tram::dang_nhap( '975310' );
+t( 'người đã nghỉ việc bị chối', empty( $r['ok'] ), $r );
+t( 'và câu báo nói rõ là đã nghỉ, không nói "PIN sai"',
+	strpos( $r['error'], 'không chấm công được' ) !== false
+	&& strpos( $r['error'], 'PIN không đúng' ) === false, $r['error'] );
+/* Luật "đã nghỉ" phải là MỘT: viết hoa, viết thường, kèm ngày — cùng một câu trả lời. */
+t( 'nhận "Đã nghỉ"',   VHCC_NhanSu::da_nghi( 'Đã nghỉ' ) );
+t( 'nhận "NGHỈ VIỆC"', VHCC_NhanSu::da_nghi( 'NGHỈ VIỆC' ) );
+t( 'nhận "đã nghỉ 12/2025"', VHCC_NhanSu::da_nghi( 'đã nghỉ 12/2025' ) );
+t( 'ô TRỐNG là ĐANG LÀM, không phải đã nghỉ', ! VHCC_NhanSu::da_nghi( '' ) );
+t( '"Đang làm" không phải đã nghỉ', ! VHCC_NhanSu::da_nghi( 'Đang làm' ) );
+
+/* Khai ở CẢ HAI kho thì kho `phan_quyen` thắng — đó là lời khai CÓ CHỦ Ý cho đúng việc này,
+   còn hồ sơ chỉ là suy ra. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array(
+	'ma_nv' => 'HS_TRUNG', 'ho_ten' => 'Trần Văn A', 'cua_hang' => 'AEON',
+	'vai_tro' => 'Nhân viên', 'pin_dang_nhap' => '246810' ) );
+$r = VHCC_Tram::tim_pin( '246810' );
+t( 'khai ở cả hai kho thì phan_quyen thắng', 'phan_quyen' === $r['kho'], $r );
+t( 'và lấy mã của kho đó', 'NV001' === $r['ma_nv'], $r );
+
+/* ================================================ 2. MỘT THẺ, HAI TRANG — và phép gác là MÃ NV
+ *
+ * 🔴 ĐỔI 25/08/2026. Trước đó trạm phát thẻ mang vai giả 'CC_ONLINE' để thẻ trạm và thẻ quản
+ *    trị không đổi cho nhau được. Chốt ấy làm đúng việc của nó, nhưng cái giá là cùng một
+ *    người phải gõ PIN hai lần ở hai trang — và hai nửa hệ thống có hai bộ luật quyền, tức
+ *    *"xung đột phân quyền"* anh Thắng gặp. Nay MỘT thẻ dùng chung, và cửa trạm gác bằng:
+ *      (1) quyền `cham_online` — mọi vai đều có, nhưng phải là vai hợp lệ;
+ *      (2) thẻ PHẢI mang Mã NV — không có mã thì lượt chấm ghi vào một hàng vô chủ.
+ */
+t( 'thẻ của trạm dùng được ở hệ quản trị (một lần đăng nhập, hai trang)',
+	null !== VHCC_Auth::user_by_token( $TOK_TRAM ) );
+t( 'và mang đúng vai trò thật, không phải vai giả',
+	VHCC_Vai::NV === VHCC_Vai::cua( VHCC_Auth::user_by_token( $TOK_TRAM ) ),
+	VHCC_Auth::user_by_token( $TOK_TRAM ) );
+
+/* 🔴 Thẻ quản trị KHÔNG có Mã NV thì trạm vẫn chối — đó là phép gác thật, không phải cái vai. */
+$TOK_QT = VHCC_Auth::phat_token( 'Sếp', 'Admin', '' );
+t( 'thẻ không mang Mã NV bị trạm chối, dù là Admin', null === VHCC_Tram::nguoi( $TOK_QT ) );
+
+t( 'thẻ rác bị trạm chối', null === VHCC_Tram::nguoi( 'khong-phai-hex' ) );
+t( 'thẻ rỗng bị trạm chối', null === VHCC_Tram::nguoi( '' ) );
+
+$u = VHCC_Tram::nguoi( $TOK_TRAM );
+t( 'thẻ trạm tra ra người', is_array( $u ) );
+t( 'thẻ trạm mang theo mã NV', 'NV001' === $u['ma_nv'], $u );
+t( 'thẻ trạm mang theo họ tên', 'Trần Văn A' === $u['ho_ten'] );
+
+/* Phiên mà mã NV rỗng thì KHÔNG chấm công được: mọi phép ghi giờ khoá theo mã NV, một phiên
+   không có mã là một phiên ghi được vào hàng rỗng. */
+$TOK_RONG = VHCC_Auth::phat_token( 'Ai đó', 'Nhân viên', 'VIVO', '' );
+t( 'phiên thiếu mã NV bị chối', null === VHCC_Tram::nguoi( $TOK_RONG ) );
+
+/* ================================================================== 3. HÃM DÒ PIN */
+
+$GLOBALS['VHCP_TR'] = array();
+for ( $i = 0; $i < VHCC_Tram::SAI_TOI_DA; $i++ ) { VHCC_Tram::dang_nhap( '987654' ); }
+$r = VHCC_Tram::dang_nhap( '246810' );
+t( 'gõ sai quá ngưỡng thì khoá, kể cả PIN đúng', empty( $r['ok'] ), $r );
+t( 'câu khoá nói rõ chờ bao lâu', strpos( $r['error'], '10 phút' ) !== false, $r['error'] );
+$GLOBALS['VHCP_TR'] = array();
+t( 'hết hãm thì vào lại được', ! empty( VHCC_Tram::dang_nhap( '246810' )['ok'] ) );
+
+/* ================================================================== 4. GHI GIỜ QUA ĐÚNG MỘT ĐƯỜNG */
+
+$u = VHCC_Tram::nguoi( $TOK_TRAM );
+
+$r = VHCC_Online::cham_cong( $u, '', null, '', '' );
+t( 'lượt đầu là GIỜ VÀO', ! empty( $r['ok'] ) && 'vao' === $r['loai'], $r );
+t( 'ghi vào đúng cơ sở mặc định', 'VIVO' === $r['coSo'], $r );
+
+/* Bấm hai lần trong CÙNG MỘT GIÂY là bấm nhầm, không phải tan làm — `quyet_dinh_gio` trả
+   'trung' và không ghi gì. Đó là chốt chặn đúng, nên bài kiểm phải lùi giờ vào một tiếng rồi
+   mới thử giờ ra, chứ không phải sửa chốt chặn cho vừa bài kiểm. */
+$r2 = VHCC_Online::cham_cong( $u, '', null, '', '' );
+t( 'bấm lại ngay trong cùng một giây thì KHÔNG ghi gì', ! empty( $r2['ok'] ) && 'trung' === $r2['loai'], $r2 );
+
+$wpdb->query( 'UPDATE ' . VHCC_DB::t( 'cham_cong' )
+	. " SET gio_vao_giay = gio_vao_giay - 3600 WHERE ma_nv='NV001' AND coso='VIVO'" );
+$r2 = VHCC_Online::cham_cong( $u, '', null, '', '' );
+t( 'lượt sau đó là GIỜ RA', ! empty( $r2['ok'] ) && 'ra' === $r2['loai'], $r2 );
+
+$hang = $wpdb->get_row( $wpdb->prepare(
+	'SELECT * FROM ' . VHCC_DB::t( 'cham_cong' ) . ' WHERE ma_nv=%s AND coso=%s', 'NV001', 'VIVO' ), ARRAY_A );
+t( 'chỉ ĐÈ lên một hàng, không đẻ hàng mới', is_array( $hang ) );
+t( 'nguồn ghi là "online" — phép đối số với sheet chỉ đếm lượt MÁY',
+	'online' === $hang['nguon'], $hang['nguon'] );
+
+/* 🔴 Gác 2: cơ sở đi lên từ điện thoại phải đối chiếu. Không kiểm thì bất kỳ tài khoản nào
+   cũng ghi giờ vào cơ sở khác. */
+$r = VHCC_Online::cham_cong( $u, '', null, 'AEON_TAN_PHU', '' );
+t( 'chọn cơ sở KHÔNG có mình thì bị chối', empty( $r['ok'] ), $r );
+$r = VHCC_Online::cham_cong( $u, '', null, 'GO_AN_LAC', '' );
+t( 'chọn cơ sở PHỤ có trong hồ sơ thì ghi được', ! empty( $r['ok'] ), $r );
+t( 'ghi đúng cơ sở phụ đã chọn', 'GO_AN_LAC' === $r['coSo'], $r );
+
+/* 🔴 Gác 3: nhiệm vụ cũng đi lên từ điện thoại. Không kiểm thì ai cũng tự gán cho mình việc có
+   đơn giá cao hơn. */
+$r = VHCC_Online::cham_cong( $u, '', null, '', 'Trực Ghế' );
+t( 'nhiệm vụ KHÔNG được khai trong hồ sơ thì bị chối', empty( $r['ok'] ), $r );
+t( 'câu chối chỉ đúng chỗ phải sửa (hồ sơ)', strpos( (string) $r['error'], 'hồ sơ' ) !== false, $r );
+
+/* Ảnh: trạm gửi data-URL, lớp ghi phải cắt tiền tố rồi lưu ra tệp — không nhét base64 vào cột
+   `anh_vao` (VARCHAR(190), nhét vào là MySQL cắt cụt và tấm ảnh mất luôn, im lặng). */
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) );
+$anh = 'data:image/jpeg;base64,' . base64_encode( str_repeat( 'A', 400 ) );
+$r = VHCC_Online::cham_cong( $u, $anh, array( 'lat' => 10.8, 'lng' => 106.7, 'acc' => 12 ), '', '' );
+t( 'gửi ảnh dạng data-URL thì lưu được', ! empty( $r['ok'] ) && 0 === strpos( (string) $r['img'], 'ok:' ), $r );
+$hang = $wpdb->get_row( 'SELECT anh_vao, ghi_chu FROM ' . VHCC_DB::t( 'cham_cong' ) . ' LIMIT 1', ARRAY_A );
+t( 'cột ảnh giữ ĐƯỜNG DẪN, không giữ base64',
+	strlen( $hang['anh_vao'] ) < 190 && false === strpos( $hang['anh_vao'], 'base64' ), $hang );
+t( 'GPS ghi vào ghi chú của hàng', strpos( (string) $hang['ghi_chu'], 'GPS 10.8,106.7' ) !== false, $hang );
+
+/* ================================================================== 5. GIỜ LẤY Ở MÁY CHỦ */
+
+$g = VHCC_Online::gio_may_chu();
+t( 'viec=gio trả mốc epoch', ! empty( $g['ok'] ) && (int) $g['moc'] > 0, $g );
+t( 'viec=gio trả cả ngày lẫn giờ', (bool) preg_match( '/^\d{4}-\d{2}-\d{2}$/', $g['ngay'] )
+	&& (bool) preg_match( '/^\d{2}:\d{2}:\d{2}$/', $g['gio'] ), $g );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * GÁC 1 SAU KHI CÓ HÀNG ĐỢI OFFLINE (4.16.0) — phép thử đổi hình, KHÔNG đổi luật.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * Trước bản ấy phép thử này đọc là *"cham_cong() KHÔNG có tham số nào cho client truyền GIỜ
+ * vào"*, và nó đúng vì lúc đó không có lượt chấm nào cần ghi một giờ đã trôi qua. Hàng đợi
+ * offline thì BUỘC phải ghi giờ đã bấm, nên `$moc_giu` xuất hiện — và nếu chỉ xoá phép thử cũ
+ * đi thì luật "không nhận giờ từ điện thoại" mất người canh đúng lúc nó dễ vỡ nhất.
+ *
+ * Nên phép thử siết vào chỗ khác, chặt hơn: tham số ấy chỉ được nhận một con số ĐÃ QUA VÉ ĐÃ
+ * KÝ, và chỉ có ĐÚNG MỘT nơi gọi trong cả bộ được truyền nó. Một nơi gọi thứ hai truyền thẳng
+ * `time()` hay một số từ `$_POST` là đã mở lại nguyên cái lỗ — mà nhìn mã thì vẫn "có gác".
+ */
+$ref = new ReflectionMethod( 'VHCC_Online', 'cham_cong' );
+$ten_tham_so = array();
+foreach ( $ref->getParameters() as $p ) { $ten_tham_so[] = $p->getName(); }
+t( 'cham_cong() chỉ có ĐÚNG MỘT tham số giờ, và là mốc đã ký (moc_giu)',
+	array( 'moc_giu' ) === array_values( preg_grep( '/gio|giay|thoi_gian|moc/i', $ten_tham_so ) ),
+	$ten_tham_so );
+
+$thu_muc = $goc . '/wordpress/vhcp-cham-cong/includes/';
+$noi_goi = array();
+foreach ( glob( $thu_muc . '*.php' ) as $tep ) {
+	$ma = file_get_contents( $tep );
+	/* Lời gọi có tham số thứ 6 = có truyền mốc. Đếm dấu phẩy ở mức ngoặc ngoài cùng. */
+	if ( preg_match_all( '/VHCC_Online::cham_cong\(/', $ma ) ) {
+		foreach ( explode( 'VHCC_Online::cham_cong(', $ma ) as $i => $sau ) {
+			if ( 0 === $i ) { continue; }
+			$sau_num = 0; $muc = 1; $phay = 0;
+			for ( $k = 0; $k < strlen( $sau ) && $muc > 0; $k++ ) {
+				$c = $sau[ $k ];
+				if ( '(' === $c ) { $muc++; }
+				elseif ( ')' === $c ) { $muc--; }
+				elseif ( ',' === $c && 1 === $muc ) { $phay++; }
+			}
+			if ( $phay >= 5 ) { $noi_goi[] = basename( $tep ); }
+			unset( $sau_num );
+		}
+	}
+}
+t( '🔴 chỉ ĐÚNG MỘT nơi gọi truyền mốc giờ vào cham_cong()',
+	array( 'class-vhcc-tram.php' ) === array_values( array_unique( $noi_goi ) ), $noi_goi );
+
+$src_tram = file_get_contents( $thu_muc . 'class-vhcc-tram.php' );
+t( '🔴 nơi ấy lấy mốc từ doc_ve(), không lấy từ thân yêu cầu',
+	false !== strpos( $src_tram, '$moc = (int) $v[\'moc\'];' ), '' );
+t( '🔴 và chối ngay khi vé không hợp lệ',
+	false !== strpos( $src_tram, "if ( empty( \$v['ok'] ) ) { self::ra(" ), '' );
+t( '🔴 cửa KHÔNG đọc thẳng một con số giờ nào từ thân yêu cầu',
+	false === strpos( $src_tram, "\$b['moc']" ) && false === strpos( $src_tram, "\$b['gio']" ), '' );
+
+/* ================================================================== 6. BỐN RÀNG BUỘC Ở GIAO DIỆN */
+
+$tpl = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/templates/tram.php' );
+t( 'có template trạm', strlen( $tpl ) > 2000 );
+
+/* Ràng buộc 2 — thu nhỏ 720px. Kiểm CẢ hằng số LẪN chỗ dùng: khai một hằng số rồi không dùng
+   là ảnh vẫn gửi nguyên cỡ, mà phép thử tìm chuỗi "720" thì vẫn xanh. */
+t( 'RB2 · khai bề rộng 720', (bool) preg_match( '/RONG_ANH\s*=\s*720/', $tpl ) );
+t( 'RB2 · có DÙNG hằng số đó để thu nhỏ',
+	(bool) preg_match( '/Math\.min\(\s*RONG_ANH\s*,/', $tpl ) );
+
+/* Ràng buộc 1 — đóng dấu bằng giờ máy chủ. Chốt chặn thật nằm ở chỗ: khi chưa có mốc máy chủ
+   thì KHÔNG chụp, chứ không lặng lẽ lấy giờ máy. */
+t( 'RB1 · có hàm lấy mốc giờ từ máy chủ', strpos( $tpl, "goi('gio'" ) !== false );
+t( 'RB1 · chưa có mốc máy chủ thì CHỐI chụp, không đoán',
+	(bool) preg_match( '/var d = gioMayChu\(\);\s*\n\s*if\(!d\)\{/', $tpl ) );
+/* Không được có `new Date()` rỗng ở đâu cả — đó chính là giờ điện thoại.
+   ⚠️ Phải soi MÃ ĐÃ BỎ CHÚ THÍCH. Bản đầu của phép này soi cả tệp và đỏ oan, vì chính dòng chú
+   thích giải thích "không được dùng new Date()" có chứa chuỗi đó. Phép thử bắt chú thích là
+   phép thử sẽ bị người ta sửa cho hết đỏ bằng cách xoá chú thích — tệ hơn là không có. */
+$tpl_sach = js_sach( $tpl );
+/* Chốt: bộ bỏ chú thích không được nuốt mất mã. Nuốt hết thì phép dưới xanh vì KHÔNG CÒN GÌ
+   để soi — đúng kiểu phép thử tự làm mình vô dụng. */
+t( 'bộ bỏ chú thích không nuốt mất mã', strpos( $tpl_sach, 'return new Date((MOC.sec*1000)' ) !== false );
+t( 'RB1 · không chỗ nào lấy new Date() rỗng làm giờ',
+	! preg_match( '/new Date\(\s*\)/', $tpl_sach ) );
+
+/* Ràng buộc 3 — hỏi cơ sở/nhiệm vụ ĐÚNG LÚC LƯU. Màn chọn phải được dựng ở nhánh "Dùng ảnh
+   này", tức sau khi chụp, chứ không dựng lúc mở trang. */
+t( 'RB3 · màn chọn cơ sở dựng SAU khi chụp xong', strpos( $tpl, "el('btDung').addEventListener" ) !== false );
+t( 'RB3 · dựng màn chọn ngay trong nhánh đó',
+	(bool) preg_match( "/btDung'\)\.addEventListener\('click', function\(\)\{[^}]*veManChon\(\)/s", $tpl ) );
+
+/* Ràng buộc 4 — khoá nút. Cả cờ lẫn thuộc tính disabled: chỉ đặt disabled thì lượt bấm thứ hai
+   trong cùng một tick vẫn lọt. */
+t( 'RB4 · có cờ chặn bấm lại', strpos( $tpl, 'DANG_LUU' ) !== false );
+t( 'RB4 · thoát ngay nếu đang lưu', (bool) preg_match( '/if\(DANG_LUU\) return;/', $tpl ) );
+t( 'RB4 · khoá nút bằng disabled', (bool) preg_match( '/b\.disabled = true;/', $tpl ) );
+t( 'RB4 · mở khoá lại ở nhánh cuối cùng (có lỗi vẫn bấm lại được)',
+	(bool) preg_match( '/DANG_LUU = false;\s*\n\s*b\.disabled = false;/', $tpl ) );
+
+/* Trạm PHẢI gọi đúng một đường ghi — không được có phép ghi bảng nào của riêng nó. */
+$src = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-tram.php' );
+t( 'trạm gọi đúng VHCC_Online::cham_cong', strpos( $src, 'VHCC_Online::cham_cong(' ) !== false );
+t( 'trạm KHÔNG tự ghi bảng chấm công', strpos( $src, "t( 'cham_cong' )" ) === false );
+t( 'trạm KHÔNG tự tính giờ', ! preg_match( '/current_time\(\s*.H:i/', $src ) );
+
+/* Khoá phiên ở trình duyệt phải KHÁC khoá của trang quản trị. Chung khoá là hai trang đá nhau
+   ra, mà không ai hiểu vì sao. */
+$cau_noi = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/assets/js/cau-noi.js' );
+preg_match( "/TOKEN_KEY = '([^']+)'/", $cau_noi, $mq );
+preg_match( "/KHOA_PHIEN = '([^']+)'/", $tpl, $mt );
+t( 'trạm và trang quản trị dùng HAI khoá phiên khác nhau',
+	! empty( $mq[1] ) && ! empty( $mt[1] ) && $mq[1] !== $mt[1], array( $mq, $mt ) );
+
+/* ================================================================== 7. NỐI VÀO PLUGIN */
+
+$chinh = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/vhcp-cham-cong.php' );
+t( 'plugin có nạp lớp trạm', strpos( $chinh, "class-vhcc-tram.php" ) !== false );
+t( 'plugin có gài init cho trạm', strpos( $chinh, "array( 'VHCC_Tram', 'init' )" ) !== false );
+t( 'có shortcode [vhcc_tram]', strpos( $chinh, "add_shortcode( 'vhcc_tram'" ) !== false );
+/* iframe phải xin quyền máy ảnh, không thì nút chụp bấm không lên mà trình duyệt câm. */
+t( 'shortcode mở quyền máy ảnh cho iframe', strpos( $src, 'allow="camera' ) !== false );
+
+/* Số phiên bản phải nhích — không nhích thì vhcc_maybe_upgrade() không chạy, cột `ma_nv` không
+   được thêm, và trạm chết ngay lượt đăng nhập đầu tiên. */
+preg_match( "/define\( 'VHCC_VERSION', '([^']+)' \)/", $chinh, $mv );
+preg_match( '/Version:\s*([0-9.]+)/', $chinh, $mh );
+t( 'header và hằng số cùng một số phiên bản', ! empty( $mv[1] ) && $mv[1] === trim( $mh[1] ), array( $mv, $mh ) );
+t( 'phiên bản đã nhích qua 2.8.0', version_compare( $mv[1], '2.8.0', '>' ), $mv );
+
+$db = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-db.php' );
+t( 'sơ đồ phiên có cột ma_nv', (bool) preg_match( "/ma_nv VARCHAR\(40\) NOT NULL DEFAULT ''/", $db ) );
+preg_match( "/SCHEMA_VERSION = '([^']+)'/", $db, $ms );
+t( 'SCHEMA_VERSION đã nhích qua 2.1.0', version_compare( $ms[1], '2.1.0', '>' ), $ms );
+
+
+/* ============================================ 9. "CÔNG CỦA TÔI" — nhân viên tự soát
+ *
+ * Anh Thắng: *"còn nhân viên vào check chấm công của mình thì sao"*. Màn này đếm LƯỢT và GIỜ
+ * THÔ, cố ý không quy ra "công" và không in tiền — số công trả lương do VHCC_Luong tính, và
+ * một con số thứ hai gọi là "công" là mời nhân viên cầm điện thoại lên cãi với kế toán.
+ */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => 'VIVO', 'ngay' => '2026-08-03',
+	'ma_nv' => 'NV_BT', 'hau_to' => '', 'gio_vao_giay' => 8 * 3600, 'gio_ra_giay' => 17 * 3600 ) );
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => 'VIVO', 'ngay' => '2026-08-04',
+	'ma_nv' => 'NV_BT', 'hau_to' => '', 'gio_vao_giay' => 8 * 3600 + 1800, 'gio_ra_giay' => null ) );
+/* Ca qua đêm: vào 22h, ra 6h sáng hôm sau -> 8 giờ, KHÔNG phải âm 16 giờ. */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => 'VIVO', 'ngay' => '2026-08-05',
+	'ma_nv' => 'NV_BT', 'hau_to' => '', 'gio_vao_giay' => 22 * 3600, 'gio_ra_giay' => 6 * 3600 ) );
+/* Tháng khác — KHÔNG được lọt vào tổng của tháng 8. */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => 'VIVO', 'ngay' => '2026-09-01',
+	'ma_nv' => 'NV_BT', 'hau_to' => '', 'gio_vao_giay' => 8 * 3600, 'gio_ra_giay' => 17 * 3600 ) );
+/* Người KHÁC — tuyệt đối không lọt. Kể cả NV001, người đang có phiên ở bài kiểm này. */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => 'VIVO', 'ngay' => '2026-08-03',
+	'ma_nv' => 'NV999', 'hau_to' => '', 'gio_vao_giay' => 8 * 3600, 'gio_ra_giay' => 17 * 3600 ) );
+
+$bt = VHCC_Online::bang_thang( 'NV_BT', array( 'VIVO' ), '2026-08' );
+t( 'trả đúng tháng hỏi', '2026-08' === $bt['thang'], $bt['thang'] );
+t( 'chỉ lấy tháng đó, không lẫn tháng 9', 3 === count( $bt['dong'] ), $bt['dong'] );
+t( 'đếm đúng số ngày có chấm', 3 === $bt['tong']['ngay'], $bt['tong'] );
+t( 'đếm đúng số lượt thiếu giờ ra', 1 === $bt['tong']['thieuRa'], $bt['tong'] );
+/* 9h (ngày 3) + 8h ca đêm (ngày 5) = 17h. Ngày 4 thiếu giờ ra nên KHÔNG cộng. */
+t( 'giờ có mặt cộng đúng, ca qua đêm không ra số âm', 17 * 60 === $bt['tong']['phut'], $bt['tong'] );
+t( 'ca qua đêm tính trọn 8 giờ', 8 * 60 === $bt['dong'][2]['phut'], $bt['dong'][2] );
+t( 'lượt thiếu giờ ra để phút NULL, không bịa số 0', null === $bt['dong'][1]['phut'], $bt['dong'][1] );
+$bt999 = VHCC_Online::bang_thang( 'NV999', array( 'VIVO' ), '2026-08' );
+t( 'KHÔNG lẫn lượt của người khác: mã khác ra bảng khác',
+	1 === count( $bt999['dong'] ) && 3 === count( $bt['dong'] ), $bt999 );
+
+/* 🔴 KHÔNG CÓ MÃ NV -> BẢNG RỖNG. Mã là thứ duy nhất buộc lượt chấm vào một người; thiếu nó
+   thì không có cách nào biết bảng này của ai, và trả bừa cả bảng của cơ sở là lộ công người
+   khác cho người đang ngồi trước máy. */
+$bt0 = VHCC_Online::bang_thang( '', array( 'VIVO' ), '2026-08' );
+t( 'mã NV rỗng -> bảng rỗng', 0 === count( $bt0['dong'] ) && 0 === $bt0['tong']['luot'] );
+
+/* 🔴 NHƯNG HỒ SƠ CHƯA KHAI CƠ SỞ NÀO THÌ VẪN PHẢI THẤY CÔNG CỦA MÌNH — đổi từ bản 3.22.0.
+   Anh Thắng 31/08/2026: *"2 bên đang lệch"*. Trước bản này hàm lọc `coso IN (danh sách khai
+   trong hồ sơ)`, nên chỉ cần tên cửa hàng trong hồ sơ gõ lệch một dấu cách với tên máy chấm
+   công đang ghi là CẢ THÁNG CÔNG biến mất, im lặng. Ca "chưa khai cơ sở nào" là cùng một lỗi
+   ở dạng cực đoan: hồ sơ mới, người ta đã đi làm và đã bấm máy, mà màn của họ trống trơn.
+   Sổ chấm công do MÁY ghi; danh sách cơ sở do NGƯỜI gõ. Đây là công của CHÍNH người đang xem
+   — lấy hết, rồi để màn hình kêu lên chỗ hồ sơ còn thiếu. */
+$bt0 = VHCC_Online::bang_thang( 'NV_BT', array(), '2026-08' );
+t( '🔴 chưa khai cơ sở nào thì VẪN thấy công của chính mình', count( $bt0['dong'] ) > 0, $bt0 );
+$bt_du = VHCC_Online::bang_thang( 'NV_BT', array( 'VIVO' ), '2026-08' );
+t( 'và đủ y như khi hồ sơ khai đúng cơ sở',
+	count( $bt_du['dong'] ) === count( $bt0['dong'] ),
+	array( 'khai' => count( $bt_du['dong'] ), 'khong_khai' => count( $bt0['dong'] ) ) );
+/* Tháng sai khuôn -> tháng hiện tại, KHÔNG phải nuốt lỗi rồi quét cả bảng. */
+$btx = VHCC_Online::bang_thang( 'NV_BT', array( 'VIVO' ), 'linh tinh' );
+t( 'tháng sai khuôn rơi về tháng hiện tại',
+	(bool) preg_match( '/^\d{4}-\d{2}$/', $btx['thang'] ), $btx['thang'] );
+
+/* 🔴 KHÔNG được có chữ nào về TIỀN trong kết quả. */
+$json_bt = wp_json_encode( $bt );
+foreach ( array( 'tien', 'luong', 'donGia', 'thanhTien' ) as $cam_bt ) {
+	t( "bảng công của nhân viên không mang khoá \"$cam_bt\"", false === strpos( $json_bt, $cam_bt ) );
+}
+
+/* Công thức ca qua đêm phải là MỘT — VHCC_Luong::phut_ca, không viết lần hai. */
+t( 'phut_ca: ca thường', 540 === VHCC_Luong::phut_ca( 8 * 60, 17 * 60 ) );
+t( 'phut_ca: ca qua đêm', 480 === VHCC_Luong::phut_ca( 22 * 60, 6 * 60 ) );
+$src_on = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-online.php' );
+t( 'VHCC_Online gọi phut_ca chứ không tự tính lại',
+	strpos( $src_on, 'VHCC_Luong::phut_ca' ) !== false
+	&& strpos( $src_on, '+ 1440 -' ) === false );
+
+/* Giao diện trạm phải có màn tháng, và chọn tháng theo GIỜ MÁY CHỦ chứ không theo điện thoại. */
+$tram_js = js_sach( file_get_contents( $goc . '/wordpress/vhcp-cham-cong/templates/tram.php' ) );
+t( 'trang trạm có màn Công của tôi', strpos( $tram_js, 'Công của tôi' ) !== false );
+t( 'có nút lùi/tiến tháng',
+	strpos( $tram_js, 'btThangTruoc' ) !== false && strpos( $tram_js, 'btThangSau' ) !== false );
+t( 'tháng mặc định lấy từ giờ MÁY CHỦ (TOI.gio.ngay), không từ new Date()',
+	strpos( $tram_js, 'TOI.gio.ngay' ) !== false );
+t( 'cộng trừ tháng bằng chuỗi, không dựng Date từ chuỗi tháng',
+	strpos( $tram_js, 'new Date(ym' ) === false );
+t( 'không cho bấm sang tháng tương lai', strpos( $tram_js, "btThangSau').disabled" ) !== false );
+t( 'nói rõ đây KHÔNG phải bảng lương',
+	strpos( $tram_js, 'chưa quy ra công tính lương' ) !== false );
+
+
+/* ------------------------------------------------------------------ báo cáo */
+/* ============================================ 10. HAI TRANG NỐI ĐƯỢC VỚI NHAU
+ *
+ * Anh Thắng: *"Gộp lại thành 1 trang, anh link chuyển tiếp với nhau được không"*. Với người
+ * dùng thì "một hệ thống" nghĩa là: đăng nhập MỘT lần, bấm qua lại được. Cái liên kết không
+ * đủ — bấm sang mà rơi ra màn PIN thì vẫn là hai hệ thống rời nhau.
+ */
+$r_lk = VHCC_Tram::dang_nhap( '135791' );          // Phạm Hồ Sơ — Cửa hàng trưởng
+t( 'cửa hàng trưởng đăng nhập trạm được', ! empty( $r_lk['ok'] ), $r_lk );
+$u_lk = VHCC_Auth::user_by_token( $r_lk['token'] );
+t( 'thẻ ấy dùng luôn được ở trang quản trị', null !== $u_lk );
+t( 'và mở được màn Bảng chấm công', VHCC_Vai::duoc( $u_lk, 'cong_coso' ) );
+t( 'nhưng KHÔNG mở được màn Hồ sơ', ! VHCC_Vai::duoc( $u_lk, 'ho_so' ) );
+
+/* Đường sang trang quản trị chỉ gửi cho người MỞ ĐƯỢC nó. Gửi cho ai cũng thì nhân viên bấm
+   vào rồi nhận một trang chối, và họ tưởng máy hỏng. */
+/* ⚠️ Canh TÊN MÀN, không canh SỐ MÀN. Bản đầu viết `2 === count(...)` và nó vỡ ngay lần thêm
+   tab "Công Văn phòng" — trong khi chẳng có gì sai: cửa hàng trưởng ĐƯỢC xem tab đó. Đếm bằng
+   con số gõ tay thì mỗi lần thêm màn là một phép thử đỏ oan, và đỏ oan nhiều lần thì người ta
+   bắt đầu sửa con số cho xanh mà không đọc xem có đúng không. */
+$man_cht = VHCC_Web::man_cua( $u_lk );
+t( 'cửa hàng trưởng có màn công của mình', isset( $man_cht['cong_toi'] ), array_keys( $man_cht ) );
+t( 'và màn bảng công cơ sở', isset( $man_cht['cham'] ), array_keys( $man_cht ) );
+t( 'nhưng KHÔNG có màn hồ sơ', ! isset( $man_cht['ho_so'] ), array_keys( $man_cht ) );
+/* ⚠️ Lại một phép đếm bằng con số gõ tay ("chỉ có 1 màn") — vỡ ngay lần thêm Trang chính, dù
+   chẳng có gì sai: nhân viên ĐƯỢC vào trang chào. Canh TÊN màn thì thêm màn mới không đỏ oan. */
+$man_nv = VHCC_Web::man_cua( array( 'role' => 'Nhân viên' ) );
+t( 'nhân viên có Trang chính', isset( $man_nv['nha'] ), array_keys( $man_nv ) );
+t( 'và có "Công của tôi"', isset( $man_nv['cong_toi'] ), array_keys( $man_nv ) );
+t( 'nhưng KHÔNG có bảng công cơ sở', ! isset( $man_nv['cham'] ), array_keys( $man_nv ) );
+t( 'và KHÔNG có hồ sơ', ! isset( $man_nv['ho_so'] ), array_keys( $man_nv ) );
+$man_ad = VHCC_Web::man_cua( array( 'role' => 'Admin' ) );
+/* Admin phải có ĐỦ mọi màn mà bất cứ vai nào khác có được — chốt này không cần đếm, và tự đúng
+   khi thêm màn mới. */
+foreach ( array_keys( $man_cht ) as $k_ad ) {
+	t( 'admin có màn "' . $k_ad . '" (không kém vai nào)', isset( $man_ad[ $k_ad ] ), array_keys( $man_ad ) );
+}
+t( 'và admin có thêm màn hồ sơ', isset( $man_ad['ho_so'] ), array_keys( $man_ad ) );
+
+/* mo_phien: chỉ nhận thẻ do chính hệ phát ra. */
+t( 'mo_phien chối thẻ rác', false === VHCC_Web::mo_phien( str_repeat( 'a', 64 ) ) );
+t( 'mo_phien chối chuỗi sai khuôn', false === VHCC_Web::mo_phien( 'abc' ) );
+t( 'mo_phien nhận thẻ thật', true === VHCC_Web::mo_phien( $r_lk['token'] ) );
+
+/* =====================================================================================
+ * 🔴 CHIỀU QUẢN TRỊ → TRẠM: ĐÃ ĐĂNG NHẬP MỘT BÊN THÌ KHÔNG GÕ PIN LẦN HAI.
+ * =====================================================================================
+ * Anh Thắng 28/08/2026: *"nhân viên đăng nhập bên quản trị chấm công, nhưng qua chấm công
+ * đăng nhập online lại bắt đăng nhập lại, tự vào chung luôn"*.
+ *
+ * Chiều trạm → quản trị đã có (`mo_phien` ngay trên). Chiều này là đường đọc ngược: cookie
+ * HttpOnly thì JavaScript của trạm không đọc được, nên máy chủ đọc hộ rồi trao lại thẻ.
+ */
+$cookie_cu = isset( $_COOKIE[ VHCC_Web::COOKIE ] ) ? $_COOKIE[ VHCC_Web::COOKIE ] : null;
+
+unset( $_COOKIE[ VHCC_Web::COOKIE ] );
+$ps = VHCC_Tram::phien_tu_cookie();
+t( 'không có cookie thì nói "chưa có", không nổ', empty( $ps['ok'] ) && 'chua_co' === $ps['ma'], $ps );
+
+$_COOKIE[ VHCC_Web::COOKIE ] = str_repeat( 'a', 64 );
+$ps = VHCC_Tram::phien_tu_cookie();
+t( '🔴 cookie mang thẻ rác thì chối', empty( $ps['ok'] ), $ps );
+
+$_COOKIE[ VHCC_Web::COOKIE ] = 'khong-phai-the';
+$ps = VHCC_Tram::phien_tu_cookie();
+t( 'cookie sai khuôn thì chối', empty( $ps['ok'] ), $ps );
+
+/* Thẻ thật, của người đang đăng nhập bên quản trị. */
+$_COOKIE[ VHCC_Web::COOKIE ] = $r_lk['token'];
+$ps = VHCC_Tram::phien_tu_cookie();
+t( '🔴 có phiên quản trị thì vào thẳng trạm', ! empty( $ps['ok'] ), $ps );
+/* ⚠️ TRAO LẠI CHÍNH THẺ, KHÔNG PHÁT THẺ MỚI: hai thẻ song song thì bấm Thoát ở trạm chỉ giết
+   một cái, cookie vẫn mở — người ta tưởng đã thoát mà máy vẫn đang đăng nhập. */
+t( '🔴 và trao lại ĐÚNG thẻ đang có, không phát thẻ mới',
+	isset( $ps['token'] ) && $ps['token'] === $r_lk['token'] );
+t( 'kèm mã NV để lượt chấm biết ghi cho ai', ! empty( $ps['maNV'] ), $ps );
+
+/* Thẻ KHÔNG có mã NV — chấm được mà công không vào hồ sơ ai cả, nên phải chối. */
+$tok_trong = VHCC_Auth::phat_token( 'Không Mã', 'NHAN_VIEN', 'VIVO', '' );
+$_COOKIE[ VHCC_Web::COOKIE ] = $tok_trong;
+$ps = VHCC_Tram::phien_tu_cookie();
+t( '🔴 thẻ không có Mã NV thì chối, không cho vào thẳng', empty( $ps['ok'] ), $ps );
+
+/* 🔴 CHỐT CỬA TRẠM VẪN PHẢI CHẠY. Có cookie không có nghĩa là được vào trạm — người bị khoá
+   riêng ở màn "Quản lý nhân sự" phải bị chối ở đây y như lúc gõ PIN. */
+$ma_lk = $u_lk['ma_nv'];
+VHCC_Cong::dat( array( 'role' => 'Admin' ), $ma_lk, 'tram', 'khoa' );
+$_COOKIE[ VHCC_Web::COOKIE ] = $r_lk['token'];
+$ps = VHCC_Tram::phien_tu_cookie();
+t( '🔴 bị khoá cửa trạm thì cookie cũng không đi vòng qua được', empty( $ps['ok'] ), $ps );
+t( 'và nói ra là bị khoá riêng, không nói "chưa có phiên"',
+	isset( $ps['error'] ) && strpos( $ps['error'], 'khoá riêng' ) !== false, $ps );
+VHCC_Cong::dat( array( 'role' => 'Admin' ), $ma_lk, 'tram', '' );
+$ps = VHCC_Tram::phien_tu_cookie();
+t( 'bỏ khoá thì vào lại được', ! empty( $ps['ok'] ), $ps );
+
+if ( null === $cookie_cu ) { unset( $_COOKIE[ VHCC_Web::COOKIE ] ); }
+else { $_COOKIE[ VHCC_Web::COOKIE ] = $cookie_cu; }
+
+/* ⚠️ Hàm đúng mà cổng không khai việc thì trang vẫn hỏi PIN — soi cả chỗ KHAI, không chỉ chỗ
+   LÀM. Bản đầu chỉ soi hàm, và phá thử bỏ hẳn dòng khai ở cổng vẫn xanh. */
+$src_tram = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-tram.php' );
+t( '🔴 cổng có khai việc "phien"',
+	preg_match( "/'phien' === \\\$viec[^\n]*phien_tu_cookie\(\)/", $src_tram ) === 1 );
+/* Và khai ở khúc CÔNG KHAI: đặt sau chốt "phải có thẻ phiên" thì việc này không bao giờ chạy
+   được — người chưa có thẻ mới là người cần nó. */
+t( 'khai TRƯỚC chốt "phải có thẻ phiên của TRẠM"',
+	strpos( $src_tram, "'phien' === \$viec" ) < strpos( $src_tram, '--- từ đây phải có thẻ phiên' ) );
+
+/* ---- Trên TRANG TRẠM ---- */
+$tram_ph = js_sach( file_get_contents( $goc . '/wordpress/vhcp-cham-cong/templates/tram.php' ) );
+t( '🔴 trang trạm có hỏi phiên sẵn có', strpos( $tram_ph, "goi('phien'" ) !== false );
+t( '🔴 và khởi động dùng nó thay cho màn PIN trần',
+	preg_match( "/if\(token\(\)\)\{ moManChinh\(\); \}\s*\n\s*else \{ thuPhienSan\(\); \}/", $tram_ph ) === 1 );
+/* ⚠️ Hiện màn PIN TRƯỚC rồi mới hỏi: người không có phiên sẵn — gần như tất cả nhân viên đứng
+   ở quầy — mà phải nhìn trang trắng chờ mạng thì tệ hơn hẳn cái đang sửa. */
+t( 'hiện màn PIN trước, không để trang trắng chờ mạng',
+	preg_match( "/function thuPhienSan\(\)\{\s*\n\s*hien\('mVao',true\);/", $tram_ph ) === 1 );
+/* ⚠️ Lời đáp về muộn mà nhảy màn giữa lúc người ta gõ là mất mấy chữ vừa gõ. */
+t( '🔴 đang gõ PIN dở thì không giật màn hình',
+	strpos( $tram_ph, "if(el('oPin').value.trim() !== ''){" ) !== false );
+t( 'gọi hỏng thì vẫn về màn PIN, không treo', strpos( $tram_ph, ".catch(function(){ bao('loiVao','',null); el('oPin').focus(); });" ) !== false );
+
+/* Chiều ngược: thanh màn của trang quản trị phải có đường ra trạm. */
+$src_web = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-web.php' );
+t( 'thanh màn có nút mở trang chấm công', strpos( $src_web, 'VHCC_Tram::url()' ) !== false );
+
+/* ============================================ 11. VỊ TRÍ ĐANG ĐỨNG + BẢN ĐỒ + CƠ SỞ
+ *
+ * Anh Thắng 25/08/2026: *"web đã đưa lên host nên tốc độ khác nhanh rồi, nên mình sẽ mở lại
+ * tính năng: hiện vị trí đang đứng chấm công · hiện cơ sở đang có"*, và *"kèm bản đồ đang
+ * đứng nhé"*. Bản gốc Apps Script có hiện vị trí (ô `ccGps`); bản dựng lại làm mất phần hiện
+ * ra — vẫn GỬI toạ độ kèm lượt chấm, nhưng người dùng không thấy gì.
+ */
+$tram_vt = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/templates/tram.php' );
+$tram_js2 = js_sach( $tram_vt );
+
+t( 'có khối Vị trí đang đứng', strpos( $tram_vt, 'Vị trí đang đứng' ) !== false );
+t( 'có nút lấy lại vị trí', strpos( $tram_js2, "el('btViTri')" ) !== false );
+t( 'có khối Cơ sở được chấm công', strpos( $tram_vt, 'Cơ sở được chấm công' ) !== false );
+
+/* 🔴 BỐN TRẠNG THÁI, KHÔNG PHẢI HAI. Ba nguyên nhân không có GPS dẫn tới ba cách sửa khác
+   hẳn nhau; gộp làm một câu "không lấy được vị trí" là bắt người dùng đoán. */
+foreach ( array( 'dangxin', 'khong_ho_tro', 'choi', 'hong' ) as $tt_gps ) {
+	t( "trạng thái GPS \"$tt_gps\" có nhánh riêng", strpos( $tram_js2, "'$tt_gps'" ) !== false );
+}
+t( 'phân biệt BỊ TỪ CHỐI QUYỀN bằng err.code 1',
+	strpos( $tram_js2, '1 === err.code' ) !== false );
+t( 'câu khi bị chặn chỉ đúng chỗ bấm (ổ khoá cạnh địa chỉ web)',
+	strpos( $tram_vt, 'ổ khoá' ) !== false );
+
+/* 🔴 GPS KHÔNG ĐƯỢC CHẶN CHẤM CÔNG. Trong kho, dưới hầm, máy cũ tắt định vị — thiếu sóng là
+   chuyện thường, mà giờ vào thì không đợi được. Cả ba nhánh hỏng đều phải nói "vẫn chấm công
+   được", và không nhánh nào tắt nút chấm. */
+$so_van_cham = substr_count( $tram_vt, 'Vẫn chấm công được' );
+t( 'cả ba nhánh hỏng đều nói VẪN CHẤM CÔNG ĐƯỢC', $so_van_cham >= 3, $so_van_cham );
+t( 'không nhánh GPS nào tắt nút chấm công',
+	! preg_match( "/GPS_TRANG[^\n]*\n[^\n]*btCham'\)\.disabled\s*=\s*true/", $tram_js2 ) );
+
+/* ---- Bản đồ nhúng ---- */
+t( 'có bản đồ nhúng', strpos( $tram_js2, 'veBanDo' ) !== false );
+/* 🔴 BẢN ĐỒ ĐÃ HỎNG HAI LẦN, cả hai vì trình duyệt nói chuyện thẳng với máy chủ người khác:
+     1. <iframe> openstreetmap.org  -> "đã từ chối kết nối" (họ chặn nhúng bằng tiêu đề, và
+        trình duyệt bỏ luôn khung — JavaScript không bắt lỗi được để hiện thứ khác thay).
+     2. tải thẳng ô ảnh tile.openstreetmap.org -> ô trắng, một ô hiện dấu hỏi ảnh vỡ. Chính
+        sách của họ KHÔNG cho một trang bất kỳ móc thẳng vào máy chủ ô ảnh — họ chặn, và đúng.
+   Nay máy chủ mình tải hộ một lần rồi nhớ lại. */
+t( 'ô ảnh lấy từ máy chủ MÌNH', strpos( $tram_js2, 'function urlO' ) !== false
+	&& strpos( $tram_js2, "'viec=o&z='" ) !== false );
+t( 'KHÔNG móc thẳng vào máy chủ ô ảnh của OSM',
+	strpos( $tram_js2, 'tile.openstreetmap.org' ) === false );
+t( 'KHÔNG nhúng bằng iframe nữa', strpos( $tram_js2, 'export/embed.html' ) === false );
+t( 'ô ảnh tải hỏng thì ẩn cả bản đồ', strpos( $tram_js2, 'function nghenBanDo' ) !== false );
+
+/* 🔴 LỖI THẬT ĐÃ GẶP: `onerror="banDoHong(this)"` trong HTML chạy ở phạm vi TOÀN CỤC, mà cả
+   tệp JavaScript nằm trong một hàm bọc kín — nên nó gọi một cái tên không tồn tại, ném lỗi, và
+   bản đồ hỏng vẫn nằm nguyên với chín ô trắng. Không có gì đỏ, chỉ có một thứ đáng lẽ phải
+   biến mất thì lại còn đó. */
+t( 'KHÔNG dùng thuộc tính onerror trong HTML', strpos( $tram_js2, 'onerror="' ) === false );
+t( 'gắn bằng addEventListener', strpos( $tram_js2, "addEventListener('error'" ) !== false );
+t( 'và gọi SAU khi đã chèn HTML',
+	preg_match( "/veBanDo\([^\n]*\)[\s\S]{0,400}nghenBanDo\(\);/", $tram_js2 ) === 1 );
+t( 'ghi công OpenStreetMap', strpos( $tram_vt, '© OpenStreetMap' ) !== false );
+
+/* Cổng ô ảnh: KHOÁ, không phải cửa chuyển tiếp tự do. */
+t( 'chỉ nhận mức phóng đang dùng',
+	VHCC_BanDo::Z_MIN >= 13 && VHCC_BanDo::Z_MAX <= 18 );
+t( 'ô trong TP.HCM được nhận', VHCC_BanDo::trong_vung( 16, 52464, 30837 ) );
+t( 'ô ngoài Việt Nam bị chối', ! VHCC_BanDo::trong_vung( 16, 100, 100 ) );
+t( 'toạ độ ô âm bị chối', ! VHCC_BanDo::trong_vung( 16, -1, 5 ) );
+t( 'toạ độ ô vượt mức phóng bị chối', ! VHCC_BanDo::trong_vung( 2, 99, 99 ) );
+$src_bd = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-bando.php' );
+t( 'địa chỉ đích dựng từ ba SỐ, không nhận mẩu URL nào từ ngoài',
+	strpos( $src_bd, "'https://tile.openstreetmap.org/' . \$z . '/' . \$x . '/' . \$y" ) !== false );
+t( 'khai danh tính khi đi tải (chính sách của OSM)',
+	strpos( $src_bd, "'User-Agent' =>" ) !== false );
+t( 'nhớ lại ô đã tải', strpos( $src_bd, 'file_put_contents( $tep' ) !== false );
+t( 'chỉ nhận đúng PNG, không nhớ trang quảng cáo của nhà mạng',
+	strpos( $src_bd, '"\x89PNG" !== substr' ) !== false );
+t( 'mất mạng thì dùng tạm bản cũ quá hạn',
+	preg_match( "/is_wp_error[\s\S]{0,600}is_readable\( \\\$tep \)[\s\S]{0,120}self::tra/", $src_bd ) === 1 );
+t( 'hỏng thì trả 404/502 chứ KHÔNG trả ảnh trắng',
+	strpos( $src_bd, 'self::chet( 502 )' ) !== false );
+/* 🔴 KHÔNG được có khoá API nào trong trang: trang này ai xem nguồn cũng đọc được. */
+foreach ( array( 'key=AIza', 'maps/embed/v1', 'output=embed' ) as $cam_bd ) {
+	/* Soi MÃ đã bỏ chú thích, không soi lời giải thích: chính chú thích trong tram.php nhắc
+	   tên hai đường ấy để nói VÌ SAO không dùng chúng. Soi cả chú thích là phép thử đỏ oan —
+	   đã vấp đúng kiểu này với chốt "không dùng new Date()". */
+	t( "không dùng \"$cam_bd\"", strpos( $tram_js2, $cam_bd ) === false );
+}
+t( 'bản đồ tải trễ (3G ở cơ sở không tải khi chưa cuộn tới)',
+	strpos( $tram_js2, 'loading="lazy"' ) !== false );
+/* Không cần referrerpolicy nữa: ô ảnh nay lấy từ chính máy chủ mình, toạ độ nhân viên không
+   rời khỏi khmatrix.com. */
+t( 'trang KHÔNG gọi thẳng ra máy chủ ngoài nào cho bản đồ',
+	strpos( $tram_js2, 'openstreetmap.org' ) === false );
+/* Chỉ dựng khung bản đồ KHI ĐÃ CÓ toạ độ — không nạp sẵn lúc mở trang. */
+t( 'bản đồ chỉ dựng trong nhánh đã có toạ độ',
+	preg_match( "/GPS_TRANG === 'co'[\s\S]{0,2600}veBanDo\(/", $tram_js2 ) === 1 );
+t( 'HTML tĩnh KHÔNG có sẵn iframe nào',
+	strpos( preg_replace( '/<script[\s\S]*?<\/script>/', '', $tram_vt ), '<iframe' ) === false );
+
+/* 🔴 ĐỘ CHÍNH XÁC THÔ THÌ KHÔNG VẼ BẢN ĐỒ. Ảnh anh Thắng gửi: toạ độ trông rất thật
+   (10.775500,106.702100 — trung tâm TP.HCM) kèm sai số ±200000m. Vẽ một chấm đỏ giữa Quận 1
+   khi máy chỉ biết "đâu đó ở miền Nam" là nói dối bằng hình ảnh: người xem tin cái chấm chứ
+   không đọc dòng ±. */
+t( 'có chia mức độ chính xác', strpos( $tram_js2, 'function mucGps' ) !== false );
+t( 'mức "mang" (theo địa chỉ mạng) KHÔNG vẽ bản đồ',
+	preg_match( "/m === 'mang'[\s\S]{0,1200}return;/", $tram_js2 ) === 1
+	&& preg_match( "/m === 'mang'[\s\S]{0,1200}veBanDo/", $tram_js2 ) !== 1 );
+t( 'và nói thẳng đó là vị trí theo địa chỉ mạng',
+	strpos( $tram_vt, 'theo <b>địa chỉ mạng</b>' ) !== false );
+t( 'chỉ đúng chỗ bật Dịch vụ định vị', strpos( $tram_vt, 'Dịch vụ định vị' ) !== false );
+/* Vẫn chấm công được ở mọi mức — GPS không phải điều kiện. */
+t( 'mức thô vẫn chấm công được', strpos( $tram_vt, 'phiếu sẽ ghi rõ là vị trí ước lượng' ) !== false );
+
+/* ±200000m đọc không ra là to cỡ nào — đổi sang km. */
+t( 'đơn vị dài đọc được', strpos( $tram_js2, 'function dai' ) !== false );
+
+/* Sai số càng lớn thì kéo càng xa: phóng hết cỡ trong khi máy chỉ biết bán kính 500m là vẽ
+   một chấm rất chính xác vào một chỗ rất có thể sai. */
+t( 'mức phóng chọn theo sai số',
+	preg_match( "/acc <= 60[^\n]*17[^\n]*acc <= 200 \? 16 : 15/", $tram_js2 ) === 1 );
+
+/* Toạ độ ghép vào địa chỉ phải qua encodeURIComponent — chuỗi tự dựng nhét thẳng vào src là
+   đúng kiểu lỗi mở đường cho người khác chèn nội dung lạ vào khung. */
+t( 'toạ độ được mã hoá trước khi ghép vào địa chỉ',
+	substr_count( $tram_js2, 'encodeURIComponent' ) >= 2 );
+
+/* Khối cơ sở: người ở nhiều cơ sở phải thấy danh sách TRƯỚC khi bấm chấm. */
+t( 'vẽ danh sách cơ sở', strpos( $tram_js2, 'function veCoSo' ) !== false );
+t( 'phân biệt cơ sở chính và cơ sở phụ',
+	strpos( $tram_vt, 'cơ sở chính' ) !== false && strpos( $tram_vt, 'cơ sở phụ' ) !== false );
+t( 'chưa khai cơ sở nào thì nói rõ phải nhờ ai khai',
+	strpos( $tram_vt, 'chưa khai cơ sở nào' ) !== false );
+t( 'người nhiều cơ sở được nhắc chọn đúng cơ sở đang đứng',
+	strpos( $tram_vt, 'đang có mặt ở cơ sở nào' ) !== false );
+
+/* Máy chủ vẫn nhận và ghi GPS đúng như trước — mở lại phần HIỆN RA không được đụng phần GHI. */
+$src_on2 = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-online.php' );
+t( 'máy chủ vẫn đóng dấu GPS vào ghi chú', strpos( $src_on2, 'gps_thanh_chu' ) !== false );
+
+/* ============================================ 12. ĐẾM NGƯỢC RỒI TỰ CHỤP
+ *
+ * Anh Thắng: *"Trước khi chụp nó sẽ báo 5-4-3-2-1"*. Lý do đáng làm: chụp một tay trong khi
+ * tay kia giơ điện thoại thì ngón cái che ống kính hoặc làm rung máy — ảnh mờ, mà ảnh mờ thì
+ * mất luôn công dụng duy nhất của nó là đối chiếu khi tranh cãi.
+ */
+t( 'có bộ đếm ngược', strpos( $tram_js2, 'function batDem' ) !== false );
+/* 🔴 4.29.1 ĐẶT `DEM_GIAY = 0`, TỨC TẮT HẲN VIỆC TỰ CHỤP — người bấm "Chụp ngay" mới chụp.
+   Đây là một quyết định CỐ Ý của mạch 4.14→4.29 (chú thích ngay tại chỗ nói rõ), và nó đi
+   ngược lời anh Thắng 26/08/2026 *"Trước khi chụp nó sẽ báo 5-4-3-2-1"*. Bài kiểm không phải
+   chỗ bác bỏ một quyết định sản phẩm, nên nó canh CƠ CHẾ thay vì canh con số: số giây phải là
+   một hằng có tên (đổi được ở một chỗ), và nhánh 0 = không tự chụp phải được xử tử tế chứ
+   không rơi vào vòng đếm ngược 0 giây. */
+t( 'số giây đếm là một hằng có tên', preg_match( '/DEM_GIAY = \d+/', $tram_js2 ) === 1 );
+t( '🔴 đặt 0 thì KHÔNG tự chụp, và có nhánh xử riêng',
+	strpos( $tram_js2, 'if(DEM_GIAY <= 0){' ) !== false );
+t( 'có lớp số đếm đè lên khung hình', strpos( $tram_vt, 'id="oDem"' ) !== false );
+t( 'chạm khung hình thì đếm lại từ đầu',
+	strpos( $tram_js2, "el('oDem').parentNode.addEventListener" ) !== false );
+
+/* 🔴 MỘT ĐƯỜNG CHỤP DUY NHẤT. Nút bấm và bộ đếm phải gọi CÙNG một hàm — hai đường chụp là hai
+   chỗ đóng dấu giờ, và sớm muộn một chỗ quên mất ràng buộc nào đó. */
+t( 'tách hàm chupNgay dùng chung', strpos( $tram_js2, 'function chupNgay' ) !== false );
+t( 'nút Chụp gọi chupNgay', preg_match( "/btChup'\\).addEventListener[^\n]*chupNgay\\(\\)/", $tram_js2 ) === 1 );
+t( 'bộ đếm cũng gọi chupNgay', strpos( $tram_js2, 'if(chupNgay())' ) !== false );
+/* ⚠️ ĐẾM `g.fillText(chu,` KÈM DẤU PHẨY. Bản 4.29.1 vẽ thêm hai lớp chữ khác lên ảnh
+   (`chuVT` — vị trí, `chuN` — nhãn ô), và `g.fillText(chu` khớp cả hai — phép thử báo 3 chỗ
+   đóng dấu giờ trong khi vẫn chỉ có một. Một phép thử báo động giả vài lần là một phép thử
+   người ta bắt đầu bỏ qua. */
+$so_dong_dau = substr_count( $tram_js2, 'g.fillText(chu,' );
+t( 'chỉ có ĐÚNG MỘT chỗ đóng dấu giờ lên ảnh', 1 === $so_dong_dau, $so_dong_dau );
+
+/* 🔴 ĐẾM NGƯỢC KHÔNG ĐƯỢC LÀM ẢNH GHI SAI GIỜ. Giờ in lên ảnh phải lấy ở ĐÚNG GIÂY bấm máy;
+   lấy lúc MỞ màn chụp thì mọi tấm ảnh lệch 5 giây, và lệch âm thầm. */
+t( 'giờ đóng dấu lấy TRONG chupNgay, không lấy lúc mở màn',
+	preg_match( "/function chupNgay\\(\\)[\\s\\S]{0,500}gioMayChu\\(\\)/", $tram_js2 ) === 1 );
+t( 'chưa có giờ máy chủ thì KHÔNG chụp bừa',
+	preg_match( "/if\\(!d\\)\\{[\\s\\S]{0,400}return false;/", $tram_js2 ) === 1 );
+
+/* Ràng buộc 4 vẫn nguyên: đã có ảnh thì không chụp đè. Tự chụp làm chốt này quan trọng hơn
+   trước — bộ đếm có thể bắn trong lúc người ta đang xem lại ảnh. */
+t( 'đã có ảnh thì chupNgay trả về ngay, không chụp đè',
+	preg_match( "/function chupNgay\\(\\)\\s*\\{\\s*\n?\\s*if\\(ANH\\) return true;/", $tram_js2 ) === 1 );
+
+/* Mọi đường thoát đều phải dừng bộ đếm, không thì nó bắn khi màn đã đóng. */
+foreach ( array( 'btHuyChup', 'btChupLai' ) as $nut_d ) {
+	t( "nút $nut_d dừng bộ đếm",
+		preg_match( "/$nut_d'\\).addEventListener[^\n]*dungDem\\(\\)/", $tram_js2 ) === 1 );
+}
+
+/* Đếm bắt đầu từ lúc CÓ HÌNH, không phải lúc bấm nút: máy cũ mất một hai giây mới lên hình,
+   đếm sớm là hết 5 giây khi màn hình vẫn đen. */
+t( 'đếm bắt đầu khi luồng hình sẵn sàng', strpos( $tram_js2, 'onloadedmetadata' ) !== false );
+
+/* Hụt mãi thì DỪNG, không quay vòng vô tận — vòng lặp im lặng làm người ta đứng chờ. */
+t( 'có trần số lần tự chụp hụt', strpos( $tram_js2, 'HUT_TOI_DA' ) !== false );
+t( 'hụt hết trần thì bảo bấm tay',
+	strpos( $tram_vt, 'để thử bằng tay' ) !== false );
+
+/* Ảnh tối: CẢNH BÁO, không chặn. Máy tự bấm nên người chụp không kịp nhìn khung hình. */
+t( 'có đo độ sáng ảnh', strpos( $tram_js2, 'function doSang' ) !== false );
+t( 'ảnh tối chỉ cảnh báo màu vàng, không phải lỗi đỏ',
+	preg_match( "/doSang\\([^\n]*\\)\\s*<\\s*\\d+\\)\\{[\\s\\S]{0,500}'vang'/", $tram_js2 ) === 1 );
+t( 'đo sáng hỏng thì coi như đủ sáng, không doạ nhầm',
+	strpos( $tram_js2, 'return 255;' ) !== false );
+/* Ảnh tối KHÔNG bị vứt: cảnh báo nằm SAU khi đã gán ANH, nên vẫn bấm "Dùng ảnh này" được. */
+t( 'ảnh tối vẫn dùng được',
+	strpos( $tram_js2, 'ANH = c.toDataURL' ) < strpos( $tram_js2, 'doSang(g, W, H)' ) );
+
+/* Câu cảnh báo đi qua bao() — hàm đó thoát HTML, nên trong chữ không được có thẻ. */
+t( 'bao() vẫn thoát HTML', strpos( $tram_js2, 'esc(chu)' ) !== false );
+t( 'câu ảnh tối không nhét thẻ HTML vào bao()',
+	preg_match( "/bao\\('loiChup','vang'[^;]*<b>/", $tram_js2 ) !== 1 );
+
+/* ============================================ 13. GPS THÔ PHẢI NÓI RA, CẢ Ở PHIẾU
+ *
+ * Ảnh anh Thắng gửi 25/08/2026: toạ độ 10.775500,106.702100 (giữa Quận 1) kèm ±200000m — đó
+ * là trình duyệt đoán theo địa chỉ mạng, không phải GPS. Ghi mỗi cặp toạ độ vào phiếu thì
+ * người đọc ba tháng sau mở bản đồ ra, thấy đúng trung tâm thành phố, và kết luận người này
+ * có mặt — trong khi dữ liệu chỉ nói "đâu đó ở miền Nam". Dấu ± nhỏ quá, không ai đọc.
+ */
+$gps_chu = new ReflectionMethod( 'VHCC_Online', 'gps_thanh_chu' );
+$gps_chu->setAccessible( true );
+$chu_tot = $gps_chu->invoke( null, array( 'lat' => 10.7755, 'lng' => 106.7021, 'acc' => 12 ) );
+t( 'GPS tốt ghi bình thường', 0 === strpos( $chu_tot, 'GPS ' ), $chu_tot );
+t( 'và kèm sai số', strpos( $chu_tot, '±12m' ) !== false, $chu_tot );
+
+$chu_tho = $gps_chu->invoke( null, array( 'lat' => 10.7755, 'lng' => 106.7021, 'acc' => 200000 ) );
+t( 'vị trí theo mạng KHÔNG được gọi là GPS', 0 !== strpos( $chu_tho, 'GPS ' ), $chu_tho );
+t( 'và nói thẳng là ước lượng', strpos( $chu_tho, 'ƯỚC LƯỢNG' ) !== false, $chu_tho );
+t( 'và nói thẳng không dùng để xác nhận có mặt',
+	strpos( $chu_tho, 'KHÔNG dùng để xác nhận có mặt' ) !== false, $chu_tho );
+t( '±200000m đổi thành ±200km cho đọc ra',
+	strpos( $chu_tho, '200km' ) !== false && strpos( $chu_tho, '200000' ) === false, $chu_tho );
+/* Toạ độ vẫn còn trong dòng chữ — nói nó thô không có nghĩa là vứt đi. */
+t( 'vẫn giữ lại toạ độ', strpos( $chu_tho, '10.7755' ) !== false, $chu_tho );
+
+/* Ranh giới đúng chỗ khai, không phải số rải trong mã. */
+t( 'ngưỡng thô khai thành hằng', defined( 'VHCC_Online::GPS_THO' ) || VHCC_Online::GPS_THO > 0 );
+$chu_ranh = $gps_chu->invoke( null, array( 'lat' => 1, 'lng' => 1, 'acc' => VHCC_Online::GPS_THO - 1 ) );
+t( 'ngay dưới ngưỡng vẫn là GPS', 0 === strpos( $chu_ranh, 'GPS ' ), $chu_ranh );
+
+t( 'không có GPS thì không bịa ra dòng nào',
+	'' === $gps_chu->invoke( null, null ) && '' === $gps_chu->invoke( null, array() ) );
+t( 'toạ độ không phải số thì bỏ qua, không ghi chữ rác',
+	'' === $gps_chu->invoke( null, array( 'lat' => 'abc', 'lng' => 'xyz' ) ) );
+
+/* ---- Trang trạm: chờ GPS khoá thay vì lấy phát đầu ---- */
+t( 'dùng watchPosition để chờ số sai lệch nhỏ dần',
+	strpos( $tram_js2, 'watchPosition' ) !== false );
+t( 'maximumAge 0 — không nhận lại vị trí cũ theo mạng',
+	strpos( $tram_js2, 'maximumAge:0' ) !== false );
+t( 'chỉ nhận lần đo TỐT HƠN cái đang có',
+	strpos( $tram_js2, 'moi.acc < GPS.acc' ) !== false );
+t( 'đủ tốt thì dừng sớm, khỏi hao pin',
+	strpos( $tram_js2, 'GPS.acc <= GPS_DU' ) !== false );
+t( 'có trần thời gian chờ', strpos( $tram_js2, 'GPS_CHO' ) !== false );
+t( 'hết giờ chờ vẫn dùng vị trí thô, không vứt đi',
+	preg_match( "/GPS_TRANG = GPS \\? 'co' : 'hong'/", $tram_js2 ) === 1 );
+t( 'lỗi giữa chừng mà đã đo được thì giữ lại',
+	strpos( $tram_js2, "if(GPS){ GPS_TRANG = 'co'; }" ) !== false );
+t( 'bấm lấy lại thì đo lại từ đầu, không giữ số của lần đứng chỗ khác',
+	preg_match( "/xinGps\\(\\)\\{[\\s\\S]{0,400}GPS = null;/", $tram_js2 ) === 1 );
+
+/* ============================================ 14. HỎNG THÌ PHẢI NÓI RA
+ *
+ * 🔴 MÀN HÌNH ĐỨNG IM LÀ THỨ TỆ NHẤT. Ảnh anh Thắng chụp lúc 16:44: tên "—", giờ "--:--:--",
+ * hai khối "Đang tải…" nằm im mãi mãi. Không có gì đỏ, không có gì để bấm, và không ai đoán
+ * được chuyện gì đang xảy ra — kể cả em, nhìn ảnh cũng không biết máy chủ trả về cái gì.
+ *
+ * Gốc: `r.json()` gọi trần. Máy chủ trả lỗi 500 hay hosting chèn trang chặn thì thân là HTML,
+ * `r.json()` ném "Unexpected token <", lỗi ấy trôi vào `.catch` của chỗ gọi rồi bị NUỐT.
+ */
+t( 'không gọi r.json() trần', strpos( $tram_js2, 'return r.json();' ) === false );
+t( 'đọc thân ra chữ rồi tự phân tích',
+	strpos( $tram_js2, 'return r.text();' ) !== false
+	&& strpos( $tram_js2, 'JSON.parse(chu)' ) !== false );
+t( 'giữ lại mã HTTP để nói ra', strpos( $tram_js2, 'ma = r.status' ) !== false );
+t( 'câu lỗi có mã HTTP', strpos( $tram_vt, 'mã \' + ma + \'' ) !== false
+	|| strpos( $tram_js2, "'(mã ' + ma" ) !== false || strpos( $tram_js2, 'mã ' ) !== false );
+/* Mỗi mã HTTP hay gặp có một lời khuyên riêng — "lỗi máy chủ" chung chung thì người đọc không
+   biết nên gọi ai. */
+foreach ( array( '500', '403', '404' ) as $ma_http ) {
+	t( "mã $ma_http có lời khuyên riêng", strpos( $tram_js2, $ma_http ) !== false );
+}
+t( 'kèm mấy chữ đầu của thứ máy chủ trả về',
+	strpos( $tram_js2, 'Máy chủ nói: ' ) !== false );
+t( 'và bóc thẻ HTML khỏi câu đó trước khi hiện',
+	strpos( $tram_js2, "replace(/<[^>]*>/g" ) !== false );
+
+/* napToi / napGio phải BÁO, không nuốt im. */
+t( 'napToi báo lỗi ra màn hình',
+	preg_match( "/napToi[\s\S]{0,3000}bao\('trangThai','dong'/", $tram_js2 ) === 1 );
+t( 'và dọn hai khối "Đang tải…" đứng im',
+	strpos( $tram_js2, "el('oCoSo').innerHTML = '<p class=\"trong\">Không tải được." ) !== false );
+t( 'napGio nói ngay tại chỗ đồng hồ',
+	strpos( $tram_js2, "el('ngayMC').textContent = 'không lấy được giờ máy chủ'" ) !== false );
+/* Nhưng "hết phiên" thì vẫn im — nó đã tự đá về màn đăng nhập, báo thêm là báo hai lần. */
+t( 'hết phiên thì không báo chồng', strpos( $tram_js2, '/Phiên đã hết/.test' ) !== false );
+
+/* ============================================ 15. FETCH PHẢI CÓ THỜI HẠN
+ *
+ * 🔴 LỖ HỔNG CÒN LẠI SAU LẦN SỬA TRƯỚC. Bản ấy đã báo được lỗi khi máy chủ trả về thứ không
+ * đọc nổi. Nhưng nếu máy chủ NHẬN request rồi không trả lời gì — PHP chạy mãi, tường lửa nuốt
+ * gói tin, mạng rớt giữa chừng — thì `fetch` không hỏng mà cũng không xong. Nó TREO. Một
+ * Promise treo thì `.then` không chạy và `.catch` cũng không: màn hình đứng ở "Đang tải…" vĩnh
+ * viễn, và lần này KHÔNG có cả dòng lỗi đỏ, vì chẳng có lỗi nào được ném ra cả.
+ *
+ * Đúng ảnh anh Thắng chụp lần thứ hai: trang kẹt, không một chữ nào giải thích.
+ */
+t( 'có trần thời gian chờ', strpos( $tram_js2, 'CHO_TOI_DA' ) !== false );
+t( 'chờ tối đa 15 giây', preg_match( '/CHO_TOI_DA = 1[0-9]000/', $tram_js2 ) === 1 );
+t( 'hết giờ thì NÉM LỖI, không im', preg_match( "/setTimeout\([\s\S]{0,400}hong\(new Error/", $tram_js2 ) === 1 );
+t( 'và nói rõ chờ bao lâu rồi', strpos( $tram_vt, 'không trả lời sau' ) !== false );
+t( 'cắt luôn lượt gọi treo, không để nó chạy ngầm',
+	strpos( $tram_js2, 'AbortController' ) !== false && strpos( $tram_js2, 'chan.abort()' ) !== false );
+t( 'AbortController thiếu thì vẫn chạy được (máy cũ)',
+	strpos( $tram_js2, "typeof AbortController !== 'undefined'" ) !== false );
+t( 'xong rồi thì huỷ hẹn giờ, cả khi thành công lẫn khi lỗi',
+	substr_count( $tram_js2, 'clearTimeout(het)' ) >= 2 );
+
+/* ============================================ 16. ĐƯỜNG CHẨN ĐOÁN
+ *
+ * Ba lần liền phải đoán nguyên nhân qua một tấm ảnh chụp màn hình đứng im. Một đường in thẳng
+ * tình trạng máy ra CHỮ thì hết đoán: mở bằng trình duyệt, đọc bằng mắt, chụp gửi đi được.
+ */
+$src_tram2 = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-tram.php' );
+t( 'có đường chẩn đoán', strpos( $src_tram2, "'chan_doan' === \$viec" ) !== false );
+t( 'trả về CHỮ, không phải JSON',
+	preg_match( "/chan_doan[\s\S]{0,400}text\/plain/", $src_tram2 ) === 1 );
+foreach ( array( 'plugin', 'so_do_bang', 'php', 'gio_may_chu', 'mui_gio_wp' ) as $muc ) {
+	t( "chẩn đoán in \"$muc\"", strpos( $src_tram2, "'$muc'" ) !== false );
+}
+t( 'in tình trạng từng bảng', strpos( $src_tram2, "'mat_nhat_ky'" ) !== false
+	&& strpos( $src_tram2, 'CHUA CO' ) !== false );
+t( 'in tình trạng thư viện nhận diện', strpos( $src_tram2, 'thu vien' ) !== false );
+
+/* 🔴 KHÔNG IN GÌ BÍ MẬT. Đường này ai gõ trúng cũng mở được — nó chỉ được nói về TÌNH TRẠNG
+   MÁY, không nói về người. */
+/* Cắt ĐÚNG khối chẩn đoán — từ dòng mở tới `exit;` gần nhất. Lấy dư 3000 ký tự là chạm sang
+   mã bên dưới và bắt oan; đã vấp đúng vậy. */
+$i_cd    = strpos( $src_tram2, "'chan_doan' === \$viec" );
+$khoi_cd = substr( $src_tram2, $i_cd, strpos( $src_tram2, 'exit;', $i_cd ) - $i_cd );
+/* Dùng mẫu có ranh giới từ: "pin" trần khớp luôn trong chữ "plugin". */
+foreach ( array( '\bpin\b', '\btoken\b', 'KHOA', 'ho_ten', '\bcccd\b', 'vector', 'pin_dang_nhap' ) as $cam_cd ) {
+	t( "chẩn đoán KHÔNG in \"$cam_cd\"",
+		0 === preg_match( '/' . $cam_cd . '/i', $khoi_cd ), $cam_cd );
+}
+t( 'khối chẩn đoán cắt đúng, không trùm sang mã khác', strlen( $khoi_cd ) < 2600, strlen( $khoi_cd ) );
+t( 'chẩn đoán đứng TRƯỚC phép đòi thẻ phiên (mở được khi chưa đăng nhập)',
+	strpos( $src_tram2, "'chan_doan' === \$viec" ) < strpos( $src_tram2, "\$u = self::nguoi(" ) );
+
+/* ============================================ 17. TRANG PHẢI TỰ TỐ CÁO KHI HỎNG
+ *
+ * 🔴 BA LẦN LIỀN TRANG ĐỨNG IM MÀ KHÔNG AI BIẾT VÌ SAO. Anh Thắng chụp được đúng cái màn hình
+ * im ấy; em nhìn ảnh cũng chỉ đoán. Trên điện thoại thì không mở được bảng lỗi của trình duyệt.
+ *
+ * Một lỗi JavaScript ở bất kỳ đâu — gõ nhầm tên biến, trình duyệt cũ thiếu một hàm, một Promise
+ * không ai bắt — đều làm phần còn lại của trang ngừng chạy, LẶNG LẼ. Nên bắt hết, in thẳng lên
+ * trang: xấu thì xấu, nhưng nó nói được, còn màn hình im thì không.
+ */
+t( 'bắt lỗi toàn cục', strpos( $tram_js2, "addEventListener('error'" ) !== false
+	&& strpos( $tram_js2, 'function loiToanCuc' ) !== false );
+t( 'bắt cả Promise hỏng mà không ai xử',
+	strpos( $tram_js2, "addEventListener('unhandledrejection'" ) !== false );
+t( 'in lỗi LÊN TRANG, không chỉ vào bảng lỗi trình duyệt',
+	strpos( $tram_js2, "createElement('div')" ) !== false
+	&& strpos( $tram_vt, 'chụp màn hình này gửi kỹ thuật' ) !== false );
+/* Gắn TRƯỚC mọi thứ khác — để bắt được cả lỗi của chính đoạn khởi động. */
+t( 'gắn bộ bắt lỗi trước phần khởi động',
+	strpos( $tram_js2, 'function loiToanCuc' ) < strpos( $tram_js2, 'function moManChinh' ) );
+/* Dùng textContent, không innerHTML: nội dung lỗi có thể chứa mẩu HTML của trang lỗi máy chủ. */
+t( 'nội dung lỗi in bằng textContent', strpos( $tram_js2, 'o.textContent = ' ) !== false );
+
+/* Đồng hồ đếm giây trong lúc chờ: không có nó thì "đang tải" và "đã treo" nhìn giống hệt nhau,
+   và người ta không biết nên chờ thêm hay bấm lại. */
+t( 'có đếm giây lúc chờ máy chủ', strpos( $tram_js2, 'function dangGoi' ) !== false );
+t( 'hiện ngay khi mở màn chính',
+	preg_match( "/function moManChinh[\s\S]{0,300}dangGoi\(true\)/", $tram_js2 ) === 1 );
+/* Tắt đồng hồ khi CẢ HAI lượt xong — tắt sớm là màn hình lại trông như đã xong trong khi một
+   nửa vẫn treo. */
+t( 'đợi cả hai lượt rồi mới tắt đồng hồ', strpos( $tram_js2, 'Promise.all([ napGio()' ) !== false );
+t( 'tắt cả khi xong lẫn khi lỗi',
+	preg_match( "/Promise\.all[\s\S]{0,200}dangGoi\(false\)[\s\S]{0,60}dangGoi\(false\)/", $tram_js2 ) === 1 );
+t( 'chờ tối đa 10 giây, không phải 15', strpos( $tram_js2, 'CHO_TOI_DA = 10000' ) !== false );
+
+/* ============================================ 18. THANH NHẢY NHANH
+ *
+ * Anh Thắng 26/08/2026: *"làm 2 nút đó đi"*. Người ta mở trang này vì hai việc — chấm công, và
+ * xem công của mình — mà hai việc ấy cách nhau bốn khối. Đầu tháng thì vuốt tới nút chấm công,
+ * cuối tháng thì vuốt ngược lại xem công: lần nào cũng phải cuộn qua hết.
+ */
+/* 🔴 4.29.1 ĐỔI THANH NHẢY THÀNH THANH TAB — phép thử theo sang, và luật thì không đổi.
+ *
+ * Bản 4.29.1 (nhập từ hosting về) bỏ thanh hai nút dính ở ĐẦU màn và thay bằng bốn tab dính
+ * ở ĐÁY: Chấm công · Công của tôi · Ứng dụng · Tôi. Nhảy neo giải quyết được "bấm được dù
+ * đang cuộn tới đâu", nhưng không giải quyết được việc phải cuộn qua bảng tháng 30 dòng để
+ * về lại nút chấm — tab thì giải quyết cả hai.
+ *
+ * ⚠️ NĂM PHÉP CŨ Ở ĐÂY ĐÃ ĐỎ SẴN TRONG BẢN 4.29.1, chưa ai sửa: mạch 4.14→4.29 đổi giao diện
+ *    mà không chạy bài này (bản nhập về cũng không mang theo bài thử nào). Viết lại theo thiết
+ *    kế mới chứ KHÔNG xoá đi — câu hỏi gốc *"hai việc người ta mở trang này để làm có bấm tới
+ *    được từ bất cứ đâu không"* vẫn nguyên giá trị, chỉ đổi cách trả lời.
+ */
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 SỐ THẺ <div> MỞ PHẢI BẰNG SỐ THẺ ĐÓNG — và phép thử này sinh ra từ một lỗi thật.
+ *
+ * 17/09/2026, lúc chuyển ba việc sang nền 4.29.1: phép gỡ xung đột git lấy `=======` làm mốc
+ * kết thúc phần HEAD, mà dòng kẻ trang trí trong chú thích của chính tệp này cũng là một dãy
+ * dấu `=`. Nó khớp nhầm, cắt cụt chú thích, và nuốt luôn dòng `<div id="tChamCong">` ngay sau.
+ *
+ * Hậu quả im lặng đúng kiểu tệ nhất: PHP vẫn đúng cú pháp, JavaScript vẫn dịch được, bộ kiểm
+ * JS vẫn xanh — nhưng `el('tChamCong')` trả về null, `denTab()` thoát ngay ở dòng đầu, và CẢ
+ * HỆ TAB chết. Trang vẫn mở, vẫn đẹp, bấm tab thì không có gì xảy ra.
+ *
+ * Đếm thẻ là phép thử thô nhưng nó bắt được đúng loại hỏng ấy trong một phần nghìn giây.
+ * ═══════════════════════════════════════════════════════════════════════════════════════ */
+/* ⚠️ CHỈ ĐẾM PHẦN MARKUP, cắt bỏ khối <script>. Trong JavaScript có những chuỗi dựng thẻ
+   (`innerHTML = '<div class="vang">…'`) và chúng KHÔNG cân theo từng lượt đếm — gộp vào thì
+   phép thử báo lệch mãi mãi rồi bị ai đó gỡ, kéo theo cả phần nó thật sự canh. */
+$markup   = substr( $tram_vt, 0, strpos( $tram_vt, '<script>' ) );
+$mo_div   = preg_match_all( '/<div\b/', $markup );
+$dong_div = substr_count( $markup, '</div>' );
+t( '🔴 thẻ <div> mở và đóng bằng nhau', $mo_div === $dong_div, $mo_div . ' mở / ' . $dong_div . ' đóng' );
+/* Và không còn chú thích HTML nào bị cắt cụt — dấu vết trực tiếp của đúng lỗi trên. */
+t( '🔴 không chú thích HTML nào thiếu dấu đóng',
+	substr_count( $markup, '<!--' ) === substr_count( $markup, '-->' ),
+	substr_count( $markup, '<!--' ) . ' mở / ' . substr_count( $markup, '-->' ) . ' đóng' );
+
+t( 'có thanh tab dưới đáy', strpos( $tram_vt, 'id="thanhTab"' ) !== false );
+t( 'thanh tab dính, bấm được dù cuộn tới đâu',
+	preg_match( '/#thanhTab\{[^}]*position:fixed/', $tram_vt ) === 1 );
+/* 🔴 HAI VIỆC CHÍNH PHẢI LÀ HAI TAB RIÊNG, không nằm chung một trang cuộn. */
+t( 'chấm công và công của tôi là hai tab riêng',
+	strpos( $tram_vt, 'data-tab="tChamCong"' ) !== false
+	&& strpos( $tram_vt, 'data-tab="tCong"' ) !== false );
+t( 'mỗi tab có khối đích thật', strpos( $tram_vt, 'id="tChamCong"' ) !== false
+	&& strpos( $tram_vt, 'id="tCong"' ) !== false );
+/* ⚠️ Thanh tab dính ở đáy che mất cuối trang nếu không chừa chỗ — đúng họ với `scroll-margin-top`
+   của thanh dính cũ, chỉ đổi đầu. */
+t( 'chừa chỗ cho thanh tab ở đáy', strpos( $tram_vt, 'padding-bottom' ) !== false );
+
+/* Mọi nút tab làm CÙNG một kiểu việc, qua CÙNG một hàm — một hàng nút mà hành xử khác nhau
+   thì người dùng không đoán được cái nào làm gì. */
+t( 'mọi nút tab đều gọi cùng một hàm',
+	preg_match( "/tab-nut[\s\S]{0,400}?denTab\(this\.getAttribute\('data-tab'\)\)/", $tram_js2 ) === 1 );
+t( 'đổi tab thì về đầu trang', strpos( $tram_js2, 'window.scrollTo' ) !== false );
+/* ⚠️ `scrollTo({behavior})` không có ở mọi máy — Safari cũ bỏ qua cả đối tượng tuỳ chọn. */
+t( 'có đường lùi khi trình duyệt không nhận đối tượng tuỳ chọn',
+	strpos( $tram_js2, 'catch(e){ window.scrollTo(0,0); }' ) !== false );
+t( 'đổi sang một tab không có thì im, không nổ',
+	preg_match( "/function denTab\(ten\)\{\s*if\(!el\(ten\)\) return;/", $tram_js2 ) === 1 );
+
+/* ============================================================ 08/09/2026 — BÁO LỖI RÕ RÀNG
+   Anh Thắng: *"thêm nhân viên bị lỗi ở chấm công"*, rồi *"tại báo cáo lỗi không rõ ràng"*.
+   Ba chỗ dưới đây là ba câu trả lời cho đúng ba thứ đã dựng lại được trong bộ giả lập. */
+
+/* --- 1. NGƯỜI MỚI KHÔNG CHỌN NHIỆM VỤ VẪN CHẤM ĐƯỢC ---------------------------------------
+   Anh Thắng hỏi thẳng: *"khả năng nào không chọn nhiệm vụ lỗi không"*. Câu trả lời phải là MỘT
+   PHÉP THỬ, không phải một lời quả quyết — vì ô nhiệm vụ đúng là ô duy nhất người ta có thể bỏ
+   trống ở màn lưu. Gác 3 chỉ chạy khi ô ấy KHÁC RỖNG; bỏ trống là đi thẳng. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array(
+	'ma_nv' => 'NV_MOI1', 'ho_ten' => 'Người Vừa Thêm', 'cua_hang' => 'VIVO',
+	'pin_dang_nhap' => '778811', 'trang_thai_lam_viec' => 'Đang làm' ) );
+$dn = VHCC_Tram::dang_nhap( '778811' );
+t( 'người vừa được thêm đăng nhập trạm được', ! empty( $dn['ok'] ), $dn );
+$u_moi = VHCC_Tram::nguoi( $dn['token'] );
+$r = VHCC_Online::cham_cong( $u_moi, '', null, '', '' );
+t( 'KHÔNG chọn nhiệm vụ vẫn ghi được giờ — ô nhiệm vụ để trống không phải là lỗi',
+	! empty( $r['ok'] ) && 'vao' === $r['loai'], $r );
+$tt = VHCC_Online::thong_tin( $u_moi );
+t( 'người mới chưa khai nhiệm vụ thì trạm không dựng ô nhiệm vụ (rỗng = việc chính)',
+	array() === $tt['dsNhiemVu'], $tt['dsNhiemVu'] );
+
+/* --- 2. CHƯA TÍCH CƠ SỞ: CÂU CHỐI PHẢI CHỈ ĐÚNG Ô CÓ THẬT -----------------------------------
+   Câu cũ nhắc ô *"Cơ sở chấm công online"* — ô ấy chỉ có ở màn PhanQuyen cũ, KHÔNG có trên
+   biểu mẫu một cửa mà người ta vừa dùng để lập hồ sơ. Chỉ sai chỗ còn tệ hơn không chỉ. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array(
+	'ma_nv' => 'NV_MOI2', 'ho_ten' => 'Người Thiếu Cơ Sở', 'cua_hang' => '',
+	'pin_dang_nhap' => '778822', 'trang_thai_lam_viec' => 'Đang làm' ) );
+$dn2 = VHCC_Tram::dang_nhap( '778822' );
+t( 'thiếu cơ sở thì VẪN đăng nhập được (để còn nói ra thiếu gì)', ! empty( $dn2['ok'] ), $dn2 );
+$r = VHCC_Online::cham_cong( VHCC_Tram::nguoi( $dn2['token'] ), '', null, '', '' );
+t( 'chưa tích cơ sở thì bị chối', empty( $r['ok'] ), $r );
+t( 'câu chối gọi tên NGƯỜI phải sửa hồ sơ',
+	strpos( (string) $r['error'], 'Người Thiếu Cơ Sở' ) !== false, $r['error'] );
+t( 'câu chối chỉ đúng ô CÓ THẬT trên biểu mẫu (lưới "Cơ sở")',
+	strpos( (string) $r['error'], 'lưới "Cơ sở"' ) !== false, $r['error'] );
+t( 'câu chối KHÔNG nhắc ô chỉ có ở màn cũ',
+	strpos( (string) $r['error'], 'Cơ sở chấm công online' ) === false, $r['error'] );
+
+/* Và trang khoá nút NGAY, không để họ đi hết đường chụp ảnh rồi mới ăn câu chối. */
+t( 'trang khoá nút chấm khi hồ sơ chưa có cơ sở nào',
+	preg_match( "/if\(!\(\(j\.dsCoSo && j\.dsCoSo\.length\) \|\| j\.coSoMacDinh\)\)\{/", $tram_js2 ) === 1 );
+
+/* --- 3. LƯỢT `cham` HỎNG THÌ HỎI LẠI, ĐỪNG ĐOÁN -------------------------------------------
+   Quá hạn KHÔNG đồng nghĩa chưa ghi: ảnh đã đi rồi, chỉ câu trả lời chưa về. Bảo "chưa lưu
+   được" là mời người ta bấm lượt thứ hai — mà lượt thứ hai ngay sau giờ vào là GIỜ RA. */
+t( 'lượt cham hỏng thì gọi phép soát lại, không dừng ở câu lỗi',
+	strpos( $tram_js2, 'return soatLaiDaGhi(cs, truocKhiGui,' ) !== false );
+t( 'soát lại bằng một lượt gọi NHẸ (không kèm ảnh)',
+	preg_match( "/function soatLaiDaGhi[\s\S]{0,400}?goi\('toi',\{token:token\(\)\}\)/", $tram_js2 ) === 1 );
+t( 'so CẢ bảng hôm nay (kèm giờ ra), không chỉ "đã có giờ vào chưa"',
+	strpos( $tram_js2, "(ds[i].hauTo||'') + '|' + (ds[i].vao||'') + '|' + (ds[i].ra||'')" ) !== false );
+t( 'chụp trạng thái TRƯỚC khi gửi để còn so',
+	strpos( $tram_js2, 'var truocKhiGui = chuoiHomNay(cs);' ) !== false );
+t( 'soát ra ĐÃ GHI thì đóng màn chọn và bỏ ảnh, y như lượt thành công',
+	preg_match( "/chuoiHomNay\(cs\) === truoc[\s\S]{0,600}?ANH = null;[\s\S]{0,80}?hien\('mChon',false\);/", $tram_js2 ) === 1 );
+t( 'soát ra ĐÃ GHI thì dặn ĐỪNG bấm lại',
+	strpos( $tram_js2, 'ĐỪNG bấm lưu lại' ) !== false );
+/* 🔴 4.16.0 — NHÁNH NÀY ĐỔI THỨ TỰ, KHÔNG ĐỔI LUẬT. Trước bản ấy "hỏi lại cũng hỏng" chỉ còn
+   cách nói thẳng là chưa biết, rồi đẩy việc suy đoán sang cho người đang đứng ngoài cửa hàng
+   với cái điện thoại không sóng. Nay máy GIỮ LẤY lượt ấy (hàng đợi, xem kiem-hang-cho.php) —
+   an toàn vì lượt gửi lại mang nguyên vé giờ cũ nên trùng từng giây với lượt đầu.
+   Nhưng khi ngay cả việc giữ cũng hỏng (kho đầy, lượt không có vé) thì câu cũ phải còn nguyên:
+   đó là lúc duy nhất còn lại mà người dùng buộc phải tự đi xem, và nói mơ hồ ở đúng lúc ấy là
+   tệ nhất. */
+t( 'hỏi lại cũng hỏng thì XẾP HÀNG ĐỢI, không đẩy việc sang cho người dùng',
+	strpos( $tram_js2, 'var xep = xepHang(goiCham);' ) !== false );
+t( 'xếp được thì dặn ĐỪNG chấm lại', strpos( $tram_js2, 'ĐỪNG chấm lại: chấm lại là hai lượt' ) !== false );
+t( 'giữ cũng không xong thì vẫn nói thẳng là CHƯA BIẾT, không bịa',
+	strpos( $tram_js2, 'CHƯA BIẾT giờ đã ghi hay' ) !== false );
+
+/* Câu lỗi mang mã ngắn để anh Thắng chụp màn là em đọc ra ngay việc nào hỏng ở đâu. */
+t( 'câu quá hạn kèm mã lỗi và tên việc', strpos( $tram_js2, '[QUA-HAN: ' ) !== false );
+t( 'câu mất mạng kèm mã lỗi', strpos( $tram_js2, '[MAT-MANG: ' ) !== false );
+t( 'câu HTTP lạ kèm mã lỗi', strpos( $tram_js2, "[HTTP-' + ma + ': ' + viec + ']" ) !== false );
+/* ⚠️ "Failed to fetch" / "Load failed" là chữ của trình duyệt, ba trình ba câu, không câu nào
+   nói được phải làm gì. Phải dịch, nhưng GIỮ chữ gốc trong ngoặc để còn đối chiếu. */
+t( 'lỗi mạng của fetch được dịch ra việc phải làm',
+	strpos( $tram_js2, 'Không gửi được lên máy chủ' ) !== false );
+
+/* --- 4. Ô CHỌN CƠ SỞ LÚC LƯU: CHỌN SẴN CƠ SỞ CHÍNH ----------------------------------------
+   Anh Thắng 09/09/2026: *"mặc định chấm công là chọn cơ sở chính phải không"* — đúng, và nay
+   có phép thử canh. Chỉ CHỌN SẴN, không khoá: người ta đổi được trong ô xổ, và lượt chấm ghi
+   vào cơ sở ĐANG CHỌN chứ không ghi vào cơ sở chính. Nếu một bản sau này bỏ chữ `selected` đi
+   thì ô xổ nhảy về phần tử đầu của `dsCoSo` — thường vẫn là cơ sở chính, nên lỗi sẽ CÂM ở đúng
+   những hồ sơ hai cơ sở mà thứ tự khác. */
+t( '🔴 ô chọn cơ sở lúc lưu ĐÁNH DẤU SẴN cơ sở chính',
+	strpos( $tram_js2, "(cs[i]===TOI.coSoMacDinh?' selected':'')" ) !== false );
+/* Và lượt gửi lấy giá trị của Ô, không lấy `coSoMacDinh` — đây mới là vế "đổi được". */
+t( 'lượt gửi lấy cơ sở ĐANG CHỌN trong ô, không lấy cơ sở chính',
+	strpos( $tram_js2, 'var cs = oCS ? oCS.value :' ) !== false );
+/* Một cơ sở thì không vẽ ô xổ — nhưng lượt gửi vẫn phải mang đúng tên cơ sở ấy, không gửi rỗng. */
+t( 'chỉ có một cơ sở thì lượt gửi vẫn mang đúng cơ sở đó',
+	strpos( $tram_js2, "(((TOI&&TOI.dsCoSo)||[])[0] || (TOI&&TOI.coSoMacDinh) || '')" ) !== false );
+/* 🔴 CƠ SỞ CHÍNH LUÔN CÓ MẶT TRONG DANH SÁCH, và đứng đầu — `ds_coso_cua_nv()` nhét
+   `$mac_dinh` vào trước rồi mới tới `cua_hang`/`coso_phu`. Không thế thì chữ `selected` ở trên
+   không khớp option nào và ô xổ lặng lẽ chọn cơ sở khác. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'NV_MDCS',
+	'ho_ten' => 'Người Chọn Sẵn', 'cua_hang' => 'MD_CHINH', 'coso_phu' => 'MD_PHU',
+	'pin_dang_nhap' => '556644', 'trang_thai_lam_viec' => 'Đang làm' ) );
+$dn_md = VHCC_Tram::dang_nhap( '556644' );
+$tt_md = VHCC_Online::thong_tin( VHCC_Tram::nguoi( $dn_md['token'] ) );
+t( '🔴 cơ sở chọn sẵn đúng là cơ sở CHÍNH',
+	'MD_CHINH' === (string) $tt_md['coSoMacDinh'], $tt_md['coSoMacDinh'] );
+t( 'và nó đứng ĐẦU danh sách để ô xổ khớp được',
+	'MD_CHINH' === (string) $tt_md['dsCoSo'][0], $tt_md['dsCoSo'] );
+t( 'cơ sở phụ vẫn có trong ô xổ', in_array( 'MD_PHU', $tt_md['dsCoSo'], true ), $tt_md['dsCoSo'] );
+/* 🔴 VÀ CHẤM VÀO CƠ SỞ PHỤ THÌ GHI VÀO CƠ SỞ PHỤ. "Chọn sẵn" không được biến thành "ghi cứng". */
+$r_md = VHCC_Online::cham_cong( VHCC_Tram::nguoi( $dn_md['token'] ), '', null, 'MD_PHU', '' );
+t( '🔴 đổi ô sang cơ sở phụ thì ghi vào cơ sở phụ', ! empty( $r_md['ok'] )
+	&& 'MD_PHU' === (string) $r_md['coSo'], $r_md );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='NV_MDCS'" );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='NV_MDCS'" );
+
+echo "\n";
+if ( $truot ) {
+	echo 'TRƯỢT ' . count( $truot ) . ":\n";
+	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }
+	echo "ĐẠT: $dat\n";
+	exit( 1 );
+}
+echo "ĐẠT: $dat phép thử — trạm chấm công dùng chung một thẻ với hệ quản trị, gác bằng Mã NV.\n";

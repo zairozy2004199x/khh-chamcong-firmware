@@ -1,0 +1,1136 @@
+<?php
+/**
+ * Bảng MySQL của app Chấm công — dữ liệu Ở TRÊN HOSTING, không ở Google Sheet.
+ *
+ * Anh Thắng chốt: *"app chấm công là anh lưu trữ tiếp trên hostinger luôn"* + *"nên không cần
+ * cầu nối"*. Khác app Hợp đồng (dữ liệu vẫn ở Sheet, WordPress chỉ chuyển tiếp): ở đây MySQL là
+ * nguồn sự thật, không có bản sao nào bên Sheet để lệch.
+ *
+ * (Câu chốt trên nhắc tên nhà cung cấp cũ vì lúc đó đang ở đó; 22/08/2026 chuyển sang Vietnix.
+ *  Quyết định thì không đổi: dữ liệu nằm ở MySQL của hosting, nhà nào cũng vậy. Mã trong plugin
+ *  KHÔNG được ghi cứng tên nhà cung cấp — đổi nhà là câu đó thành sai, và có phép thử canh.)
+ *
+ * ⚠️ CẦU NỐI CHƯA BỎ. Máy Hikvision ngoài cơ sở vẫn đang POST vào /exec của Apps Script và vẫn
+ *    đọc Firebase trực tiếp (firmware có 45 chỗ dùng OTA, 12 chỗ đọc /queue). Bỏ cầu nối trước
+ *    khi nạp firmware mới cho TỪNG máy = mất chấm công của cơ sở đó, không ai biết cho tới cuối
+ *    tháng. Nên thứ tự là: dựng bảng này → Apps Script ghi song song hai nơi vài ngày → đối số
+ *    hàng → mới nạp firmware trỏ về WordPress.
+ *
+ * ---------------------------------------------------------------------------------------------
+ * BA CHỖ SƠ ĐỒ NÀY CỐ Ý KHÁC SHEET, vì Sheet làm vậy là do giới hạn của Sheet chứ không phải
+ * do nghiệp vụ:
+ *
+ * 1. `CS_<cơ sở>` là bảng NGANG — mỗi ngày chiếm 5 cột `[Giờ vào][Ảnh vào][Giờ ra][Ảnh ra][Chuẩn]`,
+ *    các tháng xếp DỌC thành khối cách nhau 2 hàng trống, nhận ra khối bằng chữ
+ *    "Giờ Vào / Checkin" ở cột C. Ở MySQL thành bảng DỌC: một hàng cho một
+ *    (cơ sở, mã NV, hậu tố, ngày). Hết chuyện đếm cột, hết chuyện dò khối tháng, và câu
+ *    "tháng này cơ sở này ai chấm bao nhiêu" thành một `WHERE` thay vì đọc cả sheet.
+ *
+ * 2. Giờ lưu bằng SỐ GIÂY TỪ 00:00 (`INT`), không phải `TIME`.
+ *    · Vì sao là SỐ, không phải `TIME`: ca đêm chạy trên "trục phẳng" — giờ trước `demDen` được
+ *      cộng một ngày để 01:30 nằm SAU 22:00 chứ không phải trước. `TIME` không diễn tả được
+ *      chuyện đó mà không thêm cột ngày thứ hai. Cho phép giá trị > 86400 là cố ý.
+ *    · Vì sao là GIÂY, không phải PHÚT: `secOf` bên Code.gs so giờ ở mức GIÂY, và ô giờ vào/ra
+ *      trong sheet giữ đủ `HH:mm:ss` (chỉ ô "Thời gian trong ngày" mới cắt còn `HH:mm`). Lưu
+ *      phút là hai lượt bấm cách nhau 30 giây bị nhập thành một — mà đúng lúc ĐỐI SỐ HÀNG giữa
+ *      Sheet và MySQL thì lệch đó không giải thích được. Ba engine lương tính bằng phút, nhưng
+ *      phút suy ra từ giây được, giây không suy ra từ phút được.
+ *
+ * 3. Luật ghi giờ "KHÔNG BAO GIỜ THU HẸP" của `_ghiGioVaoRa` (giữ cặp [sớm nhất, muộn nhất], nạp
+ *    lại theo thứ tự nào cũng ra một kết quả) ở đây là `LEAST`/`GREATEST` trong câu upsert, dựa
+ *    trên khoá duy nhất `(coso, ngay, ma_nv, hau_to)`. Khoá đó cũng là thứ chặn lỗi hai hàng
+ *    trùng — lỗi mà bảng ngang không có cách nào chặn.
+ * ---------------------------------------------------------------------------------------------
+ *
+ * Bảng NGƯỜI DÙNG WordPress vẫn dùng chung với plugin Vận hành chi phí (xem class-vhcc-auth.php)
+ * để nhân sự chỉ khai một lần.
+ */
+
+if ( ! defined( 'ABSPATH' ) ) { exit; }
+
+class VHCC_DB {
+
+	/**
+	 * MỘT TỆP TẠM — KHÔNG DÙNG `wp_tempnam()`.
+	 *
+	 * =========================================================================================
+	 * 🔴 `wp_tempnam()` NẰM Ở wp-admin, KHÔNG CÓ Ở FRONT-END.
+	 * =========================================================================================
+	 * Anh Thắng 28/08/2026 bấm Xuất Excel ở `/quan-tri-cham-cong/` và nhận:
+	 * *"Call to undefined function wp_tempnam() (class-vhcc-xuat.php dòng 40)"*.
+	 *
+	 * Hàm ấy sống trong `wp-admin/includes/file.php`, chỉ được nạp khi đang ở trang quản trị của
+	 * WordPress. Mọi trang của bộ này đều là trang THƯỜNG (front-end) — cố ý, để nhân viên không
+	 * cần tài khoản WordPress. Nên gọi nó là Fatal, và Fatal ở front-end thì WordPress in
+	 * "Đã có một lỗi nghiêm trọng" rồi thôi, không nói tệp nào dòng nào.
+	 *
+	 * ⚠️ CÁI BẪY THẬT NẰM Ở BÀI KIỂM: `tools/test/wp-stub.php` có khai `wp_tempnam`, nên trong
+	 *    bài kiểm hàm ấy LUÔN tồn tại và không phép thử nào chạm được vào cảnh thật. Stub ấy đã
+	 *    bị gỡ, và có một phép thử soi rằng không tệp nào trong bộ gọi hàm của wp-admin nữa.
+	 *
+	 * `get_temp_dir()` thì nằm ở `wp-includes/functions.php` — có ở mọi trang.
+	 */
+	public static function tep_tam( $dau = 'vhcc' ) {
+		$thu = function_exists( 'get_temp_dir' ) ? get_temp_dir() : sys_get_temp_dir();
+		$t   = @tempnam( $thu, $dau );
+		if ( ! $t ) { $t = @tempnam( sys_get_temp_dir(), $dau ); }
+		return $t ? $t : '';
+	}
+
+	const SCHEMA_VERSION = '2.16.0';
+
+	public static function t( $name ) {
+		global $wpdb;
+		return $wpdb->prefix . 'vhcc_' . $name;
+	}
+
+	/**
+	 * CẤP MỘT MÃ CHƯA AI DÙNG cho các sổ có `UNIQUE KEY` trên cột mã (`ma_yc`, `flag_id`…).
+	 *
+	 * 🔴 VÌ SAO PHẢI CÓ HÀM NÀY. Ba nơi trước đây cùng tự sinh mã bằng
+	 *    `'YC' . YmdHis . wp_rand( 100, 999 )` — trong CÙNG MỘT GIÂY chỉ có 900 giá trị, nên hai
+	 *    người bấm gửi cùng lúc là đụng nhau với xác suất 1/900. Nghe nhỏ, nhưng nó không nhỏ:
+	 *
+	 *      · `VHCC_Lich::xin_doi_lich` -> ghi trượt, người xin nhận về câu "MySQL: Duplicate
+	 *        entry" chẳng ai hiểu.
+	 *      · `VHCC_Cham::luu_ghi_chu`  -> TỆ NHẤT. Nó tra `flag_id` trước, thấy trùng thì coi là
+	 *        "sửa cờ cũ" và ĐÈ LÊN cờ của người khác — khác ngày, khác người, khác nội dung — rồi
+	 *        vẫn trả về `ok:true`. Một cờ cần kiểm biến mất, không ai biết.
+	 *
+	 *    Bài kiểm bắt được nó vì SQLite ném lỗi; trên MySQL thật thì `$wpdb->insert` chỉ trả về
+	 *    `false`, im lặng. Đúng loại lỗi chỉ lộ ra khi có người khiếu nại.
+	 *
+	 * Hai lớp chắn, cố ý dùng CẢ HAI: nới số ngẫu nhiên lên 6 chữ số (900 -> 900.000 giá trị) và
+	 * HỎI BẢNG xem mã đã có chưa. Chỉ nới số thì vẫn còn xác suất; chỉ hỏi bảng thì vẫn có khe
+	 * đua giữa lúc hỏi và lúc ghi. Hai lớp cùng lúc thì phần còn lại nhỏ tới mức bỏ qua được.
+	 *
+	 * @return string mã, hoặc '' nếu thử mãi không ra (nơi gọi PHẢI xử, đừng ghi mã rỗng).
+	 */
+	public static function ma_moi( $tien_to, $bang, $cot, $lan = 8 ) {
+		global $wpdb;
+		/* Tên cột đi thẳng vào câu SQL nên không được nhận chữ lạ. Mọi nơi gọi đều truyền hằng,
+		   nhưng chốt ở đây để một nơi gọi sau này không mở ra lỗ tiêm SQL. */
+		if ( ! preg_match( '/^[a-z_][a-z0-9_]*$/', (string) $cot ) ) { return ''; }
+		$t = self::t( $bang );
+		for ( $i = 0; $i < (int) $lan; $i++ ) {
+			$ma = (string) $tien_to . gmdate( 'YmdHis', (int) current_time( 'timestamp' ) )
+				. wp_rand( 100000, 999999 );
+			$co = $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $t WHERE $cot=%s", $ma ) );
+			if ( ! (int) $co ) { return $ma; }
+		}
+		return '';
+	}
+
+	/**
+	 * Bảng này có thật trên máy chủ chưa?
+	 *
+	 * 🔴 Dùng TRƯỚC khi đọc một bảng có thể chưa được dựng — `phan_quyen` chỉ có nội dung sau
+	 *    khi bấm nút kéo sổ về, và trên một cài đặt mới thì nó chưa tồn tại. `$wpdb` mặc định
+	 *    NUỐT lỗi SQL: truy vấn một bảng không có trả về mảng rỗng y hệt bảng rỗng, nên chỗ gọi
+	 *    không phân biệt được "chưa cài" với "không có ai" — mà hai câu đó dẫn tới hai lời
+	 *    khuyên khác hẳn nhau cho người đang đứng trước màn hình.
+	 */
+	public static function co_bang( $ten_day_du ) {
+		global $wpdb;
+		return (bool) $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ten_day_du ) );
+	}
+
+	const NGAY_GIAY = 86400;
+
+	/**
+	 * 'HH:mm' hoặc 'HH:mm:ss' -> số giây từ 00:00. NULL = không đọc được / chưa chấm.
+	 * Bản dịch của `secOf` bên Code.gs. Thiếu phần giây thì coi là 0 giây, y như `parseInt(p[2])||0`.
+	 */
+	public static function giay( $gio ) {
+		if ( ! preg_match( '/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/', trim( (string) $gio ), $m ) ) { return null; }
+		return (int) $m[1] * 3600 + (int) $m[2] * 60 + ( isset( $m[3] ) ? (int) $m[3] : 0 );
+	}
+
+	/**
+	 * GÕ GIỜ KIỂU 24 GIỜ, DỄ DÃI VỚI NGƯỜI GÕ — trả về `'HH:MM'`, `''` (ô trống) hoặc `false` (sai).
+	 *
+	 * 🔴 Anh Thắng 11/09/2026, ảnh hàng "Chấm công bù" với hai ô `01:37 CH` / `09:01 CH`:
+	 *    *"chuyển này sang 24h cho dễ gõ"*.
+	 *
+	 *    Hai ô ấy là `<input type="time">`. Dạng hiện ra (12 giờ kèm SA/CH hay 24 giờ) do
+	 *    **ngôn ngữ của trình duyệt** quyết định, KHÔNG phải do trang — Chrome không đọc thuộc
+	 *    tính `lang` cho ô giờ, Firefox và Safari theo hệ điều hành. Nghĩa là đứng từ máy chủ
+	 *    KHÔNG có cách nào ép nó về 24 giờ. Muốn chắc thì phải tự cầm lấy ô: ô gõ thường, mình
+	 *    định dạng, mình soát.
+	 *
+	 * 🔴 CẦM LẤY Ô THÌ PHẢI CẦM LUÔN PHẦN SOÁT. `type="time"` xưa nay gánh việc chặn gõ bậy;
+	 *    bỏ nó đi mà không thay bằng gì là mở đúng cái lỗi câm mà `VHCC_Bu::sua()` đã phải vá
+	 *    một lần: `giay()` trả `null` cho cả "ô trống" lẫn "gõ bậy", nên gõ nhầm là mất trắng
+	 *    một giờ công mà màn hình vẫn báo Đã lưu. Hàm này trả BA giá trị khác nhau để nơi gọi
+	 *    phân biệt được, và `false` không bao giờ được coi như "ô trống".
+	 *
+	 * Nhận: `13:37` · `13:37:00` · `1:37` · `1337` · `137` · `13.37` · `13h37` · `13 37`.
+	 * Chối: quá 23 giờ, quá 59 phút, và mọi thứ còn lại (kể cả `01:37 CH` — dạng 12 giờ cố ý
+	 * KHÔNG nhận, vì đoán SA hay CH là đoán một ca làm việc).
+	 */
+	/**
+	 * @param string $chu      chuỗi người ta gõ.
+	 * @param bool   $giu_giay giữ luôn phần GIÂY (trả 'HH:MM:SS') thay vì cắt xuống phút.
+	 *
+	 * 🔴 CỜ `$giu_giay` SINH RA TỪ MỘT LỖI THẬT CỦA 3.66.0.
+	 *    Bản ấy gom mọi phép đọc giờ về đây, và hàm này trả 'HH:MM' vì ô nhập chỉ cần tới phút.
+	 *    Nhưng `VHCC_Bu::giay()` cũng đi qua đây, mà nó đọc cả ô "Giờ vào" của sổ cũ — vốn có
+	 *    GIÂY. Thế là `08:30:15` lặng lẽ thành `08:30`: mỗi lượt chấm mất tới 59 giây, không
+	 *    dòng đỏ nào, và sổ vẫn trông đúng vì ai nhìn cũng chỉ đọc tới phút.
+	 *    Bài `kiem-cham-bu.php` bắt được ngay từ bản ấy — nhưng bài đỏ mà không ai chạy thì cũng
+	 *    như không có. (Đó là lý do kho này cần một lệnh chạy hết, xem cuối tệp hướng dẫn.)
+	 *
+	 * ⚠️ MỘT HÀM, MỘT CỜ — đừng tách thành `gio_24()` và `gio_24_giay()`. Hai bản chép của một
+	 *    luật đọc giờ thì sớm muộn lệch nhau, và lệch ở đây nghĩa là cùng một chuỗi, ô nhập hiểu
+	 *    một giờ còn sổ ghi một giờ khác.
+	 */
+	public static function gio_24( $chu, $giu_giay = false ) {
+		$c = trim( (string) $chu );
+		if ( '' === $c ) { return ''; }
+		$c = str_replace( array( '．', '：', 'h', 'H', '.', ' ' ), ':', $c );
+		$c = preg_replace( '/:+/', ':', $c );
+		$c = trim( $c, ':' );
+		if ( preg_match( '/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/', $c, $m ) ) {
+			$h = (int) $m[1];
+			$p = (int) $m[2];
+			$g = ( isset( $m[3] ) && '' !== $m[3] ) ? (int) $m[3] : 0;
+			if ( $h > 23 || $p > 59 || $g > 59 ) { return false; }
+			return $giu_giay ? sprintf( '%02d:%02d:%02d', $h, $p, $g ) : sprintf( '%02d:%02d', $h, $p );
+		}
+		/* Gõ liền: `1337` -> 13:37, `937` -> 9:37. Đây là kiểu gõ nhanh nhất trên bàn phím số,
+		   và là lý do chính người ta muốn bỏ ô 12 giờ.
+		   ⚠️ NHẬN CẢ SÁU SỐ (`130522` -> 13:05) — anh Thắng gõ đúng chuỗi ấy vào ô ngay hôm
+		      nhận bản 3.65.0. Sáu số là giờ-phút-giây, đúng dạng ô "Giờ vào" của sổ cũ, nên tay
+		      quen gõ vậy. Giây bị bỏ (bảng công chỉ dùng tới phút ở ô này) — nhưng bỏ giây khác
+		      hẳn CHỐI cả chuỗi: chối là người ta gõ lại ba lần rồi tưởng ô hỏng. */
+		if ( preg_match( '/^(\d{3,6})$/', $c, $m ) ) {
+			$so = $m[1];
+			if ( 5 === strlen( $so ) ) { return false; }   // 5 số thì không đoán được cắt ở đâu
+			$g  = ( 6 === strlen( $so ) ) ? (int) substr( $so, 4, 2 ) : 0;
+			$p  = (int) substr( $so, ( 6 === strlen( $so ) ) ? 2 : -2, 2 );
+			$h  = (int) substr( $so, 0, ( 6 === strlen( $so ) ) ? 2 : strlen( $so ) - 2 );
+			if ( $h > 23 || $p > 59 || $g > 59 ) { return false; }
+			return $giu_giay ? sprintf( '%02d:%02d:%02d', $h, $p, $g ) : sprintf( '%02d:%02d', $h, $p );
+		}
+		return false;
+	}
+
+	/** Ngược lại, đủ giây: 5400 -> '01:30:00'. Đây là dạng ô Giờ vào / Giờ ra của sheet. */
+	public static function hhmmss( $giay ) {
+		if ( $giay === null || $giay === '' ) { return ''; }
+		$g = ( (int) $giay ) % self::NGAY_GIAY;
+		if ( $g < 0 ) { $g += self::NGAY_GIAY; }
+		return sprintf( '%02d:%02d:%02d', intdiv( $g, 3600 ), intdiv( $g % 3600, 60 ), $g % 60 );
+	}
+
+	/** Cắt còn 'HH:mm' — bản dịch của `hhmm` bên Code.gs, dùng cho ô "Thời gian trong ngày". */
+	public static function hhmm( $giay ) {
+		$s = self::hhmmss( $giay );
+		return $s === '' ? '' : substr( $s, 0, 5 );
+	}
+
+	/** Số phút (ba engine lương tính bằng phút). Suy từ giây, KHÔNG lưu riêng một cột. */
+	public static function phut( $giay ) {
+		return ( $giay === null || $giay === '' ) ? null : intdiv( (int) $giay, 60 );
+	}
+
+	public static function install() {
+		global $wpdb;
+		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+		$c = $wpdb->get_charset_collate();
+		$t = array();
+		foreach ( self::bang() as $ten => $cot ) {
+			dbDelta( 'CREATE TABLE ' . self::t( $ten ) . " (\n" . $cot . "\n) $c" );
+			$t[] = $ten;
+		}
+		update_option( 'vhcc_db_version', self::SCHEMA_VERSION );
+		return $t;
+	}
+
+	/**
+	 * Toàn bộ sơ đồ, một chỗ. Trả về mảng tên-bảng => thân CREATE TABLE.
+	 * Để đây (chứ không rải trong install) vì phép thử phải soi được sơ đồ mà không cần MySQL.
+	 */
+	public static function bang() {
+		$b = array();
+
+		/* ===== 1. PHIÊN ĐĂNG NHẬP ============================================================ */
+		/* `ma_nv` phục vụ TRẠM CHẤM CÔNG (trang nhân viên). Phiên của trạm mang theo mã NV, vì
+		   mọi phép ghi giờ đều khoá theo MÃ NV chứ không theo tên — tra lại mã từ tên là chỗ hai
+		   người trùng tên ghi đè công của nhau. Phiên của hệ quản trị để rỗng ô này.
+		   ⚠️ Phiên của trạm mang `vai_tro` = 'CC_ONLINE', một chuỗi CỐ Ý không nằm trong
+		   VHCC_Auth::VAI_TRO_TAT_CA. Nhờ vậy `user_by_token()` luôn chối nó, và Cài đặt cũng
+		   không có ô tích nào bật nó lên được: thẻ vào trạm không bao giờ mở được cửa quản trị. */
+		$b['session'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			token CHAR(64) NOT NULL,
+			ten VARCHAR(190) NOT NULL DEFAULT '',
+			vai_tro VARCHAR(60) NOT NULL DEFAULT '',
+			coso VARCHAR(190) NOT NULL DEFAULT '',
+			ma_nv VARCHAR(40) NOT NULL DEFAULT '',
+			het_han DATETIME NOT NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY token (token),
+			KEY het_han (het_han)";
+
+		/* ===== 2. PHÂN QUYỀN (sheet PhanQuyen) ===============================================
+		   `vai_tro` CỐ Ý là VARCHAR chứ không ENUM. Bên Apps Script `saveRole` chỉ `.toUpperCase()`
+		   rồi ghi thẳng — chuỗi tự do. Đổi thành ENUM ở đây là làm hỏng dữ liệu đang có: vai trò
+		   nào anh Thắng từng gõ sai chính tả sẽ bị MySQL đổi thành '' và người đó mất hết quyền.
+		   Chặn danh sách là việc của lớp kiểm tra quyền, không phải của cột. */
+		$b['phan_quyen'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			pin VARCHAR(20) NOT NULL,
+			ho_ten VARCHAR(190) NOT NULL DEFAULT '',
+			vai_tro VARCHAR(60) NOT NULL DEFAULT '',
+			cua_hang TEXT NULL,
+			ma_cc_online VARCHAR(40) NOT NULL DEFAULT '',
+			coso_cc_online VARCHAR(120) NOT NULL DEFAULT '',
+			cap_nhat DATETIME NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY pin (pin),
+			KEY ma_cc_online (ma_cc_online)";
+
+		/* ===== 3. NHÂN VIÊN (sheet NhanVien, 26 cột) =========================================
+		   Sheet phải thêm cột MỚI vào CUỐI vì vòng đọc/ghi dùng chỉ số `7 + k`. MySQL gọi theo
+		   TÊN cột nên ràng buộc đó biến mất — thêm cột ở đâu cũng được. Đây là chỗ Sheet bắt
+		   người ta cẩn thận mà MySQL không cần. */
+		/* `vai_tro` KHÁC HẲN `chuc_vu`. `chuc_vu` là công việc (Khu vui chơi, Máy tự động);
+		   `vai_tro` là quyền trên trang web: Admin, Quản lý, Kế toán cá nhân, Kế toán NCC,
+		   Cửa hàng trưởng, Nhân viên. Trước bản này chỉ có `chuc_vu`, nên nạp sổ nhân viên xong
+		   là CẢ SỔ rơi về Nhân viên và KHÔNG AI đăng nhập được, mà màn hình vẫn báo đã nạp đủ. */
+		/* ⚠️ CHÚ THÍCH ĐỂ NGOÀI CHUỖI, KHÔNG ĐỂ TRONG THÂN CREATE TABLE. Hai lý do, cả hai đều
+		   đã cắn một lần: (1) thân bảng nằm trong một chuỗi nháy kép của PHP, chú thích có nháy
+		   kép là chuỗi đóng sớm và cả tệp không dịch được; (2) phép thử đếm cột đọc thẳng chuỗi
+		   này, chú thích nhiều dòng chen vào làm nó đếm lệch.
+
+		   `anh_the` — ảnh thẻ dạng data URI ảnh JPEG đã thu nhỏ ở máy chủ (xem
+		   `VHCC_NhanSu::rua_anh_the`). Anh Thắng 28/08/2026 xin thêm, để đẩy lên máy chấm công
+		   và làm mẫu đối chiếu khuôn mặt cho chấm công online.
+		   Để THẲNG trong bảng chứ không ném vào Thư viện Media: ảnh thẻ nhân viên là dữ liệu
+		   nhân sự, mà mọi thứ trong Media đều mở công khai theo URL — ai đoán trúng đường dẫn là
+		   xem được mặt cả chuỗi. Cỡ đã ép xuống vài chục KB nên cột này không phình. */
+		$b['nhan_vien'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			ma_nv VARCHAR(40) NOT NULL,
+			ho_ten VARCHAR(190) NOT NULL DEFAULT '',
+			cua_hang VARCHAR(120) NOT NULL DEFAULT '',
+			pin_may VARCHAR(20) NOT NULL DEFAULT '',
+			photo_file_id VARCHAR(190) NOT NULL DEFAULT '',
+			trang_thai_dong_bo VARCHAR(40) NOT NULL DEFAULT '',
+			cap_nhat DATETIME NULL,
+			sdt VARCHAR(40) NOT NULL DEFAULT '',
+			ngay_sinh DATE NULL,
+			gioi_tinh VARCHAR(20) NOT NULL DEFAULT '',
+			cccd VARCHAR(30) NOT NULL DEFAULT '',
+			dia_chi VARCHAR(255) NOT NULL DEFAULT '',
+			nguoi_lien_he_khan VARCHAR(190) NOT NULL DEFAULT '',
+			sdt_khan VARCHAR(40) NOT NULL DEFAULT '',
+			chuc_vu VARCHAR(120) NOT NULL DEFAULT '',
+			ngay_vao_lam DATE NULL,
+			trang_thai_lam_viec VARCHAR(40) NOT NULL DEFAULT '',
+			loai_hop_dong VARCHAR(60) NOT NULL DEFAULT '',
+			luong_co_ban DECIMAL(12,0) NOT NULL DEFAULT 0,
+			so_tai_khoan VARCHAR(60) NOT NULL DEFAULT '',
+			ngan_hang VARCHAR(120) NOT NULL DEFAULT '',
+			cccd_file_id VARCHAR(190) NOT NULL DEFAULT '',
+			hop_dong_file_id VARCHAR(190) NOT NULL DEFAULT '',
+			nhiem_vu VARCHAR(60) NOT NULL DEFAULT '',
+			mang VARCHAR(120) NOT NULL DEFAULT '',
+			bo_phan VARCHAR(120) NOT NULL DEFAULT '',
+			coso_phu TEXT NULL,
+			coso_ql TEXT NULL,
+			coso_quan TEXT NULL,
+			pin_dang_nhap VARCHAR(20) NOT NULL DEFAULT '',
+			vai_tro VARCHAR(60) NOT NULL DEFAULT '',
+			anh_the LONGTEXT NULL,
+			cho_tra_ve TINYINT(1) NOT NULL DEFAULT 0,
+			cho_tra_luc DATETIME NULL,
+			cho_tra_boi VARCHAR(190) NOT NULL DEFAULT '',
+			chu_tk VARCHAR(190) NOT NULL DEFAULT '',
+			ma_bhxh VARCHAR(40) NOT NULL DEFAULT '',
+			ma_so_thue VARCHAR(40) NOT NULL DEFAULT '',
+			cccd_ngay_cap DATE NULL,
+			cccd_noi_cap VARCHAR(190) NOT NULL DEFAULT '',
+			que_quan VARCHAR(255) NOT NULL DEFAULT '',
+			dan_toc VARCHAR(60) NOT NULL DEFAULT '',
+			hon_nhan VARCHAR(40) NOT NULL DEFAULT '',
+			trinh_do VARCHAR(120) NOT NULL DEFAULT '',
+			chuyen_mon VARCHAR(190) NOT NULL DEFAULT '',
+			so_phu_thuoc TINYINT(3) NOT NULL DEFAULT 0,
+			giay_to TEXT NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY ma_nv (ma_nv),
+			KEY cua_hang (cua_hang),
+			KEY cccd (cccd),
+			KEY mang (mang),
+			KEY bo_phan (bo_phan),
+			KEY trang_thai_lam_viec (trang_thai_lam_viec)";
+
+		/* ===== 4. MÃ CHẠY SONG SONG (sheet MaSongSong) =======================================
+		   Hai mã của cùng một người, PHẢI KHAI chứ không đoán: tên người Việt trùng rất nhiều,
+		   đoán sai là gộp lương hai người khác nhau. */
+		$b['ma_song_song'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			ma_a VARCHAR(40) NOT NULL,
+			ma_b VARCHAR(40) NOT NULL,
+			ho_ten VARCHAR(190) NOT NULL DEFAULT '',
+			ly_do VARCHAR(255) NOT NULL DEFAULT '',
+			nguoi_khai VARCHAR(190) NOT NULL DEFAULT '',
+			tao_luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY cap (ma_a,ma_b),
+			KEY ma_b (ma_b)";
+
+		/* ===== 5. CHẤM CÔNG — bảng thay cho toàn bộ họ sheet `CS_<cơ sở>` ====================
+		   MỘT hàng = một (cơ sở, mã NV, hậu tố, ngày). Xem ghi chú (1)(2)(3) ở đầu tệp.
+
+		   `hau_to` giữ ĐÚNG kết quả của `_tachMaNhiemVu` bên Code.gs, không tách nhỏ hơn:
+		     ''   hàng chính (nhiệm vụ mặc định = Thu Tiền)
+		     TT   Thu Tiền (khai rõ)          TG  Trực Ghế (tính theo GIỜ, đơn giá khác)
+		     CD   tăng ca / ca đêm (hàng 2)   CT  công tối — CŨ, không ghi mới, giữ để hàng lỡ tạo còn đọc được
+		     TC   tăng cường (người của cơ sở khác sang làm)
+		   Cố ý KHÔNG bung thành 3 cột boolean: ba cách tính lương đều đọc hậu tố như một nhãn,
+		   bung ra là phải sửa cả ba engine mà không được gì.
+
+		   `chuan` = cột "Thời gian trong ngày" của sheet, chuỗi tự do người ta gõ tay. */
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * CA GÃY — hai cột `nghi_tu_giay` / `nghi_den_giay` dưới đây là KHOẢNG NGHỈ GIỮA CA,
+		 * không tính tiền.
+		 *
+		 * Anh Thắng 16/09/2026: *"có những trường hợp ca gãy, như ca 1,3 ... cứ chấm liên tiếp
+		 * bình thường, sau đó cửa hàng trưởng vào bảng công, tích vào ca gãy, nó sẽ tách thành
+		 * 2 giờ vào và 2 giờ ra để gộp giờ và bỏ giờ giữa ra"*.
+		 *
+		 * Người làm Ca 1 (07:00–14:00) và Ca 3 (17:00–22:00) nhưng KHÔNG làm Ca 2. Máy chấm
+		 * công chỉ thấy MỘT cặp 07:00 → 22:00 = 15 giờ — dư đúng 3 giờ người ta về nhà.
+		 *
+		 * 🔴 VÌ SAO LƯU KHOẢNG NGHỈ, KHÔNG LƯU CẶP GIỜ THỨ HAI:
+		 *    `gio_vao_giay`/`gio_ra_giay` giữ nguyên nghĩa "vào ĐẦU, ra CUỐI". Mọi nơi đang đọc
+		 *    chúng — ô ngày trên lưới, phép tách ca, phép trải phẳng ca đêm `-CD`, tờ in A4 —
+		 *    chạy y như trước, không phải học thêm gì; chỉ phép TÍNH GIỜ trừ thêm khoảng nghỉ.
+		 *    Lưu thành một cặp giờ thứ hai thì ngược lại: mọi nơi đọc một cặp đều phải sửa, và
+		 *    nơi nào quên sẽ lặng lẽ tính thiếu — thứ không ai kêu vì bảng vẫn đầy số.
+		 *    Màn vẫn bày ra BỐN ô đúng như anh Thắng mô tả (vào · ra ca 1 · vào ca 2 · ra), vì
+		 *    hai ô giữa CHÍNH LÀ hai đầu của khoảng nghỉ.
+		 *
+		 * ⚠️ NULL = ngày ấy không có ca gãy. KHÔNG dùng 0 — 0 giây là 00:00:00, một mốc có thật.
+		 *
+		 * ═══════════════════════════════════════════════════════════════════════════════════
+		 * CỘT `loai_gio` — LOẠI GIỜ LƯƠNG CỦA CHÍNH LƯỢT NÀY
+		 * ═══════════════════════════════════════════════════════════════════════════════════
+		 * Tên việc người ấy làm trong ca, do CHÍNH NGƯỜI ẤY chọn lúc kết ca — xem `VHCC_LoaiGio`
+		 * và câu của anh Thắng 18/09/2026 ghi ở đầu lớp ấy.
+		 *
+		 * ⚠️ RỖNG = CHƯA KHAI, và chưa khai thì lượt ấy thuộc về GIỜ CHÍNH. Không đoán: đoán ở
+		 *    đây là đoán ra đơn giá, tức đoán ra tiền.
+		 * ⚠️ Lưu TÊN việc (bản người gõ), không lưu khoá tra. Khoá bỏ dấu bỏ hoa thường nên in
+		 *    ra màn thành `laitau`; tên thì đọc được. Tra giá vẫn qua `VHCC_GiaGio::khoa_cv()`
+		 *    như mọi nơi khác trong hệ.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$b['cham_cong'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			coso VARCHAR(120) NOT NULL,
+			ngay DATE NOT NULL,
+			ma_nv VARCHAR(40) NOT NULL,
+			hau_to VARCHAR(4) NOT NULL DEFAULT '',
+			ho_ten VARCHAR(190) NOT NULL DEFAULT '',
+			gio_vao_giay INT NULL,
+			gio_ra_giay INT NULL,
+			nghi_tu_giay INT NULL,
+			nghi_den_giay INT NULL,
+			anh_vao VARCHAR(190) NOT NULL DEFAULT '',
+			anh_ra VARCHAR(190) NOT NULL DEFAULT '',
+			chuan VARCHAR(190) NOT NULL DEFAULT '',
+			nguon VARCHAR(20) NOT NULL DEFAULT '',
+			ghi_chu VARCHAR(255) NOT NULL DEFAULT '',
+			ghi_luc DATETIME NULL,
+			loai_gio VARCHAR(80) NOT NULL DEFAULT '',
+			PRIMARY KEY  (id),
+			UNIQUE KEY o (coso,ngay,ma_nv,hau_to),
+			KEY thang (coso,ngay),
+			KEY nguoi (ma_nv,ngay)";
+
+		/* ===== 5b. NHẬT KÝ CHẤM CÔNG BÙ =====================================================
+		   Sổ đối chứng của cửa ghi giờ thứ ba. Mỗi Ô GIỜ được bù là một dòng — không gộp cặp
+		   vào/ra vào một dòng, vì bù giờ ra cho một ngày đã có giờ vào là chuyện thường, và gộp
+		   thì dòng ấy phải để trống một nửa, đọc lại không biết nửa trống là "không bù" hay
+		   "bù mà mất".
+		   ⚠️ KHÔNG có UNIQUE KEY nào ở đây: bù hai lần cho cùng một ô là chuyện CẦN nhìn thấy,
+		      không phải chuyện cần chặn ở tầng bảng. */
+		$b['cham_bu'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			coso VARCHAR(120) NOT NULL,
+			ngay DATE NOT NULL,
+			ma_nv VARCHAR(40) NOT NULL,
+			o_gio VARCHAR(8) NOT NULL DEFAULT '',
+			gio_giay INT NULL,
+			gio_cu_giay INT NULL,
+			viec VARCHAR(10) NOT NULL DEFAULT 'bu',
+			ly_do VARCHAR(255) NOT NULL DEFAULT '',
+			nguoi_bu VARCHAR(190) NOT NULL DEFAULT '',
+			ma_nguoi_bu VARCHAR(40) NOT NULL DEFAULT '',
+			vai_nguoi_bu VARCHAR(30) NOT NULL DEFAULT '',
+			tao_luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			KEY thang (coso,ngay),
+			KEY nguoi (ma_nv,ngay),
+			KEY ai (ma_nguoi_bu)";
+
+		/* ===== 5c. ĐƠN XIN PHÉP ĐI TRỄ ======================================================
+		   Anh Thắng 27/08/2026: *"để khỏi bị cảnh báo, thì tại trang chấm công online nhân viên
+		   sẽ chọn Xin Phép đi trễ TRƯỚC KHI TỚI cửa hàng… lúc này bên tài khoản cửa hàng trưởng
+		   sẽ hiện trong phần Lệnh đi trễ, cửa hàng trưởng duyệt đơn thì cảnh báo đó sẽ bỏ"*.
+
+		   🔴 ĐƠN LÀ MỘT SỔ RIÊNG, KHÔNG PHẢI MỘT CỘT TRONG `cham_cong`.
+		      Đơn được nộp TRƯỚC khi tới cửa hàng, tức là trước khi có lượt chấm nào — nhét vào
+		      hàng chấm công thì phải tạo sẵn một hàng rỗng cho một ngày chưa xảy ra, và hàng
+		      rỗng ấy lập tức trông y như "quên bấm giờ ra". Ngược lại, một hàng chấm công bị
+		      sửa hay xoá không được kéo theo cái đơn: đơn là lời người ta đã nói, nó không mất
+		      đi vì giờ chấm thay đổi.
+
+		   ⚠️ UNIQUE theo (ma_nv, ngay): mỗi người mỗi ngày một đơn. Nộp lại là ĐÈ lên đơn cũ —
+		      chứ không phải xếp thêm một đơn nữa cho cửa hàng trưởng phải duyệt hai lần. */
+		$b['xin_tre'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			coso VARCHAR(120) NOT NULL,
+			ngay DATE NOT NULL,
+			ma_nv VARCHAR(40) NOT NULL,
+			ho_ten VARCHAR(190) NOT NULL DEFAULT '',
+			so_phut INT NOT NULL DEFAULT 0,
+			ly_do VARCHAR(255) NOT NULL DEFAULT '',
+			trang_thai VARCHAR(12) NOT NULL DEFAULT 'cho',
+			nguoi_duyet VARCHAR(190) NOT NULL DEFAULT '',
+			ma_nguoi_duyet VARCHAR(40) NOT NULL DEFAULT '',
+			ly_do_choi VARCHAR(255) NOT NULL DEFAULT '',
+			tao_luc DATETIME NULL,
+			duyet_luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY don (ma_nv,ngay),
+			KEY cua_hang (coso,ngay),
+			KEY cho_duyet (coso,trang_thai)";
+
+		/* ===== 6. NHIỆM VỤ THEO NGÀY (sheet ChamCongNhiemVu) ================================= */
+		/* ===== 7b. ĐƠN XIN NGHỈ ============================================================
+		   Khác `xin_tre` ở đúng một chỗ có hệ quả: đơn nghỉ trải nhiều NGÀY, nên khoá là một
+		   KHOẢNG chứ không phải một ngày. Vì vậy KHÔNG có `UNIQUE KEY (ma_nv,ngay)` như bên
+		   kia — một người xin nghỉ hai đợt rời nhau trong tháng là chuyện thường, và khoá duy
+		   nhất theo ngày sẽ chối đợt thứ hai mà không nói được vì sao.
+		   ⚠️ Chống trùng làm ở tầng nghiệp vụ (`VHCC_XinNghi::nop` chối khi CHỒNG LÊN một đơn
+		      đang chờ hoặc đã duyệt), chứ không làm bằng khoá — khoá chỉ chặn được trùng khít,
+		      còn cái hay gặp là chồng LẤN một phần. */
+		$b['xin_nghi'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			coso VARCHAR(120) NOT NULL,
+			ma_nv VARCHAR(40) NOT NULL,
+			ho_ten VARCHAR(190) NOT NULL DEFAULT '',
+			tu_ngay DATE NOT NULL,
+			den_ngay DATE NOT NULL,
+			so_ngay DECIMAL(4,1) NOT NULL DEFAULT 0,
+			loai VARCHAR(30) NOT NULL DEFAULT '',
+			ly_do VARCHAR(255) NOT NULL DEFAULT '',
+			trang_thai VARCHAR(12) NOT NULL DEFAULT 'cho',
+			nguoi_duyet VARCHAR(190) NOT NULL DEFAULT '',
+			ly_do_choi VARCHAR(255) NOT NULL DEFAULT '',
+			tao_luc DATETIME NULL,
+			duyet_luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			KEY cua_nguoi (ma_nv,tu_ngay),
+			KEY cho_duyet (coso,trang_thai)";
+
+		/* ===== 7c. ĐƠN DUYỆT CHỈNH BẢNG CÔNG THEO TUẦN ======================================
+		   Anh Thắng 18/09/2026: hết một tuần thì cửa hàng trưởng tải bảng công tuần trước ra
+		   .xlsx, sửa trong đó, gửi kế toán; kế toán duyệt là đẩy lên bảng công rồi KHOÁ tuần ấy.
+
+		   🔴 KHÔNG CÓ BẢNG "TUẦN ĐÃ KHOÁ" RIÊNG. Một tuần khoá rồi ⇔ có đúng một dòng ở đây với
+		      `trang_thai='duyet'`. Dựng bảng thứ hai là hai nguồn sự thật cho cùng một câu hỏi,
+		      và tới ngày chúng lệch nhau thì không ai biết tin cái nào.
+
+		   ⚠️ KHÔNG khoá duy nhất theo (coso,tu_ngay): kế toán chối một lượt thì cửa hàng trưởng
+		      gửi lại lượt khác (*"nếu sai, kế toán sẽ báo cht gửi lại file khác"*), nên một tuần
+		      có nhiều dòng là chuyện thường. Cái duy nhất là dòng ĐÃ DUYỆT, và nó chốt ở tầng
+		      nghiệp vụ (`VHCC_TuanCong::duyet`) chứ không phải bằng khoá — khoá chỉ nói được
+		      "trùng", không nói được "tuần này khoá rồi nên thôi". */
+		$b['don_tuan'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			coso VARCHAR(120) NOT NULL,
+			tu_ngay DATE NOT NULL,
+			den_ngay DATE NOT NULL,
+			ma_nv_gui VARCHAR(40) NOT NULL DEFAULT '',
+			ten_gui VARCHAR(190) NOT NULL DEFAULT '',
+			gui_luc DATETIME NULL,
+			trang_thai VARCHAR(12) NOT NULL DEFAULT 'cho',
+			ma_nv_duyet VARCHAR(40) NOT NULL DEFAULT '',
+			ten_duyet VARCHAR(190) NOT NULL DEFAULT '',
+			duyet_luc DATETIME NULL,
+			ly_do_choi VARCHAR(255) NOT NULL DEFAULT '',
+			so_dong INT NOT NULL DEFAULT 0,
+			so_doi INT NOT NULL DEFAULT 0,
+			doi LONGTEXT NULL,
+			ket_qua LONGTEXT NULL,
+			PRIMARY KEY  (id),
+			KEY cho_duyet (trang_thai,tu_ngay),
+			KEY cua_tuan (coso,tu_ngay)";
+
+		/* ===== 7d. GIỜ NHÂN VIÊN TỰ KHAI ===================================================
+		   Anh Thắng 18/09/2026: *"Nhân viên có quyền nhập giờ khác vào đây để cửa hàng cũng biết
+		   để theo dõi cũng nhân viên (nó chỉ không cộng vào bảng tổng lương thôi) nhưng sẽ hiện
+		   cột tổng ở cuối trang"*.
+
+		   🔴 BẢNG RIÊNG, KHÔNG NHÉT VÀO `cham_cong`. Đây là con số NGƯỜI TA TỰ NÓI, không phải
+		      con số máy ghi. Để chung một bảng thì mọi phép cộng lương, mọi lượt xuất, mọi báo
+		      cáo đều phải nhớ loại nó ra — và chỉ cần MỘT chỗ quên là tiền sai mà không ai
+		      nghi, vì con số trông y hệt giờ thật. Tách bảng thì quên là KHÔNG THẤY, chứ không
+		      phải cộng nhầm. Hai kiểu quên, và kiểu sau rẻ hơn hẳn.
+
+		   ⚠️ Mỗi người mỗi ngày MỘT dòng (khoá duy nhất). Khai lại là ĐÈ lên, không cộng dồn —
+		      cộng dồn thì bấm Lưu hai lần là số gấp đôi mà không ai biết. */
+		$b['gio_khai'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			coso VARCHAR(120) NOT NULL,
+			ngay DATE NOT NULL,
+			ma_nv VARCHAR(40) NOT NULL,
+			ho_ten VARCHAR(190) NOT NULL DEFAULT '',
+			so_gio DECIMAL(5,2) NOT NULL DEFAULT 0,
+			viec VARCHAR(120) NOT NULL DEFAULT '',
+			ghi_chu VARCHAR(255) NOT NULL DEFAULT '',
+			tao_luc DATETIME NULL,
+			sua_luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY o (coso,ngay,ma_nv),
+			KEY cua_thang (coso,ngay)";
+
+		/* ===== 7e. ĐƠN XIN BÙ GIỜ — HAI CẤP DUYỆT =========================================
+		   Anh Thắng 18/09/2026: *"Cửa hàng trưởng không được bù giờ công… Còn lệnh bù giờ từ
+		   nhân viên gửi lên, CHT sẽ nhận và duyệt và đẩy tiếp lên cho kế toán, kế toán duyệt mới
+		   đẩy vào bảng công."*
+
+		   🔴 HAI CẤP, KHÔNG PHẢI MỘT. `cho_cht` → `cho_kt` → `duyet`. Bỏ một cấp đi thì hoặc kế
+		      toán ngập trong đơn lẻ của 26 cửa hàng, hoặc cửa hàng trưởng lại tự bù được — đúng
+		      hai thứ quy trình này sinh ra để tránh.
+
+		   ⚠️ GIỜ XIN NẰM Ở ĐÂY CHO TỚI KHI DUYỆT XONG, không bao giờ nằm tạm trong `cham_cong`.
+		      Để tạm bên ấy rồi "đánh dấu chờ duyệt" thì mọi phép cộng lương phải nhớ loại nó
+		      ra — một chỗ quên là trả tiền cho giờ chưa ai duyệt. */
+		$b['xin_bu'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			coso VARCHAR(120) NOT NULL,
+			ngay DATE NOT NULL,
+			ma_nv VARCHAR(40) NOT NULL,
+			hau_to VARCHAR(4) NOT NULL DEFAULT '',
+			ho_ten VARCHAR(190) NOT NULL DEFAULT '',
+			vao VARCHAR(5) NOT NULL DEFAULT '',
+			ra VARCHAR(5) NOT NULL DEFAULT '',
+			ly_do VARCHAR(255) NOT NULL DEFAULT '',
+			trang_thai VARCHAR(12) NOT NULL DEFAULT 'cho_cht',
+			cht_ma VARCHAR(40) NOT NULL DEFAULT '',
+			cht_ten VARCHAR(190) NOT NULL DEFAULT '',
+			cht_luc DATETIME NULL,
+			kt_ma VARCHAR(40) NOT NULL DEFAULT '',
+			kt_ten VARCHAR(190) NOT NULL DEFAULT '',
+			kt_luc DATETIME NULL,
+			ly_do_choi VARCHAR(255) NOT NULL DEFAULT '',
+			tao_luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			KEY cho_duyet (coso,trang_thai),
+			KEY cua_thang (coso,ngay),
+			KEY cua_nguoi (ma_nv,ngay)";
+
+		$b['cham_cong_nhiem_vu'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			ngay DATE NOT NULL,
+			coso VARCHAR(120) NOT NULL,
+			ma_nv VARCHAR(40) NOT NULL,
+			nhiem_vu VARCHAR(60) NOT NULL DEFAULT '',
+			ghi_luc DATETIME NULL,
+			nguoi_ghi VARCHAR(190) NOT NULL DEFAULT '',
+			PRIMARY KEY  (id),
+			UNIQUE KEY o (ngay,coso,ma_nv),
+			KEY coso_ngay (coso,ngay)";
+
+		/* ===== 7. GHI CHÚ / CỜ CẦN KIỂM (sheet GhiChuChamCong) =============================== */
+		/* ===== MẪU KHUÔN MẶT (đối chiếu ảnh chấm công online) ===============================
+		   🔴 LƯU DÃY SỐ ĐẶC TRƯNG, KHÔNG LƯU ẢNH. `vector` là 128 con số do trình duyệt của
+		      chính nhân viên tính ra từ tấm ảnh; từ dãy số ấy KHÔNG dựng lại được khuôn mặt.
+		      Lưu thêm một kho ảnh mẫu riêng là nhân đôi chỗ có thể rò, mà không thêm được gì:
+		      việc đối chiếu chỉ cần dãy số.
+
+		   ⚠️ ĐÂY LÀ DỮ LIỆU SINH TRẮC HỌC. Xoá hồ sơ một người thì xoá luôn dòng này — xem
+		      `VHCC_NhanSu::xoa_*`. Đừng để lại "mẫu mồ côi" của người đã nghỉ.
+
+		   `so_lan` đếm số lần đã gộp mẫu: mẫu tốt dần theo thời gian (đổi kiểu tóc, đeo kính),
+		   nhưng chỉ gộp khi khớp RẤT chắc — xem VHCC_Mat::GOP_TOI_DA và ngưỡng gộp. Gộp lỏng
+		   tay là mẫu trôi dần sang một khuôn mặt khác mà không ai thấy.
+
+		   `vector` để TEXT là đủ: 128 số làm tròn 6 chữ số khoảng 1,5 KB, TEXT chứa 64 KB.
+
+		   ⚠️ CHÚ THÍCH PHẢI NẰM NGOÀI CHUỖI SQL. Vừa vấp: viết một dòng giải thích vào giữa
+		      thân CREATE TABLE, trong đó có cặp nháy kép, thế là chuỗi PHP đóng sớm và cả tệp
+		      không dịch được — mà thông báo lỗi lại trỏ vào một dòng chẳng liên quan. */
+		$b['mat_mau'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			ma_nv VARCHAR(40) NOT NULL,
+			vector TEXT NULL,
+			so_lan INT(11) NOT NULL DEFAULT 1,
+			trang_thai VARCHAR(20) NOT NULL DEFAULT 'cho',
+			nguon_ngay DATE NULL,
+			nguon_coso VARCHAR(120) NOT NULL DEFAULT '',
+			nguoi_duyet VARCHAR(190) NOT NULL DEFAULT '',
+			ghi_chu VARCHAR(255) NOT NULL DEFAULT '',
+			tao_luc DATETIME NULL,
+			cap_nhat DATETIME NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY ma_nv (ma_nv),
+			KEY trang_thai (trang_thai)";
+
+		/* ===== NHẬT KÝ ĐỐI CHIẾU MẶT ======================================================
+		   🔴 CÓ ĐỂ ĐO TRƯỚC KHI TIN. Ngưỡng 0,60 là con số của ngành, không phải của K&H: nó
+		      phụ thuộc ánh sáng từng cơ sở, camera từng đời máy, và cả việc nhân viên có đeo
+		      khẩu trang hay không. Bật cờ ngay bằng số mặc định thì hoặc là cả trăm cờ oan
+		      (hai tuần sau không ai mở màn cờ nữa, cờ thật chìm luôn), hoặc là không cờ nào và
+		      tưởng mọi thứ sạch.
+
+		      Nên: chạy chế độ IM LẶNG vài tuần — vẫn so, vẫn ghi vào đây, KHÔNG gắn cờ. Rồi mở
+		      bảng ra xem lệch thật rơi vào đâu, chọn ngưỡng theo số đo được.
+
+		   Bảng này chỉ giữ CON SỐ, không giữ dãy đặc trưng: đo xong thì dãy ấy hết việc, mà giữ
+		   lại là thêm một chỗ dữ liệu sinh trắc học nằm rải rác. */
+		$b['mat_nhat_ky'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			ma_nv VARCHAR(40) NOT NULL DEFAULT '',
+			ngay DATE NULL,
+			coso VARCHAR(120) NOT NULL DEFAULT '',
+			d DECIMAL(6,4) NULL,
+			ket_qua VARCHAR(20) NOT NULL DEFAULT '',
+			co_gan TINYINT(1) NOT NULL DEFAULT 0,
+			tao_luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			KEY ma_ngay (ma_nv,ngay),
+			KEY ket_qua (ket_qua)";
+
+		$b['ghi_chu'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			flag_id VARCHAR(40) NOT NULL,
+			coso VARCHAR(120) NOT NULL DEFAULT '',
+			ngay DATE NULL,
+			ma_nv VARCHAR(40) NOT NULL DEFAULT '',
+			ho_ten VARCHAR(190) NOT NULL DEFAULT '',
+			ghi_chu TEXT NULL,
+			nguoi_gan VARCHAR(190) NOT NULL DEFAULT '',
+			trang_thai VARCHAR(30) NOT NULL DEFAULT '',
+			tao_luc DATETIME NULL,
+			xu_ly_luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY flag_id (flag_id),
+			KEY tra (coso,ngay),
+			KEY trang_thai (trang_thai)";
+
+		/* ===== 8. TĂNG CƯỜNG (sheet TangCuong) ==============================================
+		   Người của cơ sở A sang làm ở cơ sở B. `khoa` = đã CHỐT KỲ, không sửa được nữa. */
+		$b['tang_cuong'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			ngay DATE NOT NULL,
+			coso_den VARCHAR(120) NOT NULL,
+			coso_goc VARCHAR(120) NOT NULL DEFAULT '',
+			ma_nv VARCHAR(40) NOT NULL,
+			ho_ten VARCHAR(190) NOT NULL DEFAULT '',
+			ghi_chu VARCHAR(255) NOT NULL DEFAULT '',
+			khoa TINYINT(1) NOT NULL DEFAULT 0,
+			nguoi_khai VARCHAR(190) NOT NULL DEFAULT '',
+			tao_luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY o (ngay,coso_den,ma_nv),
+			KEY coso_den (coso_den,ngay)";
+
+		/* ===== 9. QUY ĐỔI CƠ SỞ (sheet QuyDoiCoSo) ==========================================
+		   Tên cơ sở trên máy ≠ tên cơ sở trên sheet. Bảng này ánh xạ. */
+		$b['quy_doi_coso'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			tu VARCHAR(190) NOT NULL,
+			den VARCHAR(190) NOT NULL DEFAULT '',
+			ghi_chu VARCHAR(255) NOT NULL DEFAULT '',
+			PRIMARY KEY  (id),
+			UNIQUE KEY tu (tu)";
+
+		/* ===== 10. BỘ PHẬN THEO CƠ SỞ (sheet BoPhanCoSo) ===================================== */
+		$b['bo_phan_coso'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			coso VARCHAR(120) NOT NULL,
+			bo_phan VARCHAR(120) NOT NULL DEFAULT '',
+			theo_gio TINYINT(1) NOT NULL DEFAULT 0,
+			ghi_chu VARCHAR(255) NOT NULL DEFAULT '',
+			PRIMARY KEY  (id),
+			UNIQUE KEY o (coso,bo_phan),
+			KEY coso (coso)";
+
+		/* ===== 11. MÁY CHẤM CÔNG (sheet MayChamCong) ========================================
+		   ⚠️ Bảng này KHÔNG thay Firebase được. Firmware đọc /queue, /hb, /roster, /ota TRỰC TIẾP
+		      từ Firebase RTDB — dựng bảng MySQL rồi tưởng đã điều khiển được máy là máy hoá điếc.
+		      Bảng này chỉ là BẢN GHI phía web cho tới khi firmware được nạp bản trỏ về WordPress. */
+/* Cột đúng theo MAY_H của Code.gs. Khoá nghiệp vụ là SERIAL ĐẦU ĐỌC, không phải MAC — thay bo
+		   ESP32 thì đầu đọc vẫn là đầu đọc đó. Nhưng KHÔNG đặt UNIQUE trên serial: firmware nhớ serial
+		   trong NVS và khai lại serial CŨ khi chưa với tới đầu đọc mới, nên hai dòng cùng serial là
+		   chuyện có thật, phải giữ được cả hai cho người ta xử chứ không phải để MySQL chặn.
+		   `ghi_chu` là nơi ghi dấu khi phần cứng đổi — CHỈ ghi dấu, KHÔNG tự sửa: "thay bo" và "mang
+		   bo sang cửa hàng khác" nhìn từ máy chủ giống hệt nhau, đoán sai là chấm công cửa hàng mới
+		   chảy vào cơ sở cũ, sai người sai lương mà không ai thấy. */
+		$b['may'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			serial VARCHAR(120) NOT NULL DEFAULT '',
+			mac VARCHAR(40) NOT NULL DEFAULT '',
+			cua_hang VARCHAR(120) NOT NULL DEFAULT '',
+			model VARCHAR(120) NOT NULL DEFAULT '',
+			ten_tu_khai VARCHAR(190) NOT NULL DEFAULT '',
+			lan_cuoi_thay DATETIME NULL,
+			ghi_chu TEXT NULL,
+			sim VARCHAR(60) NOT NULL DEFAULT '',
+			PRIMARY KEY  (id),
+			KEY serial (serial),
+			KEY mac (mac),
+			KEY cua_hang (cua_hang)";
+
+		/* ===== 12. CHẤM CÔNG CHỜ GẮN (sheet ChamCongChoGan) =================================
+		   Máy gửi về một mã KHÔNG có trong hồ sơ -> không được bỏ, phải giữ ở đây chờ người gắn.
+		   Bỏ là mất công của người thật chỉ vì hồ sơ chưa khai. */
+		$b['cho_gan'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			nhan_luc DATETIME NULL,
+			serial VARCHAR(120) NOT NULL DEFAULT '',
+			mac VARCHAR(40) NOT NULL DEFAULT '',
+			ten_tu_khai VARCHAR(190) NOT NULL DEFAULT '',
+			ma_nv VARCHAR(40) NOT NULL DEFAULT '',
+			ho_ten VARCHAR(190) NOT NULL DEFAULT '',
+			thoi_diem VARCHAR(40) NOT NULL DEFAULT '',
+			co_anh TINYINT(1) NOT NULL DEFAULT 0,
+			da_chuyen VARCHAR(120) NOT NULL DEFAULT '',
+			PRIMARY KEY  (id),
+			KEY may (serial,mac),
+			KEY da_chuyen (da_chuyen),
+			KEY nhan_luc (nhan_luc)";
+
+		/* ===== 13. HÀNG ĐỢI LỆNH GỬI XUỐNG MÁY ==============================================
+		   Trước 22/08/2026 hàng đợi thật nằm trên Firebase (`/queue/<tên máy>`), bảng này chỉ là
+		   bản chép của sheet `Queue`. Từ bản 2.0.0 hệ thống chạy THẲNG trên host: bảng này LÀ
+		   hàng đợi, máy hỏi thẳng WordPress, không còn Firebase và không còn Apps Script.
+
+		   `tram` là KHOÁ MÁY chuẩn (serial viết thường; máy chưa có serial thì lấy mac), KHÔNG
+		   phải tên máy tự khai. Firebase khoá theo tên tự khai — mà tên đó gõ ở portal 192.168.4.1
+		   nên hai máy đặt trùng tên là ăn chung hàng đợi, một lệnh thêm nhân viên chạy sang cửa
+		   hàng khác. Serial thì máy không tự bịa ra được. `ten_tram` chỉ để hiện cho người đọc.
+
+		   `anh_b64` giữ ảnh khuôn mặt của lệnh thêm/sửa. Trước kia ảnh nằm ở `/photo/...` trên
+		   Firebase và máy lấy bằng lượt gọi thứ hai; nay máy vẫn lấy bằng lượt thứ hai (việc
+		   `anh_lenh`) chứ KHÔNG kèm vào lượt lấy lệnh: gói lệnh phải nhỏ hơn ~1KB cho module 4G
+		   đọc nổi, mà ảnh thì vài chục KB. */
+		$b['queue'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			op_id VARCHAR(40) NOT NULL,
+			action VARCHAR(40) NOT NULL DEFAULT '',
+			ma_nv VARCHAR(40) NOT NULL DEFAULT '',
+			ho_ten VARCHAR(190) NOT NULL DEFAULT '',
+			pin_may VARCHAR(20) NOT NULL DEFAULT '',
+			photo_file_id VARCHAR(190) NOT NULL DEFAULT '',
+			cua_hang VARCHAR(120) NOT NULL DEFAULT '',
+			trang_thai VARCHAR(30) NOT NULL DEFAULT '',
+			tao_luc DATETIME NULL,
+			ket_qua TEXT NULL,
+			tram VARCHAR(120) NOT NULL DEFAULT '',
+			ten_tram VARCHAR(190) NOT NULL DEFAULT '',
+			gioi_tinh VARCHAR(20) NOT NULL DEFAULT '',
+			co_anh TINYINT(1) NOT NULL DEFAULT 0,
+			anh_b64 LONGTEXT NULL,
+			ngay VARCHAR(20) NOT NULL DEFAULT '',
+			gio VARCHAR(20) NOT NULL DEFAULT '',
+			ben VARCHAR(10) NOT NULL DEFAULT '',
+			tu_gio VARCHAR(30) NOT NULL DEFAULT '',
+			den_gio VARCHAR(30) NOT NULL DEFAULT '',
+			kem_anh TINYINT(1) NOT NULL DEFAULT 0,
+			nguoi_dat VARCHAR(190) NOT NULL DEFAULT '',
+			gui_luc DATETIME NULL,
+			xong_luc DATETIME NULL,
+			nguoi_duyet VARCHAR(190) NOT NULL DEFAULT '',
+			duyet_luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY op_id (op_id),
+			KEY tra (cua_hang,trang_thai),
+			KEY hang (tram,trang_thai,id)";
+			/* `nguoi_duyet`/`duyet_luc` thêm 29/08/2026 cho lệnh CẦN ADMIN DUYỆT trước khi xuống
+			   máy (trạng thái `cho-duyet`, xem VHCC_MayCong::CHO_DUYET) — KHÁC `nguoi_dat`/`tao_luc`
+			   (ai ĐẶT lệnh, có thể là Cửa hàng trưởng) và KHÁC `xong_luc` (lúc MÁY báo đã làm xong,
+			   không phải lúc người duyệt). Ba mốc thời gian ba nghĩa khác nhau, không dùng chung.
+			   Lý do từ chối mượn tạm cột `ket_qua` (vốn để trống tới khi máy báo xong) — thêm cột
+			   riêng cho một câu chối ngắn là hơi phí. */
+
+		/* ===== 13b. NHỊP SỐNG CỦA MÁY (thay `/status` trên Firebase) =========================
+		   Mỗi máy đẩy một nhịp mỗi 60 giây. MỘT hàng cho MỘT máy — đè lên, không cộng dồn: đây
+		   là "máy còn sống không", không phải nhật ký. Muốn nhật ký thì đọc `nhat_ky_may`.
+		   `luc` là mốc duy nhất để nói máy mất tích: quá 5 phút không có nhịp = đứt. */
+		$b['may_nhip'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			tram VARCHAR(120) NOT NULL,
+			ten_tram VARCHAR(190) NOT NULL DEFAULT '',
+			serial VARCHAR(120) NOT NULL DEFAULT '',
+			mac VARCHAR(40) NOT NULL DEFAULT '',
+			cua_hang VARCHAR(120) NOT NULL DEFAULT '',
+			fw VARCHAR(40) NOT NULL DEFAULT '',
+			duong VARCHAR(20) NOT NULL DEFAULT '',
+			ip VARCHAR(60) NOT NULL DEFAULT '',
+			song VARCHAR(20) NOT NULL DEFAULT '',
+			heap INT NOT NULL DEFAULT 0,
+			hik VARCHAR(40) NOT NULL DEFAULT '',
+			so_tong BIGINT(20) NOT NULL DEFAULT -1,
+			luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY tram (tram),
+			KEY luc (luc)";
+
+		/* ===== 13c. SỔ NHÂN VIÊN ĐANG NẰM TRONG ĐẦU ĐỌC (thay `/roster`) =====================
+		   Máy quét xong đẩy lên đây. Dùng để đối chiếu "hồ sơ trên web" với "mặt trong máy" —
+		   người nghỉ việc mà mặt còn trong máy thì vẫn chấm công được. */
+		$b['may_roster'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			tram VARCHAR(120) NOT NULL,
+			ma_nv VARCHAR(40) NOT NULL,
+			ho_ten VARCHAR(190) NOT NULL DEFAULT '',
+			co_anh TINYINT(1) NOT NULL DEFAULT 0,
+			cap_nhat DATETIME NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY o (tram,ma_nv),
+			KEY tram (tram)";
+
+		/* ===== 13d. ẢNH MÁY TRÍCH THEO YÊU CẦU (thay `/photoresp`) ===========================
+		   Ảnh gốc của một lượt bấm, lấy về khi có nghi vấn chấm hộ. Nặng nên KHÔNG lấy sẵn. */
+		$b['anh_trich'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			tram VARCHAR(120) NOT NULL DEFAULT '',
+			op_id VARCHAR(40) NOT NULL DEFAULT '',
+			ma_nv VARCHAR(40) NOT NULL DEFAULT '',
+			ngay VARCHAR(20) NOT NULL DEFAULT '',
+			gio VARCHAR(20) NOT NULL DEFAULT '',
+			ben VARCHAR(10) NOT NULL DEFAULT '',
+			anh LONGTEXT NULL,
+			luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			KEY nguoi (ma_nv,ngay),
+			KEY op (op_id)";
+
+		/* ===== 14. LỊCH CÔNG VIỆC + XIN ĐỔI LỊCH (LichCongViec, DoiLichCV) =================== */
+		$b['lich_cv'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			coso VARCHAR(120) NOT NULL DEFAULT '',
+			ma_nv VARCHAR(40) NOT NULL DEFAULT '',
+			ho_ten VARCHAR(190) NOT NULL DEFAULT '',
+			ngay DATE NOT NULL,
+			ca VARCHAR(60) NOT NULL DEFAULT '',
+			viec TEXT NULL,
+			nguoi_xep VARCHAR(190) NOT NULL DEFAULT '',
+			cap_nhat DATETIME NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY o (coso,ngay,ma_nv,ca),
+			KEY coso_ngay (coso,ngay)";
+
+		$b['doi_lich_cv'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			ma_yc VARCHAR(40) NOT NULL,
+			coso VARCHAR(120) NOT NULL DEFAULT '',
+			ma_nv VARCHAR(40) NOT NULL DEFAULT '',
+			ho_ten VARCHAR(190) NOT NULL DEFAULT '',
+			ngay DATE NULL,
+			ca VARCHAR(60) NOT NULL DEFAULT '',
+			viec_moi TEXT NULL,
+			doi_sang_ngay DATE NULL,
+			ly_do TEXT NULL,
+			trang_thai VARCHAR(30) NOT NULL DEFAULT '',
+			nguoi_xin VARCHAR(190) NOT NULL DEFAULT '',
+			nguoi_duyet VARCHAR(190) NOT NULL DEFAULT '',
+			luc_xin DATETIME NULL,
+			luc_duyet DATETIME NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY ma_yc (ma_yc),
+			KEY tra (coso,trang_thai)";
+
+		/* ===== 15. YÊU CẦU NHÂN VIÊN (sheet YeuCauNV) ======================================== */
+		$b['yeu_cau_nv'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			ma_yc VARCHAR(40) NOT NULL,
+			loai VARCHAR(60) NOT NULL DEFAULT '',
+			ma_nv VARCHAR(40) NOT NULL DEFAULT '',
+			ho_ten VARCHAR(190) NOT NULL DEFAULT '',
+			coso VARCHAR(120) NOT NULL DEFAULT '',
+			noi_dung LONGTEXT NULL,
+			trang_thai VARCHAR(30) NOT NULL DEFAULT '',
+			nguoi_xin VARCHAR(190) NOT NULL DEFAULT '',
+			nguoi_duyet VARCHAR(190) NOT NULL DEFAULT '',
+			luc_xin DATETIME NULL,
+			luc_duyet DATETIME NULL,
+			ghi_chu TEXT NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY ma_yc (ma_yc),
+			KEY tra (coso,trang_thai)";
+
+		/* ===== 16. SỐ NGÀY CÔNG CHUẨN CỦA THÁNG (sheet VP_NgayCong) =========================
+		   Mẫu số quy lương tháng ra tiền một công: `round(lcb * tong_cong / ngay_cong)`.
+		   ⚠️ KHÔNG có mặc định, KHÔNG mượn số của tháng khác. Chưa khai thì bảng hiện "—" và báo
+		      thiếu. Đoán mẫu số là sai tiền của MỌI người cùng lúc, mà bảng vẫn có số nên chẳng
+		      ai nghi — nên cột này để NULL được là CỐ Ý, `0`/`DEFAULT 26` là bẫy. */
+		$b['vp_ngay_cong'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			coso VARCHAR(120) NOT NULL,
+			thang CHAR(7) NOT NULL,
+			ngay_cong DECIMAL(5,2) NULL,
+			nguoi_khai VARCHAR(190) NOT NULL DEFAULT '',
+			cap_nhat DATETIME NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY o (coso,thang)";
+
+		/* ===== 17. CÀI ĐẶT (sheet CaiDat + Script Properties) ===============================
+		   Gộp cả hai vào một bảng khoá-giá trị. Bên Apps Script chúng nằm hai chỗ vì Script
+		   Property không hiện ra cho anh Thắng sửa, còn sheet CaiDat thì hiện — ở WordPress cả
+		   hai đều sửa được trong trang quản trị nên không cần chia.
+		   Đây là nơi ở của: MTD_DON_GIA, MTD_NGAY_LE, MTD_CO_SO_THEO_GIO, VP_CONG_CFG,
+		   LUONG_DS_CO_SO, WAGE_MAP. `gia_tri` là JSON.
+		   ⚠️ Bí mật (khoá Firebase, mật khẩu máy) KHÔNG vào đây — vào wp-config.php. Bảng này
+		      đọc được từ app; wp-config thì không. */
+		$b['cai_dat'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			khoa VARCHAR(120) NOT NULL,
+			gia_tri LONGTEXT NULL,
+			cap_nhat DATETIME NULL,
+			nguoi_sua VARCHAR(190) NOT NULL DEFAULT '',
+			PRIMARY KEY  (id),
+			UNIQUE KEY khoa (khoa)";
+
+		/* ===== 18. NHẬT KÝ TRA PIN (sheet NhatKyTraPin) =====================================
+		   Ghi CCCD đã CHE và KHÔNG BAO GIỜ ghi PIN. Nhật ký là chỗ rò rỉ dễ nhất: người xem được
+		   nhật ký thường nhiều hơn người được xem PIN. */
+		/* ===== 18b. NHẬT KÝ SỬA HỒ SƠ TỪ CỬA HÀNG ==========================================
+		   Anh Thắng 31/08/2026 mở cho cửa hàng trưởng sửa thông tin liên lạc và cấp PIN cho
+		   người của cơ sở mình, và chốt rằng người làm HAI nơi thì CẢ HAI cửa hàng sửa được.
+
+		   🔴 HAI NƠI CÙNG SỬA ĐƯỢC THÌ PHẢI CÓ SỔ. Không có sổ, đến lúc một số điện thoại sai
+		      thì không ai biết ai gõ, gõ lúc nào, gõ từ cửa hàng nào — và câu trả lời duy nhất
+		      còn lại là "chắc bên kia sửa", tức là không có câu trả lời nào.
+
+		   ⚠️ CỘT `cu` VÀ `moi` KHÔNG BAO GIỜ CHỨA PIN. Đổi PIN chỉ ghi đúng chữ "đã đổi" — sổ
+		      này người trong công ty đọc được, mà PIN là thứ đọc một lần là dùng được mãi. */
+		$b['nhat_ky_ho_so'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			luc DATETIME NOT NULL,
+			ma_nv VARCHAR(40) NOT NULL DEFAULT '',
+			ai VARCHAR(190) NOT NULL DEFAULT '',
+			tu_coso VARCHAR(120) NOT NULL DEFAULT '',
+			o VARCHAR(40) NOT NULL DEFAULT '',
+			cu VARCHAR(255) NOT NULL DEFAULT '',
+			moi VARCHAR(255) NOT NULL DEFAULT '',
+			PRIMARY KEY  (id),
+			KEY nguoi (ma_nv,luc),
+			KEY luc (luc)";
+
+		$b['nhat_ky_tra_pin'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			luc DATETIME NOT NULL,
+			cccd_che VARCHAR(40) NOT NULL DEFAULT '',
+			ket_qua VARCHAR(30) NOT NULL DEFAULT '',
+			ma_nv VARCHAR(40) NOT NULL DEFAULT '',
+			ghi_chu VARCHAR(255) NOT NULL DEFAULT '',
+			PRIMARY KEY  (id),
+			KEY luc (luc)";
+
+		/* ===== 19. ĐẾM NHỊP ĐỘ CHỐNG DÒ (thay CacheService) =================================
+		   Bên Apps Script ba bộ đếm này sống trong CacheService: PIN sai (PIN_DO_NGUONG=8 lần /
+		   10 phút, phạt tới 8 giây), đổi PIN đụng mã người khác (5 lần / 10 phút), tra PIN theo
+		   CCCD (5 lần mỗi số + 30 lần toàn hệ thống / 10 phút).
+		   ⚠️ CỐ Ý là BẢNG chứ không phải transient. Transient nằm trên object cache — cache bị
+		      xoá hoặc đầy là bộ đếm về 0, tức hình phạt tự bỏ đúng lúc kẻ dò đang dò. Đếm cho
+		      bảo mật thì phải nằm chỗ không ai xoá hộ.
+		   Chỉ đếm LẦN TRƯỢT; đăng nhập đúng KHÔNG xoá bộ đếm (đúng như Code.gs) — nếu không thì
+		   kẻ dò chỉ cần một PIN đúng bất kỳ là xoá sạch tiền sử. */
+		$b['nhip_do'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			khoa VARCHAR(190) NOT NULL,
+			so_lan INT NOT NULL DEFAULT 0,
+			cua_so_tu DATETIME NOT NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY khoa (khoa),
+			KEY cua_so_tu (cua_so_tu)";
+
+		/* ===== THUÊ BAO THÔNG BÁO ĐẨY ====================================================
+		   Khoá theo `bam` = SHA-256 của endpoint, KHÔNG theo chính endpoint. Endpoint của
+		   Apple dài 300+ ký tự, mà `UNIQUE KEY` trên cột utf8mb4 chỉ dùng được 191 ký tự đầu —
+		   hai máy khác nhau có thể trùng 191 ký tự đầu và một cái sẽ ghi đè cái kia.
+
+		   `khoa_hop` là chìa của HỘP TIN, không phải thẻ phiên: worker không đọc được
+		   localStorage nên cần một chìa riêng cất ở IndexedDB. Xem class-vhcc-push.php. */
+		$b['push'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			ma_nv VARCHAR(40) NOT NULL DEFAULT '',
+			bam CHAR(64) NOT NULL,
+			endpoint VARCHAR(500) NOT NULL DEFAULT '',
+			p256dh VARCHAR(190) NOT NULL DEFAULT '',
+			auth VARCHAR(190) NOT NULL DEFAULT '',
+			khoa_hop CHAR(64) NOT NULL,
+			thiet_bi VARCHAR(190) NOT NULL DEFAULT '',
+			hong_lan TINYINT NOT NULL DEFAULT 0,
+			tao_luc DATETIME NULL,
+			lan_cuoi DATETIME NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY bam (bam),
+			UNIQUE KEY khoa_hop (khoa_hop),
+			KEY ma_nv (ma_nv)";
+
+		/* ===== TIN CHỜ CHO THÔNG BÁO ĐẨY =================================================
+		   Máy chủ đẩy một tiếng gõ cửa RỖNG; worker nghe thấy thì tới đây lấy nội dung. Nên
+		   bảng này là hộp thư tạm, không phải nhật ký: `hop()` lấy xong là xoá. Muốn xem lịch
+		   sử thông báo thì đọc `nhat_ky_ho_so`, không phải bảng này. */
+		$b['push_tin'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			ma_nv VARCHAR(40) NOT NULL DEFAULT '',
+			tieu_de VARCHAR(190) NOT NULL DEFAULT '',
+			than VARCHAR(500) NOT NULL DEFAULT '',
+			duong_dan VARCHAR(190) NOT NULL DEFAULT '',
+			tao_luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			KEY ma_nv_luc (ma_nv,tao_luc)";
+
+		/* ===== 24. ĐƠN XIN ĐẶT / ĐỔI LOẠI GIỜ LƯƠNG ========================================
+		   Anh Thắng 18/09/2026: *"Nhân viên sẽ thấy giờ làm mình trong ngày hoặc ngày trước và
+		   tự bấm set loại giờ làm trong những ngày đó và gửi cửa hàng trưởng duyệt"*.
+
+		   🔴 VÌ SAO KHÔNG GHI THẲNG VÀO `cham_cong.loai_gio`.
+		   Loại giờ là thứ QUYẾT ĐỊNH ĐƠN GIÁ — đổi một chữ ở đây là đổi tiền của chính người
+		   gõ. Lúc KẾT CA thì ghi thẳng được: họ đang khai việc mình vừa làm xong, cửa hàng
+		   trưởng còn ở đó, và giờ ra vừa mới ghi nên không ai sửa ngược được quá khứ. Còn sửa
+		   NGÀY CŨ thì phải qua người duyệt — không thì cuối tháng ai cũng đổi hết ca của mình
+		   sang việc có đơn giá cao nhất, và bảng lương vẫn trông bình thường.
+
+		   ⚠️ Giữ `viec_cu` để còn đối chiếu. Duyệt xong mà không biết trước đó là gì thì không
+		      lần ngược được lượt nào đã đổi. */
+		$b['don_loai_gio'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			coso VARCHAR(120) NOT NULL,
+			ngay DATE NOT NULL,
+			ma_nv VARCHAR(40) NOT NULL,
+			hau_to VARCHAR(4) NOT NULL DEFAULT '',
+			ho_ten VARCHAR(190) NOT NULL DEFAULT '',
+			viec_cu VARCHAR(80) NOT NULL DEFAULT '',
+			viec VARCHAR(80) NOT NULL DEFAULT '',
+			ly_do VARCHAR(255) NOT NULL DEFAULT '',
+			trang_thai VARCHAR(20) NOT NULL DEFAULT 'cho',
+			gui_luc DATETIME NULL,
+			ma_nv_duyet VARCHAR(40) NOT NULL DEFAULT '',
+			ten_duyet VARCHAR(190) NOT NULL DEFAULT '',
+			duyet_luc DATETIME NULL,
+			ly_do_choi VARCHAR(255) NOT NULL DEFAULT '',
+			PRIMARY KEY  (id),
+			KEY cho (coso,trang_thai),
+			KEY nguoi (ma_nv,ngay)";
+
+		return $b;
+	}
+
+	public static function rows( $sql ) {
+		global $wpdb;
+		$r = $wpdb->get_results( $sql, ARRAY_A );
+		return is_array( $r ) ? $r : array();
+	}
+}

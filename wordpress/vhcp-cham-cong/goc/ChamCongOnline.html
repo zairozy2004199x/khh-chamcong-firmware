@@ -1,0 +1,731 @@
+<!--
+  ============================================================================
+   TRANG CHẤM CÔNG NHẸ  —  mở bằng  <link /exec>?cc=1          (06/08/2026)
+  ============================================================================
+   Anh Thắng: *"nhiều điện thoại yếu không vào được"*. Trang đầy đủ (`Index.html`) nặng ~484 KB
+   cho một người chỉ cần chụp ảnh rồi bấm Lưu. Trang này chỉ có đúng phần chấm công.
+
+   🔴 BỐN ĐIỀU KHÔNG ĐƯỢC LÀM KHÁC TRANG ĐẦY ĐỦ — làm khác là sai giờ công, sai tiền:
+     1. Đóng dấu lên ảnh bằng GIỜ MÁY CHỦ (`getGioMayChu`), KHÔNG dùng giờ điện thoại. Dùng giờ
+        máy là chỉnh đồng hồ điện thoại xong chấm công gian được, mà ảnh vẫn trông thật.
+     2. Ảnh phải THU NHỎ về 720px trước khi gửi. Ảnh gốc điện thoại 3–6 MB, base64 phình thêm 1/3
+        -> gửi qua `google.script.run` rất chậm hoặc rớt giữa chừng. Đúng trang nhẹ càng phải giữ.
+     3. Làm ≥2 cơ sở / kiêm ≥2 nhiệm vụ thì HỎI ĐÚNG LÚC LƯU, nút ghi rõ bấm vào là CHECK-IN hay
+        CHECK-OUT. Bỏ bước hỏi là giờ công chảy vào cửa hàng khác.
+     4. Bấm xong phải KHOÁ NÚT. Bấm hai lần là hai lượt chấm công.
+
+   🔴 KHÔNG có đường ghi riêng. Vẫn gọi đúng `chamCongOnline` mà trang đầy đủ gọi, và máy chủ vẫn
+      đối chiếu lại cơ sở + nhiệm vụ. Dựng đường ghi thứ hai là hai bộ luật, sớm muộn lệch nhau.
+
+   🔴 Dùng CHUNG khoá phiên `cc_session` với trang đầy đủ -> đã đăng nhập bên kia thì sang đây
+      không phải nhập PIN lại, và Đăng xuất ở một bên là mất phiên cả hai. Đổi khoá này là anh
+      Thắng phải đăng nhập hai lần mà không hiểu vì sao.
+
+   ⚠️ Giữ trang NHẸ: không CDN, không font ngoài, không thư viện. Thêm gì vào đây thì tự hỏi
+      "người chỉ đi chấm công có cần không?" — không cần thì để bên trang đầy đủ.
+
+   🔴 07/08/2026 — BẢN ĐẦU TRẮNG TRANG TRÊN ĐIỆN THOẠI (máy tính vẫn mở được). Bốn lỗi cùng lúc,
+      và bộ kiểm KHÔNG bắt được vì nó tự bọc thêm `<html><head><body>` quanh file — tức là kiểm
+      một tài liệu mà máy chủ thật không bao giờ dựng. Đã sửa bộ kiểm để nạp file NGUYÊN TRẠNG.
+        1. Thiếu `<!DOCTYPE html>` + `<html>/<head>/<body>` -> điện thoại vào chế độ quirks.
+        2. Thiếu `<base target="_top">` — web app Apps Script chạy trong IFRAME của Google;
+           `Index.html` có thẻ này từ đầu, trang này quên.
+        3. Nhúng SSO bằng scriptlet bản ESCAPE HTML thay vì bản IN THẲNG (bản in thẳng có thêm
+           dấu chấm than): tên có dấu nháy biến thành `&quot;` -> vỡ cú pháp JS -> script chết.
+        5. Và chính chú thích này lúc đầu có viết nguyên văn dấu mở scriptlet — Apps Script coi
+           `< ?` là scriptlet Ở BẤT KỲ ĐÂU trong file, kể cả trong chú thích HTML lẫn chú thích JS.
+           Nên trong file này TUYỆT ĐỐI chỉ được có ĐÚNG MỘT dấu mở scriptlet: dòng nhúng SSO.
+        4. Nguy hiểm nhất: MỌI khối đều `display:none`, chỉ JS mới bật lên. Nên bất kỳ lỗi JS nào
+           cũng ra TRẮNG TRANG hoàn toàn, không một chữ nào để lần ra nguyên nhân.
+           Nay ô đăng nhập HIỆN SẴN trong HTML, JS chỉ việc ẨN đi khi đã có phiên — hỏng JS thì
+           cùng lắm là thấy ô nhập PIN, không bao giờ trắng trang nữa.
+-->
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Chấm công</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;overflow-x:hidden}
+  /* iPhone có tai thỏ / vạch home: không chừa lề an toàn thì nút cuối trang nằm DƯỚI vạch,
+     bấm vào là vuốt thoát app chứ không trúng nút. `viewport-fit=cover` ở thẻ meta mới bật
+     được mấy biến env() này. */
+  body{padding:env(safe-area-inset-top) env(safe-area-inset-right)
+              calc(env(safe-area-inset-bottom) + 8px) env(safe-area-inset-left)}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+       background:#f1f5f9;color:#0f172a;font-size:16px;line-height:1.45}
+  /* Máy nhỏ (iPhone SE ~320px) thì 14px lề mỗi bên ăn mất gần 1/10 màn hình -> bóp lại. */
+  .wrap{max-width:520px;margin:0 auto;padding:14px}
+  @media (max-width:360px){ .wrap{padding:10px} .card{padding:13px} }
+  .card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:16px;margin-bottom:12px}
+  h1{font-size:19px;margin:0 0 2px}
+  .sub{font-size:13px;color:#64748b}
+  .hint{font-size:13px;color:#64748b}
+  /* Nút cao 52px: ngón tay bấm trúng ngay lần đầu, không phải nhắm. */
+  button{font-family:inherit;font-size:17px;font-weight:700;border-radius:12px;border:0;
+         padding:15px 16px;width:100%;min-height:52px;cursor:pointer;background:#2563eb;color:#fff}
+  button:disabled{opacity:.55}
+  .ghost{background:#fff;color:#334155;border:1px solid #cbd5e1;font-weight:600}
+  input{font-family:inherit;font-size:17px;width:100%;padding:14px;border:1px solid #cbd5e1;
+        border-radius:12px;background:#fff;color:#0f172a}
+  .box{padding:11px 13px;border-radius:11px;font-size:14px;margin-top:10px}
+  .ok{background:#dcfce7;border:1px solid #86efac;color:#166534;font-weight:600}
+  .er{background:#fee2e2;border:1px solid #fecaca;color:#b91c1c}
+  .wa{background:#fffbeb;border:1px solid #fcd34d;color:#92400e}
+  /* 🔴 GIỚI HẠN CHIỀU CAO ẢNH XEM TRƯỚC. Ảnh chụp dọc bằng điện thoại cao gấp ~1.8 lần bề ngang,
+     để nguyên là nó chiếm trọn màn hình và ĐẨY NÚT "Lưu chấm công" XUỐNG DƯỚI TẦM NHÌN — người ta
+     chụp xong tưởng đã xong, không cuộn xuống, thế là MẤT LƯỢT CHẤM CÔNG. `object-fit:contain`
+     để ảnh không bị méo, nền tối cho phần thừa khỏi chói. */
+  #ccAnh{width:100%;max-height:38vh;object-fit:contain;background:#0f172a;
+         border-radius:12px;display:none}
+  #ccTrong{background:#f8fafc;border:2px dashed #cbd5e1;border-radius:12px;padding:34px 12px;
+           text-align:center;color:#94a3b8;font-size:14px}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{padding:7px 6px;border-bottom:1px solid #e2e8f0;text-align:left}
+  th{font-size:12px;color:#64748b;font-weight:600}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div id="ccLoiTo" class="box er" style="display:none"></div>
+  <!-- 🔴 HIỆN SẴN, không `display:none`. Đây là lưới an toàn: JS chết vì bất cứ lý do gì thì người
+       dùng vẫn thấy ô nhập PIN chứ không phải trang trắng. -->
+  <div id="ccLogin" class="card">
+    <h1>&#128274; Chấm công</h1>
+    <div class="sub" style="margin-bottom:12px">Nhập mã PIN của bạn</div>
+    <input type="password" id="ccPin" inputmode="numeric" placeholder="••••••" maxlength="12"
+           onkeydown="if(event.key==='Enter')ccDangNhap()">
+    <button style="margin-top:10px" onclick="ccDangNhap()">Đăng nhập</button>
+    <div id="ccLoginErr" class="box er" style="display:none"></div>
+
+    <!-- ====== QUÊN MÃ PIN — tra bằng CĂN CƯỚC (07/08/2026) ==============================
+         Anh Thắng: *"bổ sung thêm tìm mã pin theo Căn cước công dân. Nhân viên chỉ cần gõ căn
+         cước công dân là hiện mã pin lên"*.
+         🔴 Trang này CÔNG KHAI. Máy chủ đã chặn dò (5 lượt/số/10 phút, ngưỡng chung cho lượt
+            hỏng) và ghi nhật ký từng lượt — xem khối cảnh báo ở `traPinTheoCccd` trong `Mã.js`.
+            Giao diện KHÔNG được nới thêm gì: không gợi ý, không tự tra khi đang gõ.
+         🔴 Tiền tố `qp…` cho mọi id/hàm ở đây. -->
+    <div style="margin-top:12px;text-align:center">
+      <a href="javascript:void(0)" id="qpMo" onclick="qpBat()"
+         style="font-size:13px;color:#2563eb">Quên mã PIN? Tra bằng số căn cước</a>
+    </div>
+    <div id="qpKhoi" style="display:none;margin-top:10px;padding:11px;border:1px solid #bfdbfe;
+         border-radius:10px;background:#eff6ff;text-align:left">
+      <div style="font-size:13px;font-weight:700;color:#1d4ed8;margin-bottom:6px">
+        &#128269; Lấy lại mã PIN</div>
+      <input type="text" id="qpSo" inputmode="numeric" maxlength="14" placeholder="Số căn cước (12 số)"
+             onkeydown="if(event.key==='Enter')qpTra()">
+      <button style="margin-top:8px" onclick="qpTra()">Tra mã PIN</button>
+      <div id="qpKq" style="margin-top:8px"></div>
+      <div class="hint" style="margin-top:6px">Gõ đúng đủ 12 số. Tra sai nhiều lần sẽ bị tạm khoá —
+        lúc đó nhờ quản lý cửa hàng lấy giúp.</div>
+    </div>
+  </div>
+
+  <!-- ====== NHÂN VIÊN TỰ GỬI THÔNG TIN VÀO MÁY CHẤM CÔNG (07/08/2026) ====================
+       Anh Thắng: *"thêm chỗ bổ sung thông tin nhân viên vào máy chấm công: Họ và Tên,
+       Số Căn Cước Công Dân, Chọn Cơ Sở Làm Việc, (Chụp Ảnh 3*4) chụp bằng camera điện thoại
+       (có 1 bức ảnh mẫu để nhân viên biết cách chụp)"*.
+       🔴 Gửi xong KHÔNG có gì xuống máy ngay — nó vào hàng CHỜ, quản lý gán mã rồi duyệt.
+          Nói rõ chuyện đó trên màn hình, không thì người ta gửi xong đứng đợi trước máy.
+       🔴 Tiền tố `dk…`. -->
+  <div class="card" id="dkKhoi">
+    <button class="ghost" id="dkMo" onclick="dkBat()">&#10133; Chưa có trên máy chấm công? Gửi thông tin</button>
+    <div id="dkForm" style="display:none;margin-top:12px;text-align:left">
+      <label class="hint" for="dkTen">Họ và tên (đầy đủ, có dấu)</label>
+      <input type="text" id="dkTen" placeholder="NGUYỄN VĂN A" maxlength="60">
+      <label class="hint" for="dkSo" style="margin-top:8px;display:block">Số căn cước công dân</label>
+      <input type="text" id="dkSo" inputmode="numeric" maxlength="14" placeholder="12 số">
+      <label class="hint" for="dkCs" style="margin-top:8px;display:block">Cơ sở làm việc</label>
+      <select id="dkCs"><option value="">— Đang tải danh sách —</option></select>
+
+      <div style="margin-top:12px;padding:10px;border:1px dashed #cbd5e1;border-radius:10px;background:#f8fafc">
+        <div style="font-size:13px;font-weight:700;margin-bottom:6px">&#128247; Ảnh 3×4 — chụp như mẫu</div>
+        <!-- Ảnh mẫu vẽ thẳng bằng SVG: trang này CỐ Ý không tải gì từ mạng ngoài (đó là lý do nó
+             nhẹ và mở được ở chỗ sóng yếu). Nhúng ảnh thật dạng base64 thì phình file. -->
+        <div style="display:flex;gap:10px;align-items:flex-start">
+          <!-- Ảnh THẬT anh gắn (Admin dán link Drive trong app quản trị). Chưa gắn thì ô này ẩn và
+               hình vẽ SVG bên dưới hiện thay — không bao giờ để trống chỗ này. -->
+          <img id="dkMau" alt="Ảnh mẫu 3×4" style="display:none;width:86px;height:112px;object-fit:cover;
+               flex:none;border-radius:6px;border:1px solid #cbd5e1">
+          <svg id="dkMauVe" width="86" height="112" viewBox="0 0 86 112" style="flex:none;border-radius:6px;border:1px solid #cbd5e1;background:#eef2ff">
+            <rect x="0" y="0" width="86" height="112" fill="#eef2ff"/>
+            <circle cx="43" cy="42" r="21" fill="#94a3b8"/>
+            <path d="M12 112c0-19 14-31 31-31s31 12 31 31z" fill="#94a3b8"/>
+            <line x1="43" y1="4" x2="43" y2="108" stroke="#c7d2fe" stroke-width="1" stroke-dasharray="3 3"/>
+          </svg>
+          <ul style="margin:0;padding-left:16px;font-size:12.5px;color:#475569;line-height:1.55">
+            <li>Chụp <b>thẳng mặt</b>, không nghiêng, không đeo kính râm / khẩu trang / mũ</li>
+            <li>Lấy từ <b>đầu tới vai</b>, mặt nằm giữa khung</li>
+            <li>Nền <b>sáng và trơn</b> (tường trắng), đủ sáng, không ngược sáng</li>
+            <li>Ảnh rõ nét — máy chấm công dùng ảnh này để nhận diện khuôn mặt</li>
+          </ul>
+        </div>
+        <input type="file" id="dkFile" accept="image/*" capture="user" style="display:none" onchange="dkNhanFile(this)">
+        <canvas id="dkCanvas" style="display:none"></canvas>
+        <img id="dkAnh" alt="" style="display:none;max-width:150px;border-radius:8px;margin-top:8px">
+        <button class="ghost" style="margin-top:8px" onclick="el('dkFile').click()">&#128247; Chụp ảnh 3×4</button>
+      </div>
+
+      <button id="dkGui" style="margin-top:12px;background:#059669" onclick="dkGuiDi()">&#128228; Gửi cho quản lý</button>
+      <div id="dkKq" style="margin-top:8px"></div>
+      <div class="hint" style="margin-top:6px">Gửi xong <b>chưa chấm công được ngay</b>: quản lý phải
+        kiểm thông tin và cấp mã rồi mới đẩy anh/chị xuống máy chấm công.</div>
+    </div>
+  </div>
+
+  <!-- CHẤM CÔNG -->
+  <div id="ccApp" style="display:none">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+        <div>
+          <h1>&#128337; Chấm công</h1>
+          <div class="sub" id="ccTen">—</div>
+        </div>
+        <button class="ghost" id="ccRa" onclick="ccDangXuat()"
+                style="width:auto;min-height:0;padding:7px 12px;font-size:13px">Thoát</button>
+      </div>
+      <div id="ccInfo" class="box" style="background:#f8fafc;border:1px solid #e2e8f0">Đang tải…</div>
+      <div id="ccGps" class="hint" style="margin-top:8px">&#128205; —</div>
+    </div>
+
+    <!-- 🔴 HIỆN SẴN, không đợi máy chủ. Anh Thắng 07/08: *"cái nào lên trước được thì lên trước
+       xong cho nhân viên chụp check in trước, dữ liệu khác sau cũng được"*. Chụp ảnh là việc tốn
+       thời gian NHẤT (người ta phải giơ máy, canh mặt) nên phải mở được ngay; lượt gọi máy chủ
+       chạy song song và gần như luôn về trước lúc bấm xong. -->
+  <div class="card" id="ccKhung">
+      <input type="file" id="ccFile" accept="image/*" capture="user" style="display:none" onchange="ccNhanFile(this)">
+      <canvas id="ccCanvas" style="display:none"></canvas>
+      <div id="ccTrong">Chưa có ảnh — bấm <b>Chụp ảnh</b></div>
+      <img id="ccAnh" alt="">
+      <div id="ccHoi" style="display:none;margin-top:12px"></div>
+      <button id="ccChup" style="margin-top:12px" onclick="ccMoMayAnh()">&#128247; Chụp ảnh</button>
+      <button id="ccLuu" style="margin-top:10px;display:none;background:#059669" onclick="ccLuu()">&#128190; Lưu chấm công</button>
+      <button id="ccLai" class="ghost" style="margin-top:10px;display:none" onclick="ccChupLai()">Chụp lại</button>
+      <div id="ccKetQua"></div>
+    </div>
+
+    <!-- Lịch sử TẢI KHI BẤM, không tải sẵn: người chỉ đi chấm công không cần, mà tải sẵn là
+         thêm một lượt gọi máy chủ ngay lúc mở trang — đúng thứ trang này sinh ra để tránh. -->
+    <div class="card" id="ccSuCard">
+      <button class="ghost" id="ccSuNut" onclick="ccTaiSu()">&#128203; Xem công của tôi</button>
+      <div id="ccSu" style="margin-top:10px"></div>
+    </div>
+
+    <div class="hint" style="text-align:center;padding:4px 0 18px">
+      Bản nhẹ · <a id="ccDayDu" href="#">mở bản đầy đủ</a>
+    </div>
+  </div>
+</div>
+
+<script>
+/* 🔴 Phải là scriptlet bản IN THẲNG (có dấu chấm than). Bản escape biến dấu nháy trong tên thành
+   `&quot;` -> vỡ cú pháp JS -> trắng trang. `Index.html` dùng bản in thẳng từ đầu; trang này lúc
+   đầu viết nhầm.
+   ⚠️ ĐÂY LÀ DÒNG DUY NHẤT trong file được phép có dấu mở scriptlet. Viết nó ra trong chú thích
+      cũng bị Apps Script hiểu là scriptlet — `idcheck_cc` đếm và chặn. */
+var SSO = <?!= SSO_USER ?>;
+/* Lỗi JS bất ngờ thì NÓI RA, đừng để người dùng nhìn trang câm rồi gọi điện hỏi. */
+window.onerror = function(m){
+  try {
+    var b = document.getElementById('ccLoiTo');
+    if (b){ b.style.display = ''; b.textContent = 'Trang bị lỗi: ' + m + '. Thử tải lại, hoặc mở bản đầy đủ.'; }
+  } catch(e){}
+};
+var S = null;                                   // {pin, name}
+var CC = { maNV:'', coSo:'', ngay:'', dsCoSo:[], dsNhiemVu:[], anhB64:'', gps:null, gioMayChu:null,
+           /* coInfo = đã có maNV/coSo từ máy chủ chưa; imgCho = ảnh chụp xong đang ĐỢI thông tin
+              đó để đóng dấu. Hai cái này là cả cơ chế "chụp trước, dữ liệu sau". */
+           coInfo:false, imgCho:null };
+
+function el(id){ return document.getElementById(id); }
+function esc(s){ return String(s == null ? '' : s)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function hien(id, co){ var e = el(id); if (e) e.style.display = co ? '' : 'none'; }
+function bao(html, loai){
+  var k = el('ccKetQua');
+  k.innerHTML = html ? ('<div class="box ' + (loai || 'wa') + '">' + html + '</div>') : '';
+}
+
+/* ---------- Đăng nhập ---------- */
+window.onload = function(){
+  /* Link "bản đầy đủ" = đúng link đang mở, bỏ tham số cc. Ghi cứng một URL vào đây là sai ngay
+     lần đầu ai đó đổi deployment. */
+  try {
+    var u = new URL(location.href); u.searchParams.delete('cc');
+    var a = el('ccDayDu'); if (a) a.href = u.toString();
+  } catch(e){}
+
+  /* Ô đăng nhập HIỆN SẴN trong HTML; ở đây chỉ ẨN nó đi khi đã có phiên. Làm ngược lại (mặc định
+     ẩn rồi JS bật) là hỏng JS thành trắng trang — đúng lỗi anh Thắng gặp trên điện thoại. */
+  if (SSO && SSO.token){                        // vào từ trang tổng -> không hỏi PIN
+    S = { pin:SSO.token, name:SSO.name };
+    try { localStorage.removeItem('cc_session'); } catch(e){}
+    hien('ccLogin', false); hien('ccRa', false);
+    ccVao(); return;
+  }
+  var s = null; try { s = localStorage.getItem('cc_session'); } catch(e){}
+  /* ⚠️ `try` chỉ bọc ĐÚNG chỗ đọc phiên hỏng. Bọc rộng ra tới `ccVao()` là NUỐT LUÔN lỗi thật:
+     `window.onerror` không bắn, người dùng nhìn thẻ "Đang tải…" đứng im mãi mà không biết vì sao.
+     Phiên hỏng / thiếu PIN -> coi như chưa đăng nhập, để nguyên ô nhập PIN. */
+  var _s = null;
+  if (s){ try { _s = JSON.parse(s); } catch(e){ _s = null; } }
+  if (_s && _s.pin){ S = _s; hien('ccLogin', false); ccVao(); return; }
+  var p = el('ccPin'); if (p) { try { p.focus(); } catch(e){} }
+};
+function ccDangNhap(){
+  var pin = String(el('ccPin').value || '').trim();
+  if (!pin) return;
+  var e = el('ccLoginErr'); e.style.display = ''; e.className = 'box wa'; e.textContent = 'Đang kiểm tra…';
+  google.script.run.withSuccessHandler(function(u){
+    if (u && u.ok){
+      S = { pin:pin, name:u.name, maNV:u.maNV || '', role:u.role, isAdmin:u.isAdmin,
+            stations:u.stations || [] };
+      /* Lưu ĐÚNG khoá của trang đầy đủ -> đăng nhập một lần dùng được cả hai trang. */
+      try { localStorage.setItem('cc_session', JSON.stringify(S)); } catch(er){}
+      e.style.display = 'none';
+      hien('ccLogin', false);
+      ccVao();
+    } else { e.className = 'box er'; e.textContent = (u && u.error) || 'Sai PIN'; }
+  }).withFailureHandler(function(err){
+    e.className = 'box er'; e.textContent = 'Lỗi: ' + err.message;
+  }).loginByPin(pin);
+}
+/* Nút Thoát cố tình NHỎ (36px) — nó không phải việc chính, để to là dễ bấm nhầm. Bù lại phải
+   HỎI trước: bấm nhầm là phải gõ lại PIN, trên điện thoại yếu đúng lúc đang vội chấm công. */
+function ccDangXuat(){
+  if (!confirm('Thoát khỏi tài khoản? Lần sau phải nhập lại mã PIN.')) return;
+  try { localStorage.removeItem('cc_session'); } catch(e){}
+  S = null; location.reload();
+}
+
+/* ---------- Nạp thông tin chấm công ---------- */
+function ccVao(){
+  hien('ccApp', true);
+  /* 🔴 Xin GPS NGAY, song song với lượt gọi máy chủ. Bản trước đợi máy chủ trả lời xong mới xin —
+     hai việc NỐI TIẾP nhau, mà GPS có thể mất tới 12 giây. Chạy song song thì lúc người ta bấm
+     "Chụp ảnh" là toạ độ đã sẵn, không phải đứng đợi cái chấm nhấp nháy. */
+  ccLayGps();
+  /* Chào bằng TÊN. Máy chủ đã tra tên thật trong hồ sơ khi `PhanQuyen` thiếu tên hoặc lỡ ghi bằng
+     mã (xem `_pqTenHienThi`). Vẫn rỗng thì mới hiện mã, và nói rõ đó là mã. */
+  var t = el('ccTen');
+  if (S.name){ t.textContent = S.name; t.style.opacity = ''; }
+  else if (S.maNV){ t.textContent = S.maNV + ' · chưa có tên trong hồ sơ'; t.style.opacity = '.8'; }
+  else t.textContent = '';
+  google.script.run.withSuccessHandler(function(r){
+    if (!r || !r.bat){
+      el('ccInfo').className = 'box wa';
+      el('ccInfo').innerHTML = esc((r && r.ghiChu) || 'Tài khoản này chưa bật chấm công online.');
+      /* Chưa bật thì ẨN khối chụp — bày sẵn cho bấm rồi báo lỗi lúc lưu là bắt người ta chụp
+         một tấm vô ích. Kèm dọn ảnh đang chờ nếu họ đã kịp chụp. */
+      hien('ccKhung', false); hien('ccSuCard', false); CC.imgCho = null;
+      return;
+    }
+    CC.maNV = r.maNV; CC.coSo = r.coSo; CC.ngay = r.ngay; CC.hoTen = r.hoTen || '';
+    CC.dsCoSo = (r.dsCoSo && r.dsCoSo.length) ? r.dsCoSo : [{ coSo:r.coSo, vao:r.vao, ra:r.ra }];
+    /* ⚠️ Phải giữ `dsNhiemVu`. Trang đầy đủ từng quên đúng dòng này: máy chủ gửi mà client không
+       giữ -> lúc lưu thấy rỗng, không hỏi gì, người kiêm 2 việc chấm hết vào một ô. */
+    CC.dsNhiemVu = (r.dsNhiemVu && r.dsNhiemVu.length) ? r.dsNhiemVu : [];
+    ccVeInfo();
+    /* 🔴 Thông tin đã về -> nếu người ta CHỤP XONG TRƯỚC khi nó về thì bây giờ mới đóng dấu được.
+       Đóng dấu sớm bằng maNV/coSo rỗng là ra tấm ảnh ghi "NV  ·  " — bằng chứng chấm công mà
+       không biết của ai, ở đâu. Thà đợi một nhịp. */
+    CC.coInfo = true;
+    if (CC.imgCho){ var _i = CC.imgCho; CC.imgCho = null; bao(''); ccVeAnh(_i); }
+  }).withFailureHandler(function(e){
+    el('ccInfo').className = 'box er';
+    el('ccInfo').textContent = 'Không tải được: ' + e.message;
+    /* Ảnh đang chờ mà máy chủ hỏng -> nói thẳng, đừng để nó treo mãi ở "Đang lấy thông tin…". */
+    if (CC.imgCho){ CC.imgCho = null;
+      bao('Không lấy được thông tin chấm công nên chưa đóng dấu được ảnh. Kiểm tra mạng rồi <b>Chụp lại</b>.', 'er'); }
+  }).getChamCongOnlineInfo(S.pin);
+}
+/* 🔴 07/08/2026 — anh Thắng: *"thay vì hiện mã NV hãy hiện tên nhân viên"*.
+   Tên đứng trước và IN ĐẬM; mã NV lùi xuống chữ nhỏ mờ phía sau.
+   ⚠️ KHÔNG bỏ hẳn mã: ảnh chấm công đóng dấu bằng MÃ, và mọi lượt tra cứu về sau cũng theo mã —
+      lúc có tranh chấp mà màn hình không hề hiện mã thì không ai đối chiếu được với tấm ảnh.
+   ⚠️ Máy chủ không trả được tên (tài khoản chưa khai, hồ sơ chưa có) thì QUAY VỀ hiện mã như cũ,
+      đừng hiện một dòng trống trơn.
+   ⚠️ Tên hàm là `ccNhanTen`, KHÔNG đặt trùng với id của ô tên tài khoản ở đầu trang. Trình duyệt
+      bày mọi id thành biến toàn cục, nên đặt trùng là hàm đè lên phần tử — đúng loại lỗi "bấm
+      không thấy gì mà cũng không báo lỗi" trong CLAUDE.md.
+   ⚠️ Biến trong hàm này đặt tên `tenNv`, không phải `t`/`ten`: `idcheck.js` soi khai-trùng ở mức cả file
+      nên trùng `t` với hàm khác là nó báo đỏ, mà báo đỏ quen tay thì lần sau bỏ qua cái đỏ thật. */
+function ccNhanTen(){
+  var tenNv = String(CC.hoTen || '').trim();
+  if (!tenNv) return 'Mã NV <b>' + esc(CC.maNV) + '</b>';
+  return '<b>' + esc(tenNv) + '</b> <span style="opacity:.6;font-size:12px">(' + esc(CC.maNV) + ')</span>';
+}
+function ccVeInfo(){
+  var ds = CC.dsCoSo || [], i = el('ccInfo');
+  i.className = 'box'; i.style.background = '#f8fafc'; i.style.border = '1px solid #e2e8f0';
+  if (ds.length > 1){
+    i.innerHTML = ccNhanTen() + ' · làm <b>' + ds.length + '</b> cơ sở<br>'
+      + 'Hôm nay ' + esc(CC.ngay || '') + ':<br>'
+      + ds.map(function(x){ return '&nbsp;• <b>' + esc(x.coSo) + '</b>: vào <b>' + esc(x.vao || '—')
+               + '</b> · ra <b>' + esc(x.ra || '—') + '</b>'; }).join('<br>');
+    return;
+  }
+  var c = ds[0] || { coSo:CC.coSo, vao:'', ra:'' };
+  i.innerHTML = ccNhanTen() + ' · cơ sở <b>' + esc(c.coSo) + '</b><br>'
+    + 'Hôm nay ' + esc(CC.ngay || '') + ': vào <b>' + esc(c.vao || '—') + '</b> · ra <b>'
+    + esc(c.ra || '—') + '</b>';
+}
+
+/* ---------- GPS ---------- */
+function ccLayGps(){
+  var e = el('ccGps');
+  if (!navigator.geolocation){ CC.gps = null; e.innerHTML = '&#128205; Máy không hỗ trợ định vị'; return; }
+  e.textContent = '📍 Đang lấy vị trí…';
+  navigator.geolocation.getCurrentPosition(function(p){
+    CC.gps = { lat:p.coords.latitude, lng:p.coords.longitude, acc:p.coords.accuracy };
+    e.innerHTML = '&#128205; ' + CC.gps.lat.toFixed(5) + ', ' + CC.gps.lng.toFixed(5)
+                + ' <span style="opacity:.7">(±' + Math.round(CC.gps.acc) + 'm)</span>';
+  }, function(err){
+    /* Nói rõ VẪN chấm công được nhưng phiếu ghi "không GPS" — đừng để người dùng tưởng đã có. */
+    CC.gps = null;
+    e.innerHTML = '&#128205; <span style="color:#b45309">Chưa lấy được vị trí. Vẫn chấm công được, '
+                + 'phiếu sẽ ghi KHÔNG có GPS.</span>';
+  }, { enableHighAccuracy:true, timeout:12000, maximumAge:0 });
+}
+
+/* ---------- Chụp ảnh ---------- */
+function ccMoMayAnh(){
+  bao('');
+  /* Hỏi giờ MÁY CHỦ trước khi chụp — lát nữa đóng dấu bằng giờ này, không phải giờ điện thoại. */
+  google.script.run.withSuccessHandler(function(g){ CC.gioMayChu = (g && g.ok) ? g : null; })
+                   .withFailureHandler(function(){ CC.gioMayChu = null; })
+                   .getGioMayChu(S.pin);
+  ccLayGps();
+  el('ccFile').value = '';                    // chọn lại đúng ảnh cũ vẫn phải bắn sự kiện
+  el('ccFile').click();
+}
+function ccNhanFile(inp){
+  var f = inp.files && inp.files[0];
+  if (!f) return;
+  bao('Đang xử lý ảnh…', 'wa');
+  var fr = new FileReader();
+  fr.onerror = function(){ bao('Không đọc được ảnh vừa chụp.', 'er'); };
+  fr.onload = function(){
+    var img = new Image();
+    img.onerror = function(){ bao('File vừa chọn không phải ảnh.', 'er'); };
+    /* 🔴 KHÔNG `bao('')` ở đây. `ccVeAnh` có thể vừa đặt lời nhắn "đang đợi thông tin" (khi mạng
+       chậm), gọi `bao('')` ngay sau là XOÁ MẤT nó -> người dùng nhìn màn hình câm, tưởng treo.
+       Dọn lời nhắn là việc của chính `ccVeAnh` khi nó vẽ xong. Đây là lần thứ ba trong ngày vấp
+       đúng kiểu "báo xong rồi tự xoá" — dọn TRƯỚC, báo SAU. */
+    img.onload  = function(){ ccVeAnh(img); };
+    img.src = fr.result;
+  };
+  fr.readAsDataURL(f);
+}
+function ccVeAnh(img){
+  /* 🔴 CHƯA có thông tin thì GIỮ ẢNH LẠI, đừng đóng dấu. Đây là cái giá của việc cho chụp trước:
+     tấm ảnh là bằng chứng chấm công, đóng dấu thiếu mã NV / cơ sở thì nó vô giá trị mà nhìn vẫn
+     như thật. Gần như không ai chạm vào nhánh này (một lượt gọi máy chủ nhanh hơn thao tác chụp
+     nhiều lần), nhưng mạng 4G yếu thì có. */
+  if (!CC.coInfo){
+    CC.imgCho = img;
+    bao('Đã chụp xong. Đang lấy thông tin chấm công để đóng dấu…', 'wa');
+    return;
+  }
+  bao('');                                  // dọn "Đang xử lý ảnh…" / "Đang lấy thông tin…"
+  var c = el('ccCanvas');
+  var W = 720, H = Math.max(1, Math.round(img.height * (W / img.width)));
+  if (img.width < W){ W = img.width; H = img.height; }        // ảnh nhỏ sẵn thì đừng phóng to
+  c.width = W; c.height = H;
+  var x = c.getContext('2d');
+  x.drawImage(img, 0, 0, W, H);
+  var d1 = CC.gioMayChu ? CC.gioMayChu.hienThi : '(chưa lấy được giờ máy chủ)';
+  var d2 = 'NV ' + CC.maNV + ' · ' + CC.coSo
+         + (CC.gps ? ('  ·  ' + CC.gps.lat.toFixed(5) + ',' + CC.gps.lng.toFixed(5)) : '  ·  KHÔNG có GPS');
+  var cao = Math.max(46, Math.round(H * 0.09));
+  x.fillStyle = 'rgba(15,23,42,.72)'; x.fillRect(0, H - cao, W, cao);
+  x.fillStyle = '#fff';
+  x.font = 'bold ' + Math.round(cao * 0.38) + 'px sans-serif'; x.fillText(d1, 10, H - Math.round(cao * 0.52));
+  x.font = Math.round(cao * 0.29) + 'px sans-serif';           x.fillText(d2, 10, H - Math.round(cao * 0.16));
+  CC.anhB64 = c.toDataURL('image/jpeg', 0.72);
+  /* 🔴 PHẢI là 'block', KHÔNG được để rỗng. CSS có `#ccAnh{display:none}`; gán chuỗi rỗng là XOÁ
+     kiểu inline -> luật CSS thắng lại -> ảnh KHÔNG BAO GIỜ hiện. Lỗi này đã chạy trên live từ
+     06/08: chụp xong người dùng thấy nút Lưu nhưng không thấy ảnh, không biết mình chụp trúng
+     hay trượt mặt. Bộ kiểm cũ không bắt vì nó chưa hỏi ảnh có hiện không. */
+  var a = el('ccAnh'); a.src = CC.anhB64; a.style.display = 'block';
+  hien('ccTrong', false); hien('ccChup', false);
+  hien('ccLai', true);    hien('ccLuu', true);
+  /* Kéo nút Lưu vào tầm nhìn. Đã chặn chiều cao ảnh bằng CSS rồi, nhưng máy màn hình ngắn +
+     bàn phím ảo vẫn có thể che. Chụp xong mà không thấy nút Lưu là người ta tưởng xong việc. */
+  try { el('ccLuu').scrollIntoView({ block:'center', behavior:'smooth' }); } catch(e){}
+}
+function ccChupLai(){
+  CC.anhB64 = ''; CC.imgCho = null;      // bỏ cả ảnh đang đợi đóng dấu, không thì nó nhảy ra sau
+  hien('ccAnh', false); hien('ccTrong', true);
+  hien('ccChup', true); hien('ccLai', false); hien('ccLuu', false);
+  ccAnHoi(); bao(''); ccLayGps();
+}
+
+/* ---------- Hỏi cơ sở / nhiệm vụ ĐÚNG LÚC LƯU ---------- */
+function ccAnHoi(){ var h = el('ccHoi'); if (h){ h.style.display = 'none'; h.innerHTML = ''; } }
+/** Nút to, nói TRƯỚC hậu quả: cùng một cái bấm mà chỗ này là "vào", chỗ kia là "ra". */
+function ccNutChon(nhan, g, mau, attr, ham){
+  var noi = g.vao ? (g.ra ? 'Đã đủ vào/ra — bấm để GHI ĐÈ giờ ra'
+                          : 'Đã vào ' + g.vao + ' — bấm để CHECK-OUT')
+                  : 'Chưa chấm hôm nay — bấm để CHECK-IN';
+  var m = g.vao ? (g.ra ? '#94a3b8' : '#d97706') : mau;
+  return '<button ' + attr + ' onclick="' + ham + '(this)" class="ghost" style="margin-bottom:10px;'
+    + 'border:2px solid ' + m + ';text-align:left">'
+    + '<div style="font-size:18px;font-weight:800;color:#0f172a">' + esc(nhan) + '</div>'
+    + '<div style="font-size:13px;font-weight:700;color:' + m + ';margin-top:3px">' + esc(noi) + '</div>'
+    + '</button>';
+}
+function ccHienHoiCoSo(){
+  var h = el('ccHoi'); h.style.display = '';
+  h.innerHTML = '<div style="padding:12px;background:#ecfeff;border:2px solid #22d3ee;border-radius:12px">'
+    + '<div style="font-weight:800;color:#0e7490;margin-bottom:8px">Bạn đang ở cơ sở nào?</div>'
+    + (CC.dsCoSo || []).map(function(x){
+        return ccNutChon(x.coSo, x, '#059669', 'data-cs="' + esc(x.coSo) + '"', 'ccChonCoSo');
+      }).join('')
+    + '<button class="ghost" onclick="ccAnHoi()">Huỷ</button></div>';
+  try { h.scrollIntoView({ block:'center' }); } catch(e){}
+}
+function ccKhoaHoi(nut){
+  [].forEach.call(el('ccHoi').querySelectorAll('button'), function(b){ b.disabled = true; });
+  nut.style.background = '#f0fdfa';
+}
+function ccChonCoSo(nut){ ccKhoaHoi(nut); ccSauCoSo(nut.getAttribute('data-cs') || ''); }
+function ccSauCoSo(coSo){
+  var ds = CC.dsNhiemVu || [];
+  if (ds.length > 1){ ccHienHoiNhiemVu(coSo, ds); return; }
+  ccGui(coSo, ds[0] || '');
+}
+function ccHienHoiNhiemVu(coSo, dsNv){
+  /* Mỗi nhiệm vụ là một HÀNG riêng -> giờ vào/ra riêng. Lấy giờ của hàng khác là hứa sai vào/ra. */
+  var gioNv = {};
+  (CC.dsCoSo || []).forEach(function(x){ if (x.coSo === coSo) gioNv = x.gioNv || {}; });
+  var h = el('ccHoi'); h.style.display = '';
+  h.innerHTML = '<div style="padding:12px;background:#f5f3ff;border:2px solid #a78bfa;border-radius:12px">'
+    + '<div style="font-weight:800;color:#6d28d9;margin-bottom:2px">Hôm nay bạn làm việc gì?</div>'
+    + '<div class="hint" style="color:#6d28d9;margin-bottom:8px">Cơ sở <b>' + esc(coSo)
+    + '</b> · mỗi việc ghi vào một hàng riêng.</div>'
+    + dsNv.map(function(nv){
+        return ccNutChon(nv, gioNv[nv] || {}, '#7c3aed',
+                 'data-nv="' + esc(nv) + '" data-cs="' + esc(coSo) + '"', 'ccChonNhiemVu');
+      }).join('')
+    + '<button class="ghost" onclick="ccAnHoi()">Huỷ</button></div>';
+  try { h.scrollIntoView({ block:'center' }); } catch(e){}
+}
+function ccChonNhiemVu(nut){
+  ccKhoaHoi(nut);
+  ccGui(nut.getAttribute('data-cs') || '', nut.getAttribute('data-nv') || '');
+}
+
+/* ---------- Lưu ---------- */
+function ccLuu(){
+  if (!CC.anhB64){ bao('Chụp ảnh trước đã.', 'wa'); return; }
+  var ds = CC.dsCoSo || [];
+  if (ds.length > 1){ ccHienHoiCoSo(); return; }
+  ccSauCoSo((ds[0] && ds[0].coSo) || CC.coSo || '');
+}
+function ccGui(coSo, nhiemVu){
+  var b = el('ccLuu'); b.disabled = true; b.textContent = 'Đang lưu…';
+  google.script.run.withSuccessHandler(function(r){
+    b.disabled = false; b.innerHTML = '&#128190; Lưu chấm công';
+    ccAnHoi();
+    if (r && r.ok){
+      /* 🔴 DỌN TRƯỚC, BÁO SAU. `ccChupLai()` có gọi `bao('')`, nên báo xanh trước rồi mới dọn là
+         thông báo bị xoá ngay — nhân viên bấm Lưu xong KHÔNG THẤY GÌ, tưởng hỏng, bấm thêm lần
+         nữa. (Trang đầy đủ dính đúng lỗi này, đã sửa cùng đợt.) */
+      ccChupLai();
+      bao('✅ ' + esc(r.ghiChu), 'ok');
+      /* Nạp lại dòng "hôm nay: vào … ra …" — không nạp thì người ta bấm thêm lần nữa cho chắc. */
+      google.script.run.withSuccessHandler(function(x){
+        if (!x || !x.bat) return;
+        CC.dsCoSo = (x.dsCoSo && x.dsCoSo.length) ? x.dsCoSo : [{ coSo:x.coSo, vao:x.vao, ra:x.ra }];
+        CC.ngay = x.ngay; ccVeInfo();
+      }).getChamCongOnlineInfo(S.pin);
+    } else {
+      bao('❌ ' + esc((r && r.error) || 'Không lưu được'), 'er');
+    }
+  }).withFailureHandler(function(e){
+    b.disabled = false; b.innerHTML = '&#128190; Lưu chấm công';
+    ccAnHoi(); bao('❌ Lỗi: ' + esc(e.message), 'er');
+  }).chamCongOnline(S.pin, CC.anhB64, CC.gps, coSo || '', nhiemVu || '');
+}
+
+/* ---------- Công của tôi (chỉ tải khi bấm) ---------- */
+function ccTaiSu(){
+  var n = el('ccSuNut'), o = el('ccSu');
+  n.disabled = true; n.textContent = 'Đang tải…';
+  /* 40 dòng, không phải 200 như trang đầy đủ: đây là bản cho máy yếu, và người ta chỉ soi
+     mấy hôm gần nhất. Muốn xem cả tháng thì mở bản đầy đủ. */
+  google.script.run.withSuccessHandler(function(r){
+    n.style.display = 'none';
+    var rows = (r && r.rows) || [];
+    if (!rows.length){ o.innerHTML = '<div class="hint">Chưa có lượt chấm công nào.</div>'; return; }
+    var nhieu = ((r.dsCoSo || []).length > 1);
+    o.innerHTML = '<table><thead><tr><th>Ngày</th>' + (nhieu ? '<th>Cơ sở</th>' : '')
+      + '<th>Vào</th><th>Ra</th></tr></thead><tbody>'
+      + rows.map(function(x){
+          return '<tr><td>' + esc(x.ngay) + '</td>' + (nhieu ? ('<td>' + esc(x.coSo) + '</td>') : '')
+               + '<td>' + esc(x.vao || '—') + '</td><td>' + esc(x.ra || '—') + '</td></tr>';
+        }).join('')
+      + '</tbody></table>'
+      + (r.tong > rows.length
+          ? '<div class="hint" style="margin-top:6px">Hiện ' + rows.length + '/' + r.tong
+            + ' dòng gần nhất — xem đủ ở bản đầy đủ.</div>' : '');
+  }).withFailureHandler(function(e){
+    n.disabled = false; n.innerHTML = '&#128203; Xem công của tôi';
+    o.innerHTML = '<div class="box er">Không tải được: ' + esc(e.message) + '</div>';
+  }).getLichSuChamCongOnline(S.pin, 40);
+}
+/* ===== QUÊN MÃ PIN — tra bằng số căn cước (tiền tố `qp…`) =============================
+   🔴 KHÔNG tự tra khi đang gõ. Máy chủ chỉ cho 5 lượt/số/10 phút, mà gõ 12 số thì mỗi phím là
+      một lượt — tra theo phím là người dùng tự khoá mình ngay trước khi gõ xong. Chỉ tra khi
+      BẤM NÚT (hoặc Enter). */
+function qpBat(){
+  var k = el('qpKhoi'); if (!k) return;
+  var mo = (k.style.display === 'none');
+  k.style.display = mo ? '' : 'none';
+  if (mo) { var o = el('qpSo'); if (o) o.focus(); }
+}
+function qpTra(){
+  var o = el('qpSo'), kq = el('qpKq');
+  var so = String((o && o.value) || '').replace(/\D+/g, '');
+  if (!kq) return;
+  if (so.length < 9){ kq.innerHTML = '<div class="box er">Chưa đủ số — căn cước có 12 số.</div>'; return; }
+  kq.innerHTML = '<div class="box wa">Đang tra…</div>';
+  google.script.run.withSuccessHandler(function(r){
+    if (!r || !r.ok){
+      kq.innerHTML = '<div class="box er">' + qpEsc((r && r.error) || 'Không tra được.') + '</div>';
+      return;
+    }
+    /* Điền thẳng vào ô PIN để họ bấm Đăng nhập được ngay — nhưng VẪN hiện số ra, vì ô PIN là
+       type=password nên không nhìn thấy, mà người ta cần nhớ số này cho lần sau. */
+    var p = el('ccPin'); if (p) p.value = r.pin;
+    kq.innerHTML = '<div class="box ok">Mã PIN của <b>' + qpEsc(r.ten || '') + '</b> là '
+      + '<b style="font-size:19px;letter-spacing:2px">' + qpEsc(r.pin) + '</b>'
+      + '<div class="hint" style="margin-top:4px">Đã điền sẵn vào ô phía trên — bấm <b>Đăng nhập</b>. '
+      + 'Nhớ mã này cho lần sau.</div></div>';
+  }).withFailureHandler(function(e){
+    kq.innerHTML = '<div class="box er">Lỗi: ' + qpEsc(e.message) + '</div>';
+  }).traPinTheoCccd(so);
+}
+function qpEsc(t){
+  return String(t == null ? '' : t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* ===== NHÂN VIÊN TỰ GỬI THÔNG TIN VÀO MÁY CHẤM CÔNG (tiền tố `dk…`) ==================== */
+var DK = { anh:'', dangGui:false };
+function dkBat(){
+  var f = el('dkForm'); if (!f) return;
+  var mo = (f.style.display === 'none');
+  f.style.display = mo ? '' : 'none';
+  var n = el('dkMo'); if (n) n.textContent = mo ? '✕ Đóng' : '➕ Chưa có trên máy chấm công? Gửi thông tin';
+  if (mo) { dkNapCoSo(); dkNapAnhMau(); }
+}
+/* Ảnh mẫu 3×4 THẬT do anh gắn (Admin dán link Drive trong app quản trị).
+   🔴 Chỉ đổi giao diện KHI ĐÃ CÓ ảnh trong tay. Ẩn hình vẽ trước rồi mới đợi ảnh về là người
+      dùng nhìn thấy một ô trống — mà trang này hay mở ở chỗ sóng yếu, khoảng trống đó có thể
+      kéo dài vài giây. Máy chủ hỏng thì cứ để nguyên hình vẽ, không báo lỗi gì: đây là ảnh
+      minh hoạ, không phải thứ chặn người ta gửi thông tin.
+   ⚠️ Chỉ tải MỘT lần cho mỗi lượt mở trang — ảnh base64 khá nặng. */
+var DK_MAU_XONG = false;
+function dkNapAnhMau(){
+  if (DK_MAU_XONG) return;
+  DK_MAU_XONG = true;
+  google.script.run.withSuccessHandler(function(r){
+    if (!r || !r.ok || !r.anh) return;
+    var im = el('dkMau'), sv = el('dkMauVe');
+    if (!im) return;
+    im.onload = function(){ im.style.display = ''; if (sv) sv.style.display = 'none'; };
+    im.onerror = function(){ DK_MAU_XONG = false; };   // hỏng -> giữ hình vẽ, cho thử lại lượt sau
+    im.src = r.anh;
+  }).withFailureHandler(function(){ DK_MAU_XONG = false; }).getAnhMauThe();
+}
+/* Danh sách cơ sở lấy từ MÁY CHỦ, không cho gõ tay: gõ tay là sinh tên cơ sở lạ, rồi yêu cầu đó
+   treo mãi vì không khớp cửa hàng nào. Máy chủ cũng chặn lần nữa. */
+function dkNapCoSo(){
+  var o = el('dkCs'); if (!o || o.dataset.xong === '1') return;
+  google.script.run.withSuccessHandler(function(r){
+    var ds = (r && r.list) || [];
+    o.innerHTML = '<option value="">— Chọn cơ sở —</option>'
+      + ds.map(function(c){ return '<option value="' + qpEsc(c) + '">' + qpEsc(c) + '</option>'; }).join('');
+    o.dataset.xong = '1';
+  }).withFailureHandler(function(){
+    o.innerHTML = '<option value="">Không tải được danh sách — thử lại</option>';
+  }).dsCoSoChoNvGui();
+}
+function dkNhanFile(inp){
+  var f = inp.files && inp.files[0]; if (!f) return;
+  var kq = el('dkKq');
+  if (kq) kq.innerHTML = '<div class="box wa">Đang xử lý ảnh…</div>';
+  var fr = new FileReader();
+  fr.onerror = function(){ if (kq) kq.innerHTML = '<div class="box er">Không đọc được ảnh.</div>'; };
+  fr.onload = function(){
+    var img = new Image();
+    img.onerror = function(){ if (kq) kq.innerHTML = '<div class="box er">File vừa chọn không phải ảnh.</div>'; };
+    img.onload = function(){ dkVeAnh(img); };
+    img.src = fr.result;
+  };
+  fr.readAsDataURL(f);
+}
+/* Cắt GIỮA về đúng tỉ lệ 3×4 rồi thu về 480×640.
+   🔴 Không gửi nguyên ảnh máy điện thoại: ảnh 12MP là ~4MB base64, `google.script.run` nghẽn và
+      Drive đầy rất nhanh. 🔴 Cắt giữa chứ không bóp méo — bóp méo mặt thì máy nhận diện trượt. */
+function dkVeAnh(img){
+  var W = 480, H = 640, c = el('dkCanvas');
+  c.width = W; c.height = H;
+  var g = c.getContext('2d');
+  g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, H);
+  var ti = img.width / img.height, td = W / H, sx = 0, sy = 0, sw = img.width, sh = img.height;
+  if (ti > td) { sw = Math.round(img.height * td); sx = Math.round((img.width - sw) / 2); }
+  else         { sh = Math.round(img.width / td);  sy = Math.round((img.height - sh) / 2); }
+  g.drawImage(img, sx, sy, sw, sh, 0, 0, W, H);
+  DK.anh = c.toDataURL('image/jpeg', 0.85);
+  var a = el('dkAnh'); if (a) { a.src = DK.anh; a.style.display = ''; }
+  var kq = el('dkKq'); if (kq) kq.innerHTML = '';
+}
+function dkGuiDi(){
+  if (DK.dangGui) return;
+  var kq = el('dkKq');
+  var ten = String((el('dkTen') || {}).value || '').trim().replace(/\s+/g, ' ');
+  var so  = String((el('dkSo')  || {}).value || '').replace(/\D+/g, '');
+  var cs  = String((el('dkCs')  || {}).value || '').trim();
+  function loi(t){ if (kq) kq.innerHTML = '<div class="box er">' + qpEsc(t) + '</div>'; }
+  /* Kiểm ngay tại máy để khỏi tốn một lượt gọi — nhưng máy chủ vẫn kiểm lại y hệt, vì mọi thứ
+     gửi từ trình duyệt đều sửa được. */
+  if (ten.length < 3) return loi('Chưa ghi đầy đủ họ và tên.');
+  if (so.length < 9 || so.length > 12) return loi('Số căn cước phải đủ 12 số.');
+  if (!cs)  return loi('Chưa chọn cơ sở làm việc.');
+  if (!DK.anh) return loi('Chưa có ảnh 3×4 — bấm "Chụp ảnh 3×4".');
+
+  DK.dangGui = true;
+  var nut = el('dkGui'); if (nut) nut.disabled = true;
+  if (kq) kq.innerHTML = '<div class="box wa">Đang gửi…</div>';
+  google.script.run.withSuccessHandler(function(r){
+    DK.dangGui = false; if (nut) nut.disabled = false;
+    if (r && r.ok){
+      if (kq) kq.innerHTML = '<div class="box ok"><b>Đã gửi.</b> Quản lý sẽ kiểm thông tin rồi thêm '
+        + 'anh/chị vào máy chấm công. Chưa chấm công được ngay.</div>';
+      DK.anh = '';
+      var a = el('dkAnh'); if (a) a.style.display = 'none';
+      ['dkTen','dkSo'].forEach(function(id){ var o = el(id); if (o) o.value = ''; });
+    } else {
+      if (kq) kq.innerHTML = '<div class="box er">' + qpEsc((r && r.error) || 'Gửi không được.') + '</div>';
+      /* Đã có hồ sơ -> mở sẵn ô tra PIN, đừng bắt họ tự mò. */
+      if (r && r.daCoHoSo){
+        var k = el('qpKhoi'); if (k) k.style.display = '';
+        var o2 = el('qpSo'); if (o2) { o2.value = so; o2.focus(); }
+      }
+    }
+  }).withFailureHandler(function(e){
+    DK.dangGui = false; if (nut) nut.disabled = false;
+    if (kq) kq.innerHTML = '<div class="box er">Lỗi: ' + qpEsc(e.message) + '</div>';
+  }).guiThongTinNvOnline({ hoTen:ten, cccd:so, coSo:cs, photoDataUrl:DK.anh });
+}
+
+</script>
+</body>
+</html>

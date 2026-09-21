@@ -2,8 +2,8 @@
 /**
  * Plugin Name:       Nền tảng K&H
  * Plugin URI:        https://khh.vn/
- * Description:       Nền tảng quản trị nội bộ 15 ứng dụng: dự án & công việc, đề xuất, quy trình, hồ sơ nhân sự, chấm công, bảng công, nghỉ phép, bảng lương (bảo hiểm + thuế TNCN), thông báo, tri thức, họp, trò chuyện, bảng tin, đặt tài nguyên.
- * Version:           1.17.0
+ * Description:       Nền tảng quản trị nội bộ 16 ứng dụng: dự án & công việc, báo cáo dự án, đề xuất, quy trình, hồ sơ nhân sự, chấm công, bảng công, nghỉ phép, bảng lương (bảo hiểm + thuế TNCN), thông báo, tri thức, họp, trò chuyện, bảng tin, đặt tài nguyên.
+ * Version:           1.20.1
  * Requires at least: 5.8
  * Requires PHP:      7.2
  * Author:            K&H
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'KHH_VERSION', '1.17.0' );
+define( 'KHH_VERSION', '1.20.1' );
 define( 'KHH_FILE', __FILE__ );
 define( 'KHH_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KHH_URL', plugin_dir_url( __FILE__ ) );
@@ -35,11 +35,26 @@ require_once KHH_DIR . 'cap-tai-khoan.php';
 // Màn đăng nhập ngay trên nền tảng, không đá sang wp-login.php.
 require_once KHH_DIR . 'dang-nhap.php';
 
+// Nhân viên tự xem hồ sơ của mình và tự đổi mật khẩu (bật/tắt ở trang Cấu hình).
+require_once KHH_DIR . 'tai-khoan-cua-toi.php';
+
 /* Nhập chấm công từ cơ sở dữ liệu của phần mềm cũ chung máy chủ. */
 require_once KHH_DIR . 'nhap-cham-cong.php';
 
 /* Nối thẳng với plugin Chấm Công (K&H) cùng site, không cần khai. */
 require_once KHH_DIR . 'noi-vhcc.php';
+
+/* ───────────────────────────────────────────────────────────────────────────────────────────
+ * TỰ CẬP NHẬT TỪ GITHUB RELEASES (1.18.0).
+ *
+ * Cùng một lớp đang chạy ở Chấm Công / Chi Phí, chỉ khác tiền tố tag (`khh-platform-v…`) và ô
+ * nhớ. Khoá GitHub dùng CHUNG một Option với các plugin kia, nên khai một lần là cả nhà cùng
+ * thấy bản mới; chưa khai thì nó im lặng không làm gì.
+ *
+ * Và khai thêm một dòng vào bảng của trang khmatrix.com/it — xem `khai_ds()` trong lớp.
+ * ─────────────────────────────────────────────────────────────────────────────────────────── */
+require_once KHH_DIR . 'includes/class-khh-tu-cap-nhat.php';
+KHH_TuCapNhat::init();
 
 /** Các nhóm dữ liệu app dùng. Ngoài danh sách này thì từ chối. */
 function khh_collections() {
@@ -516,7 +531,7 @@ function khh_rest_delete( $request ) {
 
 function khh_scripts() {
 	return array(
-		'core', 'charts', 'home', 'wework', 'request', 'workflow', 'hrm',
+		'core', 'charts', 'home', 'wework', 'baocao', 'request', 'workflow', 'hrm',
 		'attendance', 'leave', 'payroll', 'info', 'message', 'square', 'booking',
 	);
 }
@@ -531,6 +546,14 @@ function khh_api_config() {
 		'title' => $user ? ( get_user_meta( $user->ID, 'khh_title', true ) ? get_user_meta( $user->ID, 'khh_title', true ) : ucfirst( implode( ', ', $user->roles ) ) ) : '',
 		'role'  => khh_user_role(),
 		'login' => $user ? $user->user_login : '',
+		/* Hồ sơ nhân sự gắn với tài khoản này. Có mã thì hộp "Tài khoản của bạn" mở đúng
+		   hồ sơ ngay cả khi tên hiển thị bị gõ lệch; không có thì giao diện dò theo tên. */
+		'staffId' => $user ? (string) get_user_meta( $user->ID, 'khh_staff_id', true ) : '',
+		/* Cấu hình "Tài khoản của nhân viên" — xem tai-khoan-cua-toi.php. */
+		'tuXem'   => khh_tk_cfg( 'self_profile' ) ? 1 : 0,
+		'xemLuong' => khh_tk_cfg( 'self_profile_pay' ) ? 1 : 0,
+		'tuDoiMk' => khh_tk_cfg( 'self_password' ) ? 1 : 0,
+		'mkMin'   => khh_tk_do_dai_min(),
 		/* Giới hạn tải tệp thật của hosting — giao diện lấy số này để báo trước,
 		   khỏi để người dùng chọn tệp xong mới biết là quá nặng. */
 		'maxUpload' => (int) wp_max_upload_size(),
@@ -926,6 +949,9 @@ function khh_settings() {
 		'pin_expires'      => 0,
 		'logo'             => '',
 	);
+	/* Phần "Tài khoản của nhân viên" giữ mặc định ở tai-khoan-cua-toi.php,
+	   để mọi khoá của nó nằm cùng một chỗ với đoạn mã dùng chúng. */
+	$d = array_merge( $d, khh_tk_mac_dinh() );
 	$s = get_option( 'khh_settings', array() );
 	return wp_parse_args( is_array( $s ) ? $s : array(), $d );
 }
@@ -1124,6 +1150,7 @@ function khh_save_settings() {
 	if ( ! in_array( $in['default_role'], array( 'owner', 'admin', 'manager', 'staff' ), true ) ) {
 		$in['default_role'] = 'staff';
 	}
+	$in = array_merge( $in, khh_tk_nhan_cau_hinh() );
 	/* Gộp vào bản đang có, KHÔNG ghi đè cả ô: mã PIN và các khoá khác nằm chung ô này,
 	   ghi đè thẳng là xoá sạch chúng mỗi lần ai đó bấm Lưu ở trang Cấu hình. */
 	$cu = get_option( 'khh_settings', array() );
@@ -1191,6 +1218,7 @@ function khh_settings_page() {
 					</select>
 					<p class="description">Chỉ dùng khi hồ sơ nhân sự không ghi vai trò.</p></td>
 				</tr>
+				<?php khh_tk_o_cau_hinh( $s ); ?>
 				<tr>
 					<th><label for="logo">Logo trên màn đăng nhập</label></th>
 					<td><input type="text" id="logo" name="logo" class="large-text"

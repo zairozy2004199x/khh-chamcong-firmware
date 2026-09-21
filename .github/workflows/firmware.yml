@@ -14,12 +14,25 @@
 #    trong (NVS); OTA không ghi đè NVS. Máy chưa qua bước đó mà nhận bản CI thì mất cấu hình.
 name: Build firmware ESP32
 
+# 🔴 22/08/2026 — CHẠY TRÊN MỌI NHÁNH, KHÔNG CHỈ main.
+#   Trước đây chỉ `branches: [main]`, nên một thay đổi firmware lớn nằm trên nhánh làm việc
+#   KHÔNG được compile lần nào cho tới khi gộp vào main. Đúng lúc cần nhất — bản gỡ Apps Script
+#   và Firebase động vào 30 chỗ trong .ino — thì lưới này lại không giăng.
+#   Nay: nhánh nào cũng BIÊN DỊCH; chỉ main mới PHÁT HÀNH. Xem `if:` ở ba bước cuối.
 on:
   push:
-    branches: [main]
     paths:
       - 'esp32_hik_chamcong_full/**'
       - 'esp32_ota_updater/**'
+      - 'esp32_ghe_massage/**'
+      - 'tools/test/fw/**'
+      - '.github/workflows/firmware.yml'
+  pull_request:
+    paths:
+      - 'esp32_hik_chamcong_full/**'
+      - 'esp32_ota_updater/**'
+      - 'esp32_ghe_massage/**'
+      - 'tools/test/fw/**'
       - '.github/workflows/firmware.yml'
   workflow_dispatch:
 
@@ -74,6 +87,26 @@ jobs:
           cp "$SKETCH/ci/User_Setup.h" "$LIB/User_Setup.h"
           echo "Da ap User_Setup.h cho $LIB"
 
+      - name: Soi cau truc .ino (ham bi cat mat / bi chu thich nuot)
+        run: python3 tools/test/fw/kiem-cau-truc.py
+
+      - name: Kiem ham kiem dang link (g++, khong can Arduino)
+        run: |
+          set -e
+          # Chay TRUOC buoc Compile (~3 phut): sai o hai o link thi biet trong vai giay.
+          # Tu khi may day CA HAI duong (Apps Script + WordPress) thi loi ton kem nhat la DAN LAN
+          # O — dan link /exec vao o WordPress thi khong luot nao toi MySQL ma log trong nhu xong.
+          bash tools/test/fw/kiem-link.sh
+
+      - name: Kiem than JSON luot cham cong + luat ten co so (g++)
+        run: |
+          set -e
+          # Chay TRUOC buoc Compile: day la chuoi ma TIEN LUONG di qua. Thieu escape o day thi
+          # cong trinh bien dich VAN dich duoc, .bin VAN nap duoc, nhip song VAN xanh — chi rieng
+          # nhung nhan vien co dau " hay \ trong ten la mat cong, im lang, khong dau vet. Khong
+          # co lop nao khac trong CI cham tới loi nay.
+          bash tools/test/fw/kiem-than-cham-cong.sh
+
       - name: Dat secrets.h PLACEHOLDER (co y - .bin phai sach bi mat)
         run: |
           set -e
@@ -114,7 +147,10 @@ jobs:
           [ "$PCT" -ge 90 ] && echo "::warning::.bin da dung $PCT% phan vung app - sap het cho."
           # Chan lo bi mat: neu .bin lot bat ky dau vet nao thi DUNG, khong phat hanh.
           fail=0
-          for pat in 'AKfycb' 'default-rtdb' 'khhcm-chamcong' 'firebaseio' 'databaseio'; do
+          # Ba mau dau la di san Apps Script/Firebase (da bo 22/08/2026) — GIU lai lam luoi:
+          # ai lo tay dan link cu vao secrets.h thi van bi chan. 'khmatrix' la ten mien that
+          # cua website, khong duoc nam trong ban .bin cong khai.
+          for pat in 'AKfycb' 'default-rtdb' 'khhcm-chamcong' 'firebaseio' 'databaseio' 'khmatrix'; do
             if grep -aqF "$pat" "$BIN"; then echo "::error::.bin CO chua '$pat' - khong duoc phat hanh cong khai"; fail=1; fi
           done
           [ "$fail" = "0" ] || exit 1
@@ -125,6 +161,9 @@ jobs:
           echo "VER=$VER" >> $GITHUB_ENV
           echo "SZ=$SZ"   >> $GITHUB_ENV
 
+      # KHÔNG gán `if: main` cho bước này: bản build từ nhánh làm việc chính là thứ cần tải về
+      # nạp USB thử MỘT máy trước khi gộp. Artifact là file riêng của CI, không phải bản phát
+      # hành công khai — hai bước dưới mới là phát hành, và hai bước đó thì chỉ main.
       - name: Luu file de tai tay (du phong)
         uses: actions/upload-artifact@v4
         with:
@@ -139,6 +178,7 @@ jobs:
       #    De history khong phinh (moi ban .bin ~1,2 MB), day len nhanh 'bin' bang commit MO COI
       #    roi force-push: nhanh do luon chi co DUNG 1 commit, khong tich luy.
       - name: Day .bin len nhanh 'bin' (de co link raw, khong redirect)
+        if: github.ref == 'refs/heads/main'
         env:
           PUB: ${{ github.repository }}
         run: |
@@ -174,6 +214,7 @@ jobs:
           echo "RAW=$RAW" >> $GITHUB_ENV
 
       - name: Phat hanh ban moi
+        if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PUB: ${{ github.repository }}
@@ -198,6 +239,188 @@ jobs:
             --notes "Tro toi ban moi nhat. Web app doc file nay." \
             || gh release upload latest "out/latest.json" --repo "$PUB" --clobber
           echo "Da phat hanh $VER"
+
+  # Ghế massage: CHỈ kiểm biên dịch, KHÔNG phát hành.
+  # Ghế chưa có đường cập nhật từ xa (không đọc /ota như máy chấm công) nên phát hành .bin công
+  # khai cho nó chẳng ai tải — nạp bằng USB. Nhưng VẪN phải compile: bản này vừa gỡ Firebase và
+  # động vào toàn bộ đường mạng, mà sai một chỗ là ghế cắm điện lên rồi đứng im.
+  ghe:
+    runs-on: ubuntu-latest
+    # Cần quyền GHI để đẩy .bin lên nhánh 'bin-ghe'. Thiếu dòng này thì bước đẩy chết với
+    # "Permission to <repo> denied to github-actions[bot]" — job `build` vốn đã có, job này
+    # thì chưa vì trước đây nó chỉ biên dịch chứ không phát hành gì.
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cai arduino-cli
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh -s 1.4.0
+          echo "$PWD/bin" >> $GITHUB_PATH
+
+      - name: Cache core + thu vien
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.arduino15
+            ~/Arduino/libraries
+          key: acli-esp32-${{ env.CORE_VER }}-v3
+
+      - name: Cai core ESP32 + thu vien
+        run: |
+          set -e
+          arduino-cli config init --overwrite
+          arduino-cli config add board_manager.additional_urls \
+            https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32@${CORE_VER}
+          arduino-cli lib install "ArduinoJson@7.2.0" "TFT_eSPI@2.5.43" "XPT2046_Touchscreen@1.4.0"
+
+      - name: Cau hinh man CYD + secrets placeholder
+        run: |
+          set -e
+          LIB=$(find "$HOME/Arduino/libraries" -maxdepth 1 -type d -name 'TFT_eSPI*' | head -1)
+          [ -n "$LIB" ] || { echo "KHONG thay thu vien TFT_eSPI"; exit 1; }
+          cp esp32_hik_chamcong_full/ci/User_Setup.h "$LIB/User_Setup.h"
+          cp esp32_ghe_massage/ci/secrets.ci.h esp32_ghe_massage/secrets.h
+
+      - name: Soi cau truc .ino
+        run: python3 tools/test/fw/kiem-cau-truc.py
+
+      - name: Compile ghe massage
+        run: |
+          set -e
+          if ! arduino-cli compile --fqbn "$FQBN" --warnings default \
+                 --build-path "$PWD/ghebuild" esp32_ghe_massage 2>&1 | tee ghe.log; then
+            echo "===== CHI CAC DONG LOI ====="
+            grep -nE 'error:|Error during build|exceeds|undefined reference|No such file' ghe.log | head -40
+            echo "===== HET ====="
+            exit 1
+          fi
+          BIN="ghebuild/esp32_ghe_massage.ino.bin"
+          [ -f "$BIN" ] || { echo "KHONG co file .bin"; ls -la ghebuild/ | head; exit 1; }
+          SZ=$(stat -c%s "$BIN")
+          echo "Ghe .bin: $SZ / $APP_MAX byte ($(( SZ * 100 / APP_MAX ))%)"
+          [ "$SZ" -le "$APP_MAX" ] || { echo "::error::.bin ghe qua co phan vung app"; exit 1; }
+          # Ban nay cung phai sach bi mat — no tung chua Firebase secret ghi thang trong ma.
+          for pat in 'default-rtdb' 'firebaseio' 'databaseio' 'khmatrix' 'AKfycb'; do
+            if grep -aqF "$pat" "$BIN"; then echo "::error::.bin ghe CO chua '$pat'"; exit 1; fi
+          done
+          echo "OK: .bin ghe sach bi mat va vua phan vung."
+
+      - name: Luu file ghe
+        uses: actions/upload-artifact@v4
+        with:
+          name: ghe-${{ github.sha }}
+          path: ghebuild/esp32_ghe_massage.ino.bin
+
+      # ==========================================================================================
+      # ĐẨY .bin GHẾ LÊN NHÁNH 'bin-ghe' — ĐỂ CÓ LINK TẢI THẲNG.
+      #
+      # 🔴 VÌ SAO CẦN. Artifact của Actions nằm trên blob của Azure, và link tải nó vừa cần đăng
+      #    nhập GitHub vừa hết hạn sau ít phút. Muốn đưa một bản nạp cho người khác thì phải bảo
+      #    họ tự vào Actions, tìm đúng lượt chạy, tải zip rồi giải nén — mà lúc cần nạp firmware
+      #    thì thường là đang đứng cạnh cái máy, không phải ngồi trước máy tính có tài khoản.
+      #
+      #    Link raw của nhánh thì tải thẳng, không đăng nhập, không hết hạn:
+      #      https://raw.githubusercontent.com/<chu>/<repo>/bin-ghe/ghe-latest.bin
+      #
+      # 🔴 NHÁNH RIÊNG, KHÔNG DÙNG CHUNG NHÁNH 'bin'. Nhánh 'bin' bị FORCE-PUSH mỗi lượt build
+      #    máy chấm công; để chung là bản ghế lặng lẽ biến mất ở lượt build sau, mà không có gì
+      #    báo. Hai loại máy, hai nhánh.
+      #
+      # ⚠️ CHẠY TRÊN MỌI NHÁNH — cố ý. Bản ghế thường phải xem thử trước khi gộp, mà đó đúng là
+      #    lúc cần bản nạp nhất. .bin này build với `secrets.ci.h` toàn placeholder và đã qua
+      #    bước kiểm "sạch bí mật" ngay phía trên, nên đặt ở chỗ tải công khai được.
+      # ==========================================================================================
+      - name: Day .bin ghe len nhanh 'bin-ghe' (link tai thang)
+        env:
+          PUB: ${{ github.repository }}
+        run: |
+          set -e
+          BIN="ghebuild/esp32_ghe_massage.ino.bin"
+          VERGHE=$(grep -m1 '#define FW_VERSION' esp32_ghe_massage/esp32_ghe_massage.ino \
+                   | sed 's/.*"\(.*\)".*/\1/')
+          mkdir -p /tmp/binghe
+          cp "$BIN" /tmp/binghe/ghe-latest.bin
+
+          # ========================================================================================
+          # BỐN MẢNH, KHÔNG PHẢI MỘT.
+          #
+          # 🔴 Board CÒN TRỐNG (chưa từng nạp gì, hoặc vừa xoá sạch) mà chỉ ghi mỗi app vào
+          #    0x10000 thì KHÔNG BOOT: chip đọc bootloader ở 0x1000, đọc bảng phân vùng ở 0x8000,
+          #    rồi đọc boot_app0 ở 0xe000 để biết chạy app nào. Thiếu mảnh nào cũng là màn đen và
+          #    không có thông báo gì — người nạp chỉ thấy "nạp xong mà máy im".
+          #
+          #    Board ĐÃ có firmware cùng loại thì ghi mỗi app là đủ; ba mảnh kia không đổi.
+          #
+          # ⚠️ boot_app0.bin KHÔNG do bản dựng sinh ra — nó nằm trong core ESP32. Tìm theo đường
+          #    dẫn thay vì chép cứng số phiên bản: core nâng lên là đường dẫn đổi.
+          # ========================================================================================
+          cp ghebuild/esp32_ghe_massage.ino.bootloader.bin /tmp/binghe/ghe-bootloader.bin
+          cp ghebuild/esp32_ghe_massage.ino.partitions.bin /tmp/binghe/ghe-partitions.bin
+          BOOTAPP=$(find "$HOME/.arduino15/packages/esp32" -name boot_app0.bin | head -1)
+          [ -n "$BOOTAPP" ] || { echo "::error::Khong tim thay boot_app0.bin trong core ESP32"; exit 1; }
+          cp "$BOOTAPP" /tmp/binghe/ghe-boot_app0.bin
+          for f in ghe-latest.bin ghe-bootloader.bin ghe-partitions.bin ghe-boot_app0.bin; do
+            [ -s "/tmp/binghe/$f" ] || { echo "::error::Thieu hoac rong: $f"; exit 1; }
+          done
+
+          printf 'fw=%s\ncommit=%s\nnhanh=%s\nsize=%s\n' \
+            "$VERGHE" "$GITHUB_SHA" "$GITHUB_REF_NAME" "$(stat -c%s "$BIN")" > /tmp/binghe/thongtin.txt
+          {
+            echo 'Nhanh nay CHI chua ban nap cua GHE MASSAGE, de tai thang qua link raw.'
+            echo 'Bi force-push moi lan build - dung dat gi khac vao day.'
+            echo ''
+            echo '== BOARD DA CO FIRMWARE CUNG LOAI: chi can ghi app =='
+            echo '  esptool.py --chip esp32 --port <CONG> --baud 921600 write_flash 0x10000 ghe-latest.bin'
+            echo ''
+            echo '== BOARD CON TRONG: phai ghi DU BON manh, dung dia chi =='
+            echo '  esptool.py --chip esp32 --port <CONG> --baud 921600 write_flash \'
+            echo '    0x1000  ghe-bootloader.bin \'
+            echo '    0x8000  ghe-partitions.bin \'
+            echo '    0xe000  ghe-boot_app0.bin \'
+            echo '    0x10000 ghe-latest.bin'
+            echo ''
+            echo 'Thieu mot manh la man den va KHONG co thong bao gi.'
+            echo 'Windows: cai Python roi "pip install esptool"; <CONG> dang COM5.'
+            echo 'Linux/macOS: <CONG> dang /dev/ttyUSB0 hoac /dev/cu.usbserial-xxx.'
+          } > /tmp/binghe/README.md
+
+          # ========================================================================================
+          # SCRIPT NẠP SẴN — GỌI `python -m esptool`, KHÔNG GỌI `esptool.py`.
+          #
+          # 🔴 Anh Thắng 01/09/2026 chạy bản đầu và nhận đúng câu này:
+          #      'esptool.py' is not recognized as an internal or external command
+          #    pip đời mới cài esptool thành lệnh `esptool` (không có đuôi .py), và trên Windows
+          #    thư mục Scripts của Python thường không nằm trong PATH. Gọi qua `-m` thì chạy được
+          #    ở cả hai kiểu cài và không phụ thuộc PATH.
+          #
+          # ⚠️ Script tự cài esptool nếu thiếu, tự liệt kê cổng COM, và hỏi cổng thay vì bắt người
+          #    ta mở tệp ra sửa. Người nạp thường đang đứng cạnh cái máy, không phải ngồi trước
+          #    trình soạn thảo.
+          # ========================================================================================
+          cp "$GITHUB_WORKSPACE/tools/nap-ghe/nap-windows.bat" /tmp/binghe/nap-windows.bat
+          cp "$GITHUB_WORKSPACE/tools/nap-ghe/nap.sh"          /tmp/binghe/nap.sh
+          chmod +x /tmp/binghe/nap.sh
+          cd /tmp/binghe
+          git init -q
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -q -b bin-ghe
+          git add -A && git commit -q -m "bin ghe $VERGHE ($GITHUB_SHA)"
+          git push -q --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/$PUB.git" bin-ghe
+          RAW="https://raw.githubusercontent.com/$PUB/bin-ghe/ghe-latest.bin"
+          echo "Link tai thang: $RAW"
+          # Kiểm THẬT link vừa đẩy — đừng để đưa cho người ta một địa chỉ chết.
+          for i in 1 2 3 4 5 6; do
+            sleep 5
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' "$RAW" || echo 0)
+            echo "  thu $i: http=$CODE"
+            [ "$CODE" = "200" ] && break
+          done
+          [ "$CODE" = "200" ] || { echo "::error::Link raw chua tra 200 - .bin chua tai duoc"; exit 1; }
 
   # Máy trạm ("thợ nạp"): CHỈ kiểm biên dịch, không phát hành.
   # Sketch này trước 30/07/2026 CHƯA TỪNG được compile kiểm lần nào.
@@ -257,7 +480,7 @@ jobs:
           echo "May tram .bin: $SZ / $APP_MAX byte ($(( SZ * 100 / APP_MAX ))%)"
           [ "$SZ" -le "$APP_MAX" ] || { echo "::error::.bin may tram qua co phan vung app"; exit 1; }
           # Ban nay cung phai sach bi mat (may tram lay tu NVS)
-          for pat in 'AKfycb' 'default-rtdb' 'khhcm-chamcong'; do
+          for pat in 'AKfycb' 'default-rtdb' 'khhcm-chamcong' 'khmatrix'; do
             if grep -aqF "$pat" "$BIN"; then echo "::error::.bin may tram CO chua '$pat'"; exit 1; fi
           done
           echo "OK: .bin may tram sach bi mat va vua phan vung."
@@ -268,7 +491,15 @@ jobs:
           name: thonap-${{ github.sha }}
           path: upbuild/esp32_ota_updater.ino.bin
 
+      # 🔴 22/08/2026 — GÁC BẰNG `if: main`, VÀ ĐÂY LÀ CHỖ EM ĐÃ QUÊN.
+      #    Lúc mở workflow cho chạy trên mọi nhánh, em gác ba bước phát hành của việc `build`
+      #    nhưng BỎ SÓT bước này của việc `updater`. Hậu quả có thật: bốn bản máy trạm được
+      #    phát hành từ nhánh làm việc, và `latest-tram.json` — thứ máy trạm đọc để tự cập nhật
+      #    — bị trỏ sang một bản chưa ai duyệt. Nhánh thì còn có bản .ino máy chính KHÔNG biên
+      #    dịch nổi, mà việc `updater` chạy độc lập nên vẫn phát hành như thường.
+      #    Bài học: mở cổng ở một chỗ thì phải rà HẾT các chỗ có cửa, không chỉ chỗ đang sửa.
       - name: Phat hanh ban may tram
+        if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PUB: ${{ github.repository }}

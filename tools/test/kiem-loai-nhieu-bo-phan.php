@@ -1,0 +1,167 @@
+<?php
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * MỘT LOẠI CHI PHÍ THUỘC ĐƯỢC NHIỀU BỘ PHẬN.
+ *
+ * Anh Thắng 10/09/2026: *"Cho phép loại chi phí chọn theo bộ phận, nhiều bộ phận sẽ chọn loại
+ * chi phí đó cùng tên, chỉ là mỗi cơ sở khác mã thôi"*.
+ *
+ * =============================================================================================
+ * 🔴 KHÔNG ĐƯỢC ĐEM CẢ Ô ĐI `bo_phan_chuan()`. Hàm ấy so NGUYÊN CHUỖI với danh sách bộ phận,
+ *    nên "Kỹ thuật, Setup" không khớp tên nào và trả về '' — mà '' ở đây nghĩa là "loại này
+ *    không bó bộ phận nào", tức HIỆN CHO MỌI KẾ TOÁN. Khai thêm bộ phận thứ hai lại hoá ra
+ *    nới quyền cho tất cả, và hỏng im lặng: nhìn màn chỉ thấy nhiều số hơn, không thấy lỗi.
+ *    Hỏng theo hướng nới quyền là hướng nguy nhất, nên bài này soi nó trước.
+ *
+ * 🔴 Ô TRỐNG VẪN PHẢI LÀ "MỌI BỘ PHẬN". Danh mục dựng từ sổ cũ còn rất nhiều dòng bỏ trống ô
+ *    này. Hiểu ngược lại là chúng biến mất khỏi mọi màn — tiền có thật mà không ai nhìn thấy.
+ *
+ * ⚠️ CHẠY THẬT các hàm bốc từ mã nguồn.
+ *
+ * Chạy: php tools/test/kiem-loai-nhieu-bo-phan.php
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+
+$DAT = 0; $TRUOT = array();
+function t( $ten, $ok, $them = null ) {
+	global $DAT, $TRUOT;
+	if ( $ok ) { $DAT++; return; }
+	$TRUOT[] = $ten . ( null !== $them ? ( "\n      → " . ( is_scalar( $them ) ? $them : var_export( $them, true ) ) ) : '' );
+}
+function teq( $ten, $mong, $thuc ) { t( $ten . ' (mong ' . var_export( $mong, true ) . ')', $mong === $thuc, $thuc ); }
+
+$GOC  = dirname( dirname( __DIR__ ) );
+$CFG  = file_get_contents( $GOC . '/wordpress/vhcp-chi-phi/includes/class-vhcp-cfg.php' );
+$AUTH = file_get_contents( $GOC . '/wordpress/vhcp-chi-phi/includes/class-vhcp-auth.php' );
+$DON  = file_get_contents( $GOC . '/wordpress/vhcp-chi-phi/includes/class-vhcp-don.php' );
+$HTML = file_get_contents( $GOC . '/wordpress/vhcp-chi-phi/templates/app.html' );
+
+function boc( $src, $neo, $dong = "\n\t}" ) {
+	$a = strpos( $src, $neo );
+	if ( false === $a ) { echo "\n✗ Không bốc được: $neo\n"; exit( 1 ); }
+	return substr( $src, $a, strpos( $src, $dong, $a ) - $a + strlen( $dong ) );
+}
+
+/* Bệ đỡ: danh sách bộ phận thật + bảng loại chi phí giả. `bo_phan_chuan()` bốc từ mã nguồn
+   chứ KHÔNG viết lại — nó chính là chỗ dễ sai (so hoa/thường tiếng Việt). */
+class KHO { public static $loai = array(); public static $bp = array( 'Cơ sở', 'Văn phòng', 'Kỹ thuật', 'Marketing', 'Công tác', 'Setup', 'Máy tự động' ); }
+eval( 'class C { public static function bo_phan_ds(){ return KHO::$bp; } '
+	. ' public static function loai_tk( $ten ){ $k = mb_strtolower( trim( (string) $ten ) );'
+	. '   return isset( KHO::$loai[ $k ] ) ? array( "boPhan" => KHO::$loai[ $k ] ) : array( "boPhan" => "" ); } '
+	. boc( $CFG, 'public static function bo_phan_chuan(' ) . ' '
+	. boc( $CFG, 'public static function bo_phan_cua_loai(' ) . ' '
+	. boc( $CFG, 'public static function bo_phan_ds_cua_loai(' ) . ' '
+	. boc( $CFG, 'public static function bo_phan_tach(' ) . ' '
+	. boc( $CFG, 'public static function loai_thuoc_bo_phan(' ) . ' }' );
+
+KHO::$loai = array(
+	'chi phí setup'    => 'Kỹ thuật, Setup',       // nhiều bộ phận — ca chính
+	'chi phí tháo dỡ'  => 'Kỹ thuật',              // một bộ phận — dữ liệu CŨ
+	'chi phí điện nước' => '',                     // chưa khai — dùng chung
+	'chi phí lộn xộn'  => 'Kỹ thuật , setup ,, Kỹ Thuật',  // thừa dấu, khác hoa thường, trùng
+	'chi phí ma'       => 'Bộ phận không có thật',
+);
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 1. TÁCH Ô BỘ PHẬN
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+teq( '🔴 nhiều bộ phận → tách ra đủ', array( 'Kỹ thuật', 'Setup' ), C::bo_phan_tach( 'Kỹ thuật, Setup' ) );
+teq( '   một bộ phận (dữ liệu CŨ) → vẫn đúng', array( 'Kỹ thuật' ), C::bo_phan_tach( 'Kỹ thuật' ) );
+teq( '   ô trống → rỗng', array(), C::bo_phan_tach( '' ) );
+teq( '🔴 khác hoa/thường vẫn nhận, và trả về đúng tên chuẩn',
+	array( 'Kỹ thuật', 'Setup' ), C::bo_phan_tach( 'kỹ thuật, SETUP' ) );
+teq( '   thừa dấu phẩy · thừa khoảng trắng · trùng tên → dọn sạch',
+	array( 'Kỹ thuật', 'Setup' ), C::bo_phan_tach( ' Kỹ thuật , setup ,, Kỹ Thuật ' ) );
+teq( '🔴 tên bộ phận không có thật → BỎ, không giữ lại',
+	array( 'Kỹ thuật' ), C::bo_phan_tach( 'Kỹ thuật, Phòng Ma' ) );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 2. 🔴 KHAI NHIỀU BỘ PHẬN KHÔNG ĐƯỢC BIẾN THÀNH "KHÔNG BÓ GÌ"
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+teq( '🔴 loại khai "Kỹ thuật, Setup" → ĐỌC RA HAI bộ phận, không phải rỗng',
+	array( 'Kỹ thuật', 'Setup' ), C::bo_phan_ds_cua_loai( 'Chi phí setup' ) );
+t( '🔴 và KHÔNG rỗng (rỗng = hiện cho mọi kế toán = nới quyền)',
+	array() !== C::bo_phan_ds_cua_loai( 'Chi phí setup' ), C::bo_phan_ds_cua_loai( 'Chi phí setup' ) );
+teq( '   dòng lộn xộn cũng đọc ra đủ hai', array( 'Kỹ thuật', 'Setup' ), C::bo_phan_ds_cua_loai( 'Chi phí lộn xộn' ) );
+teq( '🔴 khai TOÀN tên không có thật → rỗng (không có gì để bó)',
+	array(), C::bo_phan_ds_cua_loai( 'Chi phí ma' ) );
+
+/* Hàm cũ `bo_phan_cua_loai()` giữ chữ ký — dòng một bộ phận phải y như trước. */
+teq( 'hàm cũ: một bộ phận → vẫn trả đúng tên ấy', 'Kỹ thuật', C::bo_phan_cua_loai( 'Chi phí tháo dỡ' ) );
+teq( '   chưa khai → vẫn trả rỗng', '', C::bo_phan_cua_loai( 'Chi phí điện nước' ) );
+teq( '   nhiều bộ phận → trả tên đầu (không phải rỗng)', 'Kỹ thuật', C::bo_phan_cua_loai( 'Chi phí setup' ) );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 3. 🔴 CHỐT XEM ĐƯỢC HAY KHÔNG
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+t( '🔴 kế toán Kỹ thuật xem được loại khai "Kỹ thuật, Setup"', C::loai_thuoc_bo_phan( 'Chi phí setup', 'Kỹ thuật' ) );
+t( '🔴 kế toán Setup CŨNG xem được loại ấy (đây là chỗ bản cũ làm mất)',
+	C::loai_thuoc_bo_phan( 'Chi phí setup', 'Setup' ) );
+t( '🔴 kế toán Marketing thì KHÔNG (bó vẫn là bó)', ! C::loai_thuoc_bo_phan( 'Chi phí setup', 'Marketing' ) );
+t( '   loại một bộ phận: đúng bộ phận thì xem được', C::loai_thuoc_bo_phan( 'Chi phí tháo dỡ', 'Kỹ thuật' ) );
+t( '   loại một bộ phận: khác bộ phận thì không', ! C::loai_thuoc_bo_phan( 'Chi phí tháo dỡ', 'Setup' ) );
+t( '🔴 loại CHƯA khai bộ phận → mọi kế toán đều xem được (sổ cũ còn nhiều dòng như thế)',
+	C::loai_thuoc_bo_phan( 'Chi phí điện nước', 'Marketing' ) );
+t( '🔴 người KHÔNG bị bó bộ phận → xem được tất, kể cả loại bó chặt',
+	C::loai_thuoc_bo_phan( 'Chi phí setup', '' ) );
+t( '   loại không có trong danh mục → không giấu đi', C::loai_thuoc_bo_phan( 'Loại lạ hoắc', 'Kỹ thuật' ) );
+t( '   khác hoa/thường vẫn khớp', C::loai_thuoc_bo_phan( 'Chi phí setup', 'setup' ) );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 4. MỌI CHỖ DÙNG ĐỀU ĐI QUA HÀM MỚI
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+$xem = boc( $AUTH, 'public static function xem_duoc_loai(' );
+t( '🔴 phân quyền xem sổ dùng loai_thuoc_bo_phan(), không so nguyên chuỗi',
+	false !== strpos( $xem, 'VHCP_Cfg::loai_thuoc_bo_phan( $ten_loai, $bo )' )
+	&& false === strpos( $xem, 'mb_strtolower( $bo ) === mb_strtolower( $bp )' ), $xem );
+t( '   người không bị bó vẫn xem hết (chốt cũ còn nguyên)',
+	false !== strpos( $xem, "if ( '' === \$bo ) { return true; }" ), $xem );
+t( '🔴 chấm "đơn này là việc của mình" cũng theo danh sách',
+	false !== strpos( $DON, 'VHCP_Cfg::bo_phan_ds_cua_loai( $_nhom ) && VHCP_Cfg::loai_thuoc_bo_phan( $_nhom, $bo_phan_bo )' ), '' );
+t( '   đếm "loại chưa khai bộ phận" cũng vậy',
+	false !== strpos( $DON, '! VHCP_Cfg::bo_phan_ds_cua_loai( $ten )' ), '' );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 5. MÀN CẤU HÌNH: Ô CHỌN NHIỀU
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+t( '🔴 ô Bộ phận của bảng loại chi phí cho chọn NHIỀU',
+	false !== strpos( $HTML, "+'<td>'+_bpSelNhieu(x.boPhan||'')+'</td>'" ), '' );
+/* Anh Thắng 10/09/2026: *"chuyển sang dạng tích cho dễ bấm"*. Danh sách nhiều lựa chọn của
+   trình duyệt đòi giữ Ctrl mới chọn thêm được; bấm thường là BỎ hết những cái đang chọn — nên
+   người không biết mẹo ấy vô tình xoá sạch bộ phận của một loại mà không hay, và ô rỗng nghĩa
+   là "không bó gì", tức nới quyền. */
+/* Canh trong THÂN `_bpSelNhieu()`, không quét cả tệp: chỗ khác (ô Cơ sở, ô Xem đơn vị) vẫn
+   giữ khuôn riêng của nó với `<select multiple>` ẩn, nên quét cả tệp là bắt nhầm người khác. */
+$than_bp = boc( $HTML, 'function _bpSelNhieu(', "\n  }" );
+t( '🔴 và là HỘP TÍCH, không phải danh sách phải giữ Ctrl',
+	false !== strpos( $than_bp, '<input type="checkbox" value=' )
+	&& false === strpos( $than_bp, '<select' ), $than_bp );
+t( '🔴 chỗ lưu nối các ô ĐÃ TÍCH bằng dấu phẩy — đúng dạng máy chủ tách ra',
+	false !== strpos( $HTML, "tr.querySelectorAll('[data-bp] input:checked')" )
+	&& false !== strpos( $HTML, "function(c){ return c.value; }).join(', ')" ), '' );
+t( '   nói rõ không tích gì = mọi bộ phận',
+	false !== mb_strpos( $HTML, 'không tích = mọi bộ phận' ), '' );
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 TỪ 20/09/2026 Ô CHỌN LOẠI KHÔNG CÒN LỌC THEO BỘ PHẬN NGƯỜI ĐĂNG NHẬP.
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * Phép này trước đây đòi CÓ dòng lọc ấy (`bpLoai.indexOf(bp)<0 → return false`). Anh Thắng:
+ * *"Vừa phân theo bộ phận, vừa phân theo mảng. Dẫn đến xung đột"* — ô chọn bị ba bộ lọc nhân
+ * nhau (mã theo mảng · nút "Chọn chi phí nào" · bộ phận), mà dòng nhắc chỉ kể được một lý do.
+ *
+ * ⚠️ CỘT BỘ PHẬN KHÔNG BỎ, NÓ ĐỔI VAI: nay chỉ dùng để DỰNG mấy nút "Chọn chi phí nào" — tức
+ *    người nhập TỰ CHỌN Cơ sở hay Văn phòng, thay vì bị cắt ngầm theo danh tính. Mọi phép ở
+ *    trên (tách nhiều bộ phận, ô trống = mọi bộ phận) vẫn giữ nguyên vì vai ấy vẫn cần.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+t( '🔴 ô chọn loại KHÔNG còn cắt theo bộ phận của người đăng nhập',
+	false === strpos( $HTML, 'if(bp && bpLoai.length && bpLoai.indexOf(bp)<0) return false;' ), '' );
+t( '   và mấy nút "Chọn chi phí nào" cũng thôi cắt theo danh tính',
+	false === strpos( $HTML, 'if(bp && bds.length && bds.indexOf(bp)<0) return;' ), '' );
+/* Nhưng cột ấy PHẢI còn được dùng để gom loại về đúng nút — bỏ nốt là ba nút gộp làm một. */
+t( '🔴 cột Bộ phận vẫn dựng nên mấy nút ấy (`_khoaNhom` gom theo nó)',
+	false !== strpos( $HTML, '_khoaNhom((bp && bpLoai.indexOf(bp)>=0)?bp:(bpLoai[0]||\'\'), x.ten)' ), '' );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════ */
+if ( $TRUOT ) {
+	echo "\n✗ TRƯỢT " . count( $TRUOT ) . " phép (đạt $DAT):\n";
+	foreach ( $TRUOT as $x ) { echo "  · $x\n"; }
+	exit( 1 );
+}
+echo "\n✓ SẠCH — $DAT phép: loại chi phí dùng chung nhiều bộ phận, và khai thêm không thành nới quyền.\n";

@@ -84,6 +84,10 @@ class FakeReq {
 $src = file_get_contents( __DIR__ . '/../../../wordpress/khh-platform/khh-platform.php' );
 $src = preg_replace( '/^<\?php/', '', $src, 1 );
 $src = preg_replace( '/^\s*require_once KHH_DIR .*$/m', '', $src );
+/* Các dòng `require_once KHH_DIR …` vừa bị bỏ ở trên, nên LỜI GỌI KHỞI ĐỘNG đi kèm chúng phải
+   bỏ theo — bỏ cái nạp lớp mà giữ `KHH_TuCapNhat::init()` thì nổ "Class not found", một câu lỗi
+   chẳng liên quan gì tới thứ bài thử đang canh. */
+$src = preg_replace( '/^[A-Za-z_]+::init\(\);$/m', '', $src );
 $src = preg_replace( '/\nfunction khh_user_role\s*\([^)]*\)\s*\{.*?\n\}/s', "\n", $src, 1 );
 eval( $src );
 

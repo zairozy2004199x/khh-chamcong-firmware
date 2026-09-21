@@ -1,0 +1,246 @@
+<?php
+/**
+ * TRANG /cham-cong/ — phục vụ GIAO DIỆN GỐC của app Apps Script.
+ *
+ * Không chép Index.html vào plugin. Mỗi lần mở trang (hoặc sau 10 phút nhớ tạm) plugin lấy
+ * giao diện thẳng từ project Apps Script rồi chèn thêm đúng một khối <script> để
+ * `google.script.run` chạy qua WordPress. Nhờ vậy:
+ *   - sửa giao diện bên Apps Script là trang web có bản mới, không phải cập nhật plugin;
+ *   - không tồn tại "bản chép" để lệch với bản gốc.
+ */
+
+if ( ! defined( 'ABSPATH' ) ) { exit; }
+
+class VHCC_Trang {
+
+	public static function slug() {
+		$s = get_option( 'vhcc_slug' );
+		$s = $s ? sanitize_title( $s ) : 'cham-cong';
+		return $s ? $s : 'cham-cong';
+	}
+
+	public static function url() {
+		if ( get_option( 'permalink_structure' ) ) { return home_url( '/' . self::slug() . '/' ); }
+		return add_query_arg( 'vhcc', 'app', home_url( '/' ) );
+	}
+
+	public static function init() {
+		add_rewrite_rule( '^' . self::slug() . '/?$', 'index.php?vhcc_app=1', 'top' );
+		add_filter( 'query_vars', array( __CLASS__, 'query_vars' ) );
+		add_action( 'template_redirect', array( __CLASS__, 'maybe_render' ) );
+	}
+
+	public static function query_vars( $v ) {
+		$v[] = 'vhcc_app';
+		return $v;
+	}
+
+	/**
+	 * 🔴 ĐƯỜNG NÀY NAY DẪN VỀ TRANG DÙNG CHUNG, KHÔNG CÒN KÉO GIAO DIỆN APPS SCRIPT.
+	 *
+	 * Anh Thắng 27/08/2026: *"trang này là trang gì, không nhập pin được. Được chuyển nó
+	 * trang trang dùng chung đi, mọi người truy cập vào link này"*.
+	 *
+	 * Trang này vốn lấy `Index.html` thẳng từ project Apps Script rồi chèn cầu nối — hợp lý khi
+	 * Apps Script còn là nơi giữ dữ liệu. Từ 22/08/2026 hệ đã bỏ Firebase và Apps Script, máy
+	 * nói thẳng với WordPress, nên project ấy không còn được nuôi: trang còn vỏ mà không còn
+	 * ruột, và ô PIN không vào được. Đó đúng là thứ anh gặp.
+	 *
+	 * 🔴 CHUYỂN HƯỚNG chứ không xoá đường. Địa chỉ `/cham-cong/` đã nằm trong tin nhắn gửi cho
+	 *    các bộ phận và trong dấu trang của nhiều người; để nó chết là mỗi người ấy phải đi hỏi
+	 *    một lượt. Chuyển hướng thì link cũ vẫn tới đúng chỗ.
+	 *
+	 * ⚠️ GIỮ nguyên cửa `vhcc_api`: cổng ấy là chỗ giao diện cũ gọi hàm, và trong bản cài của ai
+	 *    đó có thể còn thứ đang gọi tới. Chuyển hướng một lời gọi API là đổi nó thành một trang
+	 *    HTML — bên gọi nhận về rác mà không hiểu vì sao.
+	 */
+	public static function maybe_render() {
+		$is = ( (int) get_query_var( 'vhcc_app' ) === 1 );
+		if ( ! $is && isset( $_GET['vhcc'] ) && $_GET['vhcc'] === 'app' ) { $is = true; }
+		if ( ! $is ) { return; }
+
+		if ( isset( $_GET['vhcc_api'] ) ) {
+			VHCC_API::trang();
+			exit;
+		}
+
+		/* Chở theo mọi tham số trừ mấy cái của chính đường này — ai gửi link kèm `?man=cham`
+		   thì vẫn tới đúng màn ấy. */
+		$dich = VHCC_Web::url();
+		$giu  = $_GET;
+		unset( $giu['vhcc_app'], $giu['vhcc'], $giu['vhcc_api'] );
+		if ( $giu ) {
+			$sach = array();
+			foreach ( $giu as $k => $v ) {
+				if ( is_array( $v ) ) { continue; }
+				$sach[ sanitize_key( $k ) ] = sanitize_text_field( wp_unslash( $v ) );
+			}
+			if ( $sach ) { $dich = add_query_arg( $sach, $dich ); }
+		}
+		nocache_headers();
+		wp_safe_redirect( $dich, 302 );
+		/* Bộ thử chạy trong CÙNG tiến trình — `exit` ở đây là giết luôn bài kiểm. */
+		if ( defined( 'VHCC_TEST' ) ) { return; }
+		exit;
+	}
+
+	/**
+	 * Danh sách hàm giao diện được gọi — ĐỌC TỪ CHÍNH file cau-noi.gs trong plugin.
+	 *
+	 * Khai hai nơi (PHP và .gs) thì sớm muộn lệch: thêm hàm ở .gs mà quên PHP là giao diện
+	 * không có phương thức đó, bấm nút không xảy ra gì và cũng không báo lỗi. Nên chỉ có MỘT
+	 * nơi khai, ở file .gs mà anh phải dán sang Apps Script.
+	 */
+	/** Bản cài có thiếu apps-script/cau-noi.gs không — đặt trong ds_ham(), đọc ở render(). */
+	private static $thieu_file_gs = false;
+
+	public static function ds_ham() {
+		$file = VHCC_DIR . 'apps-script/cau-noi.gs';
+		$out  = array();
+		self::$thieu_file_gs = ! is_readable( $file );
+		if ( is_readable( $file ) ) {
+			$src = file_get_contents( $file );
+			if ( preg_match( '/CC_CHO_PHEP\s*=\s*\[(.*?)\]/s', $src, $m ) ) {
+				if ( preg_match_all( "/'([A-Za-z_][A-Za-z0-9_]*)'/", $m[1], $m2 ) ) {
+					$out = $m2[1];
+				}
+			}
+		}
+		$out[] = 'login';
+		$out[] = 'vhccLogout';
+		return array_values( array_unique( $out ) );
+	}
+
+	private static function khoi_head() {
+		/* Dòng chú thích dưới ô PIN phải nói ĐÚNG nguồn đang dùng. Bản trước ghi cứng "Dùng
+		   chung mã PIN với app Vận hành chi phí" — sai hẳn khi đã chuyển sang danh sách riêng,
+		   và người gõ PIN sẽ đi tìm PIN ở đúng chỗ không liên quan.
+		   Cũng đưa SỐ TÀI KHOẢN vào được sang: 0 tài khoản mà chỉ báo "PIN không đúng" thì người
+		   gõ cứ thử mãi một thứ vốn không tồn tại. Con số này không lộ gì — nó không cho biết
+		   PIN nào, mà cứu được đúng cái vòng lặp đó. */
+		$nguon_pin = VHCC_Auth::nguon();
+		$so_vao    = 0;
+		$u_all     = VHCC_Auth::users();
+		if ( ! is_wp_error( $u_all ) ) {
+			$cho_vao = VHCC_Auth::vai_tro_vao();
+			foreach ( $u_all as $x ) {
+				if ( in_array( $x['vaiTro'], $cho_vao, true ) && '' !== $x['pin'] ) { $so_vao++; }
+			}
+		}
+		$cfg = array(
+			'endpoint' => esc_url_raw( rest_url( 'vhcc/v1/call' ) ),
+			'trang'    => esc_url_raw( add_query_arg( 'vhcc_api', '1', self::url() ) ),
+			'fns'      => self::ds_ham(),
+			'ver'      => VHCC_VERSION,
+			'nguon'    => $nguon_pin,
+			'soVao'    => $so_vao,
+			'vaiTro'   => implode( ' · ', VHCC_Auth::vai_tro_vao() ),
+		);
+		$out  = '<script>window.VHCC_CFG=' . wp_json_encode( $cfg ) . ';</script>' . "\n";
+		$out .= '<script src="' . esc_url( VHCC_URL . 'assets/js/cau-noi.js' ) . '?ver='
+			. rawurlencode( VHCC_VERSION ) . '"></script>' . "\n";
+		return $out;
+	}
+
+	public static function render() {
+		$r = VHCC_CauNoi::giao_dien();
+		nocache_headers();
+		header( 'Content-Type: text/html; charset=UTF-8' );
+		header_remove( 'X-Frame-Options' );
+
+		if ( empty( $r['ok'] ) ) {
+			status_header( 500 );
+			echo self::trang_loi( isset( $r['error'] ) ? $r['error'] : 'Không rõ' );
+			return;
+		}
+
+		// Chưa khai hàm nào -> giao diện tải được nhưng BẤM KHÔNG ĂN GÌ, không báo lỗi. Đó đúng
+		// là kiểu hỏng im lặng. Nói thẳng ra thay vì phục vụ một trang chết.
+		$ds = self::ds_ham();
+		$so_ham_app = count( array_diff( $ds, array( 'login', 'vhccLogout' ) ) );
+		if ( ! $so_ham_app ) {
+			status_header( 503 );
+			/* ⚠️ HAI NGUYÊN NHÂN KHÁC HẲN NHAU, trước đây gộp thành một câu và chỉ sai hướng.
+			   Nếu thiếu file .gs trong bản cài thì bên Apps Script vẫn đủ hàm — bảo người ta đi
+			   khai lại CC_CHO_PHEP là bắt sửa đúng cái đang chạy tốt. Đã xảy ra thật: "Thử cầu
+			   nối" báo 23 hàm trong khi trang này báo RỖNG, hai câu không thể cùng đúng. */
+			if ( self::$thieu_file_gs ) {
+				echo self::trang_loi( 'BẢN CÀI THIẾU FILE — plugin không tìm thấy '
+					. '<code>apps-script/cau-noi.gs</code> trong thư mục của nó, mà nó cần file đó để '
+					. 'biết giao diện được gọi những hàm nào. Đây là lỗi đóng gói, KHÔNG phải anh làm '
+					. 'sai: bên Apps Script danh sách hàm vẫn đủ. Cài lại bản plugin mới nhất là xong.' );
+			} else {
+				echo self::trang_loi( 'Danh sách hàm CC_CHO_PHEP trong CauNoiChamCong.gs còn RỖNG — '
+					. 'chưa khai hàm nào được gọi qua web, nên giao diện có tải được cũng không bấm được gì. '
+					. 'Gửi Index.html của app chấm công cho bên làm plugin để khai đúng danh sách.' );
+			}
+			return;
+		}
+
+		$html = (string) $r['html'];
+		$head = self::khoi_head();
+
+		// Chèn TRƯỚC </head> để shim có mặt sớm hơn mọi script của app gốc. Không có </head>
+		// (giao diện Apps Script đôi khi chỉ là một mảnh) thì chèn lên đầu.
+		$vt = stripos( $html, '</head>' );
+		if ( $vt !== false ) {
+			$html = substr( $html, 0, $vt ) . $head . substr( $html, $vt );
+		} else {
+			$html = $head . $html;
+		}
+
+		echo $html;
+	}
+
+	/** Trang lỗi nói rõ sai ở bước nào — không để màn hình trắng. */
+	private static function trang_loi( $loi ) {
+		$exec = VHCC_CauNoi::url();
+		$h  = '<!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8">';
+		$h .= '<meta name="viewport" content="width=device-width, initial-scale=1">';
+		/* 🔴 DÙNG CHUNG BẢNG KIỂU VỚI CẢ HỆ, không tự vẽ bằng `style=` rời.
+		   Trang này vốn có bảng màu RIÊNG (nền `#f0f4f8` xám xanh) — bảng màu thứ ba của một
+		   plugin đã có hai. Người ta gặp nó đúng lúc đang bối rối vì hệ chưa nối được; rơi vào
+		   một trang trông lạ hẳn là thêm một câu hỏi nữa ("mình lạc sang đâu?") vào đúng lúc
+		   không nên có câu hỏi nào. `.the` · `.bao loi` · `.bao canh` đã có sẵn và mang đúng
+		   nghĩa cần ở đây.
+		   ⚠️ Gác `method_exists` cùng hàm với lời gọi — xem `tools/test/kiem-goi-cheo.php`. */
+		$css = ( class_exists( 'VHCC_Web' ) && method_exists( 'VHCC_Web', 'css' ) ) ? VHCC_Web::css() : '';
+		$h .= '<title>Chấm Công — chưa nối được</title><style>' . $css
+			. '.bo{max-width:640px}</style></head><body>';
+		$h .= '<div class="bo"><div class="the">';
+		$h .= '<h1 style="font-size:19px;margin:0 0 6px">Chưa nối được với app Chấm Công</h1>';
+		$h .= '<div class="bao loi">' . esc_html( $loi ) . '</div>';
+		$h .= '<p><b>Địa chỉ /exec đang khai:</b> ' . ( $exec ? '<code>' . esc_html( $exec ) . '</code>' : '<i>chưa khai</i>' ) . '</p>';
+		/* Nguyên nhân đã BIẾT thì nói thẳng, đừng đưa danh sách 4 mục để người ta dò.
+		   Tới đây thì url() đã tự chữa xong, nên nếu còn thấy dạng này là địa chỉ vừa được sửa
+		   và chỉ cần tải lại trang — nói đúng câu đó, không nói "kiểm lại địa chỉ". */
+		if ( strpos( VHCC_CauNoi::url_tho(), '/a/macros/' ) !== false
+			|| strpos( (string) $exec, '/a/macros/' ) !== false ) {
+			$h .= '<div class="bao canh">'
+				. '<b>Đã tìm ra nguyên nhân.</b> Địa chỉ đang khai có đoạn <code>/a/macros/&lt;tên miền&gt;</code>. '
+				. 'Dạng đó buộc người gọi phải đăng nhập bằng tài khoản của tên miền, mà WordPress gọi '
+				. 'máy-với-máy nên Google chối bằng <code>400 Bad Request</code> — một câu không hề nhắc gì '
+				. 'tới đăng nhập. Plugin vừa tự bỏ đoạn đó. <b>Tải lại trang này một lần</b> là xong.'
+				. '</div>';
+		}
+		$h .= '<p>Kiểm theo thứ tự:</p><ol>';
+		$h .= '<li>Đã dán file <code>CauNoiChamCong.gs</code> vào project Apps Script của app chấm công chưa?</li>';
+		$h .= '<li>Script Properties đã có <code>WEB_KEY</code> đúng bằng khoá trong Cài đặt của plugin chưa?</li>';
+		$h .= '<li>Đã <b>Deploy → New version</b> sau khi dán chưa? (dán mà không deploy thì bản đang chạy vẫn là bản cũ)</li>';
+		$h .= '<li>Vào <b>Cài đặt → Hệ thống chấm công</b> bấm <b>Thử cầu nối</b> để xem thông báo chi tiết.</li>';
+		$h .= '</ol>';
+		$h .= '<p class="mo">Giờ chấm công không bị ảnh hưởng — máy vẫn đẩy về '
+			. 'Google Sheet như trước, và app Apps Script vẫn mở được. Chỉ trang này chưa nối được.</p>';
+		$h .= '</div></div></body></html>';
+		return $h;
+	}
+
+	public static function shortcode( $atts ) {
+		$a = shortcode_atts( array( 'height' => '1000' ), $atts, 'vhcc_hop_dong' );
+		$hh = preg_replace( '/[^0-9a-z%]/i', '', (string) $a['height'] );
+		if ( $hh === '' ) { $hh = '1000'; }
+		if ( is_numeric( $hh ) ) { $hh .= 'px'; }
+		return '<iframe src="' . esc_url( self::url() ) . '" style="width:100%;height:' . esc_attr( $hh )
+			. ';border:0;display:block" loading="lazy" title="Chấm Công"></iframe>';
+	}
+}

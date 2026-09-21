@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Nền tối cùng tông với trang /ghe: nhân viên chuyển qua lại giữa hai thứ trong một ca,
+         hai bảng màu khác nhau là hai lần phải làm quen. -->
+    <style name="Theme.KHThuTien" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">#0B0D16</item>
+        <item name="android:navigationBarColor">#0B0D16</item>
+        <item name="android:windowBackground">#0B0D16</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">false</item>
+    </style>
+</resources>

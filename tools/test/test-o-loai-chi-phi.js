@@ -1,0 +1,259 @@
+/**
+ * Ô "LOẠI CHI PHÍ" Ở ĐƠN — chạy thật _loaiCpList / _loaiCpVi lấy từ app.html ra.
+ *
+ * Hai chuyện anh Thắng gặp trong một ngày, cùng một gốc: ô này lọc 4 lớp mà ẩn IM LẶNG.
+ *   (a) "mở đơn lần đầu không hiện loại chi phí, bấm qua lại nút mới hiện"
+ *       -> chưa chọn cơ sở thì không biết MẢNG, mà mã tài khoản khai theo mảng.
+ *   (b) "thêm rồi mà qua tk nhân viên khác thì không có"
+ *       -> loại chỉ khai cho 1/7 mảng; nhân viên kia ở cơ sở thuộc mảng khác.
+ * Không cái nào là app hỏng, nhưng nhìn màn hình thì y như hỏng.
+ *
+ *   node tools/test/test-o-loai-chi-phi.js
+ */
+const fs = require('fs');
+const path = require('path');
+
+const GOC  = path.join(__dirname, '..', '..');
+const HTML = fs.readFileSync(path.join(GOC, 'wordpress/vhcp-chi-phi/templates/app.html'), 'utf8');
+
+let dat = 0; const hong = [];
+function t(ten, dieu, nhan) { if (dieu) { dat++; return; } hong.push(ten + (nhan === undefined ? '' : ' → nhận được: ' + JSON.stringify(nhan))); }
+function teq(ten, mong, nhan) { t(ten + ' (mong ' + JSON.stringify(mong) + ')', JSON.stringify(mong) === JSON.stringify(nhan), nhan); }
+
+function layHam(ten) {
+  const m = HTML.match(new RegExp('\\n  function ' + ten + '\\([\\s\\S]*?\\n  \\}'));
+  if (!m) { console.error('HỎNG: không tìm thấy hàm ' + ten + ' trong app.html'); process.exit(1); }
+  return m[0];
+}
+
+// ---------------------------------------------------------------- bối cảnh thật
+// 2 mảng, mỗi mảng 1 cơ sở. "Chi phí cơ sở" chỉ khai cho TUTU MN (đúng cảnh anh Thắng
+// tích 1/7 mảng). "Chi phí nuôi thú" chỉ khai cho FARM MN.
+const BOOT = {
+  cosoPll: { 'tàu estella': 'TUTU MN', 'farm phan thiết': 'FARM MN' },
+  tkNoMx: {
+    'chi phí cơ sở':  { 'tutu mn': ['64106'] },
+    'chi phí nuôi thú': { 'farm mn': ['64168'] },
+    'chi phí điện nước': { 'tutu mn': ['64127'], 'farm mn': ['64127'] },
+  },
+  loaiChiPhi: [
+    { ten: 'Chi phí cơ sở',      tkNo: '', boPhan: 'Cơ sở' },
+    { ten: 'Chi phí nuôi thú',   tkNo: '', boPhan: 'Cơ sở' },
+    { ten: 'Chi phí điện nước',  tkNo: '', boPhan: 'Cơ sở' },
+    { ten: 'Chi phí tháo dỡ',    tkNo: '2413', boPhan: 'Kỹ thuật' },
+    { ten: 'Chi phí chưa khai mã', tkNo: '', boPhan: 'Cơ sở' },
+  ],
+};
+
+const NHOM_CP_CS = '(cơ sở)';
+/* ⚠️ THÊM HÀM PHỤ THUỘC THÌ PHẢI KHAI VÀO ĐÂY. Ngày 09/09/2026 `_tkNoList` gọi thêm
+   `_donNhieuCoSo` và `_mangPham` (đơn ghép nhiều gian thì gom mã của mọi mảng), và bài này NỔ
+   `ReferenceError` — trông y như mã hỏng chứ không phải bệ đỡ thiếu. Bốc đủ họ hàng, đừng vá
+   bằng cách khai một hàm giả ở đây: hàm giả là bài kiểm chạy trên bản dựng lại, không phải mã
+   thật. */
+const nguon = ['_mangCua', '_donNhieuCoSo', '_mangPham', '_tkNoList', '_tapTkCo', '_tkNoCua', '_khoaNhom', '_bpTach', '_loaiCpList', '_loaiCpVi'].map(layHam).join('\n')
+  + '\n  return { list:_loaiCpList, vi:_loaiCpVi, dat:function(n,u){ NHOM_CP=n; CURUSER=u; } };';
+function moi(nhomCp, user, cur) {
+  /* ⚠️ `_donNhieuCoSo` nay hỏi thêm `CUR_PAGE` / `DA_CUR` — xem chốt ở app.html. Bài này kiểm
+     ô loại chi phí của ĐƠN TUẦN, nên dựng đúng bối cảnh: đang ở tab đơn, chưa mở dự án nào. */
+  const M = new Function('BOOT', 'NHOM_CP', 'NHOM_CP_CS', 'CURUSER', 'CUR', 'CUR_PAGE', 'DA_CUR', 'esc', nguon)(
+    BOOT, nhomCp, NHOM_CP_CS, user, cur || { don: { nhieuCoSo: false } }, 'don', null, v => String(v == null ? '' : v));
+  return M;
+}
+const NV_CS = { boPhan: 'Cơ sở' };
+/* Mã của một mục trong danh sách: `list()` trả về dòng danh mục, mã lấy qua chính hàm tra mã
+   của mã nguồn — không tự đoán lại. */
+const _tkCua = (M, x) => M.tkNoCua ? M.tkNoCua(x.ten, '') : '';
+
+// ---------------------------------------------------------------- 1. (a) chưa chọn cơ sở
+let M = moi(NHOM_CP_CS, NV_CS);
+/* Từ bản 1.108.0 loại ĐÃ KHAI BỘ PHẬN vẫn hiện dù chưa có mã (anh Thắng: *"theo kỹ thuật đang
+   có 2 loại chi phí, nhưng mới hiện 1 loại thôi"*). Nên chưa chọn cơ sở thì ô KHÔNG còn rỗng —
+   nhưng cũng KHÔNG được bịa ra mã: mã khai theo mảng của cơ sở, chưa biết cơ sở thì chưa có mã,
+   và câu nhắc bên dưới vẫn phải chỉ người ta đi chọn cơ sở. */
+t('chưa chọn cơ sở -> hiện loại đã khai bộ phận, nhưng KHÔNG cái nào có mã',
+  M.list('', '', '').length > 0 && M.list('', '', '').every(x => !_tkCua(M, x)), M.list('', '', ''));
+const vi0 = M.vi('', '', '');
+t('…nhưng PHẢI nói vì sao, không im lặng', /Chọn CƠ SỞ trước/.test(vi0.chu), vi0);
+t('và tô màu cảnh báo chứ không xám nhạt', vi0.mau === '#b45309', vi0);
+
+// ---------------------------------------------------------------- 2. (b) khai 1 mảng
+const cs_tutu = M.list('TÀU ESTELLA', '', '').map(x => x.ten);
+t('cơ sở TUTU thấy loại đã khai cho mảng TUTU', cs_tutu.indexOf('Chi phí cơ sở') >= 0, cs_tutu);
+t('cơ sở TUTU KHÔNG thấy loại chỉ khai cho FARM', cs_tutu.indexOf('Chi phí nuôi thú') < 0, cs_tutu);
+const cs_farm = M.list('FARM PHAN THIẾT', '', '').map(x => x.ten);
+t('cơ sở FARM KHÔNG thấy loại chỉ khai cho TUTU', cs_farm.indexOf('Chi phí cơ sở') < 0, cs_farm);
+t('loại khai CẢ HAI mảng thì cơ sở nào cũng thấy',
+  cs_tutu.indexOf('Chi phí điện nước') >= 0 && cs_farm.indexOf('Chi phí điện nước') >= 0, [cs_tutu, cs_farm]);
+// Đây là chỗ anh Thắng kêu "thêm rồi mà tk nhân viên khác không có" — phải giải thích được.
+const viF = M.vi('FARM PHAN THIẾT', '', '');
+t('nói rõ ẩn bao nhiêu và VÌ SAO', /ẩn:/.test(viF.chu) && /chưa khai mã cho mảng/.test(viF.chu), viF);
+t('gọi đúng tên mảng đang thiếu', /FARM MN/.test(viF.chu), viF);
+t('đang hiện bao nhiêu trên tổng bao nhiêu', /Đang hiện \d+\/5 loại/.test(viF.chu), viF);
+
+// ------------------------------------------------- 3. bộ phận KHÔNG còn là lý do ẩn (20/09/2026)
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 20/09/2026: *"Vừa phân theo bộ phận, vừa phân theo mảng. Dẫn đến xung đột — chọn
+ * mảng thì sai, bộ phận cũng không có"*. Ô chọn loại thôi cắt theo bộ phận của người đăng nhập;
+ * cột ấy nay chỉ dựng mấy nút "Chọn chi phí nào" để người nhập TỰ CHỌN.
+ *
+ * Ba phép ở đây trước đòi ngược lại: người Marketing mở ra thấy RỖNG, và dòng nhắc kể "thuộc bộ
+ * phận khác". Chính cảnh rỗng ấy là thứ phải bỏ — từ bản bỏ ô "Nội dung hạng mục" thì ô chọn
+ * rỗng nghĩa là KHÔNG NHẬP ĐƯỢC DÒNG NÀO.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+const M2 = moi(NHOM_CP_CS, { boPhan: 'Marketing' });   // bộ phận không khớp loại nào
+t('🔴 bộ phận khác VẪN chọn được — không còn ô trống trơn', M2.list('TÀU ESTELLA', '', '').length > 0,
+  M2.list('TÀU ESTELLA', '', '').length);
+const vi2 = M2.vi('TÀU ESTELLA', '', '');
+t('🔴 và "thuộc bộ phận khác" thôi là lý do ẩn', !/thuộc bộ phận khác/.test(vi2.chu), vi2);
+/* ⚠️ Hai lý do CÒN LẠI vẫn phải kể ra — chúng là thứ cắt thật, và đều nhìn thấy được. */
+t('   nhưng thiếu mã theo mảng thì vẫn nói rõ', /chưa khai mã cho mảng/.test(vi2.chu), vi2);
+
+// ---------------------------------------------------------------- 4. đủ dùng thì đừng làm ồn
+const M3 = moi('', NV_CS);
+const vi3 = M3.vi('TÀU ESTELLA', '', '');
+t('còn loại bị ẩn thì vẫn ghi chú nhẹ (xám)', vi3.chu === '' || vi3.mau === '#8c8781', vi3);
+t('danh mục trống thì nói thẳng',
+  /Danh mục loại chi phí đang trống/.test(new Function('BOOT','NHOM_CP','NHOM_CP_CS','CURUSER','esc',nguon)(
+    { cosoPll:{}, tkNoMx:{}, loaiChiPhi:[] }, '', NHOM_CP_CS, NV_CS, v=>String(v||'')).vi('X','','').chu));
+
+// ---------------------------------------------------------------- 5. thứ tự khởi động
+// renderNhomCp() chốt NHOM_CP; fillNhom() lọc theo đúng biến đó. Chạy ngược thì lần dựng
+// đầu lọc bằng giá trị chưa chốt -> ô rỗng, bấm qua lại một nút mới hiện.
+const mBoot = HTML.match(/el\('f_pltt'\)\.innerHTML=opts\(BOOT\.phanloai,'—'\);[\s\S]{0,400}?fillNhom\(''\);/);
+t('lúc khởi động có gọi renderNhomCp()', !!mBoot && /renderNhomCp\(\)/.test(mBoot[0]), mBoot && mBoot[0]);
+t('và gọi TRƯỚC fillNhom()', !!mBoot && mBoot[0].indexOf('renderNhomCp()') < mBoot[0].indexOf("fillNhom('')"), mBoot && mBoot[0]);
+t('chỉ có 1 cơ sở thì chọn sẵn (khỏi phải bấm mới thấy loại chi phí)',
+  /else if\(\(cosoOpts\|\|\[\]\)\.length===1\) el\('f_coso'\)\.value=cosoOpts\[0\];/.test(HTML));
+t('ô Loại chi phí có chỗ hiện lời giải thích', /id="f_nhomVi"/.test(HTML));
+t('fillNhom có vẽ lời giải thích đó', /_veLoaiCpVi\('f_nhomVi'/.test(HTML));
+
+// ---------------------------------------------------------------- 6. bảng dòng chi
+const CSS = fs.readFileSync(path.join(GOC, 'wordpress/vhcp-chi-phi/assets/css/vhcp.css'), 'utf8');
+// Cột "Cơ sở": một đơn = một cơ sở (máy chủ chặn ở loi_khac_coso), đã chốt ở đầu form.
+t('ẩn cột Cơ sở bằng LỚP CSS (đầu bảng + mọi dòng cùng lúc)',
+  /#lineTable\.anCoso \.colCoso\{display:none\}/.test(CSS));
+t('đầu bảng và ô của dòng dùng CHUNG một lớp', (HTML.match(/class="colCoso"/g) || []).length >= 1 && /'<td class="colCoso"'/.test(HTML));
+/* Bỏ ô ở dòng mà giữ ô ở đầu bảng là cả bảng trượt cột -> colspan phải bằng ĐÚNG số cột thật
+   và không đổi theo trạng thái.
+   ⚠️ ĐẾM TỪ CHÍNH ĐẦU BẢNG, đừng gõ cứng con số. Bản trước ghi thẳng "13"; thêm hai cột (Ngày
+      nhập · Loại chi phí, 18/09/2026) là phép này đỏ vì một con số hết hạn, chứ không phải vì
+      có lỗi — rồi người sửa chỉ việc đổi 13 thành 15 mà không ai soi xem hai bên còn khớp không.
+      Đếm thì nó tự đúng mãi, và bắt được đúng cái nó sinh ra để bắt: hai bên lệch nhau. */
+{
+  const th = HTML.slice(HTML.indexOf('<table id="lineTable">'));
+  const dau = th.slice(0, th.indexOf('</thead>'));
+  const soCot = (dau.match(/<th[ >]/g) || []).length;
+  const khai = (HTML.match(/var COLS=(\d+), html='';/) || [])[1];
+  t('colspan của dải gộp bằng ĐÚNG số cột ở đầu bảng (' + soCot + ')',
+    soCot > 0 && Number(khai) === soCot, { dauBang: soCot, khaiTrongMa: khai });
+  t('   và không đổi theo trạng thái', /var COLS=\d+, html='';/.test(HTML));
+}
+// Đơn cũ trộn cơ sở thì KHÔNG được giấu — ẩn đi là giấu mất một sai lệch có thật.
+t('đơn trộn cơ sở thì cột hiện lại', /classList\[lechCs\?'remove':'add'\]\('anCoso'\)/.test(HTML));
+t('và dòng lệch cơ sở bị tô đỏ', /Dòng này khác cơ sở của đơn/.test(HTML));
+t('phát hiện lệch theo cả 2 cách (nhiều cơ sở, hoặc khác cơ sở của đơn)',
+  /var lechCs=\(dsCs\.length>1\)\|\|\(csDon!==''&&dsCs\.length===1&&dsCs\[0\]!==csDon\);/.test(HTML));
+// Ảnh: máy chủ vốn cho đính khi Nháp, chỉ giao diện không bày ra.
+t('đính ảnh được ngay khi đơn còn Nháp (không đợi cấp tạm ứng)',
+  /if\(!\(o\.canThucChi\|\|o\.canEditRow\)/.test(HTML));
+/* 🔴 ĐƠN ĐÃ CHỐT SỔ VẪN PHẢI BỔ SUNG ĐƯỢC HÓA ĐƠN — nhưng chỉ KẾ TOÁN. Hóa đơn giấy về sau
+   ngày chốt, hoặc hóa đơn sai phải thay, là chuyện thường; khóa luôn cả ảnh là bộ chứng từ
+   vĩnh viễn thiếu trong khi số tiền đã đúng rồi. */
+t('đơn đã chốt sổ: kế toán vẫn thấy nút đính hóa đơn',
+  /_kt&&_chot/.test(HTML) && /Đã quyết toán'\|\|CUR\.don\.trangThai==='Đã xuất MISA'/.test(HTML));
+t('và nút đó nói rõ là KHÔNG đụng số tiền',
+  /bổ sung\/đổi hóa đơn, KHÔNG đụng số tiền/.test(HTML));
+/* Máy chủ mới là nơi gác thật — giao diện chỉ bày nút. Nếu chỉ giấu nút mà máy chủ vẫn nhận
+   thì ai gọi thẳng API cũng sửa được đơn đã sang sổ MISA.
+   ⚠️ Đọc tệp tại chỗ: hằng DON khai mãi ở dưới, dùng trước là "Cannot access before
+      initialization" — lỗi của BÀI KIỂM trông y như lỗi của mã. */
+t('máy chủ mới là nơi gác, không phải giao diện',
+  /Đơn đã chốt sổ — chỉ KẾ TOÁN mới bổ sung/.test(
+    fs.readFileSync(path.join(GOC, 'wordpress/vhcp-chi-phi/includes/class-vhcp-don.php'), 'utf8')));
+/* ⚠️ CANH Ý ĐỊNH, KHÔNG GHIM CÁCH VIẾT. Bản trước đòi nguyên văn
+   `<img src="'+esc(l.anh)+'" style="height:28px` — thêm một thuộc tính vào giữa thẻ là gãy,
+   mà gãy vì BÀI KIỂM chứ không phải vì mã hỏng. Đã gãy đúng như thế khi thêm `data-bill`
+   cho tính năng rê chuột phóng to (07/09/2026). Điều cần canh là: dòng có ảnh thì DỰNG THẺ
+   ẢNH NHỎ từ chính `l.anh`, và cỡ vẫn là cỡ ảnh nhỏ trong bảng. */
+const _the_anh = /<img src="'\+esc\(l\.anh\)\+'"[^>]*height:28px/.test(HTML);
+t('hiện ảnh nhỏ để nhìn ra dòng nào đã có chứng từ', _the_anh);
+
+// ---------------------------------------------------------------- 7. ngày & tiền ở bảng dòng
+// NGÀY sửa tại chỗ: đang có dòng mang năm vô lý ("22/08/4625"), bắt mở form sửa cả dòng
+// chỉ để đổi một chữ số là quá phiền.
+// `layHam` lấy khai báo ĐẦU TIÊN khớp tên. Trước bản này trong app.html có HAI hàm cùng tên
+// `_ymd` — một nhận Date, một nhận chuỗi 'dd/MM/yyyy' — nên phép thử bốc trúng bản kia và chết
+// với "d.getFullYear is not a function". Trong trình duyệt thì khai báo SAU thắng, tức bản
+// nhận Date là bản chết. Đã tách tên (`_ngayISO`); phép dưới canh không cho trùng lại.
+t('không có hai hàm _ymd cùng tên', (HTML.match(/function _ymd\s*\(/g) || []).length === 1,
+  String((HTML.match(/function _ymd\s*\(/g) || []).length));
+const _ymd = new Function(layHam('_ymd') + '; return _ymd;')();
+const _voLy = new Function(layHam('_ngayVoLy') + '; return _ngayVoLy;')();
+teq('đổi dd/MM/yyyy sang dạng ô ngày', '2026-08-22', _ymd('22/08/2026'));
+teq('nhận luôn dạng ISO sẵn', '2026-08-22', _ymd('2026-08-22'));
+teq('ngày rỗng thì trả rỗng', '', _ymd(''));
+teq('giữ đúng năm vô lý để ô ngày hiện ra', '4625-08-22', _ymd('22/08/4625'));
+t('bắt được năm vô lý', _voLy('22/08/4625') && _voLy('22/08/1899'));
+t('ngày thường thì không báo', !_voLy('22/08/2026') && !_voLy(''));
+t('ô NGÀY của dòng sửa được tại chỗ', /onchange="saveLineNgay\(/.test(HTML));
+// Trình duyệt vẽ <input type="date"> theo NGÔN NGỮ CỦA MÁY (08/22/4625) — cấu hình ngày
+// của WordPress không đụng được tới nó. Trong bảng thì thống nhất một kiểu quan trọng hơn.
+t('ô ngày trong bảng là ô CHỮ dd/mm/yyyy, không phải type=date',
+  /placeholder="dd\/mm\/yyyy"[\s\S]{0,90}?onchange="saveLineNgay/.test(HTML));
+t('và hiện đúng giá trị dd/mm/yyyy đang lưu', /value="'\+esc\(l\.ngay\|\|''\)\+'" onchange="saveLineNgay/.test(HTML));
+t('gọi đúng cổng máy chủ', /\.setLineNgay\(id, val\)/.test(HTML));
+t('năm vô lý được tô đỏ giữa bảng', /border-color:#dc2626;background:#fef2f2/.test(HTML));
+// Trình duyệt vẽ ô type=date theo ngôn ngữ máy (08/23/2026) còn cả app dùng 23/08/2026.
+t('ghi rõ ngày đang hiểu theo kiểu Việt Nam', /\(ngày\/tháng\/năm\)/.test(HTML) && /id="f_ngayVi"/.test(HTML));
+
+// TIỀN: <input type="number"> không hiện được "246.000" — trình duyệt chỉ nhận số thuần.
+const _tienSo  = new Function(layHam('_tienSo') + '; return _tienSo;')();
+const _tienDep = new Function(layHam('_tienSo') + '\n' + layHam('_tienDep') + '; return _tienDep;')();
+teq('bỏ dấu chấm để lấy số thật', '246000', _tienSo('246.000'));
+teq('ô rỗng vẫn là rỗng (khác 0)', '', _tienSo(''));
+teq('gõ chữ lung tung thì bỏ', '', _tienSo('abc'));
+teq('hiện có dấu chấm nghìn', '246.000', _tienDep('246000'));
+teq('số đã đẹp thì giữ nguyên', '1.837.000', _tienDep('1.837.000'));
+t('ô tiền là type=text (number không hiện được dấu chấm)',
+  /<input type="text" inputmode="numeric" value="'\+\(\(l\.thucMua/.test(HTML));
+t('định dạng lúc RỜI ô, bỏ định dạng lúc VÀO ô (khỏi nhảy con trỏ)',
+  /onfocus="tienVao\(this\)" onblur="tienRa\(this\)"/.test(HTML));
+t('gửi lên máy chủ SỐ THẬT, không phải chuỗi có dấu chấm', /saveLineThucMua\(\\''\+l\.id\+'\\',_tienSo\(this\.value\)\)/.test(HTML));
+t('ô Thực mua tổng ở mục 3 cũng có dấu chấm (đồng bộ với ô Tạm ứng bên cạnh)',
+  /el\('qtThucMua'\)\.value=money\(/.test(HTML) && /id="qtThucMua" type="text"/.test(HTML));
+t('và chỗ đọc nó ra để tính thì bỏ dấu chấm trước', /Number\(_tienSo\(el\('qtThucMua'\)\.value\)\)/.test(HTML));
+
+// ---------------------------------------------------------------- 8. sửa ngày/kỳ hỏng
+const DON = fs.readFileSync(path.join(GOC, 'wordpress/vhcp-chi-phi/includes/class-vhcp-don.php'), 'utf8');
+const UTIL= fs.readFileSync(path.join(GOC, 'wordpress/vhcp-chi-phi/includes/class-vhcp-util.php'), 'utf8');
+const API2= fs.readFileSync(path.join(GOC, 'wordpress/vhcp-chi-phi/includes/class-vhcp-api.php'), 'utf8');
+// Gốc bệnh: bảng tính xuất ô ngày ra SỐ SÊ-RI; bộ đọc cũ hiểu 4 chữ số đầu thành NĂM.
+t('sê-ri kèm GIỜ cũng được nhận (nhật ký, tạo lúc…) — bản vá đầu chỉ nhận ".0"',
+  /\[\.,\]\(\\d\+\)/.test(UTIL) && /public static function seri\(/.test(UTIL));
+t('bộ nạp dùng luôn GIỜ của sê-ri, không làm mất giờ',
+  /VHCP_Util::seri\( \$s \)/.test(fs.readFileSync(path.join(GOC,'wordpress/vhcp-chi-phi/includes/class-vhcp-import.php'),'utf8')));
+t('bịt cửa vào: parse_date đọc được số sê-ri',
+  /\$sr = self::seri\( \$s \);/.test(UTIL) && /25569/.test(UTIL));
+t('và chặn strtotime bịa ra năm ngoài 2000–2100', /\$y < 2000 \|\| \$y > 2100/.test(UTIL));
+t('Admin sửa được ngày ở MỌI trạng thái đơn', /\$la_admin = \( VHCP_Auth::vai_tro\(\) === 'Admin' \)/.test(DON));
+t('ô ngày mở cho Admin ở mọi trạng thái', /var admNgay=\(CURUSER&&CURUSER\.role==='Admin'\)/.test(HTML));
+t('có bảng sửa hàng loạt, chỉ Admin', /id="ngayHongCard"/.test(HTML) && /el\('ngayHongCard'\)\.style\.display=_laAdmin\(\)/.test(HTML));
+t('máy chủ cũng chốt Admin cho lệnh sửa hàng loạt', /'suaNgayHong', 'suaKyHong'/.test(API2));
+t('luôn DÒ trước, chỉ sửa khi bấm xác nhận', /function doChotNgayHong\(\)[\s\S]{0,400}?confirm\(/.test(HTML));
+// Cột KỲ hỏng là lý do lọc theo tháng/tuần không thấy đơn.
+t('có đường vá cột KỲ', /function sua_ky_hong/.test(DON) && /function doDoKyHong\(\)/.test(HTML));
+t('vá kỳ TRƯỚC khi vá ngày (ngày suy theo kỳ)', /if \( \$chot \) \{ self::sua_ky_hong\( true \); \}/.test(DON));
+// Không được giả vờ là khôi phục chính xác khi thật ra chỉ về đúng tuần.
+t('nói rõ dòng nào chỉ "ước lượng"', /ước lượng — đúng tuần, chưa chắc đúng ngày/.test(HTML));
+t('và khuyên nạp lại từ bảng tính gốc để đúng từng ngày', /nạp lại từ bảng tính gốc/.test(HTML));
+
+// ---------------------------------------------------------------- kết
+if (hong.length) {
+  console.error('\nĐẠT: ' + dat + ' phép thử');
+  console.error('HỎNG: ' + hong.length);
+  hong.forEach(h => console.error('  ✗ ' + h));
+  process.exit(1);
+}
+console.log('ĐẠT: ' + dat + ' phép thử');
+console.log('Tất cả phép thử đều đạt.');

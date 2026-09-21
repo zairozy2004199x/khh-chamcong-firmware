@@ -4,11 +4,11 @@ Tags: quan-ly-cong-viec, nhan-su, cham-cong, bang-luong, intranet
 Requires at least: 5.8
 Tested up to: 6.6
 Requires PHP: 7.2
-Stable tag: 1.17.0
+Stable tag: 1.20.1
 License: Proprietary
 
-Nền tảng quản trị nội bộ 15 ứng dụng chạy ngay trong WordPress: dự án & công việc, đề xuất,
-quy trình, hồ sơ nhân sự, chấm công, bảng công, nghỉ phép, bảng lương, thông báo, tri thức,
+Nền tảng quản trị nội bộ 16 ứng dụng chạy ngay trong WordPress: dự án & công việc, báo cáo dự án,
+đề xuất, quy trình, hồ sơ nhân sự, chấm công, bảng công, nghỉ phép, bảng lương, thông báo, tri thức,
 họp, trò chuyện, bảng tin, đặt tài nguyên.
 
 == Description ==
@@ -24,6 +24,50 @@ shortcode `[khh_platform]`. Dữ liệu lưu trong bảng riêng của WordPress
 3. Vào menu **Nền tảng K&H**.
 
 == Changelog ==
+
+= 1.20.1 =
+* Sửa **lệch giao diện** ở mọi hộp thoại có hai ô đứng cạnh nhau mà chỉ một ô có dòng nhắc:
+  ô không có dòng nhắc bị giãn ra cho cao bằng ô kia, làm ô nhập của nó **tụt xuống 10px và
+  cao thêm 10px**. Thấy rõ nhất ở hộp *Đổi mật khẩu* (Mật khẩu mới ↔ Nhập lại mật khẩu mới).
+  Nguyên nhân ở `.fld` trong `app.css`, nay ghim `align-content:start`. Bộ thử đo thẳng toạ độ
+  hai ô nên lỗi này không quay lại được.
+
+= 1.20.0 =
+* **Ứng dụng mới "Báo cáo Dự Án" — trang tổng.** Ứng dụng Công việc & Dự án trả lời "dự án NÀY
+  đang thế nào"; trang này trả lời "TẤT CẢ dự án đang thế nào", thứ mà tới giờ phải mở từng dự
+  án ra cộng tay. Bốn màn: Tổng quan, Theo bộ phận, Theo người, Cần xử lý.
+* Số liệu **tách bạch hai loại và ghi rõ trên màn hình**: nhóm "hiện tại" (còn bao nhiêu việc,
+  quá hạn bao nhiêu, sắp đến hạn trong 7 ngày) tính tại lúc mở trang và KHÔNG chạy theo kỳ báo
+  cáo — việc quá hạn từ tháng trước hôm nay vẫn đang quá hạn; nhóm "trong kỳ" (mở mới, hoàn
+  thành, tỷ lệ đúng hạn) mới đi theo kỳ 30 ngày / 90 ngày / năm nay / tất cả.
+* Tỷ lệ đúng hạn **chỉ tính trên việc có đặt hạn** — gom việc quên đặt hạn vào mẫu số thì tỷ lệ
+  tự đẹp lên theo số việc làm ẩu.
+* Lọc theo **bộ phận** (ô Bộ phận của dự án), biểu đồ nhịp độ mở mới / hoàn thành theo tuần,
+  bảng dự án xếp được theo tên, bộ phận, tiến độ hoặc hạn chót (dự án chưa đặt hạn xuống cuối).
+* Màn **Cần xử lý**: dự án trễ hạn, dự án đứng im 14 ngày không động tĩnh, việc quá hạn lâu
+  nhất, việc chưa giao ai. Bấm vào là sang thẳng dự án đó bên Công việc & Dự án.
+* Xuất **CSV** toàn bộ bảng dự án (dấu `;` và BOM để Excel bản tiếng Việt mở ra đúng cột, đúng dấu).
+* **Hộp "Tài khoản của bạn" nay xem được hồ sơ nhân sự của chính mình** — mã nhân sự, chức danh,
+  bộ phận, mảng, cơ sở, quản lý trực tiếp, ngày vào làm, hợp đồng, phép còn lại, liên hệ. Không
+  bày ngày sinh, số sổ BHXH, tài khoản ngân hàng: chủ hồ sơ đã biết, bày ra chỉ thêm rủi ro khi
+  có người ngó màn hình.
+* **Nhân viên tự đổi mật khẩu ngay trong nền tảng.** Phải nhập đúng mật khẩu hiện tại; sai 5 lần
+  thì khoá 15 phút, đếm theo TÀI KHOẢN chứ không theo IP (cả cơ sở dùng chung một đường mạng,
+  đếm theo IP là một người gõ sai khoá cả cửa hàng). Trước đây muốn đổi phải nhờ quản trị đặt
+  lại rồi đọc mật khẩu mới qua điện thoại — mật khẩu đi qua tay người thứ ba là mất ý nghĩa.
+* Cả hai việc trên bật/tắt được ở **Cấu hình → Tài khoản của nhân viên**, kèm ô độ dài mật khẩu
+  tối thiểu (6–64, mặc định 8) và tuỳ chọn có hiện lương cơ bản / phụ cấp hay không.
+
+= 1.19.0 =
+* Không đổi tính năng — đi cùng lượt phát hành chung của kho.
+
+= 1.18.0 =
+* **Tự cập nhật từ GitHub Releases**: hiện nút "Cập nhật" ngay ở màn Plugin như mọi plugin
+  khác, không phải dựng zip rồi tải lên tay nữa. Lọc tag theo tiền tố `khh-platform-v…` nên
+  bản của các bộ khác trong cùng kho không hiện nhầm sang đây. Khoá GitHub dùng chung ô
+  `vhcp_gh_token` với các bộ cùng site — khai một lần là cả nhà cùng thấy bản mới; chưa khai
+  thì vẫn chạy bình thường, chỉ là trần số lượt gọi API thấp hơn.
+* Khai tên vào bảng của trang IT (`khmatrix.com/it`) qua bộ lọc `vhcp_tu_cap_nhat_ds`.
 
 = 1.17.0 =
 * **Tự nối với plugin Chấm Công (K&H) đang chạy cùng site — không cần khai gì.** Thấy bảng
