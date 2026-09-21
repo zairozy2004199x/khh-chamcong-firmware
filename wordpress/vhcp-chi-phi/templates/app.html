@@ -2761,6 +2761,11 @@
        thấy gian của khối cũ, và kết luận là lọc không chạy.
        ⚠️ Gọi `_daLocLaiGian()`, KHÔNG gọi `_daNapCoSoDs(null)` — `null` ở hàm kia nghĩa là DỌN SẠCH. */
     try{ if(typeof _daLocLaiGian==='function') _daLocLaiGian(); }catch(e){}
+    /* 🔴 HAI Ô CƠ SỞ BÊN ĐƠN TUẦN CŨNG PHẢI DỰNG LẠI. Chúng dựng một lần trong `boot()`, mà
+       `boot()` không chạy lại khi đổi khối — không gọi ở đây thì người ta bấm sang Máy tự động
+       xong mở ô Cơ sở ra vẫn thấy gian khu vui chơi, và kết luận là lọc không chạy. Đúng cái
+       bẫy đã cắn ở hộp Gian hồi 1.242.0, lần này ở hai ô khác. */
+    try{ _veLaiOCoSo(); }catch(e){}
     /* Tổng quan phải tải lại chứ không chỉ vẽ lại: hai con số to nhất của nó (Chi phí xin, Chi
        phí thực tế) do MÁY CHỦ cộng, mà nay phép cộng ấy nhận thêm tham số khối. Đứng ở Tổng quan
        bấm sang MTĐ mà không hỏi lại máy chủ là mấy thẻ tiền vẫn là số của KVC. */
@@ -2937,6 +2942,35 @@
       if(i<DS.length-1) the+='<span style="align-self:center;color:#c9c2b8;font-size:13px">→</span>';
       return the;
     }).join('');
+  }
+  /* ═════════════════════════════════════════════════════════════════════════════════
+   * DỰNG LẠI HAI Ô CƠ SỞ BÊN ĐƠN TUẦN, LỌC THEO KHỐI ĐANG ĐỨNG.
+   *
+   * Tách riêng vì HAI nơi cần gọi: `boot()` (lượt đầu) và `doiKhoi()` (đổi khối). Để phép lọc
+   * nằm trong `boot()` thì đổi khối không lọc lại — mà `boot()` không chạy lại khi đổi khối.
+   * ⚠️ LỌC TỪ BẢN GỐC `_COSO_OPTS_GOC`, không lọc chồng lên kết quả lần trước.
+   * ═════════════════════════════════════════════════════════════════════════════════ */
+  function _veLaiOCoSo(uuTien){
+    var ds=(window._COSO_OPTS_GOC||[]).filter(_gianHopKhoi);
+    /* ⚠️ DÙNG LẠI `opts()`, không tự dựng chuỗi <option>: nó đẻ sẵn dòng rỗng đầu tiên với đúng
+       ký tự mà mọi ô chọn khác trong trang đang dùng. Tự dựng là một ô lệch kiểu với phần còn
+       lại, và dòng rỗng lại mang chữ khác. */
+    window._COSO_OPTS_HTML=opts(ds);
+    var tu=el('tuCoso'), f=el('f_coso');
+    var giuTu=tu&&tu.value, giuF=f&&f.value;
+    if(tu) tu.innerHTML=window._COSO_OPTS_HTML;
+    if(f)  f.innerHTML =window._COSO_OPTS_HTML;
+    /* Giữ lựa chọn cũ NẾU nó còn hợp khối — đổi khối rồi mà ô vẫn đứng ở cơ sở khối cũ là đúng
+       cái đang sửa; còn xoá sạch lựa chọn khi nó vẫn hợp lệ thì người ta phải chọn lại vô cớ. */
+    if(tu&&giuTu&&ds.indexOf(giuTu)>=0) tu.value=giuTu;
+    if(f &&giuF &&ds.indexOf(giuF )>=0) f.value =giuF;
+    /* CHỌN SẴN KHI KHÔNG CÒN GÌ ĐỂ ĐOÁN. Mã tài khoản khai theo MẢNG của cơ sở, nên chưa chọn
+       cơ sở thì ô "Loại chi phí" gần như rỗng — mở đơn lần đầu trông y như app hỏng. */
+    if(f && !f.value){
+      if(uuTien && ds.indexOf(uuTien)>=0) f.value=uuTien;
+      else if(ds.length===1) f.value=ds[0];
+    }
+    try{ if(typeof _khoaCoSo==='function') _khoaCoSo(); }catch(e){}
   }
   function veThanhKhoi(){
     var o=el('khoiBar'); if(!o) return;
@@ -3563,18 +3597,37 @@
       // vô ích. Gian đang mở của đơn đã có dòng vẫn giữ (đơn cũ vẫn xem/sửa được).
       var dongRoi={}; (BOOT.cosoDong||[]).forEach(function(c){ dongRoi[String(c).trim().toLowerCase()]=1; });
       cosoOpts=(cosoOpts||[]).filter(function(c){ return !dongRoi[String(c).trim().toLowerCase()]; });
-      window._COSO_OPTS_HTML=opts(cosoOpts);   // giữ để khôi phục khi mở đơn khác (bỏ khóa 1 cơ sở)
-      el('tuCoso').innerHTML=window._COSO_OPTS_HTML; el('f_coso').innerHTML=window._COSO_OPTS_HTML;
-      // CHỌN SẴN CƠ SỞ KHI CHỈ CÓ MỘT LỰA CHỌN.
-      // Mã tài khoản khai theo MẢNG của cơ sở, nên chưa chọn cơ sở thì ô "Loại chi phí"
-      // gần như rỗng — mở đơn lần đầu trông y như app hỏng. Ai chỉ phụ trách 1 cơ sở thì
-      // khỏi phải chọn. Nhiều cơ sở thì không đoán hộ, nhưng dòng chú thích dưới ô Loại
-      // chi phí sẽ nói rõ "⬆ Chọn CƠ SỞ trước".
-      if(isNV&&myCoso.length) el('f_coso').value=myCoso[0];
-      else if((cosoOpts||[]).length===1) el('f_coso').value=cosoOpts[0];
-      // Vừa dựng lại ô chọn -> khóa lại theo cơ sở đã chốt của đơn đang mở, không thì
-      // boot() chạy sau openDon() là mở lại đủ cơ sở, hết khóa mà không ai thấy.
-      if(typeof _khoaCoSo==='function') _khoaCoSo();
+      /* ══════════════════════════════════════════════════════════════════════════════════════
+       * VÀ LỌC THEO KHỐI — hai ô này cũng vậy, không chỉ hộp Gian bên tab Kỹ thuật.
+       *
+       * Anh Thắng 22/09/2026: *"đang để nhân viên máy tự động vẫn thấy cơ sở khu vui chơi"*,
+       * kèm ảnh ô **Cơ sở** ở khối Tạm ứng xổ ra TÀU TÂN PHÚ · TÀU BÌNH TÂN · FUNFEST… lẫn với
+       * AEON MALL · BỆNH VIỆN 175…
+       *
+       * 🔴 LƯỢT 1.242.0 MỚI BỊT MỘT NỬA. Lần ấy em lọc hộp **Gian** (`dl_coso_da`/`dl_gian_da`)
+       *    bên tab Kỹ thuật và tưởng xong — nhưng đơn TUẦN có hai ô chọn cơ sở riêng
+       *    (`#tuCoso` ở khối Tạm ứng, `#f_coso` ở dòng chi), dựng ở đây, chưa ai lọc. Cùng một
+       *    câu hỏi mà hai đường trả lời khác nhau; đó là dấu hiệu phép lọc đặt sai chỗ chứ
+       *    không phải thiếu một dòng mã.
+       *
+       * 🔴 CHỌN NHẦM CƠ SỞ LÀ TIỀN RƠI VÀO SỔ CỦA KHỐI KHÁC, và hỏng theo kiểu khó truy nhất:
+       *    đơn vẫn lập được, số vẫn vào, chỉ là vào nhầm chỗ — tới lúc đối chiếu cuối kỳ mới lộ.
+       *
+       * ⚠️ DÙNG LẠI `_gianHopKhoi()`, KHÔNG VIẾT PHÉP THỨ HAI. Cùng một câu hỏi ("cơ sở này có
+       *    thuộc khối đang đứng không") thì phải cùng một câu trả lời — hai bản chép tay là hai
+       *    bản trôi lệch nhau, và lệch ở đây nghĩa là hộp Gian lọc một kiểu, ô Cơ sở lọc kiểu
+       *    khác, trên cùng một đơn.
+       * ⚠️ CƠ SỞ CHƯA KHAI KHỐI VẪN HIỆN — cùng luật hỏng-an-toàn với `_gianHopKhoi()`: danh mục
+       *    dựng từ sổ cũ, ẩn chúng là người nhập không chọn được một cơ sở có thật.
+       * ══════════════════════════════════════════════════════════════════════════════════════ */
+      /* 🔴 GIỮ BẢN CHƯA LỌC KHỐI. Đổi khối là phải lọc LẠI TỪ ĐẦU; lọc chồng lên bản đã lọc thì
+         mỗi lượt đổi khối danh sách teo thêm một ít, và sau vài lượt là ô trắng — hỏng dần, nên
+         càng khó thấy. (Em gán nhầm đúng chỗ này một lượt, 22/09/2026.) */
+      window._COSO_OPTS_GOC=(cosoOpts||[]).slice();
+      /* Ai chỉ phụ trách 1 cơ sở thì khỏi phải chọn; nhiều cơ sở thì không đoán hộ, nhưng dòng
+         chú thích dưới ô Loại chi phí sẽ nói rõ "⬆ Chọn CƠ SỞ trước". Phép chọn sẵn và phép
+         khoá-theo-đơn nay nằm trong `_veLaiOCoSo()` — hai nơi gọi thì phải cùng hành vi. */
+      _veLaiOCoSo((isNV&&myCoso.length)?myCoso[0]:'');
       // renderNhomCp() TRƯỚC fillNhom(): nó là chỗ chốt NHOM_CP (nút đang chọn ở "Chọn chi
       // phí nào"), mà fillNhom lọc theo đúng biến đó. Chạy ngược thứ tự thì lần dựng đầu
       // lọc bằng giá trị chưa chốt — ô rỗng, bấm qua lại một nút mới hiện.
@@ -10997,7 +11050,9 @@
   var SPLIT_ID=null;
   function splitLine(id){ SPLIT_ID=id;
     var l=((CUR&&CUR.lines)||[]).filter(function(x){return x.id===id;})[0], cur=l?l.coso:'';
-    el('splitCoso').innerHTML=(BOOT.coso||[]).map(function(c){ return '<option'+(c===cur?' selected':'')+'>'+esc(c)+'</option>'; }).join('')||'<option value="">(chưa có cơ sở)</option>';
+    /* Cùng luật với hai ô trên: tách một dòng sang cơ sở của khối khác cũng là tiền rơi sang
+       sổ bên kia, chỉ khác là đi bằng cửa sau. */
+    el('splitCoso').innerHTML=(BOOT.coso||[]).filter(_gianHopKhoi).map(function(c){ return '<option'+(c===cur?' selected':'')+'>'+esc(c)+'</option>'; }).join('')||'<option value="">(chưa có cơ sở của khối này)</option>';
     el('splitModal').style.display='flex';
   }
   function closeSplit(){ el('splitModal').style.display='none'; SPLIT_ID=null; }
