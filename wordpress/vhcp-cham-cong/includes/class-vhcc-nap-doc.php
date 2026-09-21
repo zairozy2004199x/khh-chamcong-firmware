@@ -62,6 +62,26 @@ class VHCC_NapDoc {
 		$ra = array( 'ok' => false, 'thang' => '', 'nguoi' => array(), 'luot' => array(),
 			'canh' => array() );
 
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 NHIỀU BẢNG CHỒNG NHAU TRONG MỘT TỆP THÌ CHỐI — KHÔNG ĐỌC BỪA BẢNG ĐẦU.
+		 *
+		 * Tệp anh Thắng gửi 21/09/2026 có 33 bảng xếp dọc, từ tháng 1/2024 tới 2026. Bản đầu của
+		 * bộ đọc này lấy THÁNG ở sáu dòng trên cùng (ra "1/2024") rồi đi tìm dòng "Check in"
+		 * trong CẢ tệp — và dòng ấy mãi tới bảng tháng 11/2024 mới xuất hiện. Kết quả: hai năm
+		 * công của mọi người bị đóng dấu tháng 1/2024, chồng đè lên nhau, mà không một câu báo.
+		 * Bảng vẫn ra số, số vẫn hợp lệ, chỉ là sai hết.
+		 *
+		 * Anh Thắng 21/09/2026: *"Để anh copy 1 tháng thôi — tránh lẫn lộn dữ liệu"*. Đúng, và
+		 * chốt này là thứ bắt máy tuân theo cách làm ấy thay vì trông vào trí nhớ người dùng.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$ds_thang = self::ds_thang( $dong );
+		if ( count( $ds_thang ) > 1 ) {
+			$ra['canh'][] = '🔴 Tệp này có ' . count( $ds_thang ) . ' bảng chồng nhau ('
+				. implode( ' · ', array_slice( $ds_thang, 0, 6 ) )
+				. ( count( $ds_thang ) > 6 ? ' …' : '' ) . '). Mỗi lần chỉ nạp MỘT tháng — '
+				. 'cắt riêng tháng cần nạp ra một tệp rồi nạp lại.';
+			return $ra;
+		}
 		$thang = self::tim_thang( $dong );
 		if ( '' === $thang ) {
 			$ra['canh'][] = 'Không thấy tháng trong tệp. Dòng tiêu đề phải có dạng '
@@ -95,16 +115,37 @@ class VHCC_NapDoc {
 		$gom = array();
 		$ten_thay = array();
 		for ( $i = $i_cot + 1; $i < count( $dong ); $i++ ) {
-			$ngay_so = self::so_ngay( isset( $dong[ $i ][0] ) ? $dong[ $i ][0] : '' );
-			if ( null === $ngay_so ) { continue; }   // Lễ · Biên Bản · Tổng · dòng trống
+			$o_ngay  = isset( $dong[ $i ][0] ) ? $dong[ $i ][0] : '';
+			$ngay_so = self::so_ngay( $o_ngay );
+			if ( null === $ngay_so ) { continue; }   // Lễ · Bù · Biên Bản · Tổng · dòng trống
 			$ngay = $thang . '-' . str_pad( (string) $ngay_so, 2, '0', STR_PAD_LEFT );
 			if ( ! self::ngay_that( $ngay ) ) {
 				$ra['canh'][] = 'Tháng ' . $thang . ' không có ngày ' . $ngay_so . ' — bỏ dòng ấy.';
 				continue;
 			}
+			/* Ô ngày có ghi chú ("1 (LỄ*2)", "26 (27 TẾT)", "29 M1") — nạp giờ bình thường,
+			   nhưng phải KỂ RA: hệ số ngày lễ KHÔNG nằm trong tệp này. */
+			$chu = self::chu_ngay( $o_ngay );
+			if ( '' !== $chu ) {
+				$ra['canh'][] = 'Ngày ' . $ngay_so . ' có ghi chú "' . $chu . '" — chỉ nạp GIỜ, '
+					. 'không nạp hệ số lễ. Khai ngày lễ ở màn Cấu hình thì hệ tự nhân.';
+			}
 			foreach ( $cum as $c ) {
-				$vao = self::gio( isset( $dong[ $i ][ $c['cot'] ] ) ? $dong[ $i ][ $c['cot'] ] : '' );
-				$ra_g = self::gio( isset( $dong[ $i ][ $c['cot'] + 1 ] ) ? $dong[ $i ][ $c['cot'] + 1 ] : '' );
+				$o_v = isset( $dong[ $i ][ $c['cot'] ] ) ? $dong[ $i ][ $c['cot'] ] : '';
+				$o_r = isset( $dong[ $i ][ $c['cot'] + 1 ] ) ? $dong[ $i ][ $c['cot'] + 1 ] : '';
+				/* 🔴 Ô GÕ SAI KHÁC HẲN Ô TRỐNG, VÀ PHẢI NÓI RA.
+				   Trong tệp anh Thắng có mấy ô như `11:4`, `11:0` — thiếu một chữ số. Đọc về
+				   `null` thì ca ấy thành ca thiếu một đầu giờ, im lặng, y như ô trống. Người ta
+				   nhìn bảng nạp xong thấy "thiếu giờ ra" rồi đi bù tay, trong khi chuyện thật là
+				   BẢNG GỐC gõ sai một ô — sửa ở bảng gốc mới đúng chỗ. */
+				foreach ( array( 'vào' => $o_v, 'ra' => $o_r ) as $ben => $o_x ) {
+					if ( self::gio_xau( $o_x ) ) {
+						$ra['canh'][] = '⚠ ' . $c['nhan'] . ' ngày ' . $ngay_so . ': ô giờ ' . $ben
+							. ' ghi "' . trim( (string) $o_x ) . '" — không đọc được, sửa ở bảng gốc.';
+					}
+				}
+				$vao  = self::gio( $o_v );
+				$ra_g = self::gio( $o_r );
 				if ( null === $vao && null === $ra_g ) { continue; }
 				$ten_thay[ $c['ten'] ] = true;
 				$gom[ $c['ten'] ][ $ngay ][] = array( 'vao' => $vao, 'ra' => $ra_g, 'cum' => $c['nhan'] );
@@ -221,6 +262,26 @@ class VHCC_NapDoc {
 		if ( empty( $d['ok'] ) ) { return $d; }
 		$canh = $d['canh'];
 
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 THÁNG NÀY TRONG SỔ ĐÃ CÓ GÌ CHƯA — ĐẾM VÀ NÓI RA TRƯỚC KHI GHI.
+		 *
+		 * Tiêu đề bảng là thứ DUY NHẤT nói tháng nào, và nó gõ bằng tay nên gõ sai được. Ngay
+		 * trong tệp anh Thắng gửi 21/09/2026 có HAI bảng cùng đề "THÁNG 8/2026" — bảng sau là
+		 * tháng khác, chỉ là chép tiêu đề quên sửa. Cắt bảng sau ra nạp thì cả tháng ấy rơi vào
+		 * tháng 8, trộn với số liệu thật của tháng 8, và không câu nào báo: bộ đọc tin tiêu đề,
+		 * `ghi_gio()` chỉ nới khung nên cũng không kêu.
+		 *
+		 * Không có cách nào để máy BIẾT tiêu đề sai. Nhưng đưa ra con số "tháng này đã có 122
+		 * ngày công của 9 người" ngay trên màn Xem trước thì người đang cầm bảng nhận ra ngay —
+		 * họ biết tháng ấy đáng lẽ trống.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$co_san = self::dem_thang_trong_so( $coso, $d['thang'] );
+		if ( $co_san['luot'] > 0 ) {
+			$canh[] = '⚠ Tháng ' . $d['thang'] . ' của cơ sở ' . $coso . ' ĐÃ CÓ '
+				. $co_san['luot'] . ' ngày công của ' . $co_san['nguoi'] . ' người trong sổ. '
+				. 'Nạp thêm thì hai bên trộn vào nhau — kiểm lại tiêu đề bảng có đúng tháng không.';
+		}
+
 		/* Sổ ghép đã lưu + những ô người ta vừa chọn. Ô vừa chọn ĐÈ lên sổ: đó là người sửa lại
 		   một phép ghép cũ sai, và phép sửa ấy phải thắng. */
 		$so   = self::so_ghep( $coso );
@@ -302,9 +363,30 @@ class VHCC_NapDoc {
 		}
 
 		return array( 'ok' => true, 'chi_xem' => (bool) $chi_xem, 'coSo' => $coso,
+			'co_san' => $co_san,
 			'thang' => $d['thang'], 'nguoi' => $nguoi, 'so_nguoi' => count( $d['nguoi'] ),
 			'so_thieu' => $thieu, 'so_ngay' => count( $ngay_co ), 'so_luot' => count( $d['luot'] ),
 			'da_ghi' => $ghi, 'bo_luot' => $bo_luot, 'nghi_ghi' => $nghi_ghi, 'canh' => $canh );
+	}
+
+	/**
+	 * Sổ đã có bao nhiêu ngày công của cơ sở này trong tháng ấy.
+	 *
+	 * ⚠️ HỎI THEO KHOẢNG NGÀY, không `LIKE 'thang-%'`. `esc_like` che dấu `_` theo luật MySQL mà
+	 *    SQLite không theo, nên cùng một câu cho hai kết quả khác nhau giữa máy thật và máy thử —
+	 *    và sai theo hướng ĐẾM THIẾU, tức im lặng bỏ qua đúng cảnh báo cần đưa ra.
+	 */
+	private static function dem_thang_trong_so( $coso, $thang ) {
+		global $wpdb;
+		$bang = VHCC_DB::t( 'cham_cong' );
+		$r = $wpdb->get_row( $wpdb->prepare(
+			"SELECT COUNT(*) AS luot, COUNT(DISTINCT ma_nv) AS nguoi FROM $bang
+			 WHERE coso=%s AND ngay >= %s AND ngay <= %s",
+			$coso, $thang . '-01', $thang . '-31' ), ARRAY_A );
+		return array(
+			'luot'  => $r ? (int) $r['luot'] : 0,
+			'nguoi' => $r ? (int) $r['nguoi'] : 0,
+		);
 	}
 
 	/* ====================================================================== giữ tệp tạm */
@@ -469,9 +551,41 @@ class VHCC_NapDoc {
 
 	/* ============================================================================== đọc ô */
 
+	/**
+	 * MỌI DÒNG TIÊU ĐỀ THÁNG TRONG CẢ TỆP — dùng để phát hiện nhiều bảng chồng nhau.
+	 *
+	 * ⚠️ QUÉT CẢ TỆP, không quét sáu dòng đầu như `tim_thang()`. Đó chính là chỗ hỏng: bảng thứ
+	 *    hai trở đi nằm ở giữa tệp, và chỉ quét đầu tệp thì không bao giờ thấy chúng.
+	 *
+	 * 🔴 GIỮ CẢ BẢN TRÙNG, KHÔNG GỘP. Đây là chỗ em suýt để lọt: bản đầu gộp tháng trùng làm
+	 *    một, nên hai bảng CÙNG MỘT THÁNG đếm ra 1 và chốt chồng bảng không nổ. Mà đó đúng là
+	 *    ca của tệp thật — anh Thắng có HAI bảng cùng đề "THÁNG 8/2026", bảng sau là tháng khác
+	 *    chép tiêu đề quên sửa. Chính cái ca nguy nhất lại là cái ca phép gộp bỏ qua.
+	 *
+	 * @return array tên tháng nguyên văn, theo thứ tự xuất hiện, GIỮ NGUYÊN bản trùng —
+	 *               số phần tử = số bảng trong tệp.
+	 */
+	public static function ds_thang( $dong ) {
+		$ra = array();
+		foreach ( (array) $dong as $d ) {
+			foreach ( (array) $d as $o ) {
+				$t = trim( (string) $o );
+				if ( '' === $t ) { continue; }
+				if ( ! preg_match( '#TH[ÁA]NG\s*(\d{1,2})\s*[/\-]\s*(\d{4})#iu', $t, $m ) ) { continue; }
+				$ra[] = (int) $m[1] . '/' . $m[2];
+				break;   // một DÒNG tiêu đề = một bảng, dù dòng ấy có mấy ô nhắc lại tháng
+			}
+		}
+		return $ra;
+	}
+
 	/** "BẢNG CHẤM CÔNG THÁNG 4/2026" -> "2026-04". '' nếu không thấy. */
 	public static function tim_thang( $dong ) {
-		foreach ( array_slice( (array) $dong, 0, 6 ) as $d ) {
+		/* 🔴 QUÉT CẢ TỆP, KHÔNG PHẢI SÁU DÒNG ĐẦU. Bảng anh Thắng xuất ra có khi chừa mấy dòng
+		   trống hoặc một dòng ghi chú phía trên tiêu đề, và khi ấy bộ đọc chối một tệp hoàn toàn
+		   đọc được. Chốt "chỉ một bảng một tệp" ở `doc()` đã lo phần chồng bảng, nên quét rộng ở
+		   đây không còn rủi ro lấy nhầm tiêu đề của bảng khác. */
+		foreach ( (array) $dong as $d ) {
 			foreach ( (array) $d as $o ) {
 				$s = trim( (string) $o );
 				if ( '' === $s ) { continue; }
@@ -534,12 +648,51 @@ class VHCC_NapDoc {
 		return trim( $t );
 	}
 
-	/** Ô cột đầu -> số ngày, hoặc null (Lễ · Biên Bản · Tổng · rỗng). */
+	/**
+	 * Ô CỘT ĐẦU -> SỐ NGÀY, hoặc null (Lễ · Bù · Biên Bản · Tổng · rỗng).
+	 *
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 NHẬN CẢ NHÃN CÓ ĐUÔI — `1 (LỄ*2)`, `26 (27 TẾT)`, `29 M1`, `1 Mùng 4`, `7 28t`.
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * Bản đầu đòi ô ngày phải là SỐ TRẦN (`^\d{1,2}$`). Tệp thật anh Thắng gửi 21/09/2026 có 17
+	 * dòng kiểu ấy, và dòng nào cũng CÓ GIỜ — riêng dòng `1 (LỄ*2)` của tháng 5/2025 có 18 ô giờ
+	 * của 7 người. Đòi số trần là nuốt sạch mấy ngày đó, IM LẶNG: không lỗi, không cảnh báo, chỉ
+	 * là bảng công thiếu vài ngày mà toàn những ngày lễ tết — tức những ngày TRẢ NHIỀU TIỀN NHẤT.
+	 *
+	 * ⚠️ PHẢI CÓ RANH GIỚI SAU SỐ (`\b`), kẻo `2024` đọc thành ngày 20 và một dòng tiêu đề lạc
+	 *    vào giữa bảng biến thành một ngày công.
+	 * ⚠️ `Lễ`, `Bù`, `Tổng`, `Biên Bản` vẫn rơi về null vì không mở đầu bằng số — đúng ý: đó là
+	 *    dòng tổng kết, không phải ngày. Riêng dòng `Bù` CÓ KHI mang giờ thật (tệp anh Thắng có
+	 *    một dòng `17:01 22:06 05:05`) nhưng không có ngày nào để gắn vào, nên không đoán.
+	 */
 	private static function so_ngay( $o ) {
 		$s = trim( (string) $o );
-		if ( '' === $s || ! preg_match( '/^\d{1,2}$/', $s ) ) { return null; }
-		$n = (int) $s;
+		if ( '' === $s || ! preg_match( '/^(\d{1,2})\b/u', $s, $m ) ) { return null; }
+		$n = (int) $m[1];
 		return ( $n >= 1 && $n <= 31 ) ? $n : null;
+	}
+
+	/** Phần ghi chú sau số ngày ("1 (LỄ*2)" -> "(LỄ*2)"), hoặc '' khi ô là số trần. */
+	private static function chu_ngay( $o ) {
+		$s = trim( (string) $o );
+		if ( '' === $s || ! preg_match( '/^\d{1,2}\b(.*)$/u', $s, $m ) ) { return ''; }
+		return trim( $m[1] );
+	}
+
+	/**
+	 * Ô CÓ CHỮ NHƯNG KHÔNG ĐỌC ĐƯỢC THÀNH GIỜ — `11:4`, `11:0`, `abc`.
+	 *
+	 * ⚠️ `0` KHÔNG TÍNH LÀ GÕ SAI. Cả bảng điền `0` cho ô không có ca; kêu lên ở đó là mỗi tháng
+	 *    đẻ ra hàng nghìn dòng cảnh báo và không ai đọc dòng nào nữa.
+	 */
+	private static function gio_xau( $o ) {
+		$s = trim( (string) $o );
+		if ( '' === $s ) { return false; }
+		/* ⚠️ MỌI CÁCH VIẾT SỐ KHÔNG đều rơi về đây: `0`, `00`, `0,0`, `0.00`. Bản đầu liệt kê
+		   riêng chuỗi `0` rồi mới tới khuôn này — thừa, và phá thử cho thấy gỡ dòng ấy bài vẫn
+		   xanh vì khuôn dưới đỡ hộ. Một chốt là đủ, và một chốt thì phá thử soi được. */
+		if ( preg_match( '/^0+([.,]0+)?$/', $s ) ) { return false; }
+		return ( null === self::gio( $s ) );
 	}
 
 	/**

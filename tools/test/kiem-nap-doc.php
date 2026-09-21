@@ -395,6 +395,123 @@ t( '🔴 người khác KHÔNG lấy được bảng tạm của mình',
 	null === VHCC_NapDoc::lay_bang( $NV, $ma_giu ) );
 t( 'mã bịa -> không lấy được gì', null === VHCC_NapDoc::lay_bang( $AD, 'khongcothat' ) );
 
+/* ═════════════════════════════════════════════════════════════════════════════════════════
+   NHỮNG GÌ TỆP THẬT CỦA ANH THẮNG DẠY (21/09/2026)
+   ═════════════════════════════════════════════════════════════════════════════════════════
+   Anh gửi tệp .csv thật: 33 bảng xếp dọc, từ tháng 1/2024 tới 2026, 2227 ngày công. Bảng mẫu
+   dựng từ ảnh chụp KHÔNG có ba thứ dưới đây, và cả ba đều làm mất dữ liệu trong im lặng.
+   ───────────────────────────────────────────────────────────────────────────────────────── */
+
+/* ══════════════════════ 1. NHIỀU BẢNG CHỒNG NHAU -> CHỐI, KHÔNG ĐỌC BẢNG ĐẦU */
+
+/* 🔴 CHỖ HỎNG ĐẮT NHẤT MÀ TỆP THẬT LỘ RA.
+   `tim_thang()` lấy tháng ở đầu tệp, còn `tim_dong_cot()` đi tìm "Check in" trong CẢ tệp. Mười
+   bảng đầu của anh Thắng (2024) chỉ ghi SỐ GIỜ mỗi ngày, không có dòng Check in — nên dòng ấy
+   mãi tới bảng tháng 11/2024 mới gặp. Bộ đọc bèn lấy tiêu đề "1/2024" ghép với dữ liệu tháng 11,
+   rồi đọc tiếp suốt hai năm còn lại và đóng dấu TẤT CẢ là tháng 1/2024. Ra số, số hợp lệ, sai hết.
+   Anh Thắng: *"Để anh copy 1 tháng thôi — tránh lẫn lộn dữ liệu"*. Chốt này bắt máy tuân theo
+   cách ấy, thay vì trông vào trí nhớ người dùng. */
+$hai = array_merge( $B, array( array( '' ) ), $B );
+$r_hai = VHCC_NapDoc::doc( $hai );
+t( '🔴 hai bảng trong một tệp -> CHỐI', empty( $r_hai['ok'] ), $r_hai );
+t( '   và nói rõ là chồng bảng', (bool) preg_grep( '/chồng nhau/u', (array) $r_hai['canh'] ), $r_hai['canh'] );
+
+/* Dựng lại đúng cái bẫy của tệp thật: bảng ĐẦU không có dòng Check in, bảng SAU thì có. */
+$bay = array_merge(
+	array( array( 'BẢNG CHẤM CÔNG THÁNG 1/2024' ), array( '' ),
+		array( '', 'Thắng', 'Bảo Ngô' ), array( '1', '30,5', '0' ), array( 'Tổng', '61,5', '56' ),
+		array( '' ) ),
+	$B );
+$r_bay = VHCC_NapDoc::doc( $bay );
+t( '🔴 bảng đầu không có Check in + bảng sau có -> vẫn CHỐI', empty( $r_bay['ok'] ), $r_bay );
+/* ⚠️ Không đủ nếu chỉ hỏi `ok` rỗng — phải chắc nó chối vì CHỒNG BẢNG, chứ không phải vì một
+   lý do khác tình cờ đỡ hộ. Không có câu này thì gỡ hẳn chốt chồng bảng mà bài vẫn có thể xanh. */
+t( '   và chối đúng vì chồng bảng, không phải lý do khác',
+	(bool) preg_grep( '/chồng nhau/u', (array) $r_bay['canh'] ), $r_bay['canh'] );
+$ds_t = VHCC_NapDoc::ds_thang( $bay );
+t( '   kể đúng hai tháng tìm thấy', array( '1/2024', '4/2026' ) === $ds_t, $ds_t );
+t( 'một bảng thì không kêu gì', array( '4/2026' ) === VHCC_NapDoc::ds_thang( $B ) );
+
+/* ══════════════════════ 2. NHÃN NGÀY CÓ ĐUÔI — NGÀY LỄ TẾT, NGÀY TRẢ NHIỀU TIỀN NHẤT */
+
+/* 🔴 Bản đầu đòi ô ngày phải là SỐ TRẦN. Tệp thật có 17 dòng kiểu `1 (LỄ*2)`, `26 (27 TẾT)`,
+   `29 M1`, `1 Mùng 4`, `7 28t` — dòng nào cũng CÓ GIỜ, riêng `1 (LỄ*2)` của tháng 5/2025 có 18
+   ô giờ của 7 người. Đòi số trần là nuốt sạch mấy ngày ấy, im lặng, mà toàn ngày lễ tết. */
+$le = $B;
+$le[3][0] = '1 (LỄ*2)';        // ngày 1 — K.Oanh (LT) có ca 09:35–13:10
+$le[4][0] = '3 Mùng 5';
+$le[5][0] = '11 (GIAO THỪA)';
+$r_le = VHCC_NapDoc::doc( $le );
+t( 'nhãn ngày có đuôi -> vẫn đọc được bảng', ! empty( $r_le['ok'] ), $r_le );
+$tim_le = function ( $ten, $ngay ) use ( $r_le ) {
+	foreach ( $r_le['luot'] as $x ) { if ( $x['ten'] === $ten && $x['ngay'] === $ngay ) { return $x; } }
+	return null;
+};
+t( '🔴 ngày "1 (LỄ*2)" KHÔNG bị nuốt', null !== $tim_le( 'K.Oanh', '2026-04-01' ), $r_le['luot'] );
+t( '🔴 ngày "3 Mùng 5" KHÔNG bị nuốt', null !== $tim_le( 'K.Oanh', '2026-04-03' ) );
+t( '🔴 ngày "11 (GIAO THỪA)" KHÔNG bị nuốt', null !== $tim_le( 'N.Kiệt', '2026-04-11' ) );
+/* Và khoảng nghỉ của ngày 11 vẫn còn nguyên — đuôi nhãn không được làm hỏng phần đắt nhất. */
+$x_le = $tim_le( 'N.Kiệt', '2026-04-11' );
+t( '   và khoảng nghỉ 13:00–17:05 vẫn nguyên',
+	$x_le && 13 * 3600 === $x_le['nghiTu'] && ( 17 * 3600 + 5 * 60 ) === $x_le['nghiDen'], $x_le );
+/* ⚠️ Hệ số lễ KHÔNG nằm trong tệp — cột "Số giờ làm" của bảng gốc đã nhân đôi sẵn (17:00–22:45
+   ghi thành 11:30), nên nạp theo cột ấy là trả gấp đôi. Ta nạp theo GIỜ VÀO/RA, và phải kể ra. */
+t( '🔴 nói rõ ngày lễ chỉ nạp GIỜ, không nạp hệ số',
+	(bool) preg_grep( '/LỄ\*2/u', (array) $r_le['canh'] ), $r_le['canh'] );
+
+/* ⚠️ RANH GIỚI SAU SỐ. Không có `\b` thì "2024" đọc thành ngày 20, và một dòng tiêu đề lạc vào
+   giữa bảng biến thành một ngày công. */
+$lac = $B;
+$lac[3][0] = '2024';
+$r_lac = VHCC_NapDoc::doc( $lac );
+t( '🔴 ô "2024" KHÔNG đọc thành ngày 20',
+	null === ( function () use ( $r_lac ) {
+		foreach ( $r_lac['luot'] as $x ) { if ( '2026-04-20' === $x['ngay'] ) { return $x; } }
+		return null; } )(), $r_lac['luot'] );
+/* Dòng tổng kết vẫn phải rơi ra ngoài — chúng không mở đầu bằng số. */
+foreach ( array( 'Tổng', 'Lễ', 'Bù', 'Biên Bản' ) as $nhan ) {
+	$bo = $B; $bo[3][0] = $nhan;
+	$r_bo = VHCC_NapDoc::doc( $bo );
+	t( 'dòng "' . $nhan . '" không thành một ngày công',
+		0 === count( preg_grep( '/^2026-04-0[12]$/', array_column( $r_bo['luot'], 'ngay' ) ) ), $r_bo['luot'] );
+}
+
+/* ══════════════════════ 3. Ô GIỜ GÕ SAI KHÁC HẲN Ô TRỐNG */
+
+/* 🔴 Tệp thật có `11:4`, `11:0`, `11:2` (thiếu một chữ số) và `27:50:00`, `35:10:00` (số giờ
+   đã nhân đôi bị gõ nhầm vào cột Check in). Đọc về `null` thì ca ấy thành "thiếu giờ ra", im
+   lặng y như ô trống — người ta đi bù tay, trong khi chuyện thật là BẢNG GỐC sai một ô. */
+$xau = $B;
+$xau[5][10] = '11:4';          // N.Kiệt (LT) ngày 11, ô giờ vào
+$xau[5][14] = '27:50:00';      // N.Kiệt ngày 11, ô giờ ra
+$r_xau = VHCC_NapDoc::doc( $xau );
+t( '🔴 ô "11:4" được kể ra là gõ sai',
+	(bool) preg_grep( '/11:4/u', (array) $r_xau['canh'] ), $r_xau['canh'] );
+t( '🔴 ô "27:50:00" cũng được kể ra',
+	(bool) preg_grep( '/27:50:00/u', (array) $r_xau['canh'] ), $r_xau['canh'] );
+/* ⚠️ Ô `0` KHÔNG được kêu. Cả bảng điền `0` cho ô không có ca — kêu ở đó là mỗi tháng đẻ ra
+   hàng nghìn dòng cảnh báo và không ai đọc dòng nào nữa. */
+t( '🔴 ô "0" KHÔNG bị kêu là gõ sai',
+	0 === count( preg_grep( '/gõ sai|không đọc được/u', (array) $r['canh'] ) ), $r['canh'] );
+
+/* ══════════════════════ 4. THÁNG ĐÃ CÓ SẴN SỐ LIỆU -> ĐẾM VÀ NÓI RA */
+
+/* 🔴 Tệp thật có HAI bảng cùng đề "BẢNG CHẤM CÔNG THÁNG 8/2026" — bảng sau là tháng khác, chỉ
+   là chép tiêu đề quên sửa. Máy không có cách nào biết tiêu đề sai; nhưng đưa con số "tháng này
+   đã có N ngày công của M người" ra trước mắt thì người cầm bảng nhận ra ngay. */
+$r_lai = VHCC_NapDoc::nap( $AD, $CS, $B, array(), true );
+t( '🔴 đếm đúng số ngày công tháng ấy đã có trong sổ',
+	isset( $r_lai['co_san']['luot'] ) && $r_lai['co_san']['luot'] > 0, $r_lai['co_san'] );
+t( '   và cảnh báo trộn số liệu',
+	(bool) preg_grep( '/ĐÃ CÓ/u', (array) $r_lai['canh'] ), $r_lai['canh'] );
+/* Cơ sở khác thì tháng ấy còn trống -> không kêu, kẻo cảnh báo mất thiêng. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'NDX', 'ho_ten' => 'Người Nơi Khác',
+	'cua_hang' => 'NAPDOC_CS2', 'vai_tro' => 'Nhân viên', 'pin_dang_nhap' => '',
+	'chuc_vu' => 'Nhân viên quầy', 'trang_thai_lam_viec' => 'Đang làm' ) );
+$r_sach = VHCC_NapDoc::nap( $AD, 'NAPDOC_CS2', $B, array(), true );
+t( 'cơ sở còn trống tháng ấy -> KHÔNG kêu trộn số liệu',
+	0 === count( preg_grep( '/ĐÃ CÓ/u', (array) $r_sach['canh'] ) ), $r_sach['canh'] );
+
 echo "\n";
 if ( $truot ) {
 	echo 'TRƯỢT ' . count( $truot ) . ":\n";
