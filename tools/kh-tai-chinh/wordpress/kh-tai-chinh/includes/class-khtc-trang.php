@@ -159,14 +159,14 @@ class KHTC_Trang {
 		KHTC_UI::thong_bao( 'ok', $bao_ok );
 		KHTC_UI::thong_bao( 'loi', $bao_loi );
 
-		echo '<div class="khtc-panel"><h2>Thêm tài khoản</h2><form method="post"><div class="khtc-loc">';
+		echo '<details class="khtc-panel khtc-gap"><summary>Thêm tài khoản</summary><form method="post"><div class="khtc-loc">';
 		wp_nonce_field( 'khtc_nh' );
 		echo '<label>Tên tài khoản / ngân hàng<input type="text" name="ten" required style="min-width:240px"></label>';
 		echo '<label>Số tài khoản<input type="text" name="so_tk"></label>';
 		echo '<label>Số dư đầu<input type="text" name="so_du_dau" placeholder="0"></label>';
 		echo '<label>Tính từ ngày<input type="date" name="ngay_dau"></label>';
 		echo '<button type="submit" name="khtc_them_nh" value="1" class="button button-primary">Thêm</button>';
-		echo '</div><p class="khtc-sub">Giao dịch phát sinh <em>trước</em> ngày này coi như đã nằm sẵn trong số dư đầu, không cộng lại lần nữa.</p></form></div>';
+		echo '</div><p class="khtc-sub">Giao dịch phát sinh <em>trước</em> ngày này coi như đã nằm sẵn trong số dư đầu, không cộng lại lần nữa.</p></form></details>';
 
 		echo '<div class="khtc-panel"><h2>Danh sách tài khoản</h2>';
 		if ( ! $ds ) {
@@ -278,7 +278,7 @@ class KHTC_Trang {
 		printf( '<a href="%s" class="button">Bỏ lọc</a>', esc_url( self::url( 'giao-dich' ) ) );
 		echo '</div></form></div>';
 
-		echo '<div class="khtc-panel"><h2>Thêm giao dịch</h2><form method="post"><div class="khtc-loc">';
+		echo '<details class="khtc-panel khtc-gap"><summary>Thêm giao dịch</summary><form method="post"><div class="khtc-loc">';
 		wp_nonce_field( 'khtc_gd' );
 		echo '<label>Tài khoản<select name="ngan_hang_id" required>';
 		foreach ( $ngan_hang as $b ) { printf( '<option value="%d">%s</option>', (int) $b->id, esc_html( $b->ten ) ); }
@@ -289,16 +289,16 @@ class KHTC_Trang {
 		echo '<label>Số tiền<input type="text" name="so_tien" placeholder="1.500.000" required></label>';
 		echo '<label>Loại<select name="loai"><option value="thu">Thu</option><option value="chi">Chi</option></select></label>';
 		echo '<button type="submit" name="khtc_them_gd" value="1" class="button button-primary">Thêm</button>';
-		echo '</div></form></div>';
+		echo '</div></form></details>';
 
-		echo '<div class="khtc-panel"><h2>Dán sao kê hàng loạt</h2><form method="post">';
+		echo '<details class="khtc-panel khtc-gap"><summary>Dán sao kê hàng loạt</summary><form method="post">';
 		wp_nonce_field( 'khtc_gd' );
 		echo '<div class="khtc-loc"><label>Nạp vào tài khoản<select name="dan_ngan_hang_id" required>';
 		foreach ( $ngan_hang as $b ) { printf( '<option value="%d">%s</option>', (int) $b->id, esc_html( $b->ten ) ); }
 		echo '</select></label></div>';
 		echo '<p class="khtc-sub">Mỗi dòng: <code>Ngày (dd/mm/yyyy) · Diễn giải · Số tiền · Thu/Chi</code> — cách nhau bằng Tab (copy thẳng từ Excel) hoặc dấu phẩy. Bỏ trống cột cuối thì số dương là Thu, số âm là Chi.</p>';
 		echo '<textarea name="sao_ke" rows="7" placeholder="20/07/2026&#9;Thu tien khach ABC&#9;1.500.000&#9;Thu&#10;21/07/2026&#9;Chi tra nha cung cap&#9;850.000&#9;Chi"></textarea>';
-		echo '<p><button type="submit" name="khtc_dan" value="1" class="button button-primary">Nạp sao kê</button></p></form></div>';
+		echo '<p><button type="submit" name="khtc_dan" value="1" class="button button-primary">Nạp sao kê</button></p></form></details>';
 
 		echo '<div class="khtc-panel"><h2>Danh sách giao dịch</h2>';
 		if ( ! $kq['rows'] ) {
@@ -417,7 +417,7 @@ class KHTC_Trang {
 			return;
 		}
 
-		echo '<div class="khtc-panel"><h2>Tạo đợt đối soát</h2><form method="post"><div class="khtc-loc">';
+		echo '<details class="khtc-panel khtc-gap"><summary>Tạo đợt đối soát</summary><form method="post"><div class="khtc-loc">';
 		wp_nonce_field( 'khtc_ds' );
 		echo '<label>Kênh<select name="kenh">';
 		foreach ( KHTC_DoiSoat::kenh() as $k => $v ) { printf( '<option value="%s">%s</option>', esc_attr( $k ), esc_html( $v ) ); }
@@ -429,7 +429,7 @@ class KHTC_Trang {
 		echo '<label>Đến ngày<input type="date" name="den" required></label>';
 		echo '<label>Tên đợt<input type="text" name="ten" placeholder="để trống thì tự đặt"></label>';
 		echo '<button type="submit" name="khtc_tao_dot" value="1" class="button button-primary">Tạo đợt</button>';
-		echo '</div></form></div>';
+		echo '</div></form></details>';
 
 		$ds = KHTC_DoiSoat::ds_dot();
 		echo '<div class="khtc-panel"><h2>Các đợt đã tạo</h2>';
@@ -521,12 +521,12 @@ class KHTC_Trang {
 			esc_html( KHTC_UI::tien( $kq['tong_ngan'] ) )
 		);
 
-		echo '<div class="khtc-panel"><h2>Nạp bảng cổng gửi về</h2><form method="post">';
+		echo '<details class="khtc-panel khtc-gap"><summary>Nạp bảng cổng gửi về</summary><form method="post">';
 		wp_nonce_field( 'khtc_ds' );
 		echo '<p class="khtc-sub">Mỗi dòng: <code>Ngày · Mã GD · Số tiền · Phí · Nội dung</code> — cách nhau bằng Tab (copy thẳng từ file cổng) hoặc dấu phẩy. Thiếu cột Phí thì để trống. Dòng trùng mã giao dịch với dòng đã nạp sẽ bị bỏ qua.</p>';
 		echo '<textarea name="bang_cong" rows="7" placeholder="05/08/2026&#9;PAY123456&#9;1.000.000&#9;11.000&#9;Thanh toan QR&#10;05/08/2026&#9;PAY123457&#9;250.000&#9;2.750&#9;Thanh toan the"></textarea>';
 		printf( '<p><button type="submit" name="khtc_nap_dong" value="%d" class="button button-primary">Nạp và đối soát</button></p>', (int) $d->id );
-		echo '</form></div>';
+		echo '</form></details>';
 
 		self::bang_khop( 'Khớp', 'thu', $kq['khop'], $kq['tien_khop'] );
 		self::bang_khop( 'Lệch tiền', 'chi', $kq['lech'], $kq['tien_lech'], true );
@@ -747,7 +747,7 @@ class KHTC_Trang {
 		echo '</div>';
 
 		// ---- ghi một khoản
-		echo '<div class="khtc-panel"><h2>Ghi một khoản chi</h2><form method="post"><div class="khtc-loc">';
+		echo '<details class="khtc-panel khtc-gap"><summary>Ghi một khoản chi</summary><form method="post"><div class="khtc-loc">';
 		wp_nonce_field( 'khtc_cp' );
 		echo '<label>Ngày<input type="date" name="ngay" required></label>';
 		echo '<label>Bộ phận<select name="bo_phan" required>';
@@ -765,10 +765,10 @@ class KHTC_Trang {
 		echo '</select></label>';
 		echo '<label>Diễn giải<input type="text" name="dien_giai" style="min-width:200px"></label>';
 		echo '<button type="submit" name="khtc_them_cp" value="1" class="button button-primary">Ghi</button>';
-		echo '</div><p class="khtc-sub">Chi tiền mặt không đi qua ngân hàng nên đối soát chi phí sẽ bỏ qua — chọn đúng hình thức để nó không bị báo "chưa thấy tiền ra" oan.</p></form></div>';
+		echo '</div><p class="khtc-sub">Chi tiền mặt không đi qua ngân hàng nên đối soát chi phí sẽ bỏ qua — chọn đúng hình thức để nó không bị báo "chưa thấy tiền ra" oan.</p></form></details>';
 
 		// ---- dán hàng loạt
-		echo '<div class="khtc-panel"><h2>Dán bảng chi phí</h2><form method="post"><div class="khtc-loc">';
+		echo '<details class="khtc-panel khtc-gap"><summary>Dán bảng chi phí</summary><form method="post"><div class="khtc-loc">';
 		wp_nonce_field( 'khtc_cp' );
 		echo '<label>Hình thức<select name="dan_hinh_thuc"><option value="chuyen_khoan">Chuyển khoản</option><option value="tien_mat">Tiền mặt</option></select></label>';
 		echo '<label>Từ tài khoản<select name="dan_ngan_hang_id"><option value="0">— Chưa rõ —</option>';
@@ -776,7 +776,7 @@ class KHTC_Trang {
 		echo '</select></label></div>';
 		echo '<p class="khtc-sub">Mỗi dòng: <code>Ngày · Bộ phận · Khoản mục · Nhà cung cấp · Số tiền · Số chứng từ · Diễn giải</code> — cách nhau bằng Tab hoặc dấu phẩy. Hai cột cuối không bắt buộc.</p>';
 		echo '<textarea name="bang_chi_phi" rows="7" placeholder="10/08/2026&#9;Khu vui chơi&#9;Tiền điện&#9;EVN HCMC&#9;2.400.000&#9;HD00123&#9;Dien thang 7&#10;12/08/2026&#9;Văn phòng&#9;Vật tư — tiêu hao&#9;VP Hong Ha&#9;780.000"></textarea>';
-		echo '<p><button type="submit" name="khtc_dan_cp" value="1" class="button button-primary">Nạp bảng</button></p></form></div>';
+		echo '<p><button type="submit" name="khtc_dan_cp" value="1" class="button button-primary">Nạp bảng</button></p></form></details>';
 
 		// ---- danh sách
 		echo '<div class="khtc-panel"><h2>Danh sách khoản chi</h2>';
@@ -813,7 +813,7 @@ class KHTC_Trang {
 		echo '</div>';
 
 		// ---- danh mục
-		echo '<div class="khtc-panel"><h2>Danh mục</h2><form method="post"><div class="khtc-loc">';
+		echo '<details class="khtc-panel khtc-gap"><summary>Danh mục</summary><form method="post"><div class="khtc-loc">';
 		wp_nonce_field( 'khtc_cp' );
 		printf(
 			'<label style="flex:1 1 280px">Bộ phận — mỗi dòng một cái<textarea name="dm_bo_phan" rows="6">%s</textarea></label>',
@@ -825,7 +825,7 @@ class KHTC_Trang {
 		);
 		echo '</div><p><button type="submit" name="khtc_luu_dm" value="1" class="button">Lưu danh mục</button></p>';
 		echo '<p class="khtc-sub">Sửa tên ở đây không đổi các khoản đã ghi — chúng giữ nguyên tên cũ. Đổi tên rồi thì lọc theo tên mới sẽ không thấy khoản cũ.</p>';
-		echo '</form></div></div>';
+		echo '</form></details></div>';
 	}
 
 	/** Thanh phân trang dùng chung. */
@@ -1015,7 +1015,7 @@ class KHTC_Trang {
 		);
 		echo '<p class="khtc-sub">Tệp gồm cả hai pháp nhân và cả danh mục chi phí. Dữ liệu nằm trong cơ sở dữ liệu của website — website đổi host hoặc plugin bị gỡ nhầm là mất, nên nên tải về mỗi lần chốt sổ.</p></div>';
 
-		echo '<div class="khtc-panel"><h2>Nhập lại từ tệp sao lưu</h2>';
+		echo '<details class="khtc-panel khtc-gap"><summary>Nhập lại từ tệp sao lưu</summary>';
 		echo '<form method="post" enctype="multipart/form-data"><div class="khtc-loc">';
 		wp_nonce_field( 'khtc_sl' );
 		echo '<label>Chọn tệp .json<input type="file" name="tep" accept=".json,application/json"></label>';
@@ -1023,7 +1023,7 @@ class KHTC_Trang {
 		echo '</div>';
 		echo '<p class="khtc-sub"><strong>Nhập là THÊM VÀO, không xoá cái đang có.</strong> Nhập hai lần cùng một tệp thì số nhân đôi. Muốn phục hồi sạch thì xoá dữ liệu cũ trước, hoặc nhập vào một website trắng.</p>';
 		echo '<p class="khtc-sub">Id được cấp lại và các liên kết (giao dịch → tài khoản, dòng cổng → đợt, chi phí → giao dịch) được nối lại theo id mới, nên nhập vào website đã có dữ liệu cũng không trỏ nhầm.</p>';
-		echo '</form></div></div>';
+		echo '</form></details></div>';
 	}
 
 	// ------------------------------------------------------- hoá đơn đầu ra
@@ -1145,15 +1145,15 @@ class KHTC_Trang {
 		self::bang_gom( 'Theo dịch vụ', KHTC_HoaDonRa::gom_theo( 'dich_vu', $loc ), false );
 
 		// ---- dán từ file VAT
-		echo '<div class="khtc-panel"><h2>Dán từ file Đối soát VAT</h2><form method="post">';
+		echo '<details class="khtc-panel khtc-gap"><summary>Dán từ file Đối soát VAT</summary><form method="post">';
 		wp_nonce_field( 'khtc_hd' );
 		echo '<p class="khtc-sub">Bôi đen bảng trong file VAT rồi dán thẳng vào đây — <strong>đúng 22 cột, đúng thứ tự</strong>, kể cả cột STT và cột trống thứ 21. Dòng tiêu đề dán kèm cũng được, máy tự bỏ. Hoá đơn đã có trong sổ sẽ bị bỏ qua theo số hoá đơn.</p>';
 		printf( '<p class="khtc-sub">Thứ tự cột: <code>%s</code></p>', esc_html( implode( ' · ', array_filter( KHTC_HoaDonRa::cot() ) ) ) );
 		echo '<textarea name="bang_hd" rows="7" placeholder="1&#9;05/08/2026&#9;00000123&#9;CONG TY TNHH ABC&#9;0301234567&#9;&#9;&#9;Dich vu vui choi&#9;1&#9;Lan&#9;1000000&#9;1000000&#9;80000&#9;1080000&#9;HCM&#9;KVC"></textarea>';
-		echo '<p><button type="submit" name="khtc_dan_hd" value="1" class="button button-primary">Nạp hoá đơn</button></p></form></div>';
+		echo '<p><button type="submit" name="khtc_dan_hd" value="1" class="button button-primary">Nạp hoá đơn</button></p></form></details>';
 
 		// ---- ghi một hoá đơn
-		echo '<div class="khtc-panel"><h2>Ghi một hoá đơn</h2><form method="post"><div class="khtc-loc">';
+		echo '<details class="khtc-panel khtc-gap"><summary>Ghi một hoá đơn</summary><form method="post"><div class="khtc-loc">';
 		wp_nonce_field( 'khtc_hd' );
 		echo '<label>Ngày HĐ<input type="date" name="ngay" required></label>';
 		echo '<label>Số HĐ<input type="text" name="so_hd" required></label>';
@@ -1172,7 +1172,7 @@ class KHTC_Trang {
 		echo '<label>Khu vực<input type="text" name="khu_vuc"></label>';
 		echo '<label>Dịch vụ<input type="text" name="dich_vu"></label>';
 		echo '<button type="submit" name="khtc_them_hd" value="1" class="button button-primary">Ghi</button>';
-		echo '</div><p class="khtc-sub">Điền <em>một trong hai</em> ô tiền, số còn lại máy tính theo thuế suất. Chỉ làm tròn một lần rồi lấy hiệu, nên <code>Chưa VAT + VAT</code> luôn đúng bằng <code>Có VAT</code> — lệch 1 đồng là Misa từ chối cả tệp.</p></form></div>';
+		echo '</div><p class="khtc-sub">Điền <em>một trong hai</em> ô tiền, số còn lại máy tính theo thuế suất. Chỉ làm tròn một lần rồi lấy hiệu, nên <code>Chưa VAT + VAT</code> luôn đúng bằng <code>Có VAT</code> — lệch 1 đồng là Misa từ chối cả tệp.</p></form></details>';
 
 		// ---- danh sách
 		echo '<div class="khtc-panel"><h2>Danh sách hoá đơn</h2>';
@@ -1456,7 +1456,7 @@ class KHTC_Trang {
 		// ---- tự ghép
 		$ngan_hang = KHTC_NganHang::ds();
 		list( $d1, $d2 ) = KHTC_UI::thang_nay();
-		echo '<div class="khtc-panel"><h2>Tự ghép tiền từ sao kê</h2><form method="post"><div class="khtc-loc">';
+		echo '<details class="khtc-panel khtc-gap"><summary>Tự ghép tiền từ sao kê</summary><form method="post"><div class="khtc-loc">';
 		wp_nonce_field( 'khtc_cn' );
 		printf( '<input type="hidden" name="loai" value="%s">', esc_attr( $loai ) );
 		printf( '<label>Từ ngày<input type="date" name="ghep_tu" value="%s" required></label>', esc_attr( $d1 ) );
@@ -1466,7 +1466,7 @@ class KHTC_Trang {
 		echo '</select></label>';
 		echo '<button type="submit" name="khtc_tu_ghep" value="1" class="button button-primary">Tự ghép</button>';
 		echo '</div><p class="khtc-sub">Chỉ bắt được lần trả <strong>đúng bằng số còn nợ</strong> của đúng một chứng từ. Trả gộp nhiều chứng từ hay trả làm nhiều đợt thì phải ghi tay bên dưới — đoán sai một khoản trả gộp còn tệ hơn không đoán, vì nó đóng nhầm chứng từ này và để hở chứng từ khác.</p>';
-		echo '<p class="khtc-sub">Chạy lại thì các dòng <em>tự ghép</em> trong kỳ bị dọn và làm lại; dòng ghi tay giữ nguyên.</p></form></div>';
+		echo '<p class="khtc-sub">Chạy lại thì các dòng <em>tự ghép</em> trong kỳ bị dọn và làm lại; dòng ghi tay giữ nguyên.</p></form></details>';
 
 		// ---- từng chứng từ
 		printf(
@@ -1672,14 +1672,14 @@ class KHTC_Trang {
 		self::bang_gom_vao( 'Theo nhà cung cấp', KHTC_HoaDonVao::gom_theo( 'nha_cung_cap', $loc ), false );
 
 		// ---- dán
-		echo '<div class="khtc-panel"><h2>Dán bảng hoá đơn đầu vào</h2><form method="post">';
+		echo '<details class="khtc-panel khtc-gap"><summary>Dán bảng hoá đơn đầu vào</summary><form method="post">';
 		wp_nonce_field( 'khtc_hdv' );
 		echo '<p class="khtc-sub">Mỗi dòng: <code>Ngày · Số HĐ · Nhà cung cấp · MST · Nội dung · Chưa VAT · VAT · Có VAT · Hình thức</code> — cách nhau bằng Tab hoặc dấu phẩy. Ba cột cuối không bắt buộc. Dòng tiêu đề dán kèm cũng được.</p>';
 		echo '<textarea name="bang_hdv" rows="7" placeholder="05/08/2026&#9;00012345&#9;EVN HCMC&#9;0300942001&#9;Tien dien thang 7&#9;2.400.000&#9;192.000&#9;2.592.000&#9;Chuyen khoan"></textarea>';
-		echo '<p><button type="submit" name="khtc_dan_hdv" value="1" class="button button-primary">Nạp hoá đơn</button></p></form></div>';
+		echo '<p><button type="submit" name="khtc_dan_hdv" value="1" class="button button-primary">Nạp hoá đơn</button></p></form></details>';
 
 		// ---- ghi một hoá đơn
-		echo '<div class="khtc-panel"><h2>Ghi một hoá đơn</h2><form method="post"><div class="khtc-loc">';
+		echo '<details class="khtc-panel khtc-gap"><summary>Ghi một hoá đơn</summary><form method="post"><div class="khtc-loc">';
 		wp_nonce_field( 'khtc_hdv' );
 		echo '<label>Ngày HĐ<input type="date" name="ngay" required></label>';
 		echo '<label>Số HĐ<input type="text" name="so_hd" required></label>';
@@ -1695,7 +1695,7 @@ class KHTC_Trang {
 		echo '<label>hoặc Có VAT<input type="text" name="co_vat"></label>';
 		echo '<label>Hình thức<select name="hinh_thuc"><option value="chuyen_khoan">Chuyển khoản</option><option value="tien_mat">Tiền mặt</option></select></label>';
 		echo '<button type="submit" name="khtc_them_hdv" value="1" class="button button-primary">Ghi</button>';
-		echo '</div><p class="khtc-sub">Hoá đơn từ <strong>' . esc_html( KHTC_UI::tien( KHTC_HoaDonVao::NGUONG_TIEN_MAT ) ) . '</strong> trở lên mà trả bằng <em>tiền mặt</em> được máy đặt sẵn là <strong>không khấu trừ</strong>. Đây là nhắc chứ không phải phán quyết — bật lại được ở cột Khấu trừ nếu trường hợp của mình khác.</p></form></div>';
+		echo '</div><p class="khtc-sub">Hoá đơn từ <strong>' . esc_html( KHTC_UI::tien( KHTC_HoaDonVao::NGUONG_TIEN_MAT ) ) . '</strong> trở lên mà trả bằng <em>tiền mặt</em> được máy đặt sẵn là <strong>không khấu trừ</strong>. Đây là nhắc chứ không phải phán quyết — bật lại được ở cột Khấu trừ nếu trường hợp của mình khác.</p></form></details>';
 
 		// ---- danh sách
 		echo '<div class="khtc-panel"><h2>Danh sách hoá đơn đầu vào</h2>';
@@ -2245,7 +2245,7 @@ class KHTC_Trang {
 		}
 
 		// ---- dán bảng
-		echo '<div class="khtc-panel"><h2>Dán bảng hợp đồng</h2><form method="post">';
+		echo '<details class="khtc-panel khtc-gap"><summary>Dán bảng hợp đồng</summary><form method="post">';
 		wp_nonce_field( 'khtc_pd' );
 		printf( '<input type="hidden" name="loai" value="%s">', esc_attr( $loai ) );
 		if ( 'thue' === $loai ) {
@@ -2255,7 +2255,7 @@ class KHTC_Trang {
 			echo '<p class="khtc-sub">Mỗi dòng: <code>Nhà cung cấp · MST · Số HĐ · Nội dung · Giá trị · Ngày ký · Hết hạn</code>. Từ cột 3 trở đi không bắt buộc.</p>';
 			echo '<textarea name="bang_pd" rows="6" placeholder="CTY BAO TRI THANH DAT&#9;0303334444&#9;HD-2026-07&#9;Bao tri may lanh&#9;120.000.000&#9;05/01/2026&#9;31/12/2026"></textarea>';
 		}
-		echo '<p><button type="submit" name="khtc_dan_pd" value="1" class="button button-primary">Nạp bảng</button></p></form></div>';
+		echo '<p><button type="submit" name="khtc_dan_pd" value="1" class="button button-primary">Nạp bảng</button></p></form></details>';
 
 		// ---- thêm một hợp đồng
 		printf( '<div class="khtc-panel"><h2>Thêm hợp đồng %s</h2><form method="post"><div class="khtc-loc">', esc_html( mb_strtolower( $c['ten'] ) ) );
@@ -2484,14 +2484,14 @@ class KHTC_Trang {
 		echo '<p class="khtc-sub">Dò nối chỉ ghép khi số chứng từ khớp và trong sổ chỉ có <strong>đúng một</strong> bút toán mang số đó. Hai bút toán cùng số thì bỏ qua — nối nhầm còn tệ hơn không nối, vì bảng trên sẽ báo “đã có chứng từ” cho một bút toán thật ra chưa có.</p></div>';
 
 		// ---- dán bảng
-		echo '<div class="khtc-panel"><h2>Dán bảng hồ sơ</h2><form method="post">';
+		echo '<details class="khtc-panel khtc-gap"><summary>Dán bảng hồ sơ</summary><form method="post">';
 		wp_nonce_field( 'khtc_hs' );
 		echo '<p class="khtc-sub">Mỗi dòng: <code>Loại · Số chứng từ · Ngày · Đối tác · Số tiền · Tên file · Link</code>. Từ cột 4 trở đi không bắt buộc. Loại ghi đúng tên như trong ô chọn bên dưới, ghi sai thì vào nhóm “Khác”.</p>';
 		echo '<textarea name="bang_hs" rows="6" placeholder="Hoá đơn đầu vào&#9;00012345&#9;05/08/2026&#9;EVN HCMC&#9;19.872.000&#9;hd-evn-t7.pdf&#9;https://..."></textarea>';
-		echo '<p><button type="submit" name="khtc_dan_hs" value="1" class="button button-primary">Nạp và dò nối</button></p></form></div>';
+		echo '<p><button type="submit" name="khtc_dan_hs" value="1" class="button button-primary">Nạp và dò nối</button></p></form></details>';
 
 		// ---- thêm một hồ sơ
-		echo '<div class="khtc-panel"><h2>Thêm một chứng từ</h2><form method="post"><div class="khtc-loc">';
+		echo '<details class="khtc-panel khtc-gap"><summary>Thêm một chứng từ</summary><form method="post"><div class="khtc-loc">';
 		wp_nonce_field( 'khtc_hs' );
 		echo '<label>Loại<select name="loai">';
 		foreach ( $nhan as $k => $v ) { printf( '<option value="%s">%s</option>', esc_attr( $k ), esc_html( $v ) ); }
@@ -2504,7 +2504,7 @@ class KHTC_Trang {
 		echo '<label>Link file<input type="url" name="link_file" style="min-width:180px"></label>';
 		echo '<label>Đã hạch toán<input type="checkbox" name="da_hach_toan" value="1"></label>';
 		echo '<button type="submit" name="khtc_them_hs" value="1" class="button button-primary">Lưu</button>';
-		echo '</div><p class="khtc-sub">Lưu xong máy tự dò nối ngay với bút toán mang cùng số chứng từ.</p></form></div>';
+		echo '</div><p class="khtc-sub">Lưu xong máy tự dò nối ngay với bút toán mang cùng số chứng từ.</p></form></details>';
 
 		// ---- danh sách
 		echo '<div class="khtc-panel"><h2>Sổ lưu chứng từ</h2>';

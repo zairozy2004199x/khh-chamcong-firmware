@@ -26,7 +26,46 @@ class KHTC_Web {
 
 	const SLUG = 'tai-chinh';
 
-	/** Màn hình → nhãn trên thanh điều hướng. Cũng là danh sách hợp lệ. */
+	/**
+	 * Menu gom theo nhóm. Mười bốn mục xếp phẳng thì tìm mục nào cũng phải đọc
+	 * hết cả hàng; gom lại thì mắt nhảy thẳng tới nhóm rồi mới tới mục.
+	 *
+	 * Đây CHỈ là cách bày menu. Danh sách màn hình hợp lệ vẫn là man_hinh() —
+	 * một chỗ duy nhất quyết định đường dẫn nào chạy được, để đổi cách bày
+	 * không vô tình mở hay khoá mất một trang.
+	 */
+	public static function nhom() {
+		return array(
+			'Tổng quan' => array( '', 'bao-cao' ),
+			'Dòng tiền' => array( 'ngan-hang', 'giao-dich', 'chi-phi' ),
+			'Đối soát'  => array( 'doi-soat', 'doi-soat-chi-phi' ),
+			'Hoá đơn'   => array( 'hoa-don-ra', 'hoa-don-vao' ),
+			'Sổ'        => array( 'cong-no', 'phap-danh', 'ho-so' ),
+			'Hệ thống'  => array( 'nhat-ky', 'sao-luu' ),
+		);
+	}
+
+	/** Nhãn ngắn trên menu dọc — bỏ phần thừa mà tiêu đề trang đã nói. */
+	public static function nhan_ngan() {
+		return array(
+			''                 => 'Tổng quan',
+			'bao-cao'          => 'Báo cáo',
+			'ngan-hang'        => 'Ngân hàng',
+			'giao-dich'        => 'Giao dịch / Sao kê',
+			'chi-phi'          => 'Chi phí',
+			'doi-soat'         => 'Cổng thanh toán',
+			'doi-soat-chi-phi' => 'Chi phí',
+			'hoa-don-ra'       => 'Đầu ra',
+			'hoa-don-vao'      => 'Đầu vào',
+			'cong-no'          => 'Công nợ',
+			'phap-danh'        => 'Pháp danh',
+			'ho-so'            => 'Hồ sơ',
+			'nhat-ky'          => 'Nhật ký',
+			'sao-luu'          => 'Sao lưu',
+		);
+	}
+
+	/** Màn hình → nhãn đầy đủ. Đây là danh sách đường dẫn hợp lệ. */
 	public static function man_hinh() {
 		return array(
 			''           => 'Tổng quan',
@@ -117,19 +156,23 @@ class KHTC_Web {
 <link rel="stylesheet" href="<?php echo esc_url( KHTC_URL . 'assets/khtc.css?v=' . KHTC_VERSION ); ?>">
 </head>
 <body class="khtc-web">
-<header class="khtc-thanh">
-	<div class="khtc-hieu">Tài Chính K&amp;H</div>
+<div class="khtc-khung">
+<aside class="khtc-ben">
+	<div class="khtc-hieu"><span>K&amp;H</span> Tài Chính</div>
 	<nav>
-		<?php foreach ( $nhan as $k => $v ) : ?>
-			<a href="<?php echo esc_url( self::duong_dan( $k ) ); ?>"<?php echo $k === $man ? ' class="dang-o"' : ''; ?>><?php echo esc_html( $v ); ?></a>
+		<?php foreach ( self::nhom() as $ten_nhom => $muc ) : ?>
+			<div class="khtc-nhom"><?php echo esc_html( $ten_nhom ); ?></div>
+			<?php foreach ( $muc as $k ) : ?>
+				<a href="<?php echo esc_url( self::duong_dan( $k ) ); ?>"<?php echo $k === $man ? ' class="dang-o" aria-current="page"' : ''; ?>><?php echo esc_html( self::nhan_ngan()[ $k ] ?? $nhan[ $k ] ); ?></a>
+			<?php endforeach; ?>
 		<?php endforeach; ?>
 	</nav>
 	<div class="khtc-ai">
-		<span><?php echo esc_html( wp_get_current_user()->display_name ); ?></span>
+		<span class="khtc-ai-ten"><?php echo esc_html( wp_get_current_user()->display_name ); ?></span>
 		<a href="<?php echo esc_url( admin_url() ); ?>">wp-admin</a>
 		<a href="<?php echo esc_url( wp_logout_url( self::duong_dan() ) ); ?>">Thoát</a>
 	</div>
-</header>
+</aside>
 <main class="khtc">
 <?php
 		if ( ! $du_quyen ) {
@@ -141,6 +184,7 @@ class KHTC_Web {
 		}
 ?>
 </main>
+</div>
 </body>
 </html>
 <?php

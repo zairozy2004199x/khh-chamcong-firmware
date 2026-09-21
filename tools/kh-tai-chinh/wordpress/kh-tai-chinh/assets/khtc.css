@@ -1,168 +1,359 @@
-/* Giao diện Tài Chính K&H — cùng phong cách HRM: trung tính, bo góc nhỏ,
-   một màu nhấn xanh dương. Ba màu thu/chi/cảnh báo giữ đúng nghĩa quen thuộc:
-   xanh lá = thu, đỏ = chi, cam = cần xem lại. */
+/* =========================================================================
+   Tài Chính K&H — giao diện
+
+   BA NGUYÊN TẮC, và nguyên tắc thứ ba là cái dễ mất nhất khi làm cho "nổi":
+
+   1. Chiều sâu do BÓNG ĐỔ nhiều lớp và nền chuyển sắc rất nhẹ, không do
+      viền dày hay đổ bóng đậm. Bóng nhiều lớp mảnh trông như giấy xếp chồng;
+      một lớp bóng dày trông như nút bấm nhựa.
+   2. Màu nằm ở KHUNG — thanh bên, thẻ số, nút bấm. Trong bảng số liệu màu
+      chỉ còn xanh/đỏ cho thu/chi, vì đó là quy ước kế toán đã quen mắt.
+   3. CON SỐ LUÔN ĐỌC ĐƯỢC TRƯỚC. Nền chuyển sắc không bao giờ chạy dưới một
+      cột số; chữ trong bảng luôn là mực đen trên nền trắng. Một bảng tiền đẹp
+      mà phải nheo mắt đọc là một bảng hỏng.
+
+   Tệp này phục vụ CẢ HAI nơi: trong wp-admin và bản web ngoài. Phần nào chỉ
+   dành cho web ngoài thì nằm dưới body.khtc-web — wp-admin đã có thanh bên và
+   nền riêng, chồng thêm là vỡ.
+   ========================================================================= */
+
 .khtc {
 	--xanh: #2563eb;
+	--xanh-dam: #1d4ed8;
+	--xanh-nhat: #eff6ff;
 	--muc: #0f172a;
+	--muc-2: #334155;
 	--nhat: #64748b;
 	--vien: #e2e8f0;
+	--vien-dam: #cbd5e1;
 	--nen: #f8fafc;
 	--thu: #15803d;
 	--chi: #b91c1c;
-	max-width: 1500px;
+	--vang: #b45309;
+
+	/* Bóng nhiều lớp: lớp sát vật thể rất mảnh, lớp xa hơn loang rộng và
+	   nhạt. Đây là cái làm nên chiều sâu, không phải độ đậm. */
+	--bong-1: 0 1px 2px rgba(15,23,42,.06), 0 1px 3px rgba(15,23,42,.04);
+	--bong-2: 0 1px 2px rgba(15,23,42,.06), 0 4px 12px rgba(15,23,42,.07);
+	--bong-3: 0 2px 4px rgba(15,23,42,.06), 0 12px 28px rgba(15,23,42,.10);
+
+	max-width: 1560px;
 	margin-right: 20px;
 	color: var(--muc);
 }
 
+/* ------------------------------------------------------------ đầu trang */
 .khtc-head {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: flex-start;
-	justify-content: space-between;
-	gap: 16px;
-	margin: 6px 0 18px;
+	display: flex; flex-wrap: wrap; align-items: flex-start;
+	justify-content: space-between; gap: 16px; margin: 6px 0 20px;
 }
-.khtc-head h1 { margin: 0; font-size: 22px; font-weight: 600; }
-.khtc-sub { margin: 4px 0 0; color: var(--nhat); font-size: 13px; }
+.khtc-head h1 { margin: 0; font-size: 23px; font-weight: 650; letter-spacing: -.35px; }
+.khtc-sub { margin: 4px 0 0; color: var(--nhat); font-size: 13px; line-height: 1.55; }
 
-.khtc-cty { display: flex; gap: 0; background: var(--nen); border: 1px solid var(--vien); border-radius: 8px; padding: 3px; }
+.khtc-cty {
+	display: flex; gap: 0; padding: 3px; border-radius: 10px;
+	background: linear-gradient(180deg, #f1f5f9, #e7edf5);
+	border: 1px solid var(--vien); box-shadow: inset 0 1px 2px rgba(15,23,42,.06);
+}
 .khtc-cty-nut {
-	border: none; background: none; cursor: pointer;
-	font: inherit; font-size: 13px; font-weight: 600;
-	color: var(--nhat); padding: 6px 16px; border-radius: 6px;
+	border: none; background: none; cursor: pointer; font: inherit;
+	font-size: 13px; font-weight: 650; color: var(--nhat);
+	padding: 7px 18px; border-radius: 8px; transition: .15s;
 }
-.khtc-cty-nut.dang-chon { background: #fff; color: var(--xanh); box-shadow: 0 1px 2px rgba(15,23,42,.1); }
+.khtc-cty-nut:hover { color: var(--muc); }
+.khtc-cty-nut.dang-chon {
+	background: #fff; color: var(--xanh);
+	box-shadow: 0 1px 2px rgba(15,23,42,.10), 0 2px 6px rgba(15,23,42,.08);
+}
 
-.khtc-cards { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 20px; }
+/* ---------------------------------------------------------------- thẻ số
+   Dải màu chạy dọc mép trái chứ không phải viền trên: mắt đọc từ trái sang
+   nên dải dọc được thấy cùng lúc với con số, viền trên thì đọc xong mới thấy. */
+.khtc-cards { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 22px; }
 .khtc-card {
-	flex: 1 1 200px; background: #fff; border: 1px solid var(--vien);
-	border-top: 3px solid var(--xanh); border-radius: 8px; padding: 14px 16px;
+	position: relative; flex: 1 1 210px; overflow: hidden;
+	background: linear-gradient(180deg, #fff, #fcfdff);
+	border: 1px solid var(--vien); border-radius: 12px;
+	padding: 15px 18px 15px 22px; box-shadow: var(--bong-2);
 }
-.khtc-card.thu { border-top-color: var(--thu); }
-.khtc-card.chi { border-top-color: var(--chi); }
-.khtc-card .k { font-size: 13px; color: var(--nhat); margin-bottom: 6px; }
-.khtc-card .v { font-size: 21px; font-weight: 600; letter-spacing: -.3px; }
+.khtc-card::before {
+	content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+	background: linear-gradient(180deg, var(--xanh), var(--xanh-dam));
+}
+.khtc-card.thu::before { background: linear-gradient(180deg, #16a34a, #15803d); }
+.khtc-card.chi::before { background: linear-gradient(180deg, #dc2626, #b91c1c); }
+.khtc-card .k { font-size: 12.5px; color: var(--nhat); margin-bottom: 7px; font-weight: 500; }
+.khtc-card .v { font-size: 23px; font-weight: 680; letter-spacing: -.5px; font-variant-numeric: tabular-nums; }
+.khtc-card.thu .v { color: var(--thu); }
+.khtc-card.chi .v { color: var(--chi); }
 
+/* ----------------------------------------------------------------- khung */
 .khtc-panel {
-	background: #fff; border: 1px solid var(--vien); border-radius: 8px;
-	padding: 16px 18px; margin-bottom: 18px;
+	background: #fff; border: 1px solid var(--vien); border-radius: 12px;
+	padding: 18px 20px; margin-bottom: 18px; box-shadow: var(--bong-1);
 }
-.khtc-panel h2 { margin: 0 0 12px; font-size: 15px; font-weight: 600; }
+.khtc-panel > h2 {
+	margin: 0 0 14px; font-size: 15px; font-weight: 650; letter-spacing: -.15px;
+	display: flex; align-items: center; gap: 8px;
+}
+.khtc-panel > h2::before {
+	content: ''; width: 3px; height: 15px; border-radius: 2px; flex: none;
+	background: linear-gradient(180deg, var(--xanh), var(--xanh-dam));
+}
 
+/* Khung nhập liệu gấp lại được. Mở trang ra là thấy bảng số ngay; ô nhập
+   nằm sau một cú bấm. Dùng <details> nên không cần một dòng JavaScript nào,
+   và bấm được cả khi trình duyệt chặn script. */
+.khtc-gap { padding: 0; }
+.khtc-gap > summary {
+	cursor: pointer; list-style: none; padding: 14px 20px;
+	font-size: 15px; font-weight: 650; letter-spacing: -.15px;
+	display: flex; align-items: center; gap: 9px; border-radius: 12px;
+	transition: background .15s;
+}
+.khtc-gap > summary::-webkit-details-marker { display: none; }
+.khtc-gap > summary::before {
+	content: '+'; flex: none;
+	width: 19px; height: 19px; line-height: 17px; text-align: center;
+	border-radius: 6px; font-size: 14px; font-weight: 700;
+	color: var(--xanh); background: var(--xanh-nhat);
+	border: 1px solid #dbeafe;
+}
+.khtc-gap[open] > summary::before { content: '−'; }
+.khtc-gap > summary:hover { background: var(--nen); }
+.khtc-gap[open] > summary { border-bottom: 1px solid var(--vien); border-radius: 12px 12px 0 0; }
+.khtc-gap > *:not(summary) { padding: 0 20px; }
+.khtc-gap > form { padding: 16px 20px 18px; }
+
+/* ------------------------------------------------------------------ bảng */
 .khtc table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.khtc th, .khtc td { padding: 8px 10px; border-bottom: 1px solid var(--vien); text-align: left; }
-.khtc th { background: var(--nen); font-weight: 600; color: var(--nhat); }
+.khtc th, .khtc td { padding: 9px 11px; border-bottom: 1px solid var(--vien); text-align: left; }
+.khtc thead th {
+	background: linear-gradient(180deg, #f8fafc, #f1f5f9);
+	font-weight: 650; color: var(--muc-2); font-size: 12px;
+	letter-spacing: .02em; border-bottom: 1px solid var(--vien-dam);
+	position: sticky; top: 0; z-index: 1;
+}
+.khtc tbody tr:nth-child(even) td { background: #fcfdfe; }
+.khtc tbody tr:hover td { background: var(--xanh-nhat); }
 .khtc td.so, .khtc th.so { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.khtc tr:hover td { background: #f9fafb; }
-.khtc .thu { color: var(--thu); font-weight: 600; }
-.khtc .chi { color: var(--chi); font-weight: 600; }
-
-.khtc-bao { padding: 10px 14px; border-radius: 8px; margin-bottom: 14px; font-size: 13px; }
-.khtc-bao.ok  { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; }
-.khtc-bao.loi { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
-
-.khtc-loc { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; }
-.khtc-loc label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--nhat); }
-.khtc-trong { padding: 28px; text-align: center; color: var(--nhat); font-size: 13px; }
-
-.khtc textarea { width: 100%; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; }
-.khtc-dem { font-weight: 600; font-size: 12px; margin-left: 8px; color: var(--nhat); }
+.khtc tfoot th {
+	background: linear-gradient(180deg, #f1f5f9, #e9eff6);
+	font-weight: 700; color: var(--muc); border-top: 2px solid var(--vien-dam);
+	border-bottom: none; position: sticky; bottom: 0;
+}
+.khtc .thu { color: var(--thu); font-weight: 650; }
+.khtc .chi { color: var(--chi); font-weight: 650; }
+.khtc-dem { font-weight: 650; font-size: 12px; margin-left: 8px; color: var(--nhat); }
 .khtc-dem.thu { color: var(--thu); }
 .khtc-dem.chi { color: var(--chi); }
 
-/* ------------------------------------------------------------------------
-   Bản web ngoài: không có khung wp-admin nên phải tự dựng nền, thanh trên và
-   lề. Trong wp-admin những phần này đã có sẵn, nên chúng chỉ áp cho .khtc-web. */
-body.khtc-web {
-	margin: 0;
-	background: #f1f5f9;
-	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-	font-size: 14px;
-	color: #0f172a;
+/* Trong wp-admin, thanh quản trị cao 32px dính sẵn ở đỉnh; tiêu đề bảng dính
+   ở top:0 sẽ chui xuống dưới nó. Ngoài web ngoài không có thanh đó. */
+body.wp-admin .khtc thead th { top: 32px; }
+@media screen and (max-width: 782px) {
+	body.wp-admin .khtc thead th { top: 46px; }
 }
-body.khtc-web .khtc { max-width: 1500px; margin: 22px auto; padding: 0 20px; }
-body.khtc-web .khtc .wrap { margin: 0; }
 
-.khtc-thanh {
-	display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px;
-	background: #0f172a; color: #e2e8f0; padding: 0 20px;
+/* --------------------------------------------------------------- thông báo */
+.khtc-bao {
+	padding: 12px 16px; border-radius: 10px; margin-bottom: 16px;
+	font-size: 13px; line-height: 1.55; border-left: 4px solid;
+	box-shadow: var(--bong-1);
 }
-.khtc-hieu { font-weight: 700; font-size: 15px; padding: 13px 0; letter-spacing: -.2px; }
-.khtc-thanh nav { display: flex; flex-wrap: wrap; gap: 2px; flex: 1; }
-.khtc-thanh nav a {
-	color: #94a3b8; text-decoration: none; font-size: 13px; font-weight: 600;
-	padding: 14px 14px; border-bottom: 3px solid transparent;
+.khtc-bao.ok  { background: linear-gradient(180deg,#f0fdf4,#ecfdf5); border-color: #16a34a; color: #14532d; }
+.khtc-bao.loi { background: linear-gradient(180deg,#fef2f2,#fff1f2); border-color: #dc2626; color: #7f1d1d; }
+
+/* ---------------------------------------------------------------- ô nhập */
+.khtc-loc { display: flex; flex-wrap: wrap; gap: 12px 15px; align-items: flex-end; }
+.khtc-loc label {
+	display: flex; flex-direction: column; gap: 5px;
+	font-size: 11.5px; font-weight: 650; color: var(--nhat);
+	letter-spacing: .01em;
 }
-.khtc-thanh nav a:hover { color: #fff; }
-.khtc-thanh nav a.dang-o { color: #fff; border-bottom-color: #3b82f6; }
-.khtc-ai { display: flex; align-items: center; gap: 14px; font-size: 12px; color: #94a3b8; }
+.khtc-trong {
+	padding: 32px; text-align: center; color: var(--nhat); font-size: 13px;
+	background: var(--nen); border-radius: 10px; border: 1px dashed var(--vien-dam);
+}
+.khtc textarea {
+	width: 100%; font-family: ui-monospace, Menlo, Consolas, monospace;
+	font-size: 12px; line-height: 1.6;
+}
+
+/* =========================================================================
+   Chỉ dành cho bản web ngoài — wp-admin đã có thanh bên và nền riêng.
+   ========================================================================= */
+body.khtc-web {
+	margin: 0; background: #eef2f7; color: var(--muc, #0f172a);
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+	font-size: 14px; -webkit-font-smoothing: antialiased;
+}
+.khtc-khung { display: flex; min-height: 100vh; align-items: stretch; }
+
+/* ------------------------------------------------------------- thanh bên */
+.khtc-ben {
+	flex: none; width: 232px; display: flex; flex-direction: column;
+	background: linear-gradient(170deg, #111c33 0%, #0f172a 45%, #131d31 100%);
+	box-shadow: 2px 0 14px rgba(15,23,42,.18); position: sticky; top: 0;
+	height: 100vh; overflow-y: auto;
+}
+.khtc-hieu {
+	padding: 19px 20px 17px; font-size: 15px; font-weight: 650; color: #e2e8f0;
+	letter-spacing: -.2px; border-bottom: 1px solid rgba(148,163,184,.16);
+}
+.khtc-hieu span {
+	display: inline-block; margin-right: 7px; padding: 3px 8px; border-radius: 7px;
+	background: linear-gradient(160deg, #3b82f6, #1d4ed8); color: #fff;
+	font-size: 12px; font-weight: 700; letter-spacing: 0;
+	box-shadow: 0 2px 6px rgba(37,99,235,.45);
+}
+.khtc-ben nav { flex: 1; padding: 12px 10px; }
+.khtc-nhom {
+	padding: 14px 10px 6px; font-size: 10.5px; font-weight: 700;
+	letter-spacing: .09em; text-transform: uppercase; color: #64748b;
+}
+.khtc-ben nav a {
+	display: block; padding: 8px 12px; margin-bottom: 1px; border-radius: 8px;
+	color: #b3c0d4; text-decoration: none; font-size: 13.5px; font-weight: 500;
+	transition: .13s;
+}
+.khtc-ben nav a:hover { background: rgba(148,163,184,.13); color: #fff; }
+.khtc-ben nav a.dang-o {
+	background: linear-gradient(100deg, #2563eb, #1d4ed8); color: #fff; font-weight: 600;
+	box-shadow: 0 2px 8px rgba(37,99,235,.42), inset 0 1px 0 rgba(255,255,255,.14);
+}
+.khtc-ai {
+	padding: 14px 20px 18px; border-top: 1px solid rgba(148,163,184,.16);
+	font-size: 12px; color: #94a3b8; display: flex; flex-wrap: wrap;
+	align-items: center; gap: 4px 12px;
+}
+.khtc-ai-ten { width: 100%; color: #e2e8f0; font-weight: 600; font-size: 13px; }
 .khtc-ai a { color: #94a3b8; text-decoration: none; }
 .khtc-ai a:hover { color: #fff; text-decoration: underline; }
 
-/* wp-admin cấp sẵn lớp .button; ngoài web thì không, nên tự dựng lại. */
+body.khtc-web main.khtc { flex: 1; min-width: 0; padding: 26px 28px 60px; margin: 0; max-width: none; }
+body.khtc-web .khtc .wrap { margin: 0; }
+
+/* wp-admin cấp sẵn lớp .button; ngoài web thì không, nên tự dựng lại — và
+   dựng có chiều sâu: bóng mảnh khi nghỉ, lún xuống khi bấm. */
 body.khtc-web .button {
 	display: inline-block; cursor: pointer; text-decoration: none;
-	background: #fff; border: 1px solid #cbd5e1; border-radius: 6px;
-	padding: 7px 14px; font: inherit; font-size: 13px; font-weight: 600; color: #334155;
+	background: linear-gradient(180deg, #fff, #f6f8fb);
+	border: 1px solid var(--vien-dam, #cbd5e1); border-radius: 9px;
+	padding: 8px 15px; font: inherit; font-size: 13px; font-weight: 600;
+	color: #334155; box-shadow: 0 1px 2px rgba(15,23,42,.07); transition: .13s;
 }
-body.khtc-web .button:hover { border-color: #94a3b8; }
-body.khtc-web .button-primary { background: var(--xanh, #2563eb); border-color: var(--xanh, #2563eb); color: #fff; }
-body.khtc-web .button-primary:hover { background: #1d4ed8; border-color: #1d4ed8; }
-body.khtc-web .button-small { padding: 4px 10px; font-size: 12px; font-weight: 500; }
-body.khtc-web input[type="text"], body.khtc-web input[type="date"],
+body.khtc-web .button:hover { border-color: #94a3b8; box-shadow: 0 2px 6px rgba(15,23,42,.10); }
+body.khtc-web .button:active { transform: translateY(1px); box-shadow: inset 0 1px 3px rgba(15,23,42,.14); }
+body.khtc-web .button-primary {
+	background: linear-gradient(180deg, #3b82f6, #2563eb);
+	border-color: #1d4ed8; color: #fff;
+	box-shadow: 0 1px 2px rgba(29,78,216,.30), 0 3px 10px rgba(37,99,235,.28);
+}
+body.khtc-web .button-primary:hover { background: linear-gradient(180deg, #2563eb, #1d4ed8); border-color: #1e40af; }
+body.khtc-web .button-small { padding: 5px 11px; font-size: 12px; font-weight: 500; border-radius: 7px; }
+body.khtc-web input[type="text"], body.khtc-web input[type="date"], body.khtc-web input[type="url"],
 body.khtc-web input[type="search"], body.khtc-web select, body.khtc-web textarea {
-	font: inherit; font-size: 13px; padding: 6px 9px;
-	border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; color: inherit;
+	font: inherit; font-size: 13px; padding: 7px 10px;
+	border: 1px solid var(--vien-dam, #cbd5e1); border-radius: 8px;
+	background: #fff; color: inherit;
+	box-shadow: inset 0 1px 2px rgba(15,23,42,.05); transition: .13s;
+}
+body.khtc-web input:focus, body.khtc-web select:focus, body.khtc-web textarea:focus {
+	outline: none; border-color: var(--xanh, #2563eb);
+	box-shadow: 0 0 0 3px rgba(37,99,235,.15);
 }
 body.khtc-web form { margin: 0; }
 
+/* ------------------------------------------------------ thanh biểu đồ
+   Một màu duy nhất, cố ý. Xanh lá / đỏ mà plugin dùng cho thu / chi trượt
+   kiểm tra mù màu nặng (ΔE 4.2 ở deutan, dưới cả ngưỡng sàn 6) — với người
+   mù màu đỏ-lục thì hai thanh y hệt nhau. Danh tính ở đây do VỊ TRÍ CỘT và
+   CON SỐ mang, màu chỉ mang độ dài.
+
+   Tên lớp là .khtc-vach chứ không phải .khtc-thanh: .khtc-thanh từng là
+   thanh điều hướng. Dùng trùng tên thì nav sụp và ô biểu đồ ăn màu nền đen
+   của nav — đã xảy ra thật. */
+.khtc-vach { width: 92px; padding-left: 0; padding-right: 14px; }
+.khtc-vach > span {
+	display: block; height: 9px; border-radius: 5px; overflow: hidden;
+	background: #e8edf4; box-shadow: inset 0 1px 2px rgba(15,23,42,.08);
+}
+.khtc-vach > span > i {
+	display: block; height: 100%; border-radius: 5px;
+	background: linear-gradient(180deg, #3b82f6, #2563eb);
+	-webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+.khtc-vach.hai-chieu > span { position: relative; }
+.khtc-vach.hai-chieu > span::before {
+	content: ''; position: absolute; left: 50%; top: 0; bottom: 0;
+	width: 1px; background: #b6c2d2;
+}
+.khtc-vach.hai-chieu > span > i { position: absolute; top: 0; }
+.khtc-vach.hai-chieu > span > i.duong { left: 50%; border-radius: 0 5px 5px 0; }
+.khtc-vach.hai-chieu > span > i.am {
+	right: 50%; border-radius: 5px 0 0 5px;
+	background: linear-gradient(180deg, #ef4444, #b91c1c);
+}
+.khtc-xu-huong th, .khtc-xu-huong td { padding-top: 7px; padding-bottom: 7px; }
+
+/* --------------------------------------------------------------- màn nhỏ */
+/* Màn hẹp: thanh bên nằm ngang. Menu phải chiếm TRỌN một hàng riêng
+   (flex-basis 100%), nếu không nó bị tên công ty và phần đăng nhập ép thành
+   một cột hẹp và mỗi mục vỡ thành ba dòng — đã xảy ra thật khi thử ở 420px. */
+@media (max-width: 1100px) {
+	.khtc-khung { flex-direction: column; }
+	.khtc-ben {
+		width: auto; height: auto; position: static;
+		flex-direction: row; flex-wrap: wrap; align-items: center;
+		box-shadow: 0 2px 10px rgba(15,23,42,.18);
+	}
+	.khtc-hieu { border-bottom: none; flex: 1; padding: 14px 16px; }
+	.khtc-ai { border-top: none; padding: 14px 16px; order: 2; }
+	.khtc-ai-ten { width: auto; }
+	.khtc-nhom { display: none; }
+	.khtc-ben nav {
+		order: 3; flex: 0 0 100%; display: flex; flex-wrap: wrap;
+		gap: 4px; padding: 0 12px 12px;
+		border-top: 1px solid rgba(148,163,184,.16); padding-top: 10px;
+	}
+	.khtc-ben nav a { white-space: nowrap; padding: 7px 13px; }
+	body.khtc-web main.khtc { padding: 18px 16px 40px; }
+}
+
+/* Điện thoại: menu thành một hàng vuốt ngang được, thay vì mười bốn viên
+   xếp chồng đẩy hết nội dung xuống dưới màn hình. */
+@media (max-width: 640px) {
+	.khtc-ben nav {
+		flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none;
+		-webkit-overflow-scrolling: touch;
+	}
+	.khtc-ben nav::-webkit-scrollbar { display: none; }
+	.khtc-hieu { flex: 0 0 auto; font-size: 14px; }
+	.khtc-ai { font-size: 11px; gap: 3px 9px; }
+}
 @media (max-width: 782px) {
-	.khtc-cards { gap: 10px; }
 	.khtc-card { flex: 1 1 100%; }
-	.khtc-panel { padding: 12px; }
-	body.khtc-web .khtc { padding: 0 12px; margin: 14px auto; }
+	.khtc-panel { padding: 14px; }
+	.khtc-gap > summary { padding: 12px 14px; }
+	.khtc-gap > *:not(summary) { padding: 0 14px; }
+	.khtc-gap > form { padding: 14px; }
 	.khtc table { display: block; overflow-x: auto; white-space: nowrap; }
 }
 
-/* ------------------------------------------------------------------------
-   Thanh so sánh trong bảng xu hướng.
-
-   MỘT MÀU DUY NHẤT cho thanh, cố ý. Xanh lá / đỏ mà plugin dùng cho thu / chi
-   trượt kiểm tra mù màu nặng (ΔE 4.2 ở deutan, dưới cả ngưỡng sàn 6) — với
-   người mù màu đỏ-lục thì hai thanh y hệt nhau. Danh tính ở đây do VỊ TRÍ CỘT
-   và CON SỐ mang, màu chỉ mang độ dài. Con số vẫn giữ xanh/đỏ vì đó là chữ,
-   tương phản cao, và đã quen mắt khắp plugin.
-
-   Thanh mảnh 8px, bo tròn 4px ở đầu, dính đáy ô — và in ra vẫn còn màu nhờ
-   print-color-adjust, nếu không thì bản in chỉ còn bảng số trắng trơn.
-
-   Tên lớp là .khtc-vach chứ không phải .khtc-thanh: .khtc-thanh đã là thanh
-   điều hướng trên cùng. Dùng trùng tên thì nav sụp thành cột dọc và ô biểu đồ
-   ăn nguyên màu nền đen của nav — đã xảy ra thật. */
-.khtc-vach { width: 88px; padding-left: 0; padding-right: 14px; }
-.khtc-vach > span {
-	display: block; height: 8px; border-radius: 4px;
-	background: #eef2f7; overflow: hidden;
-}
-.khtc-vach > span > i {
-	display: block; height: 100%; border-radius: 4px;
-	background: #2563eb;
-	-webkit-print-color-adjust: exact; print-color-adjust: exact;
-}
-/* Cột chênh lệch vẽ từ giữa ra: HƯỚNG mang dấu, không phải màu. */
-.khtc-vach.hai-chieu > span { position: relative; background: #f1f5f9; }
-.khtc-vach.hai-chieu > span::before {
-	content: ''; position: absolute; left: 50%; top: 0; bottom: 0;
-	width: 1px; background: #cbd5e1;
-}
-.khtc-vach.hai-chieu > span > i { position: absolute; top: 0; }
-.khtc-vach.hai-chieu > span > i.duong { left: 50%; background: #2563eb; border-radius: 0 4px 4px 0; }
-.khtc-vach.hai-chieu > span > i.am    { right: 50%; background: #b91c1c; border-radius: 4px 0 0 4px; }
-
-.khtc-xu-huong th, .khtc-xu-huong td { padding-top: 6px; padding-bottom: 6px; }
-
+/* ------------------------------------------------------------------- in
+   Bản in là để nộp sếp và kẹp hồ sơ: bỏ hết thứ bấm được, giữ nguyên số. */
 @media print {
-	.khtc-vach > span { border: 1px solid #cbd5e1; }
-	.khtc-loc, .khtc-cty { display: none; }
-	.khtc-panel { break-inside: avoid; border-color: #cbd5e1; }
+	body.khtc-web { background: #fff; }
+	.khtc-ben, .khtc-cty, .khtc-loc, .khtc-gap, .button { display: none !important; }
+	body.khtc-web main.khtc { padding: 0; }
+	.khtc-panel {
+		break-inside: avoid; page-break-inside: avoid;
+		box-shadow: none; border-color: #cbd5e1; margin-bottom: 12px;
+	}
+	.khtc-card { box-shadow: none; break-inside: avoid; }
+	.khtc thead th { position: static; }
+	.khtc tfoot th { position: static; }
+	.khtc-vach > span { border: 1px solid #cbd5e1; box-shadow: none; }
+	a[href]::after { content: ''; }
 }

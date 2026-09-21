@@ -439,6 +439,43 @@ website đã có dữ liệu sẽ khiến giao dịch trỏ nhầm tài khoản 
 có gì báo. Các liên kết (giao dịch → tài khoản, dòng cổng → đợt, chi phí → giao
 dịch) được nối lại theo id mới; có một phép kiểm đứng sau đúng chỗ này.
 
+## Giao diện
+
+Menu **dọc bên trái**, gom theo nhóm — mười bốn mục xếp phẳng thì tìm mục nào
+cũng phải đọc hết cả hàng, và ở bản cũ nó đã tràn xuống hai dòng.
+
+Cách bày menu và danh sách đường dẫn hợp lệ là **hai thứ riêng**:
+`KHTC_Web::nhom()` quyết định cách bày, `KHTC_Web::man_hinh()` vẫn là chỗ duy
+nhất quyết định đường dẫn nào chạy được. Đổi cách bày không vô tình mở hay
+khoá mất một trang.
+
+**Khung nhập liệu gấp lại được** bằng `<details>` — không một dòng JavaScript,
+và bấm được cả khi trình duyệt chặn script. Chỉ khung *nhập* mới gấp; bảng số
+liệu không bao giờ gấp, vì mở trang ra là phải thấy số ngay.
+
+### Ba nguyên tắc của bảng màu
+
+1. Chiều sâu do **bóng đổ nhiều lớp** và nền chuyển sắc rất nhẹ, không do viền
+   dày hay bóng đậm. Bóng nhiều lớp mảnh trông như giấy xếp chồng; một lớp
+   bóng dày trông như nút nhựa.
+2. Màu nằm ở **khung** — thanh bên, thẻ số, nút bấm. Trong bảng số liệu màu
+   chỉ còn xanh/đỏ cho thu/chi, vì đó là quy ước kế toán đã quen mắt.
+3. **Con số luôn đọc được trước.** Nền chuyển sắc không bao giờ chạy dưới một
+   cột số. Một bảng tiền đẹp mà phải nheo mắt đọc là một bảng hỏng.
+
+Một tệp CSS phục vụ cả wp-admin lẫn bản web ngoài. Phần nào chỉ dành cho web
+ngoài thì nằm dưới `body.khtc-web` — wp-admin đã có thanh bên và nền riêng,
+chồng thêm là vỡ. Ngược lại `body.wp-admin` được bù 32px cho tiêu đề bảng dính,
+vì thanh quản trị của WordPress đã chiếm sẵn đỉnh màn hình.
+
+### Màn hẹp
+
+Dưới 1100px thanh bên nằm ngang và menu chiếm **trọn một hàng riêng**. Thiếu
+`flex-basis: 100%` thì nó bị tên công ty và phần đăng nhập ép thành một cột hẹp
+và mỗi mục vỡ thành ba dòng — đã xảy ra thật khi thử ở 420px. Dưới 640px menu
+thành một hàng vuốt ngang được, thay vì mười bốn viên xếp chồng đẩy hết nội
+dung xuống dưới màn hình.
+
 ## Bản web ngoài
 
 Cùng bốn màn hình đó, nhưng ở địa chỉ công khai của website thay vì trong

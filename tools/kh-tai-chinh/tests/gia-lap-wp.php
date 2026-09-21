@@ -224,7 +224,7 @@ $GLOBALS['wpdb']->tao_bang_sqlite();
 
 // ------------------------------------------------------------ nạp plugin
 $goc = __DIR__ . '/../wordpress/kh-tai-chinh/';
-define( 'KHTC_VERSION', '1.0.0' );
+define( 'KHTC_VERSION', '1.1.0' );
 define( 'KHTC_DIR', $goc );
 define( 'KHTC_URL', 'https://vi.du/wp-content/plugins/kh-tai-chinh/' );
 define( 'KHTC_CAP', 'edit_pages' );
