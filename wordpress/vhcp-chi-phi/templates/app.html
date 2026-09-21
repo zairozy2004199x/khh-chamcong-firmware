@@ -5303,10 +5303,22 @@
     }).join('');
     if(cu){ for(var i=0;i<sel.options.length;i++){ if(sel.options[i].value===cu){ sel.value=cu; break; } } }
   }
+  /* ═════════════════════════════════════════════════════════════════════════════════
+   * 🔴 CHỮ TRÊN BỐN NÚT CHỌN LOẠI ĐẾN TỪ ĐÂY, KHÔNG TỪ HTML.
+   *
+   * `_apTenNhom()` GHI ĐÈ nhãn của `daNhomCs` / `daNhomDa` / `ndLoaiDaCoSo` / `ndLoaiDuAn` mỗi
+   * lượt mở hộp. Sửa chữ ở thẻ `<button>` trong HTML là không ăn thua gì — và đã cắn thật
+   * 21/09/2026: bản 1.238.0 đổi chữ ở HTML, bài kiểm tĩnh xanh, mà anh Thắng mở màn ra vẫn
+   * thấy nguyên chữ cũ: *"Sao vẫn hiện 3"*. ĐỔI Ở CẢ HAI NƠI, và bảng này mới là nơi thật.
+   *
+   * ⚠️ LỖI KIỂM TRA CỦA CHÍNH EM, ghi lại: lượt soi trình duyệt đọc `textContent` của nút
+   *    MÀ KHÔNG gọi `_apTenNhom()` trước — nên nó đọc đúng chữ trong HTML, không phải chữ
+   *    người dùng thấy. Soi màn mà bỏ qua bước dựng thật thì cũng chỉ là một phép dò chữ khác.
+   * ═════════════════════════════════════════════════════════════════════════════════ */
   var TEN_LOAI_BP={
     'Marketing':{
-      coso:{ten:'🏢 Chi Phí Marketing Cơ Sở',                     phu:'Một đơn gom NHIỀU gian · theo TUẦN'},
-      duan:{ten:'🎪 Chi Phí Bán Vé Sớm, Khai Trương, Sự Kiện',     phu:'Một GIAN · thời gian bất kỳ'}
+      coso:{ten:'🏢 Chi Phí Marketing Cơ Sở',                     phu:'Nhiều cơ sở cho 1 đơn'},
+      duan:{ten:'🎪 Chi Phí Bán Vé Sớm, Khai Trương, Sự Kiện',     phu:'1 cơ sở 1 đơn'}
     }
   };
   /** Tên + phụ đề của một nhóm ('coso' | 'duan') theo bộ phận người đang đăng nhập. */
@@ -5314,9 +5326,12 @@
     var bp=_bpCuaToi();
     var r=TEN_LOAI_BP[bp];
     if(r&&r[nhom]) return r[nhom];
+    /* 🔴 TÊN MẶC ĐẮC — anh Thắng 21/09/2026: *"Chia ra 2 loại: Chi Phí Dự Án (1 cơ sở 1 đơn)
+       · Chi Phí Tuần (Nhiều Cơ Sở cho 1 Đơn)"*, và *"Chi Phí Cơ Sở chỉ dành cho nhân viên
+       cơ sở"* — nên chữ "Chi phí cơ sở" không còn đứng tên một lối của Kỹ thuật. */
     return (nhom==='coso')
-      ? {ten:'🏢 Chi phí cơ sở', phu:'Một đơn gom NHIỀU gian · theo TUẦN'}
-      : {ten:'🏗 Chi phí dự án',  phu:'Setup / Tháo dỡ một GIAN'};
+      ? {ten:'🗓 Chi phí tuần', phu:'Nhiều cơ sở cho 1 đơn'}
+      : {ten:'🏗 Chi phí dự án', phu:'1 cơ sở 1 đơn · Setup / Tháo dỡ'};
   }
   /**
    * Tên kèm đuôi bộ phận — dùng ở hộp "＋ Tạo đơn mới" và dòng "Đang lập".
@@ -5357,8 +5372,16 @@
     _apLoaiDa();
     if(el('daTaoNut')) el('daTaoNut').style.display='none';
     if(el('daTaoBox')) el('daTaoBox').style.display='block';
-    /* Lối sang đơn tuần chỉ bày cho người vào được tab ấy. */
-    if(el('daNhomTuan')) el('daNhomTuan').style.display=_tabDuoc('don')?'':'none';
+    /* ═══════════════════════════════════════════════════════════════════════
+       🔴 LỐI "ĐƠN TUẦN CỦA CƠ SỞ" CHỈ DÀNH CHO NHÂN VIÊN CƠ SỞ — anh Thắng 21/09/2026 nói
+       đúng chữ ấy, sau khi chốt thẻ Kỹ thuật chỉ còn hai loại.
+
+       ⚠️ GÁC BẰNG LUẬT BỘ PHẬN, KHÔNG BẰNG `_tabDuoc('don')`. Hai thứ khác nhau: bảng Phân
+          quyền có thể MỞ THÊM tab Đơn cho một vai (`if(canDo('donCoSo')) vis.don=1;`), và lúc ấy
+          nút này hiện lại dù người ấy là Kỹ thuật — đúng cái anh vừa chụp: *"Sao vẫn hiện 3"*.
+          `_vaoDonCoSo()` mới là chốt "bộ phận nào không lên đơn tuần của cơ sở".
+       ═══════════════════════════════════════════════════════════════════════ */
+    if(el('daNhomTuan')) el('daNhomTuan').style.display=(_tabDuoc('don') && _vaoDonCoSo(_bpCuaToi()))?'':'none';
     var san=(nhomSan==='coso'||nhomSan==='duan')?nhomSan:'';
     _daHienHoi(!san);
     daChonNhom(san);   // không truyền gì thì mở ra trắng, chưa chọn gì

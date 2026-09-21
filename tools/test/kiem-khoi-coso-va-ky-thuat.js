@@ -129,6 +129,36 @@ t('⚠️ mã lối vẫn là `coso` / `dacoso` / `duan`',
 t('⚠️ khối KHÔNG chen vào khối tạo đơn của Kỹ thuật',
   !/KHOI_DANG|khoiBan/.test(sachHam('daMoTao') + sachHam('daChonNhom')), 'có');
 
+/* ═══ 3b. 🔴 CHỮ TRÊN NÚT ĐẾN TỪ `_tenNhom()`, KHÔNG TỪ HTML ════════════════
+ * ĐÂY LÀ CHỖ BẢN 1.238.0 ĐÃ HỎNG, nên phải có phép giữ lại. Bản ấy đổi chữ ở thẻ `<button>`
+ * trong HTML, bài kiểm tĩnh xanh, gói cài có đúng chữ mới — nhưng `_apTenNhom()` GHI ĐÈ nhãn mỗi
+ * lượt mở hộp, nên anh Thắng mở màn ra vẫn thấy nguyên ba nút chữ cũ: *"Sao vẫn hiện 3"*.
+ *
+ * ⚠️ LƯỢT SOI TRÌNH DUYỆT CŨNG KHÔNG BẮT ĐƯỢC, vì nó đọc `textContent` của nút mà KHÔNG gọi
+ *    `_apTenNhom()` trước — tức là vẫn chỉ đọc chữ trong HTML, chỉ khác đường đi. Mở trình duyệt
+ *    mà bỏ bước dựng thật thì cũng chỉ là một phép dò chữ khác.
+ * ════════════════════════════════════════════════════════════════════════════════════════ */
+const BANG_TEN = new Function((/var TEN_LOAI_BP=\{[\s\S]*?\n  \};/.exec(HTML) || ['var TEN_LOAI_BP={};'])[0]
+  + '\nreturn TEN_LOAI_BP;')();
+const TN = new Function('CURUSER', 'TEN_LOAI_BP', 'nhom',
+  bocMang('BP_THEO_TEN_VAI') + '\n' + bocHam('_boDauVai') + '\n' + bocHam('_bpCuaVai') + '\n'
+  + bocHam('_bpCuaToi') + '\n' + bocHam('_tenNhom') + '\nreturn _tenNhom(nhom);');
+const tn = (nhom) => TN({ role: 'Nhân Viên Kỹ Thuật Khu Vui Chơi', boPhan: '' }, BANG_TEN, nhom);
+teq('🔴 tên lối tuần lấy từ `_tenNhom()` là chữ MỚI', '🗓 Chi phí tuần', tn('coso').ten);
+teq('🔴 và phụ đề nói NHIỀU cơ sở cho 1 đơn', 'Nhiều cơ sở cho 1 đơn', tn('coso').phu);
+teq('🔴 lối dự án nói 1 cơ sở 1 đơn', '1 cơ sở 1 đơn · Setup / Tháo dỡ', tn('duan').phu);
+/* Phép đối chứng: chữ ở HTML và chữ ở `_tenNhom()` phải KHỚP nhau. Lệch là người đọc mã thấy
+   một đằng, người dùng thấy một nẻo — đúng cái bẫy vừa mắc. */
+t('🔴 chữ ở HTML và chữ ở `_tenNhom()` khớp nhau',
+  nhanNut('daNhomCs').indexOf(tn('coso').ten) >= 0 && nhanNut('daNhomCs').indexOf(tn('coso').phu) >= 0,
+  nhanNut('daNhomCs'));
+/* 🔴 NÚT THỨ BA GÁC BẰNG LUẬT BỘ PHẬN, không bằng `_tabDuoc('don')`: bảng Phân quyền có thể MỞ
+   THÊM tab Đơn cho một vai, và lúc ấy nút hiện lại dù người ấy là Kỹ thuật — đúng ảnh anh
+   Thắng chụp. Vế này thiếu ở 1.238.0. */
+t('🔴 nút "Đơn tuần của cơ sở" gác bằng luật bộ phận, không chỉ bằng tab',
+  /_tabDuoc\('don'\) && _vaoDonCoSo\(_bpCuaToi\(\)\)/.test(sachHam('daMoTao')), sachHam('daMoTao'));
+
+
 /* ═══ 4. CƠ SỞ: CỘT ĐƠN VỊ → CỘT KHỐI ══════════════════════════════════════════ */
 t('đầu bảng cơ sở đã là cột Khối', HTML.indexOf('>Khối</th>') >= 0);
 const CS = sachHam('_khoiSelCoso');
