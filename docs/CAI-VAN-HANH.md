@@ -5,7 +5,7 @@
 > **Đây là một trang ĐỨNG RIÊNG**, không phải một ô nhỏ trong Cổng K&H: thanh dọc bên trái chia
 > nhóm, đủ 16 mục, đa cơ sở — giống bố cục app cũ.
 >
-> ✅ **Bản 1.3.0 đã dựng xong cả 12 màn riêng của trang này.** Bốn mục còn lại trên thanh dọc
+> ✅ **Đã dựng xong cả 12 màn riêng của trang này.** Bốn mục còn lại trên thanh dọc
 > (Chấm công · Đăng ký lịch làm · Đổi ca · Báo cáo đi muộn) là **liên kết sang plugin Chấm Công** —
 > cố ý không dựng lại, vì bên ấy đã có sổ thật đang chạy.
 

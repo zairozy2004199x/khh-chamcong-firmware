@@ -7,8 +7,9 @@
  *    của nó tụt xuống vùng đỏ vì một việc NGƯỜI KHÁC chưa làm — và cửa hàng trưởng ở đó không có
  *    cách nào sửa. Điểm phải chỉ nói về thứ họ làm được.
  *
- * ⚠️ Danh sách cơ sở và số nhân sự lấy từ plugin CHẤM CÔNG, không giữ bản sao ở đây. Giữ bản sao
- *    là hai danh sách lệch tên nhau, và báo cáo cộng theo cơ sở ra hai kết quả khác nhau.
+ * ⚠️ SỐ NHÂN SỰ lấy từ plugin chấm công. Còn DANH SÁCH CƠ SỞ thì KHÔNG: từ bản 1.5.0 trang này
+ *    có danh sách riêng, khai trong màn Cài đặt (xem `ds_coso_he()`). Danh mục bên chấm công là
+ *    mã đơn vị của cả công ty, đổ vào đây thì màn Tổng quan đầy thẻ trống.
  *
  * @package VHCP_VanHanh
  */
@@ -21,14 +22,12 @@ class VHVH_Tong {
 	const MANH = array( 'doanh_thu', 'checklist', 'cham_cong', 'vi_pham', 'viec_tre' );
 
 	/**
-	 * Danh sách cơ sở toàn hệ — mượn danh mục của chấm công, GỘP với những cơ sở đang thật sự
-	 * mang dữ liệu ở đây.
+	 * Danh sách cơ sở trang này đang dùng: những cơ sở ĐÃ KHAI ở màn Cài đặt, GỘP với những cơ sở
+	 * đang thật sự mang dữ liệu.
 	 *
-	 * 🔴 PHẢI GỘP, KHÔNG ĐƯỢC CHỈ ĐỌC DANH MỤC. Danh mục có thể rỗng (chấm công vừa cài, chưa
-	 *    nạp sổ) hoặc thiếu một tên ai đó gõ lệch. Chỉ đọc danh mục thì Quản lý mở màn Tổng quan
-	 *    ra thấy TRỐNG TRƠN trong khi sổ đang có doanh thu — và không có câu nào nói vì sao.
-	 *    Gộp thêm cơ sở có dữ liệu thì tệ nhất cũng là hiện thừa một cái tên gõ lệch, còn hơn
-	 *    giấu mất một cơ sở đang bán hàng thật.
+	 * 🔴 PHẢI GỘP PHẦN "ĐANG MANG DỮ LIỆU". Chỉ đọc danh sách khai thì một cơ sở có doanh thu
+	 *    thật mà chưa kịp khai (hoặc khai lệch một ký tự) sẽ biến mất khỏi mọi báo cáo, và không
+	 *    có câu nào nói vì sao. Hiện thừa một cái tên gõ lệch còn hơn giấu mất tiền đã nhập.
 	 */
 	public static function ds_coso_he() {
 		global $wpdb;
@@ -74,7 +73,11 @@ class VHVH_Tong {
 		return $ds;
 	}
 
-	/** Khai danh sách cơ sở — chỉ quản lý. Gửi mảng rỗng = quay về đọc danh mục chấm công. */
+	/**
+	 * Khai danh sách cơ sở — chỉ quản lý.
+	 * Gửi mảng rỗng = xoá danh sách khai; lúc ấy chỉ còn hiện cơ sở đang mang dữ liệu, chứ KHÔNG
+	 * quay về đọc danh mục chấm công (xem `ds_coso_he()`).
+	 */
 	public static function dat_ds_coso( $u, $ds ) {
 		global $wpdb;
 		if ( ! VHVH_Auth::du_quyen( $u, 'quan_ly' ) ) { return VHVH_Auth::choi(); }
