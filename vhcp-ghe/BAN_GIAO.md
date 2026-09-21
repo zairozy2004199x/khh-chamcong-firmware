@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-09-21 · Phiên bản hiện tại: **2.122.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-09-21 · Phiên bản hiện tại: **2.123.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,39 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v2.123.0 — Rê chuột xem to ảnh: hết bị khung bảng cắt
+
+Anh Thắng 21/09/2026, ảnh màn Duyệt báo cáo SENSE CITY PHẠM VĂN ĐỒNG: rê vào ảnh của ghế
+SC-PVD-2 thì ảnh to ra rồi **đứt ngang ở mép dưới khung bảng**, chỉ còn nhìn được một dải trên
+cùng. Số trên đồng hồ nằm giữa tấm ảnh, nên thấy mỗi dải ấy là soát không được gì — vẫn phải mở
+tab mới cho từng tấm, đúng việc mà cái phóng to này sinh ra để bỏ.
+
+**Gốc.** Bảng ghế nằm trong `.table-scroll`. Khai `overflow-x:auto` thì trình duyệt **tự** nâng
+`overflow-y` từ `visible` lên `auto` — luật CSS, không phải chỗ ấy khai thiếu. Tức khung đó cắt
+**cả hai chiều**. Cách phóng to cũ là `transform:scale(6)` trên chính thẻ `<img>` **nằm trong**
+bảng, nên nó mãi là con của khung cắt: phóng bao nhiêu cũng chỉ thấy phần lọt trong khung, và
+dòng cuối bảng thì gần như không thấy gì.
+
+⚠️ **Không chữa được bằng `z-index`.** z-index xếp thứ tự chồng lớp, nó không gỡ được việc bị
+cắt — `overflow` của tổ tiên luôn thắng. Đường duy nhất là đưa ảnh xem **ra ngoài** khung ấy.
+
+- Thay bằng **một thẻ nổi `#kt-anh-xem` gắn thẳng vào `<body>`**, `position:fixed` — không tổ
+  tiên nào cắt được nữa. Một thẻ dùng chung cả trang, không dựng lại mỗi lần rê.
+- **Ép nằm trọn trong màn**: ưu tiên hiện bên phải thumbnail, sát mép phải thì lật sang trái;
+  dọc căn giữa thumbnail rồi kẹp vào hai mép. `fixed` mà không kẹp mép thì chỉ đổi chỗ bị cắt.
+- **Ảnh xem lấy bản to** (Drive `sz=w1200`) chứ không phóng lại chính thumbnail `w200` — kéo
+  w200 lên nửa màn thì nhoè, mà nhoè thì vẫn phải mở tab mới.
+- `pointer-events:none`: lớp nổi hiện ngay cạnh con trỏ, nếu nó ăn chuột thì chuột coi như rời
+  thumbnail → lớp tắt → chuột lại về thumbnail → lớp hiện… thành nhấp nháy.
+- Cuộn là tắt, và nghe ở **giai đoạn bắt** (`true`) — cuộn bên trong khung bảng không nổi bọt
+  lên `document`, nghe kiểu thường sẽ bỏ sót đúng cái khung đang chứa ảnh.
+- Thumbnail trong **ô sửa của kế toán** (2.122.0) nay cũng rê chuột xem to được. Đang sửa ảnh mà
+  muốn biết tấm nào là tấm nào lại phải mở tab mới thì mất luôn ô sửa đang gõ dở.
+
+Bài kiểm `tools/test/kiem-anh-xem-to.js` (19 phép) — **chạy thật hàm đặt toạ độ** trên một DOM
+giả, không chỉ dò chữ: "không bị cắt" là phát biểu về con số toạ độ, nên bài canh thẻ nổi nằm
+trọn trong màn ở năm vị trí thumbnail, kể cả sát đáy và góc dưới-phải.
 
 ### v2.122.0 — Ô sửa của kế toán nay thêm / bỏ được ảnh
 

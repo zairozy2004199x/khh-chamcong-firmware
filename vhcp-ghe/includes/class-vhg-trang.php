@@ -5413,14 +5413,32 @@ tr:last-child td{border-bottom:0}
 }
 @media(min-width:1500px){ .wrap{margin-left:216px;max-width:none} }
 /* ============================================================================================
- * RÊ CHUỘT PHÓNG TO ẢNH CHỈ SỐ (tab Duyệt báo cáo) — anh Thắng: kế toán soát ảnh nhanh, khỏi
- * mở tab mới cho từng tấm. Thuần CSS transform trên chính thẻ <img> đang có, không tải thêm
- * ảnh nào khác — phóng to là phóng đúng file gốc trình duyệt đã tải, không vỡ nét vô cớ.
+ * XEM TO ẢNH KHI RÊ CHUỘT (tab Duyệt báo cáo) — anh Thắng: kế toán soát ảnh nhanh, khỏi mở
+ * tab mới cho từng tấm.
+ *
+ * 🔴 21/09/2026 — ẢNH PHÓNG TO BỊ CẮT NGANG. Ảnh màn Duyệt báo cáo SENSE CITY PHẠM VĂN ĐỒNG:
+ *    rê vào ảnh của ghế SC-PVD-2 thì ảnh to ra rồi đứt ở mép dưới khung bảng, chỉ còn nhìn
+ *    được một dải trên cùng — đúng thứ không dùng được, vì số trên đồng hồ nằm giữa tấm ảnh.
+ *
+ *    Gốc: bảng ghế nằm trong `.table-scroll`, mà khai `overflow-x:auto` thì trình duyệt TỰ
+ *    nâng `overflow-y` từ `visible` lên `auto` (luật CSS, không phải chỗ này khai thiếu). Tức
+ *    khung ấy cắt cả hai chiều. Cách cũ phóng to bằng `transform:scale(6)` trên chính thẻ
+ *    <img> NẰM TRONG bảng, nên phóng bao nhiêu cũng chỉ thấy phần lọt trong khung; dòng cuối
+ *    bảng thì gần như không thấy gì.
+ *
+ * ⚠️ KHÔNG chữa được bằng z-index. z-index xếp thứ tự chồng lớp, nó không gỡ được việc bị cắt
+ *    — `overflow` của tổ tiên luôn thắng. Đường duy nhất là đưa ảnh xem RA NGOÀI khung ấy:
+ *    một thẻ nổi gắn thẳng vào <body>, `position:fixed`, không tổ tiên nào cắt được nữa.
+ * ⚠️ `pointer-events:none` bắt buộc: lớp nổi hiện ngay cạnh con trỏ, nếu nó ăn chuột thì chuột
+ *    coi như rời thumbnail → lớp tắt → chuột lại về thumbnail → lớp hiện… thành nhấp nháy.
  * ============================================================================================ */
 .kt-anh-zoom{display:inline-block;position:relative}
-.kt-anh-zoom img{transition:transform .12s ease;transform-origin:top left;position:relative;z-index:1}
-.kt-anh-zoom:hover{z-index:50}
-.kt-anh-zoom:hover img{transform:scale(6);box-shadow:0 10px 28px rgba(20,30,50,.35);z-index:50}
+.kt-anh-zoom img{border-radius:6px;transition:outline-color .12s ease}
+.kt-anh-zoom:hover img,.kt-anh-oto:hover{outline:2px solid var(--blue);outline-offset:1px}
+#kt-anh-xem{position:fixed;z-index:9999;pointer-events:none;display:none;background:#fff;
+  padding:4px;border:1px solid rgba(20,30,50,.18);border-radius:10px;
+  box-shadow:0 14px 38px rgba(20,30,50,.34)}
+#kt-anh-xem img{display:block;border-radius:6px;background:#f3f5f9}
 CSS;
 	}
 
@@ -7289,10 +7307,72 @@ function csMv(s){ s=String(s==null?'':s).replace(/\./g,'').replace(',', '.').rep
    Link "…/file/d/<id>/view" là trang xem của Drive, KHÔNG PHẢI ảnh — nhét thẳng vào <img> ra
    khung vỡ. Đổi sang cổng thumbnail chính chủ của Drive để hiện được (cần file chia sẻ "Bất kỳ
    ai có link"); <a href> vẫn giữ link gốc để bấm mở đúng trang xem Drive như cũ. */
-function ktAnhSrc(u){
+function ktAnhSrc(u,w){
   u = String(u||'');
   var m = /drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:export=[a-z]+&)?id=)([a-zA-Z0-9_-]+)/.exec(u);
-  return m ? ('https://drive.google.com/thumbnail?id='+m[1]+'&sz=w200') : u;
+  return m ? ('https://drive.google.com/thumbnail?id='+m[1]+'&sz=w'+(w||200)) : u;
+}
+/* ═════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 XEM TO ẢNH BẰNG LỚP NỔI GẮN VÀO <body> — anh Thắng 21/09/2026, ảnh màn Duyệt báo cáo
+ *    SENSE CITY PHẠM VĂN ĐỒNG: rê vào ảnh ghế SC-PVD-2 thì ảnh to ra rồi ĐỨT NGANG ở mép dưới
+ *    khung bảng. Số trên đồng hồ nằm giữa tấm ảnh, nên thấy mỗi dải trên cùng = không soát
+ *    được gì, vẫn phải mở tab mới cho từng tấm — đúng việc mà cái phóng to này sinh ra để bỏ.
+ *
+ *    Lý do và vì sao z-index không chữa được: xem khối chú thích ở CSS `#kt-anh-xem`.
+ *
+ * MỘT thẻ nổi dùng chung cho cả trang, không phải mỗi thumbnail một thẻ: bảng hai chục ghế,
+ * mỗi ghế mấy tấm, dựng sẵn từng ấy thẻ ẩn là phí — mà cùng lúc cũng chỉ xem được một tấm.
+ * ═════════════════════════════════════════════════════════════════════════════════════════ */
+var ktXemEl=null, ktXemImg=null, ktXemNeo=null;
+function ktXemTat(){ ktXemNeo=null; if(ktXemEl) ktXemEl.style.display='none'; }
+function ktXemHop(){
+  if(ktXemEl) return ktXemEl;
+  ktXemEl=document.createElement('div'); ktXemEl.id='kt-anh-xem';
+  ktXemImg=document.createElement('img');
+  ktXemImg.onload=function(){ if(ktXemNeo) ktXemDat(ktXemNeo); };
+  ktXemEl.appendChild(ktXemImg);
+  document.body.appendChild(ktXemEl);
+  /* Cuộn là toạ độ đã ghim thành sai chỗ — tắt luôn, rê lại là có ngay. Tham số `true` (giai
+     đoạn bắt) để bắt cả cuộn BÊN TRONG khung bảng: sự kiện scroll của thẻ con không nổi bọt
+     lên document, nghe kiểu thường sẽ bỏ sót đúng cái khung đang chứa ảnh. */
+  window.addEventListener('scroll',ktXemTat,true);
+  return ktXemEl;
+}
+/* Đặt lớp nổi cạnh thumbnail và ÉP NẰM TRỌN TRONG MÀN — cả điều này lẫn `position:fixed` mới
+   thành một cái xem được: fixed thoát khỏi khung cắt, kẹp mép thì không trôi ra ngoài màn.
+   Ưu tiên bên phải thumbnail; không đủ chỗ thì lật sang trái. Dọc: căn giữa thumbnail rồi kẹp. */
+function ktXemDat(neo){
+  var hop=ktXemHop(), le=10;
+  var W=(window.innerWidth||document.documentElement.clientWidth);
+  var H=(window.innerHeight||document.documentElement.clientHeight);
+  ktXemImg.style.maxWidth=Math.min(560,Math.round(W*0.6))+'px';
+  ktXemImg.style.maxHeight=Math.round(H*0.78)+'px';
+  hop.style.display='block'; hop.style.left='-9999px'; hop.style.top='0px';
+  var r=neo.getBoundingClientRect(), b=hop.getBoundingClientRect();
+  var w=b.width, h=b.height;
+  var x=r.right+le;
+  if(x+w>W-le) x=r.left-le-w;
+  if(x<le) x=Math.max(le,W-le-w);
+  var y=Math.round(r.top+r.height/2-h/2);
+  if(y+h>H-le) y=H-le-h;
+  if(y<le) y=le;
+  hop.style.left=Math.round(x)+'px'; hop.style.top=Math.round(y)+'px';
+}
+/* Gắn "rê chuột là xem to" vào một thumbnail.
+   ⚠️ Ảnh xem lấy bản TO (Drive w1200), không phóng lại chính thumbnail w200: kéo w200 lên nửa
+      màn hình thì nhòe, mà nhòe thì kế toán vẫn phải mở tab mới — coi như không có. */
+function ktAnhGan(neo,u){
+  neo.addEventListener('mouseenter',function(){
+    ktXemHop(); ktXemNeo=neo;
+    var src=ktAnhSrc(u,1200);
+    if(ktXemImg.getAttribute('src')!==src) ktXemImg.setAttribute('src',src);
+    /* Ảnh chưa tải xong thì đo ra 0 và lớp nổi loé lên thành một ô trống bé tí rồi mới nhảy
+       đúng cỡ. Thà chờ onload (đã gắn ở ktXemHop) rồi hiện một lần cho gọn. */
+    if(ktXemImg.complete&&ktXemImg.naturalWidth) ktXemDat(neo);
+    else if(ktXemEl) ktXemEl.style.display='none';
+  });
+  neo.addEventListener('mouseleave',ktXemTat);
+  neo.addEventListener('click',ktXemTat);
 }
 function ktEl(t,c,tx){ var e=document.createElement(t); if(c)e.className=c; if(tx!=null)e.textContent=tx; return e; }
 function veKtDuyet(){
@@ -7805,7 +7885,7 @@ function ktdRow(o,c,m,reload,locked){
       a.className='kt-anh-zoom';
       var img=document.createElement('img'); img.src=ktAnhSrc(u); img.loading='lazy'; img.alt='';
       img.style.cssText='width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid rgba(255,255,255,.15)';
-      a.appendChild(img); wrapA.appendChild(a);
+      a.appendChild(img); ktAnhGan(a,u); wrapA.appendChild(a);
     });
     tdN.appendChild(wrapA);
   }
@@ -7975,8 +8055,11 @@ function ktdSuaRow(o,c,tr,m,reload){
   hAnh.appendChild(ktEl('span','mut','📷 '+L('Ảnh:','Photos:')));
   (c.anh||[]).forEach(function(u){
     var o=ktEl('span'); o.style.cssText='position:relative;display:inline-flex;align-items:center;gap:2px';
-    var im=document.createElement('img'); im.src=u; im.loading='lazy';
+    var im=document.createElement('img'); im.src=ktAnhSrc(u); im.loading='lazy'; im.className='kt-anh-oto';
     im.style.cssText='width:40px;height:40px;object-fit:cover;border-radius:6px;border:1px solid #cbd5e1;cursor:zoom-in';
+    /* Rê chuột xem to y như bảng bên ngoài. Đang sửa ảnh mà muốn biết tấm nào là tấm nào lại
+       phải mở tab mới thì mất luôn ô sửa đang gõ dở. */
+    ktAnhGan(im,u);
     im.onclick=function(){ window.open(u,'_blank'); };
     var x=ktEl('button','ghost','✕'); x.style.cssText='padding:0 5px;font-size:11px;line-height:1.6';
     x.title=L('Bỏ ảnh này khỏi ghế (bấm lại để hoàn tác)','Remove this photo (click again to undo)');
