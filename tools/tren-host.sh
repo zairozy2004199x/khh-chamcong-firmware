@@ -9,6 +9,7 @@
 #
 # Lệnh con:
 #   soat       — Đối soát thu hộ & lập danh sách xuất hoá đơn VAT  (doi-soat-vat)
+#   chiphi     — Vận Hành Chi Phí  (vhcp-chi-phi)
 #   kiem-node  — xem hosting này có chạy được app Node.js không
 #
 # Chạy lại lệnh trên là cập nhật lên bản mới nhất. Bản đang chạy được giữ lại một
@@ -16,7 +17,8 @@
 set -euo pipefail
 
 REPO="zairozy2004199x/khh-chamcong-firmware"
-NHANH="${TREN_HOST_NHANH:-claude/chao-em-iiyx5i}"
+# Mỗi plugin nằm ở một nhánh khác nhau; lệnh con bên dưới tự khai nhánh của nó.
+# Đặt TREN_HOST_NHANH thì mọi lệnh đều lấy theo nhánh đó (dùng khi thử bản nháp).
 
 CHON="${1:-}"
 
@@ -55,14 +57,22 @@ fi
 case "$CHON" in
   soat) SLUG="doi-soat-vat"
         TEN="Đối soát thu hộ & lập danh sách xuất hoá đơn VAT"
+        NHANH_MD="claude/chao-em-iiyx5i"
         DUONG_DAN="tools/doi-soat-vat/wordpress/doi-soat-vat"
         # Giao diện nằm riêng ở tools/doi-soat-vat/web và dùng chung cho cả bản
         # web tĩnh lẫn bản plugin, nên phải chép vào lúc dựng — hệt như
         # wordpress/dong-goi.sh vẫn làm. Thiếu nó thì plugin cài xong mở ra trắng.
         KEM_WEB="tools/doi-soat-vat/web" ;;
+  chiphi) SLUG="vhcp-chi-phi"
+        TEN="Vận Hành Chi Phí"
+        NHANH_MD="claude/rebuild-chi-phi-wordpress-hl2yze"
+        # Plugin này để nguyên một chỗ trong repo, không phải ghép thêm gì.
+        DUONG_DAN="wordpress/vhcp-chi-phi" ;;
   "")   echo "Thiếu tên plugin. Ví dụ:  bash tren-host.sh soat"; exit 2 ;;
-  *)    echo "Không biết '$CHON'. Hiện có: soat · kiem-node"; exit 2 ;;
+  *)    echo "Không biết '$CHON'. Hiện có: soat · chiphi · kiem-node"; exit 2 ;;
 esac
+
+NHANH="${TREN_HOST_NHANH:-$NHANH_MD}"
 
 # ── tìm thư mục WordPress ────────────────────────────────────────────────────
 # Đi ngược lên vài cấp: người dùng hay đứng sẵn trong public_html, nhưng cũng hay
@@ -131,8 +141,14 @@ PHIEN_BAN="$(sed -n 's/^ \* Version:[[:space:]]*//p' "$NGUON/$SLUG.php" | head -
 
 # ── dựng đúng bộ file của plugin ────────────────────────────────────────────
 DUNG="$TAM/$SLUG"
-mkdir -p "$DUNG"
-cp "$NGUON"/*.php "$NGUON"/*.txt "$DUNG"/ 2>/dev/null || cp "$NGUON"/*.php "$DUNG"/
+if [ -n "${KEM_WEB:-}" ]; then
+  # Plugin ghép từ nhiều chỗ: chỉ lấy tệp ở thư mục gốc, phần giao diện chép riêng.
+  mkdir -p "$DUNG"
+  cp "$NGUON"/*.php "$NGUON"/*.txt "$DUNG"/ 2>/dev/null || cp "$NGUON"/*.php "$DUNG"/
+else
+  # Plugin nằm gọn một chỗ: chép nguyên cả cây thư mục con.
+  cp -R "$NGUON" "$DUNG"
+fi
 if [ -n "${KEM_WEB:-}" ]; then
   [ -d "$GOC/$KEM_WEB" ] || { echo "✗ Nhánh '$NHANH' thiếu $KEM_WEB"; exit 1; }
   cp -R "$GOC/$KEM_WEB" "$DUNG/web"
