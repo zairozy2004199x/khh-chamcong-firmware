@@ -130,6 +130,7 @@ class VHCC_NapDoc {
 				$ra['canh'][] = 'Ngày ' . $ngay_so . ' có ghi chú "' . $chu . '" — chỉ nạp GIỜ, '
 					. 'không nạp hệ số lễ. Khai ngày lễ ở màn Cấu hình thì hệ tự nhân.';
 			}
+			$soat = array();
 			foreach ( $cum as $c ) {
 				$o_v = isset( $dong[ $i ][ $c['cot'] ] ) ? $dong[ $i ][ $c['cot'] ] : '';
 				$o_r = isset( $dong[ $i ][ $c['cot'] + 1 ] ) ? $dong[ $i ][ $c['cot'] + 1 ] : '';
@@ -146,10 +147,23 @@ class VHCC_NapDoc {
 				}
 				$vao  = self::gio( $o_v );
 				$ra_g = self::gio( $o_r );
+
+				/* Cột thứ ba ("Số giờ làm") của chính bảng gốc — để đối chiếu, KHÔNG để nạp.
+				   Xem `soat_ngay()` cho lý do vì sao không bao giờ nạp theo cột này. */
+				if ( null !== $vao && null !== $ra_g && $ra_g > $vao ) {
+					$o_h = isset( $dong[ $i ][ $c['cot'] + 2 ] ) ? $dong[ $i ][ $c['cot'] + 2 ] : '';
+					$ghi = self::gio_tho( $o_h );
+					if ( null !== $ghi ) {
+						$soat[] = array( 'ten' => $c['nhan'], 'that' => $ra_g - $vao, 'ghi' => $ghi );
+					}
+				}
+
 				if ( null === $vao && null === $ra_g ) { continue; }
 				$ten_thay[ $c['ten'] ] = true;
 				$gom[ $c['ten'] ][ $ngay ][] = array( 'vao' => $vao, 'ra' => $ra_g, 'cum' => $c['nhan'] );
 			}
+
+			foreach ( self::soat_ngay( $ngay_so, $soat ) as $c_soat ) { $ra['canh'][] = $c_soat; }
 		}
 
 		$ra['nguoi'] = array_keys( $ten_thay );
@@ -232,6 +246,104 @@ class VHCC_NapDoc {
 				. ' ca thiếu một đầu giờ — chỉ nạp ca đủ cặp.';
 		}
 		return $l;
+	}
+
+	/**
+	 * ĐỐI CHIẾU CỘT "SỐ GIỜ LÀM" CỦA BẢNG GỐC VỚI GIỜ VÀO/RA — CHO MỘT NGÀY.
+	 *
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 KHÔNG BAO GIỜ NẠP THEO CỘT NÀY. Nó là số TIỀN CÔNG, không phải số giờ đã làm.
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * Trong bảng anh Thắng, ngày lễ được nhân sẵn vào cột ấy: 1/5/2026 mọi ô đều GẤP ĐÔI
+	 * (13:00→17:05 ghi thành 08:10), còn mấy ngày Tết 19–21/2/2026 thì GẤP BA (10:25→22:00 ghi
+	 * thành 34:45). Nạp theo cột ấy là trả gấp hai, gấp ba lần nữa chồng lên hệ số của hệ.
+	 * Ta nạp theo GIỜ VÀO/RA, và cột này chỉ dùng để SOI.
+	 *
+	 * Soi thì đáng: trên 2820 ô của tệp thật, phép này lôi ra đúng hai ô hỏng thật —
+	 * `8/2026 ngày 30 T.Bình (LT) 13:00→17:00 ghi 8:00` và một ô y hệt ở 6/2026 — những ô gấp
+	 * đôi LẺ LOI giữa một ngày thường. Bốn tiếng cho một người một ngày, và nếu không soi thì
+	 * sau khi nạp xong, tổng của hệ lệch với sổ cũ bốn tiếng mà không ai biết vì đâu.
+	 *
+	 * ⚠️ PHẢI PHÂN BIỆT "CẢ NGÀY NHÂN HỆ SỐ" VỚI "MỘT Ô LẺ LOI". Kêu tất thì một tháng có Tết
+	 *    đẻ ra hàng chục dòng đều đặn và không ai đọc dòng nào nữa — kể cả dòng thật. Cả ngày
+	 *    cùng một bội số thì đó là ngày lễ, kể MỘT dòng; một ô lệch riêng giữa những ô khớp thì
+	 *    đó là chỗ gõ sai, kể ĐÍCH DANH.
+	 *
+	 * @param array $ds mỗi phần tử: ten · that (giây, suy từ giờ vào/ra) · ghi (giây, cột gốc).
+	 */
+	private static function soat_ngay( $ngay_so, $ds ) {
+		if ( ! $ds ) { return array(); }
+		$khop = 0;
+		$boi  = array();
+		$le   = array();   // ô có bội số nguyên (2, 3, 4)
+		$la   = array();   // ô lệch không theo bội nào
+		foreach ( $ds as $x ) {
+			if ( $x['that'] <= 0 ) { continue; }
+			if ( $x['ghi'] === $x['that'] ) { $khop++; continue; }
+			if ( 0 === $x['ghi'] % $x['that'] ) {
+				$k = intdiv( $x['ghi'], $x['that'] );
+				if ( $k >= 2 && $k <= 4 ) {
+					$boi[ $k ] = ( isset( $boi[ $k ] ) ? $boi[ $k ] : 0 ) + 1;
+					$x['boi']  = $k;
+					$le[]      = $x;
+					continue;
+				}
+			}
+			$la[] = $x;
+		}
+		if ( ! $le && ! $la ) { return array(); }
+
+		/* Bội số trội nhất trong ngày. Nhiều ô cùng một bội, và không ít hơn số ô khớp -> cả
+		   ngày ăn hệ số, tức ngày lễ. */
+		$k_troi = 0;
+		$n_troi = 0;
+		foreach ( $boi as $k => $n ) { if ( $n > $n_troi ) { $k_troi = $k; $n_troi = $n; } }
+
+		$ra = array();
+		if ( $n_troi >= 2 && $n_troi >= $khop ) {
+			$ra[] = 'Ngày ' . $ngay_so . ': bảng gốc tính GẤP ' . $k_troi . ' ở ' . $n_troi
+				. ' ô — đây là ngày lễ. Hệ chỉ nạp GIỜ THẬT; khai ngày lễ ở màn Cấu hình để hệ '
+				. 'tự nhân, đừng nhân hai lần.';
+			/* Ô KHÔNG theo bội số chung của ngày lễ vẫn phải kể riêng. */
+			foreach ( $le as $x ) {
+				if ( $x['boi'] !== $k_troi ) { $la[] = $x; }
+			}
+		} else {
+			/* Không thành ngày lễ -> mọi ô nhân hệ số đều là ô lẻ loi, tức chỗ đáng ngờ nhất. */
+			foreach ( $le as $x ) { $la[] = $x; }
+		}
+
+		foreach ( array_slice( $la, 0, 12 ) as $x ) {
+			$ra[] = '🔴 Ngày ' . $ngay_so . ', ' . $x['ten'] . ': giờ vào/ra ra '
+				. self::gio_chu( $x['that'] ) . ' nhưng cột "Số giờ làm" của bảng ghi '
+				. self::gio_chu( $x['ghi'] ) . ' — nạp theo giờ vào/ra, xem lại bảng gốc.';
+		}
+		if ( count( $la ) > 12 ) {
+			$ra[] = '…và ' . ( count( $la ) - 12 ) . ' ô nữa lệch trong ngày ' . $ngay_so . '.';
+		}
+		return $ra;
+	}
+
+	/**
+	 * Ô giờ của cột "Số giờ làm" -> giây. Nhận cả số giờ VƯỢT 24 (`34:45`, `27:00`).
+	 *
+	 * ⚠️ KHÔNG dùng `gio()` cho cột này. `gio()` chặn giờ > 23 vì nó đọc GIỜ TRONG NGÀY; còn đây
+	 *    là KHOẢNG THỜI GIAN, và chính mấy ô vượt 24 (`34:45` của ngày Tết gấp ba) mới là thứ
+	 *    cần soi nhất. Dùng nhầm hàm là chúng rơi về null và biến mất khỏi phép đối chiếu.
+	 */
+	private static function gio_tho( $o ) {
+		$s = trim( (string) $o );
+		if ( '' === $s || ! preg_match( '/^(\d{1,3}):(\d{2})(?::(\d{2}))?$/', $s, $m ) ) { return null; }
+		$p = (int) $m[2];
+		$y = isset( $m[3] ) ? (int) $m[3] : 0;
+		if ( $p > 59 || $y > 59 ) { return null; }
+		return (int) $m[1] * 3600 + $p * 60 + $y;
+	}
+
+	/** Giây -> "8:00" / "34:45". Không dùng `VHCC_DB::hhmm` vì hàm ấy cuộn vòng 24 giờ. */
+	private static function gio_chu( $giay ) {
+		$giay = (int) $giay;
+		return intdiv( $giay, 3600 ) . ':' . str_pad( (string) intdiv( $giay % 3600, 60 ), 2, '0', STR_PAD_LEFT );
 	}
 
 	/* ============================================================================ ghi vào */

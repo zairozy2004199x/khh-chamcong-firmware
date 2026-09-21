@@ -512,6 +512,90 @@ $r_sach = VHCC_NapDoc::nap( $AD, 'NAPDOC_CS2', $B, array(), true );
 t( 'cơ sở còn trống tháng ấy -> KHÔNG kêu trộn số liệu',
 	0 === count( preg_grep( '/ĐÃ CÓ/u', (array) $r_sach['canh'] ) ), $r_sach['canh'] );
 
+/* ═════════════════════════════════════════════════════════════════════════════════════════
+   5. ĐỐI CHIẾU CỘT "SỐ GIỜ LÀM" CỦA BẢNG GỐC
+   ═════════════════════════════════════════════════════════════════════════════════════════
+   🔴 CỘT ẤY LÀ TIỀN CÔNG, KHÔNG PHẢI SỐ GIỜ — và đó là lý do không bao giờ nạp theo nó.
+   Anh Thắng gửi riêng tháng 8/2026 (21/09/2026). Đối chiếu tổng từng người với dòng "Tổng" của
+   chính bảng: 8/9 người khớp ĐẾN TỪNG PHÚT, một người lệch đúng 4 giờ — ô `ngày 30 T.Bình (LT)
+   13:00→17:00` mà bảng ghi `8:00`. Bảng gốc sai, không phải bộ đọc.
+   Trong cả tệp lớn: 2820 ô đối chiếu -> 18 ngày lễ (bảng tự nhân 2, riêng Tết nhân 3) và đúng
+   hai ô gấp đôi LẺ LOI giữa ngày thường — hai ô hỏng thật.
+   ───────────────────────────────────────────────────────────────────────────────────────── */
+
+/* Bảng mẫu có cột "Số giờ làm" khớp hết -> không được kêu một tiếng nào. Không có phép thử này
+   thì một chốt kêu bừa vẫn xanh, và cảnh báo mất thiêng ngay từ bảng sạch đầu tiên. */
+t( '🔴 cột "Số giờ làm" khớp hết -> KHÔNG kêu gì',
+	0 === count( preg_grep( '/Số giờ làm/u', (array) $r['canh'] ) ), $r['canh'] );
+
+/* ── một ô lệch giữa ngày thường -> gọi ĐÍCH DANH (đúng ca thật của anh Thắng) */
+$lech = $B;
+$lech[5][15] = '08:30';          // N.Kiệt ngày 11: 08:30→13:00 = 4:30, nhưng ghi 8:30
+$r_lech = VHCC_NapDoc::doc( $lech );
+t( '🔴 ô "Số giờ làm" lệch -> kêu đích danh người và ngày',
+	(bool) preg_grep( '/Ngày 11, N\.Kiệt.*8:30/u', (array) $r_lech['canh'] ), $r_lech['canh'] );
+/* ⚠️ Kêu thì kêu, nhưng GIỜ NẠP VÀO vẫn phải theo giờ vào/ra, không theo cột ấy. */
+$x_l = null;
+foreach ( $r_lech['luot'] as $z ) { if ( 'N.Kiệt' === $z['ten'] && '2026-04-11' === $z['ngay'] ) { $x_l = $z; } }
+t( '   nhưng vẫn nạp theo GIỜ VÀO/RA, không theo cột ấy',
+	$x_l && ( 8 * 3600 + 30 * 60 ) === $x_l['vao'] && 22 * 3600 === $x_l['ra'], $x_l );
+
+/* ── cả ngày nhân đôi -> MỘT dòng "ngày lễ", không kêu từng ô */
+$le2 = $B;
+$le2[4][6]  = '06:50';           // ngày 3: K.Oanh (LT) 3:25 -> ghi gấp đôi
+$le2[4][9]  = '08:00';           //         K.Oanh      4:00 -> ghi gấp đôi
+$r_le2 = VHCC_NapDoc::doc( $le2 );
+t( '🔴 cả ngày gấp đôi -> nhận ra là NGÀY LỄ',
+	(bool) preg_grep( '/Ngày 3: bảng gốc tính GẤP 2/u', (array) $r_le2['canh'] ), $r_le2['canh'] );
+/* ⚠️ VÀ KHÔNG KÊU TỪNG Ô. Một tháng có Tết mà kêu từng ô là hàng chục dòng đều đặn, rồi không
+   ai đọc dòng nào nữa — kể cả dòng thật. Đây là chỗ phép soi này sống hay chết. */
+t( '   và KHÔNG kêu từng ô của ngày ấy',
+	0 === count( preg_grep( '/Ngày 3, K\.Oanh/u', (array) $r_le2['canh'] ) ), $r_le2['canh'] );
+
+/* ── Tết nhân BA: cột giờ vượt 24 tiếng (34:45) phải đọc được, nếu không thì nó rơi về null và
+      biến mất khỏi phép đối chiếu — tức ngày Tết trông như ngày sạch. */
+$le3 = $B;
+$le3[4][6] = '10:15';            // 3:25 x3
+$le3[4][9] = '12:00';            // 4:00 x3
+$r_le3 = VHCC_NapDoc::doc( $le3 );
+t( '🔴 cả ngày gấp BA (Tết) -> nhận ra đúng hệ số',
+	(bool) preg_grep( '/Ngày 3: bảng gốc tính GẤP 3/u', (array) $r_le3['canh'] ), $r_le3['canh'] );
+
+$vuot = $B;
+$vuot[5][12] = '34:45';          // ô "Số giờ làm" vượt 24 giờ — N.Kiệt (LT) ngày 11
+$r_vuot = VHCC_NapDoc::doc( $vuot );
+t( '🔴 ô "Số giờ làm" VƯỢT 24 giờ vẫn soi được',
+	(bool) preg_grep( '/34:45/u', (array) $r_vuot['canh'] ), $r_vuot['canh'] );
+
+/* ══ Ô GẤP ĐÔI LẺ LOI GIỮA NGÀY THƯỜNG — ĐÚNG HÌNH DẠNG CỦA LỖI THẬT ══
+   🔴 Đây mới là ca của `8/2026 ngày 30 T.Bình (LT) 13:00→17:00 ghi 8:00`, và là phép thử suýt
+   không có. Bản đầu em dựng ô lệch bằng một con số KHÔNG chia hết (4:30 ghi 8:30) — ô ấy rơi
+   thẳng vào nhánh "lệch lung tung" nên nhánh xét ngày lễ không hề chạy. Phá thử lộ ra: đổi điều
+   kiện ngày lễ thành `true` (tức coi MỌI ngày có ô lệch là ngày lễ, nuốt mất đúng cái ô hỏng
+   thật) mà bài vẫn XANH. Phải là ô GẤP ĐÔI CHẴN, giữa một ngày mà những ô khác đều khớp. */
+$don = $B;
+$don[5][12] = '09:50';           // N.Kiệt (LT) ngày 11: 4:55 thật, ghi 9:50 = gấp đôi chẵn
+$r_don = VHCC_NapDoc::doc( $don );
+t( '🔴 ô gấp đôi LẺ LOI giữa ngày thường -> gọi đích danh',
+	(bool) preg_grep( '/Ngày 11, N\.Kiệt \(LT\).*9:50/u', (array) $r_don['canh'] ), $r_don['canh'] );
+t( '   và KHÔNG gán nhầm cho cả ngày là ngày lễ',
+	0 === count( preg_grep( '/Ngày 11: bảng gốc tính GẤP/u', (array) $r_don['canh'] ) ), $r_don['canh'] );
+
+/* ── ngày lễ mà có MỘT ô lạc hệ số -> vẫn phải gọi đích danh ô ấy.
+   ⚠️ Phải dùng ngày 11: ngày ấy có BA cụm có giờ, đủ để hai ô cùng hệ số làm nên "cả ngày".
+      Ngày 3 chỉ có hai cụm, nên một ô x2 + một ô x3 ra hoà — không thành ngày lễ, và nhánh cần
+      canh không bao giờ chạy. Bản đầu của bài này dùng ngày 3, và phá thử cho thấy nó xanh
+      vô ích. */
+$tron = $B;
+$tron[5][3]  = '21:40';          // Ngân        10:50 x2
+$tron[5][15] = '09:00';          // N.Kiệt      4:30  x2
+$tron[5][12] = '14:45';          // N.Kiệt (LT) 4:55  x3 — lạc loài giữa ngày x2
+$r_tron = VHCC_NapDoc::doc( $tron );
+t( 'ngày lễ x2 (hai ô) -> nhận ra hệ số trội',
+	(bool) preg_grep( '/Ngày 11: bảng gốc tính GẤP 2/u', (array) $r_tron['canh'] ), $r_tron['canh'] );
+t( '🔴 nhưng ô x3 lạc loài vẫn bị gọi đích danh',
+	(bool) preg_grep( '/Ngày 11, N\.Kiệt \(LT\).*14:45/u', (array) $r_tron['canh'] ), $r_tron['canh'] );
+
 echo "\n";
 if ( $truot ) {
 	echo 'TRƯỢT ' . count( $truot ) . ":\n";
