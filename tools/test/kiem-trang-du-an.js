@@ -52,6 +52,9 @@ function dungBe(n, trangThai) {
     money: x => String(x),
     daBadge: () => '<span></span>',
     _daKeoToi: () => {},
+    /* Từ 21/09/2026 mọi chỗ so luật đi qua `_vaiLuat()` (vai con làm được việc của vai
+       cha) — bệ đỡ phải có nó, không thì hàm thật nổ `ReferenceError`. */
+    _vaiLuat: () => 'Admin',
     NK,
   };
   const F = new Function('moi', `with(moi){ ${boc('_daVePager')}\n${boc('daDoiTrang')}\n${boc('renderDuAnList')}

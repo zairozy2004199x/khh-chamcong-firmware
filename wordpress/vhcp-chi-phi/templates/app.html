@@ -2312,7 +2312,7 @@
    * ══════════════════════════════════════════════════════════════════════════════════════ */
   function _veNutChuyenDon(vis){
     var bp=String((CURUSER&&CURUSER.boPhan)||'').trim();
-    var la_nv=(_vaiGoc()==='Nhân viên');
+    var la_nv=(_vaiLuat()==='Nhân viên');
     /* Lớp 2 chỉ siết NHÂN VIÊN. Admin / Quản lý / Kế toán vốn đi lại cả hai mảng, và họ là
        người soát chứ không phải người nhập — bày lối tắt cho họ là đúng. */
     /* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG, ghi lại để lần sau khỏi đuổi theo: bỏ vế `bp!==''` KHÔNG đổi kết
@@ -2399,7 +2399,7 @@
     var nhan=(vai||GL_GOC.role)+( (bp==='__trong__') ? ' · (không bộ phận)' : (bp?(' · '+bp):'') );
     var d=el('glDangXem'); if(d) d.textContent='→ đang xem như: '+nhan;
     applyPerms();
-    showPage(defaultPageFor(CURUSER.role));
+    showPage(defaultPageFor(_vaiLuat()));
   }
 
   function glDoi(){
@@ -2417,11 +2417,11 @@
     if(el('glBp'))  el('glBp').value='';
     var d=el('glDangXem'); if(d) d.textContent='';
     applyPerms();
-    showPage(defaultPageFor(CURUSER.role));
+    showPage(defaultPageFor(_vaiLuat()));
     toast('ok','Đã về tài khoản của anh/chị');
   }
 
-  function onLoggedIn(){ applyPerms(); glDung(); showPage(defaultPageFor(CURUSER.role)); }   // showPage tự nạp dữ liệu cho từng tab (don→boot)
+  function onLoggedIn(){ applyPerms(); glDung(); showPage(defaultPageFor(_vaiLuat())); }   // showPage tự nạp dữ liệu cho từng tab (don→boot)
   function applyPerms(){
     var role=CURUSER.role;
     // TAB ĐÃ NGHỈ. Chi phí của Marketing / Công tác / Setup nay nhập ngay trong đơn chi
@@ -2443,11 +2443,11 @@
               // của kế toán. Riêng dòng tài khoản Admin thì chỉ Admin sửa (chặn ở máy chủ).
               'Kế toán cá nhân':{tongquan:1,don:0,sochi:1,duan:1,mkt:1,congtac:1,setup:1,vhtuan:1,trama:1,duyet:1,qt:1,tattoan:0,xuat:1,cauhinh:1,log:0},
               'Kế toán NCC':{tongquan:1,don:0,sochi:1,duan:0,mkt:1,congtac:1,setup:1,vhtuan:1,trama:1,duyet:0,qt:1,tattoan:0,xuat:1,cauhinh:1,log:0},
-              'Nhân viên':{tongquan:1,don:1,sochi:1,duan:1,mkt:1,congtac:1,setup:1,vhtuan:0,trama:0,duyet:0,qt:0,tattoan:0,xuat:0,cauhinh:0,log:0} }[_vaiGoc()]||{don:1};   // NV: Tổng quan + Dự án + Marketing + Công tác/Setup (không thấy tổng vận hành tuần toàn cơ sở)
+              'Nhân viên':{tongquan:1,don:1,sochi:1,duan:1,mkt:1,congtac:1,setup:1,vhtuan:0,trama:0,duyet:0,qt:0,tattoan:0,xuat:0,cauhinh:0,log:0} }[_vaiLuat()]||{don:1};   // NV: Tổng quan + Dự án + Marketing + Công tác/Setup (không thấy tổng vận hành tuần toàn cơ sở)
     // 🔴 TRA THEO VAI GỐC, không theo tên vai. Vai tự tạo ("Nhân viên văn phòng") không có
     //    trong bảng trên nên rơi vào nhánh mặc định {don:1} — vai vừa tạo ra chỉ còn đúng MỘT
     //    tab, tức tính năng tạo vai coi như vô nghĩa. Đây là lỗi thật, không phải giả định.
-    if(_vaiGoc()==='Nhân viên'){   // NV có Bộ phận cụ thể -> chỉ thấy tab của bộ phận đó (để "— Tất cả —" thì thấy hết như cũ)
+    if(_vaiLuat()==='Nhân viên'){   // NV có Bộ phận cụ thể -> chỉ thấy tab của bộ phận đó (để "— Tất cả —" thì thấy hết như cũ)
       var bp=String((CURUSER&&CURUSER.boPhan)||'').trim();
       // 🔴 AI VÀO ĐƯỢC TAB "DỰ ÁN · GIAN THI CÔNG" — anh Thắng chốt 25/08/2026:
       //    cách lên đơn ở tab đó y hệt bên cơ sở, KHÁC DUY NHẤT ở chỗ bộ phận nào được vào.
@@ -2481,11 +2481,12 @@
     /* Giữ lại bảng quyền để `defaultPageFor()` và `showDonChi()` khỏi ném người dùng vào đúng
        cái tab vừa ẩn — nhớ tab lần trước bằng localStorage nên chuyện này xảy ra thật. */
     QUYEN_TAB=vis;
-    var tqt=el('tab-qt'); if(tqt) tqt.textContent=(role==='Kế toán NCC')?'🧾 Duyệt NCC':'🧾 Quyết toán';
+    var tqt=el('tab-qt'); if(tqt) tqt.textContent=(_vaiLuat()==='Kế toán NCC')?'🧾 Duyệt NCC':'🧾 Quyết toán';
     // ADMIN CŨNG LÊN ĐƠN ĐƯỢC — để chạy thử trọn luồng (lên đơn → xin tạm ứng → cấp →
     // chốt chi phí → kế toán duyệt → xuất MISA) mà không phải mượn tài khoản nhân viên.
     // Trước đây nút này ẩn với Admin nên muốn thử một đơn là phải đăng nhập bằng người khác.
-    var bn=el('btnNewDon'); if(bn) bn.style.display=(role==='Nhân viên'||role==='Quản lý'||role==='Admin')?'inline-block':'none';
+    var vl=_vaiLuat();
+    var bn=el('btnNewDon'); if(bn) bn.style.display=(vl==='Nhân viên'||vl==='Quản lý'||vl==='Admin')?'inline-block':'none';
     /* Đang xem như người khác thì chip phải nói THẲNG ra, và nói cả tên thật. Chip lặng lẽ
        đổi tên vai là vài phút sau người thử quên mất mình đang đội lốt ai, rồi kết luận nhầm
        về màn hình của chính mình. */
@@ -2559,7 +2560,7 @@
    * ══════════════════════════════════════════════════════════════════════════════════════════ */
 
   function viSaoTrong(){
-    if(!(CURUSER && CURUSER.role==='Nhân viên')) return 'Chưa có đơn nào.';
+    if(_vaiLuat()!=='Nhân viên') return 'Chưa có đơn nào.';
     var my=String(CURUSER.coso||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
     if(!my.length){
       return 'Chưa có đơn nào của bạn. Tài khoản <b>chưa được phân cơ sở</b>, nên bạn chỉ thấy '
@@ -3321,6 +3322,41 @@
     return { name:r.name, role:r.role, roleGoc:(r.roleGoc||r.role||''), coso:r.coso, boPhan:r.boPhan||'' };
   }
   function _vaiGoc(){ return String((CURUSER&&(CURUSER.roleGoc||CURUSER.role))||''); }
+  /* ═════════════════════════════════════════════════════════════════════════════════
+   * VAI ĐỂ SO LUẬT — DÙNG CÁI NÀY, ĐỪNG SO THẮNG `CURUSER.role`.
+   *
+   * Anh Thắng 21/09/2026 gửi ảnh màn của chị Mai Anh (vai *"Nhân Viên Cơ Sở Khu Vui Chơi"*):
+   * *"mất chỗ tạo đơn"*. Nút ấy bị ẩn vì dòng gác nó so `role==='Nhân viên'` — mà tên vai của
+   * chị là vai CON, không trùng một chữ nào.
+   *
+   * 🔴 ĐÂY LÀ CẢ MỘT HỌT, KHÔNG PHẢI MỘT DÒNG. Bảng tra tab ở `applyPerms()` đã chuyển sang
+   *    `_vaiGoc()` từ lâu và còn ghi hẳn *"tra theo vai gốc, không theo tên vai — đây là lỗi
+   *    thật"*; nhưng mười mấy chỗ khác vẫn so thẳng tên vai. Ngày anh Thắng khai vai con cho
+   *    cả công ty là chúng hỏng đồng loạt. Sửa mỗi nút Tạo đơn thì chị Mai Anh bấm được nút
+   *    rồi đụng ngay cái kế tiếp: ô Người lập không khoá, danh sách đơn không lọc về riêng
+   *    mình, tổng quan bung ra cả cơ sở không phải của chị…
+   *
+   * 🔴 CON CỦA ADMIN KHÔNG BAO GIỜ THÀNH ADMIN. Ô cha ở bảng vai trò có cả mục "Admin", nên
+   *    ai đó tạo được một vai con của Admin. Quy về gốc máy móc là vai ấy ăn trọn quyền Admin
+   *    — nới quyền bằng đúng một lượt gõ tên. Nên nhánh Admin trả về TÊN THẬT: không khớp rọ
+   *    nào, và hỏng theo hướng thiếu quyền chứ không phải thừa.
+   *
+   * ⚠️ CHỈ DÙNG ĐỂ SO LUẬT, KHÔNG DÙNG ĐỂ BÀY RA MÀN. Chỗ hiện tên vai cho người đọc (chip
+   *    trên đỉnh trang, nhật ký) phải giữ `CURUSER.role` — tên THẬT anh khai. Bày vai gốc ở đó
+   *    là chị Mai Anh mở màn ra thấy mình là "Nhân viên", tưởng bị đổi vai.
+   * ═════════════════════════════════════════════════════════════════════════════════ */
+  function _vaiLuat(){
+    var v=String((CURUSER&&CURUSER.role)||'');
+    if(v==='Admin') return 'Admin';
+    var g=_vaiGoc();
+    /* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG, ghi lại để lần sau khỏi đuổi theo: vế `||v` hôm nay KHÔNG đổi
+       kết quả nào, vì `_vaiGoc()` tự nó đã ngã về `role` khi thiếu `roleGoc`. Nó chỉ khác khi
+       CẢ HAI cùng rỗng — lúc ấy `v` cũng rỗng, nên vẫn như nhau. Giữ vì cái "tự nó" ấy là
+       chuyện của MỘT hàm khác: ngày nào `_vaiGoc()` thôi ngã về `role` (ví dụ đổi sang hỏi
+       thẳng máy chủ), thiếu vế này là mọi phiên cũ còn trong sessionStorage trả chuỗi rỗng,
+       không khớp rọ nào, và cả công ty mất sạch tab ngay giữa ca làm. */
+    return (g==='Admin') ? v : (g||v);
+  }
   function canDo(action){
     if(CURUSER && CURUSER.role==='Admin') return true;
     if(!BOOT.quyen) return true;   // chưa nạp cấu hình (bản cũ) -> tạm cho phép, tránh khóa nhầm
@@ -3336,7 +3372,7 @@
     // tính cũ có thể lệch cột, và đã có cảnh nhân viên thấy tab Duyệt tạm ứng với đơn của
     // mọi người kèm nút "Gửi tạm ứng". Máy chủ đã chặn dữ liệu và hành động, đây là lớp
     // thứ hai để đừng bày ra thứ họ không được làm.
-    if(CURUSER && CURUSER.role==='Nhân viên') return;
+    if(_vaiLuat()==='Nhân viên') return;
     function show(tab,on){ var t=el('tab-'+tab); if(t&&on) t.style.display='inline-block'; }
     show('duyet', canDo('duyetTU')||canDo('capTU')||canDo('traDon'));
     // 3 tab Marketing / Công tác / Setup đã bỏ -> đừng mở lại theo phân quyền
@@ -3350,7 +3386,7 @@
       /* Ô chọn bộ phận của dải 👁 Xem như lấy từ `BOOT.boPhanDs`, mà `BOOT` chỉ có SAU lượt
          này — dựng ở `onLoggedIn()` là dựng lúc danh sách còn rỗng. */
       glDung();
-      var isNV=(CURUSER&&CURUSER.role==='Nhân viên');
+      var isNV=(_vaiLuat()==='Nhân viên');
       var myCoso=String((CURUSER&&CURUSER.coso)||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
       var cosoOpts=(isNV&&myCoso.length)?myCoso:BOOT.coso;
       // Gian ĐÃ ĐÓNG thì bỏ khỏi ô chọn — để đó thì nhân viên chọn rồi mới bị máy chủ chặn,
@@ -3401,7 +3437,7 @@
     // rối vừa dễ chọn nhầm sang người khác — mà chọn nhầm là tiền vào tay người khác.
     // Nên với vai trò Nhân viên: gợi ý chỉ có tên họ (vẫn gõ tay được tên khác khi thật
     // sự có thay đổi). Kế toán / Quản lý vẫn thấy đủ danh sách vì họ nhập hộ nhiều người.
-    var chiMinh=(want==='NV' && CURUSER && CURUSER.role==='Nhân viên' && CURUSER.name);
+    var chiMinh=(want==='NV' && CURUSER && _vaiLuat()==='Nhân viên' && CURUSER.name);
     var ds=chiMinh?[{ten:CURUSER.name}]:((BOOT.doiTuong)||[]).filter(function(x){ return !want||!x.loai||x.loai===want; });
     dl.innerHTML=ds.map(function(x){return '<option value="'+esc(x.ten)+'">';}).join('');
 
@@ -3439,7 +3475,7 @@
    */
   function _kyTuDo(){
     if(!CURUSER) return false;
-    if(_vaiGoc()!=='Nhân viên') return true;
+    if(_vaiLuat()!=='Nhân viên') return true;
     if(BP_KY_TU_DO.indexOf(String(CURUSER.boPhan||'').trim())>=0) return true;
     return canDo('kyTuDo');   // hoặc tích riêng cho vai đó ở bảng Phân quyền
   }
@@ -3516,7 +3552,7 @@
     el('ndTuNgay').value=_ngayISO(h); el('ndDenNgay').value=_ngayISO(h2);
     ndKyDoi();
     el('ndNguoiLap').value=(CURUSER&&CURUSER.name)||'';
-    el('ndNguoiLap').readOnly=!!(CURUSER&&CURUSER.role==='Nhân viên');
+    el('ndNguoiLap').readOnly=(_vaiLuat()==='Nhân viên');
     el('newDonModal').style.display='flex';
     if(!hoi) setTimeout(function(){el('ndNguoiLap').focus();},50);
   }
@@ -4012,7 +4048,7 @@
         là con số nhảy tài khoản sau lưng kế toán. Lõi (`set_line_nhom`) và cổng API đều gác —
         chỗ này chỉ thôi bày ô chọn ra.
      ══════════════════════════════════════════════════════════════════════════════════════════ */
-  function _laKeToan(){ return ['Admin','Kế toán cá nhân','Kế toán NCC'].indexOf((CURUSER&&CURUSER.role)||'')>=0; }
+  function _laKeToan(){ return ['Admin','Kế toán cá nhân','Kế toán NCC'].indexOf(_vaiLuat())>=0; }
   function _oLoaiCp(l){
     var ten=String(l.nhom||''), badge=tkBadge(ten, l.tkNo, l.tkCo);
     if(!_laKeToan()){
@@ -4146,7 +4182,7 @@
   }
   function renderLines(){
     var L=CUR.lines||[]; var b=el('lineBody');
-    var role=(CURUSER&&CURUSER.role)||'';
+    var role=_vaiLuat();
     if(role==='Kế toán cá nhân') L=L.filter(function(l){return l.phanLoaiTT!=='Nhà cung cấp';});   // KT cá nhân: MỌI dòng danh mục cá nhân (dòng đã bỏ tích vẫn hiện, mờ, để tự nhận lại)
     else if(role==='Kế toán NCC') L=L.filter(function(l){return (l.phanLoaiTT==='Nhà cung cấp'||l.cnXuLy===false);});   // KT NCC: dòng NCC + dòng cá nhân đã chuyển sang
     el('lineCount').textContent=L.length;
@@ -5080,7 +5116,7 @@
   }
   // 📥 Gom "đơn đang lên chờ kế toán" từ mọi mảng: Đơn vận hành (BOOT.dons) + Kỹ thuật/Marketing/Công tác/Setup (server)
   function renderAcctInbox(){
-    var role=(CURUSER&&CURUSER.role)||'', isAcct=['Admin','Quản lý','Kế toán cá nhân','Kế toán NCC'].indexOf(role)>=0;
+    var role=_vaiLuat(), isAcct=['Admin','Quản lý','Kế toán cá nhân','Kế toán NCC'].indexOf(role)>=0;
     var box=el('acctInboxCard'); if(!box) return;
     if(!isAcct){ box.style.display='none'; return; }
     boot(function(){
@@ -5109,7 +5145,7 @@
   }
   function loadTongQuan(){
     renderAcctInbox();
-    var role=(CURUSER&&CURUSER.role)||'';
+    var role=_vaiLuat();
     var isNV=(role==='Nhân viên');
     var myCoso=String((CURUSER&&CURUSER.coso)||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
     // Nhân viên: tổng quan CHỈ cơ sở mình phụ trách
@@ -5133,7 +5169,7 @@
       .getFinanceReport({ ky:el('tqKy').value, tt:el('tqTT').value, coso:scope });
   }
   function saveSoDuDauKy(){
-    if(!(CURUSER&&(CURUSER.role==='Admin'||CURUSER.role==='Quản lý'))){ toast('err','Chỉ Admin/Quản lý được đặt số dư đầu kỳ'); return; }
+    if(!(CURUSER&&(_vaiLuat()==='Admin'||_vaiLuat()==='Quản lý'))){ toast('err','Chỉ Admin/Quản lý được đặt số dư đầu kỳ'); return; }
     var v=el('tqOpenSo').value; loading(true);
     google.script.run.withSuccessHandler(function(r){loading(false);
       if(r&&r.success){ BOOT.soDuDauKy=r.value; _log('Đặt số dư đầu kỳ', '', money(r.value)+'đ'); toast('ok','Đã lưu số dư đầu kỳ'); loadTongQuan(); }
@@ -5470,7 +5506,7 @@
     var dau=(DA_TRANG-1)*DA_MOI_TRANG;
     var trang=items.slice(dau, dau+DA_MOI_TRANG);
     _daVePager(items.length, soTrang, dau, trang.length);
-    var role=(CURUSER&&CURUSER.role)||'', isAdmin=(role==='Admin'||role==='Quản lý');
+    var role=_vaiLuat(), isAdmin=(role==='Admin'||role==='Quản lý');
     el('daListBody').innerHTML=trang.map(function(x){
       var chenh=Number(x.chenh)||0;
       var c=chenh>0?'#b91c1c':(chenh<0?'#15803d':'#171417');
@@ -5678,7 +5714,7 @@
   function renderDuAnPay(r){
     var box=el('daPayPanel'); if(!box) return;
     if(r.isCoSo || !(r.approved||r.closed)){ box.style.display='none'; box.innerHTML=''; return; }
-    var role=(CURUSER&&CURUSER.role)||'', isAdmin=(role==='Admin'||role==='Quản lý');
+    var role=_vaiLuat(), isAdmin=(role==='Admin'||role==='Quản lý');
     var canTU=isAdmin||role==='Kế toán cá nhân';   // 💰 Tạm ứng NV tự trả
     var canTT=isAdmin||role==='Kế toán NCC';        // 🏢 Trực tiếp KT trả NCC
     var pay=r.pay||{};
@@ -7710,7 +7746,7 @@
     var v=el('da_capCha')?el('da_capCha').value:'';
     var isParent=(v==='');
     var isChild=(v!=='' && v!=='(Phát sinh)');   // mục con: theo hình thức chi của hạng mục lớn
-    var role=(CURUSER&&CURUSER.role)||'';
+    var role=_vaiLuat();
     var isKT=['Admin','Quản lý','Kế toán cá nhân','Kế toán NCC'].indexOf(role)>=0;
     var editing=!!DA_EDIT_ROW;
     var thiCong=(DA_CUR&&DA_CUR.thiCong);   // đã duyệt tạm ứng -> đang thi công: dự toán khóa
@@ -8263,7 +8299,7 @@
         .withFailureHandler(function(e){loading(false);toast('err',e.message);}).exportMisaBP(src==='ct'?'Công tác':'Setup');
       return;
     }
-    var plF=(CURUSER&&CURUSER.role==='Kế toán NCC')?'ncc':((CURUSER&&CURUSER.role==='Kế toán cá nhân')?'cn':'all');
+    var plF=(_vaiLuat()==='Kế toán NCC')?'ncc':((_vaiLuat()==='Kế toán cá nhân')?'cn':'all');
     google.script.run.withSuccessHandler(function(res){loading(false); XUAT=res||{cols:[],rows:[]}; renderXuat();})
       .withFailureHandler(function(e){loading(false);toast('err',e.message);}).exportMisa(el('xuatKy').value, el('xuatTT').value, plF);
   }
@@ -8342,7 +8378,7 @@
     }
     // Sau khi tải: chốt các đơn "Đã quyết toán" -> "Đã xuất MISA" (khóa, tránh xuất/sửa trùng)
     if(el('xuatTT').value==='chuaxuat' && XUAT.maDons && XUAT.maDons.length && canDo('xuatMISA')){   // chốt "đã xuất" theo quyền
-      var plF=(CURUSER&&CURUSER.role==='Kế toán NCC')?'ncc':((CURUSER&&CURUSER.role==='Kế toán cá nhân')?'cn':'all');
+      var plF=(_vaiLuat()==='Kế toán NCC')?'ncc':((_vaiLuat()==='Kế toán cá nhân')?'cn':'all');
       setTimeout(function(){
         if(!confirm('Đã tải file MISA ('+XUAT.maDons.length+' đơn).\nChốt phần này là "đã xuất" (khóa, tránh xuất trùng)?')) return;
         loading(true);
@@ -8376,7 +8412,7 @@
   }
   function loadTraMa(){
     loading(true);
-    var isNV=(CURUSER&&CURUSER.role==='Nhân viên');
+    var isNV=(_vaiLuat()==='Nhân viên');
     var myCoso=String((CURUSER&&CURUSER.coso)||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
     var opt={ tkNo:el('tmMa').value||'all', mang:el('tmMang').value||'all', ky:el('tmKy').value||'all', coso:el('tmCoso').value||'all', q:el('tmQ').value||'' };
     if(isNV && myCoso.length) opt.coso_scope=myCoso;
@@ -9401,7 +9437,7 @@
 
   function loadSoChi(){
     loading(true);
-    var isNV=(CURUSER&&CURUSER.role==='Nhân viên');
+    var isNV=(_vaiLuat()==='Nhân viên');
     var myCoso=String((CURUSER&&CURUSER.coso)||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
     var opt={ ky:el('scfKy').value||'all', coso:el('scfCoso').value||'all', loai:el('scfLoai').value||'all',
               tkNo:el('scfTk').value||'all', maDuAn:el('scfDuAn').value||'all', xuat:el('scfXuat').value||'all', q:el('scfQ').value||'' };
@@ -9433,7 +9469,7 @@
   function _tkNhan(x){ return SC_TK_CHA[x] ? (x+'  ·  gồm cả cây con') : x; }
 
   function renderSoChi(r){
-    var isNV=(CURUSER&&CURUSER.role==='Nhân viên');
+    var isNV=(_vaiLuat()==='Nhân viên');
     var myCoso=String((CURUSER&&CURUSER.coso)||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
     var cosoOpts=(isNV&&myCoso.length)?myCoso:(r.coso||[]);
     // form: cơ sở + loại chi phí (từ danh mục có mã TK)
@@ -10328,7 +10364,7 @@
        những đơn họ không được đụng vào — mà tiền của chúng vẫn nằm trong tổng phải chi. */
     DV_LIST=list;
     el('duyetBody').innerHTML=_tachDonVi(list, function(d){
-      var st=d.trangThai; var cl=d.chenhLech>=0?'pos':'neg'; var role=(CURUSER&&CURUSER.role)||'';
+      var st=d.trangThai; var cl=d.chenhLech>=0?'pos':'neg'; var role=_vaiLuat();
       var canChk=(st==='Chờ duyệt tạm ứng'&&canDo('duyetTU'))||(st==='Chờ cấp tạm ứng'&&canDo('capTU'));
       var chk=canChk?('<td style="text-align:center"><input type="checkbox" class="dvChk" data-m="'+esc(d.maDon)+'" data-st="'+esc(st)+'" data-tu="'+(Number(d.tamUng)||0)+'" onchange="dvUpdateBar()"></td>'):'<td></td>';
       var act='<button class="btn b-s" onclick="viewDon(\''+d.maDon+'\')">👁 Xem</button>';

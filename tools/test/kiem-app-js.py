@@ -233,7 +233,7 @@ la('ẩn nút chuyển loại đơn khi không có quyền (lớp 1: vis)',
    '[data-dcsw-di]' in src and 'vis[di]' in src)
 la('lớp 2: nhân viên chưa khai bộ phận cũng ẩn',
    "bp!==''" in src and 'BP_VAO_DUAN.indexOf(bp)' in src)
-la('và lớp 2 chỉ siết nhân viên', "la_nv=(_vaiGoc()==='Nhân viên')" in src)
+la('và lớp 2 chỉ siết nhân viên', "la_nv=(_vaiLuat()==='Nhân viên')" in src)
 
 m9 = re.search(r'function _kyTuDo\(\)\{(.*?)\n  \}', src, re.S)
 la('tìm thấy _kyTuDo()', m9 is not None)
@@ -258,9 +258,29 @@ print('— vai tự tạo phải dùng được —')
 # 🔴 LỖI THẬT: bảng tab tra theo TÊN VAI. Vai tự tạo không có trong bảng nên rơi vào nhánh
 #    mặc định {don:1} — vai vừa tạo ra chỉ còn đúng MỘT tab, tức tính năng tạo vai vô nghĩa.
 la('có hàm lấy vai gốc phía giao diện', 'function _vaiGoc(' in src)
-la('bảng tab tra theo VAI GỐC', '}[_vaiGoc()]||{don:1}' in src)
+la('bảng tab tra theo VAI GỐC', '}[_vaiLuat()]||{don:1}' in src)
 la('  không còn tra theo tên vai', '}[role]||{don:1}' not in src)
-la('nhánh bộ phận cũng theo vai gốc', "if(_vaiGoc()==='Nhân viên'){" in src)
+# ═══ MỘT LUẬT DUY NHẤT CHO CẢ TRANG (21/09/2026) ═════════════════════════════
+# Anh Thắng gửi ảnh màn của chị Mai Anh (vai "Nhân Viên Cơ Sở Khu Vui Chơi"): *"mất chỗ
+# tạo đơn"*. Bảng tra tab đã quy về vai gốc từ lâu, nhưng mười mấy chỗ khác vẫn so thẳng
+# `CURUSER.role`. Ngày khai vai con cho cả công ty là chúng hỏng đồng loạt.
+la('🔴 có hàm vai-để-so-luật', 'function _vaiLuat(' in src)
+# 🔴 CON CỦA ADMIN KHÔNG ĐƯỢC THÀNH ADMIN. Ô cha ở bảng vai trò có cả mục "Admin", nên quy
+#    về gốc máy móc là nới quyền Admin bằng đúng một lượt gõ tên.
+_fn_vl = _hamOf(src, '_vaiLuat')
+la('🔴 con của Admin KHÔNG quy về Admin',
+   "(g==='Admin') ? v :" in _fn_vl, _fn_vl)
+la('   và chính vai Admin thì vẫn là Admin', "if(v==='Admin') return 'Admin';" in _fn_vl, _fn_vl)
+# ⚠️ NÚT TẠO ĐƠN — đúng chỗ anh Thắng báo.
+la('🔴 nút Tạo đơn gác theo vai luật, không theo tên vai',
+   "var vl=_vaiLuat();" in src and "bn.style.display=(vl==='Nhân viên'||vl==='Quản lý'||vl==='Admin')" in src)
+# ⚠️ KHÔNG CÒN CHỖ NÀO KHAI `var role=` từ tên vai rồi đem so với tên vai gốc.
+la('🔴 không còn chỗ nào lấy `role` thẳng từ CURUSER để so luật',
+   "var role=(CURUSER&&CURUSER.role)||''" not in src)
+# ⚠️ NHƯNG CHIP BÀY TÊN VAI VẪN PHẢI LÀ TÊN THẬT. Bày vai gốc là chị Mai Anh mở màn ra thấy
+#    mình thành "Nhân viên", tưởng bị đổi vai.
+la('⚠️ chip trên đỉnh trang vẫn bày TÊN VAI THẬT', "var role=CURUSER.role;" in src)
+la('nhánh bộ phận cũng theo vai gốc', "if(_vaiLuat()==='Nhân viên'){" in src)
 m11 = re.search(r'function canDo\(action\)\{(.*?)\n  \}', src, re.S)
 la('tìm thấy canDo()', m11 is not None)
 if m11:
@@ -718,7 +738,7 @@ la('🔴 không điền khi đang chọn Nhà cung cấp', "want==='NV' && f" in
 #    mất chữ vừa gõ, mất im lặng, ngay trước lúc bấm Thêm hạng mục.
 la('⚠️ không đè lên tên đã gõ', "!String(f.value||'').trim()" in _fn_dt)
 # ⚠️ Danh sách GỢI Ý vẫn thu hẹp cho Nhân viên — chọn nhầm người là tiền vào tay người khác.
-la('⚠️ gợi ý vẫn chỉ mình họ với vai Nhân viên', "CURUSER.role==='Nhân viên'" in _fn_dt)
+la('⚠️ gợi ý vẫn chỉ mình họ với vai Nhân viên', "_vaiLuat()==='Nhân viên'" in _fn_dt)
 # ⚠️ Lượt gọi lúc nạp trang không truyền tham số; không đọc ô Phân loại đang có thì nó luôn
 #    chạy như "chưa chọn phân loại", và tên mặc định không bao giờ hiện ở lần mở trang đầu.
 la('🔴 gọi không tham số thì đọc ô Phân loại đang có',

@@ -48,7 +48,9 @@ t('bốc được _veNutChuyenDon()', fnNut.length > 100, fnNut.length);
 /** Chạy thật với một tài khoản + bảng `vis`, trả trạng thái hiện/ẩn của hai nút. */
 function nut(vai, bp, vis) {
   const B = { duan: { style: { display: '' } }, don: { style: { display: '' } } };
-  new Function('CURUSER', 'document', 'BP_VAO_DUAN', '_vaiGoc', '_vaoDonCoSo', 'vis',
+  /* Từ 21/09/2026 `_veNutChuyenDon()` so luật qua `_vaiLuat()` — vai con làm được việc của
+     vai cha. Bệ đỡ phải có cả hai, không thì hàm thật nổ ReferenceError. */
+  new Function('CURUSER', 'document', 'BP_VAO_DUAN', '_vaiGoc', '_vaiLuat', '_vaoDonCoSo', 'vis',
     fnNut + '\n_veNutChuyenDon(vis);')(
     { role: vai, roleGoc: vai, boPhan: bp },
     { querySelectorAll: () => [
@@ -56,6 +58,7 @@ function nut(vai, bp, vis) {
       Object.assign(B.don,  { getAttribute: () => 'don' }),
     ] },
     ['Văn phòng', 'Kỹ thuật'],
+    function () { return vai; },
     function () { return vai; },
     function (x) { return !(x && ['Kỹ thuật'].indexOf(x) >= 0); },
     vis);

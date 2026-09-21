@@ -266,6 +266,8 @@ function beNewDon(daChonTuan, bp) {
   const KHO = {};
   const moi = {
     CURUSER: { boPhan: bp === undefined ? 'Kỹ thuật' : bp, name: 'KT', role: 'Nhân viên' },
+    /* `newDon()` so luật qua `_vaiLuat()` từ 21/09/2026 — thiếu nó là hàm thật nổ ReferenceError. */
+    _vaiLuat: () => 'Nhân viên',
     QUYEN_TAB: { don: 1, duan: 1 },
     BP_HOI_LOAI_DON: ['Kỹ thuật'],
     el: id => (KHO[id] = KHO[id] || { _id: id, style: { display: '' }, value: '', innerHTML: '',
@@ -309,6 +311,10 @@ function beNutChuyen(vis, ai) {
     CURUSER: ai,
     BP_VAO_DUAN: ['Văn phòng', 'Kỹ thuật'],
     _vaiGoc: () => String(ai.roleGoc || ai.role || ''),
+    /* Cùng luật với bản thật: quy về vai gốc, RIÊNG con của Admin thì không. */
+    _vaiLuat: () => (ai.role === 'Admin' ? 'Admin'
+      : (String(ai.roleGoc || '') === 'Admin' ? String(ai.role || '')
+        : String(ai.roleGoc || ai.role || ''))),
     _vaoDonCoSo: bp => !(bp && ['Kỹ thuật'].indexOf(bp) >= 0),
   };
   new Function('moi', 'V', `with(moi){ ${boc('_veNutChuyenDon')}
