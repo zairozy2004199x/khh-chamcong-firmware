@@ -1,6 +1,6 @@
 <?php
 /**
- * VAI "KẾ TOÁN MÁY TỰ ĐỘNG" — CHỈ LÀM VIỆC TRONG BỘ PHẬN CỦA MÌNH.
+ * BỘ PHẬN LÀ MỘT TRỤC DUY NHẤT — KHAI Ở HÀNG NGƯỜI DÙNG, KHÔNG Ở VAI TRÒ.
  *
  * Anh Thắng 08/09/2026: *"thêm vai trò kế toán máy tự động (để chỉ thực hiện công việc bên bộ
  * phận máy tự động)"*, và trước đó gọi tắt mảng ấy là *"mảng mtd"*.
@@ -71,55 +71,59 @@ teq( 'tên lạ -> rỗng (= mọi bộ phận)',    '', VHCP_Cfg::bo_phan_chuan
 teq( 'rỗng -> rỗng',                      '', VHCP_Cfg::bo_phan_chuan( '' ) );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
- * 2. VAI MANG BỘ PHẬN — VÀ VAI THẮNG Ô TRÊN TÀI KHOẢN
+ * 2. 🔴 VAI TRÒ KHÔNG CÒN MANG BỘ PHẬN — CHỈ CÒN MỘT TRỤC
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 21/09/2026: *"đang có sự xung đột giữa vai trò và bộ phận, dẫn đến set cái này thì
+ * mất cái kia"*, rồi chốt *"bỏ vai trò đi, cho bộ phận dùng chung"*.
+ *
+ * ⚠️ MỤC NÀY TRƯỚC ĐÂY ĐÒI ĐIỀU NGƯỢC LẠI — "VAI THẮNG Ô TRÊN TÀI KHOẢN" — và nó XANH suốt.
+ *    Nhưng `bo_phan_cua_nguoi()` mà nó gọi CHƯA TỪNG được mã chạy gọi tới: `dat_vai_tro()` xưa
+ *    nay vẫn đọc bộ phận từ HÀNG NGƯỜI DÙNG. Tức bài kiểm canh một luật mà sản phẩm không hề
+ *    thi hành — xanh đều, mà cái nó bảo vệ thì không tồn tại. Đó cũng chính là gốc của cái
+ *    "xung đột" anh Thắng thấy: màn Cấu hình cho khai ở hai nơi, còn máy chủ chỉ nghe một nơi.
+ *
+ * 🔴 NÊN TỪ BẢN NÀY PHÉP ĐI THEO HƯỚNG KHÁC: đòi cột bộ phận của vai BIẾN MẤT, và đòi bộ phận
+ *    thật sự có hiệu lực đúng bằng ô trên HÀNG NGƯỜI DÙNG.
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+t( '🔴 `bo_phan_cua_nguoi()` đã bỏ hẳn (trục thứ hai không còn cửa nào)',
+	! method_exists( 'VHCP_Cfg', 'bo_phan_cua_nguoi' ) );
+
 VHCP_Cfg::write( VHCP_Cfg::VAI, array(
-	/* cột: tên vai · kế thừa · BỘ PHẬN bó */
+	/* Dòng cũ CÒN ô thứ ba trong sổ — phải bị làm ngơ, không phải đọc rồi dùng. */
 	array( 'Kế toán máy tự động', 'Kế toán cá nhân', 'Máy tự động' ),
 	array( 'Kế toán chung',       'Kế toán cá nhân', '' ),
-	array( 'Vai khai bừa',        'Kế toán cá nhân', 'Bộ phận ma' ),
 ) );
 $vt = VHCP_Cfg::vai_tuy_bien();
-$bp_theo_ten = array();
-foreach ( $vt as $v ) { $bp_theo_ten[ $v['ten'] ] = $v['boPhan']; }
-teq( 'vai "Kế toán máy tự động" mang bộ phận Máy tự động', 'Máy tự động', $bp_theo_ten['Kế toán máy tự động'] );
-teq( 'vai không khai bộ phận thì để trống', '', $bp_theo_ten['Kế toán chung'] );
-teq( '🔴 vai khai tên bộ phận LẠ thì coi như không bó', '', $bp_theo_ten['Vai khai bừa'] );
-teq( 'và vẫn kế thừa đúng vai gốc', 'Kế toán cá nhân', VHCP_Cfg::vai_goc( 'Kế toán máy tự động' ) );
+$theo = array();
+foreach ( $vt as $v ) { $theo[ $v['ten'] ] = $v; }
+teq( 'vẫn đọc ra đủ hai vai', 2, count( $vt ) );
+t( '🔴 vai KHÔNG còn mang khoá `boPhan`', ! array_key_exists( 'boPhan', $theo['Kế toán máy tự động'] ),
+	$theo['Kế toán máy tự động'] );
+teq( '   và vẫn kế thừa đúng vai gốc', 'Kế toán cá nhân', VHCP_Cfg::vai_goc( 'Kế toán máy tự động' ) );
 
-/* 🔴 LƯU QUA MÀN CẤU HÌNH RỒI ĐỌC LẠI PHẢI CÒN NGUYÊN. Ghi thẳng bằng `write()` như trên chỉ
-   chứng minh chốt ĐỌC chạy đúng; nếu đường GHI đánh rơi cột thứ ba thì lần đầu anh Thắng bấm
-   Lưu ở bảng Vai trò là mọi vai mất bó, và người mang vai ấy nhìn thấy sổ của mọi mảng.
-
-   ⚠️ PHẢI ĐĂNG NHẬP ADMIN, VÀ PHẢI DỌN BẢNG TRƯỚC. `save_config()` chối người không phải Admin
-      ("Chỉ Admin mới thêm/sửa vai trò được") — không đăng nhập thì lượt lưu KHÔNG chạy, bảng
-      vẫn giữ nguyên mấy dòng `write()` ở trên, và phép này xanh mà chẳng kiểm được gì. Đã xanh
-      oan đúng như thế ở bản nháp đầu; phá thử chỉ ra. */
+/* 🔴 CỬA LƯU PHẢI DỌN Ô CŨ, KHÔNG PHẢI GIỮ IM. Để nguyên ô thứ ba là dữ liệu chết nằm lại
+   trong sổ, và lượt nào đó về sau có người viết lại mã đọc nó thì trục cũ sống dậy. */
 VHCP_Auth::dat_vai_tro( 'Admin', 'Sếp' );
-VHCP_Cfg::write( VHCP_Cfg::VAI, array() );
-teq( 'dọn sạch bảng vai trước đã', 0, count( VHCP_Cfg::vai_tuy_bien() ) );
 VHCP_Cfg::save_config( array( 'vaiTro' => array(
 	array( 'ten' => 'Kế toán máy tự động', 'goc' => 'Kế toán cá nhân', 'boPhan' => 'Máy tự động' ),
-	array( 'ten' => 'Kế toán chung',       'goc' => 'Kế toán cá nhân', 'boPhan' => '' ),
 ) ) );
-teq( '🔴 lưu qua màn Cấu hình xong vai vẫn còn bó',
-	'Máy tự động', VHCP_Cfg::bo_phan_cua_nguoi( 'Kế toán máy tự động' ) );
-teq( 'và vai không bó thì vẫn không bó', '', VHCP_Cfg::bo_phan_cua_nguoi( 'Kế toán chung' ) );
-/* Khai bừa qua đường lưu cũng phải bị rửa, y như đường đọc. */
-VHCP_Cfg::save_config( array( 'vaiTro' => array(
-	array( 'ten' => 'Kế toán máy tự động', 'goc' => 'Kế toán cá nhân', 'boPhan' => 'Máy tự động' ),
-	array( 'ten' => 'Kế toán chung',       'goc' => 'Kế toán cá nhân', 'boPhan' => '' ),
-	array( 'ten' => 'Vai khai bừa',        'goc' => 'Kế toán cá nhân', 'boPhan' => 'MTD' ),
-) ) );
-teq( 'lưu tên bộ phận lạ thì rửa thành không bó', '', VHCP_Cfg::bo_phan_cua_nguoi( 'Vai khai bừa' ) );
+$hang = VHCP_Cfg::read( VHCP_Cfg::VAI );
+teq( 'lưu xong còn đúng một vai', 1, count( $hang ) );
+teq( '🔴 và dòng chỉ còn HAI ô — ô bộ phận đã dọn', array( 'Kế toán máy tự động', 'Kế toán cá nhân' ),
+	array_values( array_slice( array_values( (array) $hang[0] ), 0, 2 ) ) );
+t( '   không còn ô thứ ba mang tên bộ phận',
+	'' === trim( (string) ( isset( $hang[0][2] ) ? $hang[0][2] : '' ) ), $hang[0] );
 
-/* 🔴 VAI THẮNG Ô TRÊN TÀI KHOẢN. Nếu tài khoản thắng thì chỉ cần xoá một ô là vai "Kế toán máy
-   tự động" nhìn thấy cả sổ của mọi mảng — mà xoá một ô thì không ai coi là việc nguy hiểm. */
-teq( 'vai có khai bộ phận thì bó', 'Máy tự động', VHCP_Cfg::bo_phan_cua_nguoi( 'Kế toán máy tự động' ) );
-teq( 'vai không khai thì không bó',  '',            VHCP_Cfg::bo_phan_cua_nguoi( 'Kế toán chung' ) );
-teq( 'vai gốc không bao giờ bó',     '',            VHCP_Cfg::bo_phan_cua_nguoi( 'Kế toán cá nhân' ) );
-teq( 'Admin không bao giờ bó',       '',            VHCP_Cfg::bo_phan_cua_nguoi( 'Admin' ) );
-teq( 'vai lạ (đã xoá khỏi bảng) -> không bó', '',   VHCP_Cfg::bo_phan_cua_nguoi( 'Vai đã xoá' ) );
+/* 🔴 BỘ PHẬN CÓ HIỆU LỰC = Ô TRÊN HÀNG NGƯỜI DÙNG, và chỉ nó. Đây là điều sản phẩm VẪN LÀM từ
+   trước; nay nó là điều DUY NHẤT, nên phải có phép canh thật thay vì suy ra. */
+VHCP_Auth::dat_vai_tro( 'Kế toán máy tự động', 'Chị Kế Toán MTĐ', '', 'Máy tự động' );
+teq( '🔴 bộ phận bó lấy từ ô trên tài khoản', 'Máy tự động', VHCP_Auth::bo_phan_bo() );
+/* Cùng một VAI ấy, nhưng tài khoản bỏ trống ô bộ phận -> không bó. Trước đây vai sẽ "thắng"
+   và vẫn bó — đúng cái hành vi vừa bỏ. */
+VHCP_Auth::dat_vai_tro( 'Kế toán máy tự động', 'Anh Kế Toán Chung', '', '' );
+teq( '🔴 cùng vai ấy mà ô tài khoản trống thì KHÔNG bó', '', VHCP_Auth::bo_phan_bo() );
+VHCP_Auth::dat_vai_tro( 'Admin', 'Sếp', '', 'Máy tự động' );
+teq( 'Admin không bao giờ bị bó, dù ô có khai', '', VHCP_Auth::bo_phan_bo() );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
  * 3. LOẠI CHI PHÍ THUỘC BỘ PHẬN NÀO — và ai được đọc dòng mang loại ấy
@@ -273,8 +277,11 @@ foreach ( array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC'
    08/09/2026 đã có sẵn một dòng khai "Bộ phận: Kỹ thuật"; biến ô đó thành lát cắt là tài khoản
    ấy mất đơn ngay lúc cài đè. Bản nháp đầu của chính bản này đã sai đúng như thế, và phép dưới
    là thứ bắt được. */
-teq( '🔴 ô Bộ phận trên tài khoản KHÔNG bó gì cả',
-	'', VHCP_Cfg::bo_phan_cua_nguoi( 'Kế toán cá nhân' ) );
+/* ⚠️ Phép cũ ở đây gọi `VHCP_Cfg::bo_phan_cua_nguoi( 'Kế toán cá nhân' )` — hàm đã bỏ
+   21/09/2026 cùng cả trục bộ phận-theo-vai. Điều nó muốn nói vẫn đúng và vẫn phải canh, chỉ
+   là nói bằng hàm còn sống: một VAI GỐC không tự bó gì; bó hay không là do ô trên tài khoản. */
+VHCP_Auth::dat_vai_tro( 'Kế toán cá nhân', 'Chị Kế Toán', '', '' );
+teq( '🔴 vai gốc + ô Bộ phận trống thì KHÔNG bó gì cả', '', VHCP_Auth::bo_phan_bo() );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
  * 5c. MÀN PHẢI NÓI RA LÀ MÌNH ĐANG BỊ BÓ
@@ -330,17 +337,18 @@ t( '🔴 và mã nguồn không còn nhánh dựng vai "Kế toán máy tự đ�
 		&& false === strpos( $cfg_ma_vai, "self::append( self::VAI, array( 'Kế toán máy tự động'" ),
 	'' );
 
-/* Bỏ dựng sẵn KHÔNG được làm hỏng cơ chế vai tự tạo có bó bộ phận — anh vẫn khai tay được. */
+/* Bỏ dựng sẵn KHÔNG được làm hỏng cơ chế vai tự tạo — anh vẫn khai tay được.
+   ⚠️ Từ 21/09/2026 vai KHÔNG còn mang bộ phận, nên chỗ này chỉ còn đòi tên + vai gốc. Bó bộ
+      phận là việc của ô trên hàng người dùng (mục 2). */
 VHCP_Cfg::write( VHCP_Cfg::VAI, array(
-	array( 'Kế toán máy tự động', 'Kế toán cá nhân', 'Máy tự động' ),
+	array( 'Kế toán máy tự động', 'Kế toán cá nhân' ),
 ) );
 VHCP_Cfg::clear_cache();
 $ten_vai = array();
 foreach ( VHCP_Cfg::vai_tuy_bien() as $v ) { $ten_vai[ $v['ten'] ] = $v; }
 t( 'khai tay thì vai ấy vẫn nhận', isset( $ten_vai['Kế toán máy tự động'] ), array_keys( $ten_vai ) );
 if ( isset( $ten_vai['Kế toán máy tự động'] ) ) {
-	teq( 'và vẫn bó đúng bộ phận Máy tự động', 'Máy tự động', $ten_vai['Kế toán máy tự động']['boPhan'] );
-	teq( 'và vẫn kế thừa Kế toán cá nhân',     'Kế toán cá nhân', VHCP_Cfg::vai_goc( 'Kế toán máy tự động' ) );
+	teq( 'và vẫn kế thừa Kế toán cá nhân', 'Kế toán cá nhân', VHCP_Cfg::vai_goc( 'Kế toán máy tự động' ) );
 }
 
 /* Và xoá đi thì lượt sau vẫn ở yên đã xoá. */
@@ -355,4 +363,4 @@ if ( $truot ) {
 	foreach ( $truot as $x ) { echo "  · $x\n"; }
 	exit( 1 );
 }
-echo "\n✓ SẠCH — $dat phép: vai bó bộ phận chỉ làm việc trong bộ phận của mình.\n";
+echo "\n✓ SẠCH — $dat phép: bộ phận chỉ khai một nơi, và nó bó đúng những gì phải bó.\n";

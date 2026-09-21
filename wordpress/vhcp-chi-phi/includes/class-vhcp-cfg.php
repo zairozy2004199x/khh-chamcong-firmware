@@ -278,13 +278,25 @@ class VHCP_Cfg {
 			   mà tự động thành Quản lý là mất quyền kiểm soát; thành Nhân viên thì cùng lắm là
 			   bị chặn rồi có người kêu. */
 			if ( ! in_array( $g, self::VAI_GOC, true ) ) { $g = 'Nhân viên'; }
-			/* Cột thứ ba: BỘ PHẬN mà vai này bị bó vào. Để trống = không bó (như mọi vai cũ).
-			   Gắn vào VAI chứ không chỉ vào từng tài khoản, vì đó là điều anh Thắng nói: vai
-			   ấy sinh ra để *"chỉ thực hiện công việc bên bộ phận máy tự động"* — bó ở tài
-			   khoản thì mỗi lần thêm người lại phải nhớ khai lại, và lần quên nào cũng là một
-			   kế toán nhìn thấy cả sổ của mảng khác. */
-			$bp = self::bo_phan_chuan( isset( $r[2] ) ? $r[2] : '' );
-			$out[] = array( 'ten' => $t, 'goc' => $g, 'boPhan' => $bp );
+			/* ══════════════════════════════════════════════════════════════════════════════
+			 * 🔴 VAI TRÒ KHÔNG CÒN MANG BỘ PHẬN — anh Thắng 21/09/2026: *"đang có sự xung đột
+			 *    giữa vai trò và bộ phận, dẫn đến set cái này thì mất cái kia"*, rồi chốt:
+			 *    *"bỏ vai trò đi, cho bộ phận dùng chung"*.
+			 * ══════════════════════════════════════════════════════════════════════════════
+			 * Cột thứ ba từng là BỘ PHẬN mà vai này bị bó vào (08/09/2026, cho vai "Kế toán
+			 * máy tự động"). Nhưng bộ phận CÒN ĐƯỢC KHAI Ở HÀNG NGƯỜI DÙNG nữa — hai nơi khai
+			 * cùng một sự thật, và người ta phải đoán nơi nào thắng. Ảnh anh Thắng gửi cho
+			 * thấy hậu quả: một dãy vai tự tạo mang tên đúng bằng tên bộ phận ("Nhân Viên Kỹ
+			 * Thuật", "Nhân Viên Marketing"…) đứng cạnh một cột Bộ phận nói y hệt.
+			 *
+			 * 🔴 CHỈ CÒN MỘT TRỤC: bộ phận của một người lấy từ HÀNG NGƯỜI DÙNG, và chỉ từ đó
+			 *    (`VHCP_Auth::dat_vai_tro()` vốn đã đọc đúng chỗ ấy — cột của vai chưa từng
+			 *    được mã chạy dùng tới, nó chỉ sống trong bài kiểm). Vai trò từ nay trả lời
+			 *    đúng một câu: LÀM ĐƯỢC GÌ. Bộ phận trả lời câu kia: LÀM Ở MẢNG NÀO.
+			 *
+			 * ⚠️ Ô cũ trong sổ KHÔNG bị xoá, chỉ thôi đọc. Ai đã khai thì dữ liệu còn đó; lượt
+			 *    Lưu bảng Vai trò kế tiếp sẽ dọn nó đi một cách tự nhiên. */
+			$out[] = array( 'ten' => $t, 'goc' => $g );
 		}
 		return $out;
 	}
@@ -314,30 +326,12 @@ class VHCP_Cfg {
 		return 'Nhân viên';
 	}
 
-	/**
-	 * BỘ PHẬN MÀ MỘT NGƯỜI BỊ BÓ VÀO — '' nghĩa là không bó (thấy mọi bộ phận).
-	 *
-	 * 🔴 CHỈ ĐỌC TỪ VAI TRÒ, KHÔNG ĐỌC Ô "BỘ PHẬN / LOẠI NV" TRÊN TÀI KHOẢN.
-	 *
-	 *    Bản nháp đầu có đọc, coi ô ấy là nguồn lui. Sai, và bài kiểm bắt được: ô đó xưa nay
-	 *    chỉ dùng để LỌC DANH MỤC lúc nhập và phân quyền TAB cho Nhân viên — nó chưa bao giờ
-	 *    cắt dữ liệu của kế toán. Biến nó thành lát cắt là mọi tài khoản đã lỡ khai ô đó (ảnh
-	 *    anh Thắng gửi 08/09/2026 có sẵn một dòng "Bộ phận: Kỹ thuật") sẽ mất đơn ngay lúc cài
-	 *    đè, mà không ai đoán được vì sao.
-	 *
-	 *    Anh Thắng cùng ngày: *"nhớ đừng can thiệp gì bên phần chi phí khu vui chơi"*. Bó theo
-	 *    VAI thì chỉ vai mới sinh ra để bó mới bị bó, và mọi thứ đang chạy không đổi một li.
-	 *
-	 * ⚠️ Vai gốc và Admin không bao giờ bó: `vai_tuy_bien()` đã loại chúng khỏi danh sách.
-	 */
-	public static function bo_phan_cua_nguoi( $ten_vai ) {
-		$ten_vai = trim( (string) $ten_vai );
-		if ( '' === $ten_vai ) { return ''; }
-		foreach ( self::vai_tuy_bien() as $v ) {
-			if ( $v['ten'] === $ten_vai ) { return (string) $v['boPhan']; }
-		}
-		return '';
-	}
+	/* ⚠️ `bo_phan_cua_nguoi( $ten_vai )` ĐÃ BỎ — anh Thắng 21/09/2026: *"bỏ vai trò đi, cho
+	   bộ phận dùng chung"*. Nó tra bộ phận theo TÊN VAI, tức trục thứ hai đã gây xung đột.
+	   Và nó chưa từng được mã chạy gọi tới: chỉ bài kiểm gọi, nên suốt thời gian tồn tại nó
+	   canh một luật mà sản phẩm không hề thi hành. Bộ phận nay đọc thẳng từ hàng người dùng
+	   (`VHCP_Auth::dat_vai_tro()`), một nơi duy nhất. */
+
 
 	/** QUYEN_ACTIONS của app cũ (giữ nguyên thứ tự + mặc định). */
 	public static function actions() {
@@ -1400,7 +1394,9 @@ class VHCP_Cfg {
 				$b = trim( $g( $x, 'goc' ) );
 				if ( '' === $t || 'Admin' === $t || in_array( $t, self::VAI_GOC, true ) ) { continue; }
 				if ( ! in_array( $b, self::VAI_GOC, true ) ) { $b = 'Nhân viên'; }
-				$rows[] = array( $t, $b, self::bo_phan_chuan( $g( $x, 'boPhan' ) ) );
+				/* Hai ô, không còn ô bộ phận — xem chốt ở `vai_tuy_bien()`. Ghi hai ô là lượt
+				   Lưu này cũng dọn luôn ô thứ ba của dòng cũ. */
+				$rows[] = array( $t, $b );
 			}
 			self::write( self::VAI, $rows );
 		}
