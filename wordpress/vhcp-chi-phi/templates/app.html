@@ -50,8 +50,25 @@
     <button class="btn b-x" id="tab-setup" onclick="showPage('setup')">🛠️ Setup</button>
     <button class="btn b-x" id="tab-vhtuan" onclick="showPage('vhtuan')">📅 Vận hành tuần</button>
     <button class="btn b-x" id="tab-trama" onclick="showPage('trama')">🔎 Tra theo mã</button>
-    <button class="btn b-x" id="tab-duyet" onclick="showPage('duyet')">✅ Duyệt tạm ứng</button>
-    <button class="btn b-x" id="tab-qt" onclick="showPage('qt')">🧾 Quyết toán</button>
+    <!-- 🔴 HAI TAB NÀY CÓ MŨI ▾ XỔ RA BA KHỐI. Anh Thắng 20/09/2026: *"khi kế toán rê chuột vào
+         duyệt quyết toán hoặc duyệt tạm ứng, có nó ra 3 đơn vị, để xem từng trang đơn vị,
+         tránh duyệt lộn đơn vị"*. Đây là hai màn DUY NHẤT đụng tới tiền của người khác bằng
+         một cú bấm, nên chúng được lối tắt riêng; mấy tab còn lại vẫn dùng thanh khối bên dưới.
+
+         ⚠️ Nút tab GIỮ NGUYÊN hành vi cũ — bấm vào tên tab vẫn vào thẳng màn ấy ở khối đang
+            chọn. Mũi ▾ là thứ THÊM VÀO, không thay thế. Ai không để ý nó thì app vẫn y như cũ. -->
+    <span class="tabMenu" id="tm-duyet" onmouseenter="veMenuKhoi('duyet')">
+      <button class="btn b-x" id="tab-duyet" onclick="showPage('duyet')">✅ Duyệt tạm ứng</button>
+      <button type="button" class="tabMenuNut" aria-haspopup="true" aria-expanded="false"
+        title="Xem riêng từng khối — tránh duyệt lộn đơn vị" onclick="bapMenuKhoi('duyet',event)">▾</button>
+      <div class="tabMenuBox" id="tmBox-duyet" role="menu"></div>
+    </span>
+    <span class="tabMenu" id="tm-qt" onmouseenter="veMenuKhoi('qt')">
+      <button class="btn b-x" id="tab-qt" onclick="showPage('qt')">🧾 Quyết toán</button>
+      <button type="button" class="tabMenuNut" aria-haspopup="true" aria-expanded="false"
+        title="Xem riêng từng khối — tránh duyệt lộn đơn vị" onclick="bapMenuKhoi('qt',event)">▾</button>
+      <div class="tabMenuBox" id="tmBox-qt" role="menu"></div>
+    </span>
     <button class="btn b-x" id="tab-tattoan" onclick="showPage('tattoan')">💰 Thừa/thiếu tuần</button>
     <button class="btn b-x" id="tab-xuat" onclick="showPage('xuat')">📤 Xuất MISA</button>
     <button class="btn b-x" id="tab-cauhinh" onclick="showPage('cauhinh')">⚙️ Cấu hình</button>
@@ -2447,7 +2464,14 @@
        để MỞ THÊM. */
     if(canDo('donDuAn')) vis.duan=1;
     if(canDo('donCoSo')) vis.don=1;
-    ['tongquan','don','sochi','duan','mkt','congtac','setup','vhtuan','trama','duyet','qt','tattoan','xuat','cauhinh','log'].forEach(function(x){ var t=el('tab-'+x); if(t) t.style.display=(vis[x]&&!BO_TAB[x])?'inline-block':'none'; });
+    ['tongquan','don','sochi','duan','mkt','congtac','setup','vhtuan','trama','duyet','qt','tattoan','xuat','cauhinh','log'].forEach(function(x){
+      var hien=(vis[x]&&!BO_TAB[x]);
+      var t=el('tab-'+x); if(t) t.style.display=hien?'inline-block':'none';
+      /* 🔴 TAB CÓ MENU XỔ KHỐI THÌ CÁI NẰM TRONG HÀNG LÀ VỎ BỌC, KHÔNG PHẢI CÁI NÚT. Ẩn mỗi
+         nút thì mũi ▾ còn trơ lại giữa hàng tab: một nút không tên, bấm vào ra menu của đúng
+         cái tab vừa bị ẩn. Kế toán NCC không có tab Duyệt tạm ứng — họ sẽ thấy nó. */
+      var w=el('tm-'+x); if(w) w.style.display=hien?'inline-flex':'none';
+    });
     // Thanh "LOẠI ĐƠN" nằm TRONG trang, không phải trên hàng tab — nên phải ẩn riêng. Để nút
     // "Dự án · gian thi công" sáng cho người không có quyền vào là họ bấm rồi ăn trang trắng.
     _veNutChuyenDon(vis);
@@ -2622,6 +2646,123 @@
     if(el('donSel')) el('donSel').innerHTML='<option value="">— Chọn đơn —</option>'+d.map(function(x){
       return '<option value="'+esc(x.maDon)+'">'+esc(x.ky||x.maDon)+(x.coso?' · '+esc(x.coso):'')+(x.nguoiLap?' · '+esc(x.nguoiLap):'')+' · '+esc(x.trangThai)+' · CL '+money(x.chenhLech)+'đ</option>';}).join('');
   }
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * MENU XỔ KHỐI TRÊN TAB DUYỆT TẠM ỨNG / QUYẾT TOÁN.
+   *
+   * Anh Thắng 21/09/2026: *"chỗ duyệt tạm ứng, rê chuột vào nó xổ ra bộ phận được không"*, nối
+   * tiếp 20/09: *"khi kế toán rê chuột vào duyệt quyết toán hoặc duyệt tạm ứng, có nó ra 3 đơn
+   * vị, để xem từng trang đơn vị, tránh duyệt lộn đơn vị"*.
+   *
+   * 🔴 SỐ ĐẾM PHẢI TÍNH CHO KHỐI ĐANG XÉT, KHÔNG PHẢI KHỐI ĐANG CHỌN. Cả màn duyệt lọc bằng
+   *    `_hopKhoi()`, tức "thuộc khối đang chọn" — dùng lại nó ở đây thì hai khối kia luôn hiện
+   *    số 0, và kế toán đọc số 0 ấy rồi kết luận bên MTĐ không có đơn nào phải duyệt. Nên mấy
+   *    hàm dưới nhận `ma` và so thẳng, KHÔNG gọi `_hopKhoi()`.
+   *
+   * ⚠️ MENU KHÔNG PHẢI CỔNG QUYỀN, y như thanh khối: máy chủ đã cắt dữ liệu theo cột Đơn vị
+   *    trước khi gửi xuống, và `doiKhoi()` còn chối một lượt nữa. Khoá mục ở đây chỉ để khỏi
+   *    bấm nhầm sang một trang chắc chắn rỗng.
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  var TM_KHAU_TU=['Chờ duyệt tạm ứng','Chờ cấp tạm ứng','Đã cấp tạm ứng'];
+  /** Đơn `d` có nằm trong màn `man` của khối `ma` không. Cùng luật với `renderDuyet` / `_qtTrongMan`. */
+  function _donTrongMan(man,ma,d){
+    var k=_khoiCua(d);
+    /* Đơn chưa đóng dấu khối thì hiện ở mọi khối — cùng luật với `_hopKhoi()`, đừng để nó
+       biến mất khỏi mọi cột rồi không ai đi tìm. */
+    if(k!=='' && k!==String(ma).toLowerCase()) return false;
+    if(_anVaoMo(d)) return false;
+    if(man==='duyet') return TM_KHAU_TU.indexOf(d.trangThai)>=0;
+    return d.trangThai==='Chờ quyết toán'||_daQT(d)||d.trangThai==='Đã cấp tạm ứng';
+  }
+  function _demMan(man,ma){
+    var n=0;
+    (BOOT.dons||[]).forEach(function(d){ if(_donTrongMan(man,ma,d)) n++; });
+    return n;
+  }
+  /* ĐẶT HỘP VÀO ĐÚNG CHỖ. Hộp là `position:fixed` (xem chốt ở `vhcp.css`) nên toạ độ phải do
+     đây tính, và phải tính lại mỗi lượt cuộn — cả cuộn trang lẫn cuộn ngang hàng tab. */
+  function _tmDatCho(man){
+    var w=el('tm-'+man), o=el('tmBox-'+man); if(!w||!o) return;
+    var r=w.getBoundingClientRect();
+    /* Hộp đang ẩn thì `offsetWidth` là 0 — lấy bề rộng tối thiểu trong CSS làm mức thay. */
+    var rong=o.offsetWidth||236;
+    var max=(window.innerWidth||360)-rong-8;
+    /* 🔴 KẸP VÀO TRONG MÀN. Tab "Quyết toán" nằm gần mép phải; thả tự do thì trên điện thoại
+       hộp tràn ra ngoài và mấy con số bị cắt mất. */
+    o.style.left=Math.round(Math.max(8, Math.min(r.left, Math.max(8,max))))+'px';
+    o.style.top=Math.round(r.bottom+6)+'px';
+  }
+  function veMenuKhoi(man){
+    var o=el('tmBox-'+man); if(!o) return;
+    var duoc=_khoiDuoc().map(function(x){ return x.ma; });
+    var dang=String(KHOI_DANG).toLowerCase();
+    o.innerHTML=KHOI_DS.map(function(x){
+      var n=_demMan(man,x.ma);
+      if(duoc.indexOf(x.ma)<0){
+        /* Hiện mà mờ, không ẩn — anh Thắng 20/09/2026: *"không thuộc thì chỉ hiện chứ không
+           bấm được"*. Ẩn thì người ta không biết hệ có ba khối. */
+        return '<button type="button" class="mk" role="menuitem" disabled '
+          +'title="Tài khoản của bạn thuộc đơn vị khác — xem được nhưng không mở trang khối này. '
+          +'Đổi ở Cấu hình → Người dùng, cột Đơn vị.">🔒 '+esc(x.ten)+'<span class="so">'+n+'</span></button>';
+      }
+      return '<button type="button" class="mk'+(x.ma===dang?' dang':'')+'" role="menuitem" '
+        +'onclick="diKhoiMan(\''+man+'\',\''+x.ma+'\')">'+esc(x.ten)
+        +'<span class="so">'+n+'</span></button>';
+    }).join('');
+    _tmDatCho(man);
+  }
+  /** Bấm một mục: đổi khối RỒI mở màn ấy. Đúng thứ tự — mở trước là màn vẽ bằng khối cũ. */
+  function diKhoiMan(man,ma){
+    dongMenuKhoi();
+    doiKhoi(ma);
+    showPage(man);
+  }
+  function dongMenuKhoi(){
+    Array.prototype.forEach.call(document.querySelectorAll('.tabMenu.mo'),function(w){
+      w.classList.remove('mo');
+      var n=w.querySelector('.tabMenuNut'); if(n) n.setAttribute('aria-expanded','false');
+    });
+  }
+  /* 🔴 BẤM CŨNG MỞ ĐƯỢC, KHÔNG CHỈ RÊ CHUỘT. Anh Thắng duyệt đơn bằng iPhone, mà iPhone không
+     có "rê chuột" — chỉ gắn `:hover` là cái mũi ▾ trên điện thoại thành nút bấm vào không ra
+     gì. Cùng bài học với ba hộp thoại nối nhau chết câm trên iOS (xem `#datKyBox`). */
+  function bapMenuKhoi(man,ev){
+    if(ev){ ev.preventDefault(); ev.stopPropagation(); }
+    var w=el('tm-'+man); if(!w) return;
+    var mo=w.classList.contains('mo');
+    dongMenuKhoi();
+    if(!mo){
+      veMenuKhoi(man);
+      w.classList.add('mo');
+      /* Đặt chỗ LẠI sau khi hiện: lúc còn ẩn `offsetWidth` là 0 nên lượt kẹp mép phải ở trên
+         phải đoán bằng bề rộng tối thiểu. Hiện rồi thì đo được thật. */
+      _tmDatCho(man);
+      var n=w.querySelector('.tabMenuNut'); if(n) n.setAttribute('aria-expanded','true');
+    }
+  }
+  /* Hộp `fixed` không tự đi theo trang — cuộn hay xoay máy là nó đứng lại một chỗ, treo lơ
+     lửng giữa màn. Tính lại chỗ thay vì đóng: đang rê chuột mà menu tự tắt thì khó chịu hơn. */
+  function _tmTheoCho(){
+    ['duyet','qt'].forEach(function(m){ if(el('tm-'+m)) _tmDatCho(m); });
+  }
+  /* Bấm ra ngoài / bấm Esc thì đóng — không thì menu mở trên điện thoại rồi nằm đó che mất
+     hàng tab, và người ta phải nạp lại trang.
+
+     ⚠️ ĐẶT TÊN HAI HÀM NÀY, ĐỪNG VIẾT HÀM VÔ DANH NGAY TRONG `addEventListener`. Trang này đã
+        có sẵn một trình nghe `click` khác (mở ảnh chứng từ), nên bài kiểm đi tìm "trình nghe
+        click" bốc nhầm đúng cái kia — và mọi phép về đóng menu hoá ra đang đo một đoạn mã
+        chẳng liên quan. Có tên thì bốc bằng tên, không phải đoán. */
+  function _tmBamNgoai(e){
+    if(e.target&&e.target.closest&&e.target.closest('.tabMenu')) return;
+    dongMenuKhoi();
+  }
+  function _tmPhim(e){
+    if(e.key==='Escape') dongMenuKhoi();
+  }
+  document.addEventListener('click', _tmBamNgoai);
+  document.addEventListener('keydown', _tmPhim);
+  window.addEventListener('scroll', _tmTheoCho, true);   // `true`: bắt cả lượt cuộn NGANG của hàng tab
+  window.addEventListener('resize', _tmTheoCho);
+
   function veThanhKhoi(){
     var o=el('khoiBar'); if(!o) return;
     /* ══════════════════════════════════════════════════════════════════════════════════════
@@ -2662,6 +2803,9 @@
        bước dời dữ liệu — mở tab ra thấy trắng mà không có lời nào thì trông y như hỏng. */
     var ten=(KHOI_DS.filter(function(x){return x.ma===String(KHOI_DANG).toLowerCase();})[0]||{}).ten||KHOI_DANG;
     var n=dem[String(KHOI_DANG).toLowerCase()]||0;
+    /* Thanh khối vẽ lại lúc nào thì menu trên tab vẽ lại lúc ấy — hai chỗ cùng nói một chuyện,
+       lệch nhau là người ta tin cái nào? */
+    try{ veMenuKhoi('duyet'); veMenuKhoi('qt'); }catch(e){}
     var nh=el('khoiNhac');
     if(nh){
       nh.innerHTML = n ? '' : ('Khối <b>'+esc(ten)+'</b> chưa có đơn nào trong kho này. '
