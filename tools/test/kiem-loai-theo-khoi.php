@@ -35,9 +35,12 @@ function teq( $ten, $mong, $thuc ) { t( $ten . ' (mong ' . var_export( $mong, tr
 
 /* ═══ 1. SƠ ĐỒ CỘT ════════════════════════════════════════════════════════════════ */
 $hd = VHCP_Cfg::headers( VHCP_Cfg::LOAI );
-teq( 'danh mục loại chi phí có 10 cột', 10, count( $hd ) );
+/* Cột 11 `Vai trò` thêm 21/09/2026 (anh Thắng: *"tích theo vai trò"*) — xem
+   `kiem-loai-theo-vai.php`. Ở đây chỉ cần chắc cột `Khối` KHÔNG bị đẩy khỏi chỗ của nó. */
+teq( 'danh mục loại chi phí có 11 cột', 11, count( $hd ) );
 teq( '   cột 9 là Đơn vị', 'Đơn vị', $hd[8] );
 teq( '🔴 cột 10 là Khối', 'Khối', $hd[9] );
+teq( '   cột 11 là Vai trò', 'Vai trò', $hd[10] );
 /* 🔴 `read()` đệm theo `count(headers())`. Khai thiếu là dòng cũ chỉ được đệm tới 8 ô và
    `$r[9]` không tồn tại — mọi chỗ đọc khối phải rào `isset()`, và quên rào một chỗ là cảnh
    báo PHP ở MỌI lượt nạp cấu hình. */

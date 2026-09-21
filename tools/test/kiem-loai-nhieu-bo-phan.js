@@ -48,6 +48,7 @@ function loc(boPhanNguoiDung, dsLoai, coMa) {
     NHOM_CP: '', NHOM_CP_CS: 'Cơ sở',
     BOOT: { loaiChiPhi: dsLoai, tkNoMx: {}, khoiBan: 'kvc' },
     KHOI_DANG: 'kvc',
+    CURUSER: { role: 'Admin' },   /* Admin không bị lọc theo vai — xem `_vaiDungDuocLoai()` */
     _mangCua: () => '',
     _tkNoCua: (ten) => (coMa && coMa.indexOf(ten) < 0) ? '' : '6421',
     _tkNoList: () => [],
@@ -58,7 +59,7 @@ function loc(boPhanNguoiDung, dsLoai, coMa) {
 /* ⚠️ `_khoiCuaLoai` + `KHOI_DANG` thêm 21/09/2026 — loại chi phí nay thuộc đúng một khối
      (anh Thắng: *"chia ra 3 bảng của 3 khối, để tránh dùng chung"*) và `_loaiCpList()` bỏ
      loại của khối khác. Thiếu trong bệ đỡ là bài kiểm nổ `ReferenceError`. */
-  const F = new Function('moi', `with(moi){ ${boc('_khoiCuaLoai')}\n${boc('_bpTach')}\n${boc('_khoaNhom')}\n${boc('_loaiCpList')}
+  const F = new Function('moi', `with(moi){ ${boc('_khoiCuaLoai')}\n${boc('_vaiDungDuocLoai')}\n${boc('_bpTach')}\n${boc('_khoaNhom')}\n${boc('_loaiCpList')}
     return _loaiCpList; }`)(moi);
   return F('', '').map(x => x.ten);
 }

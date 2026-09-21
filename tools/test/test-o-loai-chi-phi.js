@@ -52,7 +52,9 @@ const NHOM_CP_CS = '(cơ sở)';
    bằng cách khai một hàm giả ở đây: hàm giả là bài kiểm chạy trên bản dựng lại, không phải mã
    thật. */
 /* ⚠️ `_khoiCuaLoai` + `KHOI_DANG` thêm 21/09/2026: loại chi phí nay thuộc đúng một khối (anh Thắng: *"chia ra 3 bảng của 3 khối, để tránh dùng chung"*), và `_loaiCpList()` bỏ loại của khối khác. Không khai vào bệ đỡ là bài kiểm nổ `ReferenceError` — xem chốt "THÊM HÀM PHỤ THUỘC THÌ PHẢI KHAI VÀO ĐÂY". */
-const nguon = ['_khoiCuaLoai', '_mangCua', '_donNhieuCoSo', '_mangPham', '_tkNoList', '_tapTkCo', '_tkNoCua', '_khoaNhom', '_bpTach', '_loaiCpList', '_loaiCpVi'].map(layHam).join('\n')
+/* ⚠️ `_vaiDungDuocLoai` thêm 21/09/2026 — anh Thắng: *"bỏ tích bộ phận đi, mà tích theo
+     vai trò"*. `_loaiCpList()` gọi nó; không khai vào bệ đỡ là nổ `ReferenceError`. */
+const nguon = ['_khoiCuaLoai', '_vaiDungDuocLoai', '_mangCua', '_donNhieuCoSo', '_mangPham', '_tkNoList', '_tapTkCo', '_tkNoCua', '_khoaNhom', '_bpTach', '_loaiCpList', '_loaiCpVi'].map(layHam).join('\n')
   + '\n  return { list:_loaiCpList, vi:_loaiCpVi, dat:function(n,u){ NHOM_CP=n; CURUSER=u; } };';
 function moi(nhomCp, user, cur) {
   /* ⚠️ `_donNhieuCoSo` nay hỏi thêm `CUR_PAGE` / `DA_CUR` — xem chốt ở app.html. Bài này kiểm

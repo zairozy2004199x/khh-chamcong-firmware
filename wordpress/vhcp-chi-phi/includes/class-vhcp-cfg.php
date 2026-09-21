@@ -66,7 +66,12 @@ class VHCP_Cfg {
 			   Một loại chi phí thuộc ĐÚNG MỘT khối. Hai khối cùng cần "Chi phí khác" thì mỗi
 			   bên một dòng riêng — đó chính là ý "tránh dùng chung": sửa mã bên KVC không được
 			   đụng tới sổ của Văn phòng. */
-			self::LOAI  => array( 'Loại chi phí', 'TK Nợ', 'TK Có', 'Mã đối tượng', 'Bộ phận', 'Ghi chú', 'Tên MISA', 'Loại', 'Đơn vị', 'Khối' ),
+			/* Cột 11 `Vai trò` thêm 21/09/2026 — anh Thắng: *"bỏ tích bộ phận đi, mà tích theo
+			   vai trò"*. Ai ĐƯỢC DÙNG loại chi phí này, khai bằng TÊN VAI (ngăn bằng dấu phẩy).
+			   Trống = mọi vai, giữ đúng nghĩa ô trống của cột Bộ phận nó thay thế.
+			   ⚠️ Cột `Bộ phận` (thứ 5) GIỮ NGUYÊN trong sổ, chỉ thôi dùng: dữ liệu đã khai của
+			      anh Thắng còn đó, và xoá một cột là không lấy lại được. */
+			self::LOAI  => array( 'Loại chi phí', 'TK Nợ', 'TK Có', 'Mã đối tượng', 'Bộ phận', 'Ghi chú', 'Tên MISA', 'Loại', 'Đơn vị', 'Khối', 'Vai trò' ),
 			self::TK    => array( 'Số hiệu', 'Tên tài khoản', 'Tính chất' ),
 			self::MANG  => array( 'Phân loại lớn', 'Nhóm TK', 'Từ khóa trong tên TK', 'Ghi chú' ),
 		);
@@ -988,7 +993,7 @@ class VHCP_Cfg {
 			/* `khoi` rỗng = loại có từ trước lượt chia ba bảng; `lap_khoi_loai()` lấp nốt ngay
 			   lúc nạp cấu hình, nên ô rỗng chỉ tồn tại đúng một khoảnh khắc. Vẫn phải rào
 			   `isset()`: dòng vừa thêm tay có thể chưa đủ ô. */
-			$out['loaiChiPhi'][] = array( 'ten' => $r[0], 'tkNo' => VHCP_Util::ma_so( $r[1] ), 'tkCo' => VHCP_Util::ma_so( $r[2] ), 'maDt' => VHCP_Util::ma_so( $r[3] ), 'boPhan' => $r[4], 'note' => $r[5], 'tenMisa' => isset( $r[6] ) ? $r[6] : '', 'loaiTt' => isset( $r[7] ) ? $r[7] : '', 'donVi' => isset( $r[8] ) ? $r[8] : '', 'khoi' => isset( $r[9] ) ? $r[9] : '' );
+			$out['loaiChiPhi'][] = array( 'ten' => $r[0], 'tkNo' => VHCP_Util::ma_so( $r[1] ), 'tkCo' => VHCP_Util::ma_so( $r[2] ), 'maDt' => VHCP_Util::ma_so( $r[3] ), 'boPhan' => $r[4], 'note' => $r[5], 'tenMisa' => isset( $r[6] ) ? $r[6] : '', 'loaiTt' => isset( $r[7] ) ? $r[7] : '', 'donVi' => isset( $r[8] ) ? $r[8] : '', 'khoi' => isset( $r[9] ) ? $r[9] : '', 'vaiTro' => isset( $r[10] ) ? $r[10] : '' );
 		}
 		foreach ( self::rows_of( $all, self::TKNO ) as $r ) {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
@@ -1318,7 +1323,7 @@ class VHCP_Cfg {
 				   đơn, trong khi tiền mang tên nó vẫn nằm trong sổ. */
 				$kh = trim( (string) $g( $x, 'khoi' ) );
 				if ( '' === $kh ) { $kh = VHCP_DB::khoi(); }
-				$rows[] = array( $tn, VHCP_Util::ma_so( $g( $x, 'tkNo' ) ), VHCP_Util::ma_so( $g( $x, 'tkCo' ) ), VHCP_Util::ma_so( $g( $x, 'maDt' ) ), $g( $x, 'boPhan' ), $nt, $g( $x, 'tenMisa' ), $g( $x, 'loaiTt' ), $g( $x, 'donVi' ), $kh );
+				$rows[] = array( $tn, VHCP_Util::ma_so( $g( $x, 'tkNo' ) ), VHCP_Util::ma_so( $g( $x, 'tkCo' ) ), VHCP_Util::ma_so( $g( $x, 'maDt' ) ), $g( $x, 'boPhan' ), $nt, $g( $x, 'tenMisa' ), $g( $x, 'loaiTt' ), $g( $x, 'donVi' ), $kh, $g( $x, 'vaiTro' ) );
 			}
 			self::write( self::LOAI, $rows );
 		}
@@ -1804,6 +1809,29 @@ class VHCP_Cfg {
 		return $ra;
 	}
 
+	/**
+	 * LOẠI CHI PHÍ NÀY VAI ẤY CÓ ĐƯỢC DÙNG KHÔNG.
+	 *
+	 * Anh Thắng 21/09/2026: *"bỏ tích bộ phận đi, mà tích theo vai trò"*. Từ bản này ô tích ở
+	 * bảng Loại chi phí là TÊN VAI, không còn là tên bộ phận.
+	 *
+	 * 🔴 CHƯA TÍCH VAI NÀO = MỌI VAI ĐỀU DÙNG ĐƯỢC. Giữ đúng nghĩa ô trống của cột Bộ phận nó
+	 *    thay thế, và vì đúng lý do cũ: danh mục của anh Thắng dựng từ sổ cũ, gần như mọi dòng
+	 *    còn bỏ trống. Hiểu ngược lại là ngày bản này lên, mở màn ra thấy gần như trắng — và
+	 *    người ta kết luận là mất dữ liệu chứ không đoán ra là do một ô chưa khai.
+	 */
+	public static function loai_thuoc_vai( $ten_loai, $vai ) {
+		$k = mb_strtolower( trim( (string) $vai ) );
+		if ( '' === $k ) { return true; }
+		$x  = self::loai_tk( $ten_loai );
+		$ds = isset( $x['vaiTro'] ) ? (string) $x['vaiTro'] : '';
+		if ( '' === trim( $ds ) ) { return true; }
+		foreach ( preg_split( '/\s*,\s*/u', $ds ) as $t ) {
+			if ( mb_strtolower( trim( (string) $t ) ) === $k ) { return true; }
+		}
+		return false;
+	}
+
 	/** Loại chi phí này có thuộc bộ phận $bp không. Loại chưa khai bộ phận -> thuộc MỌI bộ phận. */
 	public static function loai_thuoc_bo_phan( $ten_loai, $bp ) {
 		$k = mb_strtolower( trim( (string) $bp ) );
@@ -1818,7 +1846,7 @@ class VHCP_Cfg {
 	public static function loai_tk( $ten ) {
 		$m = self::loai_map();
 		$k = mb_strtolower( trim( (string) $ten ) );
-		if ( ! isset( $m[ $k ] ) ) { return array( 'tkNo' => '', 'tkCo' => '', 'maDt' => '', 'boPhan' => '', 'tenMisa' => '', 'loaiTt' => '' ); }
+		if ( ! isset( $m[ $k ] ) ) { return array( 'tkNo' => '', 'tkCo' => '', 'maDt' => '', 'boPhan' => '', 'tenMisa' => '', 'loaiTt' => '', 'vaiTro' => '' ); }
 		$x = $m[ $k ];
 		return array(
 			'loaiTt'  => isset( $x['loaiTt'] ) ? (string) $x['loaiTt'] : '',
@@ -1827,6 +1855,8 @@ class VHCP_Cfg {
 			'maDt'    => (string) $x['maDt'],
 			'boPhan'  => isset( $x['boPhan'] ) ? (string) $x['boPhan'] : '',
 			'tenMisa' => isset( $x['tenMisa'] ) ? (string) $x['tenMisa'] : '',
+			/* Ai được dùng loại này — xem `loai_thuoc_vai()`. Trống = mọi vai. */
+			'vaiTro'  => isset( $x['vaiTro'] ) ? (string) $x['vaiTro'] : '',
 		);
 	}
 

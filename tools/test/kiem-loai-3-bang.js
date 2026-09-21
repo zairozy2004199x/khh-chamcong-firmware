@@ -112,6 +112,49 @@ ctx2.rows.forEach(function (x) { (theo[x.khoi] = theo[x.khoi] || []).push(x.ten)
 teq('   MTĐ có đủ 2 loại của nó', ['Chi phí khác', 'Thuê mặt bằng'], theo.mtd);
 teq('   KVC giữ dòng của mình', ['Chi phí khác'], theo.kvc);
 
+/* ═══ 5. 🔴 TÍCH THEO VAI TRÒ, KHÔNG CÒN THEO BỘ PHẬN ════════════════════════════
+ * Anh Thắng 21/09/2026: *"bỏ tích bộ phận đi, mà tích theo vai trò"*, *"cho full danh sách vai
+ * trò, để ai làm anh tích vào"*. */
+t('🔴 hàng bảng loại chi phí tích theo VAI TRÒ', /_vaiSelNhieu\(x\.vaiTro/.test(bocSach('_mxRowHtml')), bocSach('_mxRowHtml'));
+t('   không còn ô tích bộ phận ở đó', !/_bpSelNhieu/.test(bocSach('_mxRowHtml')));
+t('🔴 đầu bảng đổi nhãn theo', /Vai trò được dùng/.test(VE) && !/>Bộ phận <span/.test(VE), 'không thấy');
+const LUU2 = bocSach('saveCfgTkNoMx');
+t('🔴 lượt Lưu đọc ô tích vai', /\[data-vai\] input:checked/.test(LUU2), 'không thấy');
+t('   và KHÔNG đọc ô tích bộ phận nữa', !/\[data-bp\] input:checked/.test(LUU2));
+/* 🔴 Bộ phận cũ phải được CHÉP LẠI từ bản cũ, không đọc màn: cột ấy không còn ô nào, đọc ra
+   rỗng rồi ghi xuống là xoá sạch dữ liệu anh Thắng đã khai. */
+t('🔴 lượt Lưu chép lại bộ phận cũ thay vì ghi rỗng', /boPhan:\(goc\.boPhan\|\|''\)/.test(LUU2), LUU2.slice(0, 200));
+
+/* ── chạy thật `_vaiSelNhieu` và `_vaiDungDuocLoai` ────────────────────────────── */
+{
+  const VG = ['Quản lý', 'Kế toán cá nhân', 'Kế toán NCC', 'Nhân viên'];
+  const ctxv = { VAI_GOC: VG, CURUSER: { role: 'Kế Toán Khu Vui Chơi' },
+    CFG: { vaiTro: [
+      { ten: 'Quản Lý Khu Vui Chơi', goc: 'Quản lý' },
+      { ten: 'Kế Toán Khu Vui Chơi', goc: 'Kế toán cá nhân' },
+      { ten: 'Kế Toán Máy Tự Động', goc: 'Kế toán cá nhân' } ] },
+    esc: (x) => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;') };
+  vm.createContext(ctxv);
+  vm.runInContext(['_vaiConCua', '_vaiSelNhieu', '_vaiDungDuocLoai'].map(bocHam).join('\n'), ctxv);
+
+  const hv = ctxv._vaiSelNhieu('Kế Toán Máy Tự Động');
+  teq('🔴 bày ĐỦ danh sách: 4 vai gốc + 3 vai con', 7, (hv.match(/type="checkbox"/g) || []).length);
+  t('   vai đã tích được đánh dấu', /value="Kế Toán Máy Tự Động" checked/.test(hv), hv);
+  t('   vai chưa tích thì không', !/value="Kế Toán Khu Vui Chơi" checked/.test(hv));
+  /* 🔴 Admin không bao giờ bị lọc — bày ô tích cho Admin là ô bấm vào không đổi gì. */
+  t('🔴 KHÔNG bày ô tích cho Admin', hv.indexOf('value="Admin"') < 0, hv);
+
+  const L = (v) => ({ ten: 'X', vaiTro: v });
+  t('🔴 chưa tích ai = mọi vai dùng được', ctxv._vaiDungDuocLoai(L('')));
+  t('vai có trong danh sách thì dùng được', ctxv._vaiDungDuocLoai(L('Kế Toán Khu Vui Chơi, Quản Lý Khu Vui Chơi')));
+  t('🔴 vai KHÔNG có trong danh sách thì không', !ctxv._vaiDungDuocLoai(L('Kế Toán Máy Tự Động')));
+  t('🔴 VAI GỐC của vai đang mang cũng không tự động qua', !ctxv._vaiDungDuocLoai(L('Kế toán cá nhân')));
+  ctxv.CURUSER = { role: 'Admin' };
+  t('🔴 Admin qua hết', ctxv._vaiDungDuocLoai(L('Kế Toán Máy Tự Động')));
+}
+t('🔴 ô chọn lúc nhập đơn có lọc theo vai', /_vaiDungDuocLoai\(x\)/.test(bocSach('_loaiCpList')), 'không thấy');
+t('   và dãy nút "Chọn chi phí nào" cũng vậy', /_vaiDungDuocLoai\(x\)/.test(bocSach('_cacNhomCp')), 'không thấy');
+
 /* ═════════════════════════════════════════════════════════════════════════════════════════ */
 if (TRUOT.length) {
   console.log('\n✗ TRƯỢT ' + TRUOT.length + ' phép (đạt ' + DAT + '):');

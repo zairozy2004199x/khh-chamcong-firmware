@@ -1,6 +1,6 @@
 <?php
 /**
- * BỘ PHẬN LÀ MỘT TRỤC DUY NHẤT — KHAI Ở HÀNG NGƯỜI DÙNG, KHÔNG Ở VAI TRÒ.
+ * AI CHỈ THẤY PHẦN CỦA MÌNH — LOẠI CHI PHÍ TÍCH THEO VAI TRÒ.
  *
  * Anh Thắng 08/09/2026: *"thêm vai trò kế toán máy tự động (để chỉ thực hiện công việc bên bộ
  * phận máy tự động)"*, và trước đó gọi tắt mảng ấy là *"mảng mtd"*.
@@ -128,15 +128,23 @@ teq( 'Admin không bao giờ bị bó, dù ô có khai', '', VHCP_Auth::bo_phan_
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
  * 3. LOẠI CHI PHÍ THUỘC BỘ PHẬN NÀO — và ai được đọc dòng mang loại ấy
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+/* ⚠️ TỪ 21/09/2026 Ô TÍCH LÀ VAI TRÒ, KHÔNG CÒN LÀ BỘ PHẬN — anh Thắng: *"bỏ tích bộ phận đi,
+   mà tích theo vai trò"*. Cả bài này vẫn kiểm đúng một chuyện: *"ai chỉ thấy phần của mình"*.
+   Chỉ TRỤC đổi, nên chỗ gieo đổi theo: cột 11 khai TÊN VAI được dùng. Cột 5 (Bộ phận) giữ
+   nguyên trong sổ để chứng minh nó KHÔNG còn cắt gì nữa. */
 VHCP_Cfg::write( VHCP_Cfg::LOAI, array(
-	/* cột: loại · TK nợ · TK có · mã đt · BỘ PHẬN · ghi chú · tên MISA · loại */
-	array( 'Sửa máy gắp thú', '6427', '', '', 'Máy tự động', '', '', '' ),
-	array( 'Chạy quảng cáo',  '6417', '', '', 'Marketing',   '', '', '' ),
-	array( 'Chi phí khác',    '6428', '', '', '',            '', '', '' ),   // CHƯA khai bộ phận
+	/* cột: loại · TKnợ · TKcó · mãđt · bộphận · ghichú · tênMISA · loại · đơnvị · khối · VAI TRÒ */
+	array( 'Sửa máy gắp thú', '6427', '', '', 'Máy tự động', '', '', '', '', '', 'Kế toán máy tự động' ),
+	array( 'Chạy quảng cáo',  '6417', '', '', 'Marketing',   '', '', '', '', '', 'Kế toán marketing' ),
+	array( 'Chi phí khác',    '6428', '', '', '',            '', '', '', '', '', '' ),   // CHƯA tích vai nào
 ) );
-teq( 'loại "Sửa máy gắp thú" thuộc Máy tự động', 'Máy tự động', VHCP_Cfg::bo_phan_cua_loai( 'Sửa máy gắp thú' ) );
-teq( 'loại "Chạy quảng cáo" thuộc Marketing',    'Marketing',   VHCP_Cfg::bo_phan_cua_loai( 'Chạy quảng cáo' ) );
-teq( 'loại chưa khai bộ phận -> rỗng',           '',            VHCP_Cfg::bo_phan_cua_loai( 'Chi phí khác' ) );
+teq( 'loại "Sửa máy gắp thú" tích cho vai kế toán máy tự động',
+	'Kế toán máy tự động', VHCP_Cfg::loai_tk( 'Sửa máy gắp thú' )['vaiTro'] );
+teq( 'loại "Chạy quảng cáo" tích cho vai khác',
+	'Kế toán marketing', VHCP_Cfg::loai_tk( 'Chạy quảng cáo' )['vaiTro'] );
+teq( 'loại chưa tích vai nào -> rỗng (= mọi vai)', '', VHCP_Cfg::loai_tk( 'Chi phí khác' )['vaiTro'] );
+/* Cột Bộ phận cũ vẫn còn nguyên trong sổ — thôi dùng chứ không xoá. */
+teq( 'ô Bộ phận cũ vẫn còn trong sổ', 'Máy tự động', VHCP_Cfg::bo_phan_cua_loai( 'Sửa máy gắp thú' ) );
 teq( 'loại không có trong danh mục -> rỗng',     '',            VHCP_Cfg::bo_phan_cua_loai( 'Loại lạ hoắc' ) );
 
 /* Đăng nhập bằng đúng tên người LẬP ĐƠN thử. Vai Nhân viên vốn chỉ thấy đơn của chính mình
@@ -150,18 +158,23 @@ teq( 'loại không có trong danh mục -> rỗng',     '',            VHCP_Cfg
 function lam( $vai, $ten = 'NV', $bp = '' ) { VHCP_Auth::dat_vai_tro( $vai, $ten, '', $bp ); }
 
 lam( 'Kế toán máy tự động', 'NV', 'Máy tự động' );
-teq( 'người bó bộ phận đọc đúng bộ phận của mình', 'Máy tự động', VHCP_Auth::bo_phan_bo() );
-teq( '🔴 đọc được dòng của bộ phận mình',  true,  VHCP_Auth::xem_duoc_loai( 'Sửa máy gắp thú' ) );
-teq( '🔴 KHÔNG đọc được dòng của mảng khác', false, VHCP_Auth::xem_duoc_loai( 'Chạy quảng cáo' ) );
-/* 🔴 Danh mục của anh Thắng dựng từ sổ cũ, rất nhiều dòng còn bỏ trống ô Bộ phận. Chặn chúng
-   lại là ngày bản này lên, kế toán bó bộ phận mở màn ra thấy gần như trắng. */
-teq( '🔴 loại CHƯA khai bộ phận thì vẫn đọc được', true, VHCP_Auth::xem_duoc_loai( 'Chi phí khác' ) );
+teq( '🔴 đọc được dòng đã tích cho vai mình',  true,  VHCP_Auth::xem_duoc_loai( 'Sửa máy gắp thú' ) );
+teq( '🔴 KHÔNG đọc được dòng tích cho vai khác', false, VHCP_Auth::xem_duoc_loai( 'Chạy quảng cáo' ) );
+/* 🔴 Danh mục của anh Thắng dựng từ sổ cũ, rất nhiều dòng còn bỏ trống ô này. Chặn chúng lại
+   là ngày bản này lên, kế toán mở màn ra thấy gần như trắng. */
+teq( '🔴 loại CHƯA tích vai nào thì vẫn đọc được', true, VHCP_Auth::xem_duoc_loai( 'Chi phí khác' ) );
 teq( 'loại không có trong danh mục cũng đọc được', true, VHCP_Auth::xem_duoc_loai( 'Loại lạ hoắc' ) );
 
+/* 🔴 VAI GỐC KHÔNG PHẢI CHÌA KHOÁ VẠN NĂNG. Trước 21/09/2026, vai nào không bị bó bộ phận thì
+   đọc được tất; nay ô tích ghi TÊN VAI, nên "Kế toán cá nhân" không tự động thừa hưởng những
+   dòng tích cho vai con của nó. Đổi được điều này thì cả nhánh nhìn thấy sổ của nhau. */
 lam( 'Kế toán cá nhân' );
-teq( 'kế toán thường không bị bó', '', VHCP_Auth::bo_phan_bo() );
-teq( 'nên đọc được mọi mảng · máy tự động', true, VHCP_Auth::xem_duoc_loai( 'Sửa máy gắp thú' ) );
-teq( 'nên đọc được mọi mảng · marketing',   true, VHCP_Auth::xem_duoc_loai( 'Chạy quảng cáo' ) );
+teq( '🔴 vai gốc KHÔNG đọc được dòng tích riêng cho vai con', false, VHCP_Auth::xem_duoc_loai( 'Sửa máy gắp thú' ) );
+teq( '   kể cả dòng của nhánh khác',                          false, VHCP_Auth::xem_duoc_loai( 'Chạy quảng cáo' ) );
+teq( '   nhưng dòng CHƯA tích ai thì vẫn đọc được',           true,  VHCP_Auth::xem_duoc_loai( 'Chi phí khác' ) );
+/* Admin thì qua hết, luôn luôn. */
+lam( 'Admin' );
+teq( '🔴 Admin đọc được mọi dòng, kể cả dòng tích riêng', true, VHCP_Auth::xem_duoc_loai( 'Sửa máy gắp thú' ) );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
  * 4. SỔ CHI PHÍ — chạy thật qua `list_chi()`
@@ -180,8 +193,11 @@ function sc_ids() {
 	sort( $a );
 	return $a;
 }
+/* Đối chứng chạy thật qua `list_chi()`: Admin thấy cả ba; vai gốc chỉ thấy dòng chưa tích ai. */
+lam( 'Admin' );
+teq( 'đối chứng · Admin thấy cả ba dòng', array( 'S_KHAC', 'S_MKT', 'S_MTD' ), sc_ids() );
 lam( 'Kế toán cá nhân' );
-teq( 'đối chứng · kế toán thường thấy cả ba dòng', array( 'S_KHAC', 'S_MKT', 'S_MTD' ), sc_ids() );
+teq( '🔴 đối chứng · vai gốc chỉ thấy dòng CHƯA tích ai', array( 'S_KHAC' ), sc_ids() );
 lam( 'Kế toán máy tự động', 'NV', 'Máy tự động' );
 teq( '🔴 kế toán máy tự động chỉ thấy dòng của mình + dòng chưa phân loại',
 	array( 'S_KHAC', 'S_MTD' ), sc_ids() );
@@ -264,11 +280,20 @@ teq( '🔴 vai bó Marketing chỉ thấy mảng Marketing', array( 'Marketing' 
  * cả khu vui chơi mở màn ra thấy thiếu đơn — và họ không có cách nào đoán ra vì sao. Chốt: ai
  * KHÔNG mang vai bó bộ phận thì thấy y nguyên như trước, bất kể vai gì.
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+/* ⚠️ TỪ 21/09/2026 luật là TÍCH THEO VAI. Nên câu "người đang chạy không bị đụng" nay đọc là:
+   SITE CHƯA TÍCH GÌ THÌ MỌI VAI THẤY Y NGUYÊN NHƯ TRƯỚC. Đó mới là điều đáng canh — ngày bản
+   này lên, chưa ai kịp tích ô nào, mà màn hình đã đổi thì cả công ty đứng hình.
+   Nên gỡ hết ô tích rồi mới đo. (Ca "đã tích rồi" nằm ở mục 3 và ở `kiem-loai-theo-vai.php`.) */
+VHCP_Cfg::write( VHCP_Cfg::LOAI, array(
+	array( 'Sửa máy gắp thú', '6427', '', '', 'Máy tự động', '', '', '', '', '', '' ),
+	array( 'Chạy quảng cáo',  '6417', '', '', 'Marketing',   '', '', '', '', '', '' ),
+	array( 'Chi phí khác',    '6428', '', '', '',            '', '', '', '', '', '' ),
+), false );
+VHCP_Cfg::clear_cache();
 $MOI = array( 'S_KHAC', 'S_MKT', 'S_MTD' );
 $DON = array( 'D_LAN', 'D_MKT', 'D_MTD', 'D_TRONG' );
 foreach ( array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC', 'Nhân viên', 'Kế toán chung' ) as $v ) {
 	lam( $v );
-	teq( '🔴 vai "' . $v . '" KHÔNG bị bó bộ phận', '', VHCP_Auth::bo_phan_bo() );
 	teq( 'và thấy đủ sổ chi phí như trước · ' . $v, $MOI, sc_ids() );
 	teq( 'và thấy đủ đơn như trước · ' . $v,        $DON, don_mas() );
 }
@@ -363,4 +388,4 @@ if ( $truot ) {
 	foreach ( $truot as $x ) { echo "  · $x\n"; }
 	exit( 1 );
 }
-echo "\n✓ SẠCH — $dat phép: bộ phận chỉ khai một nơi, và nó bó đúng những gì phải bó.\n";
+echo "\n✓ SẠCH — $dat phép: loại chi phí lọc theo vai, chưa tích thì mọi vai thấy, Admin thấy hết.\n";

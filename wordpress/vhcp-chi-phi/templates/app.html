@@ -1962,6 +1962,7 @@
     var co={}, ds=[];
     (BOOT.loaiChiPhi||[]).forEach(function(x){
       if(_khoiCuaLoai(x)!==String(KHOI_DANG).toLowerCase()) return;   /* xem chốt ở `_loaiCpList()` */
+      if(!_vaiDungDuocLoai(x)) return;                                /* nt */
       var bds=_bpTach(x.boPhan);                       // loại chi phí thuộc được NHIỀU bộ phận
       /* Gom về nút nào ở "Chọn chi phí nào": ưu tiên chính bộ phận của người đang xem, để
          loại dùng chung không bị dồn hết vào nút của bộ phận đứng đầu chuỗi. */
@@ -8687,6 +8688,11 @@
          thì chia chẳng để làm gì: người Văn phòng vẫn chọn nhầm được loại của Khu vui chơi,
          và dòng chi ấy đi thẳng vào sổ mang mã tài khoản của khối khác. */
       if(_khoiCuaLoai(x)!==String(KHOI_DANG).toLowerCase()) return false;
+      /* 🔴 VÀ LỌC THEO VAI TRÒ — anh Thắng 21/09/2026: *"bỏ tích bộ phận đi, mà tích theo vai
+         trò"*. Máy chủ đã gác ở `VHCP_Auth::xem_duoc_loai()`, nhưng Ô CHỌN lúc nhập đơn dựng
+         ngay ở màn từ `BOOT.loaiChiPhi`. Không lọc ở đây là người nhập chọn được một loại mà
+         sổ của chính họ không hiện — hai bên nói hai chuyện. */
+      if(!_vaiDungDuocLoai(x)) return false;
       // CHỈ HIỆN LOẠI ĐÃ KHAI MÃ trong Cấu hình.
       //
       // Lúc nạp dữ liệu cũ, mỗi tên hạng mục lạ đều được thêm vào danh mục để còn khai mã
@@ -10823,6 +10829,42 @@
       }).join('')
       +'</div>';
   }
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * Ô TÍCH VAI TRÒ CHO LOẠI CHI PHÍ — AI ĐƯỢC DÙNG LOẠI NÀY.
+   *
+   * Anh Thắng 21/09/2026: *"bỏ tích bộ phận đi, mà tích theo vai trò"*, và *"cho full danh
+   * sách vai trò, để ai làm anh tích vào"*.
+   *
+   * 🔴 KHÔNG TÍCH GÌ = MỌI VAI. Giữ đúng nghĩa ô trống của cột Bộ phận nó thay thế, và vì đúng
+   *    lý do cũ: danh mục dựng từ sổ cũ nên gần như mọi dòng còn trống. Hiểu ngược lại là ngày
+   *    bản này lên, kế toán mở màn ra thấy gần như trắng — rồi kết luận là mất dữ liệu.
+   *
+   * ⚠️ XẾP THEO CHA – CON, không đổ một đống phẳng. Anh Thắng khai mười một vai con; mười lăm
+   *    ô tích nằm ngang một hàng thì không ai dò ra cái nào thuộc nhánh nào, mà tích nhầm
+   *    nhánh là mở sổ cho cả một nhóm người khác.
+   *
+   * 🔴 KHÔNG BÀY ADMIN. Admin không bao giờ bị lọc (xem `VHCP_Auth::xem_duoc_loai()`), nên một
+   *    ô tích cho Admin là ô bấm vào không đổi gì — tệ hơn là nó khiến người khai tưởng BỎ tích
+   *    Admin thì chặn được Admin.
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  function _vaiSelNhieu(v){
+    var da={};
+    String(v||'').split(',').forEach(function(x){ var k=x.trim().toLowerCase(); if(k) da[k]=1; });
+    var h='<div data-vai style="display:flex;flex-direction:column;gap:3px;padding:2px 0" '
+      +'title="Không tích gì = MỌI vai đều dùng được loại này. Admin không bao giờ bị lọc nên không có ở đây.">';
+    VAI_GOC.forEach(function(cha){
+      var con=_vaiConCua(cha);
+      var o=function(r,dam){
+        return '<label style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;white-space:nowrap;cursor:pointer'
+          +(dam?';font-weight:700':'')+'">'
+          +'<input type="checkbox" value="'+esc(r)+'"'+(da[r.toLowerCase()]?' checked':'')+' style="margin:0;cursor:pointer">'
+          +esc(r)+'</label>';
+      };
+      h+='<div style="display:flex;flex-wrap:wrap;gap:2px 10px">'+o(cha,true)
+        +con.map(function(r){ return o(r,false); }).join('')+'</div>';
+    });
+    return h+'</div>';
+  }
   /* ══════════════════════════════════════════════════════════════════════════════════════
    * Ô TÍCH ĐƠN VỊ CHO LOẠI CHI PHÍ — anh Thắng 12/09/2026: *"Đối với POSH sẽ có cột Chi Phí
    * Khác, Chi Phí Chung, Chi Phí Cơ Sở, Chi Phí Setup"*.
@@ -10850,6 +10892,18 @@
   /* Khối của một loại chi phí. Rỗng = dòng có từ trước lượt chia ba bảng và chưa kịp lấp —
      `VHCP_Cfg::seed()` lấp mỗi lượt nạp, nên coi nó thuộc khối của bản đang chạy để nó không
      rơi khỏi cả ba bảng dù chỉ một khoảnh khắc. */
+  /* Vai đang đăng nhập có dùng được loại chi phí này không. Bản song sinh ở màn của
+     `VHCP_Cfg::loai_thuoc_vai()` — hai bên PHẢI cùng luật, lệch một vế là màn giấu mất loại
+     mà máy chủ vẫn cho, hoặc bày ra loại máy chủ sẽ chối.
+     🔴 KHÔNG TÍCH GÌ = MỌI VAI. 🔴 Admin không bao giờ bị lọc. */
+  function _vaiDungDuocLoai(x){
+    var ds=String((x&&x.vaiTro)||'').trim();
+    if(!ds) return true;
+    var vai=String((CURUSER&&CURUSER.role)||'').trim();
+    if(!vai || vai==='Admin') return true;
+    var k=vai.toLowerCase();
+    return ds.split(',').some(function(t){ return t.trim().toLowerCase()===k; });
+  }
   function _khoiCuaLoai(x){
     var k=String((x&&x.khoi)||'').trim().toLowerCase();
     if(k) return k;
@@ -11088,7 +11142,7 @@
       h+='<div class="tw"><table style="min-width:870px"><thead><tr>'
         +'<th style="text-align:left;min-width:240px">Loại chi phí</th>'
         +'<th style="width:140px">Loại</th>'
-        +'<th style="width:320px">Bộ phận <span style="font-weight:400;color:#8c8781">(không tích = mọi bộ phận)</span></th>'
+        +'<th style="width:340px">Vai trò được dùng <span style="font-weight:400;color:#8c8781">(không tích = mọi vai)</span></th>'
         +'<th style="width:170px">Đơn vị <span style="font-weight:400;color:#8c8781">(không tích = mọi nhà)</span></th>'
         +'<th style="width:190px">Tên theo MISA</th>'
         +'<th style="width:44px"></th></tr></thead>'
@@ -11628,7 +11682,9 @@
     var ten=String(x.ten||'');
     return '<tr><td><input value="'+esc(ten)+'" data-goc="'+esc(ten)+'" placeholder="VD: Chi phí lương" style="width:100%"></td>'
       +'<td>'+_loaiSel(x.loaiTt||'').replace('<select','<select data-o="loaiTt"')+'</td>'
-      +'<td>'+_bpSelNhieu(x.boPhan||'')+'</td>'
+      /* 🔴 TÍCH THEO VAI TRÒ, KHÔNG CÒN THEO BỘ PHẬN (21/09/2026). Ô `boPhan` cũ vẫn nằm
+         trong sổ và vẫn được `saveCfgTkNoMx()` chép lại nguyên vẹn — chỉ thôi bày ra. */
+      +'<td>'+_vaiSelNhieu(x.vaiTro||'')+'</td>'
       +'<td>'+_dvSelNhieu(x.donVi||'')+'</td>'
       +'<td><input value="'+esc(x.tenMisa||'')+'" data-o="misa" placeholder="trống = dùng tên bên trái" style="width:100%"></td>'
       +_delBtn()+'</tr>';
@@ -11689,13 +11745,16 @@
       var goc=cu[k]||cu[khoiB+'|'+goc0.toLowerCase()]||{};
       var oLoai=tr.querySelector('select[data-o="loaiTt"]');
       var oMisa=tr.querySelector('input[data-o="misa"]');
-      var bp=Array.prototype.map.call(tr.querySelectorAll('[data-bp] input:checked'),
+      /* 🔴 ĐỌC Ô TÍCH VAI. Còn `boPhan` thì LẤY LẠI TỪ BẢN CŨ (`goc`) chứ không đọc màn —
+         cột ấy không còn ô nào trên bảng, đọc ra rỗng rồi ghi xuống là xoá sạch dữ liệu bộ
+         phận anh Thắng đã khai, mà anh chỉ bảo thôi dùng chứ chưa bảo xoá. */
+      var vai=Array.prototype.map.call(tr.querySelectorAll('[data-vai] input:checked'),
                 function(c){ return c.value; }).join(', ');
       var dvL=Array.prototype.map.call(tr.querySelectorAll('[data-dv-nhieu] input:checked'),
                 function(c){ return c.value; }).join(', ');
       // Bảng không còn cột TK Có và "Mọi mảng" -> giữ nguyên giá trị đã lưu, đừng ghi rỗng
       // lên (lưu bảng một lần là xóa sạch mã cũ của mọi loại thì hỏng nặng).
-      dm.push({ ten:ten, loaiTt:String((oLoai&&oLoai.value)||''), boPhan:bp, donVi:dvL, khoi:khoiB,
+      dm.push({ ten:ten, loaiTt:String((oLoai&&oLoai.value)||''), vaiTro:vai, boPhan:(goc.boPhan||''), donVi:dvL, khoi:khoiB,
                 tenMisa:String((oMisa&&oMisa.value)||'').trim(),
                 tkCo:goc.tkCo||'', tkNo:goc.tkNo||'',
                 maDt:goc.maDt||'', note:goc.note||'' });

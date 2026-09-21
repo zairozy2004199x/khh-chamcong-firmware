@@ -131,6 +131,9 @@ function dungBe(loaiChiPhi, tkNoMatrix, coso, mangTk) {
        `ReferenceError` vì một lý do chẳng liên quan tới bảng mã. */
     KHOI_DS: [{ ma: 'kvc', ten: 'Khu vui chơi' }, { ma: 'mtd', ten: 'Máy tự động' }, { ma: 'vp', ten: 'Văn phòng' }],
     KHOI_DANG: 'kvc',
+    /* Ô tích trên bảng loại chi phí nay là VAI TRÒ (21/09/2026) — `_vaiSelNhieu()` đọc
+       `VAI_GOC` để xếp cha–con. */
+    VAI_GOC: ['Quản lý', 'Kế toán cá nhân', 'Kế toán NCC', 'Nhân viên'],
     _dvChuan: v => String(v == null ? '' : v).trim() || 'K&H',
     /* Trả ô CHỈ KHI bộ chọn thật sự trỏ vào bảng mã. Trả bừa là đục hỏng bộ chọn trong mã
        thật mà bài kiểm vẫn xanh — bệ đỡ dễ dãi thì phép nào đi qua nó cũng vô nghĩa. */
@@ -154,7 +157,7 @@ function dungBe(loaiChiPhi, tkNoMatrix, coso, mangTk) {
   moi.window = moi;
   const F = new Function('moi', `with(moi){
     ${boc('_bpTach')}\n${boc('_bpSelNhieu')}\n${boc('_inp')}\n${boc('_loaiSel')}
-    ${boc('_khoiCuaLoai')}\n${boc('_mxBodies')}\n${boc('_khoiDuoc')}
+    ${boc('_khoiCuaLoai')}\n${boc('_mxBodies')}\n${boc('_khoiDuoc')}\n${boc('_vaiConCua')}\n${boc('_vaiSelNhieu')}
     ${boc('_dvSelNhieu')}\n${boc('_loaiChoDv')}\n${boc('_mangTong')}\n${boc('_mangTongDoan')}\n${boc('_mxMaGoc')}\n${boc('_mxSapCols')}\n${boc('_mxCols')}\n${boc('_mxNhomDv')}\n${boc('_xemDuocDv')}\n${boc('_mxRowHtml')}\n${boc('renderTkNoMatrix')}\n${boc('saveCfgTkNoMx')}
     return { ve: renderTkNoMatrix, luu: saveCfgTkNoMx }; }`)(moi);
   return { moi, NK, KHO, F };
@@ -195,10 +198,13 @@ const MANG_TK = [
   t('   và đủ ba thân bảng, mỗi khối một cái', (h.match(/class="cfgMxBody"/g) || []).length === 3,
     (h.match(/class="cfgMxBody"/g) || []).length);
   t('🔴 và bảng mã riêng, MỘT BẢNG MỖI ĐƠN VỊ', h.indexOf('class="mxNoBody" data-dv="K&amp;H"') >= 0);
-  t('🔴 ô Bộ phận là HỘP TÍCH, không phải danh sách phải giữ Ctrl',
-    h.indexOf('<div data-bp') >= 0 && h.indexOf('type="checkbox" value="Kỹ thuật" checked') >= 0
+  /* ⚠️ Ô TÍCH TỪ 21/09/2026 LÀ VAI TRÒ, không còn là bộ phận (anh Thắng: *"bỏ tích bộ phận đi,
+     mà tích theo vai trò"*). Khuôn vẫn phải là HỘP TÍCH — danh sách nhiều lựa chọn của trình
+     duyệt đòi giữ Ctrl, bấm thường là bỏ sạch những cái đang chọn, tức nới quyền trong im lặng. */
+  t('🔴 ô Vai trò là HỘP TÍCH, không phải danh sách phải giữ Ctrl',
+    h.indexOf('<div data-vai') >= 0 && h.indexOf('type="checkbox" value="Quản lý"') >= 0
     && h.indexOf('<select multiple') < 0, h.slice(0, 600));
-  t('   nói rõ không tích gì = mọi bộ phận', h.indexOf('không tích = mọi bộ phận') >= 0);
+  t('   nói rõ không tích gì = mọi vai', h.indexOf('Không tích gì = MỌI vai') >= 0);
   /* Cột đầu nay bọc tên mảng trong một `<div>` để nhét thêm ô MÃ TỔNG xuống dưới (anh Thắng
      12/09/2026: *"TUTU MN (6410)"*), nên đừng canh `>Funzone</td>` nữa — canh tên có mặt ở
      cột đầu là đủ, còn thẻ bọc là chuyện trình bày. */
@@ -230,8 +236,8 @@ const MANG_TK = [
     && (h.match(/<th style="text-align:left;min-width:220px;position:sticky;left:0/g) || []).length
       === (h.match(/class="mxNoBody"/g) || []).length,
     h.match(/position:sticky[^"]*/g));
-  t('   cột Bộ phận rộng ra cho vừa hàng ô tích (trước bị bóp còn "Nhà▾")',
-    h.indexOf('<th style="width:320px">Bộ phận') >= 0, h.slice(0, 400));
+  t('   cột ô tích rộng ra cho vừa hàng vai (trước bị bóp còn "Nhà▾")',
+    h.indexOf('<th style="width:340px">Vai trò được dùng') >= 0, h.slice(0, 400));
   t('🔴 mỗi ô mã mang data-loai + data-pll (mốc để lưu, thay cho vị trí cột)',
     h.indexOf('data-loai="Chi phí cơ sở" data-pll="Funzone"') >= 0);
   t('🔴 ô tên loại mang data-goc (mốc để nhận ra loại vừa đổi tên)',
