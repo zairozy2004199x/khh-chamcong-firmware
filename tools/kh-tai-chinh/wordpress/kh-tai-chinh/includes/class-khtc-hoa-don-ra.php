@@ -226,7 +226,7 @@ class KHTC_HoaDonRa {
 		KHTC_NhatKy::mo_lo();
 		foreach ( preg_split( '/\r\n|\r|\n/', (string) $text ) as $i => $d ) {
 			if ( '' === trim( $d ) ) { continue; }
-			$o = ( strpos( $d, "\t" ) !== false ) ? explode( "\t", $d ) : str_getcsv( $d );
+			$o = ( strpos( $d, "\t" ) !== false ) ? explode( "\t", $d ) : str_getcsv( $d, ',', '"', '' );
 			$o = array_map( 'trim', $o );
 			// Dán cả dòng tiêu đề là chuyện thường khi bôi đen cả bảng trong Excel.
 			if ( isset( $o[1] ) && ( 'Ngày HĐ' === $o[1] || 'Số HĐ' === ( $o[2] ?? '' ) ) ) { continue; }

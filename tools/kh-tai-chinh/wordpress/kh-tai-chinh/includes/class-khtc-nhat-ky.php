@@ -56,6 +56,7 @@ class KHTC_NhatKy {
 			'chi_phi'   => 'Chi phí',
 			'hd_ra'     => 'Hoá đơn đầu ra',
 			'hd_vao'    => 'Hoá đơn đầu vào',
+			'hop_dong'  => 'Hợp đồng',
 			'thanh_toan' => 'Thanh toán',
 		);
 		return $ds[ $b ] ?? $b;

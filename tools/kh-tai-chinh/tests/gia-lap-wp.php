@@ -62,6 +62,7 @@ function wp_nonce_url( $u, $a = -1, $n = '_wpnonce' ) { return $u . ( strpos( $u
 // ------------------------------------------------------------ escape, lọc
 function esc_html( $s ) { return htmlspecialchars( (string) $s, ENT_QUOTES, 'UTF-8' ); }
 function esc_attr( $s ) { return htmlspecialchars( (string) $s, ENT_QUOTES, 'UTF-8' ); }
+function esc_url_raw( $s ) { return trim( (string) $s ); }
 function esc_url( $s ) { return htmlspecialchars( (string) $s, ENT_QUOTES, 'UTF-8' ); }
 function esc_textarea( $s ) { return htmlspecialchars( (string) $s, ENT_QUOTES, 'UTF-8' ); }
 function sanitize_text_field( $s ) { return trim( strip_tags( (string) $s ) ); }
@@ -209,6 +210,7 @@ class KHTC_Wpdb_Gia {
 		$this->query( 'CREATE TABLE wp_khtc_doi_soat (id INTEGER PRIMARY KEY AUTOINCREMENT, cty TEXT, ten TEXT, kenh TEXT, ngan_hang_id INTEGER, tu TEXT, den TEXT, chay_luc TEXT, tao_luc TEXT, tao_boi TEXT)' );
 		$this->query( 'CREATE TABLE wp_khtc_chi_phi (id INTEGER PRIMARY KEY AUTOINCREMENT, cty TEXT, ngay TEXT, bo_phan TEXT, khoan_muc TEXT, nha_cung_cap TEXT, dien_giai TEXT, so_tien INTEGER, so_ct TEXT, han_tt TEXT, hinh_thuc TEXT, ngan_hang_id INTEGER DEFAULT 0, giao_dich_id INTEGER DEFAULT 0, kieu_khop TEXT DEFAULT \'\', tao_luc TEXT, tao_boi TEXT)' );
 		$this->query( "CREATE TABLE wp_khtc_hd_ra (id INTEGER PRIMARY KEY AUTOINCREMENT, cty TEXT, ngay TEXT, han_tt TEXT, so_hd TEXT, khach TEXT, mst TEXT, dia_chi_kh TEXT, email TEXT, noi_dung TEXT, so_luong TEXT, dvt TEXT, thanh_tien INTEGER, chua_vat INTEGER, thue_suat TEXT, vat INTEGER, co_vat INTEGER, khu_vuc TEXT, dich_vu TEXT, so_hop_dong TEXT, ma_diem TEXT, ma_misa TEXT, ghi_chu TEXT, dia_chi TEXT, tao_luc TEXT, tao_boi TEXT, UNIQUE (cty, so_hd))" );
+		$this->query( 'CREATE TABLE wp_khtc_hop_dong (id INTEGER PRIMARY KEY AUTOINCREMENT, cty TEXT, loai TEXT, doi_tac TEXT, mst TEXT, dai_dien TEXT, chuc_vu TEXT, so_hd TEXT, ngay_ky TEXT, ngay_bat_dau TEXT, ngay_het_han TEXT, gia_tri INTEGER, noi_dung TEXT, gian TEXT, ma_diem TEXT, ma_misa TEXT, khu_vuc TEXT, hinh_thuc TEXT, trang_thai TEXT, loai_chia_se TEXT, phan_tram REAL DEFAULT 0, mien INTEGER DEFAULT 0, link_chua_dau TEXT, link_du_dau TEXT, ghi_chu TEXT, tao_luc TEXT, tao_boi TEXT)' );
 		$this->query( 'CREATE TABLE wp_khtc_hd_vao (id INTEGER PRIMARY KEY AUTOINCREMENT, cty TEXT, ngay TEXT, so_hd TEXT, nha_cung_cap TEXT, mst TEXT, dia_chi TEXT, noi_dung TEXT, chua_vat INTEGER, thue_suat TEXT, vat INTEGER, co_vat INTEGER, hinh_thuc TEXT, khau_tru INTEGER DEFAULT 1, ly_do TEXT, chi_phi_id INTEGER DEFAULT 0, ghi_chu TEXT, tao_luc TEXT, tao_boi TEXT, UNIQUE (cty, so_hd, mst))' );
 		$this->query( 'CREATE TABLE wp_khtc_thanh_toan (id INTEGER PRIMARY KEY AUTOINCREMENT, cty TEXT, bang TEXT, chung_tu_id INTEGER, giao_dich_id INTEGER DEFAULT 0, ngay TEXT, so_tien INTEGER, ghi_chu TEXT, tu_dong INTEGER DEFAULT 0, tao_luc TEXT, tao_boi TEXT)' );
 		$this->query( 'CREATE TABLE wp_khtc_nhat_ky (id INTEGER PRIMARY KEY AUTOINCREMENT, cty TEXT, luc TEXT, ai TEXT, viec TEXT, bang TEXT, ban_ghi_id INTEGER DEFAULT 0, tom_tat TEXT, du_lieu TEXT)' );
@@ -221,10 +223,10 @@ $GLOBALS['wpdb']->tao_bang_sqlite();
 
 // ------------------------------------------------------------ nạp plugin
 $goc = __DIR__ . '/../wordpress/kh-tai-chinh/';
-define( 'KHTC_VERSION', '0.8.0' );
+define( 'KHTC_VERSION', '0.9.0' );
 define( 'KHTC_DIR', $goc );
 define( 'KHTC_URL', 'https://vi.du/wp-content/plugins/kh-tai-chinh/' );
 define( 'KHTC_CAP', 'edit_pages' );
-foreach ( array( 'db', 'cty', 'nhat-ky', 'khoa', 'ngan-hang', 'giao-dich', 'doi-soat', 'chi-phi', 'hoa-don-ra', 'hoa-don-vao', 'cong-no', 'bao-cao', 'sao-luu', 'ui', 'trang', 'web', 'admin' ) as $t ) {
+foreach ( array( 'db', 'cty', 'nhat-ky', 'khoa', 'ngan-hang', 'giao-dich', 'doi-soat', 'chi-phi', 'hoa-don-ra', 'hoa-don-vao', 'cong-no', 'phap-danh', 'bao-cao', 'sao-luu', 'ui', 'trang', 'web', 'admin' ) as $t ) {
 	require_once $goc . 'includes/class-khtc-' . $t . '.php';
 }

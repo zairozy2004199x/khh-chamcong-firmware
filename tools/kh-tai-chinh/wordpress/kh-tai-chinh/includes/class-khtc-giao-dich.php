@@ -118,7 +118,11 @@ class KHTC_GiaoDich {
 		foreach ( $dong as $i => $d ) {
 			$d = trim( $d );
 			if ( '' === $d ) { continue; }
-			$o = ( strpos( $d, "\t" ) !== false ) ? explode( "\t", $d ) : str_getcsv( $d );
+			// Tham số escape phải truyền rõ: PHP 8.4 bỏ giá trị mặc định. Truyền
+			// '' chứ không phải '\\' — gạch chéo ngược làm ký tự thoát là kiểu
+			// riêng của PHP, không có trong CSV chuẩn, và nó nuốt mất dấu \\
+			// trong tên hay đường dẫn dán từ Excel.
+			$o = ( strpos( $d, "\t" ) !== false ) ? explode( "\t", $d ) : str_getcsv( $d, ',', '"', '' );
 			$o = array_map( 'trim', $o );
 			if ( count( $o ) < 3 ) {
 				$loi[] = 'Dòng ' . ( $i + 1 ) . ': cần ít nhất Ngày, Diễn giải, Số tiền.';

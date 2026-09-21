@@ -67,20 +67,27 @@ $kq = KHTC_ChiPhi::dan_hang_loat( $bang, $nh, 'chuyen_khoan' );
 kiem( 'nạp 5 khoản chi', $kq['them'], 5 );
 kiem( 'nạp không lỗi dòng nào', $kq['loi'], array() );
 
+// Dán bằng DẤU PHẨY đi qua str_getcsv, đường mà PHP 8.4 bắt phải truyền rõ
+// tham số escape. Thiếu nó là mọi ô dán bảng trong plugin kêu deprecation.
+$phay = KHTC_ChiPhi::dan_hang_loat( "11/08/2026,Văn phòng,Khác,NCC ABC,250.000,CT99,ghi chu", 0 );
+kiem( 'dán bằng dấu phẩy chạy được', array( $phay['them'], $phay['loi'] ), array( 1, array() ) );
+$co_phay = KHTC_ChiPhi::loc( array( 'tu' => '2026-08-11', 'den' => '2026-08-11' ) );
+kiem( 'và đọc đúng số tiền', $co_phay['tong'], 250000 );
+
 $thieu_cot = KHTC_ChiPhi::dan_hang_loat( "10/08/2026\tVăn phòng\tTiền điện", 0 );
 kiem( 'dòng thiếu cột bị báo lỗi', array( $thieu_cot['them'], count( $thieu_cot['loi'] ) ), array( 0, 1 ) );
 
 $ky = array( 'tu' => '2026-08-01', 'den' => '2026-08-31' );
 $l  = KHTC_ChiPhi::loc( $ky );
-kiem( 'tổng chi phí tháng 8', $l['tong'], 39730000 );
+kiem( 'tổng chi phí tháng 8', $l['tong'], 39980000 );
 kiem( 'chưa đối soát thì chưa thấy tiền ra đồng nào', $l['da_tra'], 0 );
-kiem( 'lọc theo bộ phận', KHTC_ChiPhi::loc( $ky + array( 'bo_phan' => 'Văn phòng' ) )['tong'], 1880000 );
+kiem( 'lọc theo bộ phận', KHTC_ChiPhi::loc( $ky + array( 'bo_phan' => 'Văn phòng' ) )['tong'], 2130000 );
 kiem( 'lọc theo khoản mục', KHTC_ChiPhi::loc( $ky + array( 'khoan_muc' => 'Tiền điện' ) )['tong'], 3500000 );
 kiem( 'tìm theo nhà cung cấp', KHTC_ChiPhi::loc( $ky + array( 'tim' => 'EVN' ) )['so_dong'], 2 );
 
 // ------------------------------------------------------------ bảng cộng chéo
 $c = KHTC_ChiPhi::bang_cheo( $ky );
-kiem( 'cộng chéo: tổng bằng tổng bảng lọc', $c['tong'], 39730000 );
+kiem( 'cộng chéo: tổng bằng tổng bảng lọc', $c['tong'], 39980000 );
 kiem( 'cộng chéo: đúng 3 bộ phận', count( $c['bo_phan'] ), 3 );
 kiem( 'cộng chéo: ô Khu vui chơi × Tiền điện', $c['o']['Tiền điện']['Khu vui chơi'], 2400000 );
 kiem( 'cộng chéo: ô Văn phòng × Tiền điện', $c['o']['Tiền điện']['Văn phòng'], 1100000 );
@@ -119,8 +126,9 @@ kiem( 'khoản ra trễ 2 ngày vẫn ghép theo số chứng từ', $kieu['Ti�
 
 // Sau khi đối soát, màn hình Chi phí phải biết khoản nào đã trả.
 kiem( 'sau đối soát, đã thấy tiền ra', KHTC_ChiPhi::loc( $ky )['da_tra'], 39280000 );
-kiem( 'sau đối soát, còn lại chưa thấy', KHTC_ChiPhi::loc( $ky )['chua_tra'], 450000 );
-kiem( 'lọc riêng khoản chưa thấy tiền ra', KHTC_ChiPhi::loc( $ky + array( 'da_tra' => '0' ) )['so_dong'], 1 );
+// 450.000 (Vận chuyển) + 250.000 (dòng dán bằng dấu phẩy, chưa gắn tài khoản).
+kiem( 'sau đối soát, còn lại chưa thấy', KHTC_ChiPhi::loc( $ky )['chua_tra'], 700000 );
+kiem( 'lọc riêng khoản chưa thấy tiền ra', KHTC_ChiPhi::loc( $ky + array( 'da_tra' => '0' ) )['so_dong'], 2 );
 
 // Chạy lại phải ra y hệt, không cộng dồn.
 $r2 = KHTC_ChiPhi::doi_soat( '2026-08-01', '2026-08-31', $nh );
@@ -130,12 +138,12 @@ kiem( 'chạy lại cho cùng kết quả', array( count( $r2['khop'] ), count( 
 KHTC_ChiPhi::them( array( 'ngay' => '22/08/2026', 'bo_phan' => 'Văn phòng', 'khoan_muc' => 'Khác', 'so_tien' => '300.000', 'hinh_thuc' => 'tien_mat' ) );
 $r3 = KHTC_ChiPhi::doi_soat( '2026-08-01', '2026-08-31', $nh );
 kiem( 'chi tiền mặt không bị báo thiếu', count( $r3['chua_chi'] ), 1 );
-kiem( 'nhưng vẫn nằm trong tổng chi phí', KHTC_ChiPhi::loc( $ky )['tong'], 40030000 );
+kiem( 'nhưng vẫn nằm trong tổng chi phí', KHTC_ChiPhi::loc( $ky )['tong'], 40280000 );
 
 // ---------------------------------------------------------------- sao lưu
 $sl = KHTC_SaoLuu::gom();
 kiem( 'sao lưu gồm đủ mọi bảng', array_keys( $sl['bang'] ), KHTC_SaoLuu::bang() );
-kiem( 'sao lưu giữ đủ khoản chi', count( $sl['bang']['chi_phi'] ), 6 );
+kiem( 'sao lưu giữ đủ khoản chi', count( $sl['bang']['chi_phi'] ), 7 );
 kiem( 'sao lưu mang theo danh mục đã sửa', $sl['danh_muc']['bo_phan_kh_cu'], array( 'Khu vui chơi', 'Văn phòng', 'MTĐ' ) );
 
 $json   = wp_json_encode( $sl );

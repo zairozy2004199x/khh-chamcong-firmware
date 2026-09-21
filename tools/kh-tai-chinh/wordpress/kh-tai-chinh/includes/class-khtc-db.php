@@ -10,7 +10,7 @@ defined( 'ABSPATH' ) || exit;
 class KHTC_DB {
 
 	/** Tăng số này mỗi lần đổi cấu trúc bảng thì bản đang chạy tự nâng cấp. */
-	const SCHEMA = 7;
+	const SCHEMA = 8;
 
 	public static function bang( $ten ) {
 		global $wpdb;
@@ -31,6 +31,7 @@ class KHTC_DB {
 		$nhat_ky   = self::bang( 'nhat_ky' );
 		$thanh_toan = self::bang( 'thanh_toan' );
 		$hd_vao    = self::bang( 'hd_vao' );
+		$hop_dong  = self::bang( 'hop_dong' );
 
 		// so_du_dau = số dư TÍNH ĐẾN ngay_dau; giao dịch trước ngày đó coi như đã
 		// gộp sẵn vào số dư này, không cộng lại lần nữa (giữ đúng cách bản gốc tính).
@@ -245,6 +246,49 @@ class KHTC_DB {
 				UNIQUE KEY cty_so_mst (cty, so_hd, mst),
 				KEY cty_ngay (cty, ngay),
 				KEY cty_khau_tru (cty, khau_tru)
+			) $collate;"
+		);
+
+		// Sổ hợp đồng — dùng chung cho thuê gian hàng và nhà cung cấp, phân biệt
+		// bằng cột `loai`. Hai loại khác nhau vài cột nhưng giống nhau ở phần
+		// cốt lõi (đối tác, MST, ngày hết hạn, bản scan), và mọi việc dùng chung
+		// — cảnh báo sắp hết hạn, đếm hợp đồng thiếu dấu — chỉ phải viết một lần.
+		//
+		// ngay_het_han là cột NGÀY thật, khác bản gốc lưu thời hạn thành chữ tự
+		// do: chỉ khi nó là ngày thì máy mới trả lời được "hợp đồng nào sắp hết".
+		dbDelta(
+			"CREATE TABLE $hop_dong (
+				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+				cty VARCHAR(20) NOT NULL DEFAULT 'kh_cu',
+				loai VARCHAR(10) NOT NULL DEFAULT 'thue',
+				doi_tac VARCHAR(190) NOT NULL DEFAULT '',
+				mst VARCHAR(30) NOT NULL DEFAULT '',
+				dai_dien VARCHAR(190) NOT NULL DEFAULT '',
+				chuc_vu VARCHAR(120) NOT NULL DEFAULT '',
+				so_hd VARCHAR(120) NOT NULL DEFAULT '',
+				ngay_ky DATE NULL,
+				ngay_bat_dau DATE NULL,
+				ngay_het_han DATE NULL,
+				gia_tri BIGINT NOT NULL DEFAULT 0,
+				noi_dung TEXT NULL,
+				gian VARCHAR(190) NOT NULL DEFAULT '',
+				ma_diem VARCHAR(190) NOT NULL DEFAULT '',
+				ma_misa VARCHAR(190) NOT NULL DEFAULT '',
+				khu_vuc VARCHAR(120) NOT NULL DEFAULT '',
+				hinh_thuc VARCHAR(120) NOT NULL DEFAULT '',
+				trang_thai VARCHAR(20) NOT NULL DEFAULT 'hoat_dong',
+				loai_chia_se VARCHAR(20) NOT NULL DEFAULT '',
+				phan_tram DECIMAL(6,2) NOT NULL DEFAULT 0,
+				mien TINYINT NOT NULL DEFAULT 0,
+				link_chua_dau TEXT NULL,
+				link_du_dau TEXT NULL,
+				ghi_chu TEXT NULL,
+				tao_luc DATETIME NOT NULL,
+				tao_boi VARCHAR(120) NOT NULL DEFAULT '',
+				PRIMARY KEY (id),
+				KEY cty_loai (cty, loai),
+				KEY cty_het_han (cty, ngay_het_han),
+				KEY ma_diem (ma_diem)
 			) $collate;"
 		);
 

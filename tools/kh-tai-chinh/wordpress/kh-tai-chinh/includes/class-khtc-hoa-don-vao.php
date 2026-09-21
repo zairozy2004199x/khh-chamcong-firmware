@@ -215,7 +215,7 @@ class KHTC_HoaDonVao {
 		KHTC_NhatKy::mo_lo();
 		foreach ( preg_split( '/\r\n|\r|\n/', (string) $text ) as $i => $d ) {
 			if ( '' === trim( $d ) ) { continue; }
-			$o = ( strpos( $d, "\t" ) !== false ) ? explode( "\t", $d ) : str_getcsv( $d );
+			$o = ( strpos( $d, "\t" ) !== false ) ? explode( "\t", $d ) : str_getcsv( $d, ',', '"', '' );
 			$o = array_map( 'trim', $o );
 			if ( isset( $o[0] ) && ( 'Ngày HĐ' === $o[0] || 'Ngày' === $o[0] ) ) { continue; }
 			if ( count( $o ) < 6 ) {

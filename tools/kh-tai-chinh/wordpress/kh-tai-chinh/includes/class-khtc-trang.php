@@ -24,6 +24,7 @@ class KHTC_Trang {
 			case 'hoa-don-ra': self::hoa_don_ra(); break;
 			case 'hoa-don-vao': self::hoa_don_vao(); break;
 			case 'cong-no':   self::cong_no();   break;
+			case 'phap-danh': self::phap_danh(); break;
 			case 'bao-cao':   self::bao_cao();   break;
 			case 'nhat-ky':   self::nhat_ky();   break;
 			case 'sao-luu':   self::sao_luu();   break;
@@ -1000,6 +1001,7 @@ class KHTC_Trang {
 			'chi_phi'   => 'Khoản chi phí',
 			'hd_ra'     => 'Hoá đơn đầu ra',
 			'hd_vao'    => 'Hoá đơn đầu vào',
+			'hop_dong'  => 'Hợp đồng',
 		);
 		foreach ( $dem as $t => $n ) {
 			printf( '<tr><td>%s</td><td class="so">%s</td></tr>', esc_html( $ten[ $t ] ?? $t ), esc_html( number_format( $n, 0, ',', '.' ) ) );
@@ -1300,7 +1302,7 @@ class KHTC_Trang {
 		}
 		echo '</select></label>';
 		echo '<label>Bảng<select name="bang"><option value="">— Tất cả —</option>';
-		foreach ( array( 'ngan_hang', 'giao_dich', 'doi_soat', 'ds_dong', 'chi_phi', 'hd_ra', 'hd_vao', 'thanh_toan' ) as $b ) {
+		foreach ( array( 'ngan_hang', 'giao_dich', 'doi_soat', 'ds_dong', 'chi_phi', 'hd_ra', 'hd_vao', 'hop_dong', 'thanh_toan' ) as $b ) {
 			printf( '<option value="%s"%s>%s</option>', esc_attr( $b ), selected( $l['bang'], $b, false ), esc_html( KHTC_NhatKy::ten_bang( $b ) ) );
 		}
 		echo '</select></label>';
@@ -2054,5 +2056,285 @@ class KHTC_Trang {
 			$hieu < 0 ? 'am' : 'duong',
 			$pt
 		);
+	}
+
+	// ------------------------------------------------------------ pháp danh
+
+	public static function phap_danh() {
+		KHTC_UI::nhan_doi_cty();
+		$bao_ok = '';
+		$bao_loi = '';
+
+		$loai = sanitize_text_field( wp_unslash( $_GET['loai'] ?? ( $_POST['loai'] ?? 'thue' ) ) );
+		$loai = isset( KHTC_PhapDanh::loai()[ $loai ] ) ? $loai : 'thue';
+		$c    = KHTC_PhapDanh::mot_loai( $loai );
+
+		if ( isset( $_POST['khtc_them_hd2'] ) && check_admin_referer( 'khtc_pd' ) ) {
+			$d = array( 'loai' => $loai );
+			foreach ( array( 'doi_tac', 'mst', 'so_hd', 'gian', 'ma_diem', 'khu_vuc', 'hinh_thuc', 'noi_dung', 'dai_dien', 'chuc_vu', 'gia_tri', 'ngay_ky', 'ngay_bat_dau', 'ngay_het_han', 'trang_thai', 'loai_chia_se', 'phan_tram', 'link_chua_dau', 'link_du_dau', 'ghi_chu' ) as $k ) {
+				$d[ $k ] = sanitize_text_field( wp_unslash( $_POST[ $k ] ?? '' ) );
+			}
+			$d['mien'] = ! empty( $_POST['mien'] );
+			$kq = KHTC_PhapDanh::them( $d );
+			if ( is_wp_error( $kq ) ) { $bao_loi = $kq->get_error_message(); } else { $bao_ok = 'Đã lưu hợp đồng.'; }
+		}
+
+		if ( isset( $_POST['khtc_dan_pd'] ) && check_admin_referer( 'khtc_pd' ) ) {
+			$kq     = KHTC_PhapDanh::dan_hang_loat( $loai, wp_unslash( $_POST['bang_pd'] ?? '' ) );
+			$bao_ok = 'Đã nạp ' . $kq['them'] . ' hợp đồng.';
+			if ( $kq['loi'] ) {
+				$bao_loi = implode( ' · ', array_slice( $kq['loi'], 0, 5 ) )
+					. ( count( $kq['loi'] ) > 5 ? ' … và ' . ( count( $kq['loi'] ) - 5 ) . ' dòng nữa' : '' );
+			}
+		}
+
+		if ( isset( $_POST['khtc_tt_hd'] ) && check_admin_referer( 'khtc_pd' ) ) {
+			list( $id, $tt ) = array_pad( explode( ':', sanitize_text_field( wp_unslash( $_POST['khtc_tt_hd'] ) ) ), 2, '' );
+			KHTC_PhapDanh::doi_trang_thai( (int) $id, $tt );
+			$bao_ok = 'Đã đổi trạng thái hợp đồng.';
+		}
+
+		if ( isset( $_POST['khtc_xoa_hd2'] ) && check_admin_referer( 'khtc_pd' ) ) {
+			KHTC_PhapDanh::xoa( (int) $_POST['khtc_xoa_hd2'] );
+			$bao_ok = 'Đã xoá hợp đồng. Phục hồi được ở mục Nhật ký.';
+		}
+
+		$loc = array(
+			'loai'       => $loai,
+			'trang_thai' => sanitize_text_field( wp_unslash( $_GET['tt'] ?? '' ) ),
+			'khu_vuc'    => sanitize_text_field( wp_unslash( $_GET['kv'] ?? '' ) ),
+			'hinh_thuc'  => sanitize_text_field( wp_unslash( $_GET['ht'] ?? '' ) ),
+			'tim'        => sanitize_text_field( wp_unslash( $_GET['tim'] ?? '' ) ),
+			'trang'      => (int) ( $_GET['trang'] ?? 1 ),
+		);
+		$kq   = KHTC_PhapDanh::loc( $loc );
+		$het  = KHTC_PhapDanh::sap_het_han( $loai );
+		$ttds = KHTC_PhapDanh::trang_thai();
+
+		echo '<div class="wrap khtc">';
+		KHTC_UI::dau_trang( 'Pháp danh' );
+		KHTC_UI::thong_bao( 'ok', $bao_ok );
+		KHTC_UI::thong_bao( 'loi', $bao_loi );
+
+		// ---- chọn sổ + lọc
+		printf( '<div class="khtc-panel"><form method="get" action="%s"><div class="khtc-loc">', esc_url( self::url_form( 'phap-danh' ) ) );
+		self::an_get( 'phap-danh' );
+		echo '<label>Sổ<select name="loai">';
+		foreach ( KHTC_PhapDanh::loai() as $k => $v ) {
+			printf( '<option value="%s"%s>%s</option>', esc_attr( $k ), selected( $loai, $k, false ), esc_html( $v['ten'] ) );
+		}
+		echo '</select></label>';
+		echo '<label>Trạng thái<select name="tt"><option value="">— Tất cả —</option>';
+		foreach ( $ttds as $k => $v ) {
+			printf( '<option value="%s"%s>%s</option>', esc_attr( $k ), selected( $loc['trang_thai'], $k, false ), esc_html( $v ) );
+		}
+		echo '</select></label>';
+		if ( 'thue' === $loai ) {
+			foreach ( array( 'khu_vuc' => array( 'kv', 'Khu vực' ), 'hinh_thuc' => array( 'ht', 'Hình thức hợp tác' ) ) as $cot => $mo ) {
+				printf( '<label>%s<select name="%s"><option value="">— Tất cả —</option>', esc_html( $mo[1] ), esc_attr( $mo[0] ) );
+				foreach ( KHTC_PhapDanh::gia_tri_co( $cot, $loai ) as $v ) {
+					printf( '<option value="%s"%s>%s</option>', esc_attr( $v ), selected( $loc[ $cot ], $v, false ), esc_html( $v ) );
+				}
+				echo '</select></label>';
+			}
+		}
+		printf( '<label>Tìm đối tác / gian / MST<input type="search" name="tim" value="%s"></label>', esc_attr( $loc['tim'] ) );
+		echo '<button type="submit" class="button">Lọc</button>';
+		printf( '<a href="%s" class="button">Bỏ lọc</a>', esc_url( self::url( 'phap-danh', array( 'loai' => $loai ) ) ) );
+		printf(
+			'<a class="button" href="%s">Tải CSV</a>',
+			esc_url( wp_nonce_url( self::url( 'phap-danh', array( 'khtc_tai_pd' => 1, 'loai' => $loai, 'tt' => $loc['trang_thai'], 'kv' => $loc['khu_vuc'], 'ht' => $loc['hinh_thuc'], 'tim' => $loc['tim'] ) ), 'khtc_tai_pd' ) )
+		);
+		echo '</div></form></div>';
+
+		KHTC_UI::the_so(
+			array(
+				array( 'Hợp đồng đang hoạt động', number_format( $kq['dang_chay'], 0, ',', '.' ) ),
+				array( $c['gia_tri'] . ' (đang chạy)', KHTC_UI::tien( $kq['gia_tri'] ) ),
+				array( 'Sắp hết hạn / đã quá hạn', number_format( count( $het ), 0, ',', '.' ), $het ? 'chi' : '' ),
+				array( 'Chưa có bản đủ dấu', number_format( $kq['thieu_dau'], 0, ',', '.' ), $kq['thieu_dau'] ? 'chi' : '' ),
+			)
+		);
+		printf(
+			'<p class="khtc-sub">Tổng %s chỉ cộng hợp đồng <em>đang hoạt động</em> và <em>không được miễn</em>. Hợp đồng đã đóng hoặc tạm ngưng không tính vào.</p>',
+			esc_html( mb_strtolower( $c['gia_tri'] ) )
+		);
+
+		// ---- sắp hết hạn
+		printf( '<div class="khtc-panel"><h2>Sắp hết hạn trong %d ngày</h2>', KHTC_PhapDanh::SAP_HET );
+		if ( ! $het ) {
+			echo '<div class="khtc-trong">Không hợp đồng nào sắp hết hạn.</div>';
+		} else {
+			echo '<table><thead><tr><th>Còn</th><th>Hết hạn</th><th>' . esc_html( $c['doi_tac'] ) . '</th>';
+			echo ( 'thue' === $loai ? '<th>Gian</th>' : '<th>Số HĐ</th>' );
+			printf( '<th class="so">%s</th><th></th></tr></thead><tbody>', esc_html( $c['gia_tri'] ) );
+			foreach ( $het as $h ) {
+				$qua = $h->_con_ngay < 0;
+				printf(
+					'<tr><td class="%s"><strong>%s</strong></td><td>%s</td><td>%s</td><td>%s</td><td class="so">%s</td>',
+					$qua ? 'chi' : '',
+					esc_html( $qua ? 'quá ' . abs( $h->_con_ngay ) . ' ngày' : $h->_con_ngay . ' ngày' ),
+					esc_html( KHTC_UI::ngay( $h->ngay_het_han ) ),
+					esc_html( $h->doi_tac ),
+					esc_html( 'thue' === $loai ? $h->gian : ( $h->so_hd ? $h->so_hd : '—' ) ),
+					esc_html( KHTC_UI::tien( $h->gia_tri ) )
+				);
+				echo '<td><form method="post">';
+				wp_nonce_field( 'khtc_pd' );
+				printf( '<input type="hidden" name="loai" value="%s">', esc_attr( $loai ) );
+				printf( '<button type="submit" name="khtc_tt_hd" value="%d:da_dong" class="button button-small">Đánh dấu đã đóng</button>', (int) $h->id );
+				echo '</form></td></tr>';
+			}
+			echo '</tbody></table>';
+		}
+		echo '</div>';
+
+		// ---- doanh thu chia sẻ (chỉ sổ thuê)
+		if ( 'thue' === $loai ) {
+			list( $d1, $d2 ) = KHTC_UI::thang_nay();
+			$ctu  = sanitize_text_field( wp_unslash( $_GET['cs_tu'] ?? $d1 ) );
+			$cden = sanitize_text_field( wp_unslash( $_GET['cs_den'] ?? $d2 ) );
+			$cs   = KHTC_PhapDanh::doanh_thu_chia_se( $ctu, $cden );
+
+			echo '<div class="khtc-panel"><h2>Doanh thu chia sẻ</h2>';
+			printf( '<form method="get" action="%s"><div class="khtc-loc">', esc_url( self::url_form( 'phap-danh' ) ) );
+			self::an_get( 'phap-danh' );
+			printf( '<input type="hidden" name="loai" value="%s">', esc_attr( $loai ) );
+			printf( '<label>Từ ngày<input type="date" name="cs_tu" value="%s"></label>', esc_attr( $ctu ) );
+			printf( '<label>Đến ngày<input type="date" name="cs_den" value="%s"></label>', esc_attr( $cden ) );
+			echo '<button type="submit" class="button">Tính lại</button></div></form>';
+
+			if ( ! $cs['rows'] ) {
+				echo '<div class="khtc-trong">Chưa hợp đồng nào đặt hình thức chia sẻ doanh thu.</div>';
+			} else {
+				echo '<table><thead><tr><th>Gian</th><th>Bên cho thuê</th><th>Mã điểm</th><th>Hình thức</th><th class="so">%</th><th class="so">Doanh thu trong kỳ</th><th class="so">Phần chia</th><th class="so">Mình giữ</th></tr></thead><tbody>';
+				foreach ( $cs['rows'] as $r ) {
+					$h = $r['hd'];
+					printf(
+						'<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td class="so">%s%%</td>',
+						esc_html( $h->gian ),
+						esc_html( $h->doi_tac ),
+						$h->ma_diem ? esc_html( $h->ma_diem ) : '<span class="chi">chưa gắn mã điểm</span>',
+						esc_html( KHTC_PhapDanh::chia_se()[ $h->loai_chia_se ] ?? '' ),
+						esc_html( rtrim( rtrim( number_format( (float) $h->phan_tram, 2, ',', '.' ), '0' ), ',' ) )
+					);
+					printf(
+						'<td class="so">%s</td><td class="so chi"><strong>%s</strong></td><td class="so thu">%s</td></tr>',
+						esc_html( KHTC_UI::tien( $r['dt'] ) ),
+						esc_html( KHTC_UI::tien( $r['chia'] ) ) . ( $h->mien ? ' <em>(miễn)</em>' : '' ),
+						esc_html( KHTC_UI::tien( $r['giu_lai'] ) )
+					);
+				}
+				printf(
+					'</tbody><tfoot><tr><th colspan="5">Tổng</th><th class="so">%s</th><th class="so">%s</th><th class="so">%s</th></tr></tfoot></table>',
+					esc_html( KHTC_UI::tien( $cs['tong_dt'] ) ),
+					esc_html( KHTC_UI::tien( $cs['tong_chia'] ) ),
+					esc_html( KHTC_UI::tien( $cs['tong_dt'] - $cs['tong_chia'] ) )
+				);
+				echo '<p class="khtc-sub">Doanh thu ghép với hoá đơn đầu ra qua <strong>mã điểm nội bộ</strong> — cột mà cả hợp đồng lẫn hoá đơn đều có. Không đoán theo tên gian: đoán sai ở đây là trả nhầm tiền cho người khác.</p>';
+				if ( $cs['chua_gan'] ) {
+					printf(
+						'<div class="khtc-bao loi">%d hợp đồng chia sẻ chưa gắn mã điểm nên doanh thu hiện 0. Điền mã điểm cho chúng, phải trùng đúng mã trên hoá đơn đầu ra.</div>',
+						(int) $cs['chua_gan']
+					);
+				}
+			}
+			echo '</div>';
+		}
+
+		// ---- dán bảng
+		echo '<div class="khtc-panel"><h2>Dán bảng hợp đồng</h2><form method="post">';
+		wp_nonce_field( 'khtc_pd' );
+		printf( '<input type="hidden" name="loai" value="%s">', esc_attr( $loai ) );
+		if ( 'thue' === $loai ) {
+			echo '<p class="khtc-sub">Mỗi dòng: <code>Gian · Bên cho thuê · MST · Khu vực · Mã điểm · Hình thức · Tiền thuê tháng · Bắt đầu · Hết hạn · % chia sẻ</code>. Từ cột 3 trở đi không bắt buộc. Có điền % chia sẻ thì tự đặt hình thức “giữ tiền”.</p>';
+			echo '<textarea name="bang_pd" rows="6" placeholder="Gian A1-05&#9;CTY BDS An Phu&#9;0301234567&#9;HCM&#9;KVC-CRESCENT&#9;Thue co dinh&#9;35.000.000&#9;01/01/2026&#9;31/12/2026&#9;0"></textarea>';
+		} else {
+			echo '<p class="khtc-sub">Mỗi dòng: <code>Nhà cung cấp · MST · Số HĐ · Nội dung · Giá trị · Ngày ký · Hết hạn</code>. Từ cột 3 trở đi không bắt buộc.</p>';
+			echo '<textarea name="bang_pd" rows="6" placeholder="CTY BAO TRI THANH DAT&#9;0303334444&#9;HD-2026-07&#9;Bao tri may lanh&#9;120.000.000&#9;05/01/2026&#9;31/12/2026"></textarea>';
+		}
+		echo '<p><button type="submit" name="khtc_dan_pd" value="1" class="button button-primary">Nạp bảng</button></p></form></div>';
+
+		// ---- thêm một hợp đồng
+		printf( '<div class="khtc-panel"><h2>Thêm hợp đồng %s</h2><form method="post"><div class="khtc-loc">', esc_html( mb_strtolower( $c['ten'] ) ) );
+		wp_nonce_field( 'khtc_pd' );
+		printf( '<input type="hidden" name="loai" value="%s">', esc_attr( $loai ) );
+		if ( 'thue' === $loai ) {
+			echo '<label>Gian / mặt bằng<input type="text" name="gian" required style="min-width:170px"></label>';
+		}
+		printf( '<label>%s<input type="text" name="doi_tac" required style="min-width:200px"></label>', esc_html( $c['doi_tac'] ) );
+		echo '<label>MST<input type="text" name="mst"></label>';
+		echo '<label>Số HĐ<input type="text" name="so_hd"></label>';
+		if ( 'thue' === $loai ) {
+			echo '<label>Khu vực<input type="text" name="khu_vuc"></label>';
+			echo '<label>Mã điểm nội bộ<input type="text" name="ma_diem" placeholder="để tính chia sẻ"></label>';
+			echo '<label>Hình thức hợp tác<input type="text" name="hinh_thuc"></label>';
+		} else {
+			echo '<label>Nội dung<input type="text" name="noi_dung" style="min-width:200px"></label>';
+			echo '<label>Đại diện<input type="text" name="dai_dien"></label>';
+			echo '<label>Chức vụ<input type="text" name="chuc_vu"></label>';
+		}
+		printf( '<label>%s<input type="text" name="gia_tri" placeholder="35.000.000"></label>', esc_html( $c['gia_tri'] ) );
+		echo '<label>Ngày ký<input type="date" name="ngay_ky"></label>';
+		echo '<label>Bắt đầu<input type="date" name="ngay_bat_dau"></label>';
+		echo '<label>Hết hạn<input type="date" name="ngay_het_han"></label>';
+		echo '<label>Trạng thái<select name="trang_thai">';
+		foreach ( $ttds as $k => $v ) { printf( '<option value="%s">%s</option>', esc_attr( $k ), esc_html( $v ) ); }
+		echo '</select></label>';
+		if ( 'thue' === $loai ) {
+			echo '<label>Chia sẻ doanh thu<select name="loai_chia_se">';
+			foreach ( KHTC_PhapDanh::chia_se() as $k => $v ) { printf( '<option value="%s">%s</option>', esc_attr( $k ), esc_html( $v ) ); }
+			echo '</select></label>';
+			echo '<label>Tỷ lệ %<input type="text" name="phan_tram" placeholder="0" size="5"></label>';
+			echo '<label>Miễn<input type="checkbox" name="mien" value="1"></label>';
+		}
+		echo '<label>Link bản chưa dấu<input type="url" name="link_chua_dau" style="min-width:170px"></label>';
+		echo '<label>Link bản đủ dấu<input type="url" name="link_du_dau" style="min-width:170px"></label>';
+		echo '<button type="submit" name="khtc_them_hd2" value="1" class="button button-primary">Lưu</button>';
+		echo '</div><p class="khtc-sub"><strong>Hết hạn là ô ngày thật</strong>, không phải chữ tự do như sổ cũ — chỉ khi nó là ngày thì bảng “sắp hết hạn” bên trên mới chạy được.</p></form></div>';
+
+		// ---- danh sách
+		printf( '<div class="khtc-panel"><h2>Danh sách hợp đồng %s</h2>', esc_html( mb_strtolower( $c['ten'] ) ) );
+		if ( ! $kq['rows'] ) {
+			echo '<div class="khtc-trong">Không có hợp đồng nào khớp bộ lọc.</div>';
+		} else {
+			echo '<table><thead><tr>';
+			echo ( 'thue' === $loai ? '<th>Gian</th>' : '<th>Số HĐ</th>' );
+			printf( '<th>%s</th><th>MST</th>', esc_html( $c['doi_tac'] ) );
+			echo ( 'thue' === $loai ? '<th>Khu vực</th><th>Mã điểm</th>' : '<th>Nội dung</th>' );
+			printf( '<th class="so">%s</th><th>Hết hạn</th><th>Trạng thái</th><th>Bản đủ dấu</th><th></th></tr></thead><tbody>', esc_html( $c['gia_tri'] ) );
+			foreach ( $kq['rows'] as $h ) {
+				echo '<tr>';
+				printf( '<td>%s</td>', esc_html( 'thue' === $loai ? $h->gian : ( $h->so_hd ? $h->so_hd : '—' ) ) );
+				printf( '<td>%s</td><td>%s</td>', esc_html( $h->doi_tac ), esc_html( $h->mst ? $h->mst : '—' ) );
+				if ( 'thue' === $loai ) {
+					printf( '<td>%s</td><td>%s</td>', esc_html( $h->khu_vuc ? $h->khu_vuc : '—' ), esc_html( $h->ma_diem ? $h->ma_diem : '—' ) );
+				} else {
+					printf( '<td>%s</td>', esc_html( $h->noi_dung ) );
+				}
+				printf(
+					'<td class="so">%s%s</td><td>%s</td><td>%s</td>',
+					esc_html( KHTC_UI::tien( $h->gia_tri ) ),
+					$h->mien ? ' <em class="khtc-sub">miễn</em>' : '',
+					esc_html( $h->ngay_het_han ? KHTC_UI::ngay( $h->ngay_het_han ) : '—' ),
+					esc_html( $ttds[ $h->trang_thai ] ?? $h->trang_thai )
+				);
+				if ( $h->link_du_dau ) {
+					printf( '<td><a href="%s" target="_blank" rel="noopener">Mở</a></td>', esc_url( $h->link_du_dau ) );
+				} elseif ( $h->link_chua_dau ) {
+					printf( '<td><a href="%s" target="_blank" rel="noopener" class="chi">chưa dấu</a></td>', esc_url( $h->link_chua_dau ) );
+				} else {
+					echo '<td class="chi">chưa có</td>';
+				}
+				echo '<td><form method="post" onsubmit="return confirm(\'Xoá hợp đồng này?\')">';
+				wp_nonce_field( 'khtc_pd' );
+				printf( '<input type="hidden" name="loai" value="%s">', esc_attr( $loai ) );
+				printf( '<button type="submit" name="khtc_xoa_hd2" value="%d" class="button button-small">Xoá</button>', (int) $h->id );
+				echo '</form></td></tr>';
+			}
+			echo '</tbody></table>';
+			self::phan_trang( 'phap-danh', array( 'trang' => $kq['trang'], 'so_trang' => $kq['so_trang'] ), array( 'loai' => $loai, 'tt' => $loc['trang_thai'], 'kv' => $loc['khu_vuc'], 'ht' => $loc['hinh_thuc'], 'tim' => $loc['tim'] ) );
+		}
+		echo '</div></div>';
 	}
 }

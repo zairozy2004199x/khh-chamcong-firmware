@@ -163,7 +163,7 @@ class KHTC_DoiSoat {
 		foreach ( preg_split( '/\r\n|\r|\n/', (string) $text ) as $i => $d ) {
 			$d = trim( $d );
 			if ( '' === $d ) { continue; }
-			$o = ( strpos( $d, "\t" ) !== false ) ? explode( "\t", $d ) : str_getcsv( $d );
+			$o = ( strpos( $d, "\t" ) !== false ) ? explode( "\t", $d ) : str_getcsv( $d, ',', '"', '' );
 			$o = array_map( 'trim', $o );
 			if ( count( $o ) < 3 ) {
 				$loi[] = 'Dòng ' . ( $i + 1 ) . ': cần ít nhất Ngày, Mã GD, Số tiền.';

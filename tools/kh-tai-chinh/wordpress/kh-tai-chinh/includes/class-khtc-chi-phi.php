@@ -142,7 +142,7 @@ class KHTC_ChiPhi {
 		foreach ( preg_split( '/\r\n|\r|\n/', (string) $text ) as $i => $d ) {
 			$d = trim( $d );
 			if ( '' === $d ) { continue; }
-			$o = ( strpos( $d, "\t" ) !== false ) ? explode( "\t", $d ) : str_getcsv( $d );
+			$o = ( strpos( $d, "\t" ) !== false ) ? explode( "\t", $d ) : str_getcsv( $d, ',', '"', '' );
 			$o = array_map( 'trim', $o );
 			if ( count( $o ) < 5 ) {
 				$loi[] = 'Dòng ' . ( $i + 1 ) . ': cần Ngày, Bộ phận, Khoản mục, Nhà cung cấp, Số tiền.';

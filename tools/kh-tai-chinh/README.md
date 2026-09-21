@@ -39,6 +39,7 @@ khẩu riêng. Bớt một chỗ giữ mật khẩu là bớt một chỗ có th
 | Hoá đơn đầu ra | Dán vào / xuất ra đúng 22 cột file VAT; gom theo thuế suất, khu vực, dịch vụ |
 | Hoá đơn đầu vào | VAT được khấu trừ, tờ khai GTGT, ngưỡng tiền mặt |
 | Công nợ | Phải thu / phải trả, tuổi nợ theo mốc, ghi trả từng đợt, tự ghép từ sao kê |
+| Pháp danh | Sổ hợp đồng thuê / NCC; cảnh báo sắp hết hạn; doanh thu chia sẻ |
 | Báo cáo | Cả kỳ trên một trang; xu hướng 12 tháng; tải CSV |
 | Nhật ký | Ai làm gì lúc nào; khoá sổ theo ngày; phục hồi bản ghi đã xoá |
 | Sao lưu | Tải cả kho ra .json, nhập lại được |
@@ -179,6 +180,51 @@ Khác hoá đơn đầu ra (số do mình đánh nên duy nhất trong pháp nh�
 đầu vào do **bên bán** đánh. Hai nhà cung cấp cùng phát hành số `00000001` là
 bình thường. Chặn theo mình số hoá đơn thì nhà cung cấp thứ hai không nhập được
 hoá đơn hợp lệ của họ, nên `UNIQUE (cty, so_hd, mst)`.
+
+## Pháp danh
+
+Sổ hợp đồng: **thuê gian hàng** và **nhà cung cấp**, đổi qua lại ở ô Sổ.
+
+Dựng lại từ `routes/phap-danh.js` của bản gốc (2.287 dòng), đọc thẳng mã nguồn
+chứ không đoán theo tên — "pháp danh" hoá ra là sổ hợp đồng, không phải gì
+khác.
+
+**Một bảng cho cả hai loại.** Thuê và NCC khác nhau vài cột (gian, tiền thuê
+tháng, tỷ lệ chia sẻ so với nội dung, giá trị hợp đồng) nhưng giống nhau ở phần
+cốt lõi: đối tác, MST, số hợp đồng, ngày hết hạn, bản scan. Hai bảng gần giống
+hệt thì mọi việc dùng chung — cảnh báo sắp hết hạn, đếm hợp đồng thiếu dấu, tìm
+theo đối tác — đều phải viết hai lần và sớm muộn lệch nhau.
+
+### Khác bản gốc một chỗ quan trọng
+
+Bản gốc lưu thời hạn hợp đồng thành **một ô chữ tự do** (`thoiHanHopDong`), nên
+không máy nào biết hợp đồng nào sắp hết — phải mở từng dòng ra đọc. Ở đây ngày
+bắt đầu và ngày hết hạn là **cột ngày thật**, và có hẳn bảng "sắp hết hạn trong
+60 ngày", phân biệt "còn 12 ngày" với "quá hạn 18 ngày". Đó là việc mà sổ hợp
+đồng sinh ra để làm.
+
+Tổng tiền thuê tháng chỉ cộng hợp đồng **đang hoạt động** và **không được
+miễn** — đã đóng hoặc tạm ngưng không tính.
+
+### Doanh thu chia sẻ
+
+Ghép hợp đồng với hoá đơn đầu ra qua **mã điểm nội bộ** — cột mà cả hai bảng
+đều có sẵn. Không tự bịa đường nối nào khác: hợp đồng chưa điền mã điểm thì
+hiện thẳng "chưa gắn mã điểm" và ra 0, kèm cảnh báo đỏ, chứ **không đoán theo
+tên gian** — đoán sai ở đây là trả nhầm tiền cho người khác.
+
+Hợp đồng đánh dấu **miễn** thì doanh thu vẫn hiện nhưng phần chia bằng 0, để
+còn đối chiếu được.
+
+Có tỷ lệ % mà chưa chọn hình thức chia sẻ là **trạng thái mâu thuẫn** — hợp
+đồng mang 15% nhưng không bao giờ xuất hiện trong bảng, và không có gì cho thấy
+vì sao. Cả ô nhập tay lẫn ô dán bảng đều tự đặt về "giữ tiền".
+
+### Không dựng lại phần đồng bộ Google Sheet
+
+Bản gốc có `cap-nhat-tu-sheet` kéo dữ liệu từ một bảng tính ngoài. Plugin không
+với tới bảng tính đó, và một đường nạp dữ liệu im lặng từ nơi khác là thứ khó
+dò nhất khi số sai. Thay bằng ô dán bảng như mọi màn hình khác.
 
 ## Báo cáo
 
@@ -413,6 +459,7 @@ php tools/kh-tai-chinh/tests/kiem-khoa-nhat-ky.php   # 59 phép thử
 php tools/kh-tai-chinh/tests/kiem-cong-no.php    # 80 phép thử
 php tools/kh-tai-chinh/tests/kiem-hoa-don-vao.php   # 65 phép thử
 php tools/kh-tai-chinh/tests/kiem-bao-cao.php    # 64 phép thử
+php tools/kh-tai-chinh/tests/kiem-phap-danh.php  # 79 phép thử
 ```
 
 `dong-goi.sh` chạy cả ba trước khi gói, hỏng một phép là không ra file zip.
@@ -448,6 +495,10 @@ php tools/kh-tai-chinh/tests/kiem-bao-cao.php    # 64 phép thử
 * **kiem-bao-cao** — đổ thêm dữ liệu tháng 10 rồi buộc **mọi** con số của báo
   cáo tháng 8 không đổi; hai đường tính số dư phải gặp nhau; thanh biểu đồ dài
   nhất phải đúng 100% và không thanh nào vượt.
+* **kiem-phap-danh** — "sắp hết hạn" ở cả bốn trường hợp (còn hạn, quá hạn,
+  đúng mốc 60 ngày, 61 ngày, chưa điền hạn), và doanh thu chia sẻ: hợp đồng
+  chưa gắn mã điểm phải ra 0 chứ không đoán; hợp đồng miễn vẫn hiện doanh thu
+  nhưng phần chia bằng 0.
 
 Bộ giả lập **không thay được bản cài thật**: SQLite không phải MySQL, `dbDelta`
 bị bỏ qua và bảng được tạo tay, nên lỗi riêng của MySQL vẫn lọt. Nó bắt được hàm
@@ -457,7 +508,7 @@ hàng cũng có cột `cty`, nên MySQL báo "ambiguous column" và trang trắn
 
 ## Còn phải làm
 
-Các mảng chưa dựng lại: pháp danh, hồ sơ.
+Các mảng chưa dựng lại: hồ sơ.
 
 Đối soát ở bản này là **một engine dùng chung** cho VietQR / Payoo / VNPay /
 Zalo / MoMo, thay vì mỗi cổng một trang riêng như bản gốc (3.722 + 2.180 dòng
