@@ -869,6 +869,45 @@ class VHCP_Cfg {
 		 * Khối mặc định là khối của CHÍNH BẢN ĐANG CHẠY (`VHCP_DB::khoi()`): dữ liệu đang có ở
 		 * kho nào thì thuộc khối ấy — bản gốc là `kvc`, bản vùng là mã vùng của nó.
 		 * ══════════════════════════════════════════════════════════════════════════════════════ */
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * DỌN VAI TỰ TẠO — MỘT LƯỢT DUY NHẤT.
+		 * ══════════════════════════════════════════════════════════════════════════════════════
+		 * Anh Thắng 21/09/2026: *"xóa luôn mấy vai trò đó đi, không cho nó hiện"*, sau khi bỏ
+		 * cột bộ phận khỏi vai trò. Mấy vai ấy — "Nhân Viên Cơ Sơ", "Nhân Viên Văn Phòng",
+		 * "Nhân Viên Kỹ Thuật", "Nhân Viên Marketing", "Kế toán máy tự động" — sinh ra chỉ để
+		 * NÓI BỘ PHẬN, mà bộ phận nay đã có cột riêng ở hàng Người dùng.
+		 *
+		 * 🔴 DỜI NGƯỜI VỀ VAI GỐC TRƯỚC, RỒI MỚI XOÁ. Xoá suông là mọi người mang vai ấy tụt về
+		 *    "Nhân viên" (xem `vai_goc()`), và ai đang mang "Kế toán máy tự động" MẤT QUYỀN KẾ
+		 *    TOÁN — không duyệt, không xác nhận quyết toán, không xuất MISA được nữa. Im lặng,
+		 *    và người ta chỉ phát hiện lúc cần bấm. Vai ấy kế thừa "Kế toán cá nhân", nên dời
+		 *    về đúng vai gốc là giữ nguyên bằng ấy quyền.
+		 *
+		 * ⚠️ PHẢI TÍNH ÁNH XẠ TRƯỚC KHI DỌN BẢNG. `vai_goc()` tra trong chính bảng ấy — dọn
+		 *    trước thì mọi vai hoá "lạ" và tất cả rơi về "Nhân viên", đúng cái đang tránh.
+		 *
+		 * 🔴 MỘT LƯỢT DUY NHẤT, đóng dấu bằng meta. Quét lại mỗi lượt là anh Thắng không bao
+		 *    giờ tạo được vai mới nữa — vừa khai xong, lượt nạp sau nó biến mất. Khác hẳn lượt
+		 *    lấp khối ở dưới (lấp một ô còn trống thì làm bao nhiêu lần cũng vô hại).
+		 * ══════════════════════════════════════════════════════════════════════════════════════ */
+		if ( ! VHCP_Meta::get( 'don_vai_tu_tao_v1' ) ) {
+			VHCP_Meta::set( 'don_vai_tu_tao_v1', '1' );
+			$vai_cu = self::vai_tuy_bien();
+			if ( $vai_cu ) {
+				$ve_goc = array();
+				foreach ( $vai_cu as $v ) { $ve_goc[ mb_strtolower( $v['ten'] ) ] = $v['goc']; }
+				foreach ( self::read( self::USER ) as $i => $r ) {
+					$r  = array_values( (array) $r );
+					$vt = trim( (string) ( isset( $r[2] ) ? $r[2] : '' ) );
+					$k  = mb_strtolower( $vt );
+					if ( '' === $vt || ! isset( $ve_goc[ $k ] ) ) { continue; }
+					self::set_cell( self::USER, $i, 2, $ve_goc[ $k ] );
+				}
+				self::write( self::VAI, array(), false );
+				$did = true;
+			}
+		}
+
 		$rows_l = self::read( self::LOAI );
 		$khoi_n = VHCP_DB::khoi();
 		foreach ( $rows_l as $i => $r ) {
