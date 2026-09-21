@@ -688,6 +688,52 @@ class VHCC_Tram {
 			self::ra( VHCC_Chat::xoa( $u, isset( $b['id'] ) ? (int) $b['id'] : 0 ) );
 		}
 
+		/* ───────────────────────────── GỌI THOẠI (anh Thắng 20/09/2026) ───────────────────
+		   🔴 MỌI CỬA ĐỀU UỶ CHO `VHCC_Goi`, nơi có hàm `cua_toi()` gác "người này có dính vào
+		      cuộc gọi ấy không". Gác ở cổng là dựng bản thứ hai của luật ấy — và mai mối lọt ra
+		      ngoài thì đủ để người thứ ba nối vào cuộc gọi. */
+		if ( 'goi_ve' === $viec ) { self::ra( VHCC_Goi::ve( $u ) ); }
+
+		if ( 'goi_moi' === $viec ) {
+			$b = self::than();
+			self::ra( VHCC_Goi::goi( $u, isset( $b['maKia'] ) ? $b['maKia'] : '',
+				isset( $b['coSo'] ) ? (string) $b['coSo'] : '' ) );
+		}
+
+		if ( 'goi_cho' === $viec ) {
+			self::ra( array( 'ok' => true, 'cuoc' => VHCC_Goi::cho( $u ) ) );
+		}
+
+		if ( 'goi_tt' === $viec ) {
+			$b = self::than();
+			self::ra( VHCC_Goi::trang_thai( $u, isset( $b['id'] ) ? (int) $b['id'] : 0 ) );
+		}
+
+		if ( 'goi_tra_loi' === $viec ) {
+			$b = self::than();
+			self::ra( VHCC_Goi::tra_loi( $u, isset( $b['id'] ) ? (int) $b['id'] : 0,
+				! empty( $b['dongY'] ) ) );
+		}
+
+		if ( 'goi_ket' === $viec ) {
+			$b = self::than();
+			self::ra( VHCC_Goi::ket( $u, isset( $b['id'] ) ? (int) $b['id'] : 0,
+				isset( $b['lyDo'] ) ? (string) $b['lyDo'] : 'cup' ) );
+		}
+
+		if ( 'goi_gui' === $viec ) {
+			$b = self::than();
+			self::ra( VHCC_Goi::gui_tin( $u, isset( $b['id'] ) ? (int) $b['id'] : 0,
+				isset( $b['loai'] ) ? (string) $b['loai'] : '',
+				isset( $b['noiDung'] ) ? (string) $b['noiDung'] : '' ) );
+		}
+
+		if ( 'goi_doc' === $viec ) {
+			$b = self::than();
+			self::ra( VHCC_Goi::doc_tin( $u, isset( $b['id'] ) ? (int) $b['id'] : 0,
+				isset( $b['tuId'] ) ? (int) $b['tuId'] : 0 ) );
+		}
+
 		if ( 'hoso' === $viec ) {
 			self::ra( VHCC_HoSoToi::doc( $u['ma_nv'] ) );
 		}

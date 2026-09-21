@@ -15,6 +15,13 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- 🔴 GỌI THOẠI TRONG APP (21/09/2026) — WebRTC không mở được micro nếu thiếu quyền này.
+         Trước bản này app CỐ Ý không xin micro, và có phép thử canh đúng điều đó: một app chấm
+         công thì không có việc gì với micro, và quyền thừa là lý do chính đáng để người ta ngại
+         cài. Nay có tính năng gọi thật nên nó thôi là quyền thừa — phép thử đã đổi luật, kèm
+         lý do, chứ không nới ra cho im. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <!-- Nhắc chấm công ra và lệnh mới trong chuông. Từ Android 13 phải XIN LÚC CHẠY, không chỉ

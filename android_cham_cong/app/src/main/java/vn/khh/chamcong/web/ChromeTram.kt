@@ -53,20 +53,40 @@ class ChromeTram(
     /* ─────────────────────────────────────────────────────────────────── camera cho trang */
 
     override fun onPermissionRequest(yc: PermissionRequest) {
-        val canCam = yc.resources.contains(PermissionRequest.RESOURCE_VIDEO_CAPTURE)
-        if (!canCam) {
-            /* 🔴 CHỈ CẤP CAMERA, CHỐI MỌI THỨ KHÁC — kể cả micro.
-               Trang trạm chỉ cần hình. Cấp bừa cả danh sách `yc.resources` là ngày nào đó một
-               trang khác trong cùng tên miền xin micro và được cấp mà không ai duyệt. */
+        /* 🔴 CẤP ĐÚNG THỨ TRANG XIN, VÀ CHỈ TRONG HAI THỨ MÌNH BIẾT.
+           Trang trạm xin camera (ảnh chấm công) và micro (gọi thoại) — không gì khác. Cấp bừa
+           cả `yc.resources` là ngày nào đó một trang khác trong cùng tên miền xin thứ ba và
+           được cấp mà không ai duyệt. Nên lọc lại thành đúng danh sách của mình.
+
+           ⚠️ Tới 21/09/2026 hàm này CHỐI THẲNG micro, và lúc ấy đúng: app chấm công không có
+              việc gì với micro. Nay có gọi thoại thật (xem `VHCC_Goi`) nên nó thôi là quyền
+              thừa — có phép thử canh CẢ HAI VẾ, để không ai thêm được quyền micro mà không có
+              tính năng đi kèm. */
+        val xin = yc.resources.filter {
+            it == PermissionRequest.RESOURCE_VIDEO_CAPTURE ||
+                it == PermissionRequest.RESOURCE_AUDIO_CAPTURE
+        }
+        if (xin.isEmpty()) {
             yc.deny()
             return
         }
-        if (coQuyen(Manifest.permission.CAMERA)) {
-            yc.grant(arrayOf(PermissionRequest.RESOURCE_VIDEO_CAPTURE))
+        val canQuyen = mutableListOf<String>()
+        if (xin.contains(PermissionRequest.RESOURCE_VIDEO_CAPTURE) &&
+            !coQuyen(Manifest.permission.CAMERA)
+        ) {
+            canQuyen.add(Manifest.permission.CAMERA)
+        }
+        if (xin.contains(PermissionRequest.RESOURCE_AUDIO_CAPTURE) &&
+            !coQuyen(Manifest.permission.RECORD_AUDIO)
+        ) {
+            canQuyen.add(Manifest.permission.RECORD_AUDIO)
+        }
+        if (canQuyen.isEmpty()) {
+            yc.grant(xin.toTypedArray())
             return
         }
         choWeb = yc
-        xinQuyen(arrayOf(Manifest.permission.CAMERA))
+        xinQuyen(canQuyen.toTypedArray())
     }
 
     override fun onPermissionRequestCanceled(yc: PermissionRequest) {
@@ -104,11 +124,21 @@ class ChromeTram(
     fun traLoiQuyen() {
         choWeb?.let { yc ->
             choWeb = null
-            if (coQuyen(Manifest.permission.CAMERA)) {
-                yc.grant(arrayOf(PermissionRequest.RESOURCE_VIDEO_CAPTURE))
-            } else {
-                yc.deny()
+            /* Cấp ĐÚNG những thứ nay đã có quyền. Cấp cả gói khi mới có một nửa là WebView
+               tưởng được phép rồi gọi xuống tầng dưới và nhận về một luồng rỗng — camera đen
+               hoặc micro câm, không ai hỏi gì cả. */
+            val duoc = mutableListOf<String>()
+            if (yc.resources.contains(PermissionRequest.RESOURCE_VIDEO_CAPTURE) &&
+                coQuyen(Manifest.permission.CAMERA)
+            ) {
+                duoc.add(PermissionRequest.RESOURCE_VIDEO_CAPTURE)
             }
+            if (yc.resources.contains(PermissionRequest.RESOURCE_AUDIO_CAPTURE) &&
+                coQuyen(Manifest.permission.RECORD_AUDIO)
+            ) {
+                duoc.add(PermissionRequest.RESOURCE_AUDIO_CAPTURE)
+            }
+            if (duoc.isEmpty()) { yc.deny() } else { yc.grant(duoc.toTypedArray()) }
         }
         choViTri?.let { (goc, traLoi) ->
             choViTri = null

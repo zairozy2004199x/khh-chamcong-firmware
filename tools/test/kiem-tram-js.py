@@ -72,6 +72,9 @@ CO_SAN = set("""
     alert confirm prompt console document window navigator performance location
     localStorage sessionStorage history screen getComputedStyle btoa atob
     Map Set WeakMap WeakSet Symbol Proxy Reflect BigInt
+    # WebRTC — trình duyệt dựng sẵn. `getUserMedia` đi qua `navigator.mediaDevices` nên nó là
+    # truy cập thuộc tính chứ không phải một tên toàn cục, không cần khai ở đây.
+    RTCPeerConnection RTCSessionDescription RTCIceCandidate MediaStream
     if for while switch catch return typeof function
     # `in` và `instanceof` là TOÁN TỬ, không bao giờ là hàm. Thiếu chúng thì `for(k in obj)` bị
     # đọc thành lời gọi `in()` và bài kiểm đỏ oan — mà cách "sửa" hiển nhiên lúc ấy là viết vòng

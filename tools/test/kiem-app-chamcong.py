@@ -309,9 +309,26 @@ for q in ('INTERNET', 'CAMERA', 'ACCESS_FINE_LOCATION', 'POST_NOTIFICATIONS'):
     t('manifest xin quyền ' + q, q in mf)
 # 🔴 Hệ này CỐ Ý không theo dõi định vị — chỉ đọc toạ độ lúc người ta bấm nút. Quyền nền là
 #    mở đường cho một tính năng chưa ai quyết định làm.
-for q in ('ACCESS_BACKGROUND_LOCATION', 'READ_CONTACTS', 'RECORD_AUDIO',
+for q in ('ACCESS_BACKGROUND_LOCATION', 'READ_CONTACTS',
           'READ_EXTERNAL_STORAGE', 'READ_SMS'):
     t('🔴 manifest KHÔNG xin quyền thừa ' + q, q not in mf)
+
+# ── 🔴 MICRO: XIN ĐƯỢC, NHƯNG CHỈ KHI THẬT SỰ CÓ TÍNH NĂNG GỌI.
+#    Tới 21/09/2026 phép thử này đòi manifest KHÔNG có `RECORD_AUDIO`, và lúc ấy nó đúng: một
+#    app chấm công không có việc gì với micro, và quyền thừa là lý do chính đáng để người ta
+#    ngại cài. Nay có gọi thoại thật nên nó thôi là quyền thừa.
+#
+#    Nhưng ĐỔI LUẬT chứ không XOÁ LUẬT: canh cả hai vế, để không ai thêm được quyền micro mà
+#    không có tính năng đi kèm. Xoá hẳn dòng này là mở cửa cho đúng thứ nó sinh ra để chặn.
+co_goi = 'RESOURCE_AUDIO_CAPTURE' in ch
+t('🔴 xin micro thì PHẢI có tính năng gọi đi kèm',
+  ('RECORD_AUDIO' in mf) == co_goi,
+  'manifest=%s, mã=%s' % ('RECORD_AUDIO' in mf, co_goi))
+t('   và app cấp micro cho trang qua đúng cửa của WebView', co_goi)
+# ⚠️ Cấp bừa cả `yc.resources` là ngày nào đó một trang khác trong cùng tên miền xin thứ ba và
+#    được cấp mà không ai duyệt.
+t('🔴 chỉ cấp đúng camera + micro, không cấp cả gói trang xin',
+  'yc.resources.filter' in ch and 'yc.grant(yc.resources)' not in ch)
 t('🔴 chặn http trần ở tầng hệ điều hành', 'android:usesCleartextTraffic="false"' in mf)
 t('⚠️ máy không camera / không GPS vẫn cài được', mf.count('android:required="false"') >= 2)
 

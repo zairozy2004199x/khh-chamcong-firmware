@@ -77,7 +77,7 @@ class VHCC_DB {
 		return $t ? $t : '';
 	}
 
-	const SCHEMA_VERSION = '2.17.0';
+	const SCHEMA_VERSION = '2.18.0';
 
 	public static function t( $name ) {
 		global $wpdb;
@@ -1200,6 +1200,39 @@ class VHCC_DB {
 			phong VARCHAR(190) NOT NULL,
 			id_cuoi BIGINT(20) NOT NULL DEFAULT 0,
 			PRIMARY KEY  (ma_nv,phong)";
+
+		/* ===== GỌI THOẠI TRONG APP =========================================================
+		   Xem khối chú thích đầu `VHCC_Goi`. Máy chủ KHÔNG truyền tiếng nói — âm thanh đi thẳng
+		   giữa hai máy bằng WebRTC. Hai bảng này chỉ giữ phần "mai mối".
+
+		   ⚠️ `goi_tin` LÀ BẢNG PHÌNH NHANH NHẤT TRONG HỆ nếu không dọn: mỗi cuộc gọi sinh ra vài
+		      chục hàng ICE, và không hàng nào còn dùng được sau khi cúp máy.
+		      `VHCC_Goi::het_han()` dọn chúng — đừng bỏ lời gọi ấy đi. */
+		$b['cuoc_goi'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			phong VARCHAR(190) NOT NULL DEFAULT '',
+			ma_goi VARCHAR(40) NOT NULL,
+			ten_goi VARCHAR(190) NOT NULL DEFAULT '',
+			ma_nhan VARCHAR(40) NOT NULL,
+			ten_nhan VARCHAR(190) NOT NULL DEFAULT '',
+			trang_thai VARCHAR(10) NOT NULL DEFAULT 'moi',
+			ly_do_ket VARCHAR(20) NOT NULL DEFAULT '',
+			tao_luc DATETIME NULL,
+			tra_loi_luc DATETIME NULL,
+			ket_luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			KEY nhan (ma_nhan,trang_thai),
+			KEY goi (ma_goi,trang_thai)";
+
+		$b['goi_tin'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			cuoc_id BIGINT(20) NOT NULL,
+			tu_ma VARCHAR(40) NOT NULL,
+			loai VARCHAR(10) NOT NULL DEFAULT '',
+			noi_dung LONGTEXT NULL,
+			tao_luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			KEY c (cuoc_id,id)";
 
 		return $b;
 	}

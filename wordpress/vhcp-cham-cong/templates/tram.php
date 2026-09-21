@@ -545,6 +545,27 @@ a{color:var(--nhan)}
 	</div>
 </div></div>
 
+<!-- ============ MÀN GỌI THOẠI ============
+     Anh Thắng 20/09/2026: *"Gọi trong app đi em — tự dựng"*.
+     Một màn cho CẢ BA cảnh (đang gọi đi · có người gọi tới · đang nói chuyện): ba màn rời là ba
+     chỗ phải nhớ tắt micro, và quên một chỗ là micro mở tiếp sau khi cúp máy. -->
+<div id="mGoi" class="mn an"><div class="bao">
+	<h1 id="goiTieuDe">Cuộc gọi</h1>
+	<div class="the" style="text-align:center">
+		<p style="font-size:22px;font-weight:800;margin:6px 0" id="goiTen">—</p>
+		<p class="mo" id="goiTrangThai">—</p>
+		<!-- Thẻ audio ẩn: chỗ tiếng bên kia phát ra. `playsinline` để iPhone không mở
+		     trình phát toàn màn hình. -->
+		<audio id="goiTieng" autoplay playsinline></audio>
+		<div id="goiLoi"></div>
+		<p></p>
+		<div class="hang">
+			<button id="btGoiNghe" class="chinh an">Nghe</button>
+			<button id="btGoiCup" class="phu">Cúp máy</button>
+		</div>
+	</div>
+</div></div>
+
 <div id="mChuong" class="mn an"><div class="bao">
 	<h1>Thông báo</h1>
 	<p class="mo">Hộp thư chung với trang Nội bộ — đọc ở đây thì bên kia cũng hết đỏ.</p>
@@ -1944,6 +1965,9 @@ function moManChinh(){
 	   ra. Lượt hỏi này KHÔNG nằm trong `Promise.all` dưới: hỏng nó thì chỉ thiếu một nút, còn
 	   `Promise.all` hỏng là màn hình đứng ở "đang gọi máy chủ". */
 	doCuaHang();
+	/* ⚠️ BẬT SAU KHI ĐĂNG NHẬP, không bật lúc nạp trang. Bật sớm là mỗi 4 giây một lượt gọi bị
+	   chối vì chưa có thẻ phiên — và màn đăng nhập thì có người để mở cả buổi. */
+	batChuongGoi();
 	/* Hỏi cơ sở này có bật khai loại giờ không — cùng lý do với `doCuaHang()` ở trên: hỏng nó
 	   thì chỉ thiếu một câu hỏi lúc kết ca, không được kéo cả màn hình đứng lại. */
 	napLoaiGio();
@@ -2840,14 +2864,21 @@ function napChatNguoi(){
 		for(var i=0;i<(j.ds||[]).length;i++){
 			var x = j.ds[i];
 			if(TOI && x.ma_nv === TOI.maNV) continue;   /* không nhắn cho chính mình */
-			h += '<button type="button" class="phu chat-nguoi" data-ma="' + esc(x.ma_nv) + '"'
-				+ ' data-ten="' + esc(x.ho_ten) + '" style="width:100%;margin:0 0 6px;text-align:left">'
-				+ esc(x.ho_ten) + '<br><span class="trong">' + esc(x.chuc_vu || '') + '</span></button>';
+			h += '<div class="hang" style="margin:0 0 6px">'
+				+ '<button type="button" class="phu chat-nguoi" data-ma="' + esc(x.ma_nv) + '"'
+				+ ' data-ten="' + esc(x.ho_ten) + '" style="text-align:left">'
+				+ esc(x.ho_ten) + '<br><span class="trong">' + esc(x.chuc_vu || '') + '</span></button>'
+				+ '<button type="button" class="phu chat-goi" data-ma="' + esc(x.ma_nv) + '"'
+				+ ' data-ten="' + esc(x.ho_ten) + '" style="flex:0 0 64px">📞</button></div>';
 		}
 		el('chatDsNguoi').innerHTML = h || '<p class="trong">Không có ai khác ở cơ sở này.</p>';
 		var ds = document.querySelectorAll('.chat-nguoi');
 		for(var k=0;k<ds.length;k++){
 			ds[k].onclick = function(){ moChatRieng(this.getAttribute('data-ma'), this.getAttribute('data-ten')); };
+		}
+		var dg = document.querySelectorAll('.chat-goi');
+		for(var q=0;q<dg.length;q++){
+			dg[q].onclick = function(){ batDauGoi(this.getAttribute('data-ma'), this.getAttribute('data-ten')); };
 		}
 	}).catch(function(){});
 }
@@ -2865,6 +2896,211 @@ el('btChatVe').addEventListener('click', function(){ chatVeLop1(); napChatPhong(
 el('btChatGui').addEventListener('click', guiChat);
 el('btChatNguoi').addEventListener('click', napChatNguoi);
 el('chatTim').addEventListener('input', napChatNguoi);
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * GỌI THOẠI — anh Thắng 20/09/2026: *"Gọi trong app đi em — tự dựng"*.
+ *
+ * 🔴 MÁY CHỦ KHÔNG TRUYỀN TIẾNG NÓI. Âm thanh đi thẳng giữa hai máy (WebRTC); máy chủ chỉ chuyển
+ *    giúp mấy mẩu mai mối. Xem khối chú thích đầu `VHCC_Goi`.
+ *
+ * ⚠️ BA CHỖ PHẢI TẮT MICRO, VÀ QUÊN MỘT CHỖ LÀ MICRO MỞ TIẾP SAU KHI CÚP MÁY:
+ *      · mình bấm cúp · bên kia cúp (biết qua lượt hỏi trạng thái) · kết nối đứt giữa chừng.
+ *    Cả ba đều đi qua đúng một hàm `dongGoi()`. Đừng viết đường tắt nào khác.
+ *
+ * ⚠️ HỎI CHUÔNG CHỈ KHI ĐÃ ĐĂNG NHẬP VÀ KHÔNG ĐANG GỌI. Hỏi lúc chưa đăng nhập là mỗi 4 giây
+ *    một lượt gọi bị chối; hỏi lúc đang gọi là tự phát hiện chính cuộc của mình.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+var GOI_ID = 0;           /* cuộc đang mở */
+var GOI_PC = null;        /* RTCPeerConnection */
+var GOI_LUONG = null;     /* luồng micro của mình */
+var GOI_CUOI = 0;         /* id mẩu mai mối cuối đã xử lý */
+var GOI_NHIP = null;      /* nhịp hỏi mai mối + trạng thái */
+var GOI_CHUONG = null;    /* nhịp hỏi "ai gọi tôi" */
+var GOI_LA_NGUOI_GOI = false;
+var GOI_VE = null;        /* vé TURN, xin một lần mỗi cuộc */
+
+function batChuongGoi(){
+	if(GOI_CHUONG) return;
+	GOI_CHUONG = setInterval(function(){
+		if(GOI_ID || !token()) return;
+		goi('goi_cho', { token: token() }).then(function(j){
+			if(!j || !j.ok || !j.cuoc || GOI_ID) return;
+			nhanCuocGoi(j.cuoc);
+		}).catch(function(){});
+	}, 4000);
+}
+
+function nhanCuocGoi(c){
+	GOI_ID = c.id;
+	GOI_LA_NGUOI_GOI = false;
+	GOI_CUOI = 0;
+	el('goiTieuDe').textContent = 'Có cuộc gọi';
+	el('goiTen').textContent = c.tenGoi || c.maGoi;
+	el('goiTrangThai').textContent = 'Đang đổ chuông…';
+	el('btGoiNghe').classList.remove('an');
+	bao('goiLoi','',null);
+	hien('mGoi', true);
+	nhipGoi();
+}
+
+/* Bấm gọi một người — từ danh bạ hoặc từ khung chat riêng. */
+function batDauGoi(maKia, tenKia){
+	goi('goi_moi', { token: token(), maKia: maKia }).then(function(j){
+		if(!j || !j.ok){ bao('chatLoi','dong',(j&&j.error)||'Không gọi được.'); return; }
+		GOI_ID = j.id;
+		GOI_LA_NGUOI_GOI = true;
+		GOI_CUOI = 0;
+		el('goiTieuDe').textContent = 'Đang gọi';
+		el('goiTen').textContent = tenKia || j.tenKia || maKia;
+		el('goiTrangThai').textContent = 'Đang đổ chuông bên kia…';
+		el('btGoiNghe').classList.add('an');
+		bao('goiLoi','',null);
+		hien('mGoi', true);
+		nhipGoi();
+	}).catch(function(){ bao('chatLoi','dong','Mất mạng — chưa gọi được.'); });
+}
+
+function nhipGoi(){
+	if(GOI_NHIP) clearInterval(GOI_NHIP);
+	/* 1,5 giây: mai mối phải tới nhanh thì cuộc gọi mới nối trong vài giây. Chỉ chạy trong lúc
+	   có cuộc — `dongGoi()` tắt nó. */
+	GOI_NHIP = setInterval(hoiGoi, 1500);
+	hoiGoi();
+}
+
+function hoiGoi(){
+	if(!GOI_ID) return;
+	goi('goi_doc', { token: token(), id: GOI_ID, tuId: GOI_CUOI }).then(function(j){
+		if(!j || !j.ok){ dongGoi('Cuộc gọi đã kết thúc.'); return; }
+		if('xong' === j.trangThai){ dongGoi('Đã kết thúc.'); return; }
+		if('nghe' === j.trangThai && GOI_LA_NGUOI_GOI && !GOI_PC){
+			/* Bên kia vừa bấm Nghe -> mình là bên mời, dựng kết nối và gửi offer. */
+			el('goiTrangThai').textContent = 'Đang nối…';
+			moKetNoi(true);
+		}
+		for(var i=0;i<(j.ds||[]).length;i++){
+			var x = j.ds[i];
+			if(x.id > GOI_CUOI){ GOI_CUOI = x.id; }
+			nhanMaiMoi(x);
+		}
+	}).catch(function(){ /* một nhịp mất mạng: nhịp sau tự tới */ });
+}
+
+function xinVeGoi(){
+	if(GOI_VE) return Promise.resolve(GOI_VE);
+	return goi('goi_ve', { token: token() }).then(function(j){
+		if(!j || !j.ok) throw new Error((j && j.error) || 'Chưa có máy TURN.');
+		GOI_VE = j.may;
+		return GOI_VE;
+	});
+}
+
+function moKetNoi(laBenMoi){
+	if(GOI_PC) return Promise.resolve();
+	return xinVeGoi().then(function(may){
+		return navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+			.then(function(luong){
+				GOI_LUONG = luong;
+				GOI_PC = new RTCPeerConnection({ iceServers: may });
+				for(var i=0;i<luong.getTracks().length;i++){
+					GOI_PC.addTrack(luong.getTracks()[i], luong);
+				}
+				GOI_PC.ontrack = function(e){
+					el('goiTieng').srcObject = e.streams[0];
+					el('goiTrangThai').textContent = 'Đang nói chuyện';
+				};
+				GOI_PC.onicecandidate = function(e){
+					if(e.candidate){ guiMaiMoi('ice', JSON.stringify(e.candidate)); }
+				};
+				GOI_PC.onconnectionstatechange = function(){
+					var t = GOI_PC ? GOI_PC.connectionState : '';
+					if('failed' === t){
+						/* ⚠️ NÓI ĐÚNG NGUYÊN NHÂN. "Không kết nối được" thì người ta đổ cho sóng
+						   yếu; chín phần mười lần này là máy TURN chưa chạy hoặc chặn cổng. */
+						dongGoi('Không nối được tiếng. Thường là máy TURN chưa chạy hoặc bị chặn cổng.');
+					}
+					if('disconnected' === t || 'closed' === t){ dongGoi('Mất kết nối.'); }
+				};
+				if(laBenMoi){
+					return GOI_PC.createOffer().then(function(o){
+						return GOI_PC.setLocalDescription(o);
+					}).then(function(){
+						guiMaiMoi('offer', JSON.stringify(GOI_PC.localDescription));
+					});
+				}
+			});
+	}).catch(function(e){
+		dongGoi((e && e.message) || 'Không mở được micro.');
+	});
+}
+
+function nhanMaiMoi(x){
+	if('offer' === x.loai){
+		/* Bên nhận: có lời mời -> dựng kết nối rồi trả lời. */
+		moKetNoi(false).then(function(){
+			if(!GOI_PC) return;
+			return GOI_PC.setRemoteDescription(JSON.parse(x.noiDung))
+				.then(function(){ return GOI_PC.createAnswer(); })
+				.then(function(a){ return GOI_PC.setLocalDescription(a); })
+				.then(function(){ guiMaiMoi('answer', JSON.stringify(GOI_PC.localDescription)); });
+		}).catch(function(){});
+		return;
+	}
+	if(!GOI_PC) return;
+	if('answer' === x.loai){
+		GOI_PC.setRemoteDescription(JSON.parse(x.noiDung)).catch(function(){});
+		return;
+	}
+	if('ice' === x.loai){
+		/* ⚠️ NUỐT LỖI Ở ĐÂY LÀ ĐÚNG. Một ứng viên ICE tới trước khi có mô tả từ xa thì trình
+		   duyệt ném lỗi, nhưng mấy ứng viên sau vẫn dùng được — để nó nổ ra ngoài là cả cuộc
+		   gọi chết vì một mẩu đến sớm. */
+		try { GOI_PC.addIceCandidate(JSON.parse(x.noiDung)).catch(function(){}); } catch(e){}
+	}
+}
+
+function guiMaiMoi(loai, noiDung){
+	if(!GOI_ID) return;
+	goi('goi_gui', { token: token(), id: GOI_ID, loai: loai, noiDung: noiDung }).catch(function(){});
+}
+
+/* 🔴 ĐƯỜNG DUY NHẤT ĐỂ KẾT THÚC. Mọi nhánh (mình cúp · bên kia cúp · đứt kết nối · lỗi) đều
+   phải đi qua đây, vì đây là chỗ TẮT MICRO. Viết một đường tắt nào khác là dựng sẵn cái ngày
+   micro còn mở sau khi màn hình đã đóng. */
+function dongGoi(chu){
+	if(GOI_NHIP){ clearInterval(GOI_NHIP); GOI_NHIP = null; }
+	if(GOI_LUONG){
+		var tr = GOI_LUONG.getTracks();
+		for(var i=0;i<tr.length;i++){ tr[i].stop(); }
+		GOI_LUONG = null;
+	}
+	if(GOI_PC){ try { GOI_PC.close(); } catch(e){} GOI_PC = null; }
+	el('goiTieng').srcObject = null;
+	GOI_VE = null;
+	if(GOI_ID){
+		goi('goi_ket', { token: token(), id: GOI_ID }).catch(function(){});
+		GOI_ID = 0;
+	}
+	if(chu){ el('goiTrangThai').textContent = chu; }
+	setTimeout(function(){ hien('mGoi', false); }, chu ? 1200 : 0);
+}
+
+el('btGoiNghe').addEventListener('click', function(){
+	el('btGoiNghe').classList.add('an');
+	el('goiTrangThai').textContent = 'Đang nối…';
+	goi('goi_tra_loi', { token: token(), id: GOI_ID, dongY: true }).then(function(j){
+		if(!j || !j.ok){ dongGoi((j && j.error) || 'Không nghe máy được.'); }
+		/* Không dựng kết nối ở đây: bên mời sẽ gửi offer, và `nhanMaiMoi()` lo phần còn lại. */
+	}).catch(function(){ dongGoi('Mất mạng.'); });
+});
+
+el('btGoiCup').addEventListener('click', function(){ dongGoi(null); });
+
+/* ⚠️ APP XUỐNG NỀN THÌ CÚP. Trình duyệt trong app có thể bị hệ điều hành dừng, và lúc ấy cuộc
+   gọi treo ở đầu bên kia mà không ai biết. Thà cúp rõ ràng. */
+document.addEventListener('visibilitychange', function(){
+	if(document.hidden && GOI_ID && !GOI_PC){ dongGoi(null); }
+});
 
 function moChuong(){
 	hien('mChuong', true);
