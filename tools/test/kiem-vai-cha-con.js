@@ -128,7 +128,53 @@ o.cha.value = '';
 M._vaiChaDoi(o.cha);
 teq('🔴 cha để "— không rõ —" thì KHÔNG tự đụng vào ô con', truoc, o.con.innerHTML);
 
-/* ═══ 6. GIÁ TRỊ LƯU XUỐNG VẪN LÀ MỘT CHUỖI VAI TRÒ NHƯ CŨ ═══════════════════════
+/* ═══ 6. 🔴 CHẠY THẬT `_uHang()` — ĐẾM Ô TRÊN CHUỖI NÓ SINH RA ═══════════════════
+ * Anh Thắng 21/09/2026: *"bỏ cột bộ phận đi"*. Cột ấy gỡ khỏi đầu bảng, nhưng ô vẫn còn dưới
+ * dạng ẩn: `_readRows()` đọc theo THỨ TỰ ô, bỏ hẳn một ô là cơ sở / mã đối tượng / đơn vị lùi
+ * một chỗ và cả bảng người dùng ghi lệch.
+ *
+ * 🔴 VÌ SAO PHẢI CHẠY CHỨ KHÔNG ĐỌC CHỮ. `test-cauhinh-xo.js` đếm ô bằng cách dò `<input` /
+ *    `<select` trong VĂN BẢN của hàm — và nó XANH qua CẢ HAI lỗi em vừa mắc trong đúng lượt
+ *    viết này:
+ *      1. `+ /* … *​/ +'<input…'` — dấu cộng thứ hai hoá CỘNG ĐƠN NGUYÊN, chuỗi bị ép sang số
+ *         thành `NaN`, ô ẩn KHÔNG hề được dựng. Chữ `<input` vẫn nằm đó nên phép đếm chữ thấy đủ.
+ *      2. Viết dấu đóng chú thích ngay trong lời văn — khối chú thích đóng sớm, phần còn lại
+ *         rơi ra thành mã, CẢ TRANG chết câm. Phép đếm chữ vẫn thấy đủ ô.
+ *    Cả hai chỉ lộ ra khi CHẠY. Nên phép dưới chạy `_uHang()` thật rồi soi chuỗi nó trả về.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+{
+  const ctx = {
+    CFG: { vaiTro: VAITRO }, VAI_GOC: VAI_GOC,
+    esc: (x) => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'),
+    _cosoSel: () => '<select data-o="coso"></select>',
+    _inp: () => '<input data-o="inp">',
+    _dvInp: () => '<input data-o="dv">',
+    _delBtn: () => '<td><button></button></td>',
+  };
+  vm.createContext(ctx);
+  vm.runInContext([ '_vaiGocCua', '_vaiConCua', '_vaiConHtml', '_roleSel', '_uHang' ].map(bocHam).join('\n'), ctx);
+  const h = ctx._uHang({ ten: 'Thọ', maNv: 'NV7', pin: '1234',
+    vaiTro: 'Nhân Viên Kỹ Thuật Máy Tự Động', boPhan: 'Kỹ thuật', coso: '', maDt: '', donVi: 'K&H' }, false);
+
+  t('🔴 chuỗi hàng KHÔNG chứa `NaN` (bẫy cộng đơn nguyên)', h.indexOf('NaN') < 0, h.slice(0, 400));
+  t('🔴 ô ẩn giữ đúng bộ phận đã khai',
+    /<input type="hidden" value="Kỹ thuật">/.test(h), h);
+  /* Đếm đúng những ô mà `_readRows()` sẽ đọc — cùng luật loại trừ. */
+  const oDoc = (h.match(/<(input|select)\b[^>]*>/g) || []).filter(function (x) {
+    if (/type="checkbox"/.test(x)) return false;
+    if (/class="[^"]*\bcs-tim\b/.test(x)) return false;
+    if (/class="[^"]*\bvai-cha\b/.test(x)) return false;
+    return true;
+  });
+  teq('🔴 hàng có đúng 8 ô đọc được: tên·mãNV·PIN·vai·bộphận(ẩn)·cơsở·mãĐT·đơnvị', 8, oDoc.length);
+  t('   và ô thứ 5 đúng là ô bộ phận ẩn', /type="hidden"/.test(oDoc[4]), oDoc[4]);
+  t('   ô thứ 4 là ô vai trò (ô con, không phải ô lái)',
+    oDoc[3].indexOf('vai-cha') < 0 && oDoc[3].indexOf('<select') === 0, oDoc[3]);
+  /* Đầu bảng không còn cột Bộ phận, mà hàng vẫn đủ ô — hai bên phải khớp số Ô THẤY ĐƯỢC. */
+  t('🔴 đầu bảng đã bỏ cột "Bộ phận / Loại NV"', HTML.indexOf('>Bộ phận / Loại NV</th>') < 0, 'vẫn còn');
+}
+
+/* ═══ 7. GIÁ TRỊ LƯU XUỐNG VẪN LÀ MỘT CHUỖI VAI TRÒ NHƯ CŨ ═══════════════════════
  * Cả thay đổi này chỉ là CÁCH BÀY. Đụng vào sơ đồ hay vào máy chủ là chuyện khác hẳn. */
 t('🔴 không thêm cột nào vào gói lưu người dùng',
   /vaiTro:r\[3\]\|\|'Nhân viên'/.test(bocHam('saveCfgUsers')), bocHam('saveCfgUsers'));

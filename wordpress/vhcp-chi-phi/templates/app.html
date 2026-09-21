@@ -1528,9 +1528,7 @@
         <b>Vai trò</b> quyết định LÀM ĐƯỢC GÌ: <b>Quản lý</b> (duyệt · soát, trong phạm vi cơ sở mình phụ trách) · <b>Kế toán cá nhân</b> (cấp tạm ứng, quyết toán, xuất dòng 141) · <b>Kế toán NCC</b> (xuất dòng 331) · <b>Nhân viên</b> (cửa hàng trưởng trở xuống — chỉ cơ sở mình quản lý).<br>
         <b>Cơ sở</b> quyết định XEM ĐƯỢC TỚI ĐÂU: <b>Nhân viên</b> để trống ô ấy thì chỉ còn đơn do chính mình lập; <b>Quản lý</b> để trống thì trông cả đơn vị.<br>
         <b>Đơn vị</b> quyết định ĐỌC ĐƯỢC SỔ NHÀ NÀO: để trống = <b>K&amp;H</b>, và K&amp;H là nhà mẹ nên đọc cả hệ. Nhà khác chỉ đọc đúng nhà mình.<br>
-        <b>Bộ phận / Loại NV</b> quyết định LÀM Ở MẢNG NÀO: <b>Nhân viên cơ sở</b> · <b>Nhân viên văn phòng</b> · <b>Kỹ thuật</b> · <b>Marketing</b> · <b>Công tác</b> · <b>Setup</b>.<br>
-        <b>Nhân viên cơ sở</b> → chỉ lên đơn theo <b>Tuần · cơ sở</b> (đơn xin tạm ứng một tuần vận hành).
-        <b>Nhân viên văn phòng</b> → vào được <b>cả hai</b>: Tuần · cơ sở <i>và</i> Dự án · gian thi công, và khi tạo đơn được chọn thêm <b>khoảng ngày tự do</b> cho đợt vắt tuần.<br>
+        <b style="color:#b45309">Cột Bộ phận đã bỏ khỏi bảng này</b> — anh Thắng 21/09/2026: mảng làm việc nay nói bằng chính <b>tên vai con</b> (VD <i>Nhân Viên Kỹ Thuật Máy Tự Động</i>). Giá trị bộ phận cũ vẫn còn trong sổ, không bị xoá.<br>
         Admin ban đầu PIN <b>1111</b> — hãy đổi ngay.</div>
     </div>
     <div class="card" id="imgMaintCard">
@@ -12413,7 +12411,8 @@
        còn đủ: chụp màn ở 1250px thấy hai ô bị bóp còn "Nh" / "Qu", đọc không ra chữ nào. Tên
        vai con lại dài ("Nhân Viên Kỹ Thuật Máy Tự Động"), nên cho hẳn 230px. */
     +'<th style="width:230px">Vai trò <span style="font-weight:400;color:#8c8781">(nhóm → cụ thể)</span></th>'
-    +'<th style="width:150px">Bộ phận / Loại NV</th>'
+    /* ⚠️ CỘT "BỘ PHẬN / LOẠI NV" ĐÃ GIẤU 21/09/2026 (xem chốt ở `_uHang()`). Ô vẫn còn dưới
+       dạng ẩn để giữ giá trị và giữ đúng thứ tự cột — chỉ cái đầu bảng là bỏ. */
     +'<th style="min-width:220px" title="Nhân viên để trống = chỉ thấy đơn do chính mình lập. Quản lý để trống = trông cả đơn vị.">Cơ sở phụ trách</th>'
     +'<th style="width:126px">Mã đối tượng (khi là người duyệt)</th>'
     +'<th style="width:110px" title="NHÀ của người này: đơn họ lập rơi về đơn vị này, và họ đọc được đúng sổ nhà này. Để trống = K&amp;H, mà K&amp;H là nhà mẹ nên đọc cả hệ.">Đơn vị</th>'
@@ -12460,7 +12459,26 @@
        * ⚠️ PIN vẫn readonly: đổi ở trang Chấm công · Nhân sự, không đổi ở đây.
        * ══════════════════════════════════════════════════════════════════════════════════════ */
       +'<td><input type="password" value="'+esc(u.pin||'')+'" readonly autocomplete="off" title="PIN lấy từ hệ thống nhân sự — đổi ở trang Chấm công · Nhân sự, không đổi ở đây. Che đi vì trang này chạy ngoài internet." maxlength="8" style="width:100%;background:#f4f1ec;color:#8c8781;cursor:not-allowed"></td>'
-      +'<td>'+_roleSel(u.vaiTro)+'</td><td>'+_bpSel(u.boPhan,'— Tất cả —')+'</td><td>'+_cosoSel(u.coso, u.donVi)+'</td>'
+      +'<td>'+_roleSel(u.vaiTro)
+      /* 🔴 Ô BỘ PHẬN GIỜ LÀ Ô ẨN, KHÔNG PHẢI BỎ HẲN — anh Thắng 21/09/2026: *"bỏ cột bộ phận đi,
+         giờ nó không còn tác dụng nữa, vì dùng hết trên vai trò cha, con rồi"*.
+         ⚠️ GIỮ Ô ẨN vì hai lẽ, cả hai đều đắt nếu bỏ:
+           1. `_readRows()` đọc theo THỨ TỰ ô. Bỏ hẳn một ô là cơ sở / mã đối tượng / đơn vị
+              lùi một chỗ, và `saveCfgUsers()` ghi cơ sở vào cột bộ phận — cả bảng lệch.
+           2. Giá trị đã khai còn nằm trong sổ. Gửi chuỗi rỗng lên là lượt Lưu đầu tiên XOÁ
+              SẠCH bộ phận của mọi tài khoản — không hoàn tác được, mà anh chỉ bảo giấu cột
+              chứ chưa bảo xoá dữ liệu. Ô ẩn mang nguyên giá trị cũ đi qua lượt lưu.
+
+         ⚠️ HAI CÁI BẪY ĐÃ CẮN NGAY LƯỢT VIẾT NÀY, ghi lại cả hai:
+           · ĐẶT MỘT DẤU `+` TRƯỚC KHỐI CHÚ THÍCH RỒI MỘT DẤU NỮA SAU NÓ. Dấu thứ hai hoá
+             CỘNG ĐƠN NGUYÊN — chuỗi bị ép sang số, ra `NaN`, ô ẩn không hề được dựng và mọi
+             cột sau lùi một chỗ. Chú thích phải nằm GIỮA, chỉ một dấu cộng, như dưới đây.
+           · VIẾT DẤU ĐÓNG CHÚ THÍCH NGAY TRONG LỜI VĂN. Nó đóng khối sớm, phần còn lại rơi ra
+             ngoài thành mã, và CẢ TRANG chết câm.
+           🔴 Và bài kiểm đếm ô vẫn XANH qua cả hai, vì nó đọc CHỮ trong mã chứ không chạy mã.
+              Chỉ lượt mở trình duyệt ra đếm ô thật mới thấy. */
+      +'<input type="hidden" value="'+esc(u.boPhan||'')+'">'
+      +'</td><td>'+_cosoSel(u.coso, u.donVi)+'</td>'
       +'<td>'+_inp(u.maDt,'VD: NV001')+'</td><td>'+_dvInp(u.donVi)+'</td>'+_delBtn()+'</tr>';
   }
   /* Thêm người vào bảng NHÂN VIÊN (vai mặc định của hàng mới). Chưa có bảng ấy — cả công ty
@@ -12469,7 +12487,7 @@
     var tb=_uBody('Nhân viên');
     if(!tb){ CFGUSERS=(CFGUSERS||[]).concat([{ten:'',maNv:'',pin:'',vaiTro:'Nhân viên',boPhan:'',coso:'',maDt:'',donVi:''}]); renderUsers(); return; }
     /* Hàng MỚI cũng che: người khai gõ PIN cho người khác, và họ gõ ngay giữa văn phòng. */
-    tb.insertAdjacentHTML('beforeend','<tr><td>'+_inp('','Tên')+'</td><td>'+_inp('','VD: NV012')+'</td><td><input type="password" maxlength="8" autocomplete="off" placeholder="4–8 số" style="width:100%"></td><td>'+_roleSel('Nhân viên')+'</td><td>'+_bpSel('','— Tất cả —')+'</td><td>'+_cosoSel('','')+'</td><td>'+_inp('','VD: NV001')+'</td><td>'+_dvInp('')+'</td>'+_delBtn()+'</tr>');
+    tb.insertAdjacentHTML('beforeend','<tr><td>'+_inp('','Tên')+'</td><td>'+_inp('','VD: NV012')+'</td><td><input type="password" maxlength="8" autocomplete="off" placeholder="4–8 số" style="width:100%"></td><td>'+_roleSel('Nhân viên')+'<input type="hidden" value="">'+'</td><td>'+_cosoSel('','')+'</td><td>'+_inp('','VD: NV001')+'</td><td>'+_dvInp('')+'</td>'+_delBtn()+'</tr>');
     tb.lastChild.scrollIntoView({block:'center'});
   }
   /** tbody của một vai, hoặc null nếu vai ấy chưa có bảng nào. */
