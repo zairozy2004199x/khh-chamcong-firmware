@@ -1429,6 +1429,31 @@
       <div class="empty" id="kyEmpty" style="display:none">Chưa có đơn nào để đổi kỳ.</div>
     </div>
 
+    <!-- ══════════════════════════════════════════════════════════════════════════════════
+         BẢNG ĐỐI CHIẾU TRƯỚC KHI GỘP BA KHỐI — CHỈ ĐỌC, KHÔNG CÓ NÚT NÀO GHI.
+
+         Anh Thắng 20/09/2026: *"vậy gộp đi em"*. Nhưng trước đó anh hỏi *"nếu bên kia có dữ
+         liệu có cần dời không"* — và chính anh chưa có con số. Khối này là chỗ con số ấy hiện
+         ra, do WordPress của anh tự đếm, vì em không mở được kho thật.
+
+         🔴 KHÔNG THÊM NÚT "GỘP LUÔN" VÀO ĐÂY. Khối này tồn tại để người ta NHÌN trước khi
+            quyết. Gắn một nút ghi vào cùng khung là lại thành bấm trước nhìn sau — mà gộp thì
+            không có nút hoàn tác: ba kho trộn xong, hai gian hàng trùng tên đã cộng tiền vào
+            nhau rồi thì không tách lại được. -->
+    <div class="card" id="gopCard" style="display:none;border:2px solid #bfdbfe">
+      <div class="ch"><h2>🧩 Soát trước khi gộp ba khối</h2><button class="btn b-x" onclick="loadSoatGop()">↻ Đếm lại</button></div>
+      <div style="padding:8px 14px 0;font-size:12px;color:#64748b">
+        Ba bản <b>KVC · MTĐ · VP</b> hiện dùng <b>ba kho bảng tách hẳn</b> — dữ liệu bên này bên kia không thấy.
+        Bảng dưới đếm hộ xem hai kho kia đang có gì, và danh mục ba bên lệch nhau chỗ nào.
+        <br><b style="color:#1d4ed8">Chỉ đọc.</b> Bấm ↻ bao nhiêu lần cũng không đổi một dòng dữ liệu nào.
+        <br><b style="color:#b45309">⚠️ Thứ tự bắt buộc: gộp DANH MỤC trước, dời DỮ LIỆU sau.</b>
+        Dòng chi không giữ mã tài khoản — nó giữ <b>tên loại chi phí</b>. Dời đơn sang trước khi danh mục
+        có cái tên ấy thì hàng loạt dòng thành <b>"⚠ chưa gắn mã"</b>. Cột <b>Mồ côi</b> bên dưới đếm đúng
+        số dòng sẽ dính nếu làm ngược.
+      </div>
+      <div id="gopBox" style="padding:10px 14px 14px"></div>
+    </div>
+
     <div class="card" id="bpCard">
       <div class="ch"><h2>🗂 Bộ phận</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="addCfgBp()">＋ Thêm bộ phận</button><button class="btn b-g" onclick="saveCfgBp()">💾 Lưu bộ phận</button></div></div>
       <div style="padding:8px 14px 0;font-size:12px;color:#64748b">
@@ -10395,6 +10420,8 @@
     /* ⚠️ `qrCard` đã gộp vào `heTkCard` — nhóm này giờ chỉ còn mốc tuần. */
     { ten:'💵 Kỳ & mốc tuần',             id:['kyCard'],
       mo:'Mốc tuần của đơn: tuần này chạy từ ngày nào đến ngày nào.' },
+    { ten:'🧩 Gộp ba khối (KVC · MTĐ · VP)', id:['gopCard'],
+      mo:'Hai kho kia đang có gì, và danh mục ba bên lệch nhau chỗ nào. Chỉ đọc.' },
     { ten:'🛠 Bảo trì — đụng vào là đụng dữ liệu thật', id:['ngayHongCard','imgMaintCard'],
       mo:'Chỉ dùng khi thật sự cần. Mỗi nút ở đây sửa hàng loạt dòng đã có.' }
   ];
@@ -11613,9 +11640,115 @@
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);})
       .saveConfig({boPhanDs:ds});
   }
+  /* ══════════════════════════════════════════════════════════════════════════════════════
+     SOÁT TRƯỚC KHI GỘP BA KHỐI — vẽ bảng đối chiếu. CHỈ ĐỌC, không có đường nào ghi.
+
+     🔴 KHÔNG BAO GIỜ IN MÃ PIN Ở ĐÂY. Máy chủ đã thay ô PIN bằng chữ "(có PIN)" trong
+        `VHCP_Gop::hien()`, nên hàm này chỉ việc in thẳng những gì nhận được — và đừng bao giờ
+        thêm một đường nào lấy PIN từ chỗ khác vào bảng này. Bảng này hay bị chụp màn hình. */
+  var GOP_TEN={kvc:'KVC — Khu vui chơi', mtd:'MTĐ — Máy tự động', vp:'VP — Văn phòng'};
+  var GOP_BANG={don:'Đơn',tamung:'Tạm ứng (dòng)',chiphi:'Dòng chi trong đơn',so_chi:'Sổ chi phí',
+    da_index:'Dự án',da_line:'Dòng dự án',mk_don:'Marketing',mk_line:'Dòng marketing',
+    bp_index:'Công tác / Setup',bp_line:'Dòng công tác',log:'Nhật ký'};
+  function loadSoatGop(){
+    if(!el('gopBox')) return;
+    if(el('gopCard')) el('gopCard').style.display=_laAdmin()?'':'none';
+    if(!_laAdmin()) return;
+    el('gopBox').innerHTML='<div style="color:#64748b;font-size:12px">Đang đếm ba kho…</div>';
+    google.script.run.withSuccessHandler(function(r){
+      if(!r||r.success===false){ el('gopBox').innerHTML='<div class="empty">Không đếm được: '+esc((r&&r.error)||'lỗi không rõ')+'</div>'; return; }
+      el('gopBox').innerHTML=_veSoatGop(r);
+    }).withFailureHandler(function(e){
+      el('gopBox').innerHTML='<div class="empty">Không đếm được: '+esc(e.message||'')+'</div>';
+    }).soatGop();
+  }
+  function _veSoatGop(r){
+    var kho=(r&&r.kho)||{}, nha=r.nha||'kvc', h='';
+    /* ─── 1. BẢNG SỐ: mỗi kho một cột, để so bằng mắt trong một lượt nhìn. ─── */
+    /* 🔴 CỘT LẤY TỪ KHO MÁY CHỦ TÌM THẤY, không từ danh sách gõ sẵn ở đây. Máy chủ dò bảng
+       `…vhcp<mã>_don` nên nó biết cả bản vùng thứ tư chưa ai nghĩ ra; gõ sẵn ba mã ở giao diện
+       là bản ấy có dữ liệu mà không cột nào hiện. `GOP_TEN` chỉ để ĐẶT TÊN cho đẹp — mã lạ thì
+       in thẳng mã ra, chứ không bỏ qua. */
+    var cai=Object.keys(kho).filter(function(k){ return kho[k]&&kho[k].cai_dat; });
+    /* Kho nhà đứng đầu; máy chủ đã xếp sẵn, đây chỉ giữ nguyên thứ tự ấy. */
+    var chua=Object.keys(GOP_TEN).filter(function(k){ return cai.indexOf(k)<0; });
+    h+='<div class="tw"><table style="min-width:620px"><thead><tr><th>Bảng</th>'
+      +cai.map(function(k){ return '<th style="width:150px;text-align:right">'+esc(GOP_TEN[k]||k)+'</th>'; }).join('')
+      +'</tr></thead><tbody>';
+    for(var b in GOP_BANG){ if(!GOP_BANG.hasOwnProperty(b)) continue;
+      var cot=cai.map(function(k){
+        var x=(kho[k].bang||{})[b];
+        /* "chưa có bảng" KHÁC "có bảng mà rỗng". Bản cũ chưa nâng cấp thì thiếu hẳn bảng —
+           in số 0 vào đó là nói dối, người đọc sẽ tưởng bên ấy không có dữ liệu. */
+        if(!x||!x.co) return '<td class="money" style="color:#b45309">— chưa có bảng —</td>';
+        var t=(x.dong||0)+' dòng';
+        if(x.tien!==null&&x.tien!==undefined) t+='<br><span style="font-size:11px;color:#64748b">'+money(x.tien)+' đ</span>';
+        return '<td class="money">'+t+'</td>';
+      }).join('');
+      h+='<tr><td>'+esc(GOP_BANG[b])+'</td>'+cot+'</tr>';
+    }
+    /* Tổng tiền CHỈ gồm tạm ứng + sổ chi — xem chú thích ở `VHCP_Gop::dem_kho()`. Nói ra ngay
+       dưới con số, kẻo người đọc cộng nhẩm mấy dòng trên rồi thấy không khớp. */
+    h+='<tr style="background:#f1f5f9;font-weight:700"><td>Tổng tiền (tạm ứng + sổ chi)</td>'
+      +cai.map(function(k){ return '<td class="money">'+money(kho[k].tong_tien||0)+' đ</td>'; }).join('')+'</tr>';
+    h+='</tbody></table></div>';
+    if(chua.length) h+='<div style="font-size:12px;color:#b45309;margin-top:6px">Chưa cài / không thấy kho: <b>'
+      +chua.map(function(k){ return esc(GOP_TEN[k]||k); }).join(' · ')+'</b></div>';
+    h+='<div style="font-size:11px;color:#8c8781;margin-top:4px">Kho của bản đang mở: <b>'+esc(GOP_TEN[nha]||nha)+'</b> — mọi kho khác đem so với nó.</div>';
+
+    /* ─── 2. DẤU KHỐI: kho MTĐ đáng lẽ chỉ có dấu 'mtd'. Lệch = có bản cài sai `const KHOI`. ─── */
+    cai.forEach(function(k){
+      var d=kho[k].dau_khoi||{}, ks=Object.keys(d);
+      var la=ks.filter(function(x){ return x!==k; });
+      if(!la.length) return;
+      h+='<div style="margin-top:10px;padding:8px 10px;border:2px solid #fca5a5;border-radius:8px;background:#fef2f2;font-size:12px">'
+        +'🔴 <b>Kho '+esc(GOP_TEN[k]||k)+' có đơn đóng dấu khối LẠ:</b> '
+        +la.map(function(x){ return esc(x||'(trống)')+' — '+d[x]+' đơn'; }).join(' · ')
+        +'<br>Phải sửa dấu TRƯỚC khi dời, không thì dời xong tiền nằm nhầm tab.</div>';
+    });
+
+    /* ─── 3. ĐỐI CHIẾU DANH MỤC: chỉ rổ "đụng độ" mới cần anh Thắng quyết. ─── */
+    cai.forEach(function(k){
+      if(k===nha||!kho[k].danh_muc) return;
+      h+='<h3 style="margin:16px 0 6px;font-size:14px">📋 Danh mục '+esc(GOP_TEN[k]||k)+' so với '+esc(GOP_TEN[nha]||nha)+'</h3>';
+      var dm=kho[k].danh_muc, co=false;
+      for(var b in dm){ if(!dm.hasOwnProperty(b)) continue; co=true;
+        var d=dm[b];
+        h+='<div style="margin:6px 0;font-size:12px"><b>'+esc(b)+'</b> — '
+          +'thêm mới <b>'+d.rieng.length+'</b> · khớp sẵn <b>'+d.trung+'</b> · '
+          +'<b style="color:'+(d.dung_do.length?'#dc2626':'#16a34a')+'">đụng độ '+d.dung_do.length+'</b></div>';
+        if(d.dung_do.length){
+          h+='<div class="tw"><table style="min-width:620px"><thead><tr><th>Tên</th><th style="width:150px">Ô lệch</th><th>'+esc(nha.toUpperCase())+' đang khai</th><th>'+esc(k.toUpperCase())+' đang khai</th></tr></thead><tbody>';
+          d.dung_do.forEach(function(x){
+            x.lech.forEach(function(l,i){
+              h+='<tr><td>'+(i?'':esc(x.ten))+'</td><td>'+esc(l.cot)+'</td><td>'+esc(l.kvc)+'</td><td>'+esc(l.kia)+'</td></tr>';
+            });
+          });
+          h+='</tbody></table></div>';
+        }
+        if(d.tu_trung&&d.tu_trung.length) h+='<div style="font-size:12px;color:#b45309">⚠️ Bên '+esc(k.toUpperCase())+' tự trùng tên với chính nó: '+d.tu_trung.map(esc).join(' · ')+'</div>';
+      }
+      if(!co) h+='<div class="empty">Kho này chưa có bảng cấu hình.</div>';
+
+      /* ─── 4. MỒ CÔI: đúng số dòng sẽ mất mã nếu dời trước khi gộp danh mục. ─── */
+      var mc=kho[k].mo_coi||{loai:{},coso:{}};
+      [['loai','loại chi phí'],['coso','cơ sở']].forEach(function(pr){
+        var m=mc[pr[0]]||{}, ten=Object.keys(m);
+        if(!ten.length) return;
+        var tong=0; ten.forEach(function(t){ tong+=m[t]; });
+        h+='<div style="margin:8px 0;padding:8px 10px;border:2px solid #fde68a;border-radius:8px;background:#fffbeb;font-size:12px">'
+          +'⚠️ <b>'+tong+' dòng</b> bên '+esc(k.toUpperCase())+' đang dùng <b>'+ten.length+' tên '+pr[1]+'</b> mà danh mục '+esc(nha.toUpperCase())+' chưa có. '
+          +'Dời trước khi khai là đúng bấy nhiêu dòng thành "⚠ chưa gắn mã".<br>'
+          +ten.slice(0,20).map(function(t){ return esc(t)+' <span style="color:#64748b">('+m[t]+')</span>'; }).join(' · ')
+          +(ten.length>20?' … và '+(ten.length-20)+' tên nữa':'')+'</div>';
+      });
+    });
+    h+='<div style="margin-top:12px;font-size:12px;color:#1d4ed8">'+esc(r.thu_tu||'')+'</div>';
+    return h;
+  }
   function renderVai(){
     if(!el('cfgVaiBody')) return;
-    loadDsKy();
+    loadDsKy(); loadSoatGop();
     if(el('vaiCard')) el('vaiCard').style.display=_laAdmin()?'':'none';
     el('cfgVaiBody').innerHTML=((CFG.vaiTro)||[]).map(function(x){
       return '<tr><td>'+_inp(x.ten,'VD: Nhân viên văn phòng')+'</td><td>'+_vaiGocSel(x.goc)+'</td><td>'+_bpSel(x.boPhan,'— Mọi bộ phận —')+'</td>'+_delBtn()+'</tr>';

@@ -552,10 +552,21 @@ $ma_do3 = array();
 foreach ( (array) $do3['items'] as $x ) { $ma_do3[] = (string) $x['maDon']; }
 t( '🔴 đơn ĐÃ CẤP TIỀN không nằm trong danh sách dọn', ! in_array( $mbc3, $ma_do3, true ), $ma_do3 );
 
-/* ⚠️ Sửa TIỀN hàng loạt thì chỉ Admin — soi thẳng danh sách trắng ở API. */
+/* ⚠️ Sửa TIỀN hàng loạt thì chỉ Admin — soi thẳng danh sách trắng ở API.
+ *
+ * 🔴 CẮT ĐÚNG KHỐI `$admin_only` RỒI MỚI TÌM, ĐỪNG ĐẾM KÝ TỰ. Bản trước dò trong cửa sổ 400 ký
+ *    tự sau `$admin_only = array(`. Nó đỏ ngày 21/09/2026 vì một lệnh mới được thêm vào ĐẦU
+ *    danh sách kèm khối chú thích, đẩy `donBuTruCu` ra ngoài cửa sổ — `donBuTruCu` vẫn nằm
+ *    nguyên trong nhóm chỉ-Admin, phép vẫn đỏ. Một phép đỏ oan thì lượt sau người ta nới con
+ *    số cho nó xanh, mà nới rộng quá là nó với sang cả `$nguoi_duyet` bên dưới và xanh oan
+ *    thật. Cắt theo ranh giới của chính khối thì không phải đoán con số nào cả. */
 $_api3 = file_get_contents( dirname( __DIR__, 2 ) . '/wordpress/vhcp-chi-phi/includes/class-vhcp-api.php' );
+$_i0   = strpos( $_api3, '$admin_only = array(' );
+$_i1   = false === $_i0 ? false : strpos( $_api3, '$nguoi_duyet = array(', $_i0 );
+$_khoi_admin = ( false === $_i0 || false === $_i1 ) ? '' : substr( $_api3, $_i0, $_i1 - $_i0 );
+t( '   cắt được khối $admin_only để soi', '' !== $_khoi_admin );
 t( '🔴 donBuTruCu nằm trong nhóm CHỈ ADMIN',
-	1 === preg_match( '/\$admin_only = array\([\s\S]{0,400}?\x27donBuTruCu\x27/', $_api3 ), null );
+	false !== strpos( $_khoi_admin, "'donBuTruCu'" ), null );
 
 VHCP_Don::delete_don_admin( $mbc1 );
 VHCP_Don::delete_don_admin( $mbc2 );
