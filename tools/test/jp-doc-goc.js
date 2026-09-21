@@ -54,6 +54,7 @@ const ham = {
   dong_may_xu: 'jpCalcCoinRow_', dong_ton_xu: 'jpCalcStockRow_',
   dong_kho_ngoai: 'jpCalcNgoaiRow_', dong_may_tach: 'jpCalcMayRow_',
   dong_hang_tach: 'jpCalcHangRow_', may_go_tay: 'jpMayGoTay_', dong: 'jpCalcRow_',
+  bao_cao: 'jpCalcReport_', canh_bao_dau: 'jpCanhBaoHead_', hoan_tong: 'jpHoanTong_',
 }[ten];
 if (!ham) { console.error('không biết hàm ' + ten); process.exit(2); }
 if (typeof hop[ham] !== 'function') { console.error('mã gốc không có ' + ham); process.exit(3); }

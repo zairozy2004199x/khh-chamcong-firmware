@@ -370,6 +370,155 @@ foreach ( array( 'MONEY', 'COIN', 'STOCK', 'NGOAI', 'MAY', 'HANG' ) as $k ) {
 	}
 }
 
+// ============================================================ 13. 🔴 TỔNG CỦA CẢ BÁO CÁO
+/** Đối chiếu một BẢN TỔNG với mã gốc. */
+function doi_chieu_tong( $nhan, $head, $rows ) {
+	/* ⚠️⚠️ ÉP `$head` THÀNH ĐỐI TƯỢNG. Mảng PHP RỖNG mã hoá thành `[]`, sang JavaScript thành
+	   một MẢNG — và `jpCalcReport_` gán thuộc tính lên nó (`head.cashActual = …`), rồi
+	   `JSON.stringify` của mảng VỨT SẠCH mọi thuộc tính ấy. Kết quả trả về rỗng không, mà
+	   chẳng có lỗi nào. Dính đúng ca `$head = array()`. */
+	$g = goc_chay( 'bao_cao', array( array( (object) $head, $rows ) ) );
+	if ( isset( $g['loi'] ) ) { t( "🔴 chạy được mã gốc cho $nhan", false, $g['loi'] ); return null; }
+	$mong = $g[0];
+	$php  = VHJP_Tinh::bao_cao( $head, $rows );
+	/* ⚠️ KHOÁ CÓ THỂ VẮNG HẲN, và vắng cũng là một câu trả lời. `adjMachine` chẳng hạn: không
+	   ai đặt thì bản gốc KHÔNG tạo ra khoá ấy — khác hẳn "có khoá, giá trị 0". Đọc thẳng
+	   `$mong[$c]` là bài chết bằng lỗi PHP thay vì báo trượt, và ta cũng không thấy được PHP có
+	   bịa thêm khoá hay không. */
+	$lay = function ( $a, $k ) { return array_key_exists( $k, $a ) ? $a[ $k ] : '(vắng)'; };
+	foreach ( array( 'revMeter', 'revBank', 'revCashMeter', 'adjMachine', 'refundRows',
+		'refundTotal', 'cashActual', 'totalSubmit', 'revHang', 'revMeterRong',
+		'lechTienHang', 'coBangTong', 'coThucThu', 'warnCount' ) as $c ) {
+		$a = $lay( $php, $c ); $b = $lay( $mong, $c );
+		t( "$nhan · $c", wp_json_encode( $a ) === wp_json_encode( $b ),
+			'gốc ' . wp_json_encode( $b ) . ' · PHP ' . wp_json_encode( $a ) );
+	}
+	$wg = is_array( $lay( $mong, 'warns' ) ) ? $mong['warns'] : array();
+	$wp_ = is_array( $lay( $php, 'warns' ) ) ? $php['warns'] : array();
+	t( "$nhan · đúng bộ mã cảnh báo đầu báo cáo",
+		array_column( $wg, 'code' ) === array_column( $wp_, 'code' ),
+		'gốc ' . implode( ',', array_column( $wg, 'code' ) )
+		. ' · PHP ' . implode( ',', array_column( $wp_, 'code' ) ) );
+	return $php;
+}
+
+/* 🔴 CA SỐ LIỆU THẬT của bản gốc: lệch máy 210.000đ + hoàn khách 250.000đ trên doanh thu
+   11.915.000đ, đáp số người ta đã tính tay là 11.875.000đ. */
+$p = doi_chieu_tong( 'tổng · ca thật',
+	array( 'adjMachine' => 210000, 'adjMachineNote' => 'x',
+		'refundCustomer' => 250000, 'refundNote' => 'y' ),
+	array( array( 'amount' => 11915000, 'bank' => 0 ) ) );
+teq( '🔴 tiền mặt thực nộp = 11.875.000đ (đúng đáp số bản gốc)', 11875000, $p['cashActual'] );
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 CHỖ MẤT TRẮNG MỘT KỲ: `adjMachine` chỉ được đặt từ Σ lệch KHI THẬT SỰ CÓ ĐẾM.
+ *
+ * Chưa ai đếm ô "Thực thu" mà vẫn đặt `adjMachine = Σ lệch` thì Σ ấy ra đúng −(toàn bộ tiền
+ * mặt máy báo), và `cashActual` về 0. Mất trắng một kỳ, mà sổ vẫn cân nên không phép kiểm kế
+ * toán nào bắt được.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+$chua_dem = array(
+	array( 'rowKind' => 'MONEY', 'amount' => 5000000, 'cash' => 5000000, 'bank' => 0, 'cashReal' => '' ),
+	array( 'rowKind' => 'MONEY', 'amount' => 3000000, 'cash' => 3000000, 'bank' => 0, 'cashReal' => '' ),
+);
+$p = doi_chieu_tong( 'tổng · chưa ai đếm', array(), $chua_dem );
+/* 🔴 KHÔNG ĐỤNG nghĩa là KHÔNG TẠO RA KHOÁ, chứ không phải đặt nó bằng 0 — và bản gốc cũng
+   vậy. Đặt bằng 0 là ghi đè một ô mà kế toán có thể đã nhập tay ở lượt trước. */
+t( '🔴 chưa ai đếm -> KHÔNG đụng adjMachine (khoá vắng hẳn, không phải bằng 0)',
+	! array_key_exists( 'adjMachine', $p ), isset( $p['adjMachine'] ) ? $p['adjMachine'] : null );
+teq( '🔴 và tiền phải nộp NGUYÊN VẸN, không về 0', 8000000, $p['cashActual'] );
+teq( 'và cờ coThucThu là false', false, $p['coThucThu'] );
+
+/* Có đếm thật thì mới lấy Σ lệch. */
+$co_dem = $chua_dem;
+$co_dem[0]['cashReal'] = 4900000;      // đếm hụt 100.000đ
+$p = doi_chieu_tong( 'tổng · có đếm', array(), $co_dem );
+teq( '🔴 có đếm -> adjMachine = Σ lệch', -100000, $p['adjMachine'] );
+teq( 'và tiền phải nộp trừ đúng khoản ấy', 7900000, $p['cashActual'] );
+teq( 'cờ coThucThu là true', true, $p['coThucThu'] );
+
+/* Kế toán nhập tay adjMachine mà chưa ai đếm -> GIỮ số kế toán nhập. */
+$p = doi_chieu_tong( 'tổng · kế toán nhập tay',
+	array( 'adjMachine' => 500000, 'adjMachineNote' => 'kiểm quỹ' ), $chua_dem );
+teq( '🔴 chưa ai đếm thì GIỮ số kế toán nhập tay', 500000, $p['adjMachine'] );
+
+// ============================================================ 14. Ba loại dòng không sinh tiền
+$tron = array(
+	array( 'rowKind' => 'MONEY', 'amount' => 1000000, 'bank' => 200000 ),
+	array( 'rowKind' => 'STOCK', 'amount' => 0, 'soldQty' => 5 ),
+	array( 'rowKind' => 'NGOAI', 'amount' => 0 ),
+	array( 'rowKind' => 'HANG',  'amount' => 0, 'soldQty' => 4, 'price' => 100000 ),
+);
+$p = doi_chieu_tong( 'tổng · trộn đủ loại dòng', array(), $tron );
+teq( '🔴 chỉ dòng MONEY sinh doanh thu', 1000000, $p['revMeter'] );
+teq( 'chuyển khoản đếm đúng',             200000,  $p['revBank'] );
+/* Dòng HÀNG cho đường thứ hai để đem so — KHÔNG cộng vào doanh thu. */
+teq( '🔴 tiền theo hàng là đường SO RIÊNG', 400000, $p['revHang'] );
+teq( 'và bảng tổng lệch đúng phần chênh',   600000, $p['lechTienHang'] );
+t( 'có dòng hàng thì bật bảng tổng', true === $p['coBangTong'] );
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 PHÉP LỌC PHẢI QUAN SÁT ĐƯỢC — cho ba loại dòng ấy MANG TIỀN.
+ *
+ * Bộ thử trên để `amount = 0` ở dòng STOCK/NGOAI/HANG, nên bỏ hẳn phép lọc cũng KHÔNG đổi gì
+ * và hai lượt đục thử sống sót. Mà đó đúng là ca nguy hiểm có thật: một dòng ĐỔI LOẠI (nhân
+ * viên sửa bảng) còn giữ nguyên số tiền của loại cũ trong ô, và không ai xoá hộ.
+ *
+ * `bao_cao()` là tầng chặn THỨ HAI — dòng đọc thẳng từ cơ sở dữ liệu không đi qua hàm tính
+ * dòng nên không được ép về 0 ở đó. Lọc ở đây là chỗ duy nhất còn lại.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+$dinh_tien = array(
+	array( 'rowKind' => 'MONEY', 'amount' => 1000000, 'bank' => 0 ),
+	array( 'rowKind' => 'STOCK', 'amount' => 7000000, 'bank' => 300000 ),   // tiền cũ còn dính
+	array( 'rowKind' => 'NGOAI', 'amount' => 9000000, 'bank' => 400000 ),   // tiền cũ còn dính
+	array( 'rowKind' => 'HANG',  'amount' => 5000000, 'bank' => 500000, 'soldQty' => 2, 'price' => 100000 ),
+);
+$p = doi_chieu_tong( 'tổng · dòng đổi loại còn dính tiền cũ', array(), $dinh_tien );
+teq( '🔴 chỉ dòng MONEY được tính, dù ba dòng kia còn dính tiền', 1000000, $p['revMeter'] );
+teq( '🔴 và chuyển khoản cũng KHÔNG ăn theo', 0, $p['revBank'] );
+teq( 'tiền phải nộp đúng một triệu', 1000000, $p['cashActual'] );
+
+/* Hoàn khách gắn theo mã: cộng từ MỌI loại dòng, kể cả dòng không sinh tiền. */
+$co_hoan = array(
+	array( 'rowKind' => 'MONEY', 'amount' => 1000000, 'refundAmt' => 100000 ),
+	array( 'rowKind' => 'HANG',  'amount' => 0, 'refundAmt' => 50000, 'soldQty' => 1, 'price' => 100000 ),
+);
+$p = doi_chieu_tong( 'tổng · hoàn theo mã', array( 'refundCustomer' => 30000 ), $co_hoan );
+teq( '🔴 Σ hoàn theo mã gom từ MỌI loại dòng', 150000, $p['refundRows'] );
+teq( 'tổng hoàn = khoản chung + Σ theo mã',    180000, $p['refundTotal'] );
+teq( 'và trừ thẳng vào tiền phải nộp',         820000, $p['cashActual'] );
+
+// ============================================================ 15. Cảnh báo đầu báo cáo
+/* W15 phải vượt CẢ HAI ngưỡng — chỉ một thì cơ sở nhỏ kêu suốt (rồi không ai đọc nữa) còn cơ
+   sở lớn im lặng nuốt khoản lớn. */
+$ma_w = function ( $h ) { return array_column( VHJP_Tinh::canh_bao_dau( $h ), 'code' ); };
+t( '🔴 lệch 300.000đ trên doanh thu 1.000.000đ (30%) -> W15',
+	in_array( 'W15', $ma_w( array( 'adjMachine' => 300000, 'adjMachineNote' => 'x',
+		'revMeter' => 1000000 ) ), true ) );
+t( '🔴 lệch 100.000đ (dưới sàn 200.000đ) -> KHÔNG W15, dù là 10%',
+	! in_array( 'W15', $ma_w( array( 'adjMachine' => 100000, 'adjMachineNote' => 'x',
+		'revMeter' => 1000000 ) ), true ) );
+t( '🔴 lệch 300.000đ trên doanh thu 100.000.000đ (0,3%) -> KHÔNG W15',
+	! in_array( 'W15', $ma_w( array( 'adjMachine' => 300000, 'adjMachineNote' => 'x',
+		'revMeter' => 100000000 ) ), true ) );
+/* Có điều chỉnh mà chưa ghi lý do -> W6. */
+t( 'lệch máy chưa có lý do -> W6',
+	in_array( 'W6', $ma_w( array( 'adjMachine' => 50000, 'revMeter' => 1000000 ) ), true ) );
+t( 'hoàn khách chưa có lý do -> W6',
+	in_array( 'W6', $ma_w( array( 'refundCustomer' => 50000 ) ), true ) );
+t( 'ghi lý do rồi thì thôi nhắc',
+	! in_array( 'W6', $ma_w( array( 'refundCustomer' => 50000, 'refundNote' => 'khách trả' ) ), true ) );
+
+/* 🔴 `canh_bao_dau` còn được gọi lúc MỞ LẠI báo cáo, khi `$head` đọc thẳng từ cơ sở dữ liệu và
+   mấy trường tạm không có — nó phải TỰ tính lại tổng hoàn, không dựa vào trường tạm. */
+$mo_lai = array( 'revMeter' => 5000000, 'revHang' => 4650000, 'lechTienHang' => 150000,
+	'refundCustomer' => 200000, 'refundNote' => 'x', 'bcMau' => '' );
+$w = VHJP_Tinh::canh_bao_dau( $mo_lai );
+$cau = implode( ' ', array_column( $w, 'detail' ) );
+t( '🔴 câu cảnh báo lúc mở lại có NÊU khoản hoàn đứng giữa',
+	false !== mb_strpos( $cau, '200.000' ), $cau );
+teq( 'và tổng hoàn tính lại đúng', 200000, VHJP_Tinh::hoan_tong( $mo_lai ) );
+
 // ============================================================ kết
 if ( $truot ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
@@ -377,4 +526,4 @@ if ( $truot ) {
 	echo "ĐẠT: $dat\n";
 	exit( 1 );
 }
-echo "ĐẠT: $dat phép thử — sáu loại dòng khớp mã gốc, và khớp cả ba bộ số liệu thật.\n";
+echo "ĐẠT: $dat phép thử — sáu loại dòng và bản tổng đều khớp mã gốc lẫn số liệu thật.\n";
