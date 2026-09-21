@@ -526,8 +526,16 @@ class VHCP_Test_WPDB {
 	public function exec_raw( $sql ) { return $this->pdo->exec( $sql ); }
 
 	private function tr( $sql ) {
-		// SQLite không có SHOW TABLES — plugin dùng câu đó để hỏi "bảng của plugin kia có không".
+		/* SQLite không có SHOW TABLES — plugin dùng câu đó để hỏi "bảng của plugin kia có không".
+		 *
+		 * 🔴 PHẢI GIỮ CẢ DẠNG CÓ `%`. Bản đầu dịch mọi câu thành `name='…'`, tức so BẰNG. Câu
+		 *    hỏi "có đúng bảng này không" thì đúng, nhưng câu DÒ `wp_vhcp%_don` — cách
+		 *    `VHCP_Gop` tìm xem trên site đang có những kho nào — thì so bằng luôn trả rỗng:
+		 *    bảng đối chiếu báo "chỉ có một kho" trong khi có ba, và không phép nào đỏ. */
 		if ( preg_match( "/^\s*SHOW\s+TABLES\s+LIKE\s+'([^']*)'/i", $sql, $m ) ) {
+			if ( false !== strpos( $m[1], '%' ) ) {
+				return "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '" . $m[1] . "' ESCAPE '\\' ORDER BY name";
+			}
 			return "SELECT name FROM sqlite_master WHERE type='table' AND name='" . $m[1] . "'";
 		}
 		/* ══════════════════════════════════════════════════════════════════════════════
@@ -695,9 +703,13 @@ class VHCP_Test_WPDB {
 $GLOBALS['wpdb'] = new VHCP_Test_WPDB();
 
 /** Bảng SQLite tương ứng schema MySQL (khóa chính đổi sang stt để có AUTOINCREMENT). */
-function vhcp_test_create_tables() {
+function vhcp_test_create_tables( $p = 'wp_vhcp_' ) {
 	global $wpdb;
-	$p = 'wp_vhcp_';
+	/* 🔴 TIỀN TỐ NHẬN THAM SỐ — để dựng được KHO CỦA BẢN VÙNG (`wp_vhcpmtd_` · `wp_vhcpvp_`).
+	   Ba bản plugin là ba bản sao cùng sơ đồ, khác mỗi tiền tố; `VHCP_Gop` đọc xuyên cả ba.
+	   Gõ lại sơ đồ lần thứ hai trong bài kiểm là đúng cái bẫy khai-hai-nơi đã sập mấy lượt ở
+	   ngay tệp này — thêm một cột vào plugin thì kho vùng trong bài kiểm thiếu cột ấy, và bài
+	   kiểm đỏ vì lỗi của CHÍNH NÓ, trông y như lỗi của plugin. Nên: một sơ đồ, hai lượt gọi. */
 	$q = array(
 		"CREATE TABLE {$p}don (stt INTEGER PRIMARY KEY AUTOINCREMENT, ma_don TEXT UNIQUE, ky TEXT DEFAULT '', nguoi_lap TEXT DEFAULT '', don_vi TEXT DEFAULT '', ngay_tao TEXT, trang_thai TEXT DEFAULT 'Nháp', ghi_chu TEXT DEFAULT '', nguoi_duyet TEXT DEFAULT '', ngay_duyet TEXT, nguoi_qt TEXT DEFAULT '', ngay_qt TEXT, ngay_gui_qt TEXT, chenh_lech_qt REAL DEFAULT 0, xu_ly TEXT DEFAULT '', so_tien_thuc_mua REAL, hinh_thuc_tt TEXT DEFAULT '', hoa_don_qt TEXT DEFAULT '', hoa_don_qt2 TEXT DEFAULT '', ngay_xuat_cn TEXT, nguoi_qt_ncc TEXT DEFAULT '', ngay_qt_ncc TEXT, ngay_xuat_ncc TEXT, tam_ung_duyet REAL, nguoi_cap TEXT DEFAULT '', ngay_cap TEXT, ht_cap TEXT DEFAULT '', anh_cap TEXT DEFAULT '', tat_toan TEXT DEFAULT '', ngay_tat_toan TEXT, du_phong REAL, bu_tru REAL, khoi TEXT DEFAULT 'kvc')",
 		"CREATE TABLE {$p}tamung (id INTEGER PRIMARY KEY AUTOINCREMENT, ma_don TEXT, coso TEXT DEFAULT '', so REAL DEFAULT 0, UNIQUE(ma_don,coso))",

@@ -50,10 +50,12 @@ VHCP_Cfg::write( VHCP_Cfg::VAI, array(
 	array( 'Kế toán khu vui chơi', 'Kế toán cá nhân', 'Cơ sở' ),
 ) );
 /* Cột: Tên · TK Nợ · TK Có · Mã ĐT · BỘ PHẬN · Ghi chú · Tên MISA · Loại TT */
+/* ⚠️ TỪ 21/09/2026 Ô TÍCH LÀ VAI TRÒ (cột 11), không còn là bộ phận (cột 5) — anh Thắng:
+   *"bỏ tích bộ phận đi, mà tích theo vai trò"*. Câu hỏi của bài không đổi; chỉ trục đổi. */
 VHCP_Cfg::write( VHCP_Cfg::LOAI, array(
-	array( 'Sửa máy gắp thú', '6427', '', '', 'Máy tự động',   '', '', '' ),
-	array( 'Mua bóng nhựa',   '6421', '', '', 'Cơ sở',         '', '', '' ),
-	array( 'Chi phí khác',    '6428', '', '', '',              '', '', '' ),   // CHƯA khai bộ phận
+	array( 'Sửa máy gắp thú', '6427', '', '', 'Máy tự động', '', '', '', '', '', 'Kế toán máy tự động' ),
+	array( 'Mua bóng nhựa',   '6421', '', '', 'Cơ sở',       '', '', '', '', '', 'Kế toán khu vui chơi' ),
+	array( 'Chi phí khác',    '6428', '', '', '',            '', '', '', '', '', '' ),   // CHƯA tích vai nào
 ) );
 VHCP_Cfg::clear_cache();
 teq( 'đối chứng · danh mục khai đúng · máy tự động', 'Máy tự động',  VHCP_Cfg::bo_phan_cua_loai( 'Sửa máy gắp thú' ) );
@@ -151,9 +153,9 @@ teq( 'còn D_KHAC thì hai bên đều "chưa rõ"',                            
  * hướng dẫn ấy là lời nói suông.
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
 VHCP_Cfg::write( VHCP_Cfg::LOAI, array(
-	array( 'Sửa máy gắp thú', '6427', '', '', 'Máy tự động',  '', '', '' ),
-	array( 'Mua bóng nhựa',   '6421', '', '', 'Cơ sở',        '', '', '' ),
-	array( 'Chi phí khác',    '6428', '', '', 'Cơ sở',        '', '', '' ),   // vừa khai
+	array( 'Sửa máy gắp thú', '6427', '', '', 'Máy tự động', '', '', '', '', '', 'Kế toán máy tự động' ),
+	array( 'Mua bóng nhựa',   '6421', '', '', 'Cơ sở',       '', '', '', '', '', 'Kế toán khu vui chơi' ),
+	array( 'Chi phí khác',    '6428', '', '', 'Cơ sở',       '', '', '', '', '', 'Kế toán khu vui chơi' ),   // vừa tích
 ) );
 VHCP_Cfg::clear_cache();
 lam( 'Kế toán máy tự động', 'NV', 'Máy tự động' );

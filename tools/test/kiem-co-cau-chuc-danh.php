@@ -48,25 +48,29 @@ teq( '🔴 "Giám đốc" là vai gốc, không bị quy về Nhân viên', 'Gi�
 
 /* ═══ 2. PHÒNG BAN BÓ AI, THA AI ═══════════════════════════════════════════════════ */
 VHCP_Cfg::seed();
+/* ⚠️ TỪ 21/09/2026 Ô TÍCH LÀ VAI TRÒ, KHÔNG CÒN LÀ BỘ PHẬN (anh Thắng: *"bỏ tích bộ phận đi,
+   mà tích theo vai trò"*). Câu hỏi của mục này không đổi — *"ai chỉ thấy phần của mình"* — chỉ
+   TRỤC đổi, nên chỗ gieo khai TÊN VAI ở cột 11. */
 VHCP_Cfg::write( VHCP_Cfg::LOAI, array(
-	array( 'Sửa máy gắp thú', '6417', '', '', 'Máy tự động', '', '', '' ),
-	array( 'Chạy quảng cáo',  '6418', '', '', 'Marketing',   '', '', '' ),
-	array( 'Chi phí khác',    '6428', '', '', '',            '', '', '' ),   // chưa khai bộ phận
+	array( 'Sửa máy gắp thú', '6417', '', '', 'Máy tự động', '', '', '', '', '', 'Quản lý' ),
+	array( 'Chạy quảng cáo',  '6418', '', '', 'Marketing',   '', '', '', '', '', 'Kế toán cá nhân' ),
+	array( 'Chi phí khác',    '6428', '', '', '',            '', '', '', '', '', '' ),   // chưa tích vai nào
 ) );
 VHCP_Cfg::clear_cache();
 
 lam( 'Quản lý', 'Hòa', '', 'Máy tự động' );
-teq( '🔴 Quản lý bị bó vào phòng ban của TÀI KHOẢN', 'Máy tự động', VHCP_Auth::bo_phan_bo() );
-teq( '   nên thấy loại của phòng mình',  true,  VHCP_Auth::xem_duoc_loai( 'Sửa máy gắp thú' ) );
-teq( '🔴 và KHÔNG thấy loại của phòng khác', false, VHCP_Auth::xem_duoc_loai( 'Chạy quảng cáo' ) );
-/* ⚠️ Loại CHƯA khai bộ phận vẫn cho qua — danh mục dựng từ sổ cũ còn rất nhiều dòng bỏ trống,
+teq( '   thấy loại đã tích cho vai mình',  true,  VHCP_Auth::xem_duoc_loai( 'Sửa máy gắp thú' ) );
+teq( '🔴 và KHÔNG thấy loại tích cho vai khác', false, VHCP_Auth::xem_duoc_loai( 'Chạy quảng cáo' ) );
+/* ⚠️ Loại CHƯA tích vai nào vẫn cho qua — danh mục dựng từ sổ cũ còn rất nhiều dòng bỏ trống,
    chặn chúng là ngày bản này lên người ta mở màn ra thấy gần như trắng. */
-teq( '⚠️ loại chưa khai bộ phận thì ai cũng thấy', true, VHCP_Auth::xem_duoc_loai( 'Chi phí khác' ) );
+teq( '⚠️ loại chưa tích vai nào thì ai cũng thấy', true, VHCP_Auth::xem_duoc_loai( 'Chi phí khác' ) );
+/* 🔴 Ô Bộ phận trên tài khoản KHÔNG còn cắt gì — cột ấy đã rời khỏi bảng Người dùng (1.232.0),
+   lọc bằng nó là lọc bằng dữ liệu không ai sửa được. */
+teq( '🔴 ô Bộ phận cũ trên tài khoản không còn cắt gì', true, VHCP_Auth::xem_duoc_loai( 'Sửa máy gắp thú' ) );
 
 lam( 'Kế toán cá nhân', 'Nhân', '', 'Marketing' );
-teq( '🔴 Kế toán cũng bị bó vào phòng ban của mình', 'Marketing', VHCP_Auth::bo_phan_bo() );
-teq( '   thấy loại phòng mình',       true,  VHCP_Auth::xem_duoc_loai( 'Chạy quảng cáo' ) );
-teq( '🔴 không thấy loại phòng khác', false, VHCP_Auth::xem_duoc_loai( 'Sửa máy gắp thú' ) );
+teq( '   thấy loại đã tích cho vai mình', true,  VHCP_Auth::xem_duoc_loai( 'Chạy quảng cáo' ) );
+teq( '🔴 không thấy loại tích cho vai khác', false, VHCP_Auth::xem_duoc_loai( 'Sửa máy gắp thú' ) );
 
 lam( 'Nhân viên', 'Bin', 'FARM PHAN THIẾT', 'Kỹ thuật' );
 teq( '🔴 Nhân viên cũng bó theo phòng ban', 'Kỹ thuật', VHCP_Auth::bo_phan_bo() );

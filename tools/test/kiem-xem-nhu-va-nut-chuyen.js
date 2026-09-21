@@ -46,16 +46,45 @@ const fnNut = bocHam('_veNutChuyenDon');
 t('bốc được _veNutChuyenDon()', fnNut.length > 100, fnNut.length);
 
 /** Chạy thật với một tài khoản + bảng `vis`, trả trạng thái hiện/ẩn của hai nút. */
+/* 🔴 BỐC MÃ THẬT: từ 21/09/2026 bộ phận đọc lại từ TÊN VAI CON (cột Bộ phận đã rời bảng
+   Người dùng). Bịa một bản ở đây là bài kiểm canh luật của chính nó. */
+const BP_THAT = `  var BP_THEO_TEN_VAI=[
+    {bp:'Kỹ thuật', tu:['ky thuat']},
+    {bp:'Cơ sở',    tu:['co so']},
+    {bp:'Marketing', tu:['marketing']},
+    {bp:'Văn phòng', tu:['van phong']}
+  ];
+  function _boDauVai(s){
+    return String(s==null?'':s).toLowerCase().replace(/\\u0111/g,'d')
+      .normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/\\s+/g,' ').trim();
+  }
+  function _bpCuaVai(ten){
+    var t=' '+_boDauVai(ten)+' ';
+    if(t===' ') return '';
+    for(var i=0;i<BP_THEO_TEN_VAI.length;i++){
+      var x=BP_THEO_TEN_VAI[i];
+      for(var j=0;j<x.tu.length;j++){ if(t.indexOf(' '+x.tu[j]+' ')>=0) return x.bp; }
+    }
+    return '';
+  }
+  function _bpCuaToi(){
+    var b=String((CURUSER&&CURUSER.boPhan)||'').trim();
+    if(b) return b;
+    return _bpCuaVai((CURUSER&&CURUSER.role)||'');
+  }`;
 function nut(vai, bp, vis) {
   const B = { duan: { style: { display: '' } }, don: { style: { display: '' } } };
-  new Function('CURUSER', 'document', 'BP_VAO_DUAN', '_vaiGoc', '_vaoDonCoSo', 'vis',
-    fnNut + '\n_veNutChuyenDon(vis);')(
+  /* Từ 21/09/2026 `_veNutChuyenDon()` so luật qua `_vaiLuat()` — vai con làm được việc của
+     vai cha. Bệ đỡ phải có cả hai, không thì hàm thật nổ ReferenceError. */
+  new Function('CURUSER', 'document', 'BP_VAO_DUAN', '_vaiGoc', '_vaiLuat', '_vaoDonCoSo', 'vis',
+    BP_THAT + '\n' + fnNut + '\n_veNutChuyenDon(vis);')(
     { role: vai, roleGoc: vai, boPhan: bp },
     { querySelectorAll: () => [
       Object.assign(B.duan, { getAttribute: () => 'duan' }),
       Object.assign(B.don,  { getAttribute: () => 'don' }),
     ] },
     ['Văn phòng', 'Kỹ thuật'],
+    function () { return vai; },
     function () { return vai; },
     function (x) { return !(x && ['Kỹ thuật'].indexOf(x) >= 0); },
     vis);
@@ -138,6 +167,44 @@ t('   kèm tên thật, khỏi quên mình là ai',   /thật ra: '\s*\+\s*esc\(
 
 /* Danh sách bộ phận lấy từ máy chủ, không gõ cứng — hai nơi là hai nơi lệch. */
 t('🔴 ô bộ phận đọc BOOT.boPhanDs', /BOOT\s*&&\s*BOOT\.boPhanDs/.test(bocHam('glDung')));
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 CHẠY THẬT `glDung()` — Ô CHỌN PHẢI CÓ TÊN BỘ PHẬN TRONG ĐÓ
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 21/09/2026, ảnh chụp dải Xem như: *"chỉnh phần khai bộ phận cho admin để tes"* — ô
+ * ấy chỉ có hai dòng *"như tôi"* và *"để TRỐNG"*, không một tên bộ phận nào.
+ *
+ * Mà phép ngay trên ĐÃ XANH suốt: `glDung()` có đọc `BOOT.boPhanDs`, và `boot()` có gọi lại
+ * `glDung()` sau khi nạp. Hai nửa đều đúng — chỉ là MÁY CHỦ CHƯA TỪNG GỬI khoá ấy xuống. Một
+ * khoá thiếu trông y hệt một danh sách rỗng, và không phép nào canh cái mối nối giữa hai bên.
+ *
+ * Phép dưới đếm số <option> thật. Nó đỏ cả khi giao diện hỏng lẫn khi gói khởi động thiếu khoá
+ * (`kiem-goi-khoi-dong-bo-phan.php` canh đầu bên kia). */
+{
+  const KHO2 = {
+    giaLapBar: { style: { display: '' } },
+    glVai: { value: '', innerHTML: '', options: [] },
+    glBp: { value: '', innerHTML: '', options: [] },
+  };
+  const chayDung = (boPhanDs) => {
+    KHO2.glBp.innerHTML = ''; KHO2.glBp.options = [];
+    new Function('BOOT', 'CURUSER', 'GL_GOC', 'VAI_GOC', 'el', 'esc',
+      bocHam('glDung') + '\nglDung();')(
+      { boPhanDs: boPhanDs }, { role: 'Admin' }, null, ['Quản lý', 'Nhân viên'],
+      (id) => KHO2[id], (x) => String(x == null ? '' : x));
+    return KHO2.glBp.innerHTML;
+  };
+  const h = chayDung(['Nhân viên cơ sở', 'Kỹ thuật', 'Máy tự động']);
+  teq('🔴 ô bộ phận có đủ 2 dòng sẵn + 3 tên bộ phận', 5, (h.match(/<option/g) || []).length);
+  t('   và tên bộ phận thật nằm trong đó', h.indexOf('Máy tự động') > 0 && h.indexOf('Kỹ thuật') > 0, h);
+  t('   vẫn giữ lối "như tôi"', h.indexOf('— bộ phận: như tôi —') > 0);
+  t('   và lối "để TRỐNG" (ca vừa làm hở cái nút)', h.indexOf('__trong__') > 0);
+  /* Đối chứng: đúng cái cảnh trên ảnh của anh Thắng — máy chủ không gửi gì thì chỉ còn 2 dòng.
+     Phép này không đòi sửa gì; nó ghim lại ĐÚNG triệu chứng, để lần sau ai thấy 2 dòng thì
+     biết ngay phải đi soi gói khởi động chứ không soi `glDung()`. */
+  teq('   (đối chứng: máy chủ gửi rỗng thì chỉ còn 2 dòng — đúng ảnh anh Thắng gửi)',
+    2, (chayDung([]).match(/<option/g) || []).length);
+}
 t('   và dựng LẠI sau khi boot xong (lúc ấy mới có danh sách)',
   /_applyTabPerms\(\);[\s\S]{0,400}?glDung\(\);/.test(HTML));
 

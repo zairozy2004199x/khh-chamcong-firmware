@@ -325,6 +325,32 @@ class VHCP_DonVi {
 	 * nhà con chỉ thấy nút của mình.
 	 */
 	public static function khoi_xem_duoc() {
+		/* ═══════════════════════════════════════════════════════════════════════════
+		   Ô KHỐI KHAI TAY ĐỨNG TRƯỚC ÁNH XẠ TỪ ĐƠN VỊ.
+
+		   Anh Thắng 21/09/2026: *"chỗ đơn vị thay bằng khối — tích nếu 1 người làm 2 khối thì
+		   chọn 2, vì có thể nv chung sẽ làm việc với 2 khối"*.
+
+		   🔴 ÁNH XẠ MỘT-MỘT TỪ ĐƠN VỊ KHÔNG DIỄN ĐẠT ĐƯỢC ĐIỀU NÀY. Một người có ĐÚNG MỘT
+		      nhà (nơi đơn họ lập rơi về), nên `khoi_cua()` luôn trả đúng một khối — còn người
+		      làm việc với hai bên thì cần hai nút. Đó là hai câu hỏi khác nhau, nên nay có hai ô.
+
+		   ⚠️ VÀ ĐÂY VẪN KHÔNG PHẢI TRỤC PHÂN QUYỀN THỨ HAI — giữ nguyên chốt ⚠ ở trên: khối
+		      chỉ quyết định BÀY NÚT NÀO. Dữ liệu sau mỗi nút vẫn bị đơn vị cắt ở máy chủ. Tích
+		      thêm một khối KHÔNG mở thêm được dòng dữ liệu nào.
+
+		   🔴 ADMIN KHÔNG BAO GIỜ BỊ CẮT. Anh Thắng là người ngồi khai bảng này; tích nhầm một ô
+		      cho chính mình mà mất hai nút kia là không còn đường vào để sửa lại. Cùng luật với
+		      `VHCP_Auth::xem_duoc_loai()`.
+
+		   ⚠️ Ô TRỐNG = NGÃ VỀ ÁNH XẠ CŨ, không phải "không thuộc khối nào". Ngày bản này lên
+		      chưa ai kịp tích ô nào; hiểu ngược là cả công ty mở màn ra không thấy nút khối nào.
+		   ══════════════════════════════════════════════════════════════════════════ */
+		$vai = trim( (string) VHCP_Auth::vai_hien() );
+		if ( 'Admin' !== $vai ) {
+			$tay = self::khoi_khai_tay( VHCP_Auth::nguoi() );
+			if ( $tay ) { return $tay; }
+		}
 		$ds = self::xem_duoc();
 		if ( null === $ds ) { return null; }          // nhà mẹ — cả hệ
 		$ra = array();
@@ -335,6 +361,26 @@ class VHCP_DonVi {
 		/* Không ánh xạ được nhà nào -> đừng giấu hết nút rồi để người ta ngồi trước một màn
 		   không bấm được gì. Xem chốt ⚠️ ở trên: giấu nút không phải là gác quyền. */
 		return $ra ? $ra : null;
+	}
+
+	/**
+	 * Những khối một người ĐÃ TÍCH TAY ở bảng Người dùng — mảng rỗng = chưa khai.
+	 *
+	 * ⚠️ CHỈ NHẬN MÃ CÓ THẬT. Ô này là chuỗi ngăn phẩy ghi thẳng xuống sổ, nên một lượt nhập
+	 *    từ bảng tính cũ có thể đưa vào đây bất cứ thứ gì. Mã lạ lọt qua là màn đi tìm một nút
+	 *    không tồn tại rồi không bày nút nào cả.
+	 */
+	public static function khoi_khai_tay( $ten ) {
+		$u = self::dong_nguoi( $ten );
+		$s = ( $u && isset( $u['khoi'] ) ) ? (string) $u['khoi'] : '';
+		$ra = array();
+		foreach ( preg_split( '/\s*,\s*/u', $s ) as $x ) {
+			$x = mb_strtolower( trim( (string) $x ) );
+			if ( '' === $x || in_array( $x, $ra, true ) ) { continue; }
+			if ( ! isset( self::KHOI_THEO_DON_VI[ $x ] ) ) { continue; }
+			$ra[] = $x;
+		}
+		return $ra;
 	}
 
 	public static function xem_duoc() {

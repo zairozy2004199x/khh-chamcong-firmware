@@ -42,13 +42,40 @@ function oNut() {
   o.querySelector = function (q) { return q === 'b' ? o._b : o._s; };
   return o;
 }
+/* 🔴 BỐC MÃ THẬT, ĐỪNG BỊA LẠI LUẬT Ở ĐÂY. Từ 21/09/2026 cột Bộ phận đã rời bảng Người
+   dùng, nên luật nào cần bộ phận thì đọc lại từ TÊN VAI CON. Bịa một bản ở bài kiểm là nó
+   canh luật của chính nó, xanh vĩnh viễn dù bản thật đi đường khác. */
+const BP_THAT = `  var BP_THEO_TEN_VAI=[
+    {bp:'Kỹ thuật', tu:['ky thuat']},
+    {bp:'Cơ sở',    tu:['co so']},
+    {bp:'Marketing', tu:['marketing']},
+    {bp:'Văn phòng', tu:['van phong']}
+  ];
+  function _boDauVai(s){
+    return String(s==null?'':s).toLowerCase().replace(/\\u0111/g,'d')
+      .normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/\\s+/g,' ').trim();
+  }
+  function _bpCuaVai(ten){
+    var t=' '+_boDauVai(ten)+' ';
+    if(t===' ') return '';
+    for(var i=0;i<BP_THEO_TEN_VAI.length;i++){
+      var x=BP_THEO_TEN_VAI[i];
+      for(var j=0;j<x.tu.length;j++){ if(t.indexOf(' '+x.tu[j]+' ')>=0) return x.bp; }
+    }
+    return '';
+  }
+  function _bpCuaToi(){
+    var b=String((CURUSER&&CURUSER.boPhan)||'').trim();
+    if(b) return b;
+    return _bpCuaVai((CURUSER&&CURUSER.role)||'');
+  }`;
 function moi(boPhan) {
   ['daNhomCs', 'daNhomDa', 'daNhomTuan', 'ndLoaiDaCoSo', 'ndLoaiDuAn'].forEach(function (id) { KHO[id] = oNut(); });
   ['daTaoChiTiet', 'daLoaiBox', 'daTenBox', 'daTuanBox', 'daDangLapTen', 'daLoai'].forEach(function (id) {
     KHO[id] = { style: {}, textContent: '', value: 'Setup lắp đặt' };
   });
   return new Function('CURUSER', 'el', 'daNapTuan', 'daOnLoai', 'DA_NHOM',
-    MOI + '\nreturn { ap:_apTenNhom, ten:_tenNhom, tenBp:_tenNhomBp, chon:daChonNhom, loai:_daLoaiChon,'
+    BP_THAT + '\n' + MOI + '\nreturn { ap:_apTenNhom, ten:_tenNhom, tenBp:_tenNhomBp, chon:daChonNhom, loai:_daLoaiChon,'
     + ' dangLap:function(){ return el("daDangLapTen").textContent; } };')(
     { boPhan: boPhan, name: 'Ai Đó' }, function (id) { return KHO[id]; }, function () {}, function () {}, '');
 }

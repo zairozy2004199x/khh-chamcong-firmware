@@ -1,0 +1,26 @@
+{
+  "_doc": "Bảng vàng: tên vai trò -> mã khối đọc ra từ chính cái tên. '' = vai chạy ngang, thuộc MỌI khối. Hai bài kiểm (PHP `kiem-vai-theo-khoi.php` và màn `kiem-vai-theo-khoi.js`) cùng đọc file này rồi chạy bản của mình — nên một bên sửa luật mà bên kia quên là ĐỎ ngay, không phải chờ ai mở màn ra nhìn.",
+  "bang": {
+    "Quản Lý Khu Vui Chơi": "kvc",
+    "Kế Toán Khu Vui Chơi": "kvc",
+    "Nhân Viên Cơ Sở Khu Vui Chơi": "kvc",
+    "Nhân Viên Kỹ Thuật Khu Vui Chơi": "kvc",
+    "Quản Lý Máy Tự Động": "mtd",
+    "Kế Toán Máy Tự Động": "mtd",
+    "Nhân Viên Cơ Sở Máy Tự Động": "mtd",
+    "Nhân Viên Kỹ Thuật Máy Tự Động": "mtd",
+    "Kỹ thuật POSH": "mtd",
+    "Quản Lý VP Chung": "vp",
+    "Kế Toán VP Chung": "vp",
+    "Nhân viên Văn Phòng": "vp",
+    "Admin": "",
+    "Quản lý": "",
+    "Kế toán cá nhân": "",
+    "Kế toán NCC": "",
+    "Nhân viên": "",
+    "Nhân Viên Marketing": "",
+    "Quản Lý Chung": "",
+    "Giám đốc": "",
+    "": ""
+  }
+}
