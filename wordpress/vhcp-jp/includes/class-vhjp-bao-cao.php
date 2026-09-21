@@ -568,9 +568,19 @@ class VHJP_BaoCao {
 			   nhận một MẢNG và `prev[r.machineId]` ra `undefined` ở mọi dòng. */
 			'prevClosing'  => (object) $prev,
 			'trungNguoiKhac' => VHJP_Auth::la_nv( $u ) ? self::trung_nguoi_khac( $head, isset( $u['id'] ) ? $u['id'] : '' ) : array(),
-			/* Ảnh chưa chuyển — xem khối ⚠️ cuối phần đầu tệp. Giao diện thấy rỗng thì tự gọi
-			   `jpPhotoProgress` như cũ, đúng đường lùi bản gốc đã có sẵn. */
-			'anhTienDo'    => null,
+			/*
+			 * TIẾN ĐỘ ẢNH ĐI CÙNG LƯỢT NÀY — bản gốc gộp vào đây vì *"bấm cái nào cũng load
+			 * lâu quá"*: tách ra là HAI đợt chờ nối tiếp, mà mở báo cáo là việc nhân viên làm
+			 * nhiều nhất trong ca.
+			 *
+			 * ⚠️ `try/catch` là CÓ CHỦ Ý và có tiền lệ (giao diện vốn đã `.catch()` chỗ này):
+			 *    ảnh là phần phụ, hỏng thì báo cáo VẪN PHẢI MỞ ĐƯỢC — cùng luật với "thiếu ảnh
+			 *    thì cảnh báo, KHÔNG chặn nộp". Không có lớp bọc này thì một bảng ảnh lỗi là
+			 *    nhân viên không mở nổi báo cáo. Giao diện thấy rỗng thì tự gọi lại.
+			 */
+			'anhTienDo'    => ( function () use ( $u, $ma_bc ) {
+				try { return VHJP_Anh::tien_do( $u, $ma_bc ); } catch ( Throwable $e ) { return null; }
+			} )(),
 		);
 	}
 
@@ -1268,6 +1278,182 @@ class VHJP_BaoCao {
 		} while ( isset( $da_dung[ $id ] ) );
 		$da_dung[ $id ] = 2;
 		return $id;
+	}
+
+	/* ═══════════════════════ NỘP BÁO CÁO ═══════════════════════ */
+
+	/**
+	 * NỘP BÁO CÁO.
+	 *
+	 * =========================================================================================
+	 * 🔴 BỐN PHÉP CHẶN, THEO ĐÚNG THỨ TỰ NÀY. Thứ tự không phải ngẫu nhiên.
+	 * =========================================================================================
+	 *   ① chưa có dòng nào          — không có gì để nộp
+	 *   ② còn ô chỉ số sau bỏ trống — số đó là SỐ ĐẦU KỲ của kỳ sau, mà ô đầu kỳ bị khoá
+	 *   ③ QR lớn hơn Thành tiền     — số lệch tính ra từ chính mấy ô này
+	 *   ④ chưa ghi lý do lệch máy / hoàn khách
+	 *
+	 * ⚠️ ③ đặt SAU ② vì thiếu số thì phải nhắc thiếu trước; đặt TRƯỚC ④ vì số lệch tính ra từ
+	 *    chính mấy ô ấy — bắt người ta giải thích một con số sai là vô nghĩa.
+	 *
+	 * ⚠️ THIẾU ẢNH THÌ KHÔNG CHẶN, chỉ chốt cảnh báo vào báo cáo. Mạng ở trung tâm thương mại
+	 *    hay hỏng; chặn là nhân viên mắc kẹt cả buổi.
+	 */
+	public static function nop( $u, $ma_bc ) {
+		$head = VHJP_Nguon::tim_mot( 'JP_Reports', 'id', $ma_bc );
+		if ( ! $head ) { throw new Exception( 'Không tìm thấy báo cáo' ); }
+		VHJP_Auth::can_coso( $u, $head['locationId'] );
+		self::can_chu( $u, $head );
+		if ( ! self::sua_duoc( $u, $head ) ) {
+			throw new Exception( 'Báo cáo không ở trạng thái nộp được' );
+		}
+
+		if ( ! VHJP_Nguon::lay_khoa( $ma_bc ) ) {
+			throw new Exception( 'Báo cáo này đang được lưu ở một cửa sổ khác — thử lại sau vài giây' );
+		}
+		try {
+			return self::nop_trong_khoa( $u, $head, $ma_bc );
+		} finally {
+			VHJP_Nguon::tra_khoa( $ma_bc );
+		}
+	}
+
+	private static function nop_trong_khoa( $u, $head, $ma_bc ) {
+		$rows = VHJP_Nguon::tim( 'JP_Rows', 'reportId', $ma_bc );
+		if ( ! $rows ) { throw new Exception( 'Chưa có dòng nào để nộp' ); }
+
+		$thieu = self::thieu_chi_so( $rows );
+		if ( $thieu ) {
+			throw new Exception( 'Còn ' . count( $thieu ) . ' ô chưa nhập chỉ số sau / tồn cuối kỳ: '
+				. implode( ', ', array_slice( $thieu, 0, 5 ) ) . ( count( $thieu ) > 5 ? '…' : '' )
+				. '. Nhập đủ rồi nộp — để trống sẽ làm sai số đầu kỳ của kỳ sau.' );
+		}
+
+		$qr_sai = VHJP_Tinh::qr_vuot_tien( $rows );
+		if ( $qr_sai ) {
+			throw new Exception( 'QR lớn hơn Thành tiền — app của máy báo "Thành tiền" ĐÃ GỒM cả '
+				. 'tiền mặt lẫn QR, nên QR không thể lớn hơn. Sửa lại: '
+				. implode( ' · ', array_slice( $qr_sai, 0, 4 ) ) . ( count( $qr_sai ) > 4 ? '…' : '' )
+				. '. Để nguyên thì tiền phải nộp tính ra ÂM và cơ sở coi như không phải nộp gì.' );
+		}
+
+		if ( 0 !== VHJP_Doc::num( $head['adjMachine'] )
+			&& '' === VHJP_Doc::str( $head['adjMachineNote'] ) ) {
+			throw new Exception( 'Nhập lý do cho khoản lệch máy' );
+		}
+		if ( 0 !== VHJP_Doc::num( $head['refundCustomer'] )
+			&& '' === VHJP_Doc::str( $head['refundNote'] ) ) {
+			throw new Exception( 'Nhập lý do cho khoản hoàn khách' );
+		}
+
+		$pw = VHJP_Anh::canh_bao( $ma_bc, $head['locationId'] )['warns'];
+
+		$ok = VHJP_Nguon::sua( 'JP_Reports', $ma_bc, array(
+			'status'        => self::TT_CHO_DUYET,
+			'submittedAt'   => gmdate( 'Y-m-d H:i:s', time() + 7 * 3600 ),
+			'photoWarnJson' => $pw ? wp_json_encode( $pw, JSON_UNESCAPED_UNICODE ) : '',
+			/* Nộp lại sau khi kế toán trả về thì phải XOÁ dấu vết lần trả về — để nguyên là
+			   kế toán mở ra thấy một báo cáo vừa nộp mà vẫn mang lý do bị từ chối cũ. */
+			'rejectPart' => '', 'rejectReason' => '', 'rejectBy' => '', 'rejectAt' => null,
+		) );
+		/* 🔴 Ghi hỏng thì NÓI RA. Trả "đã nộp" cho một báo cáo vẫn đang là nháp là nhân viên
+		   về nhà, kế toán không thấy gì, và không ai biết cho tới cuối kỳ. */
+		if ( ! $ok ) {
+			throw new Exception( 'Không ghi được lượt nộp — thử lại, hoặc báo người quản trị' );
+		}
+
+		VHJP_NhatKy::ghi( $u, 'REPORT_SUBMIT', $ma_bc,
+			VHJP_Doc::str( $head['locationName'] ),
+			array( 'rows' => count( $rows ), 'total' => VHJP_Doc::num( $head['totalSubmit'] ),
+				'thieuAnh' => count( $pw ) ) );
+
+		return array( 'ok' => true, 'status' => self::TT_CHO_DUYET, 'thieuAnh' => count( $pw ),
+			'msg' => 'Đã nộp báo cáo ' . VHJP_Doc::dmy( $head['fromDate'] ) . ' – '
+				. VHJP_Doc::dmy( $head['toDate'] )
+				. ( $pw ? ' · còn thiếu ' . count( $pw ) . ' chỗ ảnh, kế toán sẽ thấy' : '' ) );
+	}
+
+	/**
+	 * CÁC Ô CÒN ĐỂ TRỐNG "CHỈ SỐ SAU" — phép chặn nộp.
+	 *
+	 * 🔴 Không phải chuyện hình thức: chỉ số sau của kỳ này là chỉ số ĐẦU KỲ của kỳ sau, và ô
+	 *    đầu kỳ BỊ KHOÁ nên nhân viên kỳ sau không sửa được. Để trống ⇒ kỳ sau nối ra 0 ⇒ cả
+	 *    con số trên mặt đồng hồ thành doanh thu của một kỳ.
+	 *
+	 * ⚠️ Đồng hồ ĐẾM TRỨNG không chặn — nhiều điểm chưa dùng tới nó, chỉ cảnh báo W8.
+	 *
+	 * ⚠️ DÒNG MA không chặn nộp. Ca thật 26/08/2026: một dòng thứ 16 để trống làm Phú Quốc
+	 *    KHÔNG NỘP ĐƯỢC BÁO CÁO NÀO, và câu chặn còn chỉ vào cột "ô máy" mà mẫu TÁCH không có.
+	 *
+	 * ⚠️ HAI CÂU RIÊNG cho "chưa chọn ô máy" và "thiếu chỉ số", KHÔNG gộp. Gộp thì dòng máy xu
+	 *    có chỉ số MONEY thật, chỉ thiếu chỉ số COIN, lại ra câu *"chưa chọn ô máy"* — nói SAI
+	 *    thứ đang thiếu, nhân viên đi chọn ô máy rồi vẫn bị chặn.
+	 *
+	 * ⚠️ "Chọn gì" phải theo ĐÚNG MẪU: mẫu TÁCH không có cột ô máy, nên dòng gõ tay ở đó phải
+	 *    nói MÃ HÀNG. Chỉ vào một cột không có trên màn hình là câu vô dụng.
+	 */
+	public static function thieu_chi_so( $rows ) {
+		$thieu = array();
+		foreach ( (array) $rows as $r ) {
+			$kind = VHJP_Doc::str( isset( $r['rowKind'] ) ? $r['rowKind'] : '' );
+			if ( '' === $kind ) { $kind = VHJP_Tinh::DONG_MONEY; }
+			/* Bảng tồn kho và kho ngoài không có đồng hồ. */
+			if ( VHJP_Tinh::DONG_STOCK === $kind || VHJP_Tinh::DONG_NGOAI === $kind ) { continue; }
+			if ( VHJP_Tinh::dong_trong( $r ) ) { continue; }
+
+			$o = function ( $k ) use ( $r ) { return isset( $r[ $k ] ) ? $r[ $k ] : ''; };
+			$co_danh_tinh = false;
+			foreach ( array( 'machineId', 'machineCode', 'itemCode', 'itemMisa', 'itemName' ) as $c ) {
+				if ( '' !== VHJP_Doc::str( $o( $c ) ) ) { $co_danh_tinh = true; }
+			}
+			$ten = VHJP_Doc::str( $o( 'machineCode' ) );
+			if ( '' === $ten ) { $ten = VHJP_Doc::str( $o( 'itemCode' ) ); }
+			if ( '' === $ten ) { $ten = 'dòng ' . VHJP_Doc::str( $o( 'seq' ) ); }
+
+			if ( ! $co_danh_tinh ) {
+				$can = ( VHJP_Tinh::DONG_HANG === $kind
+					|| ( VHJP_Tinh::DONG_MAY === $kind && VHJP_Tinh::may_go_tay( $r ) ) )
+					? 'mã hàng' : 'ô máy';
+				$thieu[] = 'dòng ' . VHJP_Doc::str( $o( 'seq' ) ) . ' — chưa chọn ' . $can
+					. ', chọn hoặc xoá dòng này';
+			}
+
+			/* Dòng HÀNG của mẫu TÁCH không có đồng hồ, nhưng ĐÃ BÁN chặn nộp y hệt: tồn cuối
+			   kỳ này là tồn đầu kỳ sau và ô đầu kỳ bị khoá. Ô chặn là `soldQty` (nhân viên
+			   gõ), KHÔNG phải `stockActual` — ô đếm ấy là TUỲ CHỌN nên chặn theo nó là chặn
+			   oan mọi mã không đếm. */
+			if ( VHJP_Tinh::DONG_HANG === $kind ) {
+				if ( VHJP_Doc::blank( $o( 'soldQty' ) ) ) { $thieu[] = $ten . ' (số đã bán)'; }
+				continue;
+			}
+
+			/*
+			 * Dòng MÁY của mẫu TÁCH — cơ sở ấy KHÔNG CÒN ĐỒNG HỒ. Chặn theo `mAfter` là chặn
+			 * nộp MỌI báo cáo của nó mãi mãi, vì ô đó không còn trên bảng.
+			 * Ba ô phải có, mỗi ô một lý do riêng:
+			 *   `amount`   thiếu ⇒ doanh thu của ô máy đó VỀ 0 mà không ai báo
+			 *   `cash`     thiếu ⇒ lệch tiền mặt trả 0 ⇒ thừa/thiếu quỹ MẤT DẤU
+			 *   `cashReal` thiếu ⇒ chính là TIỀN PHẢI NỘP, không có nó thì không biết cơ sở
+			 *                      phải giao về bao nhiêu
+			 * Ô QR để trống là 0 — hợp lệ, đa số dòng không có khách quét mã.
+			 * ⚠️ Báo cáo đời cũ CÓ đồng hồ thì vẫn chặn theo đồng hồ: tiền của chúng suy ra từ
+			 *    chỉ số, đòi thêm ba ô kia là chặn oan một báo cáo đã đủ số.
+			 */
+			if ( VHJP_Tinh::DONG_MAY === $kind && VHJP_Tinh::may_go_tay( $r ) ) {
+				if ( VHJP_Doc::blank( $o( 'amount' ) ) )   { $thieu[] = $ten . ' (thành tiền)'; }
+				if ( VHJP_Doc::blank( $o( 'cash' ) ) )     { $thieu[] = $ten . ' (tiền mặt app)'; }
+				if ( VHJP_Doc::blank( $o( 'cashReal' ) ) ) { $thieu[] = $ten . ' (tiền mặt thực tế)'; }
+				continue;
+			}
+
+			if ( VHJP_Doc::blank( $o( 'mAfter' ) ) ) {
+				$thieu[] = $ten . ( VHJP_Tinh::DONG_COIN === $kind ? ' (MONEY)' : '' );
+			}
+			if ( VHJP_Tinh::DONG_COIN === $kind && VHJP_Doc::blank( $o( 'cAfter' ) ) ) {
+				$thieu[] = $ten . ' (COIN)';
+			}
+		}
+		return $thieu;
 	}
 
 	/* ═══════════════════════ RESET THÔNG MINH CHỮ KÝ ═══════════════════════ */

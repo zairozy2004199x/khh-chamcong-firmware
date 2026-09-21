@@ -75,7 +75,7 @@ class VHJP_Cong {
 	 *    đúng cơ sở với người không phải kế toán.
 	 */
 	public static function chi_nhan_vien() {
-		return array( 'jpMyReports', 'jpOpenReport', 'jpSaveReport' );
+		return array( 'jpMyReports', 'jpOpenReport', 'jpSaveReport', 'jpSubmitReport' );
 	}
 
 	/** Bảng tên hàm (như bên Apps Script) -> callable PHP. Danh sách CHO PHÉP. */
@@ -102,6 +102,8 @@ class VHJP_Cong {
 			'jpGetReport'         => array( 'VHJP_Cong', 'bc_lay' ),
 			'jpOpenReport'        => array( 'VHJP_Cong', 'bc_mo' ),
 			'jpSaveReport'        => array( 'VHJP_Cong', 'bc_luu' ),
+			'jpSubmitReport'      => array( 'VHJP_Cong', 'bc_nop' ),
+			'jpPhotoProgress'     => array( 'VHJP_Cong', 'anh_tien_do' ),
 		);
 	}
 
@@ -123,14 +125,14 @@ class VHJP_Cong {
 			'jpAddPayment', 'jpCongNoNcc', 'jpCongNoNhanVien', 'jpDeletePayment', 'jpMyMonthHistory',
 			'jpMyUnpaid', 'jpPaymentHistory', 'jpSuaNgayNop',
 			/* ảnh */
-			'jpAnhTheoCoSo', 'jpAnhXem', 'jpDeletePhoto', 'jpPhotoProgress', 'jpUploadPhoto',
+			'jpAnhTheoCoSo', 'jpAnhXem', 'jpDeletePhoto', 'jpUploadPhoto',
 			/* kế toán tổng hợp */
 			'jpBangCanDoiPhatSinh', 'jpDoiTkKhoCu', 'jpKetQuaKinhDoanh', 'jpKiemTraButToan',
 			'jpQuetDayChuyen', 'jpSo632', 'jpSoCongNo', 'jpSoNhatKyChung',
 			/* báo cáo của nhân viên */
 			'jpBaoCaoDoanhThuNgay', 'jpGetOpening', 'jpGuiDeNghiTonDau',
 			'jpReopenIn24h', 'jpRevenueBoard',
-			'jpStockBoard', 'jpSuaKyBaoCao', 'jpSubmitReport',
+			'jpStockBoard', 'jpSuaKyBaoCao',
 			/* cấu hình & tiện ích */
 			'jpCfgImportItems', 'jpCfgListUsers', 'jpCfgSaveUser', 'jpDungHeThongMotPhat',
 			'jpKiemTraNhanh', 'jpNapBuTonDauKy31_7', 'jpNapCoSo', 'jpNapDanhMucHangJP',
@@ -310,6 +312,14 @@ class VHJP_Cong {
 	   mà giao diện thì cố ý giữ nguyên văn để hai bản còn so số được. */
 	public static function bc_luu( $args, $nguoi ) {
 		return VHJP_BaoCao::luu( $nguoi, isset( $args[1] ) ? $args[1] : array() );
+	}
+	public static function bc_nop( $args, $nguoi ) {
+		return VHJP_BaoCao::nop( $nguoi, isset( $args[1] ) ? $args[1] : '' );
+	}
+	/* ⚠️ `jpPhotoProgress` KHÔNG gác vai nhân viên: kế toán mở báo cáo cũng phải thấy còn
+	   thiếu mấy chỗ ảnh, đó là căn cứ để trả về. Cửa hẹp hơn nằm trong `VHJP_Anh::tien_do()`. */
+	public static function anh_tien_do( $args, $nguoi ) {
+		return VHJP_Anh::tien_do( $nguoi, isset( $args[1] ) ? $args[1] : '' );
 	}
 	public static function bc_mo( $args, $nguoi ) {
 		return VHJP_BaoCao::mo( $nguoi,

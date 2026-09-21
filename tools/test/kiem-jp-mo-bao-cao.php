@@ -40,7 +40,7 @@ function teq( $ten, $mong, $thuc ) {
 }
 
 $plg = $goc . '/wordpress/vhcp-jp/includes/';
-foreach ( array( 'db', 'doc', 'nguon', 'ma', 'nhat-ky', 'auth', 'cau-hinh', 'tinh', 'bao-cao' ) as $f ) {
+foreach ( array( 'db', 'doc', 'nguon', 'ma', 'nhat-ky', 'auth', 'cau-hinh', 'tinh', 'anh', 'bao-cao' ) as $f ) {
 	require_once $plg . 'class-vhjp-' . $f . '.php';
 }
 global $wpdb;

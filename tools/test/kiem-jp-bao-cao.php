@@ -43,7 +43,7 @@ function teq( $ten, $mong, $thuc ) {
 }
 
 $plg = $goc . '/wordpress/vhcp-jp/includes/';
-foreach ( array( 'db', 'doc', 'nguon', 'ma', 'nhat-ky', 'auth', 'cau-hinh', 'tinh', 'bao-cao' ) as $f ) {
+foreach ( array( 'db', 'doc', 'nguon', 'ma', 'nhat-ky', 'auth', 'cau-hinh', 'tinh', 'anh', 'bao-cao' ) as $f ) {
 	require_once $plg . 'class-vhjp-' . $f . '.php';
 }
 global $wpdb;
@@ -502,7 +502,21 @@ if ( is_array( $lay_goc ) && ! isset( $lay_goc['loi'] ) ) {
 t( '🔴 prevClosing rỗng vẫn là OBJECT trong JSON',
 	false !== strpos( wp_json_encode( $lay_php ), '"prevClosing":{}' ),
 	substr( wp_json_encode( $lay_php ), 0, 200 ) );
-teq( '🔴 anhTienDo để null — đúng nhánh lùi bản gốc đã dựng', null, $lay_php['anhTienDo'] );
+/* 🔴 TIẾN ĐỘ ẢNH đi cùng lượt mở báo cáo — bản gốc cố ý gộp vào đây, và nay bản này cũng vậy.
+   So với mã gốc chạy thật, không chỉ so "có khác null không". */
+if ( is_array( $lay_goc ) && isset( $lay_goc['anhTienDo'] ) ) {
+	chieu( 'lay · anhTienDo', $lay_goc['anhTienDo'], (array) $lay_php['anhTienDo'],
+		array( 'warns' ) );
+	$wg = array_column( $lay_goc['anhTienDo']['warns'], 'detail' );
+	$wp = array_column( $lay_php['anhTienDo']['warns'], 'detail' );
+	teq( 'lay · anhTienDo · đúng bộ câu cảnh báo thiếu ảnh', $wg, $wp );
+} else {
+	t( '🔴 mã gốc cũng trả tiến độ ảnh', false,
+		is_array( $lay_goc ) ? array_keys( $lay_goc ) : $lay_goc );
+}
+t( '🔴 và nó đếm được chỗ thiếu ảnh, không phải null',
+	is_array( $lay_php['anhTienDo'] ) && $lay_php['anhTienDo']['missing'] > 0,
+	$lay_php['anhTienDo'] );
 
 /* Cảnh báo KỲ CHỒNG phải có mặt, và mang ĐÚNG mã W11 (không phải `?`). */
 $ma_w = array_column( $lay_php['headWarns'], 'code' );
