@@ -445,7 +445,20 @@ class VHCC_NapDoc {
 			if ( $chi_xem ) { $ghi++; continue; }
 
 			$ma  = $ghep[ $x['ten'] ];
-			$ten = isset( $ten_hs[ $ma ] ) ? $ten_hs[ $ma ] : $x['ten'];
+
+			/* 🔴 TÊN GHI VÀO SỔ LÀ TÊN TRONG HỒ SƠ, KHÔNG PHẢI TÊN VIẾT TẮT Ở BẢNG.
+			   Anh Thắng 21/09/2026 hỏi thẳng: *"nạp vào tên hệ thống tự do hay sao, có cần sửa
+			   tên đúng tên trên bản chấm công không"*. Không cần sửa gì cả — `N.Kiệt` ở bảng chỉ
+			   là cái NHÃN để chọn người; thứ đi vào sổ là MÃ NV, kèm họ tên đầy đủ lấy từ hồ sơ.
+			   Nhờ vậy tháng sau anh gõ `Kiệt` thay vì `N.Kiệt` cũng không đẻ ra người thứ hai:
+			   chỉ là một cái nhãn chưa ghép, chọn lại một lần rồi hệ nhớ.
+
+			   ⚠️ HỒ SƠ BỎ TRỐNG HỌ TÊN thì lấy tạm nhãn ở bảng. `isset()` không bắt được chuỗi
+			      rỗng, nên bản đầu ghi một cái tên TRẮNG vào bảng công — mà hàng ấy có mã, có
+			      giờ, chỉ thiếu tên, nên nhìn bảng thì tưởng hỏng dữ liệu chứ không ai nghĩ là
+			      hồ sơ thiếu tên. Có nhãn còn hơn có ô trắng. */
+			$ten = ( isset( $ten_hs[ $ma ] ) && '' !== trim( (string) $ten_hs[ $ma ] ) )
+				? $ten_hs[ $ma ] : $x['ten'];
 			if ( null !== $x['vao'] ) {
 				VHCC_Nhan::ghi_gio( $coso, $x['ngay'], $ma, $ten, (int) $x['vao'], '', self::NGUON );
 			}

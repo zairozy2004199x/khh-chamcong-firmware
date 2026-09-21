@@ -596,6 +596,57 @@ t( 'ngày lễ x2 (hai ô) -> nhận ra hệ số trội',
 t( '🔴 nhưng ô x3 lạc loài vẫn bị gọi đích danh',
 	(bool) preg_grep( '/Ngày 11, N\.Kiệt \(LT\).*14:45/u', (array) $r_tron['canh'] ), $r_tron['canh'] );
 
+/* ═════════════════════════════════════════════════════════════════════════════════════════
+   6. TÊN GHI VÀO SỔ — anh Thắng 21/09/2026: *"nạp vào tên hệ thống tự do hay sao, có cần sửa
+      tên đúng tên trên bản chấm công không"*
+   ═════════════════════════════════════════════════════════════════════════════════════════
+   Không cần sửa gì. Nhãn ở bảng ("N.Kiệt") chỉ để CHỌN người; thứ đi vào sổ là MÃ NV kèm họ
+   tên đầy đủ lấy từ HỒ SƠ. Bài này chốt đúng câu trả lời ấy, để nó không lặng lẽ đổi sau này.
+   ───────────────────────────────────────────────────────────────────────────────────────── */
+
+$CS3 = 'NAPDOC_CS3';
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'NT1', 'ho_ten' => 'Nguyễn Tuấn Kiệt',
+	'cua_hang' => $CS3, 'vai_tro' => 'Nhân viên', 'pin_dang_nhap' => '',
+	'chuc_vu' => 'Nhân viên quầy', 'trang_thai_lam_viec' => 'Đang làm' ) );
+/* Hồ sơ BỎ TRỐNG họ tên — có thật khi nạp .csv hồ sơ thiếu cột tên. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'NT2', 'ho_ten' => '',
+	'cua_hang' => $CS3, 'vai_tro' => 'Nhân viên', 'pin_dang_nhap' => '',
+	'chuc_vu' => 'Nhân viên quầy', 'trang_thai_lam_viec' => 'Đang làm' ) );
+VHCC_NapDoc::nap( $AD, $CS3, $B, array( 'N.Kiệt' => 'NT1', 'Ngân' => 'NT2' ), false );
+
+$ten_so = function ( $ma ) use ( $wpdb, $CS3 ) {
+	return (string) $wpdb->get_var( $wpdb->prepare( 'SELECT ho_ten FROM ' . VHCC_DB::t( 'cham_cong' )
+		. ' WHERE coso=%s AND ma_nv=%s LIMIT 1', $CS3, $ma ) );
+};
+t( '🔴 sổ ghi HỌ TÊN TRONG HỒ SƠ, không ghi nhãn viết tắt của bảng',
+	'Nguyễn Tuấn Kiệt' === $ten_so( 'NT1' ), $ten_so( 'NT1' ) );
+/* ⚠️ `isset()` không bắt được chuỗi rỗng, nên bản đầu ghi một cái tên TRẮNG vào bảng công —
+   hàng có mã, có giờ, chỉ thiếu tên, nhìn vào tưởng hỏng dữ liệu chứ không ai nghĩ hồ sơ
+   thiếu tên. Có nhãn còn hơn có ô trắng. */
+t( '🔴 hồ sơ trống họ tên -> lấy tạm nhãn ở bảng, KHÔNG ghi tên trắng',
+	'Ngân' === $ten_so( 'NT2' ), '[' . $ten_so( 'NT2' ) . ']' );
+
+/* Đổi nhãn ở bảng (tháng sau gõ khác) KHÔNG được đẻ ra người thứ hai. */
+$doi = $B;
+foreach ( $doi[1] as $c => $o ) { $doi[1][ $c ] = str_replace( 'N.Kiệt', 'Kiệt', (string) $o ); }
+$r_doi = VHCC_NapDoc::nap( $AD, $CS3, $doi, array(), true );
+/* ⚠️ Hỏi ĐÍCH DANH cái nhãn mới, đừng hỏi con số tổng. Cơ sở này còn "K.Oanh" chưa ghép từ
+   đầu (bài chỉ ghép N.Kiệt và Ngân), nên đếm tổng ra 2 chứ không phải 1 — và một phép thử
+   đếm tổng vừa sai kỳ vọng vừa không nói được điều nó định nói. */
+$ma_doi = null;
+foreach ( $r_doi['nguoi'] as $n ) { if ( 'Kiệt' === $n['ten'] ) { $ma_doi = $n['ma']; } }
+t( 'đổi nhãn ở bảng -> nhãn mới hiện ra là CHƯA ghép, không tự nhận bừa',
+	'' === $ma_doi, $r_doi['nguoi'] );
+t( '   và nhãn cũ "N.Kiệt" không còn trong bảng nữa',
+	! in_array( 'N.Kiệt', array_column( $r_doi['nguoi'], 'ten' ), true ), $r_doi['nguoi'] );
+$goi_doi = array();
+foreach ( $r_doi['nguoi'] as $n ) { if ( 'Kiệt' === $n['ten'] ) { $goi_doi = $n['goiY']; } }
+t( '   và vẫn gợi ý đúng người cũ', array( 'NT1' ) === $goi_doi, $goi_doi );
+VHCC_NapDoc::nap( $AD, $CS3, $doi, array( 'Kiệt' => 'NT1' ), false );
+$so_ma = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(DISTINCT ma_nv) FROM '
+	. VHCC_DB::t( 'cham_cong' ) . ' WHERE coso=%s', $CS3 ) );
+t( '🔴 ghép nhãn mới vào mã cũ -> KHÔNG đẻ ra người thứ hai', 2 === $so_ma, $so_ma );
+
 echo "\n";
 if ( $truot ) {
 	echo 'TRƯỢT ' . count( $truot ) . ":\n";
