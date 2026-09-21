@@ -3,7 +3,7 @@
  * Plugin Name:       JP Capsule (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Báo cáo JP Capsule chạy THẲNG trên host: nhân viên nhập báo cáo từ chỉ số máy, kế toán duyệt hai phần, đối soát ngân hàng, kho hai tầng. Không Apps Script, không Google Sheets.
- * Version:           1.1.0
+ * Version:           1.2.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -40,8 +40,14 @@
  * Kích hoạt là dựng 23 bảng và mở hai đường dẫn:
  *      /jp           — màn nhân viên
  *      /jp-ke-toan   — màn kế toán
- * Hai đường ấy hiện bày TRANG TẠM có thanh tiến độ, vì 11 tệp giao diện gốc chưa mang sang.
- * Cố ý không bày màn trắng: người mở ra thấy trắng thì tưởng hỏng, bấm lại mấy lần rồi đi hỏi.
+ * 🔴 GIAO DIỆN THẬT ĐÃ MANG SANG — 13 tệp, 13.712 dòng, chép NGUYÊN VĂN vào `giao-dien/`.
+ *    Chúng chạy được vì `assets/js/gas-shim.js` dựng lại đúng API `google.script.run`. Không
+ *    sửa một dòng nào: chừng nào hai bản còn chạy song song để so số, giao diện phải giống
+ *    hệt — lệch một nút là lệch một thao tác, và không ai biết số khác nhau vì máy chủ tính
+ *    khác hay vì người bấm khác.
+ *
+ * ⚠️ Màn hình bày ra được, nhưng phần lớn nút bấm sẽ báo "chưa chuyển": mới 12/100 lệnh máy
+ *    chủ có thật. `VHJP_Cong::chua_lam()` khai đủ tên còn thiếu, và bài kiểm đếm lại mỗi lượt.
  *
  * ---------------------------------------------------------------------------
  * ⚠️ BA NGUYÊN TẮC CỦA BẢN GỐC — GIỮ NGUYÊN KHI CHUYỂN.
@@ -60,7 +66,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHJP_VERSION', '1.1.0' );
+define( 'VHJP_VERSION', '1.2.0' );
 define( 'VHJP_FILE', __FILE__ );
 define( 'VHJP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHJP_URL', plugin_dir_url( __FILE__ ) );

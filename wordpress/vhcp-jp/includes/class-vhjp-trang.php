@@ -124,8 +124,9 @@ class VHJP_Trang {
 	 *    bấm lại mấy lần rồi đi hỏi.
 	 */
 	public static function ve( $kt = false ) {
-		$tep = VHJP_DIR . 'templates/' . ( $kt ? 'kt.html' : 'app.html' );
-		if ( ! is_file( $tep ) ) { $tep = VHJP_DIR . 'templates/dang-dung.html'; }
+		$goc = VHJP_DIR . 'giao-dien/' . ( $kt ? 'KT_Index.html' : 'Index.html' );
+		$tam = VHJP_DIR . 'templates/dang-dung.html';
+		$tep = is_file( $goc ) ? $goc : $tam;
 
 		$cfg = array(
 			'rest'    => esc_url_raw( rest_url( 'vhjp/v1/call' ) ),
@@ -140,9 +141,55 @@ class VHJP_Trang {
 		status_header( 200 );
 		nocache_headers();
 		header( 'Content-Type: text/html; charset=utf-8' );
+
 		$html = file_get_contents( $tep );
+		$html = self::ghep( $html );
+		/* Trang tạm dùng chỗ giữ riêng; giao diện thật thì không có. Thay cả hai cho gọn. */
 		$html = str_replace( '<?VHJP_CFG?>', wp_json_encode( $cfg, JSON_UNESCAPED_UNICODE ), $html );
 		$html = str_replace( '<?VHJP_SHIM?>', esc_url( VHJP_URL . 'assets/js/gas-shim.js' ), $html );
+		$html = self::nap_shim( $html, $cfg );
 		echo $html;
+	}
+
+	/**
+	 * Ghép `<?!= include('Ten'); ?>` — cú pháp khuôn DUY NHẤT mà giao diện JP dùng.
+	 *
+	 * ⚠️ Chỉ nhận tên tệp CÓ THẬT trong `giao-dien/`, và tên phải là chữ cái/số/gạch dưới. Tên
+	 *    đi thẳng vào đường dẫn tệp, nên nhận bừa là mở cửa cho `include('../../wp-config')`.
+	 *    Ở đây tên nằm trong tệp của chính mình chứ không đến từ trình duyệt — nhưng chốt chặn
+	 *    rẻ, mà ngày nào đó có ai cho phép khai tên từ ngoài thì nó đã sẵn ở đấy.
+	 *
+	 * ⚠️ Ghép LẶP cho tới khi hết: tệp được ghép vào có thể lại chứa `include` khác.
+	 */
+	public static function ghep( $html, $sau = 0 ) {
+		if ( $sau > 5 || false === strpos( $html, 'include(' ) ) { return $html; }
+		$moi = preg_replace_callback(
+			"/<\?!=\s*include\(\s*'([A-Za-z0-9_]+)'\s*\)\s*;?\s*\?>/",
+			function ( $m ) {
+				$f = VHJP_DIR . 'giao-dien/' . $m[1] . '.html';
+				return is_file( $f ) ? file_get_contents( $f )
+					/* Thiếu tệp thì để lại một dấu vết ĐỌC ĐƯỢC trong mã nguồn trang, đừng nuốt
+					   im lặng — nuốt thì màn thiếu hẳn một mảng mà không ai biết vì sao. */
+					: '<!-- vhjp: thiếu tệp giao diện ' . esc_html( $m[1] ) . '.html -->';
+			}, $html );
+		return self::ghep( $moi, $sau + 1 );
+	}
+
+	/**
+	 * Nhét cấu hình và lớp `gas-shim` vào `<head>`.
+	 *
+	 * 🔴 PHẢI TRƯỚC MỌI ĐOẠN JS CỦA GIAO DIỆN. Giao diện gọi `google.script.run` ngay lúc chạy;
+	 *    shim nạp sau là lệnh đầu tiên nổ vì `google` chưa tồn tại — mà lệnh đầu tiên chính là
+	 *    lượt dựng màn hình.
+	 */
+	private static function nap_shim( $html, $cfg ) {
+		if ( false !== strpos( $html, 'gas-shim.js' ) ) { return $html; }
+		$nhet = '<script>window.VHJP_CFG = '
+			. wp_json_encode( $cfg, JSON_UNESCAPED_UNICODE ) . ';</script>' . "\n"
+			. '<script src="' . esc_url( VHJP_URL . 'assets/js/gas-shim.js?v=' . VHJP_VERSION )
+			. '"></script>' . "\n";
+		$i = stripos( $html, '<head>' );
+		if ( false !== $i ) { return substr_replace( $html, "\n" . $nhet, $i + 6, 0 ); }
+		return $nhet . $html;
 	}
 }

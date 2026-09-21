@@ -1,0 +1,1484 @@
+<script>
+/*═══════════════════════════════════════════════════════════════════════════
+ * KtJs05_Kho — màn KHO cho web kế toán. KHO HAI TẦNG.
+ * ---------------------------------------------------------------------------
+ *   ① Nhập kho tổng   — nơi DUY NHẤT có giá mua
+ *   ② Phiếu xuất      — 5 loại, loại quyết định hạch toán
+ *   ③ Lưới ngày 1–31  — đúng bố cục file kho cũ, gõ nhanh rồi sinh phiếu
+ *   ④ Nhập–Xuất–Tồn   — Tồn đầu + Nhập − Xuất = Tồn cuối
+ *   ⑤ Sổ 632 / 641    — hai tài khoản TÁCH nhau
+ *   ⑥ Tồn theo lớp
+ *   ⑦ Hàng trong báo cáo (bảng đối soát cũ)
+ *
+ * Không có ① thì ⑤ rỗng: báo cáo nhân viên chỉ có giá BÁN.
+ *═══════════════════════════════════════════════════════════════════════════*/
+
+var KHO = { locs: [], items: [], loai: [], nkRows: [], xkRows: [], so632: null, luoi: null,
+            /* Kết quả đọc file Excel, giữ tới lúc kế toán bấm "đổ vào" — xem trước
+               KHÔNG được ghi gì vào phiếu. */
+            nkImport: null, xkImport: null, luoiImport: null };
+
+/** Nạp dữ liệu cho màn đang mở. Gọi từ bảng KT_NAV trong KtJs01_Core. */
+function ktKhoLoad(sub) {
+  ktKhoDanhMuc(function () {
+    if (sub === 'khNhap')   { ktNkInit(); return; }
+    if (sub === 'khXuat')   { ktXkInit(); return; }
+    if (sub === 'khLuoi')   { ktLuoiInit(); return; }
+    if (sub === 'khNXT')    { ktFillKy('nx'); ktFillKhoSelect('nxKho'); ktNXT(); return; }
+    /* Ba tab Nhập / Xuất / Tồn — cùng một hàm máy chủ với ⑥, khác cách vẽ */
+    if (sub === 'khNhapBc') { ktFillKy('n3'); ktFillKhoSelect('n3Kho'); ktBcNhap(); return; }
+    if (sub === 'khXuatBc') { ktFillKy('x3'); ktFillKhoSelect('x3Kho'); ktBcXuat(); return; }
+    if (sub === 'khTonBc')  { ktFillKy('t3'); ktFillKhoSelect('t3Kho'); ktBcTon(); return; }
+    if (sub === 'khSo632')  { ktFillKy('so'); return; }
+    /* ⚠️ Dùng `ktFillKhoSelect` (KHO TỔNG + cơ sở), KHÔNG `ktFillLocSelect`.
+       Andy 07/08/2026: *"vào kho cũng không thấy số lượng"*. `ktFillLocSelect`
+       chỉ liệt kê CƠ SỞ, nên màn tồn theo lô **không có mục KHO TỔNG** — mà kho
+       tổng đang giữ phần lớn hàng (68 mã · 11.367 cái của tồn 31/07). Chọn "Tất
+       cả" thì có, nhưng muốn soi riêng kho tổng là không có đường nào.
+       Hai ô `xkLoc` / `lgLoc` thì ĐÚNG là chỉ cơ sở — đó là nơi hàng đi ĐẾN,
+       không xuất xuống chính kho tổng được. Đừng đổi hai ô đó. */
+    if (sub === 'khTon')    { ktFillKhoSelect('tkLoc'); ktTonKho(); return; }
+    if (sub === 'khBaoCao') { ktStock(); return; }
+    /* Năm màn ở KtJs06 — cũng cần danh mục cơ sở / hàng, nên đi qua đây */
+    if (sub === 'khDauKy')  { ktDkInit(); return; }
+    if (sub === 'khKiemKe') { ktKkInit(); return; }
+    if (sub === 'khThe')    { ktTheInit(); return; }
+    if (sub === 'khBangKe') { ktBkInit(); return; }
+    if (sub === 'khNcc')    { ktNccInit(); return; }
+    if (sub === 'khTraNcc') { ktTtInit(); return; }
+  });
+}
+
+/** Cơ sở + danh mục hàng + loại xuất — nạp một lần rồi dùng lại. */
+function ktKhoDanhMuc(xong) {
+  if (KHO.locs.length && KHO.loai.length) { xong(); return; }
+  kbusy(true, 'Đang nạp danh mục…');
+  Promise.all([ksrv('jpCfgListLocations', KT.token),
+               ksrv('jpCfgListItems', KT.token),
+               ksrv('jpKhoDanhSachLoai', KT.token)])
+    .then(function (r) {
+      kbusy(false);
+      /* Hai hàm đầu trả MẢNG thẳng, không bọc {rows} — đừng đổi thành r[0].rows */
+      KHO.locs = (r[0] || []).filter(function (l) { return l.active !== false; });
+      KHO.items = (r[1] || []).filter(function (i) { return i.active !== false; });
+      KHO.loai = r[2] || [];
+      xong();
+    })
+    .catch(function (e) { kbusy(false); ktoast(e.message); });
+}
+
+function ktFillLocSelect(id, coTatCa, nhanTatCa) {
+  var s = $k(id);
+  if (!s) return;
+  var cur = s.value;
+  s.innerHTML = (coTatCa ? '<option value="">' + (nhanTatCa || '— Tất cả —') + '</option>' : '') +
+    KHO.locs.map(function (l) {
+      return '<option value="' + kesc(l.id) + '">' + kesc(l.name) + '</option>';
+    }).join('');
+  if (cur) s.value = cur;
+}
+
+/** Chọn kho: KHO TỔNG + từng cơ sở. */
+function ktFillKhoSelect(id) {
+  var s = $k(id);
+  if (!s || s.options.length > 1) return;
+  s.innerHTML = '<option value="">— Kho tổng + mọi cơ sở —</option>' +
+    '<option value="TONG">KHO TỔNG</option>' +
+    KHO.locs.map(function (l) {
+      return '<option value="' + kesc(l.id) + '">' + kesc(l.name) + '</option>';
+    }).join('');
+}
+
+/** Ô chọn tháng / năm dùng chung, tiền tố id: 'nx' → nxThang / nxNam. */
+function ktFillKy(pre) {
+  var t = $k(pre + 'Thang'), n = $k(pre + 'Nam');
+  if (!t || t.options.length) return;
+  var now = new Date();
+  for (var m = 1; m <= 12; m++) {
+    t.innerHTML += '<option value="' + m + '"' +
+      (m === now.getMonth() + 1 ? ' selected' : '') + '>Tháng ' + m + '</option>';
+  }
+  for (var y = now.getFullYear() - 1; y <= now.getFullYear() + 1; y++) {
+    n.innerHTML += '<option value="' + y + '"' +
+      (y === now.getFullYear() ? ' selected' : '') + '>' + y + '</option>';
+  }
+}
+
+/** Ô nhập mã hàng có gợi ý — dùng cho cả phiếu nhập và phiếu xuất. */
+function ktDatalistMaHang() {
+  if (!$k('dlMaHang')) {
+    var dl = document.createElement('datalist');
+    dl.id = 'dlMaHang';
+    document.body.appendChild(dl);
+  }
+  $k('dlMaHang').innerHTML = KHO.items.map(function (i) {
+    return '<option value="' + kesc(i.code) + '">' + kesc(i.code) + ' — ' + kesc(i.name) + '</option>';
+  }).join('');
+}
+
+function ktTenHang(ma) {
+  var it = KHO.items.filter(function (x) { return String(x.code) === String(ma); })[0];
+  return it ? (it.name || '') : '';
+}
+
+/*════════════════════ ① NHẬP KHO TỔNG ════════════════════*/
+
+function ktNkInit() {
+  if (!$k('nkNgay').value) $k('nkNgay').value = ktoday();
+  if (!KHO.nkRows.length) KHO.nkRows = [ktNkRowMoi()];
+  ktNkRender();
+}
+
+function ktNkRowMoi() {
+  return { itemCode: '', itemName: '', qty: '', unitCost: '', lotNo: '', note: '' };
+}
+
+function ktNkAddRow() { KHO.nkRows.push(ktNkRowMoi()); ktNkRender(); }
+
+function ktNkDelRow(i) {
+  KHO.nkRows.splice(i, 1);
+  if (!KHO.nkRows.length) KHO.nkRows = [ktNkRowMoi()];
+  ktNkRender();
+}
+
+function ktNkSet(i, key, val) {
+  KHO.nkRows[i][key] = val;
+  if (key === 'itemCode') {
+    var t = ktTenHang(val);
+    if (t) KHO.nkRows[i].itemName = t;
+    ktNkRender();
+    return;
+  }
+  ktNkTong();
+}
+
+function ktNkTong() {
+  var t = 0;
+  KHO.nkRows.forEach(function (r) { t += knum(r.qty) * knum(r.unitCost); });
+  /* Hai chỗ hiện cùng con số: ô lớn ở đầu phiếu và dòng tổng ở cuối bảng —
+     bố cục chứng từ kiểu MISA, giống web kho KVC. Nhãn nằm sẵn trong HTML nên
+     ở đây chỉ ghi SỐ, đừng thêm chữ "Tổng:" nữa. */
+  $k('nkTong').textContent = kmoney(t) + 'đ';
+  if ($k('nkBig')) $k('nkBig').textContent = kmoney(t);
+  return t;
+}
+
+function ktNkRender() {
+  var h = '<tr><th class="lbl">Mã hàng</th><th>Tên hàng</th>' +
+          '<th>Số lượng</th><th>Giá mua / cái</th><th>Thành tiền</th>' +
+          '<th>Số lô</th><th>Ghi chú</th><th></th></tr>';
+
+  KHO.nkRows.forEach(function (r, i) {
+    var tien = knum(r.qty) * knum(r.unitCost);
+    h += '<tr>' +
+      '<td class="w170"><input list="dlMaHang" value="' + kesc(r.itemCode) + '"' +
+        ' oninput="ktNkSet(' + i + ',\'itemCode\',this.value)"' +
+        ' onchange="ktNkSet(' + i + ',\'itemCode\',this.value)"></td>' +
+      '<td class="w170"><input type="text" value="' + kesc(r.itemName) + '"' +
+        ' oninput="ktNkSet(' + i + ',\'itemName\',this.value)"></td>' +
+      '<td class="w90"><input type="number" inputmode="numeric" value="' + kesc(r.qty) + '"' +
+        ' oninput="ktNkSet(' + i + ',\'qty\',this.value)"></td>' +
+      '<td class="w110"><input type="number" inputmode="numeric" value="' + kesc(r.unitCost) + '"' +
+        ' oninput="ktNkSet(' + i + ',\'unitCost\',this.value)"></td>' +
+      '<td class="calc w110"><b>' + kmoney(tien) + '</b></td>' +
+      '<td class="w110"><input type="text" value="' + kesc(r.lotNo) + '"' +
+        ' oninput="ktNkSet(' + i + ',\'lotNo\',this.value)"></td>' +
+      '<td class="w140"><input type="text" value="' + kesc(r.note) + '"' +
+        ' oninput="ktNkSet(' + i + ',\'note\',this.value)"></td>' +
+      '<td class="act"><button class="miniBtn danger" onclick="ktNkDelRow(' + i + ')">×</button></td>' +
+      '</tr>';
+  });
+
+  $k('tblNkRows').innerHTML = h;
+  ktDatalistMaHang();
+  ktNkTong();
+}
+
+/* ── IMPORT EXCEL cho phiếu nhập ──
+   Bộ dò cột dùng chung ở `KtJs01_Core` (`ktDoCot`), đừng viết bộ dò riêng ở đây. */
+function ktNkImportDoc() {
+  var khoa = ['ma', 'ten', 'sl', 'gia', 'lo', 'note'];
+  ktDocFileAoa('nkFile', 'nkImpMsg', function (raw) {
+    var t = ktDoCot(raw, khoa, ['ma', 'sl']);
+    if (t.dong < 0) {
+      $k('nkImpPreview').innerHTML = ktKhongThayTieuDe(['ma', 'sl']);
+      $k('nkImpBtn').style.display = 'none';
+      kmsg('nkImpMsg', 'Không đọc được cột', 'err');
+      return;
+    }
+    var rows = [], boQua = 0;
+    for (var i = t.dong + 1; i < raw.length; i++) {
+      var d = raw[i] || [];
+      var ma = String(d[t.cot.ma] == null ? '' : d[t.cot.ma]).trim();
+      var sl = knum(d[t.cot.sl]);
+      if (!ma || sl <= 0) { if (ma || sl) boQua++; continue; }
+      var gia = t.cot.gia === undefined ? 0 : knum(d[t.cot.gia]);
+      rows.push({
+        itemCode: ma,
+        itemName: t.cot.ten === undefined ? '' : String(d[t.cot.ten] || '').trim(),
+        qty: sl, unitCost: gia,
+        lotNo: t.cot.lo === undefined ? '' : String(d[t.cot.lo] || '').trim(),
+        note: t.cot.note === undefined ? '' : String(d[t.cot.note] || '').trim(),
+        __xau: !gia
+      });
+    }
+    var h = ktCotNhanDuoc(t.cot, khoa);
+    var khongGia = rows.filter(function (r) { return !r.unitCost; }).length;
+    if (khongGia) {
+      h += '<div class="alert warn">' + khongGia + ' dòng <b>giá mua = 0</b>. Giá mua là ' +
+           'gốc của giá vốn — lô đó bán ra ghi <b>6321 = 0đ</b>. Điền giá trước khi lưu.</div>';
+    }
+    if (boQua) h += '<div class="alert warn">Bỏ qua ' + boQua + ' dòng thiếu mã hoặc số lượng ≤ 0.</div>';
+    h += ktBangXemTruoc(rows, [
+      { key: 'itemCode', nhan: 'Mã hàng' }, { key: 'itemName', nhan: 'Tên hàng' },
+      { key: 'qty', nhan: 'Số lượng', so: 1 }, { key: 'unitCost', nhan: 'Giá mua', so: 1 },
+      { key: 'lotNo', nhan: 'Số lô' }, { key: 'note', nhan: 'Ghi chú' }
+    ]);
+
+    KHO.nkImport = rows;
+    $k('nkImpPreview').innerHTML = h;
+    $k('nkImpBtn').style.display = rows.length ? '' : 'none';
+    kmsg('nkImpMsg', rows.length ? 'Đọc được ' + rows.length + ' dòng. Soát lại rồi bấm nút bên dưới.'
+                                 : 'Không tìm thấy dòng nào dùng được', rows.length ? 'ok' : 'err');
+  });
+}
+
+function ktNkImportVao() {
+  if (!KHO.nkImport || !KHO.nkImport.length) return;
+  var them = KHO.nkImport.map(function (r) {
+    return { itemCode: r.itemCode, itemName: r.itemName || ktTenHang(r.itemCode),
+             qty: r.qty, unitCost: r.unitCost, lotNo: r.lotNo, note: r.note };
+  });
+  /* Nối vào, chỉ bỏ dòng TRỐNG — không xoá dòng kế toán đã gõ tay */
+  KHO.nkRows = KHO.nkRows.filter(function (r) { return String(r.itemCode).trim(); }).concat(them);
+  KHO.nkImport = null;
+  $k('nkImpPreview').innerHTML = '';
+  $k('nkImpBtn').style.display = 'none';
+  $k('nkFile').value = '';
+  kmsg('nkImpMsg', 'Đã đổ ' + them.length + ' dòng vào phiếu. Soát lại rồi bấm Lưu.', 'ok');
+  ktNkRender();
+}
+
+function ktNkSave() {
+  var rows = KHO.nkRows.filter(function (r) {
+    return String(r.itemCode).trim() && knum(r.qty) > 0;
+  });
+  if (!rows.length) { kmsg('nkMsg', 'Chưa có dòng nào có mã hàng và số lượng', 'err'); return; }
+
+  var thieuGia = rows.filter(function (r) { return knum(r.unitCost) <= 0; });
+  if (thieuGia.length && !confirm('Có ' + thieuGia.length + ' dòng giá mua = 0.\n\n' +
+      'Giá mua là gốc của giá vốn — nhập 0 thì sổ 6321 ghi 0đ cho lô này. Vẫn lưu?')) return;
+
+  kbusy(true, 'Đang lưu phiếu nhập…');
+  ksrv('jpKhoNhap', KT.token, {
+    ngay: $k('nkNgay').value,
+    nccMa: $k('nkNccMa').value,
+    nccTen: $k('nkNccTen').value,
+    ghiChu: $k('nkGhiChu').value,
+    rows: rows
+  }).then(function (d) {
+    kbusy(false);
+    kmsg('nkMsg', d.msg, 'ok');
+    ktoast(d.msg);
+    KHO.nkRows = [ktNkRowMoi()];
+    $k('nkGhiChu').value = '';
+    ktNkRender();
+    ktNkHistory();
+  }).catch(function (e) { kbusy(false); kmsg('nkMsg', e.message, 'err'); });
+}
+
+function ktNkHistory() {
+  kbusy(true, 'Đang tải nhật ký…');
+  ksrv('jpKhoLichSuNhap', KT.token, 50).then(function (ds) {
+    kbusy(false);
+    if (!ds.length) { $k('nkHistory').innerHTML = '<p class="hint">Chưa có phiếu nhập nào.</p>'; return; }
+
+    var h = '<div class="tableWrap"><table><tr><th>Số CT</th><th>Ngày</th>' +
+            '<th>NCC</th><th class="num">Dòng</th><th class="num">Tổng tiền</th>' +
+            '<th>Người nhập</th><th>Chi tiết</th><th></th></tr>';
+    ds.forEach(function (r) {
+      var ct = r.dong.map(function (d) {
+        return kesc(d.itemCode) + ' × ' + d.qty + ' @ ' + kmoney(d.unitCost);
+      }).join('<br>');
+      h += '<tr' + (r.daHuy ? ' class="lech"' : '') + '>' +
+        '<td><b>' + kesc(r.soChungTu) + '</b>' +
+          (r.daHuy ? '<br><span class="badge">ĐÃ HUỶ</span>' : '') + '</td>' +
+        '<td>' + kdmy(r.ngay) + '</td>' +
+        '<td>' + kesc(r.nccTen) + '</td>' +
+        '<td class="num">' + r.soDong + '</td>' +
+        '<td class="num">' + kmoney(r.tongTien) + '</td>' +
+        '<td>' + kesc(r.createdBy) + '</td>' +
+        '<td style="font-size:12px">' + ct + '</td>' +
+        '<td>' + (r.daHuy
+          ? kesc(r.huyReason)
+          : '<button class="miniBtn danger" onclick="ktNkHuy(\'' + kesc(r.id) + '\')">Huỷ</button>') +
+        '</td></tr>';
+    });
+    $k('nkHistory').innerHTML = h + '</table></div>';
+  }).catch(function (e) { kbusy(false); ktoast(e.message); });
+}
+
+function ktNkHuy(id) {
+  var ly = prompt('Lý do huỷ phiếu nhập ' + id + '?');
+  if (!ly) return;
+  kbusy(true, 'Đang huỷ phiếu…');
+  ksrv('jpKhoHuyNhap', KT.token, id, ly).then(function (d) {
+    kbusy(false); ktoast(d.msg); ktNkHistory();
+  }).catch(function (e) { kbusy(false); alert(e.message); });
+}
+
+/*════════════════════ ② PHIẾU XUẤT KHO TỔNG ════════════════════*/
+
+function ktXkInit() {
+  var s = $k('xkLoai');
+  if (!s.options.length) {
+    s.innerHTML = KHO.loai.map(function (l) {
+      return '<option value="' + kesc(l.ma) + '">' + kesc(l.ten) + '</option>';
+    }).join('');
+    $k('xkFilterLoai').innerHTML = '<option value="">— Mọi loại —</option>' +
+      KHO.loai.map(function (l) {
+        return '<option value="' + kesc(l.ma) + '">' + kesc(l.ten) + '</option>';
+      }).join('');
+  }
+  ktFillLocSelect('xkLoc', false);
+  if (!$k('xkNgay').value) $k('xkNgay').value = ktoday();
+  if (!KHO.xkRows.length) KHO.xkRows = [{ itemCode: '', qty: '' }];
+  ktXkLoaiDoi();
+  ktXkRender();
+}
+
+/** Đổi loại xuất thì đổi cả ô cơ sở và lời giải thích hạch toán. */
+function ktXkLoaiDoi() {
+  var ma = $k('xkLoai').value;
+  var l = KHO.loai.filter(function (x) { return x.ma === ma; })[0] || {};
+  $k('xkLoc').style.display = l.canCoSo ? '' : 'none';
+
+  var g = '';
+  if (ma === 'XUAT_CS') {
+    g = 'Điều chuyển nội bộ — <b>chưa sinh giá vốn</b>. Lớp giá mua đi theo hàng ' +
+        'xuống cơ sở; nhân viên bán rồi kế toán duyệt xong mới ra <b>6321</b>.';
+  } else if (ma === 'TRA_KHO') {
+    g = 'Hàng đi <b>ngược</b>: trừ tồn ở cơ sở, cộng trả về kho tổng. Không sinh giá vốn.';
+  } else if (ma === 'XE_MAU') {
+    g = 'Hàng xé ra trưng bày, không bán được nữa ⇒ ghi <b>Nợ 64116</b> ngay khi lưu ' +
+        'phiếu. Không phải 6321.';
+  } else if (ma === 'TANG_MALL') {
+    g = 'Tặng mall / khách ⇒ ghi <b>Nợ 64116</b> ngay khi lưu phiếu, tách riêng khỏi ' +
+        'xé mẫu để còn giải trình.';
+  } else if (ma === 'DIEU_CHUYEN') {
+    g = 'Gửi đi tỉnh khác — ra khỏi phạm vi JP v2 quản lý, chỉ <b>giảm tồn kho tổng</b>, ' +
+        'không sinh giá vốn.';
+  }
+  $k('xkGiaiThich').innerHTML = g;
+}
+
+function ktXkAddRow() { KHO.xkRows.push({ itemCode: '', qty: '' }); ktXkRender(); }
+
+function ktXkDelRow(i) {
+  KHO.xkRows.splice(i, 1);
+  if (!KHO.xkRows.length) KHO.xkRows = [{ itemCode: '', qty: '' }];
+  ktXkRender();
+}
+
+function ktXkSet(i, key, val) {
+  KHO.xkRows[i][key] = val;
+  if (key === 'itemCode') { ktXkRender(); return; }
+  ktXkTong();
+}
+
+function ktXkTong() {
+  var t = 0;
+  KHO.xkRows.forEach(function (r) { t += knum(r.qty); });
+  /* Nhãn đã có trong HTML — xem chú thích ở `ktNkTong` */
+  $k('xkTong').textContent = t + ' cái';
+  if ($k('xkBig')) $k('xkBig').textContent = t;
+  return t;
+}
+
+function ktXkRender() {
+  var h = '<tr><th class="lbl">Mã hàng</th><th>Tên hàng</th>' +
+          '<th>Số lượng</th><th></th></tr>';
+  KHO.xkRows.forEach(function (r, i) {
+    h += '<tr>' +
+      '<td class="w170"><input list="dlMaHang" value="' + kesc(r.itemCode) + '"' +
+        ' oninput="ktXkSet(' + i + ',\'itemCode\',this.value)"' +
+        ' onchange="ktXkSet(' + i + ',\'itemCode\',this.value)"></td>' +
+      '<td class="calc w170" style="text-align:left">' + kesc(ktTenHang(r.itemCode) || '—') + '</td>' +
+      '<td class="w90"><input type="number" inputmode="numeric" value="' + kesc(r.qty) + '"' +
+        ' oninput="ktXkSet(' + i + ',\'qty\',this.value)"></td>' +
+      '<td class="act"><button class="miniBtn danger" onclick="ktXkDelRow(' + i + ')">×</button></td>' +
+      '</tr>';
+  });
+  $k('tblXkRows').innerHTML = h;
+  ktDatalistMaHang();
+  ktXkTong();
+}
+
+/* ── IMPORT EXCEL cho phiếu xuất — chỉ cần Mã hàng + Số lượng ──
+   KHÔNG đọc cột đơn giá dù file có: giá vốn của phiếu xuất do FIFO quyết định,
+   nhận giá từ file là mở đường ghi đè giá vốn bằng số gõ tay. */
+function ktXkImportDoc() {
+  var khoa = ['ma', 'ten', 'sl'];
+  ktDocFileAoa('xkFile', 'xkImpMsg', function (raw) {
+    var t = ktDoCot(raw, khoa, ['ma', 'sl']);
+    if (t.dong < 0) {
+      $k('xkImpPreview').innerHTML = ktKhongThayTieuDe(['ma', 'sl']);
+      $k('xkImpBtn').style.display = 'none';
+      kmsg('xkImpMsg', 'Không đọc được cột', 'err');
+      return;
+    }
+    var rows = [], boQua = 0, laKhongCo = 0;
+    for (var i = t.dong + 1; i < raw.length; i++) {
+      var d = raw[i] || [];
+      var ma = String(d[t.cot.ma] == null ? '' : d[t.cot.ma]).trim();
+      var sl = knum(d[t.cot.sl]);
+      if (!ma || sl <= 0) { if (ma || sl) boQua++; continue; }
+      var ten = ktTenHang(ma);
+      if (!ten) laKhongCo++;
+      rows.push({ itemCode: ma, qty: sl, itemName: ten || '(không có trong danh mục)',
+                  __xau: !ten });
+    }
+    var h = ktCotNhanDuoc(t.cot, khoa);
+    if (laKhongCo) {
+      h += '<div class="alert warn">' + laKhongCo + ' mã <b>không có trong danh mục hàng</b>. ' +
+           'Xuất được nhưng không có lớp tồn nào để trừ ⇒ dòng đó sẽ bị gắn cờ ' +
+           '<b>thiếu lớp</b> và lấy giá mua gần nhất. Thêm mã ở Cấu hình → Danh mục hàng.</div>';
+    }
+    if (boQua) h += '<div class="alert warn">Bỏ qua ' + boQua + ' dòng thiếu mã hoặc số lượng ≤ 0.</div>';
+    h += ktBangXemTruoc(rows, [
+      { key: 'itemCode', nhan: 'Mã hàng' }, { key: 'itemName', nhan: 'Tên hàng' },
+      { key: 'qty', nhan: 'Số lượng', so: 1 }
+    ]);
+
+    KHO.xkImport = rows;
+    $k('xkImpPreview').innerHTML = h;
+    $k('xkImpBtn').style.display = rows.length ? '' : 'none';
+    kmsg('xkImpMsg', rows.length ? 'Đọc được ' + rows.length + ' dòng. Soát lại rồi bấm nút bên dưới.'
+                                 : 'Không tìm thấy dòng nào dùng được', rows.length ? 'ok' : 'err');
+  });
+}
+
+function ktXkImportVao() {
+  if (!KHO.xkImport || !KHO.xkImport.length) return;
+  var them = KHO.xkImport.map(function (r) {
+    return { itemCode: r.itemCode, qty: r.qty };
+  });
+  KHO.xkRows = KHO.xkRows.filter(function (r) { return String(r.itemCode).trim(); }).concat(them);
+  KHO.xkImport = null;
+  $k('xkImpPreview').innerHTML = '';
+  $k('xkImpBtn').style.display = 'none';
+  $k('xkFile').value = '';
+  kmsg('xkImpMsg', 'Đã đổ ' + them.length + ' dòng vào phiếu. Soát lại rồi bấm Lưu.', 'ok');
+  ktXkRender();
+}
+
+function ktXkSave() {
+  var rows = KHO.xkRows.filter(function (r) {
+    return String(r.itemCode).trim() && knum(r.qty) > 0;
+  });
+  if (!rows.length) { kmsg('xkMsg', 'Chưa có dòng nào có mã hàng và số lượng', 'err'); return; }
+
+  var ma = $k('xkLoai').value;
+  var l = KHO.loai.filter(function (x) { return x.ma === ma; })[0] || {};
+  if (l.tk && !confirm(l.ten + ' sẽ ghi thẳng vào sổ Nợ ' + l.tk + '.\n\n' +
+      'Hàng coi như mất, không bán được nữa. Tiếp tục?')) return;
+
+  kbusy(true, 'Đang lưu phiếu xuất…');
+  ksrv('jpKhoXuat', KT.token, {
+    ngay: $k('xkNgay').value, loai: ma,
+    locationId: l.canCoSo ? $k('xkLoc').value : '',
+    ghiChu: $k('xkGhiChu').value, rows: rows
+  }).then(function (d) {
+    kbusy(false);
+    kmsg('xkMsg', d.msg, d.thieuLop.length ? 'err' : 'ok');
+    ktoast(d.msg);
+    KHO.xkRows = [{ itemCode: '', qty: '' }];
+    $k('xkGhiChu').value = '';
+    ktXkRender();
+    ktXkHistory();
+  }).catch(function (e) { kbusy(false); kmsg('xkMsg', e.message, 'err'); });
+}
+
+function ktXkHistory() {
+  kbusy(true, 'Đang tải nhật ký…');
+  ksrv('jpKhoLichSuXuat', KT.token, 50, $k('xkFilterLoai').value).then(function (ds) {
+    kbusy(false);
+    if (!ds.length) { $k('xkHistory').innerHTML = '<p class="hint">Chưa có phiếu xuất nào.</p>'; return; }
+    var h = '<div class="tableWrap"><table><tr><th>Số CT</th><th>Ngày</th><th>Loại</th>' +
+            '<th>Tới</th><th class="num">SL</th><th class="num">Giá vốn</th>' +
+            '<th>Người lập</th><th>Chi tiết</th></tr>';
+    ds.forEach(function (r) {
+      var ct = r.dong.map(function (d) {
+        return kesc(d.itemCode) + ' × ' + d.qty + ' @ ' + kmoney(d.unitCost) +
+               (d.thieuLop ? ' <b>⚠</b>' : '');
+      }).join('<br>');
+      h += '<tr' + (r.daHuy ? ' class="lech"' : '') + '>' +
+        '<td><b>' + kesc(r.soChungTu) + '</b></td>' +
+        '<td>' + kdmy(r.ngay) + '</td>' +
+        '<td>' + kesc(r.tenLoai) + '</td>' +
+        '<td>' + kesc(r.locationName) + '</td>' +
+        '<td class="num">' + r.tongSL + '</td>' +
+        '<td class="num">' + kmoney(r.tongTien) + '</td>' +
+        '<td>' + kesc(r.createdBy) + '</td>' +
+        '<td style="font-size:12px">' + ct + '</td></tr>';
+    });
+    $k('xkHistory').innerHTML = h + '</table></div>';
+  }).catch(function (e) { kbusy(false); ktoast(e.message); });
+}
+
+/*════════════════════ ③ LƯỚI NGÀY 1–31 ════════════════════
+ * Giữ đúng thói quen của file kho cũ: dòng = mã hàng, cột = ngày. Nhưng BÊN DƯỚI
+ * vẫn là phiếu xuất thật — mỗi ngày có số sinh một phiếu, có số chứng từ, có audit.
+ * Ô đã có phiếu thì khoá lại: sửa số cũ phải huỷ phiếu, không ghi đè âm thầm.     */
+
+function ktLuoiInit() {
+  ktFillLocSelect('lgLoc', false);
+  ktFillKy('lg');
+}
+
+function ktLuoiSoNgay() {
+  return new Date(knum($k('lgNam').value), knum($k('lgThang').value), 0).getDate();
+}
+
+function ktLuoiLoad() {
+  var loc = $k('lgLoc').value;
+  if (!loc) { kmsg('lgMsg', 'Chọn cơ sở', 'err'); return; }
+  kbusy(true, 'Đang mở lưới…');
+  /* Lấy phiếu đã có để hiện số cũ và khoá ô lại */
+  ksrv('jpKhoLichSuXuat', KT.token, 500, 'XUAT_CS').then(function (ds) {
+    kbusy(false);
+    var thang = knum($k('lgThang').value), nam = knum($k('lgNam').value);
+    var daCo = {};
+    ds.forEach(function (p) {
+      if (p.daHuy || String(p.khoDen) !== String(loc)) return;
+      var s = String(p.ngay);                     // 'YYYY-MM-DD'
+      if (knum(s.slice(5, 7)) !== thang || knum(s.slice(0, 4)) !== nam) return;
+      var ngay = knum(s.slice(8, 10));
+      p.dong.forEach(function (x) {
+        var k = x.itemCode + '|' + ngay;
+        daCo[k] = (daCo[k] || 0) + x.qty;
+      });
+    });
+    KHO.luoi = { loc: loc, thang: thang, nam: nam, daCo: daCo, moi: {} };
+    ktLuoiRender();
+    kmsg('lgMsg', '');
+  }).catch(function (e) { kbusy(false); kmsg('lgMsg', e.message, 'err'); });
+}
+
+function ktLuoiSet(ma, ngay, val) {
+  if (!KHO.luoi) return;
+  var k = ma + '|' + ngay;
+  if (knum(val) > 0) KHO.luoi.moi[k] = knum(val);
+  else delete KHO.luoi.moi[k];
+  ktLuoiTong();
+}
+
+function ktLuoiTong() {
+  if (!KHO.luoi) return 0;
+  var sl = 0, o = 0;
+  Object.keys(KHO.luoi.moi).forEach(function (k) { sl += KHO.luoi.moi[k]; o++; });
+  $k('lgTong').textContent = o ? ('Sẽ tạo phiếu cho ' + o + ' ô · ' + sl + ' cái')
+                               : 'Chưa nhập gì';
+  return sl;
+}
+
+function ktLuoiRender() {
+  var L = KHO.luoi;
+  if (!L) return;
+  var n = ktLuoiSoNgay();
+
+  var h = '<tr><th class="lbl">Mã hàng</th><th>Tên hàng</th>';
+  for (var d = 1; d <= n; d++) h += '<th class="w70">' + d + '</th>';
+  h += '<th>Tổng</th></tr>';
+
+  KHO.items.forEach(function (it) {
+    var tong = 0, o = '';
+    for (var d = 1; d <= n; d++) {
+      var k = it.code + '|' + d;
+      var cu = L.daCo[k] || 0, moi = L.moi[k] || 0;
+      tong += cu + moi;
+      if (cu) {
+        o += '<td class="calc w70" title="Đã có phiếu — huỷ phiếu ở ② nếu cần sửa"><b>' +
+             cu + '</b></td>';
+      } else {
+        o += '<td class="w70"><input type="number" inputmode="numeric" value="' +
+             (moi || '') + '" oninput="ktLuoiSet(\'' + kesc(it.code) + '\',' + d +
+             ',this.value)"></td>';
+      }
+    }
+    h += '<tr><td class="lbl w170">' + kesc(it.code) + '</td>' +
+         '<td class="w170" style="text-align:left;font-size:12px">' + kesc(it.name) + '</td>' +
+         o + '<td class="calc w90"><b>' + (tong || '') + '</b></td></tr>';
+  });
+
+  if (!KHO.items.length) {
+    h += '<tr><td colspan="' + (n + 3) + '" style="padding:14px;color:#6b7280">' +
+         'Chưa có mã hàng nào trong danh mục — thêm ở Cấu hình → Danh mục hàng.</td></tr>';
+  }
+  $k('tblLuoi').innerHTML = h;
+  ktLuoiTong();
+}
+
+/* ── IMPORT EXCEL cho lưới ngày — ĐÚNG bố cục file thật `Kho Hàng JP HCM` ──
+   Dòng = mã hàng, cột = ngày 1–31. Đây là cách kế toán vẫn ghi, nên nhập được
+   thẳng file đó là bỏ hẳn việc gõ lại 31 × N ô.
+
+   Bộ dò cột chung (`ktDoCot`) không dùng được ở đây: cột không có tên, tiêu đề
+   là chính CON SỐ ngày. Nên dò riêng — nhưng cột mã hàng vẫn dùng `KT_COT_MAU.ma`
+   để đổi mẫu một chỗ là mọi màn theo. */
+function ktLuoiImportDoc() {
+  var L = KHO.luoi;
+  if (!L) { kmsg('lgImpMsg', 'Bấm "Mở lưới" trước — phải biết cơ sở và kỳ nào đã', 'err'); return; }
+  var soNgay = ktLuoiSoNgay();
+
+  ktDocFileAoa('lgFile', 'lgImpMsg', function (raw) {
+    /* Dòng tiêu đề = có cột Mã hàng + ít nhất 5 cột là số ngày. Đòi 5 cột chứ
+       không phải 1: dòng dữ liệu nào có số 3 ở đâu đó cũng thành "ngày 3". */
+    var head = -1, cMa = -1, cotNgay = {}, khacThang = 0;
+    for (var r = 0; r < Math.min(raw.length, 30) && head < 0; r++) {
+      var m = -1, ng = {}, kt = 0;
+      (raw[r] || []).forEach(function (c, i) {
+        if (c === '' || c == null) return;
+        var s = String(c).trim();
+        if (m < 0 && KT_COT_MAU.ma.test(s)) { m = i; return; }
+        var d = 0;
+        if (c instanceof Date) {
+          /* Ngày thật: chỉ nhận nếu đúng tháng đang mở, không thì đếm để nói ra */
+          if (c.getMonth() + 1 === L.thang && c.getFullYear() === L.nam) d = c.getDate();
+          else { kt++; return; }
+        } else if (/^\d{1,2}$/.test(s)) {
+          d = Number(s);
+        } else {
+          /* 'Ngày 5' · '5/8' · '05-08' — lấy số đầu tiên làm ngày */
+          var mm = s.match(/^(?:ngay|ngày)?\s*(\d{1,2})\b/i);
+          if (mm) d = Number(mm[1]);
+        }
+        if (d >= 1 && d <= 31 && ng[d] === undefined) ng[d] = i;
+      });
+      if (m >= 0 && Object.keys(ng).length >= 5) {
+        head = r; cMa = m; cotNgay = ng; khacThang = kt;
+      }
+    }
+    if (head < 0) {
+      $k('lgImpPreview').innerHTML = '<div class="alert danger">Không tìm thấy dòng tiêu đề ' +
+        'trong 30 dòng đầu. File cần một cột <b>Mã hàng</b> và các cột tiêu đề là ' +
+        '<b>số ngày 1–31</b> (đúng bố cục file <i>Kho Hàng JP HCM</i>).</div>';
+      $k('lgImpBtn').style.display = 'none';
+      kmsg('lgImpMsg', 'Không đọc được lưới', 'err');
+      return;
+    }
+
+    var ngayCo = Object.keys(cotNgay).map(Number).sort(function (a, b) { return a - b; });
+    var oMoi = {}, soO = 0, tongSl = 0;
+    var maLa = {}, daCoPhieu = 0, quaSoNgay = 0, rows = [];
+
+    for (var i = head + 1; i < raw.length; i++) {
+      var d0 = raw[i] || [];
+      var ma = String(d0[cMa] == null ? '' : d0[cMa]).trim();
+      if (!ma) continue;
+      var tenDm = ktTenHang(ma);
+      if (!tenDm) maLa[ma] = true;
+      var tongDong = 0, oDong = 0;
+      ngayCo.forEach(function (ng2) {
+        var q = knum(d0[cotNgay[ng2]]);
+        if (q <= 0) return;
+        /* Ngày 31 của tháng 30 ngày: bỏ, và ĐẾM để nói ra */
+        if (ng2 > soNgay) { quaSoNgay++; return; }
+        /* Ô đã có phiếu thì KHÔNG ghi đè — cùng luật với lưới trên giao diện.
+           Sửa số đã thành phiếu phải huỷ phiếu ở ②, không ghi đè âm thầm. */
+        if (L.daCo[ma + '|' + ng2]) { daCoPhieu++; return; }
+        oMoi[ma + '|' + ng2] = q;
+        soO++; tongSl += q; tongDong += q; oDong++;
+      });
+      if (oDong) {
+        rows.push({ itemCode: ma, itemName: tenDm || '(không có trong danh mục)',
+                    soO: oDong, tong: tongDong, __xau: !tenDm });
+      }
+    }
+
+    var h = '<div class="alert ok">Cột nhận được: <b>Mã hàng</b> = cột ' + (cMa + 1) +
+      ' · <b>' + ngayCo.length + ' cột ngày</b> (' + ngayCo[0] + '…' +
+      ngayCo[ngayCo.length - 1] + ') · dòng tiêu đề là dòng ' + (head + 1) + '</div>';
+    var soLa = Object.keys(maLa).length;
+    if (soLa) {
+      h += '<div class="alert warn">' + soLa + ' mã <b>không có trong danh mục hàng</b>' +
+           ' — xuất được nhưng sẽ bị gắn cờ <b>thiếu lớp</b>. Thêm mã ở Cấu hình → Danh mục hàng.</div>';
+    }
+    if (daCoPhieu) {
+      h += '<div class="alert warn">Bỏ qua <b>' + daCoPhieu + ' ô đã có phiếu</b> — không ' +
+           'ghi đè. Muốn sửa số cũ thì huỷ phiếu ở ② Phiếu xuất trước.</div>';
+    }
+    if (quaSoNgay) {
+      h += '<div class="alert warn">Bỏ qua ' + quaSoNgay + ' ô ở ngày lớn hơn ' + soNgay +
+           ' — tháng ' + L.thang + '/' + L.nam + ' chỉ có ' + soNgay + ' ngày.</div>';
+    }
+    if (khacThang) {
+      h += '<div class="alert warn">' + khacThang + ' cột tiêu đề là ngày của <b>tháng khác</b>' +
+           ' — đã bỏ. Kiểm tra lại kỳ đang mở (' + L.thang + '/' + L.nam + ').</div>';
+    }
+    h += ktBangXemTruoc(rows, [
+      { key: 'itemCode', nhan: 'Mã hàng' }, { key: 'itemName', nhan: 'Tên hàng' },
+      { key: 'soO', nhan: 'Số ngày có hàng', so: 1 }, { key: 'tong', nhan: 'Tổng cái', so: 1 }
+    ]);
+
+    KHO.luoiImport = soO ? oMoi : null;
+    $k('lgImpPreview').innerHTML = h;
+    $k('lgImpBtn').style.display = soO ? '' : 'none';
+    kmsg('lgImpMsg', soO ? 'Đọc được ' + soO + ' ô · ' + tongSl + ' cái trên ' +
+                           rows.length + ' mã hàng. Soát lại rồi bấm nút bên dưới.'
+                         : 'Không có ô nào dùng được', soO ? 'ok' : 'err');
+  });
+}
+
+function ktLuoiImportVao() {
+  if (!KHO.luoi || !KHO.luoiImport) return;
+  var o = KHO.luoiImport, n = 0;
+  /* Nối vào ô đang gõ tay, KHÔNG xoá — kế toán có thể vừa gõ vài ô vừa nhập file */
+  Object.keys(o).forEach(function (k) { KHO.luoi.moi[k] = o[k]; n++; });
+  KHO.luoiImport = null;
+  $k('lgImpPreview').innerHTML = '';
+  $k('lgImpBtn').style.display = 'none';
+  $k('lgFile').value = '';
+  kmsg('lgImpMsg', 'Đã đổ ' + n + ' ô vào lưới. Soát lại rồi bấm "Tạo phiếu xuất".', 'ok');
+  ktLuoiRender();
+}
+
+function ktLuoiSave() {
+  var L = KHO.luoi;
+  if (!L) { kmsg('lgMsg', 'Bấm "Mở lưới" trước', 'err'); return; }
+  var keys = Object.keys(L.moi);
+  if (!keys.length) { kmsg('lgMsg', 'Chưa nhập ô nào', 'err'); return; }
+
+  /* Gom theo NGÀY: mỗi ngày một phiếu xuất, giống một chuyến giao hàng */
+  var theoNgay = {};
+  keys.forEach(function (k) {
+    var p = k.split('|'), ma = p[0], d = knum(p[1]);
+    (theoNgay[d] = theoNgay[d] || []).push({ itemCode: ma, qty: L.moi[k] });
+  });
+  var ngays = Object.keys(theoNgay).map(Number).sort(function (a, b) { return a - b; });
+
+  if (!confirm('Sẽ tạo ' + ngays.length + ' phiếu xuất (mỗi ngày một phiếu) cho ' +
+               keys.length + ' ô.\n\nTiếp tục?')) return;
+
+  var pre = L.nam + '-' + ('0' + L.thang).slice(-2) + '-';
+  kbusy(true, 'Đang tạo ' + ngays.length + ' phiếu…');
+
+  /* Chạy TUẦN TỰ, không song song: mỗi phiếu trừ lớp tồn nên phải xếp hàng, chạy
+     song song là hai phiếu cùng đọc một lớp rồi trừ đè nhau. */
+  var i = 0, xong = 0, loi = [];
+  var buoc = function () {
+    if (i >= ngays.length) {
+      kbusy(false);
+      kmsg('lgMsg', 'Đã tạo ' + xong + '/' + ngays.length + ' phiếu' +
+           (loi.length ? ' · LỖI: ' + loi.join('; ') : ''), loi.length ? 'err' : 'ok');
+      ktLuoiLoad();
+      return;
+    }
+    var d = ngays[i++];
+    ksrv('jpKhoXuat', KT.token, {
+      ngay: pre + ('0' + d).slice(-2), loai: 'XUAT_CS',
+      locationId: L.loc, ghiChu: 'Nhập từ lưới ngày', rows: theoNgay[d]
+    }).then(function () { xong++; buoc(); })
+      .catch(function (e) { loi.push('ngày ' + d + ': ' + e.message); buoc(); });
+  };
+  buoc();
+}
+
+/*════════════════════ TỔNG QUAN KHO ════════════════════
+ * Bản đồ của 17 màn kho. Sơ đồ luồng nằm trong HTML (mọi ô là một `ktGo`); hàm này
+ * chỉ lo phần SỐ, để đọc một cái là biết tháng này kho có gì phải xử lý.
+ *
+ * Dùng lại `jpKhoNhapXuatTon` — KHÔNG viết hàm máy chủ mới. Con số trên màn này và
+ * con số trong bảng 18 cột phải là **cùng một phép tính**, khác đường tính là tới lúc
+ * lệch nhau không ai biết bên nào đúng.
+ *
+ * ⚠️ Lỗi ở đây KHÔNG được làm trắng cả màn — sơ đồ và bảng "muốn làm gì" là phần
+ * quan trọng nhất, chúng nằm sẵn trong HTML nên vẫn phải dùng được khi số hỏng.
+ * Cùng lý do với ô "việc cần làm" ở màn Tổng quan chung.
+ */
+function ktKhoTongQuan() {
+  ktFillKy('tq');
+  kbusy(true, 'Đang dựng số của tháng…');
+  ksrv('jpKhoNhapXuatTon', KT.token, $k('tqThang').value, $k('tqNam').value, '')
+    .then(function (d) {
+      kbusy(false);
+      var t = d.tong;
+      /* Bốn thẻ, đúng bốn câu hỏi kế toán hỏi đầu tháng. `nhap` là TỔNG bốn nguồn
+         (mua · nhận ĐC · đầu kỳ · kiểm kê thừa) nên đừng in `nhapMua` vào thẻ "Nhập":
+         bảng 18 cột in tổng, hai chỗ lệch nhau là người đọc tưởng số sai. */
+      $k('tqSum').innerHTML =
+        statTxt('Tồn đầu kỳ', kmoney(t.tonDau) + ' cái') +
+        statTxt('Nhập trong kỳ', kmoney(t.nhap) + ' cái') +
+        statTxt('Xuất trong kỳ', kmoney(t.tongXuat) + ' cái') +
+        statTxt('Tồn cuối kỳ', kmoney(t.tonCuoi) + ' cái') +
+        statTxt('Số kho có hàng', kmoney((d.khoi || []).length) + ' kho');
+
+      var w = [];
+      if (!d.canBang) {
+        w.push('<div class="alert warn"><b>Lệch ' + kmoney(d.lech) + ' cái</b> ở ' +
+               kmoney(d.soDongLech) + ' dòng — tồn suy ngược từ lớp tồn không khớp tồn ' +
+               'suy xuôi từ chứng từ. Hai nguyên nhân thật: ① có dòng xuất mà lớp chưa bị ' +
+               'trừ đủ (phiếu nhập về muộn — nhập bù rồi bấm <b>Xuất lại</b>); ② chứng từ ' +
+               'ghi sai kho.' +
+               '<div class="alert-sub">Mở <b>⚖️ Cân đối (18 cột)</b> để thấy đúng dòng nào lệch.</div>' +
+               '</div>');
+      } else {
+        w.push('<div class="alert ok">Tồn suy <b>ngược</b> từ lớp tồn khớp tồn suy ' +
+               '<b>xuôi</b> từ chứng từ — hai đường độc lập, không lệch dòng nào.</div>');
+      }
+      /* In luôn phép cộng ra chữ. Thẻ số mà người đọc không tự cộng ra được kết quả
+         bên cạnh thì họ tưởng bảng sai, dù số đúng — đã mắc đúng bệnh này một lần. */
+      w.push('<p class="hint">Đẳng thức: <b>Tồn đầu ' + kmoney(t.tonDau) +
+             ' + Nhập ' + kmoney(t.nhap) + ' + Trả về ' + kmoney(t.traVe) +
+             ' − Tổng xuất ' + kmoney(t.tongXuat) + ' = Tồn cuối ' + kmoney(t.tonCuoi) +
+             '</b>. Trong đó Nhập = mua ' + kmoney(t.nhapMua) +
+             ' + nhận ĐC ' + kmoney(t.nhapDC) + ' + đầu kỳ ' + kmoney(t.nhapDauKy) +
+             ' + kiểm kê thừa ' + kmoney(t.nhapKiemKe) + '.</p>');
+      $k('tqWarn').innerHTML = w.join('');
+      kmsg('tqMsg', '', '');
+    })
+    .catch(function (e) {
+      kbusy(false);
+      $k('tqSum').innerHTML = '';
+      $k('tqWarn').innerHTML = '';
+      kmsg('tqMsg', 'Không dựng được số của tháng: ' + e.message +
+           ' — sơ đồ và bảng bên dưới vẫn dùng được.', 'err');
+    });
+}
+
+/*════════════════════ ④ NHẬP – XUẤT – TỒN ════════════════════*/
+
+function ktNXT(xong) {
+  kbusy(true, 'Đang dựng báo cáo…');
+  var fm = $k('nxThang').value, fy = $k('nxNam').value, fk = $k('nxKho').value;
+  ksrv('jpKhoNhapXuatTon', KT.token, fm, fy, fk)
+    .then(function (d) {
+      kbusy(false);
+      /* Giữ lại kèm BỘ LỌC đã dùng — nút xuất Excel so lại với ô lọc hiện tại, lệch
+         thì vẽ lại trước khi xuất. Không giữ bộ lọc thì kế toán đổi tháng, bấm Xuất
+         mà không bấm Xem, và file nói tháng khác với bảng đang nhìn. */
+      KT.nxt = { thang: fm, nam: fy, kho: fk, d: d };
+      var t = d.tong;
+      /* HÀNG THẺ NÀY PHẢI CỘNG RA ĐƯỢC, đừng bỏ thẻ nào cho gọn.
+         Thiếu `traVe` thì đọc thành 129 + 200 − 170 = 159 trong khi tồn cuối in
+         ra 161. Và khi tách cột nhập, thiếu `Đầu kỳ` + `KK thừa` thì bốn nguồn
+         đọc thành 70 + 80 = 150 mà `Nhập (tổng)` in 200 — người đọc thấy sai số
+         dù số đúng, đúng cái bệnh đã mắc một lần với cột Kiểm kê. */
+      $k('nxSum').innerHTML =
+        statTxt('Tồn đầu kỳ', t.tonDau) +
+        statTxt('Mua', t.nhapMua) +
+        statTxt('Nhận điều chuyển', t.nhapDC) +
+        statTxt('Nhập đầu kỳ', t.nhapDauKy) +
+        statTxt('Kiểm kê thừa', t.nhapKiemKe) +
+        statTxt('Nhập (tổng)', t.nhap) +
+        statTxt('Trả về', t.traVe) +
+        statTxt('Tổng xuất', t.tongXuat) +
+        statTxt('Tồn cuối kỳ', t.tonCuoi);
+
+      /* Phép kiểm ở máy chủ là: tồn đầu suy NGƯỢC từ lớp tồn thật phải bằng tồn đầu
+         suy XUÔI từ chứng từ. Hai đường độc lập nên mới có nghĩa — chữ "cân" ở đây
+         là đã đối chiếu thật, không phải in lại đẳng thức vừa dùng để tính. */
+      if (d.canBang) {
+        $k('nxWarn').innerHTML =
+          '<div class="alert ok">Bảng <b>cân</b>: ' + t.tonDau + ' + ' + t.nhap +
+          ' + ' + t.traVe + ' − ' + t.tongXuat + ' = ' + t.tonCuoi +
+          ' · tồn đầu khớp chứng từ trên cả ' + d.rows.length + ' dòng' +
+          '<div class="alert-sub">Nhập ' + t.nhap + ' = mua ' + t.nhapMua +
+          ' + nhận điều chuyển ' + t.nhapDC + ' + đầu kỳ ' + t.nhapDauKy +
+          ' + kiểm kê thừa ' + t.nhapKiemKe + '</div></div>';
+      } else {
+        var ds = (d.viDuLech || []).map(function (v) {
+          return '<li>' + kesc(v.kho) + ' · <b>' + kesc(v.itemCode) + '</b>: lớp tồn nói ' +
+            v.tonDau + ', chứng từ nói ' + v.tonDauCT +
+            ' (lệch ' + (v.lech > 0 ? '+' : '') + v.lech + ')</li>';
+        }).join('');
+        $k('nxWarn').innerHTML =
+          '<div class="alert danger"><b>KHÔNG KHỚP: ' + d.soDongLech +
+          ' dòng, tổng lệch ' + d.lech + ' cái.</b> Lớp tồn và chứng từ không khớp.' +
+          '<ul>' + ds + '</ul>' +
+          'Hai nguyên nhân thật: <b>①</b> có dòng xuất mà lớp chưa bị trừ đủ vì phiếu ' +
+          'nhập về muộn — nhập bù rồi bấm <b>Xuất lại</b> ở nhật ký xuất kho; ' +
+          '<b>②</b> chứng từ ghi sai kho — trừ kho này mà hàng nằm kho khác.</div>';
+      }
+
+      /* ── MỖI KHO MỘT KHỐI RIÊNG, có dòng TỔNG của nó (Andy chốt 04/08/2026) ──
+         Giống file thật `Kho Hàng JP HCM`: từng cơ sở một khối. Trước đây kho tổng và
+         13 cơ sở dồn vào một bảng, tên kho lặp lại từng dòng — muốn biết tồn của một
+         cơ sở là phải tự cộng tay.
+
+         Vẫn nằm trong MỘT `<table id="tblNXT">` chứ không phải 14 bảng: nút Xuất CSV
+         đọc theo id bảng, tách thành nhiều bảng là mất luôn xuất CSV. */
+      var COT = 18;
+      var soCot = function (r) {
+        return '<td class="num">' + r.tonDau + '</td>' +
+          /* NHẬP tách lẻ 4 nguồn — bốn thứ này hạch toán khác nhau hoàn toàn:
+             Mua sinh công nợ NCC (331) · Đầu kỳ không nợ ai · Kiểm kê thừa là
+             1561/1388 · Nhận ĐC chỉ là hàng từ kho tổng xuống. Cột `Nhập` là TỔNG
+             của bốn cái, để vẫn cộng ra được đẳng thức bên cạnh. */
+          '<td class="num">' + (r.nhapMua || '') + '</td>' +
+          '<td class="num">' + (r.nhapDC || '') + '</td>' +
+          '<td class="num">' + (r.nhapDauKy || '') + '</td>' +
+          '<td class="num">' + (r.nhapKiemKe || '') + '</td>' +
+          '<td class="num"><b>' + (r.nhap || '') + '</b></td>' +
+          '<td class="num">' + (r.traVe || '') + '</td>' +
+          '<td class="num">' + (r.xuatCoSo || '') + '</td>' +
+          '<td class="num">' + (r.xuatBan || '') + '</td>' +
+          '<td class="num">' + (r.xuatXeMau || '') + '</td>' +
+          '<td class="num">' + (r.xuatTang || '') + '</td>' +
+          '<td class="num">' + (r.xuatTinh || '') + '</td>' +
+          /* Cột Kiểm kê PHẢI hiện: `xuatKiemKe` vốn đã nằm trong `tongXuat`, thiếu cột
+             thì dòng không cộng ra được tổng xuất và trông như tính sai. */
+          '<td class="num">' + (r.xuatKiemKe || '') + '</td>' +
+          '<td class="num">' + r.tongXuat + '</td>' +
+          '<td class="num"><b>' + r.tonCuoi + '</b></td>';
+      };
+
+      var h = '<tr><th>Mã MISA</th><th>Mã hàng</th><th>Tên hàng</th>' +
+        '<th class="num">Tồn đầu</th>' +
+        '<th class="num">Mua</th><th class="num">Nhận ĐC</th>' +
+        '<th class="num">Đầu kỳ</th><th class="num">KK thừa</th>' +
+        '<th class="num">Nhập</th><th class="num">Trả về</th>' +
+        '<th class="num">Xuất cơ sở</th><th class="num">Bán</th>' +
+        '<th class="num">Xé mẫu</th><th class="num">Tặng</th><th class="num">Gửi tỉnh</th>' +
+        '<th class="num">Kiểm kê</th>' +
+        '<th class="num">Tổng xuất</th><th class="num">Tồn cuối</th></tr>';
+
+      (d.khoi || []).forEach(function (k) {
+        h += '<tr class="grpRow"><td colspan="' + COT + '">' +
+          (k.laKhoTong ? '🏭 ' : '🏬 ') + '<b>' + kesc(k.tenKho) + '</b>' +
+          ' <span class="grpNote">' + k.rows.length + ' mã hàng' +
+          (k.laKhoTong ? ' · kho hạch toán duy nhất' : '') +
+          (k.soDongLech ? ' · <b style="color:#b91c1c">⚠ ' + k.soDongLech +
+                          ' dòng lệch ' + k.lech + ' cái</b>' : '') +
+          '</span></td></tr>';
+
+        k.rows.forEach(function (r) {
+          h += '<tr' + (r.lechDauKy ? ' class="lech"' : '') + '>' +
+            '<td>' + kesc(r.misa) + '</td>' +
+            '<td>' + kesc(r.itemCode) + '</td>' +
+            '<td style="white-space:normal">' + kesc(r.itemName) + '</td>' +
+            soCot(r) + '</tr>';
+        });
+
+        h += '<tr class="totRow"><td colspan="3">TỔNG ' + kesc(k.tenKho) + '</td>' +
+          soCot(k.tong) + '</tr>';
+      });
+
+      if (!(d.khoi || []).length) {
+        h += '<tr><td colspan="' + COT + '" style="padding:14px;color:#6b7280">Kỳ này ' +
+             'chưa có phát sinh kho nào.</td></tr>';
+      } else if (d.khoi.length > 1) {
+        /* Dòng tổng toàn bộ chỉ có nghĩa khi đang xem nhiều kho — xem một kho thì nó
+           trùng đúng dòng TỔNG ngay trên, in ra chỉ làm rối. */
+        h += '<tr class="grandRow"><td colspan="3">TỔNG TẤT CẢ ' + d.khoi.length +
+             ' KHO</td>' + soCot(d.tong) + '</tr>';
+      }
+      $k('tblNXT').innerHTML = h;
+      if (typeof xong === 'function') xong(d);
+    })
+    .catch(function (e) { kbusy(false); ktoast(e.message); });
+}
+
+/*═══════ XUẤT .XLSX ĐÚNG KHUÔN MISA `Tổng hợp Nhập Xuất Tồn` (Andy 10/08/2026) ═══════
+ *
+ * Andy: *"cần thì xuất phải chuẩn form"* rồi *"làm nút xuất xlsx đúng khuôn misa đi em"*.
+ * Trước bản này chỉ có `Xuất CSV` — bảng 18 cột phẳng của JP, KHÔNG phải khuôn MISA:
+ * không có cột giá trị, không có ĐVT, không có nhóm VTHH, và một file gộp 14 kho trong
+ * khi form MISA in **một kho một tờ** (dòng tiêu đề có chữ `Kho:`).
+ *
+ * ⚠️ MỘT KHO = MỘT SHEET. Gộp 14 kho vào một sheet thì không còn là khuôn MISA nữa —
+ * và bảng ⑥ trên màn (18 cột, mọi kho) đã làm đúng việc "xem liên nhau" rồi, nút CSV
+ * vẫn giữ. Hai bản xuất phục vụ hai việc khác nhau, đừng gộp.
+ *
+ * ⚠️ SỐ LẤY ĐƯỜNG SUY XUÔI TỪ CHỨNG TỪ (`tonDauCT` · `gtTonDau` · `tongXuat` ·
+ * `tonCuoiCT` · `gtTonCuoi`), KHÔNG lấy `tonDau`/`tonCuoi`. Xem mục cùng tên trong
+ * `11_Kho`: đường ngược làm BIẾN MẤT hai thứ mà MISA in ra — xuất quá tồn (`100JP025`
+ * → `(4,00)`) và rác làm tròn 1đ khi số lượng đã về 0 (`100JP128`). Cả hai là thứ kế
+ * toán cần thấy.
+ *
+ * ⚠️ Cột `Nhập kho` = `nhap + traVe`. Trên màn hai cột đó đứng riêng vì hạch toán khác
+ * nhau, nhưng trong đẳng thức `traVe` nằm ở VẾ NHẬP — bỏ nó ra khỏi cột nhập là dòng
+ * không cộng ra được tồn cuối, mà tồn cuối thì vẫn in đúng ⇒ file tự mâu thuẫn.
+ *
+ * ⚠️ KHÔNG tô đậm / kẻ khung được: bản SheetJS dùng ở đây là bản cộng đồng, nó **bỏ
+ * qua style** khi ghi file. Nên phân biệt dòng bằng CHỮ (`Tổng nhóm …`, `TỔNG CỘNG`)
+ * chứ không bằng định dạng — dựa vào bold là ra file trông y như dòng hàng thường.
+ */
+var NXT_MISA_COT = 12;
+/* Khuôn số khớp ảnh form MISA Andy gửi: số lượng 2 chữ số thập phân, âm trong ngoặc,
+   SỐ 0 IN TRỐNG. Ba khoảng của mã định dạng là dương;âm;không — khoảng thứ ba để rỗng
+   nên ô bằng 0 hiện trắng, đúng như MISA in. */
+var NXT_FMT_SL = '#,##0.00;(#,##0.00);';
+var NXT_FMT_GT = '#,##0;(#,##0);';
+
+/** Tám con số của một dòng, đúng thứ tự 4 cặp của form. */
+function ktNxtMisaSo(r) {
+  return [knum(r.tonDauCT), knum(r.gtTonDau),
+          knum(r.nhap) + knum(r.traVe), knum(r.gtNhap) + knum(r.gtTraVe),
+          knum(r.tongXuat), knum(r.gtTongXuat),
+          knum(r.tonCuoiCT), knum(r.gtTonCuoi)];
+}
+
+/** Tên sheet hợp lệ cho Excel: bỏ ký tự cấm, ≤31 ký tự, không trùng nhau. */
+function ktNxtTenSheet(ten, daDung) {
+  var s = String(ten || 'Kho').replace(/[\[\]\*\?\/\\:]/g, ' ')
+            .replace(/\s+/g, ' ').trim().slice(0, 28) || 'Kho';
+  var g = s, i = 2;
+  while (daDung[g]) g = s.slice(0, 24) + ' (' + (i++) + ')';
+  daDung[g] = true;
+  return g;
+}
+
+/** Một khối kho → một sheet. Trả `{aoa, merges}`. */
+function ktNxtMisaSheet(k, thang, nam) {
+  var soNgay = new Date(knum(nam), knum(thang), 0).getDate();
+  var hai = function (n) { return ('0' + n).slice(-2); };
+  var ky = 'Từ ngày ' + hai(1) + '/' + hai(thang) + '/' + nam +
+           ' đến ngày ' + hai(soNgay) + '/' + hai(thang) + '/' + nam;
+
+  var aoa = [
+    ['TỔNG HỢP NHẬP XUẤT TỒN'],
+    [ky],
+    ['Kho: ' + k.tenKho],
+    [],
+    ['STT', 'Mã hàng', 'Tên hàng', 'ĐVT', 'Đầu kỳ', '', 'Nhập kho', '',
+     'Xuất kho', '', 'Cuối kỳ', ''],
+    ['', '', '', '', 'Số lượng', 'Giá trị', 'Số lượng', 'Giá trị',
+     'Số lượng', 'Giá trị', 'Số lượng', 'Giá trị']
+  ];
+
+  /* Dòng NHÓM VTHH — file `Tồn kho JP đến 31.7` của Andy trình bày đúng vậy. Mọi mã
+     của JP thuộc một nhóm nên dòng "Tổng nhóm" trùng đúng `TỔNG CỘNG`; giữ CẢ HAI vì
+     đó là khuôn MISA, và hai số bằng nhau là phép soát nhanh nhất cho người đọc. */
+  var nhom = (k.rows[0] && k.rows[0].nhom) || 'JP_Hàng JP';
+  aoa.push(['', nhom]);
+
+  k.rows.forEach(function (r, i) {
+    /* Mã in ra là MÃ MISA. Mã lạ (nhân viên gõ tay, chưa vào danh mục) chưa có mã
+       MISA thì in `itemCode` — bỏ trắng là dòng không nạp được vào MISA và cũng
+       không tra ra được hàng gì. Số dòng như vậy được ĐẾM và nói ra sau khi xuất. */
+    aoa.push([i + 1, r.misa || r.itemCode, r.itemName, r.dvt || 'Quả']
+             .concat(ktNxtMisaSo(r)));
+  });
+
+  aoa.push(['', '', 'Tổng nhóm ' + nhom, ''].concat(ktNxtMisaSo(k.tong)));
+  aoa.push(['', '', 'TỔNG CỘNG', ''].concat(ktNxtMisaSo(k.tong)));
+
+  var m = function (r1, c1, r2, c2) { return { s: { r: r1, c: c1 }, e: { r: r2, c: c2 } }; };
+  var merges = [
+    m(0, 0, 0, NXT_MISA_COT - 1), m(1, 0, 1, NXT_MISA_COT - 1), m(2, 0, 2, NXT_MISA_COT - 1),
+    m(4, 0, 5, 0), m(4, 1, 5, 1), m(4, 2, 5, 2), m(4, 3, 5, 3),
+    m(4, 4, 4, 5), m(4, 6, 4, 7), m(4, 8, 4, 9), m(4, 10, 4, 11)
+  ];
+  return { aoa: aoa, merges: merges, soDongSo: k.rows.length + 2, dongDauSo: 7 };
+}
+
+function ktNxtMisaFile(d) {
+  if (typeof XLSX === 'undefined') {
+    kmsg('nxMisaMsg', 'Không nạp được thư viện Excel — kiểm tra mạng rồi tải lại trang', 'err');
+    return;
+  }
+  var khoi = d.khoi || [];
+  if (!khoi.length) {
+    kmsg('nxMisaMsg', 'Kỳ này chưa có phát sinh kho nào — không có gì để xuất.', 'err');
+    return;
+  }
+
+  var wb = XLSX.utils.book_new(), daDung = {};
+  khoi.forEach(function (k) {
+    var s = ktNxtMisaSheet(k, d.thang, d.nam);
+    var ws = XLSX.utils.aoa_to_sheet(s.aoa);
+    ws['!merges'] = s.merges;
+    ws['!cols'] = [{ wch: 5 }, { wch: 14 }, { wch: 40 }, { wch: 7 }].concat(
+      [0, 1, 2, 3, 4, 5, 6, 7].map(function (i) { return { wch: i % 2 ? 15 : 11 }; }));
+
+    /* Gắn khuôn số cho ĐÚNG vùng 8 cột số. Đi theo địa chỉ ô chứ không theo `!ref`:
+       cột A–D là chữ, gắn khuôn tiền vào đó là số thứ tự thành "1,00". */
+    for (var r = s.dongDauSo; r < s.dongDauSo + s.soDongSo; r++) {
+      for (var c = 4; c < NXT_MISA_COT; c++) {
+        var o = ws[XLSX.utils.encode_cell({ r: r, c: c })];
+        if (o && o.t === 'n') o.z = (c % 2 === 0) ? NXT_FMT_SL : NXT_FMT_GT;
+      }
+    }
+    XLSX.utils.book_append_sheet(wb, ws, ktNxtTenSheet(k.tenKho, daDung));
+  });
+
+  var ten = 'NXT_MISA_JP_' + ('0' + d.thang).slice(-2) + '_' + d.nam + '.xlsx';
+  XLSX.writeFile(wb, ten);
+
+  /* NÓI RA mọi thứ người đọc cần biết trước khi đem file đi đối chiếu — im lặng ở đây
+     là kế toán nạp vào MISA rồi mới phát hiện. Ba chuyện khác nhau nên ba câu khác
+     nhau, đừng gộp một câu rồi đổi màu. */
+  var thieuMa = 0, amDong = 0;
+  khoi.forEach(function (k) {
+    k.rows.forEach(function (r) {
+      if (!r.misa) thieuMa++;
+      if (knum(r.tonCuoiCT) < 0) amDong++;
+    });
+  });
+  /* ⚠️ GỌI TÊN CHO ĐÚNG: `tonCuoiCT` (suy xuôi, số của file) và `tonCuoi` (suy ngược,
+     số của thẻ bên dưới) KHÁC NHAU đúng phần lệch. Bản đầu in "Tồn cuối kỳ 150" ngay
+     cạnh thẻ in "161" ⇒ hai con số cùng tên trên một màn, đúng bẫy đã mắc ở màn đối
+     soát. Lệch thì phải NÓI RA cả hai và nói vì sao, đừng chọn một số rồi im. */
+  var t = d.tong;
+  var lechCuoi = knum(t.tonCuoi) - knum(t.tonCuoiCT);
+  kmsg('nxMisaMsg', 'Đã xuất ' + ten + ' — ' + khoi.length +
+       /* ⚠️ KHÔNG chèn thẻ HTML — `kmsg` ghi bằng `textContent`, thẻ sẽ hiện ra chữ. */
+       ' sheet, mỗi kho một tờ. Tồn cuối kỳ THEO CHỨNG TỪ ' + t.tonCuoiCT +
+       ' cái · ' + kmoney(t.gtTonCuoi) + 'đ.' +
+       (lechCuoi ? ' Thẻ số bên dưới in ' + t.tonCuoi + ' cái — đó là số suy NGƯỢC từ' +
+                   ' lớp tồn, lệch ' + Math.abs(lechCuoi) + ' cái vì bảng chưa cân.'
+                 : ' Khớp đúng thẻ số bên dưới.'), 'ok');
+
+  var canh = '';
+  if (!d.canBang) {
+    canh += '<div class="alert danger">Bảng <b>chưa cân</b>: ' + d.soDongLech +
+      ' dòng lệch ' + d.lech + ' cái giữa lớp tồn và chứng từ. File vẫn xuất đúng số ' +
+      'chứng từ, nhưng <b>đừng nạp vào MISA</b> trước khi soát xong.</div>';
+  }
+  if (amDong) {
+    canh += '<div class="alert warn"><b>' + amDong + ' dòng có tồn cuối ÂM</b> — in ' +
+      'trong ngoặc, đúng cách MISA in. Đó là dấu hiệu <b>xuất quá tồn</b>: nhập bù ' +
+      'phiếu rồi bấm <b>Xuất lại</b> ở nhật ký xuất kho.</div>';
+  }
+  if (thieuMa) {
+    canh += '<div class="alert warn"><b>' + thieuMa + ' mã chưa có mã MISA</b> — cột ' +
+      'Mã hàng in mã nội bộ thay thế. Bổ sung ở <b>Cấu hình → Danh mục hàng</b> rồi ' +
+      'xuất lại, không thì MISA không khớp được dòng đó.</div>';
+  }
+  $k('nxMisaWarn').innerHTML = canh;
+}
+
+function ktXuatNxtMisa() {
+  var m = $k('nxThang').value, y = $k('nxNam').value, kho = $k('nxKho').value;
+  var s = KT.nxt;
+  /* Bảng đang hiện là số của bộ lọc KHÁC (hoặc chưa bấm Xem lần nào) ⇒ vẽ lại rồi mới
+     xuất. Xuất thẳng theo ô lọc là file và màn hình nói hai chuyện khác nhau — đúng
+     bẫy "hai con số cùng tên trên một màn" đã mắc ở màn đối soát. */
+  if (!s || s.thang !== m || s.nam !== y || s.kho !== kho) {
+    kmsg('nxMisaMsg', 'Bộ lọc vừa đổi — đang dựng lại bảng cho khớp file…');
+    ktNXT(function (d) { ktNxtMisaFile(d); });
+    return;
+  }
+  ktNxtMisaFile(s.d);
+}
+
+/*═══════ BA TAB NHẬP / XUẤT / TỒN — Andy chốt 04/08/2026 ═══════
+ *
+ * *"cấu trúc xuất nhập tồn liên nhau nhưng trên web riêng từng tab em nha"*.
+ *
+ * Cả ba gọi ĐÚNG một hàm `jpKhoNhapXuatTon` — chính hàm bảng ⑥ Cân đối dùng.
+ * Viết hàm máy chủ riêng cho từng tab là ba chỗ tính tổng, rồi ba chỗ lệch nhau
+ * mà không ai biết chỗ nào đúng. Một bộ máy, ba cách vẽ.
+ *
+ * SỐ NỐI BA TAB, và mỗi tab phải IN RA để đối chiếu chéo được:
+ *   tab Nhập → `TỔNG NHẬP`  = cột `Nhập`  của tab Tồn
+ *   tab Xuất → `TỔNG XUẤT`  = cột `Xuất`  của tab Tồn
+ *   tab Tồn  → đóng đẳng thức `Tồn đầu + Nhập + Trả về − Xuất = Tồn cuối`
+ * Thiếu câu đối chiếu đó thì ba tab thành ba bảng rời, đúng cái anh không muốn.
+ */
+
+/** Vẽ khối theo kho dùng chung cho cả ba tab. `cot(r)` sinh các ô số. */
+function ktBcKhoi_(d, tblId, cot, soCot, nhan) {
+  var h = '<tr><th>Mã MISA</th><th>Mã hàng</th><th>Tên hàng</th>' + nhan + '</tr>';
+  (d.khoi || []).forEach(function (k) {
+    h += '<tr class="grpRow"><td colspan="' + soCot + '">' +
+      (k.laKhoTong ? '🏭 ' : '🏬 ') + '<b>' + kesc(k.tenKho) + '</b>' +
+      ' <span class="grpNote">' + k.rows.length + ' mã hàng' +
+      (k.laKhoTong ? ' · kho hạch toán duy nhất' : '') + '</span></td></tr>';
+    k.rows.forEach(function (r) {
+      h += '<tr><td>' + kesc(r.misa) + '</td><td>' + kesc(r.itemCode) + '</td>' +
+        '<td style="white-space:normal">' + kesc(r.itemName) + '</td>' + cot(r) + '</tr>';
+    });
+    h += '<tr class="totRow"><td colspan="3">TỔNG ' + kesc(k.tenKho) + '</td>' +
+         cot(k.tong) + '</tr>';
+  });
+  if (!(d.khoi || []).length) {
+    h += '<tr><td colspan="' + soCot + '" style="padding:14px;color:#6b7280">' +
+         'Kỳ này chưa có phát sinh kho nào.</td></tr>';
+  } else if (d.khoi.length > 1) {
+    h += '<tr class="grandRow"><td colspan="3">TỔNG TẤT CẢ ' + d.khoi.length + ' KHO</td>' +
+         cot(d.tong) + '</tr>';
+  }
+  $k(tblId).innerHTML = h;
+}
+
+/*──────────────── TAB NHẬP KHO ────────────────*/
+
+function ktBcNhap() {
+  kbusy(true, 'Đang dựng báo cáo nhập…');
+  ksrv('jpKhoNhapXuatTon', KT.token, $k('n3Thang').value, $k('n3Nam').value, $k('n3Kho').value)
+    .then(function (d) {
+      kbusy(false);
+      var t = d.tong;
+      $k('n3Sum').innerHTML =
+        statTxt('Mua từ NCC', kmoney(t.nhapMua)) +
+        statTxt('Nhận điều chuyển', kmoney(t.nhapDC)) +
+        statTxt('Tồn đầu kỳ khai', kmoney(t.nhapDauKy)) +
+        statTxt('Kiểm kê thừa', kmoney(t.nhapKiemKe)) +
+        statTxt('TỔNG NHẬP', kmoney(t.nhap)) +
+        statTxt('Cơ sở trả về kho', kmoney(t.traVe));
+
+      /* Câu nối sang tab Tồn — không có nó thì ba tab thành ba bảng rời */
+      $k('n3Warn').innerHTML =
+        '<div class="alert ok"><b>Nhập = mua ' + kmoney(t.nhapMua) +
+        ' + nhận ĐC ' + kmoney(t.nhapDC) + ' + đầu kỳ ' + kmoney(t.nhapDauKy) +
+        ' + kiểm kê thừa ' + kmoney(t.nhapKiemKe) + ' = <b>' + kmoney(t.nhap) + '</b>' +
+        '<div class="alert-sub">Con số này chính là cột <b>Nhập</b> ở tab ' +
+        '<b>📦 Tồn kho</b>. <b>Trả về</b> (' + kmoney(t.traVe) + ') đứng riêng trong ' +
+        'đẳng thức, không cộng vào Nhập — nhận điều chuyển là hàng đi XUỐNG, trả kho là ' +
+        'hàng đi LÊN.</div></div>' +
+        '<div class="alert warn">Bốn nguồn này <b>hạch toán khác nhau hoàn toàn</b>: ' +
+        '<b>Mua</b> sinh công nợ NCC (331) · <b>Nhận ĐC</b> không nợ ai · ' +
+        '<b>Đầu kỳ</b> không nợ ai · <b>Kiểm kê thừa</b> là 1561/1388. ' +
+        'Gộp một cột thì không đối chiếu được với sổ 331.</div>';
+
+      ktBcKhoi_(d, 'tblBcNhap', function (r) {
+        return '<td class="num">' + (r.nhapMua || '') + '</td>' +
+               '<td class="num">' + (r.nhapDC || '') + '</td>' +
+               '<td class="num">' + (r.nhapDauKy || '') + '</td>' +
+               '<td class="num">' + (r.nhapKiemKe || '') + '</td>' +
+               '<td class="num"><b>' + (r.nhap || '') + '</b></td>' +
+               '<td class="num">' + (r.traVe || '') + '</td>';
+      }, 9,
+        '<th class="num">Mua từ NCC</th><th class="num">Nhận ĐC</th>' +
+        '<th class="num">Tồn đầu kỳ</th><th class="num">Kiểm kê thừa</th>' +
+        '<th class="num">TỔNG NHẬP</th><th class="num">Trả về kho</th>');
+    })
+    .catch(function (e) { kbusy(false); ktoast(e.message); });
+}
+
+/*──────────────── TAB XUẤT KHO ────────────────*/
+
+function ktBcXuat() {
+  kbusy(true, 'Đang dựng báo cáo xuất…');
+  ksrv('jpKhoNhapXuatTon', KT.token, $k('x3Thang').value, $k('x3Nam').value, $k('x3Kho').value)
+    .then(function (d) {
+      kbusy(false);
+      var t = d.tong;
+      $k('x3Sum').innerHTML =
+        statTxt('Xuất xuống cơ sở', kmoney(t.xuatCoSo)) +
+        statTxt('Bán ra', kmoney(t.xuatBan)) +
+        statTxt('Xé mẫu', kmoney(t.xuatXeMau)) +
+        statTxt('Tặng mall / khách', kmoney(t.xuatTang)) +
+        statTxt('Gửi đi tỉnh', kmoney(t.xuatTinh)) +
+        statTxt('Kiểm kê thiếu', kmoney(t.xuatKiemKe)) +
+        statTxt('TỔNG XUẤT', kmoney(t.tongXuat));
+
+      $k('x3Warn').innerHTML =
+        '<div class="alert ok"><b>Tổng xuất = ' + kmoney(t.tongXuat) + '</b>' +
+        '<div class="alert-sub">' +
+        'xuất cơ sở ' + kmoney(t.xuatCoSo) + ' + bán ' + kmoney(t.xuatBan) +
+        ' + xé mẫu ' + kmoney(t.xuatXeMau) + ' + tặng ' + kmoney(t.xuatTang) +
+        ' + gửi tỉnh ' + kmoney(t.xuatTinh) + ' + kiểm kê ' + kmoney(t.xuatKiemKe) +
+        ' — chính là cột <b>Xuất</b> ở tab <b>📦 Tồn kho</b>.</div></div>' +
+        '<div class="alert warn"><b>Loại xuất quyết định hạch toán:</b> ' +
+        '<b>Bán</b> và <b>Kiểm kê thiếu</b> → Nợ 6321 · ' +
+        '<b>Xé mẫu</b> và <b>Tặng mall</b> → Nợ 64116.<br>' +
+        '<b>Xuất cơ sở</b> và <b>Gửi đi tỉnh</b> là <b>điều chuyển nội bộ, CHƯA sinh ' +
+        'giá vốn</b> — lớp giá mua đi theo hàng, bán ở cơ sở mới ra 6321.</div>';
+
+      ktBcKhoi_(d, 'tblBcXuat', function (r) {
+        return '<td class="num">' + (r.xuatCoSo || '') + '</td>' +
+               '<td class="num">' + (r.xuatBan || '') + '</td>' +
+               '<td class="num">' + (r.xuatXeMau || '') + '</td>' +
+               '<td class="num">' + (r.xuatTang || '') + '</td>' +
+               '<td class="num">' + (r.xuatTinh || '') + '</td>' +
+               '<td class="num">' + (r.xuatKiemKe || '') + '</td>' +
+               '<td class="num"><b>' + (r.tongXuat || '') + '</b></td>';
+      }, 10,
+        '<th class="num">Xuất cơ sở</th><th class="num">Bán</th>' +
+        '<th class="num">Xé mẫu</th><th class="num">Tặng</th>' +
+        '<th class="num">Gửi tỉnh</th><th class="num">Kiểm kê</th>' +
+        '<th class="num">TỔNG XUẤT</th>');
+    })
+    .catch(function (e) { kbusy(false); ktoast(e.message); });
+}
+
+/*──────────────── TAB TỒN KHO ────────────────*/
+
+function ktBcTon() {
+  kbusy(true, 'Đang dựng báo cáo tồn…');
+  ksrv('jpKhoNhapXuatTon', KT.token, $k('t3Thang').value, $k('t3Nam').value, $k('t3Kho').value)
+    .then(function (d) {
+      kbusy(false);
+      var t = d.tong;
+      $k('t3Sum').innerHTML =
+        statTxt('Tồn đầu kỳ', kmoney(t.tonDau)) +
+        statTxt('Nhập', kmoney(t.nhap)) +
+        statTxt('Trả về', kmoney(t.traVe)) +
+        statTxt('Tổng xuất', kmoney(t.tongXuat)) +
+        statTxt('TỒN CUỐI KỲ', kmoney(t.tonCuoi));
+
+      /* Đây là tab ĐÓNG đẳng thức — nên phép kiểm cân bằng nằm ở đây, không phải
+         ở hai tab kia. Hai đường độc lập: tồn đầu suy NGƯỢC từ lớp tồn thật, và
+         tồn đầu suy XUÔI từ chứng từ. */
+      if (d.canBang) {
+        $k('t3Warn').innerHTML =
+          '<div class="alert ok">Bảng <b>cân</b>: ' + kmoney(t.tonDau) + ' + ' +
+          kmoney(t.nhap) + ' + ' + kmoney(t.traVe) + ' − ' + kmoney(t.tongXuat) +
+          ' = <b>' + kmoney(t.tonCuoi) + '</b>' +
+          '<div class="alert-sub">Tồn đầu kỳ khớp chứng từ trên cả ' + d.rows.length +
+          ' dòng. Cột <b>Nhập</b> tách lẻ ở tab <b>📥 Nhập kho</b>, cột ' +
+          '<b>Tổng xuất</b> tách lẻ ở tab <b>📤 Xuất kho</b>.</div></div>';
+      } else {
+        var ds = (d.viDuLech || []).map(function (v) {
+          return '<li>' + kesc(v.kho) + ' · <b>' + kesc(v.itemCode) + '</b>: lớp tồn nói ' +
+            v.tonDau + ', chứng từ nói ' + v.tonDauCT +
+            ' (lệch ' + (v.lech > 0 ? '+' : '') + v.lech + ')</li>';
+        }).join('');
+        $k('t3Warn').innerHTML =
+          '<div class="alert danger"><b>KHÔNG KHỚP: ' + d.soDongLech + ' dòng, tổng lệch ' +
+          d.lech + ' cái.</b><ul>' + ds + '</ul>' +
+          'Hai nguyên nhân thật: <b>①</b> có dòng xuất mà lớp chưa bị trừ đủ vì phiếu nhập ' +
+          'về muộn — nhập bù rồi bấm <b>Xuất lại</b>; <b>②</b> chứng từ ghi sai kho.</div>';
+      }
+
+      ktBcKhoi_(d, 'tblBcTon', function (r) {
+        return '<td class="num">' + (r.tonDau || '') + '</td>' +
+               '<td class="num">' + (r.nhap || '') + '</td>' +
+               '<td class="num">' + (r.traVe || '') + '</td>' +
+               '<td class="num">' + (r.tongXuat || '') + '</td>' +
+               '<td class="num"><b>' + (r.tonCuoi || '') + '</b></td>';
+      }, 8,
+        '<th class="num">Tồn đầu kỳ</th><th class="num">Nhập</th>' +
+        '<th class="num">Trả về</th><th class="num">Tổng xuất</th>' +
+        '<th class="num">TỒN CUỐI KỲ</th>');
+    })
+    .catch(function (e) { kbusy(false); ktoast(e.message); });
+}
+
+/*════════════════════ ⑥ TỒN THEO LỚP ════════════════════*/
+
+function ktTonKho() {
+  kbusy(true, 'Đang tính tồn kho…');
+  ksrv('jpKhoTonKho', KT.token, $k('tkLoc').value).then(function (d) {
+    kbusy(false);
+    var h = '<tr><th>Kho / Cơ sở</th><th>Mã hàng</th><th>Tên hàng</th>' +
+            '<th class="num">Số lớp</th><th class="num">Tồn</th>' +
+            '<th class="num">Giá bình quân</th><th class="num">Giá trị tồn</th></tr>';
+    d.rows.forEach(function (r) {
+      h += '<tr' + (r.laKhoTong ? ' class="totRow"' : '') + '>' +
+        '<td><b>' + kesc(r.locationName) + '</b></td>' +
+        '<td>' + kesc(r.itemCode) + '</td><td>' + kesc(r.itemName) + '</td>' +
+        '<td class="num">' + r.soLop + '</td>' +
+        '<td class="num"><b>' + r.tonQty + '</b></td>' +
+        tdnum(r.giaBinhQuan) + tdnum(r.tonTien) + '</tr>';
+    });
+    if (!d.rows.length) {
+      h += '<tr><td colspan="7" style="padding:14px;color:#6b7280">Kho trống — ' +
+           'chưa có phiếu nhập nào, hoặc đã bán hết.</td></tr>';
+    } else {
+      h += '<tr class="totRow"><td colspan="4"><b>TỔNG</b></td>' +
+           '<td class="num"><b>' + d.tong.tonQty + '</b></td><td></td>' +
+           '<td class="num"><b>' + kmoney(d.tong.tonTien) + '</b></td></tr>';
+    }
+    $k('tblTonKho').innerHTML = h;
+  }).catch(function (e) { kbusy(false); ktoast(e.message); });
+}
+
+/*════════════════════ ⑤ SỔ 632 / 641 ════════════════════*/
+
+function ktSo632(xongThiXuat) {
+  ktFillKy('so');
+  kbusy(true, 'Đang dựng sổ…');
+  ksrv('jpSo632', KT.token, $k('soThang').value, $k('soNam').value,
+       knum($k('soDuDau').value), $k('soTk').value)
+    .then(function (d) {
+      kbusy(false);
+      KHO.so632 = d;
+
+      $k('so632Sum').innerHTML =
+        stat('Dư đầu kỳ', d.duDauKy) +
+        stat('Phát sinh Nợ ' + d.taiKhoan, d.tongPhatSinhNo) +
+        stat('Dư cuối kỳ', d.duCuoiKy) +
+        statTxt('Số dòng', d.rows.length);
+
+      $k('so632Warn').innerHTML = d.canhBao.length
+        ? '<div class="alert warn"><b>Cần xử lý trước khi đưa vào MISA:</b><ul>' +
+          d.canhBao.map(function (c) { return '<li>' + kesc(c) + '</li>'; }).join('') +
+          '</ul></div>'
+        : '';
+
+      var h = '<tr><th>Ngày hạch toán</th><th>Số chứng từ</th><th>Diễn giải chung</th>' +
+        '<th>Diễn giải</th><th>TK đối ứng</th><th>Mã hàng</th><th class="num">SL</th>' +
+        '<th class="num">Giá vốn</th><th class="num">PS Nợ</th><th class="num">Dư Nợ</th>' +
+        '<th>Mã ĐT</th><th>Mã đơn vị</th></tr>';
+      d.rows.forEach(function (r) {
+        h += '<tr' + (r.thieuLop ? ' class="lech"' : '') + '>' +
+          '<td>' + kdmy(r.ngayHachToan) + '</td>' +
+          '<td>' + kesc(r.soChungTu) + '</td>' +
+          '<td style="white-space:normal;font-size:12px">' + kesc(r.dienGiaiChung) + '</td>' +
+          '<td>' + kesc(r.dienGiai) + (r.thieuLop ? ' <b>⚠ thiếu lớp</b>' : '') + '</td>' +
+          '<td>' + kesc(r.tkDoiUng) + '</td>' +
+          '<td>' + kesc(r.maHang) + '</td>' +
+          '<td class="num">' + r.soLuong + '</td>' +
+          tdnum(r.giaVon) + tdnum(r.phatSinhNo) + tdnum(r.duNo) +
+          '<td>' + kesc(r.maDoiTuong) + '</td><td>' + kesc(r.maDonVi) + '</td></tr>';
+      });
+      if (!d.rows.length) {
+        h += '<tr><td colspan="12" style="padding:14px;color:#6b7280">Kỳ này chưa có ' +
+             'dòng nào cho TK ' + kesc(d.taiKhoan) + '.' +
+             /* ⚠️ So theo TIEN TO, dung so bang `=== '632'`. Sau lan doi dau
+                06/08 thi dau that cua JP la `6321`/`64116`, nen phep so bang cu
+                KHONG BAO GIO khop ⇒ xem so gia von ma cau nhac lai noi ve xe mau. */
+             (/^632/.test(String(d.taiKhoan))
+               ? ' Sổ giá vốn chỉ có khi báo cáo <b>HOÀN TẤT</b>.'
+               : ' Sổ chi phí có khi lập phiếu <b>xé mẫu</b> hoặc <b>tặng mall</b>.') +
+             '</td></tr>';
+      }
+      $k('tblSo632').innerHTML = h;
+
+      if (xongThiXuat) ktSo632ToXlsx(d);
+      else ktoast(d.rows.length + ' dòng · ' + kmoney(d.tongPhatSinhNo) + 'đ');
+    })
+    .catch(function (e) { kbusy(false); ktoast(e.message); });
+}
+
+function ktXuatSo632() { ktSo632(true); }
+
+/** Ghi .xlsx đúng cột "SỔ CHI TIẾT CÁC TÀI KHOẢN" của MISA. */
+function ktSo632ToXlsx(d) {
+  if (typeof XLSX === 'undefined') { ktoast('Chưa nạp được thư viện Excel'); return; }
+  if (!d.rows.length) { ktoast('Không có dòng nào để xuất'); return; }
+
+  var aoa = [
+    ['SỔ CHI TIẾT CÁC TÀI KHOẢN'],
+    ['Tài khoản: ' + d.taiKhoan + ' — ' + d.tenTaiKhoan],
+    ['Chi nhánh: MTD'],
+    ['Tháng ' + d.thang + '/' + d.nam],
+    [],
+    ['Ngày hạch toán', 'Ngày chứng từ', 'Số chứng từ', 'Diễn giải chung', 'Diễn giải',
+     'TK đối ứng', 'Phát sinh Nợ', 'Phát sinh Có', 'Dư Nợ', 'Dư Có',
+     'Mã đối tượng', 'Mã đơn vị', 'Tên đơn vị', 'Mã hàng', 'Số lượng', 'Giá vốn'],
+    ['', '', '', 'Số dư đầu kỳ', '', '', '', '', d.duDauKy, 0, '', '', '', '', '', '']
+  ];
+
+  d.rows.forEach(function (r) {
+    aoa.push([r.ngayHachToan, r.ngayChungTu, r.soChungTu, r.dienGiaiChung, r.dienGiai,
+              r.tkDoiUng, r.phatSinhNo, r.phatSinhCo, r.duNo, r.duCo,
+              r.maDoiTuong, r.maDonVi, r.tenDonVi, r.maHang, r.soLuong, r.giaVon]);
+  });
+
+  aoa.push([]);
+  aoa.push(['', '', '', 'Tổng phát sinh trong kỳ', '', '', d.tongPhatSinhNo, 0, '', '',
+            '', '', '', '', '', '']);
+  aoa.push(['', '', '', 'Số dư cuối kỳ', '', '', '', '', d.duCuoiKy, 0, '', '', '', '', '', '']);
+
+  if (d.canhBao.length) {
+    aoa.push([]);
+    aoa.push(['CẢNH BÁO — xử lý trước khi đưa vào MISA:']);
+    d.canhBao.forEach(function (c) { aoa.push([c]); });
+  }
+
+  var ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{ wch: 13 }, { wch: 13 }, { wch: 16 }, { wch: 32 }, { wch: 28 },
+                 { wch: 10 }, { wch: 14 }, { wch: 13 }, { wch: 14 }, { wch: 11 },
+                 { wch: 12 }, { wch: 12 }, { wch: 26 }, { wch: 13 }, { wch: 9 }, { wch: 12 }];
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'TK' + d.taiKhoan);
+  XLSX.writeFile(wb, 'JP-so-' + d.taiKhoan + '-MTD-' + d.thang + '-' + d.nam + '.xlsx');
+  ktoast('Đã xuất ' + d.rows.length + ' dòng');
+}
+</script>
+

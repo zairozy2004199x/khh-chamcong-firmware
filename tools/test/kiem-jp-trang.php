@@ -136,11 +136,51 @@ $tep = VHJP_DIR . 'templates/dang-dung.html';
 t( 'có trang tạm', is_file( $tep ) );
 ob_start(); VHJP_Trang::ve( false ); $html = ob_get_clean();
 
-t( '🔴 trang KHÔNG trắng — có nói đang dựng dở',
-	false !== mb_strpos( $html, 'Đang dựng dở' ), mb_substr( $html, 0, 200 ) );
+t( '🔴 trang KHÔNG trắng', mb_strlen( $html ) > 2000, mb_strlen( $html ) );
 t( 'và nạp lớp gas-shim', false !== strpos( $html, 'gas-shim.js' ) );
 t( '🔴 KHÔNG còn chỗ giữ nào chưa được thay',
 	false === strpos( $html, '<?VHJP_' ), 'còn chỗ giữ!' );
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 GIAO DIỆN THẬT PHẢI ĐƯỢC GHÉP ĐỦ.
+ *
+ * 13 tệp giao diện chép nguyên văn từ bản Apps Script, nối với nhau bằng đúng một cú pháp
+ * khuôn: `<?!= include('Ten'); ?>`. Sót một lời ghép là màn thiếu hẳn một mảng — không nổ,
+ * không báo, chỉ là cái nút ấy không còn ở đó nữa.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+t( '🔴 KHÔNG còn lời include nào chưa ghép',
+	false === strpos( $html, "include(" ), 'còn include chưa ghép!' );
+t( '🔴 và KHÔNG có tệp giao diện nào thiếu',
+	false === strpos( $html, 'thiếu tệp giao diện' ), 'thiếu tệp!' );
+
+/* Đếm bằng DẤU VÂN TAY của từng tệp, không đếm bằng số lời include — số lời include là thứ
+   vừa bị thay mất, nên đếm nó là đếm cái không còn. */
+foreach ( array( 'Css' => 'scLogin', 'Js01_Core' => 'function srv(',
+	'Js02_BaoCao' => 'jpAddRow', 'Js03_Anh' => 'jpUploadPhoto', 'Js04_NopTien' => 'jpAddPayment' ) as $tep_ => $dau ) {
+	t( "ghép được $tep_", false !== strpos( $html, $dau ), $dau );
+}
+
+/* 🔴 Shim phải nạp TRƯỚC mọi đoạn JS của giao diện: giao diện gọi `google.script.run` ngay lúc
+   chạy, shim nạp sau là lệnh ĐẦU TIÊN nổ — mà lệnh đầu tiên chính là lượt dựng màn hình. */
+$vt_shim = strpos( $html, 'gas-shim.js' );
+$vt_srv  = strpos( $html, 'function srv(' );
+t( '🔴 gas-shim nạp TRƯỚC mã giao diện', $vt_shim !== false && $vt_srv !== false && $vt_shim < $vt_srv,
+	"shim ở $vt_shim · giao diện ở $vt_srv" );
+
+/* Màn kế toán ghép bộ tệp KHÁC — ghép nhầm là kế toán thấy màn nhân viên. */
+ob_start(); VHJP_Trang::ve( true ); $html_kt = ob_get_clean();
+t( '🔴 màn kế toán ghép đúng bộ của nó', false !== strpos( $html_kt, 'KT_NAV' ), 'không thấy KT_NAV' );
+t( 'và KHÔNG lẫn mã của màn nhân viên',
+	false === strpos( $html_kt, 'jpAddPayment' ) || false !== strpos( $html_kt, 'KT_NAV' ), 'lẫn!' );
+t( 'màn kế toán cũng không còn include nào',
+	false === strpos( $html_kt, "include(" ), 'còn include!' );
+
+/* ⚠️ Chốt chặn phép ghép: chỉ nhận tên tệp CÓ THẬT và tên sạch. Tên đi thẳng vào đường dẫn
+   tệp, nên nhận bừa là mở cửa cho `include('../../wp-config')`. */
+t( '🔴 tên tệp lạ KHÔNG ghép được gì',
+	false === strpos( VHJP_Trang::ghep( "<?!= include('../../wp-config'); ?>" ), 'DB_PASSWORD' ) );
+t( 'và tên không có thật để lại dấu vết đọc được, không nuốt im lặng',
+	false !== strpos( VHJP_Trang::ghep( "<?!= include('KhongHeCo'); ?>" ), 'thiếu tệp giao diện' ) );
 
 /* Cấu hình đẩy xuống trang phải có đủ ba đường gọi — thiếu một là mất đường lùi khi hosting
    chặn, mà lúc ấy app chết hẳn chứ không chậm. */
