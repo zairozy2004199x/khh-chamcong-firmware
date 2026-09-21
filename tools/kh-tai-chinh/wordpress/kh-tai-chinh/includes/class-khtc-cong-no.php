@@ -223,7 +223,8 @@ class KHTC_CongNo {
 	 * mà tính từ ngày hoá đơn thì hôm nộp hàng đã thành "quá hạn 1 ngày".
 	 *
 	 * @param string $loai thu|tra
-	 * @param string $den  Tính tuổi nợ đến ngày này, mặc định hôm nay.
+	 * @param string $den Ngày CHỐT: chỉ tính chứng từ và các lần trả đến hết
+	 *                    ngày này. Mặc định hôm nay.
 	 */
 	public static function con_no( $loai, $den = '', $doi_tac = '' ) {
 		global $wpdb;
@@ -232,8 +233,13 @@ class KHTC_CongNo {
 		$tt  = KHTC_DB::bang( 'thanh_toan' );
 		$den = $den ? $den : current_time( 'Y-m-d' );
 
-		$dk   = array( 'c.cty = %s' );
-		$args = array( KHTC_Cty::dang_chon() );
+		// CHỈ chứng từ đã phát sinh tính đến ngày chốt, và CHỈ những lần trả
+		// diễn ra tính đến ngày đó. Thiếu hai điều kiện này thì "công nợ đến
+		// 31/08" lại gồm cả hoá đơn tháng 10, và một hoá đơn tháng 8 trả hồi
+		// tháng 10 thì tháng 8 đã thấy hết nợ — báo cáo kỳ cũ đổi số mỗi lần
+		// mở lại.
+		$dk   = array( 'c.cty = %s', 'c.ngay <= %s' );
+		$args = array( KHTC_Cty::dang_chon(), $den );
 		if ( '' !== $doi_tac ) {
 			$dk[]   = 'c.' . $c['cot_ten'] . ' = %s';
 			$args[] = $doi_tac;
@@ -248,10 +254,10 @@ class KHTC_CongNo {
 			$wpdb->prepare(
 				"SELECT c.*, COALESCE(t.da,0) AS da_tra
 				 FROM $b c
-				 LEFT JOIN ( SELECT chung_tu_id, SUM(so_tien) AS da FROM $tt WHERE bang = %s GROUP BY chung_tu_id ) t
+				 LEFT JOIN ( SELECT chung_tu_id, SUM(so_tien) AS da FROM $tt WHERE bang = %s AND ngay <= %s GROUP BY chung_tu_id ) t
 					ON t.chung_tu_id = c.id
 				 $where ORDER BY c.ngay, c.id",
-				array_merge( array( $c['bang'] ), $args )
+				array_merge( array( $c['bang'], $den ), $args )
 			)
 		);
 
@@ -406,7 +412,6 @@ class KHTC_CongNo {
 
 		$no = array();
 		foreach ( self::con_no( $loai, $den ) as $r ) {
-			if ( $r->ngay > $den ) { continue; }
 			$no[ (int) $r->id ] = $r;
 		}
 		if ( ! $no ) {

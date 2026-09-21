@@ -104,9 +104,18 @@ kiem( 'có hạn thì tính từ hạn', $mot->_tuoi, 5 );
 kiem( 'và về lại mốc trong hạn đầu', $mot->_moc, 0 );
 $wpdb->query( "UPDATE wp_khtc_hd_ra SET han_tt = NULL WHERE id = $b" );
 
-// Chứng từ chưa tới hạn thì tuổi nợ bằng 0, không âm.
-foreach ( KHTC_CongNo::con_no( 'thu', '2026-08-25' ) as $r ) { if ( (int) $r->id === $d ) { $mot = $r; } }
+// Chứng từ đã phát sinh nhưng chưa tới hạn: tuổi nợ bằng 0, không âm.
+$wpdb->query( "UPDATE wp_khtc_hd_ra SET han_tt = '2026-10-25' WHERE id = $b" );
+$mot = null;
+foreach ( KHTC_CongNo::con_no( 'thu', '2026-09-30' ) as $r ) { if ( (int) $r->id === $b ) { $mot = $r; } }
 kiem( 'chưa tới hạn thì tuổi nợ bằng 0', $mot->_tuoi, 0 );
+$wpdb->query( "UPDATE wp_khtc_hd_ra SET han_tt = NULL WHERE id = $b" );
+
+// Chứng từ phát sinh SAU ngày chốt thì không nằm trong danh sách, khỏi bàn tuổi nợ.
+foreach ( KHTC_CongNo::con_no( 'thu', '2026-08-25' ) as $r ) {
+	if ( (int) $r->id === $d ) { $hong[] = 'hoá đơn 10/09 không được xuất hiện ở mốc 25/08'; }
+}
+$dat++;
 
 // ------------------------------------- phép đoán ghép (hàm thuần, kiểm riêng)
 function ct( $id, $ngay, $so_ct, $con ) {
@@ -195,6 +204,20 @@ $ds = KHTC_CongNo::ds_thanh_toan( 'hd_ra', $e );
 kiem( 'dòng gõ tay không bị tự ghép dọn mất', count( $ds ), 1 );
 kiem( 'và vẫn đúng số tiền', (int) $ds[0]->so_tien, 500000 );
 kiem( 'phần còn nợ vẫn đúng', con( 'thu', $e ), 1500000 );
+
+// ------------------------- ngày chốt phải cắt cả chứng từ lẫn lần trả
+// Không cắt thì "công nợ đến 31/08" gồm cả hoá đơn tháng 10, và một hoá đơn
+// tháng 8 trả hồi tháng 10 thì nhìn lại tháng 8 đã thấy hết nợ.
+$x = KHTC_HoaDonRa::them( array( 'ngay' => '15/10/2026', 'so_hd' => 'HD-T10', 'khach' => 'CONG TY TUONG LAI', 'co_vat' => '9.000.000', 'thue_suat' => '0' ) );
+kiem( 'chốt 30/09: không tính hoá đơn tháng 10', con( 'thu', $x ), 0 );
+kiem( 'chốt 31/10: có tính hoá đơn tháng 10', (int) KHTC_CongNo::con_no( 'thu', '2026-10-31', 'CONG TY TUONG LAI' )[0]->_con, 9000000 );
+kiem( 'chốt 30/09: đối tác đó chưa xuất hiện', count( KHTC_CongNo::con_no( 'thu', '2026-09-30', 'CONG TY TUONG LAI' ) ), 0 );
+
+// Trả tiền SAU ngày chốt thì nhìn lại vẫn phải thấy còn nợ.
+$y = KHTC_HoaDonRa::them( array( 'ngay' => '05/09/2026', 'so_hd' => 'HD-TRA-SAU', 'khach' => 'CONG TY TRA CHAM', 'co_vat' => '4.000.000', 'thue_suat' => '0' ) );
+KHTC_CongNo::ghi( 'hd_ra', $y, '20/10/2026', '4.000.000' );
+kiem( 'chốt 30/09: lần trả tháng 10 chưa được tính', (int) KHTC_CongNo::con_no( 'thu', '2026-09-30', 'CONG TY TRA CHAM' )[0]->_con, 4000000 );
+kiem( 'chốt 31/10: đã hết nợ', count( KHTC_CongNo::con_no( 'thu', '2026-10-31', 'CONG TY TRA CHAM' ) ), 0 );
 
 // ------------------------------------------------------------- phải trả
 KHTC_ChiPhi::dan_hang_loat(

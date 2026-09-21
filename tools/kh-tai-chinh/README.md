@@ -39,6 +39,7 @@ khẩu riêng. Bớt một chỗ giữ mật khẩu là bớt một chỗ có th
 | Hoá đơn đầu ra | Dán vào / xuất ra đúng 22 cột file VAT; gom theo thuế suất, khu vực, dịch vụ |
 | Hoá đơn đầu vào | VAT được khấu trừ, tờ khai GTGT, ngưỡng tiền mặt |
 | Công nợ | Phải thu / phải trả, tuổi nợ theo mốc, ghi trả từng đợt, tự ghép từ sao kê |
+| Báo cáo | Cả kỳ trên một trang; xu hướng 12 tháng; tải CSV |
 | Nhật ký | Ai làm gì lúc nào; khoá sổ theo ngày; phục hồi bản ghi đã xoá |
 | Sao lưu | Tải cả kho ra .json, nhập lại được |
 
@@ -178,6 +179,55 @@ Khác hoá đơn đầu ra (số do mình đánh nên duy nhất trong pháp nh�
 đầu vào do **bên bán** đánh. Hai nhà cung cấp cùng phát hành số `00000001` là
 bình thường. Chặn theo mình số hoá đơn thì nhà cung cấp thứ hai không nhập được
 hoá đơn hợp lệ của họ, nên `UNIQUE (cty, so_hd, mst)`.
+
+## Báo cáo
+
+Một trang gom cả kỳ: dòng tiền từng tài khoản, xu hướng 12 tháng, doanh thu
+theo khu vực và dịch vụ, chi phí cộng chéo, thuế GTGT, công nợ cuối kỳ, đối
+soát còn lệch. Nút kỳ nhanh (tháng trước / quý / năm) và tải CSV.
+
+**Chỉ đọc, không có bảng riêng.** Mọi con số tính lại từ chứng từ gốc mỗi lần
+mở. Lưu sẵn kết quả thì nhanh hơn, nhưng sửa một hoá đơn tháng trước là báo cáo
+đã lưu thành sai mà không có gì báo — đúng cái bẫy mà sổ thanh toán ở 0.6 đã
+phải dọn.
+
+**Không hàm nào dùng "hôm nay" làm mốc.** Chạy báo cáo tháng 8 vào tháng 10
+phải ra đúng số tháng 8 — kể cả số dư ngân hàng và công nợ. Có một phép kiểm
+đổ thêm dữ liệu tháng 10 rồi buộc báo cáo tháng 8 không được nhúc nhích.
+
+Sửa lỗi này khi làm báo cáo: `KHTC_CongNo::con_no()` **không lọc theo ngày
+chứng từ**, chỉ dùng ngày chốt để tính tuổi nợ. Báo cáo tháng 8 vì thế gồm cả
+hoá đơn tháng 10, và một hoá đơn tháng 8 trả hồi tháng 10 thì nhìn lại tháng 8
+đã thấy hết nợ. Giờ ngày chốt cắt **cả chứng từ lẫn các lần trả**.
+
+**Số dư cuối kỳ tính độc lập**, không lấy đầu kỳ cộng thu trừ chi. Hai đường
+phải gặp nhau; lệch khác 0 thì trang hiện cảnh báo đỏ — nghĩa là có dòng nằm
+ngoài mốc "tính từ ngày" của tài khoản mà vẫn được cộng.
+
+**Kết quả tạm tính** = doanh thu chưa VAT − chi phí đã ghi. Ghi rõ trên cả màn
+hình lẫn tệp CSV rằng đây *không* phải báo cáo kết quả kinh doanh: thiếu khấu
+hao, giá vốn, phân bổ trước sau.
+
+### Bảng xu hướng 12 tháng
+
+Thanh so sánh nằm ngay trong ô, ba điều cố ý:
+
+1. **Thanh chỉ có một màu.** Xanh lá / đỏ mà plugin dùng cho thu / chi trượt
+   kiểm tra mù màu nặng — validator của bộ dataviz cho ΔE 4.2 ở deutan, dưới cả
+   ngưỡng sàn 6, tức là với người mù màu đỏ-lục hai thanh y hệt nhau. Ở đây
+   không cần màu để phân biệt: thu và chi nằm ở **hai cột riêng**, mỗi cột có
+   tiêu đề và có sẵn con số. Một hue xanh dương qua sạch cả sáu phép kiểm.
+   Con số vẫn giữ xanh/đỏ vì đó là chữ, tương phản cao, và đã quen mắt.
+2. **Thu và chi chung một thước đo.** Mỗi cột một thước thì tháng thu 1 tỷ và
+   tháng chi 10 triệu vẽ ra thanh dài bằng nhau. Cũng vì thế không cột nào có
+   trục thứ hai.
+3. **Cột chênh lệch vẽ từ giữa** sang trái hoặc phải. Dấu do **hướng** mang,
+   không do màu — in đen trắng vẫn đọc được.
+
+Lớp CSS của ô biểu đồ tên `.khtc-vach`, **không** phải `.khtc-thanh` — tên đó
+đã là thanh điều hướng trên cùng. Dùng trùng thì nav sụp thành cột dọc và ô
+biểu đồ ăn nguyên màu nền đen của nav; đã xảy ra thật, thấy được nhờ dựng trang
+ra ảnh, và giờ có phép kiểm chặn.
 
 ## Công nợ
 
@@ -362,6 +412,7 @@ php tools/kh-tai-chinh/tests/kiem-hoa-don.php    # 128 phép thử
 php tools/kh-tai-chinh/tests/kiem-khoa-nhat-ky.php   # 59 phép thử
 php tools/kh-tai-chinh/tests/kiem-cong-no.php    # 80 phép thử
 php tools/kh-tai-chinh/tests/kiem-hoa-don-vao.php   # 65 phép thử
+php tools/kh-tai-chinh/tests/kiem-bao-cao.php    # 64 phép thử
 ```
 
 `dong-goi.sh` chạy cả ba trước khi gói, hỏng một phép là không ra file zip.
@@ -394,6 +445,9 @@ php tools/kh-tai-chinh/tests/kiem-hoa-don-vao.php   # 65 phép thử
 * **kiem-hoa-don-vao** — ngưỡng tiền mặt ở cả ba mốc (dưới / đúng / trên), và
   tờ khai: phần không khấu trừ phải **không** bị trừ vào số phải nộp, và
   "phải nộp" với "chuyển kỳ sau" không bao giờ cùng dương.
+* **kiem-bao-cao** — đổ thêm dữ liệu tháng 10 rồi buộc **mọi** con số của báo
+  cáo tháng 8 không đổi; hai đường tính số dư phải gặp nhau; thanh biểu đồ dài
+  nhất phải đúng 100% và không thanh nào vượt.
 
 Bộ giả lập **không thay được bản cài thật**: SQLite không phải MySQL, `dbDelta`
 bị bỏ qua và bảng được tạo tay, nên lỗi riêng của MySQL vẫn lọt. Nó bắt được hàm
@@ -403,7 +457,7 @@ hàng cũng có cột `cty`, nên MySQL báo "ambiguous column" và trang trắn
 
 ## Còn phải làm
 
-Các mảng chưa dựng lại: pháp danh, hồ sơ, báo cáo.
+Các mảng chưa dựng lại: pháp danh, hồ sơ.
 
 Đối soát ở bản này là **một engine dùng chung** cho VietQR / Payoo / VNPay /
 Zalo / MoMo, thay vì mỗi cổng một trang riêng như bản gốc (3.722 + 2.180 dòng

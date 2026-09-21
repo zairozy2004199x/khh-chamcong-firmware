@@ -123,3 +123,46 @@ body.khtc-web form { margin: 0; }
 	body.khtc-web .khtc { padding: 0 12px; margin: 14px auto; }
 	.khtc table { display: block; overflow-x: auto; white-space: nowrap; }
 }
+
+/* ------------------------------------------------------------------------
+   Thanh so sánh trong bảng xu hướng.
+
+   MỘT MÀU DUY NHẤT cho thanh, cố ý. Xanh lá / đỏ mà plugin dùng cho thu / chi
+   trượt kiểm tra mù màu nặng (ΔE 4.2 ở deutan, dưới cả ngưỡng sàn 6) — với
+   người mù màu đỏ-lục thì hai thanh y hệt nhau. Danh tính ở đây do VỊ TRÍ CỘT
+   và CON SỐ mang, màu chỉ mang độ dài. Con số vẫn giữ xanh/đỏ vì đó là chữ,
+   tương phản cao, và đã quen mắt khắp plugin.
+
+   Thanh mảnh 8px, bo tròn 4px ở đầu, dính đáy ô — và in ra vẫn còn màu nhờ
+   print-color-adjust, nếu không thì bản in chỉ còn bảng số trắng trơn.
+
+   Tên lớp là .khtc-vach chứ không phải .khtc-thanh: .khtc-thanh đã là thanh
+   điều hướng trên cùng. Dùng trùng tên thì nav sụp thành cột dọc và ô biểu đồ
+   ăn nguyên màu nền đen của nav — đã xảy ra thật. */
+.khtc-vach { width: 88px; padding-left: 0; padding-right: 14px; }
+.khtc-vach > span {
+	display: block; height: 8px; border-radius: 4px;
+	background: #eef2f7; overflow: hidden;
+}
+.khtc-vach > span > i {
+	display: block; height: 100%; border-radius: 4px;
+	background: #2563eb;
+	-webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+/* Cột chênh lệch vẽ từ giữa ra: HƯỚNG mang dấu, không phải màu. */
+.khtc-vach.hai-chieu > span { position: relative; background: #f1f5f9; }
+.khtc-vach.hai-chieu > span::before {
+	content: ''; position: absolute; left: 50%; top: 0; bottom: 0;
+	width: 1px; background: #cbd5e1;
+}
+.khtc-vach.hai-chieu > span > i { position: absolute; top: 0; }
+.khtc-vach.hai-chieu > span > i.duong { left: 50%; background: #2563eb; border-radius: 0 4px 4px 0; }
+.khtc-vach.hai-chieu > span > i.am    { right: 50%; background: #b91c1c; border-radius: 4px 0 0 4px; }
+
+.khtc-xu-huong th, .khtc-xu-huong td { padding-top: 6px; padding-bottom: 6px; }
+
+@media print {
+	.khtc-vach > span { border: 1px solid #cbd5e1; }
+	.khtc-loc, .khtc-cty { display: none; }
+	.khtc-panel { break-inside: avoid; border-color: #cbd5e1; }
+}

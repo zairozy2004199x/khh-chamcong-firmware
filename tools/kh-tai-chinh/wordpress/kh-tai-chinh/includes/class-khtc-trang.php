@@ -24,6 +24,7 @@ class KHTC_Trang {
 			case 'hoa-don-ra': self::hoa_don_ra(); break;
 			case 'hoa-don-vao': self::hoa_don_vao(); break;
 			case 'cong-no':   self::cong_no();   break;
+			case 'bao-cao':   self::bao_cao();   break;
 			case 'nhat-ky':   self::nhat_ky();   break;
 			case 'sao-luu':   self::sao_luu();   break;
 			default:          self::tong_quan(); break;
@@ -1774,6 +1775,284 @@ class KHTC_Trang {
 			esc_html( KHTC_UI::tien( $t[2] ) ),
 			esc_html( KHTC_UI::tien( $t[3] ) ),
 			esc_html( KHTC_UI::tien( $t[4] ) )
+		);
+	}
+
+	// -------------------------------------------------------------- báo cáo
+
+	public static function bao_cao() {
+		KHTC_UI::nhan_doi_cty();
+		list( $d1, $d2 ) = KHTC_UI::thang_nay();
+		$tu  = sanitize_text_field( wp_unslash( $_GET['tu'] ?? $d1 ) );
+		$den = sanitize_text_field( wp_unslash( $_GET['den'] ?? $d2 ) );
+		$b   = KHTC_BaoCao::ky( $tu, $den );
+
+		echo '<div class="wrap khtc">';
+		KHTC_UI::dau_trang( 'Báo cáo' );
+
+		// ---- chọn kỳ
+		printf( '<div class="khtc-panel"><form method="get" action="%s"><div class="khtc-loc">', esc_url( self::url_form( 'bao-cao' ) ) );
+		self::an_get( 'bao-cao' );
+		printf( '<label>Từ ngày<input type="date" name="tu" value="%s" required></label>', esc_attr( $tu ) );
+		printf( '<label>Đến ngày<input type="date" name="den" value="%s" required></label>', esc_attr( $den ) );
+		echo '<button type="submit" class="button button-primary">Xem</button>';
+		foreach ( self::ky_nhanh() as $nhan => $khoang ) {
+			printf(
+				'<a class="button" href="%s">%s</a>',
+				esc_url( self::url( 'bao-cao', array( 'tu' => $khoang[0], 'den' => $khoang[1] ) ) ),
+				esc_html( $nhan )
+			);
+		}
+		printf(
+			'<a class="button" href="%s">Tải CSV</a>',
+			esc_url( wp_nonce_url( self::url( 'bao-cao', array( 'khtc_tai_bc' => 1, 'tu' => $tu, 'den' => $den ) ), 'khtc_tai_bc' ) )
+		);
+		echo '</div></form></div>';
+
+		$th = $b['thue'];
+		KHTC_UI::the_so(
+			array(
+				array( 'Doanh thu chưa VAT', KHTC_UI::tien( $b['doanh_thu']['chua_vat'] ), 'thu' ),
+				array( 'Chi phí trong kỳ', KHTC_UI::tien( $b['chi_phi']['tong'] ), 'chi' ),
+				array( 'Kết quả tạm tính', KHTC_UI::tien( $b['lai_tam'] ), $b['lai_tam'] < 0 ? 'chi' : '' ),
+				array( $th['chuyen_ky'] > 0 ? 'VAT chuyển kỳ sau' : 'VAT phải nộp', KHTC_UI::tien( $th['chuyen_ky'] > 0 ? $th['chuyen_ky'] : $th['phai_nop'] ) ),
+			)
+		);
+		echo '<p class="khtc-sub"><strong>Kết quả tạm tính</strong> = doanh thu chưa VAT − chi phí đã ghi. Không phải báo cáo kết quả kinh doanh: thiếu khấu hao, giá vốn, phân bổ trước sau. Đừng đem đi nộp.</p>';
+
+		// ---- dòng tiền
+		$dt = $b['dong_tien'];
+		echo '<div class="khtc-panel"><h2>Dòng tiền</h2>';
+		if ( ! $dt['rows'] ) {
+			echo '<div class="khtc-trong">Chưa có tài khoản ngân hàng nào.</div>';
+		} else {
+			echo '<table><thead><tr><th>Tài khoản</th><th class="so">Số dư đầu kỳ</th><th class="so">Thu</th><th class="so">Chi</th><th class="so">Số dư cuối kỳ</th></tr></thead><tbody>';
+			$co_lech = false;
+			foreach ( $dt['rows'] as $r ) {
+				if ( $r['lech'] ) { $co_lech = true; }
+				printf(
+					'<tr><td>%s</td><td class="so">%s</td><td class="so thu">%s</td><td class="so chi">%s</td><td class="so"><strong>%s</strong></td></tr>',
+					esc_html( $r['ten'] ),
+					esc_html( KHTC_UI::tien( $r['dau'] ) ),
+					esc_html( KHTC_UI::tien( $r['thu'] ) ),
+					esc_html( KHTC_UI::tien( $r['chi'] ) ),
+					esc_html( KHTC_UI::tien( $r['cuoi'] ) )
+				);
+			}
+			$t = $dt['tong'];
+			printf(
+				'</tbody><tfoot><tr><th>Tổng</th><th class="so">%s</th><th class="so">%s</th><th class="so">%s</th><th class="so">%s</th></tr></tfoot></table>',
+				esc_html( KHTC_UI::tien( $t['dau'] ) ),
+				esc_html( KHTC_UI::tien( $t['thu'] ) ),
+				esc_html( KHTC_UI::tien( $t['chi'] ) ),
+				esc_html( KHTC_UI::tien( $t['cuoi'] ) )
+			);
+			if ( $co_lech ) {
+				echo '<div class="khtc-bao loi">Số dư cuối kỳ không bằng số dư đầu cộng thu trừ chi. Có dòng nằm ngoài mốc “tính từ ngày” của tài khoản mà vẫn được cộng — xem lại mục Ngân hàng.</div>';
+			}
+		}
+		echo '</div>';
+
+		self::bang_xu_huong( KHTC_BaoCao::chuoi_thang( $den, 12 ) );
+
+		// ---- doanh thu
+		echo '<div class="khtc-panel"><h2>Doanh thu</h2>';
+		if ( ! $b['doanh_thu']['so_hd'] ) {
+			echo '<div class="khtc-trong">Không có hoá đơn đầu ra nào trong kỳ.</div>';
+		} else {
+			printf(
+				'<p class="khtc-sub">%s hoá đơn · chưa VAT <strong>%s</strong> · VAT %s · có VAT %s</p>',
+				esc_html( number_format( $b['doanh_thu']['so_hd'], 0, ',', '.' ) ),
+				esc_html( KHTC_UI::tien( $b['doanh_thu']['chua_vat'] ) ),
+				esc_html( KHTC_UI::tien( $b['doanh_thu']['vat'] ) ),
+				esc_html( KHTC_UI::tien( $b['doanh_thu']['co_vat'] ) )
+			);
+			self::bang_nhom( 'Khu vực', $b['doanh_thu']['khu_vuc'], $b['doanh_thu']['chua_vat'] );
+			self::bang_nhom( 'Dịch vụ', $b['doanh_thu']['dich_vu'], $b['doanh_thu']['chua_vat'] );
+		}
+		echo '</div>';
+
+		// ---- chi phí
+		$c = $b['chi_phi']['cheo'];
+		echo '<div class="khtc-panel"><h2>Chi phí</h2>';
+		if ( ! $c['bo_phan'] ) {
+			echo '<div class="khtc-trong">Không có khoản chi nào trong kỳ.</div>';
+		} else {
+			printf(
+				'<p class="khtc-sub">%s khoản · tổng <strong>%s</strong> · đã thấy tiền ra %s · chưa thấy %s</p>',
+				esc_html( number_format( $b['chi_phi']['so_dong'], 0, ',', '.' ) ),
+				esc_html( KHTC_UI::tien( $b['chi_phi']['tong'] ) ),
+				esc_html( KHTC_UI::tien( $b['chi_phi']['da_tra'] ) ),
+				esc_html( KHTC_UI::tien( $b['chi_phi']['chua_tra'] ) )
+			);
+			echo '<table><thead><tr><th>Khoản mục</th>';
+			foreach ( $c['bo_phan'] as $bp ) { printf( '<th class="so">%s</th>', esc_html( $bp ) ); }
+			echo '<th class="so">Tổng</th></tr></thead><tbody>';
+			foreach ( $c['khoan_muc'] as $km ) {
+				printf( '<tr><td>%s</td>', esc_html( $km ) );
+				foreach ( $c['bo_phan'] as $bp ) {
+					$v = $c['o'][ $km ][ $bp ] ?? 0;
+					printf( '<td class="so">%s</td>', $v ? esc_html( KHTC_UI::tien( $v ) ) : '' );
+				}
+				printf( '<td class="so"><strong>%s</strong></td></tr>', esc_html( KHTC_UI::tien( $c['tong_hang'][ $km ] ) ) );
+			}
+			echo '</tbody><tfoot><tr><th>Tổng</th>';
+			foreach ( $c['bo_phan'] as $bp ) { printf( '<th class="so">%s</th>', esc_html( KHTC_UI::tien( $c['tong_cot'][ $bp ] ?? 0 ) ) ); }
+			printf( '<th class="so">%s</th></tr></tfoot></table>', esc_html( KHTC_UI::tien( $c['tong'] ) ) );
+		}
+		echo '</div>';
+
+		// ---- thuế
+		echo '<div class="khtc-panel"><h2>Thuế GTGT</h2><table><tbody>';
+		$dong = array(
+			array( 'VAT đầu ra', $th['vat_ra'] ),
+			array( 'VAT đầu vào được khấu trừ', $th['vat_kt'] ),
+			array( 'VAT đầu vào không được khấu trừ', $th['vat_khong'] ),
+		);
+		foreach ( $dong as $d ) {
+			printf( '<tr><td>%s</td><td class="so">%s</td></tr>', esc_html( $d[0] ), esc_html( KHTC_UI::tien( $d[1] ) ) );
+		}
+		printf(
+			'<tr><td><strong>%s</strong></td><td class="so%s"><strong>%s</strong></td></tr>',
+			$th['chuyen_ky'] > 0 ? 'Khấu trừ chuyển sang kỳ sau' : 'VAT phải nộp',
+			$th['chuyen_ky'] > 0 ? '' : ' chi',
+			esc_html( KHTC_UI::tien( $th['chuyen_ky'] > 0 ? $th['chuyen_ky'] : $th['phai_nop'] ) )
+		);
+		echo '</tbody></table></div>';
+
+		// ---- công nợ
+		echo '<div class="khtc-panel"><h2>Công nợ cuối kỳ</h2><table><thead><tr><th>Sổ</th><th class="so">Tổng còn nợ</th><th class="so">Trong đó quá hạn</th><th class="so">Số chứng từ</th></tr></thead><tbody>';
+		foreach ( array( 'thu' => 'Phải thu', 'tra' => 'Phải trả' ) as $k => $nhan ) {
+			$n = $b['cong_no'][ $k ];
+			printf(
+				'<tr><td><a href="%s">%s</a></td><td class="so">%s</td><td class="so%s">%s</td><td class="so">%s</td></tr>',
+				esc_url( self::url( 'cong-no', array( 'loai' => $k, 'den' => $den ) ) ),
+				esc_html( $nhan ),
+				esc_html( KHTC_UI::tien( $n['tong'] ) ),
+				$n['qua_han'] ? ' chi' : '',
+				esc_html( KHTC_UI::tien( $n['qua_han'] ) ),
+				esc_html( number_format( $n['so_ct'], 0, ',', '.' ) )
+			);
+		}
+		echo '</tbody></table><p class="khtc-sub">Công nợ tính đến ngày cuối kỳ, không phải đến hôm nay — chạy lại báo cáo tháng cũ vẫn ra đúng số của tháng đó.</p></div>';
+
+		// ---- đối soát còn lệch
+		echo '<div class="khtc-panel"><h2>Đối soát trong kỳ</h2>';
+		if ( ! $b['doi_soat'] ) {
+			echo '<div class="khtc-trong">Không có đợt đối soát nào giao với kỳ này.</div>';
+		} else {
+			echo '<table><thead><tr><th>Đợt</th><th>Kênh</th><th class="so">Thiếu</th><th class="so">Thừa</th><th class="so">Lệch tiền</th><th></th></tr></thead><tbody>';
+			foreach ( $b['doi_soat'] as $d ) {
+				printf(
+					'<tr><td>%s</td><td>%s</td><td class="so%s">%s</td><td class="so%s">%s</td><td class="so%s">%s</td><td><a href="%s">Mở</a></td></tr>',
+					esc_html( $d['ten'] ),
+					esc_html( $d['kenh'] ),
+					$d['thieu'] ? ' chi' : '',
+					esc_html( KHTC_UI::tien( $d['thieu'] ) ),
+					$d['thua'] ? ' chi' : '',
+					esc_html( KHTC_UI::tien( $d['thua'] ) ),
+					$d['lech'] ? ' chi' : '',
+					esc_html( KHTC_UI::tien( $d['lech'] ) ),
+					esc_url( self::url( 'doi-soat', array( 'dot' => $d['id'] ) ) )
+				);
+			}
+			echo '</tbody></table>';
+		}
+		echo '</div></div>';
+	}
+
+	/** Các kỳ bấm một nút là ra — tháng trước và quý là hai kỳ hay xem nhất. */
+	private static function ky_nhanh() {
+		$nay  = current_time( 'Y-m-d' );
+		$thang = substr( $nay, 0, 7 );
+		$truoc = gmdate( 'Y-m', strtotime( $thang . '-01 00:00:00 UTC -1 month' ) );
+		$quy   = (int) ceil( (int) substr( $thang, 5, 2 ) / 3 );
+		$nam   = substr( $thang, 0, 4 );
+		list( $q1 ) = KHTC_BaoCao::bien_thang( sprintf( '%s-%02d', $nam, ( $quy - 1 ) * 3 + 1 ) );
+		list( , $q2 ) = KHTC_BaoCao::bien_thang( sprintf( '%s-%02d', $nam, $quy * 3 ) );
+		list( $t1, $t2 ) = KHTC_BaoCao::bien_thang( $truoc );
+		return array(
+			'Tháng trước'      => array( $t1, $t2 ),
+			'Quý ' . $quy      => array( $q1, $q2 ),
+			'Năm ' . $nam      => array( $nam . '-01-01', $nam . '-12-31' ),
+		);
+	}
+
+	/** Bảng gom nhóm gọn, kèm phần trăm trên tổng. */
+	private static function bang_nhom( $nhan, $rows, $tong ) {
+		if ( ! $rows ) { return; }
+		printf( '<table><thead><tr><th>%s</th><th class="so">Số HĐ</th><th class="so">Chưa VAT</th><th class="so">Tỷ trọng</th></tr></thead><tbody>', esc_html( $nhan ) );
+		foreach ( $rows as $r ) {
+			$pt = $tong ? round( (int) $r->chua_vat * 100 / $tong ) : 0;
+			printf(
+				'<tr><td>%s</td><td class="so">%s</td><td class="so">%s</td><td class="so">%d%%</td></tr>',
+				esc_html( '' === (string) $r->nhan ? '(để trống)' : $r->nhan ),
+				esc_html( number_format( $r->so_hd, 0, ',', '.' ) ),
+				esc_html( KHTC_UI::tien( $r->chua_vat ) ),
+				$pt
+			);
+		}
+		echo '</tbody></table>';
+	}
+
+	/**
+	 * Bảng xu hướng 12 tháng, mỗi ô có một thanh dài theo số tiền.
+	 *
+	 * BA ĐIỀU CỐ Ý, theo đúng cách làm biểu đồ cho người mù màu:
+	 *
+	 * 1. Thanh chỉ có MỘT màu. Xanh lá / đỏ mà plugin dùng cho thu / chi trượt
+	 *    kiểm tra mù màu nặng (ΔE 4.2, dưới cả ngưỡng sàn) — với người mù màu
+	 *    đỏ-lục thì hai thanh y hệt nhau. Ở đây không cần màu để phân biệt: thu
+	 *    và chi nằm ở HAI CỘT riêng, mỗi cột có tiêu đề và có sẵn con số.
+	 * 2. Thu và chi chung MỘT thước đo, không phải mỗi cột một thước — nếu
+	 *    không thì tháng thu 1 tỷ và tháng chi 10 triệu vẽ ra thanh dài bằng
+	 *    nhau. Cũng vì thế không có cột nào dùng trục thứ hai.
+	 * 3. Cột chênh lệch vẽ từ GIỮA sang trái hoặc phải. Dấu do HƯỚNG mang,
+	 *    không do màu — in đen trắng vẫn đọc được.
+	 */
+	private static function bang_xu_huong( $chuoi ) {
+		$max = 0;
+		$cl  = 0;
+		foreach ( $chuoi as $r ) {
+			$max = max( $max, $r['thu'], $r['chi'] );
+			$cl  = max( $cl, abs( $r['thu'] - $r['chi'] ) );
+		}
+		echo '<div class="khtc-panel"><h2>Mười hai tháng gần nhất</h2>';
+		if ( ! $max && ! $cl ) {
+			echo '<div class="khtc-trong">Chưa có số liệu nào trong 12 tháng qua.</div></div>';
+			return;
+		}
+		echo '<table class="khtc-xu-huong"><thead><tr><th>Tháng</th><th class="so">Thu</th><th>&nbsp;</th><th class="so">Chi</th><th>&nbsp;</th><th class="so">Chênh lệch</th><th>&nbsp;</th><th class="so">Doanh thu</th><th class="so">Chi phí</th></tr></thead><tbody>';
+		foreach ( $chuoi as $r ) {
+			$hieu = $r['thu'] - $r['chi'];
+			printf( '<tr><td>%s</td>', esc_html( mysql2date( 'm/Y', $r['thang'] . '-01' ) ) );
+			printf( '<td class="so thu">%s</td>%s', esc_html( KHTC_UI::tien( $r['thu'] ) ), self::thanh( $r['thu'], $max, 'Thu ' . mysql2date( 'm/Y', $r['thang'] . '-01' ) ) );
+			printf( '<td class="so chi">%s</td>%s', esc_html( KHTC_UI::tien( $r['chi'] ) ), self::thanh( $r['chi'], $max, 'Chi ' . mysql2date( 'm/Y', $r['thang'] . '-01' ) ) );
+			printf( '<td class="so%s">%s</td>%s', $hieu < 0 ? ' chi' : '', esc_html( KHTC_UI::tien( $hieu ) ), self::thanh_hai_chieu( $hieu, $cl ) );
+			printf( '<td class="so">%s</td><td class="so">%s</td></tr>', esc_html( KHTC_UI::tien( $r['doanh_thu'] ) ), esc_html( KHTC_UI::tien( $r['chi_phi'] ) ) );
+		}
+		echo '</tbody></table>';
+		echo '<p class="khtc-sub">Thanh của cột Thu và cột Chi chung một thước đo nên so trực tiếp được với nhau. Cột Chênh lệch vẽ từ giữa: sang phải là thu nhiều hơn chi, sang trái là ngược lại — hướng mang dấu, nên in đen trắng vẫn đọc được.</p>';
+		echo '</div>';
+	}
+
+	private static function thanh( $gia_tri, $max, $nhan ) {
+		$pt = $max > 0 ? max( 0, min( 100, $gia_tri * 100 / $max ) ) : 0;
+		return sprintf(
+			'<td class="khtc-vach"><span title="%s: %s"><i style="width:%.2f%%"></i></span></td>',
+			esc_attr( $nhan ),
+			esc_attr( KHTC_UI::tien( $gia_tri ) ),
+			$pt
+		);
+	}
+
+	private static function thanh_hai_chieu( $hieu, $max ) {
+		$pt = $max > 0 ? min( 50, abs( $hieu ) * 50 / $max ) : 0;
+		return sprintf(
+			'<td class="khtc-vach hai-chieu"><span title="%s"><i class="%s" style="width:%.2f%%"></i></span></td>',
+			esc_attr( ( $hieu < 0 ? 'Chi nhiều hơn thu ' : 'Thu nhiều hơn chi ' ) . KHTC_UI::tien( abs( $hieu ) ) ),
+			$hieu < 0 ? 'am' : 'duong',
+			$pt
 		);
 	}
 }

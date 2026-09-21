@@ -38,6 +38,7 @@ class KHTC_Web {
 			'hoa-don-ra' => 'Hoá đơn đầu ra',
 			'hoa-don-vao' => 'Hoá đơn đầu vào',
 			'cong-no'    => 'Công nợ',
+			'bao-cao'    => 'Báo cáo',
 			'nhat-ky'    => 'Nhật ký',
 			'sao-luu'    => 'Sao lưu',
 		);

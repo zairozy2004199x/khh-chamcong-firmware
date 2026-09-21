@@ -105,6 +105,30 @@ class KHTC_NganHang {
 		return (int) $ngan_hang->so_du_dau + (int) $r->thu - (int) $r->chi;
 	}
 
+	/**
+	 * Số dư TÍNH ĐẾN hết một ngày — cần cho báo cáo, vì báo cáo tháng 8 phải ra
+	 * số dư ngày 31/8 kể cả khi hôm nay là tháng 10.
+	 *
+	 * so_du() ở trên là trường hợp riêng của hàm này với ngày = hôm nay; giữ cả
+	 * hai vì mọi màn hình khác chỉ cần số dư hiện tại và không nên phải tự nghĩ
+	 * ra ngày.
+	 */
+	public static function so_du_den( $ngan_hang, $ngay ) {
+		global $wpdb;
+		$b   = KHTC_DB::bang( 'giao_dich' );
+		$sql = "SELECT
+					COALESCE( SUM( CASE WHEN loai = 'thu' THEN so_tien ELSE 0 END ), 0 ) AS thu,
+					COALESCE( SUM( CASE WHEN loai = 'chi' THEN so_tien ELSE 0 END ), 0 ) AS chi
+				FROM $b WHERE ngan_hang_id = %d AND ngay <= %s";
+		$args = array( (int) $ngan_hang->id, $ngay );
+		if ( ! empty( $ngan_hang->ngay_dau ) ) {
+			$sql   .= ' AND ngay >= %s';
+			$args[] = $ngan_hang->ngay_dau;
+		}
+		$r = $wpdb->get_row( $wpdb->prepare( $sql, $args ) );
+		return (int) $ngan_hang->so_du_dau + (int) $r->thu - (int) $r->chi;
+	}
+
 	/** Danh sách kèm số dư đã tính sẵn — dùng cho bảng và cho ô chọn. */
 	public static function ds_kem_so_du( $cty = null ) {
 		$ra = array();
