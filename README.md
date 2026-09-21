@@ -27,12 +27,13 @@ thấy là **dừng, không phát hành**.
 | `esp32_hik_chamcong_full/` | **Máy chính** — đọc sự kiện quẹt thẻ/khuôn mặt từ đầu đọc Hikvision (ISAPI), đẩy lên web app kèm ảnh, đồng bộ nhân viên xuống máy, màn hình CYD, hỗ trợ cả WiFi lẫn 4G |
 | `esp32_ota_updater/` | **Máy trạm ("thợ nạp")** — tự tải `.bin` mới về thẻ nhớ cắm sẵn qua WiFi; đứng gần máy chính rồi **bấm** mới nạp |
 
-## Web app báo cáo chi phí
+## Web app cho kế toán
 
 | Thư mục | Việc |
 |---|---|
 | `khbc-bao-cao-chi-phi/` | **Plugin WordPress "Báo Cáo Chi Phí (K&H)"** — bản chạy trên hosting WordPress (khmatrix.com): đăng nhập PIN, nhân viên nhập chi phí kèm ảnh chứng từ ở `/bao-cao-chi-phi/nhap/`, kế toán duyệt và ra File tổng báo cáo ở `/bao-cao-chi-phi/`, Admin quản lý người dùng, chốt kỳ, nhật ký, tự cập nhật từ nhánh GitHub. Cài bằng zip từ Releases (`khbc-bao-cao-chi-phi-vX.Y.Z`). Xem `khbc-bao-cao-chi-phi/readme.txt` |
 | `web_baocao_chiphi/` | **Web app "Báo cáo chi phí"** — nhập file Excel chi phí hàng tháng (doanh thu, khoản chi phí, bảng lương), tự phân bổ MTĐ / KVC và xuất ra tab *File tổng báo cáo* + phân bổ theo điểm để hạch toán MISA. Giao diện chạy trên GitHub Pages; nhân viên nhập chi phí ở `nhap.html`, kế toán duyệt; dữ liệu chung lưu Google Sheets qua Apps Script. Xem `web_baocao_chiphi/README.md` và `web_baocao_chiphi/backend/README.md` |
+| `web_uynhiemchi/` | **Web app "Ủy nhiệm chi & Công nợ"** — nhập file Excel *Đi ủy nhiệm chi*, biết ngay khoản nào **đã đi tiền, khoản nào chưa**, công nợ phải trả từng nhà cung cấp và **tuổi nợ** (quá hạn 1–30 / 31–60 / 61–90 / trên 90 ngày). Kèm 7 mẫu biểu in A4: Ủy nhiệm chi, Giấy đề nghị thanh toán (05-TT), Phiếu chi (02-TT), Biên bản đối chiếu công nợ, Bảng kê công nợ, Sổ chi tiết TK 331 (S31-DN), Kế hoạch chi tiền trình ký. Chạy hẳn trong trình duyệt, không gửi dữ liệu đi đâu. Xem `web_uynhiemchi/README.md` |
 
 ## Phát hành
 
