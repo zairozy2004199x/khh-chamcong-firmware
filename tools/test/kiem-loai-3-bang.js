@@ -73,9 +73,17 @@ t("   và KHÔNG còn bám vào một id `cfgMxBody` duy nhất", !/el\('cfgMxBo
  * Chia ở Cấu hình mà ô chọn vẫn xổ đủ ba khối thì chia chẳng để làm gì. */
 t('🔴 `_loaiCpList()` bỏ loại của khối khác', /_khoiCuaLoai\(x\)!==String\(KHOI_DANG\)/.test(bocSach('_loaiCpList')), 'không thấy');
 t('   `_cacNhomCp()` cũng vậy', /_khoiCuaLoai\(x\)!==String\(KHOI_DANG\)/.test(bocSach('_cacNhomCp')), 'không thấy');
-t('🔴 bảng mã TK Nợ chỉ bày loại của khối đang chọn',
-  /rows\.filter\(function \(x\) \{ return _khoiCuaLoai\(x\)===String\(KHOI_DANG\)/.test(VE.replace(/\s+/g, ' ')) ||
-  /return _khoiCuaLoai\(x\)===String\(KHOI_DANG\)\.toLowerCase\(\);/.test(VE), 'không thấy');
+/* 🔴 ĐỔI 21/09/2026 — anh Thắng: *"Chưa có TK nợ theo máy tự động"*, rồi *"mỗi khối 1 bảng
+   mã tk riêng"*. Trước đây bảng mã lọc bằng `KHOI_DANG` — biến của THANH KHỐI bên màn Đơn
+   chi phí. Trang Cấu hình không có thanh ấy, nên nó đứng im ở khối nhớ từ lần trước và
+   mã của hai khối kia KHÔNG AI KHAI ĐƯỢC. Nay mỗi mục tự mang khối của nó (`g.khoi`).
+   ⚠️ VẪN còn vế ngã về `KHOI_DANG`, cho nhóm không đoán được khối ("(chưa rõ khối)") — trả
+      rỗng là mã của mấy mảng đó không còn ai sửa được. */
+t('🔴 bảng mã TK Nợ lấy khối của CHÍNH mục đó, không theo khối đang chọn ở màn khác',
+  /var khoiB=g\.khoi\|\|String\(KHOI_DANG\)\.toLowerCase\(\);/.test(VE)
+    && /rows\.filter\(function\(x\)\{ return _khoiCuaLoai\(x\)===khoiB; \}\)/.test(VE), 'không thấy');
+t('   và mỗi khối có một mục, kể cả khối chưa có cơ sở nào',
+  /KHOI_DS\.map\(function\(k\)\{ return \{ dv:k\.ma, khoi:k\.ma/.test(bocSach('_mxNhomDv')), 'không thấy');
 t('   và thôi lọc bằng ô Đơn vị của loại (ô ấy đã gỡ)', !/_loaiChoDv\(x, g\.dv\)/.test(VE));
 t('   đổi khối thì vẽ lại bảng Cấu hình', /renderTkNoMatrix\(\)/.test(bocSach('doiKhoi')), 'không thấy');
 

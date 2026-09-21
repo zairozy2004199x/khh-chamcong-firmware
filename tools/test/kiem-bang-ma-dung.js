@@ -40,6 +40,25 @@ const boc = ten => {
 };
 /* Bốc một BẢNG TỪ KHOÁ (`var TÊN=[…];`) ra nguyên văn. Mấy hàm dưới đây đọc nó như biến
    ngoài, nên không mang theo thì chúng nổ `ReferenceError` — trông y như mã hỏng. */
+/* Biến khai gọn trên MỘT dòng (ví dụ một bảng đối tượng) — `bocBienMd` cắt ở `];` nên
+   nuốt mất dấu đóng ngoặc nhọn của loại này. */
+/* ═══ CẮT ĐÚNG MỘT MỤC BẢNG MÃ ═══════════════════════════════════════════════
+   🔴 ĐỪNG CẮT THEO `data-dv` — đã cắn ngay lượt viết này. `<thead>` (nơi chứa tên các cột
+      loại chi phí) nằm TRƯỚC `<tbody data-dv=…>`, nên lát cắt từ mốc `data-dv` của mục này đến
+      mốc của mục sau bỏ SÓT cột của chính nó và NỐT cột của mục kế — phép "bảng kvc bày cột
+      của kvc" đỏ oan, còn phép "không bày cột khối khác" thì xanh nhầm. Cắt theo TIÊU ĐỀ mục. */
+const mucMa = (h, ten) => {
+  const moc = '\u{1F522} TK N\u1ee3 \u00b7 ';
+  const i = h.indexOf(ten, h.indexOf(moc));
+  if (i < 0) return '';
+  const j = h.indexOf(moc, i);
+  return j < 0 ? h.slice(i) : h.slice(i, j);
+};
+const bocDongMd = ten => {
+  const i = HTML.indexOf('  var ' + ten + '=');
+  t('bốc được bảng ' + ten, i >= 0);
+  return i < 0 ? '{}' : HTML.slice(HTML.indexOf('=', i) + 1, HTML.indexOf('\n', i)).replace(/;\s*$/, '');
+};
 const bocBienMd = ten => {
   const i = HTML.indexOf('  var ' + ten + '=');
   t('bốc được bảng ' + ten, i >= 0);
@@ -180,6 +199,12 @@ function dungBe(loaiChiPhi, tkNoMatrix, coso, mangTk) {
           phỉ trong lời văn đóng chuỗi sớm và cả bài kiểm chết cú pháp — cắn ngay lượt viết
           này, đúng họ với cái bẫy "viết dấu đóng chú thích ngay trong lời văn" ở app.html. */
     var KHOI_THEO_TEN_VAI=${bocBienMd('KHOI_THEO_TEN_VAI')};
+    /* Bảng mã nay lọc theo khối của CHÍNH nó, không theo khối đang chọn ở màn khác — anh
+       Thắng 21/09/2026: *"Chưa có TK nợ theo máy tự động"*, *"mỗi khối 1 bảng mã tk riêng"*.
+       Bốc cả họ hàm ánh xạ vào. ⚠️ Không dùng dấu phỉ ở đây: cả khối này nằm trong một
+       chuỗi mẫu, một dấu phỉ trong lời văn đóng chuỗi sớm và cả bài kiểm chết cú pháp. */
+    var KHOI_DV_DUP=${bocDongMd('KHOI_DV_DUP')};
+    ${boc('_khoiDvBang')}\n${boc('_khoiCuaDv')}\n${boc('_tenKhoi')}
     ${boc('_boDauVai')}\n${boc('_khoiCuaVai')}\n${boc('_vaiOKhoi')}
     ${boc('_khoiCuaLoai')}\n${boc('_mxBodies')}\n${boc('_khoiDuoc')}\n${boc('_vaiConCua')}\n${boc('_vaiSelNhieu')}\n${boc('_khoiSelLoai')}
     ${boc('_dvSelNhieu')}\n${boc('_loaiChoDv')}\n${boc('_mangTong')}\n${boc('_mangTongDoan')}\n${boc('_mxMaGoc')}\n${boc('_mxSapCols')}\n${boc('_mxCols')}\n${boc('_mxNhomDv')}\n${boc('_xemDuocDv')}\n${boc('_mxRowHtml')}\n${boc('renderTkNoMatrix')}\n${boc('saveCfgTkNoMx')}
@@ -187,20 +212,27 @@ function dungBe(loaiChiPhi, tkNoMatrix, coso, mangTk) {
   return { moi, NK, KHO, F };
 }
 
+/* ⚠️ LOẠI THUỘC ĐÚNG MỘT KHỐI (1.226.0), và từ 21/09/2026 bảng mã cũng tách theo khối —
+   anh Thắng: *"mỗi khối 1 bảng mã tk riêng"*. Nên bộ gieo phải có ít nhất một loại ở khối
+   KHÁC, không thì mọi phép chỉ đi qua một bảng và luật tách khối không được sờ tới. */
 const LOAI = [
-  { ten: 'Chi phí cơ sở',  loaiTt: '',       boPhan: 'Cơ sở' },
-  { ten: 'Chi phí setup',  loaiTt: 'ncc',    boPhan: 'Kỹ thuật, Setup' },
-  { ten: 'Chi phí lương',  loaiTt: 'canhan', boPhan: '', tenMisa: 'Tên xuất MISA' },
+  { ten: 'Chi phí cơ sở',  loaiTt: '',       boPhan: 'Cơ sở', khoi: 'kvc' },
+  { ten: 'Chi phí setup',  loaiTt: 'ncc',    boPhan: 'Kỹ thuật, Setup', khoi: 'kvc' },
+  { ten: 'Chi phí lương',  loaiTt: 'canhan', boPhan: '', tenMisa: 'Tên xuất MISA', khoi: 'kvc' },
 ];
 const MX = [
   { nhom: 'Chi phí cơ sở', pll: 'Funzone', tkNo: '64126' },
   { nhom: 'Chi phí cơ sở', pll: 'Farm',    tkNo: '64166' },
   { nhom: 'Chi phí setup', pll: 'Funzone', tkNo: '2413' },
-  { nhom: 'Chi phí cơ sở', pll: 'Rạp',     tkNo: '64199' },   // mảng của POSH
+  { nhom: 'Chi phí cơ sở', pll: 'Rạp',     tkNo: '64199' },   // mảng của khối máy tự động
 ];
+/* ⚠️ CỘT ĐƠN VỊ CỦA BẢNG CƠ SỞ ĐÃ THÀNH CỘT KHỐI (21/09/2026) — anh Thắng: *"đơn vị cơ sở
+   theo khối, chuyển cột Đơn Vị sang Khối"*. Hai gian đầu thuộc Khu vui chơi, gian thứ ba
+   thuộc Máy tự động — và cố ý khai bằng tên cũ "POSH" để canh luôn chuyện MỘT KHỐI CÓ
+   NHIỀU TÊN: nó phải rơi vào đúng bảng `mtd`, không đứng riêng một bảng "POSH". */
 const COSO = [
-  { ten: 'AEON',      phanLoaiLon: 'Funzone', donVi: 'K&H' },
-  { ten: 'FARM NT',   phanLoaiLon: 'Farm',    donVi: 'K&H' },
+  { ten: 'AEON',      phanLoaiLon: 'Funzone', donVi: 'KVC' },
+  { ten: 'FARM NT',   phanLoaiLon: 'Farm',    donVi: 'KVC' },
   { ten: 'CGV BÌNH DƯƠNG', phanLoaiLon: 'Rạp', donVi: 'POSH' },
 ];
 /* MÃ TỔNG của mảng — bảng "Mảng kinh doanh → nhóm tài khoản". "Rạp" thuộc POSH nên KHÔNG hiện
@@ -221,7 +253,7 @@ const MANG_TK = [
   t('🔴 có bảng thuộc tính (cfgMxBody)', h.indexOf('class="cfgMxBody"') >= 0);
   t('   và đủ ba thân bảng, mỗi khối một cái', (h.match(/class="cfgMxBody"/g) || []).length === 3,
     (h.match(/class="cfgMxBody"/g) || []).length);
-  t('🔴 và bảng mã riêng, MỘT BẢNG MỖI ĐƠN VỊ', h.indexOf('class="mxNoBody" data-dv="K&amp;H"') >= 0);
+  t('🔴 và bảng mã riêng, MỘT BẢNG MỖI KHỐI', h.indexOf('class="mxNoBody" data-dv="kvc"') >= 0);
   /* ⚠️ Ô TÍCH TỪ 21/09/2026 LÀ VAI TRÒ, không còn là bộ phận (anh Thắng: *"bỏ tích bộ phận đi,
      mà tích theo vai trò"*). Khuôn vẫn phải là HỘP TÍCH — danh sách nhiều lựa chọn của trình
      duyệt đòi giữ Ctrl, bấm thường là bỏ sạch những cái đang chọn, tức nới quyền trong im lặng. */
@@ -249,7 +281,7 @@ const MANG_TK = [
     h.indexOf('<th style="width:128px">Chi phí cơ sở</th>') >= 0, h.slice(0, 400));
   t('   bảng thuộc tính KHÔNG còn cột mảng nào (đó là chỗ nó phình ngang)',
     h.slice(0, h.indexOf('mxNoBody')).indexOf('Funzone') < 0);
-  t('   bảng mã có tiêu đề nói rõ nó là gì, kèm tên đơn vị', h.indexOf('🔢 TK Nợ · <span style="color:#2545ff">K&amp;H</span>') >= 0, h.slice(h.indexOf('mxNoBody')-400, h.indexOf('mxNoBody')));
+  t('   bảng mã có tiêu đề nói rõ nó là gì, kèm TÊN KHỐI', h.indexOf('🔢 TK Nợ · <span style="color:#2545ff">Khu vui chơi</span>') >= 0, h.slice(h.indexOf('mxNoBody')-400, h.indexOf('mxNoBody')));
   /* Dính CẢ ô tiêu đề LẪN ô tên mảng. Dính mỗi tiêu đề thì kéo ngang vẫn mất tên mảng — đúng
      lúc đang dò mã là lúc cần nó nhất. */
   /* MỌI hàng đều phải dính, không phải "có chỗ nào đó dính". Dính mỗi ô tiêu đề thì kéo
@@ -338,40 +370,72 @@ function veRoiLuu(sua, xemDonVi) {
   teq('tên loại để trống → bỏ dòng ấy', 2, r.loaiChiPhi.length);
 }
 
-/* ── 3. 🔴 TÁCH MẢNG THEO ĐƠN VỊ ───────────────────────────────────────────────────────── */
+/* ── 3. 🔴 MỖI KHỐI MỘT BẢNG MÃ RIÊNG ─────────────────────────────────────
+   Anh Thắng 21/09/2026: *"Chưa có TK nợ theo máy tự động"*, rồi *"mỗi khối 1 bảng mã tk riêng"*.
+   Bảng mã trước đây lọc loại bằng `KHOI_DANG` — biến của THANH KHỐI bên màn Đơn chi phí.
+   Trang Cấu hình không có thanh ấy nên nó đứng im ở kvc, và mã của hai khối kia không ai khai
+   được. Nay mỗi bảng tự biết khối của mình.
+
+   ⚠️ BỘ GIEO RIÊNG cho mục này, không đụng `LOAI` dùng chung: thêm một loại vào bộ chung là
+      kéo đổ mười mấy phép đếm ở các mục khác — đã thử và phải lùi lại. */
+const LOAI_K = [
+  { ten: 'Chi phí cơ sở', boPhan: 'Cơ sở', khoi: 'kvc' },
+  { ten: 'Chi phí setup', boPhan: 'Setup', khoi: 'kvc' },
+  { ten: 'Chi phí rạp',   boPhan: '',      khoi: 'mtd' },
+];
+const MX_K = [
+  { nhom: 'Chi phí cơ sở', pll: 'Funzone', tkNo: '64126' },
+  { nhom: 'Chi phí cơ sở', pll: 'Farm',    tkNo: '64166' },
+  { nhom: 'Chi phí rạp',   pll: 'Rạp',     tkNo: '64199' },
+];
 {
-  const b = dungBe(LOAI, MX, COSO, MANG_TK);
+  const b = dungBe(LOAI_K, MX_K, COSO, MANG_TK);
   b.F.ve();
   const h = b.moi.el('cfgTkNoMx').innerHTML;
-  t('🔴 K&H và POSH là HAI bảng riêng', /data-dv="K&amp;H"/.test(h) && /data-dv="POSH"/.test(h), h.match(/data-dv="[^"]*"/g));
-  const kh = h.slice(h.indexOf('data-dv="K&amp;H"'), h.indexOf('data-dv="POSH"'));
-  t('🔴 mảng của K&H chỉ nằm trong bảng K&H',
+  t('🔴 mỗi khối MỘT bảng riêng', /data-dv="kvc"/.test(h) && /data-dv="mtd"/.test(h), h.match(/data-dv="[^"]*"/g));
+  /* 🔴 VÀ LUÔN ĐỦ BA, kể cả khối chưa có cơ sở nào. Không cơ sở → không nhóm → không
+     bảng → không ai khai được: đúng vòng luẩn quẩn anh Thắng vục phải.
+     ⚠️ Canh bằng TIÊU ĐỀ: khối chưa có loại nào thì không dựng thân bảng, chỉ dựng một dòng
+        nói vì sao rỗng — và đó mới là thứ phải có. */
+  t('🔴 khối chưa có gì VẪN có mục riêng', h.indexOf('>Văn phòng<') >= 0,
+    (h.match(/TK Nợ · <span[^>]*>[^<]*/g) || []));
+  t('   và nói rõ vì sao rỗng', /Khối này chưa có loại chi phí nào/.test(h));
+  const kh = mucMa(h, 'Khu vui chơi');
+  t('🔴 mảng của Khu vui chơi chỉ nằm trong bảng kvc',
     kh.indexOf('data-pll="Funzone"') >= 0 && kh.indexOf('data-pll="Rạp"') < 0, kh.match(/data-pll="[^"]*"/g));
-  const posh = h.slice(h.indexOf('data-dv="POSH"'));
-  t('🔴 và mảng của POSH chỉ nằm trong bảng POSH',
-    posh.indexOf('data-pll="Rạp"') >= 0 && posh.indexOf('data-pll="Funzone"') < 0, posh.match(/data-pll="[^"]*"/g));
+  const mtd = mucMa(h, 'Máy tự động');
+  /* 🔴 Gian khai tên cũ "POSH" phải rơi vào ĐÚNG bảng máy tự động. Một khối có nhiều tên
+     đơn vị; gom theo CHUỖI thay vì theo KHỐI là khối ấy bị xé thành hai bảng, kế toán điền
+     một bảng rồi tưởng xong cả khối. */
+  t('🔴 tên cũ "POSH" rơi vào đúng bảng máy tự động, không đứng riêng',
+    mtd.indexOf('data-pll="Rạp"') >= 0 && mtd.indexOf('data-pll="Funzone"') < 0
+      && h.indexOf('data-dv="POSH"') < 0, h.match(/data-dv="[^"]*"/g));
   t('   mỗi bảng nói rõ nó có bao nhiêu mảng', /— 2 mảng/.test(h) && /— 1 mảng/.test(h), h.match(/— \d+ mảng/g));
 }
-/* 🔴 Mảng có cơ sở của CẢ HAI nhà thì đứng ở CẢ HAI khối. Cắt bớt là một bên khai mã mà bên
-   kia không thấy, rồi tưởng mình chưa khai. */
+/* 🔴 Mảng có cơ sở ở CẢ HAI khối thì đứng ở CẢ HAI bảng. Cắt bớt là một bên khai mã mà
+   bên kia không thấy, rồi tưởng mình chưa khai. */
 {
-  const b = dungBe(LOAI, MX, COSO.concat([{ ten: 'FZ POSH', phanLoaiLon: 'Funzone', donVi: 'POSH' }]));
+  const b = dungBe(LOAI_K, MX_K, COSO.concat([{ ten: 'FZ POSH', phanLoaiLon: 'Funzone', donVi: 'POSH' }]));
   b.F.ve();
   const h = b.moi.el('cfgTkNoMx').innerHTML;
-  const kh = h.slice(h.indexOf('data-dv="K&amp;H"'), h.indexOf('data-dv="POSH"'));
-  const posh = h.slice(h.indexOf('data-dv="POSH"'));
-  t('🔴 mảng dùng chung hai nhà → hiện ở CẢ HAI bảng',
-    kh.indexOf('data-pll="Funzone"') >= 0 && posh.indexOf('data-pll="Funzone"') >= 0,
-    { kh: kh.match(/data-pll="[^"]*"/g), posh: posh.match(/data-pll="[^"]*"/g) });
+  const kh = mucMa(h, 'Khu vui chơi');
+  const mtd = mucMa(h, 'Máy tự động');
+  t('🔴 mảng dùng chung hai khối → hiện ở CẢ HAI bảng',
+    kh.indexOf('data-pll="Funzone"') >= 0 && mtd.indexOf('data-pll="Funzone"') >= 0,
+    { kh: kh.match(/data-pll="[^"]*"/g), mtd: mtd.match(/data-pll="[^"]*"/g) });
 }
-/* Người chỉ xem được POSH thì chỉ thấy bảng POSH. */
+/* Người chỉ xem được POSH thì chỉ thấy bảng của khối ấy. */
 {
-  const b = dungBe(LOAI, MX, COSO);
+  const b = dungBe(LOAI_K, MX_K, COSO);
   b.moi.BOOT.xemDonVi = ['POSH'];
   b.F.ve();
   const h = b.moi.el('cfgTkNoMx').innerHTML;
-  t('🔴 chỉ xem được POSH → không thấy bảng K&H', h.indexOf('data-dv="K&amp;H"') < 0, h.match(/data-dv="[^"]*"/g));
-  t('   nhưng vẫn thấy bảng của mình', h.indexOf('data-dv="POSH"') >= 0);
+  /* 🔴 `xemDonVi` là danh sách TÊN ĐƠN VỊ ("POSH"), còn khoá nhóm nay là MÃ KHỐI ("mtd").
+     So thẳng hai thứ ấy là kế toán khai "POSH" MẤT HẲN bảng mã của mình — không một câu lỗi,
+     và họ sẽ báo là "mất dữ liệu". Xem `_xemDuocDv()`. */
+  t('🔴 chỉ xem được POSH → không thấy bảng Khu vui chơi', h.indexOf('data-dv="kvc"') < 0, h.match(/data-dv="[^"]*"/g));
+  t('🔴 nhưng VẪN thấy bảng của mình, dù khoá nhóm là mã khối còn họ khai tên đơn vị',
+    h.indexOf('data-dv="mtd"') >= 0, h.match(/data-dv="[^"]*"/g));
 }
 /* 🔴 CÁI BẪY: người POSH bấm Lưu thì mã của K&H phải CÒN NGUYÊN. */
 {
@@ -396,12 +460,13 @@ function veRoiLuu(sua, xemDonVi) {
 }
 /* `xemDonVi` = null nghĩa là XEM CẢ, không phải "không xem được gì". */
 {
-  const b = dungBe(LOAI, MX, COSO);
+  /* Bộ gieo có loại ở HAI khối — không thì phép "xem cả" chỉ đi qua một bảng và luôn xanh. */
+  const b = dungBe(LOAI_K, MX_K, COSO);
   b.moi.BOOT.xemDonVi = null;
   b.F.ve();
   const h = b.moi.el('cfgTkNoMx').innerHTML;
   t('🔴 xemDonVi rỗng = XEM CẢ (hiểu ngược là màn trắng trơn cho chính Admin)',
-    h.indexOf('data-dv="K&amp;H"') >= 0 && h.indexOf('data-dv="POSH"') >= 0);
+    h.indexOf('data-dv="kvc"') >= 0 && h.indexOf('data-dv="mtd"') >= 0);
 }
 /* Mảng còn trong bảng mã mà cơ sở đã xoá → vẫn hiện, kèm mã, ở khối "chưa rõ đơn vị". */
 {
@@ -409,7 +474,7 @@ function veRoiLuu(sua, xemDonVi) {
   b.F.ve();
   const h = b.moi.el('cfgTkNoMx').innerHTML;
   t('🔴 mảng chỉ còn trong bảng mã vẫn hiện (giấu đi là mã còn trong sổ mà không ai sửa được)',
-    h.indexOf('(chưa rõ đơn vị)') >= 0 && h.indexOf('value="64111"') >= 0, h.match(/data-dv="[^"]*"/g));
+    h.indexOf('(chưa rõ khối)') >= 0 && h.indexOf('value="64111"') >= 0, h.match(/data-dv="[^"]*"/g));
 }
 
 /* ── 2a. MỖI NHÀ MỘT BỘ CỘT LOẠI CHI PHÍ ───────────────────────────────────────────────
@@ -440,9 +505,16 @@ function veRoiLuu(sua, xemDonVi) {
   b.moi.BOOT.xemDonVi = null;
   b.F.ve();
   const h = b.moi.el('cfgTkNoMx').innerHTML;
-  const duoi = h.slice(h.indexOf('mxNoBody'));
-  t('🔴 bảng mã bày cột của khối đang chọn (kvc)', duoi.indexOf('>Chi phí setup</th>') >= 0, duoi.slice(0, 500));
-  t('🔴 và KHÔNG bày cột của khối khác (mtd)', duoi.indexOf('>Chi phí rạp</th>') < 0, duoi.slice(0, 500));
+  /* 🔴 TỪ 21/09/2026 MỖI BẢNG TỰ BIẾT KHỐI CỦA MÌNH, không còn ăn theo khối đang chọn ở màn khác
+     (anh Thắng: *"mỗi khối 1 bảng mã tk riêng"*). Nên soi ĐÚNG từng bảng; soi chung cả cụm như
+     bản cũ thì không phân biệt được gì — cả hai cột đều có mặt, chỉ khác chỗ. */
+  const bKvc = mucMa(h, 'Khu vui chơi');
+  const bMtd = mucMa(h, 'Máy tự động');
+  t('🔴 bảng kvc bày cột của kvc', bKvc.indexOf('>Chi phí setup</th>') >= 0, bKvc.slice(0, 400));
+  t('🔴 và KHÔNG bày cột của khối khác', bKvc.indexOf('>Chi phí rạp</th>') < 0, bKvc.slice(0, 400));
+  /* Phép đối chứng: thiếu nó thì một hàm KHÔNG vẽ gì cả cũng qua được hai phép trên. */
+  t('🔴 còn bảng mtd thì ngược lại',
+    bMtd.indexOf('>Chi phí rạp</th>') >= 0 && bMtd.indexOf('>Chi phí setup</th>') < 0, bMtd.slice(0, 400));
 
   /* Bảng thuộc tính: mỗi hàng có Ô CHỌN khối, không còn ô tích đơn vị. */
   const tren = h.slice(0, h.indexOf('mxNoBody'));
@@ -478,7 +550,12 @@ function veRoiLuu(sua, xemDonVi) {
     { nhom: 'Chi phí setup', pll: 'Funzone', tkNo: '2413' },     // mảng Funzone ĐANG hiện
   ];
   const b = dungBe(LOAI3, MX3, COSO, MANG_TK);
-  b.moi.BOOT.xemDonVi = ['K&H'];
+  /* 🔴 DÙNG MỘT KHỐI THẬT, ĐỪNG DÙNG NHÀ MẸ — và đây là lỗi của chính bài kiểm, không
+     phải của mã. Máy chủ trả `xemDonVi = null` cho nhà mẹ (= xem cả, xem `VHCP_DonVi::xem_duoc()`),
+     nên một danh sách chỉ có 'K&H' là trạng thái KHÔNG BAO GIỜ XẢY RA. Từ lượt gom theo khối
+     (21/09/2026) nó khớp đúng KHÔNG BẢNG NÀO — và mấy phép ở dưới hoá XANH GIẢ: không có ô
+     nào trên màn thì mã nào cũng được giữ, kể cả mã lẽ ra phải xoá được. */
+  b.moi.BOOT.xemDonVi = ['KVC'];
   b.F.ve();
   const h = b.moi.el('cfgTkNoMx').innerHTML;
   const tren = docHangTren(h.slice(h.indexOf('class="cfgMxBody"'), h.indexOf('mxNoBody')));
@@ -487,7 +564,7 @@ function veRoiLuu(sua, xemDonVi) {
   b.NK.oMa = oMa;
   b.F.luu();
   const g = {}; (b.NK.luu.tkNoMatrix || []).forEach(x => { g[x.nhom + '|' + x.pll] = x.tkNo; });
-  teq('🔴 mã của cột KHÁC NHÀ (không có ô trên màn) vẫn còn', '2413', g['Chi phí setup|Funzone']);
+  teq('🔴 mã của cột không có ô trên màn vẫn còn', '2413', g['Chi phí setup|Funzone']);
   teq('   mã của cột đang hiện vẫn đúng', '64126', g['Chi phí cơ sở|Funzone']);
   teq('   và không nhân đôi dòng nào', (b.NK.luu.tkNoMatrix || []).length,
     Object.keys(g).length);
@@ -495,7 +572,7 @@ function veRoiLuu(sua, xemDonVi) {
      CÓ trên màn không", không phải "ô này có mã không" — đánh dấu sau khi lọc ô trống thì mã
      người ta vừa xoá bị lôi về, và không ai xoá nổi một mã gõ nhầm. */
   const b2 = dungBe(LOAI3, MX3, COSO, MANG_TK);
-  b2.moi.BOOT.xemDonVi = ['K&H'];
+  b2.moi.BOOT.xemDonVi = ['KVC'];
   b2.F.ve();
   const h2 = b2.moi.el('cfgTkNoMx').innerHTML;
   const tren2 = docHangTren(h2.slice(h2.indexOf('class="cfgMxBody"'), h2.indexOf('mxNoBody')));
@@ -506,7 +583,7 @@ function veRoiLuu(sua, xemDonVi) {
   b2.F.luu();
   const g2 = {}; (b2.NK.luu.tkNoMatrix || []).forEach(x => { g2[x.nhom + '|' + x.pll] = x.tkNo; });
   t('🔴 xoá trắng ô trên màn thì mã ấy mất thật', !g2['Chi phí cơ sở|Funzone'], g2);
-  teq('   nhưng mã của cột khác nhà vẫn còn nguyên', '2413', g2['Chi phí setup|Funzone']);
+  teq('   nhưng mã của cột không có ô trên màn vẫn còn nguyên', '2413', g2['Chi phí setup|Funzone']);
 }
 /* Cột "Đơn vị" vừa tích phải đi được xuống sổ — tích xong bấm Lưu mà không gửi thì lượt vẽ
    sau ô lại trống, và người khai tưởng mình bấm hụt. */

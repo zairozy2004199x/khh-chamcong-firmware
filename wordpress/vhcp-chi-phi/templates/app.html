@@ -11416,10 +11416,26 @@
       /* ⚠️ THÔI LỌC THEO Ô ĐƠN VỊ CỦA LOẠI. Ô ấy đã rời khỏi bảng (21/09/2026) nên không ai
          sửa được nữa — lọc bằng nó là lọc bằng dữ liệu cũ, vô hình, đúng cái bẫy vừa gỡ ở ô
          Bộ phận. Khối là trục duy nhất còn lại cho bảng mã. */
-      var rws=rows.filter(function(x){ return _khoiCuaLoai(x)===String(KHOI_DANG).toLowerCase(); });
-      var nhan='🔢 TK Nợ · <span style="color:#2545ff">'+esc(g.dv)+'</span>', phu='', than='';
+      /* ═══════════════════════════════════════════════════════════════════════════
+         🔴 LỌC THEO KHỐI CỦA CHÍNH KHỐI BẢNG NÀY, KHÔNG THEO KHỐI ĐANG CHỌN Ở MÀN KHÁC.
+
+         Anh Thắng 21/09/2026: *"Chưa có TK nợ theo máy tự động"*. Bảng mã lọc bằng `KHOI_DANG`
+         — biến của THANH KHỐI bên màn Đơn chi phí. Trang Cấu hình không có thanh ấy, nên nó
+         đứng im ở khối nhớ từ lần trước (thường là kvc) và KHÔNG CÓ CÁCH NÀO đổi — tức là mã
+         TK Nợ của Máy tự động và Văn phòng không ai khai được.
+
+         Mà khối của bảng này ĐÃ CÓ SẮN: `g.dv` chính là đơn vị của nhóm cơ sở đang vẽ, mà từ
+         21/09/2026 cột ấy ở bảng Cơ sở chính là KHỐI. Đọc từ nó thì mỗi bảng tự khớp loại của
+         khối mình, không phụ thuộc người dùng đang đứng ở đâu.
+
+         ⚠️ NHÓM KHÔNG ÁNH XẠ ĐƯỢC KHỐI (VD "(chưa rõ đơn vị)" — mảng còn mã nhưng cơ sở đã
+            xoá) thì NGÃ VỀ khối đang chọn, không trả rỗng. Trả rỗng là mã trong sổ của mấy mảng
+            ấy không còn ai sửa được nữa — đúng cái bẫy đang gỡ. */
+      var khoiB=g.khoi||String(KHOI_DANG).toLowerCase();
+      var rws=rows.filter(function(x){ return _khoiCuaLoai(x)===khoiB; });
+      var nhan='🔢 TK Nợ · <span style="color:#2545ff">'+esc(_tenKhoi(g.khoi)||g.dv)+'</span>', phu='', than='';
       if(!rws.length){
-        than='<div style="color:#8c8781;font-size:12px;padding:2px 0 8px">Chưa loại chi phí nào khai dùng cho đơn vị này — tích ô <b>Đơn vị</b> ở bảng trên rồi Lưu.</div>';
+        than='<div style="color:#8c8781;font-size:12px;padding:2px 0 8px">Khối này chưa có loại chi phí nào — thêm ở bảng <b>Loại chi phí</b> bên trên (mục của đúng khối này) rồi Lưu.</div>';
       } else {
       phu=' <span style="font-weight:400;color:#8c8781">— '+g.cols.length+' mảng · '+rws.length+' loại · xếp theo '
         +(MX_SAP==='tk'?'số tài khoản':'tên mảng')+'</span>';
@@ -11891,33 +11907,74 @@
      Mảng không tự mang đơn vị: nó là "Phân loại lớn" của cơ sở, nên đơn vị suy từ CÁC CƠ SỞ
      đang mang mảng ấy. Một mảng có cơ sở của cả hai nhà thì đứng ở CẢ HAI khối — cắt bớt là
      một bên khai mã mà bên kia không thấy, rồi tưởng mình chưa khai. */
+  /* ═════════════════════════════════════════════════════════════════════════════════
+   * MỖI KHỐI MỘT BẢNG MÃ RIÊNG — VÀ LUÔN ĐỦ BA, KỂ CẢ KHỐI CHƯA CÓ CƠ SỞ NÀO.
+   *
+   * Anh Thắng 21/09/2026: *"Chưa có TK nợ theo máy tự động"*, rồi chốt: *"mỗi khối 1 bảng mã
+   * tk riêng"*.
+   *
+   * 🔴 GOM THEO KHỐI, KHÔNG THEO CHUỖI ĐƠN VỊ. Một khối có nhiều tên đơn vị ("MTĐ", "MTD",
+   *    "POSH" cùng là máy tự động). Gom theo chuỗi là một khối bị xé thành hai bảng, mỗi bảng
+   *    một nửa số mảng — và kế toán điền mã vào một bảng rồi tưởng đã xong cả khối.
+   *
+   * 🔴 KHỐI CHƯA CÓ CƠ SỞ NÀO VẪN PHẢI CÓ BẢNG. Đúng cái anh vừa báo: không cơ sở nào khai
+   *    Máy tự động thì không có nhóm nào, không có nhóm thì không có bảng, không có bảng thì
+   *    không ai khai được — vòng luẩn quẩn y hệt cái ở `VHCP_DonVi::ds()`. Bày bảng rỗng kèm
+   *    một câu nói rõ VÌ SAO rỗng thì không ai phải đoán.
+   *
+   * ⚠️ NHÓM KHÔNG ÁNH XẠ ĐƯỢC KHỐI VẪN GIỮ, xếp cuối. Mảng còn mã trong sổ mà cơ sở đã xoá
+   *    nằm ở đó; bỏ nó là mã còn trong sổ mà không ai sửa được nữa, nhìn màn thì tưởng đã sạch.
+   * ═════════════════════════════════════════════════════════════════════════════════ */
   function _mxNhomDv(){
-    var theoDv={}, cuaMang={};
+    var theo={}, cuaMang={};
+    /* Khoá nhóm = MÃ KHỐI nếu đoán được, không thì chính chuỗi đơn vị. */
+    var khoa=function(dv){ return _khoiCuaDv(dv) || dv; };
     (CFG.coso||[]).forEach(function(x){
       var m=String(x.phanLoaiLon||'').trim()||String(x.ten||'').trim(); if(!m) return;
-      var dv=_dvChuan(x.donVi);
-      (cuaMang[m]=cuaMang[m]||{})[dv]=1;
+      (cuaMang[m]=cuaMang[m]||{})[khoa(_dvChuan(x.donVi))]=1;
     });
     /* Mảng chỉ còn trong bảng mã (cơ sở đã xoá/đổi tên) vẫn phải hiện, kèm mã của nó — giấu
        đi là mã còn trong sổ mà không ai sửa được, và nhìn màn thì tưởng đã sạch. */
     (CFG.tkNoMatrix||[]).forEach(function(x){
       var m=String(x.pll||'').trim(); if(!m||cuaMang[m]) return;
-      cuaMang[m]={'(chưa rõ đơn vị)':1};
+      cuaMang[m]={'(chưa rõ khối)':1};
     });
     Object.keys(cuaMang).forEach(function(m){
-      Object.keys(cuaMang[m]).forEach(function(dv){ (theoDv[dv]=theoDv[dv]||[]).push(m); });
+      Object.keys(cuaMang[m]).forEach(function(k){ (theo[k]=theo[k]||[]).push(m); });
     });
-    var ds=(BOOT.donVi||[]).slice();
-    Object.keys(theoDv).forEach(function(dv){ if(ds.indexOf(dv)<0) ds.push(dv); });
-    return ds.filter(function(dv){ return (theoDv[dv]||[]).length; })
-             .map(function(dv){ return { dv:dv, cols:theoDv[dv].sort() }; });
+    /* Ba khối đi trước, theo đúng thứ tự thanh khối — kể cả khối chưa có mảng nào. */
+    var ra=KHOI_DS.map(function(k){ return { dv:k.ma, khoi:k.ma, cols:(theo[k.ma]||[]).sort() }; });
+    Object.keys(theo).sort().forEach(function(k){
+      if(KHOI_DS.some(function(x){ return x.ma===k; })) return;
+      ra.push({ dv:k, khoi:'', cols:theo[k].sort() });
+    });
+    return ra;
   }
+
   /* Người này có được xem đơn vị ấy không. `BOOT.xemDonVi` là null nghĩa là XEM CẢ — không
      phải "không xem được gì". Hiểu ngược là màn trắng trơn cho chính Admin. */
+  /* ═══════════════════════════════════════════════════════════════════════════
+   * NGƯỜI NÀY CÓ ĐƯỢC XEM BẢNG MÃ CỦA NHÓM ẤY KHÔNG.
+   *
+   * 🔴 SO CẢ HAI CHIỀU: TÊN ĐƠN VỊ VÀ MÃ KHỐI. Từ 21/09/2026 nhóm bảng mã được gom theo
+   *    KHỐI (anh Thắng: *"mỗi khối 1 bảng mã tk riêng"*), nên khoá nhóm nay là `mtd` chứ không
+   *    còn là `POSH`. Còn `BOOT.xemDonVi` vẫn là danh sách TÊN ĐƠN VỊ — máy chủ dựng từ cột
+   *    Đơn vị của người dùng. So thẳng hai thứ ấy với nhau là kế toán khai "POSH" MẤT HẲN
+   *    bảng mã của mình — không một câu lỗi, và họ sẽ báo là "mất dữ liệu".
+   *
+   * ⚠️ DANH SÁCH RỖNG = XEM CẢ, không phải "không xem được gì". Hiểu ngược là màn trắng trơn
+   *    cho chính Admin — đã ghi ở `VHCP_DonVi::xem_duoc()`.
+   * ═══════════════════════════════════════════════════════════════════════════ */
   function _xemDuocDv(dv){
     var x=BOOT.xemDonVi;
     if(!x || !x.length) return true;
-    return x.map(function(v){return String(v).trim();}).indexOf(String(dv).trim())>=0;
+    var d=String(dv).trim(), kD=_khoiCuaDv(d)||d.toLowerCase();
+    return x.some(function(v){
+      var t=String(v).trim();
+      if(t===d) return true;
+      var kT=_khoiCuaDv(t)||t.toLowerCase();
+      return kT===kD;
+    });
   }
   /* HÀNG CỦA BẢNG THUỘC TÍNH (bảng trên). Mã tài khoản đã tách sang bảng dưới — anh Thắng
      10/09/2026: *"Sắp xếp theo chiều đứng cho dễ nhìn"*. Trước bản này mỗi mảng kinh doanh là
