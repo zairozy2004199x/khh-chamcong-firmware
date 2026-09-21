@@ -39,6 +39,7 @@ khẩu riêng. Bớt một chỗ giữ mật khẩu là bớt một chỗ có th
 | Hoá đơn đầu ra | Dán vào / xuất ra đúng 22 cột file VAT; gom theo thuế suất, khu vực, dịch vụ |
 | Hoá đơn đầu vào | VAT được khấu trừ, tờ khai GTGT, ngưỡng tiền mặt |
 | Công nợ | Phải thu / phải trả, tuổi nợ theo mốc, ghi trả từng đợt, tự ghép từ sao kê |
+| Hồ sơ | Sổ lưu chứng từ; dò nối với bút toán; bút toán nào chưa có giấy |
 | Pháp danh | Sổ hợp đồng thuê / NCC; cảnh báo sắp hết hạn; doanh thu chia sẻ |
 | Báo cáo | Cả kỳ trên một trang; xu hướng 12 tháng; tải CSV |
 | Nhật ký | Ai làm gì lúc nào; khoá sổ theo ngày; phục hồi bản ghi đã xoá |
@@ -180,6 +181,53 @@ Khác hoá đơn đầu ra (số do mình đánh nên duy nhất trong pháp nh�
 đầu vào do **bên bán** đánh. Hai nhà cung cấp cùng phát hành số `00000001` là
 bình thường. Chặn theo mình số hoá đơn thì nhà cung cấp thứ hai không nhập được
 hoá đơn hợp lệ của họ, nên `UNIQUE (cty, so_hd, mst)`.
+
+## Hồ sơ
+
+Sổ lưu chứng từ giấy. Trả lời hai câu, và câu thứ hai mới là câu khó:
+
+1. Chứng từ này mình có giữ không, file ở đâu?
+2. **Bút toán trong sổ kia đã có chứng từ lưu chưa?**
+
+Bản gốc (`routes/ho-so.js`, 1.497 dòng) chỉ trả lời được câu 1: một danh sách
+giấy tờ với ô đánh dấu "đã hạch toán" gõ tay, không nối với sổ sách nào. Ở đây
+plugin đã có sẵn hoá đơn đầu vào, đầu ra, chi phí và hợp đồng nên nối được thật
+— và câu 2 chính là câu kiểm toán sẽ hỏi.
+
+### Hai cột "đã hạch toán" và "đã nối" để riêng
+
+`đã hạch toán` là cờ kế toán tự bật. `đã nối` là máy tìm được đúng một bút toán
+mang số chứng từ đó trong sổ.
+
+Cố ý **không** suy cái này từ cái kia. Chúng có thể khác nhau một cách hợp lệ —
+hạch toán trên Misa ngoài hệ thống này chẳng hạn — nên màn hình có hẳn một thẻ
+số **"đánh dấu nhưng chưa nối"**. Với một sổ đối chiếu giấy với sổ, che mất chỗ
+lệch là bỏ mất chính công việc.
+
+### Dò nối
+
+Ghép theo **số chứng từ**, và chỉ khi trong sổ có **đúng một** bút toán mang số
+đó. Hai bút toán cùng số thì bỏ qua — nối nhầm còn tệ hơn không nối, vì bảng
+"bút toán chưa có chứng từ" sẽ báo là đã có, cho một bút toán thật ra chưa có
+giấy nào.
+
+Không xét số tiền: hồ sơ hay ghi số tròn còn sổ ghi số lẻ sau chiết khấu, bắt
+khớp cả tiền thì gần như không nối được gì. Số chứng từ đã đủ chặt khi nó duy
+nhất.
+
+### Hợp đồng nối được nhưng không vào bảng chiều ngược
+
+Màn hình Pháp danh đã đếm "chưa có bản đủ dấu" ngay trên chính hợp đồng. Trả
+lời cùng một câu ở hai nơi bằng hai cách đo thì sớm muộn hai chỗ nói khác nhau,
+và không ai biết bên nào đúng.
+
+### Những phần của bản gốc không mang sang
+
+`ho-so.js` còn có đồng bộ hoá đơn từ Google Drive, phí cảng Phú Quốc kèm tải
+ảnh, và một bảng doanh thu chia sẻ theo điểm theo tháng. Phần Drive bỏ vì cùng
+lý do với phần Sheet ở Pháp danh. Phí cảng Phú Quốc là một khoản chi cụ thể,
+ghi thẳng vào **Chi phí** với bộ phận riêng là đủ. Doanh thu chia sẻ đã có ở
+**Pháp danh**, làm lại lần nữa là hai nguồn sự thật.
 
 ## Pháp danh
 
@@ -460,6 +508,7 @@ php tools/kh-tai-chinh/tests/kiem-cong-no.php    # 80 phép thử
 php tools/kh-tai-chinh/tests/kiem-hoa-don-vao.php   # 65 phép thử
 php tools/kh-tai-chinh/tests/kiem-bao-cao.php    # 64 phép thử
 php tools/kh-tai-chinh/tests/kiem-phap-danh.php  # 79 phép thử
+php tools/kh-tai-chinh/tests/kiem-ho-so.php      # 64 phép thử
 ```
 
 `dong-goi.sh` chạy cả ba trước khi gói, hỏng một phép là không ra file zip.
@@ -499,6 +548,10 @@ php tools/kh-tai-chinh/tests/kiem-phap-danh.php  # 79 phép thử
   đúng mốc 60 ngày, 61 ngày, chưa điền hạn), và doanh thu chia sẻ: hợp đồng
   chưa gắn mã điểm phải ra 0 chứ không đoán; hợp đồng miễn vẫn hiện doanh thu
   nhưng phần chia bằng 0.
+* **kiem-ho-so** — phép dò nối: hai bút toán cùng số phải bỏ qua; gỡ nối rồi dò
+  lại phải nối lại đúng cái vừa gỡ; bút toán bị xoá thì nhãn nói thẳng chứ
+  không im. Và cờ hạch toán phải độc lập với việc nối được — bật cờ cho một hồ
+  sơ chưa nối phải làm số "lệch" tăng lên.
 
 Bộ giả lập **không thay được bản cài thật**: SQLite không phải MySQL, `dbDelta`
 bị bỏ qua và bảng được tạo tay, nên lỗi riêng của MySQL vẫn lọt. Nó bắt được hàm
@@ -508,7 +561,15 @@ hàng cũng có cột `cty`, nên MySQL báo "ambiguous column" và trang trắn
 
 ## Còn phải làm
 
-Các mảng chưa dựng lại: hồ sơ.
+**Mọi mảng của bản gốc đã dựng lại xong** (bản 1.0.0).
+
+Hai phần cố ý không mang sang: **đồng bộ Google Sheet** (Pháp danh) và **đồng
+bộ Google Drive** (Hồ sơ). Plugin không với tới hai nơi đó, và một đường nạp dữ
+liệu im lặng từ bên ngoài là thứ khó dò nhất khi số sai. Mọi màn hình đều có ô
+dán bảng thay thế.
+
+Vẫn đúng như từ đầu: bộ kiểm chạy trên **SQLite, không phải MySQL**. Lỗi riêng
+của MySQL vẫn lọt qua. Lần cài đầu tiên trên host thật mới là lần thử thật.
 
 Đối soát ở bản này là **một engine dùng chung** cho VietQR / Payoo / VNPay /
 Zalo / MoMo, thay vì mỗi cổng một trang riêng như bản gốc (3.722 + 2.180 dòng

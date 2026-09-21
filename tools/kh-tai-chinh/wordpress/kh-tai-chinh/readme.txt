@@ -1,7 +1,7 @@
 === Tài Chính K&H ===
 Requires at least: 5.6
 Requires PHP: 7.4
-Stable tag: 0.9.0
+Stable tag: 1.0.0
 License: GPL-2.0-or-later
 
 Theo dõi ngân hàng, giao dịch và đối soát cho CÔNG TY TNHH DỊCH VỤ VÀ GIẢI TRÍ K&H.
@@ -48,6 +48,9 @@ RAM; trên shared hosting cách đó không chạy nổi.
   chia theo mốc tuổi nợ 1–30 / 31–60 / 61–90 / trên 90 ngày, gom theo khách
   hàng và nhà cung cấp. Ghi trả từng đợt, hoặc tự ghép từ sao kê. Một sổ thanh
   toán duy nhất: còn nợ luôn bằng tổng chứng từ trừ tổng đã trả.
+* Hồ sơ — sổ lưu chứng từ giấy: có gì, file ở đâu, đã hạch toán chưa. Máy dò
+  nối chứng từ với bút toán trong sổ theo số chứng từ, và trả lời được câu
+  ngược lại: bút toán nào trong kỳ chưa có chứng từ lưu.
 * Pháp danh — sổ hợp đồng thuê gian hàng và hợp đồng nhà cung cấp. Cảnh báo
   hợp đồng sắp hết hạn hoặc đã quá hạn, đếm hợp đồng chưa có bản đủ dấu, và
   bảng doanh thu chia sẻ ghép với hoá đơn đầu ra qua mã điểm nội bộ.
@@ -75,4 +78,7 @@ Trang đặt noindex và bắt đăng nhập, người ngoài không xem đượ
 
 == Làm tiếp ==
 
-Hồ sơ.
+Mọi mảng của bản gốc đã dựng lại xong. Hai phần cố ý không mang sang: đồng bộ
+Google Sheet và đồng bộ Google Drive — plugin không với tới hai nơi đó, và một
+đường nạp dữ liệu im lặng từ bên ngoài là thứ khó dò nhất khi số sai. Mọi màn
+hình đều có ô dán bảng thay thế.

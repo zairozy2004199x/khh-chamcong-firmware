@@ -25,6 +25,7 @@ class KHTC_Trang {
 			case 'hoa-don-vao': self::hoa_don_vao(); break;
 			case 'cong-no':   self::cong_no();   break;
 			case 'phap-danh': self::phap_danh(); break;
+			case 'ho-so':     self::ho_so();     break;
 			case 'bao-cao':   self::bao_cao();   break;
 			case 'nhat-ky':   self::nhat_ky();   break;
 			case 'sao-luu':   self::sao_luu();   break;
@@ -1002,6 +1003,7 @@ class KHTC_Trang {
 			'hd_ra'     => 'Hoá đơn đầu ra',
 			'hd_vao'    => 'Hoá đơn đầu vào',
 			'hop_dong'  => 'Hợp đồng',
+			'ho_so'     => 'Hồ sơ',
 		);
 		foreach ( $dem as $t => $n ) {
 			printf( '<tr><td>%s</td><td class="so">%s</td></tr>', esc_html( $ten[ $t ] ?? $t ), esc_html( number_format( $n, 0, ',', '.' ) ) );
@@ -1302,7 +1304,7 @@ class KHTC_Trang {
 		}
 		echo '</select></label>';
 		echo '<label>Bảng<select name="bang"><option value="">— Tất cả —</option>';
-		foreach ( array( 'ngan_hang', 'giao_dich', 'doi_soat', 'ds_dong', 'chi_phi', 'hd_ra', 'hd_vao', 'hop_dong', 'thanh_toan' ) as $b ) {
+		foreach ( array( 'ngan_hang', 'giao_dich', 'doi_soat', 'ds_dong', 'chi_phi', 'hd_ra', 'hd_vao', 'hop_dong', 'ho_so', 'thanh_toan' ) as $b ) {
 			printf( '<option value="%s"%s>%s</option>', esc_attr( $b ), selected( $l['bang'], $b, false ), esc_html( KHTC_NhatKy::ten_bang( $b ) ) );
 		}
 		echo '</select></label>';
@@ -2334,6 +2336,222 @@ class KHTC_Trang {
 			}
 			echo '</tbody></table>';
 			self::phan_trang( 'phap-danh', array( 'trang' => $kq['trang'], 'so_trang' => $kq['so_trang'] ), array( 'loai' => $loai, 'tt' => $loc['trang_thai'], 'kv' => $loc['khu_vuc'], 'ht' => $loc['hinh_thuc'], 'tim' => $loc['tim'] ) );
+		}
+		echo '</div></div>';
+	}
+
+	// --------------------------------------------------------------- hồ sơ
+
+	public static function ho_so() {
+		KHTC_UI::nhan_doi_cty();
+		$bao_ok = '';
+		$bao_loi = '';
+
+		if ( isset( $_POST['khtc_them_hs'] ) && check_admin_referer( 'khtc_hs' ) ) {
+			$d = array();
+			foreach ( array( 'loai', 'so_ct', 'ngay', 'doi_tac', 'so_tien', 'ten_file', 'link_file', 'ghi_chu' ) as $k ) {
+				$d[ $k ] = sanitize_text_field( wp_unslash( $_POST[ $k ] ?? '' ) );
+			}
+			$d['da_hach_toan'] = ! empty( $_POST['da_hach_toan'] );
+			$kq = KHTC_HoSo::them( $d );
+			if ( is_wp_error( $kq ) ) {
+				$bao_loi = $kq->get_error_message();
+			} else {
+				KHTC_HoSo::do_noi( $kq );
+				$bao_ok = 'Đã lưu hồ sơ.';
+			}
+		}
+
+		if ( isset( $_POST['khtc_dan_hs'] ) && check_admin_referer( 'khtc_hs' ) ) {
+			$kq     = KHTC_HoSo::dan_hang_loat( wp_unslash( $_POST['bang_hs'] ?? '' ) );
+			$noi    = KHTC_HoSo::do_noi();
+			$bao_ok = sprintf( 'Đã nạp %d hồ sơ, nối được %d với bút toán trong sổ.', $kq['them'], $noi );
+			if ( $kq['loi'] ) {
+				$bao_loi = implode( ' · ', array_slice( $kq['loi'], 0, 5 ) )
+					. ( count( $kq['loi'] ) > 5 ? ' … và ' . ( count( $kq['loi'] ) - 5 ) . ' dòng nữa' : '' );
+			}
+		}
+
+		if ( isset( $_POST['khtc_do_noi'] ) && check_admin_referer( 'khtc_hs' ) ) {
+			$bao_ok = sprintf( 'Dò xong — nối được %d chứng từ.', KHTC_HoSo::do_noi() );
+		}
+
+		if ( isset( $_POST['khtc_ht_hs'] ) && check_admin_referer( 'khtc_hs' ) ) {
+			list( $id, $bat ) = array_pad( explode( ':', sanitize_text_field( wp_unslash( $_POST['khtc_ht_hs'] ) ) ), 2, '' );
+			$kq = KHTC_HoSo::dat_hach_toan( (int) $id, '1' === $bat );
+			if ( is_wp_error( $kq ) ) { $bao_loi = $kq->get_error_message(); } else { $bao_ok = 'Đã đổi trạng thái hạch toán.'; }
+		}
+
+		if ( isset( $_POST['khtc_go_noi'] ) && check_admin_referer( 'khtc_hs' ) ) {
+			KHTC_HoSo::go_noi( (int) $_POST['khtc_go_noi'] );
+			$bao_ok = 'Đã gỡ liên kết.';
+		}
+
+		if ( isset( $_POST['khtc_xoa_hs'] ) && check_admin_referer( 'khtc_hs' ) ) {
+			$kq = KHTC_HoSo::xoa( (int) $_POST['khtc_xoa_hs'] );
+			if ( is_wp_error( $kq ) ) { $bao_loi = $kq->get_error_message(); } else { $bao_ok = 'Đã xoá hồ sơ. Phục hồi được ở mục Nhật ký.'; }
+		}
+
+		list( $d1, $d2 ) = KHTC_UI::thang_nay();
+		$loc = array(
+			'tu'        => sanitize_text_field( wp_unslash( $_GET['tu'] ?? $d1 ) ),
+			'den'       => sanitize_text_field( wp_unslash( $_GET['den'] ?? $d2 ) ),
+			'loai'      => sanitize_text_field( wp_unslash( $_GET['lo'] ?? '' ) ),
+			'hach_toan' => isset( $_GET['ht'] ) ? sanitize_text_field( wp_unslash( $_GET['ht'] ) ) : '',
+			'da_noi'    => isset( $_GET['noi'] ) ? sanitize_text_field( wp_unslash( $_GET['noi'] ) ) : '',
+			'tim'       => sanitize_text_field( wp_unslash( $_GET['tim'] ?? '' ) ),
+			'trang'     => (int) ( $_GET['trang'] ?? 1 ),
+		);
+		$kq   = KHTC_HoSo::loc( $loc );
+		$nhan = KHTC_HoSo::loai();
+
+		echo '<div class="wrap khtc">';
+		KHTC_UI::dau_trang( 'Hồ sơ' );
+		KHTC_UI::thong_bao( 'ok', $bao_ok );
+		KHTC_UI::thong_bao( 'loi', $bao_loi );
+
+		KHTC_UI::the_so(
+			array(
+				array( 'Chứng từ trong kỳ', number_format( $kq['so_ct'], 0, ',', '.' ) ),
+				array( 'Đã nối với bút toán', number_format( $kq['da_noi'], 0, ',', '.' ), 'thu' ),
+				array( 'Đánh dấu đã hạch toán', number_format( $kq['da_ht'], 0, ',', '.' ) ),
+				array( 'Đánh dấu nhưng chưa nối', number_format( $kq['lech'], 0, ',', '.' ), $kq['lech'] ? 'chi' : '' ),
+			)
+		);
+		echo '<p class="khtc-sub"><strong>Đã hạch toán</strong> là cờ kế toán tự bật. <strong>Đã nối</strong> là máy tìm được đúng một bút toán mang số chứng từ đó trong sổ. Hai thứ này cố ý để riêng: chúng có thể khác nhau một cách hợp lệ (hạch toán trên Misa ngoài hệ thống này), nên màn hình chỉ ra chỗ lệch thay vì gộp lại — với một sổ đối chiếu giấy với sổ, che mất chỗ lệch là bỏ mất chính công việc.</p>';
+
+		// ---- lọc
+		printf( '<div class="khtc-panel"><h2>Lọc</h2><form method="get" action="%s"><div class="khtc-loc">', esc_url( self::url_form( 'ho-so' ) ) );
+		self::an_get( 'ho-so' );
+		printf( '<label>Từ ngày<input type="date" name="tu" value="%s"></label>', esc_attr( $loc['tu'] ) );
+		printf( '<label>Đến ngày<input type="date" name="den" value="%s"></label>', esc_attr( $loc['den'] ) );
+		echo '<label>Loại<select name="lo"><option value="">— Tất cả —</option>';
+		foreach ( $nhan as $k => $v ) {
+			printf( '<option value="%s"%s>%s</option>', esc_attr( $k ), selected( $loc['loai'], $k, false ), esc_html( $v ) );
+		}
+		echo '</select></label>';
+		echo '<label>Hạch toán<select name="ht"><option value="">— Cả hai —</option>';
+		printf( '<option value="1"%s>Đã đánh dấu</option>', selected( $loc['hach_toan'], '1', false ) );
+		printf( '<option value="0"%s>Chưa đánh dấu</option>', selected( $loc['hach_toan'], '0', false ) );
+		echo '</select></label>';
+		echo '<label>Nối với sổ<select name="noi"><option value="">— Cả hai —</option>';
+		printf( '<option value="1"%s>Đã nối</option>', selected( $loc['da_noi'], '1', false ) );
+		printf( '<option value="0"%s>Chưa nối</option>', selected( $loc['da_noi'], '0', false ) );
+		echo '</select></label>';
+		printf( '<label>Tìm số CT / đối tác / tên file<input type="search" name="tim" value="%s"></label>', esc_attr( $loc['tim'] ) );
+		echo '<button type="submit" class="button">Lọc</button>';
+		printf( '<a href="%s" class="button">Bỏ lọc</a>', esc_url( self::url( 'ho-so' ) ) );
+		echo '</div></form></div>';
+
+		// ---- thiếu chứng từ: chiều ngược
+		echo '<div class="khtc-panel"><h2>Bút toán chưa có chứng từ lưu</h2>';
+		echo '<p class="khtc-sub">Chiều ngược của bảng bên dưới: bảng kia hỏi “giấy này đã vào sổ chưa”, bảng này hỏi “số này đã có giấy chưa”. Đây là câu kiểm toán sẽ hỏi.</p>';
+		printf(
+			'<p class="khtc-sub">Hợp đồng không nằm trong bảng này: mục <a href="%s">Pháp danh</a> đã đếm “chưa có bản đủ dấu” ngay trên chính hợp đồng. Trả lời cùng một câu ở hai nơi bằng hai cách đo thì sớm muộn hai chỗ nói khác nhau.</p>',
+			esc_url( self::url( 'phap-danh' ) )
+		);
+		$co_thieu = false;
+		foreach ( KHTC_HoSo::noi_duoc() as $k => $n ) {
+			if ( empty( $n['nguoc'] ) ) { continue; }
+			$thieu = KHTC_HoSo::thieu_chung_tu( $k, $loc['tu'], $loc['den'] );
+			if ( ! $thieu ) { continue; }
+			$co_thieu = true;
+			printf(
+				'<h3 class="khtc-sub" style="margin:14px 0 6px">%s <span class="khtc-dem chi">%d chứng từ · %s</span></h3>',
+				esc_html( $nhan[ $k ] ),
+				count( $thieu ),
+				esc_html( KHTC_UI::tien( array_sum( array_map( function ( $r ) { return (int) $r->tien; }, $thieu ) ) ) )
+			);
+			echo '<table><thead><tr><th>Ngày</th><th>Số</th><th>Đối tác</th><th class="so">Số tiền</th></tr></thead><tbody>';
+			foreach ( $thieu as $r ) {
+				printf(
+					'<tr><td>%s</td><td>%s</td><td>%s</td><td class="so chi">%s</td></tr>',
+					esc_html( KHTC_UI::ngay( $r->ngay ) ),
+					esc_html( $r->so ? $r->so : '—' ),
+					esc_html( $r->ten ? $r->ten : '—' ),
+					esc_html( KHTC_UI::tien( $r->tien ) )
+				);
+			}
+			echo '</tbody></table>';
+		}
+		if ( ! $co_thieu ) {
+			echo '<div class="khtc-trong">Mọi bút toán trong kỳ đều đã có chứng từ lưu.</div>';
+		}
+		echo '<form method="post" style="margin-top:12px">';
+		wp_nonce_field( 'khtc_hs' );
+		echo '<button type="submit" name="khtc_do_noi" value="1" class="button">Dò nối lại toàn bộ</button>';
+		echo '</form>';
+		echo '<p class="khtc-sub">Dò nối chỉ ghép khi số chứng từ khớp và trong sổ chỉ có <strong>đúng một</strong> bút toán mang số đó. Hai bút toán cùng số thì bỏ qua — nối nhầm còn tệ hơn không nối, vì bảng trên sẽ báo “đã có chứng từ” cho một bút toán thật ra chưa có.</p></div>';
+
+		// ---- dán bảng
+		echo '<div class="khtc-panel"><h2>Dán bảng hồ sơ</h2><form method="post">';
+		wp_nonce_field( 'khtc_hs' );
+		echo '<p class="khtc-sub">Mỗi dòng: <code>Loại · Số chứng từ · Ngày · Đối tác · Số tiền · Tên file · Link</code>. Từ cột 4 trở đi không bắt buộc. Loại ghi đúng tên như trong ô chọn bên dưới, ghi sai thì vào nhóm “Khác”.</p>';
+		echo '<textarea name="bang_hs" rows="6" placeholder="Hoá đơn đầu vào&#9;00012345&#9;05/08/2026&#9;EVN HCMC&#9;19.872.000&#9;hd-evn-t7.pdf&#9;https://..."></textarea>';
+		echo '<p><button type="submit" name="khtc_dan_hs" value="1" class="button button-primary">Nạp và dò nối</button></p></form></div>';
+
+		// ---- thêm một hồ sơ
+		echo '<div class="khtc-panel"><h2>Thêm một chứng từ</h2><form method="post"><div class="khtc-loc">';
+		wp_nonce_field( 'khtc_hs' );
+		echo '<label>Loại<select name="loai">';
+		foreach ( $nhan as $k => $v ) { printf( '<option value="%s">%s</option>', esc_attr( $k ), esc_html( $v ) ); }
+		echo '</select></label>';
+		echo '<label>Số chứng từ<input type="text" name="so_ct"></label>';
+		echo '<label>Ngày<input type="date" name="ngay" required></label>';
+		echo '<label>Đối tác<input type="text" name="doi_tac" style="min-width:180px"></label>';
+		echo '<label>Số tiền<input type="text" name="so_tien"></label>';
+		echo '<label>Tên file<input type="text" name="ten_file" style="min-width:160px"></label>';
+		echo '<label>Link file<input type="url" name="link_file" style="min-width:180px"></label>';
+		echo '<label>Đã hạch toán<input type="checkbox" name="da_hach_toan" value="1"></label>';
+		echo '<button type="submit" name="khtc_them_hs" value="1" class="button button-primary">Lưu</button>';
+		echo '</div><p class="khtc-sub">Lưu xong máy tự dò nối ngay với bút toán mang cùng số chứng từ.</p></form></div>';
+
+		// ---- danh sách
+		echo '<div class="khtc-panel"><h2>Sổ lưu chứng từ</h2>';
+		if ( ! $kq['rows'] ) {
+			echo '<div class="khtc-trong">Không có chứng từ nào khớp bộ lọc.</div>';
+		} else {
+			echo '<table><thead><tr><th>Ngày</th><th>Loại</th><th>Số CT</th><th>Đối tác</th><th class="so">Số tiền</th><th>File</th><th>Nối với sổ</th><th>Hạch toán</th><th></th></tr></thead><tbody>';
+			foreach ( $kq['rows'] as $h ) {
+				echo '<tr>';
+				printf(
+					'<td>%s</td><td>%s</td><td>%s</td><td>%s</td><td class="so">%s</td>',
+					esc_html( KHTC_UI::ngay( $h->ngay ) ),
+					esc_html( $nhan[ $h->loai ] ?? $h->loai ),
+					esc_html( $h->so_ct ? $h->so_ct : '—' ),
+					esc_html( $h->doi_tac ? $h->doi_tac : '—' ),
+					esc_html( $h->so_tien ? KHTC_UI::tien( $h->so_tien ) : '' )
+				);
+				if ( $h->link_file ) {
+					printf( '<td><a href="%s" target="_blank" rel="noopener">%s</a></td>', esc_url( $h->link_file ), esc_html( $h->ten_file ? $h->ten_file : 'Mở' ) );
+				} else {
+					printf( '<td>%s</td>', esc_html( $h->ten_file ? $h->ten_file : '—' ) );
+				}
+				if ( $h->gan_id ) {
+					echo '<td class="thu">' . esc_html( KHTC_HoSo::nhan_gan( $h ) );
+					echo ' <form method="post" style="display:inline">';
+					wp_nonce_field( 'khtc_hs' );
+					printf( '<button type="submit" name="khtc_go_noi" value="%d" class="button button-small">Gỡ</button>', (int) $h->id );
+					echo '</form></td>';
+				} else {
+					echo '<td class="khtc-sub">chưa nối</td>';
+				}
+				echo '<td><form method="post">';
+				wp_nonce_field( 'khtc_hs' );
+				if ( $h->da_hach_toan ) {
+					printf( '<button type="submit" name="khtc_ht_hs" value="%d:0" class="button button-small">Đã — bỏ đánh dấu</button>', (int) $h->id );
+					if ( ! $h->gan_id ) { echo '<div class="chi khtc-sub">chưa nối được với bút toán nào</div>'; }
+				} else {
+					printf( '<button type="submit" name="khtc_ht_hs" value="%d:1" class="button button-small">Chưa — đánh dấu</button>', (int) $h->id );
+				}
+				echo '</form></td>';
+				echo '<td><form method="post" onsubmit="return confirm(\'Xoá chứng từ này khỏi sổ hồ sơ?\')">';
+				wp_nonce_field( 'khtc_hs' );
+				printf( '<button type="submit" name="khtc_xoa_hs" value="%d" class="button button-small">Xoá</button>', (int) $h->id );
+				echo '</form></td></tr>';
+			}
+			echo '</tbody></table>';
+			self::phan_trang( 'ho-so', array( 'trang' => $kq['trang'], 'so_trang' => $kq['so_trang'] ), array( 'tu' => $loc['tu'], 'den' => $loc['den'], 'lo' => $loc['loai'], 'ht' => $loc['hach_toan'], 'noi' => $loc['da_noi'], 'tim' => $loc['tim'] ) );
 		}
 		echo '</div></div>';
 	}

@@ -10,7 +10,7 @@ defined( 'ABSPATH' ) || exit;
 class KHTC_DB {
 
 	/** Tăng số này mỗi lần đổi cấu trúc bảng thì bản đang chạy tự nâng cấp. */
-	const SCHEMA = 8;
+	const SCHEMA = 9;
 
 	public static function bang( $ten ) {
 		global $wpdb;
@@ -32,6 +32,7 @@ class KHTC_DB {
 		$thanh_toan = self::bang( 'thanh_toan' );
 		$hd_vao    = self::bang( 'hd_vao' );
 		$hop_dong  = self::bang( 'hop_dong' );
+		$ho_so     = self::bang( 'ho_so' );
 
 		// so_du_dau = số dư TÍNH ĐẾN ngay_dau; giao dịch trước ngày đó coi như đã
 		// gộp sẵn vào số dư này, không cộng lại lần nữa (giữ đúng cách bản gốc tính).
@@ -289,6 +290,34 @@ class KHTC_DB {
 				KEY cty_loai (cty, loai),
 				KEY cty_het_han (cty, ngay_het_han),
 				KEY ma_diem (ma_diem)
+			) $collate;"
+		);
+
+		// Sổ lưu chứng từ. gan_bang + gan_id trỏ sang bút toán trong một sổ
+		// khác; chỉ mục (gan_bang, gan_id) gánh câu hỏi ngược "bút toán này đã
+		// có chứng từ chưa", vốn là một LEFT JOIN chạy trên cả kỳ.
+		dbDelta(
+			"CREATE TABLE $ho_so (
+				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+				cty VARCHAR(20) NOT NULL DEFAULT 'kh_cu',
+				loai VARCHAR(20) NOT NULL DEFAULT 'khac',
+				so_ct VARCHAR(120) NOT NULL DEFAULT '',
+				ngay DATE NOT NULL,
+				doi_tac VARCHAR(190) NOT NULL DEFAULT '',
+				so_tien BIGINT NOT NULL DEFAULT 0,
+				ten_file VARCHAR(190) NOT NULL DEFAULT '',
+				link_file TEXT NULL,
+				gan_bang VARCHAR(20) NOT NULL DEFAULT '',
+				gan_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+				da_hach_toan TINYINT NOT NULL DEFAULT 0,
+				ghi_chu TEXT NULL,
+				tao_luc DATETIME NOT NULL,
+				tao_boi VARCHAR(120) NOT NULL DEFAULT '',
+				PRIMARY KEY (id),
+				KEY cty_ngay (cty, ngay),
+				KEY cty_loai (cty, loai),
+				KEY gan (gan_bang, gan_id),
+				KEY so_ct (so_ct)
 			) $collate;"
 		);
 
