@@ -77,7 +77,7 @@ class VHCC_DB {
 		return $t ? $t : '';
 	}
 
-	const SCHEMA_VERSION = '2.18.0';
+	const SCHEMA_VERSION = '2.19.0';
 
 	public static function t( $name ) {
 		global $wpdb;
@@ -1160,12 +1160,25 @@ class VHCC_DB {
 		      cuốn sổ đọc lại được, chứ không phải một danh sách trỏ vào hồ sơ hiện tại.
 		   ⚠️ `da_xoa` = xoá MỀM. Chỗ trống có ghi chú giữ được mạch hội thoại; xoá hẳn thì câu
 		      trả lời phía dưới treo lơ lửng. */
+		/* ĐÍNH KÈM (21/09/2026) — `tep` là đường TƯƠNG ĐỐI trong uploads; tên trên đĩa là chuỗi
+		   ngẫu nhiên, còn `tep_ten` giữ tên người dùng đặt CHỈ để hiện ra.
+		   ⚠️ Tệp KHÔNG phục vụ thẳng từ uploads — đi qua `VHCC_Chat::xem_tep()`, nơi hỏi đúng
+		      phép gác của phòng. Xem khối chú thích ở đó.
+		   🔴 CHÚ THÍCH ĐỂ NGOÀI KHỐI KHAI BẢNG. Bản đầu nhét nó vào giữa hai dòng cột, và bộ dịch
+		      MySQL -> SQLite của bệ đỡ thử NUỐT LUÔN cột ngay sau chú thích: bảng dựng ra thiếu
+		      cột `tep`, và mọi lượt gửi tệp chết với "no column named tep". Trên MySQL thật thì
+		      không sao — tức là một lỗi chỉ hiện ở bộ thử, và cũng chỉ vì chú thích. Cùng lý do
+		      với khối `cham_cong` ở trên (ở đó là dấu nháy kép). */
 		$b['chat_tin'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
 			phong VARCHAR(190) NOT NULL,
 			ma_nv VARCHAR(40) NOT NULL,
 			ho_ten VARCHAR(190) NOT NULL DEFAULT '',
 			chu VARCHAR(1000) NOT NULL DEFAULT '',
+			tep VARCHAR(190) NOT NULL DEFAULT '',
+			tep_ten VARCHAR(190) NOT NULL DEFAULT '',
+			tep_loai VARCHAR(10) NOT NULL DEFAULT '',
+			tep_co INT NOT NULL DEFAULT 0,
 			da_xoa TINYINT(1) NOT NULL DEFAULT 0,
 			tao_luc DATETIME NULL,
 			PRIMARY KEY  (id),

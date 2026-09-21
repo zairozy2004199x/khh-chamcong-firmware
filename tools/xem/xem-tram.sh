@@ -31,7 +31,11 @@ rm -rf "${RA:?}"/*.png
 rm -f "$SO"
 
 echo "── Dựng máy chủ xem trước (cổng $CONG) ────────────────────────"
-VHCC_STUB_DB="$SO" VHCC_STUB_HOME="http://127.0.0.1:$CONG" \
+# 🔴 NHIỀU LUỒNG. Máy chủ sẵn có của PHP mặc định xử ĐÚNG MỘT lượt một lúc — và trang trạm thì
+# vừa hỏi tin chat mỗi 6 giây, vừa tải ảnh đính kèm, vừa hỏi chuông. Lượt này chờ lượt kia, và
+# thẻ <img> bỏ cuộc: ảnh hiện ra một ô vỡ. Đã mất một lượt chụp để tìm ra, và suýt đi sửa nhầm
+# phần phục vụ tệp — vốn chạy đúng (curl thẳng vào nó trả 200 kèm image/png).
+PHP_CLI_SERVER_WORKERS=4 VHCC_STUB_DB="$SO" VHCC_STUB_HOME="http://127.0.0.1:$CONG" \
   php -S "127.0.0.1:$CONG" tools/xem/may-chu-tram.php >"${TMPDIR:-/tmp}/vhcc-xem-tram.log" 2>&1 &
 PID=$!
 # Dừng máy chủ dù thoát kiểu gì — kể cả khi Chromium chết giữa chừng. Bỏ dòng này là để lại

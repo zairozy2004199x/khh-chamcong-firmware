@@ -275,12 +275,126 @@ $chua = 0;
 foreach ( VHCC_Chat::rieng_cua( $A2 ) as $x ) { $chua += (int) $x['chuaDoc']; }
 t( 'đọc xong thì về 0', 0 === $chua, VHCC_Chat::rieng_cua( $A2 ) );
 
-/* ═════════════════════════════════════════════ 9. CỬA TRẠM ĐI QUA GÁC CỦA LỚP */
+/* ═══════════════════════════════════ 9. ĐÍNH KÈM ẢNH VÀ TỆP (anh Thắng 21/09/2026) */
+
+/* Một tấm PNG 1x1 thật — phải là ảnh THẬT, vì `luu_tep()` đọc nội dung chứ không tin cái đuôi. */
+$PNG = base64_decode(
+	'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==' );
+$b64 = function ( $nhi ) { return base64_encode( $nhi ); };
+
+$r = VHCC_Chat::gui( $A1, $CS_A, 'Ảnh ca sáng', $b64( $PNG ), 'ca-sang.png' );
+t( 'gửi được tin kèm ảnh', ! empty( $r['ok'] ), $r );
+$id_anh = (int) $r['id'];
+
+$d = VHCC_Chat::ds( $A1, $CS_A );
+$tin_anh = null;
+foreach ( $d['ds'] as $x ) { if ( (int) $x['id'] === $id_anh ) { $tin_anh = $x; } }
+t( 'tin mang theo thông tin tệp', $tin_anh && ! empty( $tin_anh['tep'] ), $tin_anh );
+t( '   biết đó là ảnh', $tin_anh && ! empty( $tin_anh['tep']['anh'] ), $tin_anh );
+t( '   giữ tên gốc để hiện', $tin_anh && 'ca-sang.png' === $tin_anh['tep']['ten'], $tin_anh );
+t( '   và biết kích thước', $tin_anh && (int) $tin_anh['tep']['co'] === strlen( $PNG ), $tin_anh );
+
+/* Gửi MỖI ảnh, không gõ chữ — chuyện thường, không được chối. */
+t( '🔴 gửi mỗi tệp không kèm chữ vẫn được',
+	! empty( VHCC_Chat::gui( $A1, $CS_A, '', $b64( $PNG ), 'khong-loi.png' )['ok'] ) );
+
+/* 🔴 SVG BỊ CHỐI, DÙ NÓ LÀ ẢNH. Tệp SVG chứa được `<script>`; phục vụ nó inline là mở một lỗ
+   chèn mã ngay trong tên miền công ty — và nó lọt qua mọi phép kiểm "có phải ảnh không" viết
+   theo kiểu thông thường. */
+$svg = '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>';
+t( '🔴 CHỐI tệp .svg', empty( VHCC_Chat::gui( $A1, $CS_A, 'x', $b64( $svg ), 'a.svg' )['ok'] ) );
+/* 🔴 VÀ CANH THẲNG DANH SÁCH. Phép thử ngay trên KHÔNG ĐỦ, và đã phá thử để biết: thêm `svg`
+   vào danh sách nhận thì nó VẪN XANH — vì PHP không đọc nổi SVG như một tấm ảnh nên phép kiểm
+   nội dung tình cờ chối hộ. Một phép thử xanh nhờ lý do khác là một phép thử không canh gì cả.
+   `svg` phải KHÔNG BAO GIỜ có trong danh sách, dù phép kiểm nội dung có nói gì. */
+t( '🔴 `svg` KHÔNG có trong danh sách kiểu tệp nhận',
+	! array_key_exists( 'svg', VHCC_Chat::TEP_KIEU ), array_keys( VHCC_Chat::TEP_KIEU ) );
+foreach ( array( 'html', 'htm', 'php', 'js', 'xml', 'xhtml' ) as $cam_t ) {
+	t( '🔴 `' . $cam_t . '` KHÔNG có trong danh sách', ! array_key_exists( $cam_t, VHCC_Chat::TEP_KIEU ) );
+}
+t( '🔴 CHỐI tệp .html', empty( VHCC_Chat::gui( $A1, $CS_A, 'x', $b64( '<h1>hi' ), 'a.html' )['ok'] ) );
+t( '🔴 CHỐI tệp .php', empty( VHCC_Chat::gui( $A1, $CS_A, 'x', $b64( '<?php echo 1;' ), 'a.php' )['ok'] ) );
+t( '🔴 CHỐI tệp không đuôi', empty( VHCC_Chat::gui( $A1, $CS_A, 'x', $b64( 'abcdefgh' ), 'abc' )['ok'] ) );
+
+/* 🔴 ĐỔI ĐUÔI KHÔNG LỪA ĐƯỢC. Một tệp .html đổi tên thành .png lọt qua phép kiểm đuôi, nhưng
+   `getimagesizefromstring()` đọc chính nội dung nên nó không bị lừa. */
+$r = VHCC_Chat::gui( $A1, $CS_A, 'x', $b64( '<html><script>alert(1)</script>' ), 'gia.png' );
+t( '🔴 tệp khai là ảnh mà nội dung không phải ảnh -> CHỐI', empty( $r['ok'] ), $r );
+t( '   và câu chối nói đúng lý do',
+	! empty( $r['error'] ) && false !== mb_strpos( $r['error'], 'không phải ảnh' ), $r );
+
+/* Tệp tài liệu thì nhận, và KHÔNG bị coi là ảnh. */
+$r = VHCC_Chat::gui( $A1, $CS_A, 'Bảng kê', $b64( "cot1,cot2\n1,2\n" ), 'ke.csv' );
+t( 'nhận tệp csv', ! empty( $r['ok'] ), $r );
+$d = VHCC_Chat::ds( $A1, $CS_A );
+$tin_csv = null;
+foreach ( $d['ds'] as $x ) { if ( (int) $x['id'] === (int) $r['id'] ) { $tin_csv = $x; } }
+t( '🔴 csv KHÔNG được đánh dấu là ảnh (nó sẽ tải về, không hiện inline)',
+	$tin_csv && empty( $tin_csv['tep']['anh'] ), $tin_csv );
+
+/* Quá lớn thì chối, kèm câu nói rõ. */
+$r = VHCC_Chat::gui( $A1, $CS_A, 'x',
+	$b64( str_repeat( 'a', VHCC_Chat::TEP_TOI_DA + 10 ) ), 'to.txt' );
+t( 'tệp quá lớn bị chối', empty( $r['ok'] ), $r );
+t( '   và nói rõ giới hạn', ! empty( $r['error'] ) && false !== mb_strpos( $r['error'], 'MB' ), $r );
+
+/* ⚠️ TÊN NGƯỜI DÙNG ĐẶT KHÔNG BAO GIỜ CHẠM TỚI ĐĨA. `../../wp-config.php` là một cái tên hợp
+   lệ với người dùng. */
+$r = VHCC_Chat::gui( $A1, $CS_A, 'x', $b64( $PNG ), '../../../evil.png' );
+t( 'tên có ../ vẫn gửi được (tên chỉ để hiện)', ! empty( $r['ok'] ), $r );
+$hang_t = $wpdb->get_row( $wpdb->prepare( 'SELECT tep, tep_ten FROM ' . VHCC_DB::t( 'chat_tin' )
+	. ' WHERE id=%d', (int) $r['id'] ), ARRAY_A );
+t( '🔴 đường trên đĩa KHÔNG chứa ../', false === strpos( (string) $hang_t['tep'], '..' ), $hang_t );
+t( '🔴 tên trên đĩa là chuỗi ngẫu nhiên, không phải tên người đặt',
+	1 === preg_match( '#^vhcc-chat/\d{4}-\d{2}/[0-9a-f]{32}\.png$#', (string) $hang_t['tep'] ),
+	$hang_t );
+t( '   tên gốc đã bị làm sạch', false === strpos( (string) $hang_t['tep_ten'], '/' ), $hang_t );
+
+/* 🔴 XOÁ TIN THÌ XOÁ CẢ TỆP. Đánh dấu đã xoá mà để tệp nằm lại là người đã bấm xoá vẫn còn cái
+   ảnh của mình trên máy chủ. */
+$r = VHCC_Chat::gui( $A1, $CS_A, 'sắp xoá', $b64( $PNG ), 'sap-xoa.png' );
+$id_xoa = (int) $r['id'];
+$duong_xoa = (string) $wpdb->get_var( $wpdb->prepare( 'SELECT tep FROM ' . VHCC_DB::t( 'chat_tin' )
+	. ' WHERE id=%d', $id_xoa ) );
+$up_t = wp_upload_dir();
+t( 'tệp có thật trên đĩa', file_exists( $up_t['basedir'] . '/' . $duong_xoa ), $duong_xoa );
+VHCC_Chat::xoa( $A1, $id_xoa );
+t( '🔴 xoá tin -> tệp biến mất khỏi đĩa',
+	! file_exists( $up_t['basedir'] . '/' . $duong_xoa ), $duong_xoa );
+$d = VHCC_Chat::ds( $A1, $CS_A );
+foreach ( $d['ds'] as $x ) {
+	if ( (int) $x['id'] === $id_xoa ) {
+		t( '   và tin không còn trỏ tới tệp nào', null === $x['tep'], $x );
+	}
+}
+
+/* ═══════════════════════════ 10. TỆP CHỈ NGƯỜI TRONG PHÒNG MỚI XEM ĐƯỢC */
+
+/* 🔴 ĐÂY LÀ CHỖ DỄ BỎ QUÊN NHẤT. Phòng thì khoá, mà nếu tệp nằm ở một địa chỉ công khai trong
+   `uploads` thì nội dung trong phòng để ngoài cửa — cái gác vừa dựng thành vô nghĩa. */
+$src_c = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-chat.php' );
+t( 'có hàm phục vụ tệp riêng', false !== strpos( $src_c, 'function xem_tep' ) );
+$i_x = strpos( $src_c, 'public static function xem_tep' );
+$khoi_x = substr( $src_c, $i_x, 1800 );
+t( '🔴 phục vụ tệp có hỏi `duoc_vao()`', false !== strpos( $khoi_x, 'self::duoc_vao(' ), $khoi_x );
+t( '🔴 và hỏi TRƯỚC khi đọc đĩa',
+	strpos( $khoi_x, 'duoc_vao(' ) < strpos( $khoi_x, 'readfile(' ), $khoi_x );
+t( '🔴 chốt đường dẫn bằng realpath (chặn ../)', false !== strpos( $khoi_x, 'realpath(' ) );
+t( '🔴 chỉ ảnh mới inline, còn lại attachment',
+	false !== strpos( $khoi_x, 'attachment' ) && false !== strpos( $khoi_x, 'inline' ), $khoi_x );
+t( '⚠️ có nosniff (trình duyệt thôi tự đoán kiểu tệp)',
+	false !== strpos( $khoi_x, 'nosniff' ), $khoi_x );
+/* Danh sách kiểu tệp phải là ALLOWLIST cố định, không suy từ tên tệp. */
+t( '🔴 kiểu nội dung lấy từ bảng cố định, không từ lời khai của client',
+	false !== strpos( $src_c, 'const TEP_KIEU' )
+	&& false === strpos( $src_c, 'mime_content_type' ), $src_c ? '' : '' );
+
+/* ═════════════════════════════════════════════ 11. CỬA TRẠM ĐI QUA GÁC CỦA LỚP */
 
 /* 🔴 Viết một phép kiểm quyền ngay tại cổng là dựng bản thứ hai của một luật đã có, và hai bản
    ấy sẽ lệch. Cổng phải uỷ thẳng cho lớp. */
 $src = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-tram.php' );
-foreach ( array( 'chat_phong', 'chat_ds', 'chat_gui', 'chat_xoa', 'chat_mo', 'danhba' ) as $cua ) {
+foreach ( array( 'chat_phong', 'chat_ds', 'chat_gui', 'chat_xoa', 'chat_mo', 'chat_tep', 'danhba' ) as $cua ) {
 	t( 'cổng có cửa `' . $cua . '`', false !== strpos( $src, "'" . $cua . "' === \$viec" ) );
 }
 $i_c = strpos( $src, "'chat_ds' === \$viec" );
@@ -296,6 +410,30 @@ $khoi_m = substr( $src, $i_m, 700 );
 t( '🔴 cửa chat_mo tự dựng khoá từ MÃ, không nhận khoá từ client',
 	false !== strpos( $khoi_m, 'VHCC_Chat::phong_rieng(' )
 	&& false === strpos( $khoi_m, "\$b['phong']" ), $khoi_m );
+
+/* 🔴 CỬA XEM TỆP PHẢI NẰM TRÊN DÒNG GIẢI THẺ CHUNG.
+   `than()` chỉ đọc thân yêu cầu, mà `<img src>` không gửi được thân. Để nhánh ấy ở dưới thì
+   cổng chối trước khi tới nó và mọi tấm ảnh trong chat hiện ra một ô vỡ — đã viết sai đúng như
+   vậy một lần, và không phép thử nào cũ bắt được vì phần PHP vẫn đúng. */
+$i_tep = strpos( $src, "'chat_tep' === \$viec" );
+$i_the = strpos( $src, "\$u = self::nguoi( isset( \$b['token'] )" );
+t( 'cổng có cửa xem tệp', false !== $i_tep );
+t( '🔴 cửa xem tệp nằm TRÊN dòng giải thẻ chung', $i_tep && $i_the && $i_tep < $i_the,
+	'tep=' . (int) $i_tep . ' the=' . (int) $i_the );
+/* ⚠️ Và CHỈ cửa ấy nhận thẻ qua `?token=`. Nới cho cả cổng là đưa thẻ phiên vào thanh địa chỉ
+   của mọi lượt gọi — nhật ký máy chủ, lịch sử trình duyệt, tiêu đề Referer. */
+/* ⚠️ Đếm trên bản ĐÃ GỠ CHÚ THÍCH. Bản đầu đếm trên văn bản thô và ra 3 — hai trong số đó nằm
+   trong chính khối chú thích giải thích vì sao chỉ được có một. Lần thứ ba trong dự án này một
+   phép thử bắt nhầm chữ trong chú thích; đếm thô là một thói quen phải bỏ. */
+/* ⚠️ Đếm DÒNG, không đếm lần xuất hiện: một dòng dùng nó hai lần (`isset()` rồi `wp_unslash()`)
+   là bình thường, mà đếm lần thì ra 2 và phép thử đỏ oan. Thứ cần canh là "có bao nhiêu CHỖ
+   trong cổng đọc thẻ từ thanh địa chỉ", tức là bao nhiêu dòng. */
+$src_ma = preg_replace( '#/\*.*?\*/#s', '', $src );
+$dong_get = 0;
+foreach ( explode( "\n", $src_ma ) as $d_x ) {
+	if ( false !== strpos( $d_x, "\$_GET['token']" ) ) { $dong_get++; }
+}
+t( '🔴 chỉ MỘT dòng trong cổng đọc token từ $_GET', 1 === $dong_get, $dong_get );
 
 echo "\n";
 if ( $truot ) {

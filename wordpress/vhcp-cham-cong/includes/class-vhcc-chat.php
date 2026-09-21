@@ -137,11 +137,21 @@ class VHCC_Chat {
 			$tin = $wpdb->get_row( $wpdb->prepare(
 				"SELECT ho_ten, chu, tao_luc, ma_nv, da_xoa FROM $bt WHERE phong=%s ORDER BY id DESC LIMIT 1",
 				$p ), ARRAY_A );
-			/* Tên người kia lấy từ chính mấy tin đã có, không tra hồ sơ: người nghỉ việc vẫn
-			   hiện đúng tên trong danh sách cuộc nói chuyện cũ. */
+			/* TÊN NGƯỜI KIA — ba nấc, đúng thứ tự này.
+			   1. Tên trong chính mấy tin họ đã gửi: người nghỉ việc hay đổi tên vẫn hiện đúng
+			      cái tên lúc nhắn, nên cuộc nói chuyện cũ đọc lại vẫn khớp.
+			   2. Chưa nhắn câu nào thì tra hồ sơ.
+			   🔴 Bản đầu THIẾU nấc 2, và anh Thắng chụp lại đúng cảnh ấy 21/09/2026: mở một cuộc
+			      mình vừa nhắn trước mà người kia chưa trả lời, tiêu đề hiện `MNNV1CTY0002` —
+			      một dãy mã, không phải một cái tên. Đó là cảnh THƯỜNG GẶP NHẤT của tính năng
+			      này (nhắn trước rồi chờ), chứ không phải trường hợp hiếm. */
 			$ten_kia = (string) $wpdb->get_var( $wpdb->prepare(
 				"SELECT ho_ten FROM $bt WHERE phong=%s AND ma_nv=%s ORDER BY id DESC LIMIT 1",
 				$p, $kia ) );
+			if ( '' === $ten_kia ) {
+				$ten_kia = (string) $wpdb->get_var( $wpdb->prepare(
+					'SELECT ho_ten FROM ' . VHCC_DB::t( 'nhan_vien' ) . ' WHERE ma_nv=%s', $kia ) );
+			}
 
 			$ra[] = array(
 				'phong'   => $p,
@@ -149,7 +159,9 @@ class VHCC_Chat {
 				'maKia'   => $kia,
 				'tenKia'  => ( '' !== $ten_kia ) ? $ten_kia : $kia,
 				'chuaDoc' => $chua,
-				'cuoi'    => ( $tin && empty( $tin['da_xoa'] ) ) ? (string) $tin['chu'] : '',
+				'cuoi'    => ( $tin && empty( $tin['da_xoa'] ) )
+					? ( '' !== (string) $tin['chu'] ? (string) $tin['chu'] : '[tệp đính kèm]' )
+					: '',
 				'luc'     => $tin ? (string) $tin['tao_luc'] : '',
 			);
 		}
@@ -307,6 +319,15 @@ class VHCC_Chat {
 				   trả lời một câu không còn tồn tại thì không hiểu chuyện gì. */
 				'chu'    => $xoa ? '' : (string) $x['chu'],
 				'daXoa'  => $xoa,
+				/* Tệp của tin đã xoá KHÔNG trả về — xoá tin mà vẫn còn cái ảnh treo đó thì việc
+				   xoá chẳng còn nghĩa gì. */
+				'tep'    => ( $xoa || '' === (string) $x['tep'] ) ? null : array(
+					'ten'  => (string) $x['tep_ten'],
+					'loai' => (string) $x['tep_loai'],
+					'co'   => (int) $x['tep_co'],
+					'anh'  => isset( self::TEP_KIEU[ (string) $x['tep_loai'] ] )
+						&& self::TEP_KIEU[ (string) $x['tep_loai'] ][1],
+				),
 				'luc'    => (string) $x['tao_luc'],
 				'cuaToi' => ( 0 === strcasecmp( (string) $x['ma_nv'], $ma ) ),
 			);
@@ -316,9 +337,176 @@ class VHCC_Chat {
 		return array( 'ok' => true, 'coSo' => $c, 'ds' => $ds );
 	}
 
+	/* ============================================================================ đính kèm
+
+	   Anh Thắng 21/09/2026: *"chat thêm đính kèm ảnh và tệp"*.
+
+	   =============================================================================================
+	   🔴 TỆP ĐÍNH KÈM KHÔNG ĐƯỢC NẰM Ở MỘT ĐỊA CHỈ AI CŨNG MỞ ĐƯỢC
+	   =============================================================================================
+	   Ảnh chấm công nằm thẳng trong `wp-content/uploads` và ai có đường dẫn cũng xem được — chấp
+	   nhận được, vì đó là ảnh khuôn mặt chụp tại quầy, và tên tệp thì đoán ra được từ mã NV +
+	   ngày giờ. Tệp chat thì KHÁC HẲN: nó là thứ người ta cố tình gửi riêng cho một người.
+	   Đặt nó vào một địa chỉ công khai là bỏ luôn cái gác vừa dựng ở trên — phòng thì khoá, mà
+	   nội dung trong phòng thì để ngoài cửa.
+
+	   Nên tệp đi qua `xem_tep()`, và hàm ấy hỏi đúng `duoc_vao()` như mọi đường khác.
+
+	   ⚠️ TÊN TỆP TRÊN ĐĨA LÀ CHUỖI NGẪU NHIÊN, không phải tên người dùng đặt. Hai lý do: tên
+	      người đặt có thể trùng, và có thể mang ký tự dựng đường dẫn (`../`). Tên gốc chỉ được
+	      cất làm CHỮ để hiện ra.
+
+	   🔴 KHÔNG NHẬN SVG, DÙ NÓ LÀ ẢNH. Tệp SVG chứa được `<script>`; phục vụ nó inline là mở một
+	      lỗ chèn mã ngay trong tên miền của mình — và nó lọt qua mọi phép kiểm "có phải ảnh
+	      không" viết theo kiểu thông thường.
+
+	   🔴 CHỈ ẢNH MỚI HIỆN INLINE. Mọi thứ khác phục vụ kèm `Content-Disposition: attachment` và
+	      một kiểu nội dung KHÔNG chạy được. Thiếu chốt này thì một tệp .html gửi qua chat là một
+	      trang chạy được trên tên miền công ty, đọc được thẻ phiên của người mở nó.
+	*/
+
+	/** Dài nhất của một tệp đính kèm (byte). */
+	const TEP_TOI_DA = 8388608;   // 8 MB
+
+	/**
+	 * Kiểu tệp nhận, và kiểu nội dung dùng khi phục vụ lại.
+	 *
+	 * ⚠️ PHỤC VỤ THEO BẢNG NÀY, KHÔNG THEO THỨ TRÌNH DUYỆT KHAI. Tin lời khai của client là
+	 *    nhận một tệp .html mang nhãn `image/png` rồi trả về đúng `text/html`.
+	 */
+	const TEP_KIEU = array(
+		'jpg'  => array( 'image/jpeg', true ),
+		'jpeg' => array( 'image/jpeg', true ),
+		'png'  => array( 'image/png', true ),
+		'gif'  => array( 'image/gif', true ),
+		'webp' => array( 'image/webp', true ),
+		'heic' => array( 'image/heic', true ),
+		'pdf'  => array( 'application/pdf', false ),
+		'doc'  => array( 'application/msword', false ),
+		'docx' => array( 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', false ),
+		'xls'  => array( 'application/vnd.ms-excel', false ),
+		'xlsx' => array( 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', false ),
+		'csv'  => array( 'text/csv', false ),
+		'txt'  => array( 'text/plain', false ),
+		'zip'  => array( 'application/zip', false ),
+	);
+
+	/** Đuôi tệp đã chuẩn hoá, hoặc '' nếu không nhận. */
+	private static function duoi_tep( $ten ) {
+		$d = strtolower( (string) pathinfo( (string) $ten, PATHINFO_EXTENSION ) );
+		return isset( self::TEP_KIEU[ $d ] ) ? $d : '';
+	}
+
+	/**
+	 * Cất một tệp. Trả về array('duong','ten','loai','co') hoặc array('error').
+	 *
+	 * @param string $b64 nội dung tệp, đã mã hoá base64 (có hoặc không có tiền tố data:).
+	 */
+	private static function luu_tep( $b64, $ten_goc ) {
+		$s = (string) $b64;
+		$vt = strpos( $s, 'base64,' );
+		if ( false !== $vt ) { $s = substr( $s, $vt + 7 ); }
+		$nhi = base64_decode( $s, true );
+		if ( false === $nhi || strlen( $nhi ) < 8 ) {
+			return array( 'error' => 'Tệp hỏng hoặc rỗng.' );
+		}
+		if ( strlen( $nhi ) > self::TEP_TOI_DA ) {
+			return array( 'error' => 'Tệp lớn quá '
+				. round( self::TEP_TOI_DA / 1048576 ) . ' MB. Nén lại hoặc gửi qua đơn từ.' );
+		}
+		$duoi = self::duoi_tep( $ten_goc );
+		if ( '' === $duoi ) {
+			return array( 'error' => 'Chỉ nhận ảnh (jpg, png, gif, webp, heic) và tệp '
+				. 'pdf, doc, docx, xls, xlsx, csv, txt, zip.' );
+		}
+
+		/* 🔴 ẢNH THÌ PHẢI THẬT SỰ LÀ ẢNH. Đổi đuôi một tệp .html thành .png là đủ để lọt phép
+		   kiểm đuôi; `getimagesize()` đọc chính nội dung nên nó không bị lừa như vậy.
+		   (`heic` thì PHP thường không đọc được — bỏ qua phép này cho riêng nó, và nó vẫn được
+		   phục vụ kèm `attachment` nếu không nhận ra là ảnh.) */
+		if ( self::TEP_KIEU[ $duoi ][1] && 'heic' !== $duoi ) {
+			$do = @getimagesizefromstring( $nhi );
+			if ( false === $do ) {
+				return array( 'error' => 'Tệp này khai là ảnh nhưng nội dung không phải ảnh.' );
+			}
+		}
+
+		$u = wp_upload_dir();
+		if ( ! empty( $u['error'] ) ) { return array( 'error' => 'Máy chủ không ghi được tệp.' ); }
+		$tuong = 'vhcc-chat/' . gmdate( 'Y-m' );
+		$thu = $u['basedir'] . '/' . $tuong;
+		if ( ! wp_mkdir_p( $thu ) ) { return array( 'error' => 'Máy chủ không tạo được thư mục.' ); }
+
+		/* Chặn liệt kê thư mục và chặn Apache chạy bất cứ thứ gì trong đó. Không thay được phép
+		   gác ở `xem_tep()` — nginx bỏ qua .htaccess — nhưng là một lớp nữa, và rẻ. */
+		if ( ! file_exists( $u['basedir'] . '/vhcc-chat/index.php' ) ) {
+			file_put_contents( $u['basedir'] . '/vhcc-chat/index.php', "<?php // im lang\n" );
+			file_put_contents( $u['basedir'] . '/vhcc-chat/.htaccess',
+				"Deny from all\n<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>\n" );
+		}
+
+		/* Tên trên đĩa là chuỗi ngẫu nhiên — xem khối chú thích trên. */
+		$ten_dia = bin2hex( random_bytes( 16 ) ) . '.' . $duoi;
+		if ( false === file_put_contents( $thu . '/' . $ten_dia, $nhi ) ) {
+			return array( 'error' => 'Máy chủ không ghi được tệp.' );
+		}
+		return array(
+			'duong' => $tuong . '/' . $ten_dia,
+			/* Tên gốc CHỈ để hiện. Cắt ngắn và bỏ đường dẫn: `../../wp-config.php` là một cái
+			   tên hợp lệ với người dùng, và nó không bao giờ được chạm tới đĩa. */
+			'ten'   => mb_substr( sanitize_file_name( (string) $ten_goc ), 0, 120 ),
+			'loai'  => $duoi,
+			'co'    => strlen( $nhi ),
+		);
+	}
+
+	/**
+	 * PHỤC VỤ MỘT TỆP ĐÍNH KÈM. Tự kết thúc lượt gọi.
+	 *
+	 * 🔴 GÁC TRƯỚC, ĐỌC ĐĨA SAU. Đọc tệp rồi mới hỏi quyền là đã đọc mất rồi — và một lỗi nào đó
+	 *    ở giữa là nó lọt ra ngoài.
+	 */
+	public static function xem_tep( $u, $id ) {
+		global $wpdb;
+		$x = $wpdb->get_row( $wpdb->prepare(
+			'SELECT * FROM ' . VHCC_DB::t( 'chat_tin' ) . ' WHERE id=%d', (int) $id ), ARRAY_A );
+		if ( ! $x || '' === (string) $x['tep'] || ! empty( $x['da_xoa'] ) ) { self::chet_tep( 404 ); }
+		if ( ! self::duoc_vao( $u, (string) $x['phong'] ) ) { self::chet_tep( 403 ); }
+
+		$up = wp_upload_dir();
+		$duong = $up['basedir'] . '/' . (string) $x['tep'];
+		/* ⚠️ Chốt đường dẫn: đường trong cơ sở dữ liệu do mã này ghi, nhưng một lần sửa tay hay
+		   một lỗi ở đâu đó là `../../` — và lúc ấy hàm này phục vụ bất kỳ tệp nào trên máy chủ. */
+		$that = realpath( $duong );
+		$goc  = realpath( $up['basedir'] . '/vhcc-chat' );
+		if ( ! $that || ! $goc || 0 !== strpos( $that, $goc ) || ! is_readable( $that ) ) {
+			self::chet_tep( 404 );
+		}
+
+		$duoi = (string) $x['tep_loai'];
+		$kieu = isset( self::TEP_KIEU[ $duoi ] ) ? self::TEP_KIEU[ $duoi ] : array( 'application/octet-stream', false );
+		nocache_headers();
+		header( 'Content-Type: ' . $kieu[0] );
+		header( 'Content-Length: ' . filesize( $that ) );
+		header( 'X-Content-Type-Options: nosniff' );
+		/* 🔴 CHỈ ẢNH MỚI INLINE. Mọi thứ khác tải về. Xem khối chú thích trên. */
+		$ten = (string) $x['tep_ten'];
+		header( 'Content-Disposition: ' . ( $kieu[1] ? 'inline' : 'attachment' )
+			. '; filename="' . rawurlencode( $ten ) . '"' );
+		readfile( $that );
+		exit;
+	}
+
+	private static function chet_tep( $ma ) {
+		status_header( (int) $ma );
+		header( 'Content-Type: text/plain; charset=utf-8' );
+		echo 'khong xem duoc tep';
+		exit;
+	}
+
 	/* ============================================================================== ghi */
 
-	public static function gui( $u, $coso, $chu ) {
+	public static function gui( $u, $coso, $chu, $tep_b64 = '', $tep_ten = '' ) {
 		global $wpdb;
 		$c = self::chuan_phong( $coso );
 		if ( '' === $c || ! self::duoc_vao( $u, $c ) ) {
@@ -327,13 +515,26 @@ class VHCC_Chat {
 		/* ⚠️ Cắt khoảng trắng RỒI mới đo. Một tin toàn dấu cách lọt qua phép đo độ dài thô, và
 		   nó hiện ra thành một bong bóng rỗng không ai xoá được ngoài chính người gửi. */
 		$s = trim( (string) $chu );
-		if ( '' === $s ) { return array( 'ok' => false, 'error' => 'Chưa gõ gì.' ); }
+		$co_tep = ( '' !== trim( (string) $tep_b64 ) );
+		/* Có tệp thì KHÔNG bắt buộc gõ chữ — gửi mỗi tấm ảnh là chuyện thường. */
+		if ( '' === $s && ! $co_tep ) { return array( 'ok' => false, 'error' => 'Chưa gõ gì.' ); }
 		if ( mb_strlen( $s, 'UTF-8' ) > self::DAI_TOI_DA ) {
 			return array( 'ok' => false, 'error' => 'Tin dài quá ' . self::DAI_TOI_DA
 				. ' ký tự. Tách ra làm mấy tin, hoặc gửi thành tệp qua đơn từ.' );
 		}
 
+		$t_duong = ''; $t_ten = ''; $t_loai = ''; $t_co = 0;
+		if ( $co_tep ) {
+			$kq = self::luu_tep( $tep_b64, $tep_ten );
+			if ( isset( $kq['error'] ) ) { return array( 'ok' => false, 'error' => $kq['error'] ); }
+			$t_duong = $kq['duong']; $t_ten = $kq['ten']; $t_loai = $kq['loai']; $t_co = $kq['co'];
+		}
+
 		$ok = $wpdb->insert( VHCC_DB::t( 'chat_tin' ), array(
+			'tep'      => $t_duong,
+			'tep_ten'  => $t_ten,
+			'tep_loai' => $t_loai,
+			'tep_co'   => $t_co,
 			'phong'   => $c,
 			'ma_nv'   => trim( (string) $u['ma_nv'] ),
 			/* Chép TÊN vào hàng, không tra lại lúc hiện. Người đổi tên hay nghỉ việc thì mấy
@@ -379,7 +580,15 @@ class VHCC_Chat {
 			return array( 'ok' => false, 'error' => 'Quá ' . self::PHUT_XOA
 				. ' phút thì không xoá được nữa.' );
 		}
-		$wpdb->update( $b, array( 'da_xoa' => 1, 'chu' => '' ), array( 'id' => $i ) );
+		/* 🔴 XOÁ CẢ TỆP TRÊN ĐĨA. Đánh dấu `da_xoa` mà để tệp nằm lại là người đã bấm xoá vẫn
+		   còn cái ảnh của mình trên máy chủ — và `xem_tep()` chối, nhưng bản sao lưu thì không. */
+		if ( '' !== (string) $x['tep'] ) {
+			$up = wp_upload_dir();
+			$d = realpath( $up['basedir'] . '/' . (string) $x['tep'] );
+			$g = realpath( $up['basedir'] . '/vhcc-chat' );
+			if ( $d && $g && 0 === strpos( $d, $g ) ) { @unlink( $d ); }
+		}
+		$wpdb->update( $b, array( 'da_xoa' => 1, 'chu' => '', 'tep' => '' ), array( 'id' => $i ) );
 		return array( 'ok' => true, 'id' => $i );
 	}
 

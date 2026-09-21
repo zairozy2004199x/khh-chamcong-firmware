@@ -537,10 +537,20 @@ a{color:var(--nhan)}
 				<p class="trong">Đang tải…</p>
 			</div>
 			<div id="chatLoi"></div>
+			<div id="chatTepChon" class="an" style="margin:6px 0"></div>
 			<p></p>
 			<textarea id="chatO" rows="2" placeholder="Gõ tin nhắn…" maxlength="1000"></textarea>
+			<!-- ⚠️ Ô chọn tệp ẩn, bấm qua nút 📎. Để `<input type=file>` trần thì mỗi trình
+			     duyệt vẽ một kiểu, và trên iPhone nó là một nút xám không ai nhận ra là bấm
+			     được. `accept` liệt kê đúng danh sách máy chủ nhận — khai rộng hơn là để người
+			     ta chọn xong mới bị chối. -->
+			<input id="chatTep" type="file" class="an"
+				accept="image/jpeg,image/png,image/gif,image/webp,image/heic,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip">
 			<p></p>
-			<button id="btChatGui" class="chinh">Gửi</button>
+			<div class="hang">
+				<button id="btChatDinhKem" class="phu" style="flex:0 0 76px">📎</button>
+				<button id="btChatGui" class="chinh">Gửi</button>
+			</div>
 		</div>
 	</div>
 </div></div>
@@ -2810,6 +2820,23 @@ function veChatTin(ds, dau){
 		var chu = x.daXoa
 			? '<i class="trong">(đã xoá)</i>'
 			: esc(x.chu).replace(/\n/g, '<br>');
+		if(x.tep){
+			/* Đường xem tệp đi qua cổng có gác, KHÔNG trỏ thẳng vào uploads — xem
+			   `VHCC_Chat::xem_tep()`. Thẻ phiên đi kèm trong đường dẫn vì <img> không gửi
+			   được thân yêu cầu. */
+			var dt = CFG.cong + (CFG.cong.indexOf('?')>=0?'&':'?')
+				+ 'viec=chat_tep&id=' + encodeURIComponent(x.id)
+				+ '&token=' + encodeURIComponent(token());
+			chu += (chu ? '<div style="height:6px"></div>' : '')
+				+ (x.tep.anh
+					? '<a href="' + dt + '" target="_blank" rel="noopener">'
+						+ '<img src="' + dt + '" alt="' + esc(x.tep.ten) + '"'
+						+ ' style="max-width:100%;border-radius:8px;display:block"></a>'
+					: '<a href="' + dt + '" target="_blank" rel="noopener">📎 '
+						+ esc(x.tep.ten) + '</a>'
+						+ '<div class="trong" style="font-size:11px">'
+						+ esc(Math.round(x.tep.co/1024) + ' KB') + '</div>');
+		}
 		d.innerHTML = '<div style="display:inline-block;max-width:84%;text-align:left;'
 			+ 'padding:7px 10px;border-radius:12px;border:1px solid var(--vien);background:' + nen + '">'
 			+ (x.cuaToi ? '' : '<b style="font-size:12px">' + esc(x.hoTen) + '</b><br>')
@@ -2839,15 +2866,52 @@ function nghenXoaChat(){
 	}
 }
 
+/* Tệp đang chờ gửi: { ten, b64 }. Chỉ một tệp một lần — gửi nhiều tệp thì gửi nhiều tin, và
+   như thế mỗi tệp có một dòng riêng để xoá, để trả lời. */
+var CHAT_TEP = null;
+
+function chonTepChat(){
+	var f = el('chatTep').files && el('chatTep').files[0];
+	if(!f){ return; }
+	/* ⚠️ CHẶN CỠ NGAY Ở ĐÂY, đừng để người ta chờ tải xong 20 MB rồi mới bị chối. Máy chủ vẫn
+	   chặn lần nữa — đây chỉ là phép lịch sự, không phải phép gác. */
+	if(f.size > 8 * 1024 * 1024){
+		bao('chatLoi','dong','Tệp lớn quá 8 MB. Nén lại hoặc gửi qua đơn từ.');
+		el('chatTep').value = '';
+		return;
+	}
+	var d = new FileReader();
+	d.onload = function(){
+		CHAT_TEP = { ten: f.name, b64: String(d.result) };
+		el('chatTepChon').classList.remove('an');
+		el('chatTepChon').innerHTML = '📎 ' + esc(f.name) + ' <a href="#" id="chatBoTep">bỏ</a>';
+		el('chatBoTep').onclick = function(e){ e.preventDefault(); boTepChat(); };
+		bao('chatLoi','',null);
+	};
+	d.onerror = function(){ bao('chatLoi','dong','Không đọc được tệp này.'); };
+	d.readAsDataURL(f);
+}
+
+function boTepChat(){
+	CHAT_TEP = null;
+	el('chatTep').value = '';
+	el('chatTepChon').classList.add('an');
+	el('chatTepChon').innerHTML = '';
+}
+
 function guiChat(){
 	var chu = el('chatO').value;
-	if(!chu.trim()){ return; }
+	/* Gửi mỗi tệp không kèm chữ là chuyện thường — chỉ chối khi KHÔNG có cả hai. */
+	if(!chu.trim() && !CHAT_TEP){ return; }
 	var b = el('btChatGui');
 	b.disabled = true;
-	goi('chat_gui', { token: token(), coSo: CHAT_PHONG, chu: chu }).then(function(j){
+	var goiTin = { token: token(), coSo: CHAT_PHONG, chu: chu };
+	if(CHAT_TEP){ goiTin.tep = CHAT_TEP.b64; goiTin.tepTen = CHAT_TEP.ten; }
+	goi('chat_gui', goiTin).then(function(j){
 		b.disabled = false;
 		if(!j || !j.ok){ bao('chatLoi','dong',(j&&j.error)||'Không gửi được.'); return; }
 		el('chatO').value = '';
+		boTepChat();
 		bao('chatLoi','',null);
 		napChatTin(false);
 	}).catch(function(e){
@@ -2895,6 +2959,8 @@ el('btDongChat').addEventListener('click', function(){ dungNhipChat(); hien('mCh
 el('btChatVe').addEventListener('click', function(){ chatVeLop1(); napChatPhong(); });
 el('btChatGui').addEventListener('click', guiChat);
 el('btChatNguoi').addEventListener('click', napChatNguoi);
+el('btChatDinhKem').addEventListener('click', function(){ el('chatTep').click(); });
+el('chatTep').addEventListener('change', chonTepChat);
 el('chatTim').addEventListener('input', napChatNguoi);
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════

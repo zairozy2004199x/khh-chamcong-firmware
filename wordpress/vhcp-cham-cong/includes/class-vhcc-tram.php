@@ -395,6 +395,36 @@ class VHCC_Tram {
 			self::ra( VHCC_Quyen::tra_pin_theo_cccd( isset( $b['cccd'] ) ? $b['cccd'] : '' ) );
 		}
 
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		   XEM TỆP ĐÍNH KÈM CỦA CHAT — cửa DUY NHẤT nhận thẻ phiên qua `?token=`.
+		   ═══════════════════════════════════════════════════════════════════════════════════
+		   🔴 PHẢI NẰM TRÊN DÒNG GIẢI THẺ Ở DƯỚI, và phải tự giải thẻ lấy.
+		      `than()` chỉ đọc thân yêu cầu, mà `<img src>` và link tải KHÔNG gửi được thân —
+		      nên nếu để nhánh này ở dưới thì `$u` luôn rỗng, cổng chối trước khi tới nó, và mọi
+		      tấm ảnh trong chat hiện ra một ô vỡ. (Đã viết sai đúng như vậy một lần.)
+
+		   🔴 VÀ CHỈ CỬA NÀY. Nới `$_GET['token']` cho cả cổng là đưa thẻ phiên vào thanh địa chỉ
+		      của MỌI lượt gọi — nó rơi vào nhật ký máy chủ, vào lịch sử trình duyệt, vào tiêu đề
+		      Referer khi người ta bấm một link ra ngoài. Một cửa CHỈ ĐỌC thì đổi lấy được; cả
+		      cổng thì không.
+
+		   ⚠️ Thẻ vẫn nằm trong đường dẫn của riêng cửa này, nên nó CÓ vào nhật ký máy chủ của
+		      mình. Chấp nhận được (cùng tên miền, cùng máy chủ đã giữ thẻ ấy), nhưng đừng dán
+		      đường dẫn tệp chat ra ngoài — nó mang theo thẻ phiên của người dán.
+		   ═══════════════════════════════════════════════════════════════════════════════════ */
+		if ( 'chat_tep' === $viec ) {
+			$tk_t = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '';
+			if ( '' === $tk_t && isset( $b['token'] ) ) { $tk_t = (string) $b['token']; }
+			$u_t = self::nguoi( $tk_t );
+			if ( ! $u_t ) {
+				status_header( 403 );
+				header( 'Content-Type: text/plain; charset=utf-8' );
+				echo 'het phien';
+				exit;
+			}
+			VHCC_Chat::xem_tep( $u_t, isset( $_GET['id'] ) ? (int) $_GET['id'] : 0 );
+		}
+
 		/* --- từ đây phải có thẻ phiên của TRẠM --- */
 		$u = self::nguoi( isset( $b['token'] ) ? $b['token'] : '' );
 		if ( ! $u ) {
@@ -680,7 +710,9 @@ class VHCC_Tram {
 		if ( 'chat_gui' === $viec ) {
 			$b = self::than();
 			self::ra( VHCC_Chat::gui( $u, isset( $b['coSo'] ) ? $b['coSo'] : '',
-				isset( $b['chu'] ) ? $b['chu'] : '' ) );
+				isset( $b['chu'] ) ? $b['chu'] : '',
+				isset( $b['tep'] ) ? (string) $b['tep'] : '',
+				isset( $b['tepTen'] ) ? (string) $b['tepTen'] : '' ) );
 		}
 
 		if ( 'chat_xoa' === $viec ) {
