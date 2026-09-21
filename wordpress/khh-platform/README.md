@@ -283,7 +283,7 @@ assets/
   core.js          lõi: dữ liệu, điều hướng, vai trò, hộp thoại dùng chung
   charts.js        biểu đồ SVG
   home.js wework.js baocao.js request.js workflow.js hrm.js attendance.js
-  leave.js payroll.js info.js message.js square.js booking.js
+  leave.js payroll.js ketoan.js info.js message.js square.js booking.js
 ```
 
 Ngoài `khh-platform.php` còn mấy tệp PHP rời, mỗi tệp một việc:
@@ -311,6 +311,41 @@ Tạo `assets/myapp.js`, rồi thêm tên `'myapp'` vào mảng trong hàm `khh_
 
 Muốn thêm nhóm dữ liệu mới thì khai tên nhóm ở hai chỗ: mảng `COLLS` trong `core.js`
 và hàm `khh_collections()` trong PHP.
+
+### Ứng dụng chỉ dành cho một số vai
+
+Khai thêm `vai` là xong; không khai thì ai cũng thấy (mọi ứng dụng cũ giữ nguyên).
+
+```js
+A.register({ id:'myapp', …, vai:['owner','admin'] });
+```
+
+`core.js` lọc ở **cả ba đường**, vì giấu hụt một đường là hỏng kín đáo:
+
+| Đường | Chỗ chặn |
+|---|---|
+| Bệ phóng (trang chủ) | `home.js` lọc qua `A.thayDuoc` |
+| Thanh biểu tượng bên trái | `renderRail()` bỏ qua app không được thấy |
+| Mở bằng id đã nhớ | `APP.go()` từ chối — id ứng dụng nằm trong `localStorage`, người bị hạ vai vẫn mở lại được nếu chỉ ẩn nút |
+
+Nhóm nào không còn ứng dụng nào người đó thấy thì tab của nhóm **tự ẩn** khỏi trang chủ.
+
+## Khối Kế toán
+
+Nhóm `ketoan` trên trang chủ, **chỉ Chủ sở hữu và Quản trị thấy**. Nó nhúng các ứng dụng
+kế toán chạy ở **plugin riêng** — nền tảng không gọi vào ruột chúng:
+
+| Plugin | Nhận ra bằng | Hiện thành |
+|---|---|---|
+| Ủy nhiệm chi & Công nợ | lớp `KHUNC_App` | Khoản nào đã đi tiền, công nợ nhà cung cấp |
+| Báo cáo chi phí | lớp `KHBC_App` | Phân bổ chi phí ra File tổng báo cáo |
+
+`khh_ketoan_ung_dung()` trong PHP dò bằng **lớp PHP chứ không đoán đường dẫn**: người dùng
+đổi slug trong cài đặt của plugin kia thì nền tảng vẫn trỏ đúng. Chưa cài plugin nào thì
+không khai ứng dụng nào và nhóm tự ẩn — không để lại ô bấm vào ra 404.
+
+Thêm một app kế toán nữa: thêm một khối `if ( class_exists( … ) )` trong hàm đó, không phải
+sửa gì bên JavaScript.
 
 ## Báo cáo Dự Án — trang tổng
 
