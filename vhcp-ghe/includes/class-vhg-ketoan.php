@@ -451,11 +451,43 @@ class VHG_KeToan {
 			'report_id' => $rid, 'ma_may' => $ma,
 			'chi_so_truoc' => $d['chi_so_truoc'], 'chi_so_sau' => $d['chi_so_sau'], 'actual' => $d['actual'],
 			'tien_mat' => $d['tien_mat'], 'qr' => $d['qr'], 'dieu_chinh' => $d['dieu_chinh'], 'tong' => $d['tong'],
-			'ghi_chu' => $d['ghi_chu'], 'nop_so_tien' => $d['nop_so_tien'] ) ), $boi );
+			'ghi_chu' => $d['ghi_chu'], 'nop_so_tien' => $d['nop_so_tien'],
+			/* Ảnh vào ảnh chụp hoàn tác luôn — từ 2.122.0 kế toán thêm/xoá được ảnh ở đây, mà xoá
+			   ảnh không hoàn tác được thì là mất chứng từ, không phải mất một ô số. */
+			'anh' => isset( $d['anh'] ) ? $d['anh'] : '' ) ), $boi );
+
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 ẢNH: THÊM / XOÁ NGAY Ở MÀN KẾ TOÁN — anh Thắng 20/09/2026: *"chỗ sửa này đang không
+		 *    thấy sửa, thêm ảnh, sửa ảnh"*. Chính màn này in "6 ghế thiếu ảnh" mà lại không có
+		 *    đường đính ảnh vào — báo thiếu rồi bắt người ta đi chỗ khác, mà chỗ khác (Sửa 24h của
+		 *    nhân viên) thì đã quá hạn từ lâu.
+		 *
+		 * ⚠️ DÙNG CHUNG ĐƯỜNG LƯU ẢNH của nhân viên (VHG_BaoCao::luu_anh) để ảnh nằm đúng một chỗ.
+		 * ⚠️ "Sửa ảnh" = xoá ảnh cũ + đính ảnh mới. Xoá chỉ gỡ khỏi danh sách của DÒNG NÀY, tệp
+		 *    trong thư viện WP giữ nguyên — và ảnh cũ đã nằm trong ảnh chụp hoàn tác ở trên.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$anh_ds = array();
+		$anh_raw = (string) ( isset( $d['anh'] ) ? $d['anh'] : '' );
+		if ( '' !== $anh_raw ) { $tmp = json_decode( $anh_raw, true ); if ( is_array( $tmp ) ) { $anh_ds = array_values( array_filter( $tmp ) ); } }
+		$anh_doi = false;
+		$xoa_ds  = ( isset( $patch['anhXoa'] ) && is_array( $patch['anhXoa'] ) ) ? array_map( 'strval', $patch['anhXoa'] ) : array();
+		if ( $xoa_ds ) {
+			$con = array();
+			foreach ( $anh_ds as $u ) { if ( ! in_array( (string) $u, $xoa_ds, true ) ) { $con[] = $u; } }
+			if ( count( $con ) !== count( $anh_ds ) ) { $anh_ds = $con; $anh_doi = true; }
+		}
+		$imgs_p = ( isset( $patch['images'] ) && is_array( $patch['images'] ) ) ? $patch['images'] : array();
+		foreach ( array( 'chiso', 'vesinh', 'qr' ) as $loai ) {
+			if ( empty( $imgs_p[ $loai ] ) ) { continue; }
+			$u = VHG_BaoCao::luu_anh( array( 'dataUrl' => $imgs_p[ $loai ], 'name' => $loai . '.jpg' ),
+				$rid, $ma . '-kt-' . $loai . '-' . time() );
+			if ( '' !== $u ) { $anh_ds[] = $u; $anh_doi = true; }
+		}
 
 		$data_up = array( 'chi_so_truoc' => $before, 'chi_so_sau' => $after, 'actual' => $actual,
 			'tien_mat' => $cash, 'qr' => $qr, 'dieu_chinh' => $adj, 'tong' => $tong, 'ghi_chu' => $note,
 			'moc_tay' => $khoa_moc ? 1 : 0 );
+		if ( $anh_doi ) { $data_up['anh'] = $anh_ds ? wp_json_encode( array_values( $anh_ds ) ) : ''; }
 		/* 🔴 "NỘP" (nop_so_tien) BỊ KẸT SỐ CŨ NẾU KHÔNG SỬA THEO — cùng lỗi và cùng cách vá như
 		   VHG_BaoCao::sua_dong() (màn nhân viên sửa 24h): anh Thắng 29/08/2026 phát hiện ở đúng
 		   màn kế toán này, ghế VP-PQ-16 Tiền mặt ghi đè xuống 830.000đ nhưng cột "Nộp" vẫn đứng ở

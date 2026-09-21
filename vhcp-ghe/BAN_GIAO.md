@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-09-18 · Phiên bản hiện tại: **2.121.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-09-21 · Phiên bản hiện tại: **2.122.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,33 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v2.122.0 — Ô sửa của kế toán nay thêm / bỏ được ảnh
+
+Anh Thắng 20/09/2026: *"chỗ sửa này đang không thấy sửa, thêm ảnh, sửa ảnh."*
+
+**Gốc.** Chính tab Duyệt báo cáo in dòng cảnh báo *"6 ghế thiếu ảnh"*, mà ô sửa mở ra lại chỉ có
+mấy ô số. Hệ nói ra một việc phải làm rồi bịt luôn đường làm việc ấy: muốn bù ảnh phải quay về màn
+Sửa 24h của nhân viên — nơi đã quá hạn từ lâu với đúng những báo cáo đang bị nhắc.
+
+- Ô sửa (tab Duyệt báo cáo) nay có khối ảnh: **ảnh đang có** hiện thành thumbnail, mỗi ảnh một nút
+  ✕ để đánh dấu bỏ — bấm lại là **hoàn tác ngay tại chỗ**, chưa Lưu thì chưa đụng gì tới dữ liệu.
+- Ba nút thêm: **+ Chỉ số · + Vệ sinh · + QR**, đúng ba loại ảnh nhân viên chụp.
+- Máy chủ `VHG_KeToan::sua()` nhận `patch.images` (ba dataUrl) và `patch.anhXoa` (danh sách URL bỏ
+  đi), và **chỉ ghi lại cột `anh` khi thật sự có đụng tới** — sửa một ô số không được phép quét
+  sạch chứng từ.
+
+**Ba luật giữ cho nó không thành đường rẽ thứ hai:**
+
+1. **Một đường lưu ảnh duy nhất.** Kế toán đi qua `VHG_BaoCao::luu_anh()` (mở `public` từ bản này)
+   chứ không dựng bản sao — hai chỗ tự đặt tên tệp / chọn thư mục là hai màn rồi sẽ nằm hai nơi.
+2. **Xoá ảnh phải hoàn tác được.** Cột `anh` cũ nay nằm trong ảnh chụp `bc_undo` cùng các ô số.
+   Mất một ô số còn gõ lại được; mất chứng từ thì không.
+3. **Một bộ luật nén ảnh duy nhất.** Khối JS kế toán dùng lại `window.VHG_NEN_ANH` của khối nhân
+   viên, không chép cạnh dài / chất lượng sang bản thứ hai. Thiếu nó thì vẫn đính được ảnh (đọc
+   thô bằng `FileReader`) chứ không câm lặng bỏ qua.
+
+Bài kiểm `tools/test/kiem-kt-sua-anh.js` (12 phép).
 
 ### v2.121.0 — Tách quyền "Sửa báo cáo đã nộp" khỏi "Chốt doanh số"
 

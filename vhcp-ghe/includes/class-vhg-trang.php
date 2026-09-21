@@ -4031,6 +4031,11 @@ JS;
      không phải mạng chập chờn thường. Trước đây nén cạnh dài 1280/chất lượng 0.6; nay giảm còn
      1000/0.5 — cắt khoảng NỬA dung lượng mỗi ảnh (ước chừng, không tuyến tính đúng nghĩa) mà
      chứng từ (số tiền, mã QR) và ảnh chỉ số máy vẫn đọc được ở cỡ này. */
+  /* 🔴 CHIA CHO MÀN KẾ TOÁN DÙNG CHUNG — anh Thắng 20/09/2026 cần thêm/sửa ảnh ngay ở tab Duyệt
+     báo cáo. Hai màn nằm ở HAI khối JS riêng (js_baocao / js) nên không thấy hàm của nhau; treo
+     lên window là cách rẻ nhất để vẫn chỉ có MỘT bộ luật nén ảnh. Chép sang bên kia một bản thứ
+     hai là hai cạnh dài, hai mức chất lượng, rồi ảnh kế toán nặng gấp đôi ảnh nhân viên và bị
+     hosting cắt giữa chừng — đúng cái lỗi khối chú thích ngay trên vừa tả. */
   function nenAnh_(file,cb){
     try{
       if(!file||!/^image\//.test(file.type)){ var f0=new FileReader(); f0.onload=function(){cb(String(f0.result));}; f0.onerror=function(){cb('');}; f0.readAsDataURL(file); return; }
@@ -4043,6 +4048,7 @@ JS;
       img.src=url;
     }catch(e){ cb(''); }
   }
+  window.VHG_NEN_ANH = nenAnh_;   // cho khối JS kế toán dùng chung — xem chú thích ở nenAnh_
   function docAnh_(id,cb){ return docAnhTu_($(id),cb); }
   /* Cùng việc với docAnh_ nhưng nhận THẲNG thẻ input, không qua id. Khối "Bổ sung bill chuyển
      khoản" dựng một ô chọn ảnh cho MỖI báo cáo trong danh sách, nên không có id cố định nào để
@@ -7957,6 +7963,47 @@ function ktdSuaRow(o,c,tr,m,reload){
   wrap.appendChild(iQr); wrap.appendChild(iAd); wrap.appendChild(iNo);
   wrap.appendChild(ktEl('span','mut','Thực thu (nếu chỉ số sai):')); wrap.appendChild(iTt);
   wrap.appendChild(bL);
+  /* ═══════════════════════════════════════════════════════════════════════════════════════
+   * 🔴 ẢNH NGAY TRONG Ô SỬA — anh Thắng 20/09/2026: *"chỗ sửa này đang không thấy sửa, thêm
+   *    ảnh, sửa ảnh"*. Chính màn này in "6 ghế thiếu ảnh" mà không có đường đính ảnh vào: báo
+   *    thiếu rồi đẩy người ta sang màn Sửa 24h của nhân viên — nơi đã quá hạn từ lâu.
+   *    "Sửa ảnh" = bấm ✕ bỏ ảnh cũ rồi chọn ảnh mới; bấm ✕ lần nữa là hoàn tác trước khi Lưu.
+   *    Ảnh cũ vào ảnh chụp hoàn tác ở máy chủ nên bỏ nhầm vẫn lấy lại được.
+   * ═══════════════════════════════════════════════════════════════════════════════════════ */
+  var anhXoa=[], anhMoi={};
+  var hAnh=ktEl('div'); hAnh.style.cssText='display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px;width:100%';
+  hAnh.appendChild(ktEl('span','mut','📷 '+L('Ảnh:','Photos:')));
+  (c.anh||[]).forEach(function(u){
+    var o=ktEl('span'); o.style.cssText='position:relative;display:inline-flex;align-items:center;gap:2px';
+    var im=document.createElement('img'); im.src=u; im.loading='lazy';
+    im.style.cssText='width:40px;height:40px;object-fit:cover;border-radius:6px;border:1px solid #cbd5e1;cursor:zoom-in';
+    im.onclick=function(){ window.open(u,'_blank'); };
+    var x=ktEl('button','ghost','✕'); x.style.cssText='padding:0 5px;font-size:11px;line-height:1.6';
+    x.title=L('Bỏ ảnh này khỏi ghế (bấm lại để hoàn tác)','Remove this photo (click again to undo)');
+    x.onclick=function(){
+      var i=anhXoa.indexOf(u);
+      if(i>=0){ anhXoa.splice(i,1); im.style.opacity=''; x.textContent='✕'; }
+      else { anhXoa.push(u); im.style.opacity='.3'; x.textContent='↺'; }
+    };
+    o.appendChild(im); o.appendChild(x); hAnh.appendChild(o);
+  });
+  if(!(c.anh||[]).length) hAnh.appendChild(ktEl('span','mut',L('(chưa có ảnh nào)','(no photos yet)')));
+  [['chiso',L('Chỉ số','Meter')],['vesinh',L('Vệ sinh','Cleaning')],['qr','QR']].forEach(function(k){
+    var f=document.createElement('input'); f.type='file'; f.accept='image/*';
+    f.style.cssText='position:absolute;width:1px;height:1px;opacity:0';
+    var lb=ktEl('button','ghost','+ '+k[1]); lb.style.cssText='padding:3px 8px;font-size:12px';
+    lb.onclick=function(){ f.click(); };
+    f.addEventListener('change',function(){
+      var file=f.files&&f.files[0]; if(!file) return;
+      /* Dùng chung bộ nén của màn nhân viên (window.VHG_NEN_ANH). Thiếu nó — khối kia chưa nạp —
+         thì đọc thô, thà ảnh nặng còn hơn không đính được ảnh nào. */
+      var nen=window.VHG_NEN_ANH;
+      if(nen){ nen(file,function(du){ anhMoi[k[0]]=du||''; lb.textContent='✓ '+k[1]; }); }
+      else { var fr=new FileReader(); fr.onload=function(){ anhMoi[k[0]]=String(fr.result); lb.textContent='✓ '+k[1]; }; fr.readAsDataURL(file); }
+    });
+    hAnh.appendChild(lb); hAnh.appendChild(f);
+  });
+  wrap.appendChild(hAnh);
   td.appendChild(wrap);
   bL.onclick=function(){
     function sn(s){ s=String(s==null?'':s); var neg=/^\s*-/.test(s); var dd=s.replace(/[^0-9]/g,''); return dd===''?0:(neg?-1:1)*parseInt(dd,10); }
@@ -7969,6 +8016,11 @@ function ktdSuaRow(o,c,tr,m,reload){
     /* Chỉ gửi meterBefore khi kế toán CÓ chạm ô "trước": non-empty = khóa mốc tay, empty = gỡ khóa
        trả về tự nối. Không chạm = không đụng mốc (giữ nguyên khóa/auto như đang có). */
     if(trDirty){ patch.meterBefore = (iTr.value||'').trim()===''?'':mv(iTr.value); }
+    /* Ảnh: chỉ gửi khi CÓ đụng tới — gửi mảng rỗng mỗi lượt lưu là mời máy chủ ghi lại cột ảnh
+       cho một thao tác không liên quan gì tới ảnh. */
+    var coAnhMoi=Object.keys(anhMoi).some(function(k){ return anhMoi[k]; });
+    if(coAnhMoi) patch.images=anhMoi;
+    if(anhXoa.length) patch.anhXoa=anhXoa;
     ktAct('kt_sua',{report_id:c.reportId,ma_may:c.chairCode,patch:patch},m,reload);
   };
 }

@@ -60,7 +60,7 @@ class VHG_BaoCao {
 	   boot() trả nó kèm mọi phản hồi (`banBc`) — số ở góc nói tệp chính là bản nào, số này nói
 	   TỆP BÁO CÁO là bản nào. Hai số lệch nhau là bằng chứng tệp cũ còn sống. Phải tăng cùng
 	   VHG_VERSION mỗi lần sửa tệp này. */
-	const BAN = '2.121.0';
+	const BAN = '2.122.0';
 
 	/** Ghế từng thu tiền trong bao nhiêu ngày gần đây thì vẫn phải hiện ở màn nhập — xem ds_ghe(). */
 	const GHE_LS_NGAY = 45;
@@ -1748,6 +1748,18 @@ class VHG_BaoCao {
 	}
 
 	// ══════════════════════════════════════════════════════════════════ ẢNH -> thư viện WP
+
+	/**
+	 * Cửa công khai của `luu_anh_()` — cho màn KẾ TOÁN đính ảnh vào một dòng đã nộp (xem
+	 * VHG_KeToan::sua). Anh Thắng 20/09/2026: *"chỗ sửa này đang không thấy sửa, thêm ảnh, sửa ảnh"*.
+	 *
+	 * ⚠️ MỘT ĐƯỜNG LƯU ẢNH DUY NHẤT. Chép phần lưu ảnh sang lớp kế toán là hai chỗ đặt tên tệp,
+	 *    hai chỗ nén, hai chỗ quyết định thư mục — rồi ảnh kế toán nằm một nơi khác ảnh nhân viên
+	 *    và không màn nào gom đủ.
+	 */
+	public static function luu_anh( $img, $rid, $stt ) {
+		return self::luu_anh_( $img, $rid, $stt );
+	}
 
 	private static function luu_anh_( $img, $rid, $stt ) {
 		$data = (string) ( isset( $img['dataUrl'] ) ? $img['dataUrl'] : '' );
