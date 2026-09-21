@@ -9312,6 +9312,28 @@
       }
       return {chu:'⬆ Chọn CƠ SỞ trước — mã tài khoản khai theo mảng kinh doanh của cơ sở.', mau:'#b45309'};
     }
+    /* ══════════════════════════════════════════════════════════════════════════════════════
+     * CƠ SỞ THUỘC KHỐI KHÁC — NÓI THẲNG, ĐỪNG ĐỂ Ô TRỐNG TỰ GIẢI THÍCH.
+     *
+     * Anh Thắng 22/09/2026: *"không có loại chi phí"* — ảnh đơn ở cơ sở Cali Thảo Điền (Máy tự
+     * động) với ô LOẠI CHI PHÍ trống trơn, kèm câu gợi ý bảo đi khai mã cho mảng POSH MN.
+     *
+     * 🔴 CÂU GỢI Ý CŨ CHỈ SAI CHỖ. Loại của khối khác bị `_loaiCpList()` cắt ngay ở cửa đầu
+     *    (đúng — chọn nhầm là tiền rơi vào sổ khối khác), nhưng câu giải thích bên dưới chỉ biết
+     *    đếm "thiếu mã" và "lệch nhóm", nên nó bảo người ta đi khai mã — một việc khai xong cũng
+     *    KHÔNG làm loại hiện ra. Người khai đi khai, không thấy gì đổi, rồi báo là app hỏng.
+     *
+     * ⚠️ GỐC RỄ ĐÃ VÁ Ở 1.252.0 (ô Cơ sở nay lọc theo khối, nên không chọn được cơ sở của khối
+     *    khác nữa). Dòng này là lớp thứ hai cho dữ liệu CŨ: đơn lập trước bản ấy vẫn còn mang cơ
+     *    sở lệch khối, và mở ra thì phải hiểu ngay vì sao trống.
+     * ══════════════════════════════════════════════════════════════════════════════════════ */
+    if(typeof _gianHopKhoi==='function' && !_gianHopKhoi(coso)){
+      var _kTen=(typeof _tenKhoi==='function') ? (_tenKhoi(_khoiCuaGian(coso))||'khối khác') : 'khối khác';
+      return {chu:'Cơ sở "'+esc(coso)+'" thuộc '+esc(_kTen)+', mà bạn đang đứng ở '
+        +esc((typeof _tenKhoi==='function'?_tenKhoi(KHOI_DANG):KHOI_DANG)||'')
+        +'. Bấm sang khối ấy trên thanh KHỐI, hoặc chọn cơ sở khác — khai thêm mã cũng không làm loại hiện ra.',
+        mau:'#dc2626'};
+    }
     var mang=_mangCua(coso);
     var bp=_bpCuaToi();
     var nMa=0, nNhom=0;
