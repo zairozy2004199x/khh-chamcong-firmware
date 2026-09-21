@@ -1,0 +1,66 @@
+/* Giao diện Tài Chính K&H — cùng phong cách HRM: trung tính, bo góc nhỏ,
+   một màu nhấn xanh dương. Ba màu thu/chi/cảnh báo giữ đúng nghĩa quen thuộc:
+   xanh lá = thu, đỏ = chi, cam = cần xem lại. */
+.khtc {
+	--xanh: #2563eb;
+	--muc: #0f172a;
+	--nhat: #64748b;
+	--vien: #e2e8f0;
+	--nen: #f8fafc;
+	--thu: #15803d;
+	--chi: #b91c1c;
+	max-width: 1500px;
+	margin-right: 20px;
+	color: var(--muc);
+}
+
+.khtc-head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 16px;
+	margin: 6px 0 18px;
+}
+.khtc-head h1 { margin: 0; font-size: 22px; font-weight: 600; }
+.khtc-sub { margin: 4px 0 0; color: var(--nhat); font-size: 13px; }
+
+.khtc-cty { display: flex; gap: 0; background: var(--nen); border: 1px solid var(--vien); border-radius: 8px; padding: 3px; }
+.khtc-cty-nut {
+	border: none; background: none; cursor: pointer;
+	font: inherit; font-size: 13px; font-weight: 600;
+	color: var(--nhat); padding: 6px 16px; border-radius: 6px;
+}
+.khtc-cty-nut.dang-chon { background: #fff; color: var(--xanh); box-shadow: 0 1px 2px rgba(15,23,42,.1); }
+
+.khtc-cards { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 20px; }
+.khtc-card {
+	flex: 1 1 200px; background: #fff; border: 1px solid var(--vien);
+	border-top: 3px solid var(--xanh); border-radius: 8px; padding: 14px 16px;
+}
+.khtc-card.thu { border-top-color: var(--thu); }
+.khtc-card.chi { border-top-color: var(--chi); }
+.khtc-card .k { font-size: 13px; color: var(--nhat); margin-bottom: 6px; }
+.khtc-card .v { font-size: 21px; font-weight: 600; letter-spacing: -.3px; }
+
+.khtc-panel {
+	background: #fff; border: 1px solid var(--vien); border-radius: 8px;
+	padding: 16px 18px; margin-bottom: 18px;
+}
+.khtc-panel h2 { margin: 0 0 12px; font-size: 15px; font-weight: 600; }
+
+.khtc table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.khtc th, .khtc td { padding: 8px 10px; border-bottom: 1px solid var(--vien); text-align: left; }
+.khtc th { background: var(--nen); font-weight: 600; color: var(--nhat); }
+.khtc td.so, .khtc th.so { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.khtc tr:hover td { background: #f9fafb; }
+.khtc .thu { color: var(--thu); font-weight: 600; }
+.khtc .chi { color: var(--chi); font-weight: 600; }
+
+.khtc-bao { padding: 10px 14px; border-radius: 8px; margin-bottom: 14px; font-size: 13px; }
+.khtc-bao.ok  { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; }
+.khtc-bao.loi { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+
+.khtc-loc { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; }
+.khtc-loc label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--nhat); }
+.khtc-trong { padding: 28px; text-align: center; color: var(--nhat); font-size: 13px; }

@@ -1,0 +1,51 @@
+<?php
+/**
+ * Plugin Name:       Tài Chính K&H
+ * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
+ * Description:       Theo dõi ngân hàng, giao dịch và đối soát cho CÔNG TY TNHH DỊCH VỤ VÀ GIẢI TRÍ K&H — chạy thẳng trên host WordPress, dữ liệu nằm trong MySQL của chính website.
+ * Version:           0.1.0
+ * Requires at least: 5.6
+ * Requires PHP:      7.4
+ * Author:            K&H
+ * License:           GPL-2.0-or-later
+ *
+ * ---------------------------------------------------------------------------
+ * VÌ SAO CÓ PLUGIN NÀY
+ *
+ * Bản gốc (KH Bank Tracker) là app Node.js: phải có server chạy Node, mà hosting
+ * đang dùng chỉ có WordPress/PHP. Dựng lại bằng PHP để cài thẳng qua wp-admin,
+ * không cần Render/Railway, không cần SSH.
+ *
+ * KHÁC BẢN GỐC Ở HAI ĐIỂM NỀN TẢNG:
+ *
+ * 1. Dữ liệu nằm trong BẢNG MySQL, không phải file JSON. Bản gốc giữ toàn bộ
+ *    giao dịch trong transactions.json — dữ liệu thật đã 95 MB / 219.000 dòng,
+ *    mỗi lần đọc là nạp cả file vào RAM. Trên shared hosting cách đó chết ngay.
+ *    Bảng MySQL có chỉ mục, lọc theo ngày/ngân hàng không phải quét cả tệp.
+ *
+ * 2. Đăng nhập dùng LUÔN tài khoản WordPress, không tự dựng bảng người dùng và
+ *    mật khẩu riêng. Ít một chỗ lưu mật khẩu là ít một chỗ rò.
+ * ---------------------------------------------------------------------------
+ */
+
+defined( 'ABSPATH' ) || exit;
+
+define( 'KHTC_VERSION', '0.1.0' );
+define( 'KHTC_DIR', plugin_dir_path( __FILE__ ) );
+define( 'KHTC_URL', plugin_dir_url( __FILE__ ) );
+
+/** Quyền tối thiểu để mở plugin. Kế toán thường là Editor nên không dùng manage_options. */
+define( 'KHTC_CAP', 'edit_pages' );
+
+require_once KHTC_DIR . 'includes/class-khtc-db.php';
+require_once KHTC_DIR . 'includes/class-khtc-cty.php';
+require_once KHTC_DIR . 'includes/class-khtc-ngan-hang.php';
+require_once KHTC_DIR . 'includes/class-khtc-giao-dich.php';
+require_once KHTC_DIR . 'includes/class-khtc-ui.php';
+require_once KHTC_DIR . 'includes/class-khtc-admin.php';
+
+register_activation_hook( __FILE__, array( 'KHTC_DB', 'tao_bang' ) );
+
+add_action( 'plugins_loaded', array( 'KHTC_DB', 'nang_cap_neu_can' ) );
+add_action( 'admin_menu', array( 'KHTC_Admin', 'menu' ) );
+add_action( 'admin_enqueue_scripts', array( 'KHTC_Admin', 'nap_style' ) );
