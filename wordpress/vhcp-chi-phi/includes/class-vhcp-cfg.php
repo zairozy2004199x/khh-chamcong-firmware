@@ -1986,12 +1986,60 @@ class VHCP_Cfg {
 		return false;
 	}
 
-	/** Mã tài khoản của 1 loại chi phí (rỗng nếu chưa khai). */
-	public static function loai_tk( $ten ) {
-		$m = self::loai_map();
-		$k = mb_strtolower( trim( (string) $ten ) );
-		if ( ! isset( $m[ $k ] ) ) { return array( 'tkNo' => '', 'tkCo' => '', 'maDt' => '', 'boPhan' => '', 'tenMisa' => '', 'loaiTt' => '', 'vaiTro' => '' ); }
-		$x = $m[ $k ];
+	/**
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 * DÒNG DANH MỤC ĐÚNG CHO MỘT LOẠI CHI PHÍ, CÓ PHÂN BIỆT KHỐI.
+	 *
+	 * 🔴 `loai_map()` KHOÁ THEO TÊN, NÊN DÒNG SAU ĐÈ DÒNG TRƯỚC. Từ 1.239.0 mỗi khối có bảng mã
+	 *    riêng, nên hai khối hoàn toàn có thể cùng có một loại tên "Chi phí cơ sở" — và bảng tra
+	 *    ấy chỉ giữ lại MỘT dòng. Không khai khối thì mọi phép tra mã (TK Nợ, TK Có, mã đối
+	 *    tượng, tên MISA) của cả hai khối cùng đọc ra mã của khối nào tình cờ đứng sau.
+	 *
+	 * 🔴 KHÔNG ĐỔI HÀNH VI CỦA NGƯỜI GỌI CŨ. `$khoi` rỗng thì hàm này trả về đúng dòng mà
+	 *    `loai_map()` giữ lại, y như trước — thêm một tham số mà làm đổi câu trả lời của mọi
+	 *    người gọi cũ là hỏng ngầm trên toàn bộ sổ.
+	 *
+	 * ⚠️ DÒNG KHÔNG KHAI KHỐI LÀ DÒNG DÙNG CHUNG, và nó đứng SAU dòng khai đúng khối chứ không
+	 *    thay thế. Danh mục dựng từ sổ cũ còn nhiều dòng bỏ trống ô Khối; bỏ chúng đi là loại có
+	 *    thật mà tra ra rỗng, rồi báo "thiếu TK" cho một thứ đã khai từ lâu.
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 */
+	public static function loai_row( $ten, $khoi = '' ) {
+		$k  = mb_strtolower( trim( (string) $ten ) );
+		if ( '' === $k ) { return null; }
+		$kh = mb_strtolower( trim( (string) $khoi ) );
+		if ( '' === $kh ) {
+			$m = self::loai_map();
+			return isset( $m[ $k ] ) ? $m[ $k ] : null;
+		}
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		   KHỚP ĐÚNG KHỐI, HOẶC KHÔNG CÓ. Không ngã về dòng của khối khác, và KHÔNG có nhánh
+		   "dòng dùng chung".
+
+		   🔴 VÌ Ô KHỐI CỦA BẢNG NÀY KHÔNG BAO GIỜ RỖNG. `VHCP_Cfg::write()` lấp ô trống thành
+		      'kvc' (chốt ở `kiem-loai-theo-khoi.php`: *"rỗng = loại KHÔNG BẢNG NÀO CHỨA"*), nên
+		      mỗi loại thuộc ĐÚNG MỘT khối. Lượt đầu em có viết thêm một nhánh `$chung` cho
+		      "dòng chưa khai khối" — nghe chắc ăn, nhưng phá thử chỉ ra ngay là KHÔNG lượt chạy
+		      nào tới được nó. Nhánh không ai đi tới thì không ai biết nó còn đúng, và nó cũng
+		      chẳng bảo vệ được gì; cùng lý do `xem_duoc_bo_phan()` đã bị gỡ.
+
+		   🔴 HỎI "LOẠI X CỦA VP" MÀ CHỈ CÓ DÒNG X CỦA MTĐ THÌ CÂU TRẢ LỜI LÀ KHÔNG CÓ, chứ không
+		      phải mã của MTĐ — trả bừa chính là cái "đè lên nhau" mà hàm này sinh ra để chặn,
+		      chỉ khác là lặng lẽ hơn. Người gọi (`tkco_xuat`) hiểu `null` là "chưa khai" và rơi
+		      xuống bậc sau, tức về đúng hành vi cũ — hướng hỏng an toàn.
+		   ═══════════════════════════════════════════════════════════════════════════════════ */
+		$s = self::cfg_static();
+		foreach ( (array) ( isset( $s['loaiChiPhi'] ) ? $s['loaiChiPhi'] : array() ) as $x ) {
+			if ( mb_strtolower( trim( (string) $x['ten'] ) ) !== $k ) { continue; }
+			if ( mb_strtolower( trim( (string) ( isset( $x['khoi'] ) ? $x['khoi'] : '' ) ) ) === $kh ) { return $x; }
+		}
+		return null;
+	}
+
+	/** Mã tài khoản của 1 loại chi phí (rỗng nếu chưa khai). `$khoi` = '' giữ nguyên luật cũ. */
+	public static function loai_tk( $ten, $khoi = '' ) {
+		$x = self::loai_row( $ten, $khoi );
+		if ( ! $x ) { return array( 'tkNo' => '', 'tkCo' => '', 'maDt' => '', 'boPhan' => '', 'tenMisa' => '', 'loaiTt' => '', 'vaiTro' => '' ); }
 		return array(
 			'loaiTt'  => isset( $x['loaiTt'] ) ? (string) $x['loaiTt'] : '',
 			'tkNo'    => (string) $x['tkNo'],
@@ -2241,6 +2289,45 @@ class VHCP_Cfg {
 		$tk = self::tkno_loai( $loai, $coso );
 		if ( $tk !== '' ) { return $tk; }
 		return $tay;
+	}
+
+	/**
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 * TK ĐỐI ỨNG (TK CÓ) LÚC XUẤT MISA — ĐỐI XỨNG VỚI `tkno_xuat()` NGAY TRÊN.
+	 *
+	 * Anh Thắng 21/09/2026: *"MTĐ tùy loại sẽ có TK đối ứng khác"*, kèm ảnh bản MISA mẫu ghi
+	 * Nợ 64136 / Có **331** — không phải 141 như đường tạm ứng bên Khu vui chơi.
+	 *
+	 * 🔴 LỖI NẰM Ở CHỖ HAI CỘT ĐI HAI LUẬT NGƯỢC NHAU. Lúc xuất, TK **Nợ** đọc lại từ DANH MỤC
+	 *    và coi mã gắn trên dòng chỉ là bản sao chụp (xem `tkno_xuat()`), còn TK **Có** thì
+	 *    ngược hẳn: bản sao trên dòng thắng, danh mục không được hỏi lấy một câu. Nên kế toán
+	 *    khai TK đối ứng cho một loại xong, mọi dòng ĐÃ NHẬP TRƯỚC ĐÓ vẫn xuất ra mã cũ — mà
+	 *    đúng mấy dòng ấy mới là thứ cần sửa (67 cơ sở MTĐ nạp từ sổ cũ).
+	 *
+	 * 🔴 KHAI TK ĐỐI ỨNG CHO MỘT LOẠI LÀ MỘT LỜI TUYÊN BỐ, nên nó thắng. Nghĩa của ô ấy là
+	 *    "loại này luôn đối ứng vào tài khoản này, bất kể chi bằng hình thức gì" — bỏ trống mới
+	 *    là "cứ theo hình thức chi". Đó là lý do nó đứng TRƯỚC bản sao trên dòng.
+	 *
+	 * ⚠️ BỎ TRỐNG THÌ KHÔNG ĐỔI GÌ CẢ. Loại chưa khai ô này (gần như toàn bộ bên Khu vui chơi)
+	 *    rơi xuống đúng hai bậc cũ: bản sao trên dòng, rồi bảng Phân loại thanh toán. Thêm một
+	 *    bậc mà làm đổi mã của sổ đang chạy là sai hàng loạt bút toán đã đối chiếu xong.
+	 * ⚠️ HỎI DANH MỤC THEO KHỐI CỦA ĐƠN — xem chốt ở `loai_row()`. Hai khối cùng có một loại
+	 *    trùng tên là chuyện có thật từ 1.239.0, và tra không phân biệt khối thì TK đối ứng của
+	 *    Máy tự động đè lên dòng của Khu vui chơi.
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 */
+	public static function tkco_xuat( $loai, $khoi, $tk_dong, $tk_phan_loai = '' ) {
+		$cat = self::loai_row( $loai, $khoi );
+		/* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG, ghi lại để lần sau khỏi đuổi theo: bỏ `trim()` ở dòng dưới
+		   KHÔNG đổi kết quả — `VHCP_Cfg::write()` đã cho ô này qua `VHCP_Util::ma_so()`, nên giá
+		   trị đọc lên từ kho không bao giờ còn khoảng trắng thừa. Giữ `trim()` vì nó rẻ và vì
+		   hàm này là hàm công khai: người gọi sau có thể đưa vào một dòng danh mục dựng tay,
+		   chưa qua đường ghi. `kiem-tk-doi-ung-theo-loai.php` có ghi lại phép đột biến ấy. */
+		$khai = $cat ? trim( (string) ( isset( $cat['tkCo'] ) ? $cat['tkCo'] : '' ) ) : '';
+		if ( '' !== $khai ) { return $khai; }
+		$tay = trim( (string) $tk_dong );
+		if ( '' !== $tay ) { return $tay; }
+		return trim( (string) $tk_phan_loai );
 	}
 
 	/** Các cơ sở cùng mảng với cơ sở đã chọn (dùng để báo "mã này áp cho những cơ sở nào"). */

@@ -1415,6 +1415,14 @@
             <option value="daxuat">Đã xuất</option>
           </select>
           <select id="xuatKy" onchange="callExport()"><option value="all">Tất cả kỳ</option></select>
+          <!-- 🔴 Ô CHỌN MẪU, KHÔNG TỰ ĐOÁN THEO KHỐI. Từ 1.245.0 kế toán KVC xuất hộ đơn Máy tự
+               động, nên MỘT tệp có thể chứa đơn của hai khối — mà một tệp thì chỉ có một hình
+               dạng. Tự đoán theo khối là lúc ấy phải chọn bừa một bên, im lặng. Để người xuất
+               chọn thì họ xuất hai lượt, mỗi lượt một mẫu, và biết mình đang cầm tệp gì. -->
+          <select id="xuatMau" onchange="callExport()" title="Hình dạng tệp xuất ra. Nhật ký chung: TK Nợ và TK Có nằm cạnh nhau, số tiền một cột. Sổ chi tiết: TK đối ứng + Phát sinh Nợ/Có tách đôi, kèm Tên đơn vị.">
+            <option value="chuan">📄 Nhật ký chung (10 cột)</option>
+            <option value="soct">📑 Sổ chi tiết — MTĐ · VP (13 cột)</option>
+          </select>
           <button class="btn b-x" onclick="loadXuat()">↻ Tải lại</button>
           <button class="btn b-x" id="xuatWarnBtn" style="display:none" onclick="xuatWarnBat()" title="Bật lại ô cảnh báo cấu hình">🔔 Hiện cảnh báo</button>
           <button class="btn b-g" onclick="downloadCSV()">⬇ Tải Excel & chốt đã xuất</button>
@@ -1662,7 +1670,7 @@
              LOẠT đứng ngay cạnh nút Lưu, trong một bảng người ta mở ra mỗi ngày để sửa tên loại.
              Nó dựng cho một lần dọn dữ liệu cũ; giữ lại là để một cú bấm nhầm xoá cả danh mục. --><button class="btn b-x" onclick="ganMaTK()" title="Điền mã tài khoản cho các dòng chi cũ còn trống">🔗 Gán mã cho dòng cũ</button><button class="btn b-g" onclick="saveCfgTkNoMx()">💾 Lưu</button></div></div>
       <div class="tw"><div id="cfgTkNoMx" style="padding:4px 14px 8px"></div></div>
-      <div style="padding:0 14px 12px;font-size:11px;color:#8c8781"><b>Bảng duy nhất quyết định "chi phí này là chi phí gì".</b> <b>Bảng trên</b> — mỗi hàng là một loại chi phí: <b>Loại</b> = mua của NCC hay cá nhân ứng tiền (dùng để lọc lúc nhập theo hình thức chi) · <b>Bộ phận</b> = ai được thấy loại này · <b>Tên theo MISA</b> = tên đem đi xuất (trống = dùng tên bên trái). <b>TK Có</b> app tự lấy theo hình thức chi (Tạm ứng NV → <b>141</b> · Trực tiếp NCC → <b>331</b>), không phải khai. <b>Bảng dưới</b> — <b>TK Nợ của từng mảng</b>, mỗi hàng là một mảng kinh doanh (xếp DỌC cho dễ dò, vì mảng thì hàng chục còn loại chi phí chỉ chừng mươi cái) — mảng của một dòng chi lấy theo <b>Phân loại lớn</b> của cơ sở (khai ở bảng 🏢 Mã đơn vị theo Cơ sở), nên cùng loại chi phí mà khác cơ sở thì khác mã, cùng loại chi phí mà khác mảng thì khác mã (VD "Chi phí khác": Event 64196 · Farm 64166 · Funzone 64126 · TuTu 64106). Ô để trống = <b>mảng đó không dùng loại này</b> → ô chọn loại chi phí ở cơ sở thuộc mảng đó cũng không hiện. Một ô khai được <b>nhiều mã</b>, cách nhau bởi <code>|</code> (VD <code>64196 | 64197</code>) — lúc nhập ô chọn tách thành từng dòng theo mã để người nhập chỉ đúng một. Cột mảng lấy tự động từ "Phân loại lớn" của bảng Cơ sở. Sửa mã ở đây <b>không</b> đổi mã của dòng đã nhập; muốn áp lại thì bấm <b>🔗 Gán mã cho dòng cũ</b>.</div>
+      <div style="padding:0 14px 12px;font-size:11px;color:#8c8781"><b>Bảng duy nhất quyết định "chi phí này là chi phí gì".</b> <b>Bảng trên</b> — mỗi hàng là một loại chi phí: <b>Loại</b> = mua của NCC hay cá nhân ứng tiền (dùng để lọc lúc nhập theo hình thức chi) · <b>Bộ phận</b> = ai được thấy loại này · <b>Tên theo MISA</b> = tên đem đi xuất (trống = dùng tên bên trái). <b>TK đối ứng</b> để trống thì app tự lấy theo hình thức chi (Tạm ứng NV → <b>141</b> · Trực tiếp NCC → <b>331</b>); điền vào thì loại ấy <b>luôn</b> đối ứng vào mã đã khai, bất kể chi bằng hình thức gì — dùng cho những loại đi thẳng công nợ (VD Máy tự động: Nợ 64136 · Có <b>331</b>). Mã khai ở đây áp cho <b>cả dòng đã nhập trước đó</b>, khác với TK Nợ. <b>Bảng dưới</b> — <b>TK Nợ của từng mảng</b>, mỗi hàng là một mảng kinh doanh (xếp DỌC cho dễ dò, vì mảng thì hàng chục còn loại chi phí chỉ chừng mươi cái) — mảng của một dòng chi lấy theo <b>Phân loại lớn</b> của cơ sở (khai ở bảng 🏢 Mã đơn vị theo Cơ sở), nên cùng loại chi phí mà khác cơ sở thì khác mã, cùng loại chi phí mà khác mảng thì khác mã (VD "Chi phí khác": Event 64196 · Farm 64166 · Funzone 64126 · TuTu 64106). Ô để trống = <b>mảng đó không dùng loại này</b> → ô chọn loại chi phí ở cơ sở thuộc mảng đó cũng không hiện. Một ô khai được <b>nhiều mã</b>, cách nhau bởi <code>|</code> (VD <code>64196 | 64197</code>) — lúc nhập ô chọn tách thành từng dòng theo mã để người nhập chỉ đúng một. Cột mảng lấy tự động từ "Phân loại lớn" của bảng Cơ sở. Sửa mã ở đây <b>không</b> đổi mã của dòng đã nhập; muốn áp lại thì bấm <b>🔗 Gán mã cho dòng cũ</b>.</div>
     </div>
 
     <div class="card" id="tkCoCard">
@@ -8415,6 +8423,9 @@
     var coTT=(src==='vh'||src==='chi');   // chỉ đơn vận hành & sổ chi phí có trạng thái chưa/đã xuất
     if(el('xuatTT')) el('xuatTT').style.display=coTT?'':'none';
     if(el('xuatKy')) el('xuatKy').style.display=coTT?'':'none';
+    /* Mẫu sổ chi tiết mới chỉ dựng cho ĐƠN VẬN HÀNH. Bày ô chọn ở mấy nguồn kia là mời người ta
+       chọn một thứ không có tác dụng — im lặng, nên tệp ra vẫn mẫu cũ mà họ tưởng đã đổi. */
+    if(el('xuatMau')) el('xuatMau').style.display=(src==='vh')?'':'none';
     callExport();
   }
   function callExport(){ loading(true);
@@ -8441,14 +8452,20 @@
     }
     var plF=(_vaiLuat()==='Kế toán NCC')?'ncc':((_vaiLuat()==='Kế toán cá nhân')?'cn':'all');
     google.script.run.withSuccessHandler(function(res){loading(false); XUAT=res||{cols:[],rows:[]}; renderXuat();})
-      .withFailureHandler(function(e){loading(false);toast('err',e.message);}).exportMisa(el('xuatKy').value, el('xuatTT').value, plF);
+      .withFailureHandler(function(e){loading(false);toast('err',e.message);})
+      .exportMisa(el('xuatKy').value, el('xuatTT').value, plF, (el('xuatMau')&&el('xuatMau').value)||'chuan');
   }
   function renderXuat(){
     el('xuatSoDon').textContent=XUAT.sodon||0; el('xuatSoDong').textContent=XUAT.count||0;
     el('xuatEmpty').style.display=(XUAT.rows&&XUAT.rows.length)?'none':'block';
     el('xuatHead').innerHTML='<tr>'+(XUAT.cols||[]).map(function(c){return '<th style="white-space:nowrap">'+esc(c)+'</th>';}).join('')+'</tr>';
     el('xuatBody').innerHTML=(XUAT.rows||[]).map(function(r){return '<tr>'+r.map(function(v,i){
-      var num=((XUAT.cols||[])[i]==='Số tiền'); return '<td'+(num?' class="money"':'')+' style="white-space:nowrap">'+(num?money(v):esc(v))+'</td>';}).join('')+'</tr>';}).join('');
+      /* Mẫu sổ chi tiết có BỐN cột tiền (Phát sinh Nợ/Có · Dư Nợ/Có), mẫu cũ có một ("Số tiền").
+         Dò theo TÊN CỘT chứ không theo chỉ số: hai mẫu lệch nhau ba cột, gõ cứng chỉ số là mẫu
+         này canh phải ô tiền của mẫu kia. */
+      var ten=(XUAT.cols||[])[i]||'';
+      var num=(ten==='Số tiền'||ten.indexOf('Phát sinh')===0||ten.indexOf('Dư ')===0);
+      return '<td'+(num?' class="money"':'')+' style="white-space:nowrap">'+(num?(v===''||v==null?'':money(v)):esc(v))+'</td>';}).join('')+'</tr>';}).join('');
     renderXuatWarn();
     renderXuatBanGiao();
   }
@@ -8529,7 +8546,7 @@
       if(typeof XLSX!=='undefined'){
         var ws=XLSX.utils.aoa_to_sheet([XUAT.cols].concat(XUAT.rows));   // Số tiền là số -> ô số; còn lại text
         var wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'MISA');
-        XLSX.writeFile(wb, 'MISA_VanHanhChiPhi.xlsx');
+        XLSX.writeFile(wb, 'MISA_VanHanhChiPhi'+(XUAT.mau==='soct'?'_SoChiTiet':'')+'.xlsx');
         okXlsx=true;
       }
     }catch(e){ okXlsx=false; }
@@ -8537,7 +8554,7 @@
       var ce=function(v){v=(v==null?'':String(v)); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
       var csv=XUAT.cols.map(ce).join(',')+'\n'+XUAT.rows.map(function(r){return r.map(ce).join(',');}).join('\n');
       var blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
-      var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='MISA_VanHanhChiPhi.csv'; document.body.appendChild(a); a.click();
+      var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='MISA_VanHanhChiPhi'+(XUAT.mau==='soct'?'_SoChiTiet':'')+'.csv'; document.body.appendChild(a); a.click();
       setTimeout(function(){a.remove();URL.revokeObjectURL(a.href);},150);
       toast('warn','Không tải được Excel (máy chặn thư viện) — đã tải CSV thay thế');
     }
@@ -11560,6 +11577,10 @@
         +'<th style="width:140px">Loại</th>'
         +'<th style="width:340px">Vai trò được dùng <span style="font-weight:400;color:#8c8781">(không tích = mọi vai)</span></th>'
         +'<th style="width:150px">Khối</th>'
+        /* Anh Thắng 21/09/2026: *"MTĐ tùy loại sẽ có TK đối ứng khác"*. Trước bản này cột này
+           KHÔNG có ô nào trên màn — có trong kho mà không có đường vào, nên khai là chuyện
+           không làm được. Xem chốt dài ở `VHCP_Cfg::tkco_xuat()`. */
+        +'<th style="width:150px" title="Bỏ trống = theo hình thức chi như cũ (Tạm ứng NV → 141 · Trực tiếp NCC → 331). Điền vào = loại này LUÔN đối ứng vào mã ấy, bất kể chi bằng hình thức gì.">TK đối ứng <span style="font-weight:400;color:#8c8781">(trống = tự suy)</span></th>'
         +'<th style="width:190px">Tên theo MISA</th>'
         +'<th style="width:44px"></th></tr></thead>'
         /* 🔴 `data-khoi` TRÊN TBODY, không trên từng hàng: lúc Lưu, `saveCfgTkNoMx()` đóng dấu
@@ -12210,6 +12231,9 @@
             khối là dựng lại đúng cái "dùng chung" mà ba bảng sinh ra để bỏ.
          Đổi ô này rồi bấm Lưu là dòng nhảy sang bảng của khối ấy. */
       +'<td>'+_khoiSelLoai(_khoiCuaLoai(x))+'</td>'
+      /* ⚠️ `data-o="tkco"` chứ không dựa vào THỨ TỰ Ô — cả chỗ đọc lúc Lưu lẫn chỗ này đều bám
+         theo mốc tên, nên thêm bớt cột sau này không làm lệch cột nào. */
+      +'<td><input value="'+esc(x.tkCo||'')+'" data-o="tkco" list="tkChartList" placeholder="tự suy" style="width:100%;font-family:Consolas,monospace"></td>'
       +'<td><input value="'+esc(x.tenMisa||'')+'" data-o="misa" placeholder="trống = dùng tên bên trái" style="width:100%"></td>'
       +_delBtn()+'</tr>';
   }
@@ -12269,6 +12293,7 @@
       var goc=cu[k]||cu[khoiB+'|'+goc0.toLowerCase()]||{};
       var oLoai=tr.querySelector('select[data-o="loaiTt"]');
       var oMisa=tr.querySelector('input[data-o="misa"]');
+      var oTkCo=tr.querySelector('input[data-o="tkco"]');
       /* 🔴 ĐỌC Ô TÍCH VAI. Còn `boPhan` thì LẤY LẠI TỪ BẢN CŨ (`goc`) chứ không đọc màn —
          cột ấy không còn ô nào trên bảng, đọc ra rỗng rồi ghi xuống là xoá sạch dữ liệu bộ
          phận anh Thắng đã khai, mà anh chỉ bảo thôi dùng chứ chưa bảo xoá. */
@@ -12281,11 +12306,16 @@
       /* Ô tích ĐƠN VỊ đã gỡ khỏi bảng (21/09/2026) — giữ nguyên giá trị cũ trong sổ, đừng ghi
          rỗng đè lên: anh Thắng bảo thay cột, chưa bảo xoá dữ liệu. */
       var dvL=(goc.donVi||'');
-      // Bảng không còn cột TK Có và "Mọi mảng" -> giữ nguyên giá trị đã lưu, đừng ghi rỗng
-      // lên (lưu bảng một lần là xóa sạch mã cũ của mọi loại thì hỏng nặng).
+      /* 🔴 TK ĐỐI ỨNG NAY CÓ Ô, NÊN ĐỌC MÀN — nhưng CHỈ khi ô ấy thật sự có mặt. Hàng vẽ bởi
+         bản cũ (hoặc một bảng nào đó sau này bỏ cột) không có ô, và lúc ấy phải giữ nguyên giá
+         trị đã lưu: đọc ra rỗng rồi ghi đè là một lượt Lưu xoá sạch mã của mọi loại — đúng cái
+         bẫy mà dòng chú thích cũ ngay đây dựng lên để tránh, nay chỉ đổi điều kiện chứ không
+         bỏ. Ô CÓ MẶT mà người ta xoá trắng thì rỗng là ý thật: "thôi, trả về tự suy".
+         "Mọi mảng" vẫn không có ô nào -> vẫn giữ nguyên như cũ. */
+      var tkCoR = oTkCo ? String(oTkCo.value||'').trim() : (goc.tkCo||'');
       dm.push({ ten:ten, loaiTt:String((oLoai&&oLoai.value)||''), vaiTro:vai, boPhan:(goc.boPhan||''), donVi:dvL, khoi:khoiR,
                 tenMisa:String((oMisa&&oMisa.value)||'').trim(),
-                tkCo:goc.tkCo||'', tkNo:goc.tkNo||'',
+                tkCo:tkCoR, tkNo:goc.tkNo||'',
                 maDt:goc.maDt||'', note:goc.note||'' });
     });
     });
