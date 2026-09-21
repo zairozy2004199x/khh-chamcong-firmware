@@ -3,7 +3,7 @@
  * Plugin Name:       Nền tảng K&H
  * Plugin URI:        https://khh.vn/
  * Description:       Nền tảng quản trị nội bộ 16 ứng dụng: dự án & công việc, báo cáo dự án, đề xuất, quy trình, hồ sơ nhân sự, chấm công, bảng công, nghỉ phép, bảng lương (bảo hiểm + thuế TNCN), thông báo, tri thức, họp, trò chuyện, bảng tin, đặt tài nguyên.
- * Version:           1.20.1
+ * Version:           1.21.0
  * Requires at least: 5.8
  * Requires PHP:      7.2
  * Author:            K&H
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'KHH_VERSION', '1.20.1' );
+define( 'KHH_VERSION', '1.21.0' );
 define( 'KHH_FILE', __FILE__ );
 define( 'KHH_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KHH_URL', plugin_dir_url( __FILE__ ) );
@@ -44,6 +44,9 @@ require_once KHH_DIR . 'nhap-cham-cong.php';
 /* Nối thẳng với plugin Chấm Công (K&H) cùng site, không cần khai. */
 require_once KHH_DIR . 'noi-vhcc.php';
 
+/* Đọc thẳng doanh thu ngày theo cửa hàng từ plugin Báo Cáo Doanh Thu FABi cùng site. */
+require_once KHH_DIR . 'noi-doanh-thu.php';
+
 /* ───────────────────────────────────────────────────────────────────────────────────────────
  * TỰ CẬP NHẬT TỪ GITHUB RELEASES (1.18.0).
  *
@@ -63,6 +66,8 @@ function khh_collections() {
 		'staff', 'depts', 'timeoffs', 'attendance', 'payrolls',
 		'posts', 'meetings', 'rooms', 'devices',
 		'channels', 'messages', 'feed', 'resources', 'bookings', 'settings',
+		/* Lịch ca, xin đổi / nhận ca, doanh thu nhập tay theo cơ sở-ngày. */
+		'roster', 'swaps', 'dailyrev',
 	);
 }
 
@@ -363,6 +368,12 @@ function khh_rest_state( $request ) {
 	}
 
 	$now = (int) round( microtime( true ) * 1000 );
+	/* Doanh thu ngày của FABi: đọc thẳng, chỉ gửi khi đổi — cùng cách với chấm công. */
+	$dts = function_exists( 'khh_dt_song' ) ? khh_dt_song() : null;
+	if ( $dts && $dts['ver'] > $since ) {
+		$docs['revenue'] = $dts['docs'];
+		$now             = max( $now, (int) $dts['ver'] );
+	}
 	if ( $song && $song['ver'] > $since ) {
 		/* Chỉ gửi khi nội dung thật sự đổi — giao diện hỏi mỗi 8 giây, gửi lại
 		   cả tháng công mỗi lần thì tốn băng thông vô ích. */
@@ -557,6 +568,8 @@ function khh_api_config() {
 		/* Giới hạn tải tệp thật của hosting — giao diện lấy số này để báo trước,
 		   khỏi để người dùng chọn tệp xong mới biết là quá nặng. */
 		'maxUpload' => (int) wp_max_upload_size(),
+		/* Yêu cầu đổi lịch đang chờ bên Chấm Công (K&H), để màn Lịch ca nhắc sang duyệt. */
+		'vhccDoiLich' => function_exists( 'khh_vhcc_doi_lich_cho' ) ? khh_vhcc_doi_lich_cho() : null,
 		'canUpload' => current_user_can( 'upload_files' ) ? 1 : 0,
 		/* Nút Thoát trong hộp "Tài khoản của bạn". Có mã chống giả mạo nên
 		   không ai ép người khác đăng xuất bằng một đường dẫn gửi qua chat.

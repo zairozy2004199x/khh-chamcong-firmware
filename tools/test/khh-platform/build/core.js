@@ -59,7 +59,7 @@ var S=APP.S={
 if(ls('kh.theme'))document.documentElement.setAttribute('data-theme',ls('kh.theme'));
 
 /* ---------- lớp dữ liệu ---------- */
-var COLLS=['projects','tasks','requests','reqtypes','flows','jobs','staff','depts','timeoffs','attendance','payrolls','posts','meetings','rooms','devices','channels','messages','feed','resources','bookings','settings'];
+var COLLS=['projects','tasks','requests','reqtypes','flows','jobs','staff','depts','timeoffs','attendance','payrolls','posts','meetings','rooms','devices','channels','messages','feed','resources','bookings','settings','roster','swaps','dailyrev','revenue'];
 var DATA={};COLLS.forEach(function(c){DATA[c]=[]});
 APP.col=function(c){return DATA[c]||[]};
 APP.find=function(c,id){var a=DATA[c]||[];for(var i=0;i<a.length;i++)if(a[i].id===id)return a[i];return null};
@@ -611,6 +611,7 @@ APP.form=function(o){
 
 /* ---------- biểu tượng ---------- */
 var IC={
+  search:'<circle cx="9" cy="9" r="5.5"/><path d="m13.2 13.2 3.8 3.8"/>',
   home:'<path d="M3 9.5 10 4l7 5.5V16a1 1 0 0 1-1 1h-3v-5H7v5H4a1 1 0 0 1-1-1Z"/>',
   work:'<rect x="3" y="5" width="14" height="12" rx="1.5"/><path d="M7 5V3.8h6V5M3 9.5h14"/>',
   request:'<path d="M5 3h7l4 4v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/><path d="M11.5 3v4.5H16M7 11h6M7 14h4"/>',
@@ -659,7 +660,7 @@ APP.render=function(){
   wk.className='wk'+(d.side?' has-side':'')+(d.info?' has-info':'');
   clearTip();
   APP.keepFocus(function(){
-    renderRail();
+    renderRail();palNut();
     /* thay hẳn nút gốc để mọi listener của lượt vẽ trước biến mất,
        nếu không mỗi lần vẽ lại sẽ chồng thêm một listener và sự kiện chạy nhiều lần */
     var old=$('#appRoot'),root=old.cloneNode(false);
@@ -750,6 +751,81 @@ document.addEventListener('mouseover',function(e){
 document.addEventListener('mouseleave',clearTip);
 document.addEventListener('click',clearTip,true);
 document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeMenu();document.body.classList.remove('notif-open')}});
+
+/* ---------- Tìm nhanh Ctrl+K (mượn bảng lệnh của Twenty / Linear) ----------
+   Gõ vài chữ là nhảy tới người, dự án, công việc, cơ sở hay màn hình — 253 nhân sự và
+   hơn 20 cơ sở thì bấm menu từng cấp chậm hơn gõ tên nhiều. */
+var pal=null,palIdx=0,palKq=[];
+function palNguon(){
+  var out=[];
+  APP.apps.forEach(function(d){if(d.id!=='home')out.push({loai:'Màn hình',ten:d.name,phu:d.desc||'',app:d.id,arg:null,ic:d.icon,mau:d.color})});
+  APP.col('staff').forEach(function(s){if(s.status==='left')return;
+    out.push({loai:'Nhân sự',ten:s.name,phu:[s.code,s.title,s.office].filter(Boolean).join(' · '),app:'hrm',arg:s.id,av:s.name,mau:s.color})});
+  APP.col('projects').forEach(function(p){out.push({loai:'Dự án',ten:p.name,phu:p.group||'',app:'wework',arg:p.id,ic:'work',mau:p.color})});
+  APP.col('tasks').forEach(function(t){if(t.status==='done')return;
+    var p=APP.find('projects',t.pid);
+    out.push({loai:'Công việc',ten:t.title,phu:[p&&p.name,t.assignee].filter(Boolean).join(' · '),app:'wework',arg:t.pid,ic:'work',mau:'#1177D8'})});
+  (APP.officeAll?APP.officeAll():[]).forEach(function(o){out.push({loai:'Cơ sở',ten:o,phu:'Bảng công cơ sở',app:'checkin',arg:'cs:'+o,ic:'timesheet',mau:'#0E9AA7'})});
+  return out}
+function boDau(s){return norm(s).normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/đ/g,'d')}
+/* Chấm điểm: khớp đầu chuỗi > khớp đầu từ > khớp giữa; không dấu cũng tìm được. */
+APP.timNhanh=function(q,gioiHan){
+  q=boDau(q);
+  if(!q)return [];
+  var tu=q.split(/\s+/).filter(Boolean);
+  return palNguon().map(function(it){
+    var t=boDau(it.ten),ph=boDau(it.phu),diem=0;
+    var du=tu.every(function(w){
+      if(t.indexOf(w)===0){diem+=30;return true}
+      if(t.indexOf(' '+w)>=0){diem+=20;return true}
+      if(t.indexOf(w)>=0){diem+=10;return true}
+      if(ph.indexOf(w)>=0){diem+=4;return true}
+      return false});
+    if(!du)return null;
+    if(it.loai==='Nhân sự')diem+=2;
+    return {it:it,diem:diem-Math.min(t.length,40)/40}}).filter(Boolean)
+    .sort(function(a,b){return b.diem-a.diem}).slice(0,gioiHan||12).map(function(x){return x.it})};
+function palVe(){
+  var q=$('#palQ',pal).value;
+  palKq=APP.timNhanh(q,12);
+  palIdx=Math.max(0,Math.min(palIdx,palKq.length-1));
+  $('#palList',pal).innerHTML=palKq.length?palKq.map(function(it,i){
+    return '<button type="button" class="palrow'+(i===palIdx?' on':'')+'" data-pi="'+i+'">'+
+      (it.av?APP.av(it.av,'s',it.mau):'<span class="av s" style="background:'+esc(it.mau||'#888')+'">'+APP.icon(it.ic||'home','')+'</span>')+
+      '<span class="tx"><b>'+esc(it.ten)+'</b>'+(it.phu?'<span class="ph">'+esc(it.phu)+'</span>':'')+'</span>'+
+      '<span class="loai">'+esc(it.loai)+'</span></button>'}).join('')
+    :(q?'<p class="empty">Không thấy gì khớp “'+esc(q)+'”.</p>':'<p class="empty">Gõ tên người, dự án, công việc, cơ sở hay màn hình.</p>')}
+function palChon(i){
+  var it=palKq[i];if(!it)return;
+  palDong();APP.go(it.app,it.arg)}
+function palDong(){if(pal){pal.close();pal.remove();pal=null}}
+APP.moTimNhanh=function(){
+  if(pal){palDong();return}
+  pal=document.createElement('dialog');pal.className='pal';
+  pal.innerHTML='<div class="palbox"><input id="palQ" type="text" placeholder="Tìm nhanh… (Esc để đóng)" autocomplete="off" spellcheck="false">'+
+    '<div id="palList"></div><div class="palfoot">↑↓ chọn · Enter mở · Esc đóng</div></div>';
+  document.body.appendChild(pal);
+  pal.addEventListener('input',function(){palIdx=0;palVe()});
+  pal.addEventListener('keydown',function(e){
+    if(e.key==='ArrowDown'){e.preventDefault();palIdx=Math.min(palKq.length-1,palIdx+1);palVe()}
+    else if(e.key==='ArrowUp'){e.preventDefault();palIdx=Math.max(0,palIdx-1);palVe()}
+    else if(e.key==='Enter'){e.preventDefault();palChon(palIdx)}});
+  pal.addEventListener('click',function(e){
+    var b=e.target.closest('[data-pi]');if(b){palChon(+b.getAttribute('data-pi'));return}
+    if(e.target===pal)palDong()});
+  pal.addEventListener('close',function(){setTimeout(function(){if(pal){pal.remove();pal=null}},0)});
+  pal.showModal();palIdx=0;palVe();$('#palQ',pal).focus()};
+document.addEventListener('keydown',function(e){
+  if((e.ctrlKey||e.metaKey)&&!e.altKey&&String(e.key).toLowerCase()==='k'){e.preventDefault();APP.moTimNhanh()}});
+document.addEventListener('click',function(e){if(e.target.closest('#railFind'))APP.moTimNhanh()});
+/* Nút trên thanh biểu tượng, gắn sau mỗi lượt vẽ để không phải đụng vào renderRail. */
+function palNut(){
+  var rail=$('#iconrail');if(!rail||$('#railFind',rail))return;
+  var b=document.createElement('button');b.type='button';b.id='railFind';b.className='rail-btn';
+  b.setAttribute('data-tip','Tìm nhanh (Ctrl+K)');b.setAttribute('aria-label','Tìm nhanh');
+  b.innerHTML=APP.icon('search','ic');
+  var dau=rail.firstElementChild;
+  if(dau&&dau.nextSibling)rail.insertBefore(b,dau.nextSibling);else rail.appendChild(b)}
 W.addEventListener('resize',closeMenu);
 
 /* Hồ sơ nhân sự của chính người đang đăng nhập.

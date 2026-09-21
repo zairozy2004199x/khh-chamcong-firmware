@@ -122,7 +122,9 @@ function actionBar(){
     '<button class="drop" type="button" data-menu="sort">Sắp xếp: <b>'+esc(SORTS[V.sort])+'</b> <span class="cv">▾</span></button>'+
     '<button class="drop" type="button" data-menu="filter">Lọc: <b>'+esc(FILTERS[V.filter])+'</b> <span class="cv">▾</span></button>'+
     '<span class="seg"><button type="button" data-mode="list"'+(V.mode==='list'?' class="on"':'')+'>Danh sách</button>'+
-    '<button type="button" data-mode="board"'+(V.mode==='board'?' class="on"':'')+'>Dạng bảng</button></span></div>'}
+    '<button type="button" data-mode="board"'+(V.mode==='board'?' class="on"':'')+'>Bảng Kanban</button>'+
+    '<button type="button" data-mode="sheet"'+(V.mode==='sheet'?' class="on"':'')+'>Bảng tính</button>'+
+    '<button type="button" data-mode="gantt"'+(V.mode==='gantt'?' class="on"':'')+'>Gantt</button></span></div>'}
 
 /* ---------- lọc & sắp xếp ---------- */
 function sorter(a,b){
@@ -171,7 +173,86 @@ function projectBody(){
   if(V.tab==='discuss')return discussHtml(p);
   if(V.tab==='docs')return docsHtml(p);
   if(V.tab==='acts')return actsHtml(p);
-  return V.mode==='board'?boardHtml(p):listHtml(p)}
+  if(V.mode==='board')return boardHtml(p);
+  if(V.mode==='sheet')return sheetHtml(p);
+  if(V.mode==='gantt')return ganttHtml(p);
+  return listHtml(p)}
+
+/* ---------- Bảng tính (mượn Plane / Twenty): sửa thẳng trên ô, không mở hộp ---------- */
+function sheetHtml(p){
+  var vis=visible(),ls=lists(p);
+  var h='<div class="tbl-wrap"><table class="t sheet"><thead><tr><th style="width:34px"></th><th>Công việc</th><th>Nhóm</th>'+
+    '<th>Trạng thái</th><th>Người phụ trách</th><th>Ưu tiên</th><th>Bắt đầu</th><th>Hạn chót</th><th class="n">Việc con</th></tr></thead><tbody>';
+  vis.forEach(function(t){
+    var late=isLate(t),subs=t.subs||[],sd=subs.filter(function(x){return x.done}).length;
+    h+='<tr class="'+(t.status==='done'?'done':'')+(late?' late':'')+'" data-srow="'+t.id+'">'+
+      '<td><button class="ck'+(t.status==='done'?' on':'')+'" type="button" data-check="'+t.id+'" aria-label="Đánh dấu hoàn thành">'+
+        '<svg viewBox="0 0 10 10" fill="none" stroke="#fff" stroke-width="2"><path d="M1.6 5.2 4 7.5 8.4 2.6"/></svg></button></td>'+
+      '<td><input class="sc" data-sheet="'+t.id+':title" value="'+esc(t.title)+'"> <button class="linkbtn sm" type="button" data-open="'+t.id+'" title="Mở chi tiết">↗</button></td>'+
+      '<td><select class="sc" data-sheet="'+t.id+':list">'+ls.map(function(L){return '<option value="'+esc(L.id)+'"'+((t.list||'default')===L.id?' selected':'')+'>'+esc(L.name)+'</option>'}).join('')+'</select></td>'+
+      '<td><select class="sc st-'+esc(t.status)+'" data-sheet="'+t.id+':status">'+Object.keys(ST).map(function(k){return '<option value="'+k+'"'+(t.status===k?' selected':'')+'>'+ST[k].l+'</option>'}).join('')+'</select></td>'+
+      '<td><input class="sc" list="dl_people" data-sheet="'+t.id+':assignee" value="'+esc(t.assignee||'')+'" placeholder="Chưa giao"></td>'+
+      '<td><select class="sc" data-sheet="'+t.id+':prio">'+[['high','Gấp'],['normal','Bình thường'],['low','Thong thả']].map(function(o){return '<option value="'+o[0]+'"'+((t.prio||'normal')===o[0]?' selected':'')+'>'+o[1]+'</option>'}).join('')+'</select></td>'+
+      '<td><input class="sc" type="date" data-sheet="'+t.id+':start" value="'+(t.start?String(t.start).slice(0,10):'')+'"></td>'+
+      '<td><input class="sc'+(late?' bad':'')+'" type="date" data-sheet="'+t.id+':due" value="'+(t.due?String(t.due).slice(0,10):'')+'"></td>'+
+      '<td class="n">'+(subs.length?sd+'/'+subs.length:'<span class="by">—</span>')+'</td></tr>'});
+  if(!vis.length)h+='<tr><td colspan="9" style="padding:18px;color:var(--muted)">Chưa có công việc nào khớp bộ lọc.</td></tr>';
+  return h+'</tbody></table></div><p class="by" style="padding:8px 14px">Sửa xong một ô là lưu ngay. Tên việc: gõ rồi Enter hoặc rời ô.</p>'}
+
+/* Một ô trên bảng tính vừa đổi → ghi vào công việc, có ghi lịch sử. */
+function sheetSua(id,k,val){
+  var t=task(id);if(!t)return;
+  /* Quyền sửa y như hộp Chi tiết công việc: thành viên nào cũng sửa được, lịch sử ghi ai đổi. */
+  var o=Object.assign({},t);
+  if(k==='title'){val=String(val||'').trim();if(!val){A.render();return}}
+  if(k==='start'||k==='due')val=val?new Date(val+'T'+(k==='due'?'18:00':'08:00')).toISOString():'';
+  if(k==='status'&&val==='done'&&t.status!=='done')o.doneAt=new Date().toISOString();
+  if(k==='list')o.order=nextOrder(t.pid,val);
+  o[k]=val;
+  var nhan={title:'tên',list:'nhóm',status:'trạng thái',assignee:'người phụ trách',prio:'ưu tiên',start:'ngày bắt đầu',due:'hạn chót'}[k]||k;
+  var moi=k==='status'?(ST[val]||{}).l:k==='list'?(lists(proj(t.pid)).filter(function(L){return L.id===val})[0]||{}).name:(k==='due'||k==='start')&&val?A.fmtD(val):val;
+  log(o,'đổi '+nhan+(moi?' → “'+moi+'”':' (bỏ trống)')+' trên bảng tính');
+  A.save('tasks',o)}
+
+/* ---------- Gantt (mượn Plane): mỗi việc một thanh từ ngày bắt đầu tới hạn chót ---------- */
+function ganttHtml(p){
+  var vis=visible(),co=vis.filter(function(t){return t.due}),khong=vis.filter(function(t){return !t.due});
+  var now=new Date();now.setHours(0,0,0,0);
+  var tu=new Date(now.getFullYear(),now.getMonth(),1),den=new Date(now.getFullYear(),now.getMonth()+1,0);
+  co.forEach(function(t){
+    var a=new Date(t.start||t.due),b=new Date(t.due);a.setHours(0,0,0,0);b.setHours(0,0,0,0);
+    if(a<tu)tu=new Date(a);if(b>den)den=new Date(b)});
+  tu.setDate(tu.getDate()-1);den.setDate(den.getDate()+2);
+  var nNgay=Math.round((den-tu)/864e5)+1,W=26;
+  if(nNgay>120){tu=new Date(den);tu.setDate(tu.getDate()-119);nNgay=120}
+  function cot(d){return Math.round((d-tu)/864e5)}
+  var thang=[],i,d;
+  for(i=0;i<nNgay;i++){d=new Date(tu);d.setDate(tu.getDate()+i);
+    var k=(d.getMonth()+1)+'/'+d.getFullYear();
+    if(!thang.length||thang[thang.length-1].k!==k)thang.push({k:k,n:1});else thang[thang.length-1].n++}
+  var h='<div class="gantt-wrap"><div class="gantt" style="--gw:'+W+'px;--gn:'+nNgay+'">'+
+    '<div class="g-side"><div class="g-h g-h2">Công việc</div>'+
+    co.map(function(t){return '<button class="g-name'+(t.status==='done'?' done':'')+'" type="button" data-open="'+t.id+'" title="'+esc(t.title)+'">'+
+      (t.assignee?A.av(t.assignee,'s'):'')+'<span>'+esc(t.title)+'</span></button>'}).join('')+'</div>'+
+    '<div class="g-main"><div class="g-months">'+thang.map(function(m){return '<div style="width:'+(m.n*W)+'px">Tháng '+esc(m.k)+'</div>'}).join('')+'</div>'+
+    '<div class="g-days">';
+  for(i=0;i<nNgay;i++){d=new Date(tu);d.setDate(tu.getDate()+i);
+    var wd=d.getDay(),hom=d.getTime()===now.getTime();
+    h+='<div class="g-d'+(wd===0||wd===6?' ct':'')+(hom?' hom':'')+'">'+d.getDate()+'</div>'}
+  h+='</div><div class="g-rows">';
+  co.forEach(function(t){
+    var a=new Date(t.start||t.due),b=new Date(t.due);a.setHours(0,0,0,0);b.setHours(0,0,0,0);
+    var x=Math.max(0,cot(a)),w=Math.max(1,cot(b)-cot(a)+1),late=isLate(t);
+    h+='<div class="g-row"><div class="g-hom" style="left:'+(cot(now)*W)+'px"></div>'+
+      '<button type="button" class="g-bar st-'+esc(t.status)+(late?' late':'')+'" data-open="'+t.id+'" '+
+      'style="left:'+(x*W)+'px;width:'+(w*W-4)+'px" title="'+esc(t.title)+' · '+A.fmtD(a)+' → '+A.fmtD(b)+'">'+
+      '<span>'+esc(t.title)+'</span></button></div>'});
+  h+='</div></div></div></div>';
+  if(!co.length)h='<div class="empty" style="padding:28px"><h3>Chưa có việc nào đặt hạn chót</h3><p>Gantt vẽ theo ngày bắt đầu và hạn chót. Đặt hạn cho công việc là nó hiện ra đây.</p></div>';
+  if(khong.length)h+='<div class="pad" style="padding-top:6px"><p class="by" style="margin:0 0 6px">'+khong.length+' việc chưa đặt hạn chót nên không có trên Gantt:</p>'+
+    '<div class="chips">'+khong.slice(0,20).map(function(t){return '<button class="chip soft" type="button" data-open="'+t.id+'">'+esc(t.title)+'</button>'}).join(' ')+
+    (khong.length>20?' <span class="by">+'+(khong.length-20)+' việc nữa</span>':'')+'</div></div>';
+  return h}
 
 function listHtml(p){
   var vis=visible(),h='';
@@ -813,6 +894,12 @@ function after(){
   var s=A.$('#wkSearch');if(s)s.addEventListener('input',function(){V.pq=this.value;A.render()});
   var q=A.$('#wkQ');if(q)q.addEventListener('input',function(){V.q=this.value;A.render()});
   if(V.view==='project'&&V.tab==='work'&&V.mode==='board')wireDrag();
+  /* Bảng tính: đổi ô nào lưu ô đó. Uỷ quyền trên gốc vì bảng vẽ lại sau mỗi lần lưu. */
+  root.addEventListener('change',function(e){
+    var el=e.target.closest('[data-sheet]');if(!el)return;
+    var q=el.getAttribute('data-sheet').split(':');sheetSua(q[0],q[1],el.value)});
+  root.addEventListener('keydown',function(e){
+    if(e.key==='Enter'&&e.target.matches&&e.target.matches('input[data-sheet]')){e.preventDefault();e.target.blur()}});
   if(dlgId&&dlgT&&dlgT.open)fillTask()}
 
 function onClick(e){

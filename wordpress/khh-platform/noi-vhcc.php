@@ -276,3 +276,49 @@ function khh_vhcc_dien_coso( $staff_docs ) {
 	unset( $s );
 	return $staff_docs;
 }
+
+/**
+ * Yêu cầu đổi lịch đang chờ bên Chấm Công (K&H) — chỉ đọc, để màn Lịch ca của nền
+ * tảng nhắc quản lý sang bên ấy duyệt. Không duyệt thay: bảng của plugin kia là
+ * của plugin kia.
+ *
+ * @return array|null array( n, ds, url ) hoặc null khi không có plugin / bảng.
+ */
+function khh_vhcc_doi_lich_cho() {
+	global $wpdb;
+	if ( ! khh_vhcc_co() ) {
+		return null;
+	}
+	$t = khh_vhcc_bang( 'doi_lich_cv' );
+	if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $t ) ) !== $t ) { // phpcs:ignore
+		return null;
+	}
+	$c = get_transient( 'khh_vhcc_doilich' );
+	if ( is_array( $c ) ) {
+		return $c;
+	}
+	$n  = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $t WHERE trang_thai IN ('cho','', 'CHO', 'cho_duyet')" ); // phpcs:ignore
+	$ds = $wpdb->get_results( // phpcs:ignore
+		"SELECT ma_yc, ho_ten, coso, ngay, ca, doi_sang_ngay, luc_xin FROM $t WHERE trang_thai IN ('cho','', 'CHO', 'cho_duyet') ORDER BY luc_xin DESC LIMIT 20",
+		ARRAY_A
+	);
+	$out = array(
+		'n'   => $n,
+		'ds'  => array_map(
+			function ( $r ) {
+				return array(
+					'ma_yc'  => (string) $r['ma_yc'],
+					'ho_ten' => (string) $r['ho_ten'],
+					'coso'   => (string) $r['coso'],
+					'ngay'   => (string) $r['ngay'],
+					'ca'     => (string) $r['ca'],
+					'sang'   => (string) $r['doi_sang_ngay'],
+				);
+			},
+			(array) $ds
+		),
+		'url' => admin_url( 'admin.php?page=vhcc' ),
+	);
+	set_transient( 'khh_vhcc_doilich', $out, 2 * MINUTE_IN_SECONDS );
+	return $out;
+}

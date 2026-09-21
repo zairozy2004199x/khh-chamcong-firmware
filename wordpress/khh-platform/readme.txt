@@ -4,7 +4,7 @@ Tags: quan-ly-cong-viec, nhan-su, cham-cong, bang-luong, intranet
 Requires at least: 5.8
 Tested up to: 6.6
 Requires PHP: 7.2
-Stable tag: 1.20.1
+Stable tag: 1.21.0
 License: Proprietary
 
 Nền tảng quản trị nội bộ 16 ứng dụng chạy ngay trong WordPress: dự án & công việc, báo cáo dự án,
@@ -24,6 +24,32 @@ shortcode `[khh_platform]`. Dữ liệu lưu trong bảng riêng của WordPress
 3. Vào menu **Nền tảng K&H**.
 
 == Changelog ==
+
+= 1.21.0 =
+Bốn việc mượn từ các hệ mã nguồn mở đã đọc trên GitHub (Frappe HR, Kintai, Twenty, Plane).
+
+* **Luật tính công theo ca** (mượn Frappe HR `shift_type`). Tab *Ca làm việc* nay chỉnh được:
+  thêm/sửa ca chuẩn; luật mặc định và **luật riêng từng cơ sở** — cửa sổ vào sớm / ra muộn, ân hạn
+  đi muộn / về sớm, ngưỡng giờ để xếp **Đủ / Nửa / Vắng**, ngày nghỉ trong tuần (cửa hàng làm cả
+  chủ nhật, văn phòng thì không). Đi muộn / về sớm chỉ gắn cờ, không đổi loại.
+* **Bảng công cơ sở tô màu theo trạng thái** (xanh đủ, tím nửa, đỏ vắng, xanh dương phép, viền
+  cam muộn/sớm), thêm bốn cột tổng kết **Đủ / Nửa / Vắng / Muộn**, **lọc theo bộ phận**, và chế
+  độ **Chỉ xem tổng kết** giấu cột ngày. Thẻ đầu trang đổi thành Đủ công / Vắng / Đi muộn.
+* **Tìm nhanh Ctrl+K** (mượn Twenty): gõ tên người, mã nhân sự, dự án, công việc, cơ sở hay màn
+  hình — không dấu vẫn tìm ra — Enter là tới. Chọn cơ sở mở thẳng bảng công cơ sở đó. Có nút
+  kính lúp trên thanh biểu tượng.
+* **Lịch ca & đổi ca** (mượn Kintai): lưới tuần từng cơ sở, quản lý xếp ca, **ca trống** cho
+  nhân viên tự nhận, nhân viên **xin đổi ca** cho đồng nghiệp hoặc trả ra ca trống — mọi việc
+  chờ **quản lý duyệt**, duyệt là lịch đổi ngay, yêu cầu khác trên cùng ca tự hết hiệu lực. Nếu
+  Chấm Công (K&H) đang có yêu cầu đổi lịch chờ duyệt thì nhắc kèm đường dẫn sang duyệt bên ấy.
+* **Báo cáo ngày cơ sở** (mượn Kintai): mỗi cơ sở một dòng — nhân sự, có mặt, giờ công, **doanh
+  thu đọc thẳng từ Báo Cáo Doanh Thu FABi** (cơ sở chưa có số thì nhập tay), chi phí nhân công
+  ước theo đơn giá giờ, và tỉ lệ **NC / DT** có thanh so sánh; xem theo ngày hoặc cả tháng.
+* **Công việc: hai chế độ xem mới** (mượn Plane) — **Bảng tính** sửa thẳng trên ô (tên, nhóm,
+  trạng thái, người phụ trách, ưu tiên, ngày bắt đầu, hạn chót; đổi ô nào lưu ô đó, có lịch sử),
+  và **Gantt** một việc một thanh từ ngày bắt đầu tới hạn chót, tô theo trạng thái, đỏ khi quá hạn,
+  cột hôm nay; việc chưa đặt hạn liệt kê bên dưới.
+* Ba nhóm dữ liệu mới: `roster`, `swaps`, `dailyrev`; nhóm `revenue` chỉ đọc từ FABi.
 
 = 1.20.1 =
 * Sửa **lệch giao diện** ở mọi hộp thoại có hai ô đứng cạnh nhau mà chỉ một ô có dòng nhắc:
