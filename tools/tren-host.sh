@@ -8,7 +8,8 @@
 #   bash tren-host.sh soat
 #
 # Lệnh con:
-#   soat   — Đối soát thu hộ & lập danh sách xuất hoá đơn VAT  (doi-soat-vat)
+#   soat       — Đối soát thu hộ & lập danh sách xuất hoá đơn VAT  (doi-soat-vat)
+#   kiem-node  — xem hosting này có chạy được app Node.js không
 #
 # Chạy lại lệnh trên là cập nhật lên bản mới nhất. Bản đang chạy được giữ lại một
 # bản lưu, hỏng thì lùi về ngay bằng câu lệnh script in ra ở cuối.
@@ -18,6 +19,39 @@ REPO="zairozy2004199x/khh-chamcong-firmware"
 NHANH="${TREN_HOST_NHANH:-claude/chao-em-iiyx5i}"
 
 CHON="${1:-}"
+
+# ── xem hosting có chạy được app Node hay không ─────────────────────────────
+# WordPress chỉ chạy PHP, nên app Node (KH Bank Tracker) không cài bằng đường
+# tải plugin được. Nhiều gói cPanel/DirectAdmin vẫn có sẵn Node — kiểm một lượt
+# ở đây để biết là dựng thẳng trên host này được hay phải đưa ra Render.
+if [ "$CHON" = "kiem-node" ]; then
+  echo "── Hosting này chạy được Node.js không ──"
+  if command -v node >/dev/null 2>&1; then
+    echo "✓ node  : $(node -v)"
+  else
+    echo "✗ node  : không có trong PATH"
+  fi
+  command -v npm  >/dev/null 2>&1 && echo "✓ npm   : $(npm -v)"  || echo "✗ npm   : không có"
+  command -v pm2  >/dev/null 2>&1 && echo "✓ pm2   : có (chạy nền được)" || echo "· pm2   : không có (cài sau bằng npm i -g pm2)"
+
+  # cPanel dựng sẵn mỗi app Node một virtualenv trong ~/nodevenv.
+  if [ -d "$HOME/nodevenv" ]; then
+    echo "✓ cPanel 'Setup Node.js App': có — dùng mục này trong cPanel là gọn nhất"
+  else
+    echo "· cPanel 'Setup Node.js App': không thấy ~/nodevenv"
+  fi
+  command -v passenger >/dev/null 2>&1 && echo "✓ passenger: có" || echo "· passenger: không thấy"
+
+  echo
+  if command -v node >/dev/null 2>&1; then
+    echo "→ Có Node. Dựng thẳng trên host này được."
+  else
+    echo "→ Không có Node. Tìm trong cPanel mục 'Setup Node.js App';"
+    echo "  không có nữa thì phải đưa app lên Render/Railway."
+  fi
+  exit 0
+fi
+
 case "$CHON" in
   soat) SLUG="doi-soat-vat"
         TEN="Đối soát thu hộ & lập danh sách xuất hoá đơn VAT"
@@ -27,7 +61,7 @@ case "$CHON" in
         # wordpress/dong-goi.sh vẫn làm. Thiếu nó thì plugin cài xong mở ra trắng.
         KEM_WEB="tools/doi-soat-vat/web" ;;
   "")   echo "Thiếu tên plugin. Ví dụ:  bash tren-host.sh soat"; exit 2 ;;
-  *)    echo "Không biết plugin '$CHON'. Hiện có: soat"; exit 2 ;;
+  *)    echo "Không biết '$CHON'. Hiện có: soat · kiem-node"; exit 2 ;;
 esac
 
 # ── tìm thư mục WordPress ────────────────────────────────────────────────────
