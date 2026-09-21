@@ -4892,6 +4892,61 @@ function chupNgay(){
 	g.fillText(chuVT, W - rongVT - 10, H - 9);
 
 	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	   HÌNH DÁNG Ô BẢN ĐỒ TÍNH TRƯỚC — vì dấu ĐỊA CHỈ ở dưới phải biết chừa chỗ cho nó.
+	   Tính ở đây, dùng ở hai nơi; tính hai lần là dựng sẵn cái ngày hai chỗ lệch nhau một vài
+	   pixel rồi chữ đè lên bản đồ.
+	   ══════════════════════════════════════════════════════════════════════════════════════════ */
+	var veMap = !!(BANDO && BANDO.im && BANDO.im.complete && BANDO.im.naturalWidth > 0);
+	var oB = Math.max(72, Math.round(W / 4));
+	var oX = W - oB - 10;
+	var oY = H - coVT - 14 - oB - 8;
+	/* Ảnh quá thấp (máy ảnh lạ, tỉ lệ dẹt) thì ô tràn lên khỏi mép trên — bỏ ô, giữ dòng toạ độ. */
+	if(oY < 8){ veMap = false; }
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	   DẤU ĐỊA CHỈ — anh Thắng 21/09/2026: *"Chèn địa chỉ vào ảnh"*.
+
+	   🔴 ĐỊA CHỈ LÀ THỨ NGƯỜI ĐỌC ĐƯỢC; TOẠ ĐỘ THÌ KHÔNG. Tấm ảnh này là bằng chứng đem ra đối
+	      chiếu khi có tranh cãi, mà `10.798747,106.597064` thì phải mở bản đồ ra mới biết là
+	      đâu. "Lê Đức Anh, Phường Bình Tân" thì nhìn phát biết ngay. Giữ CẢ HAI: toạ độ để máy
+	      tra, địa chỉ để người đọc.
+
+	   ⚠️ CHỪA CHỖ CHO Ô BẢN ĐỒ. Góc dưới phải đã có toạ độ và ô bản đồ chồng lên nhau theo chiều
+	      dọc; địa chỉ mà kéo hết chiều ngang là nó chui thẳng vào dưới ô bản đồ. Nên bề ngang
+	      tối đa cắt tại mép trái ô ấy.
+
+	   ⚠️ KHÔNG CÓ ĐỊA CHỈ THÌ THÔI, đừng để trống một vệt đen. Máy chủ tra tên đường qua mạng và
+	      tra sau khi màn đã vẽ (xem `xinDiaChi()`), nên lúc bấm chụp có thể chưa có. Dòng này
+	      là thứ ĐỌC CHO SƯỚNG MẮT — cho nó chặn hay làm hỏng tấm ảnh là đánh đổi sai.
+	   ══════════════════════════════════════════════════════════════════════════════════════════ */
+	try {
+		var dcO = (GPS && GPS.lat && GPS.lng) ? (GPS.lat.toFixed(4) + ',' + GPS.lng.toFixed(4)) : '';
+		var dc  = (dcO && DIA_CHI_NHO[dcO]) ? String(DIA_CHI_NHO[dcO]) : '';
+		if(dc){
+			var coDC   = Math.max(10, Math.round(W / 46));
+			var rongTD = (veMap ? oX - 18 : W - 20);
+			g.font = '700 ' + coDC + 'px sans-serif';
+			var dongDC = catDong(g, dc, rongTD, 2);
+			var buocDC = coDC + 4;
+			var caoDC  = dongDC.length * buocDC + 8;
+			/* Nằm NGAY TRÊN dấu giờ. Dấu giờ bắt đầu ở `H - co - 16`; chừa 6px cho khỏi dính. */
+			var yDC = H - co - 16 - caoDC - 6;
+			if(yDC >= 4){
+				var rongDC = 0;
+				for(var i2 = 0; i2 < dongDC.length; i2++){
+					rongDC = Math.max(rongDC, g.measureText(dongDC[i2]).width);
+				}
+				g.fillStyle = 'rgba(0,0,0,.62)';
+				g.fillRect(0, yDC, rongDC + 20, caoDC);
+				g.fillStyle = '#fff';
+				for(var i3 = 0; i3 < dongDC.length; i3++){
+					g.fillText(dongDC[i3], 10, yDC + 4 + buocDC * (i3 + 1) - 4);
+				}
+			}
+		}
+	} catch(e){ /* Mất dòng địa chỉ còn hơn mất tấm ảnh — cùng lý do với ô bản đồ ở dưới. */ }
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
 	   Ô BẢN ĐỒ — ngay TRÊN dòng toạ độ, cùng góc phải.
 
 	   🔴 BỌC `try`. Dù đã đặt `crossOrigin` đúng cách, một bản trình duyệt lạ vẫn có thể làm
@@ -4899,16 +4954,9 @@ function chupNgay(){
 	      Thà mất ô bản đồ còn hơn mất lượt chấm công. Đây không phải `try` cho có: nó là chốt
 	      giữa "thiếu một ô trang trí" và "không ghi được công".
 	   ══════════════════════════════════════════════════════════════════════════════════════════ */
-	if(BANDO && BANDO.im && BANDO.im.complete && BANDO.im.naturalWidth > 0){
+	if(veMap){
 		try {
-			var oB = Math.max(72, Math.round(W / 4));          /* cạnh ô vuông */
-			var oX = W - oB - 10;
-			var oY = H - coVT - 14 - oB - 8;                   /* nằm trên dòng toạ độ, chừa 8px */
-
-			/* ⚠️ Ảnh quá thấp (máy ảnh lạ, tỉ lệ dẹt) thì ô tràn lên khỏi mép trên — bỏ ô, giữ
-			   dòng toạ độ. Một ô bản đồ cụt đầu còn khó đọc hơn không có. */
-			if(oY < 8){ throw new Error('anh qua thap'); }
-
+			/* `oB` · `oX` · `oY` tính ở khối trên — dấu địa chỉ cần biết trước để chừa chỗ. */
 			g.save();
 			/* Cắt tròn góc cho ô — và quan trọng hơn: chặn ảnh bản đồ tràn ra ngoài khung. */
 			g.beginPath();
@@ -4967,6 +5015,46 @@ function chupNgay(){
 			+ '— hoặc cứ dùng ảnh này nếu anh/chị thấy rõ mặt mình.');
 	}
 	return true;
+}
+
+/**
+ * CẮT MỘT CHUỖI DÀI THÀNH TỐI ĐA `nToiDa` DÒNG VỪA BỀ NGANG `rong`.
+ *
+ * 🔴 CẮT THEO TỪ, KHÔNG CẮT THEO KÝ TỰ. Địa chỉ tiếng Việt toàn từ ngắn ngăn bởi dấu phẩy;
+ *    cắt giữa từ ra "Thành ph / ố Hồ Chí Minh" thì đọc còn khó hơn không có.
+ *
+ * ⚠️ DÒNG CUỐI TRÀN THÌ CẮT BỚT VÀ THÊM "…", đừng để nó chạy ra khỏi hộp đen. Hộp vẽ theo bề
+ *    ngang ĐO ĐƯỢC của chữ, nên chữ tràn không phải là chữ thò ra ngoài hộp — nó là hộp phình
+ *    to đè lên nửa tấm ảnh.
+ *
+ * ⚠️ MỘT TỪ DUY NHẤT DÀI HƠN CẢ DÒNG vẫn phải ra được cái gì đó. Vòng `while` cắt dần từng ký
+ *    tự có chốt `length > 1` để không quay vô tận trên một ô hẹp bất thường.
+ */
+function catDong(g, chu, rong, nToiDa){
+	var tu = String(chu).split(/\s+/), ds = [], d = '';
+	for(var i = 0; i < tu.length; i++){
+		var thu = d ? (d + ' ' + tu[i]) : tu[i];
+		if(g.measureText(thu).width <= rong || !d){
+			d = thu;
+		} else {
+			ds.push(d);
+			d = tu[i];
+			if(ds.length === nToiDa - 1) {
+				/* Dòng cuối: gom hết phần còn lại rồi cắt cho vừa. */
+				d = tu.slice(i).join(' ');
+				break;
+			}
+		}
+	}
+	if(d) ds.push(d);
+	if(ds.length > nToiDa) ds = ds.slice(0, nToiDa);
+	var c = ds.length - 1;
+	if(c >= 0 && g.measureText(ds[c]).width > rong){
+		var t = ds[c];
+		while(t.length > 1 && g.measureText(t + '…').width > rong){ t = t.slice(0, -1); }
+		ds[c] = t + '…';
+	}
+	return ds;
 }
 
 /** Độ sáng trung bình 0–255. Lấy mẫu thưa: quét đủ 720×540 điểm trên máy cũ là khựng một nhịp. */
