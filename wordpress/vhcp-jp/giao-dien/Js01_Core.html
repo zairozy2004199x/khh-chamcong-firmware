@@ -1,0 +1,386 @@
+<script>
+/*═══════════════════════════════════════════════════════════
+ * JP CAPSULE v2 — Js01_Core
+ * Gọi server · trạng thái app · tiện ích · đăng nhập.
+ *═══════════════════════════════════════════════════════════*/
+
+var APP = {
+  token: null, user: null, boot: null,
+  report: null, zones: [], rows: [], photos: [],
+  dirty: false, saving: false, canEdit: false
+};
+
+function srv(fn) {
+  var args = [].slice.call(arguments, 1);
+  return new Promise(function (res, rej) {
+    google.script.run
+      .withSuccessHandler(res)
+      .withFailureHandler(function (e) {
+        var m = (e && e.message) || String(e);
+        if (m.indexOf('SESSION_EXPIRED') >= 0) { forceLogin(); rej(new Error('Phiên hết hạn')); return; }
+        if (m.indexOf('PHAI_DOI_PIN') >= 0) {
+          if (typeof jpBuocDoiPin === 'function') jpBuocDoiPin();
+          rej(new Error('Cần đổi PIN mặc định trước')); return;
+        }
+        rej(new Error(m));
+      })[fn].apply(null, args);
+  });
+}
+
+function $(id) { return document.getElementById(id); }
+function el(tag, cls, html) {
+  var e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (html !== undefined) e.innerHTML = html;
+  return e;
+}
+function show(screenId) {
+  ['scLogin', 'scHome', 'scReport', 'scPay'].forEach(function (s) {
+    $(s).classList.toggle('active', s === screenId);
+  });
+  window.scrollTo(0, 0);
+}
+function money(n) { return (Number(n) || 0).toLocaleString('vi-VN'); }
+function num(v) { var n = Number(String(v == null ? '' : v).replace(/[^\d.\-]/g, '')); return isNaN(n) ? 0 : n; }
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+    return { '&': '&amp;', '<': '<', '>': '>', '"': '"' }[c];
+  });
+}
+function todayStr() {
+  var d = new Date(), p = function (x) { return ('0' + x).slice(-2); };
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+function dmy(s) {
+  if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return s || '';
+  var p = s.split('-'); return p[2] + '/' + p[1] + '/' + p[0];
+}
+
+var _toastTimer = null;
+function toast(msg) {
+  var t = $('toast'); t.textContent = msg; t.classList.remove('hidden');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(function () { t.classList.add('hidden'); }, 2600);
+}
+function busy(on, text) {
+  $('busyText').textContent = text || 'Đang xử lý…';
+  $('busy').classList.toggle('hidden', !on);
+}
+
+var LS = {
+  get: function (k) { try { return JSON.parse(localStorage.getItem('JP2_' + k)); } catch (e) { return null; } },
+  set: function (k, v) { try { localStorage.setItem('JP2_' + k, JSON.stringify(v)); } catch (e) {} },
+  del: function (k) { try { localStorage.removeItem('JP2_' + k); } catch (e) {} }
+};
+
+/*──────── Đăng nhập bằng mã PIN ────────*/
+
+var PIN_LEN = 3;
+
+function doLogin() {
+  var p = ($('inPin').value || '').replace(/\D/g, '');
+  if (p.length !== PIN_LEN) {
+    setMsg('loginMsg', 'Nhập đúng ' + PIN_LEN + ' số', 'err');
+    return;
+  }
+
+  busy(true, 'Đang đăng nhập…');
+  srv('jpLoginPin', p).then(function (r) {
+    busy(false);
+    if (!r.ok) {
+      setMsg('loginMsg', r.msg, 'err');
+      $('inPin').value = '';        // xoá để bấm lại, khỏi phải xoá tay
+      return;
+    }
+    APP.token = r.token; APP.user = r.user;
+    LS.set('token', r.token);
+    setMsg('loginMsg', '');
+    /* `r.boot` la ban goi kem cua `jpLoginPin` — dung luon thi man chinh hien ngay,
+       khong phai cho them mot vong `google.script.run` (~0,45s). Khong co thi
+       `afterLogin` tu goi `jpBootstrap`, va loi that se hien ra o do. */
+    afterLogin(r.boot);
+  }).catch(function (e) { busy(false); setMsg('loginMsg', e.message, 'err'); });
+}
+
+/** Bàn số bấm PIN — nhân viên dùng điện thoại, bấm nhanh hơn gõ bàn phím. */
+function renderPinPad() {
+  var pad = $('pinPad');
+  if (!pad) return;
+  var keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'X', '0', '←'];
+  pad.innerHTML = keys.map(function (k) {
+    return '<button type="button" class="pinKey' +
+           (k === 'X' || k === '←' ? ' alt' : '') + '">' + k + '</button>';
+  }).join('');
+
+  pad.querySelectorAll('.pinKey').forEach(function (b) {
+    b.onclick = function () {
+      var el = $('inPin'), v = el.value || '';
+      var k = b.textContent;
+      if (k === 'X') el.value = '';
+      else if (k === '←') el.value = v.slice(0, -1);
+      else if (v.length < PIN_LEN) el.value = v + k;
+
+      setMsg('loginMsg', '');
+      /* Đủ số thì vào luôn, không phải bấm thêm nút Đăng nhập */
+      if ((el.value || '').length === PIN_LEN) doLogin();
+    };
+  });
+}
+
+/**
+ * `boot` truyền vào thì dùng luôn, không gọi lại server. Đường khôi phục phiên
+ * đã gọi jpBootstrap để kiểm token nên trước đây gọi tới hai lần.
+ */
+function afterLogin(boot) {
+  if (boot) { applyBoot(boot); return; }
+
+  busy(true, 'Đang tải cấu hình…');
+  srv('jpBootstrap', APP.token).then(function (b) {
+    busy(false);
+    applyBoot(b);
+  }).catch(function (e) { busy(false); toast(e.message); });
+}
+
+function applyBoot(b) {
+  APP.boot = b;
+  APP.user = b.user;
+  $('hiName').textContent = b.user.hoTen;
+
+  /* Còn PIN mặc định thì máy chủ chặn hết — bắt đổi trước, không cho bỏ qua */
+  if (b.user.phaiDoiPin) { jpBuocDoiPin(); return; }
+  $('hiRole').textContent = 'Nhân viên · ' + b.locations.length + ' cơ sở';
+
+  var sel = $('selLoc'); sel.innerHTML = '';
+  b.locations.forEach(function (l) {
+    var o = el('option'); o.value = l.id;
+    o.textContent = l.name;
+    sel.appendChild(o);
+  });
+  if (!b.locations.length) toast('Chưa được gán cơ sở nào — báo kế toán');
+
+  /* Được gán một loại máy thì ô loại báo cáo KHOÁ vào loại đó; kiêm cả hai thì
+     mặc định theo cơ sở và vẫn đổi được. Xem `jpSyncType`. */
+  sel.onchange = jpSyncType;
+  jpSyncType();
+
+  $('inFrom').value = todayStr();
+  $('inTo').value = todayStr();
+
+  show('scHome');
+  /* ⚠️ Truyen danh sach da goi kem (`jpBootstrap` tra ve luon) — goi rong la them
+     mot dot cho ~0,45s nua. Chua co thi hai ham tu goi may chu nhu cu. */
+  loadMyReports(b.myReports);
+  loadUnpaid(b.unpaid);
+}
+
+/*──────── Danh sách báo cáo còn thiếu tiền ────────*/
+function loadUnpaid(sanCo) {
+  (sanCo ? Promise.resolve(sanCo) : srv('jpMyUnpaid', APP.token)).then(function (list) {
+    var box = $('unpaidBox');
+    if (!box) return;
+    if (!list.length) {
+      box.innerHTML = '<p class="hint">Không còn báo cáo nào thiếu tiền.</p>';
+      return;
+    }
+    box.innerHTML = list.map(function (r) {
+      return '<div class="item" onclick="jpOpenPay(\'' + r.id + '\')">' +
+        '<div><strong>' + esc(r.locationName) + '</strong>' +
+        '<span class="sub">' + typeText(r.machineType) + ' · ' +
+          dmy(r.fromDate) + ' – ' + dmy(r.toDate) + '</span>' +
+        '<div class="signs">Đã nộp ' + money(r.daNop) + ' / ' + money(r.phaiNop) + 'đ</div></div>' +
+        '<div style="text-align:right">' +
+        '<span class="badge fixing">Thiếu ' + money(r.conThieu) + 'đ</span>' +
+        (r.ktXacNhan ? '<div class="sub" style="margin-top:4px;color:#047857">KT đã xác nhận</div>' : '') +
+        '</div></div>';
+    }).join('');
+  }).catch(function () {});
+}
+
+function forceLogin() {
+  APP.token = null; LS.del('token');
+  show('scLogin');
+}
+
+function jpLogoutUI() {
+  /* ⚠️ THOÁT thì KHÁC "về trang chủ": nháp giữ theo localStorage nên vẫn còn sau khi
+     đăng nhập lại TRÊN MÁY NÀY, nhưng người khác đăng nhập ở đây thì không thấy. Nói
+     đủ cả hai, và thử đẩy lên hệ thống trước khi thoát. */
+  if (APP.dirty) {
+    if (!confirm('Còn thay đổi chưa lưu lên hệ thống.\n\n' +
+        'Nháp được giữ trên máy này, đăng nhập lại là làm tiếp được.\n\n' +
+        'Thoát luôn?')) return;
+    if (typeof jpLuuNhapMay === 'function') jpLuuNhapMay();
+    if (typeof jpSaveDraft === 'function') jpSaveDraft(false, true);
+  }
+  if (APP.token) srv('jpLogout', APP.token).catch(function () {});
+  forceLogin();
+}
+
+function setMsg(id, text, cls) {
+  var e = $(id); e.textContent = text || ''; e.className = 'msg ' + (cls || '');
+}
+
+/*──────── ĐỔI PIN ────────
+ * Server đã có `jpDoiPin` từ lúc chuyển sang đăng nhập bằng PIN, nhưng chưa có
+ * màn nào gọi tới (REVIEW #16). Không có màn này thì nhân viên muốn đổi phải nhờ
+ * kế toán đặt hộ — mà kế toán đặt hộ nghĩa là người khác biết PIN của mình.     */
+
+/* Giữ lời dẫn gốc để mở lại bình thường không bị kẹt ở chế độ ép buộc */
+var JP_PIN_SUB = null;
+
+function jpMoDoiPin() {
+  ['pinCu', 'pinMoi', 'pinLai'].forEach(function (id) { $(id).value = ''; });
+  setMsg('pinMsg', '');
+  var box = $('pinModal'), sub = box.querySelector('.sub');
+  if (JP_PIN_SUB === null) JP_PIN_SUB = sub.innerHTML;
+  sub.innerHTML = JP_PIN_SUB;
+  var huy = box.querySelector('.modalAct .btn.ghost');
+  if (huy) huy.style.display = '';
+  box.classList.remove('hidden');
+  $('pinCu').focus();
+}
+
+function jpDongDoiPin() { $('pinModal').classList.add('hidden'); }
+
+/** Bắt đổi PIN trước khi làm gì — máy chủ đã chặn ở `jpAuth_`, đây là phần giải thích. */
+function jpBuocDoiPin() {
+  show('scHome');
+  jpMoDoiPin();
+  var box = $('pinModal');
+  box.querySelector('.sub').innerHTML =
+    '<b>Bạn đang dùng PIN mặc định.</b> Hệ thống khoá mọi chức năng cho tới khi ' +
+    'bạn đặt số mới. Chọn 3 số dễ nhớ nhưng không phải 101, 222, 123.';
+  var huy = box.querySelector('.modalAct .btn.ghost');
+  if (huy) huy.style.display = 'none';
+}
+
+function jpLuuPinMoi() {
+  var cu = $('pinCu').value, moi = $('pinMoi').value, lai = $('pinLai').value;
+  if (!/^\d{3}$/.test(moi)) { setMsg('pinMsg', 'PIN mới phải đúng 3 số', 'err'); return; }
+  if (moi !== lai) { setMsg('pinMsg', 'Hai lần nhập PIN mới không giống nhau', 'err'); return; }
+  if (moi === cu) { setMsg('pinMsg', 'PIN mới phải khác PIN cũ', 'err'); return; }
+  if (['222', '101'].indexOf(moi) >= 0) {
+    setMsg('pinMsg', 'Đó là PIN mặc định — chọn số khác', 'err'); return;
+  }
+
+  busy(true, 'Đang đổi PIN…');
+  srv('jpDoiPin', APP.token, cu, moi).then(function (d) {
+    busy(false);
+    if (!d.ok) { setMsg('pinMsg', d.msg, 'err'); return; }
+    jpDongDoiPin();
+    toast('Đã đổi PIN. Lần sau đăng nhập bằng số mới.');
+    if (APP.user && APP.user.phaiDoiPin) { APP.user.phaiDoiPin = false; afterLogin(); }
+  }).catch(function (e) { busy(false); setMsg('pinMsg', e.message, 'err'); });
+}
+
+function loadMyReports(sanCo) {
+  (sanCo ? Promise.resolve(sanCo) : srv('jpMyReports', APP.token, 30)).then(function (list) {
+    var box = $('listReports'); box.innerHTML = '';
+    if (!list.length) { box.appendChild(el('p', 'hint', 'Chưa có báo cáo nào.')); return; }
+
+    list.forEach(function (r) {
+      var it = el('div', 'item');
+      var signs = '';
+      if (r.status !== 'NHAP') {
+        var k = r.chuKy || { rev: {}, stock: {} };
+        signs = '<div class="signs">Doanh thu ' + (k.rev.by ? '✔' : '⏳') +
+                ' · Hàng hoá ' + (k.stock.by ? '✔' : '⏳') + '</div>';
+      }
+      it.innerHTML =
+        '<div><strong>' + esc(r.locationName) + '</strong>' +
+        '<span class="sub">' + typeText(r.machineType) + ' · ' +
+          dmy(r.fromDate) + ' – ' + dmy(r.toDate) + '</span>' +
+        signs + '</div>' +
+        '<div style="text-align:right">' +
+        '<span class="badge ' + badgeCls(r.status) + '">' + statusText(r.status) + '</span>' +
+        '<div class="sub" style="margin-top:4px">' + money(r.totalSubmit) + 'đ</div>' +
+        (r.warnCount ? '<div class="sub" style="color:#b45309">' + r.warnCount + ' cảnh báo</div>' : '') +
+        (r.status === 'CHO_DUYET'
+          ? '<button class="miniBtn" style="margin-top:5px" ' +
+            'onclick="event.stopPropagation();jpEdit24h(\'' + r.id + '\')">Sửa (24h)</button>' : '') +
+        '</div>';
+      it.onclick = function () { openReportById(r.id); };
+      box.appendChild(it);
+    });
+  }).catch(function (e) { toast(e.message); });
+}
+
+/**
+ * Ô "Loại báo cáo": ĐÚNG MẪU NÀO HIỆN MẪU ĐÓ (Andy chốt 04/08/2026).
+ *
+ * Nhân viên được gán máy TIỀN thì ô này chỉ có mẫu tiền, gán máy XU thì chỉ có mẫu
+ * xu — khỏi mở nhầm rồi gõ nửa bảng mới biết. Gán rỗng (kiêm cả hai) thì hiện cả hai
+ * và mặc định theo loại máy của cơ sở đang chọn.
+ *
+ * Đây chỉ là cho gọn màn hình. Chốt thật ở máy chủ (`jpNeedMayType_`) — web ở
+ * `ANYONE_ANONYMOUS` nên ẩn ô chọn không phải là chặn.
+ */
+function jpSyncType() {
+  var s = $('selType');
+  if (!s) return;
+  var mt = String((APP.user && APP.user.machineType) || '').toUpperCase();
+
+  if (mt === 'TIEN' || mt === 'XU') {
+    s.innerHTML = mt === 'XU'
+      ? '<option value="XU">MÁY XU — báo cáo riêng</option>'
+      : '<option value="TIEN">MÁY TIỀN — báo cáo riêng</option>';
+    s.value = mt;
+    s.disabled = true;
+    s.title = 'Tài khoản của bạn được gán ' + typeText(mt);
+    return;
+  }
+
+  /* Kiêm cả hai loại: hiện cả hai, mặc định theo cơ sở */
+  if (s.options.length < 2) {
+    s.innerHTML = '<option value="TIEN">MÁY TIỀN — báo cáo riêng</option>' +
+                  '<option value="XU">MÁY XU — báo cáo riêng</option>';
+  }
+  s.disabled = false;
+  s.title = '';
+  var id = $('selLoc').value;
+  var l = (APP.boot.locations || []).filter(function (x) { return String(x.id) === String(id); })[0];
+  if (l) s.value = l.machineType || 'TIEN';
+}
+
+function typeText(t) { return t === 'XU' ? 'MÁY XU' : 'MÁY TIỀN'; }
+
+function statusText(s) {
+  return { NHAP: 'Nháp', CHO_DUYET: 'Chờ duyệt', CAN_SUA: 'Cần sửa', HOAN_TAT: 'Hoàn tất' }[s] || s;
+}
+function badgeCls(s) {
+  return { NHAP: 'draft', CHO_DUYET: 'pending', CAN_SUA: 'fixing', HOAN_TAT: 'done' }[s] || '';
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  $('btnLogin').onclick = doLogin;
+  renderPinPad();
+  $('inPin').addEventListener('keydown', function (e) { if (e.key === 'Enter') doLogin(); });
+  $('inPin').addEventListener('input', function () {
+    var el = $('inPin');
+    el.value = (el.value || '').replace(/\D/g, '').slice(0, PIN_LEN);
+    if (el.value.length === PIN_LEN) doLogin();
+  });
+  $('btnOpen').onclick = openNewReport;
+
+  var t = LS.get('token');
+  if (t) {
+    APP.token = t;
+    busy(true, 'Đang khôi phục phiên…');
+    srv('jpBootstrap', t).then(function (b) {
+      busy(false); afterLogin(b);        // dùng luôn kết quả, không gọi lại
+    }).catch(function () { busy(false); forceLogin(); });
+  } else {
+    show('scLogin');
+  }
+});
+
+window.addEventListener('beforeunload', function (e) {
+  /* Ghi nháp lên máy TRƯỚC khi hỏi — `localStorage` là đồng bộ nên chỗ này chắc chắn
+     xong, còn hộp thoại thì người dùng bấm gì cũng được. Trước bản này chỉ hỏi rồi
+     KHÔNG lưu gì: bấm "Rời đi" là mất sạch số vừa gõ. */
+  if (typeof jpLuuNhapMay === 'function') jpLuuNhapMay();
+  if (APP.dirty) { e.preventDefault(); e.returnValue = ''; }
+});
+</script>
+
+

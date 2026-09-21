@@ -282,6 +282,107 @@ class VHCP_DonVi {
 	 *    (nhập từ sổ cũ, người khai xong rồi nghỉ) sẽ rơi ra ngoài và BIẾN MẤT khỏi màn của
 	 *    Admin. `null` = không lọc, nên không có gì rơi ra được.
 	 */
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * KHỐI (KVC · MTĐ · VP) ĐI THEO ĐƠN VỊ — MỘT TRỤC, KHÔNG PHẢI HAI.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 20/09/2026: *"cấu hình nhân viên khối nào là nhìn khối đó phải không"* → đúng,
+	 * và hệ ĐÃ CÓ sẵn cơ chế ấy: cột **Đơn vị**. Nhà mẹ đọc cả hệ, nhà khác đọc đúng nhà mình.
+	 *
+	 * 🔴 KHÔNG ĐẺ THÊM MỘT TRỤC PHÂN QUYỀN THỨ HAI. Chính sáng 20/09 vừa phải gỡ một trục thừa
+	 *    (bộ phận) vì nó chọi với mảng kinh doanh: *"vừa phân theo bộ phận, vừa phân theo mảng…
+	 *    xung đột"*. Gắn quyền vào KHỐI trong khi ĐƠN VỊ đã gác cùng chuyện đó là dựng lại y
+	 *    hệt cái lỗi ấy, chỉ đổi tên.
+	 *
+	 * ⚠️ VÀ HAI TRỤC NÀY VỐN TRÙNG NHAU: `DON_VI_GHE = 'POSH'`, mà mã ở `VHCP_Cfg` ghi rõ *"Máy
+	 *    tự động chính là mảng ghế massage"* — tức POSH và MTĐ là MỘT thứ, hai tên. Nên ánh xạ
+	 *    chứ đừng bắt người dùng khai hai lần.
+	 *
+	 * ⚠️ KHỐI CHỈ LÀ BỘ CHỌN TAB, KHÔNG PHẢI CỔNG QUYỀN. Dữ liệu đã được đơn vị lọc ở máy chủ
+	 *    rồi; hàm này chỉ giúp GIẤU mấy nút chắc chắn rỗng. Nên nhà nào không ánh xạ được thì
+	 *    trả `null` (bày đủ nút) — không lộ gì cả, vì sau mỗi nút vẫn là dữ liệu đã bị chốt đơn
+	 *    vị cắt. Hỏng theo hướng bày thừa một cái nút rỗng, không phải hướng mở cửa.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	const KHOI_THEO_DON_VI = array(
+		'kvc' => array( 'KVC' ),
+		'mtd' => array( 'MTĐ', 'MTD', 'POSH' ),
+		'vp'  => array( 'VP', 'VĂN PHÒNG', 'VAN PHONG' ),
+	);
+
+	/** Mã khối của một đơn vị — '' nếu không ánh xạ được. */
+	public static function khoi_cua( $don_vi ) {
+		$k = mb_strtoupper( trim( (string) $don_vi ) );
+		if ( '' === $k ) { return ''; }
+		foreach ( self::KHOI_THEO_DON_VI as $ma => $ds ) {
+			foreach ( $ds as $x ) { if ( mb_strtoupper( $x ) === $k ) { return $ma; } }
+		}
+		return '';
+	}
+
+	/**
+	 * Những KHỐI người đang gọi được bày nút — `null` = bày đủ.
+	 *
+	 * Đi thẳng từ `xem_duoc()` để hai bên không bao giờ lệch: nhà mẹ đọc cả hệ thì thấy đủ nút,
+	 * nhà con chỉ thấy nút của mình.
+	 */
+	public static function khoi_xem_duoc() {
+		/* ═══════════════════════════════════════════════════════════════════════════
+		   Ô KHỐI KHAI TAY ĐỨNG TRƯỚC ÁNH XẠ TỪ ĐƠN VỊ.
+
+		   Anh Thắng 21/09/2026: *"chỗ đơn vị thay bằng khối — tích nếu 1 người làm 2 khối thì
+		   chọn 2, vì có thể nv chung sẽ làm việc với 2 khối"*.
+
+		   🔴 ÁNH XẠ MỘT-MỘT TỪ ĐƠN VỊ KHÔNG DIỄN ĐẠT ĐƯỢC ĐIỀU NÀY. Một người có ĐÚNG MỘT
+		      nhà (nơi đơn họ lập rơi về), nên `khoi_cua()` luôn trả đúng một khối — còn người
+		      làm việc với hai bên thì cần hai nút. Đó là hai câu hỏi khác nhau, nên nay có hai ô.
+
+		   ⚠️ VÀ ĐÂY VẪN KHÔNG PHẢI TRỤC PHÂN QUYỀN THỨ HAI — giữ nguyên chốt ⚠ ở trên: khối
+		      chỉ quyết định BÀY NÚT NÀO. Dữ liệu sau mỗi nút vẫn bị đơn vị cắt ở máy chủ. Tích
+		      thêm một khối KHÔNG mở thêm được dòng dữ liệu nào.
+
+		   🔴 ADMIN KHÔNG BAO GIỜ BỊ CẮT. Anh Thắng là người ngồi khai bảng này; tích nhầm một ô
+		      cho chính mình mà mất hai nút kia là không còn đường vào để sửa lại. Cùng luật với
+		      `VHCP_Auth::xem_duoc_loai()`.
+
+		   ⚠️ Ô TRỐNG = NGÃ VỀ ÁNH XẠ CŨ, không phải "không thuộc khối nào". Ngày bản này lên
+		      chưa ai kịp tích ô nào; hiểu ngược là cả công ty mở màn ra không thấy nút khối nào.
+		   ══════════════════════════════════════════════════════════════════════════ */
+		$vai = trim( (string) VHCP_Auth::vai_hien() );
+		if ( 'Admin' !== $vai ) {
+			$tay = self::khoi_khai_tay( VHCP_Auth::nguoi() );
+			if ( $tay ) { return $tay; }
+		}
+		$ds = self::xem_duoc();
+		if ( null === $ds ) { return null; }          // nhà mẹ — cả hệ
+		$ra = array();
+		foreach ( (array) $ds as $dv ) {
+			$k = self::khoi_cua( $dv );
+			if ( '' !== $k && ! in_array( $k, $ra, true ) ) { $ra[] = $k; }
+		}
+		/* Không ánh xạ được nhà nào -> đừng giấu hết nút rồi để người ta ngồi trước một màn
+		   không bấm được gì. Xem chốt ⚠️ ở trên: giấu nút không phải là gác quyền. */
+		return $ra ? $ra : null;
+	}
+
+	/**
+	 * Những khối một người ĐÃ TÍCH TAY ở bảng Người dùng — mảng rỗng = chưa khai.
+	 *
+	 * ⚠️ CHỈ NHẬN MÃ CÓ THẬT. Ô này là chuỗi ngăn phẩy ghi thẳng xuống sổ, nên một lượt nhập
+	 *    từ bảng tính cũ có thể đưa vào đây bất cứ thứ gì. Mã lạ lọt qua là màn đi tìm một nút
+	 *    không tồn tại rồi không bày nút nào cả.
+	 */
+	public static function khoi_khai_tay( $ten ) {
+		$u = self::dong_nguoi( $ten );
+		$s = ( $u && isset( $u['khoi'] ) ) ? (string) $u['khoi'] : '';
+		$ra = array();
+		foreach ( preg_split( '/\s*,\s*/u', $s ) as $x ) {
+			$x = mb_strtolower( trim( (string) $x ) );
+			if ( '' === $x || in_array( $x, $ra, true ) ) { continue; }
+			if ( ! isset( self::KHOI_THEO_DON_VI[ $x ] ) ) { continue; }
+			$ra[] = $x;
+		}
+		return $ra;
+	}
+
 	public static function xem_duoc() {
 		/* 🔴 MỘT CỘT, MỘT LUẬT — anh Thắng 12/09/2026: *"Đơn vị với xem đơn vị là 1, đã thuộc
 		   đơn vị đó thì toàn quyền xem của mình. Đã phân quyền xem và cấp quyền nên không sợ

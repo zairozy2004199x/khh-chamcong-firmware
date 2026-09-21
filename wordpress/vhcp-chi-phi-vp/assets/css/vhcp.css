@@ -290,3 +290,50 @@ tr.qt-chim > td .badge{opacity:.8}
    biết bấm vào được; nhưng cũng không được viền sẵn như ô nhập, kẻo bảng đọc thành một tờ khai. */
 .o-sua{ cursor:text; border-radius:4px; }
 .o-sua:hover{ background:#eef2ff; box-shadow:inset 0 0 0 1px #c7d2fe; }
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   MENU XỔ KHỐI TRÊN TAB DUYỆT — anh Thắng 21/09/2026: *"chỗ duyệt tạm ứng, rê chuột vào nó xổ
+   ra bộ phận được không"*, và trước đó 20/09: *"để xem từng trang đơn vị, tránh duyệt lộn đơn
+   vị"*.
+
+   🔴 RÊ CHUỘT LÀ THỨ KHÔNG CÓ TRÊN iPHONE. Anh Thắng duyệt đơn bằng điện thoại — đã một lần ba
+      hộp thoại nối nhau chết câm trên iOS (xem `#datKyBox`). Nên menu này mở bằng HAI đường:
+      rê chuột (chỉ ở máy có chuột thật, `hover:hover`) và BẤM vào mũi ▾ (ở đâu cũng được).
+      Chỉ có `:hover` thì trên điện thoại cái mũi ▾ là một nút bấm vào không ra gì.
+
+   ⚠️ Vùng đệm `::before` phía trên hộp là CỐ Ý. Không có nó thì chuột đi từ nút xuống hộp phải
+      băng qua một khe hở vài pixel, menu tắt giữa đường, và người ta tưởng nó giật. */
+.tabMenu{ position:relative; display:inline-flex; align-items:stretch; gap:0 }
+.tabMenu > .btn{ border-top-right-radius:0; border-bottom-right-radius:0 }
+.tabMenuNut{
+  border:0; cursor:pointer; padding:0 8px; margin-left:1px; font-size:11px; line-height:1;
+  background:#e7e2da; color:#57534e; border-radius:0 8px 8px 0;
+}
+.tabMenuNut:hover{ background:#d6d0c6 }
+/* 🔴 `position:fixed`, KHÔNG PHẢI `absolute` — VÀ CHỖ ĐẶT DO JS TÍNH (`_tmDatCho`).
+   Trên màn hẹp `#tabbar` mang `overflow-x:auto` để cuộn ngang hàng tab. Mà `overflow-x:auto`
+   với `overflow-y:visible` thì trình duyệt tính ra `overflow-y:auto` — tức nó CẮT theo chiều
+   dọc luôn. Hộp `absolute` treo trong đó bị xén còn một vạch trắng: trên iPhone menu xổ ra
+   mà không đọc được chữ nào. Đã chụp màn hình thấy tận mắt 21/09/2026.
+
+   ⚠️ Kho mã ĐÃ ghi sẵn đúng bài học này hai lần cho lớp phủ trong bảng ("LỚP PHỦ NẰM Ở
+      <body>, KHÔNG NẰM TRONG Ô BẢNG… bảng có `overflow-x:auto`"). Lần này đến lượt hàng tab. */
+.tabMenuBox{
+  display:none; position:fixed; top:0; left:0; z-index:60; min-width:236px;
+  padding:6px; background:#fff; border:1px solid #e5e1d8; border-radius:10px;
+  box-shadow:0 10px 28px rgba(0,0,0,.14);
+}
+/* Cầu nối vô hình giữa nút và hộp: chuột đi xuống không rơi qua khe 6px làm menu tắt giữa chừng. */
+.tabMenuBox::before{ content:''; position:absolute; left:0; right:0; top:-8px; height:8px }
+@media (hover:hover){ .tabMenu:hover .tabMenuBox{ display:block } }
+.tabMenu.mo .tabMenuBox{ display:block }
+.tabMenuBox .mk{
+  display:flex; align-items:center; gap:8px; width:100%; padding:8px 10px; border:0;
+  background:transparent; border-radius:8px; cursor:pointer; text-align:left; font-size:13px;
+  color:#171417;
+}
+.tabMenuBox .mk:hover{ background:#f1efe9 }
+.tabMenuBox .mk[disabled]{ opacity:.45; cursor:not-allowed }
+.tabMenuBox .mk[disabled]:hover{ background:transparent }
+.tabMenuBox .mk.dang{ background:#eef2ff; font-weight:700 }
+.tabMenuBox .mk .so{ margin-left:auto; font-size:11px; opacity:.7; font-variant-numeric:tabular-nums }

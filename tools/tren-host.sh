@@ -44,8 +44,8 @@ O_KHOA="${2:-vhcp_gh_token}"
 # Anh Thắng 14/09/2026 tách chi phí theo mảng, nên có bốn bản chi phí: KVC (bản gốc) · MTD ·
 # VP · TỔNG. Bốn bản ấy cài chung một WordPress nên mỗi bản phải có Ô cấu hình riêng, không
 # thì đổi bên này đổi luôn bên kia.
-DS_PLUGIN="vhcp-chi-phi vhcp-chi-phi-mtd vhcp-chi-phi-vp vhcp-chi-phi-tong vhcp-cham-cong vhcp-ghe vhcp-noi-bo vhcp-trang-chu vhcp-hop-dong vhcp-du-an vhcp-chi-phi-hn khh-platform khh-doanh-thu vhcp-cc-app"
-DS_NHO="vhcp vhcpmtd vhcpvp vhcpt vhcc vhg vhnb vhtc vhd vhda vhcphn khh khhdt ccapp"
+DS_PLUGIN="vhcp-chi-phi vhcp-chi-phi-mtd vhcp-chi-phi-vp vhcp-chi-phi-tong vhcp-cham-cong vhcp-ghe vhcp-noi-bo vhcp-trang-chu vhcp-hop-dong vhcp-du-an vhcp-chi-phi-hn khh-platform khh-doanh-thu vhcp-cc-app vhcp-jp"
+DS_NHO="vhcp vhcpmtd vhcpvp vhcpt vhcc vhg vhnb vhtc vhd vhda vhcphn khh khhdt ccapp vhjp"
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 # Ô KHOÁ GITHUB — CHỈ NĂM Ô, KHÔNG PHẢI MỖI BỘ MỘT Ô.

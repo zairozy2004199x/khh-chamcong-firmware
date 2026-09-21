@@ -3,7 +3,7 @@
  * Plugin Name:       Vận Hành Chi Phí (MTD)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       App Chi Phí Cơ Sở / Vận Hành Chi Phí dựng lại trên WordPress — đơn tạm ứng theo tuần, chi phí kỹ thuật, marketing, công tác/setup, quyết toán thừa/thiếu và xuất MISA. Dữ liệu nằm trong bảng MySQL riêng (không phụ thuộc Google Sheet).
- * Version:           1.221.0
+ * Version:           1.240.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -21,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
  * này còn đứng ở 1.31.0 — nghĩa là suốt từ đó tới giờ, cài đè KHÔNG chạy bước nâng cấp nào và
  * trình duyệt vẫn dùng CSS/JS cũ. Có phép thử chốt hai số bằng nhau: tools/test/kiem-phien-ban.py
  */
-define( 'VHCPMTD_VERSION', '1.221.0' );
+define( 'VHCPMTD_VERSION', '1.240.0' );
 define( 'VHCPMTD_FILE', __FILE__ );
 define( 'VHCPMTD_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHCPMTD_URL', plugin_dir_url( __FILE__ ) );
@@ -45,6 +45,7 @@ require_once VHCPMTD_DIR . 'includes/class-vhcp-upload.php';
 require_once VHCPMTD_DIR . 'includes/class-vhcp-nap.php';
 require_once VHCPMTD_DIR . 'includes/class-vhcp-sheet.php';
 require_once VHCPMTD_DIR . 'includes/class-vhcp-import.php';
+require_once VHCPMTD_DIR . 'includes/class-vhcp-gop.php';
 require_once VHCPMTD_DIR . 'includes/class-vhcp-api.php';
 require_once VHCPMTD_DIR . 'includes/class-vhcp-app.php';
 require_once VHCPMTD_DIR . 'includes/class-vhcp-admin.php';
@@ -99,13 +100,22 @@ function vhcpmtd_maybe_upgrade() {
 	   một lượt thì mọi đồng chi cho mấy gian ấy rơi về nhà mặc định — số của POSH nằm trong sổ
 	   K&H, không ai thấy để sửa.
 
-	   ⚠️ CHẠY MỘT LẦN CHO MỖI PHIÊN BẢN, không phải mỗi lượt tải trang: hàm hút quét cả danh
-	      mục cơ sở cho từng dòng bên ghế, làm ở mọi lượt tải là một khoản phí vô ích trên
-	      trang nào cũng phải trả. Cờ theo phiên bản để bản sau còn hút lại được nếu cần.
+	   🔴 CHẠY ĐÚNG MỘT LẦN CHO CẢ ĐờI SITE, KHÔNG PHẢI MỖI PHIÊN BẢN — đổi 21/09/2026.
+
+	      Bản cũ so cờ với `VHCPMTD_VERSION`, tức mỗi lần cài bản mới là hút LẠI cả danh mục bên Ghế.
+	      Đó chính là câu *"tại sao xóa không được"* của anh Thắng 14/09/2026: xóa 67 gian xong, cài
+	      bản sau là chúng về nguyên, không một câu báo nào. Hôm ấy chữa bằng cách TẮT hẳn đường
+	      hút; nay anh xin bật lại (*"đẩy cơ sở bên ghế sang nhé"*) nên phải chữa đúng chỗ gốc:
+	      hút một lần để mồi, sau đó XÓA LÀ Ở YÊN.
+
+	      ⚠️ Muốn hút lại thì bấm nút 🚛 Hút cơ sở từ Ghế ở màn Cấu hình — một cú bấm có chủ,
+	         thay cho một lượt chạy ngầm không ai biết. Đó cũng là lý do cái nút ấy có mặt.
+	   ⚠️ VẪN không chạy ở mọi lượt tải trang: hàm hút quét cả danh mục cơ sở cho từng dòng bên
+	      ghế, làm ở mọi lượt tải là một khoản phí vô ích trên trang nào cũng phải trả.
 	   ⚠️ ĐẶT SAU `plugins_loaded` của bên ghế bằng cách gọi ở ưu tiên muộn — lúc này lớp
 	      `VHG_May` mới chắc chắn đã nạp. Chưa cài plugin ghế thì hàm tự trả 0. */
-	if ( get_option( 'vhcpmtd_hut_coso_ghe' ) !== VHCPMTD_VERSION ) {
-		update_option( 'vhcpmtd_hut_coso_ghe', VHCPMTD_VERSION );
+	if ( ! get_option( 'vhcpmtd_hut_coso_ghe' ) ) {
+		update_option( 'vhcpmtd_hut_coso_ghe', '1' );
 		VHCPMTD_Cfg::hut_coso_ghe();
 	}
 }

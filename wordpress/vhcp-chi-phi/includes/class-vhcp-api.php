@@ -30,6 +30,11 @@ class VHCP_API {
 	 *  của mọi người. Danh sách dưới khớp đúng những tab mà giao diện vốn chỉ cho
 	 *  Admin/Quản lý thấy, nên người dùng không thấy khác gì.)
 	 */
+	/* Sáu cửa MISA — mọi lối làm ra tệp MISA hoặc đóng dấu "đã xuất". Thêm hàm MISA mới thì
+	   khai vào đây, không thì nó là cái lỗ duy nhất trong luật trên. */
+	private static $misa_fns = array( 'exportMisa', 'exportMisaKyThuat', 'exportMisaMarketing',
+		'exportMisaBP', 'exportMisaSoChi', 'markExported' );
+
 	private static function required_roles( $fn ) {
 		// Sửa hàng loạt NGÀY của dòng chi là đụng thẳng vào số liệu kế toán (ngày quyết định
 		// kỳ hạch toán). Chốt ở máy chủ, không tin mỗi giao diện.
@@ -37,6 +42,12 @@ class VHCP_API {
 		   khoản đang giữ mã ấy nhìn thấy sổ tiền của gian ấy — nên chỉ Admin, ngang hàng với
 		   mấy việc đụng thẳng vào số liệu bên dưới. */
 		$admin_only = array( 'luuMaTatCoso',
+			/* 🔴 BẢNG ĐỐI CHIẾU BA KHO — chỉ Admin, dù nó CHỈ ĐỌC.
+			   Nó đọc xuyên qua kho bảng của CẢ BA bản (gốc + hai bản vùng), tức là bày ra số tiền và
+			   danh sách người dùng của hai mảng KHÁC — đúng cái ranh giới mà thanh khối dựng
+			   lên để *"tránh râu ông này cắm bà kia"*. Kế toán KVC không có việc gì phải nhìn
+			   sổ Văn phòng, kể cả nhìn suông. */
+			'soatGop',
 			'deleteDonAdmin', 'unmarkExportedSoChi', 'suaNamVoLy', 'suaNgayHong', 'suaKyHong', 'setDonNgay',
 			/* Sửa TIỀN hàng loạt trên đơn đã duyệt — chỉ Admin, và chỉ sau khi xem trước. */
 			'donBuTruCu',
@@ -236,6 +247,7 @@ class VHCP_API {
 			'luuMaTatCoso'          => array( 'VHCP_Auth', 'luu_ma_tat_api' ),
 			'listUserBak'           => array( 'VHCP_Cfg', 'list_user_bak' ),
 			'khoiPhucUsers'         => array( 'VHCP_Cfg', 'khoi_phuc_users' ),
+			'soatGop'               => array( 'VHCP_Gop', 'soat' ),
 			'cosoLa'                => array( 'VHCP_Cfg', 'coso_la' ),
 			'doiTenCoSo'            => array( 'VHCP_Cfg', 'doi_ten_coso' ),
 			'soatNhanSu'            => array( 'VHCP_Cfg', 'soat_nhan_su' ),
@@ -474,6 +486,28 @@ class VHCP_API {
 					), 403 );
 				}
 			}
+		}
+
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		   KẾ TOÁN MÁY TỰ ĐỘNG KHÔNG ĐẨY MISA — CHỐT Ở MÁY CHỦ, KHÔNG CHỈ GIẤU TAB.
+
+		   Anh Thắng 21/09/2026: *"kế toán máy tự động chỉ check chứ ko đẩy misa"*. Giấu tab là
+		   đủ cho người dùng bình thường, nhưng `markExported` ghi thẳng 'Đã xuất MISA' vào sổ —
+		   một lượt gọi tay là đơn của cả tháng bị đánh dấu đã xuất trong khi chưa tệp nào đi ra.
+		   Chốt ở đây thì hàm MISA viết sau này cũng tự được gác.
+
+		   ⚠️ KHÔNG GỘP VÀO `required_roles()`: hàm ấy so bằng VAI GỐC (cố ý, để vai con thừa
+		      hưởng quyền của vai cha). Luật này thì ngược lại — nó phân biệt ĐÚNG hai vai con
+		      cùng cha: "Kế Toán Máy Tự Động" và "Kế Toán Khu Vui Chơi" đều kế thừa "Kế toán cá
+		      nhân". Nhét vào đó là hoặc chặn cả hai, hoặc chặn không ai.
+		   ═══════════════════════════════════════════════════════════════════════════════════ */
+		if ( in_array( $fn, self::$misa_fns, true ) && ! VHCP_Cfg::xuat_misa_duoc() ) {
+			return new WP_REST_Response( array(
+				'ok'    => false,
+				'error' => 'Vai trò "' . ( VHCP_Auth::vai_hien() !== '' ? VHCP_Auth::vai_hien() : 'không rõ' )
+					. '" chỉ soát và duyệt quyết toán. Đơn duyệt xong tự chuyển sang kế toán Khu vui chơi để xuất MISA.',
+				'code'  => 'forbidden',
+			), 403 );
 		}
 
 		/* 🔴 CHỐT ĐƠN VỊ (K&H · POSH) — MỘT LƯỢT CHO MỌI HÀM CÓ MÃ ĐƠN.

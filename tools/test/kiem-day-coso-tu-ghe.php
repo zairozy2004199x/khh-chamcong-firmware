@@ -48,11 +48,14 @@ global $wpdb;
  * ⚠️ BẬT BẰNG KHOÁ CẤU HÌNH, không sửa hằng trong mã. `VHCP_Cfg::lay_coso_ghe()` đọc khoá
  *    `vhcp_lay_coso_ghe` trước rồi mới ngả về hằng — đúng đường một site thật bật lại.
  * ════════════════════════════════════════════════════════════════════════════════════════ */
-teq( '🔴 bản gốc khu vui chơi TẮT sẵn (67 gian ghế thôi chảy vào)',
-	false, VHCP_Cfg::LAY_COSO_GHE );
+/* 🔴 BẬT LẠI 21/09/2026 (anh Thắng: *"đẩy cơ sở bên ghế sang nhé"*) — ba khối nay chung một
+   bản cài nên gian ghế về đúng bảng Máy tự động của nó. */
+teq( '🔴 bản gốc nay BẬT sẵn đường hút', true, VHCP_Cfg::LAY_COSO_GHE );
+update_option( 'vhcp_lay_coso_ghe', 0 );
+t( '⚠️ và khoá cấu hình vẫn TẮT được cho một site cụ thể (VD văn phòng)',
+	! VHCP_Cfg::lay_coso_ghe() );
 update_option( 'vhcp_lay_coso_ghe', 1 );
-t( '⚠️ khoá cấu hình bật lại được cho bản nào cần (VD máy tự động)',
-	VHCP_Cfg::lay_coso_ghe() );
+t( '   rồi bật lại cũng được', VHCP_Cfg::lay_coso_ghe() );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
  * 0. NẠP PLUGIN GHẾ + DỰNG BẢNG CỦA NÓ

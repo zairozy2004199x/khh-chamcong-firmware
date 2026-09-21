@@ -127,7 +127,14 @@ define( 'YEAR_IN_SECONDS', 31536000 );
 $GLOBALS['VHCP_OPT'] = array();
 $GLOBALS['VHCP_TR']  = array();
 
-function dbDelta( $sql ) { return array(); }
+/* GHI LẠI câu lệnh dựng bảng thay vì vứt đi. Bài kiểm cần đo "bật plugin có dựng bảng không";
+   để rỗng thì chỉ soi được chữ trong tệp, mà soi chữ thì lượt đục bỏ đúng chỗ vẫn lọt.
+   ⚠️ Cố ý KHÔNG tự chạy câu lệnh: cú pháp là của MySQL, SQLite không hiểu. Bài nào cần bảng
+      thật thì dùng `vhcp_stub_dung_bang()` — nó dịch sang SQLite và giữ cả khoá. */
+function dbDelta( $sql ) {
+	$GLOBALS['VHCP_DBDELTA'][] = (string) $sql;
+	return array();
+}
 function get_option( $k, $d = false ) { return array_key_exists( $k, $GLOBALS['VHCP_OPT'] ) ? $GLOBALS['VHCP_OPT'][ $k ] : $d; }
 function update_option( $k, $v ) { $GLOBALS['VHCP_OPT'][ $k ] = $v; return true; }
 function delete_option( $k ) { unset( $GLOBALS['VHCP_OPT'][ $k ] ); return true; }
@@ -209,7 +216,12 @@ function do_action( $h ) {
 }
 function add_rewrite_rule( $mau, $dich, $vt = 'bottom' ) { $GLOBALS['VHCP_LUAT'][ $mau ] = array( $dich, $vt ); }
 function add_shortcode( $t, $cb ) { return true; }
-function flush_rewrite_rules( $x = true ) { return true; }
+/* ĐẾM số lượt mở lại, đừng chỉ trả true: bài kiểm cần biết móc kích hoạt CÓ gọi hay không.
+   Thiếu nó thì chỉ soi được chữ trong tệp, mà soi chữ thì lượt đục bỏ đúng chỗ vẫn lọt. */
+function flush_rewrite_rules( $x = true ) {
+	$GLOBALS['VHCP_MO_LAI_DUONG'] = 1 + ( isset( $GLOBALS['VHCP_MO_LAI_DUONG'] ) ? $GLOBALS['VHCP_MO_LAI_DUONG'] : 0 );
+	return true;
+}
 function get_query_var( $k, $d = '' ) { return array_key_exists( $k, $GLOBALS['VHCP_QVAR'] ) ? $GLOBALS['VHCP_QVAR'][ $k ] : $d; }
 function __return_false() { return false; }
 function __return_true() { return true; }
@@ -474,6 +486,11 @@ function add_query_arg( $a = null, $b = null, $c = null ) {
 	return $q[0] . ( '' !== $chuoi ? '?' . $chuoi : '' ) . $frag;
 }
 function plugin_dir_path( $f ) { return dirname( $f ) . '/'; }
+/* Móc vòng đời plugin. Bản giả GHI LẠI hàm được khai thay vì bỏ đi, để bài kiểm GỌI THẬT được
+   — soi bằng cách tìm chuỗi trong tệp thì một lượt đục bỏ đúng chỗ vẫn lọt, vì cùng chuỗi ấy
+   còn xuất hiện ở dòng khác. */
+function register_activation_hook( $f, $ham ) { $GLOBALS['VHCP_MOC_BAT'][] = $ham; }
+function register_deactivation_hook( $f, $ham ) { $GLOBALS['VHCP_MOC_TAT'][] = $ham; }
 function plugin_dir_url( $f ) { return 'http://example.test/wp-content/plugins/vhcp-chi-phi/'; }
 
 class WP_REST_Request {
@@ -526,8 +543,16 @@ class VHCP_Test_WPDB {
 	public function exec_raw( $sql ) { return $this->pdo->exec( $sql ); }
 
 	private function tr( $sql ) {
-		// SQLite không có SHOW TABLES — plugin dùng câu đó để hỏi "bảng của plugin kia có không".
+		/* SQLite không có SHOW TABLES — plugin dùng câu đó để hỏi "bảng của plugin kia có không".
+		 *
+		 * 🔴 PHẢI GIỮ CẢ DẠNG CÓ `%`. Bản đầu dịch mọi câu thành `name='…'`, tức so BẰNG. Câu
+		 *    hỏi "có đúng bảng này không" thì đúng, nhưng câu DÒ `wp_vhcp%_don` — cách
+		 *    `VHCP_Gop` tìm xem trên site đang có những kho nào — thì so bằng luôn trả rỗng:
+		 *    bảng đối chiếu báo "chỉ có một kho" trong khi có ba, và không phép nào đỏ. */
 		if ( preg_match( "/^\s*SHOW\s+TABLES\s+LIKE\s+'([^']*)'/i", $sql, $m ) ) {
+			if ( false !== strpos( $m[1], '%' ) ) {
+				return "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '" . $m[1] . "' ESCAPE '\\' ORDER BY name";
+			}
 			return "SELECT name FROM sqlite_master WHERE type='table' AND name='" . $m[1] . "'";
 		}
 		/* ══════════════════════════════════════════════════════════════════════════════
@@ -695,9 +720,13 @@ class VHCP_Test_WPDB {
 $GLOBALS['wpdb'] = new VHCP_Test_WPDB();
 
 /** Bảng SQLite tương ứng schema MySQL (khóa chính đổi sang stt để có AUTOINCREMENT). */
-function vhcp_test_create_tables() {
+function vhcp_test_create_tables( $p = 'wp_vhcp_' ) {
 	global $wpdb;
-	$p = 'wp_vhcp_';
+	/* 🔴 TIỀN TỐ NHẬN THAM SỐ — để dựng được KHO CỦA BẢN VÙNG (`wp_vhcpmtd_` · `wp_vhcpvp_`).
+	   Ba bản plugin là ba bản sao cùng sơ đồ, khác mỗi tiền tố; `VHCP_Gop` đọc xuyên cả ba.
+	   Gõ lại sơ đồ lần thứ hai trong bài kiểm là đúng cái bẫy khai-hai-nơi đã sập mấy lượt ở
+	   ngay tệp này — thêm một cột vào plugin thì kho vùng trong bài kiểm thiếu cột ấy, và bài
+	   kiểm đỏ vì lỗi của CHÍNH NÓ, trông y như lỗi của plugin. Nên: một sơ đồ, hai lượt gọi. */
 	$q = array(
 		"CREATE TABLE {$p}don (stt INTEGER PRIMARY KEY AUTOINCREMENT, ma_don TEXT UNIQUE, ky TEXT DEFAULT '', nguoi_lap TEXT DEFAULT '', don_vi TEXT DEFAULT '', ngay_tao TEXT, trang_thai TEXT DEFAULT 'Nháp', ghi_chu TEXT DEFAULT '', nguoi_duyet TEXT DEFAULT '', ngay_duyet TEXT, nguoi_qt TEXT DEFAULT '', ngay_qt TEXT, ngay_gui_qt TEXT, chenh_lech_qt REAL DEFAULT 0, xu_ly TEXT DEFAULT '', so_tien_thuc_mua REAL, hinh_thuc_tt TEXT DEFAULT '', hoa_don_qt TEXT DEFAULT '', hoa_don_qt2 TEXT DEFAULT '', ngay_xuat_cn TEXT, nguoi_qt_ncc TEXT DEFAULT '', ngay_qt_ncc TEXT, ngay_xuat_ncc TEXT, tam_ung_duyet REAL, nguoi_cap TEXT DEFAULT '', ngay_cap TEXT, ht_cap TEXT DEFAULT '', anh_cap TEXT DEFAULT '', tat_toan TEXT DEFAULT '', ngay_tat_toan TEXT, du_phong REAL, bu_tru REAL, khoi TEXT DEFAULT 'kvc')",
 		"CREATE TABLE {$p}tamung (id INTEGER PRIMARY KEY AUTOINCREMENT, ma_don TEXT, coso TEXT DEFAULT '', so REAL DEFAULT 0, UNIQUE(ma_don,coso))",

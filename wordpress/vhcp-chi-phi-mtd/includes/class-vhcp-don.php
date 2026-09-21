@@ -554,7 +554,10 @@ class VHCPMTD_Don {
 
 		$loai = array();
 		foreach ( (array) ( isset( $cfg['loaiChiPhi'] ) ? $cfg['loaiChiPhi'] : array() ) as $x ) {
-			$loai[] = array( 'ten' => $x['ten'], 'tkNo' => $x['tkNo'], 'tkCo' => $x['tkCo'], 'boPhan' => $x['boPhan'], 'loaiTt' => isset( $x['loaiTt'] ) ? $x['loaiTt'] : '' );
+			/* `vaiTro` = ai được dùng loại này (21/09/2026). Không gửi xuống là ô chọn lúc nhập
+			   đơn bày đủ mọi loại cho mọi vai, trong khi máy chủ thì lọc — hai bên nói hai
+			   chuyện, và người nhập chọn được thứ mà sổ của họ không hiện. */
+			$loai[] = array( 'ten' => $x['ten'], 'tkNo' => $x['tkNo'], 'tkCo' => $x['tkCo'], 'boPhan' => $x['boPhan'], 'loaiTt' => isset( $x['loaiTt'] ) ? $x['loaiTt'] : '', 'vaiTro' => isset( $x['vaiTro'] ) ? $x['vaiTro'] : '', 'khoi' => isset( $x['khoi'] ) ? $x['khoi'] : '' );
 		}
 
 		// Cơ sở -> mảng kinh doanh, và ma trận [loại][mảng] -> TK Nợ: để ô "Loại chi phí"
@@ -590,6 +593,27 @@ class VHCPMTD_Don {
 			   chạy. Nó có chạy — chỉ là phần lớn loại chi phí trong danh mục CHƯA khai ô Bộ
 			   phận, mà loại chưa khai thì cố ý cho hiện với mọi kế toán (chặn hết là màn
 			   trắng). Con số này biến "trông như hỏng" thành "còn N dòng phải khai". */
+			/* ══════════════════════════════════════════════════════════════════════════════
+			 * 🔴 DANH SÁCH BỘ PHẬN PHẢI XUỐNG TỚI GÓI KHỞI ĐỘNG, KHÔNG CHỈ Ở GÓI CẤU HÌNH.
+			 * ══════════════════════════════════════════════════════════════════════════════
+			 * Anh Thắng 21/09/2026, ảnh chụp dải 👁 Xem như: *"chỉnh phần khai bộ phận cho
+			 * admin để tes"* — ô chọn bộ phận chỉ có hai dòng *"như tôi"* và *"để TRỐNG"*,
+			 * không một tên bộ phận nào.
+			 *
+			 * Vì `glDung()` đọc `BOOT.boPhanDs`, mà khoá ấy CHƯA TỪNG có trong gói này. Nó chỉ
+			 * có ở gói Cấu hình (`CFG.boPhanDs`) — nên bảng Loại chi phí bày đủ bảy ô tích
+			 * bình thường, và không có gì trên màn gợi ý rằng chỗ kia đang đói dữ liệu. Một
+			 * khoá thiếu trông y hệt một danh sách rỗng.
+			 *
+			 * ⚠️ Hậu quả không chỉ là một ô chọn trống: dải Xem như là CÔNG CỤ THỬ của Admin.
+			 *    Không chọn được bộ phận thì mọi luật "ai thấy loại chi phí nào" không thử
+			 *    được bằng tay — và đó đúng là phần anh Thắng đang sửa tới lui mấy hôm nay.
+			 *
+			 * 🔴 GỌI `bo_phan_ds()`, ĐỪNG ĐỌC THẲNG BẢNG. Hàm ấy mới có nhánh "danh mục rỗng
+			 *    thì ngã về bảy tên mặc định"; đọc thẳng là site chưa khai gửi xuống danh sách
+			 *    rỗng trong khi máy chủ vẫn nhận bảy tên ấy — hai bên lệch nhau lặng lẽ.
+			 * ══════════════════════════════════════════════════════════════════════════════ */
+			'boPhanDs'   => VHCPMTD_Cfg::bo_phan_ds(),
 			'boPhanBo'   => VHCPMTD_Auth::bo_phan_bo(),
 			'loaiChuaBP' => self::dem_loai_chua_bo_phan( $cp ),
 			'donVi'      => VHCPMTD_DonVi::ds(),
@@ -601,6 +625,19 @@ class VHCPMTD_Don {
 			   ⚠️ '' nghĩa là KHÔNG CÓ NHÀ MẸ (khoá `vhcpmtd_dv_me` để trống) — mọi đơn vị ngang
 			      hàng. Giao diện phải hiểu đúng nghĩa ấy, đừng coi rỗng là "K&H". */
 			'donViMe'    => VHCPMTD_DonVi::don_vi_me(),
+			/* Khối nào được bày nút trên thanh KHỐI — `null` = đủ ba. Đi thẳng từ `xem_duoc()`
+			   nên không đẻ thêm trục quyền nào; xem chốt dài ở `VHCPMTD_DonVi::khoi_xem_duoc()`. */
+			'khoiXem'    => VHCPMTD_DonVi::khoi_xem_duoc(),
+			/* Khối mặc định lúc mở lần đầu = khối của chính nhà người dùng, để họ không phải
+			   bấm một nhịp mới thấy việc của mình. */
+			'khoiBan'    => ( VHCPMTD_DonVi::khoi_cua( VHCPMTD_DonVi::cua_toi() ) ?: VHCPMTD_DB::KHOI ),
+			/* ẢNH XẠ ĐƠN VỊ → KHỐI, GỬI NGUYÊN BẢNG XUỐNG MÀN.
+			   Anh Thắng 21/09/2026: *"đơn vị cơ sở theo khối — chuyển cột Đơn vị sang Khối"*. Ô
+			   chọn khối ở bảng cơ sở phải biết "KVC / POSH / MTĐ thuộc khối nào".
+			   🔴 GỬI BẢNG, ĐỪNG ĐỂ MÀN CHÉP LẠI MỘT BẢN. Chép tay là hai nơi khai cùng một luật,
+			      và ngày thêm một tên đơn vị (một chi nhánh mới) là hai bên lệch — màn xếp cơ sở
+			      vào khối này trong khi máy chủ đọc ra khối khác, không một câu lỗi nào. */
+			'khoiTheoDv' => VHCPMTD_DonVi::KHOI_THEO_DON_VI,
 			/* Ai đang khai ô "Xem đơn vị" lạc ra ngoài danh sách — họ là người sắp ngồi trước
 			   một màn trắng. Xem chốt dài ở `VHCPMTD_DonVi::ai_khai_lac()`. */
 			'khaiLac'    => VHCPMTD_DonVi::ai_khai_lac(),

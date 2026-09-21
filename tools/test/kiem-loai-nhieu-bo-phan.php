@@ -108,12 +108,23 @@ t( '   khác hoa/thường vẫn khớp', C::loai_thuoc_bo_phan( 'Chi phí setup
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
  * 4. MỌI CHỖ DÙNG ĐỀU ĐI QUA HÀM MỚI
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+/* ⚠️ `xem_duoc_loai()` TỪ 21/09/2026 LỌC THEO VAI TRÒ, không còn theo bộ phận — anh Thắng:
+   *"bỏ tích bộ phận đi, mà tích theo vai trò"*. Hai phép cũ ở đây canh cổng ấy gọi
+   `loai_thuoc_bo_phan()`; nay chuyển sang canh `loai_thuoc_vai()`, và canh nốt cái chốt
+   "chưa tích thì cho qua" — thứ giữ cho màn không trắng ngày bản mới lên.
+   Phần còn lại của bài (một loại thuộc NHIỀU bộ phận, tách chuỗi, so hoa/thường) vẫn đúng và
+   vẫn chạy: `loai_thuoc_bo_phan()` còn nguyên, chỉ thôi được cổng phân quyền gọi tới. */
 $xem = boc( $AUTH, 'public static function xem_duoc_loai(' );
-t( '🔴 phân quyền xem sổ dùng loai_thuoc_bo_phan(), không so nguyên chuỗi',
-	false !== strpos( $xem, 'VHCP_Cfg::loai_thuoc_bo_phan( $ten_loai, $bo )' )
-	&& false === strpos( $xem, 'mb_strtolower( $bo ) === mb_strtolower( $bp )' ), $xem );
-t( '   người không bị bó vẫn xem hết (chốt cũ còn nguyên)',
-	false !== strpos( $xem, "if ( '' === \$bo ) { return true; }" ), $xem );
+t( '🔴 phân quyền xem sổ nay dùng `loai_thuoc_vai()`',
+	false !== strpos( $xem, 'VHCP_Cfg::loai_thuoc_vai( $ten_loai, $vai )' ), $xem );
+/* Gỡ chú thích trước khi dò — khối chú thích của chính hàm ấy có nhắc `bo_phan_bo()` để giải
+   thích vì sao thôi dùng nó. Xanh/đỏ nhờ lời văn thì không canh gì cả. */
+$xem_sach = (string) preg_replace( '#/\*.*?\*/#su', '', $xem );
+t( '   và KHÔNG còn lọc bằng ô Bộ phận (cột ấy đã rời bảng Người dùng)',
+	false === strpos( $xem_sach, 'bo_phan_bo()' ), $xem_sach );
+$tv = boc( $CFG, 'public static function loai_thuoc_vai(' );
+t( '🔴 chưa tích vai nào thì cho qua (không thì màn trắng)',
+	false !== strpos( $tv, "if ( '' === trim( \$ds ) ) { return true; }" ), $tv );
 t( '🔴 chấm "đơn này là việc của mình" cũng theo danh sách',
 	false !== strpos( $DON, 'VHCP_Cfg::bo_phan_ds_cua_loai( $_nhom ) && VHCP_Cfg::loai_thuoc_bo_phan( $_nhom, $bo_phan_bo )' ), '' );
 t( '   đếm "loại chưa khai bộ phận" cũng vậy',
@@ -122,23 +133,33 @@ t( '   đếm "loại chưa khai bộ phận" cũng vậy',
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
  * 5. MÀN CẤU HÌNH: Ô CHỌN NHIỀU
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
-t( '🔴 ô Bộ phận của bảng loại chi phí cho chọn NHIỀU',
-	false !== strpos( $HTML, "+'<td>'+_bpSelNhieu(x.boPhan||'')+'</td>'" ), '' );
+/* ⚠️ Ô TÍCH TRÊN BẢNG LOẠI CHI PHÍ TỪ 21/09/2026 LÀ VAI TRÒ, không còn là bộ phận — anh Thắng:
+   *"bỏ tích bộ phận đi, mà tích theo vai trò"*. Mục này vốn canh KHUÔN của ô tích (hộp tích
+   chứ không phải danh sách phải giữ Ctrl, nối bằng dấu phẩy, ô trống = mọi…). Khuôn ấy vẫn
+   phải đúng, chỉ là nó chuyển sang `_vaiSelNhieu()`. Bài riêng cho luật mới:
+   `kiem-loai-theo-vai.php` và `kiem-loai-3-bang.js`. */
+/* ⚠️ Từ 1.235.0 ô tích còn nhận THÊM KHỐI của chính hàng ấy — anh Thắng 21/09/2026:
+   *"Loại chi phí theo Khối, Ai có ở khối nào mới hiện ra"*. Luật lọc ấy có bài riêng
+   (`kiem-vai-theo-khoi.php` / `.js`); chỗ này chỉ canh rằng hàng VẪN dùng ô tích vai. */
+t( '🔴 ô tích của bảng loại chi phí nay là VAI TRÒ',
+	false !== strpos( $HTML, "+'<td>'+_vaiSelNhieu(x.vaiTro||'', _khoiCuaLoai(x))+'</td>'" ), '' );
+t( '   và không còn ô tích bộ phận ở hàng ấy',
+	false === strpos( $HTML, "+'<td>'+_bpSelNhieu(x.boPhan||'')+'</td>'" ), '' );
 /* Anh Thắng 10/09/2026: *"chuyển sang dạng tích cho dễ bấm"*. Danh sách nhiều lựa chọn của
    trình duyệt đòi giữ Ctrl mới chọn thêm được; bấm thường là BỎ hết những cái đang chọn — nên
    người không biết mẹo ấy vô tình xoá sạch bộ phận của một loại mà không hay, và ô rỗng nghĩa
    là "không bó gì", tức nới quyền. */
 /* Canh trong THÂN `_bpSelNhieu()`, không quét cả tệp: chỗ khác (ô Cơ sở, ô Xem đơn vị) vẫn
    giữ khuôn riêng của nó với `<select multiple>` ẩn, nên quét cả tệp là bắt nhầm người khác. */
-$than_bp = boc( $HTML, 'function _bpSelNhieu(', "\n  }" );
+$than_bp = boc( $HTML, 'function _vaiSelNhieu(', "\n  }" );
 t( '🔴 và là HỘP TÍCH, không phải danh sách phải giữ Ctrl',
 	false !== strpos( $than_bp, '<input type="checkbox" value=' )
 	&& false === strpos( $than_bp, '<select' ), $than_bp );
 t( '🔴 chỗ lưu nối các ô ĐÃ TÍCH bằng dấu phẩy — đúng dạng máy chủ tách ra',
-	false !== strpos( $HTML, "tr.querySelectorAll('[data-bp] input:checked')" )
+	false !== strpos( $HTML, "tr.querySelectorAll('[data-vai] input:checked')" )
 	&& false !== strpos( $HTML, "function(c){ return c.value; }).join(', ')" ), '' );
-t( '   nói rõ không tích gì = mọi bộ phận',
-	false !== mb_strpos( $HTML, 'không tích = mọi bộ phận' ), '' );
+t( '   nói rõ không tích gì = mọi vai',
+	false !== mb_strpos( $HTML, 'không tích = mọi vai' ), '' );
 /* ══════════════════════════════════════════════════════════════════════════════════════════
  * 🔴 TỪ 20/09/2026 Ô CHỌN LOẠI KHÔNG CÒN LỌC THEO BỘ PHẬN NGƯỜI ĐĂNG NHẬP.
  * ══════════════════════════════════════════════════════════════════════════════════════════

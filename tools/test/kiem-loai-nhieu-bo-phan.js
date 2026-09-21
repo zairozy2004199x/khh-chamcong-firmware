@@ -42,11 +42,41 @@ teq('   null / undefined → rỗng, không nổ', [], T(null));
 teq('   thừa dấu phẩy và khoảng trắng → dọn sạch', ['Kỹ thuật', 'Setup'], T(' Kỹ thuật ,, Setup , '));
 
 /* ── 2. LỌC DANH MỤC — CHẠY THẬT ───────────────────────────────────────────────────────── */
+/* 🔴 BỐC MÃ THẬT, ĐỪNG BỊA LẠI LUẬT. Từ 21/09/2026 cột Bộ phận đã rời bảng Người dùng, nên
+   luật nào cần bộ phận thì đọc lại từ TÊN VAI CON — anh Thắng: *"dùng hết trên vai trò cha,
+   con rồi"*. Bịa một bản ở bài kiểm là nó canh luật của chính nó, xanh vĩnh viễn dù bản thật
+   đi đường khác. */
+const BP_THAT = `  var BP_THEO_TEN_VAI=[
+    {bp:'Kỹ thuật', tu:['ky thuat']},
+    {bp:'Cơ sở',    tu:['co so']},
+    {bp:'Marketing', tu:['marketing']},
+    {bp:'Văn phòng', tu:['van phong']}
+  ];
+  function _boDauVai(s){
+    return String(s==null?'':s).toLowerCase().replace(/\\u0111/g,'d')
+      .normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/\\s+/g,' ').trim();
+  }
+  function _bpCuaVai(ten){
+    var t=' '+_boDauVai(ten)+' ';
+    if(t===' ') return '';
+    for(var i=0;i<BP_THEO_TEN_VAI.length;i++){
+      var x=BP_THEO_TEN_VAI[i];
+      for(var j=0;j<x.tu.length;j++){ if(t.indexOf(' '+x.tu[j]+' ')>=0) return x.bp; }
+    }
+    return '';
+  }
+  function _bpCuaToi(){
+    var b=String((CURUSER&&CURUSER.boPhan)||'').trim();
+    if(b) return b;
+    return _bpCuaVai((CURUSER&&CURUSER.role)||'');
+  }`;
 function loc(boPhanNguoiDung, dsLoai, coMa) {
   const moi = {
     CURUSER: { boPhan: boPhanNguoiDung },
     NHOM_CP: '', NHOM_CP_CS: 'Cơ sở',
-    BOOT: { loaiChiPhi: dsLoai, tkNoMx: {} },
+    BOOT: { loaiChiPhi: dsLoai, tkNoMx: {}, khoiBan: 'kvc' },
+    KHOI_DANG: 'kvc',
+    CURUSER: { role: 'Admin' },   /* Admin không bị lọc theo vai — xem `_vaiDungDuocLoai()` */
     _mangCua: () => '',
     _tkNoCua: (ten) => (coMa && coMa.indexOf(ten) < 0) ? '' : '6421',
     _tkNoList: () => [],
@@ -54,7 +84,10 @@ function loc(boPhanNguoiDung, dsLoai, coMa) {
     _mangPham: () => [],
     el: () => null,
   };
-  const F = new Function('moi', `with(moi){ ${boc('_bpTach')}\n${boc('_khoaNhom')}\n${boc('_loaiCpList')}
+/* ⚠️ `_khoiCuaLoai` + `KHOI_DANG` thêm 21/09/2026 — loại chi phí nay thuộc đúng một khối
+     (anh Thắng: *"chia ra 3 bảng của 3 khối, để tránh dùng chung"*) và `_loaiCpList()` bỏ
+     loại của khối khác. Thiếu trong bệ đỡ là bài kiểm nổ `ReferenceError`. */
+  const F = new Function('moi', `with(moi){ ${BP_THAT}\n${boc('_khoiCuaLoai')}\n${boc('_vaiTachLoai')}\n${boc('_vaiDungDuocLoai')}\n${boc('_bpTach')}\n${boc('_khoaNhom')}\n${boc('_loaiCpList')}
     return _loaiCpList; }`)(moi);
   return F('', '').map(x => x.ten);
 }

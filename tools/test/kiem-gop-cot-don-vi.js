@@ -68,8 +68,19 @@ t('🔴 không còn cột "Xem đơn vị" trên bảng người dùng', !/>Xem 
 t('🔴 hàm dựng ô "Xem đơn vị" đã bỏ hẳn', H.indexOf('function _xemDvSel(') < 0);
 t('🔴 hàm báo lệch nhà/tầm nhìn đã bỏ hẳn',
   H.indexOf('function _dvLech(') < 0 && H.indexOf('function _dvCanhBao(') < 0);
-/* Cột "Đơn vị" thì PHẢI CÒN — nó là cột duy nhất còn lại, bỏ nốt là không ai khai được nhà. */
-t('   nhưng cột "Đơn vị" vẫn còn', />Đơn vị</.test(H) && H.indexOf('_dvInp(') >= 0);
+/* ═══ GIÁ TRỊ ĐƠN VỊ PHẢI CÒN, DÙ CỘT ĐÃ RỜI MÀN ══════════════════════════
+   21/09/2026 cột Đơn vị nhường chỗ cho cột Khối — anh Thắng: *"chỗ đơn vị thay bằng khối —
+   tích nếu 1 người làm 2 khối thì chọn 2"*.
+
+   🔴 NHƯNG GIÁ TRỊ ĐƠN VỊ KHÔNG ĐƯỢC BIẾN, và đây là chỗ canh điều đó. Nó vẫn là cổng
+      quyền THẬT — đơn rơi về nhà nào, đọc được sổ nhà nào (`VHCP_DonVi::xem_duoc()`). Bỏ ô
+      ẩn đi là lượt Lưu đầu tiên gửi chuỗi rỗng cho MỌI người, cả công ty dồn về nhà mẹ
+      K&H, và ai cũng đọc được sổ của mọi nhà — không một câu lỗi nào, không hoàn tác được.
+   ════════════════════════════════════════════════════════════════════════════ */
+t('cột Đơn vị nhường chỗ cho cột Khối', />Khối</.test(H) && H.indexOf('_khoiTichNguoi(') >= 0);
+t('🔴 nhưng giá trị Đơn vị vẫn đi theo trong ô ẩn', H.indexOf('data-dv-cu') >= 0);
+t('🔴 và lượt Lưu vẫn đọc nó ra chứ không ghi hằng rỗng',
+  /donVi:\(r\[\d+\]\|\|''\)\.trim\(\)/.test(H), 'không thấy');
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════
  * 2. MÁY CHỦ CŨNG CHỈ CÒN MỘT NGUỒN

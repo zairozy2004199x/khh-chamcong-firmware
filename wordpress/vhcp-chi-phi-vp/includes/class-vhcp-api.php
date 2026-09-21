@@ -37,6 +37,12 @@ class VHCPVP_API {
 		   khoản đang giữ mã ấy nhìn thấy sổ tiền của gian ấy — nên chỉ Admin, ngang hàng với
 		   mấy việc đụng thẳng vào số liệu bên dưới. */
 		$admin_only = array( 'luuMaTatCoso',
+			/* 🔴 BẢNG ĐỐI CHIẾU BA KHO — chỉ Admin, dù nó CHỈ ĐỌC.
+			   Nó đọc xuyên qua kho bảng của CẢ BA bản (gốc + hai bản vùng), tức là bày ra số tiền và
+			   danh sách người dùng của hai mảng KHÁC — đúng cái ranh giới mà thanh khối dựng
+			   lên để *"tránh râu ông này cắm bà kia"*. Kế toán KVC không có việc gì phải nhìn
+			   sổ Văn phòng, kể cả nhìn suông. */
+			'soatGop',
 			'deleteDonAdmin', 'unmarkExportedSoChi', 'suaNamVoLy', 'suaNgayHong', 'suaKyHong', 'setDonNgay',
 			/* Sửa TIỀN hàng loạt trên đơn đã duyệt — chỉ Admin, và chỉ sau khi xem trước. */
 			'donBuTruCu',
@@ -236,6 +242,7 @@ class VHCPVP_API {
 			'luuMaTatCoso'          => array( 'VHCPVP_Auth', 'luu_ma_tat_api' ),
 			'listUserBak'           => array( 'VHCPVP_Cfg', 'list_user_bak' ),
 			'khoiPhucUsers'         => array( 'VHCPVP_Cfg', 'khoi_phuc_users' ),
+			'soatGop'               => array( 'VHCPVP_Gop', 'soat' ),
 			'cosoLa'                => array( 'VHCPVP_Cfg', 'coso_la' ),
 			'doiTenCoSo'            => array( 'VHCPVP_Cfg', 'doi_ten_coso' ),
 			'soatNhanSu'            => array( 'VHCPVP_Cfg', 'soat_nhan_su' ),

@@ -1,0 +1,281 @@
+<script>
+/*═══════════════════════════════════════════════════════════
+ * JP CAPSULE v2 — Js04_NopTien
+ * Nộp tiền · nộp bổ sung · sửa báo cáo trong 24h.
+ * Cấu trúc giữ đúng như POSH v3.
+ *═══════════════════════════════════════════════════════════*/
+
+var PAY = { report: null, proof: null, proofUrl: '' };
+
+/*──────── Mở màn nộp tiền ────────*/
+function jpOpenPay(reportId) {
+  busy(true, 'Đang tải…');
+  Promise.all([
+    srv('jpMyUnpaid', APP.token),
+    srv('jpPaymentHistory', APP.token, reportId)
+  ]).then(function (res) {
+    busy(false);
+    var r = res[0].filter(function (x) { return String(x.id) === String(reportId); })[0];
+    if (!r) { toast('Báo cáo này đã nộp đủ'); loadUnpaid(); return; }
+
+    PAY.report = r;
+    PAY.proof = null; PAY.proofUrl = '';
+
+    $('payLoc').textContent = r.locationName;
+    $('payPeriod').textContent = typeText(r.machineType) + ' · ' +
+      dmy(r.fromDate) + ' – ' + dmy(r.toDate);
+
+    var b = $('payBadge');
+    b.textContent = payText(r.nvPayStatus);
+    b.className = 'badge ' + (r.nvPayStatus === 'DA_NOP' ? 'done' :
+                              r.nvPayStatus === 'NOP_MOT_PHAN' ? 'pending' : 'fixing');
+
+    $('payMust').textContent = money(r.phaiNop) + 'đ';
+    $('payDone').textContent = money(r.daNop) + 'đ';
+    $('payLeft').textContent = money(r.conThieu) + 'đ';
+
+    $('payTitle').textContent = r.daNop > 0 ? 'Nộp bổ sung' : 'Ghi nhận nộp tiền';
+    $('payAmount').value = r.conThieu;
+    $('payDate').value = todayStr();
+    $('payNote').value = '';
+    setMsg('payMsg', '');
+
+    if (r.ktXacNhan > 0) {
+      setMsg('payMsg', 'Kế toán đã xác nhận nhận ' + money(r.ktXacNhan) +
+        'đ — không tự sửa được nữa', 'err');
+    }
+
+    renderProof();
+    renderHistory(res[1]);
+    show('scPay');
+  }).catch(function (e) { busy(false); toast(e.message); });
+}
+
+function payText(s) {
+  return { CHUA_NOP: 'Chưa nộp', NOP_MOT_PHAN: 'Nộp một phần', DA_NOP: 'Đã nộp đủ' }[s] || s;
+}
+
+function jpPayBack() {
+  show('scHome');
+  loadUnpaid();
+  loadMyReports();
+}
+
+/*──────── Ảnh chứng từ ────────*/
+function renderProof() {
+  var box = $('payProof');
+  box.innerHTML = (PAY.proofUrl
+    ? '<div class="thumb"><img src="' + PAY.proofUrl + '">' +
+      '<span class="x" onclick="jpClearProof()">×</span></div>'
+    : '') +
+    '<div class="addPhoto" onclick="jpPickProof()">+</div>';
+}
+
+function jpClearProof() { PAY.proof = null; PAY.proofUrl = ''; renderProof(); }
+
+function jpPickProof() {
+  $('proofPick').value = '';
+  $('proofPick').click();
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  var el2 = $('proofPick');
+  if (!el2) return;
+  el2.addEventListener('change', function (e) {
+    var f = (e.target.files || [])[0];
+    if (!f) return;
+    compress(f).then(function (dataUrl) {
+      PAY.proof = dataUrl;
+      PAY.proofUrl = dataUrl;
+      renderProof();
+    }).catch(function (err) { toast('Lỗi ảnh: ' + err.message); });
+  });
+});
+
+/*──────── Ghi nhận nộp tiền ────────*/
+function jpDoPay() {
+  if (!PAY.report) return;
+  var amt = num($('payAmount').value);
+  if (amt <= 0) { setMsg('payMsg', 'Nhập số tiền đã nộp', 'err'); return; }
+  if (amt > PAY.report.conThieu) {
+    setMsg('payMsg', 'Vượt số còn thiếu ' + money(PAY.report.conThieu) + 'đ', 'err');
+    return;
+  }
+
+  var la = PAY.report.daNop > 0 ? 'nộp bổ sung' : 'nộp tiền';
+  if (!confirm('Ghi nhận ' + la + ' ' + money(amt) + 'đ?')) return;
+
+  busy(true, 'Đang ghi nhận…');
+  srv('jpAddPayment', APP.token, {
+    reportId: PAY.report.id,
+    amount: amt,
+    payDate: $('payDate').value,
+    method: $('payMethod').value,
+    note: $('payNote').value,
+    dataUrl: PAY.proof || ''
+  }).then(function (r) {
+    busy(false);
+    toast(r.msg);
+    jpOpenPay(PAY.report.id);
+  }).catch(function (e) { busy(false); setMsg('payMsg', e.message, 'err'); });
+}
+
+/*──────── Lịch sử nộp ────────*/
+function renderHistory(list) {
+  var box = $('payHistory');
+  if (!list || !list.length) {
+    box.innerHTML = '<p class="hint">Chưa có lần nộp nào.</p>';
+    return;
+  }
+  box.innerHTML = list.map(function (p) {
+    return '<div class="warnItem" style="border-color:#e5e7eb">' +
+      '<div style="display:flex;justify-content:space-between;gap:8px">' +
+        '<div><b>' + money(p.amount) + 'đ</b> · ' +
+          (p.method === 'CK' ? 'Chuyển khoản' : 'Tiền mặt') +
+          (p.isSupplement ? ' <span class="pill">bổ sung</span>' : '') +
+          '<div class="sub">' + dmy(p.payDate) + ' · ' + esc(p.createdBy) + '</div>' +
+          (p.note ? '<div class="sub">' + esc(p.note) + '</div>' : '') +
+        '</div>' +
+        (p.photoUrl ? '<img src="' + p.photoUrl + '" style="width:44px;height:44px;' +
+          'object-fit:cover;border-radius:6px">' : '') +
+      '</div>' +
+      /* Sửa NGÀY tại chỗ (Andy 11/08/2026). Trước đây gõ nhầm ngày thì chỉ còn cách
+         xoá rồi ghi lại — mất ghi chú và mất ảnh chứng từ đã tải lên. */
+      '<div style="display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap">' +
+        '<input type="date" id="pd_' + esc(p.id) + '" value="' + esc(p.payDate) + '"' +
+          ' style="max-width:150px">' +
+        '<button class="miniBtn" onclick="jpSuaNgay(\'' + p.id + '\')">Đổi ngày nộp</button>' +
+        '<button class="miniBtn danger" ' +
+          'onclick="jpDelPay(\'' + p.id + '\')">Xoá lần nộp này</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+/**
+ * Đổi ngày nộp của một lần đã ghi.
+ *
+ * ⚠️ Đọc giá trị từ ô ngày CỦA ĐÚNG DÒNG (`pd_<id>`), đừng dùng một ô chung — mỗi lần
+ * nộp một ngày, dùng ô chung là sửa dòng này bằng ngày của dòng kia.
+ */
+function jpSuaNgay(id) {
+  var o = $('pd_' + id);
+  if (!o || !o.value) { toast('Chọn ngày nộp mới'); return; }
+  busy(true, 'Đang đổi ngày…');
+  srv('jpSuaNgayNop', APP.token, id, o.value).then(function (r) {
+    busy(false); toast(r.msg); jpOpenPay(PAY.report.id);
+  }).catch(function (e) { busy(false); toast(e.message); });
+}
+
+function jpDelPay(id) {
+  if (!confirm('Xoá lần nộp này?')) return;
+  busy(true, 'Đang xoá…');
+  srv('jpDeletePayment', APP.token, id).then(function (r) {
+    busy(false); toast(r.msg); jpOpenPay(PAY.report.id);
+  }).catch(function (e) { busy(false); toast(e.message); });
+}
+
+/*──────── Sửa báo cáo trong 24h ────────*/
+function jpEdit24h(reportId) {
+  busy(true, 'Đang kiểm tra…');
+  srv('jpReopenIn24h', APP.token, reportId, '').then(function (r) {
+    busy(false);
+    toast(r.msg);
+    openReportById(reportId);
+  }).catch(function (e) { busy(false); toast(e.message); });
+}
+
+/*════════════════════ LỊCH SỬ THEO THÁNG ════════════════════
+ * Đối chiếu POSH v3 `getMonthHistory`. Danh sách "Báo cáo gần đây" chỉ có 30 bản
+ * ở mức đầu báo cáo; hết tháng nhân viên cần soát lại TỪNG Ô mình đã báo.       */
+
+function jpFillKyLichSu() {
+  var t = $('lsThang'), n = $('lsNam');
+  if (t.options.length) return;
+  var now = new Date();
+  for (var m = 1; m <= 12; m++) {
+    t.innerHTML += '<option value="' + m + '"' +
+      (m === now.getMonth() + 1 ? ' selected' : '') + '>Tháng ' + m + '</option>';
+  }
+  for (var y = now.getFullYear() - 1; y <= now.getFullYear(); y++) {
+    n.innerHTML += '<option value="' + y + '"' +
+      (y === now.getFullYear() ? ' selected' : '') + '>' + y + '</option>';
+  }
+}
+
+function jpXemLichSu() {
+  jpFillKyLichSu();
+  busy(true, 'Đang tải lịch sử…');
+  srv('jpMyMonthHistory', APP.token, $('lsThang').value, $('lsNam').value)
+    .then(function (d) {
+      busy(false);
+      setMsg('lsMsg', '');
+      if (!d.reports.length) {
+        $('lsTong').innerHTML = '';
+        $('lsBox').innerHTML = '<p class="hint">Tháng này bạn chưa có báo cáo nào.</p>';
+        return;
+      }
+
+      $('lsTong').innerHTML =
+        '<div class="calc"><span>Doanh thu đồng hồ</span><b>' + money(d.tong.doanhThu) + 'đ</b></div>' +
+        '<div class="calc"><span>Phải nộp</span><b>' + money(d.tong.phaiNop) + 'đ</b></div>' +
+        '<div class="calc"><span>Bạn đã báo nộp</span><b>' + money(d.tong.daNop) + 'đ</b></div>' +
+        '<div class="calc"><span>Kế toán xác nhận</span><b>' + money(d.tong.ktXacNhan) + 'đ</b></div>' +
+        '<div class="calc"><span>Hàng đã bán</span><b>' + d.tong.hangBan + '</b></div>' +
+        '<p class="hint">' + d.reports.length + ' báo cáo · ' + d.rows.length + ' dòng ô/máy. ' +
+        'Lệch giữa "bạn đã báo nộp" và "kế toán xác nhận" là chỗ cần hỏi lại kế toán.</p>';
+
+      /* Đầu báo cáo trước, rồi chi tiết từng ô — đọc trên điện thoại thì cuộn dọc
+         dễ hơn một bảng 20 cột. */
+      var h = d.reports.map(function (r) {
+        var k = r.chuKy || { rev: {}, stock: {} };
+        var ct = d.rows.filter(function (x) { return x.reportId === r.id; });
+        return '<div class="item">' +
+          '<div><strong>' + esc(r.locationName) + '</strong> ' +
+            '<span class="badge ' + badgeCls(r.status) + '">' + statusText(r.status) + '</span></div>' +
+          '<div class="sub">' + dmy(r.fromDate) + ' – ' + dmy(r.toDate) + ' · ' +
+            (r.machineType === 'XU' ? 'Máy xu' : 'Máy tiền') + '</div>' +
+          '<div class="calc"><span>Doanh thu</span><b>' + money(r.revMeter) + 'đ</b></div>' +
+          '<div class="calc"><span>Phải nộp</span><b>' + money(r.totalSubmit) + 'đ</b></div>' +
+          '<div class="calc"><span>Đã báo nộp / KT nhận</span><b>' +
+            money(r.nvPaid) + 'đ / ' + money(r.ktPaid) + 'đ</b></div>' +
+          '<div class="signs">Doanh thu ' + (k.rev.by ? '✔' : '⏳') +
+            ' · Hàng hoá ' + (k.stock.by ? '✔' : '⏳') +
+            (r.warnCount ? ' · ⚠ ' + r.warnCount + ' cảnh báo' : '') + '</div>' +
+          jpBangChiTiet(ct) +
+        '</div>';
+      }).join('');
+      $('lsBox').innerHTML = h;
+    })
+    .catch(function (e) { busy(false); setMsg('lsMsg', e.message, 'err'); });
+}
+
+/** Chi tiết ô/máy của một báo cáo. Dòng STOCK không có tiền nên cột khác hẳn. */
+function jpBangChiTiet(ct) {
+  if (!ct.length) return '';
+  var coHang = ct.some(function (r) { return r.rowKind === 'STOCK'; });
+  var h = '<div class="tblWrap" style="margin-top:8px"><table class="form"><tr>' +
+    '<th class="lbl">' + (coHang ? 'Mã hàng' : 'Ô / máy') + '</th>' +
+    (coHang ? '' : '<th>Trước</th><th>Sau</th><th>Actual</th><th>Thành tiền</th>') +
+    '<th>Đã bán</th><th>Còn lại</th><th>Thực tế</th><th>⚠</th></tr>';
+  ct.forEach(function (r) {
+    var conLai = r.rowKind === 'STOCK' ? r.stockLeftCalc : r.hLeft;
+    h += '<tr>' +
+      '<td class="lbl">' + esc(r.machineCode || r.itemCode) + '</td>' +
+      (coHang ? '' :
+        '<td class="calc">' + (r.mBefore === '' ? '—' : r.mBefore) + '</td>' +
+        '<td class="calc">' + (r.mAfter === '' ? '—' : r.mAfter) + '</td>' +
+        '<td class="calc">' + r.mActual + '</td>' +
+        '<td class="calc">' + money(r.amount) + '</td>') +
+      '<td class="calc">' + r.soldQty + '</td>' +
+      '<td class="calc">' + conLai + '</td>' +
+      '<td class="calc">' + (r.stockActual === '' ? '—' : r.stockActual) + '</td>' +
+      '<td class="calc">' + (r.warnCount || '') + '</td>' +
+    '</tr>';
+  });
+  return h + '</table></div>';
+}
+
+</script>
+
+

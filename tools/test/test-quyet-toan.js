@@ -132,8 +132,13 @@ t('đơn rỗng thì báo tử tế', LBC({ lines: [] }).indexOf('Chưa có hạ
 const mNut = HTML.match(/var bn=el\('btnNewDon'\); if\(bn\) bn\.style\.display=\(([^)]*)\)/);
 t('tìm được chỗ gác nút Tạo đơn mới', !!mNut);
 const dk = mNut ? mNut[1] : '';
-t('Admin lên đơn được (để chạy thử luồng)', dk.indexOf("role==='Admin'") >= 0, dk);
-t('Nhân viên và Quản lý vẫn lên đơn được', dk.indexOf("role==='Nhân viên'") >= 0 && dk.indexOf("role==='Quản lý'") >= 0, dk);
+/* 🔴 SO BẰNG VAI LUẬT (`vl`), KHÔNG BẰNG TÊN VAI — 21/09/2026. Anh Thắng gửi ảnh màn của
+   chị Mai Anh (vai con "Nhân Viên Cơ Sở Khu Vui Chơi"): *"mất chỗ tạo đơn"*. Nút ẩn vì dòng
+   gác so `role==='Nhân viên'`, mà tên vai con không trùng một chữ nào. Luật không đổi —
+   vẫn đúng ba vai ấy — chỉ là quy về vai gốc trước khi so. */
+t('🔴 gác bằng vai LUẬT, không bằng tên vai khai', dk.indexOf('vl===') >= 0 && dk.indexOf('role===') < 0, dk);
+t('Admin lên đơn được (để chạy thử luồng)', dk.indexOf("vl==='Admin'") >= 0, dk);
+t('Nhân viên và Quản lý vẫn lên đơn được', dk.indexOf("vl==='Nhân viên'") >= 0 && dk.indexOf("vl==='Quản lý'") >= 0, dk);
 t('Kế toán vẫn KHÔNG lên đơn', dk.indexOf('Kế toán') < 0, dk);
 
 // ---------------------------------------------------------------- 6. khai nhanh loại chi phí

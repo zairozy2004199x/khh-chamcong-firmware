@@ -85,13 +85,48 @@ t('🔴 chưa có bảng quyền (gọi trước applyPerms) thì coi như đư�
   CHUA.tabDuoc('don') === true && CHUA.macDinh('Nhân viên') === 'don', CHUA.macDinh('Nhân viên'));
 
 /* ── 3. Ô GIAN XỔ RA DANH SÁCH CƠ SỞ ──────────────────────────────────────────────────── */
+/* 🔴 TỪ 21/09/2026 hộp Gian LỌC THEO KHỐI — anh Thắng: *"Đã phân quyền nhân viên, nhưng vẫn
+   thấy cơ sở bên KVC"*. Bốc cả họ hàm lọc vào bệ đỡ, không bịa lại luật ở bài kiểm.
+   ⚠️ Bệ đỡ này không khai `BOOT`, nên `_khoiCuaGian()` trả '' cho mọi gian — tức "chưa rõ khối",
+      tức bày ĐỦ. Đúng điều mục này cần: nó canh chuyện đổ danh sách và rào ký tự, không canh
+      chuyện lọc khối (đã có `kiem-gian-theo-khoi.js` lo). */
+const GIAN_KHOI = `  var KHOI_DS=[{ma:'kvc',ten:'Khu vui chơi'},{ma:'mtd',ten:'Máy tự động'},{ma:'vp',ten:'Văn phòng'}];
+  var KHOI_DV_DUP={kvc:['KVC'],mtd:['MTĐ','MTD','POSH'],vp:['VP','VĂN PHÒNG','VAN PHONG']};
+  function _khoiDvBang(){
+    var b=(typeof BOOT!=='undefined' && BOOT) ? BOOT.khoiTheoDv : null;
+    return (b && b.kvc) ? b : KHOI_DV_DUP;
+  }
+  function _khoiCuaDv(dv){
+    var k=String(dv==null?'':dv).trim().toUpperCase();
+    if(!k) return '';
+    var b=_khoiDvBang();
+    for(var i=0;i<KHOI_DS.length;i++){
+      var ma=KHOI_DS[i].ma, ds=b[ma]||[];
+      for(var j=0;j<ds.length;j++){ if(String(ds[j]).toUpperCase()===k) return ma; }
+    }
+    return '';
+  }
+  function _khoiCuaGian(ten){
+    var m=(typeof BOOT!=='undefined' && BOOT && BOOT.cosoDv) ? BOOT.cosoDv : null;
+    /* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG, ghi lại để lần sau khỏi đuổi theo: đổi \`null\` thành \`{}\` rồi bỏ
+       dòng này KHÔNG đổi kết quả — tra một bảng rỗng ra \`undefined\`, \`|| ''\` đưa về chuỗi rỗng, và
+       \`_khoiCuaDv('')\` cũng trả ''. Giữ vì nó nói thẳng ra ý "gói khởi động bản CŨ chưa có bảng
+       tra thì KHÔNG LỌC GÌ CẢ" — và đó mới là hướng hỏng đúng: bày thừa còn hơn hộp Gian trắng
+       trơn với mọi người. Phép canh ý ấy ở \`kiem-gian-theo-khoi.js\`. */
+    if(!m) return '';
+    return _khoiCuaDv(m[String(ten==null?'':ten).trim().toLowerCase()] || '');
+  }
+  function _gianHopKhoi(ten){
+    var k=_khoiCuaGian(ten);
+    return k==='' || k===String(KHOI_DANG).toLowerCase();
+  }`;
 function beGian() {
   const KHO = {};
   const moi = {
     el: id => (KHO[id] = KHO[id] || { _id: id, innerHTML: '' }),
     esc: s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'),
   };
-  const R = new Function('moi', `with(moi){ ${boc('_daNapCoSoDs')}\n return _daNapCoSoDs; }`)(moi);
+  const R = new Function('moi', `with(moi){ ${GIAN_KHOI}\n${boc('_daLocLaiGian')}\n${boc('_daNapCoSoDs')}\n return _daNapCoSoDs; }`)(moi);
   return { nap: R, el: moi.el };
 }
 const G = beGian();
@@ -129,6 +164,34 @@ t('   đúng ô mà _daNapCoSoDs() đổ dữ liệu vào',
    "chưa chọn gian thì gom mã của MỌI mảng" lại gác sau cờ `_donNhieuCoSo()`. Đơn chi phí cơ sở
    của Kỹ thuật cũng là MỘT đơn nhiều gian nhưng không bật cờ ấy, nên mọi loại khai mã theo ma
    trận (chính là "Chi phí cơ sở") bị coi là chưa có mã và bị ẩn. */
+/* 🔴 BỐC MÃ THẬT, ĐỪNG BỊA LẠI LUẬT. Từ 21/09/2026 cột Bộ phận đã rời bảng Người dùng, nên
+   luật nào cần bộ phận thì đọc lại từ TÊN VAI CON — anh Thắng: *"dùng hết trên vai trò cha,
+   con rồi"*. Bịa một bản ở bài kiểm là nó canh luật của chính nó, xanh vĩnh viễn dù bản thật
+   đi đường khác. */
+const BP_THAT = `  var BP_THEO_TEN_VAI=[
+    {bp:'Kỹ thuật', tu:['ky thuat']},
+    {bp:'Cơ sở',    tu:['co so']},
+    {bp:'Marketing', tu:['marketing']},
+    {bp:'Văn phòng', tu:['van phong']}
+  ];
+  function _boDauVai(s){
+    return String(s==null?'':s).toLowerCase().replace(/\\u0111/g,'d')
+      .normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/\\s+/g,' ').trim();
+  }
+  function _bpCuaVai(ten){
+    var t=' '+_boDauVai(ten)+' ';
+    if(t===' ') return '';
+    for(var i=0;i<BP_THEO_TEN_VAI.length;i++){
+      var x=BP_THEO_TEN_VAI[i];
+      for(var j=0;j<x.tu.length;j++){ if(t.indexOf(' '+x.tu[j]+' ')>=0) return x.bp; }
+    }
+    return '';
+  }
+  function _bpCuaToi(){
+    var b=String((CURUSER&&CURUSER.boPhan)||'').trim();
+    if(b) return b;
+    return _bpCuaVai((CURUSER&&CURUSER.role)||'');
+  }`;
 function beLoai(opt) {
   opt = opt || {};
   const moi = {
@@ -148,9 +211,15 @@ function beLoai(opt) {
       tkNoMx: { 'chi phí cơ sở': { farm: ['64166'], fz: ['64126'] } },
       coso: ['Gian A', 'Gian B'],
       cosoPll: { 'gian a': 'FARM', 'gian b': 'FZ' },
+      khoiBan: 'kvc',
     },
+    KHOI_DANG: 'kvc',
+    CURUSER: { role: 'Admin' },
   };
-  const src = `${boc('_mangCua')}\n${boc('_donNhieuCoSo')}\n${boc('_mangPham')}
+/* ⚠️ `_khoiCuaLoai` + `KHOI_DANG` thêm 21/09/2026 — loại chi phí nay thuộc đúng một khối
+     (anh Thắng: *"chia ra 3 bảng của 3 khối, để tránh dùng chung"*) và `_loaiCpList()` bỏ
+     loại của khối khác. Thiếu trong bệ đỡ là bài kiểm nổ `ReferenceError`. */
+  const src = `${BP_THAT}\n${boc('_khoiCuaLoai')}\n${boc('_vaiTachLoai')}\n${boc('_vaiDungDuocLoai')}\n${boc('_mangCua')}\n${boc('_donNhieuCoSo')}\n${boc('_mangPham')}
     ${boc('_tkNoList')}\n${boc('_tkNoCua')}\n${boc('_bpTach')}\n${boc('_khoaNhom')}
     ${boc('_loaiCpList')}
     return { nhieu: _donNhieuCoSo, ds: _loaiCpList, tkList: _tkNoList };`;
@@ -260,6 +329,8 @@ function beNewDon(daChonTuan, bp) {
   const KHO = {};
   const moi = {
     CURUSER: { boPhan: bp === undefined ? 'Kỹ thuật' : bp, name: 'KT', role: 'Nhân viên' },
+    /* `newDon()` so luật qua `_vaiLuat()`; bộ phận thì bốc mã THẬT ở `BP_THAT` ngay dưới. */
+    _vaiLuat: () => 'Nhân viên',
     QUYEN_TAB: { don: 1, duan: 1 },
     BP_HOI_LOAI_DON: ['Kỹ thuật'],
     el: id => (KHO[id] = KHO[id] || { _id: id, style: { display: '' }, value: '', innerHTML: '',
@@ -274,7 +345,7 @@ function beNewDon(daChonTuan, bp) {
   /* `newDon()` gọi `_apTenNhom()` (đặt chữ cho ba nút chọn loại theo bộ phận) — bốc cả chuỗi
      hàm thật vào, đừng khai hàm rỗng: khai rỗng là bỏ dòng gọi ấy ra khỏi tầm kiểm. */
   const bangTen = (/var TEN_LOAI_BP=\{[\s\S]*?\n  \};/.exec(HTML) || [''])[0];
-  const src = `${bangTen}\n${boc('_tenNhom')}\n${boc('_tenNhomBp')}\n${boc('_apTenNhom')}
+  const src = `${BP_THAT}\n${bangTen}\n${boc('_tenNhom')}\n${boc('_tenNhomBp')}\n${boc('_apTenNhom')}
     ${boc('_tabDuoc')}\n${boc('_vaoDuocDuAn')}\n${boc('_hoiLoaiDon')}\n${boc('newDon')}
     newDon(C); return null;`;
   new Function('moi', 'C', `with(moi){ ${src} }`)(moi, daChonTuan);
@@ -303,9 +374,13 @@ function beNutChuyen(vis, ai) {
     CURUSER: ai,
     BP_VAO_DUAN: ['Văn phòng', 'Kỹ thuật'],
     _vaiGoc: () => String(ai.roleGoc || ai.role || ''),
+    /* Cùng luật với bản thật: quy về vai gốc, RIÊNG con của Admin thì không. */
+    _vaiLuat: () => (ai.role === 'Admin' ? 'Admin'
+      : (String(ai.roleGoc || '') === 'Admin' ? String(ai.role || '')
+        : String(ai.roleGoc || ai.role || ''))),
     _vaoDonCoSo: bp => !(bp && ['Kỹ thuật'].indexOf(bp) >= 0),
   };
-  new Function('moi', 'V', `with(moi){ ${boc('_veNutChuyenDon')}
+  new Function('moi', 'V', `with(moi){ ${BP_THAT}\n${boc('_veNutChuyenDon')}
     nut.forEach(function(b){ b.getAttribute=function(){ return b.di; }; });
     _veNutChuyenDon(V); }`).call(null, Object.assign(moi, { nut }), vis);
   return { don: nut[0].style.display, duan: nut[1].style.display };
@@ -334,7 +409,7 @@ t('   chưa có bảng quyền thì ẩn cả hai, không nổ', NC3.don === 'no
   };
   /* `daChonNhom()` đặt dòng "Đang lập" bằng `_tenNhomBp()` — bốc cả hàm thật, đừng khai rỗng. */
   const bangTen2 = (/var TEN_LOAI_BP=\{[\s\S]*?\n  \};/.exec(HTML) || [''])[0];
-  const chon = new Function('moi', 'N', `with(moi){ ${bangTen2}
+  const chon = new Function('moi', 'N', `with(moi){ ${BP_THAT}\n${bangTen2}
     ${boc('_tenNhom')}\n${boc('_tenNhomBp')}\n${boc('daChonNhom')}\n daChonNhom(N);
     return { cs: el('daNhomCs').style, da: el('daNhomDa').style,
              csC: el('daNhomCs').className, daC: el('daNhomDa').className }; }`);

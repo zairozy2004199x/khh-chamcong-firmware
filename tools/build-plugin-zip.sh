@@ -80,6 +80,7 @@ case "$CHON" in
   cham-cong) dong_goi "Chấm Công" vhcp-cham-cong ;;
   cc-app)    dong_goi "App Chấm Công K&H" vhcp-cc-app ;;
   ghe)       dong_goi "Ghế Massage" vhcp-ghe ;;
+  jp)        dong_goi "JP Capsule" vhcp-jp ;;
   noi-bo)    dong_goi "Nội Bộ K&H" vhcp-noi-bo ;;
   du-an)     dong_goi "Dự Án & Tiến Độ K&H" vhcp-du-an ;;
   doanh-thu) dong_goi "Báo Cáo Doanh Thu FABi" khh-doanh-thu ;;
@@ -91,6 +92,7 @@ case "$CHON" in
     dong_goi "Chấm Công" vhcp-cham-cong
     dong_goi "App Chấm Công K&H" vhcp-cc-app
     dong_goi "Ghế Massage" vhcp-ghe
+    dong_goi "JP Capsule" vhcp-jp
     dong_goi "Nội Bộ K&H" vhcp-noi-bo
     dong_goi "Dự Án & Tiến Độ K&H" vhcp-du-an
     # ── MỌI BẢN CHI PHÍ RỜI, DÒ THEO THƯ MỤC ────────────────────────────────────────────────
