@@ -1415,6 +1415,14 @@
             <option value="daxuat">Đã xuất</option>
           </select>
           <select id="xuatKy" onchange="callExport()"><option value="all">Tất cả kỳ</option></select>
+          <!-- 🔴 Ô CHỌN MẪU, KHÔNG TỰ ĐOÁN THEO KHỐI. Từ 1.245.0 kế toán KVC xuất hộ đơn Máy tự
+               động, nên MỘT tệp có thể chứa đơn của hai khối — mà một tệp thì chỉ có một hình
+               dạng. Tự đoán theo khối là lúc ấy phải chọn bừa một bên, im lặng. Để người xuất
+               chọn thì họ xuất hai lượt, mỗi lượt một mẫu, và biết mình đang cầm tệp gì. -->
+          <select id="xuatMau" onchange="callExport()" title="Hình dạng tệp xuất ra. Nhật ký chung: TK Nợ và TK Có nằm cạnh nhau, số tiền một cột. Sổ chi tiết: TK đối ứng + Phát sinh Nợ/Có tách đôi, kèm Tên đơn vị.">
+            <option value="chuan">📄 Nhật ký chung (10 cột)</option>
+            <option value="soct">📑 Sổ chi tiết — MTĐ · VP (13 cột)</option>
+          </select>
           <button class="btn b-x" onclick="loadXuat()">↻ Tải lại</button>
           <button class="btn b-x" id="xuatWarnBtn" style="display:none" onclick="xuatWarnBat()" title="Bật lại ô cảnh báo cấu hình">🔔 Hiện cảnh báo</button>
           <button class="btn b-g" onclick="downloadCSV()">⬇ Tải Excel & chốt đã xuất</button>
@@ -8415,6 +8423,9 @@
     var coTT=(src==='vh'||src==='chi');   // chỉ đơn vận hành & sổ chi phí có trạng thái chưa/đã xuất
     if(el('xuatTT')) el('xuatTT').style.display=coTT?'':'none';
     if(el('xuatKy')) el('xuatKy').style.display=coTT?'':'none';
+    /* Mẫu sổ chi tiết mới chỉ dựng cho ĐƠN VẬN HÀNH. Bày ô chọn ở mấy nguồn kia là mời người ta
+       chọn một thứ không có tác dụng — im lặng, nên tệp ra vẫn mẫu cũ mà họ tưởng đã đổi. */
+    if(el('xuatMau')) el('xuatMau').style.display=(src==='vh')?'':'none';
     callExport();
   }
   function callExport(){ loading(true);
@@ -8441,14 +8452,20 @@
     }
     var plF=(_vaiLuat()==='Kế toán NCC')?'ncc':((_vaiLuat()==='Kế toán cá nhân')?'cn':'all');
     google.script.run.withSuccessHandler(function(res){loading(false); XUAT=res||{cols:[],rows:[]}; renderXuat();})
-      .withFailureHandler(function(e){loading(false);toast('err',e.message);}).exportMisa(el('xuatKy').value, el('xuatTT').value, plF);
+      .withFailureHandler(function(e){loading(false);toast('err',e.message);})
+      .exportMisa(el('xuatKy').value, el('xuatTT').value, plF, (el('xuatMau')&&el('xuatMau').value)||'chuan');
   }
   function renderXuat(){
     el('xuatSoDon').textContent=XUAT.sodon||0; el('xuatSoDong').textContent=XUAT.count||0;
     el('xuatEmpty').style.display=(XUAT.rows&&XUAT.rows.length)?'none':'block';
     el('xuatHead').innerHTML='<tr>'+(XUAT.cols||[]).map(function(c){return '<th style="white-space:nowrap">'+esc(c)+'</th>';}).join('')+'</tr>';
     el('xuatBody').innerHTML=(XUAT.rows||[]).map(function(r){return '<tr>'+r.map(function(v,i){
-      var num=((XUAT.cols||[])[i]==='Số tiền'); return '<td'+(num?' class="money"':'')+' style="white-space:nowrap">'+(num?money(v):esc(v))+'</td>';}).join('')+'</tr>';}).join('');
+      /* Mẫu sổ chi tiết có BỐN cột tiền (Phát sinh Nợ/Có · Dư Nợ/Có), mẫu cũ có một ("Số tiền").
+         Dò theo TÊN CỘT chứ không theo chỉ số: hai mẫu lệch nhau ba cột, gõ cứng chỉ số là mẫu
+         này canh phải ô tiền của mẫu kia. */
+      var ten=(XUAT.cols||[])[i]||'';
+      var num=(ten==='Số tiền'||ten.indexOf('Phát sinh')===0||ten.indexOf('Dư ')===0);
+      return '<td'+(num?' class="money"':'')+' style="white-space:nowrap">'+(num?(v===''||v==null?'':money(v)):esc(v))+'</td>';}).join('')+'</tr>';}).join('');
     renderXuatWarn();
     renderXuatBanGiao();
   }
@@ -8529,7 +8546,7 @@
       if(typeof XLSX!=='undefined'){
         var ws=XLSX.utils.aoa_to_sheet([XUAT.cols].concat(XUAT.rows));   // Số tiền là số -> ô số; còn lại text
         var wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'MISA');
-        XLSX.writeFile(wb, 'MISA_VanHanhChiPhi.xlsx');
+        XLSX.writeFile(wb, 'MISA_VanHanhChiPhi'+(XUAT.mau==='soct'?'_SoChiTiet':'')+'.xlsx');
         okXlsx=true;
       }
     }catch(e){ okXlsx=false; }
@@ -8537,7 +8554,7 @@
       var ce=function(v){v=(v==null?'':String(v)); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
       var csv=XUAT.cols.map(ce).join(',')+'\n'+XUAT.rows.map(function(r){return r.map(ce).join(',');}).join('\n');
       var blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
-      var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='MISA_VanHanhChiPhi.csv'; document.body.appendChild(a); a.click();
+      var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='MISA_VanHanhChiPhi'+(XUAT.mau==='soct'?'_SoChiTiet':'')+'.csv'; document.body.appendChild(a); a.click();
       setTimeout(function(){a.remove();URL.revokeObjectURL(a.href);},150);
       toast('warn','Không tải được Excel (máy chặn thư viện) — đã tải CSV thay thế');
     }
