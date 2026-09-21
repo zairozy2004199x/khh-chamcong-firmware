@@ -310,6 +310,59 @@ class VHJP_Auth {
 	}
 
 	/**
+	 * CẤP TÀI KHOẢN ĐẦU TIÊN — chỉ khi sổ người dùng HOÀN TOÀN rỗng.
+	 *
+	 * =========================================================================================
+	 * 🔴 BƯỚC NÀY BẢN GỐC KHÔNG CẦN, BẢN NÀY THÌ CÓ.
+	 * =========================================================================================
+	 * Bên Apps Script, sổ người dùng đã sẵn trong Google Sheet, nên `jpCapPinMacDinh_()` chỉ
+	 * phải GÁN PIN cho một tài khoản đã có. Trên WordPress cài mới thì bảng rỗng trơn: không
+	 * tài khoản nào, không PIN nào, và màn đăng nhập chỉ hỏi PIN — tức KHÔNG AI VÀO ĐƯỢC, kể
+	 * cả người vừa cài. Đó đúng là chỗ anh Thắng mắc: bật plugin xong *"chưa truy cập được"*.
+	 *
+	 * ⚠️ CHỈ CHẠY KHI BẢNG RỖNG. Có dù một tài khoản thì thôi — không bao giờ được đẻ thêm
+	 *    tài khoản vào một sổ đang dùng, và càng không được đụng PIN của ai.
+	 *
+	 * ⚠️ PIN `222` là số MẶC ĐỊNH của chính bản gốc, đã nằm trong mã và trong tài liệu — nó
+	 *    không phải bí mật. Và vì nó nằm trong danh sách PIN mặc định nên `kiem()` đóng MỌI cửa
+	 *    cho tới khi đổi: đăng nhập được, nhưng không làm được gì ngoài đổi PIN.
+	 */
+	public static function cap_tai_khoan_dau() {
+		if ( VHJP_Nguon::doc( 'JP_Users' ) ) { return null; }
+		$o = array(
+			'username'    => 'ketoan',
+			'hoTen'       => 'Kế toán',
+			'role'        => self::VAI_KT,
+			'pin'         => self::bam( '222' ),
+			'active'      => 'Y',
+			'createdAt'   => gmdate( 'Y-m-d H:i:s', time() + 7 * 3600 ),
+			'note'        => 'Tài khoản đầu tiên do hệ tự cấp — PIN mặc định, ĐỔI NGAY',
+			'locationIds' => '',
+			'machineType' => '',
+		);
+		$kq = VHJP_Ma::them( 'JP_Users', 'U', $o );
+		if ( false === $kq ) { return null; }
+		VHJP_NhatKy::ghi( null, 'PIN_KHOI_TAO', '', 'ketoan', array( 'role' => self::VAI_KT ) );
+		return $kq;
+	}
+
+	/**
+	 * Tài khoản kế toán đầu tiên CÒN đang dùng PIN mặc định không.
+	 *
+	 * Dùng để màn quản trị biết có nên nhắc số PIN ấy hay không — đổi rồi thì thôi nhắc, vì
+	 * lúc đó số ấy không còn đúng và nhắc chỉ làm người ta gõ nhầm.
+	 */
+	public static function con_pin_mac_dinh() {
+		foreach ( VHJP_Nguon::doc( 'JP_Users' ) as $u ) {
+			if ( '' === VHJP_Doc::str( $u['pin'] ) ) { continue; }
+			foreach ( self::pin_mac_dinh() as $p ) {
+				if ( self::khop( $u['pin'], $p )['ok'] ) { return $p; }
+			}
+		}
+		return '';
+	}
+
+	/**
 	 * Người này có được nhìn cơ sở ấy không.
 	 *
 	 * ⚠️ Kế toán thấy hết; nhân viên chỉ thấy cơ sở đã gán. So theo CHUỖI — danh sách gán lưu

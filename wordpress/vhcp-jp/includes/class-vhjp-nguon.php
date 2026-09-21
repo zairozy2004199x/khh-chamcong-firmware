@@ -223,6 +223,20 @@ class VHJP_Nguon {
 		return null === $ma ? '' : (string) $ma;
 	}
 
+	/**
+	 * Bảng này đã có thật trong cơ sở dữ liệu chưa.
+	 *
+	 * ⚠️ Nằm ở đây chứ không ở màn quản trị, vì luật "chỉ một lớp chạm `$wpdb`" không có ngoại
+	 *    lệ — có một ngoại lệ là lần sau có hai. `kiem-jp-nguon.php` bắt được lượt vi phạm này
+	 *    ngay hôm viết màn quản trị, lần thứ hai trong mạch JP.
+	 */
+	public static function co_bang( $tab ) {
+		global $wpdb;
+		$b = self::bang( $tab );
+		if ( '' === $b ) { return false; }
+		return $b === $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $b ) );
+	}
+
 	/** Câu lỗi của lượt xuống cơ sở dữ liệu gần nhất. */
 	public static function loi_cuoi() {
 		global $wpdb;

@@ -3,7 +3,7 @@
  * Plugin Name:       JP Capsule (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Báo cáo JP Capsule chạy THẲNG trên host: nhân viên nhập báo cáo từ chỉ số máy, kế toán duyệt hai phần, đối soát ngân hàng, kho hai tầng. Không Apps Script, không Google Sheets.
- * Version:           1.3.0
+ * Version:           1.4.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -66,7 +66,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHJP_VERSION', '1.3.0' );
+define( 'VHJP_VERSION', '1.4.0' );
 define( 'VHJP_FILE', __FILE__ );
 define( 'VHJP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHJP_URL', plugin_dir_url( __FILE__ ) );
@@ -81,6 +81,7 @@ require_once VHJP_DIR . 'includes/class-vhjp-cau-hinh.php';
 require_once VHJP_DIR . 'includes/class-vhjp-tinh.php';
 require_once VHJP_DIR . 'includes/class-vhjp-cong.php';
 require_once VHJP_DIR . 'includes/class-vhjp-trang.php';
+require_once VHJP_DIR . 'includes/class-vhjp-admin.php';
 require_once VHJP_DIR . 'includes/class-vhjp-tu-cap-nhat.php';
 
 /* Nối bộ tự cập nhật ngay từ bản đầu, dù bộ này chưa dựng trang nào.
@@ -102,6 +103,9 @@ VHJP_TuCapNhat::init();
 register_activation_hook( __FILE__, 'vhjp_kich_hoat' );
 function vhjp_kich_hoat() {
 	VHJP_DB::install();
+	/* Không có bước này thì bảng người dùng rỗng trơn, mà màn đăng nhập chỉ hỏi PIN — tức
+	   KHÔNG AI VÀO ĐƯỢC, kể cả người vừa cài. Xem `cap_tai_khoan_dau()`. */
+	VHJP_Auth::cap_tai_khoan_dau();
 	VHJP_Trang::them_duong();
 	flush_rewrite_rules();
 	update_option( 'vhjp_db_ver', VHJP_VERSION );
@@ -110,6 +114,7 @@ function vhjp_kich_hoat() {
 register_deactivation_hook( __FILE__, 'flush_rewrite_rules' );
 
 VHJP_Trang::init();
+VHJP_Admin::init();
 
 add_action( 'plugins_loaded', 'vhjp_co_the_nang', 20 );
 function vhjp_co_the_nang() {
