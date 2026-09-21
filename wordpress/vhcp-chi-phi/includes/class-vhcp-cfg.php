@@ -56,7 +56,17 @@ class VHCP_Cfg {
 			self::USER  => array( 'Tên', 'PIN', 'Vai trò', 'Cơ sở', 'TK Có', 'Mã đối tượng', 'Bộ phận', 'Đơn vị', 'Xem đơn vị' ),
 			self::TKNO  => array( 'Nhóm mặt hàng', 'Phân loại lớn', 'TK Nợ' ),
 			self::SSO   => array( 'Email', 'Vai trò Chi Phí', 'Cơ sở' ),
-			self::LOAI  => array( 'Loại chi phí', 'TK Nợ', 'TK Có', 'Mã đối tượng', 'Bộ phận', 'Ghi chú', 'Tên MISA', 'Loại' ),
+			/* 🔴 CỘT 9 `Đơn vị` VÀ CỘT 10 `Khối` PHẢI CÓ MẶT Ở ĐÂY.
+			   `Đơn vị` thêm 12/09/2026 mà QUÊN khai vào hàng này — `read()` đệm theo
+			   `count(headers())` nên mọi dòng cũ chỉ được đệm tới 8 ô, và cột thứ 9 sống sót
+			   chỉ nhờ `isset($r[8])` rải khắp nơi. Khai đủ thì hết phải rào.
+
+			   `Khối` thêm 21/09/2026 — anh Thắng: *"chỗ loại chi phí, chia ra 3 bảng của 3
+			   khối, để tránh dùng chung"*, và *"đơn vị nào sẽ dùng khối của đơn vị đó"*.
+			   Một loại chi phí thuộc ĐÚNG MỘT khối. Hai khối cùng cần "Chi phí khác" thì mỗi
+			   bên một dòng riêng — đó chính là ý "tránh dùng chung": sửa mã bên KVC không được
+			   đụng tới sổ của Văn phòng. */
+			self::LOAI  => array( 'Loại chi phí', 'TK Nợ', 'TK Có', 'Mã đối tượng', 'Bộ phận', 'Ghi chú', 'Tên MISA', 'Loại', 'Đơn vị', 'Khối' ),
 			self::TK    => array( 'Số hiệu', 'Tên tài khoản', 'Tính chất' ),
 			self::MANG  => array( 'Phân loại lớn', 'Nhóm TK', 'Từ khóa trong tên TK', 'Ghi chú' ),
 		);
@@ -841,6 +851,34 @@ class VHCP_Cfg {
 			VHCP_Meta::set( 'seeded_coso_kythuat_v1', '1' );
 		}
 
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * LẤP KHỐI CHO MỌI LOẠI CHI PHÍ CÓ TỪ TRƯỚC — chạy MỌI LƯỢT, không phải một lần.
+		 * ══════════════════════════════════════════════════════════════════════════════════════
+		 * Anh Thắng 21/09/2026: *"chỗ loại chi phí, chia ra 3 bảng của 3 khối, để tránh dùng
+		 * chung"*. Từ bản này mỗi loại thuộc đúng một khối.
+		 *
+		 * 🔴 Ô KHỐI RỖNG LÀ LOẠI KHÔNG BẢNG NÀO CHỨA — nó biến mất khỏi cả ba bảng, khỏi ô chọn
+		 *    lúc nhập đơn, và khỏi mọi cột mã ở bảng dưới. Tiền vẫn nằm trong sổ mang tên loại
+		 *    ấy, mà màn hình thì như chưa từng có nó. Đúng cái bẫy `lap_khoi()` của bảng đơn.
+		 *
+		 * ⚠️ VÌ SAO KHÔNG DÙNG `gieo_mot_lan()`: dấu "đã gieo" chỉ nói lượt trước đã chạy, không
+		 *    nói HÔM NAY còn ô rỗng nào không. Một dòng thêm tay qua đường nạp dữ liệu, hay một
+		 *    lượt khôi phục bảng cũ, là lại có ô rỗng — mà dấu thì đã đóng. Quét lại mỗi lượt
+		 *    rẻ hơn nhiều so với một loại chi phí tàng hình.
+		 *
+		 * Khối mặc định là khối của CHÍNH BẢN ĐANG CHẠY (`VHCP_DB::khoi()`): dữ liệu đang có ở
+		 * kho nào thì thuộc khối ấy — bản gốc là `kvc`, bản vùng là mã vùng của nó.
+		 * ══════════════════════════════════════════════════════════════════════════════════════ */
+		$rows_l = self::read( self::LOAI );
+		$khoi_n = VHCP_DB::khoi();
+		foreach ( $rows_l as $i => $r ) {
+			$r = array_values( (array) $r );
+			if ( '' === trim( (string) ( isset( $r[0] ) ? $r[0] : '' ) ) ) { continue; }
+			if ( '' !== trim( (string) ( isset( $r[9] ) ? $r[9] : '' ) ) ) { continue; }
+			$did = true;
+			self::set_cell( self::LOAI, $i, 9, $khoi_n );
+		}
+
 		/* VAI "KẾ TOÁN MÁY TỰ ĐỘNG" — ĐÃ BỎ (anh Thắng 14/09/2026: *"bỏ cái này, vì
 		   phân quyền trang nên không cần nữa"*).
 
@@ -926,7 +964,10 @@ class VHCP_Cfg {
 			   bảng 81 mảng của POSH trước nay phải bày cả chín cột của KVC, toàn dấu "—".
 			   ⚠️ `isset()` cho cột mới: mọi dòng cũ chỉ có 8 cột, đọc thẳng `$r[8]` là cảnh báo
 			      PHP ở MỌI lượt nạp cấu hình. Rỗng = mọi đơn vị, giữ đúng hành vi cũ. */
-			$out['loaiChiPhi'][] = array( 'ten' => $r[0], 'tkNo' => VHCP_Util::ma_so( $r[1] ), 'tkCo' => VHCP_Util::ma_so( $r[2] ), 'maDt' => VHCP_Util::ma_so( $r[3] ), 'boPhan' => $r[4], 'note' => $r[5], 'tenMisa' => isset( $r[6] ) ? $r[6] : '', 'loaiTt' => isset( $r[7] ) ? $r[7] : '', 'donVi' => isset( $r[8] ) ? $r[8] : '' );
+			/* `khoi` rỗng = loại có từ trước lượt chia ba bảng; `lap_khoi_loai()` lấp nốt ngay
+			   lúc nạp cấu hình, nên ô rỗng chỉ tồn tại đúng một khoảnh khắc. Vẫn phải rào
+			   `isset()`: dòng vừa thêm tay có thể chưa đủ ô. */
+			$out['loaiChiPhi'][] = array( 'ten' => $r[0], 'tkNo' => VHCP_Util::ma_so( $r[1] ), 'tkCo' => VHCP_Util::ma_so( $r[2] ), 'maDt' => VHCP_Util::ma_so( $r[3] ), 'boPhan' => $r[4], 'note' => $r[5], 'tenMisa' => isset( $r[6] ) ? $r[6] : '', 'loaiTt' => isset( $r[7] ) ? $r[7] : '', 'donVi' => isset( $r[8] ) ? $r[8] : '', 'khoi' => isset( $r[9] ) ? $r[9] : '' );
 		}
 		foreach ( self::rows_of( $all, self::TKNO ) as $r ) {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
@@ -1249,7 +1290,14 @@ class VHCP_Cfg {
 					$k0 = mb_strtolower( trim( $tn ) );
 					if ( isset( $note_cu[ $k0 ] ) ) { $nt = $note_cu[ $k0 ]; }
 				}
-				$rows[] = array( $tn, VHCP_Util::ma_so( $g( $x, 'tkNo' ) ), VHCP_Util::ma_so( $g( $x, 'tkCo' ) ), VHCP_Util::ma_so( $g( $x, 'maDt' ) ), $g( $x, 'boPhan' ), $nt, $g( $x, 'tenMisa' ), $g( $x, 'loaiTt' ), $g( $x, 'donVi' ) );
+				/* 🔴 KHỐI RỖNG THÌ LẤP BẰNG KHỐI CỦA BẢN ĐANG CHẠY, ĐỪNG GHI RỖNG XUỐNG.
+				   Giao diện luôn gửi khối lên (mỗi bảng một khối), nhưng cửa này còn nhận cả
+				   lượt nạp từ tệp và lượt gọi thẳng API. Một dòng khối rỗng là một loại chi
+				   phí KHÔNG BẢNG NÀO CHỨA: nó rơi khỏi cả ba bảng và khỏi ô chọn lúc nhập
+				   đơn, trong khi tiền mang tên nó vẫn nằm trong sổ. */
+				$kh = trim( (string) $g( $x, 'khoi' ) );
+				if ( '' === $kh ) { $kh = VHCP_DB::khoi(); }
+				$rows[] = array( $tn, VHCP_Util::ma_so( $g( $x, 'tkNo' ) ), VHCP_Util::ma_so( $g( $x, 'tkCo' ) ), VHCP_Util::ma_so( $g( $x, 'maDt' ) ), $g( $x, 'boPhan' ), $nt, $g( $x, 'tenMisa' ), $g( $x, 'loaiTt' ), $g( $x, 'donVi' ), $kh );
 			}
 			self::write( self::LOAI, $rows );
 		}

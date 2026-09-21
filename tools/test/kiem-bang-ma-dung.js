@@ -124,7 +124,13 @@ function dungBe(loaiChiPhi, tkNoMatrix, coso, mangTk) {
     _bpDs: () => ['Cơ sở', 'Kỹ thuật', 'Setup', 'Marketing'],
     _bpNhan: b => b,
     _saveCfg: (p) => { NK.luu = p; },
-    BOOT: { donVi: ['K&H', 'POSH'], xemDonVi: null },
+    BOOT: { donVi: ['K&H', 'POSH'], xemDonVi: null, khoiBan: 'kvc' },
+    /* 🔴 BA KHỐI (21/09/2026). Bảng trên nay tách làm ba — anh Thắng: *"chỗ loại chi phí, chia
+       ra 3 bảng của 3 khối, để tránh dùng chung"*. `renderTkNoMatrix()` đọc `KHOI_DS` để dựng
+       ba thẻ <details>, và `saveCfgTkNoMx()` đi qua `_mxBodies()`; thiếu là cả bài nổ
+       `ReferenceError` vì một lý do chẳng liên quan tới bảng mã. */
+    KHOI_DS: [{ ma: 'kvc', ten: 'Khu vui chơi' }, { ma: 'mtd', ten: 'Máy tự động' }, { ma: 'vp', ten: 'Văn phòng' }],
+    KHOI_DANG: 'kvc',
     _dvChuan: v => String(v == null ? '' : v).trim() || 'K&H',
     /* Trả ô CHỈ KHI bộ chọn thật sự trỏ vào bảng mã. Trả bừa là đục hỏng bộ chọn trong mã
        thật mà bài kiểm vẫn xanh — bệ đỡ dễ dãi thì phép nào đi qua nó cũng vô nghĩa. */
@@ -132,6 +138,10 @@ function dungBe(loaiChiPhi, tkNoMatrix, coso, mangTk) {
        và `.mxNoBody input[data-mang-tong]` (chỉ ô mã tổng). Trả chung một rổ là phép lưu mã
        đọc nhầm ô mã tổng thành mã của một loại chi phí — hỏng im lặng. */
     document: { querySelectorAll: sel => {
+      /* Thân bảng TRÊN (ba cái, mỗi khối một cái). Bệ đỡ không dựng DOM thật nên trả rổ rỗng —
+         đúng như trước bản ba bảng, khi `el('cfgMxBody')` cũng là một ô giả không có hàng nào.
+         Bài này canh BẢNG MÃ ở dưới; bảng trên có bài riêng (`kiem-loai-3-bang.js`). */
+      if (/tbody\.cfgMxBody/.test(sel)) return NK.mxBodies || [];
       if (!/\.mxNoBody\b/.test(sel)) return [];
       const het = NK.oMa || [];
       return /data-mang-tong/.test(sel) ? het.filter(o => o.__tong) : het.filter(o => !o.__tong);
@@ -144,6 +154,7 @@ function dungBe(loaiChiPhi, tkNoMatrix, coso, mangTk) {
   moi.window = moi;
   const F = new Function('moi', `with(moi){
     ${boc('_bpTach')}\n${boc('_bpSelNhieu')}\n${boc('_inp')}\n${boc('_loaiSel')}
+    ${boc('_khoiCuaLoai')}\n${boc('_mxBodies')}\n${boc('_khoiDuoc')}
     ${boc('_dvSelNhieu')}\n${boc('_loaiChoDv')}\n${boc('_mangTong')}\n${boc('_mangTongDoan')}\n${boc('_mxMaGoc')}\n${boc('_mxSapCols')}\n${boc('_mxCols')}\n${boc('_mxNhomDv')}\n${boc('_xemDuocDv')}\n${boc('_mxRowHtml')}\n${boc('renderTkNoMatrix')}\n${boc('saveCfgTkNoMx')}
     return { ve: renderTkNoMatrix, luu: saveCfgTkNoMx }; }`)(moi);
   return { moi, NK, KHO, F };
@@ -178,7 +189,11 @@ const MANG_TK = [
   const b = dungBe(LOAI, MX, COSO, MANG_TK);
   b.F.ve();
   const h = b.moi.el('cfgTkNoMx').innerHTML;
-  t('🔴 có bảng thuộc tính (cfgMxBody)', h.indexOf('id="cfgMxBody"') >= 0);
+  /* Từ 21/09/2026 bảng trên là BA thân bảng mang `class="cfgMxBody" data-khoi=…`, không còn
+     một `id` duy nhất — anh Thắng: *"chia ra 3 bảng của 3 khối, để tránh dùng chung"*. */
+  t('🔴 có bảng thuộc tính (cfgMxBody)', h.indexOf('class="cfgMxBody"') >= 0);
+  t('   và đủ ba thân bảng, mỗi khối một cái', (h.match(/class="cfgMxBody"/g) || []).length === 3,
+    (h.match(/class="cfgMxBody"/g) || []).length);
   t('🔴 và bảng mã riêng, MỘT BẢNG MỖI ĐƠN VỊ', h.indexOf('class="mxNoBody" data-dv="K&amp;H"') >= 0);
   t('🔴 ô Bộ phận là HỘP TÍCH, không phải danh sách phải giữ Ctrl',
     h.indexOf('<div data-bp') >= 0 && h.indexOf('type="checkbox" value="Kỹ thuật" checked') >= 0
@@ -231,10 +246,18 @@ function veRoiLuu(sua, xemDonVi) {
   if (xemDonVi !== undefined) b.moi.BOOT.xemDonVi = xemDonVi;
   b.F.ve();
   const h = b.moi.el('cfgTkNoMx').innerHTML;
-  const tren = docHangTren(h.slice(h.indexOf('id="cfgMxBody"'), h.indexOf('mxNoBody')));
+  /* 🔴 BẢNG TRÊN NAY LÀ BA THÂN BẢNG, mỗi khối một cái (21/09/2026). Trước đây chỉ có một
+     `id="cfgMxBody"`; bám vào cái id ấy là lát cắt trượt và cả bài nổ. Dữ liệu gieo của bài này
+     không khai khối nên rơi hết về khối của bản đang chạy — dựng đúng một thân bảng 'kvc',
+     mang `data-khoi` để `saveCfgTkNoMx()` đóng dấu được. Bảng trên tách theo khối có bài
+     riêng canh (`kiem-loai-3-bang.js`); bài này canh BẢNG MÃ. */
+  const tren = docHangTren(h.slice(h.indexOf('class="cfgMxBody"'), h.indexOf('mxNoBody')));
   const oMa = docOMa(h.slice(h.indexOf('mxNoBody')));
   if (sua) sua(tren, oMa);
-  b.moi.el('cfgMxBody').getElementsByTagName = () => tren;
+  b.NK.mxBodies = [{
+    getAttribute: n => (n === 'data-khoi' ? 'kvc' : null),
+    getElementsByTagName: () => tren,
+  }];
   b.NK.oMa = oMa;
   b.F.luu();
   return b.NK.luu;
@@ -410,9 +433,9 @@ function veRoiLuu(sua, xemDonVi) {
   b.moi.BOOT.xemDonVi = ['K&H'];
   b.F.ve();
   const h = b.moi.el('cfgTkNoMx').innerHTML;
-  const tren = docHangTren(h.slice(h.indexOf('id="cfgMxBody"'), h.indexOf('mxNoBody')));
+  const tren = docHangTren(h.slice(h.indexOf('class="cfgMxBody"'), h.indexOf('mxNoBody')));
   const oMa = docOMa(h.slice(h.indexOf('mxNoBody')));
-  b.moi.el('cfgMxBody').getElementsByTagName = () => tren;
+  b.NK.mxBodies = [{ getAttribute: n => (n === 'data-khoi' ? 'kvc' : null), getElementsByTagName: () => tren }];
   b.NK.oMa = oMa;
   b.F.luu();
   const g = {}; (b.NK.luu.tkNoMatrix || []).forEach(x => { g[x.nhom + '|' + x.pll] = x.tkNo; });
@@ -427,10 +450,10 @@ function veRoiLuu(sua, xemDonVi) {
   b2.moi.BOOT.xemDonVi = ['K&H'];
   b2.F.ve();
   const h2 = b2.moi.el('cfgTkNoMx').innerHTML;
-  const tren2 = docHangTren(h2.slice(h2.indexOf('id="cfgMxBody"'), h2.indexOf('mxNoBody')));
+  const tren2 = docHangTren(h2.slice(h2.indexOf('class="cfgMxBody"'), h2.indexOf('mxNoBody')));
   const oMa2 = docOMa(h2.slice(h2.indexOf('mxNoBody')));
   oMa2.forEach(o => { if (!o.__tong && o.getAttribute('data-loai') === 'Chi phí cơ sở') o.value = ''; });
-  b2.moi.el('cfgMxBody').getElementsByTagName = () => tren2;
+  b2.NK.mxBodies = [{ getAttribute: n => (n === 'data-khoi' ? 'kvc' : null), getElementsByTagName: () => tren2 }];
   b2.NK.oMa = oMa2;
   b2.F.luu();
   const g2 = {}; (b2.NK.luu.tkNoMatrix || []).forEach(x => { g2[x.nhom + '|' + x.pll] = x.tkNo; });

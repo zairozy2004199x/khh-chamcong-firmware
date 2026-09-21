@@ -148,9 +148,14 @@ function beLoai(opt) {
       tkNoMx: { 'chi phí cơ sở': { farm: ['64166'], fz: ['64126'] } },
       coso: ['Gian A', 'Gian B'],
       cosoPll: { 'gian a': 'FARM', 'gian b': 'FZ' },
+      khoiBan: 'kvc',
     },
+    KHOI_DANG: 'kvc',
   };
-  const src = `${boc('_mangCua')}\n${boc('_donNhieuCoSo')}\n${boc('_mangPham')}
+/* ⚠️ `_khoiCuaLoai` + `KHOI_DANG` thêm 21/09/2026 — loại chi phí nay thuộc đúng một khối
+     (anh Thắng: *"chia ra 3 bảng của 3 khối, để tránh dùng chung"*) và `_loaiCpList()` bỏ
+     loại của khối khác. Thiếu trong bệ đỡ là bài kiểm nổ `ReferenceError`. */
+  const src = `${boc('_khoiCuaLoai')}\n${boc('_mangCua')}\n${boc('_donNhieuCoSo')}\n${boc('_mangPham')}
     ${boc('_tkNoList')}\n${boc('_tkNoCua')}\n${boc('_bpTach')}\n${boc('_khoaNhom')}
     ${boc('_loaiCpList')}
     return { nhieu: _donNhieuCoSo, ds: _loaiCpList, tkList: _tkNoList };`;

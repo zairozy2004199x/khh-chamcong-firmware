@@ -51,13 +51,14 @@ const NHOM_CP_CS = '(cơ sở)';
    `ReferenceError` — trông y như mã hỏng chứ không phải bệ đỡ thiếu. Bốc đủ họ hàng, đừng vá
    bằng cách khai một hàm giả ở đây: hàm giả là bài kiểm chạy trên bản dựng lại, không phải mã
    thật. */
-const nguon = ['_mangCua', '_donNhieuCoSo', '_mangPham', '_tkNoList', '_tapTkCo', '_tkNoCua', '_khoaNhom', '_bpTach', '_loaiCpList', '_loaiCpVi'].map(layHam).join('\n')
+/* ⚠️ `_khoiCuaLoai` + `KHOI_DANG` thêm 21/09/2026: loại chi phí nay thuộc đúng một khối (anh Thắng: *"chia ra 3 bảng của 3 khối, để tránh dùng chung"*), và `_loaiCpList()` bỏ loại của khối khác. Không khai vào bệ đỡ là bài kiểm nổ `ReferenceError` — xem chốt "THÊM HÀM PHỤ THUỘC THÌ PHẢI KHAI VÀO ĐÂY". */
+const nguon = ['_khoiCuaLoai', '_mangCua', '_donNhieuCoSo', '_mangPham', '_tkNoList', '_tapTkCo', '_tkNoCua', '_khoaNhom', '_bpTach', '_loaiCpList', '_loaiCpVi'].map(layHam).join('\n')
   + '\n  return { list:_loaiCpList, vi:_loaiCpVi, dat:function(n,u){ NHOM_CP=n; CURUSER=u; } };';
 function moi(nhomCp, user, cur) {
   /* ⚠️ `_donNhieuCoSo` nay hỏi thêm `CUR_PAGE` / `DA_CUR` — xem chốt ở app.html. Bài này kiểm
      ô loại chi phí của ĐƠN TUẦN, nên dựng đúng bối cảnh: đang ở tab đơn, chưa mở dự án nào. */
-  const M = new Function('BOOT', 'NHOM_CP', 'NHOM_CP_CS', 'CURUSER', 'CUR', 'CUR_PAGE', 'DA_CUR', 'esc', nguon)(
-    BOOT, nhomCp, NHOM_CP_CS, user, cur || { don: { nhieuCoSo: false } }, 'don', null, v => String(v == null ? '' : v));
+  const M = new Function('BOOT', 'NHOM_CP', 'NHOM_CP_CS', 'CURUSER', 'CUR', 'CUR_PAGE', 'DA_CUR', 'KHOI_DANG', 'esc', nguon)(
+    BOOT, nhomCp, NHOM_CP_CS, user, cur || { don: { nhieuCoSo: false } }, 'don', null, 'kvc', v => String(v == null ? '' : v));
   return M;
 }
 const NV_CS = { boPhan: 'Cơ sở' };
@@ -114,8 +115,8 @@ const M3 = moi('', NV_CS);
 const vi3 = M3.vi('TÀU ESTELLA', '', '');
 t('còn loại bị ẩn thì vẫn ghi chú nhẹ (xám)', vi3.chu === '' || vi3.mau === '#8c8781', vi3);
 t('danh mục trống thì nói thẳng',
-  /Danh mục loại chi phí đang trống/.test(new Function('BOOT','NHOM_CP','NHOM_CP_CS','CURUSER','esc',nguon)(
-    { cosoPll:{}, tkNoMx:{}, loaiChiPhi:[] }, '', NHOM_CP_CS, NV_CS, v=>String(v||'')).vi('X','','').chu));
+  /Danh mục loại chi phí đang trống/.test(new Function('BOOT','NHOM_CP','NHOM_CP_CS','CURUSER','KHOI_DANG','esc',nguon)(
+    { cosoPll:{}, tkNoMx:{}, loaiChiPhi:[] }, '', NHOM_CP_CS, NV_CS, 'kvc', v=>String(v||'')).vi('X','','').chu));
 
 // ---------------------------------------------------------------- 5. thứ tự khởi động
 // renderNhomCp() chốt NHOM_CP; fillNhom() lọc theo đúng biến đó. Chạy ngược thì lần dựng
