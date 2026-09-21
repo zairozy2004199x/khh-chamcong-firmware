@@ -278,17 +278,43 @@ t( 'cửa trạm có danh sách tháng', false !== strpos( $tram, "'phieuluong' 
 $tpl = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/templates/tram.php' );
 $than = strstr( $tpl, '<style' ) ? substr( $tpl, 0, strpos( $tpl, '<style' ) )
 	. substr( $tpl, strpos( $tpl, '</style>' ) ) : $tpl;
-foreach ( array( 'oKhoiPhieu', 'plThang', 'bangPhieu' ) as $o ) {
+/* 🔴 PHIẾU LƯƠNG NAY LÀ MỘT MÀN RIÊNG (`#mPhieu`), KHÔNG CÒN LÀ MỘT KHỐI (`#oKhoiPhieu`)
+   nằm giữa tab Tôi — cùng lượt với Thêm nhân sự và Gửi đơn đi trễ (anh Thắng 17/09/2026:
+   việc thỉnh thoảng mới làm thì đừng nằm giữa một trang cuộn dài).
+   ⚠️ Và màn ấy có HAI phần: "Của tôi" (chỉ tháng ĐÃ công bố) và "Cả cửa hàng" (mọi tháng,
+      chỉ hiện khi máy chủ gửi danh sách cơ sở). Kê cả ô của phần thứ hai, kẻo nó rụng mất mà
+      không phép nào kêu. */
+foreach ( array( 'mPhieu', 'plPhanToi', 'plThang', 'plNhanO', 'bangPhieu',
+	'plPhanCs', 'bangPhieuCs' ) as $o ) {
 	t( 'màn trạm có ô ' . $o, false !== strpos( $than, $o ), $o );
 }
+t( '🔴 và KHÔNG còn bản khối cũ nằm lẫn trong tab Tôi',
+	false === strpos( $than, 'oKhoiPhieu' ), null );
 /* 🔴 CHƯA CÔNG BỐ THÌ KHỐI VẪN HIỆN, CHỈ ẨN Ô XỔ — sửa 17/09/2026.
    Bản 4.32.0 ẩn hẳn cả khối. Anh Thắng là người đầu tiên mở nó và câu đầu tiên là *"chưa
    thấy"*: một khối vô hình không phân biệt được với một khối hỏng, và người dùng không có
    cách nào đoán ra rằng mình đang chờ kế toán bấm một cái nút bên trang quản trị. */
 t( '🔴 KHÔNG còn ẩn cả khối khi chưa có tháng nào',
 	false === strpos( $tpl, "classList.toggle('an', !ds.length)" ), $tpl );
-t( '🔴 mọi lối ra đều bỏ lớp ẩn khỏi khối', 1 === substr_count( $tpl, "function phieuHien(" )
-	&& false !== strpos( $tpl, "el('oKhoiPhieu').classList.remove('an')" ), $tpl );
+/* 🔴 CHỖ ẨN PHẢI LÀ MỘT, VÀ NÓ CHỈ ẨN Ô XỔ + NHÃN CỦA Ô ẤY.
+   Anh Thắng 18/09/2026 gửi ảnh màn Phiếu lương: chữ "Tháng" đứng chơ vơ trên khoảng trắng rồi
+   mới tới câu "chưa được công bố" — trông như ô chọn hỏng chứ không như "chưa có gì để chọn".
+   Nhãn của một ô đã ẩn thì phải ẩn theo. Hai lượt `classList.add('an')` rải hai nơi là sớm
+   muộn một nơi quên nhãn, nên gom về đúng MỘT hàm. */
+t( '🔴 chỉ có ĐÚNG MỘT chỗ ẩn ô xổ', 1 === substr_count( $tpl, 'function phieuHien(' ), null );
+t( 'và nó ẩn CẢ NHÃN, không để chữ "Tháng" đứng chơ vơ',
+	1 === preg_match( "/function phieuHien\(\)\{[^}]*plThang'\)\.classList\.add\('an'\)"
+		. "[^}]*plNhanO'\)\.classList\.add\('an'\)/s", $tpl ), null );
+/* 🔴 VÀ CÓ THÁNG THÌ PHẢI BỎ LỚP ẨN KHỎI CẢ HAI — thiếu một vế là ô xổ hiện mà không có nhãn,
+   hoặc nhãn hiện mà không có ô. */
+t( '🔴 có tháng thì bỏ lớp ẩn khỏi cả ô xổ lẫn nhãn',
+	false !== strpos( $tpl, "el('plThang').classList.remove('an')" )
+	&& false !== strpos( $tpl, "el('plNhanO').classList.remove('an')" ), null );
+/* Và chưa công bố thì NÓI RA đang chờ ai làm gì — một khối câm không phân biệt được với một
+   khối hỏng, và người dùng không có cách nào đoán ra mình đang chờ kế toán bấm một cái nút. */
+t( '🔴 chưa công bố thì nói rõ đang chờ kế toán chốt, không để trống',
+	false !== strpos( $tpl, 'chưa được công bố' )
+	&& false !== strpos( $tpl, 'anh/chị không phải làm gì cả' ), null );
 t( 'và nói ra đang chờ ai làm gì, không để một ô câm',
 	false !== strpos( $tpl, 'chưa được công bố' )
 	&& false !== strpos( $tpl, 'anh/chị không phải làm gì cả' ), $tpl );

@@ -42,8 +42,11 @@ VHCC_PWA::the_head();
  * ⚠️ THỨ CẦN THEO DÕI, KHÔNG PHẢI THỨ CẦN SỢ. Nếu về sau ảnh chấm công ca đêm bị phàn nàn là
  *    mờ hoặc bệt mặt, thì đây là chỗ đầu tiên phải nghi — không phải camera, không phải mạng.
  *    Cách chữa nhẹ nhất mà không quay lại nền tối cho cả trang: cho RIÊNG màn chụp (`#mChup`)
- *    một bảng màu tối, vì chỉ năm giây đứng chụp mới có vấn đề hắt sáng. Phép thử ở mục 5 của
- *    `kiem-bo-ao-tron.php` đã đổi theo hướng đó — nó canh màn chụp, không canh cả trang.
+ *    một bảng màu tối, vì chỉ năm giây đứng chụp mới có vấn đề hắt sáng.
+ *    ⚠️ CÁCH CHỮA ẤY CHƯA LÀM — `#mChup` hiện KHÔNG có luật màu nào, và đó là đúng theo quyết
+ *       định "sáng toàn bộ" ở trên. Mục 5 của `kiem-bo-ao-tron.php` canh đúng hiện trạng ấy:
+ *       cả trang phải là bảng màu sáng, và `#mChup` mà có khai màu riêng thì phải là nền TỐI.
+ *       Làm cách chữa này thì sửa luôn phép cuối của mục ấy thành "phải là nền tối".
  *
  * ⚠️ TOKEN KHAI NGAY TẠI ĐÂY, KHÔNG GOM VÀO TỆP DÙNG CHUNG. Màn này và bảng công có MƯỜI MỘT
  *    lớp trùng tên mà khác nghĩa — `.an` ở đây là `display:none`, ở bảng công là *ẩn với mắt

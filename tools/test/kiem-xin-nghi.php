@@ -359,8 +359,24 @@ t( 'JS không bày "còn lại" khi công ty chưa đặt trần',
 
 $web = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-web.php' );
 t( 'trang quản trị có khối duyệt đơn nghỉ', false !== strpos( $web, 'the_don_nghi' ) );
+/* 🔴 KHỐI DUYỆT NAY Ở TAB "ĐƠN TỪ", KHÔNG CÒN Ở ĐUÔI MÀN BẢNG CÔNG — 18/09/2026.
+   Anh Thắng: *"Chuyển cái này ra 1 tab riêng (Đơn từ)"*. Bốn khối đơn (đi trễ · xin nghỉ ·
+   xin bù giờ · sửa bảng công tháng) gom về `VHCC_WebDonTu::man()`. Phép cũ soi `self::` trong
+   `class-vhcc-web.php` nên nó đo một chỗ mà cả hai lời gọi đã rời đi — và `strpos` trả `false`
+   cho cả hai vế, `false > false` là sai, nên nó đỏ mà không nói được vì sao.
+   ⚠️ THỨ TỰ VẪN LÀ THỨ CẦN CANH: hai khối đơn LẺ (việc hằng ngày) đứng trước hai khối của cả
+      TUẦN. Bày ngược là mỗi sáng phải cuộn qua khối Excel mới tới mấy đơn đang chờ. */
+$don_tu = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-web-don-tu.php' );
+t( 'hai khối đơn nay gọi từ màn Đơn từ',
+	false !== strpos( $don_tu, 'VHCC_Web::the_lenh_tre(' )
+	&& false !== strpos( $don_tu, 'VHCC_Web::the_don_nghi(' ), null );
 t( 'khối duyệt nằm cạnh khối lệnh đi trễ',
-	strpos( $web, 'self::the_don_nghi(' ) > strpos( $web, 'self::the_lenh_tre(' ) );
+	strpos( $don_tu, 'VHCC_Web::the_don_nghi(' ) > strpos( $don_tu, 'VHCC_Web::the_lenh_tre(' ) );
+/* Và KHÔNG còn bản cũ ở màn Bảng công — dời chỗ mà để lại bản cũ là hai khối cùng duyệt một
+   đơn, bấm ở đâu cũng được, và không ai biết cái nào mới là cái đang dùng. */
+t( '🔴 màn Bảng công KHÔNG còn tự vẽ hai khối ấy nữa',
+	false === strpos( $web, 'self::the_lenh_tre(' )
+	&& false === strpos( $web, 'self::the_don_nghi(' ), null );
 foreach ( array( 'duyet_nghi', 'choi_nghi', 'phep_nam' ) as $v ) {
 	t( 'có cửa xử lý ' . $v, false !== strpos( $web, "'" . $v . "'" ), $v );
 }

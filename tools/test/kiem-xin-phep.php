@@ -184,16 +184,36 @@ t( 'xinlich chuyển thẳng xuống VHCC_Lich::xin_doi_lich',
 /* =============================================================== 5. MÀN TRÊN ĐIỆN THOẠI */
 
 $tpl = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/templates/tram.php' );
-/* 🔴 4.29.1 ĐỔI TRẠM SANG DẠNG TAB, nên khối xin phép nằm TRONG tab "Tôi" chứ không còn là
-   một màn riêng bật ra. Phép thử đi theo chỗ ở mới, và canh thêm hai thứ mà chỗ ở mới đòi:
-   khối phải nằm trong đúng tab ấy, và phải được NẠP khi tab ấy mở — để trong một tab mà
-   không ai gọi nạp thì nó hiện "Đang tải…" vĩnh viễn, đúng kiểu hỏng im lặng. */
+/* 🔴 XIN PHÉP ĐI TRỄ NAY LÀ MỘT **TÍNH NĂNG RIÊNG**, KHÔNG CÒN NẰM TRONG TAB "TÔI".
+   Anh Thắng 17/09/2026, khoanh đúng khối ấy ở tab Tôi: *"Gửi đơn đi trễ là 1 tính năng"*.
+   Cùng một lối với Thêm nhân sự và Phiếu lương: việc thỉnh thoảng mới làm thì đừng nằm giữa
+   một trang cuộn dài. Nay nó là màn `mXinTre`, mở từ một ô ở tab Ứng dụng.
+
+   ⚠️ MỘT TÍNH NĂNG RỜI CÓ HAI CÁCH HỎNG IM LẶNG, VÀ PHẢI CANH CẢ HAI:
+     · có màn mà KHÔNG có ô nào mở nó — tính năng tồn tại mà không ai tới được;
+     · có ô mà ô ấy không NẠP dữ liệu khi mở — màn hiện "Đang tải…" vĩnh viễn.
+   Phép cũ soi thứ tự `tToi … Xin phép … /tToi`, tức đo đúng cái chỗ ở đã bỏ. */
+$i_xin = strpos( $tpl, '<div id="mXinTre"' );
 $i_toi = strpos( $tpl, 'id="tToi"' );
-$i_xin = strpos( $tpl, 'Xin phép đi trễ' );
 $i_het = strpos( $tpl, '<!-- /tToi -->' );
-t( 'khối xin phép nằm TRONG tab "Tôi"',
-	false !== $i_toi && false !== $i_xin && false !== $i_het && $i_toi < $i_xin && $i_xin < $i_het,
+t( '🔴 xin phép đi trễ là MÀN RIÊNG (#mXinTre)', false !== $i_xin, $i_xin );
+t( 'và đã ra HẲN khỏi tab "Tôi", không còn hai bản',
+	false !== $i_toi && false !== $i_het && ! ( $i_toi < $i_xin && $i_xin < $i_het ),
 	array( $i_toi, $i_xin, $i_het ) );
+/* Có ô mở nó ở tab Ứng dụng, và ô ấy do MÁY CHỦ dựng — không gõ tay tên màn ở hai nơi. */
+$ung_src = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-ung.php' );
+t( '🔴 máy chủ có dựng ô "Gửi đơn đi trễ" trỏ đúng màn ấy',
+	false !== strpos( $ung_src, "'man'  => 'mXinTre'" ), null );
+t( 'và ô ấy KHÔNG bị gác quyền — ai cũng nộp đơn cho mình được',
+	false !== strpos( $ung_src, "self::o( true, array(\n\t\t\t'ten'  => 'Gửi đơn đi trễ'" )
+	|| 1 === preg_match( "/self::o\(\s*true,\s*array\(\s*'ten'\s*=>\s*'Gửi đơn đi trễ'/", $ung_src ),
+	null );
+/* Bấm ô là mở màn VÀ nạp — `moMan()` phải biết tên màn này, kẻo ô bấm ra một màn trống. */
+t( '🔴 bấm ô thì mở đúng màn và gọi nạp',
+	false !== strpos( $tpl, "if('mXinTre' === ten){ moXinTre(); }" )
+	&& false !== strpos( $tpl, 'function moXinTre()' ), null );
+t( 'và màn tự nạp dữ liệu lúc mở, không hiện "Đang tải…" mãi',
+	1 === preg_match( '/function moXinTre\(\)\{[^}]*napXin\(\)/s', $tpl ), null );
 t( '🔴 mở tab "Tôi" thì nạp luôn danh sách đơn',
 	false !== strpos( $tpl, "if(ten === 'tToi'){ napHoSo(); moManXin(); }" ) );
 t( 'không còn màn riêng bật ra nữa', false === strpos( $tpl, 'id="mXin"' ) );
