@@ -149,8 +149,12 @@ t('   và xoá cờ đang-xem-như',         /GL_GOC\s*=\s*null/.test(thanGl));
 t('   vẽ lại màn sau mỗi lần đổi',     (thanGl.match(/applyPerms\(\)/g) || []).length >= 2, thanGl.match(/applyPerms\(\)/g));
 t('🔴 đổi CẢ `role` LẪN `roleGoc` (bảng quyền tra theo vai gốc)',
   /u\.role\s*=\s*vai/.test(thanGl) && /u\.roleGoc\s*=\s*vai/.test(thanGl));
-t('🔴 có lối thử "bộ phận để TRỐNG" — chính ca vừa làm hở cái nút',
-  thanGl.indexOf('__trong__') > 0);
+/* 🔴 LỐI "bộ phận để TRỐNG" ĐÃ GỠ CÙNG Ô BỘ PHẬN (21/09/2026) — nó thử một trục không còn ai
+   khai. Thay vào đó là lối "khối: như tôi", và cái phải canh nay là RA THÌ TRẢ NGUYÊN VẸN:
+   `BOOT.khoiXem` là dữ liệu máy chủ, sửa mà không giữ bản gốc thì Admin kẹt ở một khối cho tới
+   lúc tải lại trang. Phép chạy thật nằm ở khối dưới. */
+t('🔴 thoát thì trả lại cả `BOOT.khoiXem`', /BOOT\.khoiXem\s*=\s*GL_KHOIXEM/.test(thanGl), thanGl);
+t('   và cả khối đang đứng',                /KHOI_DANG\s*=\s*GL_KHOIDANG/.test(thanGl));
 
 /* 🔴 CHỈ ADMIN. Cho Quản lý dùng là mở đường xem màn của vai cao hơn mình. */
 /* ⚠️ CANH CHÍNH DÒNG GÁN, không canh "có chuỗi 'Admin' ở đâu đó trong hàm". Canh lỏng thì một
@@ -165,47 +169,86 @@ t('🔴 màn nói rõ máy chủ vẫn biết là Admin', HTML.indexOf('Máy ch�
 t('   và chip trên đầu nói đang xem như ai', HTML.indexOf('xem như') > 0);
 t('   kèm tên thật, khỏi quên mình là ai',   /thật ra: '\s*\+\s*esc\(\s*GL_GOC\.name/.test(HTML));
 
-/* Danh sách bộ phận lấy từ máy chủ, không gõ cứng — hai nơi là hai nơi lệch. */
-t('🔴 ô bộ phận đọc BOOT.boPhanDs', /BOOT\s*&&\s*BOOT\.boPhanDs/.test(bocHam('glDung')));
-
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
- * 🔴 CHẠY THẬT `glDung()` — Ô CHỌN PHẢI CÓ TÊN BỘ PHẬN TRONG ĐÓ
+ * 🔴 Ô THỨ HAI NAY LÀ KHỐI, KHÔNG PHẢI BỘ PHẬN
  * ══════════════════════════════════════════════════════════════════════════════════════════════
- * Anh Thắng 21/09/2026, ảnh chụp dải Xem như: *"chỉnh phần khai bộ phận cho admin để tes"* — ô
- * ấy chỉ có hai dòng *"như tôi"* và *"để TRỐNG"*, không một tên bộ phận nào.
+ * Anh Thắng 21/09/2026: *"Chỗ bộ phận anh không dùng, để khối MTĐ · KVC · VP để anh test hệ
+ * thống"*.
  *
- * Mà phép ngay trên ĐÃ XANH suốt: `glDung()` có đọc `BOOT.boPhanDs`, và `boot()` có gọi lại
- * `glDung()` sau khi nạp. Hai nửa đều đúng — chỉ là MÁY CHỦ CHƯA TỪNG GỬI khoá ấy xuống. Một
- * khoá thiếu trông y hệt một danh sách rỗng, và không phép nào canh cái mối nối giữa hai bên.
+ * Ô bộ phận là TÀN DƯ: cột Bộ phận đã rời khỏi bảng Người dùng từ 21/09 (*"bỏ tích bộ phận đi,
+ * mà tích theo vai trò"*), nên nó thử một trục KHÔNG CÒN AI KHAI — xem như một bộ phận rồi kết
+ * luận "chạy đúng" là kết luận về một thứ không tồn tại nữa. Khối mới là trục đang sống: nó
+ * quyết định luồng, bảng mã, hộp Gian, dải luồng, và cả việc ai được xuất MISA.
  *
- * Phép dưới đếm số <option> thật. Nó đỏ cả khi giao diện hỏng lẫn khi gói khởi động thiếu khoá
- * (`kiem-goi-khoi-dong-bo-phan.php` canh đầu bên kia). */
+ * ⚠️ Mấy phép cũ về `BOOT.boPhanDs` đã GỠ theo, không phải vì chúng sai mà vì thứ chúng canh
+ *    không còn trên màn. Đầu bên kia (`kiem-goi-khoi-dong-bo-phan.php`) vẫn giữ — gói khởi động
+ *    còn gửi `boPhanDs` cho những chỗ khác đọc. */
 {
   const KHO2 = {
     giaLapBar: { style: { display: '' } },
-    glVai: { value: '', innerHTML: '', options: [] },
-    glBp: { value: '', innerHTML: '', options: [] },
+    glVai:  { value: '', innerHTML: '', options: [] },
+    glKhoi: { value: '', innerHTML: '', options: [] },
   };
-  const chayDung = (boPhanDs) => {
-    KHO2.glBp.innerHTML = ''; KHO2.glBp.options = [];
-    new Function('BOOT', 'CURUSER', 'GL_GOC', 'VAI_GOC', 'el', 'esc',
-      bocHam('glDung') + '\nglDung();')(
-      { boPhanDs: boPhanDs }, { role: 'Admin' }, null, ['Quản lý', 'Nhân viên'],
-      (id) => KHO2[id], (x) => String(x == null ? '' : x));
-    return KHO2.glBp.innerHTML;
-  };
-  const h = chayDung(['Nhân viên cơ sở', 'Kỹ thuật', 'Máy tự động']);
-  teq('🔴 ô bộ phận có đủ 2 dòng sẵn + 3 tên bộ phận', 5, (h.match(/<option/g) || []).length);
-  t('   và tên bộ phận thật nằm trong đó', h.indexOf('Máy tự động') > 0 && h.indexOf('Kỹ thuật') > 0, h);
-  t('   vẫn giữ lối "như tôi"', h.indexOf('— bộ phận: như tôi —') > 0);
-  t('   và lối "để TRỐNG" (ca vừa làm hở cái nút)', h.indexOf('__trong__') > 0);
-  /* Đối chứng: đúng cái cảnh trên ảnh của anh Thắng — máy chủ không gửi gì thì chỉ còn 2 dòng.
-     Phép này không đòi sửa gì; nó ghim lại ĐÚNG triệu chứng, để lần sau ai thấy 2 dòng thì
-     biết ngay phải đi soi gói khởi động chứ không soi `glDung()`. */
-  teq('   (đối chứng: máy chủ gửi rỗng thì chỉ còn 2 dòng — đúng ảnh anh Thắng gửi)',
-    2, (chayDung([]).match(/<option/g) || []).length);
+  const KHOI_DS = [{ ma: 'kvc', ten: 'Khu vui chơi' }, { ma: 'mtd', ten: 'Máy tự động' }, { ma: 'vp', ten: 'Văn phòng' }];
+  KHO2.glKhoi.innerHTML = '';
+  new Function('BOOT', 'CURUSER', 'GL_GOC', 'VAI_GOC', 'KHOI_DS', 'el', 'esc',
+    bocHam('glDung') + '\nglDung();')(
+    {}, { role: 'Admin' }, null, ['Quản lý', 'Nhân viên'], KHOI_DS,
+    (id) => KHO2[id], (x) => String(x == null ? '' : x));
+  const h = KHO2.glKhoi.innerHTML;
+  teq('🔴 ô khối có "như tôi" + đủ ba khối', 4, (h.match(/<option/g) || []).length);
+  t('🔴 đủ ba mã khối', /value="kvc"/.test(h) && /value="mtd"/.test(h) && /value="vp"/.test(h), h);
+  t('   và bày TÊN người đọc được, không bày mã', h.indexOf('Máy tự động') > 0 && h.indexOf('Khu vui chơi') > 0, h);
+  t('   vẫn giữ lối "như tôi"', h.indexOf('— khối: như tôi —') > 0);
+  /* ⚠️ DANH SÁCH LẤY TỪ `KHOI_DS`, cùng nguồn với thanh KHỐI — gõ cứng ba mã trong `glDung()` là
+     hai nơi lệch nhau, mà lệch nghĩa là thử một khối không tồn tại rồi kết luận nhầm. */
+  t('⚠️ đọc `KHOI_DS`, không gõ cứng ba mã',
+    /KHOI_DS\.map/.test(bocHam('glDung')) && !/'mtd'/.test(bocHam('glDung')), bocHam('glDung'));
+  t('🔴 ô bộ phận đã gỡ hẳn khỏi màn', HTML.indexOf("id=\"glBp\"") < 0);
 }
-t('   và dựng LẠI sau khi boot xong (lúc ấy mới có danh sách)',
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 XEM NHƯ MỘT KHỐI = MÔ PHỎNG NGƯỜI CHỈ THUỘC KHỐI ẤY, VÀ RA THÌ TRẢ NGUYÊN VẸN
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Chỉ đổi tab đang chọn thì chẳng thử được gì — Admin vốn bấm sang khối nào cũng được. Thứ đáng
+ * thử là "người CHỈ thuộc MTĐ thấy gì": thanh KHỐI còn đúng một nút, và mọi màn lọc theo nó.
+ *
+ * 🔴 VÀ PHẢI TRẢ LẠI ĐƯỢC. `BOOT.khoiXem` là dữ liệu MÁY CHỦ gửi xuống, không phải của người
+ *    dùng — sửa mà không giữ bản gốc thì "Thôi, về tài khoản của tôi" trả được vai nhưng KHÔNG
+ *    trả được khối, và Admin kẹt ở một khối cho tới lúc tải lại trang. */
+{
+  const KHO3 = { glVai: { value: '' }, glKhoi: { value: '' }, glDangXem: { textContent: '' } };
+  const BOOT3 = { khoiXem: null };
+  const moi = {
+    BOOT: BOOT3, CURUSER: { name: 'Thắng', role: 'Admin' }, GL_GOC: null,
+    GL_KHOIXEM: null, GL_KHOIDANG: null, KHOI_DANG: 'kvc',
+    el: (id) => KHO3[id], esc: (x) => String(x == null ? '' : x),
+    _tenKhoi: (m) => ({ kvc: 'Khu vui chơi', mtd: 'Máy tự động', vp: 'Văn phòng' }[m] || m),
+    /* `_glDat` rào `window.BOOT` (trang thật chạy trong trình duyệt). Trong node không có
+       `window`, nên bệ đỡ phải dựng một cái trỏ về đúng BOOT giả — không thì hàm nổ ở dòng
+       rào, và bài kiểm đỏ vì bệ đỡ chứ không vì mã. */
+    window: { get BOOT() { return BOOT3; }, set BOOT(v) { } },
+    applyPerms: () => {}, showPage: () => {}, defaultPageFor: () => 'don',
+    _vaiLuat: () => 'Admin', veThanhKhoi: () => {}, toast: () => {},
+  };
+  const f = new Function('moi', `with(moi){
+    ${bocHam('_glDat')}
+    ${bocHam('glThoat')}
+    return { vao:_glDat, ra:glThoat, xem:function(){ return {khoiXem:BOOT.khoiXem, dang:KHOI_DANG, goc:!!GL_GOC}; } };
+  }`)(moi);
+  f.vao('', 'mtd');
+  let x = f.xem();
+  teq('🔴 xem như MTĐ → thanh khối chỉ còn khối ấy', ['mtd'], x.khoiXem);
+  teq('🔴 và khối đang đứng nhảy sang MTĐ', 'mtd', x.dang);
+  t('   nhãn nói rõ đang xem như khối nào', /Máy tự động/.test(KHO3.glDangXem.textContent), KHO3.glDangXem.textContent);
+  f.ra();
+  x = f.xem();
+  teq('🔴 thoát ra → trả NGUYÊN VẸN `BOOT.khoiXem`', null, x.khoiXem);
+  teq('🔴 và trả nguyên vẹn khối đang đứng', 'kvc', x.dang);
+  t('   và thôi đánh dấu đang xem như người khác', x.goc === false);
+  t('   xoá luôn nhãn', KHO3.glDangXem.textContent === '');
+}
+t('   và dựng LẠI sau khi boot xong (lúc ấy mới có `BOOT`)',
   /_applyTabPerms\(\);[\s\S]{0,400}?glDung\(\);/.test(HTML));
 
 /* ─────────────────────────────────────────────────────────────────────────────────────────── */
