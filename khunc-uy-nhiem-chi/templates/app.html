@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231d5b8f'/%3E%3Ctext x='16' y='22' font-size='15' font-family='Arial' font-weight='bold' text-anchor='middle' fill='white'%3EUNC%3C/text%3E%3C/svg%3E">
+<!--KHUNC_HEAD-->
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">UNC</span>
+    <div>
+      <div class="brand-title">Ủy nhiệm chi &amp; Công nợ</div>
+      <div class="brand-sub" id="brandSub">Chưa có dữ liệu — nhập file Excel để bắt đầu</div>
+    </div>
+  </div>
+
+  <div class="spacer"></div>
+
+  <div class="actions">
+    <span class="sync" id="syncBox" hidden></span>
+    <button class="btn" id="btnTaiLai" hidden title="Tải lại dữ liệu dùng chung từ máy chủ">⟳</button>
+    <button class="btn" id="btnTaiKhoan" hidden title="Tài khoản">👤</button>
+    <label class="btn can-sua" title="Nhập file Excel &quot;Đi ủy nhiệm chi&quot; (đọc mọi sheet tháng)">
+      <span class="ico">📥</span> Nhập Excel
+      <input type="file" id="fileInput" accept=".xlsx,.xlsm,.xls,.csv" hidden>
+    </label>
+    <button class="btn primary" id="btnExport"><span class="ico">📤</span> Xuất Excel</button>
+    <div class="menu">
+      <button class="btn" id="btnMore" aria-haspopup="true" aria-expanded="false" title="Thêm">⋯</button>
+      <div class="menu-list" id="moreMenu" hidden>
+        <button data-act="settings">⚙ Thông tin công ty &amp; tài khoản</button>
+        <button data-act="sample" class="can-sua">Nạp dữ liệu mẫu để xem thử</button>
+        <hr>
+        <button data-act="saveJson">Lưu toàn bộ ra file (.json)</button>
+        <label class="menu-file can-sua">Mở file đã lưu (.json)<input type="file" id="jsonInput" accept=".json" hidden></label>
+        <hr>
+        <button data-act="clearTrack" class="danger can-sua">Xoá trạng thái đã đánh dấu</button>
+        <button data-act="reset" class="danger can-sua">Xoá toàn bộ dữ liệu</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav class="tabs" id="tabs" role="tablist">
+  <button role="tab" data-tab="tong" aria-selected="true">Tổng quan</button>
+  <button role="tab" data-tab="unc">Ủy nhiệm chi <span class="pill" id="pillUNC" hidden></span></button>
+  <button role="tab" data-tab="congno">Công nợ</button>
+  <button role="tab" data-tab="mau">Mẫu biểu</button>
+  <button role="tab" data-tab="nhatky">Nhật ký</button>
+</nav>
+
+<main>
+
+  <!-- ============ Chưa có dữ liệu ============ -->
+  <section id="viewEmpty" class="panel" hidden>
+    <div class="drop" id="dropZone">
+      <h2>Kéo file Excel "Đi ủy nhiệm chi" thả vào đây</h2>
+      <p class="hint">Hoặc bấm <b>Nhập Excel</b> ở trên. Trang đọc mọi sheet tháng trong file,
+        kể cả sheet thuê mặt bằng và sheet tiền mặt, rồi tự chuẩn hoá ngày tháng,
+        tài khoản K&amp;H cũ / mới và tên nhà cung cấp.</p>
+      <p class="hint"><b>Dữ liệu không gửi đi đâu cả</b> — trang chạy hoàn toàn trong trình duyệt,
+        mọi thứ lưu trên chính máy này.</p>
+      <p style="margin-top:14px"><button class="btn" id="btnXemThu">Chưa có file? Xem thử với số liệu mẫu</button></p>
+    </div>
+  </section>
+
+  <!-- ============ Tổng quan ============ -->
+  <section id="viewTong" hidden>
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Tổng quan</h2>
+        <span class="hint" id="tongPhamVi"></span>
+        <div class="spacer"></div>
+        <label class="hint" style="display:flex;align-items:center;gap:6px">
+          Kỳ
+          <select id="tongKy" style="padding:5px 8px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--text);font:inherit"></select>
+        </label>
+      </div>
+      <div class="kpis" id="tongKPI"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>Cần xử lý ngay</h2>
+        <span class="hint">Quá hạn, sắp đến hạn, nghi trùng chi, thiếu thông tin chuyển khoản</span>
+      </div>
+      <ul class="issues" id="tongCanhBao"></ul>
+      <p class="hint" id="tongCanhBaoThem" hidden></p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>Dòng tiền theo kỳ</h2></div>
+      <div class="legend">
+        <span><i style="background:var(--ok)"></i>Đã đi tiền</span>
+        <span><i style="background:var(--warn)"></i>Chưa đi, còn hạn</span>
+        <span><i style="background:var(--danger)"></i>Chưa đi, quá hạn</span>
+      </div>
+      <div class="bars" id="tongBieuDo"></div>
+    </div>
+  </section>
+
+  <!-- ============ Ủy nhiệm chi ============ -->
+  <section id="viewUNC" hidden>
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Ủy nhiệm chi — đã đi hay chưa</h2>
+        <div class="spacer"></div>
+        <button class="btn sm can-sua" id="btnChonHet">Chọn tất cả đang lọc</button>
+        <button class="btn sm" id="btnLocXoa">Bỏ lọc</button>
+      </div>
+
+      <div class="filters" id="uncLoc">
+        <label>Tìm
+          <input type="search" id="fTuKhoa" placeholder="tên nhà cung cấp, nội dung, số TK, số tiền…">
+        </label>
+        <label>Kỳ <select id="fKy"></select></label>
+        <label>Trạng thái <select id="fTrangThai"></select></label>
+        <label>Bộ phận <select id="fBP"></select></label>
+        <label>Tài khoản chi <select id="fTKCty"></select></label>
+        <label>Loại <select id="fLoai"></select></label>
+        <label>Hạn từ <input type="date" id="fTuNgay"></label>
+        <label>đến <input type="date" id="fDenNgay"></label>
+        <label class="chk"><input type="checkbox" id="fQuaHan"> Chỉ quá hạn</label>
+      </div>
+
+      <p class="hint" style="margin-top:8px" id="uncTomTat"></p>
+
+      <div class="bulkbar can-sua" id="bulkBar" hidden>
+        <span class="cnt" id="bulkCnt"></span>
+        <span class="hint">Đánh dấu:</span>
+        <input type="date" id="bulkNgay" title="Ngày tiền thực đi">
+        <button class="btn sm primary" data-bulk="da_di">✓ Đã đi tiền</button>
+        <button class="btn sm" data-bulk="da_lenh">Đã lập lệnh</button>
+        <button class="btn sm" data-bulk="chua_lenh">Chưa lập lệnh</button>
+        <button class="btn sm danger" data-bulk="huy">Huỷ / không nộp</button>
+        <div class="spacer"></div>
+        <button class="btn sm" data-bulk="xoa">Bỏ đánh dấu</button>
+        <button class="btn sm" id="bulkBo">Bỏ chọn</button>
+      </div>
+
+      <div class="tbl-wrap">
+        <table id="uncBang">
+          <thead><tr id="uncTHead"></tr></thead>
+          <tbody id="uncTBody"></tbody>
+          <tfoot id="uncTFoot"></tfoot>
+        </table>
+      </div>
+      <p class="hint" id="uncPhanTrang" style="margin-top:8px"></p>
+    </div>
+  </section>
+
+  <!-- ============ Công nợ ============ -->
+  <section id="viewCongNo" hidden>
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Công nợ phải trả</h2>
+        <div class="spacer"></div>
+        <label class="hint" style="display:flex;align-items:center;gap:6px">Gom theo
+          <select id="cnGom" style="padding:5px 8px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--text);font:inherit">
+            <option value="ncc">Nhà cung cấp</option>
+            <option value="bp">Bộ phận</option>
+            <option value="tkcty">Tài khoản chi</option>
+            <option value="ky">Kỳ</option>
+          </select>
+        </label>
+        <label class="hint" style="display:flex;align-items:center;gap:6px">Tính đến
+          <input type="date" id="cnDenNgay" style="padding:5px 8px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--text);font:inherit">
+        </label>
+      </div>
+      <p class="hint">Bảng theo cách kế toán hay làm: tổng phát sinh, đã thanh toán, còn phải trả,
+        chia theo tuổi nợ. Bấm một dòng để xem chi tiết từng khoản và in biên bản đối chiếu.</p>
+      <div class="kpis" id="cnKPI" style="margin:10px 0"></div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr id="cnTHead"></tr></thead>
+          <tbody id="cnTBody"></tbody>
+          <tfoot id="cnTFoot"></tfoot>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ Mẫu biểu ============ -->
+  <section id="viewMau" hidden>
+    <div class="panel no-print">
+      <div class="panel-head"><h2>Mẫu biểu kế toán</h2>
+        <div class="spacer"></div>
+        <button class="btn" id="btnInMau">🖨 In / Lưu PDF</button>
+      </div>
+      <p class="hint" id="mauNguCanh"></p>
+      <div class="mau-grid" id="mauDS"></div>
+    </div>
+    <div class="panel">
+      <div class="giay-wrap" id="mauXem"><div class="empty">Chọn một mẫu ở trên.</div></div>
+    </div>
+  </section>
+
+  <!-- ============ Nhật ký ============ -->
+  <section id="viewNhatKy" class="panel" hidden>
+    <div class="panel-head"><h2>Nhật ký đọc file</h2>
+      <span class="hint">Sheet nào đọc được bao nhiêu dòng, sheet nào bỏ qua và vì sao</span>
+    </div>
+    <ul class="issues" id="nhatKyDS"></ul>
+  </section>
+
+</main>
+
+<!-- ============ Ngăn chi tiết một khoản ============ -->
+<div class="drawer-bg" id="drawerBg" hidden>
+  <aside class="drawer" role="dialog" aria-modal="true" aria-label="Chi tiết khoản chi">
+    <div class="dr-head">
+      <h2 id="drTen"></h2>
+      <button class="btn sm" id="drDong" title="Đóng">✕</button>
+    </div>
+    <div id="drThan"></div>
+  </aside>
+</div>
+
+<!-- ============ Ngăn thông tin công ty ============ -->
+<div class="drawer-bg" id="ctyBg" hidden>
+  <aside class="drawer" role="dialog" aria-modal="true" aria-label="Thông tin công ty">
+    <div class="dr-head">
+      <h2>Thông tin công ty &amp; tài khoản</h2>
+      <button class="btn sm" id="ctyDong" title="Đóng">✕</button>
+    </div>
+    <p class="hint">Dùng để điền sẵn vào Ủy nhiệm chi, Phiếu chi và Biên bản đối chiếu công nợ.</p>
+    <label class="field"><span>Tên công ty</span><input id="ctyTen" placeholder="CÔNG TY TNHH K VÀ H"></label>
+    <label class="field"><span>Địa chỉ</span><input id="ctyDiaChi"></label>
+    <label class="field"><span>Mã số thuế</span><input id="ctyMST"></label>
+    <label class="field"><span>Người đại diện</span><input id="ctyDaiDien"></label>
+    <label class="field"><span>Chức vụ</span><input id="ctyChucVu" placeholder="Giám đốc"></label>
+    <label class="field"><span>Người lập biểu (mặc định)</span><input id="ctyNguoiLap"></label>
+    <hr>
+    <h3>Tài khoản ngân hàng của công ty</h3>
+    <label class="field"><span>K&amp;H cũ — số tài khoản</span><input id="ctyTkCuSo"></label>
+    <label class="field"><span>K&amp;H cũ — ngân hàng</span><input id="ctyTkCuNH"></label>
+    <label class="field"><span>K&amp;H mới — số tài khoản</span><input id="ctyTkMoiSo"></label>
+    <label class="field"><span>K&amp;H mới — ngân hàng</span><input id="ctyTkMoiNH"></label>
+    <hr>
+    <h3>Cách hiểu dữ liệu trong file</h3>
+    <label class="field"><span>Dòng đã có "Ngày tạo lệnh" thì coi là</span>
+      <select id="optLenh">
+        <option value="1">Đã đi tiền (file chỉ ghi khi đã chuyển)</option>
+        <option value="0">Mới lập lệnh, chờ xác nhận đã đi</option>
+      </select>
+    </label>
+    <p class="hint">File gốc không có cột đánh dấu tiền đã đi hay chưa, chỉ có cột
+      <i>Ngày tạo lệnh</i>. Chọn cách hiểu cho khớp với thực tế bộ phận đang làm;
+      khoản nào kế toán đã tự đánh dấu thì luôn theo kế toán, không bị lựa chọn này đè lên.</p>
+    <button class="btn primary" id="ctyLuu">Lưu</button>
+  </aside>
+</div>
+
+<!-- ============ Cổng đăng nhập PIN (chỉ bản WordPress) ============ -->
+<div class="gate" id="gate" hidden>
+  <div class="gate-box">
+    <div class="gate-logo">UNC</div>
+    <h2 id="gateTitle">Ủy nhiệm chi &amp; Công nợ</h2>
+    <p class="hint">Nhập PIN để vào</p>
+    <input id="gatePin" type="password" inputmode="numeric" autocomplete="current-password"
+           maxlength="8" placeholder="••••" aria-label="Mã PIN">
+    <div class="keypad" id="keypad"></div>
+    <button class="btn primary" id="gateBtn">Vào</button>
+    <p class="gate-err" id="gateErr" role="alert"></p>
+    <p class="hint" id="gateFoot">Quên PIN thì nhờ Admin đặt lại.</p>
+  </div>
+</div>
+
+<!-- ============ Hộp tài khoản (chỉ bản WordPress) ============ -->
+<div class="drawer-bg" id="tkBg" hidden>
+  <aside class="drawer" role="dialog" aria-modal="true" aria-label="Tài khoản">
+    <div class="dr-head">
+      <h2>Tài khoản</h2>
+      <button class="btn sm" id="tkDong" title="Đóng">✕</button>
+    </div>
+    <div id="tkThan"></div>
+  </aside>
+</div>
+
+<!--KHUNC_SCRIPTS-->
+</body>
+</html>

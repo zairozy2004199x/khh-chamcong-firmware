@@ -1,0 +1,84 @@
+# Chạy kiểm thử NGAY TRÊN PULL REQUEST, trước khi merge.
+#
+# Vì sao cần: mọi workflow khác trong repo chỉ kích hoạt khi push vào `main`, nên bộ kiểm thử
+# chỉ chạy SAU khi code đã vào main — mà lúc đó Pages đã deploy và Release đã dựng xong rồi.
+# Sai sót chỉ lộ ra khi người dùng đã cầm bản mới. Workflow này đẩy các phép kiểm lên sớm hơn
+# một bước: hỏng thì PR đỏ, chưa ai bị ảnh hưởng.
+#
+# Chỉ KIỂM, không phát hành, không deploy — nên chạy được trên PR từ fork mà không cần quyền ghi.
+name: Kiểm trước khi merge
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    name: Web app (engine + đồng bộ giao diện)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Kiểm thử engine báo cáo chi phí
+        run: node web_baocao_chiphi/test/engine.test.js
+
+      - name: Kiểm thử engine ủy nhiệm chi
+        run: node web_uynhiemchi/test/engine.test.js
+
+      # Giao diện có MỘT nguồn duy nhất ở web_*/; plugin chỉ là bản chép. Quên chạy script đồng bộ
+      # là plugin trên hosting âm thầm chạy giao diện cũ — không lỗi, không cảnh báo, chỉ là sai.
+      - name: Plugin Báo cáo chi phí đã đồng bộ giao diện chưa
+        run: python3 khbc-bao-cao-chi-phi/tools/dong-bo-giao-dien.py --check
+
+      - name: Plugin Ủy nhiệm chi đã đồng bộ giao diện chưa
+        run: python3 khunc-uy-nhiem-chi/tools/dong-bo-giao-dien.py --check
+
+  plugin:
+    name: Plugin WordPress (lint PHP + phiên bản)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint PHP
+        run: |
+          for f in $(find khbc-bao-cao-chi-phi khunc-uy-nhiem-chi -name '*.php'); do
+            php -l "$f" >/dev/null || exit 1
+          done
+          echo "Đã lint $(find khbc-bao-cao-chi-phi khunc-uy-nhiem-chi -name '*.php' | wc -l) tệp PHP."
+
+      # Số ở header plugin, define(...) và "Stable tag" của readme phải bằng nhau: lệch thì
+      # WordPress không nhận ra bản mới, nút "Cập nhật ngay" không bao giờ hiện.
+      - name: Phiên bản khớp nhau — Báo cáo chi phí
+        run: bash khbc-bao-cao-chi-phi/tools/kiem-phien-ban.sh
+
+      - name: Phiên bản khớp nhau — Ủy nhiệm chi
+        run: bash khunc-uy-nhiem-chi/tools/kiem-phien-ban.sh
+
+      # Giao kèo với Trang IT nằm ở một plugin KHÁC nên không trình biên dịch nào bắt được lúc nó gãy.
+      - name: Còn hiện được ở Trang IT không
+        run: php khbc-bao-cao-chi-phi/tools/test/kiem-trang-it.php
+
+  dong-goi:
+    name: Dựng thử zip plugin (không phát hành)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Dựng thử để bắt sớm lỗi đóng gói (thiếu tệp, lọt thư mục dev) thay vì phát hiện lúc
+      # bản Release đã nằm trên GitHub và người ta đã bấm cập nhật.
+      - name: Dựng zip
+        run: |
+          for p in khbc-bao-cao-chi-phi khunc-uy-nhiem-chi; do
+            rm -rf _pkg && mkdir _pkg
+            rsync -a --exclude 'tools/dev' --exclude 'tools/test' "$p/" "_pkg/$p/"
+            (cd _pkg && zip -qr "../$p.zip" "$p")
+            echo "--- $p.zip"
+            unzip -l "$p.zip" | tail -1
+            if unzip -l "$p.zip" | grep -qE 'tools/(dev|test)/'; then
+              echo "LỖI: zip còn thư mục tools/dev hoặc tools/test" >&2
+              exit 1
+            fi
+          done

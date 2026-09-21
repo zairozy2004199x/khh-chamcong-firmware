@@ -1,18 +1,21 @@
-# Đưa web app "Báo cáo chi phí" (thư mục web_baocao_chiphi/) lên GitHub Pages.
+# Đưa các web app kế toán lên GitHub Pages.
 #
 # Bật 1 lần trong repo: Settings → Pages → Build and deployment → Source = "GitHub Actions".
-# Sau đó mỗi lần push vào main có thay đổi trong web_baocao_chiphi/ là tự deploy.
-# Địa chỉ: https://<chủ-repo>.github.io/khh-chamcong-firmware/           (kế toán)
-#          https://<chủ-repo>.github.io/khh-chamcong-firmware/nhap.html  (nhân viên nhập chi phí)
+# Sau đó mỗi lần push vào main có thay đổi trong web_baocao_chiphi/ hoặc web_uynhiemchi/ là tự deploy.
+# Địa chỉ: https://<chủ-repo>.github.io/khh-chamcong-firmware/               (báo cáo chi phí — kế toán)
+#          https://<chủ-repo>.github.io/khh-chamcong-firmware/nhap.html      (nhân viên nhập chi phí)
+#          https://<chủ-repo>.github.io/khh-chamcong-firmware/uy-nhiem-chi/  (ủy nhiệm chi & công nợ)
 #
 # Trang web KHÔNG chứa bí mật: URL API và mã truy cập do người dùng nhập vào trình duyệt của mình.
-name: Deploy web báo cáo chi phí (GitHub Pages)
+# Riêng trang ủy nhiệm chi không gọi máy chủ nào cả, file Excel chỉ được đọc trên máy người dùng.
+name: Deploy web app kế toán (GitHub Pages)
 
 on:
   push:
     branches: [main]
     paths:
       - 'web_baocao_chiphi/**'
+      - 'web_uynhiemchi/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -30,14 +33,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Kiểm thử engine
+      - name: Kiểm thử engine báo cáo chi phí
         run: node web_baocao_chiphi/test/engine.test.js
+      - name: Kiểm thử engine ủy nhiệm chi
+        run: node web_uynhiemchi/test/engine.test.js
       - name: Chuẩn bị thư mục deploy
         run: |
-          mkdir -p _site
+          mkdir -p _site/uy-nhiem-chi
           cp -r web_baocao_chiphi/* _site/
           rm -rf _site/test _site/backend
+          cp -r web_uynhiemchi/* _site/uy-nhiem-chi/
+          rm -rf _site/uy-nhiem-chi/test
           # README của thư mục web không cần lên trang; giữ hướng dẫn backend trong repo
+          rm -f _site/README.md _site/uy-nhiem-chi/README.md
           touch _site/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:
