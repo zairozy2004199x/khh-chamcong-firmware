@@ -16,7 +16,7 @@ const vm = require('vm');
    còn Config lại dùng `jpStr_`/`jpNum_` của Core. Cả hai chỉ khai hàm và biến nên nạp chung
    một ngữ cảnh là đủ — không câu nào tự chạy lúc nạp. */
 const thu_muc = path.join(__dirname, '..', '..', 'goc', 'jp-capsule-v2');
-const ds_tep = ['JP2_01_Core.gs', 'JP2_00_Config.gs'].map(t => path.join(thu_muc, t));
+const ds_tep = ['JP2_01_Core.gs', 'JP2_00_Config.gs', 'JP2_04_TinhToan.gs'].map(t => path.join(thu_muc, t));
 const tep = ds_tep[0];
 
 function hai_so(n) { return ('0' + n).slice(-2); }
@@ -48,6 +48,9 @@ const ham = {
   /* Quy tắc "rơi về" của danh mục — xem `class-vhjp-cau-hinh.php`. */
   bc_mau: 'jpBcMau_', co_dh_trung: 'jpCoDhTrung_', chon_gia_xung: 'jpChonGiaXung_',
   gia_tu_ma: 'jpGiaTuMa_', dvt: 'jpDvt_',
+  /* Tính tiền — xem `class-vhjp-tinh.php`. */
+  gia_xung: 'jpGiaXung_', gia_dong: 'jpGiaDong_', lech_tm: 'jpLechTM_',
+  hoan_theo_ma: 'jpHoanTheoMa_', dong_may_tien: 'jpCalcMoneyRow_',
 }[ten];
 if (!ham) { console.error('không biết hàm ' + ten); process.exit(2); }
 if (typeof hop[ham] !== 'function') { console.error('mã gốc không có ' + ham); process.exit(3); }
