@@ -355,7 +355,10 @@
     ul.innerHTML = '';
     cb.slice(0, 25).forEach((c) => {
       const li = el('li', { class: c.muc });
-      li.innerHTML = esc(c.text) + '<span class="go">xem →</span>';
+      // <button>, không phải <span>: đây là thứ bấm được, nên nó phải tới được bằng phím Tab
+      // và nhận được Enter/Space mà không cần ta tự viết lại. Kế toán dò danh sách này bằng
+      // bàn phím là chuyện thường.
+      li.innerHTML = esc(c.text) + '<button type="button" class="go">xem →</button>';
       li.querySelector('.go').onclick = () => {
         const d = DONG.find((x) => x.rec.id === c.id);
         if (d) moNgan(d);

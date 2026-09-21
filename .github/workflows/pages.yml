@@ -39,6 +39,8 @@ jobs:
         run: node web_uynhiemchi/test/engine.test.js
       - name: Kiểm thử đối chiếu sao kê
         run: node web_uynhiemchi/test/saoke.test.js
+      - name: Kiểm thử bộ áo ủy nhiệm chi
+        run: node web_uynhiemchi/test/giao-dien.test.js
       - name: Chuẩn bị thư mục deploy
         run: |
           mkdir -p _site/uy-nhiem-chi

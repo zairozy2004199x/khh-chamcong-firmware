@@ -4,7 +4,7 @@ Tags: ke-toan, uy-nhiem-chi, cong-no, excel
 Requires at least: 5.6
 Tested up to: 6.6
 Requires PHP: 7.2
-Stable tag: 1.1.0
+Stable tag: 1.2.0
 License: GPL-2.0-or-later
 
 Theo dõi ủy nhiệm chi đã đi tiền hay chưa và công nợ phải trả từng nhà cung cấp, đọc thẳng từ
@@ -67,6 +67,22 @@ cắt request, plugin báo thẳng con số và đề nghị nâng `post_max_siz
 đè bằng danh sách rỗng.
 
 == Changelog ==
+
+= 1.2.0 =
+* Bộ áo làm lại cho người NGỒI CẢ BUỔI với nó, không phải cho ảnh chụp: hàng bảng ủy nhiệm chi
+  từ 49px xuống 31px, nên một màn 1280px bày 18 hàng thay vì 12 — cùng một bảng, cuộn còn hai
+  phần ba.
+* Chỉ cột "Nội dung" được xuống dòng; kỳ, bộ phận, ngày và số tiền ghim một dòng nên không còn
+  cảnh trình duyệt bẻ "2026-03" làm đôi để nhường chỗ cho cột chữ.
+* Hàng chẵn có sọc rất nhạt: bảng rộng tới mép phải thì mắt hay tuột sang hàng khác giữa chừng,
+  và đó là cách đọc nhầm số tiền của nhà cung cấp này thành của nhà cung cấp kia.
+* Thẻ số liệu đứng thành hàng thật (thẻ tô nền nay cũng có viền, trước để trong suốt nên chúng
+  trôi); trên điện thoại xếp 2 thẻ một hàng thay vì 1.
+* Ô tích "Chỉ quá hạn" không còn mọc thành khung rỗng to bằng ô nhập ngày.
+* Ô nhập trên điện thoại đủ 16px để iOS thôi tự phóng to trang mỗi lần bấm vào.
+* Thang chữ còn 7 cỡ (trước 11 cỡ, có cả cỡ lệch nhau nửa điểm), thang giãn cách đi đúng bước
+  4px. Thêm `test/giao-dien.test.js` giữ hai bản màu tối — bản "theo hệ điều hành" và bản "bấm
+  nút chuyển" — luôn khai giống hệt nhau.
 
 = 1.1.0 =
 * Đối chiếu sao kê ngân hàng: nhập sao kê (.xlsx/.csv), trang chỉ đọc dòng tiền RA rồi khớp với

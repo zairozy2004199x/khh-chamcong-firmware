@@ -3,7 +3,7 @@
  * Plugin Name:       Ủy Nhiệm Chi & Công Nợ (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Theo dõi ủy nhiệm chi đã đi tiền hay chưa và công nợ phải trả từng nhà cung cấp, đọc thẳng từ file Excel "Đi ủy nhiệm chi". Kèm 7 mẫu biểu in A4 (UNC, đề nghị thanh toán 05-TT, phiếu chi 02-TT, biên bản đối chiếu công nợ, bảng kê, sổ chi tiết 331, kế hoạch chi tiền). Dữ liệu nằm trong bảng MySQL riêng của WordPress, cả bộ phận dùng chung.
- * Version:           1.1.0
+ * Version:           1.2.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
  * Nó đi vào ?ver= của CSS/JS để trình duyệt bỏ bộ nhớ đệm, và là mốc để bước nâng cấp chạy.
  * Phép thử: tools/kiem-phien-ban.sh
  */
-define( 'KHUNC_VERSION', '1.1.0' );
+define( 'KHUNC_VERSION', '1.2.0' );
 define( 'KHUNC_FILE', __FILE__ );
 define( 'KHUNC_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KHUNC_URL', plugin_dir_url( __FILE__ ) );
