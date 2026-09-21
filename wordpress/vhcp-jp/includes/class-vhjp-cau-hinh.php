@@ -139,6 +139,71 @@ class VHJP_CauHinh {
 		);
 	}
 
+	/* ═══════════════════════ TRA MÃ HÀNG ═══════════════════════ */
+
+	/**
+	 * BẢNG TRA MÃ HÀNG — dựng MỘT LẦN rồi tra nhiều lượt.
+	 *
+	 * Đường lưu báo cáo tra mã cho từng dòng; đọc lại danh mục mỗi dòng là đọc cả bảng hàng
+	 * vài chục lượt cho một lượt lưu.
+	 *
+	 * ⚠️ Gài thêm khoá viết HOA để `tra_hang()` dung được HOA/thường — xem chú thích ở đó.
+	 *    CHỐT CHỐNG NHẬP NHẰNG: danh mục có HAI mã chỉ khác chữ hoa thì khoá HOA trỏ vào đâu
+	 *    cũng là đoán, nên BỎ HẲN khoá đó. Không mã nào được đè lên một mã thật đang có.
+	 */
+	public static function ban_do_hang() {
+		$m = array(); $hoa = array(); $doi = array();
+		foreach ( VHJP_Nguon::doc( 'JP_Items' ) as $i ) {
+			$ma = VHJP_Doc::str( $i['code'] );
+			$m[ $ma ] = array(
+				/* `code` = cách viết CHUẨN trong danh mục. Có nó thì đường lưu mới snap được
+				   mã nhân viên gõ về đúng cách viết này. */
+				'code'  => $ma,
+				'misa'  => VHJP_Doc::str( $i['misa'] ),
+				'name'  => VHJP_Doc::str( $i['name'] ),
+				'price' => VHJP_Doc::num( $i['price'] ) ? VHJP_Doc::num( $i['price'] ) : self::gia_tu_ma( $ma ),
+				'dvt'   => self::dvt( $i ),
+			);
+			$U = mb_strtoupper( $ma, 'UTF-8' );
+			if ( $U !== $ma ) {
+				if ( isset( $hoa[ $U ] ) ) { $doi[ $U ] = true; } else { $hoa[ $U ] = $ma; }
+			} else {
+				if ( isset( $hoa[ $U ] ) && $hoa[ $U ] !== $ma ) { $doi[ $U ] = true; } else { $hoa[ $U ] = $ma; }
+			}
+		}
+		foreach ( $hoa as $U => $ma ) {
+			if ( isset( $doi[ $U ] ) ) { continue; }
+			if ( ! isset( $m[ $U ] ) ) { $m[ $U ] = $m[ $ma ]; }
+		}
+		return $m;
+	}
+
+	/**
+	 * TRA MỘT MÃ HÀNG, DUNG THỨ HOA/thường.
+	 *
+	 * 🔴 VÌ SAO PHẢI DUNG THỨ. Nhân viên gõ `100jp031` chữ thường là mã HOÀN TOÀN ĐÚNG, nhưng
+	 *    tra thẳng thì trượt. Trượt ở đây không chỉ mất tên hàng: `itemCode` lưu xuống giữ
+	 *    nguyên chữ thường, nên duyệt xong kho KHÔNG tìm được lớp tồn ⇒ giá vốn về 0đ, SỔ 632
+	 *    THIẾU trong khi sổ vẫn CÂN. Đo trên dữ liệu thật 22/08/2026: bốn mã đúng y nguyên
+	 *    chỉ khác chữ hoa.
+	 *
+	 * ⚠️ CHỈ dung thứ HOA/thường và dấu cách hai đầu — KHÔNG bỏ dấu, KHÔNG dò gần giống. Gõ
+	 *    tắt kiểu `B chuột nước` → `100JP122` là quyết định NGHIỆP VỤ của kế toán; đoán hộ là
+	 *    gán giá vốn của mặt hàng này sang mặt hàng khác, mà sổ vẫn cân nên không phép kiểm
+	 *    nào bắt được.
+	 *
+	 * ⚠️ Trả `null` khi không thấy — đừng trả mảng rỗng, vì nơi gọi cần phân biệt "có trong
+	 *    danh mục" với "không có" để còn cảnh báo được.
+	 */
+	public static function tra_hang( $ban_do, $ma ) {
+		if ( ! is_array( $ban_do ) ) { return null; }
+		$m = VHJP_Doc::str( $ma );
+		if ( '' === $m ) { return null; }
+		if ( isset( $ban_do[ $m ] ) ) { return $ban_do[ $m ]; }
+		$U = mb_strtoupper( $m, 'UTF-8' );
+		return isset( $ban_do[ $U ] ) ? $ban_do[ $U ] : null;
+	}
+
 	/* ═══════════════════════ ĐỌC DANH MỤC ═══════════════════════ */
 
 	/** Chỉ lấy dòng đang bật. `'N'` là tắt; mọi giá trị khác (kể cả ô trống) là bật. */

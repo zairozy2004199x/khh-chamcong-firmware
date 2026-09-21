@@ -979,6 +979,385 @@ class VHJP_BaoCao {
 			: VHJP_Doc::num( isset( $r['stockActual'] ) ? $r['stockActual'] : 0 );
 	}
 
+	/* ═══════════════════════ LƯU NHÁP ═══════════════════════ */
+
+	/** Hai phần của một báo cáo, theo NGƯỜI SOÁT chứ không theo cột. */
+	const PHAN_TIEN = 'REV';
+	const PHAN_HANG = 'STOCK';
+
+	/**
+	 * LƯU BÁO CÁO.
+	 *
+	 * =========================================================================================
+	 * 🔴 GIAO DIỆN KHÔNG GỬI TIỀN LÊN. MÁY CHỦ TÍNH LẠI TOÀN BỘ TRƯỚC KHI GHI.
+	 * =========================================================================================
+	 * Mọi con số tiền trong bảng này đều do `VHJP_Tinh` tính từ chỉ số đồng hồ và số lượng —
+	 * giao diện chỉ gửi thứ NGƯỜI GÕ. Nhận tiền từ trình duyệt là nhận một con số ai cũng sửa
+	 * được bằng công cụ dành cho người phát triển, và không có cách nào biết nó đã bị sửa.
+	 *
+	 * ⚠️ XOÁ SẠCH RỒI GHI LẠI, trong KHOÁ. Đây là cách bản gốc làm, và nó đúng vì nhân viên
+	 *    thêm/bớt dòng giữa chừng. Nhưng nó cũng là chỗ hai lượt lưu xen nhau đẻ ra báo cáo
+	 *    thiếu dòng hoặc trùng dòng — nên phải có khoá, xem `VHJP_Nguon::lay_khoa()`.
+	 *
+	 * ⚠️ BA Ô TIỀN CỦA MẪU TÁCH đi qua `num_hoac_trong()`, KHÔNG qua `num()`. Ở mẫu ấy chúng là
+	 *    ô NHÂN VIÊN GÕ và ô trống là CHƯA GÕ. Dùng `num()` là chúng thành 0 ngay tại đây,
+	 *    phép chặn nộp đọc lại chỉ thấy 0 nên KHÔNG chặn, và `lech_tm()` coi như đếm được 0 ⇒
+	 *    lệch = −(tiền mặt app) ⇒ tiền phải nộp của cả kỳ về 0. Sổ vẫn cân.
+	 *    Riêng `bank` (QR) thì `num()` mới ĐÚNG: trống nghĩa là không có khách quét mã, đa số
+	 *    dòng như vậy — đòi gõ 0 là bắt gõ thừa 20 ô mỗi kỳ.
+	 */
+	public static function luu( $u, $payload ) {
+		$payload = (array) $payload;
+		$ma_bc   = isset( $payload['reportId'] ) ? VHJP_Doc::str( $payload['reportId'] ) : '';
+
+		$head = VHJP_Nguon::tim_mot( 'JP_Reports', 'id', $ma_bc );
+		if ( ! $head ) { throw new Exception( 'Không tìm thấy báo cáo' ); }
+		VHJP_Auth::can_coso( $u, $head['locationId'] );
+		self::can_chu( $u, $head );
+		if ( ! self::sua_duoc( $u, $head ) ) {
+			throw new Exception( 'Báo cáo đang ở trạng thái ' . VHJP_Doc::str( $head['status'] )
+				. ', không sửa được' );
+		}
+
+		if ( ! VHJP_Nguon::lay_khoa( $ma_bc ) ) {
+			throw new Exception( 'Báo cáo này đang được lưu ở một cửa sổ khác — thử lại sau vài giây' );
+		}
+		try {
+			return self::luu_trong_khoa( $u, $payload, $head );
+		} finally {
+			/* ⚠️ `finally`: ném giữa chừng mà không trả khoá là khoá TREO tới hết phiên MySQL,
+			   và lượt lưu sau của chính người ấy bị chối với câu "cửa sổ khác đang lưu". */
+			VHJP_Nguon::tra_khoa( $ma_bc );
+		}
+	}
+
+	private static function luu_trong_khoa( $u, $payload, $head ) {
+		$ma_bc  = (string) $head['id'];
+		$loai   = VHJP_Doc::str( $head['machineType'] );
+		if ( '' === $loai ) { $loai = VHJP_CauHinh::LOAI_TIEN; }
+		$mau    = VHJP_CauHinh::bc_mau( $head['bcMau'] );
+		$ban_do_hang = VHJP_CauHinh::ban_do_hang();
+
+		/* --- Giữ bản cũ để so sánh, phục vụ RESET THÔNG MINH chữ ký --- */
+		$head_cu = array(
+			'revMeter' => $head['revMeter'], 'revBank' => $head['revBank'],
+			'adjMachine' => $head['adjMachine'], 'refundCustomer' => $head['refundCustomer'],
+			'refundRows' => $head['refundRows'],
+		);
+		$dong_cu = array();
+		foreach ( VHJP_Nguon::tim( 'JP_Rows', 'reportId', $ma_bc ) as $r ) {
+			$dong_cu[] = array(
+				'id' => $r['id'], 'mAfter' => $r['mAfter'], 'cAfter' => $r['cAfter'],
+				'bank' => $r['bank'],
+				/* Bảng tiền mẫu TÁCH: ba ô này là ô NHÂN VIÊN GÕ, nên sửa chúng phải huỷ chữ
+				   ký doanh thu. Đầu báo cáo đã bắt được hầu hết, nhưng đổi `cash` và
+				   `cashReal` CÙNG MỘT LƯỢNG thì đầu báo cáo y nguyên trong khi số kế toán
+				   vừa ký đã khác. */
+				'amount' => $r['amount'], 'cash' => $r['cash'], 'cashReal' => $r['cashReal'],
+				'stockActual' => $r['stockActual'], 'addQty1' => $r['addQty1'],
+				'addQty2' => $r['addQty2'], 'defectQty' => $r['defectQty'],
+				'returnQty' => $r['returnQty'], 'refundAmt' => $r['refundAmt'],
+			);
+		}
+
+		/* --- Ghi lại khu vực --- */
+		VHJP_Nguon::xoa_theo( 'JP_Zones', 'reportId', $ma_bc );
+		$loc = VHJP_Nguon::tim_mot( 'JP_Locations', 'id', $head['locationId'] );
+		$cho_phep_xung = VHJP_CauHinh::chon_gia_xung( $loc ? $loc['chonGiaXung'] : '' );
+
+		$ds_khu = isset( $payload['zones'] ) && is_array( $payload['zones'] ) ? $payload['zones'] : array();
+		$ma_khu = array();
+		$da_dung_khu = self::ids_dang_dung( $ds_khu );
+		foreach ( array_values( $ds_khu ) as $i => $z ) {
+			$z  = (array) $z;
+			$id = self::id_moi( isset( $z['id'] ) ? VHJP_Doc::str( $z['id'] ) : '',
+				$ma_bc . '-Z', $da_dung_khu );
+			$ma_khu[] = $id;
+			$ten = isset( $z['name'] ) ? VHJP_Doc::str( $z['name'] ) : '';
+			VHJP_Nguon::them( 'JP_Zones', array(
+				'id' => $id, 'reportId' => $ma_bc, 'seq' => $i + 1,
+				'name' => '' !== $ten ? $ten : ( 'Khu vực ' . ( $i + 1 ) ),
+				'clusterId' => isset( $z['clusterId'] ) ? VHJP_Doc::str( $z['clusterId'] ) : '',
+				'note' => isset( $z['note'] ) ? VHJP_Doc::str( $z['note'] ) : '',
+			) );
+		}
+
+		/* --- Tính lại từng dòng Ở MÁY CHỦ --- */
+		VHJP_Nguon::xoa_theo( 'JP_Rows', 'reportId', $ma_bc );
+		$ds_dong = isset( $payload['rows'] ) && is_array( $payload['rows'] ) ? $payload['rows'] : array();
+		$da_dung_dong = self::ids_dang_dung( $ds_dong );
+		$dong_moi = array();
+		foreach ( array_values( $ds_dong ) as $i => $r ) {
+			$r = (array) $r;
+			$g = function ( $k, $md = '' ) use ( $r ) { return isset( $r[ $k ] ) ? $r[ $k ] : $md; };
+			/* Tra qua `tra_hang()` chứ KHÔNG tra thẳng — xem khối 🔴 ở hàm ấy. */
+			$hang = VHJP_CauHinh::tra_hang( $ban_do_hang, $g( 'itemCode' ) );
+			$hang = is_array( $hang ) ? $hang : array();
+			$h = function ( $k ) use ( $hang ) { return isset( $hang[ $k ] ) ? $hang[ $k ] : ''; };
+
+			$loai_dong = VHJP_Doc::str( $g( 'rowKind' ) );
+			if ( '' === $loai_dong ) {
+				/* Mặc định theo MẪU của báo cáo, KHÔNG theo loại máy: ở mẫu TÁCH thì dòng
+				   không ghi rõ loại phải là `MAY` (chỉ tiền); rơi về `MONEY` là dòng đó sinh
+				   cả số bán ⇒ xuất kho HAI LẦN cùng với dòng `HANG`. */
+				$loai_dong = ( VHJP_CauHinh::LOAI_XU === $loai ) ? VHJP_Tinh::DONG_COIN
+					: ( ( VHJP_CauHinh::MAU_TACH === $mau ) ? VHJP_Tinh::DONG_MAY : VHJP_Tinh::DONG_MONEY );
+			}
+
+			$khoa_khu = VHJP_Doc::num( $g( 'zoneKey' ) );
+			$zone = isset( $ma_khu[ $khoa_khu ] ) ? $ma_khu[ $khoa_khu ]
+				: ( isset( $ma_khu[0] ) ? $ma_khu[0] : '' );
+
+			$ma_hang = VHJP_Doc::str( $h( 'code' ) );
+			if ( '' === $ma_hang ) { $ma_hang = VHJP_Doc::str( $g( 'itemCode' ) ); }
+			/* Nhân viên chỉ gõ TÊN HÀNG + MÃ MISA ở bảng hàng, nên `itemCode` — thứ KHO tra
+			   theo — rơi về Misa khi để trống. Thiếu bước này là dòng hàng không có mã ⇒ duyệt
+			   xong kho không tìm được lớp tồn ⇒ giá vốn rơi về giá mua gần nhất. */
+			if ( '' === $ma_hang ) { $ma_hang = VHJP_Doc::str( $g( 'itemMisa' ) ); }
+
+			$d = array(
+				'id'       => self::id_moi( VHJP_Doc::str( $g( 'id' ) ), $ma_bc . '-R', $da_dung_dong ),
+				'reportId' => $ma_bc,
+				'zoneId'   => $zone,
+				/* ⚠️⚠️ Cơ sở KHÔNG bật cờ thì ÉP về mặc định — không phải chỉ ẩn ô chọn. Cổng
+				   nhận lệnh từ trình duyệt, ai cũng gọi thẳng được, nên ẩn giao diện mà không
+				   chặn ở máy chủ là KHÔNG CHẶN GÌ CẢ. */
+				'giaXung'  => $cho_phep_xung ? VHJP_Tinh::gia_xung( $g( 'giaXung' ) )
+					: VHJP_Tinh::GIA_XUNG_MAC_DINH,
+				'seq'      => $i + 1,
+				'rowKind'  => $loai_dong,
+				'machineId'   => VHJP_Doc::str( $g( 'machineId' ) ),
+				'machineCode' => VHJP_Doc::str( $g( 'machineCode' ) ),
+				/* ⚠️ SNAP về cách viết CHUẨN của danh mục — đây là chỗ DUY NHẤT làm việc đó, và
+				   phải làm ở đường LƯU chứ không ở mười mấy chỗ đọc. Mã KHÔNG có trong danh mục
+				   thì GIỮ NGUYÊN nguyên văn nhân viên gõ: viết hoa nó lên là sinh thêm một biến
+				   thể mới trong khi kế toán đang đối chiếu. */
+				'itemCode' => $ma_hang,
+				'itemMisa' => VHJP_Doc::str( $g( 'itemMisa' ) ) ? VHJP_Doc::str( $g( 'itemMisa' ) ) : VHJP_Doc::str( $h( 'misa' ) ),
+				'itemName' => VHJP_Doc::str( $g( 'itemName' ) ) ? VHJP_Doc::str( $g( 'itemName' ) ) : VHJP_Doc::str( $h( 'name' ) ),
+				/* Để phép tính dòng tự suy giá (Misa trước) khi danh mục không có giá — đừng
+				   chốt cứng giá-từ-mã ở đây, mã nội bộ kiểu A-077 không có tiền tố giá. */
+				'price'    => VHJP_Doc::num( $h( 'price' ) ),
+				/* Ô trống PHẢI ở lại là ô trống, không thì phép tính không phân biệt được
+				   "chưa nhập" với "nhập số 0". */
+				'mBefore'  => VHJP_Doc::num_hoac_trong( $g( 'mBefore', '' ) ),
+				'mAfter'   => VHJP_Doc::num_hoac_trong( $g( 'mAfter', '' ) ),
+				'cBefore'  => VHJP_Doc::num_hoac_trong( $g( 'cBefore', '' ) ),
+				'cAfter'   => VHJP_Doc::num_hoac_trong( $g( 'cAfter', '' ) ),
+				'bank'     => VHJP_Doc::num( $g( 'bank' ) ),
+				'cash'     => VHJP_Doc::num_hoac_trong( $g( 'cash', '' ) ),
+				'amount'   => VHJP_Doc::num_hoac_trong( $g( 'amount', '' ) ),
+				'cashReal' => VHJP_Doc::num_hoac_trong( $g( 'cashReal', '' ) ),
+				'hOpen'    => VHJP_Doc::num( $g( 'hOpen' ) ),
+				'hBefore'  => VHJP_Doc::num_hoac_trong( $g( 'hBefore', '' ) ),
+				'hAfter'   => VHJP_Doc::num_hoac_trong( $g( 'hAfter', '' ) ),
+				'stockOut' => VHJP_Doc::num( $g( 'stockOut' ) ),
+				'topupNote' => VHJP_Doc::str( $g( 'topupNote' ) ),
+				'giaXu'    => VHJP_Doc::num( $g( 'giaXu' ) ),
+				'xuDaysJson' => isset( $r['xuDays'] ) && $r['xuDays']
+					? wp_json_encode( $r['xuDays'] ) : VHJP_Doc::str( $g( 'xuDaysJson' ) ),
+				'xuLa'     => VHJP_Doc::num( $g( 'xuLa' ) ),
+				'stockOpen' => VHJP_Doc::num( $g( 'stockOpen' ) ),
+				'addQty1'  => VHJP_Doc::num( $g( 'addQty1' ) ),
+				'addQty2'  => VHJP_Doc::num( $g( 'addQty2' ) ),
+				'stockActual' => VHJP_Doc::num_hoac_trong( $g( 'stockActual', '' ) ),
+				'defectQty' => VHJP_Doc::num( $g( 'defectQty' ) ),
+				'returnQty' => VHJP_Doc::num( $g( 'returnQty' ) ),
+				/* Hoàn khách theo mã — chỉ `refundAmt` là ô nhân viên gõ; số lượng hoàn do phép
+				   tính dòng suy ra ngay sau đây, ĐỪNG nhận từ giao diện. */
+				'refundAmt' => abs( VHJP_Doc::num( $g( 'refundAmt' ) ) ),
+				'refundRowNote' => VHJP_Doc::str( $g( 'refundRowNote' ) ),
+				/* ĐÃ BÁN — dòng HÀNG của mẫu tách thì đây là ô NHÂN VIÊN GÕ. Mọi loại dòng khác
+				   thì phép tính ghi đè ngay sau đây, nên nhận vào không ảnh hưởng gì. */
+				'soldQty'  => VHJP_Doc::num_hoac_trong( $g( 'soldQty', '' ) ),
+				'note'     => VHJP_Doc::str( $g( 'note' ) ),
+			);
+			$dong_moi[] = VHJP_Tinh::dong( $d, $loai );
+		}
+		if ( $dong_moi ) { VHJP_Nguon::them_nhieu( 'JP_Rows', $dong_moi ); }
+
+		/* --- Tổng kết --- */
+		$hp = isset( $payload['head'] ) && is_array( $payload['head'] ) ? $payload['head'] : array();
+		$head['adjMachine']     = VHJP_Doc::num( isset( $hp['adjMachine'] ) ? $hp['adjMachine'] : 0 );
+		$head['adjMachineNote'] = VHJP_Doc::str( isset( $hp['adjMachineNote'] ) ? $hp['adjMachineNote'] : '' );
+		$head['refundCustomer'] = abs( VHJP_Doc::num( isset( $hp['refundCustomer'] ) ? $hp['refundCustomer'] : 0 ) );
+		$head['refundNote']     = VHJP_Doc::str( isset( $hp['refundNote'] ) ? $hp['refundNote'] : '' );
+		$head['remark']         = VHJP_Doc::str( isset( $hp['remark'] ) ? $hp['remark'] : '' );
+		$head = VHJP_Tinh::bao_cao( $head, $dong_moi );
+
+		VHJP_Nguon::sua( 'JP_Reports', $ma_bc, array(
+			'revMeter' => $head['revMeter'], 'revBank' => $head['revBank'],
+			'revCashMeter' => $head['revCashMeter'],
+			'revHang' => $head['revHang'], 'lechTienHang' => $head['lechTienHang'],
+			'adjMachine' => $head['adjMachine'], 'adjMachineNote' => $head['adjMachineNote'],
+			'refundCustomer' => $head['refundCustomer'], 'refundNote' => $head['refundNote'],
+			'refundRows' => $head['refundRows'],
+			'cashActual' => $head['cashActual'], 'totalSubmit' => $head['totalSubmit'],
+			'warnCount' => $head['warnCount'], 'remark' => $head['remark'],
+		) );
+
+		/* --- Chữ ký: chỉ huỷ đúng phần nhân viên vừa sửa --- */
+		$doi = self::diff_phan( $head_cu, $dong_cu, $head, $dong_moi );
+		if ( $doi ) { self::reset_chu_ky( $head, $doi, $u ); }
+
+		/*
+		 * ⚠️ CHỈ TRẢ VỀ KHOÁ CÓ THẬT TRÊN DÒNG.
+		 *
+		 * Mỗi loại dòng chỉ sinh ra một phần trong số các cột này — dòng máy tiền không có
+		 * `cActual` hay `xuTong`. Bên kia đọc một khoá không có ra `undefined`, và `JSON`
+		 * BỎ HẲN khoá ấy khi đóng gói; giao diện dựa vào chuyện đó (`if (r.xuTong)`). Bên này
+		 * mà điền `0` vào là thêm một cột "có số 0" ở chỗ vốn không có cột — vừa lệch khỏi mã
+		 * gốc, vừa làm giao diện tưởng dòng máy tiền có bảng xu.
+		 */
+		$ra_dong = array();
+		foreach ( $dong_moi as $r ) {
+			$mot = array( 'id' => (string) $r['id'], 'rowKind' => VHJP_Doc::str( $r['rowKind'] ) );
+			foreach ( array( 'mActual', 'cActual', 'collection', 'amount', 'soldQty', 'hLeft',
+				'xuTong', 'stockLeftCalc', 'refundAmt', 'refundQty' ) as $c ) {
+				if ( array_key_exists( $c, $r ) ) { $mot[ $c ] = $r[ $c ]; }
+			}
+			$mot['warns'] = isset( $r['warns'] ) ? $r['warns'] : array();
+			$ra_dong[] = $mot;
+		}
+
+		return array(
+			'ok' => true, 'reportId' => $ma_bc,
+			'resetSign' => $doi,
+			'totals' => array(
+				'revMeter' => $head['revMeter'], 'revBank' => $head['revBank'],
+				'revCashMeter' => $head['revCashMeter'], 'adjMachine' => $head['adjMachine'],
+				'refundCustomer' => $head['refundCustomer'],
+				'refundRows' => $head['refundRows'], 'refundTotal' => $head['refundTotal'],
+				'cashActual' => $head['cashActual'], 'totalSubmit' => $head['totalSubmit'],
+				'revHang' => $head['revHang'], 'revMeterRong' => $head['revMeterRong'],
+				'lechTienHang' => $head['lechTienHang'],
+				'coBangTong' => ! empty( $head['coBangTong'] ),
+			),
+			'warnCount' => $head['warnCount'],
+			'headWarns' => isset( $head['warns'] ) ? $head['warns'] : array(),
+			'rows' => $ra_dong,
+		);
+	}
+
+	/**
+	 * CẤP MÃ KHÔNG TRÙNG cho khu vực / dòng.
+	 *
+	 * 🔴 Trước đây mã dòng mới là `<báo cáo>-R<vị trí>`, mà dòng cũ giữ mã cũ. Có -R1 -R2 -R3,
+	 *    xoá -R1 rồi thêm một dòng ⇒ dòng mới nằm ở vị trí 3 ⇒ mã -R3 TRÙNG dòng cũ. Hệ quả:
+	 *    ảnh gắn sai dòng, phép so để huỷ chữ ký so nhầm dòng.
+	 */
+	public static function ids_dang_dung( $ds ) {
+		$da = array();
+		foreach ( (array) $ds as $x ) {
+			$id = VHJP_Doc::str( isset( $x['id'] ) ? $x['id'] : '' );
+			if ( '' !== $id ) { $da[ $id ] = 1; }
+		}
+		return $da;
+	}
+
+	/** Giữ mã cũ nếu có và chưa bị chiếm; không thì cấp số nhỏ nhất còn trống. */
+	public static function id_moi( $id_cu, $tien_to, &$da_dung ) {
+		if ( '' !== $id_cu && ( ! isset( $da_dung[ $id_cu ] ) || 2 !== $da_dung[ $id_cu ] ) ) {
+			$da_dung[ $id_cu ] = 2;
+			return $id_cu;
+		}
+		$n = 1;
+		do {
+			$id = $tien_to . $n;
+			$n++;
+		} while ( isset( $da_dung[ $id ] ) );
+		$da_dung[ $id ] = 2;
+		return $id;
+	}
+
+	/* ═══════════════════════ RESET THÔNG MINH CHỮ KÝ ═══════════════════════ */
+
+	/**
+	 * PHẦN NÀO CÓ SỐ ĐỔI. Trả mảng rỗng nếu không đổi gì — để không huỷ chữ ký oan khi nhân
+	 * viên chỉ bấm Lưu mà không sửa gì.
+	 *
+	 * Phân loại theo NGƯỜI SOÁT chứ không theo cột: chỉ số đồng hồ và chuyển khoản là việc của
+	 * phần doanh thu; tồn kho, bổ sung, lỗi/mẫu, trả kho là phần hàng hoá.
+	 */
+	public static function diff_phan( $head_cu, $dong_cu, $head_moi, $dong_moi ) {
+		$phan = array();
+		$n = function ( $a, $k ) { return VHJP_Doc::num( isset( $a[ $k ] ) ? $a[ $k ] : 0 ); };
+
+		foreach ( array( 'revMeter', 'revBank', 'adjMachine', 'refundCustomer', 'refundRows' ) as $c ) {
+			if ( $n( $head_cu, $c ) !== $n( $head_moi, $c ) ) { $phan[ self::PHAN_TIEN ] = 1; }
+		}
+
+		$cu = array(); $moi = array();
+		foreach ( (array) $dong_cu as $r )  { $cu[ (string) $r['id'] ] = $r; }
+		foreach ( (array) $dong_moi as $r ) { $moi[ (string) $r['id'] ] = $r; }
+
+		foreach ( array_unique( array_merge( array_keys( $cu ), array_keys( $moi ) ) ) as $k ) {
+			if ( ! isset( $cu[ $k ] ) || ! isset( $moi[ $k ] ) ) {
+				/* Thêm hoặc xoá dòng: đụng CẢ HAI phần. */
+				$phan[ self::PHAN_TIEN ] = 1;
+				$phan[ self::PHAN_HANG ] = 1;
+				continue;
+			}
+			$a = $cu[ $k ]; $b = $moi[ $k ];
+			foreach ( array( 'mAfter', 'cAfter', 'bank', 'amount', 'cash', 'cashReal' ) as $c ) {
+				if ( $n( $a, $c ) !== $n( $b, $c ) ) { $phan[ self::PHAN_TIEN ] = 1; }
+			}
+			foreach ( array( 'stockActual', 'addQty1', 'addQty2', 'defectQty', 'returnQty' ) as $c ) {
+				if ( $n( $a, $c ) !== $n( $b, $c ) ) { $phan[ self::PHAN_HANG ] = 1; }
+			}
+		}
+		return array_keys( $phan );
+	}
+
+	/**
+	 * NHÂN VIÊN SỬA PHẦN NÀO THÌ CHỈ CHỮ KÝ PHẦN ĐÓ BỊ HUỶ.
+	 *
+	 * Sửa một con số tiền thì không có lý gì bắt kế toán soát lại toàn bộ bảng hàng hoá.
+	 *
+	 * ⚠️ Chữ ký GỘP (đời một-chữ-ký) tính là ký cả hai phần, nên sửa phần nào cũng phải xoá
+	 *    nó — không thì nó HỒI SINH chữ ký vừa bị huỷ. Nhưng phải cấp lại chữ ký riêng cho
+	 *    phần KHÔNG bị sửa, không thì xoá gộp là mất luôn cả chữ ký của phần người ta không
+	 *    đụng tới.
+	 *
+	 * ⚠️ Huỷ chữ ký thì báo cáo KHÔNG CÒN HOÀN TẤT — trả nó về "chờ duyệt". Để nguyên
+	 *    `HOAN_TAT` là một báo cáo hoàn tất mà thiếu chữ ký, và mọi phép đếm sau đó tin nó.
+	 */
+	public static function reset_chu_ky( $head, $phan_doi, $nguoi ) {
+		if ( ! $phan_doi ) { return array(); }
+		$k = self::chu_ky( $head );
+		$f = array(); $msg = array();
+
+		$sua_tien = in_array( self::PHAN_TIEN, $phan_doi, true );
+		$sua_hang = in_array( self::PHAN_HANG, $phan_doi, true );
+
+		if ( $sua_tien && '' !== $k['rev']['by'] ) {
+			$f['apprRevBy'] = ''; $f['apprRevAt'] = null; $msg[] = 'doanh thu';
+		}
+		if ( $sua_hang && '' !== $k['stock']['by'] ) {
+			$f['apprStockBy'] = ''; $f['apprStockAt'] = null; $msg[] = 'hàng hoá';
+		}
+		if ( ! $msg ) { return array(); }
+
+		$gop = VHJP_Doc::str( isset( $head['apprBy'] ) ? $head['apprBy'] : '' );
+		if ( '' !== $gop ) {
+			$luc = VHJP_Doc::str( isset( $head['apprAt'] ) ? $head['apprAt'] : '' );
+			if ( '' === $luc ) { $luc = gmdate( 'Y-m-d H:i:s', time() + 7 * 3600 ); }
+			$f['apprBy'] = ''; $f['apprAt'] = null;
+			if ( ! $sua_tien ) { $f['apprRevBy'] = $gop;   $f['apprRevAt'] = $luc; }
+			if ( ! $sua_hang ) { $f['apprStockBy'] = $gop; $f['apprStockAt'] = $luc; }
+		}
+
+		if ( self::TT_HOAN_TAT === VHJP_Doc::str( $head['status'] ) ) {
+			$f['status'] = self::TT_CHO_DUYET;
+		}
+
+		VHJP_Nguon::sua( 'JP_Reports', $head['id'], $f );
+		VHJP_NhatKy::ghi( $nguoi, 'RESET_SIGN', $head['id'],
+			VHJP_Doc::str( isset( $head['locationName'] ) ? $head['locationName'] : '' ),
+			'Huỷ chữ ký: ' . implode( ', ', $msg ) );
+		return $msg;
+	}
+
 	/* ═══════════════════════ TIỆN ═══════════════════════ */
 
 	/**
