@@ -21,6 +21,30 @@ File Excel hiện tại **không có cột nào đánh dấu tiền đã đi hay
 | 419 mã bộ phận cho ~20 bộ phận thật (`FZ SC-gà rán`, `FZ SC-nước đá`) | Tách thành bộ phận + khoản mục |
 | Dòng cộng, dòng trống, số tài khoản bị Excel đổi thành số thực (`22789677.0`) | Bỏ / chuẩn hoá |
 
+## Bản WordPress (khuyên dùng khi cả bộ phận cùng tra)
+
+Thư mục `khunc-uy-nhiem-chi/` là **plugin WordPress** dùng chung toàn bộ giao diện ở đây, nhưng
+dữ liệu nằm trong MySQL nên **cả bộ phận thấy cùng một bộ số**: kế toán nhập Excel một lần, ai mở
+trang cũng thấy; đánh dấu ở máy này thì máy kia tải lại là thấy. Đăng nhập PIN, 3 vai trò
+**Admin** (mọi thứ + quản lý người dùng) · **Kế toán** (nhập Excel, đánh dấu) · **Xem** (chỉ tra
+cứu và in — mọi nút ghi tự ẩn). Có nhật ký thao tác và tự cập nhật từ nhánh GitHub.
+
+Sửa giao diện ở đây rồi chạy `python3 khunc-uy-nhiem-chi/tools/dong-bo-giao-dien.py` để chép sang
+plugin (CI kiểm tra lệch). Chạy thử không cần WordPress:
+`php -S 127.0.0.1:8088 khunc-uy-nhiem-chi/tools/dev/router.php` → `/uy-nhiem-chi/` (PIN 1111).
+
+Cài bằng zip từ Releases (`khunc-uy-nhiem-chi-vX.Y.Z`). Xem `khunc-uy-nhiem-chi/readme.txt`.
+
+Khác nhau giữa hai bản:
+
+| | Bản tĩnh (thư mục này) | Bản WordPress |
+|---|---|---|
+| Dữ liệu ở đâu | Trình duyệt của từng người | MySQL, dùng chung |
+| Ai nhập Excel | Ai cũng phải tự nhập | Kế toán nhập một lần |
+| Đánh dấu "đã đi tiền" | Chỉ máy đó thấy | Mọi người thấy |
+| Đăng nhập | Không | PIN, 3 vai trò |
+| Cần gì | Chỉ trình duyệt | Hosting WordPress |
+
 ## Mở ứng dụng
 
 Cách 1 — mở trực tiếp: tải thư mục `web_uynhiemchi/` về máy, mở `index.html` bằng Chrome / Edge.
@@ -140,6 +164,8 @@ nhầm là dòng `Cộng`, và khoá dòng phải ổn định giữa 2 lần nh
 | `exporter.js` | Xuất Excel 7 sheet |
 | `mau.js` | Dựng 7 mẫu biểu in A4 |
 | `app.js` | Giao diện: tab, lọc, bảng, đánh dấu hàng loạt, ngăn chi tiết |
+| `api.js` | Lớp gọi máy chủ — chế độ `local` (bản tĩnh) hoặc `wp` (plugin), tự đổi đường khi tường lửa chặn |
+| `wp-ui.js` | Phần chỉ có ở bản WordPress: cổng PIN, hộp tài khoản, quản lý người dùng |
 | `sample-data.js` | Dữ liệu mẫu để xem thử — **toàn bộ là số liệu bịa** |
 | `vendor/xlsx.full.min.js` | SheetJS kèm sẵn, không gọi mạng |
 

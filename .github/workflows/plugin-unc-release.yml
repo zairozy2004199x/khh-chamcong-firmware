@@ -1,0 +1,71 @@
+# Phát hành plugin WordPress "Ủy Nhiệm Chi & Công Nợ (K&H)" lên GitHub Releases.
+#
+# Mỗi lần push vào main có đổi khunc-uy-nhiem-chi/ hoặc web_uynhiemchi/:
+#   1. chạy test engine, kiểm plugin đã đồng bộ giao diện (tools/dong-bo-giao-dien.py --check),
+#      lint PHP, kiểm số phiên bản khớp nhau;
+#   2. nếu tag khunc-uy-nhiem-chi-v<phiên bản> CHƯA có → dựng zip đúng tên thư mục plugin và tạo Release.
+# Plugin trên WordPress tự thấy bản mới (KHUNC_TuCapNhat) và bày nút "Cập nhật ngay".
+# Tag riêng theo tiền tố nên không đụng release của firmware hay của plugin Báo Cáo Chi Phí.
+name: Phát hành plugin Ủy nhiệm chi
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'khunc-uy-nhiem-chi/**'
+      - 'web_uynhiemchi/**'
+      - '.github/workflows/plugin-unc-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Kiểm thử engine
+        run: node web_uynhiemchi/test/engine.test.js
+
+      - name: Plugin đã đồng bộ giao diện chưa
+        run: python3 khunc-uy-nhiem-chi/tools/dong-bo-giao-dien.py --check
+
+      - name: Lint PHP
+        run: |
+          for f in $(find khunc-uy-nhiem-chi -name '*.php'); do php -l "$f" >/dev/null || exit 1; done
+
+      - name: Đọc phiên bản
+        id: ver
+        run: |
+          V=$(bash khunc-uy-nhiem-chi/tools/kiem-phien-ban.sh)
+          echo "ver=$V" >> "$GITHUB_OUTPUT"
+          echo "tag=khunc-uy-nhiem-chi-v$V" >> "$GITHUB_OUTPUT"
+          if git ls-remote --exit-code --tags origin "refs/tags/khunc-uy-nhiem-chi-v$V" >/dev/null 2>&1; then
+            echo "exists=1" >> "$GITHUB_OUTPUT"; echo "Tag đã có — không phát hành lại."
+          else
+            echo "exists=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Dựng zip plugin
+        if: steps.ver.outputs.exists == '0'
+        run: |
+          rm -rf _pkg && mkdir _pkg
+          # Loai tools/dev: do phat trien, len may chu that thi vua thua vua la ma chay duoc
+          # nam trong thu muc plugin dang chay.
+          rsync -a --exclude 'tools/dev' khunc-uy-nhiem-chi/ _pkg/khunc-uy-nhiem-chi/
+          (cd _pkg && zip -qr ../khunc-uy-nhiem-chi.zip khunc-uy-nhiem-chi)
+          ls -la khunc-uy-nhiem-chi.zip
+
+      - name: Tạo Release
+        if: steps.ver.outputs.exists == '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          NOTES=$(awk '/^== Changelog ==/{f=1;next} f' khunc-uy-nhiem-chi/readme.txt | head -40)
+          gh release create "${{ steps.ver.outputs.tag }}" khunc-uy-nhiem-chi.zip \
+            --title "Ủy Nhiệm Chi ${{ steps.ver.outputs.ver }}" \
+            --notes "$NOTES"
