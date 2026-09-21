@@ -124,11 +124,14 @@ const DS = [
   { ten: 'VPP', khoi: 'vp' },
 ];
 /* Chạy lại đúng vòng gom hàng của `renderTkNoMatrix()`, không chép tay luật. */
-const ctx2 = { CFG: { loaiChiPhi: DS }, BOOT: { khoiBan: 'kvc' }, window: {}, rows: [], seen: {} };
+const ctx2 = { CFG: { loaiChiPhi: DS }, BOOT: { khoiBan: 'kvc' }, window: {}, rows: [], seen: {}, coTen: {} };
 ctx2.window.BOOT = ctx2.BOOT;
 vm.createContext(ctx2);
 vm.runInContext(bocHam('_khoiCuaLoai'), ctx2);
-const VONG = VE.slice(VE.indexOf('var rows=[], seen={};'), VE.indexOf('var mx={};'));
+/* ⚠️ Mốc bốc bám ĐẦU dòng khai, không bám nguyên văn `var rows=[], seen={};`: từ 21/09/2026
+   dòng ấy khai thêm `coTen` (chữa lỗi "xoá xong nó vẫn còn" — xem
+   `kiem-xoa-loai-khong-moc-lai.js`). Bám nguyên văn là mỗi lần thêm một biến lại đỏ oan. */
+const VONG = VE.slice(VE.indexOf('var rows=[], seen={}'), VE.indexOf('var mx={};'));
 t('bốc được vòng gom hàng để chạy', VONG.length > 60, VONG.length);
 vm.runInContext(VONG, ctx2);
 teq('🔴 gom đủ 4 dòng — "Chi phí khác" của MTĐ KHÔNG bị nuốt', 4, ctx2.rows.length);

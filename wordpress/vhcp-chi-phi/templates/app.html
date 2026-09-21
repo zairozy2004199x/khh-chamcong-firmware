@@ -34,7 +34,7 @@
        padding:7px 14px;gap:10px;align-items:center;flex-wrap:wrap;font-size:12px">
     <b style="color:#92400e">👁 Xem như</b>
     <select id="glVai" onchange="glDoi()" style="font-size:12px"></select>
-    <select id="glBp"  onchange="glDoi()" style="font-size:12px"></select>
+    <select id="glKhoi" onchange="glDoi()" style="font-size:12px"></select>
     <span id="glDangXem" style="color:#92400e;font-weight:700"></span>
     <button class="btn b-x" onclick="glThoat()" style="padding:3px 10px;font-size:11.5px">✖ Thôi, về tài khoản của tôi</button>
     <span style="color:#92400e;opacity:.85">Chỉ đổi những gì MÀN HÌNH bày ra. Máy chủ vẫn biết anh là Admin —
@@ -2400,6 +2400,10 @@
    *    được thử, và mọi thứ sau đó đều lệch mà không ai biết vì sao.
    * ══════════════════════════════════════════════════════════════════════════════════════ */
   var GL_GOC=null;   // bản sao CURUSER thật; khác null = đang xem như người khác
+  /* Bản gốc của hai thứ `_glDat()` sẽ động vào ngoài CURUSER — `BOOT.khoiXem` là dữ liệu
+     MÁY CHỦ gửi xuống, `KHOI_DANG` là khối đang đứng. Không giữ thì lượt "Thôi, về tài khoản
+     của tôi" trả được vai nhưng không trả được khối. */
+  var GL_KHOIXEM=null, GL_KHOIDANG=null;
 
   /** Đang xem như người khác không. */
   function glDangBat(){ return !!GL_GOC; }
@@ -2415,48 +2419,75 @@
       sv.innerHTML='<option value="">— vai: như tôi —</option>'
         +['Admin'].concat(VAI_GOC).map(function(v){ return '<option value="'+esc(v)+'">'+esc(v)+'</option>'; }).join('');
     }
-    var sb=el('glBp');
-    if(sb){
-      /* Danh sách bộ phận lấy từ máy chủ (`BOOT.boPhanDs`) — gõ cứng ở đây là hai nơi lệch
-         nhau, mà lệch nghĩa là thử một bộ phận không tồn tại rồi kết luận nhầm. */
-      var ds=(BOOT&&BOOT.boPhanDs)||[];
-      var cu=sb.value;
-      sb.innerHTML='<option value="">— bộ phận: như tôi —</option>'
-        +'<option value="__trong__">(để TRỐNG — chưa khai bộ phận)</option>'
-        +ds.map(function(v){ return '<option value="'+esc(v)+'">'+esc(v)+'</option>'; }).join('');
-      if(cu){ for(var i=0;i<sb.options.length;i++){ if(sb.options[i].value===cu){ sb.value=cu; break; } } }
+    /* ══════════════════════════════════════════════════════════════════════════════════════
+     * Ô THỨ HAI LÀ KHỐI, KHÔNG PHẢI BỘ PHẬN.
+     *
+     * Anh Thắng 21/09/2026: *"Chỗ bộ phận anh không dùng, để khối MTĐ · KVC · VP để anh test
+     * hệ thống"*.
+     *
+     * 🔴 Ô BỘ PHẬN LÀ TÀN DƯ. Cột Bộ phận đã rời khỏi bảng Người dùng từ 21/09 (*"bỏ tích bộ
+     *    phận đi, mà tích theo vai trò"*), nên ô ấy thử một trục KHÔNG CÒN AI KHAI — xem như
+     *    một bộ phận rồi kết luận "chạy đúng" là kết luận về một thứ không tồn tại nữa.
+     * 🔴 CÒN KHỐI MỚI LÀ TRỤC ĐANG SỐNG: nó quyết định luồng (`LUONG_CHI`), bảng mã, hộp Gian,
+     *    dải luồng, và cả việc ai được xuất MISA. Muốn thử hệ thống thì phải đứng được ở đây.
+     *
+     * ⚠️ DANH SÁCH LẤY TỪ `KHOI_DS`, cùng nguồn với thanh KHỐI — gõ cứng ba mã ở đây là hai nơi
+     *    lệch nhau, mà lệch nghĩa là thử một khối không tồn tại rồi kết luận nhầm.
+     * ══════════════════════════════════════════════════════════════════════════════════════ */
+    var sk=el('glKhoi');
+    if(sk){
+      var cu=sk.value;
+      sk.innerHTML='<option value="">— khối: như tôi —</option>'
+        +KHOI_DS.map(function(k){ return '<option value="'+esc(k.ma)+'">'+esc(k.ten)+'</option>'; }).join('');
+      if(cu){ for(var i=0;i<sk.options.length;i++){ if(sk.options[i].value===cu){ sk.value=cu; break; } } }
     }
   }
 
-  /** Đặt vai + bộ phận đang xem thử rồi vẽ lại cả màn. */
-  function _glDat(vai, bp){
-    if(!GL_GOC){ GL_GOC=JSON.parse(JSON.stringify(CURUSER||{})); }
+  /** Đặt vai + khối đang xem thử rồi vẽ lại cả màn. */
+  function _glDat(vai, khoi){
+    if(!GL_GOC){
+      GL_GOC=JSON.parse(JSON.stringify(CURUSER||{}));
+      /* 🔴 CHỤP LẠI CẢ HAI THỨ MÌNH SẮP ĐỘNG VÀO. `BOOT.khoiXem` là dữ liệu MÁY CHỦ gửi xuống,
+         không phải của người dùng — sửa nó mà không giữ bản gốc thì "Thôi, về tài khoản của
+         tôi" trả được vai nhưng KHÔNG trả được khối, và Admin kẹt ở một khối cho tới lúc tải
+         lại trang. Cùng lý do phải giữ `KHOI_DANG`. */
+      GL_KHOIXEM=(window.BOOT&&BOOT.khoiXem)?BOOT.khoiXem.slice():null;
+      GL_KHOIDANG=KHOI_DANG;
+    }
     var u=JSON.parse(JSON.stringify(GL_GOC));
     if(vai){ u.role=vai; u.roleGoc=vai; }
-    if(bp==='__trong__'){ u.boPhan=''; }
-    else if(bp){ u.boPhan=bp; }
     CURUSER=u;
-    var nhan=(vai||GL_GOC.role)+( (bp==='__trong__') ? ' · (không bộ phận)' : (bp?(' · '+bp):'') );
+    /* Xem như một khối = mô phỏng NGƯỜI CHỈ THUỘC KHỐI ẤY, không phải chỉ đổi tab đang chọn:
+       thanh KHỐI còn đúng một nút, và mọi màn lọc theo nó. Đó mới là thứ đáng thử. */
+    if(khoi){ if(window.BOOT) BOOT.khoiXem=[khoi]; KHOI_DANG=khoi; }
+    else    { if(window.BOOT) BOOT.khoiXem=GL_KHOIXEM; KHOI_DANG=GL_KHOIDANG; }
+    var nhan=(vai||GL_GOC.role)+(khoi?(' · '+_tenKhoi(khoi)):'');
     var d=el('glDangXem'); if(d) d.textContent='→ đang xem như: '+nhan;
     applyPerms();
+    try{ veThanhKhoi(); }catch(e){}
     showPage(defaultPageFor(_vaiLuat()));
   }
 
   function glDoi(){
-    var vai=String((el('glVai')&&el('glVai').value)||'');
-    var bp =String((el('glBp')&&el('glBp').value)||'');
-    if(!vai && !bp){ glThoat(); return; }
-    _glDat(vai, bp);
+    var vai =String((el('glVai')&&el('glVai').value)||'');
+    var khoi=String((el('glKhoi')&&el('glKhoi').value)||'');
+    if(!vai && !khoi){ glThoat(); return; }
+    _glDat(vai, khoi);
   }
 
   /** Trả lại tài khoản thật, nguyên vẹn. */
   function glThoat(){
     if(!GL_GOC) return;
     CURUSER=GL_GOC; GL_GOC=null;
-    if(el('glVai')) el('glVai').value='';
-    if(el('glBp'))  el('glBp').value='';
+    /* Trả NGUYÊN VẸN cả khối — xem chốt ở `_glDat()`. */
+    if(window.BOOT) BOOT.khoiXem=GL_KHOIXEM;
+    if(GL_KHOIDANG) KHOI_DANG=GL_KHOIDANG;
+    GL_KHOIXEM=null; GL_KHOIDANG=null;
+    if(el('glVai'))  el('glVai').value='';
+    if(el('glKhoi')) el('glKhoi').value='';
     var d=el('glDangXem'); if(d) d.textContent='';
     applyPerms();
+    try{ veThanhKhoi(); }catch(e){}
     showPage(defaultPageFor(_vaiLuat()));
     toast('ok','Đã về tài khoản của anh/chị');
   }
@@ -3521,8 +3552,9 @@
     loading(true);
     google.script.run.withSuccessHandler(function(b){
       BOOT=b||BOOT; loading(false); _applyTabPerms();   // mở tab theo phân quyền vừa nạp
-      /* Ô chọn bộ phận của dải 👁 Xem như lấy từ `BOOT.boPhanDs`, mà `BOOT` chỉ có SAU lượt
-         này — dựng ở `onLoggedIn()` là dựng lúc danh sách còn rỗng. */
+      /* Dải 👁 Xem như phải dựng lại SAU khi có `BOOT`: ô khối đọc `KHOI_DS` (hằng, có sẵn),
+         nhưng `_khoiDuoc()` và nhãn khối thì đọc `BOOT` — dựng ở `onLoggedIn()` là dựng lúc
+         gói khởi động còn rỗng. */
       glDung();
       var isNV=(_vaiLuat()==='Nhân viên');
       var myCoso=String((CURUSER&&CURUSER.coso)||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
@@ -11701,21 +11733,41 @@
        thay vì 2. Mà cho phép mỗi khối một dòng cùng tên CHÍNH LÀ điều anh Thắng muốn:
        *"chia ra 3 bảng của 3 khối, để tránh dùng chung"*. Khử theo tên là giữ nguyên cái dùng
        chung, chỉ khác là nay nó biến mất hẳn thay vì bày ra ba chỗ. */
-    var rows=[], seen={};
+    var rows=[], seen={}, coTen={};
     (CFG.loaiChiPhi||[]).forEach(function(x){
       var t=String(x.ten||'').trim(); if(!t) return;
       var k=_khoiCuaLoai(x)+'|'+t.toLowerCase();
       if(seen[k]) return;
-      seen[k]=1; rows.push(x);
+      seen[k]=1; coTen[t.toLowerCase()]=1; rows.push(x);
     });
     var mx={};
     (CFG.tkNoMatrix||[]).forEach(function(x){
       var n=String(x.nhom||'').trim();
       mx[n+'|'+String(x.pll||'').trim()]=x.tkNo||'';
-      /* Hàng chỉ còn trong bảng mã (danh mục đã xoá) — cho về khối đang chọn để nó còn sửa
-         được, chứ không rơi khỏi cả ba bảng. */
+      /* ══════════════════════════════════════════════════════════════════════════════════════
+       * HÀNG CHỈ CÒN TRONG BẢNG MÃ (danh mục đã xoá) — dựng lại để nó còn sửa được, chứ không
+       * rơi khỏi cả ba bảng.
+       *
+       * 🔴 NHƯNG CHỈ KHI TÊN ẤY KHÔNG CÒN Ở KHỐI NÀO CẢ. Anh Thắng 21/09/2026: *"Bấm xóa xong
+       *    lưu, xong mở lại nó vẫn còn"* — kèm ảnh bảng Văn phòng mọc ra "Chi Phí Khác MTĐ",
+       *    "Chi phí marketing", "Chi phí setup"…
+       *
+       *    Bản trước dò `seen[KHOI_DANG|tên]`, tức hỏi "khối ĐANG ĐỨNG đã có tên này chưa".
+       *    Một loại khai ở MTĐ thì khoá của nó là `mtd|…`, nên đứng ở VP là câu trả lời "chưa
+       *    có" — và bảng VP mọc ra một DÒNG MA mang đúng tên ấy. Xoá dòng ma rồi Lưu cũng vô
+       *    ích: danh mục vẫn còn bản thật ở MTĐ, bảng mã vẫn còn mã của nó, nên lượt vẽ sau nó
+       *    mọc lại. Người dùng thấy đúng một điều: xoá không ăn.
+       *
+       *    Hỏi theo TÊN (`coTen`) thì loại đã có ở bất kỳ khối nào cũng không bị dựng thêm bản
+       *    thứ hai. Chỉ tên MỒ CÔI thật — không còn dòng danh mục nào — mới được dựng lại.
+       *
+       * ⚠️ KHOÁ THEO TÊN Ở ĐÂY LÀ CỐ Ý, dù `seen` khoá theo `khối|tên`. Hai câu hỏi khác nhau:
+       *    `seen` hỏi "ô này đã vẽ chưa" (được phép hai khối cùng tên — đó là ý *"tránh dùng
+       *    chung"*), còn đây hỏi "tên này còn sống ở đâu đó không". Dùng chung một bảng là đúng
+       *    cái lỗi vừa sửa.
+       * ══════════════════════════════════════════════════════════════════════════════════════ */
       var k=String(KHOI_DANG||'kvc').toLowerCase()+'|'+n.toLowerCase();
-      if(n&&!seen[k]){ seen[k]=1; rows.push({ten:n, khoi:String(KHOI_DANG||'kvc').toLowerCase()}); }
+      if(n&&!coTen[n.toLowerCase()]&&!seen[k]){ seen[k]=1; coTen[n.toLowerCase()]=1; rows.push({ten:n, khoi:String(KHOI_DANG||'kvc').toLowerCase()}); }
     });
     if(!cols.length){ box.innerHTML='<div style="color:#8c8781;font-size:12px;padding:6px 0">Chưa có cơ sở nào — khai bảng Cơ sở phía trên & Lưu trước, các cột mảng sẽ hiện ra.</div>'; return; }
     if(!rows.length){ box.innerHTML='<div style="color:#8c8781;font-size:12px;padding:6px 0">Chưa có loại chi phí nào — bấm <b>＋ Thêm loại</b>, hoặc khai bằng thẻ 🆕 Khai mã chi phí phía trên.</div>'; return; }
