@@ -37,6 +37,7 @@ khẩu riêng. Bớt một chỗ giữ mật khẩu là bớt một chỗ có th
 | Chi phí | Ghi khoản chi theo bộ phận × khoản mục; bảng cộng chéo; lọc; danh mục sửa tại chỗ |
 | Đối soát chi phí | Ghép chứng từ chi phí với dòng chi trong sao kê |
 | Hoá đơn đầu ra | Dán vào / xuất ra đúng 22 cột file VAT; gom theo thuế suất, khu vực, dịch vụ |
+| Công nợ | Phải thu / phải trả, tuổi nợ theo mốc, ghi trả từng đợt, tự ghép từ sao kê |
 | Nhật ký | Ai làm gì lúc nào; khoá sổ theo ngày; phục hồi bản ghi đã xoá |
 | Sao lưu | Tải cả kho ra .json, nhập lại được |
 
@@ -130,6 +131,63 @@ lại VAT = 0.
 
 Dòng nào trong file gốc có `chưa VAT + VAT ≠ có VAT` thì lấy hai số đầu làm gốc,
 tính lại có VAT, và **đếm số dòng như vậy để báo lên** — không sửa lặng lẽ.
+
+## Công nợ
+
+Phải thu dựng từ hoá đơn đầu ra, phải trả dựng từ chi phí chuyển khoản. Chia
+theo mốc tuổi nợ **1–30 / 31–60 / 61–90 / trên 90 ngày**, gom theo khách hàng
+và nhà cung cấp — mở bảng ra là thấy ngay phải gọi ai trước.
+
+Chi **tiền mặt không vào sổ công nợ**: trả ngay tại chỗ thì không nợ ai.
+
+Tuổi nợ tính từ **hạn thanh toán** nếu chứng từ có ghi, không có thì từ ngày
+chứng từ. Hai cách cho ra bảng rất khác nhau: nhà cung cấp cho nợ 30 ngày mà
+tính từ ngày hoá đơn thì hôm nộp hàng đã thành "quá hạn 1 ngày".
+
+### Một sổ thanh toán duy nhất
+
+Mọi đồng tiền trả cho một chứng từ — gõ tay hay do đối soát tự ghép — đều là
+một dòng trong bảng `thanh_toan`. Còn nợ **luôn** bằng:
+
+```
+tổng chứng từ − tổng các dòng thanh toán của nó
+```
+
+Không lưu sẵn "đã trả" ở đâu cả. Bản 0.5 còn dùng cờ `chi_phi.giao_dich_id`
+cho việc này; 0.6 bỏ, vì hai nguồn sự thật về việc đã trả hay chưa thì sớm muộn
+lệch nhau và lúc đó không ai biết bên nào đúng. Màn hình Chi phí và màn hình
+Công nợ giờ đọc cùng một chỗ — có một phép kiểm đứng đúng ở chỗ này.
+
+Không ghi trả **quá số còn nợ**. Trả thừa không phải chuyện không xảy ra, nhưng
+nó là một khoản khác (đặt cọc, ghi nhầm); cho vào đây thì bảng công nợ ra số
+dương giả và không dò ra từ đâu.
+
+### Phép đoán ghép — khác hẳn đối soát cổng
+
+Thử dùng lại `KHTC_DoiSoat::ghep()` cho công nợ là **sai**, và đã sai thật khi
+làm: phép kia ghép theo ngày gần nhau, dung sai 3 ngày — đúng cho cổng chốt
+T+2, T+3. Công nợ thì ngược hẳn: khách nhận hoá đơn đầu tháng, trả cuối tháng
+sau, cách nhau 40 ngày là bình thường. Ép dùng phép kia thì gần như không ghép
+được gì.
+
+`KHTC_CongNo::doan_ghep()` có luật riêng, và luật nào cũng chỉ ghép khi **không
+còn cách hiểu nào khác**:
+
+1. Số chứng từ xuất hiện trong mã giao dịch hoặc diễn giải sao kê, và số tiền
+   đúng bằng phần còn nợ.
+2. Số tiền đúng bằng phần còn nợ, và trong cả danh sách chỉ có **đúng một**
+   chứng từ mang số tiền đó.
+
+Luật 2 bắt buộc phải duy nhất. Hai hoá đơn cùng còn nợ 5.400.000 mà đoán bừa
+thì đóng nhầm cái này, để hở cái kia — kế toán đi đòi nhầm người, và không có
+gì trên màn hình cho thấy đã đoán sai.
+
+Tiền chỉ trả cho chứng từ phát sinh **trước hoặc cùng ngày**; không có giới hạn
+"cách bao nhiêu ngày". Trả gộp nhiều chứng từ hay trả làm nhiều đợt thì phải
+ghi tay — đoán sai một khoản trả gộp còn tệ hơn không đoán.
+
+Chạy lại thì các dòng **tự ghép** trong kỳ bị dọn và làm lại; dòng ghi tay giữ
+nguyên.
 
 ## Khoá sổ và nhật ký
 
@@ -255,6 +313,7 @@ php tools/kh-tai-chinh/tests/kiem-man-hinh.php   # 44 phép thử
 php tools/kh-tai-chinh/tests/kiem-chi-phi.php    # 68 phép thử
 php tools/kh-tai-chinh/tests/kiem-hoa-don.php    # 128 phép thử
 php tools/kh-tai-chinh/tests/kiem-khoa-nhat-ky.php   # 59 phép thử
+php tools/kh-tai-chinh/tests/kiem-cong-no.php    # 80 phép thử
 ```
 
 `dong-goi.sh` chạy cả ba trước khi gói, hỏng một phép là không ra file zip.
@@ -279,6 +338,11 @@ php tools/kh-tai-chinh/tests/kiem-khoa-nhat-ky.php   # 59 phép thử
 * **kiem-khoa-nhat-ky** — đi thử **từng lối ghi một** vào kỳ đã khoá, kể cả lối
   vòng (xoá tài khoản kéo theo xoá giao dịch, phục hồi từ nhật ký). Một lối
   quên kiểm tra là cả tính năng thành trang trí.
+* **kiem-cong-no** — trả làm nhiều đợt, chặn trả thừa, tuổi nợ theo mốc, và
+  `doan_ghep()` kiểm riêng như một hàm thuần: hai chứng từ cùng số tiền thì
+  phải im lặng, không trả cho chứng từ chưa phát sinh, một dòng sao kê chỉ đóng
+  được một chứng từ. Cộng một phép kiểm buộc màn hình Chi phí và màn hình Công
+  nợ nói cùng một con số.
 
 Bộ giả lập **không thay được bản cài thật**: SQLite không phải MySQL, `dbDelta`
 bị bỏ qua và bảng được tạo tay, nên lỗi riêng của MySQL vẫn lọt. Nó bắt được hàm

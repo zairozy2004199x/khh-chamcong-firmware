@@ -22,6 +22,7 @@ class KHTC_Trang {
 			case 'chi-phi':   self::chi_phi();   break;
 			case 'doi-soat-chi-phi': self::doi_soat_chi_phi(); break;
 			case 'hoa-don-ra': self::hoa_don_ra(); break;
+			case 'cong-no':   self::cong_no();   break;
 			case 'nhat-ky':   self::nhat_ky();   break;
 			case 'sao-luu':   self::sao_luu();   break;
 			default:          self::tong_quan(); break;
@@ -59,8 +60,8 @@ class KHTC_Trang {
 	public static function tong_quan() {
 		KHTC_UI::nhan_doi_cty();
 		$nh    = KHTC_NganHang::ds_kem_so_du();
-		$now   = current_time( 'Y-m' );
-		$thang = KHTC_GiaoDich::loc( array( 'tu' => $now . '-01', 'den' => $now . '-31' ) );
+		list( $d1, $d2 ) = KHTC_UI::thang_nay();
+		$thang = KHTC_GiaoDich::loc( array( 'tu' => $d1, 'den' => $d2 ) );
 
 		$tong_du = 0;
 		foreach ( $nh as $b ) { $tong_du += $b->so_du; }
@@ -665,10 +666,10 @@ class KHTC_Trang {
 		$bo_phan   = KHTC_ChiPhi::danh_muc( 'bo_phan' );
 		$khoan_muc = KHTC_ChiPhi::danh_muc( 'khoan_muc' );
 
-		$thang = current_time( 'Y-m' );
+		list( $d1, $d2 ) = KHTC_UI::thang_nay();
 		$loc   = array(
-			'tu'        => sanitize_text_field( wp_unslash( $_GET['tu'] ?? ( $thang . '-01' ) ) ),
-			'den'       => sanitize_text_field( wp_unslash( $_GET['den'] ?? ( $thang . '-31' ) ) ),
+			'tu'        => sanitize_text_field( wp_unslash( $_GET['tu'] ?? $d1 ) ),
+			'den'       => sanitize_text_field( wp_unslash( $_GET['den'] ?? $d2 ) ),
 			'bo_phan'   => sanitize_text_field( wp_unslash( $_GET['bp'] ?? '' ) ),
 			'khoan_muc' => sanitize_text_field( wp_unslash( $_GET['km'] ?? '' ) ),
 			'da_tra'    => isset( $_GET['tra'] ) ? sanitize_text_field( wp_unslash( $_GET['tra'] ) ) : '',
@@ -842,9 +843,9 @@ class KHTC_Trang {
 	public static function doi_soat_chi_phi() {
 		KHTC_UI::nhan_doi_cty();
 		$ngan_hang = KHTC_NganHang::ds();
-		$thang = current_time( 'Y-m' );
-		$tu  = sanitize_text_field( wp_unslash( $_GET['tu'] ?? ( $thang . '-01' ) ) );
-		$den = sanitize_text_field( wp_unslash( $_GET['den'] ?? ( $thang . '-31' ) ) );
+		list( $d1, $d2 ) = KHTC_UI::thang_nay();
+		$tu  = sanitize_text_field( wp_unslash( $_GET['tu'] ?? $d1 ) );
+		$den = sanitize_text_field( wp_unslash( $_GET['den'] ?? $d2 ) );
 		$nh  = (int) ( $_GET['nh'] ?? 0 );
 		$chay = isset( $_GET['chay'] );
 
@@ -1063,10 +1064,10 @@ class KHTC_Trang {
 			if ( is_wp_error( $kq ) ) { $bao_loi = $kq->get_error_message(); } else { $bao_ok = 'Đã xoá hoá đơn. Phục hồi được ở mục Nhật ký.'; }
 		}
 
-		$thang = current_time( 'Y-m' );
+		list( $d1, $d2 ) = KHTC_UI::thang_nay();
 		$loc   = array(
-			'tu'        => sanitize_text_field( wp_unslash( $_GET['tu'] ?? ( $thang . '-01' ) ) ),
-			'den'       => sanitize_text_field( wp_unslash( $_GET['den'] ?? ( $thang . '-31' ) ) ),
+			'tu'        => sanitize_text_field( wp_unslash( $_GET['tu'] ?? $d1 ) ),
+			'den'       => sanitize_text_field( wp_unslash( $_GET['den'] ?? $d2 ) ),
 			'khu_vuc'   => sanitize_text_field( wp_unslash( $_GET['kv'] ?? '' ) ),
 			'dich_vu'   => sanitize_text_field( wp_unslash( $_GET['dv'] ?? '' ) ),
 			'thue_suat' => sanitize_text_field( wp_unslash( $_GET['ts'] ?? '' ) ),
@@ -1332,5 +1333,191 @@ class KHTC_Trang {
 		}
 		echo '<p class="khtc-sub">Xoá một bản ghi là giữ lại nguyên văn nó trong nhật ký, nên bấm <strong>Phục hồi</strong> là đặt lại đúng bản cũ, đúng id cũ — các bảng khác trỏ vào nó vẫn nối đúng. Dán hàng loạt chỉ ghi một dòng tổng kết, không ghi từng dòng, nếu không nhật ký to hơn cả sổ.</p>';
 		echo '</div></div>';
+	}
+
+	// -------------------------------------------------------------- công nợ
+
+	public static function cong_no() {
+		KHTC_UI::nhan_doi_cty();
+		$bao_ok = '';
+		$bao_loi = '';
+
+		$loai = sanitize_text_field( wp_unslash( $_GET['loai'] ?? ( $_POST['loai'] ?? 'thu' ) ) );
+		$loai = isset( KHTC_CongNo::loai()[ $loai ] ) ? $loai : 'thu';
+		$c    = KHTC_CongNo::mot_loai( $loai );
+
+		if ( isset( $_POST['khtc_tra'] ) && check_admin_referer( 'khtc_cn' ) ) {
+			$kq = KHTC_CongNo::ghi(
+				$c['bang'],
+				(int) ( $_POST['chung_tu_id'] ?? 0 ),
+				sanitize_text_field( wp_unslash( $_POST['ngay_tra'] ?? '' ) ),
+				sanitize_text_field( wp_unslash( $_POST['so_tien_tra'] ?? '' ) ),
+				0,
+				sanitize_text_field( wp_unslash( $_POST['ghi_chu_tra'] ?? '' ) )
+			);
+			if ( is_wp_error( $kq ) ) { $bao_loi = $kq->get_error_message(); } else { $bao_ok = 'Đã ghi thanh toán.'; }
+		}
+
+		if ( isset( $_POST['khtc_xoa_tt'] ) && check_admin_referer( 'khtc_cn' ) ) {
+			$kq = KHTC_CongNo::xoa( (int) $_POST['khtc_xoa_tt'] );
+			if ( is_wp_error( $kq ) ) { $bao_loi = $kq->get_error_message(); } else { $bao_ok = 'Đã xoá dòng thanh toán.'; }
+		}
+
+		if ( isset( $_POST['khtc_tu_ghep'] ) && check_admin_referer( 'khtc_cn' ) ) {
+			$kq = KHTC_CongNo::tu_ghep(
+				$loai,
+				KHTC_GiaoDich::doc_ngay( wp_unslash( $_POST['ghep_tu'] ?? '' ) ),
+				KHTC_GiaoDich::doc_ngay( wp_unslash( $_POST['ghep_den'] ?? '' ) ),
+				(int) ( $_POST['ghep_nh'] ?? 0 )
+			);
+			if ( is_wp_error( $kq ) ) {
+				$bao_loi = $kq->get_error_message();
+			} else {
+				$bao_ok = sprintf( 'Ghép được %d chứng từ, tổng %s.', $kq['ghep'], KHTC_UI::tien( $kq['tien'] ) );
+			}
+		}
+
+		$den     = sanitize_text_field( wp_unslash( $_GET['den'] ?? current_time( 'Y-m-d' ) ) );
+		$doi_tac = sanitize_text_field( wp_unslash( $_GET['dt'] ?? '' ) );
+		$tong    = KHTC_CongNo::tong( $loai, $den );
+		$theo    = KHTC_CongNo::theo_doi_tac( $loai, $den );
+		$ct      = KHTC_CongNo::con_no( $loai, $den, $doi_tac );
+		$moc     = KHTC_CongNo::ten_moc();
+
+		echo '<div class="wrap khtc">';
+		KHTC_UI::dau_trang( 'Công nợ' );
+		KHTC_UI::thong_bao( 'ok', $bao_ok );
+		KHTC_UI::thong_bao( 'loi', $bao_loi );
+
+		// ---- chọn sổ
+		printf( '<div class="khtc-panel"><form method="get" action="%s"><div class="khtc-loc">', esc_url( self::url_form( 'cong-no' ) ) );
+		self::an_get( 'cong-no' );
+		echo '<label>Sổ<select name="loai">';
+		foreach ( KHTC_CongNo::loai() as $k => $v ) {
+			printf( '<option value="%s"%s>%s</option>', esc_attr( $k ), selected( $loai, $k, false ), esc_html( $v['ten'] ) );
+		}
+		echo '</select></label>';
+		printf( '<label>Tính tuổi nợ đến ngày<input type="date" name="den" value="%s"></label>', esc_attr( $den ) );
+		printf( '<label>%s<input type="text" name="dt" value="%s" placeholder="để trống là tất cả" style="min-width:200px"></label>', esc_html( $c['nhan_ten'] ), esc_attr( $doi_tac ) );
+		echo '<button type="submit" class="button">Xem</button>';
+		printf( '<a href="%s" class="button">Bỏ lọc</a>', esc_url( self::url( 'cong-no', array( 'loai' => $loai ) ) ) );
+		echo '</div></form></div>';
+
+		KHTC_UI::the_so(
+			array(
+				array( $c['ten'] . ' — tổng còn nợ', KHTC_UI::tien( $tong['tong'] ), 'chi' === $c['loai_gd'] ? 'chi' : '' ),
+				array( 'Trong đó quá hạn', KHTC_UI::tien( $tong['qua_han'] ), $tong['qua_han'] ? 'chi' : '' ),
+				array( 'Số chứng từ', number_format( $tong['so_ct'], 0, ',', '.' ) ),
+				array( 'Số ' . mb_strtolower( $c['nhan_ten'] ), number_format( count( $theo ), 0, ',', '.' ) ),
+			)
+		);
+		printf(
+			'<p class="khtc-sub">Tuổi nợ tính từ <strong>hạn thanh toán</strong> nếu chứng từ có ghi, không có thì tính từ ngày chứng từ. %s</p>',
+			'tra' === $loai ? 'Khoản chi trả bằng tiền mặt không vào sổ này — trả ngay tại chỗ thì không nợ ai.' : ''
+		);
+
+		// ---- theo đối tác, chia mốc tuổi nợ
+		printf( '<div class="khtc-panel"><h2>Theo %s</h2>', esc_html( mb_strtolower( $c['nhan_ten'] ) ) );
+		if ( ! $theo ) {
+			echo '<div class="khtc-trong">Không còn khoản nào chưa thanh toán.</div>';
+		} else {
+			echo '<table><thead><tr><th>' . esc_html( $c['nhan_ten'] ) . '</th><th class="so">Số CT</th>';
+			foreach ( $moc as $i => $m ) {
+				printf( '<th class="so">%s</th>', esc_html( 0 === $i ? 'Trong hạn / ' . $m : $m ) );
+			}
+			echo '<th class="so">Tổng</th></tr></thead><tbody>';
+			foreach ( $theo as $r ) {
+				printf(
+					'<tr><td><a href="%s">%s</a></td><td class="so">%d</td>',
+					esc_url( self::url( 'cong-no', array( 'loai' => $loai, 'den' => $den, 'dt' => $r['ten'] ) ) ),
+					esc_html( $r['ten'] ),
+					$r['so_ct']
+				);
+				foreach ( $r['moc'] as $i => $v ) {
+					printf( '<td class="so%s">%s</td>', ( $i > 0 && $v ) ? ' chi' : '', $v ? esc_html( KHTC_UI::tien( $v ) ) : '' );
+				}
+				printf( '<td class="so"><strong>%s</strong></td></tr>', esc_html( KHTC_UI::tien( $r['tong'] ) ) );
+			}
+			echo '</tbody><tfoot><tr><th>Tổng</th><th class="so">' . (int) $tong['so_ct'] . '</th>';
+			foreach ( $tong['moc'] as $v ) {
+				printf( '<th class="so">%s</th>', esc_html( KHTC_UI::tien( $v ) ) );
+			}
+			printf( '<th class="so">%s</th></tr></tfoot></table>', esc_html( KHTC_UI::tien( $tong['tong'] ) ) );
+		}
+		echo '</div>';
+
+		// ---- tự ghép
+		$ngan_hang = KHTC_NganHang::ds();
+		list( $d1, $d2 ) = KHTC_UI::thang_nay();
+		echo '<div class="khtc-panel"><h2>Tự ghép tiền từ sao kê</h2><form method="post"><div class="khtc-loc">';
+		wp_nonce_field( 'khtc_cn' );
+		printf( '<input type="hidden" name="loai" value="%s">', esc_attr( $loai ) );
+		printf( '<label>Từ ngày<input type="date" name="ghep_tu" value="%s" required></label>', esc_attr( $d1 ) );
+		printf( '<label>Đến ngày<input type="date" name="ghep_den" value="%s" required></label>', esc_attr( $d2 ) );
+		echo '<label>Tài khoản<select name="ghep_nh"><option value="0">— Tất cả —</option>';
+		foreach ( $ngan_hang as $b ) { printf( '<option value="%d">%s</option>', (int) $b->id, esc_html( $b->ten ) ); }
+		echo '</select></label>';
+		echo '<button type="submit" name="khtc_tu_ghep" value="1" class="button button-primary">Tự ghép</button>';
+		echo '</div><p class="khtc-sub">Chỉ bắt được lần trả <strong>đúng bằng số còn nợ</strong> của đúng một chứng từ. Trả gộp nhiều chứng từ hay trả làm nhiều đợt thì phải ghi tay bên dưới — đoán sai một khoản trả gộp còn tệ hơn không đoán, vì nó đóng nhầm chứng từ này và để hở chứng từ khác.</p>';
+		echo '<p class="khtc-sub">Chạy lại thì các dòng <em>tự ghép</em> trong kỳ bị dọn và làm lại; dòng ghi tay giữ nguyên.</p></form></div>';
+
+		// ---- từng chứng từ
+		printf(
+			'<div class="khtc-panel"><h2>Chứng từ còn nợ%s <span class="khtc-dem chi">%d · %s</span></h2>',
+			$doi_tac ? ' — ' . esc_html( $doi_tac ) : '',
+			count( $ct ),
+			esc_html( KHTC_UI::tien( array_sum( array_map( function ( $r ) { return $r->_con; }, $ct ) ) ) )
+		);
+		if ( ! $ct ) {
+			echo '<div class="khtc-trong">Không còn chứng từ nào chưa thanh toán.</div></div>';
+		} else {
+			echo '<table><thead><tr><th>Ngày</th><th>Hạn</th><th>Chứng từ</th><th>' . esc_html( $c['nhan_ten'] ) . '</th>';
+			echo '<th class="so">Tổng</th><th class="so">Đã trả</th><th class="so">Còn nợ</th><th class="so">Tuổi nợ</th><th>Ghi trả</th></tr></thead><tbody>';
+			foreach ( $ct as $r ) {
+				echo '<tr>';
+				printf(
+					'<td>%s</td><td>%s</td><td>%s</td><td>%s</td>',
+					esc_html( KHTC_UI::ngay( $r->ngay ) ),
+					esc_html( empty( $r->han_tt ) ? '—' : KHTC_UI::ngay( $r->han_tt ) ),
+					esc_html( 'hd_ra' === $c['bang'] ? $r->so_hd : ( $r->khoan_muc . ( $r->so_ct ? ' · ' . $r->so_ct : '' ) ) ),
+					esc_html( '' === trim( $r->_ten ) ? '—' : $r->_ten )
+				);
+				printf(
+					'<td class="so">%s</td><td class="so thu">%s</td><td class="so chi"><strong>%s</strong></td><td class="so%s">%s</td>',
+					esc_html( KHTC_UI::tien( $r->_tong ) ),
+					$r->da_tra ? esc_html( KHTC_UI::tien( $r->da_tra ) ) : '',
+					esc_html( KHTC_UI::tien( $r->_con ) ),
+					$r->_tuoi > 0 ? ' chi' : '',
+					$r->_tuoi > 0 ? esc_html( $r->_tuoi . ' ngày' ) : 'trong hạn'
+				);
+				echo '<td><form method="post" class="khtc-loc" style="gap:6px">';
+				wp_nonce_field( 'khtc_cn' );
+				printf( '<input type="hidden" name="loai" value="%s">', esc_attr( $loai ) );
+				printf( '<input type="hidden" name="chung_tu_id" value="%d">', (int) $r->id );
+				printf( '<input type="date" name="ngay_tra" value="%s" required>', esc_attr( current_time( 'Y-m-d' ) ) );
+				printf( '<input type="text" name="so_tien_tra" value="%s" size="12" required>', esc_attr( number_format( $r->_con, 0, ',', '.' ) ) );
+				echo '<button type="submit" name="khtc_tra" value="1" class="button button-small">Ghi</button>';
+				echo '</form></td></tr>';
+
+				foreach ( KHTC_CongNo::ds_thanh_toan( $c['bang'], $r->id ) as $t ) {
+					echo '<tr><td></td><td></td>';
+					printf(
+						'<td colspan="3" class="khtc-sub">↳ trả %s%s</td><td class="so thu">%s</td><td colspan="2"></td>',
+						esc_html( KHTC_UI::ngay( $t->ngay ) ),
+						$t->ghi_chu ? ' — ' . esc_html( $t->ghi_chu ) : '',
+						esc_html( KHTC_UI::tien( $t->so_tien ) )
+					);
+					echo '<td><form method="post" onsubmit="return confirm(\'Xoá dòng thanh toán này?\')">';
+					wp_nonce_field( 'khtc_cn' );
+					printf( '<input type="hidden" name="loai" value="%s">', esc_attr( $loai ) );
+					printf( '<button type="submit" name="khtc_xoa_tt" value="%d" class="button button-small">Xoá</button>', (int) $t->id );
+					echo '</form></td></tr>';
+				}
+			}
+			echo '</tbody></table>';
+			echo '<p class="khtc-sub">Ô số tiền để sẵn phần còn nợ — sửa lại nếu khách trả một phần. Không ghi quá số còn nợ được: trả thừa là một khoản khác (đặt cọc, ghi nhầm), cho vào đây thì bảng công nợ ra số dương giả.</p>';
+			echo '</div>';
+		}
+		echo '</div>';
 	}
 }

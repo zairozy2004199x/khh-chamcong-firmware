@@ -13,6 +13,19 @@ class KHTC_UI {
 		return number_format( (int) $n, 0, ',', '.' ) . ' đ';
 	}
 
+	/**
+	 * Ngày đầu và ngày cuối của tháng đang chạy, dạng YYYY-MM-DD.
+	 *
+	 * Phải là ngày CÓ THẬT. Ghép tay "tháng . '-31'" thì lọc trong SQL vẫn đúng
+	 * (so sánh chuỗi), nhưng <input type="date" value="2026-09-31"> bị trình
+	 * duyệt coi là không hợp lệ và hiện Ô TRỐNG — người dùng thấy bộ lọc trống
+	 * trong khi nó đang lọc, bấm Lọc một cái là nới rộng cả kỳ.
+	 */
+	public static function thang_nay() {
+		$dau = current_time( 'Y-m' ) . '-01';
+		return array( $dau, gmdate( 'Y-m-t', strtotime( $dau . ' 00:00:00 UTC' ) ) );
+	}
+
 	public static function ngay( $s ) {
 		if ( empty( $s ) || '0000-00-00' === $s ) { return '—'; }
 		return mysql2date( 'd/m/Y', $s );

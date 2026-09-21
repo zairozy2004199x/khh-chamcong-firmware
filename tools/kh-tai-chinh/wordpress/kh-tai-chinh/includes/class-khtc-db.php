@@ -10,7 +10,7 @@ defined( 'ABSPATH' ) || exit;
 class KHTC_DB {
 
 	/** Tăng số này mỗi lần đổi cấu trúc bảng thì bản đang chạy tự nâng cấp. */
-	const SCHEMA = 5;
+	const SCHEMA = 6;
 
 	public static function bang( $ten ) {
 		global $wpdb;
@@ -29,6 +29,7 @@ class KHTC_DB {
 		$chi_phi   = self::bang( 'chi_phi' );
 		$hd_ra     = self::bang( 'hd_ra' );
 		$nhat_ky   = self::bang( 'nhat_ky' );
+		$thanh_toan = self::bang( 'thanh_toan' );
 
 		// so_du_dau = số dư TÍNH ĐẾN ngay_dau; giao dịch trước ngày đó coi như đã
 		// gộp sẵn vào số dư này, không cộng lại lần nữa (giữ đúng cách bản gốc tính).
@@ -113,6 +114,7 @@ class KHTC_DB {
 				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 				cty VARCHAR(20) NOT NULL DEFAULT 'kh_cu',
 				ngay DATE NOT NULL,
+				han_tt DATE NULL,
 				bo_phan VARCHAR(120) NOT NULL DEFAULT '',
 				khoan_muc VARCHAR(120) NOT NULL DEFAULT '',
 				nha_cung_cap VARCHAR(190) NOT NULL DEFAULT '',
@@ -140,6 +142,7 @@ class KHTC_DB {
 				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 				cty VARCHAR(20) NOT NULL DEFAULT 'kh_cu',
 				ngay DATE NOT NULL,
+				han_tt DATE NULL,
 				so_hd VARCHAR(60) NOT NULL DEFAULT '',
 				khach VARCHAR(190) NOT NULL DEFAULT '',
 				mst VARCHAR(30) NOT NULL DEFAULT '',
@@ -185,6 +188,30 @@ class KHTC_DB {
 				PRIMARY KEY (id),
 				KEY cty_luc (cty, luc),
 				KEY cty_viec (cty, viec)
+			) $collate;"
+		);
+
+		// Sổ thanh toán — nguồn sự thật DUY NHẤT cho "đã trả bao nhiêu". Một
+		// chứng từ có thể có nhiều dòng (trả làm nhiều đợt); một dòng sao kê có
+		// thể sinh ra nhiều dòng (một lần chuyển trả nhiều hoá đơn). Vì vậy nó
+		// là bảng riêng chứ không phải một cột trên chứng từ.
+		dbDelta(
+			"CREATE TABLE $thanh_toan (
+				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+				cty VARCHAR(20) NOT NULL DEFAULT 'kh_cu',
+				bang VARCHAR(20) NOT NULL DEFAULT '',
+				chung_tu_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+				giao_dich_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+				ngay DATE NOT NULL,
+				so_tien BIGINT NOT NULL DEFAULT 0,
+				ghi_chu TEXT NULL,
+				tu_dong TINYINT NOT NULL DEFAULT 0,
+				tao_luc DATETIME NOT NULL,
+				tao_boi VARCHAR(120) NOT NULL DEFAULT '',
+				PRIMARY KEY (id),
+				KEY chung_tu (bang, chung_tu_id),
+				KEY cty_ngay (cty, ngay),
+				KEY giao_dich_id (giao_dich_id)
 			) $collate;"
 		);
 

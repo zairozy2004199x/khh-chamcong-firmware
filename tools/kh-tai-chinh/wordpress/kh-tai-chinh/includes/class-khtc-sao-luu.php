@@ -21,7 +21,7 @@ class KHTC_SaoLuu {
 	const DINH_DANG = 1;
 
 	public static function bang() {
-		return array( 'ngan_hang', 'giao_dich', 'doi_soat', 'ds_dong', 'chi_phi', 'hd_ra', 'nhat_ky' );
+		return array( 'ngan_hang', 'giao_dich', 'doi_soat', 'ds_dong', 'chi_phi', 'hd_ra', 'thanh_toan', 'nhat_ky' );
 	}
 
 	/** Gom cả kho dữ liệu thành một mảng. Không lọc theo pháp nhân: sao lưu là sao lưu tất. */
@@ -96,7 +96,7 @@ class KHTC_SaoLuu {
 		// lúc nối lại liên kết đã có id mới mà tra. Thiếu một bảng ở đây thì
 		// xuất ra vẫn có nó mà nhập lại mất — nên danh sách này phải phủ hết
 		// self::bang().
-		$thu_tu = array( 'ngan_hang', 'doi_soat', 'giao_dich', 'ds_dong', 'chi_phi', 'hd_ra', 'nhat_ky' );
+		$thu_tu = array( 'ngan_hang', 'doi_soat', 'giao_dich', 'ds_dong', 'chi_phi', 'hd_ra', 'thanh_toan', 'nhat_ky' );
 		$thieu  = array_diff( self::bang(), $thu_tu );
 		if ( $thieu ) {
 			return new WP_Error( 'thu_tu', 'Lỗi lập trình: bảng ' . implode( ', ', $thieu ) . ' chưa có trong thứ tự nhập.' );

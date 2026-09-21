@@ -180,7 +180,13 @@ class KHTC_ChiPhi {
 		if ( ! empty( $l['bo_phan'] ) )   { $dk[] = 'c.bo_phan = %s';  $args[] = $l['bo_phan']; }
 		if ( ! empty( $l['khoan_muc'] ) ) { $dk[] = 'c.khoan_muc = %s'; $args[] = $l['khoan_muc']; }
 		if ( isset( $l['da_tra'] ) && '' !== $l['da_tra'] ) {
-			$dk[] = ( '1' === (string) $l['da_tra'] ) ? 'c.giao_dich_id > 0' : 'c.giao_dich_id = 0';
+			// Đã trả hay chưa đọc từ SỔ THANH TOÁN, không từ cờ đối soát. Cờ
+			// giao_dich_id chỉ nói "lần đối soát gần nhất ghép được với dòng
+			// sao kê nào"; tiền trả làm hai đợt hay trả gộp thì cờ đó không
+			// biết, chỉ sổ thanh toán biết.
+			$tt   = KHTC_DB::bang( 'thanh_toan' );
+			$sub  = "( SELECT COALESCE(SUM(so_tien),0) FROM $tt WHERE bang = 'chi_phi' AND chung_tu_id = c.id )";
+			$dk[] = ( '1' === (string) $l['da_tra'] ) ? "$sub >= c.so_tien" : "$sub < c.so_tien";
 		}
 		if ( ! empty( $l['tim'] ) ) {
 			$dk[]   = '( c.dien_giai LIKE %s OR c.nha_cung_cap LIKE %s )';
@@ -196,11 +202,12 @@ class KHTC_ChiPhi {
 		$b = KHTC_DB::bang( 'chi_phi' );
 		list( $where, $args ) = self::dieu_kien( $l );
 
+		$tt   = KHTC_DB::bang( 'thanh_toan' );
 		$tong = $wpdb->get_row(
 			$wpdb->prepare(
 				"SELECT COUNT(*) AS so_dong,
 					COALESCE(SUM(c.so_tien),0) AS tong,
-					COALESCE(SUM(CASE WHEN c.giao_dich_id > 0 THEN c.so_tien ELSE 0 END),0) AS da_tra
+					COALESCE(SUM( LEAST( c.so_tien, ( SELECT COALESCE(SUM(t.so_tien),0) FROM $tt t WHERE t.bang = 'chi_phi' AND t.chung_tu_id = c.id ) ) ),0) AS da_tra
 				 FROM $b c $where",
 				$args
 			)
@@ -337,6 +344,8 @@ class KHTC_ChiPhi {
 		}
 		$ghep = KHTC_DoiSoat::ghep( $dong, $gd );
 
+		KHTC_NhatKy::mo_lo();
+
 		// Ghi lại để màn hình Chi phí biết khoản nào đã trả thật.
 		$wpdb->query(
 			$wpdb->prepare(
@@ -347,6 +356,17 @@ class KHTC_ChiPhi {
 				$den
 			)
 		);
+		// Dòng thanh toán TỰ ĐỘNG của kỳ này bị dọn rồi tạo lại; dòng gõ tay
+		// giữ nguyên. Không dọn thì chạy hai lần là ghi đôi.
+		$wpdb->query(
+			$wpdb->prepare(
+				'DELETE FROM ' . KHTC_DB::bang( 'thanh_toan' ) . " WHERE cty = %s AND bang = 'chi_phi' AND tu_dong = 1 AND ngay >= %s AND ngay <= %s",
+				$cty,
+				$tu,
+				$den
+			)
+		);
+
 		$theo_id = array();
 		foreach ( $ct as $c ) { $theo_id[ (int) $c->id ] = $c; }
 		$khop     = array();
@@ -364,6 +384,13 @@ class KHTC_ChiPhi {
 				$c->kieu_khop     = $kieu;
 				$khop[]           = $c;
 				$da_nhan[ $gid ]  = true;
+				// Ghép được nghĩa là khoản này đã trả — vào sổ thanh toán, vì
+				// đó mới là nơi màn hình Công nợ đọc. Phần còn nợ có thể nhỏ
+				// hơn tổng nếu đã có dòng gõ tay, nên chỉ ghi đúng phần còn lại.
+				$con = (int) $c->so_tien - KHTC_CongNo::da_tra( 'chi_phi', (int) $c->id );
+				if ( $con > 0 ) {
+					KHTC_CongNo::ghi( 'chi_phi', (int) $c->id, $gd_map[ $gid ]->ngay, $con, $gid, 'Tự ghép từ đối soát chi phí', true );
+				}
 			} else {
 				$chua_chi[] = $c;
 			}
@@ -377,6 +404,7 @@ class KHTC_ChiPhi {
 			$thua[] = $g;
 		}
 
+		KHTC_NhatKy::dong_lo();
 		KHTC_NhatKy::ghi(
 			'doi_soat',
 			'chi_phi',
@@ -388,7 +416,9 @@ class KHTC_ChiPhi {
 				count( $khop ),
 				count( $chua_chi ),
 				count( $thua )
-			)
+			),
+			null,
+			true
 		);
 
 		return array(
