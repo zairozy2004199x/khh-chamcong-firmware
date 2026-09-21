@@ -870,43 +870,25 @@ class VHCP_Cfg {
 		 * kho nào thì thuộc khối ấy — bản gốc là `kvc`, bản vùng là mã vùng của nó.
 		 * ══════════════════════════════════════════════════════════════════════════════════════ */
 		/* ══════════════════════════════════════════════════════════════════════════════════════
-		 * DỌN VAI TỰ TẠO — MỘT LƯỢT DUY NHẤT.
+		 * 🔴 KHÔNG CÓ LƯỢT TỰ XOÁ VAI TRÒ Ở ĐÂY. ĐỪNG THÊM LẠI.
 		 * ══════════════════════════════════════════════════════════════════════════════════════
-		 * Anh Thắng 21/09/2026: *"xóa luôn mấy vai trò đó đi, không cho nó hiện"*, sau khi bỏ
-		 * cột bộ phận khỏi vai trò. Mấy vai ấy — "Nhân Viên Cơ Sơ", "Nhân Viên Văn Phòng",
-		 * "Nhân Viên Kỹ Thuật", "Nhân Viên Marketing", "Kế toán máy tự động" — sinh ra chỉ để
-		 * NÓI BỘ PHẬN, mà bộ phận nay đã có cột riêng ở hàng Người dùng.
+		 * Bản 1.229.0 từng có: nạp plugin lên là nó tự dời người về vai gốc rồi dọn sạch bảng
+		 * vai tự tạo. Anh Thắng chối ngay: *"như xóa vai trò là đang sai"* — sau khi chính anh
+		 * bảo *"xóa luôn mấy vai trò đó đi"*. Hai câu ấy không mâu thuẫn: anh muốn mấy vai KIA
+		 * biến khỏi ô chọn, chứ không muốn MÁY tự ý đụng vào bảng phân quyền.
 		 *
-		 * 🔴 DỜI NGƯỜI VỀ VAI GỐC TRƯỚC, RỒI MỚI XOÁ. Xoá suông là mọi người mang vai ấy tụt về
-		 *    "Nhân viên" (xem `vai_goc()`), và ai đang mang "Kế toán máy tự động" MẤT QUYỀN KẾ
-		 *    TOÁN — không duyệt, không xác nhận quyết toán, không xuất MISA được nữa. Im lặng,
-		 *    và người ta chỉ phát hiện lúc cần bấm. Vai ấy kế thừa "Kế toán cá nhân", nên dời
-		 *    về đúng vai gốc là giữ nguyên bằng ấy quyền.
+		 * 🔴 VÌ SAO MỘT LƯỢT DỌN TỰ ĐỘNG LÀ SAI, kể cả khi nó "đúng ý":
+		 *   · Nó chạy lúc NẠP PLUGIN, không phải lúc người ta bấm nút. Không ai kịp xem trước,
+		 *     không ai bấm đồng ý, và không có nút hoàn tác.
+		 *   · Nó đụng vào hai bảng cùng lúc — vai trò VÀ vai của từng tài khoản. Sai một nước
+		 *     là quyền của cả công ty lệch đi, mà cái lệch ấy im lặng.
+		 *   · Bảng phân quyền `CH_Quyen` lưu theo CHỈ SỐ CỘT, mỗi vai một cột. Xoá vai là cột
+		 *     ấy mồ côi — thứ chỉ lộ ra nhiều ngày sau, ở một màn khác.
 		 *
-		 * ⚠️ PHẢI TÍNH ÁNH XẠ TRƯỚC KHI DỌN BẢNG. `vai_goc()` tra trong chính bảng ấy — dọn
-		 *    trước thì mọi vai hoá "lạ" và tất cả rơi về "Nhân viên", đúng cái đang tránh.
-		 *
-		 * 🔴 MỘT LƯỢT DUY NHẤT, đóng dấu bằng meta. Quét lại mỗi lượt là anh Thắng không bao
-		 *    giờ tạo được vai mới nữa — vừa khai xong, lượt nạp sau nó biến mất. Khác hẳn lượt
-		 *    lấp khối ở dưới (lấp một ô còn trống thì làm bao nhiêu lần cũng vô hại).
+		 * ⚠️ MUỐN DỌN THÌ DỌN BẰNG TAY, ở bảng 🎭 Vai trò: xoá dòng rồi bấm Lưu. Đường ấy đã có
+		 *    sẵn chốt đếm-trước-rồi-hỏi (liệt kê ai đang mang vai sắp xoá). Người bấm là người
+		 *    quyết, và họ nhìn thấy cái giá trước khi trả.
 		 * ══════════════════════════════════════════════════════════════════════════════════════ */
-		if ( ! VHCP_Meta::get( 'don_vai_tu_tao_v1' ) ) {
-			VHCP_Meta::set( 'don_vai_tu_tao_v1', '1' );
-			$vai_cu = self::vai_tuy_bien();
-			if ( $vai_cu ) {
-				$ve_goc = array();
-				foreach ( $vai_cu as $v ) { $ve_goc[ mb_strtolower( $v['ten'] ) ] = $v['goc']; }
-				foreach ( self::read( self::USER ) as $i => $r ) {
-					$r  = array_values( (array) $r );
-					$vt = trim( (string) ( isset( $r[2] ) ? $r[2] : '' ) );
-					$k  = mb_strtolower( $vt );
-					if ( '' === $vt || ! isset( $ve_goc[ $k ] ) ) { continue; }
-					self::set_cell( self::USER, $i, 2, $ve_goc[ $k ] );
-				}
-				self::write( self::VAI, array(), false );
-				$did = true;
-			}
-		}
 
 		$rows_l = self::read( self::LOAI );
 		$khoi_n = VHCP_DB::khoi();
