@@ -309,6 +309,67 @@ class VHJP_Auth {
 		return self::VAI_NV === VHJP_Doc::str( isset( $u['role'] ) ? $u['role'] : '' );
 	}
 
+	/**
+	 * Người này có được nhìn cơ sở ấy không.
+	 *
+	 * ⚠️ Kế toán thấy hết; nhân viên chỉ thấy cơ sở đã gán. So theo CHUỖI — danh sách gán lưu
+	 *    dạng `'L-1, L-2'` nên phần tử là chuỗi, còn nơi gọi hay truyền số vào.
+	 */
+	public static function xem_duoc_coso( $u, $ma_coso ) {
+		if ( self::la_kt( $u ) ) { return true; }
+		$ds = isset( $u['locationIds'] ) && is_array( $u['locationIds'] ) ? $u['locationIds'] : array();
+		return in_array( (string) $ma_coso, array_map( 'strval', $ds ), true );
+	}
+
+	/**
+	 * Đổi PIN.
+	 *
+	 * 🔴 GỠ CỜ "PHẢI ĐỔI PIN" TRÊN CHÍNH PHIÊN ĐANG DÙNG. Không gỡ thì đổi xong vẫn bị chặn
+	 *    cho tới lúc hết phiên — mà PIN mới đã không còn là mặc định nữa. Người dùng đổi xong,
+	 *    thấy vẫn chặn, sẽ đổi lại lần nữa rồi đi hỏi.
+	 *
+	 * 🔴 PIN PHẢI DUY NHẤT TOÀN HỆ. Đăng nhập chỉ bằng PIN nên hai người trùng PIN là một
+	 *    người vào được tài khoản của người kia mà không làm gì sai cả.
+	 */
+	public static function doi_pin( $token, $pin_cu, $pin_moi ) {
+		$k = self::kiem( $token, true );          // phải qua được kể cả khi còn PIN mặc định
+		if ( empty( $k['ok'] ) ) {
+			return array( 'ok' => false, 'msg' => 'Phiên hết hạn, đăng nhập lại' );
+		}
+		$u   = $k['user'];
+		$moi = self::chuan_pin( $pin_moi );
+		if ( '' === $moi ) {
+			return array( 'ok' => false, 'msg' => 'PIN mới phải đúng ' . self::PIN_LEN . ' số' );
+		}
+		if ( $moi === self::chuan_pin( $pin_cu ) ) {
+			return array( 'ok' => false, 'msg' => 'PIN mới phải khác PIN cũ' );
+		}
+
+		$hs = VHJP_Nguon::tim_mot( 'JP_Users', 'id', $u['id'] );
+		if ( ! $hs ) { return array( 'ok' => false, 'msg' => 'Không tìm thấy tài khoản' ); }
+		if ( '' === VHJP_Doc::str( $hs['pin'] ) || ! self::khop( $hs['pin'], $pin_cu )['ok'] ) {
+			/* Gõ sai PIN hiện tại cũng tính là một lượt sai — không thì đây thành cửa dò PIN
+			   không bị làm chậm, chỉ cần một thẻ phiên bất kỳ. */
+			self::ghi_nhan_sai();
+			return array( 'ok' => false, 'msg' => 'PIN hiện tại không đúng' );
+		}
+		if ( self::pin_da_dung( $moi, $u['id'] ) ) {
+			return array( 'ok' => false, 'msg' => 'PIN này đã có người dùng, chọn số khác' );
+		}
+
+		if ( ! VHJP_Nguon::sua( 'JP_Users', $u['id'], array( 'pin' => self::bam( $moi ) ) ) ) {
+			return array( 'ok' => false, 'msg' => 'Không lưu được PIN mới' );
+		}
+
+		$ds = self::doc_phien();
+		if ( isset( $ds[ (string) $token ] ) ) {
+			$ds[ (string) $token ]['phaiDoiPin'] = self::la_pin_mac_dinh( $moi );
+			self::ghi_phien( $ds );
+		}
+		VHJP_NhatKy::ghi( $u, 'DOI_PIN', '', $u['id'], '' );
+		return array( 'ok' => true, 'msg' => 'Đã đổi PIN' );
+	}
+
 	/** Nhận cả hai vai kế toán cũ, để tài khoản đã có vẫn dùng được. */
 	public static function la_kt( $u ) {
 		$v = VHJP_Doc::str( isset( $u['role'] ) ? $u['role'] : '' );

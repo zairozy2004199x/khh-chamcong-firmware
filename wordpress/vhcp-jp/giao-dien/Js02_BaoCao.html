@@ -1,0 +1,2682 @@
+<script>
+/*═══════════════════════════════════════════════════════════
+ * JP CAPSULE v2 — Js02_BaoCao
+ * Màn nhập báo cáo dạng BẢNG, giữ đúng bố cục form giấy:
+ *   · Máy TIỀN : 1 dòng = 1 ô máy, cột Before / After / Actual
+ *   · Máy XU   : mỗi ô = 2 dòng COIN và MONEY, gộp ô phần Collection
+ * Mọi con số chính thức đều do SERVER trả về sau khi lưu.
+ *═══════════════════════════════════════════════════════════*/
+
+function openNewReport() {
+  var loc = $('selLoc').value, f = $('inFrom').value, t = $('inTo').value || $('inFrom').value;
+  if (!loc) { setMsg('openMsg', 'Chọn cơ sở', 'err'); return; }
+  if (!f) { setMsg('openMsg', 'Chọn ngày bắt đầu', 'err'); return; }
+
+  busy(true, 'Đang mở báo cáo…');
+  var mt = $('selType') ? $('selType').value : 'TIEN';
+  srv('jpOpenReport', APP.token, loc, f, t, mt).then(function (d) {
+    busy(false);
+    if (!d.ok) { setMsg('openMsg', d.msg, 'err'); return; }
+    setMsg('openMsg', '');
+    bindReport(d);
+    jpNoiGieo(d.gieo);
+  }).catch(function (e) { busy(false); setMsg('openMsg', e.message, 'err'); });
+}
+
+/**
+ * Nói ra đã TỰ GHI LẠI bao nhiêu dòng từ kỳ trước.
+ *
+ * Andy 11/08/2026: *"sao nhân viên gửi báo cáo rồi mà báo cáo sau nó kh tự ghi lại
+ * hàng tên mã misa và tồn đầu"*.
+ *
+ * ⚠️ **Gieo im lặng cũng là một vấn đề.** Nhân viên mở ra thấy sẵn tên hàng và tồn đầu
+ * thì tin luôn là số đã chốt — mà nếu gieo từ báo cáo **chưa duyệt** thì kế toán còn có
+ * thể trả về và số đó đổi. Nên nói rõ nguồn, và nói rõ ô tồn đầu **gõ được**.
+ *
+ * ⚠️ Dòng bị bỏ vì **đã trả kho về 0** cũng phải nói ra — không thì nhân viên tưởng
+ * web làm mất mã hàng.
+ */
+function jpNoiGieo(g) {
+  /* Không gieo được dòng nào MÀ CÓ LÝ DO thì phải nói ra — bảng trắng trông y hệt lúc
+     app hỏng, nhân viên không có đường nào biết mình cần làm gì. */
+  if (g && !g.soDong && g.lyDo) { toast(g.lyDo); return; }
+  if (!g || !g.soDong) return;
+  var bo = (g.boQuaTraKho || []).length;
+  var t = 'Đã tự ghi lại ' + g.soDong + ' dòng từ kỳ trước (đến ' + dmy(g.denNgay) + ')';
+  if (bo) t += ' · bỏ ' + bo + ' mã đã trả kho về 0: ' + g.boQuaTraKho.join(', ');
+  if (g.daDuyet) {
+    t += '. Tồn đầu là tồn cuối kỳ đó, đã duyệt nên bị khoá.';
+  } else {
+    t += '. ⚠️ Kỳ đó CHƯA được kế toán duyệt nên tồn đầu có thể còn đổi — ô tồn đầu ' +
+         'vẫn GÕ ĐƯỢC, soát lại giúp.';
+  }
+  toast(t);
+}
+
+/**
+ * Đổi kỳ báo cáo. Máy chủ là chốt cuối — nó chặn trùng kỳ và chặn báo cáo đã nộp.
+ *
+ * ⚠️ Đổi xong phải **nạp lại báo cáo**: `rpPeriod` trên thanh tiêu đề in kỳ CŨ, mà hai
+ * chỗ cùng nói một kỳ mà lệch nhau thì không ai biết chỗ nào đúng.
+ */
+function jpDoiKy() {
+  var f = $('kyTu').value, t = $('kyDen').value;
+  if (!f) { toast('Chọn ngày bắt đầu kỳ'); return; }
+  if (!confirm('Đổi kỳ báo cáo sang ' + dmy(f) + ' – ' + dmy(t || f) + '?')) return;
+  busy(true, 'Đang đổi kỳ…');
+  srv('jpSuaKyBaoCao', APP.token, APP.report.id, f, t).then(function (r) {
+    busy(false); toast(r.msg);
+    openReportById(APP.report.id);
+  }).catch(function (e) { busy(false); toast(e.message); });
+}
+
+function openReportById(id) {
+  busy(true, 'Đang tải…');
+  srv('jpGetReport', APP.token, id).then(function (d) {
+    busy(false); bindReport(d);
+  }).catch(function (e) { busy(false); toast(e.message); });
+}
+
+function jpBackHome() {
+  /* Nháp đã giữ trên máy ở mọi lần gõ, nên rời đi KHÔNG mất số — nói rõ vậy thay vì
+     chỉ hỏi "rời đi?" khiến nhân viên tưởng mất. Vẫn thử lưu lên hệ thống trước. */
+  if (APP.dirty && APP.canEdit) {
+    if (!confirm('Còn thay đổi chưa lưu lên hệ thống.\n\n' +
+        'Số đã gõ vẫn được giữ TRÊN MÁY NÀY — mở lại báo cáo là làm tiếp được.\n\n' +
+        'Rời đi?')) return;
+    jpLuuNhapMay();
+    jpSaveDraft(false, true);         // thử đẩy lên, không chặn việc rời đi
+  }
+  APP.dirty = false;
+  show('scHome');
+  loadMyReports();
+}
+
+function bindReport(d) {
+  APP.report = d.head;
+  APP.zones = d.zones || [];
+  APP.rows = d.rows || [];
+  APP.photos = d.photos || [];
+  APP.canEdit = d.canEdit;
+  /* ⚠️ Giữ lại để `renderZones` in ra DẢI BĂNG cố định. Chỉ toast là sai: toast tắt đi
+     thì bảng vẫn trắng mà không còn dòng nào giải thích — đúng bệnh "cảnh báo chỉ hiện
+     MỘT LẦN rồi mất" đã ghi ở mục ký một phần. */
+  APP.gieo = d.gieo || null;
+  /* Đồng hồ đếm trứng — máy chủ đọc từ CƠ SỞ mỗi lần mở, không chốt vào báo cáo.
+     `!== false` chứ không `!!`: thiếu trường (bản cũ, hoặc lỗi mạng) phải rơi về CÓ,
+     tức hiện đủ cột. Ẩn cột vì một trường `undefined` là giấu ô nhân viên cần điền. */
+  APP.coDhTrung = d.coDhTrung !== false;
+  /* Cơ sở này có được chọn giá 1 xung theo dòng không — mặc định KHÔNG (chỉ SUNWORLD PQ
+     có hai loại máy lẫn nhau). Andy chốt 29/08/2026: *"còn mấy cơ sở khác ẩn đó đi"*. */
+  APP.chonGiaXung = d.chonGiaXung === true;
+  APP.headWarns = d.headWarns || [];
+  APP.trungNguoiKhac = d.trungNguoiKhac || [];
+  APP.dirty = false;
+
+  $('rpLoc').textContent = d.head.locationName;
+  $('rpPeriod').textContent = dmy(d.head.fromDate) + ' – ' + dmy(d.head.toDate) +
+    ' · ' + (d.head.machineType === 'XU' ? 'Máy xu' : 'Máy tiền') +
+    (jpLaTach(d.head) ? ' · mẫu tách tiền / hàng' : '');
+  var b = $('rpStatus');
+  b.textContent = statusText(d.head.status);
+  b.className = 'badge ' + badgeCls(d.head.status);
+
+  /* Ô đổi kỳ CHỈ hiện khi báo cáo đang sửa được — đã nộp thì phải bấm "Sửa trong 24
+     giờ" trước, và chính hàm đó giữ đồng hồ. Hiện ô lúc không sửa được là mời người ta
+     bấm rồi ăn lỗi từ máy chủ. */
+  $('kyBox').classList.toggle('hidden', !d.canEdit);
+  jpHienNutXoa();
+  $('kyTu').value = d.head.fromDate;
+  $('kyDen').value = d.head.toDate;
+
+  /* Mẫu TÁCH: số tiền đọc từ APP của máy, KHÔNG có đồng hồ nào (Andy chốt 12/08/2026).
+     In "theo đồng hồ" ở khối tổng là web nói sai nguồn của con số — cùng bệnh với màn
+     Tổng quan kho dạy `Nợ 641` sau khi đầu tài khoản đã đổi. */
+  var mauTach = jpLaTach(d.head);
+  if ($('lbRev')) {
+    $('lbRev').textContent = mauTach ? 'Doanh thu theo APP của máy'
+                                     : 'Doanh thu theo đồng hồ';
+  }
+  if ($('lbCashMeter')) {
+    $('lbCashMeter').textContent = mauTach ? '· Tiền mặt APP báo'
+                                           : '· Tiền mặt theo đồng hồ';
+  }
+
+  var rb = $('rejectBox');
+  if (d.head.status === 'CAN_SUA' && d.head.rejectReason) {
+    rb.innerHTML = '<b>Kế toán ' +
+      (d.head.rejectPart === 'STOCK' ? 'kho' : 'doanh thu') +
+      ' trả về:</b><br>' + esc(d.head.rejectReason);
+    rb.classList.remove('hidden');
+  } else rb.classList.add('hidden');
+
+  $('inAdj').value = d.head.adjMachine || 0;
+  $('inAdjNote').value = d.head.adjMachineNote || '';
+  $('inRefund').value = d.head.refundCustomer || 0;
+  $('inRefundNote').value = d.head.refundNote || '';
+  $('inRemark').value = d.head.remark || '';
+
+  /* Hai nhắc nhở về cấu hình / trùng người — nói ngay, đừng để nhập xong mới lệch */
+  var nhac = [];
+
+  if (!machinesOfLoc().length) {
+    nhac.push('<b>Cơ sở này chưa cấu hình ô / máy nào.</b> ' +
+      'Vẫn nhập được, nhưng số đầu kỳ sẽ lấy theo mã hàng thay vì theo từng ô — ' +
+      'hai ô bán cùng mã hàng sẽ dùng chung một số. Báo kế toán thêm ô máy ở ' +
+      'Cấu hình → Ô / máy.');
+  }
+
+  if (APP.trungNguoiKhac && APP.trungNguoiKhac.length) {
+    nhac.push('<b>Cùng kỳ này còn ' + APP.trungNguoiKhac.length +
+      ' báo cáo của người khác:</b> ' +
+      APP.trungNguoiKhac.map(function (x) {
+        return esc(x.userName) + ' (' + statusText(x.status) + ')';
+      }).join(', ') +
+      '. Chỉ số đồng hồ là số của máy — nếu hai người cùng báo một máy thì doanh thu ' +
+      'bị tính hai lần. Soát lại xem ai thu máy nào.');
+  }
+
+  var cw = $('cfgWarnBox');
+  if (nhac.length) {
+    cw.innerHTML = nhac.join('<hr style="border:0;border-top:1px solid #fcd34d;margin:8px 0">');
+    cw.classList.remove('hidden');
+  } else cw.classList.add('hidden');
+
+  if (!APP.zones.length) APP.zones = [{ id: '', name: 'Khu vực 1', clusterId: '', note: '' }];
+
+  renderZones();
+  paintTotals(d.head);
+  paintWarnings();
+  paintCheckList();
+  /* Tien do anh da di kem `jpGetReport` — dung ban do, khong goi lai may chu. */
+  refreshPhotoProgress(d.anhTienDo);
+  /* Nháp tự lưu: đặt canh rời trang, in trạng thái, rồi mới mời phục hồi.
+     Mời SAU khi đã vẽ xong bảng để nhân viên thấy số hiện có mà so. */
+  jpDatCanhTuLuu();
+  JP_NHAP_LOI = '';
+  jpTrangThaiNhap();
+  setTimeout(jpMoiPhucHoiNhap, 0);
+
+  applyEditLock();
+  show('scReport');
+}
+
+/**
+ * Khoá mọi ô nhập / nút trong màn báo cáo khi không còn quyền sửa.
+ * Trước đây chỉ disable `.actions button`, nên "+ Thêm khu vực", "+ Thêm ô/máy",
+ * nút "×" và toàn bộ ô nhập trong bảng vẫn bấm được trên báo cáo đã nộp — nhân
+ * viên nhập xong mới biết là không lưu được.
+ */
+function applyEditLock() {
+  var lock = !APP.canEdit;
+  document.querySelectorAll(
+    '.actions button, #btnAddZone, #zoneWrap button, #zoneWrap select, ' +
+    '#scReport .sum input, #scReport .sum textarea'
+  ).forEach(function (e) { e.disabled = lock; });
+
+  /* Ô nhập trong bảng: readonly để vẫn đọc được số, không sửa được */
+  document.querySelectorAll('#zoneWrap input').forEach(function (e) {
+    if (lock) e.readOnly = true;
+  });
+}
+
+/*──────── Vẽ khu vực dưới dạng BẢNG ────────*/
+function renderZones() {
+  var wrap = $('zoneWrap'); wrap.innerHTML = '';
+
+  /* DẢI BĂNG "vì sao bảng trắng" — đặt NGAY ĐẦU vùng bảng, không để cuối màn: cuối màn
+     là phải cuộn mới thấy, mà người đang vội sẽ bỏ qua đúng người cần nó nhất.
+     Chỉ hiện khi THẬT SỰ chưa có dòng nào — gieo được rồi mà vẫn treo dải băng là nói
+     một chuyện không còn đúng. */
+  if (APP.gieo && !APP.gieo.soDong && APP.gieo.lyDo && !(APP.rows || []).length) {
+    var bang = el('div', 'alert warn');
+    bang.innerHTML = '<b>Bảng chưa có dòng nào — web không tự ghi lại được từ kỳ trước.</b>' +
+                     '<br>' + esc(APP.gieo.lyDo);
+    wrap.appendChild(bang);
+  }
+  /* Vẽ lại là mọi dòng tổng cũ biến mất — xoá đăng ký, không thì `jpCapNhatTong`
+     đi tìm những ô `id` không còn tồn tại và danh sách phình mãi. */
+  JP_TONG = [];
+  dsMaHang();                                   // nạp gợi ý mã hàng (thẻ nằm ngoài wrap)
+  var isCoin = APP.report.machineType === 'XU';
+  /* Mẫu do MÁY CHỦ chốt lúc tạo báo cáo (`head.bcMau`), không đọc lại từ cơ sở:
+     kế toán đổi mẫu giữa buổi thì báo cáo đang nhập dở phải giữ đúng bố cục. */
+  var laTach = !isCoin && jpLaTach(APP.report);
+
+  APP.zones.forEach(function (z, zi) {
+    var box = el('div', 'zone');
+
+    /* --- Tiêu đề khu vực --- */
+    var head = el('div', 'zoneTitle');
+    head.innerHTML =
+      '<b>Khu vực</b>' +
+      '<input type="text" style="width:150px" value="' + esc(z.name) + '" ' +
+        'oninput="jpZoneName(' + zi + ',this.value)">' +
+      clusterSelect(z.clusterId, zi);
+    var del = el('button', 'miniBtn danger', 'Xoá khu vực');
+    del.onclick = function () { jpDelZone(zi); };
+    head.appendChild(del);
+    box.appendChild(head);
+
+    if (hasQRCluster(z.clusterId)) {
+      box.appendChild(el('div', 'groupTitle', 'Ảnh Pay Box / QR của cụm'));
+      box.appendChild(el('div', 'photoStrip', '')).id = 'zp_' + zi;
+    }
+
+    var idx = [];
+    APP.rows.forEach(function (r, ri) {
+      if (r.zoneKey === undefined) r.zoneKey = zoneIndexOf(r.zoneId);
+            /* Bảng tồn kho, KHO NGOÀI và bảng HÀNG (mẫu tách) đều tách riêng,
+               không nằm trong khu vực */
+      if (r.rowKind === 'STOCK' || r.rowKind === 'NGOAI' || r.rowKind === 'HANG') return;
+      if (r.zoneKey === zi) idx.push(ri);
+    });
+
+    box.appendChild(el('p', 'scrollHint', 'Vuốt ngang để xem hết cột →'));
+    var tw = el('div', 'tblWrap');
+    tw.innerHTML = isCoin ? tableCoin(idx)
+                 : laTach ? tableMayTien(idx)
+                 : tableMoney(idx);
+    box.appendChild(bungBang(tw, 'tien'));
+
+    /* Nút bật cột bổ sung / trả kho chỉ có nghĩa ở mẫu CHUNG — mẫu tách không có
+       cột hàng nào trong bảng tiền, bấm vào không đổi gì mà nhân viên tưởng hỏng. */
+    if (!isCoin && !laTach) {
+      var tg = el('button', 'btn ghost sm',
+        JP_COT_THEM ? 'Ẩn cột bổ sung / trả kho' : 'Hiện cột bổ sung / trả kho');
+      tg.onclick = jpToggleCotThem;
+      box.appendChild(tg);
+    }
+
+    var add = el('button', 'btn ghost block', '+ Thêm ô / máy');
+    add.onclick = function () { jpAddRow(zi); };
+    box.appendChild(add);
+
+    wrap.appendChild(box);
+  });
+
+  /* --- MẪU TÁCH: bảng HÀNG theo mã + BẢNG TỔNG có chênh lệch --- */
+  if (laTach) {
+    var hIdx = [];
+    APP.rows.forEach(function (r, ri) { if (r.rowKind === 'HANG') hIdx.push(ri); });
+
+    var hBox = el('div', 'zone');
+    hBox.appendChild(el('div', 'zoneTitle', '<b>② HÀNG HOÁ THEO MÃ — tách khỏi bảng tiền</b>'));
+    hBox.appendChild(el('p', 'scrollHint',
+      'Một dòng = một mã hàng của CẢ cơ sở, không gắn vào ô máy nào. ' +
+      'Kỳ đầu tiên tự gõ mã hàng · mã Misa · tồn đầu; từ kỳ sau web tự nhảy đủ dòng ' +
+      'và tồn cuối kỳ trước thành tồn đầu kỳ này (ô đó khoá).'));
+    var ht = el('div', 'tblWrap');
+    ht.innerHTML = tableHang(hIdx);
+    hBox.appendChild(bungBang(ht, 'hang'));
+    var addH = el('button', 'btn ghost block', '+ Thêm mã hàng');
+    addH.onclick = jpAddHangRow;
+    hBox.appendChild(addH);
+    wrap.appendChild(hBox);
+
+    var tBox = el('div', 'zone');
+    tBox.appendChild(el('div', 'zoneTitle', '<b>BẢNG TỔNG — so tiền với hàng</b>'));
+    var tt = el('div', 'tblWrap');
+    tt.innerHTML = bangTongTachHtml();
+    tBox.appendChild(tt);
+    wrap.appendChild(tBox);
+  }
+
+  /* --- MÁY XU: bảng hàng tồn cơ sở, tách hẳn khỏi bảng tiền --- */
+  if (isCoin) {
+    var sIdx = [];
+    APP.rows.forEach(function (r, ri) { if (r.rowKind === 'STOCK') sIdx.push(ri); });
+
+    var sBox = el('div', 'zone');
+    sBox.appendChild(el('div', 'zoneTitle', '<b>BÁO CÁO XU · HÀNG TỒN CƠ SỞ</b>'));
+    sBox.appendChild(el('p', 'scrollHint',
+      'Nhập số xu kiểm từng ngày trong tuần · Hàng bán = tổng xu ÷ giá xu'));
+    var st = el('div', 'tblWrap');
+    st.innerHTML = tableStock(sIdx);
+    sBox.appendChild(bungBang(st, 'xu'));
+    var addS = el('button', 'btn ghost block', '+ Thêm mã hàng');
+    addS.onclick = jpAddStockRow;
+    sBox.appendChild(addS);
+    wrap.appendChild(sBox);
+  }
+
+  /* --- KHO NGOÀI: hàng cơ sở giữ ngoài máy, kiểm kê riêng ---
+     Andy chốt 04/08/2026: gửi nhiều thì không nhồi hết vào máy được, phần dư nằm
+     trong kho của cơ sở và phải có bảng kiểm kê riêng. Có ở CẢ hai loại báo cáo. */
+  var nIdx = [];
+  APP.rows.forEach(function (r, ri) { if (r.rowKind === 'NGOAI') nIdx.push(ri); });
+
+  var nBox = el('div', 'zone');
+  nBox.appendChild(el('div', 'zoneTitle', '<b>KHO NGOÀI · KIỂM KÊ HÀNG NGOÀI MÁY</b>'));
+  nBox.appendChild(el('p', 'scrollHint',
+    'Hàng cơ sở đang giữ NGOÀI máy — gửi nhiều thì phần dư nằm đây. ' +
+    'Bảng này chỉ kiểm kê chỗ hàng, KHÔNG tính tiền và không sinh giá vốn.'));
+  var nt = el('div', 'tblWrap');
+  nt.innerHTML = tableNgoai(nIdx);
+  nBox.appendChild(bungBang(nt, 'ngoai'));
+  var addN = el('button', 'btn ghost block', '+ Thêm mã hàng kho ngoài');
+  addN.onclick = jpAddNgoaiRow;
+  nBox.appendChild(addN);
+  wrap.appendChild(nBox);
+
+  setTimeout(function () {
+    renderZonePhotos();
+    APP.rows.forEach(function (r, i) { renderRowPhotos(i); });
+    applyEditLock();          // bảng vừa vẽ lại thì khoá lại
+    jpVeLaiSoTuTinh();        // …và trả mọi ô TỰ TÍNH về số ĐANG GÕ, không phải số đã lưu
+  }, 0);
+}
+
+/*──────── BẢNG KHO NGOÀI — hàng cơ sở giữ ngoài máy ────────*/
+function tableNgoai(idx) {
+  var h = '<table class="form">' +
+    '<tr>' +
+      thVT('Tên hàng', 'NV', '', 'lbl w170') + thVT('Mã Misa', 'NV', '', 'w110') +
+      thVT('Tồn đầu kỳ', 'KY', '', 'w90') + thVT('Nhập thêm<br>trong kỳ', 'NV', '', 'w90') +
+      thVT('Cấp ra máy', 'NV', '', 'w90') + thVT('Trả về<br>kho tổng', 'NV', '', 'w90') +
+      thVT('Còn lại<br>(tính)', 'TU', '', 'w90') + thVT('Đếm<br>thực tế', 'NV', '', 'w90') +
+      thVT('Lệch', 'TU', '', 'w90') + thVT('Ghi chú', 'NV', '', 'w170') +
+      '<th></th>' +
+    '</tr>';
+
+  idx.forEach(function (ri) {
+    var r = APP.rows[ri];
+    var w = (r.warns && r.warns.length) ? ' class="warnRow"' : '';
+    var con = num(r.stockLeftCalc);
+    var lech = (r.stockActual === '' || r.stockActual === null || r.stockActual === undefined)
+      ? '' : (num(r.stockActual) - con);
+    h += '<tr' + w + '>' +
+      '<td class="lbl w170">' + itemNhap(tenDeHien(r), ri) + '</td>' +
+      /* Ma Misa GO DUOC: gia suy tu tien to ma Misa, ma moi / mua ngoai khong co
+         trong danh muc thi khong co duong nao khac de bao gia. */
+      '<td class="w110"><input type="text" value="' + esc(r.itemMisa) +
+        '" placeholder="100JP023"' +
+        ' oninput="jpRowSet(' + ri + ',\'itemMisa\',this.value);jpTinhDong(' + ri + ')"></td>' +
+      cell(r.stockOpen, 'stockOpen', ri, r.carried) +
+      cell(r.addQty1, 'addQty1', ri) +
+      cell(r.stockOut, 'stockOut', ri) +
+      cell(r.returnQty, 'returnQty', ri) +
+      '<td class="calc w90" id="con' + ri + '"><b>' + con + '</b></td>' +
+      cell(r.stockActual, 'stockActual', ri) +
+      '<td class="calc w90" id="lech' + ri + '">' + (lech === '' ? '<span class="sub">—</span>'
+        : '<b style="color:' + (lech === 0 ? 'inherit' : lech > 0 ? '#047857' : '#b91c1c') +
+          '">' + (lech > 0 ? '+' : '') + lech + '</b>') + '</td>' +
+      '<td class="w170"><input type="text" style="text-align:left" value="' + esc(r.note) +
+        '" oninput="jpRowSet(' + ri + ',\'note\',this.value)"></td>' +
+      '<td class="act"><button class="miniBtn danger" onclick="jpDelRow(' + ri + ')">×</button></td>' +
+    '</tr>';
+  });
+
+  if (idx.length) {
+    /* 11 cot: ten · Misa · ton dau · nhap them · cap ra may · tra kho tong
+       · con lai · dem thuc te · lech · ghi chu · nut */
+    h += jpHangTong('tgNg', idx, [
+      { nhan: 'TỔNG ' + idx.length + ' mã' }, null,
+      { k: 'stockOpen' }, { k: 'addQty1' }, { k: 'stockOut' }, { k: 'returnQty' },
+      { k: 'con', xt: true }, { k: 'stockActual' }, null, null, null
+    ]);
+  } else {
+    h += '<tr><td colspan="11" style="color:#6b7280;padding:14px">' +
+         'Cơ sở không giữ hàng ngoài máy thì để trống bảng này.</td></tr>';
+  }
+  return h + '</table>' + chuGiaiBang(
+    '<b>Còn lại</b> = Tồn đầu + Nhập thêm − Cấp ra máy − Trả về kho tổng. ' +
+    '<b>Cấp ra máy</b> là số đã nhồi vào máy — số đó nằm trong cột "Ban đầu" của ô máy ' +
+    'rồi, nên ở đây <b>không tính là bán</b>.<br>' +
+    'Gõ <b>Đếm thực tế</b> lệch với <b>Còn lại</b> thì hệ thống cảnh báo chứ không chặn — ' +
+    'đó chính là chỗ cần soát.');
+}
+
+/*──────── VAI TRÒ CỦA CỘT ────────
+ * Andy 04/08/2026: "cột hàng báo cáo nhân viên còn lộn xộn chưa đúng chức năng
+ * hay nhân viên sẽ điền hay gán ảnh". Bốn vai trò, ghi thẳng lên đầu cột:
+ *   NV  — nhân viên gõ vào
+ *   TỰ  — server tính, gõ không được (và cũng không nên tin số client tính)
+ *   KỲ  — chuyển từ kỳ trước, khoá lại vì đó là số cuối kỳ trước
+ *   ẢNH — chỗ gắn ảnh, không gõ
+ * Đây chỉ là NHÃN. Chốt thật vẫn ở server (`jpCalcRow_`) và ở `applyEditLock`.  */
+var VAI_TRO = { NV: 'NHÂN VIÊN', TU: 'TỰ TÍNH', KY: 'KỲ TRƯỚC', ANH: 'GẮN ẢNH' };
+
+/**
+ * Một ô đầu cột có nhãn vai trò. r = 'NV' | 'TU' | 'KY' | 'ANH' | ''
+ * `themCls` gộp vào CÙNG một attribute class — hai attribute class trên một thẻ
+ * thì browser lấy cái đầu và bỏ cái sau, mất luôn màu vai trò.
+ */
+function thVT(label, r, attr, themCls) {
+  var cls = [];
+  if (themCls) cls.push(themCls);
+  if (r) cls.push('r' + r);
+  var tag = r ? '<span class="rl">' + VAI_TRO[r] + '</span>' : '';
+  return '<th' + (cls.length ? ' class="' + cls.join(' ') + '"' : '') +
+         (attr || '') + '>' + label + tag + '</th>';
+}
+
+/** Chú giải dưới bảng — nói lại đúng bốn vai trò bằng tiếng người. */
+function chuGiaiBang(themGi) {
+  return '<div class="chuGiai">' +
+    '<span class="cgNV"><b>NHÂN VIÊN</b> — ô bạn tự gõ</span>' +
+    '<span class="cgTU"><b>TỰ TÍNH</b> — hệ thống tính, không gõ được</span>' +
+    '<span class="cgKY"><b>KỲ TRƯỚC</b> — tự chuyển từ số cuối kỳ trước rồi khoá; ' +
+      'riêng kỳ đầu tiên của cơ sở thì gõ tay</span>' +
+    '<span class="cgANH"><b>GẮN ẢNH</b> — bấm vào ô để chụp / chọn ảnh</span>' +
+    (themGi ? '<span>' + themGi + '</span>' : '') +
+    '</div>';
+}
+
+/*
+ * Hiện cột "Bổ sung hàng 1/2" và "Trả về kho" hay không.
+ *
+ * Form giấy máy tiền KHÔNG có ba cột này — bổ sung ghi bằng CHỮ ở cột "Note (Topup
+ * hàng)" ("dư 20k", "4 mẫu"). Bỏ hẳn thì mất khả năng ghi số lượng, nên để sau một
+ * nút bật/tắt, MẶC ĐỊNH TẮT cho khớp form giấy.
+ * Công thức ở máy chủ vẫn tính đủ cả ba — tắt chỉ là không hiện ô nhập.
+ */
+var JP_COT_THEM = false;
+function jpToggleCotThem() {
+  JP_COT_THEM = !JP_COT_THEM;
+  renderZones();
+}
+
+/*════════ MẪU TÁCH — hai bảng riêng + bảng tổng có chênh lệch ════════
+ * Andy chốt 04/08/2026, riêng JP Sân bay Phú Quốc: *"tách tiền và hàng riêng trong
+ * 1 bảng tổng và có phần chênh lệch tiền giữa 2 phần này để nhìn so sánh"*.
+ *
+ * Mẫu chung nhồi tiền + hàng vào cùng một dòng nên hàng bị khoá vào đúng một ô máy.
+ * SBPQ có 54 mã hàng, số ô máy ít hơn nhiều ⇒ không gắn 1-1 được.
+ *
+ *   Bảng TIỀN  (dòng `MAY`)  — theo ô máy, trong khu vực, chỉ đồng hồ tiền
+ *   Bảng HÀNG  (dòng `HANG`) — theo mã hàng, một bảng cho cả cơ sở
+ *   Bảng TỔNG                — hai con số cạnh nhau + CHÊNH LỆCH
+ *
+ * ⚠️ Số ở bảng tổng do **máy chủ** tính (`revMeter` / `revHang` / `lechTienHang`),
+ * client chỉ in ra. Tính lại ở client là hai công thức, và lúc lệch nhau thì nhân
+ * viên thấy một số mà kế toán thấy số khác.
+ */
+
+/*──────── MẪU TÁCH · BẢNG TIỀN — NHÂN VIÊN TỰ ĐIỀN HẾT ────────
+ *
+ * Andy chốt 12/08/2026: *"riêng báo cáo sân bay phú quốc em thay đổi cho anh chỉ cần
+ * cột mã hàng mã misa thành tiền rồi 3 cột là tiền mặt app - qr - tiền mặt thực tế —
+ * còn hàng thì vẫn vậy"*, *"cái này sẽ là nhân viên tự điền hết"*, và *"tiền thực thu
+ * mới chính là tiền thu được, thêm cột lệch cho tôi nhé"*.
+ *
+ * ⚠️ **Bỏ hết phần đồng hồ** (Before · After · Actual · COLLECTION) và bỏ cả cột ô
+ * máy: SBPQ đọc số từ APP của máy, không có công-tơ-mét để trừ. Nên `Thành tiền` ở
+ * đây là ô GÕ, không còn là ô tự tính — đúng chỗ khác hẳn mọi bảng khác của app.
+ *
+ * ⚠️ Cột đầu in **TÊN HÀNG**, không in mã. Đó là chính điều Andy chốt 07/08/2026
+ * (*"mã hàng hiển thị tên không phải chọn xong ra mã misa"*): mã `150JP065` thì
+ * nhân viên đứng ở máy không biết là hàng gì. Mã Misa nằm ở cột ngay bên cạnh, và
+ * nó là mã kế toán khớp sổ MISA.
+ *
+ * ⚠️ Cột **Lệch = Tiền mặt THỰC TẾ − Tiền mặt APP**, không trừ vào `Thành tiền`:
+ * `Thành tiền` đã gộp QR nên trừ vào nó là ra lệch giả đúng bằng QR. Xem `jpLechTM_`
+ * (00_Config) — nguồn duy nhất của phép trừ này, ba chỗ dùng chung.
+ *
+ * ⚠️ Ô **Ảnh giữ lại** dù Andy chỉ kể sáu cột dữ liệu: số ở bảng này giờ do người gõ
+ * hết, nên ảnh màn hình app là bằng chứng DUY NHẤT để kế toán soi lại. Nhưng
+ * `jpCheckPhotos_` **không đòi** nó (một ảnh app thường thấy hết các mã).
+ */
+function tableMayTien(idx) {
+  var h = '<table class="form">' +
+    '<tr>' +
+      thVT('Tên hàng', 'NV', '', 'lbl w210') +
+      thVT('Mã Misa', 'NV', '', 'w110') +
+      /* ⚠️ Nhãn phải nói ra QUAN HỆ giữa ba cột, không chỉ gọi tên chúng. Andy xác nhận
+         29/08/2026: app của máy hiện "Thành tiền" ĐÃ GỒM cả tiền mặt lẫn QR. Nhãn cũ chỉ
+         ghi "Thành tiền" nên nhân viên SBPQ điền số TIỀN MẶT vào đó rồi ghi QR ra riêng —
+         đo trên sheet 24/08: 9/14 dòng có Thành tiền == Tiền mặt app, và tổng QR
+         (9,5tr) LỚN HƠN tổng Thành tiền (5,92tr), làm tiền phải nộp ra ÂM 1,52tr. */
+      thVT('Thành tiền<br><small>= tiền mặt + QR</small>', 'NV', '', 'w140') +
+      thVT('Tiền mặt<br>APP báo', 'NV', '', 'w140') +
+      thVT('QR<br><small>đã nằm trong Thành tiền</small>', 'NV', '', 'w140') +
+      thVT('Tiền mặt<br>THỰC TẾ đếm được', 'NV', '', 'w140') +
+      thVT('Lệch<br>(thực tế − app)', 'TU', '', 'w140') +
+      thVT('Ảnh màn hình app', 'ANH', '', 'w110') +
+      thVT('Ghi chú / lý do lệch', 'NV', '', 'w170') +
+      '<th></th>' +
+    '</tr>';
+
+  idx.forEach(function (ri) {
+    var r = APP.rows[ri];
+    var w = (r.warns && r.warns.length) ? ' class="warnRow"' : '';
+    var o = jpXemTruoc(r);
+    var khoaTien = !o.goTay;
+    h += '<tr' + w + '>' +
+      '<td class="lbl w210">' + itemNhap(tenDeHien(r), ri) + '</td>' +
+      /* Mã Misa GÕ ĐƯỢC — y như ba bảng kia. Khoá nó thì mã mới / hàng mua ngoài
+         vĩnh viễn không có mã Misa, mà đó là số kế toán dùng để khớp sổ MISA. */
+      '<td class="w110"><input type="text" value="' + esc(r.itemMisa) +
+        '" placeholder="100JP023"' +
+        ' oninput="jpRowSet(' + ri + ',\'itemMisa\',this.value)"' +
+        ' onchange="jpPickItemMisa(' + ri + ',this.value)"></td>' +
+      /* Dòng đời cũ CÒN đồng hồ thì tiền vẫn do máy chủ suy ra (`jpMayGoTay_` false)
+         ⇒ **khoá bốn ô lại**. Để gõ được là gõ xong lưu là số bị ghi đè về số suy từ
+         đồng hồ, im lặng — đúng bẫy "hai con số cãi nhau" đã mắc nhiều lần.
+         ⚠️⚠️ Câu cũ ở đây ghi *"không có dòng nào như vậy trong dữ liệu thật (0 dòng
+         MAY)"* — **nay SAI**, và chính giả định đó làm cái khoá này trông vô hại. Thực
+         tế `jpAddRow` bản cũ tạo ô máy với `mBefore: 0`, nên tới 20/08/2026 sheet có
+         hàng loạt dòng MAY mang số 0 ⇒ chúng bị khoá cả bốn ô, trong khi máy chủ lại
+         đang ĐÒI điền đúng mấy ô đó. Chốt phân biệt là `mBefore > 0`, không phải
+         ô-trống — xem `jpMayGoTay` bên dưới. */
+      oTien(r.amount, 'amount', ri, khoaTien) +
+      oTien(r.cash, 'cash', ri, khoaTien) +
+      oTien(r.bank, 'bank', ri, khoaTien) +
+      oTien(r.cashReal, 'cashReal', ri, khoaTien) +
+      '<td class="calc w140' + (num(o.lechTM) !== 0 ? ' lech' : '') +
+        '" id="ltm' + ri + '">' + jpChuLechTM(o.lechTM) + '</td>' +
+      '<td class="w110"><div class="photoCell" id="ps_' + ri + '"></div></td>' +
+      '<td class="w170"><input type="text" style="text-align:left" value="' + esc(r.note) +
+        '" oninput="jpRowSet(' + ri + ',\'note\',this.value)"></td>' +
+      '<td class="act"><button class="miniBtn danger" onclick="jpDelRow(' + ri + ')">×</button></td>' +
+    '</tr>';
+  });
+
+  if (idx.length) {
+    /* 10 cot: ten hang · Ma Misa · thanh tien · tien mat app · QR
+       · tien mat thuc te · lech · anh · ghi chu · nut
+       ⚠️ Mang nay phai KHOP TUNG PHAN TU voi hang tieu de o tren — lech mot o la
+       moi con so nam duoi nhan sai ma van in ra binh thuong. */
+    h += jpHangTong('tgMt', idx, [
+      { nhan: 'TỔNG ' + idx.length + ' dòng' }, null,
+      { k: 'amount', tien: true }, { k: 'cash', tien: true },
+      { k: 'bank', tien: true }, { k: 'cashReal', tien: true },
+      { k: 'lechTM', xt: true, tien: true }, null, null, null
+    ]);
+  } else {
+    h += '<tr><td colspan="10" style="color:#6b7280;padding:14px">' +
+         'Chưa có dòng nào — bấm "Thêm ô / máy"</td></tr>';
+  }
+  return h + '</table>' + chuGiaiBang(
+    '<b>Bảng này CHỈ có tiền</b>, và số lấy từ <b>APP của máy</b> — bạn gõ vào hết. ' +
+    'Hàng nằm ở bảng riêng bên dưới, theo mã hàng. ' +
+    '<b>Thành tiền</b> phải bằng <b>Tiền mặt app + QR</b>; ' +
+    '<b>Lệch</b> = tiền mặt bạn đếm được − tiền mặt app báo, và ' +
+    '<b>tiền mặt THỰC TẾ mới là số phải nộp về</b>.');
+}
+
+/** Ô nhập TIỀN — rộng hơn ô số lượng vì một số tiền là 7 chữ số. */
+function oTien(val, key, ri, khoa) {
+  return '<td class="w140"><input type="number" inputmode="numeric" value="' +
+    (jpTrongO(val) ? '' : num(val)) + '"' +
+    (khoa ? ' readonly title="Dòng này còn chỉ số đồng hồ nên tiền do hệ thống suy ra' +
+            ' từ đồng hồ — gõ vào sẽ bị ghi đè khi lưu"' : '') +
+    ' oninput="jpRowSet(' + ri + ',\'' + key + '\',this.value)"></td>';
+}
+
+/**
+ * Chuỗi in ra ở ô LỆCH — **một chỗ dựng duy nhất**, dùng cả lúc vẽ bảng và lúc gõ.
+ *
+ * Viết lại rời ở `jpTinhDong` là hai cách in cho cùng một con số: sửa màu ở một chỗ
+ * quên chỗ kia, rồi ô lệch đổi màu tuỳ vào việc vừa gõ hay vừa vẽ lại bảng.
+ *
+ * ⚠️ Ô trống in `—`, KHÔNG in `0`: chưa đếm khác với đếm được đúng bằng app.
+ */
+function jpChuLechTM(v) {
+  if (jpTrongO(v)) return '<span class="sub">—</span>';
+  var n = num(v);
+  return '<b style="color:' +
+    (n === 0 ? 'inherit' : n > 0 ? '#047857' : '#b91c1c') + '">' +
+    (n > 0 ? '+' : '') + money(n) + 'đ</b>';
+}
+
+/*──────── MẪU TÁCH · BẢNG HÀNG — theo mã hàng, đã bán SUY từ số đếm ────────*/
+function tableHang(idx) {
+  var h = '<table class="form">' +
+    '<tr>' +
+      thVT('Tên hàng', 'NV', '', 'lbl w170') + thVT('Mã Misa', 'NV', '', 'w110') +
+      thVT('Giá<br>/trứng', 'TU', '', 'w110') +
+      thVT('Tồn đầu kỳ', 'KY', '', 'w90') +
+      thVT('Nhập thêm<br>trong kỳ', 'NV', '', 'w90') +
+      thVT('Trả về<br>kho tổng', 'NV', '', 'w90') +
+      thVT('Lỗi / xé mẫu', 'NV', '', 'w90') +
+      thVT('ĐÃ BÁN', 'NV', '', 'w90') +
+      thVT('Tồn cuối kỳ<br>(tính)', 'TU', '', 'w100') +
+      thVT('Đếm thực tế<br>(không bắt buộc)', 'NV', '', 'w110') +
+      thVT('Lệch', 'TU', '', 'w80') +
+      thVT('Tiền theo hàng', 'TU', '', 'w120') +
+      thVT('Hoàn khách<br>(tiền)', 'NV', '', 'w110') +
+      thVT('= mấy quả', 'TU', '', 'w80') +
+      thVT('Lý do hoàn', 'NV', '', 'w150') +
+      thVT('Ghi chú', 'NV', '', 'w170') +
+      '<th></th>' +
+    '</tr>';
+
+  idx.forEach(function (ri) {
+    var r = APP.rows[ri];
+    var w = (r.warns && r.warns.length) ? ' class="warnRow"' : '';
+    /* Giá suy từ MÃ MISA trước (Andy chốt 05/08: "tiền tính từ ô misa") */
+    var gia = num(r.price) || giaTuMa(r.itemMisa) || giaTuMa(r.itemCode);
+    var ban = num(r.soldQty);
+    /* Tồn cuối là số TÍNH RA — cùng công thức máy chủ, đừng viết khác */
+    var cuoi = num(r.stockOpen) + num(r.addQty1) + num(r.addQty2)
+               - num(r.returnQty) - num(r.defectQty) - ban;
+    var coDem = !(r.stockActual === '' || r.stockActual === null ||
+                  r.stockActual === undefined);
+    var lechDem = coDem ? (num(r.stockActual) - cuoi) : 0;
+    h += '<tr' + w + '>' +
+      '<td class="lbl w170"><input type="text" style="text-align:left" value="' +
+        esc(r.itemName) + '" placeholder="tên hàng"' +
+        ' oninput="jpRowSet(' + ri + ',\'itemName\',this.value)"></td>' +
+      '<td class="w110"><input type="text" value="' + esc(r.itemMisa) +
+        '" placeholder="100JP023"' +
+        ' oninput="jpRowSet(' + ri + ',\'itemMisa\',this.value);jpUpdateGia(' + ri + ')"' +
+        ' onchange="jpPickItemMisa(' + ri + ',this.value)"></td>' +
+      '<td class="calc w110" id="gia' + ri + '">' + (gia ? money(gia) : '—') + '</td>' +
+      cell(r.stockOpen, 'stockOpen', ri, r.carried) +
+      cell(r.addQty1, 'addQty1', ri) +
+      cell(r.returnQty, 'returnQty', ri) +
+      cell(r.defectQty, 'defectQty', ri) +
+      cell(r.soldQty, 'soldQty', ri) +
+      '<td class="calc w100" id="con' + ri + '"><b>' + cuoi + '</b></td>' +
+      cell(r.stockActual, 'stockActual', ri) +
+      '<td class="calc w80' + (coDem && lechDem !== 0 ? ' lech' : '') +
+        '" id="lech' + ri + '">' +
+        (coDem ? (lechDem > 0 ? '+' + lechDem : lechDem) : '—') + '</td>' +
+      '<td class="calc w120" id="tien' + ri + '"><b>' + money(ban * gia) + '</b></td>' +
+      cell(r.refundAmt, 'refundAmt', ri) +
+      '<td class="calc w80" id="qua' + ri + '">' + (num(r.refundAmt) && gia
+          ? Math.floor(num(r.refundAmt) / gia) : 0) + '</td>' +
+      '<td class="w150"><input type="text" style="text-align:left" value="' +
+        esc(r.refundRowNote) + '" oninput="jpRowSet(' + ri + ',\'refundRowNote\',this.value)"></td>' +
+      '<td class="w170"><input type="text" style="text-align:left" value="' + esc(r.note) +
+        '" oninput="jpRowSet(' + ri + ',\'note\',this.value)"></td>' +
+      '<td class="act"><button class="miniBtn danger" onclick="jpDelRow(' + ri + ')">×</button></td>' +
+    '</tr>';
+  });
+
+  if (idx.length) {
+    /* 17 cot: ten · Misa · gia · ton dau · nhap them · tra kho · loi · da ban
+       · ton cuoi · dem thuc te · lech · thanh tien · hoan khach · quy ra qua
+       · ly do hoan · ghi chu · nut */
+    h += jpHangTong('tgHg', idx, [
+      { nhan: 'TỔNG ' + idx.length + ' mã' }, null, null,
+      { k: 'stockOpen' }, { k: 'addQty1' }, { k: 'returnQty' }, { k: 'defectQty' },
+      { k: 'soldQty' }, { k: 'con', xt: true }, { k: 'stockActual' }, null,
+      { k: 'tien', xt: true, tien: true }, { k: 'refundAmt', tien: true },
+      { k: 'qua', xt: true }, null, null, null
+    ]);
+  }
+  if (!idx.length) {
+    h += '<tr><td colspan="17" style="color:#6b7280;padding:14px">' +
+         'Chưa có mã hàng nào — bấm "Thêm mã hàng"</td></tr>';
+  }
+  return h + '</table>' + chuGiaiBang(
+    '<b>Tồn cuối = Tồn đầu + Nhập thêm − Trả kho − Lỗi − ĐÃ BÁN.</b> ' +
+    'Nhân viên gõ <b>ĐÃ BÁN</b>, web tự tính tồn cuối.<br>' +
+    '<b>Giá lấy từ ô Mã Misa</b> (100JP023 → 100.000đ), không lấy từ tên hàng.<br>' +
+    '<b>Đếm thực tế</b> để trống được — gõ vào thì web so với tồn cuối tính ra và ' +
+    'in cột <b>Lệch</b>, đó là chỗ bắt được đếm sai hoặc mất hàng.<br>' +
+    '⚠️ <b>Ô ĐÃ BÁN để trống là CHƯA KHAI</b>, không phải bán được 0 — và ' +
+    '<b>không nộp được</b> khi còn ô trống, vì tồn cuối kỳ này là tồn đầu kỳ sau.');
+}
+
+/*──────── MẪU TÁCH · BẢNG TỔNG — chỗ so tiền với hàng ────────*/
+function bangTongTachHtml() {
+  return '<table class="form" id="tblBangTong">' +
+    '<tr><th class="lbl">Phần</th><th>Cách ra số</th><th>Số tiền</th></tr>' +
+    /* ⚠️ Nhãn và CÁCH RA SỐ do `paintBangTong` đặt lại theo mẫu: SBPQ từ 12/08/2026
+       không còn đồng hồ, để nguyên "Σ (Actual × 5.000đ)" là in ra một công thức KHÔNG
+       CÒN TỒN TẠI ngay cạnh con số — nặng hơn nhãn sai, vì nó dạy người đọc cách kiểm
+       tra bằng phép tính không dùng nữa. */
+    '<tr><td class="lbl"><b id="btNhan1">① TIỀN</b></td>' +
+      '<td id="btCach1">—</td>' +
+      '<td class="calc"><b id="btTien">0đ</b></td></tr>' +
+    '<tr id="btRowHoan"><td class="lbl"><b>② HOÀN KHÁCH</b> — theo mã + không gắn mã</td>' +
+      '<td>Σ tiền hoàn từng dòng + ô hoàn ở Tổng kết</td>' +
+      '<td class="calc"><b id="btHoan">0đ</b></td></tr>' +
+    '<tr><td class="lbl"><b>③ TIỀN RÒNG</b> = ① − ②</td>' +
+      '<td id="btCach3">—</td>' +
+      '<td class="calc"><b id="btRong">0đ</b></td></tr>' +
+    '<tr><td class="lbl"><b>④ HÀNG</b> — theo số đếm được</td>' +
+      '<td>Σ (Đã bán × Giá) của mọi mã hàng</td>' +
+      '<td class="calc"><b id="btHang">0đ</b></td></tr>' +
+    '<tr id="btRowLech"><td class="lbl"><b>CHÊNH LỆCH</b> ③ − ④</td>' +
+      '<td id="btYNghia">—</td>' +
+      '<td class="calc"><b id="btLech">0đ</b></td></tr>' +
+    '</table>' +
+    '<div class="chuGiai"><span>' +
+      '<b>Hai đường ĐỘC LẬP</b>: <span id="btNguon">tiền đi từ đồng hồ máy</span>, ' +
+      'hàng đi từ kiểm đếm thực tế. ' +
+      'Nên số lệch ở đây là số lệch <b>thật</b>, không phải lỗi cộng trừ.<br>' +
+      '<b>Dương</b> = tiền thu nhiều hơn hàng ra ⇒ <b>thiếu hàng</b> (hoặc đếm sai). ' +
+      '<b>Âm</b> = hàng ra nhiều hơn tiền thu ⇒ <b>thiếu tiền</b>.<br>' +
+      '<b>TRỪ hoàn khách</b> vì đó đúng là tiền đồng hồ đã thu mà <b>không có hàng đi ra</b>: ' +
+      'khách đưa 500.000đ nhưng chỉ lấy 3 quả, hoàn 200.000đ ⇒ 300.000đ ⇔ 3 quả × 100.000đ, lệch 0.<br>' +
+      '<b>KHÔNG cộng lệch máy</b> — lệch máy là chuyện đếm tiền trong két, không liên quan ' +
+      'tới hàng; trộn vào là không lần ra được cái nào gây ra cái nào.' +
+    '</span></div>';
+}
+
+/** In số vào bảng tổng. Số do MÁY CHỦ tính, đây chỉ hiển thị. */
+function paintBangTong(t) {
+  if (!$('btTien')) return;                     // báo cáo mẫu chung, không có bảng này
+  var lech = num(t.lechTienHang);
+  var hoan = num(t.refundTotal);
+  /*
+   * ⚠️ Nói đúng NGUỒN của con số ①. Mẫu TÁCH sau 12/08/2026: tiền là số nhân viên đọc
+   * từ APP của máy, không còn `Actual × 5.000đ` nào. Web in một công thức không còn
+   * dùng là dạy người đọc kiểm tra bằng phép tính sai — cùng bệnh màn Tổng quan kho
+   * dạy `Nợ 641` sau khi đầu tài khoản đã đổi.
+   *
+   * ⚠️ Phép so tiền-vs-hàng VẪN là hai đường độc lập (app vs kiểm đếm), nên không hạ
+   * cấp câu "Hai đường ĐỘC LẬP" — chỉ đổi tên đường thứ nhất.
+   */
+  var goTay = APP.rows.some(function (r) {
+    return (r.rowKind || '') === 'MAY' && jpMayGoTay(r);
+  });
+  $('btNhan1').textContent = goTay ? '① TIỀN — theo APP của máy' : '① TIỀN — theo đồng hồ';
+  $('btCach1').textContent = goTay ? 'Σ Thành tiền nhân viên đọc từ APP'
+                                   : 'Σ (Actual × 5.000đ) của mọi ô máy';
+  $('btCach3').textContent = goTay ? 'tiền APP đã trừ phần trả lại khách'
+                                   : 'tiền đồng hồ đã trừ phần trả lại khách';
+  if ($('btNguon')) {
+    $('btNguon').textContent = goTay ? 'tiền đi từ APP của máy' : 'tiền đi từ đồng hồ máy';
+  }
+  $('btTien').textContent = money(t.revMeter) + 'đ';
+  $('btHoan').textContent = money(hoan) + 'đ';
+  $('btRong').textContent = money(num(t.revMeterRong)) + 'đ';
+  $('btHang').textContent = money(t.revHang) + 'đ';
+  /* Tô nhạt dòng hoàn khi không có hoàn nào — đỡ rối bảng, nhưng KHÔNG ẩn:
+     ẩn đi là người đọc không cộng ra được ① − ② = ③. */
+  $('btRowHoan').className = hoan ? 'warnRow' : '';
+  $('btLech').textContent = money(lech) + 'đ';
+  var row = $('btRowLech');
+  row.className = lech === 0 ? '' : 'warnRow';
+  $('btYNghia').textContent = lech === 0
+    ? (goTay ? 'Khớp — tiền APP đúng bằng hàng đếm được'
+             : 'Khớp — tiền đồng hồ đúng bằng hàng đếm được')
+    : (lech > 0 ? 'THIẾU HÀNG ' + money(Math.abs(lech)) + 'đ — tiền thu nhiều hơn hàng ra'
+                : 'THIẾU TIỀN ' + money(Math.abs(lech)) + 'đ — hàng ra nhiều hơn tiền thu');
+}
+
+/*──────── BẢNG MÁY TIỀN — đúng form, có cột Giá để soi ngang ────────*/
+/**
+ * NÚT BUNG cho một bảng (Andy chốt 05/08/2026: *"cuộn ngang nhưng kiểu bung"*).
+ *
+ * Giữ nguyên cuộn ngang, thêm chế độ BUNG: bảng tràn ra gần hết bề rộng cửa sổ và chữ
+ * nhỏ lại một bậc, nên nhìn được hết cột mà không phải kéo qua kéo lại.
+ *
+ * ⚠️ Nút phải nói ra **còn mấy cột nữa bên phải** khi chưa bung. Chỉ ghi "Bung" thì
+ * nhân viên không biết mình đang thiếu gì — mà đó chính là chỗ Andy thấy rối.
+ *
+ * ⚠️ Trạng thái bung giữ theo TÊN BẢNG trong `JP_BUNG`, không giữ trong DOM: `renderZones`
+ * vẽ lại toàn bộ nên state trong DOM mất sạch mỗi lần gõ một ô.
+ */
+var JP_BUNG = {};
+
+function bungBang(wrap, ten) {
+  var box = el('div', 'bungWrap');
+  var btn = el('button', 'btn ghost sm bungBtn');
+  if (JP_BUNG[ten]) wrap.classList.add('bung');
+
+  function ve() {
+    var w = wrap.querySelector('table');
+    var con = w ? Math.max(0, w.scrollWidth - wrap.clientWidth) : 0;
+    btn.innerHTML = JP_BUNG[ten]
+      ? '⤡ Thu lại'
+      : (con > 20 ? '⤢ Bung rộng — còn ' + Math.ceil(con / 90) + ' cột bên phải'
+                  : '⤢ Bung rộng');
+  }
+  btn.onclick = function () {
+    JP_BUNG[ten] = !JP_BUNG[ten];
+    wrap.classList.toggle('bung', !!JP_BUNG[ten]);
+    ve();
+  };
+  box.appendChild(btn);
+  box.appendChild(wrap);
+  setTimeout(ve, 0);                 // chờ trình duyệt đo xong bề rộng thật
+  return box;
+}
+
+/*
+ * HAI Ô ĐỒNG HỒ ĐẾM TRỨNG CÓ HIỆN KHÔNG — một chỗ trả lời cho cả tiêu đề, thân bảng
+ * và dòng tổng. Ba chỗ đó PHẢI cùng câu trả lời, lệch một cột là cả bảng trượt.
+ *
+ * Cờ tắt là ẩn, **kể cả khi dòng đang có số** (Andy chốt 15/08/2026: *"đổi luôn cả báo
+ * cáo đang nhập dở"*).
+ *
+ * ⚠️ Bản đầu em viết ngược lại — "còn số thì vẫn hiện" — và nó **không bao giờ ẩn được
+ * gì** ở đúng cái báo cáo cần ẩn. Cái lo lúc đó là thật: `jpCalcMoneyRow_` suy `Đã bán`
+ * từ `hAfter` KHI Ô ĐÓ CÓ GIÁ TRỊ, nên ẩn ô đang có số là để một con số quyết định
+ * doanh số mà nhân viên không thấy. Nhưng cách chữa đúng không phải là giữ cột lại —
+ * là **NÓI RA** (`jpNhacDhCu`). Ẩn im lặng mới là chỗ sai.
+ */
+function jpHienDhTrung() {
+  return APP.coDhTrung;
+}
+
+/**
+ * Bảng này có cột "Loại máy" (chọn giá 1 xung) không?
+ *
+ * ⚠️ Chỉ ẨN giao diện. Máy chủ vẫn ÉP giá xung về mặc định khi cờ tắt — xem
+ * `jpChonGiaXung_` (`00_Config`). Web ở `ANYONE_ANONYMOUS` nên ẩn ô mà không chặn ở
+ * máy chủ là không chặn gì cả.
+ */
+function jpHienCotXung() {
+  return APP.chonGiaXung === true;
+}
+
+/*
+ * Dòng nhắc khi cột đã ẩn MÀ SỐ CŨ VẪN CÒN — không thì `Đã bán` của mấy dòng đó suy từ
+ * một ô không còn trên màn hình. Trả chuỗi rỗng khi không có gì để nhắc: một khối cảnh
+ * báo lúc nào cũng hiện là khối không ai đọc.
+ */
+function jpNhacDhCu(idx) {
+  if (APP.coDhTrung) return '';
+  var co = (idx || []).filter(function (ri) {
+    var r = APP.rows[ri] || {};
+    return jpStr0(r.hBefore) !== '' || jpStr0(r.hAfter) !== '';
+  });
+  if (!co.length) return '';
+  return '<p class="hint"><b>' + co.length + ' dòng còn số đồng hồ đếm trứng cũ</b> — ' +
+    'cơ sở này đã khai máy không có đồng hồ nên hai ô đó đã ẩn, nhưng số cũ <b>vẫn đang ' +
+    'được dùng để tính “Đã bán”</b> của các dòng đó. Muốn bỏ hẳn thì báo kế toán xoá, ' +
+    'hoặc bật lại ô “Máy có đồng hồ đếm trứng” ở Cấu hình → Cơ sở rồi xoá tay.</p>';
+}
+
+function tableMoney(idx) {
+  var them = JP_COT_THEM;
+  var dh = jpHienDhTrung();
+  /* ⚠️ Cột "Loại máy" chỉ hiện ở cơ sở CÓ hai loại máy lẫn nhau (Andy 29/08/2026:
+     *"còn mấy cơ sở khác ẩn đó đi"*). Ẩn cột thì phải sửa CẢ BA chỗ: tiêu đề · ô dữ
+     liệu · dòng TỔNG (`cotT`), cộng `colspan` của dòng rỗng. `khoa-cot.js` bắt được
+     đúng lỗi này lần trước. */
+  var gx = jpHienCotXung();
+  var h = '<table class="form">' +
+    '<tr>' +
+      thVT('Mall-L-No-Series', 'NV', ' rowspan="2"', 'lbl') +
+      thVT('Mã hàng', 'NV', ' rowspan="2"') +
+      thVT('Mã Misa', 'NV', ' rowspan="2"') +
+      thVT('Giá<br>/trứng', 'TU', ' rowspan="2"') +
+      /* ⚠️ LOẠI MÁY — giá 1 xung của CHÍNH ô máy này. Andy chốt 29/08/2026: hai loại
+         máy tiền XEN LẪN nhau trong cùng một khu, nên cờ phải ở TỪNG DÒNG.
+         Số này nhân thẳng vào doanh thu và **không phép kiểm nào bắt được "dòng này
+         lẽ ra phải 10.000"**, nên nó bắt buộc phải nhìn thấy được ngay trên bảng. */
+      (gx ? thVT('Loại máy<br><small>giá 1 xung</small>', 'NV', ' rowspan="2"', 'w150')
+          : '') +
+      /* ⚠️ 5 → 7: thêm "Thực thu" + "Lệch" theo TỪNG MÃ (Andy chốt 30/08/2026).
+         Đếm colspan cho đủ, thiếu 1 là cả bảng lệch cột — đúng bẫy `.calc{display:flex}`
+         và đúng lỗi `khoa-cot.js` đã bắt hôm qua khi thêm cột "Loại máy". */
+      '<th class="grp" colspan="7">Meter reading</th>' +
+      /* 8 cột gốc + 3 cột phụ (Bổ sung 1, Bổ sung 2, Trả về kho) = 11.
+         Khai thiếu 1 là cả bảng lệch cột — y như bẫy `.calc{display:flex}`. */
+      '<th class="grp" colspan="' + ((them ? 11 : 8) - (dh ? 0 : 2)) + '">Product</th>' +
+      /* Hoàn khách THEO MÃ (Andy chốt 05/08/2026) — 3 cột: tiền hoàn (NV gõ),
+         quy ra mấy quả (tự tính), lý do. Đếm colspan cho đủ, thiếu 1 là cả
+         bảng lệch cột — đúng bẫy `.calc{display:flex}` đã mắc. */
+      '<th class="grp" colspan="3">Hoàn khách</th>' +
+      thVT('Ảnh chỉ số', 'ANH', ' rowspan="2"') +
+      thVT('Remarks', 'NV', ' rowspan="2"') +
+      '<th rowspan="2"></th>' +
+    '</tr>' +
+    '<tr>' +
+      thVT('Before', 'KY') + thVT('After', 'NV') + thVT('Actual', 'TU') +
+      thVT('COLLECTION', 'TU') + thVT('Thành tiền', 'TU') +
+      thVT('Thực thu<br><small>đếm được</small>', 'NV', '', 'w120') +
+      thVT('Lệch<br><small>thực thu − máy</small>', 'TU', '', 'w120') +
+      thVT('Ban đầu', 'KY') +
+      (dh ? thVT('Before', 'KY') + thVT('After', 'NV') : '') +
+      (them ? thVT('Bổ sung<br>hàng 1', 'NV') + thVT('Bổ sung<br>hàng 2', 'NV') : '') +
+      thVT('Đã bán<br>trong ngày', 'TU') + thVT('Còn lại', 'TU') +
+      (them ? thVT('Trả về<br>kho', 'NV') : '') +
+      thVT('Tồn ngoài', 'NV') + thVT('Note<br>(Topup hàng)', 'NV') +
+      thVT('Hàng tồn<br>thực tế', 'NV') +
+      thVT('Tiền hoàn', 'NV') + thVT('= mấy quả', 'TU') + thVT('Lý do', 'NV') +
+    '</tr>';
+
+  idx.forEach(function (ri) {
+    var r = APP.rows[ri];
+    var w = (r.warns && r.warns.length) ? ' class="warnRow"' : '';
+    var gia = num(r.price) || giaTuMa(r.itemCode);
+    h += '<tr' + w + '>' +
+      '<td class="lbl w170">' + machineSelect(r.machineId, ri) + '</td>' +
+      '<td class="w170"><input type="text" value="' + esc(r.itemCode) + '" oninput="jpRowSet(' + ri + ',\'itemCode\',this.value);jpUpdateGia(' + ri + ')" onchange="jpPickItemCode(' + ri + ',this.value)"></td>' +
+        '<td class="w110"><input type="text" value="' + esc(r.itemMisa) + '" oninput="jpRowSet(' + ri + ',\'itemMisa\',this.value)" onchange="jpRowSet(' + ri + ',\'itemMisa\',this.value,true)"></td>' +
+        '<td class="calc w110" id="gia' + ri + '">' + (gia ? money(gia) : '—') + '</td>' +
+      (gx ? xungSelect(r.giaXung, ri) : '') +
+      cell(r.mBefore, 'mBefore', ri, r.carried) +
+      cell(r.mAfter, 'mAfter', ri) +
+      ro(r.mActual, 'act' + ri) +
+      '<td class="calc w90" id="coll' + ri + '">' + (r.collection || 0) + '</td>' +
+      '<td class="calc w110" id="tien' + ri + '"><b>' + money(r.amount) + '</b></td>' +
+      /* ⚠️ Ô "Thực thu" TRỐNG là CHƯA ĐẾM, không phải đếm được 0 — `cell()` giữ ô trống.
+         Coi trống là 0 thì lệch ra −(tiền mặt máy báo) và TỔNG PHẢI NỘP về 0. */
+      cell(r.cashReal, 'cashReal', ri) +
+      '<td class="calc w120" id="ltm' + ri + '">' + jpChuLechTM(r.lechTM) + '</td>' +
+      cell(r.hOpen, 'hOpen', ri, r.carried) +
+      (dh ? cell(r.hBefore, 'hBefore', ri, r.carried) +
+            cell(r.hAfter, 'hAfter', ri) : '') +
+      (them ? cell(r.addQty1, 'addQty1', ri) + cell(r.addQty2, 'addQty2', ri) : '') +
+      '<td class="calc w90" id="ban' + ri + '"><b>' + (r.soldQty || 0) + '</b></td>' +
+      /* ⚠️ Ô CÒN LẠI PHẢI có `id` — thiếu `id` là `jpTinhDong` KHÔNG CÁCH NÀO cập nhật
+         được nó, nên nó đứng im ở số của lượt lưu trước suốt lúc nhân viên gõ. Bảng
+         máy xu có `id="con…"` từ đầu, chỉ bảng máy tiền thiếu. Gặp thật 26/08/2026
+         (VINWONDER): gõ chỉ số xong, tiền nhảy mà ĐÃ BÁN / CÒN LẠI vẫn 0. */
+      '<td class="calc w90" id="con' + ri + '"><b>' + (r.hLeft || 0) + '</b></td>' +
+      (them ? cell(r.returnQty, 'returnQty', ri) : '') +
+      cell(r.stockOut, 'stockOut', ri) +
+      '<td class="w140"><input type="text" style="text-align:left" value="' + esc(r.topupNote) +
+        '" oninput="jpRowSet(' + ri + ',\'topupNote\',this.value)"></td>' +
+      cell(r.stockActual, 'stockActual', ri) +
+      cell(r.refundAmt, 'refundAmt', ri) +
+      '<td class="calc w80" id="qua' + ri + '">' + (num(r.refundAmt) && gia
+          ? Math.floor(num(r.refundAmt) / gia) : 0) + '</td>' +
+      '<td class="w140"><input type="text" style="text-align:left" value="' +
+        esc(r.refundRowNote) + '" oninput="jpRowSet(' + ri + ',\'refundRowNote\',this.value)"></td>' +
+      '<td class="w110"><div class="photoCell" id="ps_' + ri + '"></div></td>' +
+      '<td class="w140"><input type="text" style="text-align:left" value="' + esc(r.note) +
+        '" oninput="jpRowSet(' + ri + ',\'note\',this.value)"></td>' +
+      '<td class="act"><button class="miniBtn danger" onclick="jpDelRow(' + ri + ')">×</button></td>' +
+    '</tr>';
+  });
+
+  if (idx.length) {
+    /* Thu tu PHAI khop than bang, va than bang doi theo `them` — khai cung mot
+       mang cho ca hai truong hop la lech cot ngay khi bam "Hien cot bo sung".
+       Bo trong: o may · ma hang · ma Misa · gia · Before · After · Note topup
+       · ly do hoan · anh · remarks · nut. */
+    /* ⚠️ Thêm cột "Loại máy" (29/08/2026) ⇒ phải thêm ĐÚNG MỘT `null` nữa ở đây, và
+       cộng 1 vào colspan của dòng rỗng bên dưới. Thiếu là cả dòng TỔNG lệch một cột —
+       `khoa-cot.js` bắt được ngay, và đó đúng là việc của nó. */
+    var cotT = [
+      { nhan: 'TỔNG ' + idx.length + ' ô máy' }, null, null, null, null, null
+    ];
+    if (gx) cotT.push(null);
+    cotT = cotT.concat([
+      { k: 'actual', xt: true }, { k: 'collection', xt: true },
+      { k: 'tien', xt: true, tien: true },
+      { k: 'cashReal', tien: true }, { k: 'lechTM', xt: true, tien: true },
+      { k: 'hOpen' }
+    ]);
+    /* Thu tu PHAI y het than bang: hOpen -> [hBefore, hAfter] -> [addQty]. */
+    if (dh) cotT.push({ k: 'hBefore' }, { k: 'hAfter' });
+    if (them) cotT.push({ k: 'addQty1' }, { k: 'addQty2' });
+    /* `soldQty` / `hLeft` doc THANG truong may chu — dung y het o than bang
+       ngay tren no. Lay qua `jpXemTruoc` thi dong tong song con cot tren dung
+       im, hai so cai nhau tren cung mot man. */
+    cotT.push({ k: 'soldQty' }, { k: 'hLeft' });
+    if (them) cotT.push({ k: 'returnQty' });
+    cotT.push({ k: 'stockOut' }, null, { k: 'stockActual' },
+              { k: 'refundAmt', tien: true }, { k: 'qua', xt: true },
+              null, null, null, null);
+    h += jpHangTong('tgTi', idx, cotT);
+  } else {
+    /* ⚠️ colspan cua dong rong cung phai tru 2 — de nguyen la o "Chua co o nao" thoi
+       ra ngoai bang khi cot bi an. Cung ho bay colspan da mac o nhom "Product". */
+    h += '<tr><td colspan="' + ((them ? 28 : 25) - (dh ? 0 : 2) + (gx ? 1 : 0)) +
+         '" style="color:#6b7280;padding:14px">' +
+         'Chưa có ô nào — bấm "Thêm ô / máy"</td></tr>';
+  }
+  return h + '</table>' + jpNhacDhCu(idx) + chuGiaiBang(
+    'Đúng bố cục form giấy <b>SUMMARY STATION SALES AND CASH REPORT</b>. ' +
+    '<b>COLLECTION</b> = Actual ÷ 2 (đơn vị 10.000đ) · <b>Thành tiền</b> = Actual × 5.000đ. ' +
+    /* ⚠️ Cau chu giai phai doi theo. May khong co dong ho ma van day "lay theo dong ho
+       dem trung" la web day sai cach ra so — cung loi voi "Σ (Chenh dong ho × 5.000d)"
+       cua mau TACH da phai bo. */
+    (dh ? '<b>Đã bán trong ngày</b> lấy theo đồng hồ đếm trứng (After − Before), không suy từ tiền. '
+        : '<b>Đã bán trong ngày</b> suy từ <b>Thành tiền ÷ Giá/trứng</b> — cơ sở này đã khai ' +
+          'máy <b>không có đồng hồ đếm trứng</b>. ') +
+    '<b>Còn lại</b> = Ban đầu − Đã bán' + (them ? ' + Bổ sung − Trả về kho' : '') + '.' +
+    (them ? '' : '<br>Muốn ghi <b>bổ sung hàng</b> / <b>trả về kho</b> bằng SỐ LƯỢNG thì bấm ' +
+      '<b>"Hiện cột bổ sung / trả kho"</b> — form giấy chỉ ghi bằng chữ ở cột Note.'));
+}
+
+/**
+ * Giá 1 trứng suy từ tiền tố MÃ HÀNG: 50JP=50k · 100JP=100k · 150JP=150k · 200JP=200k
+ * Phải suy từ `itemCode` đúng như server (`jpGiaTuMa_`) — trước đây client suy từ
+ * `itemMisa` nên hai mã khác tiền tố thì nhân viên thấy một giá, hệ thống tính giá khác.
+ */
+function giaTuMa(ma) {
+  var m2 = String(ma || '').trim().match(/^(\d+)\s*JP/i);
+  if (!m2) return 0;
+  var k = parseInt(m2[1], 10);
+  return (k > 0 && k <= 1000) ? k * 1000 : 0;
+}
+
+/*
+ * Tỷ giá lấy từ `boot.rates` của MÁY CHỦ, không gõ số cứng ở client.
+ * Cùng loại bẫy với `giaTuMa`: gõ cứng ở đây thì đổi quy tắc tính tiền bên server là
+ * nhân viên thấy một số, hệ thống tính số khác — mà không ai biết.
+ */
+function giaXuMot()    { return num((APP.boot && APP.boot.rates || {}).coin) || 50000; }
+function giaMoneyMot() { return num((APP.boot && APP.boot.rates || {}).coinMoney) || 10000; }
+/**
+ * Tiền một XUNG đồng hồ máy tiền — MỘT chỗ hỏi, y như hai hàm trên.
+ *
+ * ⚠️ Trước 20/08/2026 con số `5000` viết CỨNG ở **hai** chỗ trong `jpXemTruoc`, trong khi
+ * máy chủ đã gửi sẵn `rates.moneyPulse` (`03_CauHinh`) mà client không dùng. Đổi tỷ lệ ở
+ * `JP_RATE_MONEY_PULSE` thì màn xem trước **im lặng giữ số cũ**: nhân viên thấy một số,
+ * lưu xong ra số khác — đúng bệnh "hai con số cãi nhau" mà bản sao `jpMayGoTay_` vừa gây
+ * ra ba lần. Tìm ra khi soát cả nhóm bản sao, không phải vì có ai báo lỗi.
+ */
+function giaXungMot()  { return num((APP.boot && APP.boot.rates || {}).moneyPulse) || 5000; }
+
+/**
+ * Giá 1 xung của DÒNG này — lấy theo KHU nó đang nằm. Bản client của `jpGiaXung_`.
+ *
+ * ⚠️ KHÔNG dùng `giaXungMot()` ở nhánh tính tiền nữa: hàm đó trả hằng số chung của cả
+ * hệ thống, mà từ 29/08/2026 giá xung là **của từng khu** (SUNWORLD PQ có hai loại máy
+ * tiền tách theo khu). Dùng nhầm là màn hình in một số, máy chủ ghi một số khác —
+ * và nhân viên tin số trên màn hình.
+ */
+function giaXungDong(r) {
+  return Number(r && r.giaXung) === 10000 ? 10000 : 5000;
+}
+
+/*──────── BẢNG MÁY XU (a) — tiền theo vị trí, 2 dòng COIN / MONEY ────────*/
+function tableCoin(idx) {
+  var h = '<table class="form">' +
+    '<tr>' +
+      thVT('Mall-L-No-Series', 'NV', ' rowspan="2"', 'lbl') +
+      '<th rowspan="2"></th>' +
+      '<th class="grp" colspan="4">Meter reading</th>' +
+      '<th class="grp" colspan="3">COLLECTION</th>' +
+      thVT('Ảnh chỉ số', 'ANH', ' rowspan="2"') +
+      thVT('Remarks', 'NV', ' rowspan="2"') +
+      '<th rowspan="2"></th>' +
+    '</tr>' +
+    '<tr>' +
+      thVT('Before', 'KY') + thVT('After', 'NV') + thVT('Actual', 'TU') +
+      thVT('Thành tiền', 'TU') +
+      thVT('Cash', 'NV') + thVT('Bank transfer', 'NV') + thVT('Total', 'TU') +
+    '</tr>';
+
+  idx.forEach(function (ri) {
+    var r = APP.rows[ri];
+    var w = (r.warns && r.warns.length) ? ' class="warnRow"' : '';
+    var tong = num(r.cash) + num(r.bank);
+
+    h += '<tr' + w + '>' +
+      '<td class="lbl w170" rowspan="2">' + machineSelect(r.machineId, ri) + '</td>' +
+      '<td class="w70"><b>COIN</b></td>' +
+      cell(r.cBefore, 'cBefore', ri, r.carried) +
+      cell(r.cAfter, 'cAfter', ri) +
+      '<td class="calc w90" id="cAct' + ri + '">' + (r.cActual || 0) + '</td>' +
+      '<td class="calc w110" id="tienXu' + ri + '"><b>' +
+        money(num(r.cActual) * giaXuMot()) + '</b></td>' +
+      cell(r.cash, 'cash', ri, false, 2) +
+      cell(r.bank, 'bank', ri, false, 2) +
+      '<td class="calc w110" rowspan="2" id="thu' + ri + '"><b>' + money(tong) + '</b></td>' +
+      '<td class="w110" rowspan="2"><div class="photoCell" id="ps_' + ri + '"></div></td>' +
+      '<td class="w140" rowspan="2"><input type="text" style="text-align:left" value="' + esc(r.note) +
+        '" oninput="jpRowSet(' + ri + ',\'note\',this.value)"></td>' +
+      '<td class="act" rowspan="2"><button class="miniBtn danger" onclick="jpDelRow(' + ri + ')">×</button></td>' +
+    '</tr>' +
+    '<tr' + w + '>' +
+      '<td class="w70"><b>MONEY</b></td>' +
+      cell(r.mBefore, 'mBefore', ri, r.carried) +
+      cell(r.mAfter, 'mAfter', ri) +
+      '<td class="calc w90" id="act' + ri + '">' + (r.mActual || 0) + '</td>' +
+      '<td class="calc w110" id="tienMn' + ri + '"><b>' +
+        money(num(r.mActual) * giaMoneyMot()) + '</b></td>' +
+    '</tr>';
+  });
+
+  if (idx.length) {
+    /* HAI dòng tổng, soi gương đúng thân bảng: mỗi vị trí có HAI đồng hồ, nên một
+       dòng tổng gộp cả hai là cộng xu với đơn vị money — hai thứ khác đơn vị.
+       ⚠️ KHÔNG cộng Before/After: đó là số công-tơ-mét của từng máy, cộng lại vô
+       nghĩa y như cộng cột đơn giá. Cộng `Actual` (phần chênh) mới có nghĩa.
+       Ba số đáng đọc nhất nằm sát nhau — Σ tiền COIN · Σ tiền MONEY · Σ Total —
+       và theo form giấy thì CẢ BA phải ra cùng một số. Đó chính là phép soát mà
+       trước đây nhân viên phải tự cộng 6 vị trí bằng tay mới thấy. */
+    h += jpHangTong('tgCoin', idx, [
+      { nhan: 'TỔNG ' + idx.length + ' vị trí' }, { nhan: 'COIN' }, null, null,
+      { k: 'cActual', xt: true }, { k: 'tienXu', xt: true, tien: true },
+      { k: 'cash', tien: true }, { k: 'bank', tien: true },
+      { k: 'thu', xt: true, tien: true }, null, null, null
+    ]);
+    h += jpHangTong('tgMn', idx, [
+      null, { nhan: 'MONEY' }, null, null,
+      { k: 'actual', xt: true }, { k: 'tienMoney', xt: true, tien: true },
+      null, null, null, null, null, null
+    ]);
+  } else {
+    h += '<tr><td colspan="12" style="color:#6b7280;padding:14px">Chưa có vị trí nào — bấm "Thêm ô / máy"</td></tr>';
+  }
+  return h + '</table>' + chuGiaiBang(
+    'Đúng bố cục form giấy: mỗi vị trí HAI đồng hồ <b>COIN</b> và <b>MONEY</b>. ' +
+    'COIN × 50.000đ và MONEY × 10.000đ <b>phải ra cùng một số</b> — lệch là hệ thống ' +
+    'cảnh báo ngay. <b>Cash + Bank transfer</b> phải khớp số đó.<br>' +
+    'Dòng <b>TỔNG</b> cuối bảng cộng sẵn cả ba số cho <b>cả cơ sở</b>: tiền theo ' +
+    'đồng hồ COIN · tiền theo đồng hồ MONEY · tiền đếm được (Total). ' +
+    'Ba số đó <b>phải bằng nhau</b> — lệch là soi lại từng vị trí ở trên.<br>' +
+    'Bảng này <b>chỉ ghi tiền</b>. Hàng của máy xu ở bảng ' +
+    '"HÀNG TỒN CƠ SỞ" bên dưới — cùng một mã hàng, đừng khai hai lần.');
+}
+
+/*════════════════════ DÒNG TỔNG CUỐI BẢNG ════════════════════
+ *
+ * Andy 07/08/2026: *"bảng cần có tổng phía dưới mỗi cột"*.
+ *
+ * Khai báo theo CỘT, đúng thứ tự các `<td>` của thân bảng — lệch một ô là số
+ * cộng nằm dưới nhầm cột, mà vẫn trông như một con số thật.
+ *   null              → ô trống (cột chữ, cột đơn giá — cộng vào là vô nghĩa)
+ *   { k: 'stockOpen' }→ cộng thẳng trường đó trên dòng
+ *   { k, xt: true }   → cộng trường của `jpXemTruoc(r)` — mấy cột TỰ TÍNH
+ *   { tien: true }    → in ra dạng tiền
+ *
+ * ⚠️ Cột TỰ TÍNH phải lấy qua `jpXemTruoc`, KHÔNG đọc `r.soldQty` sẵn có: mấy
+ * trường đó do máy chủ ghi nên trước lượt lưu chúng còn là số CŨ. Đọc chúng thì
+ * dòng tổng đứng im trong khi ô ngay trên nó đã đổi — người dùng thấy hai số
+ * cãi nhau trên cùng một màn.
+ */
+var JP_TONG = [];       // các bảng đang hiện, để vá lại khi gõ
+
+function jpHangTong(pre, idx, cot) {
+  JP_TONG.push({ pre: pre, idx: idx, cot: cot });
+  var t = jpCongCot(idx, cot);
+  return '<tr class="tongRow">' + cot.map(function (c, i) {
+    if (!c) return '<td></td>';
+    if (c.nhan) return '<td class="lbl"><b>' + c.nhan + '</b></td>';
+    return '<td class="' + (c.cls || 'calc') + '" id="' + pre + i + '"><b>' +
+           jpSoTong(t[i], c) + '</b></td>';
+  }).join('') + '</tr>';
+}
+
+function jpCongCot(idx, cot) {
+  var t = cot.map(function () { return null; });
+  idx.forEach(function (ri) {
+    var r = APP.rows[ri];
+    if (!r) return;
+    var xt = null;
+    cot.forEach(function (c, i) {
+      if (!c || c.nhan) return;
+      var v;
+      if (c.xt) { if (!xt) xt = jpXemTruoc(r) || {}; v = xt[c.k]; }
+      else if (c.ngay !== undefined) { v = (r.xuDays || [])[c.ngay]; }
+      else v = r[c.k];
+      if (v === '' || v === null || v === undefined) return;
+      t[i] = (t[i] || 0) + num(v);
+    });
+  });
+  return t;
+}
+
+function jpSoTong(v, c) {
+  if (v === null) return '';
+  return c.tien ? money(v) : v;
+}
+
+/** Vá lại mọi dòng tổng đang hiện — gọi sau mỗi lần gõ, không vẽ lại bảng. */
+function jpCapNhatTong() {
+  JP_TONG.forEach(function (b) {
+    var t = jpCongCot(b.idx, b.cot);
+    b.cot.forEach(function (c, i) {
+      if (!c || c.nhan) return;
+      var o = $(b.pre + i);
+      if (o) o.innerHTML = '<b>' + jpSoTong(t[i], c) + '</b>';
+    });
+  });
+}
+
+/*──────── BẢNG MÁY XU (b) — hàng tồn cơ sở theo mã hàng ────────*/
+function tableStock(idx) {
+  var days = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
+  var h = '<table class="form">' +
+    '<tr>' +
+      thVT('Tên hàng', 'NV', ' rowspan="2"', 'lbl') +
+      thVT('Mã Misa', 'NV', ' rowspan="2"') +
+      thVT('Giá xu', 'NV', ' rowspan="2"') +
+      thVT('Trứng tồn<br>ban đầu', 'KY', ' rowspan="2"') +
+      '<th class="grp" colspan="2">Bổ sung hàng</th>' +
+      '<th class="grp" colspan="' + days.length + '">Số xu kiểm</th>' +
+      thVT('Tổng xu', 'TU', ' rowspan="2"') +
+      thVT('Xu lạ', 'NV', ' rowspan="2"') +
+      thVT('Hàng bán<br>trong kỳ', 'TU', ' rowspan="2"') +
+      thVT('Hàng lỗi<br>/mẫu', 'NV', ' rowspan="2"') +
+      thVT('Trả về<br>kho', 'NV', ' rowspan="2"') +
+      thVT('Hàng còn', 'TU', ' rowspan="2"') +
+      thVT('Thực tế', 'NV', ' rowspan="2"') +
+      thVT('Ghi chú', 'NV', ' rowspan="2"') +
+      '<th rowspan="2"></th>' +
+    '</tr>' +
+    '<tr>' + thVT('Lần 1', 'NV') + thVT('Lần 2', 'NV') +
+      days.map(function (d) { return thVT(d, 'NV'); }).join('') + '</tr>';
+
+  idx.forEach(function (ri) {
+    var r = APP.rows[ri];
+    var w = (r.warns && r.warns.length) ? ' class="warnRow"' : '';
+    var xd = r.xuDays || [];
+    h += '<tr' + w + '>' +
+      '<td class="lbl w170">' + itemNhap(tenDeHien(r), ri) + '</td>' +
+      /* Mã Misa GÕ ĐƯỢC — y như bảng kho ngoài và bảng HÀNG THEO MÃ.
+         Khoá nó thì mã mới / hàng mua ngoài vĩnh viễn không có mã Misa, mà đó
+         chính là số kế toán dùng để khớp sổ MISA. Gõ mã có trong danh mục thì
+         `jpChonMaHang` vẫn tự điền hộ, nên không mất tiện lợi. */
+      '<td class="w110"><input type="text" value="' + esc(r.itemMisa) +
+        '" placeholder="100JP023"' +
+        ' oninput="jpRowSet(' + ri + ',\'itemMisa\',this.value);jpTinhDong(' + ri + ')"></td>' +
+      cell(r.giaXu, 'giaXu', ri) +
+      cell(r.stockOpen, 'stockOpen', ri, r.carried) +
+      cell(r.addQty1, 'addQty1', ri) +
+      cell(r.addQty2, 'addQty2', ri) +
+      days.map(function (d, di) {
+        return '<td class="w70"><input type="number" inputmode="numeric" value="' +
+          (xd[di] === undefined || xd[di] === '' ? '' : num(xd[di])) +
+          '" oninput="jpXuDay(' + ri + ',' + di + ',this.value)"></td>';
+      }).join('') +
+      '<td class="calc w90" id="xuTong' + ri + '">' + (r.xuTong || 0) + '</td>' +
+      cell(r.xuLa, 'xuLa', ri) +
+      '<td class="calc w90" id="ban' + ri + '"><b>' + (r.soldQty || 0) + '</b></td>' +
+      cell(r.defectQty, 'defectQty', ri) +
+      cell(r.returnQty, 'returnQty', ri) +
+      '<td class="calc w90" id="con' + ri + '"><b>' + (r.stockLeftCalc || 0) + '</b></td>' +
+      cell(r.stockActual, 'stockActual', ri) +
+      '<td class="w140"><input type="text" style="text-align:left" value="' + esc(r.note) +
+        '" oninput="jpRowSet(' + ri + ',\'note\',this.value)"></td>' +
+      '<td class="act"><button class="miniBtn danger" onclick="jpDelRow(' + ri + ')">×</button></td>' +
+    '</tr>';
+  });
+
+  if (idx.length) {
+    /* 22 cot, dung thu tu than bang: ten · Misa · gia xu · ton dau · bo sung 1-2
+       · 7 ngay · tong xu · xu la · ban · loi · tra kho · con · thuc te · ghi chu · nut */
+    h += jpHangTong('tgXu', idx, [
+      { nhan: 'TỔNG ' + idx.length + ' mã' }, null, null,
+      { k: 'stockOpen' }, { k: 'addQty1' }, { k: 'addQty2' },
+      { ngay: 0 }, { ngay: 1 }, { ngay: 2 }, { ngay: 3 },
+      { ngay: 4 }, { ngay: 5 }, { ngay: 6 },
+      { k: 'xuTong', xt: true }, { k: 'xuLa' }, { k: 'ban', xt: true },
+      { k: 'defectQty' }, { k: 'returnQty' }, { k: 'con', xt: true },
+      { k: 'stockActual' }, null, null
+    ]);
+  } else {
+    h += '<tr><td colspan="22" style="color:#6b7280;padding:14px">Chưa có mã hàng nào — bấm "Thêm mã hàng"</td></tr>';
+  }
+  return h + '</table>' + chuGiaiBang(
+    '<b>Hàng bán</b> = Tổng xu ÷ Giá xu. <b>Hàng còn</b> = Tồn đầu + Bổ sung ' +
+    '− Xu lạ − Hàng bán − Lỗi/mẫu − Trả về kho. Gõ <b>Thực tế</b> lệch với ' +
+    '<b>Hàng còn</b> thì hệ thống cảnh báo chứ không chặn.');
+}
+
+/** Nhập số xu kiểm của 1 ngày. */
+function jpXuDay(ri, di, val) {
+  var r = APP.rows[ri];
+  if (!r.xuDays) r.xuDays = [];
+  r.xuDays[di] = val;
+  jpDirty();
+  jpTinhDong(ri);                 // tổng xu · hàng bán · hàng còn hiện ngay
+}
+
+/*──────── Ô nhập trong bảng ────────*/
+function cell(val, key, ri, carried, rowspan) {
+  var CARRIED_KEYS = ['mBefore', 'cBefore', 'hBefore', 'hOpen', 'stockOpen'];
+  var lock = (carried && CARRIED_KEYS.indexOf(key) >= 0);
+
+  /* Ô TỒN ĐẦU mở lại được ĐẦU THÁNG MỚI (Andy chốt 05/08/2026). Cờ do MÁY CHỦ quyết
+     (`jpMoTonDau_`), client chỉ đọc — đừng tự suy theo ngày ở đây, hai chỗ tự suy là
+     hai luật rồi lệch nhau. Còn khoá thì có nút gửi đề nghị kế toán. */
+  var laTonDau = (key === 'stockOpen' || key === 'hOpen');
+  if (lock && laTonDau && APP.report && APP.report.moTonDau) lock = false;
+
+  var rs = rowspan ? ' rowspan="' + rowspan + '"' : '';
+  var nut = (lock && laTonDau)
+    ? '<button class="miniBtn dnBtn" title="Gửi đề nghị kế toán sửa tồn đầu"' +
+      ' onclick="jpXinSuaTonDau(' + ri + ')">✎</button>'
+    : '';
+  return '<td class="w90"' + rs + '><input type="number" inputmode="numeric" value="' +
+    (val === '' ? '' : num(val)) + '"' +
+    (lock ? ' readonly title="Tồn cuối kỳ trước — sửa được đầu tháng mới, hoặc bấm ✎ gửi đề nghị kế toán"' : '') +
+    ' oninput="jpRowSet(' + ri + ',\'' + key + '\',this.value);jpTinhDong(' + ri + ')">' +
+    nut + '</td>';
+}
+
+/**
+ * Gửi đề nghị kế toán sửa tồn đầu một dòng.
+ *
+ * ⚠️ Hỏi số mới TRƯỚC rồi mới hỏi lý do, và **bắt buộc có lý do** — máy chủ cũng chặn
+ * (`jpGuiDeNghiTonDau`), đây chỉ là chặn sớm cho nhanh.
+ */
+function jpXinSuaTonDau(ri) {
+  var r = APP.rows[ri];
+  var cu = num(r.rowKind === 'HANG' ? r.stockOpen : r.hOpen);
+  var ten = r.itemName || r.itemMisa || r.itemCode || r.machineCode || ('dòng ' + (ri + 1));
+
+  var moi = prompt('Tồn đầu của ' + ten + ' đang là ' + cu +
+                   '.\n\nSố ĐÚNG phải là bao nhiêu?', String(cu));
+  if (moi === null) return;
+  if (String(moi).trim() === '' || isNaN(Number(moi))) { toast('Phải nhập một con số'); return; }
+  if (Number(moi) === cu) { toast('Số mới bằng số cũ — không cần đề nghị'); return; }
+
+  var lyDo = prompt('Vì sao phải sửa? Kế toán cần căn cứ để duyệt.\n' +
+                    '(ví dụ: đếm lại thấy 250, kỳ trước ghi nhầm)');
+  if (lyDo === null) return;
+  if (!String(lyDo).trim()) { toast('Phải ghi lý do'); return; }
+
+  busy(true, 'Đang gửi đề nghị…');
+  srv('jpGuiDeNghiTonDau', APP.token, {
+    reportId: APP.report.id, rowId: r.id, soMoi: Number(moi), lyDo: String(lyDo).trim()
+  }).then(function (d) {
+    busy(false);
+    toast(d.msg);
+  }).catch(function (e) { busy(false); toast(e.message); });
+}
+/** Ô CHỈ ĐỌC do máy chủ tính. `id` để `jpTinhDong` vá lại được ngay lúc gõ —
+    không có id thì ô đứng im tới lượt lưu, đúng cái Andy kêu "lâu hiện lên". */
+function ro(val, id, rowspan) {
+  var rs = rowspan ? ' rowspan="' + rowspan + '"' : '';
+  return '<td class="calc w90"' + rs + (id ? ' id="' + id + '"' : '') + '>' +
+         (val || 0) + '</td>';
+}
+
+function hasQRCluster(clusterId) {
+  if (!clusterId) return false;
+  var c = (APP.boot.clusters || []).filter(function (x) {
+    return String(x.id) === String(clusterId);
+  })[0];
+  return !!(c && c.hasQR);
+}
+
+function zoneIndexOf(zoneId) {
+  for (var i = 0; i < APP.zones.length; i++) {
+    if (String(APP.zones[i].id) === String(zoneId)) return i;
+  }
+  return 0;
+}
+
+function clusterSelect(cur, zi) {
+  var locId = APP.report.locationId;
+  var opts = '<option value="">— chọn cụm —</option>';
+  (APP.boot.clusters || []).forEach(function (c) {
+    if (String(c.locationId) !== String(locId)) return;
+    opts += '<option value="' + c.id + '"' + (String(c.id) === String(cur) ? ' selected' : '') +
+            '>' + esc(c.name) + (c.hasQR ? ' (có QR)' : '') + '</option>';
+  });
+  return '<select style="width:180px" onchange="jpZoneCluster(' + zi + ',this.value)">' + opts + '</select>';
+}
+
+/** Ô/máy đã cấu hình cho cơ sở của báo cáo đang mở. */
+function machinesOfLoc() {
+  var locId = APP.report.locationId;
+  return (APP.boot.machines || []).filter(function (m) {
+    return String(m.locationId) === String(locId);
+  });
+}
+
+function machineSelect(cur, ri) {
+  var ds = machinesOfLoc();
+
+  /* Cơ sở chưa cấu hình ô máy nào thì đừng hiện select rỗng — nhân viên bấm vào
+     không có gì để chọn, tưởng app lỗi. Nói thẳng là thiếu cấu hình. */
+  if (!ds.length) {
+    return '<span class="sub">chưa cấu hình ô máy</span>';
+  }
+
+  var o = '<option value="">— chọn ô —</option>';
+  ds.forEach(function (m) {
+    o += '<option value="' + m.id + '"' + (String(m.id) === String(cur) ? ' selected' : '') +
+         '>' + esc(m.code) + '</option>';
+  });
+  return '<select onchange="jpPickMachine(' + ri + ',this.value)">' + o + '</select>';
+}
+
+/*════════════════════ Ô MÃ HÀNG — GÕ TỰ DO, có gợi ý ════════════════════
+ *
+ * Andy chốt 06/08/2026: *"nhiều khi mã mới hay mua ngoài không có"*.
+ *
+ * Trước bản này ô này là `<select>` khoá cứng vào danh mục ⇒ mã mới hoặc hàng mua
+ * ngoài **không nhập được gì cả**, nhân viên đứng hình. Nay là ô gõ tự do kèm
+ * `<datalist>` — vẫn gợi ý đủ danh mục khi bấm vào, nhưng gõ mã lạ vẫn nhận.
+ *
+ * ⚠️ Gõ trúng mã có trong danh mục thì TỰ ĐIỀN tên + Misa + giá; gõ mã lạ thì
+ * **KHÔNG xoá** những gì nhân viên đã gõ tay. Xoá là mất công gõ lại, mà đây đúng
+ * là tình huống mã lạ nên chẳng có gì để điền vào.
+ */
+/**
+ * Ô hàng hoá — nhân viên gõ **TÊN HÀNG**, không gõ mã.
+ *
+ * Andy 07/08/2026: *"mã hàng hiển thị tên không phải chọn xong ra mã misa"*.
+ * Trước đây ô này buộc vào `itemCode`, mà `itemCode` trong danh mục JP chính là
+ * mã MISA — nên chọn xong màn hình chỉ còn `150JP065`, nhân viên đứng ở máy
+ * không biết đó là hàng gì.
+ *
+ * Cột `Mã Misa` bên cạnh vẫn có và vẫn gõ được, nên không mất thông tin nào.
+ * Bảng HÀNG của mẫu TÁCH vốn đã làm đúng khuôn này từ đầu — nay ba bảng thống nhất.
+ *
+ * ⚠️ Gõ tên lạ (hàng mua ngoài, mã mới) vẫn nhận. `itemCode` để trống thì máy chủ
+ * tự lấy theo mã Misa (`jpSaveReport`: `itemCode || itemMisa`), nên kho vẫn tra
+ * được. Đừng ép phải khớp danh mục — đúng cái Andy mở ra hôm 06/08.
+ */
+/**
+ * Tên hàng để HIỆN — dòng đời cũ có mã mà chưa có tên thì tra danh mục lấy tên.
+ *
+ * Không có bước này thì mọi dòng cũ hiện ra ô TRỐNG ở cột đầu: nhân viên nhìn
+ * bảng không biết dòng nào là hàng gì, mà mã thì đã chuyển sang cột bên cạnh.
+ * ⚠️ Chỉ tra danh mục, KHÔNG bịa: mã lạ (hàng mua ngoài) vẫn để trống cho nhân
+ * viên tự gõ — in đại cái mã vào ô "Tên hàng" là nói sai tên hàng.
+ */
+function tenDeHien(r) {
+  if (jpStr0(r.itemName)) return r.itemName;
+  var m = String(r.itemMisa || r.itemCode || '').trim().toLowerCase();
+  if (!m) return '';
+  var i = (APP.boot.items || []).filter(function (x) {
+    return String(x.misa).trim().toLowerCase() === m ||
+           String(x.code).trim().toLowerCase() === m;
+  })[0];
+  return i ? (i.name || '') : '';
+}
+function jpStr0(v) { return (v === null || v === undefined) ? '' : String(v).trim(); }
+
+/** Báo cáo này có phải mẫu TÁCH (tiền / hàng hai bảng) — MỘT chỗ hỏi cho cả web. */
+function jpLaTach(h) { return jpStr0((h || {}).bcMau).toUpperCase() === 'TACH'; }
+
+function itemNhap(cur, ri) {
+  return '<input type="text" list="dsMaHang" style="text-align:left"' +
+    ' value="' + esc(cur) + '" placeholder="tên hàng — gõ được hàng mới"' +
+    ' oninput="jpRowSet(' + ri + ',\'itemName\',this.value)"' +
+    ' onchange="jpChonMaHang(' + ri + ',this.value)">';
+}
+
+/**
+ * Đổ danh mục vào ô gợi ý mã hàng — MỘT bản cho cả trang, không mỗi ô một bản.
+ *
+ * ⚠️ Thẻ `<datalist>` nằm sẵn trong `Index.html`, NGOÀI `#zoneWrap`. Nhét nó vào
+ * trong `zoneWrap` thì nó thành con đầu tiên và mọi selector `.zone:first-child`
+ * hết khớp — đã làm hỏng `nhap.js` + `bctach.js` đúng kiểu đó, mà giao diện thì
+ * trông y hệt nên không ai thấy.
+ */
+function dsMaHang() {
+  var d = $('dsMaHang');
+  if (!d) return;
+  /* Khoá theo TÊN vì ô nhập giờ là tên. Phần sau dấu — là mã Misa, trình duyệt
+     hiện nó làm chú thích nên nhân viên vẫn đối chiếu được mã khi cần. */
+  d.innerHTML = (APP.boot.items || []).map(function (i) {
+    return '<option value="' + esc(i.name) + '">' + esc(i.misa || i.code) + '</option>';
+  }).join('');
+}
+
+/** Gõ xong mã: khớp danh mục thì điền hộ, không khớp thì để nguyên. */
+function jpChonMaHang(ri, ten) {
+  var r = APP.rows[ri];
+  if (!r) return;
+  r.itemName = ten;
+  var t = String(ten).trim().toLowerCase();
+  /* Khớp theo TÊN trước — đó là thứ nhân viên vừa gõ. Không khớp thì thử coi họ
+     gõ thẳng mã (quen tay từ bản cũ), để không bắt ai phải đổi thói quen. */
+  var i = (APP.boot.items || []).filter(function (x) {
+    return String(x.name).trim().toLowerCase() === t;
+  })[0] || (APP.boot.items || []).filter(function (x) {
+    return String(x.code).trim().toLowerCase() === t ||
+           String(x.misa).trim().toLowerCase() === t;
+  })[0];
+  if (i) {
+    r.itemName = i.name || ten;
+    r.itemCode = i.code || r.itemCode;
+    r.itemMisa = i.misa || r.itemMisa;
+    if (num(i.price) > 0) r.price = i.price;
+    /* Vẽ lại để ô Mã Misa và Giá bên cạnh hiện số vừa điền hộ.
+       ⚠️ An toàn ở ĐÂY vì hàm này gắn vào `onchange` — nó chỉ chạy khi ô đã mất
+       tiêu điểm. Gọi `renderZones` trong `oninput` mới là chỗ làm con trỏ nhảy
+       ra khỏi ô đang gõ, khiến gõ số hai chữ số không nổi. */
+    renderZones();
+  }
+  jpDirty();
+  jpTinhDong(ri);
+}
+
+/*════════════════ SỐ XEM TRƯỚC TRÊN MÁY — MỘT BẢN DUY NHẤT ════════════════
+ *
+ * Andy 06/08/2026: *"phần tính toán e nó lâu hiện lên quá"*.
+ *
+ * Vì sao lâu: bảng máy xu và máy tiền in thẳng `r.xuTong` · `r.soldQty` ·
+ * `r.stockLeftCalc` · `r.amount` — **những số do MÁY CHỦ tính**. Nhân viên gõ xong
+ * phải chờ tới lượt lưu (tự lưu sau 25 giây ngừng gõ) mới thấy số đổi.
+ *
+ * Nay tính ngay trên máy để HIỆN LIỀN. Máy chủ VẪN là chốt cuối — số lưu vào sheet
+ * vẫn do `jpCalcRow_` tính, đây thuần tuý là xem trước.
+ *
+ * ⚠️ **Công thức phải KHỚP TỪNG PHÉP với máy chủ** (`jpCalcStockRow_` ·
+ * `jpCalcMoneyRow_` · `jpCalcHangRow_`). Lệch một dấu là nhân viên thấy một số,
+ * lưu xong ra số khác — tệ hơn là để chậm. Có test ghim hai bên bằng CÙNG bộ số
+ * (`test/browser/xem-truoc.js` so với `test/tinh-tien.js`), lệch là đỏ.
+ *
+ * ⚠️ Chỉ tính số ĐỂ HIỆN. Không đụng `r.soldQty` / `r.amount` — đó là ô máy chủ ghi;
+ * client ghi đè vào là gửi lên số của chính mình rồi máy chủ tin theo.
+ */
+/**
+ * Chênh lệch một đồng hồ — bản sao ĐÚNG TỪNG NHÁNH của `jpMeterDelta_` (04_TinhToan).
+ *
+ * ⚠️ Ô "sau" TRỐNG hoặc CHẠY LÙI thì trả **0**, KHÔNG rơi về `mActual`. Rơi về là
+ * màn hình in số cũ của máy chủ trong khi máy chủ sẽ tính ra 0 — nhân viên thấy một
+ * số, lưu xong ra số khác, đúng cái tệ hơn để chậm. Em đã viết sai đúng chỗ này ở
+ * bản đầu; test chỉ xanh vì bộ số nào cũng điền đủ hai đồng hồ.
+ */
+function jpDoiDongHo(truoc, sau) {
+  if (jpTrongO(sau)) return 0;
+  var b = num(truoc), a = num(sau);
+  return a < b ? 0 : a - b;
+}
+
+/**
+ * Bản sao `jpMayGoTay_` (00_Config) — dòng máy loại GÕ TAY, không có đồng hồ nào.
+ *
+ * ⚠️⚠️ **`mBefore = 0` KHÔNG phải "có đồng hồ" — so `> 0`, ĐỪNG dùng `jpTrongO`.**
+ * Gặp thật 20/08/2026, ngay sau khi vá bản ở máy chủ: SBPQ **không bấm được** ba ô
+ * *tiền mặt app · QR app · tiền thực thu*. Vì `khoaTien = !o.goTay`, mà hàm này còn
+ * dò bằng ô-trống nên dòng có `mBefore = 0` bị coi là có đồng hồ ⇒ **khoá cả bốn ô
+ * tiền**. Máy chủ thì đã nhận là gõ tay và **đang đòi đúng mấy ô đó** — tức app bắt
+ * điền một ô nó không cho bấm.
+ *
+ * ⚠️⚠️ Bài học: vá `jpMayGoTay_` ở máy chủ mà quên bản sao này là **vá nửa vời**, và
+ * nửa còn lại hỏng nặng hơn nửa đã vá. Chú thích ngay trên nó ghi rõ "Bản sao" — sửa
+ * một bên thì phải grep bản kia. Có phép soát tĩnh khoá lại (`soat-tinh.py`, phép 10).
+ */
+function jpMayGoTay(r) {
+  return !!r && num(r.mBefore) <= 0 && jpTrongO(r.mAfter);
+}
+
+function jpXemTruoc(r) {
+  var k = r.rowKind || 'MONEY';
+  var gia = num(r.price) || giaTuMa(r.itemMisa) || giaTuMa(r.itemCode);
+  var o = { gia: gia };
+
+  if (k === 'STOCK') {
+    /* jpCalcStockRow_: tổng xu → bán = tổng ÷ giá xu (làm tròn XUỐNG) → còn */
+    var xd = r.xuDays || [], tong = 0;
+    for (var i = 0; i < xd.length; i++) tong += num(xd[i]);
+    var gx = num(r.giaXu);
+    o.xuTong = tong;
+    o.ban = gx > 0 ? Math.floor(tong / gx) : 0;
+    o.con = num(r.stockOpen) + num(r.addQty1) + num(r.addQty2)
+          - num(r.xuLa) - o.ban - num(r.defectQty) - num(r.returnQty);
+    o.du = (gx > 0 && tong % gx !== 0) ? (tong % gx) : 0;
+  } else if (k === 'HANG') {
+    /* jpCalcHangRow_: NV gõ ĐÃ BÁN, tồn cuối là số suy ra */
+    o.ban = num(r.soldQty);
+    o.con = num(r.stockOpen) + num(r.addQty1) + num(r.addQty2)
+          - num(r.returnQty) - num(r.defectQty) - o.ban;
+    o.tien = o.ban * gia;
+    o.qua = (num(r.refundAmt) && gia) ? Math.floor(num(r.refundAmt) / gia) : 0;
+  } else if (k === 'NGOAI') {
+    o.con = num(r.stockOpen) + num(r.addQty1) - num(r.stockOut) - num(r.returnQty);
+  } else if (k === 'COIN') {
+    /* jpCalcCoinRow_: MỘT vị trí, HAI đồng hồ. Tiền lấy theo đồng hồ COIN
+       (`amount = cActual × giá xu`); đồng hồ MONEY là đường thứ hai để ĐEM SO,
+       không cộng vào tiền — cộng cả hai là doanh thu gấp đôi.
+       ⚠️ Dòng COIN KHÔNG giữ hàng: `xuTong`/`ban`/`con` ép về 0 y như máy chủ. */
+    o.cActual = jpDoiDongHo(r.cBefore, r.cAfter);
+    o.actual  = jpDoiDongHo(r.mBefore, r.mAfter);
+    o.tienXu    = o.cActual * giaXuMot();
+    o.tienMoney = o.actual  * giaMoneyMot();
+    o.tien   = o.tienXu;
+    o.thu    = num(r.cash) + num(r.bank);
+    o.lechXuMoney = o.tienXu - o.tienMoney;      // hai đồng hồ phải ra cùng một số
+    o.lechThu     = o.tienXu - o.thu;            // đồng hồ vs tiền đếm được
+    o.xuTong = 0; o.ban = 0; o.con = 0;
+  } else if (k === 'MAY') {
+    /* jpCalcMayRow_ — bảng tiền SBPQ, NHÂN VIÊN TỰ ĐIỀN (Andy chốt 12/08/2026).
+       Đồng hồ CÓ số thì vẫn suy tiền từ nó (báo cáo đời cũ), không có thì lấy đúng
+       số đã gõ. Bảng không còn ô đồng hồ nào, nhưng nhánh này phải giữ để mở lại
+       báo cáo cũ không ra số khác máy chủ. */
+    var goTay = jpMayGoTay(r);
+    var mM = goTay ? 0 : jpDoiDongHo(r.mBefore, r.mAfter);
+    o.actual = mM;
+    o.goTay = goTay;
+    if (!goTay) {
+      o.tien = mM * giaXungDong(r);
+      o.tm   = o.tien - num(r.bank);
+    } else {
+      o.tien = jpTrongO(r.amount) ? '' : num(r.amount);
+      o.tm   = jpTrongO(r.cash) ? '' : num(r.cash);
+    }
+    /* ⚠️ `collection` suy TỪ TIỀN, không giữ `mM / 2` — với máy 10.000đ/xung nó phải
+       bằng CHÍNH số xung. Xem chú thích ở `jpCalcMoneyRow_` (`04_TinhToan`). */
+    o.collection = num(o.tien) / 10000;
+    /* Bản sao `jpLechTM_` (00_Config). ⚠️ Ô trống là CHƯA ĐẾM ⇒ KHÔNG có lệch.
+       Coi là 0 thì lệch ra −(tiền mặt app), mà `jpTongXemTruoc` đặt
+       `adjMachine = Σ lệch` ⇒ TỔNG PHẢI NỘP trên màn về 0 ngay khi mở báo cáo. */
+    o.lechTM = (jpTrongO(r.cashReal) || jpTrongO(r.cash))
+      ? '' : (num(r.cashReal) - num(r.cash));
+    o.qua = (num(r.refundAmt) && gia) ? Math.floor(num(r.refundAmt) / gia) : 0;
+  } else {
+    /* MONEY — jpCalcMoneyRow_ */
+    var mAct = jpDoiDongHo(r.mBefore, r.mAfter);
+    o.actual = mAct;
+    o.tien = mAct * giaXungDong(r);
+    o.collection = o.tien / 10000;              // đơn vị 10.000đ, đúng như form giấy
+    o.tm = o.tien - num(r.bank);                // Tiền mặt = thành tiền − chuyển khoản
+    /* THỰC THU theo từng mã (Andy chốt 30/08/2026). Bản sao `jpLechTM_` (`00_Config`).
+       ⚠️ Ô trống là CHƯA ĐẾM ⇒ KHÔNG có lệch. Coi là 0 thì lệch ra −(tiền mặt máy báo),
+       mà `jpTongXemTruoc` đặt `adjMachine = Σ lệch` ⇒ TỔNG PHẢI NỘP trên màn về 0 ngay
+       khi mở báo cáo — đúng cái bẫy đã ghi ở nhánh `MAY`. */
+    o.lechTM = (jpTrongO(r.cashReal) || jpTrongO(o.tm))
+      ? '' : (num(r.cashReal) - num(o.tm));
+    o.qua = (num(r.refundAmt) && gia) ? Math.floor(num(r.refundAmt) / gia) : 0;
+    /*
+     * ⚠️⚠️ ĐÃ BÁN + CÒN LẠI — TRƯỚC 26/08/2026 NHÁNH NÀY KHÔNG TÍNH HAI SỐ ĐÓ.
+     *
+     * Mọi nhánh khác (`STOCK` · `HANG` · `NGOAI`) đều đặt `o.ban`/`o.con`; riêng
+     * `MONEY` — máy tiền mẫu CHUNG, tức gần hết hệ thống — thì không. `jpTinhDong`
+     * chỉ ghi ô khi giá trị `!== undefined`, nên hai cột đó **đứng im** ở số của lượt
+     * lưu trước trong suốt lúc nhân viên gõ: chỉ số nhảy, tiền nhảy, mà ĐÃ BÁN vẫn 0.
+     * Andy gặp thật ở VINWONDER 26/08. Dòng TỔNG cũng lấy `con` qua `jpXemTruoc`
+     * (`{ k: 'con', xt: true }`) nên tổng CÒN LẠI ra 0 luôn.
+     *
+     * ⚠️ Phải mirror ĐÚNG `jpCalcMoneyRow_`, không tự nghĩ công thức:
+     *   · đồng hồ trứng CÓ số  ⇒ tin nó, và **KHÔNG trừ hoàn khách** (đồng hồ đếm quả
+     *     ĐÃ NHẢ nên phần khách không lấy vốn đã không nằm trong đó)
+     *   · chưa có đồng hồ trứng ⇒ suy từ tiền, và **CÓ trừ** hoàn khách
+     *   Trừ ở cả hai nhánh là xuất kho thiếu ⇒ 632 hụt giá vốn mà sổ VẪN CÂN.
+     *   `Math.max(0, …)` cũng phải giữ: thiếu nó là số bán ÂM.
+     */
+    /*
+     * ⚠️⚠️ SUY TỪ **TIỀN THẬT SỰ THU ĐƯỢC** — mirror `jpCalcMoneyRow_` (Andy 31/08/2026:
+     * *"cộng thêm tiền ví dụ +100k phải trừ thêm 1 trứng mới đúng á e"*). Đồng hồ đếm
+     * XUNG; máy nhả một quả mà không ăn được xung thì tiền có trong hộp còn `o.tien`
+     * thì không — quả đó phải ra khỏi tồn.
+     *
+     * ⚠️ **CHỈ CỘNG PHẦN THỪA** (`> 0`), y hệt máy chủ. Hụt tiền nghĩa là đồng hồ ĐÃ
+     * đếm xung ⇒ trứng ĐÃ nhả, tiền mất sau khi bán; trừ trứng ở đây là 632 hụt giá vốn
+     * mà sổ vẫn CÂN.
+     *
+     * ⚠️ `o.lechTM` là **chuỗi rỗng** khi chưa đếm (không phải 0) — `num()` đưa về 0 nên
+     * dòng chưa đếm ra y hệt trước. Đừng "dọn" thành so thẳng `o.lechTM > 0`: `'' > 0`
+     * là false nên may mà đúng, nhưng đó là trùng hợp chứ không phải chủ ý.
+     */
+    var thuaTien = num(o.lechTM) > 0 ? num(o.lechTM) : 0;
+    var banTien = gia > 0 ? Math.floor((o.tien + thuaTien) / gia) : 0;
+    var coDhTrung = !jpTrongO(r.hAfter);
+    o.ban = coDhTrung ? jpDoiDongHo(r.hBefore, r.hAfter)
+                      : Math.max(0, banTien - o.qua);
+    /* Còn lại = Ban đầu + Bổ sung − Đã bán − Trả về kho (y hệt `row.hLeft` ở máy chủ) */
+    o.con = num(r.hOpen) + num(r.addQty1) + num(r.addQty2) - o.ban - num(r.returnQty);
+  }
+
+  /* Lệch giữa số ĐẾM THỰC TẾ và số tính ra — ô trống là CHƯA đếm, không phải đếm 0 */
+  o.coDem = !jpTrongO(r.stockActual);
+  o.lech = o.coDem ? (num(r.stockActual) - num(o.con)) : '';
+  return o;
+}
+
+/**
+ * Cập nhật TẠI CHỖ các ô tự tính của một dòng.
+ *
+ * ⚠️ Vá từng ô theo id chứ KHÔNG dựng lại cả bảng: dựng lại là con trỏ nhảy ra khỏi
+ * ô đang gõ, gõ số hai chữ số không nổi. Đó cũng là lý do bản cũ không tính lại gì
+ * cả — nhưng bỏ hẳn thì số không bao giờ hiện.
+ */
+function jpTinhDong(ri, khongVeTong) {
+  var r = APP.rows[ri];
+  if (!r) return;
+  var o = jpXemTruoc(r);
+  var dat = function (hau, chu) {
+    var el = document.getElementById(hau + ri);
+    if (el) el.innerHTML = chu;
+  };
+  dat('gia', o.gia ? money(o.gia) : '—');
+  if (o.xuTong !== undefined) dat('xuTong', String(o.xuTong));
+  if (o.ban   !== undefined) dat('ban', '<b>' + o.ban + '</b>');
+  if (o.con   !== undefined) dat('con', '<b>' + o.con + '</b>');
+  if (o.tien  !== undefined) dat('tien', '<b>' + money(o.tien) + '</b>');
+  if (o.tm    !== undefined) dat('tm', money(o.tm));
+  if (o.qua   !== undefined) dat('qua', String(o.qua));
+  if (o.actual !== undefined) {
+    dat('act', String(o.actual));
+    if (o.collection !== undefined) dat('coll', String(o.collection));
+  }
+  /* Dòng COIN: hai đồng hồ + hai ô tiền, cộng ô tổng thu dùng chung cả hai dòng */
+  if (o.cActual !== undefined) {
+    dat('cAct', String(o.cActual));
+    dat('tienXu', '<b>' + money(o.tienXu) + '</b>');
+    dat('tienMn', '<b>' + money(o.tienMoney) + '</b>');
+    dat('thu', '<b>' + money(o.thu) + '</b>');
+  }
+  dat('lech', o.coDem
+    ? '<b style="color:' + (o.lech === 0 ? 'inherit' : o.lech > 0 ? '#047857' : '#b91c1c') +
+      '">' + (o.lech > 0 ? '+' : '') + o.lech + '</b>'
+    : '<span class="sub">—</span>');
+
+  /* Lệch TIỀN MẶT của bảng tiền mẫu TÁCH — chuỗi do `jpChuLechTM` dựng, cùng hàm với
+     lúc vẽ bảng. Phải tô/bỏ tô cả ô: gõ cho khớp lại mà ô còn đỏ thì nhân viên tưởng
+     vẫn còn lệch. */
+  if (o.lechTM !== undefined) {
+    var oLtm = document.getElementById('ltm' + ri);
+    if (oLtm) {
+      oLtm.innerHTML = jpChuLechTM(o.lechTM);
+      oLtm.classList.toggle('lech', num(o.lechTM) !== 0);
+    }
+  }
+
+  /* Khối Tổng kết đổi theo — sửa một ô đồng hồ là TỔNG NỘP đổi, để nó đứng im ở số
+     cũ còn tệ hơn để trống: nhân viên đọc tưởng đã tính rồi.
+     `khongVeTong` chỉ dùng khi quét CẢ bảng (`jpVeLaiSoTuTinh`) — n dòng mà mỗi
+     dòng vẽ lại cả khối tổng là n lượt vẽ thừa. */
+  if (khongVeTong) return;
+  paintTotals(jpTongXemTruoc());
+  jpCapNhatTong();          // dòng TỔNG phải đổi cùng nhịp với ô vừa gõ
+}
+
+/**
+ * VẼ LẠI BẢNG XONG thì mọi ô TỰ TÍNH phải trở về số ĐANG GÕ.
+ *
+ * ⚠️ `renderZones` in thẳng `r.cActual` · `r.amount` · `r.soldQty`… — toàn trường
+ * MÁY CHỦ ghi lúc lưu lần trước. Nên nhân viên gõ thêm 100 xu (ô "Thành tiền" nhảy
+ * lên 8.700.000 nhờ `jpTinhDong`) rồi bấm "+ Thêm ô / máy" là cả bảng vẽ lại và ô
+ * đó **tụt về 3.700.000** — số của lượt lưu trước. Số họ vừa gõ vẫn còn trong ô
+ * nhập, chỉ mấy ô TỰ TÍNH nói dối.
+ *
+ * Lỗi này CÓ TỪ TRƯỚC, nhưng trước đây không có gì để đối chiếu nên không ai thấy.
+ * Dòng TỔNG (07/08/2026) lấy số qua `jpXemTruoc` nên nó ĐÚNG — thành ra trên cùng
+ * một màn có hai con số cãi nhau: thân bảng 3.700.000, dòng tổng 8.700.000. Đó
+ * đúng cái bẫy "hai số cùng tên trên một màn" đã mắc ở màn đối soát.
+ *
+ * Cũng dọn luôn thứ tự `paintTotals`/`renderZones` (bẫy cũ: bảng tổng nằm trong
+ * `zoneWrap` nên vẽ lại là ô số về 0đ) — nay vẽ xong là tính lại ngay tại đây.
+ */
+function jpVeLaiSoTuTinh() {
+  APP.rows.forEach(function (r, ri) { jpTinhDong(ri, true); });
+  paintTotals(jpTongXemTruoc());
+  jpCapNhatTong();
+}
+
+/*──────── Thao tác ────────*/
+function jpAddZone() {
+  APP.zones.push({ id: '', name: 'Khu vực ' + (APP.zones.length + 1), clusterId: '', note: '' });
+  jpDirty(); renderZones();
+}
+function jpDelZone(zi) {
+  if (!confirm('Xoá khu vực này và tất cả dòng bên trong?')) return;
+  /* Dòng STOCK (bảng hàng tồn máy xu) mang zoneKey = 0 nhưng KHÔNG thuộc khu vực
+     nào — trước đây xoá khu vực đầu là mất sạch bảng tồn kho vừa nhập. */
+  APP.rows = APP.rows.filter(function (r) {
+    return r.rowKind === 'STOCK' || r.zoneKey !== zi;
+  });
+  APP.rows.forEach(function (r) {
+    if (r.rowKind !== 'STOCK' && r.zoneKey > zi) r.zoneKey--;
+  });
+  APP.zones.splice(zi, 1);
+  if (!APP.zones.length) APP.zones = [{ id: '', name: 'Khu vực 1', clusterId: '', note: '' }];
+  jpDirty(); renderZones();
+}
+function jpZoneName(zi, v) { APP.zones[zi].name = v; jpDirty(); }
+
+/**
+ * Ô CHỌN GIÁ 1 XUNG của **TỪNG DÒNG** — **danh sách ĐÓNG**, y như `jpGiaXung_` ở máy chủ.
+ *
+ * ⚠️ Ở DÒNG chứ không ở khu: Andy chốt 29/08/2026 (sửa lại lời chốt trước đó) rằng hai
+ * loại máy **XEN LẪN nhau** trong cùng một khu. Đặt ở khu là cả khu bị tính sai một nửa.
+ *
+ * ⚠️ Không cho gõ số tự do: gõ thiếu một số 0 là dòng đó về 1/10, mà sổ vẫn cân nên
+ * không phép kiểm nào bắt được.
+ * ⚠️ Chữ phải nói ra CẢ HAI cách gọi ("chia 2" là chữ Andy và nhân viên dùng), không chỉ
+ * in con số — nhân viên đứng ở điểm bán không nhớ 5.000 ứng với loại máy nào.
+ * ⚠️ Chọn MỘT LẦN rồi máy chủ gieo sang kỳ sau, nên không phải chọn lại mỗi kỳ.
+ */
+function xungSelect(v, ri) {
+  var cur = (Number(v) === 10000) ? 10000 : 5000;
+  return '<td class="w150"><select style="width:100%" ' +
+    'onchange="jpRowXung(' + ri + ',this.value)">' +
+    '<option value="5000"' + (cur === 5000 ? ' selected' : '') + '>÷2 · 5.000đ</option>' +
+    '<option value="10000"' + (cur === 10000 ? ' selected' : '') + '>KHÔNG ÷2 · 10.000đ</option>' +
+    '</select></td>';
+}
+
+function jpRowXung(ri, v) {
+  APP.rows[ri].giaXung = Number(v) === 10000 ? 10000 : 5000;
+  jpDirty();
+  /* Đổi giá xung là dòng đó đổi tiền — vẽ lại ngay, không đợi lượt lưu. Để im là nhân
+     viên chọn xong nhìn bảng không thấy gì nhúc nhích và tưởng nó hỏng. */
+  jpVeLaiSoTuTinh();
+}
+
+/**
+ * Tên khu vực này có phải tên **MÁY TỰ ĐẶT** hay không.
+ *
+ * ⚠️ Đúng HAI trường hợp: **trống**, hoặc **đúng khuôn `jpAddZone` sinh ra**
+ * (`Khu vực <số>`). Mọi thứ khác là chữ nhân viên gõ ⇒ KHÔNG được đụng tới.
+ *
+ * ⚠️ Neo `^…$` và `\d+` — khớp CHÍNH XÁC. Nới thành `indexOf('Khu vực')` là ăn luôn
+ * `Khu vực 1 - tầng 2`, tức xoá chữ nhân viên đã gõ. Đó đúng là điều Andy chốt KHÔNG
+ * được làm (08/09/2026: *"không ghi đè"*).
+ */
+function jpTenKhuTuDat(ten) {
+  var t = jpStr0(ten);
+  return t === '' || /^Khu vực \d+$/.test(t);
+}
+
+/**
+ * Chọn cụm cho một khu vực — và **tự điền tên khu theo tên cụm**.
+ *
+ * Andy 08/09/2026. Trước bản này nhân viên gõ tay tên khu **mỗi kỳ**, nên cùng một
+ * chỗ ra bốn cách viết: đo trên sheet thật ở SBPQ có `GATE 2` · `Gate2` · `Khu vực 1`
+ * · `Khu vực 2`. Kế toán nhìn báo cáo hai kỳ liền không biết có phải cùng một khu.
+ *
+ * ⚠️⚠️ **KHÔNG GHI ĐÈ** tên nhân viên đã gõ — chỉ điền khi tên còn là tên máy tự đặt
+ * (xem `jpTenKhuTuDat`). Ghi đè là xoá chữ người ta vừa gõ ngay trước mắt họ, và tên
+ * khu là thứ nhân viên biết rõ hơn danh mục: cụm đặt tên theo máy Pay Box, khu thì có
+ * thể là `GATE 2 - cửa trong`.
+ *
+ * ⚠️ Bỏ chọn cụm (`v` rỗng) thì **KHÔNG đổi tên** — không ai muốn xoá cụm là mất luôn
+ * tên khu vừa được điền.
+ *
+ * ⚠️ Vẫn `renderZones()` như cũ: chọn cụm có QR là **dải ảnh Pay Box mới hiện ra**
+ * (`hasQRCluster`), không vẽ lại thì nhân viên không thấy chỗ gắn ảnh — mà đó chính
+ * là lỗ hổng `W17` vừa vá ở máy chủ.
+ */
+function jpZoneCluster(zi, v) {
+  var z = APP.zones[zi];
+  if (!z) return;
+  z.clusterId = v;
+  var c = (APP.boot.clusters || []).filter(function (x) {
+    return String(x.id) === String(v);
+  })[0];
+  if (c && jpTenKhuTuDat(z.name)) z.name = jpStr0(c.name);
+  jpDirty(); renderZones();
+}
+
+/** Loại dòng cho ô máy — theo MẪU của báo cáo, không chỉ theo loại máy. */
+function loaiDongMay() {
+  if (APP.report.machineType === 'XU') return 'COIN';
+  return jpLaTach(APP.report) ? 'MAY' : 'MONEY';
+}
+
+function jpAddRow(zi) {
+  APP.rows.push({
+    id: '', zoneKey: zi, rowKind: loaiDongMay(),
+    machineId: '', machineCode: '', itemCode: '', itemMisa: '',
+    /*⚠️⚠️ Ô CHỈ SỐ ĐẦU KỲ để TRỐNG, KHÔNG phải 0 — ô máy vừa thêm tay thì chưa có kỳ
+       trước nào, "trống" mới là sự thật. Đặt `0` là làm `jpMayGoTay_` tưởng dòng này
+       CÓ đồng hồ ⇒ `jpThieuChiSo_` đòi `mAfter`, mà mẫu TÁCH không có ô đó trên bảng
+       ⇒ SBPQ chặn nộp vĩnh viễn. Gặp thật 18/08/2026. Máy chủ cũng đã chốt lại
+       (`jpMayGoTay_` so `> 0`), đây là chặng thứ hai — luật "ô trống là CHƯA NHẬP" đòi
+       đủ CẢ BA chặng: tính · lưu · trả về. */
+    hOpen: '', hBefore: '', hAfter: '', stockOut: 0, topupNote: '',
+    mBefore: '', mAfter: '', cBefore: '', cAfter: '', cash: 0, bank: 0,
+    stockOpen: 0, addQty1: 0, addQty2: 0, stockActual: '', defectQty: 0, returnQty: 0,
+    refundAmt: 0, refundQty: 0, refundRowNote: '',
+    note: '', warns: []
+  });
+  jpDirty(); renderZones();
+}
+function jpAddStockRow() {
+  APP.rows.push({
+    id: '', rowKind: 'STOCK', zoneKey: 0, itemCode: '', itemMisa: '',
+    giaXu: 2, stockOpen: 0, addQty1: 0, addQty2: 0, xuDays: [],
+    xuLa: 0, defectQty: 0, returnQty: 0, stockActual: '', note: '',
+    refundAmt: 0, refundQty: 0, refundRowNote: '', warns: []
+  });
+  jpDirty(); renderZones();
+}
+
+/** Thêm một mã hàng vào bảng HÀNG của mẫu TÁCH. */
+function jpAddHangRow() {
+  APP.rows.push({
+    id: '', rowKind: 'HANG', zoneKey: 0, itemCode: '', itemMisa: '',
+    /* `stockActual` để TRỐNG, không phải 0 — trống là CHƯA ĐẾM, và chặn nộp */
+    stockOpen: 0, addQty1: 0, addQty2: 0, returnQty: 0, defectQty: 0,
+    refundAmt: 0, refundQty: 0, refundRowNote: '',
+    /*⚠️ `soldQty` để TRỐNG, KHÔNG phải 0. Đặt 0 là dòng vừa thêm **đi qua được**
+       `jpThieuChiSo_` với "đã bán = 0" — nộp xong mới biết mã đó chưa ai khai, mà lúc
+       đó tồn cuối đã thành tồn đầu kỳ sau. "Trống là CHƯA KHAI, không phải bán được 0". */
+    stockActual: '', soldQty: '', note: '', warns: []
+  });
+  jpDirty(); renderZones();
+}
+
+/** Thêm một mã hàng vào bảng KHO NGOÀI. */
+function jpAddNgoaiRow() {
+  APP.rows.push({
+    id: '', rowKind: 'NGOAI', zoneKey: 0, itemCode: '', itemMisa: '',
+    stockOpen: 0, addQty1: 0, stockOut: 0, returnQty: 0,
+    stockLeftCalc: 0, stockActual: '', note: '', warns: []
+  });
+  jpDirty(); renderZones();
+}
+
+function jpDelRow(ri) {
+  if (!confirm('Xoá dòng này?')) return;
+  APP.rows.splice(ri, 1);
+  jpDirty(); renderZones();
+}
+
+/**
+ * MỌI ô nhập trên dòng đều đi qua đây — nên đây là chỗ tính lại, KHÔNG phải rắc
+ * `jpTinhDong(...)` vào từng `oninput` một.
+ *
+ * ⚠️ Rắc vào từng handler là danh sách LOẠI TRỪ: thêm một ô mới mà quên gắn thì ô
+ * đó im lặng không tính lại, mà màn hình trông y hệt. Đã mắc đúng thế ở bản đầu —
+ * bảng máy xu (`jpXuDay`) và ô "Hàng bán" không hề tính lại, chính là bảng trong
+ * ảnh Andy gửi.
+ */
+function jpRowSet(ri, key, val, redraw) {
+  APP.rows[ri][key] = val;
+  jpDirty();
+  if (redraw) { renderZones(); return; }
+  jpTinhDong(ri);
+}
+
+/** Giữ tên cũ cho các handler đang gọi, nhưng nay tính lại CẢ DÒNG: đổi mã hàng là
+    đổi giá, mà đổi giá là đổi thành tiền và số quả hoàn — không chỉ mỗi ô giá. */
+function jpUpdateGia(ri) { jpTinhDong(ri); }
+function jpPickMachine(ri, machineId) {
+  var m = (APP.boot.machines || []).filter(function (x) { return String(x.id) === String(machineId); })[0];
+  APP.rows[ri].machineId = machineId;
+  APP.rows[ri].machineCode = m ? m.code : '';
+  if (m && m.itemCode && !APP.rows[ri].itemCode) APP.rows[ri].itemCode = m.itemCode;
+  jpDirty();
+
+  if (!machineId || !APP.report.id) { renderZones(); return; }
+  srv('jpGetOpening', APP.token, APP.report.id, machineId).then(function (o) {
+    if (o.found) {
+      APP.rows[ri].mBefore = o.mBefore;
+      APP.rows[ri].cBefore = o.cBefore;
+      APP.rows[ri].hBefore = o.hBefore;
+      APP.rows[ri].hOpen = o.hOpen;
+      APP.rows[ri].stockOpen = o.stockOpen;
+      /*⚠️⚠️ KHOÁ ô theo `chot`, KHÔNG theo `found` — hai chuyện khác nhau:
+         `found` = có số để điền · `chot` = số của kỳ ĐÃ DUYỆT nên đừng cho sửa.
+         Lấy số của kỳ chưa duyệt rồi khoá luôn là ép nhân viên giữ một con số kế
+         toán còn có thể trả về bắt sửa. */
+      APP.rows[ri].carried = (o.chot === true);
+      toast(o.chot ? 'Đã lấy số cuối kỳ trước (đã duyệt)'
+                   : 'Đã lấy số cuối kỳ trước — kỳ đó CHƯA duyệt, sửa được nếu sai');
+    } else {
+      APP.rows[ri].carried = false;
+    }
+    renderZones();
+  }).catch(function () { renderZones(); });
+}
+/**
+ * Ô Mã Misa của bảng HÀNG (mẫu tách). Nhân viên chỉ gõ TÊN HÀNG + MÃ MISA, nên
+ * `itemCode` — thứ KHO tra theo — phải suy ra từ Misa.
+ *
+ * ⚠️ Trong danh mục thật `code` và `misa` **cùng là** `100JP023` (xem
+ * `jpNapDanhMucHangJP`), nên gán `itemCode = itemMisa` là đúng và kho khớp lớp tồn.
+ * Bỏ bước này là dòng hàng không có `itemCode` ⇒ `jpXuatKhoBaoCao_` không tìm được
+ * lớp tồn ⇒ cắm cờ `thieuLop` và giá vốn rơi về giá mua gần nhất.
+ */
+function jpPickItemMisa(ri, misa) {
+  APP.rows[ri].itemMisa = misa;
+  if (!APP.rows[ri].itemCode) APP.rows[ri].itemCode = misa;
+  jpPickItemCode(ri, APP.rows[ri].itemCode);
+}
+
+function jpPickItemCode(ri, itemCode) {
+  APP.rows[ri].itemCode = itemCode;
+  jpDirty();
+
+  var tok = (APP.rows[ri]._pickTok = (APP.rows[ri]._pickTok || 0) + 1);
+  if (!itemCode || !APP.report.id) return;
+  srv('jpGetOpening', APP.token, APP.report.id, '', itemCode).then(function (o) {
+    if (APP.rows[ri]._pickTok !== tok || APP.rows[ri].itemCode !== itemCode) return;
+    if (o.found) {
+      APP.rows[ri].mBefore = o.mBefore;
+      APP.rows[ri].cBefore = o.cBefore;
+      APP.rows[ri].hBefore = o.hBefore;
+      APP.rows[ri].hOpen = o.hOpen;
+      APP.rows[ri].stockOpen = o.stockOpen;
+      APP.rows[ri].itemMisa = o.itemMisa || APP.rows[ri].itemMisa;
+      /* Xem chú thích ở `jpLayDauKy` — khoá theo `chot`, không theo `found`. */
+      APP.rows[ri].carried = (o.chot === true);
+      toast('Đã lấy số cuối kỳ trước');
+      renderZones();
+    } else {
+      APP.rows[ri].carried = false;
+    }
+  }).catch(function () {});
+}
+
+/**
+ * Mỗi lần nhân viên gõ. GHI NGAY lên máy rồi mới hẹn lưu lên máy chủ.
+ *
+ * ⚠️ Thứ tự đó quan trọng: ghi máy là đồng bộ và không cần mạng, nên nó xong TRƯỚC
+ * khi có bất cứ chuyện gì xảy ra. Hẹn giờ thì có thể không bao giờ chạy tới.
+ */
+function jpDirty() {
+  APP.dirty = true;
+  jpLuuNhapMay();
+  jpHenTuLuu();
+  /* ⚠️ Checklist phải vẽ lại NGAY LÚC GÕ, không chờ lượt lưu. Chỉ vẽ sau khi lưu là
+     nhân viên điền xong vẫn thấy "còn thiếu" cho tới 25 giây sau — họ sẽ tưởng mình
+     điền sai chỗ rồi đi sửa lung tung. Bộ đo `nhap.js` bắt được lỗi này.
+     Rẻ: nó chỉ đọc `APP.rows` và ghi innerHTML một khối nhỏ. */
+  paintCheckList();
+}
+
+/*──────── Lưu · nộp ────────*/
+function collectPayload() {
+  return {
+    reportId: APP.report.id,
+    head: {
+      adjMachine: num($('inAdj').value),
+      adjMachineNote: $('inAdjNote').value,
+      refundCustomer: num($('inRefund').value),
+      refundNote: $('inRefundNote').value,
+      remark: $('inRemark').value
+    },
+    zones: APP.zones.map(function (z) {
+      return { id: z.id, name: z.name, clusterId: z.clusterId, note: z.note || '' };
+    }),
+    rows: APP.rows.map(function (r) {
+      return {
+        id: r.id, zoneKey: r.zoneKey || 0, rowKind: r.rowKind, giaXung: r.giaXung,
+        machineId: r.machineId, machineCode: r.machineCode, itemCode: r.itemCode,
+        /* ⚠️ `itemMisa` PHẢI gửi lên. Trước bản này client bỏ nó, nên ô "Mã Misa"
+           nhân viên gõ tay bị mất trắng: máy chủ rơi về `itemMap[itemCode].misa`,
+           mà mã chưa có trong danh mục thì mã Misa **trống vĩnh viễn** — đúng chỗ
+           kế toán cần để khớp sổ MISA. Lỗi có sẵn ở mẫu chung, lộ ra khi mẫu tách
+           cho nhân viên tự điền mã Misa (Andy chốt 04/08/2026). */
+        itemMisa: r.itemMisa, itemName: r.itemName,
+        hOpen: r.hOpen, hBefore: r.hBefore, hAfter: r.hAfter,
+        stockOut: r.stockOut, topupNote: r.topupNote,
+        giaXu: r.giaXu, xuDays: r.xuDays || [], xuLa: r.xuLa,
+        mBefore: r.mBefore, mAfter: r.mAfter, cBefore: r.cBefore, cAfter: r.cAfter,
+        /* ⚠️ `amount` và `cashReal` PHẢI gửi lên — ở bảng tiền mẫu TÁCH chúng là ô
+           NHÂN VIÊN GÕ (Andy chốt 12/08/2026), không phải số máy chủ tính. Bỏ sót là
+           gõ xong mất trắng, y hệt lỗi `itemMisa` cũ. Mọi mẫu khác thì `jpCalcRow_`
+           ghi đè `amount` nên gửi lên vô hại. */
+        cash: r.cash, bank: r.bank, amount: r.amount, cashReal: r.cashReal,
+        stockOpen: r.stockOpen, addQty1: r.addQty1, addQty2: r.addQty2,
+        stockActual: r.stockActual, defectQty: r.defectQty, returnQty: r.returnQty,
+        refundAmt: r.refundAmt, refundRowNote: r.refundRowNote,
+        note: r.note
+      };
+    })
+  };
+}
+
+/*════════════════ NHÁP TỰ LƯU ════════════════
+ * Andy chốt 04/08/2026: *"tất cả có lưu báo cáo nháp đi em để khi có vấn[đề] thoát
+ * ra vào lại làm tiếp"*.
+ *
+ * Trước bản này nháp **CHỈ lưu khi bấm tay**. Nhân viên gõ 20 phút rồi hết pin, mất
+ * mạng, hay lỡ đóng tab là **mất trắng** — `beforeunload` chỉ hỏi "còn thay đổi chưa
+ * lưu", hỏi xong vẫn không lưu gì. Ở mall thì cả ba chuyện đó đều thường.
+ *
+ * HAI TẦNG, và tầng dưới là tầng CHẮC:
+ *
+ *  ① **Nháp trên MÁY (localStorage) — ghi NGAY mỗi lần gõ.** Đồng bộ, không cần
+ *     mạng, sống qua cả sập app và tắt máy. Đây là cái cứu được số đã gõ.
+ *  ② **Tự lưu lên MÁY CHỦ** sau khi ngừng gõ `JP_TU_LUU_MS`, và khi rời trang.
+ *     Cần mạng, nên KHÔNG được là tầng duy nhất.
+ *
+ * ⚠️ **Chỉ mời phục hồi khi CHẮC CHẮN máy chủ chưa nhận.** Nháp trên máy mang cờ
+ * `chuaLuu`; lưu lên máy chủ thành công thì xoá nháp. Nên lúc mở lại mà còn nháp
+ * `chuaLuu` là **biết chắc** nó chưa lên máy chủ — không phải đoán bằng cách so dấu
+ * thời gian hai bên (so kiểu đó là có lúc đè mất số mới của máy chủ).
+ *
+ * ⚠️ Tự lưu **KHÔNG bật màn chờ** (`busy`): nó nháy giữa lúc đang gõ và chặn mất ô
+ * nhập. Chỉ bấm tay mới bật.
+ *
+ * ⚠️ Không tự lưu khi `!APP.canEdit` (báo cáo đã nộp / đã duyệt) và khi không có gì
+ * đổi — `jpSaveReport` có `jpDiffParts_` nên lưu lại y nguyên thì không huỷ chữ ký,
+ * nhưng vẫn tốn lượt gọi Sheets vô ích.
+ */
+var JP_TU_LUU_MS = 25000;          // ngừng gõ bao lâu thì tự lưu lên máy chủ
+var JP_NHAP_HEN = null;            // hẹn giờ tự lưu đang chờ
+var JP_LUU_LUC = '';               // lần lưu máy chủ gần nhất, để in ra cho NV thấy
+var JP_NHAP_LOI = '';              // lỗi lần tự lưu vừa rồi (mất mạng…)
+
+function jpKhoaNhap(id) { return 'nhap_' + String(id || ''); }
+
+/** Ghi nháp lên MÁY. Gọi ở mọi lần gõ — phải nhẹ và không bao giờ throw. */
+function jpLuuNhapMay() {
+  if (!APP.canEdit || !APP.report || !APP.report.id) return;
+  LS.set(jpKhoaNhap(APP.report.id), {
+    reportId: APP.report.id, luc: Date.now(), chuaLuu: true,
+    /* Chỉ giữ payload — KHÔNG giữ token, không giữ PIN */
+    payload: collectPayload()
+  });
+}
+
+function jpXoaNhapMay() {
+  if (APP.report && APP.report.id) LS.del(jpKhoaNhap(APP.report.id));
+}
+
+/** Nháp trên máy của báo cáo này, và CHẮC CHẮN chưa lên máy chủ. */
+function jpNhapMayConDo(reportId) {
+  var d = LS.get(jpKhoaNhap(reportId));
+  return (d && d.chuaLuu && d.payload && String(d.reportId) === String(reportId)) ? d : null;
+}
+
+/** Hẹn tự lưu lên máy chủ. Mỗi lần gõ là hẹn lại — chỉ lưu khi đã ngừng gõ. */
+function jpHenTuLuu() {
+  if (JP_NHAP_HEN) clearTimeout(JP_NHAP_HEN);
+  JP_NHAP_HEN = setTimeout(function () {
+    JP_NHAP_HEN = null;
+    if (APP.dirty && APP.canEdit && !APP.saving) jpSaveDraft(false, true);
+  }, JP_TU_LUU_MS);
+  jpTrangThaiNhap();
+}
+
+/** Dòng trạng thái — nhân viên phải THẤY số đã an toàn hay chưa, không phải đoán. */
+function jpTrangThaiNhap() {
+  var e = $('nhapState');
+  if (!e) return;
+  if (!APP.canEdit) {
+    e.textContent = 'Báo cáo đã nộp — không sửa được nữa.';
+    e.className = 'nhapState';
+    return;
+  }
+  if (JP_NHAP_LOI) {
+    e.textContent = '⚠ Chưa lưu được lên hệ thống (' + JP_NHAP_LOI + '). ' +
+      'Số đã gõ vẫn được giữ TRÊN MÁY NÀY — mở lại báo cáo là làm tiếp được. ' +
+      'Có mạng thì bấm "Lưu nháp".';
+    e.className = 'nhapState loi';
+    return;
+  }
+  if (APP.saving) { e.textContent = 'Đang lưu nháp…'; e.className = 'nhapState'; return; }
+  if (APP.dirty) {
+    e.textContent = '● Có thay đổi chưa lưu — tự lưu sau khi bạn ngừng gõ ' +
+      Math.round(JP_TU_LUU_MS / 1000) + ' giây. Số đã gõ giữ trên máy này ngay lập tức.';
+    e.className = 'nhapState cho';
+    return;
+  }
+  e.textContent = JP_LUU_LUC
+    ? '✓ Đã lưu nháp lúc ' + JP_LUU_LUC + ' — thoát ra vào lại vẫn còn.'
+    : '✓ Chưa có gì thay đổi.';
+  e.className = 'nhapState ok';
+}
+
+/**
+ * Rời trang thì lưu ngay, không đợi hẹn giờ.
+ *
+ * ⚠️ `visibilitychange` là chỗ DUY NHẤT còn kịp gọi máy chủ trên điện thoại —
+ * `beforeunload` thường bị bỏ qua khi người dùng chuyển app. Vẫn không chắc kịp,
+ * nên nháp trên MÁY (ghi đồng bộ) mới là cái cứu được số.
+ */
+function jpDatCanhTuLuu() {
+  if (window.__jpDaDatCanh) return;
+  window.__jpDaDatCanh = true;
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'hidden') return;
+    jpLuuNhapMay();                                   // chắc chắn: ghi máy trước
+    if (APP.dirty && APP.canEdit && !APP.saving) jpSaveDraft(false, true);
+  });
+  /* Đổi mạng / có mạng lại thì thử lưu nốt */
+  window.addEventListener('online', function () {
+    if (APP.dirty && APP.canEdit && !APP.saving) jpSaveDraft(false, true);
+  });
+}
+
+/**
+ * Mời phục hồi nháp trên máy. Gọi sau `bindReport`.
+ * KHÔNG tự đè: nhân viên phải biết là số của họ ở đâu ra.
+ */
+function jpMoiPhucHoiNhap() {
+  if (!APP.canEdit || !APP.report) return;
+  var d = jpNhapMayConDo(APP.report.id);
+  if (!d) return;
+  var phut = Math.max(1, Math.round((Date.now() - d.luc) / 60000));
+  if (!confirm('Lần trước bạn có ' + (d.payload.rows || []).length +
+      ' dòng chưa lưu được lên hệ thống (khoảng ' + phut + ' phút trước).\n\n' +
+      'Lấy lại số đó để làm tiếp?\n\n' +
+      'Bấm Huỷ nếu muốn dùng số đang có trên hệ thống — nháp cũ sẽ bị xoá.')) {
+    jpXoaNhapMay();
+    return;
+  }
+  jpDatLaiTuNhap(d.payload);
+  toast('Đã lấy lại nháp — bấm "Lưu nháp" để đưa lên hệ thống');
+}
+
+/** Đổ payload đã lưu trở lại vào bảng đang mở. */
+function jpDatLaiTuNhap(p) {
+  APP.zones = (p.zones || []).map(function (z) {
+    return { id: z.id, name: z.name, clusterId: z.clusterId, note: z.note || '' };
+  });
+  if (!APP.zones.length) APP.zones = [{ id: '', name: 'Khu vực 1', clusterId: '', note: '' }];
+  APP.rows = (p.rows || []).map(function (r) {
+    return Object.assign({}, r, { warns: [] });
+  });
+  var h = p.head || {};
+  $('inAdj').value = h.adjMachine || 0;
+  $('inAdjNote').value = h.adjMachineNote || '';
+  $('inRefund').value = h.refundCustomer || 0;
+  $('inRefundNote').value = h.refundNote || '';
+  $('inRemark').value = h.remark || '';
+  APP.dirty = true;
+  renderZones();
+  jpTrangThaiNhap();
+}
+
+/**
+ * @param showToast  bấm tay thì hiện "Đã lưu"
+ * @param nhe        TỰ LƯU: không bật màn chờ, lỗi thì không quấy nhân viên
+ */
+function jpSaveDraft(showToast, nhe) {
+  if (!APP.canEdit || APP.saving) return Promise.resolve();
+  APP.saving = true;
+  if (!nhe) busy(true, 'Đang lưu…');
+  jpTrangThaiNhap();
+
+  return srv('jpSaveReport', APP.token, collectPayload()).then(function (res) {
+    if (!nhe) busy(false);
+    APP.saving = false; APP.dirty = false;
+    /* Máy chủ đã nhận rồi thì nháp trên máy hết việc — xoá để lần mở sau không
+       mời phục hồi một bản CŨ HƠN số đang có trên hệ thống. */
+    jpXoaNhapMay();
+    JP_NHAP_LOI = '';
+    JP_LUU_LUC = new Date().toTimeString().slice(0, 5);
+
+    APP.rows.forEach(function (r, i) {
+      var s = (res.rows || [])[i];
+      if (!s) return;
+      r.id = s.id; r.rowKind = s.rowKind;
+      r.mActual = s.mActual; r.cActual = s.cActual;
+      r.collection = s.collection; r.amount = s.amount; r.soldQty = s.soldQty;
+      r.hLeft = s.hLeft; r.xuTong = s.xuTong;
+      r.stockLeftCalc = s.stockLeftCalc; r.warns = s.warns || [];
+    });
+
+    APP.headWarns = res.headWarns || [];
+    /* ⚠️ `renderZones()` PHẢI chạy TRƯỚC `paintTotals`. Bảng tổng của mẫu tách nằm
+       trong `zoneWrap`, nên vẽ lại là ô số về "0đ" — gọi `paintTotals` trước thì số
+       vừa in bị chính `renderZones` xoá đi, và bảng tổng đứng im ở 0 cho tới lần lưu
+       sau. Mấy ô `sRev`/`sTotal` nằm ngoài `zoneWrap` nên trước đây không lộ ra. */
+    renderZones();
+    paintTotals(res.totals);
+    paintWarnings();
+    paintCheckList();
+  paintCheckList();
+    refreshPhotoProgress();
+
+    jpTrangThaiNhap();
+
+    if (res.resetSign && res.resetSign.length) {
+      toast('Đã huỷ chữ ký phần ' +
+        res.resetSign.map(function (p) { return p === 'REV' ? 'doanh thu' : 'kho'; }).join(', '));
+    } else if (showToast) toast('Đã lưu');
+
+    return res;
+  }).catch(function (e) {
+    if (!nhe) busy(false);
+    APP.saving = false;
+    /* GIỮ `dirty` và GIỮ nháp trên máy: máy chủ chưa nhận thì số vẫn phải còn đường
+       về. Đây là chỗ quan trọng nhất của cả cơ chế — nuốt lỗi rồi xoá nháp là mất số. */
+    jpLuuNhapMay();
+    JP_NHAP_LOI = e.message;
+    jpTrangThaiNhap();
+    /* Tự lưu thì KHÔNG bắn toast: nhân viên đang gõ, và dòng trạng thái đã nói rõ.
+       Bấm tay thì phải nói ra. */
+    if (!nhe) toast(e.message);
+    if (nhe) return null;
+    throw e;
+  });
+}
+
+/**
+ * TỔNG KẾT tính ngay trên máy — bản sao ĐÚNG TỪNG PHÉP của `jpCalcReport_`.
+ *
+ * Andy 06/08/2026: *"phần tính toán e nó lâu hiện lên quá"* / *"chậm"*. Vá xong số
+ * từng dòng (`jpTinhDong`) mà để khối Tổng kết đứng im thì vẫn hụt đúng nửa việc —
+ * mà `TIỀN MẶT THỰC NỘP` / `TỔNG NỘP` mới là số nhân viên đem đi nộp thật.
+ *
+ * ⚠️ MÁY CHỦ VẪN LÀ CHỐT CUỐI. Hàm này chỉ để NHÌN: nó KHÔNG ghi vào `APP.report`,
+ * không gửi số nào lên. Nguyên tắc #1 của POSH v3 — mọi con số tiền do máy chủ tính.
+ *
+ * Bốn cái bẫy chép lại nguyên từ `jpCalcReport_`, đừng "dọn":
+ *   ① dòng `HANG` KHÔNG sinh tiền — nó là đường thứ hai để đem so (`revHang`)
+ *   ② dòng `STOCK` / `NGOAI` không sinh tiền
+ *   ③ hoàn khách là TỔNG HAI NGUỒN: `refundAmt` từng dòng + `refundCustomer` ở header
+ *   ④ `lechTienHang` chỉ gắn khi THẬT SỰ có dòng `HANG`, và phải TRỪ hoàn khách
+ */
+function jpTongXemTruoc() {
+  /* ⚠️ `Lệch máy` và `Hoàn khách` KHÔNG nằm trong `APP.report` lúc đang gõ — chúng ở
+     thẳng trong ô nhập, `collectPayload` cũng đọc từ đó. Đọc `APP.report` là lấy số
+     đã nạp lúc mở báo cáo ⇒ gõ lệch máy vào mà TỔNG NỘP không nhúc nhích. */
+  var oSo = function (id, cu) {
+    var e = $(id);
+    return e ? num(e.value) : num(cu);
+  };
+  var h = {
+    adjMachine: oSo('inAdj', (APP.report || {}).adjMachine),
+    refundCustomer: oSo('inRefund', (APP.report || {}).refundCustomer)
+  };
+  var revMeter = 0, revBank = 0, revHang = 0, coHang = false, hoanDong = 0;
+  var lechTM = 0, coMay = false, coThucThu = false, thucThu = 0;
+
+  APP.rows.forEach(function (r, ri) {
+    var k = r.rowKind || 'MONEY';
+    var o = jpXemTruoc(r);
+    hoanDong += Math.abs(num(r.refundAmt));
+    if (k === 'HANG') { coHang = true; revHang += num(o.ban) * num(o.gia); return; }
+    if (k === 'STOCK' || k === 'NGOAI') return;
+    /* ⚠️ Tính lệch cho CẢ `MONEY` (mẫu CHUNG) từ 30/08/2026 — cột "Thực thu" theo mã.
+       `coThucThu` là chốt bảo vệ báo cáo ĐỜI CŨ: chưa đếm ô nào thì `adjMachine` vẫn là
+       ô GÕ, ghi đè là mất số nhân viên đã gõ. */
+    if (k === 'MAY' || k === 'MONEY') {
+      if (k === 'MAY' && o.goTay) coMay = true;
+      if (!jpTrongO(r.cashReal)) { coThucThu = true; thucThu += num(r.cashReal); }
+      lechTM += num(o.lechTM);
+    }
+    revMeter += num(o.tien);
+    revBank  += num(r.bank);
+  });
+
+  /* Bảng tiền mẫu TÁCH: `adjMachine` KHÔNG đọc từ ô header nữa mà SUY RA từ Σ lệch
+     từng dòng — đúng `jpCalcReport_`. Nhờ vậy `cashActual` gom đúng về
+     `Σ tiền mặt THỰC TẾ − hoàn khách`, tức "tiền thực thu mới chính là tiền thu được".
+     ⚠️ Chỉ khi CÓ dòng MAY. Mẫu chung không có dòng nào, đặt 0 là xoá số lệch máy
+     nhân viên vừa gõ ở header. */
+  if (coMay || coThucThu) h.adjMachine = lechTM;
+
+  var refund = Math.abs(num(h.refundCustomer)) + Math.abs(hoanDong);
+  var revCashMeter = revMeter - revBank;
+  var cashActual   = revCashMeter + num(h.adjMachine) - refund;
+  var revMeterRong = revMeter - refund;
+
+  return {
+    revMeter: revMeter, revBank: revBank, revCashMeter: revCashMeter,
+    refundRows: hoanDong, refundTotal: refund,
+    adjMachine: num(h.adjMachine), adjTuDong: coMay || coThucThu,
+    /* ⚠️ `coThucThu` đi kèm để màn hình phân biệt "đếm được 0đ" với "CHƯA đếm" — hai
+       thứ khác nhau, và in 0đ cho trường hợp thứ hai là nói sai. */
+    thucThu: thucThu, coThucThu: coThucThu,
+    cashActual: cashActual, totalSubmit: cashActual + revBank,
+    revHang: coHang ? revHang : 0, revMeterRong: revMeterRong,
+    lechTienHang: coHang ? (revMeterRong - revHang) : 0, coBangTong: coHang
+  };
+}
+
+/** Vẽ lại riêng khối Tổng kết — cho hai ô `Lệch máy` / `Hoàn khách` ở header. */
+function jpTongLai() { paintTotals(jpTongXemTruoc()); }
+
+function paintTotals(t) {
+  if (!t) return;
+  /*
+   * Mẫu TÁCH: ô "Lệch máy" ở header là số SUY RA (Σ lệch tiền mặt từng dòng), nên
+   * phải khoá lại và in số đã suy vào chính ô đó.
+   *
+   * ⚠️ Không in vào là trên một màn có hai con số "lệch": ô header giữ số cũ nhân
+   * viên từng gõ, còn TỔNG PHẢI NỘP tính theo số suy ra. Đúng bẫy "hai số cùng tên
+   * trên một màn" đã mắc ở màn đối soát.
+   * ⚠️ Và phải khoá thật (`readonly`), không chỉ in: gõ thêm vào ô đó là **đếm hai
+   * lần** đúng phần lệch — máy chủ cũng ghi đè nên số gõ mất luôn, im lặng.
+   */
+  var oAdj = $('inAdj');
+  if (oAdj && t.adjTuDong) {
+    oAdj.readOnly = true;
+    oAdj.title = 'Tự cộng từ cột Lệch của bảng tiền — không gõ tay';
+    if (num(oAdj.value) !== num(t.adjMachine)) oAdj.value = t.adjMachine;
+    var nhac = $('adjTuDong');
+    if (nhac) nhac.classList.remove('hidden');
+  }
+  $('sRev').textContent = money(t.revMeter) + 'đ';
+  $('sBank').textContent = money(t.revBank) + 'đ';
+  $('sCashMeter').textContent = money(t.revCashMeter) + 'đ';
+  /* ⚠️ CHƯA ĐẾM ô nào thì in "— chưa đếm", KHÔNG in "0đ". In 0đ là nói rằng đã đếm và
+     đếm được 0 — nhân viên đọc xong tưởng mình đang nợ cả kỳ tiền. Cùng luật "ô trống là
+     CHƯA NHẬP, không phải số 0" đã chốt ở `jpNumOrBlank_`. */
+  $('sThucThu').textContent = t.coThucThu
+    ? money(t.thucThu) + 'đ' : '— chưa đếm';
+  $('sCash').textContent = money(t.cashActual) + 'đ';
+  $('sTotal').textContent = money(t.totalSubmit) + 'đ';
+  paintBangTong(t);
+}
+
+function paintWarnings() {
+  var all = [];
+  /* Cảnh báo của HEAD (lệch bảng tổng, thiếu lý do lệch máy / hoàn khách) phải hiện
+     ở ĐÂY. Trước đây chỉ gom cảnh báo từng dòng, nên "bảng tổng lệch" chỉ thấy được
+     nếu nhân viên tự trừ hai số ở bảng tổng — mà đó chính là số cần đập vào mắt. */
+  (APP.headWarns || []).forEach(function (w) {
+    all.push({ where: 'CẢ BÁO CÁO', w: w });
+  });
+  APP.rows.forEach(function (r) {
+    (r.warns || []).forEach(function (w) {
+      /* Dòng hàng không có `machineCode` — dùng mã hàng, không thì 54 mã đều hiện
+         "Ô chưa đặt tên" và không biết cảnh báo thuộc mã nào */
+      all.push({ where: r.machineCode || r.itemCode || 'Ô chưa đặt tên', w: w });
+    });
+  });
+
+  var box = $('warnBox');
+  if (!all.length) { box.classList.add('hidden'); return; }
+  box.classList.remove('hidden');
+  $('warnNum').textContent = all.length;
+  $('warnList').innerHTML = all.map(function (x) {
+    return '<div class="warnItem"><b>' + esc(x.where) + '</b> — ' + esc(x.w.msg) +
+           (x.w.detail ? '<br><span class="sub">' + esc(x.w.detail) + '</span>' : '') + '</div>';
+  }).join('');
+}
+
+/**
+ * CHECKLIST TRƯỚC KHI NỘP (Andy chốt 05/08/2026: *"thêm checklist"*).
+ *
+ * Vì sao cần: trước bản này nhân viên bấm Nộp rồi máy chủ mới throw "còn ô chỉ số sau
+ * trống" — tức phải bấm mới biết mình chưa xong, rồi cuộn đi tìm. Nay liệt kê sẵn.
+ *
+ * ⚠️ Phải dùng **ĐÚNG cùng một luật với `jpThieuChiSo_` ở máy chủ**. Client nới tay hơn
+ * là nhân viên thấy "đủ hết" rồi bấm Nộp và bị chặn — mất hết niềm tin vào checklist.
+ * Client siết hơn là chặn oan. Nên mỗi lần sửa `jpThieuChiSo_` thì sửa cả hàm này;
+ * `test/browser/nopbc.js` khoá hai bên bằng cùng một fixture.
+ *
+ * ⚠️ **Checklist CHẶN, cảnh báo KHÔNG chặn** — hai thứ khác nhau, đừng gộp một khối.
+ * Ảnh thiếu thì chỉ nhắc, không chặn (mạng ở mall hay hỏng — quy ước cũ của Andy).
+ */
+/* Bản client của `jpDongTrong_` (`00_Config`) — hai bản PHẢI cùng một chốt, phép 13 của
+   `test/soat-tinh.py` so thân hai hàm. Client nới tay hơn là nhân viên thấy "đủ hết" rồi
+   bấm Nộp và bị máy chủ chặn; client siết hơn là chặn oan. */
+function jpDongTrong(r) {
+  if (!r) return true;
+  var co = function (v) { return String(v == null ? '' : v).trim() !== ''; };
+  /* Co DANH TINH — hoac mot ghi chu go tay — thi khong phai dong trong.
+     ⚠️ KHONG do `xuDaysJson`: may chu ghi chuoi `'[]'` vao do cho MOI dong. */
+  if (co(r.machineId) || co(r.machineCode) ||
+      co(r.itemCode)  || co(r.itemMisa)   || co(r.itemName) ||
+      co(r.topupNote) || co(r.note)       || co(r.refundRowNote)) return false;
+  /* ⚠️⚠️ DO BANG `> 0`, TUYET DOI KHONG DUNG phep o-trong — day la cho ban 26/08 sai
+     va no chi chua duoc DUNG MAU TACH. `jpCalcMoneyRow_` ghi thang
+     `row.amount = mAct * JP_RATE_MONEY_PULSE` (mot con SO, ra 0 voi dong chua ai go),
+     chi nhanh go tay cua mau TACH moi di qua `jpNumOrBlank_` nen moi giu duoc o trong.
+     ⇒ Voi mau CHUNG — tuc gan het he thong — cu LUU mot lan la `amount` thanh `0`,
+     phep o-trong tra false, dong ma hoa thanh "dong co du lieu" va chan nop mai mai.
+     Do dung la thu da xay ra: do tren sheet that 28/08/2026, 16/20 bao cao dang nhap
+     do bi chan. Doi chung: dong COIN cua VICOM 3/2 co `mBefore 84855` `mAfter 85710`
+     la so THAT, phai tiep tuc bi chan — bo qua no la mat doanh thu xu ca ky. */
+  var o = ['mBefore', 'mAfter', 'cBefore', 'cAfter', 'amount', 'cash', 'bank',
+           'cashReal', 'hOpen', 'hBefore', 'hAfter', 'soldQty', 'stockOut',
+           'addQty1', 'addQty2', 'stockOpen', 'stockActual', 'defectQty',
+           'returnQty', 'refundAmt', 'giaXu', 'xuTong'];
+  for (var i = 0; i < o.length; i++) { if (num(r[o[i]]) > 0) return false; }
+  return true;
+}
+
+function jpCheckTruocNop() {
+  var thieu = [], nhac = [], trongBoQua = 0;
+
+  APP.rows.forEach(function (r) {
+    var k = r.rowKind || 'MONEY';
+    if (k === 'STOCK' || k === 'NGOAI') return;
+    /* ⚠️ PHẢI cùng luật với `jpDongTrong_` ở máy chủ (`00_Config`): dòng thêm ra rồi để
+       trống thì KHÔNG chặn nộp. Chỉ đo DANH TÍNH, không đo ô tiền — ô tiền trống là CHƯA
+       NHẬP. `test/soat-tinh.py` phép 13 so hai bản này. */
+    if (jpDongTrong(r)) { trongBoQua++; return; }
+    var ten = r.machineCode || r.itemName || r.itemMisa || r.itemCode || ('dòng ' + r.seq);
+
+    if (k === 'HANG') {
+      if (jpTrongO(r.soldQty)) thieu.push(ten + ' — chưa khai <b>số đã bán</b>');
+      return;
+    }
+    /* Bảng tiền mẫu TÁCH không còn đồng hồ ⇒ chặn theo ô tiền. PHẢI cùng luật với
+       `jpThieuChiSo_` ở máy chủ: client nới tay hơn là nhân viên thấy "đủ hết" rồi
+       bấm và bị chặn — mất hết niềm tin vào checklist. Ô QR trống là 0, hợp lệ. */
+    if (k === 'MAY' && jpMayGoTay(r)) {
+      if (jpTrongO(r.amount))   thieu.push(ten + ' — chưa nhập <b>thành tiền</b>');
+      if (jpTrongO(r.cash))     thieu.push(ten + ' — chưa nhập <b>tiền mặt app</b>');
+      if (jpTrongO(r.cashReal)) thieu.push(ten + ' — chưa đếm <b>tiền mặt thực tế</b>');
+      return;
+    }
+    if (jpTrongO(r.mAfter)) {
+      thieu.push(ten + ' — chưa nhập <b>chỉ số sau</b>' + (k === 'COIN' ? ' (MONEY)' : ''));
+    }
+    if (k === 'COIN' && jpTrongO(r.cAfter)) {
+      thieu.push(ten + ' — chưa nhập <b>chỉ số sau</b> (COIN)');
+    }
+  });
+
+  if (!APP.rows.length) thieu.push('Chưa có dòng nào — bấm <b>Thêm ô / máy</b>');
+  /* Dòng trống KHÔNG chặn, nhưng phải NÓI RA — im lặng bỏ qua là nhân viên tưởng mình đã
+     khai dòng đó rồi. Nhắc, không chặn: cùng luật với ảnh thiếu. */
+  if (trongBoQua) {
+    nhac.push('Có <b>' + trongBoQua + ' dòng chưa gõ gì</b> — nộp vẫn được, dòng đó bị bỏ ' +
+              'qua. Muốn gọn thì xoá đi.');
+  }
+
+  /*
+   * LÝ DO cho lệch máy / hoàn khách — `jpSubmitReport` **chặn cứng** hai chỗ này, mà
+   * checklist trước đây không nói gì cả: nhân viên đọc "✓ Đủ điều kiện nộp" rồi bấm
+   * và bị chặn — đúng cái làm mất niềm tin vào checklist.
+   *
+   * ⚠️ Thành chuyện thường gặp từ 12/08/2026: ở mẫu TÁCH `adjMachine` **suy ra** từ
+   * cột Lệch, nên chỉ cần một dòng đếm lệch là ô lý do trở thành bắt buộc. Phải đọc
+   * số ĐÃ SUY (`jpTongXemTruoc`), đừng đọc ô `#inAdj` — ô đó chỉ là chỗ in ra.
+   */
+  var t = jpTongXemTruoc();
+  var oNote = $('inAdjNote');
+  /* ⚠️ Bản client của `jpQRVuotTien_` — hai bản phải cùng chốt, không thì nhân viên thấy
+     "Đủ điều kiện nộp" rồi bấm và ăn lỗi từ máy chủ. Chốt `>` chứ không `>=`: QR BẰNG
+     Thành tiền là hợp lệ (cả ca khách quét mã hết, tiền mặt bằng 0). */
+  var qrTong = 0, ttTong = 0, coGt = false;
+  APP.rows.forEach(function (r) {
+    if ((r.rowKind || '') !== 'MAY' || !jpMayGoTay(r)) return;
+    coGt = true;
+    var qr = num(r.bank), tt = num(r.amount);
+    qrTong += qr; ttTong += tt;
+    if (qr > tt) {
+      thieu.push((r.itemCode || r.itemMisa || ('dòng ' + r.seq)) +
+        ' — <b>QR ' + money(qr) + 'đ lớn hơn Thành tiền ' + money(tt) + 'đ</b>. ' +
+        'App báo "Thành tiền" đã gồm cả tiền mặt lẫn QR nên QR không thể lớn hơn');
+    }
+  });
+  if (coGt && qrTong > ttTong) {
+    thieu.push('Cả báo cáo: <b>tổng QR ' + money(qrTong) + 'đ lớn hơn tổng Thành tiền ' +
+      money(ttTong) + 'đ</b> — để nguyên thì tiền phải nộp tính ra ÂM');
+  }
+
+  if (num(t.adjMachine) !== 0 && !String((oNote || {}).value || '').trim()) {
+    thieu.push(t.adjTuDong
+      ? 'Có <b>lệch tiền mặt ' + money(t.adjMachine) + 'đ</b> — phải ghi <b>Lý do lệch máy</b>'
+      : 'Có lệch máy — phải ghi <b>Lý do lệch máy</b>');
+  }
+  var oRf = $('inRefundNote'), oRfSo = $('inRefund');
+  if (num((oRfSo || {}).value) !== 0 && !String((oRf || {}).value || '').trim()) {
+    thieu.push('Có hoàn khách — phải ghi <b>Lý do hoàn khách</b>');
+  }
+
+  /* Ảnh: NHẮC, không chặn — mạng ở mall hay hỏng (quy ước Andy chốt từ đầu) */
+  var an = String(($('photoProgress') || {}).textContent || '');
+  var mThieu = an.match(/thiếu\s+(\d+)/);
+  if (mThieu) nhac.push('Còn thiếu <b>' + mThieu[1] + '</b> chỗ ảnh — vẫn nộp được');
+
+  return { thieu: thieu, nhac: nhac };
+}
+
+function jpTrongO(v) { return v === '' || v === null || v === undefined; }
+
+function paintCheckList() {
+  var box = $('chkBox');
+  if (!box) return;
+  var c = jpCheckTruocNop();
+  var nut = $('btnSubmit');
+
+  var h = '';
+  if (!c.thieu.length) {
+    h = '<div class="chkOk">✓ Đủ điều kiện nộp' +
+        (c.nhac.length ? ' — còn ' + c.nhac.length + ' chỗ nên xem' : '') + '</div>';
+  } else {
+    h = '<div class="chkBad">Còn <b>' + c.thieu.length + '</b> chỗ PHẢI điền mới nộp được:</div>';
+  }
+  h += c.thieu.map(function (t) { return '<div class="chkItem bad">✗ ' + t + '</div>'; }).join('');
+  h += c.nhac.map(function (t) { return '<div class="chkItem warn">• ' + t + '</div>'; }).join('');
+
+  $('chkList').innerHTML = h;
+  $('chkNum').textContent = c.thieu.length ? c.thieu.length : '✓';
+  box.className = 'card ' + (c.thieu.length ? 'chkCardBad' : 'chkCardOk');
+
+  /* Nút Nộp mờ đi kèm LÝ DO. ⚠️ Không dùng `disabled`: bấm vào nút disabled thì không
+     có sự kiện nào nên nhân viên không biết vì sao bấm không được. Để bấm được và
+     `jpSubmit` nói ra lý do. */
+  if (nut) {
+    nut.classList.toggle('chuaDu', !!c.thieu.length);
+    nut.title = c.thieu.length ? 'Còn ' + c.thieu.length + ' chỗ phải điền' : '';
+  }
+}
+
+/**
+ * Nút "Xoá nháp này" — chỉ hiện khi báo cáo CÒN NHÁP.
+ *
+ * ⚠️ `APP.canEdit` một mình là KHÔNG ĐỦ: nó cũng true với `CAN_SUA` (kế toán đã trả
+ * về, nhân viên đang sửa). Máy chủ `jpXoaBaoCaoNhap` từ chối `CAN_SUA`, nên hiện nút
+ * ở đó là mời người ta bấm rồi ăn lỗi — phải so THẲNG trạng thái.
+ */
+function jpHienNutXoa() {
+  /* Ẩn/hiện CẢ HỘP, không chỉ cái nút — để lại dòng "không lấy lại được" lơ lửng
+     một mình dưới báo cáo đã nộp là câu không còn nghĩa gì. */
+  var box = $('xoaNhapBox');
+  if (!box) return;
+  var st = (APP.report || {}).status;
+  box.classList.toggle('hidden', !(APP.canEdit && st === 'NHAP'));
+}
+
+/**
+ * Andy 31/08/2026: *"nhớ là nháp có chức năng xóa đi để tránh bị nặng quá"*.
+ *
+ * ⚠️ Nói ra SỐ DÒNG SẼ MẤT trong câu hỏi xác nhận, đừng hỏi "Xoá?" trơn. Nháp 39
+ * dòng và nháp rỗng nhìn y nhau trên màn này, mà một cái là mất cả buổi gõ.
+ * ⚠️ Đếm từ `APP.rows` — thứ đang thấy trên màn — chứ không hỏi lại máy chủ: hỏi
+ * thêm một đợt chờ chỉ để in một con số vào hộp confirm là đúng cái "bấm cái nào
+ * cũng load lâu" đã đo.
+ */
+function jpXoaNhap() {
+  if (!APP.canEdit || !APP.report || !APP.report.id) return;
+  if ((APP.report.status || '') !== 'NHAP') {
+    toast('Chỉ xoá được báo cáo còn nháp');
+    return;
+  }
+  var soDong = (APP.rows || []).length;
+  var soAnh = (APP.photos || []).length;
+  if (!confirm('Xoá hẳn báo cáo nháp này?\n\n' + APP.report.id + ' · ' +
+        (APP.report.locationName || '') + '\n' +
+        (soDong ? soDong + ' dòng đã gõ' : 'chưa có dòng nào') +
+        (soAnh ? ' · ' + soAnh + ' ảnh' : '') +
+        '\n\nKHÔNG lấy lại được.')) return;
+
+  busy(true, 'Đang xoá…');
+  srv('jpXoaBaoCaoNhap', APP.token, APP.report.id).then(function (r) {
+    busy(false);
+    toast(r.msg);
+    /* Nháp trên MÁY cũng phải bỏ — để lại là mở báo cáo sau thấy số của cái đã xoá. */
+    APP.dirty = false;
+    jpXoaNhapMay();
+    APP.report = null;
+    show('scHome');
+    loadMyReports();
+  }).catch(function (e) { busy(false); toast(e.message); });
+}
+
+function jpSubmit() {
+  if (!APP.canEdit) return;
+
+  /* Chặn ở client cho nhanh, nhưng máy chủ VẪN chặn lần nữa (`jpThieuChiSo_`) —
+     web ở ANYONE_ANONYMOUS nên client không bao giờ là chốt. */
+  var c = jpCheckTruocNop();
+  if (c.thieu.length) {
+    toast('Chưa nộp được — còn ' + c.thieu.length + ' chỗ phải điền, xem khối "Trước khi nộp"');
+    var box = $('chkBox');
+    if (box && box.scrollIntoView) box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+  jpSaveDraft(false).then(function () {
+    return srv('jpPhotoProgress', APP.token, APP.report.id);
+  }).then(function (p) {
+    var msg = 'Nộp báo cáo?';
+    if (p.missing) msg = 'Còn thiếu ' + p.missing + ' chỗ ảnh.\nVẫn nộp?';
+    if (!confirm(msg)) return null;
+    busy(true, 'Đang nộp…');
+    return srv('jpSubmitReport', APP.token, APP.report.id);
+  }).then(function (r) {
+    busy(false);
+    if (!r) return;
+    toast(r.msg);
+    APP.dirty = false;
+    jpXoaNhapMay();               // nop roi thi nhap tren may het viec
+    show('scHome');
+    loadMyReports();
+  }).catch(function (e) { busy(false); toast(e.message); });
+}
+</script>
+
+

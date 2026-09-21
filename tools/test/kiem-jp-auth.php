@@ -30,7 +30,7 @@ function teq( $ten, $mong, $thuc ) {
 }
 
 $plg = $goc . '/wordpress/vhcp-jp/includes/';
-foreach ( array( 'db', 'doc', 'nguon', 'ma', 'auth' ) as $f ) { require_once $plg . 'class-vhjp-' . $f . '.php'; }
+foreach ( array( 'db', 'doc', 'nguon', 'ma', 'nhat-ky', 'auth' ) as $f ) { require_once $plg . 'class-vhjp-' . $f . '.php'; }
 
 global $wpdb;
 vhcp_stub_dung_bang( VHJP_DB::bang(), $wpdb->prefix . 'vhjp_' );
@@ -214,6 +214,54 @@ t( '🔴 vẫn nhận hai vai kế toán cũ',
 	&& VHJP_Auth::la_kt( array( 'role' => VHJP_Auth::VAI_KT_KHO ) ) );
 t( 'vai lạ thì không phải ai cả',
 	! VHJP_Auth::la_kt( array( 'role' => 'GIAMDOC' ) ) && ! VHJP_Auth::la_nv( array( 'role' => 'GIAMDOC' ) ) );
+
+// ============================================================ 9b. 🔴 Đổi PIN
+jp_dung_user();
+$r = VHJP_Auth::dang_nhap( '357' );
+$the = $r['token'];
+
+teq( 'PIN mới sai độ dài -> chối', false, VHJP_Auth::doi_pin( $the, '357', '35' )['ok'] );
+teq( 'PIN mới trùng PIN cũ -> chối', false, VHJP_Auth::doi_pin( $the, '357', '357' )['ok'] );
+teq( '🔴 gõ sai PIN hiện tại -> chối', false, VHJP_Auth::doi_pin( $the, '111', '789' )['ok'] );
+/* Gõ sai PIN hiện tại phải tính là MỘT LƯỢT SAI — không thì đây thành cửa dò PIN không bị làm
+   chậm, chỉ cần một thẻ phiên bất kỳ là dò được PIN của chính mình lẫn của người khác. */
+$so = get_option( VHJP_Auth::O_SAI, array() );
+t( '🔴 và tính là một lượt gõ sai (đừng để thành cửa dò PIN không bị làm chậm)',
+	! empty( $so[ VHJP_Auth::dia_chi() ]['n'] ), $so );
+
+teq( '🔴 PIN mới trùng người khác -> chối', false, VHJP_Auth::doi_pin( $the, '357', '468' )['ok'] );
+t( 'đổi được sang PIN hợp lệ', ! empty( VHJP_Auth::doi_pin( $the, '357', '789' )['ok'] ) );
+t( '🔴 PIN cũ thôi vào được', empty( VHJP_Auth::dang_nhap( '357' )['ok'] ) );
+t( 'và PIN mới vào được',    ! empty( VHJP_Auth::dang_nhap( '789' )['ok'] ) );
+
+/* 🔴 Đổi từ PIN MẶC ĐỊNH thì cờ chặn phải GỠ NGAY trên phiên đang dùng — không gỡ thì đổi
+   xong vẫn bị chặn tới lúc hết phiên, người dùng sẽ đổi lại lần nữa rồi đi hỏi. */
+jp_dung_user();
+VHJP_Nguon::sua( 'JP_Users', 'U-1', array( 'pin' => VHJP_Auth::bam( '222' ) ) );
+$md = VHJP_Auth::dang_nhap( '222' );
+teq( 'trước khi đổi: mọi cửa đóng', 'PHAI_DOI_PIN', VHJP_Auth::kiem( $md['token'] )['ma'] );
+t( 'đổi PIN mặc định sang số mới', ! empty( VHJP_Auth::doi_pin( $md['token'], '222', '789' )['ok'] ) );
+t( '🔴 đổi xong là cửa MỞ NGAY trên chính phiên ấy',
+	! empty( VHJP_Auth::kiem( $md['token'] )['ok'] ), VHJP_Auth::kiem( $md['token'] ) );
+
+/* Đổi sang một PIN mặc định KHÁC thì vẫn phải bị chặn — không thì đổi 222 sang 101 là lách được. */
+jp_dung_user();
+VHJP_Nguon::sua( 'JP_Users', 'U-1', array( 'pin' => VHJP_Auth::bam( '222' ) ) );
+$md2 = VHJP_Auth::dang_nhap( '222' );
+VHJP_Auth::doi_pin( $md2['token'], '222', '101' );
+teq( '🔴 đổi 222 sang 101 (cũng là PIN mặc định) -> VẪN chặn', 'PHAI_DOI_PIN',
+	VHJP_Auth::kiem( $md2['token'] )['ma'] );
+
+// ============================================================ 9c. Quyền xem cơ sở
+$kt_u = array( 'role' => VHJP_Auth::VAI_KT, 'locationIds' => array() );
+$nv_u = array( 'role' => VHJP_Auth::VAI_NV, 'locationIds' => array( 'L-1', 'L-2' ) );
+t( '🔴 kế toán thấy mọi cơ sở, kể cả khi danh sách gán rỗng',
+	VHJP_Auth::xem_duoc_coso( $kt_u, 'L-9' ) );
+t( 'nhân viên thấy cơ sở đã gán',        VHJP_Auth::xem_duoc_coso( $nv_u, 'L-1' ) );
+t( '🔴 và KHÔNG thấy cơ sở chưa gán',  ! VHJP_Auth::xem_duoc_coso( $nv_u, 'L-9' ) );
+/* So theo CHUỖI: danh sách gán lưu dạng `'L-1, L-2'`, còn nơi gọi hay truyền số. */
+$nv_so = array( 'role' => VHJP_Auth::VAI_NV, 'locationIds' => array( '7' ) );
+t( 'truyền số 7 vẫn khớp cơ sở lưu "7"', VHJP_Auth::xem_duoc_coso( $nv_so, 7 ) );
 
 // ============================================================ 10. Soi mã: PIN không được in ra
 $ma_auth = file_get_contents( $plg . 'class-vhjp-auth.php' );

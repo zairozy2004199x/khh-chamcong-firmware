@@ -127,7 +127,14 @@ define( 'YEAR_IN_SECONDS', 31536000 );
 $GLOBALS['VHCP_OPT'] = array();
 $GLOBALS['VHCP_TR']  = array();
 
-function dbDelta( $sql ) { return array(); }
+/* GHI LẠI câu lệnh dựng bảng thay vì vứt đi. Bài kiểm cần đo "bật plugin có dựng bảng không";
+   để rỗng thì chỉ soi được chữ trong tệp, mà soi chữ thì lượt đục bỏ đúng chỗ vẫn lọt.
+   ⚠️ Cố ý KHÔNG tự chạy câu lệnh: cú pháp là của MySQL, SQLite không hiểu. Bài nào cần bảng
+      thật thì dùng `vhcp_stub_dung_bang()` — nó dịch sang SQLite và giữ cả khoá. */
+function dbDelta( $sql ) {
+	$GLOBALS['VHCP_DBDELTA'][] = (string) $sql;
+	return array();
+}
 function get_option( $k, $d = false ) { return array_key_exists( $k, $GLOBALS['VHCP_OPT'] ) ? $GLOBALS['VHCP_OPT'][ $k ] : $d; }
 function update_option( $k, $v ) { $GLOBALS['VHCP_OPT'][ $k ] = $v; return true; }
 function delete_option( $k ) { unset( $GLOBALS['VHCP_OPT'][ $k ] ); return true; }
@@ -209,7 +216,12 @@ function do_action( $h ) {
 }
 function add_rewrite_rule( $mau, $dich, $vt = 'bottom' ) { $GLOBALS['VHCP_LUAT'][ $mau ] = array( $dich, $vt ); }
 function add_shortcode( $t, $cb ) { return true; }
-function flush_rewrite_rules( $x = true ) { return true; }
+/* ĐẾM số lượt mở lại, đừng chỉ trả true: bài kiểm cần biết móc kích hoạt CÓ gọi hay không.
+   Thiếu nó thì chỉ soi được chữ trong tệp, mà soi chữ thì lượt đục bỏ đúng chỗ vẫn lọt. */
+function flush_rewrite_rules( $x = true ) {
+	$GLOBALS['VHCP_MO_LAI_DUONG'] = 1 + ( isset( $GLOBALS['VHCP_MO_LAI_DUONG'] ) ? $GLOBALS['VHCP_MO_LAI_DUONG'] : 0 );
+	return true;
+}
 function get_query_var( $k, $d = '' ) { return array_key_exists( $k, $GLOBALS['VHCP_QVAR'] ) ? $GLOBALS['VHCP_QVAR'][ $k ] : $d; }
 function __return_false() { return false; }
 function __return_true() { return true; }
@@ -474,6 +486,11 @@ function add_query_arg( $a = null, $b = null, $c = null ) {
 	return $q[0] . ( '' !== $chuoi ? '?' . $chuoi : '' ) . $frag;
 }
 function plugin_dir_path( $f ) { return dirname( $f ) . '/'; }
+/* Móc vòng đời plugin. Bản giả GHI LẠI hàm được khai thay vì bỏ đi, để bài kiểm GỌI THẬT được
+   — soi bằng cách tìm chuỗi trong tệp thì một lượt đục bỏ đúng chỗ vẫn lọt, vì cùng chuỗi ấy
+   còn xuất hiện ở dòng khác. */
+function register_activation_hook( $f, $ham ) { $GLOBALS['VHCP_MOC_BAT'][] = $ham; }
+function register_deactivation_hook( $f, $ham ) { $GLOBALS['VHCP_MOC_TAT'][] = $ham; }
 function plugin_dir_url( $f ) { return 'http://example.test/wp-content/plugins/vhcp-chi-phi/'; }
 
 class WP_REST_Request {

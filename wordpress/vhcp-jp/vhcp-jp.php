@@ -3,7 +3,7 @@
  * Plugin Name:       JP Capsule (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Báo cáo JP Capsule chạy THẲNG trên host: nhân viên nhập báo cáo từ chỉ số máy, kế toán duyệt hai phần, đối soát ngân hàng, kho hai tầng. Không Apps Script, không Google Sheets.
- * Version:           1.0.0
+ * Version:           1.2.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -37,9 +37,17 @@
  *    một chỗ (`srv()` trong `Js01_Core.html`) dựng trên `google.script.run`. `VHJP_Cong` dựng
  *    lại đúng API ấy, y lối bộ Chi Phí đã đi — anh Thắng gửi bản ấy làm mẫu 21/09/2026.
  *
- * Nên plugin này CỐ Ý chưa khai móc kích hoạt và chưa dựng trang nào: cài nửa vời vào site thật
- * là tạo 23 bảng rỗng rồi để đó, và lần sau không ai nhớ bảng ấy từ đâu ra. Khi nào có tầng đọc
- * ghi thì mở.
+ * Kích hoạt là dựng 23 bảng và mở hai đường dẫn:
+ *      /jp           — màn nhân viên
+ *      /jp-ke-toan   — màn kế toán
+ * 🔴 GIAO DIỆN THẬT ĐÃ MANG SANG — 13 tệp, 13.712 dòng, chép NGUYÊN VĂN vào `giao-dien/`.
+ *    Chúng chạy được vì `assets/js/gas-shim.js` dựng lại đúng API `google.script.run`. Không
+ *    sửa một dòng nào: chừng nào hai bản còn chạy song song để so số, giao diện phải giống
+ *    hệt — lệch một nút là lệch một thao tác, và không ai biết số khác nhau vì máy chủ tính
+ *    khác hay vì người bấm khác.
+ *
+ * ⚠️ Màn hình bày ra được, nhưng phần lớn nút bấm sẽ báo "chưa chuyển": mới 12/100 lệnh máy
+ *    chủ có thật. `VHJP_Cong::chua_lam()` khai đủ tên còn thiếu, và bài kiểm đếm lại mỗi lượt.
  *
  * ---------------------------------------------------------------------------
  * ⚠️ BA NGUYÊN TẮC CỦA BẢN GỐC — GIỮ NGUYÊN KHI CHUYỂN.
@@ -58,7 +66,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHJP_VERSION', '1.0.0' );
+define( 'VHJP_VERSION', '1.2.0' );
 define( 'VHJP_FILE', __FILE__ );
 define( 'VHJP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHJP_URL', plugin_dir_url( __FILE__ ) );
@@ -72,6 +80,7 @@ require_once VHJP_DIR . 'includes/class-vhjp-auth.php';
 require_once VHJP_DIR . 'includes/class-vhjp-cau-hinh.php';
 require_once VHJP_DIR . 'includes/class-vhjp-tinh.php';
 require_once VHJP_DIR . 'includes/class-vhjp-cong.php';
+require_once VHJP_DIR . 'includes/class-vhjp-trang.php';
 require_once VHJP_DIR . 'includes/class-vhjp-tu-cap-nhat.php';
 
 /* Nối bộ tự cập nhật ngay từ bản đầu, dù bộ này chưa dựng trang nào.
@@ -81,4 +90,32 @@ require_once VHJP_DIR . 'includes/class-vhjp-tu-cap-nhat.php';
       nhau; chép lớp từ bộ khác mà quên đổi là bộ này đi nhận bản của bộ kia. Đã xảy ra một lần. */
 VHJP_TuCapNhat::init();
 
-/* Chưa khai `register_activation_hook` — xem khối "ĐANG DỰNG DỞ" ở trên. */
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * KÍCH HOẠT: dựng bảng, và mở lại đường dẫn.
+ *
+ * ⚠️ `flush_rewrite_rules()` phải chạy SAU khi đã khai đường — không thì đường `/jp` chưa có
+ *    trong bảng định tuyến của WordPress và mở ra là 404, dù plugin đã bật. Người ta sẽ tưởng
+ *    plugin hỏng.
+ * ⚠️ Và dựng lại bảng mỗi lần ĐỔI SỐ BẢN, không chỉ lúc kích hoạt: cập nhật plugin thì móc
+ *    kích hoạt KHÔNG chạy, nên bảng mới thêm ở bản sau sẽ không bao giờ được tạo.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+register_activation_hook( __FILE__, 'vhjp_kich_hoat' );
+function vhjp_kich_hoat() {
+	VHJP_DB::install();
+	VHJP_Trang::them_duong();
+	flush_rewrite_rules();
+	update_option( 'vhjp_db_ver', VHJP_VERSION );
+}
+
+register_deactivation_hook( __FILE__, 'flush_rewrite_rules' );
+
+VHJP_Trang::init();
+
+add_action( 'plugins_loaded', 'vhjp_co_the_nang', 20 );
+function vhjp_co_the_nang() {
+	if ( get_option( 'vhjp_db_ver' ) === VHJP_VERSION ) { return; }
+	VHJP_DB::install();
+	update_option( 'vhjp_db_ver', VHJP_VERSION );
+	/* Đổi bản thì đường dẫn có thể đã khác — mở lại một lượt cho chắc. */
+	add_action( 'init', 'flush_rewrite_rules', 99 );
+}

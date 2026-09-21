@@ -73,6 +73,8 @@ class VHJP_Cong {
 			/* phiên */
 			'jpLoginPin'          => array( 'VHJP_Cong', 'dang_nhap' ),
 			'jpLogout'            => array( 'VHJP_Cong', 'thoat' ),
+			'jpBootstrap'         => array( 'VHJP_Cong', 'khoi_dong' ),
+			'jpDoiPin'            => array( 'VHJP_Cong', 'doi_pin' ),
 
 			/* danh mục */
 			'jpCfgListLocations'  => array( 'VHJP_Cong', 'ds_coso' ),
@@ -109,11 +111,11 @@ class VHJP_Cong {
 			'jpBangCanDoiPhatSinh', 'jpDoiTkKhoCu', 'jpKetQuaKinhDoanh', 'jpKiemTraButToan',
 			'jpQuetDayChuyen', 'jpSo632', 'jpSoCongNo', 'jpSoNhatKyChung',
 			/* báo cáo của nhân viên */
-			'jpBaoCaoDoanhThuNgay', 'jpBootstrap', 'jpGetOpening', 'jpGetReport', 'jpGuiDeNghiTonDau',
+			'jpBaoCaoDoanhThuNgay', 'jpGetOpening', 'jpGetReport', 'jpGuiDeNghiTonDau',
 			'jpMyReports', 'jpOpenReport', 'jpReopenIn24h', 'jpRevenueBoard', 'jpSaveReport',
 			'jpStockBoard', 'jpSuaKyBaoCao', 'jpSubmitReport',
 			/* cấu hình & tiện ích */
-			'jpCfgImportItems', 'jpCfgListUsers', 'jpCfgSaveUser', 'jpDoiPin', 'jpDungHeThongMotPhat',
+			'jpCfgImportItems', 'jpCfgListUsers', 'jpCfgSaveUser', 'jpDungHeThongMotPhat',
 			'jpKiemTraNhanh', 'jpNapBuTonDauKy31_7', 'jpNapCoSo', 'jpNapDanhMucHangJP',
 			'jpNapTonDauKy31_7', 'jpPinTheoCoSo', 'jpSapXepLaiKy', 'jpTaoPinCoSo', 'jpTinhLaiCanhBao',
 			'jpTinhTrangDungHeThong', 'jpXoaBaoCaoNhap',
@@ -203,6 +205,53 @@ class VHJP_Cong {
 	public static function thoat( $args ) {
 		return VHJP_Auth::thoat( isset( $args[0] ) ? $args[0] : '' );
 	}
+	/**
+	 * Dựng màn hình đầu tiên — danh mục người này được phép thấy, kèm mấy hằng đơn giá.
+	 *
+	 * ⚠️ MỘT LƯỢT GỌI, KHÔNG BA. Bản Apps Script từng tách thành ba đợt nối tiếp và anh Andy
+	 *    đo được *"bấm cái nào cũng thấy load lâu quá"*. Gộp lại vẫn đáng giữ ở đây: mỗi lượt
+	 *    gọi là một vòng mạng, và nhân viên gặp màn này mỗi ca.
+	 *
+	 * ⚠️ Phải sống KỂ CẢ khi tài khoản còn PIN mặc định — không thì không ai dựng nổi màn hình
+	 *    để bấm nút đổi PIN, và cả hệ kẹt.
+	 */
+	public static function khoi_dong( $args, $nguoi ) {
+		$coso = array();
+		$ma_coso = array();
+		foreach ( VHJP_CauHinh::ds_coso() as $l ) {
+			if ( ! VHJP_Auth::xem_duoc_coso( $nguoi, $l['id'] ) ) { continue; }
+			$coso[]    = $l;
+			$ma_coso[] = (string) $l['id'];
+		}
+		$loc = function ( $ds ) use ( $ma_coso ) {
+			$ra = array();
+			foreach ( $ds as $x ) {
+				if ( in_array( (string) $x['locationId'], $ma_coso, true ) ) { $ra[] = $x; }
+			}
+			return $ra;
+		};
+		return array(
+			'ok'        => true,
+			'user'      => VHJP_Auth::user_cong_khai( $nguoi ),
+			'locations' => $coso,
+			'clusters'  => $loc( VHJP_CauHinh::ds_cum() ),
+			'machines'  => $loc( VHJP_CauHinh::ds_may() ),
+			'items'     => VHJP_CauHinh::ds_hang(),
+			'rates'     => array(
+				'moneyPulse' => VHJP_Tinh::GIA_XUNG_MAC_DINH,
+				'coin'       => VHJP_Tinh::GIA_XU,
+				'coinMoney'  => VHJP_Tinh::GIA_XU_TIEN,
+			),
+		);
+	}
+
+	public static function doi_pin( $args ) {
+		return VHJP_Auth::doi_pin(
+			isset( $args[0] ) ? $args[0] : '',
+			isset( $args[1] ) ? $args[1] : '',
+			isset( $args[2] ) ? $args[2] : '' );
+	}
+
 	public static function ds_coso()  { return VHJP_CauHinh::ds_coso( true ); }
 	public static function ds_hang()  { return VHJP_CauHinh::ds_hang( true ); }
 	public static function ds_cum( $args ) {
