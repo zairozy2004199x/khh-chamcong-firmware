@@ -645,6 +645,21 @@ class VHCP_Don {
 			'xemDonVi'   => VHCP_DonVi::xem_duoc(),
 			'nhieuDonVi' => VHCP_DonVi::nhieu_don_vi(),
 			'cosoPll'    => $coso_ml,
+			/* ═══════════════════════════════════════════════════════════════════════════
+			   CƠ SỞ → ĐƠN VỊ, để màn biết mỗi gian thuộc KHỐI nào.
+
+			   Anh Thắng 21/09/2026: *"Đã phân quyền nhân viên, nhưng vẫn thấy cơ sở bên KVC"* — hộp
+			   "Gian / cơ sở" lúc lập đơn xổ ra cả 67 gian ghế lẫn mọi gian khu vui chơi. Màn không lọc
+			   được vì nó không hề biết gian nào thuộc khối nào — bảng tra này nằm ở máy chủ từ lâu
+			   (`VHCP_DonVi::cua_coso()`) mà chưa bao giờ được gửi xuống.
+
+			   🔴 GỬI BẢNG TRA, ĐỪNG GỬI SẴN DANH SÁCH ĐÃ LỌC. Khôi khác nhau theo từng tab người đang
+			      đứng, mà gói khởi động chỉ nạp MỘT lần; gửi sẵn danh sách đã lọc là đổi tab xong
+			      hộp gian vẫn đứng nguyên ở khối cũ, và phải tải lại cả trang mới đúng.
+			   ⚠️ Khoá đã hạ chữ thường sẵn từ `cfg_static()` — màn phải tra bằng khoá hạ chữ thường,
+			      không tra nguyên văn tên gian.
+			   ══════════════════════════════════════════════════════════════════════════ */
+			'cosoDv'     => ( isset( $s_all['cosoDonVi'] ) ? $s_all['cosoDonVi'] : array() ),
 			'tkNoMx'     => $mx,
 			'tenTk'      => $ten_tk,
 			'nhom'       => $nhom,

@@ -2681,6 +2681,10 @@
     /* Bảng mã TK Nợ ở Cấu hình chỉ bày loại của khối đang chọn — đổi khối mà không vẽ lại thì
        kế toán đang đứng ở Cấu hình nhìn bảng của khối cũ và gõ mã vào đó. */
     try{ if(typeof renderTkNoMatrix==='function' && CUR_PAGE==='cauhinh') renderTkNoMatrix(); }catch(e){}
+    /* Hộp Gian phải lọc lại NGAY — đợi tải lại trang thì người ta đổi khối xong mở hộp ra vẫn
+       thấy gian của khối cũ, và kết luận là lọc không chạy.
+       ⚠️ Gọi `_daLocLaiGian()`, KHÔNG gọi `_daNapCoSoDs(null)` — `null` ở hàm kia nghĩa là DỌN SẠCH. */
+    try{ if(typeof _daLocLaiGian==='function') _daLocLaiGian(); }catch(e){}
     var d=_myDons();
     if(el('donSel')) el('donSel').innerHTML='<option value="">— Chọn đơn —</option>'+d.map(function(x){
       return '<option value="'+esc(x.maDon)+'">'+esc(x.ky||x.maDon)+(x.coso?' · '+esc(x.coso):'')+(x.nguoiLap?' · '+esc(x.nguoiLap):'')+' · '+esc(x.trangThai)+' · CL '+money(x.chenhLech)+'đ</option>';}).join('');
@@ -5506,8 +5510,57 @@
         MẢNG của gian, nên ba cách gõ ấy ra ba mã khác nhau trong cùng một đơn.
      ⚠️ VẪN LÀ <input> chứ không phải <select>: gian mới chưa có trong danh mục cơ sở thì phải
         gõ được, nếu không đơn Setup gian mới không nhập nổi dòng nào. */
+  /* ═════════════════════════════════════════════════════════════════════════════════
+   * KHỐI CỦA MỘT GIAN — đọc từ đơn vị của chính gian ấy trong danh mục Cơ sở.
+   * ⚠️ Tra bằng khoá HẠ CHỮ THƯỜNG — `cfg_static()` dựng bảng với khoá đã hạ, tra nguyên văn
+   *    là trượt hết và mọi gian trông như "chưa rõ khối". */
+  function _khoiCuaGian(ten){
+    var m=(typeof BOOT!=='undefined' && BOOT && BOOT.cosoDv) ? BOOT.cosoDv : null;
+    /* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG, ghi lại để lần sau khỏi đuổi theo: đổi `null` thành `{}` rồi bỏ
+       dòng này KHÔNG đổi kết quả — tra một bảng rỗng ra `undefined`, `|| ''` đưa về chuỗi rỗng, và
+       `_khoiCuaDv('')` cũng trả ''. Giữ vì nó nói thẳng ra ý "gói khởi động bản CŨ chưa có bảng
+       tra thì KHÔNG LỌC GÌ CẢ" — và đó mới là hướng hỏng đúng: bày thừa còn hơn hộp Gian trắng
+       trơn với mọi người. Phép canh ý ấy ở `kiem-gian-theo-khoi.js`. */
+    if(!m) return '';
+    return _khoiCuaDv(m[String(ten==null?'':ten).trim().toLowerCase()] || '');
+  }
+  /* ═════════════════════════════════════════════════════════════════════════════════
+   * HỘP "GIAN / CƠ SỞ" CHỈ XỔ GIAN CỦA KHỐI ĐANG ĐỨNG.
+   *
+   * Anh Thắng 21/09/2026: *"Đã phân quyền nhân viên, nhưng vẫn thấy cơ sở bên KVC"* — anh Trương
+   * Tấn Hiếu (vai "Nhân Viên Kỹ Thuật Máy Tự Động", cột Khối tích đúng Máy tự động) mở hộp Gian
+   * ra vẫn thấy NHÀ MA PHAN VĂN TRỊ, FUNZONE, TÀU… — toàn gian khu vui chơi.
+   *
+   * 🔴 CHỌN NHẦM GIAN LÀ TIỀN RƠI VÀO SỔ CỦA KHỐI KHÁC, và hỏng theo kiểu khó truy nhất: đơn vẫn
+   *    lập được, số vẫn vào, chỉ là vào nhầm chỗ — đến lúc đối chiếu cuối kỳ mới lộ.
+   *
+   * ⚠️ GIAN CHƯA RÕ KHỐI VẪN HIỆN — cùng luật với `_hopKhoi()` ở bên đơn. Danh mục dựng từ sổ cũ,
+   *    có gian chưa khai đơn vị; ẩn chúng là người nhập không chọn được gian có thật, rồi gõ tay
+   *    mỗi người một kiểu — đúng cái bệnh hộp này sinh ra để chữa.
+   * ⚠️ VẪN LÀ Ô NHẬP, không phải ô xổ đóng: gian mới chưa có trong danh mục phải gõ được, không
+   *    thì đơn Setup gian mới không nhập nổi dòng nào.
+   * ═════════════════════════════════════════════════════════════════════════════════ */
+  function _gianHopKhoi(ten){
+    var k=_khoiCuaGian(ten);
+    return k==='' || k===String(KHOI_DANG).toLowerCase();
+  }
+  /* Danh sách GỐC máy chủ gửi về, chưa lọc — giữ lại để đổi khối còn lọc lại mà không phải
+     hỏi máy chủ lần nữa. */
+  var DA_COSO_DS=[];
   function _daNapCoSoDs(coso){
-    var h=(coso||[]).map(function(c){return '<option value="'+esc(c)+'">';}).join('');
+    DA_COSO_DS=(coso||[]).slice();
+    _daLocLaiGian();
+  }
+  /* ═════════════════════════════════════════════════════════════════════════════════
+   * VẼ LẠI HỘP GIAN THEO KHỐI ĐANG ĐỨNG — HÀM RIÊNG, KHÔNG DÙNG CHUNG VỚI `_daNapCoSoDs()`.
+   *
+   * 🔴 LƯỢT ĐẦU EM CHỒNG NGHĨA MỚI LÊN THAM SỐ CŨ: cho `_daNapCoSoDs(null)` nghĩa là "lọc lại,
+   *    đừng đụng danh sách". Nhưng `null` ĐÃ CÓ nghĩa từ trước là "dọn sạch hộp" — và
+   *    `kiem-tab-kythuat-va-gian.js` canh đúng điều ấy, nên nó đỏ ngay. Bài kiểm đúng: một tham số
+   *    mang hai nghĩa trái nhau là người gọi sau không còn đoán được nó làm gì.
+   * ═════════════════════════════════════════════════════════════════════════════════ */
+  function _daLocLaiGian(){
+    var h=DA_COSO_DS.filter(_gianHopKhoi).map(function(c){return '<option value="'+esc(c)+'">';}).join('');
     ['dl_coso_da','dl_gian_da'].forEach(function(id){ var d=el(id); if(d) d.innerHTML=h; });
   }
   function loadDuAn(){ _ensureLoaiCp(function(){ _reFillLoai('da_loaicp', _daCoso(), 'da_httt'); daTkHint(); }); loading(true);

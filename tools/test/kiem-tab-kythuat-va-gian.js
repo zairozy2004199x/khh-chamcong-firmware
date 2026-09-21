@@ -85,13 +85,48 @@ t('🔴 chưa có bảng quyền (gọi trước applyPerms) thì coi như đư�
   CHUA.tabDuoc('don') === true && CHUA.macDinh('Nhân viên') === 'don', CHUA.macDinh('Nhân viên'));
 
 /* ── 3. Ô GIAN XỔ RA DANH SÁCH CƠ SỞ ──────────────────────────────────────────────────── */
+/* 🔴 TỪ 21/09/2026 hộp Gian LỌC THEO KHỐI — anh Thắng: *"Đã phân quyền nhân viên, nhưng vẫn
+   thấy cơ sở bên KVC"*. Bốc cả họ hàm lọc vào bệ đỡ, không bịa lại luật ở bài kiểm.
+   ⚠️ Bệ đỡ này không khai `BOOT`, nên `_khoiCuaGian()` trả '' cho mọi gian — tức "chưa rõ khối",
+      tức bày ĐỦ. Đúng điều mục này cần: nó canh chuyện đổ danh sách và rào ký tự, không canh
+      chuyện lọc khối (đã có `kiem-gian-theo-khoi.js` lo). */
+const GIAN_KHOI = `  var KHOI_DS=[{ma:'kvc',ten:'Khu vui chơi'},{ma:'mtd',ten:'Máy tự động'},{ma:'vp',ten:'Văn phòng'}];
+  var KHOI_DV_DUP={kvc:['KVC'],mtd:['MTĐ','MTD','POSH'],vp:['VP','VĂN PHÒNG','VAN PHONG']};
+  function _khoiDvBang(){
+    var b=(typeof BOOT!=='undefined' && BOOT) ? BOOT.khoiTheoDv : null;
+    return (b && b.kvc) ? b : KHOI_DV_DUP;
+  }
+  function _khoiCuaDv(dv){
+    var k=String(dv==null?'':dv).trim().toUpperCase();
+    if(!k) return '';
+    var b=_khoiDvBang();
+    for(var i=0;i<KHOI_DS.length;i++){
+      var ma=KHOI_DS[i].ma, ds=b[ma]||[];
+      for(var j=0;j<ds.length;j++){ if(String(ds[j]).toUpperCase()===k) return ma; }
+    }
+    return '';
+  }
+  function _khoiCuaGian(ten){
+    var m=(typeof BOOT!=='undefined' && BOOT && BOOT.cosoDv) ? BOOT.cosoDv : null;
+    /* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG, ghi lại để lần sau khỏi đuổi theo: đổi \`null\` thành \`{}\` rồi bỏ
+       dòng này KHÔNG đổi kết quả — tra một bảng rỗng ra \`undefined\`, \`|| ''\` đưa về chuỗi rỗng, và
+       \`_khoiCuaDv('')\` cũng trả ''. Giữ vì nó nói thẳng ra ý "gói khởi động bản CŨ chưa có bảng
+       tra thì KHÔNG LỌC GÌ CẢ" — và đó mới là hướng hỏng đúng: bày thừa còn hơn hộp Gian trắng
+       trơn với mọi người. Phép canh ý ấy ở \`kiem-gian-theo-khoi.js\`. */
+    if(!m) return '';
+    return _khoiCuaDv(m[String(ten==null?'':ten).trim().toLowerCase()] || '');
+  }
+  function _gianHopKhoi(ten){
+    var k=_khoiCuaGian(ten);
+    return k==='' || k===String(KHOI_DANG).toLowerCase();
+  }`;
 function beGian() {
   const KHO = {};
   const moi = {
     el: id => (KHO[id] = KHO[id] || { _id: id, innerHTML: '' }),
     esc: s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'),
   };
-  const R = new Function('moi', `with(moi){ ${boc('_daNapCoSoDs')}\n return _daNapCoSoDs; }`)(moi);
+  const R = new Function('moi', `with(moi){ ${GIAN_KHOI}\n${boc('_daLocLaiGian')}\n${boc('_daNapCoSoDs')}\n return _daNapCoSoDs; }`)(moi);
   return { nap: R, el: moi.el };
 }
 const G = beGian();
