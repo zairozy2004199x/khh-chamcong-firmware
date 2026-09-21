@@ -13,7 +13,7 @@ Tài liệu cho người tiếp nhận phát triển tiếp. Bản 1.1.0, ngày 
 | Thư mục plugin WordPress | https://github.com/zairozy2004199x/khh-chamcong-firmware/tree/main/khbc-bao-cao-chi-phi |
 | Thư mục bản web tĩnh (nguồn giao diện) | https://github.com/zairozy2004199x/khh-chamcong-firmware/tree/main/web_baocao_chiphi |
 | Pull request gốc (mô tả đầy đủ) | https://github.com/zairozy2004199x/khh-chamcong-firmware/pull/1 |
-| Bản phát hành + file zip cài đặt | https://github.com/zairozy2004199x/khh-chamcong-firmware/releases/tag/khbc-bao-cao-chi-phi-v1.0.0 |
+| Bản phát hành + file zip cài đặt | https://github.com/zairozy2004199x/khh-chamcong-firmware/releases — tag `khbc-bao-cao-chi-phi-vX.Y.Z`, mới nhất là [v1.1.0](https://github.com/zairozy2004199x/khh-chamcong-firmware/releases/tag/khbc-bao-cao-chi-phi-v1.1.0) |
 | Hướng dẫn plugin | `khbc-bao-cao-chi-phi/readme.txt` |
 | Hướng dẫn bản web tĩnh | `web_baocao_chiphi/README.md` |
 | Hướng dẫn backend Google Sheets | `web_baocao_chiphi/backend/README.md` |
