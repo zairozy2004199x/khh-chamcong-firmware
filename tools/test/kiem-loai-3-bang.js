@@ -42,7 +42,17 @@ function bocSach(ten) { return bocHam(ten).replace(/\/\*[\s\S]*?\*\//g, ' ').rep
 const VE = bocSach('renderTkNoMatrix');
 t('🔴 vòng gom hàng khử trùng theo KHỐI|TÊN', /_khoiCuaLoai\(x\)\s*\+\s*'\|'/.test(VE), 'không thấy');
 const LUU = bocSach('saveCfgTkNoMx');
-t('🔴 khoá trùng tên lúc Lưu cũng theo khối', /khoiB\s*\+\s*'\|'\s*\+\s*ten\.toLowerCase\(\)/.test(LUU), 'không thấy');
+/* Khối lấy từ Ô CHỌN trên hàng (`khoiR`), không phải từ bảng chứa nó (`khoiB`) — anh Thắng
+   21/09/2026: *"chỗ đơn vị thay bằng khối, để khối nào thì nó nằm trong khối đó"*. Đổi ô rồi
+   bấm Lưu là dòng phải nhảy sang bảng khối mới; khoá trùng tên vì thế cũng theo khối MỚI. */
+t('🔴 khoá trùng tên lúc Lưu theo khối ĐÃ CHỌN', /khoiR\s*\+\s*'\|'\s*\+\s*ten\.toLowerCase\(\)/.test(LUU), 'không thấy');
+t('🔴 và khối ghi xuống lấy từ ô chọn, không từ bảng chứa', /khoi:khoiR/.test(LUU), 'không thấy');
+t('   ô chọn khối có mặt trên từng hàng', /_khoiSelLoai\(_khoiCuaLoai\(x\)\)/.test(bocSach('_mxRowHtml')), 'không thấy');
+t('🔴 và là Ô CHỌN, không phải ô tích (một loại thuộc ĐÚNG MỘT khối)',
+  /<select data-khoi-o/.test(bocSach('_khoiSelLoai')) && !/checkbox/.test(bocSach('_khoiSelLoai')), 'không thấy');
+t('   cột Đơn vị cũ đã rời khỏi hàng', !/_dvSelNhieu\(x\.donVi/.test(bocSach('_mxRowHtml')));
+t('🔴 lượt Lưu GIỮ giá trị đơn vị cũ, không ghi rỗng đè',
+  /var dvL=\(goc\.donVi/.test(LUU) && /donVi:dvL/.test(LUU), 'không thấy');
 t('🔴 bảng tra mã cũ (`cu`) khoá theo khối', /cu\[_khoiCuaLoai\(x\)\s*\+\s*'\|'/.test(LUU), 'không thấy');
 /* ⚠️ BỐC ĐÚNG HÀM, ĐỪNG ĐỂ FALLBACK `|| HTML`. Lượt viết đầu em dò trong `bocSach('…') || HTML`
    với một tên hàm ĐOÁN SAI — hàm rỗng, fallback nhảy vào cả trang, và phép xanh vĩnh viễn.
@@ -59,7 +69,9 @@ t("   và KHÔNG còn bám vào một id `cfgMxBody` duy nhất", !/el\('cfgMxBo
 t('🔴 `_loaiCpList()` bỏ loại của khối khác', /_khoiCuaLoai\(x\)!==String\(KHOI_DANG\)/.test(bocSach('_loaiCpList')), 'không thấy');
 t('   `_cacNhomCp()` cũng vậy', /_khoiCuaLoai\(x\)!==String\(KHOI_DANG\)/.test(bocSach('_cacNhomCp')), 'không thấy');
 t('🔴 bảng mã TK Nợ chỉ bày loại của khối đang chọn',
-  /_loaiChoDv\(x, g\.dv\) && _khoiCuaLoai\(x\)===String\(KHOI_DANG\)/.test(VE), 'không thấy');
+  /rows\.filter\(function \(x\) \{ return _khoiCuaLoai\(x\)===String\(KHOI_DANG\)/.test(VE.replace(/\s+/g, ' ')) ||
+  /return _khoiCuaLoai\(x\)===String\(KHOI_DANG\)\.toLowerCase\(\);/.test(VE), 'không thấy');
+t('   và thôi lọc bằng ô Đơn vị của loại (ô ấy đã gỡ)', !/_loaiChoDv\(x, g\.dv\)/.test(VE));
 t('   đổi khối thì vẽ lại bảng Cấu hình', /renderTkNoMatrix\(\)/.test(bocSach('doiKhoi')), 'không thấy');
 
 /* ═══ 3. NÚT "＋ THÊM LOẠI" CHUNG ĐÃ BỎ, MỖI KHỐI MỘT NÚT ════════════════════════ */

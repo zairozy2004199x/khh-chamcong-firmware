@@ -1596,27 +1596,22 @@
          một khoản mới cho cả hệ. Nhưng lúc MỞ GIAN MỚI thì câu hỏi ngược lại — "gian này dùng
          những loại nào?" — và đi chiều kia là phải mở từng loại một, tích lại từng cái.
          Gian ADV GO! AN LẠC vừa mở, ô Loại chi phí lúc nhập đơn chỉ có một dòng: đúng hậu quả. -->
-    <div class="card" id="khaiMaCard">
-      <div class="ch"><h2>🆕 Khai mã chi phí</h2><div style="display:flex;gap:8px"><button class="btn b-g" onclick="khaiChiPhi()">💾 Khai mã</button></div></div>
-      <div style="padding:8px 14px 4px;font-size:12px;color:#64748b">Gõ <b>tên gọi chi phí</b> → <b>số tài khoản</b> → <b>tích những cơ sở áp dụng</b>. Xong. Sau đó cơ sở đã tích mà nhập loại chi phí này là tự ra: TK Nợ · tên tài khoản nội bộ · tên xuất MISA.</div>
-      <div class="row" style="padding:4px 14px 0">
-        <div class="fld" style="flex:1.4"><label>Tên gọi chi phí <span style="color:#dc2626">*</span></label><input id="kcTen" list="kcLoaiList" placeholder="VD: Chi phí marketing" oninput="kcInfo()"></div>
-        <div class="fld"><label>Số tài khoản (TK Nợ) <span style="color:#dc2626">*</span></label><input id="kcTk" list="tkChartList" placeholder="VD: 64196" oninput="kcInfo()"></div>
-        <div class="fld" style="flex:1.3"><label>Tên xuất MISA</label><input id="kcMisa" placeholder="trống = tên tài khoản" oninput="kcInfo()"></div>
-        <div class="fld"><label>TK Có</label><input id="kcTkCo" list="tkChartList" placeholder="trống = tự (141/331)"></div>
-        <div class="fld"><label>Bộ phận</label><span id="kcBpWrap"></span></div>
-        <div class="fld" style="max-width:240px"><label>&nbsp;</label><label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:12px" title="1 tên gọi chi phí mà hạch toán vào 2 tài khoản: tích ô này để THÊM mã, không thay mã đang có"><input type="checkbox" id="kcThem" onchange="kcInfo()"> thêm mã nữa (không thay mã cũ)</label></div>
-      </div>
-      <div id="kcInfo" style="padding:2px 14px 6px;font-size:12px;color:#64748b"></div>
-      <div style="padding:0 14px 6px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <b style="font-size:12px">Áp dụng cho phân loại lớn:</b>
-        <button class="btn b-x" onclick="kcTickAll(true)">Tích hết</button>
-        <button class="btn b-x" onclick="kcTickAll(false)">Bỏ hết</button>
-        <span style="font-size:11px;color:#8c8781">Tích theo <b>phân loại lớn</b> là nhanh nhất — mọi cơ sở trong đó, kể cả cơ sở mở sau này, đều dùng mã này. Chỉ mở phần tích lẻ khi có cơ sở cần mã khác.</span>
-      </div>
-      <div id="kcCosoBox" style="padding:0 14px 12px"></div>
-      <datalist id="kcLoaiList"></datalist>
-    </div>
+    <!-- ⚠️ THẺ "🆕 KHAI MÃ CHI PHÍ" ĐÃ BỎ — anh Thắng 21/09/2026: *"bỏ khai mã ngoài"*.
+         Nó là lối tắt dựng hồi danh mục còn trống: gõ tên + số tài khoản + tích cơ sở là xong
+         một lượt. Nay bảng 🧮 Loại chi phí bên dưới làm đủ mọi việc ấy, lại còn chia theo khối
+         và tích theo vai trò — giữ hai cửa vào cho cùng một danh mục là hai chỗ phải nhớ, mà
+         cửa cũ còn bày một ô "Bộ phận" đã chết từ bản 1.233.0.
+
+         ⚠️ CHỈ BỎ MÀN, KHÔNG BỎ DỮ LIỆU và không bỏ cổng: `khaiChiPhiChoCoSo` bên máy chủ vẫn
+            còn (màn nhập đơn gọi nó khi nhân viên gõ thêm mã tài khoản cho một loại mới). -->
+
+    <!-- 🧭 "Mảng kinh doanh → nhóm tài khoản" ĐÃ GỠ 14/09/2026 — anh Thắng: *"bỏ cái này"*.
+         Bảng khai tay ấy chỉ dùng cho một việc: ghép hàng loạt loại chi phí từ hệ thống tài
+         khoản, làm một lần lúc dựng danh mục. Xong việc thì nó nằm đó chiếm chỗ mãi.
+
+         ⚠️ DỮ LIỆU `mangTk` GIỮ NGUYÊN, không xoá: "Mã tổng của mảng" vẫn ghi vào cột Nhóm TK
+            của chính bảng ấy (xem khối 🔴 ở `luuMaTongMang()`), và `_saveCfg({mangTk:…})` vẫn
+            chạy. Gỡ bảng khai tay ≠ bỏ sổ. -->
 
     <div class="card" id="heTkCard">
       <div class="ch"><h2>🏦 Tài khoản — hệ thống kế toán &amp; tài khoản nhận tiền</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="ghepHeThongTk()" title="Tùy chọn: sinh sẵn danh mục + ma trận từ tên tài khoản, dùng khi muốn khai hàng loạt">🧩 Ghép hàng loạt</button></div></div>
@@ -10574,7 +10569,7 @@
       mo:'Nền của mọi thứ còn lại: mỗi cơ sở thuộc đơn vị nào, mảng kinh doanh nào.' },
     { ten:'👥 Người & quyền',             id:['bpCard','vaiCard','userCard','quyenCard'],
       mo:'Ai đăng nhập được, thấy gì, và bấm được nút nào.' },
-    { ten:'🧮 Danh mục chi phí & tài khoản', id:['khaiMaCard','loaiMxCard','tkCoCard','heTkCard'],
+    { ten:'🧮 Danh mục chi phí & tài khoản', id:['loaiMxCard','tkCoCard','heTkCard'],
       mo:'Chi phí này là chi phí gì, và đi vào tài khoản nào khi xuất MISA.' },
     /* ⚠️ `qrCard` đã gộp vào `heTkCard` — nhóm này giờ chỉ còn mốc tuần. */
     { ten:'💵 Kỳ & mốc tuần',             id:['kyCard'],
@@ -10918,6 +10913,14 @@
   function _mxBodies(){
     return Array.prototype.slice.call(document.querySelectorAll('tbody.cfgMxBody'));
   }
+  /** Ô chọn KHỐI cho một dòng loại chi phí. Mang `data-khoi-o` để lượt Lưu đọc đúng nó. */
+  function _khoiSelLoai(ma){
+    ma=String(ma||'').toLowerCase();
+    return '<select data-khoi-o style="width:100%" title="Loại chi phí này thuộc khối nào. Đổi rồi bấm Lưu là dòng nhảy sang bảng của khối ấy.">'
+      +KHOI_DS.map(function(k){
+        return '<option value="'+esc(k.ma)+'"'+(k.ma===ma?' selected':'')+'>'+esc(k.ten)+'</option>';
+      }).join('')+'</select>';
+  }
   function _loaiChoDv(x, dv){
     var v=String((x&&x.donVi)||'').trim();
     if(!v) return true;
@@ -10941,7 +10944,9 @@
     // Người dùng). Giữ đoạn này nhưng bỏ qua nếu không còn chỗ vẽ, khỏi lỗi JS chặn cả
     // màn Cấu hình.
     if(el('cfgDtBody')) el('cfgDtBody').innerHTML=(CFG.doiTuong||[]).map(function(x){ return '<tr><td>'+_inp(x.ten,'Tên đối tượng')+'</td><td>'+_inp(x.ma,'Mã MISA')+'</td><td>'+_inp(x.loai,'NV/NCC','80px')+'</td>'+_delBtn()+'</tr>'; }).join('');
-    kcFill();
+    /* ⚠️ `kcFill()` thôi được gọi — thẻ 🆕 Khai mã chi phí đã gỡ 21/09/2026. Giữ hàm lại
+       (nó gác `el(...)` rỗng) để lượt gỡ này không kéo theo một nhát dao vào mã chưa cần đụng;
+       nếu về sau chắc chắn không dùng nữa thì dọn một lượt riêng. */
     renderTkNoMatrix();
     /* 🔴 XẾP NHÓM SAU CÙNG. Mấy khối bị ẩn/hiện theo vai (kyCard · quyenCard · ngayHongCard)
        do chính `renderCfg()` quyết định ở trên, nên xếp trước là dải tiêu đề của một nhóm
@@ -11139,11 +11144,20 @@
         +(mo?'':'🔒 ')+'🧩 Loại chi phí · '+esc(k.ten)
         +' <span style="font-weight:400;color:#8c8781">— '+rws.length+' loại'
         +(mo?'':' · tài khoản của bạn thuộc đơn vị khác, xem được nhưng không sửa')+'</span></summary>';
+      /* 🔴 NÚT THÊM PHẢI Ở NGAY ĐẦU KHỐI, KHÔNG CHỈ DƯỚI ĐÁY. Anh Thắng 21/09/2026: *"chưa có
+         chỗ thêm loại chi phí"* — khối Khu vui chơi của anh có 14 dòng, mỗi dòng cao gần trăm
+         điểm ảnh vì hàng ô tích vai; nút nằm sau dòng cuối thì phải cuộn hết cả khối mới thấy,
+         và người ta kết luận là KHÔNG CÓ. Giữ luôn nút dưới đáy cho ai vừa gõ xong dòng chót. */
+      if(mo){
+        h+='<div style="padding:2px 0 6px"><button type="button" class="btn b-x" data-khong-khoa="1" '
+          +'onclick="addCfgLoai(\''+k.ma+'\')" style="padding:3px 10px;font-size:11.5px">'
+          +'＋ Thêm loại cho '+esc(k.ten)+'</button></div>';
+      }
       h+='<div class="tw"><table style="min-width:870px"><thead><tr>'
         +'<th style="text-align:left;min-width:240px">Loại chi phí</th>'
         +'<th style="width:140px">Loại</th>'
         +'<th style="width:340px">Vai trò được dùng <span style="font-weight:400;color:#8c8781">(không tích = mọi vai)</span></th>'
-        +'<th style="width:170px">Đơn vị <span style="font-weight:400;color:#8c8781">(không tích = mọi nhà)</span></th>'
+        +'<th style="width:150px">Khối</th>'
         +'<th style="width:190px">Tên theo MISA</th>'
         +'<th style="width:44px"></th></tr></thead>'
         /* 🔴 `data-khoi` TRÊN TBODY, không trên từng hàng: lúc Lưu, `saveCfgTkNoMx()` đóng dấu
@@ -11208,7 +11222,10 @@
          đúng một khối — trộn cả ba khối vào một bảng mã là dựng lại đúng cái "dùng chung" vừa
          bỏ đi ở bảng trên, chỉ là ở tầng dưới nên khó thấy hơn. Đổi khối trên thanh khối là
          bảng này đổi theo. */
-      var rws=rows.filter(function(x){ return _loaiChoDv(x, g.dv) && _khoiCuaLoai(x)===String(KHOI_DANG).toLowerCase(); });
+      /* ⚠️ THÔI LỌC THEO Ô ĐƠN VỊ CỦA LOẠI. Ô ấy đã rời khỏi bảng (21/09/2026) nên không ai
+         sửa được nữa — lọc bằng nó là lọc bằng dữ liệu cũ, vô hình, đúng cái bẫy vừa gỡ ở ô
+         Bộ phận. Khối là trục duy nhất còn lại cho bảng mã. */
+      var rws=rows.filter(function(x){ return _khoiCuaLoai(x)===String(KHOI_DANG).toLowerCase(); });
       var nhan='🔢 TK Nợ · <span style="color:#2545ff">'+esc(g.dv)+'</span>', phu='', than='';
       if(!rws.length){
         than='<div style="color:#8c8781;font-size:12px;padding:2px 0 8px">Chưa loại chi phí nào khai dùng cho đơn vị này — tích ô <b>Đơn vị</b> ở bảng trên rồi Lưu.</div>';
@@ -11685,7 +11702,14 @@
       /* 🔴 TÍCH THEO VAI TRÒ, KHÔNG CÒN THEO BỘ PHẬN (21/09/2026). Ô `boPhan` cũ vẫn nằm
          trong sổ và vẫn được `saveCfgTkNoMx()` chép lại nguyên vẹn — chỉ thôi bày ra. */
       +'<td>'+_vaiSelNhieu(x.vaiTro||'')+'</td>'
-      +'<td>'+_dvSelNhieu(x.donVi||'')+'</td>'
+      /* 🔴 CỘT "ĐƠN VỊ" ĐỔI THÀNH "KHỐI" — anh Thắng 21/09/2026: *"chỗ đơn vị thay bằng khối,
+         để khối nào thì nó nằm trong khối đó"*. Hai trục K&H/KVC cũ là chuyện của thời chưa
+         có khối; để cạnh ba bảng khối là hai thứ gần giống nhau nằm cùng một hàng, đúng kiểu
+         nhầm lẫn vừa dọn xong ở vai trò ↔ bộ phận.
+         ⚠️ MỘT LOẠI THUỘC ĐÚNG MỘT KHỐI nên đây là Ô CHỌN, không phải ô tích: tích được nhiều
+            khối là dựng lại đúng cái "dùng chung" mà ba bảng sinh ra để bỏ.
+         Đổi ô này rồi bấm Lưu là dòng nhảy sang bảng của khối ấy. */
+      +'<td>'+_khoiSelLoai(_khoiCuaLoai(x))+'</td>'
       +'<td><input value="'+esc(x.tenMisa||'')+'" data-o="misa" placeholder="trống = dùng tên bên trái" style="width:100%"></td>'
       +_delBtn()+'</tr>';
   }
@@ -11738,7 +11762,7 @@
       var oTen=tr.querySelector('input[data-goc]');
       if(!oTen) return;
       var ten=String(oTen.value||'').trim(); if(!ten) return;
-      var k=khoiB+'|'+ten.toLowerCase(); if(da[k]) return;   // trùng tên TRONG CÙNG KHỐI -> giữ dòng đầu
+      var k=khoiR+'|'+ten.toLowerCase(); if(da[k]) return;   // trùng tên TRONG CÙNG KHỐI -> giữ dòng đầu
       da[k]=1; daTen[ten.toLowerCase()]=1;
       var goc0=String(oTen.getAttribute('data-goc')||'').trim();
       if(goc0) doiTen[goc0.toLowerCase()]=ten;
@@ -11750,11 +11774,16 @@
          phận anh Thắng đã khai, mà anh chỉ bảo thôi dùng chứ chưa bảo xoá. */
       var vai=Array.prototype.map.call(tr.querySelectorAll('[data-vai] input:checked'),
                 function(c){ return c.value; }).join(', ');
-      var dvL=Array.prototype.map.call(tr.querySelectorAll('[data-dv-nhieu] input:checked'),
-                function(c){ return c.value; }).join(', ');
+      /* Khối lấy từ Ô CHỌN trên hàng; không có ô (hàng cũ, hoặc khối bị khoá) thì theo bảng
+         chứa nó. 🔴 Đọc ô trước — người ta vừa đổi nó xong thì lượt Lưu này phải nghe. */
+      var oKhoi=tr.querySelector('select[data-khoi-o]');
+      var khoiR=String((oKhoi&&oKhoi.value)||'').toLowerCase()||khoiB;
+      /* Ô tích ĐƠN VỊ đã gỡ khỏi bảng (21/09/2026) — giữ nguyên giá trị cũ trong sổ, đừng ghi
+         rỗng đè lên: anh Thắng bảo thay cột, chưa bảo xoá dữ liệu. */
+      var dvL=(goc.donVi||'');
       // Bảng không còn cột TK Có và "Mọi mảng" -> giữ nguyên giá trị đã lưu, đừng ghi rỗng
       // lên (lưu bảng một lần là xóa sạch mã cũ của mọi loại thì hỏng nặng).
-      dm.push({ ten:ten, loaiTt:String((oLoai&&oLoai.value)||''), vaiTro:vai, boPhan:(goc.boPhan||''), donVi:dvL, khoi:khoiB,
+      dm.push({ ten:ten, loaiTt:String((oLoai&&oLoai.value)||''), vaiTro:vai, boPhan:(goc.boPhan||''), donVi:dvL, khoi:khoiR,
                 tenMisa:String((oMisa&&oMisa.value)||'').trim(),
                 tkCo:goc.tkCo||'', tkNo:goc.tkNo||'',
                 maDt:goc.maDt||'', note:goc.note||'' });

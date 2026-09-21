@@ -52,18 +52,26 @@ function docHangTren(html) {
     const body = tr.slice(0, tr.indexOf('</tr>') + 1);
     const tags = body.match(/<input[^>]*>|<select[\s\S]*?<\/select>/g) || [];
     if (!tags.length) return;
-    const o = { ten: null, loai: null, misa: null, bp: [], dv: [] };
-    /* Ô tích ĐƠN VỊ (12/09/2026) nằm trong `<div data-dv-nhieu>`, ô tích Bộ phận trong
-       `<div data-bp>`. Cắt theo vùng rồi mới gom, không thì hai bộ lẫn vào nhau và phép
-       "đọc nhầm ô Bộ phận thành Đơn vị" không bao giờ đỏ. */
-    const vungDv = (body.match(/<div data-dv-nhieu[\s\S]*?<\/div>/) || [''])[0];
+    const o = { ten: null, loai: null, misa: null, bp: [], dv: [], vai: [], khoi: null };
+    /* ⚠️ TỪ 21/09/2026: ô tích là VAI TRÒ (`<div data-vai>`), và cột Đơn vị đổi thành Ô CHỌN
+       KHỐI (`<select data-khoi-o>`). Cắt theo vùng rồi mới gom — không thì hai bộ ô tích lẫn
+       vào nhau và phép "đọc nhầm bộ này thành bộ kia" không bao giờ đỏ. */
+    const vungDv  = (body.match(/<div data-dv-nhieu[\s\S]*?<\/div>/) || [''])[0];
+    const vungVai = (body.match(/<div data-vai[\s\S]*?<\/div>\s*<\/div>/) || body.match(/<div data-vai[\s\S]*?<\/div>/) || [''])[0];
     tags.forEach(tag => {
       const at = a => { const x = tag.match(new RegExp(a + '="([^"]*)"')); return x ? x[1] : null; };
       if (tag.slice(0, 6) === '<input') {
         const f = { value: at('value') || '', checked: /\schecked/.test(tag), getAttribute: at };
         if (at('data-goc') !== null) o.ten = f;
         else if (at('data-o') === 'misa') o.misa = f;
-        else if (at('type') === 'checkbox') (vungDv.indexOf(tag) >= 0 ? o.dv : o.bp).push(f);
+        else if (at('type') === 'checkbox') {
+          if (vungVai.indexOf(tag) >= 0) o.vai.push(f);
+          else if (vungDv.indexOf(tag) >= 0) o.dv.push(f);
+          else o.bp.push(f);
+        }
+      } else if (at('data-khoi-o') !== null || /<select data-khoi-o/.test(tag)) {
+        const m = tag.match(/<option value="([^"]*)"[^>]*selected/);
+        o.khoi = { value: m ? m[1] : '' };
       } else if (at('data-o') === 'loaiTt') {
         const m = tag.match(/<option value="([^"]*)"[^>]*selected/);
         o.loai = { value: m ? m[1] : '' };
@@ -71,6 +79,7 @@ function docHangTren(html) {
     });
     if (!o.ten) return;
     o.querySelector = sel => sel.indexOf('data-goc') >= 0 ? o.ten
+      : sel.indexOf('data-khoi-o') >= 0 ? o.khoi
       : sel.indexOf('loaiTt') >= 0 ? o.loai
       : sel.indexOf('misa') >= 0 ? o.misa : null;
     /* Bộ chọn phải đúng CẢ HAI vế: khoanh vùng `[data-bp]` và lọc `:checked`. Bỏ vế nào cũng
@@ -80,6 +89,7 @@ function docHangTren(html) {
       if (sel.indexOf(':checked') < 0) return [];
       if (sel.indexOf('[data-bp]') >= 0) return o.bp.filter(c => c.checked);
       if (sel.indexOf('[data-dv-nhieu]') >= 0) return o.dv.filter(c => c.checked);
+      if (sel.indexOf('[data-vai]') >= 0) return o.vai.filter(c => c.checked);
       return [];
     };
     rows.push(o);
@@ -157,7 +167,7 @@ function dungBe(loaiChiPhi, tkNoMatrix, coso, mangTk) {
   moi.window = moi;
   const F = new Function('moi', `with(moi){
     ${boc('_bpTach')}\n${boc('_bpSelNhieu')}\n${boc('_inp')}\n${boc('_loaiSel')}
-    ${boc('_khoiCuaLoai')}\n${boc('_mxBodies')}\n${boc('_khoiDuoc')}\n${boc('_vaiConCua')}\n${boc('_vaiSelNhieu')}
+    ${boc('_khoiCuaLoai')}\n${boc('_mxBodies')}\n${boc('_khoiDuoc')}\n${boc('_vaiConCua')}\n${boc('_vaiSelNhieu')}\n${boc('_khoiSelLoai')}
     ${boc('_dvSelNhieu')}\n${boc('_loaiChoDv')}\n${boc('_mangTong')}\n${boc('_mangTongDoan')}\n${boc('_mxMaGoc')}\n${boc('_mxSapCols')}\n${boc('_mxCols')}\n${boc('_mxNhomDv')}\n${boc('_xemDuocDv')}\n${boc('_mxRowHtml')}\n${boc('renderTkNoMatrix')}\n${boc('saveCfgTkNoMx')}
     return { ve: renderTkNoMatrix, luu: saveCfgTkNoMx }; }`)(moi);
   return { moi, NK, KHO, F };
@@ -396,32 +406,50 @@ function veRoiLuu(sua, xemDonVi) {
  *    như mọi dòng còn bỏ trống ô này — hiểu ngược lại là ngày bản này lên, MỌI bảng mã trắng
  *    trơn và không ai đoán ra vì sao.
  * ─────────────────────────────────────────────────────────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 CỘT "ĐƠN VỊ" CỦA LOẠI CHI PHÍ ĐÃ ĐỔI THÀNH "KHỐI" (21/09/2026).
+ *
+ * Anh Thắng: *"chỗ đơn vị thay bằng khối, để khối nào thì nó nằm trong khối đó"*. Mục này vốn
+ * canh "mỗi nhà một bộ cột" theo trục K&H/POSH; nay trục ấy là KHỐI, và nó là Ô CHỌN chứ không
+ * phải ô tích — một loại thuộc ĐÚNG MỘT khối.
+ *
+ * ⚠️ Câu hỏi không đổi: bảng mã của khối này KHÔNG được bày cột của khối kia. Trộn vào là dựng
+ *    lại đúng cái "dùng chung" mà ba bảng sinh ra để bỏ, chỉ khác là ở tầng dưới nên khó thấy.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
 {
   const LOAI2 = [
-    { ten: 'Chi phí cơ sở', boPhan: 'Cơ sở', donVi: '' },          // chưa tích -> mọi nhà
-    { ten: 'Chi phí setup', boPhan: 'Setup', donVi: 'K&H' },        // riêng K&H
-    { ten: 'Chi phí rạp',   boPhan: '',      donVi: 'POSH' },       // riêng POSH
+    { ten: 'Chi phí cơ sở', boPhan: 'Cơ sở', khoi: 'kvc' },
+    { ten: 'Chi phí setup', boPhan: 'Setup', khoi: 'kvc' },
+    { ten: 'Chi phí rạp',   boPhan: '',      khoi: 'mtd' },   // khối KHÁC
   ];
   const b = dungBe(LOAI2, MX, COSO, MANG_TK);
   b.moi.BOOT.xemDonVi = null;
   b.F.ve();
   const h = b.moi.el('cfgTkNoMx').innerHTML;
-  const khoi = t => { const i = h.indexOf('data-dv="' + t + '"'); const j = h.indexOf('</table>', i);
-                      return i < 0 ? '' : h.slice(h.lastIndexOf('<thead', i) < i ? h.lastIndexOf('🔢 TK Nợ', i) : i, j); };
-  const kKH = khoi('K&amp;H'), kPO = khoi('POSH');
-  t('🔴 khối K&H có cột riêng của nó', kKH.indexOf('>Chi phí setup</th>') >= 0, kKH.slice(0, 400));
-  t('🔴 khối K&H KHÔNG có cột của POSH', kKH.indexOf('>Chi phí rạp</th>') < 0, kKH.slice(0, 400));
-  t('🔴 khối POSH có cột riêng của nó', kPO.indexOf('>Chi phí rạp</th>') >= 0, kPO.slice(0, 400));
-  t('🔴 khối POSH KHÔNG có cột của K&H', kPO.indexOf('>Chi phí setup</th>') < 0, kPO.slice(0, 400));
-  t('🔴 loại CHƯA tích đơn vị hiện ở CẢ HAI nhà',
-    kKH.indexOf('>Chi phí cơ sở</th>') >= 0 && kPO.indexOf('>Chi phí cơ sở</th>') >= 0);
-  t('   bảng thuộc tính có ô tích Đơn vị', h.indexOf('data-dv-nhieu') >= 0 && h.indexOf('>Đơn vị <span') >= 0, h.slice(0, 700));
-  /* ⚠️ Cắt TRỌN khối ô tích rồi mới soi, đừng lấy một cửa sổ đếm ký tự — mỗi nhãn dài hơn
-     trăm ký tự nên cửa sổ 400 chưa tới được nhà thứ hai, và phép đỏ vì chính cái cửa sổ. */
-  const oTichDv = (h.match(/<div data-dv-nhieu[\s\S]*?<\/div>/) || [''])[0];
-  t('   ô tích bày đúng những nhà đang có',
-    oTichDv.indexOf('value="K&amp;H"') >= 0 && oTichDv.indexOf('value="POSH"') >= 0, oTichDv.slice(0, 300));
-  t('   và tích sẵn nhà đã khai', /value="K&amp;H" checked/.test(h), (h.match(/<input type="checkbox" value="[^"]*"[^>]*>/g) || []).slice(0, 6));
+  const duoi = h.slice(h.indexOf('mxNoBody'));
+  t('🔴 bảng mã bày cột của khối đang chọn (kvc)', duoi.indexOf('>Chi phí setup</th>') >= 0, duoi.slice(0, 500));
+  t('🔴 và KHÔNG bày cột của khối khác (mtd)', duoi.indexOf('>Chi phí rạp</th>') < 0, duoi.slice(0, 500));
+
+  /* Bảng thuộc tính: mỗi hàng có Ô CHỌN khối, không còn ô tích đơn vị. */
+  const tren = h.slice(0, h.indexOf('mxNoBody'));
+  t('🔴 bảng thuộc tính có Ô CHỌN Khối', tren.indexOf('<select data-khoi-o') >= 0, tren.slice(0, 700));
+  t('   và KHÔNG còn ô tích Đơn vị', tren.indexOf('data-dv-nhieu') < 0);
+  t('   đầu bảng đổi nhãn theo', tren.indexOf('>Khối</th>') >= 0 && tren.indexOf('>Đơn vị <span') < 0, tren.slice(0, 700));
+  /* Ô chọn phải bày đủ ba khối và chọn sẵn khối của dòng. */
+  const oKhoi = (tren.match(/<select data-khoi-o[\s\S]*?<\/select>/) || [''])[0];
+  teq('   ô chọn bày đủ ba khối', 3, (oKhoi.match(/<option/g) || []).length);
+  t('🔴 và chọn sẵn khối của dòng', /value="kvc" selected/.test(oKhoi), oKhoi);
+
+  /* 🔴 NÚT "＋ THÊM LOẠI" PHẢI Ở NGAY ĐẦU KHỐI, TRƯỚC BẢNG. Anh Thắng 21/09/2026: *"chưa có chỗ
+     thêm loại chi phí"* — khối Khu vui chơi của anh có 14 dòng, mỗi dòng cao gần trăm điểm ảnh
+     vì hàng ô tích vai; nút nằm sau dòng cuối thì phải cuộn hết cả khối mới thấy, và người ta
+     kết luận là KHÔNG CÓ. Giữ luôn nút dưới đáy cho ai vừa gõ xong dòng chót. */
+  const iNut = tren.indexOf('＋ Thêm loại');
+  const iBang = tren.indexOf('<table style="min-width:870px"');
+  t('🔴 có nút ＋ Thêm loại', iNut >= 0, tren.slice(0, 400));
+  t('🔴 và nó đứng TRƯỚC bảng, không phải mãi dưới đáy', iNut >= 0 && iNut < iBang, { iNut, iBang });
+  t('   vẫn còn một nút nữa ở cuối khối', (tren.match(/＋ Thêm loại/g) || []).length >= 2,
+    (tren.match(/＋ Thêm loại/g) || []).length);
 }
 /* 🔴 MÃ CỦA CỘT BỊ ẨN KHÔNG ĐƯỢC MẤT. Một mảng ĐANG HIỆN vẫn có những loại không có ô nào ở
    khối ấy (khác nhà). Xét theo MẢNG như bản cũ là mã của chúng bay sạch ngay lượt Lưu đầu —
@@ -474,11 +502,13 @@ function veRoiLuu(sua, xemDonVi) {
      không gửi cột Đơn vị" sống sót. */
   const p = veRoiLuu((tren) => {
     tren.forEach(tr => {
-      if (tr.ten && tr.ten.value === 'Chi phí setup') tr.dv.forEach(c => { if (c.value === 'POSH') c.checked = true; });
+      /* ⚠️ 21/09/2026: cột Đơn vị đổi thành Ô CHỌN Khối. Đổi ô rồi Lưu — gói phải mang đúng
+         khối MỚI, không phải khối của cái bảng chứa dòng. */
+      if (tr.ten && tr.ten.value === 'Chi phí setup' && tr.khoi) tr.khoi.value = 'mtd';
     });
   });
   const m = {}; (p.loaiChiPhi || []).forEach(x => { m[x.ten] = x; });
-  teq('🔴 tích Đơn vị rồi Lưu thì giá trị ấy đi xuống sổ', 'POSH', (m['Chi phí setup'] || {}).donVi);
+  teq('🔴 đổi Ô CHỌN KHỐI rồi Lưu thì giá trị ấy đi xuống sổ', 'mtd', (m['Chi phí setup'] || {}).khoi);
   teq('   loại không tích gì vẫn rỗng = mọi nhà', '', (m['Chi phí cơ sở'] || {}).donVi);
   /* 🔴 KHÔNG ĐƯỢC ĐỌC NHẦM Ô TÍCH BỘ PHẬN. Hai bộ ô tích nằm cùng một hàng; lấy nhầm là cột
      Đơn vị mang tên bộ phận, và loại ấy biến mất khỏi mọi bảng vì không khớp nhà nào. */
