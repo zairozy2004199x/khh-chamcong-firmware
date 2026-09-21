@@ -138,8 +138,11 @@ t( '   đếm "loại chưa khai bộ phận" cũng vậy',
    chứ không phải danh sách phải giữ Ctrl, nối bằng dấu phẩy, ô trống = mọi…). Khuôn ấy vẫn
    phải đúng, chỉ là nó chuyển sang `_vaiSelNhieu()`. Bài riêng cho luật mới:
    `kiem-loai-theo-vai.php` và `kiem-loai-3-bang.js`. */
+/* ⚠️ Từ 1.235.0 ô tích còn nhận THÊM KHỐI của chính hàng ấy — anh Thắng 21/09/2026:
+   *"Loại chi phí theo Khối, Ai có ở khối nào mới hiện ra"*. Luật lọc ấy có bài riêng
+   (`kiem-vai-theo-khoi.php` / `.js`); chỗ này chỉ canh rằng hàng VẪN dùng ô tích vai. */
 t( '🔴 ô tích của bảng loại chi phí nay là VAI TRÒ',
-	false !== strpos( $HTML, "+'<td>'+_vaiSelNhieu(x.vaiTro||'')+'</td>'" ), '' );
+	false !== strpos( $HTML, "+'<td>'+_vaiSelNhieu(x.vaiTro||'', _khoiCuaLoai(x))+'</td>'" ), '' );
 t( '   và không còn ô tích bộ phận ở hàng ấy',
 	false === strpos( $HTML, "+'<td>'+_bpSelNhieu(x.boPhan||'')+'</td>'" ), '' );
 /* Anh Thắng 10/09/2026: *"chuyển sang dạng tích cho dễ bấm"*. Danh sách nhiều lựa chọn của

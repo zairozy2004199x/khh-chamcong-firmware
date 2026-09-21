@@ -38,6 +38,13 @@ const boc = ten => {
   t('bốc được ' + ten + '()', i >= 0);
   return i < 0 ? '' : HTML.slice(i, HTML.indexOf('\n  }', i) + 4);
 };
+/* Bốc một BẢNG TỪ KHOÁ (`var TÊN=[…];`) ra nguyên văn. Mấy hàm dưới đây đọc nó như biến
+   ngoài, nên không mang theo thì chúng nổ `ReferenceError` — trông y như mã hỏng. */
+const bocBienMd = ten => {
+  const i = HTML.indexOf('  var ' + ten + '=');
+  t('bốc được bảng ' + ten, i >= 0);
+  return i < 0 ? '[]' : HTML.slice(HTML.indexOf('=', i) + 1, HTML.indexOf('];', i) + 1);
+};
 
 /* ── BỆ ĐỠ: cây DOM đủ để vẽ HTML thật rồi đọc lại bằng chính hàm lưu ──────────────────────
    Không dùng thư viện ngoài: dựng một bộ phân tích thẻ đủ nhỏ cho <input>/<select> — thứ duy
@@ -167,6 +174,13 @@ function dungBe(loaiChiPhi, tkNoMatrix, coso, mangTk) {
   moi.window = moi;
   const F = new Function('moi', `with(moi){
     ${boc('_bpTach')}\n${boc('_bpSelNhieu')}\n${boc('_inp')}\n${boc('_loaiSel')}
+    /* Từ 1.235.0 hộp ô tích vai lọc theo khối, nên phải bốc theo cả họ hàng của nó
+       (_vaiBay → _vaiOKhoi → _khoiCuaVai → _boDauVai) lẫn bảng từ khoá.
+       ⚠️ KHÔNG DÙNG DẤU PHỎ — cái nằm dưới phím Esc — Ở ĐÂY. Cả khối này nằm TRONG một chuỗi mẫu, nên một dấu
+          phỉ trong lời văn đóng chuỗi sớm và cả bài kiểm chết cú pháp — cắn ngay lượt viết
+          này, đúng họ với cái bẫy "viết dấu đóng chú thích ngay trong lời văn" ở app.html. */
+    var KHOI_THEO_TEN_VAI=${bocBienMd('KHOI_THEO_TEN_VAI')};
+    ${boc('_boDauVai')}\n${boc('_khoiCuaVai')}\n${boc('_vaiOKhoi')}\n${boc('_vaiBay')}
     ${boc('_khoiCuaLoai')}\n${boc('_mxBodies')}\n${boc('_khoiDuoc')}\n${boc('_vaiConCua')}\n${boc('_vaiSelNhieu')}\n${boc('_khoiSelLoai')}
     ${boc('_dvSelNhieu')}\n${boc('_loaiChoDv')}\n${boc('_mangTong')}\n${boc('_mangTongDoan')}\n${boc('_mxMaGoc')}\n${boc('_mxSapCols')}\n${boc('_mxCols')}\n${boc('_mxNhomDv')}\n${boc('_xemDuocDv')}\n${boc('_mxRowHtml')}\n${boc('renderTkNoMatrix')}\n${boc('saveCfgTkNoMx')}
     return { ve: renderTkNoMatrix, luu: saveCfgTkNoMx }; }`)(moi);

@@ -2610,6 +2610,10 @@
    *    được.
    * ══════════════════════════════════════════════════════════════════════════════════════════ */
   var KHOI_DS=[{ma:'kvc',ten:'Khu vui chơi'},{ma:'mtd',ten:'Máy tự động'},{ma:'vp',ten:'Văn phòng'}];
+  /* Đơn vị đại diện cho từng khối, dùng làm gợi ý ở cột Đơn vị bảng Người dùng.
+     🔴 MỖI MÃ Ở ĐÂY PHẢI CÓ TRONG `VHCP_DonVi::KHOI_THEO_DON_VI`, không thì khai xong vẫn như
+        chưa khai. `tools/test/kiem-goi-y-don-vi-khoi.php` so hai bảng với nhau. */
+  var DV_KHOI_GOI=[{ma:'KVC',ten:'Khu vui chơi'},{ma:'MTĐ',ten:'Máy tự động'},{ma:'VP',ten:'Văn phòng'}];
   /* ⚠️ CHỈ BÀY NÚT CỦA KHỐI NGƯỜI ẤY ĐỌC ĐƯỢC — lấy từ `BOOT.khoiXem` (máy chủ suy từ cột Đơn
      vị). `null` = nhà mẹ, bày đủ ba.
      🔴 ĐÂY KHÔNG PHẢI CỔNG QUYỀN, chỉ là giấu mấy nút chắc chắn rỗng: dữ liệu sau mỗi nút đã bị
@@ -10842,23 +10846,77 @@
    *    ô tích cho Admin là ô bấm vào không đổi gì — tệ hơn là nó khiến người khai tưởng BỎ tích
    *    Admin thì chặn được Admin.
    * ══════════════════════════════════════════════════════════════════════════════════════════ */
-  function _vaiSelNhieu(v){
+  /* ═══════════════════════════════════════════════════════════════════════════════════════
+   * KHỐI CỦA MỘT VAI TRÒ — bản song sinh của `VHCP_Cfg::khoi_cua_vai()`.
+   *
+   * 🔴 HAI BÊN PHẢI CÙNG LUẬT. Lệch một vế thì không ai thấy lỗi: màn giấu mất một ô tích
+   *    mà máy chủ vẫn chấp, hoặc ngược lại. `tools/test/kiem-vai-theo-khoi.php` đọc cả hai bản
+   *    rồi so từng tên một — sửa một bên mà quên bên kia là nó đỏ.
+   *
+   * ⚠️ `normalize` KHÔNG ĐỦ cho tiếng Việt: nó gỡ được dấu thanh nhưng KHÔNG gỡ được chữ đ,
+   *    mà "Tự Động" thì không có đ… nhưng "Động" thì có. Phải thay tay trước khi normalize.
+   * ═══════════════════════════════════════════════════════════════════════════════════════ */
+  var KHOI_THEO_TEN_VAI=[
+    {ma:'kvc', tu:['khu vui choi','kvc']},
+    {ma:'mtd', tu:['may tu dong','mtd','posh','ghe massage']},
+    {ma:'vp',  tu:['van phong','vp']}
+  ];
+  function _boDauVai(s){
+    return String(s==null?'':s).toLowerCase().replace(/\u0111/g,'d')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();
+  }
+  /** Mã khối đọc ra từ tên vai — '' = vai chạy ngang, thuộc MỌI khối. */
+  function _khoiCuaVai(ten){
+    var t=' '+_boDauVai(ten)+' ';
+    if(t===' ') return '';
+    for(var i=0;i<KHOI_THEO_TEN_VAI.length;i++){
+      var k=KHOI_THEO_TEN_VAI[i];
+      for(var j=0;j<k.tu.length;j++){ if(t.indexOf(' '+k.tu[j]+' ')>=0) return k.ma; }
+    }
+    return '';
+  }
+  /** Vai này có được bày ở bảng của khối `khoi` không. Vai chạy ngang: mọi khối. */
+  function _vaiOKhoi(ten, khoi){
+    var k=_khoiCuaVai(ten);
+    if(!k) return true;
+    return k===String(khoi||'').toLowerCase();
+  }
+  function _vaiSelNhieu(v, khoi){
     var da={};
     String(v||'').split(',').forEach(function(x){ var k=x.trim().toLowerCase(); if(k) da[k]=1; });
+    khoi=String(khoi||'').toLowerCase();
     var h='<div data-vai style="display:flex;flex-direction:column;gap:3px;padding:2px 0" '
-      +'title="Không tích gì = MỌI vai đều dùng được loại này. Admin không bao giờ bị lọc nên không có ở đây.">';
+      +'title="Không tích gì = MỌI vai đều dùng được loại này. Chỉ bày vai của khối này và vai chạy ngang cả công ty. Admin không bao giờ bị lọc nên không có ở đây.">';
     VAI_GOC.forEach(function(cha){
-      var con=_vaiConCua(cha);
+      var con=_vaiConCua(cha).filter(function(r){ return _vaiBay(r, khoi, da); });
       var o=function(r,dam){
+        /* Vai của khối KHÁC mà vẫn còn tích: bày kèm dấu ⚠ để người khai thấy và tự gỡ,
+           chứ máy không tự gỡ — xem chốt 🔴 ở `_vaiBay()`. */
+        /* ⚠️ TÊN BIẾN PHẢI MANG ĐUÔI `Khoi`. `tools/test/kiem-app-js.py` canh chốt *"bảng
+           Người dùng không còn gắn cờ ô Cơ sở"* (1.174.0 kết tội hàng loạt) bằng cách dò
+           TÊN của biến cờ cũ — đặt trùng tên là bài ấy đỏ oan, và cách chữa sai là đi
+           nới bài kiểm ra cho vừa mình. Đổi tên ở đây, giữ nguyên chốt của họ.
+           🔴 VÀ ĐỪNG VIẾT TÊN CŨ RA TRONG CHÚ THÍCH NÀY. Bài ấy dò trên mã CHƯA gỡ chú
+              thích, nên một dòng giải thích cũng đủ làm nó đỏ — đã cắn ngay lượt viết này. */
+        var lacKhoi=(_khoiCuaVai(r)!=='' && !_vaiOKhoi(r, khoi));
         return '<label style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;white-space:nowrap;cursor:pointer'
-          +(dam?';font-weight:700':'')+'">'
+          +(dam?';font-weight:700':'')+(lacKhoi?';color:#b9770e':'')+'"'
+          +(lacKhoi?' title="Vai này thuộc khối khác nhưng đang được tích cho loại này. Bỏ tích thì nó biến khỏi đây."':'')+'>'
           +'<input type="checkbox" value="'+esc(r)+'"'+(da[r.toLowerCase()]?' checked':'')+' style="margin:0;cursor:pointer">'
-          +esc(r)+'</label>';
+          +esc(r)+(lacKhoi?' \u26a0':'')+'</label>';
       };
       h+='<div style="display:flex;flex-wrap:wrap;gap:2px 10px">'+o(cha,true)
         +con.map(function(r){ return o(r,false); }).join('')+'</div>';
     });
     return h+'</div>';
+  }
+  /* 🔴 VAI LẠC KHỐI MÀ ĐANG TÍCH THÌ VẪN PHẢI BÀY RA. Lượt Lưu đọc chính mấy ô tích này
+     (`[data-vai] input:checked`), nên giấu một ô đang tích là lượt Lưu kế tiếp XÓA quyền ấy —
+     lặng lẽ, không một câu nào, và người bấm Lưu chỉ định sửa một ô khác. Anh Thắng bảo *"ai có
+     ở khối nào mới hiện ra"* — đó là bớt ô TRỐNG cho dễ dò, không phải bỏ quyền đã khai. */
+  function _vaiBay(ten, khoi, da){
+    if(_vaiOKhoi(ten, khoi)) return true;
+    return !!(da && da[String(ten).toLowerCase()]);
   }
   /* ══════════════════════════════════════════════════════════════════════════════════════
    * Ô TÍCH ĐƠN VỊ CHO LOẠI CHI PHÍ — anh Thắng 12/09/2026: *"Đối với POSH sẽ có cột Chi Phí
@@ -10916,10 +10974,23 @@
   /** Ô chọn KHỐI cho một dòng loại chi phí. Mang `data-khoi-o` để lượt Lưu đọc đúng nó. */
   function _khoiSelLoai(ma){
     ma=String(ma||'').toLowerCase();
-    return '<select data-khoi-o style="width:100%" title="Loại chi phí này thuộc khối nào. Đổi rồi bấm Lưu là dòng nhảy sang bảng của khối ấy.">'
+    return '<select data-khoi-o onchange="_khoiODoi(this)" style="width:100%" title="Loại chi phí này thuộc khối nào. Đổi rồi bấm Lưu là dòng nhảy sang bảng của khối ấy.">'
       +KHOI_DS.map(function(k){
         return '<option value="'+esc(k.ma)+'"'+(k.ma===ma?' selected':'')+'>'+esc(k.ten)+'</option>';
       }).join('')+'</select>';
+  }
+  /* Đổi ô KHỐI trên một dòng -> dựng lại danh sách vai của ĐÚNG dòng ấy ngay.
+     🔴 MANG THEO NHỮNG Ô ĐANG TÍCH. Dựng lại từ `x.vaiTro` cũ là mất sạch những gì người ta
+     vừa tích trước khi đổi khối — mà họ không hề bấm Xóa gì cả.
+     ⚠️ ĐỢI TỚI LƯỢT VẼ LẠI CẢ BẢNG thì không được: bảng chỉ vẽ lại sau khi Lưu, nên người khai
+        đổi khối xong vẫn nhìn nguyên danh sách vai của khối cũ và tưởng lọc không chạy. */
+  function _khoiODoi(sel){
+    var tr=sel; while(tr && tr.tagName!=='TR') tr=tr.parentNode;
+    if(!tr) return;
+    var hop=tr.querySelector('[data-vai]'); if(!hop) return;
+    var dang=[];
+    Array.prototype.forEach.call(hop.querySelectorAll('input:checked'),function(o){ dang.push(o.value); });
+    hop.outerHTML=_vaiSelNhieu(dang.join(', '), sel.value);
   }
   function _loaiChoDv(x, dv){
     var v=String((x&&x.donVi)||'').trim();
@@ -11701,7 +11772,7 @@
       +'<td>'+_loaiSel(x.loaiTt||'').replace('<select','<select data-o="loaiTt"')+'</td>'
       /* 🔴 TÍCH THEO VAI TRÒ, KHÔNG CÒN THEO BỘ PHẬN (21/09/2026). Ô `boPhan` cũ vẫn nằm
          trong sổ và vẫn được `saveCfgTkNoMx()` chép lại nguyên vẹn — chỉ thôi bày ra. */
-      +'<td>'+_vaiSelNhieu(x.vaiTro||'')+'</td>'
+      +'<td>'+_vaiSelNhieu(x.vaiTro||'', _khoiCuaLoai(x))+'</td>'
       /* 🔴 CỘT "ĐƠN VỊ" ĐỔI THÀNH "KHỐI" — anh Thắng 21/09/2026: *"chỗ đơn vị thay bằng khối,
          để khối nào thì nó nằm trong khối đó"*. Hai trục K&H/KVC cũ là chuyện của thời chưa
          có khối; để cạnh ba bảng khối là hai thứ gần giống nhau nằm cùng một hàng, đúng kiểu
@@ -12593,12 +12664,37 @@
      phải khai được ngay tại đây chứ không phải chờ sửa mã. Gợi ý lấy từ những đơn vị đang có
      thật trong sổ — bày ra một danh mục riêng là hai nơi phải khai, và hai nơi thì lệch. */
   function _dvInp(v){
-    var ds=(BOOT.donVi||['K&H']);
+    /* ═════════════════════════════════════════════════════════════════════════════
+       GỢI Ý LUÔN CÓ ĐỦ BA KHỐI — anh Thắng 21/09/2026: *"chọn nhân viên theo khối"*.
+
+       🔴 TRƯỚC BẢN NÀY GỢI Ý LÀ MỘT VÒNG LUẨN QUẨN. `BOOT.donVi` dựng từ đơn vị ĐANG CÓ
+          THẬT trong sổ; chưa ai thuộc Máy tự động thì nó không hiện Máy tự động, mà không hiện
+          thì không ai bỏ ai vào đó được. Ảnh anh gửi: hộp xổ ra đúng MỘT dòng "K&H", và màn
+          Đơn chi phí thì "Máy tự động 0". Đúng cái vòng đã ghi ở `VHCP_DonVi::ds()`.
+
+       ⚠️ VẪN LÀ Ô NHẬP KÈM GỢI Ý, không phải ô xổ đóng: một chi nhánh thứ tư phải khai
+          được ngay tại đây chứ không chờ sửa mã. Ba khối chỉ được THÊM vào gợi ý, không thay
+          danh sách thật — và không ghi gì xuống sổ cho tới khi có người bấm Lưu.
+
+       ⚠️ GIÁ TRỊ PHẢI ĐÚNG CÁI `VHCP_DonVi::KHOI_THEO_DON_VI` NHẬN. Gợi ý "Máy tự động" (tên
+          đẹp) thì `khoi_cua()` trả '' và người ấy không thuộc khối nào cả — hỏng lặng lẽ, vì
+          ô trông như đã khai xong. Nên value là mã (`MTĐ`), còn tên đẹp để ở `label`.
+       ═════════════════════════════════════════════════════════════════════════════ */
+    var ds=(BOOT.donVi||['K&H']).slice();
+    var nhan={};
+    DV_KHOI_GOI.forEach(function(g){
+      nhan[g.ma.toLowerCase()]=g.ten;
+      if(ds.map(function(x){return String(x).toLowerCase();}).indexOf(g.ma.toLowerCase())<0) ds.push(g.ma);
+    });
     /* Đổi đơn vị là hộp cơ sở CÙNG HÀNG phải đổi theo ngay. Đợi tới lượt vẽ lại cả bảng thì
        người ta gõ "POSH" xong mở hộp cơ sở ra vẫn thấy nguyên danh sách khu vui chơi, và kết
        luận là lọc không chạy. */
-    return '<input list="dl_donvi" value="'+esc(v||'')+'" placeholder="trống = K&H" oninput="_dvDoi(this)" style="width:100%">'
-      +'<datalist id="dl_donvi">'+ds.map(function(x){return '<option value="'+esc(x)+'">';}).join('')+'</datalist>';
+    return '<input list="dl_donvi" value="'+esc(v||'')+'" placeholder="trống = K&H (nhà mẹ)" oninput="_dvDoi(this)" '
+      +'title="Đơn vị quyết định người này đọc được sổ nhà nào và hiện ở khối nào. KVC = Khu vui chơi, MTĐ = Máy tự động, VP = Văn phòng, trống hoặc K&H = nhà mẹ đọc cả hệ." style="width:100%">'
+      +'<datalist id="dl_donvi">'+ds.map(function(x){
+          var n=nhan[String(x).toLowerCase()];
+          return '<option value="'+esc(x)+'"'+(n?(' label="'+esc(n)+'"'):'')+'>'+(n?esc(n):'')+'</option>';
+        }).join('')+'</datalist>';
   }
   /** Ô Đơn vị vừa đổi -> vẽ lại hộp cơ sở của đúng hàng ấy, GIỮ NGUYÊN những gì đang tích. */
   function _dvDoi(o){

@@ -1832,6 +1832,58 @@ class VHCP_Cfg {
 		return false;
 	}
 
+	/* ═══════════════════════════════════════════════════════════════════════════════════════
+	 * KHỐI CỦA MỘT VAI TRÒ — ĐỌC RA TỪ CHÍNH CÁI TÊN, KHÔNG KHAI THÊM CỘT NÀO.
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 21/09/2026: *"Loại chi phí theo Khối, Ai có ở khối nào mới hiện ra"*. Bảng loại chi phí
+	 * của Khu vui chơi đang bày cả "Quản Lý Máy Tự Động", "Kế Toán VP Chung"… — mười lăm ô tích,
+	 * quá nửa không bao giờ dùng tới, và tích nhầm một cái là mở sổ cho cả một khối khác.
+	 *
+	 * 🔴 KHÔNG ĐẺ THÊM MỘT CỘT "KHỐI" TRÊN BẢNG VAI TRÒ. Chính 21/09 vừa gỡ cột Bộ phận khỏi
+	 *    bảng vai trò và khỏi bảng người dùng, vì *"dùng hết trên vai trò cha, con rồi"*. Thêm một ô
+	 *    khai khối là dựng lại y hệt cái trục thừa ấy, chỉ đổi tên — và hai nơi khai thì có ngày lệch:
+	 *    vai tên "Máy Tự Động" mà ô khối để "Khu vui chơi", không ai biết bên nào đúng.
+	 *    Tên vai CHÍNH LÀ nơi anh Thắng đã khai mảng; đọc lại từ đó thì không có gì để lệch.
+	 *
+	 * ⚠️ KHÔNG ĐOÁN ĐƯỢC = THUỘC MỌI KHỐI, không phải "không thuộc khối nào". "Nhân Viên
+	 *    Marketing", "Kế toán NCC", "Quản lý" — những vai chạy ngang cả công ty — không mang tên khối
+	 *    nào. Hiểu ngược là chúng biến khỏi cả ba bảng, và không còn ô nào để tích cho họ nữa.
+	 *    Hỏng theo hướng bày thừa một ô, không phải hướng giấu mất người.
+	 *
+	 * ⚠️ XÉT "vp" SAU CÙNG và xét theo TỪ, không theo chuỗi con. "Quản Lý VP Chung" có "vp" thật,
+	 *    nhưng một ngày nào đó có vai tên kèm chữ "TVP" hay "VPC" thì chứa chuỗi con mà không
+	 *    phải văn phòng. Và "kvc"/"mtd" phải đi trước vì chúng cụ thể hơn.
+	 * ═══════════════════════════════════════════════════════════════════════════════════════ */
+	const KHOI_THEO_TEN_VAI = array(
+		'kvc' => array( 'khu vui choi', 'kvc' ),
+		'mtd' => array( 'may tu dong', 'mtd', 'posh', 'ghe massage' ),
+		'vp'  => array( 'van phong', 'vp' ),
+	);
+
+	/** Mã khối đọc ra từ tên một vai trò — '' = vai chạy ngang, thuộc MỌI khối. */
+	public static function khoi_cua_vai( $ten ) {
+		$t = ' ' . preg_replace( '/\s+/u', ' ', trim( self::bo_dau( $ten ) ) ) . ' ';
+		if ( ' ' === $t ) { return ''; }
+		foreach ( self::KHOI_THEO_TEN_VAI as $ma => $ds ) {
+			foreach ( $ds as $x ) {
+				if ( false !== mb_strpos( $t, ' ' . $x . ' ' ) ) { return $ma; }
+			}
+		}
+		return '';
+	}
+
+	/**
+	 * Vai trò này có được bày ở bảng loại chi phí của khối $khoi không.
+	 *
+	 * Bản song sinh ở màn là `_vaiOKhoi()`. Hai bên PHẢI cùng luật: lệch một vế là bài kiểm
+	 * xanh mà người khai nhìn thấy một danh sách khác hẳn.
+	 */
+	public static function vai_o_khoi( $ten, $khoi ) {
+		$k = self::khoi_cua_vai( $ten );
+		if ( '' === $k ) { return true; }                       // vai chạy ngang — mọi khối
+		return $k === mb_strtolower( trim( (string) $khoi ) );
+	}
+
 	/** Loại chi phí này có thuộc bộ phận $bp không. Loại chưa khai bộ phận -> thuộc MỌI bộ phận. */
 	public static function loai_thuoc_bo_phan( $ten_loai, $bp ) {
 		$k = mb_strtolower( trim( (string) $bp ) );

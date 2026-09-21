@@ -33,6 +33,11 @@ function bocHam(ten) {
   return (j > i) ? HTML.slice(i, j) : '';
 }
 function bocSach(ten) { return bocHam(ten).replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\n]*/g, ' '); }
+function bocBien3(ten) {
+  const i = HTML.indexOf('  var ' + ten + '=');
+  const j = HTML.indexOf('];', i) + 2;
+  return (i >= 0 && j > i) ? HTML.slice(i, j) : '';
+}
 
 ['_khoiCuaLoai', '_mxBodies', 'addCfgLoai'].forEach(function (x) {
   t('bốc được `' + x + '`', bocHam(x).length > 40, x);
@@ -147,10 +152,22 @@ t('🔴 lượt Lưu chép lại bộ phận cũ thay vì ghi rỗng', /boPhan:\
       { ten: 'Kế Toán Máy Tự Động', goc: 'Kế toán cá nhân' } ] },
     esc: (x) => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;') };
   vm.createContext(ctxv);
-  vm.runInContext(['_vaiConCua', '_vaiSelNhieu', '_vaiDungDuocLoai'].map(bocHam).join('\n'), ctxv);
+  ctxv.KHOI_THEO_TEN_VAI = JSON.parse(JSON.stringify(
+    new Function(bocBien3('KHOI_THEO_TEN_VAI') + '\nreturn KHOI_THEO_TEN_VAI;')()));
+  vm.runInContext('var KHOI_THEO_TEN_VAI=' + JSON.stringify(ctxv.KHOI_THEO_TEN_VAI) + ';\n'
+    + ['_boDauVai', '_khoiCuaVai', '_vaiOKhoi', '_vaiBay',
+       '_vaiConCua', '_vaiSelNhieu', '_vaiDungDuocLoai'].map(bocHam).join('\n'), ctxv);
 
-  const hv = ctxv._vaiSelNhieu('Kế Toán Máy Tự Động');
-  teq('🔴 bày ĐỦ danh sách: 4 vai gốc + 3 vai con', 7, (hv.match(/type="checkbox"/g) || []).length);
+  /* ⚠️ TẠI SAO PHẢI TRUYỀN KHỐI VÀO — anh Thắng 21/09/2026: *"Loại chi phí theo Khối, Ai có ở
+     khối nào mới hiện ra"*. Từ bản 1.235.0 hộp ô tích chỉ bày vai CỦA KHỐI ẤY cộng vai
+     chạy ngang; gọi không kèm khối là không khối nào khớp và hộp trụi xuống còn bốn vai gốc. */
+  const hv = ctxv._vaiSelNhieu('Kế Toán Máy Tự Động', 'kvc');
+  /* 4 vai gốc (chạy ngang) + 2 vai con KVC + 1 vai MTĐ đang TÍCH nên vẫn được bày. */
+  teq('🔴 bảng KVC bày 4 vai gốc + 2 vai con KVC + 1 vai lạc đang tích', 7, (hv.match(/type="checkbox"/g) || []).length);
+  /* 🔴 PHÉP ĐỐI CHỨNG: bỏ tích cái vai MTĐ ấy đi thì nó phải BIẾN. Không có phép này thì
+     một hàm không lọc gì cả cũng đếm ra đúng bảy. */
+  teq('   bỏ tích thì vai lạc khối biến — còn 6', 6,
+    ((ctxv._vaiSelNhieu('', 'kvc')).match(/type="checkbox"/g) || []).length);
   t('   vai đã tích được đánh dấu', /value="Kế Toán Máy Tự Động" checked/.test(hv), hv);
   t('   vai chưa tích thì không', !/value="Kế Toán Khu Vui Chơi" checked/.test(hv));
   /* 🔴 Admin không bao giờ bị lọc — bày ô tích cho Admin là ô bấm vào không đổi gì. */
