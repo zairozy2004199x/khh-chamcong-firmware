@@ -1423,6 +1423,13 @@
             <option value="chuan">📄 Nhật ký chung (10 cột)</option>
             <option value="soct">📑 Sổ chi tiết — MTĐ · VP (13 cột)</option>
           </select>
+          <!-- 🔴 SỔ CHI TIẾT LÀ SỔ **CỦA MỘT TÀI KHOẢN**, nên 13 cột mẫu không có chỗ nào ghi số
+               hiệu tài khoản — nó nằm ở tiêu đề sổ. Lọc về một tài khoản thì tệp khớp nguyên văn
+               mẫu MISA; để "mọi TK Nợ" thì app thêm cột TK Nợ ở đầu, để tệp không bao giờ trộn
+               chung mà không phân biệt được. Danh sách đổ từ chính các mã CÓ MẶT trong kỳ. -->
+          <select id="xuatTkNo" onchange="callExport()" style="display:none" title="Sổ chi tiết là sổ của MỘT tài khoản. Chọn một mã → tệp đúng 13 cột như mẫu MISA. Để 'mọi TK Nợ' → app thêm cột TK Nợ ở đầu để tệp không lẫn.">
+            <option value="all">— mọi TK Nợ (thêm cột TK Nợ) —</option>
+          </select>
           <button class="btn b-x" onclick="loadXuat()">↻ Tải lại</button>
           <button class="btn b-x" id="xuatWarnBtn" style="display:none" onclick="xuatWarnBat()" title="Bật lại ô cảnh báo cấu hình">🔔 Hiện cảnh báo</button>
           <button class="btn b-g" onclick="downloadCSV()">⬇ Tải Excel & chốt đã xuất</button>
@@ -8437,6 +8444,7 @@
     /* Mẫu sổ chi tiết mới chỉ dựng cho ĐƠN VẬN HÀNH. Bày ô chọn ở mấy nguồn kia là mời người ta
        chọn một thứ không có tác dụng — im lặng, nên tệp ra vẫn mẫu cũ mà họ tưởng đã đổi. */
     if(el('xuatMau')) el('xuatMau').style.display=(src==='vh')?'':'none';
+    _veOTkNo();
     callExport();
   }
   function callExport(){ loading(true);
@@ -8464,7 +8472,9 @@
     var plF=(_vaiLuat()==='Kế toán NCC')?'ncc':((_vaiLuat()==='Kế toán cá nhân')?'cn':'all');
     google.script.run.withSuccessHandler(function(res){loading(false); XUAT=res||{cols:[],rows:[]}; renderXuat();})
       .withFailureHandler(function(e){loading(false);toast('err',e.message);})
-      .exportMisa(el('xuatKy').value, el('xuatTT').value, plF, (el('xuatMau')&&el('xuatMau').value)||'chuan');
+      .exportMisa(el('xuatKy').value, el('xuatTT').value, plF,
+                  (el('xuatMau')&&el('xuatMau').value)||'chuan',
+                  (el('xuatTkNo')&&el('xuatTkNo').value)||'all');
   }
   function renderXuat(){
     el('xuatSoDon').textContent=XUAT.sodon||0; el('xuatSoDong').textContent=XUAT.count||0;
@@ -8479,6 +8489,27 @@
       return '<td'+(num?' class="money"':'')+' style="white-space:nowrap">'+(num?(v===''||v==null?'':money(v)):esc(v))+'</td>';}).join('')+'</tr>';}).join('');
     renderXuatWarn();
     renderXuatBanGiao();
+    _veOTkNo();
+  }
+  /* ═════════════════════════════════════════════════════════════════════════════════
+   * Ô LỌC TK NỢ — chỉ có nghĩa với mẫu sổ chi tiết, và chỉ đổ mã CÓ MẶT trong kỳ.
+   *
+   * ⚠️ ĐỔ TỪ DỮ LIỆU, KHÔNG TỪ DANH MỤC. Danh mục có hàng chục mã, phần lớn không phát sinh
+   *    trong kỳ đang xem — bày hết là kế toán dò giữa một danh sách mà quá nửa chọn vào ra
+   *    tệp rỗng. `tkDs` là mã THẬT SỰ có dòng, máy chủ gom trong chính lượt vừa chạy.
+   * ⚠️ GIỮ LỰA CHỌN CŨ khi vẽ lại: đổi kỳ mà ô nhảy về "mọi TK Nợ" là kế toán vừa lọc xong
+   *    lại phải chọn lại, và tệp tải về khác cái họ vừa nhìn.
+   * ═════════════════════════════════════════════════════════════════════════════════ */
+  function _veOTkNo(){
+    var o=el('xuatTkNo'); if(!o) return;
+    var src=(el('xuatNguon')&&el('xuatNguon').value)||'vh';
+    var hien=(src==='vh' && (el('xuatMau')&&el('xuatMau').value)==='soct');
+    o.style.display=hien?'':'none';
+    if(!hien) return;
+    var cu=o.value, ds=(XUAT&&XUAT.tkDs)||[];
+    o.innerHTML='<option value="all">— mọi TK Nợ (thêm cột TK Nợ) —</option>'
+      +ds.map(function(m){ return '<option value="'+esc(m)+'">'+esc(m)+'</option>'; }).join('');
+    if(cu){ o.value=cu; if(!o.value) o.value='all'; }
   }
   /* ═════════════════════════════════════════════════════════════════════════════════
    * DẢI "ĐƠN BÀN GIAO TỪ KHỐI KHÁC".
@@ -8557,7 +8588,7 @@
       if(typeof XLSX!=='undefined'){
         var ws=XLSX.utils.aoa_to_sheet([XUAT.cols].concat(XUAT.rows));   // Số tiền là số -> ô số; còn lại text
         var wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'MISA');
-        XLSX.writeFile(wb, 'MISA_VanHanhChiPhi'+(XUAT.mau==='soct'?'_SoChiTiet':'')+'.xlsx');
+        XLSX.writeFile(wb, 'MISA_VanHanhChiPhi'+(XUAT.mau==='soct'?('_SoChiTiet'+(XUAT.tkLoc?('_'+XUAT.tkLoc):'')):'')+'.xlsx');
         okXlsx=true;
       }
     }catch(e){ okXlsx=false; }
@@ -8565,7 +8596,7 @@
       var ce=function(v){v=(v==null?'':String(v)); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
       var csv=XUAT.cols.map(ce).join(',')+'\n'+XUAT.rows.map(function(r){return r.map(ce).join(',');}).join('\n');
       var blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
-      var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='MISA_VanHanhChiPhi'+(XUAT.mau==='soct'?'_SoChiTiet':'')+'.csv'; document.body.appendChild(a); a.click();
+      var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='MISA_VanHanhChiPhi'+(XUAT.mau==='soct'?('_SoChiTiet'+(XUAT.tkLoc?('_'+XUAT.tkLoc):'')):'')+'.csv'; document.body.appendChild(a); a.click();
       setTimeout(function(){a.remove();URL.revokeObjectURL(a.href);},150);
       toast('warn','Không tải được Excel (máy chặn thư viện) — đã tải CSV thay thế');
     }
