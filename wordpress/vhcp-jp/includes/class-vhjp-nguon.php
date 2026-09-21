@@ -204,6 +204,31 @@ class VHJP_Nguon {
 		return false !== $wpdb->delete( $b, array( $k => $ma ) );
 	}
 
+	/**
+	 * Khoá chính LỚN NHẤT bắt đầu bằng một đoạn cho trước. Dùng để sinh mã chạy tiếp.
+	 *
+	 * ⚠️ Nằm ở ĐÂY chứ không ở `VHJP_Ma`, vì luật "chỉ một lớp chạm `$wpdb`" không có ngoại lệ
+	 *    — có một ngoại lệ là lần sau có hai, rồi ba. `kiem-jp-nguon.php` canh đúng chuyện ấy,
+	 *    và nó đã bắt được lượt vi phạm đầu tiên ngay hôm viết `VHJP_Ma`.
+	 */
+	public static function ma_lon_nhat( $tab, $dau ) {
+		global $wpdb;
+		$b = self::bang( $tab );
+		$k = self::khoa( $tab );
+		if ( '' === $b || '' === $k ) { return ''; }
+		$oc = self::oc( $k );
+		$ma = $wpdb->get_var( $wpdb->prepare(
+			'SELECT ' . $oc . ' FROM ' . $b . ' WHERE ' . $oc . ' LIKE %s ORDER BY ' . $oc
+			. ' DESC LIMIT 1', $wpdb->esc_like( (string) $dau ) . '%' ) );
+		return null === $ma ? '' : (string) $ma;
+	}
+
+	/** Câu lỗi của lượt xuống cơ sở dữ liệu gần nhất. */
+	public static function loi_cuoi() {
+		global $wpdb;
+		return (string) $wpdb->last_error;
+	}
+
 	/** Xoá mọi dòng khớp một cặp cột/giá trị. Trả số dòng đã xoá, hoặc `false`. */
 	public static function xoa_theo( $tab, $cot, $gia_tri ) {
 		global $wpdb;

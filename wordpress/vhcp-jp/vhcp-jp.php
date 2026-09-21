@@ -25,10 +25,10 @@
  *
  * Xong:  lược đồ 23 bảng (`class-vhjp-db.php`) · lớp đổi giá trị (`class-vhjp-doc.php`, đối
  *        chiếu thẳng với mã JavaScript gốc chạy bằng node) · lớp truy cập dữ liệu DUY NHẤT
- *        (`class-vhjp-nguon.php`).
- * Chưa:  sinh mã `RP20260921-0007` · đăng nhập PIN · danh mục · tính tiền + 17 cảnh báo
- *        W1–W17 · báo cáo · duyệt · ảnh · đối soát ngân hàng · kho hai tầng · bút toán ·
- *        hai trang ngoài.
+ *        (`class-vhjp-nguon.php`) · sinh mã bản ghi (`class-vhjp-ma.php`) · đăng nhập PIN và
+ *        phiên làm việc (`class-vhjp-auth.php`).
+ * Chưa:  danh mục · tính tiền + 17 cảnh báo W1–W17 · báo cáo · duyệt · ảnh · đối soát ngân
+ *        hàng · kho hai tầng · bút toán · hai trang ngoài.
  *
  * Nên plugin này CỐ Ý chưa khai móc kích hoạt và chưa dựng trang nào: cài nửa vời vào site thật
  * là tạo 23 bảng rỗng rồi để đó, và lần sau không ai nhớ bảng ấy từ đâu ra. Khi nào có tầng đọc
@@ -59,6 +59,8 @@ define( 'VHJP_URL', plugin_dir_url( __FILE__ ) );
 require_once VHJP_DIR . 'includes/class-vhjp-db.php';
 require_once VHJP_DIR . 'includes/class-vhjp-doc.php';
 require_once VHJP_DIR . 'includes/class-vhjp-nguon.php';
+require_once VHJP_DIR . 'includes/class-vhjp-ma.php';
+require_once VHJP_DIR . 'includes/class-vhjp-auth.php';
 require_once VHJP_DIR . 'includes/class-vhjp-tu-cap-nhat.php';
 
 /* Nối bộ tự cập nhật ngay từ bản đầu, dù bộ này chưa dựng trang nào.
