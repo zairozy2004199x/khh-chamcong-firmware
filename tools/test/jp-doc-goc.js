@@ -51,6 +51,9 @@ const ham = {
   /* Tính tiền — xem `class-vhjp-tinh.php`. */
   gia_xung: 'jpGiaXung_', gia_dong: 'jpGiaDong_', lech_tm: 'jpLechTM_',
   hoan_theo_ma: 'jpHoanTheoMa_', dong_may_tien: 'jpCalcMoneyRow_',
+  dong_may_xu: 'jpCalcCoinRow_', dong_ton_xu: 'jpCalcStockRow_',
+  dong_kho_ngoai: 'jpCalcNgoaiRow_', dong_may_tach: 'jpCalcMayRow_',
+  dong_hang_tach: 'jpCalcHangRow_', may_go_tay: 'jpMayGoTay_', dong: 'jpCalcRow_',
 }[ten];
 if (!ham) { console.error('không biết hàm ' + ten); process.exit(2); }
 if (typeof hop[ham] !== 'function') { console.error('mã gốc không có ' + ham); process.exit(3); }

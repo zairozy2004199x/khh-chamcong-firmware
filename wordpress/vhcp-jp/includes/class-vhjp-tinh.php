@@ -44,6 +44,16 @@ class VHJP_Tinh {
 
 	const GIA_XUNG_MAC_DINH = 5000;
 	const GIA_XUNG_CHO_PHEP = array( 5000, 10000 );
+	const GIA_XU       = 50000;    // một xu ăn bao nhiêu tiền ở đồng hồ COIN
+	const GIA_XU_TIEN  = 10000;    // và ở đồng hồ MONEY của cùng máy xu
+
+	/* Sáu loại dòng. Mỗi loại một bảng nhập, một cách tính — xem `dong()`. */
+	const DONG_MONEY = 'MONEY';    // máy tiền  — 1 dòng = 1 ô máy (tiền + hàng)
+	const DONG_COIN  = 'COIN';     // máy xu    — 1 dòng = 1 vị trí (2 đồng hồ + thu tiền)
+	const DONG_STOCK = 'STOCK';    // máy xu    — 1 dòng = 1 mã hàng trong bảng tồn
+	const DONG_NGOAI = 'NGOAI';    // cả hai    — 1 dòng = 1 mã hàng giữ NGOÀI máy
+	const DONG_MAY   = 'MAY';      // mẫu tách  — 1 dòng = 1 ô máy, CHỈ tiền
+	const DONG_HANG  = 'HANG';     // mẫu tách  — 1 dòng = 1 mã hàng, CHỈ hàng
 
 	/** Bảng cảnh báo — mã, phần, câu. Giữ nguyên mã W* vì giao diện và kế toán gọi theo mã. */
 	public static function warn_def() {
@@ -73,6 +83,13 @@ class VHJP_Tinh {
 					. 'và nếu mã không có trong danh mục thì kho không tìm được lớp tồn' ),
 			'LECH_QUY_TRUNG'   => array( 'code' => 'W16', 'part' => 'REV',
 				'msg' => 'Tiền thừa đã được quy ra số trứng bán thêm' ),
+			'COIN_VS_MONEY'    => array( 'code' => 'W3',  'part' => 'REV',
+				'msg' => 'Hai đồng hồ COIN và MONEY không khớp' ),
+			'VS_PAYBOX'        => array( 'code' => 'W4',  'part' => 'REV',
+				'msg' => 'Không khớp Pay Box (tiền mặt + chuyển khoản)' ),
+			'COIN_REMAINDER'   => array( 'code' => 'W12', 'part' => 'REV',
+				'msg' => 'Tổng xu không chia hết cho giá xu',
+				'gop' => 'DU_XU', 'gopDv' => ' xu' ),
 		);
 	}
 
@@ -314,6 +331,333 @@ class VHJP_Tinh {
 
 		self::canh_bao_ma_khong_gia( $row, $warns );
 
+		$row['warns']    = $warns;
+		$row['warnJson'] = $warns ? wp_json_encode( $warns, JSON_UNESCAPED_UNICODE ) : '';
+		return $row;
+	}
+
+	/* ═══════════════════════ MÁY XU — DÒNG TIỀN THEO VỊ TRÍ ═══════════════════════ */
+
+	/**
+	 * Dòng COIN: hai đồng hồ trên cùng một máy phải nói cùng một con số.
+	 *
+	 * 🔴 DÒNG COIN KHÔNG GIỮ HÀNG. Máy xu tách hẳn hai bảng: COIN = tiền theo vị trí,
+	 *    STOCK = hàng theo mã. Trước đây chỗ này vẫn tính `soldQty` từ mấy ô luôn rỗng nên ra
+	 *    0 — vô hại trên màn hình, nhưng thành bẫy lúc kho xuất giá vốn: cộng `soldQty` mọi
+	 *    dòng là cộng cả dòng COIN. Ép về 0 cho rõ, và kho lọc theo LOẠI DÒNG chứ không dựa
+	 *    vào việc số này tình cờ bằng 0.
+	 */
+	public static function dong_may_xu( $row ) {
+		$warns = array();
+		$row   = (array) $row;
+
+		$c_act = self::meter_delta( self::o( $row, 'cBefore' ), self::o( $row, 'cAfter' ), 'COIN', $warns );
+		$m_act = self::meter_delta( self::o( $row, 'mBefore' ), self::o( $row, 'mAfter' ), 'MONEY', $warns );
+
+		$theo_xu   = $c_act * self::GIA_XU;
+		$theo_tien = $m_act * self::GIA_XU_TIEN;
+
+		$row['cActual']    = $c_act;
+		$row['mActual']    = $m_act;
+		$row['amount']     = $theo_xu;
+		$row['collection'] = 0;
+
+		if ( $theo_xu !== $theo_tien ) {
+			$warns[] = self::warn( 'COIN_VS_MONEY', 'COIN ' . VHJP_Doc::money( $theo_xu )
+				. 'đ vs MONEY ' . VHJP_Doc::money( $theo_tien ) . 'đ' );
+		}
+		$thu = VHJP_Doc::num( self::o( $row, 'cash' ) ) + VHJP_Doc::num( self::o( $row, 'bank' ) );
+		if ( $thu !== $theo_xu ) {
+			$warns[] = self::warn( 'VS_PAYBOX', 'Đồng hồ ' . VHJP_Doc::money( $theo_xu )
+				. 'đ vs thu ' . VHJP_Doc::money( $thu ) . 'đ' );
+		}
+
+		$row['xuTong']        = 0;
+		$row['soldQty']       = 0;
+		$row['stockLeftCalc'] = 0;
+		return self::dong_xong( $row, $warns );
+	}
+
+	/* ═══════════════════════ MÁY XU — DÒNG HÀNG TỒN THEO MÃ ═══════════════════════ */
+
+	/** Dòng STOCK: hàng bán suy từ TỔNG XU KIỂM các ngày trong kỳ, chia cho giá xu. */
+	public static function dong_ton_xu( $row ) {
+		$warns = array();
+		$row   = (array) $row;
+
+		/* Danh sách xu kiểm từng ngày, cất dạng JSON. Hỏng thì coi như rỗng — một chuỗi JSON
+		   gãy không được phép làm chết cả lượt tính của báo cáo. */
+		$ngay = array();
+		$js   = self::o( $row, 'xuDaysJson', '' );
+		if ( '' !== $js && null !== $js ) {
+			$d = json_decode( (string) $js, true );
+			if ( is_array( $d ) ) { $ngay = $d; }
+		}
+		$tong = 0;
+		foreach ( $ngay as $x ) { $tong += VHJP_Doc::num( $x ); }
+		$row['xuTong'] = $tong;
+
+		$gia = VHJP_Doc::num( self::o( $row, 'giaXu' ) );
+		$ban = $gia > 0 ? (int) floor( $tong / $gia ) : 0;
+		$row['soldQty'] = $ban;
+
+		if ( $gia > 0 && 0 != $tong % $gia ) {
+			$warns[] = self::warn( 'COIN_REMAINDER', 'Tổng xu ' . $tong
+				. ' không chia hết cho giá xu ' . $gia . ' (dư ' . ( $tong % $gia ) . ')',
+				$tong % $gia );
+		}
+
+		$con = VHJP_Doc::num( self::o( $row, 'stockOpen' ) )
+			+ VHJP_Doc::num( self::o( $row, 'addQty1' ) ) + VHJP_Doc::num( self::o( $row, 'addQty2' ) )
+			- VHJP_Doc::num( self::o( $row, 'xuLa' ) ) - $ban
+			- VHJP_Doc::num( self::o( $row, 'defectQty' ) ) - VHJP_Doc::num( self::o( $row, 'returnQty' ) );
+		$row['stockLeftCalc'] = $con;
+
+		if ( ! VHJP_Doc::blank( self::o( $row, 'stockActual', '' ) ) ) {
+			$dem = VHJP_Doc::num( $row['stockActual'] );
+			if ( $dem !== $con ) {
+				$warns[] = self::warn( 'STOCK_MISMATCH',
+					'Tính ' . $con . ' · đếm ' . $dem . ' · lệch ' . ( $dem - $con ) );
+			}
+		}
+
+		$row['amount'] = 0;
+		/* Dòng STOCK GIỮ HÀNG nên phải qua phép W14 — xem `canh_bao_ma_khong_gia()`. */
+		self::canh_bao_ma_khong_gia( $row, $warns );
+		return self::dong_xong( $row, $warns );
+	}
+
+	/* ═══════════════════════ HÀNG GIỮ NGOÀI MÁY ═══════════════════════ */
+
+	/**
+	 * Dòng NGOAI: hàng cơ sở giữ ngoài máy. KHÔNG sinh tiền, KHÔNG sinh số bán.
+	 *
+	 * ⚠️ Ép cả `cash` và `bank` về 0. Bảng kho ngoài không có ô nhập tiền nên bình thường
+	 *    chúng vốn trống — nhưng một dòng ĐỔI LOẠI (nhân viên sửa bảng) thì số tiền cũ còn
+	 *    nằm lại trong ô, và không ai xoá hộ. Ép ở đây thì bất biến "không sinh tiền" đúng cả
+	 *    với dữ liệu cũ, không phụ thuộc chỗ khác nhớ lọc.
+	 */
+	public static function dong_kho_ngoai( $row ) {
+		$warns = array();
+		$row   = (array) $row;
+
+		$dau   = VHJP_Doc::num( self::o( $row, 'stockOpen' ) );
+		$nhap  = VHJP_Doc::num( self::o( $row, 'addQty1' ) );
+		$ra_may = VHJP_Doc::num( self::o( $row, 'stockOut' ) );
+		$tra   = VHJP_Doc::num( self::o( $row, 'returnQty' ) );
+		$con   = $dau + $nhap - $ra_may - $tra;
+
+		$row['stockLeftCalc'] = $con;
+		$row['soldQty'] = 0;
+		$row['amount']  = 0;
+		$row['xuTong']  = 0;
+		$row['cash']    = 0;
+		$row['bank']    = 0;
+
+		if ( $ra_may < 0 || $nhap < 0 || $tra < 0 ) {
+			$warns[] = self::warn( 'STOCK_MISMATCH', 'Có số âm trong dòng kho ngoài' );
+		}
+		if ( ! VHJP_Doc::blank( self::o( $row, 'stockActual', '' ) ) ) {
+			$dem = VHJP_Doc::num( $row['stockActual'] );
+			if ( $dem !== $con ) {
+				$warns[] = self::warn( 'STOCK_MISMATCH',
+					'Kho ngoài: tính ' . $con . ' (đầu ' . $dau . ' + nhập ' . $nhap
+					. ' − cấp ra máy ' . $ra_may . ' − trả kho ' . $tra . ')'
+					. ' · đếm ' . $dem . ' · '
+					. ( $dem > $con ? 'THỪA ' . ( $dem - $con ) : 'THIẾU ' . ( $con - $dem ) ) );
+			}
+		}
+		return self::dong_xong( $row, $warns );
+	}
+
+	/* ═══════════════════════ MẪU TÁCH — DÒNG MÁY (CHỈ TIỀN) ═══════════════════════ */
+
+	/**
+	 * Bảng này KHÔNG CÒN Ô ĐỒNG HỒ — nhân viên tự điền tiền.
+	 *
+	 * 🔴 `may_go_tay()` đo bằng `<= 0`, TUYỆT ĐỐI không dùng `blank()`. Ca thật 18/08/2026:
+	 *    màn hình tạo ô máy mới với `mBefore = 0` (số 0 THẬT, không phải trống) -> `blank(0)`
+	 *    là false -> hệ coi đó là dòng đồng hồ đời cũ và ĐÒI `mAfter` — mà bảng tách không còn
+	 *    ô ấy. Kết quả: SBPQ không nộp được báo cáo nào, và không có ô nào để điền cho hết
+	 *    chặn.
+	 */
+	public static function may_go_tay( $row ) {
+		return is_array( $row ) && VHJP_Doc::num( self::o( $row, 'mBefore' ) ) <= 0
+			&& VHJP_Doc::blank( self::o( $row, 'mAfter', '' ) );
+	}
+
+	public static function dong_may_tach( $row ) {
+		$warns = array();
+		$row   = (array) $row;
+
+		$go_tay = self::may_go_tay( $row );
+		$m_act  = $go_tay ? 0
+			: self::meter_delta( self::o( $row, 'mBefore' ), self::o( $row, 'mAfter' ),
+				'Đồng hồ tiền', $warns );
+		$row['mActual'] = $m_act;
+
+		if ( ! $go_tay ) {
+			/* Cùng giá xung với dòng máy tiền — hai nhánh này cùng suy tiền từ đồng hồ nên
+			   phải cùng một giá. Sửa một nhánh quên nhánh kia là báo cáo đời cũ tính theo giá
+			   khác báo cáo mẫu chung cùng khu. */
+			$row['amount'] = $m_act * self::gia_xung( self::o( $row, 'giaXung' ) );
+			$row['cash']   = $row['amount'] - VHJP_Doc::num( self::o( $row, 'bank' ) );
+		} else {
+			/* ⚠️ `num_hoac_trong`, KHÔNG phải `num`: ô CHƯA GÕ mà hoá thành số 0 ngay trước
+			   lượt lưu thì phép chặn nộp đọc lại chỉ thấy 0 nên THÔI CHẶN — mất đúng cái chốt
+			   "trống là CHƯA KHAI". */
+			$row['amount'] = VHJP_Doc::num_hoac_trong( self::o( $row, 'amount', '' ) );
+			$row['cash']   = VHJP_Doc::num_hoac_trong( self::o( $row, 'cash', '' ) );
+		}
+		$row['collection'] = VHJP_Doc::num( $row['amount'] ) / 10000;
+		$row['lechTM']     = self::lech_tm( $row );
+
+		/* App của cơ sở tự cộng — kiểm xem nó cộng có khớp không. */
+		if ( $go_tay && ! VHJP_Doc::blank( self::o( $row, 'amount', '' ) )
+			&& ! VHJP_Doc::blank( self::o( $row, 'cash', '' ) ) ) {
+			$cong = VHJP_Doc::num( $row['cash'] ) + VHJP_Doc::num( self::o( $row, 'bank' ) );
+			if ( $cong !== VHJP_Doc::num( $row['amount'] ) ) {
+				$warns[] = self::warn( 'LECH_TM_APP', 'App không cộng khớp: tiền mặt '
+					. VHJP_Doc::money( $row['cash'] ) . 'đ + QR '
+					. VHJP_Doc::money( self::o( $row, 'bank' ) ) . 'đ = '
+					. VHJP_Doc::money( $cong ) . 'đ, nhưng Thành tiền ghi '
+					. VHJP_Doc::money( $row['amount'] ) . 'đ' );
+			}
+		}
+		if ( 0 != $row['lechTM'] ) {
+			$warns[] = self::warn( 'LECH_TM_APP', 'Tiền mặt thực tế '
+				. VHJP_Doc::money( VHJP_Doc::num( self::o( $row, 'cashReal' ) ) ) . 'đ '
+				. ( $row['lechTM'] > 0 ? 'NHIỀU hơn' : 'ÍT hơn' ) . ' app '
+				. VHJP_Doc::money( abs( $row['lechTM'] ) ) . 'đ' );
+		}
+
+		$gia = self::gia_dong( $row );
+		$row['price'] = $gia;
+
+		/* Chỉ soi dư khi tiền suy từ ĐỒNG HỒ. Nhân viên gõ tay thì số lẻ là chuyện của app —
+		   báo dư trên mọi dòng là báo sai vài lần rồi không ai đọc cảnh báo nữa. */
+		if ( $gia > 0 && ! $go_tay && $m_act > 0 ) {
+			$du = $row['amount'] % $gia;
+			if ( 0 != $du ) {
+				$warns[] = self::warn( 'PRICE_REMAINDER', 'Dư ' . VHJP_Doc::money( $du )
+					. 'đ so với giá ' . VHJP_Doc::money( $gia ) . 'đ/trứng', $du );
+			}
+		}
+
+		/* Dòng MÁY ở mẫu tách CHỈ mang tiền — hàng nằm ở dòng HANG. */
+		$row['soldQty']       = 0;
+		$row['hLeft']         = 0;
+		$row['xuTong']        = 0;
+		$row['stockLeftCalc'] = 0;
+		return self::dong_xong( $row, $warns );
+	}
+
+	/* ═══════════════════════ MẪU TÁCH — DÒNG HÀNG (CHỈ HÀNG) ═══════════════════════ */
+
+	/**
+	 * Nhân viên gõ ĐÃ BÁN, hệ tính TỒN CUỐI (đổi chiều 05/08/2026).
+	 *
+	 * 🔴 GIỮ Ô TRỐNG LÀ TRỐNG. Ghi `soldQty = num(...)` thì `''` thành số 0 ngay trước lúc
+	 *    lưu, và phép chặn nộp đọc lại chỉ thấy 0 -> THÔI CHẶN. Mất đúng cái chốt "trống là
+	 *    CHƯA KHAI", mà chưa khai thì kỳ sau không có tồn đầu và kho không ra được giá vốn.
+	 *
+	 * ⚠️ `soldQty` ở đây là số NHÂN VIÊN GÕ — số quả THẬT đã ra khỏi máy — nên phần khách
+	 *    không lấy vốn đã KHÔNG nằm trong đó. Trừ `refundQty` lần nữa là xuất kho thiếu ->
+	 *    632 thiếu giá vốn, mà sổ VẪN CÂN.
+	 */
+	public static function dong_hang_tach( $row ) {
+		$warns = array();
+		$row   = (array) $row;
+
+		$gia = self::gia_dong( $row );
+		$row['price'] = $gia;
+
+		$dau  = VHJP_Doc::num( self::o( $row, 'stockOpen' ) );
+		$nhap = VHJP_Doc::num( self::o( $row, 'addQty1' ) ) + VHJP_Doc::num( self::o( $row, 'addQty2' ) );
+		$tra  = VHJP_Doc::num( self::o( $row, 'returnQty' ) );
+		$loi  = VHJP_Doc::num( self::o( $row, 'defectQty' ) );
+		$co_khai = ! VHJP_Doc::blank( self::o( $row, 'soldQty', '' ) );
+		$co_dem  = ! VHJP_Doc::blank( self::o( $row, 'stockActual', '' ) );
+
+		$hoan = self::hoan_theo_ma( $row, $gia );
+		$row['refundAmt'] = $hoan['amt'];
+		$row['refundQty'] = $hoan['qty'];
+		if ( '' !== $hoan['canhBao'] ) { $warns[] = self::warn( 'REFUND_REMAINDER', $hoan['canhBao'] ); }
+		if ( $hoan['amt'] > 0 && '' === VHJP_Doc::str( self::o( $row, 'refundRowNote' ) ) ) {
+			$warns[] = self::warn( 'MISSING_REASON',
+				'Hoàn khách ' . VHJP_Doc::money( $hoan['amt'] ) . 'đ ở mã này chưa có lý do' );
+		}
+
+		$ban  = VHJP_Doc::num( self::o( $row, 'soldQty' ) );
+		$cuoi = $dau + $nhap - $tra - $loi - $ban;
+		$row['soldQty']       = $co_khai ? $ban : '';
+		$row['stockLeftCalc'] = $cuoi;
+
+		if ( ! $co_khai ) {
+			$warns[] = self::warn( 'METER_MISSING',
+				'Chưa khai số đã bán — để trống là CHƯA KHAI, không phải bán được 0. '
+				. 'Chưa khai thì kỳ sau không có tồn đầu và kho không ra được giá vốn.' );
+		} elseif ( $cuoi < 0 ) {
+			$warns[] = self::warn( 'STOCK_MISMATCH',
+				'Đã bán ' . $ban . ' LỚN HƠN số có thể bán (' . ( $dau + $nhap - $tra - $loi )
+				. ' = đầu ' . $dau . ' + nhập ' . $nhap . ' − trả kho ' . $tra . ' − lỗi ' . $loi
+				. ') ⇒ tồn cuối âm ' . $cuoi . '. Sai một trong năm số đó.' );
+		}
+
+		if ( $co_dem ) {
+			$dem  = VHJP_Doc::num( $row['stockActual'] );
+			$lech = $dem - $cuoi;
+			if ( 0 != $lech ) {
+				$warns[] = self::warn( 'STOCK_MISMATCH',
+					'Đếm thực tế ' . $dem . ' vs tồn cuối tính ra ' . $cuoi . ' (đầu ' . $dau
+					. ' + nhập ' . $nhap . ' − trả kho ' . $tra . ' − lỗi ' . $loi
+					. ' − bán ' . $ban . ') · '
+					. ( $lech > 0 ? 'THỪA ' . $lech : 'THIẾU ' . ( -$lech ) ) );
+			}
+		}
+
+		if ( $dau < 0 || $nhap < 0 || $tra < 0 || $loi < 0 || $ban < 0
+			|| ( $co_dem && VHJP_Doc::num( $row['stockActual'] ) < 0 ) ) {
+			$warns[] = self::warn( 'STOCK_MISMATCH', 'Có số âm trong dòng hàng' );
+		}
+		self::canh_bao_ma_khong_gia( $row, $warns );
+
+		/* Dòng HÀNG ở mẫu tách CHỈ mang hàng — tiền nằm ở dòng MÁY. Cộng tiền ở đây là đếm
+		   doanh thu hai lần. */
+		$row['amount'] = 0;
+		$row['cash']   = 0;
+		$row['bank']   = 0;
+		$row['xuTong'] = 0;
+		$row['hLeft']  = 0;
+		return self::dong_xong( $row, $warns );
+	}
+
+	/* ═══════════════════════ ĐIỀU PHỐI ═══════════════════════ */
+
+	/**
+	 * Tính MỘT dòng bất kỳ, chọn cách tính theo LOẠI DÒNG.
+	 *
+	 * ⚠️ Dòng chưa khai loại thì suy từ loại máy của cơ sở — máy xu ra COIN, còn lại ra
+	 *    MONEY. Và GHI LẠI loại vừa suy vào dòng, để lần sau không phải đoán nữa.
+	 */
+	public static function dong( $row, $loai_may = '' ) {
+		$row = (array) $row;
+		$k   = VHJP_Doc::str( self::o( $row, 'rowKind' ) );
+		if ( '' === $k ) {
+			$k = ( VHJP_CauHinh::LOAI_XU === $loai_may ) ? self::DONG_COIN : self::DONG_MONEY;
+		}
+		$row['rowKind'] = $k;
+
+		if ( self::DONG_NGOAI === $k ) { return self::dong_kho_ngoai( $row ); }
+		if ( self::DONG_STOCK === $k ) { return self::dong_ton_xu( $row ); }
+		if ( self::DONG_COIN  === $k ) { return self::dong_may_xu( $row ); }
+		if ( self::DONG_HANG  === $k ) { return self::dong_hang_tach( $row ); }
+		if ( self::DONG_MAY   === $k ) { return self::dong_may_tach( $row ); }
+		return self::dong_may_tien( $row );
+	}
+
+	/** Đóng gói cảnh báo vào dòng — dùng chung cho mọi loại dòng. */
+	private static function dong_xong( $row, $warns ) {
 		$row['warns']    = $warns;
 		$row['warnJson'] = $warns ? wp_json_encode( $warns, JSON_UNESCAPED_UNICODE ) : '';
 		return $row;
