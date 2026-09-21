@@ -232,7 +232,7 @@ class KHTC_PhapDanh {
 			if ( is_wp_error( $kq ) ) { $loi[] = 'Dòng ' . ( $i + 1 ) . ': ' . $kq->get_error_message(); } else { $them++; }
 		}
 		KHTC_NhatKy::dong_lo();
-		KHTC_NhatKy::ghi( 'nap', 'hop_dong', 0, sprintf( 'Nạp %d hợp đồng %s', $them, self::mot_loai( $loai )['ten'] ), null, true );
+		KHTC_NhatKy::ghi( 'nap', 'hop_dong', 0, sprintf( 'Nạp %d hợp đồng %s', $them, self::mot_loai( $loai )['ten'] ) );
 		return array( 'them' => $them, 'loi' => $loi );
 	}
 

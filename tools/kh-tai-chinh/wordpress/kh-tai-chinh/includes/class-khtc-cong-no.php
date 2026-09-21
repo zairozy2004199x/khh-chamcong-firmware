@@ -458,9 +458,7 @@ class KHTC_CongNo {
 			'doi_soat',
 			'thanh_toan',
 			0,
-			sprintf( '%s — tự ghép %d chứng từ, %s đ (%s → %s)', $c['ten'], $so, number_format( $tien, 0, ',', '.' ), mysql2date( 'd/m/Y', $tu ), mysql2date( 'd/m/Y', $den ) ),
-			null,
-			true
+			sprintf( '%s — tự ghép %d chứng từ, %s đ (%s → %s)', $c['ten'], $so, number_format( $tien, 0, ',', '.' ), mysql2date( 'd/m/Y', $tu ), mysql2date( 'd/m/Y', $den ) )
 		);
 		return array( 'ghep' => $so, 'tien' => $tien );
 	}

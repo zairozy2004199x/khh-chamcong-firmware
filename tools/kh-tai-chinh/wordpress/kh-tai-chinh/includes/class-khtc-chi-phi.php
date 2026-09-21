@@ -127,6 +127,10 @@ class KHTC_ChiPhi {
 			$id,
 			sprintf( 'Xoá chi %s ngày %s — %s / %s', number_format( $c->so_tien, 0, ',', '.' ) . ' đ', mysql2date( 'd/m/Y', $c->ngay ), $c->bo_phan, $c->khoan_muc )
 		);
+		// Xoá chứng từ mà để lại các lần thanh toán của nó thì bảng thanh toán
+		// còn những dòng trỏ vào hư không: không hiện ở đâu nữa nhưng vẫn nằm
+		// trong sao lưu và vẫn cộng vào tổng đã trả.
+		$wpdb->delete( KHTC_DB::bang( 'thanh_toan' ), array( 'bang' => 'chi_phi', 'chung_tu_id' => (int) $id ), array( '%s', '%d' ) );
 		$wpdb->delete( KHTC_DB::bang( 'chi_phi' ), array( 'id' => (int) $id ), array( '%d' ) );
 		return true;
 	}
@@ -164,7 +168,7 @@ class KHTC_ChiPhi {
 			if ( is_wp_error( $kq ) ) { $loi[] = 'Dòng ' . ( $i + 1 ) . ': ' . $kq->get_error_message(); } else { $them++; }
 		}
 		KHTC_NhatKy::dong_lo();
-		KHTC_NhatKy::ghi( 'nap', 'chi_phi', 0, sprintf( 'Nạp %d khoản chi%s', $them, $loi ? ' (' . count( $loi ) . ' dòng lỗi)' : '' ), null, true );
+		KHTC_NhatKy::ghi( 'nap', 'chi_phi', 0, sprintf( 'Nạp %d khoản chi%s', $them, $loi ? ' (' . count( $loi ) . ' dòng lỗi)' : '' ) );
 		return array( 'them' => $them, 'loi' => $loi );
 	}
 
@@ -416,9 +420,7 @@ class KHTC_ChiPhi {
 				count( $khop ),
 				count( $chua_chi ),
 				count( $thua )
-			),
-			null,
-			true
+			)
 		);
 
 		return array(

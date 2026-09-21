@@ -152,9 +152,7 @@ class KHTC_GiaoDich {
 			'nap',
 			'giao_dich',
 			0,
-			sprintf( 'Nạp %d giao dịch vào %s%s', $them, $nh ? $nh->ten : '?', $loi ? ' (' . count( $loi ) . ' dòng lỗi)' : '' ),
-			null,
-			true
+			sprintf( 'Nạp %d giao dịch vào %s%s', $them, $nh ? $nh->ten : '?', $loi ? ' (' . count( $loi ) . ' dòng lỗi)' : '' )
 		);
 		return array( 'them' => $them, 'loi' => $loi );
 	}

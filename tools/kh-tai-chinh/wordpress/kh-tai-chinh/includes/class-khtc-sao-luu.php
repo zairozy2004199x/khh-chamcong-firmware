@@ -134,22 +134,19 @@ class KHTC_SaoLuu {
 			}
 		}
 
-		// Nhật ký nhập vào cũng ghi một dòng nhật ký — nếu không thì lần phục hồi
-		// lớn nhất lại là lần duy nhất không để lại vết.
-		KHTC_NhatKy::ghi(
-			'nhap',
-			'',
-			0,
-			'Nhập sao lưu từ ' . ( (string) ( $d['website'] ?? '?' ) ) . ' (' . ( (string) ( $d['luc'] ?? '?' ) ) . '): ' . implode( ' · ', array_map( function ( $t, $n ) { return $t . ' ' . $n; }, array_keys( $dem ), $dem ) ),
-			null,
-			true
-		);
-
 		foreach ( (array) ( $d['danh_muc'] ?? array() ) as $khoa => $ds ) {
 			if ( is_array( $ds ) && $ds ) { update_option( 'khtc_dm_' . $khoa, array_values( $ds ) ); }
 		}
 
 		KHTC_NhatKy::dong_lo();
+		// Ghi SAU khi đóng lô: dòng tổng kết chỉ lọt ra khi đây là lô ngoài
+		// cùng. Lần phục hồi lớn nhất không được là lần duy nhất không có vết.
+		KHTC_NhatKy::ghi(
+			'nhap',
+			'',
+			0,
+			'Nhập sao lưu từ ' . ( (string) ( $d['website'] ?? '?' ) ) . ' (' . ( (string) ( $d['luc'] ?? '?' ) ) . '): ' . implode( ' · ', array_map( function ( $t, $n ) { return $t . ' ' . $n; }, array_keys( $dem ), $dem ) )
+		);
 		return array( 'them' => $dem, 'bo' => array_filter( $bo ) );
 	}
 }

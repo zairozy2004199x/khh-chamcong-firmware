@@ -15,6 +15,21 @@ cd tools/kh-tai-chinh
 ./dong-goi.sh              # sinh ra kh-tai-chinh.zip
 ```
 
+## Hướng dẫn sử dụng
+
+`Tai-Chinh-KH-Huong-dan-su-dung.pdf` — 22 trang, kèm ảnh chụp từng màn hình,
+đi từ lúc cài đến lúc ra số: nhập gì ở đâu → đối chiếu thế nào → đọc kết quả ra
+sao. Cuối bản có một bảng việc-làm-hằng-tháng 14 bước và một bảng những chỗ dễ
+sai.
+
+Bản dựng nằm trong `huong-dan/` (HTML + CSS + ảnh). Dựng lại:
+
+```bash
+cd tools/kh-tai-chinh/huong-dan && node in-pdf.mjs
+```
+
+Ảnh chụp từ dữ liệu mẫu chạy trên bộ giả lập, không phải số thật của công ty.
+
 ## Hai chỗ cố tình làm khác bản gốc
 
 **Dữ liệu trong MySQL, không phải JSON.** Bản gốc giữ toàn bộ giao dịch trong
@@ -439,6 +454,32 @@ website đã có dữ liệu sẽ khiến giao dịch trỏ nhầm tài khoản 
 có gì báo. Các liên kết (giao dịch → tài khoản, dòng cổng → đợt, chi phí → giao
 dịch) được nối lại theo id mới; có một phép kiểm đứng sau đúng chỗ này.
 
+## Dữ liệu mẫu
+
+Một nút ở màn hình Sao lưu nạp **89 dòng giả** — 2 tài khoản, 13 tháng sao kê,
+5 hoá đơn ra, 4 hoá đơn vào, 6 chi phí, 5 hợp đồng, 3 hồ sơ, một đợt đối soát
+— rồi chạy luôn đối soát chi phí, tự ghép công nợ và dò nối hồ sơ, để mọi màn
+hình có số ngay lần mở đầu tiên. Kế toán xem thử được cách bày số trước khi
+nhập số thật, và bản hướng dẫn chụp được ảnh màn hình có dữ liệu.
+
+Ba chỗ phải cẩn thận, vì một nút "nạp dữ liệu" đặt sai là nút phá sổ:
+
+* **Chỉ nạp khi sổ còn trống.** `du_lieu_that()` đếm những dòng *không* mang id
+  mẫu; còn một dòng thật thì từ chối. Khoá sổ cũng chặn.
+* **Xoá đúng những dòng chính nó tạo.** Id được ghi vào `wp_options` lúc nạp,
+  lúc xoá đọc lại đúng danh sách đó — không xoá theo ngày, không xoá theo
+  "trông giống dữ liệu mẫu".
+* **Quét luôn dòng mồ côi.** Xoá một chứng từ mà bỏ lại dòng `thanh_toan` của
+  nó thì khoản đã trả vẫn được cộng vào dù chứng từ không còn — vô hình trên
+  màn hình nhưng sai số. Xoá theo tầng ở cả hoá đơn ra và chi phí, cộng một
+  lượt quét mồ côi khi dọn dữ liệu mẫu.
+
+Bản dựng dữ liệu mẫu dùng **ngày tương đối** (lùi n tháng so với hôm nay), nên
+cài lúc nào cũng có dữ liệu rơi vào tháng hiện tại và mấy màn hình mặc định lọc
+"tháng này" không ra bảng trắng. Một hợp đồng cố tình còn 12 ngày là hết hạn và
+một hợp đồng quá hạn 18 ngày, để phần cảnh báo có gì mà cảnh báo; một hoá đơn
+vào trả tiền mặt trên 20 triệu, để nhắc khấu trừ hiện ra.
+
 ## Giao diện
 
 Menu **dọc bên trái**, gom theo nhóm — mười bốn mục xếp phẳng thì tìm mục nào
@@ -538,17 +579,19 @@ còn nhận tiền mặt và tiền kênh khác, nên hiệu đó gần như lu�
 php tools/kh-tai-chinh/tests/kiem-so-ngay.php    # 19 phép thử
 php tools/kh-tai-chinh/tests/kiem-ghep.php       # 23 phép thử
 php tools/kh-tai-chinh/tests/kiem-man-hinh.php   # 44 phép thử
-php tools/kh-tai-chinh/tests/kiem-chi-phi.php    # 68 phép thử
+php tools/kh-tai-chinh/tests/kiem-chi-phi.php    # 70 phép thử
 php tools/kh-tai-chinh/tests/kiem-hoa-don.php    # 128 phép thử
 php tools/kh-tai-chinh/tests/kiem-khoa-nhat-ky.php   # 59 phép thử
-php tools/kh-tai-chinh/tests/kiem-cong-no.php    # 80 phép thử
+php tools/kh-tai-chinh/tests/kiem-cong-no.php    # 86 phép thử
 php tools/kh-tai-chinh/tests/kiem-hoa-don-vao.php   # 65 phép thử
 php tools/kh-tai-chinh/tests/kiem-bao-cao.php    # 64 phép thử
 php tools/kh-tai-chinh/tests/kiem-phap-danh.php  # 79 phép thử
 php tools/kh-tai-chinh/tests/kiem-ho-so.php      # 64 phép thử
+php tools/kh-tai-chinh/tests/kiem-mau.php       # 42 phép thử
 ```
 
-`dong-goi.sh` chạy cả ba trước khi gói, hỏng một phép là không ra file zip.
+Tổng **743 phép thử**. `dong-goi.sh` chạy hết trước khi gói, hỏng một phép là
+không ra file zip.
 
 * **kiem-so-ngay** — hai hàm đọc số và đọc ngày, phần quyết định mọi con số vào
   sổ và là phần sai âm thầm nếu hỏng.
@@ -585,6 +628,10 @@ php tools/kh-tai-chinh/tests/kiem-ho-so.php      # 64 phép thử
   đúng mốc 60 ngày, 61 ngày, chưa điền hạn), và doanh thu chia sẻ: hợp đồng
   chưa gắn mã điểm phải ra 0 chứ không đoán; hợp đồng miễn vẫn hiện doanh thu
   nhưng phần chia bằng 0.
+* **kiem-mau** — nạp dữ liệu mẫu rồi **xoá**, và buộc mọi bảng trở lại đúng
+  như trước khi nạp; nạp đè lên sổ đã có dữ liệu thật phải bị từ chối; xoá
+  không được đụng vào một dòng người dùng tự nhập. Cộng phép kiểm chặn dòng
+  `thanh_toan` mồ côi và phép kiểm nhật ký: một lần nạp chỉ ghi **một** dòng.
 * **kiem-ho-so** — phép dò nối: hai bút toán cùng số phải bỏ qua; gỡ nối rồi dò
   lại phải nối lại đúng cái vừa gỡ; bút toán bị xoá thì nhãn nói thẳng chứ
   không im. Và cờ hạch toán phải độc lập với việc nối được — bật cờ cho một hồ
@@ -598,7 +645,8 @@ hàng cũng có cột `cty`, nên MySQL báo "ambiguous column" và trang trắn
 
 ## Còn phải làm
 
-**Mọi mảng của bản gốc đã dựng lại xong** (bản 1.0.0).
+**Mọi mảng của bản gốc đã dựng lại xong** (bản 1.0.0). Bản 1.1.0 dựng lại giao
+diện, bản 1.2.0 thêm dữ liệu mẫu và bản hướng dẫn PDF.
 
 Hai phần cố ý không mang sang: **đồng bộ Google Sheet** (Pháp danh) và **đồng
 bộ Google Drive** (Hồ sơ). Plugin không với tới hai nơi đó, và một đường nạp dữ

@@ -242,7 +242,7 @@ class KHTC_HoaDonVao {
 			$them++;
 		}
 		KHTC_NhatKy::dong_lo();
-		KHTC_NhatKy::ghi( 'nap', 'hd_vao', 0, sprintf( 'Nạp %d hoá đơn đầu vào%s', $them, $trung ? ', bỏ ' . $trung . ' trùng' : '' ), null, true );
+		KHTC_NhatKy::ghi( 'nap', 'hd_vao', 0, sprintf( 'Nạp %d hoá đơn đầu vào%s', $them, $trung ? ', bỏ ' . $trung . ' trùng' : '' ) );
 		return array( 'them' => $them, 'trung' => $trung, 'loi' => $loi );
 	}
 

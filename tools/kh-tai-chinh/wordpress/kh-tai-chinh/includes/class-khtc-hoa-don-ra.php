@@ -210,6 +210,10 @@ class KHTC_HoaDonRa {
 			$id,
 			sprintf( 'Xoá hoá đơn %s ngày %s — %s, %s đ', $h->so_hd, mysql2date( 'd/m/Y', $h->ngay ), $h->khach, number_format( $h->co_vat, 0, ',', '.' ) )
 		);
+		// Xoá chứng từ mà để lại các lần thanh toán của nó thì bảng thanh toán
+		// còn những dòng trỏ vào hư không: không hiện ở đâu nữa nhưng vẫn nằm
+		// trong sao lưu và vẫn cộng vào tổng đã trả.
+		$wpdb->delete( KHTC_DB::bang( 'thanh_toan' ), array( 'bang' => 'hd_ra', 'chung_tu_id' => (int) $id ), array( '%s', '%d' ) );
 		$wpdb->delete( KHTC_DB::bang( 'hd_ra' ), array( 'id' => (int) $id ), array( '%d' ) );
 		return true;
 	}
@@ -277,9 +281,7 @@ class KHTC_HoaDonRa {
 			'nap',
 			'hd_ra',
 			0,
-			sprintf( 'Nạp %d hoá đơn đầu ra%s%s', $them, $trung ? ', bỏ ' . $trung . ' trùng số' : '', $lech ? ', ' . $lech . ' dòng gốc lệch VAT' : '' ),
-			null,
-			true
+			sprintf( 'Nạp %d hoá đơn đầu ra%s%s', $them, $trung ? ', bỏ ' . $trung . ' trùng số' : '', $lech ? ', ' . $lech . ' dòng gốc lệch VAT' : '' )
 		);
 		return array( 'them' => $them, 'trung' => $trung, 'lech' => $lech, 'loi' => $loi );
 	}

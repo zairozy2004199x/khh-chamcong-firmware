@@ -1,7 +1,7 @@
 === Tài Chính K&H ===
 Requires at least: 5.6
 Requires PHP: 7.4
-Stable tag: 1.1.0
+Stable tag: 1.2.0
 License: GPL-2.0-or-later
 
 Theo dõi ngân hàng, giao dịch và đối soát cho CÔNG TY TNHH DỊCH VỤ VÀ GIẢI TRÍ K&H.
@@ -65,6 +65,10 @@ RAM; trên shared hosting cách đó không chạy nổi.
   được, đúng id cũ. Dán hàng loạt chỉ ghi một dòng tổng kết.
 * Sao lưu — tải toàn bộ kho dữ liệu ra một tệp .json và nhập lại được. Nhập là
   thêm vào, id cấp lại và mọi liên kết nối lại theo id mới.
+* Dữ liệu mẫu — một nút nạp sẵn 89 dòng giả (13 tháng sao kê, hoá đơn, chi
+  phí, hợp đồng, một đợt đối soát đã chạy) để xem thử mọi màn hình trước khi
+  nhập số thật, và xoá sạch được bằng một nút khác. Chỉ nạp được khi sổ còn
+  trống, và chỉ xoá đúng những dòng chính nó đã tạo.
 * Bản web ngoài — cùng các màn hình đó ở /tai-chinh/ thay vì trong wp-admin.
   Vẫn phải đăng nhập.
 

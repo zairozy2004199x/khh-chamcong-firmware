@@ -960,6 +960,19 @@ class KHTC_Trang {
 		$bao_ok = '';
 		$bao_loi = '';
 
+		if ( isset( $_POST['khtc_nap_mau'] ) && check_admin_referer( 'khtc_sl' ) ) {
+			$kq = KHTC_Mau::nap();
+			if ( is_wp_error( $kq ) ) {
+				$bao_loi = $kq->get_error_message();
+			} else {
+				$bao_ok = sprintf( 'Đã nạp %s dòng dữ liệu mẫu vào %s. Mở các mục bên trái để xem thử.', number_format( $kq, 0, ',', '.' ), KHTC_Cty::ten() );
+			}
+		}
+
+		if ( isset( $_POST['khtc_xoa_mau'] ) && check_admin_referer( 'khtc_sl' ) ) {
+			$bao_ok = sprintf( 'Đã xoá %s dòng dữ liệu mẫu.', number_format( KHTC_Mau::xoa(), 0, ',', '.' ) );
+		}
+
 		if ( isset( $_POST['khtc_nhap'] ) && check_admin_referer( 'khtc_sl' ) ) {
 			$json = '';
 			if ( ! empty( $_FILES['tep']['tmp_name'] ) && is_uploaded_file( $_FILES['tep']['tmp_name'] ) ) {
@@ -1014,6 +1027,41 @@ class KHTC_Trang {
 			esc_url( wp_nonce_url( self::url( 'sao-luu', array( 'khtc_sao_luu' => 1 ) ), 'khtc_sao_luu' ) )
 		);
 		echo '<p class="khtc-sub">Tệp gồm cả hai pháp nhân và cả danh mục chi phí. Dữ liệu nằm trong cơ sở dữ liệu của website — website đổi host hoặc plugin bị gỡ nhầm là mất, nên nên tải về mỗi lần chốt sổ.</p></div>';
+
+		// ---- dữ liệu mẫu
+		$so_mau = KHTC_Mau::dem_mau();
+		$that   = KHTC_Mau::du_lieu_that();
+		echo '<div class="khtc-panel"><h2>Dữ liệu mẫu để chạy thử</h2>';
+		if ( $so_mau ) {
+			printf(
+				'<div class="khtc-bao ok">Đang có <strong>%s dòng dữ liệu mẫu</strong> trong sổ %s. Xem thử xong thì xoá đi trước khi nhập số thật.</div>',
+				esc_html( number_format( $so_mau, 0, ',', '.' ) ),
+				esc_html( KHTC_Cty::ten() )
+			);
+			echo '<form method="post" onsubmit="return confirm(\'Xoá toàn bộ dữ liệu mẫu đã nạp?\')">';
+			wp_nonce_field( 'khtc_sl' );
+			echo '<button type="submit" name="khtc_xoa_mau" value="1" class="button button-primary">Xoá dữ liệu mẫu</button></form>';
+			echo '<p class="khtc-sub">Xoá đúng những dòng đã nạp, ghi theo id lúc tạo — dòng anh tự nhập xen vào vẫn còn nguyên.</p>';
+		} elseif ( $that ) {
+			$mo_ta = array();
+			foreach ( $that as $t => $n ) { $mo_ta[] = KHTC_NhatKy::ten_bang( $t ) . ' ' . number_format( $n, 0, ',', '.' ); }
+			printf(
+				'<div class="khtc-bao loi">Sổ %s đã có dữ liệu thật (%s) nên không nạp dữ liệu mẫu được. Đổi sang pháp nhân còn trống ở góc trên bên phải rồi nạp.</div>',
+				esc_html( KHTC_Cty::ten() ),
+				esc_html( implode( ' · ', $mo_ta ) )
+			);
+			echo '<p class="khtc-sub">Đây là chặn cố ý, không phải lỗi: một hoá đơn mẫu lọt vào tờ khai GTGT đem nộp là chuyện không sửa lại được.</p>';
+		} else {
+			printf(
+				'<p class="khtc-sub">Nạp một bộ số liệu giả vào sổ <strong>%s</strong> để xem mọi màn hình chạy ra sao: 13 tháng sao kê hai tài khoản, hoá đơn đầu ra và đầu vào, chi phí, một đợt đối soát cổng, hợp đồng thuê, hồ sơ chứng từ. Các số được dựng <em>ăn khớp với nhau</em> nên đối soát, công nợ và báo cáo đều ra kết quả thật chứ không rỗng.</p>',
+				esc_html( KHTC_Cty::ten() )
+			);
+			echo '<form method="post">';
+			wp_nonce_field( 'khtc_sl' );
+			echo '<button type="submit" name="khtc_nap_mau" value="1" class="button button-primary">Nạp dữ liệu mẫu</button></form>';
+			echo '<p class="khtc-sub">Mọi dòng mẫu đều mang dấu <code>[Mẫu]</code> ở tên tài khoản, tên gian và số hoá đơn. Xoá lại bằng một nút, và nút xoá chỉ đụng đúng những dòng đã nạp.</p>';
+		}
+		echo '</div>';
 
 		echo '<details class="khtc-panel khtc-gap"><summary>Nhập lại từ tệp sao lưu</summary>';
 		echo '<form method="post" enctype="multipart/form-data"><div class="khtc-loc">';

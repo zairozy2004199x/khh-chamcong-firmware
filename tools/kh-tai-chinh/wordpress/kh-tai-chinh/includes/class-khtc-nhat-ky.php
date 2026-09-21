@@ -25,12 +25,18 @@ class KHTC_NhatKy {
 
 	const MOI_TRANG = 60;
 
-	/** Đang trong một lô: các hàm ghi lẻ không tự ghi nhật ký nữa. */
-	private static $theo_lo = false;
+	/**
+	 * Độ sâu lô đang mở. ĐẾM chứ không phải cờ bật/tắt, vì lô LỒNG NHAU: nạp
+	 * dữ liệu mẫu là một lô, bên trong nó gọi dán sao kê — cũng là một lô. Nếu
+	 * là cờ thì lô con đóng lại kéo theo lô cha cũng đóng, và dòng tổng kết của
+	 * lô con thoát ra ngoài. Lúc đó một lần nạp mẫu để lại sáu dòng nhật ký
+	 * thay vì một — đã xảy ra thật.
+	 */
+	private static $sau_lo = 0;
 
-	public static function mo_lo() { self::$theo_lo = true; }
-	public static function dong_lo() { self::$theo_lo = false; }
-	public static function trong_lo() { return self::$theo_lo; }
+	public static function mo_lo() { self::$sau_lo++; }
+	public static function dong_lo() { self::$sau_lo = max( 0, self::$sau_lo - 1 ); }
+	public static function trong_lo() { return self::$sau_lo > 0; }
 
 	public static function ten_viec( $v ) {
 		$ds = array(
@@ -71,11 +77,13 @@ class KHTC_NhatKy {
 	 * @param int        $id       Id bản ghi, 0 nếu không có.
 	 * @param string     $tom_tat  Một câu người đọc hiểu được.
 	 * @param array|null $du_lieu  Bản ghi đầy đủ — chỉ dùng cho việc xoá, để phục hồi.
-	 * @param bool       $du_lo    true thì ghi kể cả đang trong lô (dùng cho dòng tổng kết lô).
 	 */
-	public static function ghi( $viec, $bang, $id, $tom_tat, $du_lieu = null, $du_lo = false ) {
+	public static function ghi( $viec, $bang, $id, $tom_tat, $du_lieu = null ) {
 		global $wpdb;
-		if ( self::$theo_lo && ! $du_lo ) { return 0; }
+		// Chỉ ghi khi không còn lô nào đang mở. Mỗi hàm dán hàng loạt tự đóng
+		// lô của mình TRƯỚC khi ghi dòng tổng kết, nên dòng đó lọt ra đúng lúc
+		// nó là lô ngoài cùng — và bị nuốt khi nó nằm trong một lô lớn hơn.
+		if ( self::$sau_lo > 0 ) { return 0; }
 		$u = function_exists( 'wp_get_current_user' ) ? wp_get_current_user() : null;
 		$wpdb->insert(
 			KHTC_DB::bang( 'nhat_ky' ),

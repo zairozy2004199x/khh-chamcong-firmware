@@ -173,7 +173,7 @@ class KHTC_HoSo {
 			if ( is_wp_error( $kq ) ) { $loi[] = 'Dòng ' . ( $i + 1 ) . ': ' . $kq->get_error_message(); } else { $them++; }
 		}
 		KHTC_NhatKy::dong_lo();
-		KHTC_NhatKy::ghi( 'nap', 'ho_so', 0, sprintf( 'Nạp %d hồ sơ', $them ), null, true );
+		KHTC_NhatKy::ghi( 'nap', 'ho_so', 0, sprintf( 'Nạp %d hồ sơ', $them ) );
 		return array( 'them' => $them, 'loi' => $loi );
 	}
 
