@@ -128,10 +128,16 @@ label.tich input{flex:0 0 auto;width:19px;height:19px;margin:0}
 /* Lưới khoản tiền: hai cột, nhãn nhỏ trên ô. Chín khoản xếp một cột là cuộn mãi không hết. */
 .luoi-khoan{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .luoi-khoan .fldx{margin:0}
-input,select{width:100%;padding:12px 13px;font-size:16px;border-radius:var(--bo-o);
+/* 🔴 `textarea` PHẢI NẰM TRONG LUẬT NÀY. Bỏ sót nó thì trình duyệt dùng kiểu mặc định: phông
+   monospace, cỡ chữ nhỏ, và KHÔNG rộng hết thẻ — một ô con con nép bên trái giữa một tấm thẻ
+   trắng. Anh Thắng 21/09/2026, ảnh chụp khung chat: *"giao diện bị xấu"*. Trước đó cả trang
+   không có `textarea` nào nên chỗ sót này chưa bao giờ lộ ra. */
+input,select,textarea{width:100%;padding:12px 13px;font-size:16px;border-radius:var(--bo-o);
 	border:1px solid var(--vien-dam);background:var(--nen);color:var(--chu);font-family:inherit}
-input:focus,select:focus{outline:none;border-color:var(--nhan);
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--nhan);
 	box-shadow:0 0 0 3px rgba(56,189,248,.22)}
+/* Kéo cao được, KHÔNG kéo ngang: kéo ngang thì ô thò ra khỏi thẻ và cả bố cục vỡ. */
+textarea{resize:vertical;min-height:52px;line-height:1.45}
 /* ══════════════════════════════════════════════════════════════════════════════════════════
  * 🔴 Ô NGÀY / GIỜ TRÊN iOS TRÀN RA NGOÀI THẺ.
  *
@@ -526,15 +532,23 @@ a{color:var(--nhan)}
 
 	<div id="chatLop2" class="an">
 		<div class="the">
-			<div class="hang" style="margin:0 0 8px">
-				<button id="btChatVe" class="phu">← Quay lại</button>
-				<b id="chatTen" style="align-self:center">—</b>
+			<!-- ⚠️ `.hang` cho mọi nút `flex:1`, nên nút Quay lại nuốt nửa hàng và tên phòng bị
+			     ép xuống dòng. Ghim nút lại, nhường chỗ cho tên — tên phòng mới là thứ người ta
+			     cần đọc để biết mình đang nhắn vào đâu. -->
+			<div class="hang" style="margin:0 0 10px;align-items:center">
+				<button id="btChatVe" class="phu" style="flex:0 0 auto;padding:9px 12px">←</button>
+				<b id="chatTen" style="flex:1;min-width:0;overflow:hidden;
+					text-overflow:ellipsis;white-space:nowrap;font-size:16px">—</b>
 			</div>
 			<!-- ⚠️ Khung tin phải có CHIỀU CAO CỐ ĐỊNH và tự cuộn. Để nó cao theo nội dung thì
 			     ô gõ trôi xuống dưới màn sau vài chục tin, và người ta phải cuộn lên mới gõ
 			     được — trên điện thoại thì đó là bỏ cuộc. -->
-			<div id="chatKhung" style="height:52vh;overflow-y:auto;padding:4px 2px">
-				<p class="trong">Đang tải…</p>
+			<!-- Khung cuộn cao cố định. Để cao theo nội dung thì ô gõ trôi xuống dưới màn sau
+			     vài chục tin. `display:flex` + `justify-content:flex-end` dồn tin xuống ĐÁY,
+			     nên phòng mới mở (ít tin) không còn một khoảng trắng mênh mông phía trên. -->
+			<div id="chatKhung" style="height:46vh;overflow-y:auto;padding:4px 2px;
+				display:flex;flex-direction:column;justify-content:flex-end">
+				<p class="trong" style="text-align:center">Đang tải…</p>
 			</div>
 			<div id="chatLoi"></div>
 			<div id="chatTepChon" class="an" style="margin:6px 0"></div>
@@ -548,7 +562,8 @@ a{color:var(--nhan)}
 				accept="image/jpeg,image/png,image/gif,image/webp,image/heic,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip">
 			<p></p>
 			<div class="hang">
-				<button id="btChatDinhKem" class="phu" style="flex:0 0 76px">📎</button>
+				<button id="btChatDinhKem" class="phu" title="Đính kèm ảnh hoặc tệp"
+					style="flex:0 0 68px;font-size:20px;line-height:1">📎</button>
 				<button id="btChatGui" class="chinh">Gửi</button>
 			</div>
 		</div>
@@ -2797,7 +2812,8 @@ function veChatTin(ds, dau){
 	var k = el('chatKhung');
 	if(dau){ k.innerHTML = ''; }
 	if(dau && !ds.length){
-		k.innerHTML = '<p class="trong" id="chatRong">Chưa có tin nào. Gõ câu đầu tiên đi.</p>';
+		k.innerHTML = '<p class="trong" id="chatRong" style="text-align:center;margin:auto 0">'
+			+ 'Chưa có tin nào. Gõ câu đầu tiên đi.</p>';
 	}
 	/* 🔴 DỌN CÂU "CHƯA CÓ TIN NÀO" KHI TIN ĐẦU TIÊN TỚI.
 	   Bản đầu chỉ đặt câu ấy lúc mở phòng rỗng rồi thôi — tin mới nối vào PHÍA DƯỚI nó, nên

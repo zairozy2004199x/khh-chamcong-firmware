@@ -47,7 +47,17 @@ register_shutdown_function( function () {
 	exit( 1 );
 } );
 
-$GLOBALS['VHCP_TMP'] = sys_get_temp_dir() . '/vhcp-test-' . getmypid();
+/* Thư mục tạm RIÊNG CHO TỪNG TIẾN TRÌNH — đúng cho bộ thử: hai bài chạy song song không giẫm
+   lên tệp của nhau.
+
+   ⚠️ LỐI THOÁT CHỈ CHO BỘ XEM TRƯỚC. Máy chủ xem trước phục vụ nhiều lượt gọi, và khi bật nhiều
+      luồng thì mỗi luồng là một TIẾN TRÌNH khác — luồng này ghi tệp đính kèm vào thư mục của
+      nó, luồng kia đi tìm và không thấy, rồi trả 404. Triệu chứng: ảnh trong chat hiện ra một ô
+      vỡ, mà curl thẳng vào cùng đường dẫn thì trả về đúng tấm ảnh. Đã mất hai lượt chụp để tìm
+      ra, và suýt đi sửa nhầm phần phục vụ tệp — vốn chạy đúng. */
+$GLOBALS['VHCP_TMP'] = getenv( 'VHCC_STUB_TMP' )
+	? getenv( 'VHCC_STUB_TMP' )
+	: ( sys_get_temp_dir() . '/vhcp-test-' . getmypid() );
 @mkdir( $GLOBALS['VHCP_TMP'] . '/wp-admin/includes', 0777, true );
 @mkdir( $GLOBALS['VHCP_TMP'] . '/uploads', 0777, true );
 file_put_contents( $GLOBALS['VHCP_TMP'] . '/wp-admin/includes/upgrade.php', "<?php\n" );

@@ -26,16 +26,22 @@ cd "$(dirname "$0")/../.." || exit 2
 RA="${1:-${TMPDIR:-/tmp}/vhcc-xem-tram}"
 CONG="${VHCC_XEM_CONG:-8899}"
 SO="${TMPDIR:-/tmp}/vhcc-xem-tram.sqlite"
+# 🔴 THƯ MỤC TẢI LÊN DÙNG CHUNG CHO MỌI LUỒNG. Mặc định bệ đỡ thử cấp mỗi TIẾN TRÌNH một thư
+# mục riêng — đúng cho bộ thử, sai ở đây: luồng này ghi tệp đính kèm, luồng kia đi tìm không
+# thấy và trả 404, ảnh trong chat hiện ra ô vỡ. Xoá luôn thư mục cũ để mỗi lượt chụp sạch sẽ.
+TMPXEM="${TMPDIR:-/tmp}/vhcc-xem-tram-tmp"
 mkdir -p "$RA" || exit 2
 rm -rf "${RA:?}"/*.png
 rm -f "$SO"
+rm -rf "$TMPXEM"
 
 echo "── Dựng máy chủ xem trước (cổng $CONG) ────────────────────────"
 # 🔴 NHIỀU LUỒNG. Máy chủ sẵn có của PHP mặc định xử ĐÚNG MỘT lượt một lúc — và trang trạm thì
 # vừa hỏi tin chat mỗi 6 giây, vừa tải ảnh đính kèm, vừa hỏi chuông. Lượt này chờ lượt kia, và
 # thẻ <img> bỏ cuộc: ảnh hiện ra một ô vỡ. Đã mất một lượt chụp để tìm ra, và suýt đi sửa nhầm
 # phần phục vụ tệp — vốn chạy đúng (curl thẳng vào nó trả 200 kèm image/png).
-PHP_CLI_SERVER_WORKERS=4 VHCC_STUB_DB="$SO" VHCC_STUB_HOME="http://127.0.0.1:$CONG" \
+PHP_CLI_SERVER_WORKERS=4 VHCC_STUB_DB="$SO" VHCC_STUB_TMP="$TMPXEM" \
+  VHCC_STUB_HOME="http://127.0.0.1:$CONG" \
   php -S "127.0.0.1:$CONG" tools/xem/may-chu-tram.php >"${TMPDIR:-/tmp}/vhcc-xem-tram.log" 2>&1 &
 PID=$!
 # Dừng máy chủ dù thoát kiểu gì — kể cả khi Chromium chết giữa chừng. Bỏ dòng này là để lại
