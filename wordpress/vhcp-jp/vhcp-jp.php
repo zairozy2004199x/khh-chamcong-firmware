@@ -27,9 +27,15 @@
  *        chiếu thẳng với mã JavaScript gốc chạy bằng node) · lớp truy cập dữ liệu DUY NHẤT
  *        (`class-vhjp-nguon.php`) · sinh mã bản ghi (`class-vhjp-ma.php`) · đăng nhập PIN và
  *        phiên làm việc (`class-vhjp-auth.php`) · nhật ký thao tác (`class-vhjp-nhat-ky.php`)
- *        · danh mục cơ sở/cụm/ô máy/mã hàng (`class-vhjp-cau-hinh.php`).
- * Chưa:  tính tiền + 17 cảnh báo W1–W17 · báo cáo · duyệt · ảnh · đối soát ngân hàng · kho
- *        hai tầng · bút toán · hai trang ngoài.
+ *        · danh mục (`class-vhjp-cau-hinh.php`) · cổng dịch `google.script.run`
+ *        (`class-vhjp-cong.php`).
+ * Chưa:  90 / 100 hàm máy chủ — `VHJP_Cong::chua_lam()` khai đủ tên, và
+ *        `tools/test/kiem-jp-cong.php` đếm lại mỗi lượt chạy. Nặng nhất còn lại: tính tiền +
+ *        17 cảnh báo W1–W17 · báo cáo · duyệt · ảnh · đối soát ngân hàng · kho hai tầng.
+ *
+ * ⚠️ GIAO DIỆN KHÔNG PHẢI VIẾT LẠI. 11 tệp HTML/JS của JP (≈11.000 dòng) gọi máy chủ qua đúng
+ *    một chỗ (`srv()` trong `Js01_Core.html`) dựng trên `google.script.run`. `VHJP_Cong` dựng
+ *    lại đúng API ấy, y lối bộ Chi Phí đã đi — anh Thắng gửi bản ấy làm mẫu 21/09/2026.
  *
  * Nên plugin này CỐ Ý chưa khai móc kích hoạt và chưa dựng trang nào: cài nửa vời vào site thật
  * là tạo 23 bảng rỗng rồi để đó, và lần sau không ai nhớ bảng ấy từ đâu ra. Khi nào có tầng đọc
@@ -64,6 +70,7 @@ require_once VHJP_DIR . 'includes/class-vhjp-ma.php';
 require_once VHJP_DIR . 'includes/class-vhjp-nhat-ky.php';
 require_once VHJP_DIR . 'includes/class-vhjp-auth.php';
 require_once VHJP_DIR . 'includes/class-vhjp-cau-hinh.php';
+require_once VHJP_DIR . 'includes/class-vhjp-cong.php';
 require_once VHJP_DIR . 'includes/class-vhjp-tu-cap-nhat.php';
 
 /* Nối bộ tự cập nhật ngay từ bản đầu, dù bộ này chưa dựng trang nào.
