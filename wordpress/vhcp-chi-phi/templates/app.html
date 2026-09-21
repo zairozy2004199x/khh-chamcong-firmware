@@ -106,6 +106,25 @@
       <span style="font-size:11.5px;color:#8c8781;font-weight:700;letter-spacing:.3px">KHỐI</span>
       <span id="khoiBar" style="display:flex;gap:6px;flex-wrap:wrap"></span>
     </div>
+    <!-- ══════════════════════════════════════════════════════════════════════════════════════
+         DẢI LUỒNG LÀM VIỆC — bấm vào bước để đi tới màn làm bước ấy.
+
+         Anh Thắng 21/09/2026 gửi ảnh một dải như thế và bảo *"Tạo mẫu luồng làm việc này vào"*.
+
+         🔴 NÓ KHÔNG PHẢI TRANG TRÍ, NÓ LÀ BẢN ĐỒ. Đơn đi qua sáu/bảy bước nằm ở BỐN tab khác
+            nhau (Đơn chi phí · Duyệt tạm ứng · Quyết toán · Xuất MISA); người mới không đoán
+            được bước nào ở tab nào, và hỏi nhau là cách duy nhất để biết. Dải này trả lời bằng
+            hình, và bấm được thì khỏi phải nhớ.
+         🔴 VẼ THEO LUỒNG CỦA KHỐI ĐANG ĐỨNG — Máy tự động không có bước "Chờ cấp tạm ứng", bày
+            nó ra là mời người ta đi tìm một bước không tồn tại. Xem `LUONG_CHI`.
+         ⚠️ BƯỚC NÀO KHÔNG CÓ QUYỀN VÀO THÌ MỜ ĐI, KHÔNG BỎ. Nhân viên vẫn cần biết đơn của mình
+            sẽ đi đâu tiếp; bỏ hẳn là luồng trông như chỉ có hai bước, và họ tưởng đơn xong rồi.
+         ══════════════════════════════════════════════════════════════════════════════════════ -->
+    <div id="luongWrap" style="display:none;margin:0 0 10px">
+      <div style="font-size:11.5px;color:#8c8781;font-weight:700;letter-spacing:.3px;margin-bottom:5px">
+        LUỒNG LÀM VIỆC <span style="font-weight:400;letter-spacing:0">— bấm vào bước để đi tới</span></div>
+      <div id="luongBar" style="display:flex;gap:6px;align-items:stretch;flex-wrap:wrap"></div>
+    </div>
     <!-- ⚠️ DẢI NHẮC "KHỐI NÀY CHƯA CÓ ĐƠN NÀO" ĐÃ BỎ — anh Thắng 21/09/2026: *"chọn phía trên
          rồi, phía dưới bỏ đi cho gọn"*.
 
@@ -2836,8 +2855,61 @@
   window.addEventListener('scroll', _tmTheoCho, true);   // `true`: bắt cả lượt cuộn NGANG của hàng tab
   window.addEventListener('resize', _tmTheoCho);
 
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * DẢI LUỒNG LÀM VIỆC — mỗi bước một thẻ bấm được, dẫn thẳng tới màn làm bước ấy.
+   *
+   * Anh Thắng 21/09/2026 gửi ảnh một dải như thế: *"Tạo mẫu luồng làm việc này vào"*.
+   *
+   * 🔴 BẢNG NÀY GHÉP BƯỚC VỚI TAB — MỘT CHỖ KHAI. Đơn đi qua bốn tab khác nhau; rải phép "bước
+   *    này ở tab nào" vào từng thẻ là bốn nơi phải nhớ sửa khi đổi luồng.
+   * ⚠️ KHOÁ THEO CHUỖI LƯU TRONG SỔ, không theo chữ hiện trên màn: chữ đổi theo khối
+   *    (`LUONG_CHI`), khoá theo nó là bảng này trượt sạch bên Máy tự động.
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  var LUONG_DIEN={
+    'Nháp':              {tab:'don',   icon:'📝', lam:'Nhân viên lập đơn, nhập hạng mục'},
+    'Chờ duyệt tạm ứng': {tab:'duyet', icon:'📤', lam:'Quản lý / kế toán duyệt'},
+    'Chờ cấp tạm ứng':   {tab:'duyet', icon:'💰', lam:'Kế toán chuyển tiền'},
+    'Đã cấp tạm ứng':    {tab:'don',   icon:'🛒', lam:'Nhân viên tiêu, nhập thực chi + hóa đơn'},
+    'Chờ quyết toán':    {tab:'qt',    icon:'🧾', lam:'Kế toán đối chiếu thừa/thiếu'},
+    'Đã quyết toán':     {tab:'qt',    icon:'✅', lam:'Đã chốt số'},
+    'Đã thanh toán':     {tab:'qt',    icon:'💵', lam:'Kế toán xác nhận tiền đã trả'},
+    'Đã xuất MISA':      {tab:'xuat',  icon:'📦', lam:'Kế toán KVC xuất tệp MISA'}
+  };
+  /* Số đơn ĐANG ĐỨNG ở mỗi bước, trong khối đang chọn — con số mới là thứ nói "chỗ nào đang
+     tắc". Một dải không số thì đẹp mà không dùng để làm gì. */
+  function _luongDem(){
+    var d={};
+    (BOOT.dons||[]).filter(_hopKhoi).forEach(function(x){
+      var st=String(x.trangThai||'Nháp'); d[st]=(d[st]||0)+1;
+    });
+    return d;
+  }
+  function veThanhLuong(){
+    var o=el('luongBar'), w=el('luongWrap'); if(!o||!w) return;
+    var DS=Object.keys(_luongKhoi()), dem=_luongDem();
+    w.style.display='';
+    o.innerHTML=DS.map(function(st,i){
+      var c=LUONG_DIEN[st]||{tab:'don',icon:'•',lam:''};
+      /* ⚠️ MỜ CHỨ KHÔNG BỎ. Nhân viên vẫn cần biết đơn của mình sẽ đi đâu tiếp; bỏ hẳn bước
+         họ không vào được là luồng trông như chỉ có hai bước, và họ tưởng đơn xong rồi. */
+      var duoc=_tabDuoc(c.tab), n=dem[st]||0;
+      var nen=duoc?'#fff':'#f9f8f6', vien=n?'#2545ff':'#e2d6c7';
+      var the='<button type="button" class="luongThe" '+(duoc?('onclick="showPage(\''+c.tab+'\')"'):'disabled')
+        +' title="'+esc(c.lam)+(duoc?'':' — bạn không có quyền vào bước này')+'"'
+        +' style="flex:1 1 120px;min-width:112px;display:flex;flex-direction:column;align-items:center;gap:3px;'
+        +'padding:9px 8px;border-radius:10px;border:1px solid '+vien+';background:'+nen+';'
+        +'cursor:'+(duoc?'pointer':'default')+';opacity:'+(duoc?'1':'.5')+';text-align:center">'
+        +'<span style="font-size:17px;line-height:1">'+c.icon+'</span>'
+        +'<span style="font-size:11.5px;font-weight:600;color:#171417;line-height:1.25">'+esc(_tenTT(st))+'</span>'
+        +(n?('<span style="font-size:10.5px;font-weight:700;color:#2545ff">'+n+' đơn</span>'):'')
+        +'</button>';
+      if(i<DS.length-1) the+='<span style="align-self:center;color:#c9c2b8;font-size:13px">→</span>';
+      return the;
+    }).join('');
+  }
   function veThanhKhoi(){
     var o=el('khoiBar'); if(!o) return;
+    try{ veThanhLuong(); }catch(e){}
     /* ══════════════════════════════════════════════════════════════════════════════════════
      * 🔴 BÀY ĐỦ BA NÚT, NHƯNG NÚT KHÔNG THUỘC THÌ KHÔNG BẤM ĐƯỢC.
      * ══════════════════════════════════════════════════════════════════════════════════════
