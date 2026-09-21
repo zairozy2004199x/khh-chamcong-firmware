@@ -12034,6 +12034,16 @@ class VHCC_Web {
 			. '<input id="dtep" type="file" name="tepd" accept=".xlsx,.csv,.tsv,.txt" required></div>';
 		echo '<div><button name="viec" value="xem_doc">Xem trước &amp; ghép tên</button></div>';
 		echo '</div>';
+		/* 🔴 NÓI RÕ KHÔNG CÓ Ô CHỌN THÁNG, VÀ VÌ SAO. Anh Thắng 21/09/2026 nhìn form rồi hỏi
+		   *"hệ có tự biết tháng không"* — câu hỏi đúng, vì một form nạp bảng công mà không có ô
+		   tháng thì trông như thiếu. Có nói ra thì người ta còn biết phải soi lại con số tháng ở
+		   bước Xem trước; không nói thì họ cho là hệ tự lo, và một tiêu đề gõ sai đi thẳng vào sổ. */
+		echo '<p class="mo"><b>Không cần chọn tháng</b> — hệ đọc thẳng từ dòng tiêu đề '
+			. '<b>"BẢNG CHẤM CÔNG THÁNG 8/2026"</b> của bảng. Không có dòng ấy thì hệ chối, không '
+			. 'đoán. ⚠️ Tiêu đề gõ tay nên gõ sai được: bước <b>Xem trước</b> in ra tháng nó đọc '
+			. 'được — soi lại con số ấy trước khi bấm Nạp thật.</p>';
+		echo '<p class="mo">Mỗi tệp <b>một tháng thôi</b>. Tệp chứa nhiều bảng chồng nhau thì hệ '
+			. 'chối và kể tên các tháng nó thấy.</p>';
 		echo '<p class="mo">Bấm <b>Xem trước</b> trước đã — nó <b>không ghi gì</b>, chỉ đọc rồi '
 			. 'hỏi xem mỗi cái tên viết tắt trong bảng là ai. Ghép xong một lần thì lần sau hệ '
 			. 'thống <b>tự nhớ</b>, khỏi chọn lại.</p>';
@@ -12328,8 +12338,10 @@ class VHCC_Web {
 		   21/09/2026 hỏi lại: *"nạp mỗi ngày, chứ không phải nguyên tháng à"*. Đọc thế là đúng
 		   — hai con số cùng gọi là "ngày" mà đếm hai thứ khác hẳn nhau, nên 122 trông như 122
 		   lượt phải làm bằng tay. Nói rõ đơn vị, và nói thẳng rằng một lần nạp là xong cả tháng. */
-		echo 'Cơ sở <b>' . esc_html( $b['coSo'] ) . '</b> · tháng <b>' . esc_html( $b['thang'] )
-			. '</b> · <b>' . esc_html( (string) $b['so_nguoi'] ) . '</b> người · <b>'
+		echo 'Cơ sở <b>' . esc_html( $b['coSo'] ) . '</b> · tháng <b>'
+			. esc_html( VHCC_NapDoc::thang_chu( $b['thang'] ) )
+			. '</b> <span class="mo">(đọc từ dòng tiêu đề của bảng — sai là do tiêu đề gõ sai)</span> · <b>'
+			. esc_html( (string) $b['so_nguoi'] ) . '</b> người · <b>'
 			. esc_html( (string) $b['so_ngay'] ) . '</b> ngày trong tháng có người đi làm · <b>'
 			. esc_html( (string) $b['so_luot'] ) . '</b> lượt <i>người × ngày</i>';
 		if ( ! $xem ) {

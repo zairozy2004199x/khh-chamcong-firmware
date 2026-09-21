@@ -647,6 +647,42 @@ $so_ma = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(DISTINCT ma_nv) FRO
 	. VHCC_DB::t( 'cham_cong' ) . ' WHERE coso=%s', $CS3 ) );
 t( '🔴 ghép nhãn mới vào mã cũ -> KHÔNG đẻ ra người thứ hai', 2 === $so_ma, $so_ma );
 
+/* ═════════════════════════════════════════════════════════════════════════════════════════
+   7. THÁNG ĐỌC TỪ ĐÂU — anh Thắng 21/09/2026: *"hệ có tự biết tháng không"*
+   ═════════════════════════════════════════════════════════════════════════════════════════
+   Có: đọc thẳng từ dòng tiêu đề, không có ô chọn tháng trên form. Nhưng tiêu đề GÕ TAY nên
+   gõ sai được, và chính tệp anh gửi có hai bảng cùng đề "THÁNG 8/2026". Vì vậy phải chắc ba
+   chuyện: đọc đúng khi tiêu đề đúng, CHỐI khi không có tiêu đề (đừng đoán), và in ra đúng
+   cách bảng đang viết để người ta soi lại được bằng mắt.
+   ───────────────────────────────────────────────────────────────────────────────────────── */
+
+t( 'đọc đúng tháng từ tiêu đề', '2026-04' === VHCC_NapDoc::doc( $B )['thang'] );
+/* Tiêu đề lùi xuống dưới vài dòng trống vẫn phải thấy — bản đầu chỉ quét 6 dòng đầu. */
+$lui = array_merge( array( array( '' ), array( '' ), array( '' ), array( '' ),
+	array( '' ), array( '' ), array( '' ), array( '' ) ), $B );
+t( 'tiêu đề nằm sau 8 dòng trống vẫn đọc được',
+	'2026-04' === VHCC_NapDoc::doc( $lui )['thang'], VHCC_NapDoc::doc( $lui ) );
+
+/* 🔴 KHÔNG CÓ TIÊU ĐỀ THÌ CHỐI, TUYỆT ĐỐI KHÔNG ĐOÁN THEO THÁNG HIỆN TẠI.
+   Đoán là cả bảng rơi vào một tháng không ai chọn, và rơi im lặng — bảng vẫn đầy số. */
+$khong = $B;
+$khong[0] = array( 'Bảng chấm công' );
+$r_khong = VHCC_NapDoc::doc( $khong );
+t( '🔴 tiêu đề KHÔNG có tháng -> chối, không đoán', empty( $r_khong['ok'] ), $r_khong );
+t( '   và bảo phải ghi tiêu đề thế nào',
+	(bool) preg_grep( '/BẢNG CHẤM CÔNG THÁNG/u', (array) $r_khong['canh'] ), $r_khong['canh'] );
+/* Tháng 13 là gõ sai -> cũng chối, đừng cuộn vòng thành tháng 1 năm sau. */
+$muoi_ba = $B;
+$muoi_ba[0] = array( 'BẢNG CHẤM CÔNG THÁNG 13/2026' );
+t( '🔴 tháng 13 -> chối, không cuộn vòng', empty( VHCC_NapDoc::doc( $muoi_ba )['ok'] ) );
+
+/* In ra ĐÚNG KIỂU BẢNG ĐANG VIẾT, để soi bằng mắt không phải dịch trong đầu. */
+t( 'in tháng theo kiểu bảng gốc: 8/2026', '8/2026' === VHCC_NapDoc::thang_chu( '2026-08' ),
+	VHCC_NapDoc::thang_chu( '2026-08' ) );
+t( '   bỏ số 0 đứng đầu', '4/2026' === VHCC_NapDoc::thang_chu( '2026-04' ),
+	VHCC_NapDoc::thang_chu( '2026-04' ) );
+t( '   chuỗi lạ thì trả nguyên, không bịa', 'abc' === VHCC_NapDoc::thang_chu( 'abc' ) );
+
 echo "\n";
 if ( $truot ) {
 	echo 'TRƯỢT ' . count( $truot ) . ":\n";

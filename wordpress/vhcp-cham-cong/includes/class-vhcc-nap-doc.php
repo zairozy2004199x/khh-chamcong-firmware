@@ -389,7 +389,7 @@ class VHCC_NapDoc {
 		 * ═══════════════════════════════════════════════════════════════════════════════════ */
 		$co_san = self::dem_thang_trong_so( $coso, $d['thang'] );
 		if ( $co_san['luot'] > 0 ) {
-			$canh[] = '⚠ Tháng ' . $d['thang'] . ' của cơ sở ' . $coso . ' ĐÃ CÓ '
+			$canh[] = '⚠ Tháng ' . self::thang_chu( $d['thang'] ) . ' của cơ sở ' . $coso . ' ĐÃ CÓ '
 				. $co_san['luot'] . ' ngày công của ' . $co_san['nguoi'] . ' người trong sổ. '
 				. 'Nạp thêm thì hai bên trộn vào nhau — kiểm lại tiêu đề bảng có đúng tháng không.';
 		}
@@ -702,6 +702,21 @@ class VHCC_NapDoc {
 			}
 		}
 		return $ra;
+	}
+
+	/**
+	 * "2026-08" -> "8/2026" — VIẾT ĐÚNG KIỂU BẢNG GỐC ĐANG VIẾT.
+	 *
+	 * ⚠️ Không phải chuyện thẩm mỹ. Việc quan trọng nhất của màn Xem trước là để người ta soi
+	 *    xem hệ có đọc ĐÚNG tháng không (tiêu đề bảng gõ tay nên gõ sai được — tệp thật của anh
+	 *    Thắng có hai bảng cùng đề "THÁNG 8/2026"). Bắt người ta dịch "2026-08" trong đầu rồi
+	 *    mới so với "THÁNG 8/2026" trên giấy là thêm một bước dễ bỏ qua, đúng ở chỗ không được
+	 *    phép bỏ qua.
+	 */
+	public static function thang_chu( $thang ) {
+		$t = trim( (string) $thang );
+		if ( ! preg_match( '/^(\d{4})-(\d{2})$/', $t, $m ) ) { return $t; }
+		return (int) $m[2] . '/' . $m[1];
 	}
 
 	/** "BẢNG CHẤM CÔNG THÁNG 4/2026" -> "2026-04". '' nếu không thấy. */
