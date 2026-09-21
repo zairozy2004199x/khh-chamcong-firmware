@@ -10,7 +10,7 @@ defined( 'ABSPATH' ) || exit;
 class KHTC_DB {
 
 	/** Tăng số này mỗi lần đổi cấu trúc bảng thì bản đang chạy tự nâng cấp. */
-	const SCHEMA = 3;
+	const SCHEMA = 4;
 
 	public static function bang( $ten ) {
 		global $wpdb;
@@ -27,6 +27,7 @@ class KHTC_DB {
 		$doi_soat  = self::bang( 'doi_soat' );
 		$ds_dong   = self::bang( 'ds_dong' );
 		$chi_phi   = self::bang( 'chi_phi' );
+		$hd_ra     = self::bang( 'hd_ra' );
 
 		// so_du_dau = số dư TÍNH ĐẾN ngay_dau; giao dịch trước ngày đó coi như đã
 		// gộp sẵn vào số dư này, không cộng lại lần nữa (giữ đúng cách bản gốc tính).
@@ -127,6 +128,43 @@ class KHTC_DB {
 				KEY cty_ngay (cty, ngay),
 				KEY cty_bo_phan (cty, bo_phan),
 				KEY giao_dich_id (giao_dich_id)
+			) $collate;"
+		);
+
+		// Hoá đơn đầu ra. Cột đặt theo đúng file Đối soát VAT đang dùng để dán
+		// vào và xuất ra không phải sắp lại. UNIQUE (cty, so_hd): xuất trùng số
+		// hoá đơn là sai luật, chặn ở tầng bảng thì không lệ thuộc màn hình nào.
+		dbDelta(
+			"CREATE TABLE $hd_ra (
+				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+				cty VARCHAR(20) NOT NULL DEFAULT 'kh_cu',
+				ngay DATE NOT NULL,
+				so_hd VARCHAR(60) NOT NULL DEFAULT '',
+				khach VARCHAR(190) NOT NULL DEFAULT '',
+				mst VARCHAR(30) NOT NULL DEFAULT '',
+				dia_chi_kh TEXT NULL,
+				email VARCHAR(190) NOT NULL DEFAULT '',
+				noi_dung TEXT NULL,
+				so_luong VARCHAR(30) NOT NULL DEFAULT '',
+				dvt VARCHAR(30) NOT NULL DEFAULT '',
+				thanh_tien BIGINT NOT NULL DEFAULT 0,
+				chua_vat BIGINT NOT NULL DEFAULT 0,
+				thue_suat VARCHAR(10) NOT NULL DEFAULT '0',
+				vat BIGINT NOT NULL DEFAULT 0,
+				co_vat BIGINT NOT NULL DEFAULT 0,
+				khu_vuc VARCHAR(120) NOT NULL DEFAULT '',
+				dich_vu VARCHAR(120) NOT NULL DEFAULT '',
+				so_hop_dong VARCHAR(120) NOT NULL DEFAULT '',
+				ma_diem VARCHAR(190) NOT NULL DEFAULT '',
+				ma_misa VARCHAR(190) NOT NULL DEFAULT '',
+				ghi_chu TEXT NULL,
+				dia_chi TEXT NULL,
+				tao_luc DATETIME NOT NULL,
+				tao_boi VARCHAR(120) NOT NULL DEFAULT '',
+				PRIMARY KEY (id),
+				UNIQUE KEY cty_so_hd (cty, so_hd),
+				KEY cty_ngay (cty, ngay),
+				KEY cty_thue_suat (cty, thue_suat)
 			) $collate;"
 		);
 

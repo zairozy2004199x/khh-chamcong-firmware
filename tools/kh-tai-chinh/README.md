@@ -36,6 +36,7 @@ khẩu riêng. Bớt một chỗ giữ mật khẩu là bớt một chỗ có th
 | Đối soát | Dán bảng cổng gửi về, ghép với sao kê, chia ra Khớp / Lệch tiền / Thiếu / Thừa; tải CSV |
 | Chi phí | Ghi khoản chi theo bộ phận × khoản mục; bảng cộng chéo; lọc; danh mục sửa tại chỗ |
 | Đối soát chi phí | Ghép chứng từ chi phí với dòng chi trong sao kê |
+| Hoá đơn đầu ra | Dán vào / xuất ra đúng 22 cột file VAT; gom theo thuế suất, khu vực, dịch vụ |
 | Sao lưu | Tải cả kho ra .json, nhập lại được |
 
 Mọi màn hình đều tách **KH Cũ / KH Mới**, chọn ở góc phải. Lựa chọn lưu theo
@@ -90,6 +91,44 @@ chứng từ ghi nhầm) · **Tiền ra, không có chứng từ** (thiếu ch�
 ra ngoài sổ).
 
 Chạy xong, màn hình Chi phí biết khoản nào đã trả thật — cột "Tiền ra".
+
+## Hoá đơn đầu ra
+
+Nối thẳng với công cụ **Đối soát VAT** đang dùng: ô dán vào nhận **đúng 22 cột**
+mà file kia sinh ra, **đúng thứ tự**, kể cả cột `STT` và cột trống thứ 21. Copy
+từ Excel là dán được, không phải sắp lại cột. Nút tải CSV xuất ra cũng đúng 22
+cột đó — có một phép kiểm khứ hồi: xuất ra rồi dán lại phải ra y hệt, từng
+trường một, kể cả mã điểm misa và địa chỉ ở cột cuối.
+
+Bảng **gom theo thuế suất** chính là mấy dòng phải điền vào tờ khai GTGT — khỏi
+lọc từng bậc rồi chép số bằng tay. Gom thêm theo khu vực và dịch vụ.
+
+Số hoá đơn **duy nhất trong mỗi pháp nhân**, chặn bằng `UNIQUE (cty, so_hd)` ở
+tầng bảng chứ không chỉ ở màn hình: xuất trùng số hoá đơn là sai luật, và chặn ở
+tầng bảng thì không lệ thuộc đường nào ghi vào. Hai pháp nhân đánh số riêng nên
+không đụng nhau.
+
+### Phép tính VAT
+
+Quy tắc bất di bất dịch, **từng dòng một**:
+
+```
+chưa VAT + VAT = có VAT
+```
+
+`tinh()` chỉ làm tròn **một lần** rồi lấy hiệu ra số thứ ba, không bao giờ làm
+tròn hai số rồi cộng. Làm tròn hai lần thì lệch 1 đồng — số vẫn hợp lệ, bảng vẫn
+in ra, nhưng Misa từ chối cả tệp và không nói vì sao. Bộ kiểm chạy hàng chục số
+lẻ (1 đ, 7 đ, 333.333 đ, 12.345.679 đ) qua cả ba bậc 5/8/10% và bắt buộc đẳng
+thức đúng ở mọi trường hợp.
+
+Một giới hạn có thật: trong bảng dán vào, **0 vừa nghĩa là "ô để trống" vừa nghĩa
+là "thuế đúng bằng 0"** — không phân biệt được. Quy ước: `VAT = 0` luôn hiểu là
+chưa biết và tính lại theo thuế suất. Hoá đơn 0% vẫn ra đúng vì thuế suất 0 cho
+lại VAT = 0.
+
+Dòng nào trong file gốc có `chưa VAT + VAT ≠ có VAT` thì lấy hai số đầu làm gốc,
+tính lại có VAT, và **đếm số dòng như vậy để báo lên** — không sửa lặng lẽ.
 
 ## Sao lưu
 
@@ -166,7 +205,8 @@ còn nhận tiền mặt và tiền kênh khác, nên hiệu đó gần như lu�
 php tools/kh-tai-chinh/tests/kiem-so-ngay.php    # 19 phép thử
 php tools/kh-tai-chinh/tests/kiem-ghep.php       # 23 phép thử
 php tools/kh-tai-chinh/tests/kiem-man-hinh.php   # 44 phép thử
-php tools/kh-tai-chinh/tests/kiem-chi-phi.php    # 67 phép thử
+php tools/kh-tai-chinh/tests/kiem-chi-phi.php    # 68 phép thử
+php tools/kh-tai-chinh/tests/kiem-hoa-don.php    # 128 phép thử
 ```
 
 `dong-goi.sh` chạy cả ba trước khi gói, hỏng một phép là không ra file zip.
@@ -183,6 +223,11 @@ php tools/kh-tai-chinh/tests/kiem-chi-phi.php    # 67 phép thử
   hàng của bảng cộng chéo phải cộng lại bằng tổng chung; chi tiền mặt không bị
   báo thiếu; chạy đối soát hai lần phải ra y hệt; nhập sao lưu xong không giao
   dịch nào trỏ vào tài khoản không tồn tại.
+* **kiem-hoa-don** — nặng nhất ở phép tính VAT: mọi số lẻ qua mọi bậc thuế phải
+  giữ `chưa VAT + VAT = có VAT`. Cộng phép kiểm khứ hồi xuất-rồi-dán-lại, và một
+  phép chặn hồi quy cho ô thuế suất mặc định (PHP đổi khoá mảng `'8'` thành số
+  nguyên `8`, so nghiêm ngặt với chuỗi thì trượt và mọi hoá đơn ghi tay mất
+  thuế — lỗi này đã xảy ra thật, thấy được nhờ dựng trang ra ảnh).
 
 Bộ giả lập **không thay được bản cài thật**: SQLite không phải MySQL, `dbDelta`
 bị bỏ qua và bảng được tạo tay, nên lỗi riêng của MySQL vẫn lọt. Nó bắt được hàm
@@ -192,8 +237,7 @@ hàng cũng có cột `cty`, nên MySQL báo "ambiguous column" và trang trắn
 
 ## Còn phải làm
 
-Các mảng chưa dựng lại: công nợ, hoá đơn đầu vào, hoá đơn đầu ra, pháp danh,
-hồ sơ, báo cáo.
+Các mảng chưa dựng lại: công nợ, hoá đơn đầu vào, pháp danh, hồ sơ, báo cáo.
 
 Đối soát ở bản này là **một engine dùng chung** cho VietQR / Payoo / VNPay /
 Zalo / MoMo, thay vì mỗi cổng một trang riêng như bản gốc (3.722 + 2.180 dòng

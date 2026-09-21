@@ -35,6 +35,7 @@ class KHTC_Web {
 			'doi-soat'   => 'Đối soát',
 			'chi-phi'    => 'Chi phí',
 			'doi-soat-chi-phi' => 'Đối soát chi phí',
+			'hoa-don-ra' => 'Hoá đơn đầu ra',
 			'sao-luu'    => 'Sao lưu',
 		);
 	}

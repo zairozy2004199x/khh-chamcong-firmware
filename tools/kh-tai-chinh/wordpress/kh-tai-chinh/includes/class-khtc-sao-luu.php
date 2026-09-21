@@ -7,7 +7,7 @@
  * JSON nên "sao lưu" chỉ là copy một tệp; đổi sang MySQL thì phải tự làm lấy
  * đường ra, nếu không là lấy đi mất một thứ người dùng đang có.
  *
- * Xuất ra JSON một tệp, gồm cả bốn bảng và danh mục chi phí. Nhập lại thì
+ * Xuất ra JSON một tệp, gồm mọi bảng của plugin và danh mục chi phí. Nhập lại thì
  * THÊM VÀO chứ không xoá cái đang có, và id được cấp lại — nếu giữ nguyên id
  * cũ thì nhập vào một website đã có dữ liệu sẽ đè mất dữ liệu ở đó.
  *
@@ -21,7 +21,7 @@ class KHTC_SaoLuu {
 	const DINH_DANG = 1;
 
 	public static function bang() {
-		return array( 'ngan_hang', 'giao_dich', 'doi_soat', 'ds_dong', 'chi_phi' );
+		return array( 'ngan_hang', 'giao_dich', 'doi_soat', 'ds_dong', 'chi_phi', 'hd_ra' );
 	}
 
 	/** Gom cả kho dữ liệu thành một mảng. Không lọc theo pháp nhân: sao lưu là sao lưu tất. */
@@ -89,11 +89,21 @@ class KHTC_SaoLuu {
 
 		$moi  = array();   // bảng => [id cũ => id mới]
 		$dem  = array();
-		$thu_tu = array( 'ngan_hang', 'doi_soat', 'giao_dich', 'ds_dong', 'chi_phi' );
+		$bo   = array();   // dòng bị cơ sở dữ liệu từ chối, hầu hết là trùng khoá
+		// Thứ tự có ý nghĩa: bảng được trỏ tới phải vào trước bảng trỏ đi, để
+		// lúc nối lại liên kết đã có id mới mà tra. Thiếu một bảng ở đây thì
+		// xuất ra vẫn có nó mà nhập lại mất — nên danh sách này phải phủ hết
+		// self::bang().
+		$thu_tu = array( 'ngan_hang', 'doi_soat', 'giao_dich', 'ds_dong', 'chi_phi', 'hd_ra' );
+		$thieu  = array_diff( self::bang(), $thu_tu );
+		if ( $thieu ) {
+			return new WP_Error( 'thu_tu', 'Lỗi lập trình: bảng ' . implode( ', ', $thieu ) . ' chưa có trong thứ tự nhập.' );
+		}
 
 		foreach ( $thu_tu as $t ) {
 			$moi[ $t ] = array();
 			$dem[ $t ] = 0;
+			$bo[ $t ]  = 0;
 			foreach ( (array) ( $d['bang'][ $t ] ?? array() ) as $hang ) {
 				$cu = (int) ( $hang['id'] ?? 0 );
 				unset( $hang['id'] );
@@ -110,7 +120,13 @@ class KHTC_SaoLuu {
 				if ( isset( $hang['giao_dich_id'] ) ) {
 					$hang['giao_dich_id'] = $moi['giao_dich'][ (int) $hang['giao_dich_id'] ] ?? 0;
 				}
-				$wpdb->insert( KHTC_DB::bang( $t ), $hang );
+				// Hoá đơn đầu ra có UNIQUE (cty, so_hd): nhập đè lên sổ đã có
+				// cùng hoá đơn thì dòng đó bị từ chối. Đếm riêng chứ không báo
+				// là đã nhập — nói sai chỗ này là kế toán tưởng đã phục hồi đủ.
+				if ( false === $wpdb->insert( KHTC_DB::bang( $t ), $hang ) ) {
+					$bo[ $t ]++;
+					continue;
+				}
 				$moi[ $t ][ $cu ] = (int) $wpdb->insert_id;
 				$dem[ $t ]++;
 			}
@@ -120,6 +136,6 @@ class KHTC_SaoLuu {
 			if ( is_array( $ds ) && $ds ) { update_option( 'khtc_dm_' . $khoa, array_values( $ds ) ); }
 		}
 
-		return $dem;
+		return array( 'them' => $dem, 'bo' => array_filter( $bo ) );
 	}
 }

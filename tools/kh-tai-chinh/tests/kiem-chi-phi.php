@@ -134,7 +134,7 @@ kiem( 'nhưng vẫn nằm trong tổng chi phí', KHTC_ChiPhi::loc( $ky )['tong'
 
 // ---------------------------------------------------------------- sao lưu
 $sl = KHTC_SaoLuu::gom();
-kiem( 'sao lưu gồm đủ 5 bảng', array_keys( $sl['bang'] ), array( 'ngan_hang', 'giao_dich', 'doi_soat', 'ds_dong', 'chi_phi' ) );
+kiem( 'sao lưu gồm đủ mọi bảng', array_keys( $sl['bang'] ), KHTC_SaoLuu::bang() );
 kiem( 'sao lưu giữ đủ khoản chi', count( $sl['bang']['chi_phi'] ), 6 );
 kiem( 'sao lưu mang theo danh mục đã sửa', $sl['danh_muc']['bo_phan_kh_cu'], array( 'Khu vui chơi', 'Văn phòng', 'MTĐ' ) );
 
@@ -143,7 +143,8 @@ $truoc  = KHTC_SaoLuu::dem();
 $nhap   = KHTC_SaoLuu::nhap( $json );
 $sau    = KHTC_SaoLuu::dem();
 kiem( 'nhập lại là THÊM VÀO, số nhân đôi', $sau['chi_phi'], $truoc['chi_phi'] * 2 );
-kiem( 'nhập báo đúng số dòng đã thêm', $nhap['chi_phi'], $truoc['chi_phi'] );
+kiem( 'nhập báo đúng số dòng đã thêm', $nhap['them']['chi_phi'], $truoc['chi_phi'] );
+kiem( 'không dòng chi phí nào bị từ chối', isset( $nhap['bo']['chi_phi'] ), false );
 
 // Liên kết phải được nối lại theo id mới, không trỏ về bản ghi cũ.
 global $wpdb;
