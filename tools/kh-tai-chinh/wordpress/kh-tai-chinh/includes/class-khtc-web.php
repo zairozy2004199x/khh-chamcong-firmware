@@ -33,6 +33,9 @@ class KHTC_Web {
 			'ngan-hang'  => 'Ngân hàng',
 			'giao-dich'  => 'Giao dịch / Sao kê',
 			'doi-soat'   => 'Đối soát',
+			'chi-phi'    => 'Chi phí',
+			'doi-soat-chi-phi' => 'Đối soát chi phí',
+			'sao-luu'    => 'Sao lưu',
 		);
 	}
 

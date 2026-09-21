@@ -3,7 +3,7 @@
  * Plugin Name:       Tài Chính K&H
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Theo dõi ngân hàng, giao dịch và đối soát cho CÔNG TY TNHH DỊCH VỤ VÀ GIẢI TRÍ K&H — chạy thẳng trên host WordPress, dữ liệu nằm trong MySQL của chính website.
- * Version:           0.2.0
+ * Version:           0.3.0
  * Requires at least: 5.6
  * Requires PHP:      7.4
  * Author:            K&H
@@ -30,7 +30,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'KHTC_VERSION', '0.2.0' );
+define( 'KHTC_VERSION', '0.3.0' );
 define( 'KHTC_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KHTC_URL', plugin_dir_url( __FILE__ ) );
 
@@ -42,6 +42,8 @@ require_once KHTC_DIR . 'includes/class-khtc-cty.php';
 require_once KHTC_DIR . 'includes/class-khtc-ngan-hang.php';
 require_once KHTC_DIR . 'includes/class-khtc-giao-dich.php';
 require_once KHTC_DIR . 'includes/class-khtc-doi-soat.php';
+require_once KHTC_DIR . 'includes/class-khtc-chi-phi.php';
+require_once KHTC_DIR . 'includes/class-khtc-sao-luu.php';
 require_once KHTC_DIR . 'includes/class-khtc-ui.php';
 require_once KHTC_DIR . 'includes/class-khtc-trang.php';
 require_once KHTC_DIR . 'includes/class-khtc-web.php';
@@ -66,6 +68,7 @@ KHTC_Web::khoi_dong();
 // Tải CSV phải chạy TRƯỚC khi có chữ nào được in ra, nếu không header bị từ chối
 // và trình duyệt nhận một trang HTML mang tên .csv.
 add_action( 'init', array( 'KHTC_DoiSoat', 'tai_csv' ), 20 );
+add_action( 'init', array( 'KHTC_SaoLuu', 'tai' ), 20 );
 
 /**
  * Nâng cấp từ 0.1.x lên: bảng đối soát là bảng mới và luật đường dẫn /tai-chinh/

@@ -10,7 +10,7 @@ defined( 'ABSPATH' ) || exit;
 class KHTC_DB {
 
 	/** Tăng số này mỗi lần đổi cấu trúc bảng thì bản đang chạy tự nâng cấp. */
-	const SCHEMA = 2;
+	const SCHEMA = 3;
 
 	public static function bang( $ten ) {
 		global $wpdb;
@@ -26,6 +26,7 @@ class KHTC_DB {
 		$giao_dich = self::bang( 'giao_dich' );
 		$doi_soat  = self::bang( 'doi_soat' );
 		$ds_dong   = self::bang( 'ds_dong' );
+		$chi_phi   = self::bang( 'chi_phi' );
 
 		// so_du_dau = số dư TÍNH ĐẾN ngay_dau; giao dịch trước ngày đó coi như đã
 		// gộp sẵn vào số dư này, không cộng lại lần nữa (giữ đúng cách bản gốc tính).
@@ -100,6 +101,32 @@ class KHTC_DB {
 				KEY dot_id (dot_id),
 				KEY dot_tien (dot_id, so_tien),
 				KEY ma_gd (ma_gd)
+			) $collate;"
+		);
+
+		// Chi phí. Chỉ mục (cty, ngay) gánh mọi màn hình lọc theo kỳ; thêm
+		// (cty, bo_phan) vì bảng cộng chéo và mọi báo cáo đều gom theo bộ phận.
+		dbDelta(
+			"CREATE TABLE $chi_phi (
+				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+				cty VARCHAR(20) NOT NULL DEFAULT 'kh_cu',
+				ngay DATE NOT NULL,
+				bo_phan VARCHAR(120) NOT NULL DEFAULT '',
+				khoan_muc VARCHAR(120) NOT NULL DEFAULT '',
+				nha_cung_cap VARCHAR(190) NOT NULL DEFAULT '',
+				dien_giai TEXT NULL,
+				so_tien BIGINT NOT NULL DEFAULT 0,
+				so_ct VARCHAR(120) NOT NULL DEFAULT '',
+				hinh_thuc VARCHAR(20) NOT NULL DEFAULT 'chuyen_khoan',
+				ngan_hang_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+				giao_dich_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+				kieu_khop VARCHAR(20) NOT NULL DEFAULT '',
+				tao_luc DATETIME NOT NULL,
+				tao_boi VARCHAR(120) NOT NULL DEFAULT '',
+				PRIMARY KEY (id),
+				KEY cty_ngay (cty, ngay),
+				KEY cty_bo_phan (cty, bo_phan),
+				KEY giao_dich_id (giao_dich_id)
 			) $collate;"
 		);
 

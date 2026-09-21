@@ -1,7 +1,7 @@
 === Tài Chính K&H ===
 Requires at least: 5.6
 Requires PHP: 7.4
-Stable tag: 0.2.0
+Stable tag: 0.3.0
 License: GPL-2.0-or-later
 
 Theo dõi ngân hàng, giao dịch và đối soát cho CÔNG TY TNHH DỊCH VỤ VÀ GIẢI TRÍ K&H.
@@ -29,6 +29,15 @@ RAM; trên shared hosting cách đó không chạy nổi.
   Ghép bốn lượt theo độ chắc chắn giảm dần: trùng mã giao dịch, trùng ngày và
   số tiền, trùng số tiền lệch ngày trong T+3, và trùng số tiền sau khi trừ phí
   (cổng chuyển về số ròng). Tải kết quả ra CSV.
+* Chi phí — ghi khoản chi theo bộ phận và khoản mục, một bảng cho cả công ty
+  chứ không phải mỗi bộ phận một trang. Bảng cộng chéo khoản mục × bộ phận,
+  lọc theo kỳ / bộ phận / khoản mục / đã-chưa thấy tiền ra. Danh mục sửa được
+  ngay trên trang, tách riêng theo từng pháp nhân.
+* Đối soát chi phí — ghép chứng từ chi phí (loại chuyển khoản) với các dòng chi
+  trong sao kê, dùng lại đúng phép ghép của đối soát cổng. Ba nhóm: Khớp / Có
+  chứng từ chưa thấy tiền ra / Tiền ra không có chứng từ.
+* Sao lưu — tải toàn bộ kho dữ liệu ra một tệp .json và nhập lại được. Nhập là
+  thêm vào, id cấp lại và mọi liên kết nối lại theo id mới.
 * Bản web ngoài — cùng các màn hình đó ở /tai-chinh/ thay vì trong wp-admin.
   Vẫn phải đăng nhập.
 
@@ -42,5 +51,4 @@ Trang đặt noindex và bắt đăng nhập, người ngoài không xem đượ
 
 == Làm tiếp ==
 
-Công nợ, hoá đơn đầu vào/đầu ra, chi phí và đối soát chi phí, pháp danh, hồ sơ,
-báo cáo, sao lưu. Bản gốc có khoảng 23.600 dòng cho các mảng này.
+Công nợ, hoá đơn đầu vào, hoá đơn đầu ra, pháp danh, hồ sơ, báo cáo.

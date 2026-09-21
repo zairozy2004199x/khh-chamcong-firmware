@@ -34,6 +34,9 @@ khẩu riêng. Bớt một chỗ giữ mật khẩu là bớt một chỗ có th
 | Ngân hàng | Thêm/xoá tài khoản; số dư đầu tính từ một ngày mốc |
 | Giao dịch / Sao kê | Thêm tay; dán sao kê hàng loạt; lọc theo tài khoản, khoảng ngày, thu/chi, nội dung; phân trang 100 dòng |
 | Đối soát | Dán bảng cổng gửi về, ghép với sao kê, chia ra Khớp / Lệch tiền / Thiếu / Thừa; tải CSV |
+| Chi phí | Ghi khoản chi theo bộ phận × khoản mục; bảng cộng chéo; lọc; danh mục sửa tại chỗ |
+| Đối soát chi phí | Ghép chứng từ chi phí với dòng chi trong sao kê |
+| Sao lưu | Tải cả kho ra .json, nhập lại được |
 
 Mọi màn hình đều tách **KH Cũ / KH Mới**, chọn ở góc phải. Lựa chọn lưu theo
 từng người dùng, nên hai kế toán mở cùng lúc không đá nhau.
@@ -55,6 +58,51 @@ Số tiền nhận cả `1.500.000`, `1,500,000`, `1500000` và `20.000 ₫`. Qu
 sau dấu cuối cùng dài đúng 3 chữ số thì đó là phân cách nghìn, ngược lại là dấu
 thập phân. Không có quy ước này thì `20.000 ₫` đọc ra 20 đồng — sai 1000 lần mà
 không có gì báo, vì 20 vẫn là số hợp lệ.
+
+## Chi phí
+
+**Một bảng cho tất cả bộ phận, không phải mỗi bộ phận một trang.** wp-admin hiện
+có năm menu chi phí rời (Chi Phí Tổng, KVC, VP, MTĐ, Nội bộ) — năm chỗ nhập, năm
+chỗ sửa, muốn biết tổng cả công ty thì phải cộng tay. Ở đây bộ phận chỉ là một
+**cột**: lọc ra từng bộ phận vẫn xem riêng được, mà cộng ngang dọc thì máy làm.
+
+Bảng **cộng chéo khoản mục × bộ phận** là thứ kế toán thật sự cần: "tháng này
+khu vui chơi tốn bao nhiêu tiền điện" là một ô, không phải lọc hai lần rồi cộng.
+Cộng trong SQL chứ không kéo hết dòng về PHP — một tháng vài nghìn dòng thì kéo
+về vẫn chạy, một năm thì không.
+
+Bộ phận và khoản mục sửa được ngay trên trang, lưu trong `wp_options` theo từng
+pháp nhân. Vài chục dòng chữ thì một bảng MySQL kèm màn hình quản lý là thừa.
+
+Chi **tiền mặt** được đánh dấu riêng và đối soát chi phí bỏ qua — nếu không nó
+bị báo "chưa thấy tiền ra" oan, vì tiền mặt không đi qua ngân hàng.
+
+## Đối soát chi phí
+
+Ghép chứng từ chi phí với tiền thật đã ra khỏi tài khoản, **dùng lại đúng**
+`KHTC_DoiSoat::ghep()` của đối soát cổng thanh toán. Bài toán giống hệt — hai
+danh sách ngày/số tiền/mã, ghép một-một, không dòng nào được nhận hai lần — nên
+viết lại lần nữa chỉ là thêm một chỗ để sai. Số chứng từ đóng vai mã giao dịch;
+chi phí không có phí cổng nên lượt trừ phí tự bỏ qua.
+
+Ba nhóm: **Khớp** · **Có chứng từ, chưa thấy tiền ra** (đòi kế toán chi, hoặc
+chứng từ ghi nhầm) · **Tiền ra, không có chứng từ** (thiếu chứng từ, hoặc tiền
+ra ngoài sổ).
+
+Chạy xong, màn hình Chi phí biết khoản nào đã trả thật — cột "Tiền ra".
+
+## Sao lưu
+
+Dữ liệu giờ nằm trong MySQL của website. Website đổi host, ai đó gỡ nhầm plugin,
+một bản nâng cấp hỏng — mất hết. Bản gốc chạy trên file JSON nên "sao lưu" chỉ
+là copy một tệp; đổi sang MySQL mà không làm đường ra là **lấy đi mất một thứ
+người dùng đang có**.
+
+Xuất cả năm bảng và danh mục ra một tệp `.json`. Nhập lại thì **thêm vào, không
+xoá** cái đang có, và **id được cấp lại**: giữ nguyên id cũ thì nhập vào một
+website đã có dữ liệu sẽ khiến giao dịch trỏ nhầm tài khoản — số dư sai mà không
+có gì báo. Các liên kết (giao dịch → tài khoản, dòng cổng → đợt, chi phí → giao
+dịch) được nối lại theo id mới; có một phép kiểm đứng sau đúng chỗ này.
 
 ## Bản web ngoài
 
@@ -118,6 +166,7 @@ còn nhận tiền mặt và tiền kênh khác, nên hiệu đó gần như lu�
 php tools/kh-tai-chinh/tests/kiem-so-ngay.php    # 19 phép thử
 php tools/kh-tai-chinh/tests/kiem-ghep.php       # 23 phép thử
 php tools/kh-tai-chinh/tests/kiem-man-hinh.php   # 44 phép thử
+php tools/kh-tai-chinh/tests/kiem-chi-phi.php    # 67 phép thử
 ```
 
 `dong-goi.sh` chạy cả ba trước khi gói, hỏng một phép là không ra file zip.
@@ -127,8 +176,13 @@ php tools/kh-tai-chinh/tests/kiem-man-hinh.php   # 44 phép thử
 * **kiem-ghep** — phép ghép của đối soát, tách riêng thành `KHTC_DoiSoat::ghep()`
   đúng để kiểm được mà không cần MySQL. Ghép sai không làm hỏng gì thấy được:
   bảng vẫn ra, tổng vẫn cộng, chỉ là kế toán đi đòi cổng một khoản đã về.
-* **kiem-man-hinh** — dựng thật cả bốn màn hình trên `tests/gia-lap-wp.php`, một
+* **kiem-man-hinh** — dựng thật các màn hình trên `tests/gia-lap-wp.php`, một
   bộ giả lập WordPress tối thiểu cắm vào SQLite, rồi kiểm con số in ra.
+* **kiem-chi-phi** — chi phí, bảng cộng chéo, đối soát chi phí và sao lưu, cũng
+  chạy thật trên bộ giả lập. Kiểm cả những chỗ dễ sai lặng lẽ: tổng cột và tổng
+  hàng của bảng cộng chéo phải cộng lại bằng tổng chung; chi tiền mặt không bị
+  báo thiếu; chạy đối soát hai lần phải ra y hệt; nhập sao lưu xong không giao
+  dịch nào trỏ vào tài khoản không tồn tại.
 
 Bộ giả lập **không thay được bản cài thật**: SQLite không phải MySQL, `dbDelta`
 bị bỏ qua và bảng được tạo tay, nên lỗi riêng của MySQL vẫn lọt. Nó bắt được hàm
@@ -138,8 +192,8 @@ hàng cũng có cột `cty`, nên MySQL báo "ambiguous column" và trang trắn
 
 ## Còn phải làm
 
-Các mảng chưa dựng lại: pháp danh, chi phí và đối soát chi phí, hồ sơ, hoá đơn
-đầu vào, hoá đơn đầu ra, công nợ, báo cáo, sao lưu.
+Các mảng chưa dựng lại: công nợ, hoá đơn đầu vào, hoá đơn đầu ra, pháp danh,
+hồ sơ, báo cáo.
 
 Đối soát ở bản này là **một engine dùng chung** cho VietQR / Payoo / VNPay /
 Zalo / MoMo, thay vì mỗi cổng một trang riêng như bản gốc (3.722 + 2.180 dòng
