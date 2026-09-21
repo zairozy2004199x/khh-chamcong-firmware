@@ -8852,7 +8852,26 @@
       //    những dòng ấy bỏ trống ô Bộ phận nên vẫn bị ẩn như trước. Chọn loại chưa có mã thì
       //    dòng chi ra TK Nợ rỗng và ô gợi ý ngay bên cạnh đã nói rõ "chưa gắn mã → giữ cách
       //    cũ Nợ 141", nên không có gì lặng lẽ ở đây cả.
-      if(!_tkNoCua(x.ten, coso) && !_tkNoList(x.ten, coso).length && !_bpTach(x.boPhan).length) return false;
+      /* ═══════════════════════════════════════════════════════════════════════
+         🔴 VÀ TRỪ LOẠI ĐÃ TÍCH VAI TRÒ — CỬA THOÁT THỨ HAI, THÊM 21/09/2026.
+
+         ĐÂY LÀ LỖI DO CHÍNH BẢN 1.233.0 GÂY RA. Hôm ấy anh Thắng bảo *"bỏ tích bộ phận đi, mà
+         tích theo vai trò"*, nên cột Bộ phận rời khỏi bảng loại chi phí — nhưng cửa thoát ngay trên
+         VẪN đo bằng `boPhan`. Mọi loại tạo TỪ ĐÓ ĐẾN NAY đều có `boPhan` rỗng, nên loại nào chưa
+         kịp khai mã là TÀNG HÌNH khỏi ô chọn.
+
+         Anh Thắng 21/09/2026: *"Đã set là nhân viên máy tự động, nhưng vẫn chưa hiện loại chi phí.
+         do chưa set mã hay sao"* — anh đoán ĐÚNG, và đúng cả chỗ nó vô lý: hai loại "Chi Phí Khác
+         MTĐ" và "Chi Phí Chung MTĐ" tích rõ vai "Nhân Viên Kỹ Thuật Máy Tự Động" mà vẫn không hiện.
+
+         🔴 ĐÚNG CÁI BẪY 10/09 QUAY LẠI BẰNG MỘT CỬA KHÁC — cửa do chính em mở. Tích VAI TRÒ nay là
+            việc người ta CỐ Ý làm, y hệt tích bộ phận ngày trước; và vài trăm dòng rác nạp từ sổ cũ
+            không tích vai nào cả, nên chúng vẫn bị ẩn — chốt ban đầu không hề suỷ yếu đi.
+         ⚠️ KHÔNG DÙNG Ô KHỐI LÀM CỬA THOÁT: từ 1.234.0 MỌI dòng đều có khối (`seed()` lấp mỗi lượt
+            nạp), nên đo bằng khối là tắt hẳn bộ lọc và vài trăm dòng rác đổ hết ra ô chọn.
+         ═══════════════════════════════════════════════════════════════════════ */
+      if(!_tkNoCua(x.ten, coso) && !_tkNoList(x.ten, coso).length
+         && !_bpTach(x.boPhan).length && !_vaiTachLoai(x).length) return false;
       // Ô "Chọn chi phí nào" ở mục 1 -> chỉ hiện loại của mảng đang chọn
       var bpLoai=_bpTach(x.boPhan);
       if(NHOM_CP && _khoaNhom((bp && bpLoai.indexOf(bp)>=0)?bp:(bpLoai[0]||''), x.ten)!==NHOM_CP) return false;
@@ -11145,6 +11164,10 @@
      `VHCP_Cfg::loai_thuoc_vai()` — hai bên PHẢI cùng luật, lệch một vế là màn giấu mất loại
      mà máy chủ vẫn cho, hoặc bày ra loại máy chủ sẽ chối.
      🔴 KHÔNG TÍCH GÌ = MỌI VAI. 🔴 Admin không bao giờ bị lọc. */
+  /** Danh sách vai đã tích cho một loại chi phí — rỗng = chưa ai tích (loại nạp từ sổ cũ). */
+  function _vaiTachLoai(x){
+    return String((x&&x.vaiTro)||'').split(',').map(function(v){return v.trim();}).filter(Boolean);
+  }
   function _vaiDungDuocLoai(x){
     var ds=String((x&&x.vaiTro)||'').trim();
     if(!ds) return true;
