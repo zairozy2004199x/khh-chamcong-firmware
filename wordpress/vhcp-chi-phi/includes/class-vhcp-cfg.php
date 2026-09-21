@@ -235,6 +235,12 @@ class VHCP_Cfg {
 			$t = trim( (string) ( isset( $r[0] ) ? $r[0] : '' ) );
 			if ( '' !== $t && ! in_array( $t, $ra, true ) ) { $ra[] = $t; }
 		}
+		/* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG trên đường gói khởi động — ghi lại để lần sau khỏi đuổi theo.
+		   Gỡ dòng này mà `kiem-goi-khoi-dong-bo-phan.php` vẫn XANH, vì `seed()` GIEO LẠI danh
+		   mục bộ phận mỗi khi nó rỗng: tới lúc `bo_phan_ds()` chạy thì bảng không bao giờ trống.
+		   Giữ dòng này vì nó đỡ cho những lượt gọi xảy ra TRƯỚC khi gieo (lượt kích hoạt plugin,
+		   lượt nạp dữ liệu, lượt gọi thẳng API) — ở đó trả mảng rỗng là mọi ô chọn bộ phận trắng
+		   trơn trong khi máy chủ vẫn nhận bảy tên ấy. */
 		if ( ! $ra ) { $ra = self::BO_PHAN_DS; }
 		self::$bp_memo = $ra;
 		return $ra;

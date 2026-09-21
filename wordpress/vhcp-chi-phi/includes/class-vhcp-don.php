@@ -590,6 +590,27 @@ class VHCP_Don {
 			   chạy. Nó có chạy — chỉ là phần lớn loại chi phí trong danh mục CHƯA khai ô Bộ
 			   phận, mà loại chưa khai thì cố ý cho hiện với mọi kế toán (chặn hết là màn
 			   trắng). Con số này biến "trông như hỏng" thành "còn N dòng phải khai". */
+			/* ══════════════════════════════════════════════════════════════════════════════
+			 * 🔴 DANH SÁCH BỘ PHẬN PHẢI XUỐNG TỚI GÓI KHỞI ĐỘNG, KHÔNG CHỈ Ở GÓI CẤU HÌNH.
+			 * ══════════════════════════════════════════════════════════════════════════════
+			 * Anh Thắng 21/09/2026, ảnh chụp dải 👁 Xem như: *"chỉnh phần khai bộ phận cho
+			 * admin để tes"* — ô chọn bộ phận chỉ có hai dòng *"như tôi"* và *"để TRỐNG"*,
+			 * không một tên bộ phận nào.
+			 *
+			 * Vì `glDung()` đọc `BOOT.boPhanDs`, mà khoá ấy CHƯA TỪNG có trong gói này. Nó chỉ
+			 * có ở gói Cấu hình (`CFG.boPhanDs`) — nên bảng Loại chi phí bày đủ bảy ô tích
+			 * bình thường, và không có gì trên màn gợi ý rằng chỗ kia đang đói dữ liệu. Một
+			 * khoá thiếu trông y hệt một danh sách rỗng.
+			 *
+			 * ⚠️ Hậu quả không chỉ là một ô chọn trống: dải Xem như là CÔNG CỤ THỬ của Admin.
+			 *    Không chọn được bộ phận thì mọi luật "ai thấy loại chi phí nào" không thử
+			 *    được bằng tay — và đó đúng là phần anh Thắng đang sửa tới lui mấy hôm nay.
+			 *
+			 * 🔴 GỌI `bo_phan_ds()`, ĐỪNG ĐỌC THẲNG BẢNG. Hàm ấy mới có nhánh "danh mục rỗng
+			 *    thì ngã về bảy tên mặc định"; đọc thẳng là site chưa khai gửi xuống danh sách
+			 *    rỗng trong khi máy chủ vẫn nhận bảy tên ấy — hai bên lệch nhau lặng lẽ.
+			 * ══════════════════════════════════════════════════════════════════════════════ */
+			'boPhanDs'   => VHCP_Cfg::bo_phan_ds(),
 			'boPhanBo'   => VHCP_Auth::bo_phan_bo(),
 			'loaiChuaBP' => self::dem_loai_chua_bo_phan( $cp ),
 			'donVi'      => VHCP_DonVi::ds(),

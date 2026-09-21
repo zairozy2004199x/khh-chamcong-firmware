@@ -138,6 +138,44 @@ t('   kèm tên thật, khỏi quên mình là ai',   /thật ra: '\s*\+\s*esc\(
 
 /* Danh sách bộ phận lấy từ máy chủ, không gõ cứng — hai nơi là hai nơi lệch. */
 t('🔴 ô bộ phận đọc BOOT.boPhanDs', /BOOT\s*&&\s*BOOT\.boPhanDs/.test(bocHam('glDung')));
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 CHẠY THẬT `glDung()` — Ô CHỌN PHẢI CÓ TÊN BỘ PHẬN TRONG ĐÓ
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 21/09/2026, ảnh chụp dải Xem như: *"chỉnh phần khai bộ phận cho admin để tes"* — ô
+ * ấy chỉ có hai dòng *"như tôi"* và *"để TRỐNG"*, không một tên bộ phận nào.
+ *
+ * Mà phép ngay trên ĐÃ XANH suốt: `glDung()` có đọc `BOOT.boPhanDs`, và `boot()` có gọi lại
+ * `glDung()` sau khi nạp. Hai nửa đều đúng — chỉ là MÁY CHỦ CHƯA TỪNG GỬI khoá ấy xuống. Một
+ * khoá thiếu trông y hệt một danh sách rỗng, và không phép nào canh cái mối nối giữa hai bên.
+ *
+ * Phép dưới đếm số <option> thật. Nó đỏ cả khi giao diện hỏng lẫn khi gói khởi động thiếu khoá
+ * (`kiem-goi-khoi-dong-bo-phan.php` canh đầu bên kia). */
+{
+  const KHO2 = {
+    giaLapBar: { style: { display: '' } },
+    glVai: { value: '', innerHTML: '', options: [] },
+    glBp: { value: '', innerHTML: '', options: [] },
+  };
+  const chayDung = (boPhanDs) => {
+    KHO2.glBp.innerHTML = ''; KHO2.glBp.options = [];
+    new Function('BOOT', 'CURUSER', 'GL_GOC', 'VAI_GOC', 'el', 'esc',
+      bocHam('glDung') + '\nglDung();')(
+      { boPhanDs: boPhanDs }, { role: 'Admin' }, null, ['Quản lý', 'Nhân viên'],
+      (id) => KHO2[id], (x) => String(x == null ? '' : x));
+    return KHO2.glBp.innerHTML;
+  };
+  const h = chayDung(['Nhân viên cơ sở', 'Kỹ thuật', 'Máy tự động']);
+  teq('🔴 ô bộ phận có đủ 2 dòng sẵn + 3 tên bộ phận', 5, (h.match(/<option/g) || []).length);
+  t('   và tên bộ phận thật nằm trong đó', h.indexOf('Máy tự động') > 0 && h.indexOf('Kỹ thuật') > 0, h);
+  t('   vẫn giữ lối "như tôi"', h.indexOf('— bộ phận: như tôi —') > 0);
+  t('   và lối "để TRỐNG" (ca vừa làm hở cái nút)', h.indexOf('__trong__') > 0);
+  /* Đối chứng: đúng cái cảnh trên ảnh của anh Thắng — máy chủ không gửi gì thì chỉ còn 2 dòng.
+     Phép này không đòi sửa gì; nó ghim lại ĐÚNG triệu chứng, để lần sau ai thấy 2 dòng thì
+     biết ngay phải đi soi gói khởi động chứ không soi `glDung()`. */
+  teq('   (đối chứng: máy chủ gửi rỗng thì chỉ còn 2 dòng — đúng ảnh anh Thắng gửi)',
+    2, (chayDung([]).match(/<option/g) || []).length);
+}
 t('   và dựng LẠI sau khi boot xong (lúc ấy mới có danh sách)',
   /_applyTabPerms\(\);[\s\S]{0,400}?glDung\(\);/.test(HTML));
 
