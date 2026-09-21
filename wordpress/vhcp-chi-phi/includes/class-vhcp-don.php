@@ -35,11 +35,99 @@ class VHCP_Don {
 	 *    chỉ nêu tên trạng thái đầu tiên; hiểu theo nghĩa đen mà mở lại đơn đã xuất MISA thì hai
 	 *    bên sổ lệch nhau — số bên MISA đã gửi đi rồi, không rút về được.
 	 */
-	const TT_CHOT = array( 'Đã quyết toán', 'Đã xuất MISA' );
+	const TT_CHOT = array( 'Đã quyết toán', 'Đã thanh toán', 'Đã xuất MISA' );
 
 	/** Toàn bộ luồng, đúng thứ tự — để màn hình vẽ được thanh bước và biết mình đang ở đâu. */
 	const TT_LUONG = array( 'Nháp', 'Chờ duyệt tạm ứng', 'Chờ cấp tạm ứng', 'Đã cấp tạm ứng',
-		'Chờ quyết toán', 'Đã quyết toán', 'Đã xuất MISA' );
+		'Chờ quyết toán', 'Đã quyết toán', 'Đã thanh toán', 'Đã xuất MISA' );
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * LUỒNG RIÊNG CỦA MÁY TỰ ĐỘNG / VĂN PHÒNG — ĐỔI CHỮ VÀ BỎ BƯỚC, KHÔNG ĐỔI CHUỖI LƯU TRONG SỔ.
+	 *
+	 * Anh Thắng 21/09/2026: *"Đổi quy trình quyết toán với MTĐ và VP: Tạo Đơn · Gửi Chi · Duyệt
+	 * Chi · Duyệt Quyết Toán · Thanh Toán và Xuất Misa"*, kèm *"Không đi qua đường tạm ứng"* và
+	 * chốt lại rằng thanh toán với xuất MISA là *"hai bước tách rời"*.
+	 *
+	 * 🔴 KHÔNG ĐẶT SÁU CHUỖI TRẠNG THÁI MỚI. Tên trạng thái đang được đọc ở 377 chỗ trong mã
+	 *    (PHP + màn), phần lớn là `in_array($st, array(...))`. Thêm một bộ chuỗi song song là
+	 *    mỗi chốt ấy phải học thêm sáu tên — và chỗ nào quên thì đơn MTĐ lọt lưới im lặng: nó
+	 *    không hiện ở màn duyệt, không vào báo cáo, không ra MISA, mà cũng chẳng có câu lỗi nào.
+	 *    Đúng tiền lệ `_tenNhom()` bên màn (11/09/2026): *"LOẠI LƯU TRONG SỔ KHÔNG ĐỔI... Đổi
+	 *    chữ lưu xuống là đổi hạch toán của cả sổ cũ lẫn sổ mới, chỉ vì một cái nhãn trên màn."*
+	 *
+	 * 🔴 BA THỨ KHÁC NHAU GIỮA HAI LUỒNG, và chỉ ba:
+	 *      1. BỎ BƯỚC `Chờ cấp tạm ứng` — MTĐ/VP không đi qua đường tạm ứng, duyệt chi xong là
+	 *         sang thẳng "đã duyệt, đang chi".
+	 *      2. THÊM BƯỚC `Đã thanh toán` giữa quyết toán và xuất MISA — hai bước tách rời.
+	 *      3. ĐỔI CHỮ trên màn. Sổ vẫn ghi `Chờ duyệt tạm ứng`, người MTĐ đọc thấy "Chờ duyệt chi".
+	 *
+	 * ⚠️ `Đã thanh toán` NẰM SAU `Đã quyết toán` TRONG `TT_LUONG`, nên `da_cap_tien()` (so chỉ số
+	 *    với mốc `Đã cấp tạm ứng`) vẫn đúng mà không phải sửa một chữ — thêm bước TRƯỚC mốc mới
+	 *    là chỗ phải cẩn thận.
+	 * ⚠️ VÀ NÓ VÀO `TT_CHOT`: đứng sau `Đã quyết toán` thì đương nhiên đã chốt sổ. Quên là đơn đã
+	 *    thanh toán vẫn sửa được số tiền.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	const LUONG_KVC = array(
+		'Nháp'              => 'Nháp',
+		'Chờ duyệt tạm ứng' => 'Chờ duyệt tạm ứng',
+		'Chờ cấp tạm ứng'   => 'Chờ cấp tạm ứng',
+		'Đã cấp tạm ứng'    => 'Đã cấp tạm ứng',
+		'Chờ quyết toán'    => 'Chờ quyết toán',
+		'Đã quyết toán'     => 'Đã quyết toán',
+		'Đã xuất MISA'      => 'Đã xuất MISA',
+	);
+	const LUONG_CHI = array(
+		'Nháp'              => 'Tạo đơn',
+		'Chờ duyệt tạm ứng' => 'Chờ duyệt chi',
+		'Đã cấp tạm ứng'    => 'Đã duyệt chi',
+		'Chờ quyết toán'    => 'Chờ duyệt quyết toán',
+		'Đã quyết toán'     => 'Đã duyệt quyết toán',
+		'Đã thanh toán'     => 'Đã thanh toán',
+		'Đã xuất MISA'      => 'Đã xuất MISA',
+	);
+
+	/** Khối nào đi luồng "chi" (không qua tạm ứng). Khai bằng DANH SÁCH, không bằng phép "khác kvc". */
+	const KHOI_LUONG_CHI = array( 'mtd', 'vp' );
+
+	/** Luồng của một khối: [chuỗi lưu trong sổ => chữ hiện trên màn], đúng thứ tự. */
+	public static function luong_cua( $khoi ) {
+		$k = mb_strtolower( trim( (string) $khoi ) );
+		return in_array( $k, self::KHOI_LUONG_CHI, true ) ? self::LUONG_CHI : self::LUONG_KVC;
+	}
+
+	/** Chữ hiện trên màn cho một trạng thái, theo khối. Trạng thái lạ trả về NGUYÊN VĂN. */
+	public static function ten_tt( $st, $khoi = '' ) {
+		$st = trim( (string) $st );
+		if ( '' === $st ) { $st = 'Nháp'; }
+		$l = self::luong_cua( $khoi );
+		/* ⚠️ NGÃ VỀ NGUYÊN VĂN, không trả rỗng. Đơn MTĐ còn đứng ở `Chờ cấp tạm ứng` (lập trước
+		   bản này) không có trong luồng mới — trả rỗng là màn hiện một ô trắng và không ai biết
+		   đơn đang ở đâu. Hiện tên cũ thì ít nhất còn đọc được, và còn tra ra được. */
+		return isset( $l[ $st ] ) ? $l[ $st ] : $st;
+	}
+
+	/** Bước này có trong luồng của khối không (dùng để vẽ thanh bước). */
+	public static function tt_trong_luong( $st, $khoi = '' ) {
+		return isset( self::luong_cua( $khoi )[ trim( (string) $st ) ] );
+	}
+
+	/**
+	 * TRẠNG THÁI ĐỨNG NGAY TRƯỚC `Đã xuất MISA` trong luồng của khối — tức "đã sẵn sàng để xuất".
+	 *
+	 * 🔴 KHÔNG GÕ CỨNG 'Đã quyết toán'. Bên KVC nó đúng, nhưng bên MTĐ/VP còn một bước
+	 *    `Đã thanh toán` chen vào giữa — anh Thắng 21/09/2026 chốt thanh toán và xuất MISA là
+	 *    *"hai bước tách rời"*. Gõ cứng là đơn MTĐ vừa duyệt quyết toán đã rơi vào bản xuất,
+	 *    tức xuất MISA cho một khoản chưa trả tiền.
+	 *
+	 * ⚠️ ĐỌC TỪ CHÍNH BẢNG LUỒNG, không khai thêm một hằng nữa. Thêm/bớt bước ở `LUONG_*` là
+	 *    hàm này tự đúng theo — một chỗ khai, không có chỗ thứ hai để quên.
+	 */
+	public static function tt_truoc_misa( $khoi = '' ) {
+		$ds = array_keys( self::luong_cua( $khoi ) );
+		$i  = array_search( 'Đã xuất MISA', $ds, true );
+		if ( false === $i || $i < 1 ) { return 'Đã quyết toán'; }
+		return $ds[ $i - 1 ];
+	}
 
 	/**
 	 * ĐƠN NÀY ĐÃ ĐƯỢC CẤP TIỀN CHƯA — chốt dùng chung cho mọi phép tính thực chi.
@@ -2602,17 +2690,67 @@ class VHCP_Don {
 
 	// ---------------------------------------------------------------- kế toán / quản lý
 
+	/**
+	 * DUYỆT — một cửa, hai đích, tuỳ khối của đơn.
+	 *
+	 * 🔴 MTĐ / VP KHÔNG ĐI QUA ĐƯỜNG TẠM ỨNG. Anh Thắng 21/09/2026: *"Không đi qua đường tạm
+	 *    ứng"*. Bên KVC, duyệt xong đơn còn phải đợi kế toán ĐƯA TIỀN (`Chờ cấp tạm ứng` →
+	 *    `Đã cấp tạm ứng`). Bên MTĐ/VP không có đồng nào đưa trước, nên bước đợi ấy là một ô
+	 *    chờ vĩnh viễn: đơn nằm ở "Chờ cấp tạm ứng" mà không ai có việc gì để làm với nó.
+	 *    Nên duyệt xong là sang thẳng `Đã cấp tạm ứng` — chuỗi trong sổ giữ nguyên, còn người
+	 *    MTĐ đọc thấy "Đã duyệt chi" (xem `LUONG_CHI`).
+	 *
+	 * ⚠️ NHẢY BƯỚC, KHÔNG BỎ BƯỚC KHỎI SỔ. `da_cap_tien()` so chỉ số với mốc `Đã cấp tạm ứng`,
+	 *    nên đơn MTĐ tới đây là thực chi bắt đầu được tính — đúng, vì từ lúc duyệt chi là tiền
+	 *    đã tiêu thật. Nếu dừng ở `Chờ cấp tạm ứng` thì thực chi mãi bằng 0 và màn Quyết toán
+	 *    của MTĐ trống trơn.
+	 * ⚠️ `tam_ung_duyet` VẪN GHI cho cả hai. Bên MTĐ nó thường rỗng/0, và đó là số ĐÚNG — không
+	 *    ai ứng đồng nào. Thôi ghi là mất chỗ ghi lại con số kế toán đã chốt lúc duyệt.
+	 */
 	public static function duyet_tam_ung( $ma_don, $nguoi, $so_tam_ung = '' ) {
 		$d = self::don_row( $ma_don );
 		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy đơn' ); }
 		if ( (string) $d['trang_thai'] !== 'Chờ duyệt tạm ứng' ) { return VHCP_Util::err( 'Đơn không ở "Chờ duyệt tạm ứng"' ); }
+		$khoi   = isset( $d['khoi'] ) ? $d['khoi'] : '';
+		$qua_tu = self::tt_trong_luong( 'Chờ cấp tạm ứng', $khoi );
 		self::upd_don( $ma_don, array(
-			'trang_thai'    => 'Chờ cấp tạm ứng',
+			'trang_thai'    => $qua_tu ? 'Chờ cấp tạm ứng' : 'Đã cấp tạm ứng',
 			'nguoi_duyet'   => (string) $nguoi,
 			'ngay_duyet'    => VHCP_Util::now_sql(),
 			'tam_ung_duyet' => VHCP_Util::blank_or_num( $so_tam_ung ),
 		) );
-		self::bao_noi_bo( $ma_don, 'đã được duyệt tạm ứng — chờ kế toán chuyển tiền' );
+		self::bao_noi_bo( $ma_don, $qua_tu
+			? 'đã được duyệt tạm ứng — chờ kế toán chuyển tiền'
+			: 'đã được duyệt chi — tiêu xong thì gửi quyết toán' );
+		return VHCP_Util::ok();
+	}
+
+	/**
+	 * ĐÁNH DẤU ĐÃ THANH TOÁN — bước riêng của MTĐ / VP, đứng giữa quyết toán và xuất MISA.
+	 *
+	 * Anh Thắng 21/09/2026 chốt thanh toán và xuất MISA là *"hai bước tách rời"*: duyệt quyết
+	 * toán xong tiền chưa chắc đã trả (còn nằm ở công nợ 331), mà xuất MISA thì lại là việc của
+	 * kế toán KVC (1.245.0). Gộp hai việc vào một nút là bấm xuất MISA thành ra khai luôn "đã
+	 * trả tiền" cho một khoản chưa trả.
+	 *
+	 * ⚠️ CHỈ ĐƠN CỦA KHỐI CÓ BƯỚC NÀY. Bên KVC không có bước thanh toán riêng (tiền đưa từ lúc
+	 *    tạm ứng), nên gọi vào đây với đơn KVC là chối — chứ không im lặng ghi một trạng thái
+	 *    mà luồng của họ không có, rồi đơn ấy rơi khỏi mọi màn.
+	 */
+	public static function danh_dau_thanh_toan( $ma_don, $nguoi ) {
+		$d = self::don_row( $ma_don );
+		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy đơn' ); }
+		$khoi = isset( $d['khoi'] ) ? $d['khoi'] : '';
+		if ( ! self::tt_trong_luong( 'Đã thanh toán', $khoi ) ) {
+			return VHCP_Util::err( 'Khối của đơn này không có bước "Đã thanh toán" riêng — tiền đã đưa từ lúc cấp tạm ứng.' );
+		}
+		if ( (string) $d['trang_thai'] !== 'Đã quyết toán' ) {
+			return VHCP_Util::err( 'Chỉ đánh dấu thanh toán cho đơn đã duyệt quyết toán. Đơn này đang ở "'
+				. self::ten_tt( (string) $d['trang_thai'], $khoi ) . '".' );
+		}
+		self::upd_don( $ma_don, array( 'trang_thai' => 'Đã thanh toán' ) );
+		self::ghi_vet( $ma_don, 'Đánh dấu ĐÃ THANH TOÁN', 'người chốt: ' . (string) $nguoi );
+		self::bao_noi_bo( $ma_don, 'đã được đánh dấu THANH TOÁN — chờ kế toán Khu vui chơi xuất MISA' );
 		return VHCP_Util::ok();
 	}
 

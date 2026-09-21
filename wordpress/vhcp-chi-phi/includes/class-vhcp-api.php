@@ -81,6 +81,9 @@ class VHCP_API {
 			'dungLenhBu',
 			'traLaiDon', 'traLaiDonNhieu', 'xacNhanQuyetToanCN', 'xacNhanQuyetToanNCC',
 			'xacNhanQtCnNhieu', 'setTatToanTuan', 'setSoDuDauKy', 'dongCuaCoSo',
+			/* Đánh dấu ĐÃ THANH TOÁN (bước riêng của MTĐ/VP) là khai rằng tiền đã ra khỏi két —
+			   việc của kế toán, không phải của người lập đơn. */
+			'danhDauThanhToan',
 			/* 🔴 `setLineThucMua` ĐÃ RỜI KHỎI ĐÂY — anh Thắng 01/09/2026, ảnh đơn FUNZONE VŨNG TÀU:
 			   *"nhân viên được phép nhập và sửa lại đơn chính xác trước khi quyết toán, nhưng
 			   nhập vào ô thực mua lại báo lỗi nhân viên không được chỉnh sửa"*.
@@ -423,6 +426,8 @@ class VHCP_API {
 			'exportMisaMarketing'   => array( 'VHCP_Misa', 'export_marketing' ),
 			'exportMisaBP'          => array( 'VHCP_Misa', 'export_bp' ),
 			'markExported'          => array( 'VHCP_Misa', 'mark_exported' ),
+			/* Bước thanh toán riêng của MTĐ/VP — xem `VHCP_Don::danh_dau_thanh_toan()`. */
+			'danhDauThanhToan'      => array( 'VHCP_Don', 'danh_dau_thanh_toan' ),
 
 			// tệp
 			'uploadImage'           => array( 'VHCP_Upload', 'upload_image' ),

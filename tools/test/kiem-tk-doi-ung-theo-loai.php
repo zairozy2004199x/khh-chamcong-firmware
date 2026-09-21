@@ -131,7 +131,10 @@ if ( ! function_exists( 'vhcp_test_don_mau' ) ) {
 		$ma = 'DT' . strtoupper( substr( md5( $khoi . $loai . $tk_co_dong ), 0, 6 ) );
 		$wpdb->insert( VHCP_DB::t( 'don' ), array(
 			'ma_don' => $ma, 'ky' => '01/09/2026', 'nguoi_lap' => 'NV Thử', 'don_vi' => '', 'khoi' => $khoi,
-			'ngay_tao' => '2026-09-01 08:00:00', 'trang_thai' => 'Đã quyết toán', 'nguoi_qt' => 'KT Thử',
+			/* ⚠️ Trạng thái "sẵn sàng xuất" KHÁC NHAU theo khối từ 21/09/2026: KVC là `Đã quyết
+			   toán`, MTĐ/VP còn một bước `Đã thanh toán` nữa. Gõ cứng một tên là bài này xanh
+			   cho khối này và mù cho khối kia — hỏi thẳng luồng. */
+			'ngay_tao' => '2026-09-01 08:00:00', 'trang_thai' => VHCP_Don::tt_truoc_misa( $khoi ), 'nguoi_qt' => 'KT Thử',
 			'ngay_qt' => '2026-09-02 08:00:00', 'ghi_chu' => '',
 		) );
 		$wpdb->insert( VHCP_DB::t( 'chiphi' ), array(

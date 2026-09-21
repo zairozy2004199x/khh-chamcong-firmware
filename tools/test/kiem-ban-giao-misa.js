@@ -153,15 +153,27 @@ t('   và `loadQT` gọi nó', /renderQtBanGiao\(\)/.test(sachHam('loadQT')));
 t('⚠️ dải ấy hỏi đúng `_xuatMisaDuoc()`, không gõ cứng khối',
   /_xuatMisaDuoc\(\)/.test(sachHam('renderQtBanGiao')) && !/['"]mtd['"]/.test(sachHam('renderQtBanGiao')),
   sachHam('renderQtBanGiao'));
-const veQt = (vai) => {
+/* ⚠️ Dải này nay kể cả bước `Đã thanh toán` (1.248.0), nên nó gọi `_ttTrongLuong` — mượn HÀM
+   THẬT chứ không bịa, vì bịa là bệ đỡ xanh cả khi luật luồng hỏng. */
+const bocDongV = (t) => { const i = HTML.indexOf('  var ' + t + '='); return i < 0 ? '' : HTML.slice(i, HTML.indexOf('\n', i)); };
+const bocKhoiV = (t) => { const i = HTML.indexOf('  var ' + t + '='); return i < 0 ? '' : HTML.slice(i, HTML.indexOf('};', i) + 2); };
+const NEN_LUONG = [bocDongV('KHOI_LUONG_CHI'), bocKhoiV('LUONG_KVC'), bocKhoiV('LUONG_CHI'),
+  bocHam('_luongKhoi'), bocHam('_ttTrongLuong')].join('\n');
+t('⚠️ bốc được nền luồng', NEN_LUONG.replace(/\s/g, '').length > 200, NEN_LUONG.length);
+const veQt = (vai, khoi) => {
   const NK = {};
-  const moi = { CURUSER: { role: vai }, el: id => (NK[id] = NK[id] || { style: {}, innerHTML: '' }) };
-  new Function('moi', `with(moi){ ${BASE}\n${bocHam('renderQtBanGiao')}\n return renderQtBanGiao; }`)(moi)();
+  const moi = { CURUSER: { role: vai }, KHOI_DANG: khoi || 'mtd', el: id => (NK[id] = NK[id] || { style: {}, innerHTML: '' }) };
+  new Function('moi', `with(moi){ ${BASE}\n${NEN_LUONG}\n${bocHam('renderQtBanGiao')}\n return renderQtBanGiao; }`)(moi)();
   return NK.qtBanGiao;
 };
 teq('🔴 kế toán MTĐ thấy dải giải thích', 'block', veQt('Kế Toán Máy Tự Động').style.display);
 teq('   kế toán KVC không thấy', 'none', veQt('Kế Toán Khu Vui Chơi').style.display);
 teq('   kế toán VP cũng không thấy — họ vẫn tự xuất', 'none', veQt('Kế Toán Văn Phòng').style.display);
+/* 🔴 CÂU PHẢI KỂ ĐỦ BƯỚC. Từ 1.248.0 giữa quyết toán và MISA còn một bước `Đã thanh toán` —
+   bỏ nó khỏi câu là kế toán MTĐ duyệt xong ngồi đợi, không biết còn phải bấm một nút nữa. */
+t('🔴 câu nhắc kể cả bước Đã thanh toán',
+  /Đã thanh toán/.test(veQt('Kế Toán Máy Tự Động', 'mtd').innerHTML),
+  veQt('Kế Toán Máy Tự Động', 'mtd').innerHTML);
 
 /* ═════════════════════════════════════════════════════════════════════════════════════════ */
 if (TRUOT.length) {

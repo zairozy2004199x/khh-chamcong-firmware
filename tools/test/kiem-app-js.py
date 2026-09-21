@@ -338,12 +338,20 @@ if m_luong:
 la('nói thẳng "CHƯA GỬI DUYỆT" khi còn Nháp', 'CHƯA GỬI DUYỆT' in src)
 la('và "ĐÃ GỬI DUYỆT" khi đã gửi', 'ĐÃ GỬI DUYỆT' in src)
 la('và "ĐÃ CHỐT SỔ" khi hết sửa được', 'ĐÃ CHỐT SỔ' in src)
-la('dải trạng thái gắn vào đầu đơn', "el('donBadge').innerHTML=" in src and '_thanhBuoc(st)' in src)
+# `_thanhBuoc` nay nhận thêm KHỐI CỦA ĐƠN (21/09/2026): kế toán KVC mở đơn MTĐ bàn giao sang
+# mà thấy thanh bước có "Chờ cấp tạm ứng" thì họ đi tìm một bước không tồn tại.
+la('dải trạng thái gắn vào đầu đơn', "el('donBadge').innerHTML=" in src and '_thanhBuoc(st, ' in src)
 
 # 🔴 MỘT RANH GIỚI. Khoá theo `stChot` chứ không theo danh sách trạng thái gõ tay.
 la('khoá sửa dòng theo ĐÃ CHỐT SỔ', 'CUR.lockChi=CUR.stChot;' in src)
-la('và stChot đúng hai trạng thái',
-   "CUR.stChot=(st==='Đã quyết toán'||st==='Đã xuất MISA');" in src)
+# 🔴 KHÔNG GHIM CHUỖI NỮA. Ranh giới "đã chốt" từng nằm rải rác sáu chỗ gõ tay; thêm bước
+# `Đã thanh toán` cho MTĐ/VP là phải nhớ sửa đủ sáu. Nay một hàm `_daChot()`, bản song sinh
+# của `VHCP_Don::TT_CHOT` — canh nó đi qua hàm ấy thì thêm bước nữa cũng không phải sửa bài.
+la('và stChot hỏi đúng một hàm `_daChot`', 'CUR.stChot=_daChot(st);' in src)
+la('🔴 `_daChot` khai đúng ba trạng thái đã chốt',
+   re.search(r"var TT_CHOT=\[(.*?)\];", src) is not None
+   and set(re.findall(r"'([^']+)'", re.search(r"var TT_CHOT=\[(.*?)\];", src).group(1)))
+       == {'Đã quyết toán', 'Đã thanh toán', 'Đã xuất MISA'})
 la('form nhập dòng mở ở mọi trạng thái chưa chốt',
    "el('lineFormCard').style.display= CUR.stChot?'none':''" in src)
 la('bỏ luật cũ "chỉ Nháp hoặc Đã cấp mới sửa dòng"',

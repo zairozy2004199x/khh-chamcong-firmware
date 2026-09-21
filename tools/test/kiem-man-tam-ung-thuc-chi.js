@@ -34,13 +34,30 @@ function teq(n, mong, thuc) { t(n + ' (mong ' + JSON.stringify(mong) + ')', JSON
 const mLuong = PHP.match(/const TT_LUONG = array\(([\s\S]*?)\);/);
 t('đọc được TT_LUONG từ class-vhcp-don.php', !!mLuong);
 const LUONG = (mLuong ? mLuong[1].match(/'([^']+)'/g) : []).map(function (x) { return x.slice(1, -1); });
-teq('bảy chặng', 7, LUONG.length);
+/* Tám từ 21/09/2026: thêm `Đã thanh toán` cho MTĐ/VP. */
+teq('tám chặng', 8, LUONG.length);
 const MOC = LUONG.indexOf('Đã cấp tạm ứng');
 t('🔴 "Đã cấp tạm ứng" có trong dãy', MOC > 0, LUONG);
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
  * 1. KHỐI QUYẾT TOÁN — bốc ĐIỀU KIỆN BÀY ra chạy
  * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+
+/* ⚠️ NỀN TRẠNG THÁI — hai hàm mới của 21/09/2026 mà thân hàm bốc ra gọi tới: `_daChot` (ranh
+   giới "đã chốt sổ", gom về một chỗ khi thêm bước `Đã thanh toán` cho MTĐ/VP) và `_tenTT`
+   (chữ hiện trên màn, đổi theo khối của đơn), kèm `_nutThanhToan`.
+   🔴 MƯỢN HÀM THẬT, KHÔNG BỊA — bịa là bệ đỡ xanh cả khi luật thật hỏng. */
+const NEN_TT = (function () {
+  const dong = (t) => { const i = HTML.indexOf('  var ' + t + '='); return i < 0 ? '' : HTML.slice(i, HTML.indexOf('\n', i)); };
+  const khoi = (t) => { const i = HTML.indexOf('  var ' + t + '='); return i < 0 ? '' : HTML.slice(i, HTML.indexOf('};', i) + 2); };
+  const ham  = (t) => { const i = HTML.indexOf('  function ' + t + '('); return i < 0 ? '' : HTML.slice(i, HTML.indexOf('\n  }', i) + 4); };
+  let n = [dong('TT_CHOT'), dong('KHOI_LUONG_CHI'), khoi('LUONG_KVC'), khoi('LUONG_CHI'),
+    ham('_daChot'), ham('_luongKhoi'), ham('_tenTT'), ham('_ttTrongLuong'), ham('_nutThanhToan'),
+    "var KHOI_DANG='kvc';"].join('\n');
+  if (n.replace(/\s/g, '').length < 200) { throw new Error('không bốc được nền trạng thái — bệ đỡ sẽ xanh giả'); }
+  return n;
+})();
+
 const iSh = HTML.indexOf('    var show=(st===');
 t('tìm được dòng dựng điều kiện bày khối Quyết toán', iSh > 0);
 const dongShow = iSh > 0 ? HTML.slice(iSh, HTML.indexOf('\n', iSh)) : '';
@@ -48,7 +65,7 @@ const dongShow = iSh > 0 ? HTML.slice(iSh, HTML.indexOf('\n', iSh)) : '';
 t('đối chứng: dòng bốc ra khép kín bằng dấu chấm phẩy', /;\s*$/.test(dongShow), dongShow);
 t('và nó là một phép gán cho `show`', /^\s*var show=\(/.test(dongShow), dongShow.slice(0, 40));
 
-const bay = new Function('st', dongShow + '\nreturn !!show;');
+const bay = new Function('st', NEN_TT + '\n' + dongShow + '\nreturn !!show;');
 
 LUONG.forEach(function (st, i) {
   teq('khối Quyết toán bày khi đơn "' + st + '"', i >= MOC, bay(st));
