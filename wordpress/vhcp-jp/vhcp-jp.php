@@ -3,7 +3,7 @@
  * Plugin Name:       JP Capsule (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Báo cáo JP Capsule chạy THẲNG trên host: nhân viên nhập báo cáo từ chỉ số máy, kế toán duyệt hai phần, đối soát ngân hàng, kho hai tầng. Không Apps Script, không Google Sheets.
- * Version:           1.5.0
+ * Version:           1.6.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -21,7 +21,7 @@
  * KHÔNG chạy gì, và không nằm trong bản cài.
  *
  * ---------------------------------------------------------------------------
- * ĐANG DỰNG DỞ — ĐÃ ĐỌC ĐƯỢC BÁO CÁO, CHƯA GHI ĐƯỢC.
+ * ĐANG DỰNG DỞ — ĐÃ TẠO VÀ MỞ ĐƯỢC BÁO CÁO, CHƯA LƯU / NỘP ĐƯỢC.
  *
  * Xong:  lược đồ 23 bảng (`class-vhjp-db.php`) · lớp đổi giá trị (`class-vhjp-doc.php`, đối
  *        chiếu thẳng với mã JavaScript gốc chạy bằng node) · lớp truy cập dữ liệu DUY NHẤT
@@ -29,15 +29,15 @@
  *        phiên làm việc (`class-vhjp-auth.php`) · nhật ký thao tác (`class-vhjp-nhat-ky.php`)
  *        · danh mục (`class-vhjp-cau-hinh.php`) · cổng dịch `google.script.run`
  *        (`class-vhjp-cong.php`) · tính tiền sáu loại dòng và bản tổng (`class-vhjp-tinh.php`)
- *        · ĐỌC báo cáo (`class-vhjp-bao-cao.php`).
- * Chưa:  86 / 100 hàm máy chủ — `VHJP_Cong::chua_lam()` khai đủ tên, và
- *        `tools/test/kiem-jp-cong.php` đếm lại mỗi lượt chạy. Nặng nhất còn lại: GHI báo cáo
- *        (tạo · lưu nháp · nộp) · duyệt · ảnh · đối soát ngân hàng · kho hai tầng.
+ *        · ĐỌC báo cáo, TẠO báo cáo và GIEO DÒNG từ kỳ trước (`class-vhjp-bao-cao.php`).
+ * Chưa:  85 / 100 hàm máy chủ — `VHJP_Cong::chua_lam()` khai đủ tên, và
+ *        `tools/test/kiem-jp-cong.php` đếm lại mỗi lượt chạy. Nặng nhất còn lại: LƯU và NỘP
+ *        báo cáo · duyệt · ảnh · đối soát ngân hàng · kho hai tầng.
  *
  * ⚠️ ĐỌC TRƯỚC, GHI SAU — có lý do. Đường đọc dựng lại được bằng bài kiểm đối chiếu với mã gốc
- *    chạy thật, nên nó vừa là tính năng vừa là CÁI THƯỚC để đo đường ghi sau này: ghi xong mở
- *    lại mà số không khớp thì biết ngay. Làm ngược lại thì ghi vào rồi không có gì đọc ra để
- *    soát.
+ *    chạy thật, nên nó vừa là tính năng vừa là CÁI THƯỚC để đo đường ghi: `jpOpenReport` gieo
+ *    dòng xuống sổ rồi trả về bằng chính `jpGetReport`, nên mọi ô gieo sai đều lộ ngay ở phép
+ *    đối chiếu. Làm ngược lại thì ghi vào rồi không có gì đọc ra để soát.
  *
  * ⚠️ GIAO DIỆN KHÔNG PHẢI VIẾT LẠI. 11 tệp HTML/JS của JP (≈11.000 dòng) gọi máy chủ qua đúng
  *    một chỗ (`srv()` trong `Js01_Core.html`) dựng trên `google.script.run`. `VHJP_Cong` dựng
@@ -72,7 +72,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHJP_VERSION', '1.5.0' );
+define( 'VHJP_VERSION', '1.6.0' );
 define( 'VHJP_FILE', __FILE__ );
 define( 'VHJP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHJP_URL', plugin_dir_url( __FILE__ ) );

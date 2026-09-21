@@ -85,6 +85,35 @@ if (so) {
   };
 }
 
+/*
+ * GHI GIẢ — `jpAppend_` · `jpAppendMany_` · `jpNextId_`, đúng ba hàm CHẠM VÀO Sheets và
+ * PropertiesService. Mọi hàm gọi chúng (`jpGieoDongTuKyTruoc_`, `jpBulkAppendRows_`,
+ * `jpAudit_`, `jpOpenReport`) vẫn là mã gốc.
+ *
+ * Ghi vào chính bộ sổ giả, nên lượt ĐỌC ngay sau đó thấy được — `jpOpenReport` tạo báo cáo
+ * rồi gọi `jpGetReport` để trả về, không có chuyện này thì nó trả về một báo cáo rỗng.
+ *
+ * ⚠️ `jpNextId_` lấy mã từ `so.__maMoi` nếu bài kiểm có đưa. Phải đưa, vì mã báo cáo đẻ ra mã
+ *    khu và mã dòng (`<mã bc>-R1`): hai bên sinh mã khác nhau thì mọi khoá đều lệch và phép
+ *    đối chiếu thành vô nghĩa. Bài kiểm để bản PHP sinh mã trước rồi bảo mã gốc dùng lại đúng
+ *    mã ấy — thứ ĐƯỢC ĐỐI CHIẾU là nội dung dòng, không phải bộ đếm.
+ */
+if (so) {
+  hop.jpAppend_ = function (tabDef, obj) {
+    (so[tabDef.name] = so[tabDef.name] || []).push(obj);
+    return obj;
+  };
+  hop.jpAppendMany_ = function (tabDef, ds) {
+    (ds || []).forEach(function (o) { hop.jpAppend_(tabDef, o); });
+    return (ds || []).length;
+  };
+  var __seq = 0;
+  hop.jpNextId_ = function (prefix) {
+    if (so.__maMoi) { return so.__maMoi; }
+    return prefix + '00000000-' + ('0000' + (++__seq)).slice(-4);
+  };
+}
+
 /* NGƯỜI DÙNG GIẢ — `jpAuth_` là cửa duy nhất, mọi hàm quyền phía sau vẫn chạy thật. */
 if (ai) { hop.jpAuth_ = function () { return ai; }; }
 
@@ -118,8 +147,18 @@ const ham = {
   sua_duoc: 'jpCanEditReport_', ton_ky_truoc: 'jpPrevClosing_',
   ky_chong_nhau: 'jpKyChongNhau_', trung_nguoi_khac: 'jpTrungNguoiKhac_',
   cua_toi: 'jpMyReports', lay_bao_cao: 'jpGetReport',
+  /* Tạo / mở báo cáo — cần CẢ sổ lẫn người dùng, và ghi vào chính bộ sổ giả. */
+  mo_bao_cao: 'jpOpenReport', ky_lien_truoc: 'jpKyLienTruoc_',
+  vi_sao_khong_gieo: 'jpViSaoKhongGieo_', gieo_dong: 'jpGieoDongTuKyTruoc_',
+  bo_dong_tra_kho: 'jpBoDongTraKho_', dong_theo_ma: 'jpDongTheoMa_',
+  ton_cuoi_gieo: 'jpTonCuoiGieo_',
 }[ten];
 if (!ham) { console.error('không biết hàm ' + ten); process.exit(2); }
 if (typeof hop[ham] !== 'function') { console.error('mã gốc không có ' + ham); process.exit(3); }
 
-process.stdout.write(JSON.stringify(vao.map(a => hop[ham].apply(null, a))));
+const ketqua = vao.map(a => hop[ham].apply(null, a));
+/*
+ * Với hàm CÓ GHI, bài kiểm cần soi cả thứ vừa được ghi xuống sổ, không chỉ giá trị trả về —
+ * `jpGieoDongTuKyTruoc_` trả về một bản tóm tắt, còn dòng thật thì nằm trong `JP_Rows`.
+ */
+process.stdout.write(JSON.stringify(process.env.JP_TRA_SO ? { ra: ketqua, so: so } : ketqua));

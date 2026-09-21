@@ -574,6 +574,411 @@ class VHJP_BaoCao {
 		);
 	}
 
+	/* ═══════════════════════ MỞ / TẠO BÁO CÁO ═══════════════════════ */
+
+	/**
+	 * MỞ BÁO CÁO CỦA MỘT KỲ — có rồi thì mở ra, chưa có thì TẠO.
+	 *
+	 * =========================================================================================
+	 * 🔴 BẤT BIẾN: 1 nhân viên · 1 cơ sở · 1 kỳ · 1 loại máy ⇒ ĐÚNG MỘT BÁO CÁO.
+	 * =========================================================================================
+	 * Báo cáo thuộc về NGƯỜI TẠO: người khác cùng cơ sở không sửa, không nộp được. Riêng số
+	 * ĐẦU KỲ vẫn lấy chung theo cơ sở, vì chỉ số đồng hồ là số VẬT LÝ của máy, không phụ thuộc
+	 * ai đi thu.
+	 *
+	 * ⚠️ `bcMau` và `machineType` CHỐT LÚC TẠO, không đọc lại từ cơ sở mỗi lần mở. Kế toán đổi
+	 *    mẫu của cơ sở sau đó thì báo cáo này giữ đúng bố cục nhân viên đã nhập — bảng CHUNG và
+	 *    bảng TÁCH khác nhau cả chục cột, đọc lại là số đã gõ rơi sang cột khác.
+	 *
+	 * ⚠️ Mẫu TÁCH chỉ có ở báo cáo máy TIỀN: máy xu vốn đã tách hai bảng rồi.
+	 */
+	public static function mo( $u, $ma_coso, $tu_ngay, $den_ngay, $loai_may = '' ) {
+		VHJP_Auth::can_coso( $u, $ma_coso );
+
+		$f = VHJP_Doc::ngay( $tu_ngay );
+		$t = VHJP_Doc::ngay( $den_ngay );
+		if ( '' === $t ) { $t = $f; }
+		if ( '' === $f ) { throw new Exception( 'Chọn ngày báo cáo' ); }
+		if ( $t < $f ) { throw new Exception( 'Ngày kết thúc phải sau ngày bắt đầu' ); }
+
+		$loc = VHJP_Nguon::tim_mot( 'JP_Locations', 'id', $ma_coso );
+		if ( ! $loc ) { throw new Exception( 'Không tìm thấy cơ sở' ); }
+
+		/* Loại báo cáo TÁCH BẠCH: máy tiền và máy xu là hai báo cáo riêng. Nhân viên được gán
+		   loại nào thì mặc định mở đúng loại đó — KHÔNG lấy loại của cơ sở nữa, vì một cơ sở
+		   có thể có cả hai loại máy. */
+		$duoc  = VHJP_Auth::may_type_cua( $u );
+		$m_type = VHJP_Doc::str( $loai_may );
+		if ( '' === $m_type ) { $m_type = $duoc; }
+		if ( '' === $m_type ) { $m_type = VHJP_Doc::str( $loc['machineType'] ); }
+		if ( '' === $m_type ) { $m_type = VHJP_CauHinh::LOAI_TIEN; }
+		if ( VHJP_CauHinh::LOAI_XU !== $m_type ) { $m_type = VHJP_CauHinh::LOAI_TIEN; }
+		VHJP_Auth::can_may_type( $u, $m_type );
+
+		/* Lọc cả theo người dùng: báo cáo của người khác không phải việc của mình. */
+		$ai   = isset( $u['id'] ) ? $u['id'] : '';
+		$cua_toi = array();
+		foreach ( VHJP_Nguon::tim( 'JP_Reports', 'locationId', $ma_coso ) as $r ) {
+			if ( (string) $r['userId'] !== (string) $ai ) { continue; }
+			if ( VHJP_Doc::ngay( $r['fromDate'] ) !== $f ) { continue; }
+			if ( VHJP_Doc::ngay( $r['toDate'] ) !== $t ) { continue; }
+			$rt = VHJP_Doc::str( $r['machineType'] );
+			if ( ( '' !== $rt ? $rt : VHJP_CauHinh::LOAI_TIEN ) !== $m_type ) { continue; }
+			$cua_toi[] = $r;
+		}
+
+		foreach ( $cua_toi as $r ) {
+			if ( self::TT_HOAN_TAT === VHJP_Doc::str( $r['status'] ) ) {
+				return array( 'ok' => false, 'locked' => true,
+					'msg' => 'Báo cáo ' . ( VHJP_CauHinh::LOAI_XU === $m_type ? 'MÁY XU' : 'MÁY TIỀN' )
+						. ' kỳ ' . VHJP_Doc::dmy( $f ) . ' – ' . VHJP_Doc::dmy( $t )
+						. ' đã duyệt xong, không sửa được' );
+			}
+		}
+		foreach ( $cua_toi as $r ) {
+			$st = VHJP_Doc::str( $r['status'] );
+			if ( self::TT_NHAP === $st || self::TT_CAN_SUA === $st || self::TT_CHO_DUYET === $st ) {
+				return self::lay( $u, $r['id'] );
+			}
+		}
+
+		$mau = ( VHJP_CauHinh::LOAI_XU === $m_type )
+			? VHJP_CauHinh::MAU_CHUNG
+			: VHJP_CauHinh::bc_mau( $loc['bcMau'] );
+
+		$head = array(
+			'createdAt'      => gmdate( 'Y-m-d H:i:s', time() + 7 * 3600 ),   // giờ Việt Nam
+			'locationId'     => (string) $ma_coso,
+			'locationName'   => VHJP_Doc::str( $loc['name'] ),
+			'maKH'           => VHJP_Doc::str( $loc['maKH'] ),
+			'machineType'    => $m_type,
+			'bcMau'          => $mau,
+			'fromDate'       => $f,
+			'toDate'         => $t,
+			'userId'         => (string) $ai,
+			'userName'       => VHJP_Doc::str( isset( $u['hoTen'] ) ? $u['hoTen'] : '' ),
+			'status'         => self::TT_NHAP,
+			'revMeter'       => 0, 'revBank' => 0, 'revCashMeter' => 0,
+			'revHang'        => 0, 'lechTienHang' => 0,
+			'adjMachine'     => 0, 'adjMachineNote' => '',
+			'refundCustomer' => 0, 'refundNote' => '', 'refundRows' => 0,
+			'cashActual'     => 0, 'totalSubmit' => 0,
+			'paid'           => 0, 'paidDate' => null, 'payStatus' => 'CHUA_NOP',
+			'warnCount'      => 0, 'remark' => '',
+		);
+		$head = VHJP_Ma::them( 'JP_Reports', 'RP', $head );
+		/* 🔴 GHI HỎNG THÌ NÓI RA. Trả về như thật là nhân viên gõ cả ca vào một báo cáo không
+		   tồn tại, và lượt lưu sau mới báo lỗi — lúc ấy số đã gõ mất sạch. Bộ Ghế đã mất một
+		   giao dịch vì đúng nước đi ngược lại (`VHG_Thu::ghi`, sửa 16/09/2026). */
+		if ( false === $head ) {
+			throw new Exception( 'Không ghi được báo cáo mới — thử lại, hoặc báo người quản trị' );
+		}
+
+		/* TỰ NHẢY Y NHƯ BÁO CÁO TRƯỚC. Gieo NGAY vào sổ chứ không để giao diện tự dựng: nhân
+		   viên mở là thấy đủ dòng, và bản nháp CÓ THẬT nên đổi máy / mất mạng giữa buổi vẫn còn. */
+		$gieo = self::gieo_dong_tu_ky_truoc( $head );
+
+		VHJP_NhatKy::ghi( $u, 'REPORT_CREATE', $head['id'], VHJP_Doc::str( $loc['name'] ), array(
+			'from' => $f, 'to' => $t, 'type' => $m_type, 'mau' => $mau,
+			'gieoDong' => $gieo ? $gieo['soDong'] : 0,
+			'tuBaoCao' => $gieo ? $gieo['tuBaoCao'] : '',
+			'trungNguoiKhac' => count( self::trung_nguoi_khac( $head, $ai ) ),
+		) );
+
+		/* ⚠️ Trả kèm `gieo` để giao diện NÓI RA đã gieo bao nhiêu dòng và gieo từ báo cáo nào —
+		   nhất là khi nguồn CHƯA DUYỆT thì tồn đầu còn có thể đổi. Gieo im lặng là nhân viên
+		   thấy sẵn số rồi tin luôn, không soát lại. */
+		$ra = self::lay( $u, $head['id'] );
+		if ( $gieo ) { $ra['gieo'] = $gieo; }
+		return $ra;
+	}
+
+	/**
+	 * KỲ LIỀN TRƯỚC của một cơ sở — NGUỒN DUY NHẤT của câu hỏi *"số đầu kỳ lấy từ đâu"*.
+	 *
+	 * ⚠️⚠️ Lấy kỳ GẦN NHẤT, KHÔNG ưu tiên `HOAN_TAT` toàn cục. Bản đầu của mã gốc viết
+	 *      *"HOAN_TAT trước, không có thì mới lấy bản đã nộp"* — SAI: một bản duyệt từ 05/08
+	 *      thắng bản vừa nộp 03/09, nên tồn đầu kỳ 04/09 NHẢY QUA cả kỳ 01–03/09. `HOAN_TAT`
+	 *      chỉ dùng để PHÁ THẾ BẰNG khi hai bản cùng ngày kết thúc.
+	 *
+	 * ⚠️ `toDate < fromDate`, KHÔNG phải `<=`. Cho phép `<=` là hai kỳ cùng chứa một ngày ⇒
+	 *    tồn cuối ngày đó thành tồn đầu của CHÍNH ngày đó, và doanh thu ngày đó nằm ở cả hai
+	 *    báo cáo — sai tiền mà sổ vẫn cân.
+	 *
+	 * ⚠️ KHÔNG lấy `NHAP` — nháp có thể đang gõ nửa vời. "Đã nộp một lần" mới là mốc chắc
+	 *    chắn rằng danh sách dòng đã đủ.
+	 *
+	 * Trả về cả `cungCoSo` lẫn `ung` vì `vi_sao_khong_gieo()` cần phân biệt "cơ sở chưa có kỳ
+	 * nào" với "có kỳ nhưng chồng ngày" — hai tình huống cần hai câu trả lời khác hẳn.
+	 */
+	public static function ky_lien_truoc( $ma_coso, $f, $tru_ma, $loai_may, $mau ) {
+		$mt = VHJP_Doc::str( $loai_may );
+		$m_type = '' !== $mt ? $mt : VHJP_CauHinh::LOAI_TIEN;
+
+		$cung_coso = array();
+		foreach ( VHJP_Nguon::tim( 'JP_Reports', 'locationId', $ma_coso ) as $r ) {
+			if ( (string) $r['id'] === (string) $tru_ma ) { continue; }
+			$rt = VHJP_Doc::str( $r['machineType'] );
+			if ( ( '' !== $rt ? $rt : VHJP_CauHinh::LOAI_TIEN ) !== $m_type ) { continue; }
+			if ( VHJP_CauHinh::bc_mau( $r['bcMau'] ) !== $mau ) { continue; }
+			$cung_coso[] = $r;
+		}
+
+		$ung = array();
+		foreach ( $cung_coso as $r ) {
+			if ( VHJP_Doc::ngay( $r['toDate'] ) < $f ) { $ung[] = $r; }
+		}
+		usort( $ung, function ( $a, $b ) {
+			return VHJP_Doc::ngay( $a['toDate'] ) < VHJP_Doc::ngay( $b['toDate'] ) ? 1 : -1;
+		} );
+
+		/* Bậc thang trạng thái. `NHAP` KHÔNG có mặt — đó là cả ý nghĩa của bảng này. */
+		$ut = array( self::TT_HOAN_TAT => 3, self::TT_CHO_DUYET => 2, self::TT_CAN_SUA => 1 );
+		$co_nop = array();
+		foreach ( $ung as $r ) {
+			if ( isset( $ut[ VHJP_Doc::str( $r['status'] ) ] ) ) { $co_nop[] = $r; }
+		}
+		usort( $co_nop, function ( $a, $b ) use ( $ut ) {
+			$da = VHJP_Doc::ngay( $a['toDate'] );
+			$db = VHJP_Doc::ngay( $b['toDate'] );
+			if ( $da !== $db ) { return $da < $db ? 1 : -1; }      // kỳ gần nhất trước
+			return $ut[ VHJP_Doc::str( $b['status'] ) ] - $ut[ VHJP_Doc::str( $a['status'] ) ];
+		} );
+
+		return array(
+			'truoc'     => $co_nop ? $co_nop[0] : null,
+			'cungCoSo'  => $cung_coso,
+			'ung'       => $ung,
+		);
+	}
+
+	/**
+	 * VÌ SAO KHÔNG GIEO ĐƯỢC DÒNG NÀO — trả về câu NÓI CHO NHÂN VIÊN.
+	 *
+	 * 🔴 Bảng trắng mà không nói gì trông y hệt lúc app hỏng. Máy chủ làm đúng luật, còn người
+	 *    dùng thì không có đường nào biết vì sao và phải làm gì tiếp — đó là lỗi của APP.
+	 *
+	 * ⚠️ ĐỪNG "chữa" tình huống ② bằng cách nới thành `toDate <= fromDate`. Chỗ phải sửa là KỲ
+	 *    BÁO CÁO, và nhân viên sửa được, nên câu trả lời phải chỉ thẳng vào đó.
+	 *
+	 * Ba tình huống, BA CÂU KHÁC NHAU — gộp lại một câu chung là người đọc không biết làm gì.
+	 */
+	public static function vi_sao_khong_gieo( $head, $f, $cung_coso, $ung ) {
+		$ra = array( 'soDong' => 0, 'tuBaoCao' => '', 'denNgay' => '',
+			'boQuaTraKho' => array(), 'daDuyet' => false );
+
+		/* ① Cơ sở chưa từng có báo cáo nào cùng loại máy + cùng mẫu. */
+		if ( ! $cung_coso ) {
+			$ra['ma'] = 'KY_DAU';
+			$ra['lyDo'] = 'Đây là kỳ ĐẦU TIÊN của cơ sở này, chưa có kỳ trước để ghi lại. '
+				. 'Lần này nhập tay; từ kỳ sau web sẽ tự điền mã hàng và tồn đầu.';
+			return $ra;
+		}
+
+		/* ② Có báo cáo cũ, nhưng KHÔNG cái nào kết thúc trước ngày kỳ này bắt đầu.
+		   Đây là tình huống DUY NHẤT người dùng tự sửa được. */
+		if ( ! $ung ) {
+			$ds = $cung_coso;
+			usort( $ds, function ( $a, $b ) {
+				return VHJP_Doc::ngay( $a['toDate'] ) < VHJP_Doc::ngay( $b['toDate'] ) ? 1 : -1;
+			} );
+			$gan = $ds[0];
+			$den = VHJP_Doc::ngay( $gan['toDate'] );
+			$ra['ma'] = 'CHONG_KY';
+			$ra['tuBaoCao'] = (string) $gan['id'];
+			$ra['denNgay'] = $den;
+			$ra['lyDo'] = 'Kỳ này bắt đầu ' . $f . ', nhưng báo cáo gần nhất của cơ sở ('
+				. $gan['id'] . ') kéo tới ' . $den . ' — HAI KỲ CHỒNG NHAU nên không ghi '
+				. 'lại được: tồn cuối của một ngày không thể là tồn đầu của chính ngày đó, '
+				. 'và doanh thu ngày đó sẽ nằm ở cả hai báo cáo. Sửa kỳ này cho bắt đầu SAU '
+				. $den . ' (nút "Đổi kỳ" ở đầu báo cáo) rồi mở lại.';
+			return $ra;
+		}
+
+		/* ③ Có kỳ trước hợp lệ về ngày, nhưng chưa cái nào từng được NỘP. */
+		$cu = $ung[0];
+		$ra['ma'] = 'CHUA_NOP';
+		$ra['tuBaoCao'] = (string) $cu['id'];
+		$ra['denNgay'] = VHJP_Doc::ngay( $cu['toDate'] );
+		$ra['lyDo'] = 'Kỳ trước (' . $cu['id'] . ', đến ' . VHJP_Doc::ngay( $cu['toDate'] )
+			. ') còn là NHÁP, chưa nộp lần nào — nháp có thể đang gõ dở nên web không lấy '
+			. 'làm chuẩn. Nộp kỳ đó rồi mở lại kỳ này là có ngay.';
+		return $ra;
+	}
+
+	/**
+	 * GIEO DÒNG cho báo cáo vừa tạo — *"báo cáo sau web sẽ tự nhảy y như báo cáo trước nhưng
+	 * tồn cuối là tồn đầu bc sau"*.
+	 *
+	 * =========================================================================================
+	 * 🔴 KHÔNG MANG THEO SỐ PHÁT SINH TRONG KỲ.
+	 * =========================================================================================
+	 * Chỉ số sau đồng hồ, nhập thêm, trả kho, hàng lỗi, tồn cuối, hoàn khách — để TRỐNG hết.
+	 * Sao chép sang là nhân viên bấm Nộp mà không nhập gì cũng ra một báo cáo TRÔNG ĐẦY ĐỦ với
+	 * số của kỳ trước ⇒ doanh thu kỳ này bằng kỳ trước mà không ai biết. Chỉ số ĐẦU kỳ thì có,
+	 * vì nó là số vật lý đã chốt.
+	 *
+	 * ⚠️ Khớp CÙNG MẪU với báo cáo mới, đừng gán cứng TÁCH: gieo dòng mẫu này sang mẫu kia là
+	 *    bố cục lệch hẳn (dòng `MAY` chỉ có tiền, dòng `MONEY` có cả hàng).
+	 *
+	 * ⚠️ Gieo từ bản CHƯA DUYỆT thì ô tồn đầu VẪN GÕ ĐƯỢC — `carried` do `ton_ky_truoc()` quyết
+	 *    định và hàm đó chỉ nhận `HOAN_TAT`, nên tự khắc không khoá. Đúng: số đó còn có thể đổi
+	 *    nếu kế toán trả về.
+	 */
+	public static function gieo_dong_tu_ky_truoc( $head ) {
+		$o = self::o( $head );
+		$f = VHJP_Doc::ngay( $o( 'fromDate' ) );
+		$mt = VHJP_Doc::str( $o( 'machineType' ) );
+		$m_type = '' !== $mt ? $mt : VHJP_CauHinh::LOAI_TIEN;
+		$mau = VHJP_CauHinh::bc_mau( $o( 'bcMau' ) );
+		$ma_bc = (string) $o( 'id' );
+
+		$ky = self::ky_lien_truoc( $o( 'locationId' ), $f, $ma_bc, $m_type, $mau );
+		if ( ! $ky['truoc'] ) {
+			return self::vi_sao_khong_gieo( $head, $f, $ky['cungCoSo'], $ky['ung'] );
+		}
+		$truoc = $ky['truoc'];
+		$da_duyet = self::TT_HOAN_TAT === VHJP_Doc::str( $truoc['status'] );
+		$den_ngay = VHJP_Doc::ngay( $truoc['toDate'] );
+
+		$khu_cu = VHJP_Nguon::tim( 'JP_Zones', 'reportId', $truoc['id'] );
+		usort( $khu_cu, function ( $a, $b ) {
+			return VHJP_Doc::num( $a['seq'] ) - VHJP_Doc::num( $b['seq'] );
+		} );
+		$dong_cu = VHJP_Nguon::tim( 'JP_Rows', 'reportId', $truoc['id'] );
+		usort( $dong_cu, function ( $a, $b ) {
+			return VHJP_Doc::num( $a['seq'] ) - VHJP_Doc::num( $b['seq'] );
+		} );
+		if ( ! $dong_cu ) {
+			return array( 'soDong' => 0, 'tuBaoCao' => (string) $truoc['id'], 'denNgay' => $den_ngay,
+				'boQuaTraKho' => array(), 'daDuyet' => $da_duyet, 'ma' => 'KY_TRUOC_RONG',
+				'lyDo' => 'Kỳ trước (' . $truoc['id'] . ', đến ' . $den_ngay
+					. ') không có dòng nào để ghi lại. Kỳ này gõ tay.' );
+		}
+
+		$ban_do_khu = array();
+		foreach ( $khu_cu as $i => $z ) {
+			$id = $ma_bc . '-Z' . ( $i + 1 );
+			$ban_do_khu[ (string) $z['id'] ] = $id;
+			VHJP_Nguon::them( 'JP_Zones', array(
+				'id' => $id, 'reportId' => $ma_bc, 'seq' => $i + 1,
+				'name' => VHJP_Doc::str( $z['name'] ) ? VHJP_Doc::str( $z['name'] ) : ( 'Khu vực ' . ( $i + 1 ) ),
+				'clusterId' => VHJP_Doc::str( $z['clusterId'] ), 'note' => '',
+			) );
+		}
+
+		$bo_qua = array();
+		$moi = array();
+		$seq = 0;
+		foreach ( $dong_cu as $r ) {
+			if ( self::bo_dong_tra_kho( $r ) ) {
+				$ten = VHJP_Doc::str( $r['itemCode'] );
+				if ( '' === $ten ) { $ten = VHJP_Doc::str( $r['itemMisa'] ); }
+				if ( '' === $ten ) { $ten = VHJP_Doc::str( $r['itemName'] ); }
+				$bo_qua[] = $ten;
+				continue;
+			}
+			$i = $seq++;
+			$kind = VHJP_Doc::str( $r['rowKind'] );
+			if ( '' === $kind ) { $kind = VHJP_Tinh::DONG_MAY; }
+			$d = array(
+				'id'          => $ma_bc . '-R' . ( $i + 1 ),
+				'reportId'    => $ma_bc,
+				'zoneId'      => isset( $ban_do_khu[ (string) $r['zoneId'] ] ) ? $ban_do_khu[ (string) $r['zoneId'] ] : '',
+				'seq'         => $i + 1,
+				'rowKind'     => $kind,
+				'machineId'   => VHJP_Doc::str( $r['machineId'] ),
+				'machineCode' => VHJP_Doc::str( $r['machineCode'] ),
+				'itemCode'    => VHJP_Doc::str( $r['itemCode'] ),
+				'itemMisa'    => VHJP_Doc::str( $r['itemMisa'] ),
+				'itemName'    => VHJP_Doc::str( $r['itemName'] ),
+				'price'       => VHJP_Doc::num( $r['price'] ),
+				/* ⚠️ GIEO giá 1 xung theo DÒNG — loại máy của một ô không đổi giữa hai kỳ, nên
+				   nhân viên chọn MỘT LẦN rồi nó tự theo. Bắt chọn lại mỗi kỳ là chỗ họ sẽ
+				   quên, mà quên thì dòng đó về nửa tiền (hoặc gấp đôi) và sổ vẫn cân. */
+				'giaXung'     => VHJP_Tinh::gia_xung( $r['giaXung'] ),
+				/* Đầu kỳ = cuối kỳ trước. Phát sinh trong kỳ để TRỐNG. */
+				'mBefore'     => VHJP_Doc::num_hoac_trong( $r['mAfter'] ), 'mAfter' => null,
+				'cBefore'     => VHJP_Doc::num_hoac_trong( $r['cAfter'] ), 'cAfter' => null,
+				'hOpen'       => VHJP_Doc::num( $r['stockActual'] ),
+				'hBefore'     => VHJP_Doc::num_hoac_trong( $r['hAfter'] ), 'hAfter' => null,
+				'stockOpen'   => self::ton_cuoi_gieo( $r, $kind ),
+				'stockActual' => null,
+				'soldQty'     => null,          // ĐÃ BÁN là phát sinh trong kỳ — để TRỐNG
+				'addQty1'     => 0, 'addQty2' => 0, 'defectQty' => 0, 'returnQty' => 0,
+				/* Hoàn khách là PHÁT SINH TRONG KỲ — để 0, đừng mang theo kỳ trước. Mang theo
+				   là nhân viên bấm Nộp mà không sửa gì cũng ra một khoản hoàn y kỳ trước, tức
+				   TRỪ TIỀN THẬT mà không ai gõ số đó. */
+				'refundAmt'   => 0, 'refundQty' => 0, 'refundRowNote' => '',
+				'stockOut'    => 0, 'topupNote' => '',
+				'bank'        => 0, 'cash' => 0,
+				'giaXu'       => VHJP_Doc::num( $r['giaXu'] ), 'xuDaysJson' => '', 'xuLa' => 0,
+				'note'        => '',
+			);
+			$moi[] = VHJP_Tinh::dong( $d, $m_type );
+		}
+
+		/* Ô trống (`''`) thành `NULL` ở `VHJP_Nguon::loc()` — một chỗ, cho mọi đường ghi. */
+		if ( $moi ) { VHJP_Nguon::them_nhieu( 'JP_Rows', $moi ); }
+		return array( 'soDong' => count( $moi ), 'tuBaoCao' => (string) $truoc['id'],
+			'denNgay' => $den_ngay, 'daDuyet' => $da_duyet,
+			'trangThaiNguon' => VHJP_Doc::str( $truoc['status'] ),
+			'boQuaTraKho' => $bo_qua );
+	}
+
+	/**
+	 * Dòng kỳ trước có ĐƯỢC BỎ khi gieo hay không — *"hàng nào bấm trả kho về 0 thì bc sau tự
+	 * xoá dòng đó nhưng vẫn xem lại trong lịch sử báo cáo được"*.
+	 *
+	 * ⚠️ Điều kiện CHẶT — BA vế cùng lúc:
+	 *     ① là dòng chỉ giữ HÀNG (`HANG` · `STOCK` · `NGOAI`)
+	 *     ② tồn cuối kỳ trước = 0
+	 *     ③ kỳ trước CÓ trả kho (`returnQty > 0`)
+	 *
+	 * ⚠️ Bỏ vế ① là MẤT LUÔN CÁI MÁY khỏi báo cáo kỳ sau: dòng `MONEY` mang cả tiền lẫn hàng
+	 *    nên tồn về 0 + trả kho là chuyện thường, mà bỏ nó đi thì kỳ sau không còn ô máy đó để
+	 *    nhập chỉ số đồng hồ.
+	 * ⚠️ Bỏ vế ③ là BÁN HẾT CŨNG BỊ BỎ — mà bán hết là chuyện thường và cơ sở sẽ nhập lại đúng
+	 *    mã đó, nên kỳ sau nhân viên phải gõ lại từ đầu, đúng thứ việc này sinh ra để khỏi phải làm.
+	 *
+	 * ⚠️ CHỈ KHÔNG GIEO, KHÔNG XOÁ GÌ. Dòng cũ nằm nguyên trong báo cáo cũ nên lịch sử vẫn xem
+	 *    lại được, kho vẫn có dòng xuất, giá vốn vẫn nguyên.
+	 */
+	public static function bo_dong_tra_kho( $r ) {
+		if ( ! self::dong_theo_ma( isset( $r['rowKind'] ) ? $r['rowKind'] : '' ) ) { return false; }
+		return 0 === VHJP_Doc::num( isset( $r['stockLeftCalc'] ) ? $r['stockLeftCalc'] : 0 )
+			&& VHJP_Doc::num( isset( $r['returnQty'] ) ? $r['returnQty'] : 0 ) > 0;
+	}
+
+	/**
+	 * Dòng được định danh bằng MÃ HÀNG (`HANG` · `STOCK` · `NGOAI`), khác dòng định danh bằng
+	 * Ô MÁY (`MONEY` · `MAY` · `COIN`).
+	 *
+	 * ⚠️ KHÁC hẳn câu hỏi *"dòng này có sinh giá vốn 632 không"* — câu đó LOẠI `NGOAI` (kho
+	 *    ngoài không sinh giá vốn) và NHẬN `MONEY` (máy tiền mang cả hàng). Dùng lẫn hai khái
+	 *    niệm là sai cả hai chiều: `NGOAI` sẽ không bao giờ được bỏ dòng dù đã trả kho hết, và
+	 *    `MONEY` thì bị bỏ ⇒ mất luôn ô máy. Bản gốc đã mắc đúng thế.
+	 */
+	public static function dong_theo_ma( $kind ) {
+		$k = VHJP_Doc::str( $kind );
+		if ( '' === $k ) { $k = VHJP_Tinh::DONG_MONEY; }
+		return VHJP_Tinh::DONG_HANG === $k || VHJP_Tinh::DONG_STOCK === $k
+			|| VHJP_Tinh::DONG_NGOAI === $k;
+	}
+
+	/**
+	 * Tồn cuối kỳ trước dùng làm tồn đầu kỳ này — NGUỒN DUY NHẤT của luật này.
+	 *
+	 * ⚠️ Ba bảng có ô đếm TUỲ CHỌN thì phải lấy số WEB TÍNH, không lấy ô đếm. Viết lại lẻ ở
+	 *    chỗ thứ hai là có ngày một chỗ hiểu khác, và hậu quả là GIEO TỒN 0 cho mã nhân viên
+	 *    không đếm — mất hàng thật khỏi kỳ sau mà bảng trông sạch sẽ.
+	 */
+	public static function ton_cuoi_gieo( $r, $kind ) {
+		return self::dong_theo_ma( $kind )
+			? VHJP_Doc::num( isset( $r['stockLeftCalc'] ) ? $r['stockLeftCalc'] : 0 )
+			: VHJP_Doc::num( isset( $r['stockActual'] ) ? $r['stockActual'] : 0 );
+	}
+
 	/* ═══════════════════════ TIỆN ═══════════════════════ */
 
 	/**
