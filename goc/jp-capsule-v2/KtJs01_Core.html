@@ -1,0 +1,1003 @@
+<script>
+/*═══════════════════════════════════════════════════════════
+ * JP CAPSULE v2 — KtJs01_Core (web kế toán)
+ * Gọi server · đăng nhập · điều hướng tab · doanh thu · hàng hoá.
+ *═══════════════════════════════════════════════════════════*/
+
+var KT = { token: null, user: null, list: [], current: null, recon: null,
+           reconRows: null, locations: [] };
+
+function ksrv(fn) {
+  var args = [].slice.call(arguments, 1);
+  return new Promise(function (res, rej) {
+    google.script.run
+      .withSuccessHandler(res)
+      .withFailureHandler(function (e) {
+        var m = (e && e.message) || String(e);
+        if (m.indexOf('SESSION_EXPIRED') >= 0) { ktForceLogin(); rej(new Error('Phiên hết hạn')); return; }
+        /* Máy chủ khoá vì còn PIN mặc định — đưa thẳng tới chỗ đổi, đừng để người
+           dùng bấm đâu cũng ra lỗi mà không biết vì sao. */
+        if (m.indexOf('PHAI_DOI_PIN') >= 0) {
+          if (typeof ktBuocDoiPin === 'function') ktBuocDoiPin();
+          rej(new Error('Cần đổi PIN mặc định trước')); return;
+        }
+        rej(new Error(m));
+      })[fn].apply(null, args);
+  });
+}
+
+function $k(id) { return document.getElementById(id); }
+function kmoney(n) { return (Number(n) || 0).toLocaleString('vi-VN'); }
+function knum(v) { var n = Number(String(v == null ? '' : v).replace(/[^\d.\-]/g, '')); return isNaN(n) ? 0 : n; }
+function kesc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+    return { '&': '&amp;', '<': '<', '>': '>', '"': '"' }[c];
+  });
+}
+function kdmy(s) {
+  if (!s || !/^\d{4}-\d{2}-\d{2}/.test(String(s))) return s || '';
+  var p = String(s).slice(0, 10).split('-'); return p[2] + '/' + p[1] + '/' + p[0];
+}
+function ktoday() {
+  var d = new Date(), p = function (x) { return ('0' + x).slice(-2); };
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+function kstatusText(s) {
+  return { NHAP: 'Nháp', CHO_DUYET: 'Chờ duyệt', CAN_SUA: 'Cần sửa', HOAN_TAT: 'Hoàn tất' }[s] || s;
+}
+function kbadgeCls(s) {
+  return { NHAP: '', CHO_DUYET: 'pending', CAN_SUA: 'fixing', HOAN_TAT: 'done' }[s] || '';
+}
+function kpayText(s) {
+  return { CHUA_NOP: 'Chưa nộp', NOP_MOT_PHAN: 'Nộp một phần', DA_NOP: 'Đã nộp' }[s] || s || '—';
+}
+
+var _kt = null;
+function ktoast(m) {
+  var t = $k('ktToast'); t.textContent = m; t.classList.remove('hidden');
+  clearTimeout(_kt); _kt = setTimeout(function () { t.classList.add('hidden'); }, 2800);
+}
+function kbusy(on, text) {
+  $k('ktBusyText').textContent = text || 'Đang xử lý…';
+  $k('ktBusy').classList.toggle('hidden', !on);
+}
+function kmsg(id, text, cls) {
+  var e = $k(id); e.textContent = text || ''; e.className = 'msg ' + (cls || '');
+}
+
+var KLS = {
+  get: function (k) { try { return JSON.parse(localStorage.getItem('JPKT_' + k)); } catch (e) { return null; } },
+  set: function (k, v) { try { localStorage.setItem('JPKT_' + k, JSON.stringify(v)); } catch (e) {} },
+  del: function (k) { try { localStorage.removeItem('JPKT_' + k); } catch (e) {} }
+};
+
+function ktLogin() {
+  var p = ($k('ktPin').value || '').replace(/\D/g, '');
+  if (p.length !== 3) { kmsg('ktLoginMsg', 'Nhập đúng 3 số', 'err'); return; }
+
+  kbusy(true, 'Đang đăng nhập…');
+  ksrv('jpLoginPin', p).then(function (r) {
+    kbusy(false);
+    if (!r.ok) { kmsg('ktLoginMsg', r.msg, 'err'); $k('ktPin').value = ''; return; }
+    if (r.user.role === 'NHANVIEN') {
+      kmsg('ktLoginMsg', 'PIN này của nhân viên — vui lòng dùng web nhân viên', 'err');
+      $k('ktPin').value = '';
+      return;
+    }
+    KT.token = r.token; KT.user = r.user;
+    KLS.set('token', r.token);
+    ktEnter();
+  }).catch(function (e) { kbusy(false); kmsg('ktLoginMsg', e.message, 'err'); });
+}
+
+function ktEnter() {
+  $k('ktName').textContent = KT.user.hoTen;
+  var b = $k('ktRole');
+  b.textContent = 'Kế toán';
+  b.className = 'badge pending';
+
+  $k('ktLogin').classList.remove('active');
+  $k('ktApp').classList.add('active');
+  ktDungMenu();
+
+  var t = ktoday(), first = t.slice(0, 8) + '01';
+  ['fFrom', 'rFrom', 'kFrom', 'cnnvFrom', 'pbFrom']
+    .forEach(function (i) { if ($k(i)) $k(i).value = first; });
+  ['fTo', 'rTo', 'kTo', 'cnnvTo', 'pbTo']
+    .forEach(function (i) { if ($k(i)) $k(i).value = t; });
+  if ($k('mDate')) $k('mDate').value = t;
+
+  /* Còn PIN mặc định thì máy chủ chặn hết mọi chức năng — mở thẳng hộp đổi PIN,
+     không cho bỏ qua. Gọi TRƯỚC khi nạp dữ liệu, vì các lời gọi kia sẽ bị chặn. */
+  if (KT.user.phaiDoiPin) { ktBuocDoiPin(); return; }
+
+  ksrv('jpCfgListLocations', KT.token).then(function (l) { KT.locations = l; }).catch(function () {});
+  ktGo('dash');
+}
+
+/**
+ * Bắt đổi PIN trước khi làm gì. Máy chủ đã chặn ở `jpAuth_`; đây chỉ để người dùng
+ * hiểu chuyện gì đang xảy ra, thay vì bấm đâu cũng ra lỗi.
+ */
+function ktBuocDoiPin() {
+  ktMoDoiPin();
+  var box = $k('ktPinModal');
+  box.querySelector('.sub').innerHTML =
+    '<b>Tài khoản đang dùng PIN mặc định.</b> Số này nằm trong tài liệu và ai cũng ' +
+    'đoán được, nên hệ thống <b>khoá mọi chức năng</b> cho tới khi bạn đặt số mới. ' +
+    'Chọn 3 số dễ nhớ với bạn nhưng không phải 222, 111, 123.';
+  /* Bỏ nút Huỷ — huỷ xong cũng không dùng được gì, chỉ làm người dùng bối rối */
+  var huy = box.querySelector('.modalAct .btn.ghost');
+  if (huy) huy.style.display = 'none';
+}
+
+function ktForceLogin() {
+  KT.token = null; KLS.del('token');
+  $k('ktApp').classList.remove('active');
+  $k('ktLogin').classList.add('active');
+}
+
+function ktLogout() {
+  if (KT.token) ksrv('jpLogout', KT.token).catch(function () {});
+  ktForceLogin();
+}
+
+/*──────── ĐỔI PIN (REVIEW #16) ────────*/
+
+/* Giữ lời dẫn gốc để mở lại bình thường không bị kẹt ở chế độ ép buộc */
+var KT_PIN_SUB = null;
+
+function ktMoDoiPin() {
+  ['ktPinCu', 'ktPinMoi', 'ktPinLai'].forEach(function (id) { $k(id).value = ''; });
+  kmsg('ktPinMsg', '');
+  var box = $k('ktPinModal'), sub = box.querySelector('.sub');
+  if (KT_PIN_SUB === null) KT_PIN_SUB = sub.innerHTML;
+  sub.innerHTML = KT_PIN_SUB;
+  var huy = box.querySelector('.modalAct .btn.ghost');
+  if (huy) huy.style.display = '';
+  box.classList.remove('hidden');
+  $k('ktPinCu').focus();
+}
+
+function ktDongDoiPin() { $k('ktPinModal').classList.add('hidden'); }
+
+function ktLuuPinMoi() {
+  var cu = $k('ktPinCu').value, moi = $k('ktPinMoi').value, lai = $k('ktPinLai').value;
+  if (!/^\d{3}$/.test(moi)) { kmsg('ktPinMsg', 'PIN mới phải đúng 3 số', 'err'); return; }
+  if (moi !== lai) { kmsg('ktPinMsg', 'Hai lần nhập PIN mới không giống nhau', 'err'); return; }
+  if (moi === cu) { kmsg('ktPinMsg', 'PIN mới phải khác PIN cũ', 'err'); return; }
+  if (['222', '101'].indexOf(moi) >= 0) {
+    kmsg('ktPinMsg', 'Đó là PIN mặc định — chọn số khác', 'err'); return;
+  }
+
+  kbusy(true, 'Đang đổi PIN…');
+  ksrv('jpDoiPin', KT.token, cu, moi).then(function (d) {
+    kbusy(false);
+    if (!d.ok) { kmsg('ktPinMsg', d.msg, 'err'); return; }
+    ktDongDoiPin();
+    ktoast('Đã đổi PIN. Lần sau đăng nhập bằng số mới.');
+    /* Vừa gỡ khoá PIN mặc định thì dựng lại màn hình cho đủ chức năng */
+    if (KT.user && KT.user.phaiDoiPin) { KT.user.phaiDoiPin = false; ktEnter(); }
+  }).catch(function (e) { kbusy(false); kmsg('ktPinMsg', e.message, 'err'); });
+}
+
+/*═══════════════ ĐIỀU HƯỚNG BA TẦNG (bố cục web kho KVC) ═══════════════
+
+  Andy chốt 04/08/2026: web kế toán JP dựng theo đúng bố cục web
+  `KVC GD1 - Ke toan Kho` — **menu dọc bên trái → tabs ngang → subtabs bo
+  tròn**, chỉ khác nội dung (JP có đối soát doanh thu, mã đối chiếu riêng).
+
+  Nav sinh từ bảng `KT_NAV` dưới đây, KHÔNG viết cứng trong HTML. Thêm một màn
+  = thêm một dòng ở đây + một `<div class="page" id="…">` trong `KT_Index`.
+
+  Một tab có ĐÚNG MỘT trong hai thứ:
+    · `page` — một màn, không có subtab
+    · `subs` — nhiều màn, mỗi màn một subtab
+  `nap` là hàm nạp dữ liệu của màn (bỏ trống nếu màn tĩnh). Hàm nạp CHỈ nạp
+  dữ liệu — việc bật/tắt `.page` do `ktGo` lo, đúng như bản cũ nơi handler
+  `.subtab` bật/tắt còn `ktKhoLoad`/`ktDsLoad`/`ktCfgLoad` chỉ gọi server.
+═══════════════════════════════════════════════════════════════════════*/
+
+function ktNapKho_(sub) { return function () { ktKhoLoad(sub); }; }
+function ktNapDs_(sub)  { return function () { ktDsLoad(sub); }; }
+function ktNapCfg_(sub) { return function () { ktCfgLoad(sub); }; }
+function ktNapBt_(sub)  { return function () { ktBtLoad(sub); }; }
+
+var KT_NAV = [
+  { id: 'dash', ico: '▦', ten: 'Tổng quan', tabs: [
+    { id: 'tqChung', ten: 'Tổng quan', page: 'p_dash',
+      tieuDe: 'Tổng quan', nap: function () { ktDashLoad(); } }
+  ]},
+
+  { id: 'duyet', ico: '✅', ten: 'Duyệt báo cáo', tabs: [
+    { id: 'dyDs', ten: 'Danh sách & duyệt', page: 'tabDuyet',
+      tieuDe: 'Duyệt báo cáo', nap: function () { ktLoadList(); } },
+    /* Đề nghị sửa tồn đầu của nhân viên (Andy chốt 05/08/2026). Để trong module Duyệt
+       vì nó cũng là việc KÝ, không phải cấu hình. */
+    { id: 'dyDn', ten: 'Đề nghị sửa tồn đầu', page: 'tabDeNghi',
+      tieuDe: 'Đề nghị sửa tồn đầu', nap: function () { ktDeNghiLoad(); } },
+    /* Ảnh của một cơ sở qua NHIỀU kỳ (Andy chốt 11/08/2026). Để trong module Duyệt vì
+       nó là việc SOÁT ảnh chỉ số, cùng việc với ký — không phải báo cáo doanh thu. */
+    { id: 'dyAnh', ten: 'Ảnh theo cơ sở', page: 'tabAnhCs',
+      tieuDe: 'Ảnh theo cơ sở — nhiều kỳ một lượt',
+      nap: function () { ktAnhCsInit(); } }
+  ]},
+
+  /*
+   * ⚠️⚠️ MỘT tab, SÁU màn — **một hàng nút duy nhất**, đúng khuôn web kế toán POSH
+   * (Andy 15/08/2026: *"sao làm lộn xộn quá check kĩ ktoan posh"*).
+   *
+   * Bản trước chia làm ba tab (`dsSoXn` · `dsNv` · `dsNk`) rồi lại thêm một hàng nút
+   * pill trong khối giải thích ⇒ **HAI hàng nút chồng nhau**, hàng trên bốn mục hàng
+   * dưới sáu mục. Nhìn vào không biết bấm hàng nào, và cùng một màn có hai đường tới.
+   * POSH chỉ có ĐÚNG một hàng (5 nút trong card viền cam), không có tầng nav nào khác.
+   *
+   * ⚠️ Giữ `dsNv` / `dsNk` làm tab thì hàng nút không bao giờ liệt kê đủ sáu mục, mà
+   * khối giải thích lại nói "sáu hạng mục liên kết" — chữ và nút nói hai chuyện khác nhau.
+   */
+  { id: 'ds', ico: '🔗', ten: 'Đối soát & công nợ', tabs: [
+    { id: 'dsSoXn', ten: 'Công nợ & đối soát', subs: [
+      { id: 'dsSo',     ten: '① Sổ công nợ',           tieuDe: 'Sổ công nợ theo cơ sở',        nap: ktNapDs_('dsSo') },
+      { id: 'dsFile',   ten: '② Đối soát tiền mặt',    tieuDe: 'Đối soát nộp tiền bằng file',  nap: ktNapDs_('dsFile') },
+      { id: 'dsCK',     ten: '③ Đối soát chuyển khoản', tieuDe: 'Đối soát nộp tiền qua chuyển khoản', nap: ktNapDs_('dsCK') },
+      { id: 'dsTay',    ten: '④ Xác nhận nộp tay',     tieuDe: 'Xác nhận nộp tiền thủ công',   nap: ktNapDs_('dsTay') },
+      { id: 'dsNV',     ten: '⑤ Theo nhân viên',       tieuDe: 'Công nợ theo nhân viên',       nap: ktNapDs_('dsNV') },
+      { id: 'dsNhatKy', ten: '⑥ Nhật ký & kiểm tra',   tieuDe: 'Nhật ký lô đối soát & kiểm tra nhanh', nap: ktNapDs_('dsNhatKy') }
+    ]}
+  ]},
+
+  { id: 'dt', ico: '💰', ten: 'Doanh thu', tabs: [
+    { id: 'dtB', ten: 'Doanh thu theo báo cáo', page: 'dtBang',
+      tieuDe: 'Doanh thu theo báo cáo', nap: function () { ktRevenue(); } },
+    { id: 'dtMisa', ten: 'Xuất DAILY SALES (MISA)', page: 'dtMisa',
+      tieuDe: 'Xuất DAILY SALES REPORT cho MISA', nap: function () { ktFillKyDailySales(); } }
+  ]},
+
+  /*
+   * KHO — dọn lại 04/08/2026. Andy: *"Đầy đủ chức năng rồi mà a thấy kho nhìn cứ
+   * rối rối sao á em"*, và chốt *"chỉ cần làm nhìn dễ hiểu nhưng phải đầy đủ"*.
+   *
+   * GIỮ ĐỦ 17 MÀN, không bỏ màn nào. Bốn chỗ làm rối, đều do em thêm vào:
+   *
+   *   ① Dãy số ①…⑬ ĐÃ VỠ: ①②③④⑤ rồi ba màn không số rồi ⑥…⑪ rồi ⑫⑬. Số gợi ý
+   *      một trình tự làm việc mà nó không còn đúng, và thêm màn nữa là vỡ tiếp.
+   *      ⇒ BỎ HẾT SỐ, để tên nói thay. Đừng đưa số lại.
+   *   ② Nhập–Xuất–Tồn nằm ở HAI nơi: tab `khNxt3` và `⑥ Cân đối N-X-T` bên tab
+   *      Báo cáo — cùng một hàm máy chủ, cùng khái niệm.
+   *      ⇒ Gộp `khNXT` vào tab N-X-T thành màn thứ tư.
+   *   ③ HAI chữ "Tồn" khác nhau: `khTonBc` (đầu kỳ → cuối kỳ) và `khTon` (từng lô
+   *      FIFO). Tên gần nhau mà việc khác hẳn ⇒ đổi thành "Tồn theo lô (FIFO)".
+   *   ④ "Sổ chi tiết TK" là tên không nói gì ⇒ "Sổ giá vốn 6321 / 64116".
+   *
+   * Nhóm theo VIỆC ĐANG LÀM: gõ chứng từ · xem N-X-T · tra cứu · nhà cung cấp.
+   * ⚠️ `id` của từng màn GIỮ NGUYÊN (`khNhap`, `khNXT`, `khTon`…) — KtJs05/06 gọi
+   * thẳng các id đó, đổi id là hỏng cả hai file.
+   */
+  { id: 'kho', ico: '📦', ten: 'Kho hàng', tabs: [
+    { id: 'khTq', ten: 'Tổng quan', page: 'khTongQuan',
+      tieuDe: 'Tổng quan kho — luồng hàng và số của tháng',
+      nap: function () { ktKhoTongQuan(); } },
+
+    { id: 'khCt', ten: 'Chứng từ', subs: [
+      { id: 'khNhap',  ten: 'Phiếu nhập mua',  tieuDe: 'Chứng từ mua hàng — nhập kho tổng', nap: ktNapKho_('khNhap') },
+      { id: 'khXuat',  ten: 'Phiếu xuất kho',  tieuDe: 'Chứng từ xuất kho tổng',            nap: ktNapKho_('khXuat') },
+      { id: 'khLuoi',  ten: 'Lưới ngày 1–31',  tieuDe: 'Lưới xuất theo ngày',               nap: ktNapKho_('khLuoi') },
+      { id: 'khKiemKe',ten: 'Kiểm kê kho',     tieuDe: 'Biên bản kiểm kê kho',              nap: ktNapKho_('khKiemKe') },
+      { id: 'khDauKy', ten: 'Số dư đầu kỳ',    tieuDe: 'Số dư đầu kỳ — khai tồn ban đầu',   nap: ktNapKho_('khDauKy') }
+    ]},
+
+    { id: 'khNxt3', ten: 'Nhập – Xuất – Tồn', subs: [
+      { id: 'khNhapBc', ten: '📥 Nhập kho', tieuDe: 'Nhập kho — tách theo nguồn hàng vào',
+        nap: ktNapKho_('khNhapBc') },
+      { id: 'khXuatBc', ten: '📤 Xuất kho', tieuDe: 'Xuất kho — tách theo loại xuất',
+        nap: ktNapKho_('khXuatBc') },
+      { id: 'khTonBc',  ten: '📦 Tồn kho',  tieuDe: 'Tồn kho — đầu kỳ đến cuối kỳ',
+        nap: ktNapKho_('khTonBc') },
+      /* Bảng 18 cột đầy đủ — chỗ xuất CSV một lần ra hết và chỗ thấy đẳng thức */
+      { id: 'khNXT',    ten: '⚖️ Cân đối (bảng đầy đủ)',
+        tieuDe: 'Cân đối Nhập – Xuất – Tồn (bảng đầy đủ 18 cột)', nap: ktNapKho_('khNXT') }
+    ]},
+
+    { id: 'khTra', ten: 'Tra cứu', subs: [
+      { id: 'khThe',    ten: 'Thẻ kho',              tieuDe: 'Thẻ kho theo mã hàng',             nap: ktNapKho_('khThe') },
+      { id: 'khTon',    ten: 'Tồn theo lô (FIFO)',   tieuDe: 'Tồn kho theo từng lô giá mua',     nap: ktNapKho_('khTon') },
+      { id: 'khBangKe', ten: 'Bảng kê chứng từ',     tieuDe: 'Bảng kê phiếu nhập / phiếu xuất',  nap: ktNapKho_('khBangKe') },
+      { id: 'khSo632',  ten: 'Sổ giá vốn 6321 / 64116', tieuDe: 'Sổ chi tiết giá vốn 6321 / 64116',    nap: ktNapKho_('khSo632') },
+      { id: 'khBaoCao', ten: 'Hàng trong báo cáo',   tieuDe: 'Hàng hoá trong báo cáo nhân viên', nap: ktNapKho_('khBaoCao') }
+    ]},
+
+    { id: 'khNccT', ten: 'Nhà cung cấp', subs: [
+      { id: 'khNcc',    ten: 'Sổ công nợ',    tieuDe: 'Công nợ nhà cung cấp',        nap: ktNapKho_('khNcc') },
+      { id: 'khTraNcc', ten: 'Phiếu trả tiền', tieuDe: 'Phiếu trả tiền nhà cung cấp', nap: ktNapKho_('khTraNcc') }
+    ]}
+  ]},
+
+  /* Kế toán tổng hợp — bút toán SUY RA từ chứng từ, không lưu bảng riêng.
+     Xem đầu file JP2_14_ButToan.gs để biết vì sao không lưu. */
+  { id: 'kt', ico: '📒', ten: 'Kế toán tổng hợp', tabs: [
+    { id: 'ktSo', ten: 'Sổ sách', subs: [
+      { id: 'ktNkc', ten: '① Sổ nhật ký chung', tieuDe: 'Sổ nhật ký chung — mọi bút toán',
+        nap: ktNapBt_('ktNkc') },
+      { id: 'ktCd',  ten: '② Bảng cân đối số phát sinh',
+        tieuDe: 'Bảng cân đối số phát sinh', nap: ktNapBt_('ktCd') },
+      { id: 'ktKiem', ten: '③ Kiểm tra sổ', tieuDe: 'Kiểm tra sổ — so hai đường độc lập',
+        nap: ktNapBt_('ktKiem') },
+      { id: 'ktQuet', ten: '④ Sức khoẻ dây chuyền',
+        tieuDe: 'Sức khoẻ dây chuyền — ba chỗ có thể đứt', nap: ktNapBt_('ktQuet') },
+      { id: 'ktKqkd', ten: '⑤ Kết quả kinh doanh',
+        tieuDe: 'Kết quả kinh doanh — kết chuyển 911', nap: ktNapBt_('ktKqkd') }
+    ]}
+  ]},
+
+  { id: 'cf', ico: '⚙️', ten: 'Cấu hình', tabs: [
+    { id: 'cfU', ten: 'Tài khoản',      page: 'cfUsers',    tieuDe: 'Tài khoản & mã PIN',   nap: ktNapCfg_('cfUsers') },
+    { id: 'cfL', ten: 'Cơ sở',          page: 'cfLocs',     tieuDe: 'Danh mục cơ sở',       nap: ktNapCfg_('cfLocs') },
+    { id: 'cfC', ten: 'Cụm máy',        page: 'cfClusters', tieuDe: 'Cụm máy theo cơ sở',   nap: ktNapCfg_('cfClusters') },
+    { id: 'cfM', ten: 'Ô / máy',        page: 'cfMachines', tieuDe: 'Ô / máy trong cụm',    nap: ktNapCfg_('cfMachines') },
+    { id: 'cfI', ten: 'Danh mục hàng',  page: 'cfItems',    tieuDe: 'Danh mục hàng hoá',    nap: ktNapCfg_('cfItems') }
+  ]}
+];
+
+/* Vị trí đang xem — dùng để dựng lại tabs / subtabs khi bấm menu */
+var KT_VT = { mod: 'dash', tab: 'tqChung', sub: '' };
+
+function ktTimMod_(id) {
+  for (var i = 0; i < KT_NAV.length; i++) if (KT_NAV[i].id === id) return KT_NAV[i];
+  return KT_NAV[0];
+}
+function ktTimTab_(mod, id) {
+  for (var i = 0; i < mod.tabs.length; i++) if (mod.tabs[i].id === id) return mod.tabs[i];
+  return mod.tabs[0];
+}
+
+function ktDungMenu() {
+  $k('ktMenu').innerHTML = KT_NAV.map(function (m) {
+    return '<button class="modbtn" data-mod="' + m.id + '" onclick="ktGo(\'' + m.id + '\')">' +
+             '<span class="modico">' + m.ico + '</span>' +
+             '<span class="modlbl">' + kesc(m.ten) + '</span></button>';
+  }).join('');
+}
+
+/**
+ * Đi tới một màn. Ba tham số đều có thể bỏ — thiếu thì lấy cái đầu tiên.
+ * Gọi được từ bất cứ đâu (ô quy trình ở màn Tổng quan dùng chính hàm này).
+ */
+function ktGo(modId, tabId, subId) {
+  var mod = ktTimMod_(modId || KT_VT.mod);
+  var tab = ktTimTab_(mod, tabId);
+  var la  = tab.subs ? ktTimLa_(tab, subId) : tab;
+
+  KT_VT = { mod: mod.id, tab: tab.id, sub: tab.subs ? la.id : '' };
+
+  document.querySelectorAll('.modbtn').forEach(function (b) {
+    b.classList.toggle('on', b.dataset.mod === mod.id);
+  });
+
+  /* ⚠️ Module chỉ có MỘT tab thì ẨN hẳn dải tab — một dải chỉ chứa đúng một nút là UI
+     chết: bấm vào không đi đâu, mà vẫn chiếm một hàng và làm người dùng tưởng còn chỗ
+     khác để bấm. Andy 15/08/2026: *"sao làm lộn xộn quá"*. */
+  var tb = $k('ktTabs');
+  if (mod.tabs.length > 1) {
+    tb.style.display = '';
+    tb.innerHTML = mod.tabs.map(function (t) {
+      return '<button class="tabbtn' + (t.id === tab.id ? ' on' : '') + '"' +
+             ' onclick="ktGo(\'' + mod.id + '\',\'' + t.id + '\')">' + kesc(t.ten) + '</button>';
+    }).join('');
+  } else {
+    tb.style.display = 'none';
+    tb.innerHTML = '';
+  }
+
+  var sb = $k('ktSubtabs');
+  if (tab.subs) {
+    sb.style.display = '';
+    sb.innerHTML = tab.subs.map(function (s) {
+      return '<button class="subtabbtn' + (s.id === la.id ? ' on' : '') + '"' +
+             ' onclick="ktGo(\'' + mod.id + '\',\'' + tab.id + '\',\'' + s.id + '\')">' +
+             kesc(s.ten) + '</button>';
+    }).join('');
+  } else {
+    sb.style.display = 'none';
+    sb.innerHTML = '';
+  }
+
+  var manId = tab.subs ? la.id : tab.page;
+  document.querySelectorAll('.page').forEach(function (p) {
+    p.classList.toggle('on', p.id === manId);
+  });
+  $k('ktPageTitle').textContent = la.tieuDe || tab.tieuDe || mod.ten;
+  $k('ktSide').classList.remove('open');      // màn hẹp: đóng menu sau khi chọn
+
+  if (la.nap) la.nap();
+}
+
+function ktTimLa_(tab, id) {
+  for (var i = 0; i < tab.subs.length; i++) if (tab.subs[i].id === id) return tab.subs[i];
+  return tab.subs[0];
+}
+
+/*──────── MÀN TỔNG QUAN ────────*/
+
+/* Ô "việc cần làm để chạy được". Dò từ dữ liệu thật nên không bao giờ lệch với thực
+   tế; và TỰ ẨN khi xong hết, vì dựng hệ thống là việc làm một lần. */
+/* Trạng thái dò được ở lần gọi gần nhất — giữ lại để mở ô ra xem mà không phải tốn
+   thêm một lượt gọi máy chủ. */
+var KT_DUNG_HT = null;
+
+function ktDungHeThong() {
+  ksrv('jpTinhTrangDungHeThong', KT.token).then(function (d) {
+    KT_DUNG_HT = d;
+    ktDungVe_(d);
+
+    /* Xong hết thì thu ô đầy đủ lại, chỉ để MỘT dòng mở lại được.
+       ⚠️ TRỪ KHI đang hiện bảng PIN bản rõ: `dbMotPhat` nằm TRONG `#dbSetup` nên ẩn
+       cha là bảng PIN biến mất theo. Mà bản rõ chỉ hiện ĐÚNG MỘT LẦN (sheet chỉ lưu
+       bản băm) — mất là phải cấp LẠI PIN cho cả 13 cơ sở giữa lúc họ đang bán. Bấm
+       "Làm hết bằng 1 lần bấm" xong là mọi bước đều xanh, tức đây là đường đi CHẮC
+       CHẮN xảy ra, không phải trường hợp hiếm. */
+    var xong = d.sanSang && !(d.nhacThem || []).length;
+    var dangGiuPin = !!(KT_PIN_MOT_PHAT && KT_PIN_MOT_PHAT.length);
+    ktDungThu_(xong && !dangGiuPin);
+  }).catch(function (e) {
+    /* Lỗi ở ô phụ này KHÔNG được làm chết cả màn Tổng quan — số báo cáo và công nợ
+       quan trọng hơn danh sách việc cần làm. Nhưng ẩn IM LẶNG thì không phân biệt
+       được "đã xong" với "hỏng": người dùng đi tìm nút "Làm hết bằng 1 lần bấm" và
+       không thấy nó ở đâu cả, cũng không biết vì sao. Nên vẫn hiện ô, chỉ thay phần
+       danh sách bằng lý do + nút thử lại. */
+    ktDungThu_(false);
+    $k('dbSetupList').innerHTML =
+      '<div class="alert warn">Không đọc được trạng thái dựng hệ thống: <b>' +
+      kesc((e && e.message) || String(e)) + '</b><br>' +
+      'Các số bên dưới vẫn dùng được, và nút <b>Làm hết bằng 1 lần bấm</b> ở trên vẫn ' +
+      'bấm được — nó tự chốt an toàn từng bước nên bấm khi chưa rõ trạng thái vẫn không ' +
+      'nhân đôi gì.</div>' +
+      '<div class="toolbar"><button class="btn sm" onclick="ktDungHeThong()">Thử lại</button></div>';
+  });
+}
+
+/* Thu ô lại thành một dòng, hoặc mở ra. Tách riêng vì có BA đường cùng bật/tắt nó
+   (dò xong · dò lỗi · bấm mở lại) — mỗi chỗ tự viết là lệch nhau. */
+function ktDungThu_(thu) {
+  $k('dbSetup').style.display = thu ? 'none' : '';
+  $k('dbXong').style.display = thu ? '' : 'none';
+}
+
+function ktDungHienLai() {
+  ktDungThu_(false);
+  if (KT_DUNG_HT) ktDungVe_(KT_DUNG_HT); else ktDungHeThong();
+}
+
+function ktDungVe_(d) {
+    var h = '<div class="alert ' + (d.sanSang ? 'ok' : 'warn') + '">Đã xong <b>' +
+      d.soXong + '/' + d.soBuoc + '</b> bước dựng hệ thống.' +
+      (d.sanSang ? ' Còn vài chỗ nên soát, không chặn gì.' : '') + '</div>';
+
+    h += '<div class="tableWrap"><table><tr><th style="width:36px"></th><th>Bước</th>' +
+      '<th>Trạng thái dò được</th><th></th></tr>';
+    (d.buoc || []).forEach(function (b, i) {
+      h += '<tr' + (b.xong ? '' : ' class="lech"') + '>' +
+        '<td style="text-align:center;font-size:16px">' + (b.xong ? '✅' : '⬜') + '</td>' +
+        '<td><b>' + (i + 1) + '. ' + kesc(b.ten) + '</b></td>' +
+        '<td style="white-space:normal">' + kesc(b.chiTiet) + '</td>' +
+        '<td>' + (b.mod
+          ? '<button class="btn ' + (b.xong ? 'ghost' : 'primary') + ' sm" onclick="ktGo(' +
+            "'" + b.mod + "','" + b.tab + "'," + (b.sub ? "'" + b.sub + "'" : 'null') +
+            ')">Đi tới</button>'
+          : '<button class="btn ' + (b.xong ? 'ghost' : 'primary') +
+            ' sm" onclick="ktMoDoiPin()">Đổi PIN</button>') +
+        '</td></tr>';
+    });
+    h += '</table></div>';
+
+    (d.nhacThem || []).forEach(function (t) {
+      h += '<div class="alert warn">' + kesc(t) + '</div>';
+    });
+    $k('dbSetupList').innerHTML = h;
+}
+
+/* Bản rõ PIN của lần dựng vừa rồi — giữ trong biến để tải CSV được sau khi vẽ lại. */
+var KT_PIN_MOT_PHAT = [];
+
+function ktDungMotPhat() {
+  var capLai = $k('dbCapLai').checked;
+  if (!confirm('Chạy toàn bộ các bước dựng hệ thống?\n\n' +
+      '· nạp 13 cơ sở + loại máy\n· ngưng cơ sở demo còn sót\n· nạp 102 mã hàng\n' +
+      '· cấp tài khoản + PIN từng cơ sở' + (capLai ? ' (CẤP LẠI, PIN cũ hết hiệu lực)' : '') +
+      '\n· khai tồn đầu kỳ 31/07 — 25.527 cái · 614.132.522đ\n\n' +
+      'Bấm hai lần không nhân đôi gì.')) return;
+
+  kbusy(true, 'Đang dựng hệ thống… việc này mất khoảng 1 phút');
+  ksrv('jpDungHeThongMotPhat', KT.token, { capLai: capLai }).then(function (d) {
+    kbusy(false);
+    KT_PIN_MOT_PHAT = (d.pin && d.pin.rows) || [];
+
+    var h = '';
+    if (d.canhBao) h += '<div class="alert warn"><b>⚠️ ' + kesc(d.canhBao) + '</b></div>';
+    h += '<div class="tableWrap"><table><tr><th>Bước</th><th>Kết quả</th></tr>';
+    (d.buoc || []).forEach(function (b) {
+      h += '<tr><td><b>' + kesc(b.ten) + '</b></td>' +
+        '<td style="white-space:pre-line">' + kesc(b.chiTiet) + '</td></tr>';
+    });
+    h += '</table></div>';
+
+    if (KT_PIN_MOT_PHAT.length) {
+      h += '<div class="toolbar"><button class="btn ghost sm" onclick="ktTaiPinMotPhat()">' +
+        'Tải CSV danh sách PIN</button></div>' +
+        /* ⚠️ KHÔNG in `username` — y hệt `tblPinCoSo` ở `KtJs04`. Andy chốt
+           06/08/2026: *"với cơ sở pin thôi chứ kh có tên đăng nhập"*. Bảng này là
+           tờ ĐEM IN phát cho cơ sở, mà `jpLoginPin` nhận đúng MỘT tham số và màn
+           nhân viên chỉ có bàn phím số — in kèm `csswpq` là nhân viên đi tìm chỗ
+           gõ nó, mà cả hệ thống không có chỗ nào gõ.
+           ⚠️ Đây là chỗ THỨ TƯ, sinh ra sau lượt dọn 06/08 nên lọt. Phép ⑮ của
+           `soat-tinh.py` khoá lại để không có chỗ thứ năm. */
+        '<div class="tableWrap"><table id="tblPinMotPhat">' +
+        '<tr><th>Mã</th><th>Cơ sở</th><th>Loại máy</th>' +
+        '<th class="num">MÃ PIN</th></tr>';
+      KT_PIN_MOT_PHAT.forEach(function (r) {
+        h += '<tr><td>' + kesc(r.code) + '</td>' +
+          '<td style="white-space:normal">' + kesc(r.tenCoSo) + '</td>' +
+          '<td>' + (r.loaiMay === 'TIEN' ? 'Máy tiền'
+                  : r.loaiMay === 'XU' ? 'Máy xu' : kesc(r.loaiMay)) + '</td>' +
+          '<td class="num"><b style="font-size:18px;letter-spacing:3px">' +
+            kesc(r.pin) + '</b></td></tr>';
+      });
+      h += '</table></div>';
+    }
+    $k('dbMotPhat').innerHTML = h;
+    /* Vẽ lại danh sách bước để thấy cái nào đã xanh — KHÔNG gọi `ktDashLoad` kẻo
+       xoá mất bảng PIN bản rõ ở trên. */
+    ktDungHeThong();
+  }).catch(function (e) { kbusy(false); ktoast(e.message); });
+}
+
+function ktTaiPinMotPhat() {
+  if (!KT_PIN_MOT_PHAT.length) { ktoast('Chưa cấp PIN nào'); return; }
+  /* ⚠️ KHONG co cot "Ten dang nhap" — file nay in ra roi phat cho co so, cung
+     mot ly do nhu bang o tren. */
+  var out = [['Ma co so', 'Ten co so', 'Loai may', 'Ma PIN']];
+  KT_PIN_MOT_PHAT.forEach(function (r) {
+    out.push([r.code, r.tenCoSo, r.loaiMay, r.pin]);
+  });
+  var csv = out.map(function (d) {
+    return d.map(function (v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(',');
+  }).join('\n');
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = 'ma-pin-co-so-' + ktoday() + '.csv';
+  a.click();
+}
+
+function ktDashLoad() {
+  ktFillKy('db');
+  var m = $k('dbThang').value, y = $k('dbNam').value;
+
+  ktDungHeThong();
+
+  kbusy(true, 'Đang dựng tổng quan…');
+  Promise.all([
+    ksrv('jpKtListReports', KT.token, { onlyMine: false, status: '' }),
+    ksrv('jpSoCongNo', KT.token, m, y)
+  ]).then(function (r) {
+    kbusy(false);
+    var list = r[0] || [], cn = r[1];
+    var dem = { CHO_DUYET: 0, CAN_SUA: 0, HOAN_TAT: 0 };
+    list.forEach(function (x) { if (dem[x.status] !== undefined) dem[x.status]++; });
+
+    $k('dbSum').innerHTML =
+      statTxt('Chờ duyệt', dem.CHO_DUYET) +
+      statTxt('Cần sửa', dem.CAN_SUA) +
+      statTxt('Đã hoàn tất', dem.HOAN_TAT) +
+      stat('Phải thu trong tháng', cn.tong.phatSinh) +
+      stat('Đã nhận', cn.tong.daNhan) +
+      stat('Còn thiếu cuối kỳ', cn.tong.duCuoiKy);
+
+    var h = '';
+    if (dem.CHO_DUYET) {
+      h += '<div class="alert warn">Có <b>' + dem.CHO_DUYET + '</b> báo cáo đang chờ duyệt. ' +
+           '<a href="#" onclick="ktGo(\'duyet\');return false">Mở danh sách duyệt →</a></div>';
+    }
+    if (cn.tong.phaiThuChuaDuyet) {
+      h += '<div class="alert warn">Còn <b>' + kmoney(cn.tong.phaiThuChuaDuyet) + 'đ</b> ' +
+           'nằm ở báo cáo <b>chưa duyệt xong</b> — chưa vào sổ công nợ.</div>';
+    }
+    if (!h) h = '<div class="alert ok">Không có báo cáo chờ duyệt.</div>';
+    $k('dbWarn').innerHTML = h;
+  }).catch(function (e) { kbusy(false); ktoast(e.message); });
+}
+
+function ktExportCsv(tableId, name) {
+  var t = $k(tableId);
+  if (!t || !t.rows.length) { ktoast('Chưa có dữ liệu'); return; }
+  var out = [];
+  for (var i = 0; i < t.rows.length; i++) {
+    var cells = [];
+    for (var j = 0; j < t.rows[i].cells.length; j++) {
+      var v = t.rows[i].cells[j].innerText.replace(/"/g, '""');
+      cells.push('"' + v + '"');
+    }
+    out.push(cells.join(','));
+  }
+  var blob = new Blob(['﻿' + out.join('\n')], { type: 'text/csv;charset=utf-8' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name + '-' + ktoday() + '.csv';
+  a.click();
+}
+
+/*═════════ ĐỌC EXCEL / CSV — MỘT BỘ DÒ CỘT CHO MỌI PHẦN NHẬP LIỆU ═════════
+ *
+ * Năm màn nhập liệu của kho đều nhận file kế toán xuất từ MISA hoặc gõ tay ở
+ * Excel, mà mỗi bản đặt tiêu đề một kiểu. Viết năm bộ dò riêng thì kế toán đổi
+ * tên cột một lần là bốn chỗ hỏng LẶNG LẼ: chỗ nào dò được thì chạy, chỗ nào
+ * không thì báo "không tìm thấy dòng tiêu đề" mà không ai nối hai việc đó lại
+ * với nhau. Nên MỘT bảng mẫu, MỘT hàm dò, năm chỗ gọi.
+ *
+ * Đọc NGAY trên trình duyệt, KHÔNG tải lên Drive — số liệu kho là nội bộ, đi
+ * qua Drive chỉ thêm một bản sao phải dọn.
+ *
+ * Và LUÔN xem trước rồi mới đổ vào bảng: dò sai cột mà đổ thẳng là kế toán phải
+ * gõ lại từ đầu, mà tệ hơn là dò sai một cột thôi thì trông vẫn như đúng. */
+var KT_COT_MAU = {
+  ma:   /ma hang|mã hàng|ma misa|mã misa|ma vat tu|mã vật tư|item|sku|^ma$|^mã$/i,
+  ten:  /ten hang|tên hàng|ten vat tu|tên vật tư|dien giai|diễn giải|^ten$|^tên$/i,
+  sl:   /so luong|số lượng|ton kho|tồn kho|^ton$|^tồn$|^qty$|^sl$|so cai|số cái/i,
+  gia:  /don gia|đơn giá|gia von|giá vốn|gia mua|giá mua|unit ?cost|price|^gia$|^giá$/i,
+  lo:   /so lo|số lô|^lo$|^lô$|lot ?no|lot$/i,
+  note: /ghi chu|ghi chú|^note$|thuyet minh|thuyết minh/i,
+  thuc: /ton thuc|tồn thực|thuc te|thực tế|dem thuc|đếm thực|thuc dem|thực đếm|^dem$|^đếm$/i,
+  /* Ba khoá dưới cho màn TRẢ TIỀN NCC. Đặt SAU `ma`/`ten` là có chủ ý: một cột chỉ
+     thuộc MỘT khoá, mà ở màn đó `ncc` mới là thứ cần, còn `ma`/`ten` không truyền
+     vào — nên không tranh nhau. Đưa `ncc` lên trước `ten` ở màn khác thì cột
+     "Tên hàng" bị nuốt mất. */
+  ncc:  /nha cung cap|nhà cung cấp|^ncc$|supplier|vendor|ben ban|bên bán/i,
+  tien: /so tien|số tiền|thanh tien|thành tiền|da tra|đã trả|amount|^tien$|^tiền$/i,
+  ngay: /^ngay|^ngày|ngay tra|ngày trả|ngay ct|ngày ct|date/i,
+  cach: /hinh thuc|hình thức|cach tra|cách trả|phuong thuc|phương thức|payment/i
+};
+
+var KT_COT_TEN = {
+  ma: 'Mã hàng', ten: 'Tên hàng', sl: 'Số lượng', gia: 'Đơn giá',
+  lo: 'Số lô', note: 'Ghi chú', thuc: 'Số thực đếm',
+  ncc: 'Nhà cung cấp', tien: 'Số tiền', ngay: 'Ngày trả', cach: 'Hình thức'
+};
+
+/**
+ * Dò dòng tiêu đề và vị trí từng cột trong mảng 2 chiều.
+ *   raw      mảng 2 chiều (XLSX `header: 1`)
+ *   khoa     tên cột cần tìm, THEO THỨ TỰ ƯU TIÊN
+ *   batBuoc  khoá phải tìm đủ mới coi là dòng tiêu đề
+ *
+ * Một cột chỉ thuộc đúng MỘT khoá, khoá đứng trước giành trước: tiêu đề
+ * "Số lượng thực tế" khớp cả `sl` lẫn `thuc`, gán cho cả hai là cùng một cột
+ * đọc ra hai nghĩa. Nên chỗ gọi phải xếp khoá theo ý mình muốn.
+ *
+ * Chỉ soi 30 dòng đầu: file MISA hay có 5–10 dòng tiêu đề đơn vị phía trên,
+ * nhưng quét cả file thì dòng dữ liệu nào tình cờ chứa chữ "mã hàng" cũng
+ * thành dòng tiêu đề.
+ */
+function ktDoCot(raw, khoa, batBuoc) {
+  for (var r = 0; r < Math.min(raw.length, 30); r++) {
+    var cot = {}, daLay = {};
+    (raw[r] || []).forEach(function (c, i) {
+      var s = String(c == null ? '' : c).trim();
+      if (!s || daLay[i]) return;
+      for (var j = 0; j < khoa.length; j++) {
+        var k = khoa[j];
+        if (cot[k] === undefined && KT_COT_MAU[k] && KT_COT_MAU[k].test(s)) {
+          cot[k] = i; daLay[i] = true; return;
+        }
+      }
+    });
+    var du = batBuoc.every(function (k) { return cot[k] !== undefined; });
+    if (du) return { dong: r, cot: cot };
+  }
+  return { dong: -1, cot: {} };
+}
+
+/**
+ * Đọc file ở ô `<input type="file">` thành mảng 2 chiều rồi gọi `xong(aoa)`.
+ * Mọi lỗi đi ra ô `msgId` — Apps Script không throw sang client nên lỗi im
+ * lặng ở đây là kế toán bấm nút mà không thấy gì xảy ra.
+ */
+function ktDocFileAoa(inputId, msgId, xong) {
+  var el = $k(inputId), f = el && el.files && el.files[0];
+  if (!f) { kmsg(msgId, 'Chọn file trước', 'err'); return; }
+  if (typeof XLSX === 'undefined') {
+    kmsg(msgId, 'Không nạp được thư viện Excel — kiểm tra mạng rồi tải lại trang', 'err');
+    return;
+  }
+  kmsg(msgId, 'Đang đọc file…');
+  var fr = new FileReader();
+  fr.onerror = function () { kmsg(msgId, 'Không đọc được file', 'err'); };
+  fr.onload = function (e) {
+    try {
+      /* `cellDates` để tiêu đề ngày của lưới 1–31 ra Date thật thay vì số sê-ri
+         Excel — cột nào không phải ngày thì tham số này không đụng tới. */
+      var wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
+      var sh = wb.Sheets[wb.SheetNames[0]];
+      xong(XLSX.utils.sheet_to_json(sh, { header: 1, defval: '' }), wb);
+    } catch (err) {
+      kmsg(msgId, 'File không hợp lệ: ' + err.message, 'err');
+    }
+  };
+  fr.readAsArrayBuffer(f);
+}
+
+/** Câu "dò được cột nào" — phải in ra: dò lệch một cột mà im lặng là tệ nhất. */
+function ktCotNhanDuoc(cot, khoa, tenSheet) {
+  return '<div class="alert ok">' +
+    (tenSheet ? 'Sheet <b>' + kesc(tenSheet) + '</b> · ' : '') +
+    'Cột nhận được: ' + khoa.map(function (k) {
+      return cot[k] === undefined
+        ? '<b>' + KT_COT_TEN[k] + '</b> = <i>không có</i>'
+        : '<b>' + KT_COT_TEN[k] + '</b> = cột ' + (cot[k] + 1);
+    }).join(' · ') + '</div>';
+}
+
+/** Lời nhắc "không tìm thấy tiêu đề", nói rõ file CẦN có cột nào. */
+function ktKhongThayTieuDe(batBuoc) {
+  return '<div class="alert danger">Không tìm thấy dòng tiêu đề trong 30 dòng đầu. ' +
+    'File cần có cột ' + batBuoc.map(function (k) {
+      return '<b>' + KT_COT_TEN[k] + '</b>';
+    }).join(' và ') + '.</div>';
+}
+
+/**
+ * Bảng xem trước dùng chung. `cols` là [{ key, nhan, so }] — `so` thì căn phải.
+ * Chỉ vẽ 200 dòng đầu (bảng 3.000 dòng làm trình duyệt ở mall đứng), nhưng NÓI
+ * RÕ sẽ nhập đủ bao nhiêu — cắt mà im lặng là kế toán tưởng mất dòng.
+ */
+function ktBangXemTruoc(rows, cols) {
+  var h = '<div class="tableWrap"><table><tr>' + cols.map(function (c) {
+    return '<th' + (c.so ? ' class="num"' : '') + '>' + kesc(c.nhan) + '</th>';
+  }).join('') + '</tr>';
+  rows.slice(0, 200).forEach(function (r) {
+    h += '<tr' + (r.__xau ? ' class="lech"' : '') + '>' + cols.map(function (c) {
+      var v = r[c.key];
+      return c.so ? '<td class="num">' + kmoney(knum(v)) + '</td>'
+                  : '<td>' + kesc(v == null ? '' : v) + '</td>';
+    }).join('') + '</tr>';
+  });
+  h += '</table></div>';
+  if (rows.length > 200) {
+    h += '<p class="hint">Hiện 200 dòng đầu, sẽ nhập đủ <b>' + rows.length + '</b> dòng.</p>';
+  }
+  return h;
+}
+
+function ktRevenue() {
+  kbusy(true, 'Đang tải doanh thu…');
+  ksrv('jpRevenueBoard', KT.token, { fromDate: $k('rFrom').value, toDate: $k('rTo').value })
+    .then(function (d) {
+      kbusy(false);
+      var s = d.sum;
+      $k('revSum').innerHTML =
+        stat('Doanh thu đồng hồ', s.revMeter) +
+        stat('Chuyển khoản / QR', s.revBank) +
+        stat('Lệch máy', s.adjMachine) +
+        stat('Hoàn khách', s.refundCustomer) +
+        stat('Tổng phải nộp', s.totalSubmit) +
+        stat('Đã nộp', s.paid) +
+        stat('Còn thiếu', s.totalSubmit - s.paid);
+
+      var h = '<tr><th>Mã KH</th><th>Cơ sở</th><th>Kỳ</th><th>Nhân viên</th>' +
+        '<th class="num">Đồng hồ</th><th class="num">QR</th><th class="num">Lệch máy</th>' +
+        '<th class="num">Hoàn khách</th><th class="num">Tiền mặt</th><th class="num">Tổng nộp</th>' +
+        '<th class="num">Đã nộp</th><th class="num">Còn lại</th><th>Trạng thái</th></tr>';
+      d.rows.forEach(function (r) {
+        h += '<tr><td>' + kesc(r.maKH) + '</td><td>' + kesc(r.locationName) + '</td>' +
+          '<td>' + kesc(r.period) + '</td><td>' + kesc(r.userName) + '</td>' +
+          tdnum(r.revMeter) + tdnum(r.revBank) + tdnum(r.adjMachine) + tdnum(r.refundCustomer) +
+          tdnum(r.cashActual) + tdnum(r.totalSubmit) + tdnum(r.paid) + tdnum(r.conLai) +
+          '<td>' + kpayText(r.payStatus) + '</td></tr>';
+      });
+      $k('tblRevenue').innerHTML = h;
+    }).catch(function (e) { kbusy(false); ktoast(e.message); });
+}
+
+/*═══════════ XUẤT DAILY SALES REPORT ĐÚNG BỐ CỤC MISA ═══════════
+
+  Ghi bằng SheetJS (đã nạp sẵn cho phần đối soát) nên ra .xlsx thật, không phải CSV
+  đổi tên — kế toán mở lên là đúng ô đúng cột, khỏi phải dán lại tay.
+
+  Bố cục lấy từ file thật của kế toán:
+    r1  DAILY REPORT <THÁNG>
+    r2  JP                              | (cột Total) VND
+    r3  Unit ID | Unit's name | 01..31 | Total | (trống) | Week 1..4 | Total
+    r4  <TÊN VÙNG>
+    r5+ từng đơn vị
+        TỔNG
+    rồi lặp lại y hệt cho khối SGD (= VND ÷ 20.000)
+═══════════════════════════════════════════════════════════════*/
+
+function ktFillKyDailySales() {
+  var t = new Date();
+  var sm = $k('dsThang'), sn = $k('dsNam');
+  if (!sm || sm.options.length) return;
+  for (var m = 1; m <= 12; m++) {
+    sm.innerHTML += '<option value="' + m + '">Tháng ' + m + '</option>';
+  }
+  for (var y = t.getFullYear() + 1; y >= t.getFullYear() - 2; y--) {
+    sn.innerHTML += '<option value="' + y + '">' + y + '</option>';
+  }
+  /* Mặc định tháng trước — kế toán thường chốt sổ tháng vừa xong */
+  var truoc = new Date(t.getFullYear(), t.getMonth() - 1, 1);
+  sm.value = String(truoc.getMonth() + 1);
+  sn.value = String(truoc.getFullYear());
+}
+
+function ktXuatDailySales() {
+  var m = knum($k('dsThang').value), y = knum($k('dsNam').value);
+  kmsg('dsSalesMsg', 'Đang tổng hợp…');
+  kbusy(true, 'Đang tổng hợp doanh thu…');
+
+  ksrv('jpBaoCaoDoanhThuNgay', KT.token, m, y).then(function (d) {
+    kbusy(false);
+    if (typeof XLSX === 'undefined') {
+      kmsg('dsSalesMsg', 'Không nạp được thư viện Excel — kiểm tra mạng rồi tải lại trang', 'err');
+      return;
+    }
+
+    var aoa = ktDailySalesAoa(d, 'VND', 1)
+        .concat([[]])
+        .concat(ktDailySalesAoa(d, 'SGD', d.tyGia));
+
+    var wb = XLSX.utils.book_new();
+    var ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{ wch: 12 }, { wch: 34 }].concat(
+      Array.apply(null, Array(d.soNgay)).map(function () { return { wch: 11 }; }),
+      [{ wch: 14 }, { wch: 3 }, { wch: 13 }, { wch: 13 }, { wch: 13 }, { wch: 13 }, { wch: 14 }]);
+    XLSX.utils.book_append_sheet(wb, ws, 'JP');
+
+    var ten = 'DAILY_SALES_MISA_JP_' + ('0' + d.thang).slice(-2) + '_' + d.nam + '.xlsx';
+    XLSX.writeFile(wb, ten);
+
+    kmsg('dsSalesMsg', 'Đã xuất ' + ten + ' · tổng ' + kmoney(d.tongVND) + 'đ = ' +
+         kmoney(Math.round(d.tongSGD * 100) / 100) + ' SGD', 'ok');
+
+    $k('dsSalesWarn').innerHTML = ktDailySalesWarn(d);
+  }).catch(function (e) {
+    kbusy(false); kmsg('dsSalesMsg', e.message, 'err');
+  });
+}
+
+/** Một khối (VND hoặc SGD) thành mảng 2 chiều. `chia` = 1 hoặc tỷ giá. */
+function ktDailySalesAoa(d, donVi, chia) {
+  var THANG = ['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE',
+               'JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'];
+  var rows = [];
+  var soCotNgay = d.soNgay;
+
+  rows.push(['DAILY REPORT ' + THANG[d.thang - 1]]);
+
+  var r2 = ['JP'];
+  while (r2.length < 2 + soCotNgay) r2.push('');
+  r2.push(donVi);                                  // ô Total của dòng 2 ghi loại tiền
+  rows.push(r2);
+
+  var hdr = ['Unit ID', "Unit's name"];
+  for (var i = 1; i <= soCotNgay; i++) hdr.push(('0' + i).slice(-2));
+  hdr.push('Total', '', 'Week 1', 'Week 2', 'Week 3', 'Week 4', 'Total');
+  rows.push(hdr);
+
+  var q = function (v) { return chia === 1 ? v : Math.round(v / chia * 100) / 100; };
+  var tongChung = 0;
+
+  d.khuVuc.forEach(function (v) {
+    rows.push([v.ten]);
+    v.donVi.forEach(function (u) {
+      var r = [u.unitId, u.ten];
+      u.ngay.forEach(function (x) { r.push(x ? q(x) : ''); });
+      r.push(q(u.tong), '');
+      u.tuan.forEach(function (x) { r.push(q(x)); });
+      r.push(q(u.tong));
+      rows.push(r);
+      tongChung += u.tong;
+    });
+  });
+
+  var rT = ['TỔNG', q(tongChung)];
+  while (rT.length < 2 + soCotNgay) rT.push('');
+  rT.push(q(tongChung));
+  rows.push(rT);
+
+  return rows;
+}
+
+function ktDailySalesWarn(d) {
+  var h = '';
+  if (d.canhBao && d.canhBao.length) {
+    h += '<div class="alert warn"><b>Cần soát:</b><ul style="margin:6px 0 0 18px">' +
+      d.canhBao.map(function (c) { return '<li>' + kesc(c) + '</li>'; }).join('') +
+      '</ul></div>';
+  }
+  if (d.baoCaoNhieuNgay && d.baoCaoNhieuNgay.length) {
+    h += '<div class="tableWrap"><table><tr><th>Báo cáo nhiều ngày</th><th>Cơ sở</th>' +
+      '<th>Từ</th><th>Đến</th><th class="num">Tiền dồn vào ngày cuối</th></tr>' +
+      d.baoCaoNhieuNgay.map(function (r) {
+        return '<tr class="lech"><td>' + kesc(r.id) + '</td><td>' + kesc(r.coSo) + '</td>' +
+          '<td>' + kesc(r.tu) + '</td><td>' + kesc(r.den) + '</td>' +
+          '<td class="num">' + kmoney(r.tien) + '</td></tr>';
+      }).join('') + '</table></div>';
+  }
+  return h;
+}
+
+/**
+ * Thẻ số TIỀN. Truyền SỐ THÔ — hàm này tự định dạng và tự thêm "đ".
+ * Truyền chuỗi đã định dạng sẵn thì `kmoney` gọi `Number("3.690.000đ")` ra NaN
+ * và in thành **0đ**. Đã dính đúng lỗi này ở 14 chỗ, chỉ lộ ra khi chụp màn hình.
+ */
+function stat(label, v) {
+  return '<div class="statCard"><div class="sub">' + label + '</div>' +
+         '<div class="v">' + kmoney(v) + 'đ</div></div>';
+}
+
+/** Thẻ KHÔNG phải tiền (số dòng, tỷ lệ…) — in nguyên văn, không thêm "đ". */
+function statTxt(label, text) {
+  return '<div class="statCard"><div class="sub">' + label + '</div>' +
+         '<div class="v">' + text + '</div></div>';
+}
+function tdnum(v) { return '<td class="num">' + kmoney(v) + '</td>'; }
+
+function ktStock() {
+  kbusy(true, 'Đang tải hàng hoá…');
+  ksrv('jpStockBoard', KT.token, { fromDate: $k('kFrom').value, toDate: $k('kTo').value })
+    .then(function (d) {
+      kbusy(false);
+      var onlyLech = $k('kOnlyLech').checked;
+      /* `lech` nay là `null` khi CHƯA ĐẾM (khác 0 = đã đếm và khớp). Lọc bằng
+         `!== 0` là kéo hết dòng chưa đếm vào ô "chỉ hiện dòng lệch" — dùng
+         truthy để cả `0` lẫn `null` đều rơi ra ngoài. */
+      var rows = onlyLech ? d.rows.filter(function (r) { return !!r.lech; }) : d.rows;
+
+      var h = '<tr><th>Cơ sở</th><th>Kỳ</th><th>Loại dòng</th><th>Ô/máy</th><th>Mã hàng</th><th>Mã MISA</th>' +
+        '<th class="num">Giá</th><th class="num">Tồn đầu</th><th class="num">Bổ sung</th>' +
+        '<th class="num">Đã bán</th><th class="num">Lỗi/mẫu</th><th class="num">Trả kho</th>' +
+        '<th class="num">Còn tính</th><th class="num">Thực tế</th><th class="num">Lệch</th>' +
+        '<th class="num">Tiền</th></tr>';
+      rows.forEach(function (r) {
+        h += '<tr' + (r.lech ? ' class="lech"' : '') + '>' +
+          '<td>' + kesc(r.locationName) + '</td><td>' + kesc(r.period) + '</td>' +
+          '<td>' + kesc(r.tenLoaiDong) + '</td>' +
+          '<td>' + kesc(r.machineCode) + '</td><td>' + kesc(r.itemCode) + '</td>' +
+          '<td>' + kesc(r.itemMisa) + '</td>' +
+          tdnum(r.price) + tdnum(r.stockOpen) + tdnum(r.addQty) + tdnum(r.soldQty) +
+          tdnum(r.defectQty) + tdnum(r.returnQty) + tdnum(r.stockLeftCalc) + tdnum(r.stockActual) +
+          '<td class="num">' + (r.lech === null || r.lech === undefined
+            ? '<span class="sub">—</span>'
+            : '<b>' + (r.lech > 0 ? '+' : '') + r.lech + '</b>') + '</td>' +
+          tdnum(r.amount) + '</tr>';
+      });
+      $k('tblStock').innerHTML = h;
+    }).catch(function (e) { kbusy(false); ktoast(e.message); });
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  $k('ktBtnLogin').onclick = ktLogin;
+  $k('ktPin').addEventListener('keydown', function (e) { if (e.key === 'Enter') ktLogin(); });
+  $k('ktPin').addEventListener('input', function () {
+    var el = $k('ktPin');
+    el.value = (el.value || '').replace(/\D/g, '').slice(0, 3);
+    if (el.value.length === 3) ktLogin();      // đủ 3 số là vào luôn
+  });
+
+  /* Menu · tabs · subtabs đều do `ktGo` dựng và gắn onclick trực tiếp — không
+     còn handler chung quét cả trang như bản cũ (bản cũ quét `.subtab` toàn
+     trang nên thêm subtab ở tab khác là bấm đâu cũng chạy hàm của Cấu hình). */
+  $k('kOnlyLech').addEventListener('change', ktStock);
+
+  var t = KLS.get('token');
+  if (t) {
+    KT.token = t;
+    kbusy(true, 'Đang khôi phục phiên…');
+    ksrv('jpBootstrap', t).then(function (b) {
+      kbusy(false); KT.user = b.user;
+      if (b.user.role === 'NHANVIEN') { ktForceLogin(); return; }
+      ktEnter();
+    }).catch(function () { kbusy(false); ktForceLogin(); });
+  }
+});
+</script>
+
+
