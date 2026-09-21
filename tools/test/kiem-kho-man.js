@@ -173,6 +173,38 @@ const mLech = boCC.match(/function oLech\([\s\S]*?\n  \}/);
 t('ô lệch cũng mang data-nhan và lớp o-lech',
   mLech !== null && /data-nhan/.test(mLech[0]) && /o-lech/.test(mLech[0]));
 
+/* ── 7. sổ ghi động và ngày hiệu lực combo — vế MÀN HÌNH ──────────────────────────── */
+/* 🔴 Giữ vết mà không bày ra thì chẳng ai biết là có vết: người trực vẫn tưởng sửa là xoá dấu,
+   và người soát cũng không nghĩ tới chuyện đi xem lịch sử. Nhãn "đã sửa N lần" chính là phần
+   răn, nên nó phải nằm ngay cạnh tên mặt hàng. */
+t('màn đọc số lượt khai từ máy chủ', /r\.so_lan/.test(boCC));
+t('🔴 hiện nhãn "đã sửa N lần" ngay trên dòng', /đã sửa '/.test(boCC));
+t('nhãn ấy bấm được để xem lịch sử', /data-kho-su=/.test(boCC));
+t('🔴 và chỉ hiện khi CÓ sửa (> 1 lượt), không hiện với dòng khai một lần',
+  /so_lan\[d\.mat_hang\] \|\| 0\) > 1/.test(boCC));
+t('trừ đi một lượt khi đếm số lần sửa (3 lượt khai = 2 lần sửa)',
+  /so_lan\[d\.mat_hang\] - 1/.test(boCC));
+const mSu = boCC.match(/closest\('\[data-kho-su\]'\)([\s\S]*?)\n    \}\);/);
+t('có bộ xử lý xem lịch sử', mSu !== null);
+if (mSu) {
+  t('gọi đúng đường kho-su', /kho-su\?ngay=/.test(mSu[0]));
+  t('🔴 bày kèm NGƯỜI và GIỜ — không có hai thứ ấy thì vết vô dụng',
+    /x\.luc/.test(mSu[0]) && /x\.nguoi/.test(mSu[0]));
+  t('bày cả ghi chú của từng lượt', /x\.ghi_chu/.test(mSu[0]));
+}
+
+/* 🔴 Ngày hiệu lực của combo: mặc định HÔM NAY, không mặc định lùi. Mặc định lùi là mọi lượt
+   khai đều lặng lẽ viết lại số tồn của những ngày đã chốt. */
+t('🔴 khối combo có ô ngày hiệu lực', /id="cbTu"/.test(boCC));
+/* So chuỗi thẳng, không dùng regex: mẫu cần tìm có cả ' + ( ) nên viết regex là ba lớp
+   thoát ký tự, và lần đầu em viết sai đúng chỗ ấy — phép thử đỏ vì CHÍNH NÓ sai, không
+   phải vì mã sai. Phép thử tự sai thì tệ hơn không có phép thử. */
+t('mặc định là HÔM NAY, không phải để trống hay lùi',
+  boCC.indexOf('id="cbTu" value="' + String.fromCharCode(39) + ' + esc(homNay())') >= 0);
+t('và gửi tu_ngay lên máy chủ', /fd\.append\('tu_ngay'/.test(boCC));
+t('homNay() lấy theo múi giờ máy người dùng, không qua toISOString',
+  /function homNay\(\) \{ return ymd\(new Date\(\)\); \}/.test(boCC));
+
 if (hong.length) {
   console.log('\n✗ HỎNG ' + hong.length + ' phép (đạt ' + dat + '):');
   hong.forEach((h) => console.log('   · 🔴 ' + h));

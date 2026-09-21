@@ -97,6 +97,28 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.52.0 =
+Hai thay đổi học từ ERPNext và Odoo — cả hai đều ghi một **sổ ghi động bất biến** rồi tồn hiện
+tại chỉ là tổng của nó: *"đã ghi thì không sửa, sai thì ghi một bút toán bù"*.
+
+* 🔴 **Sổ khai giờ là sổ ghi động — khai lại là GHI THÊM, không ghi đè.** Trước đây khai lại là
+  `UPDATE`, chỉ còn người và giờ của lần cuối. Với một sổ sinh ra để bắt thất thoát thì đó là lỗ
+  to nhất: người đang bị đối soát tự sửa con số mình đã khai, không để lại dấu vết — đếm thiếu,
+  thấy cột lệch đỏ, sửa số đếm cho khớp, sổ xanh. Nay mỗi lượt Lưu ghi thêm một dòng, và dòng
+  nào bị khai lại thì màn hiện nhãn đỏ **"đã sửa N lần"**, bấm ra xem đủ các lượt kèm **người và
+  giờ**.
+* Bảng cũ vẫn giữ nhưng chỉ còn là **bản cộng dồn cho nhanh** (đúng vai *Bin* của ERPNext) — sổ
+  ghi động mới là gốc, và **dựng lại được** bản cộng dồn từ sổ bất cứ lúc nào.
+* 🔴 **Công thức combo có ngày hiệu lực — sửa hôm nay không viết lại quá khứ.** Trước đây công
+  thức được áp **lúc đọc** từ bảng hiện tại, nên sửa một combo hôm nay là số tồn của cả mấy
+  tháng trước đổi theo, im lặng: hôm qua sổ cân, hôm nay mở lại đúng ngày ấy thì lệch, mà không
+  có gì nói vì sao. Nay mỗi lượt sửa ghi thêm một dòng hiệu lực (theo **từng combo**, đúng lối
+  BOM của ERPNext), và mỗi ngày dùng công thức có hiệu lực vào **đúng ngày ấy**.
+* Ô **"Áp từ ngày"** mặc định là **hôm nay**. Áp lùi vẫn được — có lúc đúng, như khai muộn một
+  combo đã bán từ đầu tháng — nhưng phải tự gõ ngày, vì áp lùi là cố ý sửa lại quá khứ.
+* Thành phần để trống = **xoá combo từ ngày ấy trở đi**, không xoá cả quá khứ.
+* `tools/test/kiem-kho.php` lên **90 phép**, `tools/test/kiem-kho-man.js` lên **70 phép**.
+
 = 1.51.0 =
 * 🔴 **Vá lỗ đọc chéo cơ sở ở sổ kho.** Đường ĐỌC của sổ kho không gác theo phạm vi cơ sở của
   người dùng — cửa hàng trưởng quán này đổi một chữ trên thanh địa chỉ là đọc được sổ kho, tồn
