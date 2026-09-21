@@ -110,7 +110,33 @@ t( 'Nhân viên chỉ có đúng hai quyền', 2 === count( array_filter(
 	array_map( function ( $q ) { return VHCC_Vai::duoc( array( 'role' => VHCC_Vai::NV ), $q ); },
 		array_keys( VHCC_Vai::QUYEN ) ) ) ) );
 
-t( 'CHT: chấm công bù',      VHCC_Vai::duoc( $U[ VHCC_Vai::CHT ], 'cham_bu' ) );
+/* 🔴 CHT KHÔNG CÒN BÙ VÀ SỬA GIỜ — 18/09/2026.
+   Anh Thắng: *"Cửa hàng trưởng không được bù giờ công, nếu thiếu thì chỗ file excel"* và
+   *"cửa hàng trưởng không được sửa công nữa mà theo người được chỉ định bật quyền mới được
+   sửa thôi"*. Cả `cham_bu` lẫn `sua_gio` lên bậc Kế toán; chỉ định từng người thì khai một
+   dòng `nv:<Mã NV>` ở bảng ngoại lệ, không phải hạ bậc.
+   ⚠️ HỎI CẢ HAI BẬC, KHÔNG CHỈ HỎI BẬC BỊ ĐÓNG. "CHT không có" một mình thì vẫn xanh khi ai
+      đó lỡ tay đẩy hai quyền này lên tận Admin — mà thế là kế toán, người ngồi chữa bảng công,
+      cũng hết cửa. */
+t( 'CHT: KHÔNG bù được nữa',  ! VHCC_Vai::duoc( $U[ VHCC_Vai::CHT ], 'cham_bu' ) );
+t( 'CHT: KHÔNG sửa đè giờ đã có', ! VHCC_Vai::duoc( $U[ VHCC_Vai::CHT ], 'sua_gio' ) );
+t( 'Kế toán: bù được',        VHCC_Vai::duoc( $U[ VHCC_Vai::KE_TOAN ], 'cham_bu' ) );
+t( 'Kế toán: sửa đè được',    VHCC_Vai::duoc( $U[ VHCC_Vai::KE_TOAN ], 'sua_gio' ) );
+/* Và Quản lý — bậc NGAY DƯỚI Kế toán — vẫn phải đóng, kẻo "nâng lên Kế toán" hoá ra nâng
+   nhầm một bậc mà không ai thấy. */
+t( 'Quản lý: vẫn KHÔNG bù/sửa được',
+	! VHCC_Vai::duoc( $U[ VHCC_Vai::QL ], 'cham_bu' )
+	&& ! VHCC_Vai::duoc( $U[ VHCC_Vai::QL ], 'sua_gio' ) );
+/* 🔴 VÀ ĐƯỜNG CHỈ ĐỊNH PHẢI CÒN SỐNG — đó là thứ thay cho việc hạ bậc. Hỏng nó thì cách duy
+   nhất để cho một cửa hàng trưởng sửa giờ là nâng vai cho cả lớp. */
+$u_cd = array( 'role' => VHCC_Vai::CHT, 'ma_nv' => 'PQCHIDINH' );
+VHCC_Vai::dat_ngoai_le( $U[ VHCC_Vai::ADMIN ], 'nv:PQCHIDINH', 'sua_gio', 'mo' );
+t( '🔴 chỉ định theo Mã NV thì mở được cho đúng một người',
+	VHCC_Vai::duoc( $u_cd, 'sua_gio' ) );
+t( 'và cửa hàng trưởng khác KHÔNG ăn theo',
+	! VHCC_Vai::duoc( array( 'role' => VHCC_Vai::CHT, 'ma_nv' => 'PQKHAC' ), 'sua_gio' ) );
+VHCC_Vai::dat_ngoai_le( $U[ VHCC_Vai::ADMIN ], 'nv:PQCHIDINH', 'sua_gio', '' );
+t( 'gỡ dòng chỉ định thì đóng lại ngay', ! VHCC_Vai::duoc( $u_cd, 'sua_gio' ) );
 t( 'CHT: lên lịch cửa hàng', VHCC_Vai::duoc( $U[ VHCC_Vai::CHT ], 'lich_lam' ) );
 t( 'CHT: báo lỗi lên trên',  VHCC_Vai::duoc( $U[ VHCC_Vai::CHT ], 'bao_loi' ) );
 t( 'CHT: KHÔNG xem mọi cơ sở', ! VHCC_Vai::duoc( $U[ VHCC_Vai::CHT ], 'cong_tat_ca' ) );

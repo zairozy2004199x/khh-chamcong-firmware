@@ -74,7 +74,7 @@ $TRANG = array(
 	 * buộc cả bảy.
 	 * ══════════════════════════════════════════════════════════════════════════════════════ */
 	'Chấm Công (sáng)' => $GOC . '/wordpress/vhcp-cham-cong/includes/class-vhcc-web.php',
-	'Trạm bấm (tối)'   => $GOC . '/wordpress/vhcp-cham-cong/templates/tram.php',
+	'Trạm bấm (sáng)'   => $GOC . '/wordpress/vhcp-cham-cong/templates/tram.php',
 );
 
 /* ═══ 1. MỌI TRANG PHẢI KHAI ĐỦ BỘ TÊN BIẾN ════════════════════════════════════
@@ -155,24 +155,38 @@ t( '🔴 trang Ghế giữ nền TỐI, không nhận nền kem của bản sán
 t( '🔴 và giữ VÀNG làm dấu nhận mặt', (bool) preg_match( '#--nhan:\s*\#f0b429#i', $g ), '' );
 /* Ảnh nền và lớp phủ tối là cặp không tách rời: bỏ lớp phủ thì chữ trắng nằm trên vùng sáng
    của ảnh là không đọc nổi. */
-/* Trạm bấm: MÀN CHỤP phải tối, và vì một lý do làm được chứ không phải vì đẹp — nó mở camera
-   soi mặt để chấm công và chạy cả ca đêm. Màn sáng thì hắt thẳng vào mặt người đang đứng chụp,
-   ảnh bệt, mà đúng tấm ảnh ấy là thứ quản lý dùng đối chiếu về sau.
-
-   ⚠️ 17/09/2026 — CANH MÀN CHỤP, KHÔNG CANH CẢ TRANG. Từ bản 4.29.1 trạm đổi sang mặt sáng cho
-      hợp với bảng công và ba trang Chi phí; chỉ năm giây đứng chụp mới có chuyện hắt sáng, nên
-      chữa đúng chỗ ấy là đủ. Chính chú thích đầu `tram.php` đã chốt hướng này.
-
-      Nhưng lúc hoà nhánh mới lộ ra là hướng ấy MỚI ĐƯỢC VIẾT RA CHỨ CHƯA ĐƯỢC LÀM: `#mChup`
-      không có lấy một luật màu, và bài kiểm này cũng chưa hề đổi như chú thích nói. Tức trạm
-      đã sáng toàn bộ, kể cả lúc chụp, suốt từ đó. Nay `#mChup` có bảng màu tối riêng và phép
-      dưới đây canh đúng nó — canh cả trang nữa thì đỏ oan, mà bỏ hẳn thì mất luôn cái gác. */
-$tr = $css['Trạm bấm (tối)'];
+/* ═══ TRẠM BẤM: MỘT BẢNG MÀU, VÀ LÀ BẢNG **SÁNG** ══════════════════════════════
+ *
+ * Trạm từng là mặt TỐI, vì một lý do vật lý làm được chứ không phải vì đẹp: nó mở camera soi
+ * mặt để chấm công và chạy cả ca đêm, nền sáng thì màn hình hắt vào mặt người đang đứng chụp
+ * và ảnh bệt hơn — mà đúng tấm ảnh ấy là thứ quản lý dùng đối chiếu khi tranh cãi.
+ *
+ * 🔴 ANH THẮNG 17/09/2026 CHỐT **SÁNG TOÀN BỘ**, đổi lại được sự đồng nhất với bảy trang còn
+ *    lại. Đó là quyết định của anh nên phép thử KHÔNG cãi nó — nó khoá lại để không ai lặng
+ *    lẽ đổi ngược.
+ *
+ * ⚠️ BẢN TRƯỚC CỦA PHÉP NÀY ĐÒI `#mChup` CÓ BẢNG MÀU TỐI RIÊNG, và nó đỏ suốt từ lượt nhập
+ *    bản 4.67.4 từ host về kho: trên host `#mChup` không có lấy một luật màu nào. Chú thích
+ *    đầu `tram.php` nói đúng hiện trạng ấy — bảng màu tối cho riêng màn chụp là CÁCH CHỮA để
+ *    dành, *"nếu về sau ảnh chấm công ca đêm bị phàn nàn là mờ hoặc bệt mặt"*, chứ chưa làm.
+ *    Bắt bộ thử đòi một thứ sản phẩm cố ý chưa có là bắt nó nói dối về hiện trạng.
+ *
+ * ⚠️ NGÀY NÀO DỰNG BẢNG MÀU TỐI CHO `#mChup` THÌ SỬA PHÉP CUỐI Ở ĐÂY thành "phải là nền tối",
+ *    đừng chỉ xoá nó đi — lúc ấy nó mới là cái gác thật. */
+$tr = $css['Trạm bấm (sáng)'];
+t( '🔴 Trạm bấm dùng đúng bảng màu SÁNG, khớp mã với bảng công',
+	false !== strpos( $tr, '--nen:#f9f8f6' ), '' );
+t( '🔴 và KHÔNG còn bảng màu tối nào sót cho cả trang',
+	! preg_match( '#:root\s*\{[^}]*--nen:\s*\#1[0-9a-f]{5}#is', $tr ), '' );
+/* Màn chụp chưa khai màu riêng — hiện trạng, và là hiện trạng CÓ CHỦ Ý. Phép này giữ cho nó
+   không bị một bảng màu thứ hai lén dán vào mà không ai bàn: có luật màu ở đó thì phải là
+   nền TỐI (đúng cách chữa đã ghi sẵn), chứ không phải một bản sao mặt sáng nữa. */
 $m_chup = '';
 if ( preg_match( '~#mChup\s*\{(.*?)\}~s', $tr, $m ) ) { $m_chup = $m[1]; }
-t( '🔴 màn chụp của Trạm có bảng màu riêng', '' !== $m_chup, '' );
-t( '🔴 màn chụp giữ nền TỐI, không nhận nền kem của bản sáng',
-	false === strpos( $m_chup, '--nen:#f9f8f6' ) && (bool) preg_match( '#--nen:\s*\#1[0-9a-f]{5}#i', $m_chup ), '' );
+t( '⚠️ màn chụp chưa khai bảng màu riêng — khai thì phải là nền TỐI',
+	'' === $m_chup
+	|| ( false === strpos( $m_chup, '--nen:#f9f8f6' )
+		&& (bool) preg_match( '#--nen:\s*\#1[0-9a-f]{5}#i', $m_chup ) ), $m_chup );
 
 $ghe_php = file_get_contents( $GOC . '/wordpress/vhcp-ghe/includes/class-vhg-trang.php' );
 t( '⚠️ ảnh nền còn nguyên', false !== strpos( $ghe_php, 'body.co-anh::before' ), '' );
@@ -199,7 +213,7 @@ foreach ( $TRANG as $ten => $duong ) {
  *    trang vẫn "có nền 3D" và trông vẫn đẹp trong ảnh chụp — chỉ hỏng lúc người ta cuộn. Đó
  *    là loại hỏng không ai báo, nên phải có phép canh. */
 $cs = $css['Chấm Công (sáng)'];
-$tr = $css['Trạm bấm (tối)'];
+$tr = $css['Trạm bấm (sáng)'];
 t( '🔴 Chấm Công: nền trang có đủ BA vầng sáng gradient',
 	3 === preg_match_all( '#radial-gradient\(#', $cs ), 'đếm được ' . preg_match_all( '#radial-gradient\(#', $cs ) );
 t( '🔴 và nền ấy ĐỨNG YÊN khi cuộn (background-attachment:fixed)',
@@ -208,7 +222,7 @@ t( '🔴 Trạm bấm cũng vậy — cùng ba vầng, cũng đứng yên',
 	preg_match_all( '#radial-gradient\(#', $tr ) >= 3 && false !== strpos( $tr, 'background-attachment:fixed' ), '' );
 /* Chiều sâu phải có ĐỦ BA TẦNG. Một tầng dùng chung thì hoặc thẻ nào cũng nổi bồng bềnh, hoặc
    thứ đang được chạm chẳng khác gì thứ đứng yên — mà chiều sâu chỉ đọc được khi có thứ để so. */
-foreach ( array( 'Chấm Công (sáng)' => $cs, 'Trạm bấm (tối)' => $tr ) as $ten => $_c ) {
+foreach ( array( 'Chấm Công (sáng)' => $cs, 'Trạm bấm (sáng)' => $tr ) as $ten => $_c ) {
 	$thieu = array();
 	foreach ( array( '--bong', '--bong-2', '--bong-3' ) as $b ) {
 		if ( ! preg_match( '#' . preg_quote( $b, '#' ) . '\s*:#', $_c ) ) { $thieu[] = $b; }

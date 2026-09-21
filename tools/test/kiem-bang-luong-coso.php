@@ -83,6 +83,27 @@ function vhcc_man( $ma_nv, $vai, $coso, $get = array() ) {
 	return $h;
 }
 
+/* ═════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 BẢNG LƯƠNG NAY LÀ MỘT **TAB RIÊNG**, KHÔNG CÒN NẰM DƯỚI ĐUÔI MÀN BẢNG CÔNG — 18/09/2026.
+ *
+ * Anh Thắng: *"chuyển nó ra 1 tab như tính năng, vì sau để bên báo cáo họ lấy dữ liệu lương
+ * cho dễ"*. Màn mới là `VHCC_WebLuong::man()` (`man=luong`), và nó chọn cơ sở/tháng bằng
+ * `lcs`/`lth` chứ không phải `ccs`/`cth` — hai màn dùng hai bộ tham số để đổi màn trên thanh
+ * địa chỉ mà vẫn đúng chỗ đang xem.
+ *
+ * ⚠️ KHÔNG NỚI QUYỀN MỘT LI: `VHCC_WebLuong` chỉ VẼ, mọi chốt vẫn nằm trong
+ *    `VHCC_Web::the_bang_luong_cs()` như cũ. Nên mọi phép soi quyền ở tệp này giữ nguyên ý,
+ *    chỉ đổi chỗ đứng mà soi.
+ *
+ * ⚠️ VÀ VÌ THẾ LƯỚI VỚI BẢNG LƯƠNG NAY Ở HAI MÀN KHÁC NHAU. Chỗ nào so hai bên với nhau
+ *    (ô TỔNG của lưới ↔ cột Số giờ của bảng lương) thì phải dựng CẢ HAI màn, đừng soi một
+ *    trang rồi tưởng thiếu dữ liệu.
+ * ═════════════════════════════════════════════════════════════════════════════════════════ */
+function vhcc_man_luong( $ma_nv, $vai, $coso, $cs, $th, $them = array() ) {
+	return vhcc_man( $ma_nv, $vai, $coso,
+		array_merge( array( 'man' => 'luong', 'lcs' => $cs, 'lth' => $th ), $them ) );
+}
+
 /* ⚠️ CƠ SỞ PHẢI CÓ TRONG DANH MỤC (`bo_phan_coso`) THÌ MỚI VÀO Ô CHỌN Ở MÀN CẤU HÌNH.
    `ds_coso()` đọc từ bảng ấy và bảng `may`, KHÔNG đọc từ `nhan_vien` — nên gieo mỗi hồ sơ là
    ô chọn rỗng, `$cs` bị xoá về '' và khối khai đơn giá riêng không vẽ ra. */
@@ -297,7 +318,14 @@ $d2 = $b2['dong'][0];
 teq( '🔴 người có lương cơ bản thì tính THEO THÁNG', 'thang', $d2['cheDo'] );
 teq( 'lương cơ bản vào đúng cột của nó', 4000000.0, $d2['luongCb'] );
 teq( 'số công yêu cầu lấy từ cấu hình', 26.0, $d2['congYc'] );
-teq( 'số công thực = số ngày có chấm', 26, $d2['congThuc'] );
+/* 🔴 SỐ CÔNG THỰC NAY QUY ĐỔI TỪ **GIỜ**, KHÔNG ĐẾM ĐẦU NGÀY — 19/09/2026.
+   Anh Thắng: *"nhân viên tính theo công tháng thì khi tích vào đó, nv sẽ quy đổi theo 4 tiếng
+   1/2 công và 8h là 1 công (bổ sung bảng set)"*. Lối cũ đếm SỐ NGÀY CÓ CHẤM mà không nhìn ngày
+   ấy làm mấy giờ: tạt vào hai tiếng rồi về cũng trọn một công, y như người làm mười hai tiếng.
+   Cảnh này gieo 26 ngày × 8 giờ nên hai lối ra cùng một con số — nhưng KIỂU đã khác: `float`
+   chứ không còn `int`, vì nửa công là có thật. Phép dưới so bằng `===` nên nó bắt được cả
+   chuyện ấy, và đó là điều tốt. */
+teq( 'số công thực = quy đổi từ giờ (26 ngày × 8h = 26 công)', 26.0, $d2['congThuc'] );
 teq( '🔴 lương chính 4.000.000đ — đúng số kế toán đã trả', 4000000.0, $d2['luongChinh'] );
 teq( '🔴 lối theo tháng KHÔNG dùng đơn giá giờ', null, $d2['gia'] );
 
@@ -341,8 +369,12 @@ $d_ch = null;
 foreach ( $b6['dong'] as $d ) { if ( 'TP_TRUYEN' === $d['ma'] ) { $d_ch = $d; } }
 teq( '🔴 vẫn ĐÚNG MỘT dòng cho người ấy', 1,
 	count( array_filter( $b6['dong'], function ( $x ) { return 'TP_TRUYEN' === $x['ma']; } ) ) );
-teq( 'ngày mang hậu tố đếm vào số công như mọi ngày', 27, $d_ch['congThuc'] );
-teq( '🔴 lương tháng theo số công thực: 4.000.000 × 27/26', 4153846.15, $d_ch['luongChinh'] );
+/* ⚠️ VÀ NGÀY ẤY ĐẾM THEO **GIỜ LÀM THẬT**, KHÔNG PHẢI TRỌN MỘT CÔNG.
+   Lượt vừa gieo là 22:00 + 300 phút = 5 giờ, tức nửa công theo bảng quy đổi (4h = ½ công).
+   Bản trước của phép này mong 27 — đúng với lối "đếm đầu ngày" đã bỏ 19/09/2026. Giữ nguyên
+   con số ấy là bắt hệ trả tiền một công trọn cho một ca 5 tiếng. */
+teq( 'ngày mang hậu tố đếm vào số công theo GIỜ LÀM (5h = nửa công)', 26.5, $d_ch['congThuc'] );
+teq( '🔴 lương tháng theo số công thực: 4.000.000 × 26,5/26', 4076923.08, $d_ch['luongChinh'] );
 
 /* 🔴 KẾ TOÁN CŨNG NHẬP ĐƯỢC, KHÔNG CHỈ CỬA HÀNG TRƯỞNG.
    Anh Thắng 16/09/2026: *"kế toán và cửa hàng trưởng chứ em, anh nói là từ dưới đi lên"* —
@@ -581,11 +613,17 @@ t( '🔴 nhân viên bậc 1 KHÔNG xuất được bảng lương',
 	'' !== VHCC_Web::vi_sao_khong_xuat( array( 'name' => 'N', 'role' => 'Nhân viên',
 		'coso' => 'AEON_BT', 'ma_nv' => 'Y' ), 'luong', 'AEON_BT' ) );
 
-/* ---- Khối trên màn Bảng công: cửa hàng trưởng PHẢI thấy ---- */
-$h_cht = vhcc_man( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT',
+/* ---- Tab Bảng lương: cửa hàng trưởng PHẢI thấy ---- */
+/* ⚠️ SOI Ở TAB LƯƠNG, KHÔNG SOI MÀN BẢNG CÔNG. Chữ "Bảng lương cơ sở" VẪN còn trên màn bảng
+   công — nhưng chỉ trong một `title` rê chuột ("xem khối Bảng lương cơ sở"). Phép cũ soi cả
+   trang nên nó xanh nhờ đúng cái tooltip ấy, trong khi chính cái bảng đã dọn sang tab khác. */
+$h_cht = vhcc_man_luong( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT', 'AEON_BT', '2026-08' );
+$h_cht_luoi = vhcc_man( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT',
 	array( 'man' => 'cham', 'ccs' => 'AEON_BT', 'cth' => '2026-08' ) );
 t( '🔴 cửa hàng trưởng thấy khối Bảng lương cơ sở',
 	false !== strpos( $h_cht, 'Bảng lương cơ sở' ), substr( $h_cht, 0, 400 ) );
+t( '🔴 và màn Bảng công chỉ đúng đường sang tab ấy, không bỏ rơi người quen chỗ cũ',
+	false !== strpos( $h_cht_luoi, 'man=luong' ), substr( $h_cht_luoi, 0, 400 ) );
 t( 'có nút xuất bảng lương', false !== strpos( $h_cht, 'xuat=luong' ), 'thiếu nút xuất' );
 t( 'bảng hiện tên người và số giờ',
 	false !== strpos( $h_cht, 'Người Ba Loại Việc' ) && false !== strpos( $h_cht, '118,00' ), $h_cht );
@@ -594,13 +632,15 @@ t( 'bảng hiện tên người và số giờ',
    đi"*) vì cả ba lặp lại thứ chính cái bảng ngay dưới đã nói. Nên phép thử cũng phải dời theo:
    canh mấy chỗ CÒN nói, chứ không bỏ luôn — bỏ luôn là mở đường cho một bản sau bịt miệng nốt
    mà không ai biết. */
-t( '🔴 hàng TỔNG nói ra là chưa đủ giá, thay vì in một con số không phải tổng lương của ai',
-	false !== strpos( $h_cht, 'chưa đủ giá' ), $h_cht );
-t( '🔴 và dòng thiếu giá bị nhuộm đỏ', false !== strpos( $h_cht, '<tr class="hong">' ), $h_cht );
+/* ⚠️ "chưa đủ giá" là chữ của HÀNG TỔNG TRÊN LƯỚI (màn Bảng công), còn dấu hiệu trong BẢNG
+   LƯƠNG là dòng nhuộm đỏ. Hai màn, hai chỗ nói — soi đúng chỗ của từng cái. */
+t( '🔴 hàng TỔNG của lưới nói ra là chưa đủ giá, thay vì in một con số không phải tổng lương của ai',
+	false !== strpos( $h_cht_luoi, 'chưa đủ giá' ), $h_cht_luoi );
+t( '🔴 và dòng thiếu giá bị nhuộm đỏ trong bảng lương',
+	false !== strpos( $h_cht, '<tr class="hong">' ), $h_cht );
 
 /* 🔴 NHÂN VIÊN BẬC 1 KHÔNG THẤY MỘT ĐỒNG NÀO. Khối này in tiền công của người khác. */
-$h_nv = vhcc_man( 'NV_BL', 'Nhân viên', 'AEON_BT',
-	array( 'man' => 'cham', 'ccs' => 'AEON_BT', 'cth' => '2026-08' ) );
+$h_nv = vhcc_man_luong( 'NV_BL', 'Nhân viên', 'AEON_BT', 'AEON_BT', '2026-08' );
 t( '🔴 nhân viên bậc 1 KHÔNG thấy khối Bảng lương cơ sở',
 	false === strpos( $h_nv, 'Bảng lương cơ sở' ), 'lộ bảng lương cho bậc 1' );
 t( '🔴 và KHÔNG thấy đơn giá của ai', false === strpos( $h_nv, '23.000' ), 'lộ đơn giá' );
@@ -680,20 +720,24 @@ foreach ( array(
 teq( '🔴 việc chốt lương có tên trong danh sách việc của màn Bảng công',
 	true, in_array( 'chot_luong', VHCC_Web::VIEC_CHAM, true ) );
 
-$h_bl = vhcc_man( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT',
-	array( 'man' => 'cham', 'ccs' => 'AEON_BT', 'cth' => '2026-08' ) );
+$h_bl = vhcc_man_luong( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT', 'AEON_BT', '2026-08' );
 t( '🔴 có đường mở khối nhập trên mỗi hàng', false !== strpos( $h_bl, 'clm=' ), 'thiếu nút nhập' );
 /* 🔴 BẢNG TRÊN MÀN DÙNG ĐÚNG TÊN CỘT CỦA TỆP EXCEL — anh Thắng 16/09/2026: *"Anh đã bảo tạo
    bảng lương như excel nằm dưới bảng công để check luôn"*. Tên khác tệp thì mắt không dò được
    hai bên cạnh nhau, mà đó chính là việc bảng này sinh ra để làm. */
+/* ⚠️ `<th>` NAY CÓ THỂ KÈM CLASS TÔ MÀU (`nh-lc` cho Lương chính, `nh-tong` cho TOTAL
+   SALARY — xem khối tô nhóm ở `VHCC_Web::css()`). Soi chuỗi cứng `<th>Tên</th>` là buộc luôn
+   cả phần trình bày, mà phần ấy đổi là phép thử đỏ trong khi TÊN CỘT — thứ đang canh — không
+   suy suyển gì. Dùng đúng một hàm cho cả tệp, kẻo mỗi chỗ soi một kiểu. */
+function vhcc_co_cot( $h, $ten ) {
+	return 1 === preg_match( '#<th(?:\s[^>]*)?>' . preg_quote( $ten, '#' ) . '</th>#u', (string) $h );
+}
 t( '🔴 bảng dùng tên cột của tệp Excel',
-	false !== strpos( $h_bl, '<th>Số công thực</th>' )
-	&& false !== strpos( $h_bl, '<th>Tiền/h</th>' )
-	&& false !== strpos( $h_bl, '<th>Lương chính</th>' )
-	&& false !== strpos( $h_bl, '<th>TOTAL SALARY</th>' ), $h_bl );
+	vhcc_co_cot( $h_bl, 'Số công thực' ) && vhcc_co_cot( $h_bl, 'Tiền/h' )
+	&& vhcc_co_cot( $h_bl, 'Lương chính' ) && vhcc_co_cot( $h_bl, 'TOTAL SALARY' ), $h_bl );
 
-$h_mo = vhcc_man( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT',
-	array( 'man' => 'cham', 'ccs' => 'AEON_BT', 'cth' => '2026-08', 'clm' => 'BT_MAN' ) );
+$h_mo = vhcc_man_luong( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT', 'AEON_BT', '2026-08',
+	array( 'clm' => 'BT_MAN' ) );
 t( '🔴 bấm vào thì hiện khối nhập', false !== strpos( $h_mo, 'value="chot_luong"' ), 'thiếu khối nhập' );
 t( 'có ô tên việc và ô số giờ',
 	false !== strpos( $h_mo, 'name="cl_viec[0]"' ) && false !== strpos( $h_mo, 'name="cl_gio[0]"' ), $h_mo );
@@ -781,7 +825,7 @@ teq( 'khoá chưa từng khai thì trả lại chính khoá, không trả rỗng
 	'chuacokhai', VHCC_GiaGio::ten_cua( 'chuacokhai' ) );
 
 /* ---- màn: ai thấy ô gõ, ai chỉ thấy số ---- */
-$g_bl = array( 'man' => 'cham', 'ccs' => 'AEON_BT', 'cth' => '2026-08' );
+$g_bl = array( 'man' => 'luong', 'lcs' => 'AEON_BT', 'lth' => '2026-08' );
 $h_gg_cht = vhcc_man( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT', $g_bl );
 $h_gg_kt  = vhcc_man( 'KT_BL', 'Kế toán', '', $g_bl );
 $h_gg_ql  = vhcc_man( 'QL_BL', 'Quản lý', '', $g_bl );
@@ -1003,7 +1047,7 @@ t( '🔴 KHÔNG có giá khai riêng của một người',
 	'giá riêng của người lọt vào danh sách việc của cả cửa hàng' );
 
 /* ---- màn: là ô CHỌN, và nói luôn giá ---- */
-$g_mo = array( 'man' => 'cham', 'ccs' => 'AEON_BT', 'cth' => '2026-08', 'clm' => 'BT_MAN' );
+$g_mo = array( 'man' => 'luong', 'lcs' => 'AEON_BT', 'lth' => '2026-08', 'clm' => 'BT_MAN' );
 $h_cl = vhcc_man( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT', $g_mo );
 t( '🔴 ô tên việc là ô CHỌN, không phải ô gõ tay',
 	false !== strpos( $h_cl, '<select name="cl_viec[0]"' ), $h_cl );
@@ -1129,19 +1173,29 @@ teq( 'gửi chuỗi rỗng thì mới là bỏ khai', '',
 /* ---- màn: ô chọn việc chính, và ô giờ của nó KHÔNG gõ tay được ---- */
 VHCC_ChotLuong::dat( $U_KT, 'AEON_BT', '2026-08', 'BT_MAN',
 	array( array( 'viec' => 'MC', 'gio' => 6 ) ), 126.0, 'Lái Tàu' );
-$h_vc = vhcc_man( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT',
-	array( 'man' => 'cham', 'ccs' => 'AEON_BT', 'cth' => '2026-08', 'clm' => 'BT_MAN' ) );
+$h_vc = vhcc_man_luong( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT', 'AEON_BT', '2026-08',
+	array( 'clm' => 'BT_MAN' ) );
 t( '🔴 có ô CHỌN việc chính', false !== strpos( $h_vc, '<select name="cl_chinh"' ), $h_vc );
 preg_match( '/<select name="cl_chinh".*?<\/select>/us', $h_vc, $m_vc );
 $o_vc = isset( $m_vc[0] ) ? $m_vc[0] : '';
 t( 'và việc đang khai được chọn sẵn',
 	1 === preg_match( '/<option value="Lái Tàu"[^>]*selected/u', $o_vc ), $o_vc );
+/* 🔴 Ô ẤY NAY VIẾT **GIỜ:PHÚT** như cả lưới (19/09/2026), nhưng KHÔNG bỏ số thập phân:
+   con số NHÂN VỚI ĐƠN GIÁ là `120,00`, không phải `120:00` — nhân nhầm lối viết là đúng cái
+   đã làm tệp của anh Thắng thiếu 4.800đ trên một người. Nên ô lớn viết theo lưới, và ngay
+   dưới nó ghi `× đơn giá` kèm số thập phân để phép nhân luôn nhìn thấy được. Soi cả hai. */
 t( '🔴 ô giờ của việc chính là ô CHỈ ĐỌC — nó là kết quả, không phải thứ gõ vào',
-	false !== strpos( $h_vc, 'value="120,00" readonly' ), $h_vc );
+	false !== strpos( $h_vc, 'value="120:00" readonly' ), $h_vc );
+t( '🔴 và ngay dưới nó có SỐ THẬP PHÂN để nhân với đơn giá',
+	1 === preg_match( '/<span data-clthap="1">120,00<\/span> × đơn giá/u', $h_vc ), $h_vc );
 
 /* ---- 🔴 CỘT GHI CHÚ THÔI LẶP "CHƯA KHAI ĐƠN GIÁ" ----
    Cùng một sự thật đang nói ba lần: dải đỏ đầu bảng, dòng nhuộm đỏ, ô Tiền/h gạch ngang. */
-$h_gc = vhcc_man( 'KT_BL', 'Kế toán', '', array( 'man' => 'cham', 'ccs' => 'AEON_BT', 'cth' => '2026-08' ) );
+/* ⚠️ HAI MÀN: bảng lương ở tab Lương, còn hàng TỔNG "chưa đủ giá" là chữ của LƯỚI bên màn
+   Bảng công. Soi một trang cho cả hai là bắt nhầm chỗ theo đúng hai chiều. */
+$h_gc = vhcc_man_luong( 'KT_BL', 'Kế toán', '', 'AEON_BT', '2026-08' );
+$h_gc_luoi = vhcc_man( 'KT_BL', 'Kế toán', '',
+	array( 'man' => 'cham', 'ccs' => 'AEON_BT', 'cth' => '2026-08' ) );
 preg_match( '/<table class="b">(?:(?!<\/table>).)*TOTAL SALARY.*?<\/table>/us', $h_gc, $m_gc );
 $bang_gc = isset( $m_gc[0] ) ? $m_gc[0] : $h_gc;
 t( '🔴 trong bảng lương KHÔNG còn dòng nào lặp chữ "CHƯA KHAI ĐƠN GIÁ"',
@@ -1155,8 +1209,8 @@ t( '🔴 dòng thiếu giá VẪN nhuộm đỏ trong bảng',
    bảng lương là bắt nhầm chỗ. Trong bảng lương, dấu hiệu là ô tiền để GẠCH NGANG. */
 t( '🔴 và ô tiền của dòng ấy để gạch ngang, không in số 0',
 	false !== strpos( $bang_gc, '<b><span class="mo">—</span></b>' ), substr( $bang_gc, 0, 400 ) );
-t( '🔴 lưới ở trên VẪN nói "chưa đủ giá" ở hàng tổng',
-	false !== strpos( $h_gc, 'chưa đủ giá' ), 'lưới thôi kêu luôn' );
+t( '🔴 lưới bên màn Bảng công VẪN nói "chưa đủ giá" ở hàng tổng',
+	false !== strpos( $h_gc_luoi, 'chưa đủ giá' ), 'lưới thôi kêu luôn' );
 /* 🔴 VÀ BA DẢI CŨ THẬT SỰ KHÔNG CÒN — không thì phép trên xanh mà màn vẫn y như cũ. */
 t( '🔴 ba dải cảnh báo chồng nhau đã bỏ hẳn',
 	false === strpos( $h_gc, 'dòng chưa khai đơn giá giờ</b>' )
@@ -1235,8 +1289,7 @@ t( 'khối đơn giá KHÔNG còn kể "nhận từ bảng chung"',
 	false === strpos( $h_td, 'từ <b>bảng chung cả chuỗi</b>' ), 'đoạn kể cũ còn sót' );
 /* ⚠️ Nút Lưu chỉ vẽ cho người SỬA được đơn giá — cửa hàng trưởng chỉ xem, nên phải dựng bằng
    phiên Kế toán. Dùng nhầm phiên thì phép thử đỏ vì một lý do chẳng liên quan tới điều đang canh. */
-$h_td_kt = vhcc_man( 'KT_BL', 'Kế toán', '',
-	array( 'man' => 'cham', 'ccs' => 'AEON_BT', 'cth' => '2026-08' ) );
+$h_td_kt = vhcc_man_luong( 'KT_BL', 'Kế toán', '', 'AEON_BT', '2026-08' );
 t( 'và nút Lưu nói rõ đây là TOÀN BỘ giá của cơ sở',
 	false !== strpos( $h_td_kt, 'TOÀN BỘ đơn giá đang' ), $h_td_kt );
 
@@ -1349,9 +1402,16 @@ t( 'kế toán thì thấy, và trỏ đúng người',
    nằm ngoài cả hai. */
 /** Bóc số "Ngoài ca" của khối bấm-tên. Trả null khi không thấy — để phép thử nói được là
  *  nó KHÔNG thấy, thay vì lặng lẽ coi như 0 rồi xanh nhầm. */
+/* ⚠️ ĐỌC ĐƯỢC CẢ HAI LỐI VIẾT. Lưới mặc định viết `0:45` từ 19/09/2026, nút "đổi sang thập
+   phân" thì ra `0,75`. Bộ bóc chỉ hiểu một lối là phép thử đỏ ngay khi ai đó bấm cái nút ấy —
+   trong khi con số, thứ đang canh, không suy suyển. */
 function vhcc_ngoai_ca( $h ) {
 	if ( ! preg_match( '/Ngoài ca<\/label><div><b[^>]*>([^<]+)<\/b>/u', $h, $m ) ) { return null; }
-	return (float) str_replace( ',', '.', str_replace( '.', '', trim( $m[1] ) ) );
+	$v = trim( $m[1] );
+	if ( preg_match( '/^(\d+):([0-5]\d)$/', $v, $hm ) ) {
+		return round( (int) $hm[1] + (int) $hm[2] / 60, 2 );
+	}
+	return (float) str_replace( ',', '.', str_replace( '.', '', $v ) );
 }
 /* ⚠️ ĐO BẰNG HIỆU SỐ, KHÔNG VIẾT CỨNG. Cơ sở này đã có sẵn mấy lượt ngoài ca từ mấy mục trên;
    khẳng định "Ngoài ca = 0,75" là khẳng định về CẢ FIXTURE chứ không phải về lượt vừa gieo, và
@@ -1537,8 +1597,8 @@ t( 'không bị chối bằng câu về màn Hồ sơ',
 
 /* 🔴 MỘT BIỂU MẪU, HAI CHỖ GỌI — không phải hai bản chép.
    Khối dưới bảng lương phải có y hệt mấy ô ấy; lệch nhau là có ngày sửa một bên quên bên kia. */
-$h_gt2 = vhcc_man( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT',
-	array( 'man' => 'cham', 'ccs' => 'AEON_BT', 'cth' => '2026-08', 'clm' => 'BT_MAN' ) );
+$h_gt2 = vhcc_man_luong( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT', 'AEON_BT', '2026-08',
+	array( 'clm' => 'BT_MAN' ) );
 foreach ( array( 'name="cl_chinh"', 'name="cl_viec[0]"', 'name="cl_tru[phat]"' ) as $o_kh ) {
 	t( 'khối dưới bảng lương cũng có ' . $o_kh, false !== strpos( $h_gt2, $o_kh ), $o_kh );
 }
@@ -1584,12 +1644,22 @@ t( '🔴 và kể cả dòng giờ ăn đơn giá khác', false !== strpos( $tt_
  * Canh bằng PHÉP CỘNG THẬT, không so chuỗi — một chú giải nói khác con số nó đang giải thích
  * thì tệ hơn không có chú giải nào.
  * ══════════════════════════════════════════════════════════════════════════════════════════*/
-/* ⚠️ BẢN 4.7.0 ĐỔI ĐƠN VỊ: chú giải và ô TỔNG giờ in GIỜ THẬP PHÂN (`126,75`), không còn
-   `Xh Ym`. Phép canh vẫn y nguyên — cộng lại phải bằng — chỉ bộ bóc số là đổi. */
+/* ⚠️ HAI LƯỢT ĐỔI ĐƠN VỊ, VÀ BỘ BÓC PHẢI ĐỌC ĐƯỢC CẢ HAI:
+     · 4.7.0 bỏ `Xh Ym`, chuyển sang GIỜ THẬP PHÂN (`126,75`);
+     · 19/09/2026 ô TỔNG chuyển sang GIỜ:PHÚT (`126:45`) theo đúng lời anh Thắng *"mình quy
+       ra tiếng là 5h20 phút chứ, 5,33 là sai rồi"*, còn CHÚ GIẢI thì mang CẢ HAI
+       (`126:45 = 126,75h × 23.000`) vì con số nhân với đơn giá vẫn phải là thập phân.
+   Phép canh y nguyên — chú giải cộng lại phải bằng con số trong ô — chỉ bộ bóc là đổi.
+   ⚠️ CHÚ GIẢI ƯU TIÊN LỐI THẬP PHÂN: ở đó mỗi dòng việc có một số thập phân, và chúng phải
+      CỘNG lại. Ô thì chỉ có một con số, nên đọc `H:MM` là đủ và chính xác tới từng phút. */
 function vhcc_gio_tu_chu( $chu ) {
 	$g = 0.0;
 	if ( preg_match_all( '/(\d{1,3}(?:\.\d{3})*),(\d{2})\b/u', $chu, $m, PREG_SET_ORDER ) ) {
 		foreach ( $m as $x ) { $g += (float) ( str_replace( '.', '', $x[1] ) . '.' . $x[2] ); }
+		return round( $g, 2 );
+	}
+	if ( preg_match_all( '/\b(\d{1,4}):([0-5]\d)\b/u', $chu, $m2, PREG_SET_ORDER ) ) {
+		foreach ( $m2 as $x ) { $g += (int) $x[1] + (int) $x[2] / 60; }
 	}
 	return round( $g, 2 );
 }
@@ -1597,8 +1667,18 @@ $p_chu = vhcc_gio_tu_chu( $tt_rc );
 $p_o   = vhcc_gio_tu_chu( $so_rc );
 t( 'bóc được số giờ từ cả hai chỗ', $p_chu > 0 && $p_o > 0, "chu=$p_chu o=$p_o" );
 teq( '🔴 chú giải cộng lại ĐÚNG BẰNG con số trong ô', $p_o, $p_chu );
-t( '🔴 ô TỔNG in THẬP PHÂN, không còn "Xh Ym"', 0 === preg_match( '/\dh( \d+m)?/u', $so_rc ), $so_rc );
-t( '🔴 chú giải cũng in THẬP PHÂN', 0 === preg_match( '/\dh( \d+m)?/u', $tt_rc ), $tt_rc );
+/* 🔴 Ô TỔNG VIẾT GIỜ:PHÚT, CHÚ GIẢI MANG CẢ HAI — 19/09/2026.
+   Lối `Xh Ym` cũ (`126h 45m`) thì cả hai đều đã bỏ hẳn, và đó mới là thứ phải chặn: nó là
+   lối viết THỨ BA, không đối chiếu được với bên nào. */
+t( '🔴 ô TỔNG in GIỜ:PHÚT', 1 === preg_match( '/^\d+:[0-5]\d$/u', $so_rc ), $so_rc );
+t( '🔴 và KHÔNG còn lối "Xh Ym" ở ô lẫn ở chú giải',
+	0 === preg_match( '/\d+h \d+m/u', $so_rc ) && 0 === preg_match( '/\d+h \d+m/u', $tt_rc ),
+	$so_rc . ' | ' . $tt_rc );
+/* 🔴 CHÚ GIẢI PHẢI CÓ SỐ THẬP PHÂN — đó là con số NHÂN VỚI ĐƠN GIÁ. Giấu nó đi thì người ta
+   tự quy đổi `126:45` trong đầu, và họ sẽ gõ `126,45` — đúng cái đã làm tệp của anh Thắng
+   thiếu 4.800đ trên một người. */
+t( '🔴 chú giải kèm số thập phân để nhân với đơn giá',
+	1 === preg_match( '/\d+,\d{2}h/u', $tt_rc ), $tt_rc );
 
 /* 🔴 CHƯA CHỌN VIỆC CHÍNH THÌ NÓI THẲNG, ĐỪNG BỊA TÊN. */
 VHCC_ChotLuong::dat( $U_KT, 'AEON_BT', '2026-08', 'BT_MAN', array(), 126.0, '' );
@@ -1744,7 +1824,11 @@ foreach ( $b_d['dong'] as $x ) { if ( $x['ma'] === $ma_dc && $x['laChinh'] ) { $
 t( 'gieo: tìm được dòng của người đối chiếu', null !== $g_d, 'không thấy dòng' );
 teq( 'gieo: engine cho đúng 17,25 giờ', 17.25, (float) $g_d['gioTong'] );
 
-$h_d = vhcc_man( 'KT_BL', 'Kế toán', '', array( 'man' => 'cham', 'ccs' => $cs_d, 'cth' => $th_d ) );
+/* ⚠️ HAI MÀN, HAI LỜI GỌI — lưới ở tab Bảng công, bảng lương ở tab Lương (18/09/2026). Đó
+   KHÔNG làm nhẹ đi điều đang canh: hai màn cách nhau một cú bấm thì lối viết lệch nhau lại
+   càng khó thấy, vì không còn cạnh nhau để mắt tự bắt. */
+$h_d    = vhcc_man( 'KT_BL', 'Kế toán', '', array( 'man' => 'cham', 'ccs' => $cs_d, 'cth' => $th_d ) );
+$h_d_bl = vhcc_man_luong( 'KT_BL', 'Kế toán', '', $cs_d, $th_d );
 
 /** Bóc ô TỔNG của lưới (`table.cc`) ở hàng mang tên người ấy. */
 function vhcc_tong_luoi( $h, $ten ) {
@@ -1779,16 +1863,22 @@ preg_match( '/<table class="cc">.*?<\/table>/us', $h_d, $m_lt );
 $luoi_d = isset( $m_lt[0] ) ? $m_lt[0] : '';
 t( '🔴 lưới in TÊN của người dù lượt chấm để trống ho_ten',
 	false !== strpos( $luoi_d, $ten_dc ), substr( $luoi_d, 0, 400 ) );
-t( 'gieo: bảng lương thì vẫn luôn có tên', false !== strpos( $h_d, '<td>' . $ten_dc . '</td>' ),
+/* ⚠️ Ô TÊN NAY MANG LỚP `o-nguoi` (ghim cột trái lúc cuộn ngang). Soi `<td>Tên</td>` trần là
+   buộc luôn phần trình bày, mà thứ đang canh chỉ là "bảng lương CÓ in tên". */
+t( 'gieo: bảng lương thì vẫn luôn có tên',
+	1 === preg_match( '#<td(?:\s[^>]*)?>' . preg_quote( $ten_dc, '#' ) . '</td>#u', $h_d_bl ),
 	'bảng lương không in tên — fixture sai' );
 
 $o_luoi  = vhcc_tong_luoi( $h_d, $ten_dc );
-$o_bang  = vhcc_so_gio_bang( $h_d, $ten_dc );
+$o_bang  = vhcc_so_gio_bang( $h_d_bl, $ten_dc );
 t( 'bóc được ô TỔNG của lưới', null !== $o_luoi && '' !== $o_luoi, var_export( $o_luoi, true ) );
 t( 'bóc được cột Số giờ của bảng lương', null !== $o_bang && '' !== $o_bang, var_export( $o_bang, true ) );
 teq( '🔴 ô TỔNG của lưới và cột Số giờ của bảng lương ra ĐÚNG CÙNG MỘT CHUỖI', $o_bang, $o_luoi );
-t( '🔴 và đó là lối thập phân, không phải "Xh Ym"',
-	0 === preg_match( '/\dh( \d+m)?/u', (string) $o_luoi ), $o_luoi );
+/* 🔴 VÀ LỐI VIẾT ẤY NAY LÀ **GIỜ:PHÚT** — anh Thắng 19/09/2026: *"mình quy ra tiếng là 5h20
+   phút chứ, 5,33 là sai rồi"*. Phép cũ đòi lối thập phân, đúng với bản 4.7.0; nay đòi đúng
+   hình dạng `H:MM`, và vẫn chặn lối `Xh Ym` cũ (`17h 15m`) — thứ mà cả hai bản đều đã bỏ. */
+t( '🔴 và đó là lối giờ:phút (17:15), không phải "17,25" hay "17h 15m"',
+	1 === preg_match( '/^\d+:[0-5]\d$/u', (string) $o_luoi ), $o_luoi );
 
 /* 🔴 HÀNG TỔNG CUỐI LƯỚI CŨNG PHẢI THEO LUẬT ẤY. Cơ sở này chỉ có một người, nên tổng cả cơ
    sở phải trùng đúng ô TỔNG của người ấy — bắt được cả lỗi quên đổi riêng hàng cuối. */
@@ -2044,7 +2134,7 @@ $wpdb->insert( VHCC_DB::t( 'cham_cong' ), array(
 	'gio_vao_giay' => 8 * 3600, 'gio_ra_giay' => 17 * 3600, 'hau_to' => '', 'nguon' => 'may' ) );
 VHCC_GiaGio::dat_coso( $U_KT, $cs_m, array( 'Partime' => 25000 ) );
 
-$g_m  = array( 'man' => 'cham', 'ccs' => $cs_m, 'cth' => $th_m );
+$g_m  = array( 'man' => 'luong', 'lcs' => $cs_m, 'lth' => $th_m );
 $h_m1 = vhcc_man( 'KT_BL', 'Kế toán', '', $g_m );
 
 /** Bóc riêng khối "Bảng lương cơ sở" — soi cả trang thì bắt trúng mấy bảng khác cùng màn. */
@@ -2072,11 +2162,10 @@ t( '🔴 chưa ai gõ: KHÔNG có nhóm "Các khoản cộng vào lương"',
 	false === strpos( (string) $bl_m, 'Các khoản cộng vào lương' ), $bl_m );
 t( '🔴 và KHÔNG có nhóm "Các khoản giảm trừ vào lương"',
 	false === strpos( (string) $bl_m, 'Các khoản giảm trừ vào lương' ), $bl_m );
-t( '🔴 và không có cột Phạt', false === strpos( (string) $bl_m, '<th>Phạt</th>' ), $bl_m );
+t( '🔴 và không có cột Phạt', ! vhcc_co_cot( $bl_m, 'Phạt' ), $bl_m );
 /* 🔴 MẤY CỘT LÕI THÌ GIỮ, kể cả khi rỗng — ô trống ở đó là một câu trả lời. */
 foreach ( array( 'Số công thực', 'Tiền/h', 'Lương chính', 'TOTAL SALARY' ) as $c_loi ) {
-	t( '🔴 cột lõi "' . $c_loi . '" vẫn còn', false !== strpos( (string) $bl_m, '<th>' . $c_loi . '</th>' ),
-		$bl_m );
+	t( '🔴 cột lõi "' . $c_loi . '" vẫn còn', vhcc_co_cot( $bl_m, $c_loi ), $bl_m );
 }
 
 /** Đếm cột của MỘT hàng trong bảng lương — `<th` cũng khớp `<thead>` nên phải kén mặt. */
@@ -2107,7 +2196,7 @@ $r_tm = VHCC_ChotLuong::dat_tien( $U_KT, $cs_m, $th_m, 'MO1', array(), array( 'p
 t( 'gieo: gõ được khoản phạt', ! empty( $r_tm['ok'] ), $r_tm );
 $h_m2  = vhcc_man( 'KT_BL', 'Kế toán', '', $g_m );
 $bl_m2 = vhcc_khoi_bl( $h_m2 );
-t( '🔴 gõ phạt vào: cột "Phạt" hiện ra', false !== strpos( (string) $bl_m2, '<th>Phạt</th>' ), $bl_m2 );
+t( '🔴 gõ phạt vào: cột "Phạt" hiện ra', vhcc_co_cot( $bl_m2, 'Phạt' ), $bl_m2 );
 t( '🔴 kèm tiêu đề nhóm "Các khoản giảm trừ vào lương"',
 	false !== strpos( (string) $bl_m2, 'Các khoản giảm trừ vào lương' ), $bl_m2 );
 t( '⚠️ nhưng nhóm CỘNG vẫn thôi — nó vẫn chưa có số nào',
@@ -2472,8 +2561,7 @@ t( '🔴 công chuẩn 99 ngày: BỊ CHỐI', empty( $r_x2['ok'] ), $r_x2 );
 teq( 'và không có gì bị ghi xuống', 'gio', (string) vhcc_dong_bl( $cs_lt, $th_lt, 'LT1' )['cheDo'] );
 
 /* ───── 6. TRÊN MÀN: ô tích và hai ô nhập ───── */
-$h_lt = vhcc_man( 'KT_BL', 'Kế toán', '', array( 'man' => 'cham', 'ccs' => $cs_lt,
-	'cth' => $th_lt, 'clm' => 'LT1' ) );
+$h_lt = vhcc_man_luong( 'KT_BL', 'Kế toán', '', $cs_lt, $th_lt, array( 'clm' => 'LT1' ) );
 t( '🔴 khối nhập có ô tích "Ăn lương tháng"',
 	false !== strpos( $h_lt, 'name="cl_thang"' ), 'không có ô tích' );
 t( 'và hai ô Lương cơ bản · Số công chuẩn',
@@ -2544,7 +2632,7 @@ t( '🔴 hàng TỔNG có nét đậm phía trên',
    hàng nữa nằm SAU nó — bấm nhập một cái là nét đậm nhảy xuống khối nhập. */
 t( '🔴 nhận hàng TỔNG bằng LỚP, không bằng :last-child',
 	false === strpos( $css, 'table.b tbody tr:last-child' ), 'còn bám :last-child' );
-$h_bb = vhcc_man( 'KT_BL', 'Kế toán', '', array( 'man' => 'cham', 'ccs' => 'AEON_BT', 'cth' => '2026-08' ) );
+$h_bb = vhcc_man_luong( 'KT_BL', 'Kế toán', '', 'AEON_BT', '2026-08' );
 t( 'và màn có in ra lớp ấy', false !== strpos( $h_bb, '<tr class="tong-bl">' ), 'không thấy lớp' );
 
 /* ───── 4. NHÓM CỘT ĐỌC RA MỘT CỤM ───── */

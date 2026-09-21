@@ -62,6 +62,13 @@ t( 'hai nhân viên đăng nhập được', is_array( $NV ) && is_array( $NV_B 
 
 $CHT_A = array( 'name' => 'Trưởng A', 'role' => VHCC_Vai::CHT, 'coso' => $CS_A, 'ma_nv' => 'CHTA' );
 $CHT_B = array( 'name' => 'Trưởng B', 'role' => VHCC_Vai::CHT, 'coso' => $CS_B, 'ma_nv' => 'CHTB' );
+/* 🔴 NGƯỜI SỬA GIỜ NAY LÀ KẾ TOÁN — 18/09/2026 `sua_gio` và `cham_bu` cùng lên bậc ấy (anh
+   Thắng: *"cửa hàng trưởng không được sửa công nữa mà theo người được chỉ định bật quyền mới
+   được sửa thôi"*). `$CHT_A` vẫn ở lại và vẫn ĐỌC được màn cửa hàng — cái mất là quyền GHI.
+   ⚠️ Kế toán cũng là bậc thấp nhất có `cong_tat_ca`, nên nó qua được chốt HẠN NGÀY
+      (`VHCC_Bu::han_ngay` — "hết 24h hôm nay thì không sửa nữa"). Khối dưới sửa ngày mùng 2
+      của tháng này, tức gần như luôn là quá khứ. */
+$KT_A  = array( 'name' => 'Kế toán A', 'role' => VHCC_Vai::KE_TOAN, 'coso' => $CS_A, 'ma_nv' => 'KTA' );
 
 /* =============================================================== 1. AI THẤY TAB */
 
@@ -244,10 +251,20 @@ $r = VHCC_CuaHang::sua_gio( $CHT_B, array(
 	'vao' => '09:00', 'lyDo' => 'máy lệch giờ, xem camera' ) );
 t( '🔴 trưởng B KHÔNG sửa được giờ của cơ sở A', empty( $r['ok'] ), $r );
 
+/* 🔴 TRƯỞNG A NAY KHÔNG SỬA ĐƯỢC — cửa đóng 18/09/2026, phải có phép canh nó.
+   Câu chối phải nói đúng bậc còn thiếu, kẻo người ta đi xin nhầm Admin. */
 $r = VHCC_CuaHang::sua_gio( $CHT_A, array(
 	'maNV' => 'CH001', 'ngay' => $TH . '-02', 'vao' => '09:00',
 	'lyDo' => 'máy lệch đồng hồ, đối chiếu camera' ) );
-t( 'trưởng A sửa được giờ vào', ! empty( $r['ok'] ), $r );
+t( '🔴 trưởng A KHÔNG còn sửa được giờ',
+	empty( $r['ok'] ) && false !== mb_strpos( (string) $r['error'], 'Kế toán' ), $r );
+$n_giu = VHCC_CuaHang::ngay_cua( $CHT_A, $CS_A, $TH, 'CH001' );
+t( 'và giờ cũ không suy suyển', '08:00' === $n_giu['ngay'][0]['vao'], $n_giu['ngay'][0] );
+
+$r = VHCC_CuaHang::sua_gio( $KT_A, array(
+	'maNV' => 'CH001', 'ngay' => $TH . '-02', 'vao' => '09:00',
+	'lyDo' => 'máy lệch đồng hồ, đối chiếu camera' ) );
+t( 'kế toán sửa được giờ vào', ! empty( $r['ok'] ), $r );
 t( 'và nói ra ô nào đổi, từ đâu sang đâu',
 	isset( $r['doi']['vao'] ) && '08:00' === $r['doi']['vao']['cu']
 		&& '09:00' === $r['doi']['vao']['moi'], $r );
@@ -258,7 +275,7 @@ t( 'và tổng giờ tháng giảm theo (8h -> 7h)', 7.0 === (float) $n['gioThan
 
 /* 🔴 Ô TRỐNG = GIỮ NGUYÊN, KHÔNG PHẢI XOÁ. Đây là luật của `VHCC_Bu::sua` và là chỗ dễ mất
    giờ công nhất: người sửa giờ ra mà không gõ lại giờ vào là chuyện thường. */
-$r = VHCC_CuaHang::sua_gio( $CHT_A, array(
+$r = VHCC_CuaHang::sua_gio( $KT_A, array(
 	'maNV' => 'CH001', 'ngay' => $TH . '-02', 'vao' => '', 'ra' => '17:00',
 	'lyDo' => 'chỉ sửa giờ ra thôi' ) );
 t( 'sửa mỗi giờ ra được', ! empty( $r['ok'] ), $r );
@@ -268,7 +285,7 @@ t( 'và giờ ra là giá trị mới', '17:00' === $n['ngay'][0]['ra'], $n['nga
 
 /* ⚠️ XOÁ GIỜ LÀ TÍCH CẢ HAI Ô, VÀ VẪN PHẢI CÓ LÝ DO. Dòng chấm công KHÔNG biến mất — mất dấu
    là hôm ấy vốn có người chấm thì không ai lần lại được. */
-$r = VHCC_CuaHang::sua_gio( $CHT_A, array(
+$r = VHCC_CuaHang::sua_gio( $KT_A, array(
 	'maNV' => 'CH001', 'ngay' => $TH . '-02', 'xoaVao' => 1, 'xoaRa' => 1,
 	'lyDo' => 'chấm nhầm người, xoá giờ ngày này' ) );
 t( '⚠️ xoá được giờ cả hai đầu', ! empty( $r['ok'] ), $r );
@@ -277,7 +294,7 @@ t( '🔴 DÒNG VẪN CÒN, chỉ là không còn giờ', 2 === count( $n['ngay']
 t( 'và ngày ấy nay tính là thiếu giờ', ! empty( $n['ngay'][0]['thieu'] ), $n['ngay'][0] );
 
 /* Trả giờ lại cho phần chốt lương phía dưới có số mà tính. */
-VHCC_CuaHang::sua_gio( $CHT_A, array( 'maNV' => 'CH001', 'ngay' => $TH . '-02',
+VHCC_CuaHang::sua_gio( $KT_A, array( 'maNV' => 'CH001', 'ngay' => $TH . '-02',
 	'vao' => '08:00', 'ra' => '18:00', 'lyDo' => 'trả lại giờ cho phép thử sau' ) );
 $n = VHCC_CuaHang::ngay_cua( $CHT_A, $CS_A, $TH, 'CH001' );
 t( 'giờ đã trả lại đủ 10h', 10.0 === (float) $n['gioThang'], $n );
@@ -287,22 +304,45 @@ t( 'giờ đã trả lại đủ 10h', 10.0 === (float) $n['gioThang'], $n );
    trưởng)"*. Đúng: `sua_gio` ở bậc Cửa hàng trưởng từ 28/08/2026, theo chính lời anh. Con số
    ấy là QUYẾT ĐỊNH của anh nên phép thử không cãi nó — nhưng nó khoá lại để không ai lặng lẽ
    đổi, và khoá luôn mấy chốt đỡ cho nó. */
-t( '🔴 chỉnh giờ công ở bậc CỬA HÀNG TRƯỞNG', VHCC_Vai::CHT === VHCC_Vai::QUYEN['sua_gio'] );
-t( 'bù vào ô trống cũng cùng bậc ấy', VHCC_Vai::CHT === VHCC_Vai::QUYEN['cham_bu'] );
-t( '⚠️ và nạp cả tháng từ .csv thì CAO HƠN (Quản lý)',
-	VHCC_Vai::BAC[ VHCC_Vai::QUYEN['nap_cong'] ] > VHCC_Vai::BAC[ VHCC_Vai::QUYEN['sua_gio'] ] );
+/* 🔴 SỬA GIỜ VÀ BÙ NAY Ở BẬC KẾ TOÁN — 18/09/2026 (anh Thắng: *"cửa hàng trưởng không được
+   sửa công nữa mà theo người được chỉ định bật quyền mới được sửa thôi"* và *"Cửa hàng trưởng
+   không được bù giờ công, nếu thiếu thì chỗ file excel"*). Bậc này đã đổi ba lần: 26/08 Admin
+   → 28/08 Cửa hàng trưởng → 18/09 Kế toán + chỉ định từng người. */
+t( '🔴 chỉnh giờ công ở bậc KẾ TOÁN', VHCC_Vai::KE_TOAN === VHCC_Vai::QUYEN['sua_gio'] );
+t( 'bù vào ô trống cũng cùng bậc ấy', VHCC_Vai::KE_TOAN === VHCC_Vai::QUYEN['cham_bu'] );
+/* ⚠️ Nạp cả tháng từ .csv nay THẤP HƠN, và đó là cố ý — nạp chỉ THÊM vào ô trống của một
+   tháng, còn sửa thì ĐÈ LÊN thứ máy đã ghi, tức xoá mất bằng chứng gốc. Phép này viết hồi
+   `sua_gio` còn ở bậc 2 nên nó so ngược; nay so đúng chiều rủi ro. */
+t( '⚠️ và sửa đè thì CAO HƠN cả nạp cả tháng từ .csv',
+	VHCC_Vai::BAC[ VHCC_Vai::QUYEN['sua_gio'] ] > VHCC_Vai::BAC[ VHCC_Vai::QUYEN['nap_cong'] ] );
 
 /* 🔴 KHÔNG AI TỰ SỬA GIỜ CỦA CHÍNH MÌNH, KỂ CẢ ADMIN. Đây là chốt đỡ quan trọng nhất cho việc
    hạ `sua_gio` xuống bậc 2: cửa hàng trưởng viết lại được bảng công của cửa hàng mình, nhưng
    KHÔNG viết lại được của chính mình — nên giờ của người ký duyệt luôn là giờ máy ghi. */
+/* 🔴 KHAI CẢ `coso_quan`, KHÔNG PHẢI MỖI `cua_hang` — 18/09/2026.
+   Anh Thắng: *"nếu chấm công thì xem quản thân chứ, còn quản lý mới xem được cả cửa hàng"*.
+   Từ bản ấy `co_quyen_coso()` hỏi ô tích "quản lý" trong hồ sơ, không hỏi nơi người ta ĐI LÀM.
+   ⚠️ VÀ HỒ SƠ NÀY DỰNG GIỮA CHỪNG TỆP: trước dòng này `$CHT_A` chưa có hồ sơ nên hệ lui về
+      cơ sở ghi trong thẻ phiên, sau dòng này thì hồ sơ THẮNG. Thiếu `coso_quan` ở đây là mọi
+      phép PHÍA SAU lặng lẽ ăn câu "Không có quyền cơ sở này" — đỏ ở một chỗ cách xa nguyên
+      nhân, và tệp này đã đỏ đúng kiểu ấy. */
 $wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'CHTA',
-	'ho_ten' => 'Trưởng A', 'cua_hang' => $CS_A, 'trang_thai_lam_viec' => 'Đang làm' ) );
+	'ho_ten' => 'Trưởng A', 'cua_hang' => $CS_A, 'coso_quan' => $CS_A,
+	'trang_thai_lam_viec' => 'Đang làm' ) );
 $wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'ma_nv' => 'CHTA', 'ho_ten' => 'Trưởng A',
 	'coso' => $CS_A, 'ngay' => $TH . '-04', 'gio_vao_giay' => 28800,
 	'gio_ra_giay' => 61200, 'hau_to' => '', 'nguon' => 'may' ) );
-$r = VHCC_CuaHang::sua_gio( $CHT_A, array( 'maNV' => 'CHTA', 'ngay' => $TH . '-04',
+/* Dựng một hồ sơ kế toán CÓ mã, để hỏi đúng câu "không ai tự sửa giờ của mình". */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'KTA',
+	'ho_ten' => 'Kế toán A', 'cua_hang' => $CS_A, 'coso_quan' => $CS_A,
+	'trang_thai_lam_viec' => 'Đang làm' ) );
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'ma_nv' => 'KTA', 'ho_ten' => 'Kế toán A',
+	'coso' => $CS_A, 'ngay' => $TH . '-04', 'gio_vao_giay' => 28800,
+	'gio_ra_giay' => 61200, 'hau_to' => '', 'nguon' => 'may' ) );
+$r = VHCC_CuaHang::sua_gio( $KT_A, array( 'maNV' => 'KTA', 'ngay' => $TH . '-04',
 	'vao' => '06:00', 'lyDo' => 'tự sửa giờ cho chính mình' ) );
-t( '🔴 cửa hàng trưởng KHÔNG tự sửa giờ của CHÍNH MÌNH', empty( $r['ok'] ), $r );
+t( '🔴 kế toán KHÔNG tự sửa giờ của CHÍNH MÌNH',
+	empty( $r['ok'] ) && false !== mb_strpos( (string) $r['error'], 'tự bù' ), $r );
 $r = VHCC_CuaHang::sua_gio( array( 'name' => 'Sếp', 'role' => VHCC_Vai::ADMIN,
 	'coso' => $CS_A, 'ma_nv' => 'CHTA' ), array( 'coSo' => $CS_A, 'maNV' => 'CHTA',
 	'ngay' => $TH . '-04', 'vao' => '06:00', 'lyDo' => 'admin tự sửa giờ của mình' ) );
