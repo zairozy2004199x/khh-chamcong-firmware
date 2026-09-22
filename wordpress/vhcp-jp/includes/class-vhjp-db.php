@@ -167,12 +167,15 @@ class VHJP_DB {
 			note VARCHAR(500) NOT NULL DEFAULT '',
 			PRIMARY KEY  (code)";
 
-		/* ===== 6. JP_Reports -> bao_cao (48 cột) =====
+		/* ===== 6. JP_Reports -> bao_cao (50 cột) =====
 		 * `ktXacNhan` — SỐ TIỀN kế toán xác nhận đã nhận. Cố ý tách khỏi phần nhân viên tự
 		 * khai (cộng từ `JP_Payments`): hai cột, và chỗ LỆCH giữa chúng mới là thông tin. Gộp
 		 * một cột thì nhân viên khai bao nhiêu sổ ghi bấy nhiêu, không còn gì để đối chiếu.
 		 * Cũng KHÔNG suy từ cờ `paid`: cờ ấy chỉ nói đủ hay chưa, còn xác nhận MỘT PHẦN thì
 		 * không có chỗ nào ghi — mà một phần mới là ca hay gặp.
+		 *
+		 * `ktCachThu` — TM · CK · QR. Bắt buộc khai lúc xác nhận tay: để trống rồi mặc định TM
+		 * là nói sai rằng đã nhận tiền mặt, và người đi đếm két sẽ không tìm thấy khoản ấy.
 		 *
 		 * ⚠️ Chú thích để NGOÀI chuỗi DDL. Mọi thân bảng ở tệp này là chuỗi nháy kép, nên một
 		 *    dấu " trong chú thích là cắt đứt chuỗi ngay giữa câu CREATE TABLE. */
@@ -222,6 +225,8 @@ class VHJP_DB {
 			ktXacNhan DECIMAL(15,2) NULL,
 			ktXacNhanBy VARCHAR(64) NOT NULL DEFAULT '',
 			ktXacNhanAt DATETIME NULL,
+			ktCachThu VARCHAR(16) NOT NULL DEFAULT '',
+			ktGhiChu VARCHAR(500) NOT NULL DEFAULT '',
 			warnCount INT(11) NOT NULL DEFAULT 0,
 			remark VARCHAR(500) NOT NULL DEFAULT '',
 			photoWarnJson LONGTEXT NULL,
@@ -574,14 +579,17 @@ class VHJP_DB {
 			KEY reportid (reportId),
 			KEY paymentid (paymentId)";
 
-		/* ===== 23. JP_ReconLog -> doi_soat_log (13 cột) ===== */
+		/* ===== 23. JP_ReconLog -> doi_soat_log (13 cột) =====
+		   ⚠️ Cột đếm dòng tên là `soDong`, KHÔNG phải `rows`: `ROWS` là từ khoá của MySQL 8 nên
+		      phải bọc dấu huyền, mà một cột phải bọc dấu huyền là cột sớm muộn có chỗ quên bọc.
+		      Giao diện vẫn đọc ô `rows` — `VHJP_DoiSoat::lich_su()` đặt lại tên khi trả về. */
 		$b['doi_soat_log'] = "
 			stt BIGINT(20) NOT NULL AUTO_INCREMENT,
 			at DATETIME NULL,
 			who VARCHAR(64) NOT NULL DEFAULT '',
 			batchId VARCHAR(32) NOT NULL DEFAULT '',
 			kind VARCHAR(64) NOT NULL DEFAULT '',
-			`rows` INT(11) NOT NULL DEFAULT 0,
+			soDong INT(11) NOT NULL DEFAULT 0,
 			matched INT(11) NOT NULL DEFAULT 0,
 			ambiguous INT(11) NOT NULL DEFAULT 0,
 			amount DECIMAL(15,2) NULL,

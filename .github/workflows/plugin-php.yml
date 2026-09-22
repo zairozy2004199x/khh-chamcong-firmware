@@ -117,6 +117,15 @@ jobs:
       - name: Bộ thử nộp tiền & bảng báo cáo JP
         run: php tools/test/kiem-jp-nop-tien.php
 
+      # Đối soát ngân hàng · sổ công nợ · quét dây chuyền. Ba màn này đi tìm đúng thứ mà "sổ
+      # cân" KHÔNG thấy: mọi bút toán JP đều đủ hai vế theo cấu tạo, nên tiền bị ghi HAI LẦN
+      # thì cả hai vế cùng nhân đôi và sổ lại càng cân. Bài này canh: một lô chỉ áp một lần ·
+      # đổi tên tệp vẫn là cùng lô · khớp mơ hồ không tự chọn · huỷ lô trừ theo phân bổ ·
+      # cổng "xác nhận cột" chặn luồng tự động · bốn cột cách thu cộng ra đã nhận · hai kỳ
+      # chồng CHỈ SỐ thì báo tiền tính hai lần, chồng NGÀY thì không.
+      - name: Bộ thử đối soát ngân hàng & quét dây chuyền JP
+        run: php tools/test/kiem-jp-doi-soat.php
+
       - name: Bộ thử chi phí
         run: php tools/test/test-flows.php
 

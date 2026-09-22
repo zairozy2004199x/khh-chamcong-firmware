@@ -85,12 +85,23 @@ class VHJP_Cong {
 			'jpKhoKiemKeTon', 'jpKhoKiemKe', 'jpKhoLichSuKiemKe',
 			'jpKhoTraNcc', 'jpKhoTraNccLo', 'jpKhoHuyTraNcc', 'jpKhoLichSuTraNcc',
 			'jpKhoBangKeNhap', 'jpKhoBangKeXuat',
+			'jpReconPreview', 'jpReconApply', 'jpReconHistory', 'jpReconUndo',
+			'jpConfirmPaidManual', 'jpChuaKhaiCachThu', 'jpKhaiCachThu',
+			'jpDocGiaoDichNganHang', 'jpDoiSoatNganHang', 'jpLichDoiSoatNH',
+			'jpDatLichDoiSoatNH', 'jpXacNhanCotNganHang',
+			'jpSoCongNo', 'jpQuetDayChuyen',
 			'jpSo632', 'jpCongNoNcc',
 			/* Hai bảng này bày tiền của MỌI người — chỉ kế toán. Bốn hàm nộp tiền còn lại gác
 			   hẹp hơn ngay bên trong: nhân viên chỉ đụng được báo cáo của CHÍNH mình. */
 			'jpKtPaymentBoard', 'jpCongNoNhanVien',
 			'jpRevenueBoard', 'jpStockBoard', 'jpBaoCaoDoanhThuNgay',
 			'jpKtDanhSachDeNghi', 'jpKtXuLyDeNghi', 'jpKtReopen',
+			/* 🔴 Cả khối cấu hình: nó PHÁT QUYỀN và PHÁT PIN. `jpXoaBaoCaoNhap` cố ý KHÔNG nằm
+			   đây — nhân viên phải tự xoá được bản nháp của chính mình; cửa hẹp hơn nằm bên
+			   trong hàm (chỉ bản CÒN NHÁP, và chỉ của chính mình). */
+			'jpNapCoSo', 'jpNapDanhMucHangJP', 'jpNapTonDauKy31_7', 'jpNapBuTonDauKy31_7',
+			'jpTinhLaiCanhBao', 'jpSapXepLaiKy', 'jpKiemTraNhanh',
+			'jpTinhTrangDungHeThong', 'jpDungHeThongMotPhat',
 			'jpSoNhatKyChung', 'jpBangCanDoiPhatSinh', 'jpKiemTraButToan', 'jpKetQuaKinhDoanh',
 			'jpDoiTkKhoCu',
 		);
@@ -202,6 +213,41 @@ class VHJP_Cong {
 			'jpKtReopen'          => array( 'VHJP_Cong', 'bg_kt_mo_lai' ),
 			'jpSuaKyBaoCao'       => array( 'VHJP_Cong', 'bg_sua_ky' ),
 
+			/* cấu hình & tiện ích */
+			'jpCfgListUsers'      => array( 'VHJP_Cong', 'ch_ds_user' ),
+			'jpCfgSaveUser'       => array( 'VHJP_Cong', 'ch_luu_user' ),
+			'jpPinTheoCoSo'       => array( 'VHJP_Cong', 'ch_pin_bang' ),
+			'jpTaoPinCoSo'        => array( 'VHJP_Cong', 'ch_tao_pin' ),
+			'jpNapCoSo'           => array( 'VHJP_Cong', 'ch_nap_coso' ),
+			'jpNapDanhMucHangJP'  => array( 'VHJP_Cong', 'ch_nap_hang' ),
+			'jpCfgImportItems'    => array( 'VHJP_Cong', 'ch_nhap_hang' ),
+			'jpNapTonDauKy31_7'   => array( 'VHJP_Cong', 'ch_nap_ton' ),
+			'jpNapBuTonDauKy31_7' => array( 'VHJP_Cong', 'ch_nap_bu' ),
+			'jpXoaBaoCaoNhap'     => array( 'VHJP_Cong', 'ch_xoa_nhap' ),
+			'jpTinhLaiCanhBao'    => array( 'VHJP_Cong', 'ch_tinh_lai_cb' ),
+			'jpSapXepLaiKy'       => array( 'VHJP_Cong', 'ch_sap_ky' ),
+			'jpKiemTraNhanh'      => array( 'VHJP_Cong', 'ch_kiem_nhanh' ),
+			'jpTinhTrangDungHeThong' => array( 'VHJP_Cong', 'ch_tinh_trang' ),
+			'jpDungHeThongMotPhat' => array( 'VHJP_Cong', 'ch_dung_he' ),
+
+
+			'jpSoCongNo'          => array( 'VHJP_Cong', 'so_cong_no' ),
+			'jpQuetDayChuyen'     => array( 'VHJP_Cong', 'quet_dc' ),
+
+			/* đối soát ngân hàng */
+			'jpReconPreview'      => array( 'VHJP_Cong', 'ds_xem_truoc' ),
+			'jpReconApply'        => array( 'VHJP_Cong', 'ds_ap' ),
+			'jpReconHistory'      => array( 'VHJP_Cong', 'ds_lich_su' ),
+			'jpReconUndo'         => array( 'VHJP_Cong', 'ds_huy_lo' ),
+			'jpConfirmPaidManual' => array( 'VHJP_Cong', 'ds_xac_nhan_tay' ),
+			'jpChuaKhaiCachThu'   => array( 'VHJP_Cong', 'ds_chua_khai' ),
+			'jpKhaiCachThu'       => array( 'VHJP_Cong', 'ds_khai_cach' ),
+			'jpDocGiaoDichNganHang' => array( 'VHJP_Cong', 'ds_doc_gd' ),
+			'jpDoiSoatNganHang'   => array( 'VHJP_Cong', 'ds_doi_soat' ),
+			'jpLichDoiSoatNH'     => array( 'VHJP_Cong', 'ds_lich' ),
+			'jpDatLichDoiSoatNH'  => array( 'VHJP_Cong', 'ds_dat_lich' ),
+			'jpXacNhanCotNganHang' => array( 'VHJP_Cong', 'ds_xac_nhan_cot' ),
+
 			'jpKtListReports'     => array( 'VHJP_Cong', 'kt_ds' ),
 			'jpKtGetReport'       => array( 'VHJP_Cong', 'kt_lay' ),
 			'jpKtApprove'         => array( 'VHJP_Cong', 'kt_ky' ),
@@ -223,17 +269,6 @@ class VHJP_Cong {
 	 */
 	public static function chua_lam() {
 		return array(
-			/* kế toán tổng hợp */
-			'jpQuetDayChuyen', 'jpSoCongNo',
-			/* cấu hình & tiện ích */
-			'jpCfgImportItems', 'jpCfgListUsers', 'jpCfgSaveUser', 'jpDungHeThongMotPhat',
-			'jpKiemTraNhanh', 'jpNapBuTonDauKy31_7', 'jpNapCoSo', 'jpNapDanhMucHangJP',
-			'jpNapTonDauKy31_7', 'jpPinTheoCoSo', 'jpSapXepLaiKy', 'jpTaoPinCoSo', 'jpTinhLaiCanhBao',
-			'jpTinhTrangDungHeThong', 'jpXoaBaoCaoNhap',
-			/* đối soát ngân hàng */
-			'jpChuaKhaiCachThu', 'jpConfirmPaidManual', 'jpDatLichDoiSoatNH', 'jpDocGiaoDichNganHang',
-			'jpDoiSoatNganHang', 'jpKhaiCachThu', 'jpLichDoiSoatNH', 'jpReconApply', 'jpReconHistory',
-			'jpReconPreview', 'jpReconUndo', 'jpXacNhanCotNganHang',
 			/* kế toán duyệt */
 		);
 	}
@@ -629,6 +664,115 @@ class VHJP_Cong {
 	public static function bg_sua_ky( $args, $nguoi ) {
 		return VHJP_Bang::sua_ky( $nguoi, isset( $args[1] ) ? $args[1] : '',
 			isset( $args[2] ) ? $args[2] : '', isset( $args[3] ) ? $args[3] : '' );
+	}
+
+	/* ── cấu hình & tiện ích ── */
+	public static function ch_ds_user( $args, $nguoi ) { return VHJP_CauHinh2::ds_user( $nguoi ); }
+	public static function ch_luu_user( $args, $nguoi ) {
+		return VHJP_CauHinh2::luu_user( $nguoi, isset( $args[1] ) ? $args[1] : array() );
+	}
+	public static function ch_pin_bang( $args, $nguoi ) {
+		return VHJP_CauHinh2::pin_theo_coso( $nguoi );
+	}
+	public static function ch_tao_pin( $args, $nguoi ) {
+		return VHJP_CauHinh2::tao_pin_coso( $nguoi, isset( $args[1] ) ? $args[1] : array() );
+	}
+	public static function ch_nap_coso( $args, $nguoi ) { return VHJP_CauHinh2::nap_coso( $nguoi ); }
+	public static function ch_nap_hang( $args, $nguoi ) { return VHJP_CauHinh2::nap_hang( $nguoi ); }
+	public static function ch_nhap_hang( $args, $nguoi ) {
+		return VHJP_CauHinh2::nhap_hang( $nguoi, isset( $args[1] ) ? $args[1] : array() );
+	}
+	public static function ch_nap_ton( $args, $nguoi ) { return VHJP_CauHinh2::nap_ton_31_7( $nguoi ); }
+	/* ⚠️ `jpNapBuTonDauKy31_7(token, ghi)` — cờ ghi ở `$args[1]`, mặc định FALSE. Đọc nhầm nấc
+	   là một lượt XEM TRƯỚC biến thành lượt ghi thật vào tồn kho. */
+	public static function ch_nap_bu( $args, $nguoi ) {
+		return VHJP_CauHinh2::nap_bu_31_7( $nguoi, ! empty( $args[1] ) );
+	}
+	public static function ch_xoa_nhap( $args, $nguoi ) {
+		return VHJP_CauHinh2::xoa_nhap( $nguoi, isset( $args[1] ) ? $args[1] : '' );
+	}
+	public static function ch_tinh_lai_cb( $args, $nguoi ) {
+		return VHJP_CauHinh2::tinh_lai_canh_bao( $nguoi, isset( $args[1] ) ? $args[1] : '' );
+	}
+	public static function ch_sap_ky( $args, $nguoi ) {
+		return VHJP_CauHinh2::sap_xep_ky( $nguoi, isset( $args[1] ) ? $args[1] : '',
+			isset( $args[2] ) ? $args[2] : '', ! empty( $args[3] ) );
+	}
+	public static function ch_kiem_nhanh( $args, $nguoi ) {
+		return VHJP_CauHinh2::kiem_tra_nhanh( $nguoi );
+	}
+	public static function ch_tinh_trang( $args, $nguoi ) {
+		return VHJP_CauHinh2::tinh_trang_dung( $nguoi );
+	}
+	public static function ch_dung_he( $args, $nguoi ) {
+		return VHJP_CauHinh2::dung_he_thong( $nguoi, isset( $args[1] ) ? $args[1] : array() );
+	}
+
+	/* ── đối soát ngân hàng ──────────────────────────────────────────────────
+	   Nhắc lại cho khỏi sai: `$args[0]` LUÔN là thẻ phiên, tham số nghiệp vụ
+	   bắt đầu từ `$args[1]`. Giao diện `KtJs03_DoiSoat.html` gọi đúng thứ tự
+	   dưới đây, đã soi từng dòng gọi chứ không đoán. */
+	public static function ds_xem_truoc( $args, $nguoi ) {
+		return VHJP_DoiSoat::xem_truoc( $nguoi,
+			isset( $args[1] ) ? $args[1] : '',
+			isset( $args[2] ) ? $args[2] : array(),
+			isset( $args[3] ) ? $args[3] : array() );
+	}
+	public static function ds_ap( $args, $nguoi ) {
+		return VHJP_DoiSoat::ap( $nguoi,
+			isset( $args[1] ) ? $args[1] : '',
+			isset( $args[2] ) ? $args[2] : array(),
+			isset( $args[3] ) ? $args[3] : array() );
+	}
+	public static function ds_lich_su( $args, $nguoi ) {
+		return VHJP_DoiSoat::lich_su( $nguoi, isset( $args[1] ) ? $args[1] : 30 );
+	}
+	public static function ds_huy_lo( $args, $nguoi ) {
+		return VHJP_DoiSoat::huy_lo( $nguoi,
+			isset( $args[1] ) ? $args[1] : '',
+			isset( $args[2] ) ? $args[2] : '' );
+	}
+	public static function ds_xac_nhan_tay( $args, $nguoi ) {
+		return VHJP_DoiSoat::xac_nhan_tay( $nguoi,
+			isset( $args[1] ) ? $args[1] : '',
+			isset( $args[2] ) ? $args[2] : 0,
+			isset( $args[3] ) ? $args[3] : '',
+			isset( $args[4] ) ? $args[4] : '',
+			isset( $args[5] ) ? $args[5] : '',
+			isset( $args[6] ) ? $args[6] : '' );
+	}
+	public static function ds_chua_khai( $args, $nguoi ) {
+		return VHJP_DoiSoat::chua_khai_cach( $nguoi );
+	}
+	public static function ds_khai_cach( $args, $nguoi ) {
+		return VHJP_DoiSoat::khai_cach( $nguoi,
+			isset( $args[1] ) ? $args[1] : '',
+			isset( $args[2] ) ? $args[2] : '',
+			isset( $args[3] ) ? $args[3] : '' );
+	}
+	public static function ds_doc_gd( $args, $nguoi ) {
+		return VHJP_DoiSoat::doc_giao_dich( $nguoi, isset( $args[1] ) ? $args[1] : 5 );
+	}
+	public static function ds_doi_soat( $args, $nguoi ) {
+		return VHJP_DoiSoat::doi_soat_nh( $nguoi, ! empty( $args[1] ) );
+	}
+	public static function ds_lich( $args, $nguoi ) {
+		return VHJP_DoiSoat::lich( $nguoi );
+	}
+	public static function ds_dat_lich( $args, $nguoi ) {
+		return VHJP_DoiSoat::dat_lich( $nguoi, isset( $args[1] ) ? $args[1] : 0 );
+	}
+	public static function ds_xac_nhan_cot( $args, $nguoi ) {
+		return VHJP_DoiSoat::xac_nhan_cot( $nguoi, ! empty( $args[1] ) );
+	}
+
+	public static function so_cong_no( $args, $nguoi ) {
+		return VHJP_So::so_cong_no( $nguoi, isset( $args[1] ) ? $args[1] : 0,
+			isset( $args[2] ) ? $args[2] : 0 );
+	}
+	public static function quet_dc( $args, $nguoi ) {
+		return VHJP_Quet::quet( $nguoi, isset( $args[1] ) ? $args[1] : 0,
+			isset( $args[2] ) ? $args[2] : 0 );
 	}
 
 	public static function bc_mo( $args, $nguoi ) {

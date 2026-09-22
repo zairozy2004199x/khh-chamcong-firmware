@@ -3,7 +3,7 @@
  * Plugin Name:       JP Capsule (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Báo cáo JP Capsule chạy THẲNG trên host: nhân viên nhập báo cáo từ chỉ số máy, kế toán duyệt hai phần, đối soát ngân hàng, kho hai tầng. Không Apps Script, không Google Sheets.
- * Version:           1.17.0
+ * Version:           1.18.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -85,7 +85,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHJP_VERSION', '1.17.0' );
+define( 'VHJP_VERSION', '1.18.0' );
 define( 'VHJP_FILE', __FILE__ );
 define( 'VHJP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHJP_URL', plugin_dir_url( __FILE__ ) );
@@ -106,6 +106,9 @@ require_once VHJP_DIR . 'includes/class-vhjp-so.php';
 require_once VHJP_DIR . 'includes/class-vhjp-but-toan.php';
 require_once VHJP_DIR . 'includes/class-vhjp-nop-tien.php';
 require_once VHJP_DIR . 'includes/class-vhjp-bang.php';
+require_once VHJP_DIR . 'includes/class-vhjp-cau-hinh-2.php';
+require_once VHJP_DIR . 'includes/class-vhjp-doi-soat.php';
+require_once VHJP_DIR . 'includes/class-vhjp-quet.php';
 require_once VHJP_DIR . 'includes/class-vhjp-cong.php';
 require_once VHJP_DIR . 'includes/class-vhjp-trang.php';
 require_once VHJP_DIR . 'includes/class-vhjp-admin.php';

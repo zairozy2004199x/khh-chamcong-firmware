@@ -346,4 +346,120 @@ class VHJP_So {
 			'tuNgay' => $tu, 'denNgay' => $den,
 			'rows' => $rows, 'tong' => $tong, 'canhBao' => $canh );
 	}
+	/* ═══════════════════════════════════════════════ SỔ CÔNG NỢ THEO CƠ SỞ ═══════════════ */
+
+	/**
+	 * `jpSoCongNo` — dư đầu kỳ + phát sinh − đã nhận, theo từng cơ sở, theo tháng.
+	 *
+	 * =============================================================================================
+	 * 🔴 DƯ ĐẦU KỲ ĐƯỢC SUY, KHÔNG ĐƯỢC LƯU — NÊN PHẢI NÓI RA SUY TỪ ĐÂU.
+	 * =============================================================================================
+	 * JP không có bảng "dư đầu kỳ": nó cộng lại mọi báo cáo HOÀN TẤT có ngày cuối kỳ TRƯỚC mốc.
+	 * Cách ấy đúng và tự sửa mình (duyệt bù một báo cáo cũ là dư đầu kỳ đổi theo ngay), nhưng nó
+	 * đẻ ra một con số không giải thích được nếu chỉ in mỗi số. Nên mỗi hàng kèm `nguonDuDauKy`
+	 * nói rõ: bao nhiêu báo cáo, phải thu bao nhiêu, đã nhận bao nhiêu. Không có câu ấy thì kế
+	 * toán thấy lệch cũng không biết mở đâu ra mà tra.
+	 *
+	 * =============================================================================================
+	 * 🔴 CHỈ BÁO CÁO HOÀN TẤT MỚI LÀ PHẢI THU.
+	 * =============================================================================================
+	 * Báo cáo chưa đủ hai chữ ký thì con số còn sửa được — đưa vào sổ công nợ là ghi một khoản
+	 * phải thu có thể bốc hơi ngày mai. Nhưng cũng KHÔNG được im: tiền ấy có thật ngoài đời, nên
+	 * đếm riêng ở `phaiThuChuaDuyet`/`soBaoCaoChuaDuyet` và giao diện in một dòng cảnh báo.
+	 *
+	 * ⚠️ Xếp kỳ theo `toDate` — đúng cách `cong_no_nv()` đang xếp. Hai sổ công nợ cắt kỳ theo hai
+	 *    ô ngày khác nhau là hai tổng khác nhau cho cùng một tháng.
+	 */
+	public static function so_cong_no( $u, $thang, $nam ) {
+		self::can_kt( $u );
+		list( $tu, $den, $thang, $nam ) = self::khoang( $thang, $nam );
+
+		$gom = VHJP_DoiSoat::gom_cach();
+		$cs  = array();
+
+		foreach ( VHJP_Nguon::doc( 'JP_Reports' ) as $r ) {
+			$ma  = VHJP_Doc::str( $r['locationId'] );
+			$ten = VHJP_Doc::str( $r['locationName'] );
+			if ( '' === $ma && '' === $ten ) { continue; }
+			$ngay = VHJP_Doc::ngay( $r['toDate'] );
+			if ( '' === $ngay ) { continue; }
+			$st = VHJP_Doc::str( $r['status'] );
+			if ( VHJP_BaoCao::TT_NHAP === $st ) { continue; }   /* đang gõ dở — chưa là gì cả */
+
+			if ( ! isset( $cs[ $ma ] ) ) {
+				$cs[ $ma ] = array( 'locationId' => $ma, 'locationName' => $ten,
+					'duDauKy' => 0, 'dauSoBc' => 0, 'dauPhaiThu' => 0, 'dauDaNhan' => 0,
+					'phatSinh' => 0, 'daNhanTM' => 0, 'daNhanCK' => 0, 'daNhanQR' => 0,
+					'daNhanKhac' => 0, 'daNhan' => 0, 'soBaoCao' => 0,
+					'soBaoCaoChuaDuyet' => 0, 'phaiThuChuaDuyet' => 0 );
+			}
+			if ( '' === $cs[ $ma ]['locationName'] ) { $cs[ $ma ]['locationName'] = $ten; }
+
+			$phai = VHJP_NopTien::phai_nop( $r );
+			$nhan = self::so( isset( $r['ktXacNhan'] ) ? $r['ktXacNhan'] : 0 );
+
+			/* Chưa hoàn tất: KHÔNG vào phải thu, nhưng phải đếm riêng — xem khối 🔴 thứ hai. */
+			if ( VHJP_BaoCao::TT_HOAN_TAT !== $st ) {
+				if ( $ngay >= $tu && $ngay <= $den ) {
+					$cs[ $ma ]['soBaoCaoChuaDuyet']++;
+					$cs[ $ma ]['phaiThuChuaDuyet'] += $phai;
+				}
+				continue;
+			}
+
+			if ( $ngay < $tu ) {
+				$cs[ $ma ]['duDauKy']    += $phai - $nhan;
+				$cs[ $ma ]['dauSoBc']++;
+				$cs[ $ma ]['dauPhaiThu'] += $phai;
+				$cs[ $ma ]['dauDaNhan']  += $nhan;
+				continue;
+			}
+			if ( $ngay > $den ) { continue; }
+
+			$t = VHJP_DoiSoat::tach_cach_thu( $r, $gom );
+			$cs[ $ma ]['soBaoCao']++;
+			$cs[ $ma ]['phatSinh']   += $phai;
+			$cs[ $ma ]['daNhan']     += $nhan;
+			$cs[ $ma ]['daNhanTM']   += $t['TM'];
+			$cs[ $ma ]['daNhanCK']   += $t['CK'];
+			$cs[ $ma ]['daNhanQR']   += $t['QR'];
+			$cs[ $ma ]['daNhanKhac'] += $t['KHAC'];
+		}
+
+		$tong = array( 'duDauKy' => 0, 'phatSinh' => 0, 'daNhan' => 0, 'daNhanTM' => 0,
+			'daNhanCK' => 0, 'daNhanQR' => 0, 'daNhanKhac' => 0, 'duCuoiKy' => 0,
+			'phaiThuChuaDuyet' => 0, 'soBaoCaoChuaDuyet' => 0 );
+		$rows = array();
+		foreach ( $cs as $x ) {
+			/* Cơ sở tháng này không có gì VÀ không mang nợ cũ thì không in — một bảng đầy hàng 0
+			   là bảng không ai đọc hết, và hàng cần nhìn lẫn vào giữa. */
+			if ( ! $x['soBaoCao'] && ! $x['soBaoCaoChuaDuyet'] && 0 === (int) round( $x['duDauKy'] ) ) {
+				continue;
+			}
+			$x['duCuoiKy'] = $x['duDauKy'] + $x['phatSinh'] - $x['daNhan'];
+			$x['conThieu'] = $x['duCuoiKy'] > 0;
+			$x['tinhTrang'] = $x['duCuoiKy'] > 0 ? 'Còn thiếu'
+				: ( $x['duCuoiKy'] < 0 ? 'Nhận vượt' : 'Đã đủ' );
+			$x['nguonDuDauKy'] = $x['dauSoBc']
+				? ( $x['dauSoBc'] . ' báo cáo hoàn tất có kỳ kết thúc trước '
+					. VHJP_Doc::dmy( $tu ) . ': phải thu '
+					. number_format( $x['dauPhaiThu'], 0, ',', '.' ) . 'đ − đã nhận '
+					. number_format( $x['dauDaNhan'], 0, ',', '.' ) . 'đ' )
+				: 'Không có báo cáo hoàn tất nào trước kỳ này';
+
+			foreach ( array_keys( $tong ) as $k ) {
+				if ( isset( $x[ $k ] ) ) { $tong[ $k ] += $x[ $k ]; }
+			}
+			$rows[] = $x;
+		}
+		usort( $rows, function ( $a, $b ) {
+			/* Nợ nhiều nhất lên đầu — đó là thứ người mở sổ này đi tìm. */
+			if ( $a['duCuoiKy'] !== $b['duCuoiKy'] ) { return $b['duCuoiKy'] > $a['duCuoiKy'] ? 1 : -1; }
+			return strcmp( $a['locationName'], $b['locationName'] );
+		} );
+
+		return array( 'ok' => true, 'thang' => $thang, 'nam' => $nam,
+			'tuNgay' => $tu, 'denNgay' => $den, 'rows' => $rows, 'tong' => $tong );
+	}
+
 }
