@@ -11861,7 +11861,12 @@
 
      ⚠️ ĐẾM TỪ CHÍNH DANH SÁCH, không gõ tay "K&H rồi POSH". Có đơn vị thứ ba thì nó tự hiện;
         đơn vị nào không có đơn nào thì không vẽ dải rỗng. */
-  function _tachDonVi(list, veHang){
+  /* ⚠️ `gid` + `gap` THÊM 22/09/2026 cho lượt gom theo tuần ở màn Duyệt. Hàng ngăn đơn vị phải
+     MANG CÙNG class nhóm và CÙNG trạng thái gập với mấy dòng nó ngăn — không thì gập một tuần
+     lại còn trơ ra một dòng "🏢 K&H · 3 đơn" chỉ vào ba dòng đã biến mất.
+     Hai chỗ gọi cũ (màn Quyết toán) không truyền gì và chạy y như trước. */
+  function _tachDonVi(list, veHang, gid, gap){
+    var g=gid?(' '+gid):'', an=(gid&&gap)?' style="display:none"':'';
     if(!BOOT.nhieuDonVi) return list.map(veHang).join('');
     var thu=[], theo={};
     list.forEach(function(d){
@@ -11874,12 +11879,108 @@
     return thu.map(function(k){
       var ds=theo[k];
       var tong=ds.reduce(function(x,d){ return x+(Number(d.tamUng)||0); },0);
-      return '<tr class="dv-ngan"><td colspan="99">🏢 <b>'+esc(k)+'</b>'
+      return '<tr class="dv-ngan'+g+'"'+an+'><td colspan="99">🏢 <b>'+esc(k)+'</b>'
         +' <span style="font-weight:400;color:#64748b">· '+ds.length+' đơn · tạm ứng '+money(tong)+'đ</span></td></tr>'
         +ds.map(veHang).join('');
     }).join('');
   }
 
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * MÀN DUYỆT GOM THEO TUẦN — CHI PHÍ CƠ SỞ DUYỆT CẢ TUẦN MỘT LƯỢT.
+   * ══════════════════════════════════════════════════════════════════════════════════════════
+   * Anh Thắng 22/09/2026: *"Khu duyệt các chi phí, hiện chi phí cơ sở lên và duyệt theo tuần.
+   * Còn các chi phí khác thì kiểm tra và duyệt khi gửi"*, nối tiếp 10/09: *"kế toán phân biệt
+   * đơn theo cơ sở (theo tuần), đơn theo dự án (theo thời gian setup linh động)"*.
+   *
+   * 🔴 CHỈ BẢNG NÀY GOM TUẦN. Bảng này chở đúng chi phí CƠ SỞ (sổ `don`) — đơn dự án, công
+   *    tác, setup, marketing nằm ở mấy khối riêng bên dưới và giữ nguyên kiểu "duyệt từng cái
+   *    khi gửi", đúng vế sau câu anh nói. Gom tuần cho chúng là bó một thứ vốn không theo tuần:
+   *    dự án chạy theo khoảng ngày setup do nhân viên gõ.
+   *
+   * 🔴 TUẦN MỚI NHẤT XỔ SẴN, TUẦN CŨ GẬP. Đây là màn LÀM VIỆC, không phải màn tra cứu: gập hết
+   *    thì mở tab ra thấy một danh sách tiêu đề và không biết có việc hay không. Gập tuần cũ
+   *    vì chúng gần như luôn là đơn đã xong nằm lại.
+   *
+   * ⚠️ ĐƠN VỊ VẪN TÁCH, NHƯNG NẰM TRONG TUẦN. Anh Thắng 20/09: *"tránh duyệt lộn đơn vị"* —
+   *    nên vạch ngăn 🏢 K&H · POSH giữ nguyên, chỉ chuyển vào bên trong mỗi nhóm tuần.
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  function _dvGomTuan(list, veHang){
+    var byKy={}, thu=[];
+    list.forEach(function(d){ var k=String(d.ky||'(không kỳ)'); if(!byKy[k]){ byKy[k]=[]; thu.push(k); } byKy[k].push(d); });
+    /* Mới nhất trước — cùng phép xếp với màn Quyết toán (`_kyVal`), để hai màn không bày hai
+       thứ tự khác nhau cho cùng một danh sách tuần. Kỳ không đọc được ra số (`-1`) rơi xuống
+       cuối, chỗ đúng của nó: đó là đơn chưa chốt kỳ. */
+    thu.sort(function(a,b){ return _kyVal(b)-_kyVal(a); });
+    return thu.map(function(k, gi){
+      var rows=byKy[k], gid='dvk'+gi, gap=(gi>0);
+      return _dvNhomHdr(k, rows, gid, gap)
+        + _tachDonVi(rows, function(d){ return veHang(d, gid, gap); }, gid, gap);
+    }).join('');
+  }
+  /* Hàng tiêu đề của một tuần: tên tuần · số đơn · tổng tạm ứng · hai nút làm cả tuần. */
+  function _dvNhomHdr(ky, rows, gid, gap){
+    var tong=0, nDuyet=0, nCap=0;
+    rows.forEach(function(d){
+      tong+=Number(d.tamUng)||0;
+      if(d.trangThai==='Chờ duyệt tạm ứng') nDuyet++;
+      if(d.trangThai==='Chờ cấp tạm ứng')   nCap++;
+    });
+    /* 🔴 NÚT THEO QUYỀN, y như nút của từng dòng. Bày một nút "Duyệt cả tuần" cho người không
+       có quyền duyệt là mời họ bấm vào một cửa máy chủ sẽ chối. */
+    var nut='';
+    if(nDuyet && canDo('duyetTU')){
+      nut+=' <button class="btn b-g" onclick="event.stopPropagation();dvLamCaTuan(\''+gid+'\',\'duyet\')">✔ Duyệt cả tuần ('+nDuyet+')</button>';
+    }
+    if(nCap && canDo('capTU')){
+      nut+=' <button class="btn b-g" onclick="event.stopPropagation();dvLamCaTuan(\''+gid+'\',\'cap\')">💵 Cấp cả tuần ('+nCap+')</button>';
+    }
+    return '<tr class="dvGrpHdr" data-open="'+(gap?'0':'1')+'" onclick="dvNhomToggle(\''+gid+'\',this)">'
+      +'<td colspan="10" style="cursor:pointer;background:#eef2ff;font-weight:800;color:#3730a3;border-left:4px solid #6366f1;padding:9px 10px">'
+      +'<span class="dvcaret" style="display:inline-block;width:14px">'+(gap?'▸':'▾')+'</span> 📅 <span>Tuần/kỳ '+esc(ky)+'</span>'
+      +' <span style="color:#64748b;font-weight:600">· '+rows.length+' đơn · tạm ứng '+money(tong)+'đ</span>'
+      +' <span style="color:#8c8781;font-weight:400;font-size:11px">(bấm để xổ/gập)</span>'
+      +nut+'</td></tr>';
+  }
+  function dvNhomToggle(gid, o){
+    var mo=o.getAttribute('data-open')==='1';
+    [].forEach.call(document.querySelectorAll('tr.'+gid),function(r){ r.style.display=mo?'none':''; });
+    o.setAttribute('data-open', mo?'0':'1');
+    var c=o.querySelector('.dvcaret'); if(c) c.textContent=mo?'▸':'▾';
+  }
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * LÀM CẢ TUẦN — TÍCH ĐÚNG NHÓM RỒI ĐI QUA CỬA CŨ.
+   *
+   * 🔴 KHÔNG ĐẺ CỬA MÁY CHỦ MỚI. `doDuyetChon()` / `doCapChon()` đã có sẵn hộp xác nhận, có
+   *    phép cộng tổng từ chính ô tích, và có đường ghi lệnh tạm ứng. Viết một đường "duyệt cả
+   *    tuần" riêng ở máy chủ là hai đường cùng làm một việc, rồi lệch nhau ở đúng chỗ tiền.
+   *
+   * 🔴 BỎ TÍCH CŨ TRƯỚC. Người dùng có thể đang tích dở mấy đơn ở tuần khác; không xoá thì một
+   *    cú bấm "Duyệt cả tuần này" duyệt luôn cả mấy đơn tuần kia — và hộp xác nhận chỉ nói
+   *    tổng số, không nói chúng thuộc tuần nào.
+   *
+   * ⚠️ TUẦN LẪN NHIỀU ĐƠN VỊ THÌ HỎI THÊM MỘT CÂU. Anh Thắng 20/09: *"tránh duyệt lộn đơn
+   *    vị"*. Bình thường một tuần chỉ có một đơn vị, nên câu hỏi này gần như không bao giờ
+   *    hiện — nhưng lúc nó hiện thì đúng là lúc cần hỏi.
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  function dvLamCaTuan(gid, viec){
+    var st=(viec==='cap')?'Chờ cấp tạm ứng':'Chờ duyệt tạm ứng';
+    var all=[].slice.call(document.querySelectorAll('.dvChk'));
+    all.forEach(function(c){ c.checked=false; });
+    var trong=[].slice.call(document.querySelectorAll('tr.'+gid+' .dvChk'))
+      .filter(function(c){ return c.getAttribute('data-st')===st; });
+    if(!trong.length){ toast('warn','Tuần này không còn đơn nào ở bước "'+st+'"'); return; }
+    var dv={};
+    trong.forEach(function(c){
+      c.checked=true;
+      var tr=c.closest?c.closest('tr'):null;
+      var m=tr?tr.getAttribute('data-dv'):null; if(m) dv[m]=1;
+    });
+    dvUpdateBar();
+    var ten=Object.keys(dv);
+    if(ten.length>1 && !confirm('Tuần này có đơn của '+ten.length+' đơn vị: '+ten.join(' · ')
+      +'\n\nVẫn làm cả tuần một lượt?')){ all.forEach(function(c){ c.checked=false; }); dvUpdateBar(); return; }
+    if(viec==='cap') doCapChon(); else doDuyetChon();
+  }
   function renderDuyet(){
     _renderTongLH('duyetTongLH');
     var f=el('duyetFilter').value;
@@ -11907,10 +12008,10 @@
        dòng người đang xem có quyền thao tác (`canChk`), nên cộng theo ô tích là bỏ sót đúng
        những đơn họ không được đụng vào — mà tiền của chúng vẫn nằm trong tổng phải chi. */
     DV_LIST=list;
-    el('duyetBody').innerHTML=_tachDonVi(list, function(d){
+    el('duyetBody').innerHTML=_dvGomTuan(list, function(d, gid, gap){
       var st=d.trangThai; var cl=d.chenhLech>=0?'pos':'neg'; var role=_vaiLuat();
       var canChk=(st==='Chờ duyệt tạm ứng'&&canDo('duyetTU'))||(st==='Chờ cấp tạm ứng'&&canDo('capTU'));
-      var chk=canChk?('<td style="text-align:center"><input type="checkbox" class="dvChk" data-m="'+esc(d.maDon)+'" data-st="'+esc(st)+'" data-tu="'+(Number(d.tamUng)||0)+'" onchange="dvUpdateBar()"></td>'):'<td></td>';
+      var chk=canChk?('<td style="text-align:center"><input type="checkbox" class="dvChk" data-m="'+esc(d.maDon)+'" data-st="'+esc(st)+'" data-ky="'+esc(d.ky||'')+'" data-tu="'+(Number(d.tamUng)||0)+'" onchange="dvUpdateBar()"></td>'):'<td></td>';
       var act='<button class="btn b-s" onclick="viewDon(\''+d.maDon+'\')">👁 Xem</button>';
       if(st==='Chờ duyệt tạm ứng'){ var a1='';
         if(canDo('duyetTU')) a1+=' <button class="btn b-g" onclick="doDuyetTU(\''+d.maDon+'\')">✔ Duyệt tạm ứng</button>';
@@ -11923,7 +12024,11 @@
       var info='';
       if(st==='Đã cấp tạm ứng'&&(d.nguoiDuyet||d.ngayDuyet)) info='<div style="font-size:10px;color:#8c8781">cấp TƯ: '+esc(d.nguoiDuyet||'')+(d.ngayDuyet?' · '+esc(d.ngayDuyet):'')+'</div>';
       if(st==='Đã quyết toán') info='<div style="font-size:10px;color:#8c8781">QT '+esc(d.ngayQT||'')+(d.xuLy?' · '+esc(d.xuLy):'')+'</div>';
-      return '<tr>'+chk+'<td>'+esc(d.ky||d.maDon)+'</td><td>'+esc(d.nguoiLap||'')+'</td><td style="font-size:12px">'+esc(d.coso||'')+'</td>'+
+      /* ⚠️ Ô TÍCH MANG `data-ky` — nút "Duyệt cả tuần" tích theo đúng nhóm của nó, và tích
+         bằng KỲ CỦA ĐƠN chứ không bằng chỗ đứng trong bảng: bảng còn tách theo đơn vị nên
+         dòng của một tuần không nằm liền một mạch. */
+      var g=gid?(' '+gid):'', an=(gid&&gap)?' style="display:none"':'';
+      return '<tr class="dvm'+g+'"'+an+' data-dv="'+esc(d.donVi||'K&H')+'">'+chk+'<td>'+esc(d.ky||d.maDon)+'</td><td>'+esc(d.nguoiLap||'')+'</td><td style="font-size:12px">'+esc(d.coso||'')+'</td>'+
         '<td class="money">'+money(d.tamUng)+'</td><td class="money">'+money(d.thucChiCN)+'</td><td class="money">'+money(d.thucChiNCC)+'</td>'+
         '<td class="money '+cl+'">'+money(d.chenhLech)+'</td>'+
         '<td><span class="badge '+stCls(st)+'">'+esc(_tenTT(st,d.khoi,_luongDon(d)))+'</span>'+info+'</td>'+

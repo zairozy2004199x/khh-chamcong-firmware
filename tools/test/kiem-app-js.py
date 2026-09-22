@@ -526,10 +526,15 @@ la('có hàm tách khối theo đơn vị', 'function _tachDonVi(' in src)
 # Chỉ tách khi người xem nhìn được HƠN MỘT đơn vị — kế toán POSH chỉ có đơn POSH, chèn thêm
 # một dải "POSH" lên đầu mọi bảng là thêm một dòng chữ không mang tin gì.
 la('chỉ tách khi nhìn được hơn một đơn vị', 'if(!BOOT.nhieuDonVi) return' in src)
-for _b, _goi in [('Duyệt tạm ứng', "el('duyetBody').innerHTML=_tachDonVi("),
-                ('Quyết toán chờ/xong', "el('qtBody'+hoa).innerHTML=_tachDonVi("),
+for _b, _goi in [('Quyết toán chờ/xong', "el('qtBody'+hoa).innerHTML=_tachDonVi("),
                 ('Đã cấp chưa nộp', "el('qtBodyChuaNop').innerHTML=_tachDonVi(")]:
     la('bảng "%s" dùng _tachDonVi' % _b, _goi in src)
+# 🔴 Bảng Duyệt tạm ứng nay GOM THEO TUẦN (22/09/2026, anh Thắng: *"hiện chi phí cơ sở lên và
+#    duyệt theo tuần"*), nên nó gọi `_tachDonVi` BÊN TRONG mỗi nhóm tuần chứ không gọi thẳng.
+#    Vạch ngăn đơn vị vẫn phải còn — *"tránh duyệt lộn đơn vị"* (20/09) không đổi.
+la('bảng "Duyệt tạm ứng" gom theo tuần', "el('duyetBody').innerHTML=_dvGomTuan(" in src)
+la('và vẫn tách đơn vị BÊN TRONG mỗi tuần',
+   '_tachDonVi(rows, function(d){ return veHang(d, gid, gap); }, gid, gap)' in src)
 la('dòng ngăn có kiểu chữ thật trong tệp css', 'tr.dv-ngan>td{' in css)
 
 # Cấu hình: MỘT cột Đơn vị. Anh Thắng 12/09/2026: *"Đơn vị với xem đơn vị là 1, đã thuộc đơn

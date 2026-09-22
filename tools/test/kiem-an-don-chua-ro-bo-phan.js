@@ -313,8 +313,11 @@ function duyetVoi(dons, anMo, hopKhoi) {
     duyetFilter: { value: 'all' }, dvThang: { value: '' }, dvKy: { value: '' }, dvCoso: { value: '' },
     duyetEmpty: { style: {} }, duyetBody: { innerHTML: '' },
   };
+  /* ⚠️ Từ 22/09/2026 `renderDuyet()` gom theo TUẦN, nên chỗ bắt danh sách đang hiện chuyển
+     từ `_tachDonVi` sang `_dvGomTuan`. Bài này canh phép LỌC (đơn chưa rõ bộ phận có bị bỏ
+     không), không canh cách bày — nên chỉ cần đổi đúng cái phễu. */
   new Function('el', 'esc', 'money', 'canDo', 'stCls', 'BOOT', 'CURUSER', '_AN_MO',
-    '_thangCuaKy', '_napLocDon', '_renderTongLH', '_tachDonVi', 'dvUpdateBar', 'ghiLai', '_hopKhoi',
+    '_thangCuaKy', '_napLocDon', '_renderTongLH', '_dvGomTuan', 'dvUpdateBar', 'ghiLai', '_hopKhoi',
     NEN_TT + '\n' + fnAnVaoMo + '\n' + fnDuyet + '\nrenderDuyet();')(
     function (id) { return Object.prototype.hasOwnProperty.call(O3, id) ? O3[id] : null; },
     esc, function (x) { return String(Number(x) || 0); }, function () { return true; },
