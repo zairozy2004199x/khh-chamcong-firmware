@@ -366,6 +366,44 @@ t('   và vẫn mang giá trị thật lên (readonly giữ nguyên .value)',
 t('🔴 ô PIN che đi, không bày mã ra màn', /type="password"/.test(O_PIN), O_PIN);
 t('⚠️ nhưng KHÔNG thay giá trị bằng dấu chấm (lưu một cái là mất sạch PIN)',
   /value="'\+esc\(u\.pin\|\|''\)\+'"/.test(O_PIN), O_PIN);
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 NÚT 👁 HIỆN PIN — anh Thắng 22/09/2026: *"Cho hiện Pin"*.
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * Luật "không in PIN ra màn" ở trên VẪN NGUYÊN: ô mặc định vẫn `type="password"`. Nút này chỉ
+ * mở ra theo từng lượt bấm, và phải giữ đủ ba chốt giảm hại — bảng này bày PIN của TOÀN CÔNG
+ * TY trên một màn.
+ *
+ * ⚠️ VÀ PHẢI NÓI RA ĐIỀU NÀY, vì nó đổi hẳn cách đọc mấy phép ở trên: lớp che `type="password"`
+ *    CHƯA BAO GIỜ giấu được gì. `getUsers()` gửi PIN thật xuống trình duyệt và hàng này đặt nó
+ *    vào `value`; ai mở F12 là đọc được PIN cả bảng, không cần nút nào. Nút 👁 không mở thêm
+ *    cửa — nó chỉ thôi giả vờ rằng cửa đang đóng. Chỗ hỏng thật là máy chủ GỬI PIN xuống, và
+ *    PIN lưu dạng chữ thường. Hai cái ấy phải anh Thắng chốt vì chúng đổi đường đăng nhập của
+ *    mọi người.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+t('🎯 có nút hiện PIN', /onclick="pinHien\(this\)"/.test(HTML), '');
+const F_PIN = (HTML.match(/function pinHien\(btn\)\{[\s\S]*?\n  \}/) || [])[0] || '';
+/* ⚠️ SOI CHÍNH CÁI CỔNG TRƯỚC NÚT, không soi mỗi "có chữ `_laAdminThat` ở đâu đó". Hàm
+   `pinHien()` vẫn hỏi nó, nên phép lỏng vẫn xanh trong khi CÁI NÚT đã bày cho mọi vai —
+   bày ra một cái nút bấm vào thì bị chối là vừa vô duyên vừa mời người ta thử. */
+t('🔴 chỉ ADMIN THẬT xem được — đang giả lập vai khác thì không thấy nút',
+  /_laAdminThat\(\)\s*\n?\s*\?\s*'<button/.test(HTML) && /_laAdminThat\(\)/.test(F_PIN),
+  F_PIN.slice(0, 200));
+t('🔴 TỰ ẨN LẠI sau một lúc, kể cả khi người ta bỏ đi khỏi máy',
+  /setTimeout\(/.test(F_PIN) && /type='password'/.test(F_PIN), F_PIN.slice(0, 300));
+/* Hẹn giờ phải gắn vào CHÍNH Ô ẤY. Một biến chung thì bấm 👁 ba dòng liền nhau là lượt đếm sau
+   xoá lượt trước — hai dòng đầu phơi PIN mãi, mà người bấm tưởng đã tự ẩn hết vì thấy dòng
+   cuối ẩn đi. */
+t('🔴 hẹn giờ gắn vào TỪNG Ô, không dùng một biến chung',
+  /var h\s*=\s*o\._pinHen/.test(F_PIN) && /o\._pinHen\s*=\s*setTimeout/.test(F_PIN),
+  F_PIN.slice(0, 300));
+t('   bấm lại lúc đang hiện thì ẩn ngay, khỏi chờ hết giờ',
+  /o\.type==='text'/.test(F_PIN), F_PIN.slice(0, 300));
+/* 🔴 KHÔNG CÓ "HIỆN TẤT CẢ". Một lần chụp màn không được lộ cả bảng PIN của công ty. */
+t('🔴 KHÔNG có nút hiện tất cả PIN cùng lúc',
+  !/pinHienTatCa|hienTatCaPin|pinHienHet/.test(HTML), '');
+t('   và ô PIN vẫn che MẶC ĐỊNH, nút chỉ mở theo từng lượt bấm',
+  /type="password"/.test(O_PIN), O_PIN);
+
 /* Hàng THÊM MỚI cũng phải che: người khai gõ PIN cho người khác, ngay giữa văn phòng. */
 t('🔴 ô PIN của hàng thêm mới cũng che',
   /<input type="password" maxlength="8"/.test(HTML), '');

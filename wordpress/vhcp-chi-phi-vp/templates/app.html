@@ -2534,6 +2534,23 @@
      🔴 KHÔNG suy vai thật ra từ `CURUSER` — chính `CURUSER` là thứ đang bị đội lốt. */
   var GL_THAT=null;
   /** Admin THẬT hay không — hỏi vai thật, không hỏi cái lốt đang mặc. */
+  /**
+   * Hiện PIN của MỘT dòng trong 10 giây.
+   *
+   * 🔴 HẸN GIỜ GẮN VÀO CHÍNH Ô ẤY, không để một biến chung. Bấm 👁 ở ba dòng liền nhau mà dùng
+   *    chung một hẹn giờ thì lượt đếm sau xoá lượt trước — hai dòng đầu nằm phơi PIN mãi, và
+   *    người bấm tưởng mọi thứ đã tự ẩn vì họ thấy dòng cuối ẩn đi.
+   * ⚠️ Bấm lại lúc đang hiện = ẩn ngay, khỏi chờ hết mười giây.
+   */
+  function pinHien(btn){
+    if(!_laAdminThat()){ toast('warn','Chỉ Admin xem được PIN'); return; }
+    var o=btn.parentNode.querySelector('input'); if(!o) return;
+    var h=o._pinHen;
+    if(h){ clearTimeout(h); o._pinHen=null; }
+    if(o.type==='text'){ o.type='password'; btn.textContent='👁'; return; }
+    o.type='text'; btn.textContent='🙈';
+    o._pinHen=setTimeout(function(){ o.type='password'; btn.textContent='👁'; o._pinHen=null; }, 10000);
+  }
   function _laAdminThat(){
     var u=GL_THAT||CURUSER;
     return !!(u && u.role==='Admin');
@@ -13853,7 +13870,35 @@
        *
        * ⚠️ PIN vẫn readonly: đổi ở trang Chấm công · Nhân sự, không đổi ở đây.
        * ══════════════════════════════════════════════════════════════════════════════════════ */
-      +'<td><input type="password" value="'+esc(u.pin||'')+'" readonly autocomplete="off" title="PIN lấy từ hệ thống nhân sự — đổi ở trang Chấm công · Nhân sự, không đổi ở đây. Che đi vì trang này chạy ngoài internet." maxlength="8" style="width:100%;background:#f4f1ec;color:#8c8781;cursor:not-allowed"></td>'
+      /* ══════════════════════════════════════════════════════════════════════════════════════
+       * 🔴 NÚT 👁 HIỆN PIN — anh Thắng 22/09/2026: *"Cho hiện Pin"*.
+       * ══════════════════════════════════════════════════════════════════════════════════════
+       * ⚠️ VÀ ĐÂY LÀ CHỖ PHẢI NÓI THẲNG: LỚP CHE `type="password"` CHƯA BAO GIỜ GIẤU ĐƯỢC GÌ.
+       *    `getUsers()` gửi PIN THẬT xuống trình duyệt và dòng này đặt nó vào `value`. Ai mở
+       *    F12 (hoặc "Xem nguồn") là đọc được PIN của CẢ BẢNG, không cần bấm nút nào. Nút dưới
+       *    đây vì thế KHÔNG mở thêm một cánh cửa nào — nó chỉ thôi giả vờ rằng cửa đang đóng.
+       *
+       *    Chỗ hỏng thật nằm ở hai nơi khác, và nút này không chữa được cái nào:
+       *      · máy chủ GỬI PIN xuống màn (`VHCPVP_Cfg`, khoá `pin` trong `getUsers()`);
+       *      · PIN lưu dạng CHỮ THƯỜNG, không băm — `VHCPVP_Auth` so `$x['pin'] === $pin`.
+       *    Chữa đúng là máy chủ thôi gửi PIN (chỉ gửi CÓ/KHÔNG) và băm khi lưu. Cả hai đổi
+       *    đường đăng nhập của mọi người nên phải anh Thắng chốt, không tự làm kèm.
+       *
+       * ⚠️ BA CHỐT GIẢM HẠI, vì bảng này bày PIN của TOÀN CÔNG TY trên một màn:
+       *      · hiện TỪNG DÒNG, không có nút "hiện tất cả" — một lần chụp màn không lộ cả bảng;
+       *      · chỉ ADMIN THẬT (`_laAdminThat()`), nên đang giả lập vai khác thì nút không có;
+       *      · TỰ ẨN LẠI sau 10 giây, kể cả khi người ta bỏ đi khỏi máy.
+       *
+       * ⚠️ VẪN LÀ MỘT Ô NHẬP VÀ VẪN GIỮ GIÁ TRỊ THẬT. Bảng lưu bằng cách đọc lại MỌI ô trên
+       *    hàng (`_readRows`), nên thay giá trị bằng dấu chấm là lượt Lưu kế tiếp ghi đè PIN
+       *    thật bằng chuỗi che — khoá tài khoản của cả bảng.
+       * ══════════════════════════════════════════════════════════════════════════════════════ */
+      +'<td><div style="display:flex;gap:4px;align-items:center">'
+      +'<input type="password" value="'+esc(u.pin||'')+'" readonly autocomplete="off" title="PIN lấy từ hệ thống nhân sự — đổi ở trang Chấm công · Nhân sự, không đổi ở đây." maxlength="8" style="width:100%;background:#f4f1ec;color:#8c8781;cursor:not-allowed">'
+      +(_laAdminThat()
+        ? '<button type="button" class="btn b-x" onclick="pinHien(this)" title="Hiện PIN 10 giây rồi tự ẩn. Bảng này bày PIN của cả công ty — đừng bật lúc đang chia sẻ màn hình." style="padding:2px 7px;font-size:11px">👁</button>'
+        : '')
+      +'</div></td>'
       +'<td>'+_roleSel(u.vaiTro)
       /* 🔴 Ô BỘ PHẬN GIỜ LÀ Ô ẨN, KHÔNG PHẢI BỎ HẲN — anh Thắng 21/09/2026: *"bỏ cột bộ phận đi,
          giờ nó không còn tác dụng nữa, vì dùng hết trên vai trò cha, con rồi"*.
