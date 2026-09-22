@@ -43,7 +43,7 @@ const bocMang = (ten) => {
   const i = HTML.indexOf('  var ' + ten + '=');
   return i < 0 ? '' : HTML.slice(i, HTML.indexOf('];', i) + 2);
 };
-const NGUON = bocMang('BP_THEO_TEN_VAI') + '\n' + ['_khoiCuaLoai', '_vaiTachLoai', '_vaiDungDuocLoai', '_mangCua', '_donNhieuCoSo',
+const NGUON = bocMang('BP_THEO_TEN_VAI') + '\n' + ['_khoiCuaLoai', '_vaiTachLoai', '_locLoaiTheoKhoi', '_vaiDungDuocLoai', '_mangCua', '_donNhieuCoSo',
   '_mangPham', '_tkNoList', '_tapTkCo', '_tkNoCua', '_khoaNhom', '_bpTach', '_boDauVai',
   '_bpCuaVai', '_bpCuaToi', '_loaiCpList'].map(boc).join('\n')
   + '\n return _loaiCpList;';

@@ -1956,6 +1956,33 @@ class VHCPVP_Cfg {
 	 * ⚠️ CỜ NÀY KHÔNG PHẢI CỔNG QUYỀN. Nó chỉ quyết định ô chọn bày bao nhiêu dòng. Ai xem
 	 *    được đơn nào vẫn do ĐƠN VỊ và CƠ SỞ gác, ở máy chủ, không đụng tới.
 	 */
+	/* ══════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 CÓ LỌC LOẠI CHI PHÍ THEO KHỐI KHÔNG.
+	 * ══════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 22/09/2026: *"Khối là dùng chung, vì đã phân theo vai trò rồi, Khối là liên
+	 * quan Miền Bắc và Miền Nam thôi"*.
+	 *
+	 * Cắn thật ngay sau đó: bản Hà Nội mở ra, ô Loại chi phí RỖNG, kèm câu "Khối HN chưa có
+	 * loại chi phí nào (danh mục đang có 27 loại, nhưng của khối khác)". Hai bảy loại nằm đó
+	 * mà không dùng được cái nào — vì chúng khai ở khối 'kvc', còn bản này đứng ở khối 'hn'.
+	 *
+	 * 🔴 KHỐI VÀ VAI TRÒ TRẢ LỜI HAI CÂU KHÁC NHAU, và chỉ một câu là chuyện phân quyền:
+	 *      · VAI TRÒ — AI được dùng loại này. Đó là cổng thật, đã có `loc_loai_theo_vai()`.
+	 *      · KHỐI    — dữ liệu này thuộc MIỀN nào. Đó là chuyện gom sổ, không phải chuyện cấm.
+	 *    Lấy khối làm cổng thứ hai là bắt kế toán khai lại cả danh mục cho từng miền, trong
+	 *    khi "Chi phí điện nước" ở đâu cũng là chi phí điện nước.
+	 *
+	 * ⚠️ BẬT (mặc định) = HÀNH VI CŨ CỦA KHU VUI CHƠI, KHÔNG ĐỔI MỘT LY. Ở bản gốc, khối là
+	 *    MẢNG KINH DOANH (KVC · MTĐ · VP) chứ không phải miền, và ba bảng danh mục tách nhau
+	 *    là cố ý. Chỉ bản vùng — nơi khối thật sự là miền — mới tắt.
+	 * ══════════════════════════════════════════════════════════════════════════════════════ */
+	const LOC_LOAI_THEO_KHOI = true;
+	public static function loc_loai_theo_khoi() {
+		$v = get_option( 'vhcpvp_loc_loai_theo_khoi', null );
+		if ( null === $v || '' === $v ) { return self::LOC_LOAI_THEO_KHOI; }
+		return (bool) (int) $v;
+	}
+
 	const LOC_LOAI_THEO_VAI = true;
 
 	/** Vùng này có lọc loại chi phí theo vai trò không. Ô cấu hình thắng hằng. */

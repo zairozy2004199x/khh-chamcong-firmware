@@ -34,7 +34,7 @@ function bocHam(ten) {
   return (j > i) ? HTML.slice(i, j) : '';
 }
 
-const TEN = ['_vaiGocCua', '_vaiConCua', '_vaiConHtml', '_roleSel', '_vaiChaDoi'];
+const TEN = ['_vaiTuyBienDs', '_vaiGocCua', '_vaiConCua', '_vaiConHtml', '_roleSel', '_vaiChaDoi'];
 TEN.forEach(function (x) { t('bốc được `' + x + '`', bocHam(x).length > 30, x); });
 
 /* ═══ 1. 🔴 Ô CHA PHẢI BỊ `_readRows()` BỎ QUA ═══════════════════════════════════ */
@@ -52,7 +52,7 @@ const VAITRO = [
 ];
 const vm = require('vm');
 function moi() {
-  const ctx = { CFG: { vaiTro: VAITRO }, VAI_GOC: VAI_GOC,
+  const ctx = { CFG: { vaiTro: VAITRO }, BOOT: { vaiTuyBien: [] }, VAI_GOC: VAI_GOC,
     esc: (x) => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;') };
   vm.createContext(ctx);
   vm.runInContext(TEN.map(bocHam).join('\n'), ctx);
@@ -144,7 +144,7 @@ teq('🔴 cha để "— không rõ —" thì KHÔNG tự đụng vào ô con', 
  * ═══════════════════════════════════════════════════════════════════════════════ */
 {
   const ctx = {
-    CFG: { vaiTro: VAITRO }, VAI_GOC: VAI_GOC,
+    CFG: { vaiTro: VAITRO }, BOOT: { vaiTuyBien: [] }, VAI_GOC: VAI_GOC,
     esc: (x) => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'),
     _cosoSel: () => '<select data-o="coso"></select>',
     _inp: () => '<input data-o="inp">',
@@ -161,7 +161,7 @@ teq('🔴 cha để "— không rõ —" thì KHÔNG tự đụng vào ô con', 
   vm.createContext(ctx);
   /* ⚠️ `_laAdminThat` phải nằm trong danh sách bốc: `_uHang()` gọi nó. Thiếu là bài chết đứng
      bằng ReferenceError — không phải trượt một phép, mà là không chạy nổi dòng nào. */
-  vm.runInContext([ '_vaiGocCua', '_vaiConCua', '_vaiConHtml', '_roleSel', '_laAdminThat', '_uHang' ].map(bocHam).join('\n'), ctx);
+  vm.runInContext([ '_vaiTuyBienDs', '_vaiGocCua', '_vaiConCua', '_vaiConHtml', '_roleSel', '_laAdminThat', '_uHang' ].map(bocHam).join('\n'), ctx);
   const h = ctx._uHang({ ten: 'Thọ', maNv: 'NV7', pin: '1234',
     vaiTro: 'Nhân Viên Kỹ Thuật Máy Tự Động', boPhan: 'Kỹ thuật', coso: '', maDt: '', donVi: 'K&H' }, false);
 

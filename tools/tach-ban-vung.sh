@@ -362,6 +362,15 @@ case "$MA" in
   hn) LOC_VAI=false ;;
   *)  LOC_VAI=true  ;;
 esac
+# 🔴 KHỐI CÓ LỌC LOẠI CHI PHÍ KHÔNG — anh Thắng 22/09/2026: *"Khối là dùng chung, vì đã phân
+#    theo vai trò rồi, Khối là liên quan Miền Bắc và Miền Nam thôi"*.
+#    Ở BẢN GỐC khối là MẢNG KINH DOANH (KVC · MTĐ · VP) và ba bảng danh mục tách nhau là cố ý,
+#    nên giữ `true`. Ở bản VÙNG, khối thật sự là miền — tắt, không thì kế toán phải khai lại cả
+#    danh mục cho từng miền trong khi "Chi phí điện nước" ở đâu cũng là chi phí điện nước.
+case "$MA" in
+  hn) LOC_KHOI=false ;;
+  *)  LOC_KHOI=true  ;;
+esac
 # 🔴 BẢN GỐC NAY ĐÃ BẬT SẮN (21/09/2026, anh Thắng: *"đẩy cơ sở bên ghế sang nhé"* — ba khối
 #    nay chung một bản cài, gian ghế rơi vào đúng khối Máy tự động của nó). Nên chiều lật đảo lại:
 #    trước là "bật cho mtd", nay là "TẮT cho bản nào không dùng ghế" — tức vp.
@@ -399,6 +408,25 @@ else
     exit 9
   fi
 fi
+
+# ── LỌC LOẠI THEO KHỐI ────────────────────────────────────────────────────────────────────────
+# Cùng khuôn với khối ngay trên: thay xong SOÁT LẠI, dừng hẳn nếu trượt. Bản sinh ra mang cờ
+# sai thì không có gì trên màn nói lên điều đó — cho tới lúc người dùng mở ô Loại chi phí và
+# thấy nó rỗng trơn, đúng cảnh anh Thắng gặp ở bản Hà Nội.
+if [ "$LOC_KHOI" = "true" ]; then
+  if ! grep -q "const LOC_LOAI_THEO_KHOI = true;" "$DICH/includes/class-vhcp-cfg.php"; then
+    echo "✗ Bản '$MA' phải lọc loại theo khối mà hằng LOC_LOAI_THEO_KHOI đang tắt."
+    grep -n "LOC_LOAI_THEO_KHOI" "$DICH/includes/class-vhcp-cfg.php" | head -3
+    exit 10
+  fi
+else
+  perl -0777 -pi -e "s/const LOC_LOAI_THEO_KHOI = true;/const LOC_LOAI_THEO_KHOI = false;/" "$DICH/includes/class-vhcp-cfg.php"
+  if ! grep -q "const LOC_LOAI_THEO_KHOI = false;" "$DICH/includes/class-vhcp-cfg.php"; then
+    echo "✗ Chưa tắt được phép lọc loại theo khối cho bản '$MA'."
+    grep -n "LOC_LOAI_THEO_KHOI" "$DICH/includes/class-vhcp-cfg.php" | head -3
+    exit 10
+  fi
+fi
 # ⚠️ ĐẦU PHÁT NGƯỢC (chi phí → ghế) TẮT Ở MỌI BẢN — anh Thắng chỉ xin *"1 chiều từ ghế sang"*.
 #    Chốt lại ở đây để ai bật thì lỗi nổ ngay lúc dựng bản, không phải sau vài tuần ở dữ liệu
 #    của một hệ khác.
@@ -428,6 +456,7 @@ echo "  · tên trang $TEN_TRANG   (đổi được ở wp-admin -> Cài đặt,
 echo "  · cơ sở     không tạm ứng -> mỗi dòng chi một cơ sở; có tạm ứng -> khoá theo gian ấy"
 echo "  · lấy từ Ghế $GHE"
 echo "  · lọc loại theo vai $LOC_VAI   (false = mọi bộ phận nhập được, đầu mục lớn dẫn đường)"
+echo "  · lọc loại theo khối $LOC_KHOI  (false = danh mục dùng chung mọi miền)"
 echo
 echo "Bước tiếp:"
 echo "  1. bash tools/build-plugin-zip.sh chi-phi-$MA"

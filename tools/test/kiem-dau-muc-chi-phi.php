@@ -191,6 +191,21 @@ t( '🔴 gói khởi động CHỞ `cha` xuống màn — thiếu là màn khôn
 t( '   và `loai_tk()` cũng khai khoá `cha` cho mọi chỗ đọc một loại lẻ',
 	false !== strpos( $cfg_src, "'cha'     => isset( \$x['cha'] )" ), null );
 
+/* Cờ theo vùng: bật ở bản gốc và MTĐ/VP (khối = mảng kinh doanh), tắt ở HN (khối = miền). */
+$KHOI_MONG = array( 'vhcp-chi-phi' => 'true', 'vhcp-chi-phi-hn' => 'false',
+                    'vhcp-chi-phi-mtd' => 'true', 'vhcp-chi-phi-vp' => 'true' );
+foreach ( $KHOI_MONG as $ban => $mong ) {
+	$f = $goc . '/wordpress/' . $ban . '/includes/class-vhcp-cfg.php';
+	if ( ! is_file( $f ) ) { t( "có $ban/class-vhcp-cfg.php", false ); continue; }
+	$src = file_get_contents( $f );
+	t( "🔴 $ban: cờ LOC_LOAI_THEO_KHOI = $mong",
+		false !== strpos( $src, "const LOC_LOAI_THEO_KHOI = $mong;" ),
+		( preg_match( '/const LOC_LOAI_THEO_KHOI = (\w+);/', $src, $mk ) ? $mk[1] : '(không thấy)' ) );
+	t( "   $ban: gói khởi động chở cờ ấy xuống màn",
+		false !== strpos( file_get_contents( $goc . '/wordpress/' . $ban . '/includes/class-vhcp-don.php' ),
+			"'locLoaiTheoKhoi' =>" ), null );
+}
+
 // ============================================================ 4. 🔴 CHỐT Ở MÁY CHỦ
 require_once $goc . '/wordpress/vhcp-chi-phi/includes/class-vhcp-auth.php';
 $r = new ReflectionClass( 'VHCP_Auth' );
@@ -244,6 +259,33 @@ foreach ( array_keys( $BAN ) as $ban ) {
 	$row = than_ham( $h, '_mxRowHtml' );
 	t( "🔴 $ban: bảng Cấu hình CÓ ô khai đầu mục", false !== strpos( $row, '_dauMucSel(' ), $row );
 	t( "$ban: và có hàm dựng ô ấy", '' !== than_ham( $h, '_dauMucSel' ) );
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 KHỐI THÔI LÀ CỔNG CỦA DANH MỤC — anh Thắng 22/09/2026: *"Khối là dùng chung, vì đã
+	 *    phân theo vai trò rồi, Khối là liên quan Miền Bắc và Miền Nam thôi"*.
+	 * ══════════════════════════════════════════════════════════════════════════════════════
+	 * Cắn thật: bản Hà Nội mở ra, ô Loại chi phí RỖNG, kèm "Khối HN chưa có loại chi phí nào
+	 * (danh mục đang có 27 loại, nhưng của khối khác)". Hai bảy loại nằm đó mà không dùng
+	 * được cái nào.
+	 * ⚠️ Cờ đặt ở BẢN GỐC, bản vùng sinh lại — nên phải soi đủ bốn bản, như `LOC_LOAI_THEO_VAI`.
+	 * ══════════════════════════════════════════════════════════════════════════════════════ */
+	$khoi = than_ham( $h, '_locLoaiTheoKhoi' );
+	t( "🔴 $ban: màn HỎI CỜ lọc theo khối", '' !== $khoi, $khoi );
+	t( "🔴 $ban: thiếu cờ thì rơi về CÓ LỌC (so `===false`, không dùng `!`)",
+		false !== strpos( $khoi, 'BOOT.locLoaiTheoKhoi===false' ), $khoi );
+	$ds_ham = than_ham( $h, '_loaiCpList' );
+	t( "🔴 $ban: ô chọn loại chi phí HỎI CỜ trước khi cắt theo khối",
+		false !== strpos( $ds_ham, '_locLoaiTheoKhoi() && _khoiCuaLoai(x)' ), $ds_ham );
+
+	/* 🔴 CHIỀU NGƯỢC LẠI — ĐỪNG GỠ LẠM. Anh Thắng nói tiếp: *"Khối là để xác định tài khoản
+	   nợ"*. Tức khối THÔI làm cổng của DANH MỤC, nhưng VẪN là trục của TK NỢ: cùng một loại
+	   chi phí, khác khối thì khác mã. Quét sạch mọi chỗ đọc khối là mọi dòng chi rơi vào một
+	   mã duy nhất — sai sổ kế toán, và sai im lặng vì dòng nào cũng có mã trông hợp lệ. */
+	t( "🔴 $ban: bảng TK Nợ VẪN chia theo khối — khối là trục của tài khoản nợ",
+		false !== strpos( $h, '🔢 TK Nợ · <span' ) && false !== strpos( $h, '_tenKhoi(g.khoi)' ), null );
+	$tkno = than_ham( $h, '_tkNoCua' );
+	t( "   và đường tra mã của một dòng chi không bị đụng vào",
+		'' !== $tkno && false === strpos( $tkno, 'KHOI_DANG' ), $tkno );
 
 	$vai = than_ham( $h, '_vaiDungDuocLoai' );
 	t( "🔴 $ban: màn HỎI CỜ, không tự suy",

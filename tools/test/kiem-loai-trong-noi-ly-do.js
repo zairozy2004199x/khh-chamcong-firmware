@@ -49,7 +49,7 @@ function bocMang(ten) { const i = HTML.indexOf('  var ' + ten + '='); return i <
 function bocDong(ten) { const i = HTML.indexOf('  var ' + ten + '='); return i < 0 ? '' : HTML.slice(i, HTML.indexOf('\n', i)); }
 
 const HAM = ['_bpTach', '_vaiTachLoai', '_tkNoCua', '_tkNoList', '_tapTkCo', '_mangCua', '_mangPham',
-  '_donNhieuCoSo', '_khoaNhom', '_khoiCuaLoai', '_vaiDungDuocLoai', '_boDauVai', '_bpCuaVai', '_bpCuaToi',
+  '_donNhieuCoSo', '_khoaNhom', '_khoiCuaLoai', '_locLoaiTheoKhoi', '_vaiDungDuocLoai', '_boDauVai', '_bpCuaVai', '_bpCuaToi',
   '_khoiDvBang', '_khoiCuaDv', '_khoiCuaGian', '_gianHopKhoi', '_tenKhoi', '_loaiCpList', '_loaiCpVi'];
 const NEN = bocMang('KHOI_DS') + '\n' + bocDong('KHOI_DV_DUP') + '\n'
   + bocMang('BP_THEO_TEN_VAI') + '\n' + HAM.map(bocHam).join('\n');
@@ -95,8 +95,13 @@ t('⚠️ cơ sở chưa khai khối → KHÔNG dọa lệch khối', !/thuộc 
  *    nên viết một phép để chặn chính mình, và nó đã làm đúng việc — giữ tính năng lại cho tới
  *    khi NGƯỜI DÙNG quyết định bỏ. Nay anh quyết rồi thì phép này đảo chiều, không xoá đi:
  *    cửa đã tháo cũng cần người canh, kẻo một lượt merge lùi nào đó lắp lại mà không ai hay. */
-t('🔴 `_loaiCpList` vẫn cắt theo khối ở cửa đầu',
-  /if\(_khoiCuaLoai\(x\)!==String\(KHOI_DANG\)\.toLowerCase\(\)\) return false;/.test(bocHam('_loaiCpList')));
+/* ⚠️ TỪ 1.277.0 CỬA KHỐI ĐI QUA MỘT CỜ. Anh Thắng 22/09/2026: *"Khối là dùng chung, vì đã
+   phân theo vai trò rồi, Khối là liên quan Miền Bắc và Miền Nam thôi"* — bản Hà Nội tắt cờ ấy,
+   bản gốc giữ nguyên. Nên phép này canh CÁI CỬA CÒN ĐÓ và còn HỎI CỜ, chứ không ghim nguyên
+   văn một dòng `if` — ghim nguyên văn là đỏ vì lối viết đổi, không phải vì cửa mất. */
+t('🔴 `_loaiCpList` vẫn có cửa khối, và cửa ấy HỎI CỜ trước',
+  /_locLoaiTheoKhoi\(\) && _khoiCuaLoai\(x\)!==String\(KHOI_DANG\)\.toLowerCase\(\)/.test(bocHam('_loaiCpList')),
+  bocHam('_loaiCpList').slice(0, 200));
 t('🔴 cửa mảng ở cuối ĐÃ GỠ — ô mã trống thôi ẩn loại',
   !/return !!row\[mang\];/.test(bocHam('_loaiCpList')), 'cửa mảng còn nguyên');
 t('   …và không còn biến `mx` / `mang` nào đứng lại không ai đọc',

@@ -2105,7 +2105,7 @@
     var bp=_bpCuaToi();
     var co={}, ds=[];
     (BOOT.loaiChiPhi||[]).forEach(function(x){
-      if(_khoiCuaLoai(x)!==String(KHOI_DANG).toLowerCase()) return;   /* xem chốt ở `_loaiCpList()` */
+      if(_locLoaiTheoKhoi() && _khoiCuaLoai(x)!==String(KHOI_DANG).toLowerCase()) return;   /* xem `_locLoaiTheoKhoi()` */
       if(!_vaiDungDuocLoai(x)) return;                                /* nt */
       var bds=_bpTach(x.boPhan);                       // loại chi phí thuộc được NHIỀU bộ phận
       /* Gom về nút nào ở "Chọn chi phí nào": ưu tiên chính bộ phận của người đang xem, để
@@ -9691,7 +9691,8 @@
          khối, để tránh dùng chung"* — chia ở Cấu hình mà ô chọn lúc nhập đơn vẫn xổ đủ cả ba
          thì chia chẳng để làm gì: người Văn phòng vẫn chọn nhầm được loại của Khu vui chơi,
          và dòng chi ấy đi thẳng vào sổ mang mã tài khoản của khối khác. */
-      if(_khoiCuaLoai(x)!==String(KHOI_DANG).toLowerCase()) return false;
+      /* 🔴 KHỐI THÔI LÀ CỔNG khi cờ tắt — xem chốt dài ở `_locLoaiTheoKhoi()`. */
+      if(_locLoaiTheoKhoi() && _khoiCuaLoai(x)!==String(KHOI_DANG).toLowerCase()) return false;
       /* 🔴 VÀ LỌC THEO VAI TRÒ — anh Thắng 21/09/2026: *"bỏ tích bộ phận đi, mà tích theo vai
          trò"*. Máy chủ đã gác ở `VHCPMTD_Auth::xem_duoc_loai()`, nhưng Ô CHỌN lúc nhập đơn dựng
          ngay ở màn từ `BOOT.loaiChiPhi`. Không lọc ở đây là người nhập chọn được một loại mà
@@ -9963,7 +9964,7 @@
     var bp=_bpCuaToi();
     var nKhoi=0, nVai=0, nRac=0, nNhom=0, nTt=0, tongKhoi=0;
     (BOOT.loaiChiPhi||[]).forEach(function(x){
-      if(_khoiCuaLoai(x)!==String(KHOI_DANG).toLowerCase()){ nKhoi++; return; }
+      if(_locLoaiTheoKhoi() && _khoiCuaLoai(x)!==String(KHOI_DANG).toLowerCase()){ nKhoi++; return; }
       tongKhoi++;
       if(!_vaiDungDuocLoai(x)){ nVai++; return; }
       var bds=_bpTach(x.boPhan);
@@ -12246,6 +12247,27 @@
   /** Danh sách vai đã tích cho một loại chi phí — rỗng = chưa ai tích (loại nạp từ sổ cũ). */
   function _vaiTachLoai(x){
     return String((x&&x.vaiTro)||'').split(',').map(function(v){return v.trim();}).filter(Boolean);
+  }
+  /**
+   * KHỐI CÓ LỌC LOẠI CHI PHÍ KHÔNG.
+   *
+   * 🔴 Anh Thắng 22/09/2026: *"Khối là dùng chung, vì đã phân theo vai trò rồi, Khối là liên
+   *    quan Miền Bắc và Miền Nam thôi"*.
+   *
+   *    Cắn thật ngay sau đó: bản Hà Nội mở ra, ô Loại chi phí RỖNG, kèm câu "Khối HN chưa có
+   *    loại chi phí nào (danh mục đang có 27 loại, nhưng của khối khác)". Hai bảy loại nằm đó
+   *    mà không dùng được cái nào — chúng khai ở khối 'kvc', còn bản này đứng ở khối 'hn'.
+   *
+   * 🔴 KHỐI VÀ VAI TRÒ TRẢ LỜI HAI CÂU KHÁC NHAU, và chỉ một câu là chuyện phân quyền:
+   *      · VAI TRÒ — AI được dùng loại này. Đó là cổng thật.
+   *      · KHỐI    — dữ liệu thuộc MIỀN nào. Chuyện gom sổ, không phải chuyện cấm.
+   *
+   * ⚠️ `!==false` chứ không `!`: gói khởi động của bản CŨ không có khoá này, và thiếu khoá
+   *    phải rơi về hành vi CŨ (có lọc), không phải im lặng mở toang. Cùng luật với
+   *    `locLoaiTheoVai` ngay dưới.
+   */
+  function _locLoaiTheoKhoi(){
+    return !(typeof BOOT!=="undefined" && BOOT && BOOT.locLoaiTheoKhoi===false);
   }
   function _vaiDungDuocLoai(x){
     /* 🔴 VÙNG TẮT LỌC THEO VAI -> MỌI VAI THẤY ĐỦ LOẠI. Đọc CỜ từ máy chủ, không tự suy: máy

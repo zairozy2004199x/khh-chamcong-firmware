@@ -87,7 +87,7 @@ const BP_THAT = `  var BP_THEO_TEN_VAI=[
     if(b) return b;
     return _bpCuaVai((CURUSER&&CURUSER.role)||'');
   }`;
-const nguon = BP_THAT + '\n' + ['_khoiCuaLoai', '_vaiDungDuocLoai', '_vaiTachLoai', '_mangCua', '_donNhieuCoSo', '_mangPham', '_tkNoList', '_tapTkCo', '_tkNoCua', '_khoaNhom', '_bpTach', '_loaiCpList', '_loaiCpVi'].map(layHam).join('\n')
+const nguon = BP_THAT + '\n' + ['_khoiCuaLoai', '_locLoaiTheoKhoi', '_vaiDungDuocLoai', '_vaiTachLoai', '_mangCua', '_donNhieuCoSo', '_mangPham', '_tkNoList', '_tapTkCo', '_tkNoCua', '_khoaNhom', '_bpTach', '_loaiCpList', '_loaiCpVi'].map(layHam).join('\n')
   + '\n  return { list:_loaiCpList, vi:_loaiCpVi, tkNoCua:_tkNoCua, dat:function(n,u){ NHOM_CP=n; CURUSER=u; } };';
 function moi(nhomCp, user, cur) {
   /* ⚠️ `_donNhieuCoSo` nay hỏi thêm `CUR_PAGE` / `DA_CUR` — xem chốt ở app.html. Bài này kiểm

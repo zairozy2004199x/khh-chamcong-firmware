@@ -705,6 +705,9 @@ class VHCPMTD_Don {
 			/* Vùng này có lọc loại theo vai không. Giao diện đọc CỜ, không tự suy: hai nơi tự
 			   suy là có ngày ô chọn bày một đằng, máy chủ gác một nẻo. */
 			'locLoaiTheoVai' => VHCPMTD_Cfg::loc_loai_theo_vai(),
+			/* 🔴 Khối có lọc loại chi phí không — xem chốt dài ở `VHCPMTD_Cfg::LOC_LOAI_THEO_KHOI`.
+			   Anh Thắng: *"Khối là dùng chung… Khối là liên quan Miền Bắc và Miền Nam thôi"*. */
+			'locLoaiTheoKhoi' => VHCPMTD_Cfg::loc_loai_theo_khoi(),
 			'boPhanDs'   => VHCPMTD_Cfg::bo_phan_ds(),
 			'boPhanBo'   => VHCPMTD_Auth::bo_phan_bo(),
 			'loaiChuaBP' => self::dem_loai_chua_bo_phan( $cp ),
