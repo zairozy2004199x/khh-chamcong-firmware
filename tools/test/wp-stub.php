@@ -779,7 +779,11 @@ function vhjp_test_boot( $dir ) {
 	/* ĐỌC danh sách lớp từ CHÍNH tệp plugin, không gõ tay lại — và thứ tự require trong tệp ấy
 	   cũng chính là thứ tự phụ thuộc đúng. */
 	$chinh = file_get_contents( $dir . '/vhcp-jp.php' );
-	if ( ! preg_match_all( "#require_once VHJP_DIR \. '(includes/class-vhjp-[a-z-]+\.php)';#", $chinh, $m ) ) {
+	/* 🔴 CÓ `0-9` TRONG LỚP KÝ TỰ. Bản cũ dùng `[a-z-]+` nên `class-vhjp-cau-hinh-2.php` KHÔNG
+	   khớp — cả lớp `VHJP_CauHinh2` (15 hàm cấu hình) chưa bao giờ được nạp vào khung thử, và
+	   mọi bài kiểm chạm tới nó sẽ nổ "Class not found" chứ không phải trượt một phép. Kiểu hỏng
+	   tệ nhất: bài kiểm vẫn XANH vì nó im lặng bỏ qua đúng thứ cần kiểm. */
+	if ( ! preg_match_all( "#require_once VHJP_DIR \. '(includes/class-vhjp-[a-z0-9-]+\.php)';#", $chinh, $m ) ) {
 		throw new RuntimeException( 'Không đọc được danh sách lớp trong vhcp-jp.php' );
 	}
 	foreach ( $m[1] as $duong ) { require_once $dir . '/' . $duong; }

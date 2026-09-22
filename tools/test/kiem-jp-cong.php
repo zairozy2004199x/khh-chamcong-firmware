@@ -191,6 +191,44 @@ $ra = VHJP_Cong::goi( 'jpKhoTonKho', array( '' ) );
 t( 'Hàm thật mà thiếu thẻ phiên -> 401 SESSION_EXPIRED',
 	401 === $ra['ma'] && 'SESSION_EXPIRED' === $ra['than']['error'], $ra );
 
+/* ═════════════════════════ ⑤ KHUNG THỬ CÓ NẠP ĐỦ LỚP KHÔNG ═════════════════════════
+ *
+ * 🔴 BÀI KIỂM BỎ SÓT MỘT LỚP THÌ NÓ IM LẶNG, KHÔNG ĐỎ.
+ * `vhjp_test_boot()` bóc danh sách lớp bằng biểu thức chính quy trên chính `vhcp-jp.php`.
+ * Bản cũ dùng `[a-z-]+` nên `class-vhjp-cau-hinh-2.php` KHÔNG khớp — cả lớp `VHJP_CauHinh2`
+ * (15 hàm cấu hình) chưa bao giờ được nạp, mà không bài nào đỏ vì không bài nào chạm tới nó.
+ * Phép dưới đây đối chiếu THẲNG: mỗi dòng `require_once` trong tệp plugin phải ra một lớp
+ * đang tồn tại trong bộ nhớ.
+ */
+$thieu = array();
+foreach ( VHJP_Cong::map() as $fn => $goi ) {
+	$lop = is_array( $goi ) ? $goi[0] : '';
+	if ( '' !== $lop && ! class_exists( $lop ) ) { $thieu[] = $fn . ' → ' . $lop; }
+}
+t( '🔴 Mọi lớp mà bảng cổng trỏ tới đều đã được nạp', ! $thieu, $thieu );
+
+$chinh = file_get_contents( dirname( __DIR__, 2 ) . '/wordpress/vhcp-jp/vhcp-jp.php' );
+preg_match_all( "#require_once VHJP_DIR \. '(includes/class-vhjp-[a-z0-9-]+\.php)';#", $chinh, $m );
+$chua = array();
+foreach ( $m[1] as $duong ) {
+	$ten = basename( $duong, '.php' );                      // class-vhjp-cau-hinh-2
+	$bo  = explode( '-', substr( $ten, strlen( 'class-vhjp-' ) ) );
+	$lop = 'VHJP';
+	foreach ( $bo as $x ) { $lop .= ucfirst( $x ); }         // VHJP_CauHinh2 (bỏ gạch)
+	$lop = 'VHJP_' . substr( $lop, 4 );
+	if ( ! class_exists( $lop ) ) { $chua[] = $duong . ' → đoán là ' . $lop; }
+}
+t( 'Đọc được danh sách lớp trong vhcp-jp.php', count( $m[1] ) >= 18, count( $m[1] ) );
+t( '🔴 Tệp có CHỮ SỐ trong tên cũng phải được nạp (class-vhjp-cau-hinh-2.php)',
+	class_exists( 'VHJP_CauHinh2' ) );
+
+/* Và bài tự kiểm công thức tiền phải ĐẠT — nó là thứ kế toán bấm để yên tâm, nên nó đỏ là
+   kế toán mất tin vào cả hệ. Trước bản này nó đỏ 3/7 vì bỏ mất bước tính từng dòng. */
+$KTX = array( 'id' => 'K9', 'hoTen' => 'KT', 'role' => VHJP_Auth::VAI_KT, 'locationIds' => array() );
+$tu_kiem = VHJP_CauHinh2::kiem_tra_nhanh( $KTX );
+t( '🔴 jpKiemTraNhanh phải ĐẠT trên hệ lành', false !== strpos( $tu_kiem, 'KẾT QUẢ: ĐẠT' ),
+	$tu_kiem );
+
 /* ------------------------------------------------------------------ in kết quả */
 echo "\n";
 echo 'Giao diện gọi ' . count( $giao_dien ) . ' hàm · đã chuyển ' . count( $da )

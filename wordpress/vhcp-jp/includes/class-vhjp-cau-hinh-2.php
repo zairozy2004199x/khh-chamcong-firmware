@@ -589,6 +589,18 @@ class VHJP_CauHinh2 {
 	 * ⚠️ Trả chuỗi, không trả mảng: giao diện in thẳng vào một `<pre>` và bắt chữ "SAI/LỆCH" để
 	 *    tô màu. Đổi sang JSON là phải sửa giao diện, mà giao diện thì cố ý giữ nguyên văn.
 	 */
+	/**
+	 * Tính một báo cáo GIẢ đúng hai bước như đường thật: từng dòng qua `dong()`, rồi `bao_cao()`.
+	 *
+	 * ⚠️ Một hàm dùng chung cho mọi phép của bài tự kiểm, để không có chỗ nào lỡ bỏ bước một.
+	 */
+	private static function tinh_thu( $head, $rows ) {
+		$loai = VHJP_Doc::str( isset( $head['machineType'] ) ? $head['machineType'] : '' );
+		$dong = array();
+		foreach ( $rows as $r ) { $dong[] = VHJP_Tinh::dong( $r, $loai ); }
+		return VHJP_Tinh::bao_cao( $head, $dong );
+	}
+
 	public static function kiem_tra_nhanh( $u ) {
 		self::can_kt( $u );
 		$out = array( 'KIỂM TRA NHANH CÔNG THỨC TIỀN — ' . VHJP_Ma::hom_nay(), '' );
@@ -599,19 +611,26 @@ class VHJP_CauHinh2 {
 			$out[] = '  ✗ SAI — ' . $ten . ': ra ' . $co . ', phải là ' . $phai;
 		};
 
-		$h = VHJP_Tinh::bao_cao(
+		/* 🔴 PHẢI QUA `dong()` TRƯỚC RỒI MỚI `bao_cao()` — đúng hai bước mà `VHJP_BaoCao::luu()`
+		   đi. `bao_cao()` chỉ CỘNG ô `amount` của từng dòng chứ không tính nó; đưa thẳng dòng thô
+		   vào là mọi phép ở đây cộng một đống số 0, và bài tự kiểm báo ĐỎ trên một hệ hoàn toàn
+		   lành — đúng lúc kế toán bấm nó để yên tâm. */
+		$h = self::tinh_thu(
 			array( 'adjMachine' => 20000, 'refundCustomer' => 30000, 'machineType' => 'TIEN' ),
 			array( array( 'rowKind' => 'MONEY', 'mBefore' => 0, 'mAfter' => 50,
 				'giaXung' => 10000, 'bank' => 100000, 'soldQty' => 0, 'price' => 0 ) ) );
 		$k( 'Doanh thu đồng hồ = 50 xung × 10.000', self::so( $h['revMeter'] ), 500000 );
 		$k( 'Tiền mặt = đồng hồ − chuyển khoản + lệch máy − hoàn khách',
 			self::so( $h['cashActual'] ), 500000 - 100000 + 20000 - 30000 );
-		$k( 'Tổng phải nộp = tiền mặt + chuyển khoản',
+		/* ⚠️ Phép này hai vế cùng suy từ `cashActual` nên nó ĐÚNG THEO CẤU TẠO — giữ lại vì nó
+		   canh chỗ ghép hai ô, nhưng đừng đọc nó như một bằng chứng: lúc ba phép kia đỏ vì dòng
+		   chưa được tính, một mình nó vẫn xanh. */
+		$k( 'Tổng phải nộp = tiền mặt + chuyển khoản (phép tự đúng)',
 			self::so( $h['totalSubmit'] ), self::so( $h['cashActual'] ) + 100000 );
 		$k( 'Tổng phải nộp = đồng hồ + lệch máy − hoàn khách',
 			self::so( $h['totalSubmit'] ), 500000 + 20000 - 30000 );
 
-		$h2 = VHJP_Tinh::bao_cao( array( 'machineType' => 'TIEN' ),
+		$h2 = self::tinh_thu( array( 'machineType' => 'TIEN' ),
 			array( array( 'rowKind' => 'COIN', 'cBefore' => 0, 'cAfter' => 10,
 				'mBefore' => 0, 'mAfter' => 0, 'cash' => 0, 'bank' => 0 ) ) );
 		$k( 'Dòng máy xu KHÔNG giữ hàng (soldQty ép về 0)',
