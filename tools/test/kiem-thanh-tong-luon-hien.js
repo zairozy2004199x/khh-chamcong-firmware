@@ -43,8 +43,9 @@ const NEN_TT = (function () {
   const dong = (t) => { const i = HTML.indexOf('  var ' + t + '='); return i < 0 ? '' : HTML.slice(i, HTML.indexOf('\n', i)); };
   const khoi = (t) => { const i = HTML.indexOf('  var ' + t + '='); return i < 0 ? '' : HTML.slice(i, HTML.indexOf('};', i) + 2); };
   const ham  = (t) => { const i = HTML.indexOf('  function ' + t + '('); return i < 0 ? '' : HTML.slice(i, HTML.indexOf('\n  }', i) + 4); };
-  let n = [dong('TT_CHOT'), dong('KHOI_LUONG_CHI'), khoi('LUONG_KVC'), khoi('LUONG_CHI'),
-    ham('_daChot'), ham('_luongKhoi'), ham('_tenTT'), ham('_ttTrongLuong'), ham('_nutThanhToan'),
+  /* `LUONG_TT` + `_luongDon` thêm ở 1.287.0 — luồng nay là thuộc tính của TỪNG ĐƠN. */
+  let n = [dong('TT_CHOT'), dong('KHOI_LUONG_CHI'), khoi('LUONG_KVC'), khoi('LUONG_CHI'), khoi('LUONG_TT'),
+    ham('_daChot'), ham('_luongKhoi'), ham('_luongDon'), ham('_tenTT'), ham('_ttTrongLuong'), ham('_nutThanhToan'),
     "var KHOI_DANG='kvc';"].join('\n');
   if (n.replace(/\s/g, '').length < 200) { throw new Error('không bốc được nền trạng thái — bệ đỡ sẽ xanh giả'); }
   return n;

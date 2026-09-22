@@ -345,11 +345,16 @@ function beNewDon(daChonTuan, bp) {
   /* `newDon()` gọi `_apTenNhom()` (đặt chữ cho ba nút chọn loại theo bộ phận) — bốc cả chuỗi
      hàm thật vào, đừng khai hàm rỗng: khai rỗng là bỏ dòng gọi ấy ra khỏi tầm kiểm. */
   const bangTen = (/var TEN_LOAI_BP=\{[\s\S]*?\n  \};/.exec(HTML) || [''])[0];
+  /* `newDon()` cũng đặt lại ô chọn LUỒNG về mặc định (1.287.0) — bốc cả `veNdLuong()` thật
+     vào, vì đó chính là dòng phải chạy được: bỏ nó ra là đơn sau lặng lẽ mang luồng của lần
+     lập trước. */
   const src = `${BP_THAT}\n${bangTen}\n${boc('_tenNhom')}\n${boc('_tenNhomBp')}\n${boc('_apTenNhom')}
+    ${bocVar('ND_LUONG')}\n${bocVar('ND_LUONG_DS')}\n${boc('veNdLuong')}
     ${boc('_tabDuoc')}\n${boc('_vaoDuocDuAn')}\n${boc('_hoiLoaiDon')}\n${boc('newDon')}
-    newDon(C); return null;`;
-  new Function('moi', 'C', `with(moi){ ${src} }`)(moi, daChonTuan);
-  return { hoi: KHO['ndLoaiBox'].style.display, coso: KHO['ndCoSoBox'].style.display };
+    newDon(C); return {hoi:null, luong:ND_LUONG};`;
+  const ra = new Function('moi', 'C', `with(moi){ ${src} }`)(moi, daChonTuan);
+  return { hoi: KHO['ndLoaiBox'].style.display, coso: KHO['ndCoSoBox'].style.display,
+    luong: ra && ra.luong, luongHtml: (KHO['ndLuongBox'] || {}).innerHTML };
 }
 const ND1 = beNewDon(undefined);
 t('bấm "＋ Tạo đơn mới" thẳng: CÓ hỏi loại (Kỹ thuật lên được hai loại)',
@@ -359,6 +364,12 @@ t('🔴 tới đây vì đã chọn "Đơn tuần của cơ sở": KHÔNG hỏi 
   ND2.hoi === 'none' && ND2.coso === '', ND2);
 const ND3 = beNewDon(undefined, 'Cơ sở');
 t('   nhân viên cơ sở vốn chỉ có một loại: cũng không hỏi', ND3.hoi === 'none' && ND3.coso === '', ND3);
+/* 🔴 Ô CHỌN LUỒNG ĐẶT LẠI MỖI LƯỢT MỞ (1.287.0). Giữ lựa chọn của lần trước là đơn sau lặng lẽ
+   mang luồng cũ — người lập không nhìn lại ô này vì họ nhớ mình đã chọn rồi. */
+t('🔴 mở "Tạo đơn mới" → luồng về mặc định "gt" (qua tạm ứng — *"cái đang chạy"*)',
+  ND1.luong === 'gt', ND1.luong);
+t('   và hai nút luồng được VẼ RA thật, không phải một ô rỗng',
+  /Qua tạm ứng/.test(ND1.luongHtml || '') && /Trực tiếp/.test(ND1.luongHtml || ''), ND1.luongHtml);
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
  * 🔴 CẶP NÚT CHUYỂN ĐƠN ĐÃ GỠ — 22/09/2026, anh Thắng: *"Bỏ cái chi phí kỹ thuật đi"*.

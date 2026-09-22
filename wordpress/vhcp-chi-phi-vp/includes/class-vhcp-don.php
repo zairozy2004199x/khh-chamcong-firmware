@@ -1433,6 +1433,16 @@ class VHCPVP_Don {
 			'nguoiLap'    => (string) $r['nguoi_lap'],
 			'ngayTao'     => VHCPVP_Util::fmt( $r['ngay_tao'] ),
 			'trangThai'   => ( $r['trang_thai'] !== '' ? $r['trang_thai'] : 'Nháp' ),
+			/* 🔴 KHỐI VÀ LUỒNG PHẢI ĐI KÈM ĐƠN MỞ RA, không chỉ đi kèm danh sách. Màn đơn vẽ
+			   thanh bước và bày nút gửi theo hai ô này; thiếu chúng thì `_luongDon(CUR.don)`
+			   trả rỗng và mọi đơn — kể cả đơn TRỰC TIẾP — lại rơi về luồng mặc định của khối
+			   đang đứng. Lỗi ấy im lặng tuyệt đối: thanh bước vẫn vẽ, nút vẫn hiện, chỉ là vẽ
+			   sai luồng, và người lập bấm "Gửi xin tạm ứng" cho một đơn đã tiêu tiền xong.
+			   ⚠️ Gác isset: cột `luong` thêm ở bản 1.286.0, `khoi` ở 1.43.0 — site nâng plugin
+			      xong mà bảng chưa kịp nới (dbDelta chạy ở lượt tải trang sau) thì đọc thẳng là
+			      cảnh báo tràn nhật ký lỗi, và trang trắng nếu WP_DEBUG bật. */
+			'khoi'        => trim( (string) ( isset( $r['khoi'] ) ? $r['khoi'] : '' ) ),
+			'luong'       => self::luong_don( $r ),
 			'ghiChu'      => (string) $r['ghi_chu'],
 			'nguoiDuyet'  => (string) $r['nguoi_duyet'],
 			'ngayDuyet'   => VHCPVP_Util::fmt( $r['ngay_duyet'] ),

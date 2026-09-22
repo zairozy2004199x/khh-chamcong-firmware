@@ -40,10 +40,12 @@ function bocHam(ten) {
    🔴 MƯỢN HÀM THẬT TRONG TRANG, KHÔNG BỊA. Bịa một cái luôn trả `false` là bệ đỡ vẫn xanh cả
       khi luật thật hỏng — mà mấy bài này lại là nơi duy nhất CHẠY mấy hàm kia. */
 function bocNenTT() {
-  const ds = ['_daChot', '_tenTT', '_luongKhoi', '_ttTrongLuong', '_nutThanhToan'];
+  /* `_luongDon` thêm ở 1.287.0: luồng nay là thuộc tính của TỪNG ĐƠN, và mấy hàng bảng
+     Quyết toán hỏi nó để gọi đúng tên trạng thái / bày đúng nút Đã thanh toán. */
+  const ds = ['_daChot', '_tenTT', '_luongKhoi', '_luongDon', '_ttTrongLuong', '_nutThanhToan'];
   const dong = (t) => { const i = HTML.indexOf('  var ' + t + '='); return i < 0 ? '' : HTML.slice(i, HTML.indexOf('\n', i)); };
   let n = ['TT_CHOT', 'KHOI_LUONG_CHI'].map(dong).join('\n');
-  n += '\n' + ['LUONG_KVC', 'LUONG_CHI'].map((t) => {
+  n += '\n' + ['LUONG_KVC', 'LUONG_CHI', 'LUONG_TT'].map((t) => {
     const i = HTML.indexOf('  var ' + t + '='); return i < 0 ? '' : HTML.slice(i, HTML.indexOf('};', i) + 2);
   }).join('\n');
   n += '\n' + ds.map(bocHam).join('\n');

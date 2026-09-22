@@ -113,8 +113,11 @@ t('⚠️ mỗi bước chỉ vào một tab CÓ THẬT',
 /* ═══ 2. CHẠY THẬT ═════════════════════════════════════════════════════════════ */
 const NEN = [bocDong('KHOI_LUONG_CHI'), bocKhoi('LUONG_KVC').replace(/\n  \};$/, ''), '',
   HTML.slice(HTML.indexOf('  var LUONG_KVC='), HTML.indexOf('};', HTML.indexOf('  var LUONG_CHI=')) + 2),
-  BANG, bocHam('_luongKhoi'), bocHam('_tenTT'), bocHam('_hopKhoi'), bocHam('_khoiCua'),
-  bocHam('_luongDem'), bocHam('veThanhLuong'), bocHam('_luongKeoToiChoTac')].join('\n');
+  /* `LUONG_TT` + `_luongDon` + `_luongBuocDs` thêm ở 1.287.0: luồng nay là thuộc tính của
+     TỪNG ĐƠN, nên dải vẽ HỢP của các luồng đang có mặt chứ không riêng luồng của khối. */
+  bocKhoi('LUONG_TT'),
+  BANG, bocHam('_luongKhoi'), bocHam('_luongDon'), bocHam('_tenTT'), bocHam('_hopKhoi'), bocHam('_khoiCua'),
+  bocHam('_luongDem'), bocHam('_luongBuocDs'), bocHam('veThanhLuong'), bocHam('_luongKeoToiChoTac')].join('\n');
 
 function ve(khoi, tabDuoc, dons) {
   const NK = {};

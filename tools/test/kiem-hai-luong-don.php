@@ -238,6 +238,40 @@ function _tt( $ma ) {
 		( preg_match( '/tt_truoc_misa\([^;]*/su', $MISA, $mm ) ? $mm[0] : 'không thấy' ) );
 }
 
+/* ═══ 8. 🔴 MỞ MỘT ĐƠN RA CŨNG PHẢI THẤY LUỒNG CỦA NÓ ═══════════════════════════════════
+   `get_don()` là thứ nuôi CẢ màn đơn: thanh bước, nút gửi, câu nhắc. Thiếu hai ô này thì
+   `_luongDon(CUR.don)` trả rỗng và MỌI đơn — kể cả đơn trực tiếp — lại rơi về luồng mặc định
+   của khối đang đứng. Lỗi ấy im lặng tuyệt đối: thanh bước vẫn vẽ, nút vẫn hiện, chỉ là của
+   một luồng khác, và người lập bấm "Gửi xin tạm ứng" cho một đơn đã tiêu tiền xong.
+   ⚠️ CHẠY THẬT, không soi chữ: danh sách đơn có chở `luong` (mục 7) không nói gì về `get_don`. */
+{
+	foreach ( array( 'tt', 'gt', '' ) as $lg ) {
+		$ma = _don_moi( $lg );
+		$r  = VHCP_Don::get_don( $ma, false );
+		t( "⚠️ mở được đơn «{$lg}»", ! empty( $r['success'] ) && isset( $r['don'] ), $r );
+		$d = isset( $r['don'] ) ? $r['don'] : array();
+		t( "🔴 đơn mở ra chở `luong` xuống màn (luồng «{$lg}»)", array_key_exists( 'luong', $d ), array_keys( $d ) );
+		teq( "🔴 và chở đúng mã đã ghi («{$lg}»)", $lg, isset( $d['luong'] ) ? $d['luong'] : null );
+		/* 🔴 KHỐI ĐI KÈM LUÔN. Thanh bước hỏi khối CỦA ĐƠN (Admin xem "tất cả" thì khối đang
+		   đứng khác khối của đơn); thiếu nó là thanh vẽ luồng của màn chứ không của đơn. */
+		t( "🔴 và chở cả `khoi` của đơn", array_key_exists( 'khoi', $d ), array_keys( $d ) );
+	}
+	/* ⚠️ HAI Ô NÀY PHẢI CÙNG TÊN VỚI BÊN DANH SÁCH. Đặt tên khác là màn phải nhớ hai bộ tên,
+	   và chỗ nào quên thì đúng chỗ đó rơi về "theo khối như cũ" trong im lặng. */
+	$ma  = _don_moi( 'tt' );
+	$mot = VHCP_Don::get_don( $ma, false );
+	$ds  = VHCP_Don::list_dons();
+	$hang = null;
+	foreach ( (array) ( isset( $ds['items'] ) ? $ds['items'] : $ds ) as $x ) {
+		if ( is_array( $x ) && isset( $x['maDon'] ) && $x['maDon'] === $ma ) { $hang = $x; break; }
+	}
+	t( '⚠️ tìm được chính đơn ấy trong danh sách', is_array( $hang ), $ma );
+	if ( is_array( $hang ) ) {
+		teq( '🔴 mở đơn và danh sách nói CÙNG một luồng', $hang['luong'], $mot['don']['luong'] );
+		teq( '🔴 và CÙNG một khối', $hang['khoi'], $mot['don']['khoi'] );
+	}
+}
+
 if ( $TRUOT ) {
 	echo "\n✗ TRƯỢT " . count( $TRUOT ) . " phép (đạt $DAT):\n";
 	foreach ( $TRUOT as $x ) { echo "  · $x\n"; }
