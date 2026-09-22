@@ -126,8 +126,16 @@ t( '🔴 Mọi hàm trong map() đều gọi được (sai tên lớp/hàm = l�
 	! $hong, $hong );
 
 /* ---------------------------------------------------------------------- cửa không cần thẻ */
-t( 'Đúng MỘT hàm gọi được không cần thẻ phiên',
-	array( 'jpLoginPin' ) === VHJP_Cong::cong_khai(), VHJP_Cong::cong_khai() );
+/**
+ * 🔴 DANH SÁCH NÀY LÀ DANH SÁCH CỬA KHÔNG CÓ THẺ JP. Mỗi tên phải tự mang một cửa khác:
+ *   · `jpLoginPin`    — cửa là chính PIN người ta gõ.
+ *   · `jpSsoChamCong` — cửa là COOKIE PHIÊN CHẤM CÔNG, đọc ở máy chủ, và hàm không nhận tham
+ *     số nào nên không có gì để giả.
+ * Khoá cứng bằng phép so mảng CHẶT chứ không đếm: đếm thì đổi `jpLoginPin` thành một tên khác
+ * vẫn xanh. Thêm tên thứ ba mà không trả lời được "cửa của nó là gì" thì bài này phải ĐỎ.
+ */
+t( 'Đúng HAI hàm gọi được không cần thẻ phiên JP, và đúng hai tên ấy',
+	array( 'jpLoginPin', 'jpSsoChamCong' ) === VHJP_Cong::cong_khai(), VHJP_Cong::cong_khai() );
 $mo_pin = VHJP_Cong::cho_pin_mac_dinh();
 sort( $mo_pin );
 t( 'Đúng BA hàm sống khi tài khoản còn PIN mặc định',

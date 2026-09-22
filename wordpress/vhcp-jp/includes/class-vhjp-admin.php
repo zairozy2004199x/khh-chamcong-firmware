@@ -124,7 +124,99 @@ class VHJP_Admin {
 		echo '<button class="button button-primary" name="vhjp_mo_lai" value="1">'
 			. 'Dựng lại bảng &amp; mở lại đường dẫn</button>';
 		echo ' <span class="description">Bấm khi trang trả 404 hoặc thiếu bảng. An toàn, không mất dữ liệu.</span>';
-		echo '</form></div>';
+		echo '</form>';
+
+		self::man_noi();
+		echo '</div>';
+	}
+
+	/**
+	 * NỐI TÀI KHOẢN JP VỚI MÃ NHÂN VIÊN BÊN CHẤM CÔNG.
+	 *
+	 * =========================================================================================
+	 * 🔴 KHÔNG CÓ MÀN NÀY THÌ ĐĂNG NHẬP MỘT LẦN KHÔNG BAO GIỜ KHỚP AI.
+	 * =========================================================================================
+	 * `VHJP_Auth::sso_cham_cong()` chỉ nối bằng ĐÚNG cột `maNV`, và cố ý không dò theo họ tên —
+	 * hai người trùng tên là một người đăng nhập được vào tài khoản của người kia. Nên sợi dây
+	 * ấy phải có người khai tay, và đây là chỗ khai.
+	 *
+	 * ⚠️ MÀN NÀY ĐỨNG SAU `manage_options`. Nó gán ai được vào tài khoản nào — tức là nó PHÁT
+	 *    QUYỀN. Đặt nó trong app JP (sau PIN kế toán) thì một tài khoản kế toán bị lộ PIN là
+	 *    người ngoài tự nối mình vào bất kỳ tài khoản nào.
+	 *
+	 * ⚠️ MỘT MÃ NV CHỈ NỐI ĐƯỢC VÀO MỘT TÀI KHOẢN. Hai tài khoản cùng mã thì `sso_cham_cong()`
+	 *    lấy cái gặp trước — tức là lấy theo thứ tự đọc bảng, một thứ không ai đoán được. Chặn
+	 *    ngay lúc ghi, và nói rõ đang trùng với ai.
+	 */
+	private static function man_noi() {
+		$loi = ''; $ok = '';
+		if ( isset( $_POST['vhjp_noi'] ) && check_admin_referer( 'vhjp_noi' ) ) {
+			$id = isset( $_POST['vhjp_id'] ) ? sanitize_text_field( wp_unslash( $_POST['vhjp_id'] ) ) : '';
+			$ma = isset( $_POST['vhjp_ma'] ) ? sanitize_text_field( wp_unslash( $_POST['vhjp_ma'] ) ) : '';
+			$ma = trim( $ma );
+			$u  = '' !== $id ? VHJP_Nguon::tim_mot( 'JP_Users', 'id', $id ) : null;
+			if ( ! $u ) {
+				$loi = 'Không tìm thấy tài khoản JP đó.';
+			} else {
+				$trung = '';
+				if ( '' !== $ma ) {
+					foreach ( VHJP_Nguon::doc( 'JP_Users' ) as $x ) {
+						if ( VHJP_Doc::str( $x['id'] ) === $id ) { continue; }
+						if ( VHJP_Doc::str( isset( $x['maNV'] ) ? $x['maNV'] : '' ) === $ma ) {
+							$trung = VHJP_Doc::str( $x['hoTen'] ) . ' (' . VHJP_Doc::str( $x['id'] ) . ')';
+							break;
+						}
+					}
+				}
+				if ( '' !== $trung ) {
+					$loi = 'Mã NV ' . esc_html( $ma ) . ' đã nối với ' . esc_html( $trung )
+						. '. Một mã chỉ nối được vào một tài khoản — gỡ bên kia trước.';
+				} else {
+					VHJP_Nguon::sua( 'JP_Users', $id, array( 'maNV' => $ma ) );
+					$ok = '' !== $ma
+						? 'Đã nối ' . esc_html( VHJP_Doc::str( $u['hoTen'] ) ) . ' với Mã NV '
+							. esc_html( $ma ) . '.'
+						: 'Đã gỡ nối cho ' . esc_html( VHJP_Doc::str( $u['hoTen'] ) )
+							. ' — người này sẽ phải gõ PIN JP như trước.';
+				}
+			}
+		}
+
+		echo '<h2>Nối tài khoản với Chấm Công</h2>';
+		echo '<p class="description" style="max-width:820px">Khai <strong>Mã nhân viên</strong> '
+			. 'bên Chấm Công vào tài khoản JP tương ứng. Khai xong, người ấy mở JP từ điện thoại '
+			. 'trong lúc đang đăng nhập Chấm Công thì <strong>không phải gõ PIN JP lần nữa</strong>. '
+			. 'Để trống = chưa nối, và người ấy vẫn đăng nhập bằng PIN như thường.<br>'
+			. '<strong>Vai trò vẫn lấy từ tài khoản JP</strong>, không lấy từ Chấm Công — một '
+			. 'Quản lý bên Chấm Công không vì thế mà thành kế toán JP.</p>';
+		if ( '' !== $loi ) { echo '<div class="notice notice-error"><p>' . $loi . '</p></div>'; }
+		if ( '' !== $ok ) { echo '<div class="notice notice-success"><p>' . $ok . '</p></div>'; }
+
+		$ds = VHJP_Nguon::doc( 'JP_Users' );
+		if ( ! $ds ) {
+			echo '<p><em>Chưa có tài khoản JP nào.</em></p>';
+			return;
+		}
+		echo '<table class="widefat striped" style="max-width:820px"><thead><tr>'
+			. '<th>Họ tên</th><th>Vai trò</th><th style="width:170px">Mã NV chấm công</th>'
+			. '<th style="width:90px"></th></tr></thead><tbody>';
+		foreach ( $ds as $u ) {
+			$id = VHJP_Doc::str( $u['id'] );
+			echo '<tr><form method="post">';
+			wp_nonce_field( 'vhjp_noi' );
+			printf( '<input type="hidden" name="vhjp_id" value="%s">', esc_attr( $id ) );
+			printf( '<td><strong>%s</strong>%s</td>',
+				esc_html( VHJP_Doc::str( $u['hoTen'] ) ),
+				VHJP_Doc::num( isset( $u['active'] ) ? $u['active'] : 0 )
+					? '' : ' <span style="color:#b45309">· đã tắt</span>' );
+			printf( '<td>%s</td>', esc_html( VHJP_Auth::ten_vai_tro( $u ) ) );
+			printf( '<td><input type="text" name="vhjp_ma" value="%s" class="regular-text" '
+				. 'style="width:100%%" placeholder="để trống = chưa nối"></td>',
+				esc_attr( VHJP_Doc::str( isset( $u['maNV'] ) ? $u['maNV'] : '' ) ) );
+			echo '<td><button class="button" name="vhjp_noi" value="1">Lưu</button></td>';
+			echo '</form></tr>';
+		}
+		echo '</tbody></table>';
 	}
 
 	private static function dong( $ten, $ok, $chu ) {

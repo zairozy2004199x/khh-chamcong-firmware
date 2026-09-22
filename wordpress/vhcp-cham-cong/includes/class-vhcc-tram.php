@@ -249,6 +249,18 @@ class VHCC_Tram {
 				$tt['qtUrl'] = VHCC_Web::url();
 				$tt['vaiTen'] = VHCC_Vai::ten( $u );
 			}
+			/* Đường sang JP Capsule — CÙNG MỘT LUẬT với nút quản trị ngay trên: chỉ gửi cho
+			   người thật sự mở được. Ở đây "mở được" nghĩa là Mã NV của họ ĐÃ được nối với một
+			   tài khoản JP đang bật, tức bấm sang là vào thẳng không phải gõ PIN.
+			   Bày link cho mọi người thì phần lớn nhân viên bấm vào chỉ gặp một màn hỏi PIN của
+			   hệ khác — họ không có PIN ấy, và họ sẽ đi hỏi.
+			   ⚠️ Gác `method_exists` ĐÚNG HAI HÀM sắp gọi, ngay trong thân hàm này — luật
+			      `tools/test/kiem-goi-cheo.php`. JP là plugin cài độc lập, có thể vắng mặt. */
+			if ( class_exists( 'VHJP_Auth' ) && method_exists( 'VHJP_Auth', 'theo_ma_nv' )
+				&& class_exists( 'VHJP_Trang' ) && method_exists( 'VHJP_Trang', 'dia_chi' )
+				&& VHJP_Auth::theo_ma_nv( isset( $u['ma_nv'] ) ? $u['ma_nv'] : '' ) ) {
+				$tt['jpUrl'] = VHJP_Trang::dia_chi( false );
+			}
 			self::ra( $tt );
 		}
 

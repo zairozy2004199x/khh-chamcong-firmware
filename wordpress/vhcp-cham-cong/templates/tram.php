@@ -180,6 +180,14 @@ a{color:#7dd3fc}
 			style="display:block;text-align:center;text-decoration:none;padding:13px 16px;border-radius:10px">
 			Trang quản trị →</a></p>
 
+	<!-- JP Capsule. Ô này CHỈ hiện khi máy chủ gửi `jpUrl` về, tức Mã NV của người đang đứng
+	     đây đã được nối với một tài khoản JP đang bật — bấm sang là vào thẳng, không gõ PIN.
+	     Cùng luật với nút quản trị ngay trên: trang không tự đoán ai mở được cái gì. -->
+	<p id="oJp" class="an" style="margin:10px 0 0">
+		<a id="lkJp" class="phu" href="#"
+			style="display:block;text-align:center;text-decoration:none;padding:13px 16px;border-radius:10px">
+			🥚 JP Capsule →</a></p>
+
 	<p style="margin:14px 0 0"><button id="btRa" class="phu" style="width:100%">Thoát</button></p>
 	<p class="ct">K&amp;H · b<?php echo esc_html( $cfg['ver'] ); ?></p>
 </div>
@@ -766,6 +774,13 @@ function napToi(){
 			el('oQuanTri').classList.remove('an');
 		} else {
 			el('oQuanTri').classList.add('an');
+		}
+		/* Y hệt nút quản trị: có đường thì hiện, không thì ẩn. Không đoán theo vai trò. */
+		if(j.jpUrl){
+			el('lkJp').href = j.jpUrl;
+			el('oJp').classList.remove('an');
+		} else {
+			el('oJp').classList.add('an');
 		}
 		veHomNay(j);
 		if(!THANG){ var tn = thangNay(); if(tn) veThang(tn); }

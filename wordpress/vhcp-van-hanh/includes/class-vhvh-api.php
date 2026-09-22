@@ -43,9 +43,13 @@ class VHVH_API {
 		      chốt hãm sai 10 lần. Viết lại cửa đăng nhập ở đây là có hai sổ PIN, và đổi PIN
 		      một nơi không đổi nơi kia. */
 		if ( 'dang_nhap' === $viec ) {
-			if ( ! VHVH_Auth::co_cham_cong() ) {
+			/* 🔴 SOI ĐÚNG HÀM SẮP GỌI (`login`), không soi `user_by_token`. Hai hàm khác nhau —
+			   bản chấm công cũ có thể có cái kia mà chưa có cái này, và lúc ấy lời gọi ngay dưới
+			   là Fatal error: trắng cả trang, đúng ngay màn đăng nhập. */
+			if ( ! class_exists( 'VHCC_Auth' ) || ! method_exists( 'VHCC_Auth', 'login' ) ) {
 				return self::ra( array( 'ok' => false,
-					'error' => 'Chưa cài plugin Chấm Công — trang này mượn cửa đăng nhập của nó.' ) );
+					'error' => 'Bản plugin Chấm Công trên site này chưa có cửa đăng nhập dùng '
+						. 'chung. Nâng cấp plugin Chấm Công rồi thử lại.' ) );
 			}
 			$kq = VHCC_Auth::login( isset( $d['pin'] ) ? (string) $d['pin'] : '' );
 			if ( empty( $kq['ok'] ) ) {

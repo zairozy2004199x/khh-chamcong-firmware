@@ -103,6 +103,28 @@ class VHTC_Trang {
 				'url'   => ( $co( 'VHNB_Trang', 'url' ) && $co( 'VHCC_Web', 'url' ) )
 					? VHNB_Trang::url() : '',
 			),
+			/* JP CAPSULE — HAI Ô, cố ý tách đôi, cùng lý do với Nhà Ma bên dưới.
+			   🔴 Web NHÂN VIÊN và web KẾ TOÁN là hai việc khác hẳn nhau của hai người khác hẳn
+			      nhau: một cái nhân viên mở bằng ĐIỆN THOẠI mỗi ca để khai chỉ số đồng hồ, một
+			      cái kế toán mở bằng MÁY TÍNH để duyệt, dựng sổ 632 và xuất MISA. Gộp một ô thì
+			      nhân viên bấm vào lại rơi vào bảng 18 cột, còn kế toán thì phải đi vòng.
+			   ⚠️ JP có PIN RIÊNG (bảng `JP_Users`), không dùng phiên chấm công — nên hai ô này
+			      KHÔNG phụ thuộc `VHCC_Web` như ô Nội bộ. Người đã đăng nhập chấm công và được
+			      nối Mã NV thì vào thẳng, không thì JP tự hỏi PIN của nó. */
+			array(
+				'ten'   => 'JP Capsule — Nhân viên',
+				'mo_ta' => 'Khai chỉ số đồng hồ, hàng bán, ảnh và nộp tiền theo kỳ',
+				'icon'  => '🥚',
+				'co'    => $co( 'VHJP_Trang', 'dia_chi' ),
+				'url'   => $co( 'VHJP_Trang', 'dia_chi' ) ? VHJP_Trang::dia_chi( false ) : '',
+			),
+			array(
+				'ten'   => 'JP Capsule — Kế toán',
+				'mo_ta' => 'Duyệt báo cáo, kho hai tầng, sổ 632, công nợ NCC, xuất MISA',
+				'icon'  => '📗',
+				'co'    => $co( 'VHJP_Trang', 'dia_chi' ),
+				'url'   => $co( 'VHJP_Trang', 'dia_chi' ) ? VHJP_Trang::dia_chi( true ) : '',
+			),
 			/* Dự án & tiến độ dùng chung PHIÊN với hệ chấm công (`VHCC_Phien`), nên nó chỉ đứng
 			   được khi hệ ấy có mặt — y như trang Nội bộ. Thiếu hệ ấy thì ô này phải xám: một
 			   liên kết dẫn tới trang chỉ nói "chưa cài plugin Chấm công" thì thà đừng dựng. */

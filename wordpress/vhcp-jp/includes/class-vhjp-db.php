@@ -90,12 +90,17 @@ class VHJP_DB {
 	public static function bang() {
 		$b = array();
 
-		/* ===== 1. JP_Users -> users (11 cột) ===== */
+		/* ===== 1. JP_Users -> users (12 cột) ===== */
+		/* `maNV` — Mã nhân viên bên CHẤM CÔNG. Đây là sợi dây DUY NHẤT nối hai hệ, và nó
+		   phải là một cột khai tay: dò theo họ tên là hai người trùng tên thì một người
+		   đăng nhập được vào tài khoản của người kia. Rỗng = chưa nối, và rỗng KHÔNG
+		   BAO GIỜ khớp với ai — xem `VHJP_Auth::sso_cham_cong()`. */
 		$b['users'] = "
 			id VARCHAR(32) NOT NULL DEFAULT '',
 			username VARCHAR(64) NOT NULL DEFAULT '',
 			password VARCHAR(255) NOT NULL DEFAULT '',
 			pin VARCHAR(255) NOT NULL DEFAULT '',
+			maNV VARCHAR(64) NOT NULL DEFAULT '',
 			hoTen VARCHAR(190) NOT NULL DEFAULT '',
 			role VARCHAR(64) NOT NULL DEFAULT '',
 			machineType VARCHAR(64) NOT NULL DEFAULT '',

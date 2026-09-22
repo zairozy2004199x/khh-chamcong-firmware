@@ -221,6 +221,119 @@ class VHJP_Auth {
 		return bin2hex( random_bytes( 32 ) );
 	}
 
+	/* ═══════════════════════════════════════ ĐĂNG NHẬP MỘT LẦN TỪ CHẤM CÔNG ═══════════ */
+
+	/**
+	 * Mở phiên JP cho người ĐANG đăng nhập bên Chấm Công, không hỏi PIN lần hai.
+	 *
+	 * =============================================================================================
+	 * 🔴 ĐÂY LÀ MỘT CỬA ĐĂNG NHẬP. BỐN CHỐT DƯỚI ĐÂY KHÔNG ĐƯỢC BỎ CÁI NÀO.
+	 * =============================================================================================
+	 *
+	 * ① **MÃ NHÂN VIÊN LẤY TỪ PHIÊN, KHÔNG LẤY TỪ ĐỊA CHỈ.** `VHCC_Phien::toi()` đọc cookie rồi
+	 *    hỏi lại máy chủ chấm công; đó là thứ duy nhất đáng tin. Nhận mã từ tham số URL thì ai gõ
+	 *    `?ma_nv=NV001` cũng vào được tài khoản người khác — không cần biết PIN nào cả.
+	 *
+	 * ② **MÃ RỖNG KHÔNG KHỚP VỚI AI.** Tài khoản JP chưa khai `maNV` để rỗng, và phiên chấm công
+	 *    của một người chưa có mã cũng rỗng. So hai chuỗi rỗng bằng `==` là người đầu tiên chưa
+	 *    khai mã đăng nhập thẳng vào tài khoản JP chưa nối đầu tiên — thường là tài khoản KẾ TOÁN
+	 *    mà hệ tự cấp lúc cài. Đây là chốt quan trọng nhất của cả hàm.
+	 *
+	 * ③ **KHÔNG TỰ TẠO TÀI KHOẢN.** Không tìm thấy thì trả về màn PIN, chấm hết. Tự cấp một tài
+	 *    khoản JP cho bất kỳ ai có phiên chấm công là tự cấp QUYỀN — và quyền ấy sẽ là quyền gì?
+	 *    Không có câu trả lời đúng, nên không hỏi câu ấy.
+	 *
+	 * ④ **VAI LẤY TỪ `JP_Users`, KHÔNG LẤY TỪ CHẤM CÔNG.** Một Quản lý bên chấm công KHÔNG vì thế
+	 *    mà thành kế toán JP — sổ 632 và giá vốn là chuyện khác hẳn bảng công. Hai hệ hai thang
+	 *    vai, và sợi dây nối chỉ nói "ai", không nói "được làm gì".
+	 *
+	 * ⚠️ PIN MẶC ĐỊNH VẪN CHẶN. `mo_phien()` gắn cờ `phaiDoiPin` theo PIN vừa gõ; đường này không
+	 *    gõ PIN nào, nên phải tự soi PIN đang lưu. Bỏ qua là SSO thành đường vòng qua đúng cái
+	 *    chốt "chưa đổi PIN thì chưa dùng được".
+	 *
+	 * ⚠️ `active` PHẢI KIỂM. Người đã nghỉ vẫn còn phiên chấm công tới lúc hết hạn; tài khoản JP
+	 *    đã tắt mà vẫn vào được là tắt hụt.
+	 *
+	 * @return array ok · token · user, hoặc ok=false kèm `ma` để giao diện biết bày màn PIN.
+	 */
+	public static function sso_cham_cong() {
+		if ( ! class_exists( 'VHCC_Phien' ) || ! method_exists( 'VHCC_Phien', 'toi' ) ) {
+			return array( 'ok' => false, 'ma' => 'KHONG_CO_CHAM_CONG',
+				'msg' => 'Site này chưa cài plugin Chấm Công nên không có phiên nào để mượn.' );
+		}
+		$cc = VHCC_Phien::toi();
+		if ( ! is_array( $cc ) ) {
+			return array( 'ok' => false, 'ma' => 'CHUA_DANG_NHAP',
+				'msg' => 'Chưa đăng nhập bên Chấm Công.' );
+		}
+		/* ① Mã đến TỪ PHIÊN. */
+		$ma = VHJP_Doc::str( isset( $cc['ma_nv'] ) ? $cc['ma_nv'] : '' );
+		/* ② Rỗng thì DỪNG NGAY, đừng đem đi so. */
+		if ( '' === $ma ) {
+			return array( 'ok' => false, 'ma' => 'CHUA_CO_MA_NV',
+				'msg' => 'Hồ sơ chấm công của bạn chưa có Mã nhân viên nên chưa nối sang JP được. '
+					. 'Nhờ quản lý điền Mã NV vào hồ sơ.' );
+		}
+
+		$tim = self::theo_ma_nv( $ma );
+		/* ③ Không có thì về màn PIN, KHÔNG tự tạo. */
+		if ( ! $tim ) {
+			return array( 'ok' => false, 'ma' => 'CHUA_NOI',
+				'msg' => 'Mã NV ' . $ma . ' chưa được nối với tài khoản JP nào đang bật. '
+					. 'Vào WordPress → JP Capsule → Nối tài khoản để khai, hoặc đăng nhập bằng PIN.' );
+		}
+
+		$kq = self::mo_phien( $tim, '' );
+		/* ⚠️ `mo_phien()` suy `phaiDoiPin` từ PIN VỪA GÕ, mà đường này không gõ gì — nên soi
+		   thẳng PIN đang lưu. Không soi là SSO thành đường vòng qua chốt đổi PIN. */
+		if ( self::con_dung_pin_mac_dinh( $tim ) ) {
+			$ds = self::doc_phien();
+			if ( isset( $ds[ $kq['token'] ] ) ) {
+				$ds[ $kq['token'] ]['phaiDoiPin'] = true;
+				self::ghi_phien( $ds );
+			}
+			$kq['user']['phaiDoiPin'] = true;
+		}
+		VHJP_NhatKy::ghi( $tim, 'SSO_CHAM_CONG', '', $ma, '' );
+		return $kq;
+	}
+
+	/**
+	 * Tài khoản JP ĐANG BẬT nối với một Mã NV, hoặc `null`.
+	 *
+	 * 🔴 NGUỒN DUY NHẤT của phép nối. `sso_cham_cong()` dùng nó để mở phiên, còn trạm chấm công
+	 *    dùng nó để quyết định CÓ BÀY LINK JP hay không — hai nơi tự dò lấy là một hôm chúng
+	 *    lệch nhau, và lúc ấy trạm bày một cái link mà bấm vào chỉ ra màn PIN.
+	 *
+	 * 🔴 MÃ RỖNG KHÔNG KHỚP VỚI AI. Chặn ngay đầu hàm, không dựa vào vòng lặp bên dưới: tài
+	 *    khoản chưa khai `maNV` cũng để rỗng, và `'' === ''` là đúng.
+	 */
+	public static function theo_ma_nv( $ma_nv ) {
+		$ma = VHJP_Doc::str( $ma_nv );
+		if ( '' === $ma ) { return null; }
+		foreach ( VHJP_Nguon::doc( 'JP_Users' ) as $u ) {
+			if ( VHJP_Doc::str( isset( $u['maNV'] ) ? $u['maNV'] : '' ) !== $ma ) { continue; }
+			if ( ! VHJP_Doc::num( isset( $u['active'] ) ? $u['active'] : 0 ) ) { continue; }
+			return $u;
+		}
+		return null;
+	}
+
+	/** Tài khoản này còn đang để PIN mặc định không. */
+	public static function con_dung_pin_mac_dinh( $u ) {
+		$da_luu = isset( $u['pin'] ) ? $u['pin'] : '';
+		if ( '' === VHJP_Doc::str( $da_luu ) ) { return false; }
+		foreach ( self::pin_mac_dinh() as $p ) {
+			/* ⚠️ `khop()` trả về MẢNG `array( 'ok', 'cu' )`, không phải boolean. Viết
+			   `if ( self::khop(...) )` thì mảng nào cũng đúng, và MỌI tài khoản đều bị coi là
+			   còn PIN mặc định — tức mọi người đăng nhập bằng SSO đều bị ép đổi PIN, kể cả
+			   người đã đổi từ lâu. Phải đọc đúng ô `ok`. */
+			$k = self::khop( $da_luu, $p );
+			if ( ! empty( $k['ok'] ) ) { return true; }
+		}
+		return false;
+	}
+
 	public static function thoat( $token ) {
 		$ds = self::doc_phien();
 		unset( $ds[ (string) $token ] );

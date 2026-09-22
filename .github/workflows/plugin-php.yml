@@ -44,6 +44,13 @@ jobs:
       - name: Soát tham chiếu tĩnh (hằng/hàm không tồn tại = lỗi nghiêm trọng lúc vẽ trang)
         run: php tools/test/kiem-tham-chieu.php
 
+      # Bài này ĐÃ CÓ TỪ LÂU nhưng không ai cho vào CI, nên nó đỏ 2 chỗ mà không ai biết — đúng
+      # cái bẫy mà chính file workflow này sinh ra để bịt. Nó canh: mọi lời gọi SANG PLUGIN KHÁC
+      # phải gác bằng `method_exists` ĐÚNG HÀM SẮP GỌI, ngay trong cùng thân hàm. 4 plugin cài
+      # độc lập nên bản lệch nhau là chuyện thường, và gọi hụt là trắng cả trang WordPress.
+      - name: Soát lời gọi chéo giữa các plugin
+        run: php tools/test/kiem-goi-cheo.php
+
       - name: Bộ thử chấm công
         run: php tools/test/test-cham-cong.php
 
@@ -96,6 +103,13 @@ jobs:
       # thành bút toán không, dòng đời cũ có hiện ra đúng đầu cũ không.
       - name: Bộ thử bút toán JP Capsule
         run: php tools/test/kiem-jp-but-toan.php
+
+      # `jpSsoChamCong` mở phiên JP mà KHÔNG hỏi PIN — nó là một CỬA ĐĂNG NHẬP. Sai ở đây không
+      # phải mất một con số mà là mất cả hệ. Bài này canh bốn chốt: mã nhân viên lấy từ PHIÊN
+      # chứ không từ tham số · mã RỖNG không khớp với ai · không tìm thấy thì KHÔNG tự tạo tài
+      # khoản · vai lấy từ JP_Users chứ không từ chấm công.
+      - name: Bộ thử đăng nhập một lần JP ← Chấm Công
+        run: php tools/test/kiem-jp-sso.php
 
       - name: Bộ thử chi phí
         run: php tools/test/test-flows.php

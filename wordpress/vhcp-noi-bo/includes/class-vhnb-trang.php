@@ -297,6 +297,14 @@ class VHNB_Trang {
 		$them( 'VHCP_App',  'app_url', '💰', 'Vận hành chi phí' );
 		$them( 'VHG_Trang', 'url',     '💺', 'Ghế massage' );
 		$them( 'VHD_Trang', 'url',     '📄', 'Thư viện hợp đồng' );
+		/* JP tách hai ô y như sổ chính bên `VHTC_Trang::ds_app()` — `dia_chi()` nhận một tham số
+		   nên không dùng được `$them` ở trên. */
+		if ( class_exists( 'VHJP_Trang' ) && method_exists( 'VHJP_Trang', 'dia_chi' ) ) {
+			$ra[] = array( 'ten' => 'JP — Nhân viên', 'icon' => '🥚',
+				'url' => (string) VHJP_Trang::dia_chi( false ) );
+			$ra[] = array( 'ten' => 'JP — Kế toán', 'icon' => '📗',
+				'url' => (string) VHJP_Trang::dia_chi( true ) );
+		}
 		return $ra;
 	}
 

@@ -39,9 +39,20 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class VHJP_Cong {
 
-	/** Gọi được KHÔNG cần thẻ phiên. Đúng một hàm, và phải luôn đúng một. */
+	/**
+	 * Gọi được KHÔNG cần thẻ phiên JP. Đúng HAI hàm, và mỗi hàm phải tự mang cửa của nó.
+	 *
+	 * · `jpLoginPin`     — cửa là chính PIN người ta gõ.
+	 * · `jpSsoChamCong`  — cửa là COOKIE PHIÊN CHẤM CÔNG, đọc ở máy chủ. Nó không nhận tham số
+	 *   nào cả, và đó là chủ ý: hàm không nhận gì thì không có gì để giả. Mã nhân viên lấy từ
+	 *   `VHCC_Phien::toi()`, tức từ phiên đã được máy chủ chấm công xác nhận — xem bốn chốt ở
+	 *   `VHJP_Auth::sso_cham_cong()`.
+	 *
+	 * 🔴 THÊM TÊN THỨ BA VÀO ĐÂY LÀ MỞ MỘT CỬA KHÔNG AI GÁC. Mỗi dòng ở đây phải trả lời được
+	 *    câu "cửa của nó là gì". Không trả lời được thì nó không thuộc về đây.
+	 */
 	public static function cong_khai() {
-		return array( 'jpLoginPin' );
+		return array( 'jpLoginPin', 'jpSsoChamCong' );
 	}
 
 	/**
@@ -98,6 +109,7 @@ class VHJP_Cong {
 			'jpLoginPin'          => array( 'VHJP_Cong', 'dang_nhap' ),
 			'jpLogout'            => array( 'VHJP_Cong', 'thoat' ),
 			'jpBootstrap'         => array( 'VHJP_Cong', 'khoi_dong' ),
+			'jpSsoChamCong'       => array( 'VHJP_Cong', 'sso_cham_cong' ),
 			'jpDoiPin'            => array( 'VHJP_Cong', 'doi_pin' ),
 
 			/* danh mục */
@@ -281,6 +293,13 @@ class VHJP_Cong {
 
 	public static function dang_nhap( $args ) {
 		return VHJP_Auth::dang_nhap( isset( $args[0] ) ? $args[0] : '' );
+	}
+	/**
+	 * ⚠️ KHÔNG nhận tham số nào. Giao diện gọi `srv('jpSsoChamCong')` trống trơn — mọi thứ hàm
+	 *    cần đều đọc từ cookie ở máy chủ. Thêm một tham số vào đây là thêm một thứ để giả.
+	 */
+	public static function sso_cham_cong() {
+		return VHJP_Auth::sso_cham_cong();
 	}
 	public static function thoat( $args ) {
 		return VHJP_Auth::thoat( isset( $args[0] ) ? $args[0] : '' );

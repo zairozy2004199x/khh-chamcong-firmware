@@ -368,11 +368,50 @@ document.addEventListener('DOMContentLoaded', function () {
     busy(true, 'Đang khôi phục phiên…');
     srv('jpBootstrap', t).then(function (b) {
       busy(false); afterLogin(b);        // dùng luôn kết quả, không gọi lại
-    }).catch(function () { busy(false); forceLogin(); });
+    }).catch(function () { busy(false); thuSso(); });
   } else {
-    show('scLogin');
+    thuSso();
   }
 });
+
+/**
+ * ĐĂNG NHẬP MỘT LẦN TỪ CHẤM CÔNG — thử MỘT LẦN, im lặng, rồi thôi.
+ *
+ * Nhân viên mở JP từ trong app chấm công (đã đăng nhập bên đó rồi). Bắt gõ PIN lần hai là bắt
+ * họ nhớ hai số khác nhau cho hai app mở cạnh nhau — và số hay quên là số ít gõ hơn.
+ *
+ * ⚠️ HỎNG THÌ VỀ MÀN PIN, KHÔNG BÁO LỖI ĐỎ. Phần lớn lượt chối ở đây là chuyện BÌNH THƯỜNG:
+ *    mở JP thẳng từ trình duyệt, chưa đăng nhập chấm công, hay chưa ai nối Mã NV. Bày một dòng
+ *    đỏ cho chuyện bình thường là người ta tưởng hỏng rồi đi hỏi, trong khi ô PIN vẫn ở ngay đó
+ *    và vẫn dùng được.
+ *
+ * ⚠️ CHỈ THỬ MỘT LẦN mỗi lượt tải trang. Không thử lại, không thử vòng: SSO chối là chối vì một
+ *    lý do không tự hết, thử lại chỉ làm màn hình đứng lâu hơn.
+ *
+ * ⚠️ Câu chối vẫn ĐƯỢC HIỆN — ở dạng gợi ý xám dưới ô PIN, không phải màu lỗi. Người chưa được
+ *    nối Mã NV cần biết vì sao mình không tự vào được, chứ không phải đoán.
+ */
+function thuSso() {
+  show('scLogin');
+  busy(true, 'Đang thử đăng nhập bằng phiên chấm công…');
+  srv('jpSsoChamCong').then(function (r) {
+    busy(false);
+    if (!r || !r.ok) { goiYSso(r && r.msg); return; }
+    APP.token = r.token; APP.user = r.user;
+    LS.set('token', r.token);
+    afterLogin(r.boot);
+  }).catch(function () { busy(false); goiYSso(''); });
+}
+
+/** Câu giải thích vì sao chưa tự vào được — xám, nằm cạnh ô PIN, không phải một lỗi. */
+function goiYSso(msg) {
+  var o = $('ssoHint');
+  if (!o) { return; }
+  /* ⚠️ `textContent`, KHÔNG `innerHTML`: câu này do máy chủ dựng và có ghép Mã NV vào. Mã NV
+     đến từ hồ sơ người dùng, tức từ thứ người khác gõ được. */
+  o.textContent = msg || '';
+  o.style.display = msg ? 'block' : 'none';
+}
 
 window.addEventListener('beforeunload', function (e) {
   /* Ghi nháp lên máy TRƯỚC khi hỏi — `localStorage` là đồng bộ nên chỗ này chắc chắn

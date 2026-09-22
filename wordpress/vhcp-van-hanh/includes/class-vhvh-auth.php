@@ -56,7 +56,13 @@ class VHVH_Auth {
 		return isset( $m[ $v ] ) ? $m[ $v ] : 'nhan_vien';
 	}
 
-	/** Có plugin chấm công để mượn thẻ không. */
+	/**
+	 * Có plugin chấm công để mượn thẻ không.
+	 *
+	 * ⚠️ Hàm này soi ĐÚNG `user_by_token`. Chỗ nào gọi một hàm KHÁC của `VHCC_Auth` (ví dụ
+	 *    `login()` ở màn đăng nhập) phải tự gác lấy hàm ấy, ngay cạnh lời gọi — đừng hỏi ké ở
+	 *    đây. Bản chấm công cũ có thể có hàm này mà chưa có hàm kia.
+	 */
 	public static function co_cham_cong() {
 		return class_exists( 'VHCC_Auth' ) && method_exists( 'VHCC_Auth', 'user_by_token' );
 	}
@@ -81,6 +87,12 @@ class VHVH_Auth {
 		$the = trim( $the );
 		if ( '' === $the ) { return null; }
 
+		/* ⚠️ Gác NGAY CẠNH lời gọi, không ké cái gác trong `co_cham_cong()` ở trên. Luật của
+		   `tools/test/kiem-goi-cheo.php`, và luật ấy đúng: ngày nào đó `co_cham_cong()` được sửa
+		   sang soi một hàm khác thì chỗ này hụt gác mà không ai đụng vào nó. */
+		if ( ! class_exists( 'VHCC_Auth' ) || ! method_exists( 'VHCC_Auth', 'user_by_token' ) ) {
+			return null;
+		}
 		$u = VHCC_Auth::user_by_token( $the );
 		if ( ! $u ) { return null; }
 
