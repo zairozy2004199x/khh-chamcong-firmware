@@ -22,6 +22,12 @@
  *    nhóm", nên nó bảo người ta đi khai mã — một việc khai xong cũng KHÔNG làm loại hiện ra.
  *    Người khai đi khai, không thấy gì đổi, rồi báo là app hỏng. Bài này canh đúng lỗ ấy.
  *
+ * 🔴 HẬU TRUYỆN — 22/09/2026, CHÍNH CÁI CỬA ẤY ĐÃ ĐƯỢC GỠ, nhưng do ANH THẮNG quyết, không
+ *    phải do em đoán: *"Sau khi quyết toán, thì kế toán có quyền điều chỉnh tk nợ theo nhu cầu,
+ *    vì Cùng tên gọi nhưng nội dung khác, Nên lúc tạo đơn nhân viên không cần quan tâm"*. Đoạn
+ *    ghi lại ở trên vẫn để nguyên: nó không sai, và nó là bằng chứng rằng lằn ranh nằm ở "ai
+ *    quyết", chứ không ở "cửa ấy hay hay dở". Mục 3 bên dưới nay canh chiều ngược lại.
+ *
  * Chạy: node tools/test/kiem-loai-trong-noi-ly-do.js
  * ═════════════════════════════════════════════════════════════════════════════════════════════ */
 const fs = require('fs');
@@ -31,6 +37,14 @@ let DAT = 0; const TRUOT = [];
 function t(n, ok, them) { if (ok) { DAT++; } else { TRUOT.push(n + (them !== undefined ? (' → ' + JSON.stringify(them)) : '')); } }
 function teq(n, mong, thuc) { t(n + ' (mong ' + JSON.stringify(mong) + ')', JSON.stringify(mong) === JSON.stringify(thuc), thuc); }
 function bocHam(ten) { const i = HTML.indexOf('  function ' + ten + '('); if (i < 0) return ''; const j = HTML.indexOf('\n  }', i) + 4; return j > i ? HTML.slice(i, j) : ''; }
+/* THÂN HÀM, ĐÃ BỎ CHÚ THÍCH — dùng khi phép thử hỏi "mã CÓ LÀM việc này không", chứ không phải
+   "trong hàm có nhắc tới nó không". Chú thích ở đây kể cả lịch sử những cửa ĐÃ GỠ, nên tìm chuỗi
+   trên bản còn chú thích là phép thử đọc trúng cái xác của tính năng cũ rồi báo là nó còn sống.
+   ⚠️ CHỈ BÓC TỪNG HÀM MỘT, đừng đem phép này quét cả `app.html`: trong tệp có CSS, và `/* */`
+      của CSS bắt cặp với `*/` của JS nuốt mất nguyên phần thân trang — đã dính một lần. */
+function bocThan(ten) {
+  return bocHam(ten).replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\n)\s*\/\/[^\n]*/g, '$1');
+}
 function bocMang(ten) { const i = HTML.indexOf('  var ' + ten + '='); return i < 0 ? '' : HTML.slice(i, HTML.indexOf('];', i) + 2); }
 function bocDong(ten) { const i = HTML.indexOf('  var ' + ten + '='); return i < 0 ? '' : HTML.slice(i, HTML.indexOf('\n', i)); }
 
@@ -73,15 +87,35 @@ t('🔴 đứng đúng khối → KHÔNG hiện câu lệch khối', !/thuộc M
 const laDat = vi('GIAN CHƯA KHAI', 'kvc');
 t('⚠️ cơ sở chưa khai khối → KHÔNG dọa lệch khối', !/thuộc /.test(laDat.chu), laDat.chu);
 
-/* ═══ 3. CỬA LỌC KHÔNG ĐỔI — chỉ câu chữ đổi ═══════════════════════════════════
- * 🔴 Em đã suýt nới cửa lọc và làm hỏng tính năng "ô mã trống = mảng không dùng loại này".
- *    Phép này ghim rằng lượt sửa CHỈ đụng vào câu giải thích. */
+/* ═══ 3. CỬA NÀO CÒN, CỬA NÀO ĐÃ GỠ ═══════════════════════════════════════════
+ * Phép ở đây ghim rằng lượt sửa chỉ đụng đúng những cửa nó được phép đụng.
+ *
+ * 🔴 CỬA MẢNG ĐÃ GỠ — 22/09/2026, theo lệnh của anh Thắng: *"lúc tạo đơn nhân viên không cần
+ *    quan tâm"* (tới TK Nợ). Chỗ này trước ghim NGƯỢC LẠI: hôm 1.253.0 em suýt tự ý nới cửa ấy
+ *    nên viết một phép để chặn chính mình, và nó đã làm đúng việc — giữ tính năng lại cho tới
+ *    khi NGƯỜI DÙNG quyết định bỏ. Nay anh quyết rồi thì phép này đảo chiều, không xoá đi:
+ *    cửa đã tháo cũng cần người canh, kẻo một lượt merge lùi nào đó lắp lại mà không ai hay. */
 t('🔴 `_loaiCpList` vẫn cắt theo khối ở cửa đầu',
   /if\(_khoiCuaLoai\(x\)!==String\(KHOI_DANG\)\.toLowerCase\(\)\) return false;/.test(bocHam('_loaiCpList')));
-t('🔴 và cửa mảng ở cuối vẫn nguyên (ô mã trống = mảng không dùng loại này)',
-  /return !!row\[mang\];/.test(bocHam('_loaiCpList')));
-t('⚠️ KHÔNG nới cửa thoát lên cửa mảng — đã thử và hỏng `test-o-loai-chi-phi.js`',
-  bocHam('_loaiCpList').indexOf('coCuaThoat') < 0, 'còn dấu vết coCuaThoat');
+t('🔴 cửa mảng ở cuối ĐÃ GỠ — ô mã trống thôi ẩn loại',
+  !/return !!row\[mang\];/.test(bocHam('_loaiCpList')), 'cửa mảng còn nguyên');
+t('   …và không còn biến `mx` / `mang` nào đứng lại không ai đọc',
+  !/var mx=BOOT\.tkNoMx/.test(bocHam('_loaiCpList')), 'còn var mx');
+/* ⚠️ CHỐT CHỐNG RÁC LÀ CỬA DUY NHẤT CÒN CHẶN mấy trăm dòng nạp từ sổ cũ. Gỡ cửa mảng xong mà
+   lỡ tay gỡ nốt cửa này là ô chọn đổ ra vài trăm dòng tên người và tên hoá đơn. */
+t('🔴 chốt chống rác (không mã · không bộ phận · không vai) VẪN nguyên',
+  /!_tkNoCua\(x\.ten, coso\) && !_tkNoList\(x\.ten, coso\)\.length/.test(bocHam('_loaiCpList'))
+  && /!_bpTach\(x\.boPhan\)\.length && !_vaiTachLoai\(x\)\.length\) return false;/.test(bocHam('_loaiCpList')),
+  'chốt chống rác đã mất');
+/* ⚠️ VÀ CÂU GIẢI THÍCH PHẢI THÔI NÓI VỀ CỬA ĐÃ GỠ — một lý do không có thật còn tệ hơn im lặng:
+   nó gửi người ta đi khai mã, khai xong vẫn không đổi gì. */
+t('🔴 `_loaiCpVi` thôi đổ cho "chưa khai mã cho mảng"',
+  bocThan('_loaiCpVi').indexOf('chưa khai mã cho mảng') < 0, 'câu cũ còn đó');
+t('   và gọi đúng tên cửa còn lại: "chưa khai gì"',
+  bocThan('_loaiCpVi').indexOf('chưa khai gì') >= 0, 'không nêu chốt chống rác');
+t('⚠️ `bocThan` thật sự có bóc chú thích (không thì hai phép trên vô dụng)',
+  bocHam('_loaiCpVi').length - bocThan('_loaiCpVi').length > 500,
+  bocHam('_loaiCpVi').length - bocThan('_loaiCpVi').length);
 
 /* ═════════════════════════════════════════════════════════════════════════════════════════ */
 if (TRUOT.length) {
@@ -89,4 +123,4 @@ if (TRUOT.length) {
   TRUOT.forEach(function (x) { console.log('  · ' + x); });
   process.exit(1);
 }
-console.log('\n✓ SẠCH — ' + DAT + ' phép: ô loại trống vì lệch khối thì nói đúng lý do, và cửa lọc không đổi.');
+console.log('\n✓ SẠCH — ' + DAT + ' phép: ô loại trống thì nói đúng lý do, cửa mảng đã gỡ, chốt chống rác còn nguyên.');
