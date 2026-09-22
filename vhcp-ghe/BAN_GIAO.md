@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-09-22 · Phiên bản hiện tại: **2.127.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-09-22 · Phiên bản hiện tại: **2.128.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,43 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v2.128.0 — "Ai đang cầm tiền": bấm vào tên là bung từng ngày, tích ngày nào chốt ngày ấy
+
+Anh Thắng 22/09/2026: *"bấm vào nhân viên sẽ hiện… hiện ngày chưa nộp, nhân viên nộp ngày nào
+mình tích vào"*, và nói rõ vì sao: *"nộp báo cáo mà chưa chốt, xong qua nộp tiền không ngày hôm
+trước — kế toán không thể chốt một cục được"*.
+
+**Gốc.** Ngày làm báo cáo và ngày tiền về tay là **hai việc khác nhau**. Nhân viên nộp báo cáo mỗi
+ngày, còn tiền mặt về quầy theo nhịp riêng — hôm nay mang tiền của ba hôm trước, mai mang nốt.
+Bảng này xưa nay chỉ có **một con số tổng của cả người**, nên nút duy nhất là chốt cả cục: kế toán
+nhận tiền của ba ngày mà phải ghi hết nợ của mười ngày, hoặc không ghi gì. **Cả hai đều sai sổ.**
+
+- Bấm vào **tên người** → bung ra bảng **từng ngày chưa nộp**: ngày · cơ sở của ngày ấy · ngăn ghế
+  · quầy · báo cáo · tổng, mới nhất lên đầu. Có ô tích từng dòng và ô tích tất.
+- Nút đổi theo lựa chọn: **"✓ Xác nhận đã nộp N ngày · X đ"**. Hộp hỏi lại **kể đúng từng ngày và
+  số tiền** — đây là ghi hết nợ ngay, không có bước hoàn tác dễ dàng, nên người bấm phải đọc lại
+  đúng thứ mình sắp ghi. Nút cũ đổi tên thành **"Xác nhận CẢ CỤC"** cho khỏi bấm nhầm.
+- Tải khi mở, không tải sẵn: bảng có mấy chục người, tải sẵn hết là mở màn Quỹ phải chờ mấy chục
+  lượt cho một thứ có thể không ai bấm tới.
+
+**Ba nguồn tiền, ba cột ngày** — `VHG_Quy::dang_cam_theo_ngay()` quy về cùng một ngày dương lịch:
+`bc.ngay` (ngày làm ăn, thứ kế toán nghĩ theo) · `DATE(chot.tao_luc)` · `DATE(thu.luc)`. Tiền không
+có ngày (dữ liệu cũ nhập lại) vào nhóm **`(chưa rõ ngày)`** — không đồng nào được rơi mất, vì tổng
+các ngày phải bằng đúng tổng đang cầm; lệch một đồng là người ta thôi tin cả cái bảng.
+
+🔴 **Chỗ dễ hỏng nhất là câu lọc.** `nop()` nay nhận thêm `$ngay_ds`, lọc bằng **chính cột mà bảng
+đọc đã gom theo** — lệch một cột là tích một ngày rồi gắn phải dòng của ngày khác, âm thầm. Và
+**câu lọc không bao giờ được rỗng khi đã tích**: rỗng là lặng lẽ thành *nộp tất*, đúng thứ vừa cố
+tránh, mà màn hình vẫn báo thành công. Tích toàn ngày không đọc được → chặn hết (`1=0`), lượt nộp
+tự huỷ và người bấm nhận đúng câu "không có đồng nào ở ngày đã tích".
+
+Ngày đã chốt đi thẳng vào ghi chú của lượt nộp — ba tháng sau nhìn lại sổ, "xác nhận thay" mà
+không nói xác nhận cho ngày nào thì không tra ngược được.
+
+Bài kiểm `tools/test/kiem-cam-tien-theo-ngay.php` (17 phép) — **bốc thẳng `nop()` và
+`dang_cam_theo_ngay()` ra chạy** với `$wpdb` giả rồi soi **chính câu SQL nó bắn đi**. Dò chuỗi
+không nói được "câu UPDATE có kèm vế ngày không".
 
 ### v2.127.0 — Nút "Xuất .csv" của Báo cáo tổng nay ra số VietQR thực
 

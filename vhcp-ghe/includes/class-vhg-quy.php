@@ -637,6 +637,83 @@ class VHG_Quy {
 	}
 
 	/**
+	 * TIỀN MỘT NGƯỜI ĐANG CẦM, TÁCH RA TỪNG NGÀY.
+	 *
+	 * Anh Thắng 22/09/2026: *"bấm vào nhân viên sẽ hiện… hiện ngày chưa nộp, nhân viên nộp ngày
+	 * nào mình tích vào"*, và lý do: *"nộp báo cáo mà chưa chốt, xong qua nộp tiền không ngày hôm
+	 * trước — kế toán không thể chốt một cục được"*.
+	 *
+	 * 🔴 NGÀY LÀM BÁO CÁO VÀ NGÀY TIỀN VỀ TAY LÀ HAI VIỆC KHÁC NHAU. Nhân viên nộp báo cáo mỗi
+	 *    ngày, nhưng tiền mặt về quầy theo nhịp riêng — hôm nay mang tiền của ba hôm trước, ngày
+	 *    mai mang nốt. Bảng cũ chỉ có MỘT con số tổng của cả người, nên nút duy nhất là "chốt cả
+	 *    cục": kế toán nhận tiền của ba ngày mà phải ghi hết nợ của mười ngày, hoặc không ghi gì.
+	 *    Cả hai đều sai sổ.
+	 *
+	 * 🔴 BA NGUỒN TIỀN, BA CỘT NGÀY KHÁC NHAU — phải quy về cùng một ngày dương lịch:
+	 *      · `bc`   (báo cáo doanh thu) -> `bc.ngay`      — NGÀY LÀM ĂN, thứ kế toán nghĩ theo
+	 *      · `chot` (ngăn ghế)          -> DATE(`tao_luc`) — lúc mở ngăn đếm tiền
+	 *      · `thu`  (khách trả quầy)    -> DATE(`luc`)     — lúc ghi nhận khoản thu
+	 *    Không có ngày (dữ liệu cũ nhập lại thiếu cột) thì gom vào nhóm `(chưa rõ ngày)`; những
+	 *    đồng ấy KHÔNG ĐƯỢC RƠI MẤT, vì tổng các nhóm phải bằng đúng tổng đang cầm — lệch một
+	 *    đồng là người ta thôi tin cả cái bảng.
+	 *
+	 * ⚠️ Mới nhất lên đầu: tiền mới về là thứ kế toán đang cầm trên tay để đối chiếu.
+	 */
+	const NG_CHUA_RO = '(chưa rõ ngày)';
+
+	public static function dang_cam_theo_ngay( $nguoi ) {
+		global $wpdb;
+		$ai = trim( (string) $nguoi );
+		if ( '' === $ai ) { return array(); }
+		$tc  = VHG_DB::t( 'chot' );
+		$tt  = VHG_DB::t( 'thu' );
+		$tb  = VHG_DB::t( 'bc' );
+		$tbd = VHG_DB::t( 'bc_dong' );
+		$ra  = array();
+
+		$vao = function ( $ngay, $khoa, $tien, $dong, $coso ) use ( &$ra ) {
+			$ng = preg_match( '/^\d{4}-\d{2}-\d{2}$/', (string) $ngay ) ? (string) $ngay : self::NG_CHUA_RO;
+			if ( ! isset( $ra[ $ng ] ) ) {
+				$ra[ $ng ] = array( 'ngay' => $ng, 'tu_ghe' => 0, 'tu_quay' => 0,
+					'tu_bao_cao' => 0, 'tong' => 0, 'so_dong' => 0, 'coso' => array() );
+			}
+			$ra[ $ng ][ $khoa ]    += (int) $tien;
+			$ra[ $ng ]['tong']     += (int) $tien;
+			$ra[ $ng ]['so_dong']  += (int) $dong;
+			$cs = trim( (string) $coso );
+			if ( '' !== $cs && ! in_array( $cs, $ra[ $ng ]['coso'], true ) ) { $ra[ $ng ]['coso'][] = $cs; }
+		};
+
+		foreach ( VHG_DB::rows( $wpdb->prepare(
+			"SELECT DATE(c.tao_luc) AS ng, SUM(c.tien_dem) AS t, COUNT(*) AS n
+			 FROM $tc c WHERE c.nguoi=%s AND c.nop_id=0 GROUP BY DATE(c.tao_luc)", $ai ) ) as $r ) {
+			$vao( $r['ng'], 'tu_ghe', $r['t'], $r['n'], '' );
+		}
+
+		foreach ( VHG_DB::rows( $wpdb->prepare(
+			"SELECT DATE(x.luc) AS ng, SUM(x.so_tien) AS t, COUNT(*) AS n
+			 FROM $tt x WHERE x.nguon=%s AND x.noi_dung=%s AND x.huy=0 AND x.nop_id=0 GROUP BY DATE(x.luc)",
+			VHG_Thu::TIEN_MAT, VHG_Thu::ND_THU_TAY . $ai ) ) as $r ) {
+			$vao( $r['ng'], 'tu_quay', $r['t'], $r['n'], '' );
+		}
+
+		/* Gộp theo NGÀY × CƠ SỞ rồi mới dồn về ngày: kế toán cần biết ngày ấy gồm những cơ sở
+		   nào để so với xấp tiền và tờ bill trong tay. */
+		foreach ( VHG_DB::rows( $wpdb->prepare(
+			"SELECT h.ngay AS ng, h.coso AS cs, COALESCE(SUM(d.tien_mat),0) AS t, COUNT(DISTINCT h.report_id) AS n
+			 FROM $tb h LEFT JOIN $tbd d ON d.report_id=h.report_id
+			 WHERE h.nhan_vien=%s AND h.nop_id=0 GROUP BY h.ngay, h.coso", $ai ) ) as $r ) {
+			$vao( $r['ng'], 'tu_bao_cao', $r['t'], $r['n'], $r['cs'] );
+		}
+
+		/* ⚠️ BỎ NHÓM 0 ĐỒNG — cùng lý do với dang_cam_theo_coso(): bày một ngày "0đ" kèm ô tích
+		   là mời người ta tích vào rồi bấm Xác nhận và nhận về câu "không có đồng nào". */
+		$ra = array_filter( $ra, function ( $x ) { return (int) $x['tong'] > 0; } );
+		usort( $ra, function ( $a, $b ) { return strcmp( (string) $b['ngay'], (string) $a['ngay'] ); } );
+		return array_values( $ra );
+	}
+
+	/**
 	 * AI ĐANG CẦM BAO NHIÊU — bảng quản lý nhìn mỗi sáng.
 	 *
 	 * ⚠️ Gom từ CẢ HAI bảng rồi cộng lại, chứ không hỏi từng người một: danh sách người thu
@@ -707,7 +784,7 @@ class VHG_Quy {
 	 * ⚠️ TÊN NGƯỜI NỘP LẤY TỪ PHIÊN ĐĂNG NHẬP, không nhận từ gói tin. Nhận từ gói tin là ai
 	 *    cũng nộp hộ được người khác, tức là ai cũng xoá được nợ tiền mặt của người khác.
 	 */
-	public static function nop( $nguoi, $ghi_chu = '', $ma_lan = '', $coso_ds = null ) {
+	public static function nop( $nguoi, $ghi_chu = '', $ma_lan = '', $coso_ds = null, $ngay_ds = null ) {
 		global $wpdb;
 		$ai = trim( (string) $nguoi );
 		if ( '' === $ai ) {
@@ -773,6 +850,7 @@ class VHG_Quy {
 			$dk_bc = ' AND (' . implode( ' OR ', $ve_bc ) . ')';
 		}
 
+
 		/* 🔴 GỬI LẠI THÌ TRẢ VỀ LƯỢT CŨ — cùng lý do với `chot()`, xem chú thích ở đó.
 		   Ở đây còn nặng hơn: một lượt nộp gửi lại mà ghi thành hai lượt thì lượt thứ hai gắn
 		   được 0 dòng và bị xoá, nhưng app thì nhận về một câu lỗi "đang không cầm đồng nào" —
@@ -808,19 +886,62 @@ class VHG_Quy {
 			return array( 'ok' => false, 'error' => 'Không mở được lượt nộp, thử lại.' );
 		}
 
+		/* 🔴 NỘP THEO NGÀY ĐƯỢC TÍCH — anh Thắng 22/09/2026: *"nhân viên nộp ngày nào mình tích
+		   vào"*, vì *"nộp báo cáo mà chưa chốt, xong qua nộp tiền không ngày hôm trước — kế toán
+		   không thể chốt một cục được"*. Tiền mặt về quầy theo nhịp riêng với ngày làm báo cáo.
+
+		   ⚠️ BA NGUỒN, BA CỘT NGÀY (xem dang_cam_theo_ngay()): bc.ngay · DATE(chot.tao_luc) ·
+		      DATE(thu.luc). Lọc bằng CHÍNH cột mà bảng đọc đã gom theo — lệch một cột là tích
+		      một ngày rồi gắn phải dòng của ngày khác, âm thầm.
+		   ⚠️ `null`/rỗng = KHÔNG lọc ngày, y như trước — đây là đường mọi nơi khác vẫn gọi.
+		   ⚠️ Cùng bất biến với lọc cơ sở: đã tích thì câu WHERE KHÔNG BAO GIỜ rỗng, vì rỗng là
+		      lặng lẽ thành nộp tất — đúng thứ người ta vừa cố tránh. Mỗi ngày trong `$loc_ng` rơi
+		      vào đúng một trong hai rổ (`$ngay` hoặc `$co_chua_ro`), mỗi rổ có hàng thì sinh đúng
+		      một vế. */
+		$loc_ng = array();
+		if ( is_array( $ngay_ds ) ) {
+			foreach ( $ngay_ds as $n ) {
+				$n = trim( (string) $n );
+				if ( '' !== $n && ! in_array( $n, $loc_ng, true ) ) { $loc_ng[] = $n; }
+			}
+		}
+		$dk_ng_chot = ''; $dk_ng_thu = ''; $dk_ng_bc = '';
+		if ( count( $loc_ng ) ) {
+			$ngay = array(); $co_chua_ro = false;
+			foreach ( $loc_ng as $n ) {
+				if ( self::NG_CHUA_RO === $n ) { $co_chua_ro = true; }
+				elseif ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', $n ) ) { $ngay[] = $n; }
+			}
+			$ve = function ( $cot ) use ( $wpdb, $ngay, $co_chua_ro ) {
+				$v = array();
+				if ( count( $ngay ) ) {
+					$v[] = $wpdb->prepare( "$cot IN (" . implode( ',', array_fill( 0, count( $ngay ), '%s' ) ) . ')', ...$ngay );
+				}
+				if ( $co_chua_ro ) { $v[] = "$cot IS NULL"; }
+				/* Tích toàn ngày không đọc được (không phải yyyy-mm-dd, không phải nhãn chưa rõ)
+				   thì KHÔNG được rơi về "nộp tất" — chặn hết, lượt nộp sẽ tự huỷ vì gắn 0 dòng
+				   và người bấm nhận đúng câu "không có đồng nào ở ngày đã tích". */
+				return ' AND (' . ( count( $v ) ? implode( ' OR ', $v ) : '1=0' ) . ')';
+			};
+			$dk_ng_chot = $ve( 'DATE(tao_luc)' );
+			$dk_ng_thu  = $ve( 'DATE(luc)' );
+			$dk_ng_bc   = $ve( 'ngay' );
+		}
+
+
 		$tc = VHG_DB::t( 'chot' );
 		$tt = VHG_DB::t( 'thu' );
 		$tb = VHG_DB::t( 'bc' );
 		$wpdb->query( $wpdb->prepare(
-			"UPDATE $tc SET nop_id=%d WHERE nguoi=%s AND nop_id=0", $id, $ai ) . $dk_may );
+			"UPDATE $tc SET nop_id=%d WHERE nguoi=%s AND nop_id=0", $id, $ai ) . $dk_may . $dk_ng_chot );
 		$wpdb->query( $wpdb->prepare(
 			"UPDATE $tt SET nop_id=%d WHERE nguon=%s AND noi_dung=%s AND huy=0 AND nop_id=0",
-			$id, VHG_Thu::TIEN_MAT, VHG_Thu::ND_THU_TAY . $ai ) . $dk_may );
+			$id, VHG_Thu::TIEN_MAT, VHG_Thu::ND_THU_TAY . $ai ) . $dk_may . $dk_ng_thu );
 		/* Nguồn thứ ba (29/08/2026) — báo cáo doanh thu. Gắn theo HEADER (`bc.nop_id`), không phải
 		   theo từng dòng ghế: một báo cáo là một lần "nộp cả cụm", không tách lẻ từng ghế trong
 		   đó — khớp đúng cách chot/thu vẫn gắn theo TỪNG DÒNG hoàn chỉnh của chúng. */
 		$wpdb->query( $wpdb->prepare(
-			"UPDATE $tb SET nop_id=%d WHERE nhan_vien=%s AND nop_id=0", $id, $ai ) . $dk_bc );
+			"UPDATE $tb SET nop_id=%d WHERE nhan_vien=%s AND nop_id=0", $id, $ai ) . $dk_bc . $dk_ng_bc );
 
 		/* Cộng lại từ đúng những dòng vừa gắn được — không tin con số đã tính trước đó. */
 		$tbd = VHG_DB::t( 'bc_dong' );
@@ -839,17 +960,21 @@ class VHG_Quy {
 			/* Không gắn được đồng nào -> xoá luôn lượt nộp. Để lại một dòng 0 đồng là bảng chờ
 			   xác nhận đầy những lượt rỗng, và người ta thôi không nhìn nó nữa. */
 			$wpdb->delete( VHG_DB::t( 'nop' ), array( 'id' => $id ) );
-			return array( 'ok' => false, 'error' => count( $loc_cs )
-				? ( 'Không có đồng nào chưa nộp ở cơ sở đã tích (' . implode( ', ', $loc_cs ) . ').' )
+			$vi = array();
+			if ( count( $loc_cs ) ) { $vi[] = 'cơ sở đã tích (' . implode( ', ', $loc_cs ) . ')'; }
+			if ( count( $loc_ng ) ) { $vi[] = 'ngày đã tích (' . implode( ', ', $loc_ng ) . ')'; }
+			return array( 'ok' => false, 'error' => count( $vi )
+				? ( 'Không có đồng nào chưa nộp ở ' . implode( ' · ', $vi ) . '.' )
 				: 'Anh/chị đang không cầm đồng nào chưa nộp.' );
 		}
 
 		$wpdb->update( VHG_DB::t( 'nop' ), array( 'so_tien' => $tong, 'so_dong' => $dong ),
 			array( 'id' => $id ) );
 		return array( 'ok' => true, 'id' => $id, 'so_tien' => $tong, 'so_dong' => $dong, 'lap_lai' => 0,
-			'coso' => $loc_cs,
+			'coso' => $loc_cs, 'ngay' => $loc_ng,
 			'thong_bao' => 'Đã nộp ' . number_format( $tong, 0, ',', '.' ) . 'đ (' . $dong . ' lượt'
 				. ( count( $loc_cs ) ? ( ', cơ sở: ' . implode( ', ', $loc_cs ) ) : '' )
+				. ( count( $loc_ng ) ? ( ', ngày: ' . implode( ', ', $loc_ng ) ) : '' )
 				. ') — chờ quản lý xác nhận đã nhận đủ.' );
 	}
 
@@ -1045,8 +1170,12 @@ class VHG_Quy {
 	 *    đúng ý nghĩa "nộp THAY", vì $nguoi thường không còn phiên nào để tự bấm (dữ liệu import
 	 *    không gắn với tài khoản đăng nhập nào — "(import)" thậm chí không phải tên người thật).
 	 */
-	public static function nop_va_nhan_thay( $nguoi, $ai_xac_nhan, $ghi_chu = '' ) {
-		$r = self::nop( $nguoi, trim( 'Kế toán xác nhận thay (dữ liệu cũ) · ' . trim( (string) $ghi_chu ), ' ·' ) );
+	public static function nop_va_nhan_thay( $nguoi, $ai_xac_nhan, $ghi_chu = '', $ngay_ds = null ) {
+		/* Ngày đã tích đi thẳng vào ghi chú của lượt nộp: ba tháng sau nhìn lại sổ, "xác nhận
+		   thay" mà không nói xác nhận cho ngày nào thì không tra ngược được. */
+		$nhan_ng = ( is_array( $ngay_ds ) && count( $ngay_ds ) ) ? ( ' · ngày: ' . implode( ', ', $ngay_ds ) ) : '';
+		$r = self::nop( $nguoi, trim( 'Kế toán xác nhận thay (dữ liệu cũ)' . $nhan_ng . ' · ' . trim( (string) $ghi_chu ), ' ·' ),
+			'', null, $ngay_ds );
 		if ( empty( $r['ok'] ) || ! empty( $r['lap_lai'] ) ) { return $r; }
 		return self::nhan( $r['id'], (int) $r['so_tien'], $ai_xac_nhan, $ghi_chu );
 	}

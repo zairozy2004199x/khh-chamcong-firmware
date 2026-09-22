@@ -152,12 +152,15 @@ t( 'tên có dấu nháy vẫn dựng được câu lọc', '' !== $r['may'] && 
    quầy), `$dk_bc` vào lệnh còn lại (báo cáo doanh thu). */
 $than = substr( $SRC, strpos( $SRC, 'public static function nop(' ) );
 $than = substr( $than, 0, strpos( $than, "\n\t/**" ) );
-teq( '🔴 lệnh gắn CHỐT CA có nối câu lọc', 1,
-	preg_match_all( '/UPDATE \$tc SET nop_id=%d[^;]*\. \$dk_may \);/', $than ) );
-teq( '🔴 lệnh gắn THU TẠI QUẦY có nối câu lọc', 1,
-	preg_match_all( '/UPDATE \$tt SET nop_id=%d[^;]*\. \$dk_may \);/', $than ) );
-teq( '🔴 lệnh gắn BÁO CÁO DOANH THU có nối câu lọc', 1,
-	preg_match_all( '/UPDATE \$tb SET nop_id=%d[^;]*\. \$dk_bc \);/', $than ) );
+/* ⚠️ Từ 2.128.0 mỗi lệnh mang HAI câu lọc: cơ sở (`$dk_may`/`$dk_bc`) và ngày (`$dk_ng_*`, xem
+   kiem-cam-tien-theo-ngay.php). Phép dưới đòi ĐỦ CẢ HAI trên từng lệnh — sót một cái nào cũng là
+   cùng một kiểu hỏng im lặng: tích rồi mà tiền của nguồn ấy vẫn bị nộp hết. */
+teq( '🔴 lệnh gắn CHỐT CA nối ĐỦ câu lọc cơ sở + ngày', 1,
+	preg_match_all( '/UPDATE \$tc SET nop_id=%d[^;]*\. \$dk_may \. \$dk_ng_chot \);/', $than ) );
+teq( '🔴 lệnh gắn THU TẠI QUẦY nối ĐỦ câu lọc cơ sở + ngày', 1,
+	preg_match_all( '/UPDATE \$tt SET nop_id=%d[^;]*\. \$dk_may \. \$dk_ng_thu \);/', $than ) );
+teq( '🔴 lệnh gắn BÁO CÁO DOANH THU nối ĐỦ câu lọc cơ sở + ngày', 1,
+	preg_match_all( '/UPDATE \$tb SET nop_id=%d[^;]*\. \$dk_bc \. \$dk_ng_bc \);/', $than ) );
 /* Và không lệnh nào bị bỏ quên: đếm tổng số lệnh gắn dòng, phải đúng ba. */
 teq( '🔴 đúng BA lệnh gắn dòng, không hơn không kém', 3,
 	preg_match_all( '/SET nop_id=%d WHERE/', $than ) );
@@ -165,7 +168,7 @@ teq( '🔴 đúng BA lệnh gắn dòng, không hơn không kém', 3,
 /* Câu chối khi tích mà không gắn được đồng nào phải NÓI RA cơ sở đã tích — "đang không cầm đồng
    nào" là nói sai, vì họ đang cầm tiền của cơ sở khác. */
 t( '🔴 chối vì tích nhầm cơ sở thì nói ra cơ sở đã tích',
-	false !== strpos( $than, "'Không có đồng nào chưa nộp ở cơ sở đã tích ('" ), null );
+	false !== strpos( $than, "'cơ sở đã tích (' . implode( ', ', \$loc_cs ) . ')'" ), null );
 t( 'và câu cũ vẫn giữ cho ca nộp tất',
 	false !== strpos( $than, "'Anh/chị đang không cầm đồng nào chưa nộp.'" ), null );
 

@@ -1682,7 +1682,16 @@ JS;
 			self::tra( VHG_Quy::nop_va_nhan_thay(
 				isset( $d['nguoi'] ) ? (string) $d['nguoi'] : '',
 				(string) $ai['name'],
-				isset( $d['ghi_chu'] ) ? $d['ghi_chu'] : '' ) );
+				isset( $d['ghi_chu'] ) ? $d['ghi_chu'] : '',
+				( isset( $d['ngay'] ) && is_array( $d['ngay'] ) ) ? $d['ngay'] : null ) );
+			return;
+		}
+		/* Bung ra từng NGÀY chưa nộp của một người — anh Thắng 22/09/2026: *"bấm vào nhân viên sẽ
+		   hiện… nhân viên nộp ngày nào mình tích vào"*. Chỉ đọc, cùng nhóm quyền với bảng trên. */
+		if ( 'quy_cam_ngay' === $viec ) {
+			self::tra( array( 'ok' => true,
+				'nguoi' => isset( $d['nguoi'] ) ? (string) $d['nguoi'] : '',
+				'rows' => VHG_Quy::dang_cam_theo_ngay( isset( $d['nguoi'] ) ? (string) $d['nguoi'] : '' ) ) );
 			return;
 		}
 
@@ -5412,6 +5421,11 @@ tr:last-child td{border-bottom:0}
   body .vhg-chan{margin-left:216px}
 }
 @media(min-width:1500px){ .wrap{margin-left:216px;max-width:none} }
+/* Nút trông như liên kết — dùng cho tên người ở bảng "Ai đang cầm tiền" (bấm để bung từng ngày).
+   Là <button> chứ không phải <a>: nó KHÔNG đi đâu cả, chỉ mở/đóng một khối ngay dưới. Dùng <a
+   href="#"> cho việc ấy là bàn phím và trình đọc màn hình đều bị nói dối về việc sắp xảy ra. */
+.lnk{background:none;border:0;padding:0;font:inherit;color:var(--blue);cursor:pointer;text-align:left}
+.lnk:hover{text-decoration:underline}
 /* ============================================================================================
  * XEM TO ẢNH KHI RÊ CHUỘT (tab Duyệt báo cáo) — anh Thắng: kế toán soát ảnh nhanh, khỏi mở
  * tab mới cho từng tấm.
@@ -9895,16 +9909,29 @@ function veQuy(){
     + L('Tổng','Total') + '</th>' + (q.quyen_nhan ? '<th></th>' : '') + '</tr>';
   if (!(q.cam || []).length) h += '<tr><td colspan="' + (q.quyen_nhan ? 6 : 5) + '" class="mut">'
     + L('Không ai đang cầm tiền chưa nộp.','Nobody is holding uncollected cash.') + '</td></tr>';
-  (q.cam || []).forEach(function(c){
-    h += '<tr><td><b>' + esc(c.nguoi) + '</b></td>'
+  /* 🔴 BẤM VÀO TÊN LÀ BUNG RA TỪNG NGÀY — anh Thắng 22/09/2026: *"bấm vào nhân viên sẽ hiện…
+     hiện ngày chưa nộp, nhân viên nộp ngày nào mình tích vào"*, vì *"nộp báo cáo mà chưa chốt,
+     xong qua nộp tiền không ngày hôm trước — kế toán không thể chốt một cục được"*.
+
+     Ngày làm báo cáo và ngày tiền về tay là hai việc khác nhau: nhân viên nộp báo cáo mỗi ngày,
+     còn tiền mặt về quầy theo nhịp riêng. Bảng này xưa nay chỉ có MỘT con số tổng của cả người
+     nên nút duy nhất là "chốt cả cục" — kế toán nhận tiền của ba ngày mà phải ghi hết nợ của
+     mười ngày, hoặc không ghi gì. Cả hai đều sai sổ. */
+  var camSpan = (q.quyen_nhan ? 6 : 5);
+  (q.cam || []).forEach(function(c, i){
+    h += '<tr><td><button class="lnk" data-camngay="' + esc(c.nguoi) + '" data-cami="' + i + '"'
+        + ' title="' + L('Bấm để xem từng ngày chưa nộp','Click to see each unsettled day') + '">'
+        + '<span data-camicon="' + i + '">▸</span> <b>' + esc(c.nguoi) + '</b></button></td>'
       + '<td class="r">' + tien(c.tu_ghe) + '</td><td class="r">' + tien(c.tu_quay) + '</td>'
       + '<td class="r">' + tien(c.tu_bao_cao || 0) + '</td>'
       + '<td class="r"><b>' + tien(c.tong) + '</b></td>';
     if (q.quyen_nhan) {
       h += '<td class="r"><button data-nopthay="' + esc(c.nguoi) + '" class="ghost">'
-        + L('Xác nhận đã nộp','Confirm received') + '</button></td>';
+        + L('Xác nhận CẢ CỤC','Confirm ALL') + '</button></td>';
     }
-    h += '</tr>';
+    h += '</tr>'
+      + '<tr data-camo="' + i + '" style="display:none"><td colspan="' + camSpan + '" '
+      + 'style="background:var(--blue-bg);padding:10px 12px"><div data-camwrap="' + i + '"></div></td></tr>';
   });
   h += '</table></div>';
 
@@ -12030,6 +12057,88 @@ function chayDongHoTop(){
  *    hàm khai lồng bên trong, đòi chúng không được gọi từ hàm khác — xem `kiem_pham_vi_js()`
  *    trong bộ thử.
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+/* Bảng "từng ngày chưa nộp" của MỘT người, kèm ô tích và nút chốt đúng những ngày đã tích.
+   Xem VHG_Quy::dang_cam_theo_ngay() cho luật gom ba nguồn về cùng một ngày dương lịch. */
+function veCamNgay(wrap, nguoi, ds){
+  wrap.textContent = '';
+  if (!ds.length) {
+    wrap.appendChild(ktEl('div','mut',L('Không còn ngày nào chưa nộp.','Nothing unsettled left.')));
+    return;
+  }
+  var chon = {};
+  var sc = ktEl('div','table-scroll'); var tb = ktEl('table'); tb.style.minWidth = '620px';
+  var thr = ' style="text-align:right"';
+  var head = '<tr><th style="width:34px"><input type="checkbox" data-camall></th>'
+    + '<th>' + L('Ngày','Date') + '</th><th>' + L('Cơ sở','Branch') + '</th>'
+    + '<th' + thr + '>' + L('Ngăn ghế','Boxes') + '</th><th' + thr + '>' + L('Quầy','Counter') + '</th>'
+    + '<th' + thr + '>' + L('Báo cáo','Reports') + '</th><th' + thr + '>' + L('Tổng','Total') + '</th></tr>';
+  tb.innerHTML = head;
+  ds.forEach(function(x){
+    var tr = ktEl('tr');
+    var td0 = ktEl('td');
+    var ck = document.createElement('input'); ck.type = 'checkbox'; ck.setAttribute('data-camck','1');
+    ck.onchange = function(){ if (ck.checked) chon[x.ngay] = x.tong; else delete chon[x.ngay]; dem(); };
+    td0.appendChild(ck); tr.appendChild(td0);
+    /* Ngày viết dd/mm/yyyy cho người đọc, nhưng thứ GỬI ĐI vẫn là yyyy-mm-dd của máy chủ —
+       đổi dạng ở đây rồi gửi đi là máy chủ lọc hụt, âm thầm. */
+    tr.appendChild(ktEl('td', null, camNgayDoc(x.ngay)));
+    var tdc = ktEl('td','mut',(x.coso || []).join(' · ') || '—');
+    tdc.style.cssText = 'max-width:260px;white-space:normal';
+    tr.appendChild(tdc);
+    [x.tu_ghe, x.tu_quay, x.tu_bao_cao].forEach(function(v){
+      var td = ktEl('td', null, v ? ktVnd(v) + 'đ' : '—'); td.style.textAlign = 'right'; tr.appendChild(td);
+    });
+    var tdt = ktEl('td'); tdt.style.textAlign = 'right';
+    tdt.appendChild(ktEl('b', null, ktVnd(x.tong) + 'đ')); tr.appendChild(tdt);
+    tb.appendChild(tr);
+  });
+  sc.appendChild(tb); wrap.appendChild(sc);
+
+  var act = ktEl('div','act'); act.style.marginTop = '8px';
+  var nut = ktEl('button','on',''); nut.style.cssText = 'padding:6px 12px';
+  var msg = ktEl('span','mut');
+  function dem(){
+    var ng = Object.keys(chon), t = 0;
+    ng.forEach(function(k){ t += Number(chon[k]) || 0; });
+    nut.disabled = !ng.length;
+    nut.textContent = ng.length
+      ? ('✓ ' + L('Xác nhận đã nộp ' + ng.length + ' ngày · ' + ktVnd(t) + 'đ',
+                  'Confirm ' + ng.length + ' day(s) · ' + ktVnd(t)))
+      : ('✓ ' + L('Tích ngày đã nhận tiền','Tick the days received'));
+  }
+  var all = tb.querySelector('[data-camall]');
+  all.onchange = function(){
+    [].forEach.call(tb.querySelectorAll('[data-camck]'), function(c, k){
+      c.checked = all.checked;
+      if (all.checked) chon[ds[k].ngay] = ds[k].tong; else delete chon[ds[k].ngay];
+    });
+    dem();
+  };
+  nut.onclick = function(){
+    var ng = Object.keys(chon); if (!ng.length) return;
+    var t = 0; ng.forEach(function(k){ t += Number(chon[k]) || 0; });
+    /* Nói RÕ những ngày nào và bao nhiêu tiền trong hộp hỏi lại: đây là ghi hết nợ ngay, không
+       có bước hoàn tác dễ dàng — người bấm phải đọc lại đúng thứ mình sắp ghi. */
+    if (!confirm(L('Xác nhận ' + nguoi + ' đã nộp tiền của ' + ng.length + ' ngày sau:\n\n'
+        + ng.slice().sort().map(camNgayDoc).join('\n')
+        + '\n\nTổng ' + ktVnd(t) + 'đ. Ghi hết nợ NGAY cho đúng những ngày này, các ngày khác giữ nguyên.',
+        'Confirm ' + nguoi + ' handed in ' + ng.length + ' day(s), ' + ktVnd(t) + '. Clears those days only.'))) return;
+    msg.textContent = L('Đang ghi…','Saving…'); msg.className = 'mut';
+    lam('quy_nop_thay', { nguoi: nguoi, ngay: ng });
+  };
+  dem();
+  act.appendChild(nut); act.appendChild(msg);
+  wrap.appendChild(act);
+  wrap.appendChild(ktEl('div','mut',
+    L('Ngày lấy theo: báo cáo doanh thu → ngày báo cáo; ngăn ghế / thu tại quầy → ngày ghi nhận. '
+      + 'Tổng các ngày đúng bằng tổng người này đang cầm.',
+      'Dates: revenue reports use the report date; chair boxes and counter takings use their record date.')));
+}
+/* 'YYYY-MM-DD' -> 'dd/mm/yyyy'. Nhãn "(chưa rõ ngày)" giữ nguyên chữ. */
+function camNgayDoc(s){
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s || ''));
+  return m ? (m[3] + '/' + m[2] + '/' + m[1]) : String(s || '');
+}
 function lam(viec, d){
   if (ban) return;
   ban = true;
@@ -12774,6 +12883,33 @@ function noi(){
       if (!confirm(L('Huỷ lượt nộp này? Tiền quay lại tay người nộp.',
                      'Cancel this hand-in? The cash returns to the person who submitted it.'))) return;
       lam('nop_huy', { id: Number(b.getAttribute('data-nophuy')) });
+    };
+  });
+  /* ---- QUỸ: BUNG TỪNG NGÀY CHƯA NỘP, TÍCH NGÀY NÀO CHỐT NGÀY ẤY -----------------------------
+     Anh Thắng 22/09/2026: *"bấm vào nhân viên sẽ hiện… hiện ngày chưa nộp, nhân viên nộp ngày
+     nào mình tích vào"*, lý do: *"nộp báo cáo mà chưa chốt, xong qua nộp tiền không ngày hôm
+     trước — kế toán không thể chốt một cục được"*.
+
+     ⚠️ TẢI KHI MỞ, KHÔNG TẢI SẴN. Bảng này có mấy chục người, mỗi người một lượt hỏi máy chủ —
+        tải sẵn hết là mở màn Quỹ phải chờ mấy chục lượt cho một thứ có thể không ai bấm tới. */
+  [].forEach.call(document.querySelectorAll('[data-camngay]'), function(b){
+    b.onclick = function(){
+      var i = b.getAttribute('data-cami');
+      var tr = document.querySelector('[data-camo="' + i + '"]');
+      var ic = document.querySelector('[data-camicon="' + i + '"]');
+      if (!tr) return;
+      var mo = (tr.style.display === 'none');
+      tr.style.display = mo ? '' : 'none';
+      if (ic) ic.textContent = mo ? '▾' : '▸';
+      if (!mo) return;
+      var wrap = tr.querySelector('[data-camwrap="' + i + '"]');
+      if (wrap.getAttribute('data-xong') === '1') return;
+      wrap.innerHTML = '<span class="mut">' + L('Đang tải…','Loading…') + '</span>';
+      goi('quy_cam_ngay', { nguoi: b.getAttribute('data-camngay') }, function(r){
+        if (!r || !r.ok) { wrap.innerHTML = '<span class="mut err">' + esc((r && r.error) || 'Lỗi.') + '</span>'; return; }
+        wrap.setAttribute('data-xong','1');
+        veCamNgay(wrap, r.nguoi, r.rows || []);
+      });
     };
   });
   /* ---- QUỸ: xác nhận đã nộp THAY (dữ liệu cũ/đã nhập, không ai để tự bấm) ------------------
