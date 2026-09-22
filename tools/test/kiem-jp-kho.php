@@ -337,8 +337,12 @@ $lx2 = VHJP_Kho::lich_su_xuat( $KT, 50, 'XUAT_CS' );
 t( 'Lọc theo loại chỉ trả đúng loại ấy',
 	1 === count( $lx2 ) && 'XUAT_CS' === VHJP_Doc::str( $lx2[0]['loai'] ), $lx2 );
 
+/* ⚠️ Ô tên là `ma`/`ten`. Màn "Trả tiền NCC" dựng ô chọn bằng `n.ma + '|' + n.ten`; đổi tên ô
+   là mọi mục thành `undefined|undefined` — ô vẫn hiện, bấm vẫn được, phiếu ghi ra không có NCC. */
 $ncc = VHJP_Kho::danh_sach_ncc( $KT );
-t( 'Danh sách NCC gom từ chính phiếu mua', 1 === count( $ncc ) && 'NCC A' === $ncc[0]['nccTen'], $ncc );
+t( 'Danh sách NCC gom từ chính phiếu mua', 1 === count( $ncc ) && 'NCC A' === $ncc[0]['ten'], $ncc );
+t( 'Danh sách NCC dùng đúng tên ô mà giao diện đọc (ma/ten)',
+	array_key_exists( 'ma', $ncc[0] ) && array_key_exists( 'ten', $ncc[0] ), array_keys( $ncc[0] ) );
 
 /* ════════════════════════════════════════════════════════ ⑩ NHẬP–XUẤT–TỒN ══════════════ */
 nen();
@@ -476,13 +480,397 @@ t( 'Cổng: kho_nxt nhận tháng/năm/kho ở $args[1..3]',
 $ra = VHJP_Cong::kho_ls_xuat( array( 'THE-PHIEN', 50, '' ), $KT );
 t( 'Cổng: kho_ls_xuat chạy', is_array( $ra ), $ra );
 
-/* Hai mươi hàm kho — 13 đã chuyển, 7 còn lại phải khai đủ trong `chua_lam()`. */
+/* Cả 22 hàm kho đã chuyển; phép đối chiếu với giao diện nằm ở `kiem-jp-cong.php`. */
 $con = array();
 foreach ( VHJP_Cong::chua_lam() as $fn ) { if ( 0 === strpos( $fn, 'jpKho' ) ) { $con[] = $fn; } }
 $da = array();
 foreach ( array_keys( VHJP_Cong::map() ) as $fn ) { if ( 0 === strpos( $fn, 'jpKho' ) ) { $da[] = $fn; } }
-t( 'Đã chuyển 13 hàm kho', 13 === count( $da ), $da );
-t( 'Còn đúng 7 hàm kho chưa chuyển (kiểm kê ×3, trả NCC ×4)', 7 === count( $con ), $con );
+t( 'Đã chuyển 22 hàm kho', 22 === count( $da ), $da );
+t( 'Không còn hàm kho nào trong chua_lam()', ! $con, $con );
+
+/* ═══════════════════════════════════════════════════════════════════ ⑬ KIỂM KÊ ═════════ */
+nen();
+VHJP_Kho::so_du_dau_ky( $KT, array( 'khoId' => 'TONG', 'ngay' => '2026-09-01',
+	'rows' => array( dong( 'H1', 10, 1000 ), dong( 'H2', 4, 500 ) ) ) );
+
+$kt_ton = VHJP_Kho::kiem_ke_ton( $KT, 'TONG', false );
+t( 'Mở phiếu kiểm kê: chỉ mã CÓ tồn', 2 === count( $kt_ton['rows'] ), $kt_ton['rows'] );
+t( 'Mở phiếu kiểm kê: tồn sổ và giá bình quân đúng',
+	10 === $kt_ton['rows'][0]['tonSo'] && 1000 == $kt_ton['rows'][0]['giaBinhQuan'], $kt_ton['rows'][0] );
+t( 'Mở phiếu kiểm kê kèm mã MISA', 'M1' === $kt_ton['rows'][0]['misa'], $kt_ton['rows'][0] );
+$r = ne( function () { global $KT; return VHJP_Kho::kiem_ke_ton( $KT, '' ); } );
+t( 'Kiểm kê không chọn kho thì CHỐI', ! $r['ok'], $r );
+
+/* Mã chưa có tồn chỉ hiện khi tick "hiện cả danh mục" — đó là đường DUY NHẤT phát hiện hàng
+   thừa của một mã mà sổ nói đã hết. */
+VHJP_Nguon::them( 'JP_Items', array( 'code' => 'H3', 'name' => 'Móc khoá', 'active' => 1 ) );
+$het = VHJP_Kho::kiem_ke_ton( $KT, 'TONG', true );
+t( 'Tick "hiện cả danh mục" thì mã chưa có tồn cũng hiện', 3 === count( $het['rows'] ), $het['rows'] );
+
+/* THIẾU — hàng mất, ăn FIFO và ghi Nợ 6321 / Có 1561. */
+$kk = VHJP_Kho::kiem_ke( $KT, array( 'khoId' => 'TONG', 'ngay' => '2026-09-20',
+	'cheDoThua' => 'GIAM_XUAT', 'rows' => array(
+		array( 'itemCode' => 'H1', 'tonThuc' => 7, 'note' => 'mất 3' ),
+		array( 'itemCode' => 'H2', 'tonThuc' => 4 ) ) ) );
+t( 'Kiểm kê chạy được', ! empty( $kk['ok'] ), $kk );
+t( 'Kiểm kê · thiếu 3 cái · 3.000đ', 3 === $kk['slThieu'] && 3000 === $kk['tienThieu'], $kk );
+t( 'Kiểm kê · không có thừa', 0 === $kk['slThua'], $kk );
+t( 'Kiểm kê · trừ đúng tồn: H1 còn 7', 7 === VHJP_Kho::ton_mot( 'TONG', 'H1' )['tonQty'],
+	VHJP_Kho::ton_mot( 'TONG', 'H1' ) );
+t( 'Kiểm kê · H2 khớp thì KHÔNG đụng tới', 4 === VHJP_Kho::ton_mot( 'TONG', 'H2' )['tonQty'] );
+$dx = VHJP_Nguon::tim( 'JP_KhoXuat', 'loai', 'KIEM_KE' );
+t( 'Kiểm kê thiếu đẻ ra dòng sổ xuất KIEM_KE', 1 === count( $dx ), $dx );
+t( '🔴 Hàng mất ghi Nợ 6321 / Có 1561',
+	'6321' === VHJP_Doc::str( $dx[0]['tkNo'] ) && '1561' === VHJP_Doc::str( $dx[0]['tkCo'] ), $dx[0] );
+
+/* Mã CHƯA ĐẾM phải được giữ nguyên, không bị coi là 0 — coi là 0 là một lượt kiểm kê bỏ dở
+   xoá sạch tồn của mọi mã chưa kịp đếm, và nó ghi thẳng vào 6321. */
+nen();
+VHJP_Kho::so_du_dau_ky( $KT, array( 'khoId' => 'TONG', 'ngay' => '2026-09-01',
+	'rows' => array( dong( 'H1', 10, 1000 ), dong( 'H2', 4, 500 ) ) ) );
+VHJP_Kho::kiem_ke( $KT, array( 'khoId' => 'TONG', 'ngay' => '2026-09-20', 'rows' => array(
+	array( 'itemCode' => 'H1', 'tonThuc' => 9 ),
+	array( 'itemCode' => 'H2', 'tonThuc' => '' ) ) ) );
+t( '🔴 Mã CHƯA ĐẾM (ô trống) giữ nguyên tồn, không bị coi là 0',
+	4 === VHJP_Kho::ton_mot( 'TONG', 'H2' )['tonQty'], VHJP_Kho::ton_mot( 'TONG', 'H2' ) );
+t( 'Ô trống khác số 0: mã đã đếm vẫn bị trừ', 9 === VHJP_Kho::ton_mot( 'TONG', 'H1' )['tonQty'] );
+
+$r = ne( function () { global $KT; return VHJP_Kho::kiem_ke( $KT, array( 'khoId' => 'TONG',
+	'ngay' => '2026-09-20', 'rows' => array( array( 'itemCode' => 'H1', 'tonThuc' => '' ) ) ) ); } );
+t( 'Không mã nào được đếm thì CHỐI', ! $r['ok'], $r );
+
+/* THỪA · chế độ GIẢM XUẤT — giảm chính phiếu xuất trong kỳ, trả lại lớp. */
+nen();
+mua( $KT, '2026-09-01', array( dong( 'H1', 10, 1000 ) ) );
+$px = VHJP_Kho::xuat( $KT, array( 'ngay' => '2026-09-10', 'loai' => 'XE_MAU',
+	'rows' => array( dong( 'H1', 6 ) ) ) );
+t( 'Trước kiểm kê: tồn 4', 4 === VHJP_Kho::ton_mot( 'TONG', 'H1' )['tonQty'] );
+$kg = VHJP_Kho::kiem_ke( $KT, array( 'khoId' => 'TONG', 'ngay' => '2026-09-20',
+	'cheDoThua' => 'GIAM_XUAT',
+	'rows' => array( array( 'itemCode' => 'H1', 'tonThuc' => 6 ) ) ) );
+t( 'Thừa 2 · giảm xuất 2 cái', 2 === $kg['slGiamXuat'] && 2000 === $kg['tienGiamXuat'], $kg );
+t( 'Thừa 2 · KHÔNG ghi tăng cái nào', 0 === $kg['slThua'], $kg );
+t( 'Thừa 2 · không có mã nào "không giảm được"', ! $kg['khongGiamDuoc'], $kg );
+t( '🔴 Giảm xuất trả lại lớp: tồn về đúng 6',
+	6 === VHJP_Kho::ton_mot( 'TONG', 'H1' )['tonQty'], VHJP_Kho::ton_mot( 'TONG', 'H1' ) );
+$con_x = VHJP_Nguon::tim( 'JP_KhoXuat', 'loai', 'XE_MAU' );
+t( 'Dòng xuất cũ bị GIẢM chứ không bị xoá: còn 4',
+	1 === count( $con_x ) && 4 === VHJP_Doc::num( $con_x[0]['qty'] ), $con_x );
+t( 'Giảm xuất KHÔNG đẻ lớp mới', 1 === count( VHJP_Kho::lop_con( 'TONG', 'H1' ) ),
+	VHJP_Kho::lop_con( 'TONG', 'H1' ) );
+
+/* THỪA · phiếu xuất nằm NGOÀI kỳ đang mở thì không được đụng — phải ghi tăng và NÓI RA. */
+nen();
+mua( $KT, '2026-08-01', array( dong( 'H1', 10, 1000 ) ) );
+VHJP_Kho::xuat( $KT, array( 'ngay' => '2026-08-10', 'loai' => 'XE_MAU',
+	'rows' => array( dong( 'H1', 6 ) ) ) );
+$kq = VHJP_Kho::kiem_ke( $KT, array( 'khoId' => 'TONG', 'ngay' => '2026-09-20',
+	'cheDoThua' => 'GIAM_XUAT',
+	'rows' => array( array( 'itemCode' => 'H1', 'tonThuc' => 6 ) ) ) );
+t( '🔴 Phiếu xuất THÁNG TRƯỚC không bị đụng vào (số đã khoá sổ)', 0 === $kq['slGiamXuat'], $kq );
+t( 'Phần không giảm được thì ghi tăng 1561/1388', 2 === $kq['slThua'], $kq );
+t( 'Và NÓI RA mã nào không giảm được',
+	1 === count( $kq['khongGiamDuoc'] ) && 'H1' === $kq['khongGiamDuoc'][0]['itemCode'],
+	$kq['khongGiamDuoc'] );
+t( 'Câu trả lời cảnh báo rõ ràng', false !== strpos( $kq['msg'], 'KHÔNG giảm xuất' ), $kq['msg'] );
+$dx8 = VHJP_Nguon::tim( 'JP_KhoXuat', 'loai', 'XE_MAU' );
+t( 'Phiếu tháng trước còn nguyên 6 cái', 6 === VHJP_Doc::num( $dx8[0]['qty'] ), $dx8[0] );
+t( 'Ghi tăng làm tồn lên 6', 6 === VHJP_Kho::ton_mot( 'TONG', 'H1' )['tonQty'] );
+$pn_kk = array();
+foreach ( VHJP_Nguon::doc( 'JP_KhoNhap' ) as $p ) {
+	if ( 'KIEM_KE' === VHJP_Doc::str( $p['loaiNhap'] ) ) { $pn_kk[] = $p; }
+}
+t( 'Ghi tăng là một PHIẾU NHẬP loaiNhap = KIEM_KE', 1 === count( $pn_kk ), $pn_kk );
+
+/* THỪA · chế độ GHI TĂNG thẳng — không đụng phiếu xuất nào. */
+nen();
+mua( $KT, '2026-09-01', array( dong( 'H1', 10, 1000 ) ) );
+VHJP_Kho::xuat( $KT, array( 'ngay' => '2026-09-10', 'loai' => 'XE_MAU',
+	'rows' => array( dong( 'H1', 6 ) ) ) );
+$kgt = VHJP_Kho::kiem_ke( $KT, array( 'khoId' => 'TONG', 'ngay' => '2026-09-20',
+	'cheDoThua' => 'GHI_TANG',
+	'rows' => array( array( 'itemCode' => 'H1', 'tonThuc' => 6 ) ) ) );
+t( 'GHI_TANG: không giảm phiếu xuất nào', 0 === $kgt['slGiamXuat'], $kgt );
+t( 'GHI_TANG: ghi tăng đủ 2 cái', 2 === $kgt['slThua'], $kgt );
+t( 'GHI_TANG: phiếu xuất còn nguyên',
+	6 === VHJP_Doc::num( VHJP_Nguon::tim( 'JP_KhoXuat', 'loai', 'XE_MAU' )[0]['qty'] ) );
+
+/* Thừa một mã chưa từng nhập bao giờ ⇒ giá vốn 0, và phải NÓI RA. */
+nen();
+$k0 = VHJP_Kho::kiem_ke( $KT, array( 'khoId' => 'TONG', 'ngay' => '2026-09-20',
+	'rows' => array( array( 'itemCode' => 'H1', 'tonThuc' => 5 ) ) ) );
+t( 'Thừa mã chưa từng nhập: vẫn ghi tăng 5 cái', 5 === $k0['slThua'], $k0 );
+t( '🔴 Giá vốn 0 thì NÓI RA, không im lặng',
+	array( 'H1' ) === $k0['giaVon0'] && false !== strpos( $k0['msg'], 'giá vốn 0' ), $k0 );
+
+$lkk = VHJP_Kho::lich_su_kiem_ke( $KT, 30 );
+t( 'Lịch sử kiểm kê có phiếu vừa ghi', 1 === count( $lkk ), $lkk );
+t( 'Lịch sử kiểm kê kèm dong[]', 1 === count( $lkk[0]['dong'] ), $lkk[0] );
+t( 'Dòng kiểm kê ghi rõ lệch và tài khoản',
+	5 === $lkk[0]['dong'][0]['lech'] && '1561' === VHJP_Doc::str( $lkk[0]['dong'][0]['tkNo'] ),
+	$lkk[0]['dong'][0] );
+
+/* Kiểm kê thừa/thiếu phải lên đúng cột của bảng N-X-T. */
+nen();
+VHJP_Kho::so_du_dau_ky( $KT, array( 'khoId' => 'TONG', 'ngay' => '2026-09-01',
+	'rows' => array( dong( 'H1', 10, 1000 ) ) ) );
+VHJP_Kho::kiem_ke( $KT, array( 'khoId' => 'TONG', 'ngay' => '2026-09-15',
+	'rows' => array( array( 'itemCode' => 'H1', 'tonThuc' => 7 ) ) ) );
+$nk = VHJP_Kho::nhap_xuat_ton( $KT, 9, 2026, 'TONG' );
+t( 'Kiểm kê thiếu lên cột xuatKiemKe', 3 === $nk['tong']['xuatKiemKe'], $nk['tong'] );
+t( 'Bảng vẫn cân sau kiểm kê', ! empty( $nk['canBang'] ), $nk );
+t( 'Tồn cuối = 10 − 3', 7 === $nk['tong']['tonCuoi'], $nk['tong'] );
+
+nen();
+VHJP_Kho::kiem_ke( $KT, array( 'khoId' => 'TONG', 'ngay' => '2026-09-15',
+	'rows' => array( array( 'itemCode' => 'H1', 'tonThuc' => 4 ) ) ) );
+$nk2 = VHJP_Kho::nhap_xuat_ton( $KT, 9, 2026, 'TONG' );
+t( 'Kiểm kê thừa lên cột nhapKiemKe', 4 === $nk2['tong']['nhapKiemKe'], $nk2['tong'] );
+t( 'Và nằm trong tổng Nhập', 4 === $nk2['tong']['nhap'], $nk2['tong'] );
+
+/* ════════════════════════════════════════════════════════════ ⑭ TRẢ TIỀN NCC ═══════════ */
+nen();
+$tt = VHJP_Kho::tra_ncc( $KT, array( 'ngay' => '2026-09-10', 'nccTen' => 'NCC A',
+	'soTien' => 5000000, 'hinhThuc' => 'CK', 'ghiChu' => 'Trả đợt 1' ) );
+t( 'Ghi phiếu trả tiền được', ! empty( $tt['ok'] ), $tt );
+t( 'Phiếu trả tiền có số chứng từ', $tt['soChungTu'] === $tt['id'], $tt );
+
+$r = ne( function () { global $KT; return VHJP_Kho::tra_ncc( $KT,
+	array( 'nccTen' => 'NCC A', 'soTien' => 0 ) ); } );
+t( 'Số tiền ≤ 0 thì CHỐI', ! $r['ok'], $r );
+$r = ne( function () { global $KT; return VHJP_Kho::tra_ncc( $KT, array( 'soTien' => 100 ) ); } );
+t( 'Không có nhà cung cấp thì CHỐI', ! $r['ok'], $r );
+
+/* Ô hình thức để trống: giao diện đã hứa trước là ghi CK — sổ phải nói đúng câu ấy. */
+$tt2 = VHJP_Kho::tra_ncc( $KT, array( 'nccTen' => 'NCC B', 'soTien' => 100 ) );
+$row = VHJP_Nguon::tim_mot( 'JP_KhoTraNcc', 'id', $tt2['id'] );
+t( 'Hình thức để trống thì mặc định CK, đúng như giao diện đã hứa',
+	'CK' === VHJP_Doc::str( $row['hinhThuc'] ), $row );
+t( 'Ngày để trống thì lấy hôm nay', '' !== VHJP_Doc::ngay( $row['ngay'] ), $row );
+
+/* Ghi cả lô: dòng hỏng KHÔNG làm đổ cả lô, nhưng phải được đếm và nói ra kèm số dòng. */
+$lo = VHJP_Kho::tra_ncc_lo( $KT, array(
+	array( 'dong' => 2, 'nccTen' => 'NCC A', 'soTien' => 1000 ),
+	array( 'dong' => 3, 'nccTen' => '', 'soTien' => 500 ),
+	array( 'dong' => 4, 'nccTen' => 'NCC C', 'soTien' => 2000 ),
+	array( 'dong' => 5, 'nccTen' => 'NCC D', 'soTien' => 0 ) ) );
+t( 'Ghi lô: 2 phiếu vào được', 2 === $lo['soPhieu'] && 3000 === $lo['tongTien'], $lo );
+t( '🔴 Dòng hỏng KHÔNG làm đổ cả lô', 2 === count( $lo['hong'] ), $lo['hong'] );
+t( 'Dòng hỏng được nói ra kèm ĐÚNG số dòng trong tệp',
+	3 === $lo['hong'][0]['dong'] && 5 === $lo['hong'][1]['dong'], $lo['hong'] );
+t( 'Có dòng hỏng thì ok = false để giao diện in đỏ', empty( $lo['ok'] ), $lo );
+t( 'Câu trả lời liệt kê dòng nào rớt', false !== strpos( $lo['msg'], 'dòng 3' ), $lo['msg'] );
+
+$ls_tt = VHJP_Kho::lich_su_tra_ncc( $KT, 50 );
+t( 'Lịch sử trả tiền có đủ 4 phiếu', 4 === count( $ls_tt ), count( $ls_tt ) );
+$h = VHJP_Kho::huy_tra_ncc( $KT, $tt['id'], 'Chuyển nhầm' );
+t( 'Huỷ phiếu trả tiền được', ! empty( $h['ok'] ), $h );
+$row = VHJP_Nguon::tim_mot( 'JP_KhoTraNcc', 'id', $tt['id'] );
+t( '🔴 Huỷ là ĐÁNH DẤU, không xoá dòng (vết kiểm toán phải còn)', ! empty( $row ), $row );
+t( 'Dòng đã huỷ mang cờ daHuy', VHJP_Kho::lich_su_tra_ncc( $KT, 50 )[3]['daHuy'] );
+$r = ne( function () use ( $tt ) { global $KT; return VHJP_Kho::huy_tra_ncc( $KT, $tt['id'], 'x' ); } );
+t( 'Huỷ lần hai thì CHỐI', ! $r['ok'], $r );
+$r = ne( function () use ( $tt2 ) { global $KT; return VHJP_Kho::huy_tra_ncc( $KT, $tt2['id'], '' ); } );
+t( 'Huỷ mà không ghi lý do thì CHỐI', ! $r['ok'], $r );
+
+/* Công nợ: đã trả của phiếu ĐÃ HUỶ không được tính. */
+nen();
+mua( $KT, '2026-09-01', array( dong( 'H1', 5, 1000 ) ), 'NCC A' );
+$t1 = VHJP_Kho::tra_ncc( $KT, array( 'nccTen' => 'NCC A', 'soTien' => 2000 ) );
+$t2 = VHJP_Kho::tra_ncc( $KT, array( 'nccTen' => 'NCC A', 'soTien' => 1000 ) );
+VHJP_Kho::huy_tra_ncc( $KT, $t2['id'], 'ghi nhầm' );
+$ds_ncc = VHJP_Kho::danh_sach_ncc( $KT );
+t( 'Công nợ NCC: đã trả 2.000 (phiếu đã huỷ không tính)',
+	5000 === $ds_ncc[0]['tongTien'] && 2000 === $ds_ncc[0]['daTra'], $ds_ncc[0] );
+
+/* ══════════════════════════════════════════════════════════════════ ⑮ BẢNG KÊ ══════════ */
+nen();
+mua( $KT, '2026-09-05', array( dong( 'H1', 10, 1000 ) ) );
+$pm2 = mua( $KT, '2026-09-06', array( dong( 'H2', 2, 300 ) ) );
+mua( $KT, '2026-10-01', array( dong( 'H1', 1, 1000 ) ) );
+VHJP_Kho::huy_nhap( $KT, $pm2['id'], 'gõ nhầm' );
+VHJP_Kho::xuat( $KT, array( 'ngay' => '2026-09-08', 'loai' => 'XUAT_CS',
+	'locationId' => 'CS01', 'rows' => array( dong( 'H1', 3 ) ) ) );
+VHJP_Kho::xuat( $KT, array( 'ngay' => '2026-09-09', 'loai' => 'XE_MAU',
+	'rows' => array( dong( 'H1', 1 ) ) ) );
+
+$bn = VHJP_Kho::bang_ke_nhap( $KT, '2026-09-01', '2026-09-30', '' );
+t( 'Bảng kê nhập cắt đúng khoảng ngày (bỏ phiếu tháng 10)', 3 === count( $bn['rows'] ), $bn['rows'] );
+t( '🔴 Phiếu ĐÃ HUỶ vẫn liệt kê nhưng KHÔNG cộng vào tổng',
+	2 === $bn['tong']['soPhieu'] && 1 === $bn['tong']['soHuy'], $bn['tong'] );
+/* 10.000 của phiếu mua + 3.000 của phiếu NHẬN ĐIỀU CHUYỂN mà lượt XUAT_CS đẻ ra ở CS01. Phiếu
+   DC là một phiếu nhập thật, nên bảng kê nhập phải thấy nó — giấu đi thì hàng xuống cơ sở không
+   có chứng từ nào đứng sau. Phiếu đã huỷ (300đ) không cộng. */
+t( 'Bảng kê nhập · tổng tiền bỏ phiếu huỷ = 10.000 mua + 3.000 nhận ĐC',
+	13000 === $bn['tong']['tongTien'], $bn['tong'] );
+t( 'Bảng kê nhập · tên đường nhập đọc được',
+	'Mua hàng nhà cung cấp' === $bn['rows'][0]['tenLoai'], $bn['rows'][0] );
+$bn2 = VHJP_Kho::bang_ke_nhap( $KT, '2026-09-01', '2026-09-30', 'DC' );
+t( 'Lọc theo đường nhập DC chỉ ra phiếu nhận điều chuyển', 1 === count( $bn2['rows'] ), $bn2['rows'] );
+
+$bx = VHJP_Kho::bang_ke_xuat( $KT, '2026-09-01', '2026-09-30', '' );
+t( 'Bảng kê xuất có 2 phiếu', 2 === $bx['tong']['soPhieu'], $bx['tong'] );
+t( 'Bảng kê xuất · tổng SL = 4', 4 === $bx['tong']['tongSL'], $bx['tong'] );
+t( 'Bảng kê xuất · gộp theo loại', 2 === count( $bx['theoLoai'] ), $bx['theoLoai'] );
+$co_tk = false;
+foreach ( $bx['theoLoai'] as $l ) { if ( 'XE_MAU' === $l['ma'] && '64116' === $l['tk'] ) { $co_tk = true; } }
+t( 'Bảng kê xuất · gộp theo loại kèm tài khoản (xé mẫu = 64116)', $co_tk, $bx['theoLoai'] );
+$bx2 = VHJP_Kho::bang_ke_xuat( $KT, '2026-09-01', '2026-09-30', 'XUAT_CS' );
+t( 'Lọc theo loại xuất', 1 === count( $bx2['rows'] ), $bx2['rows'] );
+
+/* Cửa quyền của mấy hàm mới. */
+foreach ( array(
+	'kiem_ke_ton' => array( 'TONG' ),
+	'lich_su_kiem_ke' => array( 30 ),
+	'lich_su_tra_ncc' => array( 50 ),
+) as $ham => $tham ) {
+	$r = ne( function () use ( $ham, $tham ) {
+		global $NV;
+		return call_user_func_array( array( 'VHJP_Kho', $ham ), array_merge( array( $NV ), $tham ) );
+	} );
+	t( 'Nhân viên KHÔNG gọi được VHJP_Kho::' . $ham, ! $r['ok'], $r );
+}
+$r = ne( function () { global $NV; return VHJP_Kho::tra_ncc( $NV,
+	array( 'nccTen' => 'X', 'soTien' => 1 ) ); } );
+t( 'Nhân viên KHÔNG ghi được phiếu trả tiền', ! $r['ok'], $r );
+$r = ne( function () { global $NV; return VHJP_Kho::kiem_ke( $NV, array( 'khoId' => 'TONG',
+	'ngay' => '2026-09-01', 'rows' => array( array( 'itemCode' => 'H1', 'tonThuc' => 1 ) ) ) ); } );
+t( 'Nhân viên KHÔNG ghi được biên bản kiểm kê', ! $r['ok'], $r );
+
+/* ══════════════════════════════════════════════ ⑯ DUYỆT BÁO CÁO → SỔ 632 ══════════════ */
+/*
+ * Đây là chỗ giá vốn BÁN RA sinh ra. Trước bản 1.12.0 nó không sinh ở đâu cả: báo cáo hoàn tất,
+ * doanh thu có, tiền có, ảnh có — và không một đồng giá vốn nào, nên lãi gộp của cả hệ bằng
+ * đúng doanh thu. Loại sai không có triệu chứng: mọi màn đều xanh, chỉ con số cuối là sai.
+ */
+function bc_moi( $ma, $coso, $den, $dong_ds ) {
+	VHJP_Nguon::them( 'JP_Reports', array( 'id' => $ma, 'locationId' => $coso,
+		'locationName' => 'JP Bà Rịa', 'fromDate' => '2026-09-01', 'toDate' => $den,
+		'userId' => 'U1', 'userName' => 'Nhân Viên A',
+		'status' => VHJP_BaoCao::TT_CHO_DUYET ) );
+	$i = 0;
+	foreach ( $dong_ds as $d ) {
+		$i++;
+		VHJP_Nguon::them( 'JP_Rows', array_merge(
+			array( 'id' => $ma . '-R' . $i, 'reportId' => $ma, 'seq' => $i ), $d ) );
+	}
+}
+/** Ký đủ hai phần rồi trả về kết quả lượt ký cuối. */
+function ky_du( $u, $ma ) {
+	VHJP_Duyet::ky( $u, $ma, VHJP_BaoCao::PHAN_HANG, '' );
+	return VHJP_Duyet::ky( $u, $ma, VHJP_BaoCao::PHAN_TIEN, '' );
+}
+
+nen();
+mua( $KT, '2026-09-01', array( dong( 'H1', 100, 1000 ), dong( 'H2', 50, 400 ) ) );
+VHJP_Kho::xuat( $KT, array( 'ngay' => '2026-09-02', 'loai' => 'XUAT_CS',
+	'locationId' => 'CS01', 'rows' => array( dong( 'H1', 60 ), dong( 'H2', 20 ) ) ) );
+t( 'Nền: cơ sở có 60 H1', 60 === VHJP_Kho::ton_mot( 'CS01', 'H1' )['tonQty'] );
+
+bc_moi( 'BC1', 'CS01', '2026-09-15', array(
+	array( 'rowKind' => 'MONEY', 'itemCode' => 'H1', 'soldQty' => 10 ),
+	array( 'rowKind' => 'MONEY', 'itemCode' => 'H1', 'soldQty' => 5 ),
+	array( 'rowKind' => 'HANG',  'itemCode' => 'H2', 'soldQty' => 4 ),
+	/* Ba loại dòng KHÔNG mang hàng bán ra. `COIN` và `NGOAI` được `VHJP_Tinh` ép `soldQty` về
+	   0; `MAY` thì `VHJP_Tinh` KHÔNG đụng tới ô ấy, nên số cũ của đời trước nằm lại — dựng ở
+	   đây đúng số rác ấy để xem kho có lọc theo LOẠI DÒNG thật không. */
+	array( 'rowKind' => 'COIN',  'itemCode' => 'H1', 'soldQty' => 999 ),
+	array( 'rowKind' => 'NGOAI', 'itemCode' => 'H1', 'soldQty' => 777 ),
+	array( 'rowKind' => 'MAY',   'itemCode' => 'H1', 'soldQty' => 888 ) ) );
+
+$k1 = VHJP_Duyet::ky( $KT, 'BC1', VHJP_BaoCao::PHAN_HANG, '' );
+t( '🔴 Ký MỘT phần thì CHƯA ra sổ kho', empty( $k1['done'] ) && null === $k1['kho'], $k1 );
+t( 'Ký một phần: chưa có dòng xuất nào', ! VHJP_Nguon::tim( 'JP_KhoXuat', 'reportId', 'BC1' ) );
+
+$k2 = VHJP_Duyet::ky( $KT, 'BC1', VHJP_BaoCao::PHAN_TIEN, '' );
+t( 'Ký đủ hai phần thì báo cáo HOÀN TẤT', ! empty( $k2['done'] ), $k2 );
+t( '🔴 Hoàn tất thì RA SỔ KHO', ! empty( $k2['kho'] ) && empty( $k2['kho']['loi'] ), $k2['kho'] );
+t( 'Gom theo mã: 2 dòng MONEY cùng mã H1 chỉ ăn FIFO một lượt ⇒ 2 dòng sổ (H1, H2)',
+	2 === $k2['kho']['soDong'], $k2['kho'] );
+t( '🔴 Giá vốn = 15×1000 + 4×400 = 16.600đ', 16600 === $k2['kho']['tongGiaVon'], $k2['kho'] );
+t( '🔴 Dòng COIN / NGOAI / MAY KHÔNG bị cộng vào (lọc theo LOẠI DÒNG)',
+	45 === VHJP_Kho::ton_mot( 'CS01', 'H1' )['tonQty'], VHJP_Kho::ton_mot( 'CS01', 'H1' ) );
+t( 'Trừ đúng ở kho CƠ SỞ, kho tổng không đụng',
+	40 === VHJP_Kho::ton_mot( 'TONG', 'H1' )['tonQty'], VHJP_Kho::ton_mot( 'TONG', 'H1' ) );
+t( 'H2 còn 16', 16 === VHJP_Kho::ton_mot( 'CS01', 'H2' )['tonQty'] );
+
+$dx = VHJP_Nguon::tim( 'JP_KhoXuat', 'reportId', 'BC1' );
+t( '🔴 Hàng bán ghi Nợ 6321 / Có 1561',
+	'6321' === VHJP_Doc::str( $dx[0]['tkNo'] ) && '1561' === VHJP_Doc::str( $dx[0]['tkCo'] ), $dx[0] );
+t( 'Dòng sổ mang loại BAN', 'BAN' === VHJP_Doc::str( $dx[0]['loai'] ), $dx[0] );
+t( 'Dòng sổ mang ngày CUỐI KỲ của báo cáo',
+	'2026-09-15' === VHJP_Doc::ngay( $dx[0]['ngay'] ), $dx[0] );
+t( 'Câu thông báo kể luôn giá vốn vừa ghi',
+	false !== strpos( $k2['msg'], 'xuất kho' ) && false !== strpos( $k2['msg'], '16.600' ), $k2['msg'] );
+
+/* Bán ra phải lên đúng cột `xuatBan` của bảng N-X-T — cột ấy trước đây luôn bằng 0. */
+$nb = VHJP_Kho::nhap_xuat_ton( $KT, 9, 2026, 'CS01' );
+t( '🔴 Giá vốn bán ra lên cột xuatBan của bảng N-X-T', 19 === $nb['tong']['xuatBan'], $nb['tong'] );
+t( 'Bảng vẫn cân', ! empty( $nb['canBang'] ), $nb );
+
+/* Ký lại một báo cáo đã ra sổ KHÔNG được trừ lần nữa. */
+$lai = VHJP_Duyet::ky( $KT, 'BC1', VHJP_BaoCao::PHAN_TIEN, '' );
+t( 'Ký lại báo cáo đã hoàn tất: tồn KHÔNG bị trừ lần nữa',
+	45 === VHJP_Kho::ton_mot( 'CS01', 'H1' )['tonQty'], VHJP_Kho::ton_mot( 'CS01', 'H1' ) );
+$again = VHJP_Kho::xuat_bao_cao( $KT, 'BC1' );
+t( '🔴 Gọi xuất_bao_cao lần hai thì DỪNG, báo daCoTruoc', ! empty( $again['daCoTruoc'] ), $again );
+t( 'Gọi lần hai không đẻ thêm dòng sổ nào',
+	2 === count( VHJP_Nguon::tim( 'JP_KhoXuat', 'reportId', 'BC1' ) ) );
+t( 'Câu thông báo nói rõ là đã ghi từ trước, không phải "0 dòng"',
+	false !== strpos( VHJP_Duyet::kho_msg( $again ), 'từ lượt duyệt trước' ),
+	VHJP_Duyet::kho_msg( $again ) );
+
+/* TRẢ VỀ một báo cáo đã hoàn tất thì phải HOÀN KHO. */
+$tv = VHJP_Duyet::tra_ve( $KT, 'BC1', 'Sai số liệu' );
+t( 'Trả về báo cáo đã hoàn tất thì hoàn kho', ! empty( $tv['kho']['daGo'] ), $tv['kho'] );
+t( '🔴 Hoàn kho trả tồn về đúng 60', 60 === VHJP_Kho::ton_mot( 'CS01', 'H1' )['tonQty'],
+	VHJP_Kho::ton_mot( 'CS01', 'H1' ) );
+t( 'Hoàn kho gỡ sạch dòng 632 của báo cáo ấy',
+	! VHJP_Nguon::tim( 'JP_KhoXuat', 'reportId', 'BC1' ) );
+t( 'Hoàn kho KHÔNG đẻ lớp mới', 1 === count( VHJP_Kho::lop_con( 'CS01', 'H1' ) ),
+	VHJP_Kho::lop_con( 'CS01', 'H1' ) );
+t( 'Câu thông báo kể việc hoàn kho', false !== strpos( $tv['msg'], 'hoàn kho' ), $tv['msg'] );
+
+/* Nộp lại rồi duyệt lần hai: trừ lại đúng một lần nữa, không nhân đôi. */
+VHJP_Nguon::sua( 'JP_Reports', 'BC1', array( 'status' => VHJP_BaoCao::TT_CHO_DUYET ) );
+$k3 = ky_du( $KT, 'BC1' );
+t( 'Duyệt lại sau khi sửa: trừ đúng một lần', 45 === VHJP_Kho::ton_mot( 'CS01', 'H1' )['tonQty'],
+	VHJP_Kho::ton_mot( 'CS01', 'H1' ) );
+t( 'Duyệt lại: giá vốn vẫn 16.600đ', 16600 === $k3['kho']['tongGiaVon'], $k3['kho'] );
+
+/* Cơ sở CHƯA được chuyển hàng xuống ⇒ không có lớp để ăn. Vẫn ghi, giá vốn 0, và PHẢI cảnh báo. */
+nen();
+bc_moi( 'BC2', 'CS02', '2026-09-15', array(
+	array( 'rowKind' => 'MONEY', 'itemCode' => 'H1', 'soldQty' => 7 ) ) );
+$k4 = ky_du( $KT, 'BC2' );
+t( 'Cơ sở chưa có hàng: vẫn ghi dòng 632', 1 === $k4['kho']['soDong'], $k4['kho'] );
+t( 'Cơ sở chưa có hàng: giá vốn 0', 0 === $k4['kho']['tongGiaVon'], $k4['kho'] );
+t( '🔴 Và NÓI RA là thiếu lớp tồn, không im lặng',
+	1 === count( $k4['kho']['thieuLop'] )
+	&& false !== strpos( $k4['msg'], 'THIẾU LỚP TỒN' ), $k4 );
+
+/* Báo cáo không có dòng hàng nào: nói rõ "không có gì để ghi", đừng để trống. */
+nen();
+bc_moi( 'BC3', 'CS01', '2026-09-15', array(
+	array( 'rowKind' => 'COIN', 'itemCode' => '', 'soldQty' => 0 ) ) );
+$k5 = ky_du( $KT, 'BC3' );
+t( 'Báo cáo không có hàng bán: 0 dòng sổ', 0 === $k5['kho']['soDong'], $k5['kho'] );
+t( 'Và nói rõ là không có gì để ghi',
+	false !== strpos( $k5['msg'], 'không có gì để ghi' ), $k5['msg'] );
+
+/* 🔴 LỖI CỦA SỔ KHO KHÔNG ĐƯỢC NUỐT MẤT CHỮ KÝ. */
+nen();
+bc_moi( 'BC4', '', '2026-09-15', array(
+	array( 'rowKind' => 'MONEY', 'itemCode' => 'H1', 'soldQty' => 3 ) ) );
+$k6 = ne( function () { global $KT; return ky_du( $KT, 'BC4' ); } );
+t( '🔴 Sổ kho lỗi thì lượt ký KHÔNG ném lỗi ra ngoài', $k6['ok'], $k6 );
+t( 'Báo cáo vẫn HOÀN TẤT', $k6['ok'] && ! empty( $k6['ra']['done'] ), $k6 );
+t( 'Chữ ký ĐÃ vào sổ thật',
+	VHJP_BaoCao::TT_HOAN_TAT === VHJP_Doc::str(
+		VHJP_Nguon::tim_mot( 'JP_Reports', 'id', 'BC4' )['status'] ) );
+t( 'Và lỗi kho được nói ra kèm việc phải làm',
+	$k6['ok'] && ! empty( $k6['ra']['kho']['loi'] )
+	&& false !== strpos( $k6['ra']['msg'], 'SỔ KHO CHƯA GHI ĐƯỢC' ), $k6 );
 
 /* ------------------------------------------------------------------ in kết quả */
 echo "\n";

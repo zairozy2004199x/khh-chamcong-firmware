@@ -18,16 +18,19 @@
  *    băng thì không.
  *
  * ---------------------------------------------------------------------------------------------
- * 🔴🔴 SỔ KHO HAI TẦNG CHƯA CHUYỂN — VÀ VIỆC ĐÓ PHẢI NÓI RA, KHÔNG ĐƯỢC IM.
+ * 🔴🔴 HOÀN TẤT LÀ LÚC GIÁ VỐN BÁN RA SINH RA — ĐÂY LÀ CHỖ NỐI SANG SỔ KHO.
  * ---------------------------------------------------------------------------------------------
- * Bản gốc, lúc báo cáo thành HOÀN TẤT, gọi tiếp `jpXuatKhoBaoCao_` để trừ lớp tồn và ghi giá
- * vốn vào sổ 632; lúc TRẢ VỀ một báo cáo đã hoàn tất thì gọi `jpHoanKhoBaoCao_` để hoàn lại.
- * Cả hai nằm trong mô-đun kho hai tầng, chưa chuyển sang bản này.
+ * Báo cáo thành HOÀN TẤT -> `VHJP_Kho::xuat_bao_cao()` trừ lớp tồn ở kho CƠ SỞ và ghi giá vốn
+ * vào 632. TRẢ VỀ một báo cáo đã hoàn tất -> `VHJP_Kho::hoan_bao_cao()` hoàn lại đúng ngần ấy.
  *
- * Duyệt xong mà im lặng không ghi sổ kho là đúng loại lỗi tệ nhất: BÁO CÁO TRÔNG NHƯ ĐÃ XONG,
- * sổ vẫn cân, mà giá vốn thì không có ở đâu cả. Nên bản này đi đúng đường mà chính bản gốc đã
- * dựng sẵn cho tình huống "sổ kho không ghi được": trả về `kho` mang `loi`, và câu thông báo
- * kèm sẵn việc phải làm. Kế toán đọc là biết ngay, và biết phải quay lại làm gì.
+ * Duyệt xong mà không ghi sổ kho là đúng loại lỗi tệ nhất: BÁO CÁO TRÔNG NHƯ ĐÃ XONG, sổ vẫn
+ * cân, mà giá vốn thì không có ở đâu cả — lãi gộp của cả hệ bằng đúng doanh thu. Từ bản 1.12.0
+ * hai móc ấy đã nối thật.
+ *
+ * ⚠️ NHƯNG LỖI CỦA SỔ KHO KHÔNG ĐƯỢC NUỐT MẤT CHỮ KÝ. Chữ ký đã vào cơ sở dữ liệu TRƯỚC khi gọi
+ *    sang kho. Để lỗi kho ném ngược ra là kế toán nhận một câu lỗi, tưởng chưa ký được, bấm lại.
+ *    Nên `ra_so_kho()` bắt hết và trả về `kho` mang `loi` — đúng hình dạng mà `kho_msg()` đã
+ *    dựng sẵn từ đầu cho tình huống này, và câu thông báo kèm luôn việc phải làm tiếp.
  */
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
@@ -37,14 +40,6 @@ class VHJP_Duyet {
 	/** Hai phần của một báo cáo — dùng chung định nghĩa với `VHJP_BaoCao`. */
 	const PHAN_TIEN = VHJP_BaoCao::PHAN_TIEN;
 	const PHAN_HANG = VHJP_BaoCao::PHAN_HANG;
-
-	/**
-	 * Câu kể vì sao sổ kho chưa được ghi.
-	 *
-	 * ⚠️ Nói ra CẢ HẬU QUẢ (chưa trừ tồn, chưa có giá vốn) lẫn VIỆC PHẢI LÀM. Câu chỉ nói
-	 *    trạng thái là câu người đọc tin rằng mình đã xong.
-	 */
-	const KHO_CHUA_CHUYEN = 'phần sổ kho hai tầng chưa chuyển sang bản trên hosting';
 
 	public static function ten_phan( $phan ) {
 		return self::PHAN_HANG === $phan ? 'hàng hoá' : 'doanh thu';
@@ -297,7 +292,7 @@ class VHJP_Duyet {
 			array( 'note' => VHJP_Doc::str( $ghi_chu ), 'xong' => $xong ) );
 
 		/* HOÀN TẤT là mốc duy nhất được ra sổ kho — xem khối 🔴🔴 ở đầu tệp. */
-		$kho = $xong ? array( 'loi' => self::KHO_CHUA_CHUYEN ) : null;
+		$kho = $xong ? self::ra_so_kho( $u, $ma_bc, true ) : null;
 
 		/* ⚠️ `$head` là bản đọc TRƯỚC khi ghi chữ ký vừa rồi, nên phải chồng `$f` lên mới hỏi ra
 		   tình trạng MỚI — hỏi trên bản thô là trả về tình trạng CŨ, tức câu thông báo nói sai
@@ -316,18 +311,70 @@ class VHJP_Duyet {
 		);
 	}
 
-	/** Một câu kể kết quả xuất kho, gắn vào thông báo duyệt. */
-	public static function kho_msg( $kho ) {
+	/**
+	 * Gọi sổ kho, và KHÔNG ĐỂ LỖI CỦA NÓ NUỐT MẤT CHỮ KÝ.
+	 *
+	 * =========================================================================================
+	 * 🔴 CHỮ KÝ ĐÃ VÀO SỔ TRƯỚC KHI GỌI TỚI ĐÂY. Để một lỗi kho ném ngược ra ngoài thì kế toán
+	 *    nhận về một câu lỗi, tưởng là chưa ký được, bấm ký lại — trong khi chữ ký đã nằm trong
+	 *    cơ sở dữ liệu. Nên bắt hết, và trả lại `loi` theo đúng hình dạng mà `kho_msg()` đã
+	 *    dựng sẵn cho tình huống "sổ kho không ghi được".
+	 * =========================================================================================
+	 *
+	 * ⚠️ Câu lỗi gốc ĐƯỢC đưa ra cho kế toán ở đây, khác với cổng (cổng giấu vì câu lỗi hay kèm
+	 *    đường dẫn tệp). Ở đây câu lỗi là *"Kho JP Bà Rịa đang có người thao tác"* — đúng thứ
+	 *    người đọc cần để biết phải làm gì. Nuốt nó đi thành một câu chung là bắt họ đoán.
+	 *
+	 * @param bool $xuat true = báo cáo vừa hoàn tất (trừ tồn); false = vừa trả về (hoàn lại).
+	 */
+	private static function ra_so_kho( $u, $ma_bc, $xuat ) {
+		try {
+			return $xuat ? VHJP_Kho::xuat_bao_cao( $u, $ma_bc )
+				: VHJP_Kho::hoan_bao_cao( $u, $ma_bc );
+		} catch ( Throwable $e ) {
+			VHJP_NhatKy::ghi( $u, 'KHO_LOI', $ma_bc, '', array( 'loi' => $e->getMessage() ) );
+			return array( 'loi' => $e->getMessage() );
+		}
+	}
+
+	/**
+	 * Một câu kể kết quả sổ kho, gắn vào thông báo duyệt hoặc trả về.
+	 *
+	 * 🔴 NGUỒN DUY NHẤT của câu chữ ấy. Hai chỗ gọi (ký xong · trả về) mà mỗi chỗ tự ghép một
+	 *    câu là hai chỗ sẽ kể hai chuyện khác nhau về cùng một việc — đúng cái bẫy `ket_ky()`
+	 *    sinh ra để bịt, xem khối 🔴 đầu tệp.
+	 *
+	 * @param bool $hoan true = đang trả về (hoàn kho); false = vừa duyệt xong (xuất kho).
+	 */
+	public static function kho_msg( $kho, $hoan = false ) {
 		if ( ! $kho ) { return ''; }
 		if ( ! empty( $kho['loi'] ) ) {
-			return ' · ⚠ SỔ KHO CHƯA GHI ĐƯỢC (' . $kho['loi'] . '). Báo cáo vẫn hoàn tất, '
-				. 'nhưng CHƯA trừ lớp tồn và CHƯA có giá vốn trong sổ 632 — nhớ chạy lại phần '
-				. 'xuất kho cho báo cáo này khi mô-đun kho lên bản mới.';
+			return $hoan
+				? ' · ⚠ SỔ KHO CHƯA HOÀN ĐƯỢC (' . $kho['loi'] . '). Báo cáo đã trả về, nhưng '
+					. 'báo cáo này từng hoàn tất nên sổ 632 CÒN dòng giá vốn của nó và lớp tồn '
+					. 'CÒN THIẾU đúng số đã trừ — chạy lại "Xuất lại" cho báo cáo này.'
+				: ' · ⚠ SỔ KHO CHƯA GHI ĐƯỢC (' . $kho['loi'] . '). Báo cáo vẫn hoàn tất, '
+					. 'nhưng CHƯA trừ lớp tồn và CHƯA có giá vốn trong sổ 632 — xử lý xong '
+					. 'nguyên nhân rồi bấm ký lại, sổ kho sẽ ghi bù.';
+		}
+		/* Ký lại một báo cáo đã ra sổ thì KHÔNG trừ tồn lần nữa — và phải nói ra, không thì
+		   người đọc thấy "xuất kho 0 dòng" rồi tưởng hàng chưa được ghi. */
+		if ( ! empty( $kho['daCoTruoc'] ) ) {
+			return ' · sổ kho đã ghi từ lượt duyệt trước (' . VHJP_Doc::num( $kho['soDong'] )
+				. ' dòng, giá vốn ' . VHJP_Doc::money( $kho['tongGiaVon'] ) . 'đ) — không trừ lại';
+		}
+		if ( isset( $kho['daGo'] ) ) {
+			return ' · đã hoàn kho ' . VHJP_Doc::num( $kho['daGo'] ) . ' dòng, trả lại lớp tồn';
+		}
+		if ( 0 === (int) VHJP_Doc::num( $kho['soDong'] ) ) {
+			return ' · sổ kho không có gì để ghi (báo cáo này không có dòng hàng nào bán ra)';
 		}
 		$s = ' · xuất kho ' . VHJP_Doc::num( $kho['soDong'] ) . ' dòng, giá vốn '
 			. VHJP_Doc::money( isset( $kho['tongGiaVon'] ) ? $kho['tongGiaVon'] : 0 ) . 'đ';
 		if ( ! empty( $kho['thieuLop'] ) ) {
-			$s .= ' (⚠ ' . count( $kho['thieuLop'] ) . ' dòng thiếu lớp tồn — kiểm lại phiếu nhập)';
+			$s .= ' (⚠ ' . count( $kho['thieuLop'] ) . ' mã THIẾU LỚP TỒN nên giá vốn ghi 0 — '
+				. 'cơ sở chưa được chuyển hàng xuống, hoặc phiếu nhập còn thiếu. Nhập bù rồi '
+				. 'bấm Xuất lại)';
 		}
 		return $s;
 	}
@@ -370,15 +417,12 @@ class VHJP_Duyet {
 			VHJP_NhatKy::ghi( $u, 'REJECT', $ma_bc, VHJP_Doc::str( $head['locationName'] ), $r );
 
 			/* Trả về một báo cáo ĐÃ HOÀN TẤT thì phải HOÀN KHO — không thì sổ 632 còn dòng của
-			   một báo cáo đang chờ sửa, và lớp tồn thiếu đúng số đã trừ. Phần kho chưa chuyển,
-			   nên phải NÓI RA thay vì im lặng. */
-			$kho = ( VHJP_BaoCao::TT_HOAN_TAT === $st ) ? array( 'loi' => self::KHO_CHUA_CHUYEN ) : null;
+			   một báo cáo đang chờ sửa, lớp tồn thiếu đúng số đã trừ, và lượt duyệt lần sau trừ
+			   thêm một lần nữa. */
+			$kho = ( VHJP_BaoCao::TT_HOAN_TAT === $st ) ? self::ra_so_kho( $u, $ma_bc, false ) : null;
 
 			return array( 'ok' => true, 'status' => VHJP_BaoCao::TT_CAN_SUA, 'kho' => $kho,
-				'msg' => 'Đã trả về cho nhân viên'
-					. ( $kho ? ' · ⚠ SỔ KHO CHƯA HOÀN ĐƯỢC (' . $kho['loi'] . ') — báo cáo này '
-						. 'đã từng hoàn tất, nên sổ 632 còn dòng của nó và lớp tồn còn thiếu số '
-						. 'đã trừ. Nhớ hoàn kho tay khi mô-đun kho lên bản mới.' : '' ) );
+				'msg' => 'Đã trả về cho nhân viên' . self::kho_msg( $kho, true ) );
 		} finally {
 			VHJP_Nguon::tra_khoa( $ma_bc );
 		}

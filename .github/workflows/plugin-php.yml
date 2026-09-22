@@ -76,6 +76,13 @@ jobs:
       - name: Bộ thử kho hai tầng JP Capsule
         run: php tools/test/kiem-jp-kho.php
 
+      # BẢN ĐẾM của cả cuộc chuyển JP: đọc thẳng 15 tệp giao diện, bóc ra mọi tên hàm mà giao
+      # diện thật sự gọi, rồi đòi "đã chuyển + chưa chuyển = đúng danh sách ấy". Không có bài
+      # này thì `jpKhoBangKeNhap`/`jpKhoBangKeXuat` còn nằm ngoài cả hai bảng, và cổng trả
+      # "Lệnh không hợp lệ" cho một màn có thật.
+      - name: Bộ thử cổng JP Capsule (đối chiếu với giao diện)
+        run: php tools/test/kiem-jp-cong.php
+
       - name: Bộ thử chi phí
         run: php tools/test/test-flows.php
 

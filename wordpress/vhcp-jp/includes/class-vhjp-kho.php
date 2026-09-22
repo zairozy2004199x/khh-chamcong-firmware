@@ -598,18 +598,15 @@ class VHJP_Kho {
 		   đổi kho chứ không rời tài sản, và để trống là dòng ấy không lên được sổ nào cả. */
 		$tk_no = '' !== $dinh['tk'] ? $dinh['tk'] : '156';
 		foreach ( $mieng_ds as $m ) {
-			VHJP_Ma::them( 'JP_KhoXuat', 'XK', array(
+			self::ghi_dong_xuat( $u, array(
 				'soChungTu' => $so_ct, 'ngay' => $ngay, 'loai' => $loai,
-				'reportId' => VHJP_Doc::str( isset( $d['reportId'] ) ? $d['reportId'] : '' ),
+				'reportId' => isset( $d['reportId'] ) ? $d['reportId'] : '',
 				'dcId' => $ma_phieu, 'khoId' => $kho_nguon,
 				'locationId' => $kho_dich, 'locationName' => self::ten_kho( $kho_dich ),
 				'itemCode' => $m['itemCode'], 'itemName' => $m['itemName'],
-				'qty' => $m['qty'], 'unitCost' => $m['unitCost'], 'amount' => $m['qty'] * $m['unitCost'],
+				'qty' => $m['qty'], 'unitCost' => $m['unitCost'],
 				'tkNo' => $tk_no, 'tkCo' => '156',
-				'layerId' => $m['layerId'], 'thieuLop' => empty( $m['thieu'] ) ? 0 : 1,
-				'createdBy' => VHJP_Doc::str( isset( $u['hoTen'] ) ? $u['hoTen'] : '' ),
-				'createdAt' => VHJP_Ma::hom_nay(),
-			) );
+				'layerId' => $m['layerId'], 'thieuLop' => empty( $m['thieu'] ) ? 0 : 1 ) );
 		}
 
 		/* VẾ HAI: hàng phải xuất hiện ở kho đích, ĐÚNG giá vốn vừa ăn, dưới một phiếu nhập thật. */
@@ -1029,21 +1026,692 @@ class VHJP_Kho {
 			$ten = VHJP_Doc::str( $p['nccTen'] );
 			if ( '' === $ma && '' === $ten ) { continue; }
 			$k = $ma . '|' . $ten;
+			/* ⚠️ Ô tên là `ma` / `ten`, KHÔNG phải `nccMa` / `nccTen`. Màn "Trả tiền NCC" dựng ô
+			   chọn bằng `n.ma + '|' + n.ten`; trả về tên khác là mọi mục trong ô chọn thành
+			   `undefined|undefined` — ô vẫn hiện, bấm vẫn được, và phiếu ghi ra không có NCC nào. */
 			if ( ! isset( $gom[ $k ] ) ) {
-				$gom[ $k ] = array( 'nccMa' => $ma, 'nccTen' => $ten, 'soPhieu' => 0,
-					'tongTien' => 0, 'lanCuoi' => '' );
+				$gom[ $k ] = array( 'ma' => $ma, 'ten' => $ten, 'soPhieu' => 0,
+					'tongTien' => 0, 'daTra' => 0, 'lanCuoi' => '' );
 			}
 			$gom[ $k ]['soPhieu']++;
 			$gom[ $k ]['tongTien'] += self::so( $p['tongTien'] );
 			$n = VHJP_Doc::ngay( $p['ngay'] );
 			if ( $n > $gom[ $k ]['lanCuoi'] ) { $gom[ $k ]['lanCuoi'] = $n; }
 		}
+		foreach ( VHJP_Nguon::doc( 'JP_KhoTraNcc' ) as $t ) {
+			if ( '' !== VHJP_Doc::str( $t['huyBy'] ) ) { continue; }
+			$k = VHJP_Doc::str( $t['nccMa'] ) . '|' . VHJP_Doc::str( $t['nccTen'] );
+			if ( ! isset( $gom[ $k ] ) ) { continue; }
+			$gom[ $k ]['daTra'] += self::so( $t['soTien'] );
+		}
 		$ra = array_values( $gom );
-		usort( $ra, function ( $a, $b ) { return strcmp( $a['nccTen'], $b['nccTen'] ); } );
+		usort( $ra, function ( $a, $b ) { return strcmp( $a['ten'], $b['ten'] ); } );
 		return $ra;
 	}
 
+	/* ═══════════════════════════════════════════════════════════════════ KIỂM KÊ ═════════ */
+
+	/** `jpKhoKiemKeTon` — tồn SỔ SÁCH của một kho, để kế toán gõ số thực đếm vào cạnh. */
+	public static function kiem_ke_ton( $u, $kho, $het_danh_muc = false ) {
+		self::can_kt( $u );
+		$kho = VHJP_Doc::str( $kho );
+		if ( '' === $kho ) { throw new Exception( 'Chọn kho để kiểm kê' ); }
+		$hang = self::ds_hang();
+
+		$gom = array();
+		foreach ( VHJP_Nguon::doc( 'JP_KhoLop' ) as $l ) {
+			if ( VHJP_Doc::str( $l['khoId'] ) !== $kho ) { continue; }
+			$q = self::so( $l['qtyRemaining'] );
+			if ( $q <= 0 ) { continue; }
+			$m = VHJP_Doc::str( $l['itemCode'] );
+			if ( ! isset( $gom[ $m ] ) ) { $gom[ $m ] = array( 'q' => 0, 'tien' => 0 ); }
+			$gom[ $m ]['q']    += $q;
+			$gom[ $m ]['tien'] += $q * self::so( $l['unitCost'] );
+		}
+		/* "Hiện cả mã chưa có tồn" là đường DUY NHẤT phát hiện hàng thừa của một mã mà sổ nói
+		   không còn cái nào — không có ô ấy thì mã đó không bao giờ xuất hiện để mà đếm. */
+		if ( $het_danh_muc ) {
+			foreach ( $hang as $m => $_ ) {
+				if ( ! isset( $gom[ $m ] ) ) { $gom[ $m ] = array( 'q' => 0, 'tien' => 0 ); }
+			}
+		}
+
+		$rows = array();
+		foreach ( $gom as $m => $g ) {
+			$rows[] = array( 'itemCode' => $m,
+				'itemName' => isset( $hang[ $m ] ) ? $hang[ $m ]['name'] : $m,
+				'misa' => isset( $hang[ $m ] ) ? $hang[ $m ]['misa'] : '',
+				'dvt' => isset( $hang[ $m ] ) ? $hang[ $m ]['dvt'] : '',
+				'tonSo' => $g['q'],
+				'giaBinhQuan' => $g['q'] > 0 ? round( $g['tien'] / $g['q'], 2 ) : 0 );
+		}
+		usort( $rows, function ( $a, $b ) { return strcmp( $a['itemCode'], $b['itemCode'] ); } );
+		return array( 'ok' => true, 'khoId' => $kho, 'tenKho' => self::ten_kho( $kho ),
+			'laKhoTong' => self::la_kho_tong( $kho ) ? 1 : 0, 'rows' => $rows );
+	}
+
+	/**
+	 * `jpKhoKiemKe` — ghi một biên bản kiểm kê.
+	 *
+	 * =============================================================================================
+	 * THIẾU VÀ THỪA KHÔNG ĐỐI XỨNG, VÀ KHÔNG ĐƯỢC LÀM CHO CHÚNG ĐỐI XỨNG
+	 * =============================================================================================
+	 * · **Thiếu** — hàng đã ra khỏi kho mà không có phiếu. Ăn FIFO cho phần thiếu và ghi một dòng
+	 *   xuất `KIEM_KE`, **Nợ 6321 / Có 1561**: hàng mất là chi phí, và có người phải đền.
+	 * · **Thừa** — sổ nói ít hơn thực tế. Gần như luôn là một phiếu xuất gõ quá tay, chứ không
+	 *   phải hàng tự sinh ra. Nên chế độ mặc định là **giảm chính phiếu xuất ấy** cho khớp thực
+	 *   tế; phần không giảm được mới ghi tăng **Nợ 1561 / Có 1388**.
+	 *
+	 * 🔴 CHỈ GIẢM ĐƯỢC PHIẾU XUẤT TRONG KỲ ĐANG MỞ — cùng tháng với ngày kiểm kê, và không muộn
+	 *    hơn ngày ấy. Thò tay sửa một phiếu của tháng trước là đổi một con số 632 đã khoá sổ, đã
+	 *    xuất MISA và đã có người ký. Phần không giảm được thì NÓI RA (`khongGiamDuoc`) để kế toán
+	 *    biết mà đi tìm, chứ không lặng lẽ ghi tăng cho đủ rồi để bảng trông có vẻ cân.
+	 *
+	 * ⚠️ Mã CHƯA ĐẾM thì không đụng tới. Coi ô trống là 0 là một lượt kiểm kê bỏ dở sẽ xoá sạch
+	 *    tồn của mọi mã chưa kịp đếm — và nó ghi thẳng vào 6321.
+	 */
+	public static function kiem_ke( $u, $d ) {
+		self::can_kt( $u );
+		$d   = is_array( $d ) ? $d : array();
+		$kho = VHJP_Doc::str( isset( $d['khoId'] ) ? $d['khoId'] : '' );
+		if ( '' === $kho ) { throw new Exception( 'Chọn kho để kiểm kê' ); }
+		$ngay = VHJP_Doc::ngay( isset( $d['ngay'] ) ? $d['ngay'] : '' );
+		if ( '' === $ngay ) { throw new Exception( 'Chọn ngày kiểm kê' ); }
+		$che_do = VHJP_Doc::str( isset( $d['cheDoThua'] ) ? $d['cheDoThua'] : '' );
+		if ( 'GHI_TANG' !== $che_do ) { $che_do = 'GIAM_XUAT'; }
+
+		/* Chỉ nhận dòng ĐÃ ĐẾM. Ô trống là "chưa đếm", không phải số 0 — xem khối ⚠️ ở trên. */
+		$dem = array();
+		foreach ( (array) ( isset( $d['rows'] ) ? $d['rows'] : array() ) as $r ) {
+			if ( ! is_array( $r ) ) { continue; }
+			$ma = VHJP_Doc::str( isset( $r['itemCode'] ) ? $r['itemCode'] : '' );
+			$tt = isset( $r['tonThuc'] ) ? $r['tonThuc'] : '';
+			if ( '' === $ma || VHJP_Doc::blank( $tt ) ) { continue; }
+			$dem[] = array( 'itemCode' => $ma, 'tonThuc' => self::so( $tt ),
+				'note' => VHJP_Doc::str( isset( $r['note'] ) ? $r['note'] : '' ) );
+		}
+		if ( ! $dem ) { throw new Exception( 'Chưa gõ số thực đếm cho mã nào' ); }
+
+		/* Dựng phiếu TRƯỚC để mọi dòng sổ sinh ra mang đúng số chứng từ của nó; số tổng cập nhật
+		   lại ở cuối. Ghi tổng trước rồi mới làm là lúc có lỗi giữa chừng, phiếu nói một đằng mà
+		   sổ một nẻo. */
+		$phieu = VHJP_Ma::them( 'JP_KhoKiemKe', 'KK', array(
+			'ngay' => $ngay, 'khoId' => $kho, 'locationName' => self::ten_kho( $kho ),
+			'cheDoThua' => 'GIAM_XUAT' === $che_do ? 1 : 0, 'soDong' => count( $dem ),
+			'ghiChu' => VHJP_Doc::str( isset( $d['ghiChu'] ) ? $d['ghiChu'] : '' ),
+			'createdBy' => VHJP_Doc::str( isset( $u['hoTen'] ) ? $u['hoTen'] : '' ),
+			'createdAt' => VHJP_Ma::hom_nay(),
+		) );
+		if ( ! is_array( $phieu ) ) { throw new Exception( 'Không ghi được biên bản kiểm kê' ); }
+		$ma_kk = VHJP_Doc::str( $phieu['id'] );
+		VHJP_Nguon::sua( 'JP_KhoKiemKe', $ma_kk, array( 'soChungTu' => $ma_kk ) );
+
+		$sl_thieu = 0; $tien_thieu = 0; $sl_thua = 0; $tien_thua = 0;
+		$sl_giam = 0; $tien_giam = 0;
+		$khong_giam = array(); $gia_0 = array(); $ct = array(); $ghi_tang = array();
+
+		if ( ! VHJP_Nguon::lay_khoa( 'kho_' . $kho, 10 ) ) {
+			throw new Exception( 'Kho đang có người thao tác, thử lại sau vài giây' );
+		}
+		try {
+			foreach ( $dem as $x ) {
+				$ma   = $x['itemCode'];
+				$ton  = self::ton_mot( $kho, $ma );
+				$so   = $ton['tonQty'];
+				$gbq  = $ton['giaBinhQuan'] > 0 ? $ton['giaBinhQuan'] : self::gia_gan_nhat( $ma );
+				$lech = $x['tonThuc'] - $so;
+				$dong = array( 'kkId' => $ma_kk, 'seq' => count( $ct ) + 1, 'itemCode' => $ma,
+					'itemName' => self::ten_hang( $ma ), 'tonSo' => $so, 'tonThuc' => $x['tonThuc'],
+					'lech' => $lech, 'unitCost' => $gbq, 'amount' => 0,
+					'cheDo' => '', 'ctGoc' => '', 'tkNo' => '', 'tkCo' => '', 'note' => $x['note'] );
+
+				if ( 0 === $lech ) {
+					$ct[] = $dong;
+					continue;
+				}
+
+				if ( $lech < 0 ) {
+					/* THIẾU — hàng mất. Ăn FIFO đúng phần thiếu, ghi một dòng xuất KIEM_KE. */
+					$can = -$lech;
+					$an  = self::an_fifo( $kho, $ma, $can );
+					if ( $an['thieu'] > 0 ) {
+						$an['mieng'][] = array( 'qty' => $an['thieu'], 'unitCost' => 0,
+							'layerId' => '', 'thieu' => 1 );
+					}
+					$tien = 0;
+					foreach ( $an['mieng'] as $m ) {
+						$tien += $m['qty'] * $m['unitCost'];
+						self::ghi_dong_xuat( $u, array(
+							'soChungTu' => $ma_kk, 'ngay' => $ngay, 'loai' => 'KIEM_KE',
+							'khoId' => $kho, 'locationId' => '', 'locationName' => '',
+							'itemCode' => $ma, 'itemName' => $dong['itemName'],
+							'qty' => $m['qty'], 'unitCost' => $m['unitCost'],
+							'tkNo' => '6321', 'tkCo' => '1561',
+							'layerId' => $m['layerId'], 'thieuLop' => empty( $m['thieu'] ) ? 0 : 1 ) );
+					}
+					$sl_thieu   += $can;
+					$tien_thieu += $tien;
+					$dong['amount'] = $tien;
+					$dong['cheDo']  = 'THIEU';
+					$dong['tkNo']   = '6321';
+					$dong['tkCo']   = '1561';
+					$ct[] = $dong;
+					continue;
+				}
+
+				/* THỪA. */
+				$con = $lech;
+				$ct_goc = array();
+				if ( 'GIAM_XUAT' === $che_do ) {
+					$g = self::giam_xuat_trong_ky( $kho, $ma, $con, $ngay );
+					$con        -= $g['daGiam'];
+					$sl_giam    += $g['daGiam'];
+					$tien_giam  += $g['tien'];
+					$ct_goc      = $g['ctGoc'];
+				}
+				if ( $con > 0 ) {
+					if ( $gbq <= 0 ) { $gia_0[] = $ma; }
+					$ghi_tang[] = array( 'itemCode' => $ma, 'itemName' => $dong['itemName'],
+						'dvt' => '', 'qty' => $con, 'unitCost' => $gbq,
+						'lotNo' => $ma_kk, 'note' => 'Kiểm kê thừa' );
+					$sl_thua   += $con;
+					$tien_thua += $con * $gbq;
+					if ( 'GIAM_XUAT' === $che_do ) {
+						$khong_giam[] = array( 'itemCode' => $ma, 'qty' => $con,
+							'daGiam' => $lech - $con );
+					}
+				}
+				$dong['amount'] = $lech * $gbq;
+				$dong['cheDo']  = $con >= $lech ? 'GHI_TANG' : ( $con > 0 ? 'GIAM_XUAT+GHI_TANG' : 'GIAM_XUAT' );
+				$dong['ctGoc']  = implode( ', ', $ct_goc );
+				$dong['tkNo']   = $con > 0 ? '1561' : '';
+				$dong['tkCo']   = $con > 0 ? '1388' : '';
+				$ct[] = $dong;
+			}
+		} finally {
+			VHJP_Nguon::tra_khoa( 'kho_' . $kho );
+		}
+
+		$ma_nhap = '';
+		if ( $ghi_tang ) {
+			$kq = self::ghi_phieu_nhap( $u, self::N_KIEM_KE, $kho, $ngay, $ghi_tang,
+				array( 'soChungTu' => $ma_kk, 'ghiChu' => 'Kiểm kê thừa — biên bản ' . $ma_kk ) );
+			$ma_nhap = $kq['id'];
+		}
+		foreach ( $ct as $dg ) { VHJP_Ma::them( 'JP_KhoKiemKeCT', 'KKCT', $dg ); }
+		VHJP_Nguon::sua( 'JP_KhoKiemKe', $ma_kk, array(
+			'slThua' => $sl_thua, 'slThieu' => $sl_thieu,
+			'tienThua' => $tien_thua, 'tienThieu' => $tien_thieu,
+			'slGiamXuat' => $sl_giam, 'tienGiamXuat' => $tien_giam, 'nhapId' => $ma_nhap ) );
+
+		VHJP_NhatKy::ghi( $u, 'KHO_KIEM_KE', '', $ma_kk,
+			'thiếu ' . $sl_thieu . ' · thừa ' . $sl_thua . ' · giảm xuất ' . $sl_giam );
+
+		$msg = 'Đã ghi biên bản ' . $ma_kk . ' cho ' . self::ten_kho( $kho ) . ': '
+			. count( $dem ) . ' mã đã đếm · thiếu ' . $sl_thieu . ' cái ('
+			. number_format( $tien_thieu, 0, ',', '.' ) . 'đ vào 6321)';
+		if ( $sl_giam ) { $msg .= ' · giảm xuất ' . $sl_giam . ' cái'; }
+		if ( $sl_thua ) { $msg .= ' · ghi tăng ' . $sl_thua . ' cái (1561/1388)'; }
+		if ( $khong_giam ) {
+			$msg .= ' — ⚠️ ' . count( $khong_giam ) . ' mã KHÔNG giảm xuất hết được (phiếu xuất '
+				. 'nằm ngoài kỳ đang mở, không sửa được số đã khoá sổ); phần còn lại đã ghi tăng.';
+		}
+		if ( $gia_0 ) {
+			$msg .= ' — ⚠️ ' . count( $gia_0 ) . ' mã ghi tăng với giá vốn 0 vì chưa từng có phiếu '
+				. 'nhập nào: ' . implode( ', ', array_unique( $gia_0 ) ) . '. Bán ra sẽ ghi 632 = 0đ.';
+		}
+		return array( 'ok' => true, 'id' => $ma_kk, 'soChungTu' => $ma_kk, 'nhapId' => $ma_nhap,
+			'soDong' => count( $dem ), 'slThieu' => $sl_thieu, 'tienThieu' => $tien_thieu,
+			'slThua' => $sl_thua, 'tienThua' => $tien_thua,
+			'slGiamXuat' => $sl_giam, 'tienGiamXuat' => $tien_giam,
+			'khongGiamDuoc' => $khong_giam, 'giaVon0' => array_values( array_unique( $gia_0 ) ),
+			'msg' => $msg );
+	}
+
+	/**
+	 * Giảm bớt số đã xuất của một mã cho khớp thực đếm, và TRẢ LẠI ĐÚNG LỚP đã ăn.
+	 *
+	 * 🔴 CHỈ ĐỘNG VÀO PHIẾU TRONG KỲ ĐANG MỞ (cùng tháng với ngày kiểm kê, không muộn hơn ngày
+	 *    ấy). Ra ngoài khoảng đó là sửa một con số đã khoá sổ.
+	 *
+	 * ⚠️ Gỡ từ phiếu MỚI NHẤT ngược về: phiếu mới nhất là phiếu dễ gõ nhầm nhất và ít khả năng
+	 *    đã được đối chiếu nhất. Gỡ từ phiếu cũ nhất là đụng vào đúng thứ đã yên.
+	 *
+	 * ⚠️ Dòng `thieuLop` không có lớp để trả, nên gỡ nó KHÔNG làm tồn tăng lên — bỏ qua, không
+	 *    thì hàm tưởng đã giảm đủ mà tồn vẫn y nguyên.
+	 */
+	private static function giam_xuat_trong_ky( $kho, $ma_hang, $can, $ngay_kk ) {
+		$dau_thang = substr( $ngay_kk, 0, 8 ) . '01';
+		$ds = array();
+		foreach ( VHJP_Nguon::doc( 'JP_KhoXuat' ) as $x ) {
+			if ( VHJP_Doc::str( $x['khoId'] ) !== $kho ) { continue; }
+			if ( VHJP_Doc::str( $x['itemCode'] ) !== $ma_hang ) { continue; }
+			if ( '' === VHJP_Doc::str( $x['layerId'] ) ) { continue; }
+			$n = VHJP_Doc::ngay( $x['ngay'] );
+			if ( $n < $dau_thang || $n > $ngay_kk ) { continue; }
+			$ds[] = $x;
+		}
+		usort( $ds, function ( $a, $b ) {
+			$x = strcmp( VHJP_Doc::ngay( $b['ngay'] ), VHJP_Doc::ngay( $a['ngay'] ) );
+			return 0 !== $x ? $x : strcmp( (string) $b['id'], (string) $a['id'] );
+		} );
+
+		$da = 0; $tien = 0; $goc = array();
+		foreach ( $ds as $x ) {
+			if ( $can <= 0 ) { break; }
+			$q   = self::so( $x['qty'] );
+			$gia = self::so( $x['unitCost'] );
+			$bot = min( $q, $can );
+			$lop = VHJP_Nguon::tim_mot( 'JP_KhoLop', 'id', VHJP_Doc::str( $x['layerId'] ) );
+			if ( ! $lop ) { continue; }
+			VHJP_Nguon::sua( 'JP_KhoLop', $x['layerId'], array(
+				'qtyRemaining' => self::so( $lop['qtyRemaining'] ) + $bot ) );
+			if ( $bot >= $q ) {
+				VHJP_Nguon::xoa( 'JP_KhoXuat', $x['id'] );
+			} else {
+				VHJP_Nguon::sua( 'JP_KhoXuat', $x['id'], array(
+					'qty' => $q - $bot, 'amount' => ( $q - $bot ) * $gia ) );
+			}
+			$goc[] = VHJP_Doc::str( $x['soChungTu'] );
+			$da   += $bot;
+			$tien += $bot * $gia;
+			$can  -= $bot;
+		}
+		return array( 'daGiam' => $da, 'tien' => $tien, 'ctGoc' => array_values( array_unique( $goc ) ) );
+	}
+
+	/** Đơn giá gần nhất của một mã, lấy từ phiếu nhập mới nhất còn hiệu lực. */
+	private static function gia_gan_nhat( $ma_hang ) {
+		$gia = 0; $moi = '';
+		foreach ( VHJP_Nguon::doc( 'JP_KhoLop' ) as $l ) {
+			if ( VHJP_Doc::str( $l['itemCode'] ) !== VHJP_Doc::str( $ma_hang ) ) { continue; }
+			$n = VHJP_Doc::ngay( $l['ngay'] ) . '|' . VHJP_Doc::str( $l['id'] );
+			if ( $n > $moi ) { $moi = $n; $gia = self::so( $l['unitCost'] ); }
+		}
+		return $gia;
+	}
+
+	/** `jpKhoLichSuKiemKe` */
+	public static function lich_su_kiem_ke( $u, $gioi_han = 30 ) {
+		self::can_kt( $u );
+		$ds = VHJP_Nguon::doc( 'JP_KhoKiemKe' );
+		usort( $ds, function ( $a, $b ) { return strcmp( (string) $b['id'], (string) $a['id'] ); } );
+		$ds = array_slice( $ds, 0, max( 1, (int) $gioi_han ) );
+
+		$can = array();
+		foreach ( $ds as $p ) { $can[ VHJP_Doc::str( $p['id'] ) ] = array(); }
+		foreach ( VHJP_Nguon::doc( 'JP_KhoKiemKeCT' ) as $c ) {
+			$k = VHJP_Doc::str( $c['kkId'] );
+			if ( ! isset( $can[ $k ] ) ) { continue; }
+			$c['tonSo']    = self::so( $c['tonSo'] );
+			$c['tonThuc']  = self::so( $c['tonThuc'] );
+			$c['lech']     = self::so( $c['lech'] );
+			$c['unitCost'] = self::so( $c['unitCost'] );
+			$c['amount']   = self::so( $c['amount'] );
+			$can[ $k ][]   = $c;
+		}
+		$ra = array();
+		foreach ( $ds as $p ) {
+			$dong = $can[ VHJP_Doc::str( $p['id'] ) ];
+			usort( $dong, function ( $a, $b ) { return self::so( $a['seq'] ) - self::so( $b['seq'] ); } );
+			$p['dong'] = $dong;
+			$ra[] = $p;
+		}
+		return $ra;
+	}
+
+	/* ═════════════════════════════════════════════════════════════ TRẢ TIỀN NCC ══════════ */
+
+	/** `jpKhoTraNcc` — một phiếu trả tiền nhà cung cấp. */
+	public static function tra_ncc( $u, $d ) {
+		self::can_kt( $u );
+		return self::ghi_tra_ncc( $u, is_array( $d ) ? $d : array() );
+	}
+
+	/**
+	 * `jpKhoTraNccLo` — ghi cả lô phiếu trả tiền từ một tệp Excel.
+	 *
+	 * ⚠️ MỘT LƯỢT GỌI CHO CẢ LÔ, không để giao diện gọi `jpKhoTraNcc` N lần: N lượt gọi là N vòng
+	 *    mạng, và đứt giữa chừng thì không ai biết đã ghi tới dòng nào.
+	 *
+	 * ⚠️ Dòng hỏng KHÔNG làm đổ cả lô, nhưng phải được ĐẾM và NÓI RA kèm số dòng trong tệp —
+	 *    file 40 dòng mà chỉ ghi 38 thì kế toán phải biết hai dòng nào rớt.
+	 */
+	public static function tra_ncc_lo( $u, $rows ) {
+		self::can_kt( $u );
+		$rows = is_array( $rows ) ? $rows : array();
+		if ( ! $rows ) { throw new Exception( 'Không có dòng nào để ghi' ); }
+
+		$xong = array(); $hong = array(); $tong = 0;
+		foreach ( $rows as $i => $r ) {
+			if ( ! is_array( $r ) ) { continue; }
+			$so_dong = isset( $r['dong'] ) ? (int) $r['dong'] : ( $i + 1 );
+			try {
+				$kq      = self::ghi_tra_ncc( $u, $r );
+				$xong[]  = array( 'dong' => $so_dong, 'id' => $kq['id'], 'soTien' => $kq['soTien'] );
+				$tong   += $kq['soTien'];
+			} catch ( Throwable $e ) {
+				$hong[] = array( 'dong' => $so_dong, 'ly' => $e->getMessage() );
+			}
+		}
+		VHJP_NhatKy::ghi( $u, 'KHO_TRA_NCC_LO', '', '', count( $xong ) . '/' . count( $rows )
+			. ' phiếu · ' . $tong );
+
+		$msg = 'Đã ghi ' . count( $xong ) . '/' . count( $rows ) . ' phiếu · tổng '
+			. number_format( $tong, 0, ',', '.' ) . 'đ.';
+		if ( $hong ) {
+			$msg .= ' ⚠️ ' . count( $hong ) . ' dòng KHÔNG ghi được: ';
+			$bo = array();
+			foreach ( array_slice( $hong, 0, 8 ) as $h ) { $bo[] = 'dòng ' . $h['dong'] . ' (' . $h['ly'] . ')'; }
+			$msg .= implode( ' · ', $bo ) . ( count( $hong ) > 8 ? ' …' : '' );
+		}
+		return array( 'ok' => ! $hong, 'soPhieu' => count( $xong ), 'tongTien' => $tong,
+			'xong' => $xong, 'hong' => $hong, 'msg' => $msg );
+	}
+
+	private static function ghi_tra_ncc( $u, $d ) {
+		$tien = self::so( isset( $d['soTien'] ) ? $d['soTien'] : 0 );
+		if ( $tien <= 0 ) { throw new Exception( 'Số tiền trả phải lớn hơn 0' ); }
+		$ma  = VHJP_Doc::str( isset( $d['nccMa'] ) ? $d['nccMa'] : '' );
+		$ten = VHJP_Doc::str( isset( $d['nccTen'] ) ? $d['nccTen'] : '' );
+		if ( '' === $ma && '' === $ten ) { throw new Exception( 'Chọn hoặc gõ nhà cung cấp' ); }
+		$ngay = VHJP_Doc::ngay( isset( $d['ngay'] ) ? $d['ngay'] : '' );
+		if ( '' === $ngay ) { $ngay = VHJP_Ma::hom_nay(); }
+		/* Ô hình thức để trống thì mặc định CK — giao diện đã nói trước là sẽ ghi vậy, nên để
+		   trống trong sổ là hai nơi nói hai chuyện khác nhau. */
+		$ht = VHJP_Doc::str( isset( $d['hinhThuc'] ) ? $d['hinhThuc'] : '' );
+		if ( 'TM' !== $ht ) { $ht = 'CK'; }
+
+		$p = VHJP_Ma::them( 'JP_KhoTraNcc', 'TT', array(
+			'ngay' => $ngay, 'nccMa' => $ma, 'nccTen' => $ten, 'soTien' => $tien,
+			'hinhThuc' => $ht,
+			'ghiChu' => VHJP_Doc::str( isset( $d['ghiChu'] ) ? $d['ghiChu'] : '' ),
+			'createdBy' => VHJP_Doc::str( isset( $u['hoTen'] ) ? $u['hoTen'] : '' ),
+			'createdAt' => VHJP_Ma::hom_nay(),
+		) );
+		if ( ! is_array( $p ) ) { throw new Exception( 'Không ghi được phiếu trả tiền' ); }
+		$id = VHJP_Doc::str( $p['id'] );
+		VHJP_Nguon::sua( 'JP_KhoTraNcc', $id, array( 'soChungTu' => $id ) );
+		VHJP_NhatKy::ghi( $u, 'KHO_TRA_NCC', '', $id, $ten . ' · ' . $tien );
+		return array( 'ok' => true, 'id' => $id, 'soChungTu' => $id, 'soTien' => $tien,
+			'msg' => 'Đã ghi phiếu trả ' . number_format( $tien, 0, ',', '.' ) . 'đ cho '
+				. ( '' !== $ten ? $ten : $ma ) . ' (' . $id . ').' );
+	}
+
+	/**
+	 * `jpKhoHuyTraNcc` — huỷ một phiếu trả tiền.
+	 *
+	 * ⚠️ ĐÁNH DẤU HUỶ, không xoá dòng. Phiếu trả tiền là chứng từ tiền mặt / chuyển khoản; xoá
+	 *    hẳn là mất luôn vết "đã từng ghi rồi rút lại", mà đó chính là thứ kiểm toán đi tìm.
+	 */
+	public static function huy_tra_ncc( $u, $id, $ly_do ) {
+		self::can_kt( $u );
+		$id = VHJP_Doc::str( $id );
+		$p  = VHJP_Nguon::tim_mot( 'JP_KhoTraNcc', 'id', $id );
+		if ( ! $p ) { throw new Exception( 'Không tìm thấy phiếu trả tiền' ); }
+		if ( '' !== VHJP_Doc::str( $p['huyBy'] ) ) { throw new Exception( 'Phiếu này đã huỷ rồi' ); }
+		$ly_do = VHJP_Doc::str( $ly_do );
+		if ( '' === $ly_do ) { throw new Exception( 'Phải ghi lý do huỷ' ); }
+
+		VHJP_Nguon::sua( 'JP_KhoTraNcc', $id, array(
+			'huyBy' => VHJP_Doc::str( isset( $u['hoTen'] ) ? $u['hoTen'] : '' ),
+			'huyAt' => VHJP_Ma::hom_nay(), 'huyReason' => $ly_do ) );
+		VHJP_NhatKy::ghi( $u, 'KHO_HUY_TRA_NCC', '', $id, $ly_do );
+		return array( 'ok' => true, 'msg' => 'Đã huỷ phiếu trả tiền ' . $id . '. '
+			. 'Công nợ nhà cung cấp cộng lại phần này.' );
+	}
+
+	/** `jpKhoLichSuTraNcc` */
+	public static function lich_su_tra_ncc( $u, $gioi_han = 50 ) {
+		self::can_kt( $u );
+		$ds = VHJP_Nguon::doc( 'JP_KhoTraNcc' );
+		usort( $ds, function ( $a, $b ) { return strcmp( (string) $b['id'], (string) $a['id'] ); } );
+		$ds = array_slice( $ds, 0, max( 1, (int) $gioi_han ) );
+		$ra = array();
+		foreach ( $ds as $p ) {
+			$p['soTien'] = self::so( $p['soTien'] );
+			$p['daHuy']  = '' !== VHJP_Doc::str( $p['huyBy'] );
+			$ra[] = $p;
+		}
+		return $ra;
+	}
+
+	/* ════════════════════════════════════════════════════ BÁO CÁO ĐÃ DUYỆT → SỔ 632 ═════ */
+
+	/**
+	 * Loại dòng báo cáo THẬT SỰ có hàng bán ra.
+	 *
+	 * 🔴 LỌC THEO LOẠI DÒNG, KHÔNG DỰA VÀO `soldQty` TÌNH CỜ BẰNG 0. `VHJP_Tinh` đã ép `soldQty`
+	 *    về 0 cho dòng `COIN` và `NGOAI` đúng vì lý do này, và chính nó ghi lại: *"cộng `soldQty`
+	 *    mọi dòng là cộng cả dòng COIN"*. Còn dòng `MAY` (mẫu tách, CHỈ tiền) thì `VHJP_Tinh`
+	 *    KHÔNG đụng vào ô `soldQty` — nên ô ấy giữ nguyên số cũ của đời trước, và cộng nó vào là
+	 *    xuất kho một lượng không ai bán.
+	 */
+	const DONG_CO_HANG = array( 'MONEY', 'STOCK', 'HANG' );
+
+	/**
+	 * `VHJP_Duyet` gọi khi báo cáo HOÀN TẤT — trừ lớp tồn ở kho CƠ SỞ và ghi giá vốn vào 632.
+	 *
+	 * =============================================================================================
+	 * 🔴 ĐÂY LÀ CHỖ GIÁ VỐN BÁN RA SINH RA. TRƯỚC BẢN NÀY NÓ KHÔNG SINH Ở ĐÂU CẢ.
+	 * =============================================================================================
+	 * Nhân viên báo cáo bán 40 quả trứng; sổ có doanh thu, có tiền, có ảnh — và không có một đồng
+	 * giá vốn nào. Lãi gộp của cả hệ bằng đúng doanh thu. Đó là loại sai không có triệu chứng:
+	 * mọi màn đều xanh, mọi số đều cộng ra, chỉ mỗi con số cuối cùng là sai.
+	 *
+	 * 🔴 CHẠY ĐÚNG MỘT LẦN CHO MỖI BÁO CÁO. Ký hai lần, hay ký rồi trả về rồi ký lại, mà lần nào
+	 *    cũng trừ tồn thì kho âm dần mà không phiếu nào sai. Đã có dòng xuất mang `reportId` này
+	 *    thì DỪNG, và nói ra là đã ghi trước đó.
+	 *
+	 * ⚠️ TRỪ Ở KHO CƠ SỞ, không phải kho tổng. Hàng đã đi xuống cơ sở bằng `XUAT_CS` và mang giá
+	 *    vốn của chính lớp đã chuyển; trừ lại ở kho tổng là trừ hai lần một lô hàng.
+	 *
+	 * ⚠️ Cơ sở chưa được chuyển hàng xuống thì KHÔNG có lớp để ăn — dòng vẫn ghi, giá vốn 0, cờ
+	 *    `thieuLop` bật, và `VHJP_Duyet` in cảnh báo ấy ra cạnh câu "đã hoàn tất".
+	 */
+	public static function xuat_bao_cao( $u, $ma_bc ) {
+		$ma_bc = VHJP_Doc::str( $ma_bc );
+		if ( '' === $ma_bc ) { throw new Exception( 'Thiếu mã báo cáo' ); }
+		$bc = VHJP_Nguon::tim_mot( 'JP_Reports', 'id', $ma_bc );
+		if ( ! $bc ) { throw new Exception( 'Không tìm thấy báo cáo ' . $ma_bc ); }
+
+		$da = VHJP_Nguon::tim( 'JP_KhoXuat', 'reportId', $ma_bc );
+		if ( $da ) {
+			$tien = 0;
+			foreach ( $da as $x ) { $tien += self::so( $x['amount'] ); }
+			return array( 'ok' => true, 'daCoTruoc' => true, 'soDong' => count( $da ),
+				'tongGiaVon' => $tien, 'thieuLop' => array() );
+		}
+
+		$kho = VHJP_Doc::str( $bc['locationId'] );
+		if ( '' === $kho ) { throw new Exception( 'Báo cáo không gắn cơ sở nào' ); }
+		$ngay = VHJP_Doc::ngay( $bc['toDate'] );
+		if ( '' === $ngay ) { $ngay = VHJP_Ma::hom_nay(); }
+
+		/* Gom theo mã: một báo cáo có nhiều ô máy cùng bán một mã, và một phiếu một dòng cho mỗi
+		   mã thì FIFO ăn một lượt, chứ không ăn rời rạc rồi đẻ ra chục dòng sổ cho cùng một mã. */
+		$gom = array();
+		foreach ( VHJP_Nguon::tim( 'JP_Rows', 'reportId', $ma_bc ) as $r ) {
+			if ( ! in_array( VHJP_Doc::str( $r['rowKind'] ), self::DONG_CO_HANG, true ) ) { continue; }
+			$ma = VHJP_Doc::str( $r['itemCode'] );
+			$q  = self::so( $r['soldQty'] );
+			if ( '' === $ma || $q <= 0 ) { continue; }
+			if ( ! isset( $gom[ $ma ] ) ) { $gom[ $ma ] = 0; }
+			$gom[ $ma ] += $q;
+		}
+		if ( ! $gom ) {
+			return array( 'ok' => true, 'daCoTruoc' => false, 'soDong' => 0,
+				'tongGiaVon' => 0, 'thieuLop' => array() );
+		}
+		ksort( $gom );
+
+		if ( ! VHJP_Nguon::lay_khoa( 'kho_' . $kho, 10 ) ) {
+			throw new Exception( 'Kho ' . self::ten_kho( $kho )
+				. ' đang có người thao tác, thử lại sau vài giây' );
+		}
+		$n = 0; $tong = 0; $thieu = array();
+		try {
+			foreach ( $gom as $ma => $can ) {
+				$an = self::an_fifo( $kho, $ma, $can );
+				if ( $an['thieu'] > 0 ) {
+					$an['mieng'][] = array( 'qty' => $an['thieu'], 'unitCost' => 0,
+						'layerId' => '', 'thieu' => 1 );
+					$thieu[] = array( 'itemCode' => $ma, 'qty' => $an['thieu'] );
+				}
+				foreach ( $an['mieng'] as $m ) {
+					self::ghi_dong_xuat( $u, array(
+						'soChungTu' => $ma_bc, 'ngay' => $ngay, 'loai' => 'BAN',
+						'reportId' => $ma_bc, 'khoId' => $kho,
+						'locationId' => $kho, 'locationName' => self::ten_kho( $kho ),
+						'itemCode' => $ma, 'itemName' => self::ten_hang( $ma ),
+						'qty' => $m['qty'], 'unitCost' => $m['unitCost'],
+						'tkNo' => '6321', 'tkCo' => '1561',
+						'layerId' => $m['layerId'], 'thieuLop' => empty( $m['thieu'] ) ? 0 : 1 ) );
+					$n++;
+					$tong += $m['qty'] * $m['unitCost'];
+				}
+			}
+		} finally {
+			VHJP_Nguon::tra_khoa( 'kho_' . $kho );
+		}
+
+		VHJP_NhatKy::ghi( $u, 'KHO_XUAT_BAN', $ma_bc, $kho, $n . ' dòng · ' . $tong );
+		return array( 'ok' => true, 'daCoTruoc' => false, 'soDong' => $n,
+			'tongGiaVon' => $tong, 'thieuLop' => $thieu );
+	}
+
+	/**
+	 * `VHJP_Duyet` gọi khi TRẢ VỀ một báo cáo đã từng hoàn tất — hoàn lại đúng những gì đã trừ.
+	 *
+	 * ⚠️ Không hoàn thì sổ 632 còn dòng giá vốn của một báo cáo đang chờ sửa, và lớp tồn thiếu
+	 *    đúng số đã trừ. Sửa xong nộp lại, duyệt lần hai, trừ tiếp lần nữa.
+	 */
+	public static function hoan_bao_cao( $u, $ma_bc ) {
+		return self::xuat_lai( $u, $ma_bc );
+	}
+
+	/* ══════════════════════════════════════════════════════════════════ BẢNG KÊ ══════════ */
+
+	/**
+	 * `jpKhoBangKeNhap` — mọi phiếu nhập trong một khoảng ngày.
+	 *
+	 * ⚠️ Phiếu ĐÃ HUỶ vẫn LIỆT KÊ nhưng KHÔNG cộng vào tổng. Giấu hẳn là kế toán tìm một số
+	 *    chứng từ đã ghi mà không thấy đâu, rồi ghi lại lần nữa.
+	 */
+	public static function bang_ke_nhap( $u, $tu, $den, $loai = '' ) {
+		self::can_kt( $u );
+		$tu   = VHJP_Doc::ngay( $tu );
+		$den  = VHJP_Doc::ngay( $den );
+		$loai = VHJP_Doc::str( $loai );
+		$ten  = array( self::N_MUA => 'Mua hàng nhà cung cấp', self::N_DC => 'Nhận điều chuyển',
+			self::N_DAU_KY => 'Số dư đầu kỳ', self::N_KIEM_KE => 'Kiểm kê thừa',
+			self::N_TRA_KHO => 'Cơ sở trả về kho' );
+
+		$rows = array(); $so_phieu = 0; $so_dong = 0; $tong = 0; $so_huy = 0;
+		foreach ( VHJP_Nguon::doc( 'JP_KhoNhap' ) as $p ) {
+			$n = VHJP_Doc::ngay( $p['ngay'] );
+			if ( '' !== $tu && $n < $tu ) { continue; }
+			if ( '' !== $den && $n > $den ) { continue; }
+			$lo = VHJP_Doc::str( $p['loaiNhap'] );
+			if ( '' !== $loai && $lo !== $loai ) { continue; }
+			$p['tenLoai'] = isset( $ten[ $lo ] ) ? $ten[ $lo ] : $lo;
+			$p['daHuy']   = '' !== VHJP_Doc::str( $p['huyBy'] );
+			$p['soDong']  = self::so( $p['soDong'] );
+			$p['tongTien'] = self::so( $p['tongTien'] );
+			if ( $p['daHuy'] ) {
+				$so_huy++;
+			} else {
+				$so_phieu++;
+				$so_dong += $p['soDong'];
+				$tong    += $p['tongTien'];
+			}
+			$rows[] = $p;
+		}
+		usort( $rows, function ( $a, $b ) {
+			$x = strcmp( VHJP_Doc::ngay( $a['ngay'] ), VHJP_Doc::ngay( $b['ngay'] ) );
+			return 0 !== $x ? $x : strcmp( (string) $a['id'], (string) $b['id'] );
+		} );
+		return array( 'ok' => true, 'tuNgay' => $tu, 'denNgay' => $den, 'loai' => $loai,
+			'rows' => $rows,
+			'tong' => array( 'soPhieu' => $so_phieu, 'soDong' => $so_dong,
+				'tongTien' => $tong, 'soHuy' => $so_huy ) );
+	}
+
+	/** `jpKhoBangKeXuat` — mọi phiếu xuất trong một khoảng ngày, kèm bảng gộp theo loại. */
+	public static function bang_ke_xuat( $u, $tu, $den, $loai = '' ) {
+		self::can_kt( $u );
+		$tu   = VHJP_Doc::ngay( $tu );
+		$den  = VHJP_Doc::ngay( $den );
+		$loai = VHJP_Doc::str( $loai );
+		$bang = self::bang_loai_xuat();
+
+		$rows = array(); $so_phieu = 0; $tong_sl = 0; $tong = 0; $so_huy = 0; $gom = array();
+		foreach ( VHJP_Nguon::doc( 'JP_KhoDieuChuyen' ) as $p ) {
+			$n = VHJP_Doc::ngay( $p['ngay'] );
+			if ( '' !== $tu && $n < $tu ) { continue; }
+			if ( '' !== $den && $n > $den ) { continue; }
+			$ma = VHJP_Doc::str( $p['loai'] );
+			if ( '' !== $loai && $ma !== $loai ) { continue; }
+			$p['tenLoai']  = isset( $bang[ $ma ] ) ? $bang[ $ma ]['ten'] : $ma;
+			$p['tk']       = isset( $bang[ $ma ] ) ? $bang[ $ma ]['tk'] : '';
+			$p['daHuy']    = '' !== VHJP_Doc::str( $p['huyBy'] );
+			$p['soDong']   = self::so( $p['soDong'] );
+			$p['tongSL']   = self::so( $p['tongSL'] );
+			$p['tongTien'] = self::so( $p['tongTien'] );
+			if ( $p['daHuy'] ) {
+				$so_huy++;
+			} else {
+				$so_phieu++;
+				$tong_sl += $p['tongSL'];
+				$tong    += $p['tongTien'];
+				if ( ! isset( $gom[ $ma ] ) ) {
+					$gom[ $ma ] = array( 'ma' => $ma, 'tenLoai' => $p['tenLoai'], 'tk' => $p['tk'],
+						'soPhieu' => 0, 'tongSL' => 0, 'tongTien' => 0 );
+				}
+				$gom[ $ma ]['soPhieu']++;
+				$gom[ $ma ]['tongSL']   += $p['tongSL'];
+				$gom[ $ma ]['tongTien'] += $p['tongTien'];
+			}
+			$rows[] = $p;
+		}
+		usort( $rows, function ( $a, $b ) {
+			$x = strcmp( VHJP_Doc::ngay( $a['ngay'] ), VHJP_Doc::ngay( $b['ngay'] ) );
+			return 0 !== $x ? $x : strcmp( (string) $a['id'], (string) $b['id'] );
+		} );
+		return array( 'ok' => true, 'tuNgay' => $tu, 'denNgay' => $den, 'loai' => $loai,
+			'rows' => $rows, 'theoLoai' => array_values( $gom ),
+			'tong' => array( 'soPhieu' => $so_phieu, 'tongSL' => $tong_sl,
+				'tongTien' => $tong, 'soHuy' => $so_huy ) );
+	}
+
 	/* ══════════════════════════════════════════════════════════════════ NỘI BỘ ═══════════ */
+
+	/**
+	 * Một dòng sổ xuất. ĐƯỜNG DUY NHẤT ghi vào `JP_KhoXuat`.
+	 *
+	 * ⚠️ Phiếu xuất và kiểm kê thiếu đều đẻ ra dòng loại này. Hai nơi tự ghi lấy là hai nơi sẽ
+	 *    quên hai ô khác nhau — và bảng N-X-T thì đọc đúng mấy ô ấy.
+	 */
+	private static function ghi_dong_xuat( $u, $x ) {
+		return VHJP_Ma::them( 'JP_KhoXuat', 'XK', array(
+			'soChungTu' => VHJP_Doc::str( isset( $x['soChungTu'] ) ? $x['soChungTu'] : '' ),
+			'ngay' => VHJP_Doc::ngay( $x['ngay'] ), 'loai' => VHJP_Doc::str( $x['loai'] ),
+			'reportId' => VHJP_Doc::str( isset( $x['reportId'] ) ? $x['reportId'] : '' ),
+			'dcId' => VHJP_Doc::str( isset( $x['dcId'] ) ? $x['dcId'] : '' ),
+			'khoId' => VHJP_Doc::str( $x['khoId'] ),
+			'locationId' => VHJP_Doc::str( isset( $x['locationId'] ) ? $x['locationId'] : '' ),
+			'locationName' => VHJP_Doc::str( isset( $x['locationName'] ) ? $x['locationName'] : '' ),
+			'itemCode' => VHJP_Doc::str( $x['itemCode'] ),
+			'itemName' => VHJP_Doc::str( isset( $x['itemName'] ) ? $x['itemName'] : '' ),
+			'qty' => self::so( $x['qty'] ), 'unitCost' => self::so( $x['unitCost'] ),
+			'amount' => self::so( $x['qty'] ) * self::so( $x['unitCost'] ),
+			'tkNo' => VHJP_Doc::str( $x['tkNo'] ), 'tkCo' => VHJP_Doc::str( $x['tkCo'] ),
+			'layerId' => VHJP_Doc::str( isset( $x['layerId'] ) ? $x['layerId'] : '' ),
+			'thieuLop' => empty( $x['thieuLop'] ) ? 0 : 1,
+			'createdBy' => VHJP_Doc::str( isset( $u['hoTen'] ) ? $u['hoTen'] : '' ),
+			'createdAt' => VHJP_Ma::hom_nay(),
+		) );
+	}
 
 	/** Một lớp tồn mới. `qtyInit` giữ nguyên vĩnh viễn — đó là thứ để soi lớp đã bị ăn bao nhiêu. */
 	private static function tao_lop( $kho, $ma_hang, $ngay, $qty, $gia, $nguon, $lot ) {

@@ -71,6 +71,9 @@ class VHJP_Cong {
 			'jpKhoDanhSachLoai', 'jpKhoDanhSachNcc', 'jpKhoTonKho', 'jpKhoSoDuDauKy',
 			'jpKhoLichSuDauKy', 'jpKhoNhap', 'jpKhoHuyNhap', 'jpKhoLichSuNhap',
 			'jpKhoXuat', 'jpKhoXuatLai', 'jpKhoLichSuXuat', 'jpKhoTheKho', 'jpKhoNhapXuatTon',
+			'jpKhoKiemKeTon', 'jpKhoKiemKe', 'jpKhoLichSuKiemKe',
+			'jpKhoTraNcc', 'jpKhoTraNccLo', 'jpKhoHuyTraNcc', 'jpKhoLichSuTraNcc',
+			'jpKhoBangKeNhap', 'jpKhoBangKeXuat',
 		);
 	}
 
@@ -132,6 +135,19 @@ class VHJP_Cong {
 			'jpKhoLichSuXuat'     => array( 'VHJP_Cong', 'kho_ls_xuat' ),
 			'jpKhoTheKho'         => array( 'VHJP_Cong', 'kho_the' ),
 			'jpKhoNhapXuatTon'    => array( 'VHJP_Cong', 'kho_nxt' ),
+			'jpKhoKiemKeTon'      => array( 'VHJP_Cong', 'kho_kk_ton' ),
+			'jpKhoKiemKe'         => array( 'VHJP_Cong', 'kho_kk' ),
+			'jpKhoLichSuKiemKe'   => array( 'VHJP_Cong', 'kho_ls_kk' ),
+			'jpKhoTraNcc'         => array( 'VHJP_Cong', 'kho_tra_ncc' ),
+			'jpKhoTraNccLo'       => array( 'VHJP_Cong', 'kho_tra_ncc_lo' ),
+			'jpKhoHuyTraNcc'      => array( 'VHJP_Cong', 'kho_huy_tra_ncc' ),
+			'jpKhoLichSuTraNcc'   => array( 'VHJP_Cong', 'kho_ls_tra_ncc' ),
+			/* 🔴 HAI HÀM NÀY GIAO DIỆN GỌI THẬT (`KtJs06_KhoNangCao.html`, màn "Bảng kê chứng
+			   từ") nhưng trước bản này KHÔNG có trong bảng hàm, cũng KHÔNG có trong `chua_lam()`
+			   — nên cổng trả "Lệnh không hợp lệ", một câu nói sai. Xem `kiem-jp-cong.php`: bài ấy
+			   giờ đọc thẳng giao diện và đòi hai bảng cộng lại đúng bằng danh sách thật. */
+			'jpKhoBangKeNhap'     => array( 'VHJP_Cong', 'kho_bk_nhap' ),
+			'jpKhoBangKeXuat'     => array( 'VHJP_Cong', 'kho_bk_xuat' ),
 
 			/* kế toán duyệt */
 			'jpKtListReports'     => array( 'VHJP_Cong', 'kt_ds' ),
@@ -174,9 +190,6 @@ class VHJP_Cong {
 			'jpChuaKhaiCachThu', 'jpConfirmPaidManual', 'jpDatLichDoiSoatNH', 'jpDocGiaoDichNganHang',
 			'jpDoiSoatNganHang', 'jpKhaiCachThu', 'jpLichDoiSoatNH', 'jpReconApply', 'jpReconHistory',
 			'jpReconPreview', 'jpReconUndo', 'jpXacNhanCotNganHang',
-			/* kho hai tầng — còn KIỂM KÊ (3) và TRẢ NHÀ CUNG CẤP (4) */
-			'jpKhoHuyTraNcc', 'jpKhoKiemKe', 'jpKhoKiemKeTon', 'jpKhoLichSuKiemKe',
-			'jpKhoLichSuTraNcc', 'jpKhoTraNcc', 'jpKhoTraNccLo',
 			/* kế toán duyệt */
 			'jpKtDanhSachDeNghi', 'jpKtPaymentBoard', 'jpKtReopen', 'jpKtXuLyDeNghi',
 		);
@@ -430,6 +443,38 @@ class VHJP_Cong {
 			isset( $args[1] ) ? $args[1] : 0,
 			isset( $args[2] ) ? $args[2] : 0,
 			isset( $args[3] ) ? $args[3] : '' );
+	}
+
+	public static function kho_kk_ton( $args, $nguoi ) {
+		return VHJP_Kho::kiem_ke_ton( $nguoi, isset( $args[1] ) ? $args[1] : '',
+			! empty( $args[2] ) );
+	}
+	public static function kho_kk( $args, $nguoi ) {
+		return VHJP_Kho::kiem_ke( $nguoi, isset( $args[1] ) ? $args[1] : array() );
+	}
+	public static function kho_ls_kk( $args, $nguoi ) {
+		return VHJP_Kho::lich_su_kiem_ke( $nguoi, isset( $args[1] ) ? $args[1] : 30 );
+	}
+	public static function kho_tra_ncc( $args, $nguoi ) {
+		return VHJP_Kho::tra_ncc( $nguoi, isset( $args[1] ) ? $args[1] : array() );
+	}
+	public static function kho_tra_ncc_lo( $args, $nguoi ) {
+		return VHJP_Kho::tra_ncc_lo( $nguoi, isset( $args[1] ) ? $args[1] : array() );
+	}
+	public static function kho_huy_tra_ncc( $args, $nguoi ) {
+		return VHJP_Kho::huy_tra_ncc( $nguoi, isset( $args[1] ) ? $args[1] : '',
+			isset( $args[2] ) ? $args[2] : '' );
+	}
+	public static function kho_ls_tra_ncc( $args, $nguoi ) {
+		return VHJP_Kho::lich_su_tra_ncc( $nguoi, isset( $args[1] ) ? $args[1] : 50 );
+	}
+	public static function kho_bk_nhap( $args, $nguoi ) {
+		return VHJP_Kho::bang_ke_nhap( $nguoi, isset( $args[1] ) ? $args[1] : '',
+			isset( $args[2] ) ? $args[2] : '', isset( $args[3] ) ? $args[3] : '' );
+	}
+	public static function kho_bk_xuat( $args, $nguoi ) {
+		return VHJP_Kho::bang_ke_xuat( $nguoi, isset( $args[1] ) ? $args[1] : '',
+			isset( $args[2] ) ? $args[2] : '', isset( $args[3] ) ? $args[3] : '' );
 	}
 
 	public static function bc_mo( $args, $nguoi ) {
