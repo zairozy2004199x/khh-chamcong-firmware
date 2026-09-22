@@ -207,7 +207,7 @@ function dungBe(loaiChiPhi, tkNoMatrix, coso, mangTk) {
     ${boc('_khoiDvBang')}\n${boc('_khoiCuaDv')}\n${boc('_tenKhoi')}
     ${boc('_boDauVai')}\n${boc('_khoiCuaVai')}\n${boc('_vaiOKhoi')}
     ${boc('_khoiCuaLoai')}\n${boc('_mxBodies')}\n${boc('_khoiDuoc')}\n${boc('_vaiConCua')}\n${boc('_vaiSelNhieu')}\n${boc('_khoiSelLoai')}
-    ${boc('_dvSelNhieu')}\n${boc('_loaiChoDv')}\n${boc('_mangTong')}\n${boc('_mangTongDoan')}\n${boc('_mxMaGoc')}\n${boc('_mxSapCols')}\n${boc('_mxCols')}\n${boc('_mxNhomDv')}\n${boc('_xemDuocDv')}\n${boc('_mxRowHtml')}\n${boc('renderTkNoMatrix')}\n${boc('saveCfgTkNoMx')}
+    ${boc('_dvSelNhieu')}\n${boc('_loaiChoDv')}\n${boc('_mangTong')}\n${boc('_mangTongDoan')}\n${boc('_mxMaGoc')}\n${boc('_mxSapCols')}\n${boc('_mxCols')}\n${boc('_mxNhomDv')}\n${boc('_xemDuocDv')}\n${boc('_dauMucSel')}\n${boc('_mxRowHtml')}\n${boc('renderTkNoMatrix')}\n${boc('saveCfgTkNoMx')}
     return { ve: renderTkNoMatrix, luu: saveCfgTkNoMx }; }`)(moi);
   return { moi, NK, KHO, F };
 }
@@ -531,7 +531,13 @@ const MX_K = [
      vì hàng ô tích vai; nút nằm sau dòng cuối thì phải cuộn hết cả khối mới thấy, và người ta
      kết luận là KHÔNG CÓ. Giữ luôn nút dưới đáy cho ai vừa gõ xong dòng chót. */
   const iNut = tren.indexOf('＋ Thêm loại');
-  const iBang = tren.indexOf('<table style="min-width:870px"');
+  /* ⚠️ ĐỪNG ghim bề ngang của bảng vào đây. Bài này đo THỨ TỰ (nút trước bảng), mà mỗi lần
+     bảng thêm một cột là bề ngang đổi theo — bản 1.257.0 thêm cột "Đầu mục" và con số 870px
+     cũ thành -1, làm bài đỏ vì một lý do chẳng dính gì tới điều nó muốn canh. Tìm bảng bằng
+     chính cái làm nên nó: đầu bảng "Loại chi phí". */
+  const iBang = tren.indexOf('<table style="min-width:');
+  t('   (nền) bốc đúng bảng loại chi phí, không phải bảng nào khác',
+    iBang >= 0 && tren.indexOf('>Loại chi phí</th>') > iBang, { iBang });
   t('🔴 có nút ＋ Thêm loại', iNut >= 0, tren.slice(0, 400));
   t('🔴 và nó đứng TRƯỚC bảng, không phải mãi dưới đáy', iNut >= 0 && iNut < iBang, { iNut, iBang });
   t('   vẫn còn một nút nữa ở cuối khối', (tren.match(/＋ Thêm loại/g) || []).length >= 2,

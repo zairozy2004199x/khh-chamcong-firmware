@@ -9018,31 +9018,76 @@
     var chuaGian=(String(coso||'').trim()==='');
     _loaiCpList(coso, hinhThuc).forEach(function(x){
       var ds=_tkNoList(x.ten, coso);
+      var dm=_dauMucCua(x);
       if(chuaGian && ds.length>1){
-        out.push({ten:x.ten, tk:'', nhan:x.ten+'  ·  (mã tài khoản theo gian)'});
+        out.push({ten:x.ten, tk:'', dm:dm, nhan:x.ten+'  ·  (mã tài khoản theo gian)'});
         return;
       }
       if(ds.length>1){
-        ds.forEach(function(ma){ var tn=_tenTk(ma); out.push({ten:x.ten, tk:String(ma), nhan:x.ten+'  ·  TK '+ma+(tn?('  '+tn):'')}); });
+        ds.forEach(function(ma){ var tn=_tenTk(ma); out.push({ten:x.ten, tk:String(ma), dm:dm, nhan:x.ten+'  ·  TK '+ma+(tn?('  '+tn):'')}); });
         return;
       }
       var tk=_tkNoCua(x.ten, coso);
       /* 🔴 "(chưa gắn mã)" ĐÃ ĐỔI THÀNH "(kế toán gắn mã)" — 22/09/2026. Anh Thắng: *"lúc tạo
          đơn nhân viên không cần quan tâm"*. Câu cũ đọc như một lỗi người nhập phải đi sửa,
          trong khi từ nay nó là việc bình thường và là việc của người khác. */
-      out.push({ten:x.ten, tk:'', nhan:x.ten+(tk?('  ·  TK '+tk):'  ·  (kế toán gắn mã)')});
+      out.push({ten:x.ten, tk:'', dm:dm, nhan:x.ten+(tk?('  ·  TK '+tk):'  ·  (kế toán gắn mã)')});
     });
     // dòng đang có mà nay không còn trong danh mục -> vẫn giữ để không mất dữ liệu cũ
     if(cur && !out.filter(function(o){return o.ten===cur && (!curTk || o.tk===curTk || o.tk==='');}).length){
-      out.push({ten:cur, tk:curTk||'', nhan:cur+(curTk?('  ·  TK '+curTk):'')+'  ·  (không còn trong danh mục)'});
+      out.push({ten:cur, tk:curTk||'', dm:'', nhan:cur+(curTk?('  ·  TK '+curTk):'')+'  ·  (không còn trong danh mục)'});
     }
     return out;
   }
+  /** Đầu mục lớn của một loại chi phí — chưa khai thì về ô hứng. */
+  function _dauMucCua(x){
+    var d=String((x&&x.dauMuc)||'').trim();
+    /* ⚠️ CHƯA KHAI KHÔNG ĐƯỢC BIẾN MẤT. Loại chưa gắn đầu mục mà rơi khỏi ô chọn là người
+       nhập mất đúng những loại cũ — mà danh mục của anh Thắng dựng từ sổ cũ, gần như mọi dòng
+       còn bỏ trống. Dồn hết vào một nhóm CUỐI DANH SÁCH, nhìn là biết còn gì phải khai. */
+    return d || 'Chưa xếp đầu mục';
+  }
+  /**
+   * DỰNG Ô CHỌN, GOM THEO ĐẦU MỤC LỚN.
+   *
+   * 🔴 GOM BẰNG `<optgroup>`, KHÔNG THÊM Ô CHỌN THỨ HAI. Hai ô nối nhau là người nhập phải
+   *    đoán đúng đầu mục mới thấy loại của mình — tức dựng lại y cái bộ lọc vừa gỡ, chỉ đổi
+   *    trục. `<optgroup>` bày ĐỦ mọi loại, chỉ là xếp thành cụm; gõ tìm vẫn ra, và trên điện
+   *    thoại nó thành mấy khối có tiêu đề, không phải một danh sách dài dằng dặc.
+   *
+   * ⚠️ GIỮ NGUYÊN `value="<chỉ số>"` và hai mốc `data-ten` / `data-tk`. `_selLoai()` đọc theo
+   *    hai mốc ấy; đổi sang đọc theo tên nhóm là mọi chỗ chọn loại trong app đứt cùng lúc.
+   *
+   * ⚠️ THỨ TỰ NHÓM theo `dauMucDs` của máy chủ, không theo thứ tự gặp: theo thứ tự gặp thì
+   *    thêm một loại mới là cả bảng nhảy chỗ, và người nhập quen tay bấm nhầm.
+   */
   function _optsHtml(list, cur, curTk, trong){
-    return '<option value="">'+trong+'</option>'+list.map(function(o,i){
-      var sel=(String(o.ten)===String(cur||'') && (String(o.tk||'')===String(curTk||''))) ? ' selected' : '';
-      return '<option value="'+i+'" data-ten="'+esc(o.ten)+'" data-tk="'+esc(o.tk||'')+'"'+sel+'>'+esc(o.nhan)+'</option>';
-    }).join('');
+    var html='<option value="">'+trong+'</option>';
+    var nhom={}, thuTu=[];
+    list.forEach(function(o,i){
+      var d=String(o.dm||'')||'Chưa xếp đầu mục';
+      if(!nhom[d]){ nhom[d]=[]; thuTu.push(d); }
+      nhom[d].push({o:o, i:i});
+    });
+    var ds=(typeof BOOT!=="undefined"&&BOOT&&BOOT.dauMucDs)||[];
+    var xep=[];
+    ds.forEach(function(d){ if(nhom[d]) xep.push(d); });
+    thuTu.forEach(function(d){ if(xep.indexOf(d)<0 && d!=='Chưa xếp đầu mục') xep.push(d); });
+    if(nhom['Chưa xếp đầu mục']) xep.push('Chưa xếp đầu mục');   // ô hứng luôn đứng cuối
+
+    /* MỘT NHÓM DUY NHẤT thì đừng bọc `<optgroup>` — một tiêu đề nhóm trên một danh sách
+       không chia nhóm chỉ tốn một dòng và không nói thêm gì. */
+    var boc=(xep.length>1);
+    xep.forEach(function(d){
+      if(boc) html+='<optgroup label="'+esc(d)+'">';
+      nhom[d].forEach(function(r){
+        var o=r.o;
+        var sel=(String(o.ten)===String(cur||'') && (String(o.tk||'')===String(curTk||''))) ? ' selected' : '';
+        html+='<option value="'+r.i+'" data-ten="'+esc(o.ten)+'" data-tk="'+esc(o.tk||'')+'"'+sel+'>'+esc(o.nhan)+'</option>';
+      });
+      if(boc) html+='</optgroup>';
+    });
+    return html;
   }
   // Đọc lựa chọn của ô chọn loại: trả {loai, tkNo}
   function _selLoai(selId){
@@ -11620,6 +11665,17 @@
     return String((x&&x.vaiTro)||'').split(',').map(function(v){return v.trim();}).filter(Boolean);
   }
   function _vaiDungDuocLoai(x){
+    /* 🔴 VÙNG TẮT LỌC THEO VAI -> MỌI VAI THẤY ĐỦ LOẠI. Đọc CỜ từ máy chủ, không tự suy: máy
+       chủ gác ở `VHCPVP_Auth::xem_duoc_loai()` bằng đúng cờ này, và hai nơi tự suy là có ngày ô
+       chọn bày một đằng, sổ hiện một nẻo — đúng cái bẫy mà chú thích ở `_loaiCpList()` dựng
+       lên để tránh.
+       ⚠️ `!==false` chứ không `!!`: gói khởi động của bản cũ KHÔNG CÓ khoá này, và thiếu khoá
+          phải rơi về hành vi CŨ (có lọc), không phải im lặng mở toang danh mục.
+       ⚠️ `typeof BOOT` chứ KHÔNG `window.BOOT`: bệ đỡ bài kiểm bên node bơm BOOT vào làm THAM
+          SỐ của hàm, ở đó không hề có `window` — viết `window.BOOT` là ném ReferenceError và
+          tám bài kiểm ô loại chi phí chết đứng ngay dòng đầu. Trên trình duyệt hai lối y hệt
+          nhau, nên lấy lối chạy được ở cả hai. Ba chỗ đọc BOOT mới thêm đều theo lối này. */
+    if(typeof BOOT!=="undefined" && BOOT && BOOT.locLoaiTheoVai===false) return true;
     var ds=String((x&&x.vaiTro)||'').trim();
     if(!ds) return true;
     var vai=String((CURUSER&&CURUSER.role)||'').trim();
@@ -11914,11 +11970,14 @@
           +'onclick="addCfgLoai(\''+k.ma+'\')" style="padding:3px 10px;font-size:11.5px">'
           +'＋ Thêm loại cho '+esc(k.ten)+'</button></div>';
       }
-      h+='<div class="tw"><table style="min-width:870px"><thead><tr>'
+      h+='<div class="tw"><table style="min-width:1050px"><thead><tr>'
         +'<th style="text-align:left;min-width:240px">Loại chi phí</th>'
         +'<th style="width:140px">Loại</th>'
         +'<th style="width:340px">Vai trò được dùng <span style="font-weight:400;color:#8c8781">(không tích = mọi vai)</span></th>'
         +'<th style="width:150px">Khối</th>'
+        /* 🔴 CỘT GOM ĐẦU TIÊN CỦA BẢNG NÀY. Bốn cột trước nó đều là bộ LỌC; cột này chỉ GOM ô
+           chọn lúc nhập đơn, không giấu của ai cái gì. Xem `VHCPVP_Cfg::dau_muc_ds()`. */
+        +'<th style="width:180px" title="Đầu mục lớn — gom ô chọn lúc nhập đơn cho dễ tìm. KHÔNG phải bộ lọc: để trống thì loại vẫn hiện, chỉ nằm ở nhóm cuối &quot;Chưa xếp đầu mục&quot;.">Đầu mục <span style="font-weight:400;color:#8c8781">(gom, không lọc)</span></th>'
         /* Anh Thắng 21/09/2026: *"MTĐ tùy loại sẽ có TK đối ứng khác"*. Trước bản này cột này
            KHÔNG có ô nào trên màn — có trong kho mà không có đường vào, nên khai là chuyện
            không làm được. Xem chốt dài ở `VHCPVP_Cfg::tkco_xuat()`. */
@@ -12640,11 +12699,32 @@
             khối là dựng lại đúng cái "dùng chung" mà ba bảng sinh ra để bỏ.
          Đổi ô này rồi bấm Lưu là dòng nhảy sang bảng của khối ấy. */
       +'<td>'+_khoiSelLoai(_khoiCuaLoai(x))+'</td>'
+      /* 🔴 ĐẦU MỤC LỚN — thứ GOM ô chọn lúc nhập đơn, KHÔNG phải một bộ lọc nữa. Bảng này
+         vốn đã có bốn cột lọc (Bộ phận đã chết · Đơn vị · Khối · Vai trò) và không cột nào
+         gom; đây là cột gom đầu tiên. Bỏ trống thì loại vẫn hiện, chỉ nằm ở nhóm cuối
+         "Chưa xếp đầu mục" — nhìn là biết còn gì phải khai. */
+      +'<td>'+_dauMucSel(String(x.dauMuc||''))+'</td>'
       /* ⚠️ `data-o="tkco"` chứ không dựa vào THỨ TỰ Ô — cả chỗ đọc lúc Lưu lẫn chỗ này đều bám
          theo mốc tên, nên thêm bớt cột sau này không làm lệch cột nào. */
       +'<td><input value="'+esc(x.tkCo||'')+'" data-o="tkco" list="tkChartList" placeholder="tự suy" style="width:100%;font-family:Consolas,monospace"></td>'
       +'<td><input value="'+esc(x.tenMisa||'')+'" data-o="misa" placeholder="trống = dùng tên bên trái" style="width:100%"></td>'
       +_delBtn()+'</tr>';
+  }
+  /**
+   * Ô chọn ĐẦU MỤC cho một loại chi phí.
+   *
+   * ⚠️ GIỮ LẠI GIÁ TRỊ CŨ KHÔNG CÒN TRONG DANH SÁCH. Kế toán đổi tên một đầu mục là mọi loại
+   *    đang trỏ vào tên cũ rơi khỏi ô chọn, và lượt Lưu kế tiếp ghi rỗng đè lên — mất sạch
+   *    công gán mà không một câu báo nào. Thêm lại dòng ấy kèm dấu để họ tự thấy và sửa.
+   */
+  function _dauMucSel(cur){
+    var ds=((typeof BOOT!=="undefined"&&BOOT&&BOOT.dauMucDs)||[]).slice();
+    var c=String(cur||'').trim();
+    var la=(c && ds.indexOf(c)<0);
+    var h='<select data-o="dauMuc" style="width:100%"><option value="">— chưa xếp —</option>';
+    ds.forEach(function(d){ h+='<option'+(d===c?' selected':'')+'>'+esc(d)+'</option>'; });
+    if(la) h+='<option selected>'+esc(c)+'</option>';   /* ⚠️ xem chú thích trên */
+    return h+'</select>'+(la?'<div style="font-size:10px;color:#b45309">đầu mục này không còn trong danh sách</div>':'');
   }
   function addCfgLoai(ma){
     /* 🔴 CHỐI Ở ĐÂY NỮA. Nút "＋ Thêm loại" chỉ vẽ cho khối người ta thuộc, nhưng gọi thẳng
@@ -12722,7 +12802,12 @@
          bỏ. Ô CÓ MẶT mà người ta xoá trắng thì rỗng là ý thật: "thôi, trả về tự suy".
          "Mọi mảng" vẫn không có ô nào -> vẫn giữ nguyên như cũ. */
       var tkCoR = oTkCo ? String(oTkCo.value||'').trim() : (goc.tkCo||'');
-      dm.push({ ten:ten, loaiTt:String((oLoai&&oLoai.value)||''), vaiTro:vai, boPhan:(goc.boPhan||''), donVi:dvL, khoi:khoiR,
+      /* ⚠️ CHỈ GHI KHI Ô CÓ MẶT — cùng luật với ô TK đối ứng ngay dưới. Hàng vẽ bởi bản cũ
+         không có ô này, và đọc ra rỗng rồi ghi đè là một lượt Lưu xoá sạch đầu mục của mọi
+         loại. Ô CÓ MẶT mà người ta để trống thì rỗng là ý thật ("thôi, chưa xếp"). */
+      var oDm=tr.querySelector('[data-o="dauMuc"]');
+      var dmR = oDm ? String(oDm.value||'').trim() : (goc.dauMuc||'');
+      dm.push({ ten:ten, loaiTt:String((oLoai&&oLoai.value)||''), vaiTro:vai, boPhan:(goc.boPhan||''), donVi:dvL, khoi:khoiR, dauMuc:dmR,
                 tenMisa:String((oMisa&&oMisa.value)||'').trim(),
                 tkCo:tkCoR, tkNo:goc.tkNo||'',
                 maDt:goc.maDt||'', note:goc.note||'' });

@@ -299,6 +299,28 @@ case "$MA" in
   mtd) GHE=true  ;;
   *)   GHE=false ;;
 esac
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+# LỌC LOẠI CHI PHÍ THEO VAI TRÒ — BẬT/TẮT THEO VÙNG
+#
+# Anh Thắng 22/09/2026: *"phân loại để lên chi phí dễ nhất, các bộ phận nhập được"* và *"phân
+# theo đầu mục chi phí lớn"*, chốt *"làm luôn cho wed hà nội"*.
+#
+# 🔴 BẬT (mặc định) = hành vi cũ của Khu vui chơi, KHÔNG ĐỔI MỘT LY. Anh Thắng đã dặn đừng đụng
+#    vào bên ấy, và một bản đang chạy thật thì không đổi luật nhập đơn giữa chừng.
+# 🔴 TẮT (hn) = mọi vai thấy đủ loại; ĐẦU MỤC LỚN dẫn đường thay cho bộ lọc.
+#
+# ⚠️ VÌ SAO Ở ĐÂY CHỨ KHÔNG SỬA THẲNG BẢN HN: bản vùng được SINH LẠI từ bản gốc mỗi lần bản
+#    gốc lên bản mới. Sửa riêng bản HN là lượt sinh kế tiếp xoá sạch, và lần ấy không ai đi soi
+#    lại. Đúng cùng lý do `LAY_COSO_GHE` nằm ở đây.
+#
+# ⚠️ ĐÂY KHÔNG PHẢI CỔNG QUYỀN, chỉ là ô chọn bày bao nhiêu dòng. Ai xem được ĐƠN nào vẫn do
+#    đơn vị và cơ sở gác ở máy chủ — cờ này không chạm tới.
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+case "$MA" in
+  hn) LOC_VAI=false ;;
+  *)  LOC_VAI=true  ;;
+esac
 # 🔴 BẢN GỐC NAY ĐÃ BẬT SẮN (21/09/2026, anh Thắng: *"đẩy cơ sở bên ghế sang nhé"* — ba khối
 #    nay chung một bản cài, gian ghế rơi vào đúng khối Máy tự động của nó). Nên chiều lật đảo lại:
 #    trước là "bật cho mtd", nay là "TẮT cho bản nào không dùng ghế" — tức vp.
@@ -315,6 +337,24 @@ else
   if ! grep -q "const LAY_COSO_GHE = false;" "$DICH/includes/class-vhcp-cfg.php"; then
     echo "✗ Chưa tắt được đường lấy cơ sở từ Ghế cho bản '$MA'."
     grep -n "LAY_COSO_GHE" "$DICH/includes/class-vhcp-cfg.php" | head -3
+    exit 9
+  fi
+fi
+
+# ── LỌC LOẠI THEO VAI TRÒ ─────────────────────────────────────────────────────────────────────
+# Soát lại sau khi thay, y hệt khối trên: thay mà không soát là bản sinh ra mang cờ sai, và
+# không có gì trên màn nói lên điều đó cho tới lúc người dùng mở ô chọn.
+if [ "$LOC_VAI" = "true" ]; then
+  if ! grep -q "const LOC_LOAI_THEO_VAI = true;" "$DICH/includes/class-vhcp-cfg.php"; then
+    echo "✗ Bản '$MA' phải lọc loại theo vai mà hằng LOC_LOAI_THEO_VAI đang tắt."
+    grep -n "LOC_LOAI_THEO_VAI" "$DICH/includes/class-vhcp-cfg.php" | head -3
+    exit 9
+  fi
+else
+  perl -0777 -pi -e "s/const LOC_LOAI_THEO_VAI = true;/const LOC_LOAI_THEO_VAI = false;/" "$DICH/includes/class-vhcp-cfg.php"
+  if ! grep -q "const LOC_LOAI_THEO_VAI = false;" "$DICH/includes/class-vhcp-cfg.php"; then
+    echo "✗ Chưa tắt được phép lọc loại theo vai cho bản '$MA'."
+    grep -n "LOC_LOAI_THEO_VAI" "$DICH/includes/class-vhcp-cfg.php" | head -3
     exit 9
   fi
 fi
@@ -346,6 +386,7 @@ echo "  · menu      wp-admin ?page=vhcp${MA}"
 echo "  · tên trang $TEN_TRANG   (đổi được ở wp-admin -> Cài đặt, khỏi sửa mã)"
 echo "  · cơ sở     không tạm ứng -> mỗi dòng chi một cơ sở; có tạm ứng -> khoá theo gian ấy"
 echo "  · lấy từ Ghế $GHE"
+echo "  · lọc loại theo vai $LOC_VAI   (false = mọi bộ phận nhập được, đầu mục lớn dẫn đường)"
 echo
 echo "Bước tiếp:"
 echo "  1. bash tools/build-plugin-zip.sh chi-phi-$MA"

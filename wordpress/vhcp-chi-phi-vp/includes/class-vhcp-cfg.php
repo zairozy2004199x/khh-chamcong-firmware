@@ -1027,7 +1027,7 @@ class VHCPVP_Cfg {
 			/* `khoi` rỗng = loại có từ trước lượt chia ba bảng; `lap_khoi_loai()` lấp nốt ngay
 			   lúc nạp cấu hình, nên ô rỗng chỉ tồn tại đúng một khoảnh khắc. Vẫn phải rào
 			   `isset()`: dòng vừa thêm tay có thể chưa đủ ô. */
-			$out['loaiChiPhi'][] = array( 'ten' => $r[0], 'tkNo' => VHCPVP_Util::ma_so( $r[1] ), 'tkCo' => VHCPVP_Util::ma_so( $r[2] ), 'maDt' => VHCPVP_Util::ma_so( $r[3] ), 'boPhan' => $r[4], 'note' => $r[5], 'tenMisa' => isset( $r[6] ) ? $r[6] : '', 'loaiTt' => isset( $r[7] ) ? $r[7] : '', 'donVi' => isset( $r[8] ) ? $r[8] : '', 'khoi' => isset( $r[9] ) ? $r[9] : '', 'vaiTro' => isset( $r[10] ) ? $r[10] : '' );
+			$out['loaiChiPhi'][] = array( 'ten' => $r[0], 'tkNo' => VHCPVP_Util::ma_so( $r[1] ), 'tkCo' => VHCPVP_Util::ma_so( $r[2] ), 'maDt' => VHCPVP_Util::ma_so( $r[3] ), 'boPhan' => $r[4], 'note' => $r[5], 'tenMisa' => isset( $r[6] ) ? $r[6] : '', 'loaiTt' => isset( $r[7] ) ? $r[7] : '', 'donVi' => isset( $r[8] ) ? $r[8] : '', 'khoi' => isset( $r[9] ) ? $r[9] : '', 'vaiTro' => isset( $r[10] ) ? $r[10] : '', 'dauMuc' => isset( $r[11] ) ? $r[11] : '' );
 		}
 		foreach ( self::rows_of( $all, self::TKNO ) as $r ) {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
@@ -1362,7 +1362,7 @@ class VHCPVP_Cfg {
 				   đơn, trong khi tiền mang tên nó vẫn nằm trong sổ. */
 				$kh = trim( (string) $g( $x, 'khoi' ) );
 				if ( '' === $kh ) { $kh = VHCPVP_DB::khoi(); }
-				$rows[] = array( $tn, VHCPVP_Util::ma_so( $g( $x, 'tkNo' ) ), VHCPVP_Util::ma_so( $g( $x, 'tkCo' ) ), VHCPVP_Util::ma_so( $g( $x, 'maDt' ) ), $g( $x, 'boPhan' ), $nt, $g( $x, 'tenMisa' ), $g( $x, 'loaiTt' ), $g( $x, 'donVi' ), $kh, $g( $x, 'vaiTro' ) );
+				$rows[] = array( $tn, VHCPVP_Util::ma_so( $g( $x, 'tkNo' ) ), VHCPVP_Util::ma_so( $g( $x, 'tkCo' ) ), VHCPVP_Util::ma_so( $g( $x, 'maDt' ) ), $g( $x, 'boPhan' ), $nt, $g( $x, 'tenMisa' ), $g( $x, 'loaiTt' ), $g( $x, 'donVi' ), $kh, $g( $x, 'vaiTro' ), $g( $x, 'dauMuc' ) );
 			}
 			self::write( self::LOAI, $rows );
 		}
@@ -1873,6 +1873,84 @@ class VHCPVP_Cfg {
 	}
 
 	/* ═══════════════════════════════════════════════════════════════════════════════════════
+	 * ĐẦU MỤC CHI PHÍ — GOM, KHÔNG LỌC.
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 22/09/2026: *"phân loại để lên chi phí dễ nhất, các bộ phận nhập được"*, và
+	 * *"phân theo đầu mục chi phí lớn"*.
+	 *
+	 * 🔴 HAI HỆ LỚN NHẤT ĐỀU KHÔNG LỌC DANH MỤC THEO NGƯỜI — đo trên chính mã nguồn của họ:
+	 *      · ERPNext: `Expense Claim Type` có ĐÚNG BỐN trường (tên · mô tả · bảng tài khoản ·
+	 *        cờ trả trước). Không một trường nào hạn chế vai trò hay bộ phận. Phân quyền nằm ở
+	 *        cấp "ai được tạo đơn", không ở từng loại.
+	 *      · Odoo: app Chi phí ship ĐÚNG SÁU danh mục, phẳng, mọi người thấy hết.
+	 *    Thay vào đó họ để trục "ai/ở đâu" thành TRƯỜNG RIÊNG trên đơn (Bộ phận · Trung tâm
+	 *    chi phí · Dự án), và Bộ phận thì TỰ ĐIỀN từ hồ sơ nhân viên.
+	 *
+	 * 🔴 CHỖ HỎNG CỦA BẢN CŨ: một dòng Loại chi phí mang BỐN cột lọc (Bộ phận đã chết · Đơn vị ·
+	 *    Khối · Vai trò) và KHÔNG MỘT CỘT NÀO ĐỂ GOM. Người nhập sai vai là không thấy ô của
+	 *    mình — đúng câu *"chọn nhân viên sẽ ra chi phí đó"*. Ngược hẳn hai hệ kia: họ không
+	 *    lọc, chỉ gom; mình lọc bốn tầng, không gom.
+	 *
+	 * ⚠️ VÌ SAO 8–12 ĐẦU MỤC. Trên 12 là bắt đầu mệt óc và người ta chọn bừa; quá ít thì không
+	 *    có ô đúng để chọn, cũng chọn bừa. Bảng dưới có 10.
+	 *
+	 * ⚠️ ĐÂY LÀ ĐƯỜNG LUI, KHÔNG PHẢI BẢN CHỐT. Kế toán khai danh sách thật ở Cấu hình; bảng
+	 *    này chỉ để site chưa khai gì vẫn có cái mà chọn. Cùng lối với `bo_phan_ds()`.
+	 */
+	const DAU_MUC_MAC_DINH = array(
+		'Nhân sự',            // lương, thưởng, bảo hiểm, tuyển dụng
+		'Mặt bằng',           // thuê, điện, nước, phí quản lý
+		'Vận hành cơ sở',     // vật tư tiêu hao, vệ sinh, an ninh
+		'Bảo trì · Sửa chữa',
+		'Hàng hoá · Nguyên vật liệu',
+		'Marketing · Sự kiện',
+		'Công tác · Đi lại',
+		'Thiết bị · Đầu tư',
+		'Hành chính · Văn phòng',
+		'Khác',               // ô hứng — thiếu nó là người ta nhét bừa vào ô gần giống
+	);
+
+	/**
+	 * Danh sách đầu mục. Chưa khai thì rơi về bảng mặc định.
+	 *
+	 * ⚠️ RƠI VỀ, KHÔNG TRẢ RỖNG. Danh sách rỗng thì ô chọn trống trơn và người nhập kẹt cứng —
+	 *    mà họ không có cách nào tự chữa, vì khai danh mục là việc của kế toán.
+	 */
+	public static function dau_muc_ds() {
+		$ds = get_option( 'vhcpvp_dau_muc_ds', null );
+		if ( is_string( $ds ) ) { $ds = array_map( 'trim', explode( "\n", str_replace( "\r", '', $ds ) ) ); }
+		$ra = array();
+		foreach ( (array) $ds as $x ) {
+			$t = trim( (string) $x );
+			if ( '' !== $t && ! in_array( $t, $ra, true ) ) { $ra[] = $t; }
+		}
+		return $ra ? $ra : self::DAU_MUC_MAC_DINH;
+	}
+
+	/* ═══════════════════════════════════════════════════════════════════════════════════════
+	 * LỌC LOẠI CHI PHÍ THEO VAI TRÒ — BẬT/TẮT THEO VÙNG.
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 BẬT (mặc định) = hành vi cũ của Khu vui chơi, KHÔNG ĐỔI MỘT LY.
+	 * 🔴 TẮT = mọi vai thấy đủ loại, và đầu mục là thứ dẫn đường thay cho bộ lọc. Bản Hà Nội
+	 *    chạy ở chế độ này (anh Thắng 22/09/2026: *"các bộ phận nhập được"*).
+	 *
+	 * ⚠️ VÌ SAO LÀ CỜ CHỨ KHÔNG PHẢI ĐỔI THẲNG: bản vùng được SINH LẠI từ bản gốc, nên sửa
+	 *    riêng một bản là lượt sinh sau mất sạch. Đặt ở bản gốc kèm cờ thì trình sinh giữ
+	 *    được — đúng nếp đã dùng cho `LAY_COSO_GHE`.
+	 *
+	 * ⚠️ CỜ NÀY KHÔNG PHẢI CỔNG QUYỀN. Nó chỉ quyết định ô chọn bày bao nhiêu dòng. Ai xem
+	 *    được đơn nào vẫn do ĐƠN VỊ và CƠ SỞ gác, ở máy chủ, không đụng tới.
+	 */
+	const LOC_LOAI_THEO_VAI = true;
+
+	/** Vùng này có lọc loại chi phí theo vai trò không. Ô cấu hình thắng hằng. */
+	public static function loc_loai_theo_vai() {
+		$v = get_option( 'vhcpvp_loc_loai_theo_vai', null );
+		if ( null === $v || '' === $v ) { return self::LOC_LOAI_THEO_VAI; }
+		return (bool) (int) $v;
+	}
+
+	/* ═══════════════════════════════════════════════════════════════════════════════════════
 	 * KHỐI CỦA MỘT VAI TRÒ — ĐỌC RA TỪ CHÍNH CÁI TÊN, KHÔNG KHAI THÊM CỘT NÀO.
 	 * ═══════════════════════════════════════════════════════════════════════════════════════
 	 * Anh Thắng 21/09/2026: *"Loại chi phí theo Khối, Ai có ở khối nào mới hiện ra"*. Bảng loại chi phí
@@ -2027,7 +2105,7 @@ class VHCPVP_Cfg {
 	/** Mã tài khoản của 1 loại chi phí (rỗng nếu chưa khai). `$khoi` = '' giữ nguyên luật cũ. */
 	public static function loai_tk( $ten, $khoi = '' ) {
 		$x = self::loai_row( $ten, $khoi );
-		if ( ! $x ) { return array( 'tkNo' => '', 'tkCo' => '', 'maDt' => '', 'boPhan' => '', 'tenMisa' => '', 'loaiTt' => '', 'vaiTro' => '' ); }
+		if ( ! $x ) { return array( 'tkNo' => '', 'tkCo' => '', 'maDt' => '', 'boPhan' => '', 'tenMisa' => '', 'loaiTt' => '', 'vaiTro' => '', 'dauMuc' => '' ); }
 		return array(
 			'loaiTt'  => isset( $x['loaiTt'] ) ? (string) $x['loaiTt'] : '',
 			'tkNo'    => (string) $x['tkNo'],
@@ -2037,6 +2115,8 @@ class VHCPVP_Cfg {
 			'tenMisa' => isset( $x['tenMisa'] ) ? (string) $x['tenMisa'] : '',
 			/* Ai được dùng loại này — xem `loai_thuoc_vai()`. Trống = mọi vai. */
 			'vaiTro'  => isset( $x['vaiTro'] ) ? (string) $x['vaiTro'] : '',
+			/* Đầu mục lớn — chỉ để GOM ô chọn, không gác ai cả. Xem `dau_muc_ds()`. */
+			'dauMuc'  => isset( $x['dauMuc'] ) ? (string) $x['dauMuc'] : '',
 		);
 	}
 

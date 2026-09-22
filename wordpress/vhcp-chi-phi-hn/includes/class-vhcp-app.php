@@ -211,7 +211,7 @@ class VHCPHN_App {
 	 * ⚠️ ĐỂ TRỐNG = DÙNG TÊN MẶC ĐỊNH, không phải = tên rỗng. Trang không có tiêu đề thì người
 	 *    dùng đọc thành "trang hỏng".
 	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
-	const TEN_MAC_DINH = "Chi Phí Hà Nội";
+	const TEN_MAC_DINH = "Chi Phí HN";
 
 	public static function ten_trang() {
 		$t = trim( (string) get_option( 'vhcphn_ten_trang', '' ) );

@@ -645,7 +645,7 @@ class VHCPMTD_Don {
 			/* `vaiTro` = ai được dùng loại này (21/09/2026). Không gửi xuống là ô chọn lúc nhập
 			   đơn bày đủ mọi loại cho mọi vai, trong khi máy chủ thì lọc — hai bên nói hai
 			   chuyện, và người nhập chọn được thứ mà sổ của họ không hiện. */
-			$loai[] = array( 'ten' => $x['ten'], 'tkNo' => $x['tkNo'], 'tkCo' => $x['tkCo'], 'boPhan' => $x['boPhan'], 'loaiTt' => isset( $x['loaiTt'] ) ? $x['loaiTt'] : '', 'vaiTro' => isset( $x['vaiTro'] ) ? $x['vaiTro'] : '', 'khoi' => isset( $x['khoi'] ) ? $x['khoi'] : '' );
+			$loai[] = array( 'ten' => $x['ten'], 'tkNo' => $x['tkNo'], 'tkCo' => $x['tkCo'], 'boPhan' => $x['boPhan'], 'loaiTt' => isset( $x['loaiTt'] ) ? $x['loaiTt'] : '', 'vaiTro' => isset( $x['vaiTro'] ) ? $x['vaiTro'] : '', 'khoi' => isset( $x['khoi'] ) ? $x['khoi'] : '', 'dauMuc' => isset( $x['dauMuc'] ) ? $x['dauMuc'] : '' );
 		}
 
 		// Cơ sở -> mảng kinh doanh, và ma trận [loại][mảng] -> TK Nợ: để ô "Loại chi phí"
@@ -698,6 +698,13 @@ class VHCPMTD_Don {
 			 *    thì ngã về bảy tên mặc định"; đọc thẳng là site chưa khai gửi xuống danh sách
 			 *    rỗng trong khi máy chủ vẫn nhận bảy tên ấy — hai bên lệch nhau lặng lẽ.
 			 * ══════════════════════════════════════════════════════════════════════════════ */
+			/* ĐẦU MỤC LỚN — thứ dẫn đường cho người nhập, thay cho bộ lọc theo vai. Phải xuống
+			   tới gói khởi động chứ không chỉ gói Cấu hình: ô chọn lúc NHẬP ĐƠN dựng từ gói
+			   này, và một khoá thiếu ở đây trông y hệt một danh sách rỗng. */
+			'dauMucDs'   => VHCPMTD_Cfg::dau_muc_ds(),
+			/* Vùng này có lọc loại theo vai không. Giao diện đọc CỜ, không tự suy: hai nơi tự
+			   suy là có ngày ô chọn bày một đằng, máy chủ gác một nẻo. */
+			'locLoaiTheoVai' => VHCPMTD_Cfg::loc_loai_theo_vai(),
 			'boPhanDs'   => VHCPMTD_Cfg::bo_phan_ds(),
 			'boPhanBo'   => VHCPMTD_Auth::bo_phan_bo(),
 			'loaiChuaBP' => self::dem_loai_chua_bo_phan( $cp ),
