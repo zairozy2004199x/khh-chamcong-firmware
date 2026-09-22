@@ -167,7 +167,15 @@ class VHJP_DB {
 			note VARCHAR(500) NOT NULL DEFAULT '',
 			PRIMARY KEY  (code)";
 
-		/* ===== 6. JP_Reports -> bao_cao (45 cột) ===== */
+		/* ===== 6. JP_Reports -> bao_cao (48 cột) =====
+		 * `ktXacNhan` — SỐ TIỀN kế toán xác nhận đã nhận. Cố ý tách khỏi phần nhân viên tự
+		 * khai (cộng từ `JP_Payments`): hai cột, và chỗ LỆCH giữa chúng mới là thông tin. Gộp
+		 * một cột thì nhân viên khai bao nhiêu sổ ghi bấy nhiêu, không còn gì để đối chiếu.
+		 * Cũng KHÔNG suy từ cờ `paid`: cờ ấy chỉ nói đủ hay chưa, còn xác nhận MỘT PHẦN thì
+		 * không có chỗ nào ghi — mà một phần mới là ca hay gặp.
+		 *
+		 * ⚠️ Chú thích để NGOÀI chuỗi DDL. Mọi thân bảng ở tệp này là chuỗi nháy kép, nên một
+		 *    dấu " trong chú thích là cắt đứt chuỗi ngay giữa câu CREATE TABLE. */
 		$b['bao_cao'] = "
 			id VARCHAR(32) NOT NULL DEFAULT '',
 			createdAt DATETIME NULL,
@@ -211,6 +219,9 @@ class VHJP_DB {
 			paid TINYINT(1) NOT NULL DEFAULT 0,
 			paidDate DATE NULL,
 			payStatus VARCHAR(64) NOT NULL DEFAULT '',
+			ktXacNhan DECIMAL(15,2) NULL,
+			ktXacNhanBy VARCHAR(64) NOT NULL DEFAULT '',
+			ktXacNhanAt DATETIME NULL,
 			warnCount INT(11) NOT NULL DEFAULT 0,
 			remark VARCHAR(500) NOT NULL DEFAULT '',
 			photoWarnJson LONGTEXT NULL,

@@ -86,6 +86,11 @@ class VHJP_Cong {
 			'jpKhoTraNcc', 'jpKhoTraNccLo', 'jpKhoHuyTraNcc', 'jpKhoLichSuTraNcc',
 			'jpKhoBangKeNhap', 'jpKhoBangKeXuat',
 			'jpSo632', 'jpCongNoNcc',
+			/* Hai bảng này bày tiền của MỌI người — chỉ kế toán. Bốn hàm nộp tiền còn lại gác
+			   hẹp hơn ngay bên trong: nhân viên chỉ đụng được báo cáo của CHÍNH mình. */
+			'jpKtPaymentBoard', 'jpCongNoNhanVien',
+			'jpRevenueBoard', 'jpStockBoard', 'jpBaoCaoDoanhThuNgay',
+			'jpKtDanhSachDeNghi', 'jpKtXuLyDeNghi', 'jpKtReopen',
 			'jpSoNhatKyChung', 'jpBangCanDoiPhatSinh', 'jpKiemTraButToan', 'jpKetQuaKinhDoanh',
 			'jpDoiTkKhoCu',
 		);
@@ -175,7 +180,28 @@ class VHJP_Cong {
 			'jpKetQuaKinhDoanh'   => array( 'VHJP_Cong', 'bt_kqkd' ),
 			'jpDoiTkKhoCu'        => array( 'VHJP_Cong', 'bt_doi_tk' ),
 
-			/* kế toán duyệt */
+			/* nộp tiền */
+			'jpMyUnpaid'          => array( 'VHJP_Cong', 'nt_chua_nop' ),
+			'jpPaymentHistory'    => array( 'VHJP_Cong', 'nt_lich_su' ),
+			'jpAddPayment'        => array( 'VHJP_Cong', 'nt_them' ),
+			'jpSuaNgayNop'        => array( 'VHJP_Cong', 'nt_sua_ngay' ),
+			'jpDeletePayment'     => array( 'VHJP_Cong', 'nt_xoa' ),
+			'jpMyMonthHistory'    => array( 'VHJP_Cong', 'nt_thang' ),
+			'jpKtPaymentBoard'    => array( 'VHJP_Cong', 'nt_bang' ),
+			'jpCongNoNhanVien'    => array( 'VHJP_Cong', 'nt_cong_no' ),
+
+			/* bảng của kế toán · đề nghị sửa tồn đầu · mở lại báo cáo */
+			'jpRevenueBoard'      => array( 'VHJP_Cong', 'bg_doanh_thu' ),
+			'jpStockBoard'        => array( 'VHJP_Cong', 'bg_hang' ),
+			'jpBaoCaoDoanhThuNgay' => array( 'VHJP_Cong', 'bg_dt_ngay' ),
+			'jpGetOpening'        => array( 'VHJP_Cong', 'bg_ton_dau' ),
+			'jpGuiDeNghiTonDau'   => array( 'VHJP_Cong', 'bg_gui_de_nghi' ),
+			'jpKtDanhSachDeNghi'  => array( 'VHJP_Cong', 'bg_ds_de_nghi' ),
+			'jpKtXuLyDeNghi'      => array( 'VHJP_Cong', 'bg_xu_ly_de_nghi' ),
+			'jpReopenIn24h'       => array( 'VHJP_Cong', 'bg_mo_lai_24h' ),
+			'jpKtReopen'          => array( 'VHJP_Cong', 'bg_kt_mo_lai' ),
+			'jpSuaKyBaoCao'       => array( 'VHJP_Cong', 'bg_sua_ky' ),
+
 			'jpKtListReports'     => array( 'VHJP_Cong', 'kt_ds' ),
 			'jpKtGetReport'       => array( 'VHJP_Cong', 'kt_lay' ),
 			'jpKtApprove'         => array( 'VHJP_Cong', 'kt_ky' ),
@@ -197,15 +223,8 @@ class VHJP_Cong {
 	 */
 	public static function chua_lam() {
 		return array(
-			/* nộp tiền */
-			'jpAddPayment', 'jpCongNoNhanVien', 'jpDeletePayment', 'jpMyMonthHistory',
-			'jpMyUnpaid', 'jpPaymentHistory', 'jpSuaNgayNop',
 			/* kế toán tổng hợp */
 			'jpQuetDayChuyen', 'jpSoCongNo',
-			/* báo cáo của nhân viên */
-			'jpBaoCaoDoanhThuNgay', 'jpGetOpening', 'jpGuiDeNghiTonDau',
-			'jpReopenIn24h', 'jpRevenueBoard',
-			'jpStockBoard', 'jpSuaKyBaoCao',
 			/* cấu hình & tiện ích */
 			'jpCfgImportItems', 'jpCfgListUsers', 'jpCfgSaveUser', 'jpDungHeThongMotPhat',
 			'jpKiemTraNhanh', 'jpNapBuTonDauKy31_7', 'jpNapCoSo', 'jpNapDanhMucHangJP',
@@ -216,7 +235,6 @@ class VHJP_Cong {
 			'jpDoiSoatNganHang', 'jpKhaiCachThu', 'jpLichDoiSoatNH', 'jpReconApply', 'jpReconHistory',
 			'jpReconPreview', 'jpReconUndo', 'jpXacNhanCotNganHang',
 			/* kế toán duyệt */
-			'jpKtDanhSachDeNghi', 'jpKtPaymentBoard', 'jpKtReopen', 'jpKtXuLyDeNghi',
 		);
 	}
 
@@ -545,6 +563,72 @@ class VHJP_Cong {
 	   một lượt XEM TRƯỚC biến thành một lượt ghi đè hàng loạt lên sổ đã chốt. */
 	public static function bt_doi_tk( $args, $nguoi ) {
 		return VHJP_ButToan::doi_tk_kho_cu( $nguoi, ! empty( $args[1] ) );
+	}
+
+	/* ── nộp tiền ── */
+	public static function nt_chua_nop( $args, $nguoi ) {
+		return VHJP_NopTien::chua_nop( $nguoi );
+	}
+	public static function nt_lich_su( $args, $nguoi ) {
+		return VHJP_NopTien::lich_su( $nguoi, isset( $args[1] ) ? $args[1] : '' );
+	}
+	public static function nt_them( $args, $nguoi ) {
+		return VHJP_NopTien::them( $nguoi, isset( $args[1] ) ? $args[1] : array() );
+	}
+	public static function nt_sua_ngay( $args, $nguoi ) {
+		return VHJP_NopTien::sua_ngay( $nguoi, isset( $args[1] ) ? $args[1] : '',
+			isset( $args[2] ) ? $args[2] : '' );
+	}
+	public static function nt_xoa( $args, $nguoi ) {
+		return VHJP_NopTien::xoa( $nguoi, isset( $args[1] ) ? $args[1] : '' );
+	}
+	public static function nt_thang( $args, $nguoi ) {
+		return VHJP_NopTien::lich_su_thang( $nguoi,
+			isset( $args[1] ) ? $args[1] : 0, isset( $args[2] ) ? $args[2] : 0 );
+	}
+	public static function nt_bang( $args, $nguoi ) {
+		return VHJP_NopTien::bang_nop( $nguoi, isset( $args[1] ) ? $args[1] : array() );
+	}
+	public static function nt_cong_no( $args, $nguoi ) {
+		return VHJP_NopTien::cong_no_nv( $nguoi, isset( $args[1] ) ? $args[1] : array() );
+	}
+
+	/* ── bảng · đề nghị · mở lại ── */
+	public static function bg_doanh_thu( $args, $nguoi ) {
+		return VHJP_Bang::bang_doanh_thu( $nguoi, isset( $args[1] ) ? $args[1] : array() );
+	}
+	public static function bg_hang( $args, $nguoi ) {
+		return VHJP_Bang::bang_hang( $nguoi, isset( $args[1] ) ? $args[1] : array() );
+	}
+	public static function bg_dt_ngay( $args, $nguoi ) {
+		return VHJP_Bang::doanh_thu_ngay( $nguoi,
+			isset( $args[1] ) ? $args[1] : 0, isset( $args[2] ) ? $args[2] : 0 );
+	}
+	/* `jpGetOpening(token, reportId, machineId, itemCode)` — ô máy HOẶC mã hàng, không cả hai. */
+	public static function bg_ton_dau( $args, $nguoi ) {
+		return VHJP_Bang::ton_dau( $nguoi, isset( $args[1] ) ? $args[1] : '',
+			isset( $args[2] ) ? $args[2] : '', isset( $args[3] ) ? $args[3] : '' );
+	}
+	public static function bg_gui_de_nghi( $args, $nguoi ) {
+		return VHJP_Bang::gui_de_nghi( $nguoi, isset( $args[1] ) ? $args[1] : array() );
+	}
+	public static function bg_ds_de_nghi( $args, $nguoi ) {
+		return VHJP_Bang::ds_de_nghi( $nguoi, ! empty( $args[1] ) );
+	}
+	public static function bg_xu_ly_de_nghi( $args, $nguoi ) {
+		return VHJP_Bang::xu_ly_de_nghi( $nguoi, isset( $args[1] ) ? $args[1] : array() );
+	}
+	public static function bg_mo_lai_24h( $args, $nguoi ) {
+		return VHJP_Bang::mo_lai_24h( $nguoi, isset( $args[1] ) ? $args[1] : '',
+			isset( $args[2] ) ? $args[2] : '' );
+	}
+	public static function bg_kt_mo_lai( $args, $nguoi ) {
+		return VHJP_Bang::kt_mo_lai( $nguoi, isset( $args[1] ) ? $args[1] : '',
+			isset( $args[2] ) ? $args[2] : '' );
+	}
+	public static function bg_sua_ky( $args, $nguoi ) {
+		return VHJP_Bang::sua_ky( $nguoi, isset( $args[1] ) ? $args[1] : '',
+			isset( $args[2] ) ? $args[2] : '', isset( $args[3] ) ? $args[3] : '' );
 	}
 
 	public static function bc_mo( $args, $nguoi ) {

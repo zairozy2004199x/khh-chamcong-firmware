@@ -111,6 +111,12 @@ jobs:
       - name: Bộ thử đăng nhập một lần JP ← Chấm Công
         run: php tools/test/kiem-jp-sso.php
 
+      # Nộp tiền: hai cột (nhân viên tự khai · kế toán xác nhận) và chỗ LỆCH giữa chúng mới là
+      # thông tin. Bài này canh: không nhận quá số còn thiếu · không nhận của báo cáo chưa hoàn
+      # tất · kế toán xác nhận rồi thì nhân viên hết sửa · công nợ tính theo số KT xác nhận.
+      - name: Bộ thử nộp tiền & bảng báo cáo JP
+        run: php tools/test/kiem-jp-nop-tien.php
+
       - name: Bộ thử chi phí
         run: php tools/test/test-flows.php
 
