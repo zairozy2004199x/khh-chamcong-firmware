@@ -29,6 +29,7 @@ class KHTC_Trang {
 			case 'bao-cao':   self::bao_cao();   break;
 			case 'nhat-ky':   self::nhat_ky();   break;
 			case 'sao-luu':   self::sao_luu();   break;
+			case 'nguoi-dung': self::nguoi_dung(); break;
 			default:          self::tong_quan(); break;
 		}
 	}
@@ -1118,6 +1119,134 @@ class KHTC_Trang {
 		echo '</div>';
 		echo '<p class="khtc-sub"><strong>Nhập là THÊM VÀO, không xoá cái đang có.</strong> Nhập hai lần cùng một tệp thì số nhân đôi. Muốn phục hồi sạch thì xoá dữ liệu cũ trước, hoặc nhập vào một website trắng.</p>';
 		echo '<p class="khtc-sub">Id được cấp lại và các liên kết (giao dịch → tài khoản, dòng cổng → đợt, chi phí → giao dịch) được nối lại theo id mới, nên nhập vào website đã có dữ liệu cũng không trỏ nhầm.</p>';
+		echo '</form></details></div>';
+	}
+
+	// --------------------------------------------------------- người dùng
+
+	/**
+	 * Cấp tài khoản đăng nhập cho kế toán, khỏi đi vòng qua wp-admin.
+	 *
+	 * Mật khẩu chỉ hiện ĐÚNG MỘT LẦN ngay sau khi tạo, và không ghi vào nhật
+	 * ký. Muốn xem lại thì đặt lại cái mới — rẻ hơn nhiều so với việc lưu mật
+	 * khẩu ở một chỗ đọc được.
+	 */
+	public static function nguoi_dung() {
+		if ( ! KHTC_NguoiDung::duoc_quan_ly() ) {
+			echo '<div class="wrap khtc"><h1>Người dùng</h1>';
+			echo '<p class="khtc-canh-bao">Chỉ quản trị viên của website mới xem được mục này.</p></div>';
+			return;
+		}
+
+		$bao_ok  = '';
+		$bao_loi = '';
+		$mk_moi  = null;   // [tên, mật khẩu] — chỉ sống trong đúng lần tải trang này
+
+		if ( isset( $_POST['khtc_them_nd'] ) && check_admin_referer( 'khtc_nd' ) ) {
+			$kq = KHTC_NguoiDung::them(
+				array(
+					'ten'      => wp_unslash( $_POST['ten'] ?? '' ),
+					'email'    => wp_unslash( $_POST['email'] ?? '' ),
+					'hien_thi' => wp_unslash( $_POST['hien_thi'] ?? '' ),
+					'mat_khau' => wp_unslash( $_POST['mat_khau'] ?? '' ),
+				)
+			);
+			if ( is_wp_error( $kq ) ) {
+				$bao_loi = $kq->get_error_message();
+			} elseif ( ! empty( $kq['da_co'] ) ) {
+				$bao_ok = 'Tài khoản đã có sẵn trên website — đã cấp thêm quyền vào sổ, mật khẩu giữ nguyên như cũ.';
+			} else {
+				$bao_ok = 'Đã tạo tài khoản.';
+				$mk_moi = array( sanitize_user( wp_unslash( $_POST['ten'] ?? '' ), true ), $kq['mat_khau'] );
+			}
+		}
+
+		if ( isset( $_POST['khtc_go_nd'] ) && check_admin_referer( 'khtc_nd' ) ) {
+			$kq = KHTC_NguoiDung::go( (int) $_POST['khtc_go_nd'] );
+			if ( is_wp_error( $kq ) ) { $bao_loi = $kq->get_error_message(); } else { $bao_ok = 'Đã gỡ quyền vào sổ.'; }
+		}
+
+		if ( isset( $_POST['khtc_doi_mk'] ) && check_admin_referer( 'khtc_nd' ) ) {
+			$id = (int) $_POST['khtc_doi_mk'];
+			$kq = KHTC_NguoiDung::doi_mat_khau( $id, wp_unslash( $_POST[ 'mk_' . $id ] ?? '' ) );
+			if ( is_wp_error( $kq ) ) {
+				$bao_loi = $kq->get_error_message();
+			} else {
+				$u      = get_user_by( 'id', $id );
+				$bao_ok = 'Đã đổi mật khẩu.';
+				$mk_moi = array( $u ? $u->user_login : '#' . $id, $kq['mat_khau'] );
+			}
+		}
+
+		echo '<div class="wrap khtc">';
+		KHTC_UI::dau_trang( 'Người dùng' );
+		// Đầu trang nào cũng kèm tên pháp nhân đang chọn, nhưng tài khoản thì
+		// KHÔNG chia theo pháp nhân — nói rõ, kẻo tưởng phải tạo hai lần.
+		echo '<p class="khtc-sub">Tài khoản dùng chung cho cả hai pháp nhân — ai vào được sổ là xem được cả KH Cũ lẫn KH Mới. Bản này chưa giới hạn được từng người xem riêng một pháp nhân.</p>';
+		if ( $bao_loi ) { printf( '<p class="khtc-canh-bao">%s</p>', esc_html( $bao_loi ) ); }
+		if ( $bao_ok )  { printf( '<div class="notice notice-success"><p>%s</p></div>', esc_html( $bao_ok ) ); }
+
+		if ( $mk_moi ) {
+			echo '<div class="khtc-panel"><h2>Mật khẩu mới — chép ngay bây giờ</h2>';
+			printf(
+				'<p>Tài khoản <code>%s</code> · mật khẩu <code class="khtc-mk">%s</code></p>',
+				esc_html( $mk_moi[0] ),
+				esc_html( $mk_moi[1] )
+			);
+			echo '<p class="khtc-sub"><strong>Trang này tải lại là mất.</strong> Mật khẩu không được lưu ở đâu đọc lại được, kể cả nhật ký. Quên thì đặt lại cái mới.</p></div>';
+		}
+
+		$ds = KHTC_NguoiDung::ds();
+		echo '<div class="khtc-panel"><h2>Đang vào được sổ</h2>';
+		echo '<table><thead><tr><th>Tên đăng nhập</th><th>Tên hiển thị</th><th>Thư</th><th>Vai trò</th><th>Đổi mật khẩu</th><th></th></tr></thead><tbody>';
+		foreach ( $ds as $u ) {
+			echo '<tr><td><code>' . esc_html( $u['ten'] ) . '</code>' . ( $u['toi'] ? ' <span class="khtc-sub">(bạn)</span>' : '' ) . '</td>';
+			echo '<td>' . esc_html( $u['hien_thi'] ) . '</td>';
+			echo '<td>' . esc_html( $u['email'] ) . '</td>';
+			echo '<td>' . esc_html( $u['vai_tro'] ) . '</td>';
+			echo '<td><form method="post" class="khtc-loc">';
+			wp_nonce_field( 'khtc_nd' );
+			printf( '<input type="text" name="mk_%d" placeholder="để trống = máy tự sinh" autocomplete="off">', (int) $u['id'] );
+			printf( '<button type="submit" name="khtc_doi_mk" value="%d" class="button">Đổi</button>', (int) $u['id'] );
+			echo '</form></td><td>';
+			if ( $u['toi'] ) {
+				echo '<span class="khtc-sub">chính bạn</span>';
+			} elseif ( $u['quan_tri'] ) {
+				echo '<span class="khtc-sub">quản trị website</span>';
+			} else {
+				echo '<form method="post">';
+				wp_nonce_field( 'khtc_nd' );
+				printf(
+					'<button type="submit" name="khtc_go_nd" value="%d" class="button" onclick="return confirm(\'Gỡ quyền vào sổ của %s? Tài khoản vẫn còn, chỉ không mở được Tài Chính K&amp;H nữa.\')">Gỡ quyền</button>',
+					(int) $u['id'],
+					esc_js( $u['ten'] )
+				);
+				echo '</form>';
+			}
+			echo '</td></tr>';
+		}
+		if ( ! $ds ) { echo '<tr><td colspan="6" class="khtc-trong">Chưa có ai.</td></tr>'; }
+		echo '</tbody></table>';
+		echo '<p class="khtc-sub">Gỡ quyền <strong>không xoá tài khoản</strong> — người đó vẫn đăng nhập được vào website, chỉ không mở được sổ. Muốn xoá hẳn thì vào wp-admin → Người dùng.</p>';
+		echo '</div>';
+
+		echo '<details class="khtc-panel khtc-gap" open><summary>Thêm người vào sổ</summary><form method="post"><div class="khtc-loc">';
+		wp_nonce_field( 'khtc_nd' );
+		echo '<label>Tên đăng nhập<input type="text" name="ten" required autocomplete="off" placeholder="ketoan.lan"></label>';
+		echo '<label>Tên hiển thị<input type="text" name="hien_thi" placeholder="Nguyễn Thị Lan"></label>';
+		echo '<label>Thư (không bắt buộc)<input type="email" name="email" placeholder="lan@congty.vn"></label>';
+		echo '<label>Mật khẩu<input type="text" name="mat_khau" autocomplete="off" placeholder="để trống = máy tự sinh"></label>';
+		echo '<button type="submit" name="khtc_them_nd" value="1" class="button button-primary">Tạo tài khoản</button>';
+		echo '</div>';
+		printf(
+			'<p class="khtc-sub">Tài khoản mới mang vai trò <strong>%s</strong>: mở được Tài Chính K&amp;H, <em>không</em> sửa được bài viết, trang hay cài đặt của website. Tên đăng nhập đã có sẵn thì không tạo mới mà cấp thêm quyền cho người đó.</p>',
+			esc_html( KHTC_NguoiDung::TEN_VT )
+		);
+		printf(
+			'<p class="khtc-sub">Họ đăng nhập ở <code>%s</code> rồi mở <code>%s</code>.</p>',
+			esc_html( wp_login_url() ),
+			esc_html( home_url( '/' . KHTC_Web::SLUG . '/' ) )
+		);
 		echo '</form></details></div>';
 	}
 

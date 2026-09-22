@@ -40,7 +40,102 @@ function get_option( $k, $m = false ) { return array_key_exists( $k, $GLOBALS['k
 function update_option( $k, $v ) { $GLOBALS['khtc_option'][ $k ] = $v; return true; }
 function get_current_user_id() { return 1; }
 function is_user_logged_in() { return true; }
-function current_user_can( $c ) { return true; }
+// Quyền giả lập: mặc định cho hết, nhưng bài kiểm nào cần thử phía CHẶN thì
+// đặt $GLOBALS['khtc_cam'] để tắt đúng quyền đó.
+function current_user_can( $c ) { return empty( $GLOBALS['khtc_cam'][ $c ] ); }
+
+// ---------------------------------------------------- người dùng giả lập
+$GLOBALS['khtc_users'] = array(
+	1 => (object) array( 'ID' => 1, 'user_login' => 'admin', 'user_email' => 'admin@vi.du', 'display_name' => 'Quản trị', 'roles' => array( 'administrator' ), 'caps' => array( 'manage_options' => true, 'edit_pages' => true ) ),
+);
+$GLOBALS['khtc_roles'] = array(
+	'administrator' => array( 'ten' => 'Quản trị viên', 'caps' => array( 'manage_options' => true, 'edit_pages' => true ) ),
+	'editor'        => array( 'ten' => 'Biên tập viên', 'caps' => array( 'edit_pages' => true ) ),
+	'subscriber'    => array( 'ten' => 'Người đăng ký', 'caps' => array( 'read' => true ) ),
+);
+class KHTC_VaiTro_Gia {
+	public $name;
+	public function __construct( $n ) { $this->name = $n; }
+	public function add_cap( $c, $co = true ) { $GLOBALS['khtc_roles'][ $this->name ]['caps'][ $c ] = $co; }
+	public function remove_cap( $c ) { unset( $GLOBALS['khtc_roles'][ $this->name ]['caps'][ $c ] ); }
+}
+function get_role( $n ) { return isset( $GLOBALS['khtc_roles'][ $n ] ) ? new KHTC_VaiTro_Gia( $n ) : null; }
+function add_role( $n, $ten, $caps = array() ) { $GLOBALS['khtc_roles'][ $n ] = array( 'ten' => $ten, 'caps' => $caps ); return new KHTC_VaiTro_Gia( $n ); }
+function wp_roles() {
+	return new class() {
+		public function get_names() {
+			$r = array();
+			foreach ( $GLOBALS['khtc_roles'] as $k => $v ) { $r[ $k ] = $v['ten']; }
+			return $r;
+		}
+	};
+}
+class KHTC_User_Gia {
+	public $ID; public $user_login; public $user_email; public $display_name; public $roles; public $caps; public $mat_khau = '';
+	public function __construct( $d ) { foreach ( $d as $k => $v ) { $this->$k = $v; } }
+	public function add_cap( $c, $co = true ) { $GLOBALS['khtc_users'][ $this->ID ]->caps[ $c ] = $co; }
+	public function remove_cap( $c ) { unset( $GLOBALS['khtc_users'][ $this->ID ]->caps[ $c ] ); }
+	// WP_User thật cập nhật cả $this->roles, không chỉ kho dữ liệu. Thiếu chỗ
+	// này thì mã gọi remove_role() rồi đọc lại $u->roles ngay sau đó sẽ thấy
+	// giá trị cũ — và bài kiểm bỏ lọt đúng loại lỗi đó.
+	public function add_role( $r ) {
+		$GLOBALS['khtc_users'][ $this->ID ]->roles[] = $r;
+		$this->roles = $GLOBALS['khtc_users'][ $this->ID ]->roles;
+	}
+	public function remove_role( $r ) {
+		$u = $GLOBALS['khtc_users'][ $this->ID ];
+		$u->roles    = array_values( array_diff( (array) $u->roles, array( $r ) ) );
+		$this->roles = $u->roles;
+	}
+}
+function khtc_gia_user( $u ) { return $u instanceof KHTC_User_Gia ? $u : new KHTC_User_Gia( (array) $u ); }
+function get_users( $a = array() ) {
+	$r = array_map( 'khtc_gia_user', array_values( $GLOBALS['khtc_users'] ) );
+	usort( $r, function ( $x, $y ) { return strcmp( $x->user_login, $y->user_login ); } );
+	return $r;
+}
+function get_user_by( $loai, $v ) {
+	foreach ( $GLOBALS['khtc_users'] as $u ) {
+		if ( 'id' === $loai && (int) $u->ID === (int) $v ) { return khtc_gia_user( $u ); }
+		if ( 'login' === $loai && $u->user_login === $v ) { return khtc_gia_user( $u ); }
+		if ( 'email' === $loai && '' !== (string) $v && $u->user_email === $v ) { return khtc_gia_user( $u ); }
+	}
+	return false;
+}
+function user_can( $u, $c ) {
+	$u = is_object( $u ) ? $GLOBALS['khtc_users'][ $u->ID ] : $GLOBALS['khtc_users'][ (int) $u ];
+	if ( array_key_exists( $c, (array) $u->caps ) ) { return (bool) $u->caps[ $c ]; }
+	foreach ( (array) $u->roles as $r ) {
+		if ( ! empty( $GLOBALS['khtc_roles'][ $r ]['caps'][ $c ] ) ) { return true; }
+	}
+	// Bộ lọc bù quyền của plugin cũng phải chạy ở đây, nếu không phép kiểm
+	// không đụng tới đúng cái đang cần kiểm.
+	if ( KHTC_NguoiDung::QUYEN === $c ) { return user_can( $u, KHTC_NguoiDung::QUYEN_CU ); }
+	return false;
+}
+function wp_insert_user( $d ) {
+	foreach ( $GLOBALS['khtc_users'] as $u ) {
+		if ( $u->user_login === $d['user_login'] ) { return new WP_Error( 'ton_tai', 'Tên đăng nhập đã có.' ); }
+	}
+	$id = max( array_keys( $GLOBALS['khtc_users'] ) ) + 1;
+	$GLOBALS['khtc_users'][ $id ] = (object) array(
+		'ID' => $id, 'user_login' => $d['user_login'], 'user_email' => $d['user_email'] ?? '',
+		'display_name' => $d['display_name'] ?? $d['user_login'],
+		'roles' => array( $d['role'] ?? 'subscriber' ), 'caps' => array(),
+		'mat_khau' => $d['user_pass'] ?? '',
+	);
+	return $id;
+}
+function wp_set_password( $mk, $id ) { $GLOBALS['khtc_users'][ (int) $id ]->mat_khau = $mk; }
+function sanitize_user( $s, $chat = false ) { return strtolower( preg_replace( '/[^A-Za-z0-9._-]/', '', (string) $s ) ); }
+function is_email( $s ) { return (bool) filter_var( (string) $s, FILTER_VALIDATE_EMAIL ); }
+function wp_generate_password( $n = 12, $dac_biet = true, $manh = false ) {
+	$bang = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789' . ( $dac_biet ? '!@#$%^&*()' : '' );
+	$r = '';
+	for ( $i = 0; $i < $n; $i++ ) { $r .= $bang[ random_int( 0, strlen( $bang ) - 1 ) ]; }
+	return $r;
+}
+function wp_login_url( $x = '' ) { return 'https://vi.du/wp-login.php'; }
 function wp_get_current_user() { return (object) array( 'display_name' => 'Kế toán', 'user_login' => 'ketoan' ); }
 function get_user_meta( $u, $k, $single = false ) { return $GLOBALS['khtc_user_meta'][ $k ] ?? ''; }
 function update_user_meta( $u, $k, $v ) { $GLOBALS['khtc_user_meta'][ $k ] = $v; return true; }
@@ -248,6 +343,6 @@ define( 'KHTC_VERSION', $m[1] ?? '0' );
 define( 'KHTC_DIR', $goc );
 define( 'KHTC_URL', 'https://vi.du/wp-content/plugins/kh-tai-chinh/' );
 define( 'KHTC_CAP', 'edit_pages' );
-foreach ( array( 'db', 'cty', 'nhat-ky', 'khoa', 'ngan-hang', 'giao-dich', 'doi-soat', 'chi-phi', 'hoa-don-ra', 'hoa-don-vao', 'cong-no', 'phap-danh', 'ho-so', 'bao-cao', 'mau', 'sao-luu', 'ui', 'trang', 'web', 'admin' ) as $t ) {
+foreach ( array( 'db', 'cty', 'nguoi-dung', 'nhat-ky', 'khoa', 'ngan-hang', 'giao-dich', 'doi-soat', 'chi-phi', 'hoa-don-ra', 'hoa-don-vao', 'cong-no', 'phap-danh', 'ho-so', 'bao-cao', 'mau', 'sao-luu', 'ui', 'trang', 'web', 'admin' ) as $t ) {
 	require_once $goc . 'includes/class-khtc-' . $t . '.php';
 }

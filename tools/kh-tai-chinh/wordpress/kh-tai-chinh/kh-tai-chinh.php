@@ -3,7 +3,7 @@
  * Plugin Name:       Tài Chính K&H
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Theo dõi ngân hàng, giao dịch và đối soát cho CÔNG TY TNHH DỊCH VỤ VÀ GIẢI TRÍ K&H — chạy thẳng trên host WordPress, dữ liệu nằm trong MySQL của chính website.
- * Version:           1.2.2
+ * Version:           1.3.0
  * Requires at least: 5.6
  * Requires PHP:      7.4
  * Author:            K&H
@@ -30,12 +30,15 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'KHTC_VERSION', '1.2.2' );
+define( 'KHTC_VERSION', '1.3.0' );
 define( 'KHTC_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KHTC_URL', plugin_dir_url( __FILE__ ) );
 
 /** Quyền tối thiểu để mở plugin. Kế toán thường là Editor nên không dùng manage_options. */
-define( 'KHTC_CAP', 'edit_pages' );
+// Quyền riêng của plugin, không mượn edit_pages nữa: cho kế toán xem sổ mà
+// không phải cho họ quyền sửa mọi trang của website. Ai đang có edit_pages vẫn
+// vào được, nhờ bộ lọc trong KHTC_NguoiDung — nâng cấp không khoá ai ra ngoài.
+define( 'KHTC_CAP', 'khtc_xem' );
 
 require_once KHTC_DIR . 'includes/class-khtc-db.php';
 require_once KHTC_DIR . 'includes/class-khtc-cty.php';
@@ -56,12 +59,14 @@ require_once KHTC_DIR . 'includes/class-khtc-sao-luu.php';
 require_once KHTC_DIR . 'includes/class-khtc-ui.php';
 require_once KHTC_DIR . 'includes/class-khtc-trang.php';
 require_once KHTC_DIR . 'includes/class-khtc-web.php';
+require_once KHTC_DIR . 'includes/class-khtc-nguoi-dung.php';
 require_once KHTC_DIR . 'includes/class-khtc-admin.php';
 
 register_activation_hook(
 	__FILE__,
 	function () {
 		KHTC_DB::tao_bang();
+		KHTC_NguoiDung::dung_vai_tro();
 		KHTC_Web::nap_lai_rule();
 	}
 );
@@ -72,6 +77,7 @@ add_action( 'admin_menu', array( 'KHTC_Admin', 'menu' ) );
 add_action( 'admin_init', array( 'KHTC_Admin', 'nhay_ra_web' ) );
 add_action( 'admin_enqueue_scripts', array( 'KHTC_Admin', 'nap_style' ) );
 
+KHTC_NguoiDung::khoi_dong();
 KHTC_Web::khoi_dong();
 
 // Tải CSV phải chạy TRƯỚC khi có chữ nào được in ra, nếu không header bị từ chối
@@ -94,6 +100,10 @@ add_action(
 	function () {
 		if ( get_option( 'khtc_rule' ) !== KHTC_VERSION ) {
 			flush_rewrite_rules();
+			// Nâng cấp KHÔNG chạy register_activation_hook, nên vai trò và
+			// quyền phải được dựng lại ở đây, nếu không bản nâng cấp lên sẽ
+			// không có vai trò "Kế toán K&H" mà màn hình Người dùng cần.
+			KHTC_NguoiDung::dung_vai_tro();
 			update_option( 'khtc_rule', KHTC_VERSION );
 		}
 	},

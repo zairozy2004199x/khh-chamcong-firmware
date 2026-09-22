@@ -1,7 +1,7 @@
 === Tài Chính K&H ===
 Requires at least: 5.6
 Requires PHP: 7.4
-Stable tag: 1.2.2
+Stable tag: 1.3.0
 License: GPL-2.0-or-later
 
 Theo dõi ngân hàng, giao dịch và đối soát cho CÔNG TY TNHH DỊCH VỤ VÀ GIẢI TRÍ K&H.
@@ -15,7 +15,9 @@ Dữ liệu nằm trong bảng MySQL của chính website, không phải file JS
 giữ toàn bộ giao dịch trong một tệp 95 MB, mỗi lần mở trang là nạp cả tệp vào
 RAM; trên shared hosting cách đó không chạy nổi.
 
-Đăng nhập dùng luôn tài khoản WordPress, không dựng bảng mật khẩu riêng.
+Đăng nhập dùng luôn tài khoản WordPress, không dựng bảng mật khẩu riêng. Có màn
+hình Người dùng để quản trị viên cấp tài khoản cho kế toán ngay trong plugin,
+khỏi đi vòng qua wp-admin và khỏi phải hiểu hệ thống vai trò của WordPress.
 
 == Đang có ==
 
@@ -72,6 +74,11 @@ RAM; trên shared hosting cách đó không chạy nổi.
   phí, hợp đồng, một đợt đối soát đã chạy) để xem thử mọi màn hình trước khi
   nhập số thật, và xoá sạch được bằng một nút khác. Chỉ nạp được khi sổ còn
   trống, và chỉ xoá đúng những dòng chính nó đã tạo.
+* Người dùng — cấp tài khoản đăng nhập cho kế toán. Tài khoản mới mang vai trò
+  riêng "Kế toán K&H": mở được sổ, KHÔNG sửa được bài viết, trang hay cài đặt
+  của website. Trước đây phải cho họ làm Editor mới vào được sổ, tức là kèm
+  quyền sửa xoá mọi trang. Mật khẩu hiện đúng một lần lúc tạo và không ghi vào
+  nhật ký. Gỡ quyền không xoá tài khoản. Chỉ quản trị viên thấy màn hình này.
 * Dữ liệu kèm trong bản cài — nếu bản cài có thư mục du-lieu chứa tệp .json,
   màn hình Sao lưu hiện nút nhập thẳng tệp đó, khỏi phải tải lên lần nữa.
   Dùng khi kho dữ liệu lớn hơn giới hạn tải tệp của host. Mã nguồn không kèm

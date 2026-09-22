@@ -199,6 +199,70 @@ co( 'trang sao lưu có nút tải', $t, 'Tải tệp sao lưu' );
 co( 'trang sao lưu cảnh báo nhập là thêm vào', $t, 'THÊM VÀO, không xoá' );
 kiem( 'trang sao lưu đóng đủ thẻ div', substr_count( $t, '<div' ), substr_count( $t, '</div>' ) );
 
+// --------------------------- nhập vào sổ ĐÃ CÓ DỮ LIỆU (chỗ dễ sai nhất)
+//
+// Phép kiểm sao lưu cũ nhập vào sổ TRẮNG, nên id cấp lại trùng đúng id cũ và
+// mọi liên kết sai vẫn ra đúng số. Hai lỗi dưới đây chỉ lộ khi sổ đã có dữ liệu.
+KHTC_Cty::chon( 'kh_cu' );
+$nh_g = KHTC_NganHang::them( array( 'ten' => 'Vietcombank gốc', 'so_tk' => '0071000111', 'so_du_dau' => 0, 'ngay_dau' => '2026-08-01' ) );
+$hd_g = KHTC_HoaDonRa::them( array( 'ngay' => '05/08/2026', 'so_hd' => 'G0001', 'khach' => 'Khách gốc', 'co_vat' => '10.800.000', 'thue_suat' => '8' ) );
+KHTC_CongNo::ghi( 'hd_ra', $hd_g, '10/08/2026', '4.000.000' );
+$kho_1 = wp_json_encode( KHTC_SaoLuu::gom() );
+
+// Đẩy id hoá đơn lệch đi, để id cũ trong tệp không còn trùng id mới.
+for ( $i = 0; $i < 3; $i++ ) {
+	KHTC_HoaDonRa::them( array( 'ngay' => '06/08/2026', 'so_hd' => 'CHEN' . $i, 'co_vat' => '1.080.000', 'thue_suat' => '8' ) );
+}
+
+$kq_n = KHTC_SaoLuu::nhap( $kho_1 );
+kiem( 'nhập vào sổ đã có dữ liệu chạy được', is_wp_error( $kq_n ), false );
+
+// LỖI 1: tài khoản ngân hàng bị nhân bản, số dư xẻ đôi.
+kiem(
+	'tài khoản trùng số thì dùng lại, không tạo bản sao',
+	(int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . KHTC_DB::bang( 'ngan_hang' ) . ' WHERE so_tk = %s', '0071000111' ) ),
+	1
+);
+kiem( 'và có báo là đã dùng lại', ( $kq_n['dung_lai']['ngan_hang'] ?? 0 ) >= 1, true );
+
+// LỖI 2: khoản đã trả bám nhầm hoá đơn.
+$tt = $wpdb->get_results( 'SELECT bang, chung_tu_id FROM ' . KHTC_DB::bang( 'thanh_toan' ) );
+$hong_tt = 0;
+foreach ( $tt as $x ) {
+	$co = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . KHTC_DB::bang( $x->bang ) . ' WHERE id = %d', (int) $x->chung_tu_id ) );
+	if ( ! $co ) { $hong_tt++; }
+}
+kiem( 'không khoản trả nào trỏ vào chứng từ không tồn tại', $hong_tt, 0 );
+
+// hd_ra có UNIQUE (cty, so_hd) nên bản thứ hai của G0001 bị từ chối. Chỗ chí
+// mạng là khoản trả đi kèm: nếu nó được gán sang hoá đơn còn sống thì "đã trả"
+// thành 8 triệu, còn nợ tụt xuống 2,8 triệu — sai có lợi cho khách, không ai thấy.
+$g = $wpdb->get_results( $wpdb->prepare( 'SELECT id FROM ' . KHTC_DB::bang( 'hd_ra' ) . ' WHERE so_hd = %s', 'G0001' ) );
+kiem( 'G0001 vẫn chỉ một bản, bản nhập lại bị khoá duy nhất chặn', count( $g ), 1 );
+kiem(
+	'và nó giữ đúng 4 triệu của nó, không bị cộng thêm bản trùng',
+	(int) $wpdb->get_var( $wpdb->prepare( 'SELECT COALESCE(SUM(so_tien),0) FROM ' . KHTC_DB::bang( 'thanh_toan' ) . " WHERE bang='hd_ra' AND chung_tu_id = %d", (int) $g[0]->id ) ),
+	4000000
+);
+kiem( 'khoản trả của hoá đơn bị từ chối đã bị bỏ', ( $kq_n['bo']['thanh_toan'] ?? 0 ) >= 1, true );
+kiem( 'còn nợ vẫn đúng 6,8 triệu', KHTC_CongNo::da_tra( 'hd_ra', (int) $g[0]->id ), 4000000 );
+
+// Chứng từ hoàn toàn không có trong tệp: cũng phải bỏ, không gán bừa id 0.
+$kho_2 = json_decode( $kho_1, true );
+$kho_2['bang']['hd_ra'] = array();   // bỏ chứng từ, giữ lại khoản trả
+$kq2 = KHTC_SaoLuu::nhap( wp_json_encode( $kho_2 ) );
+kiem( 'thiếu hẳn chứng từ thì khoản trả cũng bị bỏ', ( $kq2['bo']['thanh_toan'] ?? 0 ) >= 1, true );
+kiem(
+	'không dòng trả nào lọt vào sổ với chung_tu_id = 0',
+	(int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . KHTC_DB::bang( 'thanh_toan' ) . ' WHERE chung_tu_id = 0' ),
+	0
+);
+$hong2 = 0;
+foreach ( $wpdb->get_results( 'SELECT bang, chung_tu_id FROM ' . KHTC_DB::bang( 'thanh_toan' ) ) as $x ) {
+	if ( ! (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . KHTC_DB::bang( $x->bang ) . ' WHERE id = %d', (int) $x->chung_tu_id ) ) ) { $hong2++; }
+}
+kiem( 'sau hai lần nhập vẫn không khoản trả nào mồ côi', $hong2, 0 );
+
 // ------------------------------------- tệp dữ liệu kèm trong bản cài
 //
 // Chỗ này nhận TÊN TỆP từ trình duyệt. Ghép thẳng tên vào đường dẫn là mở cửa
@@ -217,12 +281,28 @@ KHTC_GiaoDich::them( array( 'ngan_hang_id' => $nh_k, 'ngay' => '10/08/2026', 'di
 file_put_contents( "$thu_muc/kho-thu.json", wp_json_encode( KHTC_SaoLuu::gom() ) );
 
 $truoc = KHTC_SaoLuu::dem();
+$truoc_tk = array(
+	(int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . KHTC_DB::bang( 'ngan_hang' ) . " WHERE so_tk <> ''" ),
+	(int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . KHTC_DB::bang( 'ngan_hang' ) . " WHERE so_tk = ''" ),
+);
 kiem( 'thấy tệp vừa đặt vào du-lieu', array_keys( KHTC_SaoLuu::tep_kem() ), array( 'kho-thu.json' ) );
 $kq = KHTC_SaoLuu::nhap_tep_kem( 'kho-thu.json' );
 kiem( 'nhập tệp kèm chạy được', is_wp_error( $kq ), false );
 $sau = KHTC_SaoLuu::dem();
-kiem( 'nhập là THÊM VÀO: tài khoản tăng gấp đôi', $sau['ngan_hang'], $truoc['ngan_hang'] * 2 );
-kiem( 'giao dịch cũng tăng gấp đôi', $sau['giao_dich'], $truoc['giao_dich'] * 2 );
+// Tài khoản có số tài khoản thì được DÙNG LẠI, nên không nhân đôi nữa; giao
+// dịch thì vẫn thêm vào như cũ. Đây là chỗ cho phép tách một kỳ sao kê dài
+// thành nhiều tệp mà số dư không bị xẻ ra nhiều tài khoản trùng tên.
+$co_so = function () use ( $wpdb ) {
+	return array(
+		(int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . KHTC_DB::bang( 'ngan_hang' ) . " WHERE so_tk <> ''" ),
+		(int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . KHTC_DB::bang( 'ngan_hang' ) . " WHERE so_tk = ''" ),
+	);
+};
+kiem( 'tài khoản CÓ số TK thì dùng lại, không nhân đôi', $co_so()[0], $truoc_tk[0] );
+// Không có số tài khoản thì không có gì để nhận ra nhau, đành thêm mới — thà
+// thừa một dòng thấy được còn hơn gộp nhầm hai tài khoản khác nhau.
+kiem( 'tài khoản KHÔNG có số TK thì vẫn thêm mới', $co_so()[1], $truoc_tk[1] * 2 );
+kiem( 'giao dịch vẫn tăng gấp đôi (nhập là thêm vào)', $sau['giao_dich'], $truoc['giao_dich'] * 2 );
 // Liên kết phải nối lại theo id mới, không thì số dư sai mà không ai thấy.
 kiem(
 	'không giao dịch nào trỏ vào tài khoản không tồn tại',

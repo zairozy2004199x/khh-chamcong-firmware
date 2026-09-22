@@ -371,3 +371,15 @@ body.khtc-web form { margin: 0; }
 	line-height: 1.55;
 	box-shadow: var(--bong-1);
 }
+
+/* Mật khẩu hiện đúng một lần — phải to, rõ, chọn được bằng một cú bấm đúp. */
+.khtc .khtc-mk {
+	font-size: 1.15em;
+	font-weight: 700;
+	letter-spacing: .04em;
+	padding: 4px 10px;
+	background: #0f172a;
+	color: #f8fafc;
+	border-radius: 6px;
+	user-select: all;
+}

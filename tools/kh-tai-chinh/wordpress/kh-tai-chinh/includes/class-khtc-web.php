@@ -41,7 +41,11 @@ class KHTC_Web {
 			'Đối soát'  => array( 'doi-soat', 'doi-soat-chi-phi' ),
 			'Hoá đơn'   => array( 'hoa-don-ra', 'hoa-don-vao' ),
 			'Sổ'        => array( 'cong-no', 'phap-danh', 'ho-so' ),
-			'Hệ thống'  => array( 'nhat-ky', 'sao-luu' ),
+			// Người dùng chỉ hiện với quản trị viên: kế toán thấy một mục
+			// bấm vào là bị từ chối thì thà đừng hiện.
+			'Hệ thống'  => KHTC_NguoiDung::duoc_quan_ly()
+				? array( 'nhat-ky', 'sao-luu', 'nguoi-dung' )
+				: array( 'nhat-ky', 'sao-luu' ),
 		);
 	}
 
@@ -62,6 +66,7 @@ class KHTC_Web {
 			'ho-so'            => 'Hồ sơ',
 			'nhat-ky'          => 'Nhật ký',
 			'sao-luu'          => 'Sao lưu',
+			'nguoi-dung'       => 'Người dùng',
 		);
 	}
 
@@ -82,6 +87,7 @@ class KHTC_Web {
 			'bao-cao'    => 'Báo cáo',
 			'nhat-ky'    => 'Nhật ký',
 			'sao-luu'    => 'Sao lưu',
+			'nguoi-dung' => 'Người dùng',
 		);
 	}
 

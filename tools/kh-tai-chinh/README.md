@@ -497,6 +497,35 @@ cài lúc nào cũng có dữ liệu rơi vào tháng hiện tại và mấy mà
 một hợp đồng quá hạn 18 ngày, để phần cảnh báo có gì mà cảnh báo; một hoá đơn
 vào trả tiền mặt trên 20 triệu, để nhắc khấu trừ hiện ra.
 
+## Tài khoản đăng nhập riêng
+
+Vẫn **không dựng bảng mật khẩu riêng** — người dùng ở đây là tài khoản
+WordPress thật, để WordPress lo băm mật khẩu, khoá sau nhiều lần sai, gửi thư
+đặt lại và mọi bản vá về sau. Màn hình Người dùng chỉ là lối tắt.
+
+Chỗ thật sự đổi là **quyền**. Bản trước lấy `edit_pages` làm điều kiện vào,
+nghĩa là muốn cho kế toán xem sổ thì phải cho họ làm Editor — kèm quyền sửa và
+xoá mọi trang của website. Giờ có quyền riêng `khtc_xem` và vai trò
+**Kế toán K&H** chỉ mang đúng quyền đó.
+
+Bốn chỗ phải cẩn thận, vì đây là cửa vào sổ tiền:
+
+* **Nâng cấp không chạy `register_activation_hook`.** Chỉ gán quyền lúc kích
+  hoạt thì người đang dùng bản cũ bị khoá ngoài ngay sau khi bấm Cập nhật. Nên
+  có bộ lọc `user_has_cap` bù `khtc_xem` cho ai đang có `edit_pages`, và vai
+  trò được dựng lại khi số bản đổi.
+* **Gỡ quyền phải gỡ được thật.** Người mang vai trò Editor vẫn có
+  `edit_pages`, nên bộ lọc bù quyền sẽ cho họ vào lại — bấm Gỡ xong mà vẫn vào
+  được thì tệ hơn là không có nút. Gỡ đặt thêm một quyền phủ định để chặn hẳn.
+  Có phép kiểm đúng cho trường hợp này.
+* **Mật khẩu hiện đúng một lần** và không bao giờ vào nhật ký. Nhật ký ghi
+  *việc* đã làm, không ghi mật khẩu. Quên thì đặt lại cái mới.
+* **Không tự gỡ quyền của chính mình**, và không gỡ quản trị viên website từ
+  đây — gỡ xong là không vào lại được để sửa.
+
+Màn hình chỉ hiện với ai có `create_users` và `list_users`. Kế toán không thấy
+mục này trong menu, và bấm thẳng đường dẫn cũng bị từ chối.
+
 ## Gói dữ liệu kèm bản cài
 
 Nhập tệp sao lưu qua ô tải lên vướng `upload_max_filesize` — nhiều host mặc
@@ -508,6 +537,11 @@ khoảng một phần tư) và màn hình Sao lưu hiện nút nhập thẳng.
 cp kho.json wordpress/kh-tai-chinh/du-lieu/     # thư mục này bị .gitignore
 ./dong-goi.sh /duong/dan/khac                   # gói ra NGOÀI kho mã
 ```
+
+Tách một kỳ sao kê dài thành nhiều tệp cho khỏi hết giờ thì **đặt cùng số tài
+khoản** ở mỗi tệp: lúc nhập, tệp thứ hai nhận ra tài khoản tệp thứ nhất đã tạo
+và dùng lại, không xẻ số dư ra nhiều dòng trùng tên. Đã thử thật với 45.959
+dòng chia ba phần — ra đúng một tài khoản, đủ dòng, không dòng nào mồ côi.
 
 Hai chỗ phải giữ đúng:
 

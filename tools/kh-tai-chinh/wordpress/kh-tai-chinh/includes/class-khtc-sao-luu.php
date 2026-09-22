@@ -139,6 +139,7 @@ class KHTC_SaoLuu {
 		$moi  = array();   // bảng => [id cũ => id mới]
 		$dem  = array();
 		$bo   = array();   // dòng bị cơ sở dữ liệu từ chối, hầu hết là trùng khoá
+		$dung_lai = array();   // dòng khớp với thứ đã có nên dùng lại, không thêm
 		// Thứ tự có ý nghĩa: bảng được trỏ tới phải vào trước bảng trỏ đi, để
 		// lúc nối lại liên kết đã có id mới mà tra. Thiếu một bảng ở đây thì
 		// xuất ra vẫn có nó mà nhập lại mất — nên danh sách này phải phủ hết
@@ -156,6 +157,49 @@ class KHTC_SaoLuu {
 			foreach ( (array) ( $d['bang'][ $t ] ?? array() ) as $hang ) {
 				$cu = (int) ( $hang['id'] ?? 0 );
 				unset( $hang['id'] );
+
+				// Tài khoản ngân hàng đã có thì DÙNG LẠI, không tạo thêm bản sao.
+				//
+				// Bảng ngan_hang không có khoá duy nhất, nên nhập hai tệp cùng
+				// chứa một tài khoản sẽ ra hai dòng trùng tên trùng số, và số dư
+				// bị xẻ đôi. Chuyện này xảy ra ngay khi tách một kỳ sao kê dài
+				// thành nhiều tệp cho khỏi hết giờ — tức là đúng lúc cần nhất.
+				if ( 'ngan_hang' === $t && '' !== trim( (string) ( $hang['so_tk'] ?? '' ) ) ) {
+					$da_co = $wpdb->get_var(
+						$wpdb->prepare(
+							'SELECT id FROM ' . KHTC_DB::bang( 'ngan_hang' ) . ' WHERE cty = %s AND so_tk = %s ORDER BY id LIMIT 1',
+							(string) ( $hang['cty'] ?? KHTC_Cty::MAC_DINH ),
+							(string) $hang['so_tk']
+						)
+					);
+					if ( $da_co ) {
+						$moi[ $t ][ $cu ] = (int) $da_co;
+						$dung_lai[ $t ]   = ( $dung_lai[ $t ] ?? 0 ) + 1;
+						continue;
+					}
+				}
+
+				// Sổ thanh toán trỏ tới chứng từ bằng CẶP (bang, chung_tu_id),
+				// không phải một cột khoá ngoại, nên nó không nằm trong mấy phép
+				// nối ở dưới. Quên chỗ này thì sau khi phục hồi, mọi khoản đã trả
+				// bám nhầm hoá đơn và công nợ sai mà không có gì báo.
+				//
+				// Phép kiểm cũ không bắt được: nhập vào sổ TRẮNG thì id cấp lại
+				// đúng bằng id cũ, sai mà vẫn ra đúng số. Chỉ nhập vào sổ đã có
+				// dữ liệu mới lộ.
+				if ( 'thanh_toan' === $t ) {
+					$bang_ct = (string) ( $hang['bang'] ?? '' );
+					$ct_cu   = (int) ( $hang['chung_tu_id'] ?? 0 );
+					if ( ! isset( $moi[ $bang_ct ][ $ct_cu ] ) ) {
+						// Chứng từ bị từ chối (trùng số hoá đơn) hoặc không có
+						// trong tệp. Thà bỏ hẳn dòng trả này còn hơn gán bừa:
+						// gán id 0 thì khoản đã trả biến mất khỏi công nợ mà
+						// không ai thấy, gán nhầm id thì tệ hơn nữa.
+						$bo[ $t ]++;
+						continue;
+					}
+					$hang['chung_tu_id'] = $moi[ $bang_ct ][ $ct_cu ];
+				}
 				// Nối lại liên kết theo id mới của bảng đã nhập trước đó.
 				if ( isset( $hang['ngan_hang_id'] ) ) {
 					$hang['ngan_hang_id'] = $moi['ngan_hang'][ (int) $hang['ngan_hang_id'] ] ?? 0;
@@ -194,6 +238,6 @@ class KHTC_SaoLuu {
 			0,
 			'Nhập sao lưu từ ' . ( (string) ( $d['website'] ?? '?' ) ) . ' (' . ( (string) ( $d['luc'] ?? '?' ) ) . '): ' . implode( ' · ', array_map( function ( $t, $n ) { return $t . ' ' . $n; }, array_keys( $dem ), $dem ) )
 		);
-		return array( 'them' => $dem, 'bo' => array_filter( $bo ) );
+		return array( 'them' => $dem, 'bo' => array_filter( $bo ), 'dung_lai' => array_filter( $dung_lai ) );
 	}
 }

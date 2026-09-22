@@ -42,6 +42,7 @@ class KHTC_Admin {
 	public static function ho_so()     { KHTC_Trang::ho_so(); }
 	public static function bao_cao()   { KHTC_Trang::bao_cao(); }
 	public static function nhat_ky()   { KHTC_Trang::nhat_ky(); }
+	public static function nguoi_dung() { KHTC_Trang::nguoi_dung(); }
 	public static function sao_luu()   { KHTC_Trang::sao_luu(); }
 
 	/**
