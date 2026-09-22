@@ -84,9 +84,13 @@ class KHUNC_App {
 
 	public static function scripts_block( $trang ) {
 		$v    = '?ver=' . rawurlencode( KHUNC_VERSION );
+		/* ⚠️ THỨ TỰ LÀ MỘT PHẦN CỦA HỢP ĐỒNG, không phải cho gọn mắt. Mỗi tệp nhận lấy tệp
+		   trước nó qua biến toàn cục (`saoke.js` cần `UNCEngine`, `app.js` cần tất cả), nên
+		   xếp sai một dòng là một `undefined` ngay lúc tải — và trên hosting thì nó hiện ra
+		   thành một trang trắng không có lấy một dòng lỗi nào người dùng đọc được. */
 		$list = array(
 			'vendor/xlsx.full.min.js', 'engine.js', 'api.js', 'wp-ui.js',
-			'importer.js', 'exporter.js', 'mau.js', 'sample-data.js', 'app.js',
+			'importer.js', 'saoke.js', 'exporter.js', 'mau.js', 'sample-data.js', 'app.js',
 		);
 		$out = '';
 		foreach ( $list as $f ) {

@@ -31,6 +31,12 @@ jobs:
       - name: Kiểm thử engine
         run: node web_uynhiemchi/test/engine.test.js
 
+      - name: Kiểm thử đối chiếu sao kê
+        run: node web_uynhiemchi/test/saoke.test.js
+
+      - name: Kiểm thử bộ áo
+        run: node web_uynhiemchi/test/giao-dien.test.js
+
       - name: Plugin đã đồng bộ giao diện chưa
         run: python3 khunc-uy-nhiem-chi/tools/dong-bo-giao-dien.py --check
 

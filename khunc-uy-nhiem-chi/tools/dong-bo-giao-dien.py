@@ -14,7 +14,7 @@ import os, re, sys, shutil, filecmp
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 SRC = os.path.join(ROOT, 'web_uynhiemchi')
 DST = os.path.join(ROOT, 'khunc-uy-nhiem-chi')
-JS = ['engine.js', 'importer.js', 'exporter.js', 'mau.js', 'api.js', 'wp-ui.js', 'app.js', 'sample-data.js']
+JS = ['engine.js', 'importer.js', 'saoke.js', 'exporter.js', 'mau.js', 'api.js', 'wp-ui.js', 'app.js', 'sample-data.js']
 
 
 def template(html):

@@ -49,6 +49,7 @@
   <button role="tab" data-tab="tong" aria-selected="true">Tổng quan</button>
   <button role="tab" data-tab="unc">Ủy nhiệm chi <span class="pill" id="pillUNC" hidden></span></button>
   <button role="tab" data-tab="congno">Công nợ</button>
+  <button role="tab" data-tab="saoke">Đối chiếu sao kê <span class="pill" id="pillSaoKe" hidden></span></button>
   <button role="tab" data-tab="mau">Mẫu biểu</button>
   <button role="tab" data-tab="nhatky">Nhật ký</button>
 </nav>
@@ -87,7 +88,7 @@
       <div class="panel-head"><h2>Cần xử lý ngay</h2>
         <span class="hint">Quá hạn, sắp đến hạn, nghi trùng chi, thiếu thông tin chuyển khoản</span>
       </div>
-      <ul class="issues" id="tongCanhBao"></ul>
+      <div id="tongCanhBao"></div>
       <p class="hint" id="tongCanhBaoThem" hidden></p>
     </div>
 
@@ -112,10 +113,27 @@
         <button class="btn sm" id="btnLocXoa">Bỏ lọc</button>
       </div>
 
-      <div class="filters" id="uncLoc">
-        <label>Tìm
-          <input type="search" id="fTuKhoa" placeholder="tên nhà cung cấp, nội dung, số TK, số tiền…">
-        </label>
+      <!-- HÀNG LỌC LUÔN THẤY: một ô tìm + mấy nút lọc nhanh.
+           Tám ô lọc bày hết ra chiếm 130px trên máy tính và 280px trên điện thoại — tức mở tab
+           ra là thấy bộ lọc chứ chưa thấy dòng dữ liệu nào. Mà thực tế mỗi lượt kế toán chỉ
+           dùng một hai thứ: tìm theo tên, hoặc lọc "quá hạn" / "chưa lập lệnh". Sáu ô còn lại
+           lui vào nút "Lọc thêm", và nút ấy ĐEO SỐ khi còn ô nào đang bật — lọc bị giấu mà
+           không ai biết là cách người ta đọc nhầm một bảng thiếu mất nửa số dòng. -->
+      <div class="loc-chinh">
+        <input type="search" id="fTuKhoa" class="loc-tim"
+               placeholder="Tìm tên nhà cung cấp, nội dung, số TK, số tiền…"
+               aria-label="Tìm trong danh sách ủy nhiệm chi">
+        <div class="chips" id="locNhanh" role="group" aria-label="Lọc nhanh">
+          <button type="button" class="chip" data-nhanh="quahan">Quá hạn</button>
+          <button type="button" class="chip" data-nhanh="chua_lenh">Chưa lập lệnh</button>
+          <button type="button" class="chip" data-nhanh="da_lenh">Đã lập lệnh</button>
+          <button type="button" class="chip" data-nhanh="da_di">Đã đi tiền</button>
+        </div>
+        <div class="spacer"></div>
+        <button class="btn sm" id="btnLocThem" aria-expanded="false" aria-controls="uncLoc">Lọc thêm</button>
+      </div>
+
+      <div class="filters" id="uncLoc" hidden>
         <label>Kỳ <select id="fKy"></select></label>
         <label>Trạng thái <select id="fTrangThai"></select></label>
         <label>Bộ phận <select id="fBP"></select></label>
@@ -195,6 +213,74 @@
     </div>
     <div class="panel">
       <div class="giay-wrap" id="mauXem"><div class="empty">Chọn một mẫu ở trên.</div></div>
+    </div>
+  </section>
+
+  <!-- ============ Đối chiếu sao kê ============ -->
+  <section id="viewSaoKe" hidden>
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Đối chiếu sao kê ngân hàng</h2>
+        <div class="spacer"></div>
+        <label class="btn primary can-sua" for="saoKeInput">Nhập sao kê (.xlsx / .csv)</label>
+        <input type="file" id="saoKeInput" accept=".xlsx,.xls,.csv" hidden>
+        <button class="btn sm" id="btnSaoKeXoa" hidden>Bỏ sao kê đang xem</button>
+      </div>
+      <p class="hint">Tải sao kê từ ngân hàng rồi thả vào đây. Trang chỉ đọc <b>dòng tiền RA</b>
+        (ghi nợ), đối chiếu với sổ ủy nhiệm chi theo <b>số tiền + số tài khoản người thụ hưởng +
+        ngày</b>, rồi bày ra ba nhóm: khớp chắc, cần người nhìn, và lệch.
+        <b>Chỉ nhóm khớp chắc mới bật được "đã đi tiền" một lượt</b> — và cũng phải bấm nút,
+        trang không tự đổi gì cả.</p>
+
+      <div class="drop" id="saoKeTrong">
+        <h2>Chưa có sao kê nào</h2>
+        <p class="hint">Bấm <b>Nhập sao kê</b> ở trên. Đọc được sao kê có hai cột
+          <b>Ghi nợ / Ghi có</b>, hoặc một cột <b>Số tiền</b> mang dấu âm cho tiền ra.
+          Sao kê chỉ có một cột số tiền KHÔNG dấu thì trang báo lại chứ không đoán chiều —
+          đoán sai chiều là một khoản tiền về cũng thành "đã trả".</p>
+      </div>
+
+      <div id="saoKeCo" hidden>
+        <div class="kpis" id="skKpi"></div>
+
+        <div class="filters" style="margin-top:10px">
+          <label>Cửa sổ ngày: lệnh trước
+            <input type="number" id="skTruoc" min="0" max="60" step="1" style="width:70px">
+          </label>
+          <label>ngày, tiền trừ sau
+            <input type="number" id="skSau" min="0" max="120" step="1" style="width:70px">
+          </label>
+          <span class="hint">Ngân hàng trừ tiền cách ngày lập lệnh bao lâu thì vẫn coi là cùng một khoản.</span>
+        </div>
+
+        <div class="bulkbar can-sua" id="skThanh" hidden>
+          <span class="cnt" id="skChacCnt"></span>
+          <span class="hint">khớp chắc — bật "đã đi tiền" cho cả nhóm, ngày lấy đúng ngày ngân hàng trừ.</span>
+          <div class="spacer"></div>
+          <button class="btn primary" id="btnSaoKeApDung">Bật "đã đi tiền"</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" id="skKhoiBang" hidden>
+      <div class="panel-head">
+        <h2 id="skNhomTen">Khớp chắc</h2>
+        <div class="spacer"></div>
+        <label class="hint" style="display:flex;align-items:center;gap:6px">Xem nhóm
+          <select id="skNhom" style="padding:5px 8px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--text);font:inherit">
+            <option value="chac">Khớp chắc — chờ bật</option>
+            <option value="can">Cần người nhìn</option>
+            <option value="lech">Lệch</option>
+            <option value="gdle">Ngân hàng trừ, sổ không có</option>
+            <option value="dongle">Sổ có, ngân hàng chưa trừ</option>
+            <option value="xong">Đã khớp — sổ đã ghi</option>
+          </select>
+        </label>
+      </div>
+      <p class="hint" id="skNhomMo"></p>
+      <div class="tbl-wrap">
+        <table id="skBang"></table>
+      </div>
     </div>
   </section>
 
