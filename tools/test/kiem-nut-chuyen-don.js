@@ -146,6 +146,12 @@ BAN.forEach(function (b) {
   t(b + ': có nút thôi giả lập', /glThoat\(\)/.test(khoi));
   /* 🔴 Ô CHỌN GOM BẰNG `<optgroup>`, nhãn nhóm là tên vai cha. */
   const bar2 = h.slice(h.indexOf('function glVeBar('), h.indexOf('function glVeBar(') + 1400);
+  /* 🔴 Gói khởi động phải CHỞ vai tự tạo xuống — không thì mã bên màn đúng mà vẫn rỗng, vì
+     `CFG` chưa nạp lúc dải vẽ. Soi cả bốn bản: bản vùng sinh lại từ gốc, sót một bản là mất
+     tính năng không ai biết. */
+  const fDon = 'wordpress/' + b + '/includes/class-vhcp-don.php';
+  t('🔴 ' + b + ': gói khởi động CHỞ vai tự tạo xuống màn',
+    fs.existsSync(fDon) && /'vaiTuyBien'\s*=>\s*VHCP\w*_Cfg::vai_tuy_bien\(\)/.test(fs.readFileSync(fDon, 'utf8')), '');
   t('🔴 ' + b + ': ô chọn vai GOM theo vai cha bằng optgroup',
     /<optgroup label="/.test(bar2) && /_glVaiNhom\(\)/.test(bar2), bar2.slice(0, 300));
 
@@ -198,6 +204,45 @@ BAN.forEach(function (b) {
   t('🔴 `CFG` chưa nạp mà gọi `_glVaiDs()` thì KHÔNG được ném lỗi', noC1 === '', noC1);
   t('🔴 và vẫn trả về đủ bốn vai gốc — ô chọn rỗng trông như "chưa khai vai nào", không như lỗi',
     Array.isArray(c1.__ra) && c1.__ra.length === 4, c1.__ra);
+
+  /* (a2) 🔴 CA THẬT CỦA ANH THẮNG: vừa đăng nhập, CHƯA ai bấm vào tab Cấu hình.
+     `glVeBar()` vẽ từ `applyPerms()`, tức ngay lúc ấy. Vai tự tạo trước nay chỉ có trong
+     `CFG`, mà `CFG` chỉ nạp khi vào Cấu hình — nên ô chọn còn đúng bốn vai gốc, trong khi
+     bảng Vai trò tự tạo của anh có MƯỜI vai. Nay `BOOT.vaiTuyBien` chở chúng xuống ngay. */
+  const VAI10 = [
+    { ten: 'Kỹ Thuật Khu Vui Chơi', goc: 'Nhân viên' },
+    { ten: 'Kỹ Thuật Máy Tự Động', goc: 'Nhân viên' },
+    { ten: 'Quản Lý Vận Hành KVC', goc: 'Quản lý' },
+    { ten: 'Nhân Viên Marketing', goc: 'Nhân viên' },
+    { ten: 'Nhân Viên Cơ Sở', goc: 'Nhân viên' },
+    { ten: 'Nhân Viên Kho Cơ Sở', goc: 'Nhân viên' },
+    { ten: 'Quản Lý Vận Hành MTD', goc: 'Quản lý' },
+    { ten: 'Kế Toán MTD', goc: 'Kế toán cá nhân' },
+    { ten: 'Kế Toán KVC', goc: 'Kế toán cá nhân' },
+    { ten: 'Kế Toán Chung', goc: 'Kế toán cá nhân' },
+  ];
+  const cA = { CFG: null, BOOT: { vaiTuyBien: VAI10 }, VAI_GOC: VG };
+  vm.createContext(cA);
+  vm.runInContext([bocHam('_glVaiNhom'), bocHam('_glVaiDs')].join('\n'), cA);
+  const raA = cA._glVaiDs();
+  t('🔴 CHƯA vào Cấu hình mà vai TỰ TẠO đã đội được — đủ cả mười vai của anh Thắng',
+    VAI10.every(v => raA.indexOf(v.ten) >= 0), raA);
+  t('   và chúng nằm đúng nhóm vai cha, không dồn vào một chỗ',
+    (cA._glVaiNhom().filter(o => o.cha === 'Kế toán cá nhân')[0] || { ds: [] }).ds.indexOf('Kế Toán MTD') >= 0
+    && (cA._glVaiNhom().filter(o => o.cha === 'Nhân viên')[0] || { ds: [] }).ds.indexOf('Nhân Viên Kho Cơ Sở') >= 0,
+    cA._glVaiNhom().map(o => o.cha + ':' + o.ds.length));
+  /* ⚠️ CFG vẫn phải THẮNG khi đã nạp: kế toán vừa thêm một vai ở Cấu hình thì thấy ngay,
+     khỏi tải lại trang. */
+  const cB = { CFG: { vaiTro: [{ ten: 'Vai vừa thêm', goc: 'Nhân viên' }] },
+               BOOT: { vaiTuyBien: VAI10 }, VAI_GOC: VG };
+  vm.createContext(cB);
+  vm.runInContext([bocHam('_glVaiNhom'), bocHam('_glVaiDs')].join('\n'), cB);
+  t('🔴 vai vừa thêm ở Cấu hình hiện ngay, khỏi tải lại trang',
+    cB._glVaiDs().indexOf('Vai vừa thêm') >= 0, cB._glVaiDs());
+  t('   và vai từ gói khởi động không mất đi',
+    cB._glVaiDs().indexOf('Kế Toán MTD') >= 0, cB._glVaiDs());
+  t('   không tên nào trùng dù hai nguồn có thể chồng nhau',
+    cB._glVaiDs().length === new Set(cB._glVaiDs()).size, cB._glVaiDs());
 
   /* (b) Nạp xong thì vai TỰ TẠO phải có mặt thêm — không thì dải chỉ đội được vai gốc. */
   /* ⚠️ DỮ LIỆU THỬ PHẢI CÓ CA TRÙNG TÊN. Bản nháp của bài này chỉ có vai tự tạo tên lạ, nên

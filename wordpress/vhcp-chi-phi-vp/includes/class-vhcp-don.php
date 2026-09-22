@@ -753,6 +753,17 @@ class VHCPVP_Don {
 			   bản vùng mã mới ('hn') có khối ở máy chủ mà KHÔNG có tab trên màn, và đơn của
 			   nó biến mất. Xem chốt dài ở `VHCPVP_DonVi::khoi_ds()`. */
 			'khoiDs'     => VHCPVP_DonVi::khoi_ds(),
+			/* 🔴 VAI TỰ TẠO XUỐNG THẲNG GÓI KHỞI ĐỘNG — anh Thắng 22/09/2026: *"Giả lập nhân
+			   viên từng bộ phận"*, gửi ảnh ô giả lập chỉ có bốn vai gốc trong khi bảng Vai trò
+			   tự tạo có MƯỜI vai (Kỹ Thuật KVC · Kế Toán MTD · Nhân Viên Kho Cơ Sở…).
+
+			   Lý do đúng: dải giả lập vẽ từ `applyPerms()`, tức NGAY SAU KHI ĐĂNG NHẬP — mà
+			   danh sách vai tự tạo trước nay chỉ có trong `CFG`, và `CFG` chỉ nạp khi ai đó
+			   bấm vào tab Cấu hình. Chưa vào Cấu hình thì ô chọn chỉ còn bốn vai gốc.
+
+			   ⚠️ CHỈ LÀ TÊN VAI VÀ VAI CHA, không kèm quyền gì — cùng thứ bảng Vai trò tự tạo
+			      vẫn bày cho mọi người xem. Không nới một chốt nào. */
+			'vaiTuyBien' => VHCPVP_Cfg::vai_tuy_bien(),
 			/* Hai lựa chọn của ô Setup / Vận hành — đưa từ máy chủ xuống để MỘT nơi khai duy
 			   nhất. Gõ lại chuỗi ở màn là có ngày hai bên lệch nhau một dấu, và `giai_doan_chuan()`
 			   lẳng lặng ngã mọi dòng về rỗng. */

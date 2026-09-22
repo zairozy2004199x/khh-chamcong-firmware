@@ -2635,7 +2635,14 @@
    *    không bỏ đi. Bỏ là mất hẳn lối thử vai ấy, mà vai mồ côi lại đúng là vai hay sai nhất.
    */
   function _glVaiNhom(){
-    var ds=(((typeof CFG!=='undefined' && CFG) ? CFG.vaiTro : null)||[]);
+    /* 🔴 ĐỌC TỪ GÓI KHỞI ĐỘNG TRƯỚC, `CFG` sau.
+       Dải giả lập vẽ từ `applyPerms()`, tức NGAY SAU KHI ĐĂNG NHẬP — mà `CFG` chỉ nạp khi ai
+       đó bấm vào tab Cấu hình. Chỉ đọc `CFG` thì ô chọn còn đúng bốn vai gốc, trong khi bảng
+       Vai trò tự tạo có cả chục vai; anh Thắng 22/09/2026 chụp đúng cảnh ấy.
+       ⚠️ VẪN ĐỌC `CFG` KHI ĐÃ CÓ, và đọc SAU để nó thắng: kế toán vừa thêm một vai ở Cấu hình
+          thì thấy ngay, khỏi phải tải lại trang. */
+    var ds=((typeof BOOT!=='undefined' && BOOT && BOOT.vaiTuyBien)||[]).slice();
+    (((typeof CFG!=='undefined' && CFG) ? CFG.vaiTro : null)||[]).forEach(function(x){ ds.push(x); });
     var nhom=[], theoCha={};
     VAI_GOC.forEach(function(g){
       theoCha[g]={ cha:g, ds:[g] };   /* vai gốc đứng đầu nhóm của chính nó */
