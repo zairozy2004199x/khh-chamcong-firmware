@@ -69,6 +69,13 @@ jobs:
       - name: Bộ thử ảnh JP Capsule
         run: php tools/test/kiem-jp-anh.php
 
+      # Sổ kho đẻ ra con số 632 — thứ đi thẳng vào MISA và vào báo cáo đã ký. Sai ở đây không
+      # hiện ra thành màn lỗi, nó hiện ra thành một con số hơi khác, ba tháng sau. Bài này canh
+      # FIFO theo NGÀY, hai vế của lượt chuyển kho, chốt "không huỷ phiếu nhập đã bị ăn", và
+      # phép đối chiếu lớp tồn với chứng từ (hai đường độc lập, lệch thì phải BÁO).
+      - name: Bộ thử kho hai tầng JP Capsule
+        run: php tools/test/kiem-jp-kho.php
+
       - name: Bộ thử chi phí
         run: php tools/test/test-flows.php
 

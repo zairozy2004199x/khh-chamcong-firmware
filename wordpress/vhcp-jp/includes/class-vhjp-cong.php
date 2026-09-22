@@ -65,6 +65,12 @@ class VHJP_Cong {
 			'jpCfgSaveLocation', 'jpCfgSaveCluster', 'jpCfgSaveMachine',
 			'jpCfgSaveItem', 'jpCfgImportItems',
 			'jpTaoPinCoSo', 'jpPinTheoCoSo',
+			/* 🔴 CẢ HAI MƯƠI HÀM KHO. Sổ kho là giá vốn — nhân viên cơ sở không được đọc, không
+			   được ghi. Gác ở đây chứ không rải `can_kt()` vào từng hàm: rải thì sót một hàm là
+			   hở một cửa mà không ai đếm được, còn ở đây đọc một lượt là thấy hết. */
+			'jpKhoDanhSachLoai', 'jpKhoDanhSachNcc', 'jpKhoTonKho', 'jpKhoSoDuDauKy',
+			'jpKhoLichSuDauKy', 'jpKhoNhap', 'jpKhoHuyNhap', 'jpKhoLichSuNhap',
+			'jpKhoXuat', 'jpKhoXuatLai', 'jpKhoLichSuXuat', 'jpKhoTheKho', 'jpKhoNhapXuatTon',
 		);
 	}
 
@@ -112,6 +118,21 @@ class VHJP_Cong {
 			'jpAnhXem'            => array( 'VHJP_Cong', 'anh_xem' ),
 			'jpAnhTheoCoSo'       => array( 'VHJP_Cong', 'anh_theo_coso' ),
 
+			/* kho hai tầng — mọi hàm đòi vai kế toán, gác ở `chi_ke_toan()` */
+			'jpKhoDanhSachLoai'   => array( 'VHJP_Cong', 'kho_loai' ),
+			'jpKhoDanhSachNcc'    => array( 'VHJP_Cong', 'kho_ncc' ),
+			'jpKhoTonKho'         => array( 'VHJP_Cong', 'kho_ton' ),
+			'jpKhoSoDuDauKy'      => array( 'VHJP_Cong', 'kho_dau_ky' ),
+			'jpKhoLichSuDauKy'    => array( 'VHJP_Cong', 'kho_ls_dau_ky' ),
+			'jpKhoNhap'           => array( 'VHJP_Cong', 'kho_nhap' ),
+			'jpKhoHuyNhap'        => array( 'VHJP_Cong', 'kho_huy_nhap' ),
+			'jpKhoLichSuNhap'     => array( 'VHJP_Cong', 'kho_ls_nhap' ),
+			'jpKhoXuat'           => array( 'VHJP_Cong', 'kho_xuat' ),
+			'jpKhoXuatLai'        => array( 'VHJP_Cong', 'kho_xuat_lai' ),
+			'jpKhoLichSuXuat'     => array( 'VHJP_Cong', 'kho_ls_xuat' ),
+			'jpKhoTheKho'         => array( 'VHJP_Cong', 'kho_the' ),
+			'jpKhoNhapXuatTon'    => array( 'VHJP_Cong', 'kho_nxt' ),
+
 			/* kế toán duyệt */
 			'jpKtListReports'     => array( 'VHJP_Cong', 'kt_ds' ),
 			'jpKtGetReport'       => array( 'VHJP_Cong', 'kt_lay' ),
@@ -153,11 +174,9 @@ class VHJP_Cong {
 			'jpChuaKhaiCachThu', 'jpConfirmPaidManual', 'jpDatLichDoiSoatNH', 'jpDocGiaoDichNganHang',
 			'jpDoiSoatNganHang', 'jpKhaiCachThu', 'jpLichDoiSoatNH', 'jpReconApply', 'jpReconHistory',
 			'jpReconPreview', 'jpReconUndo', 'jpXacNhanCotNganHang',
-			/* kho hai tầng */
-			'jpKhoDanhSachLoai', 'jpKhoDanhSachNcc', 'jpKhoHuyNhap', 'jpKhoHuyTraNcc', 'jpKhoKiemKe',
-			'jpKhoKiemKeTon', 'jpKhoLichSuDauKy', 'jpKhoLichSuKiemKe', 'jpKhoLichSuNhap',
-			'jpKhoLichSuTraNcc', 'jpKhoLichSuXuat', 'jpKhoNhap', 'jpKhoNhapXuatTon', 'jpKhoSoDuDauKy',
-			'jpKhoTheKho', 'jpKhoTonKho', 'jpKhoTraNcc', 'jpKhoTraNccLo', 'jpKhoXuat', 'jpKhoXuatLai',
+			/* kho hai tầng — còn KIỂM KÊ (3) và TRẢ NHÀ CUNG CẤP (4) */
+			'jpKhoHuyTraNcc', 'jpKhoKiemKe', 'jpKhoKiemKeTon', 'jpKhoLichSuKiemKe',
+			'jpKhoLichSuTraNcc', 'jpKhoTraNcc', 'jpKhoTraNccLo',
 			/* kế toán duyệt */
 			'jpKtDanhSachDeNghi', 'jpKtPaymentBoard', 'jpKtReopen', 'jpKtXuLyDeNghi',
 		);
@@ -362,6 +381,57 @@ class VHJP_Cong {
 	public static function anh_theo_coso( $args, $nguoi ) {
 		return VHJP_Anh::theo_coso( $nguoi, isset( $args[1] ) ? $args[1] : array() );
 	}
+	/* ── kho hai tầng ──
+	 * ⚠️ `$args[0]` là THẺ PHIÊN, nên tham số nghiệp vụ bắt đầu từ `$args[1]`. Đếm nhầm một nấc
+	 *    là hàm nhận thẻ phiên làm mã kho — và câu lỗi sẽ nói về một kho tên là một chuỗi ngẫu
+	 *    nhiên 40 ký tự, không ai đoán ra chuyện gì. */
+	public static function kho_loai( $args, $nguoi ) {
+		return VHJP_Kho::danh_sach_loai( $nguoi );
+	}
+	public static function kho_ncc( $args, $nguoi ) {
+		return VHJP_Kho::danh_sach_ncc( $nguoi );
+	}
+	public static function kho_ton( $args, $nguoi ) {
+		return VHJP_Kho::ton_kho( $nguoi, isset( $args[1] ) ? $args[1] : '' );
+	}
+	public static function kho_dau_ky( $args, $nguoi ) {
+		return VHJP_Kho::so_du_dau_ky( $nguoi, isset( $args[1] ) ? $args[1] : array() );
+	}
+	public static function kho_ls_dau_ky( $args, $nguoi ) {
+		return VHJP_Kho::lich_su_dau_ky( $nguoi );
+	}
+	public static function kho_nhap( $args, $nguoi ) {
+		return VHJP_Kho::nhap( $nguoi, isset( $args[1] ) ? $args[1] : array() );
+	}
+	public static function kho_huy_nhap( $args, $nguoi ) {
+		return VHJP_Kho::huy_nhap( $nguoi, isset( $args[1] ) ? $args[1] : '',
+			isset( $args[2] ) ? $args[2] : '' );
+	}
+	public static function kho_ls_nhap( $args, $nguoi ) {
+		return VHJP_Kho::lich_su_nhap( $nguoi, isset( $args[1] ) ? $args[1] : 50 );
+	}
+	public static function kho_xuat( $args, $nguoi ) {
+		return VHJP_Kho::xuat( $nguoi, isset( $args[1] ) ? $args[1] : array() );
+	}
+	public static function kho_xuat_lai( $args, $nguoi ) {
+		return VHJP_Kho::xuat_lai( $nguoi, isset( $args[1] ) ? $args[1] : '' );
+	}
+	public static function kho_ls_xuat( $args, $nguoi ) {
+		return VHJP_Kho::lich_su_xuat( $nguoi, isset( $args[1] ) ? $args[1] : 50,
+			isset( $args[2] ) ? $args[2] : '' );
+	}
+	public static function kho_the( $args, $nguoi ) {
+		return VHJP_Kho::the_kho( $nguoi, isset( $args[1] ) ? $args[1] : array() );
+	}
+	/* `jpKhoNhapXuatTon(token, thang, nam, khoId)` — bốn tham số RỜI, không phải một object.
+	   Giao diện gọi đúng hình dạng ấy ở sáu chỗ; đổi sang object là phải sửa cả sáu. */
+	public static function kho_nxt( $args, $nguoi ) {
+		return VHJP_Kho::nhap_xuat_ton( $nguoi,
+			isset( $args[1] ) ? $args[1] : 0,
+			isset( $args[2] ) ? $args[2] : 0,
+			isset( $args[3] ) ? $args[3] : '' );
+	}
+
 	public static function bc_mo( $args, $nguoi ) {
 		return VHJP_BaoCao::mo( $nguoi,
 			isset( $args[1] ) ? $args[1] : '',
