@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
- * NÚT ĐI SANG LOẠI ĐƠN KIA — và canh dải "👁 Xem như" đã gỡ hẳn
+ * NÚT ĐI SANG LOẠI ĐƠN KIA — và canh dải 🎭 Giả lập vai trò dựng cho chặt
  *
  * Anh Thắng 12/09/2026, hai việc trong một mạch:
  *   *"Đối với nhân viên cơ sở ẩn nút này đi, tránh nhập nhầm"*  (nút "← Quay lại chi phí Kỹ thuật")
@@ -127,56 +127,95 @@ teq('   vis.don = 0 thì ẩn dù là NV Cơ sở',     false, nut('Nhân viên'
  * ⚠️ Phép canh soi CẢ BỐN BẢN, không chỉ bản gốc — đúng chỗ mà lượt sinh lại có thể bỏ quên.
  * ═════════════════════════════════════════════════════════════════════════════════════════════ */
 const BAN = ['vhcp-chi-phi', 'vhcp-chi-phi-hn', 'vhcp-chi-phi-mtd', 'vhcp-chi-phi-vp'];
-const DAU_VET = ['giaLapBar', 'glDung', 'glDoi', 'glThoat', 'glDangBat', '_glDat',
-                 'GL_GOC', 'GL_KHOIXEM', 'GL_KHOIDANG', 'glVai', 'glKhoi', 'glDangXem',
-                 'Xem như'];
 /**
  * ⚠️ TƯỚC CHÚ THÍCH TRƯỚC KHI SOI.
  *
- * Bia mộ để lại trong mã ("dải Xem như đã gỡ, đừng dựng lại") có NHẮC TÊN thứ vừa gỡ — nên soi
- * chuỗi trên nguyên tệp là bài kiểm tự bắt chính lời ghi chú của mình, rồi đỏ mãi. Chữa bằng
- * cách xoá bia thì mất luôn lời dặn; chữa đúng là chỉ soi phần MÃ CHẠY.
- * (Giữ `https://` — `//` trong địa chỉ không phải chú thích.)
+ * Bia mộ và chú thích thiết kế có NHẮC TÊN thứ đang soi — soi chuỗi trên nguyên tệp là bài
+ * kiểm tự bắt chính lời ghi chú của mình. Chữa bằng cách xoá chú thích thì mất luôn lời dặn;
+ * chữa đúng là chỉ soi phần MÃ CHẠY. (Giữ `https://` — `//` trong địa chỉ không phải chú thích.)
  */
 function chiMaChay(h) {
   return h
-    .replace(/<!--[\s\S]*?-->/g, ' ')      // chú thích HTML
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')    // chú thích JS nhiều dòng
-    .replace(/(^|[^:])\/\/[^\n]*/g, '$1');  // chú thích JS một dòng
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
 }
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 2. 🎭 GIẢ LẬP VAI TRÒ — DỰNG LẠI 22/09/2026, VÀ PHẢI DỰNG CHO CHẶT
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Mục này TRƯỚC KIA đòi dải "👁 Xem như" phải VẮNG (anh Thắng: *"bỏ này đi"*). Cùng ngày anh
+ * đổi ý và nói rõ hơn ý mình: *"Cho admin giả lập vai trò để check"*, rồi *"làm luôn đi em"*.
+ * Nên khối phép ở đây đảo chiều — nhưng KHÔNG đảo thành "có là được".
+ *
+ * 🔴 BA CHỐT PHẢI CÒN, vì thiếu cái nào cũng ra một cái bẫy im lặng:
+ *
+ *   (a) VAI THẬT GIỮ RIÊNG. Dải hỏi `_laAdminThat()` chứ không hỏi `_laAdmin()`. Hỏi nhầm thì
+ *       lúc đội lốt "Nhân viên", `CURUSER.role` hết là Admin -> dải TỰ ẨN, và cái nút Thoát
+ *       duy nhất biến mất cùng nó. Còn F5, nhưng bắt người ta tự đoán ra là bẫy, không phải
+ *       đường thoát.
+ *
+ *   (b) KHÔNG LƯU LỐT Ở MÁY KHÁCH. Lưu vào localStorage/sessionStorage là mai mở máy ra vẫn
+ *       đang đội lốt mà không nhớ — rồi kết luận sai về màn của chính mình. Không lưu thì F5
+ *       luôn là đường về, chắc hơn mọi cái nút.
+ *
+ *   (c) NÓI THẲNG GIỚI HẠN. Bia mộ của dải cũ dặn đúng một câu: *"dải cũ không đổi quyền ở
+ *       máy chủ, nên nó chưa bao giờ trả lời được câu NGƯỜI ẤY BẤM THÌ CÓ BỊ CHẶN KHÔNG"*.
+ *       Bản này cũng thế — và khác ở chỗ nó IN RA điều ấy. Dải im lặng là để người ta tin
+ *       mình vừa kiểm xong phân quyền trong khi chưa kiểm gì cả. Phép dưới canh đúng dòng chữ.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
 BAN.forEach(function (b) {
   const f = 'wordpress/' + b + '/templates/app.html';
   if (!fs.existsSync(f)) { t('có ' + f, false); return; }
-  const h = chiMaChay(fs.readFileSync(f, 'utf8'));
-  DAU_VET.forEach(function (d) {
-    t('🔴 ' + b + ': không còn dấu vết `' + d + '`', h.indexOf(d) < 0,
-      h.indexOf(d) < 0 ? undefined : h.slice(Math.max(0, h.indexOf(d) - 60), h.indexOf(d) + 60));
-  });
-});
+  const raw = fs.readFileSync(f, 'utf8');
+  const h = chiMaChay(raw);
 
-/* ⚠️ Và chip tên người dùng phải thôi hỏi "đang xem như ai" — để lại nhánh ấy là nó đọc một
-   biến không còn tồn tại, và CẢ HÀM `applyPerms()` chết giữa chừng. Màn hình trắng, không một
-   câu báo nào: đúng kiểu hỏng mà việc gỡ dở dang hay để lại. */
-BAN.forEach(function (b) {
-  const f = 'wordpress/' + b + '/templates/app.html';
-  if (!fs.existsSync(f)) { return; }
-  const h = fs.readFileSync(f, 'utf8');
-  const i = h.indexOf("el('userChip').innerHTML");
-  t('🔴 ' + b + ': chip tên người dùng không còn nhánh "xem như"',
-    i >= 0 && !/glDangBat|GL_GOC/.test(h.slice(i, i + 400)), h.slice(i, i + 220));
+  t('🎭 ' + b + ': có dải giả lập vai trò', h.indexOf('id="glBar"') >= 0);
+  ['glDoi', 'glThoat', 'glVeBar', '_laAdminThat', '_glVaiDs'].forEach(function (fn) {
+    t(b + ': có ' + fn + '()', h.indexOf('function ' + fn + '(') >= 0);
+  });
+
+  // (a) 🔴 hỏi vai THẬT, không hỏi cái lốt
+  const bar = h.slice(h.indexOf('function glVeBar('), h.indexOf('function glVeBar(') + 700);
+  t('🔴 ' + b + ': dải hỏi `_laAdminThat()` — hỏi `_laAdmin()` là đội lốt xong mất nút Thoát',
+    /_laAdminThat\(\)/.test(bar) && !/[^t]_laAdmin\(\)/.test(bar), bar.slice(0, 300));
+  const thoat = h.slice(h.indexOf('function glThoat('), h.indexOf('function glThoat(') + 500);
+  t('🔴 ' + b + ': `glThoat()` KHÔNG tự khoá theo vai đang đội — nó là đường ra cuối cùng',
+    !/_laAdmin\(\)/.test(thoat), thoat.slice(0, 300));
+  /* ⚠️ SOI NGUYÊN PHÉP GÁN, không soi mỗi `GL_THAT.role`. Dòng ngay dưới có `GL_THAT.roleGoc`,
+     nên phép lỏng khớp phải nó và lượt đục "thoát về vai GÕ CỨNG" đi lọt. */
+  t(b + ': và nó trả lại đúng vai thật đã chụp, không phải một vai gõ cứng',
+    /CURUSER\.role\s*=\s*GL_THAT\.role\s*;/.test(thoat), thoat.slice(0, 300));
+
+  // (b) 🔴 không lưu lốt ở máy khách
+  const gl = h.slice(h.indexOf('var GL_THAT'), h.indexOf('function glThoat(') + 600);
+  t('🔴 ' + b + ': KHÔNG lưu lốt vào localStorage / sessionStorage — F5 phải là đường về',
+    !/localStorage|sessionStorage/.test(gl), gl.slice(0, 300));
+
+  // (c) 🔴 dải nói thẳng giới hạn — soi trên BẢN GỐC vì đây là chữ hiện cho người đọc
+  const i = raw.indexOf('id="glBar"');
+  const khoi = i < 0 ? '' : raw.slice(i, i + 1600);
+  t('🔴 ' + b + ': dải NÓI RÕ nó không đổi quyền ở máy chủ',
+    /KHÔNG<\/b> đổi quyền ở máy chủ/.test(khoi), khoi.slice(0, 200));
+  t('🔴 ' + b + ': và nói rõ F5 là về chính mình',
+    /F5 là về lại chính mình/.test(khoi), khoi.slice(0, 200));
+  t(b + ': có nút thôi giả lập', /glThoat\(\)/.test(khoi));
+
+  // chip phải nói ra khi đang đội lốt
+  const j = h.indexOf("el('userChip').innerHTML");
+  /* ⚠️ SOI ĐÚNG CÁI ĐIỀU KIỆN, không soi mỗi chữ `GL_THAT`: thân nhánh có `GL_THAT.name`, nên
+     phép lỏng vẫn xanh dù điều kiện đã bị vặn thành `false` — nhánh còn đó mà không bao giờ
+     chạy. Đúng kiểu "xanh vì lý do sai" đã mắc nhiều lần trong phiên này. */
+  t('🔴 ' + b + ': chip NÓI RA khi đang đội lốt — chip im lặng là quên mất mình đang giả lập',
+    j >= 0 && /innerHTML\s*=\s*GL_THAT\s*\?/.test(h.slice(j, j + 400)), h.slice(j, j + 200));
 });
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
- * 3. GỠ ĐỦ, NHƯNG ĐỪNG GỠ LẠM
+ * 3. DỰNG LẠI, NHƯNG ĐỪNG ĐỤNG HAI THỨ BÊN CẠNH
  * ══════════════════════════════════════════════════════════════════════════════════════════════
- * Mục 2 canh chiều "còn sót gì không". Mục này canh chiều ngược lại — CÓ CẮT NHẦM GÌ KHÔNG.
- * Hai chỗ nằm sát ngay cạnh mã vừa gỡ, và mất chúng thì hỏng nặng mà không một câu báo nào:
- *
- * 🔴 `boot()` gọi `_applyTabPerms()` rồi mới gọi `glDung()` — hai lời gọi dính nhau một dòng.
- *    Quét sạch cả cụm là tab khoá cứng sau khi đăng nhập, không ai vào được đâu cả.
- * 🔴 Chip tên người dùng có HAI nhánh, gỡ nhánh "xem như" mà lỡ tay gỡ cả nhánh còn lại là góc
- *    trên màn trống trơn — trông y như chưa đăng nhập.
+ * 🔴 `boot()` gọi `_applyTabPerms()` — mất là tab khoá cứng sau khi đăng nhập.
+ * 🔴 Chip tên người dùng vẫn phải nói đủ tên · vai khi KHÔNG giả lập; gỡ nhầm nhánh ấy là góc
+ *    trên màn trống trơn, trông y như chưa đăng nhập.
  * ═════════════════════════════════════════════════════════════════════════════════════════════ */
 BAN.forEach(function (b) {
   const f = 'wordpress/' + b + '/templates/app.html';
@@ -185,9 +224,9 @@ BAN.forEach(function (b) {
   t('🔴 ' + b + ': `boot()` VẪN mở tab theo phân quyền',
     /BOOT=b\|\|BOOT; loading\(false\); _applyTabPerms\(\);/.test(h));
   const i = h.indexOf("el('userChip').innerHTML");
-  t('🔴 ' + b + ': chip VẪN nói đủ tên · vai',
-    i >= 0 && /esc\(CURUSER\.name\)/.test(h.slice(i, i + 200)) && /esc\(role\)/.test(h.slice(i, i + 200)),
-    i >= 0 ? h.slice(i, i + 160) : '(không thấy chip)');
+  t('🔴 ' + b + ': chip VẪN nói đủ tên · vai khi không giả lập',
+    i >= 0 && /esc\(CURUSER\.name\)/.test(h.slice(i, i + 500)) && /esc\(role\)/.test(h.slice(i, i + 500)),
+    i >= 0 ? h.slice(i, i + 200) : '(không thấy chip)');
 });
 
 /* ─────────────────────────────────────────────────────────────────────────────────────────── */
@@ -196,4 +235,4 @@ if (TRUOT.length) {
   TRUOT.forEach(function (x) { console.log('   • ' + x); });
   process.exit(1);
 }
-console.log('\n✅ ĐẠT ' + DAT + ' / ' + DAT + ' — nút gác hai lớp, và dải Xem như đã gỡ sạch ở cả bốn bản');
+console.log('\n✅ ĐẠT ' + DAT + ' / ' + DAT + ' — nút gác hai lớp, và dải giả lập vai trò dựng đúng ở cả bốn bản');

@@ -29,11 +29,46 @@
       <button class="btn b-x" id="btnLogout" onclick="logout()">Đăng xuất</button>
     </div>
   </div>
-  <!-- ⚠️ DẢI "👁 XEM NHƯ" ĐÃ GỠ — 22/09/2026, anh Thắng: *"loại bỏ tính năng này"*.
-       Nó cho Admin đổi vai + khối trên MÀN HÌNH để thử xem người khác thấy gì. Gỡ xong thì
-       muốn thử vai nào phải đăng nhập bằng tài khoản vai ấy — chậm hơn, nhưng thử đúng thứ
-       thật: dải cũ không đổi quyền ở máy chủ, nên nó chưa bao giờ trả lời được câu "người ấy
-       BẤM thì có bị chặn không". Đừng dựng lại mà không hỏi anh Thắng. -->
+  <!-- ══════════════════════════════════════════════════════════════════════════════════════
+       🎭 GIẢ LẬP VAI TRÒ — CHỈ ADMIN. Anh Thắng 22/09/2026: *"Cho admin giả lập vai trò để
+       check"*, rồi chốt *"làm luôn đi em"*.
+
+       🔴 DẢI CŨ ("👁 Xem như") ĐÃ GỠ HÔM 22/09 THEO ĐÚNG YÊU CẦU CỦA ANH, và bia mộ của nó
+          để lại một lời dặn mà bản này phải tôn trọng chứ không được lờ đi:
+
+              "dải cũ không đổi quyền ở máy chủ, nên nó chưa bao giờ trả lời được câu
+               NGƯỜI ẤY BẤM THÌ CÓ BỊ CHẶN KHÔNG"
+
+          Đúng, và bản này CŨNG KHÔNG trả lời được câu ấy — đổi quyền thật ở máy chủ theo một
+          tham số gửi từ trình duyệt là mở đúng cái cửa mà cả hệ phân quyền dựng lên để đóng.
+          Nên khác biệt duy nhất so với dải cũ là: BẢN NÀY NÓI THẲNG RA GIỚI HẠN ẤY, ngay trên
+          dải, bằng chữ thường trực. Dải cũ im lặng, và im lặng ở đây là để người ta tin rằng
+          mình vừa kiểm tra xong phân quyền trong khi chưa kiểm gì cả.
+
+       Ba chốt giữ cho nó không thành một lỗ hổng:
+         · VAI THẬT giữ riêng ở `GL_THAT`, không bao giờ bị lốt đè lên — nên `_laAdminThat()`
+           vẫn đúng khi đang đội lốt, và nút Thoát không bao giờ tự khoá mất.
+         · KHÔNG LƯU Ở ĐÂU CẢ (không localStorage, không sessionStorage). F5 là về chính mình.
+           Đó là đường thoát thứ hai, chắc hơn mọi cái nút.
+         · Không đụng một dòng nào ở máy chủ. Gỡ cả khối này đi thì không chốt quyền nào lỏng
+           thêm một ly — y như lúc gỡ dải cũ.
+       ══════════════════════════════════════════════════════════════════════════════════════ -->
+  <div id="glBar" style="display:none;background:#fef3c7;border-bottom:1px solid #fcd34d;
+       padding:7px 14px;font-size:12px;color:#78350f">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <b>🎭 Giả lập vai trò</b>
+      <select id="glVaiSel" onchange="glDoi()" style="font-size:12px;padding:2px 6px"></select>
+      <button class="btn b-x" id="glThoatBtn" onclick="glThoat()"
+        style="padding:2px 10px;font-size:11.5px;display:none">✕ Thôi giả lập</button>
+      <span id="glDangDoi" style="font-weight:700"></span>
+    </div>
+    <div style="margin-top:3px;font-size:11px;line-height:1.35">
+      Chỉ đổi <b>màn hình</b> — tab nào hiện, nút nào sáng. <b>KHÔNG</b> đổi quyền ở máy chủ:
+      dữ liệu vẫn là dữ liệu của anh, và nếu vai ấy bấm một nút bị cấm thì máy chủ mới là nơi
+      chặn, không phải dải này. Muốn thử đúng thứ thật thì đăng nhập bằng tài khoản vai ấy.
+      <b>F5 là về lại chính mình.</b>
+    </div>
+  </div>
 
   <div class="bar" id="tabbar" style="gap:6px">
     <button class="btn b-x" id="tab-tongquan" onclick="showPage('tongquan')">📊 Tổng quan</button>
@@ -2463,9 +2498,80 @@
     // Trước đây nút này ẩn với Admin nên muốn thử một đơn là phải đăng nhập bằng người khác.
     var vl=_vaiLuat();
     var bn=el('btnNewDon'); if(bn) bn.style.display=(vl==='Nhân viên'||vl==='Quản lý'||vl==='Admin')?'inline-block':'none';
-    /* ⚠️ NHÁNH "👁 xem như …" ĐÃ GỠ cùng dải Xem như (22/09/2026). Chip nay luôn nói đúng một
-       chuyện: anh là ai. Đó cũng là điều duy nhất còn đúng — không còn lốt nào để đội. */
-    el('userChip').innerHTML='👤 '+esc(CURUSER.name)+' · '+esc(role)+(CURUSER.coso?' · '+esc(CURUSER.coso):'');
+    /* Đang đội lốt thì CHIP PHẢI NÓI RA. Chip im lặng là Admin quên mất mình đang giả lập,
+       rồi kết luận sai về màn của chính mình — lỗi ấy không kêu tiếng nào. */
+    el('userChip').innerHTML = GL_THAT
+      ? ('🎭 <b>đang giả lập:</b> '+esc(role)+' <span style="opacity:.75">· thật: '
+         +esc(GL_THAT.name)+' · '+esc(GL_THAT.role)+'</span>')
+      : ('👤 '+esc(CURUSER.name)+' · '+esc(role)+(CURUSER.coso?' · '+esc(CURUSER.coso):''));
+    glVeBar();
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+     🎭 GIẢ LẬP VAI TRÒ — xem chốt dài ở khối `id="glBar"` trên đầu tệp.
+     ═════════════════════════════════════════════════════════════════════════════════════════ */
+  /* Bản chụp NGƯỜI THẬT, đặt một lần lúc bật và chỉ xoá lúc thoát. `null` = không giả lập.
+     🔴 KHÔNG suy vai thật ra từ `CURUSER` — chính `CURUSER` là thứ đang bị đội lốt. */
+  var GL_THAT=null;
+  /** Admin THẬT hay không — hỏi vai thật, không hỏi cái lốt đang mặc. */
+  function _laAdminThat(){
+    var u=GL_THAT||CURUSER;
+    return !!(u && u.role==='Admin');
+  }
+  /** Mọi vai có thể đội: bốn vai gốc + vai tự tạo, không trùng, bỏ chính Admin. */
+  function _glVaiDs(){
+    var ra=[];
+    VAI_GOC.forEach(function(v){ if(ra.indexOf(v)<0) ra.push(v); });
+    ((CFG.vaiTro)||[]).forEach(function(x){
+      var t=String((x&&x.ten)||'').trim();
+      if(t && t!=='Admin' && ra.indexOf(t)<0) ra.push(t);
+    });
+    return ra;
+  }
+  function glVeBar(){
+    var bar=el('glBar'); if(!bar) return;
+    /* 🔴 HỎI VAI THẬT. Hỏi `_laAdmin()` là lúc đội lốt "Nhân viên" thì dải tự ẩn đi — và cái
+       nút Thoát duy nhất biến mất cùng nó. Còn F5, nhưng bắt người ta đoán ra điều đó là một
+       cái bẫy, không phải một đường thoát. */
+    if(!_laAdminThat()){ bar.style.display='none'; return; }
+    bar.style.display='';
+    var sel=el('glVaiSel'), cur=GL_THAT?String(CURUSER.role||''):'';
+    if(sel){
+      sel.innerHTML='<option value="">— là chính tôi (Admin) —</option>'
+        +_glVaiDs().map(function(v){
+          return '<option'+(v===cur?' selected':'')+'>'+esc(v)+'</option>'; }).join('');
+    }
+    var nut=el('glThoatBtn'); if(nut) nut.style.display=GL_THAT?'':'none';
+    var chu=el('glDangDoi');
+    if(chu) chu.textContent=GL_THAT?('→ đang xem màn của "'+cur+'"'):'';
+  }
+  /** Đổi lốt. Chọn ô trống = thôi giả lập. */
+  function glDoi(){
+    var sel=el('glVaiSel'); if(!sel) return;
+    var v=String(sel.value||'').trim();
+    if(!v){ glThoat(); return; }
+    if(!_laAdminThat()){ toast('warn','Chỉ Admin giả lập được'); return; }
+    if(!GL_THAT){
+      /* Chụp người thật MỘT LẦN. Chụp lại ở mỗi lượt đổi là đội lốt A rồi đổi sang B sẽ ghi
+         "người thật = A" — và nút Thoát đưa về A chứ không về Admin. */
+      GL_THAT={ name:CURUSER.name, role:CURUSER.role, roleGoc:CURUSER.roleGoc,
+                coso:CURUSER.coso, boPhan:CURUSER.boPhan };
+    }
+    CURUSER.role=v;
+    /* Vai tự tạo kế thừa vai gốc nào thì `_vaiLuat()` tra theo đó — đặt luôn cho khớp cách
+       máy chủ hiểu, không thì vai tự tạo rơi vào nhánh mặc định và màn sai hẳn. */
+    CURUSER.roleGoc=(VAI_GOC.indexOf(v)>=0) ? v : (_vaiGocCua(v)||v);
+    applyPerms(); _applyTabPerms();
+    toast('ok','Đang xem màn của "'+v+'" — F5 để về chính mình');
+  }
+  /** Thôi giả lập. KHÔNG hỏi `_laAdmin()`: đang đội lốt thì hàm ấy trả false. */
+  function glThoat(){
+    if(!GL_THAT) return;
+    CURUSER.role=GL_THAT.role; CURUSER.roleGoc=GL_THAT.roleGoc;
+    CURUSER.coso=GL_THAT.coso; CURUSER.boPhan=GL_THAT.boPhan;
+    GL_THAT=null;
+    applyPerms(); _applyTabPerms();
+    toast('ok','Đã về lại chính mình');
   }
   /**
    * SẮP ĐƠN: kỳ MỚI NHẤT lên đầu, trong cùng một kỳ thì theo cơ sở rồi người lập.
