@@ -1367,21 +1367,36 @@ class VHG_KeToan {
 
 	// ══════════════════════════════════════════════════════════════════ UNIT ID MISA
 
+	/**
+	 * Danh mục Unit ID, kèm MÃ KHÁCH HÀNG chỉ để XEM.
+	 *
+	 * 🔴 `ma_kh` GẮN KÈM NHƯNG KHÔNG SỬA ĐƯỢC Ở ĐÂY. Nó là cột của bảng `coso`, khai ở màn Địa
+	 *    điểm, và chính nó là Mã đối tượng Nợ trên chứng từ MISA. Cho sửa ở hai màn là hai chỗ gõ
+	 *    cùng một con số — rồi một ngày chúng lệch nhau và không ô nào tự nhận mình sai. Đưa sang
+	 *    đây để kế toán đứng ngay chỗ sắp bấm Xuất là thấy cơ sở nào còn thiếu, chứ không phải để
+	 *    gõ lần thứ hai.
+	 */
 	public static function ma_misa_ds() {
 		global $wpdb;
-		$r = $wpdb->get_results( 'SELECT coso_key, coso, unit_id, unit_name, vung, thu_tu, doi_tuong, doi_tuong_ten, ghi_chu FROM ' . VHG_DB::t( 'bc_ma_misa' ) . ' ORDER BY thu_tu ASC, coso ASC', ARRAY_A );
-		return array( 'ok' => true, 'rows' => $r ? $r : array() );
+		$r = $wpdb->get_results( 'SELECT coso_key, coso, unit_id, unit_name, vung, thu_tu, ghi_chu FROM ' . VHG_DB::t( 'bc_ma_misa' ) . ' ORDER BY thu_tu ASC, coso ASC', ARRAY_A );
+		$r = $r ? $r : array();
+		$kh = array();
+		foreach ( (array) $wpdb->get_results( 'SELECT ten, ma_kh FROM ' . VHG_DB::t( 'coso' ), ARRAY_A ) as $c ) {
+			$kh[ self::squash( (string) $c['ten'] ) ] = trim( (string) $c['ma_kh'] );
+		}
+		foreach ( $r as $i => $x ) {
+			$r[ $i ]['ma_kh'] = isset( $kh[ $x['coso_key'] ] ) ? $kh[ $x['coso_key'] ] : '';
+		}
+		return array( 'ok' => true, 'rows' => $r );
 	}
-	public static function ma_misa_luu( $coso, $unit_id, $unit_name, $vung, $thu_tu, $ghichu, $doi_tuong = '', $doi_tuong_ten = '' ) {
+	public static function ma_misa_luu( $coso, $unit_id, $unit_name, $vung, $thu_tu, $ghichu ) {
 		global $wpdb;
 		$coso = trim( (string) $coso );
 		if ( '' === $coso ) { return array( 'ok' => false, 'message' => 'Thiếu cơ sở.' ); }
 		$ck = self::squash( $coso );
 		$data = array( 'coso_key' => $ck, 'coso' => $coso, 'unit_id' => mb_substr( trim( (string) $unit_id ), 0, 40 ),
 			'unit_name' => mb_substr( trim( (string) $unit_name ), 0, 190 ), 'vung' => mb_substr( trim( (string) $vung ), 0, 80 ),
-			'thu_tu' => (int) $thu_tu, 'ghi_chu' => mb_substr( trim( (string) $ghichu ), 0, 250 ),
-			'doi_tuong' => mb_substr( trim( (string) $doi_tuong ), 0, 50 ),
-			'doi_tuong_ten' => mb_substr( trim( (string) $doi_tuong_ten ), 0, 190 ) );
+			'thu_tu' => (int) $thu_tu, 'ghi_chu' => mb_substr( trim( (string) $ghichu ), 0, 250 ) );
 		$co = $wpdb->get_var( $wpdb->prepare( 'SELECT coso_key FROM ' . VHG_DB::t( 'bc_ma_misa' ) . ' WHERE coso_key=%s', $ck ) );
 		if ( $co ) { $wpdb->update( VHG_DB::t( 'bc_ma_misa' ), $data, array( 'coso_key' => $ck ) ); }
 		else { $wpdb->insert( VHG_DB::t( 'bc_ma_misa' ), $data ); }
@@ -1443,7 +1458,7 @@ class VHG_KeToan {
 			$wpdb->insert( VHG_DB::t( 'bc_ma_misa' ), array(
 				'coso_key' => $ck, 'coso' => $coso, 'unit_id' => $uid,
 				'unit_name' => ( '' !== $un ? $un : $coso ),
-				'vung' => '', 'thu_tu' => 0, 'doi_tuong' => '', 'doi_tuong_ten' => '', 'ghi_chu' => '' ) );
+				'vung' => '', 'thu_tu' => 0, 'ghi_chu' => '' ) );
 		}
 		return array( 'ok' => true, 'unit_id' => $uid, 'unit_name' => $un, 'message' => 'Đã lưu ' . $coso . '.' );
 	}
@@ -1467,8 +1482,7 @@ class VHG_KeToan {
 			$co = $wpdb->get_var( $wpdb->prepare( 'SELECT coso_key FROM ' . VHG_DB::t( 'bc_ma_misa' ) . ' WHERE coso_key=%s', $ck ) );
 			if ( $co ) { continue; }
 			$wpdb->insert( VHG_DB::t( 'bc_ma_misa' ), array( 'coso_key' => $ck, 'coso' => $coso,
-				'unit_id' => '', 'unit_name' => $coso, 'vung' => '', 'thu_tu' => 0,
-				'doi_tuong' => '', 'doi_tuong_ten' => '', 'ghi_chu' => 'điền Unit ID' ) );
+				'unit_id' => '', 'unit_name' => $coso, 'vung' => '', 'thu_tu' => 0, 'ghi_chu' => 'điền Unit ID' ) );
 			$them++;
 		}
 		return array( 'ok' => true, 'them' => $them, 'message' => 'Đã mồi ' . $them . ' cơ sở (điền Unit ID rồi lưu).' );
@@ -1591,26 +1605,26 @@ class VHG_KeToan {
 		$rows = $wpdb->get_results( $args ? $wpdb->prepare( $sql, $args ) : $sql, ARRAY_A );
 
 		/* ══════════════════════════════════════════════════════════════════════════════════════
-		 * 🔴 MÃ ĐỐI TƯỢNG NỢ = MÃ KHÁCH HÀNG — anh Thắng 22/09/2026: *"xuất kèm mã đối tượng
-		 *    (chính là mã khách hàng)"*, kèm ảnh tệp chứng từ: cột ấy TRẮNG cả bảng.
+		 * 🔴 MÃ ĐỐI TƯỢNG NỢ = `coso.ma_kh` — anh Thắng 22/09/2026: *"xuất kèm mã đối tượng
+		 *    (chính là mã khách hàng)"*, rồi chỉ thẳng thẻ cơ sở ở màn Địa điểm: *"chính là mã
+		 *    khách hàng"* — AEON MALL BÌNH DƯƠNG · 🏷 KH00108.
 		 *
-		 *    Bút toán này ghi Nợ TK 131 — phải thu KHÁCH HÀNG. Một khoản phải thu không có đối
-		 *    tượng thì MISA không dựng được sổ công nợ: tiền vẫn vào tổng, nhưng "ai còn nợ bao
-		 *    nhiêu" thì không có. Đó là lý do cột này không phải thứ trang trí.
+		 *    Bút toán ghi Nợ TK 131 — phải thu KHÁCH HÀNG. Một khoản phải thu không có đối tượng
+		 *    thì MISA không dựng được sổ công nợ: tổng doanh thu vẫn đúng, nhưng "ai còn nợ bao
+		 *    nhiêu" thì không có. Tệp vẫn tải về, vẫn trông như xong.
 		 *
-		 * ⚠️ TRA THEO `coso_key` CHỨ KHÔNG THEO TÊN. Tên cơ sở trong `bc` là tên đã đóng băng lúc
-		 *    nộp báo cáo; đổi tên cơ sở một lần là mọi chứng từ cũ hụt mã. `coso_key` là tên đã
-		 *    bóc dấu/hoa-thường nên chịu được cách gõ khác nhau.
-		 * ⚠️ KHÔNG tự lấy Unit ID làm mã đối tượng. Unit ID là MÃ ĐƠN VỊ (đơn vị của mình), mã đối
-		 *    tượng là KHÁCH HÀNG — hai danh mục khác nhau bên MISA, có thể trùng mà cũng có thể
-		 *    không. Đoán một mã khách hàng là đẩy công nợ sang nhầm người, âm thầm. Thiếu thì để
-		 *    trắng và KÊU LÊN (xem `thieuDoiTuong` trả về cuối hàm) — MISA báo thiếu còn sửa được,
-		 *    sai đối tượng thì phải dò ngược cả tháng. Màn Unit ID có nút chép Unit ID sang mã đối
-		 *    tượng cho ai dùng chung một bộ mã: một cú bấm, và là quyết định của kế toán.
+		 * ⚠️ LẤY ĐÚNG CÁI ĐANG CÓ, KHÔNG ĐẺ Ô KHAI THỨ HAI. `coso.ma_kh` có từ 1.99.8, khai ở màn
+		 *    Địa điểm, kế toán đang dùng nó để đối chiếu với sổ ngoài. Dựng thêm một ô "mã đối
+		 *    tượng" ở bảng Unit ID là hai chỗ gõ cùng một con số — rồi một ngày chúng lệch nhau,
+		 *    và không ô nào tự nhận mình sai. (Bản 2.124.0 đã lỡ làm đúng việc ấy; 2.125.0 gỡ bỏ.)
+		 * ⚠️ GHÉP BẰNG `squash()` Ở MÁY CHỦ. `bc.coso_key` là tên cơ sở đã bóc dấu/hoa-thường lúc
+		 *    nộp báo cáo; `coso.ten` là tên đang hiển thị. Ghép thẳng hai chuỗi tên là hụt ngay
+		 *    khi ai đó sửa hoa-thường hay khoảng trắng.
 		 * ══════════════════════════════════════════════════════════════════════════════════════ */
 		$kh = array();
-		foreach ( (array) $wpdb->get_results( 'SELECT coso_key, coso, doi_tuong, doi_tuong_ten FROM ' . VHG_DB::t( 'bc_ma_misa' ), ARRAY_A ) as $m ) {
-			$kh[ (string) $m['coso_key'] ] = $m;
+		foreach ( (array) $wpdb->get_results( 'SELECT ten, ma_kh FROM ' . VHG_DB::t( 'coso' ), ARRAY_A ) as $c ) {
+			$mk = trim( (string) $c['ma_kh'] );
+			if ( '' !== $mk ) { $kh[ self::squash( (string) $c['ten'] ) ] = $mk; }
 		}
 		$thieu_kh = array();
 
@@ -1634,12 +1648,10 @@ class VHG_KeToan {
 			$d = self::ngay_( $r['ngay'] );
 			$dg = 'Doanh thu Posh MN ' . self::dmy_( $d );
 			$cash = (int) $r['tien_mat']; $q = (int) $r['qr'];
-			$m_kh  = isset( $kh[ $r['coso_key'] ] ) ? $kh[ $r['coso_key'] ] : array();
-			$ma_kh = isset( $m_kh['doi_tuong'] ) ? trim( (string) $m_kh['doi_tuong'] ) : '';
-			/* Tên đối tượng: chưa khai riêng thì lấy tên cơ sở — đây là NHÃN cho người đọc, lấy
-			   nhầm nhãn không đẩy công nợ đi đâu cả. Khác hẳn cột MÃ ở trên, nên khác cách xử. */
-			$ten_kh = isset( $m_kh['doi_tuong_ten'] ) ? trim( (string) $m_kh['doi_tuong_ten'] ) : '';
-			if ( '' === $ten_kh && '' !== $ma_kh ) { $ten_kh = (string) $r['coso']; }
+			$ma_kh = isset( $kh[ $r['coso_key'] ] ) ? $kh[ $r['coso_key'] ] : '';
+			/* Tên đối tượng = tên cơ sở. Đây là NHÃN cho người đọc, không phải khoá ghép — lấy
+			   nhầm nhãn không đẩy công nợ đi đâu cả, nên không cần ô khai riêng. */
+			$ten_kh = '' !== $ma_kh ? (string) $r['coso'] : '';
 			if ( '' === $ma_kh ) { $thieu_kh[ (string) $r['coso'] ] = true; }
 			$dong = function ( $sotien, $ghichu ) use ( &$aoa, &$ngayCua, &$iNgay, &$soCtTheoNgay, $d, $soCt, $dg, $r, $ma_kh, $ten_kh ) {
 				if ( $d !== $ngayCua ) { $ngayCua = $d; $iNgay++; }

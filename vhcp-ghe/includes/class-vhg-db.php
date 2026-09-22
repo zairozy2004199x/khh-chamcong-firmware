@@ -130,21 +130,6 @@ class VHG_DB {
 		if ( ! $wpdb->get_var( "SHOW COLUMNS FROM $bcd LIKE 'moc_tay'" ) ) {
 			$wpdb->query( "ALTER TABLE $bcd ADD COLUMN moc_tay TINYINT(1) NOT NULL DEFAULT 0" );
 		}
-		/* `bc_ma_misa.doi_tuong` + `doi_tuong_ten` (v2.124.0) — MÃ ĐỐI TƯỢNG NỢ = mã khách hàng
-		   bên MISA. Anh Thắng 22/09/2026: *"xuất kèm mã đối tượng (chính là mã khách hàng)"*.
-		   Bút toán đang ghi Nợ TK 131 (phải thu khách hàng) mà cột Mã đối tượng Nợ để TRẮNG —
-		   MISA không biết khoản phải thu ấy là của ai, nên sổ công nợ không lên được.
-		   Thêm tay chứ không chờ dbDelta: đây là bảng danh mục kế toán gõ tay, cột không lên thì
-		   mọi lượt lưu đều im lặng rơi mất ô vừa gõ — người gõ không thấy gì sai cho tới lúc xuất. */
-		$bmm = self::t( 'bc_ma_misa' );
-		foreach ( array(
-			'doi_tuong'     => "VARCHAR(50) NOT NULL DEFAULT ''",
-			'doi_tuong_ten' => "VARCHAR(190) NOT NULL DEFAULT ''",
-		) as $cot => $kieu ) {
-			if ( ! $wpdb->get_var( "SHOW COLUMNS FROM $bmm LIKE '" . $cot . "'" ) ) {
-				$wpdb->query( "ALTER TABLE $bmm ADD COLUMN $cot $kieu" );
-			}
-		}
 		/* chi_so_truoc/sau về DECIMAL(14,2) — chỉ số lẻ 551,5 (máy nhận tiền lẻ). Cùng lý do: chú
 		   thích chen giữa có thể làm dbDelta lỡ đổi kiểu; ép lại tay nếu còn không phải DECIMAL. */
 		foreach ( array( 'chi_so_truoc', 'chi_so_sau' ) as $ct ) {
@@ -984,8 +969,6 @@ class VHG_DB {
 			unit_name VARCHAR(190) NOT NULL DEFAULT '',
 			vung VARCHAR(80) NOT NULL DEFAULT '',
 			thu_tu INT NOT NULL DEFAULT 0,
-			doi_tuong VARCHAR(50) NOT NULL DEFAULT '',
-			doi_tuong_ten VARCHAR(190) NOT NULL DEFAULT '',
 			ghi_chu VARCHAR(255) NOT NULL DEFAULT '',
 			PRIMARY KEY  (coso_key)";
 

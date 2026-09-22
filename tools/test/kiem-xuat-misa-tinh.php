@@ -11,6 +11,12 @@
  *    Một khoản phải thu không có đối tượng thì MISA không dựng được sổ công nợ: tổng doanh thu
  *    vẫn đúng, nhưng "ai còn nợ bao nhiêu" thì không có. Tệp vẫn tải về, vẫn trông như xong.
  *
+ * 🔴 VÀ NÓ PHẢI LẤY TỪ `coso.ma_kh` — CHỖ ĐANG CÓ. Anh Thắng chỉ thẳng thẻ cơ sở màn Địa điểm:
+ *    *"chính là mã khách hàng"* (AEON MALL BÌNH DƯƠNG · 🏷 KH00108). Cột ấy có từ 1.99.8, kế toán
+ *    đang dùng để đối chiếu với sổ ngoài. Bản 2.124.0 lỡ đẻ thêm một ô "mã đối tượng" ở bảng Unit
+ *    ID — hai chỗ gõ cùng một con số, rồi một ngày chúng lệch nhau và không ô nào tự nhận mình
+ *    sai. Bài này canh đúng điều đó: nguồn phải là `coso`, và KHÔNG được có ô khai thứ hai.
+ *
  * 🔴 VÌ SAO THỨ TỰ KHÔNG PHẢI CHUYỆN THẨM MỸ. Số đầu Unit ID chính là tỉnh (58·59·60·61·62). Luật
  *    cũ xếp theo `vung` dạng CHỮ nên "CA MAU" (62) nhảy lên trước "CAN THO" (59) — ngược với bảng
  *    anh Thắng dựng tay, và người dán vào Excel tháng trước thấy hàng không còn khớp.
@@ -34,6 +40,20 @@ function t( $ten, $ok, $them = null ) {
 /* ---------- Bệ đỡ tí hon ---------- */
 define( 'ARRAY_A', 'ARRAY_A' );
 class VHG_DB { public static function t( $b ) { return 'wp_vhg_' . $b; } }
+/* `remove_accents` của WordPress — bản tối giản đủ cho tiếng Việt trong bài này. Bốc nguyên
+   `squash()` từ mã nguồn ra dùng (dưới), không chép lại luật: luật chuẩn hoá tên cơ sở chỉ được
+   có MỘT bản, repo này đã có đúng một vụ hai bản lệch nhau (xem CLAUDE.md mục 5). */
+function remove_accents( $s ) {
+	$b = array( 'à','á','ạ','ả','ã','â','ầ','ấ','ậ','ẩ','ẫ','ă','ằ','ắ','ặ','ẳ','ẵ','è','é','ẹ','ẻ','ẽ','ê','ề','ế','ệ','ể','ễ',
+		'ì','í','ị','ỉ','ĩ','ò','ó','ọ','ỏ','õ','ô','ồ','ố','ộ','ổ','ỗ','ơ','ờ','ớ','ợ','ở','ỡ',
+		'ù','ú','ụ','ủ','ũ','ư','ừ','ứ','ự','ử','ữ','ỳ','ý','ỵ','ỷ','ỹ','đ' );
+	$a = array( 'a','a','a','a','a','a','a','a','a','a','a','a','a','a','a','a','a','e','e','e','e','e','e','e','e','e','e','e',
+		'i','i','i','i','i','o','o','o','o','o','o','o','o','o','o','o','o','o','o','o','o','o',
+		'u','u','u','u','u','u','u','u','u','u','u','y','y','y','y','y','d' );
+	$s = (string) $s;
+	$s = str_replace( $b, $a, mb_strtolower( $s, 'UTF-8' ) );
+	return $s;
+}
 class VHG_BaoCao { public static function ngay_( $v ) {
 	$s = trim( (string) $v );
 	return preg_match( '/^(\d{4})-(\d{2})-(\d{2})/', $s, $m ) ? ( $m[1] . '-' . $m[2] . '-' . $m[3] ) : '';
@@ -48,8 +68,10 @@ class WpdbGia {
 		foreach ( $a as $v ) { $sql = preg_replace( '/%s|%d/', "'" . $v . "'", $sql, 1 ); }
 		return $sql;
 	}
+	public $coso = array();
 	public function get_results( $sql, $out = null ) {
 		if ( false !== strpos( $sql, 'bc_ma_misa' ) ) { return $this->maMisa; }
+		if ( false !== strpos( $sql, 'wp_vhg_coso' ) ) { return $this->coso; }
 		if ( false !== strpos( $sql, 'd.ma_may' ) )   { return $this->ctRows; }
 		return $this->bcDong;
 	}
@@ -67,12 +89,16 @@ function boc( $nguon, $mo ) {
 	}
 	return '';
 }
+/* Bốc chính `squash()` từ class-vhg-baocao.php — khoá ghép tên cơ sở phải là MỘT luật duy nhất. */
+$f_sq = boc( file_get_contents( __DIR__ . '/../../vhcp-ghe/includes/class-vhg-baocao.php' ),
+	'public static function squash(' );
 $f_bcn = boc( $nguon, 'public static function baocao_ngay(' );
 $f_ct  = boc( $nguon, 'public static function misa_chungtu(' );
-t( 'bốc được hàm baocao_ngay + misa_chungtu', '' !== $f_bcn && '' !== $f_ct );
-if ( '' === $f_bcn || '' === $f_ct ) { echo "✗ không bốc được — dừng.\n"; exit( 1 ); }
+t( 'bốc được baocao_ngay + misa_chungtu + squash', '' !== $f_bcn && '' !== $f_ct && '' !== $f_sq );
+if ( '' === $f_bcn || '' === $f_ct || '' === $f_sq ) { echo "✗ không bốc được — dừng.\n"; exit( 1 ); }
 eval( 'class VHG_KeToan {
 	public static function ngay_( $v ) { return VHG_BaoCao::ngay_( $v ); }
+	' . $f_sq . '
 	public static function thang_( $v ) {
 		$s = trim( (string) $v );
 		if ( preg_match( "/^(\\\\d{4})[-_](\\\\d{2})$/", $s, $m ) ) { return $m[1] . "-" . $m[2]; }
@@ -105,7 +131,7 @@ $khai = array(
 $wpdb->maMisa = array(); $wpdb->bcDong = array();
 foreach ( $khai as $k ) {
 	$wpdb->maMisa[] = array( 'coso_key' => $k[0], 'unit_id' => $k[1], 'unit_name' => $k[0],
-		'vung' => $k[2], 'thu_tu' => 0, 'doi_tuong' => '', 'doi_tuong_ten' => '' );
+		'vung' => $k[2], 'thu_tu' => 0 );
 	$wpdb->bcDong[] = array( 'coso' => $k[0], 'coso_key' => $k[0], 'ng' => 6, 'tong' => 100000 );
 	$wpdb->bcDong[] = array( 'coso' => $k[0], 'coso_key' => $k[0], 'ng' => 9, 'tong' => 200000 );
 }
@@ -159,8 +185,7 @@ t( 'đếm đúng số tỉnh + kêu tỉnh chưa đặt tên', 6 === (int) $r['
 	array( $r['soTinh'], $r['thieuVung'] ) );
 
 /* Chưa khai Vùng cho tỉnh nào thì in "Nhóm <số>" và PHẢI kêu lên. */
-$wpdb->maMisa = array( array( 'coso_key' => 'A', 'unit_id' => '77XX', 'unit_name' => 'A', 'vung' => '',
-	'thu_tu' => 0, 'doi_tuong' => '', 'doi_tuong_ten' => '' ) );
+$wpdb->maMisa = array( array( 'coso_key' => 'A', 'unit_id' => '77XX', 'unit_name' => 'A', 'vung' => '', 'thu_tu' => 0 ) );
 $wpdb->bcDong = array( array( 'coso' => 'A', 'coso_key' => 'A', 'ng' => 6, 'tong' => 5000 ) );
 $r2 = VHG_KeToan::baocao_ngay( '2026-09', 0 );
 $co_nhom = false;
@@ -170,18 +195,22 @@ t( 'tỉnh chưa đặt tên in "Nhóm <số>" và báo ra thieuVung', $co_nhom 
 
 /* ══════════════════════════════════ 2. CHỨNG TỪ: mã đối tượng ═══════════════════════════════ */
 echo "── Chứng từ MISA: mã đối tượng = mã khách hàng ──────────────\n";
-$wpdb->maMisa = array(
-	array( 'coso_key' => 'K1', 'coso' => 'GO CAN THO', 'doi_tuong' => 'KH0059', 'doi_tuong_ten' => 'CTY GO CT' ),
-	array( 'coso_key' => 'K2', 'coso' => 'VAN HANH MALL', 'doi_tuong' => 'KH0088', 'doi_tuong_ten' => '' ),
-	array( 'coso_key' => 'K3', 'coso' => 'CHUA KHAI', 'doi_tuong' => '', 'doi_tuong_ten' => '' ),
+/* Nguồn mã khách hàng là bảng `coso`, ghép bằng squash(tên) — KHÔNG phải bảng Unit ID.
+   Tên ở đây cố tình viết thường + có dấu để bài kiểm chạm đúng chỗ ghép: `bc.coso_key` là bản đã
+   squash, `coso.ten` là tên đang hiển thị. Ghép thẳng hai chuỗi tên là hụt ngay. */
+$wpdb->maMisa = array();
+$wpdb->coso = array(
+	array( 'ten' => 'Gò Cần Thơ',    'ma_kh' => 'KH00059' ),
+	array( 'ten' => 'Vạn Hạnh Mall', 'ma_kh' => 'KH00088' ),
+	array( 'ten' => 'Chưa khai',     'ma_kh' => '' ),
 );
 $wpdb->ctRows = array(
 	array( 'ngay' => '2026-09-01', 'ma_may' => '80016', 'ten' => 'GO-CT-1', 'tien_mat' => 100000, 'qr' => 50000,
-		'dieu_chinh' => 0, 'ghi_chu' => '', 'nop_trang_thai' => '', 'coso' => 'GO CAN THO', 'coso_key' => 'K1' ),
+		'dieu_chinh' => 0, 'ghi_chu' => '', 'nop_trang_thai' => '', 'coso' => 'Gò Cần Thơ', 'coso_key' => 'GOCANTHO' ),
 	array( 'ngay' => '2026-09-01', 'ma_may' => '80038', 'ten' => 'VHM-9', 'tien_mat' => 200000, 'qr' => 0,
-		'dieu_chinh' => 0, 'ghi_chu' => '', 'nop_trang_thai' => '', 'coso' => 'VAN HANH MALL', 'coso_key' => 'K2' ),
+		'dieu_chinh' => 0, 'ghi_chu' => '', 'nop_trang_thai' => '', 'coso' => 'Vạn Hạnh Mall', 'coso_key' => 'VANHANHMALL' ),
 	array( 'ngay' => '2026-09-01', 'ma_may' => '80099', 'ten' => 'XX-1', 'tien_mat' => 30000, 'qr' => 0,
-		'dieu_chinh' => 0, 'ghi_chu' => '', 'nop_trang_thai' => '', 'coso' => 'CHUA KHAI', 'coso_key' => 'K3' ),
+		'dieu_chinh' => 0, 'ghi_chu' => '', 'nop_trang_thai' => '', 'coso' => 'Chưa khai', 'coso_key' => 'CHUAKHAI' ),
 );
 $c = VHG_KeToan::misa_chungtu( '', '', '2026-09', 0, '' );
 $head = $c['aoa'][0];
@@ -189,15 +218,26 @@ $iMa  = array_search( 'Mã đối tượng Nợ', $head, true );
 $iTen = array_search( 'Tên đối tượng nợ', $head, true );
 t( 'bảng có cột Mã đối tượng Nợ + Tên đối tượng nợ', false !== $iMa && false !== $iTen, array( $iMa, $iTen ) );
 $d1 = $c['aoa'][1]; $d3 = $c['aoa'][3]; $d4 = $c['aoa'][4];
-t( '🔴 dòng tiền mặt mang đúng mã khách hàng của CƠ SỞ ấy', 'KH0059' === $d1[ $iMa ], $d1[ $iMa ] );
-t( '🔴 dòng QR cùng cơ sở cũng mang mã ấy (không chỉ dòng đầu)', 'KH0059' === $c['aoa'][2][ $iMa ], $c['aoa'][2][ $iMa ] );
-t( 'cơ sở khác mang mã khác — không dính mã của dòng trước', 'KH0088' === $d3[ $iMa ], $d3[ $iMa ] );
-t( 'chưa khai tên đối tượng thì lấy tên cơ sở làm nhãn', 'VAN HANH MALL' === $d3[ $iTen ], $d3[ $iTen ] );
-t( 'khai riêng thì dùng tên đã khai', 'CTY GO CT' === $d1[ $iTen ], $d1[ $iTen ] );
+t( '🔴 dòng tiền mặt mang MÃ KH CỦA MÀN ĐỊA ĐIỂM (coso.ma_kh), ghép qua squash(tên)',
+	'KH00059' === $d1[ $iMa ], $d1[ $iMa ] );
+t( '🔴 dòng QR cùng cơ sở cũng mang mã ấy (không chỉ dòng đầu)', 'KH00059' === $c['aoa'][2][ $iMa ], $c['aoa'][2][ $iMa ] );
+t( 'cơ sở khác mang mã khác — không dính mã của dòng trước', 'KH00088' === $d3[ $iMa ], $d3[ $iMa ] );
+t( 'tên đối tượng = tên cơ sở (nhãn cho người đọc, không cần ô khai riêng)',
+	'Vạn Hạnh Mall' === $d3[ $iTen ], $d3[ $iTen ] );
 t( '🔴 KHÔNG đoán mã cho cơ sở chưa khai — để trắng cả mã lẫn tên',
 	'' === $d4[ $iMa ] && '' === $d4[ $iTen ], array( $d4[ $iMa ], $d4[ $iTen ] ) );
 t( '🔴 và KÊU LÊN đúng cơ sở nào thiếu (trắng âm thầm là sổ công nợ hụt mà không ai biết)',
-	array( 'CHUA KHAI' ) === $c['thieuDoiTuong'], $c['thieuDoiTuong'] );
+	array( 'Chưa khai' ) === $c['thieuDoiTuong'], $c['thieuDoiTuong'] );
+
+/* 🔴 MỘT NƠI KHAI DUY NHẤT. Bài kiểm canh cả việc KHÔNG có ô khai thứ hai — đây là loại hỏng
+   chỉ lộ ra sau vài tháng, lúc hai con số đã lệch và không ai nhớ ô nào mới đúng. */
+$src_kt = file_get_contents( __DIR__ . '/../../vhcp-ghe/includes/class-vhg-ketoan.php' );
+$src_db = file_get_contents( __DIR__ . '/../../vhcp-ghe/includes/class-vhg-db.php' );
+$src_tr = file_get_contents( __DIR__ . '/../../vhcp-ghe/includes/class-vhg-trang.php' );
+t( '🔴 KHÔNG đẻ ô khai mã đối tượng thứ hai ở bảng Unit ID (nguồn duy nhất là coso.ma_kh)',
+	false === strpos( $src_kt, 'doi_tuong' ) && false === strpos( $src_db, 'doi_tuong' )
+	&& false === strpos( $src_tr, 'doi_tuong' ) );
+t( 'và đọc thẳng cột ma_kh của bảng coso', false !== strpos( $src_kt, "SELECT ten, ma_kh FROM" ) );
 t( 'Mã đơn vị / Tên đơn vị vẫn là mã & tên GHẾ như cũ (không đụng)',
 	'80016' === $d1[ array_search( 'Mã đơn vị', $head, true ) ]
 	&& 'GO-CT-1' === $d1[ array_search( 'Tên đơn vị', $head, true ) ] );

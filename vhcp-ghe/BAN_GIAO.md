@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-09-22 · Phiên bản hiện tại: **2.124.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-09-22 · Phiên bản hiện tại: **2.125.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -12,11 +12,40 @@ từ đầu.
 
 ## 1. Việc đã làm gần đây
 
+### v2.125.0 — Mã đối tượng lấy thẳng `coso.ma_kh`, gỡ ô khai trùng của 2.124.0
+
+Anh Thắng 22/09/2026, sau khi xuất thử 2.124.0: *"xuất misa chưa thấy mã đối tượng"*, rồi chỉ
+thẳng thẻ cơ sở ở màn Địa điểm: *"chính là mã khách hàng"* — **AEON MALL BÌNH DƯƠNG · 🏷 KH00108**.
+
+**Em làm sai ở 2.124.0.** Cột `coso.ma_kh` đã có từ **v1.99.8** (01/09/2026, cũng do anh Thắng
+yêu cầu), khai ở màn Địa điểm, kế toán đang dùng để đối chiếu với sổ ngoài. 2.124.0 lại dựng thêm
+ô "Mã đối tượng" ở bảng Unit ID — tức **hai chỗ gõ cùng một con số**. Hậu quả tức thì: xuất ra vẫn
+trắng, vì ô mới chưa ai gõ. Hậu quả lâu dài còn tệ hơn: một ngày hai con số lệch nhau và **không ô
+nào tự nhận mình sai**.
+
+- `misa_chungtu()` đọc thẳng `coso.ma_kh`, ghép qua `squash()` — `bc.coso_key` là tên đã bóc
+  dấu/hoa-thường lúc nộp, `coso.ten` là tên đang hiển thị; ghép thẳng hai chuỗi tên là hụt ngay
+  khi ai đó sửa hoa-thường hay khoảng trắng.
+- *Tên đối tượng nợ* = tên cơ sở. Đây là **nhãn cho người đọc**, không phải khoá ghép, nên không
+  cần ô khai riêng.
+- **Gỡ sạch** `bc_ma_misa.doi_tuong` / `doi_tuong_ten` của 2.124.0: cột, migration, cổng lưu, và
+  hai ô nhập cùng nút "Chép Unit ID → Mã đối tượng".
+- Bảng **Unit ID MISA** nay có cột **Mã KH chỉ để XEM** (đậm nếu có, đỏ "chưa khai" nếu không) —
+  để kế toán đứng ngay chỗ sắp bấm Xuất là thấy cơ sở nào còn thiếu, chứ không phải để gõ lần
+  thứ hai. Sửa thì sang màn Địa điểm, một nơi duy nhất. Dòng cảnh báo lúc xuất cũng chỉ về đó.
+
+Bài kiểm `tools/test/kiem-xuat-misa-tinh.php` lên **19 phép**, thêm hai phép canh chính cái bẫy
+này: nguồn phải là `coso.ma_kh`, và **không được có ô khai thứ hai** ở bất kỳ tệp nào. Dữ liệu giả
+dùng tên có dấu ("Gò Cần Thơ") để chạm đúng chỗ ghép `squash()`.
+
 ### v2.124.0 — Xuất MISA: thứ tự Unit · tách theo tỉnh · mã đối tượng (khách hàng)
 
 Anh Thắng 22/09/2026, ba câu kèm hai ảnh (bảng DAILY REPORT đang dựng tay, và tệp chứng từ đã
 xuất): *"sắp xếp Unit theo thứ tự để xuất misa"*, *"xuất rõ phân theo tỉnh"*, *"xuất kèm mã đối
 tượng (chính là mã khách hàng)"*.
+
+> ⚠️ **Phần 1 dưới đây đã bị 2.125.0 sửa lại** — hai ô khai thêm ở bảng Unit ID là sai, nguồn
+> đúng là `coso.ma_kh` của màn Địa điểm. Giữ lại để hiểu vì sao có bản 2.125.0.
 
 #### 1. Mã đối tượng Nợ = mã khách hàng
 
