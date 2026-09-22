@@ -179,6 +179,27 @@ class KHTC_SaoLuu {
 					}
 				}
 
+				// Giao dịch đã có mã đó trong tài khoản đó thì bỏ qua. Nhập lại
+				// một tệp sao lưu, hoặc nhập chồng hai tệp có phần giao nhau,
+				// là chuyện xảy ra thật khi chạy tháng này qua tháng khác —
+				// không chặn thì số dư phình lên mà không có gì báo.
+				if ( 'giao_dich' === $t && '' !== trim( (string) ( $hang['ma_gd'] ?? '' ) ) ) {
+					$co_roi = $wpdb->get_var(
+						$wpdb->prepare(
+							'SELECT id FROM ' . KHTC_DB::bang( 'giao_dich' ) . ' WHERE ngan_hang_id = %d AND ma_gd = %s LIMIT 1',
+							(int) $hang['ngan_hang_id'],
+							(string) $hang['ma_gd']
+						)
+					);
+					if ( $co_roi ) {
+						// Ánh xạ sang dòng đã có, để dòng cổng đã ghép với nó
+						// vẫn trỏ đúng chỗ thay vì hoá mồ côi.
+						$moi[ $t ][ $cu ] = (int) $co_roi;
+						$dung_lai[ $t ]   = ( $dung_lai[ $t ] ?? 0 ) + 1;
+						continue;
+					}
+				}
+
 				// Sổ thanh toán trỏ tới chứng từ bằng CẶP (bang, chung_tu_id),
 				// không phải một cột khoá ngoại, nên nó không nằm trong mấy phép
 				// nối ở dưới. Quên chỗ này thì sau khi phục hồi, mọi khoản đã trả

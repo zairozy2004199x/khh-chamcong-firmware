@@ -297,7 +297,8 @@ class KHTC_Trang {
 		echo '<div class="khtc-loc"><label>Nạp vào tài khoản<select name="dan_ngan_hang_id" required>';
 		foreach ( $ngan_hang as $b ) { printf( '<option value="%d">%s</option>', (int) $b->id, esc_html( $b->ten ) ); }
 		echo '</select></label></div>';
-		echo '<p class="khtc-sub">Mỗi dòng: <code>Ngày (dd/mm/yyyy) · Diễn giải · Số tiền · Thu/Chi</code> — cách nhau bằng Tab (copy thẳng từ Excel) hoặc dấu phẩy. Bỏ trống cột cuối thì số dương là Thu, số âm là Chi.</p>';
+		echo '<p class="khtc-sub">Mỗi dòng: <code>Ngày (dd/mm/yyyy) · Diễn giải · Số tiền · Thu/Chi · Mã giao dịch</code> — cách nhau bằng Tab (copy thẳng từ Excel) hoặc dấu phẩy. Bỏ trống cột Thu/Chi thì số dương là Thu, số âm là Chi.</p>';
+		echo '<p class="khtc-sub"><strong>Dán chồng kỳ cũng không sao.</strong> Dòng nào đã có sẵn trong tài khoản này — nhận ra qua <em>mã giao dịch</em> ở cột 5 — sẽ bị bỏ qua, nên tháng nào cũng tải cả file về dán cũng không nhân đôi số dư. Cột mã để trống thì máy không chặn được, dán lại là vào thêm lần nữa.</p>';
 		echo '<textarea name="sao_ke" rows="7" placeholder="20/07/2026&#9;Thu tien khach ABC&#9;1.500.000&#9;Thu&#10;21/07/2026&#9;Chi tra nha cung cap&#9;850.000&#9;Chi"></textarea>';
 		echo '<p><button type="submit" name="khtc_dan" value="1" class="button button-primary">Nạp sao kê</button></p></form></details>';
 

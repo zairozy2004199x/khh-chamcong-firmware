@@ -1,7 +1,7 @@
 === Tài Chính K&H ===
 Requires at least: 5.6
 Requires PHP: 7.4
-Stable tag: 1.3.1
+Stable tag: 1.4.0
 License: GPL-2.0-or-later
 
 Theo dõi ngân hàng, giao dịch và đối soát cho CÔNG TY TNHH DỊCH VỤ VÀ GIẢI TRÍ K&H.
@@ -25,7 +25,11 @@ khỏi đi vòng qua wp-admin và khỏi phải hiểu hệ thống vai trò c�
   soát gần nhất còn lệch
 * Ngân hàng — thêm/xoá tài khoản, số dư đầu tính từ một ngày mốc
 * Giao dịch / Sao kê — thêm tay, dán sao kê hàng loạt, lọc theo tài khoản /
-  khoảng ngày / thu-chi / nội dung, phân trang 100 dòng
+  khoảng ngày / thu-chi / nội dung, phân trang 100 dòng. Dán chồng kỳ không
+  nhân đôi số dư: dòng nào đã có sẵn trong tài khoản đó (nhận ra qua mã giao
+  dịch) sẽ bị bỏ qua và máy nói ra đã bỏ bao nhiêu. Dòng không có mã thì không
+  chặn được — máy đếm riêng và báo, vì gộp nhầm hai lần thu thật giống hệt
+  nhau là mất tiền, sai nặng hơn để lọt một dòng trùng.
 * Đối soát — VietQR, Payoo, VNPay, Zalo Mini App, MoMo. Kết quả có một dòng
   tự kiểm: tổng cổng trừ phí lệch quá 5% so với tiền thực nhận, hoặc không dòng
   nào ghép được theo mã giao dịch, thì máy nói thẳng là kết quả chưa đáng tin

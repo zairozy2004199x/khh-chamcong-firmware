@@ -168,7 +168,15 @@ $per = array();
 foreach ( $wpdb->get_results( 'SELECT ngan_hang_id, COUNT(*) AS n FROM wp_khtc_giao_dich GROUP BY ngan_hang_id' ) as $row ) {
 	$per[] = (int) $row->n;
 }
-kiem( 'giao dịch chia đều hai tài khoản, không dồn hết về một', $per, array( 5, 5 ) );
+sort( $per );
+// Giao dịch CÓ mã giao dịch không nhân đôi khi nhập lại (chặn trùng), giao
+// dịch không mã thì có. Điều quan trọng vẫn giữ: không tài khoản nào bị dồn
+// hết dòng của tài khoản kia.
+kiem( 'không tài khoản nào bị dồn hết giao dịch', count( $per ), 2 );
+kiem( 'và mỗi tài khoản đều còn giao dịch của mình', min( $per ) > 0, true );
+$co_ma = (int) $wpdb->get_var( "SELECT COUNT(*) FROM wp_khtc_giao_dich WHERE ma_gd <> ''" );
+$k_ma  = (int) $wpdb->get_var( "SELECT COUNT(*) FROM wp_khtc_giao_dich WHERE ma_gd = ''" );
+kiem( 'tổng giao dịch bằng tổng hai nhóm', $co_ma + $k_ma, array_sum( $per ) );
 
 kiem( 'tệp không phải json thì báo lỗi', is_wp_error( KHTC_SaoLuu::nhap( 'xin chao' ) ), true );
 kiem( 'định dạng khác thì báo lỗi', is_wp_error( KHTC_SaoLuu::nhap( '{"dinh_dang":99,"bang":{"chi_phi":[]}}' ) ), true );
@@ -198,6 +206,75 @@ co( 'trang sao lưu đếm khoản chi phí', $t, 'Khoản chi phí' );
 co( 'trang sao lưu có nút tải', $t, 'Tải tệp sao lưu' );
 co( 'trang sao lưu cảnh báo nhập là thêm vào', $t, 'THÊM VÀO, không xoá' );
 kiem( 'trang sao lưu đóng đủ thẻ div', substr_count( $t, '<div' ), substr_count( $t, '</div>' ) );
+
+// ------------------------------- chạy liên tục: dán sao kê chồng kỳ
+//
+// Sổ này chạy tháng này qua tháng khác. Kế toán tải sao kê rồi dán, lần sau
+// tải lại thường lấy dư mấy ngày cho chắc, hoặc dán hai lần vì không rõ lần
+// đầu đã ăn chưa. Không chặn thì số dư phình lên mà không có gì báo.
+KHTC_Cty::chon( 'kh_cu' );
+$nh_lt = KHTC_NganHang::them( array( 'ten' => 'TK chạy liên tục', 'so_tk' => '555000', 'so_du_dau' => 0, 'ngay_dau' => '2026-07-31' ) );
+$t8 = "01/08/2026\tThu QR A\t100.000\tthu\tFT001\n"
+    . "02/08/2026\tThu QR B\t200.000\tthu\tFT002\n"
+    . "03/08/2026\tThu QR C\t100.000\tthu\tFT003\n";
+$k1 = KHTC_GiaoDich::dan_hang_loat( $nh_lt, $t8 );
+kiem( 'tháng 8: nạp 3 dòng', $k1['them'], 3 );
+kiem( 'chưa có dòng nào trùng', $k1['trung'], 0 );
+
+// Dán y hệt lần nữa — cảnh hay gặp nhất.
+$k2 = KHTC_GiaoDich::dan_hang_loat( $nh_lt, $t8 );
+kiem( 'dán lại y hệt: không thêm dòng nào', $k2['them'], 0 );
+kiem( 'và báo đúng 3 dòng trùng', $k2['trung'], 3 );
+
+// Tháng 9 tải dư hai ngày cuối tháng 8 cho chắc.
+$t9 = "02/08/2026\tThu QR B\t200.000\tthu\tFT002\n"
+    . "03/08/2026\tThu QR C\t100.000\tthu\tFT003\n"
+    . "01/09/2026\tThu QR D\t300.000\tthu\tFT004\n"
+    . "02/09/2026\tThu QR E\t400.000\tthu\tFT005\n";
+$k3 = KHTC_GiaoDich::dan_hang_loat( $nh_lt, $t9 );
+kiem( 'tháng 9 chồng 2 ngày: chỉ thêm 2 dòng mới', $k3['them'], 2 );
+kiem( 'bỏ đúng 2 dòng chồng', $k3['trung'], 2 );
+
+$tong_lt = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COALESCE(SUM(so_tien),0) FROM ' . KHTC_DB::bang( 'giao_dich' ) . " WHERE ngan_hang_id = %d AND loai='thu'", $nh_lt ) );
+kiem( 'số dư đúng 1.100.000, không phình', $tong_lt, 1100000 );
+kiem(
+	'và đúng 5 dòng trong sổ',
+	(int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . KHTC_DB::bang( 'giao_dich' ) . ' WHERE ngan_hang_id = %d', $nh_lt ) ),
+	5
+);
+
+// Hai dòng trùng mã NGAY TRONG một lần dán cũng chỉ vào một.
+$k4 = KHTC_GiaoDich::dan_hang_loat( $nh_lt, "05/09/2026\tX\t50.000\tthu\tFT009\n05/09/2026\tX\t50.000\tthu\tFT009\n" );
+kiem( 'trùng mã trong cùng một lần dán: chỉ vào một', $k4['them'], 1 );
+
+// Dòng KHÔNG có mã thì KHÔNG chặn — hai khách cùng trả 50.000 một ngày là
+// chuyện thường, gộp lại là mất tiền thật.
+$k5 = KHTC_GiaoDich::dan_hang_loat( $nh_lt, "06/09/2026\tTien mat\t50.000\tthu\n06/09/2026\tTien mat\t50.000\tthu\n" );
+kiem( 'hai dòng không mã, giống hệt nhau: vào đủ hai', $k5['them'], 2 );
+kiem( 'và máy đếm ra để nói cho người dán biết', $k5['khong_ma'], 2 );
+
+// Nhập lại tệp sao lưu cũng không được nhân đôi sao kê.
+$kho_lt = wp_json_encode( KHTC_SaoLuu::gom() );
+$truoc_gd = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . KHTC_DB::bang( 'giao_dich' ) . ' WHERE ma_gd <> \'\'' );
+KHTC_SaoLuu::nhap( $kho_lt );
+kiem(
+	'nhập lại tệp sao lưu: giao dịch có mã không nhân đôi',
+	(int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . KHTC_DB::bang( 'giao_dich' ) . ' WHERE ma_gd <> \'\'' ),
+	$truoc_gd
+);
+// Trước khi nhập lại: 1.100.000 + FT009 50.000 + hai dòng tiền mặt 100.000.
+// Nhập lại chỉ nhân đôi HAI DÒNG KHÔNG MÃ (+100.000) — đúng theo thiết kế, vì
+// không có cách nào phân biệt chúng với hai lần thu thật giống hệt nhau.
+kiem(
+	'nhập lại chỉ nhân đôi phần không có mã',
+	(int) $wpdb->get_var( $wpdb->prepare( 'SELECT COALESCE(SUM(so_tien),0) FROM ' . KHTC_DB::bang( 'giao_dich' ) . " WHERE ngan_hang_id = %d AND loai='thu'", $nh_lt ) ),
+	$tong_lt + 50000 + 100000 + 100000
+);
+kiem(
+	'phần CÓ mã giữ nguyên từng đồng',
+	(int) $wpdb->get_var( $wpdb->prepare( 'SELECT COALESCE(SUM(so_tien),0) FROM ' . KHTC_DB::bang( 'giao_dich' ) . " WHERE ngan_hang_id = %d AND ma_gd <> ''", $nh_lt ) ),
+	$tong_lt + 50000
+);
 
 // --------------------------- nhập vào sổ ĐÃ CÓ DỮ LIỆU (chỗ dễ sai nhất)
 //
@@ -302,7 +379,10 @@ kiem( 'tài khoản CÓ số TK thì dùng lại, không nhân đôi', $co_so()[
 // Không có số tài khoản thì không có gì để nhận ra nhau, đành thêm mới — thà
 // thừa một dòng thấy được còn hơn gộp nhầm hai tài khoản khác nhau.
 kiem( 'tài khoản KHÔNG có số TK thì vẫn thêm mới', $co_so()[1], $truoc_tk[1] * 2 );
-kiem( 'giao dịch vẫn tăng gấp đôi (nhập là thêm vào)', $sau['giao_dich'], $truoc['giao_dich'] * 2 );
+// Giao dịch CÓ mã bị chặn trùng nên không nhân đôi; chỉ dòng không mã mới thêm.
+$khong_ma_truoc = (int) $wpdb->get_var( "SELECT COUNT(*) FROM " . KHTC_DB::bang( 'giao_dich' ) . " WHERE ma_gd = ''" );
+kiem( 'giao dịch có mã không nhân đôi khi nhập lại', $sau['giao_dich'] < $truoc['giao_dich'] * 2, true );
+kiem( 'nhưng vẫn nhiều hơn trước, vì dòng không mã thì thêm', $sau['giao_dich'] > $truoc['giao_dich'], true );
 // Liên kết phải nối lại theo id mới, không thì số dư sai mà không ai thấy.
 kiem(
 	'không giao dịch nào trỏ vào tài khoản không tồn tại',

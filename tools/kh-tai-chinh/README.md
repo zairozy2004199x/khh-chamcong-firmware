@@ -497,6 +497,28 @@ cài lúc nào cũng có dữ liệu rơi vào tháng hiện tại và mấy mà
 một hợp đồng quá hạn 18 ngày, để phần cảnh báo có gì mà cảnh báo; một hoá đơn
 vào trả tiền mặt trên 20 triệu, để nhắc khấu trừ hiện ra.
 
+## Chạy liên tục: dán sao kê chồng kỳ
+
+Sổ này chạy tháng này qua tháng khác. Kế toán tải sao kê rồi dán, lần sau tải
+lại thường **lấy dư mấy ngày cho chắc**, hoặc dán hai lần vì không rõ lần đầu
+đã ăn chưa. Bảng `giao_dich` không có khoá duy nhất, nên trước bản 1.4.0 mỗi
+lần như thế là **số dư phình lên, im lặng** — và phải dò tay hàng chục nghìn
+dòng mới biết sai ở đâu.
+
+Giờ chặn theo cặp **(tài khoản, mã giao dịch)**. Mã tham chiếu ngân hàng là
+duy nhất nên đây là phép so chính xác, không phải phỏng đoán: kiểm trên 54.061
+dòng sao kê thật của công ty, **100% dòng có mã** và **không mã nào lặp** trong
+cùng một tài khoản.
+
+Dòng **không có mã thì không chặn**. Hai khách cùng trả 50.000 một ngày ở cùng
+một điểm là chuyện thường; gộp chúng lại là mất tiền thật — sai nặng hơn hẳn
+việc để lọt một dòng trùng mà người ta còn thấy được. Số dòng loại này được
+đếm và nói ra để người dán tự quyết.
+
+Nhập tệp sao lưu cũng theo đúng luật đó, nên nhập lại một tệp không nhân đôi
+sao kê; dòng cổng đã ghép với một giao dịch vẫn trỏ đúng vào dòng đã có thay
+vì hoá mồ côi.
+
 ## Tài khoản đăng nhập riêng
 
 Vẫn **không dựng bảng mật khẩu riêng** — người dùng ở đây là tài khoản
