@@ -773,6 +773,20 @@ Thẻ số ở đầu trang **cố ý không có** "tổng cổng trừ tổng n
 còn nhận tiền mặt và tiền kênh khác, nên hiệu đó gần như luôn khác 0 kể cả khi
 đối soát sạch.
 
+## Phép kiểm bốn bước
+
+Mỗi mảng có phép kiểm riêng rồi, nhưng chỗ hỏng nằm ở **mối nối**: dán xong mà
+mã cửa hàng không tới được bước gom, hoặc gom xong mà tiền không khớp tiền đã
+vào sổ. `kiem-bon-buoc.php` đi hết một buổi sáng thật — dán bốn tệp của bốn
+cổng qua đúng màn hình, xem trước, tạo hoá đơn, soát sổ — và hỏi đúng một câu:
+
+```
+tiền vào hoá đơn + tiền điểm bỏ qua + tiền mã lạ  =  tiền đã vào sổ
+```
+
+Chạy trên dữ liệu thật ngày 05/08/2026 của KH989: dán 4 tệp → 400 dòng vào sổ
+→ 12 hoá đơn, 54.685.000 đ, và **63.223.000 = 63.223.000** — không mất đồng nào.
+
 ## Chạy test
 
 ```bash
