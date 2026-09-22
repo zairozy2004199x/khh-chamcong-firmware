@@ -2,11 +2,6 @@
 /**
  * TỰ CẬP NHẬT TỪ GITHUB RELEASES — hiện nút "Cập nhật" ngay ở màn Plugin.
  *
- * ⚠️ TỆP NÀY LÀ BẢN SAO, sinh từ lớp cùng tên của bản gốc.
- *    Chín plugin cài ĐỘC LẬP nên không thể dùng chung một lớp — gỡ plugin chi phí là tám
- *    cái kia chết theo. Sửa cách tự cập nhật thì phải sửa CẢ CHÍN bản; `kiem-tu-cap-nhat.php`
- *    quét đủ chín và bắt bản nào lạc.
- *
  * =================================================================================================
  * Anh Thắng 13/09/2026: *"cách kết nối github đẩy thẳng code wed lên"*.
  *
@@ -22,7 +17,7 @@
  *     repo mà không lọc theo plugin thì bản chấm công hiện thành "bản mới" của chi phí.
  *   · REPO RIÊNG TƯ. Tài liệu của Git Updater hướng chuyện này sang bản trả phí.
  *
- *   Lớp này chỉ lọc tag theo TIỀN TỐ của chính plugin mình (xem hằng `TIEN_TO` ngay dưới), nên chín plugin
+ *   Lớp này chỉ lọc tag theo TIỀN TỐ của chính plugin mình (`vhcp-chi-phi-hn-v…`), nên chín plugin
  *   sống chung một repo mà không ai nhầm bản của ai; và repo riêng tư thì dùng khoá truy cập.
  *
  * =================================================================================================
@@ -46,21 +41,7 @@ class VHCPHN_TuCapNhat {
 	/** Tiền tố tag của RIÊNG plugin này — xem khối dài ở đầu tệp. */
 	const TIEN_TO = 'vhcp-chi-phi-hn-v';
 
-	/**
-	 * Khoá truy cập GitHub (chỉ cần quyền đọc).
-	 *
-	 * 🔴 BẢN VÙNG DÙNG KHOÁ RIÊNG, KHÔNG DÙNG CHUNG KHOÁ CỦA TÁM PLUGIN KIA.
-	 *    Tám plugin kia sống chung MỘT site nên chung một ô khoá là tiện — khai một lần là đủ.
-	 *    Bản vùng thì khác hẳn: nó được tách ra (`tools/tach-ban-vung.sh`) để chạy trên một
-	 *    site RIÊNG của vùng ấy, và luật của bản vùng là KHÔNG dùng chung một chuỗi nào với
-	 *    bản gốc — không chung tiền tố bảng, không chung ô cấu hình.
-	 *    `tools/test/kiem-tach-ban-vung.php` canh đúng điều đó, và nó đã bắt được ngay lượt đầu
-	 *    khi tệp này còn chép nguyên ô khoá của bản gốc sang (13/09/2026).
-	 *
-	 * ⚠️ CHÚ THÍCH CŨNG KHÔNG ĐƯỢC NHẮC NGUYÊN VĂN tên ô của bản gốc: phép soát quét cả tệp,
-	 *    không phân biệt mã với lời giải thích — và nó đúng khi làm vậy, vì một chuỗi nằm
-	 *    trong chú thích hôm nay rất dễ thành một dòng mã ngày mai.
-	 */
+	/** Khoá truy cập GitHub (chỉ cần quyền đọc). Dùng chung cho mọi plugin trên cùng site. */
 	const O_KHOA = 'vhcphn_gh_token';
 
 	/** Nhớ kết quả hỏi GitHub trong 6 giờ — đừng gọi mạng ở mỗi lượt tải trang admin. */
@@ -71,13 +52,60 @@ class VHCPHN_TuCapNhat {
 		add_filter( 'pre_set_site_transient_update_plugins', array( __CLASS__, 'chen_ban_moi' ) );
 		add_filter( 'plugins_api', array( __CLASS__, 'chi_tiet' ), 10, 3 );
 		/* 🔴 ĐỔI TÊN THƯ MỤC SAU KHI GIẢI NÉN. Tệp .zip của Releases giải ra thành thư mục
-		   đúng tên thư mục plugin đang cài, nên WordPress đặt lại đúng chỗ. Nhưng nếu
+		   `vhcp-chi-phi-hn/` — đúng tên plugin đang cài, nên WordPress đặt lại đúng chỗ. Nhưng nếu
 		   một bản zip nào đó mang tên khác (tải tay từ giao diện GitHub chẳng hạn) thì plugin
 		   bị cài thành một bản SONG SONG, và trang chạy bản cũ trong khi anh tưởng đã cập nhật. */
 		add_filter( 'upgrader_source_selection', array( __CLASS__, 'sua_ten_thu_muc' ), 10, 4 );
 		/* Gắn khoá vào TIÊU ĐỀ cho lượt tải gói — xem `goi_tai()`
 		   để biết vì sao không được nhét vào địa chỉ. */
 		add_filter( 'http_request_args', array( __CLASS__, 'them_khoa_tai' ), 10, 2 );
+		/* Tự khai vào bảng của trang IT — xem khối dài ở `khai_ds()`. */
+		add_filter( 'vhcphn_tu_cap_nhat_ds', array( __CLASS__, 'khai_ds' ) );
+	}
+
+	/* ─────────────────────────────────────────────────────────────────────────────────────────
+	 * KHAI TÊN VÀO BẢNG CHUNG CỦA TRANG IT (16/09/2026).
+	 *
+	 * Anh Thắng 15/09/2026: *"1 trang tổng do IT quản lý như khmatrix.com/it"*, và *"sau các
+	 * trang khác tạo tự cập nhật thì link vào"*. Trang ấy nằm trong plugin Ghế nhưng KHÔNG giữ
+	 * danh sách plugin nào cả — nó dựng bảng từ bộ lọc `vhcphn_tu_cap_nhat_ds` lúc chạy. Nên plugin
+	 * nào khai một dòng như dưới là TỰ hiện thêm vào bảng, không ai phải đi sửa trang ấy.
+	 *
+	 * ⚠️ Trang IT gọi `ban_moi_nho()` chứ không gọi `ban_moi()`. Khác nhau một trời: `ban_moi()`
+	 *    hỏi thẳng GitHub và chờ tới 15 giây — nhét nó vào một lượt tải trang bình thường là
+	 *    treo cả màn hình khi mạng chậm, đúng loại lỗi người ta đổ cho "web lag" chứ không ai ngờ
+	 *    tới bộ cập nhật. `ban_moi_nho()` CHỈ đọc thứ đã nhớ. WordPress tự chạy lượt soát định kỳ
+	 *    (qua `pre_set_site_transient_update_plugins` bên trên) nên ô nhớ gần như luôn có sẵn;
+	 *    chưa có thì bảng chỉ đơn giản không khoe gì. Nút "Kiểm tra bản mới" mới gọi `ban_moi()`.
+	 * ───────────────────────────────────────────────────────────────────────────────────────── */
+
+	/** Số bản đang chạy — đọc từ chính hằng của plugin, không chép thành một con số thứ hai. */
+	private static function ban_hien() {
+		return defined( 'VHCPHN_VERSION' ) ? (string) VHCPHN_VERSION : '0';
+	}
+
+	/** 🔴 CHỈ ĐỌC THỨ ĐÃ NHỚ — TUYỆT ĐỐI KHÔNG GỌI MẠNG. Xem khối trên. */
+	public static function ban_moi_nho() {
+		$nho = get_transient( self::O_NHO );
+		return is_array( $nho ) && $nho ? $nho : null;
+	}
+
+	/** Quên ô nhớ để lượt hỏi tới gọi lại GitHub ngay — nút "Kiểm tra bản mới" của trang IT. */
+	public static function quen_nho() {
+		delete_transient( self::O_NHO );
+	}
+
+	/** Khai tên mình vào danh sách plugin tự cập nhật được. */
+	public static function khai_ds( $ds ) {
+		if ( ! is_array( $ds ) ) { $ds = array(); }
+		$ds[] = array(
+			'ma'    => 'vhcp-chi-phi-hn',
+			'ten'   => 'Vận Hành Chi Phí (K&H)',
+			'duong' => self::duong(),
+			'hien'  => (string) self::ban_hien(),
+			'lop'   => __CLASS__,
+		);
+		return $ds;
 	}
 
 	/** Đã khai khoá chưa — CHỈ trả lời có/không, không bao giờ trả về chính khoá. */
@@ -97,7 +125,7 @@ class VHCPHN_TuCapNhat {
 		delete_option( self::O_NHO );
 	}
 
-	/** Đường dẫn plugin dạng `<thư mục>/<thư mục>.php` — khoá WordPress dùng để nhận plugin. */
+	/** Đường dẫn plugin dạng `vhcp-chi-phi-hn/vhcp-chi-phi-hn.php` — khoá WordPress dùng để nhận plugin. */
 	private static function duong() {
 		return plugin_basename( VHCPHN_DIR . 'vhcp-chi-phi-hn.php' );
 	}
@@ -138,7 +166,7 @@ class VHCPHN_TuCapNhat {
 			if ( ! empty( $rel['draft'] ) || ! empty( $rel['prerelease'] ) ) { continue; }
 			$tag = isset( $rel['tag_name'] ) ? (string) $rel['tag_name'] : '';
 			/* 🔴 LỌC THEO TIỀN TỐ CỦA CHÍNH PLUGIN NÀY. Không có bước này thì bản chấm công
-			   `vhcp-cham-cong-v3.76.0` hiện ra như bản mới của chi phí. */
+			   `vhcphn-cham-cong-v3.76.0` hiện ra như bản mới của chi phí. */
 			if ( 0 !== strpos( $tag, self::TIEN_TO ) ) { continue; }
 			$ver = substr( $tag, strlen( self::TIEN_TO ) );
 			/* 🔴 LỚP THỨ HAI: SỐ PHIÊN BẢN PHẢI RA HÌNH MỘT SỐ PHIÊN BẢN.
@@ -245,7 +273,7 @@ class VHCPHN_TuCapNhat {
 		$moi = self::ban_moi();
 		if ( ! $moi ) { return $ket_qua; }
 		$o = new stdClass();
-		$o->name          = 'Vận Hành Chi Phí (Hà Nội)';
+		$o->name          = 'Vận Hành Chi Phí';
 		$o->slug          = $args->slug;
 		$o->version       = $moi['ver'];
 		$o->last_updated  = $moi['ngay'];

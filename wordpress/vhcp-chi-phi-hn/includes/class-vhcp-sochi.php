@@ -125,6 +125,14 @@ class VHCPHN_SoChi {
 		$data               = self::data( $rec, $nguoi );
 		$data['id']         = VHCPHN_Util::uid( 'C' );
 		$data['tao_luc']    = VHCPHN_Util::now_sql();
+		/* 🔴 ĐÓNG DẤU MẢNG NGAY LÚC GHI SỔ. Anh Thắng 20/09/2026: *"nhớ tách ra từng mảng, thì
+		   dữ liệu nhớ định dạng sau để tìm biết chi đó của mảng nào"*. Sổ chi phí mới là chỗ
+		   người ta tra và là nguồn của bản xuất MISA, nên nó phải mang dấu — không thể suy
+		   ngược từ đơn, vì dòng sổ lẻ không treo vào đơn nào.
+		   ⚠️ GHI THẲNG, ĐỪNG DỰA VÀO `DEFAULT` CỦA CỘT. Mặc định là 'kvc' (hằng của bản gốc);
+		      tới lúc dữ liệu MTĐ / VP về chung kho, một dòng VP ghi ra mà dựa vào mặc định thì
+		      nó đóng dấu 'kvc' — tiền của mảng này chạy sang sổ mảng kia, im lặng. */
+		$data['khoi']       = VHCPHN_DB::khoi();
 		$wpdb->insert( VHCPHN_DB::t( 'so_chi' ), $data );
 		return VHCPHN_Util::ok( array( 'id' => $data['id'], 'tkNo' => $data['tk_no'], 'tkCo' => $data['tk_co'], 'soTien' => VHCPHN_Util::num( $data['so_tien'] ) ) );
 	}
@@ -222,6 +230,35 @@ class VHCPHN_SoChi {
 			   thuộc bộ phận ấy. Cùng chỗ với chốt đơn vị, vì cùng một lý do — lọc trước khi
 			   gom các ô lọc, không thì ô lọc vẫn bày kỳ và loại của mảng khác. */
 			if ( ! VHCPHN_Auth::xem_duoc_loai( isset( $r['loai'] ) ? $r['loai'] : '' ) ) { continue; }
+			/* ══════════════════════════════════════════════════════════════════════════════
+			 * 🔴 VÀ LỌC THEO CƠ SỞ PHỤ TRÁCH — CHỐT NÀY TỪNG THIẾU HẲN.
+			 *
+			 * Anh Thắng 12/09/2026: *"Cửa hàng trưởng trở xuống — chỉ xem được cơ sở mình quản
+			 * lý"*. Soi trọn luồng ngay hôm ấy thì sổ chi phí là màn DUY NHẤT còn hở: danh sách
+			 * đơn, ô tìm, sổ lệnh, xuất MISA, bootstrap đều lọc đúng, riêng đây thì không.
+			 *
+			 * 🔴 `$scope` BÊN DƯỚI KHÔNG PHẢI CHỐT QUYỀN, đừng nhầm. Nó đọc từ `coso_scope` —
+			 *    một tham số do MÀN gửi lên — nên nó là Ô LỌC của người dùng, không phải hàng
+			 *    rào. Ai gọi thẳng cổng API mà không gửi tham số ấy thì nhận về cả sổ của mọi
+			 *    cơ sở. Lọc ở giao diện thì dữ liệu đã nằm trên máy người ta rồi.
+			 *
+			 * ⚠️ HỎI ĐÚNG CÁI HÀM MÀ DANH SÁCH ĐƠN ĐANG HỎI. Chép lại luật ở đây là hai sổ hiểu
+			 *    "cơ sở mình quản lý" theo hai kiểu, và không ai phát hiện ra cho tới lúc một
+			 *    người thấy dòng chi của mình ở màn này mà không thấy ở màn kia.
+			 *    `nguoi_nhap` đóng vai "người lập": ai tự tay nhập một dòng thì vẫn đọc lại
+			 *    được nó, kể cả khi cơ sở ấy vừa bị gỡ khỏi danh sách họ phụ trách.
+			 * ══════════════════════════════════════════════════════════════════════════════ */
+			/* ⚠️ DÒNG CHƯA KHAI CƠ SỞ THÌ CHO QUA — cùng luật với "loại chưa khai bộ phận" ở
+			   `xem_duoc_loai()`, và vì đúng lý do ấy: sổ chi phí của anh Thắng dựng từ sổ cũ,
+			   rất nhiều dòng còn bỏ trống ô Cơ sở. Chặn chúng lại là ngày bản này lên, nhân
+			   viên mở màn ra thấy gần như trắng — và họ sẽ kết luận là mất dữ liệu chứ không
+			   đoán ra là do một ô chưa khai. `kiem-vai-bo-bo-phan.php` đỏ đúng chỗ này.
+			   Vế "của mình" thì KHÔNG nới: người nhập rỗng mà cơ sở cũng rỗng thì đây là dòng
+			   vô chủ, và vô chủ nghĩa là ai trong nhà cũng đọc được — không phải ai cũng SỬA
+			   được, cửa sửa gác riêng. */
+			$cs_dong = trim( (string) ( isset( $r['coso'] ) ? $r['coso'] : '' ) );
+			if ( '' !== $cs_dong && ! VHCPHN_Auth::trong_tam(
+					isset( $r['nguoi_nhap'] ) ? $r['nguoi_nhap'] : '', $cs_dong ) ) { continue; }
 			$ky_set[ (string) $r['ky'] ] = 1;
 			if ( trim( (string) $r['loai'] ) !== '' ) { $loai_set[ (string) $r['loai'] ] = 1; }
 			if ( trim( (string) $r['tk_no'] ) !== '' ) { $tk_set[ (string) $r['tk_no'] ] = 1; }
@@ -232,7 +269,11 @@ class VHCPHN_SoChi {
 			if ( $f_ky !== 'all' && (string) $r['ky'] !== $f_ky ) { continue; }
 			if ( $f_cs !== 'all' && (string) $r['coso'] !== $f_cs ) { continue; }
 			if ( $f_loai !== 'all' && (string) $r['loai'] !== $f_loai ) { continue; }
-			if ( $f_tk !== 'all' && (string) $r['tk_no'] !== $f_tk ) { continue; }
+			/* 🔴 LỌC MÃ TK ĂN CẢ CÂY CON — anh Thắng 12/09/2026: *"cần tìm mã 641 bao nhiêu,
+			   thì hệ thống sẽ cộng 6411, 6412, 6413"*. So bằng đúng thì chọn 641 chỉ ra những
+			   dòng ghi chằn chặn 641, mà phần lớn tiền lại nằm ở các mã con — người xem đọc ra
+			   một con số nhỏ hơn nhiều sự thật và không có gì nói cho họ biết. */
+			if ( $f_tk !== 'all' && ! VHCPHN_Cfg::tk_thuoc_cay( $r['tk_no'], $f_tk ) ) { continue; }
 			if ( $f_da !== 'all' ) {
 				if ( $f_da === '(khong)' ) { if ( $mda !== '' ) { continue; } }
 				elseif ( $mda !== $f_da ) { continue; }
@@ -296,6 +337,11 @@ class VHCPHN_SoChi {
 		$loai_list = array_keys( $loai_set );
 		sort( $loai_list );
 		$tk_list = array_map( 'strval', array_keys( $tk_set ) );   // mã toàn số -> ép lại chuỗi
+		/* Ô xổ phải bày cả MÃ CHA, không thì người ta không có cách nào chọn "641" — trong sổ
+		   chỉ có 6411/6412, còn 641 thì không dòng nào ghi. Đánh dấu riêng để màn ghi chú được
+		   là chọn nó sẽ cộng cả cây con. */
+		$tk_cha  = VHCPHN_Cfg::tk_cha_ds( $tk_list );
+		$tk_list = array_merge( $tk_list, $tk_cha );
 		sort( $tk_list, SORT_NATURAL );
 		$da_list = array_map( 'strval', array_keys( $da_set ) );
 		sort( $da_list, SORT_NATURAL );
@@ -319,6 +365,7 @@ class VHCPHN_SoChi {
 			'kyList'     => array_values( $ky_list ),
 			'loaiList'   => array_values( $loai_list ),
 			'tkNoList'   => array_values( $tk_list ),
+			'tkChaList'  => array_values( $tk_cha ),
 			'duAnList'   => array_values( $da_list ),
 			'danhMuc'    => $dm,
 			'coso'       => $coso,
