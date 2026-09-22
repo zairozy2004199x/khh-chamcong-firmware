@@ -761,6 +761,175 @@ class VHJP_Tinh {
 		return $xau;
 	}
 
+	/* ═══════════════════════ TIỀN SO VỚI HÀNG ═══════════════════════ */
+
+	/**
+	 * HAI ĐƯỜNG ĐỘC LẬP RA CÙNG MỘT SỐ TIỀN — chỗ lệch giữa chúng mới là thứ cần nhìn.
+	 *
+	 * ⚠️ CHỈ ĐỌC, không ghi gì vào đầu báo cáo. `bao_cao()` vẫn là chỗ DUY NHẤT được ghi;
+	 *    hàm này chỉ để màn duyệt NHÌN.
+	 *
+	 * =========================================================================================
+	 * 🔴 MÁY XU KHÔNG TRỪ HOÀN KHÁCH. Đây là chỗ trông "thiếu đồng bộ" nhất, mà dọn là SAI TIỀN.
+	 * =========================================================================================
+	 *   · TIỀN / TÁCH → TRỪ. Vế hàng đi từ đồng hồ đếm trứng (hoặc kiểm đếm tồn) nên quả khách
+	 *     không lấy KHÔNG nằm trong đó, còn tiền thì có ⇒ không trừ là mọi báo cáo có hoàn đều
+	 *     báo lệch đúng bằng khoản hoàn.
+	 *   · XU → KHÔNG TRỪ. Hai vế của máy xu là CÙNG một hàm tuyến tính của cùng những con xu;
+	 *     khác nhau đúng ở chỗ một bên là ĐỒNG HỒ, một bên là ĐẾM TAY — đó mới là thứ phép
+	 *     kiểm này đi tìm. Trừ hoàn vào một vế là TỰ TẠO RA một khoản lệch không có thật, đúng
+	 *     bằng tiền hoàn, trên MỌI báo cáo máy xu có hoàn khách. Vẫn IN dòng hoàn ra cho kế
+	 *     toán thấy, chỉ không đưa vào phép trừ.
+	 *
+	 * ⚠️ Không có dòng hàng nào, hoặc hai đường không còn độc lập, thì trả `null` để giao diện
+	 *    ẨN HẲN khối — đừng in một bảng toàn số 0 rồi kết luận "khớp".
+	 */
+	public static function tien_vs_hang( $head, $rows ) {
+		$head = (array) $head;
+		$rows = is_array( $rows ) ? $rows : array();
+		$tach = self::MAU_TACH_LA( $head );
+		$xu   = VHJP_CauHinh::LOAI_XU === strtoupper( VHJP_Doc::str( self::o( $head, 'machineType' ) ) );
+		$hoan = self::hoan_tong( $head );
+
+		$o = array(
+			'mau' => $tach ? 'TACH' : ( $xu ? 'XU' : 'TIEN' ), 'hoan' => $hoan,
+			'truHoan' => ! $xu, 'boQua' => 0, 'tongDong' => 0, 'docLap' => true, 'lyDo' => '',
+		);
+
+		if ( $tach ) {
+			/* ⚠️ Guard bằng CÓ DÒNG `HANG` THẬT, không đọc cờ `coBangTong`: cờ ấy chỉ được gắn
+			   tạm lúc tính và KHÔNG nằm trong lược đồ, nên đọc từ sổ ra là rỗng ⇒ khối này
+			   biến mất ở đúng cái mẫu đã có sẵn phép so. */
+			foreach ( $rows as $r ) {
+				if ( self::DONG_HANG === VHJP_Doc::str( self::o( $r, 'rowKind' ) ) ) { $o['tongDong']++; }
+			}
+			$o['tienMay']  = VHJP_Doc::num( self::o( $head, 'revMeter' ) );
+			$o['tienHang'] = VHJP_Doc::num( self::o( $head, 'revHang' ) );
+			/* ⚠️ Câu chữ phải nói ĐÚNG NGUỒN: in "đồng hồ máy" cho một con số gõ tay là dạy kế
+			   toán tin nó chắc hơn thực tế. */
+			$o['nhanMay']  = 'Tiền theo APP của máy (nhân viên đọc rồi gõ)';
+			$o['nhanHang'] = 'Tiền theo hàng ĐẾM ĐƯỢC (bảng hàng theo mã)';
+		} elseif ( $xu ) {
+			$tien_xu = 0; $tien_hang_xu = 0;
+			foreach ( $rows as $r ) {
+				$k = VHJP_Doc::str( self::o( $r, 'rowKind' ) );
+				if ( self::DONG_COIN === $k ) { $tien_xu += VHJP_Doc::num( self::o( $r, 'amount' ) ); continue; }
+				if ( self::DONG_STOCK !== $k ) { continue; }
+				$o['tongDong']++;
+				/* Dòng tồn xu không mang sẵn giá, nên phải suy ở đây (Misa trước, mã nội bộ sau). */
+				$tien_hang_xu += VHJP_Doc::num( self::o( $r, 'soldQty' ) ) * self::gia_dong( $r );
+			}
+			$o['tienMay']  = $tien_xu;
+			$o['tienHang'] = $tien_hang_xu;
+			$o['nhanMay']  = 'Tiền theo ĐỒNG HỒ XU của máy';
+			$o['nhanHang'] = 'Tiền theo SỐ XU KIỂM nhân viên ghi tay từng ngày';
+		} else {
+			/* Máy tiền mẫu chung — CHỈ dòng có đồng hồ đếm trứng mới so được. */
+			$tien_m = 0; $tien_h = 0;
+			foreach ( $rows as $r ) {
+				$k = VHJP_Doc::str( self::o( $r, 'rowKind' ) );
+				if ( '' === $k ) { $k = self::DONG_MONEY; }
+				if ( self::DONG_MONEY !== $k ) { continue; }
+				$o['tongDong']++;
+				if ( VHJP_Doc::blank( self::o( $r, 'hAfter', '' ) ) ) { $o['boQua']++; continue; }
+				$tien_m += VHJP_Doc::num( self::o( $r, 'amount' ) );
+				$tien_h += VHJP_Doc::num( self::o( $r, 'soldQty' ) ) * self::gia_dong( $r );
+			}
+			$o['tienMay']  = $tien_m;
+			$o['tienHang'] = $tien_h;
+			$o['nhanMay']  = 'Tiền theo ĐỒNG HỒ TIỀN';
+			$o['nhanHang'] = 'Tiền theo ĐỒNG HỒ ĐẾM TRỨNG';
+			if ( $o['boQua'] > 0 ) {
+				$o['docLap'] = ( $o['tongDong'] > $o['boQua'] );
+				$o['lyDo'] = $o['boQua'] . '/' . $o['tongDong'] . ' ô chưa nhập đồng hồ đếm trứng nên '
+					. 'KHÔNG đem so được: số bán của mấy ô đó suy ra từ chính số tiền, so lại '
+					. 'thì lúc nào cũng khớp mà không chứng minh được gì.';
+			}
+		}
+
+		if ( 0 === $o['tongDong'] ) { return null; }
+		if ( ! $o['docLap'] ) { return null; }
+
+		$o['tienMayRong'] = $o['truHoan'] ? ( $o['tienMay'] - $hoan ) : $o['tienMay'];
+		$o['lech'] = $o['tienMayRong'] - $o['tienHang'];
+		$o['yNghia'] = 0 === $o['lech']
+			? 'Khớp — tiền đồng hồ đúng bằng hàng nhân viên khai'
+			: ( $o['lech'] > 0
+				? 'THIẾU HÀNG ' . VHJP_Doc::money( abs( $o['lech'] ) ) . 'đ — tiền thu nhiều hơn hàng ra'
+				: 'THIẾU TIỀN ' . VHJP_Doc::money( abs( $o['lech'] ) ) . 'đ — hàng ra nhiều hơn tiền thu' );
+		return $o;
+	}
+
+	/** Báo cáo này có phải mẫu TÁCH không. */
+	private static function MAU_TACH_LA( $head ) {
+		return VHJP_CauHinh::MAU_TACH === strtoupper( VHJP_Doc::str( self::o( $head, 'bcMau' ) ) );
+	}
+
+	/* ═══════════════════════ GỘP CẢNH BÁO ═══════════════════════ */
+
+	/**
+	 * GỘP CẢNH BÁO CÙNG LOẠI VỀ MỘT DÒNG.
+	 *
+	 * Đo trên dữ liệu thật: một báo cáo 37 cảnh báo, trong đó 18 dòng `W9` đều nói cùng một
+	 * chuyện — máy nhả tiền theo xung nên tiền lẻ không chia hết cho giá một trứng. Đó là
+	 * chuyện ĐÚNG, không phải lỗi, nhưng nó nổ trên MỌI dòng có lẻ và đẩy những cảnh báo thật
+	 * sự cần nhìn (lệch tồn, lệch Pay Box) xuống dưới một đống chữ. Báo thừa vài lần là không
+	 * ai đọc nữa.
+	 *
+	 * ⚠️⚠️ CHỈ gộp cảnh báo CÓ KHAI `gop` — danh sách CHO PHÉP. Gộp theo mã là GIẤU MẤT W14
+	 *      (mã không suy ra được giá): nó từng dùng chung mã với W9, mà nó nói rằng cả dòng đó
+	 *      KHÔNG ĐỐI CHIẾU ĐƯỢC tiền với hàng — biến nó thành một con số trong dòng "dư tiền
+	 *      lẻ" là mất hẳn một đường kiểm, màn hình vẫn sạch.
+	 *
+	 * ⚠️ GIỮ ĐÚNG CHỖ cái đầu tiên xuất hiện, đừng dồn nhóm xuống cuối: kế toán đọc theo thứ
+	 *    tự dòng của báo cáo, dời chỗ là mất mối liên hệ với dòng đang xem.
+	 *
+	 * ⚠️ Cộng bằng trường `so`, KHÔNG moi số ra từ câu chữ — đổi một chữ trong câu là tổng ra
+	 *    sai mà không có gì báo, và tổng sai thì trông vẫn y như tổng đúng.
+	 *
+	 * ⚠️ Cảnh báo LƯU TỪ TRƯỚC không có trường `gop` nên in ra từng cái như cũ. Rơi về "hơi
+	 *    dài" chứ không rơi về "giấu mất" — đúng chiều an toàn.
+	 */
+	public static function gop_canh_bao( $ds ) {
+		$ra = array(); $nhom = array();
+		foreach ( (array) $ds as $w ) {
+			$w = (array) $w;
+			if ( empty( $w['gop'] ) ) { $ra[] = $w; continue; }
+			$g = $w['gop'];
+			if ( ! isset( $nhom[ $g ] ) ) {
+				$nhom[ $g ] = count( $ra );
+				$ra[] = array(
+					'rowId' => '', 'machineCode' => '', 'itemCode' => '',
+					'code' => $w['code'], 'part' => $w['part'], 'msg' => $w['msg'], 'detail' => '',
+					'gop' => $g, 'soDong' => 0, 'tong' => 0,
+				);
+			}
+			$i = $nhom[ $g ];
+			$ra[ $i ]['soDong']++;
+			$ra[ $i ]['tong'] += VHJP_Doc::num( isset( $w['so'] ) ? $w['so'] : 0 );
+		}
+		foreach ( $ra as $i => $w ) {
+			if ( empty( $w['gop'] ) ) { continue; }
+			$def = self::warn_theo_ma( $w['code'] );
+			$dv  = ( $def && isset( $def['gopDv'] ) ) ? $def['gopDv'] : '';
+			$ghi = ( $def && isset( $def['gopGhiChu'] ) ) ? $def['gopGhiChu'] : '';
+			/* Gộp mà chỉ có MỘT dòng thì đừng in "1 dòng" theo lối gợi ý có nhiều cái bị thu
+			   lại — bản gốc vẫn in "1 dòng", chép y nguyên. */
+			$ra[ $i ]['detail'] = ( $w['soDong'] > 1 ? $w['soDong'] . ' dòng' : '1 dòng' )
+				. ( $w['tong'] ? ' · tổng dư ' . VHJP_Doc::money( $w['tong'] ) . $dv : '' )
+				. ( $ghi ? ' · ' . $ghi : '' );
+		}
+		return $ra;
+	}
+
+	/** Tra định nghĩa cảnh báo theo MÃ. Dùng để lấy đơn vị / ghi chú lúc gộp. */
+	public static function warn_theo_ma( $ma ) {
+		foreach ( self::warn_def() as $d ) {
+			if ( $d['code'] === $ma ) { return $d; }
+		}
+		return null;
+	}
+
 	/* ═══════════════════════ THIẾU ẢNH ═══════════════════════ */
 
 	/** Hai loại ảnh: chỉ số máy gán theo Ô/MÁY, Pay Box gán theo CỤM. */
