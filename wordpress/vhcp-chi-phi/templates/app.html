@@ -2645,6 +2645,29 @@
    * ⚠️ VAI MỒ CÔI (khai `goc` rỗng, hoặc trỏ vào một vai gốc không còn) DỒN XUỐNG NHÓM CUỐI,
    *    không bỏ đi. Bỏ là mất hẳn lối thử vai ấy, mà vai mồ côi lại đúng là vai hay sai nhất.
    */
+  /**
+   * DANH SÁCH VAI TỰ TẠO — MỘT NGUỒN CHO MỌI CHỖ HỎI.
+   *
+   * 🔴 CẮN THẬT 22/09/2026 — anh Thắng: *"Không có chỗ tạo đơn"*, ảnh cho thấy đang giả lập
+   *    "Kỹ Thuật Khu Vui Chơi" mà thanh tab chỉ còn ĐÚNG MỘT nút, và nút "＋ Tạo đơn mới"
+   *    biến mất.
+   *
+   *    Đường đi của lỗi: `glDoi()` đặt `roleGoc` bằng `_vaiGocCua(v)`; hàm ấy chỉ đọc `CFG`,
+   *    mà `CFG` chưa nạp (chỉ nạp khi vào tab Cấu hình) -> trả rỗng -> `roleGoc` thành chính
+   *    tên vai con -> `_vaiLuat()` trả "Kỹ Thuật Khu Vui Chơi" -> bảng `vis` trong
+   *    `applyPerms()` không có khoá ấy nên rơi vào nhánh mặc định `{don:1}`: mất gần hết tab,
+   *    và nút Tạo đơn mới (chỉ bày cho Nhân viên / Quản lý / Admin) tắt theo.
+   *
+   * ⚠️ BẢN TRƯỚC ĐÃ SỬA `_glVaiNhom()` ĐỌC BOOT, NHƯNG QUÊN HÀM NÀY. Vá một chỗ của một
+   *    đường dây thì chỗ còn lại vẫn hỏng — lần thứ ba trong phiên mắc đúng kiểu ấy. Nay gom
+   *    về một hàm để không còn chỗ nào đọc lẻ.
+   */
+  function _vaiTuyBienDs(){
+    var ra=((typeof BOOT!=='undefined' && BOOT && BOOT.vaiTuyBien)||[]).slice();
+    /* `CFG` đọc SAU để nó thắng: kế toán vừa thêm/sửa một vai ở Cấu hình thì thấy ngay. */
+    (((typeof CFG!=='undefined' && CFG) ? CFG.vaiTro : null)||[]).forEach(function(x){ ra.push(x); });
+    return ra;
+  }
   function _glVaiNhom(){
     /* 🔴 ĐỌC TỪ GÓI KHỞI ĐỘNG TRƯỚC, `CFG` sau.
        Dải giả lập vẽ từ `applyPerms()`, tức NGAY SAU KHI ĐĂNG NHẬP — mà `CFG` chỉ nạp khi ai
@@ -2652,8 +2675,7 @@
        Vai trò tự tạo có cả chục vai; anh Thắng 22/09/2026 chụp đúng cảnh ấy.
        ⚠️ VẪN ĐỌC `CFG` KHI ĐÃ CÓ, và đọc SAU để nó thắng: kế toán vừa thêm một vai ở Cấu hình
           thì thấy ngay, khỏi phải tải lại trang. */
-    var ds=((typeof BOOT!=='undefined' && BOOT && BOOT.vaiTuyBien)||[]).slice();
-    (((typeof CFG!=='undefined' && CFG) ? CFG.vaiTro : null)||[]).forEach(function(x){ ds.push(x); });
+    var ds=_vaiTuyBienDs();
     var nhom=[], theoCha={};
     VAI_GOC.forEach(function(g){
       theoCha[g]={ cha:g, ds:[g] };   /* vai gốc đứng đầu nhóm của chính nó */
@@ -13546,9 +13568,11 @@
   // ---- Người dùng & phân quyền ----
   var VAI_GOC=['Quản lý','Kế toán cá nhân','Kế toán NCC','Nhân viên'];
   function _vaiGocCua(ten){
-    /* Cùng lý do như `_glVaiDs()`: `glDoi()` gọi hàm này lúc người ta bấm chọn vai, mà lúc ấy
-       có thể CHƯA ai vào tab Cấu hình nên `CFG` vẫn là `null`. */
-    var g=''; (((typeof CFG!=='undefined' && CFG) ? CFG.vaiTro : null)||[]).forEach(function(x){ if(x.ten===ten) g=x.goc; });
+    /* 🔴 HỎI NGUỒN CHUNG, KHÔNG ĐỌC THẲNG `CFG`. `glDoi()` gọi hàm này lúc người ta bấm chọn
+       vai, mà lúc ấy có thể CHƯA ai vào tab Cấu hình — đọc thẳng `CFG` thì trả rỗng, vai con
+       không quy được về vai gốc, và cả thanh tab rơi về nhánh mặc định. Xem chốt dài ở
+       `_vaiTuyBienDs()`. */
+    var g=''; _vaiTuyBienDs().forEach(function(x){ if(x && x.ten===ten && !g) g=String(x.goc||''); });
     return g;
   }
   /* Ô chọn vai trò: Admin + bốn vai gốc + MỌI VAI TỰ TẠO.

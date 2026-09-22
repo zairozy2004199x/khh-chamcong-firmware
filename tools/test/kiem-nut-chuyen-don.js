@@ -199,7 +199,7 @@ BAN.forEach(function (b) {
   const c1 = { CFG: null, VAI_GOC: VG };
   vm.createContext(c1);
   let noC1 = '';
-  try { vm.runInContext([bocHam('_glVaiNhom'), bocHam('_glVaiDs')].join('\n'), c1); c1.__ra = c1._glVaiDs(); }
+  try { vm.runInContext([bocHam('_vaiTuyBienDs'), bocHam('_glVaiNhom'), bocHam('_glVaiDs')].join('\n'), c1); c1.__ra = c1._glVaiDs(); }
   catch (e) { noC1 = String(e && e.message); }
   t('🔴 `CFG` chưa nạp mà gọi `_glVaiDs()` thì KHÔNG được ném lỗi', noC1 === '', noC1);
   t('🔴 và vẫn trả về đủ bốn vai gốc — ô chọn rỗng trông như "chưa khai vai nào", không như lỗi',
@@ -223,7 +223,7 @@ BAN.forEach(function (b) {
   ];
   const cA = { CFG: null, BOOT: { vaiTuyBien: VAI10 }, VAI_GOC: VG };
   vm.createContext(cA);
-  vm.runInContext([bocHam('_glVaiNhom'), bocHam('_glVaiDs')].join('\n'), cA);
+  vm.runInContext([bocHam('_vaiTuyBienDs'), bocHam('_glVaiNhom'), bocHam('_glVaiDs')].join('\n'), cA);
   const raA = cA._glVaiDs();
   t('🔴 CHƯA vào Cấu hình mà vai TỰ TẠO đã đội được — đủ cả mười vai của anh Thắng',
     VAI10.every(v => raA.indexOf(v.ten) >= 0), raA);
@@ -236,13 +236,43 @@ BAN.forEach(function (b) {
   const cB = { CFG: { vaiTro: [{ ten: 'Vai vừa thêm', goc: 'Nhân viên' }] },
                BOOT: { vaiTuyBien: VAI10 }, VAI_GOC: VG };
   vm.createContext(cB);
-  vm.runInContext([bocHam('_glVaiNhom'), bocHam('_glVaiDs')].join('\n'), cB);
+  vm.runInContext([bocHam('_vaiTuyBienDs'), bocHam('_glVaiNhom'), bocHam('_glVaiDs')].join('\n'), cB);
   t('🔴 vai vừa thêm ở Cấu hình hiện ngay, khỏi tải lại trang',
     cB._glVaiDs().indexOf('Vai vừa thêm') >= 0, cB._glVaiDs());
   t('   và vai từ gói khởi động không mất đi',
     cB._glVaiDs().indexOf('Kế Toán MTD') >= 0, cB._glVaiDs());
   t('   không tên nào trùng dù hai nguồn có thể chồng nhau',
     cB._glVaiDs().length === new Set(cB._glVaiDs()).size, cB._glVaiDs());
+
+  /* (a3) 🔴 ĐỘI LỐT MỘT VAI CON THÌ PHẢI QUY VỀ ĐÚNG VAI GỐC — ca "Không có chỗ tạo đơn".
+     Anh Thắng 22/09/2026 gửi ảnh: đang giả lập "Kỹ Thuật Khu Vui Chơi" mà thanh tab chỉ còn
+     ĐÚNG MỘT nút, và nút "＋ Tạo đơn mới" biến mất.
+
+     Đường đi của lỗi: `glDoi()` đặt `roleGoc` bằng `_vaiGocCua(v)`; hàm ấy chỉ đọc `CFG`, mà
+     `CFG` chưa nạp -> trả rỗng -> `roleGoc` thành chính tên vai con -> `_vaiLuat()` trả
+     "Kỹ Thuật Khu Vui Chơi" -> bảng `vis` không có khoá ấy nên rơi vào nhánh mặc định
+     `{don:1}`, và nút Tạo đơn mới (chỉ bày cho Nhân viên / Quản lý / Admin) tắt theo.
+
+     ⚠️ CHẠY CẢ ĐƯỜNG DÂY, không đo mỗi một hàm: `_vaiGocCua` -> `roleGoc` -> `_vaiLuat`. Đo
+        lẻ từng hàm thì mỗi hàm đều "đúng" theo phần của nó, y như lúc lỗi này lọt qua. */
+  const cC = { CFG: null, BOOT: { vaiTuyBien: VAI10 }, VAI_GOC: VG,
+               CURUSER: { role: 'Kỹ Thuật Khu Vui Chơi', roleGoc: '' } };
+  vm.createContext(cC);
+  vm.runInContext([bocHam('_vaiTuyBienDs'), bocHam('_vaiGocCua'),
+                   bocHam('_vaiGoc'), bocHam('_vaiLuat')].join('\n'), cC);
+  const gocCon = cC._vaiGocCua('Kỹ Thuật Khu Vui Chơi');
+  t('🔴 `CFG` chưa nạp mà vai con VẪN quy được về vai gốc', gocCon === 'Nhân viên', gocCon);
+  cC.CURUSER.roleGoc = gocCon || 'Kỹ Thuật Khu Vui Chơi';
+  t('🔴 `_vaiLuat()` trả về VAI GỐC, không trả tên vai con',
+    cC._vaiLuat() === 'Nhân viên', cC._vaiLuat());
+  /* Nút "＋ Tạo đơn mới" bày theo đúng ba vai này — xem `applyPerms()`. */
+  t('🔴 nên nút "＋ Tạo đơn mới" HIỆN — đây là thứ anh Thắng bảo mất',
+    ['Nhân viên', 'Quản lý', 'Admin'].indexOf(cC._vaiLuat()) >= 0, cC._vaiLuat());
+  /* Vai con của Quản lý phải quy về Quản lý, không quy nhầm xuống Nhân viên. */
+  t('   vai con của Quản lý quy đúng về "Quản lý"',
+    cC._vaiGocCua('Quản Lý Vận Hành KVC') === 'Quản lý', cC._vaiGocCua('Quản Lý Vận Hành KVC'));
+  t('   và vai lạ hoắc thì trả rỗng, không bịa ra vai gốc',
+    cC._vaiGocCua('Vai không có thật') === '', cC._vaiGocCua('Vai không có thật'));
 
   /* (b) Nạp xong thì vai TỰ TẠO phải có mặt thêm — không thì dải chỉ đội được vai gốc. */
   /* ⚠️ DỮ LIỆU THỬ PHẢI CÓ CA TRÙNG TÊN. Bản nháp của bài này chỉ có vai tự tạo tên lạ, nên
@@ -252,7 +282,7 @@ BAN.forEach(function (b) {
                                { ten: 'Quản lý', goc: 'Quản lý' },
                                { ten: 'Admin', goc: '' }] }, VAI_GOC: VG };
   vm.createContext(c2);
-  vm.runInContext([bocHam('_glVaiNhom'), bocHam('_glVaiDs')].join('\n'), c2);
+  vm.runInContext([bocHam('_vaiTuyBienDs'), bocHam('_glVaiNhom'), bocHam('_glVaiDs')].join('\n'), c2);
   const ra2 = c2._glVaiDs();
   t('🔴 nạp xong thì vai TỰ TẠO cũng đội được', ra2.indexOf('Kế Toán KVC') >= 0, ra2);
 
@@ -269,7 +299,7 @@ BAN.forEach(function (b) {
     { ten: 'Admin', goc: '' },
   ] }, VAI_GOC: VG };
   vm.createContext(c3);
-  vm.runInContext([bocHam('_glVaiNhom'), bocHam('_glVaiDs')].join('\n'), c3);
+  vm.runInContext([bocHam('_vaiTuyBienDs'), bocHam('_glVaiNhom'), bocHam('_glVaiDs')].join('\n'), c3);
   const nh = c3._glVaiNhom();
   const tim = c => (nh.filter(o => o.cha === c)[0] || { ds: [] }).ds;
 
