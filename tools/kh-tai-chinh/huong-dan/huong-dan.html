@@ -1,17 +1,14 @@
-<!DOCTYPE html>
-<html lang="vi"><head><meta charset="utf-8">
-<title>Tài Chính K&H — Hướng dẫn sử dụng</title>
-<link rel="stylesheet" href="huong-dan.css"></head>
-<body>
+<!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8">
+<title>Tài Chính K&amp;H — Hướng dẫn sử dụng</title>
+<link rel="stylesheet" href="huong-dan.css"></head><body>
 
 <section class="bia">
-  <div class="dau">K&amp;H</div>
+  <span class="dau">K&amp;H</span>
   <h1>Tài Chính K&amp;H</h1>
-  <div class="phu">Hướng dẫn sử dụng — từ nhập số đến ra kết quả</div>
+  <p class="phu">Hướng dẫn sử dụng — từ tiền vào tài khoản đến tờ khai thuế</p>
   <div class="meta">
-    <p><b>Dành cho</b> CÔNG TY TNHH DỊCH VỤ VÀ GIẢI TRÍ K&amp;H</p>
-    <p><b>Phiên bản plugin</b> 1.2.0 · <b>Bản hướng dẫn</b> 21/09/2026</p>
-    <p><b>Ảnh trong tài liệu</b> chụp từ bộ dữ liệu mẫu có sẵn trong plugin, không phải số thật.</p>
+    <p><b>Bản 1.5.0</b> · plugin WordPress cho CÔNG TY TNHH DỊCH VỤ VÀ GIẢI TRÍ K&amp;H</p>
+    <p>Ảnh trong tài liệu chụp từ <b>dữ liệu mẫu</b> có sẵn trong plugin, không phải số thật của công ty.</p>
   </div>
 </section>
 
@@ -19,427 +16,364 @@
   <h2>Mục lục</h2>
   <ol>
     <li>Bắt đầu
-      <ol>
-        <li>Cài plugin</li><li>Hai nơi dùng được</li><li>Đổi mật khẩu</li>
-        <li>Chọn pháp nhân KH Cũ / KH Mới</li><li>Nạp dữ liệu mẫu để tập</li>
-      </ol>
-    </li>
-    <li>Đầu vào — nhập số
-      <ol>
-        <li>Ngân hàng</li><li>Giao dịch / Sao kê</li><li>Chi phí</li>
-        <li>Hoá đơn đầu ra</li><li>Hoá đơn đầu vào</li>
-        <li>Pháp danh — sổ hợp đồng</li><li>Hồ sơ — sổ chứng từ</li>
-      </ol>
-    </li>
+      <ol><li>Cài plugin</li><li>Hai nơi dùng được</li><li>Cấp tài khoản cho kế toán</li>
+      <li>Chọn pháp nhân</li><li>Nạp dữ liệu mẫu để tập</li></ol></li>
+    <li>Dựng nền: tài khoản và danh mục điểm
+      <ol><li>Tài khoản ngân hàng</li><li>Danh mục điểm — mắt xích quan trọng nhất</li></ol></li>
+    <li>Nhập số vào sổ
+      <ol><li>Sao kê ngân hàng</li><li>Chi phí</li><li>Hoá đơn đầu ra</li>
+      <li>Hoá đơn đầu vào</li><li>Pháp danh</li><li>Hồ sơ</li></ol></li>
+    <li>Sinh hoá đơn từ sao kê
+      <ol><li>Máy làm gì, người quyết gì</li><li>Xem trước</li><li>Tạo hoá đơn</li></ol></li>
     <li>Đối chiếu
-      <ol><li>Đối soát cổng thanh toán</li><li>Đối soát chi phí</li><li>Công nợ</li></ol>
-    </li>
-    <li>Đầu ra — kết quả
-      <ol><li>Báo cáo</li><li>Tờ khai GTGT</li><li>Xuất ra tệp</li></ol>
-    </li>
+      <ol><li>Đối soát cổng thanh toán</li><li>Đối soát chi phí</li><li>Công nợ</li></ol></li>
+    <li>Ra kết quả
+      <ol><li>Báo cáo</li><li>Tờ khai GTGT</li><li>Xuất tệp và in</li></ol></li>
     <li>Giữ sổ an toàn
-      <ol><li>Khoá sổ</li><li>Nhật ký</li><li>Sao lưu</li></ol>
-    </li>
+      <ol><li>Khoá sổ</li><li>Nhật ký</li><li>Sao lưu</li></ol></li>
     <li>Việc làm hằng tháng</li>
     <li>Những chỗ dễ sai</li>
   </ol>
 </section>
 
-<!-- ============================================================ PHẦN 1 -->
+<!-- ============================================================ 1 -->
 <section class="phan">
   <h2>1. Bắt đầu</h2>
-  <p class="dan">Phần này làm một lần. Xong là dùng được.</p>
+  <p class="dan">Từ lúc chưa có gì đến lúc mở được sổ.</p>
 
   <div class="muc">
     <h3>1.1 Cài plugin</h3>
     <ol class="buoc">
-      <li>Vào <b>wp-admin</b> của website.</li>
-      <li><b>Gói mở rộng → Cài mới → Tải gói lên</b>, chọn tệp <code>kh-tai-chinh.zip</code>.</li>
-      <li>Bấm <b>Cài đặt ngay</b>, rồi <b>Kích hoạt</b>.</li>
-      <li>Menu <b>Tài Chính K&amp;H</b> hiện ở thanh bên trái wp-admin.</li>
+      <li>Đăng nhập wp-admin → <b>Plugin</b> → <b>Thêm Plugin</b> → <b>Tải Plugin lên</b></li>
+      <li>Chọn tệp <code>kh-tai-chinh.zip</code> → <b>Cài đặt</b> → <b>Kích hoạt</b></li>
+      <li>Menu <b>Tài Chính K&amp;H</b> hiện ở thanh bên trái</li>
     </ol>
-    <div class="luu"><b>Cài bản mới đè lên bản cũ</b>
-      Làm đúng bốn bước trên, WordPress hỏi "thay thế" thì đồng ý. Dữ liệu đang có
-      giữ nguyên — plugin tự nâng cấp cấu trúc bảng, không cần gỡ ra cài lại.</div>
+    <div class="luu"><b>Cài bản mới đè lên bản cũ</b>Dữ liệu đã nhập giữ nguyên. Không cần gỡ bản cũ, không cần xoá gì.</div>
   </div>
 
   <div class="muc">
     <h3>1.2 Hai nơi dùng được</h3>
+    <p>Cùng một sổ, mở được ở hai chỗ:</p>
     <table>
-      <tr><th style="width:38%">Nơi</th><th>Khi nào dùng</th></tr>
-      <tr><td><b>wp-admin</b><br><code>/wp-admin/admin.php?page=khtc</code></td>
-          <td>Đang làm việc khác trong wp-admin, tiện tay mở luôn.</td></tr>
-      <tr><td><b>Web ngoài</b><br><code>tenmien.vn/tai-chinh/</code></td>
-          <td>Màn hình rộng hơn, không vướng khung wp-admin. Dùng thường xuyên nên
-              dùng cái này.</td></tr>
+      <tr><th>Trong wp-admin</th><td>Menu <b>Tài Chính K&amp;H</b> bên trái. Quen thuộc nếu đã dùng WordPress.</td></tr>
+      <tr><th>Bản web riêng</th><td><code>tenmien.vn/tai-chinh/</code> — màn hình rộng hơn, không lẫn với menu WordPress. Vẫn phải đăng nhập.</td></tr>
     </table>
-    <p>Hai nơi dùng chung một kho dữ liệu — nhập ở đâu cũng như nhau.</p>
-    <figure><img src="anh/tong-quan.png"><figcaption>Màn hình Tổng quan ở bản web ngoài — menu dọc bên trái, nút đổi pháp nhân góc phải</figcaption></figure>
-    <div class="canh"><b>Nếu <code>/tai-chinh/</code> ra lỗi 404</b>
-      Vào <b>Cài đặt → Đường dẫn tĩnh</b> và bấm <b>Lưu</b> một lần, không cần đổi gì.
-      Host không bật đường dẫn tĩnh thì dùng <code>tenmien.vn/?khtc_man=tong-quan</code>.</div>
-    <div class="luu"><b>Trang này vẫn phải đăng nhập</b>
-      "Ra web ngoài" chỉ là đổi địa chỉ và bỏ khung wp-admin, không phải mở cho người
-      lạ. Chưa đăng nhập thì bị đá về trang đăng nhập, và trang đặt <code>noindex</code>
-      nên Google không lập chỉ mục.</div>
+    <div class="canh"><b>Mở /tai-chinh/ ra lỗi 404?</b>Vào <b>Cài đặt → Đường dẫn tĩnh</b> bấm <b>Lưu thay đổi</b> một lần. Host không bật đường dẫn tĩnh thì dùng <code>tenmien.vn/?khtc_man=tong-quan</code>.</div>
+    <figure><img src="anh/tong-quan.png"><figcaption>Màn hình Tổng quan — bản web ngoài</figcaption></figure>
   </div>
 
   <div class="muc">
-    <h3>1.3 Đổi mật khẩu</h3>
-    <p>Plugin <b>không có mật khẩu riêng</b> — nó dùng thẳng tài khoản WordPress. Đổi ở
-      <b>wp-admin → Thành viên → Hồ sơ của tôi → Đặt mật khẩu mới</b>, hoặc bấm
-      "Quên mật khẩu" ở trang đăng nhập. Đổi xong dùng luôn cho cả <code>/tai-chinh/</code>.</p>
-    <p>Ai mở được plugin: tài khoản có quyền <b>Biên tập viên</b> trở lên. Kế toán thường
-      không cần làm Quản trị viên.</p>
+    <h3>1.3 Cấp tài khoản cho kế toán</h3>
+    <p>Plugin <b>không có mật khẩu riêng</b>. Nó dùng tài khoản WordPress, để WordPress lo băm mật khẩu và khoá khi nhập sai nhiều lần.</p>
+    <p>Quản trị viên vào <b>Hệ thống → Người dùng</b>:</p>
+    <ol class="buoc">
+      <li>Mở khung <b>Thêm người vào sổ</b></li>
+      <li>Điền tên đăng nhập và tên hiển thị. <b>Để trống ô mật khẩu</b> thì máy tự sinh chuỗi mạnh</li>
+      <li>Bấm <b>Tạo tài khoản</b> — mật khẩu hiện ra <b>đúng một lần</b>, chép ngay</li>
+    </ol>
+    <div class="canh"><b>Tải lại trang là mất mật khẩu</b>Mật khẩu không được lưu ở đâu đọc lại được, kể cả nhật ký. Quên thì đặt lại cái mới bằng nút <b>Đổi</b> ở dòng của người đó.</div>
+    <div class="luu"><b>Vai trò "Kế toán K&amp;H"</b>Tài khoản mới mở được sổ nhưng <b>không</b> sửa được bài viết, trang hay cài đặt của website. Trước đây muốn cho kế toán xem sổ phải cho họ làm Editor — kèm quyền sửa xoá mọi trang.</div>
+    <p>Họ đăng nhập ở <code>tenmien.vn/wp-login.php</code> rồi mở <code>tenmien.vn/tai-chinh/</code>.</p>
+    <figure><img src="anh/nguoi-dung.png"><figcaption>Người dùng — chỉ quản trị viên thấy màn hình này</figcaption></figure>
   </div>
 
   <div class="muc">
-    <h3>1.4 Chọn pháp nhân KH Cũ / KH Mới</h3>
-    <p>Góc trên bên phải mọi màn hình có nút <b>KH Cũ | KH Mới</b>. Hai pháp nhân có sổ
-      <b>hoàn toàn riêng</b>: tài khoản ngân hàng, hoá đơn, chi phí, công nợ — không cái
-      nào lẫn sang cái nào.</p>
-    <div class="meo"><b>Hai kế toán làm cùng lúc được</b>
-      Lựa chọn này lưu theo <i>từng tài khoản đăng nhập</i>. Người này xem KH Cũ, người
-      kia xem KH Mới, không ai làm nhảy màn hình của ai.</div>
+    <h3>1.4 Chọn pháp nhân</h3>
+    <p>Hai nút <b>KH Cũ</b> / <b>KH Mới</b> ở góc trên bên phải mọi màn hình. Hai pháp nhân có sổ riêng hoàn toàn: tài khoản riêng, hoá đơn riêng, danh mục riêng, số hoá đơn đánh riêng.</p>
+    <div class="meo"><b>Mỗi người một lựa chọn</b>Pháp nhân đang chọn lưu theo từng tài khoản đăng nhập. Hai kế toán mở cùng lúc, mỗi người xem một công ty, không ảnh hưởng nhau.</div>
   </div>
 
   <div class="muc">
     <h3>1.5 Nạp dữ liệu mẫu để tập</h3>
-    <p>Trước khi nhập số thật, nên nạp một bộ số giả để xem mọi màn hình chạy ra sao.
-      Vào <b>Sao lưu → Dữ liệu mẫu để chạy thử → Nạp dữ liệu mẫu</b>.</p>
-    <figure><img src="anh/sao-luu.png"><figcaption>Màn hình Sao lưu — mục nạp và xoá dữ liệu mẫu</figcaption></figure>
-    <p>Bộ mẫu gồm 13 tháng sao kê hai tài khoản, hoá đơn đầu ra và đầu vào, chi phí, một
-      đợt đối soát cổng, hợp đồng thuê và hồ sơ chứng từ. Các số được dựng <b>ăn khớp
-      với nhau</b> nên đối soát, công nợ và báo cáo đều ra kết quả thật chứ không rỗng.</p>
-    <div class="canh"><b>Ba lớp chặn để dữ liệu mẫu không lẫn vào sổ thật</b>
-      Chỉ chạy khi bấm nút — không có đường nào tự nạp. Từ chối nếu pháp nhân đang chọn
-      đã có dữ liệu thật. Mọi dòng mẫu mang dấu <code>[Mẫu]</code>, và nút xoá chỉ đụng
-      đúng những dòng đã nạp — dòng anh tự nhập xen vào vẫn còn nguyên.</div>
-    <p><b>Xem thử xong thì bấm "Xoá dữ liệu mẫu" trước khi nhập số thật.</b></p>
+    <p>Vào <b>Hệ thống → Sao lưu</b>, bấm <b>Nạp dữ liệu mẫu</b>. Máy dựng một bộ số giả ăn khớp với nhau: 13 tháng sao kê, danh mục điểm, hoá đơn, chi phí, hợp đồng, một đợt đối soát — đủ để mọi màn hình ra kết quả thật chứ không rỗng.</p>
+    <p>Mọi dòng mẫu mang dấu <code>[Mẫu]</code>. Xoá lại bằng một nút, và nút xoá chỉ đụng đúng những dòng đã nạp.</p>
+    <div class="canh"><b>Xoá mẫu trước khi nhập số thật</b>Máy từ chối nạp mẫu vào sổ đã có dữ liệu thật, nhưng chiều ngược lại thì không chặn được. Tập xong, xoá mẫu, rồi mới nhập.</div>
   </div>
 </section>
 
-<!-- ============================================================ PHẦN 2 -->
+<!-- ============================================================ 2 -->
 <section class="phan">
-  <h2>2. Đầu vào — nhập số</h2>
-  <p class="dan">Bảy màn hình nhận số. Màn hình nào cũng có <b>ô dán bảng</b>: copy từ
-    Excel rồi dán thẳng, không phải gõ lại từng dòng. Các khung nhập được gấp gọn — bấm
-    dấu <b>+</b> để mở.</p>
+  <h2>2. Dựng nền: tài khoản và danh mục điểm</h2>
+  <p class="dan">Hai thứ phải có trước khi nhập số. Thiếu chúng thì mọi bước sau đều kẹt.</p>
 
   <div class="muc">
-    <h3>2.1 Ngân hàng</h3>
-    <p>Khai các tài khoản ngân hàng của công ty. Làm một lần.</p>
-    <figure><img src="anh/ngan-hang.png"><figcaption>Màn hình Ngân hàng</figcaption></figure>
+    <h3>2.1 Tài khoản ngân hàng</h3>
+    <p><b>Dòng tiền → Ngân hàng</b>. Mỗi tài khoản cần tên, số tài khoản, và <b>số dư đầu tính đến một ngày mốc</b>.</p>
+    <div class="luu"><b>Ngày mốc nghĩa là gì</b>Giao dịch trước ngày đó coi như đã gộp sẵn vào số dư đầu, máy không cộng lại lần nữa. Chọn ngày đầu kỳ anh bắt đầu dùng sổ này.</div>
+    <figure><img src="anh/ngan-hang.png"><figcaption>Ngân hàng — số dư cuối tự tính từ số dư đầu cộng thu trừ chi</figcaption></figure>
+  </div>
+
+  <div class="muc">
+    <h3>2.2 Danh mục điểm — mắt xích quan trọng nhất</h3>
+    <p>Mỗi dòng tiền QR về tài khoản mang một <b>mã cửa hàng</b> như <code>1W642MMO1S</code>. Tự nó chỉ là một khoản tiền không tên. Danh mục điểm nói mã đó thuộc gian nào, xuất hoá đơn dưới tên nào, mã Misa gì, khu vực nào.</p>
+    <p>Không có bảng này thì <b>không gom được sao kê thành hoá đơn</b>. Đây là thứ duy nhất nối nửa đầu của quy trình với nửa sau.</p>
+    <h4>Nạp danh mục</h4>
+    <p><b>Dòng tiền → Danh mục điểm</b> → mở khung <b>Nạp danh mục hàng loạt</b> → dán bảng vào. Mỗi dòng tám cột, cách nhau bằng Tab (copy thẳng từ Excel):</p>
     <table>
-      <tr><th style="width:30%">Ô</th><th>Ghi gì</th></tr>
-      <tr><td>Tên tài khoản</td><td>Tên ngân hàng + số tài khoản, ví dụ "Vietcombank 0071000123456".</td></tr>
-      <tr><td>Số dư đầu</td><td>Số dư tại thời điểm bắt đầu dùng phần mềm.</td></tr>
-      <tr><td>Tính từ ngày</td><td>Ngày ứng với số dư đầu ở trên.</td></tr>
+      <tr><th>1</th><td>Mã cửa hàng</td><th>5</th><td>Mã Misa</td></tr>
+      <tr><th>2</th><td>Tên gian</td><th>6</th><td>Khu vực</td></tr>
+      <tr><th>3</th><td>Mã điểm bán</td><th>7</th><td>Dịch vụ</td></tr>
+      <tr><th>4</th><td><b>Tên điểm xuất hoá đơn</b></td><th>8</th><td>Số tài khoản</td></tr>
     </table>
-    <div class="canh"><b>"Tính từ ngày" là ô quan trọng nhất màn hình này</b>
-      Giao dịch phát sinh <i>trước</i> ngày đó coi như đã nằm sẵn trong số dư đầu và
-      <b>không cộng lại lần nữa</b>. Ghi sai ngày là số dư sai suốt về sau.</div>
-  </div>
-
-  <div class="muc">
-    <h3>2.2 Giao dịch / Sao kê</h3>
-    <p>Nạp sao kê ngân hàng. Đây là nguồn của mọi đối chiếu về sau.</p>
-    <figure><img src="anh/giao-dich.png"><figcaption>Màn hình Giao dịch / Sao kê</figcaption></figure>
-    <h4>Dán sao kê hàng loạt</h4>
-    <p>Mỗi dòng: <code>Ngày · Diễn giải · Số tiền · Thu/Chi · Mã GD</code> — cách nhau
-      bằng Tab (copy thẳng từ Excel) hoặc dấu phẩy. Hai cột cuối không bắt buộc; bỏ trống
-      cột Thu/Chi thì số dương hiểu là Thu, số âm là Chi.</p>
-    <div class="meo"><b>Nên điền cột Mã GD</b>
-      Có mã giao dịch thì đối soát ghép được <i>chắc chắn</i> theo mã, thay vì phải đoán
-      theo số tiền và ngày.</div>
-    <div class="luu"><b>Số tiền nhận mọi kiểu viết</b>
-      <code>1.500.000</code>, <code>1,500,000</code>, <code>1500000</code>,
-      <code>20.000 ₫</code> đều đọc đúng. Quy ước: nhóm sau dấu cuối cùng dài đúng ba
-      chữ số thì đó là phân cách nghìn.</div>
-  </div>
-
-  <div class="muc">
-    <h3>2.3 Chi phí</h3>
-    <p>Ghi khoản chi theo <b>bộ phận</b> và <b>khoản mục</b>. Một bảng cho cả công ty,
-      không phải mỗi bộ phận một trang.</p>
-    <figure><img src="anh/chi-phi.png"><figcaption>Màn hình Chi phí — bảng cộng chéo khoản mục × bộ phận</figcaption></figure>
-    <p><b>Bảng cộng chéo</b> ở giữa trang là thứ dùng nhiều nhất: "tháng này khu vui chơi
-      tốn bao nhiêu tiền điện" là một ô, không phải lọc hai lần rồi nhẩm.</p>
-    <p>Bộ phận và khoản mục <b>sửa được ngay trên trang</b> (khung "Danh mục" ở cuối),
-      tách riêng cho KH Cũ và KH Mới.</p>
-    <div class="canh"><b>Chọn đúng Hình thức: chuyển khoản hay tiền mặt</b>
-      Chi tiền mặt không đi qua ngân hàng nên đối soát chi phí bỏ qua. Chọn nhầm thành
-      chuyển khoản thì nó bị báo "chưa thấy tiền ra" oan.</div>
-  </div>
-
-  <div class="muc">
-    <h3>2.4 Hoá đơn đầu ra</h3>
-    <p>Hoá đơn bán ra. Màn hình này <b>nối thẳng với công cụ Đối soát VAT</b> đang dùng.</p>
-    <figure><img src="anh/hoa-don-ra.png"><figcaption>Màn hình Hoá đơn đầu ra — bảng theo thuế suất là số để điền tờ khai</figcaption></figure>
-    <h4>Dán từ file Đối soát VAT</h4>
-    <p>Bôi đen bảng trong file VAT rồi dán thẳng — <b>đúng 22 cột, đúng thứ tự</b>, kể cả
-      cột STT và cột trống thứ 21. Dán kèm dòng tiêu đề cũng được, máy tự bỏ. Hoá đơn đã
-      có trong sổ bị bỏ qua theo số hoá đơn.</p>
-    <p>Nút <b>Tải CSV</b> xuất ra đúng 22 cột đó — xuất rồi dán lại vẫn ra y hệt.</p>
-    <div class="luu"><b>Điền một trong hai ô tiền là đủ</b>
-      Điền <b>Chưa VAT</b> hoặc <b>Có VAT</b>, số còn lại máy tính theo thuế suất. Phép
-      tính chỉ làm tròn một lần rồi lấy hiệu, nên <code>Chưa VAT + VAT</code> luôn đúng
-      bằng <code>Có VAT</code> — lệch một đồng là Misa từ chối cả tệp.</div>
-  </div>
-
-  <div class="muc">
-    <h3>2.5 Hoá đơn đầu vào</h3>
-    <p>Hoá đơn mua vào, để tính <b>VAT được khấu trừ</b>. Đây là chuyện thuế, không phải
-      sổ công nợ phải trả thứ hai.</p>
-    <figure><img src="anh/hoa-don-vao.png"><figcaption>Màn hình Hoá đơn đầu vào — khung trên cùng là tờ khai GTGT</figcaption></figure>
-    <div class="canh"><b>Ngưỡng tiền mặt 20 triệu</b>
-      Hoá đơn từ <b>20.000.000 đ</b> trở lên mà trả bằng tiền mặt được máy đặt sẵn là
-      <b>không khấu trừ</b>, kèm lý do hiện ngay trên dòng. Đây là <i>nhắc</i>, không phải
-      phán quyết — bấm một nút là bật lại được. Quy định thuế đổi theo thời kỳ, anh nên
-      tự xác nhận lại theo quy định đang áp dụng.</div>
-    <p>Số hoá đơn đầu vào do <b>bên bán</b> đánh, nên chặn trùng theo cặp
-      <b>số hoá đơn + mã số thuế</b>. Hai nhà cung cấp cùng phát hành số 00000001 là
-      bình thường.</p>
-  </div>
-
-  <div class="muc">
-    <h3>2.6 Pháp danh — sổ hợp đồng</h3>
-    <p>Hợp đồng <b>thuê gian hàng</b> và hợp đồng <b>nhà cung cấp</b>, đổi qua lại ở ô Sổ.</p>
-    <figure><img src="anh/phap-danh.png"><figcaption>Màn hình Pháp danh — cảnh báo sắp hết hạn và bảng doanh thu chia sẻ</figcaption></figure>
-    <div class="meo"><b>Ghi hạn hợp đồng bằng ô ngày, đừng ghi vào ghi chú</b>
-      Chỉ khi nó là ngày thật thì bảng <b>"Sắp hết hạn trong 60 ngày"</b> mới chạy được —
-      và đó là lý do chính của cả sổ hợp đồng.</div>
-    <h4>Doanh thu chia sẻ</h4>
-    <p>Ghép hợp đồng với hoá đơn đầu ra qua <b>mã điểm nội bộ</b>. Hợp đồng nào chưa điền
-      mã điểm thì hiện đỏ "chưa gắn mã điểm" và ra 0 — máy <b>không đoán theo tên gian</b>,
-      vì đoán sai ở đây là trả nhầm tiền cho người khác.</p>
-  </div>
-
-  <div class="muc">
-    <h3>2.7 Hồ sơ — sổ chứng từ</h3>
-    <p>Chứng từ giấy: có gì, file ở đâu, đã hạch toán chưa.</p>
-    <figure><img src="anh/ho-so.png"><figcaption>Màn hình Hồ sơ — khung trên là câu kiểm toán sẽ hỏi</figcaption></figure>
-    <p>Khung <b>"Bút toán chưa có chứng từ lưu"</b> trả lời chiều ngược: bảng dưới hỏi
-      "giấy này đã vào sổ chưa", khung trên hỏi <b>"số này đã có giấy chưa"</b>.</p>
-    <div class="luu"><b>"Đã hạch toán" và "Đã nối" là hai thứ khác nhau</b>
-      <b>Đã hạch toán</b> là cờ kế toán tự bật. <b>Đã nối</b> là máy tìm được đúng một bút
-      toán mang số chứng từ đó. Chúng có thể khác nhau hợp lệ (hạch toán trên Misa ngoài
-      hệ thống này), nên màn hình có hẳn thẻ số "đánh dấu nhưng chưa nối".</div>
+    <div class="meo"><b>Dán lại để sửa</b>Mã đã có thì <b>cập nhật đè</b>, không tạo dòng trùng. Muốn sửa tên một điểm thì dán lại dòng đó với nội dung đúng.</div>
+    <h4>Nhiều máy POS, một hoá đơn</h4>
+    <p>Một điểm thường có nhiều mã cửa hàng — mỗi máy POS một mã. Cứ khai đủ, máy gom theo <b>tên điểm xuất hoá đơn</b> nên vẫn ra một tờ.</p>
+    <h4>Nút "Bỏ qua"</h4>
+    <p>Dùng cho mã test, mã vãng lai, gian đã đóng. Tiền của điểm bỏ qua không vào hoá đơn nào, nhưng vẫn được <b>đếm riêng và hiện ra</b> — không biến mất lặng lẽ.</p>
+    <div class="luu"><b>Vì sao là cờ chứ không phải xoá</b>Xoá rồi thì lần nạp danh mục sau nó lại về, và không ai nhớ vì sao trước đó nó bị loại.</div>
+    <figure><img src="anh/danh-muc-diem.png"><figcaption>Danh mục điểm — mỗi máy POS một dòng, gom theo tên điểm</figcaption></figure>
   </div>
 </section>
 
-<!-- ============================================================ PHẦN 3 -->
+<!-- ============================================================ 3 -->
 <section class="phan">
-  <h2>3. Đối chiếu</h2>
-  <p class="dan">Ba màn hình so số giữa hai nguồn. Đây là phần tiết kiệm nhiều thời gian
-    nhất so với làm tay.</p>
+  <h2>3. Nhập số vào sổ</h2>
+  <p class="dan">Sáu màn hình nhập. Màn hình nào cũng có ô dán bảng, copy thẳng từ Excel.</p>
 
   <div class="muc">
-    <h3>3.1 Đối soát cổng thanh toán</h3>
-    <p>So bảng cổng gửi về (Payoo, VNPay, VietQR, Zalo, MoMo) với sao kê ngân hàng.</p>
-    <figure><img src="anh/doi-soat.png"><figcaption>Một đợt đối soát Payoo — bốn nhóm kết quả</figcaption></figure>
-    <ol class="buoc">
-      <li>Tạo đợt: chọn kênh, tài khoản tiền về, khoảng ngày.</li>
-      <li>Dán bảng cổng gửi về: <code>Ngày · Mã GD · Số tiền · Phí · Nội dung</code>.</li>
-      <li>Bấm <b>Nạp và đối soát</b>. Kết quả chia làm bốn nhóm.</li>
-      <li>Tải CSV kết quả để gửi cổng hoặc gửi kế toán trưởng.</li>
-    </ol>
+    <h3>3.1 Sao kê ngân hàng</h3>
+    <p><b>Dòng tiền → Giao dịch / Sao kê</b>. Chọn tài khoản, dán sao kê. Mỗi dòng sáu cột:</p>
+    <p><code>Ngày · Diễn giải · Số tiền · Thu/Chi · Mã giao dịch · Mã cửa hàng</code></p>
+    <p>Cột Thu/Chi bỏ trống thì số dương là Thu, số âm là Chi.</p>
+    <div class="meo"><b>Dán chồng kỳ cũng không sao</b>Dòng nào đã có sẵn trong tài khoản đó — nhận ra qua <b>mã giao dịch</b> ở cột 5 — sẽ bị bỏ qua. Tháng nào cũng tải cả file về dán cũng không nhân đôi số dư. Máy báo rõ đã bỏ bao nhiêu dòng.</div>
+    <div class="canh"><b>Dòng không có mã giao dịch thì không chặn được</b>Hai khách cùng trả 50.000 một ngày là chuyện thường, gộp lại là mất tiền thật. Máy đếm riêng những dòng này và báo cho anh biết.</div>
+    <div class="luu"><b>Cột 6 quyết định có gom được hay không</b>Thiếu mã cửa hàng thì dòng tiền đó không vào hoá đơn nào ở bước 4. Sao kê QR của ngân hàng có sẵn cột này.</div>
+    <figure><img src="anh/giao-dich.png"><figcaption>Giao dịch / Sao kê — lọc theo tài khoản, khoảng ngày, thu/chi, nội dung</figcaption></figure>
+  </div>
+
+  <div class="muc">
+    <h3>3.2 Chi phí</h3>
+    <p><b>Dòng tiền → Chi phí</b>. Ghi khoản chi theo <b>bộ phận × khoản mục</b>, một bảng cho cả công ty. Danh mục bộ phận và khoản mục sửa được ngay trên trang, tách riêng theo từng pháp nhân.</p>
+    <p>Bảng cộng chéo ở dưới cho biết bộ phận nào tiêu vào khoản gì.</p>
+    <figure><img src="anh/chi-phi.png"><figcaption>Chi phí — bảng cộng chéo khoản mục × bộ phận</figcaption></figure>
+  </div>
+
+  <div class="muc">
+    <h3>3.3 Hoá đơn đầu ra</h3>
+    <p><b>Hoá đơn → Đầu ra</b>. Nối thẳng với công cụ Đối soát VAT: dán vào và xuất ra <b>đúng 22 cột</b> của file đó, đúng thứ tự, không phải sắp lại.</p>
+    <div class="luu"><b>Đủ ba số mà lệch thì "Có VAT" thắng</b>Có VAT là tiền khách đã trả thật, gần như luôn là số tròn; chưa VAT và VAT là số suy ra rồi làm tròn. Máy giữ nguyên tổng và bù chênh vào VAT, rồi <b>đếm và báo</b> đã sửa bao nhiêu dòng.</div>
+    <p>Bảng gom theo thuế suất chính là mấy dòng điền vào tờ khai GTGT.</p>
+    <figure><img src="anh/hoa-don-ra.png"><figcaption>Hoá đơn đầu ra — bảng theo thuế suất là số để điền tờ khai</figcaption></figure>
+  </div>
+
+  <div class="muc">
+    <h3>3.4 Hoá đơn đầu vào</h3>
+    <p><b>Hoá đơn → Đầu vào</b>, để tính <b>VAT được khấu trừ</b>.</p>
+    <div class="canh"><b>Hoá đơn từ 20 triệu trả tiền mặt</b>Máy đặt sẵn là <b>không khấu trừ</b> và nhắc. Có chứng từ hợp lệ thì bật lại được.</div>
+    <figure><img src="anh/hoa-don-vao.png"><figcaption>Hoá đơn đầu vào — cột khấu trừ và lý do</figcaption></figure>
+  </div>
+
+  <div class="muc">
+    <h3>3.5 Pháp danh</h3>
+    <p><b>Sổ → Pháp danh</b>. Sổ hợp đồng thuê gian hàng và hợp đồng nhà cung cấp. Cảnh báo hợp đồng sắp hết hạn trong 60 ngày hoặc đã quá hạn, đếm hợp đồng chưa có bản đủ dấu.</p>
+    <p>Bảng doanh thu chia sẻ ghép với hoá đơn đầu ra qua <b>mã điểm nội bộ</b>. Hợp đồng chưa gắn mã điểm thì doanh thu ra 0 — máy không đoán.</p>
+    <figure><img src="anh/phap-danh.png"><figcaption>Pháp danh — cảnh báo hết hạn và doanh thu chia sẻ</figcaption></figure>
+  </div>
+
+  <div class="muc">
+    <h3>3.6 Hồ sơ</h3>
+    <p><b>Sổ → Hồ sơ</b>. Sổ lưu chứng từ giấy: có gì, file ở đâu, đã hạch toán chưa. Nút <b>Dò nối</b> tự nối chứng từ với bút toán trong sổ theo số chứng từ, và trả lời được câu ngược lại: bút toán nào trong kỳ chưa có chứng từ lưu.</p>
+    <figure><img src="anh/ho-so.png"><figcaption>Hồ sơ — hai cột "đã hạch toán" và "đã nối" để riêng, vì chúng có thể khác nhau</figcaption></figure>
+  </div>
+</section>
+
+<!-- ============================================================ 4 -->
+<section class="phan">
+  <h2>4. Sinh hoá đơn từ sao kê</h2>
+  <p class="dan">Bước thay được nhiều giờ Excel nhất. Máy gom tiền theo điểm, mỗi điểm một hoá đơn.</p>
+
+  <div class="muc">
+    <h3>4.1 Máy làm gì, người quyết gì</h3>
+    <p>Luồng đầy đủ:</p>
     <table>
-      <tr><th style="width:26%">Nhóm</th><th>Nghĩa là</th></tr>
-      <tr><td><b>Khớp</b></td><td>Cổng có, ngân hàng có, số tiền bằng nhau.</td></tr>
-      <tr><td><b>Lệch tiền</b></td><td>Cùng mã giao dịch nhưng số tiền không bằng.</td></tr>
-      <tr><td><b>Thiếu</b></td><td>Cổng báo có mà ngân hàng chưa về → đòi cổng.</td></tr>
-      <tr><td><b>Thừa</b></td><td>Ngân hàng có mà cổng không báo.</td></tr>
+      <tr><td>tiền vào tài khoản (mỗi dòng mang mã cửa hàng)</td></tr>
+      <tr><td>→ danh mục điểm: mã cửa hàng thành điểm xuất hoá đơn + mã Misa + khu vực</td></tr>
+      <tr><td>→ cộng theo điểm trong kỳ</td></tr>
+      <tr><td>→ mỗi điểm một hoá đơn, vào sổ Hoá đơn đầu ra</td></tr>
     </table>
-    <div class="luu"><b>Máy tự trừ phí cổng</b>
-      Payoo và VNPay chuyển về số ròng: cổng ghi 1.000.000, phí 11.000, ngân hàng về
-      989.000. Máy ghép được cả trường hợp này, nhãn ghi "Khớp sau khi trừ phí".</div>
-    <div class="meo"><b>Đặt kỳ đối soát hẹp quanh ngày cổng chốt tiền</b>
-      Kỳ phủ cả tháng thì mọi khoản thu khác trong tháng — tiền mặt, kênh khác — đều rơi
-      vào nhóm "Thừa". Đúng về định nghĩa nhưng đọc dễ hiểu nhầm.</div>
+    <p><b>Ba thứ máy không tự quyết</b>, vì đoán sai thì ra một danh sách trông rất hợp lý mà sai — và không ai soát lại cái trông hợp lý:</p>
+    <ul class="gon">
+      <li><b>Kỳ và ngày hoá đơn</b> — anh chọn</li>
+      <li><b>Nguồn tiền nào vào hoá đơn</b> — anh tick từng tài khoản, từng đợt cổng</li>
+      <li><b>Điểm nào không xuất</b> — cờ "bỏ qua" trong danh mục điểm</li>
+    </ul>
+    <p>Máy chỉ làm phần cộng và phần tách VAT — phần nó làm không sai.</p>
   </div>
 
   <div class="muc">
-    <h3>3.2 Đối soát chi phí</h3>
-    <p>So chứng từ chi phí với tiền thật đã ra khỏi tài khoản.</p>
-    <figure><img src="anh/doi-soat-chi-phi.png"><figcaption>Đối soát chi phí — ba nhóm</figcaption></figure>
+    <h3>4.2 Xem trước</h3>
+    <p><b>Hoá đơn → Sinh từ sao kê</b>. Chọn từ ngày / đến ngày, tick nguồn tiền, bấm <b>Xem trước</b>. Bốn thẻ số ở trên nói ngay tình hình:</p>
     <table>
-      <tr><th style="width:34%">Nhóm</th><th>Nghĩa là</th></tr>
-      <tr><td><b>Khớp</b></td><td>Có chứng từ, có tiền ra, đúng số.</td></tr>
-      <tr><td><b>Có chứng từ, chưa thấy tiền ra</b></td><td>Chưa chi, hoặc chứng từ ghi nhầm.</td></tr>
-      <tr><td><b>Tiền ra, không có chứng từ</b></td><td>Thiếu chứng từ, hoặc tiền ra ngoài sổ.</td></tr>
+      <tr><th>Sẽ xuất</th><td>Bao nhiêu hoá đơn</td></tr>
+      <tr><th>Tổng tiền</th><td>Tiền sẽ vào hoá đơn</td></tr>
+      <tr><th>Điểm bỏ qua</th><td>Tiền của điểm đã đặt cờ bỏ qua</td></tr>
+      <tr><th>Mã chưa có trong danh mục</th><td><b>Tiền sẽ KHÔNG vào hoá đơn nào</b></td></tr>
     </table>
-    <p>Chạy xong, cột <b>Tiền ra</b> bên màn hình Chi phí tự biết khoản nào đã trả thật.</p>
+    <div class="canh"><b>Thẻ thứ tư khác 0 thì dừng lại</b>Đó là tiền có thật mà máy không biết của điểm nào. Bảng ngay dưới liệt kê từng mã và số tiền. Thêm mã vào Danh mục điểm rồi xem lại — hoặc để vậy nếu đúng là không xuất.</div>
+    <figure><img src="anh/sinh-hoa-don.png"><figcaption>Sinh hoá đơn — xem trước trước khi ghi dòng nào</figcaption></figure>
   </div>
 
   <div class="muc">
-    <h3>3.3 Công nợ</h3>
-    <p><b>Phải thu</b> dựng từ hoá đơn đầu ra, <b>phải trả</b> từ chi phí chuyển khoản.
-      Đổi qua lại ở ô Sổ.</p>
-    <figure><img src="anh/cong-no.png"><figcaption>Công nợ phải thu — chia theo mốc tuổi nợ</figcaption></figure>
-    <p>Chia theo mốc <b>1–30 / 31–60 / 61–90 / trên 90 ngày</b>, gom theo khách hàng —
-      mở ra là thấy ngay phải gọi ai trước.</p>
-    <h4>Ghi khách trả tiền</h4>
-    <p>Ô số tiền để sẵn phần còn nợ; sửa lại nếu khách trả một phần. Trả làm nhiều đợt thì
-      ghi nhiều dòng, các đợt hiện ngay dưới hoá đơn.</p>
-    <h4>Tự ghép tiền từ sao kê</h4>
-    <p>Chỉ bắt được lần trả <b>đúng bằng số còn nợ</b> của <b>đúng một</b> chứng từ. Trả gộp
-      nhiều hoá đơn hay trả nhiều đợt thì phải ghi tay.</p>
-    <div class="canh"><b>Vì sao máy không đoán nhiều hơn</b>
-      Hai hoá đơn cùng còn nợ 5.400.000 mà đoán bừa thì đóng nhầm cái này, để hở cái kia —
-      kế toán đi đòi nhầm người, và trên màn hình không có gì cho thấy đã đoán sai.</div>
+    <h3>4.3 Tạo hoá đơn</h3>
+    <p>Xem trước xong thì điền <b>ngày hoá đơn</b>, <b>số hoá đơn bắt đầu</b>, <b>thuế suất</b>, rồi bấm nút tạo. Số cấp liên tiếp từ số bắt đầu.</p>
+    <div class="canh"><b>Trùng số ở giữa dải thì máy dừng hẳn</b>Không ghi dòng nào, không bỏ qua rồi chạy tiếp. Số hoá đơn nhảy cóc là thứ cơ quan thuế hỏi đầu tiên, và sửa sau tốn hơn nhiều so với chạy lại.</div>
+    <div class="luu"><b>Tiền gom được hiểu là đã có VAT</b>Đó là tiền khách trả thật. Máy tách ngược ra chưa VAT và VAT theo thuế suất anh chọn.</div>
+    <p>Hoá đơn tạo ra nằm ở <b>Hoá đơn → Đầu ra</b>, mang ghi chú "Sinh từ sao kê" kèm kỳ, để sau này biết nó từ đâu ra. Sửa hay xoá như hoá đơn nhập tay.</p>
   </div>
 </section>
 
-<!-- ============================================================ PHẦN 4 -->
+<!-- ============================================================ 5 -->
 <section class="phan">
-  <h2>4. Đầu ra — kết quả</h2>
-  <p class="dan">Số đã nhập, đã đối chiếu. Đây là chỗ lấy kết quả ra.</p>
+  <h2>5. Đối chiếu</h2>
+  <p class="dan">So cái mình ghi với cái thực tế đã xảy ra.</p>
 
   <div class="muc">
-    <h3>4.1 Báo cáo</h3>
-    <p>Cả kỳ trên một trang: dòng tiền từng tài khoản, xu hướng 12 tháng, doanh thu theo
-      khu vực và dịch vụ, chi phí cộng chéo, thuế GTGT, công nợ cuối kỳ, đối soát còn lệch.</p>
-    <figure><img src="anh/bao-cao.png"><figcaption>Màn hình Báo cáo</figcaption></figure>
-    <p>Nút <b>Tháng trước · Quý · Năm</b> chọn kỳ nhanh. Nút <b>Tải CSV</b> xuất cả gói.</p>
-    <h4>Đọc bảng 12 tháng</h4>
-    <p>Thanh cột <b>Thu</b> và cột <b>Chi</b> chung một thước đo nên so trực tiếp được với
-      nhau. Cột <b>Chênh lệch</b> vẽ từ giữa: sang phải là thu nhiều hơn chi, sang trái là
-      ngược lại — hướng mang dấu, nên in đen trắng vẫn đọc được.</p>
-    <div class="canh"><b>"Kết quả tạm tính" không phải báo cáo kết quả kinh doanh</b>
-      Nó bằng doanh thu chưa VAT trừ chi phí đã ghi — thiếu khấu hao, giá vốn, phân bổ
-      trước sau. <b>Đừng đem đi nộp.</b></div>
-    <div class="meo"><b>Chạy lại báo cáo kỳ cũ luôn ra đúng số cũ</b>
-      Không con số nào lấy "hôm nay" làm mốc, kể cả số dư ngân hàng và công nợ. Chạy báo
-      cáo tháng 8 vào tháng 10 vẫn ra đúng số của tháng 8.</div>
-  </div>
-
-  <div class="muc">
-    <h3>4.2 Tờ khai GTGT</h3>
-    <p>Nằm ở đầu màn hình <b>Hoá đơn đầu vào</b>, và lặp lại trong <b>Báo cáo</b>.</p>
-    <p style="font-size:11pt;text-align:center;background:#eef2f8;padding:9pt;border-radius:7px">
-      <b>VAT phải nộp = VAT đầu ra − VAT đầu vào <i>được khấu trừ</i></b></p>
-    <p>Phần không được khấu trừ <b>không</b> trừ vào đây. Ra số âm thì gọi đúng tên là
-      <b>chuyển kỳ sau</b>, không phải nhà nước trả lại — hai con số này không bao giờ
-      cùng dương.</p>
-    <p>Bảng <b>"Theo thuế suất"</b> ở màn hình Hoá đơn đầu ra chính là mấy dòng điền vào
-      tờ khai, khỏi lọc từng bậc rồi chép tay.</p>
-  </div>
-
-  <div class="muc">
-    <h3>4.3 Xuất ra tệp</h3>
+    <h3>5.1 Đối soát cổng thanh toán</h3>
+    <p><b>Đối soát → Cổng thanh toán</b>. Tạo một đợt (kênh nào, tiền về tài khoản nào, kỳ nào), dán bảng cổng gửi về, bấm chạy. Mỗi dòng: <code>Ngày · Mã GD · Số tiền · Phí · Nội dung · Mã cửa hàng</code>.</p>
+    <p>Máy ghép <b>bốn lượt</b>, chắc chắn giảm dần:</p>
     <table>
-      <tr><th style="width:34%">Màn hình</th><th>Xuất được gì</th></tr>
-      <tr><td>Hoá đơn đầu ra</td><td>CSV đúng 22 cột file Đối soát VAT</td></tr>
-      <tr><td>Hoá đơn đầu vào</td><td>CSV kèm cột khấu trừ và lý do</td></tr>
-      <tr><td>Đối soát cổng</td><td>CSV cả bốn nhóm kết quả</td></tr>
-      <tr><td>Pháp danh</td><td>CSV sổ hợp đồng</td></tr>
-      <tr><td>Báo cáo</td><td>CSV cả gói báo cáo kỳ</td></tr>
-      <tr><td>Sao lưu</td><td>JSON toàn bộ kho dữ liệu</td></tr>
+      <tr><th>1</th><td>Trùng mã giao dịch — chắc nhất</td></tr>
+      <tr><th>2</th><td>Trùng ngày và số tiền</td></tr>
+      <tr><th>3</th><td>Trùng số tiền, lệch ngày trong 3 ngày</td></tr>
+      <tr><th>4</th><td>Trùng số tiền <b>sau khi trừ phí</b> — cổng chuyển về số ròng</td></tr>
     </table>
-    <div class="meo"><b>In ra giấy</b>
-      Bấm Ctrl+P ở bất kỳ màn hình nào. Bản in tự bỏ thanh bên, ô lọc và nút bấm; mỗi khung
-      không bị cắt ngang trang.</div>
+    <p>Kết quả chia bốn nhóm:</p>
+    <table>
+      <tr><th>Khớp</th><td>Cổng có, ngân hàng có, số tiền bằng nhau</td></tr>
+      <tr><th>Lệch tiền</th><td>Cùng mã giao dịch nhưng số tiền không bằng</td></tr>
+      <tr><th>Thiếu</th><td>Cổng báo có mà ngân hàng chưa về — <b>đi đòi cổng</b></td></tr>
+      <tr><th>Thừa</th><td>Ngân hàng có mà cổng không báo</td></tr>
+    </table>
+    <div class="canh"><b>Có dải vàng ở trên bảng thì đọc nó trước</b>Máy tự kiểm: tổng cổng trừ phí lệch quá 5% so với tiền thực nhận, hoặc không dòng nào ghép được theo mã giao dịch, thì nó nói thẳng là kết quả chưa đáng tin. Thường là chọn nhầm tài khoản hoặc nhầm kỳ.</div>
+    <div class="luu"><b>Dòng "Ghép nhờ" ngay dưới đó</b>Cho biết bao nhiêu dòng khớp theo mã, bao nhiêu theo ngày và số tiền. Khớp theo mã là chắc nhất; khớp theo ngày và số tiền chỉ nên tin khi sao kê ít dòng trùng mệnh giá.</div>
+    <figure><img src="anh/doi-soat.png"><figcaption>Đối soát cổng — bốn nhóm, mỗi nhóm một việc phải làm</figcaption></figure>
+  </div>
+
+  <div class="muc">
+    <h3>5.2 Đối soát chi phí</h3>
+    <p><b>Đối soát → Chi phí</b>. So chứng từ chi phí với tiền thật đã ra khỏi tài khoản. Ba nhóm: Khớp / Có chứng từ chưa thấy tiền ra / Tiền ra không có chứng từ.</p>
+    <div class="luu"><b>Chi tiền mặt không bị báo thiếu</b>Chỉ chứng từ loại <em>chuyển khoản</em> mới đem đi ghép.</div>
+    <figure><img src="anh/doi-soat-chi-phi.png"><figcaption>Đối soát chi phí</figcaption></figure>
+  </div>
+
+  <div class="muc">
+    <h3>5.3 Công nợ</h3>
+    <p><b>Sổ → Công nợ</b>. Phải thu từ hoá đơn đầu ra, phải trả từ chi phí chuyển khoản. Chia theo mốc tuổi nợ 1–30 / 31–60 / 61–90 / trên 90 ngày.</p>
+    <p>Ghi trả từng đợt, hoặc bấm <b>Tự ghép</b> để máy đoán từ sao kê. Phép đoán cố ý dè dặt: hai chứng từ cùng số tiền thì máy im lặng, không đoán bừa.</p>
+    <div class="luu"><b>Một sổ thanh toán duy nhất</b>Còn nợ luôn bằng tổng chứng từ trừ tổng đã trả. Không có hai chỗ ghi cùng một khoản.</div>
+    <figure><img src="anh/cong-no.png"><figcaption>Công nợ — tuổi nợ theo mốc</figcaption></figure>
   </div>
 </section>
 
-<!-- ============================================================ PHẦN 5 -->
+<!-- ============================================================ 6 -->
 <section class="phan">
-  <h2>5. Giữ sổ an toàn</h2>
-  <p class="dan">Ba việc nên làm thành nếp, không phải lúc có chuyện mới làm.</p>
+  <h2>6. Ra kết quả</h2>
+  <p class="dan">Số đã vào đủ thì lấy ra.</p>
 
   <div class="muc">
-    <h3>5.1 Khoá sổ</h3>
-    <p>Đặt một <b>ngày khoá</b>. Mọi bản ghi mang ngày từ đó trở về trước thì không thêm,
-      không xoá được.</p>
-    <figure><img src="anh/nhat-ky.png"><figcaption>Màn hình Nhật ký — phần khoá sổ ở trên cùng</figcaption></figure>
-    <div class="canh"><b>Vì sao cần</b>
-      Tờ khai GTGT nộp rồi mà ai đó thêm một hoá đơn lùi ngày vào tháng cũ thì bảng theo
-      thuế suất đổi số ngay, trong khi tờ khai đã nộp thì không đổi. Lần sau mở lại, số
-      trên màn hình khác số đã nộp và <b>không ai biết vì sao</b>.</div>
-    <p><b>Nếp nên theo:</b> chốt xong tháng nào thì khoá tháng đó — khoá tháng 1 vào đầu
-      tháng 2, khoá tháng 2 vào đầu tháng 3.</p>
-    <p>Chạy lại đối soát <i>không</i> bị khoá chặn: nó chỉ ghi cờ đã ghép, không đụng ngày
-      hay số tiền.</p>
+    <h3>6.1 Báo cáo</h3>
+    <p><b>Tổng quan → Báo cáo</b>. Một trang gom cả kỳ: dòng tiền từng tài khoản, bảng xu hướng 12 tháng, doanh thu theo khu vực và dịch vụ, chi phí cộng chéo, thuế GTGT, công nợ cuối kỳ, đối soát còn lệch. Có nút kỳ nhanh: tháng trước, quý, năm.</p>
+    <div class="canh"><b>"Kết quả tạm tính" không phải báo cáo kết quả kinh doanh</b>Nó là doanh thu chưa VAT trừ chi phí đã ghi — thiếu khấu hao, giá vốn, phân bổ trước sau. Đừng đem đi nộp.</div>
+    <div class="meo"><b>Chạy lại kỳ cũ luôn ra đúng số cũ</b>Không con số nào lấy "hôm nay" làm mốc. Chạy báo cáo tháng 8 vào tháng 10 vẫn ra đúng số của tháng 8.</div>
+    <figure><img src="anh/bao-cao.png"><figcaption>Báo cáo — dòng tiền và xu hướng 12 tháng</figcaption></figure>
   </div>
 
   <div class="muc">
-    <h3>5.2 Nhật ký</h3>
-    <p>Ai làm gì, lúc nào. Xoá một bản ghi thì nguyên văn của nó được giữ lại, nên bấm
-      <b>Phục hồi</b> là đặt lại đúng bản cũ.</p>
-    <p>Dán hàng loạt chỉ ghi một dòng tổng kết, không ghi từng dòng — nếu không nhật ký
-      to hơn cả sổ và che mất đúng thứ cần thấy.</p>
+    <h3>6.2 Tờ khai GTGT</h3>
+    <p>Nằm ở màn hình <b>Hoá đơn đầu vào</b>, và lặp lại trong <b>Báo cáo</b>.</p>
+    <p style="text-align:center;font-size:11.5pt;margin:10pt 0"><b>VAT phải nộp = VAT đầu ra − VAT đầu vào <em>được khấu trừ</em></b></p>
+    <p>Phần không được khấu trừ <b>không</b> vào trừ đây. Ra số âm thì gọi đúng tên là <b>chuyển kỳ sau</b>, không phải nhà nước trả lại — hai con số này không bao giờ cùng dương.</p>
+    <p>Bảng <b>Theo thuế suất</b> ở màn hình Hoá đơn đầu ra chính là mấy dòng điền vào tờ khai, khỏi lọc từng bậc rồi chép tay.</p>
   </div>
 
   <div class="muc">
-    <h3>5.3 Sao lưu</h3>
-    <p>Dữ liệu nằm trong cơ sở dữ liệu của website. Website đổi host, ai đó gỡ nhầm plugin,
-      một bản nâng cấp hỏng — <b>mất hết</b>.</p>
-    <div class="meo"><b>Tải tệp sao lưu mỗi lần chốt sổ</b>
-      Vào <b>Sao lưu → Tải tệp sao lưu (.json)</b>. Tệp gồm cả hai pháp nhân và cả danh
-      mục chi phí.</div>
-    <div class="canh"><b>Nhập lại là THÊM VÀO, không xoá cái đang có</b>
-      Nhập hai lần cùng một tệp thì số nhân đôi. Muốn phục hồi sạch thì xoá dữ liệu cũ
-      trước, hoặc nhập vào một website trắng.</div>
+    <h3>6.3 Xuất tệp và in</h3>
+    <table>
+      <tr><th>Hoá đơn đầu ra</th><td>CSV đúng 22 cột file Đối soát VAT</td></tr>
+      <tr><th>Hoá đơn đầu vào</th><td>CSV kèm cột khấu trừ và lý do</td></tr>
+      <tr><th>Đối soát</th><td>CSV cả bốn nhóm kết quả</td></tr>
+      <tr><th>Pháp danh</th><td>CSV sổ hợp đồng</td></tr>
+      <tr><th>Báo cáo</th><td>CSV cả gói báo cáo kỳ</td></tr>
+      <tr><th>Sao lưu</th><td>JSON toàn bộ kho dữ liệu</td></tr>
+    </table>
+    <div class="meo"><b>In ra giấy</b>Bấm Ctrl+P ở bất kỳ màn hình nào. Bản in tự bỏ thanh bên, ô lọc và nút bấm; mỗi khung không bị cắt ngang trang.</div>
   </div>
 </section>
 
-<!-- ============================================================ PHẦN 6 -->
+<!-- ============================================================ 7 -->
 <section class="phan">
-  <h2>6. Việc làm hằng tháng</h2>
+  <h2>7. Giữ sổ an toàn</h2>
+  <p class="dan">Ba thứ để số đã chốt không tự nhiên đổi.</p>
+
+  <div class="muc">
+    <h3>7.1 Khoá sổ</h3>
+    <p><b>Hệ thống → Nhật ký</b>, khung khoá sổ. Đặt một ngày khoá cho mỗi pháp nhân: mọi bản ghi mang ngày từ đó trở về trước <b>không thêm, không sửa, không xoá được</b>.</p>
+    <div class="luu"><b>Chặn cả lối vòng</b>Xoá tài khoản ngân hàng còn giao dịch trong kỳ khoá cũng bị từ chối. Một lối quên kiểm tra là cả tính năng thành trang trí.</div>
+  </div>
+
+  <div class="muc">
+    <h3>7.2 Nhật ký</h3>
+    <p><b>Hệ thống → Nhật ký</b>. Ai làm gì lúc nào. Xoá thì giữ lại nguyên văn bản ghi nên <b>phục hồi được, đúng id cũ</b>. Dán hàng loạt chỉ ghi một dòng tổng kết chứ không phải vài trăm dòng.</p>
+    <figure><img src="anh/nhat-ky.png"><figcaption>Nhật ký — mỗi dòng xoá đều phục hồi được</figcaption></figure>
+  </div>
+
+  <div class="muc">
+    <h3>7.3 Sao lưu</h3>
+    <p><b>Hệ thống → Sao lưu</b> → <b>Tải tệp sao lưu (.json)</b>. Gồm cả hai pháp nhân và cả danh mục.</p>
+    <div class="canh"><b>Nên tải về mỗi lần chốt sổ</b>Dữ liệu nằm trong cơ sở dữ liệu của website. Website đổi host, ai đó gỡ nhầm plugin, một bản nâng cấp hỏng — mất hết.</div>
+    <div class="luu"><b>Nhập lại là THÊM VÀO, không xoá</b>Id được cấp lại và mọi liên kết nối lại theo id mới. Giao dịch đã có mã giao dịch thì không vào lần hai, nên nhập lại một tệp không nhân đôi sao kê.</div>
+    <figure><img src="anh/sao-luu.png"><figcaption>Sao lưu — đếm từng bảng trước khi tải</figcaption></figure>
+  </div>
+</section>
+
+<!-- ============================================================ 8 -->
+<section class="phan">
+  <h2>8. Việc làm hằng tháng</h2>
   <p class="dan">Thứ tự này đi từ nhập số đến ra kết quả, làm theo là không sót bước nào.</p>
   <table>
-    <tr><th style="width:7%">TT</th><th style="width:30%">Việc</th><th>Ở màn hình</th></tr>
-    <tr><td class="so">1</td><td>Nạp sao kê ngân hàng cả tháng</td><td>Giao dịch / Sao kê → Dán sao kê</td></tr>
-    <tr><td class="so">2</td><td>Nạp hoá đơn đầu ra</td><td>Hoá đơn đầu ra → Dán từ file Đối soát VAT</td></tr>
-    <tr><td class="so">3</td><td>Nạp hoá đơn đầu vào</td><td>Hoá đơn đầu vào → Dán bảng</td></tr>
-    <tr><td class="so">4</td><td>Ghi chi phí theo bộ phận</td><td>Chi phí → Dán bảng chi phí</td></tr>
-    <tr><td class="so">5</td><td>Lưu chứng từ giấy</td><td>Hồ sơ → Dán bảng hồ sơ</td></tr>
-    <tr><td class="so">6</td><td>Đối soát từng cổng thanh toán</td><td>Đối soát → Tạo đợt → Nạp và đối soát</td></tr>
-    <tr><td class="so">7</td><td>Đối soát chi phí</td><td>Đối soát chi phí → Chạy đối soát</td></tr>
-    <tr><td class="so">8</td><td>Ghép tiền khách trả, xem ai nợ quá hạn</td><td>Công nợ → Tự ghép, rồi xem bảng tuổi nợ</td></tr>
-    <tr><td class="so">9</td><td>Kiểm bút toán nào chưa có chứng từ</td><td>Hồ sơ → Dò nối lại toàn bộ</td></tr>
-    <tr><td class="so">10</td><td>Xem tờ khai GTGT, chốt số phải nộp</td><td>Hoá đơn đầu vào → khung trên cùng</td></tr>
-    <tr><td class="so">11</td><td>Xem hợp đồng nào sắp hết hạn</td><td>Pháp danh → Sắp hết hạn trong 60 ngày</td></tr>
-    <tr><td class="so">12</td><td>Xuất báo cáo tháng</td><td>Báo cáo → chọn kỳ → Tải CSV</td></tr>
-    <tr><td class="so">13</td><td>Tải tệp sao lưu</td><td>Sao lưu → Tải tệp sao lưu</td></tr>
-    <tr><td class="so">14</td><td>Khoá sổ tháng vừa chốt</td><td>Nhật ký → Khoá sổ</td></tr>
+    <thead><tr><th style="width:26pt">TT</th><th>Việc</th><th>Ở màn hình</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Nạp sao kê từng tài khoản (nhớ cột mã cửa hàng)</td><td>Giao dịch / Sao kê</td></tr>
+      <tr><td>2</td><td>Kiểm danh mục điểm: gian mới mở đã khai chưa</td><td>Danh mục điểm</td></tr>
+      <tr><td>3</td><td>Nạp bảng cổng gửi về, mỗi cổng một đợt</td><td>Đối soát → Tạo đợt → Dán</td></tr>
+      <tr><td>4</td><td>Chạy đối soát, đọc dải cảnh báo trước khi đọc bốn nhóm</td><td>Đối soát</td></tr>
+      <tr><td>5</td><td>Xem trước sinh hoá đơn, đưa "mã chưa có trong danh mục" về 0</td><td>Sinh từ sao kê</td></tr>
+      <tr><td>6</td><td>Tạo hoá đơn, ghi lại số hoá đơn bắt đầu và kết thúc</td><td>Sinh từ sao kê</td></tr>
+      <tr><td>7</td><td>Nạp hoá đơn đầu vào</td><td>Hoá đơn đầu vào</td></tr>
+      <tr><td>8</td><td>Ghi chi phí theo bộ phận</td><td>Chi phí</td></tr>
+      <tr><td>9</td><td>Chạy đối soát chi phí</td><td>Đối soát → Chi phí</td></tr>
+      <tr><td>10</td><td>Ghép tiền khách trả, xem ai nợ quá hạn</td><td>Công nợ</td></tr>
+      <tr><td>11</td><td>Lưu chứng từ giấy, bấm Dò nối</td><td>Hồ sơ</td></tr>
+      <tr><td>12</td><td>Kiểm hợp đồng sắp hết hạn trong 60 ngày</td><td>Pháp danh</td></tr>
+      <tr><td>13</td><td>Xem tờ khai GTGT, chốt số phải nộp</td><td>Hoá đơn đầu vào</td></tr>
+      <tr><td>14</td><td>Xuất báo cáo tháng, tải CSV</td><td>Báo cáo</td></tr>
+      <tr><td>15</td><td>Tải tệp sao lưu về máy</td><td>Sao lưu</td></tr>
+      <tr><td>16</td><td>Khoá sổ đến ngày cuối kỳ vừa chốt</td><td>Nhật ký → Khoá sổ</td></tr>
+    </tbody>
   </table>
 </section>
 
-<!-- ============================================================ PHẦN 7 -->
+<!-- ============================================================ 9 -->
 <section class="phan">
-  <h2>7. Những chỗ dễ sai</h2>
-  <p class="dan">Bảy chỗ hay sai nhất, và cách nhận ra.</p>
+  <h2>9. Những chỗ dễ sai</h2>
+  <p class="dan">Triệu chứng — nguyên nhân — cách sửa.</p>
   <table>
-    <tr><th style="width:30%">Chỗ sai</th><th style="width:34%">Dấu hiệu</th><th>Cách xử lý</th></tr>
-    <tr><td><b>"Tính từ ngày" của tài khoản ghi sai</b></td>
-        <td>Số dư lệch một khoản cố định, không đổi theo thời gian.</td>
-        <td>Sửa lại ngày mốc ở màn hình Ngân hàng cho khớp số dư đầu.</td></tr>
-    <tr><td><b>Kỳ đối soát không phủ hết dữ liệu</b></td>
-        <td>Nhóm "Thiếu" rất lớn, "Khớp" gần như bằng 0.</td>
-        <td>Kiểm lại khoảng ngày của đợt cho khớp bảng cổng gửi về.</td></tr>
-    <tr><td><b>Chi tiền mặt ghi nhầm thành chuyển khoản</b></td>
-        <td>Khoản chi bị báo "chưa thấy tiền ra" mãi không hết.</td>
-        <td>Sửa lại Hình thức ở màn hình Chi phí.</td></tr>
-    <tr><td><b>Hợp đồng chưa gắn mã điểm</b></td>
-        <td>Bảng doanh thu chia sẻ hiện đỏ "chưa gắn mã điểm", phần chia bằng 0.</td>
-        <td>Điền mã điểm nội bộ, phải trùng đúng mã trên hoá đơn đầu ra.</td></tr>
-    <tr><td><b>Thời hạn hợp đồng ghi vào ô ghi chú</b></td>
-        <td>Bảng "Sắp hết hạn" trống trong khi thực tế có hợp đồng sắp hết.</td>
-        <td>Điền vào ô <b>Hết hạn</b> — phải là ô ngày thì máy mới đọc được.</td></tr>
-    <tr><td><b>Dán sao kê hai lần</b></td>
-        <td>Số dư gấp đôi.</td>
-        <td>Xoá dòng thừa ở màn hình Giao dịch. Dán kèm cột Mã GD thì lần sau máy tự chặn trùng.</td></tr>
-    <tr><td><b>Quên khoá sổ sau khi nộp tờ khai</b></td>
-        <td>Số tháng cũ đổi so với tờ khai đã nộp, không rõ vì sao.</td>
-        <td>Xem Nhật ký để biết ai sửa gì, rồi khoá sổ tháng đó lại.</td></tr>
+    <thead><tr><th>Thấy gì</th><th>Vì sao</th><th>Làm gì</th></tr></thead>
+    <tbody>
+      <tr><td>Số dư cao gấp đôi thực tế</td><td>Dán sao kê hai lần, và sao kê không có cột mã giao dịch nên máy không chặn được</td><td>Xuất sao kê kèm cột mã tham chiếu rồi nạp lại từ sổ trắng</td></tr>
+      <tr><td>Thẻ "Mã chưa có trong danh mục" khác 0</td><td>Có gian mới mở chưa khai vào danh mục điểm</td><td>Xem bảng ngay dưới, thêm mã vào Danh mục điểm</td></tr>
+      <tr><td>Sinh hoá đơn báo "Danh mục điểm còn trống"</td><td>Chưa nạp danh mục cho pháp nhân đang chọn</td><td>Danh mục điểm → Nạp danh mục hàng loạt</td></tr>
+      <tr><td>Bấm Tạo hoá đơn bị từ chối vì trùng số</td><td>Dải số định dùng đã có hoá đơn nằm giữa</td><td>Đổi số bắt đầu sang dải còn trống</td></tr>
+      <tr><td>Đối soát hiện dải vàng</td><td>Chọn nhầm tài khoản hoặc nhầm kỳ</td><td>Sửa đợt cho đúng tài khoản nhận tiền của cổng đó</td></tr>
+      <tr><td>Nhóm "Thừa" quá nhiều</td><td>Kỳ đối soát phủ cả tháng nên mọi khoản thu khác cũng rơi vào đó</td><td>Đặt kỳ hẹp quanh ngày cổng chốt tiền</td></tr>
+      <tr><td>Misa từ chối cả tệp hoá đơn</td><td>Có dòng chưa VAT + VAT không bằng có VAT</td><td>Nạp qua màn hình Hoá đơn đầu ra rồi xuất lại — máy sửa và báo số dòng đã sửa</td></tr>
+      <tr><td>VAT phải nộp cao bất thường</td><td>Chưa nhập hoá đơn đầu vào</td><td>Nhập đầu vào rồi xem lại tờ khai</td></tr>
+      <tr><td>Doanh thu chia sẻ ra 0</td><td>Hợp đồng chưa gắn mã điểm nội bộ</td><td>Pháp danh → sửa hợp đồng → điền mã điểm</td></tr>
+      <tr><td>Không thêm/sửa được gì trong kỳ cũ</td><td>Kỳ đó đã khoá sổ</td><td>Nhật ký → mở khoá, sửa, rồi khoá lại</td></tr>
+      <tr><td>Kế toán không mở được /tai-chinh/</td><td>Tài khoản chưa được cấp quyền vào sổ</td><td>Người dùng → Thêm người vào sổ</td></tr>
+      <tr><td>Mở /tai-chinh/ ra 404</td><td>WordPress chưa ghi luật đường dẫn</td><td>Cài đặt → Đường dẫn tĩnh → Lưu</td></tr>
+    </tbody>
   </table>
-
-  <hr class="duong">
-  <div class="luu"><b>Cần giúp</b>
-    Màn hình nào chạy sai, chụp lại màn hình rồi gửi kèm mô tả đang làm gì lúc đó. Mục
-    <b>Nhật ký</b> cho biết ai vừa làm gì — thường trả lời được ngay câu "số này ở đâu ra".</div>
 </section>
 
 </body></html>

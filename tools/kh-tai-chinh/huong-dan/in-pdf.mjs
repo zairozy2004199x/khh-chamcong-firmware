@@ -10,7 +10,7 @@ await p.pdf({
   displayHeaderFooter: true,
   headerTemplate: '<div></div>',
   footerTemplate: `<div style="width:100%;font-family:'DejaVu Sans',sans-serif;font-size:7.5pt;color:#64748b;padding:0 15mm;display:flex;justify-content:space-between">
-    <span>Tài Chính K&amp;H — Hướng dẫn sử dụng · bản 1.2.0</span>
+    <span>Tài Chính K&amp;H — Hướng dẫn sử dụng · bản 1.5.0</span>
     <span>Trang <span class="pageNumber"></span>/<span class="totalPages"></span></span></div>`,
 });
 await b.close();

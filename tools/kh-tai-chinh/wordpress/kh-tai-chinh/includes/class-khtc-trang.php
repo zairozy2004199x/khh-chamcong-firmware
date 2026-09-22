@@ -1289,7 +1289,13 @@ class KHTC_Trang {
 		if ( $g['la'] ) {
 			echo '<div class="khtc-panel"><p class="khtc-canh-bao">Có tiền vào mang mã cửa hàng <strong>không có trong danh mục điểm</strong>. Số tiền này sẽ KHÔNG vào hoá đơn nào. Thêm mã vào danh mục rồi xem lại, hoặc để vậy nếu đúng là không xuất.</p><table><thead><tr><th>Mã cửa hàng</th><th class="so">Số tiền</th></tr></thead><tbody>';
 			foreach ( array_slice( $g['la'], 0, 30, true ) as $ma => $t ) {
-				printf( '<tr><td><code>%s</code></td><td class="so">%s</td></tr>', esc_html( $ma ?: '(để trống)' ), esc_html( KHTC_UI::tien( $t ) ) );
+				// Mã cửa hàng là ASCII nên hợp với phông đẳng rộng; câu "để trống"
+				// là tiếng Việt, để trong <code> thì phông đó nuốt mất dấu.
+				printf(
+					'<tr><td>%s</td><td class="so">%s</td></tr>',
+					$ma ? '<code>' . esc_html( $ma ) . '</code>' : '<em>không ghi mã</em>',
+					esc_html( KHTC_UI::tien( $t ) )
+				);
 			}
 			echo '</tbody></table></div>';
 		}

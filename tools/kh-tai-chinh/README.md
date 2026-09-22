@@ -17,10 +17,10 @@ cd tools/kh-tai-chinh
 
 ## Hướng dẫn sử dụng
 
-`Tai-Chinh-KH-Huong-dan-su-dung.pdf` — 22 trang, kèm ảnh chụp từng màn hình,
+`Tai-Chinh-KH-Huong-dan-su-dung.pdf` — 27 trang, kèm ảnh chụp cả 17 màn hình,
 đi từ lúc cài đến lúc ra số: nhập gì ở đâu → đối chiếu thế nào → đọc kết quả ra
-sao. Cuối bản có một bảng việc-làm-hằng-tháng 14 bước và một bảng những chỗ dễ
-sai.
+sao. Cuối bản có một bảng việc-làm-hằng-tháng 16 bước và một bảng những chỗ dễ
+sai 12 dòng.
 
 Bản dựng nằm trong `huong-dan/` (HTML + CSS + ảnh). Dựng lại:
 

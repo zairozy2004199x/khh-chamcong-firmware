@@ -27,7 +27,7 @@ defined( 'ABSPATH' ) || exit;
 class KHTC_Mau {
 
 	/** Các bảng có thể chứa dòng mẫu, theo thứ tự xoá (con trước, cha sau). */
-	const BANG = array( 'thanh_toan', 'ho_so', 'ds_dong', 'doi_soat', 'hd_vao', 'hd_ra', 'chi_phi', 'hop_dong', 'giao_dich', 'ngan_hang' );
+	const BANG = array( 'thanh_toan', 'ho_so', 'ds_dong', 'doi_soat', 'hd_vao', 'hd_ra', 'chi_phi', 'hop_dong', 'giao_dich', 'diem', 'ngan_hang' );
 
 	/**
 	 * Bảng KHÔNG mang cột `cty` — không hỏi trực tiếp theo pháp nhân được.
@@ -125,12 +125,43 @@ class KHTC_Mau {
 		$mb  = KHTC_NganHang::them( array( 'ten' => '[Mẫu] MB Bank 8899669988', 'so_tk' => '8899669988', 'so_du_dau' => 45000000, 'ngay_dau' => $moc ) );
 		$id['ngan_hang'] = array( $vcb, $mb );
 
+		// --- danh mục điểm: ba điểm, mỗi điểm hai mã cửa hàng như hai máy POS.
+		// Có nó thì màn hình Sinh hoá đơn mới chạy ra kết quả; thiếu nó thì bộ
+		// dữ liệu mẫu bỏ trống đúng hai màn hình mới nhất.
+		$diem = array(
+			array( 'MAU-CRE-01', '[Mẫu] Crescent máy 1', 'Crescent Mall', 'KVC CRESCENT', 'HCM', 'KVC' ),
+			array( 'MAU-CRE-02', '[Mẫu] Crescent máy 2', 'Crescent Mall', 'KVC CRESCENT', 'HCM', 'KVC' ),
+			array( 'MAU-VIN-01', '[Mẫu] Vincom máy 1',   'Vincom Đồng Khởi', 'GM VINCOM', 'HCM', 'GM' ),
+			array( 'MAU-ROY-01', '[Mẫu] Royal máy 1',    'Royal City',    'KVC ROYAL',  'Hà Nội', 'KVC' ),
+			array( 'MAU-TEST',   '[Mẫu] Máy chạy thử',   'Máy chạy thử',  '',           '', '' ),
+		);
+		foreach ( $diem as $k => $d ) {
+			KHTC_Diem::them(
+				array(
+					'ma_cua_hang' => $d[0],
+					'ten_gian'    => $d[1],
+					'ten_diem'    => $d[2],
+					'ma_misa'     => $d[3],
+					'khu_vuc'     => $d[4],
+					'dich_vu'     => $d[5],
+					// Một điểm đặt sẵn cờ bỏ qua, để người xem thấy cờ đó làm gì.
+					'bo_qua'      => 'MAU-TEST' === $d[0] ? 1 : 0,
+				),
+				false
+			);
+		}
+		self::gom_id( $id, 'diem' );
+
 		// --- 13 tháng sao kê, có mùa vụ để bảng xu hướng nói lên điều gì đó
 		$sao_ke = '';
 		for ( $i = 12; $i >= 0; $i-- ) {
 			$mua = 1 + 0.42 * sin( ( 12 - $i ) / 2.1 );
-			$sao_ke .= sprintf( "%s\tDoanh thu QR trong thang\t%d\tThu\n", self::ngay( $i, 5 ), round( 118000000 * $mua ) );
-			$sao_ke .= sprintf( "%s\tDoanh thu the va vi dien tu\t%d\tThu\n", self::ngay( $i, 18 ), round( 41000000 * $mua ) );
+			// Cột 5 là mã giao dịch (chặn trùng khi dán lại), cột 6 là mã cửa
+			// hàng (nối sang danh mục điểm để gom thành hoá đơn).
+			$sao_ke .= sprintf( "%s\tDoanh thu QR Crescent\t%d\tThu\tMAU-T%02d-A\tMAU-CRE-01\n", self::ngay( $i, 5 ), round( 61000000 * $mua ), $i );
+			$sao_ke .= sprintf( "%s\tDoanh thu QR Crescent may 2\t%d\tThu\tMAU-T%02d-B\tMAU-CRE-02\n", self::ngay( $i, 6 ), round( 57000000 * $mua ), $i );
+			$sao_ke .= sprintf( "%s\tDoanh thu QR Vincom\t%d\tThu\tMAU-T%02d-C\tMAU-VIN-01\n", self::ngay( $i, 18 ), round( 27000000 * $mua ), $i );
+			$sao_ke .= sprintf( "%s\tDoanh thu QR Royal City\t%d\tThu\tMAU-T%02d-D\tMAU-ROY-01\n", self::ngay( $i, 19 ), round( 14000000 * $mua ), $i );
 			$sao_ke .= sprintf( "%s\tChi luong va van hanh\t-%d\tChi\n", self::ngay( $i, 20 ), round( 96000000 + 8000000 * cos( ( 12 - $i ) / 1.7 ) ) );
 			$sao_ke .= sprintf( "%s\tChi thue mat bang\t-35.000.000\tChi\n", self::ngay( $i, 25 ) );
 		}

@@ -50,7 +50,26 @@ kiem( 'và chưa có dòng mẫu nào', KHTC_Mau::dem_mau(), 0 );
 $so = KHTC_Mau::nap();
 kiem( 'nạp được', is_int( $so ) && $so > 0, true );
 kiem( 'hai tài khoản ngân hàng', dem( 'ngan_hang' ), 2 );
-kiem( '13 tháng sao kê hai tài khoản', dem( 'giao_dich' ), 13 * 4 + 3 + 2 );
+kiem( '13 tháng sao kê hai tài khoản', dem( 'giao_dich' ), 13 * 6 + 3 + 2 );
+kiem( 'năm điểm trong danh mục', dem( 'diem' ), 5 );
+
+// Dữ liệu mẫu phải chạy được CẢ hai màn hình mới, không để trống chỗ nào.
+$nh_m = $GLOBALS['wpdb']->get_col( 'SELECT id FROM ' . KHTC_DB::bang( 'ngan_hang' ) );
+list( $m1, $m2 ) = KHTC_BaoCao::bien_thang( current_time( 'Y-m' ) );
+$gm = KHTC_SinhHD::gom( array( 'tu' => $m1, 'den' => $m2, 'nh' => $nh_m ) );
+kiem( 'gom được ba điểm (máy chạy thử bị bỏ qua)', count( $gm['diem'] ), 3 );
+kiem( 'hai máy POS cùng điểm gộp vào một tờ', $gm['diem'][0]['so_dong'] >= 2, true );
+// Mẫu CỐ Ý để hai khoản thu không mang mã cửa hàng (khách chuyển khoản trả
+// hoá đơn, VNPay chuyển về). Chúng phải rơi vào nhóm "mã lạ" và hiện ra màn
+// hình, chứ không được im lặng biến mất.
+kiem( 'khoản thu không mã rơi vào nhóm mã lạ', isset( $gm['la'][''] ), true );
+kiem( 'điểm đặt cờ bỏ qua không vào hoá đơn', count( $gm['diem'] ) < dem( 'diem' ), true );
+
+// PHÉP KIỂM QUAN TRỌNG NHẤT: không đồng nào biến mất. Mọi khoản thu trong kỳ
+// phải nằm ở đúng một trong ba nhóm.
+$tong_thu = (int) $GLOBALS['wpdb']->get_var( $GLOBALS['wpdb']->prepare(
+	'SELECT COALESCE(SUM(so_tien),0) FROM ' . KHTC_DB::bang( 'giao_dich' ) . " WHERE loai='thu' AND ngay>=%s AND ngay<=%s", $m1, $m2 ) );
+kiem( 'không đồng nào biến mất khi gom', $gm['tong'] + $gm['tong_bo'] + $gm['tong_la'], $tong_thu );
 kiem( 'năm hoá đơn đầu ra', dem( 'hd_ra' ), 5 );
 kiem( 'bốn hoá đơn đầu vào', dem( 'hd_vao' ), 4 );
 kiem( 'sáu khoản chi phí', dem( 'chi_phi' ), 6 );
