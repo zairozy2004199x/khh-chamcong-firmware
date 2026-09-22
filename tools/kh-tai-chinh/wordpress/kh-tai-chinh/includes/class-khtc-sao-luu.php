@@ -24,6 +24,53 @@ class KHTC_SaoLuu {
 		return array( 'ngan_hang', 'giao_dich', 'doi_soat', 'ds_dong', 'chi_phi', 'hd_ra', 'hd_vao', 'hop_dong', 'ho_so', 'thanh_toan', 'nhat_ky' );
 	}
 
+	// --------------------------------------------- tệp dữ liệu kèm trong bản cài
+
+	/**
+	 * Tệp .json đặt sẵn trong thư mục `du-lieu/` của plugin.
+	 *
+	 * VÌ SAO CÓ: nhập tệp sao lưu qua ô tải lên vướng `upload_max_filesize` của
+	 * host — mặc định nhiều nơi chỉ 2 MB, mà một kỳ dữ liệu thật đã 5 MB. Đặt
+	 * tệp vào trong chính bản cài thì nó đi cùng file zip của plugin, vốn đã
+	 * được nén, và không phải tải lên lần thứ hai.
+	 *
+	 * Thư mục này KHÔNG có trong mã nguồn. Nó chỉ xuất hiện khi ai đó cố ý gói
+	 * kèm dữ liệu vào một bản cài riêng, nên bản phát hành thường không có nút
+	 * này. Dữ liệu thật của một công ty không bao giờ nằm trong kho mã.
+	 *
+	 * @return array [tên tệp => đường dẫn đầy đủ], đã sắp theo tên.
+	 */
+	public static function tep_kem() {
+		$thu_muc = KHTC_DIR . 'du-lieu/';
+		if ( ! is_dir( $thu_muc ) ) { return array(); }
+		$ra = array();
+		foreach ( (array) glob( $thu_muc . '*.json' ) as $d ) {
+			// basename() chặn luôn chuyện đường dẫn lạ lọt ra tên hiển thị.
+			$ra[ basename( $d ) ] = $d;
+		}
+		ksort( $ra );
+		return $ra;
+	}
+
+	/**
+	 * Nhập một tệp kèm theo, chọn bằng TÊN chứ không bằng đường dẫn.
+	 *
+	 * Tên từ trình duyệt gửi lên không bao giờ được ghép thẳng vào đường dẫn:
+	 * chỉ nhận nếu nó nằm trong danh sách tep_kem() đã quét sẵn. Có thế thì
+	 * `../../wp-config.php` cũng không đọc được gì.
+	 */
+	public static function nhap_tep_kem( $ten ) {
+		$ds = self::tep_kem();
+		if ( ! isset( $ds[ $ten ] ) ) {
+			return new WP_Error( 'tep', 'Không có tệp dữ liệu kèm theo tên đó trong bản cài.' );
+		}
+		$json = file_get_contents( $ds[ $ten ] );
+		if ( false === $json ) {
+			return new WP_Error( 'doc', 'Không đọc được tệp ' . $ten . ' trong thư mục du-lieu của plugin.' );
+		}
+		return self::nhap( $json );
+	}
+
 	/** Gom cả kho dữ liệu thành một mảng. Không lọc theo pháp nhân: sao lưu là sao lưu tất. */
 	public static function gom() {
 		global $wpdb;

@@ -1,7 +1,7 @@
 === Tài Chính K&H ===
 Requires at least: 5.6
 Requires PHP: 7.4
-Stable tag: 1.2.1
+Stable tag: 1.2.2
 License: GPL-2.0-or-later
 
 Theo dõi ngân hàng, giao dịch và đối soát cho CÔNG TY TNHH DỊCH VỤ VÀ GIẢI TRÍ K&H.
@@ -72,6 +72,10 @@ RAM; trên shared hosting cách đó không chạy nổi.
   phí, hợp đồng, một đợt đối soát đã chạy) để xem thử mọi màn hình trước khi
   nhập số thật, và xoá sạch được bằng một nút khác. Chỉ nạp được khi sổ còn
   trống, và chỉ xoá đúng những dòng chính nó đã tạo.
+* Dữ liệu kèm trong bản cài — nếu bản cài có thư mục du-lieu chứa tệp .json,
+  màn hình Sao lưu hiện nút nhập thẳng tệp đó, khỏi phải tải lên lần nữa.
+  Dùng khi kho dữ liệu lớn hơn giới hạn tải tệp của host. Mã nguồn không kèm
+  thư mục này; nó chỉ có khi ai đó cố ý gói dữ liệu vào một bản cài riêng.
 * Bản web ngoài — cùng các màn hình đó ở /tai-chinh/ thay vì trong wp-admin.
   Vẫn phải đăng nhập.
 

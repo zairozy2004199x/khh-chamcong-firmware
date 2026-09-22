@@ -30,3 +30,4 @@ token.txt
 # Bản build Arduino: rác 42MB, và .bin/.elf/.map chứa bí mật ở dạng chữ đọc được.
 esp32_*/build/
 */build/esp32.esp32.esp32/
+tools/kh-tai-chinh/wordpress/kh-tai-chinh/du-lieu/

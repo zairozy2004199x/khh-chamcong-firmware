@@ -986,6 +986,20 @@ class KHTC_Trang {
 			$bao_ok = sprintf( 'Đã xoá %s dòng dữ liệu mẫu.', number_format( KHTC_Mau::xoa(), 0, ',', '.' ) );
 		}
 
+		if ( isset( $_POST['khtc_nhap_kem'] ) && check_admin_referer( 'khtc_sl' ) ) {
+			$ten = sanitize_file_name( wp_unslash( $_POST['khtc_nhap_kem'] ) );
+			$kq  = KHTC_SaoLuu::nhap_tep_kem( $ten );
+			if ( is_wp_error( $kq ) ) {
+				$bao_loi = $kq->get_error_message();
+			} else {
+				$bao_ok = sprintf(
+					'Đã nhập %s dòng từ %s.',
+					number_format( array_sum( $kq['them'] ), 0, ',', '.' ),
+					$ten
+				);
+			}
+		}
+
 		if ( isset( $_POST['khtc_nhap'] ) && check_admin_referer( 'khtc_sl' ) ) {
 			$json = '';
 			if ( ! empty( $_FILES['tep']['tmp_name'] ) && is_uploaded_file( $_FILES['tep']['tmp_name'] ) ) {
@@ -1075,6 +1089,26 @@ class KHTC_Trang {
 			echo '<p class="khtc-sub">Mọi dòng mẫu đều mang dấu <code>[Mẫu]</code> ở tên tài khoản, tên gian và số hoá đơn. Xoá lại bằng một nút, và nút xoá chỉ đụng đúng những dòng đã nạp.</p>';
 		}
 		echo '</div>';
+
+		$kem = KHTC_SaoLuu::tep_kem();
+		if ( $kem ) {
+			echo '<div class="khtc-panel"><h2>Dữ liệu kèm trong bản cài</h2>';
+			echo '<p class="khtc-sub">Bản cài này có sẵn tệp dữ liệu, không phải tải lên lần nữa. Nhập là <strong>thêm vào</strong> kho đang có.</p>';
+			echo '<form method="post"><div class="khtc-loc">';
+			wp_nonce_field( 'khtc_sl' );
+			foreach ( $kem as $ten => $duong_dan ) {
+				printf(
+					'<button type="submit" name="khtc_nhap_kem" value="%s" class="button" onclick="return confirm(\'Nhập THÊM dữ liệu từ %s vào kho đang có?\')">Nhập %s <span class="khtc-sub">(%s)</span></button>',
+					esc_attr( $ten ),
+					esc_js( $ten ),
+					esc_html( $ten ),
+					esc_html( size_format( (int) filesize( $duong_dan ) ) )
+				);
+			}
+			echo '</div></form>';
+			echo '<p class="khtc-sub">Tệp lớn có thể chạy lâu. Nếu trang báo hết giờ giữa chừng thì một phần đã vào sổ — xoá sạch rồi nhập lại tệp nhỏ hơn, đừng bấm lại nút này vì số sẽ cộng chồng.</p>';
+			echo '</div>';
+		}
 
 		echo '<details class="khtc-panel khtc-gap"><summary>Nhập lại từ tệp sao lưu</summary>';
 		echo '<form method="post" enctype="multipart/form-data"><div class="khtc-loc">';

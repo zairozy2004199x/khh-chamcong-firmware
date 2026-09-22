@@ -497,6 +497,28 @@ cài lúc nào cũng có dữ liệu rơi vào tháng hiện tại và mấy mà
 một hợp đồng quá hạn 18 ngày, để phần cảnh báo có gì mà cảnh báo; một hoá đơn
 vào trả tiền mặt trên 20 triệu, để nhắc khấu trừ hiện ra.
 
+## Gói dữ liệu kèm bản cài
+
+Nhập tệp sao lưu qua ô tải lên vướng `upload_max_filesize` — nhiều host mặc
+định chỉ 2 MB, mà một kỳ dữ liệu thật đã 5 MB. Đặt tệp `.json` vào thư mục
+`du-lieu/` trong plugin thì nó đi cùng file zip (đã nén sẵn, JSON co lại còn
+khoảng một phần tư) và màn hình Sao lưu hiện nút nhập thẳng.
+
+```bash
+cp kho.json wordpress/kh-tai-chinh/du-lieu/     # thư mục này bị .gitignore
+./dong-goi.sh /duong/dan/khac                   # gói ra NGOÀI kho mã
+```
+
+Hai chỗ phải giữ đúng:
+
+* **Thư mục `du-lieu/` nằm trong `.gitignore`.** Dữ liệu thật của một công ty
+  không bao giờ được nằm trong kho mã. Bản phát hành bình thường không có thư
+  mục này, nên cũng không có nút.
+* **Chọn tệp bằng tên, không bằng đường dẫn.** Tên do trình duyệt gửi lên chỉ
+  được nhận nếu nó nằm trong danh sách `tep_kem()` đã quét sẵn — ghép thẳng
+  tên vào đường dẫn là mở cửa cho `../../wp-config.php`. Có phép kiểm đứng
+  đúng chỗ này.
+
 ## Giao diện
 
 Menu **dọc bên trái**, gom theo nhóm — mười bốn mục xếp phẳng thì tìm mục nào

@@ -199,6 +199,40 @@ co( 'trang sao lưu có nút tải', $t, 'Tải tệp sao lưu' );
 co( 'trang sao lưu cảnh báo nhập là thêm vào', $t, 'THÊM VÀO, không xoá' );
 kiem( 'trang sao lưu đóng đủ thẻ div', substr_count( $t, '<div' ), substr_count( $t, '</div>' ) );
 
+// ------------------------------------- tệp dữ liệu kèm trong bản cài
+//
+// Chỗ này nhận TÊN TỆP từ trình duyệt. Ghép thẳng tên vào đường dẫn là mở cửa
+// cho ../../wp-config.php, nên chỉ nhận tên có trong danh sách đã quét sẵn.
+kiem( 'không có thư mục du-lieu thì không có tệp kèm', KHTC_SaoLuu::tep_kem(), array() );
+kiem( 'tên lạ bị từ chối', is_wp_error( KHTC_SaoLuu::nhap_tep_kem( 'khong-co.json' ) ), true );
+kiem( 'đường dẫn leo thư mục bị từ chối', is_wp_error( KHTC_SaoLuu::nhap_tep_kem( '../../wp-config.php' ) ), true );
+kiem( 'tên rỗng bị từ chối', is_wp_error( KHTC_SaoLuu::nhap_tep_kem( '' ) ), true );
+
+// Dựng thật một thư mục du-lieu rồi nhập, đúng như bản cài gói kèm dữ liệu.
+$thu_muc = KHTC_DIR . 'du-lieu';
+@mkdir( $thu_muc, 0777, true );
+KHTC_Cty::chon( 'kh_cu' );
+$nh_k = KHTC_NganHang::them( array( 'ten' => 'TK kèm theo', 'so_tk' => '999888', 'so_du_dau' => 0, 'ngay_moc' => '2026-08-01' ) );
+KHTC_GiaoDich::them( array( 'ngan_hang_id' => $nh_k, 'ngay' => '10/08/2026', 'dien_giai' => 'Thu kèm', 'so_tien' => '5.000.000', 'loai' => 'thu' ) );
+file_put_contents( "$thu_muc/kho-thu.json", wp_json_encode( KHTC_SaoLuu::gom() ) );
+
+$truoc = KHTC_SaoLuu::dem();
+kiem( 'thấy tệp vừa đặt vào du-lieu', array_keys( KHTC_SaoLuu::tep_kem() ), array( 'kho-thu.json' ) );
+$kq = KHTC_SaoLuu::nhap_tep_kem( 'kho-thu.json' );
+kiem( 'nhập tệp kèm chạy được', is_wp_error( $kq ), false );
+$sau = KHTC_SaoLuu::dem();
+kiem( 'nhập là THÊM VÀO: tài khoản tăng gấp đôi', $sau['ngan_hang'], $truoc['ngan_hang'] * 2 );
+kiem( 'giao dịch cũng tăng gấp đôi', $sau['giao_dich'], $truoc['giao_dich'] * 2 );
+// Liên kết phải nối lại theo id mới, không thì số dư sai mà không ai thấy.
+kiem(
+	'không giao dịch nào trỏ vào tài khoản không tồn tại',
+	(int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . KHTC_DB::bang( 'giao_dich' ) . ' g LEFT JOIN ' . KHTC_DB::bang( 'ngan_hang' ) . ' n ON n.id = g.ngan_hang_id WHERE n.id IS NULL' ),
+	0
+);
+unlink( "$thu_muc/kho-thu.json" );
+@rmdir( $thu_muc );
+kiem( 'dọn xong thì lại không có tệp kèm nào', KHTC_SaoLuu::tep_kem(), array() );
+
 printf( "%d kiểm tra đạt, %d lỗi  (%d câu SQL)\n", $dat, count( $hong ), $GLOBALS['wpdb']->so_cau );
 foreach ( $hong as $h ) { echo "  ✗ $h\n"; }
 exit( $hong ? 1 : 0 );

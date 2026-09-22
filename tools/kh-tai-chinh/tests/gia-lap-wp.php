@@ -65,6 +65,21 @@ function esc_attr( $s ) { return htmlspecialchars( (string) $s, ENT_QUOTES, 'UTF
 function esc_url_raw( $s ) { return trim( (string) $s ); }
 function esc_url( $s ) { return htmlspecialchars( (string) $s, ENT_QUOTES, 'UTF-8' ); }
 function esc_textarea( $s ) { return htmlspecialchars( (string) $s, ENT_QUOTES, 'UTF-8' ); }
+// esc_js: chuỗi nằm TRONG một chuỗi JavaScript, mà chuỗi JS đó lại nằm trong
+// một thuộc tính HTML — phải thoát cả hai tầng.
+function esc_js( $s ) {
+	$s = htmlspecialchars( (string) $s, ENT_COMPAT, 'UTF-8' );
+	$s = str_replace( array( "\r", "\n" ), array( '', '\\n' ), addslashes( $s ) );
+	return str_replace( "'", "&#039;", $s );
+}
+function size_format( $n, $le = 0 ) {
+	$n = (int) $n;
+	foreach ( array( 'GB' => 1073741824, 'MB' => 1048576, 'KB' => 1024 ) as $d => $m ) {
+		if ( $n >= $m ) { return number_format( $n / $m, $le ) . ' ' . $d; }
+	}
+	return $n . ' B';
+}
+function sanitize_file_name( $s ) { return preg_replace( '/[^A-Za-z0-9._-]/', '', basename( (string) $s ) ); }
 function sanitize_text_field( $s ) { return trim( strip_tags( (string) $s ) ); }
 function sanitize_textarea_field( $s ) { return trim( strip_tags( (string) $s ) ); }
 function wp_unslash( $s ) { return is_string( $s ) ? stripslashes( $s ) : $s; }
@@ -223,8 +238,13 @@ $GLOBALS['wpdb'] = new KHTC_Wpdb_Gia();
 $GLOBALS['wpdb']->tao_bang_sqlite();
 
 // ------------------------------------------------------------ nạp plugin
-$goc = __DIR__ . '/../wordpress/kh-tai-chinh/';
-define( 'KHTC_VERSION', '1.2.0' );
+// KHTC_GOC cho phép trỏ vào một bản cài đã giải nén, để thử đúng cái sắp gửi
+// đi chứ không phải thử cây mã nguồn.
+$goc = getenv( 'KHTC_GOC' ) ? rtrim( getenv( 'KHTC_GOC' ), '/' ) . '/' : __DIR__ . '/../wordpress/kh-tai-chinh/';
+// Đọc số bản từ chính plugin. Ghim cứng ở đây thì nó lệch sau mỗi lần nâng
+// bản, và phép kiểm nào so theo số bản sẽ sai mà không ai để ý.
+preg_match( "/KHTC_VERSION', '([0-9.]+)'/", (string) file_get_contents( $goc . 'kh-tai-chinh.php' ), $m );
+define( 'KHTC_VERSION', $m[1] ?? '0' );
 define( 'KHTC_DIR', $goc );
 define( 'KHTC_URL', 'https://vi.du/wp-content/plugins/kh-tai-chinh/' );
 define( 'KHTC_CAP', 'edit_pages' );
