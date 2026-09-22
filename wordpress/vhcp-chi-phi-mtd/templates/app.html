@@ -2578,20 +2578,50 @@
     var u=GL_THAT||CURUSER;
     return !!(u && u.role==='Admin');
   }
-  /** Mọi vai có thể đội: bốn vai gốc + vai tự tạo, không trùng, bỏ chính Admin. */
+  /**
+   * Mọi vai có thể đội, GOM THEO VAI CHA.
+   *
+   * 🔴 Anh Thắng 22/09/2026: *"tách rõ nhân viên theo vai trò nào luôn"*. Danh sách phẳng bày
+   *    "Nhân viên" cạnh "Nhân Viên Cơ Sở" cạnh "Nhân Viên Kho Cơ Sở" như ba thứ ngang hàng —
+   *    trong khi hai cái sau là CON của cái đầu và thừa quyền từ nó. Đội nhầm một lốt là kết
+   *    luận sai về màn của cả một nhóm người.
+   *
+   * ⚠️ MỘT NGUỒN SỰ THẬT: `_glVaiDs()` ngay dưới chỉ làm phẳng hàm này. Dựng hai danh sách
+   *    riêng là có ngày ô chọn bày một đằng, phép kiểm đo một nẻo.
+   * ⚠️ VAI GỐC ĐỨNG ĐẦU NHÓM CỦA CHÍNH NÓ, không tách ra một nhóm riêng: đội "Nhân viên" trần
+   *    là một lựa chọn thật (người chưa được gán vai con nào), và nó thuộc đúng nhóm ấy.
+   * ⚠️ VAI MỒ CÔI (khai `goc` rỗng, hoặc trỏ vào một vai gốc không còn) DỒN XUỐNG NHÓM CUỐI,
+   *    không bỏ đi. Bỏ là mất hẳn lối thử vai ấy, mà vai mồ côi lại đúng là vai hay sai nhất.
+   */
+  function _glVaiNhom(){
+    var ds=(((typeof CFG!=='undefined' && CFG) ? CFG.vaiTro : null)||[]);
+    var nhom=[], theoCha={};
+    VAI_GOC.forEach(function(g){
+      theoCha[g]={ cha:g, ds:[g] };   /* vai gốc đứng đầu nhóm của chính nó */
+      nhom.push(theoCha[g]);
+    });
+    var moCoi={ cha:'Vai chưa rõ nhóm', ds:[] };
+    ds.forEach(function(x){
+      var t=String((x&&x.ten)||'').trim();
+      if(!t || t==='Admin') return;                  /* đội lốt chính mình là vô nghĩa */
+      if(theoCha[t]) return;                          /* trùng tên một vai gốc -> đã có */
+      var g=String((x&&x.goc)||'').trim();
+      var o=theoCha[g]||moCoi;
+      if(o.ds.indexOf(t)<0) o.ds.push(t);
+    });
+    if(moCoi.ds.length) nhom.push(moCoi);
+    /* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG, ghi lại để lần sau khỏi đuổi theo: hôm nay phép lọc này KHÔNG
+       bỏ được nhóm nào, vì mỗi nhóm gốc luôn chứa sẵn chính vai gốc, còn nhóm mồ côi chỉ được
+       thêm vào khi đã có phần tử. Giữ vì nó gác cho ngày `VAI_GOC` thôi tự nằm trong nhóm của
+       mình (ví dụ khi có vai gốc bị ẩn đi) — lúc ấy một nhóm rỗng là một nhãn trống trơ trong
+       ô chọn, bấm vào không có gì. */
+    return nhom.filter(function(o){ return o.ds.length; });
+  }
+  /** Bản PHẲNG của `_glVaiNhom()` — cùng một nguồn, chỉ bỏ tầng nhóm đi. */
   function _glVaiDs(){
     var ra=[];
-    VAI_GOC.forEach(function(v){ if(ra.indexOf(v)<0) ra.push(v); });
-    /* 🔴 `CFG` KHỞI ĐẦU LÀ `null`, KHÔNG PHẢI `{}` — xem `var CFG=null` ở khối Cấu hình.
-       `glVeBar()` chạy từ `applyPerms()`, tức NGAY SAU KHI ĐĂNG NHẬP và trước khi ai bấm vào
-       tab Cấu hình. Đọc thẳng `CFG.vaiTro` lúc ấy là ném TypeError, `glVeBar()` chết giữa
-       chừng, và `sel.innerHTML` chưa kịp đặt -> Ô CHỌN VAI RỖNG TRƠN. Đúng cái anh Thắng
-       chụp lại: bấm vào ô thì xổ ra một danh sách trắng.
-       ⚠️ Lỗi này KHÔNG kêu tiếng nào trên màn — nó chỉ nằm ở bảng điều khiển trình duyệt, nơi
-          không ai mở. Thứ duy nhất nhìn thấy là một cái ô rỗng. */
-    (((typeof CFG!=='undefined' && CFG) ? CFG.vaiTro : null)||[]).forEach(function(x){
-      var t=String((x&&x.ten)||'').trim();
-      if(t && t!=='Admin' && ra.indexOf(t)<0) ra.push(t);
+    _glVaiNhom().forEach(function(o){
+      o.ds.forEach(function(v){ if(ra.indexOf(v)<0) ra.push(v); });
     });
     return ra;
   }
@@ -2604,13 +2634,27 @@
     bar.style.display='';
     var sel=el('glVaiSel'), cur=GL_THAT?String(CURUSER.role||''):'';
     if(sel){
+      /* Gom bằng `<optgroup>` — cùng nếp ô chọn loại chi phí. Nhãn nhóm là tên VAI CHA, nên
+         nhìn một cái là biết vai con nào thừa quyền từ đâu. */
       sel.innerHTML='<option value="">— là chính tôi (Admin) —</option>'
-        +_glVaiDs().map(function(v){
-          return '<option'+(v===cur?' selected':'')+'>'+esc(v)+'</option>'; }).join('');
+        +_glVaiNhom().map(function(o){
+          return '<optgroup label="'+esc(o.cha)+'">'
+            +o.ds.map(function(v){
+              /* Vai gốc để trần, vai con thụt vào bằng khoảng trắng CỨNG — dấu cách thường bị
+                 trình duyệt nuốt ở đầu `<option>`, tức không thụt gì cả. */
+              var thut=(v===o.cha)?'':'\u00a0\u00a0\u21b3 ';
+              return '<option value="'+esc(v)+'"'+(v===cur?' selected':'')+'>'+thut+esc(v)+'</option>';
+            }).join('')
+            +'</optgroup>';
+        }).join('');
     }
     var nut=el('glThoatBtn'); if(nut) nut.style.display=GL_THAT?'':'none';
     var chu=el('glDangDoi');
-    if(chu) chu.textContent=GL_THAT?('→ đang xem màn của "'+cur+'"'):'';
+    if(chu){
+      var g='';
+      _glVaiNhom().forEach(function(o){ if(o.ds.indexOf(cur)>=0 && cur!==o.cha) g=o.cha; });
+      chu.textContent=GL_THAT?('→ đang xem màn của "'+cur+'"'+(g?(' · nhóm '+g):'')):'';
+    }
   }
   /** Đổi lốt. Chọn ô trống = thôi giả lập. */
   function glDoi(){

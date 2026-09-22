@@ -200,6 +200,10 @@ BAN.forEach(function (b) {
   t('🔴 ' + b + ': và nói rõ F5 là về chính mình',
     /F5 là về lại chính mình/.test(khoi), khoi.slice(0, 200));
   t(b + ': có nút thôi giả lập', /glThoat\(\)/.test(khoi));
+  /* 🔴 Ô CHỌN GOM BẰNG `<optgroup>`, nhãn nhóm là tên vai cha. */
+  const bar2 = h.slice(h.indexOf('function glVeBar('), h.indexOf('function glVeBar(') + 1400);
+  t('🔴 ' + b + ': ô chọn vai GOM theo vai cha bằng optgroup',
+    /<optgroup label="/.test(bar2) && /_glVaiNhom\(\)/.test(bar2), bar2.slice(0, 300));
 
   // chip phải nói ra khi đang đội lốt
   const j = h.indexOf("el('userChip').innerHTML");
@@ -245,7 +249,7 @@ BAN.forEach(function (b) {
   const c1 = { CFG: null, VAI_GOC: VG };
   vm.createContext(c1);
   let noC1 = '';
-  try { vm.runInContext(bocHam('_glVaiDs'), c1); c1.__ra = c1._glVaiDs(); }
+  try { vm.runInContext([bocHam('_glVaiNhom'), bocHam('_glVaiDs')].join('\n'), c1); c1.__ra = c1._glVaiDs(); }
   catch (e) { noC1 = String(e && e.message); }
   t('🔴 `CFG` chưa nạp mà gọi `_glVaiDs()` thì KHÔNG được ném lỗi', noC1 === '', noC1);
   t('🔴 và vẫn trả về đủ bốn vai gốc — ô chọn rỗng trông như "chưa khai vai nào", không như lỗi',
@@ -259,9 +263,43 @@ BAN.forEach(function (b) {
                                { ten: 'Quản lý', goc: 'Quản lý' },
                                { ten: 'Admin', goc: '' }] }, VAI_GOC: VG };
   vm.createContext(c2);
-  vm.runInContext(bocHam('_glVaiDs'), c2);
+  vm.runInContext([bocHam('_glVaiNhom'), bocHam('_glVaiDs')].join('\n'), c2);
   const ra2 = c2._glVaiDs();
   t('🔴 nạp xong thì vai TỰ TẠO cũng đội được', ra2.indexOf('Kế Toán KVC') >= 0, ra2);
+
+  /* ── 🔴 TÁCH RÕ VAI CON THUỘC VAI CHA NÀO ────────────────────────────────────────────────
+     Anh Thắng 22/09/2026: *"tách rõ nhân viên theo vai trò nào luôn"*. Danh sách phẳng bày
+     "Nhân viên" cạnh "Nhân Viên Cơ Sở" cạnh "Nhân Viên Kho Cơ Sở" như ba thứ ngang hàng —
+     trong khi hai cái sau là CON của cái đầu. Đội nhầm một lốt là kết luận sai về màn của cả
+     một nhóm người. */
+  const c3 = { CFG: { vaiTro: [
+    { ten: 'Nhân Viên Cơ Sở', goc: 'Nhân viên' },
+    { ten: 'Nhân Viên Kho Cơ Sở', goc: 'Nhân viên' },
+    { ten: 'Quản Lý Vận Hành', goc: 'Quản lý' },
+    { ten: 'Vai lạc', goc: '' },
+    { ten: 'Admin', goc: '' },
+  ] }, VAI_GOC: VG };
+  vm.createContext(c3);
+  vm.runInContext([bocHam('_glVaiNhom'), bocHam('_glVaiDs')].join('\n'), c3);
+  const nh = c3._glVaiNhom();
+  const tim = c => (nh.filter(o => o.cha === c)[0] || { ds: [] }).ds;
+
+  t('🔴 vai con nằm ĐÚNG nhóm của vai cha nó kế thừa',
+    tim('Nhân viên').indexOf('Nhân Viên Cơ Sở') >= 0
+    && tim('Nhân viên').indexOf('Nhân Viên Kho Cơ Sở') >= 0, tim('Nhân viên'));
+  t('   và KHÔNG lẫn sang nhóm khác',
+    tim('Quản lý').indexOf('Nhân Viên Cơ Sở') < 0
+    && tim('Quản lý').indexOf('Quản Lý Vận Hành') >= 0, tim('Quản lý'));
+  t('🔴 vai GỐC đứng đầu nhóm của chính nó — đội "Nhân viên" trần vẫn là một lựa chọn thật',
+    tim('Nhân viên')[0] === 'Nhân viên', tim('Nhân viên'));
+  /* Vai mồ côi hay sai nhất, nên càng phải thử được — bỏ đi là mất hẳn lối thử. */
+  const cuoi = nh[nh.length - 1];
+  t('🔴 vai MỒ CÔI (chưa khai cha) dồn xuống nhóm cuối, KHÔNG bị bỏ đi',
+    cuoi.ds.indexOf('Vai lạc') >= 0 && cuoi.cha !== 'Nhân viên', cuoi);
+  t('   và không nhóm nào rỗng — nhóm rỗng là một nhãn trống trong ô chọn',
+    nh.every(o => o.ds.length > 0), nh.map(o => o.cha + ':' + o.ds.length));
+  t('🔴 bản PHẲNG lấy từ chính bản NHÓM — hai danh sách riêng là có ngày lệch nhau',
+    c3._glVaiDs().length === nh.reduce((n, o) => n + o.ds.length, 0), c3._glVaiDs());
   t('🔴 nhưng KHÔNG bày "Admin" — đội lốt chính mình là một lựa chọn vô nghĩa',
     ra2.indexOf('Admin') < 0, ra2);
   t('   và không có tên nào trùng', ra2.length === new Set(ra2).size, ra2);
