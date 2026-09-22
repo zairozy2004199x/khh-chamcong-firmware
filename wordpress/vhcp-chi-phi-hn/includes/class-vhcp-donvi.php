@@ -309,6 +309,26 @@ class VHCPHN_DonVi {
 		'vp'  => array( 'VP', 'VĂN PHÒNG', 'VAN PHONG' ),
 	);
 
+	/**
+	 * DANH SÁCH KHỐI của bản này — mã + tên, để MÀN khỏi gõ cứng.
+	 *
+	 * 🔴 CẮN THẬT 22/09/2026, LẦN THỨ HAI CÙNG MỘT BỆNH. Anh Thắng: *"Vẫn mất đơn khi tạo hoặc
+	 *    F5"*. Bản 1.264.0 đã vá đúng bệnh ấy — nhưng chỉ vá NỬA ĐƯỜNG: chèn mã vùng vào
+	 *    `KHOI_THEO_DON_VI` và `ten_khoi()` ở MÁY CHỦ, rồi quên mất rằng MÀN có một danh sách
+	 *    RIÊNG gõ cứng (`var KHOI_DS=[kvc, mtd, vp]`). Máy chủ biết khối 'hn', màn thì không —
+	 *    nên đơn vẫn không tab nào bày ra, y như trước khi vá.
+	 *
+	 * ⚠️ HAI DANH SÁCH CHO MỘT SỰ THẬT LÀ CÁI BẪY. Nay chỉ còn MỘT nguồn: hàm này. Màn đọc
+	 *    `BOOT.khoiDs` và thôi tự khai.
+	 */
+	public static function khoi_ds() {
+		$ra = array();
+		foreach ( array_keys( self::KHOI_THEO_DON_VI ) as $ma ) {
+			$ra[] = array( 'ma' => $ma, 'ten' => VHCPHN_Cfg::ten_khoi( $ma ) );
+		}
+		return $ra;
+	}
+
 	/** Mã khối của một đơn vị — '' nếu không ánh xạ được. */
 	public static function khoi_cua( $don_vi ) {
 		$k = mb_strtoupper( trim( (string) $don_vi ) );

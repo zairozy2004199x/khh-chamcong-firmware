@@ -749,6 +749,10 @@ class VHCP_Don {
 			 *    đây chỉ cần trả lời có/không.
 			 * ══════════════════════════════════════════════════════════════════════════════ */
 			'khoiCoDon'  => self::khoi_con_don(),
+			/* 🔴 DANH SÁCH KHỐI — MỘT NGUỒN DUY NHẤT. Màn từng gõ cứng `[kvc, mtd, vp]`, nên
+			   bản vùng mã mới ('hn') có khối ở máy chủ mà KHÔNG có tab trên màn, và đơn của
+			   nó biến mất. Xem chốt dài ở `VHCP_DonVi::khoi_ds()`. */
+			'khoiDs'     => VHCP_DonVi::khoi_ds(),
 			/* Hai lựa chọn của ô Setup / Vận hành — đưa từ máy chủ xuống để MỘT nơi khai duy
 			   nhất. Gõ lại chuỗi ở màn là có ngày hai bên lệch nhau một dấu, và `giai_doan_chuan()`
 			   lẳng lặng ngã mọi dòng về rỗng. */

@@ -293,7 +293,16 @@
       <div class="fld"><label>Đơn</label>
         <select id="donSel" onchange="openDon(this.value)" style="min-width:280px"><option value="">— Chọn đơn —</option></select></div>
       <button class="btn b-p" id="btnNewDon" onclick="newDon()">＋ Tạo đơn mới</button>
-      <button class="btn b-x" data-dcsw-di="duan" onclick="showPage('duan')" style="display:none">← Quay lại chi phí Kỹ thuật</button>
+      <!-- ⚠️ CẶP NÚT CHUYỂN ĐƠN ĐÃ GỠ — 22/09/2026, anh Thắng: *"Bỏ cái chi phí kỹ thuật đi"*,
+           gửi kèm ảnh chính hai cái nút này.
+
+           Chúng là MỘT CẶP đi liền nhau: "← Quay lại chi phí Kỹ thuật" trên màn đơn tuần, và
+           "← Quay lại đơn tuần của cơ sở" trên màn Kỹ thuật. Gỡ một cái thôi là cái còn lại
+           dẫn người ta sang một nơi không có đường về — nên gỡ cả cặp.
+
+           ⚠️ TAB KỸ THUẬT (`duan`) VẪN CÒN, cùng mọi dữ liệu của nó. Lượt này chỉ gỡ LỐI TẮT
+              đi ngang giữa hai màn; vào bằng thanh tab như mọi tab khác thì vẫn vào được.
+              Muốn bỏ hẳn cả tab là việc khác, phải nói rõ mới làm. -->
       <button class="btn b-g" id="btnBackPrev" onclick="backToPrev()" style="display:none">← Quay lại</button>
       <button class="btn b-x" id="btnBackList" onclick="backToList()" style="display:none">📋 Danh sách đơn</button>
       <div class="db-day"></div>
@@ -749,7 +758,7 @@
         <div id="daTaoNut" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <button class="btn b-p" onclick="daMoTao()">➕ Tạo đơn</button>
           <span style="font-size:11px;color:#8c8781">Bấm <b>Tạo đơn</b> rồi chọn <b>🗓 Chi phí tuần</b> (nhiều cơ sở cho 1 đơn) hay <b>🏗 Chi phí dự án</b> (1 cơ sở 1 đơn).</span>
-          <button class="btn b-x" data-dcsw-di="don" onclick="showPage('don')" style="display:none;margin-left:auto">← Quay lại đơn tuần của cơ sở</button>
+          <!-- ⚠️ Nút đối ứng của cặp vừa gỡ — xem bia mộ ở thanh đơn (`donBar`). -->
         </div>
         <div id="daTaoBox" style="display:none;padding:10px 12px;background:#f9f8f6;border:1px solid #f0e9e1;border-radius:10px">
           <!-- 🔴 HỎI ĐÚNG MỘT LẦN — anh Thắng 11/09/2026: *"Sao lại hỏi lần 2"*.
@@ -1614,7 +1623,7 @@
       <div style="padding:6px 14px 12px;font-size:11px;color:#8c8781"><b style="color:#b45309">Vai trò KHÔNG còn bó bộ phận.</b> Vai trò trả lời đúng một câu: <b>làm được gì</b>. Còn <b>làm ở mảng nào</b> thì khai ở cột <b>Bộ phận</b> của bảng 🔐 Người dùng bên trên — một nơi duy nhất. Trước đây khai được ở cả hai chỗ, và <b>set chỗ này thì mất chỗ kia</b>.</div>
     </div>
     <div class="card" id="userCard">
-      <div class="ch"><h2>🔐 Người dùng &amp; Phân quyền</h2><div style="display:flex;gap:8px"><button class="btn" id="btnSoatNs" style="display:none" onclick="doSoatNs()">🔍 Soát trùng với Nhân sự</button><button class="btn" id="btnKhoiPhucUser" style="display:none" onclick="moKhoiPhucUser()">🛟 Khôi phục</button><button class="btn b-x" id="btnThemUser" onclick="addCfgUser()">＋ Thêm người</button><button class="btn b-g" id="btnLuuUser" onclick="saveCfgUsers()">💾 Lưu</button></div></div>
+      <div class="ch"><h2>🔐 Người dùng &amp; Phân quyền</h2><div style="display:flex;gap:8px"><button class="btn" id="btnSoatNs" style="display:none" onclick="doSoatNs()">🔍 Soát trùng với Nhân sự</button><button class="btn" id="btnKhoiPhucUser" style="display:none" onclick="moKhoiPhucUser()">🛟 Khôi phục</button><button class="btn b-x" id="btnCheHetPin" onclick="pinCheHet()" title="Che lại tất cả mã PIN đang hiện — bấm trước khi chia sẻ màn hình hoặc chụp ảnh bảng này." style="display:none">🙈 Che hết PIN</button><button class="btn b-x" id="btnThemUser" onclick="addCfgUser()">＋ Thêm người</button><button class="btn b-g" id="btnLuuUser" onclick="saveCfgUsers()">💾 Lưu</button></div></div>
       <!-- Cột TÊN phải có bề rộng riêng. Không khai thì trình duyệt chia phần còn lại cho
            nó sau khi các cột khai cứng (150+110+120+44) và ô chọn Cơ sở lấy hết chỗ — cột
            Tên bị bóp còn một vạch, không đọc được tên ai. min-width của bảng nâng lên cho
@@ -2437,23 +2446,10 @@
    *    cho rộng, kẻo người mới cài vào là màn trắng) — vì hai thứ hỏng theo hai kiểu khác
    *    nhau: tab ẩn nhầm là người ta kêu ngay, còn nút bày nhầm thì lặng lẽ đẻ ra đơn sai.
    * ══════════════════════════════════════════════════════════════════════════════════════ */
-  function _veNutChuyenDon(vis){
-    var bp=_bpCuaToi();
-    var la_nv=(_vaiLuat()==='Nhân viên');
-    /* Lớp 2 chỉ siết NHÂN VIÊN. Admin / Quản lý / Kế toán vốn đi lại cả hai mảng, và họ là
-       người soát chứ không phải người nhập — bày lối tắt cho họ là đúng. */
-    /* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG, ghi lại để lần sau khỏi đuổi theo: bỏ vế `bp!==''` KHÔNG đổi kết
-       quả — `BP_VAO_DUAN` không chứa chuỗi rỗng nên `indexOf('')` trả −1. Giữ vế ấy vì nó nói
-       thẳng ra luật "chưa khai bộ phận thì ẩn", và vì ngày nào ai đó lỡ thêm '' vào danh sách
-       thì đây là lớp chặn còn lại. */
-    var duocDuAn=!la_nv || ( bp!=='' && BP_VAO_DUAN.indexOf(bp)>=0 );
-    var duocCoSo=!la_nv || ( bp!=='' && _vaoDonCoSo(bp) );
-    Array.prototype.forEach.call(document.querySelectorAll('[data-dcsw-di]'),function(b){
-      var di=b.getAttribute('data-dcsw-di');
-      var mo=!!(vis&&vis[di]) && ( di==='duan' ? duocDuAn : ( di==='don' ? duocCoSo : true ) );
-      b.style.display=mo?'':'none';
-    });
-  }
+  /* ⚠️ `_veNutChuyenDon()` ĐÃ GỠ cùng cặp nút nó vẽ — 22/09/2026. Xem bia mộ ở `donBar`.
+     ⚠️ `BP_VAO_DUAN` và `_vaoDonCoSo()` THÌ GIỮ: chúng còn quyết định TAB nào mở cho ai
+        (`applyPerms()`), và đó mới là chốt thật. Hàm vừa gỡ chỉ dùng chúng để bày một lối
+        tắt — gỡ lối tắt không nới một chốt quyền nào. */
   /* ⚠️ DẢI "👁 Xem như" ĐÃ GỠ (22/09/2026, anh Thắng: *"bỏ này đi"*).
      Nó là công cụ thử của Admin: đổi vai + khối để xem màn của người khác mà không phải đăng
      xuất. Gỡ CẢ khối, không chỉ ẩn đi — để ẩn thì mã mô phỏng vẫn còn và vẫn sửa được
@@ -2531,7 +2527,6 @@
     });
     // Thanh "LOẠI ĐƠN" nằm TRONG trang, không phải trên hàng tab — nên phải ẩn riêng. Để nút
     // "Dự án · gian thi công" sáng cho người không có quyền vào là họ bấm rồi ăn trang trắng.
-    _veNutChuyenDon(vis);
     /* Giữ lại bảng quyền để `defaultPageFor()` và `showDonChi()` khỏi ném người dùng vào đúng
        cái tab vừa ẩn — nhớ tab lần trước bằng localStorage nên chuyện này xảy ra thật. */
     QUYEN_TAB=vis;
@@ -2568,11 +2563,31 @@
   function pinHien(btn){
     if(!_laAdminThat()){ toast('warn','Chỉ Admin xem được PIN'); return; }
     var o=btn.parentNode.querySelector('input'); if(!o) return;
-    var h=o._pinHen;
-    if(h){ clearTimeout(h); o._pinHen=null; }
-    if(o.type==='text'){ o.type='password'; btn.textContent='👁'; return; }
-    o.type='text'; btn.textContent='🙈';
-    o._pinHen=setTimeout(function(){ o.type='password'; btn.textContent='👁'; o._pinHen=null; }, 10000);
+    /* Hẹn giờ của bản trước có thể còn treo trên ô này — dọn trước khi đổi, không thì nó nổ
+       muộn và che lại đúng lúc người ta vừa bấm hiện. */
+    if(o._pinHen){ clearTimeout(o._pinHen); o._pinHen=null; }
+    var dangHien=(o.type==='text');
+    o.type=dangHien?'password':'text';
+    btn.textContent=dangHien?'👁':'🙈';
+  }
+  /** Che lại TẤT CẢ PIN trong một nhịp — cho lúc sắp chia sẻ màn hình. */
+  /* Nút "Che hết PIN" chỉ có nghĩa với người đang nhìn thấy PIN. Gọi từ `renderUsers()`. */
+  function _veNutCheHetPin(){
+    var b=el('btnCheHetPin'); if(b) b.style.display=_laAdminThat()?'':'none';
+  }
+  function pinCheHet(){
+    var n=0;
+    /* ⚠️ `[data-user-body]`, KHÔNG phải `#cfgUserBody`: bảng người dùng chia thành NHIỀU
+       `<tbody>`, mỗi vai một cái (`cfgUserBody0`, `cfgUserBody1`…). Bộ chọn theo một id là
+       trúng đúng một nhóm vai, và mấy nhóm còn lại vẫn phơi PIN — im lặng, vì nút vẫn báo
+       "đã che" kèm một con số nghe có vẻ hợp lý. */
+    Array.prototype.forEach.call(document.querySelectorAll('[data-user-body] input[type="text"]'),function(o){
+      if(String(o.getAttribute('maxlength')||'')!=='8') return;   /* chỉ ô PIN */
+      if(o._pinHen){ clearTimeout(o._pinHen); o._pinHen=null; }
+      o.type='password'; n++;
+      var b=o.parentNode.querySelector('button'); if(b) b.textContent='👁';
+    });
+    toast('ok', n?('Đã che '+n+' mã PIN'):'Không còn PIN nào đang hiện');
   }
   function _laAdminThat(){
     var u=GL_THAT||CURUSER;
@@ -2822,7 +2837,33 @@
    * ⚠️ NGÀY VP CŨNG RA RIÊNG thì bỏ 'vp' khỏi `KHOI_MO` là xong: `_khoiBay()` còn đúng một
    *    khối thì `veThanhKhoi()` tự ẩn cả thanh. Không phải đi sửa mười chỗ.
    * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  /* ══════════════════════════════════════════════════════════════════════════════════════
+   * 🔴 DANH SÁCH KHỐI LẤY TỪ MÁY CHỦ — KHÔNG GÕ CỨNG NỮA.
+   * ══════════════════════════════════════════════════════════════════════════════════════
+   * Cắn thật 22/09/2026, LẦN THỨ HAI cùng một bệnh. Anh Thắng: *"Vẫn mất đơn khi tạo hoặc
+   * F5"*. Bản 1.264.0 đã vá đúng bệnh ấy — nhưng chỉ NỬA ĐƯỜNG: chèn mã vùng vào bộ khối ở
+   * MÁY CHỦ, rồi quên mất rằng MÀN có một danh sách RIÊNG gõ cứng ngay đây. Máy chủ biết khối
+   * 'hn', màn thì không — nên đơn của bản Hà Nội vẫn không tab nào bày ra, y như trước khi vá.
+   *
+   * ⚠️ HAI DANH SÁCH CHO MỘT SỰ THẬT LÀ CÁI BẪY, và nó im lặng theo cách tệ nhất: mỗi bên
+   *    nhìn vào phần của mình đều thấy đúng. Nay một nguồn duy nhất — `VHCP_DonVi::khoi_ds()`.
+   * ⚠️ ĐƯỜNG LUI GIỮ NGUYÊN BA KHỐI CŨ: gói khởi động của bản CŨ không có khoá này, và thiếu
+   *    khoá mà trả mảng rỗng là thanh KHỐI trắng trơn — không vào được đâu cả.
+   * ══════════════════════════════════════════════════════════════════════════════════════ */
+  /* ⚠️ `KHOI_DS` KHAI TRƯỚC, VÀ KHAI ĐỦ BA KHỐI NGAY TẠI DÒNG NÀY. Cả chục bệ đỡ bài kiểm bốc
+     đúng mẫu `var KHOI_DS=[{ma:...` ra chạy riêng; đổi nó thành một tham chiếu tới hằng khai
+     ở dòng khác là mười mấy bài chết đứng bằng ReferenceError — đã xảy ra đúng thế. Đường lui
+     là BẢN SAO của nó, không phải ngược lại. */
   var KHOI_DS=[{ma:'kvc',ten:'Khu vui chơi'},{ma:'mtd',ten:'Máy tự động'},{ma:'vp',ten:'Văn phòng'}];
+  var KHOI_DS_LUI=KHOI_DS.slice();
+  function _napKhoiDs(){
+    var ds=(typeof BOOT!=="undefined"&&BOOT&&BOOT.khoiDs)||null;
+    KHOI_DS=(ds&&ds.length)?ds:KHOI_DS_LUI;
+    /* Khối của CHÍNH BẢN NÀY luôn nhận việc mới — nó là nơi `create_don()` đóng dấu mọi đơn
+       lập ở đây. Thiếu nó trong `KHOI_MO` là đơn vừa lập xong đã nằm ở một tab "lưu trữ". */
+    var ban=String((typeof BOOT!=="undefined"&&BOOT&&BOOT.khoiBan)||'').trim();
+    if(ban && KHOI_MO.indexOf(ban)<0) KHOI_MO.push(ban);
+  }
   var KHOI_MO=['kvc','vp'];
   /** Khối CÒN NHẬN VIỆC MỚI ở bản này. */
   function _khoiMo(){ return KHOI_DS.filter(function(x){ return KHOI_MO.indexOf(x.ma)>=0; }); }
@@ -3765,7 +3806,7 @@
   function boot(cb){
     loading(true);
     google.script.run.withSuccessHandler(function(b){
-      BOOT=b||BOOT; loading(false); _applyTabPerms();   // mở tab theo phân quyền vừa nạp
+      BOOT=b||BOOT; _napKhoiDs(); loading(false); _applyTabPerms();   // mở tab theo phân quyền vừa nạp
       var isNV=(_vaiLuat()==='Nhân viên');
       var myCoso=String((CURUSER&&CURUSER.coso)||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
       var cosoOpts=(isNV&&myCoso.length)?myCoso:BOOT.coso;
@@ -13879,6 +13920,7 @@
   }
   function renderUsers(){
     renderKhaiLac();
+    _veNutCheHetPin();
     var adm=coCauHinh();
     if(el('userCard')) el('userCard').style.display=adm?'':'none';
     if(el('imgMaintCard')) el('imgMaintCard').style.display=adm?'':'none';
@@ -14042,9 +14084,22 @@
        *    thật bằng chuỗi che — khoá tài khoản của cả bảng.
        * ══════════════════════════════════════════════════════════════════════════════════════ */
       +'<td><div style="display:flex;gap:4px;align-items:center">'
-      +'<input type="password" value="'+esc(u.pin||'')+'" readonly autocomplete="off" title="PIN lấy từ hệ thống nhân sự — đổi ở trang Chấm công · Nhân sự, không đổi ở đây." maxlength="8" style="width:100%;background:#f4f1ec;color:#8c8781;cursor:not-allowed">'
+      /* 🔴 ADMIN THẬT THÌ HIỆN LUÔN — anh Thắng 22/09/2026 yêu cầu lần thứ hai: *"làm hiện
+         pin luôn đi em"*. Lần đầu em làm nút 👁 bấm từng dòng; anh muốn thấy thẳng.
+
+         ⚠️ ĐÂY LÀ QUYẾT ĐỊNH CỦA ANH THẮNG, ghi lại để sau này không ai "sửa lại cho an toàn"
+            mà không biết. Và nó KHÔNG mở thêm cửa nào: `getUsers()` vốn đã gửi PIN thật xuống
+            trình duyệt, ai mở F12 là đọc được cả bảng. Lớp `type="password"` cũ chưa bao giờ
+            giấu được gì — nó chỉ khiến người nhìn TƯỞNG là có giấu.
+         ⚠️ AI KHÔNG PHẢI ADMIN THẬT THÌ VẪN CHE. Không phải vì lớp che ấy chắc, mà vì bảng
+            này bày PIN của toàn công ty: không có lý do gì bày thẳng cho một vai đang giả
+            lập, hay cho kế toán đang ngồi giữa văn phòng.
+         🔴 CHỖ HỎNG THẬT VẪN NGUYÊN, và nút này không chữa được: máy chủ GỬI PIN xuống màn,
+            và PIN lưu dạng chữ thường không băm. Chữa đúng là thôi gửi (chỉ gửi CÓ/KHÔNG) và
+            băm khi lưu — cả hai đổi đường đăng nhập của mọi người nên phải anh Thắng chốt. */
+      +'<input type="'+(_laAdminThat()?'text':'password')+'" value="'+esc(u.pin||'')+'" readonly autocomplete="off" title="PIN lấy từ hệ thống nhân sự — đổi ở trang Chấm công · Nhân sự, không đổi ở đây." maxlength="8" style="width:100%;background:#f4f1ec;color:#8c8781;cursor:not-allowed">'
       +(_laAdminThat()
-        ? '<button type="button" class="btn b-x" onclick="pinHien(this)" title="Hiện PIN 10 giây rồi tự ẩn. Bảng này bày PIN của cả công ty — đừng bật lúc đang chia sẻ màn hình." style="padding:2px 7px;font-size:11px">👁</button>'
+        ? '<button type="button" class="btn b-x" onclick="pinHien(this)" title="Che PIN lại. Bảng này bày PIN của cả công ty — che đi khi chia sẻ màn hình." style="padding:2px 7px;font-size:11px">🙈</button>'
         : '')
       +'</div></td>'
       +'<td>'+_roleSel(u.vaiTro)

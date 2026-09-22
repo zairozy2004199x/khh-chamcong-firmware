@@ -360,38 +360,23 @@ t('🔴 tới đây vì đã chọn "Đơn tuần của cơ sở": KHÔNG hỏi 
 const ND3 = beNewDon(undefined, 'Cơ sở');
 t('   nhân viên cơ sở vốn chỉ có một loại: cũng không hỏi', ND3.hoi === 'none' && ND3.coso === '', ND3);
 
-/* Nút chuyển một chiều: chạy THẬT hàm vẽ nó, với một trang giả có đủ hai nút.
-   ⚠️ Từ 12/09/2026 hàm ấy gác HAI lớp — lớp hai xét vai + bộ phận (anh Thắng: *"Đối với nhân
-      viên cơ sở ẩn nút này đi"*). Bệ đỡ mặc định ở đây là ADMIN, để mấy phép cũ dưới chỉ đo
-      đúng lớp `vis` như ý ban đầu của chúng; ca nhân viên có bài riêng
-      `kiem-xem-nhu-va-nut-chuyen.js`. */
-function beNutChuyen(vis, ai) {
-  ai = ai || { role: 'Admin', roleGoc: 'Admin', boPhan: '' };
-  const nut = [{ di: 'don', style: { display: 'x' } }, { di: 'duan', style: { display: 'x' } }];
-  const moi = {
-    document: { querySelectorAll: sel => (sel === '[data-dcsw-di]' ? nut : []) },
-    Array: Array,
-    CURUSER: ai,
-    BP_VAO_DUAN: ['Văn phòng', 'Kỹ thuật'],
-    _vaiGoc: () => String(ai.roleGoc || ai.role || ''),
-    /* Cùng luật với bản thật: quy về vai gốc, RIÊNG con của Admin thì không. */
-    _vaiLuat: () => (ai.role === 'Admin' ? 'Admin'
-      : (String(ai.roleGoc || '') === 'Admin' ? String(ai.role || '')
-        : String(ai.roleGoc || ai.role || ''))),
-    _vaoDonCoSo: bp => !(bp && ['Kỹ thuật'].indexOf(bp) >= 0),
-  };
-  new Function('moi', 'V', `with(moi){ ${BP_THAT}\n${boc('_veNutChuyenDon')}
-    nut.forEach(function(b){ b.getAttribute=function(){ return b.di; }; });
-    _veNutChuyenDon(V); }`).call(null, Object.assign(moi, { nut }), vis);
-  return { don: nut[0].style.display, duan: nut[1].style.display };
-}
-const NC = beNutChuyen({ don: 1, duan: 0 });
-t('🔴 chỉ vào được đơn tuần: hiện nút sang đơn tuần, ẨN nút sang Kỹ thuật',
-  NC.don === '' && NC.duan === 'none', NC);
-const NC2 = beNutChuyen({ don: 0, duan: 1 });
-t('   ngược lại cũng vậy', NC2.don === 'none' && NC2.duan === '', NC2);
-const NC3 = beNutChuyen(null);
-t('   chưa có bảng quyền thì ẩn cả hai, không nổ', NC3.don === 'none' && NC3.duan === 'none', NC3);
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 CẶP NÚT CHUYỂN ĐƠN ĐÃ GỠ — 22/09/2026, anh Thắng: *"Bỏ cái chi phí kỹ thuật đi"*.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Khối này trước kia chạy THẬT `_veNutChuyenDon()` trên một trang giả có đủ hai nút, để đo luật
+ * ẩn/hiện hai lớp của chúng. Hàm ấy nay không còn, nên khối chạy thật cũng đi theo.
+ *
+ * ⚠️ KHÔNG XOÁ TRẮNG. Đổi sang canh chiều ngược lại — đã gỡ sạch, và KHÔNG gỡ lạm hai chốt
+ *    TAB nằm sát ngay cạnh (`BP_VAO_DUAN`, `_vaoDonCoSo`). Chúng mới là chốt quyền thật; cái
+ *    nút chỉ mượn chúng để bày một lối tắt. Quét sạch cả cụm là nhân viên cơ sở mất tab đơn
+ *    tuần — hỏng nặng hơn hẳn cái nút vừa gỡ.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+t('🔴 cặp nút chuyển loại đơn đã gỡ sạch', HTML.indexOf('[data-dcsw-di]') < 0);
+t('   và hàm vẽ nó cũng gỡ theo', HTML.indexOf('function _veNutChuyenDon') < 0);
+t('🔴 nhưng `BP_VAO_DUAN` VẪN còn — nó gác TAB, không phải cái nút vừa gỡ',
+  HTML.indexOf('BP_VAO_DUAN') >= 0);
+t('🔴 và `_vaoDonCoSo()` VẪN còn — mất là nhân viên cơ sở hết tab đơn tuần',
+  HTML.indexOf('function _vaoDonCoSo') >= 0);
 
 /* ── 6. MÀU NỔI CHO HAI LOẠI CHI PHÍ + NÚT QUAY LẠI + BỎ NÚT SỔ CHUNG ──────────────────
    Anh Thắng 11/09/2026: *"Kỹ thuật sẽ tập trung vào 2 chi phí này, nên cần cho hiện màu nổi
@@ -453,8 +438,9 @@ t('   nhưng danh sách vẫn đánh dấu dòng sổ chung', HTML.indexOf('· s
 
 /* Cặp nút LOẠI ĐƠN cũ phải biến mất khỏi trang — còn sót là còn chỗ để lộn. */
 t('🔴 không còn cặp nút bật/tắt "LOẠI ĐƠN" trong trang', HTML.indexOf('data-dcsw=') < 0);
-t('   thay bằng nút chuyển một chiều, mặc định ẩn',
-  (HTML.match(/data-dcsw-di="/g) || []).length === 2, (HTML.match(/data-dcsw-di="/g) || []).length);
+/* Cặp nút chuyển một chiều thay cho nó cũng đã gỡ nốt 22/09/2026 — xem khối 🔴 ở trên. */
+t('   và cặp nút chuyển một chiều thay nó cũng gỡ nốt',
+  (HTML.match(/data-dcsw-di="/g) || []).length === 0, (HTML.match(/data-dcsw-di="/g) || []).length);
 /* 🔴 CANH CẢ DẤU NHÁY ĐÓNG. Dò `indexOf('ndLoaiDaCoSo')` thì một id dài hơn ("ndLoaiDaCoSoXyz")
    vẫn khớp vì nó là TIỀN TỐ — đục id đi mà phép vẫn xanh. */
 t('   và hộp "Đơn này là loại nào?" có đủ ba lối',

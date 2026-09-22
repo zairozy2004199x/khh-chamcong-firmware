@@ -229,11 +229,15 @@ la('không còn cặp nút bật/tắt LOẠI ĐƠN', '[data-dcsw="duan"]' not i
 #    đơn tuần: *"Đối với nhân viên cơ sở ẩn nút này đi, tránh nhập nhầm"*. Lớp `vis` một mình
 #    không đủ: nó chỉ hạ xuống 0 khi ô Bộ phận CÓ khai, mà phần lớn tài khoản nhân viên cơ sở
 #    để trống ô ấy.
-la('ẩn nút chuyển loại đơn khi không có quyền (lớp 1: vis)',
-   '[data-dcsw-di]' in src and 'vis[di]' in src)
-la('lớp 2: nhân viên chưa khai bộ phận cũng ẩn',
-   "bp!==''" in src and 'BP_VAO_DUAN.indexOf(bp)' in src)
-la('và lớp 2 chỉ siết nhân viên', "la_nv=(_vaiLuat()==='Nhân viên')" in src)
+# 🔴 CẶP NÚT CHUYỂN ĐƠN ĐÃ GỠ — 22/09/2026, anh Thắng: *"Bỏ cái chi phí kỹ thuật đi"*.
+# Ba phép ở đây trước kia canh luật ẩn/hiện của chúng; nay đảo chiều thành "đã gỡ sạch".
+# Xoá phép đi thì lần sau ai dựng lại cũng không ai hay.
+la('cặp nút chuyển loại đơn đã gỡ', '[data-dcsw-di]' not in src)
+la('và hàm vẽ nó cũng gỡ theo', 'function _veNutChuyenDon' not in src)
+# ⚠️ NHƯNG ĐỪNG GỠ LẠM: hai chốt TAB phải còn — chúng mới là chốt quyền thật, cái nút chỉ
+#    mượn chúng để bày một lối tắt. Quét sạch cả cụm là nhân viên cơ sở mất tab đơn tuần.
+la('🔴 `BP_VAO_DUAN` VẪN còn — nó gác TAB', 'BP_VAO_DUAN.indexOf(bp)' in src)
+la('🔴 `_vaoDonCoSo()` VẪN còn', 'function _vaoDonCoSo' in src)
 
 m9 = re.search(r'function _kyTuDo\(\)\{(.*?)\n  \}', src, re.S)
 la('tìm thấy _kyTuDo()', m9 is not None)
