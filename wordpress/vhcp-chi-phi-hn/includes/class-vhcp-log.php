@@ -10,6 +10,9 @@ class VHCPHN_Log {
 		$rec = (array) $rec;
 		$g   = function ( $k ) use ( $rec ) { return isset( $rec[ $k ] ) ? (string) $rec[ $k ] : ''; };
 		$wpdb->insert( VHCPHN_DB::t( 'log' ), array(
+			/* Nhật ký cũng mang dấu mảng: ba mảng chung một kho thì sổ nhật ký trộn lẫn là
+			   không truy được ai làm gì bên nào. */
+			'khoi'      => VHCPHN_DB::khoi(),
 			'tg'        => VHCPHN_Util::now_sql(),
 			'nguoi'     => $g( 'actor' ),
 			'vai_tro'   => $g( 'role' ),

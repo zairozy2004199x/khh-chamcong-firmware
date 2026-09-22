@@ -30,10 +30,25 @@ class VHCPHN_API {
 	 *  của mọi người. Danh sách dưới khớp đúng những tab mà giao diện vốn chỉ cho
 	 *  Admin/Quản lý thấy, nên người dùng không thấy khác gì.)
 	 */
+	/* Sáu cửa MISA — mọi lối làm ra tệp MISA hoặc đóng dấu "đã xuất". Thêm hàm MISA mới thì
+	   khai vào đây, không thì nó là cái lỗ duy nhất trong luật trên. */
+	private static $misa_fns = array( 'exportMisa', 'exportMisaKyThuat', 'exportMisaMarketing',
+		'exportMisaBP', 'exportMisaSoChi', 'markExported' );
+
 	private static function required_roles( $fn ) {
 		// Sửa hàng loạt NGÀY của dòng chi là đụng thẳng vào số liệu kế toán (ngày quyết định
 		// kỳ hạch toán). Chốt ở máy chủ, không tin mỗi giao diện.
-		$admin_only = array( 'deleteDonAdmin', 'unmarkExportedSoChi', 'suaNamVoLy', 'suaNgayHong', 'suaKyHong', 'setDonNgay',
+		/* 🔴 SỔ MÃ GỌI TẮT LÀ MỘT CỬA PHÂN QUYỀN. Khai thêm một dòng `MÃ|CƠ SỞ` là mở cho mọi tài
+		   khoản đang giữ mã ấy nhìn thấy sổ tiền của gian ấy — nên chỉ Admin, ngang hàng với
+		   mấy việc đụng thẳng vào số liệu bên dưới. */
+		$admin_only = array( 'luuMaTatCoso',
+			/* 🔴 BẢNG ĐỐI CHIẾU BA KHO — chỉ Admin, dù nó CHỈ ĐỌC.
+			   Nó đọc xuyên qua kho bảng của CẢ BA bản (gốc + hai bản vùng), tức là bày ra số tiền và
+			   danh sách người dùng của hai mảng KHÁC — đúng cái ranh giới mà thanh khối dựng
+			   lên để *"tránh râu ông này cắm bà kia"*. Kế toán KVC không có việc gì phải nhìn
+			   sổ Văn phòng, kể cả nhìn suông. */
+			'soatGop',
+			'deleteDonAdmin', 'unmarkExportedSoChi', 'suaNamVoLy', 'suaNgayHong', 'suaKyHong', 'setDonNgay',
 			/* Sửa TIỀN hàng loạt trên đơn đã duyệt — chỉ Admin, và chỉ sau khi xem trước. */
 			'donBuTruCu',
 			/* Đặt lại mốc một tuần ("tuần này chạy từ ngày nào đến ngày nào") — anh Thắng chốt
@@ -51,7 +66,12 @@ class VHCPHN_API {
 			// Khôi phục bảng người dùng là đụng thẳng vào ai đăng nhập được — chỉ Admin.
 			'listUserBak', 'khoiPhucUsers',
 			// Đổi tên cơ sở là sửa hàng loạt trên bốn bảng dữ liệu — chỉ Admin.
-			'doiTenCoSo' );
+			'doiTenCoSo',
+			/* Soát trùng nhân sự bày ra cả sổ hồ sơ bên trang Nhân sự (tên · mã NV · cơ sở ·
+			   chức vụ · ai đã có PIN) — đó là dữ liệu nhân sự của cả công ty, không phải việc
+			   của kế toán. Và `doiTenNguoi` thì sửa hàng loạt trên tám bảng cộng thẻ phiên,
+			   đụng thẳng vào khoá nối của mọi đơn cũ. Cả hai: chỉ Admin. */
+			'soatNhanSu', 'doiTenNguoi' );
 		// Việc của NGƯỜI DUYỆT / KẾ TOÁN — nhân viên KHÔNG được gọi, bất kể bảng phân quyền
 		// khai gì. Bảng đó nạp từ bảng tính cũ có thể lệch cột, mà đây là chỗ đụng tới tiền
 		// của người khác nên phải chốt ở máy chủ.
@@ -61,6 +81,9 @@ class VHCPHN_API {
 			'dungLenhBu',
 			'traLaiDon', 'traLaiDonNhieu', 'xacNhanQuyetToanCN', 'xacNhanQuyetToanNCC',
 			'xacNhanQtCnNhieu', 'setTatToanTuan', 'setSoDuDauKy', 'dongCuaCoSo',
+			/* Đánh dấu ĐÃ THANH TOÁN (bước riêng của MTĐ/VP) là khai rằng tiền đã ra khỏi két —
+			   việc của kế toán, không phải của người lập đơn. */
+			'danhDauThanhToan',
 			/* 🔴 `setLineThucMua` ĐÃ RỜI KHỎI ĐÂY — anh Thắng 01/09/2026, ảnh đơn FUNZONE VŨNG TÀU:
 			   *"nhân viên được phép nhập và sửa lại đơn chính xác trước khi quyết toán, nhưng
 			   nhập vào ô thực mua lại báo lỗi nhân viên không được chỉnh sửa"*.
@@ -74,6 +97,15 @@ class VHCPHN_API {
 			   kế toán đang soát, lúc ấy chỉ người duyệt/kế toán được đụng. Gác ở lõi thì mọi
 			   đường vào đều đi qua, kể cả bản giao diện cũ còn nằm trong bộ nhớ đệm. */
 			'setLineCN',
+			/* 🔴 GẮN MÃ HẠCH TOÁN LÀ VIỆC CỦA KẾ TOÁN. Anh Thắng 18/09/2026: *"kế toán có thể
+			   [sửa] loại chi phí nếu nó sai"*. Loại chi phí suy ra TK Nợ, nên người nhập đổi được
+			   là con số nhảy tài khoản sau lưng kế toán — và cái sai chỉ lộ ra lúc xuất MISA.
+			   Lõi `set_line_nhom()` cũng gác, đây là lớp thứ hai ở cổng. */
+			/* 🔴 VÀ CHỈNH THẲNG TK NỢ CỦA MỘT DÒNG — anh Thắng 22/09/2026: *"Sau khi quyết toán,
+			   thì kế toán có quyền điều chỉnh tk nợ theo nhu cầu"*. Cùng hạng với `setLineNhom`:
+			   nó đụng đúng con số đi vào sổ, chỉ khác là đổi thẳng mã thay vì đổi loại rồi suy
+			   ra mã. Lõi `set_line_tk_no()` cũng gác vai, đây là lớp thứ hai ở cổng. */
+			'setLineNhom', 'setLineTkNo', 'datLoaiCpDuAnLine',
 			/* Đẩy tiền sang sổ của đơn vị khác — không phải việc của nhân viên. */
 			'chuyenDonVi',
 			/* 🔴 NHẢY ĐƠN SANG TUẦN KHÁC — anh Thắng 31/08/2026: *"kế toán sẽ gửi lệnh nhảy đơn
@@ -81,6 +113,12 @@ class VHCPHN_API {
 			   ứng đã cấp, tức đụng vào báo cáo của HAI tuần cùng lúc — người lập đơn không được
 			   tự làm, kẻo tuần nào sắp bị soi thì đơn lặng lẽ trôi sang tuần sau. */
 			'chuyenKy',
+			/* 🔴 ĐỔI CƠ SỞ CỦA CẢ ĐƠN — anh Thắng 19/09/2026: *"cho quyền admin đổi đơn sang cơ
+			   sở khác là được"*, để dọn mấy đơn đã lỡ lập dưới một cơ sở ảo. Nó dời tiền đã
+			   nhập sang sổ của gian khác nên đứng cùng nhóm với `chuyenKy`: người lập đơn không
+			   được tự làm. Chính hàm còn chặn thêm một tầng — chỉ Admin. */
+			'doiCoSoDon',
+			'datKhoangKyDon',
 			/* Đổi con số tiền quản lý đã duyệt — việc của chính người duyệt, không phải người xin. */
 			'duyetLaiTamUng',
 		);
@@ -198,6 +236,7 @@ class VHCPHN_API {
 			'logAction'             => array( 'VHCPHN_Log', 'log_action' ),
 			'getLog'                => array( 'VHCPHN_Log', 'get_log' ),
 			'getDonLog'             => array( 'VHCPHN_Don', 'nhat_ky_don' ),
+			'getDuAnLog'            => array( 'VHCPHN_DuAn', 'nhat_ky_du_an' ),
 			'timDon'                => array( 'VHCPHN_Don', 'tim_don' ),
 			'dsLoaiChiPhi'          => array( 'VHCPHN_Don', 'ds_loai_chi_phi' ),
 
@@ -209,10 +248,17 @@ class VHCPHN_API {
 			'dsKyDangCo'            => array( 'VHCPHN_Don', 'ds_ky_dang_co' ),
 			'undoConfig'            => array( 'VHCPHN_Cfg', 'undo_config' ),
 			'getUsers'              => array( 'VHCPHN_Cfg', 'get_users' ),
+			/* Sổ mã gọi tắt của cơ sở — "TUTU_BD = TÀU BÌNH DƯƠNG". Xem khối dài ở
+			   `VHCPHN_Auth::so_ma_tat()`. */
+			'docMaTatCoso'          => array( 'VHCPHN_Auth', 'doc_ma_tat_api' ),
+			'luuMaTatCoso'          => array( 'VHCPHN_Auth', 'luu_ma_tat_api' ),
 			'listUserBak'           => array( 'VHCPHN_Cfg', 'list_user_bak' ),
 			'khoiPhucUsers'         => array( 'VHCPHN_Cfg', 'khoi_phuc_users' ),
+			'soatGop'               => array( 'VHCPHN_Gop', 'soat' ),
 			'cosoLa'                => array( 'VHCPHN_Cfg', 'coso_la' ),
 			'doiTenCoSo'            => array( 'VHCPHN_Cfg', 'doi_ten_coso' ),
+			'soatNhanSu'            => array( 'VHCPHN_Cfg', 'soat_nhan_su' ),
+			'doiTenNguoi'           => array( 'VHCPHN_Cfg', 'doi_ten_nguoi' ),
 			'getQuyen'              => array( 'VHCPHN_Cfg', 'get_quyen' ),
 			'getQuyenConfig'        => array( 'VHCPHN_Cfg', 'get_quyen_config' ),
 			'setQuyen'              => array( 'VHCPHN_Cfg', 'set_quyen' ),
@@ -234,6 +280,8 @@ class VHCPHN_API {
 			'setLineCN'             => array( 'VHCPHN_Don', 'set_line_cn' ),
 			'setLineAnh'            => array( 'VHCPHN_Don', 'set_line_anh' ),
 			'setLineNgay'           => array( 'VHCPHN_Don', 'set_line_ngay' ),
+			'setLineNhom'           => array( 'VHCPHN_Don', 'set_line_nhom' ),
+			'setLineTkNo'           => array( 'VHCPHN_Don', 'set_line_tk_no' ),
 			'setDonNgay'            => array( 'VHCPHN_Don', 'set_don_ngay' ),
 			'suaNamVoLy'            => array( 'VHCPHN_Don', 'sua_nam_vo_ly' ),
 			'suaNgayHong'           => array( 'VHCPHN_Don', 'sua_ngay_hong' ),
@@ -259,6 +307,8 @@ class VHCPHN_API {
 			'chuyenDonVi'           => array( 'VHCPHN_Don', 'chuyen_don_vi' ),
 			/* Nhảy đơn sang tuần khác khi không quyết toán kịp trong tuần của nó. */
 			'chuyenKy'              => array( 'VHCPHN_Don', 'chuyen_ky' ),
+			'doiCoSoDon'            => array( 'VHCPHN_Don', 'doi_coso_don' ),
+			'datKhoangKyDon'        => array( 'VHCPHN_Don', 'dat_khoang_ky' ),
 			'dsKyQuanh'             => array( 'VHCPHN_Don', 'ds_ky_quanh_api' ),
 			/* Tổng xin đổi sau khi duyệt (nhân viên sửa hạng mục, hoặc luật tính đổi) — cho
 			   quản lý chốt lại số, miễn là chưa cấp tiền. */
@@ -307,6 +357,21 @@ class VHCPHN_API {
 			'renameDuAn'            => array( 'VHCPHN_DuAn', 'rename_du_an' ),
 			'getDuAn'               => array( 'VHCPHN_DuAn', 'get_du_an' ),
 			'addDuAnLine'           => array( 'VHCPHN_DuAn', 'add_line' ),
+			'datDuToanDuAn'         => array( 'VHCPHN_DuAn', 'set_du_toan_da' ),
+			'datTrangThaiHangMuc'   => array( 'VHCPHN_DuAn', 'dat_hm' ),
+			'listDonHangMuc'        => array( 'VHCPHN_DuAn', 'list_don_hm' ),
+			'xinTamUngDuAn'         => array( 'VHCPHN_DuAn', 'xin_tam_ung_dot' ),
+			'datTrangThaiLenhDuAn'  => array( 'VHCPHN_DuAn', 'dat_tt_dot' ),
+			'capTienPhanDuAn'       => array( 'VHCPHN_DuAn', 'cap_tien_phan' ),
+			'listLenhDuAn'          => array( 'VHCPHN_DuAn', 'list_lenh_da' ),
+			'xinQuyetToanDuAn'      => array( 'VHCPHN_DuAn', 'xin_quyet_toan_dot' ),
+			'datTrangThaiQTDuAn'    => array( 'VHCPHN_DuAn', 'dat_tt_qt' ),
+			'datAnhDuAnLine'        => array( 'VHCPHN_DuAn', 'dat_anh_line' ),
+			'datODuAnLine'          => array( 'VHCPHN_DuAn', 'dat_o_line' ),
+			'datLoaiCpDuAnLine'     => array( 'VHCPHN_DuAn', 'dat_loai_cp_line' ),
+			'goAnhDuAnLine'         => array( 'VHCPHN_DuAn', 'go_anh_line' ),
+			'themHoSoDuAnLine'      => array( 'VHCPHN_DuAn', 'them_ho_so_line' ),
+			'datKyDuAn'             => array( 'VHCPHN_DuAn', 'set_ky_da' ),
 			'updateDuAnLine'        => array( 'VHCPHN_DuAn', 'update_line' ),
 			'deleteDuAnLine'        => array( 'VHCPHN_DuAn', 'delete_line' ),
 			'submitDuAn'            => array( 'VHCPHN_DuAn', 'submit' ),
@@ -366,6 +431,8 @@ class VHCPHN_API {
 			'exportMisaMarketing'   => array( 'VHCPHN_Misa', 'export_marketing' ),
 			'exportMisaBP'          => array( 'VHCPHN_Misa', 'export_bp' ),
 			'markExported'          => array( 'VHCPHN_Misa', 'mark_exported' ),
+			/* Bước thanh toán riêng của MTĐ/VP — xem `VHCPHN_Don::danh_dau_thanh_toan()`. */
+			'danhDauThanhToan'      => array( 'VHCPHN_Don', 'danh_dau_thanh_toan' ),
 
 			// tệp
 			'uploadImage'           => array( 'VHCPHN_Upload', 'upload_image' ),
@@ -402,8 +469,14 @@ class VHCPHN_API {
 			/* Cơ sở phụ trách đi kèm luôn: `list_dons()` cần nó để mở phạm vi đơn cho nhân viên
 			   phụ trách nhiều cơ sở (anh Thắng 30/08/2026). Không truyền thì `coso_ds()` rỗng,
 			   và mọi thứ rơi về đúng hành vi cũ — chỉ thấy đơn của chính mình. */
+			/* Phòng ban đi kèm luôn (13/09/2026): từ nay nó bó theo TÀI KHOẢN chứ không theo
+			   vai, nên không truyền là mọi chốt phòng ban im lặng mở toang. */
+			/* Mã NV đi kèm luôn: `soatNhanSu()` và `doiTenNguoi()` cần biết người đang gọi là
+			   ai bên Nhân sự. Không truyền là chúng đọc ra chuỗi rỗng và im lặng bỏ qua. */
 			VHCPHN_Auth::dat_vai_tro( $role_ht, $user ? (string) $user['name'] : '',
-				$user && isset( $user['coso'] ) ? (string) $user['coso'] : '' );
+				$user && isset( $user['coso'] ) ? (string) $user['coso'] : '',
+				$user && isset( $user['boPhan'] ) ? (string) $user['boPhan'] : '',
+				$user && isset( $user['maNv'] ) ? (string) $user['maNv'] : '' );
 			$need = self::required_roles( $fn );
 			if ( $need ) {
 				/* So bằng VAI GỐC, không phải tên vai người ta khai. Vai tự tạo "Nhân viên văn
@@ -423,6 +496,28 @@ class VHCPHN_API {
 					), 403 );
 				}
 			}
+		}
+
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		   KẾ TOÁN MÁY TỰ ĐỘNG KHÔNG ĐẨY MISA — CHỐT Ở MÁY CHỦ, KHÔNG CHỈ GIẤU TAB.
+
+		   Anh Thắng 21/09/2026: *"kế toán máy tự động chỉ check chứ ko đẩy misa"*. Giấu tab là
+		   đủ cho người dùng bình thường, nhưng `markExported` ghi thẳng 'Đã xuất MISA' vào sổ —
+		   một lượt gọi tay là đơn của cả tháng bị đánh dấu đã xuất trong khi chưa tệp nào đi ra.
+		   Chốt ở đây thì hàm MISA viết sau này cũng tự được gác.
+
+		   ⚠️ KHÔNG GỘP VÀO `required_roles()`: hàm ấy so bằng VAI GỐC (cố ý, để vai con thừa
+		      hưởng quyền của vai cha). Luật này thì ngược lại — nó phân biệt ĐÚNG hai vai con
+		      cùng cha: "Kế Toán Máy Tự Động" và "Kế Toán Khu Vui Chơi" đều kế thừa "Kế toán cá
+		      nhân". Nhét vào đó là hoặc chặn cả hai, hoặc chặn không ai.
+		   ═══════════════════════════════════════════════════════════════════════════════════ */
+		if ( in_array( $fn, self::$misa_fns, true ) && ! VHCPHN_Cfg::xuat_misa_duoc() ) {
+			return new WP_REST_Response( array(
+				'ok'    => false,
+				'error' => 'Vai trò "' . ( VHCPHN_Auth::vai_hien() !== '' ? VHCPHN_Auth::vai_hien() : 'không rõ' )
+					. '" chỉ soát và duyệt quyết toán. Đơn duyệt xong tự chuyển sang kế toán Khu vui chơi để xuất MISA.',
+				'code'  => 'forbidden',
+			), 403 );
 		}
 
 		/* 🔴 CHỐT ĐƠN VỊ (K&H · POSH) — MỘT LƯỢT CHO MỌI HÀM CÓ MÃ ĐƠN.

@@ -2375,6 +2375,12 @@
       b.style.display=mo?'':'none';
     });
   }
+  /* ⚠️ DẢI "👁 Xem như" ĐÃ GỠ (22/09/2026, anh Thắng: *"bỏ này đi"*).
+     Nó là công cụ thử của Admin: đổi vai + khối để xem màn của người khác mà không phải đăng
+     xuất. Gỡ CẢ khối, không chỉ ẩn đi — để ẩn thì mã mô phỏng vẫn còn và vẫn sửa được
+     `CURUSER` cùng `BOOT.khoiXem` từ bảng điều khiển trình duyệt.
+     ⚠️ Chốt quyền THẬT chưa bao giờ nằm ở đây: nó ở máy chủ, và dải này cố ý KHÔNG đụng tới.
+        Nên gỡ nó không nới lỏng một chốt nào — chỉ mất một cách xem thử. */
   var QUYEN_TAB=null;   // bảng tab được xem, do applyPerms() đặt
   /* Chưa có bảng quyền (gọi trước applyPerms) thì coi như được — không thì màn trắng trơn. */
   function _tabDuoc(p){ return !QUYEN_TAB || !!QUYEN_TAB[p]; }

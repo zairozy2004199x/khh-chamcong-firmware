@@ -1,8 +1,8 @@
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
- * NÚT ĐI SANG LOẠI ĐƠN KIA — HAI LỚP GÁC
+ * NÚT ĐI SANG LOẠI ĐƠN KIA — và canh dải "👁 Xem như" đã gỡ hẳn
  *
- * Anh Thắng 12/09/2026: *"Đối với nhân viên cơ sở ẩn nút này đi, tránh nhập nhầm"* (nút
- * "← Quay lại chi phí Kỹ thuật").
+ * Anh Thắng 12/09/2026, hai việc trong một mạch:
+ *   *"Đối với nhân viên cơ sở ẩn nút này đi, tránh nhập nhầm"*  (nút "← Quay lại chi phí Kỹ thuật")
  *
  * =============================================================================================
  * 🔴 CHỖ HỞ THẬT CỦA CÁI NÚT: `vis.duan` chỉ bị hạ xuống 0 khi ô Bộ phận CÓ KHAI gì đó. Tài
@@ -10,16 +10,10 @@
  *    THIẾT, không bộ phận) — giữ nguyên `vis.duan = 1`, và nút sáng lên mời họ sang màn không
  *    phải việc của mình.
  *
- * =============================================================================================
- * ⚠️ PHẦN "👁 XEM NHƯ" ĐÃ GỠ KHỎI BÀI NÀY — 22/09/2026
- * =============================================================================================
- * Anh Thắng: *"loại bỏ tính năng này"*, kèm ảnh chụp dải Xem như. Bài trước canh khoảng ba chục
- * phép về nó (giữ bản sao tài khoản thật, trả lại nguyên vẹn khi thoát, ô khối đọc `KHOI_DS`…).
- * Gỡ hết, và tệp đổi tên theo — `kiem-xem-nhu-va-nut-chuyen.js` → `kiem-nut-chuyen-don.js`.
+ * 🔴 DẢI "👁 XEM NHƯ" ĐÃ GỠ ngày 22/09/2026 (*"bỏ này đi"*). Mục 2 của bài này nay canh chiều
+ *    NGƯỢC LẠI: không một mẩu nào của nó còn sót ở bất cứ bản nào trong bốn bản.
  *
- * 🔴 NHƯNG GIỮ LẠI MẤY PHÉP CANH "ĐÃ GỠ THẬT". Một tính năng bị gỡ mà không ai canh là một tính
- *    năng chờ ngày quay lại: một lượt merge lùi, một lần khôi phục nhầm tệp, và dải ấy hiện ra
- *    lại mà không ai hay. Xem khối cuối tệp.
+ * ⚠️ BỐC HÀM THẬT RA CHẠY.
  *
  * Chạy: node tools/test/kiem-nut-chuyen-don.js
  * ═════════════════════════════════════════════════════════════════════════════════════════════ */
@@ -117,44 +111,84 @@ teq('🔴 vis.duan = 0 thì ẩn dù là NV Kỹ thuật', false, nut('Nhân vi�
 teq('   vis.don = 0 thì ẩn dù là NV Cơ sở',     false, nut('Nhân viên', 'Cơ sở', { duan: 1, don: 0 }).don);
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
- * 2. DẢI "👁 XEM NHƯ" PHẢI BIẾN MẤT HẲN — 22/09/2026
- * ══════════════════════════════════════════════════════════════════════════════════════════════
- * Anh Thắng: *"loại bỏ tính năng này"*.
+ * 2. 🔴 DẢI "👁 XEM NHƯ" ĐÃ GỠ — CANH CHO NÓ ĐỪNG MỌC LẠI
  *
- * 🔴 GỠ NỬA VỜI LÀ TỆ NHẤT. Để lại mấy hàm mồ côi thì lượt sửa sau có người gọi nhầm; để lại
- *    thẻ HTML ẩn thì một dòng CSS lạc là nó hiện ra. Canh CẢ HAI ĐẦU: không còn thẻ trên màn,
- *    không còn hàm trong mã, và không còn chỗ nào gọi tới.
- * ⚠️ Canh bằng TÊN RIÊNG (`glDung`, `GL_GOC`, `giaLapBar`) chứ không bằng chữ "xem như" chung
- *    chung — chữ ấy còn nằm trong chú thích kể lại chuyện đã gỡ, và canh theo nó là bài đỏ
- *    mỗi lần ai đó viết một câu giải thích.
+ * Anh Thắng 22/09/2026: *"bỏ này đi"*. Dải ấy là công cụ thử của Admin: đổi vai + khối để xem
+ * màn của người khác mà không phải đăng xuất.
+ *
+ * 🔴 GỠ CẢ KHỐI, KHÔNG CHỈ ẨN ĐI. Ẩn thì mã mô phỏng vẫn nằm đó và vẫn sửa được `CURUSER` cùng
+ *    `BOOT.khoiXem` từ bảng điều khiển trình duyệt — tức vẫn còn đúng cái đường mà việc gỡ này
+ *    muốn đóng, chỉ là không ai nhìn thấy cửa nữa.
+ *
+ * ⚠️ VÌ SAO CANH BẰNG BÀI KIỂM chứ không chỉ xoá rồi thôi: bản vùng (HN · MTD · VP) được SINH
+ *    LẠI từ bản gốc mỗi lần bản gốc lên bản mới. Sót lại một mẩu ở bản gốc là bốn bản cùng có
+ *    lại, và lần ấy không ai đi soi `app.html` nữa.
+ *
+ * ⚠️ Phép canh soi CẢ BỐN BẢN, không chỉ bản gốc — đúng chỗ mà lượt sinh lại có thể bỏ quên.
  * ═════════════════════════════════════════════════════════════════════════════════════════════ */
-['giaLapBar', 'glVai', 'glKhoi', 'glDangXem'].forEach(function (id) {
-  t('🔴 không còn thẻ `' + id + '` trên màn', HTML.indexOf('id="' + id + '"') < 0);
-});
-['glDung', 'glDoi', 'glThoat', '_glDat', 'glDangBat'].forEach(function (fn) {
-  t('🔴 không còn hàm `' + fn + '()`', HTML.indexOf('function ' + fn + '(') < 0);
-  t('   và không còn chỗ nào gọi `' + fn + '()`', HTML.indexOf(fn + '()') < 0);
-});
-['GL_GOC', 'GL_KHOIXEM', 'GL_KHOIDANG'].forEach(function (v) {
-  t('🔴 không còn biến `' + v + '`', HTML.indexOf(v) < 0);
-});
-t('🔴 và câu trấn an "Máy chủ vẫn biết anh là Admin" cũng đi theo',
-  HTML.indexOf('Máy chủ vẫn biết anh là Admin') < 0);
-
-/* 🔴 CHIP NGƯỜI DÙNG PHẢI VỀ MỘT CÂU DUY NHẤT. Nhánh "👁 xem như …" đọc `GL_GOC.name`; bỏ biến
-   mà quên nhánh là chip nổ `ReferenceError` ngay lượt vẽ đầu — trắng luôn góc trên màn. */
-{
-  const ap = bocHam('applyPerms');
-  t('⚠️ bốc được `applyPerms`', ap.length > 200, ap.length);
-  t('🔴 chip thôi rẽ nhánh theo trạng thái xem-như', !/glDangBat\(\)/.test(ap), ap);
-  t('   và vẫn nói đủ tên · vai · cơ sở',
-    /userChip'\)\.innerHTML='👤 '\+esc\(CURUSER\.name\)/.test(ap) && /esc\(role\)/.test(ap), ap);
+const BAN = ['vhcp-chi-phi', 'vhcp-chi-phi-hn', 'vhcp-chi-phi-mtd', 'vhcp-chi-phi-vp'];
+const DAU_VET = ['giaLapBar', 'glDung', 'glDoi', 'glThoat', 'glDangBat', '_glDat',
+                 'GL_GOC', 'GL_KHOIXEM', 'GL_KHOIDANG', 'glVai', 'glKhoi', 'glDangXem',
+                 'Xem như'];
+/**
+ * ⚠️ TƯỚC CHÚ THÍCH TRƯỚC KHI SOI.
+ *
+ * Bia mộ để lại trong mã ("dải Xem như đã gỡ, đừng dựng lại") có NHẮC TÊN thứ vừa gỡ — nên soi
+ * chuỗi trên nguyên tệp là bài kiểm tự bắt chính lời ghi chú của mình, rồi đỏ mãi. Chữa bằng
+ * cách xoá bia thì mất luôn lời dặn; chữa đúng là chỉ soi phần MÃ CHẠY.
+ * (Giữ `https://` — `//` trong địa chỉ không phải chú thích.)
+ */
+function chiMaChay(h) {
+  return h
+    .replace(/<!--[\s\S]*?-->/g, ' ')      // chú thích HTML
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')    // chú thích JS nhiều dòng
+    .replace(/(^|[^:])\/\/[^\n]*/g, '$1');  // chú thích JS một dòng
 }
 
-/* ⚠️ `boot()` từng gọi lại `glDung()` sau khi nạp gói khởi động. Lời gọi ấy phải đi, nhưng
-   `_applyTabPerms()` ngay trước nó thì PHẢI Ở LẠI — nó mở tab theo phân quyền, không liên quan
-   gì tới dải vừa gỡ. Gỡ nhầm cả cụm là mọi tab khoá cứng sau khi đăng nhập. */
-t('🔴 `boot()` vẫn mở tab theo phân quyền', /BOOT=b\|\|BOOT; loading\(false\); _applyTabPerms\(\);/.test(HTML));
+BAN.forEach(function (b) {
+  const f = 'wordpress/' + b + '/templates/app.html';
+  if (!fs.existsSync(f)) { t('có ' + f, false); return; }
+  const h = chiMaChay(fs.readFileSync(f, 'utf8'));
+  DAU_VET.forEach(function (d) {
+    t('🔴 ' + b + ': không còn dấu vết `' + d + '`', h.indexOf(d) < 0,
+      h.indexOf(d) < 0 ? undefined : h.slice(Math.max(0, h.indexOf(d) - 60), h.indexOf(d) + 60));
+  });
+});
+
+/* ⚠️ Và chip tên người dùng phải thôi hỏi "đang xem như ai" — để lại nhánh ấy là nó đọc một
+   biến không còn tồn tại, và CẢ HÀM `applyPerms()` chết giữa chừng. Màn hình trắng, không một
+   câu báo nào: đúng kiểu hỏng mà việc gỡ dở dang hay để lại. */
+BAN.forEach(function (b) {
+  const f = 'wordpress/' + b + '/templates/app.html';
+  if (!fs.existsSync(f)) { return; }
+  const h = fs.readFileSync(f, 'utf8');
+  const i = h.indexOf("el('userChip').innerHTML");
+  t('🔴 ' + b + ': chip tên người dùng không còn nhánh "xem như"',
+    i >= 0 && !/glDangBat|GL_GOC/.test(h.slice(i, i + 400)), h.slice(i, i + 220));
+});
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 3. GỠ ĐỦ, NHƯNG ĐỪNG GỠ LẠM
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Mục 2 canh chiều "còn sót gì không". Mục này canh chiều ngược lại — CÓ CẮT NHẦM GÌ KHÔNG.
+ * Hai chỗ nằm sát ngay cạnh mã vừa gỡ, và mất chúng thì hỏng nặng mà không một câu báo nào:
+ *
+ * 🔴 `boot()` gọi `_applyTabPerms()` rồi mới gọi `glDung()` — hai lời gọi dính nhau một dòng.
+ *    Quét sạch cả cụm là tab khoá cứng sau khi đăng nhập, không ai vào được đâu cả.
+ * 🔴 Chip tên người dùng có HAI nhánh, gỡ nhánh "xem như" mà lỡ tay gỡ cả nhánh còn lại là góc
+ *    trên màn trống trơn — trông y như chưa đăng nhập.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+BAN.forEach(function (b) {
+  const f = 'wordpress/' + b + '/templates/app.html';
+  if (!fs.existsSync(f)) { return; }
+  const h = fs.readFileSync(f, 'utf8');
+  t('🔴 ' + b + ': `boot()` VẪN mở tab theo phân quyền',
+    /BOOT=b\|\|BOOT; loading\(false\); _applyTabPerms\(\);/.test(h));
+  const i = h.indexOf("el('userChip').innerHTML");
+  t('🔴 ' + b + ': chip VẪN nói đủ tên · vai',
+    i >= 0 && /esc\(CURUSER\.name\)/.test(h.slice(i, i + 200)) && /esc\(role\)/.test(h.slice(i, i + 200)),
+    i >= 0 ? h.slice(i, i + 160) : '(không thấy chip)');
+});
 
 /* ─────────────────────────────────────────────────────────────────────────────────────────── */
 if (TRUOT.length) {
@@ -162,4 +196,4 @@ if (TRUOT.length) {
   TRUOT.forEach(function (x) { console.log('   • ' + x); });
   process.exit(1);
 }
-console.log('\n✅ ĐẠT ' + DAT + ' / ' + DAT + ' — nút gác hai lớp, và dải Xem như đã gỡ sạch');
+console.log('\n✅ ĐẠT ' + DAT + ' / ' + DAT + ' — nút gác hai lớp, và dải Xem như đã gỡ sạch ở cả bốn bản');
