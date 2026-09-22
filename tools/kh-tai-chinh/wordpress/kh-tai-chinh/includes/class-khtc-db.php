@@ -10,7 +10,7 @@ defined( 'ABSPATH' ) || exit;
 class KHTC_DB {
 
 	/** Tăng số này mỗi lần đổi cấu trúc bảng thì bản đang chạy tự nâng cấp. */
-	const SCHEMA = 9;
+	const SCHEMA = 10;
 
 	public static function bang( $ten ) {
 		global $wpdb;
@@ -33,6 +33,7 @@ class KHTC_DB {
 		$hd_vao    = self::bang( 'hd_vao' );
 		$hop_dong  = self::bang( 'hop_dong' );
 		$ho_so     = self::bang( 'ho_so' );
+		$diem      = self::bang( 'diem' );
 
 		// so_du_dau = số dư TÍNH ĐẾN ngay_dau; giao dịch trước ngày đó coi như đã
 		// gộp sẵn vào số dư này, không cộng lại lần nữa (giữ đúng cách bản gốc tính).
@@ -63,12 +64,42 @@ class KHTC_DB {
 				so_tien BIGINT NOT NULL DEFAULT 0,
 				loai VARCHAR(10) NOT NULL DEFAULT 'thu',
 				ma_gd VARCHAR(120) NOT NULL DEFAULT '',
+				ma_cua_hang VARCHAR(80) NOT NULL DEFAULT '',
 				tao_luc DATETIME NOT NULL,
 				tao_boi VARCHAR(120) NOT NULL DEFAULT '',
 				PRIMARY KEY (id),
 				KEY cty_ngay (cty, ngay),
 				KEY ngan_hang_id (ngan_hang_id),
-				KEY ma_gd (ma_gd)
+				KEY ma_gd (ma_gd),
+				KEY ma_cua_hang (ma_cua_hang)
+			) $collate;"
+		);
+
+		// Danh mục điểm: cầu nối giữa MÃ CỬA HÀNG trong sao kê và ĐIỂM XUẤT
+		// HOÁ ĐƠN. Không có bảng này thì một dòng QR về ngân hàng chỉ là một
+		// khoản tiền không tên, không biết thuộc gian nào, không gom được thành
+		// hoá đơn. Đây là thứ duy nhất nối nửa đầu với nửa sau của cả quy trình.
+		//
+		// ma_cua_hang duy nhất trong mỗi pháp nhân: một mã trỏ hai điểm thì
+		// doanh thu chia sai mà không có gì báo, nên chặn ở tầng bảng.
+		dbDelta(
+			"CREATE TABLE $diem (
+				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+				cty VARCHAR(20) NOT NULL DEFAULT 'kh_cu',
+				ma_cua_hang VARCHAR(80) NOT NULL,
+				ma_diem_ban VARCHAR(80) NOT NULL DEFAULT '',
+				ten_gian VARCHAR(190) NOT NULL DEFAULT '',
+				ten_diem VARCHAR(190) NOT NULL DEFAULT '',
+				ma_misa VARCHAR(120) NOT NULL DEFAULT '',
+				khu_vuc VARCHAR(60) NOT NULL DEFAULT '',
+				dich_vu VARCHAR(60) NOT NULL DEFAULT '',
+				so_tk VARCHAR(60) NOT NULL DEFAULT '',
+				bo_qua TINYINT NOT NULL DEFAULT 0,
+				ghi_chu TEXT NULL,
+				tao_luc DATETIME NOT NULL,
+				PRIMARY KEY (id),
+				UNIQUE KEY cty_ma (cty, ma_cua_hang),
+				KEY cty_diem (cty, ten_diem)
 			) $collate;"
 		);
 
@@ -103,6 +134,7 @@ class KHTC_DB {
 				dien_giai TEXT NULL,
 				khop_gd_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
 				kieu_khop VARCHAR(20) NOT NULL DEFAULT '',
+				ma_cua_hang VARCHAR(80) NOT NULL DEFAULT '',
 				PRIMARY KEY (id),
 				KEY dot_id (dot_id),
 				KEY dot_tien (dot_id, so_tien),

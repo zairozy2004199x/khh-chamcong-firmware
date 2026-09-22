@@ -89,10 +89,13 @@ class KHTC_GiaoDich {
 				'so_tien'      => $so_tien,
 				'loai'         => $loai,
 				'ma_gd'        => (string) ( $d['ma_gd'] ?? '' ),
+				// Mã cửa hàng: cột nối sang danh mục điểm, để gom sao kê thành
+				// hoá đơn. Ngân hàng gửi sẵn trong sao kê QR.
+				'ma_cua_hang'  => (string) ( $d['ma_cua_hang'] ?? '' ),
 				'tao_luc'      => current_time( 'mysql' ),
 				'tao_boi'      => wp_get_current_user()->display_name,
 			),
-			array( '%s', '%d', '%s', '%s', '%d', '%s', '%s', '%s', '%s' )
+			array( '%s', '%d', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s' )
 		);
 		$moi = (int) $wpdb->insert_id;
 		KHTC_NhatKy::ghi(
@@ -184,6 +187,7 @@ class KHTC_GiaoDich {
 					// Cột 5 không bắt buộc, nhưng có nó thì đối soát ghép được
 					// theo mã giao dịch — lượt ghép chắc chắn nhất.
 					'ma_gd'        => $ma,
+					'ma_cua_hang'  => isset( $o[5] ) ? $o[5] : '',
 				)
 			);
 			if ( is_wp_error( $kq ) ) {

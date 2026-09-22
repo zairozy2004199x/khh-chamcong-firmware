@@ -1,7 +1,7 @@
 === Tài Chính K&H ===
 Requires at least: 5.6
 Requires PHP: 7.4
-Stable tag: 1.4.0
+Stable tag: 1.5.0
 License: GPL-2.0-or-later
 
 Theo dõi ngân hàng, giao dịch và đối soát cho CÔNG TY TNHH DỊCH VỤ VÀ GIẢI TRÍ K&H.
@@ -45,6 +45,14 @@ khỏi đi vòng qua wp-admin và khỏi phải hiểu hệ thống vai trò c�
 * Đối soát chi phí — ghép chứng từ chi phí (loại chuyển khoản) với các dòng chi
   trong sao kê, dùng lại đúng phép ghép của đối soát cổng. Ba nhóm: Khớp / Có
   chứng từ chưa thấy tiền ra / Tiền ra không có chứng từ.
+* Danh mục điểm — nối mã cửa hàng trong sao kê với điểm xuất hoá đơn, mã Misa,
+  khu vực, dịch vụ. Đặt cờ "bỏ qua" cho mã test, mã vãng lai, gian đã đóng.
+  Nạp hàng loạt; mã đã có thì cập nhật đè, cờ bỏ qua giữ nguyên.
+* Sinh hoá đơn từ sao kê — chọn kỳ và tick nguồn tiền (sao kê tài khoản nào,
+  đợt cổng nào), máy gom tiền theo điểm rồi xuất mỗi điểm một hoá đơn. Xem
+  trước trước khi ghi. Tiền mang mã chưa có trong danh mục được liệt kê riêng
+  chứ không bỏ lặng. Số hoá đơn cấp liên tiếp; trùng một số ở giữa thì dừng
+  hẳn và không ghi gì.
 * Hoá đơn đầu ra — nối thẳng với công cụ Đối soát VAT: dán vào và xuất ra đúng
   22 cột của file đó, đúng thứ tự, không phải sắp lại. Bảng gom theo thuế suất
   chính là mấy dòng điền vào tờ khai GTGT; gom thêm theo khu vực và dịch vụ.

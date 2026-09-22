@@ -30,6 +30,8 @@ class KHTC_Trang {
 			case 'nhat-ky':   self::nhat_ky();   break;
 			case 'sao-luu':   self::sao_luu();   break;
 			case 'nguoi-dung': self::nguoi_dung(); break;
+			case 'danh-muc-diem': self::danh_muc_diem(); break;
+			case 'sinh-hoa-don': self::sinh_hoa_don(); break;
 			default:          self::tong_quan(); break;
 		}
 	}
@@ -1121,6 +1123,212 @@ class KHTC_Trang {
 		echo '<p class="khtc-sub"><strong>Nhập là THÊM VÀO, không xoá cái đang có.</strong> Nhập hai lần cùng một tệp thì số nhân đôi. Muốn phục hồi sạch thì xoá dữ liệu cũ trước, hoặc nhập vào một website trắng.</p>';
 		echo '<p class="khtc-sub">Id được cấp lại và các liên kết (giao dịch → tài khoản, dòng cổng → đợt, chi phí → giao dịch) được nối lại theo id mới, nên nhập vào website đã có dữ liệu cũng không trỏ nhầm.</p>';
 		echo '</form></details></div>';
+	}
+
+	// -------------------------------------------------------- danh mục điểm
+
+	/**
+	 * Danh mục điểm — nối mã cửa hàng trong sao kê với điểm xuất hoá đơn.
+	 */
+	public static function danh_muc_diem() {
+		$bao_ok = '';
+		$bao_loi = '';
+
+		if ( isset( $_POST['khtc_dan_diem'] ) && check_admin_referer( 'khtc_diem' ) ) {
+			$kq = KHTC_Diem::dan_hang_loat( wp_unslash( $_POST['bang_diem'] ?? '' ) );
+			$bao_ok = sprintf( 'Thêm %d điểm, cập nhật %d điểm.', $kq['them'], $kq['sua'] );
+			if ( $kq['loi'] ) {
+				$bao_loi = implode( ' · ', array_slice( $kq['loi'], 0, 5 ) );
+			}
+		}
+		if ( isset( $_POST['khtc_bo_qua'] ) && check_admin_referer( 'khtc_diem' ) ) {
+			$kq = KHTC_Diem::doi_bo_qua( (int) $_POST['khtc_bo_qua'] );
+			$bao_ok = is_wp_error( $kq ) ? '' : 'Đã đổi trạng thái điểm.';
+			if ( is_wp_error( $kq ) ) { $bao_loi = $kq->get_error_message(); }
+		}
+		if ( isset( $_POST['khtc_xoa_diem'] ) && check_admin_referer( 'khtc_diem' ) ) {
+			$kq = KHTC_Diem::xoa( (int) $_POST['khtc_xoa_diem'] );
+			if ( is_wp_error( $kq ) ) { $bao_loi = $kq->get_error_message(); } else { $bao_ok = 'Đã xoá điểm.'; }
+		}
+
+		$tim = isset( $_GET['tim'] ) ? sanitize_text_field( wp_unslash( $_GET['tim'] ) ) : '';
+		$ds  = KHTC_Diem::ds( array( 'tim' => $tim ) );
+		$dem = KHTC_Diem::dem();
+
+		echo '<div class="wrap khtc">';
+		KHTC_UI::dau_trang( 'Danh mục điểm' );
+		if ( $bao_loi ) { printf( '<p class="khtc-canh-bao">%s</p>', esc_html( $bao_loi ) ); }
+		if ( $bao_ok ) { printf( '<div class="notice notice-success"><p>%s</p></div>', esc_html( $bao_ok ) ); }
+
+		KHTC_UI::the_so(
+			array(
+				array( 'Điểm trong danh mục', number_format( $dem['tong'], 0, ',', '.' ) ),
+				array( 'Đang bỏ qua', number_format( $dem['bo_qua'], 0, ',', '.' ), $dem['bo_qua'] ? 'chi' : '' ),
+			)
+		);
+		echo '<p class="khtc-sub">Mỗi dòng tiền vào tài khoản mang một <strong>mã cửa hàng</strong>. Bảng này nói mã đó thuộc điểm nào, để gom sao kê thành hoá đơn. Thiếu một mã ở đây là số tiền của mã đó không vào hoá đơn nào — màn hình Sinh hoá đơn sẽ liệt kê riêng chứ không bỏ lặng.</p>';
+
+		echo '<details class="khtc-panel khtc-gap"><summary>Nạp danh mục hàng loạt</summary><form method="post">';
+		wp_nonce_field( 'khtc_diem' );
+		echo '<p class="khtc-sub">Mỗi dòng: <code>Mã cửa hàng · Tên gian · Mã điểm bán · Tên điểm xuất hoá đơn · Mã Misa · Khu vực · Dịch vụ · Số TK</code> — Tab hoặc dấu phẩy. Mã đã có thì <strong>cập nhật đè</strong>, cờ “bỏ qua” giữ nguyên.</p>';
+		echo '<textarea name="bang_diem" rows="6" placeholder="1W642MMO1S&#9;SB Vinh 06 Posh&#9;MC1776921483982&#9;Sân bay vinh&#9;SB VINH KVC&#9;Hà Nội&#9;KVC&#9;8660077020"></textarea>';
+		echo '<p><button type="submit" name="khtc_dan_diem" value="1" class="button button-primary">Nạp danh mục</button></p>';
+		echo '</form></details>';
+
+		echo '<form method="get" class="khtc-panel khtc-loc">';
+		self::an_get( 'danh-muc-diem' );
+		printf( '<label>Tìm<input type="search" name="tim" value="%s" placeholder="mã, tên gian, tên điểm"></label>', esc_attr( $tim ) );
+		echo '<button class="button">Lọc</button></form>';
+
+		echo '<div class="khtc-panel"><h2>Điểm</h2><table><thead><tr><th>Mã cửa hàng</th><th>Tên gian</th><th>Điểm xuất hoá đơn</th><th>Mã Misa</th><th>Khu vực</th><th>Dịch vụ</th><th></th></tr></thead><tbody>';
+		foreach ( $ds as $d ) {
+			printf(
+				'<tr%s><td><code>%s</code></td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>',
+				$d->bo_qua ? ' class="khtc-mo"' : '',
+				esc_html( $d->ma_cua_hang ),
+				esc_html( $d->ten_gian ),
+				esc_html( $d->ten_diem ) . ( $d->bo_qua ? ' <strong>(bỏ qua)</strong>' : '' ),
+				esc_html( $d->ma_misa ),
+				esc_html( $d->khu_vuc ),
+				esc_html( $d->dich_vu )
+			);
+			echo '<form method="post" class="khtc-loc">';
+			wp_nonce_field( 'khtc_diem' );
+			printf( '<button type="submit" name="khtc_bo_qua" value="%d" class="button">%s</button>', (int) $d->id, $d->bo_qua ? 'Dùng lại' : 'Bỏ qua' );
+			printf( '<button type="submit" name="khtc_xoa_diem" value="%d" class="button" onclick="return confirm(\'Xoá điểm này khỏi danh mục?\')">Xoá</button>', (int) $d->id );
+			echo '</form></td></tr>';
+		}
+		if ( ! $ds ) { echo '<tr><td colspan="7" class="khtc-trong">Chưa có điểm nào. Nạp danh mục ở khung trên.</td></tr>'; }
+		echo '</tbody></table></div></div>';
+	}
+
+	// ------------------------------------------------------ sinh hoá đơn
+
+	/**
+	 * Gom sao kê trong kỳ thành hoá đơn, mỗi điểm một tờ.
+	 *
+	 * Màn hình cố ý bắt CHỌN: kỳ, nguồn tiền, ngày và số hoá đơn bắt đầu. Máy
+	 * không suy mấy thứ đó từ dữ liệu — đoán sai thì ra một danh sách trông rất
+	 * hợp lý mà sai kỳ, và không ai soát lại vì nó trông hợp lý.
+	 */
+	public static function sinh_hoa_don() {
+		$ky   = KHTC_UI::thang_nay();
+		$tu   = isset( $_REQUEST['tu'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['tu'] ) ) : $ky[0];
+		$den  = isset( $_REQUEST['den'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['den'] ) ) : $ky[1];
+		$nh_c = array_map( 'intval', (array) ( $_REQUEST['nh'] ?? array() ) );
+		$dot_c = array_map( 'intval', (array) ( $_REQUEST['dot'] ?? array() ) );
+		$bao_ok = '';
+		$bao_loi = '';
+
+		if ( isset( $_POST['khtc_tao_hd'] ) && check_admin_referer( 'khtc_sinh' ) ) {
+			$kq = KHTC_SinhHD::tao(
+				array(
+					'tu' => $tu, 'den' => $den, 'nh' => $nh_c, 'dot' => $dot_c,
+					'ngay_hd'   => wp_unslash( $_POST['ngay_hd'] ?? '' ),
+					'bat_dau'   => (int) ( $_POST['bat_dau'] ?? 0 ),
+					'thue_suat' => sanitize_text_field( wp_unslash( $_POST['thue_suat'] ?? '' ) ),
+				)
+			);
+			if ( is_wp_error( $kq ) ) {
+				$bao_loi = $kq->get_error_message();
+			} else {
+				$bao_ok = sprintf(
+					'Đã tạo %d hoá đơn, số đến %d, tổng %s đ.',
+					$kq['tao'], $kq['so_cuoi'], number_format( $kq['tien'], 0, ',', '.' )
+				);
+			}
+		}
+
+		$g = KHTC_SinhHD::gom( array( 'tu' => $tu, 'den' => $den, 'nh' => $nh_c, 'dot' => $dot_c ) );
+
+		echo '<div class="wrap khtc">';
+		KHTC_UI::dau_trang( 'Sinh hoá đơn từ sao kê' );
+		if ( $bao_loi ) { printf( '<p class="khtc-canh-bao">%s</p>', esc_html( $bao_loi ) ); }
+		if ( $bao_ok ) { printf( '<div class="notice notice-success"><p>%s</p></div>', esc_html( $bao_ok ) ); }
+
+		if ( ! KHTC_Diem::dem()['tong'] ) {
+			echo '<p class="khtc-canh-bao">Danh mục điểm còn trống. Không có nó thì mỗi dòng tiền chỉ là một khoản không tên, không gom được. Vào <strong>Danh mục điểm</strong> nạp trước.</p></div>';
+			return;
+		}
+
+		echo '<form method="get" class="khtc-panel"><h2>Chọn kỳ và nguồn tiền</h2>';
+		self::an_get( 'sinh-hoa-don' );
+		echo '<div class="khtc-loc">';
+		printf( '<label>Từ ngày<input type="date" name="tu" value="%s"></label>', esc_attr( $tu ) );
+		printf( '<label>Đến ngày<input type="date" name="den" value="%s"></label>', esc_attr( $den ) );
+		echo '<button class="button button-primary">Xem trước</button></div>';
+		echo '<p class="khtc-sub">Tiền vào từ những nguồn nào thì tick vào đó. Máy không tự chọn — gộp thiếu hay gộp thừa một nguồn là hoá đơn sai mà bảng vẫn trông bình thường.</p><div class="khtc-loc">';
+		foreach ( KHTC_NganHang::ds() as $n ) {
+			printf(
+				'<label class="khtc-tick"><input type="checkbox" name="nh[]" value="%d"%s> Sao kê %s</label>',
+				(int) $n->id, in_array( (int) $n->id, $nh_c, true ) ? ' checked' : '', esc_html( $n->ten )
+			);
+		}
+		foreach ( KHTC_DoiSoat::ds_dot() as $o ) {
+			printf(
+				'<label class="khtc-tick"><input type="checkbox" name="dot[]" value="%d"%s> Đợt %s</label>',
+				(int) $o->id, in_array( (int) $o->id, $dot_c, true ) ? ' checked' : '', esc_html( $o->ten )
+			);
+		}
+		echo '</div></form>';
+
+		if ( is_wp_error( $g ) ) {
+			printf( '<p class="khtc-canh-bao">%s</p></div>', esc_html( $g->get_error_message() ) );
+			return;
+		}
+
+		KHTC_UI::the_so(
+			array(
+				array( 'Sẽ xuất', count( $g['diem'] ) . ' hoá đơn' ),
+				array( 'Tổng tiền', KHTC_UI::tien( $g['tong'] ), 'thu' ),
+				array( 'Điểm bỏ qua', KHTC_UI::tien( $g['tong_bo'] ) ),
+				array( 'Mã chưa có trong danh mục', KHTC_UI::tien( $g['tong_la'] ), $g['tong_la'] ? 'chi' : '' ),
+			)
+		);
+
+		if ( $g['la'] ) {
+			echo '<div class="khtc-panel"><p class="khtc-canh-bao">Có tiền vào mang mã cửa hàng <strong>không có trong danh mục điểm</strong>. Số tiền này sẽ KHÔNG vào hoá đơn nào. Thêm mã vào danh mục rồi xem lại, hoặc để vậy nếu đúng là không xuất.</p><table><thead><tr><th>Mã cửa hàng</th><th class="so">Số tiền</th></tr></thead><tbody>';
+			foreach ( array_slice( $g['la'], 0, 30, true ) as $ma => $t ) {
+				printf( '<tr><td><code>%s</code></td><td class="so">%s</td></tr>', esc_html( $ma ?: '(để trống)' ), esc_html( KHTC_UI::tien( $t ) ) );
+			}
+			echo '</tbody></table></div>';
+		}
+
+		echo '<div class="khtc-panel"><h2>Xem trước — mỗi điểm một hoá đơn</h2><table><thead><tr><th>Điểm xuất hoá đơn</th><th>Mã Misa</th><th>Khu vực</th><th>Dịch vụ</th><th class="so">Số dòng</th><th class="so">Tiền (có VAT)</th></tr></thead><tbody>';
+		foreach ( $g['diem'] as $d ) {
+			printf(
+				'<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td class="so">%s</td><td class="so thu">%s</td></tr>',
+				esc_html( $d['ten_diem'] ), esc_html( $d['ma_misa'] ), esc_html( $d['khu_vuc'] ), esc_html( $d['dich_vu'] ),
+				number_format( $d['so_dong'], 0, ',', '.' ), esc_html( KHTC_UI::tien( $d['tien'] ) )
+			);
+		}
+		if ( ! $g['diem'] ) { echo '<tr><td colspan="6" class="khtc-trong">Kỳ này chưa gom được đồng nào. Kiểm lại kỳ và nguồn tiền đã tick.</td></tr>'; }
+		echo '</tbody>';
+		if ( $g['diem'] ) {
+			printf( '<tfoot><tr><th colspan="4">Tổng</th><th class="so">%s</th><th class="so thu">%s</th></tr></tfoot>', number_format( array_sum( array_column( $g['diem'], 'so_dong' ) ), 0, ',', '.' ), esc_html( KHTC_UI::tien( $g['tong'] ) ) );
+		}
+		echo '</table></div>';
+
+		if ( $g['diem'] ) {
+			echo '<div class="khtc-panel"><h2>Tạo hoá đơn</h2><form method="post"><div class="khtc-loc">';
+			wp_nonce_field( 'khtc_sinh' );
+			foreach ( $nh_c as $v ) { printf( '<input type="hidden" name="nh[]" value="%d">', $v ); }
+			foreach ( $dot_c as $v ) { printf( '<input type="hidden" name="dot[]" value="%d">', $v ); }
+			printf( '<input type="hidden" name="tu" value="%s"><input type="hidden" name="den" value="%s">', esc_attr( $tu ), esc_attr( $den ) );
+			printf( '<label>Ngày hoá đơn<input type="date" name="ngay_hd" value="%s" required></label>', esc_attr( $den ) );
+			echo '<label>Số hoá đơn bắt đầu<input type="number" name="bat_dau" min="1" required placeholder="2576"></label>';
+			echo '<label>Thuế suất<select name="thue_suat">';
+			foreach ( KHTC_HoaDonRa::thue_suat() as $k => $v ) {
+				printf( '<option value="%s"%s>%s</option>', esc_attr( $k ), (string) $k === KHTC_HoaDonRa::TS_MAC_DINH ? ' selected' : '', esc_html( $v ) );
+			}
+			echo '</select></label>';
+			printf( '<button type="submit" name="khtc_tao_hd" value="1" class="button button-primary" onclick="return confirm(\'Tạo %d hoá đơn vào sổ?\')">Tạo %d hoá đơn</button>', count( $g['diem'] ), count( $g['diem'] ) );
+			echo '</div>';
+			echo '<p class="khtc-sub">Số hoá đơn cấp liên tiếp từ số bắt đầu. Trùng một số nào đó ở giữa thì máy <strong>dừng hẳn và không ghi gì</strong> — số hoá đơn nhảy cóc là thứ cơ quan thuế hỏi đầu tiên.</p>';
+			echo '<p class="khtc-sub">Tiền gom được hiểu là <strong>đã có VAT</strong> (tiền khách trả thật), máy tách ngược ra chưa VAT và VAT.</p>';
+			echo '</form></div>';
+		}
+		echo '</div>';
 	}
 
 	// --------------------------------------------------------- người dùng

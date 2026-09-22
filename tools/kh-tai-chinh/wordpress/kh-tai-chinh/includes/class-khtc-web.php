@@ -37,9 +37,9 @@ class KHTC_Web {
 	public static function nhom() {
 		return array(
 			'Tổng quan' => array( '', 'bao-cao' ),
-			'Dòng tiền' => array( 'ngan-hang', 'giao-dich', 'chi-phi' ),
+			'Dòng tiền' => array( 'ngan-hang', 'giao-dich', 'danh-muc-diem', 'chi-phi' ),
 			'Đối soát'  => array( 'doi-soat', 'doi-soat-chi-phi' ),
-			'Hoá đơn'   => array( 'hoa-don-ra', 'hoa-don-vao' ),
+			'Hoá đơn'   => array( 'sinh-hoa-don', 'hoa-don-ra', 'hoa-don-vao' ),
 			'Sổ'        => array( 'cong-no', 'phap-danh', 'ho-so' ),
 			// Người dùng chỉ hiện với quản trị viên: kế toán thấy một mục
 			// bấm vào là bị từ chối thì thà đừng hiện.
@@ -59,6 +59,8 @@ class KHTC_Web {
 			'chi-phi'          => 'Chi phí',
 			'doi-soat'         => 'Cổng thanh toán',
 			'doi-soat-chi-phi' => 'Chi phí',
+			'danh-muc-diem'    => 'Danh mục điểm',
+			'sinh-hoa-don'     => 'Sinh từ sao kê',
 			'hoa-don-ra'       => 'Đầu ra',
 			'hoa-don-vao'      => 'Đầu vào',
 			'cong-no'          => 'Công nợ',
@@ -79,6 +81,8 @@ class KHTC_Web {
 			'doi-soat'   => 'Đối soát',
 			'chi-phi'    => 'Chi phí',
 			'doi-soat-chi-phi' => 'Đối soát chi phí',
+			'danh-muc-diem' => 'Danh mục điểm',
+			'sinh-hoa-don'  => 'Sinh hoá đơn từ sao kê',
 			'hoa-don-ra' => 'Hoá đơn đầu ra',
 			'hoa-don-vao' => 'Hoá đơn đầu vào',
 			'cong-no'    => 'Công nợ',

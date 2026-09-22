@@ -188,8 +188,11 @@ class KHTC_DoiSoat {
 					'so_tien'   => abs( KHTC_GiaoDich::doc_so( $o[2] ) ),
 					'phi'       => isset( $o[3] ) ? abs( KHTC_GiaoDich::doc_so( $o[3] ) ) : 0,
 					'dien_giai' => isset( $o[4] ) ? (string) $o[4] : '',
+					// Cột 6 không bắt buộc. Có nó thì đợt cổng này gom được
+					// thành hoá đơn theo điểm, y như sao kê ngân hàng.
+					'ma_cua_hang' => isset( $o[5] ) ? (string) $o[5] : '',
 				),
-				array( '%d', '%s', '%s', '%d', '%d', '%s' )
+				array( '%d', '%s', '%s', '%d', '%d', '%s', '%s' )
 			);
 			if ( '' !== $ma ) { $da_co[ $ma ] = 1; }
 			$them++;

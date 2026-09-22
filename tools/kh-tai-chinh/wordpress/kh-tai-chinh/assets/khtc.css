@@ -383,3 +383,19 @@ body.khtc-web form { margin: 0; }
 	border-radius: 6px;
 	user-select: all;
 }
+
+/* Ô tick chọn nguồn tiền: xếp ngang, bấm được cả vào chữ. */
+.khtc .khtc-tick {
+	display: inline-flex;
+	align-items: center;
+	gap: 7px;
+	padding: 7px 12px;
+	border: 1px solid var(--vien);
+	border-radius: 8px;
+	background: var(--nen-the);
+	cursor: pointer;
+	font-weight: 500;
+}
+.khtc .khtc-tick:has(input:checked) { border-color: var(--chinh); box-shadow: var(--bong-1); }
+/* Dòng đã đặt "bỏ qua" — vẫn đọc được, nhưng lùi ra sau. */
+.khtc tr.khtc-mo td { opacity: .55; }

@@ -497,6 +497,56 @@ cài lúc nào cũng có dữ liệu rơi vào tháng hiện tại và mấy mà
 một hợp đồng quá hạn 18 ngày, để phần cảnh báo có gì mà cảnh báo; một hoá đơn
 vào trả tiền mặt trên 20 triệu, để nhắc khấu trừ hiện ra.
 
+## Sinh hoá đơn từ sao kê
+
+Đến bản 1.4.0 plugin mới chỉ phủ **nửa sau** của quy trình: nhận danh sách hoá
+đơn 22 cột đã làm xong rồi tính tiếp. Việc biến hàng chục nghìn dòng QR thành
+vài trăm hoá đơn vẫn nằm trong Excel — và đó là chỗ mất nhiều giờ nhất mỗi
+tháng.
+
+Luồng thật, đọc ra từ chính tệp của công ty:
+
+```
+tiền vào tài khoản (mỗi dòng mang MÃ CỬA HÀNG)
+   ↓  danh mục điểm: mã cửa hàng → điểm xuất hoá đơn + mã Misa + khu vực
+   ↓  cộng theo điểm trong kỳ
+   ↓  mỗi điểm một hoá đơn → sổ hoá đơn đầu ra
+```
+
+### Ba thứ máy KHÔNG tự quyết
+
+Đoán sai mấy thứ này thì ra một danh sách **trông rất hợp lý mà sai** — loại
+sai đắt nhất, vì không ai soát lại cái trông hợp lý. Nên chúng là lựa chọn
+hiện trên màn hình, không phải giả định giấu trong mã:
+
+1. **Kỳ và ngày hoá đơn** — người dùng chọn.
+2. **Nguồn tiền nào vào hoá đơn** — tick từng tài khoản, từng đợt cổng.
+3. **Điểm nào không xuất** — cờ "bỏ qua" trong danh mục, dùng cho mã test, mã
+   vãng lai, gian đã đóng. Cố ý là một CỜ chứ không phải xoá dòng: xoá rồi thì
+   lần nạp danh mục sau nó lại về, và không ai nhớ vì sao trước đó nó bị loại.
+
+Máy chỉ làm phần cộng và phần tách VAT — phần nó làm không sai.
+
+### Không đồng nào được biến mất
+
+Tiền mang mã cửa hàng **không có trong danh mục** không được im lặng bỏ đi:
+doanh thu hụt mà không ai thấy là kiểu sai tệ nhất ở đây. Nó được gom riêng,
+đếm, và liệt kê từng mã ra màn hình. Bộ kiểm có một phép chốt:
+
+```
+tiền vào hoá đơn + tiền điểm bỏ qua + tiền mã lạ  =  đúng tổng thu trong kỳ
+```
+
+Chạy trên dữ liệu thật tháng 8/2026 của KH989: 270 mã trong danh mục, 1.636
+dòng sao kê, **0 mã lạ, 0 đồng thất lạc**, ra 4 hoá đơn tổng 138.450.000 đ —
+đúng bằng tiền vào tài khoản.
+
+### Số hoá đơn
+
+Cấp liên tiếp từ số bắt đầu. Trùng một số nào đó ở giữa dải thì **dừng hẳn và
+không ghi dòng nào**, chứ không bỏ qua rồi chạy tiếp: số hoá đơn nhảy cóc là
+thứ cơ quan thuế hỏi đầu tiên, và sửa sau tốn hơn nhiều so với chạy lại.
+
 ## Chạy liên tục: dán sao kê chồng kỳ
 
 Sổ này chạy tháng này qua tháng khác. Kế toán tải sao kê rồi dán, lần sau tải
