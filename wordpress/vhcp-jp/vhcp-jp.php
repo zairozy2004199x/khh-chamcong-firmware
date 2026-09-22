@@ -3,7 +3,7 @@
  * Plugin Name:       JP Capsule (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Báo cáo JP Capsule chạy THẲNG trên host: nhân viên nhập báo cáo từ chỉ số máy, kế toán duyệt hai phần, đối soát ngân hàng, kho hai tầng. Không Apps Script, không Google Sheets.
- * Version:           1.14.0
+ * Version:           1.15.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -85,7 +85,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHJP_VERSION', '1.14.0' );
+define( 'VHJP_VERSION', '1.15.0' );
 define( 'VHJP_FILE', __FILE__ );
 define( 'VHJP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHJP_URL', plugin_dir_url( __FILE__ ) );

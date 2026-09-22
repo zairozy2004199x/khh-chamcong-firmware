@@ -63,7 +63,11 @@ input[readonly],input:disabled{background:#f3f4f6;color:var(--sub)}
 .btn.primary{background:var(--primary);color:#fff;border-color:var(--primary)}
 .btn.ghost{background:#fff}
 .btn.block{width:100%;margin-top:4px}
-.btn.sm{padding:7px 10px;font-size:13px}
+/* 🔴 NÚT NHỎ VẪN PHẢI BẤM ĐƯỢC BẰNG NGÓN TAY. `min-height` chứ không phải `padding` lớn: ba nút
+   `.sm` của web nhân viên (Đổi PIN · Thoát · ‹ Về) cao 31px, dưới ngưỡng 44px mà cả Apple lẫn
+   Google khuyến nghị — bấm hụt ở màn "Thoát" thì nhân viên bấm lại, còn bấm hụt ở "‹ Về" giữa
+   lúc đang gõ báo cáo thì họ không biết mình vừa chạm vào đâu. Chữ vẫn giữ 13px cho gọn. */
+.btn.sm{padding:7px 10px;font-size:13px;min-height:44px}
 .btn.danger{color:var(--danger);border-color:#fecaca}
 .btn:active{transform:translateY(1px)}
 .actions{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);
