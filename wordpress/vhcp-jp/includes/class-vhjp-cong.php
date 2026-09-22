@@ -61,6 +61,7 @@ class VHJP_Cong {
 	public static function chi_ke_toan() {
 		return array(
 			'jpCfgListUsers', 'jpCfgSaveUser',
+			'jpKtListReports', 'jpKtGetReport', 'jpKtApprove', 'jpKtReject',
 			'jpCfgSaveLocation', 'jpCfgSaveCluster', 'jpCfgSaveMachine',
 			'jpCfgSaveItem', 'jpCfgImportItems',
 			'jpTaoPinCoSo', 'jpPinTheoCoSo',
@@ -104,6 +105,12 @@ class VHJP_Cong {
 			'jpSaveReport'        => array( 'VHJP_Cong', 'bc_luu' ),
 			'jpSubmitReport'      => array( 'VHJP_Cong', 'bc_nop' ),
 			'jpPhotoProgress'     => array( 'VHJP_Cong', 'anh_tien_do' ),
+
+			/* kế toán duyệt */
+			'jpKtListReports'     => array( 'VHJP_Cong', 'kt_ds' ),
+			'jpKtGetReport'       => array( 'VHJP_Cong', 'kt_lay' ),
+			'jpKtApprove'         => array( 'VHJP_Cong', 'kt_ky' ),
+			'jpKtReject'          => array( 'VHJP_Cong', 'kt_tra_ve' ),
 		);
 	}
 
@@ -148,8 +155,7 @@ class VHJP_Cong {
 			'jpKhoLichSuTraNcc', 'jpKhoLichSuXuat', 'jpKhoNhap', 'jpKhoNhapXuatTon', 'jpKhoSoDuDauKy',
 			'jpKhoTheKho', 'jpKhoTonKho', 'jpKhoTraNcc', 'jpKhoTraNccLo', 'jpKhoXuat', 'jpKhoXuatLai',
 			/* kế toán duyệt */
-			'jpKtApprove', 'jpKtDanhSachDeNghi', 'jpKtGetReport', 'jpKtListReports', 'jpKtPaymentBoard',
-			'jpKtReject', 'jpKtReopen', 'jpKtXuLyDeNghi',
+			'jpKtDanhSachDeNghi', 'jpKtPaymentBoard', 'jpKtReopen', 'jpKtXuLyDeNghi',
 		);
 	}
 
@@ -313,6 +319,22 @@ class VHJP_Cong {
 	public static function bc_luu( $args, $nguoi ) {
 		return VHJP_BaoCao::luu( $nguoi, isset( $args[1] ) ? $args[1] : array() );
 	}
+	/* ── kế toán duyệt ── (gác vai kế toán ở `chi_ke_toan()`, cạnh bảng hàm) */
+	public static function kt_ds( $args, $nguoi ) {
+		return VHJP_Duyet::ds_bao_cao( $nguoi, isset( $args[1] ) ? $args[1] : array() );
+	}
+	public static function kt_lay( $args, $nguoi ) {
+		return VHJP_Duyet::lay( $nguoi, isset( $args[1] ) ? $args[1] : '' );
+	}
+	public static function kt_ky( $args, $nguoi ) {
+		return VHJP_Duyet::ky( $nguoi, isset( $args[1] ) ? $args[1] : '',
+			isset( $args[2] ) ? $args[2] : '', isset( $args[3] ) ? $args[3] : '' );
+	}
+	public static function kt_tra_ve( $args, $nguoi ) {
+		return VHJP_Duyet::tra_ve( $nguoi, isset( $args[1] ) ? $args[1] : '',
+			isset( $args[2] ) ? $args[2] : '' );
+	}
+
 	public static function bc_nop( $args, $nguoi ) {
 		return VHJP_BaoCao::nop( $nguoi, isset( $args[1] ) ? $args[1] : '' );
 	}

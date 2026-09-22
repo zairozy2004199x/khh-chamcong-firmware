@@ -39,6 +39,15 @@ const ds_tep = [
   'JP2_05_BaoCao.gs', 'JP2_06_Duyet.gs', 'JP2_07_Anh.gs', 'JP2_10_Sua24h_NopTien.gs',
 ].map(t => path.join(thu_muc, t));
 
+/*
+ * KHO HAI TẦNG — `jpXuatKhoBaoCao_` / `jpHoanKhoBaoCao_` nằm ở mấy tệp kho chưa nạp ở đây, và
+ * bản PHP cũng chưa chuyển mô-đun ấy. Dựng bản giả trả `null` để `jpKtApprove` / `jpKtReject`
+ * chạy trọn đường; bài kiểm so MỌI trường KHÁC, còn `kho` và câu thông báo thì đòi riêng ở
+ * phía PHP — xem chú thích trong `kiem-jp-duyet.php`.
+ */
+const KHO_GIA = 'function jpXuatKhoBaoCao_() { return null; }\n'
+  + 'function jpHoanKhoBaoCao_() { return null; }\n';
+
 const Utilities = {
   formatDate(d, tz, fmt) {
     const p = new Intl.DateTimeFormat('en-GB', {
@@ -69,6 +78,7 @@ const hop = {
 };
 vm.createContext(hop);
 for (const t of ds_tep) vm.runInContext(fs.readFileSync(t, 'utf8'), hop, { filename: t });
+vm.runInContext(KHO_GIA, hop, { filename: 'kho-gia.js' });
 
 const ten = process.argv[2];
 const vao = JSON.parse(process.argv[3]);
@@ -188,6 +198,10 @@ const ham = {
   /* Nộp báo cáo, và phần ĐẾM của đường ảnh (không đụng Drive nên chạy được bằng node). */
   nop: 'jpSubmitReport', thieu_chi_so: 'jpThieuChiSo_', dong_trong: 'jpDongTrong_',
   qr_vuot_tien: 'jpQRVuotTien_', kiem_anh: 'jpCheckPhotos_', anh_tien_do: 'jpPhotoProgress',
+  /* Kế toán duyệt. */
+  ket_ky: 'jpKetKy_', ky_duoc: 'jpCanSign_', anh_da_chot: 'jpPhotoWarnList_',
+  gop_canh_bao: 'jpGopCanhBao_', tien_vs_hang: 'jpTienVsHang_',
+  ds_bao_cao: 'jpKtListReports', lay_kt: 'jpKtGetReport', ky: 'jpKtApprove', tra_ve: 'jpKtReject',
 }[ten];
 if (!ham) { console.error('không biết hàm ' + ten); process.exit(2); }
 if (typeof hop[ham] !== 'function') { console.error('mã gốc không có ' + ham); process.exit(3); }
