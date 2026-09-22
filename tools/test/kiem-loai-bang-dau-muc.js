@@ -90,8 +90,16 @@ t('   `_cacNhomCp()` cũng vậy', /_khoiCuaLoai\(x\)!==String\(KHOI_DANG\)/.tes
 t('🔴 bảng mã TK Nợ lấy khối của CHÍNH mục đó, không theo khối đang chọn ở màn khác',
   /var khoiB=g\.khoi\|\|String\(KHOI_DANG\)\.toLowerCase\(\);/.test(VE)
     && /rows\.filter\(function\(x\)\{ return _khoiCuaLoai\(x\)===khoiB; \}\)/.test(VE), 'không thấy');
-t('   và mỗi khối có một mục, kể cả khối chưa có cơ sở nào',
-  /KHOI_DS\.map\(function\(k\)\{ return \{ dv:k\.ma, khoi:k\.ma/.test(bocSach('_mxNhomDv')), 'không thấy');
+/* 🔴 TỪ 22/09/2026 DỰNG THEO `_mienDs()`, không theo cả từ điển khối — anh Thắng: *"Khối là
+   để xác định tài khoản nợ"*, và khối nay là MIỀN. Lấy `KHOI_DS` (từ điển đầy đủ) là dựng ra
+   ba mục rỗng vĩnh viễn của khối đã ra web riêng. */
+t('   và mỗi MIỀN có một mục, kể cả miền chưa có cơ sở nào',
+  /var bay=_mienDs\(\);/.test(bocSach('_mxNhomDv'))
+  && /bay\.map\(function\(k\)\{ return \{ dv:k\.ma, khoi:k\.ma/.test(bocSach('_mxNhomDv')), 'không thấy');
+/* ⚠️ Khối CŨ còn mảng vẫn ra một mục riêng, và phải GIỮ MÃ KHỐI của nó — trả `''` là mục ấy
+   rơi về `KHOI_DANG` ở chỗ lọc loại, tức bảng mã của khối này bày loại của khối kia. */
+t('   khối cũ còn mảng vẫn có mục riêng, mang đúng mã của nó',
+  /khoi:\(KHOI_DS\.some\(function\(x\)\{ return x\.ma===k; \}\) \? k : ''\)/.test(bocSach('_mxNhomDv')), 'không thấy');
 t('   và thôi lọc bằng ô Đơn vị của loại (ô ấy đã gỡ)', !/_loaiChoDv\(x, g\.dv\)/.test(VE));
 t('   đổi khối thì vẽ lại bảng Cấu hình', /renderTkNoMatrix\(\)/.test(bocSach('doiKhoi')), 'không thấy');
 

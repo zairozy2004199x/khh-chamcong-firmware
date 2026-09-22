@@ -2084,9 +2084,15 @@ class VHCPMTD_Cfg {
 		return ! in_array( $k, self::KHOI_KHONG_XUAT_MISA, true );
 	}
 
-	/** Tên khối cho câu báo lỗi / nhãn trên màn. */
+	/** Tên khối cho câu báo lỗi / nhãn trên màn.
+	 *  🔴 MB/MN thêm 22/09/2026 — anh Thắng: *"Chuyển nó sang là MB hay MN tương đương với
+	 *     Miền Bắc, Miền Nam"*. Ba tên cũ ở lại để sổ cũ còn đọc ra chữ, xem chốt dài ở
+	 *     `VHCPMTD_DonVi::KHOI_THEO_DON_VI`. */
 	public static function ten_khoi( $ma ) {
-		$m = array( 'kvc' => 'Khu vui chơi', 'mtd' => 'Máy tự động', 'vp' => 'Văn phòng' );
+		/* ⚠️ BẢNG NHÃN PHẢI NẰM TRÊN ĐÚNG MỘT DÒNG. `tools/tach-ban-vung.sh` chèn nhãn của mã
+		   vùng bằng một phép thay trên chính dòng này, và `kiem-khoi-ban-vung.php` đọc nó cũng
+		   theo dòng. Xuống dòng cho đẹp là bản vùng mất nhãn khối — tab hiện trơ mã. */
+		$m = array( 'mb' => 'Miền Bắc', 'mn' => 'Miền Nam', 'kvc' => 'Khu vui chơi', 'mtd' => 'Máy tự động', 'vp' => 'Văn phòng' );
 		$k = mb_strtolower( trim( (string) $ma ) );
 		return isset( $m[ $k ] ) ? $m[ $k ] : $ma;
 	}

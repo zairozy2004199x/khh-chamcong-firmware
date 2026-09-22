@@ -32,11 +32,14 @@ function bocDong(ten) { const i = HTML.indexOf('  var ' + ten + '='); return i <
 /* ═══ 1. HỘP THÊM CƠ SỞ CÓ Ô KHỐI ══════════════════════════════════════════════ */
 t('🔴 hộp "+ Thêm cơ sở" có ô chọn Khối', /<select id="ncKhoi">/.test(HTML));
 t('🔴 và ô gõ tay "Đơn vị" cũ đã gỡ', HTML.indexOf('id="ncDonVi"') < 0);
-t('⚠️ ô khối đổ từ `KHOI_DS`, cùng nguồn với thanh KHỐI',
-  /KHOI_DS\.map/.test(bocHam('addCfgCoso')), bocHam('addCfgCoso'));
+/* 🔴 TỪ 22/09/2026 Ô NÀY BÀY **MIỀN**, không bày cả từ điển khối — anh Thắng: *"Khối là liên
+   quan Miền Bắc và Miền Nam ôi"* · *"Chuyển nó sang là MB hay MN"*. */
+t('⚠️ ô khối đổ từ `_mienDs()`, cùng nguồn với cột Khối của bảng',
+  /_mienDs\(\)/.test(bocHam('addCfgCoso')) && !/KHOI_DS\.map/.test(bocHam('addCfgCoso')), bocHam('addCfgCoso'));
 
 const NEN = bocMang('KHOI_DS') + '\n' + bocDong('KHOI_DV_DUP') + '\n'
-  + ['_khoiDvBang', '_khoiCuaDv', '_tenKhoi', 'addCfgCoso', 'submitCfgCoso'].map(bocHam).join('\n');
+  + "\nvar MIEN_MA=['mb','mn'];\n"
+  + ['_khoiDvBang', '_khoiCuaDv', '_tenKhoi', '_mienDs', 'addCfgCoso', 'submitCfgCoso'].map(bocHam).join('\n');
 t('⚠️ nền chạy thử dựng được', NEN.replace(/\s/g, '').length > 600, NEN.length);
 
 function themCoSo(khoiSan, khoiDang, ten) {
@@ -58,23 +61,41 @@ function themCoSo(khoiSan, khoiDang, ten) {
   return { oKhoi: oKhoi, chonSan: chon, coso: CFG.coso, nhac: nhac.join(' ') };
 }
 
-const vp = themCoSo('vp', 'kvc', 'VĂN PHÒNG HCM');
-teq('🔴 ô khối có đủ ba khối', ['kvc', 'mtd', 'vp'], vp.oKhoi);
+const mb = themCoSo('mb', 'kvc', 'VĂN PHÒNG HN');
+teq('🔴 ô khối bày hai MIỀN, cộng một ô rỗng "chưa chọn"', ['', 'mb', 'mn'], mb.oKhoi);
 /* 🔴 CHỌN SẴN KHỐI CỦA BẢNG VỪA BẤM, không phải khối đang đứng trên thanh KHỐI: trang Cấu hình
    không có thanh ấy, nên `KHOI_DANG` ở đây là giá trị nhớ từ lần trước — chọn theo nó là cơ sở
    mới rơi vào khối người ta không hề nhắm tới. */
-teq('🔴 chọn sẵn khối của bảng vừa bấm (vp), KHÔNG phải khối đang đứng (kvc)', 'vp', vp.chonSan);
-teq('🔴 cơ sở mới ghi đúng mã khối vào ô `donVi`', 'vp', vp.coso[0].donVi);
-teq('   và đúng tên', 'VĂN PHÒNG HCM', vp.coso[0].ten);
-t('⚠️ câu báo nói rõ vào khối nào', /Văn phòng/.test(vp.nhac), vp.nhac);
-/* Không truyền khối thì ngã về khối đang đứng — người bấm nút chung ở đầu thẻ. */
-teq('⚠️ không truyền khối → theo khối đang đứng', 'mtd', themCoSo('', 'mtd', 'X').coso[0].donVi);
+teq('🔴 chọn sẵn miền của bảng vừa bấm (mb), KHÔNG phải khối đang đứng (kvc)', 'mb', mb.chonSan);
+teq('🔴 cơ sở mới ghi đúng mã miền vào ô `donVi`', 'mb', mb.coso[0].donVi);
+teq('   và đúng tên', 'VĂN PHÒNG HN', mb.coso[0].ten);
+t('⚠️ câu báo nói rõ vào khối nào', /Miền Bắc/.test(mb.nhac), mb.nhac);
+
+/* ═══ 🔴 CHƯA CHỌN MIỀN THÌ CHỐI, KHÔNG ĐOÁN HỘ ═══════════════════════════════════
+ * Bản trước ngã về `KHOI_DANG` — giá trị nhớ từ lần trước, mà trang Cấu hình không có thanh
+ * khối để đổi. Gian mới vì thế rơi vào một khối chẳng ai chọn, và chi phí của nó nằm sai bảng
+ * mã tài khoản: không câu lỗi nào, chỉ lộ ra lúc đối chiếu với kế toán.
+ *
+ * ⚠️ Ô RỖNG PHẢI LÀ MỘT OPTION THẬT. Một `<select>` không có option nào `selected` thì trình
+ *    duyệt lấy option ĐẦU — "chưa chọn" lặng lẽ hoá thành "Miền Bắc". */
+{
+  const khong = themCoSo('', 'mtd', 'X');
+  teq('🔴 bấm nút chung (không truyền miền) → KHÔNG chọn sẵn gì', '', khong.chonSan);
+  teq('🔴 và chưa chọn miền thì KHÔNG thêm cơ sở nào', 0, khong.coso.length);
+  t('   kèm câu nhắc, không im lặng', /Chọn miền/.test(khong.nhac), khong.nhac);
+  const cu2 = themCoSo('kvc', 'kvc', 'Y');
+  teq('🔴 truyền một KHỐI CŨ cũng không được chọn sẵn — phải tự chọn miền', '', cu2.chonSan);
+  teq('   và cũng không thêm được cho tới khi chọn', 0, cu2.coso.length);
+}
 
 /* ═══ 2. BẢNG BÀY ĐỦ BA KHỐI, KỂ CẢ KHỐI RỖNG ══════════════════════════════════ */
 const VE = bocHam('renderCosoBody');
 t('⚠️ bốc được `renderCosoBody`', VE.length > 800);
-t('🔴 vòng dựng nhóm có bù cho khối chưa có cơ sở nào',
-  /KHOI_DS\.forEach\(function\(k\)\{[\s\S]{0,400}?dvGr\[k\.ma\]=\[\]; dvOrd\.push\(k\.ma\);/.test(VE), VE.slice(0, 300));
+t('🔴 vòng dựng nhóm có bù cho MIỀN chưa có cơ sở nào',
+  /_mienDs\(\)\.forEach\(function\(k\)\{[\s\S]{0,400}?dvGr\[k\.ma\]=\[\]; dvOrd\.push\(k\.ma\);/.test(VE), VE.slice(0, 300));
+/* ⚠️ Và KHÔNG bù theo cả từ điển khối — ba mã cũ đã ra web riêng, bù chúng là ba nhóm rỗng
+   vĩnh viễn nằm trên đầu bảng. */
+t('⚠️ không bù theo `KHOI_DS` (từ điển đầy đủ) nữa', !/KHOI_DS\.forEach/.test(VE));
 /* ⚠️ Chỉ bù khối người này XEM ĐƯỢC — bày cả ba cho kế toán bị bó một khối là mời họ khai vào
    một bảng mà máy chủ sẽ chối ngay lượt Lưu. */
 t('⚠️ chỉ bù khối người này xem được', /if\(!_xemDuocDv\(k\.ma\)\) return;/.test(VE));

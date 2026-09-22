@@ -302,7 +302,23 @@ class VHCPMTD_DonVi {
 	 *    trả `null` (bày đủ nút) — không lộ gì cả, vì sau mỗi nút vẫn là dữ liệu đã bị chốt đơn
 	 *    vị cắt. Hỏng theo hướng bày thừa một cái nút rỗng, không phải hướng mở cửa.
 	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	/* ══════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 KHỐI NAY LÀ MIỀN — MB / MN. Anh Thắng 22/09/2026: *"Khối là liên quan Miền Bắc và
+	 *    Miền Nam ôi"*, rồi *"Chuyển nó sang là MB hay MN tương đương với Miền Bắc, Miền Nam"*.
+	 *
+	 * ⚠️ BA MÃ CŨ (kvc · mtd · vp) Ở LẠI TRONG TỪ ĐIỂN, VÀ CỐ Ý. Danh mục loại chi phí và bảng
+	 *    mã TK Nợ đang mang chúng; bỏ khỏi từ điển là mấy dòng ấy hiện ra với cái mã trần thay
+	 *    vì tên, hoặc rơi hẳn khỏi bảng mã — mã tài khoản còn trong sổ mà không ai sửa được.
+	 *    Thứ ĐỔI là danh sách khối còn NHẬN VIỆC MỚI (`KHOI_MO` bên màn): từ nay chỉ MB/MN.
+	 *    Kế toán tự đổi từng dòng bằng ô chọn Khối — máy không ép đổi khối của ai.
+	 *
+	 * ⚠️ MIỀN KHÔNG ÁNH XẠ TỪ ĐƠN VỊ. Ba mã cũ suy ra được từ cột Đơn vị ('POSH' → mtd), còn
+	 *    miền thì không: một đơn vị có cơ sở ở cả hai miền. Nên hai khoá mới nhận đúng tên
+	 *    viết tắt của chính nó, để `khoi_cua()` không gán bừa cơ sở vào một miền.
+	 * ══════════════════════════════════════════════════════════════════════════════════════ */
 	const KHOI_THEO_DON_VI = array(
+		'mb'  => array( 'MB', 'MIỀN BẮC', 'MIEN BAC' ),
+		'mn'  => array( 'MN', 'MIỀN NAM', 'MIEN NAM' ),
 		'kvc' => array( 'KVC' ),
 		'mtd' => array( 'MTĐ', 'MTD', 'POSH' ),
 		'vp'  => array( 'VP', 'VĂN PHÒNG', 'VAN PHONG' ),

@@ -238,8 +238,12 @@ fi
 #    TRÙNG KHOÁ. PHP lấy cái sau nên nhãn vẫn ra đúng, tức hỏng mà không kêu — thứ chỉ lộ ra
 #    khi ai đó đổi thứ tự chèn. Hỏi đúng câu cần hỏi: mã này đã có mặt trong bảng chưa.
 if ! grep -q "\$m = array(.*'$MA' *=>" "$DICH/includes/class-vhcp-cfg.php"; then
-  MA="$MA" KHOI_NHAN="$KHOI_NHAN" perl -0pi -e '
-    s{\$m = array\( \x27kvc\x27 =>}{\$m = array( \x27$ENV{MA}\x27 => \x27$ENV{KHOI_NHAN}\x27, \x27kvc\x27 =>};
+  # 🔴 NEO VÀO TÊN HÀM, KHÔNG NEO VÀO KHOÁ ĐẦU BẢNG. Bản trước neo vào `'kvc' =>`; ngày
+  #    22/09/2026 bảng nhãn dẫn đầu bằng 'mb' (khối thành MIỀN) là phép thay trượt sạch — và
+  #    cả ba bản vùng sinh ra HỎNG TỪ BƯỚC ĐẦU, kéo theo mười mấy bài kiểm đỏ ở những chỗ
+  #    chẳng liên quan gì tới nhãn khối. Tên hàm thì không đổi theo danh mục.
+  MA="$MA" KHOI_NHAN="$KHOI_NHAN" perl -0777 -pi -e '
+    s{(function ten_khoi\( \$ma \) \{.*?\$m = array\( )}{$1\x27$ENV{MA}\x27 => \x27$ENV{KHOI_NHAN}\x27, }s;
   ' "$DICH/includes/class-vhcp-cfg.php"
   if ! grep -q "'$MA' => '$KHOI_NHAN'" "$DICH/includes/class-vhcp-cfg.php"; then
     echo "✗ Không đặt được nhãn cho khối '$MA' — tab của bản này sẽ hiện trơ mã."

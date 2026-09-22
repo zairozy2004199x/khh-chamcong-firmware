@@ -123,7 +123,13 @@ teq( '   và mã của mỗi khối không lẫn sang nhau', array( 'kvc' => '64
 /* ═══ 7. MÃ KHỐI DÙNG Ở ĐÂY PHẢI LÀ MÃ THẬT ══════════════════════════════════════
  * Gõ 'vanphong' thay vì 'vp' thì loại ấy thuộc một khối không tồn tại — không bảng nào chứa. */
 $hop = array_keys( VHCP_DonVi::KHOI_THEO_DON_VI );
-t( '🔴 ba mã khối của giao diện khớp `VHCP_DonVi`', array( 'kvc', 'mtd', 'vp' ) === $hop, $hop );
+/* 🔴 HAI MIỀN ĐI TRƯỚC (22/09/2026) — anh Thắng: *"Khối là liên quan Miền Bắc và Miền Nam ôi"*
+ *    · *"Chuyển nó sang là MB hay MN tương đương với Miền Bắc, Miền Nam"*.
+ * ⚠️ BA MÃ CŨ Ở LẠI, VÀ CỐ Ý: danh mục + bảng mã TK Nợ đang mang chúng. Bỏ khỏi từ điển là
+ *    mấy dòng ấy hiện ra với mã trần thay vì tên, hoặc rơi hẳn khỏi bảng mã — mã tài khoản
+ *    còn trong sổ mà không ai sửa được. Thứ ĐỔI là danh sách bày ra để chọn (`_mienDs()`). */
+t( '🔴 mã khối của giao diện khớp `VHCP_DonVi` — hai miền trước, ba mã cũ giữ lại để đọc sổ',
+	array( 'mb', 'mn', 'kvc', 'mtd', 'vp' ) === $hop, $hop );
 $app = (string) @file_get_contents( $goc . '/wordpress/vhcp-chi-phi/templates/app.html' );
 if ( preg_match( "/var KHOI_DS=\[(.*?)\];/u", $app, $m ) ) {
 	preg_match_all( "/ma:'([a-z]+)'/u", $m[1], $m2 );

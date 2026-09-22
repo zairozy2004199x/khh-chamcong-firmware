@@ -46,8 +46,15 @@ t('bốc được _xemDuocDv()', fnXemDuoc.length > 80, fnXemDuoc.length);
 /* 🔴 BỐC MÃ THẬT, ĐỪNG BỊA LẠI LUẬT Ở ĐÂY. Từ 21/09/2026 cột Bộ phận đã rời bảng Người
    dùng, nên luật nào cần bộ phận thì đọc lại từ TÊN VAI CON. Bịa một bản ở bài kiểm là nó
    canh luật của chính nó, xanh vĩnh viễn dù bản thật đi đường khác. */
-const KHOI_THAT = `  var KHOI_DS=[{ma:'kvc',ten:'Khu vui chơi'},{ma:'mtd',ten:'Máy tự động'},{ma:'vp',ten:'Văn phòng'}];
-  var KHOI_DV_DUP={kvc:['KVC'],mtd:['MT\\u0110','MTD','POSH'],vp:['VP','V\\u0102N PH\\u00d2NG','VAN PHONG']};
+const KHOI_THAT = `  var KHOI_DS=[{ma:'mb',ten:'Miền Bắc'},{ma:'mn',ten:'Miền Nam'},{ma:'kvc',ten:'Khu vui chơi'},{ma:'mtd',ten:'Máy tự động'},{ma:'vp',ten:'Văn phòng'}];
+  var KHOI_DV_DUP={mb:['MB'],mn:['MN'],kvc:['KVC'],mtd:['MT\\u0110','MTD','POSH'],vp:['VP','V\\u0102N PH\\u00d2NG','VAN PHONG']};
+  /* 🔴 MIỀN (22/09/2026) — \`renderCosoBody()\` bù nhóm theo \`_mienDs()\`, không theo cả từ điển
+     khối: ba mã cũ đã ra web riêng, bù chúng là ba nhóm rỗng vĩnh viễn trên đầu bảng. */
+  var MIEN_MA=['mb','mn'];
+  function _mienDs(){
+    var ra=KHOI_DS.filter(function(x){ return MIEN_MA.indexOf(x.ma)>=0; });
+    return ra.length ? ra : [{ma:'mb',ten:'Miền Bắc'},{ma:'mn',ten:'Miền Nam'}];
+  }
   function _khoiDvBang(){
     var b=(typeof BOOT!=='undefined' && BOOT) ? BOOT.khoiTheoDv : null;
     return (b && b.kvc) ? b : KHOI_DV_DUP;
@@ -136,13 +143,25 @@ t('                              · KVC',   boHai.html.indexOf('KVC') >= 0, boHa
 const xemCa = chay([], null);   // 🔴 `xemDonVi` null = XEM CẢ, không phải "không xem gì"
 t('🔴 xem cả mà bảng rỗng → nói rõ từng khối chưa có cơ sở',
   xemCa.html.indexOf('Khối này chưa có cơ sở nào') >= 0, xemCa.html);
-t('   và bày đủ ba khối để chọn chỗ thêm',
-  ['Khu vui chơi', 'Máy tự động', 'Văn phòng'].every(function (k) { return xemCa.html.indexOf('Thêm cơ sở cho ' + k) >= 0; }), xemCa.html);
+/* 🔴 TỪ 22/09/2026 NHÓM BÙ LÀ **MIỀN** — anh Thắng: *"Khối là liên quan Miền Bắc và Miền Nam
+   ôi"*. Ba mã cũ đã ra web riêng; bù chúng là ba nhóm rỗng vĩnh viễn nằm trên đầu bảng. Nhóm
+   của khối cũ CÒN cơ sở vẫn hiện — vòng gom lo việc ấy, chỗ bù chỉ thêm nhóm còn thiếu. */
+t('   và bày đủ hai MIỀN để chọn chỗ thêm',
+  ['Miền Bắc', 'Miền Nam'].every(function (k) { return xemCa.html.indexOf('Thêm cơ sở cho ' + k) >= 0; }), xemCa.html);
+t('   và KHÔNG bù nhóm rỗng cho khối đã ra web riêng',
+  ['Khu vui chơi', 'Máy tự động', 'Văn phòng'].every(function (k) { return xemCa.html.indexOf('Thêm cơ sở cho ' + k) < 0; }), xemCa.html);
 t('🔴 KHÔNG đổ oan cho phân quyền', xemCa.html.indexOf('Không phải mất dữ liệu') < 0, xemCa.html);
-/* Chỉ Văn phòng mới được nhắc "tạo cơ sở đại diện" — hai khối kia có gian thật, nhắc thế là mời
-   khai một gian không tồn tại. */
-t('⚠️ câu gợi ý "cơ sở đại diện" CHỈ ở nhóm Văn phòng',
-  (xemCa.html.match(/không có gian vật lý/g) || []).length === 1, xemCa.html);
+/* Chỉ Văn phòng mới được nhắc "tạo cơ sở đại diện" — nơi khác có gian thật, nhắc thế là mời
+   khai một gian không tồn tại.
+   🔴 VÀ TỪ 22/09/2026 NHÓM BÙ LÀ MIỀN, mà miền nào cũng có gian thật — nên câu ấy KHÔNG được
+      hiện ở nhóm miền. Nó vẫn còn trong mã, gác bằng mã khối 'vp', cho nhóm Văn phòng nào còn
+      sống trong dữ liệu cũ. */
+t('⚠️ câu gợi ý "cơ sở đại diện" KHÔNG hiện ở nhóm miền',
+  (xemCa.html.match(/không có gian vật lý/g) || []).length === 0, xemCa.html);
+/* ⚠️ VẾ "HOẶC" LÀ MỘT PHÉP KHÔNG BAO GIỜ ĐỎ — bỏ. Soi đúng cái cổng: câu ấy nằm sau một
+   điều kiện gác bằng MÃ KHỐI 'vp', không phải bày cho mọi nhóm rỗng. */
+t('   nhưng vẫn còn trong mã, gác bằng mã khối vp',
+  /_khoiCuaDv\(d\)==='vp'[\s\S]{0,240}không có gian vật lý/.test(HTML), 'không thấy');
 
 const xemCaRong = chay([], []);   // mảng RỖNG cũng phải hiểu là "không bó ai"
 t('mảng rỗng cũng là chưa khai, không phải bị bó',

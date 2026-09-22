@@ -181,7 +181,10 @@ function dungBe(loaiChiPhi, tkNoMatrix, coso, mangTk) {
        ra 3 bảng của 3 khối, để tránh dùng chung"*. `renderTkNoMatrix()` đọc `KHOI_DS` để dựng
        ba thẻ <details>, và `saveCfgTkNoMx()` đi qua `_mxBodies()`; thiếu là cả bài nổ
        `ReferenceError` vì một lý do chẳng liên quan tới bảng mã. */
-    KHOI_DS: [{ ma: 'kvc', ten: 'Khu vui chơi' }, { ma: 'mtd', ten: 'Máy tự động' }, { ma: 'vp', ten: 'Văn phòng' }],
+    /* ⚠️ HAI MIỀN thêm 22/09/2026 — `KHOI_DS` là TỪ ĐIỂN đầy đủ, còn thứ bảng mã dựng mục theo
+       là `_mienDs()`. Thiếu chúng ở đây là mục miền hiện ra với mã trần thay vì tên. */
+    KHOI_DS: [{ ma: 'mb', ten: 'Miền Bắc' }, { ma: 'mn', ten: 'Miền Nam' },
+      { ma: 'kvc', ten: 'Khu vui chơi' }, { ma: 'mtd', ten: 'Máy tự động' }, { ma: 'vp', ten: 'Văn phòng' }],
     /* ⚠️ `KHOI_MO` thêm 22/09/2026 — khối còn NHẬN VIỆC MỚI, tách khỏi `KHOI_DS` (nay là từ
        điển đầy đủ, còn giữ 'mtd' để đọc sổ cũ sau khi MTĐ ra web riêng). Bệ đỡ để cả ba: bảng
        mã là màn CẤU HÌNH, nó phải sửa được mã của mọi khối còn dữ liệu — anh Thắng 14/09/2026
@@ -227,7 +230,7 @@ function dungBe(loaiChiPhi, tkNoMatrix, coso, mangTk) {
     var KHOI_DV_DUP=${bocDongMd('KHOI_DV_DUP')};
     ${boc('_khoiDvBang')}\n${boc('_khoiCuaDv')}\n${boc('_tenKhoi')}
     ${boc('_boDauVai')}\n${boc('_khoiCuaVai')}\n${boc('_vaiOKhoi')}
-    ${boc('_khoiCuaLoai')}\n${boc('_mxBodies')}\n${boc('_khoiMo')}\n${boc('_khoiLuuTru')}\n${boc('_khoiBay')}\n${boc('_khoiDuoc')}\n${boc('_vaiConCua')}\n${boc('_vaiSelNhieu')}\n${boc('_khoiSelLoai')}
+    ${boc('_khoiCuaLoai')}\n${boc('_mxBodies')}\n${boc('_khoiMo')}\nvar MIEN_MA=['mb','mn'];\n${boc('_mienDs')}\n${boc('_khoiLuuTru')}\n${boc('_khoiBay')}\n${boc('_khoiDuoc')}\n${boc('_vaiConCua')}\n${boc('_vaiSelNhieu')}\n${boc('_khoiSelLoai')}
     ${boc('_dvSelNhieu')}\n${boc('_loaiChoDv')}\n${boc('_mangTong')}\n${boc('_mangTongDoan')}\n${boc('_mxMaGoc')}\n${boc('_mxSapCols')}\n${boc('_mxCols')}\n${boc('_mxNhomDv')}\n${boc('_xemDuocDv')}\n${boc('_dauMucSel')}\n${boc('_mxRowHtml')}\n${boc('renderTkNoMatrix')}\n${boc('_khoaDongKhoiLa')}\n${boc('saveCfgTkNoMx')}
     return { ve: renderTkNoMatrix, luu: saveCfgTkNoMx }; }`)(moi);
   return { moi, NK, KHO, F };
@@ -442,7 +445,8 @@ const MX_K = [
      bảng → không ai khai được: đúng vòng luẩn quẩn anh Thắng vục phải.
      ⚠️ Canh bằng TIÊU ĐỀ: khối chưa có loại nào thì không dựng thân bảng, chỉ dựng một dòng
         nói vì sao rỗng — và đó mới là thứ phải có. */
-  t('🔴 khối chưa có gì VẪN có mục riêng', h.indexOf('>Văn phòng<') >= 0,
+  /* 🔴 NAY LÀ MIỀN (22/09/2026): hai mục MB/MN luôn có, kể cả chưa cơ sở nào khai miền. */
+  t('🔴 miền chưa có gì VẪN có mục riêng', h.indexOf('>Miền Bắc<') >= 0 && h.indexOf('>Miền Nam<') >= 0,
     (h.match(/TK Nợ · <span[^>]*>[^<]*/g) || []));
   t('   và nói rõ vì sao rỗng', /Khối này chưa có loại chi phí nào/.test(h));
   const kh = mucMa(h, 'Khu vui chơi');

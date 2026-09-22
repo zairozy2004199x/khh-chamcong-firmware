@@ -176,8 +176,11 @@ function dungBe(ban, khoiXem) {
     + [boc('_inp'), boc('_loaiSel'), boc('_bpTach'), boc('_bpSelNhieu')].join('\n')
     + '\nvar KHOI_THEO_TEN_VAI=' + bocBien('KHOI_THEO_TEN_VAI') + ';'
     + '\nvar KHOI_DV_DUP=' + bocDong('KHOI_DV_DUP') + ';'
+    /* 🔴 `MIEN_MA` (22/09/2026) — từ 1.280.0 ô chọn Khối của loại chi phí bày MIỀN, không bày
+       cả từ điển khối. Thiếu bảng này là `_mienDs()` nổ `ReferenceError` ngay lượt vẽ đầu. */
+    + '\nvar MIEN_MA=' + bocDong('MIEN_MA') + ';'
     + '\n' + ['_khoiDvBang', '_khoiCuaDv', '_tenKhoi', '_boDauVai', '_khoiCuaVai', '_vaiOKhoi',
-      '_vaiConCua', '_vaiSelNhieu', '_khoiCuaLoai', '_mxBodies', '_khoiMo',
+      '_vaiConCua', '_vaiSelNhieu', '_khoiCuaLoai', '_mxBodies', '_khoiMo', '_mienDs',
       '_khoiLuuTru', '_khoiBay', '_khoiDuoc', '_khoiSelLoai', '_dvSelNhieu', '_loaiChoDv',
       '_mangTong', '_mangTongDoan', '_mxMaGoc', '_mxSapCols', '_mxCols', '_mxNhomDv',
       '_xemDuocDv', '_dauMucSel', '_mxRowHtml', 'renderTkNoMatrix', '_khoaDongKhoiLa',

@@ -2920,7 +2920,7 @@
      đúng mẫu `var KHOI_DS=[{ma:...` ra chạy riêng; đổi nó thành một tham chiếu tới hằng khai
      ở dòng khác là mười mấy bài chết đứng bằng ReferenceError — đã xảy ra đúng thế. Đường lui
      là BẢN SAO của nó, không phải ngược lại. */
-  var KHOI_DS=[{ma:'kvc',ten:'Khu vui chơi'},{ma:'mtd',ten:'Máy tự động'},{ma:'vp',ten:'Văn phòng'}];
+  var KHOI_DS=[{ma:'mb',ten:'Miền Bắc'},{ma:'mn',ten:'Miền Nam'},{ma:'kvc',ten:'Khu vui chơi'},{ma:'mtd',ten:'Máy tự động'},{ma:'vp',ten:'Văn phòng'}];
   var KHOI_DS_LUI=KHOI_DS.slice();
   function _napKhoiDs(){
     var ds=(typeof BOOT!=="undefined"&&BOOT&&BOOT.khoiDs)||null;
@@ -2930,9 +2930,39 @@
     var ban=String((typeof BOOT!=="undefined"&&BOOT&&BOOT.khoiBan)||'').trim();
     if(ban && KHOI_MO.indexOf(ban)<0) KHOI_MO.push(ban);
   }
+  /* ⚠️ `KHOI_MO` LÀ TRỤC CỦA **ĐƠN**, KHÔNG PHẢI TRỤC MIỀN. Thanh khối trên màn Đơn chi phí
+     lọc theo cột `khoi` của đơn, mà cột ấy do `VHCP_DB::KHOI` (mã của BẢN) đóng dấu — không
+     phải miền. Nhét 'mb'/'mn' vào đây là dựng hai cái tab VĨNH VIỄN RỖNG cạnh tab thật.
+     Miền có danh sách riêng: `_mienDs()`. */
   var KHOI_MO=['kvc','vp'];
   /** Khối CÒN NHẬN VIỆC MỚI ở bản này. */
   function _khoiMo(){ return KHOI_DS.filter(function(x){ return KHOI_MO.indexOf(x.ma)>=0; }); }
+  /* ══════════════════════════════════════════════════════════════════════════════════════
+   * MIỀN — TRỤC CỦA CỘT "KHỐI" Ở CẤU HÌNH, TỪ 22/09/2026.
+   * ══════════════════════════════════════════════════════════════════════════════════════
+   * Anh Thắng: *"Khối là dùng chung, vì đã phân theo vai trò rồi"* · *"Khối là liên quan Miền
+   * Bắc và Miền Nam ôi"* · *"Chuyển nó sang là MB hay MN tương đương với Miền Bắc, Miền Nam"*
+   * · *"Khối là để xác định tài khoản nợ"*.
+   *
+   * 🔴 HAI TRỤC TÊN GIỐNG NHAU, ĐỪNG TRỘN.
+   *   · `KHOI_MO` / `_khoiBay()` — trục của ĐƠN: cột `khoi` của đơn do mã BẢN đóng dấu
+   *     (`VHCP_DB::KHOI`). Thanh khối trên màn Đơn chi phí dựng từ đó.
+   *   · `_mienDs()` — trục của CẤU HÌNH: khối của một CƠ SỞ và của một LOẠI CHI PHÍ, và là
+   *     thứ bảng mã TK Nợ cắt theo.
+   *   Trộn hai cái là hoặc thanh khối mọc ra hai tab vĩnh viễn rỗng, hoặc bảng mã bày ba mục
+   *   của mấy khối đã ra web riêng. Đã thử cả hai hướng trong cùng một buổi.
+   *
+   * ⚠️ BA MÃ CŨ (kvc · mtd · vp) KHÔNG BỊ XOÁ khỏi `KHOI_DS` — nó là TỪ ĐIỂN, và sổ đang mang
+   *    chúng. Ô chọn giữ giá trị cũ kèm dấu nhắc (xem `_khoiSelLoai`), kế toán tự đổi. Máy
+   *    không ép đổi khối của ai: đổi khối là đổi tài khoản nợ của cả một loại chi phí.
+   * ══════════════════════════════════════════════════════════════════════════════════════ */
+  var MIEN_MA=['mb','mn'];
+  function _mienDs(){
+    var ra=KHOI_DS.filter(function(x){ return MIEN_MA.indexOf(x.ma)>=0; });
+    /* Gói khởi động của bản CŨ không có hai mã này — trả rỗng là mọi ô chọn Khối trắng trơn
+       và không ai khai được gì. Đường lui giữ đúng hai miền. */
+    return ra.length ? ra : [{ma:'mb',ten:'Miền Bắc'},{ma:'mn',ten:'Miền Nam'}];
+  }
   /** Khối đã ra riêng nhưng kho này CÒN SỔ của nó — hiện để đọc/xuất nốt, không lập đơn mới. */
   function _khoiLuuTru(){
     var co=(window.BOOT&&BOOT.khoiCoDon)||[];
@@ -2949,10 +2979,13 @@
    *    lệch — màn xếp cơ sở vào khối này trong khi máy chủ đọc ra khối khác, không một câu
    *    lỗi nào. Bản dự phòng dưới đây chỉ để trang còn chạy được với gói khởi động bản cũ.
    * ═════════════════════════════════════════════════════════════════════════════════ */
-  var KHOI_DV_DUP={kvc:['KVC'],mtd:['MTĐ','MTD','POSH'],vp:['VP','VĂN PHÒNG','VAN PHONG']};
+  var KHOI_DV_DUP={mb:['MB','MIỀN BẮC','MIEN BAC'],mn:['MN','MIỀN NAM','MIEN NAM'],kvc:['KVC'],mtd:['MTĐ','MTD','POSH'],vp:['VP','VĂN PHÒNG','VAN PHONG']};
   function _khoiDvBang(){
     var b=(typeof BOOT!=='undefined' && BOOT) ? BOOT.khoiTheoDv : null;
-    return (b && b.kvc) ? b : KHOI_DV_DUP;
+    /* ⚠️ DÒ MỘT KHOÁ BẤT KỲ, ĐỪNG DÒ ĐÚNG 'kvc'. Từ 22/09/2026 bộ khối dẫn đầu bằng MB/MN, và
+       bản vùng có thể chẳng có 'kvc' nào — dò đúng khoá ấy là màn lặng lẽ rơi về BẢN DỰ PHÒNG
+       và mọi ánh xạ đơn vị→khối chạy trên dữ liệu gõ cứng của bản cũ. */
+    return (b && Object.keys(b).length) ? b : KHOI_DV_DUP;
   }
   /** Mã khối của một đơn vị — '' nếu không ánh xạ được. Song sinh `VHCP_DonVi::khoi_cua()`. */
   function _khoiCuaDv(dv){
@@ -12417,13 +12450,33 @@
   function _mxBodies(){
     return Array.prototype.slice.call(document.querySelectorAll('tbody.cfgMxBody'));
   }
-  /** Ô chọn KHỐI cho một dòng loại chi phí. Mang `data-khoi-o` để lượt Lưu đọc đúng nó. */
+  /**
+   * Ô CHỌN KHỐI cho một dòng loại chi phí. Mang `data-khoi-o` để lượt Lưu đọc đúng nó.
+   *
+   * 🔴 CHỈ BÀY KHỐI CÒN NHẬN VIỆC MỚI (từ 22/09/2026 là MB / MN — anh Thắng: *"Chuyển nó sang
+   *    là MB hay MN tương đương với Miền Bắc, Miền Nam"*).
+   *
+   * 🔴 NHƯNG PHẢI GIỮ GIÁ TRỊ CŨ KHÔNG CÒN TRONG DANH SÁCH, và đây là chỗ chết người.
+   *    Danh mục đang có hàng chục dòng mang 'kvc' / 'mtd' / 'vp'. Nếu ô chọn không có option
+   *    nào ứng với giá trị ấy thì trình duyệt tự chọn option ĐẦU TIÊN — và lượt Lưu kế tiếp
+   *    ghi 'mb' đè lên MỌI dòng cũ. Không câu lỗi nào: bảng lưu xong vẽ lại trông vẫn bình
+   *    thường, chỉ là mọi loại nhảy sang một khối khác và mã TK Nợ của chúng thành vô chủ.
+   *    Cùng cái bẫy mà `_dauMucSel()` dựng lên để tránh, ở một cột khác.
+   *
+   * ⚠️ DẤU NHẮC BÊN DƯỚI là đường để kế toán TỰ thấy mà đổi. Máy không ép đổi khối của ai —
+   *    đổi khối là đổi tài khoản nợ của cả một loại chi phí.
+   */
   function _khoiSelLoai(ma){
     ma=String(ma||'').toLowerCase();
-    return '<select data-khoi-o onchange="_khoiODoi(this)" style="width:100%" title="Loại chi phí này thuộc khối nào. Đổi rồi bấm Lưu là dòng nhảy sang bảng của khối ấy.">'
-      +KHOI_DS.map(function(k){
+    var ds=_mienDs();
+    var la=(ma && !ds.some(function(k){ return k.ma===ma; }));
+    var h='<select data-khoi-o onchange="_khoiODoi(this)" style="width:100%" title="Loại chi phí này thuộc miền nào. Khối chỉ còn dùng để xác định TÀI KHOẢN NỢ — nó không cắt danh mục loại chi phí nữa.">'
+      +ds.map(function(k){
         return '<option value="'+esc(k.ma)+'"'+(k.ma===ma?' selected':'')+'>'+esc(k.ten)+'</option>';
-      }).join('')+'</select>';
+      }).join('');
+    if(la) h+='<option value="'+esc(ma)+'" selected>'+esc(_tenKhoi(ma)||ma)+'</option>';   /* ⚠️ xem chú thích trên */
+    return h+'</select>'
+      +(la?'<div style="font-size:10px;color:#b45309">khối cũ — chọn Miền Bắc / Miền Nam rồi Lưu</div>':'');
   }
   /* Đổi ô KHỐI trên một dòng -> dựng lại danh sách vai của ĐÚNG dòng ấy ngay.
      🔴 MANG THEO NHỮNG Ô ĐANG TÍCH. Dựng lại từ `x.vaiTro` cũ là mất sạch những gì người ta
@@ -13191,7 +13244,11 @@
        người ta xem được. (Em đọc nhầm đúng chỗ này một lượt, 22/09/2026.) */
     var _biBo=!!(BOOT.xemDonVi && BOOT.xemDonVi.length);
     if(!(_biBo && !dvOrd.length)){
-      KHOI_DS.forEach(function(k){
+      /* 🔴 `_mienDs()` CHỨ KHÔNG PHẢI `KHOI_DS` (22/09/2026). `KHOI_DS` nay là TỪ ĐIỂN đầy đủ
+         (MB · MN · ba mã cũ); bù nhóm theo nó là bảng Cơ sở mọc ra ba nhóm rỗng vĩnh viễn của
+         khối đã ra web riêng. Nhóm của khối cũ CÒN cơ sở vẫn hiện — vòng gom ở trên lo việc
+         ấy, chỗ này chỉ BÙ nhóm còn thiếu. */
+      _mienDs().forEach(function(k){
         if(dvGr[k.ma]) return;                                  // đã có nhóm mang đúng mã khối
         if(dvOrd.some(function(d){ return _khoiCuaDv(d)===k.ma; })) return;   // nhóm mang tên đơn vị cũ cùng khối
         if(!_xemDuocDv(k.ma)) return;
@@ -13277,17 +13334,24 @@
   function _khoiSelCoso(dv){
     var cu=String(dv==null?'':dv).trim();
     var k=_khoiCuaDv(cu);
-    var h='<select style="width:100%" title="Khối của gian này — quyết định chi phí của nó rơi vào sổ nào.">';
+    var ds=_mienDs();
+    /* 🔴 KHỐI CŨ (kvc · mtd · vp) ĐỌC RA ĐƯỢC NHƯNG KHÔNG CÒN TRONG DANH SÁCH — vẫn phải có
+       một option cho nó, không thì trình duyệt chọn option đầu và lượt Lưu ghi "MB" đè lên
+       mọi cơ sở cũ. Cùng cái bẫy với `_khoiSelLoai()`. */
+    var la=(k && !ds.some(function(x){ return x.ma===k; }));
+    var h='<select style="width:100%" title="Miền của gian này — quyết định chi phí của nó rơi vào bảng mã tài khoản nào.">';
     if(!k){
       h+='<option value="'+esc(cu)+'" selected>'
         +(cu ? ('— giữ nguyên: '+esc(cu)+' —') : '— chưa khai ('+esc(_dvMacDinh())+') —')+'</option>';
     }
-    h+=KHOI_DS.map(function(x){
+    if(la){ h+='<option value="'+esc(cu)+'" selected>'+esc(_tenKhoi(k)||cu)+' (khối cũ)</option>'; }
+    h+=ds.map(function(x){
       /* Ô đang chọn giữ CHUỖI CŨ; các ô kia mang tên chuẩn — xem chốt 🔴 ở trên. */
       var v=(x.ma===k) ? cu : _dvChuanCuaKhoi(x.ma);
       return '<option value="'+esc(v)+'"'+(x.ma===k?' selected':'')+'>'+esc(x.ten)+'</option>';
     }).join('');
-    return h+'</select>';
+    return h+'</select>'
+      +(la?'<div style="font-size:10px;color:#b45309">khối cũ — chọn Miền Bắc / Miền Nam rồi Lưu</div>':'');
   }
   function _dongCoso(r){
     return { ten:(r[0]||'').trim(), tenMisa:r[1]||'', maDonVi:r[2]||'', phanLoaiLon:r[3]||'',
@@ -13342,10 +13406,19 @@
     if(el('ncTinh')) el('ncTinh').value='';
     var k=el('ncKhoi');
     if(k){
-      var ma=String(khoiSan||KHOI_DANG||'kvc').toLowerCase();
-      k.innerHTML=KHOI_DS.map(function(x){
-        return '<option value="'+esc(x.ma)+'"'+(x.ma===ma?' selected':'')+'>'+esc(x.ten)+'</option>';
-      }).join('');
+      /* 🔴 CƠ SỞ MỚI CHỌN MIỀN, không chọn khối cũ (22/09/2026). `khoiSan` truyền vào có thể
+         là một khối cũ — lúc ấy KHÔNG chọn sẵn gì, để người ta phải tự chọn miền, chứ đừng
+         gán bừa một miền rồi lặng lẽ ghi xuống. */
+      var ma=String(khoiSan||'').toLowerCase();
+      var ds=_mienDs();
+      if(!ds.some(function(x){ return x.ma===ma; })) ma='';
+      /* 🔴 Ô RỖNG PHẢI CÓ MỘT OPTION THẬT. Một `<select>` không có option nào `selected` thì
+         trình duyệt lấy option ĐẦU — tức "chưa chọn" lặng lẽ hoá thành "Miền Bắc", và cơ sở
+         mới rơi vào một miền chẳng ai chọn. `submitCfgCoso()` chối nếu ô này còn rỗng. */
+      k.innerHTML='<option value=""'+(ma?'':' selected')+'>— chọn miền —</option>'
+        +ds.map(function(x){
+          return '<option value="'+esc(x.ma)+'"'+(x.ma===ma?' selected':'')+'>'+esc(x.ten)+'</option>';
+        }).join('');
     }
     el('cosoModal').style.display='flex'; setTimeout(function(){el('ncTen').focus();},60);
   }
@@ -13356,7 +13429,11 @@
     /* 🔴 GHI MÃ KHỐI VÀO ĐÚNG Ô `donVi` — đó là ô mà cột "Khối" của bảng đang đọc và ghi
        (`_khoiSelCoso`). Ghi sang ô khác là bảng không thấy, và cơ sở mới rơi vào nhóm
        "(chưa rõ đơn vị)" ngay lượt vẽ lại. */
-    var khoiMoi=(el('ncKhoi')?String(el('ncKhoi').value||'').trim():'')||String(KHOI_DANG||'kvc');
+    /* 🔴 CHỐI KHI CHƯA CHỌN MIỀN (22/09/2026), thay cho lối ngã về `KHOI_DANG` cũ. Khối của
+       một cơ sở quyết định bảng mã tài khoản mà chi phí của nó rơi vào; đoán hộ là gian mới
+       nằm sai sổ và không ai soi ra cho tới lúc đối chiếu với kế toán. */
+    var khoiMoi=(el('ncKhoi')?String(el('ncKhoi').value||'').trim():'');
+    if(!khoiMoi){ toast('warn','Chọn miền cho gian này đã — nó quyết định chi phí của gian rơi vào bảng mã nào'); return; }
     CFG.coso.push({ten:ten, tenMisa:el('ncMisa').value.trim(), maDonVi:el('ncMa').value.trim(), phanLoaiLon:el('ncPll').value.trim(),
       donVi:khoiMoi, tinh:(el('ncTinh')?el('ncTinh').value.trim():'')});
     closeCfgCoso(); renderCosoBody(); toast('ok','Đã thêm vào khối '+(_tenKhoi(khoiMoi)||khoiMoi)+' — nhớ bấm 💾 Lưu');
@@ -13426,11 +13503,22 @@
     Object.keys(cuaMang).forEach(function(m){
       Object.keys(cuaMang[m]).forEach(function(k){ (theo[k]=theo[k]||[]).push(m); });
     });
-    /* Ba khối đi trước, theo đúng thứ tự thanh khối — kể cả khối chưa có mảng nào. */
-    var ra=KHOI_DS.map(function(k){ return { dv:k.ma, khoi:k.ma, cols:(theo[k.ma]||[]).sort() }; });
+    /* Khối đi trước, theo đúng thứ tự thanh khối — kể cả khối chưa có mảng nào.
+       🔴 `_mienDs()` CHỨ KHÔNG PHẢI `KHOI_DS`. Từ 22/09/2026 `KHOI_DS` là TỪ ĐIỂN ĐẦY ĐỦ
+          (MB · MN · ba mã cũ), còn trục của bảng mã là MIỀN — anh Thắng: *"Khối là để xác
+          định tài khoản nợ"*. Lấy cả từ điển là dựng ra mấy mục rỗng vĩnh viễn của khối đã ra
+          web riêng; kế toán cuộn qua ba bảng trống rồi mới tới bảng của mình.
+       ⚠️ Khối CŨ còn mảng thì vẫn ra một mục riêng — vòng dưới lo việc ấy. Bỏ chúng đi là mã
+          tài khoản của mấy mảng ấy còn trong sổ mà không ai sửa được. */
+    var bay=_mienDs();
+    var ra=bay.map(function(k){ return { dv:k.ma, khoi:k.ma, cols:(theo[k.ma]||[]).sort() }; });
     Object.keys(theo).sort().forEach(function(k){
-      if(KHOI_DS.some(function(x){ return x.ma===k; })) return;
-      ra.push({ dv:k, khoi:'', cols:theo[k].sort() });
+      if(bay.some(function(x){ return x.ma===k; })) return;
+      /* 🔴 KHỐI CŨ CÒN MẢNG THÌ GIỮ NGUYÊN MÃ KHỐI CỦA NÓ, đừng trả `''`. Trả rỗng là mục ấy
+         rơi về `KHOI_DANG` ở chỗ lọc loại (`khoiB=g.khoi||KHOI_DANG`) — tức bảng mã của Máy
+         tự động bày loại của Khu vui chơi, và mã tài khoản gõ vào đó ghi sang khối khác.
+         Chỉ nhóm KHÔNG ánh xạ được khối nào ("(chưa rõ khối)") mới để rỗng. */
+      ra.push({ dv:k, khoi:(KHOI_DS.some(function(x){ return x.ma===k; }) ? k : ''), cols:theo[k].sort() });
     });
     return ra;
   }
