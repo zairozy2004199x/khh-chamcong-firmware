@@ -8407,6 +8407,16 @@ function bctLoad(){
     BCT_DATA = (r && r.ok) ? r : null;
     if (!r || !r.ok) { box.appendChild(ktEl('p','mut',(r && r.error) || 'Lỗi.')); return; }
     box.appendChild(bctBang(r));
+    /* Nói trước tệp sắp tải về là tiền gì. Hai lớp số chồng nhau trên màn hình, mà tệp thì phẳng
+       — không nói ra thì bấm Xuất là một canh bạc. */
+    var xu = document.getElementById('bct-xuat');
+    if (xu) {
+      var vq = !!(r.vqCo && r.cot === 'qr');
+      xu.textContent = '⬇ ' + (vq ? L('Xuất .csv (VietQR thực)','Export .csv (real VietQR)') : L('Xuất .csv','Export .csv'));
+      xu.title = vq ? L('Tệp lấy số VietQR THỰC về ngân hàng (số đỏ). Số nhân viên nhập nằm ở khối thứ hai bên dưới để đối chiếu.',
+                        'Exports the real bank VietQR figures; staff-entered numbers follow as a second block.')
+                    : L('Tệp lấy đúng các số đang hiện trên bảng.','Exports exactly what the table shows.');
+    }
   });
 }
 /* Thứ trong tuần cho tiêu đề cột — ảnh mẫu có THU/FRI/SAT… ngay dưới ngày, và đó không phải
@@ -8523,28 +8533,73 @@ function bctBang(r){
   return wrap;
 }
 /* Xuất .csv — kế toán vẫn phải dán sang Excel để ghép với sổ ngoài. Dựng từ CHÍNH dữ liệu đang
-   hiện (`BCT_DATA`), không gọi lại máy chủ: gọi lại là có ngày tệp tải về khác cái đang nhìn. */
+   hiện (`BCT_DATA`), không gọi lại máy chủ: gọi lại là có ngày tệp tải về khác cái đang nhìn.
+
+   🔴 Ở CHẾ ĐỘ QR, SỐ XUẤT RA LÀ VIETQR THỰC (số ĐỎ) — anh Thắng 22/09/2026: *"chỗ xuất QR lấy
+      theo số thực tức QR số màu đỏ"*, kèm ảnh tệp vừa tải: cả bảng chỉ có số đen, số đỏ mất sạch.
+
+      Màn hình xếp hai lớp chồng nhau trong một ô: đen = số nhân viên đọc trên máy, đỏ = tiền THẬT
+      về ngân hàng. Tệp CSV chỉ có một lớp, mà bản cũ lấy đúng lớp ĐEN — tức người ta mở màn hình
+      ra để nhìn số đỏ, bấm Xuất, rồi nhận về đúng thứ mình không định lấy. Và không có gì trong
+      tệp nói rằng nó là lớp nào.
+
+   ⚠️ VẪN XUẤT CẢ LỚP NHÂN VIÊN NHẬP, thành KHỐI THỨ HAI bên dưới. Hai lớp ấy tồn tại là để ĐỐI
+      CHIẾU — bỏ hẳn một lớp thì tệp hết đường tra vì sao lệch. Hai khối chồng nhau là cách Báo
+      cáo ngày (VND / SGD) vẫn làm, kế toán quen mắt rồi.
+   ⚠️ MỖI KHỐI CÓ MỘT DÒNG NÓI RÕ NÓ LÀ TIỀN GÌ. Hai bảng số giống hệt nhau nằm cạnh nhau mà
+      không dán nhãn thì sớm muộn có người cộng nhầm khối. */
 function bctXuat(){
   var r = BCT_DATA;
   if (!r) { alert(L('Chưa có dữ liệu — bấm Xem trước.','No data — click Load first.')); return; }
   var cotGhe = (r.muc === 'ghe');
+  var vqOn = !!(r.vqCo && r.cot === 'qr');
   function o(x){ var s = String(x == null ? '' : x); return /[",\n;]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; }
   var dong = [];
-  /* Thứ tự cột theo ĐÚNG bảng đang nhìn (Tổng đứng sau Số ghế) — tệp tải về mà xếp khác màn
-     hình là kế toán dán sang Excel rồi dò nhầm cột. */
-  dong.push([L('Tên cơ sở','Site'), L('Mã KH','Cust.')].concat(cotGhe ? [L('Ghế','Chair')] : [])
-    .concat([L('Số ghế','Chairs'), L('Tổng','Total')]).concat(r.ngay).map(o).join(','));
-  r.hang.forEach(function(g){
-    dong.push([g.coso, g.maKH].concat(cotGhe ? [g.tenGhe || g.maGhe] : [])
-      .concat([g.soGhe, g.tong]).concat(g.so).map(o).join(','));
-  });
-  dong.push([L('TỔNG','TOTAL'), ''].concat(cotGhe ? [''] : []).concat([r.soGhe, r.tong])
-    .concat(r.tongCot || []).map(o).join(','));
+  function tieuDe(){
+    /* Thứ tự cột theo ĐÚNG bảng đang nhìn (Tổng đứng sau Số ghế) — tệp tải về mà xếp khác màn
+       hình là kế toán dán sang Excel rồi dò nhầm cột. */
+    dong.push([L('Tên cơ sở','Site'), L('Mã KH','Cust.')].concat(cotGhe ? [L('Ghế','Chair')] : [])
+      .concat([L('Số ghế','Chairs'), L('Tổng','Total')]).concat(r.ngay).map(o).join(','));
+  }
+  /* `lay` rút ra lớp cần xuất của một dòng: 'vq' = VietQR thực, còn lại = số đang hiện. */
+  function khoi(nhan, lay){
+    dong.push([nhan].map(o).join(','));
+    tieuDe();
+    r.hang.forEach(function(g){
+      var x = lay(g);
+      dong.push([g.coso, g.maKH].concat(cotGhe ? [g.tenGhe || g.maGhe] : [])
+        .concat([g.soGhe, x.tong]).concat(x.so).map(o).join(','));
+    });
+    var c = lay(null);
+    dong.push([L('TỔNG','TOTAL'), ''].concat(cotGhe ? [''] : []).concat([r.soGhe, c.tong])
+      .concat(c.so).map(o).join(','));
+  }
+  function lopThuc(g){
+    if (!g) return { tong: r.vqTong || 0, so: (r.vqTongCot || []).map(function(v){ return v || 0; }) };
+    return { tong: g.vqTong || 0, so: (r.ngay || []).map(function(_, i){ return (g.vq && g.vq[i]) || 0; }) };
+  }
+  function lopNhap(g){
+    if (!g) return { tong: r.tong, so: r.tongCot || [] };
+    return { tong: g.tong, so: g.so };
+  }
+  if (vqOn) {
+    khoi(L('VIETQR THỰC VỀ NGÂN HÀNG (theo sao kê, ngày giao dịch)','ACTUAL BANK VIETQR'), lopThuc);
+    dong.push('');
+    khoi(L('SỐ QR NHÂN VIÊN NHẬP (chỉ để đối chiếu — KHÔNG phải tiền về ngân hàng)','STAFF-ENTERED QR (reconciliation only)'), lopNhap);
+  } else {
+    tieuDe();
+    r.hang.forEach(function(g){
+      dong.push([g.coso, g.maKH].concat(cotGhe ? [g.tenGhe || g.maGhe] : [])
+        .concat([g.soGhe, g.tong]).concat(g.so).map(o).join(','));
+    });
+    dong.push([L('TỔNG','TOTAL'), ''].concat(cotGhe ? [''] : []).concat([r.soGhe, r.tong])
+      .concat(r.tongCot || []).map(o).join(','));
+  }
   /* BOM để Excel tiếng Việt mở ra không thành rác — không có nó thì mọi tên cơ sở có dấu đều vỡ. */
-  var blob = new Blob(['\ufeff' + dong.join('\n')], { type: 'text/csv;charset=utf-8' });
+  var blob = new Blob(['﻿' + dong.join('\n')], { type: 'text/csv;charset=utf-8' });
   var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'bao-cao-tong_' + r.tu + '_' + r.den + '_' + r.muc + '_' + r.cot + '.csv';
+  a.download = 'bao-cao-tong_' + r.tu + '_' + r.den + '_' + r.muc + '_' + r.cot + (vqOn ? '_vietqr-thuc' : '') + '.csv';
   document.body.appendChild(a); a.click();
   setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 500);
 }

@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-09-22 · Phiên bản hiện tại: **2.126.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-09-22 · Phiên bản hiện tại: **2.127.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,39 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v2.127.0 — Nút "Xuất .csv" của Báo cáo tổng nay ra số VietQR thực
+
+Anh Thắng 22/09/2026, sau 2.126.0: *"chưa được"* — kèm chính tệp vừa tải: cả bảng chỉ có số đen,
+số đỏ mất sạch.
+
+**Em sửa nhầm chỗ ở 2.126.0.** Câu *"chỗ xuất QR lấy theo số thực"* là nói nút **Xuất .csv** của
+màn Báo cáo tổng — màn anh đang mở trong ảnh — chứ không phải chứng từ MISA. (Bản 2.126.0 vẫn
+đúng và vẫn cần: chứng từ MISA cũng phải lấy số thực. Chỉ là nó không phải chỗ anh đang đứng.)
+
+**Gốc.** Màn hình xếp **hai lớp chồng nhau** trong một ô: đen = số nhân viên đọc trên máy, đỏ =
+tiền thật về ngân hàng (sao kê). Tệp CSV chỉ có một lớp, mà bản cũ lấy đúng lớp **đen**. Tức
+người ta mở màn hình ra để nhìn số đỏ, bấm Xuất, rồi nhận về đúng thứ mình không định lấy — và
+trong tệp không có gì nói nó là lớp nào.
+
+⚠️ **Loại hỏng không kêu tiếng nào.** Tệp tải về đủ dòng, đủ cột, số nào cũng là số thật — chỉ là
+thật của lớp kia. Không lỗi, không ô trống. Chỉ người ngồi đối chiếu với sao kê mới phát hiện, mà
+lúc ấy đã dán vào sổ rồi.
+
+- Chế độ **QR** + có sao kê: tệp ra **số VietQR thực**, cả ô từng ngày lẫn cột Tổng lẫn dòng TỔNG.
+- **Lớp nhân viên nhập vẫn còn**, thành **khối thứ hai** bên dưới, dán nhãn *"chỉ để đối chiếu —
+  KHÔNG phải tiền về ngân hàng"*. Hai lớp ấy tồn tại là để đối chiếu; bỏ hẳn một lớp thì tệp hết
+  đường tra vì sao lệch. Hai khối chồng nhau là cách Báo cáo ngày (VND / SGD) vẫn làm.
+- Mỗi khối có **một dòng nói rõ nó là tiền gì**. Hai bảng số giống hệt nhau nằm cạnh nhau mà không
+  dán nhãn thì sớm muộn có người cộng nhầm khối.
+- Tên tệp gắn đuôi `_vietqr-thuc`; nút đổi chữ thành **"Xuất .csv (VietQR thực)"** khi đang ở chế
+  độ ấy — nói trước tệp sắp tải là tiền gì, khỏi bấm như canh bạc.
+- Các chế độ khác (Tổng · Tiền mặt · gộp Từng ghế · chưa đọc được sao kê) **giữ nguyên một khối**
+  như cũ. Mức Từng ghế vốn không có lớp VietQR: sao kê chỉ quy được tiền về cơ sở.
+
+Bài kiểm `tools/test/kiem-bct-xuat-vietqr.js` (18 phép) — **chạy thật hàm dựng tệp** rồi đọc lại
+từng ô của CSV. Dò chuỗi trong mã nguồn không nói được "ô ngày 11/09 của AEON có đúng bằng số đỏ
+không".
 
 ### v2.126.0 — Chứng từ MISA: QR là tiền THỰC về ngân hàng
 
