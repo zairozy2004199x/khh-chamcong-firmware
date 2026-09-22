@@ -112,6 +112,65 @@ teq( 'không có đầu mục trùng nhau', $n, count( array_unique( $ds ) ) );
 t( '🔴 có ô hứng "Khác" — thiếu nó là người ta nhét bừa vào ô gần giống',
 	in_array( 'Khác', $ds, true ), $ds );
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 3b. 🔴 BẢNG MẶC ĐỊNH PHẢI LÀ SƠ ĐỒ ANH THẮNG VẼ TAY (22/09/2026), KHÔNG PHẢI BẢNG EM BỊA
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Mấy phép trên mới chỉ đòi "8–12 mục và có ô Khác" — bảng nào cũng qua được, kể cả bảng cũ
+ * chia theo MÓN mà kế toán nhìn vào không thấy lối nào khớp. Khối này buộc bảng vào đúng ba
+ * gốc trên giấy: CP Chung · CP Cơ sở · CP Tiền thuê.
+ *
+ * ⚠️ PHÉP "BA GỐC LIỀN KHỐI" KHÔNG PHẢI PHÉP LÀM ĐẸP. `_optsHtml()` xếp `<optgroup>` theo ĐÚNG
+ *    thứ tự bảng này, mà `<optgroup>` chỉ có MỘT tầng — tầng một nằm ở tiền tố. Xen một mục
+ *    "Cơ sở ·" vào giữa khối "Chung ·" là ô chọn hiện ra hai cụm "Chung" rời nhau, tức mất
+ *    luôn cái tầng mà tiền tố đang gánh. Trình duyệt không báo gì; chỉ người nhập thấy rối.
+ */
+$dm  = VHCP_Cfg::DAU_MUC_MAC_DINH;
+$goc3 = array( 'Chung · ', 'Cơ sở · ', 'Tiền thuê · ' );
+
+teq( '🔴 ô hứng "Khác" đứng CUỐI, không lẫn vào giữa ba gốc', 'Khác', end( $dm ) );
+
+$khong_goc = array();
+foreach ( array_slice( $dm, 0, -1 ) as $x ) {
+	$co = false;
+	foreach ( $goc3 as $g ) { if ( 0 === strpos( $x, $g ) ) { $co = true; break; } }
+	if ( ! $co ) { $khong_goc[] = $x; }
+}
+t( '🔴 mọi mục (trừ "Khác") thuộc đúng MỘT trong ba gốc của sơ đồ', array() === $khong_goc, $khong_goc );
+
+/* Ba gốc phải nằm liền khối — xem chú thích trên. Lấy dãy tiền tố rồi bỏ chỗ lặp liền nhau:
+   liền khối thì còn đúng ba, xen kẽ thì còn nhiều hơn. */
+$day = array();
+foreach ( array_slice( $dm, 0, -1 ) as $x ) {
+	foreach ( $goc3 as $g ) { if ( 0 === strpos( $x, $g ) ) { $day[] = $g; break; } }
+}
+$rut = array();
+foreach ( $day as $g ) { if ( ! $rut || end( $rut ) !== $g ) { $rut[] = $g; } }
+teq( '🔴 ba gốc nằm LIỀN KHỐI, không xen kẽ nhau', $goc3, $rut );
+
+/* ĐỦ MƯỜI MỘT NHÁNH CỦA SƠ ĐỒ. Kê từng cái ra chứ không đếm đầu mục: đếm thì bỏ mất một
+   nhánh rồi thêm bừa một nhánh khác vẫn qua, mà mất "Tiền thuê · Mall" là tiền thuê mặt bằng
+   — khoản cố định to nhất — rơi hết vào ô "Khác".
+   Danh sách này là SÀN, không phải trần: thêm nhánh mới thì cứ thêm, chỉ đừng bỏ nhánh cũ đi
+   trong im lặng. Trục của nhánh Cơ sở là AI MUA, không phải MUA CÁI GÌ. */
+$phai_co = array(
+	'Chung · Văn phòng', 'Chung · Vận hành & Cơ sở',
+	'Cơ sở · Marketing mua', 'Cơ sở · Vận hành mua', 'Cơ sở · Kỹ thuật mua',
+	'Cơ sở · Cơ sở tự mua', 'Cơ sở · Nguyên vật liệu', 'Cơ sở · Hàng hoá nhập kho',
+	'Cơ sở · Phụ cấp nhân viên',
+	'Tiền thuê · Mall', 'Tiền thuê · Điện, nước, phụ phí',
+);
+foreach ( $phai_co as $nhanh ) {
+	t( "🔴 còn đủ nhánh của sơ đồ — \"$nhanh\"", in_array( $nhanh, $dm, true ), $dm );
+}
+
+/* Ba thứ trong sơ đồ CỐ Ý không nằm ở đây: phép phân bổ (bổ 50/50, bổ theo DT Gian), trường
+   riêng trên đơn (VAT / set-up hay vận hành), và phân quyền người đề xuất. Nhét chúng vào
+   danh mục là lẫn trục — đúng cái bẫy mà cả bản này sinh ra để tránh. */
+foreach ( array( '50%', 'VAT', 'set up', 'Set up', 'đề xuất' ) as $lac ) {
+	t( "🔴 không mục nào lẫn trục khác vào danh mục — không thấy \"$lac\"",
+		false === strpos( implode( '|', $dm ), $lac ), $dm );
+}
+
 update_option( 'vhcp_dau_muc_ds', "Một\nHai\n\n  Ba  \nHai" );
 $ds2 = VHCP_Cfg::dau_muc_ds();
 teq( '🔴 khai tay thì THẮNG mặc định, và tự dọn dòng rỗng / trùng / thừa dấu cách',

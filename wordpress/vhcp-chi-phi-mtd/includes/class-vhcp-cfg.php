@@ -1892,21 +1892,71 @@ class VHCPMTD_Cfg {
 	 *    lọc, chỉ gom; mình lọc bốn tầng, không gom.
 	 *
 	 * ⚠️ VÌ SAO 8–12 ĐẦU MỤC. Trên 12 là bắt đầu mệt óc và người ta chọn bừa; quá ít thì không
-	 *    có ô đúng để chọn, cũng chọn bừa. Bảng dưới có 10.
+	 *    có ô đúng để chọn, cũng chọn bừa. Bảng dưới có 12 — sát trần, và sát trần là CÓ CHỦ Ý:
+	 *    nó chép lại đúng sơ đồ anh Thắng vẽ tay, chứ không phải em tự nghĩ cho tròn số.
+	 *
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 BẢNG NÀY LẤY TỪ SƠ ĐỒ TAY ANH THẮNG GỬI 22/09/2026 — không còn là bảng em bịa.
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 * Sơ đồ ấy có BA gốc, mỗi gốc rẽ tiếp một tầng nữa:
+	 *
+	 *    CP Chung ─┬─ CPC VP ──────────┬─ CPC KVC 50%
+	 *              │                   └─ CPC MTĐ 50%
+	 *              └─ CPC Vận hành/Cơ sở ─┬─ KVC   (VH mua VH chung · KT mua KT chung ·
+	 *                                     │        mua cho VP vận hành chung, CHƯA có các Gian)
+	 *                                     └─ MTĐ
+	 *
+	 *    CP Cơ sở ─┬─ CP MKT mua cơ sở   (MKT chi ⇒ tính vào doanh thu của MTĐ mang về)
+	 *              ├─ CP VH  mua cơ sở
+	 *              ├─ CP KT  mua cơ sở
+	 *              ├─ CP cơ sở TỰ MUA ──┬─ NVL gian hàng
+	 *              │                     ├─ NVL đồ ăn
+	 *              │                     ├─ NVL đồ uống
+	 *              │                     └─ phụ cấp NV cơ sở
+	 *              └─ CP mua hàng hoá / nhập kho
+	 *
+	 *    CP Tiền thuê ─┬─ thuê mall (CSĐT) — chủ tiền
+	 *                  └─ trả tiền mall
+	 *                     (điện: tiền thuê · chi phí · ĐTCS nếu có; tự đi điện thì tách ra
+	 *                      tiền thuê / điện nước / khác + phụ phí)
+	 *
+	 * 🔴 TRỤC THẬT CỦA HỌ LÀ "AI MUA", KHÔNG PHẢI "MUA CÁI GÌ". Nhánh CP Cơ sở chia theo
+	 *    MKT / VH / KT / cơ sở tự mua — tức theo NGƯỜI ĐỨNG RA MUA. Bảng cũ của em chia theo
+	 *    MÓN (Nhân sự · Mặt bằng · Thiết bị…), nên kế toán nhìn vào không thấy lối nào khớp
+	 *    với cách họ đang nghĩ. Bảng này đi theo sơ đồ, không đi theo sách.
+	 *
+	 * ⚠️ VÌ SAO DÙNG DẤU `·` LÀM TIỀN TỐ chứ không dựng hai tầng thật: `<optgroup>` của HTML
+	 *    CHỈ CÓ MỘT TẦNG — lồng `<optgroup>` trong `<optgroup>` là trình duyệt bỏ qua, không
+	 *    phải là hiện ra tầng hai. Nên tầng một đi vào tiền tố, và vì ô chọn xếp theo ĐÚNG THỨ
+	 *    TỰ bảng này, ba gốc vẫn nằm liền khối như trên giấy. Đổi thứ tự là vỡ khối.
+	 *
+	 * ⚠️ CÒN BA THỨ TRONG SƠ ĐỒ BẢNG NÀY KHÔNG GÁNH ĐƯỢC, và cố nhét vào là sai chỗ:
+	 *      · *"cuối tháng bổ theo DT Gian"* + *"CPC VP bổ 50/50"* — đó là PHÉP PHÂN BỔ, việc
+	 *        của sổ kết chuyển cuối kỳ, không phải của một ô chọn lúc nhập đơn.
+	 *      · *"đi tiền UNC có VAT hay không VAT"*, *"CP set up hay đã đi vào vận hành"* — đó là
+	 *        TRƯỜNG RIÊNG trên đơn, đúng lối ERPNext/Odoo tách trục ra khỏi danh mục.
+	 *      · *"đối tượng đề xuất — chỉ CHT có mã"* — đó là chuyện phân quyền người tạo đơn.
+	 *    Ghi lại đây để lần sau không ai nhét ba thứ ấy thành đầu mục cho đủ bộ.
 	 *
 	 * ⚠️ ĐÂY LÀ ĐƯỜNG LUI, KHÔNG PHẢI BẢN CHỐT. Kế toán khai danh sách thật ở Cấu hình; bảng
 	 *    này chỉ để site chưa khai gì vẫn có cái mà chọn. Cùng lối với `bo_phan_ds()`.
 	 */
 	const DAU_MUC_MAC_DINH = array(
-		'Nhân sự',            // lương, thưởng, bảo hiểm, tuyển dụng
-		'Mặt bằng',           // thuê, điện, nước, phí quản lý
-		'Vận hành cơ sở',     // vật tư tiêu hao, vệ sinh, an ninh
-		'Bảo trì · Sửa chữa',
-		'Hàng hoá · Nguyên vật liệu',
-		'Marketing · Sự kiện',
-		'Công tác · Đi lại',
-		'Thiết bị · Đầu tư',
-		'Hành chính · Văn phòng',
+		/* ── Gốc 1: CP Chung ───────────────────────────────────────────────────────────── */
+		'Chung · Văn phòng',            // CPC VP — cuối kỳ bổ 50% KVC / 50% MTĐ
+		'Chung · Vận hành & Cơ sở',     // VH mua VH chung · KT mua KT chung · mua cho VP vận hành
+		/* ── Gốc 2: CP Cơ sở — chia theo AI MUA ────────────────────────────────────────── */
+		'Cơ sở · Marketing mua',        // MKT chi ⇒ tính vào doanh thu MTĐ mang về
+		'Cơ sở · Vận hành mua',
+		'Cơ sở · Kỹ thuật mua',
+		'Cơ sở · Cơ sở tự mua',
+		'Cơ sở · Nguyên vật liệu',      // gian hàng · đồ ăn · đồ uống
+		'Cơ sở · Hàng hoá nhập kho',
+		'Cơ sở · Phụ cấp nhân viên',
+		/* ── Gốc 3: CP Tiền thuê ───────────────────────────────────────────────────────── */
+		'Tiền thuê · Mall',             // CSĐT — chủ tiền, và trả tiền mall
+		'Tiền thuê · Điện, nước, phụ phí',
+		/* ── Ô hứng ────────────────────────────────────────────────────────────────────── */
 		'Khác',               // ô hứng — thiếu nó là người ta nhét bừa vào ô gần giống
 	);
 
