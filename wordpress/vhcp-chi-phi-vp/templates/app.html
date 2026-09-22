@@ -2581,7 +2581,43 @@
    *    hướng MẤT DỮ LIỆU. Cho hiện ở mọi khối là hỏng theo hướng thừa, nhìn thấy được và sửa
    *    được.
    * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * 🔴 MTĐ ĐÃ RỜI BẢN GỐC — 22/09/2026
+   * ══════════════════════════════════════════════════════════════════════════════════════════
+   * Anh Thắng: *"Hiện tại chi phí máy tự động áp dụng web riêng nên không dùng chung nữa"*.
+   * Máy tự động nay chạy PLUGIN RIÊNG, trang riêng, KHO BẢNG TÁCH HẲN. Bản gốc thôi nhận đơn
+   * MTĐ mới.
+   *
+   * ⚠️ KHÔNG VIẾT TÊN THẬT CỦA BẢN VÙNG RA ĐÂY. `kiem-tach-ban-vung.php` quét bản gốc tìm mọi
+   *    chuỗi của bản vùng và đỏ nếu thấy — phép ấy sinh ra từ sự cố 08/09/2026 (bản HN chiếm
+   *    mất đường REST, anh Thắng mở trang gốc ra thấy TRỐNG TRƠN). Nhắc tên trong chú thích
+   *    thì vô hại, nhưng làm phép quét kêu oan, mà một phép hay kêu oan là một phép sắp bị nới
+   *    lỏng. Ai cần biết tên bản vùng thì đọc `tools/tach-ban-vung.sh`.
+   *
+   * 🔴 `KHOI_DS` KHÔNG XOÁ 'mtd' ĐI, VÀ CỐ Ý. Hằng này là TỪ ĐIỂN — mã nào ứng với tên nào —
+   *    và nó còn được dùng để ĐỌC dữ liệu cũ: đơn MTĐ đã lập ở kho này vẫn nằm đây, có đơn
+   *    chưa xuất MISA. Xoá khỏi từ điển là chúng hiện ra với cái mã trần 'mtd' thay vì tên,
+   *    hoặc rơi hẳn khỏi màn.
+   * 🔴 THỨ ĐỔI LÀ `KHOI_MO` — khối còn NHẬN VIỆC MỚI. Thanh KHỐI dựng từ đây, cộng thêm khối
+   *    nào máy chủ báo là còn đơn trong kho (`BOOT.khoiCoDon`).
+   *
+   * ⚠️ NGÀY VP CŨNG RA RIÊNG thì bỏ 'vp' khỏi `KHOI_MO` là xong: `_khoiBay()` còn đúng một
+   *    khối thì `veThanhKhoi()` tự ẩn cả thanh. Không phải đi sửa mười chỗ.
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
   var KHOI_DS=[{ma:'kvc',ten:'Khu vui chơi'},{ma:'mtd',ten:'Máy tự động'},{ma:'vp',ten:'Văn phòng'}];
+  var KHOI_MO=['kvc','vp'];
+  /** Khối CÒN NHẬN VIỆC MỚI ở bản này. */
+  function _khoiMo(){ return KHOI_DS.filter(function(x){ return KHOI_MO.indexOf(x.ma)>=0; }); }
+  /** Khối đã ra riêng nhưng kho này CÒN SỔ của nó — hiện để đọc/xuất nốt, không lập đơn mới. */
+  function _khoiLuuTru(){
+    var co=(window.BOOT&&BOOT.khoiCoDon)||[];
+    return KHOI_DS.filter(function(x){ return KHOI_MO.indexOf(x.ma)<0 && co.indexOf(x.ma)>=0; });
+  }
+  /** Khối BÀY RA trên thanh: khối đang mở + khối lưu trữ còn sổ. */
+  function _khoiBay(){ return _khoiMo().concat(_khoiLuuTru()); }
+  function _laLuuTru(ma){
+    return KHOI_MO.indexOf(String(ma).toLowerCase())<0;
+  }
   /* ═════════════════════════════════════════════════════════════════════════════════
    * ĐƠN VỊ → KHỐI — BẢNG LẤY TỪ MÁY CHỦ, KHÔNG GÕ CỨNG Ở ĐÂY.
    * 🔴 Chép tay một bản là hai nơi khai cùng một luật; ngày thêm một tên đơn vị là hai bên
@@ -2619,9 +2655,13 @@
      🔴 ĐÂY KHÔNG PHẢI CỔNG QUYỀN, chỉ là giấu mấy nút chắc chắn rỗng: dữ liệu sau mỗi nút đã bị
         chốt đơn vị bên máy chủ cắt rồi. Coi nó là cổng quyền là lại có HAI bản luật. */
   function _khoiDuoc(){
+    /* ⚠️ LỌC TRÊN TẬP BÀY RA, không trên `KHOI_DS`. `KHOI_DS` nay là từ điển đầy đủ (còn giữ
+       'mtd' để đọc sổ cũ); lấy nó làm tập gốc là khối đã ra riêng lại hiện nút bấm được ngay
+       cả trên kho không còn đơn nào của nó. */
+    var bay=_khoiBay();
     var ds=(window.BOOT&&BOOT.khoiXem);
-    if(!ds||!ds.length) return KHOI_DS;
-    return KHOI_DS.filter(function(x){ return ds.indexOf(x.ma)>=0; });
+    if(!ds||!ds.length) return bay;
+    return bay.filter(function(x){ return ds.indexOf(x.ma)>=0; });
   }
   var KHOI_DANG=(function(){
     try{ var v=localStorage.getItem('vhcpvp_khoi'); if(v) return String(v); }catch(e){}
@@ -2718,7 +2758,10 @@
     var o=el('tmBox-'+man); if(!o) return;
     var duoc=_khoiDuoc().map(function(x){ return x.ma; });
     var dang=String(KHOI_DANG).toLowerCase();
-    o.innerHTML=KHOI_DS.map(function(x){
+    /* ⚠️ CÙNG TẬP VỚI THANH KHỐI (`_khoiBay()`). Menu ▾ trên tab và thanh khối nói cùng một
+       chuyện; lấy hai tập khác nhau là người ta thấy MTĐ ở menu mà không thấy trên thanh, rồi
+       không tin chỗ nào cả. Chốt này đã ghi sẵn ở cuối `veThanhKhoi()`. */
+    o.innerHTML=_khoiBay().map(function(x){
       var n=_demMan(man,x.ma);
       if(duoc.indexOf(x.ma)<0){
         /* Hiện mà mờ, không ẩn — anh Thắng 20/09/2026: *"không thuộc thì chỉ hiện chứ không
@@ -2891,7 +2934,20 @@
     }
     var dem={};
     (BOOT.dons||[]).forEach(function(d){ var k=_khoiCua(d)||'(chưa)'; dem[k]=(dem[k]||0)+1; });
-    o.innerHTML=KHOI_DS.map(function(x){
+    /* ══════════════════════════════════════════════════════════════════════════════════════
+     * 🔴 CÒN ĐÚNG MỘT KHỐI THÌ ẨN CẢ THANH — 22/09/2026.
+     *
+     * Từ lượt MTĐ ra web riêng, bản gốc chỉ còn KVC + VP; ngày VP cũng ra riêng thì thanh này
+     * còn MỘT nút, luôn bật, bấm không đi đâu cả. Một nút không làm gì mà chiếm nguyên một
+     * dòng trên đầu màn là thứ người dùng phải học rồi mới biết là bỏ qua được.
+     *
+     * ⚠️ ẨN THANH KHÔNG PHẢI BỎ TRỤC KHỐI. `KHOI_DANG` vẫn được đặt (dòng ngay trên), mọi màn
+     *    vẫn lọc theo nó, dữ liệu vẫn mang dấu khối. Chỉ cái thanh đi.
+     * ══════════════════════════════════════════════════════════════════════════════════════ */
+    var bay=_khoiBay();
+    if(bay.length<2){ o.innerHTML=''; o.style.display='none'; try{ veMenuKhoi('duyet'); veMenuKhoi('qt'); }catch(e){} return; }
+    o.style.display='';
+    o.innerHTML=bay.map(function(x){
       var dang=(String(KHOI_DANG).toLowerCase()===x.ma);
       var mo=(duoc.indexOf(x.ma)>=0);
       var n=dem[x.ma]||0;
@@ -2904,6 +2960,17 @@
           +'xem được nhưng không đổi sang khối này. Đổi ở Cấu hình → Người dùng, cột Đơn vị." '
           +'style="opacity:.45;cursor:not-allowed">🔒 '+esc(x.ten)
           +' <span style="opacity:.7;font-size:11px">'+n+'</span></button>';
+      }
+      /* 🔴 KHỐI ĐÃ RA WEB RIÊNG THÌ NÓI THẲNG TRÊN NÚT. Nó còn ở đây chỉ vì kho này còn sổ cũ
+         của nó — bày một nút y hệt hai nút kia là mời người ta lập đơn mới vào một khối
+         không còn ai vận hành, rồi đơn ấy nằm lại một mình ở kho sai. */
+      if(_laLuuTru(x.ma)){
+        return '<button type="button" class="btn '+(dang?'b-g':'b-x')+'" onclick="doiKhoi(\''+x.ma+'\')" '
+          +'title="Khối này đã chuyển sang web riêng. Nút còn đây vì kho này vẫn giữ sổ cũ của '
+          +'nó — mở để đọc và xuất nốt, đừng lập đơn mới." '
+          +'style="font-weight:'+(dang?'700':'500')+';opacity:.7">🗄 '+esc(x.ten)
+          +' <span style="opacity:.7;font-size:11px">'+n+'</span>'
+          +' <span style="font-size:10px;opacity:.75">sổ cũ</span></button>';
       }
       return '<button type="button" class="btn '+(dang?'b-g':'b-x')+'" onclick="doiKhoi(\''+x.ma+'\')" '
         +'style="font-weight:'+(dang?'700':'500')+'">'+esc(x.ten)
@@ -11572,7 +11639,11 @@
    * ⚠️ ĐỌC TÊN VAI ĐANG MANG, không phải vai gốc: "Kế Toán Máy Tự Động" và "Kế Toán Khu Vui
    *    Chơi" cùng kế thừa "Kế toán cá nhân" — quy về vai gốc là chặn cả hai hoặc chặn không ai.
    * ═════════════════════════════════════════════════════════════════════════════════ */
-  var KHOI_KHONG_XUAT_MISA=['mtd'];
+  /* 🔴 RỖNG TỪ 22/09/2026 — MTĐ ra web riêng, luật bàn giao MISA thôi áp dụng. Song sinh với
+     `VHCPVP_Cfg::KHOI_KHONG_XUAT_MISA`, chốt dài nằm bên ấy. HAI BÊN PHẢI CÙNG RỖNG: lệch một
+     vế là màn giấu tab Xuất MISA trong khi máy chủ vẫn cho gọi, hoặc ngược lại — bấm được mà
+     ăn câu lỗi. */
+  var KHOI_KHONG_XUAT_MISA=[];
   function _xuatMisaDuoc(){
     if(CURUSER && CURUSER.role==='Admin') return true;
     return KHOI_KHONG_XUAT_MISA.indexOf(_khoiCuaVai((CURUSER&&CURUSER.role)||''))<0;

@@ -91,6 +91,13 @@ function chay(o) {
     _anVaoMo: function (d) { return ctx._AN_MO && d && d.bpMo; },
     _daQT: function (d) { return d && (d.trangThai === 'Đã quyết toán' || d.trangThai === 'Đã xuất MISA'); },
     _khoiDuoc: function () { return ctx.KHOI_DS.filter(function (x) { return (o.duoc || ['kvc', 'mtd', 'vp']).indexOf(x.ma) >= 0; }); },
+    /* ⚠️ `_khoiBay()` thêm 22/09/2026 — menu ▾ nay dựng từ tập BÀY RA (khối còn mở + khối đã
+       ra web riêng mà kho còn sổ), không từ `KHOI_DS`. Bệ đỡ trả cả ba để mấy phép cũ về
+       "khối không thuộc thì mờ chứ không ẩn" vẫn đo đúng thứ chúng sinh ra để đo. */
+    _khoiBay: function () { return ctx.KHOI_DS.slice(); },
+    /* `veThanhKhoi()` gắn nhãn "🗄 sổ cũ" cho khối đã ra web riêng. Bệ đỡ trả `false` cho mọi
+       khối: bài này canh MENU và THANH, không canh nhãn lưu trữ — chuyện ấy có bài riêng. */
+    _laLuuTru: function () { return false; },
     doiKhoi: function (m) { vet.push('doiKhoi:' + m); },
     showPage: function (p) { vet.push('showPage:' + p); },
     vet: vet, KHO: KHO,

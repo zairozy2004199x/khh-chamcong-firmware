@@ -2014,7 +2014,26 @@ class VHCPHN_Cfg {
 	 *    nhân" — quy về vai gốc là cả nhánh kế toán mất quyền xuất MISA, kể cả kế toán KVC.
 	 * ═══════════════════════════════════════════════════════════════════════════════════════
 	 */
-	const KHOI_KHONG_XUAT_MISA = array( 'mtd' );
+	/* ══════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 DANH SÁCH NÀY NAY RỖNG — TẮT TỪ 22/09/2026.
+	 * ══════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng: *"Hiện tại chi phí máy tự động áp dụng web riêng nên không dùng chung nữa"*.
+	 * Cả luật "kế toán MTĐ chỉ soát, đơn bàn giao sang kế toán KVC xuất MISA" (1.245.0) sinh ra
+	 * CHỈ VÌ hai khối chung một app. MTĐ ra riêng thì bên ấy tự xuất MISA của mình, và bên này
+	 * không còn ai mang vai MTĐ để mà chặn.
+	 *
+	 * 🔴 ĐỂ RỖNG CHỨ KHÔNG XOÁ CẢ CƠ CHẾ, và đây là lựa chọn có cân nhắc:
+	 *      · Rỗng là TẮT THẬT — `xuat_misa_duoc()` trả `true` cho mọi vai, cổng API thôi chặn,
+	 *        dải bàn giao trên màn thôi hiện. Không còn hành vi nào sót lại.
+	 *      · Còn đơn MTĐ CŨ nằm lại kho này thì kế toán KVC xuất nốt được — nếu xoá cơ chế
+	 *        bằng cách chặn kiểu khác thì đám đơn ấy kẹt.
+	 *      · Khối VP thì anh Thắng bảo *"Chưa chốt"* (22/09). Ngày nào cần bật lại cho một
+	 *        khối nào đó thì thêm đúng một mã vào đây, không phải dựng lại sáu chỗ.
+	 *
+	 * ⚠️ RỖNG LÀ "MỌI KHỐI ĐỀU XUẤT ĐƯỢC", không phải "chặn hết". Viết `! in_array(...)` nên
+	 *    danh sách rỗng cho qua tất — đọc nhầm chiều là sửa thành chặn cả nhà.
+	 * ══════════════════════════════════════════════════════════════════════════════════════ */
+	const KHOI_KHONG_XUAT_MISA = array();
 
 	/** Người đang gọi có được xuất / chốt MISA không. Admin không bao giờ bị chặn. */
 	public static function xuat_misa_duoc() {

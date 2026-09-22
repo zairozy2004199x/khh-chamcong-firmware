@@ -730,6 +730,25 @@ class VHCPHN_Don {
 			      và ngày thêm một tên đơn vị (một chi nhánh mới) là hai bên lệch — màn xếp cơ sở
 			      vào khối này trong khi máy chủ đọc ra khối khác, không một câu lỗi nào. */
 			'khoiTheoDv' => VHCPHN_DonVi::KHOI_THEO_DON_VI,
+			/* ══════════════════════════════════════════════════════════════════════════════
+			 * 🔴 KHỐI NÀO CÒN ĐƠN TRONG KHO NÀY — để thanh KHỐI đừng giấu mất sổ cũ.
+			 * ══════════════════════════════════════════════════════════════════════════════
+			 * Anh Thắng 22/09/2026: *"Hiện tại chi phí máy tự động áp dụng web riêng nên không
+			 * dùng chung nữa"*. Bản gốc thôi phục vụ MTĐ, nên nút MTĐ rời thanh KHỐI.
+			 *
+			 * 🔴 NHƯNG ĐƠN MTĐ ĐÃ LẬP Ở ĐÂY THÌ VẪN NẰM ĐÂY. Đó là chứng từ kế toán, có đơn
+			 *    chưa xuất MISA. Gỡ nút đi mà không hỏi lại kho là mọi màn lọc theo khối đang
+			 *    đứng — và chúng biến mất khỏi giao diện dù dữ liệu còn nguyên. Anh Thắng đã
+			 *    gặp đúng cảnh ấy hôm 11/09 và tưởng mất dữ liệu; không lặp lại.
+			 *
+			 * ⚠️ ĐẾM TOÀN KHO, KHÔNG THEO NGƯỜI ĐANG XEM. Đây là câu hỏi "kho này còn sổ của
+			 *    khối nào", không phải "người này được xem gì" — chốt xem vẫn nằm nguyên ở
+			 *    `list_dons()`. Đếm theo người là Admin thấy nút, kế toán không, cho cùng một
+			 *    kho: hai người nhìn hai hệ thống khác nhau.
+			 * ⚠️ CHỈ TRẢ MÃ KHỐI, không trả số lượng — bao nhiêu đơn là chuyện của màn, còn
+			 *    đây chỉ cần trả lời có/không.
+			 * ══════════════════════════════════════════════════════════════════════════════ */
+			'khoiCoDon'  => self::khoi_con_don(),
 			/* Ai đang khai ô "Xem đơn vị" lạc ra ngoài danh sách — họ là người sắp ngồi trước
 			   một màn trắng. Xem chốt dài ở `VHCPHN_DonVi::ai_khai_lac()`. */
 			'khaiLac'    => VHCPHN_DonVi::ai_khai_lac(),
@@ -2201,6 +2220,25 @@ class VHCPHN_Don {
 				. ( '' !== $tk['tk_no'] ? ( ' · Nợ ' . $tk['tk_no'] ) : ' · CHƯA GẮN MÃ' ),
 		) );
 		return VHCPHN_Util::ok( array( 'nhom' => $nhom, 'tkNo' => $tk['tk_no'], 'tkCo' => $tk['tk_co'] ) );
+	}
+
+	/**
+	 * Mã của những khối CÒN ĐƠN trong kho này. Xem chốt dài ở chỗ gọi (`khoiCoDon`).
+	 *
+	 * ⚠️ Ô `khoi` rỗng (đơn lập trước khi có cột) tính là 'kvc' — cùng luật với `lap_khoi()`
+	 *    và với mặc định của cột. Bỏ qua chúng là một nhúm đơn cũ không khối nào nhận.
+	 */
+	public static function khoi_con_don() {
+		global $wpdb;
+		$t   = VHCPHN_DB::t( 'don' );
+		$ra  = array();
+		$rows = $wpdb->get_col( "SELECT DISTINCT khoi FROM $t" );
+		foreach ( (array) $rows as $k ) {
+			$k = strtolower( trim( (string) $k ) );
+			if ( '' === $k ) { $k = 'kvc'; }
+			if ( ! in_array( $k, $ra, true ) ) { $ra[] = $k; }
+		}
+		return $ra;
 	}
 
 	/**
