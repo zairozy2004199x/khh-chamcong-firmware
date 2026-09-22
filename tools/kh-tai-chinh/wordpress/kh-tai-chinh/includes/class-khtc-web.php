@@ -37,7 +37,7 @@ class KHTC_Web {
 	public static function nhom() {
 		return array(
 			'Tổng quan' => array( '', 'bao-cao' ),
-			'Dòng tiền' => array( 'ngan-hang', 'giao-dich', 'danh-muc-diem', 'chi-phi' ),
+			'Dòng tiền' => array( 'ngan-hang', 'dan-tho', 'giao-dich', 'danh-muc-diem', 'chi-phi' ),
 			'Đối soát'  => array( 'doi-soat', 'doi-soat-chi-phi' ),
 			'Hoá đơn'   => array( 'sinh-hoa-don', 'hoa-don-ra', 'hoa-don-vao' ),
 			'Sổ'        => array( 'cong-no', 'phap-danh', 'ho-so' ),
@@ -59,6 +59,7 @@ class KHTC_Web {
 			'chi-phi'          => 'Chi phí',
 			'doi-soat'         => 'Cổng thanh toán',
 			'doi-soat-chi-phi' => 'Chi phí',
+			'dan-tho'          => 'Dán thô',
 			'danh-muc-diem'    => 'Danh mục điểm',
 			'sinh-hoa-don'     => 'Sinh từ sao kê',
 			'hoa-don-ra'       => 'Đầu ra',
@@ -81,6 +82,7 @@ class KHTC_Web {
 			'doi-soat'   => 'Đối soát',
 			'chi-phi'    => 'Chi phí',
 			'doi-soat-chi-phi' => 'Đối soát chi phí',
+			'dan-tho'       => 'Dán thô',
 			'danh-muc-diem' => 'Danh mục điểm',
 			'sinh-hoa-don'  => 'Sinh hoá đơn từ sao kê',
 			'hoa-don-ra' => 'Hoá đơn đầu ra',

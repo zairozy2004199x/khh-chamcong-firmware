@@ -497,6 +497,34 @@ cài lúc nào cũng có dữ liệu rơi vào tháng hiện tại và mấy mà
 một hợp đồng quá hạn 18 ngày, để phần cảnh báo có gì mà cảnh báo; một hoá đơn
 vào trả tiền mặt trên 20 triệu, để nhắc khấu trừ hiện ra.
 
+## Dán thô — copy nguyên cả sheet
+
+Mỗi cổng xuất một kiểu file, cột nằm mỗi chỗ một khác. Bắt kế toán sắp lại cột
+trong Excel cho khớp ô dán là việc thừa làm mỗi tháng, và là chỗ sai lặng lẽ:
+kéo nhầm một cột thì số vẫn vào sổ, chỉ là vào sai chỗ.
+
+Nhận dạng bằng **dòng tiêu đề**, không phải tên tệp hay thứ tự cột. Tên tệp thì
+người dùng đổi; thứ tự cột thì cổng đổi khi nâng cấp. Tiêu đề ổn định nhất, và
+nếu cổng có đổi thật thì máy báo "không nhận ra" — thà thế còn hơn lấy nhầm cột
+rồi im lặng.
+
+| Nhận ra | Dấu hiệu trong tiêu đề | Vào đâu |
+|---|---|---|
+| Sao kê QR ngân hàng | `Mã tham chiếu` + `Số tiền đến` | bảng giao dịch |
+| Payoo | `Số tiền thanh toán` + `Phí xử lý giao dịch` | một đợt đối soát |
+| VNPay | `Mã điểm thu` + `Điểm thu` | một đợt đối soát |
+| MoMo | `MS.TransID` + `MS.Total Amount` | một đợt đối soát |
+
+Quét 12 dòng đầu để tìm tiêu đề, vì tệp thật có một hai dòng tổng cộng nằm
+**trên** tiêu đề và copy cả sheet là dính theo. Dòng tổng ở cuối bảng thì thiếu
+cột nên tự rơi ra, và được đếm rồi nói ra chứ không bỏ lặng.
+
+**Luôn xem trước rồi mới ghi.** Nhận dạng sai cột mà ghi thẳng thì số vào sổ sai
+chỗ và không ai thấy. Bước xem trước không bỏ được, kể cả khi máy chắc chắn.
+
+Ghi thì đi qua đúng `dan_hang_loat` / `nap_dong` cũ, nên mọi thứ đứng sau vẫn
+chạy: chặn trùng theo mã, chặn kỳ đã khoá, một dòng nhật ký cho cả lô.
+
 ## Sinh hoá đơn từ sao kê
 
 Đến bản 1.4.0 plugin mới chỉ phủ **nửa sau** của quy trình: nhận danh sách hoá

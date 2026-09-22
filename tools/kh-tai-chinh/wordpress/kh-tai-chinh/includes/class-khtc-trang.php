@@ -31,6 +31,7 @@ class KHTC_Trang {
 			case 'sao-luu':   self::sao_luu();   break;
 			case 'nguoi-dung': self::nguoi_dung(); break;
 			case 'danh-muc-diem': self::danh_muc_diem(); break;
+			case 'dan-tho': self::dan_tho(); break;
 			case 'sinh-hoa-don': self::sinh_hoa_don(); break;
 			default:          self::tong_quan(); break;
 		}
@@ -1123,6 +1124,170 @@ class KHTC_Trang {
 		echo '<p class="khtc-sub"><strong>Nhập là THÊM VÀO, không xoá cái đang có.</strong> Nhập hai lần cùng một tệp thì số nhân đôi. Muốn phục hồi sạch thì xoá dữ liệu cũ trước, hoặc nhập vào một website trắng.</p>';
 		echo '<p class="khtc-sub">Id được cấp lại và các liên kết (giao dịch → tài khoản, dòng cổng → đợt, chi phí → giao dịch) được nối lại theo id mới, nên nhập vào website đã có dữ liệu cũng không trỏ nhầm.</p>';
 		echo '</form></details></div>';
+	}
+
+	// ------------------------------------------------------------ dán thô
+
+	/**
+	 * Copy nguyên cả sheet, máy tự nhận là file gì và tự lấy đúng cột.
+	 *
+	 * LUÔN xem trước rồi mới ghi. Nhận dạng sai cột mà ghi thẳng thì số vào sổ
+	 * sai chỗ và không ai thấy — nên bước xem trước không bỏ được, kể cả khi
+	 * máy chắc chắn.
+	 *
+	 * Ghi thì đi qua đúng hàm dán cũ (dan_hang_loat / nap_dong), để mọi thứ
+	 * đứng sau nó vẫn chạy: chặn trùng theo mã, chặn kỳ đã khoá, một dòng nhật
+	 * ký cho cả lô.
+	 */
+	public static function dan_tho() {
+		$bao_ok  = '';
+		$bao_loi = '';
+		$tho     = isset( $_POST['tho'] ) ? wp_unslash( $_POST['tho'] ) : '';
+		$kq      = null;
+
+		if ( '' !== trim( (string) $tho ) && check_admin_referer( 'khtc_tho' ) ) {
+			$kq = KHTC_DanTho::doc( $tho );
+			if ( is_wp_error( $kq ) ) {
+				$bao_loi = $kq->get_error_message();
+				$kq      = null;
+			}
+		}
+
+		// ---- ghi vào sổ
+		if ( $kq && isset( $_POST['khtc_nap_sao_ke'] ) ) {
+			$nh = (int) $_POST['nh'];
+			if ( ! $nh ) {
+				$bao_loi = 'Chưa chọn tài khoản ngân hàng để nạp vào.';
+			} else {
+				$r = KHTC_GiaoDich::dan_hang_loat( $nh, KHTC_DanTho::ra_sao_ke( $kq['rows'] ) );
+				$bao_ok = sprintf(
+					'Đã nạp %s dòng vào sao kê.%s%s',
+					number_format( $r['them'], 0, ',', '.' ),
+					$r['trung'] ? ' Bỏ qua ' . number_format( $r['trung'], 0, ',', '.' ) . ' dòng đã có sẵn.' : '',
+					$r['loi'] ? ' ' . count( $r['loi'] ) . ' dòng lỗi.' : ''
+				);
+				$kq = null;
+				$tho = '';
+			}
+		}
+		if ( $kq && isset( $_POST['khtc_nap_cong'] ) ) {
+			$dot = (int) $_POST['dot'];
+			if ( -1 === $dot ) {
+				// Tạo đợt mới, kỳ lấy đúng theo khoảng ngày của chính bảng dán.
+				$ngay = array_column( $kq['rows'], 'ngay' );
+				$iso  = array_map( array( 'KHTC_GiaoDich', 'doc_ngay' ), $ngay );
+				sort( $iso );
+				$dot = KHTC_DoiSoat::tao_dot(
+					array(
+						'ten'          => sanitize_text_field( wp_unslash( $_POST['ten_dot'] ?? '' ) ) ?: $kq['ten'] . ' ' . mysql2date( 'd/m/Y', end( $iso ) ),
+						'kenh'         => $kq['dinh_dang'],
+						'tu'           => reset( $iso ),
+						'den'          => end( $iso ),
+						'ngan_hang_id' => (int) ( $_POST['nh_dot'] ?? 0 ),
+					)
+				);
+			}
+			if ( ! $dot ) {
+				$bao_loi = 'Chưa chọn đợt đối soát để nạp vào.';
+			} else {
+				$r = KHTC_DoiSoat::nap_dong( $dot, KHTC_DanTho::ra_cong( $kq['rows'] ) );
+				KHTC_DoiSoat::chay( $dot );
+				$bao_ok = sprintf(
+					'Đã nạp %s dòng vào đợt và chạy đối soát.%s',
+					number_format( $r['them'], 0, ',', '.' ),
+					$r['trung'] ? ' Bỏ qua ' . number_format( $r['trung'], 0, ',', '.' ) . ' dòng trùng mã.' : ''
+				);
+				$kq = null;
+				$tho = '';
+			}
+		}
+
+		echo '<div class="wrap khtc">';
+		KHTC_UI::dau_trang( 'Dán thô' );
+		if ( $bao_loi ) { printf( '<p class="khtc-canh-bao">%s</p>', esc_html( $bao_loi ) ); }
+		if ( $bao_ok )  { printf( '<div class="notice notice-success"><p>%s</p></div>', esc_html( $bao_ok ) ); }
+
+		echo '<form method="post"><div class="khtc-panel">';
+		wp_nonce_field( 'khtc_tho' );
+		echo '<h2>Dán nguyên cả sheet</h2>';
+		echo '<p class="khtc-sub">Mở file của cổng, bôi đen cả sheet, copy, dán vào đây. <strong>Nhớ lấy cả dòng tiêu đề</strong> — máy nhận ra là file gì nhờ dòng đó. Dòng tổng cộng nằm trên tiêu đề cứ để nguyên, máy tự bỏ.</p>';
+		echo '<p class="khtc-sub">Nhận được: ';
+		$ten = array();
+		foreach ( KHTC_DanTho::dinh_dang() as $dd ) { $ten[] = '<strong>' . esc_html( $dd['ten'] ) . '</strong>'; }
+		echo implode( ' · ', $ten ) . '.</p>';
+		printf( '<textarea name="tho" rows="8" placeholder="Dán vào đây…">%s</textarea>', esc_textarea( $tho ) );
+		echo '<p><button class="button button-primary">Nhận dạng và xem trước</button></p>';
+		echo '</div>';
+
+		if ( $kq ) {
+			$r = $kq['rows'];
+			printf(
+				'<div class="khtc-panel"><h2>Nhận ra: %s</h2>',
+				esc_html( $kq['ten'] )
+			);
+			KHTC_UI::the_so(
+				array(
+					array( 'Dòng đọc được', number_format( count( $r ), 0, ',', '.' ) ),
+					array( 'Tổng tiền', KHTC_UI::tien( $kq['tong'] ), 'thu' ),
+					array( 'Phí', KHTC_UI::tien( $kq['tong_phi'] ) ),
+					array( 'Bỏ qua', number_format( $kq['bo_loc'] + $kq['thieu_cot'], 0, ',', '.' ) . ' dòng' ),
+				)
+			);
+			if ( $kq['bo_loc'] ) {
+				printf( '<p class="khtc-sub">Bỏ %s dòng vì trạng thái không phải “Thành công”.</p>', number_format( $kq['bo_loc'], 0, ',', '.' ) );
+			}
+			if ( $kq['thieu_cot'] ) {
+				printf( '<p class="khtc-sub">Bỏ %s dòng thiếu cột hoặc không đọc được ngày — thường là dòng tổng cuối bảng.</p>', number_format( $kq['thieu_cot'], 0, ',', '.' ) );
+			}
+			if ( ! $r ) {
+				echo '<p class="khtc-canh-bao">Không đọc được dòng nào. Kiểm lại xem có copy đủ các cột không.</p></div></form></div>';
+				return;
+			}
+
+			echo '<p class="khtc-sub"><strong>Soát 10 dòng đầu trước khi nạp.</strong> Cột nào lệch chỗ thì dừng lại, đừng nạp.</p>';
+			echo '<table><thead><tr><th>Ngày</th><th>Diễn giải</th><th class="so">Số tiền</th><th class="so">Phí</th><th>Mã giao dịch</th><th>Mã cửa hàng</th></tr></thead><tbody>';
+			foreach ( array_slice( $r, 0, 10 ) as $x ) {
+				printf(
+					'<tr><td>%s</td><td>%s</td><td class="so %s">%s</td><td class="so">%s</td><td><code>%s</code></td><td><code>%s</code></td></tr>',
+					esc_html( $x['ngay'] ),
+					esc_html( mb_substr( $x['dien_giai'], 0, 46 ) ),
+					'thu' === $x['loai'] ? 'thu' : 'chi',
+					esc_html( KHTC_UI::tien( $x['so_tien'] ) ),
+					$x['phi'] ? esc_html( KHTC_UI::tien( $x['phi'] ) ) : '—',
+					esc_html( $x['ma_gd'] ?: '—' ),
+					esc_html( $x['ma_cua_hang'] ?: '—' )
+				);
+			}
+			echo '</tbody></table>';
+
+			echo '<h3>Nạp vào đâu</h3><div class="khtc-loc">';
+			if ( 'sao_ke' === $kq['dich'] ) {
+				echo '<label>Tài khoản ngân hàng<select name="nh">';
+				foreach ( KHTC_NganHang::ds() as $n ) {
+					printf( '<option value="%d">%s</option>', (int) $n->id, esc_html( $n->ten ) );
+				}
+				echo '</select></label>';
+				echo '<button type="submit" name="khtc_nap_sao_ke" value="1" class="button button-primary">Nạp vào sao kê</button>';
+			} else {
+				echo '<label>Đợt đối soát<select name="dot">';
+				echo '<option value="-1">— Tạo đợt mới —</option>';
+				foreach ( KHTC_DoiSoat::ds_dot() as $o ) {
+					printf( '<option value="%d">%s</option>', (int) $o->id, esc_html( $o->ten ) );
+				}
+				echo '</select></label>';
+				printf( '<label>Tên đợt mới<input type="text" name="ten_dot" placeholder="%s"></label>', esc_attr( $kq['ten'] . ' ' . gmdate( 'm/Y' ) ) );
+				echo '<label>Tiền về tài khoản<select name="nh_dot">';
+				foreach ( KHTC_NganHang::ds() as $n ) {
+					printf( '<option value="%d">%s</option>', (int) $n->id, esc_html( $n->ten ) );
+				}
+				echo '</select></label>';
+				echo '<button type="submit" name="khtc_nap_cong" value="1" class="button button-primary">Nạp vào đợt và chạy đối soát</button>';
+			}
+			echo '</div>';
+			echo '<p class="khtc-sub">Nạp đi qua đúng đường dán thường ngày, nên vẫn <strong>chặn trùng theo mã giao dịch</strong>, vẫn chặn kỳ đã khoá, và chỉ ghi một dòng nhật ký cho cả lô.</p>';
+			echo '</div>';
+		}
+		echo '</form></div>';
 	}
 
 	// -------------------------------------------------------- danh mục điểm

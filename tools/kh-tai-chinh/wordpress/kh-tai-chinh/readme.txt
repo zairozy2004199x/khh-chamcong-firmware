@@ -1,7 +1,7 @@
 === Tài Chính K&H ===
 Requires at least: 5.6
 Requires PHP: 7.4
-Stable tag: 1.6.2
+Stable tag: 1.7.0
 License: GPL-2.0-or-later
 
 Theo dõi ngân hàng, giao dịch và đối soát cho CÔNG TY TNHH DỊCH VỤ VÀ GIẢI TRÍ K&H.
@@ -45,6 +45,10 @@ khỏi đi vòng qua wp-admin và khỏi phải hiểu hệ thống vai trò c�
 * Đối soát chi phí — ghép chứng từ chi phí (loại chuyển khoản) với các dòng chi
   trong sao kê, dùng lại đúng phép ghép của đối soát cổng. Ba nhóm: Khớp / Có
   chứng từ chưa thấy tiền ra / Tiền ra không có chứng từ.
+* Dán thô — copy nguyên cả sheet từ file của cổng, máy tự nhận là file gì
+  (Sao kê QR ngân hàng, Payoo, VNPay, MoMo) và tự lấy đúng cột. Nhận dạng bằng
+  dòng tiêu đề, không phải tên tệp. Luôn xem trước 10 dòng rồi mới ghi. Nạp đi
+  qua đúng đường dán thường ngày nên vẫn chặn trùng, chặn kỳ khoá.
 * Danh mục điểm — nối mã cửa hàng trong sao kê với điểm xuất hoá đơn, mã Misa,
   khu vực, dịch vụ. Đặt cờ "bỏ qua" cho mã test, mã vãng lai, gian đã đóng.
   Nạp hàng loạt; mã đã có thì cập nhật đè, cờ bỏ qua giữ nguyên.
