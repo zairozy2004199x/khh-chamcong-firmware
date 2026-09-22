@@ -46,7 +46,13 @@ class VHCP_Cfg {
 			self::PL    => array( 'Phân loại TT', 'TK Có' ),
 			/* Bộ phận — trước bản này gõ cứng ở hai nơi (hằng dưới + `BOPHAN_LIST` trong
 			   app.html), nên thêm một mảng là phải sửa mã. Nay khai được ở Cấu hình. */
-			self::BP    => array( 'Bộ phận' ),
+			/* Cột 2 `Luồng duyệt` thêm 22/09/2026 — anh Thắng: *"Hoặc bộ phận sẽ chọn phương
+			   án duyệt chi"*. Đây là luồng MẶC ĐỊNH cho đơn người của bộ phận ấy lập; người
+			   lập vẫn đổi được trên từng đơn (anh chốt "đơn vẫn sửa được").
+			   ⚠️ Ô để trống = KHÔNG ÉP GÌ, đơn rơi về đường lui theo khối như trước bản này.
+			      Trống là mặc định, và phải thế: bảy bộ phận đang khai đều trống, lấp một mã
+			      vào là đổi luồng cho cả một bộ phận mà không ai yêu cầu. */
+			self::BP    => array( 'Bộ phận', 'Luồng duyệt' ),
 			self::DT    => array( 'Đối tượng', 'Mã đối tượng', 'Loại (NV/NCC)' ),
 			self::QR    => array( 'Khóa', 'Giá trị' ),
 			/* Hai cột cuối là ĐƠN VỊ (K&H · POSH) — xem `VHCP_DonVi`. "Đơn vị" là NHÀ (đơn
@@ -266,6 +272,66 @@ class VHCP_Cfg {
 		$k = mb_strtolower( $x );
 		foreach ( self::bo_phan_ds() as $b ) {
 			if ( mb_strtolower( $b ) === $k ) { return $b; }
+		}
+		return '';
+	}
+
+	/**
+	 * LUỒNG DUYỆT MẶC ĐỊNH CỦA MỘT BỘ PHẬN — cột 2 của danh mục Bộ phận.
+	 *
+	 * Anh Thắng 22/09/2026: *"Hoặc bộ phận sẽ chọn phương án duyệt chi"*, và anh chốt bộ phận
+	 * khai một lần còn người lập vẫn đổi được trên từng đơn.
+	 *
+	 * 🔴 CHỈ LÀ GIÁ TRỊ MỒI, KHÔNG PHẢI LUẬT ÁP LÊN ĐƠN ĐÃ LẬP. `create_don()` đọc hàm này MỘT
+	 *    LẦN rồi đóng dấu mã vào cột `don.luong`. Nếu để đơn tra lại bảng này mỗi lượt đọc thì
+	 *    một lượt sửa danh mục là hàng trăm đơn đang chạy dở đổi luồng giữa chừng — đơn đã
+	 *    duyệt chi một nửa bỗng hiện ra ở một luồng không có bước ấy. Đóng dấu lúc lập là cách
+	 *    duy nhất giữ đúng luật "đơn đang chạy dở không bị đổi đường".
+	 *
+	 * ⚠️ TRẢ RỖNG KHI KHÔNG KHAI, và rỗng nghĩa là "theo khối như cũ" chứ không phải một mã.
+	 *    Mã lạ cũng về rỗng: `VHCP_Don::luong_don()` là nơi duy nhất quyết định mã nào có thật,
+	 *    nên hỏi lại nó thay vì gõ danh sách mã lần thứ hai ở đây.
+	 */
+	public static function luong_cua_bo_phan( $bp ) {
+		/* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG — ghi ra để lần sau khỏi đuổi theo. Thay `bo_phan_chuan()`
+		   bằng `trim()` thì MỌI bài kiểm vẫn xanh, và đúng là vậy: vòng lặp ngay dưới đã tự so
+		   không phân biệt hoa thường, còn tên lạ thì không khớp dòng nào nên cũng ra rỗng.
+		   Giữ `bo_phan_chuan()` vì nó là NƠI DUY NHẤT chuẩn hoá tên bộ phận trong cả app — ngày
+		   nó mọc thêm luật (bí danh, tên viết tắt) thì chỗ này hưởng luôn mà không ai phải nhớ.
+		   Đừng gỡ nó chỉ vì phá thử báo "không bắt được". */
+		$ten = self::bo_phan_chuan( $bp );
+		if ( '' === $ten ) { return ''; }
+		$k = mb_strtolower( $ten );
+		foreach ( self::read( self::BP ) as $r ) {
+			if ( mb_strtolower( trim( (string) ( isset( $r[0] ) ? $r[0] : '' ) ) ) !== $k ) { continue; }
+			return VHCP_Don::luong_don( array( 'luong' => isset( $r[1] ) ? $r[1] : '' ) );
+		}
+		return '';
+	}
+
+	/**
+	 * BỘ PHẬN CỦA MỘT NGƯỜI — đọc cột `Bộ phận` Ở HÀNG NGƯỜI DÙNG.
+	 *
+	 * 🔴 TÊN HÀM NÓI RA NGUỒN DỮ LIỆU, VÀ ĐÓ LÀ CHỦ Ý. Có một hàm CŨ tên
+	 *    `bo_phan_cua_nguoi()` đã bị bỏ hẳn ngày 21/09/2026 — nó lấy bộ phận từ VAI TRÒ, tức
+	 *    trục thứ hai, đúng cái anh Thắng gọi là *"xung đột giữa vai trò và bộ phận, set cái
+	 *    này thì mất cái kia"*. `kiem-vai-bo-bo-phan.php` nay CHỐT rằng cái tên ấy không được
+	 *    sống lại. Hàm này đọc ngược hẳn: HÀNG NGƯỜI DÙNG, trục duy nhất còn lại — nên nó phải
+	 *    mang một cái tên khác, không thì người đọc sáu tháng sau tưởng trục cũ đã quay về.
+	 *    ⚠️ ĐỪNG ĐỔI TÊN HÀM NÀY VỀ `bo_phan_cua_nguoi`. Bài kiểm sẽ đỏ, và nó đỏ đúng.
+	 *
+	 * ⚠️ HỎI THEO TÊN NGƯỜI LẬP, KHÔNG PHẢI NGƯỜI ĐANG ĐĂNG NHẬP. Quản lý lập hộ đơn cho nhân
+	 *    viên thì ô "Người lập" mang tên nhân viên, và luồng phải theo bộ phận của NGƯỜI ẤY —
+	 *    đó là bộ phận sẽ đi duyệt đơn này. `VHCP_Auth::bo_phan_bo()` trả bộ phận của phiên
+	 *    đang mở, dùng nhầm nó ở đây là đơn lập hộ đi sai đường.
+	 */
+	public static function bo_phan_hang_nguoi( $ten ) {
+		$k = mb_strtolower( trim( (string) $ten ) );
+		if ( '' === $k ) { return ''; }
+		foreach ( self::get_users() as $u ) {
+			if ( mb_strtolower( trim( (string) $u['ten'] ) ) === $k ) {
+				return self::bo_phan_chuan( isset( $u['boPhan'] ) ? $u['boPhan'] : '' );
+			}
 		}
 		return '';
 	}
@@ -1068,6 +1134,19 @@ class VHCP_Cfg {
 		   sách rỗng, ô chọn Bộ phận trắng trơn, mà máy chủ thì vẫn nhận 7 tên cũ. Hai bên lệch
 		   nhau đúng kiểu bản này sinh ra để bỏ. */
 		$out['boPhanDs'] = self::bo_phan_ds();
+		/* Luồng duyệt mặc định của từng bộ phận: { 'Văn phòng' => 'dc', … }. Bảng RIÊNG chứ
+		   không nhét vào `boPhanDs` — ô ấy là mảng CHUỖI và đang được đọc ở cả chục chỗ (ô chọn
+		   bộ phận, phân quyền vai, bảng loại chi phí); đổi kiểu của nó là mỗi chỗ ấy hiện ra
+		   "[object Object]" hoặc rỗng, mà hỏng theo kiểu im lặng.
+		   ⚠️ Chỉ chở bộ phận CÓ khai luồng — bảy dòng rỗng gửi xuống cũng chỉ để màn tra ra
+		      rỗng, đúng thứ nó vốn mặc định. */
+		$out['boPhanLuong'] = array();
+		foreach ( self::rows_of( $all, self::BP ) as $r ) {
+			$t = trim( (string) ( isset( $r[0] ) ? $r[0] : '' ) );
+			if ( '' === $t ) { continue; }
+			$lg = VHCP_Don::luong_don( array( 'luong' => isset( $r[1] ) ? $r[1] : '' ) );
+			if ( '' !== $lg ) { $out['boPhanLuong'][ $t ] = $lg; }
+		}
 		$out['users'] = array();
 		foreach ( self::rows_of( $all, self::USER ) as $r ) {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
@@ -1494,7 +1573,17 @@ class VHCP_Cfg {
 				$k = mb_strtolower( $t );
 				if ( isset( $da[ $k ] ) ) { continue; }
 				$da[ $k ] = 1;
-				$rows[]   = array( $t );
+				/* 🔴 CỘT LUỒNG PHẢI ĐI THEO, và phải chịu được CẢ HAI dạng gửi lên. Màn cũ (và
+				   mọi lượt nhập từ CSV) gửi `boPhanDs` là mảng CHUỖI — lúc ấy không có luồng
+				   nào để giữ, nên tra lại bảng đang lưu thay vì ghi đè bằng rỗng. Bỏ bước tra
+				   ấy là một lượt bấm Lưu ở màn cũ xoá sạch luồng của cả bảy bộ phận, và nó xoá
+				   im lặng: danh sách tên vẫn đủ, chỉ luồng biến mất.
+				   ⚠️ Chuẩn hoá qua `VHCP_Don::luong_don()` — một nơi duy nhất biết mã nào có
+				      thật, và mã lạ về rỗng = "theo khối như cũ". */
+				$lg = is_array( $x ) && isset( $x['luong'] )
+					? VHCP_Don::luong_don( array( 'luong' => $x['luong'] ) )
+					: self::luong_cua_bo_phan( $t );
+				$rows[]   = array( $t, $lg );
 			}
 			/* 🔴 KHÔNG CHO LƯU BẢNG RỖNG. Rỗng thì `bo_phan_ds()` ngã về mặc định, nên hệ vẫn
 			   chạy — nhưng người vừa xoá sạch tưởng mình đã bỏ hết bộ phận, trong khi màn vẫn

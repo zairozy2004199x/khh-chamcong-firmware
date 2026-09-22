@@ -33,11 +33,19 @@ const boc = ten => {
   t('bốc được ' + ten + '()', i >= 0);
   return i < 0 ? '' : HTML.slice(i, HTML.indexOf('\n  }', i) + 4);
 };
+/* ⚠️ CẮT THEO HÌNH DẠNG GIÁ TRỊ, KHÔNG CẮT TỚI DẤU `;` ĐẦU TIÊN.
+   Cắn thật 22/09/2026: `ND_LUONG_DS` mọc thêm một chú thích tiếng Việt có dấu chấm phẩy giữa
+   câu ("…khoá cứng theo khối; nay bộ phận nào cũng chọn được"), thế là mảng bị cắt làm đôi và
+   bài kiểm VĂNG `SyntaxError` chứ không đỏ một phép — đọc ra không biết hỏng ở đâu.
+   Đây đúng là họ lỗi "cắt theo dấu mốc thô" đã cắn hai bài khác hôm 21/09 (cắt theo SỐ KÝ TỰ).
+   Nay: giá trị mở bằng `[` thì cắt tới `];`, mở bằng `{` thì tới `};`, còn lại mới tới `;`. */
 const bocVar = ten => {
   const i = HTML.indexOf('var ' + ten + '=');
   t('bốc được var ' + ten, i >= 0);
   if (i < 0) return '';
-  return HTML.slice(i, HTML.indexOf(';', i) + 1);
+  const dau = HTML.charAt(HTML.indexOf('=', i) + 1);
+  const het = dau === '[' ? '];' : (dau === '{' ? '};' : ';');
+  return HTML.slice(i, HTML.indexOf(het, i) + het.length);
 };
 
 /* ── 1. AI LÊN ĐƠN TUẦN CỦA CƠ SỞ ──────────────────────────────────────────────────────── */
@@ -337,6 +345,13 @@ function beNewDon(daChonTuan, bp) {
       readOnly: false, focus() {}, querySelector: () => null }),
     esc: x => String(x == null ? '' : x),
     _kyTuDo: () => false,
+    /* `_luongMoi()` (1.288.0) hỏi luồng mặc định của bộ phận trước, rồi mới ngã về khối.
+       🔴 ĐỂ 'dc' CHỨ KHÔNG ĐỂ RỖNG. Rỗng + khối 'kvc' cũng ra 'gt' — đúng bằng giá trị gõ cứng
+          của bản 1.287.0, nên bệ đỡ ấy KHÔNG phân biệt được "có mồi theo bộ phận" với "quên mồi
+          hẳn". Lọt lưới thật lúc phá thử 22/09/2026 (lượt B11). */
+    BOOT: { luongBo: 'dc' },
+    KHOI_DANG: 'kvc',
+    KHOI_LUONG_CHI: ['mtd', 'vp'],
     genKyOptions: () => [{ val: 'T9/2026', label: 'T9/2026', cur: true }],
     _ngayISO: () => '2026-09-11',
     ndKyDoi: () => {},
@@ -349,7 +364,7 @@ function beNewDon(daChonTuan, bp) {
      vào, vì đó chính là dòng phải chạy được: bỏ nó ra là đơn sau lặng lẽ mang luồng của lần
      lập trước. */
   const src = `${BP_THAT}\n${bangTen}\n${boc('_tenNhom')}\n${boc('_tenNhomBp')}\n${boc('_apTenNhom')}
-    ${bocVar('ND_LUONG')}\n${bocVar('ND_LUONG_DS')}\n${boc('veNdLuong')}
+    ${bocVar('ND_LUONG')}\n${bocVar('ND_LUONG_DS')}\n${boc('veNdLuong')}\n${boc('_luongMoi')}
     ${boc('_tabDuoc')}\n${boc('_vaoDuocDuAn')}\n${boc('_hoiLoaiDon')}\n${boc('newDon')}
     newDon(C); return {hoi:null, luong:ND_LUONG};`;
   const ra = new Function('moi', 'C', `with(moi){ ${src} }`)(moi, daChonTuan);
@@ -366,8 +381,10 @@ const ND3 = beNewDon(undefined, 'Cơ sở');
 t('   nhân viên cơ sở vốn chỉ có một loại: cũng không hỏi', ND3.hoi === 'none' && ND3.coso === '', ND3);
 /* 🔴 Ô CHỌN LUỒNG ĐẶT LẠI MỖI LƯỢT MỞ (1.287.0). Giữ lựa chọn của lần trước là đơn sau lặng lẽ
    mang luồng cũ — người lập không nhìn lại ô này vì họ nhớ mình đã chọn rồi. */
-t('🔴 mở "Tạo đơn mới" → luồng về mặc định "gt" (qua tạm ứng — *"cái đang chạy"*)',
-  ND1.luong === 'gt', ND1.luong);
+/* 🔴 MỒI THEO BỘ PHẬN (1.288.0), không gõ cứng. Bệ đỡ khai bộ phận đi "dc" (duyệt chi), nên
+   hộp Tạo đơn mới phải mở ra ở đúng luồng ấy — gõ cứng 'gt' là phép này đỏ. */
+t('🔴 mở "Tạo đơn mới" → luồng mồi theo BỘ PHẬN của người lập, không gõ cứng',
+  ND1.luong === 'dc', ND1.luong);
 t('   và hai nút luồng được VẼ RA thật, không phải một ô rỗng',
   /Qua tạm ứng/.test(ND1.luongHtml || '') && /Trực tiếp/.test(ND1.luongHtml || ''), ND1.luongHtml);
 

@@ -75,6 +75,15 @@ teq( '🔴 đơn chọn TRỰC TIẾP → đi luồng trực tiếp, dù khối 
 	VHCP_Don::LUONG_TT, VHCP_Don::luong_cua( 'kvc', 'tt' ) );
 teq( '🔴 đơn chọn QUA TẠM ỨNG → đi luồng tạm ứng, dù khối là khối chi',
 	VHCP_Don::LUONG_KVC, VHCP_Don::luong_cua( 'mtd', 'gt' ) );
+/* 🔴 MÃ 'dc' (DUYỆT CHI) THÊM 1.288.0 — anh Thắng: *"Hoặc bộ phận sẽ chọn phương án duyệt
+   chi"*. Nó phải trỏ vào CHÍNH `LUONG_CHI`: trỏ nhầm sang `LUONG_KVC` thì đơn khai duyệt chi
+   lại mọc ra ba bước tạm ứng, tức tiền ứng ra trước cho một luồng sinh ra để KHÔNG ứng. */
+teq( '🔴 đơn chọn DUYỆT CHI → đi luồng chi, dù khối là khối tạm ứng',
+	VHCP_Don::LUONG_CHI, VHCP_Don::luong_cua( 'kvc', 'dc' ) );
+teq( '   và giống hệt đơn cũ của khối mtd — cùng một bảng, không phải bản chép',
+	VHCP_Don::luong_cua( 'mtd', '' ), VHCP_Don::luong_cua( 'kvc', 'dc' ) );
+teq( '   `luong_don()` nhận mã "dc"', 'dc', VHCP_Don::luong_don( array( 'luong' => 'dc' ) ) );
+t( '   nhưng "dc" KHÔNG phải trực tiếp', ! VHCP_Don::la_truc_tiep( array( 'luong' => 'dc' ) ), null );
 teq( '   không phân biệt hoa thường', VHCP_Don::LUONG_TT, VHCP_Don::luong_cua( 'kvc', 'TT' ) );
 teq( '   khoảng trắng thừa vẫn nhận', VHCP_Don::LUONG_TT, VHCP_Don::luong_cua( 'kvc', ' tt ' ) );
 

@@ -1639,6 +1639,28 @@
               toán. Gỡ ở đây là gỡ CHỖ KHAI DANH MỤC, không phải gỡ trục.
            ══════════════════════════════════════════════════════════════════════════════ -->
 
+    <!-- ══════════════════════════════════════════════════════════════════════════════
+         🧭 LUỒNG DUYỆT THEO BỘ PHẬN — anh Thắng 22/09/2026: *"Hoặc bộ phận sẽ chọn phương
+         án duyệt chi"*, và anh chốt: bộ phận khai một lần, **đơn vẫn sửa được**.
+
+         🔴 ĐÂY KHÔNG PHẢI KHỐI "BỘ PHẬN" ĐÃ GỠ Ở TRÊN DỰNG LẠI. Khối kia là chỗ THÊM / XOÁ /
+            ĐỔI TÊN bộ phận, gỡ sáng nay vì không còn bảng nào đọc tới danh mục ấy. Bảng này
+            KHÔNG sửa danh mục: cột trái chỉ ĐỌC, lấy đúng bộ phận đang có. Nó chỉ trả lời một
+            câu mới mà trước sáng nay chưa ai hỏi — bộ phận này đi luồng nào.
+         ⚠️ Vì thế cột trái là ô KHOÁ (readonly): gõ được vào đó là đẻ ra một bộ phận thứ tám
+            không có trong danh mục, và mọi phép `bo_phan_chuan()` sẽ chối nó trong im lặng.
+         ══════════════════════════════════════════════════════════════════════════════ -->
+    <div class="card" id="luongBpCard">
+      <div class="ch"><h2>🧭 Luồng duyệt theo bộ phận</h2><div style="display:flex;gap:8px"><button class="btn b-g" onclick="saveCfgLuongBp()">💾 Lưu luồng</button></div></div>
+      <div style="padding:8px 14px 0;font-size:12px;color:#64748b">
+        Đơn do người của bộ phận ấy lập sẽ <b>mồi sẵn</b> luồng này lúc bấm ＋ Tạo đơn mới —
+        <b>người lập vẫn đổi được</b> trên từng đơn. Luồng đã chọn được <b>đóng dấu vào đơn</b> ngay
+        lúc lập, nên sửa bảng này <b>không</b> làm đơn đang chạy dở đổi đường.<br>
+        Để trống = <b>theo khối như cũ</b> (Máy tự động · Văn phòng đi <b>Duyệt chi</b>, còn lại đi <b>Qua tạm ứng</b>).
+      </div>
+      <div class="tw"><table style="min-width:620px"><thead><tr><th style="width:260px">Bộ phận</th><th style="width:320px">Luồng duyệt mặc định</th></tr></thead><tbody id="cfgLuongBpBody"></tbody></table></div>
+    </div>
+
     <div class="card" id="vaiCard">
       <div class="ch"><h2>🎭 Vai trò tự tạo</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="addCfgVai()">＋ Thêm vai</button><button class="btn b-g" onclick="saveCfgVai()">💾 Lưu vai trò</button></div></div>
       <div style="padding:8px 14px 0;font-size:12px;color:#64748b">
@@ -4191,7 +4213,7 @@
     el('ndNguoiLap').readOnly=(_vaiLuat()==='Nhân viên');
     /* 🔴 ĐẶT LẠI VỀ MẶC ĐỊNH MỖI LƯỢT MỞ. Giữ lựa chọn của lần trước là đơn sau lặng lẽ mang
        luồng cũ — người lập không nhìn lại ô này vì họ nhớ mình đã chọn rồi. */
-    ND_LUONG='gt'; veNdLuong();
+    ND_LUONG=_luongMoi(); veNdLuong();
     el('newDonModal').style.display='flex';
     if(!hoi) setTimeout(function(){el('ndNguoiLap').focus();},50);
   }
@@ -4206,13 +4228,45 @@
    *    sau lập một đơn khác hẳn mà nó lặng lẽ mang luồng cũ, và người lập không nhìn lại ô này
    *    vì hôm qua họ đã chọn rồi.
    * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  /* ⚠️ GIÁ TRỊ KHỞI TẠO CHỈ ĐỂ BIẾN CÓ MỘT MÃ HỢP LỆ TRƯỚC LƯỢT MỞ HỘP ĐẦU TIÊN — `newDon()`
+     LUÔN gán lại bằng `_luongMoi()`. Đừng đọc dòng này thành "mặc định là qua tạm ứng": mặc
+     định thật nằm ở `_luongMoi()`, và nó hỏi bộ phận trước, khối sau. */
   var ND_LUONG='gt';
   var ND_LUONG_DS=[
     {ma:'gt', ten:'💵 Qua tạm ứng', phu:'Xin tiền trước → kế toán duyệt và chuyển → tiêu → gửi quyết toán.',
      vi:'Đơn sẽ đi: Nháp → Chờ duyệt tạm ứng → Chờ cấp tạm ứng → Đã cấp tạm ứng → Chờ quyết toán → Đã quyết toán.'},
     {ma:'tt', ten:'🧾 Trực tiếp', phu:'Tiền đã chi rồi — gửi đơn đầy đủ thẳng cho kế toán quyết toán.',
-     vi:'Đơn sẽ đi: Tạo đơn → Chờ quyết toán → Đã quyết toán → Đã thanh toán → Xuất MISA. Không có bước tạm ứng nào.'}
+     vi:'Đơn sẽ đi: Tạo đơn → Chờ quyết toán → Đã quyết toán → Đã thanh toán → Xuất MISA. Không có bước tạm ứng nào.'},
+    /* 🔴 'dc' THÊM 22/09/2026 — anh Thắng: *"Hoặc bộ phận sẽ chọn phương án duyệt chi"*. Luồng
+       này vốn đã chạy cho Máy tự động / Văn phòng nhưng khoá cứng theo khối; nay bộ phận nào
+       cũng chọn được. Khác 'gt' ở chỗ KHÔNG có tiền ứng ra trước — duyệt xong mới tiêu. */
+    {ma:'dc', ten:'🧮 Duyệt chi', phu:'Duyệt trước khi tiêu, nhưng không ứng tiền — tiêu xong mới quyết toán.',
+     vi:'Đơn sẽ đi: Tạo đơn → Chờ duyệt chi → Đã duyệt chi → Chờ duyệt quyết toán → Đã duyệt quyết toán → Đã thanh toán → Xuất MISA.'}
   ];
+
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * LUỒNG MỒI SẴN CHO ĐƠN SẮP LẬP — BỘ PHẬN NÓI TRƯỚC, KHỐI NÓI SAU.
+   * ══════════════════════════════════════════════════════════════════════════════════════════
+   * 🔴 VÁ MỘT LỖI CỦA CHÍNH BẢN 1.287.0. Bản ấy gõ cứng `ND_LUONG='gt'` rồi LUÔN gửi mã đó lên
+   *    `createDon`. Trước 1.287.0 đơn mới mang luồng RỖNG, mà rỗng nghĩa là "theo khối" — nên
+   *    đơn của Máy tự động / Văn phòng đi luồng DUYỆT CHI. Từ 1.287.0 chúng mang 'gt', tức
+   *    LUONG_KVC, tức MẤT HẲN khâu duyệt chi mà không ai khai gì cả. Đơn vẫn lập được, vẫn
+   *    duyệt được, chỉ là đi nhầm đường — đúng kiểu hỏng im lặng tệ nhất.
+   *
+   * 🔴 THỨ TỰ HỎI PHẢI KHỚP MÁY CHỦ: bộ phận của mình (`BOOT.luongBo`, do `luong_mac_dinh()`
+   *    tính) → rồi mới tới đường lui theo khối (`KHOI_LUONG_CHI`, đúng phép `luong_cua()`).
+   *    Lệch một bậc là cái màn bày ra khác cái sổ ghi xuống.
+   *
+   * ⚠️ MỒI, KHÔNG PHẢI KHOÁ. Anh Thắng chốt *"bộ phận khai, đơn vẫn sửa được"* — nên đây chỉ là
+   *    nút nào sáng lúc mở hộp; bấm nút khác là đổi được ngay.
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  function _luongMoi(){
+    var bo=String((BOOT&&BOOT.luongBo)||'').trim().toLowerCase();
+    if(bo==='tt'||bo==='gt'||bo==='dc') return bo;
+    /* Bộ phận chưa khai -> đi đúng đường lui của máy chủ, và nói thẳng nó ra bằng một mã thật
+       để người lập thấy trước đơn sẽ đi đâu. */
+    return (KHOI_LUONG_CHI.indexOf(String(KHOI_DANG||'').toLowerCase())>=0) ? 'dc' : 'gt';
+  }
   function veNdLuong(){
     var box=el('ndLuongBox'); if(!box) return;
     box.innerHTML=ND_LUONG_DS.map(function(x){
@@ -10353,13 +10407,16 @@
     var l=String(luong||'').trim().toLowerCase();
     if(l==='tt') return LUONG_TT;
     if(l==='gt') return LUONG_KVC;
+    /* ⚠️ 'dc' TRỎ VÀO CHÍNH `LUONG_CHI` — bản song sinh của `VHCPVP_Don::luong_cua()`. Chép ra
+       một bảng thứ tư là hai nơi phải nhớ sửa mỗi lượt đổi chữ. */
+    if(l==='dc') return LUONG_CHI;
     var k=String(khoi===undefined?KHOI_DANG:khoi||'').toLowerCase();
     return (KHOI_LUONG_CHI.indexOf(k)>=0)?LUONG_CHI:LUONG_KVC;
   }
   /** Mã luồng đã chuẩn hoá của một đơn — mã lạ về rỗng ("theo khối như cũ"). */
   function _luongDon(d){
     var l=String((d&&d.luong)||'').trim().toLowerCase();
-    return (l==='tt'||l==='gt') ? l : '';
+    return (l==='tt'||l==='gt'||l==='dc') ? l : '';
   }
   /** Đơn này có đi luồng TRỰC TIẾP không (gửi thẳng quyết toán, không qua tạm ứng). */
   function _laTrucTiep(d){ return _luongDon(d)==='tt'; }
@@ -12097,6 +12154,12 @@
        nhóm này từng có bốn khối. */
     { ten:'👥 Người & quyền',             id:['vaiCard','userCard','quyenCard'],
       mo:'Ai đăng nhập được, thấy gì, và bấm được nút nào.' },
+    /* 🧭 NHÓM RIÊNG, dù chỉ một khối — y như `kyCard` và `gopCard`. Nhét nó vào "Người &
+       quyền" thì mô tả nhóm ấy ("ai đăng nhập được, thấy gì, bấm được nút nào") thành nói dối:
+       luồng duyệt không phải một thứ quyền, nó là ĐƯỜNG ĐI của đơn. Đặt ngay sau nhóm người vì
+       nó tra bộ phận — mà bộ phận khai ở hàng Người dùng ngay trên. */
+    { ten:'🧭 Luồng duyệt theo bộ phận',  id:['luongBpCard'],
+      mo:'Bộ phận nào đi đường nào: qua tạm ứng · trực tiếp · duyệt chi. Chỉ là mồi sẵn — người lập vẫn đổi được trên từng đơn.' },
     { ten:'🧮 Danh mục chi phí & tài khoản', id:['loaiMxCard','tkCoCard','heTkCard'],
       mo:'Chi phí này là chi phí gì, và đi vào tài khoản nào khi xuất MISA.' },
     /* ⚠️ `qrCard` đã gộp vào `heTkCard` — nhóm này giờ chỉ còn mốc tuần. */
@@ -12782,6 +12845,7 @@
     anNutHutGhe();   /* mảng không dùng ghế thì giấu nút — xem hàm ấy */
     renderCosoBody();
     renderVai();
+    renderLuongBp();
     el('cfgTkInfo').innerHTML = _tkChartHtml() + (TKCHART.length ? ('✅ Đã nạp <b>'+TKCHART.length+'</b> tài khoản — mọi ô mã tài khoản trong trang này đã có gợi ý theo số hiệu + tên.') : '<span style="color:#dc2626">Chưa nạp hệ thống tài khoản — mã phải gõ tay, dễ sai số.</span>');
     /* ⚠️ Bảng khai tay `mangTk` đã gỡ khỏi màn 14/09/2026 — gác `null` ở đây, không thì
        `renderCfg()` ném lỗi ngay dòng này và CẢ tab Cấu hình trắng trơn. */
@@ -14282,6 +14346,40 @@
         loadDsKy(); BOOT=null; boot(function(){});
       } else { toast('err',(r&&r.error)||'Không đổi được'); }
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).doiMocKy(x.ky, tu, den);
+  }
+  /* ══════════════════════════════════════════════════════════════════════════════════════
+   * 🧭 LUỒNG DUYỆT THEO BỘ PHẬN — bảng hai cột, cột trái chỉ đọc.
+   * ══════════════════════════════════════════════════════════════════════════════════════
+   * 🔴 GỬI LÊN DẠNG ĐỐI TƯỢNG `[{ten, luong}]`, không phải mảng chuỗi. Máy chủ (`save_cfg`)
+   *    nhận cả hai dạng: gửi mảng CHUỖI thì nó TRA LẠI luồng đang lưu để khỏi xoá mất, còn
+   *    gửi đối tượng thì nó ghi đúng cái mình gửi. Ở đây phải gửi đối tượng — không thì bấm
+   *    Lưu xong không có gì đổi, và người khai tưởng bảng hỏng.
+   * ⚠️ GỬI ĐỦ MỌI DÒNG, kể cả dòng để trống. Lọc bỏ dòng trống là một lượt "xoá luồng của bộ
+   *    phận X" không bao giờ tới được máy chủ — người ta chọn lại về "theo khối" rồi bấm Lưu,
+   *    màn báo xong, mà mã cũ vẫn nằm nguyên trong sổ.
+   * ══════════════════════════════════════════════════════════════════════════════════════ */
+  var LUONG_BP_DS=[['','— theo khối như cũ —'],['gt','💵 Qua tạm ứng'],['tt','🧾 Trực tiếp'],['dc','🧮 Duyệt chi']];
+  function renderLuongBp(){
+    if(!el('cfgLuongBpBody')) return;
+    /* Chỉ Admin — bộ phận là thứ bó tầm nhìn kế toán, và máy chủ cũng chối ai khác. Giấu thẻ
+       thay vì bày ra một bảng bấm Lưu là ăn câu từ chối. */
+    if(el('luongBpCard')) el('luongBpCard').style.display=_laAdmin()?'':'none';
+    if(!_laAdmin()) return;
+    var mp=(CFG&&CFG.boPhanLuong)||(BOOT&&BOOT.boPhanLuong)||{};
+    el('cfgLuongBpBody').innerHTML=_bpDs().map(function(b){
+      var cur=String(mp[b]||'');
+      return '<tr><td><input value="'+esc(b)+'" readonly style="width:100%;background:#f4f1ec;cursor:default"></td>'
+        +'<td><select style="width:100%">'+LUONG_BP_DS.map(function(o){
+            return '<option value="'+esc(o[0])+'"'+(o[0]===cur?' selected':'')+'>'+esc(o[1])+'</option>'; }).join('')
+        +'</select></td></tr>';
+    }).join('');
+  }
+  function saveCfgLuongBp(){
+    var data=_readRows('cfgLuongBpBody').map(function(r){
+      return { ten:String(r[0]||'').trim(), luong:String(r[1]||'').trim() };
+    }).filter(function(x){ return x.ten; });
+    if(!data.length){ toast('warn','Chưa có bộ phận nào để khai'); return; }
+    _saveCfg({boPhanDs:data},'Đã lưu luồng duyệt theo bộ phận');
   }
   /* 🗂 `renderCfgBp()` · `addCfgBp()` · `saveCfgBp()` ĐÃ GỠ — 22/09/2026, cùng lượt với khối
      giao diện của chúng. Xem bia mộ ở chỗ `id="bpCard"` cũ.

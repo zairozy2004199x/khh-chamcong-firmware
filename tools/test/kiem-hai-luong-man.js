@@ -273,7 +273,20 @@ function khoaPhp(ten) {
 const MA_JS = (mang('ND_LUONG_DS').match(/ma\s*:\s*'([^']+)'/g) || []).map(function (x) { return x.replace(/.*'([^']+)'.*/, '$1'); });
 const MA_PHP = khoaPhp('LUONG_MA');
 teq('🔴 mã luồng bày trên màn khớp `VHCP_Don::LUONG_MA`', MA_PHP.slice().sort(), MA_JS.slice().sort());
-teq('   và đúng hai mã, không hơn', 2, MA_JS.length);
+teq('   và đúng BA mã, không hơn', 3, MA_JS.length);
+/* 🔴 'dc' (DUYỆT CHI) THÊM 1.288.0 — anh Thắng: *"Hoặc bộ phận sẽ chọn phương án duyệt chi"*.
+   Nó phải TRỎ VÀO CHÍNH `LUONG_CHI`, không phải một bảng thứ tư chép lại: chép ra là hai nơi
+   phải nhớ sửa mỗi lượt đổi chữ, và chỗ quên thì đơn cùng luồng hiện hai tên ở hai màn. */
+teq('🔴 mã "dc" đi đúng bộ bước của luồng DUYỆT CHI',
+  Object.keys(JSON.parse(chay('kvc', 'return JSON.stringify(LUONG_CHI);'))), buoc('kvc', 'dc'));
+t('🔴 luồng duyệt chi CÓ khâu duyệt trước khi tiêu (khác hẳn trực tiếp)',
+  buoc('kvc', 'dc').indexOf('Chờ duyệt tạm ứng') >= 0, buoc('kvc', 'dc'));
+t('   và KHÔNG có bước cấp tạm ứng (khác hẳn qua tạm ứng)',
+  buoc('kvc', 'dc').indexOf('Chờ cấp tạm ứng') < 0, buoc('kvc', 'dc'));
+teq('🔴 đơn "dc" giữa khối KVC vẫn đi luồng duyệt chi — đơn nói trước, khối nói sau',
+  buoc('mtd', ''), buoc('kvc', 'dc'));
+teq('   `_luongDon` nhận mã "dc"', 'dc', maLuong({ luong: 'dc' }));
+t('   nhưng "dc" KHÔNG phải trực tiếp', laTT({ luong: 'dc' }) === false);
 /* ⚠️ `KHOI_LUONG_CHI` (đường lui theo khối) cũng phải cùng hai bên. */
 const KLC_JS = (dong('KHOI_LUONG_CHI').match(/'([^']+)'/g) || []).map(function (x) { return x.replace(/'/g, ''); });
 const KLC_PHP = ((DON.match(/const KHOI_LUONG_CHI\s*=\s*array\(([^)]*)\)/) || ['', ''])[1].match(/'([^']+)'/g) || [])
@@ -397,6 +410,64 @@ t('⚠️ bốc được `renderQtBanGiao`', BG.length > 150, BG.length);
 t('🔴 dải bàn giao KHÔNG hỏi `_ttTrongLuong` theo khối nữa', !/_ttTrongLuong/.test(BG), BG);
 t('   nhưng câu chữ VẪN kể bước `Đã thanh toán`', /Đã thanh toán/.test(BG), BG);
 t('   và vẫn nói đơn tự chuyển sang kế toán Khu vui chơi', /kế toán Khu vui chơi/.test(BG), BG);
+
+/* ═══ 10. LUỒNG MỒI SẴN + BẢNG KHAI THEO BỘ PHẬN (1.288.0) ══════════════════════════ */
+/* 🔴 CHẠY THẬT `_luongMoi()`, KHÔNG SOI CHỮ. Soi chữ "có nhắc tới BOOT.luongBo không" là một
+   phép xanh cả khi nhánh ấy bị vô hiệu (`if(false) return bo;`) — đã thử, nó lọt lưới. */
+function luongMoi(luongBo, khoiDang) {
+  return new Function('BOOT', 'KHOI_DANG', 'KHOI_LUONG_CHI', ham('_luongMoi') + '\nreturn _luongMoi();')(
+    { luongBo: luongBo }, khoiDang, ['mtd', 'vp']);
+}
+teq('🔴 bộ phận khai "dc" → mồi sẵn "dc", dù đang đứng ở khối Khu vui chơi', 'dc', luongMoi('dc', 'kvc'));
+teq('   bộ phận khai "tt" → mồi "tt"', 'tt', luongMoi('tt', 'kvc'));
+teq('   bộ phận khai "gt" → mồi "gt" kể cả giữa khối Máy tự động', 'gt', luongMoi('gt', 'mtd'));
+/* 🔴 BỘ PHẬN CHƯA KHAI → NGÃ VỀ ĐÚNG ĐƯỜNG LUI CỦA MÁY CHỦ. Đây chính là lỗi bản 1.287.0: nó
+   gõ cứng 'gt', nên đơn mới của Máy tự động / Văn phòng mất hẳn khâu duyệt chi. */
+teq('🔴 chưa khai + khối Máy tự động → "dc" (giữ khâu duyệt chi như trước 1.287.0)', 'dc', luongMoi('', 'mtd'));
+teq('   chưa khai + khối Văn phòng → "dc"', 'dc', luongMoi('', 'vp'));
+teq('   chưa khai + khối Khu vui chơi → "gt"', 'gt', luongMoi('', 'kvc'));
+teq('   chưa khai + khối vùng (hn) → "gt"', 'gt', luongMoi('', 'hn'));
+teq('⚠️ mã lạ từ máy chủ → cũng ngã về đường lui, không mồi mã bậy', 'gt', luongMoi('xyz', 'kvc'));
+
+/* Bảng khai ở Cấu hình — vẽ thật rồi đọc thật. */
+function veBangBp(mp, admin) {
+  const KHO = {};
+  const moi = {
+    CFG: { boPhanLuong: mp }, BOOT: {},
+    _laAdmin: function () { return admin !== false; },
+    _bpDs: function () { return ['Văn phòng', 'Marketing', 'Máy tự động']; },
+    esc: function (x) { return String(x == null ? '' : x); },
+    el: function (id) { return (KHO[id] = KHO[id] || { style: {}, innerHTML: '' }); }
+  };
+  new Function('moi', 'with(moi){ ' + mang('LUONG_BP_DS') + '\n' + ham('renderLuongBp') + '\n renderLuongBp(); }')(moi);
+  return KHO;
+}
+const BP1 = veBangBp({ 'Văn phòng': 'dc' }, true);
+t('🔴 bảng khai vẽ đủ mọi bộ phận đang có',
+  /Văn phòng/.test(BP1.cfgLuongBpBody.innerHTML) && /Marketing/.test(BP1.cfgLuongBpBody.innerHTML)
+  && /Máy tự động/.test(BP1.cfgLuongBpBody.innerHTML), BP1.cfgLuongBpBody.innerHTML);
+/* ⚠️ CỘT TÊN PHẢI KHOÁ. Gõ được vào đó là đẻ ra một bộ phận thứ tám không có trong danh mục,
+   và mọi phép `bo_phan_chuan()` sẽ chối nó trong im lặng. */
+teq('🔴 cột Bộ phận là ô KHOÁ (readonly), không gõ vào được', 3,
+  (BP1.cfgLuongBpBody.innerHTML.match(/readonly/g) || []).length);
+t('🔴 bộ phận đã khai thì ô chọn nhớ đúng mã', /value="dc" selected/.test(BP1.cfgLuongBpBody.innerHTML),
+  BP1.cfgLuongBpBody.innerHTML);
+t('   bộ phận chưa khai thì về dòng rỗng "theo khối như cũ"',
+  /value="" selected/.test(BP1.cfgLuongBpBody.innerHTML), BP1.cfgLuongBpBody.innerHTML);
+teq('🔴 không phải Admin → giấu hẳn thẻ (máy chủ cũng chối)', 'none', veBangBp({}, false).luongBpCard.style.display);
+
+/* 🔴 LƯU PHẢI GỬI ĐỦ MỌI DÒNG, KỂ CẢ DÒNG ĐỂ TRỐNG. Lọc bỏ dòng trống là một lượt "chọn lại
+   về theo khối rồi bấm Lưu" không bao giờ tới được máy chủ: màn báo xong, mà mã cũ vẫn nằm
+   nguyên trong sổ và đơn mới vẫn đi luồng cũ. */
+{
+  const HANG = [['Văn phòng', ''], ['Marketing', 'tt']];
+  let gui = null;
+  new Function('_readRows', '_saveCfg', 'toast', ham('saveCfgLuongBp') + '\nsaveCfgLuongBp();')(
+    function () { return HANG; }, function (p) { gui = p; }, function () {});
+  t('⚠️ `saveCfgLuongBp()` có gọi lưu', !!gui, gui);
+  teq('🔴 gửi ĐỦ hai dòng, kể cả dòng để trống',
+    [{ ten: 'Văn phòng', luong: '' }, { ten: 'Marketing', luong: 'tt' }], gui && gui.boPhanDs);
+}
 
 /* ═════════════════════════════════════════════════════════════════════════════════════════ */
 if (TRUOT.length) {

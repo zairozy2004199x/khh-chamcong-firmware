@@ -123,6 +123,15 @@ class VHCPMTD_Don {
 	const LUONG_MA = array(
 		'tt' => 'Trực tiếp (gửi đầy đủ, không tạm ứng)',
 		'gt' => 'Qua tạm ứng',
+		/* 🔴 'dc' THÊM 22/09/2026 — anh Thắng: *"Hoặc bộ phận sẽ chọn phương án duyệt chi"*.
+		   Bảng `LUONG_CHI` vốn đã có từ lâu nhưng KHOÁ CỨNG THEO KHỐI (`KHOI_LUONG_CHI`): chỉ
+		   Máy tự động và Văn phòng đi đường ấy, và ngay cả họ cũng không chọn được — máy tự áp.
+		   Bộ phận khác muốn duyệt chi thì không có cửa nào. Nay nó thành một mã chọn được, đứng
+		   ngang hàng hai mã kia.
+		   ⚠️ KHÔNG BỎ `KHOI_LUONG_CHI`. Hàng trăm đơn MTĐ/VP đang chạy mang luồng RỖNG và phải
+		      tiếp tục đi luồng chi như hôm qua — đường lui theo khối chính là thứ giữ chúng
+		      đúng đường. Mã 'dc' chỉ thêm một lối VÀO, không đổi lối cũ. */
+		'dc' => 'Duyệt chi (duyệt trước khi tiêu, không tạm ứng)',
 	);
 
 	/** Khối nào đi luồng "chi" (không qua tạm ứng). Khai bằng DANH SÁCH, không bằng phép "khác kvc". */
@@ -146,6 +155,10 @@ class VHCPMTD_Don {
 		$l = mb_strtolower( trim( (string) $luong ) );
 		if ( 'tt' === $l ) { return self::LUONG_TT; }
 		if ( 'gt' === $l ) { return self::LUONG_KVC; }
+		/* ⚠️ 'dc' TRỎ VÀO CHÍNH `LUONG_CHI`, không phải một bảng thứ tư chép lại. Chép ra một
+		   bảng song song là hai nơi phải nhớ sửa mỗi lượt anh Thắng đổi chữ, và chỗ quên thì
+		   đơn cùng một luồng hiện hai tên khác nhau ở hai màn. */
+		if ( 'dc' === $l ) { return self::LUONG_CHI; }
 		$k = mb_strtolower( trim( (string) $khoi ) );
 		return in_array( $k, self::KHOI_LUONG_CHI, true ) ? self::LUONG_CHI : self::LUONG_KVC;
 	}
@@ -155,6 +168,26 @@ class VHCPMTD_Don {
 		$d = (array) $d;
 		$l = mb_strtolower( trim( (string) ( isset( $d['luong'] ) ? $d['luong'] : '' ) ) );
 		return isset( self::LUONG_MA[ $l ] ) ? $l : '';
+	}
+
+	/**
+	 * LUỒNG MẶC ĐỊNH CHO ĐƠN MỘT NGƯỜI SẮP LẬP — theo BỘ PHẬN của người ấy.
+	 *
+	 * Anh Thắng 22/09/2026: *"Hoặc bộ phận sẽ chọn phương án duyệt chi"*, và anh chốt: bộ phận
+	 * khai một lần, người lập vẫn đổi được trên từng đơn.
+	 *
+	 * 🔴 CHỈ LÀ GIÁ TRỊ MỒI. Trả về đây được `create_don()` dùng KHI VÀ CHỈ KHI màn không gửi
+	 *    mã nào lên — tức người lập không đụng vào ô chọn. Ai đã bấm chọn thì cái họ bấm thắng,
+	 *    đúng nghĩa "đơn vẫn sửa được". Đọc hàm này ở chỗ khác (lúc mở đơn, lúc vẽ thanh bước)
+	 *    là hỏng cả luật: đơn đã đóng dấu rồi mà còn tra lại bảng thì sửa danh mục một lượt là
+	 *    đổi luồng cho mọi đơn đang chạy dở.
+	 *
+	 * ⚠️ RỖNG LÀ CÂU TRẢ LỜI HỢP LỆ, không phải lỗi: người chưa khai bộ phận, bộ phận chưa khai
+	 *    luồng, hoặc tên người lập gõ tay không khớp hàng nào — cả ba đều về rỗng, và rỗng nghĩa
+	 *    là "theo khối như cũ", đúng hành vi trước bản này.
+	 */
+	public static function luong_mac_dinh( $nguoi_lap ) {
+		return VHCPMTD_Cfg::luong_cua_bo_phan( VHCPMTD_Cfg::bo_phan_hang_nguoi( $nguoi_lap ) );
 	}
 
 	/** Đơn này có đi luồng TRỰC TIẾP không (gửi thẳng quyết toán, không qua tạm ứng). */
@@ -777,6 +810,19 @@ class VHCPMTD_Don {
 			'locLoaiTheoKhoi' => VHCPMTD_Cfg::loc_loai_theo_khoi(),
 			'boPhanDs'   => VHCPMTD_Cfg::bo_phan_ds(),
 			'boPhanBo'   => VHCPMTD_Auth::bo_phan_bo(),
+			/* ══════════════════════════════════════════════════════════════════════════════
+			 * LUỒNG DUYỆT MẶC ĐỊNH CỦA NGƯỜI ĐANG MỞ MÀN — mồi cho ô chọn lúc lập đơn.
+			 * ══════════════════════════════════════════════════════════════════════════════
+			 * 🔴 CÁI MÀN THẤY PHẢI ĐÚNG BẰNG CÁI SỔ SẼ GHI. Ô chọn gửi thẳng mã lên
+			 *    `create_don()`, nên mồi sai là người lập nhìn thấy một luồng rồi đơn đi một
+			 *    luồng khác — và không câu nào báo, vì cả hai đều là mã hợp lệ.
+			 * ⚠️ RỖNG = CHƯA KHAI, và màn phải tự ngã về đường lui THEO KHỐI đúng như máy chủ
+			 *    (`luong_cua()`). Không chở khoá này thì màn đoán, mà đoán sai ở đây là đơn mới
+			 *    của Máy tự động / Văn phòng mất khâu duyệt chi.
+			 * ══════════════════════════════════════════════════════════════════════════════ */
+			'luongBo'    => self::luong_mac_dinh( VHCPMTD_Auth::nguoi() ),
+			'luongMa'    => self::LUONG_MA,
+			'khoiLuongChi' => self::KHOI_LUONG_CHI,
 			'loaiChuaBP' => self::dem_loai_chua_bo_phan( $cp ),
 			'donVi'      => VHCPMTD_DonVi::ds(),
 			/* 🔴 TÊN NHÀ MẸ PHẢI XUỐNG TỚI GIAO DIỆN. Luật "nhà mẹ đọc cả hệ" trước nay CHỈ có
@@ -1375,6 +1421,13 @@ class VHCPMTD_Don {
 		      đơn. Chọn nhầm ở đây không làm đơn mất tích: nó chỉ đi sai đường duyệt, và người
 		      duyệt thấy ngay. */
 		$lg = self::luong_don( array( 'luong' => $luong ) );
+		/* 🔴 KHÔNG GỬI MÃ NÀO -> LẤY MẶC ĐỊNH CỦA BỘ PHẬN NGƯỜI LẬP (22/09/2026).
+		   ⚠️ CHỈ KHI RỖNG. Người lập đã bấm chọn thì cái họ bấm thắng mặc định của bộ phận —
+		      anh Thắng chốt "bộ phận khai, đơn vẫn sửa được". Đảo thứ tự hai vế ở đây là ô chọn
+		      trên màn thành vô nghĩa: bấm gì cũng bị bộ phận ghi đè, mà không một câu báo nào.
+		   ⚠️ Và mã lạ đã về rỗng ở dòng trên, nên nó cũng rơi vào đây — đúng ý: thà theo mặc
+		      định của bộ phận còn hơn theo một mã gõ sai. */
+		if ( '' === $lg ) { $lg = self::luong_mac_dinh( $nguoi_lap ); }
 		$m = VHCPMTD_Util::uid( 'D' );
 		$ok = $wpdb->insert( VHCPMTD_DB::t( 'don' ), array(
 			'ma_don'     => $m,
