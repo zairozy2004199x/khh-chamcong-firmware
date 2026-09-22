@@ -23,6 +23,25 @@
  *    cha). Luật này thì ngược lại — nó phân biệt ĐÚNG hai vai con cùng cha: "Kế Toán Máy Tự
  *    Động" và "Kế Toán Khu Vui Chơi" đều kế thừa "Kế toán cá nhân".
  *
+ * =============================================================================================
+ * 🔴 22/09/2026 — LUẬT NÀY ĐÃ TẮT, VÀ BÀI KIỂM ĐỔI CHIỀU THEO
+ * =============================================================================================
+ * Anh Thắng: *"Hiện tại chi phí máy tự động áp dụng web riêng nên không dùng chung nữa"*. MTĐ
+ * chạy plugin riêng, bên ấy tự xuất MISA của mình; bản gốc không còn ai mang vai MTĐ để chặn.
+ * `KHOI_KHONG_XUAT_MISA` nay RỖNG ở cả hai bên.
+ *
+ * 🔴 TẮT, KHÔNG PHẢI GỠ — nên bài này GIỮ NGUYÊN mọi phép về CƠ CHẾ và chỉ đổi mấy phép về
+ *    CHÍNH SÁCH. Hai thứ khác hẳn nhau:
+ *      · chính sách = "khối nào bị chặn" → nay không khối nào, nên đổi chiều;
+ *      · cơ chế = danh sách phải là DANH SÁCH, sáu cửa MISA phải đi qua nó, `applyPerms` phải
+ *        cắt được `vis.xuat`, máy chủ phải đọc VAI ĐANG MANG → giữ hết.
+ *    Xoá phần cơ chế vì "đang tắt mà" là ngày anh Thắng bật lại một khối thì không còn ai canh,
+ *    và cái hỏng ấy chỉ lộ ra ở MISA.
+ *
+ * ⚠️ Mục 1b bên dưới CHẠY THẬT với danh sách seeded `['mtd']` — chứng minh cơ chế còn sống chứ
+ *    không phải mã chết. Phép "rỗng thì ai cũng xuất được" một mình nó cũng xanh trên một hàm
+ *    đã bị đục ruột.
+ *
  * Chạy: node tools/test/kiem-ban-giao-misa.js
  * ═════════════════════════════════════════════════════════════════════════════════════════════ */
 const fs = require('fs');
@@ -56,17 +75,31 @@ const BASE = bocMang('KHOI_THEO_TEN_VAI') + '\n' + bocHam('_boDauVai') + '\n' + 
 t('⚠️ nền chạy thử dựng được', BASE.length > 400, BASE.length);
 const duoc = (vai) => new Function('CURUSER', BASE + '\nreturn _xuatMisaDuoc();')({ role: vai });
 
-t('🔴 "Kế Toán Máy Tự Động" KHÔNG xuất MISA', duoc('Kế Toán Máy Tự Động') === false);
+/* 🔴 DANH SÁCH RỖNG = KHÔNG AI BỊ CHẶN (22/09/2026). Đọc nhầm chiều `! in_array(...)` là sửa
+   thành chặn cả nhà, nên mấy phép này nói thẳng ra từng vai một. */
+t('🔴 "Kế Toán Máy Tự Động" NAY xuất MISA được — MTĐ đã ra web riêng',
+  duoc('Kế Toán Máy Tự Động') === true);
 t('🔴 "Kế Toán Khu Vui Chơi" VẪN xuất MISA', duoc('Kế Toán Khu Vui Chơi') === true);
-/* 🔴 Anh Thắng chốt: *"Chỉ MTĐ, Văn phòng tự xuất MISA"*. Đây là phép canh cho đúng câu ấy —
-   viết luật kiểu "khác kvc thì chặn" là VP bị chặn oan, và bài này đỏ ngay. */
-t('🔴 "Kế Toán Văn Phòng" VẪN xuất MISA — anh chốt chỉ MTĐ', duoc('Kế Toán Văn Phòng') === true);
+t('🔴 "Kế Toán Văn Phòng" VẪN xuất MISA', duoc('Kế Toán Văn Phòng') === true);
 t('   vai chạy ngang ("Kế toán cá nhân") không bị chặn', duoc('Kế toán cá nhân') === true);
 t('   Admin không bao giờ bị chặn', duoc('Admin') === true);
+
+/* ═══ 1b. CƠ CHẾ CÒN SỐNG — SEED LẠI DANH SÁCH RỒI CHẠY ═══════════════════════════
+ * 🔴 ĐÂY LÀ PHÉP QUAN TRỌNG NHẤT CỦA CẢ BÀI SAU KHI TẮT. "Rỗng thì ai cũng xuất được" cũng
+ *    XANH trên một hàm đã bị đục ruột (`return true;` là qua hết). Seed `['mtd']` vào rồi chạy
+ *    lại chính hàm ấy thì mới phân biệt được "đang tắt" với "đã hỏng".
+ * ⚠️ Seed bằng cách thay ĐÚNG dòng khai, không viết lại hàm — viết lại là canh bản của bài
+ *    kiểm, không phải bản của app. */
+const BASE_BAT = BASE.replace(/var KHOI_KHONG_XUAT_MISA=\[\];/, "var KHOI_KHONG_XUAT_MISA=['mtd'];");
+t('⚠️ seed được danh sách (dòng khai đúng như mong đợi)', BASE_BAT !== BASE, bocDong('KHOI_KHONG_XUAT_MISA'));
+const duocBat = (vai) => new Function('CURUSER', BASE_BAT + '\nreturn _xuatMisaDuoc();')({ role: vai });
+t('🔴 bật lại "mtd" → kế toán MTĐ bị chặn trở lại', duocBat('Kế Toán Máy Tự Động') === false);
+t('   và kế toán KVC vẫn không việc gì', duocBat('Kế Toán Khu Vui Chơi') === true);
+t('   Admin vẫn không bao giờ bị chặn', duocBat('Admin') === true);
 /* ⚠️ Mấy tên gọi khác của cùng một khối — bảng `KHOI_THEO_TEN_VAI` đã gom sẵn, phép này canh
-   để đừng ai lỡ tay xoá bớt. */
-t('⚠️ "Kế Toán POSH" cũng là máy tự động → bị chặn', duoc('Kế Toán POSH') === false);
-t('⚠️ "Kế Toán MTĐ" viết tắt cũng bị chặn', duoc('Kế Toán MTĐ') === false);
+   để đừng ai lỡ tay xoá bớt. Đo trên bản ĐÃ BẬT, vì bản tắt thì tên nào cũng qua. */
+t('⚠️ "Kế Toán POSH" cũng là máy tự động', duocBat('Kế Toán POSH') === false);
+t('⚠️ "Kế Toán MTĐ" viết tắt cũng vậy', duocBat('Kế Toán MTĐ') === false);
 
 /* ═══ 2. GIẤU TAB — PHẢI CẮT Ở BẢNG CHÍNH, KHÔNG CHỈ Ở CHỖ CỘNG THÊM ════════════ */
 /* 🔴 Bảng `vis` tra theo VAI GỐC, nên "Kế Toán Máy Tự Động" thừa hưởng `xuat:1` của "Kế toán
@@ -82,9 +115,14 @@ t('🔴 và đọc TÊN VAI ĐANG MANG, không phải vai gốc',
   /xuat_misa_duoc[\s\S]{0,400}?khoi_cua_vai\(\s*VHCP_Auth::vai_hien\(\)\s*\)/.test(CFG));
 t('🔴 Admin không bao giờ bị chặn ở PHP',
   /xuat_misa_duoc[\s\S]{0,200}?'Admin'\s*===\s*VHCP_Auth::vai_tro\(\)[\s\S]{0,40}?return true;/.test(CFG));
-/* 🔴 DANH SÁCH, không phải phép "khác kvc thì chặn" — thêm khối thứ tư không được chặn oan. */
-t('🔴 khai bằng DANH SÁCH khối, và trong đó chỉ có mtd',
-  /const KHOI_KHONG_XUAT_MISA\s*=\s*array\(\s*'mtd'\s*\);/.test(CFG), (CFG.match(/const KHOI_KHONG_XUAT_MISA[^;]*;/) || [''])[0]);
+/* 🔴 VẪN LÀ DANH SÁCH, dù nay rỗng — không phải phép "khác kvc thì chặn". Đổi sang phép ấy là
+   ngày bật lại một khối thì khối thứ tư bị chặn oan mà không ai khai gì. */
+t('🔴 khai bằng DANH SÁCH khối, và nay RỖNG (MTĐ đã ra web riêng)',
+  /const KHOI_KHONG_XUAT_MISA\s*=\s*array\(\s*\);/.test(CFG), (CFG.match(/const KHOI_KHONG_XUAT_MISA[^;]*;/) || [''])[0]);
+/* ⚠️ HAI BÊN PHẢI CÙNG RỖNG. Lệch một vế là màn giấu tab Xuất MISA trong khi máy chủ vẫn cho
+   gọi, hoặc ngược lại — người ta bấm được rồi ăn một câu lỗi. */
+t('🔴 và bản giao diện cũng rỗng y như vậy',
+  /var KHOI_KHONG_XUAT_MISA=\[\];/.test(HTML), bocDong('KHOI_KHONG_XUAT_MISA'));
 
 /* Sáu cửa MISA — lọt một cái là luật trên vô nghĩa với đúng cửa đó. */
 const SAU = ['exportMisa', 'exportMisaKyThuat', 'exportMisaMarketing', 'exportMisaBP', 'exportMisaSoChi', 'markExported'];
@@ -166,14 +204,25 @@ const veQt = (vai, khoi) => {
   new Function('moi', `with(moi){ ${BASE}\n${NEN_LUONG}\n${bocHam('renderQtBanGiao')}\n return renderQtBanGiao; }`)(moi)();
   return NK.qtBanGiao;
 };
-teq('🔴 kế toán MTĐ thấy dải giải thích', 'block', veQt('Kế Toán Máy Tự Động').style.display);
+/* 🔴 DANH SÁCH RỖNG → DẢI KHÔNG HIỆN VỚI AI CẢ. Để sót là kế toán mở màn Quyết toán ra thấy
+   một dải vàng bảo họ "đơn đã bàn giao sang kế toán KVC" cho một luật không còn chạy. */
+teq('🔴 kế toán MTĐ KHÔNG còn thấy dải bàn giao', 'none', veQt('Kế Toán Máy Tự Động').style.display);
 teq('   kế toán KVC không thấy', 'none', veQt('Kế Toán Khu Vui Chơi').style.display);
-teq('   kế toán VP cũng không thấy — họ vẫn tự xuất', 'none', veQt('Kế Toán Văn Phòng').style.display);
-/* 🔴 CÂU PHẢI KỂ ĐỦ BƯỚC. Từ 1.248.0 giữa quyết toán và MISA còn một bước `Đã thanh toán` —
-   bỏ nó khỏi câu là kế toán MTĐ duyệt xong ngồi đợi, không biết còn phải bấm một nút nữa. */
-t('🔴 câu nhắc kể cả bước Đã thanh toán',
-  /Đã thanh toán/.test(veQt('Kế Toán Máy Tự Động', 'mtd').innerHTML),
-  veQt('Kế Toán Máy Tự Động', 'mtd').innerHTML);
+teq('   kế toán VP cũng không thấy', 'none', veQt('Kế Toán Văn Phòng').style.display);
+
+/* ⚠️ NHƯNG DẢI PHẢI CÒN VẼ ĐƯỢC — cùng lý lẽ với mục 1b: tắt chứ không gỡ. Seed danh sách rồi
+   vẽ lại; câu chữ vẫn phải kể đủ bước `Đã thanh toán` (thêm ở 1.248.0), vì bỏ nó khỏi câu là
+   kế toán duyệt xong ngồi đợi, không biết còn phải bấm một nút nữa. */
+const veQtBat = (vai, khoi) => {
+  const NK = {};
+  const moi = { CURUSER: { role: vai }, KHOI_DANG: khoi || 'mtd', el: id => (NK[id] = NK[id] || { style: {}, innerHTML: '' }) };
+  new Function('moi', `with(moi){ ${BASE_BAT}\n${NEN_LUONG}\n${bocHam('renderQtBanGiao')}\n return renderQtBanGiao; }`)(moi)();
+  return NK.qtBanGiao;
+};
+teq('🔴 bật lại "mtd" → dải hiện trở lại', 'block', veQtBat('Kế Toán Máy Tự Động').style.display);
+t('🔴 và câu nhắc vẫn kể cả bước Đã thanh toán',
+  /Đã thanh toán/.test(veQtBat('Kế Toán Máy Tự Động', 'mtd').innerHTML),
+  veQtBat('Kế Toán Máy Tự Động', 'mtd').innerHTML);
 
 /* ═════════════════════════════════════════════════════════════════════════════════════════ */
 if (TRUOT.length) {
@@ -181,4 +230,4 @@ if (TRUOT.length) {
   TRUOT.forEach(function (x) { console.log('  · ' + x); });
   process.exit(1);
 }
-console.log('\n✓ SẠCH — ' + DAT + ' phép: kế toán MTĐ chỉ soát, đơn duyệt xong bàn giao sang kế toán KVC xuất MISA.');
+console.log('\n✓ SẠCH — ' + DAT + ' phép: luật bàn giao MISA đã TẮT (MTĐ ra web riêng), cơ chế vẫn bật lại được.');

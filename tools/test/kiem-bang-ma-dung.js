@@ -166,6 +166,11 @@ function dungBe(loaiChiPhi, tkNoMatrix, coso, mangTk) {
        ba thẻ <details>, và `saveCfgTkNoMx()` đi qua `_mxBodies()`; thiếu là cả bài nổ
        `ReferenceError` vì một lý do chẳng liên quan tới bảng mã. */
     KHOI_DS: [{ ma: 'kvc', ten: 'Khu vui chơi' }, { ma: 'mtd', ten: 'Máy tự động' }, { ma: 'vp', ten: 'Văn phòng' }],
+    /* ⚠️ `KHOI_MO` thêm 22/09/2026 — khối còn NHẬN VIỆC MỚI, tách khỏi `KHOI_DS` (nay là từ
+       điển đầy đủ, còn giữ 'mtd' để đọc sổ cũ sau khi MTĐ ra web riêng). Bệ đỡ để cả ba: bảng
+       mã là màn CẤU HÌNH, nó phải sửa được mã của mọi khối còn dữ liệu — anh Thắng 14/09/2026
+       về đúng chuyện này: *"ẩn thôi đừng bỏ"*. */
+    KHOI_MO: ['kvc', 'mtd', 'vp'],
     KHOI_DANG: 'kvc',
     /* Ô tích trên bảng loại chi phí nay là VAI TRÒ (21/09/2026) — `_vaiSelNhieu()` đọc
        `VAI_GOC` để xếp cha–con. */
@@ -206,7 +211,7 @@ function dungBe(loaiChiPhi, tkNoMatrix, coso, mangTk) {
     var KHOI_DV_DUP=${bocDongMd('KHOI_DV_DUP')};
     ${boc('_khoiDvBang')}\n${boc('_khoiCuaDv')}\n${boc('_tenKhoi')}
     ${boc('_boDauVai')}\n${boc('_khoiCuaVai')}\n${boc('_vaiOKhoi')}
-    ${boc('_khoiCuaLoai')}\n${boc('_mxBodies')}\n${boc('_khoiDuoc')}\n${boc('_vaiConCua')}\n${boc('_vaiSelNhieu')}\n${boc('_khoiSelLoai')}
+    ${boc('_khoiCuaLoai')}\n${boc('_mxBodies')}\n${boc('_khoiMo')}\n${boc('_khoiLuuTru')}\n${boc('_khoiBay')}\n${boc('_khoiDuoc')}\n${boc('_vaiConCua')}\n${boc('_vaiSelNhieu')}\n${boc('_khoiSelLoai')}
     ${boc('_dvSelNhieu')}\n${boc('_loaiChoDv')}\n${boc('_mangTong')}\n${boc('_mangTongDoan')}\n${boc('_mxMaGoc')}\n${boc('_mxSapCols')}\n${boc('_mxCols')}\n${boc('_mxNhomDv')}\n${boc('_xemDuocDv')}\n${boc('_mxRowHtml')}\n${boc('renderTkNoMatrix')}\n${boc('saveCfgTkNoMx')}
     return { ve: renderTkNoMatrix, luu: saveCfgTkNoMx }; }`)(moi);
   return { moi, NK, KHO, F };
