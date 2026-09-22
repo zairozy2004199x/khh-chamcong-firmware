@@ -1369,17 +1369,19 @@ class VHG_KeToan {
 
 	public static function ma_misa_ds() {
 		global $wpdb;
-		$r = $wpdb->get_results( 'SELECT coso_key, coso, unit_id, unit_name, vung, thu_tu, ghi_chu FROM ' . VHG_DB::t( 'bc_ma_misa' ) . ' ORDER BY thu_tu ASC, coso ASC', ARRAY_A );
+		$r = $wpdb->get_results( 'SELECT coso_key, coso, unit_id, unit_name, vung, thu_tu, doi_tuong, doi_tuong_ten, ghi_chu FROM ' . VHG_DB::t( 'bc_ma_misa' ) . ' ORDER BY thu_tu ASC, coso ASC', ARRAY_A );
 		return array( 'ok' => true, 'rows' => $r ? $r : array() );
 	}
-	public static function ma_misa_luu( $coso, $unit_id, $unit_name, $vung, $thu_tu, $ghichu ) {
+	public static function ma_misa_luu( $coso, $unit_id, $unit_name, $vung, $thu_tu, $ghichu, $doi_tuong = '', $doi_tuong_ten = '' ) {
 		global $wpdb;
 		$coso = trim( (string) $coso );
 		if ( '' === $coso ) { return array( 'ok' => false, 'message' => 'Thiếu cơ sở.' ); }
 		$ck = self::squash( $coso );
 		$data = array( 'coso_key' => $ck, 'coso' => $coso, 'unit_id' => mb_substr( trim( (string) $unit_id ), 0, 40 ),
 			'unit_name' => mb_substr( trim( (string) $unit_name ), 0, 190 ), 'vung' => mb_substr( trim( (string) $vung ), 0, 80 ),
-			'thu_tu' => (int) $thu_tu, 'ghi_chu' => mb_substr( trim( (string) $ghichu ), 0, 250 ) );
+			'thu_tu' => (int) $thu_tu, 'ghi_chu' => mb_substr( trim( (string) $ghichu ), 0, 250 ),
+			'doi_tuong' => mb_substr( trim( (string) $doi_tuong ), 0, 50 ),
+			'doi_tuong_ten' => mb_substr( trim( (string) $doi_tuong_ten ), 0, 190 ) );
 		$co = $wpdb->get_var( $wpdb->prepare( 'SELECT coso_key FROM ' . VHG_DB::t( 'bc_ma_misa' ) . ' WHERE coso_key=%s', $ck ) );
 		if ( $co ) { $wpdb->update( VHG_DB::t( 'bc_ma_misa' ), $data, array( 'coso_key' => $ck ) ); }
 		else { $wpdb->insert( VHG_DB::t( 'bc_ma_misa' ), $data ); }
@@ -1441,7 +1443,7 @@ class VHG_KeToan {
 			$wpdb->insert( VHG_DB::t( 'bc_ma_misa' ), array(
 				'coso_key' => $ck, 'coso' => $coso, 'unit_id' => $uid,
 				'unit_name' => ( '' !== $un ? $un : $coso ),
-				'vung' => '', 'thu_tu' => 0, 'ghi_chu' => '' ) );
+				'vung' => '', 'thu_tu' => 0, 'doi_tuong' => '', 'doi_tuong_ten' => '', 'ghi_chu' => '' ) );
 		}
 		return array( 'ok' => true, 'unit_id' => $uid, 'unit_name' => $un, 'message' => 'Đã lưu ' . $coso . '.' );
 	}
@@ -1465,7 +1467,8 @@ class VHG_KeToan {
 			$co = $wpdb->get_var( $wpdb->prepare( 'SELECT coso_key FROM ' . VHG_DB::t( 'bc_ma_misa' ) . ' WHERE coso_key=%s', $ck ) );
 			if ( $co ) { continue; }
 			$wpdb->insert( VHG_DB::t( 'bc_ma_misa' ), array( 'coso_key' => $ck, 'coso' => $coso,
-				'unit_id' => '', 'unit_name' => $coso, 'vung' => '', 'thu_tu' => 0, 'ghi_chu' => 'điền Unit ID' ) );
+				'unit_id' => '', 'unit_name' => $coso, 'vung' => '', 'thu_tu' => 0,
+				'doi_tuong' => '', 'doi_tuong_ten' => '', 'ghi_chu' => 'điền Unit ID' ) );
 			$them++;
 		}
 		return array( 'ok' => true, 'them' => $them, 'message' => 'Đã mồi ' . $them . ' cơ sở (điền Unit ID rồi lưu).' );
@@ -1582,10 +1585,34 @@ class VHG_KeToan {
 		$args = array();
 		if ( '' !== $f && '' !== $t ) { $where .= ' AND d.ngay BETWEEN %s AND %s'; $args[] = $f; $args[] = $t; }
 		else { $where .= ' AND DATE_FORMAT(d.ngay,%s)=%s'; $args[] = '%Y-%m'; $args[] = self::thang_( $thang ); }
-		$sql = 'SELECT d.ngay, d.ma_may, d.ten, d.tien_mat, d.qr, d.dieu_chinh, d.ghi_chu, d.nop_trang_thai, h.coso'
+		$sql = 'SELECT d.ngay, d.ma_may, d.ten, d.tien_mat, d.qr, d.dieu_chinh, d.ghi_chu, d.nop_trang_thai, h.coso, h.coso_key'
 			. ' FROM ' . VHG_DB::t( 'bc_dong' ) . ' d JOIN ' . VHG_DB::t( 'bc' ) . ' h ON h.report_id=d.report_id'
 			. ' WHERE ' . $where . ' ORDER BY d.ngay ASC, d.ma_may ASC';
 		$rows = $wpdb->get_results( $args ? $wpdb->prepare( $sql, $args ) : $sql, ARRAY_A );
+
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 MÃ ĐỐI TƯỢNG NỢ = MÃ KHÁCH HÀNG — anh Thắng 22/09/2026: *"xuất kèm mã đối tượng
+		 *    (chính là mã khách hàng)"*, kèm ảnh tệp chứng từ: cột ấy TRẮNG cả bảng.
+		 *
+		 *    Bút toán này ghi Nợ TK 131 — phải thu KHÁCH HÀNG. Một khoản phải thu không có đối
+		 *    tượng thì MISA không dựng được sổ công nợ: tiền vẫn vào tổng, nhưng "ai còn nợ bao
+		 *    nhiêu" thì không có. Đó là lý do cột này không phải thứ trang trí.
+		 *
+		 * ⚠️ TRA THEO `coso_key` CHỨ KHÔNG THEO TÊN. Tên cơ sở trong `bc` là tên đã đóng băng lúc
+		 *    nộp báo cáo; đổi tên cơ sở một lần là mọi chứng từ cũ hụt mã. `coso_key` là tên đã
+		 *    bóc dấu/hoa-thường nên chịu được cách gõ khác nhau.
+		 * ⚠️ KHÔNG tự lấy Unit ID làm mã đối tượng. Unit ID là MÃ ĐƠN VỊ (đơn vị của mình), mã đối
+		 *    tượng là KHÁCH HÀNG — hai danh mục khác nhau bên MISA, có thể trùng mà cũng có thể
+		 *    không. Đoán một mã khách hàng là đẩy công nợ sang nhầm người, âm thầm. Thiếu thì để
+		 *    trắng và KÊU LÊN (xem `thieuDoiTuong` trả về cuối hàm) — MISA báo thiếu còn sửa được,
+		 *    sai đối tượng thì phải dò ngược cả tháng. Màn Unit ID có nút chép Unit ID sang mã đối
+		 *    tượng cho ai dùng chung một bộ mã: một cú bấm, và là quyết định của kế toán.
+		 * ══════════════════════════════════════════════════════════════════════════════════════ */
+		$kh = array();
+		foreach ( (array) $wpdb->get_results( 'SELECT coso_key, coso, doi_tuong, doi_tuong_ten FROM ' . VHG_DB::t( 'bc_ma_misa' ), ARRAY_A ) as $m ) {
+			$kh[ (string) $m['coso_key'] ] = $m;
+		}
+		$thieu_kh = array();
 
 		/* Số chứng từ: tách 'NVKMN1542' → tiền tố + số + độ rộng. */
 		$goc = null;
@@ -1607,12 +1634,19 @@ class VHG_KeToan {
 			$d = self::ngay_( $r['ngay'] );
 			$dg = 'Doanh thu Posh MN ' . self::dmy_( $d );
 			$cash = (int) $r['tien_mat']; $q = (int) $r['qr'];
-			$dong = function ( $sotien, $ghichu ) use ( &$aoa, &$ngayCua, &$iNgay, &$soCtTheoNgay, $d, $soCt, $dg, $r ) {
+			$m_kh  = isset( $kh[ $r['coso_key'] ] ) ? $kh[ $r['coso_key'] ] : array();
+			$ma_kh = isset( $m_kh['doi_tuong'] ) ? trim( (string) $m_kh['doi_tuong'] ) : '';
+			/* Tên đối tượng: chưa khai riêng thì lấy tên cơ sở — đây là NHÃN cho người đọc, lấy
+			   nhầm nhãn không đẩy công nợ đi đâu cả. Khác hẳn cột MÃ ở trên, nên khác cách xử. */
+			$ten_kh = isset( $m_kh['doi_tuong_ten'] ) ? trim( (string) $m_kh['doi_tuong_ten'] ) : '';
+			if ( '' === $ten_kh && '' !== $ma_kh ) { $ten_kh = (string) $r['coso']; }
+			if ( '' === $ma_kh ) { $thieu_kh[ (string) $r['coso'] ] = true; }
+			$dong = function ( $sotien, $ghichu ) use ( &$aoa, &$ngayCua, &$iNgay, &$soCtTheoNgay, $d, $soCt, $dg, $r, $ma_kh, $ten_kh ) {
 				if ( $d !== $ngayCua ) { $ngayCua = $d; $iNgay++; }
 				$sc = $soCt( $iNgay );
 				if ( '' !== $sc ) { $soCtTheoNgay[ $d ] = $sc; }
-				$aoa[] = array( $d, $d, $sc, $dg, $dg, '131', '5113', (int) $sotien, '', '', (string) $r['ma_may'],
-					(string) $r['ten'], '', (string) $r['coso'], $ghichu );
+				$aoa[] = array( $d, $d, $sc, $dg, $dg, '131', '5113', (int) $sotien, '', $ma_kh, (string) $r['ma_may'],
+					(string) $r['ten'], $ten_kh, (string) $r['coso'], $ghichu );
 			};
 			if ( $cash ) {
 				$gc = 'Nộp tiền mặt';
@@ -1624,6 +1658,7 @@ class VHG_KeToan {
 		}
 		return array( 'ok' => true, 'aoa' => $aoa, 'soCot' => count( $head ), 'rows' => count( $aoa ) - 1,
 			'soNgay' => $iNgay + 1, 'soCtTheoNgay' => $soCtTheoNgay, 'tienMat' => $tm, 'tienQr' => $qr,
+			'thieuDoiTuong' => array_keys( $thieu_kh ),
 			'tong' => $tm + $qr, 'chiTienMat' => (bool) $chi_tien_mat,
 			'fileName' => 'Chung_Tu_Doanh_Thu_POSH' . ( $chi_tien_mat ? '_CHI_TIEN_MAT' : '' ) . '.csv' );
 	}
@@ -1656,15 +1691,57 @@ class VHG_KeToan {
 			$cs[ $k ]['ngay'][ (int) $r['ng'] ] = ( isset( $cs[ $k ]['ngay'][ (int) $r['ng'] ] ) ? $cs[ $k ]['ngay'][ (int) $r['ng'] ] : 0 ) + (int) $r['tong'];
 			$cs[ $k ]['tong'] += (int) $r['tong'];
 		}
-		/* Xếp theo vùng (thu_tu nhỏ trước, rồi tên), thiếu unit_id dồn cuối. */
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 THỨ TỰ UNIT + TÁCH THEO TỈNH — anh Thắng 22/09/2026: *"sắp xếp Unit theo thứ tự để
+		 *    xuất misa"*, *"xuất rõ phân theo tỉnh"*, kèm ảnh bảng DAILY REPORT đang dựng TAY:
+		 *    mỗi tỉnh một dòng xanh (HO CHI MINH · CAN THO · BUON ME THUOT · KIEN GIANG · CA MAU)
+		 *    rồi tới các Unit của tỉnh ấy.
+		 *
+		 *    SỐ ĐẦU UNIT ID CHÍNH LÀ TỈNH: 58GOTV · 59SCCT · 60GODL · 61ZCKG · 62SCCM. Nên thứ tự
+		 *    anh đang dựng tay không phải "xếp theo bảng chữ cái" mà là xếp theo con số ấy —
+		 *    trong ảnh, CAN THO (59) đứng TRƯỚC CA MAU (62), còn xếp theo tên thì "CA MAU" phải
+		 *    lên trước. Đây là lý do luật cũ (xếp theo `vung` dạng chữ) ra sai thứ tự.
+		 *
+		 * 🔴 LUẬT CŨ CÒN MỘT LỖI CÂM: chốt cuối cùng viết `strcmp($a['unit_id'], $a['unit_id'])`
+		 *    — so $a với CHÍNH NÓ, nên luôn trả 0. Tức hai cơ sở cùng vùng, cùng thứ tự thì thứ
+		 *    tự giữa chúng là ngẫu nhiên theo cách MySQL trả hàng, tháng này một kiểu tháng sau
+		 *    một kiểu. Bảng vẫn đủ số nên không ai thấy; chỉ người dán vào Excel tháng trước thấy
+		 *    hàng không khớp nữa.
+		 * ══════════════════════════════════════════════════════════════════════════════════════ */
+		/* "59SCCT" → (59, "SCCT"). Không có Unit ID → dồn cuối bảng (PHP_INT_MAX). */
+		$tach_ = function ( $uid ) {
+			$uid = strtoupper( trim( (string) $uid ) );
+			if ( '' !== $uid && preg_match( '/^(\d+)(.*)$/', $uid, $mm ) ) { return array( (int) $mm[1], $mm[2] ); }
+			return array( PHP_INT_MAX, $uid );
+		};
 		$ds = array_values( $cs );
+		foreach ( $ds as $i => $o ) {
+			list( $n, $chu ) = $tach_( $o['unit_id'] );
+			$ds[ $i ]['nhom'] = $n; $ds[ $i ]['chu'] = $chu;
+		}
 		usort( $ds, function ( $a, $b ) {
-			$va = $a['unit_id'] ? 0 : 1; $vb = $b['unit_id'] ? 0 : 1;
-			if ( $va !== $vb ) { return $va - $vb; }
-			if ( $a['vung'] !== $b['vung'] ) { return strcmp( $a['vung'], $b['vung'] ); }
-			if ( $a['thu_tu'] !== $b['thu_tu'] ) { return $a['thu_tu'] - $b['thu_tu']; }
-			return strcmp( (string) $a['unit_id'], (string) $a['unit_id'] );
+			if ( $a['nhom'] !== $b['nhom'] ) { return $a['nhom'] < $b['nhom'] ? -1 : 1; }
+			/* `thu_tu` > 0 = kế toán GHIM TAY một cơ sở lên đầu tỉnh của nó; 0 = chưa ghim, xếp
+			   theo phần chữ của Unit ID. Ghim tay phải thắng, nếu không thì ô "TT" gõ vào vô ích. */
+			$ta = $a['thu_tu'] > 0 ? $a['thu_tu'] : PHP_INT_MAX;
+			$tb = $b['thu_tu'] > 0 ? $b['thu_tu'] : PHP_INT_MAX;
+			if ( $ta !== $tb ) { return $ta < $tb ? -1 : 1; }
+			$c = strcmp( (string) $a['chu'], (string) $b['chu'] );
+			return 0 !== $c ? $c : strcmp( (string) $a['coso'], (string) $b['coso'] );
 		} );
+		/* TÊN TỈNH CỦA MỘT NHÓM = ô "Vùng" đầu tiên có chữ trong nhóm ấy. Nghĩa là khai MỘT cơ sở
+		   là cả tỉnh có tên — đỡ phải gõ lại năm lần cùng một chữ, và không bao giờ có chuyện hai
+		   cơ sở cùng số lại in ra hai tên tỉnh khác nhau. Chưa khai thì in thẳng con số. */
+		$ten_nhom = array(); $thieu_vung = array();
+		foreach ( $ds as $o ) {
+			$n = $o['nhom'];
+			if ( PHP_INT_MAX === $n ) { $ten_nhom[ $n ] = '(chưa khai Unit ID)'; continue; }
+			if ( ! isset( $ten_nhom[ $n ] ) && '' !== trim( (string) $o['vung'] ) ) { $ten_nhom[ $n ] = trim( (string) $o['vung'] ); }
+		}
+		foreach ( $ds as $o ) {
+			$n = $o['nhom'];
+			if ( ! isset( $ten_nhom[ $n ] ) ) { $ten_nhom[ $n ] = 'Nhóm ' . $n; $thieu_vung[ $n ] = true; }
+		}
 		$tuan_ = function ( $d ) { return $d <= 7 ? 0 : ( $d <= 14 ? 1 : ( $d <= 21 ? 2 : 3 ) ); };
 		$tg = (int) get_option( 'vhg_sgd_ty_gia', 20000 ); if ( $tg <= 0 ) { $tg = 20000; }
 
@@ -1676,7 +1753,7 @@ class VHG_KeToan {
 
 		$tongNgay = array(); $tongTuan = array( 0, 0, 0, 0 ); $tongCong = 0; $thieu = array();
 		/* Dựng MỘT khối theo hệ số $chia (1 = VND, $tg = SGD). Cùng dữ liệu, khác chia. */
-		$khoi = function ( $chia, $nhan ) use ( $ds, $soNgay, $tuan_, &$tongNgay, &$tongTuan, &$tongCong, &$thieu ) {
+		$khoi = function ( $chia, $nhan ) use ( $ds, $ten_nhom, $soNgay, $tuan_, &$tongNgay, &$tongTuan, &$tongCong, &$thieu ) {
 			$lam_dau = ( 1 === $chia );
 			$so = function ( $v ) use ( $chia ) { return 1 === $chia ? (int) $v : round( $v / $chia, 1 ); };
 			$aoa = array();
@@ -1685,21 +1762,49 @@ class VHG_KeToan {
 			for ( $i = 1; $i <= $soNgay; $i++ ) { $head2[] = str_pad( (string) $i, 2, '0', STR_PAD_LEFT ); }
 			$head2[] = 'Total'; for ( $w = 1; $w <= 4; $w++ ) { $head2[] = 'Week ' . $w; } $head2[] = 'Total';
 			$aoa[] = $head2;
+			/* ── Dòng tỉnh + dòng cộng tỉnh ──────────────────────────────────────────────────
+			   Dòng tỉnh đặt Ở CỘT Unit ID, các cột số để trắng — khớp đúng bảng anh Thắng đang
+			   dựng tay, dán vào là nằm đúng chỗ, không phải kéo lại.
+			   Dòng cộng để cột Unit ID là "CỘNG": quét mắt xuống cột A thấy tên tỉnh mở nhóm,
+			   "CỘNG" đóng nhóm. Muốn bỏ thì lọc đúng một chữ ấy. */
+			$trong = function ( $a, $b ) use ( $soNgay ) {
+				$r = array( $a, $b );
+				for ( $i = 0; $i < $soNgay + 6; $i++ ) { $r[] = ''; }
+				return $r;
+			};
+			$nhom_dg = null; $sNgay = array(); $sTuan = array( 0, 0, 0, 0 ); $sTong = 0;
+			$dong_cong = function () use ( &$aoa, &$nhom_dg, &$sNgay, &$sTuan, &$sTong, $ten_nhom, $soNgay, $so ) {
+				if ( null === $nhom_dg ) { return; }
+				$r = array( 'CỘNG', isset( $ten_nhom[ $nhom_dg ] ) ? $ten_nhom[ $nhom_dg ] : '' );
+				for ( $i = 1; $i <= $soNgay; $i++ ) { $v = isset( $sNgay[ $i ] ) ? $sNgay[ $i ] : 0; $r[] = $v ? $so( $v ) : ''; }
+				$r[] = $so( $sTong );
+				for ( $w = 0; $w < 4; $w++ ) { $r[] = $so( $sTuan[ $w ] ); }
+				$r[] = $so( $sTong );
+				$aoa[] = $r;
+			};
 			foreach ( $ds as $o ) {
+				if ( $o['nhom'] !== $nhom_dg ) {
+					$dong_cong();
+					$nhom_dg = $o['nhom']; $sNgay = array(); $sTuan = array( 0, 0, 0, 0 ); $sTong = 0;
+					$aoa[] = $trong( isset( $ten_nhom[ $o['nhom'] ] ) ? $ten_nhom[ $o['nhom'] ] : '', '' );
+				}
 				$r = array( $o['unit_id'], $o['unit_name'] );
 				$t = 0; $tw = array( 0, 0, 0, 0 );
 				for ( $i = 1; $i <= $soNgay; $i++ ) {
 					$v = isset( $o['ngay'][ $i ] ) ? (int) $o['ngay'][ $i ] : 0;
 					$r[] = $v ? $so( $v ) : '';
 					$t += $v; $tw[ $tuan_( $i ) ] += $v;
+					$sNgay[ $i ] = ( isset( $sNgay[ $i ] ) ? $sNgay[ $i ] : 0 ) + $v;
 					if ( $lam_dau ) { $tongNgay[ $i ] = ( isset( $tongNgay[ $i ] ) ? $tongNgay[ $i ] : 0 ) + $v; }
 				}
 				$r[] = $so( $t );
-				for ( $w = 0; $w < 4; $w++ ) { $r[] = $so( $tw[ $w ] ); if ( $lam_dau ) { $tongTuan[ $w ] += $tw[ $w ]; } }
+				for ( $w = 0; $w < 4; $w++ ) { $r[] = $so( $tw[ $w ] ); $sTuan[ $w ] += $tw[ $w ]; if ( $lam_dau ) { $tongTuan[ $w ] += $tw[ $w ]; } }
 				$r[] = $so( $t );
+				$sTong += $t;
 				if ( $lam_dau ) { $tongCong += $t; if ( ! $o['unit_id'] ) { $thieu[] = $o['coso']; } }
 				$aoa[] = $r;
 			}
+			$dong_cong();
 			$tr = array( 'TỔNG', $nhan );
 			for ( $i = 1; $i <= $soNgay; $i++ ) { $tr[] = $so( isset( $tongNgay[ $i ] ) ? $tongNgay[ $i ] : 0 ); }
 			$tr[] = $so( $tongCong );
@@ -1716,6 +1821,7 @@ class VHG_KeToan {
 		return array( 'ok' => true, 'aoa' => $aoa, 'soCot' => count( $head ), 'thang' => $th,
 			'soCoSo' => count( $ds ), 'tong' => $tongCong, 'tyGiaSgd' => $tg, 'tongSgd' => round( $tongCong / $tg, 1 ),
 			'thieuUnitId' => $thieu, 'chiDaDuyet' => (bool) $chi_da_duyet,
+			'soTinh' => count( $ten_nhom ), 'thieuVung' => array_keys( $thieu_vung ),
 			'fileName' => 'Bao_Cao_Ngay_POSH_' . str_replace( '-', '_', $th ) . ( $chi_da_duyet ? '_da_duyet' : '' ) . '.csv' );
 	}
 

@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-09-21 · Phiên bản hiện tại: **2.123.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-09-22 · Phiên bản hiện tại: **2.124.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,55 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v2.124.0 — Xuất MISA: thứ tự Unit · tách theo tỉnh · mã đối tượng (khách hàng)
+
+Anh Thắng 22/09/2026, ba câu kèm hai ảnh (bảng DAILY REPORT đang dựng tay, và tệp chứng từ đã
+xuất): *"sắp xếp Unit theo thứ tự để xuất misa"*, *"xuất rõ phân theo tỉnh"*, *"xuất kèm mã đối
+tượng (chính là mã khách hàng)"*.
+
+#### 1. Mã đối tượng Nợ = mã khách hàng
+
+**Đây là chỗ nặng nhất trong ba việc.** Bút toán đang ghi **Nợ TK 131 — phải thu KHÁCH HÀNG**, mà
+cột *Mã đối tượng Nợ* thì trắng cả bảng. Một khoản phải thu không có đối tượng thì MISA **không
+dựng được sổ công nợ**: tổng doanh thu vẫn đúng, nhưng "ai còn nợ bao nhiêu" thì không có. Tệp vẫn
+tải về, vẫn trông như xong — đúng loại hỏng không kêu tiếng nào.
+
+- `bc_ma_misa` thêm hai cột `doi_tuong` + `doi_tuong_ten`, khai ngay ở bảng **Unit ID MISA**.
+- Chứng từ điền cột *Mã đối tượng Nợ* và *Tên đối tượng nợ* theo **`coso_key`** chứ không theo
+  tên: tên cơ sở trong `bc` là tên đã đóng băng lúc nộp, đổi tên cơ sở một lần là chứng từ cũ hụt
+  mã.
+- ⚠️ **Hệ KHÔNG tự lấy Unit ID làm mã đối tượng.** Unit ID là *mã đơn vị* (đơn vị của mình), mã
+  đối tượng là *khách hàng* — hai danh mục riêng bên MISA, có thể trùng mà cũng có thể không. Đoán
+  một mã khách hàng là đẩy công nợ sang nhầm người, âm thầm. Thiếu thì **để trắng và kêu lên**
+  (dòng đỏ kể tên cơ sở ngay dưới nút Tải) — MISA báo thiếu còn sửa được, sai đối tượng thì phải
+  dò ngược cả tháng. Ai dùng chung một bộ mã thì có nút **⤵ Chép Unit ID → Mã đối tượng**, chỉ
+  chép vào **dòng đang trắng**, không đè mã đã khai.
+- *Mã đơn vị* / *Tên đơn vị* giữ nguyên là mã & tên **ghế** như cũ — không đụng.
+
+#### 2. Thứ tự Unit + tách theo tỉnh (Báo cáo ngày)
+
+**Số đầu Unit ID chính là tỉnh**: 58GOTV · 59SCCT · 60GODL · 61ZCKG · 62SCCM. Nên thứ tự anh dựng
+tay không phải "xếp theo bảng chữ cái" mà xếp theo con số ấy — trong ảnh, **CAN THO (59) đứng
+trước CA MAU (62)**, còn xếp theo tên thì "CA MAU" phải lên trước. Đó là lý do luật cũ (xếp theo
+`vung` dạng chữ) ra sai thứ tự.
+
+🔴 **Luật cũ còn một lỗi câm:** chốt cuối viết `strcmp($a['unit_id'], $a['unit_id'])` — so `$a` với
+**chính nó**, nên luôn trả 0. Hai cơ sở ngang hàng xếp ngẫu nhiên theo cách MySQL trả hàng, tháng
+này một kiểu tháng sau một kiểu. Bảng vẫn đủ số nên không ai thấy; chỉ người dán vào tệp tháng
+trước mới thấy hàng không còn khớp.
+
+- Thứ tự mới: **số đầu Unit ID → ô "TT" nếu có ghim tay → phần chữ A→Z → tên cơ sở**. Thiếu Unit
+  ID dồn cuối bảng.
+- Mỗi tỉnh có **một dòng mở** (tên tỉnh ở cột Unit ID, các cột số để trắng — khớp đúng bảng anh
+  đang dựng, dán vào là nằm đúng chỗ) và **một dòng CỘNG** đóng nhóm.
+- **Tên tỉnh lấy từ ô "Vùng" đầu tiên có chữ trong nhóm** — khai một cơ sở là cả tỉnh có tên, và
+  không bao giờ có chuyện hai cơ sở cùng số in ra hai tên tỉnh khác nhau. Chưa khai thì in
+  `Nhóm <số>` (đúng chỗ, đúng thứ tự, chỉ thiếu cái tên) và báo ra ở dòng kết quả.
+
+Bài kiểm `tools/test/kiem-xuat-misa-tinh.php` (18 phép) — **bốc thẳng hai hàm xuất từ mã nguồn ra
+chạy** với `$wpdb` giả, không chép lại logic, không dò chuỗi: dò chuỗi không nói được "dòng CỘNG có
+đúng bằng tổng các dòng trên nó không".
 
 ### v2.123.0 — Rê chuột xem to ảnh: hết bị khung bảng cắt
 

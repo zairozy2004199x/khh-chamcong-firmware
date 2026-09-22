@@ -1068,7 +1068,7 @@ JS;
 			if ( 'kt_qr_ds' === $viec )      { self::tra( VHG_KeToan::qr_ds( isset( $d['thang'] ) ? $d['thang'] : '' ) ); return; }
 			if ( 'kt_qr_ap' === $viec )      { self::tra( VHG_KeToan::qr_ap( isset( $d['targets'] ) ? $d['targets'] : array(), isset( $d['ly_do'] ) ? $d['ly_do'] : '', $boi ) ); return; }
 			if ( 'kt_ma_misa_ds' === $viec )  { self::tra( VHG_KeToan::ma_misa_ds() ); return; }
-			if ( 'kt_ma_misa_luu' === $viec ) { self::tra( VHG_KeToan::ma_misa_luu( isset( $d['coso'] ) ? $d['coso'] : '', isset( $d['unit_id'] ) ? $d['unit_id'] : '', isset( $d['unit_name'] ) ? $d['unit_name'] : '', isset( $d['vung'] ) ? $d['vung'] : '', isset( $d['thu_tu'] ) ? $d['thu_tu'] : 0, isset( $d['ghi_chu'] ) ? $d['ghi_chu'] : '' ) ); return; }
+			if ( 'kt_ma_misa_luu' === $viec ) { self::tra( VHG_KeToan::ma_misa_luu( isset( $d['coso'] ) ? $d['coso'] : '', isset( $d['unit_id'] ) ? $d['unit_id'] : '', isset( $d['unit_name'] ) ? $d['unit_name'] : '', isset( $d['vung'] ) ? $d['vung'] : '', isset( $d['thu_tu'] ) ? $d['thu_tu'] : 0, isset( $d['ghi_chu'] ) ? $d['ghi_chu'] : '', isset( $d['doi_tuong'] ) ? $d['doi_tuong'] : '', isset( $d['doi_tuong_ten'] ) ? $d['doi_tuong_ten'] : '' ) ); return; }
 			if ( 'kt_ma_misa_map' === $viec ) { self::tra( VHG_KeToan::ma_misa_map() ); return; }
 			if ( 'kt_ma_misa_dat' === $viec ) { self::tra( VHG_KeToan::ma_misa_dat( isset( $d['coso'] ) ? $d['coso'] : '', isset( $d['unit_id'] ) ? $d['unit_id'] : '', isset( $d['unit_name'] ) ? $d['unit_name'] : '' ) ); return; }
 			if ( 'kt_ma_misa_xoa' === $viec ) { self::tra( VHG_KeToan::ma_misa_xoa( isset( $d['coso_key'] ) ? $d['coso_key'] : '' ) ); return; }
@@ -9099,7 +9099,21 @@ function ktxInit(){
       if(!r||!r.ok){ m.textContent=(r&&r.error)||'Lỗi.'; m.className='mut err'; return; }
       if(r.rows<=0){ m.textContent=L('Không có ghế đã duyệt trong khoảng này.','No confirmed chairs.'); m.className='mut err'; return; }
       ktCsvTaiVe(r.aoa,r.fileName);
-      m.textContent=L('Đã tải: ','Downloaded: ')+r.rows+' dòng · tiền mặt '+ktVnd(r.tienMat)+'đ'+(r.chiTienMat?'':(' · QR '+ktVnd(r.tienQr)+'đ')); m.className='mut ok';
+      var tk=(r.thieuDoiTuong||[]);
+      m.textContent=L('Đã tải: ','Downloaded: ')+r.rows+' dòng · tiền mặt '+ktVnd(r.tienMat)+'đ'+(r.chiTienMat?'':(' · QR '+ktVnd(r.tienQr)+'đ'));
+      m.className='mut ok';
+      /* 🔴 THIẾU MÃ ĐỐI TƯỢNG PHẢI KÊU TO, KHÔNG NHÉT VÀO ĐUÔI MỘT DÒNG XANH. Bút toán ghi Nợ
+         TK 131 mà trắng cột ấy thì MISA không dựng được sổ công nợ — file vẫn tải về, vẫn trông
+         như xong, chỉ có sổ công nợ là không lên. Nên: dòng đỏ riêng, kể tên cơ sở. */
+      var wr=document.getElementById('ktx-misa-canh');
+      if(!wr){ wr=ktEl('div'); wr.id='ktx-misa-canh'; wr.style.marginTop='6px'; m.parentNode.appendChild(wr); }
+      wr.textContent='';
+      if(tk.length){
+        wr.className='mut err';
+        wr.textContent='⚠ '+L(tk.length+' cơ sở CHƯA có Mã đối tượng (khách hàng) — các dòng ấy xuất ra trắng cột đó, '
+          +'MISA sẽ không lên được sổ công nợ: '+tk.join(' · ')+'. Khai ở bảng "Unit ID MISA" bên dưới.',
+          tk.length+' branches have no customer code: '+tk.join(' · '));
+      }
     });
   };
   document.getElementById('ktx-bn').onclick=function(){
@@ -9108,7 +9122,11 @@ function ktxInit(){
       if(!r||!r.ok){ m.textContent=(r&&r.error)||'Lỗi.'; m.className='mut err'; return; }
       ktCsvTaiVe(r.aoa,r.fileName);
       var w=(r.thieuUnitId&&r.thieuUnitId.length)?(' · ⚠ '+r.thieuUnitId.length+' cơ sở thiếu Unit ID (dồn cuối)'):'';
-      m.textContent=L('Đã tải: ','Downloaded: ')+r.soCoSo+' cơ sở · tổng '+ktVnd(r.tong)+'đ'+w; m.className='mut ok';
+      /* Tỉnh chưa đặt tên thì bảng in ra "Nhóm 59" — đúng chỗ, đúng thứ tự, chỉ thiếu cái tên.
+         Nói ra để kế toán gõ MỘT ô Vùng là cả tỉnh có tên, chứ không phải đoán vì sao có chữ đó. */
+      var wv=(r.thieuVung&&r.thieuVung.length)?(' · ⚠ '+r.thieuVung.length+' tỉnh chưa đặt tên (in là "Nhóm <số>") — gõ ô Vùng cho MỘT cơ sở bất kỳ của tỉnh đó là đủ'):'';
+      m.textContent=L('Đã tải: ','Downloaded: ')+r.soCoSo+' cơ sở · '+(r.soTinh||0)+' tỉnh · tổng '+ktVnd(r.tong)+'đ'+w+wv;
+      m.className='mut '+((w||wv)?'err':'ok');
     });
   };
   document.getElementById('ktx-seed').onclick=function(){
@@ -9168,21 +9186,67 @@ function ktxMaMisa(){
   var box=document.getElementById('ktx-manop-wrap'); if(!box) return; box.textContent='';
   goi('kt_ma_misa_ds',{},function(r){
     box.textContent='';
-    var sc=ktEl('div','table-scroll'); var tb=ktEl('table'); tb.style.minWidth='680px';
-    tb.innerHTML='<tr><th>'+L('Cơ sở','Branch')+'</th><th>Unit ID</th><th>'+L('Tên MISA','MISA name')+'</th><th>'+L('Vùng','Region')+'</th><th>'+L('TT','#')+'</th><th></th></tr>';
-    (r&&r.rows||[]).forEach(function(x){
+    var ds=(r&&r.rows||[]);
+    /* 🔴 MÃ ĐỐI TƯỢNG = MÃ KHÁCH HÀNG — anh Thắng 22/09/2026: *"xuất kèm mã đối tượng (chính là
+       mã khách hàng)"*. Bút toán ghi Nợ TK 131 (phải thu KHÁCH HÀNG) mà cột ấy trắng thì MISA
+       không dựng được sổ công nợ. Khai ở đây, mỗi cơ sở một mã.
+       ⚠️ Mã đối tượng KHÁC Unit ID: Unit ID là mã ĐƠN VỊ của mình, mã đối tượng là KHÁCH HÀNG —
+          hai danh mục riêng bên MISA. Có nơi dùng chung một bộ mã, có nơi không, nên hệ KHÔNG tự
+          chép; ai dùng chung thì bấm nút dưới bảng, một cú, và là quyết định của kế toán. */
+    var thieuKh=ds.filter(function(x){ return !String(x.doi_tuong||'').trim(); }).length;
+    var thieuU =ds.filter(function(x){ return !String(x.unit_id||'').trim(); }).length;
+    if(ds.length){
+      var ts=ktEl('div','mut'); ts.style.margin='0 0 6px';
+      ts.textContent=L(ds.length+' cơ sở · thiếu Unit ID: '+thieuU+' · thiếu Mã đối tượng: '+thieuKh,
+                       ds.length+' branches · missing Unit ID: '+thieuU+' · missing customer code: '+thieuKh);
+      if(thieuKh||thieuU) ts.className='mut err';
+      box.appendChild(ts);
+    }
+    var sc=ktEl('div','table-scroll'); var tb=ktEl('table'); tb.style.minWidth='980px';
+    tb.innerHTML='<tr><th>'+L('Cơ sở','Branch')+'</th><th>Unit ID</th><th>'+L('Tên MISA','MISA name')+'</th>'
+      +'<th>'+L('Vùng / Tỉnh','Region')+'</th><th>'+L('TT','#')+'</th>'
+      +'<th>'+L('Mã đối tượng (KH)','Customer code')+'</th><th>'+L('Tên đối tượng','Customer name')+'</th><th></th></tr>';
+    var hang=[];
+    ds.forEach(function(x){
       var tr=ktEl('tr'); tr.appendChild(ktEl('td',null,x.coso));
       function inp(v,w){ var i=document.createElement('input'); i.value=(v==null?'':v); i.style.width=(w||90)+'px'; return i; }
-      var iU=inp(x.unit_id,90), iN=inp(x.unit_name,150), iV=inp(x.vung,110), iT=inp(x.thu_tu,50);
-      [iU,iN,iV,iT].forEach(function(el){ var td=ktEl('td'); td.appendChild(el); tr.appendChild(td); });
+      var iU=inp(x.unit_id,90), iN=inp(x.unit_name,150), iV=inp(x.vung,110), iT=inp(x.thu_tu,50),
+          iK=inp(x.doi_tuong,100), iKt=inp(x.doi_tuong_ten,150);
+      if(!String(x.doi_tuong||'').trim()) iK.style.borderColor='#ef4444';
+      [iU,iN,iV,iT,iK,iKt].forEach(function(el){ var td=ktEl('td'); td.appendChild(el); tr.appendChild(td); });
       var td=ktEl('td'); var m=ktEl('span','mut'); var b=ktEl('button','on',L('Lưu','Save')); b.style.cssText='padding:4px 8px;font-size:12px';
-      b.onclick=function(){ ktAct('kt_ma_misa_luu',{coso:x.coso,unit_id:iU.value,unit_name:iN.value,vung:iV.value,thu_tu:(iT.value||'').replace(/[^0-9]/g,'')||0},m,function(){}); };
+      function luu(cb){ ktAct('kt_ma_misa_luu',{coso:x.coso,unit_id:iU.value,unit_name:iN.value,vung:iV.value,
+        thu_tu:(iT.value||'').replace(/[^0-9]/g,'')||0,doi_tuong:iK.value,doi_tuong_ten:iKt.value},m,cb||function(){}); }
+      b.onclick=function(){ luu(); };
       var bx=ktEl('button','ghost',L('Xoá','Del')); bx.style.cssText='padding:4px 8px;font-size:12px;margin-left:4px';
       bx.onclick=function(){ if(!confirm('Xoá '+x.coso+'?')) return; goi('kt_ma_misa_xoa',{coso_key:x.coso_key},function(){ ktxMaMisa(); }); };
       td.appendChild(b); td.appendChild(bx); td.appendChild(m); tr.appendChild(td); tb.appendChild(tr);
+      hang.push({x:x,iU:iU,iK:iK,luu:luu});
     });
     sc.appendChild(tb); box.appendChild(sc);
-    if(!(r&&r.rows&&r.rows.length)) box.appendChild(ktEl('p','mut',L('Chưa có — bấm "Mồi từ danh mục ghế".','Empty — click Seed.')));
+    if(!ds.length){ box.appendChild(ktEl('p','mut',L('Chưa có — bấm "Mồi từ danh mục ghế".','Empty — click Seed.'))); return; }
+    /* Chép Unit ID sang Mã đối tượng — CHỈ những dòng đang TRẮNG, không đè mã đã khai. Đè một mã
+       khách hàng đã khai là đẩy công nợ sang nhầm người mà màn hình không kêu tiếng nào. */
+    var can=hang.filter(function(h){ return String(h.iU.value||'').trim() && !String(h.iK.value||'').trim(); });
+    var bc=ktEl('button','ghost','⤵ '+L('Chép Unit ID → Mã đối tượng ('+can.length+' dòng trống)',
+                                        'Copy Unit ID → customer code ('+can.length+' empty)'));
+    bc.style.cssText='margin-top:8px;padding:5px 10px;font-size:12px';
+    if(!can.length) bc.disabled=true;
+    var mc=ktEl('span','mut'); mc.style.marginLeft='8px';
+    bc.onclick=function(){
+      if(!confirm(L('Chép Unit ID sang Mã đối tượng cho '+can.length+' cơ sở đang để trống?\n\n'
+        +'CHỈ làm được khi bên MISA anh dùng CHUNG một bộ mã cho đơn vị và khách hàng. Nếu mã khách '
+        +'hàng là bộ mã riêng thì đừng bấm — sai mã đối tượng là công nợ vào nhầm người.',
+        'Copy Unit ID into customer code for '+can.length+' branches? Only if MISA uses the same codes.'))) return;
+      var i=0;
+      (function ke(){
+        if(i>=can.length){ mc.textContent=L('Xong '+can.length+' dòng.','Done.'); ktxMaMisa(); return; }
+        var h=can[i++]; h.iK.value=h.iU.value;
+        mc.textContent=L('Đang chép '+i+'/'+can.length+'…','Copying '+i+'/'+can.length+'…');
+        h.luu(ke);
+      })();
+    };
+    box.appendChild(bc); box.appendChild(mc);
   });
 }
 
