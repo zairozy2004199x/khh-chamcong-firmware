@@ -207,6 +207,47 @@ if ! grep -q "const KHOI = '$MA';" "$DICH/includes/class-vhcp-db.php"; then
   exit 6
 fi
 
+# ── KHỐI CỦA BẢN NÀY PHẢI CÓ MẶT TRONG BỘ TAB ─────────────────────────────────────────────
+#
+# 🔴 CẮN THẬT 22/09/2026 — ANH THẮNG: *"Cứ F5 đơn là trang nó mất không lưu"*. Không phải lỗi
+#    lưu. Đơn ghi xuống sổ đủ cả, nhưng `create_don()` đóng dấu `khoi = VHCP_DB::khoi()` = mã
+#    vùng ('hn'), trong khi bộ khối của bản ấy chép y bản gốc nên chỉ có kvc · mtd · vp. Đơn
+#    mang một mã khối KHÔNG TAB NÀO BÀY -> mở app ra thấy "Chưa có đơn nào", cả hai badge 0.
+#    Đúng y câu cảnh báo nằm sẵn trong `create_don()`: *"Đơn không mang dấu mảng là đơn KHÔNG
+#    TAB NÀO THẤY — tiền có thật mà mở app ra như chưa từng tồn tại."*
+#
+#    Bản MTĐ và VP thoát nạn do TRÙNG HỢP: mã vùng của chúng ('mtd', 'vp') tình cờ đã nằm sẵn
+#    trong bộ khối của bản gốc. Mọi vùng có mã mới — hn, dn, hcm… — đều dính.
+#
+# ⚠️ KHÔNG ĐỔI `KHOI` VỀ 'kvc' CHO DỄ. Cột ấy cố ý mang mã vùng: tới bước dời dữ liệu về một
+#    kho, nó là thứ duy nhất tách được đơn của bên nào. Sửa đúng là cho mã vùng một cái TAB.
+#
+# ⚠️ CHỈ CHÈN KHI CHƯA CÓ — 'mtd' và 'vp' đã nằm sẵn, chèn nữa là khai hai lần một mã.
+KHOI_NHAN="$(printf '%s' "$MA" | tr '[:lower:]' '[:upper:]')"
+if ! grep -q "'$MA' *=> *array(" "$DICH/includes/class-vhcp-donvi.php"; then
+  MA="$MA" KHOI_NHAN="$KHOI_NHAN" perl -0pi -e '
+    s{(const KHOI_THEO_DON_VI = array\(\n)}{$1\t\t\x27$ENV{MA}\x27 => array( \x27$ENV{KHOI_NHAN}\x27 ),\n};
+  ' "$DICH/includes/class-vhcp-donvi.php"
+  if ! grep -q "'$MA' *=> *array(" "$DICH/includes/class-vhcp-donvi.php"; then
+    echo "✗ Không chèn được khối '$MA' vào KHOI_THEO_DON_VI — đơn của bản này sẽ không tab nào thấy."
+    exit 7
+  fi
+fi
+# ⚠️ SOI TRÊN CHÍNH DÒNG BẢNG NHÃN, không soi cả tệp và không soi theo NHÃN. Soi theo nhãn thì
+#    'mtd' đã có sẵn nhãn "Máy tự động" vẫn bị chèn thêm 'mtd' => 'MTD' -> một mảng PHP khai
+#    TRÙNG KHOÁ. PHP lấy cái sau nên nhãn vẫn ra đúng, tức hỏng mà không kêu — thứ chỉ lộ ra
+#    khi ai đó đổi thứ tự chèn. Hỏi đúng câu cần hỏi: mã này đã có mặt trong bảng chưa.
+if ! grep -q "\$m = array(.*'$MA' *=>" "$DICH/includes/class-vhcp-cfg.php"; then
+  MA="$MA" KHOI_NHAN="$KHOI_NHAN" perl -0pi -e '
+    s{\$m = array\( \x27kvc\x27 =>}{\$m = array( \x27$ENV{MA}\x27 => \x27$ENV{KHOI_NHAN}\x27, \x27kvc\x27 =>};
+  ' "$DICH/includes/class-vhcp-cfg.php"
+  if ! grep -q "'$MA' => '$KHOI_NHAN'" "$DICH/includes/class-vhcp-cfg.php"; then
+    echo "✗ Không đặt được nhãn cho khối '$MA' — tab của bản này sẽ hiện trơ mã."
+    exit 8
+  fi
+fi
+
+
 # ── Danh mục gieo sẵn: BẢN MẢNG RIÊNG KHÔNG ĐẺ DANH MỤC CỦA KHU VUI CHƠI ──────────────────
 #
 # 🔴 ANH THẮNG 14/09/2026: *"rõ ràng các trang chi phí là không dùng dữ liệu của nhau, nhỉ là

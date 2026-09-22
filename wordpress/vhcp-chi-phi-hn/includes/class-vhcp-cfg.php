@@ -2059,7 +2059,7 @@ class VHCPHN_Cfg {
 
 	/** Tên khối cho câu báo lỗi / nhãn trên màn. */
 	public static function ten_khoi( $ma ) {
-		$m = array( 'kvc' => 'Khu vui chơi', 'mtd' => 'Máy tự động', 'vp' => 'Văn phòng' );
+		$m = array( 'hn' => 'HN', 'kvc' => 'Khu vui chơi', 'mtd' => 'Máy tự động', 'vp' => 'Văn phòng' );
 		$k = mb_strtolower( trim( (string) $ma ) );
 		return isset( $m[ $k ] ) ? $m[ $k ] : $ma;
 	}

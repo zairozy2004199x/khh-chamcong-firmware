@@ -303,6 +303,7 @@ class VHCPHN_DonVi {
 	 *    vị cắt. Hỏng theo hướng bày thừa một cái nút rỗng, không phải hướng mở cửa.
 	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
 	const KHOI_THEO_DON_VI = array(
+		'hn' => array( 'HN' ),
 		'kvc' => array( 'KVC' ),
 		'mtd' => array( 'MTĐ', 'MTD', 'POSH' ),
 		'vp'  => array( 'VP', 'VĂN PHÒNG', 'VAN PHONG' ),

@@ -1510,18 +1510,19 @@
       <div id="gopBox" style="padding:10px 14px 14px"></div>
     </div>
 
-    <div class="card" id="bpCard">
-      <div class="ch"><h2>🗂 Bộ phận</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="addCfgBp()">＋ Thêm bộ phận</button><button class="btn b-g" onclick="saveCfgBp()">💾 Lưu bộ phận</button></div></div>
-      <div style="padding:8px 14px 0;font-size:12px;color:#64748b">
-        Bộ phận quyết định <b>ai thấy loại chi phí nào</b> (cột Bộ phận ở bảng 🧮 Loại chi phí) và
-        <b>vai nào bị bó vào mảng nào</b> (cột Chỉ làm bộ phận ở bảng 🎭 Vai trò). Thêm một bộ phận ở đây là
-        nó tự có mặt trong mọi ô chọn Bộ phận, và nút mới tự hiện ở dòng <b>"Chọn chi phí nào"</b> lúc nhập
-        đơn — ngay khi có loại chi phí đầu tiên mang bộ phận ấy.
-        <br><b style="color:#b45309">⚠️ Đổi TÊN một bộ phận đang dùng thì mọi dòng đang khai tên cũ coi như bỏ trống</b>
-        (= mọi bộ phận). Muốn đổi tên thì thêm dòng mới, khai lại mấy chỗ dùng nó, rồi mới xoá dòng cũ.
-      </div>
-      <div class="tw"><table style="min-width:420px"><thead><tr><th>Tên bộ phận</th><th style="width:44px"></th></tr></thead><tbody id="cfgBpBody"></tbody></table></div>
-    </div>
+      <!-- ══════════════════════════════════════════════════════════════════════════════
+           🗂 KHỐI "BỘ PHẬN" ĐÃ GỠ KHỎI CẤU HÌNH — 22/09/2026. Anh Thắng: *"bỏ bộ phận đi"*.
+
+           Nó là mảnh cuối của trục Bộ phận. Cột Bộ phận rời bảng Loại chi phí hôm 21/09 khi
+           anh chốt *"bỏ tích bộ phận đi, mà tích theo vai trò"*; từ đó khối này chỉ còn dùng
+           để khai một danh mục mà không còn bảng nào đọc tới — người ta bấm Lưu xong không
+           thấy gì đổi, vì thật sự không có gì đổi.
+
+           ⚠️ DỮ LIỆU KHÔNG XOÁ. Cột `boPhan` vẫn nằm trong sổ danh mục và vẫn được
+              `saveCfgTkNoMx()` chép lại nguyên vẹn mỗi lượt Lưu, danh mục bộ phận vẫn gieo
+              như cũ, và ô Bộ phận ở bảng 🔐 Người dùng vẫn chạy — nó còn bó tầm nhìn kế
+              toán. Gỡ ở đây là gỡ CHỖ KHAI DANH MỤC, không phải gỡ trục.
+           ══════════════════════════════════════════════════════════════════════════════ -->
 
     <div class="card" id="vaiCard">
       <div class="ch"><h2>🎭 Vai trò tự tạo</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="addCfgVai()">＋ Thêm vai</button><button class="btn b-g" onclick="saveCfgVai()">💾 Lưu vai trò</button></div></div>
@@ -11300,7 +11301,10 @@
        hai chỗ cho một câu hỏi. */
     { ten:'🏢 Cơ sở & đơn vị',            id:['cosoCard'],
       mo:'Nền của mọi thứ còn lại: mỗi cơ sở thuộc đơn vị nào, mảng kinh doanh nào.' },
-    { ten:'👥 Người & quyền',             id:['bpCard','vaiCard','userCard','quyenCard'],
+    /* `bpCard` đã gỡ 22/09/2026 — bỏ khỏi nhóm luôn, không để lại một mã trỏ vào cái không
+       còn: `_menuNhom()` đi tìm từng id, thiếu một cái là nó âm thầm bỏ qua và không ai biết
+       nhóm này từng có bốn khối. */
+    { ten:'👥 Người & quyền',             id:['vaiCard','userCard','quyenCard'],
       mo:'Ai đăng nhập được, thấy gì, và bấm được nút nào.' },
     { ten:'🧮 Danh mục chi phí & tài khoản', id:['loaiMxCard','tkCoCard','heTkCard'],
       mo:'Chi phí này là chi phí gì, và đi vào tài khoản nào khi xuất MISA.' },
@@ -11830,7 +11834,6 @@
     var q=CFG.qr||{}; el('cfgQrStk').value=q.stk||''; el('cfgQrBank').value=q.bank||''; el('cfgQrTen').value=q.ten||'';
     anNutHutGhe();   /* mảng không dùng ghế thì giấu nút — xem hàm ấy */
     renderCosoBody();
-    renderCfgBp();
     renderVai();
     el('cfgTkInfo').innerHTML = _tkChartHtml() + (TKCHART.length ? ('✅ Đã nạp <b>'+TKCHART.length+'</b> tài khoản — mọi ô mã tài khoản trong trang này đã có gợi ý theo số hiệu + tên.') : '<span style="color:#dc2626">Chưa nạp hệ thống tài khoản — mã phải gõ tay, dễ sai số.</span>');
     /* ⚠️ Bảng khai tay `mangTk` đã gỡ khỏi màn 14/09/2026 — gác `null` ở đây, không thì
@@ -13192,55 +13195,10 @@
       } else { toast('err',(r&&r.error)||'Không đổi được'); }
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).doiMocKy(x.ky, tu, den);
   }
-  /* 🗂 BỘ PHẬN — khai được, không còn gõ cứng. Anh Thắng 10/09/2026: *"giờ làm thêm mảng cho
-     trang chi phí"*, và cái chặn là danh sách bộ phận gõ cứng ở hai nơi.
-     🔴 CHỈ ADMIN. Bộ phận là thứ bó tầm nhìn của kế toán, ai sửa được là tự nới quyền — máy chủ
-        cũng chối lần nữa, không tin mỗi cái ẩn trên màn. */
-  function renderCfgBp(){
-    if(!el('cfgBpBody')) return;
-    if(el('bpCard')) el('bpCard').style.display=_laAdmin()?'':'none';
-    el('cfgBpBody').innerHTML=_bpDs().map(function(b){
-      return '<tr><td>'+_inp(b,'VD: Bảo trì')+'</td>'+_delBtn()+'</tr>';
-    }).join('');
-  }
-  function addCfgBp(){ el('cfgBpBody').insertAdjacentHTML('beforeend','<tr><td>'+_inp('','VD: Bảo trì')+'</td>'+_delBtn()+'</tr>'); }
-  function saveCfgBp(){
-    var ds=_readRows('cfgBpBody').map(function(r){return String(r[0]||'').trim();}).filter(Boolean);
-    if(!ds.length){ toast('warn','Phải còn ít nhất một bộ phận'); return; }
-    var thay={};
-    for(var i=0;i<ds.length;i++){
-      var k=ds[i].toLowerCase();
-      if(thay[k]){ toast('warn','Trùng tên bộ phận: '+ds[i]); return; }
-      thay[k]=1;
-    }
-    /* 🔴 XOÁ MỘT BỘ PHẬN LÀ MỌI DÒNG KHAI NÓ TỤT VỀ "MỌI BỘ PHẬN" — tức nới quyền, im lặng.
-       Đếm trước rồi hỏi, giống cách khối Vai trò làm với vai bị xoá. */
-    var conLai={}; ds.forEach(function(b){ conLai[b.toLowerCase()]=1; });
-    var mat=[];
-    _bpDs().forEach(function(b){ if(!conLai[b.toLowerCase()]) mat.push(b); });
-    if(mat.length){
-      var dem=0;
-      (CFG.loaiChiPhi||[]).forEach(function(x){ if(_bpTach(x.boPhan).some(function(b){return mat.indexOf(b)>=0;})) dem++; });
-      /* 🔴 ĐẾM CẢ NGƯỜI, KHÔNG CHỈ LOẠI CHI PHÍ. Từ 21/09/2026 bộ phận chỉ còn khai ở HÀNG
-         NGƯỜI DÙNG (anh Thắng: *"bỏ vai trò đi, cho bộ phận dùng chung"*) — nên xoá một bộ
-         phận là mấy tài khoản đang khai nó tụt về "mọi bộ phận", tức NỚI QUYỀN, im lặng. Trước
-         đây vòng này chỉ đếm loại chi phí; giữ nguyên là chỗ nguy nhất không được nhắc. */
-      var nguoi=[];
-      (CFGUSERS||[]).forEach(function(u){
-        if(mat.indexOf(String(u.boPhan||'').trim())>=0) nguoi.push(u.ten+' ('+u.boPhan+')');
-      });
-      if(!confirm('Bỏ bộ phận: '+mat.join(', ')+'\n\n'
-        +dem+' loại chi phí đang khai bộ phận ấy sẽ thành "mọi bộ phận".'
-        +(nguoi.length?('\n\n🔴 '+nguoi.length+' TÀI KHOẢN đang thuộc bộ phận ấy sẽ nhìn thấy sổ của MỌI mảng:\n'+nguoi.join('\n')):'')
-        +'\n\nTiếp tục?')) return;
-    }
-    loading(true);
-    google.script.run.withSuccessHandler(function(r){loading(false);
-      if(r&&r.success===false){ toast('err',r.error||'Không lưu được'); return; }
-      toast('ok','Đã lưu bộ phận'); loadCfg();
-    }).withFailureHandler(function(e){loading(false);toast('err',e.message);})
-      .saveConfig({boPhanDs:ds});
-  }
+  /* 🗂 `renderCfgBp()` · `addCfgBp()` · `saveCfgBp()` ĐÃ GỠ — 22/09/2026, cùng lượt với khối
+     giao diện của chúng. Xem bia mộ ở chỗ `id="bpCard"` cũ.
+     ⚠️ `_bpDs()` · `_bpSel()` · `_bpTach()` THÌ GIỮ: ô Bộ phận ở bảng 🔐 Người dùng còn dùng,
+        và đó mới là chỗ bộ phận còn bó tầm nhìn thật sự. */
   /* ══════════════════════════════════════════════════════════════════════════════════════
      SOÁT TRƯỚC KHI GỘP BA KHỐI — vẽ bảng đối chiếu. CHỈ ĐỌC, không có đường nào ghi.
 
