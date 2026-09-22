@@ -90,6 +90,13 @@ jobs:
       - name: Bộ thử sổ kế toán JP Capsule
         run: php tools/test/kiem-jp-so.php
 
+      # Bút toán SUY RA từ chứng từ, không lưu ở đâu. "Sổ cân" là phép kiểm rất yếu — mỗi bút
+      # toán đều đủ hai vế nên tổng luôn cân kể cả khi mọi con số đều sai. Bài này canh những
+      # câu khác: dư 131 có bằng đúng số nhân viên phải nộp không, điều chuyển kho có bị ghi
+      # thành bút toán không, dòng đời cũ có hiện ra đúng đầu cũ không.
+      - name: Bộ thử bút toán JP Capsule
+        run: php tools/test/kiem-jp-but-toan.php
+
       - name: Bộ thử chi phí
         run: php tools/test/test-flows.php
 

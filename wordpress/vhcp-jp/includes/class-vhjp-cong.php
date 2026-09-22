@@ -75,6 +75,8 @@ class VHJP_Cong {
 			'jpKhoTraNcc', 'jpKhoTraNccLo', 'jpKhoHuyTraNcc', 'jpKhoLichSuTraNcc',
 			'jpKhoBangKeNhap', 'jpKhoBangKeXuat',
 			'jpSo632', 'jpCongNoNcc',
+			'jpSoNhatKyChung', 'jpBangCanDoiPhatSinh', 'jpKiemTraButToan', 'jpKetQuaKinhDoanh',
+			'jpDoiTkKhoCu',
 		);
 	}
 
@@ -154,6 +156,13 @@ class VHJP_Cong {
 			'jpSo632'             => array( 'VHJP_Cong', 'so_632' ),
 			'jpCongNoNcc'         => array( 'VHJP_Cong', 'so_cong_no_ncc' ),
 
+			/* kế toán tổng hợp — bút toán SUY RA từ chứng từ, không lưu ở đâu */
+			'jpSoNhatKyChung'     => array( 'VHJP_Cong', 'bt_nhat_ky' ),
+			'jpBangCanDoiPhatSinh' => array( 'VHJP_Cong', 'bt_can_doi' ),
+			'jpKiemTraButToan'    => array( 'VHJP_Cong', 'bt_kiem_tra' ),
+			'jpKetQuaKinhDoanh'   => array( 'VHJP_Cong', 'bt_kqkd' ),
+			'jpDoiTkKhoCu'        => array( 'VHJP_Cong', 'bt_doi_tk' ),
+
 			/* kế toán duyệt */
 			'jpKtListReports'     => array( 'VHJP_Cong', 'kt_ds' ),
 			'jpKtGetReport'       => array( 'VHJP_Cong', 'kt_lay' ),
@@ -180,8 +189,7 @@ class VHJP_Cong {
 			'jpAddPayment', 'jpCongNoNhanVien', 'jpDeletePayment', 'jpMyMonthHistory',
 			'jpMyUnpaid', 'jpPaymentHistory', 'jpSuaNgayNop',
 			/* kế toán tổng hợp */
-			'jpBangCanDoiPhatSinh', 'jpDoiTkKhoCu', 'jpKetQuaKinhDoanh', 'jpKiemTraButToan',
-			'jpQuetDayChuyen', 'jpSoCongNo', 'jpSoNhatKyChung',
+			'jpQuetDayChuyen', 'jpSoCongNo',
 			/* báo cáo của nhân viên */
 			'jpBaoCaoDoanhThuNgay', 'jpGetOpening', 'jpGuiDeNghiTonDau',
 			'jpReopenIn24h', 'jpRevenueBoard',
@@ -494,6 +502,30 @@ class VHJP_Cong {
 	public static function so_cong_no_ncc( $args, $nguoi ) {
 		return VHJP_So::cong_no_ncc( $nguoi,
 			isset( $args[1] ) ? $args[1] : 0, isset( $args[2] ) ? $args[2] : 0 );
+	}
+
+	/* ── kế toán tổng hợp ── */
+	public static function bt_nhat_ky( $args, $nguoi ) {
+		return VHJP_ButToan::nhat_ky_chung( $nguoi,
+			isset( $args[1] ) ? $args[1] : 0, isset( $args[2] ) ? $args[2] : 0,
+			isset( $args[3] ) ? $args[3] : '' );
+	}
+	public static function bt_can_doi( $args, $nguoi ) {
+		return VHJP_ButToan::can_doi( $nguoi,
+			isset( $args[1] ) ? $args[1] : 0, isset( $args[2] ) ? $args[2] : 0 );
+	}
+	public static function bt_kiem_tra( $args, $nguoi ) {
+		return VHJP_ButToan::kiem_tra( $nguoi,
+			isset( $args[1] ) ? $args[1] : 0, isset( $args[2] ) ? $args[2] : 0 );
+	}
+	public static function bt_kqkd( $args, $nguoi ) {
+		return VHJP_ButToan::ket_qua_kd( $nguoi,
+			isset( $args[1] ) ? $args[1] : 0, isset( $args[2] ) ? $args[2] : 0 );
+	}
+	/* ⚠️ `jpDoiTkKhoCu(token, ghi)` — `ghi` là cờ, mặc định FALSE. Đọc nhầm nấc tham số ở đây là
+	   một lượt XEM TRƯỚC biến thành một lượt ghi đè hàng loạt lên sổ đã chốt. */
+	public static function bt_doi_tk( $args, $nguoi ) {
+		return VHJP_ButToan::doi_tk_kho_cu( $nguoi, ! empty( $args[1] ) );
 	}
 
 	public static function bc_mo( $args, $nguoi ) {
