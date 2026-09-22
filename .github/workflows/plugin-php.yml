@@ -62,6 +62,13 @@ jobs:
       - name: Bộ thử vận hành cơ sở
         run: php tools/test/kiem-van-hanh.php
 
+      # `jpUploadPhoto` nhận base64 từ điện thoại rồi GHI THÀNH TỆP trong thư mục uploads —
+      # thư mục web phục vụ công khai. Sai một lần ở đây là mất máy chủ, không phải mất một con
+      # số. Bài này canh: soi ruột tệp chứ không tin nhãn `data:image/...`, tên tệp ngẫu nhiên,
+      # và mọi đường đều qua cửa quyền kể cả đường chỉ có mỗi photoId.
+      - name: Bộ thử ảnh JP Capsule
+        run: php tools/test/kiem-jp-anh.php
+
       - name: Bộ thử chi phí
         run: php tools/test/test-flows.php
 

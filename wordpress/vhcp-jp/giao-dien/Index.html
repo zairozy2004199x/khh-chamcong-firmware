@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <title>JP Capsule — Nhân viên</title>
+  <?!= include('Css'); ?>
+</head>
+<body>
+
+<!-- ══════════════ ĐĂNG NHẬP ══════════════ -->
+<section id="scLogin" class="screen active">
+  <div class="loginWrap">
+    <div class="card loginCard">
+      <div class="brand">
+        <div class="logo">JP</div>
+        <div>
+          <h1>JP Capsule</h1>
+          <p class="sub">Web nhân viên</p>
+        </div>
+      </div>
+      <label class="fld">
+        <span>Mã PIN</span>
+        <input id="inPin" type="password" inputmode="numeric" maxlength="3"
+               autocomplete="off" class="pinBox">
+      </label>
+      <div id="pinPad" class="pinPad"></div>
+      <button id="btnLogin" class="btn primary block">Đăng nhập</button>
+      <p id="loginMsg" class="msg"></p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ DANH SÁCH BÁO CÁO ══════════════ -->
+<section id="scHome" class="screen">
+  <header class="topbar">
+    <div>
+      <strong id="hiName">—</strong>
+      <span class="sub" id="hiRole"></span>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button class="btn ghost sm" onclick="jpMoDoiPin()">Đổi PIN</button>
+      <button class="btn ghost sm" onclick="jpLogoutUI()">Thoát</button>
+    </div>
+  </header>
+
+  <div class="pad">
+    <div class="card">
+      <h2>Làm báo cáo mới</h2>
+      <label class="fld">
+        <span>Cơ sở</span>
+        <select id="selLoc"></select>
+      </label>
+      <label class="fld">
+        <span>Loại báo cáo</span>
+        <select id="selType">
+          <option value="TIEN">MÁY TIỀN — báo cáo riêng</option>
+          <option value="XU">MÁY XU — báo cáo riêng</option>
+        </select>
+      </label>
+      <div class="row2">
+        <label class="fld"><span>Từ ngày</span><input id="inFrom" type="date"></label>
+        <label class="fld"><span>Đến ngày</span><input id="inTo" type="date"></label>
+      </div>
+      <button id="btnOpen" class="btn primary block">Mở báo cáo</button>
+      <p id="openMsg" class="msg"></p>
+    </div>
+
+    <h2 class="secTitle">Nộp tiền · nộp bổ sung</h2>
+    <div id="unpaidBox" class="list"></div>
+
+    <h2 class="secTitle">Báo cáo gần đây</h2>
+    <div id="listReports" class="list"></div>
+
+    <!-- Lịch sử theo tháng, chi tiết tới từng ô/máy. Danh sách trên chỉ có 30 bản
+         gần nhất ở mức đầu báo cáo — hết tháng muốn soát lại từng ô thì cần đây. -->
+    <h2 class="secTitle">Lịch sử theo tháng</h2>
+    <div class="card">
+      <div class="row2">
+        <label class="fld"><span>Tháng</span><select id="lsThang"></select></label>
+        <label class="fld"><span>Năm</span><select id="lsNam"></select></label>
+      </div>
+      <button class="btn primary block" onclick="jpXemLichSu()">Xem lịch sử</button>
+      <p id="lsMsg" class="msg"></p>
+      <div id="lsTong"></div>
+      <div id="lsBox"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ NHẬP BÁO CÁO ══════════════ -->
+<section id="scReport" class="screen">
+  <header class="topbar">
+    <button class="btn ghost sm" onclick="jpBackHome()">‹ Về</button>
+    <div class="center">
+      <strong id="rpLoc">—</strong>
+      <span class="sub" id="rpPeriod"></span>
+    </div>
+    <span id="rpStatus" class="badge"></span>
+  </header>
+
+  <div class="pad">
+    <div id="rejectBox" class="alert warn hidden"></div>
+    <div id="cfgWarnBox" class="alert warn hidden"></div>
+
+    <!--──────── ĐỔI KỲ BÁO CÁO (Andy chốt 11/08/2026) ────────
+         Chọn nhầm kỳ lúc mở thì trước đây KHÔNG sửa được: báo cáo nằm vĩnh viễn ở kỳ
+         sai, doanh thu rơi sai tháng. Ô này chỉ hiện khi báo cáo ĐANG SỬA ĐƯỢC —
+         đã nộp thì phải bấm "Sửa trong 24 giờ" trước. -->
+    <!-- ⚠️ KHÔNG bọc trong `<details>`. Nếp gấp thêm một trạng thái ẩn: người dùng
+         phải tìm ra nó, và `moi-nut.js` đo trúng toạ độ của lúc còn gấp rồi báo nút
+         "bị đè" trong khi mở ra thì hoàn toàn không sao. Một hàng luôn hiện thì đơn
+         giản hơn cho cả hai. -->
+    <div id="kyBox" class="hidden" style="margin-bottom:10px">
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <span class="sub">Chọn nhầm kỳ?</span>
+        <input type="date" id="kyTu" style="max-width:150px">
+        <span class="sub">–</span>
+        <input type="date" id="kyDen" style="max-width:150px">
+        <button class="btn ghost sm" onclick="jpDoiKy()">Đổi kỳ</button>
+      </div>
+      <p class="hint">Tồn đầu và chỉ số đầu kỳ đã lấy theo kỳ <b>cũ</b> — đổi xong
+        soát lại giúp. Không đổi sang kỳ mà bạn đã có báo cáo khác.</p>
+    </div>
+
+    <div id="zoneWrap"></div>
+    <!-- Gợi ý mã hàng cho mọi ô <input list="dsMaHang">. Để NGOÀI #zoneWrap:
+         nằm trong thì nó thành con đầu tiên, mọi selector `.zone:first-child`
+         hết khớp — đã làm hỏng nhap.js và bctach.js đúng kiểu đó. -->
+    <datalist id="dsMaHang"></datalist>
+
+    <button id="btnAddZone" class="btn ghost block" onclick="jpAddZone()">+ Thêm khu vực</button>
+
+    <!-- ---------- Tổng kết ---------- -->
+    <div class="card sum">
+      <h2>Tổng kết</h2>
+      <!-- Hai nhãn "theo đồng hồ" đổi thành "theo APP" ở mẫu TÁCH (`bindReport`):
+           SBPQ không còn đồng hồ nào, in "theo đồng hồ" là web nói sai nguồn số —
+           đúng bệnh màn Tổng quan kho dạy `Nợ 641` sau khi đổi đầu tài khoản. -->
+      <div class="sumRow"><span id="lbRev">Doanh thu theo đồng hồ</span><b id="sRev">0</b></div>
+      <div class="sumRow sub2"><span>· Chuyển khoản / QR</span><b id="sBank">0</b></div>
+      <div class="sumRow sub2"><span id="lbCashMeter">· Tiền mặt theo đồng hồ</span><b id="sCashMeter">0</b></div>
+      <!-- THỰC THU (Andy chốt 30/08/2026: *"phải có cột thực tế hoặc gọi là thực thu
+           (tiền mặt thu được) trong form báo cáo nữa"*). Σ cột "Thực thu" của bảng tiền.
+           ⚠️ Đặt NGAY DƯỚI "Tiền mặt theo đồng hồ" để hai số nằm cạnh nhau — đó chính là
+           cặp cần so bằng mắt, và hiệu của chúng là ô "Lệch máy" ngay bên dưới. Tách xa
+           nhau thì nhân viên phải nhớ số, mà nhớ số là chỗ sinh ra sai.
+           ⚠️ CHƯA ĐẾM ô nào thì hiện "— chưa đếm", KHÔNG hiện "0đ": in 0đ là nói rằng
+           đã đếm và đếm được 0, tức nhân viên tưởng mình còn nợ cả kỳ tiền. -->
+      <div class="sumRow sub2"><span>· Thực thu <span class="sub">(tiền mặt đếm được)</span></span><b id="sThucThu">—</b></div>
+
+      <label class="fld">
+        <span>Lệch máy (+ / −)</span>
+        <input id="inAdj" type="number" inputmode="numeric" value="0" oninput="jpDirty();jpTongLai()">
+      </label>
+      <!-- Mẫu TÁCH (SBPQ): số này TỰ CỘNG từ cột Lệch của bảng tiền, ô trên bị khoá.
+           Phải nói ra ở đây, không thì nhân viên thấy ô khoá mà không biết vì sao —
+           `paintTotals` bỏ `hidden` khi báo cáo có dòng MAY. -->
+      <!-- `margin-bottom` là CẦN: `.hint` chỉ có khoảng TRÊN, nên dòng này dính sát
+           nhãn "Lý do lệch máy" bên dưới và đọc thoáng qua tưởng là chú thích của ô
+           đó. Chỉ ảnh mới thấy — cùng bệnh nút BUNG đè chữ. -->
+      <div id="adjTuDong" class="hint hidden" style="margin-bottom:12px">
+        Tự cộng từ cột <b>Lệch</b> của bảng tiền (tiền mặt thực tế − tiền mặt app) —
+        không gõ tay ở đây. Sửa lệch thì sửa ở đúng dòng bị lệch.
+      </div>
+      <label class="fld">
+        <span>Lý do lệch máy</span>
+        <input id="inAdjNote" type="text" oninput="jpDirty()">
+      </label>
+
+      <label class="fld">
+        <span>Hoàn lại khách hàng</span>
+        <input id="inRefund" type="number" inputmode="numeric" value="0" oninput="jpDirty();jpTongLai()">
+      </label>
+      <label class="fld">
+        <span>Lý do hoàn khách</span>
+        <input id="inRefundNote" type="text" oninput="jpDirty()">
+      </label>
+
+      <div class="sumRow big"><span>TIỀN MẶT THỰC NỘP</span><b id="sCash">0</b></div>
+      <div class="sumRow big"><span>TỔNG NỘP</span><b id="sTotal">0</b></div>
+
+      <label class="fld">
+        <span>Ghi chú chung</span>
+        <textarea id="inRemark" rows="2" oninput="jpDirty()"></textarea>
+      </label>
+    </div>
+
+    <!-- ---------- Ảnh ---------- -->
+    <div class="card">
+      <h2>Ảnh chụp</h2>
+      <div id="photoProgress" class="progressText">—</div>
+      <div id="photoWarns" class="hint"></div>
+
+      <!-- ══════ TẢI MỘT LOẠT ══════
+           Andy 31/08/2026: *"tải từng hình lên lâu quá, tải 1 loạt hình nhưng nó sẽ
+           tự gán theo thứ tự máy đi"*. Điểm lớn nhất (SB Phú Quốc) tới ~138 ảnh /
+           báo cáo — bấm "+" từng ô là 138 lần mở trình chọn file.
+
+           ⚠️ Gán tự động thì SAI MỘT LÀ LỆCH CẢ LOẠT (chụp lại một máy là mọi ảnh sau
+           đó tụt một hàng), mà kế toán duyệt ảnh sai máy thì không ai phát hiện được.
+           Nên PHẢI xem bảng gán rồi mới tải — xem `jpLoatVe` ở `Js03_Anh`. -->
+      <button class="btn ghost block" id="btnTaiLoat" onclick="jpTaiLoat()">
+        📷 Tải một loạt ảnh</button>
+      <p class="hint">Chọn <b>nhiều ảnh cùng lúc</b> — app gán lần lượt theo đúng
+        <b>thứ tự dòng trên bảng</b>. Xem lại bảng gán rồi mới bấm tải lên.</p>
+      <div id="loatBox" class="hidden"></div>
+    </div>
+
+    <!-- ══════ KHỐI TRƯỚC KHI NỘP ══════
+         Andy chốt 05/08/2026: *"4 nằm ngay gần nút gửi bc / thêm checklist"*.
+         Cảnh báo trước đây nằm TRÊN khối Ảnh, cách nút Nộp hai khối — nhân viên bấm
+         Nộp rồi mới cuộn lên tìm xem sai gì. Nay cả checklist và cảnh báo đứng ngay
+         sát nút, theo đúng thứ tự người ta đọc: còn thiếu gì → có gì đáng ngờ → bấm.
+
+         ⚠️ Thứ tự này có ý: CHECKLIST trên, CẢNH BÁO dưới. Checklist là thứ CHẶN nộp,
+         cảnh báo thì không chặn — để cảnh báo lên trên là nhân viên tưởng mình bị
+         chặn vì cảnh báo rồi đi sửa sai chỗ. -->
+    <div id="preSubmit">
+      <div id="chkBox" class="card">
+        <h2>Trước khi nộp <span id="chkNum" class="pill"></span></h2>
+        <div id="chkList"></div>
+      </div>
+
+      <div id="warnBox" class="card warnCard hidden">
+        <h2>Cảnh báo <span id="warnNum" class="pill"></span></h2>
+        <div id="warnList"></div>
+        <p class="hint">Cảnh báo <b>không chặn nộp</b> — kế toán sẽ soát lại các dòng này.</p>
+      </div>
+    </div>
+
+    <!-- ══════ XOÁ NHÁP ══════
+         Andy 31/08/2026: *"nhớ là nháp có chức năng xóa đi để tránh bị nặng quá"*.
+
+         ⚠️⚠️ CỐ Ý **KHÔNG** nằm trong dải `.actions`. Dải đó là
+         `grid-template-columns:1fr 1.4fr` — ĐÚNG HAI cột — nên nút thứ ba làm grid
+         xuống hàng và **"Nộp báo cáo" bị đẩy sang ô của hàng dưới**, còn nút XOÁ
+         chiếm đúng chỗ nút Nộp vẫn đứng bấy lâu nay. Nhân viên bấm theo vị trí
+         quen tay thì bấm vào nút xoá. Chỉ ẢNH mới thấy — đếm nút trong HTML vẫn ra
+         đủ ba, và mọi phép kiểm hình học của riêng cái nút đó vẫn xanh.
+
+         ⚠️ Nằm cuối thân báo cáo nghĩa là phải cuộn xuống mới thấy. Đó là CHỦ Ý:
+         việc xoá không lấy lại được, ma sát ở đây là đúng chỗ. Đừng "cho tiện" mà
+         nhấc nó lên cạnh nút Nộp. -->
+    <div id="xoaNhapBox" class="card hidden">
+      <button class="btn ghost danger block" id="btnXoaNhap"
+              onclick="jpXoaNhap()">Xoá nháp này</button>
+      <p class="hint">Xoá hẳn báo cáo nháp này khỏi hệ thống — <b>không lấy lại được</b>.
+        Chỉ làm được khi báo cáo còn nháp.</p>
+    </div>
+
+    <!-- Trạng thái NHÁP — nhân viên phải THẤY là số đã an toàn, không phải đoán.
+         Nội dung do `jpTrangThaiNhap` viết, xem Js02_BaoCao. -->
+    <div id="nhapState" class="nhapState">—</div>
+
+    <div class="actions">
+      <button class="btn ghost" onclick="jpSaveDraft(true)">Lưu nháp</button>
+      <button class="btn primary" id="btnSubmit" onclick="jpSubmit()">Nộp báo cáo</button>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ NỘP TIỀN ══════════════ -->
+<section id="scPay" class="screen">
+  <header class="topbar">
+    <button class="btn ghost sm" onclick="jpPayBack()">‹ Về</button>
+    <div class="center">
+      <strong id="payLoc">—</strong>
+      <span class="sub" id="payPeriod"></span>
+    </div>
+    <span id="payBadge" class="badge"></span>
+  </header>
+
+  <div class="pad">
+    <div class="card sum">
+      <!-- Nói rõ đây là TIỀN MẶT. Trước đây chỉ ghi "Phải nộp" và lấy
+           `totalSubmit`, tức gộp cả tiền khách quét QR — nhân viên không cầm
+           khoản đó mà vẫn bị tính là còn nợ. -->
+      <div class="sumRow"><span>Tiền mặt phải nộp</span><b id="payMust">0</b></div>
+      <div class="sumRow"><span>Đã nộp</span><b id="payDone">0</b></div>
+      <div class="sumRow big"><span>CÒN THIẾU</span><b id="payLeft">0</b></div>
+    </div>
+
+    <div class="card">
+      <h2 id="payTitle">Ghi nhận nộp tiền</h2>
+      <label class="fld"><span>Số tiền nộp lần này</span>
+        <input id="payAmount" type="number" inputmode="numeric"></label>
+      <div class="row2">
+        <label class="fld"><span>Ngày nộp</span><input id="payDate" type="date"></label>
+        <label class="fld"><span>Hình thức</span>
+          <!-- Andy 16/08/2026: *"phần bổ sung nộp tiền phải có 2 hình thức chứ"*.
+               ⚠️⚠️ KHÔNG phải đảo lại chốt 07/08/2026 — chốt đó nói *SỐ TIỀN nhân
+               viên phải nộp là TIỀN MẶT*, và nó nằm ở `jpNvPhaiNop_` (trừ hẳn
+               `revBank` ra). Chỗ đó KHÔNG đổi. Cái bị khoá oan là *CÁCH GIAO khoản
+               tiền mặt đó về công ty*: cầm tiền tới đưa, hay chuyển khoản. Khoá
+               dropdown là suy rộng chốt kia sang một việc nó không nói tới.
+               ⚠️ KHÔNG có QR ở đây: QR là khách quét vào máy, không phải đường nhân
+               viên giao tiền. Danh sách `jpCachThu_` ở máy chủ vẫn nhận cả ba.
+               ⚠️ Giữ thẻ này dù có mấy lựa chọn: `Js04_NopTien` đọc
+               `$('payMethod').value`, bỏ thẻ đi là `null.value` ⇒ chết cả màn. -->
+          <select id="payMethod" title="Tiền mặt đưa tận tay, hoặc chuyển khoản về tài khoản công ty">
+            <option value="TM">Tiền mặt</option>
+            <option value="CK">Chuyển khoản</option>
+          </select></label>
+      </div>
+      <label class="fld"><span>Ghi chú</span><input id="payNote" type="text"></label>
+      <div class="groupTitle">Ảnh chứng từ nộp tiền</div>
+      <div class="photoStrip" id="payProof"></div>
+      <button class="btn primary block" onclick="jpDoPay()">Ghi nhận nộp tiền</button>
+      <p id="payMsg" class="msg"></p>
+    </div>
+
+    <div class="card">
+      <h2>Lịch sử các lần nộp</h2>
+      <div id="payHistory"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ⚠️ KHÔNG dùng `capture="environment"` (bỏ 30/08/2026). Thuộc tính đó trên điện
+     thoại là **mở thẳng camera**, KHÔNG hiện thư viện ảnh — mà Andy chốt thực tế là
+     *"chỉ số là nhân viên tải ảnh lên không phải chụp tại chỗ"*. Ép camera là ép nhân
+     viên làm một việc họ không làm, và họ sẽ bỏ ảnh luôn — lúc đó kế toán mất cả
+     đường đối chiếu, tệ hơn là có ảnh chụp lại từ máy khác.
+     ⚠️ Giữ `accept="image/*"` — vẫn chỉ nhận ảnh, không cho tải file khác lên Drive. -->
+<input id="filePick" type="file" accept="image/*" class="hidden">
+<!-- Ô chọn RIÊNG cho việc tải một loạt: có `multiple`. ⚠️ Đừng thêm `multiple` vào
+     `#filePick` — ô đó gắn với ĐÚNG MỘT dòng (`PHOTO.pending`), chọn nhiều file ở đó
+     là dồn hết vào một ô máy. -->
+<input id="filePickLoat" type="file" accept="image/*" multiple class="hidden">
+<input id="proofPick" type="file" accept="image/*" class="hidden">
+
+<!-- Đổi PIN. Đăng nhập chỉ bằng PIN nên đây là cách duy nhất nhân viên tự đổi
+     được; không có màn này thì phải nhờ kế toán đặt lại, mà kế toán đặt hộ thì
+     người khác biết PIN của mình. -->
+<div id="pinModal" class="modalBg hidden">
+  <div class="modalBox">
+    <h2>Đổi mã PIN</h2>
+    <p class="sub">PIN gồm 3 số và phải chưa ai dùng — cả hệ thống đăng nhập
+      chỉ bằng PIN nên hai người không được trùng số.</p>
+    <label class="fld"><span>PIN hiện tại</span>
+      <input id="pinCu" class="pinIn" type="password" inputmode="numeric" maxlength="3" autocomplete="off"></label>
+    <label class="fld"><span>PIN mới</span>
+      <input id="pinMoi" class="pinIn" type="password" inputmode="numeric" maxlength="3" autocomplete="off"></label>
+    <label class="fld"><span>Nhập lại PIN mới</span>
+      <input id="pinLai" class="pinIn" type="password" inputmode="numeric" maxlength="3" autocomplete="off"></label>
+    <p id="pinMsg" class="msg"></p>
+    <div class="modalAct">
+      <button class="btn ghost" onclick="jpDongDoiPin()">Huỷ</button>
+      <button class="btn primary" onclick="jpLuuPinMoi()">Đổi PIN</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+<div id="busy" class="busy hidden"><div class="spin"></div><span id="busyText">Đang xử lý…</span></div>
+
+<?!= include('Js01_Core'); ?>
+<?!= include('Js02_BaoCao'); ?>
+<?!= include('Js03_Anh'); ?>
+<?!= include('Js04_NopTien'); ?>
+</body>
+</html>
+
+

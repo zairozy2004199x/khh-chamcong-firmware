@@ -766,6 +766,42 @@ function vhvh_dung_bang() {
 	vhvh_test_create_tables();
 }
 
+/**
+ * BỆ ĐỠ PLUGIN JP CAPSULE.
+ *
+ * Bảng dựng thẳng từ `VHJP_DB::bang()` — cùng lý do đã ghi ở trên cho chấm công, hợp đồng và
+ * vận hành: gõ tay lại danh sách bảng là thêm một cột vào sơ đồ thật thì bài kiểm chết với
+ * "table has no column named …", một lỗi của BÀI KIỂM trông y như lỗi của plugin.
+ */
+function vhjp_test_boot( $dir ) {
+	if ( ! defined( 'VHJP_VERSION' ) ) { define( 'VHJP_VERSION', 'test' ); }
+	if ( ! defined( 'VHJP_DIR' ) ) { define( 'VHJP_DIR', $dir . '/' ); }
+	/* ĐỌC danh sách lớp từ CHÍNH tệp plugin, không gõ tay lại — và thứ tự require trong tệp ấy
+	   cũng chính là thứ tự phụ thuộc đúng. */
+	$chinh = file_get_contents( $dir . '/vhcp-jp.php' );
+	if ( ! preg_match_all( "#require_once VHJP_DIR \. '(includes/class-vhjp-[a-z-]+\.php)';#", $chinh, $m ) ) {
+		throw new RuntimeException( 'Không đọc được danh sách lớp trong vhcp-jp.php' );
+	}
+	foreach ( $m[1] as $duong ) { require_once $dir . '/' . $duong; }
+	vhjp_test_create_tables();
+}
+
+function vhjp_test_create_tables() {
+	global $wpdb;
+	foreach ( VHJP_DB::bang() as $ten => $than ) {
+		$wpdb->exec_raw( vhcc_test_ddl( VHJP_DB::t( $ten ), $than ) );
+	}
+}
+
+/** Xoá sạch rồi dựng lại — để mỗi mục của bài kiểm bắt đầu từ bảng trống. */
+function vhjp_dung_bang() {
+	global $wpdb;
+	foreach ( VHJP_DB::bang() as $ten => $than ) {
+		$wpdb->exec_raw( 'DROP TABLE IF EXISTS ' . VHJP_DB::t( $ten ) );
+	}
+	vhjp_test_create_tables();
+}
+
 /* Múi giờ của website. WordPress thật đọc `timezone_string` rồi tới `gmt_offset`. Bản giả này
    để phép thử dựng được cả hai ca: đúng giờ Việt Nam, và ca UTC mà máy chủ mới cài hay dính. */
 function wp_timezone() {

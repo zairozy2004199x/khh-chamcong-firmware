@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JP Capsule — đang dựng</title>
+<!--
+  Trang TẠM. Giao diện thật của JP là 11 tệp HTML/JS trong `goc/jp-capsule-v2/`, chưa mang sang.
+
+  ⚠️ CỐ Ý KHÔNG BÀY MÀN TRẮNG. Người mở ra mà thấy trắng thì tưởng hỏng, bấm lại mấy lần rồi đi
+     hỏi — mất thì giờ của cả hai bên. Nói thẳng là đang dựng dở, và cho xem đã tới đâu.
+-->
+<style>
+  :root{--nen:#f9f8f6;--vien:#f0e9e1;--navy:#0c1754;--xanh:#2545ff;--mo:#5b6178}
+  *{box-sizing:border-box}
+  body{margin:0;padding:24px 16px;background:var(--nen);color:var(--navy);
+       font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  .hop{max-width:560px;margin:0 auto;background:#fff;border:1px solid var(--vien);
+       border-radius:12px;padding:24px}
+  h1{margin:0 0 4px;font-size:20px}
+  .phu{color:var(--mo);font-size:14px;margin:0 0 20px}
+  .thanh{height:8px;background:var(--vien);border-radius:4px;overflow:hidden;margin:6px 0 8px}
+  .thanh i{display:block;height:100%;background:var(--xanh)}
+  .so{font-size:14px;color:var(--mo)}
+  ul{margin:16px 0 0;padding-left:20px;font-size:14px;color:var(--mo)}
+  li{margin:4px 0}
+  code{background:var(--nen);border:1px solid var(--vien);border-radius:4px;padding:1px 5px;
+       font-size:13px}
+</style>
+</head>
+<body>
+  <div class="hop">
+    <h1>JP Capsule — bản trên hosting</h1>
+    <p class="phu">Đang dựng dở. Trang này là trang tạm, chưa phải giao diện thật.</p>
+
+    <div class="thanh"><i id="thanh" style="width:0"></i></div>
+    <p class="so" id="so">…</p>
+
+    <ul>
+      <li>Đã có: lược đồ 23 bảng · đổi giá trị · truy cập dữ liệu · sinh mã · đăng nhập PIN ·
+          nhật ký · danh mục · cổng dịch <code>google.script.run</code> · tính tiền sáu loại dòng</li>
+      <li>Chưa có: giao diện nhân viên và kế toán, cùng phần lớn các lệnh máy chủ</li>
+    </ul>
+  </div>
+
+<script>window.VHJP_CFG = <?VHJP_CFG?>;</script>
+<script src="<?VHJP_SHIM?>"></script>
+<script>
+  (function () {
+    var c = window.VHJP_CFG || {};
+    var da = c.daChuyen || 0, tong = c.tong || 1;
+    document.getElementById('thanh').style.width = Math.round(da / tong * 100) + '%';
+    document.getElementById('so').textContent =
+      'Đã chuyển ' + da + ' / ' + tong + ' lệnh máy chủ · bản ' + (c.ver || '?') +
+      ' · màn ' + (c.man === 'kt' ? 'kế toán' : 'nhân viên');
+  })();
+</script>
+</body>
+</html>
