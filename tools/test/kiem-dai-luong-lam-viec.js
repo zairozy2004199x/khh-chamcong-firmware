@@ -47,11 +47,74 @@ t('⚠️ mỗi bước chỉ vào một tab CÓ THẬT',
   (BANG.match(/tab:'([a-z]+)'/g) || []).every(function (x) { return ['don', 'duyet', 'qt', 'xuat'].indexOf(x.slice(5, -1)) >= 0; }),
   BANG.match(/tab:'([a-z]+)'/g));
 
+/* ═══ 1b. 🔴 TRÊN ĐIỆN THOẠI LÀ MỘT HÀNG CUỘN NGANG ════════════════════════════
+ * Anh Thắng 22/09/2026 gửi ảnh màn iPhone: *"Với luồng duyệt"*. Tám bước × `flex-wrap:wrap`
+ * trên màn 390px = BỐN HÀNG, chiếm gần nửa màn trước khi thấy đơn nào. Và mũi tên `→` giữa
+ * hai thẻ rơi xuống ĐẦU hàng sau mỗi lần xuống dòng — ba mũi tên mồ côi trỏ vào khoảng không.
+ *
+ * 🔴 PHÉP QUAN TRỌNG NHẤT Ở ĐÂY LÀ "LUẬT KHÔNG ĐƯỢC VIẾT THẲNG VÀO THẺ". Một `style=` trên thẻ
+ *    có mức riêng cao hơn MỌI luật trong tệp CSS, kể cả luật trong `@media` — nên chỉ cần một
+ *    chữ `flex-wrap` sót lại trên thẻ là màn hẹp vẫn xuống bốn hàng, mà media query vẫn nằm đó
+ *    trông như đang chạy. CÙNG MỘT HỌ LỖI với vụ `.grid-nhap` vá cùng ngày.
+ */
+{
+  const CSS = fs.readFileSync('wordpress/vhcp-chi-phi/assets/css/vhcp.css', 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, ' ');
+  const HTML_SACH = HTML.replace(/<!--[\s\S]*?-->/g, ' ');
+
+  t('🔴 dải mang lớp `luongBar`, và luật bố cục nằm ở tệp CSS',
+    /id="luongBar" class="luongBar"/.test(HTML_SACH) && /\.luongBar\{/.test(CSS), '');
+  /* 🔴 KHÔNG còn luật bố cục viết thẳng trên thẻ dải — có là media query không với tới. */
+  t('🔴 thẻ dải KHÔNG còn `style=` bố cục nào',
+    !/id="luongBar"[^>]*style=/.test(HTML_SACH), (HTML_SACH.match(/<div id="luongBar"[^>]*>/) || [''])[0]);
+
+  const ve = bocHam('veThanhLuong');
+  /* Thẻ bước: chỉ thứ ĐỔI THEO DỮ LIỆU mới viết thẳng (viền · nền · mờ · con trỏ). */
+  ['flex:', 'min-width:', 'padding:', 'flex-direction:'].forEach(function (x) {
+    t('🔴 thẻ bước KHÔNG viết thẳng `' + x + '` (media query sẽ không với tới)',
+      ve.indexOf("'" + x) < 0 && ve.indexOf(';' + x) < 0, x);
+  });
+  t('   nhưng viền/nền/mờ thì VẪN viết thẳng — chúng đổi theo dữ liệu, CSS không biết',
+    /border:1px solid '\+vien/.test(ve) && /background:'\+nen/.test(ve), '');
+  t('🔴 và mũi tên cũng mang lớp riêng để thu nhỏ được',
+    /class="luongMuiTen"/.test(ve) && /\.luongMuiTen\{/.test(CSS), '');
+
+  /* Luật màn hẹp: một hàng, cuộn ngang.
+     🔴 BỐC ĐÚNG KHỐI @media CHỨA `.luongBar`, đừng lấy khối 560px ĐẦU TIÊN gặp. Tệp có mấy
+        khối cùng bề ngang ấy (lưới chung, lưới form nhập…), và lấy nhầm là ba phép dưới đây đỏ
+        oan trong khi mã hoàn toàn đúng — cắn ngay lượt viết này. Quét ngoặc cân để cắt đúng
+        thân khối, chứ không cắt theo thụt lề. */
+  function khoiHep(css, sel) {
+    const moc = '@media(max-width:560px){';
+    let i = 0;
+    while ((i = css.indexOf(moc, i)) >= 0) {
+      let j = i + moc.length, d = 1;
+      while (j < css.length && d > 0) {
+        if ('{' === css[j]) { d++; } else if ('}' === css[j]) { d--; }
+        j++;
+      }
+      const than = css.slice(i + moc.length, j - 1);
+      if (than.indexOf(sel) >= 0) { return than; }
+      i = j;
+    }
+    return '';
+  }
+  const hep = khoiHep(CSS, '.luongBar');
+  t('bốc được khối @media của dải luồng', hep.length > 40, hep.slice(0, 200));
+  t('🔴 màn hẹp: dải thành MỘT HÀNG (không xuống dòng)', /\.luongBar\{[^}]*flex-wrap:nowrap/.test(hep), hep.slice(0, 400));
+  t('🔴 và CUỘN NGANG được — không thì bốn bước cuối biến mất khỏi màn',
+    /\.luongBar\{[^}]*overflow-x:auto/.test(hep), hep.slice(0, 400));
+  t('   thẻ bước thôi giãn, thu lại cho vừa', /\.luongThe\{[^}]*flex:0 0 auto/.test(hep), hep.slice(0, 400));
+  /* ⚠️ KHÔNG BỎ BƯỚC NÀO cho gọn — dải này là BẢN ĐỒ, nhân viên phải biết đơn đi đâu tiếp. */
+  t('⚠️ không có luật nào GIẤU bước trên màn hẹp',
+    !/\.luongThe\[[^\]]*\]\{[^}]*display:none/.test(hep) && !/\.luongThe\{[^}]*display:none/.test(hep), hep.slice(0, 400));
+}
+
 /* ═══ 2. CHẠY THẬT ═════════════════════════════════════════════════════════════ */
 const NEN = [bocDong('KHOI_LUONG_CHI'), bocKhoi('LUONG_KVC').replace(/\n  \};$/, ''), '',
   HTML.slice(HTML.indexOf('  var LUONG_KVC='), HTML.indexOf('};', HTML.indexOf('  var LUONG_CHI=')) + 2),
   BANG, bocHam('_luongKhoi'), bocHam('_tenTT'), bocHam('_hopKhoi'), bocHam('_khoiCua'),
-  bocHam('_luongDem'), bocHam('veThanhLuong')].join('\n');
+  bocHam('_luongDem'), bocHam('veThanhLuong'), bocHam('_luongKeoToiChoTac')].join('\n');
 
 function ve(khoi, tabDuoc, dons) {
   const NK = {};
@@ -59,11 +122,61 @@ function ve(khoi, tabDuoc, dons) {
     KHOI_DANG: khoi, BOOT: { dons: dons || [] },
     esc: (v) => String(v == null ? '' : v),
     _tabDuoc: (p) => tabDuoc.indexOf(p) >= 0,
-    el: (id) => (NK[id] = NK[id] || { style: {}, innerHTML: '' })
+    /* ⚠️ Ô GIẢ PHẢI CÓ ĐỦ THỨ `_luongKeoToiChoTac()` SỜ TỚI. Thiếu `scrollWidth`/`clientWidth`
+       thì phép so ra `undefined <= undefined` = false, và hàm đi tiếp vào `querySelector` —
+       tức bệ đỡ lặng lẽ chạy một nhánh mà trên trình duyệt không bao giờ chạy. Cho hai số bằng
+       nhau = "dải không cuộn được", đúng cảnh màn rộng. */
+    el: (id) => (NK[id] = NK[id] || { style: {}, innerHTML: '', scrollWidth: 0, clientWidth: 0,
+      scrollLeft: 0, querySelector: () => null })
   };
   new Function('moi', `with(moi){ ${NEN}\n return veThanhLuong; }`)(moi)();
   return NK.luongBar.innerHTML;
 }
+/* ═══ 2b. 🔴 KÉO DẢI TỚI BƯỚC ĐANG CÓ ĐƠN — CHẠY THẬT ══════════════════════════
+ * Một hàng cuộn ngang thì bốn bước cuối nằm ngoài tầm mắt. Người mở màn muốn biết *chỗ nào
+ * đang tắc*, nên dải phải tự kéo tới đó — không thì cuộn ngang là đổi một cái rối lấy một cái
+ * khuất.
+ *
+ * ⚠️ CHỈ KHI DẢI THẬT SỰ CUỘN ĐƯỢC. Trên màn rộng dải xuống dòng chứ không cuộn; đặt
+ *    `scrollLeft` ở đó là một lệnh vô nghĩa hôm nay và một lệnh SAI ngày bố cục đổi.
+ */
+{
+  const keo = bocHam('_luongKeoToiChoTac');
+  t('bốc được `_luongKeoToiChoTac`', keo.length > 100, keo.length);
+  /* 🔴 VÀ LƯỢT VẼ PHẢI GỌI NÓ. Phá thử 22/09/2026: gỡ đúng một dòng gọi thì hàm vẫn đúng, mọi
+     phép dưới đây vẫn xanh, mà trên máy dải không bao giờ kéo tới chỗ tắc — bước đang tắc nằm
+     khuất bên phải và cuộn ngang thành đổi một cái rối lấy một cái khuất. */
+  t('🔴 `veThanhLuong()` có GỌI nó sau khi vẽ xong',
+    /_luongKeoToiChoTac\(o\);/.test(bocHam('veThanhLuong')), '');
+  const chay = function (o) {
+    const c = { Math: Math };
+    require('vm').createContext(c);
+    require('vm').runInContext(keo + '\n_luongKeoToiChoTac(O);', Object.assign(c, { O: o }));
+    return o.scrollLeft;
+  };
+  /* Màn HẸP: dải rộng hơn khung -> kéo tới bước có đơn, chừa một chút bên trái. */
+  const buoc = { offsetLeft: 520 };
+  teq('🔴 dải cuộn được + có bước đang tắc → kéo tới đó, chừa lề trái để biết còn bước phía trước',
+    504, chay({ scrollWidth: 900, clientWidth: 390, scrollLeft: 0, querySelector: () => buoc }));
+  /* 🔴 Bước đầu dải (offsetLeft nhỏ) không được kéo ra số ÂM. */
+  teq('🔴 bước đang tắc nằm ngay đầu dải → không kéo ra số âm',
+    0, chay({ scrollWidth: 900, clientWidth: 390, scrollLeft: 0, querySelector: () => ({ offsetLeft: 4 }) }));
+  /* Màn RỘNG: dải không cuộn được -> KHÔNG đụng vào. */
+  teq('🔴 màn rộng (dải không cuộn được) → KHÔNG đụng vào vị trí cuộn',
+    0, chay({ scrollWidth: 390, clientWidth: 390, scrollLeft: 0, querySelector: () => buoc }));
+  /* Không bước nào có đơn -> để yên ở đầu dải, kéo đi đâu cũng là đoán. */
+  teq('⚠️ không bước nào có đơn → để yên ở đầu dải',
+    0, chay({ scrollWidth: 900, clientWidth: 390, scrollLeft: 0, querySelector: () => null }));
+  /* ⚠️ Ô chưa dựng xong (null) không được làm chết cả lượt vẽ. */
+  t('⚠️ ô chưa có thì im lặng bỏ qua, không ném lỗi',
+    (function () { try { chay0(); return true; } catch (e) { return false; } })(), '');
+  function chay0() {
+    const c = {};
+    require('vm').createContext(c);
+    require('vm').runInContext(keo + '\n_luongKeoToiChoTac(null);', c);
+  }
+}
+
 const DONS = [
   { trangThai: 'Nháp', khoi: 'mtd' },
   { trangThai: 'Chờ quyết toán', khoi: 'mtd' },
@@ -79,6 +192,14 @@ t('🔴 dải của MTĐ KHÔNG có bước "Chờ cấp tạm ứng"', hMtd.ind
 t('🔴 và CÓ bước "Đã thanh toán"', hMtd.indexOf('Đã thanh toán') >= 0);
 t('   dùng đúng chữ của khối ("Chờ duyệt chi", không phải "Chờ duyệt tạm ứng")',
   hMtd.indexOf('Chờ duyệt chi') >= 0 && hMtd.indexOf('Chờ duyệt tạm ứng') < 0);
+/* 🔴 BƯỚC ĐANG CÓ ĐƠN PHẢI MANG DẤU ĐỂ KÉO TỚI. Phá thử 22/09/2026: gỡ `data-co-don` thì
+   `_luongKeoToiChoTac()` không tìm thấy gì và lặng lẽ bỏ qua — dải không bao giờ kéo, mà không
+   phép nào đỏ vì bệ đỡ tự đưa ô vào. Đếm trên HTML THẬT mới bắt được.
+   Bộ gieo cho MTĐ có đơn ở ba bước: Nháp · Chờ quyết toán · Đã thanh toán. */
+teq('🔴 mỗi bước ĐANG CÓ ĐƠN mang một dấu để kéo tới', 3, (hMtd.match(/data-co-don="1"/g) || []).length);
+t('   và bước rỗng thì KHÔNG mang dấu ấy',
+  (hMtd.match(/data-co-don="1"/g) || []).length < (hMtd.match(/class="luongThe"/g) || []).length, hMtd.slice(0, 200));
+
 const hKvc = ve('kvc', MOI, DONS);
 t('🔴 dải của KVC VẪN có "Chờ cấp tạm ứng"', hKvc.indexOf('Chờ cấp tạm ứng') >= 0);
 t('   và KHÔNG có "Đã thanh toán"', hKvc.indexOf('Đã thanh toán') < 0);

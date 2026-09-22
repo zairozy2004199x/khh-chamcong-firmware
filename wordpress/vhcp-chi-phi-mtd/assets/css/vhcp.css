@@ -173,6 +173,35 @@
      ⚠️ ĐÈ TRONG `.grid-nhap`, không đè `.fld` dùng chung: lớp ấy dựng cả chục form khác, và
         cộng 11px cho mỗi ô ở mọi nơi là sửa một màn, đổi chín màn. */
   .grid-nhap>.fld>label{min-height:24px;display:flex;align-items:flex-end}
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+     🔴 DẢI LUỒNG LÀM VIỆC — TRÊN ĐIỆN THOẠI LÀ MỘT HÀNG CUỘN NGANG.
+     ══════════════════════════════════════════════════════════════════════════════════════════
+     Anh Thắng 22/09/2026 gửi ảnh màn iPhone: *"Với luồng duyệt"*, ngay sau lượt vá form nhập.
+
+     Tám bước ×  `flex-wrap:wrap` trên màn 390px = BỐN HÀNG, chiếm gần nửa màn trước khi thấy
+     đơn nào. Và mũi tên `→` giữa hai thẻ rơi xuống ĐẦU hàng sau mỗi lần xuống dòng — một mũi
+     tên mồ côi trỏ vào khoảng không, đúng ba lần trong ảnh.
+
+     Một hàng cuộn ngang thì đúng hình dạng của một LUỒNG (trái sang phải), mũi tên luôn nằm
+     giữa hai bước, và cả dải chỉ chiếm một hàng.
+
+     ⚠️ KHÔNG BỎ BƯỚC NÀO cho gọn. Dải này là BẢN ĐỒ: nhân viên phải biết đơn của mình sẽ đi
+        đâu tiếp. Bỏ mấy bước đang rỗng là luồng trông như chỉ có hai bước. Cuộn thì vẫn còn
+        đủ; `veThanhLuong()` tự kéo tới bước đang có đơn để chỗ tắc nằm sẵn trong tầm mắt.
+
+     🔴 VÌ SAO LUẬT NẰM Ở ĐÂY CHỨ KHÔNG PHẢI `style=` TRÊN THẺ: một thuộc tính viết thẳng trên
+        thẻ có mức riêng cao hơn MỌI luật trong tệp này, kể cả luật trong `@media`. Để
+        `flex-wrap:wrap` ở đó thì media query dưới đây không với tới, và màn hẹp vẫn xuống bốn
+        hàng — CÙNG MỘT HỌ LỖI với vụ `.grid-nhap` vừa vá cùng ngày, chỉ khác đường thắng. */
+  .luongBar{display:flex;gap:6px;align-items:stretch;flex-wrap:wrap}
+  .luongThe{flex:1 1 120px;min-width:112px;padding:9px 8px;display:flex;flex-direction:column;
+    align-items:center;gap:3px;border-radius:10px;text-align:center}
+  .luongMuiTen{align-self:center;color:#c9c2b8;font-size:13px}
+  @media(max-width:560px){
+    .luongBar{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}
+    .luongThe{flex:0 0 auto;min-width:96px;padding:7px 6px}
+    .luongMuiTen{font-size:11px}
+  }
   .fld input,.fld select,.fld textarea{width:100%}
   table{width:100%;border-collapse:collapse;min-width:920px}
   thead th{background:#f9f8f6;color:#64748b;font-size:11px;font-weight:700;text-transform:uppercase;text-align:left;padding:9px 10px;border-bottom:1px solid #f0e9e1;white-space:nowrap}

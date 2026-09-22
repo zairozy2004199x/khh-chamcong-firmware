@@ -152,7 +152,11 @@
     <div id="luongWrap" style="display:none;margin:0 0 10px">
       <div style="font-size:11.5px;color:#8c8781;font-weight:700;letter-spacing:.3px;margin-bottom:5px">
         LUỒNG LÀM VIỆC <span style="font-weight:400;letter-spacing:0">— bấm vào bước để đi tới</span></div>
-      <div id="luongBar" style="display:flex;gap:6px;align-items:stretch;flex-wrap:wrap"></div>
+      <!-- 🔴 LUẬT BỐ CỤC Ở TỆP CSS, KHÔNG VIẾT THẲNG VÀO ĐÂY. Một thuộc tính `style=` trên thẻ
+           có mức riêng cao hơn mọi luật trong `vhcp.css`, kể cả luật trong `@media` — để
+           `flex-wrap:wrap` ở đây là màn hẹp không bao giờ đổi được sang một hàng cuộn ngang.
+           Xem `.luongBar` trong `assets/css/vhcp.css`. -->
+      <div id="luongBar" class="luongBar"></div>
     </div>
     <!-- ⚠️ DẢI NHẮC "KHỐI NÀY CHƯA CÓ ĐƠN NÀO" ĐÃ BỎ — anh Thắng 21/09/2026: *"chọn phía trên
          rồi, phía dưới bỏ đi cho gọn"*.
@@ -3237,18 +3241,47 @@
          họ không vào được là luồng trông như chỉ có hai bước, và họ tưởng đơn xong rồi. */
       var duoc=_tabDuoc(c.tab), n=dem[st]||0;
       var nen=duoc?'#fff':'#f9f8f6', vien=n?'#2545ff':'#e2d6c7';
+      /* ⚠️ CHỈ THỨ THAY ĐỔI THEO DỮ LIỆU MỚI VIẾT THẲNG VÀO THẺ (viền · nền · mờ · con trỏ).
+         Bố cục — bề ngang, đệm, xếp dọc — nằm ở lớp `.luongThe` trong `vhcp.css`, vì màn hẹp
+         phải đổi được nó bằng `@media`, mà thuộc tính viết thẳng trên thẻ thì `@media` không
+         với tới. Xem chốt dài ở `.luongBar`. */
       var the='<button type="button" class="luongThe" '+(duoc?('onclick="showPage(\''+c.tab+'\')"'):'disabled')
+        /* ⚠️ CHỈ ĐÁNH DẤU "CÓ ĐƠN", KHÔNG in kèm KHOÁ TRẠNG THÁI. Khoá là chuỗi trong sổ
+           ("Chờ duyệt tạm ứng"), còn chữ hiện ra đổi theo khối ("Chờ duyệt chi") — in cả hai
+           vào DOM là mỗi phép soi "dải dùng đúng chữ của khối" phải biết bỏ qua cái nào.
+           Cắn ngay lượt viết này. Cái duy nhất cần là chỗ để kéo tới. */
+        +(n?' data-co-don="1"':'')
         +' title="'+esc(c.lam)+(duoc?'':' — bạn không có quyền vào bước này')+'"'
-        +' style="flex:1 1 120px;min-width:112px;display:flex;flex-direction:column;align-items:center;gap:3px;'
-        +'padding:9px 8px;border-radius:10px;border:1px solid '+vien+';background:'+nen+';'
-        +'cursor:'+(duoc?'pointer':'default')+';opacity:'+(duoc?'1':'.5')+';text-align:center">'
+        +' style="border:1px solid '+vien+';background:'+nen+';'
+        +'cursor:'+(duoc?'pointer':'default')+';opacity:'+(duoc?'1':'.5')+'">'
         +'<span style="font-size:17px;line-height:1">'+c.icon+'</span>'
         +'<span style="font-size:11.5px;font-weight:600;color:#171417;line-height:1.25">'+esc(_tenTT(st))+'</span>'
         +(n?('<span style="font-size:10.5px;font-weight:700;color:#2545ff">'+n+' đơn</span>'):'')
         +'</button>';
-      if(i<DS.length-1) the+='<span style="align-self:center;color:#c9c2b8;font-size:13px">→</span>';
+      if(i<DS.length-1) the+='<span class="luongMuiTen">→</span>';
       return the;
     }).join('');
+    _luongKeoToiChoTac(o);
+  }
+  /**
+   * KÉO DẢI TỚI BƯỚC ĐANG CÓ ĐƠN.
+   *
+   * 🔴 CHỈ KHI DẢI THẬT SỰ CUỘN ĐƯỢC. Trên màn rộng dải xuống dòng chứ không cuộn, và đặt
+   *    `scrollLeft` ở đó là một lệnh vô nghĩa — nhưng cũng là một lệnh SAI nếu mai này bố cục
+   *    đổi: nó sẽ kéo một dải đang nằm yên. Hỏi `scrollWidth > clientWidth` là hỏi đúng câu.
+   *
+   * ⚠️ BƯỚC CÓ ĐƠN ĐẦU TIÊN, không phải bước cuối. Người mở màn muốn biết *chỗ nào đang tắc*,
+   *    và chỗ tắc là chỗ đơn đứng lại sớm nhất.
+   * ⚠️ Không có bước nào có đơn thì ĐỂ YÊN ở đầu dải — kéo đi đâu cũng là đoán.
+   */
+  function _luongKeoToiChoTac(o){
+    try{
+      if(!o || o.scrollWidth<=o.clientWidth) return;
+      var t=o.querySelector('[data-co-don]');
+      if(!t) return;
+      /* Chừa một chút bên trái để thấy được là còn bước phía trước. */
+      o.scrollLeft=Math.max(0, t.offsetLeft-16);
+    }catch(e){}
   }
   /* ═════════════════════════════════════════════════════════════════════════════════
    * DỰNG LẠI HAI Ô CƠ SỞ BÊN ĐƠN TUẦN, LỌC THEO KHỐI ĐANG ĐỨNG.
