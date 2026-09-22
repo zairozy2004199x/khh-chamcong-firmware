@@ -2200,6 +2200,69 @@ class VHCP_Don {
 	}
 
 	/**
+	 * KẾ TOÁN CHỈNH TK NỢ CỦA MỘT DÒNG — mã riêng cho dòng này, không đụng danh mục.
+	 *
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 Anh Thắng 22/09/2026: *"Sau khi quyết toán, thì kế toán có quyền điều chỉnh tk nợ theo
+	 *    nhu cầu, vì Cùng tên gọi nhưng nội dung khác, Nên lúc tạo đơn nhân viên không cần quan
+	 *    tâm (đến phần quyết toán thì nó mới hiện qua và kế toán chọn các số lập sẵn và bấm
+	 *    quyết toán là xong)"*.
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * `set_line_nhom()` đổi LOẠI rồi suy ra mã; hàm này đổi thẳng MÃ mà giữ nguyên loại. Hai
+	 * việc khác nhau: hai dòng cùng loại "Chi phí khác" có thể hạch toán vào hai tài khoản, và
+	 * thứ phân biệt chúng là nội dung dòng — chỉ kế toán đọc ra được, ở bước quyết toán.
+	 *
+	 * ⚠️ CHỈ NHẬN MÃ ĐÃ KHAI. "Các số lập sẵn" là chữ của anh Thắng, và đó cũng là chốt: mã chưa
+	 *    khai ở ⚙️ Cấu hình thì từ chối. Nhận bừa là dòng mang mã ma, mà mã ma chỉ lộ ra lúc nhập
+	 *    tệp vào MISA — sau khi kỳ đã chốt.
+	 * ⚠️ KHÔNG NHẬN MỘT TK CÓ. 141/331 và mọi TK Có đã khai đều bị chối: chúng thuộc vế bên kia
+	 *    của bút toán, đặt vào TK Nợ là sổ lệch mà không báo gì.
+	 * ⚠️ Ô TRỐNG = TRẢ VỀ TỰ ĐỘNG, không phải "xoá mã". Tính lại bằng `tk_of_line()` — cùng một
+	 *    phép với lúc lưu dòng, nên đường lui luôn về đúng chỗ luật chung đang trỏ tới.
+	 * ⚠️ CHỈ ĐỔI `tk_no`. `update_line()` ghi lại cả dòng, đi nhờ nó là mấy ô không gửi lên bị
+	 *    dọn về rỗng, im lặng — cùng cái bẫy đã ghi ở `set_line_nhom()`.
+	 */
+	public static function set_line_tk_no( $id, $tk ) {
+		$_loi = self::loi_khong_phai_dong_minh( $id );
+		if ( '' !== $_loi ) { return VHCP_Util::err( $_loi ); }
+
+		global $wpdb;
+		$cur = self::line_row( $id );
+		if ( ! $cur ) { return VHCP_Util::err( 'Không tìm thấy dòng' ); }
+		$vai = VHCP_Auth::vai_tro();
+		if ( ! in_array( $vai, array( 'Admin', 'Kế toán cá nhân', 'Kế toán NCC' ), true ) ) {
+			return VHCP_Util::err( 'Chỉ kế toán chỉnh TK Nợ được — đây là mã hạch toán, '
+				. 'không phải nội dung dòng.' );
+		}
+
+		$tk  = trim( (string) $tk );
+		$cu  = trim( (string) $cur['tk_no'] );
+		if ( '' === $tk ) {
+			$moi = self::tk_of_line( (string) $cur['nhom'], (string) $cur['phan_loai_tt'], (string) $cur['coso'] );
+			$tk  = $moi['tk_no'];
+		} else {
+			if ( VHCP_Cfg::la_tk_co( $tk ) ) {
+				return VHCP_Util::err( 'Mã ' . $tk . ' là TK CÓ (vế đối ứng), không đặt vào TK Nợ được.' );
+			}
+			if ( ! in_array( $tk, VHCP_Cfg::tkno_da_khai(), true ) ) {
+				return VHCP_Util::err( 'Mã ' . $tk . ' chưa khai ở ⚙️ Cấu hình → 🧮 Loại chi phí × '
+					. 'Mảng kinh doanh. Khai mã ở đó trước, rồi chọn lại ở đây.' );
+			}
+		}
+
+		$wpdb->update( VHCP_DB::t( 'chiphi' ), array( 'tk_no' => $tk ), array( 'id' => (string) $id ) );
+		VHCP_Log::log_action( array(
+			'actor'  => VHCP_Auth::nguoi(),
+			'role'   => $vai,
+			'action' => 'Chỉnh TK Nợ của dòng',
+			'target' => (string) $cur['ma_don'] . '#' . (string) $id,
+			'detail' => (string) $cur['nhom'] . ': Nợ ' . ( '' !== $cu ? $cu : '(trống)' )
+				. ' → ' . ( '' !== $tk ? $tk : '(trống)' ),
+		) );
+		return VHCP_Util::ok( array( 'tkNo' => $tk ) );
+	}
+
+	/**
 	 * DÒ / SỬA HÀNG LOẠT NGÀY CÓ NĂM VÔ LÝ (VD "22/08/4625").
 	 *
 	 * $nam = 0 -> chỉ DÒ, trả danh sách để xem trước, không đụng dữ liệu.
