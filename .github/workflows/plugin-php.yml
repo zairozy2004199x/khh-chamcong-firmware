@@ -60,6 +60,15 @@ jobs:
       - name: Bộ thử trạm chấm công
         run: php tools/test/kiem-tram.php
 
+      # 🔴 BÀI KIỂM DUY NHẤT TRONG REPO GÁC CHUYỆN MẤT MÁY CHỦ, không phải chuyện sai một con
+      # số. Trang /nap-plugin/ nhận tệp .zip rồi cho WordPress cài — tức chạy mã PHP trên máy
+      # chủ. Nó canh ba cửa (phiên trạm · vai ADMIN · mật khẩu WordPress CÓ quyền cài) và phép
+      # soi ruột tệp (đường dẫn vượt cấp · nhiều thư mục gốc · không phải họ vhcp- · thiếu tệp
+      # chính). Và canh cả chuyện chối ĐÚNG CỬA: chối nhầm cửa là cách mấy chốt này mục đi mà
+      # bảng điểm vẫn xanh.
+      - name: Bộ thử trang nạp plugin (cửa chạy mã trên máy chủ)
+        run: php tools/test/kiem-nap-plugin.php
+
       - name: Bộ thử nhà ma (bán vé theo khung giờ)
         run: php tools/test/kiem-nha-ma.php
 

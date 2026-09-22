@@ -123,6 +123,11 @@ class VHCC_Vai {
 
 		/* --- bậc 5: admin --- */
 		'he_thong'     => self::ADMIN,    // cài đặt hệ thống, nguồn người dùng, xoá sạch sổ
+		/* 🔴 NẠP PLUGIN = CHẠY MÃ PHP TRÊN MÁY CHỦ, nên nó ở bậc cao nhất và KHÔNG nới xuống
+		   được. Nhưng bậc ADMIN ở đây mới là cửa THỨ HAI: cửa thứ ba là mật khẩu WordPress,
+		   đòi lại đúng lúc bấm Nạp (xem `VHCC_NapPlugin`). Vai này chỉ quyết định ai THẤY màn
+		   ấy — một mình nó không nạp được gì. */
+		'nap_plugin'   => self::ADMIN,    // nạp .zip plugin từ trang /nap-plugin/
 		'may'          => self::ADMIN,    // MÁY CHẤM CÔNG: gán máy, nạp firmware/OTA, thư viện
 		                                  // khuôn mặt, cổng nhận từ máy.
 		                                  // 🔴 TÁCH KHỎI `he_thong` (27/08/2026). Anh Thắng khi
@@ -204,6 +209,7 @@ class VHCC_Vai {
 		'ho_so'        => 'Hồ sơ nhân sự, cấp PIN',
 		'xem_luong_hs' => 'Ô Lương cơ bản / số tài khoản',
 		'he_thong'     => 'Cài đặt hệ thống, nguồn người dùng',
+		'nap_plugin'   => 'Nạp plugin (.zip) từ điện thoại',
 		'may'          => 'Máy chấm công & firmware',
 		'sua_gio'      => 'SỬA ĐÈ lên giờ đã có',
 		'xem_pin'      => 'Nhìn thấy PIN người khác',

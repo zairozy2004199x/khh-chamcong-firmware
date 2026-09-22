@@ -700,7 +700,9 @@ function vhcc_test_boot( $dir ) {
 	   trông y như lỗi của plugin. Thứ tự require trong tệp plugin cũng chính là thứ tự phụ thuộc
 	   đúng, nên đọc lại là được cả hai thứ. */
 	$chinh = file_get_contents( $dir . '/vhcp-cham-cong.php' );
-	if ( ! preg_match_all( "#require_once VHCC_DIR \. '(includes/class-vhcc-[a-z-]+\.php)';#", $chinh, $m ) ) {
+	/* Có `0-9` trong lớp ký tự — cùng lý do đã ghi ở `vhjp_test_boot()`: thiếu nó thì một tệp
+	   có chữ số trong tên lặng lẽ không được nạp, và bài kiểm vẫn xanh. */
+	if ( ! preg_match_all( "#require_once VHCC_DIR \. '(includes/class-vhcc-[a-z0-9-]+\.php)';#", $chinh, $m ) ) {
 		throw new RuntimeException( 'Không đọc được danh sách lớp trong vhcp-cham-cong.php' );
 	}
 	foreach ( $m[1] as $duong ) { require_once $dir . '/' . $duong; }

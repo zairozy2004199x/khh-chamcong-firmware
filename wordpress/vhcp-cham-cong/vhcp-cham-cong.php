@@ -3,7 +3,7 @@
  * Plugin Name:       Chấm Công (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Hệ thống chấm công chạy THẲNG trên host: máy chấm công, hàng đợi lệnh, cập nhật firmware và toàn bộ nghiệp vụ đều nằm trên MySQL của chính website. Không Firebase, không Google Sheet.
- * Version:           3.46.0
+ * Version:           3.47.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -34,7 +34,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHCC_VERSION', '3.46.0' );
+define( 'VHCC_VERSION', '3.47.0' );
 define( 'VHCC_FILE', __FILE__ );
 define( 'VHCC_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHCC_URL', plugin_dir_url( __FILE__ ) );
@@ -90,6 +90,8 @@ require_once VHCC_DIR . 'includes/class-vhcc-cong.php';
 require_once VHCC_DIR . 'includes/class-vhcc-day-ghe.php';
 require_once VHCC_DIR . 'includes/class-vhcc-quen-pin.php';
 require_once VHCC_DIR . 'includes/class-vhcc-trang-ns.php';
+require_once VHCC_DIR . 'includes/class-vhcc-nap-plugin.php';
+require_once VHCC_DIR . 'includes/class-vhcc-trang-nap.php';
 require_once VHCC_DIR . 'includes/class-vhcc-admin.php';
 require_once VHCC_DIR . 'includes/class-vhcc-man.php';
 
@@ -117,6 +119,7 @@ add_action( 'init', array( 'VHCC_Web', 'init' ), 5 );
 add_action( 'init', array( 'VHCC_TrangNS', 'init' ), 5 );
 /* Trạm chấm công của nhân viên — trang họ mở hàng ngày bằng điện thoại. */
 add_action( 'init', array( 'VHCC_Tram', 'init' ), 5 );
+add_action( 'init', array( 'VHCC_TrangNap', 'init' ), 5 );
 /* Cổng nhận chấm công của máy. Gài ở ưu tiên 4 — TRƯỚC trang (5) và trước lượt nạp lại luật
    đường dẫn (99) — để luật đường của máy có mặt sớm nhất. Đường của máy là đường duy nhất trong
    plugin này mà một lượt bị chuyển hướng đồng nghĩa MẤT chấm công, xem class-vhcc-nhan.php. */
