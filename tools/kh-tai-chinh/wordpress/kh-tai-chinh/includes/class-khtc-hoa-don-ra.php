@@ -58,9 +58,21 @@ class KHTC_HoaDonRa {
 	 * thuế suất. Luôn chốt MỘT số làm gốc, làm tròn đúng một lần, số còn lại
 	 * lấy bằng phép trừ.
 	 *
-	 * Cờ "có lệch" chỉ bật khi file gốc đưa đủ cả chưa VAT lẫn VAT mà tổng
-	 * không bằng có VAT. Trường hợp cột VAT để trống thì không coi là lệch —
-	 * không có cách nào phân biệt ô trống với số 0 trong một bảng dán vào.
+	 * ĐỦ CẢ BA SỐ MÀ KHÔNG KHỚP THÌ CÓ VAT THẮNG. Có VAT là tiền khách đã trả
+	 * thật, máy tính tiền ghi lại, gần như luôn là số tròn; chưa VAT và VAT là
+	 * hai số suy ra bằng phép chia rồi làm tròn. Sửa có VAT là sửa số tiền đã
+	 * thu — sai loại nặng nhất. Nên giữ có VAT và chưa VAT, bù chênh lệch vào
+	 * VAT: VAT = có VAT − chưa VAT.
+	 *
+	 * Chỗ này đã sai một lần. Bản đầu lấy chưa VAT + VAT làm gốc rồi ghi đè có
+	 * VAT, vì tưởng hai cột kia là số gốc. Chạy dữ liệu thật 2025 của công ty
+	 * thì 234 / 2.781 hoá đơn bị đổi tổng đi 1 đồng, do file tính VAT bằng
+	 * round(chưa VAT × 8%) thay vì lấy hiệu — làm tròn hai lần nên lệch. Hoá
+	 * đơn 66.265.000 thành 66.264.999: khách trả một đằng, hoá đơn ghi một nẻo.
+	 *
+	 * Cờ "có lệch" bật khi file gốc đưa đủ cả ba số mà tổng không khớp — để
+	 * màn hình đếm và nói ra, chứ không sửa lặng lẽ. Cột VAT để trống thì không
+	 * coi là lệch: không có cách nào phân biệt ô trống với số 0 trong bảng dán.
 	 *
 	 * @param int    $chua Chưa VAT, 0 nếu chưa biết.
 	 * @param int    $vat  Tiền thuế, 0 nếu chưa biết.
@@ -78,11 +90,16 @@ class KHTC_HoaDonRa {
 		// vừa nghĩa là "thuế đúng bằng 0" — không phân biệt được, nên quy ước
 		// VAT = 0 luôn hiểu là CHƯA BIẾT và tính lại theo thuế suất. Hoá đơn
 		// 0% vẫn ra đúng vì thuế suất 0 cho lại VAT = 0.
-		if ( $chua > 0 && $vat > 0 ) {
-			// Có cả gốc lẫn thuế: hai số này là gốc, có VAT chỉ là tổng của chúng.
-			$moi = $chua + $vat;
-			if ( $co > 0 && $co !== $moi ) { $lech = true; }
-			$co = $moi;
+		if ( $co > 0 && $chua > 0 && $vat > 0 ) {
+			// Đủ cả ba. Tiền khách trả là số thật; chênh lệch do làm tròn dồn
+			// hết vào VAT, để cả tổng lẫn doanh thu giữ nguyên như file gốc.
+			if ( $chua + $vat !== $co ) {
+				$lech = true;
+				$vat  = $co - $chua;
+			}
+		} elseif ( $chua > 0 && $vat > 0 ) {
+			// Không có tổng: hai số này là tất cả những gì biết.
+			$co = $chua + $vat;
 		} elseif ( $co > 0 && $vat > 0 ) {
 			$chua = $co - $vat;
 		} elseif ( $co > 0 && $chua > 0 ) {

@@ -67,12 +67,27 @@ foreach ( array( 333333, 1, 7, 99999, 12345679 ) as $chua ) {
 	}
 }
 
-// Cho cả ba số mà file gốc lệch: lấy chưa VAT và VAT làm gốc, báo là có lệch.
+// Đủ cả ba số mà file gốc lệch: CÓ VAT thắng, chênh lệch dồn vào VAT.
+//
+// Có VAT là tiền khách đã trả thật; chưa VAT và VAT là số suy ra rồi làm tròn.
+// Sửa có VAT là sửa số tiền đã thu. Bản đầu làm ngược và dữ liệu thật 2025 của
+// công ty bắt được: 234 / 2.781 hoá đơn bị đổi tổng đi 1 đồng.
 $r = call_user_func( $t, 1000000, 80000, 1080001 );
-kiem( 'file gốc lệch 1 đồng thì sửa lại theo tổng', array_slice( $r, 0, 3 ), array( 1000000, 80000, 1080000 ) );
+kiem( 'lệch 1 đồng thì giữ tổng, bù vào VAT', array_slice( $r, 0, 3 ), array( 1000000, 80001, 1080001 ) );
 kiem( 'và báo là có lệch', $r[4], true );
 $r = call_user_func( $t, 1000000, 80000, 1080000 );
 kiem( 'file gốc khớp thì không báo lệch', $r[4], false );
+
+// Đúng hai dòng thật trong file VAT đầu ra 2025, cả hai chiều làm tròn. File
+// tính VAT = round(chưa VAT × 8%) nên làm tròn hai lần và lệch 1 đồng; hoá đơn
+// phải giữ đúng số tiền tròn mà khách đã trả.
+$r = call_user_func( $t, 61356481, 4908518, 66265000 );   // HĐ 2576 KH989, hụt 1
+kiem( 'HĐ thật hụt 1 đồng: giữ 66.265.000', array_slice( $r, 0, 3 ), array( 61356481, 4908519, 66265000 ) );
+$r = call_user_func( $t, 1218519, 97482, 1316000 );       // HĐ 2693 KH989, dư 1
+kiem( 'HĐ thật dư 1 đồng: giữ 1.316.000', array_slice( $r, 0, 3 ), array( 1218519, 97481, 1316000 ) );
+
+// Không có cột tổng thì chưa VAT + VAT vẫn là tất cả những gì biết.
+kiem( 'thiếu cột có VAT thì cộng lại', array_slice( call_user_func( $t, 1000000, 80000, 0 ), 0, 3 ), array( 1000000, 80000, 1080000 ) );
 
 // Thuế suất tự suy khi file không ghi.
 kiem( 'tự suy 8%', call_user_func( $t, 1000000, 80000, 0 )[3], '8' );

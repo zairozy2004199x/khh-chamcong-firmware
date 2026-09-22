@@ -420,6 +420,14 @@ class KHTC_DoiSoat {
 			if ( ! isset( $da_nhan[ (int) $g->id ] ) ) { $thua[] = $g; }
 		}
 
+		// Ghép nhờ lượt nào — để màn hình nói ra chất lượng của kết quả, chứ
+		// không chỉ nói số dòng khớp.
+		$theo_luot = array();
+		foreach ( $dong as $d ) {
+			if ( ! $d->kieu_khop || 'lech_tien' === $d->kieu_khop ) { continue; }
+			$theo_luot[ $d->kieu_khop ] = ( $theo_luot[ $d->kieu_khop ] ?? 0 ) + 1;
+		}
+
 		return array(
 			'dot'        => $dot,
 			'khop'       => $khop,
@@ -429,11 +437,58 @@ class KHTC_DoiSoat {
 			'tong_cong'  => $tong_cong,
 			'tong_phi'   => $tong_phi,
 			'tong_ngan'  => $tong_ngan,
+			'theo_luot'  => $theo_luot,
+			'canh_bao'   => self::canh_bao( $tong_cong, $tong_phi, $tong_ngan, count( $dong ), $theo_luot ),
 			'tien_khop'  => array_sum( array_map( function ( $d ) { return (int) $d->so_tien; }, $khop ) ),
 			'tien_thieu' => array_sum( array_map( function ( $d ) { return (int) $d->so_tien; }, $thieu ) ),
 			'tien_thua'  => array_sum( array_map( function ( $g ) { return (int) $g->so_tien; }, $thua ) ),
 			'tien_lech'  => array_sum( array_map( function ( $d ) { return (int) $d->so_tien - (int) $d->gd_so_tien; }, $lech ) ),
 		);
+	}
+
+	/**
+	 * Nhìn tổng thể xem kết quả có đáng tin không, trước khi đọc từng nhóm.
+	 *
+	 * Lý do có hàm này: chạy thử dữ liệu thật tháng 8/2026 với một tệp Payoo và
+	 * sao kê của MỘT TÀI KHOẢN KHÁC — hai dòng tiền không liên quan gì nhau —
+	 * mà máy vẫn báo "Khớp 291 dòng". Không dòng nào khớp theo mã; cả 291 là
+	 * trùng ngẫu nhiên ngày và số tiền, vì sao kê QR có 517 dòng đúng 100.000 đ,
+	 * 390 dòng 20.000 đ, 377 dòng 50.000 đ. Với mệnh giá tròn và lượng lớn thì
+	 * đụng nhau là chắc chắn.
+	 *
+	 * Không sửa phép ghép: khi hai tệp ĐÚNG là của nhau, ghép nhiều dòng cùng
+	 * mệnh giá trong một ngày vẫn ra tổng đúng, đó mới là việc của đối soát.
+	 * Từ chối ghép chỉ vì trùng mệnh giá sẽ phá đúng trường hợp bình thường.
+	 * Cái phải sửa là sự im lặng: con số "Khớp 291" tự nó trông yên tâm.
+	 *
+	 * @return string Câu cảnh báo, '' nếu không có gì đáng ngờ.
+	 */
+	public static function canh_bao( $tong_cong, $tong_phi, $tong_ngan, $so_dong, $theo_luot ) {
+		if ( ! $so_dong || ! $tong_cong ) { return ''; }
+
+		// Cổng chuyển về số ròng, nên chênh lệch đúng bằng phí mới là bình
+		// thường. Nới thêm 5% cho dòng về muộn qua kỳ.
+		$mong  = $tong_cong - $tong_phi;
+		$lech  = abs( $tong_ngan - $mong );
+		if ( $mong > 0 && $lech > $mong * 0.05 ) {
+			return sprintf(
+				'Tổng cổng trừ phí là %s đ nhưng tài khoản chỉ nhận %s đ — lệch %s đ. Kiểm lại xem có chọn đúng tài khoản và đúng kỳ không, trước khi đọc bốn nhóm bên dưới.',
+				number_format( $mong, 0, ',', '.' ),
+				number_format( $tong_ngan, 0, ',', '.' ),
+				number_format( $lech, 0, ',', '.' )
+			);
+		}
+
+		// Không dòng nào khớp theo mã: mọi cặp đều đoán theo ngày và số tiền.
+		$theo_ma = (int) ( $theo_luot['khop_ma'] ?? 0 );
+		$khop    = array_sum( $theo_luot );
+		if ( $khop > 20 && 0 === $theo_ma ) {
+			return sprintf(
+				'Cả %d dòng khớp đều chỉ dựa vào ngày và số tiền, không dòng nào trùng mã giao dịch. Nếu tệp cổng có cột mã thì nạp lại kèm cột đó; sao kê nhiều dòng cùng mệnh giá thì kiểu ghép này dễ bắt nhầm cặp.',
+				$khop
+			);
+		}
+		return '';
 	}
 
 	// ------------------------------------------------------------- tải về

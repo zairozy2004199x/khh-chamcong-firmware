@@ -357,3 +357,17 @@ body.khtc-web form { margin: 0; }
 	.khtc-vach > span { border: 1px solid #cbd5e1; box-shadow: none; }
 	a[href]::after { content: ''; }
 }
+
+/* Cảnh báo kết quả đối soát không đáng tin — phải đập vào mắt trước khi
+   người dùng kịp đọc bốn bảng bên dưới và tin vào con số "Khớp". */
+.khtc .khtc-canh-bao {
+	margin: 0 0 14px;
+	padding: 12px 14px 12px 16px;
+	border-left: 4px solid #b45309;
+	border-radius: 0 10px 10px 0;
+	background: #fffbeb;
+	color: #78350f;
+	font-weight: 500;
+	line-height: 1.55;
+	box-shadow: var(--bong-1);
+}

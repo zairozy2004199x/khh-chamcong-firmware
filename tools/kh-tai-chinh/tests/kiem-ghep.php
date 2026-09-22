@@ -16,6 +16,11 @@ require __DIR__ . '/../wordpress/kh-tai-chinh/includes/class-khtc-doi-soat.php';
 $dat  = 0;
 $hong = array();
 
+function co_chuoi( $ten, $chuoi, $can ) {
+	global $dat, $hong;
+	if ( false !== strpos( $chuoi, $can ) ) { $dat++; return; }
+	$hong[] = sprintf( '%s: không thấy "%s" trong "%s"', $ten, $can, $chuoi );
+}
 function kiem( $ten, $that, $mong ) {
 	global $dat, $hong;
 	if ( $that === $mong ) { $dat++; return; }
@@ -123,6 +128,50 @@ kiem( 'đợt 200 dòng: tất cả đều là khớp sau khi trừ phí', $kieu
 $da_dung = array_column( array_values( $r ), 0 );
 kiem( 'đợt 200 dòng: không dòng sao kê nào bị nhận hai lần', count( array_unique( $da_dung ) ), 180 );
 kiem( 'đợt 200 dòng: dòng 77.777 đ không bị ghép nhầm', in_array( 9999, $da_dung, true ), false );
+
+// ------------------------------------------------- tự kiểm sức khoẻ của đợt
+//
+// Chạy dữ liệu thật tháng 8/2026: một tệp Payoo (308 triệu) đối với sao kê của
+// MỘT TÀI KHOẢN KHÁC (138 triệu) — hai dòng tiền không liên quan — mà máy vẫn
+// báo "Khớp 291 dòng". Không dòng nào khớp mã; cả 291 là trùng ngẫu nhiên ngày
+// và mệnh giá, vì sao kê QR có 517 dòng đúng 100.000 đ. Phép ghép không sai,
+// cái sai là nó im lặng.
+$C = array( 'KHTC_DoiSoat', 'canh_bao' );
+
+// Đúng bộ số của lần chạy thật đó.
+$cb = call_user_func( $C, 308537008, 2315981, 138450000, 1938, array( 'khop_ngay' => 246, 'khop_lech' => 45 ) );
+kiem( 'lệch tổng quá lớn thì phải kêu', '' !== $cb, true );
+co_chuoi( 'và nói ra số lệch', $cb, '167.771.027' );
+
+// Cổng chuyển về số ròng: lệch đúng bằng phí là chuyện bình thường, không kêu.
+kiem(
+	'lệch đúng bằng phí thì im',
+	call_user_func( $C, 100000000, 800000, 99200000, 500, array( 'khop_ma' => 500 ) ),
+	''
+);
+// Nới 5% cho dòng về muộn qua kỳ.
+kiem(
+	'lệch 3% vẫn im',
+	call_user_func( $C, 100000000, 0, 97000000, 500, array( 'khop_ma' => 500 ) ),
+	''
+);
+
+// Tổng khớp nhưng không dòng nào ghép được theo mã: cặp nào cũng là phỏng đoán.
+$cb = call_user_func( $C, 100000000, 0, 100000000, 500, array( 'khop_ngay' => 480 ) );
+kiem( 'khớp tổng nhưng không có mã nào thì vẫn nhắc', '' !== $cb, true );
+co_chuoi( 'và nói rõ là chỉ dựa vào ngày và số tiền', $cb, 'ngày và số tiền' );
+kiem(
+	'có khớp theo mã thì không nhắc nữa',
+	call_user_func( $C, 100000000, 0, 100000000, 500, array( 'khop_ma' => 470, 'khop_ngay' => 10 ) ),
+	''
+);
+// Đợt bé thì trùng ngẫu nhiên không đáng ngại, đừng kêu vô cớ.
+kiem(
+	'đợt vài dòng thì không kêu',
+	call_user_func( $C, 100000000, 0, 100000000, 8, array( 'khop_ngay' => 8 ) ),
+	''
+);
+kiem( 'đợt rỗng thì không kêu', call_user_func( $C, 0, 0, 0, 0, array() ), '' );
 
 printf( "%d kiểm tra đạt, %d lỗi\n", $dat, count( $hong ) );
 foreach ( $hong as $h ) { echo "  ✗ $h\n"; }

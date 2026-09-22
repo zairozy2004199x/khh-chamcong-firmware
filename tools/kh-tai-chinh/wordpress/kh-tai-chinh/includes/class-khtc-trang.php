@@ -521,6 +521,19 @@ class KHTC_Trang {
 			esc_html( KHTC_UI::tien( $kq['tong_ngan'] ) )
 		);
 
+		// Cảnh báo đứng TRƯỚC bốn bảng: đọc xong bảng rồi mới biết kết quả
+		// không đáng tin thì đã đọc nhầm mất rồi.
+		if ( $kq['canh_bao'] ) {
+			printf( '<p class="khtc-canh-bao">%s</p>', esc_html( $kq['canh_bao'] ) );
+		}
+		if ( $kq['theo_luot'] ) {
+			$nhan = array();
+			foreach ( $kq['theo_luot'] as $k => $n ) {
+				$nhan[] = esc_html( KHTC_DoiSoat::ten_kieu( $k ) . ': ' . $n );
+			}
+			printf( '<p class="khtc-sub">Ghép nhờ: %s. Khớp theo mã giao dịch là chắc nhất; khớp theo ngày và số tiền chỉ nên tin khi sao kê ít dòng trùng mệnh giá.</p>', implode( ' · ', $nhan ) );
+		}
+
 		echo '<details class="khtc-panel khtc-gap"><summary>Nạp bảng cổng gửi về</summary><form method="post">';
 		wp_nonce_field( 'khtc_ds' );
 		echo '<p class="khtc-sub">Mỗi dòng: <code>Ngày · Mã GD · Số tiền · Phí · Nội dung</code> — cách nhau bằng Tab (copy thẳng từ file cổng) hoặc dấu phẩy. Thiếu cột Phí thì để trống. Dòng trùng mã giao dịch với dòng đã nạp sẽ bị bỏ qua.</p>';

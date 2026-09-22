@@ -129,6 +129,23 @@ tầng bảng chứ không chỉ ở màn hình: xuất trùng số hoá đơn l
 tầng bảng thì không lệ thuộc đường nào ghi vào. Hai pháp nhân đánh số riêng nên
 không đụng nhau.
 
+### Có VAT thắng khi ba số không khớp
+
+Chạy dữ liệu thật 2025 của công ty bắt được một lỗi nặng ở đây. Bản đầu lấy
+`chưa VAT + VAT` làm gốc rồi ghi đè lên cột có VAT, vì tưởng hai cột kia là số
+gốc. Thực tế ngược lại: **có VAT là tiền khách đã trả**, máy tính tiền ghi lại,
+gần như luôn là số tròn; chưa VAT và VAT là hai số suy ra bằng phép chia rồi
+làm tròn.
+
+File của công ty tính `VAT = round(chưa VAT × 8%)` — làm tròn hai lần nên lệch
+1 đồng, ở **234 / 2.781 hoá đơn**. Bản đầu vì thế đổi hoá đơn 66.265.000 thành
+66.264.999: khách trả một đằng, hoá đơn ghi một nẻo.
+
+Giờ giữ có VAT và chưa VAT như file, bù chênh vào VAT. Chạy lại dữ liệu thật:
+số dòng, tổng chưa VAT và tổng có VAT khớp tuyệt đối với số chốt trong file;
+chỉ tổng VAT lệch 7 đ (KH989) và 99 đ (KH705) — đúng phần làm tròn mà file để
+sai. Màn hình vẫn đếm và nói ra số dòng đã sửa, không sửa lặng lẽ.
+
 ### Phép tính VAT
 
 Quy tắc bất di bất dịch, **từng dòng một**:
@@ -540,6 +557,27 @@ dẫn tĩnh thì dùng `https://tenmien.vn/?khtc_man=tong-quan`.
 Trang tự dựng HTML riêng, **không** gọi `get_header()` của theme: theme nào cũng
 có CSS riêng cho bảng và nút, mượn khung theme thì mỗi lần đổi giao diện website
 là bảng tài chính lại vỡ một kiểu.
+
+## Đối soát tự kiểm trước khi người đọc kịp tin
+
+Chạy thử một tệp Payoo (308 triệu) với sao kê của **một tài khoản khác** (138
+triệu) — hai dòng tiền không liên quan gì nhau — máy vẫn báo **"Khớp 291 dòng"**.
+Không dòng nào khớp theo mã; cả 291 là trùng ngẫu nhiên ngày và số tiền, vì sao
+kê QR có 517 dòng đúng 100.000 đ, 390 dòng 20.000 đ, 377 dòng 50.000 đ. Mệnh
+giá tròn và lượng lớn thì đụng nhau là chắc chắn.
+
+Phép ghép **không sửa**: khi hai tệp đúng là của nhau, ghép nhiều dòng cùng
+mệnh giá trong một ngày vẫn ra tổng đúng — đó mới là việc của đối soát. Từ chối
+ghép chỉ vì trùng mệnh giá sẽ phá đúng trường hợp bình thường. Cái phải sửa là
+sự im lặng: con số "Khớp 291" tự nó trông rất yên tâm.
+
+`KHTC_DoiSoat::canh_bao()` nói thẳng, ngay trên bốn bảng, khi:
+
+* tổng cổng trừ phí lệch quá **5%** so với tiền thực nhận — nới 5% cho dòng về
+  muộn qua kỳ, còn lệch đúng bằng phí là bình thường nên im;
+* đợt trên 20 dòng khớp mà **không dòng nào** ghép được theo mã giao dịch.
+
+Kèm một dòng đếm ghép nhờ lượt nào, để người đọc biết kết quả chắc tới đâu.
 
 ## Đối soát ghép thế nào
 
