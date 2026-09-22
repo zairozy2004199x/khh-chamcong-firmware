@@ -245,10 +245,21 @@
     </div>
 
     <div class="card">
-      <div class="ch"><h2>📦 Chi phí theo hạng mục (nhóm mặt hàng)</h2></div>
+      <!-- 🔴 GOM THEO ĐẦU MỤC — anh Thắng 22/09/2026: *"Trang tổng quan: Phân loại theo đầu
+           mục"*. Bảng cũ liệt kê từng LOẠI chi phí chi tiết: bảy dòng cho một đơn bốn nghìn,
+           và với danh mục thật (vài chục loại) thì nó thành một danh sách phải dò, không phải
+           một bức tranh để nhìn.
+           ⚠️ GIỮ CẢ HAI LỐI XEM. Đầu mục trả lời "tiền đi về đâu"; loại chi tiết trả lời "cụ
+              thể là khoản nào". Bỏ mất lối chi tiết là lúc cần dò một khoản lẻ thì không còn
+              chỗ nào. Mặc định là ĐẦU MỤC, đúng cái anh hỏi. -->
+      <div class="ch"><h2>📦 Chi phí theo <span id="tqHMNhan">đầu mục</span></h2>
+        <div style="display:flex;gap:6px;margin-left:auto">
+          <button class="btn b-p" id="tqHMNutDm" onclick="tqHMDoi('dauMuc')" style="padding:3px 10px;font-size:11.5px">Theo đầu mục</button>
+          <button class="btn b-x" id="tqHMNutLoai" onclick="tqHMDoi('loai')" style="padding:3px 10px;font-size:11.5px">Theo loại chi phí</button>
+        </div></div>
       <div id="tqHMChart" style="display:flex;gap:22px;flex-wrap:wrap;align-items:center;padding:14px 16px"></div>
       <div class="tw"><table>
-        <thead><tr><th>Hạng mục</th><th style="text-align:right">Xin</th><th style="text-align:right">Thực tế</th><th style="text-align:right">Chênh lệch</th><th style="text-align:right">% thực tế</th></tr></thead>
+        <thead><tr><th id="tqHMCot">Đầu mục</th><th style="text-align:right">Xin</th><th style="text-align:right">Thực tế</th><th style="text-align:right">Chênh lệch</th><th style="text-align:right">% thực tế</th></tr></thead>
         <tbody id="tqHMBody"></tbody>
         <tfoot id="tqHMFoot"></tfoot>
       </table></div>
@@ -8916,7 +8927,58 @@
     google.script.run.withSuccessHandler(_daActCb).withFailureHandler(_daActErr).reopenDuAn(DA_CUR.maDA); }
   function renameDuAnUI(){ if(!DA_CUR)return; var t=prompt('Sửa tên dự án:', DA_CUR.ten); if(t==null)return; t=String(t).trim(); if(!t)return; _daPendingLog=['Sửa tên dự án KT', DA_CUR.ten+' → '+t, '']; loading(true);
     google.script.run.withSuccessHandler(_daActCb).withFailureHandler(_daActErr).renameDuAn(DA_CUR.maDA, t); }
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+     🔴 KHỐI "CHI PHÍ THEO …" Ở TỔNG QUAN — GOM THEO ĐẦU MỤC HAY THEO LOẠI.
+     ══════════════════════════════════════════════════════════════════════════════════════════
+     Anh Thắng 22/09/2026: *"Trang tổng quan: Phân loại theo đầu mục"*.
+     ═════════════════════════════════════════════════════════════════════════════════════════ */
+  var TQ_HM_GOM='dauMuc';   /* 'dauMuc' | 'loai' */
+  var TQ_R=null;            /* dữ liệu lượt vẽ gần nhất, để đổi chế độ khỏi gọi lại máy chủ */
+  /** Đầu mục của MỘT TÊN loại chi phí (bảng tổng quan chỉ có tên, không có cả dòng danh mục). */
+  function _dauMucCuaTen(ten){
+    var k=String(ten||'').trim().toLowerCase(), d='';
+    ((typeof BOOT!=='undefined'&&BOOT&&BOOT.loaiChiPhi)||[]).forEach(function(x){
+      if(String((x&&x.ten)||'').trim().toLowerCase()===k && !d) d=String((x&&x.dauMuc)||'').trim();
+    });
+    /* ⚠️ CHƯA KHAI ĐẦU MỤC KHÔNG ĐƯỢC BIẾN MẤT — cùng luật với ô chọn lúc nhập đơn. Tiền của
+       nó là tiền thật; dồn vào ô hứng thì tổng vẫn đủ, và nhìn là biết còn gì phải khai. */
+    return d || 'Chưa xếp đầu mục';
+  }
+  /** Gom `byHangMuc` theo đầu mục. Cộng dồn xin/thực tế/chênh lệch, giữ thứ tự máy chủ đưa. */
+  function _gomTheoDauMuc(ds){
+    var theo={}, thuTu=[];
+    (ds||[]).forEach(function(x){
+      var d=_dauMucCuaTen(x.nhom);
+      if(!theo[d]){ theo[d]={nhom:d, xin:0, thucTe:0, cl:0}; thuTu.push(d); }
+      theo[d].xin    += Number(x.xin)||0;
+      theo[d].thucTe += Number(x.thucTe)||0;
+      theo[d].cl     += Number(x.cl)||0;
+    });
+    /* Xếp theo thứ tự đầu mục máy chủ khai, ô hứng chót bảng — cùng nếp `_optsHtml()`. */
+    var thu=((typeof BOOT!=='undefined'&&BOOT&&BOOT.dauMucDs)||[]), xep=[];
+    thu.forEach(function(d){ if(theo[d]) xep.push(theo[d]); });
+    thuTu.forEach(function(d){ if(d!=='Chưa xếp đầu mục' && xep.indexOf(theo[d])<0) xep.push(theo[d]); });
+    if(theo['Chưa xếp đầu mục']) xep.push(theo['Chưa xếp đầu mục']);
+    return xep;
+  }
+  /** Dãy dòng cho khối này, theo chế độ đang chọn. */
+  function _tqHMDs(r){
+    var ds=(r&&r.byHangMuc)||[];
+    return (TQ_HM_GOM==='dauMuc') ? _gomTheoDauMuc(ds) : ds;
+  }
+  function tqHMDoi(che){
+    TQ_HM_GOM=(che==='loai')?'loai':'dauMuc';
+    var dm=(TQ_HM_GOM==='dauMuc');
+    if(el('tqHMNutDm'))  el('tqHMNutDm').className  = 'btn '+(dm?'b-p':'b-x');
+    if(el('tqHMNutLoai'))el('tqHMNutLoai').className= 'btn '+(dm?'b-x':'b-p');
+    if(el('tqHMNhan'))   el('tqHMNhan').textContent = dm?'đầu mục':'loại chi phí';
+    if(el('tqHMCot'))    el('tqHMCot').textContent  = dm?'Đầu mục':'Loại chi phí';
+    /* Vẽ lại từ dữ liệu ĐÃ CÓ — đổi cách nhìn không phải là đổi dữ liệu, nên đừng gọi lại
+       máy chủ: một vòng chờ cho một việc thuần trình bày. */
+    if(TQ_R) renderTQView(TQ_R);
+  }
   function renderTQView(r){
+    TQ_R=r;
     var t=r.totals||{};
     var clc = (t.cl>=0) ? {bg:'#dcfce7',bd:'#86efac',fg:'#166534',lb:'▲ CÒN DƯ (xin > thực tế)'}
                         : {bg:'#fee2e2',bd:'#fecaca',fg:'#b91c1c',lb:'▼ CHI VƯỢT (thực tế > xin)'};
@@ -8935,7 +8997,9 @@
       _tqCard(clc.bg,clc.bd,clc.fg, clc.lb, money(Math.abs(t.cl||0))+'đ', 'Chênh lệch = xin − thực tế');
     // BIỂU ĐỒ TRÒN tỉ trọng chi phí THỰC TẾ theo hạng mục (conic-gradient, không cần thư viện ngoài)
     var PIE=['#6366f1','#f59e0b','#10b981','#ef4444','#3b82f6','#a855f7','#ec4899','#14b8a6','#f97316','#84cc16','#eab308','#64748b'];
-    var pit=(r.byHangMuc||[]).filter(function(x){ return (Number(x.thucTe)||0)>0; }), tt=Number(t.thucTe)||0;
+    /* 🔴 BIỂU ĐỒ TRÒN ĐI THEO CÙNG CHẾ ĐỘ VỚI BẢNG. Để nó bám `byHangMuc` thô là vòng tròn
+       nói một chuyện, bảng ngay dưới nói chuyện khác — và người đọc tin cái nào cũng sai. */
+    var pit=_tqHMDs(r).filter(function(x){ return (Number(x.thucTe)||0)>0; }), tt=Number(t.thucTe)||0;
     if(pit.length>9){ var head=pit.slice(0,9), rest=pit.slice(9), rs=rest.reduce(function(a,x){return a+(Number(x.thucTe)||0);},0);
       pit=head.concat([{nhom:'Khác ('+rest.length+' mục)', thucTe:rs}]); }
     if(!pit.length || tt<=0){ el('tqHMChart').innerHTML='<span style="color:#8c8781;font-size:13px">Chưa có dữ liệu để vẽ biểu đồ.</span>'; }
@@ -8950,8 +9014,9 @@
         '<div style="flex:1;min-width:260px">'+leg+'</div>';
     }
     // theo hạng mục (kèm thanh tỉ lệ thực tế)
-    var maxTt=0; (r.byHangMuc||[]).forEach(function(x){ if(x.thucTe>maxTt)maxTt=x.thucTe; });
-    el('tqHMBody').innerHTML=(r.byHangMuc||[]).map(function(x){
+    var hmDs=_tqHMDs(r);
+    var maxTt=0; hmDs.forEach(function(x){ if(x.thucTe>maxTt)maxTt=x.thucTe; });
+    el('tqHMBody').innerHTML=hmDs.map(function(x){
       var pct=(t.thucTe>0)?Math.round(x.thucTe*100/t.thucTe):0, barW=(maxTt>0)?Math.round(x.thucTe*100/maxTt):0;
       var c=x.cl>=0?'#15803d':'#b91c1c';
       return '<tr><td>'+esc(x.nhom)+'</td><td class="money">'+money(x.xin)+'</td>'+
