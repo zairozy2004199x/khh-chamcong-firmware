@@ -221,7 +221,11 @@ t('không xóa dữ liệu sổ chi phí', /id="page-sochi"/.test(HTML));
 
 // ---------------------------------------------------------------- 8. số lượng bắt buộc
 t('ô Số lượng đánh dấu bắt buộc', /<label>Số lượng \*<\/label>/.test(HTML));
-t('giao diện chặn khi thiếu số lượng', /Nhập SỐ LƯỢNG \(lớn hơn 0\)/.test(HTML));
+/* ⚠️ ĐỪNG GHIM NGUYÊN VĂN CÂU BÁO. Bản 1.269.0 đổi lời cho rõ hơn ("Chưa nhập SỐ LƯỢNG (phải
+   lớn hơn 0)…") và phép cũ đỏ vì LỜI VĂN đổi, không phải vì cửa chặn mất. Canh cái cần canh:
+   còn một cửa nhắc SỐ LƯỢNG, và nó còn đòi lớn hơn 0. */
+t('giao diện chặn khi thiếu số lượng',
+  /SỐ LƯỢNG/.test(HTML) && /lớn hơn 0/.test(HTML));
 t('máy chủ chặn lại lần nữa (app trên máy nào cũng gọi được cổng)',
   /function loi_thieu_so_luong/.test(DON) && (DON.match(/loi_thieu_so_luong\( \$rec \)/g) || []).length >= 2);
 

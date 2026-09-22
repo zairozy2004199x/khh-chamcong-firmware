@@ -2147,7 +2147,10 @@ class VHCPMTD_DuAn {
 		$data['ma_da']  = (string) $ma_da;
 		$data['row_no'] = self::next_row( $ma_da );
 		$data['tao_luc'] = VHCPMTD_Util::now_sql();   // xem 🔴 ở `add_line()`
-		$wpdb->insert( VHCPMTD_DB::t( 'da_line' ), $data );
+		$ok_dl = $wpdb->insert( VHCPMTD_DB::t( 'da_line' ), $data );
+		/* 🔴 SOI KẾT QUẢ — xem `kiem-ghi-so-phai-soi-ket-qua.php`. */
+		if ( ! $ok_dl ) { $ct = trim( (string) $wpdb->last_error );
+			return VHCPMTD_Util::err( 'Không ghi được dòng dự án' . ( '' !== $ct ? ' — ' . $ct : '.' ) ); }
 		self::push_nd( $f['loai'], $data['noi_dung'] );
 		return VHCPMTD_Util::ok();
 	}
@@ -2177,7 +2180,10 @@ class VHCPMTD_DuAn {
 		      đó là mỗi lần sửa một ô lại đóng dấu lại. Đã đặt nhầm chỗ một lần lúc dựng (rơi vào
 		      `them_dong_muc_con_cu` vì mẩu neo trùng nhau ở hai hàm). */
 		$data['tao_luc'] = VHCPMTD_Util::now_sql();
-		$wpdb->insert( VHCPMTD_DB::t( 'da_line' ), $data );
+		$ok_dl = $wpdb->insert( VHCPMTD_DB::t( 'da_line' ), $data );
+		/* 🔴 SOI KẾT QUẢ — xem `kiem-ghi-so-phai-soi-ket-qua.php`. */
+		if ( ! $ok_dl ) { $ct = trim( (string) $wpdb->last_error );
+			return VHCPMTD_Util::err( 'Không ghi được dòng dự án' . ( '' !== $ct ? ' — ' . $ct : '.' ) ); }
 		self::push_nd( $f['loai'], $data['noi_dung'] );
 		return VHCPMTD_Util::ok();
 	}

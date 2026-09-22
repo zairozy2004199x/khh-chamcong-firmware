@@ -489,9 +489,24 @@
       </div>
     </div>
 
-    <!-- NHẬP HẠNG MỤC (Nháp = hạng mục xin · Đã cấp tạm ứng = phát sinh) -->
-    <div class="card" id="lineFormCard">
-      <div class="ch"><h2 id="lineFormTitle">1) Nhập hạng mục xin tạm ứng</h2><span id="editHint" style="font-size:11px;color:#0369a1"></span></div>
+    <!-- ══════════════════════════════════════════════════════════════════════════════════════
+         🔴 FORM NHẬP LÀ HỘP NỔI — anh Thắng 22/09/2026: *"tạo form nhập liệu rời mà, bấm Thêm
+         hạng mục là nó nổi lên form nhập liệu"*.
+
+         Trước đây form nằm THƯỜNG TRỰC giữa trang, chiếm gần nửa màn kể cả khi người ta chỉ
+         muốn đọc lại mấy dòng đã nhập — mà đọc lại là việc làm nhiều hơn hẳn việc nhập. Bảng
+         dòng chi bị đẩy xuống dưới nếp gấp, nên mỗi lần soát một đơn là một lần cuộn.
+
+         ⚠️ THEO ĐÚNG NẾP `#pinModal` ĐÃ CÓ: `position:fixed;inset:0` + nền mờ + `display`
+            none/flex. Dựng một kiểu hộp nổi thứ hai là hai lối đóng/mở, hai cách bấm ra ngoài,
+            và người dùng phải học hai lần.
+         ⚠️ KHÔNG ĐỔI MỘT CÁI `id` NÀO bên trong. Cả chục hàm trỏ thẳng vào `f_nd`, `f_sl`,
+            `btnAdd`… — đổi id là phải sửa hết, mà sót một chỗ thì nó chỉ lặng lẽ thôi chạy.
+         ══════════════════════════════════════════════════════════════════════════════════════ -->
+    <div id="lineModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.4);z-index:1950;align-items:flex-start;justify-content:center;overflow:auto;padding:24px 12px">
+    <div class="card" id="lineFormCard" style="max-width:1180px;width:100%;margin:0">
+      <div class="ch"><h2 id="lineFormTitle">1) Nhập hạng mục xin tạm ứng</h2><span id="editHint" style="font-size:11px;color:#0369a1"></span>
+        <button class="btn b-x" onclick="dongLineForm()" title="Đóng (Esc)" style="margin-left:auto;padding:2px 10px">✕</button></div>
       <div class="cb">
         <input type="hidden" id="lineId">
         <!-- ══════════════════════════════════════════════════════════════════════════════════
@@ -551,13 +566,21 @@
         <div style="margin-top:12px;display:flex;gap:8px">
           <button class="btn b-g" id="btnAdd" onclick="saveLine()">＋ Thêm dòng</button>
           <button class="btn b-x hide" id="btnCancelEdit" onclick="resetLineForm()">Huỷ sửa</button>
+          <button class="btn b-x" onclick="dongLineForm()">Đóng</button>
         </div>
+        <!-- 🔴 CÂU BÁO NẰM LÌ, ngay dưới nút vừa bấm. Toast nổi ở góc màn rồi tự tắt, mà lúc
+             bấm nút này mắt người ta đang ở đây — xem chốt ở `_lyDoKhongThem()`. -->
+        <div id="lineLyDo" style="display:none;margin-top:8px;font-size:12px;color:#dc2626;font-weight:600"></div>
       </div>
+    </div>
     </div>
 
     <!-- BẢNG DÒNG CHI -->
     <div class="card">
-      <div class="ch"><h2>Các dòng đã nhập (<span id="lineCount">0</span>)</h2></div>
+      <div class="ch"><h2>Các dòng đã nhập (<span id="lineCount">0</span>)</h2>
+        <!-- Nút MỞ hộp nhập. Đặt ngay trên bảng dòng chi vì đó là chỗ người ta đang đứng khi
+             nhận ra còn thiếu một hạng mục — không bắt họ cuộn đi đâu để tìm nút. -->
+        <button class="btn b-p" id="btnMoLineForm" onclick="moLineForm()" style="margin-left:auto">＋ Thêm hạng mục</button></div>
       <div class="tw">
         <table id="lineTable">
           <thead><tr><th class="colCoso">Cơ sở</th><th>Ngày</th><th title="Lúc dòng này được nhập vào — máy ghi, không ai gõ được">Ngày nhập</th><th>Nội dung</th><th title="Loại chi phí quyết định mã tài khoản (TK Nợ). Kế toán gắn lại được nếu chọn sai.">Loại chi phí</th><th>ĐVT</th><th style="text-align:right">SL</th><th style="text-align:right">Đơn giá</th><th style="text-align:right">Thành tiền</th><th style="text-align:right" title="Số thực trả — để trống = bằng Thành tiền; nhập nếu khác (vd kèm ship/phụ phí)">Thực chi</th><th style="text-align:right">Thuế</th><th>TT</th><th style="text-align:center" title="Tích = kế toán cá nhân xử lý; bỏ tích = chuyển kế toán NCC">Cá nhân</th><th>Ảnh</th><th style="text-align:center">Sửa</th></tr></thead>
@@ -2559,7 +2582,14 @@
   function _glVaiDs(){
     var ra=[];
     VAI_GOC.forEach(function(v){ if(ra.indexOf(v)<0) ra.push(v); });
-    ((CFG.vaiTro)||[]).forEach(function(x){
+    /* 🔴 `CFG` KHỞI ĐẦU LÀ `null`, KHÔNG PHẢI `{}` — xem `var CFG=null` ở khối Cấu hình.
+       `glVeBar()` chạy từ `applyPerms()`, tức NGAY SAU KHI ĐĂNG NHẬP và trước khi ai bấm vào
+       tab Cấu hình. Đọc thẳng `CFG.vaiTro` lúc ấy là ném TypeError, `glVeBar()` chết giữa
+       chừng, và `sel.innerHTML` chưa kịp đặt -> Ô CHỌN VAI RỖNG TRƠN. Đúng cái anh Thắng
+       chụp lại: bấm vào ô thì xổ ra một danh sách trắng.
+       ⚠️ Lỗi này KHÔNG kêu tiếng nào trên màn — nó chỉ nằm ở bảng điều khiển trình duyệt, nơi
+          không ai mở. Thứ duy nhất nhìn thấy là một cái ô rỗng. */
+    (((typeof CFG!=='undefined' && CFG) ? CFG.vaiTro : null)||[]).forEach(function(x){
       var t=String((x&&x.ten)||'').trim();
       if(t && t!=='Admin' && ra.indexOf(t)<0) ra.push(t);
     });
@@ -4005,7 +4035,14 @@
          Cửa hàng không xin thì để trống = 0. Ai cần ứng trước thì nhập số cho từng cơ sở ở đây.
          Chỉ cho nhập khi đơn còn "Nháp" (máy chủ cũng khóa sau đó). */
       if(el('tuEntryRow'))  el('tuEntryRow').style.display  = CUR.stNhap?'flex':'none';   // nhập tạm ứng tay khi Nháp
-      if(el('lineFormCard'))el('lineFormCard').style.display= CUR.stChot?'none':'';   // chưa chốt sổ thì còn nhập được
+      /* 🔴 ĐƠN ĐÃ CHỐT SỔ -> GIẤU NÚT MỞ, KHÔNG PHẢI GIẤU CÁI CARD.
+         Từ 1.268.0 form nằm trong hộp nổi (`#lineModal`), mà hộp ấy vốn đã `display:none`.
+         Giấu card bên trong nó là giấu một thứ đang ẩn sẵn — tức KHÔNG NGĂN ĐƯỢC GÌ: nút
+         "＋ Thêm hạng mục" vẫn sáng và vẫn mở được form trên một đơn đã chốt.
+         Lỗ này do chính lượt dời form vào hộp nổi mở ra, và nó không kêu tiếng nào: màn
+         trông y hệt bản cũ, chỉ khác là cái cửa đã mở sẵn. */
+      if(el('btnMoLineForm'))el('btnMoLineForm').style.display= CUR.stChot?'none':'';
+      if(CUR.stChot) dongLineForm();   /* đang mở dở mà đơn vừa chốt thì đóng lại luôn */
       /* Tên khối nhập phải nói ĐÚNG thứ sắp thêm vào: ở "Nháp" là hạng mục xin (nằm trong số
          tạm ứng xin), gửi duyệt rồi thì mọi dòng thêm sau đó là PHÁT SINH — mua thêm ngoài dự
          kiến. Máy chủ tự phân loại theo trạng thái, nên nhãn phải khớp, kẻo người ta tưởng mình
@@ -4527,28 +4564,92 @@
   function tienVao(o){ o.value=_tienSo(o.value); try{ o.select(); }catch(e){} }
   function tienRa(o){ o.value=_tienDep(o.value); }
   function _dmy(v){ var p=String(v).split('-'); return p.length===3?(p[2]+'/'+p[1]+'/'+p[0]):v; }
+  /**
+   * Báo vì sao KHÔNG thêm được dòng — ngay cạnh cái nút vừa bấm.
+   *
+   * 🔴 Anh Thắng 22/09/2026: *"Bấm đã thêm dòng nhưng không thấy gì"*. Mọi cửa chặn trong
+   *    `saveLine()` đều có `toast()`, nhưng toast nổi ở góc màn rồi tự tắt — mà lúc bấm nút
+   *    này người ta đang cuộn ở CUỐI form, mắt ở chỗ khác hẳn. Câu báo đi qua mà không ai đọc,
+   *    và cảm giác còn lại đúng là "bấm không thấy gì".
+   *
+   * ⚠️ Nên báo ở HAI NƠI: toast như cũ, CỘNG một dòng chữ đỏ nằm lì ngay dưới nút cho tới khi
+   *    bấm lại. Và tô đỏ đúng cái ô còn thiếu, kẻo biết là thiếu mà không biết thiếu ở đâu.
+   */
+  function _lyDoKhongThem(chu, oId){
+    var box=el('lineLyDo');
+    if(box){ box.textContent=chu||''; box.style.display=chu?'':'none'; }
+    ['f_coso','f_nhom','f_nd','f_sl'].forEach(function(i){
+      var o=el(i); if(o) o.style.borderColor='';
+    });
+    if(oId){ var o=el(oId); if(o){ o.style.borderColor='#dc2626'; try{ o.focus(); }catch(e){} } }
+    if(chu) toast('warn', chu);
+  }
   function saveLine(){
+    /* 🔴 KHÔNG BAO GIỜ CHẾT IM LẶNG. Một lỗi ném ra giữa chừng (ô mất, dữ liệu lạ, hàm đổi
+       tên) làm hàm dừng ngay tại đó: không dòng nào được thêm, không câu nào được nói, và
+       người bấm chỉ thấy nút nhấp một cái rồi thôi. Bọc lại để lỗi nào cũng thành một câu
+       đọc được — thà báo "lỗi: ..." còn hơn để người ta đoán. */
+    try { _saveLine(); }
+    catch(e){ _lyDoKhongThem('Không thêm được dòng — lỗi: '+((e&&e.message)||e)); }
+  }
+  function _saveLine(){
     if(_guardChi())return;
     var r=collectLine();
-    if(!r.coso){toast('warn','Chọn cơ sở');return;}
-    if(!r.nhom){toast('warn','Chọn nhóm mặt hàng');return;}
-    if(!r.noiDung){toast('warn','Nhập nội dung');return;}
+    if(!r.coso){_lyDoKhongThem('Chưa chọn CƠ SỞ cho hạng mục này','f_coso');return;}
+    if(!r.nhom){_lyDoKhongThem('Chưa chọn LOẠI CHI PHÍ','f_nhom');return;}
+    if(!r.noiDung){_lyDoKhongThem('Chưa nhập NỘI DUNG','f_nd');return;}
     // SỐ LƯỢNG LÀ BẮT BUỘC.
     // Thành tiền = số lượng × đơn giá. Bỏ trống số lượng thì dòng có đơn giá 81.000 vẫn ra
     // THÀNH TIỀN 0 — tạm ứng xin thiếu đúng bằng số đó, mà nhìn bảng không thấy sai ở đâu.
     if(String(r.soLuong||'').trim()===''||!(Number(r.soLuong)>0)){
-      toast('warn','Nhập SỐ LƯỢNG (lớn hơn 0) — thiếu số lượng thì thành tiền ra 0');
-      if(el('f_sl')){ el('f_sl').focus(); el('f_sl').style.borderColor='#dc2626'; }
+      _lyDoKhongThem('Chưa nhập SỐ LƯỢNG (phải lớn hơn 0) — thiếu số lượng thì thành tiền ra 0','f_sl');
       return;
     }
-    if(el('f_sl')) el('f_sl').style.borderColor='';
+    _lyDoKhongThem('');   /* qua hết cửa rồi thì xoá câu báo cũ đi */
     var id=el('lineId').value;
     loading(true);
-    var cb=function(res){loading(false); if(res.success){_log(id?'Sửa dòng':'Thêm dòng', CUR.don.maDon, (r.noiDung||'')+' · '+money(r.thanhTien||0)+'đ'); toast('ok',id?'Đã cập nhật':'Đã thêm dòng'); openDon(CUR.don.maDon);} else toast('err',res.error);};
+    /* 🔴 ĐÓNG HỘP CHỈ KHI MÁY CHỦ NHẬN. Đóng ngay lúc bấm là dòng gõ dở biến mất trước khi
+       biết có lưu được không — máy chủ chối (mất mạng, đơn đã khoá) thì người ta còn đúng một
+       câu toast đỏ và không còn gì để bấm lại. Hỏng thì hộp phải ở nguyên đó, giữ nguyên chữ. */
+    var cb=function(res){loading(false); if(res.success){_log(id?'Sửa dòng':'Thêm dòng', CUR.don.maDon, (r.noiDung||'')+' · '+money(r.thanhTien||0)+'đ'); toast('ok',id?'Đã cập nhật':'Đã thêm dòng'); dongLineForm(); openDon(CUR.don.maDon);} else toast('err',res.error);};
     var fb=function(e){loading(false);toast('err',e.message);};
     if(id) google.script.run.withSuccessHandler(cb).withFailureHandler(fb).updateLine(id,r);
     else   google.script.run.withSuccessHandler(cb).withFailureHandler(fb).addLine(CUR.don.maDon,r);
   }
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+     🔴 MỞ / ĐÓNG HỘP NHẬP HẠNG MỤC — xem chốt dài ở khối `id="lineModal"`.
+     ═════════════════════════════════════════════════════════════════════════════════════════ */
+  function moLineForm(){
+    /* 🔴 GÁC LỚP THỨ HAI. Giấu nút là một lớp; gọi thẳng `moLineForm()` từ thanh địa chỉ vẫn
+       qua được — cùng luật với `addCfgLoai()` và `doiKhoi()`. Máy chủ còn một lớp nữa ở
+       `_guardChi()` lúc lưu, nhưng để người ta gõ xong cả form rồi mới chối là phí công họ. */
+    if(CUR && CUR.stChot){ toast('warn','Đơn đã chốt sổ — không nhập thêm hạng mục được'); return; }
+    var m=el('lineModal'); if(!m) return;
+    m.style.display='flex';
+    /* Cuộn về đầu hộp: mở lần thứ hai mà hộp còn nhớ chỗ cuộn cũ là người ta thấy khúc giữa
+       form, tưởng đang sửa dở một dòng nào đó. */
+    m.scrollTop=0;
+    var o=el('f_nd'); if(o) setTimeout(function(){ o.focus(); }, 60);
+  }
+  function dongLineForm(){
+    var m=el('lineModal'); if(!m) return;
+    m.style.display='none';
+    /* 🔴 ĐÓNG LÀ BỎ LUÔN LƯỢT SỬA ĐANG DỞ. Không gọi `resetLineForm()` thì lần mở sau hộp còn
+       mang `lineId` của dòng cũ — bấm "Lưu" một cái là GHI ĐÈ lên dòng ấy trong khi người ta
+       tưởng mình vừa thêm một dòng mới. Mất dữ liệu, và không một câu báo nào. */
+    if(el('lineId') && el('lineId').value) resetLineForm();
+  }
+  /* Bấm ra NỀN MỜ thì đóng — nhưng chỉ khi bấm đúng cái nền, không phải bấm vào hộp rồi thả
+     tay ra ngoài. `e.target===m` lọc đúng chuyện đó. */
+  document.addEventListener('click', function(e){
+    var m=el('lineModal');
+    if(m && m.style.display==='flex' && e.target===m) dongLineForm();
+  });
+  document.addEventListener('keydown', function(e){
+    if(e.key!=='Escape') return;
+    var m=el('lineModal');
+    if(m && m.style.display==='flex') dongLineForm();
+  });
   function resetLineForm(){
     ['lineId','f_dt','f_nd','f_dvt','f_sl','f_dg','f_tt','f_thue','f_gc','f_anh'].forEach(function(i){el(i).value='';});
     var _t=new Date(); el('f_ngay').value=_t.getFullYear()+'-'+('0'+(_t.getMonth()+1)).slice(-2)+'-'+('0'+_t.getDate()).slice(-2);   // mặc định ngày nhập (hôm nay), sửa được
@@ -4582,6 +4683,7 @@
     GIAI_DOAN=String(l.giaiDoan||''); veGiaiDoan();
     if(l.ngay){var p=String(l.ngay).split('/'); if(p.length===3)el('f_ngay').value=p[2]+'-'+p[1]+'-'+p[0];}
     _veNgayVi();
+    moLineForm();   /* sửa một dòng cũng mở hộp — không thì bấm ✏️ xong màn không đổi gì */
     el('lineFormTitle').textContent='✏️ Sửa dòng chi'; el('editHint').textContent='Đang sửa 1 dòng';
     el('btnAdd').textContent='💾 Lưu thay đổi'; el('btnCancelEdit').classList.remove('hide');
     window.scrollTo(0,0);
@@ -13261,7 +13363,9 @@
   // ---- Người dùng & phân quyền ----
   var VAI_GOC=['Quản lý','Kế toán cá nhân','Kế toán NCC','Nhân viên'];
   function _vaiGocCua(ten){
-    var g=''; ((CFG.vaiTro)||[]).forEach(function(x){ if(x.ten===ten) g=x.goc; });
+    /* Cùng lý do như `_glVaiDs()`: `glDoi()` gọi hàm này lúc người ta bấm chọn vai, mà lúc ấy
+       có thể CHƯA ai vào tab Cấu hình nên `CFG` vẫn là `null`. */
+    var g=''; (((typeof CFG!=='undefined' && CFG) ? CFG.vaiTro : null)||[]).forEach(function(x){ if(x.ten===ten) g=x.goc; });
     return g;
   }
   /* Ô chọn vai trò: Admin + bốn vai gốc + MỌI VAI TỰ TẠO.

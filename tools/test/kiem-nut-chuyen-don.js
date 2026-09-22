@@ -211,6 +211,63 @@ BAN.forEach(function (b) {
 });
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 2b. 🔴 CHẠY THẬT `_glVaiDs()` VỚI `CFG = null` — Ô CHỌN VAI TỪNG RỖNG TRƠN
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 22/09/2026 gửi ảnh dải vừa dựng: ô chọn vai XỔ RA MỘT DANH SÁCH TRẮNG.
+ *
+ * Nguyên nhân: `var CFG = null` (không phải `{}`), mà `glVeBar()` chạy từ `applyPerms()` — tức
+ * NGAY SAU KHI ĐĂNG NHẬP, trước khi ai bấm vào tab Cấu hình. Đọc thẳng `CFG.vaiTro` lúc ấy ném
+ * TypeError, `glVeBar()` chết giữa chừng, `sel.innerHTML` chưa kịp đặt.
+ *
+ * 🔴 VÀ LỖI NÀY KHÔNG KÊU TIẾNG NÀO trên màn — nó chỉ nằm ở bảng điều khiển trình duyệt, nơi
+ *    không ai mở. Thứ duy nhất nhìn thấy là một cái ô rỗng, mà ô rỗng thì trông như "chưa khai
+ *    vai nào" chứ không như một lỗi.
+ *
+ * ⚠️ PHẢI CHẠY, KHÔNG ĐƯỢC ĐỌC CHỮ. Mọi phép soi chuỗi ở mục 2 đều XANH suốt lượt hỏng ấy: hàm
+ *    vẫn nằm đó, dải vẫn nằm đó, chữ vẫn đủ. Chỉ khi GỌI NÓ với `CFG = null` mới thấy.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+(function () {
+  const vm = require('vm');
+  const h = fs.readFileSync('wordpress/vhcp-chi-phi/templates/app.html', 'utf8');
+  function bocHam(ten) {
+    const i = h.indexOf('function ' + ten + '(');
+    if (i < 0) return '';
+    let j = h.indexOf('{', i), d = 0;
+    for (let k = j; k < h.length; k++) {
+      if (h[k] === '{') d++;
+      else if (h[k] === '}') { d--; if (!d) return h.slice(i, k + 1); }
+    }
+    return '';
+  }
+  const VG = ['Quản lý', 'Kế toán cá nhân', 'Kế toán NCC', 'Nhân viên'];
+
+  /* (a) 🔴 ĐÚNG NGUYÊN TRẠNG ANH THẮNG GẶP: vừa đăng nhập xong, chưa ai mở Cấu hình. */
+  const c1 = { CFG: null, VAI_GOC: VG };
+  vm.createContext(c1);
+  let noC1 = '';
+  try { vm.runInContext(bocHam('_glVaiDs'), c1); c1.__ra = c1._glVaiDs(); }
+  catch (e) { noC1 = String(e && e.message); }
+  t('🔴 `CFG` chưa nạp mà gọi `_glVaiDs()` thì KHÔNG được ném lỗi', noC1 === '', noC1);
+  t('🔴 và vẫn trả về đủ bốn vai gốc — ô chọn rỗng trông như "chưa khai vai nào", không như lỗi',
+    Array.isArray(c1.__ra) && c1.__ra.length === 4, c1.__ra);
+
+  /* (b) Nạp xong thì vai TỰ TẠO phải có mặt thêm — không thì dải chỉ đội được vai gốc. */
+  /* ⚠️ DỮ LIỆU THỬ PHẢI CÓ CA TRÙNG TÊN. Bản nháp của bài này chỉ có vai tự tạo tên lạ, nên
+     gỡ hẳn phép dọn trùng mà bài vẫn xanh — xanh vì dữ liệu dễ, không phải vì mã đúng. Sổ thật
+     có đúng ca ấy: kế toán tạo một vai tên "Quản lý" y hệt vai gốc, và ô chọn bày nó hai lần. */
+  const c2 = { CFG: { vaiTro: [{ ten: 'Kế Toán KVC', goc: 'Kế toán cá nhân' },
+                               { ten: 'Quản lý', goc: 'Quản lý' },
+                               { ten: 'Admin', goc: '' }] }, VAI_GOC: VG };
+  vm.createContext(c2);
+  vm.runInContext(bocHam('_glVaiDs'), c2);
+  const ra2 = c2._glVaiDs();
+  t('🔴 nạp xong thì vai TỰ TẠO cũng đội được', ra2.indexOf('Kế Toán KVC') >= 0, ra2);
+  t('🔴 nhưng KHÔNG bày "Admin" — đội lốt chính mình là một lựa chọn vô nghĩa',
+    ra2.indexOf('Admin') < 0, ra2);
+  t('   và không có tên nào trùng', ra2.length === new Set(ra2).size, ra2);
+})();
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
  * 3. DỰNG LẠI, NHƯNG ĐỪNG ĐỤNG HAI THỨ BÊN CẠNH
  * ══════════════════════════════════════════════════════════════════════════════════════════════
  * 🔴 `boot()` gọi `_applyTabPerms()` — mất là tab khoá cứng sau khi đăng nhập.

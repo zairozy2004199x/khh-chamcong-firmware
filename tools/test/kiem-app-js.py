@@ -352,8 +352,11 @@ la('🔴 `_daChot` khai đúng ba trạng thái đã chốt',
    re.search(r"var TT_CHOT=\[(.*?)\];", src) is not None
    and set(re.findall(r"'([^']+)'", re.search(r"var TT_CHOT=\[(.*?)\];", src).group(1)))
        == {'Đã quyết toán', 'Đã thanh toán', 'Đã xuất MISA'})
+# 🔴 TỪ 1.268.0 FORM NHẬP LÀ HỘP NỔI, nên cái được giấu KHÔNG còn là `lineFormCard` (nó nằm
+# trong một hộp vốn đã `display:none` — giấu nó là giấu thứ đang ẩn sẵn) mà là NÚT MỞ hộp.
+# Canh đúng ý định: đơn đã chốt thì không còn đường vào form.
 la('form nhập dòng mở ở mọi trạng thái chưa chốt',
-   "el('lineFormCard').style.display= CUR.stChot?'none':''" in src)
+   "el('btnMoLineForm').style.display= CUR.stChot?'none':''" in src)
 la('bỏ luật cũ "chỉ Nháp hoặc Đã cấp mới sửa dòng"',
    'CUR.lockChi=!(CUR.stNhap||CUR.stCap)' not in src)
 # Nhãn khối nhập phải đổi theo trạng thái — thêm dòng sau khi gửi duyệt là PHÁT SINH.

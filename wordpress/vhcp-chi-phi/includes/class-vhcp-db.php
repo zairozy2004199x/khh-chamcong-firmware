@@ -22,7 +22,20 @@ class VHCP_DB {
 	/* 1.10.0: thêm cột `ngay_gui_qt` — mốc NHÂN VIÊN BẤM GỬI quyết toán. Khác hẳn `ngay_qt`
 	   (mốc KẾ TOÁN xác nhận), và trước bản này không có gì ghi lại lượt gửi, nên bảng "Chờ
 	   quyết toán" không xếp được theo "ai gửi trước xử trước". */
-	const SCHEMA_VERSION = '1.13.0';   // 1.9.0: bảng lenh_tu · 1.10.0: don.ngay_gui_qt · 1.11.0: da_line.tao_luc · 1.12.0: cột `mang` · 1.13.0: đổi tên `mang` → `khoi`
+	/* ══════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 ĐỔI SƠ ĐỒ BẢNG THÌ PHẢI NÂNG SỐ NÀY. KHÔNG NÂNG LÀ MẤT DỮ LIỆU, IM LẶNG.
+	 * ══════════════════════════════════════════════════════════════════════════════════════
+	 * Cắn thật 22/09/2026 — anh Thắng: *"có thấy báo thêm hạng mục, nhưng không thấy gì"*.
+	 * Bản 1.266.0 thêm cột `chiphi.giai_doan` mà quên nâng số này. `vhcp_maybe_upgrade()` chỉ
+	 * gọi `install()` khi số này KHÁC `vhcp_db_version` đang lưu — nên `dbDelta()` không chạy,
+	 * cột không hề được tạo trong CSDL thật, và MySQL chối MỌI câu `INSERT` vào bảng ấy vì
+	 * "Unknown column". Người nhập gõ cả buổi, màn báo "Đã thêm dòng" mỗi lần, và sổ vẫn trống.
+	 *
+	 * ⚠️ MỘT CỘT MỚI KHÔNG BAO GIỜ LÀ "SỬA NHỎ". Nó chia đôi thế giới: mã mới, CSDL cũ. Đó là
+	 *    lúc duy nhất số này có việc để làm.
+	 * ⚠️ `kiem-so-do-bang.php` canh: đổi sơ đồ mà số này y nguyên là ĐỎ.
+	 * ══════════════════════════════════════════════════════════════════════════════════════ */
+	const SCHEMA_VERSION = '1.14.0';   // 1.9.0: bảng lenh_tu · 1.10.0: don.ngay_gui_qt · 1.11.0: da_line.tao_luc · 1.12.0: cột `mang` · 1.13.0: đổi tên `mang` → `khoi` · 1.14.0: chiphi.giai_doan
 	const DATA_ROW       = 5;   // DA_DATA_ROW / BP_DATA_ROW của app cũ
 
 	/* ══════════════════════════════════════════════════════════════════════════════════════════

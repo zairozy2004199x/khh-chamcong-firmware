@@ -2042,7 +2042,30 @@ class VHCP_Don {
 		$rec['phatSinh'] = $ps;
 		$id   = VHCP_Util::uid( 'L' );
 		$data = self::line_data( $id, $ma_don, $rec );
-		$wpdb->insert( VHCP_DB::t( 'chiphi' ), $data );
+		/* ══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 KHÔNG BÁO "ĐÃ THÊM DÒNG" KHI CHƯA CHẮC ĐÃ GHI ĐƯỢC.
+		 * ══════════════════════════════════════════════════════════════════════════════════
+		 * Cắn thật 22/09/2026 — anh Thắng: *"có thấy báo thêm hạng mục, nhưng không thấy gì"*.
+		 * Bản trước gọi `insert()` rồi đi tiếp KHÔNG HỀ SOI KẾT QUẢ, nên một lượt ghi hỏng vẫn
+		 * ra màn xanh: toast "Đã thêm dòng", bảng vẫn 0 dòng, và không một câu nào nói vì sao.
+		 *
+		 * Lượt ghi hỏng ấy có thật và dễ xảy ra: mỗi lần sơ đồ bảng thêm một cột (`giai_doan`
+		 * ở 1.266.0 chẳng hạn) mà lượt nâng cấp CSDL chưa chạy trên site, MySQL chối cả câu
+		 * `INSERT` vì "Unknown column". Không soi thì người nhập gõ cả buổi mà chẳng có dòng
+		 * nào vào sổ.
+		 *
+		 * ⚠️ ĐÂY LÀ ĐÚNG BỆNH ĐÃ CẮN NGÀY 09/09/2026 Ở `create_don()`, và đã vá ở đó. Vá một
+		 *    chỗ mà không đi soi mấy chỗ còn lại thì nó quay lại bằng một cửa khác — lần này
+		 *    mất mười ba ngày. Xem `kiem-ghi-so-phai-soi-ket-qua.php`.
+		 *
+		 * Câu lỗi mang theo lời của MySQL: hỏng nữa thì nó nói thẳng hỏng ở đâu.
+		 * ══════════════════════════════════════════════════════════════════════════════════ */
+		$ok = $wpdb->insert( VHCP_DB::t( 'chiphi' ), $data );
+		if ( ! $ok ) {
+			$chi_tiet = trim( (string) $wpdb->last_error );
+			return VHCP_Util::err( 'Không ghi được dòng chi vào sổ'
+				. ( '' !== $chi_tiet ? ' — ' . $chi_tiet : '.' ) );
+		}
 		self::ghi_vet( $ma_don, ( $ps ? 'Thêm dòng phát sinh' : 'Thêm hạng mục xin' ),
 			self::ta_dong( $data ) . ' · lúc đơn ở "' . $st . '"' );
 		return VHCP_Util::ok( array( 'id' => $id, 'phatSinh' => $ps ) );
@@ -2712,7 +2735,12 @@ class VHCP_Don {
 			'phatSinh'   => (int) $v['phat_sinh'],
 		);
 		$nid = VHCP_Util::uid( 'L' );
-		$wpdb->insert( VHCP_DB::t( 'chiphi' ), self::line_data( $nid, $ma_don, $rec ) );
+		/* Cùng luật với `add_line()`: ghi hỏng thì NÓI RA, đừng báo xong. */
+		$ok_nb = $wpdb->insert( VHCP_DB::t( 'chiphi' ), self::line_data( $nid, $ma_don, $rec ) );
+		if ( ! $ok_nb ) {
+			$ct = trim( (string) $wpdb->last_error );
+			return VHCP_Util::err( 'Không ghi được dòng chi vào sổ' . ( '' !== $ct ? ' — ' . $ct : '.' ) );
+		}
 		if ( $st === 'Chờ quyết toán' ) { self::mark_kt_sua( $ma_don, $actor ); }
 		return VHCP_Util::ok( array( 'id' => $nid ) );
 	}
@@ -3497,14 +3525,36 @@ class VHCP_Don {
 				$don['khoi'] = trim( (string) ( isset( $r['khoi'] ) ? $r['khoi'] : '' ) );
 				if ( '' === $don['khoi'] ) { $don['khoi'] = VHCP_DB::khoi(); }
 			}
-			$wpdb->insert( VHCP_DB::t( 'don' ), $don );
+			/* ══════════════════════════════════════════════════════════════════════════
+			 * 🔴 HOÀN TÁC XOÁ CŨNG PHẢI SOI KẾT QUẢ — và đây là chỗ đắt nhất nếu bỏ qua.
+			 * ══════════════════════════════════════════════════════════════════════════
+			 * Lượt này dựng lại MỘT ĐƠN ĐÃ XOÁ từ thùng rác. Ghi hỏng giữa chừng mà vẫn
+			 * báo xong là: đơn dựng lại thiếu dòng, `danh_dau_hoan()` đánh dấu đã hoàn, và
+			 * bản sao trong thùng rác coi như dùng xong — tức mất hẳn, không còn đường lui
+			 * lần thứ hai. Thà chối cả lượt còn hơn dựng lại một đơn cụt.
+			 * ⚠️ ĐẾM RỒI CHỐI TRƯỚC KHI `danh_dau_hoan()`, không chối sau.
+			 * ══════════════════════════════════════════════════════════════════════════ */
+			$hong = array();
+			if ( ! $wpdb->insert( VHCP_DB::t( 'don' ), $don ) ) {
+				$hong[] = 'đơn (' . trim( (string) $wpdb->last_error ) . ')';
+			}
 			$so = 0;
 			foreach ( (array) ( isset( $d['chiphi'] ) ? $d['chiphi'] : array() ) as $x ) {
-				$wpdb->insert( VHCP_DB::t( 'chiphi' ), (array) $x );
+				if ( ! $wpdb->insert( VHCP_DB::t( 'chiphi' ), (array) $x ) ) {
+					$hong[] = 'dòng chi (' . trim( (string) $wpdb->last_error ) . ')';
+					continue;
+				}
 				$so++;
 			}
 			foreach ( (array) ( isset( $d['tamung'] ) ? $d['tamung'] : array() ) as $x ) {
-				$wpdb->insert( VHCP_DB::t( 'tamung' ), (array) $x );
+				if ( ! $wpdb->insert( VHCP_DB::t( 'tamung' ), (array) $x ) ) {
+					$hong[] = 'tạm ứng (' . trim( (string) $wpdb->last_error ) . ')';
+				}
+			}
+			if ( $hong ) {
+				return VHCP_Util::err( 'Hoàn tác chưa xong — không ghi lại được: '
+					. implode( ' · ', array_unique( $hong ) )
+					. '. Bản sao trong thùng rác VẪN CÒN, thử lại được.' );
 			}
 			self::danh_dau_hoan( $id );
 			self::ghi_vet( $ma, 'Hoàn tác xoá đơn', 'Dựng lại từ thùng rác #' . $id . ' · ' . $so . ' dòng chi' );
@@ -3521,7 +3571,11 @@ class VHCP_Don {
 		if ( isset( $row['id'] ) && self::line_row( (string) $row['id'] ) ) {
 			return VHCP_Util::err( 'Dòng này đã có lại trong đơn rồi.' );
 		}
-		$wpdb->insert( VHCP_DB::t( 'chiphi' ), $row );
+		$ok_row = $wpdb->insert( VHCP_DB::t( 'chiphi' ), $row );
+		if ( ! $ok_row ) {
+			$ct = trim( (string) $wpdb->last_error );
+			return VHCP_Util::err( 'Không ghi được dòng chi vào sổ' . ( '' !== $ct ? ' — ' . $ct : '.' ) );
+		}
 		self::danh_dau_hoan( $id );
 		self::ghi_vet( $ma, 'Hoàn tác xoá dòng chi',
 			'Dựng lại từ thùng rác #' . $id . ' · ' . self::ta_dong( $row ) );
