@@ -3,7 +3,7 @@
  * Plugin Name:       Vận Hành Chi Phí (MTD)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       App Chi Phí Cơ Sở / Vận Hành Chi Phí dựng lại trên WordPress — đơn tạm ứng theo tuần, chi phí kỹ thuật, marketing, công tác/setup, quyết toán thừa/thiếu và xuất MISA. Dữ liệu nằm trong bảng MySQL riêng (không phụ thuộc Google Sheet).
- * Version:           1.283.0
+ * Version:           1.284.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -21,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
  * này còn đứng ở 1.31.0 — nghĩa là suốt từ đó tới giờ, cài đè KHÔNG chạy bước nâng cấp nào và
  * trình duyệt vẫn dùng CSS/JS cũ. Có phép thử chốt hai số bằng nhau: tools/test/kiem-phien-ban.py
  */
-define( 'VHCPMTD_VERSION', '1.283.0' );
+define( 'VHCPMTD_VERSION', '1.284.0' );
 define( 'VHCPMTD_FILE', __FILE__ );
 define( 'VHCPMTD_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHCPMTD_URL', plugin_dir_url( __FILE__ ) );
@@ -33,7 +33,10 @@ require_once VHCPMTD_DIR . 'includes/class-vhcp-cfg.php';
 require_once VHCPMTD_DIR . 'includes/class-vhcp-auth.php';
 require_once VHCPMTD_DIR . 'includes/class-vhcp-log.php';
 require_once VHCPMTD_DIR . 'includes/class-vhcp-donvi.php';
+/* Khung TRỤC PHÂN TÍCH — nạp TRƯỚC `class-vhcp-don.php` không được: bảng khai trục đọc hai
+   hằng `GIAI_DOAN_*` của lớp ấy. Nạp SAU, và chỉ đọc lúc chạy hàm nên thứ tự này là đủ. */
 require_once VHCPMTD_DIR . 'includes/class-vhcp-don.php';
+require_once VHCPMTD_DIR . 'includes/class-vhcp-truc.php';
 require_once VHCPMTD_DIR . 'includes/class-vhcp-sochi.php';
 require_once VHCPMTD_DIR . 'includes/class-vhcp-duan.php';
 require_once VHCPMTD_DIR . 'includes/class-vhcp-mk.php';

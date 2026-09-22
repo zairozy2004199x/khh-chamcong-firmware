@@ -578,8 +578,13 @@
 
                ⚠️ ĐẶT CẠNH "Loại chi phí" CHỨ KHÔNG PHẢI CUỐI FORM: nó trả lời tiếp cho đúng câu
                   mà ô bên trái vừa hỏi ("khoản này là gì"), nên hai ô phải đọc liền một mạch. -->
-          <div class="fld"><label>Giai đoạn</label>
-            <div id="f_giaiDoan"></div></div>
+          <!-- 🔴 MỘT CHỖ CHỨA MỌI TRỤC PHÂN TÍCH, không phải một ô gõ cứng cho từng trục.
+               `veTrucs()` dựng đủ ô từ `BOOT.trucDs`, nên thêm một trục ở `VHCPMTD_Truc::ds()`
+               là form tự mọc thêm ô — không phải sửa tệp này.
+               ⚠️ `display:contents` để mấy ô bên trong nằm THẲNG vào lưới của form, không bị
+                  cái thẻ bọc này gom thành một ô lưới duy nhất — không thì hai trục chen nhau
+                  trong một ô, còn lưới thì hụt một chỗ. -->
+          <div id="f_trucBox" style="display:contents"></div>
           <div class="fld"><label>Nội dung *</label><input id="f_nd" list="dl_nd" oninput="onNoiDung()" autocomplete="off" placeholder="VD: Nước bình 20L"><datalist id="dl_nd"></datalist></div>
           <div class="fld"><label>ĐVT</label><input id="f_dvt" placeholder="Cái, kg..."></div>
           <div class="fld"><label>Số lượng *</label><input id="f_sl" type="number" min="0" step="any" placeholder="Bắt buộc" oninput="calcTT()"></div>
@@ -4412,57 +4417,126 @@
     }; inp.click();
   }
   /* ══════════════════════════════════════════════════════════════════════════════════════════
-     🔴 SETUP / VẬN HÀNH — xem chốt ở cột `giai_doan` trong `VHCPMTD_DB`.
-     ═════════════════════════════════════════════════════════════════════════════════════════ */
+   * TRỤC PHÂN TÍCH — KHUNG CHUNG BÊN MÀN. Bản song sinh của `VHCPMTD_Truc` ở máy chủ.
+   * ══════════════════════════════════════════════════════════════════════════════════════════
+   * Anh Thắng 22/09/2026, sau lượt khảo mã nguồn mở: *"Em làm thử anh xem"*.
+   *
+   * Thêm một trục ở `VHCPMTD_Truc::ds()` là form tự mọc thêm ô, lượt Lưu tự mang giá trị đi, và
+   * lượt mở dòng cũ tự đổ lại — không phải sửa một dòng nào trong tệp này. Trước bản này mỗi
+   * trục là một biến riêng, một hàm vẽ riêng, một dòng trong `collectLine()` và hai dòng trong
+   * `resetLineForm()`/`editLine()`; bỏ sót chỗ nào cũng hỏng im lặng.
+   *
+   * ⚠️ ĐƯỜNG LUI PHẢI CÓ. Gói khởi động của bản CŨ không có `trucDs`; trả mảng rỗng là ô Giai
+   *    đoạn biến mất khỏi form giữa chừng với ai chưa tải lại trang. Nên dựng lại đúng trục ấy
+   *    từ ba khoá `giaiDoan*` mà bản cũ vẫn chở.
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
   /** Tên hai giá trị LẤY TỪ MÁY CHỦ, không gõ lại ở màn — gõ lại là có ngày hai bên lệch một
-      dấu, và `giai_doan_chuan()` lẳng lặng ngã mọi dòng về rỗng.
+      dấu, và `VHCPMTD_Truc::chuan()` lẳng lặng ngã mọi dòng về rỗng.
       ⚠️ Lấy ĐÍCH DANH từng khoá, không lấy theo chỗ đứng trong `giaiDoanDs`: đảo hai phần tử
          một cái là mọi dòng mới đóng dấu ngược, im lặng. */
   function _gdSetup(){ return (typeof BOOT!=="undefined"&&BOOT&&BOOT.giaiDoanSetup)||'Setup'; }
   function _gdVh(){ return (typeof BOOT!=="undefined"&&BOOT&&BOOT.giaiDoanVh)||'Vận hành'; }
+  function _trucDs(){
+    var ds=(typeof BOOT!=="undefined"&&BOOT&&BOOT.trucDs)||null;
+    if(ds&&ds.length) return ds;
+    return [{ ma:'giaiDoan', khoa:'giaiDoan', nhan:'Giai đoạn', kieu:'tich',
+              gtri:[_gdSetup(),_gdVh()], macDinh:_gdVh(), bat:_gdSetup(),
+              nhanBat:'🛠 Chi phí <b>setup ban đầu</b>',
+              phu:'Không tích = chi phí <b>vận hành</b> (mặc định)' }];
+  }
+  function _truc(ma){
+    var ds=_trucDs();
+    for(var i=0;i<ds.length;i++){ if(ds[i].ma===ma) return ds[i]; }
+    return null;
+  }
+  /* Giá trị đang khai của TỪNG trục, theo khoá. */
+  var TRUC={};
   /**
-   * ĐỌC giai đoạn của một dòng — **RỖNG NGHĨA LÀ VẬN HÀNH**.
+   * ĐỌC một giá trị của trục — **RỖNG NGHĨA LÀ GIÁ TRỊ MẶC ĐỊNH**.
    *
-   * Bản song sinh của `VHCPMTD_Don::giai_doan_doc()`. Máy chủ đã đọc sẵn trước khi gửi xuống, nên
-   * hàm này chỉ là lớp đỡ cho gói khởi động của bản CŨ (nó đưa nguyên chuỗi rỗng xuống).
+   * Bản song sinh của `VHCPMTD_Truc::doc()`. Máy chủ đã đọc sẵn trước khi gửi xuống, nên hàm này
+   * chỉ là lớp đỡ cho gói khởi động của bản CŨ.
    * 🔴 Hai bên PHẢI cùng luật: lệch một vế là dòng cũ mở ra thấy ô tích SÁNG, người ta lưu lại
    *    một cái và khoản chi vận hành hoá thành chi phí setup — không ai bấm gì cả.
    */
-  function _giaiDoanDoc(v){
-    var t=String(v==null?'':v).trim();
-    return (t.toLowerCase()===_gdSetup().toLowerCase()) ? _gdSetup() : _gdVh();
+  function _trucDoc(tr, v){
+    var t=String(v==null?'':v).trim().toLowerCase();
+    var g=(tr&&tr.gtri)||[];
+    for(var i=0;i<g.length;i++){ if(String(g[i]).toLowerCase()===t) return g[i]; }
+    return (tr&&tr.macDinh)||'';
   }
-  /* 🔴 MẶC ĐỊNH LÀ VẬN HÀNH, KHÔNG PHẢI RỖNG (22/09/2026 — anh Thắng: *"ko tích thì mặc định
-     và chi phí vận hành"*). Để rỗng làm mặc định là mỗi dòng nhập ra một nhóm thứ ba mà nghiệp
-     vụ không có, và câu gom báo cáo nào cũng phải cõng thêm một dòng "chưa xác định". */
-  var GIAI_DOAN=_gdVh();
+  /** Đặt MỌI trục về mặc định — dùng lúc dọn form cho hạng mục mới. */
+  function trucVeMacDinh(){
+    TRUC={};
+    _trucDs().forEach(function(tr){ TRUC[tr.khoa]=tr.macDinh; });
+  }
+  /** Đổ lại MỌI trục từ một dòng đã lưu. */
+  function trucTuDong(l){
+    TRUC={};
+    _trucDs().forEach(function(tr){ TRUC[tr.khoa]=_trucDoc(tr, l?l[tr.khoa]:''); });
+  }
+  /** Phần mà `collectLine()` gộp vào gói gửi lên — mọi trục, theo khoá của chúng. */
+  function trucGui(){
+    var ra={};
+    _trucDs().forEach(function(tr){
+      ra[tr.khoa]=(TRUC[tr.khoa]===undefined) ? tr.macDinh : TRUC[tr.khoa];
+    });
+    return ra;
+  }
   /**
-   * MỘT Ô TÍCH: tích = chi phí setup ban đầu · không tích = chi phí vận hành.
+   * VẼ Ô CHO MỌI TRỤC.
    *
    * ⚠️ Ô TÍCH THẬT (`<input type="checkbox">`), không phải một cái nút giả trông như ô tích.
    *    Ô tích thật thì bàn phím Tab tới được, trình đọc màn hình đọc đúng trạng thái, và trên
    *    điện thoại nó là vùng chạm mà hệ điều hành tự nới rộng.
    * ⚠️ NHÃN BỌC CẢ Ô — chạm vào chữ cũng tích được. Vùng chạm 14px là thứ không ai bấm trúng
    *    bằng ngón tay.
+   * ⚠️ `nhanBat`/`phu` in THÔ (không `esc`) vì chúng chứa thẻ <b> để nhấn chữ. Chúng là chuỗi
+   *    do CHÍNH bộ này khai trong `VHCPMTD_Truc::ds()`, không phải chữ người dùng gõ — còn `nhan`
+   *    và từng giá trị thì VẪN `esc`, vì một trục góp qua móc `vhcpmtd_truc_ds` có thể mang tên
+   *    từ nơi khác.
    */
-  function veGiaiDoan(){
-    var box=el('f_giaiDoan'); if(!box) return;
-    var on=(GIAI_DOAN===_gdSetup());
-    box.innerHTML='<label style="display:inline-flex;align-items:center;gap:7px;min-height:32px;cursor:pointer;font-size:12.5px">'
-      +'<input type="checkbox" id="f_gdSetup"'+(on?' checked':'')+' onchange="doiGiaiDoan(this.checked)" '
-      +'style="width:18px;height:18px;margin:0;cursor:pointer">'
-      +'<span>🛠 Chi phí <b>setup ban đầu</b></span></label>'
-      +'<div style="font-size:11px;color:#8c8781;margin-top:1px">Không tích = chi phí <b>vận hành</b> (mặc định)</div>';
+  function veTrucs(){
+    var box=el('f_trucBox'); if(!box) return;
+    box.innerHTML=_trucDs().map(function(tr){
+      var q=JSON.stringify(tr.ma).replace(/"/g,'&quot;');
+      var h='<div class="fld"><label>'+esc(tr.nhan)+'</label><div id="f_truc-'+esc(tr.ma)+'">';
+      if('tich'===tr.kieu){
+        var on=(TRUC[tr.khoa]===tr.bat);
+        h+='<label style="display:inline-flex;align-items:center;gap:7px;min-height:32px;cursor:pointer;font-size:12.5px">'
+          +'<input type="checkbox" data-truc="'+esc(tr.ma)+'"'+(on?' checked':'')
+          +' onchange="trucDoi('+q+',this.checked)" style="width:18px;height:18px;margin:0;cursor:pointer">'
+          +'<span>'+(tr.nhanBat||'')+'</span></label>';
+      } else {
+        h+='<select data-truc="'+esc(tr.ma)+'" onchange="trucChon('+q+',this.value)" style="width:100%">'
+          +(tr.gtri||[]).map(function(v){
+              return '<option value="'+esc(v)+'"'+(TRUC[tr.khoa]===v?' selected':'')+'>'+esc(v)+'</option>';
+            }).join('')+'</select>';
+      }
+      if(tr.phu) h+='<div style="font-size:11px;color:#8c8781;margin-top:1px">'+tr.phu+'</div>';
+      return h+'</div></div>';
+    }).join('');
   }
-  function doiGiaiDoan(on){
-    GIAI_DOAN = on ? _gdSetup() : _gdVh();
-    veGiaiDoan();
+  function trucDoi(ma, on){
+    var tr=_truc(ma); if(!tr) return;
+    TRUC[tr.khoa] = on ? tr.bat : tr.macDinh;
+    veTrucs();
+  }
+  function trucChon(ma, v){
+    var tr=_truc(ma); if(!tr) return;
+    TRUC[tr.khoa]=_trucDoc(tr, v);
+    veTrucs();
   }
   function collectLine(){
-    return { coso:el('f_coso').value, ngay:el('f_ngay').value?_dmy(el('f_ngay').value):'', phanLoaiTT:el('f_pltt').value,
+    var ra={ coso:el('f_coso').value, ngay:el('f_ngay').value?_dmy(el('f_ngay').value):'', phanLoaiTT:el('f_pltt').value,
       doiTuong:el('f_dt').value.trim(), nhom:el('f_nhom').value, noiDung:el('f_nd').value.trim(), dvt:el('f_dvt').value.trim(),
-      soLuong:el('f_sl').value, donGia:_oTien('f_dg'), thanhTien:_oTien('f_tt'), thueSuat:el('f_thue').value, ghiChu:el('f_gc').value.trim(), anh:el('f_anh').value,
-      giaiDoan:GIAI_DOAN };
+      soLuong:el('f_sl').value, donGia:_oTien('f_dg'), thanhTien:_oTien('f_tt'), thueSuat:el('f_thue').value, ghiChu:el('f_gc').value.trim(), anh:el('f_anh').value };
+    /* MỌI TRỤC PHÂN TÍCH đi kèm — gộp SAU để một trục khai nhầm khoá trùng ô nghiệp vụ lộ ra ở
+       bài kiểm, chứ không âm thầm bị ô nghiệp vụ đè mất. `kiem-truc-phan-tich.php` đòi mọi
+       `khoa` phải riêng, không trùng khoá nào của dòng chi. */
+    var g=trucGui();
+    for(var k in g){ if(Object.prototype.hasOwnProperty.call(g,k)) ra[k]=g[k]; }
+    return ra;
   }
   /**
    * Ô NHẬP TIỀN — HIỆN DẤU CHẤM NGHÌN NGAY LÚC ĐANG GÕ.
@@ -4872,9 +4946,10 @@
     el('f_pltt').value=''; renderNhomCp(); fillNhom(''); updateDoiTuongUI('');
     /* 🔴 XOÁ LUÔN LỐT CỦA DÒNG VỪA SỬA. Không xoá thì nhập tiếp một hạng mục khác là nó mang
        theo dấu "setup" của dòng trước — người ta không hề tích, và cũng không nhìn thấy mình
-       vừa khai gì, vì mắt đang ở ô Nội dung. `veGiaiDoan()` phải gọi SAU khi đặt lại biến.
-       ⚠️ VỀ **VẬN HÀNH**, không về rỗng — đó là mặc định anh Thắng chốt 22/09/2026. */
-    GIAI_DOAN=_gdVh(); veGiaiDoan();
+       vừa khai gì, vì mắt đang ở ô Nội dung. `veTrucs()` phải gọi SAU khi đặt lại biến.
+       ⚠️ VỀ **MẶC ĐỊNH CỦA TỪNG TRỤC**, không về rỗng — với Giai đoạn thì đó là "Vận hành",
+          đúng cái anh Thắng chốt 22/09/2026. */
+    trucVeMacDinh(); veTrucs();
     var _ps=(CUR&&CUR.don&&CUR.don.trangThai==='Đã cấp tạm ứng');
     el('lineFormTitle').textContent=_ps?'➕ Thêm hạng mục PHÁT SINH (mua thêm ngoài dự kiến)':'1) Nhập hạng mục xin tạm ứng'; el('editHint').textContent='';
     el('btnAdd').textContent=_ps?'＋ Thêm phát sinh':'＋ Thêm hạng mục'; el('btnCancelEdit').classList.add('hide');
@@ -4895,7 +4970,7 @@
     el('f_dt').value=l.doiTuong||''; fillNhom(l.nhom||''); updateDoiTuongUI(l.phanLoaiTT||''); el('f_nd').value=l.noiDung||'';
     el('f_dvt').value=l.dvt||''; el('f_sl').value=l.soLuong||''; _datTien('f_dg', l.donGia); _datTien('f_tt', l.thanhTien); el('f_thue').value=(l.thueSuat===''||l.thueSuat==null)?'':String(l.thueSuat);
     el('f_gc').value=l.ghiChu||''; el('f_anh').value=l.anh||''; el('imgBtn').textContent=l.anh?'✓ Đã đính ảnh':'📎 Đính ảnh';
-    GIAI_DOAN=_giaiDoanDoc(l.giaiDoan); veGiaiDoan();
+    trucTuDong(l); veTrucs();
     if(l.ngay){var p=String(l.ngay).split('/'); if(p.length===3)el('f_ngay').value=p[2]+'-'+p[1]+'-'+p[0];}
     _veNgayVi();
     moLineForm();   /* sửa một dòng cũng mở hộp — không thì bấm ✏️ xong màn không đổi gì */

@@ -40,20 +40,20 @@ function teq( $ten, $mong, $thuc ) {
 
 $BAN = array( 'vhcp-chi-phi', 'vhcp-chi-phi-hn', 'vhcp-chi-phi-mtd', 'vhcp-chi-phi-vp' );
 
-/* ── 1. CHUẨN HOÁ: chạy THẬT hàm của mã nguồn, không viết lại ─────────────────────────────── */
-$src = file_get_contents( $goc . '/wordpress/vhcp-chi-phi/includes/class-vhcp-don.php' );
-preg_match( "/const GIAI_DOAN_SETUP = '([^']*)';/u", $src, $mS );
-preg_match( "/const GIAI_DOAN_VH    = '([^']*)';/u", $src, $mV );
-preg_match( "/public static function giai_doan_chuan\( \\\$v \) \{(.*?)\n\t\}/su", $src, $m2 );
-preg_match( "/public static function giai_doan_doc\( \\\$v \) \{(.*?)\n\t\}/su", $src, $m3 );
-t( 'bốc được hai hằng và hai hàm từ mã nguồn',
-	! empty( $mS[1] ) && ! empty( $mV[1] ) && ! empty( $m2[1] ) && ! empty( $m3[1] ) );
-eval( 'class G { const GIAI_DOAN_SETUP = ' . var_export( $mS[1], true ) . ';'
-	. ' const GIAI_DOAN_VH = ' . var_export( $mV[1], true ) . ';'
-	. ' const GIAI_DOAN_DS = array( self::GIAI_DOAN_SETUP, self::GIAI_DOAN_VH );'
-	. ' public static function giai_doan_chuan( $v ) {' . $m2[1] . "\n}"
-	. ' public static function giai_doan_doc( $v ) {' . $m3[1] . "\n} }" );
+/* ── 1. CHUẨN HOÁ: chạy THẬT hàm của plugin, không bóc ra eval lại ─────────────────────────
+   🔴 ĐỔI 22/09/2026. Bản trước bóc thân hàm bằng biểu thức chính quy rồi `eval` vào một lớp
+      giả. Nay luật nằm ở khung `VHCP_Truc`, nên bản bóc ấy gọi một lớp không có trong ngữ cảnh
+      giả và cả bài chết cứng. Nạp plugin thật rồi gọi thẳng — vừa gọn hơn, vừa không còn một
+      bản sao nào để trôi lệch. */
+vhcp_test_boot( $goc . '/wordpress/vhcp-chi-phi' );
+class G {
+	const GIAI_DOAN_DS = VHCP_Don::GIAI_DOAN_DS;
+	public static function giai_doan_chuan( $v ) { return VHCP_Don::giai_doan_chuan( $v ); }
+	public static function giai_doan_doc( $v ) { return VHCP_Don::giai_doan_doc( $v ); }
+}
+t( 'nạp được plugin thật', class_exists( 'VHCP_Don' ) && class_exists( 'VHCP_Truc' ) );
 
+/* ── 1. CHUẨN HOÁ: chạy THẬT hàm của mã nguồn, không viết lại ─────────────────────────────── */
 /* ── 1a. GHI: màn gửi gì thì ghi nấy, rỗng vẫn ghi rỗng ────────────────────────────────── */
 teq( '🔴 "Setup" giữ nguyên', 'Setup', G::giai_doan_chuan( 'Setup' ) );
 teq( '🔴 "Vận hành" giữ nguyên', 'Vận hành', G::giai_doan_chuan( 'Vận hành' ) );
@@ -84,74 +84,25 @@ teq( '   và chỉ chữ SETUP mới ra Setup', 'Vận hành', G::giai_doan_doc(
 t( '🔴 hai hàm KHÁC nhau ở ô rỗng — gộp làm một là hỏng một trong hai đầu',
 	G::giai_doan_chuan( '' ) !== G::giai_doan_doc( '' ), null );
 
-/* ── 2. CẢ BỐN BẢN: cột trong sổ · đọc · ghi · gói khởi động ───────────────────────────────
-   Đứt một chặng nào cũng ra cùng một cảnh: người nhập bấm nút, bấm Lưu, màn vẽ lại trông bình
-   thường — rồi mở lại thấy trống. Bản vùng sinh lại từ bản gốc nên phải soi đủ bốn. */
+/* ── 2. CẢ BỐN BẢN: CỘT TRONG SỔ, VÀ LƯỚI FORM ────────────────────────────────────────────
+   🔴 PHẠM VI BÀI NÀY THU LẠI 22/09/2026. Đường dây "màn -> ghi -> đọc -> gói khởi động" nay đi
+      qua khung `VHCP_Truc`, và `kiem-truc-phan-tich.php` canh nó cho MỌI trục — canh lại ở đây
+      là hai bài ghim cùng một chuỗi, tức hai chỗ phải nhớ sửa mỗi lần đổi khung.
+      Bài này ở lại với thứ RIÊNG của trục Giai đoạn: cột trong sổ, và cái lưới form. */
 foreach ( $BAN as $ban ) {
-	$d  = $goc . '/wordpress/' . $ban . '/includes/';
-	if ( ! is_dir( $d ) ) { t( "có $ban", false ); continue; }
-	$db  = file_get_contents( $d . 'class-vhcp-db.php' );
-	$don = file_get_contents( $d . 'class-vhcp-don.php' );
+	$d = $goc . '/wordpress/' . $ban . '/';
+	if ( ! is_dir( $d . 'includes' ) ) { t( "có $ban", false ); continue; }
+	$db  = file_get_contents( $d . 'includes/class-vhcp-db.php' );
+	$app = file_get_contents( $d . 'templates/app.html' );
+	$css = file_get_contents( $d . 'assets/css/vhcp.css' );
 
 	t( "🔴 $ban: sổ dòng chi CÓ cột `giai_doan`",
 		false !== strpos( $db, 'giai_doan VARCHAR(20)' ), null );
+	/* ⚠️ RỖNG PHẢI HỢP LỆ cho mọi dòng cũ — và từ 22/09/2026 rỗng ĐỌC ra "Vận hành". */
 	t( "🔴 $ban: cột ấy `NOT NULL DEFAULT ''` — rỗng phải hợp lệ cho mọi dòng cũ",
 		1 === preg_match( "/giai_doan VARCHAR\(20\) NOT NULL DEFAULT ''/", $db ), null );
-	/* ⚠️ SOI NGUYÊN PHÉP GÁN. Soi mỗi chuỗi `'giaiDoan'` là khớp phải `$get( 'giaiDoan' )` bên
-	   ĐƯỜNG GHI — gỡ hẳn đường ĐỌC mà phép vẫn xanh. Lượt đục bắt đúng chỗ ấy. */
-	t( "🔴 $ban: ĐỌC cột ấy lên màn, VÀ đọc qua `giai_doan_doc()`",
-		false !== strpos( $don, "'giaiDoan'   => self::giai_doan_doc(" ), null );
-	t( "🔴 $ban: GHI cột ấy xuống sổ — thiếu là bấm Lưu xong mất",
-		false !== strpos( $don, "'giai_doan'    => self::giai_doan_chuan(" ), null );
-	t( "🔴 $ban: ghi QUA hàm chuẩn hoá, không ghi thẳng cái màn gửi lên",
-		false === strpos( $don, "'giai_doan'    => \$get( 'giaiDoan' )" ), null );
-	t( "$ban: gói khởi động chở hai lựa chọn xuống màn",
-		false !== strpos( $don, "'giaiDoanDs' => self::GIAI_DOAN_DS" ), null );
-	/* 🔴 ĐƯA TÊN TỪNG GIÁ TRỊ XUỐNG. Ô nhập nay là MỘT ô tích, nên màn phải biết đích danh
-	   chuỗi nào là "setup"; lấy theo chỗ đứng trong danh sách là đảo hai phần tử một cái thì
-	   mọi dòng mới đóng dấu ngược, im lặng. */
-	t( "🔴 $ban: và chở TÊN từng giá trị, để màn khỏi lấy theo chỗ đứng",
-		false !== strpos( $don, "'giaiDoanSetup' => self::GIAI_DOAN_SETUP" )
-		&& false !== strpos( $don, "'giaiDoanVh'    => self::GIAI_DOAN_VH" ), null );
 
-	/* ── 3. BÊN MÀN ──────────────────────────────────────────────────────────────────────── */
-	$app = file_get_contents( $goc . '/wordpress/' . $ban . '/templates/app.html' );
-	t( "🔴 $ban: form nhập CÓ ô Giai đoạn",
-		false !== strpos( $app, 'id="f_giaiDoan"' ), null );
-	t( "🔴 $ban: dòng gửi đi mang theo `giaiDoan` — thiếu là tích xong không đi tới đâu",
-		false !== strpos( $app, 'giaiDoan:GIAI_DOAN' ), null );
-	/* 🔴 MỘT Ô TÍCH THẬT, không phải hai nút, cũng không phải một cái nút giả trông như ô tích.
-	   Ô tích thật thì bàn phím Tab tới được, trình đọc màn hình đọc đúng trạng thái, và trên
-	   điện thoại hệ điều hành tự nới vùng chạm. */
-	t( "🔴 $ban: ô Giai đoạn là MỘT Ô TÍCH thật",
-		false !== strpos( $app, '<input type="checkbox" id="f_gdSetup"' ), null );
-	t( "   và nói rõ không tích nghĩa là gì",
-		false !== strpos( $app, 'Không tích = chi phí <b>vận hành</b> (mặc định)' ), null );
-	/* ⚠️ Nhãn bọc cả ô — chạm vào chữ cũng tích được. Vùng chạm 14px là thứ không ai bấm trúng
-	   bằng ngón tay; xem `kiem-man-dien-thoai.py` về mốc 44px. */
-	t( "⚠️ $ban: nhãn bọc cả ô tích, và vùng chạm đủ cao",
-		1 === preg_match( '/<label[^>]*min-height:32px[^>]*>\s*\x27\s*\+\s*\x27<input type="checkbox" id="f_gdSetup"/u', $app )
-		|| 1 === preg_match( '/min-height:32px;cursor:pointer/u', $app ), null );
-	t( "🔴 $ban: KHÔNG còn hai nút cũ", false === strpos( $app, 'function pickGiaiDoan(' ), null );
-
-	t( "🔴 $ban: mở lại dòng cũ thì ĐỔ LẠI đúng lựa chọn đã khai, qua hàm ĐỌC",
-		false !== strpos( $app, 'GIAI_DOAN=_giaiDoanDoc(l.giaiDoan)' ), null );
-	/* 🔴 Không dọn là nhập tiếp hạng mục sau mang theo dấu "setup" của dòng trước — người ta
-	   không hề tích, và cũng không nhìn thấy, vì mắt đang ở ô Nội dung.
-	   ⚠️ DỌN VỀ **VẬN HÀNH**, không về rỗng: đó là mặc định anh Thắng chốt 22/09/2026. */
-	$reset = strstr( $app, 'function resetLineForm()' );
-	$reset = false === $reset ? '' : substr( $reset, 0, 1200 );
-	t( "🔴 $ban: mở form mới thì dọn về VẬN HÀNH, không giữ lốt dòng trước",
-		false !== strpos( $reset, 'GIAI_DOAN=_gdVh(); veGiaiDoan();' ), $reset );
-	t( "🔴 $ban: và mặc định lúc dựng biến cũng là VẬN HÀNH, không phải rỗng",
-		false !== strpos( $app, 'var GIAI_DOAN=_gdVh();' ) && false === strpos( $app, "var GIAI_DOAN='';" ), null );
-	/* Tên hai giá trị lấy từ máy chủ, không gõ lại ở màn — gõ lại là hai bên lệch một dấu và
-	   `giai_doan_chuan()` lẳng lặng ngã mọi dòng về rỗng. */
-	t( "$ban: màn lấy TÊN hai giá trị TỪ máy chủ",
-		false !== strpos( $app, 'BOOT.giaiDoanSetup' ) && false !== strpos( $app, 'BOOT.giaiDoanVh' ), null );
-
-	/* ── 4. FORM GỌN LẠI ─────────────────────────────────────────────────────────────────── */
-	$css = file_get_contents( $goc . '/wordpress/' . $ban . '/assets/css/vhcp.css' );
+	/* ── 3. FORM GỌN LẠI ─────────────────────────────────────────────────────────────────── */
 	t( "🔴 $ban: form nhập dùng lưới RIÊNG, không sửa `.grid` dùng chung",
 		false !== strpos( $app, 'class="grid grid-nhap"' )
 		&& false !== strpos( $css, '.grid-nhap{' ), null );
@@ -166,4 +117,4 @@ if ( $TRUOT ) {
 	foreach ( $TRUOT as $x ) { echo "  · $x\n"; }
 	exit( 1 );
 }
-echo "✓ SẠCH — $DAT phép: Setup/Vận hành đi hết đường từ sổ ra màn, và form nhập gọn lại mà không đụng lưới chung.\n";
+echo "✓ SẠCH — $DAT phép: Setup/Vận hành — luật GHI/ĐỌC, cột trong sổ, và lưới form riêng.\n";

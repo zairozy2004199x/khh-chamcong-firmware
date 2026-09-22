@@ -66,7 +66,11 @@ function moi(gia) {
     _log: () => {},
     openDon: () => {},
     dongLineForm: () => {},
-    GIAI_DOAN: '',
+    /* 🔴 TRỤC PHÂN TÍCH (22/09/2026) — `collectLine()` nay gộp mọi trục qua `trucGui()`.
+       Thiếu nó thì `_saveLine()` ném `trucGui is not defined` và MỌI phép của bài này đỏ vì
+       bệ đỡ thiếu, chứ không phải vì mã hỏng. Trả một trục mẫu, không trả rỗng: rỗng thì phép
+       "dòng gửi lên mang đủ ô" vẫn xanh dù khung đã gãy. */
+    trucGui: () => ({ giaiDoan: 'Vận hành' }),
     CUR: { don: { maDon: 'D1' } },
     google: { script: { run: {
       withSuccessHandler() { return this; },

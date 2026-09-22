@@ -777,6 +777,11 @@ class VHCPVP_Don {
 			   bám vào thứ tự — đảo hai phần tử một cái là mọi dòng mới đóng dấu ngược, im lặng. */
 			'giaiDoanSetup' => self::GIAI_DOAN_SETUP,
 			'giaiDoanVh'    => self::GIAI_DOAN_VH,
+			/* 🔴 BẢNG TRỤC PHÂN TÍCH — màn dựng ô nhập TỪ ĐÂY, không gõ cứng trục nào. Thêm một
+			   trục ở `VHCPVP_Truc::ds()` là form tự mọc thêm ô, không phải sửa giao diện.
+			   ⚠️ Ba khoá `giaiDoan*` ở trên VẪN GIỮ: bản màn cũ còn đọc chúng, và gỡ đi là ai
+			      chưa tải lại trang mất ô Giai đoạn giữa chừng. */
+			'trucDs'     => VHCPVP_Truc::boot(),
 			/* Ai đang khai ô "Xem đơn vị" lạc ra ngoài danh sách — họ là người sắp ngồi trước
 			   một màn trắng. Xem chốt dài ở `VHCPVP_DonVi::ai_khai_lac()`. */
 			'khaiLac'    => VHCPVP_DonVi::ai_khai_lac(),
@@ -1415,7 +1420,7 @@ class VHCPVP_Don {
 		}
 		$lines = array();
 		foreach ( $cp as $x ) {
-			$lines[] = array(
+			$dong = array(
 				'id'         => (string) $x['id'],
 				'coso'       => (string) $x['coso'],
 				'ngay'       => VHCPVP_Util::fmt( $x['ngay'] ),
@@ -1436,18 +1441,17 @@ class VHCPVP_Don {
 				'phatSinh'   => VHCPVP_Util::is_phat_sinh( $x['phat_sinh'] ),
 				'tkNo'       => (string) $x['tk_no'],
 				'tkCo'       => (string) $x['tk_co'],
-				/* Setup hay Vận hành — xem chốt ở cột `giai_doan` trong `VHCPVP_DB`.
-				   🔴 ĐỌC QUA `giai_doan_doc()`, đừng đưa nguyên chuỗi trong sổ xuống: dòng cũ
-				      mang rỗng, mà từ 22/09/2026 rỗng NGHĨA LÀ VẬN HÀNH. Đưa rỗng xuống là màn
-				      phải tự đoán lấy nghĩa — hai nơi cùng suy một luật, và ngày nào một bên
-				      sửa thì bên kia lặng lẽ nói khác. */
-				'giaiDoan'   => self::giai_doan_doc( isset( $x['giai_doan'] ) ? $x['giai_doan'] : '' ),
 				/* NGÀY NHẬP — khác hẳn cột `ngay` (ngày chi, người nhập tự khai và sửa được).
 				   Anh Thắng 18/09/2026 xin thêm cột này: ngày chi khai lại lúc nào cũng được,
 				   nên khi hai người nhớ khác nhau thì phải có một mốc không ai gõ được. Nó vốn
 				   đã nằm trong sổ (`tao_luc`), chỉ chưa bao giờ xuống tới màn. */
 				'taoLuc'     => VHCPVP_Util::fmt( $x['tao_luc'] ),
 			);
+			/* TRỤC PHÂN TÍCH — đọc qua khung, và ĐỌC chứ không đưa nguyên chuỗi trong sổ xuống:
+			   dòng cũ mang rỗng, mà rỗng nghĩa là giá trị MẶC ĐỊNH của trục. Đưa rỗng xuống là
+			   màn phải tự đoán lấy nghĩa — hai nơi cùng suy một luật, và ngày nào một bên sửa
+			   thì bên kia lặng lẽ nói khác. Xem `VHCPVP_Truc::doc()`. */
+			$lines[] = array_merge( $dong, VHCPVP_Truc::doc_dong( $x ) );
 		}
 
 		/* 🔴 KHÔNG suy tạm ứng từ tổng hạng mục (anh Thắng 01/09/2026: cửa hàng không xin thì tạm
@@ -1823,7 +1827,7 @@ class VHCPVP_Don {
 		// lại hàm dò ma trận. (Xuất MISA vẫn ưu tiên TK Có của người duyệt tạm ứng như cũ.)
 		$tk = self::tk_of_line( $get( 'nhom' ), $get( 'phanLoaiTT' ), $get( 'coso' ) );
 
-		return array(
+		$row = array(
 			'id'           => (string) $id,
 			'ma_don'       => (string) $ma_don,
 			'coso'         => VHCPVP_Util::st( $get( 'coso' ) ),
@@ -1846,8 +1850,22 @@ class VHCPVP_Don {
 			'phat_sinh'    => $ps,
 			'tk_no'        => $tk['tk_no'],
 			'tk_co'        => $tk['tk_co'],
-			'giai_doan'    => self::giai_doan_chuan( $get( 'giaiDoan' ) ),
 		);
+
+		/* ══════════════════════════════════════════════════════════════════════════════════
+		 * TRỤC PHÂN TÍCH — mỗi trục một cột, khai một chỗ (`VHCPVP_Truc::ds()`).
+		 * ══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 VÒNG, KHÔNG LIỆT KÊ. Trước bản này mỗi trục là một dòng gõ tay ngay trong mảng
+		 *    trên; thêm trục thứ hai là phải nhớ sửa đúng SÁU nơi, và bỏ sót nơi nào cũng hỏng
+		 *    im lặng — tuần này đã cắn đúng thế ba lần.
+		 * ⚠️ MỘT TRỤC KHAI NHẦM `cot` TRÙNG CỘT NGHIỆP VỤ (VD 'nhom') SẼ ĐÈ LÊN DỮ LIỆU NGƯỜI
+		 *    TA VỪA NHẬP — vòng này ghi sau mảng trên. Không chặn ở đây bằng một câu `if`: chặn
+		 *    lúc chạy là hỏng lặng lẽ ở máy khách hàng. `kiem-truc-phan-tich.php` đòi mọi `cot`
+		 *    phải là cột RIÊNG của trục, không trùng cột nghiệp vụ nào — bắt ngay lúc viết mã. */
+		foreach ( VHCPVP_Truc::ghi_dong( $get ) as $cot => $gt ) {
+			$row[ $cot ] = $gt;
+		}
+		return $row;
 	}
 
 	/**
@@ -1887,20 +1905,13 @@ class VHCPVP_Don {
 	 *    ô khác — tức tự bịa dữ liệu, im lặng.
 	 */
 	public static function giai_doan_doc( $v ) {
-		$t = self::giai_doan_chuan( $v );
-		return ( '' === $t ) ? self::GIAI_DOAN_VH : $t;
+		/* Từ 22/09/2026 luật nằm ở khung TRỤC PHÂN TÍCH (`VHCPVP_Truc`) — hai hàm này ở lại làm
+		   lối gọi quen cho mã cũ, KHÔNG giữ bản luật thứ hai. */
+		return VHCPVP_Truc::doc( 'giaiDoan', $v );
 	}
 
 	public static function giai_doan_chuan( $v ) {
-		$t = trim( (string) $v );
-		/* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG — ghi lại để lần sau khỏi đuổi theo. Gỡ dòng này thì chuỗi
-		   rỗng vẫn ra rỗng, vì vòng dưới không khớp giá trị nào và hàm ngã về `''` ở cuối.
-		   Giữ vì nó nói thẳng ra ý định: RỖNG LÀ HỢP LỆ, không phải một giá trị trượt lọt. */
-		if ( '' === $t ) { return ''; }
-		foreach ( self::GIAI_DOAN_DS as $x ) {
-			if ( mb_strtolower( $x ) === mb_strtolower( $t ) ) { return $x; }
-		}
-		return '';
+		return VHCPVP_Truc::chuan( 'giaiDoan', $v );
 	}
 
 	/** Mã tài khoản của 1 dòng chi: TK Nợ theo loại chi phí, TK Có theo phân loại thanh toán. */
