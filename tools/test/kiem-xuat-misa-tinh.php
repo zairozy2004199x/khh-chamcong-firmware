@@ -6,6 +6,8 @@
  *   1. *"Sắp xếp Unit theo thứ tự để xuất misa"*
  *   2. *"Xuất rõ phân theo tỉnh"*
  *   3. *"Xuất kèm mã đối tượng (chính là mã khách hàng)"*  — kèm ảnh tệp chứng từ, cột ấy TRẮNG.
+ *   4. *"Chỗ xuất QR lấy theo số thực tức QR số màu đỏ"* — QR trong sổ phải là tiền THỰC về
+ *      ngân hàng, không phải số nhân viên đọc trên máy.
  *
  * 🔴 VÌ SAO CỘT MÃ ĐỐI TƯỢNG KHÔNG PHẢI TRANG TRÍ. Bút toán ghi Nợ TK 131 — phải thu KHÁCH HÀNG.
  *    Một khoản phải thu không có đối tượng thì MISA không dựng được sổ công nợ: tổng doanh thu
@@ -94,8 +96,11 @@ $f_sq = boc( file_get_contents( __DIR__ . '/../../vhcp-ghe/includes/class-vhg-ba
 	'public static function squash(' );
 $f_bcn = boc( $nguon, 'public static function baocao_ngay(' );
 $f_ct  = boc( $nguon, 'public static function misa_chungtu(' );
-t( 'bốc được baocao_ngay + misa_chungtu + squash', '' !== $f_bcn && '' !== $f_ct && '' !== $f_sq );
-if ( '' === $f_bcn || '' === $f_ct || '' === $f_sq ) { echo "✗ không bốc được — dừng.\n"; exit( 1 ); }
+$f_chia = boc( $nguon, 'public static function chia_ty_le_(' );
+$f_vq   = boc( $nguon, 'private static function vietqr_thuc_(' );
+t( 'bốc được baocao_ngay + misa_chungtu + chia_ty_le_ + vietqr_thuc_ + squash',
+	'' !== $f_bcn && '' !== $f_ct && '' !== $f_sq && '' !== $f_chia && '' !== $f_vq );
+if ( '' === $f_bcn || '' === $f_ct || '' === $f_sq || '' === $f_chia || '' === $f_vq ) { echo "✗ không bốc được — dừng.\n"; exit( 1 ); }
 eval( 'class VHG_KeToan {
 	public static function ngay_( $v ) { return VHG_BaoCao::ngay_( $v ); }
 	' . $f_sq . '
@@ -109,7 +114,7 @@ eval( 'class VHG_KeToan {
 		return preg_match( "/^(\\\\d{4})-(\\\\d{2})-(\\\\d{2})$/", $m, $x ) ? ( $x[3] . "/" . $x[2] . "/" . $x[1] ) : $m;
 	}
 	private static function misa_xuat_map() { return array(); }
-	' . $f_bcn . "\n" . $f_ct . '
+	' . $f_bcn . "\n" . $f_ct . "\n" . $f_chia . "\n" . $f_vq . '
 }' );
 
 /* ══════════════════════════════════ 1. BÁO CÁO NGÀY: thứ tự + tỉnh ══════════════════════════ */
@@ -242,6 +247,79 @@ t( 'Mã đơn vị / Tên đơn vị vẫn là mã & tên GHẾ như cũ (không
 	'80016' === $d1[ array_search( 'Mã đơn vị', $head, true ) ]
 	&& 'GO-CT-1' === $d1[ array_search( 'Tên đơn vị', $head, true ) ] );
 t( 'số tiền không đổi', 100000 === $d1[ array_search( 'Số tiền', $head, true ) ] );
+
+/* ══════════════════════════════════ 3. QR = TIỀN THỰC VỀ NGÂN HÀNG ══════════════════════════ */
+echo "── Chứng từ MISA: QR lấy số thực về ngân hàng ───────────────\n";
+/* Anh Thắng 22/09/2026: *"chỗ xuất QR lấy theo số thực tức QR số màu đỏ"*.
+   `bc_dong.qr` là số nhân viên ĐỌC TRÊN MÁY — lệch thật, trong ảnh anh gửi có cơ sở lệch cả chục
+   triệu. Đưa số đọc-trên-máy vào sổ kế toán là ghi doanh thu theo con số không ai chuyển tiền theo. */
+
+/* -- 3a. Phép chia: tổng các phần phải ĐÚNG BẰNG số thực, và chạy lại ra y nguyên -- */
+$chia = VHG_KeToan::chia_ty_le_( 1000000, array( 'C' => 3, 'A' => 1, 'B' => 1 ) );
+t( '🔴 chia tỉ lệ: tổng các phần ĐÚNG BẰNG số thực (không bốc hơi đồng nào)',
+	1000000 === array_sum( $chia ), $chia );
+t( 'phần dư rơi vào ghế trọng số lớn nhất', $chia['C'] > $chia['A'], $chia );
+t( 'ổn định — chạy lại ra y nguyên',
+	$chia === VHG_KeToan::chia_ty_le_( 1000000, array( 'A' => 1, 'B' => 1, 'C' => 3 ) ), $chia );
+$deu = VHG_KeToan::chia_ty_le_( 100, array( 'A' => 0, 'B' => 0, 'C' => 0 ) );
+t( '🔴 trọng số toàn 0 (ngân hàng có tiền mà không có gì để chia theo) → chia ĐỀU, vẫn đủ tổng',
+	100 === array_sum( $deu ) && 34 === $deu['A'] && 33 === $deu['B'], $deu );
+$le = VHG_KeToan::chia_ty_le_( 7, array( 'A' => 1, 'B' => 1, 'C' => 1 ) );
+t( 'số lẻ chia ba vẫn đủ tổng', 7 === array_sum( $le ), $le );
+
+/* -- 3b. Chạy thật: có sao kê → dòng QR mang số THỰC, chia theo tỉ lệ số nhân viên nhập -- */
+class SAOKE_App {
+	public static $vq = array();
+	public static function vietqr_theo_coso_ngay( $tu, $den ) { return array( 'co' => true, 'vq' => self::$vq, 'khongKhop' => 0 ); }
+}
+SAOKE_App::$vq = array( 'Gò Cần Thơ' => array( '2026-09-01' => 900000 ) );   // thực 900k
+$wpdb->ctRows = array(
+	/* Nhân viên nhập 100k + 200k = 300k; ngân hàng về 900k. Tỉ lệ 1:2 → 300k / 600k. */
+	array( 'ngay' => '2026-09-01', 'ma_may' => 'A1', 'ten' => 'GO-CT-1', 'tien_mat' => 10000, 'qr' => 100000,
+		'dieu_chinh' => 0, 'ghi_chu' => '', 'nop_trang_thai' => '', 'coso' => 'Gò Cần Thơ', 'coso_key' => 'GOCANTHO' ),
+	array( 'ngay' => '2026-09-01', 'ma_may' => 'A2', 'ten' => 'GO-CT-2', 'tien_mat' => 20000, 'qr' => 200000,
+		'dieu_chinh' => 0, 'ghi_chu' => '', 'nop_trang_thai' => '', 'coso' => 'Gò Cần Thơ', 'coso_key' => 'GOCANTHO' ),
+	/* Cơ sở-ngày KHÔNG có trong sao kê → phải GIỮ số nhân viên nhập, không được lấy 0. */
+	array( 'ngay' => '2026-09-01', 'ma_may' => 'B1', 'ten' => 'VHM-9', 'tien_mat' => 0, 'qr' => 55000,
+		'dieu_chinh' => 0, 'ghi_chu' => '', 'nop_trang_thai' => '', 'coso' => 'Vạn Hạnh Mall', 'coso_key' => 'VANHANHMALL' ),
+);
+$q = VHG_KeToan::misa_chungtu( '', '', '2026-09', 0, '' );
+$iTien = array_search( 'Số tiền', $head, true );
+$iDon  = array_search( 'Mã đơn vị', $head, true );
+$iGc   = array_search( 'Ghi chú', $head, true );
+$qrDong = array();
+foreach ( $q['aoa'] as $k => $row ) {
+	if ( 0 === $k ) { continue; }
+	if ( 'QR ngân hàng' === $row[ $iGc ] ) { $qrDong[ (string) $row[ $iDon ] ] = (int) $row[ $iTien ]; }
+}
+t( '🔴 dòng QR mang SỐ THỰC về ngân hàng, chia theo tỉ lệ số nhân viên nhập (100k:200k → 300k:600k)',
+	array( 'A1' => 300000, 'A2' => 600000, 'B1' => 55000 ) === $qrDong, $qrDong );
+t( '🔴 tổng QR xuất ra của cơ sở có sao kê ĐÚNG BẰNG số về ngân hàng (900.000)',
+	900000 === $qrDong['A1'] + $qrDong['A2'] );
+t( '🔴 cơ sở-ngày CHƯA có sao kê thì GIỮ số nhân viên nhập — KHÔNG lấy 0 (lấy 0 là xoá trắng '
+	. 'doanh thu QR của ngày ấy khỏi sổ, im lặng)', 55000 === $qrDong['B1'], $qrDong );
+t( '🔴 và KÊU LÊN đúng cơ sở-ngày nào chưa có sao kê',
+	array( 'Vạn Hạnh Mall · 2026-09-01' ) === $q['qrChuaCoSaoKe'], $q['qrChuaCoSaoKe'] );
+t( 'dòng TIỀN MẶT không bị đụng tới', 10000 === (int) $q['aoa'][1][ $iTien ], $q['aoa'][1][ $iTien ] );
+t( 'báo lại số liệu đối chiếu (thực / nhân viên nhập)',
+	900000 === (int) $q['qrThucTong'] && 355000 === (int) $q['qrNhapTong'], array( $q['qrThucTong'], $q['qrNhapTong'] ) );
+
+/* -- 3c. Tắt cờ → dùng thẳng số nhân viên nhập (đường thoát khi sao kê chưa về) -- */
+$q2 = VHG_KeToan::misa_chungtu( '', '', '2026-09', 0, '', false );
+$qr2 = array();
+foreach ( $q2['aoa'] as $k => $row ) {
+	if ( 0 === $k ) { continue; }
+	if ( 'QR ngân hàng' === $row[ $iGc ] ) { $qr2[ (string) $row[ $iDon ] ] = (int) $row[ $iTien ]; }
+}
+t( 'tắt cờ QR-thực → về đúng số nhân viên nhập',
+	array( 'A1' => 100000, 'A2' => 200000, 'B1' => 55000 ) === $qr2, $qr2 );
+
+/* -- 3d. Ngân hàng về 0 cho một ghế → BỎ dòng, không viết dòng 0đ vào sổ -- */
+SAOKE_App::$vq = array( 'Gò Cần Thơ' => array( '2026-09-01' => 1 ) );   // 1đ, chia ra A1=0 A2=1
+$q3 = VHG_KeToan::misa_chungtu( '', '', '2026-09', 0, '' );
+$so0 = 0;
+foreach ( $q3['aoa'] as $k => $row ) { if ( $k && 'QR ngân hàng' === $row[ $iGc ] && 0 === (int) $row[ $iTien ] ) { $so0++; } }
+t( 'chia ra 0đ thì BỎ HẲN DÒNG (không viết dòng 0đ vào sổ)', 0 === $so0, $so0 );
 
 echo "\n";
 if ( $TRUOT ) { echo '🔴 TRƯỢT: ' . count( $TRUOT ) . '/' . ( $DAT + count( $TRUOT ) ) . "\n"; exit( 1 ); }

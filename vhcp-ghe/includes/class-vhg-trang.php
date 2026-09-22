@@ -1073,7 +1073,7 @@ JS;
 			if ( 'kt_ma_misa_dat' === $viec ) { self::tra( VHG_KeToan::ma_misa_dat( isset( $d['coso'] ) ? $d['coso'] : '', isset( $d['unit_id'] ) ? $d['unit_id'] : '', isset( $d['unit_name'] ) ? $d['unit_name'] : '' ) ); return; }
 			if ( 'kt_ma_misa_xoa' === $viec ) { self::tra( VHG_KeToan::ma_misa_xoa( isset( $d['coso_key'] ) ? $d['coso_key'] : '' ) ); return; }
 			if ( 'kt_ma_misa_seed' === $viec ) { self::tra( VHG_KeToan::ma_misa_seed() ); return; }
-			if ( 'kt_misa' === $viec )        { self::tra( VHG_KeToan::misa_chungtu( isset( $d['from'] ) ? $d['from'] : '', isset( $d['to'] ) ? $d['to'] : '', isset( $d['thang'] ) ? $d['thang'] : '', ! empty( $d['chi_tien_mat'] ), isset( $d['so_ct_dau'] ) ? $d['so_ct_dau'] : '' ) ); return; }
+			if ( 'kt_misa' === $viec )        { self::tra( VHG_KeToan::misa_chungtu( isset( $d['from'] ) ? $d['from'] : '', isset( $d['to'] ) ? $d['to'] : '', isset( $d['thang'] ) ? $d['thang'] : '', ! empty( $d['chi_tien_mat'] ), isset( $d['so_ct_dau'] ) ? $d['so_ct_dau'] : '', ! isset( $d['qr_thuc'] ) || ! empty( $d['qr_thuc'] ) ) ); return; }
 			if ( 'kt_baocao_ngay' === $viec ) { self::tra( VHG_KeToan::baocao_ngay( isset( $d['thang'] ) ? $d['thang'] : '', ! empty( $d['chi_da_duyet'] ) ) ); return; }
 			if ( 'kt_misa_ngay_ds' === $viec )   { self::tra( VHG_KeToan::misa_ngay_ds( isset( $d['thang'] ) ? $d['thang'] : '', isset( $d['from'] ) ? $d['from'] : '', isset( $d['to'] ) ? $d['to'] : '' ) ); return; }
 			if ( 'kt_misa_danh_xuat' === $viec ) { self::tra( VHG_KeToan::misa_danh_xuat( isset( $d['ngay'] ) ? $d['ngay'] : '' ) ); return; }
@@ -9049,6 +9049,12 @@ function veKtXuat(){
     + '<label class="mut">' + L('hoặc tháng','or month') + ' <input type="month" id="ktx-thang" value="' + thg + '" style="max-width:150px"></label>'
     + '<label class="mut">' + L('Số CT đầu','First voucher') + ' <input type="text" id="ktx-soct" placeholder="VD NVKMN1542" style="max-width:150px"></label>'
     + '<label class="mut"><input type="checkbox" id="ktx-chitm"> ' + L('chỉ tiền mặt','cash only') + '</label>'
+    /* 🔴 QR = TIỀN THỰC VỀ NGÂN HÀNG, mặc định BẬT — anh Thắng 22/09/2026: *"chỗ xuất QR lấy
+       theo số thực tức QR số màu đỏ"*. `bc_dong.qr` là số nhân viên ĐỌC TRÊN MÁY, lệch thật
+       (AEON MALL TÂN PHÚ: bảng 35.570.000 mà VietQR thực 59.800.000).
+       Vẫn để TẮT ĐƯỢC: ngày nào sao kê chưa về mà vẫn phải xuất gấp thì còn đường đi. */
+    + '<label class="mut" title="' + L('QR lấy số THỰC về ngân hàng (VietQR đỏ ở Báo cáo tổng), chia xuống từng ghế theo tỉ lệ số nhân viên nhập. Tắt = dùng thẳng số nhân viên nhập.','Use real bank VietQR') + '">'
+    + '<input type="checkbox" id="ktx-qrthuc" checked> ' + L('QR = số THỰC về ngân hàng','QR = real bank') + '</label>'
     + '<button id="ktx-misa" class="on">' + L('Tải chứng từ','Download') + '</button>'
     + '<span id="ktx-misa-msg" class="mut"></span></div></div>'
     /* 2 bảng theo NGÀY: chưa xuất (trên) / đã xuất (dưới) — anh Thắng 12/09/2026. Chỉ ngày có ghế
@@ -9060,7 +9066,7 @@ function veKtXuat(){
     + '<span class="mut">' + L('hoặc từ','or from') + ' <input type="date" id="ktx-nx-tu" style="max-width:150px"></span>'
     + '<span class="mut">' + L('đến','to') + ' <input type="date" id="ktx-nx-den" style="max-width:150px"></span>'
     + '<button id="ktx-nx-load" class="ghost">' + L('Xem','Load') + '</button>'
-    + '<span class="mut">' + L('Điền Từ/Đến thì lọc theo khoảng; để trống thì theo Tháng. Dùng "Số CT đầu"/"chỉ tiền mặt" ở khối trên.','From/To range overrides Month. Uses First voucher / cash-only above.') + '</span></div>'
+    + '<span class="mut">' + L('Điền Từ/Đến thì lọc theo khoảng; để trống thì theo Tháng. Dùng "Số CT đầu" / "chỉ tiền mặt" / "QR = số THỰC" ở khối trên.','From/To range overrides Month. Uses First voucher / cash-only / real-QR above.') + '</span></div>'
     + '<div id="ktx-nx-wrap" style="margin-top:10px"></div></div>'
     + '<div class="card"><h2>' + L('Báo cáo ngày (DAILY SALES)','Daily sales report') + '</h2>'
     + '<p class="mut">' + L('Chéo: mỗi dòng một cơ sở, mỗi cột một ngày. Cần Unit ID (bên dưới).',
@@ -9095,24 +9101,39 @@ function ktxInit(){
     var m=document.getElementById('ktx-misa-msg'); m.textContent=L('Đang dựng…','Building…'); m.className='mut';
     goi('kt_misa',{from:document.getElementById('ktx-tu').value,to:document.getElementById('ktx-den').value,
       thang:document.getElementById('ktx-thang').value,chi_tien_mat:document.getElementById('ktx-chitm').checked?1:0,
+      qr_thuc:document.getElementById('ktx-qrthuc').checked?1:0,
       so_ct_dau:document.getElementById('ktx-soct').value},function(r){
       if(!r||!r.ok){ m.textContent=(r&&r.error)||'Lỗi.'; m.className='mut err'; return; }
       if(r.rows<=0){ m.textContent=L('Không có ghế đã duyệt trong khoảng này.','No confirmed chairs.'); m.className='mut err'; return; }
       ktCsvTaiVe(r.aoa,r.fileName);
       var tk=(r.thieuDoiTuong||[]);
-      m.textContent=L('Đã tải: ','Downloaded: ')+r.rows+' dòng · tiền mặt '+ktVnd(r.tienMat)+'đ'+(r.chiTienMat?'':(' · QR '+ktVnd(r.tienQr)+'đ'));
+      m.textContent=L('Đã tải: ','Downloaded: ')+r.rows+' dòng · tiền mặt '+ktVnd(r.tienMat)+'đ'
+        +(r.chiTienMat?'':(' · QR '+ktVnd(r.tienQr)+'đ'+(r.qrThuc?L(' (số THỰC ngân hàng)',' (real bank)'):L(' (số nhân viên nhập)',' (staff-entered)'))));
       m.className='mut ok';
       /* 🔴 THIẾU MÃ ĐỐI TƯỢNG PHẢI KÊU TO, KHÔNG NHÉT VÀO ĐUÔI MỘT DÒNG XANH. Bút toán ghi Nợ
          TK 131 mà trắng cột ấy thì MISA không dựng được sổ công nợ — file vẫn tải về, vẫn trông
          như xong, chỉ có sổ công nợ là không lên. Nên: dòng đỏ riêng, kể tên cơ sở. */
       var wr=document.getElementById('ktx-misa-canh');
       if(!wr){ wr=ktEl('div'); wr.id='ktx-misa-canh'; wr.style.marginTop='6px'; m.parentNode.appendChild(wr); }
-      wr.textContent='';
+      wr.textContent=''; wr.className='mut';
+      function canh(t){ var e=ktEl('div','mut err',t); e.style.marginTop='4px'; wr.appendChild(e); }
       if(tk.length){
-        wr.className='mut err';
-        wr.textContent='⚠ '+L(tk.length+' cơ sở CHƯA có Mã đối tượng (khách hàng) — các dòng ấy xuất ra trắng cột đó, '
+        canh('⚠ '+L(tk.length+' cơ sở CHƯA có Mã đối tượng (khách hàng) — các dòng ấy xuất ra trắng cột đó, '
           +'MISA sẽ không lên được sổ công nợ: '+tk.join(' · ')+'. Khai ở màn ĐỊA ĐIỂM, ô "Mã KH".',
-          tk.length+' branches have no customer code: '+tk.join(' · '));
+          tk.length+' branches have no customer code: '+tk.join(' · ')));
+      }
+      /* 🔴 Cơ sở-ngày nào sao kê chưa về thì dòng QR GIỮ số nhân viên nhập — phải nói ra. Lấy 0
+         cho nó là xoá trắng doanh thu QR của ngày ấy khỏi sổ, im lặng, mà tệp vẫn tải bình thường. */
+      var qs=(r.qrChuaCoSaoKe||[]);
+      if(r.qrThuc&&qs.length){
+        canh('⚠ '+L(qs.length+' cơ sở-ngày CHƯA có sao kê VietQR — dòng QR của những chỗ này GIỮ số nhân viên nhập '
+          +'(không phải số thực): '+qs.slice(0,12).join(' · ')+(qs.length>12?(' … +'+(qs.length-12)):'' ),
+          qs.length+' branch-days have no VietQR statement; staff-entered QR kept.'));
+      }
+      if(r.qrThuc&&r.qrSoNhom){
+        var e2=ktEl('div','mut',L('QR theo số thực: '+r.qrSoNhom+' cơ sở-ngày · ngân hàng '+ktVnd(r.qrThucTong)
+          +'đ so với nhân viên nhập '+ktVnd(r.qrNhapTong)+'đ (lệch '+ktVnd(r.qrThucTong-r.qrNhapTong)+'đ).',''));
+        e2.style.marginTop='4px'; wr.appendChild(e2);
       }
     });
   };
@@ -9168,9 +9189,16 @@ function ktxNgayXuat(){
     function taiNgay(ng,mark){
       var soct=(document.getElementById('ktx-soct')||{}).value||'';
       var ctm=(document.getElementById('ktx-chitm')||{}).checked?1:0;
-      goi('kt_misa',{from:ng,to:ng,thang:'',chi_tien_mat:ctm,so_ct_dau:soct},function(rr){
+      /* Đi cùng ô chọn của khối trên (khối này vốn đã mượn "Số CT đầu"/"chỉ tiền mặt" ở đó).
+         Thiếu ô thì coi như BẬT — trùng mặc định của máy chủ, không để hai nơi hiểu khác nhau. */
+      var qth=document.getElementById('ktx-qrthuc'); qth=(qth?qth.checked:true)?1:0;
+      goi('kt_misa',{from:ng,to:ng,thang:'',chi_tien_mat:ctm,qr_thuc:qth,so_ct_dau:soct},function(rr){
         if(!rr||!rr.ok){ alert((rr&&rr.error)||'Lỗi xuất.'); return; }
         if(rr.rows<=0){ alert(L('Ngày này không có ghế đã duyệt.','No confirmed chairs that day.')); return; }
+        var qs=(rr.qrChuaCoSaoKe||[]);
+        if(rr.qrThuc&&qs.length&&!confirm(L('⚠ '+qs.length+' cơ sở-ngày CHƯA có sao kê VietQR:\n\n'+qs.slice(0,12).join('\n')
+          +'\n\nDòng QR của những chỗ này sẽ GIỮ số nhân viên nhập, không phải số thực về ngân hàng.\n\nVẫn tải?',
+          qs.length+' branch-days have no VietQR statement — keep staff-entered QR. Continue?'))) return;
         ktCsvTaiVe(rr.aoa,rr.fileName);
         if(mark){ goi('kt_misa_danh_xuat',{ngay:ng},function(){ ktxNgayXuat(); }); }
       });

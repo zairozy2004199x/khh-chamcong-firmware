@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-09-22 · Phiên bản hiện tại: **2.125.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-09-22 · Phiên bản hiện tại: **2.126.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,42 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v2.126.0 — Chứng từ MISA: QR là tiền THỰC về ngân hàng
+
+Anh Thắng 22/09/2026, ảnh màn Báo cáo tổng: *"chỗ xuất QR lấy theo số thực tức QR số màu đỏ"*.
+
+Cùng luật anh đã chốt 18/09 cho cột TỔNG: *"QR là QR thực về ngân hàng, còn con số QR nhân viên
+nhập chỉ là đối chiếu thôi"*. `bc_dong.qr` là số nhân viên **đọc trên máy** — nó lệch thật, và
+ngay trong ảnh anh gửi có cơ sở lệch cả chục triệu (**AEON MALL TÂN PHÚ**: bảng 35.570.000 mà
+VietQR thực 59.800.000). Đưa số đọc-trên-máy vào sổ kế toán là ghi doanh thu theo một con số
+**không ai chuyển tiền theo**.
+
+**Chỗ khó: tiền thực chỉ biết theo CƠ SỞ × NGÀY.** Sao kê ngân hàng không tách nổi ghế, mà chứng
+từ thì mỗi ghế một dòng. Nên phải **chia** số thực xuống các ghế của cơ sở-ngày ấy, theo tỉ lệ
+chính số QR nhân viên nhập — chỗ duy nhất biết ghế nào chạy nhiều hơn ghế nào.
+
+- Hàm chia mới `chia_ty_le_()`: chia sàn rồi **rải từng đồng phần dư** cho ghế trọng số lớn
+  trước. `round()` từng phần rồi cộng lại gần như luôn lệch vài đồng so với số tổng — mà đây là
+  tiền đã về ngân hàng, **tổng phải khớp tuyệt đối**, nếu không sổ MISA lệch sao kê đúng bằng cái
+  vài đồng ấy, mỗi ngày một ít. Ổn định: xuất lại cùng một ngày ra y nguyên một bảng.
+- Cả cơ sở-ngày nhập 0 QR mà ngân hàng vẫn có tiền → chia theo doanh thu ghế; doanh thu cũng 0 →
+  chia đều. Thà đều còn hơn dồn hết vào một ghế ngẫu nhiên.
+- Chia ra 0đ cho một ghế thì **bỏ hẳn dòng** — ngân hàng không nhận đồng nào cho ghế ấy, viết một
+  dòng 0đ vào sổ là thêm rác.
+
+🔴 **Không có sao kê thì GIỮ số cũ, và kêu lên.** Cơ sở-ngày nào sao kê chưa về (hoặc chưa cài Sao
+Kê) mà lấy 0 cho nó là **xoá trắng doanh thu QR của ngày ấy khỏi sổ** — im lặng, mà tệp vẫn tải về
+bình thường. Nên: giữ số nhân viên nhập, và màn xuất in dòng đỏ kể đúng cơ sở-ngày nào. Xuất theo
+từng ngày thì hỏi lại trước khi tải.
+
+- Ô chọn **"QR = số THỰC về ngân hàng"** mặc định **bật**; vẫn tắt được cho ngày nào sao kê chưa
+  về mà phải xuất gấp. Khối "Xuất theo NGÀY" dùng chung ô này.
+- Sau khi tải, màn xuất in luôn số đối chiếu: ngân hàng bao nhiêu so với nhân viên nhập bao nhiêu,
+  lệch bao nhiêu.
+
+Bài kiểm `tools/test/kiem-xuat-misa-tinh.php` lên **32 phép** — chạy thật phép chia (tổng khớp
+tuyệt đối, ổn định, trọng số 0, số lẻ) và chạy thật cả hàm xuất với sao kê giả.
 
 ### v2.125.0 — Mã đối tượng lấy thẳng `coso.ma_kh`, gỡ ô khai trùng của 2.124.0
 

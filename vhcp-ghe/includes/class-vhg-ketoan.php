@@ -1592,7 +1592,53 @@ class VHG_KeToan {
 		return array( 'ok' => true, 'ngay' => $ng );
 	}
 
-	public static function misa_chungtu( $from, $to, $thang, $chi_tien_mat, $so_ct_dau ) {
+	/**
+	 * Chia một SỐ TỔNG xuống các phần theo TRỌNG SỐ, tổng các phần ĐÚNG BẰNG số tổng.
+	 *
+	 * 🔴 PHẦN DƯ PHẢI ĐI ĐÂU ĐÓ, KHÔNG ĐƯỢC BỐC HƠI. `round()` từng phần rồi cộng lại gần như
+	 *    luôn lệch vài đồng so với số tổng — mà đây là tiền đã về ngân hàng, tổng phải khớp tuyệt
+	 *    đối, nếu không thì sổ MISA lệch với sao kê đúng bằng cái vài đồng ấy, mỗi ngày một ít.
+	 *    Nên: chia sàn cho mọi phần, còn bao nhiêu thì rải từng đồng cho phần có trọng số lớn
+	 *    nhất trước.
+	 * ⚠️ ỔN ĐỊNH — chạy lại ra y nguyên. Khoá phụ khi trọng số bằng nhau là KHOÁ của phần (mã
+	 *    ghế), không phải thứ tự CSDL trả về. Xuất lại cùng một ngày mà ra hai bảng khác nhau là
+	 *    kế toán hết đường đối chiếu.
+	 * ⚠️ Trọng số tổng = 0 (ngân hàng có tiền mà không có gì để chia theo) → chia ĐỀU. Thà đều
+	 *    còn hơn dồn hết vào một ghế ngẫu nhiên.
+	 *
+	 * @param int   $tong Số phải chia hết (đồng).
+	 * @param array $ts   [ khoá => trọng số ].
+	 * @return array [ khoá => phần ].
+	 */
+	public static function chia_ty_le_( $tong, $ts ) {
+		$out = array();
+		$keys = array_keys( $ts );
+		if ( ! $keys ) { return $out; }
+		sort( $keys, SORT_STRING );
+		$tongTs = 0;
+		foreach ( $keys as $k ) { $ts[ $k ] = max( 0, (int) $ts[ $k ] ); $tongTs += $ts[ $k ]; }
+		$tong = (int) $tong;
+		if ( $tongTs <= 0 ) {
+			$deu = intdiv( $tong, count( $keys ) ); $du = $tong - $deu * count( $keys );
+			foreach ( $keys as $i => $k ) { $out[ $k ] = $deu + ( $i < $du ? 1 : 0 ); }
+			return $out;
+		}
+		$da = 0;
+		foreach ( $keys as $k ) { $out[ $k ] = intdiv( $tong * $ts[ $k ], $tongTs ); $da += $out[ $k ]; }
+		$du = $tong - $da;
+		/* Rải phần dư: trọng số lớn trước, hoà thì theo khoá — cả hai đều tất định. */
+		$xep = $keys;
+		usort( $xep, function ( $a, $b ) use ( $ts ) {
+			if ( $ts[ $a ] !== $ts[ $b ] ) { return $ts[ $b ] - $ts[ $a ]; }
+			return strcmp( (string) $a, (string) $b );
+		} );
+		$i = 0; $n = count( $xep );
+		while ( $du > 0 && $n > 0 ) { $out[ $xep[ $i % $n ] ]++; $du--; $i++; }
+		while ( $du < 0 && $n > 0 ) { $out[ $xep[ $i % $n ] ]--; $du++; $i++; }
+		return $out;
+	}
+
+	public static function misa_chungtu( $from, $to, $thang, $chi_tien_mat, $so_ct_dau, $qr_thuc = true ) {
 		global $wpdb;
 		$f = self::ngay_( $from ); $t = self::ngay_( $to );
 		$where = 'd.kt_duyet=1 AND (d.chi_so_sau IS NOT NULL OR d.tong<>0 OR d.actual<>0)';
@@ -1603,6 +1649,79 @@ class VHG_KeToan {
 			. ' FROM ' . VHG_DB::t( 'bc_dong' ) . ' d JOIN ' . VHG_DB::t( 'bc' ) . ' h ON h.report_id=d.report_id'
 			. ' WHERE ' . $where . ' ORDER BY d.ngay ASC, d.ma_may ASC';
 		$rows = $wpdb->get_results( $args ? $wpdb->prepare( $sql, $args ) : $sql, ARRAY_A );
+
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 QR XUẤT RA LÀ TIỀN THỰC VỀ NGÂN HÀNG — anh Thắng 22/09/2026: *"chỗ xuất QR lấy theo
+		 *    số thực tức QR số màu đỏ"*, chỉ đúng con số đỏ VietQR trên Báo cáo tổng.
+		 *
+		 *    Cùng một luật anh đã chốt từ 18/09 cho cột TỔNG: *"QR là QR thực về ngân hàng, còn
+		 *    con số QR nhân viên nhập chỉ là đối chiếu thôi"*. `bc_dong.qr` là số nhân viên ĐỌC
+		 *    trên máy — nó lệch thật, và trong ảnh anh gửi có cơ sở lệch cả chục triệu (AEON MALL
+		 *    TÂN PHÚ: bảng 35.570.000 mà VietQR thực 59.800.000). Đưa số đọc-trên-máy vào sổ kế
+		 *    toán là ghi doanh thu theo một con số không ai chuyển tiền theo.
+		 *
+		 * ⚠️ TIỀN THỰC CHỈ BIẾT ĐƯỢC THEO CƠ SỞ × NGÀY, không theo từng ghế — sao kê ngân hàng
+		 *    không tách nổi ghế. Mà chứng từ thì mỗi ghế một dòng. Nên phải CHIA số thực xuống
+		 *    các ghế của cơ sở-ngày ấy, theo tỉ lệ chính số QR nhân viên nhập (chỗ duy nhất biết
+		 *    ghế nào chạy nhiều hơn ghế nào). Chia bằng `chia_ty_le_()` — tổng các phần ĐÚNG BẰNG
+		 *    số thực, không bốc hơi đồng nào.
+		 *
+		 * 🔴 KHÔNG CÓ SỐ THỰC THÌ GIỮ SỐ CŨ, VÀ KÊU LÊN. Cơ sở-ngày nào sao kê chưa về (hoặc chưa
+		 *    cài Sao Kê) thì `$vq` không có khoá ấy. Lấy 0 cho nó là XOÁ TRẮNG doanh thu QR của
+		 *    ngày ấy khỏi sổ — im lặng, mà tệp vẫn tải về bình thường. Nên: giữ số nhân viên
+		 *    nhập, gom vào `qrChuaCoSaoKe` để màn xuất báo đỏ đúng cơ sở-ngày nào.
+		 * ══════════════════════════════════════════════════════════════════════════════════════ */
+		$qr_map = array();      // 'ngay|coso_key|ma_may' => số QR sẽ xuất
+		$qr_thieu = array();    // cơ sở-ngày chưa có sao kê (giữ số nhân viên nhập)
+		$qr_co_thuc = 0; $qr_thuc_tong = 0; $qr_nhap_tong = 0;
+		if ( $qr_thuc && ! $chi_tien_mat && $rows ) {
+			$ng_min = ''; $ng_max = '';
+			foreach ( (array) $rows as $r ) {
+				$ng = self::ngay_( $r['ngay'] );
+				if ( '' === $ng_min || $ng < $ng_min ) { $ng_min = $ng; }
+				if ( '' === $ng_max || $ng > $ng_max ) { $ng_max = $ng; }
+			}
+			$vqd = self::vietqr_thuc_( $ng_min, $ng_max );
+			if ( ! empty( $vqd['co'] ) ) {
+				/* `vietqr_thuc_()` trả theo TÊN cơ sở (tên đang hiển thị ở danh mục ghế), còn
+				   chứng từ cầm `coso_key` (tên đã squash lúc nộp báo cáo). Quy về một khoá. */
+				$vq = array();
+				foreach ( (array) $vqd['vq'] as $ten => $theoNgay ) {
+					$k = self::squash( (string) $ten );
+					foreach ( (array) $theoNgay as $ng => $tien ) {
+						$vq[ $k . '|' . $ng ] = ( isset( $vq[ $k . '|' . $ng ] ) ? $vq[ $k . '|' . $ng ] : 0 ) + (int) $tien;
+					}
+				}
+				$gom = array();
+				foreach ( (array) $rows as $r ) {
+					$g = self::ngay_( $r['ngay'] ) . '|' . (string) $r['coso_key'];
+					if ( ! isset( $gom[ $g ] ) ) { $gom[ $g ] = array( 'coso' => (string) $r['coso'], 'ts' => array() ); }
+					/* Trọng số = số QR nhân viên nhập; cả cơ sở-ngày mà nhập 0 thì rơi xuống
+					   doanh thu ghế (`tong`) — vẫn tốt hơn chia đều cho ghế không chạy. */
+					$w = (int) $r['qr'];
+					if ( $w <= 0 ) { $w = 0; }
+					$gom[ $g ]['ts'][ (string) $r['ma_may'] ] = $w;
+					$gom[ $g ]['tg'][ (string) $r['ma_may'] ] = max( 0, (int) $r['tien_mat'] + (int) $r['qr'] );
+				}
+				foreach ( $gom as $g => $o ) {
+					list( $ng, $ck ) = explode( '|', $g, 2 );
+					$qr_nhap_tong += array_sum( $o['ts'] );
+					if ( ! isset( $vq[ $ck . '|' . $ng ] ) ) {
+						$qr_thieu[ $o['coso'] . ' · ' . $ng ] = true;
+						foreach ( $o['ts'] as $ma => $w ) { $qr_map[ $ng . '|' . $ck . '|' . $ma ] = $w; }
+						continue;
+					}
+					$thuc = (int) $vq[ $ck . '|' . $ng ];
+					$qr_co_thuc++; $qr_thuc_tong += $thuc;
+					$ts = array_sum( $o['ts'] ) > 0 ? $o['ts'] : $o['tg'];
+					foreach ( self::chia_ty_le_( $thuc, $ts ) as $ma => $phan ) {
+						$qr_map[ $ng . '|' . $ck . '|' . $ma ] = (int) $phan;
+					}
+				}
+			} else {
+				$qr_thieu['(chưa có dữ liệu Sao Kê VietQR cho khoảng này)'] = true;
+			}
+		}
 
 		/* ══════════════════════════════════════════════════════════════════════════════════════
 		 * 🔴 MÃ ĐỐI TƯỢNG NỢ = `coso.ma_kh` — anh Thắng 22/09/2026: *"xuất kèm mã đối tượng
@@ -1666,11 +1785,19 @@ class VHG_KeToan {
 				if ( 'transfer' === $r['nop_trang_thai'] || strpos( $st, 'transfer' ) !== false ) { $gc = 'Chuyển khoản'; }
 				$tm += $cash; $dong( $cash, $gc );
 			}
-			if ( $q && ! $chi_tien_mat ) { $qr += $q; $dong( $q, 'QR ngân hàng' ); }
+			/* Số QR THỰC đã chia cho ghế này (xem khối trên). Không có khoá = không bật chế độ
+			   số thực → giữ nguyên số nhân viên nhập. Chia ra 0 thì BỎ HẲN DÒNG: ngân hàng
+			   không nhận đồng nào cho ghế ấy, viết một dòng 0đ vào sổ là thêm rác. */
+			$qx = $q;
+			$kqr = $d . '|' . (string) $r['coso_key'] . '|' . (string) $r['ma_may'];
+			if ( isset( $qr_map[ $kqr ] ) ) { $qx = (int) $qr_map[ $kqr ]; }
+			if ( $qx && ! $chi_tien_mat ) { $qr += $qx; $dong( $qx, 'QR ngân hàng' ); }
 		}
 		return array( 'ok' => true, 'aoa' => $aoa, 'soCot' => count( $head ), 'rows' => count( $aoa ) - 1,
 			'soNgay' => $iNgay + 1, 'soCtTheoNgay' => $soCtTheoNgay, 'tienMat' => $tm, 'tienQr' => $qr,
 			'thieuDoiTuong' => array_keys( $thieu_kh ),
+			'qrThuc' => (bool) ( $qr_thuc && ! $chi_tien_mat ), 'qrChuaCoSaoKe' => array_keys( $qr_thieu ),
+			'qrSoNhom' => $qr_co_thuc, 'qrThucTong' => $qr_thuc_tong, 'qrNhapTong' => $qr_nhap_tong,
 			'tong' => $tm + $qr, 'chiTienMat' => (bool) $chi_tien_mat,
 			'fileName' => 'Chung_Tu_Doanh_Thu_POSH' . ( $chi_tien_mat ? '_CHI_TIEN_MAT' : '' ) . '.csv' );
 	}
