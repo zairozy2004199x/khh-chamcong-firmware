@@ -1842,7 +1842,21 @@
              đơn vị thứ ba (anh Thắng 11/09/2026: *"tách anh thêm 1 đơn vị KVC đi"*) là nhãn ấy
              nói sai ngay, mà chẳng ai nhớ ra để sửa. Danh sách thật nằm ở ô gợi ý bên dưới,
              dựng từ chính dữ liệu (`VHCP_DonVi::ds()`). -->
-        <label>Đơn vị — bên nào nhìn thấy chi phí của gian này <span style="font-weight:400;color:#8c8781">(gõ tên mới để mở thêm đơn vị)</span></label><input id="ncDonVi" list="dl_donvi" placeholder="để trống = K&amp;H"></div>
+        <!-- ══════════════════════════════════════════════════════════════════════════════════
+             Ô ĐƠN VỊ ĐỔI THÀNH Ô CHỌN KHỐI — đúng bằng cột trong bảng bên dưới.
+
+             Anh Thắng 22/09/2026: *"Tạo Khối VP (cho tự tạo, do VP không có cơ sở)"*.
+
+             🔴 CỘT TRONG BẢNG ĐÃ LÀ "KHỐI" TỪ 21/09, CÒN HỘP THÊM THÌ CHƯA. Hai chỗ ghi vào
+                CÙNG MỘT ô dữ liệu (`donVi`) nhưng một bên là ô CHỌN ba khối, một bên là ô GÕ
+                TAY với gợi ý "để trống = K&H". Gõ tay ra một chuỗi không khớp mã khối nào thì
+                cơ sở mới rơi vào nhóm "(chưa rõ đơn vị)" — và Văn phòng, vốn không có cơ sở
+                nào sẵn, KHÔNG CÓ CÁCH NÀO tạo được cơ sở đầu tiên của mình.
+
+             ⚠️ CHỌN SẴN KHỐI ĐANG XEM: người ta bấm "+ Thêm cơ sở" khi đang cuộn ở bảng của
+                khối nào thì gần như chắc chắn muốn thêm vào khối ấy.
+             ══════════════════════════════════════════════════════════════════════════════════ -->
+        <label>Khối — cơ sở này thuộc khối nào</label><select id="ncKhoi"></select></div>
       <div class="fld" style="margin-bottom:10px"><label>Phân loại lớn</label><input id="ncPll" list="dl_pll" placeholder="Chọn/nhập (VD: FARM MN)"></div>
       <div class="fld" style="margin-bottom:16px"><label>Tỉnh / Thành <span style="font-weight:400;color:#8c8781">(không bắt buộc)</span></label><input id="ncTinh" list="dl_tinh" placeholder="VD: TP HCM"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
@@ -12296,6 +12310,40 @@
       if(!dvGr[d]){dvGr[d]=[];dvOrd.push(d);} dvGr[d].push(x);
     });
     dvOrd.sort();
+    /* ══════════════════════════════════════════════════════════════════════════════════════
+     * BÀY ĐỦ BA KHỐI, KỂ CẢ KHỐI CHƯA CÓ CƠ SỞ NÀO.
+     *
+     * Anh Thắng 22/09/2026: *"Tạo Khối VP (cho tự tạo, do VP không có cơ sở)"*.
+     *
+     * 🔴 VÒNG GOM Ở TRÊN CHỈ TẠO NHÓM CHO KHỐI **CÓ** CƠ SỞ. Văn phòng không có cơ sở vật lý
+     *    nào, nên nó không có nhóm — mà nút "+ Thêm cơ sở" lại nằm trong nhóm. Thành ra Văn
+     *    phòng KHÔNG CÓ CÁCH NÀO tạo cơ sở đầu tiên của mình: một cái vòng khoá chính nó.
+     *    Cùng lẽ với `_mxNhomDv()` bên bảng mã — ở đó cũng luôn bày đủ ba khối.
+     *
+     * ⚠️ CHỈ THÊM KHỐI NGƯỜI NÀY XEM ĐƯỢC. Bày cả ba cho kế toán bị bó một khối là mời họ khai
+     *    vào một bảng mà máy chủ sẽ chối ngay lượt Lưu.
+     * ⚠️ NHÓM RỖNG XẾP CUỐI: nhóm có việc thật đứng trước, chỗ để tạo mới đứng sau.
+     * ══════════════════════════════════════════════════════════════════════════════════════ */
+    /* 🔴 CHỈ BÙ KHI DANH MỤC THẬT SỰ KHÔNG CÓ CƠ SỞ NÀO CHO NGƯỜI NÀY THẤY *VÀ* KHÔNG PHẢI DO
+       BỊ BÓ. Dải "không phải mất dữ liệu" ngay dưới sinh ra từ một lần cắn thật (11/09/2026,
+       anh Thắng: *"mã đơn vị theo cơ sở bị ẩn mất rồi"*) — nó phân biệt "chưa khai ai" với
+       "khai rồi nhưng không được xem". Bù nhóm vô điều kiện là dvOrd không bao giờ rỗng nữa,
+       dải ấy không bao giờ chạy, và người bị bó lại thấy ba bảng trắng không lời giải thích —
+       đúng cái hiểu lầm cũ, lần này do chính em dựng lại. Bài `kiem-bang-coso-rong-noi-ly-do.js`
+       đỏ ngay, đúng chỗ. */
+    /* ⚠️ DẤU HIỆU "BỊ BÓ" LÀ `BOOT.xemDonVi`, KHÔNG PHẢI DANH MỤC RỖNG. Máy chủ đã lọc trước
+       khi gửi, nên người bị bó nhận về `CFG.coso` RỖNG — y hệt người chưa khai gì. Phân biệt
+       hai cảnh ấy bằng số dòng là không phân biệt được; thứ duy nhất nói ra là danh sách đơn vị
+       người ta xem được. (Em đọc nhầm đúng chỗ này một lượt, 22/09/2026.) */
+    var _biBo=!!(BOOT.xemDonVi && BOOT.xemDonVi.length);
+    if(!(_biBo && !dvOrd.length)){
+      KHOI_DS.forEach(function(k){
+        if(dvGr[k.ma]) return;                                  // đã có nhóm mang đúng mã khối
+        if(dvOrd.some(function(d){ return _khoiCuaDv(d)===k.ma; })) return;   // nhóm mang tên đơn vị cũ cùng khối
+        if(!_xemDuocDv(k.ma)) return;
+        dvGr[k.ma]=[]; dvOrd.push(k.ma);
+      });
+    }
     /* 🔴 BẢNG RỖNG PHẢI NÓI VÌ SAO RỖNG. Cắn thật 11/09/2026: anh Thắng mở màn Cấu hình, bảng
        "🏢 Mã đơn vị theo Cơ sở" trắng trơn, và câu đầu tiên là *"mã đơn vị theo cơ sở bị ẩn
        mất rồi"* — tưởng mất dữ liệu. Không mất gì: tài khoản lúc ấy bị bó theo Đơn vị nên
@@ -12320,10 +12368,27 @@
       /* Tên khối cho dễ đọc; đơn vị lạ không ánh xạ được thì bày nguyên chuỗi — giấu nó
          sau một cái tên khối đoán bừa là tệ hơn hẳn việc để người khai thấy nó lạ. */
       var _nk=_tenKhoi(_khoiCuaDv(d));
+      /* Nút thêm NẰM TRONG nhóm và mang theo mã khối: bấm ở bảng nào thì cơ sở mới vào đúng
+         khối ấy, khỏi phải nhớ chọn lại trong hộp. Một nút chung ở đầu thẻ không trả lời được
+         câu "thêm vào khối nào?", và câu trả lời thầm lặng là chỗ để người ta khai nhầm. */
+      var _maK=_khoiCuaDv(d)||String(d).toLowerCase();
+      var _nut='<tr><td colspan="8" style="padding:6px 10px;background:#fafaf8">'
+        +'<button type="button" class="btn b-x" data-khong-khoa="1" onclick="addCfgCoso('+JSON.stringify(_maK).replace(/"/g,'&quot;')+')" '
+        +'style="padding:3px 10px;font-size:11.5px">＋ Thêm cơ sở cho '+esc(_nk||d)+'</button></td></tr>';
       return '<tr><td colspan="8" style="background:#1e3a8a;color:#fff;font-weight:800;letter-spacing:.3px;padding:9px 10px">🧩 KHỐI '+esc(_nk||d)+' <span style="font-weight:500;opacity:.85">· '+dvGr[d].length+' cơ sở</span></td></tr>'
+        + (dvGr[d].length ? '' :
+            '<tr><td colspan="8" style="padding:10px 12px;background:#fffbeb;border-left:4px solid #f59e0b;color:#92400e;font-size:12.5px">'
+            + 'Khối này chưa có cơ sở nào — bấm nút bên dưới để thêm.'
+            /* Chỉ Văn phòng mới cần câu này: hai khối kia có gian thật, nhắc họ "tạo cơ sở đại
+               diện" là mời khai một gian không tồn tại. */
+            + (_khoiCuaDv(d)==='vp'
+                ? ' Văn phòng thường không có gian vật lý — cứ tạo một "cơ sở" đại diện (VD <b>VĂN PHÒNG HCM</b>) để đơn của khối có chỗ đứng.'
+                : '')
+            + '</td></tr>')
         +ord.map(function(g){
           return '<tr><td colspan="8" style="background:#f0fdfa;font-weight:700;color:#0f766e;border-left:3px solid #0f766e">▸ '+esc(g)+' <span style="font-weight:400;color:#64748b">· '+gr[g].length+' cơ sở</span></td></tr>'+gr[g].map(rowCoso).join('');
-        }).join('');
+        }).join('')
+        +_nut;
     }).join('');
     _csLock(true);
     doCoSoLa();   // dò tên cơ sở có trên dữ liệu mà chưa khai ở bảng này
@@ -12417,14 +12482,30 @@
       if(r.them) loadCfg();
     }).withFailureHandler(function(e){ toast('err','Lỗi: '+(e&&e.message?e.message:e)); }).hutCoSoGhe();
   }
-  function addCfgCoso(){ el('ncTen').value=''; el('ncMisa').value=''; el('ncMa').value=''; el('ncPll').value=''; if(el('ncDonVi')) el('ncDonVi').value=''; if(el('ncTinh')) el('ncTinh').value=''; el('cosoModal').style.display='flex'; setTimeout(function(){el('ncTen').focus();},60); }
+  /* `khoiSan` = khối của bảng người ta vừa bấm "+ Thêm cơ sở"; không có thì lấy khối đang đứng. */
+  function addCfgCoso(khoiSan){
+    el('ncTen').value=''; el('ncMisa').value=''; el('ncMa').value=''; el('ncPll').value='';
+    if(el('ncTinh')) el('ncTinh').value='';
+    var k=el('ncKhoi');
+    if(k){
+      var ma=String(khoiSan||KHOI_DANG||'kvc').toLowerCase();
+      k.innerHTML=KHOI_DS.map(function(x){
+        return '<option value="'+esc(x.ma)+'"'+(x.ma===ma?' selected':'')+'>'+esc(x.ten)+'</option>';
+      }).join('');
+    }
+    el('cosoModal').style.display='flex'; setTimeout(function(){el('ncTen').focus();},60);
+  }
   function closeCfgCoso(){ el('cosoModal').style.display='none'; }
   function submitCfgCoso(){
     var ten=el('ncTen').value.trim(); if(!ten){toast('warn','Nhập tên thường gọi');return;}
     _syncCosoFromDOM();
+    /* 🔴 GHI MÃ KHỐI VÀO ĐÚNG Ô `donVi` — đó là ô mà cột "Khối" của bảng đang đọc và ghi
+       (`_khoiSelCoso`). Ghi sang ô khác là bảng không thấy, và cơ sở mới rơi vào nhóm
+       "(chưa rõ đơn vị)" ngay lượt vẽ lại. */
+    var khoiMoi=(el('ncKhoi')?String(el('ncKhoi').value||'').trim():'')||String(KHOI_DANG||'kvc');
     CFG.coso.push({ten:ten, tenMisa:el('ncMisa').value.trim(), maDonVi:el('ncMa').value.trim(), phanLoaiLon:el('ncPll').value.trim(),
-      donVi:(el('ncDonVi')?el('ncDonVi').value.trim():''), tinh:(el('ncTinh')?el('ncTinh').value.trim():'')});
-    closeCfgCoso(); renderCosoBody(); toast('ok','Đã thêm vào nhóm — nhớ bấm 💾 Lưu');
+      donVi:khoiMoi, tinh:(el('ncTinh')?el('ncTinh').value.trim():'')});
+    closeCfgCoso(); renderCosoBody(); toast('ok','Đã thêm vào khối '+(_tenKhoi(khoiMoi)||khoiMoi)+' — nhớ bấm 💾 Lưu');
   }
   function saveCfgCoso(){ var data=_readRows('cfgCosoBody').map(_dongCoso).filter(function(x){return x.ten;});
     _saveCfg({coso:data},'Đã lưu cấu hình cơ sở');
