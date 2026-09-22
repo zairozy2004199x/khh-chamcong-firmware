@@ -89,7 +89,7 @@
       <div class="panel-head"><h2>Cần xử lý ngay</h2>
         <span class="hint">Quá hạn, sắp đến hạn, nghi trùng chi, thiếu thông tin chuyển khoản</span>
       </div>
-      <ul class="issues" id="tongCanhBao"></ul>
+      <div id="tongCanhBao"></div>
       <p class="hint" id="tongCanhBaoThem" hidden></p>
     </div>
 
@@ -114,10 +114,27 @@
         <button class="btn sm" id="btnLocXoa">Bỏ lọc</button>
       </div>
 
-      <div class="filters" id="uncLoc">
-        <label>Tìm
-          <input type="search" id="fTuKhoa" placeholder="tên nhà cung cấp, nội dung, số TK, số tiền…">
-        </label>
+      <!-- HÀNG LỌC LUÔN THẤY: một ô tìm + mấy nút lọc nhanh.
+           Tám ô lọc bày hết ra chiếm 130px trên máy tính và 280px trên điện thoại — tức mở tab
+           ra là thấy bộ lọc chứ chưa thấy dòng dữ liệu nào. Mà thực tế mỗi lượt kế toán chỉ
+           dùng một hai thứ: tìm theo tên, hoặc lọc "quá hạn" / "chưa lập lệnh". Sáu ô còn lại
+           lui vào nút "Lọc thêm", và nút ấy ĐEO SỐ khi còn ô nào đang bật — lọc bị giấu mà
+           không ai biết là cách người ta đọc nhầm một bảng thiếu mất nửa số dòng. -->
+      <div class="loc-chinh">
+        <input type="search" id="fTuKhoa" class="loc-tim"
+               placeholder="Tìm tên nhà cung cấp, nội dung, số TK, số tiền…"
+               aria-label="Tìm trong danh sách ủy nhiệm chi">
+        <div class="chips" id="locNhanh" role="group" aria-label="Lọc nhanh">
+          <button type="button" class="chip" data-nhanh="quahan">Quá hạn</button>
+          <button type="button" class="chip" data-nhanh="chua_lenh">Chưa lập lệnh</button>
+          <button type="button" class="chip" data-nhanh="da_lenh">Đã lập lệnh</button>
+          <button type="button" class="chip" data-nhanh="da_di">Đã đi tiền</button>
+        </div>
+        <div class="spacer"></div>
+        <button class="btn sm" id="btnLocThem" aria-expanded="false" aria-controls="uncLoc">Lọc thêm</button>
+      </div>
+
+      <div class="filters" id="uncLoc" hidden>
         <label>Kỳ <select id="fKy"></select></label>
         <label>Trạng thái <select id="fTrangThai"></select></label>
         <label>Bộ phận <select id="fBP"></select></label>

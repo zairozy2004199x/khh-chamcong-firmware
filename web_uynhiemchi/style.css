@@ -307,6 +307,34 @@ main { flex: 1 1 auto; padding: var(--d4) var(--d4) var(--d6); }
 .kpi.clickable { cursor: pointer; transition: border-color .12s ease, box-shadow .12s ease; }
 .kpi.clickable:hover { border-color: var(--brand-2); box-shadow: var(--bong-1); }
 
+/* ====== Hàng lọc chính: ô tìm + nút lọc nhanh ======
+   Đây là hàng DUY NHẤT luôn hiện. Sáu ô còn lại nằm trong `.filters` bên dưới, gập lại. */
+.loc-chinh {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--d2);
+  margin-bottom: var(--d2);
+}
+.loc-tim {
+  flex: 1 1 260px; min-width: 200px; min-height: 32px; padding: 0 var(--d3);
+  border: 1px solid var(--line-dam); border-radius: var(--bo-1);
+  background: var(--panel); color: var(--text); font: inherit; font-size: var(--c3);
+}
+.loc-tim:focus-visible { outline: 2px solid var(--brand-2); outline-offset: 1px; }
+
+.chips { display: flex; flex-wrap: wrap; gap: var(--d1); }
+/* 🔴 NÚT LỌC BẬT PHẢI ĐỌC RA ĐƯỢC KHÔNG CẦN MÀU. Nền đậm + chữ đảo màu + dấu ✓ — người
+   không phân biệt được xanh với xám vẫn thấy ngay nút nào đang ăn vào danh sách. */
+.chip {
+  min-height: 28px; padding: 0 var(--d3); border-radius: var(--bo-tron);
+  border: 1px solid var(--line-dam); background: var(--panel);
+  color: var(--text); font: inherit; font-size: var(--c2); font-weight: 600;
+  cursor: pointer; white-space: nowrap;
+}
+.chip:hover { border-color: var(--brand-2); }
+.chip:focus-visible { outline: 2px solid var(--brand-2); outline-offset: 2px; }
+.chip.bat { background: var(--brand); border-color: var(--brand); color: #fff; }
+.chip.bat::before { content: "✓ "; }
+.btn.dang-bat { border-color: var(--brand); color: var(--brand); font-weight: 700; }
+
 /* ====== Bộ lọc ====== */
 .filters { display: flex; flex-wrap: wrap; gap: var(--d2) var(--d3); align-items: flex-end; }
 .filters label {
@@ -477,6 +505,54 @@ td > .tag + .sub { display: inline; margin-left: var(--d1); }
 }
 .issues li .go:focus-visible { outline: 2px solid var(--brand-2); outline-offset: 2px; border-radius: 2px; }
 
+/* ====== Khối cảnh báo gom nhóm ====== */
+.nhom-canh {
+  border: 1px solid var(--line); border-radius: var(--bo-2);
+  margin-bottom: var(--d2); background: var(--panel);
+}
+.nhom-canh > summary {
+  display: flex; align-items: center; flex-wrap: wrap; gap: var(--d2);
+  padding: var(--d2) var(--d3); cursor: pointer; list-style: none;
+  border-radius: var(--bo-2);
+}
+.nhom-canh > summary::-webkit-details-marker { display: none; }
+/* Mũi tên tự vẽ: `list-style` của <summary> mỗi trình duyệt một kiểu, và ở chế độ flex thì
+   có nơi nó biến mất hẳn — mất luôn dấu hiệu khối này gập/mở được. */
+.nhom-canh > summary::before {
+  content: "▸"; color: var(--muted); font-size: var(--c2); transition: transform .12s ease;
+}
+.nhom-canh[open] > summary::before { transform: rotate(90deg); }
+.nhom-canh > summary:hover { background: var(--panel-2); }
+.nhom-canh > summary:focus-visible { outline: 2px solid var(--brand-2); outline-offset: -2px; }
+.nc-ten { font-weight: 700; font-size: var(--c4); }
+.nc-dem {
+  min-width: 22px; padding: 0 var(--d2); border-radius: var(--bo-tron);
+  font-size: var(--c2); font-weight: 700; text-align: center;
+  background: var(--panel-2); color: var(--muted);
+}
+.nc-dem.loi { background: var(--danger-soft); color: var(--danger); }
+.nc-dem.canh { background: var(--warn-soft); color: var(--warn); }
+.nc-dem.tin { background: var(--info-soft); color: var(--info); }
+/* Dòng giải nghĩa xuống hàng riêng khi hẹp, chứ không bóp tiêu đề và con số. */
+.nc-giai { flex: 1 1 100%; font-size: var(--c2); color: var(--muted); }
+.nhom-canh .issues { padding: 0 var(--d3) var(--d3); }
+.trong-vui {
+  margin: 0; padding: var(--d5) var(--d4); text-align: center;
+  color: var(--ok); font-weight: 600; font-size: var(--c4);
+  background: var(--ok-soft); border: 1px solid var(--ok-vien); border-radius: var(--bo-2);
+}
+
+/* ====== Đầu ngăn chi tiết ====== */
+.dr-dinh {
+  padding: var(--d3); margin-bottom: var(--d3);
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--bo-2);
+}
+.dr-tien { font-size: var(--c7); font-weight: 700; font-variant-numeric: tabular-nums; }
+.dr-moc { display: flex; flex-wrap: wrap; align-items: center; gap: var(--d2); margin-top: var(--d2); }
+.dr-viec { margin-bottom: var(--d5); }
+.dr-viec h3 { margin: 0 0 var(--d2); }
+.dr-nut { display: flex; gap: var(--d2); flex-wrap: wrap; margin-top: var(--d3); }
+
 /* ====== Biểu đồ cột thuần CSS ====== */
 .bars { display: flex; flex-direction: column; gap: var(--d1); }
 .bar-row { display: grid; grid-template-columns: 92px 1fr 130px; gap: var(--d2); align-items: center; font-size: var(--c2); }
@@ -592,6 +668,86 @@ body.dragging .drop { border-color: var(--brand); background: var(--brand-soft);
   .filters input, .filters select, .field input, .field select, .field textarea,
   .bulkbar input[type="date"] { font-size: var(--c5); }
   .filters input[type="search"] { min-width: 100%; }
+  .loc-tim { flex-basis: 100%; font-size: var(--c5); }
+  /* Trên máy tính `.spacer` đẩy "Lọc thêm" sang phải cho gọn; ở khổ này nó đẩy nút xuống
+     riêng một hàng trống trơn. Xoá khoảng đẩy đi, để nút đứng ngay sau mấy nút lọc nhanh. */
+  .loc-chinh .spacer { display: none; }
+
+  /* ═══ BẢNG CHÍN CỘT HOÁ THÀNH THẺ ═══════════════════════════════════════════════════
+   * 🔴 Trên màn 420px, bảng ủy nhiệm chi rộng 1212px. Muốn đọc MỘT khoản chi, người ta phải
+   *    cuộn ngang qua chín cột rồi cuộn ngược lại — và giữa đường thì quên mất đang ở dòng
+   *    nào, vì không còn cái đầu cột nào trong tầm mắt. Đó không phải bảng hẹp, đó là bảng
+   *    KHÔNG DÙNG ĐƯỢC.
+   *
+   *    Nên ở đây nó thôi làm bảng: mỗi hàng thành một thẻ, mỗi ô một dòng "nhãn — giá trị",
+   *    nhãn lấy từ `data-nhan` mà app.js đóng vào (xem chú thích ở `veDong`). Nội dung và
+   *    số tiền được cất nhắc lên làm đầu thẻ vì đó là hai thứ người ta dò.
+   *
+   *    Giữ nguyên thẻ <table>, không dựng lại bằng <div>: đổi thẻ thì bản máy tính mất hết
+   *    sắp xếp theo cột, chọn hàng loạt và tổng cộng ở chân bảng. Ở đây chỉ đổi CÁCH BÀY. */
+  #uncBang, #uncBang tbody, #uncBang td { display: block; width: auto; }
+  #uncBang thead, #uncBang tfoot { display: none; }
+  #uncBang { white-space: normal; }
+  .tbl-wrap:has(#uncBang) { overflow: visible; max-height: none; border: 0; background: none; }
+
+  /* Thẻ xếp lại theo THỨ BẬC ĐỌC, không theo thứ tự cột trong bảng:
+       hàng 1  nội dung / đơn vị thụ hưởng   (thứ người ta dò)
+       hàng 2  số tiền  ·············  trạng thái
+       hàng 3  kỳ · bộ phận · hạn · TK chi · ngày đi   (một dòng nhạt, để tra)
+     Bảng trên máy tính giữ nguyên thứ tự cột; chỉ khổ này đảo bằng `order`. */
+  #uncBang tbody tr {
+    position: relative; display: flex; flex-wrap: wrap; align-items: baseline;
+    gap: 0 var(--d2);
+    border: 1px solid var(--line); border-radius: var(--bo-2);
+    margin-bottom: var(--d2); padding: var(--d3); padding-right: var(--d6);
+    background: var(--panel);
+  }
+  #uncBang tbody tr:nth-child(even) > td { background: none; }   /* thẻ rời nhau rồi, sọc thành nhiễu */
+  #uncBang tbody tr.chon { border-color: var(--brand); box-shadow: inset 3px 0 0 var(--brand); }
+
+  #uncBang td { flex: 0 0 auto; border: 0; padding: 0; font-size: var(--c3); }
+  #uncBang td[data-nhan]::before {
+    content: attr(data-nhan) " ";
+    color: var(--muted); font-size: var(--c1);
+    text-transform: uppercase; letter-spacing: .3px; font-weight: 700;
+  }
+
+  /* Ô tích neo góc trên phải, không chiếm một dòng riêng. */
+  #uncBang td:first-child { position: absolute; top: var(--d2); right: var(--d2); padding: 0; }
+
+  /* Hàng 1 — nội dung. Không nhãn, đậm, và được xuống dòng thay vì cắt bằng "…": trên thẻ
+     có chỗ, mà tên nhà cung cấp cắt cụt là thứ khó đoán nhất. */
+  #uncBang td.c-noiDung { order: 1; flex: 1 1 100%; margin-bottom: var(--d1); }
+  #uncBang td.c-noiDung::before { content: none; }
+  #uncBang td.c-noiDung .trunc {
+    max-width: none; white-space: normal; overflow: visible;
+    font-weight: 700; font-size: var(--c4); line-height: 1.35;
+  }
+  #uncBang td.c-noiDung .sub.trunc { font-weight: 400; font-size: var(--c2); }
+
+  /* Hàng 2 — số tiền bên trái, trạng thái đẩy sang phải. */
+  #uncBang td.c-soTien {
+    order: 2; text-align: left; font-size: var(--c6); font-weight: 700; line-height: 1.2;
+  }
+  #uncBang td.c-soTien::before { content: none; }
+  #uncBang td.c-soTien::after { content: " ₫"; font-size: var(--c2); color: var(--muted); font-weight: 400; }
+  #uncBang td.c-trangThai { order: 3; margin-left: auto; }
+  #uncBang td.c-trangThai::before { content: none; }
+
+  /* Hàng 3 — mấy mẩu để tra, gom thành một dòng nhạt ngăn nhau bằng dấu chấm giữa. */
+  #uncBang td.c-ky, #uncBang td.c-bp, #uncBang td.c-han,
+  #uncBang td.c-tkcty, #uncBang td.c-ngayDi {
+    order: 4; font-size: var(--c2); color: var(--muted);
+    margin-top: var(--d1);
+  }
+  #uncBang td.c-ky { flex-basis: 100%; margin-top: var(--d2); }
+  #uncBang td.c-bp ~ td::before { }
+  #uncBang td.c-bp, #uncBang td.c-han, #uncBang td.c-tkcty, #uncBang td.c-ngayDi { margin-top: 0; }
+  #uncBang td.c-ky, #uncBang td.c-bp, #uncBang td.c-han,
+  #uncBang td.c-tkcty, #uncBang td.c-ngayDi { display: flex; align-items: baseline; gap: 3px; }
+
+  /* Ô rỗng ("—") không đáng chiếm một dòng trên thẻ. */
+  #uncBang td.trong-md { display: none; }
 }
 
 /* ====== Chỉ dùng ở bản WordPress ====== */

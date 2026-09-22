@@ -4,7 +4,7 @@ Tags: ke-toan, uy-nhiem-chi, cong-no, excel
 Requires at least: 5.6
 Tested up to: 6.6
 Requires PHP: 7.2
-Stable tag: 1.2.0
+Stable tag: 1.3.0
 License: GPL-2.0-or-later
 
 Theo dõi ủy nhiệm chi đã đi tiền hay chưa và công nợ phải trả từng nhà cung cấp, đọc thẳng từ
@@ -67,6 +67,26 @@ cắt request, plugin báo thẳng con số và đề nghị nâng `post_max_siz
 đè bằng danh sách rỗng.
 
 == Changelog ==
+
+= 1.3.0 =
+* **Điện thoại: bảng chín cột thôi làm bảng, hoá thành thẻ.** Trước, muốn đọc một khoản chi
+  trên màn 420px phải cuộn ngang qua một bảng rộng 1212px rồi cuộn ngược lại — và giữa đường
+  thì không còn cái đầu cột nào trong tầm mắt để biết con số đang nhìn là hạn hay ngày đã đi.
+  Nay mỗi khoản một thẻ, xếp theo thứ bậc đọc: nội dung → số tiền → trạng thái → mấy mẩu tra
+  cứu. Thẻ cao 139px, không còn cuộn ngang.
+* **Tám ô lọc thu về một hàng.** Bày hết ra thì bộ lọc chiếm 130px trên máy tính và 280px
+  trên điện thoại, tức mở tab ra là thấy bộ lọc chứ chưa thấy dòng dữ liệu nào. Nay một ô tìm
+  cộng bốn nút lọc nhanh (Quá hạn · Chưa lập lệnh · Đã lập lệnh · Đã đi tiền); sáu ô còn lại
+  lui vào nút "Lọc thêm" — và nút ấy **đeo số** khi còn ô nào đang bật, kể cả lúc đã gập, nên
+  không có bộ lọc nào giấu mất nửa số dòng mà người xem không biết.
+* **Ngăn chi tiết để việc cần làm lên trước.** Người ta mở một khoản ra là để đánh dấu đã đi
+  tiền, mà ba ô ấy trước nằm sau mười một dòng chỉ-để-đọc. Nay: số tiền + trạng thái + hạn ở
+  trên cùng, rồi tới khối đánh dấu, phần tra cứu xuống dưới.
+* **"Cần xử lý ngay" gom theo loại thay cho một danh sách phẳng 25 dòng.** Bốn loại là bốn
+  việc khác hẳn nhau, mà trước xếp liền nhau cùng một viền đỏ — nên mấy mục *nghi trùng chi*,
+  thứ đáng dừng lại nhất vì nó là tiền có thể đi hai lần, nằm lẫn giữa hai chục dòng quá hạn
+  trông y hệt. Nay mỗi loại một khối có tiêu đề nói ra việc phải làm và con số đếm bên cạnh;
+  khối quá hạn và nghi trùng chi mở sẵn, hai khối còn lại gập nhưng số vẫn hiện.
 
 = 1.2.0 =
 * Bộ áo làm lại cho người NGỒI CẢ BUỔI với nó, không phải cho ảnh chụp: hàng bảng ủy nhiệm chi
