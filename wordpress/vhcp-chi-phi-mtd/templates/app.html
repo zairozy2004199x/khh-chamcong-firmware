@@ -1696,7 +1696,7 @@
              LOẠT đứng ngay cạnh nút Lưu, trong một bảng người ta mở ra mỗi ngày để sửa tên loại.
              Nó dựng cho một lần dọn dữ liệu cũ; giữ lại là để một cú bấm nhầm xoá cả danh mục. --><button class="btn b-x" onclick="ganMaTK()" title="Điền mã tài khoản cho các dòng chi cũ còn trống">🔗 Gán mã cho dòng cũ</button><button class="btn b-g" onclick="saveCfgTkNoMx()">💾 Lưu</button></div></div>
       <div class="tw"><div id="cfgTkNoMx" style="padding:4px 14px 8px"></div></div>
-      <div style="padding:0 14px 12px;font-size:11px;color:#8c8781"><b>Bảng duy nhất quyết định "chi phí này là chi phí gì".</b> <b>Bảng trên</b> — mỗi hàng là một loại chi phí: <b>Loại</b> = mua của NCC hay cá nhân ứng tiền (dùng để lọc lúc nhập theo hình thức chi) · <b>Bộ phận</b> = ai được thấy loại này · <b>Tên theo MISA</b> = tên đem đi xuất (trống = dùng tên bên trái). <b>TK đối ứng</b> để trống thì app tự lấy theo hình thức chi (Tạm ứng NV → <b>141</b> · Trực tiếp NCC → <b>331</b>); điền vào thì loại ấy <b>luôn</b> đối ứng vào mã đã khai, bất kể chi bằng hình thức gì — dùng cho những loại đi thẳng công nợ (VD Máy tự động: Nợ 64136 · Có <b>331</b>). Mã khai ở đây áp cho <b>cả dòng đã nhập trước đó</b>, khác với TK Nợ. <b>Bảng dưới</b> — <b>TK Nợ của từng mảng</b>, mỗi hàng là một mảng kinh doanh (xếp DỌC cho dễ dò, vì mảng thì hàng chục còn loại chi phí chỉ chừng mươi cái) — mảng của một dòng chi lấy theo <b>Phân loại lớn</b> của cơ sở (khai ở bảng 🏢 Mã đơn vị theo Cơ sở), nên cùng loại chi phí mà khác cơ sở thì khác mã, cùng loại chi phí mà khác mảng thì khác mã (VD "Chi phí khác": Event 64196 · Farm 64166 · Funzone 64126 · TuTu 64106). Ô để trống = <b>mảng đó không dùng loại này</b> → ô chọn loại chi phí ở cơ sở thuộc mảng đó cũng không hiện. Một ô khai được <b>nhiều mã</b>, cách nhau bởi <code>|</code> (VD <code>64196 | 64197</code>) — lúc nhập ô chọn tách thành từng dòng theo mã để người nhập chỉ đúng một. Cột mảng lấy tự động từ "Phân loại lớn" của bảng Cơ sở. Sửa mã ở đây <b>không</b> đổi mã của dòng đã nhập; muốn áp lại thì bấm <b>🔗 Gán mã cho dòng cũ</b>.</div>
+      <div style="padding:0 14px 12px;font-size:11px;color:#8c8781"><b>Bảng duy nhất quyết định "chi phí này là chi phí gì".</b> <b>Bảng trên</b> — mỗi hàng là một loại chi phí: <b>Loại</b> = mua của NCC hay cá nhân ứng tiền (dùng để lọc lúc nhập theo hình thức chi) · <b>Bộ phận</b> = ai được thấy loại này · <b>Tên theo MISA</b> = tên đem đi xuất (trống = dùng tên bên trái). <b>TK đối ứng</b> để trống thì app tự lấy theo hình thức chi (Tạm ứng NV → <b>141</b> · Trực tiếp NCC → <b>331</b>); điền vào thì loại ấy <b>luôn</b> đối ứng vào mã đã khai, bất kể chi bằng hình thức gì — dùng cho những loại đi thẳng công nợ (VD Máy tự động: Nợ 64136 · Có <b>331</b>). Mã khai ở đây áp cho <b>cả dòng đã nhập trước đó</b>, khác với TK Nợ. <b>Bảng dưới</b> — <b>TK Nợ của từng mảng</b>, mỗi hàng là một mảng kinh doanh (xếp DỌC cho dễ dò, vì mảng thì hàng chục còn loại chi phí chỉ chừng mươi cái) — mảng của một dòng chi lấy theo <b>Phân loại lớn</b> của cơ sở (khai ở bảng 🏢 Mã đơn vị theo Cơ sở), nên cùng loại chi phí mà khác cơ sở thì khác mã, cùng loại chi phí mà khác mảng thì khác mã (VD "Chi phí khác": Event 64196 · Farm 64166 · Funzone 64126 · TuTu 64106). Ô để trống <b>không còn ẩn loại</b> khỏi ô chọn lúc nhập đơn (bỏ 22/09/2026 — <i>"lúc tạo đơn nhân viên không cần quan tâm"</i>): dòng ấy lưu với TK Nợ trống, rồi <b>kế toán chọn mã cho từng dòng</b> ở ô TK Nợ ngay dưới ô Loại chi phí trong bảng dòng chi, lúc quyết toán. Một ô khai được <b>nhiều mã</b>, cách nhau bởi <code>|</code> (VD <code>64196 | 64197</code>) — lúc nhập ô chọn tách thành từng dòng theo mã để người nhập chỉ đúng một. Cột mảng lấy tự động từ "Phân loại lớn" của bảng Cơ sở. Sửa mã ở đây <b>không</b> đổi mã của dòng đã nhập; muốn áp lại thì bấm <b>🔗 Gán mã cho dòng cũ</b>.</div>
     </div>
 
     <div class="card" id="tkCoCard">
@@ -4316,7 +4316,77 @@
       +'<select onchange="saveLineNhom(\''+l.id+'\',this.value)" title="'+esc(ten||'Chưa gắn loại chi phí')+'" style="'+_selS+'">'
       +'<option value="">— chưa gắn mã —</option>'
       +ds.map(function(v){ return '<option value="'+esc(v)+'"'+(v===ten?' selected':'')+'>'+esc(v)+'</option>'; }).join('')
-      +'</select>'+(ten?badge:'<div style="font-size:10px;color:#dc2626">⚠ chưa gắn mã</div>')+'</td>';
+      +'</select>'+_oTkNoDong(l)
+      +(ten?badge:'<div style="font-size:10px;color:#dc2626">⚠ chưa gắn loại</div>')+'</td>';
+  }
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+     KẾ TOÁN CHỈNH TK NỢ CỦA TỪNG DÒNG — Ô THỨ HAI, NGAY DƯỚI Ô LOẠI.
+
+     Anh Thắng 22/09/2026: *"Sau khi quyết toán, thì kế toán có quyền điều chỉnh tk nợ theo nhu
+     cầu, vì Cùng tên gọi nhưng nội dung khác, Nên lúc tạo đơn nhân viên không cần quan tâm
+     (đến phần quyết toán thì nó mới hiện qua và kế toán chọn các số lập sẵn và bấm quyết toán
+     là xong)"*.
+
+     🔴 TÊN LOẠI KHÔNG ĐỦ ĐỂ SUY RA MÃ, và đó không phải lỗi khai báo. Hai dòng cùng mang tên
+        "Chi phí khác" có thể là hai khoản hạch toán khác hẳn nhau — chỉ người đọc nội dung
+        dòng mới phân được, và người đó là kế toán, ở bước quyết toán. Ép cái phân biệt ấy lên
+        danh mục là bắt khai một loại mới cho mỗi sắc thái, hoặc bắt người nhập chọn mã họ
+        không biết.
+     🔴 "CÁC SỐ LẬP SẴN" — không phải ô gõ tự do. Ô chọn bày đúng những mã ĐÃ khai ở ⚙️ Cấu
+        hình: mã của chính loại này lên trước (gần như luôn là mã đúng), rồi tới mọi mã khác
+        trong hệ. Gõ tay được một mã chưa khai là mở cửa cho mã ma, mà mã ma chỉ lộ ra ở MISA.
+     ⚠️ "— tự động theo loại —" PHẢI LÀ MỘT LỰA CHỌN THẬT. Chỉnh tay rồi muốn quay về luật
+        chung mà không có đường lui thì dòng ấy đông cứng ở mã người ta lỡ chọn.
+     ══════════════════════════════════════════════════════════════════════════════════════════ */
+  function _tkNoCuaLoai(ten){
+    var row=(BOOT.tkNoMx||{})[String(ten||'').trim().toLowerCase()];
+    var ra=[], da={};
+    if(row) Object.keys(row).forEach(function(mg){
+      [].concat(row[mg]||[]).forEach(function(ma){ var t=String(ma).trim(); if(t&&!da[t]){da[t]=1;ra.push(t);} });
+    });
+    return ra.sort();
+  }
+  function _tkNoTatCa(){
+    var mx=BOOT.tkNoMx||{}, ra=[], da={};
+    Object.keys(mx).forEach(function(k){
+      Object.keys(mx[k]||{}).forEach(function(mg){
+        [].concat(mx[k][mg]||[]).forEach(function(ma){ var t=String(ma).trim(); if(t&&!da[t]){da[t]=1;ra.push(t);} });
+      });
+    });
+    return ra.sort();
+  }
+  function _tkOpt(ma, cur){
+    var tn=_tenTk(ma);
+    return '<option value="'+esc(ma)+'"'+(String(ma)===String(cur||'')?' selected':'')+'>'
+      +esc(ma)+(tn?('  '+esc(tn)):'')+'</option>';
+  }
+  function _oTkNoDong(l){
+    var ten=String(l.nhom||''), cur=String(l.tkNo||'');
+    var rieng=_tkNoCuaLoai(ten), da={};
+    rieng.forEach(function(m){ da[m]=1; });
+    var khac=_tkNoTatCa().filter(function(m){ return !da[m]; });
+    var h='<select onchange="saveLineTkNo(\''+l.id+'\',this.value)" title="TK Nợ của riêng dòng này"'
+      +' style="font-size:11px;width:116px;margin-top:3px;font-family:Consolas,monospace">'
+      +'<option value="">— tự động theo loại —</option>';
+    if(rieng.length) h+='<optgroup label="Mã của loại này">'+rieng.map(function(m){return _tkOpt(m,cur);}).join('')+'</optgroup>';
+    if(khac.length)  h+='<optgroup label="Mã khác đã khai">'+khac.map(function(m){return _tkOpt(m,cur);}).join('')+'</optgroup>';
+    /* Mã đang nằm trên dòng mà nay không còn trong bảng Cấu hình vẫn phải hiện ra — không thì
+       mở ô chọn lên là nó tự nhảy về "tự động", và một lần bấm nhầm ra ngoài là mã cũ mất. */
+    if(cur && rieng.indexOf(cur)<0 && khac.indexOf(cur)<0){
+      h+='<option value="'+esc(cur)+'" selected>'+esc(cur)+'  (không còn trong Cấu hình)</option>';
+    }
+    return h+'</select>';
+  }
+  function saveLineTkNo(id, val){
+    var lai=function(){ if(CUR&&CUR.don) openDon(CUR.don.maDon); };
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); lai(); return; }
+      _log('Chỉnh TK Nợ của dòng',(CUR&&CUR.don&&CUR.don.maDon)||'', 'id '+id+' -> '+(r.tkNo||'(tự động)'));
+      toast('ok', r.tkNo ? ('Dòng này nay hạch toán Nợ '+r.tkNo) : 'Đã trả về mã tự động theo loại');
+      lai();
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);lai();})
+      .setLineTkNo(id, val);
   }
   function saveLineNhom(id, val){
     var lai=function(){ if(CUR&&CUR.don) openDon(CUR.don.maDon); };
@@ -9085,7 +9155,10 @@
         return;
       }
       var tk=_tkNoCua(x.ten, coso);
-      out.push({ten:x.ten, tk:'', nhan:x.ten+(tk?('  ·  TK '+tk):'  ·  (chưa gắn mã)')});
+      /* 🔴 "(chưa gắn mã)" ĐÃ ĐỔI THÀNH "(kế toán gắn mã)" — 22/09/2026. Anh Thắng: *"lúc tạo
+         đơn nhân viên không cần quan tâm"*. Câu cũ đọc như một lỗi người nhập phải đi sửa,
+         trong khi từ nay nó là việc bình thường và là việc của người khác. */
+      out.push({ten:x.ten, tk:'', nhan:x.ten+(tk?('  ·  TK '+tk):'  ·  (kế toán gắn mã)')});
     });
     // dòng đang có mà nay không còn trong danh mục -> vẫn giữ để không mất dữ liệu cũ
     if(cur && !out.filter(function(o){return o.ten===cur && (!curTk || o.tk===curTk || o.tk==='');}).length){
@@ -9114,8 +9187,8 @@
    */
   function _loaiCpList(coso, hinhThuc, loaiTtEx){
     var bp=_bpCuaToi();
-    var mang=_mangCua(coso).toLowerCase();
-    var mx=BOOT.tkNoMx||{};
+    // ⚠️ `mang` / `mx` đã bỏ khỏi hàm này cùng lượt gỡ cửa ma trận (22/09/2026) — giữ lại hai
+    //    biến không ai đọc là mời người sau tưởng còn lọc theo mảng ở đâu đó.
     // "Trực tiếp…" = trả nhà cung cấp · còn lại = cá nhân ứng tiền.
     // loaiTtEx: chỗ gọi tự biết (đơn chi phí dùng Phân loại TT, không phải Hình thức chi).
     var ht=String(hinhThuc||'').trim();
@@ -9179,11 +9252,31 @@
          tức người nhập TỰ CHỌN; nó thôi cắt ngầm theo người đang đăng nhập. */
       var lt=String(x.loaiTt||'').trim();
       if(loaiTt && lt && lt!=='both' && lt!==loaiTt) return false;
-      if(!mang) return true;                                   // chưa khai mảng cho cơ sở -> hiện hết
-      var k=String(x.ten||'').trim().toLowerCase();
-      var row=mx[k];
-      if(!row) return true;                                    // loại không khai theo ma trận -> dùng chung
-      return !!row[mang];                                      // khai theo ma trận -> chỉ mảng nào có mã
+      /* ═══════════════════════════════════════════════════════════════════════
+         🔴 CỬA "Ô MÃ CỦA MẢNG NÀY ĐỂ TRỐNG → ẨN LOẠI" ĐÃ GỠ BỎ — 22/09/2026.
+
+         Anh Thắng: *"Sau khi quyết toán, thì kế toán có quyền điều chỉnh tk nợ theo nhu cầu,
+         vì Cùng tên gọi nhưng nội dung khác, Nên lúc tạo đơn nhân viên không cần quan tâm"*.
+
+         Đây là câu trả lời cho cả một chuỗi báo lỗi "không có loại chi phí" (10/09 kỹ thuật ·
+         21/09 máy tự động · 22/09 văn phòng). Lần nào cũng cùng một hình: loại nằm đúng trong
+         bảng Cấu hình, tích đúng khối, đúng vai — nhưng ô mã của MỘT mảng bỏ trống, nên người
+         nhập ở cơ sở thuộc mảng ấy không thấy gì cả. Vá từng lần là vá triệu chứng; gốc là
+         chính cái cửa này.
+
+         ⚠️ MÃ KHÔNG BIẾN MẤT, NÓ CHỈ ĐỔI CHỖ ĐỨNG. Ma trận [loại × mảng] vẫn là nguồn suy ra
+            TK Nợ khi lưu dòng (`VHCPMTD_Cfg::tkno_loai`), và ô chọn vẫn tách thành từng dòng mã
+            khi một mảng khai nhiều mã. Chỉ có chuyện "chưa khai mã → giấu loại đi" là thôi —
+            vì từ nay kế toán chỉnh được TK Nợ của từng dòng ở bước quyết toán
+            (`saveLineTkNo`), nên một ô mã trống không còn là ngõ cụt.
+
+         ⚠️ CHỐT CHỐNG RÁC KHÔNG HỀ YẾU ĐI. Vài trăm dòng rác nạp từ sổ cũ ("Nguyễn Hữu Thọ,
+            Nguyễn Bá Tuấn", "Cấp Mạng VNPT"…) vẫn bị cửa ngay trên cắt: chúng KHÔNG có mã,
+            KHÔNG tích bộ phận, KHÔNG tích vai. Cửa vừa gỡ là cửa khác hẳn — nó đo "mảng NÀY
+            có mã không", tức cắt những loại ĐÃ được khai cố ý rồi. Nhầm hai cửa này là đổ
+            rác ra ô chọn.
+         ═══════════════════════════════════════════════════════════════════════ */
+      return true;
     });
   }
   // ===================== KHAI NHANH LOẠI CHI PHÍ NGAY TRONG Ô CHỌN =====================
@@ -9348,23 +9441,69 @@
         +'. Bấm sang khối ấy trên thanh KHỐI, hoặc chọn cơ sở khác — khai thêm mã cũng không làm loại hiện ra.',
         mau:'#dc2626'};
     }
-    var mang=_mangCua(coso);
+    /* ══════════════════════════════════════════════════════════════════════════════════════
+     * ĐẾM ĐỦ NĂM CỬA CỦA `_loaiCpList()`, THEO ĐÚNG THỨ TỰ NÓ CẮT.
+     *
+     * Anh Thắng 22/09/2026 gửi ảnh ô LOẠI CHI PHÍ trống ở cơ sở Văn Phòng Hồ Chí Minh, trong
+     * khi bảng Cấu hình có đủ hai loại của Văn phòng, tích đúng vai, đúng khối.
+     *
+     * 🔴 PHÉP ĐẾM CŨ CHỈ BIẾT HAI TRONG NĂM CỬA. Nó đếm "chưa khai mã" và "thuộc nút khác",
+     *    còn ba cửa kia — KHỐI, VAI TRÒ và HÌNH THỨC THANH TOÁN — cắt âm thầm. Hệ quả: danh
+     *    sách rỗng vì một trong ba cửa ấy thì câu giải thích hoặc im, hoặc đổ cho "chưa khai
+     *    mã" — rồi người dùng đi khai mã, khai xong vẫn không thấy gì.
+     *    Một câu chẩn đoán sai còn tệ hơn không có câu nào: nó gửi người ta đi sai đường.
+     *
+     * 🔴 CỬA THỨ SÁU — "mảng này chưa có mã" — KHÔNG CÒN NỮA, gỡ cùng lượt này theo đúng câu
+     *    anh Thắng dặn ("lúc tạo đơn nhân viên không cần quan tâm" tới TK Nợ). Xem chốt dài ở
+     *    cuối `_loaiCpList()`. Đừng đếm lại nó ở đây: đếm một cửa đã tháo là in ra một lý do
+     *    không có thật.
+     *
+     * 🔴 VÀ `tong` PHẢI LÀ TỔNG CỦA KHỐI NÀY, không phải cả danh mục. "Đang hiện 2/16" với 14
+     *    loại kia thuộc khối khác là một con số vô nghĩa, đọc lên tưởng đang mất 14 loại.
+     *
+     * ⚠️ ĐẾM BẰNG CHÍNH MẤY PHÉP `_loaiCpList()` DÙNG, theo đúng thứ tự. Chép luật sang đây rồi
+     *    để nó trôi lệch là câu giải thích nói về một phép lọc không còn tồn tại — đúng cái bẫy
+     *    vừa sập ở trên.
+     * ══════════════════════════════════════════════════════════════════════════════════════ */
+    var _ht=String(hinhThuc||'').trim();
+    var _ttCan = loaiTtEx ? String(loaiTtEx) : ( _ht ? (_ht.indexOf('Trực tiếp')===0 ? 'ncc' : 'canhan') : '' );
     var bp=_bpCuaToi();
-    var nMa=0, nNhom=0;
+    var nKhoi=0, nVai=0, nRac=0, nNhom=0, nTt=0, tongKhoi=0;
     (BOOT.loaiChiPhi||[]).forEach(function(x){
+      if(_khoiCuaLoai(x)!==String(KHOI_DANG).toLowerCase()){ nKhoi++; return; }
+      tongKhoi++;
+      if(!_vaiDungDuocLoai(x)){ nVai++; return; }
       var bds=_bpTach(x.boPhan);
-      if(!_tkNoCua(x.ten, coso) && !_tkNoList(x.ten, coso).length){ nMa++; return; }
+      if(!_tkNoCua(x.ten, coso) && !_tkNoList(x.ten, coso).length
+         && !bds.length && !_vaiTachLoai(x).length){ nRac++; return; }
       if(NHOM_CP && _khoaNhom((bp && bds.indexOf(bp)>=0)?bp:(bds[0]||''), x.ten)!==NHOM_CP){ nNhom++; return; }
+      var lt=String(x.loaiTt||'').trim();
+      if(_ttCan && lt && lt!=='both' && lt!==_ttCan){ nTt++; return; }
     });
     var ly=[];
-    if(nMa)  ly.push(nMa+' chưa khai mã cho mảng <b>'+esc(mang||'(cơ sở chưa khai mảng)')+'</b>');
+    if(nVai)  ly.push(nVai+' không tích vai <b>'+esc((CURUSER&&CURUSER.role)||'')+'</b>');
+    /* 🔴 GỌI ĐÚNG TÊN CỬA NÀY. Nó KHÔNG phải "chưa khai mã cho mảng của cơ sở" nữa — cửa ấy gỡ
+       rồi (22/09/2026). Nó là chốt chống rác: dòng không mã, không bộ phận, KHÔNG CẢ vai trò,
+       tức mấy trăm dòng nạp từ sổ cũ. Bảo người ta "đi khai mã" là bảo sai việc: tích một vai
+       trò vào là loại hiện ra ngay, không cần mã nào cả. */
+    if(nRac)  ly.push(nRac+' chưa khai gì (không mã, không bộ phận, không vai trò)');
     if(nNhom) ly.push(nNhom+' thuộc nút khác ở "Chọn chi phí nào"');
+    if(nTt)   ly.push(nTt+' chỉ khai cho hình thức thanh toán khác');
     if(!hien){
+      /* 🔴 KHỐI NÀY KHÔNG CÓ LOẠI NÀO LÀ MỘT CẢNH RIÊNG, và là cảnh dễ gặp nhất với khối vừa
+         dựng (Văn phòng). Gộp nó vào câu chung là người ta đi tìm "mã chưa khai" của những
+         loại không hề thuộc khối mình. */
+      if(!tongKhoi){
+        return {chu:'Khối <b>'+esc(_tenKhoi(KHOI_DANG)||KHOI_DANG)+'</b> chưa có loại chi phí nào'
+          + (nKhoi?(' (danh mục đang có '+nKhoi+' loại, nhưng của khối khác)'):'')
+          + '. Khai ở ⚙️ Cấu hình → 🧮 Loại chi phí — nhớ chọn đúng ô <b>Khối</b>, hoặc bấm '
+          + '<b>＋ Thêm loại chi phí mới…</b> ngay trong ô trên.', mau:'#dc2626', thieuMa:0};
+      }
       return {chu:'Không có loại nào dùng được ở đây' + (ly.length?(' — '+ly.join(' · ')):'')
-        + '. Bấm <b>＋ Thêm loại chi phí mới…</b> trong ô trên để khai ngay.', mau:'#dc2626', thieuMa:nMa};
+        + '. Bấm <b>＋ Thêm loại chi phí mới…</b> trong ô trên để khai ngay.', mau:'#dc2626', thieuMa:nRac};
     }
     if(!ly.length) return {chu:'', mau:''};
-    return {chu:'Đang hiện '+hien+'/'+tong+' loại · ẩn: '+ly.join(' · ')+'.', mau:'#8c8781', thieuMa:nMa};
+    return {chu:'Đang hiện '+hien+'/'+tongKhoi+' loại của khối này · ẩn: '+ly.join(' · ')+'.', mau:'#8c8781', thieuMa:nRac};
   }
   function _veLoaiCpVi(id, coso, hinhThuc, loaiTtEx){
     var d=el(id); if(!d) return;

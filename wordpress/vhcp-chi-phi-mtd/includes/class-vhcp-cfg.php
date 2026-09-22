@@ -2072,6 +2072,63 @@ class VHCPMTD_Cfg {
 	}
 
 	/**
+	 * MỌI TK NỢ ĐÃ KHAI trong hệ — gom từ ma trận [loại × mảng] và cột `tkNo` của danh mục.
+	 *
+	 * Dùng để gác ô "kế toán chỉnh TK Nợ của một dòng" (`VHCPMTD_Don::set_line_tk_no`): kế toán
+	 * chọn trong "các số lập sẵn", không gõ tự do.
+	 *
+	 * ⚠️ MÃ MA CHỈ LỘ RA Ở MISA. Nhận bừa một chuỗi số là dòng chi mang mã không có trong hệ
+	 *    thống tài khoản, và chỗ phát hiện ra là lúc kế toán nhập tệp vào MISA — sau khi kỳ đã
+	 *    chốt, và không còn ai nhớ dòng ấy là khoản gì.
+	 */
+	public static function tkno_da_khai() {
+		$s  = self::cfg_static();
+		$ra = array();
+		foreach ( (array) $s['tkNoMx'] as $row ) {
+			foreach ( (array) $row as $ds ) {
+				foreach ( (array) $ds as $m ) {
+					$m = trim( (string) $m );
+					if ( '' !== $m ) { $ra[ $m ] = 1; }
+				}
+			}
+		}
+		foreach ( (array) $s['loaiChiPhi'] as $x ) {
+			$m = trim( (string) $x['tkNo'] );
+			if ( '' !== $m ) { $ra[ $m ] = 1; }
+		}
+		/* 🔴 ÉP VỀ CHUỖI. Khoá mảng PHP nuốt mọi chuỗi số chính tắc thành SỐ NGUYÊN: gán
+		   `$ra['64166']` thì `array_keys()` trả về `64166` (int), và bên gọi so bằng
+		   `in_array( $tk, …, true )` — so ngặt — nên KHÔNG BAO GIỜ khớp. Kết quả: mọi mã hợp lệ
+		   đều bị từ chối, và câu từ chối lại bảo kế toán "đi khai mã ở Cấu hình" cho một mã
+		   đang nằm sờ sờ ở đó. Bẫy này `export_misa()` đã dính một lần rồi. */
+		return array_map( 'strval', array_keys( $ra ) );
+	}
+
+	/**
+	 * Mã này là một TK CÓ đã biết? — 141 (tạm ứng NV) · 331 (phải trả NCC) · mọi TK Có khai ở
+	 * ⚙️ Cấu hình → 💳 TK Có theo Phân loại thanh toán và cột TK Có của danh mục loại chi phí.
+	 *
+	 * 🔴 CÙNG MỘT TẬP VỚI `_tapTkCo()` BÊN GIAO DIỆN. Anh Thắng 10/09/2026: *"loại chi phí nó là
+	 *    tài khoản nợ chứ"* — ô chọn hôm ấy bày "TK 331" làm TK Nợ. Hai bên đo khác nhau thì giao
+	 *    diện chặn một đằng, máy chủ nhận một nẻo.
+	 */
+	public static function la_tk_co( $ma ) {
+		$ma = trim( (string) $ma );
+		if ( '' === $ma ) { return false; }
+		$s = self::cfg_static();
+		$t = array( '141' => 1, '331' => 1 );
+		foreach ( (array) $s['phanloai'] as $x ) {
+			$m = trim( (string) $x['tkCo'] );
+			if ( '' !== $m ) { $t[ $m ] = 1; }
+		}
+		foreach ( (array) $s['loaiChiPhi'] as $x ) {
+			$m = trim( (string) $x['tkCo'] );
+			if ( '' !== $m ) { $t[ $m ] = 1; }
+		}
+		return isset( $t[ $ma ] );
+	}
+
+	/**
 	 * Mã đang có trên dòng còn hợp lệ không? Trả lại chính nó nếu còn, ngược lại ''.
 	 *
 	 * Dùng khi áp lại mã cho dòng cũ: ô nào khai NHIỀU mã thì máy không chọn được hộ,
