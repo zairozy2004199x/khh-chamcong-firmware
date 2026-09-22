@@ -1144,6 +1144,7 @@ class KHTC_Trang {
 		$bao_loi = '';
 		$tho     = isset( $_POST['tho'] ) ? wp_unslash( $_POST['tho'] ) : '';
 		$kq      = null;
+		$di_tiep = null;   // [nhãn, đường dẫn] — chỗ đi tiếp sau khi nạp xong
 
 		if ( '' !== trim( (string) $tho ) && check_admin_referer( 'khtc_tho' ) ) {
 			$kq = KHTC_DanTho::doc( $tho );
@@ -1166,6 +1167,10 @@ class KHTC_Trang {
 					$r['trung'] ? ' Bỏ qua ' . number_format( $r['trung'], 0, ',', '.' ) . ' dòng đã có sẵn.' : '',
 					$r['loi'] ? ' ' . count( $r['loi'] ) . ' dòng lỗi.' : ''
 				);
+				// Nạp xong thì chỉ thẳng sang bước tiếp, mang sẵn kỳ và nguồn.
+				// Dán không tự sinh hoá đơn — cấp số hoá đơn là việc phải có
+				// người bấm — nhưng bắt người ta tự mò lại kỳ thì cũng thừa.
+				$di_tiep = self::cho_di_tiep( $kq['rows'], array( 'nh' => array( $nh ) ) );
 				$kq = null;
 				$tho = '';
 			}
@@ -1197,6 +1202,7 @@ class KHTC_Trang {
 					number_format( $r['them'], 0, ',', '.' ),
 					$r['trung'] ? ' Bỏ qua ' . number_format( $r['trung'], 0, ',', '.' ) . ' dòng trùng mã.' : ''
 				);
+				$di_tiep = self::cho_di_tiep( $kq['rows'], array( 'dot' => array( $dot ) ) );
 				$kq = null;
 				$tho = '';
 			}
@@ -1206,6 +1212,13 @@ class KHTC_Trang {
 		KHTC_UI::dau_trang( 'Dán thô' );
 		if ( $bao_loi ) { printf( '<p class="khtc-canh-bao">%s</p>', esc_html( $bao_loi ) ); }
 		if ( $bao_ok )  { printf( '<div class="notice notice-success"><p>%s</p></div>', esc_html( $bao_ok ) ); }
+		if ( $di_tiep ) {
+			printf(
+				'<div class="khtc-panel"><h2>Xong bước 1. Tiếp theo</h2><p class="khtc-sub">Số liệu đã vào sổ. Dán chưa sinh hoá đơn — cấp số hoá đơn là việc phải có người bấm.</p><p><a class="button button-primary" href="%s">%s</a></p><p class="khtc-sub">Còn file của cổng khác trong ngày thì dán nốt trước khi sang bước sinh hoá đơn, để một tờ gom đủ mọi nguồn của điểm đó.</p></div>',
+				esc_url( $di_tiep[1] ),
+				esc_html( $di_tiep[0] )
+			);
+		}
 
 		echo '<form method="post"><div class="khtc-panel">';
 		wp_nonce_field( 'khtc_tho' );
@@ -1288,6 +1301,27 @@ class KHTC_Trang {
 			echo '</div>';
 		}
 		echo '</form></div>';
+	}
+
+	/** Đường sang màn hình sinh hoá đơn, mang sẵn kỳ đúng bằng khoảng ngày vừa dán. */
+	private static function cho_di_tiep( $rows, $nguon ) {
+		if ( ! $rows ) { return null; }
+		$iso = array();
+		foreach ( $rows as $r ) {
+			$n = KHTC_GiaoDich::doc_ngay( $r['ngay'] );
+			if ( '' !== $n ) { $iso[] = $n; }
+		}
+		if ( ! $iso ) { return null; }
+		sort( $iso );
+		$tu  = reset( $iso );
+		$den = end( $iso );
+		return array(
+			sprintf(
+				'Sinh hoá đơn cho %s →',
+				$tu === $den ? 'ngày ' . mysql2date( 'd/m/Y', $tu ) : mysql2date( 'd/m/Y', $tu ) . ' – ' . mysql2date( 'd/m/Y', $den )
+			),
+			self::url( 'sinh-hoa-don', array( 'tu' => $tu, 'den' => $den, 'tach' => 'ngay' ) + $nguon ),
+		);
 	}
 
 	// -------------------------------------------------------- danh mục điểm

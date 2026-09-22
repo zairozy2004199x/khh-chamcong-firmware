@@ -102,6 +102,20 @@ kiem( 'và hiện bảng xem trước', false !== strpos( $h2, 'Soát 10 dòng �
 kiem( 'có nút nạp vào sao kê', false !== strpos( $h2, 'khtc_nap_sao_ke' ), true );
 kiem( 'KHÔNG tự ghi khi mới xem trước', (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . KHTC_DB::bang( 'giao_dich' ) . ' WHERE ngan_hang_id = %d', $nh ) ), 2 );
 kiem( 'dan-tho là đường dẫn hợp lệ', isset( KHTC_Web::man_hinh()['dan-tho'] ), true );
+
+// Nạp xong phải chỉ thẳng sang bước tiếp, mang sẵn kỳ đúng bằng khoảng ngày
+// vừa dán — nhưng KHÔNG được tự sinh hoá đơn.
+$truoc_hd = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . KHTC_DB::bang( 'hd_ra' ) );
+$_POST = array( 'tho' => $qr, '_wpnonce' => 'test', 'khtc_nap_sao_ke' => 1, 'nh' => $nh );
+$h3 = dung( array( 'KHTC_Trang', 'dan_tho' ) );
+kiem( 'nạp xong có lối đi tiếp', false !== strpos( $h3, 'Xong bước 1' ), true );
+kiem( 'mang đúng kỳ vừa dán', false !== strpos( $h3, '02/08/2026' ) && false !== strpos( $h3, '03/08/2026' ), true );
+kiem( 'nói rõ dán chưa sinh hoá đơn', false !== strpos( $h3, 'Dán chưa sinh hoá đơn' ), true );
+kiem( 'nhắc dán nốt file cổng khác trong ngày', false !== strpos( $h3, 'cổng khác' ), true );
+kiem( 'và TUYỆT ĐỐI không tự sinh hoá đơn', (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . KHTC_DB::bang( 'hd_ra' ) ), $truoc_hd );
+// Lần này dán lại nên phải bị chặn trùng hết, không thêm giao dịch nào.
+kiem( 'nạp lại qua màn hình cũng chặn trùng', (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . KHTC_DB::bang( 'giao_dich' ) . ' WHERE ngan_hang_id = %d', $nh ) ), 2 );
+$_POST = array();
 $_POST = array();
 
 printf( "%d kiểm tra đạt, %d lỗi\n", $dat, count( $hong ) );
