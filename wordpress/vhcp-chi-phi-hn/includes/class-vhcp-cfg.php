@@ -1941,6 +1941,29 @@ class VHCPHN_Cfg {
 	 * ⚠️ ĐÂY LÀ ĐƯỜNG LUI, KHÔNG PHẢI BẢN CHỐT. Kế toán khai danh sách thật ở Cấu hình; bảng
 	 *    này chỉ để site chưa khai gì vẫn có cái mà chọn. Cùng lối với `bo_phan_ds()`.
 	 */
+	/**
+	 * DẤU NGĂN NHIỀU ĐẦU MỤC trên một dòng loại chi phí.
+	 *
+	 * 🔴 KHÔNG DÙNG DẤU PHẨY, dù cột `vaiTro` và `donVi` bên cạnh đều dùng phẩy. Tên đầu mục do
+	 *    kế toán tự gõ, và ngay bảng mặc định đã có một cái chứa phẩy — "Tiền thuê · Điện, nước,
+	 *    phụ phí". Theo nếp hàng xóm là dòng ấy tự vỡ thành ba đầu mục ma ngay lượt đọc đầu tiên.
+	 *    Vai trò với đơn vị thoát được vì tên của chúng do MÁY sinh, không ai gõ phẩy vào.
+	 */
+	const DAU_MUC_NGAN = '|';
+
+	/**
+	 * Tách chuỗi đầu mục của một dòng thành mảng. Rỗng vào thì mảng rỗng ra — chỗ gọi tự quyết
+	 * có dồn vào ô hứng "Chưa xếp đầu mục" hay không.
+	 */
+	public static function dau_muc_tach( $s ) {
+		$ra = array();
+		foreach ( explode( self::DAU_MUC_NGAN, (string) $s ) as $x ) {
+			$t = trim( $x );
+			if ( '' !== $t && ! in_array( $t, $ra, true ) ) { $ra[] = $t; }
+		}
+		return $ra;
+	}
+
 	const DAU_MUC_MAC_DINH = array(
 		/* ── Gốc 1: CP Chung ───────────────────────────────────────────────────────────── */
 		'Chung · Văn phòng',            // CPC VP — cuối kỳ bổ 50% KVC / 50% MTĐ
@@ -1971,7 +1994,11 @@ class VHCPHN_Cfg {
 		if ( is_string( $ds ) ) { $ds = array_map( 'trim', explode( "\n", str_replace( "\r", '', $ds ) ) ); }
 		$ra = array();
 		foreach ( (array) $ds as $x ) {
-			$t = trim( (string) $x );
+			/* 🔴 TƯỚC DẤU NGĂN KHỎI TÊN. Một dòng loại chi phí nay giữ NHIỀU đầu mục, ngăn nhau
+			   bằng `|` — nên một cái TÊN chứa `|` là lúc đọc ngược nó tự vỡ làm hai đầu mục ma.
+			   Kế toán gõ tên ở Cấu hình, không ai cấm họ gõ dấu ấy. Đổi thành `/` chứ không bỏ
+			   đi: bỏ đi thì "A|B" thành "AB", đọc như một tên khác hẳn. */
+			$t = trim( str_replace( self::DAU_MUC_NGAN, '/', (string) $x ) );
 			if ( '' !== $t && ! in_array( $t, $ra, true ) ) { $ra[] = $t; }
 		}
 		return $ra ? $ra : self::DAU_MUC_MAC_DINH;

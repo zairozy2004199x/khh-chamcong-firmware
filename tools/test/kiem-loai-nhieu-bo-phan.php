@@ -175,9 +175,19 @@ t( '🔴 ô chọn loại KHÔNG còn cắt theo bộ phận của người đă
 	false === strpos( $HTML, 'if(bp && bpLoai.length && bpLoai.indexOf(bp)<0) return false;' ), '' );
 t( '   và mấy nút "Chọn chi phí nào" cũng thôi cắt theo danh tính',
 	false === strpos( $HTML, 'if(bp && bds.length && bds.indexOf(bp)<0) return;' ), '' );
-/* Nhưng cột ấy PHẢI còn được dùng để gom loại về đúng nút — bỏ nốt là ba nút gộp làm một. */
+/* Nhưng cột ấy PHẢI còn được dùng để gom loại về đúng nút — bỏ nốt là ba nút gộp làm một.
+ *
+ * ⚠️ TỪ 1.260.0 BIỂU THỨC ẤY DỜI VÀO `_hopNhomCp()`, và có thêm một cửa đứng trước nó: danh
+ *    mục đã khai ĐẦU MỤC thì dải nút gom theo đầu mục, chưa khai thì vẫn gom theo bộ phận như
+ *    đây. Phép này canh đúng NHÁNH BỘ PHẬN — nhánh đầu mục do `kiem-dai-nut-dau-muc.js` lo.
+ *    Ghim nguyên văn cả dòng như trước là bài đỏ mỗi lần mã đổi hình mà hành vi không đổi. */
+$hop = strstr( $HTML, 'function _hopNhomCp(' );
+$hop = $hop === false ? '' : substr( $hop, 0, 600 );
 t( '🔴 cột Bộ phận vẫn dựng nên mấy nút ấy (`_khoaNhom` gom theo nó)',
-	false !== strpos( $HTML, '_khoaNhom((bp && bpLoai.indexOf(bp)>=0)?bp:(bpLoai[0]||\'\'), x.ten)' ), '' );
+	false !== strpos( $hop, '_khoaNhom(' ) && false !== strpos( $hop, 'bds.indexOf(bp)>=0' ), $hop );
+t( '   và nhánh bộ phận chỉ chạy KHI CHƯA khai đầu mục — khai rồi thì đầu mục thắng',
+	false !== strpos( $hop, '_dauMucDangDung()' )
+	&& strpos( $hop, '_dauMucDangDung()' ) < strpos( $hop, '_khoaNhom(' ), $hop );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════ */
 if ( $TRUOT ) {

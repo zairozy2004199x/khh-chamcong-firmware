@@ -26,6 +26,7 @@ $goc = dirname( dirname( __DIR__ ) );
 if ( ! is_dir( $goc . '/wordpress' ) ) { $goc = dirname( __DIR__, 2 ); }
 
 $dat = 0; $truot = array();
+function VHCp_ds_tam() { return VHCP_Cfg::dau_muc_ds(); }
 function t( $ten, $dk, $them = null ) {
 	global $dat, $truot;
 	if ( $dk ) { $dat++; return; }
@@ -175,6 +176,29 @@ update_option( 'vhcp_dau_muc_ds', "Một\nHai\n\n  Ba  \nHai" );
 $ds2 = VHCP_Cfg::dau_muc_ds();
 teq( '🔴 khai tay thì THẮNG mặc định, và tự dọn dòng rỗng / trùng / thừa dấu cách',
 	array( 'Một', 'Hai', 'Ba' ), $ds2 );
+/* 🔴 TÊN CHỨA DẤU NGĂN. Một dòng loại chi phí giữ nhiều đầu mục ngăn bằng `|`, nên một cái TÊN
+   chứa `|` là lúc đọc ngược nó tự vỡ làm hai đầu mục ma — mà kế toán gõ tên tay, không ai cấm
+   họ gõ dấu ấy. Phải tước ngay lúc nhận, không phải lúc dùng. */
+update_option( 'vhcp_dau_muc_ds', "Điện | nước\nCơ sở · Tự mua" );
+teq( '🔴 tên chứa dấu ngăn `|` bị tước ngay lúc nhận, không để tự vỡ thành đầu mục ma',
+	array( 'Điện / nước', 'Cơ sở · Tự mua' ), VHCP_Cfg::dau_muc_ds() );
+
+/* ⚠️ Đổi thành `/` chứ không BỎ ĐI: bỏ đi thì "A|B" thành "AB", đọc ra một tên khác hẳn. */
+update_option( 'vhcp_dau_muc_ds', "A|B" );
+teq( '   và đổi thành dấu `/`, không dính liền thành một chữ khác',
+	array( 'A/B' ), VHCp_ds_tam() );
+delete_option( 'vhcp_dau_muc_ds' );
+
+/* ── Tách chuỗi nhiều đầu mục của MỘT dòng ────────────────────────────────────────────────── */
+teq( '🔴 một dòng nhiều đầu mục -> tách đủ', array( 'Cơ sở · Tự mua', 'Cơ sở · NVL' ),
+	VHCP_Cfg::dau_muc_tach( 'Cơ sở · Tự mua|Cơ sở · NVL' ) );
+teq( '   dọn dòng rỗng, khoảng trắng thừa và cái trùng',
+	array( 'A', 'B' ), VHCP_Cfg::dau_muc_tach( ' A ||B|A|  ' ) );
+teq( '   rỗng vào thì mảng rỗng ra — chỗ gọi tự quyết dồn vào ô hứng hay không',
+	array(), VHCP_Cfg::dau_muc_tach( '' ) );
+teq( '🔴 một đầu mục vẫn chạy y như trước bản này', array( 'Khác' ),
+	VHCP_Cfg::dau_muc_tach( 'Khác' ) );
+
 update_option( 'vhcp_dau_muc_ds', "\n\n  \n" );
 teq( '🔴 khai toàn dòng rỗng thì VẪN rơi về mặc định — ô chọn trống là người nhập kẹt cứng',
 	$ds, VHCP_Cfg::dau_muc_ds() );
@@ -244,9 +268,46 @@ foreach ( array_keys( $BAN ) as $ban ) {
 
 	/* 🔴 HÀNG VẼ BỞI BẢN CŨ KHÔNG CÓ Ô ĐẦU MỤC. Đọc ra rỗng rồi ghi đè là một lượt Lưu xoá
 	   sạch công gán của kế toán — im lặng, vì bảng lưu xong vẽ lại trông vẫn bình thường. */
+	/* Ô khai đầu mục: tích được nhiều, và mốc bám là `data-dm-nhieu` — cùng nếp `data-vai`,
+	   `data-dv-nhieu` của hai cột bên cạnh. */
+	$osel = than_ham( $h, '_dauMucSel' );
+	t( "🔴 $ban: ô khai đầu mục TÍCH ĐƯỢC NHIỀU, không còn chọn một",
+		false !== strpos( $osel, 'type="checkbox"' ) && false !== strpos( $osel, 'data-dm-nhieu' ), $osel );
+	t( "$ban: và vẫn bày lại đầu mục cũ không còn trong danh sách",
+		false !== strpos( $osel, 'ds.indexOf(k)<0' ), $osel );
+
 	$luu = than_ham( $h, 'saveCfgTkNoMx' );
+	/* ⚠️ ĐỪNG GHIM NGUYÊN VĂN MỘT LỐI VIẾT. Phép này từng soi chuỗi `oDm ? String(` — đúng
+	   hình dạng hồi ô còn là `<select>`. Đổi sang ô tích là phép ấy đỏ, mà đỏ vì LỐI VIẾT
+	   đổi chứ không phải vì hành vi hỏng. Soi hai thứ thật sự cần: có hỏi ô còn đó không,
+	   và khi không có thì có giữ lại giá trị cũ không. */
 	t( "🔴 $ban: lưu chỉ ghi đầu mục KHI Ô CÓ MẶT",
-		false !== strpos( $luu, 'oDm ? String(' ) && false !== strpos( $luu, "goc.dauMuc" ), $luu );
+		false !== strpos( $luu, 'oDm ?' ) && false !== strpos( $luu, 'goc.dauMuc' ), $luu );
+	t( "🔴 $ban: lưu gom NHIỀU ô tích, ngăn bằng `|` chứ không phải dấu phẩy",
+		false !== strpos( $luu, "join('|')" ) && false === strpos( $luu, "join(',')" ), $luu );
+	/* 🔴 HAI ĐẦU PHẢI BÁM CÙNG MỘT MỐC. Ô do `_dauMucSel()` dựng, chỗ Lưu đi tìm lại bằng
+	   `querySelector`. Đổi tên mốc ở một đầu thôi là chỗ Lưu không thấy ô nữa, rơi vào nhánh
+	   "giữ nguyên giá trị cũ" — tức kế toán tích xong bấm Lưu mà KHÔNG GÌ được ghi, im lặng.
+	   Phép grep suông không bắt được ca ấy; phải so hai đầu với nhau. */
+	if ( preg_match( '/querySelector\(\s*\x27\[([a-z0-9-]+)\]\x27\s*\)/', $luu, $mm ) ) {
+		t( "🔴 $ban: chỗ Lưu tìm ĐÚNG mốc mà ô khai đầu mục dựng ra (`{$mm[1]}`)",
+			false !== strpos( $osel, $mm[1] ), $mm[1] );
+	} else {
+		t( "$ban: đọc được mốc chỗ Lưu đi tìm", false, substr( $luu, 0, 400 ) );
+	}
+
+	/* 🔴 DẢI NÚT Ở MÀN NHẬP ĐƠN — đúng chỗ anh Thắng chỉ: *"trong bảng nhập nó chỉ hiện loại
+	   chi phí chứ không phải đầu mục, đang ngược"*. Dải ấy gom theo cột Bộ phận đã gỡ, nên tự
+	   ẩn. Hành vi đầy đủ do `kiem-dai-nut-dau-muc.js` canh; ở đây chỉ đòi CẢ BỐN BẢN đều có,
+	   vì bản vùng sinh lại từ gốc và sót một bản là mất tính năng không ai biết. */
+	$nhom = than_ham( $h, '_cacNhomCp' );
+	t( "🔴 $ban: dải nút nhập đơn gom theo ĐẦU MỤC",
+		false !== strpos( $nhom, '_dauMucDangDung()' ) && false !== strpos( $nhom, '_dauMucCua(x)' ), $nhom );
+	t( "$ban: chưa khai đầu mục thì vẫn gom theo bộ phận như cũ",
+		false !== strpos( $nhom, '_khoaNhom(' ), $nhom );
+	$hop = than_ham( $h, '_hopNhomCp' );
+	t( "🔴 $ban: bấm nút đầu mục thì ô chọn LỌC theo đúng nút ấy",
+		false !== strpos( $hop, '_dauMucCua(x).indexOf(NHOM_CP)' ), $hop );
 }
 
 // ============================================================ kết
