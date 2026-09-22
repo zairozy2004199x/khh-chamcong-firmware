@@ -15,7 +15,7 @@
  *
  * ⚠️ BỐC HÀM THẬT RA CHẠY.
  *
- * Chạy: node tools/test/kiem-xem-nhu-va-nut-chuyen.js
+ * Chạy: node tools/test/kiem-nut-chuyen-don.js
  * ═════════════════════════════════════════════════════════════════════════════════════════════ */
 const fs = require('fs');
 const HTML = fs.readFileSync('wordpress/vhcp-chi-phi/templates/app.html', 'utf8');
@@ -165,6 +165,29 @@ BAN.forEach(function (b) {
   const i = h.indexOf("el('userChip').innerHTML");
   t('🔴 ' + b + ': chip tên người dùng không còn nhánh "xem như"',
     i >= 0 && !/glDangBat|GL_GOC/.test(h.slice(i, i + 400)), h.slice(i, i + 220));
+});
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 3. GỠ ĐỦ, NHƯNG ĐỪNG GỠ LẠM
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Mục 2 canh chiều "còn sót gì không". Mục này canh chiều ngược lại — CÓ CẮT NHẦM GÌ KHÔNG.
+ * Hai chỗ nằm sát ngay cạnh mã vừa gỡ, và mất chúng thì hỏng nặng mà không một câu báo nào:
+ *
+ * 🔴 `boot()` gọi `_applyTabPerms()` rồi mới gọi `glDung()` — hai lời gọi dính nhau một dòng.
+ *    Quét sạch cả cụm là tab khoá cứng sau khi đăng nhập, không ai vào được đâu cả.
+ * 🔴 Chip tên người dùng có HAI nhánh, gỡ nhánh "xem như" mà lỡ tay gỡ cả nhánh còn lại là góc
+ *    trên màn trống trơn — trông y như chưa đăng nhập.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+BAN.forEach(function (b) {
+  const f = 'wordpress/' + b + '/templates/app.html';
+  if (!fs.existsSync(f)) { return; }
+  const h = fs.readFileSync(f, 'utf8');
+  t('🔴 ' + b + ': `boot()` VẪN mở tab theo phân quyền',
+    /BOOT=b\|\|BOOT; loading\(false\); _applyTabPerms\(\);/.test(h));
+  const i = h.indexOf("el('userChip').innerHTML");
+  t('🔴 ' + b + ': chip VẪN nói đủ tên · vai',
+    i >= 0 && /esc\(CURUSER\.name\)/.test(h.slice(i, i + 200)) && /esc\(role\)/.test(h.slice(i, i + 200)),
+    i >= 0 ? h.slice(i, i + 160) : '(không thấy chip)');
 });
 
 /* ─────────────────────────────────────────────────────────────────────────────────────────── */

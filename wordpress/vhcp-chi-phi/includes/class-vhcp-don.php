@@ -684,15 +684,15 @@ class VHCP_Don {
 			/* ══════════════════════════════════════════════════════════════════════════════
 			 * 🔴 DANH SÁCH BỘ PHẬN PHẢI XUỐNG TỚI GÓI KHỞI ĐỘNG, KHÔNG CHỈ Ở GÓI CẤU HÌNH.
 			 * ══════════════════════════════════════════════════════════════════════════════
-			 * Khoá này từng CHƯA CÓ trong gói khởi động — nó chỉ có ở gói Cấu hình
-			 * (`CFG.boPhanDs`) — nên bảng Loại chi phí bày đủ bảy ô tích bình thường, và
-			 * không có gì trên màn gợi ý rằng chỗ kia đang đói dữ liệu. MỘT KHOÁ THIẾU TRÔNG
-			 * Y HỆT MỘT DANH SÁCH RỖNG, và đó là kiểu hỏng khó lần nhất.
+			 * Lộ ra hôm 21/09/2026 ở dải 👁 Xem như (anh Thắng: *"chỉnh phần khai bộ phận cho
+			 * admin để tes"* — ô chọn bộ phận trống trơn). Dải ấy nay đã gỡ theo yêu cầu
+			 * 22/09 (*"loại bỏ tính năng này"*), NHƯNG KHOÁ NÀY VẪN PHẢI Ở LẠI: giao diện đọc
+			 * nó ở `_bpDs()`, đường lui cho lúc gói Cấu hình chưa nạp — mở một tab cần tên bộ
+			 * phận TRƯỚC khi vào Cấu hình là rơi đúng vào đường lui ấy.
 			 *
-			 * ⚠️ Người đọc bản sau: chỗ phát hiện ra chuyện này là dải "👁 Xem như" — công cụ
-			 *    thử của Admin, đã GỠ ngày 22/09/2026 theo yêu cầu. Khoá `boPhanDs` thì GIỮ:
-			 *    nó vẫn là dữ liệu gói khởi động phải có, và dải kia chỉ tình cờ là chỗ làm
-			 *    lộ ra việc nó thiếu.
+			 * ⚠️ ĐỪNG GỠ THEO DẢI XEM NHƯ. Nó chỉ là chỗ ĐẦU TIÊN lộ ra thiếu khoá, không phải
+			 *    chỗ duy nhất đọc. Bài học gốc thì không đổi: một khoá thiếu trông y hệt một
+			 *    danh sách rỗng, nên không có gì trên màn nói rằng chỗ kia đang đói dữ liệu.
 			 *
 			 * 🔴 GỌI `bo_phan_ds()`, ĐỪNG ĐỌC THẲNG BẢNG. Hàm ấy mới có nhánh "danh mục rỗng
 			 *    thì ngã về bảy tên mặc định"; đọc thẳng là site chưa khai gửi xuống danh sách

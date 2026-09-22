@@ -29,6 +29,12 @@
       <button class="btn b-x" id="btnLogout" onclick="logout()">Đăng xuất</button>
     </div>
   </div>
+  <!-- ⚠️ DẢI "👁 XEM NHƯ" ĐÃ GỠ — 22/09/2026, anh Thắng: *"loại bỏ tính năng này"*.
+       Nó cho Admin đổi vai + khối trên MÀN HÌNH để thử xem người khác thấy gì. Gỡ xong thì
+       muốn thử vai nào phải đăng nhập bằng tài khoản vai ấy — chậm hơn, nhưng thử đúng thứ
+       thật: dải cũ không đổi quyền ở máy chủ, nên nó chưa bao giờ trả lời được câu "người ấy
+       BẤM thì có bị chặn không". Đừng dựng lại mà không hỏi anh Thắng. -->
+
   <div class="bar" id="tabbar" style="gap:6px">
     <button class="btn b-x" id="tab-tongquan" onclick="showPage('tongquan')">📊 Tổng quan</button>
     <button class="btn b-x" id="tab-donchi" onclick="showDonChi()">📋 Đơn chi phí</button>
@@ -2456,9 +2462,8 @@
     // Trước đây nút này ẩn với Admin nên muốn thử một đơn là phải đăng nhập bằng người khác.
     var vl=_vaiLuat();
     var bn=el('btnNewDon'); if(bn) bn.style.display=(vl==='Nhân viên'||vl==='Quản lý'||vl==='Admin')?'inline-block':'none';
-    /* Đang xem như người khác thì chip phải nói THẲNG ra, và nói cả tên thật. Chip lặng lẽ
-       đổi tên vai là vài phút sau người thử quên mất mình đang đội lốt ai, rồi kết luận nhầm
-       về màn hình của chính mình. */
+    /* ⚠️ NHÁNH "👁 xem như …" ĐÃ GỠ cùng dải Xem như (22/09/2026). Chip nay luôn nói đúng một
+       chuyện: anh là ai. Đó cũng là điều duy nhất còn đúng — không còn lốt nào để đội. */
     el('userChip').innerHTML='👤 '+esc(CURUSER.name)+' · '+esc(role)+(CURUSER.coso?' · '+esc(CURUSER.coso):'');
   }
   /**
