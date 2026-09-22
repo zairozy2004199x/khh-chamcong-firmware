@@ -1891,96 +1891,38 @@ class VHCPVP_Cfg {
 	 *    mình — đúng câu *"chọn nhân viên sẽ ra chi phí đó"*. Ngược hẳn hai hệ kia: họ không
 	 *    lọc, chỉ gom; mình lọc bốn tầng, không gom.
 	 *
-	 * ⚠️ VÌ SAO 8–12 ĐẦU MỤC. Trên 12 là bắt đầu mệt óc và người ta chọn bừa; quá ít thì không
-	 *    có ô đúng để chọn, cũng chọn bừa. Bảng dưới có 12 — sát trần, và sát trần là CÓ CHỦ Ý:
-	 *    nó chép lại đúng sơ đồ anh Thắng vẽ tay, chứ không phải em tự nghĩ cho tròn số.
-	 *
 	 * ═══════════════════════════════════════════════════════════════════════════════════════
-	 * 🔴 BẢNG NÀY LẤY TỪ SƠ ĐỒ TAY ANH THẮNG GỬI 22/09/2026 — không còn là bảng em bịa.
+	 * 🔴 ĐẦU MỤC LÀ DANH MỤC CHA. MỘT LOẠI CHI PHÍ NẰM DƯỚI ĐÚNG MỘT ĐẦU MỤC.
 	 * ═══════════════════════════════════════════════════════════════════════════════════════
-	 * Sơ đồ ấy có BA gốc, mỗi gốc rẽ tiếp một tầng nữa:
+	 * Anh Thắng 22/09/2026: *"Sai cơ bản với nhau rồi. Loại chi phí là chi phí chi tiết, còn
+	 * đầu mục là Danh mục chính của chi phí"*, và cho hai ví dụ chốt lại:
 	 *
-	 *    CP Chung ─┬─ CPC VP ──────────┬─ CPC KVC 50%
-	 *              │                   └─ CPC MTĐ 50%
-	 *              └─ CPC Vận hành/Cơ sở ─┬─ KVC   (VH mua VH chung · KT mua KT chung ·
-	 *                                     │        mua cho VP vận hành chung, CHƯA có các Gian)
-	 *                                     └─ MTĐ
+	 *      Chi phí NVL đồ ăn  ->  Chi phí cơ sở
+	 *      Chi phí cơ sở      ->  Chi phí cơ sở
 	 *
-	 *    CP Cơ sở ─┬─ CP MKT mua cơ sở   (MKT chi ⇒ tính vào doanh thu của MTĐ mang về)
-	 *              ├─ CP VH  mua cơ sở
-	 *              ├─ CP KT  mua cơ sở
-	 *              ├─ CP cơ sở TỰ MUA ──┬─ NVL gian hàng
-	 *              │                     ├─ NVL đồ ăn
-	 *              │                     ├─ NVL đồ uống
-	 *              │                     └─ phụ cấp NV cơ sở
-	 *              └─ CP mua hàng hoá / nhập kho
+	 * 🔴 HAI VÍ DỤ ẤY LOẠI BỎ HẲN MỘT CÁCH HIỂU. Bản 1.259–1.260 để bảng này là MƯỜI HAI mục —
+	 *    em lấy cả ba gốc LẪN các nhánh con của sơ đồ rồi trải phẳng vào một danh sách. Nếu
+	 *    thế thì "NVL đồ ăn" phải rơi vào "Cơ sở · Nguyên vật liệu" còn "Chi phí cơ sở" rơi
+	 *    vào "Cơ sở · Cơ sở tự mua" — HAI đầu mục khác nhau. Anh nói cả hai CÙNG một. Vậy đầu
+	 *    mục chính là BA GỐC, còn mọi thứ dưới gốc đều là loại chi phí chi tiết.
 	 *
-	 *    CP Tiền thuê ─┬─ thuê mall (CSĐT) — chủ tiền
-	 *                  └─ trả tiền mall
-	 *                     (điện: tiền thuê · chi phí · ĐTCS nếu có; tự đi điện thì tách ra
-	 *                      tiền thuê / điện nước / khác + phụ phí)
+	 * ⚠️ VÀ VÌ LÀ QUAN HỆ CHA–CON nên mỗi loại chỉ mang MỘT đầu mục. Bản 1.260 từng cho tích
+	 *    nhiều; anh gạt đi. Cây thì mỗi con một cha — cho nhiều cha là thứ khác hẳn (gắn thẻ),
+	 *    và nó làm mờ đúng cái tầng mà bảng này sinh ra để dựng.
 	 *
-	 * 🔴 TRỤC THẬT CỦA HỌ LÀ "AI MUA", KHÔNG PHẢI "MUA CÁI GÌ". Nhánh CP Cơ sở chia theo
-	 *    MKT / VH / KT / cơ sở tự mua — tức theo NGƯỜI ĐỨNG RA MUA. Bảng cũ của em chia theo
-	 *    MÓN (Nhân sự · Mặt bằng · Thiết bị…), nên kế toán nhìn vào không thấy lối nào khớp
-	 *    với cách họ đang nghĩ. Bảng này đi theo sơ đồ, không đi theo sách.
-	 *
-	 * ⚠️ VÌ SAO DÙNG DẤU `·` LÀM TIỀN TỐ chứ không dựng hai tầng thật: `<optgroup>` của HTML
-	 *    CHỈ CÓ MỘT TẦNG — lồng `<optgroup>` trong `<optgroup>` là trình duyệt bỏ qua, không
-	 *    phải là hiện ra tầng hai. Nên tầng một đi vào tiền tố, và vì ô chọn xếp theo ĐÚNG THỨ
-	 *    TỰ bảng này, ba gốc vẫn nằm liền khối như trên giấy. Đổi thứ tự là vỡ khối.
-	 *
-	 * ⚠️ CÒN BA THỨ TRONG SƠ ĐỒ BẢNG NÀY KHÔNG GÁNH ĐƯỢC, và cố nhét vào là sai chỗ:
-	 *      · *"cuối tháng bổ theo DT Gian"* + *"CPC VP bổ 50/50"* — đó là PHÉP PHÂN BỔ, việc
-	 *        của sổ kết chuyển cuối kỳ, không phải của một ô chọn lúc nhập đơn.
-	 *      · *"đi tiền UNC có VAT hay không VAT"*, *"CP set up hay đã đi vào vận hành"* — đó là
-	 *        TRƯỜNG RIÊNG trên đơn, đúng lối ERPNext/Odoo tách trục ra khỏi danh mục.
-	 *      · *"đối tượng đề xuất — chỉ CHT có mã"* — đó là chuyện phân quyền người tạo đơn.
-	 *    Ghi lại đây để lần sau không ai nhét ba thứ ấy thành đầu mục cho đủ bộ.
+	 * ⚠️ KHÔNG CÒN LUẬT "8–12 ĐẦU MỤC" Ở ĐÂY. Con số ấy em lấy từ thực hành chung, đúng cho
+	 *    một danh sách PHẲNG mà người ta phải chọn một. Ở đây danh mục cha chỉ có ba gốc, và
+	 *    ba là đúng — ép cho đủ tám là dựng thêm tầng giả. Số lượng phải theo sơ đồ của anh,
+	 *    không theo sách.
 	 *
 	 * ⚠️ ĐÂY LÀ ĐƯỜNG LUI, KHÔNG PHẢI BẢN CHỐT. Kế toán khai danh sách thật ở Cấu hình; bảng
 	 *    này chỉ để site chưa khai gì vẫn có cái mà chọn. Cùng lối với `bo_phan_ds()`.
 	 */
-	/**
-	 * DẤU NGĂN NHIỀU ĐẦU MỤC trên một dòng loại chi phí.
-	 *
-	 * 🔴 KHÔNG DÙNG DẤU PHẨY, dù cột `vaiTro` và `donVi` bên cạnh đều dùng phẩy. Tên đầu mục do
-	 *    kế toán tự gõ, và ngay bảng mặc định đã có một cái chứa phẩy — "Tiền thuê · Điện, nước,
-	 *    phụ phí". Theo nếp hàng xóm là dòng ấy tự vỡ thành ba đầu mục ma ngay lượt đọc đầu tiên.
-	 *    Vai trò với đơn vị thoát được vì tên của chúng do MÁY sinh, không ai gõ phẩy vào.
-	 */
-	const DAU_MUC_NGAN = '|';
-
-	/**
-	 * Tách chuỗi đầu mục của một dòng thành mảng. Rỗng vào thì mảng rỗng ra — chỗ gọi tự quyết
-	 * có dồn vào ô hứng "Chưa xếp đầu mục" hay không.
-	 */
-	public static function dau_muc_tach( $s ) {
-		$ra = array();
-		foreach ( explode( self::DAU_MUC_NGAN, (string) $s ) as $x ) {
-			$t = trim( $x );
-			if ( '' !== $t && ! in_array( $t, $ra, true ) ) { $ra[] = $t; }
-		}
-		return $ra;
-	}
-
 	const DAU_MUC_MAC_DINH = array(
-		/* ── Gốc 1: CP Chung ───────────────────────────────────────────────────────────── */
-		'Chung · Văn phòng',            // CPC VP — cuối kỳ bổ 50% KVC / 50% MTĐ
-		'Chung · Vận hành & Cơ sở',     // VH mua VH chung · KT mua KT chung · mua cho VP vận hành
-		/* ── Gốc 2: CP Cơ sở — chia theo AI MUA ────────────────────────────────────────── */
-		'Cơ sở · Marketing mua',        // MKT chi ⇒ tính vào doanh thu MTĐ mang về
-		'Cơ sở · Vận hành mua',
-		'Cơ sở · Kỹ thuật mua',
-		'Cơ sở · Cơ sở tự mua',
-		'Cơ sở · Nguyên vật liệu',      // gian hàng · đồ ăn · đồ uống
-		'Cơ sở · Hàng hoá nhập kho',
-		'Cơ sở · Phụ cấp nhân viên',
-		/* ── Gốc 3: CP Tiền thuê ───────────────────────────────────────────────────────── */
-		'Tiền thuê · Mall',             // CSĐT — chủ tiền, và trả tiền mall
-		'Tiền thuê · Điện, nước, phụ phí',
-		/* ── Ô hứng ────────────────────────────────────────────────────────────────────── */
-		'Khác',               // ô hứng — thiếu nó là người ta nhét bừa vào ô gần giống
+		'Chi phí chung',       // CPC VP (bổ 50/50) · CPC vận hành & cơ sở
+		'Chi phí cơ sở',       // MKT/VH/KT mua cho cơ sở · cơ sở tự mua · NVL · hàng hoá nhập kho
+		'Chi phí tiền thuê',   // thuê mall · trả tiền mall · điện, nước, phụ phí
+		'Khác',                // ô hứng — thiếu nó là người ta nhét bừa vào ô gần giống
 	);
 
 	/**
@@ -1994,11 +1936,7 @@ class VHCPVP_Cfg {
 		if ( is_string( $ds ) ) { $ds = array_map( 'trim', explode( "\n", str_replace( "\r", '', $ds ) ) ); }
 		$ra = array();
 		foreach ( (array) $ds as $x ) {
-			/* 🔴 TƯỚC DẤU NGĂN KHỎI TÊN. Một dòng loại chi phí nay giữ NHIỀU đầu mục, ngăn nhau
-			   bằng `|` — nên một cái TÊN chứa `|` là lúc đọc ngược nó tự vỡ làm hai đầu mục ma.
-			   Kế toán gõ tên ở Cấu hình, không ai cấm họ gõ dấu ấy. Đổi thành `/` chứ không bỏ
-			   đi: bỏ đi thì "A|B" thành "AB", đọc như một tên khác hẳn. */
-			$t = trim( str_replace( self::DAU_MUC_NGAN, '/', (string) $x ) );
+			$t = trim( (string) $x );
 			if ( '' !== $t && ! in_array( $t, $ra, true ) ) { $ra[] = $t; }
 		}
 		return $ra ? $ra : self::DAU_MUC_MAC_DINH;

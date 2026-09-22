@@ -26,7 +26,6 @@ $goc = dirname( dirname( __DIR__ ) );
 if ( ! is_dir( $goc . '/wordpress' ) ) { $goc = dirname( __DIR__, 2 ); }
 
 $dat = 0; $truot = array();
-function VHCp_ds_tam() { return VHCP_Cfg::dau_muc_ds(); }
 function t( $ten, $dk, $them = null ) {
 	global $dat, $truot;
 	if ( $dk ) { $dat++; return; }
@@ -107,62 +106,52 @@ teq( '🔴 xoá ô đi thì VỀ HẰNG, không rơi về tắt', true, VHCP_Cfg
 $ds = VHCP_Cfg::dau_muc_ds();
 t( '🔴 chưa khai gì vẫn CÓ danh sách để chọn (rơi về mặc định)', count( $ds ) > 0, $ds );
 $n = count( $ds );
-t( '🔴 số đầu mục nằm trong khoảng 8–12 — trên 12 là chọn bừa, dưới 8 là không có ô đúng',
-	$n >= 8 && $n <= 12, $n );
+/* ⚠️ KHÔNG CÒN LUẬT "8–12 ĐẦU MỤC". Con số ấy đúng cho một danh sách PHẲNG mà người ta phải
+   chọn một; ở đây danh mục CHA chỉ có ba gốc, và ba là đúng — ép cho đủ tám là dựng thêm tầng
+   giả. Chỉ còn đòi: đừng ít tới mức không có ô mà chọn, đừng nhiều tới mức thành danh sách con. */
+t( '🔴 danh mục cha gọn — vài gốc thôi, không phải một danh sách dài để dò',
+	$n >= 2 && $n <= 8, $n );
 teq( 'không có đầu mục trùng nhau', $n, count( array_unique( $ds ) ) );
 t( '🔴 có ô hứng "Khác" — thiếu nó là người ta nhét bừa vào ô gần giống',
 	in_array( 'Khác', $ds, true ), $ds );
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
- * 3b. 🔴 BẢNG MẶC ĐỊNH PHẢI LÀ SƠ ĐỒ ANH THẮNG VẼ TAY (22/09/2026), KHÔNG PHẢI BẢNG EM BỊA
+ * 3b. 🔴 ĐẦU MỤC LÀ DANH MỤC CHA — BA GỐC CỦA SƠ ĐỒ, KHÔNG PHẢI CÁC NHÁNH CON
  * ══════════════════════════════════════════════════════════════════════════════════════════════
- * Mấy phép trên mới chỉ đòi "8–12 mục và có ô Khác" — bảng nào cũng qua được, kể cả bảng cũ
- * chia theo MÓN mà kế toán nhìn vào không thấy lối nào khớp. Khối này buộc bảng vào đúng ba
- * gốc trên giấy: CP Chung · CP Cơ sở · CP Tiền thuê.
+ * Anh Thắng 22/09/2026: *"Sai cơ bản với nhau rồi. Loại chi phí là chi phí chi tiết, còn đầu
+ * mục là Danh mục chính của chi phí"*, kèm hai ví dụ chốt lại:
  *
- * ⚠️ PHÉP "BA GỐC LIỀN KHỐI" KHÔNG PHẢI PHÉP LÀM ĐẸP. `_optsHtml()` xếp `<optgroup>` theo ĐÚNG
- *    thứ tự bảng này, mà `<optgroup>` chỉ có MỘT tầng — tầng một nằm ở tiền tố. Xen một mục
- *    "Cơ sở ·" vào giữa khối "Chung ·" là ô chọn hiện ra hai cụm "Chung" rời nhau, tức mất
- *    luôn cái tầng mà tiền tố đang gánh. Trình duyệt không báo gì; chỉ người nhập thấy rối.
- */
-$dm  = VHCP_Cfg::DAU_MUC_MAC_DINH;
-$goc3 = array( 'Chung · ', 'Cơ sở · ', 'Tiền thuê · ' );
+ *      Chi phí NVL đồ ăn  ->  Chi phí cơ sở
+ *      Chi phí cơ sở      ->  Chi phí cơ sở
+ *
+ * 🔴 HAI VÍ DỤ ẤY LÀ PHÉP THỬ THẬT SỰ CỦA KHỐI NÀY. Bản 1.259–1.260 để bảng mặc định là MƯỜI
+ *    HAI mục — trải phẳng cả ba gốc LẪN các nhánh con vào một danh sách. Với bảng ấy thì "NVL
+ *    đồ ăn" rơi vào "Cơ sở · Nguyên vật liệu" còn "Chi phí cơ sở" rơi vào "Cơ sở · Cơ sở tự
+ *    mua" — HAI đầu mục khác nhau, trái hẳn điều anh nói. Nên khối này đo đúng chuyện đó: hai
+ *    dòng ví dụ phải rơi vào CÙNG MỘT đầu mục.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+$dm = VHCP_Cfg::DAU_MUC_MAC_DINH;
 
-teq( '🔴 ô hứng "Khác" đứng CUỐI, không lẫn vào giữa ba gốc', 'Khác', end( $dm ) );
+teq( '🔴 ô hứng "Khác" đứng CUỐI, không lẫn vào giữa các gốc', 'Khác', end( $dm ) );
 
-$khong_goc = array();
-foreach ( array_slice( $dm, 0, -1 ) as $x ) {
-	$co = false;
-	foreach ( $goc3 as $g ) { if ( 0 === strpos( $x, $g ) ) { $co = true; break; } }
-	if ( ! $co ) { $khong_goc[] = $x; }
+/* Ba gốc của sơ đồ, đủ cả ba — thiếu một là cả một nhánh chi phí không có chỗ đứng. */
+foreach ( array( 'Chi phí chung', 'Chi phí cơ sở', 'Chi phí tiền thuê' ) as $g ) {
+	t( "🔴 còn đủ gốc của sơ đồ — \"$g\"", in_array( $g, $dm, true ), $dm );
 }
-t( '🔴 mọi mục (trừ "Khác") thuộc đúng MỘT trong ba gốc của sơ đồ', array() === $khong_goc, $khong_goc );
 
-/* Ba gốc phải nằm liền khối — xem chú thích trên. Lấy dãy tiền tố rồi bỏ chỗ lặp liền nhau:
-   liền khối thì còn đúng ba, xen kẽ thì còn nhiều hơn. */
-$day = array();
-foreach ( array_slice( $dm, 0, -1 ) as $x ) {
-	foreach ( $goc3 as $g ) { if ( 0 === strpos( $x, $g ) ) { $day[] = $g; break; } }
-}
-$rut = array();
-foreach ( $day as $g ) { if ( ! $rut || end( $rut ) !== $g ) { $rut[] = $g; } }
-teq( '🔴 ba gốc nằm LIỀN KHỐI, không xen kẽ nhau', $goc3, $rut );
-
-/* ĐỦ MƯỜI MỘT NHÁNH CỦA SƠ ĐỒ. Kê từng cái ra chứ không đếm đầu mục: đếm thì bỏ mất một
-   nhánh rồi thêm bừa một nhánh khác vẫn qua, mà mất "Tiền thuê · Mall" là tiền thuê mặt bằng
-   — khoản cố định to nhất — rơi hết vào ô "Khác".
-   Danh sách này là SÀN, không phải trần: thêm nhánh mới thì cứ thêm, chỉ đừng bỏ nhánh cũ đi
-   trong im lặng. Trục của nhánh Cơ sở là AI MUA, không phải MUA CÁI GÌ. */
-$phai_co = array(
-	'Chung · Văn phòng', 'Chung · Vận hành & Cơ sở',
-	'Cơ sở · Marketing mua', 'Cơ sở · Vận hành mua', 'Cơ sở · Kỹ thuật mua',
-	'Cơ sở · Cơ sở tự mua', 'Cơ sở · Nguyên vật liệu', 'Cơ sở · Hàng hoá nhập kho',
-	'Cơ sở · Phụ cấp nhân viên',
-	'Tiền thuê · Mall', 'Tiền thuê · Điện, nước, phụ phí',
-);
-foreach ( $phai_co as $nhanh ) {
-	t( "🔴 còn đủ nhánh của sơ đồ — \"$nhanh\"", in_array( $nhanh, $dm, true ), $dm );
-}
+/* 🔴 PHÉP CHỐT: hai ví dụ của anh phải về cùng một đầu mục. Bảng nào trải phẳng nhánh con ra
+   (kiểu "Cơ sở · Nguyên vật liệu" cạnh "Cơ sở · Cơ sở tự mua") là hai dòng này tách đôi ngay. */
+$hop = function ( $ten ) use ( $dm ) {
+	$ra = array();
+	foreach ( $dm as $d ) {
+		if ( false !== mb_stripos( $ten, $d ) || false !== mb_stripos( $d, $ten ) ) { $ra[] = $d; }
+	}
+	return $ra;
+};
+teq( '🔴 "Chi phí cơ sở" về đúng một đầu mục, và là "Chi phí cơ sở"',
+	array( 'Chi phí cơ sở' ), $hop( 'Chi phí cơ sở' ) );
+t( '🔴 bảng KHÔNG trải phẳng nhánh con ra cạnh gốc — không mục nào mang dấu "·" của tầng hai',
+	! preg_grep( '/ · /u', $dm ), $dm );
 
 /* Ba thứ trong sơ đồ CỐ Ý không nằm ở đây: phép phân bổ (bổ 50/50, bổ theo DT Gian), trường
    riêng trên đơn (VAT / set-up hay vận hành), và phân quyền người đề xuất. Nhét chúng vào
@@ -176,29 +165,6 @@ update_option( 'vhcp_dau_muc_ds', "Một\nHai\n\n  Ba  \nHai" );
 $ds2 = VHCP_Cfg::dau_muc_ds();
 teq( '🔴 khai tay thì THẮNG mặc định, và tự dọn dòng rỗng / trùng / thừa dấu cách',
 	array( 'Một', 'Hai', 'Ba' ), $ds2 );
-/* 🔴 TÊN CHỨA DẤU NGĂN. Một dòng loại chi phí giữ nhiều đầu mục ngăn bằng `|`, nên một cái TÊN
-   chứa `|` là lúc đọc ngược nó tự vỡ làm hai đầu mục ma — mà kế toán gõ tên tay, không ai cấm
-   họ gõ dấu ấy. Phải tước ngay lúc nhận, không phải lúc dùng. */
-update_option( 'vhcp_dau_muc_ds', "Điện | nước\nCơ sở · Tự mua" );
-teq( '🔴 tên chứa dấu ngăn `|` bị tước ngay lúc nhận, không để tự vỡ thành đầu mục ma',
-	array( 'Điện / nước', 'Cơ sở · Tự mua' ), VHCP_Cfg::dau_muc_ds() );
-
-/* ⚠️ Đổi thành `/` chứ không BỎ ĐI: bỏ đi thì "A|B" thành "AB", đọc ra một tên khác hẳn. */
-update_option( 'vhcp_dau_muc_ds', "A|B" );
-teq( '   và đổi thành dấu `/`, không dính liền thành một chữ khác',
-	array( 'A/B' ), VHCp_ds_tam() );
-delete_option( 'vhcp_dau_muc_ds' );
-
-/* ── Tách chuỗi nhiều đầu mục của MỘT dòng ────────────────────────────────────────────────── */
-teq( '🔴 một dòng nhiều đầu mục -> tách đủ', array( 'Cơ sở · Tự mua', 'Cơ sở · NVL' ),
-	VHCP_Cfg::dau_muc_tach( 'Cơ sở · Tự mua|Cơ sở · NVL' ) );
-teq( '   dọn dòng rỗng, khoảng trắng thừa và cái trùng',
-	array( 'A', 'B' ), VHCP_Cfg::dau_muc_tach( ' A ||B|A|  ' ) );
-teq( '   rỗng vào thì mảng rỗng ra — chỗ gọi tự quyết dồn vào ô hứng hay không',
-	array(), VHCP_Cfg::dau_muc_tach( '' ) );
-teq( '🔴 một đầu mục vẫn chạy y như trước bản này', array( 'Khác' ),
-	VHCP_Cfg::dau_muc_tach( 'Khác' ) );
-
 update_option( 'vhcp_dau_muc_ds', "\n\n  \n" );
 teq( '🔴 khai toàn dòng rỗng thì VẪN rơi về mặc định — ô chọn trống là người nhập kẹt cứng',
 	$ds, VHCP_Cfg::dau_muc_ds() );
@@ -268,46 +234,9 @@ foreach ( array_keys( $BAN ) as $ban ) {
 
 	/* 🔴 HÀNG VẼ BỞI BẢN CŨ KHÔNG CÓ Ô ĐẦU MỤC. Đọc ra rỗng rồi ghi đè là một lượt Lưu xoá
 	   sạch công gán của kế toán — im lặng, vì bảng lưu xong vẽ lại trông vẫn bình thường. */
-	/* Ô khai đầu mục: tích được nhiều, và mốc bám là `data-dm-nhieu` — cùng nếp `data-vai`,
-	   `data-dv-nhieu` của hai cột bên cạnh. */
-	$osel = than_ham( $h, '_dauMucSel' );
-	t( "🔴 $ban: ô khai đầu mục TÍCH ĐƯỢC NHIỀU, không còn chọn một",
-		false !== strpos( $osel, 'type="checkbox"' ) && false !== strpos( $osel, 'data-dm-nhieu' ), $osel );
-	t( "$ban: và vẫn bày lại đầu mục cũ không còn trong danh sách",
-		false !== strpos( $osel, 'ds.indexOf(k)<0' ), $osel );
-
 	$luu = than_ham( $h, 'saveCfgTkNoMx' );
-	/* ⚠️ ĐỪNG GHIM NGUYÊN VĂN MỘT LỐI VIẾT. Phép này từng soi chuỗi `oDm ? String(` — đúng
-	   hình dạng hồi ô còn là `<select>`. Đổi sang ô tích là phép ấy đỏ, mà đỏ vì LỐI VIẾT
-	   đổi chứ không phải vì hành vi hỏng. Soi hai thứ thật sự cần: có hỏi ô còn đó không,
-	   và khi không có thì có giữ lại giá trị cũ không. */
 	t( "🔴 $ban: lưu chỉ ghi đầu mục KHI Ô CÓ MẶT",
-		false !== strpos( $luu, 'oDm ?' ) && false !== strpos( $luu, 'goc.dauMuc' ), $luu );
-	t( "🔴 $ban: lưu gom NHIỀU ô tích, ngăn bằng `|` chứ không phải dấu phẩy",
-		false !== strpos( $luu, "join('|')" ) && false === strpos( $luu, "join(',')" ), $luu );
-	/* 🔴 HAI ĐẦU PHẢI BÁM CÙNG MỘT MỐC. Ô do `_dauMucSel()` dựng, chỗ Lưu đi tìm lại bằng
-	   `querySelector`. Đổi tên mốc ở một đầu thôi là chỗ Lưu không thấy ô nữa, rơi vào nhánh
-	   "giữ nguyên giá trị cũ" — tức kế toán tích xong bấm Lưu mà KHÔNG GÌ được ghi, im lặng.
-	   Phép grep suông không bắt được ca ấy; phải so hai đầu với nhau. */
-	if ( preg_match( '/querySelector\(\s*\x27\[([a-z0-9-]+)\]\x27\s*\)/', $luu, $mm ) ) {
-		t( "🔴 $ban: chỗ Lưu tìm ĐÚNG mốc mà ô khai đầu mục dựng ra (`{$mm[1]}`)",
-			false !== strpos( $osel, $mm[1] ), $mm[1] );
-	} else {
-		t( "$ban: đọc được mốc chỗ Lưu đi tìm", false, substr( $luu, 0, 400 ) );
-	}
-
-	/* 🔴 DẢI NÚT Ở MÀN NHẬP ĐƠN — đúng chỗ anh Thắng chỉ: *"trong bảng nhập nó chỉ hiện loại
-	   chi phí chứ không phải đầu mục, đang ngược"*. Dải ấy gom theo cột Bộ phận đã gỡ, nên tự
-	   ẩn. Hành vi đầy đủ do `kiem-dai-nut-dau-muc.js` canh; ở đây chỉ đòi CẢ BỐN BẢN đều có,
-	   vì bản vùng sinh lại từ gốc và sót một bản là mất tính năng không ai biết. */
-	$nhom = than_ham( $h, '_cacNhomCp' );
-	t( "🔴 $ban: dải nút nhập đơn gom theo ĐẦU MỤC",
-		false !== strpos( $nhom, '_dauMucDangDung()' ) && false !== strpos( $nhom, '_dauMucCua(x)' ), $nhom );
-	t( "$ban: chưa khai đầu mục thì vẫn gom theo bộ phận như cũ",
-		false !== strpos( $nhom, '_khoaNhom(' ), $nhom );
-	$hop = than_ham( $h, '_hopNhomCp' );
-	t( "🔴 $ban: bấm nút đầu mục thì ô chọn LỌC theo đúng nút ấy",
-		false !== strpos( $hop, '_dauMucCua(x).indexOf(NHOM_CP)' ), $hop );
+		false !== strpos( $luu, 'oDm ? String(' ) && false !== strpos( $luu, "goc.dauMuc" ), $luu );
 }
 
 // ============================================================ kết
