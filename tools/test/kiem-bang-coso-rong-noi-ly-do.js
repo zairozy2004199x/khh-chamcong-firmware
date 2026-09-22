@@ -34,6 +34,12 @@ function bocHam(ten) {
 }
 const fnRender = bocHam('renderCosoBody');
 t('bốc được renderCosoBody()', fnRender.length > 500, fnRender.length);
+/* ⚠️ Từ 22/09/2026 `renderCosoBody()` bù thêm nhóm cho khối CHƯA CÓ CƠ SỞ NÀO (để Văn phòng tạo
+   được cơ sở đầu tiên — xem `kiem-khoi-vp-tu-tao-coso.js`), và phép bù ấy hỏi `_xemDuocDv()`.
+   🔴 MƯỢN HÀM THẬT, đừng chép thêm một bản vào `KHOI_THAT`: bản chép sẽ trôi lệch, và lệch ở
+      đúng chỗ quyết định "kế toán bị bó khối có thấy bảng của khối khác không". */
+const fnXemDuoc = bocHam('_xemDuocDv');
+t('bốc được _xemDuocDv()', fnXemDuoc.length > 80, fnXemDuoc.length);
 
 /* Bệ đỡ: giữ lại đúng thứ bài kiểm cần đọc — nội dung đổ vào `cfgCosoBody`, và có gọi khoá
    bảng lại hay không. `el()` trả về một ô giả cho MỌI id, kể cả `dl_pll`/`dl_donvi`/`dl_tinh`. */
@@ -87,7 +93,7 @@ function chay(coso, xemDonVi) {
   const CFG = { coso: coso };
   const BOOT = { donVi: ['K&H', 'POSH', 'KVC'], xemDonVi: xemDonVi };
   new Function('CFG', 'BOOT', 'el', 'esc', '_inp', '_delBtn', '_dvMacDinh', '_csLock', 'doCoSoLa', 'doDongCua',
-    KHOI_THAT + '\n' + fnRender + '\nrenderCosoBody();')(
+    KHOI_THAT + '\n' + fnXemDuoc + '\n' + fnRender + '\nrenderCosoBody();')(
     CFG, BOOT, el, esc,
     function (v) { return '<input value="' + esc(v) + '">'; },
     function () { return '<td></td>'; },
@@ -120,13 +126,27 @@ t('                              · KVC',   boHai.html.indexOf('KVC') >= 0, boHa
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
  * 2. 🔴 CHIỀU NGƯỢC LẠI: SỔ THẬT SỰ TRỐNG → chỉ đường đi KHAI, đừng đổ cho phân quyền
  * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+/* ⚠️ TỪ 22/09/2026 CẢNH "XEM CẢ MÀ RỖNG" ĐỔI CÁCH BÀY, không đổi ý. Trước đây là MỘT câu
+   "📭 Chưa khai cơ sở nào. Bấm + Thêm cơ sở"; nay là BA nhóm khối, mỗi nhóm một câu "chưa có cơ
+   sở nào" và một nút "+ Thêm cơ sở cho <khối>".
+   🔴 VÌ SAO ĐỔI: nút chung không trả lời được câu "thêm vào khối nào?", và Văn phòng — vốn
+      không có gian vật lý nào — thì không có nhóm nên KHÔNG CÓ CÁCH NÀO tạo cơ sở đầu tiên
+      (xem `kiem-khoi-vp-tu-tao-coso.js`). Ý cần canh vẫn nguyên: bảng rỗng phải nói vì sao
+      rỗng, và KHÔNG được đổ oan cho phân quyền. */
 const xemCa = chay([], null);   // 🔴 `xemDonVi` null = XEM CẢ, không phải "không xem gì"
-t('🔴 xem cả mà bảng rỗng → "Chưa khai cơ sở nào"', xemCa.html.indexOf('Chưa khai cơ sở nào') >= 0, xemCa.html);
-t('   chỉ đúng nút phải bấm (+ Thêm cơ sở)', xemCa.html.indexOf('Thêm cơ sở') >= 0, xemCa.html);
+t('🔴 xem cả mà bảng rỗng → nói rõ từng khối chưa có cơ sở',
+  xemCa.html.indexOf('Khối này chưa có cơ sở nào') >= 0, xemCa.html);
+t('   và bày đủ ba khối để chọn chỗ thêm',
+  ['Khu vui chơi', 'Máy tự động', 'Văn phòng'].every(function (k) { return xemCa.html.indexOf('Thêm cơ sở cho ' + k) >= 0; }), xemCa.html);
 t('🔴 KHÔNG đổ oan cho phân quyền', xemCa.html.indexOf('Không phải mất dữ liệu') < 0, xemCa.html);
+/* Chỉ Văn phòng mới được nhắc "tạo cơ sở đại diện" — hai khối kia có gian thật, nhắc thế là mời
+   khai một gian không tồn tại. */
+t('⚠️ câu gợi ý "cơ sở đại diện" CHỈ ở nhóm Văn phòng',
+  (xemCa.html.match(/không có gian vật lý/g) || []).length === 1, xemCa.html);
 
 const xemCaRong = chay([], []);   // mảng RỖNG cũng phải hiểu là "không bó ai"
-t('mảng rỗng cũng là chưa khai, không phải bị bó', xemCaRong.html.indexOf('Chưa khai cơ sở nào') >= 0, xemCaRong.html);
+t('mảng rỗng cũng là chưa khai, không phải bị bó',
+  xemCaRong.html.indexOf('Khối này chưa có cơ sở nào') >= 0 && xemCaRong.html.indexOf('Không phải mất dữ liệu') < 0, xemCaRong.html);
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
  * 3. CÓ CƠ SỞ THÌ VẼ BẢNG NHƯ CŨ — lời nhắc không được chen vào

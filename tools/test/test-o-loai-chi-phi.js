@@ -153,8 +153,13 @@ t('danh mục trống thì nói thẳng',
 const mBoot = HTML.match(/el\('f_pltt'\)\.innerHTML=opts\(BOOT\.phanloai,'—'\);[\s\S]{0,400}?fillNhom\(''\);/);
 t('lúc khởi động có gọi renderNhomCp()', !!mBoot && /renderNhomCp\(\)/.test(mBoot[0]), mBoot && mBoot[0]);
 t('và gọi TRƯỚC fillNhom()', !!mBoot && mBoot[0].indexOf('renderNhomCp()') < mBoot[0].indexOf("fillNhom('')"), mBoot && mBoot[0]);
+/* ⚠️ Phép chọn-sẵn ĐÃ DỜI vào `_veLaiOCoSo()` (22/09/2026), khi hai ô Cơ sở bắt đầu phải lọc
+   theo khối và vì thế cần dựng lại ở HAI nơi (`boot()` và `doiKhoi()`). Cùng một hành vi, một
+   chỗ khai — chứ để ở chỗ gọi thì đổi khối xong mất phép chọn sẵn.
+   Bản chạy thật nằm ở `kiem-o-coso-theo-khoi.js`; ở đây chỉ canh nó CÒN TỒN TẠI. */
 t('chỉ có 1 cơ sở thì chọn sẵn (khỏi phải bấm mới thấy loại chi phí)',
-  /else if\(\(cosoOpts\|\|\[\]\)\.length===1\) el\('f_coso'\)\.value=cosoOpts\[0\];/.test(HTML));
+  /else if\(ds\.length===1\) f\.value=ds\[0\];/.test(HTML));
+t('   và chọn sẵn ấy chỉ nhìn cơ sở HỢP KHỐI', /uuTien && ds\.indexOf\(uuTien\)>=0/.test(HTML));
 t('ô Loại chi phí có chỗ hiện lời giải thích', /id="f_nhomVi"/.test(HTML));
 t('fillNhom có vẽ lời giải thích đó', /_veLoaiCpVi\('f_nhomVi'/.test(HTML));
 
