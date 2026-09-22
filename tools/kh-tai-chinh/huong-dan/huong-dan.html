@@ -202,7 +202,9 @@
 
   <div class="muc">
     <h3>4.2 Xem trước</h3>
-    <p><b>Hoá đơn → Sinh từ sao kê</b>. Chọn từ ngày / đến ngày, tick nguồn tiền, bấm <b>Xem trước</b>. Bốn thẻ số ở trên nói ngay tình hình:</p>
+    <p><b>Hoá đơn → Sinh từ sao kê</b>. Chọn kỳ bằng nút nhanh <b>Hôm qua · Hôm nay · 7 ngày qua · Tháng này</b> hoặc gõ tay hai ô ngày, tick nguồn tiền, bấm <b>Xem trước</b>.</p>
+    <div class="meo"><b>Màn hình này dùng hằng ngày</b>Công ty xuất khoảng <b>160 tờ mỗi ngày</b>, nên thường bấm <b>Hôm qua</b> rồi tạo, chứ không đợi cuối tháng. Nút kỳ nhanh giữ nguyên nguồn tiền đã tick.</div>
+    <p> Bốn thẻ số ở trên nói ngay tình hình:</p>
     <table>
       <tr><th>Sẽ xuất</th><td>Bao nhiêu hoá đơn</td></tr>
       <tr><th>Tổng tiền</th><td>Tiền sẽ vào hoá đơn</td></tr>
@@ -216,6 +218,7 @@
   <div class="muc">
     <h3>4.3 Tạo hoá đơn</h3>
     <p>Xem trước xong thì điền <b>ngày hoá đơn</b>, <b>số hoá đơn bắt đầu</b>, <b>thuế suất</b>, rồi bấm nút tạo. Số cấp liên tiếp từ số bắt đầu.</p>
+    <div class="luu"><b>Mặc định: mỗi điểm mỗi ngày một tờ</b>Đúng luật công ty đang dùng. Chạy luật này trên dữ liệu thật tháng 8/2026 của KH705 ra <b>1.983 tờ</b>, trong khi file hoá đơn thật có <b>1.986 cặp</b> (điểm × ngày) — lệch 3. Đổi sang <em>Gộp cả kỳ</em> được nếu cần một tờ tổng.</div>
     <div class="canh"><b>Trùng số ở giữa dải thì máy dừng hẳn</b>Không ghi dòng nào, không bỏ qua rồi chạy tiếp. Số hoá đơn nhảy cóc là thứ cơ quan thuế hỏi đầu tiên, và sửa sau tốn hơn nhiều so với chạy lại.</div>
     <div class="luu"><b>Tiền gom được hiểu là đã có VAT</b>Đó là tiền khách trả thật. Máy tách ngược ra chưa VAT và VAT theo thuế suất anh chọn.</div>
     <p>Hoá đơn tạo ra nằm ở <b>Hoá đơn → Đầu ra</b>, mang ghi chú "Sinh từ sao kê" kèm kỳ, để sau này biết nó từ đâu ra. Sửa hay xoá như hoá đơn nhập tay.</p>

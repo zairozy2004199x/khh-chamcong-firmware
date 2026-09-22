@@ -1262,6 +1262,17 @@ class KHTC_Trang {
 		printf( '<label>Từ ngày<input type="date" name="tu" value="%s"></label>', esc_attr( $tu ) );
 		printf( '<label>Đến ngày<input type="date" name="den" value="%s"></label>', esc_attr( $den ) );
 		echo '<button class="button button-primary">Xem trước</button></div>';
+		// Màn hình này chạy HẰNG NGÀY — khoảng 160 tờ mỗi lần — chứ không phải
+		// mỗi tháng một lần. Gõ tay hai ô ngày mỗi ngày là việc thừa.
+		echo '<div class="khtc-loc">';
+		foreach ( self::ngay_nhanh() as $nhan => $khoang ) {
+			printf(
+				'<a class="button" href="%s">%s</a>',
+				esc_url( self::url( 'sinh-hoa-don', array( 'tu' => $khoang[0], 'den' => $khoang[1], 'tach' => $tach ) + ( $nh_c ? array( 'nh' => $nh_c ) : array() ) + ( $dot_c ? array( 'dot' => $dot_c ) : array() ) ) ),
+				esc_html( $nhan )
+			);
+		}
+		echo '</div>';
 		echo '<p class="khtc-sub">Tiền vào từ những nguồn nào thì tick vào đó. Máy không tự chọn — gộp thiếu hay gộp thừa một nguồn là hoá đơn sai mà bảng vẫn trông bình thường.</p><div class="khtc-loc">';
 		foreach ( KHTC_NganHang::ds() as $n ) {
 			printf(
@@ -2422,6 +2433,20 @@ class KHTC_Trang {
 	}
 
 	/** Các kỳ bấm một nút là ra — tháng trước và quý là hai kỳ hay xem nhất. */
+	/** Kỳ nhanh cho màn hình sinh hoá đơn: đơn vị là NGÀY, không phải tháng. */
+	private static function ngay_nhanh() {
+		$nay = current_time( 'Y-m-d' );
+		$hqua = gmdate( 'Y-m-d', strtotime( $nay . ' 00:00:00 UTC -1 day' ) );
+		$b7   = gmdate( 'Y-m-d', strtotime( $nay . ' 00:00:00 UTC -6 day' ) );
+		list( $t1, $t2 ) = KHTC_BaoCao::bien_thang( substr( $nay, 0, 7 ) );
+		return array(
+			'Hôm qua'    => array( $hqua, $hqua ),
+			'Hôm nay'    => array( $nay, $nay ),
+			'7 ngày qua' => array( $b7, $nay ),
+			'Tháng này'  => array( $t1, $t2 ),
+		);
+	}
+
 	private static function ky_nhanh() {
 		$nay  = current_time( 'Y-m-d' );
 		$thang = substr( $nay, 0, 7 );

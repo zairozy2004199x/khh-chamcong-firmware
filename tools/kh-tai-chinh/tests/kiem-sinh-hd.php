@@ -159,6 +159,14 @@ $h = dung( fn() => KHTC_Trang::sinh_hoa_don() );
 kiem( 'mặc định là tách theo ngày', false !== strpos( $h, 'mỗi điểm mỗi ngày một hoá đơn' ), true );
 kiem( 'và nút tách theo ngày được chọn sẵn', false !== strpos( $h, 'value="ngay" checked' ), true );
 kiem( 'có cột Ngày doanh thu', false !== strpos( $h, 'Ngày doanh thu' ), true );
+// Màn hình này chạy hằng ngày (~160 tờ mỗi lần), nên phải có nút kỳ nhanh
+// theo NGÀY chứ không phải theo tháng như màn hình Báo cáo.
+kiem( 'có nút Hôm qua', false !== strpos( $h, 'Hôm qua' ), true );
+kiem( 'có nút 7 ngày qua', false !== strpos( $h, '7 ngày qua' ), true );
+// Nút kỳ nhanh phải GIỮ LẠI nguồn tiền đã tick, nếu không bấm một cái là mất
+// hết lựa chọn và bảng xem trước rỗng.
+kiem( 'nút kỳ nhanh giữ nguồn tiền đã tick', false !== strpos( $h, 'nh%5B0%5D=' ) || false !== strpos( $h, 'nh[0]=' ), true );
+kiem( 'và giữ cả lựa chọn tách theo ngày', false !== strpos( $h, 'tach=ngay' ), true );
 // Chọn gộp cả kỳ thì đổi theo.
 $_GET['tach'] = ''; $_REQUEST = $_GET;
 $hg = dung( fn() => KHTC_Trang::sinh_hoa_don() );
