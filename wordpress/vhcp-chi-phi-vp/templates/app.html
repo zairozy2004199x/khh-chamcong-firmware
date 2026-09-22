@@ -12386,7 +12386,10 @@
        xuống sổ, nên khóa nó chỉ có hại. `data-khong-khoa` là lối ra chung: nút nào về sau chỉ
        đổi cách bày cũng gắn thuộc tính ấy. */
     Array.prototype.forEach.call(
-      el('cfgTkNoMx').querySelectorAll('input:not([data-khong-khoa]),select:not([data-khong-khoa]),button:not([data-khong-khoa])'),
+      /* 🔴 `data-khong-mo` = ĐÃ KHOÁ VĨNH VIỄN (dòng của khối người này không sửa được, xem
+         `_khoaDongKhoiLa()`). Chừa chúng ra ở CẢ HAI chiều: quét vào đây là cú bấm 🔓 mở
+         toang dòng của khối khác, tức cái khoá chỉ sống tới lúc ai đó bấm mở. */
+      el('cfgTkNoMx').querySelectorAll('input:not([data-khong-khoa]):not([data-khong-mo]),select:not([data-khong-khoa]):not([data-khong-mo]),button:not([data-khong-khoa]):not([data-khong-mo])'),
       function(f){ f.disabled=MX_LOCK; });
   }
   /* ══════════════════════════════════════════════════════════════════════════════════════
@@ -12538,50 +12541,73 @@
     // chỉ gây nhập hai chỗ rồi lệch nhau. Giá trị đã lưu KHÔNG mất: lúc lưu bảng này app
     // lấy lại từ dữ liệu cũ (xem saveCfgTkNoMx).
     /* ══════════════════════════════════════════════════════════════════════════════════════
-     * BẢNG TRÊN — BA BẢNG, MỖI KHỐI MỘT BẢNG.
+     * BẢNG TRÊN — MỖI ĐẦU MỤC MỘT BẢNG.
      * ══════════════════════════════════════════════════════════════════════════════════════
-     * Anh Thắng 21/09/2026: *"chỗ loại chi phí, chia ra 3 bảng của 3 khối, để tránh dùng
-     * chung"*, và *"đơn vị nào sẽ dùng khối của đơn vị đó"*.
+     * Anh Thắng 22/09/2026: *"Mỗi đầu mục là 1 bảng riêng,,"* — sau khi chốt *"Khối là dùng
+     * chung, vì đã phân theo vai trò rồi"* và *"Khối là để xác định tài khoản nợ"*.
      *
-     * 🔴 "TRÁNH DÙNG CHUNG" LÀ YÊU CẦU VỀ HẬU QUẢ, KHÔNG PHẢI VỀ CÁCH BÀY. Trước bản này một
-     *    dòng "Chi phí khác" là MỘT bản ghi mà cả ba bên cùng trỏ vào: kế toán Văn phòng sửa
-     *    mã TK Nợ của nó là sổ Khu vui chơi đổi theo, không ai hay. Nên chia ở đây là chia
-     *    THẬT — mỗi khối một dòng riêng, trùng tên cũng không sao, sửa bên này không đụng bên
-     *    kia. Bày ba bảng mà vẫn chung một bản ghi thì chẳng giải quyết được gì.
+     * 🔴 ĐỔI TRỤC CHIA BẢNG, KHÔNG ĐỔI DỮ LIỆU. Mỗi dòng vẫn mang đúng một `khoi` như trước,
+     *    vẫn có Ô CHỌN KHỐI trên chính dòng ấy, và bảng mã TK Nợ bên dưới vẫn cắt theo khối.
+     *    Chỉ CÁCH BÀY của bảng trên đổi: trước gom theo khối, nay gom theo đầu mục — vì đầu
+     *    mục mới là thứ kế toán tìm theo khi khai ("chi phí cơ sở nằm đâu"), còn khối thì
+     *    một loại chỉ thuộc một cái và đã có sẵn ô chọn ngay trên dòng.
      *
-     * ⚠️ KHỐI KHÔNG THUỘC THÌ GẬP LẠI, KHÔNG BỎ. Cùng luật với thanh khối và menu ▾: hiện để
-     *    người ta biết hệ có ba khối, gập để khỏi rối. Bỏ hẳn là mã tài khoản của khối ấy còn
-     *    nằm trong sổ mà không ai sửa được nữa — anh Thắng 14/09/2026: *"ẩn thôi đừng bỏ"*.
+     * 🔴 KHỐI KHÔNG CÒN LÀ MỐC CỦA TBODY NỮA — `data-dau-muc` thay chỗ `data-khoi`. Lúc Lưu,
+     *    khối của một dòng vì thế CHỈ còn một nguồn: ô chọn trên chính dòng ấy (ngã về giá
+     *    trị cũ trong sổ khi hàng không có ô). Bỏ sót chỗ này là `saveCfgTkNoMx()` đóng dấu
+     *    tên đầu mục vào cột `khoi` của mọi dòng — mọi loại rơi khỏi bảng mã, im lặng.
+     *
+     * ⚠️ DÒNG THUỘC KHỐI NGƯỜI NÀY KHÔNG SỬA ĐƯỢC THÌ KHOÁ TỪNG DÒNG, không khoá cả bảng như
+     *    bản trước: một bảng đầu mục nay chứa lẫn dòng của cả ba khối. Xem `_khoaDongKhoiLa()`
+     *    — và lượt Lưu cũng chép nguyên bản cũ cho mấy dòng ấy, chứ không tin mỗi cái khoá
+     *    trên màn (gõ thẳng vào ô bằng công cụ lập trình là qua được khoá).
+     *
+     * ⚠️ ĐẦU MỤC LẠ (còn trong sổ mà danh sách đã bỏ) VẪN PHẢI CÓ BẢNG. Không thì loại ấy
+     *    không hiện ở đâu cả, mà lượt Lưu kế tiếp lại đọc trên màn — tức xoá sạch.
      * ══════════════════════════════════════════════════════════════════════════════════════ */
     var duocK=_khoiDuoc().map(function(k){ return k.ma; });
+    var dmDs=((typeof BOOT!=="undefined"&&BOOT&&BOOT.dauMucDs)||[]).slice();
+    rows.forEach(function(x){
+      var d=String(x.dauMuc||'').trim();
+      if(d && dmDs.indexOf(d)<0) dmDs.push(d);   /* ⚠️ xem chú thích trên */
+    });
+    dmDs.push('');                                /* ô hứng "Chưa xếp đầu mục" — LUÔN đứng cuối */
     var h='';
-    KHOI_DS.forEach(function(k, iK){
-      var rws=rows.filter(function(x){ return _khoiCuaLoai(x)===k.ma; });
-      var mo=(duocK.indexOf(k.ma)>=0);
-      /* Khối nhà mở sẵn; khối khác gập. Người chỉ xem được một khối thì bảng của họ mở. */
-      var xoe=mo && (duocK.length===1 || k.ma===String(KHOI_DANG).toLowerCase() || (duocK.length>1 && iK===0 && duocK.indexOf(String(KHOI_DANG).toLowerCase())<0));
-      h+='<details class="mxKhoi"'+(xoe?' open':'')+' style="margin:10px 0 4px">'
+    dmDs.forEach(function(dm0, iD){
+      var rws=rows.filter(function(x){ return String(x.dauMuc||'').trim()===dm0; });
+      /* Ô hứng rỗng tuếch thì thôi bày — nó chỉ là chỗ nhặt dòng chưa xếp, không phải một
+         đầu mục thật. Có dòng thì PHẢI bày, để người ta thấy còn gì chưa khai. */
+      if(''===dm0 && !rws.length) return;
+      var nhanDm=dm0||'Chưa xếp đầu mục';
+      var mo=(duocK.length>0);
+      /* Bảng đầu mở sẵn; còn lại gập cho đỡ rối. Cùng luật với bảng mã bên dưới. */
+      h+='<details class="mxKhoi"'+(0===iD?' open':'')+' style="margin:10px 0 4px" data-dau-muc-box="'+esc(dm0)+'">'
         +'<summary style="cursor:pointer;font-weight:700;font-size:13px;color:#171417;padding:4px 0">'
-        +(mo?'':'🔒 ')+'🧩 Loại chi phí · '+esc(k.ten)
-        +' <span style="font-weight:400;color:#8c8781">— '+rws.length+' loại'
-        +(mo?'':' · tài khoản của bạn thuộc đơn vị khác, xem được nhưng không sửa')+'</span></summary>';
-      /* 🔴 NÚT THÊM PHẢI Ở NGAY ĐẦU KHỐI, KHÔNG CHỈ DƯỚI ĐÁY. Anh Thắng 21/09/2026: *"chưa có
-         chỗ thêm loại chi phí"* — khối Khu vui chơi của anh có 14 dòng, mỗi dòng cao gần trăm
-         điểm ảnh vì hàng ô tích vai; nút nằm sau dòng cuối thì phải cuộn hết cả khối mới thấy,
-         và người ta kết luận là KHÔNG CÓ. Giữ luôn nút dưới đáy cho ai vừa gõ xong dòng chót. */
+        +'🧩 '+esc(nhanDm)
+        +' <span style="font-weight:400;color:#8c8781">— '+rws.length+' loại</span></summary>';
+      /* 🔴 NÚT THÊM PHẢI Ở NGAY ĐẦU BẢNG, KHÔNG CHỈ DƯỚI ĐÁY. Anh Thắng 21/09/2026: *"chưa có
+         chỗ thêm loại chi phí"* — mỗi dòng cao gần trăm điểm ảnh vì hàng ô tích vai; nút nằm
+         sau dòng cuối thì phải cuộn hết cả bảng mới thấy, và người ta kết luận là KHÔNG CÓ.
+         Giữ luôn nút dưới đáy cho ai vừa gõ xong dòng chót. */
       if(mo){
         h+='<div style="padding:2px 0 6px"><button type="button" class="btn b-x" data-khong-khoa="1" '
-          +'onclick="addCfgLoai(\''+k.ma+'\')" style="padding:3px 10px;font-size:11.5px">'
-          +'＋ Thêm loại cho '+esc(k.ten)+'</button></div>';
+          /* ⚠️ `esc(JSON.stringify(...))` chứ không chỉ thay mỗi dấu nháy kép: tên đầu mục có
+             dấu & (VD "Điện & nước") thì trình duyệt đọc `&…;` thành thực thể khác, và nút
+             bấm ném lỗi cú pháp thay vì thêm dòng. */
+          +'onclick="addCfgLoai('+esc(JSON.stringify(dm0))+')" style="padding:3px 10px;font-size:11.5px">'
+          +'＋ Thêm loại cho '+esc(nhanDm)+'</button></div>';
       }
       h+='<div class="tw"><table style="min-width:1090px"><thead><tr>'
         +'<th style="text-align:left;min-width:240px">Loại chi phí</th>'
         +'<th style="width:140px">Loại</th>'
         +'<th style="width:340px">Vai trò được dùng <span style="font-weight:400;color:#8c8781">(không tích = mọi vai)</span></th>'
-        +'<th style="width:150px">Khối</th>'
-        /* 🔴 CỘT GOM ĐẦU TIÊN CỦA BẢNG NÀY. Bốn cột trước nó đều là bộ LỌC; cột này chỉ GOM ô
-           chọn lúc nhập đơn, không giấu của ai cái gì. Xem `VHCPVP_Cfg::dau_muc_ds()`. */
-        +'<th style="width:180px" title="Đầu mục lớn — gom ô chọn lúc nhập đơn cho dễ tìm. KHÔNG phải bộ lọc: để trống thì loại vẫn hiện, chỉ nằm ở nhóm cuối &quot;Chưa xếp đầu mục&quot;.">Đầu mục <span style="font-weight:400;color:#8c8781">(gom, không lọc)</span></th>'
+        /* 🔴 CỘT KHỐI Ở LẠI, DÙ BẢNG THÔI CHIA THEO KHỐI. Anh Thắng 22/09/2026: *"Khối là để
+           xác định tài khoản nợ"* — bảng mã bên dưới vẫn cắt theo nó. Bỏ cột này là khối của
+           dòng không còn ai khai được, mà bảng mã vẫn đòi. */
+        +'<th style="width:150px" title="Khối chỉ còn dùng để xác định TÀI KHOẢN NỢ ở bảng mã bên dưới — nó KHÔNG cắt danh mục loại chi phí nữa.">Khối <span style="font-weight:400;color:#8c8781">(cho TK Nợ)</span></th>'
+        /* Cột Đầu mục ở lại dù bảng đã chia theo nó: đổi ô này rồi Lưu là dòng nhảy sang bảng
+           của đầu mục ấy — đó là cách DUY NHẤT để chuyển một loại sang đầu mục khác. */
+        +'<th style="width:180px" title="Đổi ô này rồi bấm Lưu là dòng nhảy sang bảng của đầu mục ấy.">Đầu mục <span style="font-weight:400;color:#8c8781">(đổi = nhảy bảng)</span></th>'
         /* Anh Thắng 21/09/2026: *"MTĐ tùy loại sẽ có TK đối ứng khác"*. Trước bản này cột này
            KHÔNG có ô nào trên màn — có trong kho mà không có đường vào, nên khai là chuyện
            không làm được. Xem chốt dài ở `VHCPVP_Cfg::tkco_xuat()`. */
@@ -12592,19 +12618,22 @@
            nhau hẳn. Lời giải thích nằm ở `title` của chính cái nút. */
         +'<th style="width:40px"></th>'
         +'<th style="width:44px"></th></tr></thead>'
-        /* 🔴 `data-khoi` TRÊN TBODY, không trên từng hàng: lúc Lưu, `saveCfgTkNoMx()` đóng dấu
-           khối cho mọi hàng theo cái tbody chứa nó. Hàng vừa thêm tay vì thế tự mang đúng
-           khối mà không cần ô nào để khai. */
-        +'<tbody class="cfgMxBody" data-khoi="'+esc(k.ma)+'">'
+        /* 🔴 `data-dau-muc` TRÊN TBODY (thay `data-khoi` của bản trước): lúc Lưu, dòng nào
+           KHÔNG có ô Đầu mục thì lấy đầu mục theo bảng chứa nó. Khối thì KHÔNG lấy ở đây nữa
+           — xem chốt dài ở đầu khối này. */
+        +'<tbody class="cfgMxBody" data-dau-muc="'+esc(dm0)+'">'
         +rws.map(function(x){ return _mxRowHtml(x); }).join('')
         +'</tbody></table></div>';
       if(mo){
         h+='<div style="padding:4px 0 2px"><button type="button" class="btn b-x" data-khong-khoa="1" '
-          +'onclick="addCfgLoai(\''+k.ma+'\')" style="padding:3px 10px;font-size:11.5px">'
-          +'＋ Thêm loại cho '+esc(k.ten)+'</button></div>';
+          /* ⚠️ `esc(JSON.stringify(...))` chứ không chỉ thay mỗi dấu nháy kép: tên đầu mục có
+             dấu & (VD "Điện & nước") thì trình duyệt đọc `&…;` thành thực thể khác, và nút
+             bấm ném lỗi cú pháp thay vì thêm dòng. */
+          +'onclick="addCfgLoai('+esc(JSON.stringify(dm0))+')" style="padding:3px 10px;font-size:11.5px">'
+          +'＋ Thêm loại cho '+esc(nhanDm)+'</button></div>';
       }
       if(!rws.length){
-        h+='<div style="color:#8c8781;font-size:12px;padding:2px 0 6px">Khối này chưa có loại chi phí nào'
+        h+='<div style="color:#8c8781;font-size:12px;padding:2px 0 6px">Đầu mục này chưa có loại chi phí nào'
           +(mo?' — bấm <b>＋ Thêm loại</b> ở trên.':'.')+'</div>';
       }
       h+='</details>';
@@ -12712,7 +12741,39 @@
       }
     });
     box.innerHTML=h;
+    _khoaDongKhoiLa();               // khoá TỪNG DÒNG của khối người này không sửa được
     MX_LOCK=false; toggleMxLock();   // vẽ xong thì khóa lại
+  }
+  /**
+   * KHOÁ TỪNG DÒNG THUỘC KHỐI NGƯỜI NÀY KHÔNG SỬA ĐƯỢC.
+   *
+   * 🔴 THAY CHO CÁI KHOÁ CẢ BẢNG của bản trước. Tới 22/09/2026 bảng trên chia theo ĐẦU MỤC,
+   *    nên một bảng chứa lẫn dòng của cả ba khối — khoá cả bảng thì hoặc khoá oan dòng của
+   *    chính họ, hoặc mở toang dòng của khối khác. Khoá theo dòng là trục đúng.
+   *
+   * ⚠️ `data-khong-mo` CHỨ KHÔNG PHẢI CHỈ `disabled`. `toggleMxLock()` quét cả khối rồi đặt
+   *    `disabled=MX_LOCK` cho mọi ô; thiếu dấu này thì cú mở khoá đầu tiên mở luôn cả mấy
+   *    dòng vừa khoá ở đây — khoá chỉ sống được đúng tới lúc người ta bấm 🔓.
+   *
+   * 🔴 ĐÂY KHÔNG PHẢI CỔNG QUYỀN, chỉ là chặn lỡ tay. Cổng thật nằm ở lượt Lưu
+   *    (`saveCfgTkNoMx()` chép nguyên bản cũ cho dòng khối lạ) và ở máy chủ.
+   */
+  function _khoaDongKhoiLa(){
+    var duocK=_khoiDuoc().map(function(k){ return k.ma; });
+    if(!duocK.length) return;
+    _mxBodies().forEach(function(body){
+      Array.prototype.forEach.call(body.getElementsByTagName('tr'), function(tr){
+        var s=tr.querySelector('select[data-khoi-o]');
+        var k=String((s&&s.value)||'').trim().toLowerCase();
+        if(!k || duocK.indexOf(k)>=0) return;
+        tr.setAttribute('data-khoi-la','1');
+        tr.title='Loại này thuộc khối '+(_tenKhoi(k)||k)+' — tài khoản của bạn thuộc đơn vị khác, xem được nhưng không sửa';
+        tr.style.opacity='.62';
+        Array.prototype.forEach.call(tr.querySelectorAll('input,select,button'), function(f){
+          f.setAttribute('data-khong-mo','1'); f.disabled=true;
+        });
+      });
+    });
   }
   // Mảng kinh doanh = Phân loại lớn của cơ sở -> cho chọn đúng danh sách đang có
   function _pllSel(v){
@@ -13312,7 +13373,12 @@
   function _mxRowHtml(x){
     var ten=String(x.ten||'');
     var cha=String(x.cha||'').trim();
-    return '<tr'+(cha?' data-con="1"':'')+'>'
+    /* 🔴 `data-khoi-goc` = KHỐI LÚC VẼ, y hệt vai trò của `data-goc` với cái tên. Tới
+       22/09/2026 bảng trên gom theo ĐẦU MỤC, nên cái tbody không còn nói gì về khối nữa —
+       mà lượt Lưu vẫn phải biết dòng này VỐN là của khối nào để lôi lại bản ghi cũ (TK Nợ,
+       mã đối tượng, bộ phận…). Thiếu mốc này thì ai đổi ô Khối một cái là mấy cột không có ô
+       trên màn bay sạch — im lặng, vì bảng lưu xong vẽ lại trông vẫn bình thường. */
+    return '<tr'+(cha?' data-con="1"':'')+' data-khoi-goc="'+esc(_khoiCuaLoai(x))+'">'
       +'<td><input type="hidden" data-o="cha" value="'+esc(cha)+'">'
       +(cha?'<span title="Chi phí con của: '+esc(cha)+'" style="color:#8c8781;margin-right:3px">↳</span>':'')
       +'<input value="'+esc(ten)+'" data-goc="'+esc(ten)+'" placeholder="VD: Chi phí lương" '
@@ -13392,24 +13458,40 @@
     if(la) h+='<option selected>'+esc(c)+'</option>';   /* ⚠️ xem chú thích trên */
     return h+'</select>'+(la?'<div style="font-size:10px;color:#b45309">đầu mục này không còn trong danh sách</div>':'');
   }
-  function addCfgLoai(ma){
-    /* 🔴 CHỐI Ở ĐÂY NỮA. Nút "＋ Thêm loại" chỉ vẽ cho khối người ta thuộc, nhưng gọi thẳng
-       `addCfgLoai('vp')` từ thanh địa chỉ là qua được — cùng luật với `doiKhoi()`. */
-    var ma0=String(ma||KHOI_DANG||'kvc').toLowerCase();
-    if(_khoiDuoc().map(function(k){return k.ma;}).indexOf(ma0)<0){
-      toast('warn','Tài khoản của bạn thuộc đơn vị khác — không thêm loại cho khối này được');
+  /**
+   * THÊM MỘT LOẠI CHI PHÍ VÀO BẢNG CỦA MỘT ĐẦU MỤC.
+   *
+   * 🔴 THAM SỐ NAY LÀ ĐẦU MỤC, KHÔNG PHẢI MÃ KHỐI (22/09/2026 — bảng trên chia theo đầu mục).
+   *    `''` là bảng "Chưa xếp đầu mục".
+   *
+   * ⚠️ KHỐI CỦA DÒNG MỚI = KHỐI CỦA CHÍNH NGƯỜI ĐANG KHAI, không phải của bảng: bảng nay là
+   *    đầu mục nên chẳng nói gì về khối. Lấy khối đang chọn nếu người này được nó, không thì
+   *    khối đầu tiên họ được — dòng vừa thêm mà mang khối họ không sửa được là nó tự khoá
+   *    ngay lượt vẽ sau, trông như mất dòng.
+   */
+  function addCfgLoai(dm){
+    var dm0=String(dm==null?'':dm);
+    /* 🔴 CHỐI Ở ĐÂY NỮA. Nút "＋ Thêm loại" chỉ vẽ khi người ta có khối, nhưng gọi thẳng
+       `addCfgLoai('…')` từ thanh địa chỉ là qua được — cùng luật với `doiKhoi()`. */
+    var duocK=_khoiDuoc().map(function(k){ return k.ma; });
+    if(!duocK.length){
+      toast('warn','Tài khoản của bạn chưa thuộc khối nào — không thêm loại chi phí được');
       return;
     }
-    var body=_mxBodies().filter(function(b){ return String(b.getAttribute('data-khoi')||'')===ma0; })[0];
-    if(!body){ toast('warn','Chưa thấy bảng của khối này'); return; }
+    var khoiMoi=(duocK.indexOf(String(KHOI_DANG||'').toLowerCase())>=0)
+      ? String(KHOI_DANG).toLowerCase() : duocK[0];
+    var body=_mxBodies().filter(function(b){ return String(b.getAttribute('data-dau-muc')||'')===dm0; })[0];
+    if(!body){ toast('warn','Chưa thấy bảng của đầu mục này'); return; }
     if(MX_LOCK) toggleMxLock();                       // thêm dòng thì mở khóa cho gõ
-    /* Mở cái <details> chứa nó ra, không thì dòng vừa thêm nằm trong khối đang gập và người
+    /* Mở cái <details> chứa nó ra, không thì dòng vừa thêm nằm trong bảng đang gập và người
        ta bấm nút xong thấy màn không đổi gì. */
     var d=body.parentNode; while(d && d.tagName!=='DETAILS'){ d=d.parentNode; }
     if(d) d.open=true;
-    body.insertAdjacentHTML('beforeend', _mxRowHtml({}));
+    body.insertAdjacentHTML('beforeend', _mxRowHtml({ dauMuc:dm0, khoi:khoiMoi }));
     toast('ok','Gõ tên loại rồi bấm 💾 Lưu — cột mã của nó hiện ra ở bảng dưới sau khi lưu');
-    Array.prototype.forEach.call(body.querySelectorAll('input,select'),function(f){ f.disabled=false; });
+    /* ⚠️ CHỪA Ô ĐÃ KHOÁ VĨNH VIỄN RA (dòng của khối lạ, xem `_khoaDongKhoiLa()`) — bảng đầu
+       mục nay chứa lẫn dòng của cả ba khối, mở tất là mở luôn dòng người này không được sửa. */
+    Array.prototype.forEach.call(body.querySelectorAll('input:not([data-khong-mo]),select:not([data-khong-mo])'),function(f){ f.disabled=false; });
   }
   function saveCfgTkNoMx(){
     /* 🔴 KHOÁ THEO KHỐI|TÊN. Từ 21/09/2026 hai khối được phép cùng có "Chi phí khác" của
@@ -13433,7 +13515,11 @@
        khối CÙNG ĐƯỢC PHÉP có "Chi phí khác" của riêng mình — đó chính là ý *"tránh dùng
        chung"*. Giữ khoá cũ thì dòng của khối thứ hai lặng lẽ biến mất ngay lượt Lưu. */
     _mxBodies().forEach(function(body){
-    var khoiB=String(body.getAttribute('data-khoi')||'').toLowerCase()||String(KHOI_DANG||'kvc').toLowerCase();
+    /* 🔴 TBODY NAY ĐÓNG DẤU ĐẦU MỤC, KHÔNG ĐÓNG DẤU KHỐI (22/09/2026). Khối của một dòng chỉ
+       còn hai nguồn, theo đúng thứ tự: ô chọn trên chính dòng ấy, rồi `data-khoi-goc` (khối
+       lúc vẽ). Lấy mốc của tbody làm khối như bản trước là nay đóng TÊN ĐẦU MỤC vào cột
+       `khoi` của mọi dòng — mọi loại rơi khỏi bảng mã TK Nợ, im lặng. */
+    var dmB=String(body.getAttribute('data-dau-muc')||'');
     Array.prototype.forEach.call(body.getElementsByTagName('tr'), function(tr){
       /* 🔴 ĐỌC THEO MỐC TÊN, KHÔNG THEO THỨ TỰ Ô. Ô Bộ phận nay là bảy ô tích, tức bảy thẻ
          <input> nữa trong cùng hàng — bám theo chỉ số thì f[2] hoá ra một ô tích, và Tên theo
@@ -13441,11 +13527,29 @@
       var oTen=tr.querySelector('input[data-goc]');
       if(!oTen) return;
       var ten=String(oTen.value||'').trim(); if(!ten) return;
+      /* 🔴 ĐỌC KHỐI TRƯỚC KHI DỰNG KHOÁ. Bản trước dựng `k` bằng `khoiR` ở ngay dòng này
+         trong khi `khoiR` mãi phía dưới mới gán — `var` được nâng lên nên nó là `undefined`,
+         và MỌI khoá hoá ra "undefined|tên". Hậu quả đúng cái mà *"tránh dùng chung"* muốn
+         chặn: hai khối cùng có "Chi phí khác" thì dòng của khối thứ hai lặng lẽ biến mất
+         ngay lượt Lưu đầu tiên. Thứ tự ở đây là một phần của phép tính, không phải cách bày. */
+      var khoiG=String(tr.getAttribute('data-khoi-goc')||'').trim().toLowerCase();
+      var oKhoi=tr.querySelector('select[data-khoi-o]');
+      var khoiR=String((oKhoi&&oKhoi.value)||'').trim().toLowerCase()||khoiG||_khoiCuaLoai({});
       var k=khoiR+'|'+ten.toLowerCase(); if(da[k]) return;   // trùng tên TRONG CÙNG KHỐI -> giữ dòng đầu
       da[k]=1; daTen[ten.toLowerCase()]=1;
       var goc0=String(oTen.getAttribute('data-goc')||'').trim();
       if(goc0) doiTen[goc0.toLowerCase()]=ten;
-      var goc=cu[k]||cu[khoiB+'|'+goc0.toLowerCase()]||{};
+      /* Dò bản cũ theo DANH TÍNH LÚC VẼ trước (khối cũ + tên cũ) — đó đúng là bản ghi đã dựng
+         ra hàng này; có thế thì đổi tên hay đổi khối vẫn lôi lại được TK Nợ / mã đối tượng. */
+      var goc=(goc0?cu[khoiG+'|'+goc0.toLowerCase()]:null)||cu[k]||{};
+      /* 🔴 DÒNG CỦA KHỐI NGƯỜI NÀY KHÔNG SỬA ĐƯỢC -> CHÉP NGUYÊN BẢN CŨ, KHÔNG ĐỌC MÀN.
+         Cái khoá của `_khoaDongKhoiLa()` chỉ là chặn lỡ tay: gỡ `disabled` bằng công cụ lập
+         trình rồi gõ là qua được. Bảng nay gom theo đầu mục nên dòng của cả ba khối nằm
+         chung một chỗ — chỗ này là cổng thật bên màn. (Cổng cuối vẫn ở máy chủ.) */
+      if(tr.getAttribute('data-khoi-la') && goc && goc.ten){
+        var sao={}; for(var kk in goc){ if(Object.prototype.hasOwnProperty.call(goc,kk)) sao[kk]=goc[kk]; }
+        dm.push(sao); return;
+      }
       var oLoai=tr.querySelector('select[data-o="loaiTt"]');
       var oMisa=tr.querySelector('input[data-o="misa"]');
       var oTkCo=tr.querySelector('input[data-o="tkco"]');
@@ -13454,10 +13558,6 @@
          phận anh Thắng đã khai, mà anh chỉ bảo thôi dùng chứ chưa bảo xoá. */
       var vai=Array.prototype.map.call(tr.querySelectorAll('[data-vai] input:checked'),
                 function(c){ return c.value; }).join(', ');
-      /* Khối lấy từ Ô CHỌN trên hàng; không có ô (hàng cũ, hoặc khối bị khoá) thì theo bảng
-         chứa nó. 🔴 Đọc ô trước — người ta vừa đổi nó xong thì lượt Lưu này phải nghe. */
-      var oKhoi=tr.querySelector('select[data-khoi-o]');
-      var khoiR=String((oKhoi&&oKhoi.value)||'').toLowerCase()||khoiB;
       /* Ô tích ĐƠN VỊ đã gỡ khỏi bảng (21/09/2026) — giữ nguyên giá trị cũ trong sổ, đừng ghi
          rỗng đè lên: anh Thắng bảo thay cột, chưa bảo xoá dữ liệu. */
       var dvL=(goc.donVi||'');
@@ -13472,7 +13572,9 @@
          không có ô này, và đọc ra rỗng rồi ghi đè là một lượt Lưu xoá sạch đầu mục của mọi
          loại. Ô CÓ MẶT mà người ta để trống thì rỗng là ý thật ("thôi, chưa xếp"). */
       var oDm=tr.querySelector('[data-o="dauMuc"]');
-      var dmR = oDm ? String(oDm.value||'').trim() : (goc.dauMuc||'');
+      /* Không có ô thì GIỮ NGUYÊN giá trị cũ; không có cả bản cũ (hàng vừa thêm tay) thì theo
+         BẢNG chứa nó — bảng nay chính là đầu mục. */
+      var dmR = oDm ? String(oDm.value||'').trim() : (goc.dauMuc||dmB);
       /* 🔴 CÙNG LUẬT VỚI ĐẦU MỤC: không có ô thì GIỮ NGUYÊN, không ghi rỗng đè. Hàng do bản
          cũ vẽ ra không có ô `cha`; đọc ra rỗng rồi ghi đè là một lượt Lưu cắt đứt mọi dòng
          con khỏi cha của chúng — im lặng, vì bảng lưu xong vẽ lại trông vẫn bình thường. */

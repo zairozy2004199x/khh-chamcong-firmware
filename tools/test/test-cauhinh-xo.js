@@ -226,7 +226,11 @@ function thanHam(ten) {
 }
 /* Bao nhiêu ô mà `_readRows` sẽ ĐẾM trong đoạn HTML do hàm này sinh ra. Luật loại trừ đọc
    THẲNG từ chuỗi selector trong `_readRows`, không chép lại ở đây. */
-const SELECTOR = (HTML.match(/tr\.querySelectorAll\('([^']+)'\)/) || [])[1] || '';
+/* 🔴 BỐC TRONG THÂN `_readRows()`, ĐỪNG QUÉT CẢ TỆP. Bản trước lấy `tr.querySelectorAll('…')`
+   ĐẦU TIÊN gặp trong app.html — tức bám vào thứ tự các hàm trong tệp, chứ không bám vào hàm
+   cần soi. Cắn thật 22/09/2026: thêm `_khoaDongKhoiLa()` (đứng trước `_readRows` trong tệp) là
+   bài này đỏ bốn phép, mà `_readRows()` không hề đụng tới. */
+const SELECTOR = (thanHam('_readRows').match(/tr\.querySelectorAll\('([^']+)'\)/) || [])[1] || '';
 t('đọc được chuỗi selector của _readRows', SELECTOR.indexOf('input') >= 0, SELECTOR);
 const BO_CHECKBOX = SELECTOR.indexOf(':not([type=checkbox])') >= 0;
 const BO_CSTIM    = SELECTOR.indexOf(':not(.cs-tim)') >= 0;

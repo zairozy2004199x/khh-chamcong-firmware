@@ -1,7 +1,15 @@
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
- * BA BẢNG LOẠI CHI PHÍ THEO KHỐI — PHÍA MÀN HÌNH, BỐC HÀM THẬT RA CHẠY.
+ * BẢNG LOẠI CHI PHÍ — MỖI ĐẦU MỤC MỘT BẢNG — PHÍA MÀN HÌNH, BỐC HÀM THẬT RA CHẠY.
  *
- * Anh Thắng 21/09/2026: *"chỗ loại chi phí, chia ra 3 bảng của 3 khối, để tránh dùng chung"*.
+ * Anh Thắng 21/09/2026: *"chỗ loại chi phí, chia ra 3 bảng của 3 khối, để tránh dùng chung"*,
+ * rồi 22/09/2026 đổi trục: *"Khối là dùng chung, vì đã phân theo vai trò rồi"* · *"Khối là để
+ * xác định tài khoản nợ"* · *"Mỗi đầu mục là 1 bảng riêng,,"*.
+ *
+ * 🔴 ĐỔI TRỤC CHIA BẢNG, KHÔNG ĐỔI DỮ LIỆU — và đó chính là chỗ bài này canh gắt nhất. Mỗi
+ *    dòng VẪN mang đúng một `khoi`, vì bảng mã TK Nợ bên dưới vẫn cắt theo khối. Trước bản
+ *    này khối của một dòng đọc từ mốc `data-khoi` của tbody; nay tbody mang ĐẦU MỤC, nên bỏ
+ *    sót một chỗ là lượt Lưu đóng TÊN ĐẦU MỤC vào cột `khoi` của mọi dòng — mọi loại rơi khỏi
+ *    bảng mã, im lặng.
  *
  * =============================================================================================
  * 🔴 LỖI ĐÃ CẮN NGAY LƯỢT DỰNG ĐẦU, VÀ BÀI NÀY GIỮ NÓ
@@ -87,13 +95,36 @@ t('   và mỗi khối có một mục, kể cả khối chưa có cơ sở nào
 t('   và thôi lọc bằng ô Đơn vị của loại (ô ấy đã gỡ)', !/_loaiChoDv\(x, g\.dv\)/.test(VE));
 t('   đổi khối thì vẽ lại bảng Cấu hình', /renderTkNoMatrix\(\)/.test(bocSach('doiKhoi')), 'không thấy');
 
-/* ═══ 3. NÚT "＋ THÊM LOẠI" CHUNG ĐÃ BỎ, MỖI KHỐI MỘT NÚT ════════════════════════ */
+/* ═══ 3. MỖI ĐẦU MỤC MỘT BẢNG, VÀ MỖI BẢNG MỘT NÚT "＋ THÊM LOẠI" ════════════════ */
 t('🔴 không còn nút thêm loại chung ở đầu thẻ', !/onclick="addCfgLoai\(\)"/.test(HTML));
-t('   mỗi bảng có nút thêm mang mã khối của nó', /onclick="addCfgLoai\(\\'/.test(VE), 'không thấy');
-t('🔴 `addCfgLoai()` chối khối không thuộc', /_khoiDuoc\(\)/.test(bocSach('addCfgLoai')), 'không thấy');
+/* 🔴 CẢ HAI NÚT (đầu bảng VÀ cuối bảng), không phải "có chỗ nào đó đúng". Cắn ngay lượt phá
+   thử 22/09/2026: đục một trong hai nút sang mã khối thì phép này vẫn xanh nhờ nút còn lại. */
+teq('   CẢ HAI nút thêm (đầu bảng + cuối bảng) đều mang ĐẦU MỤC của nó', 2,
+  (VE.match(/onclick="addCfgLoai\('\+esc\(JSON\.stringify\(dm0\)\)\+'\)"/g) || []).length);
+t('🔴 `addCfgLoai()` chối người chưa thuộc khối nào', /_khoiDuoc\(\)/.test(bocSach('addCfgLoai')), 'không thấy');
 t('   và mở cái <details> đang gập ra', /\.open\s*=\s*true/.test(bocSach('addCfgLoai')), 'không thấy');
-t('🔴 thân bảng mang `data-khoi`', /data-khoi="'\+esc\(k\.ma\)\+'"/.test(VE), 'không thấy');
-t('   khối không thuộc vẫn HIỆN (gập + ổ khoá), không bị bỏ', /🔒 /.test(VE) && /mxKhoi/.test(VE));
+/* 🔴 MỐC CỦA TBODY ĐỔI TỪ KHỐI SANG ĐẦU MỤC — và CẢ BA chỗ đọc nó phải đổi theo, không thì
+   một nửa đường dây nói khối còn nửa kia nói đầu mục. */
+t('🔴 thân bảng mang `data-dau-muc`', /data-dau-muc="'\+esc\(dm0\)\+'"/.test(VE), 'không thấy');
+t('🔴 và KHÔNG còn đóng dấu `data-khoi` lên tbody (nay nó là đầu mục)',
+  !/data-khoi="'\+esc\(k\.ma\)\+'"/.test(VE), 'vẫn còn');
+t('   `addCfgLoai()` tìm bảng theo `data-dau-muc`', /getAttribute\('data-dau-muc'\)/.test(bocSach('addCfgLoai')), 'không thấy');
+t('🔴 lượt Lưu KHÔNG còn lấy khối từ mốc của tbody', !/getAttribute\('data-khoi'\)/.test(LUU), 'vẫn còn');
+t('   mà lấy đầu mục ở đó', /getAttribute\('data-dau-muc'\)/.test(LUU), 'không thấy');
+/* 🔴 KHỐI LÚC VẼ PHẢI NẰM TRÊN CHÍNH HÀNG. Mất mốc này là lượt Lưu không dò được bản ghi cũ,
+   và mấy cột không có ô trên màn (TK Nợ, mã đối tượng, bộ phận) bay sạch — im lặng. */
+t('🔴 hàng mang `data-khoi-goc` (khối lúc vẽ)', /data-khoi-goc="'\+esc\(_khoiCuaLoai\(x\)\)\+'"/.test(bocSach('_mxRowHtml')), 'không thấy');
+t('   và lượt Lưu dò bản cũ bằng nó', /getAttribute\('data-khoi-goc'\)/.test(LUU), 'không thấy');
+/* ⚠️ Bảng nay gom theo đầu mục nên một bảng chứa lẫn dòng của cả ba khối — khoá cả bảng như
+   bản trước là hoặc khoá oan dòng của chính họ, hoặc mở toang dòng của khối khác. */
+t('🔴 khoá theo TỪNG DÒNG, không theo cả bảng', /_khoaDongKhoiLa\(\)/.test(VE)
+  && /data-khoi-la/.test(bocSach('_khoaDongKhoiLa')), 'không thấy');
+t('   và cú bấm 🔓 KHÔNG mở được mấy dòng ấy',
+  /:not\(\[data-khong-mo\]\)/.test(bocSach('toggleMxLock')), 'không thấy');
+t('🔴 lượt Lưu chép nguyên bản cũ cho dòng khối lạ, không tin mỗi cái khoá trên màn',
+  /data-khoi-la/.test(LUU), 'không thấy');
+t('   đầu mục lạ (đã rời danh sách) vẫn có bảng, không nuốt dòng', /dmDs\.indexOf\(d\)<0/.test(VE), 'không thấy');
+t('   và ô hứng "Chưa xếp đầu mục" đứng CUỐI', /dmDs\.push\(''\)/.test(VE), 'không thấy');
 
 /* ── chạy thật: `_khoiCuaLoai` ─────────────────────────────────────────────────── */
 const vm = require('vm');
@@ -210,4 +241,4 @@ if (TRUOT.length) {
   TRUOT.forEach(function (x) { console.log('  · ' + x); });
   process.exit(1);
 }
-console.log('\n✓ SẠCH — ' + DAT + ' phép: ba bảng tách thật, trùng tên khác khối không nuốt nhau, ô chọn lọc theo khối.');
+console.log('\n✓ SẠCH — ' + DAT + ' phép: mỗi đầu mục một bảng, khối vẫn đi theo từng dòng (cho TK Nợ), trùng tên khác khối không nuốt nhau.');
