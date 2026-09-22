@@ -494,7 +494,18 @@
       <div class="ch"><h2 id="lineFormTitle">1) Nhập hạng mục xin tạm ứng</h2><span id="editHint" style="font-size:11px;color:#0369a1"></span></div>
       <div class="cb">
         <input type="hidden" id="lineId">
-        <div class="grid">
+        <!-- ══════════════════════════════════════════════════════════════════════════════════
+             🔴 LƯỚI RIÊNG CHO FORM NHẬP — anh Thắng 22/09/2026: *"Chỗ này tạo Form Nhập cho nó
+             gọn trang"*. Lớp `.grid` dùng chung là SÁU cột: trên màn 1900px nó kéo một form 14
+             ô trải suốt bề ngang, mắt phải quét cả gang tay cho một hạng mục.
+
+             ⚠️ KHÔNG SỬA `.grid` DÙNG CHUNG. Nó dựng cả chục bảng khác trong app; đổi ở đó là
+                sửa một màn, hỏng chín màn — và chín màn ấy không ai đi soi lại. Thêm lớp riêng
+                thì lượt này chỉ chạm đúng cái form anh chỉ.
+             ⚠️ `max-width` chứ không phải ít cột hơn: ít cột mà vẫn trải hết màn thì mỗi ô rộng
+                ra, form vẫn dài đúng như cũ. Cái cần chặn là BỀ NGANG của cả khối.
+             ══════════════════════════════════════════════════════════════════════════════════ -->
+        <div class="grid grid-nhap">
           <div class="fld" id="fldCoso"><label id="lblCoso">Cơ sở *</label><select id="f_coso" onchange="_cosoDoi()"></select>
             <div id="cosoLock" style="font-size:11px;color:#b45309;margin-top:3px;display:none"></div></div>
           <!-- Trình duyệt vẽ ô type=date theo NGÔN NGỮ CỦA MÁY: máy anh Thắng hiện 08/23/2026
@@ -517,6 +528,15 @@
                  mà không nói gì thì người dùng chỉ thấy "app hỏng" — đã xảy ra hai lần trong
                  một ngày: mở đơn lần đầu (chưa chọn cơ sở) và khai loại chỉ cho 1/7 mảng. -->
             <div id="f_nhomVi" style="font-size:11px;margin-top:3px"></div></div>
+          <!-- 🔴 SETUP HAY VẬN HÀNH. Anh Thắng vẽ câu hỏi này trong sơ đồ tay 22/09/2026 —
+               *"CP set up hay đã đi vào VH?"* — rồi chốt *"Thêm 1 ô tích (Chi Phí Setup, Chi
+               Phí Vận Hành) để sau này xác định nó thuộc chi phí nào"*.
+               ⚠️ ĐẶT CẠNH "Loại chi phí" CHỨ KHÔNG PHẢI CUỐI FORM: nó trả lời tiếp cho đúng câu
+                  mà ô bên trái vừa hỏi ("khoản này là gì"), nên hai ô phải đọc liền một mạch.
+               ⚠️ KHÔNG BẮT BUỘC. Bỏ trống = chưa xác định, và trống phải hợp lệ: mọi dòng nhập
+                  trước bản này đều trống, sửa một dòng cũ mà bị chặn là người ta kẹt cứng. -->
+          <div class="fld"><label>Setup / Vận hành</label>
+            <div id="f_giaiDoan" style="display:flex;gap:6px;flex-wrap:wrap"></div></div>
           <div class="fld"><label>Nội dung *</label><input id="f_nd" list="dl_nd" oninput="onNoiDung()" autocomplete="off" placeholder="VD: Nước bình 20L"><datalist id="dl_nd"></datalist></div>
           <div class="fld"><label>ĐVT</label><input id="f_dvt" placeholder="Cái, kg..."></div>
           <div class="fld"><label>Số lượng *</label><input id="f_sl" type="number" min="0" step="any" placeholder="Bắt buộc" oninput="calcTT()"></div>
@@ -4147,10 +4167,34 @@
       }; rd.readAsDataURL(file);
     }; inp.click();
   }
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+     🔴 SETUP / VẬN HÀNH — xem chốt ở cột `giai_doan` trong `VHCPMTD_DB`.
+     ═════════════════════════════════════════════════════════════════════════════════════════ */
+  var GIAI_DOAN='';   // '' = chưa xác định, và đó là giá trị hợp lệ
+  /** Hai lựa chọn LẤY TỪ MÁY CHỦ, không gõ lại ở màn — gõ lại là có ngày hai bên lệch một
+      dấu, và `giai_doan_chuan()` lẳng lặng ngã mọi dòng về rỗng. */
+  function _giaiDoanDs(){
+    return (typeof BOOT!=="undefined"&&BOOT&&BOOT.giaiDoanDs)||['Setup','Vận hành'];
+  }
+  function veGiaiDoan(){
+    var box=el('f_giaiDoan'); if(!box) return;
+    box.innerHTML=_giaiDoanDs().map(function(v){
+      var on=(v===GIAI_DOAN);
+      return '<button type="button" class="btn '+(on?'b-p':'b-x')+'" style="padding:3px 10px;font-size:11.5px" '
+        +'onclick="pickGiaiDoan('+JSON.stringify(v).replace(/"/g,'&quot;')+')">'+esc(v)+'</button>';
+    }).join('');
+  }
+  /** Bấm lại đúng nút đang sáng = BỎ CHỌN. Không có đường bỏ chọn thì lỡ tay bấm một cái là
+      không gỡ ra được, mà "chưa xác định" lại là một câu trả lời hợp lệ. */
+  function pickGiaiDoan(v){
+    GIAI_DOAN=(GIAI_DOAN===v)?'':v;
+    veGiaiDoan();
+  }
   function collectLine(){
     return { coso:el('f_coso').value, ngay:el('f_ngay').value?_dmy(el('f_ngay').value):'', phanLoaiTT:el('f_pltt').value,
       doiTuong:el('f_dt').value.trim(), nhom:el('f_nhom').value, noiDung:el('f_nd').value.trim(), dvt:el('f_dvt').value.trim(),
-      soLuong:el('f_sl').value, donGia:_oTien('f_dg'), thanhTien:_oTien('f_tt'), thueSuat:el('f_thue').value, ghiChu:el('f_gc').value.trim(), anh:el('f_anh').value };
+      soLuong:el('f_sl').value, donGia:_oTien('f_dg'), thanhTien:_oTien('f_tt'), thueSuat:el('f_thue').value, ghiChu:el('f_gc').value.trim(), anh:el('f_anh').value,
+      giaiDoan:GIAI_DOAN };
   }
   /**
    * Ô NHẬP TIỀN — HIỆN DẤU CHẤM NGHÌN NGAY LÚC ĐANG GÕ.
@@ -4494,6 +4538,10 @@
     _veNgayVi();
     el('imgBtn').textContent='📎 Đính ảnh';
     el('f_pltt').value=''; renderNhomCp(); fillNhom(''); updateDoiTuongUI('');
+    /* 🔴 XOÁ LUÔN LỐT CỦA DÒNG VỪA SỬA. Không xoá thì nhập tiếp một hạng mục khác là nó mang
+       theo "Setup" của dòng trước — người ta không hề bấm, và cũng không nhìn thấy mình vừa
+       khai gì, vì mắt đang ở ô Nội dung. `veGiaiDoan()` phải gọi SAU khi đặt lại biến. */
+    GIAI_DOAN=''; veGiaiDoan();
     var _ps=(CUR&&CUR.don&&CUR.don.trangThai==='Đã cấp tạm ứng');
     el('lineFormTitle').textContent=_ps?'➕ Thêm hạng mục PHÁT SINH (mua thêm ngoài dự kiến)':'1) Nhập hạng mục xin tạm ứng'; el('editHint').textContent='';
     el('btnAdd').textContent=_ps?'＋ Thêm phát sinh':'＋ Thêm hạng mục'; el('btnCancelEdit').classList.add('hide');
@@ -4514,6 +4562,7 @@
     el('f_dt').value=l.doiTuong||''; fillNhom(l.nhom||''); updateDoiTuongUI(l.phanLoaiTT||''); el('f_nd').value=l.noiDung||'';
     el('f_dvt').value=l.dvt||''; el('f_sl').value=l.soLuong||''; _datTien('f_dg', l.donGia); _datTien('f_tt', l.thanhTien); el('f_thue').value=(l.thueSuat===''||l.thueSuat==null)?'':String(l.thueSuat);
     el('f_gc').value=l.ghiChu||''; el('f_anh').value=l.anh||''; el('imgBtn').textContent=l.anh?'✓ Đã đính ảnh':'📎 Đính ảnh';
+    GIAI_DOAN=String(l.giaiDoan||''); veGiaiDoan();
     if(l.ngay){var p=String(l.ngay).split('/'); if(p.length===3)el('f_ngay').value=p[2]+'-'+p[1]+'-'+p[0];}
     _veNgayVi();
     el('lineFormTitle').textContent='✏️ Sửa dòng chi'; el('editHint').textContent='Đang sửa 1 dòng';

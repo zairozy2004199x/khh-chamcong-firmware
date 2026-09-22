@@ -749,6 +749,10 @@ class VHCP_Don {
 			 *    đây chỉ cần trả lời có/không.
 			 * ══════════════════════════════════════════════════════════════════════════════ */
 			'khoiCoDon'  => self::khoi_con_don(),
+			/* Hai lựa chọn của ô Setup / Vận hành — đưa từ máy chủ xuống để MỘT nơi khai duy
+			   nhất. Gõ lại chuỗi ở màn là có ngày hai bên lệch nhau một dấu, và `giai_doan_chuan()`
+			   lẳng lặng ngã mọi dòng về rỗng. */
+			'giaiDoanDs' => self::GIAI_DOAN_DS,
 			/* Ai đang khai ô "Xem đơn vị" lạc ra ngoài danh sách — họ là người sắp ngồi trước
 			   một màn trắng. Xem chốt dài ở `VHCP_DonVi::ai_khai_lac()`. */
 			'khaiLac'    => VHCP_DonVi::ai_khai_lac(),
@@ -1408,6 +1412,9 @@ class VHCP_Don {
 				'phatSinh'   => VHCP_Util::is_phat_sinh( $x['phat_sinh'] ),
 				'tkNo'       => (string) $x['tk_no'],
 				'tkCo'       => (string) $x['tk_co'],
+				/* Setup hay Vận hành — xem chốt ở cột `giai_doan` trong `VHCP_DB`. Dòng cũ
+				   chưa khai thì rỗng, và rỗng là hợp lệ: "chưa xác định". */
+				'giaiDoan'   => isset( $x['giai_doan'] ) ? (string) $x['giai_doan'] : '',
 				/* NGÀY NHẬP — khác hẳn cột `ngay` (ngày chi, người nhập tự khai và sửa được).
 				   Anh Thắng 18/09/2026 xin thêm cột này: ngày chi khai lại lúc nào cũng được,
 				   nên khi hai người nhớ khác nhau thì phải có một mốc không ai gõ được. Nó vốn
@@ -1812,7 +1819,33 @@ class VHCP_Don {
 			'phat_sinh'    => $ps,
 			'tk_no'        => $tk['tk_no'],
 			'tk_co'        => $tk['tk_co'],
+			'giai_doan'    => self::giai_doan_chuan( $get( 'giaiDoan' ) ),
 		);
+	}
+
+	/**
+	 * Chuẩn hoá GIAI ĐOẠN — chỉ nhận đúng hai giá trị, còn lại về rỗng.
+	 *
+	 * 🔴 KHÔNG ĐỂ MÀN MUỐN GỬI GÌ THÌ GỬI. Cột này rồi sẽ đứng trong câu gom báo cáo ("setup
+	 *    tốn bao nhiêu, vận hành bao nhiêu"); một dòng mang "setup " thừa dấu cách, hay
+	 *    "Set up", là nó rơi ra ngoài cả hai nhóm và tổng không bao giờ cộng đủ — mà chênh
+	 *    lệch ấy không kêu tiếng nào, chỉ sai số.
+	 *
+	 * ⚠️ RỖNG LÀ HỢP LỆ, không phải lỗi: mọi dòng nhập trước bản này đều rỗng, và không ai đi
+	 *    khai lại cả trăm dòng cũ. Giá trị lạ cũng ngã về rỗng — thà "chưa xác định" còn hơn
+	 *    một nhóm thứ ba do gõ sai mà ra.
+	 */
+	const GIAI_DOAN_DS = array( 'Setup', 'Vận hành' );
+	public static function giai_doan_chuan( $v ) {
+		$t = trim( (string) $v );
+		/* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG — ghi lại để lần sau khỏi đuổi theo. Gỡ dòng này thì chuỗi
+		   rỗng vẫn ra rỗng, vì vòng dưới không khớp giá trị nào và hàm ngã về `''` ở cuối.
+		   Giữ vì nó nói thẳng ra ý định: RỖNG LÀ HỢP LỆ, không phải một giá trị trượt lọt. */
+		if ( '' === $t ) { return ''; }
+		foreach ( self::GIAI_DOAN_DS as $x ) {
+			if ( mb_strtolower( $x ) === mb_strtolower( $t ) ) { return $x; }
+		}
+		return '';
 	}
 
 	/** Mã tài khoản của 1 dòng chi: TK Nợ theo loại chi phí, TK Có theo phân loại thanh toán. */

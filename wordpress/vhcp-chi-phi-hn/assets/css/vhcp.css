@@ -133,6 +133,20 @@
   @media(max-width:1200px){.grid{grid-template-columns:repeat(3,1fr)}}
   @media(max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}}
   @media(max-width:560px){.grid{grid-template-columns:1fr}}
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+     🔴 FORM NHẬP HẠNG MỤC — anh Thắng 22/09/2026: *"Chỗ này tạo Form Nhập cho nó gọn trang"*.
+     ══════════════════════════════════════════════════════════════════════════════════════════
+     `.grid` dùng chung là SÁU cột và giãn hết bề ngang cửa sổ. Trên màn 1900px, một form 14 ô
+     trải suốt gang tay: mắt phải quét từ mép này sang mép kia cho MỘT hạng mục, và hai ô có
+     liên quan ("Số lượng" với "Đơn giá") thì nằm cách nhau nửa màn.
+
+     ⚠️ CHẶN BỀ NGANG, KHÔNG PHẢI GIẢM SỐ CỘT. Giảm cột mà vẫn giãn hết màn thì mỗi ô rộng ra,
+        form dài đúng như cũ — chỉ đổi kiểu dài. Cái cần chặn là bề ngang của cả khối.
+     ⚠️ ĐÈ RIÊNG, KHÔNG SỬA `.grid`. Lớp chung dựng cả chục bảng khác trong app; đổi ở đó là
+        sửa một màn, hỏng chín màn — và chín màn ấy không ai đi soi lại.
+     ⚠️ Dưới 1200px thì NHƯỜNG lại cho `.grid`: ở đó màn vốn đã hẹp, chặn thêm nữa là ô bị bóp. */
+  .grid-nhap{grid-template-columns:repeat(4,minmax(0,1fr));max-width:1120px}
+  @media(max-width:1200px){.grid-nhap{grid-template-columns:repeat(3,1fr);max-width:none}}
   .fld{display:flex;flex-direction:column;gap:3px}
   .fld label{font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.4px}
   .fld input,.fld select,.fld textarea{width:100%}

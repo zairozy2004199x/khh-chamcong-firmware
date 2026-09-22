@@ -158,6 +158,30 @@ class VHCPMTD_DB {
 			UNIQUE KEY don_coso (ma_don,coso)
 		) $c";
 
+		/* ══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 CỘT `giai_doan`: khoản này là SETUP (dựng cơ sở) hay VẬN HÀNH (chạy hằng ngày).
+		 * ══════════════════════════════════════════════════════════════════════════════════
+		 * Anh Thắng vẽ đúng câu hỏi này trong sơ đồ tay 22/09/2026 — *CP set up hay đã đi vào
+		 * VH?* — rồi chốt: *Thêm 1 ô tích (Chi Phí Setup, Chi Phí Vận Hành) để sau này xác
+		 * định nó thuộc chi phí nào*.
+		 *
+		 * ⚠️ KHÔNG NHÉT VÀO DANH MỤC LOẠI CHI PHÍ. Cùng một loại ("Chi phí điện nước") vừa
+		 *    phát sinh lúc setup vừa phát sinh lúc vận hành — đây là TRỤC KHÁC, không phải một
+		 *    nhánh của cây danh mục. Nhét vào danh mục là nhân đôi mọi loại, và vẫn không trả
+		 *    lời được câu hỏi khi một dòng rơi vào cả hai.
+		 *
+		 * ⚠️ `NOT NULL DEFAULT ''` — rỗng nghĩa là CHƯA XÁC ĐỊNH, và rỗng PHẢI hợp lệ: mọi
+		 *    dòng đã nhập trước bản này đều rỗng, và không ai đi khai lại cả trăm dòng cũ.
+		 *    Bắt buộc chọn là chặn đứng người nhập ngay lượt sửa một dòng cũ.
+		 *
+		 * ⚠️ CHÚ THÍCH PHẢI NẰM NGOÀI CÂU SQL, và KHÔNG ĐƯỢC NHẮC LẠI hai chữ mở đầu câu ấy.
+		 *    Hai cái bẫy, mắc đủ cả hai trong một lượt thêm cột:
+		 *      · viết chú thích vào GIỮA chuỗi SQL -> một dấu nháy kép trong lời anh Thắng đóng
+		 *        luôn chuỗi PHP, tệp không chạy nổi;
+		 *      · nhắc lại hai chữ mở đầu câu SQL trong chú thích -> `kiem-so-do-bang.php` bóc
+		 *        câu bằng đúng hai chữ ấy, nên nó bắt từ giữa chú thích rồi báo "có dòng mở đầu
+		 *        bằng dấu sao". Bài kiểm đúng; lời văn mới là chỗ sai.
+		 * ═════════════════════════════════════════════════════════════════════════════════ */
 		$sql[] = "CREATE TABLE " . self::t( 'chiphi' ) . " (
 			id VARCHAR(40) NOT NULL,
 			ma_don VARCHAR(40) NOT NULL,
@@ -181,6 +205,7 @@ class VHCPMTD_DB {
 			phat_sinh TINYINT(1) NOT NULL DEFAULT 0,
 			tk_no VARCHAR(20) NOT NULL DEFAULT '',
 			tk_co VARCHAR(20) NOT NULL DEFAULT '',
+			giai_doan VARCHAR(20) NOT NULL DEFAULT '',
 			stt BIGINT(20) NOT NULL AUTO_INCREMENT,
 			PRIMARY KEY  (id),
 			UNIQUE KEY stt (stt),
