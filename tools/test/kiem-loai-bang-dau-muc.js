@@ -204,16 +204,41 @@ t('🔴 lượt Lưu chép lại bộ phận cũ thay vì ghi rỗng', /boPhan:\
      khối nào mới hiện ra"*. Từ bản 1.235.0 hộp ô tích chỉ bày vai CỦA KHỐI ẤY cộng vai
      chạy ngang; gọi không kèm khối là không khối nào khớp và hộp trụi xuống còn bốn vai gốc. */
   const hv = ctxv._vaiSelNhieu('Kế Toán Máy Tự Động', 'kvc');
-  /* 4 vai gốc (chạy ngang) + 2 vai con KVC + 1 vai MTĐ đang TÍCH nên vẫn được bày. */
-  teq('🔴 bảng KVC bày 4 vai gốc + 2 vai con KVC + 1 vai lạc đang tích', 7, (hv.match(/type="checkbox"/g) || []).length);
+  /* 🔴 VAI GỐC THÔI LÀ Ô TÍCH (22/09/2026) — anh Thắng: *"Vai trò đang tích lẻ, nên vai trò
+     chung không dùng nữa"*. Trước bản này ở đây đếm 7 (4 vai gốc + 2 vai con KVC + 1 vai MTĐ
+     đang tích); nay còn 3 ô tích, bốn vai gốc thành NHÃN NHÓM.
+     Vì sao bỏ: `_vaiDungDuocLoai()` so TÊN VAI người ta mang với danh sách, và vai gốc KHÔNG
+     tự suy cho vai con (có phép canh ngay dưới). Nên tích "Quản lý" mà không tích vai con nào
+     là mọi quản lý thật đều KHÔNG thấy loại ấy — ô tích trông như mở cả nhóm mà thật ra đóng
+     sạch. */
+  teq('🔴 bảng KVC bày 2 vai con KVC + 1 vai lạc đang tích — vai GỐC thôi là ô tích', 3,
+    (hv.match(/type="checkbox"/g) || []).length);
+  t('🔴 vai gốc nay là NHÃN NHÓM, không phải ô tích',
+    /<b style="font-size:11.5px[^"]*"[^>]*>Quản lý<\/b>/.test(hv) && hv.indexOf('value="Quản lý"') < 0, hv.slice(0, 500));
+  t('   và mỗi nhóm có nút ✓ hết / ✕ bỏ để tích lẻ đỡ mệt',
+    /onclick="vaiNhomHet\(this,1\)"/.test(hv) && /onclick="vaiNhomHet\(this,0\)"/.test(hv), '');
   /* 🔴 PHÉP ĐỐI CHỨNG — VÀ NÓ ĐÃ ĐỔI NGHĨA NGÀY 21/09/2026.
-     Bản 1.235.0 giấu hẳn vai khối khác khi chưa tích, nên ở đây đếm ra 6. Nhưng giấu hẳn
+     Bản 1.235.0 giấu hẳn vai khối khác khi chưa tích, nên ở đây đếm ra ít hơn. Nhưng giấu hẳn
      nghĩa là KHÔNG CÓ CÁCH NÀO tích mới một vai khối khác — mà anh Thắng nói rõ: *"1 người
      có thể nhận 2 vai trò của 2 khối khác nhau"*. Nay chúng nằm trong nếp gấp "vai khối khác":
-     VẪN ĐỦ 7 Ô, chỉ là một ô nằm trong `<details>`. */
+     VẪN ĐỦ Ô, chỉ là một ô nằm trong `<details>`. */
   const hTrong = ctxv._vaiSelNhieu('', 'kvc');
-  teq('🔴 không tích gì thì vẫn đủ 7 ô — vai khối khác chỉ gấp lại, không biến', 7,
+  teq('🔴 không tích gì thì vẫn đủ 3 ô — vai khối khác chỉ gấp lại, không biến', 3,
     (hTrong.match(/type="checkbox"/g) || []).length);
+  /* ═══ 🔴 VAI CHUNG CÒN SÓT TRONG SỔ: GIẤU ĐI, KHÔNG XOÁ ═══════════════════════
+     Danh mục thật đang có dòng tích vai gốc. Bỏ ô tích ra khỏi DOM là lượt Lưu kế tiếp xoá
+     đúng mấy vai ấy — người bấm Lưu chỉ định sửa một ô khác hẳn. */
+  const hSot = ctxv._vaiSelNhieu('Quản lý', 'kvc');
+  t('🔴 vai chung còn sót VẪN nằm trong DOM và vẫn `checked` (lượt Lưu không được xoá lặng lẽ)',
+    /<input type="checkbox" data-vai-chung value="Quản lý" checked style="display:none">/.test(hSot), hSot.slice(0, 900));
+  t('   và có dòng nhắc để kế toán tự thấy',
+    /data-vai-sot/.test(hSot) && hSot.indexOf('Còn tích vai chung') >= 0, '');
+  t('🔴 kèm HAI đường gỡ, do người quyết — nở ra vai con, hoặc bỏ hẳn',
+    /onclick="vaiNoChung\(this\)"/.test(hSot) && /onclick="vaiBoChung\(this\)"/.test(hSot), '');
+  t('   loại KHÔNG tích vai chung thì không có dòng nhắc nào', !/data-vai-sot/.test(hTrong));
+  /* 🔴 KHÔNG TỰ NỞ LÚC VẼ. Nở là ĐỔI QUYỀN; máy làm thay là đổi quyền trong im lặng. */
+  t('🔴 lúc VẼ không tự nở vai chung ra vai con — đó là cú bấm của người',
+    !/value="Quản Lý Khu Vui Chơi" checked/.test(hSot), hSot.slice(0, 900));
   t('🔴 và nếp ấy ĐÓNG khi không có ô nào đang tích',
     /<details class="vaiNgoai"(?! open)/.test(hTrong), hTrong);
   t('🔴 nhưng MỞ SẴN khi bên trong có ô đang tích — không để quyền đã khai nằm khuất',

@@ -12162,6 +12162,28 @@
     if(!k) return true;
     return k===String(khoi||'').toLowerCase();
   }
+/**
+   * HỘP Ô TÍCH VAI TRÒ CHO MỘT LOẠI CHI PHÍ.
+   *
+   * 🔴 VAI GỐC (vai "chung") THÔI LÀ Ô TÍCH — anh Thắng 22/09/2026: *"Vai trò đang tích lẻ,
+   *    nên vai trò chung không dùng nữa"*. Nay nó chỉ còn là NHÃN NHÓM.
+   *
+   *    Vì sao bỏ: `_vaiDungDuocLoai()` so TÊN VAI người ta đang mang với danh sách, và vai
+   *    gốc KHÔNG tự suy ra cho vai con (có phép canh hẳn hoi). Nên tích "Quản lý" mà không
+   *    tích vai con nào thì mọi quản lý thật — ai cũng mang một vai CON như "Quản Lý Khu Vui
+   *    Chơi" — đều KHÔNG thấy loại ấy. Một ô tích trông như mở quyền cho cả nhóm mà thật ra
+   *    đóng sạch là cái bẫy tệ nhất trong bảng này.
+   *
+   * 🔴 NHƯNG DỮ LIỆU CŨ KHÔNG ĐƯỢC XOÁ LẶNG LẼ. Danh mục đang có dòng tích vai gốc; bỏ ô
+   *    tích ra khỏi DOM là lượt Lưu kế tiếp xoá đúng mấy vai ấy — người bấm Lưu chỉ định sửa
+   *    một ô khác hẳn. Nên vai gốc ĐANG TÍCH vẫn nằm trong DOM dưới dạng ô tích GIẤU ĐI
+   *    (`display:none`, vẫn `:checked` nên lượt Lưu vẫn đọc đủ), kèm một dòng nhắc màu cam và
+   *    hai nút để KẾ TOÁN tự quyết: nở nó ra thành các vai con, hoặc bỏ hẳn.
+   *    Máy không tự đổi quyền của ai — đó là việc của người.
+   *
+   * ⚠️ NÚT "✓ hết / ✕ bỏ" CỦA MỖI NHÓM là để bù cho việc tích lẻ: bốn nhóm vài chục vai mà
+   *    phải bấm từng ô thì người ta bỏ cuộc rồi để trống — mà trống nghĩa là MỌI vai.
+   */
   function _vaiSelNhieu(v, khoi){
     var da={};
     String(v||'').split(',').forEach(function(x){ var k=x.trim().toLowerCase(); if(k) da[k]=1; });
@@ -12172,9 +12194,13 @@
         +'<input type="checkbox" value="'+esc(r)+'"'+(da[r.toLowerCase()]?' checked':'')+' style="margin:0;cursor:pointer">'
         +esc(r)+'</label>';
     };
+    /* Ô tích GIẤU ĐI cho một vai gốc còn sót trong sổ — xem chốt dài ở đầu hàm. */
+    var oAn=function(r){
+      return '<input type="checkbox" data-vai-chung value="'+esc(r)+'" checked style="display:none">';
+    };
     var h='<div data-vai style="display:flex;flex-direction:column;gap:3px;padding:2px 0" '
       +'title="Không tích gì = MỌI vai đều dùng được loại này. Admin không bao giờ bị lọc nên không có ở đây.">';
-    var ngoai=[], coTich=false;
+    var ngoai=[], coTich=false, chungSot=[];
     VAI_GOC.forEach(function(cha){
       var con=[];
       _vaiConCua(cha).forEach(function(r){
@@ -12182,9 +12208,27 @@
         ngoai.push(r);
         if(da[r.toLowerCase()]) coTich=true;
       });
-      h+='<div style="display:flex;flex-wrap:wrap;gap:2px 10px">'+o(cha,true)
-        +con.map(function(r){ return o(r,false); }).join('')+'</div>';
+      var sot=!!da[cha.toLowerCase()];
+      if(sot) chungSot.push(cha);
+      h+='<div style="display:flex;flex-wrap:wrap;gap:2px 10px;align-items:center">'
+        /* 🔴 NHÃN, KHÔNG PHẢI Ô TÍCH. Xem chốt dài ở đầu hàm. */
+        +'<b style="font-size:11.5px;white-space:nowrap" title="Nhóm vai — không tích được nữa. Tích từng vai con bên phải.">'+esc(cha)+'</b>'
+        +(con.length
+          ? ('<button type="button" data-khong-khoa="1" onclick="vaiNhomHet(this,1)" title="Tích hết vai của nhóm này" style="border:0;background:none;color:#2545ff;font-size:10.5px;cursor:pointer;padding:0">✓ hết</button>'
+            +'<button type="button" data-khong-khoa="1" onclick="vaiNhomHet(this,0)" title="Bỏ tích hết vai của nhóm này" style="border:0;background:none;color:#8c8781;font-size:10.5px;cursor:pointer;padding:0">✕ bỏ</button>')
+          : '<span style="font-size:10.5px;color:#8c8781">chưa có vai con nào</span>')
+        +con.map(function(r){ return o(r,false); }).join('')
+        +(sot?oAn(cha):'')
+        +'</div>';
     });
+    if(chungSot.length){
+      h+='<div data-vai-sot style="font-size:10.5px;color:#b45309;background:#fffbeb;border:1px solid #fde68a;border-radius:4px;padding:3px 6px;margin-top:2px">'
+        +'⚠️ Còn tích vai chung: <b>'+esc(chungSot.join(', '))+'</b> — vai chung không còn dùng, '
+        +'người mang vai con KHÔNG thấy loại này. '
+        +'<button type="button" data-khong-khoa="1" onclick="vaiNoChung(this)" style="border:0;background:none;color:#2545ff;font-size:10.5px;cursor:pointer;padding:0">↧ Nở ra các vai con</button> · '
+        +'<button type="button" data-khong-khoa="1" onclick="vaiBoChung(this)" style="border:0;background:none;color:#8c8781;font-size:10.5px;cursor:pointer;padding:0">✕ Bỏ hẳn</button>'
+        +'</div>';
+    }
     if(ngoai.length){
       h+='<details class="vaiNgoai"'+(coTich?' open':'')+' style="margin-top:2px">'
         +'<summary style="font-size:11px;color:#8c8781;cursor:pointer;list-style:none">'
@@ -12193,6 +12237,77 @@
         +ngoai.map(function(r){ return o(r,false); }).join('')+'</div></details>';
     }
     return h+'</div>';
+  }
+  /**
+   * "✓ hết" / "✕ bỏ" cho MỘT NHÓM VAI (một hàng trong hộp ô tích).
+   *
+   * ⚠️ CHỈ TRONG HÀNG CHỨA NÚT, không phải cả hộp. Bốn nhóm nằm trong cùng một `[data-vai]`;
+   *    quét cả hộp là bấm "✓ hết" ở nhóm Quản lý mà tích luôn cả Nhân viên — nới quyền trong
+   *    im lặng, và người bấm không hề thấy vì mấy ô kia nằm ngoài tầm mắt.
+   * ⚠️ CHỪA Ô GIẤU (`data-vai-chung`) RA: nó là vai chung còn sót, có đường gỡ riêng. "✕ bỏ"
+   *    mà gỡ luôn nó thì dòng nhắc màu cam vẫn còn mà ô đã tắt — hai bên nói hai chuyện.
+   */
+  function vaiNhomHet(btn, bat){
+    var hang=btn.parentNode; if(!hang) return;
+    Array.prototype.forEach.call(hang.querySelectorAll('input[type="checkbox"]:not([data-vai-chung])'),
+      function(o){ if(!o.disabled) o.checked=!!bat; });
+  }
+  /* Hộp `[data-vai]` chứa cái nút đang bấm. */
+  function _vaiHopCua(btn){
+    var d=btn; while(d && !(d.getAttribute && d.getAttribute('data-vai')!==null)) d=d.parentNode;
+    return d;
+  }
+  /**
+   * NỞ MỘT VAI CHUNG RA THÀNH CÁC VAI CON CỦA NÓ.
+   *
+   * 🔴 ĐÂY LÀ VIỆC CỦA NGƯỜI, KHÔNG PHẢI CỦA MÁY — nên nó là một cú bấm, không phải một lượt
+   *    nâng cấp tự động lúc vẽ. Nở tức là đổi quyền: loại này từ chỗ "chỉ ai mang đúng chữ
+   *    Quản lý mới thấy" thành "mọi quản lý của mọi khối đều thấy". Máy tự làm thay là đổi
+   *    quyền trong im lặng — đúng thứ mà cả trang này đang cố chặn.
+   *
+   * ⚠️ NỞ RỒI MỚI BỎ Ô CHUNG. Bỏ trước rồi nở là nếu `_vaiConCua()` trả rỗng (nhóm chưa có
+   *    vai con nào) thì quyền biến mất sạch mà chẳng ai thay chỗ.
+   */
+  function vaiNoChung(btn){
+    var hop=_vaiHopCua(btn); if(!hop) return;
+    var an=Array.prototype.slice.call(hop.querySelectorAll('input[data-vai-chung]'));
+    if(!an.length) return;
+    var them=0, trong=[];
+    an.forEach(function(oc){
+      var cha=String(oc.value||'');
+      var con=_vaiConCua(cha);
+      if(!con.length){ trong.push(cha); return; }
+      con.forEach(function(r){
+        var k=r.toLowerCase();
+        Array.prototype.forEach.call(hop.querySelectorAll('input[type="checkbox"]:not([data-vai-chung])'),
+          function(o){ if(String(o.value||'').toLowerCase()===k && !o.checked){ o.checked=true; them++; } });
+      });
+      oc.parentNode.removeChild(oc);
+    });
+    if(trong.length){
+      toast('warn','Nhóm "'+trong.join(', ')+'" chưa có vai con nào — giữ nguyên vai chung, khai vai con ở bảng Vai trò trước');
+    }
+    _vaiSotVe(hop);
+    toast('ok','Đã nở ra '+them+' vai con — xem lại rồi bấm 💾 Lưu');
+  }
+  /** Bỏ hẳn mấy vai chung còn sót của một hàng. */
+  function vaiBoChung(btn){
+    var hop=_vaiHopCua(btn); if(!hop) return;
+    var an=Array.prototype.slice.call(hop.querySelectorAll('input[data-vai-chung]'));
+    an.forEach(function(oc){ oc.parentNode.removeChild(oc); });
+    _vaiSotVe(hop);
+    toast('ok','Đã bỏ '+an.length+' vai chung — bấm 💾 Lưu để ghi xuống');
+  }
+  /* Dựng lại (hoặc gỡ) dòng nhắc màu cam cho đúng những ô chung còn lại.
+     ⚠️ Để nguyên dòng nhắc sau khi gỡ hết ô là màn nói một đằng, dữ liệu một nẻo — và người
+        ta bấm nút lần nữa, không thấy gì đổi, rồi kết luận là nút hỏng. */
+  function _vaiSotVe(hop){
+    var con=hop.querySelector('[data-vai-sot]');
+    var an=Array.prototype.slice.call(hop.querySelectorAll('input[data-vai-chung]'));
+    if(!con) return;
+    if(!an.length){ con.parentNode.removeChild(con); return; }
+    var b=con.querySelector('b');
+    if(b) b.textContent=an.map(function(o){ return String(o.value||''); }).join(', ');
   }
   /* ════════════════════════════════════════════════════════════════════════════
      TÍCH CHÉO KHỐI LÀ CHUYỆN BÌNH THƯỜNG, KHÔNG PHẢI LỖI.

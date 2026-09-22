@@ -149,7 +149,13 @@ function dungBe(loaiChiPhi, tkNoMatrix, coso, mangTk) {
     /* `mangTk` = bảng "Mảng kinh doanh → nhóm tài khoản", nay chính là chỗ ở của MÃ TỔNG
        (anh Thắng 12/09/2026: *"TUTU MN (6410)"*). Bệ đỡ phải có nó, không thì `_mangTong()`
        nổ ngay dòng đầu và cả bài đỏ vì một lý do chẳng liên quan tới bảng mã. */
-    CFG: { loaiChiPhi: loaiChiPhi, tkNoMatrix: tkNoMatrix, coso: coso, mangTk: (mangTk || []) },
+    /* 🔴 `vaiTro` (vai TỰ TẠO) phải có trong bệ đỡ. Từ 22/09/2026 vai GỐC thôi là ô tích —
+       anh Thắng: *"Vai trò đang tích lẻ, nên vai trò chung không dùng nữa"* — nên hộp ô tích
+       dựng ra từ vai CON. Bỏ trống `vaiTro` là hộp KHÔNG có ô nào, và phép "ô Vai trò là hộp
+       tích" đỏ vì bệ đỡ thiếu chứ không phải vì mã hỏng. */
+    CFG: { loaiChiPhi: loaiChiPhi, tkNoMatrix: tkNoMatrix, coso: coso, mangTk: (mangTk || []),
+           vaiTro: [ { ten: 'Quản Lý Khu Vui Chơi', goc: 'Quản lý' },
+                     { ten: 'Kế Toán Khu Vui Chơi', goc: 'Kế toán cá nhân' } ] },
     MX_LOCK: true, TKNAME: {}, TKCHART: [],
     /* 🔴 CHẾ ĐỘ SẮP MẢNG (12/09/2026) phải có trong bệ đỡ, kể cả khi bài này không canh nó:
        `renderTkNoMatrix()` đọc `MX_SAP` để dựng dải nút, thiếu là hàm chết ngay dòng ấy và
@@ -285,9 +291,12 @@ const MANG_TK = [
   /* ⚠️ Ô TÍCH TỪ 21/09/2026 LÀ VAI TRÒ, không còn là bộ phận (anh Thắng: *"bỏ tích bộ phận đi,
      mà tích theo vai trò"*). Khuôn vẫn phải là HỘP TÍCH — danh sách nhiều lựa chọn của trình
      duyệt đòi giữ Ctrl, bấm thường là bỏ sạch những cái đang chọn, tức nới quyền trong im lặng. */
+  /* ⚠️ TÍCH VAI CON, không phải vai gốc (22/09/2026 — *"vai trò chung không dùng nữa"*). */
   t('🔴 ô Vai trò là HỘP TÍCH, không phải danh sách phải giữ Ctrl',
-    h.indexOf('<div data-vai') >= 0 && h.indexOf('type="checkbox" value="Quản lý"') >= 0
+    h.indexOf('<div data-vai') >= 0 && h.indexOf('type="checkbox" value="Quản Lý Khu Vui Chơi"') >= 0
     && h.indexOf('<select multiple') < 0, h.slice(0, 600));
+  t('   và vai GỐC chỉ là nhãn nhóm, không tích được',
+    h.indexOf('type="checkbox" value="Quản lý"') < 0 && h.indexOf('>Quản lý</b>') >= 0, '');
   t('   nói rõ không tích gì = mọi vai', h.indexOf('Không tích gì = MỌI vai') >= 0);
   /* Cột đầu nay bọc tên mảng trong một `<div>` để nhét thêm ô MÃ TỔNG xuống dưới (anh Thắng
      12/09/2026: *"TUTU MN (6410)"*), nên đừng canh `>Funzone</td>` nữa — canh tên có mặt ở
