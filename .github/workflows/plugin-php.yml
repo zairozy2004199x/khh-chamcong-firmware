@@ -83,6 +83,13 @@ jobs:
       - name: Bộ thử cổng JP Capsule (đối chiếu với giao diện)
         run: php tools/test/kiem-jp-cong.php
 
+      # Sổ 632 và công nợ NCC là thứ đem đi đối chiếu với MISA. Chỗ sai không phải phép cộng mà
+      # là: lọc hụt (`=== '632'` không khớp dòng `6321` nên sổ ra RỖNG), gộp nhầm (bốn đường
+      # nhập không sinh công nợ mà bị cộng vào 331), và IM LẶNG khi dữ liệu hở — báo cáo đã
+      # hoàn tất mà không có dòng giá vốn nào thì lãi gộp bị thổi lên đúng bằng phần thiếu.
+      - name: Bộ thử sổ kế toán JP Capsule
+        run: php tools/test/kiem-jp-so.php
+
       - name: Bộ thử chi phí
         run: php tools/test/test-flows.php
 

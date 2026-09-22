@@ -74,6 +74,7 @@ class VHJP_Cong {
 			'jpKhoKiemKeTon', 'jpKhoKiemKe', 'jpKhoLichSuKiemKe',
 			'jpKhoTraNcc', 'jpKhoTraNccLo', 'jpKhoHuyTraNcc', 'jpKhoLichSuTraNcc',
 			'jpKhoBangKeNhap', 'jpKhoBangKeXuat',
+			'jpSo632', 'jpCongNoNcc',
 		);
 	}
 
@@ -149,6 +150,10 @@ class VHJP_Cong {
 			'jpKhoBangKeNhap'     => array( 'VHJP_Cong', 'kho_bk_nhap' ),
 			'jpKhoBangKeXuat'     => array( 'VHJP_Cong', 'kho_bk_xuat' ),
 
+			/* sổ kế toán — chỉ ĐỌC, dựng lại từ chứng từ kho đã có */
+			'jpSo632'             => array( 'VHJP_Cong', 'so_632' ),
+			'jpCongNoNcc'         => array( 'VHJP_Cong', 'so_cong_no_ncc' ),
+
 			/* kế toán duyệt */
 			'jpKtListReports'     => array( 'VHJP_Cong', 'kt_ds' ),
 			'jpKtGetReport'       => array( 'VHJP_Cong', 'kt_lay' ),
@@ -172,11 +177,11 @@ class VHJP_Cong {
 	public static function chua_lam() {
 		return array(
 			/* nộp tiền */
-			'jpAddPayment', 'jpCongNoNcc', 'jpCongNoNhanVien', 'jpDeletePayment', 'jpMyMonthHistory',
+			'jpAddPayment', 'jpCongNoNhanVien', 'jpDeletePayment', 'jpMyMonthHistory',
 			'jpMyUnpaid', 'jpPaymentHistory', 'jpSuaNgayNop',
 			/* kế toán tổng hợp */
 			'jpBangCanDoiPhatSinh', 'jpDoiTkKhoCu', 'jpKetQuaKinhDoanh', 'jpKiemTraButToan',
-			'jpQuetDayChuyen', 'jpSo632', 'jpSoCongNo', 'jpSoNhatKyChung',
+			'jpQuetDayChuyen', 'jpSoCongNo', 'jpSoNhatKyChung',
 			/* báo cáo của nhân viên */
 			'jpBaoCaoDoanhThuNgay', 'jpGetOpening', 'jpGuiDeNghiTonDau',
 			'jpReopenIn24h', 'jpRevenueBoard',
@@ -475,6 +480,20 @@ class VHJP_Cong {
 	public static function kho_bk_xuat( $args, $nguoi ) {
 		return VHJP_Kho::bang_ke_xuat( $nguoi, isset( $args[1] ) ? $args[1] : '',
 			isset( $args[2] ) ? $args[2] : '', isset( $args[3] ) ? $args[3] : '' );
+	}
+
+	/* ── sổ kế toán ──
+	 * `jpSo632(token, thang, nam, duDauKy, tk)` — bốn tham số rời, đúng hình dạng giao diện gửi. */
+	public static function so_632( $args, $nguoi ) {
+		return VHJP_So::so_632( $nguoi,
+			isset( $args[1] ) ? $args[1] : 0,
+			isset( $args[2] ) ? $args[2] : 0,
+			isset( $args[3] ) ? $args[3] : 0,
+			isset( $args[4] ) ? $args[4] : '6321' );
+	}
+	public static function so_cong_no_ncc( $args, $nguoi ) {
+		return VHJP_So::cong_no_ncc( $nguoi,
+			isset( $args[1] ) ? $args[1] : 0, isset( $args[2] ) ? $args[2] : 0 );
 	}
 
 	public static function bc_mo( $args, $nguoi ) {

@@ -79,6 +79,7 @@ class VHJP_Kho {
 	 *               giá vốn; giá vốn ra `6321` lúc bán ở cơ sở và kế toán duyệt báo cáo.
 	 * · `canCoSo` — phiếu phải chọn một cơ sở.
 	 * · `nguoc`   — hàng đi NGƯỢC: kho nguồn là CƠ SỞ, kho đích là kho tổng.
+	 * · `haiVe`   — phiếu có VẾ HAI (đẻ một phiếu nhập ở kho đích). Kiểm kê KHÔNG giảm loại này.
 	 * · `may`     — máy sinh, không cho chọn tay trên phiếu.
 	 * · `o`       — rơi vào cột nào của bảng N-X-T.
 	 *
@@ -89,9 +90,9 @@ class VHJP_Kho {
 	public static function bang_loai_xuat() {
 		return array(
 			self::XUAT_CS => array( 'ten' => 'Xuất xuống cơ sở', 'tk' => '',
-				'canCoSo' => 1, 'nguoc' => 0, 'may' => 0, 'o' => 'xuatCoSo' ),
+				'canCoSo' => 1, 'nguoc' => 0, 'may' => 0, 'haiVe' => 1, 'o' => 'xuatCoSo' ),
 			self::TRA_KHO => array( 'ten' => 'Cơ sở trả về kho tổng', 'tk' => '',
-				'canCoSo' => 1, 'nguoc' => 1, 'may' => 0, 'o' => 'traVe' ),
+				'canCoSo' => 1, 'nguoc' => 1, 'may' => 0, 'haiVe' => 1, 'o' => 'traVe' ),
 			'XE_MAU'      => array( 'ten' => 'Xé mẫu trưng bày', 'tk' => '64116',
 				'canCoSo' => 0, 'nguoc' => 0, 'may' => 0, 'o' => 'xuatXeMau' ),
 			'TANG_MALL'   => array( 'ten' => 'Tặng mall / khách', 'tk' => '64116',
@@ -1203,7 +1204,7 @@ class VHJP_Kho {
 				$con = $lech;
 				$ct_goc = array();
 				if ( 'GIAM_XUAT' === $che_do ) {
-					$g = self::giam_xuat_trong_ky( $kho, $ma, $con, $ngay );
+					$g = self::giam_xuat_trong_ky( $u, $kho, $ma, $con, $ngay, $ma_kk );
 					$con        -= $g['daGiam'];
 					$sl_giam    += $g['daGiam'];
 					$tien_giam  += $g['tien'];
@@ -1271,22 +1272,43 @@ class VHJP_Kho {
 	/**
 	 * Giảm bớt số đã xuất của một mã cho khớp thực đếm, và TRẢ LẠI ĐÚNG LỚP đã ăn.
 	 *
+	 * =============================================================================================
+	 * 🔴 GHI MỘT DÒNG ÂM, KHÔNG SỬA ĐÈ LÊN DÒNG CŨ
+	 * =============================================================================================
+	 * Dòng xuất cũ đã vào sổ 632, đã có số chứng từ, và có thể đã ai đó nhìn. Sửa số trên nó là
+	 * xoá lịch sử: mở sổ ra chỉ thấy một con số khác, không thấy ai đổi, đổi bao nhiêu, vì sao.
+	 * Nên lượt điều chỉnh là một dòng RIÊNG mang số ÂM, nằm CÙNG SỔ với dòng nó đảo (giữ nguyên
+	 * `tkNo`/`tkCo` của dòng gốc), và mang số chứng từ của biên bản kiểm kê. Cộng hai dòng lại ra
+	 * đúng số thực — mà vẫn đọc được cả câu chuyện.
+	 *
+	 * 🔴 KHÔNG ĐỤNG VÀO PHIẾU CÓ VẾ HAI (`XUAT_CS`, `TRA_KHO`). Giảm một vế của lượt chuyển kho là
+	 *    hàng bốc hơi giữa đường: tồn kho nguồn tăng lại mà kho đích vẫn giữ nguyên. Thừa ở đây
+	 *    thì phần ấy đi đường ghi tăng, và cơ sở bên kia tự phát hiện bằng lượt kiểm kê của nó.
+	 *
 	 * 🔴 CHỈ ĐỘNG VÀO PHIẾU TRONG KỲ ĐANG MỞ (cùng tháng với ngày kiểm kê, không muộn hơn ngày
-	 *    ấy). Ra ngoài khoảng đó là sửa một con số đã khoá sổ.
+	 *    ấy). Ra ngoài khoảng đó là đảo một con số đã khoá sổ và đã xuất MISA.
 	 *
-	 * ⚠️ Gỡ từ phiếu MỚI NHẤT ngược về: phiếu mới nhất là phiếu dễ gõ nhầm nhất và ít khả năng
-	 *    đã được đối chiếu nhất. Gỡ từ phiếu cũ nhất là đụng vào đúng thứ đã yên.
+	 * ⚠️ Trần của mỗi dòng là phần LỚP ẤY CÒN ĐANG BỊ ĂN (`qtyInit − qtyRemaining`), chứ không
+	 *    phải số ghi trên dòng. Nhờ vậy hai lượt kiểm kê liên tiếp không đảo được cùng một lượng
+	 *    hai lần — lượt đầu trả lớp rồi thì lượt sau tự hết chỗ để trả, không cần sổ đếm riêng.
 	 *
-	 * ⚠️ Dòng `thieuLop` không có lớp để trả, nên gỡ nó KHÔNG làm tồn tăng lên — bỏ qua, không
-	 *    thì hàm tưởng đã giảm đủ mà tồn vẫn y nguyên.
+	 * ⚠️ Gỡ từ phiếu MỚI NHẤT ngược về: phiếu mới nhất dễ gõ nhầm nhất và ít khả năng đã được
+	 *    đối chiếu nhất. Gỡ từ phiếu cũ nhất là đụng vào đúng thứ đã yên.
+	 *
+	 * ⚠️ Dòng `thieuLop` không có lớp để trả nên bỏ qua — giảm nó KHÔNG làm tồn tăng lên, mà hàm
+	 *    thì tưởng đã giảm đủ.
 	 */
-	private static function giam_xuat_trong_ky( $kho, $ma_hang, $can, $ngay_kk ) {
+	private static function giam_xuat_trong_ky( $u, $kho, $ma_hang, $can, $ngay_kk, $so_ct_kk ) {
 		$dau_thang = substr( $ngay_kk, 0, 8 ) . '01';
-		$ds = array();
+		$bang = self::bang_loai_xuat();
+		$ds   = array();
 		foreach ( VHJP_Nguon::doc( 'JP_KhoXuat' ) as $x ) {
 			if ( VHJP_Doc::str( $x['khoId'] ) !== $kho ) { continue; }
 			if ( VHJP_Doc::str( $x['itemCode'] ) !== $ma_hang ) { continue; }
 			if ( '' === VHJP_Doc::str( $x['layerId'] ) ) { continue; }
+			if ( self::so( $x['qty'] ) <= 0 ) { continue; }
+			$lo = VHJP_Doc::str( $x['loai'] );
+			if ( ! empty( $bang[ $lo ]['haiVe'] ) ) { continue; }
 			$n = VHJP_Doc::ngay( $x['ngay'] );
 			if ( $n < $dau_thang || $n > $ngay_kk ) { continue; }
 			$ds[] = $x;
@@ -1299,19 +1321,27 @@ class VHJP_Kho {
 		$da = 0; $tien = 0; $goc = array();
 		foreach ( $ds as $x ) {
 			if ( $can <= 0 ) { break; }
-			$q   = self::so( $x['qty'] );
-			$gia = self::so( $x['unitCost'] );
-			$bot = min( $q, $can );
 			$lop = VHJP_Nguon::tim_mot( 'JP_KhoLop', 'id', VHJP_Doc::str( $x['layerId'] ) );
 			if ( ! $lop ) { continue; }
+			$dang_an = self::so( $lop['qtyInit'] ) - self::so( $lop['qtyRemaining'] );
+			$bot     = min( self::so( $x['qty'] ), $can, $dang_an );
+			if ( $bot <= 0 ) { continue; }
+			$gia = self::so( $x['unitCost'] );
+
 			VHJP_Nguon::sua( 'JP_KhoLop', $x['layerId'], array(
 				'qtyRemaining' => self::so( $lop['qtyRemaining'] ) + $bot ) );
-			if ( $bot >= $q ) {
-				VHJP_Nguon::xoa( 'JP_KhoXuat', $x['id'] );
-			} else {
-				VHJP_Nguon::sua( 'JP_KhoXuat', $x['id'], array(
-					'qty' => $q - $bot, 'amount' => ( $q - $bot ) * $gia ) );
-			}
+			self::ghi_dong_xuat( $u, array(
+				'soChungTu' => $so_ct_kk, 'ngay' => $ngay_kk,
+				'loai' => VHJP_Doc::str( $x['loai'] ),
+				'reportId' => VHJP_Doc::str( $x['reportId'] ),
+				'dcId' => VHJP_Doc::str( $x['dcId'] ), 'khoId' => $kho,
+				'locationId' => VHJP_Doc::str( $x['locationId'] ),
+				'locationName' => VHJP_Doc::str( $x['locationName'] ),
+				'itemCode' => $ma_hang, 'itemName' => VHJP_Doc::str( $x['itemName'] ),
+				'qty' => -$bot, 'unitCost' => $gia,
+				'tkNo' => VHJP_Doc::str( $x['tkNo'] ), 'tkCo' => VHJP_Doc::str( $x['tkCo'] ),
+				'layerId' => VHJP_Doc::str( $x['layerId'] ), 'thieuLop' => 0 ) );
+
 			$goc[] = VHJP_Doc::str( $x['soChungTu'] );
 			$da   += $bot;
 			$tien += $bot * $gia;

@@ -553,11 +553,47 @@ t( 'Thừa 2 · KHÔNG ghi tăng cái nào', 0 === $kg['slThua'], $kg );
 t( 'Thừa 2 · không có mã nào "không giảm được"', ! $kg['khongGiamDuoc'], $kg );
 t( '🔴 Giảm xuất trả lại lớp: tồn về đúng 6',
 	6 === VHJP_Kho::ton_mot( 'TONG', 'H1' )['tonQty'], VHJP_Kho::ton_mot( 'TONG', 'H1' ) );
+/* 🔴 Dòng cũ KHÔNG bị sửa đè. Lượt điều chỉnh là một dòng RIÊNG mang số ÂM, cùng sổ với dòng
+   nó đảo — mở sổ ra đọc được cả câu chuyện, chứ không chỉ thấy một con số đã khác. */
 $con_x = VHJP_Nguon::tim( 'JP_KhoXuat', 'loai', 'XE_MAU' );
-t( 'Dòng xuất cũ bị GIẢM chứ không bị xoá: còn 4',
-	1 === count( $con_x ) && 4 === VHJP_Doc::num( $con_x[0]['qty'] ), $con_x );
+t( '🔴 Giảm xuất ghi DÒNG ÂM, không sửa đè dòng cũ', 2 === count( $con_x ), $con_x );
+t( 'Dòng gốc còn nguyên 6 cái', 6 === VHJP_Doc::num( $con_x[0]['qty'] ), $con_x[0] );
+t( 'Dòng điều chỉnh mang −2 và −2.000đ',
+	-2 === VHJP_Doc::num( $con_x[1]['qty'] ) && -2000 === VHJP_Doc::num( $con_x[1]['amount'] ),
+	$con_x[1] );
+t( '🔴 Dòng điều chỉnh nằm CÙNG SỔ với dòng nó đảo (giữ nguyên tkNo/tkCo)',
+	VHJP_Doc::str( $con_x[1]['tkNo'] ) === VHJP_Doc::str( $con_x[0]['tkNo'] ), $con_x[1] );
+t( 'Dòng điều chỉnh mang số chứng từ của biên bản kiểm kê',
+	0 === strpos( VHJP_Doc::str( $con_x[1]['soChungTu'] ), 'KK' ), $con_x[1] );
+t( 'Cộng hai dòng lại ra đúng 4 cái đã xuất thật',
+	4 === VHJP_Doc::num( $con_x[0]['qty'] ) + VHJP_Doc::num( $con_x[1]['qty'] ), $con_x );
 t( 'Giảm xuất KHÔNG đẻ lớp mới', 1 === count( VHJP_Kho::lop_con( 'TONG', 'H1' ) ),
 	VHJP_Kho::lop_con( 'TONG', 'H1' ) );
+t( 'Bảng N-X-T trừ đúng: xé mẫu còn 4',
+	4 === VHJP_Kho::nhap_xuat_ton( $KT, 9, 2026, 'TONG' )['tong']['xuatXeMau'],
+	VHJP_Kho::nhap_xuat_ton( $KT, 9, 2026, 'TONG' )['tong'] );
+
+/* Kiểm kê LẦN HAI không được đảo lại cùng một lượng lần nữa — trần là phần lớp CÒN đang bị ăn. */
+$kg2 = VHJP_Kho::kiem_ke( $KT, array( 'khoId' => 'TONG', 'ngay' => '2026-09-21',
+	'cheDoThua' => 'GIAM_XUAT',
+	'rows' => array( array( 'itemCode' => 'H1', 'tonThuc' => 12 ) ) ) );
+t( '🔴 Lần hai chỉ đảo được phần lớp CÒN đang bị ăn (4), không đảo lại phần đã trả',
+	4 === $kg2['slGiamXuat'], $kg2 );
+t( 'Phần vượt quá thì ghi tăng, không bịa ra chỗ để đảo', 2 === $kg2['slThua'], $kg2 );
+t( 'Tồn lên đúng 12', 12 === VHJP_Kho::ton_mot( 'TONG', 'H1' )['tonQty'] );
+
+/* Phiếu có VẾ HAI thì KHÔNG được giảm — giảm một vế là hàng bốc hơi giữa đường. */
+nen();
+mua( $KT, '2026-09-01', array( dong( 'H1', 10, 1000 ) ) );
+VHJP_Kho::xuat( $KT, array( 'ngay' => '2026-09-10', 'loai' => 'XUAT_CS',
+	'locationId' => 'CS01', 'rows' => array( dong( 'H1', 6 ) ) ) );
+$khv = VHJP_Kho::kiem_ke( $KT, array( 'khoId' => 'TONG', 'ngay' => '2026-09-20',
+	'cheDoThua' => 'GIAM_XUAT',
+	'rows' => array( array( 'itemCode' => 'H1', 'tonThuc' => 6 ) ) ) );
+t( '🔴 KHÔNG giảm phiếu XUAT_CS (có vế hai)', 0 === $khv['slGiamXuat'], $khv );
+t( 'Phần thừa đi đường ghi tăng', 2 === $khv['slThua'], $khv );
+t( 'Kho cơ sở KHÔNG bị đụng tới: vẫn 6',
+	6 === VHJP_Kho::ton_mot( 'CS01', 'H1' )['tonQty'], VHJP_Kho::ton_mot( 'CS01', 'H1' ) );
 
 /* THỪA · phiếu xuất nằm NGOÀI kỳ đang mở thì không được đụng — phải ghi tăng và NÓI RA. */
 nen();
