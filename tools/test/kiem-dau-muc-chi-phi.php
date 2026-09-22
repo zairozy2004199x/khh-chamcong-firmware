@@ -170,6 +170,27 @@ teq( '🔴 khai toàn dòng rỗng thì VẪN rơi về mặc định — ô ch�
 	$ds, VHCP_Cfg::dau_muc_ds() );
 delete_option( 'vhcp_dau_muc_ds' );
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 3c. 🔴 CỘT `cha` PHẢI ĐI HẾT ĐƯỜNG: sổ -> máy chủ -> gói khởi động -> màn
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Đứt một chặng nào cũng ra cùng một cảnh: kế toán bấm ＋, gõ tên, bấm Lưu, bảng vẽ lại trông
+ * bình thường — rồi hôm sau mở ra thì dòng con thành một loại rời, hết là con của ai. Hỏng im
+ * lặng, và chỉ lộ ra sau khi đã khai cả trăm dòng.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+$cfg_src = file_get_contents( $goc . '/wordpress/vhcp-chi-phi/includes/class-vhcp-cfg.php' );
+$don_src = file_get_contents( $goc . '/wordpress/vhcp-chi-phi/includes/class-vhcp-don.php' );
+t( '🔴 máy chủ ĐỌC cột cha từ sổ danh mục',
+	false !== strpos( $cfg_src, "'cha' => isset( \$r[12] ) ? \$r[12] : ''" ), null );
+t( '🔴 máy chủ GHI cột cha xuống sổ — thiếu là lưu xong mất sạch',
+	false !== strpos( $cfg_src, "\$g( \$x, 'cha' )" ), null );
+t( '🔴 gói khởi động CHỞ `cha` xuống màn — thiếu là màn không biết con là con',
+	false !== strpos( $don_src, "'cha' => isset( \$x['cha'] ) ? \$x['cha'] : ''" ), null );
+/* ⚠️ KHÔNG gọi `loai_tk()` ở đây: nó đi xuống đường đọc sổ thật (`VHCP_Meta`), mà bệ đỡ của
+   bài này cố ý không dựng cả cái đó. Khoá `cha` trong `loai_tk()` do phép grep ngay trên
+   canh — cùng một dòng mã. */
+t( '   và `loai_tk()` cũng khai khoá `cha` cho mọi chỗ đọc một loại lẻ',
+	false !== strpos( $cfg_src, "'cha'     => isset( \$x['cha'] )" ), null );
+
 // ============================================================ 4. 🔴 CHỐT Ở MÁY CHỦ
 require_once $goc . '/wordpress/vhcp-chi-phi/includes/class-vhcp-auth.php';
 $r = new ReflectionClass( 'VHCP_Auth' );
@@ -234,7 +255,32 @@ foreach ( array_keys( $BAN ) as $ban ) {
 
 	/* 🔴 HÀNG VẼ BỞI BẢN CŨ KHÔNG CÓ Ô ĐẦU MỤC. Đọc ra rỗng rồi ghi đè là một lượt Lưu xoá
 	   sạch công gán của kế toán — im lặng, vì bảng lưu xong vẽ lại trông vẫn bình thường. */
+	/* 🔴 TẦNG THỨ BA — CHI PHÍ CON. Hành vi do `kiem-chi-phi-con.js` canh; ở đây chỉ đòi CẢ
+	   BỐN BẢN đều có, vì bản vùng sinh lại từ gốc và sót một bản là mất tính năng không ai
+	   biết cho tới lúc kế toán đi tìm cái nút ＋ không còn ở đó. */
+	$row2 = than_ham( $h, '_mxRowHtml' );
+	t( "🔴 $ban: mỗi dòng có nút ＋ thêm CHI PHÍ CON",
+		false !== strpos( $row2, 'addCfgCon(this)' ), $row2 );
+	t( "$ban: và dòng con chở theo ô `cha` (ô ẩn, không để gõ tay)",
+		false !== strpos( $row2, 'data-o="cha"' ) && false !== strpos( $row2, 'type="hidden"' ), $row2 );
+	$con = than_ham( $h, 'addCfgCon' );
+	t( "🔴 $ban: bấm ＋ thì dòng con KẾ THỪA đầu mục và khối của cha",
+		false !== strpos( $con, 'dauMuc:' ) && false !== strpos( $con, 'khoi:' ), $con );
+	t( "$ban: chưa đặt tên cha thì chối, không tạo dòng con mồ côi ngay từ đầu",
+		false !== strpos( $con, "if(!ten)" ), $con );
+	/* ⚠️ PHÉP SOI CHỮ, và ở đây là CHẤP NHẬN ĐƯỢC: `addCfgCon()` chỉ sống bằng DOM thật
+	   (`closest`, `querySelector`, `insertAdjacentHTML`), dựng cả một cây giả chỉ để đo một
+	   dòng logic thì bệ đỡ còn dễ sai hơn thứ nó đo. Soi đúng cái quyết định: bấm ＋ trên một
+	   dòng ĐÃ LÀ CON thì lấy cha CỦA NÓ, tức dòng mới thành ANH EM chứ không thành cháu —
+	   cây ba tầng là đủ, mỗi tầng thêm là một tầng phải bóc ở mọi chỗ đọc sổ. */
+	t( "🔴 $ban: bấm ＋ trên một dòng CON thì ra ANH EM của nó, không ra cháu",
+		false !== strpos( $con, 'querySelector(\'[data-o="cha"]\')' )
+		&& false !== strpos( $con, '|| ten' ), $con );
+
 	$luu = than_ham( $h, 'saveCfgTkNoMx' );
+	t( "🔴 $ban: lưu chỉ ghi `cha` KHI Ô CÓ MẶT — hàng bản cũ không có ô, ghi đè là cắt đứt "
+		. "mọi dòng con khỏi cha",
+		false !== strpos( $luu, 'oCha ?' ) && false !== strpos( $luu, 'goc.cha' ), $luu );
 	t( "🔴 $ban: lưu chỉ ghi đầu mục KHI Ô CÓ MẶT",
 		false !== strpos( $luu, 'oDm ? String(' ) && false !== strpos( $luu, "goc.dauMuc" ), $luu );
 }

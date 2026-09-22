@@ -9092,18 +9092,18 @@
       var ds=_tkNoList(x.ten, coso);
       var dm=_dauMucCua(x);
       if(chuaGian && ds.length>1){
-        out.push({ten:x.ten, tk:'', dm:dm, nhan:x.ten+'  ·  (mã tài khoản theo gian)'});
+        out.push({ten:x.ten, tk:'', dm:dm, cha:x.cha||'', nhan:x.ten+'  ·  (mã tài khoản theo gian)'});
         return;
       }
       if(ds.length>1){
-        ds.forEach(function(ma){ var tn=_tenTk(ma); out.push({ten:x.ten, tk:String(ma), dm:dm, nhan:x.ten+'  ·  TK '+ma+(tn?('  '+tn):'')}); });
+        ds.forEach(function(ma){ var tn=_tenTk(ma); out.push({ten:x.ten, tk:String(ma), dm:dm, cha:x.cha||'', nhan:x.ten+'  ·  TK '+ma+(tn?('  '+tn):'')}); });
         return;
       }
       var tk=_tkNoCua(x.ten, coso);
       /* 🔴 "(chưa gắn mã)" ĐÃ ĐỔI THÀNH "(kế toán gắn mã)" — 22/09/2026. Anh Thắng: *"lúc tạo
          đơn nhân viên không cần quan tâm"*. Câu cũ đọc như một lỗi người nhập phải đi sửa,
          trong khi từ nay nó là việc bình thường và là việc của người khác. */
-      out.push({ten:x.ten, tk:'', dm:dm, nhan:x.ten+(tk?('  ·  TK '+tk):'  ·  (kế toán gắn mã)')});
+      out.push({ten:x.ten, tk:'', dm:dm, cha:x.cha||'', nhan:x.ten+(tk?('  ·  TK '+tk):'  ·  (kế toán gắn mã)')});
     });
     // dòng đang có mà nay không còn trong danh mục -> vẫn giữ để không mất dữ liệu cũ
     if(cur && !out.filter(function(o){return o.ten===cur && (!curTk || o.tk===curTk || o.tk==='');}).length){
@@ -9141,6 +9141,27 @@
       if(!nhom[d]){ nhom[d]=[]; thuTu.push(d); }
       nhom[d].push({o:o, i:i});
     });
+    /* 🔴 CHI PHÍ CON ĐỨNG NGAY DƯỚI CHA CỦA NÓ. Anh Thắng 22/09/2026: *"Trừ khi nó có thêm chi
+       phí nhỏ nữa, thì sẽ hiện"*. Không xếp lại thì con nằm đâu tuỳ thứ tự sổ — thường là
+       cuối danh mục, cách cha cả chục dòng, và người nhập đọc hai dòng rời nhau chứ không
+       thấy một cây.
+       ⚠️ CON MỒ CÔI (cha bị xoá, hoặc cha nằm nhóm khác vì khai lệch đầu mục) VẪN PHẢI HIỆN.
+          Dồn xuống cuối nhóm, giữ nguyên dấu ↳ — mất hẳn là mất luôn lối nhập, mà bỏ dấu đi
+          thì không ai biết nó đang mồ côi để mà sửa. */
+    Object.keys(nhom).forEach(function(d){
+      var hang=nhom[d], viTri={}, xep=[], moCoi=[];
+      hang.forEach(function(r){ if(!String(r.o.cha||'').trim()) viTri[r.o.ten]=1; });
+      hang.forEach(function(r){
+        if(!String(r.o.cha||'').trim()) xep.push(r);
+        else if(!viTri[r.o.cha]) moCoi.push(r);
+      });
+      var ra=[];
+      xep.forEach(function(r){
+        ra.push(r);
+        hang.forEach(function(c){ if(String(c.o.cha||'').trim()===r.o.ten) ra.push(c); });
+      });
+      nhom[d]=ra.concat(moCoi);
+    });
     var ds=(typeof BOOT!=="undefined"&&BOOT&&BOOT.dauMucDs)||[];
     var xep=[];
     ds.forEach(function(d){ if(nhom[d]) xep.push(d); });
@@ -9155,7 +9176,10 @@
       nhom[d].forEach(function(r){
         var o=r.o;
         var sel=(String(o.ten)===String(cur||'') && (String(o.tk||'')===String(curTk||''))) ? ' selected' : '';
-        html+='<option value="'+r.i+'" data-ten="'+esc(o.ten)+'" data-tk="'+esc(o.tk||'')+'"'+sel+'>'+esc(o.nhan)+'</option>';
+        /* `\u00a0` chứ không phải dấu cách thường: trình duyệt nuốt khoảng trắng đầu
+           `<option>`, nên thụt bằng dấu cách thường là không thụt gì cả. */
+        var thut=String(o.cha||'').trim() ? '\u00a0\u00a0\u21b3 ' : '';
+        html+='<option value="'+r.i+'" data-ten="'+esc(o.ten)+'" data-tk="'+esc(o.tk||'')+'"'+sel+'>'+thut+esc(o.nhan)+'</option>';
       });
       if(boc) html+='</optgroup>';
     });
@@ -12046,7 +12070,7 @@
           +'onclick="addCfgLoai(\''+k.ma+'\')" style="padding:3px 10px;font-size:11.5px">'
           +'＋ Thêm loại cho '+esc(k.ten)+'</button></div>';
       }
-      h+='<div class="tw"><table style="min-width:1050px"><thead><tr>'
+      h+='<div class="tw"><table style="min-width:1090px"><thead><tr>'
         +'<th style="text-align:left;min-width:240px">Loại chi phí</th>'
         +'<th style="width:140px">Loại</th>'
         +'<th style="width:340px">Vai trò được dùng <span style="font-weight:400;color:#8c8781">(không tích = mọi vai)</span></th>'
@@ -12059,6 +12083,10 @@
            không làm được. Xem chốt dài ở `VHCPVP_Cfg::tkco_xuat()`. */
         +'<th style="width:150px" title="Bỏ trống = theo hình thức chi như cũ (Tạm ứng NV → 141 · Trực tiếp NCC → 331). Điền vào = loại này LUÔN đối ứng vào mã ấy, bất kể chi bằng hình thức gì.">TK đối ứng <span style="font-weight:400;color:#8c8781">(trống = tự suy)</span></th>'
         +'<th style="width:190px">Tên theo MISA</th>'
+        /* Cột nút ＋ — thêm CHI PHÍ CON nằm dưới dòng ấy. Không đặt tiêu đề chữ: một chữ
+           "Thêm" trên đầu cột nút xoá bên cạnh đọc như hai việc cùng loại, mà chúng ngược
+           nhau hẳn. Lời giải thích nằm ở `title` của chính cái nút. */
+        +'<th style="width:40px"></th>'
         +'<th style="width:44px"></th></tr></thead>'
         /* 🔴 `data-khoi` TRÊN TBODY, không trên từng hàng: lúc Lưu, `saveCfgTkNoMx()` đóng dấu
            khối cho mọi hàng theo cái tbody chứa nó. Hàng vừa thêm tay vì thế tự mang đúng
@@ -12760,9 +12788,31 @@
         tên cũ; không có mốc này thì lúc lưu không biết cột nào của bảng dưới là loại nào, và
         mã tài khoản của cả cột bay sạch — im lặng, vì bảng lưu xong vẽ lại trông vẫn bình
         thường, chỉ là mọi ô mã trống trơn. */
+  /**
+   * MỘT DÒNG CỦA BẢNG LOẠI CHI PHÍ.
+   *
+   * 🔴 BA TẦNG: Đầu mục (danh mục cha) -> Loại chi phí -> CHI PHÍ CON. Anh Thắng 22/09/2026:
+   *    *"Trừ khi nó có thêm chi phí nhỏ nữa, thì sẽ hiện, nên trong cấu hình bấm + nếu có
+   *    chi phí con"*.
+   *
+   * ⚠️ CHI PHÍ CON KHÔNG PHẢI MỘT TẦNG DỮ LIỆU MỚI — nó là một DÒNG LOẠI CHI PHÍ bình thường,
+   *    chỉ thêm ô `cha` trỏ về tên dòng trên. Nhờ vậy sổ ĐƠN không phải đổi lấy một cột: đơn
+   *    vẫn lưu `loai` = tên dòng người ta chọn, dù đó là cha hay con. Nếu làm con thành một
+   *    danh sách nhét trong dòng cha thì mọi chỗ đọc sổ đơn (đối soát, bàn giao MISA, báo cáo
+   *    theo loại) đều phải biết bóc tầng — tức sửa cả chục nơi cho một tầng hiển thị.
+   *
+   * ⚠️ `cha` GIỮ TRONG Ô ẨN, không dựng thành ô gõ. Kế toán không gõ tên cha bằng tay: gõ sai
+   *    một chữ là dòng con mồ côi, hiện lẫn vào hàng cha mà chẳng ai thấy sai ở đâu. Chỉ nút
+   *    ＋ đặt giá trị ấy, và nó chép đúng tên đang có trên dòng cha.
+   */
   function _mxRowHtml(x){
     var ten=String(x.ten||'');
-    return '<tr><td><input value="'+esc(ten)+'" data-goc="'+esc(ten)+'" placeholder="VD: Chi phí lương" style="width:100%"></td>'
+    var cha=String(x.cha||'').trim();
+    return '<tr'+(cha?' data-con="1"':'')+'>'
+      +'<td><input type="hidden" data-o="cha" value="'+esc(cha)+'">'
+      +(cha?'<span title="Chi phí con của: '+esc(cha)+'" style="color:#8c8781;margin-right:3px">↳</span>':'')
+      +'<input value="'+esc(ten)+'" data-goc="'+esc(ten)+'" placeholder="VD: Chi phí lương" '
+      +'style="width:'+(cha?'calc(100% - 16px)':'100%')+'"></td>'
       +'<td>'+_loaiSel(x.loaiTt||'').replace('<select','<select data-o="loaiTt"')+'</td>'
       /* 🔴 TÍCH THEO VAI TRÒ, KHÔNG CÒN THEO BỘ PHẬN (21/09/2026). Ô `boPhan` cũ vẫn nằm
          trong sổ và vẫn được `saveCfgTkNoMx()` chép lại nguyên vẹn — chỉ thôi bày ra. */
@@ -12784,7 +12834,43 @@
          theo mốc tên, nên thêm bớt cột sau này không làm lệch cột nào. */
       +'<td><input value="'+esc(x.tkCo||'')+'" data-o="tkco" list="tkChartList" placeholder="tự suy" style="width:100%;font-family:Consolas,monospace"></td>'
       +'<td><input value="'+esc(x.tenMisa||'')+'" data-o="misa" placeholder="trống = dùng tên bên trái" style="width:100%"></td>'
+      +'<td style="text-align:center;white-space:nowrap">'
+      +'<button class="btn b-x" onclick="addCfgCon(this)" title="Thêm một CHI PHÍ CON nằm dưới dòng này" '
+      +'style="padding:2px 7px">＋</button></td>'
       +_delBtn()+'</tr>';
+  }
+  /**
+   * Thêm một CHI PHÍ CON ngay dưới dòng đang bấm.
+   *
+   * ⚠️ KẾ THỪA khối · đầu mục · vai trò của cha, không để trắng. Dòng con mà khác khối cha là
+   *    nó nhảy sang bảng khác ngay lượt Lưu đầu tiên; khác đầu mục thì nó rơi ra khỏi nhóm của
+   *    cha trong ô chọn. Cả hai đều là kế toán vừa bấm ＋ xong đã thấy dòng biến đi đâu mất.
+   *
+   * ⚠️ CON CỦA CON THÌ VẪN TREO VÀO CHA GỐC — cây hai tầng dưới đầu mục là đủ cho sổ của anh
+   *    Thắng, và mỗi tầng thêm là một tầng phải bóc ở mọi chỗ đọc. Bấm ＋ trên một dòng con
+   *    thì dòng mới thành anh em của nó, không thành cháu.
+   */
+  function addCfgCon(btn){
+    var tr=btn.closest('tr'); if(!tr) return;
+    var oTen=tr.querySelector('input[data-goc]');
+    var ten=String((oTen&&oTen.value)||'').trim();
+    if(!ten){ toast('warn','Gõ tên cho dòng này trước đã — chi phí con phải biết nó nằm dưới ai'); return; }
+    var chaCu=tr.querySelector('[data-o="cha"]');
+    var cha=String((chaCu&&chaCu.value)||'').trim() || ten;   /* xem chú thích trên */
+    var oDm=tr.querySelector('[data-o="dauMuc"]'), oKhoi=tr.querySelector('[data-khoi-o]');
+    var vai=Array.prototype.slice.call(tr.querySelectorAll('[data-vai] input:checked'))
+      .map(function(i){ return i.value; }).join(',');
+    if(MX_LOCK) toggleMxLock();
+    tr.insertAdjacentHTML('afterend', _mxRowHtml({
+      cha: cha,
+      dauMuc: oDm ? oDm.value : '',
+      khoi: oKhoi ? oKhoi.value : _khoiCuaLoai({}),
+      vaiTro: vai
+    }));
+    var moi=tr.nextElementSibling;
+    Array.prototype.forEach.call(moi.querySelectorAll('input,select'),function(f){ f.disabled=false; });
+    var o=moi.querySelector('input[data-goc]'); if(o) o.focus();
+    toast('ok','Chi phí con của "'+cha+'" — gõ tên rồi bấm 💾 Lưu');
   }
   /**
    * Ô chọn ĐẦU MỤC cho một loại chi phí.
@@ -12883,7 +12969,12 @@
          loại. Ô CÓ MẶT mà người ta để trống thì rỗng là ý thật ("thôi, chưa xếp"). */
       var oDm=tr.querySelector('[data-o="dauMuc"]');
       var dmR = oDm ? String(oDm.value||'').trim() : (goc.dauMuc||'');
-      dm.push({ ten:ten, loaiTt:String((oLoai&&oLoai.value)||''), vaiTro:vai, boPhan:(goc.boPhan||''), donVi:dvL, khoi:khoiR, dauMuc:dmR,
+      /* 🔴 CÙNG LUẬT VỚI ĐẦU MỤC: không có ô thì GIỮ NGUYÊN, không ghi rỗng đè. Hàng do bản
+         cũ vẽ ra không có ô `cha`; đọc ra rỗng rồi ghi đè là một lượt Lưu cắt đứt mọi dòng
+         con khỏi cha của chúng — im lặng, vì bảng lưu xong vẽ lại trông vẫn bình thường. */
+      var oCha=tr.querySelector('[data-o="cha"]');
+      var chaR = oCha ? String(oCha.value||'').trim() : (goc.cha||'');
+      dm.push({ ten:ten, loaiTt:String((oLoai&&oLoai.value)||''), vaiTro:vai, boPhan:(goc.boPhan||''), donVi:dvL, khoi:khoiR, dauMuc:dmR, cha:chaR,
                 tenMisa:String((oMisa&&oMisa.value)||'').trim(),
                 tkCo:tkCoR, tkNo:goc.tkNo||'',
                 maDt:goc.maDt||'', note:goc.note||'' });

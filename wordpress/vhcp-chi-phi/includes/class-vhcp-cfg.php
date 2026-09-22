@@ -1039,7 +1039,7 @@ class VHCP_Cfg {
 			/* `khoi` rỗng = loại có từ trước lượt chia ba bảng; `lap_khoi_loai()` lấp nốt ngay
 			   lúc nạp cấu hình, nên ô rỗng chỉ tồn tại đúng một khoảnh khắc. Vẫn phải rào
 			   `isset()`: dòng vừa thêm tay có thể chưa đủ ô. */
-			$out['loaiChiPhi'][] = array( 'ten' => $r[0], 'tkNo' => VHCP_Util::ma_so( $r[1] ), 'tkCo' => VHCP_Util::ma_so( $r[2] ), 'maDt' => VHCP_Util::ma_so( $r[3] ), 'boPhan' => $r[4], 'note' => $r[5], 'tenMisa' => isset( $r[6] ) ? $r[6] : '', 'loaiTt' => isset( $r[7] ) ? $r[7] : '', 'donVi' => isset( $r[8] ) ? $r[8] : '', 'khoi' => isset( $r[9] ) ? $r[9] : '', 'vaiTro' => isset( $r[10] ) ? $r[10] : '', 'dauMuc' => isset( $r[11] ) ? $r[11] : '' );
+			$out['loaiChiPhi'][] = array( 'ten' => $r[0], 'tkNo' => VHCP_Util::ma_so( $r[1] ), 'tkCo' => VHCP_Util::ma_so( $r[2] ), 'maDt' => VHCP_Util::ma_so( $r[3] ), 'boPhan' => $r[4], 'note' => $r[5], 'tenMisa' => isset( $r[6] ) ? $r[6] : '', 'loaiTt' => isset( $r[7] ) ? $r[7] : '', 'donVi' => isset( $r[8] ) ? $r[8] : '', 'khoi' => isset( $r[9] ) ? $r[9] : '', 'vaiTro' => isset( $r[10] ) ? $r[10] : '', 'dauMuc' => isset( $r[11] ) ? $r[11] : '', 'cha' => isset( $r[12] ) ? $r[12] : '' );
 		}
 		foreach ( self::rows_of( $all, self::TKNO ) as $r ) {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
@@ -1374,7 +1374,7 @@ class VHCP_Cfg {
 				   đơn, trong khi tiền mang tên nó vẫn nằm trong sổ. */
 				$kh = trim( (string) $g( $x, 'khoi' ) );
 				if ( '' === $kh ) { $kh = VHCP_DB::khoi(); }
-				$rows[] = array( $tn, VHCP_Util::ma_so( $g( $x, 'tkNo' ) ), VHCP_Util::ma_so( $g( $x, 'tkCo' ) ), VHCP_Util::ma_so( $g( $x, 'maDt' ) ), $g( $x, 'boPhan' ), $nt, $g( $x, 'tenMisa' ), $g( $x, 'loaiTt' ), $g( $x, 'donVi' ), $kh, $g( $x, 'vaiTro' ), $g( $x, 'dauMuc' ) );
+				$rows[] = array( $tn, VHCP_Util::ma_so( $g( $x, 'tkNo' ) ), VHCP_Util::ma_so( $g( $x, 'tkCo' ) ), VHCP_Util::ma_so( $g( $x, 'maDt' ) ), $g( $x, 'boPhan' ), $nt, $g( $x, 'tenMisa' ), $g( $x, 'loaiTt' ), $g( $x, 'donVi' ), $kh, $g( $x, 'vaiTro' ), $g( $x, 'dauMuc' ), $g( $x, 'cha' ) );
 			}
 			self::write( self::LOAI, $rows );
 		}
@@ -2151,7 +2151,7 @@ class VHCP_Cfg {
 	/** Mã tài khoản của 1 loại chi phí (rỗng nếu chưa khai). `$khoi` = '' giữ nguyên luật cũ. */
 	public static function loai_tk( $ten, $khoi = '' ) {
 		$x = self::loai_row( $ten, $khoi );
-		if ( ! $x ) { return array( 'tkNo' => '', 'tkCo' => '', 'maDt' => '', 'boPhan' => '', 'tenMisa' => '', 'loaiTt' => '', 'vaiTro' => '', 'dauMuc' => '' ); }
+		if ( ! $x ) { return array( 'tkNo' => '', 'tkCo' => '', 'maDt' => '', 'boPhan' => '', 'tenMisa' => '', 'loaiTt' => '', 'vaiTro' => '', 'dauMuc' => '', 'cha' => '' ); }
 		return array(
 			'loaiTt'  => isset( $x['loaiTt'] ) ? (string) $x['loaiTt'] : '',
 			'tkNo'    => (string) $x['tkNo'],
@@ -2163,6 +2163,9 @@ class VHCP_Cfg {
 			'vaiTro'  => isset( $x['vaiTro'] ) ? (string) $x['vaiTro'] : '',
 			/* Đầu mục lớn — chỉ để GOM ô chọn, không gác ai cả. Xem `dau_muc_ds()`. */
 			'dauMuc'  => isset( $x['dauMuc'] ) ? (string) $x['dauMuc'] : '',
+			/* Tên loại CHA — dòng này là chi phí con của nó. Rỗng = dòng ở tầng trên cùng.
+			   Xem chốt ở `VHCP_Cfg::DAU_MUC_MAC_DINH` về ba tầng của cây. */
+			'cha'     => isset( $x['cha'] ) ? (string) $x['cha'] : '',
 		);
 	}
 

@@ -645,7 +645,7 @@ class VHCPMTD_Don {
 			/* `vaiTro` = ai được dùng loại này (21/09/2026). Không gửi xuống là ô chọn lúc nhập
 			   đơn bày đủ mọi loại cho mọi vai, trong khi máy chủ thì lọc — hai bên nói hai
 			   chuyện, và người nhập chọn được thứ mà sổ của họ không hiện. */
-			$loai[] = array( 'ten' => $x['ten'], 'tkNo' => $x['tkNo'], 'tkCo' => $x['tkCo'], 'boPhan' => $x['boPhan'], 'loaiTt' => isset( $x['loaiTt'] ) ? $x['loaiTt'] : '', 'vaiTro' => isset( $x['vaiTro'] ) ? $x['vaiTro'] : '', 'khoi' => isset( $x['khoi'] ) ? $x['khoi'] : '', 'dauMuc' => isset( $x['dauMuc'] ) ? $x['dauMuc'] : '' );
+			$loai[] = array( 'ten' => $x['ten'], 'tkNo' => $x['tkNo'], 'tkCo' => $x['tkCo'], 'boPhan' => $x['boPhan'], 'loaiTt' => isset( $x['loaiTt'] ) ? $x['loaiTt'] : '', 'vaiTro' => isset( $x['vaiTro'] ) ? $x['vaiTro'] : '', 'khoi' => isset( $x['khoi'] ) ? $x['khoi'] : '', 'dauMuc' => isset( $x['dauMuc'] ) ? $x['dauMuc'] : '', 'cha' => isset( $x['cha'] ) ? $x['cha'] : '' );
 		}
 
 		// Cơ sở -> mảng kinh doanh, và ma trận [loại][mảng] -> TK Nợ: để ô "Loại chi phí"
