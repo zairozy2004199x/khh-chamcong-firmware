@@ -144,11 +144,35 @@
         form dài đúng như cũ — chỉ đổi kiểu dài. Cái cần chặn là bề ngang của cả khối.
      ⚠️ ĐÈ RIÊNG, KHÔNG SỬA `.grid`. Lớp chung dựng cả chục bảng khác trong app; đổi ở đó là
         sửa một màn, hỏng chín màn — và chín màn ấy không ai đi soi lại.
-     ⚠️ Dưới 1200px thì NHƯỜNG lại cho `.grid`: ở đó màn vốn đã hẹp, chặn thêm nữa là ô bị bóp. */
+     ⚠️ Dưới 1200px thì NHƯỜNG lại cho `.grid`: ở đó màn vốn đã hẹp, chặn thêm nữa là ô bị bóp.
+
+     🔴 VÀ PHẢI TỰ KHAI ĐỦ CÁC MỐC HẸP — "nhường cho `.grid`" KHÔNG TỰ XẢY RA. Anh Thắng
+        22/09/2026 gửi ảnh màn iPhone: *"Hơi lệch ô nhập"*. Ba cột chen nhau trên màn 390px,
+        nhãn dài xuống hai dòng còn nhãn ngắn một dòng, nên ô nhập trong cùng một hàng cao thấp
+        so le.
+
+        Nguyên do là một luật CSS im lặng: `.grid` và `.grid-nhap` CÙNG một mức riêng (mỗi bên
+        một lớp), nên khi hai luật cùng khớp thì luật VIẾT SAU thắng. `.grid` hạ xuống 2 cột ở
+        900px và 1 cột ở 560px; `.grid-nhap` chỉ có một mốc 1200px, mà nó viết sau — nên ở
+        390px cái thắng vẫn là `repeat(3,1fr)`. Lời chú thích nói "nhường", còn trình duyệt thì
+        không nhường gì cả.
+
+        Không sửa bằng cách gỡ mốc 1200px: mốc ấy có việc của nó (4 cột -> 3). Khai đủ ba mốc,
+        đi đúng theo `.grid` để hai bên không bao giờ nói ngược nhau nữa. */
   .grid-nhap{grid-template-columns:repeat(4,minmax(0,1fr));max-width:1120px}
   @media(max-width:1200px){.grid-nhap{grid-template-columns:repeat(3,1fr);max-width:none}}
+  @media(max-width:900px){.grid-nhap{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:560px){.grid-nhap{grid-template-columns:1fr}}
   .fld{display:flex;flex-direction:column;gap:3px}
   .fld label{font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.4px}
+  /* 🔴 NHÃN CHIẾM CHỖ ĐỀU NHAU -> Ô NHẬP TRONG CÙNG MỘT HÀNG THẲNG NHAU.
+     Mỗi ô là một ô lưới riêng, cao bao nhiêu tuỳ nội dung; nhãn "NGÀY" một dòng còn "PHÂN LOẠI
+     (CÁ NHÂN / NCC) *" hai dòng, nên hai ô nhập cạnh nhau lệch đúng một dòng chữ. Chừa sẵn hai
+     dòng cho MỌI nhãn rồi dán chữ xuống đáy khung ấy thì nhãn dài hay ngắn cũng kết thúc ở
+     cùng một độ cao.
+     ⚠️ ĐÈ TRONG `.grid-nhap`, không đè `.fld` dùng chung: lớp ấy dựng cả chục form khác, và
+        cộng 11px cho mỗi ô ở mọi nơi là sửa một màn, đổi chín màn. */
+  .grid-nhap>.fld>label{min-height:24px;display:flex;align-items:flex-end}
   .fld input,.fld select,.fld textarea{width:100%}
   table{width:100%;border-collapse:collapse;min-width:920px}
   thead th{background:#f9f8f6;color:#64748b;font-size:11px;font-weight:700;text-transform:uppercase;text-align:left;padding:9px 10px;border-bottom:1px solid #f0e9e1;white-space:nowrap}
