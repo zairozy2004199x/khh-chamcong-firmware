@@ -227,8 +227,10 @@
     </div>
 
     <div class="card" id="tqKtCard" style="display:none">
-      <div class="ch"><h2>🔧 Chi phí Kỹ thuật — cơ sở đã Setup / Tháo dỡ</h2>
-        <button class="btn b-x" onclick="showPage('duan')">➜ Vào tab Kỹ thuật</button></div>
+      <!-- ⚠️ Nút "➜ Vào tab Kỹ thuật" đã gỡ cùng lượt tắt tab ấy (22/09/2026) — để lại là một
+           cái nút dẫn vào trang không còn mở. Khối tổng quan này thì GIỮ: nó chỉ ĐỌC và tổng
+           hợp, và số liệu Setup/Tháo dỡ vẫn là số liệu thật cần nhìn. -->
+      <div class="ch"><h2>🔧 Chi phí Kỹ thuật — cơ sở đã Setup / Tháo dỡ</h2></div>
       <div id="tqKtCards" style="display:flex;gap:12px;flex-wrap:wrap;padding:12px 14px"></div>
       <div style="display:flex;gap:16px;flex-wrap:wrap;padding:0 14px 14px">
         <div style="flex:1;min-width:300px">
@@ -2464,6 +2466,8 @@
   //    một trang bị ẩn: hàng tab không có nút nào sáng, và họ tưởng app hỏng.
   function defaultPageFor(role){
     if(role!=='Nhân viên') return 'tongquan';
+    /* ⚠️ `_tabDuoc('duan')` nay luôn sai (tab đã tắt), nên nhánh ấy thành mã chết. Giữ lại
+       đúng một dòng để ngày bật lại tab thì nó tự chạy — rẻ hơn dựng lại logic. */
     return _tabDuoc('don')?'don':(_tabDuoc('duan')?'duan':'tongquan');
   }
   function onLoggedIn(){ applyPerms(); showPage(defaultPageFor(_vaiLuat())); }   // showPage tự nạp dữ liệu cho từng tab (don→boot)
@@ -2481,7 +2485,16 @@
     /* ⚠️ `vhtuan` bỏ 14/09/2026 — anh Thắng: *"bỏ tab vận hành tuần"*. Dùng đúng cơ chế đã có
        thay vì xoá mã: tab tắt khỏi thanh, còn `loadVHTuan()` và trang của nó nằm im. Bật lại
        chỉ là gỡ một chữ ở dòng này — rẻ hơn hẳn việc dựng lại cả màn nếu sau này cần. */
-    var BO_TAB={mkt:1,congtac:1,setup:1,sochi:1,vhtuan:1};
+    /* 🔴 `duan` VÀO DANH SÁCH TẮT — 22/09/2026. Anh Thắng: *"Bỏ cái chi phí kỹ thuật đi"*,
+       rồi chốt *"bỏ hẳn luôn đi"*.
+
+       ⚠️ TẮT TAB, KHÔNG XOÁ DỮ LIỆU — đúng nếp năm tab trước (mkt · congtac · setup · sochi ·
+          vhtuan). Sổ dự án (`da_index`, `da_line`) vẫn còn nguyên, có dòng CHƯA XUẤT MISA;
+          tab 📤 Xuất MISA và 🔎 Tra theo mã vẫn đọc tới chúng. Xoá hẳn dữ liệu là việc khác,
+          phải nói rõ mới làm.
+       ⚠️ BẬT LẠI CHỈ LÀ GỠ MỘT CHỮ Ở DÒNG NÀY — rẻ hơn hẳn việc dựng lại cả màn nếu sau này
+          anh cần. Đó cũng là lý do lượt này KHÔNG đi xoá mã của trang ấy. */
+    var BO_TAB={mkt:1,congtac:1,setup:1,sochi:1,vhtuan:1,duan:1};
     var vis={ 'Admin':{tongquan:1,don:1,sochi:1,duan:1,mkt:1,congtac:1,setup:1,vhtuan:1,trama:1,duyet:1,qt:1,tattoan:1,xuat:1,cauhinh:1,log:1},   // Admin xem hết mọi tab (giám sát) + toàn quyền Cấu hình/người dùng
               'Quản lý':{tongquan:1,don:1,sochi:1,duan:1,mkt:1,congtac:1,setup:1,vhtuan:1,trama:1,duyet:1,qt:1,tattoan:1,xuat:1,cauhinh:1,log:1},
               // Kế toán vào được Cấu hình: khai mã tài khoản / tên MISA / mã đơn vị là việc
@@ -2529,6 +2542,19 @@
     // "Dự án · gian thi công" sáng cho người không có quyền vào là họ bấm rồi ăn trang trắng.
     /* Giữ lại bảng quyền để `defaultPageFor()` và `showDonChi()` khỏi ném người dùng vào đúng
        cái tab vừa ẩn — nhớ tab lần trước bằng localStorage nên chuyện này xảy ra thật. */
+    /* ══════════════════════════════════════════════════════════════════════════════════════
+     * 🔴 HẠ QUYỀN CỦA TAB ĐÃ TẮT — VÀ PHẢI LÀ LỜI CUỐI, SAU MỌI NHÁNH BẬT LẠI.
+     * ══════════════════════════════════════════════════════════════════════════════════════
+     * `BO_TAB` chỉ giấu cái NÚT trên thanh tab (xem `var hien=(vis[x]&&!BO_TAB[x])`); còn
+     * `QUYEN_TAB` nhận `vis` nguyên vẹn, nên `showPage('sochi')` gõ thẳng từ thanh địa chỉ
+     * vẫn vào được, và `defaultPageFor()` còn có thể NÉM người dùng vào đúng trang vừa bỏ.
+     *
+     * 🔴 ĐẶT SAU KHỐI "Nhân viên" LÀ CỐ Ý, và đây là lỗ có thật do `kiem-tab-kythuat-da-tat.js`
+     *    bắt được: khối ấy có dòng `vis.sochi=1` BẬT LẠI một tab đã nằm trong `BO_TAB` từ
+     *    lâu. Hạ trước khối ấy thì dòng kia bật lại, và tab "đã bỏ" vẫn vào được bằng địa chỉ
+     *    — im lặng, vì trên thanh tab chẳng thấy nút nào.
+     * ══════════════════════════════════════════════════════════════════════════════════════ */
+    Object.keys(BO_TAB).forEach(function(k){ if(BO_TAB[k]) vis[k]=0; });
     QUYEN_TAB=vis;
     var tqt=el('tab-qt'); if(tqt) tqt.textContent=(_vaiLuat()==='Kế toán NCC')?'🧾 Duyệt NCC':'🧾 Quyết toán';
     // ADMIN CŨNG LÊN ĐƠN ĐƯỢC — để chạy thử trọn luồng (lên đơn → xin tạm ứng → cấp →
