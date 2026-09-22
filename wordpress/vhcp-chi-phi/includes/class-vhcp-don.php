@@ -771,6 +771,12 @@ class VHCP_Don {
 			   nhất. Gõ lại chuỗi ở màn là có ngày hai bên lệch nhau một dấu, và `giai_doan_chuan()`
 			   lẳng lặng ngã mọi dòng về rỗng. */
 			'giaiDoanDs' => self::GIAI_DOAN_DS,
+			/* 🔴 ĐƯA TÊN TỪNG GIÁ TRỊ XUỐNG, không để màn lấy theo CHỖ ĐỨNG trong danh sách.
+			   Ô nhập nay là MỘT ô tích (tích = setup, không tích = vận hành), nên màn phải biết
+			   đích danh chuỗi nào là "setup" và chuỗi nào là "vận hành". Lấy `giaiDoanDs[0]` là
+			   bám vào thứ tự — đảo hai phần tử một cái là mọi dòng mới đóng dấu ngược, im lặng. */
+			'giaiDoanSetup' => self::GIAI_DOAN_SETUP,
+			'giaiDoanVh'    => self::GIAI_DOAN_VH,
 			/* Ai đang khai ô "Xem đơn vị" lạc ra ngoài danh sách — họ là người sắp ngồi trước
 			   một màn trắng. Xem chốt dài ở `VHCP_DonVi::ai_khai_lac()`. */
 			'khaiLac'    => VHCP_DonVi::ai_khai_lac(),
@@ -1430,9 +1436,12 @@ class VHCP_Don {
 				'phatSinh'   => VHCP_Util::is_phat_sinh( $x['phat_sinh'] ),
 				'tkNo'       => (string) $x['tk_no'],
 				'tkCo'       => (string) $x['tk_co'],
-				/* Setup hay Vận hành — xem chốt ở cột `giai_doan` trong `VHCP_DB`. Dòng cũ
-				   chưa khai thì rỗng, và rỗng là hợp lệ: "chưa xác định". */
-				'giaiDoan'   => isset( $x['giai_doan'] ) ? (string) $x['giai_doan'] : '',
+				/* Setup hay Vận hành — xem chốt ở cột `giai_doan` trong `VHCP_DB`.
+				   🔴 ĐỌC QUA `giai_doan_doc()`, đừng đưa nguyên chuỗi trong sổ xuống: dòng cũ
+				      mang rỗng, mà từ 22/09/2026 rỗng NGHĨA LÀ VẬN HÀNH. Đưa rỗng xuống là màn
+				      phải tự đoán lấy nghĩa — hai nơi cùng suy một luật, và ngày nào một bên
+				      sửa thì bên kia lặng lẽ nói khác. */
+				'giaiDoan'   => self::giai_doan_doc( isset( $x['giai_doan'] ) ? $x['giai_doan'] : '' ),
 				/* NGÀY NHẬP — khác hẳn cột `ngay` (ngày chi, người nhập tự khai và sửa được).
 				   Anh Thắng 18/09/2026 xin thêm cột này: ngày chi khai lại lúc nào cũng được,
 				   nên khi hai người nhớ khác nhau thì phải có một mốc không ai gõ được. Nó vốn
@@ -1853,7 +1862,35 @@ class VHCP_Don {
 	 *    khai lại cả trăm dòng cũ. Giá trị lạ cũng ngã về rỗng — thà "chưa xác định" còn hơn
 	 *    một nhóm thứ ba do gõ sai mà ra.
 	 */
-	const GIAI_DOAN_DS = array( 'Setup', 'Vận hành' );
+	const GIAI_DOAN_SETUP = 'Setup';
+	const GIAI_DOAN_VH    = 'Vận hành';
+	const GIAI_DOAN_DS    = array( self::GIAI_DOAN_SETUP, self::GIAI_DOAN_VH );
+
+	/**
+	 * ĐỌC giai đoạn của một dòng — **RỖNG NGHĨA LÀ VẬN HÀNH**.
+	 *
+	 * 🔴 ĐỔI NGHĨA CỦA Ô RỖNG, 22/09/2026. Anh Thắng: *"Nếu tích vào trước vận hành thì gọi là
+	 *    chi phí setup ban đầu. Còn ko tích thì mặc định là chi phí vận hành"*. Trước bản này
+	 *    rỗng là "chưa xác định" — một nhóm thứ ba, và mọi dòng nhập từ trước đều nằm trong đó.
+	 *    Nay nó có nghĩa: **vận hành**.
+	 *
+	 * 🔴 ĐỔI Ở CHỖ ĐỌC, KHÔNG ĐI GHI ĐÈ SỔ. Một lượt `UPDATE` quét cả bảng để lấp "Vận hành"
+	 *    vào mấy trăm dòng cũ là thứ không lùi lại được, mà cũng chẳng cần: nghĩa của ô rỗng là
+	 *    một LUẬT ĐỌC, và luật thì sửa ở một chỗ. Dòng cũ nào được mở ra sửa thì tự mang giá
+	 *    trị tường minh từ lượt Lưu ấy.
+	 *
+	 * ⚠️ HAI HÀM, HAI VIỆC — đừng gộp.
+	 *    `giai_doan_chuan()` = "màn gửi lên cái gì thì GHI cái gì" (giá trị lạ -> rỗng, và rỗng
+	 *      vẫn ghi rỗng: đừng bịa ra dữ liệu cho một lượt gọi không hề khai ô này).
+	 *    `giai_doan_doc()`   = "dòng trong sổ ĐỌC ra là gì" (rỗng -> Vận hành).
+	 *    Gộp làm một là mọi lượt lưu đều đóng dấu "Vận hành" lên cả những đường gọi chỉ sửa một
+	 *    ô khác — tức tự bịa dữ liệu, im lặng.
+	 */
+	public static function giai_doan_doc( $v ) {
+		$t = self::giai_doan_chuan( $v );
+		return ( '' === $t ) ? self::GIAI_DOAN_VH : $t;
+	}
+
 	public static function giai_doan_chuan( $v ) {
 		$t = trim( (string) $v );
 		/* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG — ghi lại để lần sau khỏi đuổi theo. Gỡ dòng này thì chuỗi
