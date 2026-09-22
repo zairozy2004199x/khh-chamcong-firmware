@@ -1217,13 +1217,14 @@ class KHTC_Trang {
 		$den  = isset( $_REQUEST['den'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['den'] ) ) : $ky[1];
 		$nh_c = array_map( 'intval', (array) ( $_REQUEST['nh'] ?? array() ) );
 		$dot_c = array_map( 'intval', (array) ( $_REQUEST['dot'] ?? array() ) );
+		$tach = ( 'ngay' === ( $_REQUEST['tach'] ?? '' ) ) ? 'ngay' : '';
 		$bao_ok = '';
 		$bao_loi = '';
 
 		if ( isset( $_POST['khtc_tao_hd'] ) && check_admin_referer( 'khtc_sinh' ) ) {
 			$kq = KHTC_SinhHD::tao(
 				array(
-					'tu' => $tu, 'den' => $den, 'nh' => $nh_c, 'dot' => $dot_c,
+					'tu' => $tu, 'den' => $den, 'nh' => $nh_c, 'dot' => $dot_c, 'tach' => $tach,
 					'ngay_hd'   => wp_unslash( $_POST['ngay_hd'] ?? '' ),
 					'bat_dau'   => (int) ( $_POST['bat_dau'] ?? 0 ),
 					'thue_suat' => sanitize_text_field( wp_unslash( $_POST['thue_suat'] ?? '' ) ),
@@ -1239,7 +1240,7 @@ class KHTC_Trang {
 			}
 		}
 
-		$g = KHTC_SinhHD::gom( array( 'tu' => $tu, 'den' => $den, 'nh' => $nh_c, 'dot' => $dot_c ) );
+		$g = KHTC_SinhHD::gom( array( 'tu' => $tu, 'den' => $den, 'nh' => $nh_c, 'dot' => $dot_c, 'tach' => $tach ) );
 
 		echo '<div class="wrap khtc">';
 		KHTC_UI::dau_trang( 'Sinh hoá đơn từ sao kê' );
@@ -1270,7 +1271,14 @@ class KHTC_Trang {
 				(int) $o->id, in_array( (int) $o->id, $dot_c, true ) ? ' checked' : '', esc_html( $o->ten )
 			);
 		}
-		echo '</div></form>';
+		echo '</div>';
+		// Độ mịn: gộp cả kỳ một tờ mỗi điểm, hay mỗi ngày một tờ. Hoá đơn thật
+		// của công ty dùng cả hai kiểu tuỳ pháp nhân, nên để người dùng chọn.
+		echo '<p class="khtc-sub">Một điểm xuất mấy tờ trong kỳ này?</p><div class="khtc-loc">';
+		printf( '<label class="khtc-tick"><input type="radio" name="tach" value=""%s> Gộp cả kỳ — mỗi điểm một tờ</label>', '' === $tach ? ' checked' : '' );
+		printf( '<label class="khtc-tick"><input type="radio" name="tach" value="ngay"%s> Tách theo ngày — mỗi điểm mỗi ngày một tờ</label>', 'ngay' === $tach ? ' checked' : '' );
+		echo '</div>';
+		echo '</form>';
 
 		if ( is_wp_error( $g ) ) {
 			printf( '<p class="khtc-canh-bao">%s</p></div>', esc_html( $g->get_error_message() ) );
@@ -1300,18 +1308,23 @@ class KHTC_Trang {
 			echo '</tbody></table></div>';
 		}
 
-		echo '<div class="khtc-panel"><h2>Xem trước — mỗi điểm một hoá đơn</h2><table><thead><tr><th>Điểm xuất hoá đơn</th><th>Mã Misa</th><th>Khu vực</th><th>Dịch vụ</th><th class="so">Số dòng</th><th class="so">Tiền (có VAT)</th></tr></thead><tbody>';
+		printf(
+			'<div class="khtc-panel"><h2>Xem trước — %s</h2><table><thead><tr>%s<th>Điểm xuất hoá đơn</th><th>Mã Misa</th><th>Khu vực</th><th>Dịch vụ</th><th class="so">Số dòng</th><th class="so">Tiền (có VAT)</th></tr></thead><tbody>',
+			'ngay' === $tach ? 'mỗi điểm mỗi ngày một hoá đơn' : 'mỗi điểm một hoá đơn',
+			'ngay' === $tach ? '<th>Ngày doanh thu</th>' : ''
+		);
 		foreach ( $g['diem'] as $d ) {
 			printf(
-				'<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td class="so">%s</td><td class="so thu">%s</td></tr>',
+				'<tr>%s<td>%s</td><td>%s</td><td>%s</td><td>%s</td><td class="so">%s</td><td class="so thu">%s</td></tr>',
+				'ngay' === $tach ? '<td>' . esc_html( KHTC_UI::ngay( $d['ngay'] ) ) . '</td>' : '',
 				esc_html( $d['ten_diem'] ), esc_html( $d['ma_misa'] ), esc_html( $d['khu_vuc'] ), esc_html( $d['dich_vu'] ),
 				number_format( $d['so_dong'], 0, ',', '.' ), esc_html( KHTC_UI::tien( $d['tien'] ) )
 			);
 		}
-		if ( ! $g['diem'] ) { echo '<tr><td colspan="6" class="khtc-trong">Kỳ này chưa gom được đồng nào. Kiểm lại kỳ và nguồn tiền đã tick.</td></tr>'; }
+		if ( ! $g['diem'] ) { echo '<tr><td colspan="7" class="khtc-trong">Kỳ này chưa gom được đồng nào. Kiểm lại kỳ và nguồn tiền đã tick.</td></tr>'; }
 		echo '</tbody>';
 		if ( $g['diem'] ) {
-			printf( '<tfoot><tr><th colspan="4">Tổng</th><th class="so">%s</th><th class="so thu">%s</th></tr></tfoot>', number_format( array_sum( array_column( $g['diem'], 'so_dong' ) ), 0, ',', '.' ), esc_html( KHTC_UI::tien( $g['tong'] ) ) );
+			printf( '<tfoot><tr><th colspan="%d">Tổng</th><th class="so">%s</th><th class="so thu">%s</th></tr></tfoot>', 'ngay' === $tach ? 5 : 4, number_format( array_sum( array_column( $g['diem'], 'so_dong' ) ), 0, ',', '.' ), esc_html( KHTC_UI::tien( $g['tong'] ) ) );
 		}
 		echo '</table></div>';
 
@@ -1320,7 +1333,7 @@ class KHTC_Trang {
 			wp_nonce_field( 'khtc_sinh' );
 			foreach ( $nh_c as $v ) { printf( '<input type="hidden" name="nh[]" value="%d">', $v ); }
 			foreach ( $dot_c as $v ) { printf( '<input type="hidden" name="dot[]" value="%d">', $v ); }
-			printf( '<input type="hidden" name="tu" value="%s"><input type="hidden" name="den" value="%s">', esc_attr( $tu ), esc_attr( $den ) );
+			printf( '<input type="hidden" name="tu" value="%s"><input type="hidden" name="den" value="%s"><input type="hidden" name="tach" value="%s">', esc_attr( $tu ), esc_attr( $den ), esc_attr( $tach ) );
 			printf( '<label>Ngày hoá đơn<input type="date" name="ngay_hd" value="%s" required></label>', esc_attr( $den ) );
 			echo '<label>Số hoá đơn bắt đầu<input type="number" name="bat_dau" min="1" required placeholder="2576"></label>';
 			echo '<label>Thuế suất<select name="thue_suat">';

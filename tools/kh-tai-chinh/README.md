@@ -521,7 +521,12 @@ hiện trên màn hình, không phải giả định giấu trong mã:
 
 1. **Kỳ và ngày hoá đơn** — người dùng chọn.
 2. **Nguồn tiền nào vào hoá đơn** — tick từng tài khoản, từng đợt cổng.
-3. **Điểm nào không xuất** — cờ "bỏ qua" trong danh mục, dùng cho mã test, mã
+3. **Độ mịn** — gộp cả kỳ một tờ mỗi điểm, hay tách theo từng ngày doanh thu.
+   Đọc 2.781 hoá đơn thật tháng 8/2026 thì công ty dùng **cả hai**: KH705 gần
+   như một tờ cho mỗi (điểm × ngày xuất) — 1.783 trên 1.986 cặp có đúng một
+   tờ; KH989 dồn 294 tờ vào một ngày xuất duy nhất, tức là tách theo ngày
+   doanh thu rồi xuất gộp một đợt. Không có một luật đúng cho cả hai.
+4. **Điểm nào không xuất** — cờ "bỏ qua" trong danh mục, dùng cho mã test, mã
    vãng lai, gian đã đóng. Cố ý là một CỜ chứ không phải xoá dòng: xoá rồi thì
    lần nạp danh mục sau nó lại về, và không ai nhớ vì sao trước đó nó bị loại.
 

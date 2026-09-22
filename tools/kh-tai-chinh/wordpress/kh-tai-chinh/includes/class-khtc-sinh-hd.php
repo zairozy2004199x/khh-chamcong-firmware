@@ -12,7 +12,13 @@
  * BA THỨ MÁY KHÔNG TỰ QUYẾT, vì đoán sai thì ra một danh sách trông rất hợp lý
  * mà sai — loại sai đắt nhất:
  *
- *   1. KỲ và NGÀY HOÁ ĐƠN. Người dùng chọn, không suy từ dữ liệu.
+ *   1. KỲ, NGÀY HOÁ ĐƠN và ĐỘ MỊN. Người dùng chọn, không suy từ dữ liệu.
+ *      Độ mịn: gộp cả kỳ thành một tờ mỗi điểm, hay tách theo từng ngày doanh
+ *      thu. Đọc 2.781 hoá đơn thật tháng 8/2026 thì thấy công ty dùng CẢ HAI:
+ *      KH705 gần như một tờ cho mỗi (điểm × ngày xuất), còn KH989 dồn 294 tờ
+ *      vào một ngày xuất duy nhất — tức là tách theo ngày doanh thu rồi xuất
+ *      gộp một đợt. Không có một luật đúng cho cả hai, nên đây phải là lựa
+ *      chọn chứ không phải giả định.
  *   2. NGUỒN TIỀN nào vào hoá đơn: sao kê tài khoản nào, và có gộp các đợt
  *      cổng (Payoo/VNPay/MoMo) vào không. Người dùng tick.
  *   3. ĐIỂM NÀO KHÔNG XUẤT: mã test, mã vãng lai, gian đã đóng — đặt cờ
@@ -33,7 +39,8 @@ class KHTC_SinhHD {
 	 * Tách riêng khỏi bước tạo để xem trước được, và để kiểm được mà không cần
 	 * ghi. Mọi con số trên màn hình xem trước đều ra từ đúng hàm này.
 	 *
-	 * @param array $l tu, den, nh (mảng id tài khoản), dot (mảng id đợt cổng)
+	 * @param array $l tu, den, nh (mảng id tài khoản), dot (mảng id đợt cổng),
+	 *                tach ('' gộp cả kỳ | 'ngay' mỗi ngày một tờ)
 	 * @return array [diem => [...], bo_qua => [...], la => [...], tong...]
 	 */
 	public static function gom( $l ) {
@@ -53,7 +60,9 @@ class KHTC_SinhHD {
 		$tong_bo   = 0;
 		$tong_la   = 0;
 
-		$nhan = function ( $ma_ch, $tien, $nguon ) use ( &$theo_diem, &$bo_qua, &$la, &$tong, &$tong_bo, &$tong_la, $tra ) {
+		$tach = ( 'ngay' === ( $l['tach'] ?? '' ) );
+
+		$nhan = function ( $ma_ch, $tien, $nguon, $ngay = '' ) use ( &$theo_diem, &$bo_qua, &$la, &$tong, &$tong_bo, &$tong_la, $tra, $tach ) {
 			$ma_ch = trim( (string) $ma_ch );
 			if ( '' === $ma_ch || ! isset( $tra[ $ma_ch ] ) ) {
 				// Tiền có thật mà không biết của điểm nào. KHÔNG được im lặng bỏ
@@ -71,10 +80,14 @@ class KHTC_SinhHD {
 			}
 			// Gom theo ĐIỂM XUẤT HOÁ ĐƠN, không theo mã cửa hàng: một điểm
 			// thường có nhiều mã (mỗi máy POS một mã) mà chỉ xuất một hoá đơn.
-			$k = $d->ten_diem ?: $d->ma_cua_hang;
+			$ten = $d->ten_diem ?: $d->ma_cua_hang;
+			// Tách theo ngày thì khoá gom mang cả ngày, nên mỗi ngày một tờ.
+			// Ngày đứng TRƯỚC trong khoá để danh sách xếp theo ngày.
+			$k = $tach ? ( $ngay . '|' . $ten ) : $ten;
 			if ( ! isset( $theo_diem[ $k ] ) ) {
 				$theo_diem[ $k ] = array(
-					'ten_diem' => $k,
+					'ten_diem' => $ten,
+					'ngay'     => $tach ? $ngay : '',
 					'ma_misa'  => $d->ma_misa,
 					'khu_vuc'  => $d->khu_vuc,
 					'dich_vu'  => $d->dich_vu,
@@ -94,13 +107,13 @@ class KHTC_SinhHD {
 		if ( $nh ) {
 			$rows = $wpdb->get_results(
 				$wpdb->prepare(
-					'SELECT ma_cua_hang, so_tien FROM ' . KHTC_DB::bang( 'giao_dich' ) . "
+					'SELECT ma_cua_hang, so_tien, ngay FROM ' . KHTC_DB::bang( 'giao_dich' ) . "
 					 WHERE cty = %s AND loai = 'thu' AND ngay >= %s AND ngay <= %s
 					   AND ngan_hang_id IN (" . implode( ',', array_fill( 0, count( $nh ), '%d' ) ) . ')',
 					array_merge( array( $cty, $tu, $den ), $nh )
 				)
 			);
-			foreach ( $rows as $r ) { $nhan( $r->ma_cua_hang, (int) $r->so_tien, 'sao kê' ); }
+			foreach ( $rows as $r ) { $nhan( $r->ma_cua_hang, (int) $r->so_tien, 'sao kê', $r->ngay ); }
 		}
 
 		// --- nguồn 2: các đợt cổng đã nạp (Payoo / VNPay / MoMo / Zalo)
@@ -108,14 +121,14 @@ class KHTC_SinhHD {
 		if ( $dot ) {
 			$rows = $wpdb->get_results(
 				$wpdb->prepare(
-					'SELECT d.ma_cua_hang, d.so_tien, o.ten FROM ' . KHTC_DB::bang( 'ds_dong' ) . ' d
+					'SELECT d.ma_cua_hang, d.so_tien, d.ngay, o.ten FROM ' . KHTC_DB::bang( 'ds_dong' ) . ' d
 					 JOIN ' . KHTC_DB::bang( 'doi_soat' ) . ' o ON o.id = d.dot_id
 					 WHERE d.ngay >= %s AND d.ngay <= %s
 					   AND d.dot_id IN (' . implode( ',', array_fill( 0, count( $dot ), '%d' ) ) . ')',
 					array_merge( array( $tu, $den ), $dot )
 				)
 			);
-			foreach ( $rows as $r ) { $nhan( $r->ma_cua_hang, (int) $r->so_tien, $r->ten ); }
+			foreach ( $rows as $r ) { $nhan( $r->ma_cua_hang, (int) $r->so_tien, $r->ten, $r->ngay ); }
 		}
 
 		ksort( $theo_diem );
@@ -186,7 +199,12 @@ class KHTC_SinhHD {
 					'dich_vu'    => $d['dich_vu'],
 					'ma_diem'    => $d['ten_diem'],
 					'ma_misa'    => $d['ma_misa'],
-					'ghi_chu'    => 'Sinh từ sao kê ' . mysql2date( 'd/m/Y', $l['tu'] ) . '–' . mysql2date( 'd/m/Y', $l['den'] ),
+					// Tách theo ngày thì ghi rõ NGÀY DOANH THU của tờ này. Ngày
+					// hoá đơn là ngày XUẤT, hai thứ khác nhau, và kế toán cần
+					// truy lại được tờ này gom doanh thu ngày nào.
+					'ghi_chu'    => empty( $d['ngay'] )
+						? 'Sinh từ sao kê ' . mysql2date( 'd/m/Y', $l['tu'] ) . '–' . mysql2date( 'd/m/Y', $l['den'] )
+						: 'Sinh từ sao kê — doanh thu ngày ' . mysql2date( 'd/m/Y', $d['ngay'] ),
 				)
 			);
 			if ( is_wp_error( $kq ) ) {

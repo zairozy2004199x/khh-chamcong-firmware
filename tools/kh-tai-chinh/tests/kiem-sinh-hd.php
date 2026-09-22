@@ -87,6 +87,30 @@ $tong_sao_ke = (int) $wpdb->get_var( $wpdb->prepare(
 kiem( 'tổng vào + bỏ qua + lạ = đúng tiền trong kỳ', $g['tong'] + $g['tong_bo'] + $g['tong_la'], $tong_sao_ke );
 kiem( 'và tiền ngoài kỳ không lọt vào', $tong_sao_ke, 2100000 );
 
+// ------------------------------------------------ tách theo ngày doanh thu
+//
+// Hoá đơn thật của công ty dùng cả hai kiểu: KH705 gần như một tờ cho mỗi
+// (điểm × ngày xuất), KH989 dồn 294 tờ vào một ngày xuất. Nên độ mịn là lựa
+// chọn, không phải giả định.
+$gn = KHTC_SinhHD::gom( $ky + array( 'tach' => 'ngay' ) );
+kiem( 'tách theo ngày: ba tờ thay vì hai', count( $gn['diem'] ), 3 );
+// AAA 05/08 (100k) và BBB 06/08 (200k) cùng "Điểm Một" nhưng khác ngày → hai tờ.
+$ng = array();
+foreach ( $gn['diem'] as $x ) { $ng[] = array( $x['ngay'], $x['ten_diem'], $x['tien'] ); }
+kiem( 'xếp theo ngày tăng dần', $ng[0][0], '2026-08-05' );
+kiem( 'tờ đầu đúng điểm', $ng[0][1], 'Điểm Một' );
+kiem( 'tờ đầu đúng tiền', $ng[0][2], 100000 );
+kiem( 'cùng điểm khác ngày thì tách ra', $ng[1][1], 'Điểm Một' );
+kiem( 'và mang ngày khác', $ng[1][0], '2026-08-06' );
+
+// Dù tách hay không, TỔNG TIỀN phải y hệt — tách chỉ đổi cách chia tờ.
+kiem( 'tách không làm đổi tổng tiền', $gn['tong'], $g['tong'] );
+kiem( 'không làm đổi tiền bỏ qua', $gn['tong_bo'], $g['tong_bo'] );
+kiem( 'không làm đổi tiền mã lạ', $gn['tong_la'], $g['tong_la'] );
+kiem( 'và tổng số dòng vẫn thế', array_sum( array_column( $gn['diem'], 'so_dong' ) ), array_sum( array_column( $g['diem'], 'so_dong' ) ) );
+// Gộp thì không mang ngày, để màn hình biết có hiện cột Ngày hay không.
+kiem( 'gộp cả kỳ thì không mang ngày', $g['diem'][0]['ngay'], '' );
+
 // -------------------------------------------------------- tạo hoá đơn
 kiem( 'thiếu ngày hoá đơn thì từ chối', is_wp_error( KHTC_SinhHD::tao( $ky + array( 'bat_dau' => 1 ) ) ), true );
 kiem( 'thiếu số bắt đầu thì từ chối', is_wp_error( KHTC_SinhHD::tao( $ky + array( 'ngay_hd' => '31/08/2026' ) ) ), true );
@@ -117,6 +141,14 @@ KHTC_HoaDonRa::them( array( 'ngay' => '31/08/2026', 'so_hd' => '7002', 'co_vat' 
 $t3 = KHTC_SinhHD::tao( $ky + array( 'ngay_hd' => '31/08/2026', 'bat_dau' => 7001 ) );
 kiem( 'số trùng ở giữa dải cũng chặn', is_wp_error( $t3 ), true );
 kiem( 'vẫn không ghi thêm dòng nào', KHTC_HoaDonRa::loc( array() )['so_hd'], $truoc + 1 );
+
+// Tạo theo kiểu tách ngày: ghi chú phải nói rõ NGÀY DOANH THU, vì ngày hoá đơn
+// là ngày xuất — hai thứ khác nhau và kế toán cần truy lại được.
+$t4 = KHTC_SinhHD::tao( $ky + array( 'tach' => 'ngay', 'ngay_hd' => '31/08/2026', 'bat_dau' => 8001 ) );
+kiem( 'tạo theo ngày ra 3 tờ', $t4['tao'], 3 );
+$hd4 = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . KHTC_DB::bang('hd_ra') . ' WHERE so_hd=%s', '8001' ) );
+kiem( 'ghi chú nói ngày doanh thu', false !== strpos( $hd4->ghi_chu, 'doanh thu ngày' ), true );
+kiem( 'nhưng ngày hoá đơn vẫn là ngày xuất đã chọn', $hd4->ngay, '2026-08-31' );
 
 // ---------------------------------------------------------- dựng màn hình
 $_GET = array( 'tu' => '2026-08-01', 'den' => '2026-08-31', 'nh' => array( $nh ) );
