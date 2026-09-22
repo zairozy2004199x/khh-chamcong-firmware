@@ -1,7 +1,7 @@
 === Tài Chính K&H ===
 Requires at least: 5.6
 Requires PHP: 7.4
-Stable tag: 1.6.0
+Stable tag: 1.6.1
 License: GPL-2.0-or-later
 
 Theo dõi ngân hàng, giao dịch và đối soát cho CÔNG TY TNHH DỊCH VỤ VÀ GIẢI TRÍ K&H.
@@ -50,8 +50,8 @@ khỏi đi vòng qua wp-admin và khỏi phải hiểu hệ thống vai trò c�
   Nạp hàng loạt; mã đã có thì cập nhật đè, cờ bỏ qua giữ nguyên.
 * Sinh hoá đơn từ sao kê — chọn kỳ và tick nguồn tiền (sao kê tài khoản nào,
   đợt cổng nào), máy gom tiền theo điểm rồi xuất mỗi điểm một hoá đơn. Xem
-  trước trước khi ghi. Chọn độ mịn: gộp cả kỳ một tờ mỗi điểm, hay tách theo
-  từng ngày doanh thu mỗi ngày một tờ. Tiền mang mã chưa có trong danh mục được liệt kê riêng
+  trước trước khi ghi. Mặc định mỗi điểm mỗi ngày một hoá đơn — đúng luật công
+  ty đang dùng; đổi sang gộp cả kỳ được nếu cần một tờ tổng. Tiền mang mã chưa có trong danh mục được liệt kê riêng
   chứ không bỏ lặng. Số hoá đơn cấp liên tiếp; trùng một số ở giữa thì dừng
   hẳn và không ghi gì.
 * Hoá đơn đầu ra — nối thẳng với công cụ Đối soát VAT: dán vào và xuất ra đúng

@@ -1217,7 +1217,11 @@ class KHTC_Trang {
 		$den  = isset( $_REQUEST['den'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['den'] ) ) : $ky[1];
 		$nh_c = array_map( 'intval', (array) ( $_REQUEST['nh'] ?? array() ) );
 		$dot_c = array_map( 'intval', (array) ( $_REQUEST['dot'] ?? array() ) );
-		$tach = ( 'ngay' === ( $_REQUEST['tach'] ?? '' ) ) ? 'ngay' : '';
+		// Mặc định TÁCH THEO NGÀY: đó là luật của công ty — mỗi điểm mỗi ngày
+		// một hoá đơn. Kiểm trên dữ liệu thật tháng 8/2026 của KH705 ra 1.983
+		// tờ, trong khi file hoá đơn thật có 1.986 cặp (điểm × ngày). Gộp cả kỳ
+		// giữ lại cho trường hợp cần một tờ tổng.
+		$tach = isset( $_REQUEST['tach'] ) ? ( 'ngay' === $_REQUEST['tach'] ? 'ngay' : '' ) : 'ngay';
 		$bao_ok = '';
 		$bao_loi = '';
 
@@ -1275,8 +1279,8 @@ class KHTC_Trang {
 		// Độ mịn: gộp cả kỳ một tờ mỗi điểm, hay mỗi ngày một tờ. Hoá đơn thật
 		// của công ty dùng cả hai kiểu tuỳ pháp nhân, nên để người dùng chọn.
 		echo '<p class="khtc-sub">Một điểm xuất mấy tờ trong kỳ này?</p><div class="khtc-loc">';
+		printf( '<label class="khtc-tick"><input type="radio" name="tach" value="ngay"%s> Mỗi điểm mỗi ngày một tờ <span class="khtc-sub">(thường dùng)</span></label>', 'ngay' === $tach ? ' checked' : '' );
 		printf( '<label class="khtc-tick"><input type="radio" name="tach" value=""%s> Gộp cả kỳ — mỗi điểm một tờ</label>', '' === $tach ? ' checked' : '' );
-		printf( '<label class="khtc-tick"><input type="radio" name="tach" value="ngay"%s> Tách theo ngày — mỗi điểm mỗi ngày một tờ</label>', 'ngay' === $tach ? ' checked' : '' );
 		echo '</div>';
 		echo '</form>';
 

@@ -153,6 +153,7 @@ class KHTC_SinhHD {
 	 * @return array|WP_Error [tao, so_dau, so_cuoi, tien]
 	 */
 	public static function tao( $l ) {
+		global $wpdb;
 		$g = self::gom( $l );
 		if ( is_wp_error( $g ) ) { return $g; }
 		if ( ! $g['diem'] ) {
@@ -170,14 +171,26 @@ class KHTC_SinhHD {
 
 		// Kiểm TRƯỚC khi ghi dòng nào: thiếu chỗ này thì một số trùng ở giữa
 		// làm sổ dở dang, nửa đã ghi nửa chưa.
+		//
+		// Hỏi MỘT câu cho cả dải, không phải một câu mỗi số. Tách theo ngày thì
+		// một kỳ ra gần hai nghìn tờ; hỏi từng số là thêm hai nghìn câu SQL và
+		// trang hết giờ trước khi ghi được dòng nào.
 		$can = count( $g['diem'] );
-		for ( $i = 0; $i < $can; $i++ ) {
-			if ( KHTC_HoaDonRa::da_co( (string) ( $so + $i ) ) ) {
-				return new WP_Error(
-					'trung',
-					'Số hoá đơn ' . ( $so + $i ) . ' đã có trong sổ. Cần ' . $can . ' số liên tiếp từ ' . $so . '. Chọn số bắt đầu khác.'
-				);
-			}
+		$dai = array();
+		for ( $i = 0; $i < $can; $i++ ) { $dai[] = (string) ( $so + $i ); }
+		$trung = $wpdb->get_var(
+			$wpdb->prepare(
+				'SELECT so_hd FROM ' . KHTC_DB::bang( 'hd_ra' ) . ' WHERE cty = %s AND so_hd IN ('
+					. implode( ',', array_fill( 0, $can, '%s' ) ) . ') ORDER BY CAST(so_hd AS UNSIGNED) LIMIT 1',
+				array_merge( array( KHTC_Cty::dang_chon() ), $dai )
+			)
+		);
+		if ( $trung ) {
+			return new WP_Error(
+				'trung',
+				'Số hoá đơn ' . $trung . ' đã có trong sổ. Cần ' . number_format( $can, 0, ',', '.' )
+					. ' số liên tiếp từ ' . $so . '. Chọn số bắt đầu khác.'
+			);
 		}
 
 		KHTC_NhatKy::mo_lo();

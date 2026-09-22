@@ -154,7 +154,17 @@ kiem( 'nhưng ngày hoá đơn vẫn là ngày xuất đã chọn', $hd4->ngay, 
 $_GET = array( 'tu' => '2026-08-01', 'den' => '2026-08-31', 'nh' => array( $nh ) );
 $_REQUEST = $_GET; $_POST = array();
 $h = dung( fn() => KHTC_Trang::sinh_hoa_don() );
-kiem( 'màn hình có bảng xem trước', false !== strpos( $h, 'mỗi điểm một hoá đơn' ), true );
+// Không truyền tach thì màn hình phải mặc định TÁCH THEO NGÀY — đó là luật
+// của công ty, và bắt chọn lại mỗi lần là mời người ta chọn nhầm.
+kiem( 'mặc định là tách theo ngày', false !== strpos( $h, 'mỗi điểm mỗi ngày một hoá đơn' ), true );
+kiem( 'và nút tách theo ngày được chọn sẵn', false !== strpos( $h, 'value="ngay" checked' ), true );
+kiem( 'có cột Ngày doanh thu', false !== strpos( $h, 'Ngày doanh thu' ), true );
+// Chọn gộp cả kỳ thì đổi theo.
+$_GET['tach'] = ''; $_REQUEST = $_GET;
+$hg = dung( fn() => KHTC_Trang::sinh_hoa_don() );
+kiem( 'chọn gộp thì đổi tiêu đề', false !== strpos( $hg, 'Xem trước — mỗi điểm một hoá đơn' ), true );
+kiem( 'và bỏ cột Ngày doanh thu', false !== strpos( $hg, 'Ngày doanh thu' ), false );
+unset( $_GET['tach'] ); $_REQUEST = $_GET;
 kiem( 'và cảnh báo mã chưa có trong danh mục', false !== strpos( $h, 'không có trong danh mục điểm' ), true );
 kiem( 'liệt kê mã lạ ra tận nơi', false !== strpos( $h, 'ZZZ' ), true );
 $h2 = dung( fn() => KHTC_Trang::danh_muc_diem() );
