@@ -30,6 +30,11 @@ class VHCPVP_API {
 	 *  của mọi người. Danh sách dưới khớp đúng những tab mà giao diện vốn chỉ cho
 	 *  Admin/Quản lý thấy, nên người dùng không thấy khác gì.)
 	 */
+	/* Sáu cửa MISA — mọi lối làm ra tệp MISA hoặc đóng dấu "đã xuất". Thêm hàm MISA mới thì
+	   khai vào đây, không thì nó là cái lỗ duy nhất trong luật trên. */
+	private static $misa_fns = array( 'exportMisa', 'exportMisaKyThuat', 'exportMisaMarketing',
+		'exportMisaBP', 'exportMisaSoChi', 'markExported' );
+
 	private static function required_roles( $fn ) {
 		// Sửa hàng loạt NGÀY của dòng chi là đụng thẳng vào số liệu kế toán (ngày quyết định
 		// kỳ hạch toán). Chốt ở máy chủ, không tin mỗi giao diện.
@@ -76,6 +81,9 @@ class VHCPVP_API {
 			'dungLenhBu',
 			'traLaiDon', 'traLaiDonNhieu', 'xacNhanQuyetToanCN', 'xacNhanQuyetToanNCC',
 			'xacNhanQtCnNhieu', 'setTatToanTuan', 'setSoDuDauKy', 'dongCuaCoSo',
+			/* Đánh dấu ĐÃ THANH TOÁN (bước riêng của MTĐ/VP) là khai rằng tiền đã ra khỏi két —
+			   việc của kế toán, không phải của người lập đơn. */
+			'danhDauThanhToan',
 			/* 🔴 `setLineThucMua` ĐÃ RỜI KHỎI ĐÂY — anh Thắng 01/09/2026, ảnh đơn FUNZONE VŨNG TÀU:
 			   *"nhân viên được phép nhập và sửa lại đơn chính xác trước khi quyết toán, nhưng
 			   nhập vào ô thực mua lại báo lỗi nhân viên không được chỉnh sửa"*.
@@ -93,7 +101,11 @@ class VHCPVP_API {
 			   [sửa] loại chi phí nếu nó sai"*. Loại chi phí suy ra TK Nợ, nên người nhập đổi được
 			   là con số nhảy tài khoản sau lưng kế toán — và cái sai chỉ lộ ra lúc xuất MISA.
 			   Lõi `set_line_nhom()` cũng gác, đây là lớp thứ hai ở cổng. */
-			'setLineNhom', 'datLoaiCpDuAnLine',
+			/* 🔴 VÀ CHỈNH THẲNG TK NỢ CỦA MỘT DÒNG — anh Thắng 22/09/2026: *"Sau khi quyết toán,
+			   thì kế toán có quyền điều chỉnh tk nợ theo nhu cầu"*. Cùng hạng với `setLineNhom`:
+			   nó đụng đúng con số đi vào sổ, chỉ khác là đổi thẳng mã thay vì đổi loại rồi suy
+			   ra mã. Lõi `set_line_tk_no()` cũng gác vai, đây là lớp thứ hai ở cổng. */
+			'setLineNhom', 'setLineTkNo', 'datLoaiCpDuAnLine',
 			/* Đẩy tiền sang sổ của đơn vị khác — không phải việc của nhân viên. */
 			'chuyenDonVi',
 			/* 🔴 NHẢY ĐƠN SANG TUẦN KHÁC — anh Thắng 31/08/2026: *"kế toán sẽ gửi lệnh nhảy đơn
@@ -269,6 +281,7 @@ class VHCPVP_API {
 			'setLineAnh'            => array( 'VHCPVP_Don', 'set_line_anh' ),
 			'setLineNgay'           => array( 'VHCPVP_Don', 'set_line_ngay' ),
 			'setLineNhom'           => array( 'VHCPVP_Don', 'set_line_nhom' ),
+			'setLineTkNo'           => array( 'VHCPVP_Don', 'set_line_tk_no' ),
 			'setDonNgay'            => array( 'VHCPVP_Don', 'set_don_ngay' ),
 			'suaNamVoLy'            => array( 'VHCPVP_Don', 'sua_nam_vo_ly' ),
 			'suaNgayHong'           => array( 'VHCPVP_Don', 'sua_ngay_hong' ),
@@ -418,6 +431,8 @@ class VHCPVP_API {
 			'exportMisaMarketing'   => array( 'VHCPVP_Misa', 'export_marketing' ),
 			'exportMisaBP'          => array( 'VHCPVP_Misa', 'export_bp' ),
 			'markExported'          => array( 'VHCPVP_Misa', 'mark_exported' ),
+			/* Bước thanh toán riêng của MTĐ/VP — xem `VHCPVP_Don::danh_dau_thanh_toan()`. */
+			'danhDauThanhToan'      => array( 'VHCPVP_Don', 'danh_dau_thanh_toan' ),
 
 			// tệp
 			'uploadImage'           => array( 'VHCPVP_Upload', 'upload_image' ),
@@ -481,6 +496,28 @@ class VHCPVP_API {
 					), 403 );
 				}
 			}
+		}
+
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		   KẾ TOÁN MÁY TỰ ĐỘNG KHÔNG ĐẨY MISA — CHỐT Ở MÁY CHỦ, KHÔNG CHỈ GIẤU TAB.
+
+		   Anh Thắng 21/09/2026: *"kế toán máy tự động chỉ check chứ ko đẩy misa"*. Giấu tab là
+		   đủ cho người dùng bình thường, nhưng `markExported` ghi thẳng 'Đã xuất MISA' vào sổ —
+		   một lượt gọi tay là đơn của cả tháng bị đánh dấu đã xuất trong khi chưa tệp nào đi ra.
+		   Chốt ở đây thì hàm MISA viết sau này cũng tự được gác.
+
+		   ⚠️ KHÔNG GỘP VÀO `required_roles()`: hàm ấy so bằng VAI GỐC (cố ý, để vai con thừa
+		      hưởng quyền của vai cha). Luật này thì ngược lại — nó phân biệt ĐÚNG hai vai con
+		      cùng cha: "Kế Toán Máy Tự Động" và "Kế Toán Khu Vui Chơi" đều kế thừa "Kế toán cá
+		      nhân". Nhét vào đó là hoặc chặn cả hai, hoặc chặn không ai.
+		   ═══════════════════════════════════════════════════════════════════════════════════ */
+		if ( in_array( $fn, self::$misa_fns, true ) && ! VHCPVP_Cfg::xuat_misa_duoc() ) {
+			return new WP_REST_Response( array(
+				'ok'    => false,
+				'error' => 'Vai trò "' . ( VHCPVP_Auth::vai_hien() !== '' ? VHCPVP_Auth::vai_hien() : 'không rõ' )
+					. '" chỉ soát và duyệt quyết toán. Đơn duyệt xong tự chuyển sang kế toán Khu vui chơi để xuất MISA.',
+				'code'  => 'forbidden',
+			), 403 );
 		}
 
 		/* 🔴 CHỐT ĐƠN VỊ (K&H · POSH) — MỘT LƯỢT CHO MỌI HÀM CÓ MÃ ĐƠN.

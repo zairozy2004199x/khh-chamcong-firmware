@@ -29,18 +29,6 @@
       <button class="btn b-x" id="btnLogout" onclick="logout()">Đăng xuất</button>
     </div>
   </div>
-  <!-- 🔴 XEM NHƯ — chỉ Admin, và chỉ đổi MÀN HÌNH. Xem chốt dài ở `_glDat()`. -->
-  <div id="giaLapBar" style="display:none;background:#fef3c7;border-bottom:2px solid #f59e0b;
-       padding:7px 14px;gap:10px;align-items:center;flex-wrap:wrap;font-size:12px">
-    <b style="color:#92400e">👁 Xem như</b>
-    <select id="glVai" onchange="glDoi()" style="font-size:12px"></select>
-    <select id="glKhoi" onchange="glDoi()" style="font-size:12px"></select>
-    <span id="glDangXem" style="color:#92400e;font-weight:700"></span>
-    <button class="btn b-x" onclick="glThoat()" style="padding:3px 10px;font-size:11.5px">✖ Thôi, về tài khoản của tôi</button>
-    <span style="color:#92400e;opacity:.85">Chỉ đổi những gì MÀN HÌNH bày ra. Máy chủ vẫn biết anh là Admin —
-      bấm làm gì thì vẫn chạy bằng quyền Admin, nên đừng dùng chỗ này để thử xem ai chặn được ai.</span>
-  </div>
-
   <div class="bar" id="tabbar" style="gap:6px">
     <button class="btn b-x" id="tab-tongquan" onclick="showPage('tongquan')">📊 Tổng quan</button>
     <button class="btn b-x" id="tab-donchi" onclick="showDonChi()">📋 Đơn chi phí</button>
@@ -2381,6 +2369,12 @@
       b.style.display=mo?'':'none';
     });
   }
+  /* ⚠️ DẢI "👁 Xem như" ĐÃ GỠ (22/09/2026, anh Thắng: *"bỏ này đi"*).
+     Nó là công cụ thử của Admin: đổi vai + khối để xem màn của người khác mà không phải đăng
+     xuất. Gỡ CẢ khối, không chỉ ẩn đi — để ẩn thì mã mô phỏng vẫn còn và vẫn sửa được
+     `CURUSER` cùng `BOOT.khoiXem` từ bảng điều khiển trình duyệt.
+     ⚠️ Chốt quyền THẬT chưa bao giờ nằm ở đây: nó ở máy chủ, và dải này cố ý KHÔNG đụng tới.
+        Nên gỡ nó không nới lỏng một chốt nào — chỉ mất một cách xem thử. */
   var QUYEN_TAB=null;   // bảng tab được xem, do applyPerms() đặt
   /* Chưa có bảng quyền (gọi trước applyPerms) thì coi như được — không thì màn trắng trơn. */
   function _tabDuoc(p){ return !QUYEN_TAB || !!QUYEN_TAB[p]; }
@@ -2391,122 +2385,7 @@
     if(role!=='Nhân viên') return 'tongquan';
     return _tabDuoc('don')?'don':(_tabDuoc('duan')?'duan':'tongquan');
   }
-  /* ══════════════════════════════════════════════════════════════════════════════════════
-   * 👁 XEM NHƯ — THỬ MÀN CỦA NGƯỜI KHÁC MÀ KHÔNG PHẢI ĐĂNG XUẤT.
-   *
-   * Anh Thắng 12/09/2026: *"Giờ anh cần test, làm sao để chọn chế độ nhân viên giả lập nhiều
-   * bộ phận để test, thay vì cứ đăng xuất ra vào"*.
-   *
-   * 🔴 CHỈ ĐỔI MÀN HÌNH, KHÔNG ĐỔI QUYỀN. Đây là chốt quan trọng nhất của cả khối, và nó phải
-   *    được NÓI RA ngay trên màn chứ không chỉ nằm trong mã:
-   *      · Máy chủ vẫn nhận ra tài khoản thật (Admin) ở mọi lượt gọi — mọi phép gác quyền bên
-   *        ấy vẫn chạy theo Admin.
-   *      · Nên chỗ này trả lời được câu *"nhân viên cơ sở MỞ RA thì thấy gì"*, mà KHÔNG trả
-   *        lời được câu *"nhân viên cơ sở BẤM thì có bị chặn không"*.
-   *    Không nói rõ hai câu ấy khác nhau là người thử thấy mình xoá được đơn dưới lốt nhân
-   *    viên, rồi đi báo một lỗ hổng không có thật — hoặc tệ hơn, tin rằng một chốt đang chạy
-   *    trong khi nó chưa từng được thử.
-   *
-   * 🔴 CHỈ ADMIN. Cho Quản lý dùng là mở đường xem màn của vai cao hơn mình.
-   *
-   * ⚠️ KHÔNG ĐỤNG `CURUSER` GỐC. Giữ bản sao rồi trả lại nguyên vẹn lúc thoát — sửa thẳng vào
-   *    đó là sau một lượt thử, tài khoản thật của người đang đăng nhập mang vai của người
-   *    được thử, và mọi thứ sau đó đều lệch mà không ai biết vì sao.
-   * ══════════════════════════════════════════════════════════════════════════════════════ */
-  var GL_GOC=null;   // bản sao CURUSER thật; khác null = đang xem như người khác
-  /* Bản gốc của hai thứ `_glDat()` sẽ động vào ngoài CURUSER — `BOOT.khoiXem` là dữ liệu
-     MÁY CHỦ gửi xuống, `KHOI_DANG` là khối đang đứng. Không giữ thì lượt "Thôi, về tài khoản
-     của tôi" trả được vai nhưng không trả được khối. */
-  var GL_KHOIXEM=null, GL_KHOIDANG=null;
-
-  /** Đang xem như người khác không. */
-  function glDangBat(){ return !!GL_GOC; }
-
-  /** Dựng hai ô chọn + hiện/ẩn dải. Gọi sau khi đã biết mình là ai. */
-  function glDung(){
-    var bar=el('giaLapBar'); if(!bar) return;
-    var laAdmin=((GL_GOC||CURUSER||{}).role==='Admin');
-    bar.style.display=laAdmin?'flex':'none';
-    if(!laAdmin) return;
-    var sv=el('glVai');
-    if(sv && !sv.options.length){
-      sv.innerHTML='<option value="">— vai: như tôi —</option>'
-        +['Admin'].concat(VAI_GOC).map(function(v){ return '<option value="'+esc(v)+'">'+esc(v)+'</option>'; }).join('');
-    }
-    /* ══════════════════════════════════════════════════════════════════════════════════════
-     * Ô THỨ HAI LÀ KHỐI, KHÔNG PHẢI BỘ PHẬN.
-     *
-     * Anh Thắng 21/09/2026: *"Chỗ bộ phận anh không dùng, để khối MTĐ · KVC · VP để anh test
-     * hệ thống"*.
-     *
-     * 🔴 Ô BỘ PHẬN LÀ TÀN DƯ. Cột Bộ phận đã rời khỏi bảng Người dùng từ 21/09 (*"bỏ tích bộ
-     *    phận đi, mà tích theo vai trò"*), nên ô ấy thử một trục KHÔNG CÒN AI KHAI — xem như
-     *    một bộ phận rồi kết luận "chạy đúng" là kết luận về một thứ không tồn tại nữa.
-     * 🔴 CÒN KHỐI MỚI LÀ TRỤC ĐANG SỐNG: nó quyết định luồng (`LUONG_CHI`), bảng mã, hộp Gian,
-     *    dải luồng, và cả việc ai được xuất MISA. Muốn thử hệ thống thì phải đứng được ở đây.
-     *
-     * ⚠️ DANH SÁCH LẤY TỪ `KHOI_DS`, cùng nguồn với thanh KHỐI — gõ cứng ba mã ở đây là hai nơi
-     *    lệch nhau, mà lệch nghĩa là thử một khối không tồn tại rồi kết luận nhầm.
-     * ══════════════════════════════════════════════════════════════════════════════════════ */
-    var sk=el('glKhoi');
-    if(sk){
-      var cu=sk.value;
-      sk.innerHTML='<option value="">— khối: như tôi —</option>'
-        +KHOI_DS.map(function(k){ return '<option value="'+esc(k.ma)+'">'+esc(k.ten)+'</option>'; }).join('');
-      if(cu){ for(var i=0;i<sk.options.length;i++){ if(sk.options[i].value===cu){ sk.value=cu; break; } } }
-    }
-  }
-
-  /** Đặt vai + khối đang xem thử rồi vẽ lại cả màn. */
-  function _glDat(vai, khoi){
-    if(!GL_GOC){
-      GL_GOC=JSON.parse(JSON.stringify(CURUSER||{}));
-      /* 🔴 CHỤP LẠI CẢ HAI THỨ MÌNH SẮP ĐỘNG VÀO. `BOOT.khoiXem` là dữ liệu MÁY CHỦ gửi xuống,
-         không phải của người dùng — sửa nó mà không giữ bản gốc thì "Thôi, về tài khoản của
-         tôi" trả được vai nhưng KHÔNG trả được khối, và Admin kẹt ở một khối cho tới lúc tải
-         lại trang. Cùng lý do phải giữ `KHOI_DANG`. */
-      GL_KHOIXEM=(window.BOOT&&BOOT.khoiXem)?BOOT.khoiXem.slice():null;
-      GL_KHOIDANG=KHOI_DANG;
-    }
-    var u=JSON.parse(JSON.stringify(GL_GOC));
-    if(vai){ u.role=vai; u.roleGoc=vai; }
-    CURUSER=u;
-    /* Xem như một khối = mô phỏng NGƯỜI CHỈ THUỘC KHỐI ẤY, không phải chỉ đổi tab đang chọn:
-       thanh KHỐI còn đúng một nút, và mọi màn lọc theo nó. Đó mới là thứ đáng thử. */
-    if(khoi){ if(window.BOOT) BOOT.khoiXem=[khoi]; KHOI_DANG=khoi; }
-    else    { if(window.BOOT) BOOT.khoiXem=GL_KHOIXEM; KHOI_DANG=GL_KHOIDANG; }
-    var nhan=(vai||GL_GOC.role)+(khoi?(' · '+_tenKhoi(khoi)):'');
-    var d=el('glDangXem'); if(d) d.textContent='→ đang xem như: '+nhan;
-    applyPerms();
-    try{ veThanhKhoi(); }catch(e){}
-    showPage(defaultPageFor(_vaiLuat()));
-  }
-
-  function glDoi(){
-    var vai =String((el('glVai')&&el('glVai').value)||'');
-    var khoi=String((el('glKhoi')&&el('glKhoi').value)||'');
-    if(!vai && !khoi){ glThoat(); return; }
-    _glDat(vai, khoi);
-  }
-
-  /** Trả lại tài khoản thật, nguyên vẹn. */
-  function glThoat(){
-    if(!GL_GOC) return;
-    CURUSER=GL_GOC; GL_GOC=null;
-    /* Trả NGUYÊN VẸN cả khối — xem chốt ở `_glDat()`. */
-    if(window.BOOT) BOOT.khoiXem=GL_KHOIXEM;
-    if(GL_KHOIDANG) KHOI_DANG=GL_KHOIDANG;
-    GL_KHOIXEM=null; GL_KHOIDANG=null;
-    if(el('glVai'))  el('glVai').value='';
-    if(el('glKhoi')) el('glKhoi').value='';
-    var d=el('glDangXem'); if(d) d.textContent='';
-    applyPerms();
-    try{ veThanhKhoi(); }catch(e){}
-    showPage(defaultPageFor(_vaiLuat()));
-    toast('ok','Đã về tài khoản của anh/chị');
-  }
-
-  function onLoggedIn(){ applyPerms(); glDung(); showPage(defaultPageFor(_vaiLuat())); }   // showPage tự nạp dữ liệu cho từng tab (don→boot)
+  function onLoggedIn(){ applyPerms(); showPage(defaultPageFor(_vaiLuat())); }   // showPage tự nạp dữ liệu cho từng tab (don→boot)
   function applyPerms(){
     var role=CURUSER.role;
     // TAB ĐÃ NGHỈ. Chi phí của Marketing / Công tác / Setup nay nhập ngay trong đơn chi
@@ -2580,10 +2459,7 @@
     /* Đang xem như người khác thì chip phải nói THẲNG ra, và nói cả tên thật. Chip lặng lẽ
        đổi tên vai là vài phút sau người thử quên mất mình đang đội lốt ai, rồi kết luận nhầm
        về màn hình của chính mình. */
-    el('userChip').innerHTML=( glDangBat()
-        ? ('👁 <b>xem như</b> ' + esc(role) + ( CURUSER.boPhan ? (' · ' + esc(CURUSER.boPhan)) : ' · (không bộ phận)' )
-           + ' <span style="opacity:.8">— thật ra: ' + esc(GL_GOC.name) + '</span>')
-        : ('👤 '+esc(CURUSER.name)+' · '+esc(role)+(CURUSER.coso?' · '+esc(CURUSER.coso):'')) );
+    el('userChip').innerHTML='👤 '+esc(CURUSER.name)+' · '+esc(role)+(CURUSER.coso?' · '+esc(CURUSER.coso):'');
   }
   /**
    * SẮP ĐƠN: kỳ MỚI NHẤT lên đầu, trong cùng một kỳ thì theo cơ sở rồi người lập.
@@ -3600,10 +3476,6 @@
     loading(true);
     google.script.run.withSuccessHandler(function(b){
       BOOT=b||BOOT; loading(false); _applyTabPerms();   // mở tab theo phân quyền vừa nạp
-      /* Dải 👁 Xem như phải dựng lại SAU khi có `BOOT`: ô khối đọc `KHOI_DS` (hằng, có sẵn),
-         nhưng `_khoiDuoc()` và nhãn khối thì đọc `BOOT` — dựng ở `onLoggedIn()` là dựng lúc
-         gói khởi động còn rỗng. */
-      glDung();
       var isNV=(_vaiLuat()==='Nhân viên');
       var myCoso=String((CURUSER&&CURUSER.coso)||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
       var cosoOpts=(isNV&&myCoso.length)?myCoso:BOOT.coso;

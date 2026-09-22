@@ -684,18 +684,15 @@ class VHCPHN_Don {
 			/* ══════════════════════════════════════════════════════════════════════════════
 			 * 🔴 DANH SÁCH BỘ PHẬN PHẢI XUỐNG TỚI GÓI KHỞI ĐỘNG, KHÔNG CHỈ Ở GÓI CẤU HÌNH.
 			 * ══════════════════════════════════════════════════════════════════════════════
-			 * Anh Thắng 21/09/2026, ảnh chụp dải 👁 Xem như: *"chỉnh phần khai bộ phận cho
-			 * admin để tes"* — ô chọn bộ phận chỉ có hai dòng *"như tôi"* và *"để TRỐNG"*,
-			 * không một tên bộ phận nào.
+			 * Khoá này từng CHƯA CÓ trong gói khởi động — nó chỉ có ở gói Cấu hình
+			 * (`CFG.boPhanDs`) — nên bảng Loại chi phí bày đủ bảy ô tích bình thường, và
+			 * không có gì trên màn gợi ý rằng chỗ kia đang đói dữ liệu. MỘT KHOÁ THIẾU TRÔNG
+			 * Y HỆT MỘT DANH SÁCH RỖNG, và đó là kiểu hỏng khó lần nhất.
 			 *
-			 * Vì `glDung()` đọc `BOOT.boPhanDs`, mà khoá ấy CHƯA TỪNG có trong gói này. Nó chỉ
-			 * có ở gói Cấu hình (`CFG.boPhanDs`) — nên bảng Loại chi phí bày đủ bảy ô tích
-			 * bình thường, và không có gì trên màn gợi ý rằng chỗ kia đang đói dữ liệu. Một
-			 * khoá thiếu trông y hệt một danh sách rỗng.
-			 *
-			 * ⚠️ Hậu quả không chỉ là một ô chọn trống: dải Xem như là CÔNG CỤ THỬ của Admin.
-			 *    Không chọn được bộ phận thì mọi luật "ai thấy loại chi phí nào" không thử
-			 *    được bằng tay — và đó đúng là phần anh Thắng đang sửa tới lui mấy hôm nay.
+			 * ⚠️ Người đọc bản sau: chỗ phát hiện ra chuyện này là dải "👁 Xem như" — công cụ
+			 *    thử của Admin, đã GỠ ngày 22/09/2026 theo yêu cầu. Khoá `boPhanDs` thì GIỮ:
+			 *    nó vẫn là dữ liệu gói khởi động phải có, và dải kia chỉ tình cờ là chỗ làm
+			 *    lộ ra việc nó thiếu.
 			 *
 			 * 🔴 GỌI `bo_phan_ds()`, ĐỪNG ĐỌC THẲNG BẢNG. Hàm ấy mới có nhánh "danh mục rỗng
 			 *    thì ngã về bảy tên mặc định"; đọc thẳng là site chưa khai gửi xuống danh sách
