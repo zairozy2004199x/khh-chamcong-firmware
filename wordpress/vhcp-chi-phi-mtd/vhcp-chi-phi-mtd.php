@@ -3,7 +3,7 @@
  * Plugin Name:       Vận Hành Chi Phí (MTD)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       App Chi Phí Cơ Sở / Vận Hành Chi Phí dựng lại trên WordPress — đơn tạm ứng theo tuần, chi phí kỹ thuật, marketing, công tác/setup, quyết toán thừa/thiếu và xuất MISA. Dữ liệu nằm trong bảng MySQL riêng (không phụ thuộc Google Sheet).
- * Version:           1.280.0
+ * Version:           1.281.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -21,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
  * này còn đứng ở 1.31.0 — nghĩa là suốt từ đó tới giờ, cài đè KHÔNG chạy bước nâng cấp nào và
  * trình duyệt vẫn dùng CSS/JS cũ. Có phép thử chốt hai số bằng nhau: tools/test/kiem-phien-ban.py
  */
-define( 'VHCPMTD_VERSION', '1.280.0' );
+define( 'VHCPMTD_VERSION', '1.281.0' );
 define( 'VHCPMTD_FILE', __FILE__ );
 define( 'VHCPMTD_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHCPMTD_URL', plugin_dir_url( __FILE__ ) );
@@ -48,6 +48,9 @@ require_once VHCPMTD_DIR . 'includes/class-vhcp-import.php';
 require_once VHCPMTD_DIR . 'includes/class-vhcp-gop.php';
 require_once VHCPMTD_DIR . 'includes/class-vhcp-api.php';
 require_once VHCPMTD_DIR . 'includes/class-vhcp-app.php';
+/* Lớp vỏ app điện thoại (PWA) — gắn vào chính đường của trang, không đẻ đường thứ hai.
+   Nạp SAU `class-vhcp-app.php`: nó dựng địa chỉ từ `VHCPMTD_App::cac_slug()`. */
+require_once VHCPMTD_DIR . 'includes/class-vhcp-pwa.php';
 require_once VHCPMTD_DIR . 'includes/class-vhcp-admin.php';
 require_once VHCPMTD_DIR . 'includes/class-vhcp-tu-cap-nhat.php';
 
@@ -141,6 +144,10 @@ add_action( 'rest_api_init', array( 'VHCPMTD_API', 'register_routes' ) );
 add_action( 'wp_ajax_vhcpmtd_call', array( 'VHCPMTD_API', 'ajax' ) );
 add_action( 'wp_ajax_nopriv_vhcpmtd_call', array( 'VHCPMTD_API', 'ajax' ) );
 add_action( 'init', array( 'VHCPMTD_App', 'init' ), 5 );
+/* ⚠️ CÙNG ƯU TIÊN 5, VÀ ĐẶT NGAY SAU. Hai bên cùng khai luật đường dẫn, mà lượt nạp lại bảng
+   luật (`vhcpmtd_flush_rewrite`, ưu tiên 99) phải thấy ĐỦ cả hai — khai muộn hơn 99 là luật của
+   manifest/sw không vào bảng, và app báo "manifest không đọc được" mà không nói vì sao. */
+add_action( 'init', array( 'VHCPMTD_Pwa', 'init' ), 5 );
 add_action( 'init', 'vhcpmtd_flush_rewrite', 99 );
 add_action( 'admin_menu', array( 'VHCPMTD_Admin', 'menu' ) );
 add_action( 'admin_init', array( 'VHCPMTD_Admin', 'handle_post' ) );
