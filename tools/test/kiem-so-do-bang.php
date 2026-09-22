@@ -36,7 +36,7 @@ $goc = dirname( dirname( __DIR__ ) );
 
 /* Vân tay sơ đồ bảng — xem khối 🔴 ở cuối bài. Đổi sơ đồ thì phải sửa CẢ hằng này LẪN
    `SCHEMA_VERSION`; sửa một cái là bài đỏ, và đó đúng là ý đồ. */
-const VAN_TAY_SO_DO = 'so_cot=217';
+const VAN_TAY_SO_DO = 'so_cot=218';
 
 $dat = 0; $truot = array();
 /* Sơ đồ THẬT của từng bảng, gom lúc soi — dùng ở khối đối chiếu bệ đỡ cuối bài. */

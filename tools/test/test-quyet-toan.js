@@ -41,8 +41,14 @@ t('không còn chỗ nào dựng trạng thái "Chờ quản lý gom"',
    08/09/2026 hàm ấy đổi sang `upd_don()` nhiều dòng (thêm mốc `ngay_gui_qt`) là phép này đỏ,
    đỏ vì một thay đổi ĐÚNG. */
 (function(){
+  /* 🔴 CẮT TỚI DẤU ĐÓNG CỦA CHÍNH HÀM, ĐỪNG CẮT THEO SỐ KÝ TỰ. Bản trước lấy 1600 ký tự đầu;
+     ngày 22/09/2026 hàm này thêm một khối chú thích dài (hai luồng, hai chỗ xuất phát) là phần
+     đặt trạng thái bị đẩy ra ngoài cửa sổ — phép đỏ vì một thay đổi ĐÚNG, y hệt lần đỏ oan
+     08/09/2026 mà chính chú thích trên vừa kể. Cắt theo `\n\t}` là cắt đúng thân hàm, dài bao
+     nhiêu cũng vừa. */
   var i = DON.indexOf('function gui_quyet_toan');
-  var than = i < 0 ? '' : DON.slice(i, i + 1600);
+  var j = i < 0 ? -1 : DON.indexOf('\n\t}', i);
+  var than = i < 0 || j < 0 ? '' : DON.slice(i, j + 3);
   t('bốc được thân hàm gui_quyet_toan', than.length > 200, than.length);
   t('gửi quyết toán đi THẲNG sang "Chờ quyết toán"',
     /'trang_thai'\s*=>\s*'Chờ quyết toán'/.test(than), than.slice(0, 400));

@@ -35,7 +35,7 @@ class VHCP_DB {
 	 *    lúc duy nhất số này có việc để làm.
 	 * ⚠️ `kiem-so-do-bang.php` canh: đổi sơ đồ mà số này y nguyên là ĐỎ.
 	 * ══════════════════════════════════════════════════════════════════════════════════════ */
-	const SCHEMA_VERSION = '1.14.0';   // 1.9.0: bảng lenh_tu · 1.10.0: don.ngay_gui_qt · 1.11.0: da_line.tao_luc · 1.12.0: cột `mang` · 1.13.0: đổi tên `mang` → `khoi` · 1.14.0: chiphi.giai_doan
+	const SCHEMA_VERSION = '1.15.0';   // 1.9.0: bảng lenh_tu · 1.10.0: don.ngay_gui_qt · 1.11.0: da_line.tao_luc · 1.12.0: cột `mang` · 1.13.0: đổi tên `mang` → `khoi` · 1.14.0: chiphi.giai_doan · 1.15.0: don.luong
 	const DATA_ROW       = 5;   // DA_DATA_ROW / BP_DATA_ROW của app cũ
 
 	/* ══════════════════════════════════════════════════════════════════════════════════════════
@@ -155,12 +155,35 @@ class VHCP_DB {
 			bu_tru DECIMAL(18,2) NULL,
 			stt BIGINT(20) NOT NULL AUTO_INCREMENT,
 			khoi VARCHAR(20) NOT NULL DEFAULT '$m',
+			luong VARCHAR(10) NOT NULL DEFAULT '',
 			PRIMARY KEY  (ma_don),
 			KEY khoi (khoi),
 			UNIQUE KEY stt (stt),
 			KEY trang_thai (trang_thai),
 			KEY ky (ky)
 		) $c";
+
+		/* ══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 CỘT `don.luong`: ĐƠN NÀY ĐI LUỒNG NÀO.
+		 * ══════════════════════════════════════════════════════════════════════════════════
+		 * Anh Thắng 22/09/2026: *"Bên anh đó có 2 luồng. 1 luồng trực tiếp, 1 luồng gián tiếp.
+		 * Trực tiếp là gửi đơn đầy đủ cho kế toán và quyết toán. Còn gián tiếp là tạm ứng,
+		 * duyệt tạm ứng… cái đang chạy"*, rồi chốt: người lập chọn trên TỪNG ĐƠN.
+		 *
+		 * 🔴 TRỤC CỦA LUỒNG ĐỔI TỪ KHỐI SANG ĐƠN. Trước bản này luồng khoá theo khối
+		 *    (`KHOI_LUONG_CHI = ['mtd','vp']`) — cả một mảng đi chung một đường. Nhưng cùng một
+		 *    cơ sở Hà Nội thì hôm nay chi thẳng nhà cung cấp (trực tiếp), mai xin tiền trước
+		 *    (tạm ứng); khoá theo khối là bắt họ chọn một lần cho cả năm.
+		 *
+		 * ⚠️ RỖNG = THEO KHỐI NHƯ CŨ, và đó là lý do cột này có giá trị mặc định rỗng chứ không
+		 *    phải 'gt'. Hàng trăm đơn đang chạy đều rỗng; lấp 'gt' vào là đơn của Máy tự động và
+		 *    Văn phòng (vốn đi luồng chi) bị kéo ngược về đường tạm ứng — đổi luồng giữa chừng
+		 *    cho những đơn đã duyệt một nửa.
+		 *
+		 * ⚠️ MÃ NGẮN ('tt' · 'gt'), KHÔNG LƯU TÊN TIẾNG VIỆT. Tên hiện trên màn còn đổi (anh
+		 *    Thắng đã đổi "Chờ duyệt tạm ứng" thành "Chờ duyệt chi" một lần rồi); lưu tên là mỗi
+		 *    lượt đổi chữ thành một lượt sửa dữ liệu. Xem `VHCP_Don::LUONG_MA`.
+		 * ══════════════════════════════════════════════════════════════════════════════════ */
 
 		$sql[] = "CREATE TABLE " . self::t( 'tamung' ) . " (
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,

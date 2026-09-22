@@ -174,7 +174,12 @@ class VHCPHN_Misa {
 				   giữa (anh Thắng 21/09/2026: thanh toán và xuất MISA là *"hai bước tách rời"*),
 				   nên gõ cứng là đơn MTĐ vừa duyệt quyết toán đã rơi vào bản xuất — tức xuất MISA
 				   cho một khoản chưa trả tiền. */
-				$san = VHCPHN_Don::tt_truoc_misa( isset( $r['khoi'] ) ? $r['khoi'] : '' );
+				/* ⚠️ VÀ THEO LUỒNG CỦA CHÍNH ĐƠN (22/09/2026) — luồng trực tiếp cũng có bước
+				   `Đã thanh toán`, dù khối của nó là khối đi tạm ứng. Hỏi mỗi khối là đơn trực
+				   tiếp vừa duyệt quyết toán đã rơi vào bản xuất, tức xuất MISA cho một khoản
+				   chưa trả tiền — đúng cái bẫy khối chú thích trên dựng lên để tránh. */
+				$san = VHCPHN_Don::tt_truoc_misa( isset( $r['khoi'] ) ? $r['khoi'] : '',
+					VHCPHN_Don::luong_don( $r ) );
 				$take = ( $mode === 'daxuat' ? ( $r['trang_thai'] === 'Đã xuất MISA' ) : ( $r['trang_thai'] === $san ) );
 			}
 			if ( ! $take ) { continue; }
