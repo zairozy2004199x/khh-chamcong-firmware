@@ -149,6 +149,15 @@ t( '⚠️ lưu được danh mục dạng mảng chuỗi', ! empty( $r['success
 VHCP_Cfg::clear_cache();
 teq( '🔴 gửi mảng CHUỖI → luồng cũ được GIỮ, không bị xoá', 'tt', VHCP_Cfg::luong_cua_bo_phan( 'Văn phòng' ) );
 
+/* 🔴 GÓI MÀN NHẬN PHẢI MANG KHOÁ — đây là phép đã THIẾU hôm 22/09. Sổ đúng, hàm đọc sổ đúng,
+   mà `get_config()` lọc khoá theo danh sách trắng nên `boPhanLuong` rơi ra; màn đọc `undefined`
+   và mọi ô về "theo khối như cũ". Anh Thắng 23/09/2026: *"Nó vẫn chưa lưu được luồng"*.
+   Soi đúng cái màn nhận, không soi hàm trung gian. */
+$goi = VHCP_Cfg::get_config( array() );
+t( '🔴 `get_config()` chở khoá `boPhanLuong` xuống màn', isset( $goi['boPhanLuong'] ) && is_array( $goi['boPhanLuong'] ), array_keys( $goi ) );
+teq( '🔴 và mang đúng mã vừa lưu (Văn phòng → tt)', 'tt', isset( $goi['boPhanLuong']['Văn phòng'] ) ? $goi['boPhanLuong']['Văn phòng'] : null );
+t( '   bộ phận để trống thì KHÔNG có trong gói (không gửi rác)', ! isset( $goi['boPhanLuong']['Máy tự động'] ), $goi['boPhanLuong'] );
+
 /* Gửi dạng đối tượng thì ghi đúng cái mình gửi — kể cả ghi về rỗng. */
 $r = VHCP_Cfg::save_config( array( 'boPhanDs' => array(
 	array( 'ten' => 'Văn phòng', 'luong' => 'gt' ),
