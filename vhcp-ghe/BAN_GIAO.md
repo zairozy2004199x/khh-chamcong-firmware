@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-09-22 · Phiên bản hiện tại: **2.128.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-09-23 · Phiên bản hiện tại: **2.129.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,39 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v2.129.0 — Xoá hẳn cơ sở (ghế ẩn xoá theo) · cơ sở đóng cửa hết dòng 0đ ở Báo cáo tổng
+
+Anh Thắng 23/09/2026: *"một số cơ sở đã ẩn, nhưng khi xuất misa vẫn nhảy vào, nên anh cần xoá hẳn
+điểm đó luôn"* — kèm ảnh ghế **80107 · CGV-PLZ-01 · CGV PEAR PLAZA · "đã ẩn"**.
+
+**Gốc, hai lớp.**
+1. Nút 🗑 cơ sở gọi `xoa_coso()`, mà hàm ấy đếm `COUNT(*) WHERE coso_id` — đếm **cả ghế đã ẩn**.
+   CGV PEAR PLAZA còn đúng một ghế ẩn nên bị chối "còn 1 ghế". Ghế ấy thì từ 2.115.0 không ẩn/xoá
+   mềm được nữa, xoá hẳn ghế lại nằm ở màn khác. Anh đi vòng ba màn không ra.
+2. Cơ sở "đã ẩn" vẫn nằm trong danh mục → **Báo cáo tổng in nó thành một dòng 0đ** (luật "không
+   thu được đồng nào vẫn nằm nguyên một dòng"). Đó là cái "vẫn nhảy vào".
+
+**Làm gì.**
+- `VHG_May::xoa_han_coso( $id, $that )` — **nới đúng một bậc, y như `xoa_han_may()` đã nới**: ghế
+  **đã ẩn** không chặn nữa, xoá hẳn theo cùng cơ sở. Ghế **đang chạy** vẫn chặn tuyệt đối — xoá cơ
+  sở còn ghế sống là cả loạt rơi khỏi màn nhập (vụ "cả loạt VHM biến mất" 12/09). Phải Đổi cơ sở
+  trước.
+- **Chỉ xoá danh mục, không xoá sổ**: dòng `coso` + dòng `bc_ma_misa` + ghế ẩn ở `may`. Báo cáo
+  (`bc`/`bc_dong`), thu, chốt, nộp nối bằng tên/`ma_may` nên còn nguyên — tổng tiền các tháng đã
+  chốt **không đổi**. Xuất MISA cho một tháng cơ sở này còn doanh thu **vẫn ra dòng của nó**: đó là
+  tiền thật, phải ra. Xoá xong nó chỉ hết nằm trong danh mục.
+- Nút 🗑 nay **xem trước rồi mới hỏi**: hộp hỏi kể đúng ghế ẩn sẽ mất, số báo cáo cũ giữ nguyên, và
+  dặn **đừng tạo lại cơ sở trùng tên** (báo cáo cũ sẽ ghép lại vào nó qua `squash(tên)`). Câu cũ
+  *"ghế thành chưa gán, KHÔNG bị xoá"* đã sai từ 12/09 — gỡ.
+- **Báo cáo tổng**: cơ sở đã bấm 🚪 đóng cửa mà kỳ này **không có đồng nào** → không in dòng 0đ.
+  Đóng cửa mà kỳ này **có tiền** (thu nốt trước khi dọn) → **vẫn hiện**. Chốt là "có tiền trong
+  khoảng", không phải cờ đóng cửa — không bảng nào được giấu tiền thật.
+
+`xoa_coso()` cũ giữ lại cho wp-admin và cho `gop_coso()` (gộp cơ sở), không đụng.
+
+Bài kiểm `tools/test/kiem-xoa-han-coso.php` (17 phép) — bốc thẳng hàm ra chạy rồi soi **câu DELETE
+nào được bắn và câu nào KHÔNG được bắn**; dò chuỗi không nói được "có chạm sổ không".
 
 ### v2.128.0 — "Ai đang cầm tiền": bấm vào tên là bung từng ngày, tích ngày nào chốt ngày ấy
 

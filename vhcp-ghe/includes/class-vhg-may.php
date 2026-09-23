@@ -232,6 +232,81 @@ class VHG_May {
 	}
 
 	/**
+	 * XOÁ HẲN MỘT CƠ SỞ (ĐIỂM) — anh Thắng 23/09/2026: *"một số cơ sở đã ẩn, nhưng khi xuất misa
+	 * vẫn nhảy vào, nên anh cần xoá hẳn điểm đó luôn"*, kèm ảnh: ghế 80107 · CGV-PLZ-01 · CGV PEAR
+	 * PLAZA · "đã ẩn".
+	 *
+	 * 🔴 VÌ SAO NÚT 🗑 CŨ KHÔNG XOÁ ĐƯỢC. `xoa_coso()` đếm `COUNT(*) WHERE coso_id=%d` — đếm cả ghế
+	 *    ĐÃ ẨN. CGV PEAR PLAZA còn đúng một ghế ẩn (80107) nên bị chối "còn 1 ghế", mà ghế ấy thì
+	 *    từ 2.115.0 không ẩn/xoá mềm được nữa, và xoá hẳn ghế lại nằm ở màn khác. Anh đi vòng ba
+	 *    màn không ra: cơ sở "đã ẩn" mà vẫn nằm trong danh mục, nên Báo cáo tổng vẫn in nó thành
+	 *    một dòng 0đ — đúng cái "vẫn nhảy vào".
+	 *
+	 * 🔴 NỚI ĐÚNG MỘT BẬC, Y NHƯ `xoa_han_may()` ĐÃ NỚI: ghế ĐÃ ẨN không chặn nữa — xoá hẳn luôn
+	 *    cùng cơ sở. Ghế ĐANG CHẠY (không ẩn) vẫn chặn tuyệt đối: xoá cơ sở còn ghế sống là cả loạt
+	 *    ghế rơi khỏi màn nhập (đúng vụ "cả loạt VHM biến mất" 12/09). Phải "Đổi cơ sở" trước.
+	 *
+	 * 🔴 CHỈ XOÁ DANH MỤC, KHÔNG XOÁ SỔ. Dòng `coso` + dòng `bc_ma_misa` + các ghế ẩn của nó ở
+	 *    `may`. Báo cáo (`bc`/`bc_dong`), thu, chốt, nộp… nối bằng TÊN/`ma_may` chứ không bằng id,
+	 *    nên còn nguyên: tổng tiền các tháng đã chốt KHÔNG đổi. Xuất MISA cho một tháng cơ sở này
+	 *    còn doanh thu vẫn ra dòng của nó — đó là tiền thật, phải ra. Xoá xong thì nó chỉ hết
+	 *    nằm trong danh mục: hết dòng 0đ ở Báo cáo tổng, hết chỗ để gán ghế mới vào.
+	 * ⚠️ HỆ QUẢ PHẢI BIẾT: tạo lại cơ sở TRÙNG TÊN là báo cáo cũ ghép lại vào nó (ghép qua
+	 *    squash(tên)). Đừng dùng lại tên đã xoá cho một điểm khác.
+	 *
+	 * `$that=false` = XEM TRƯỚC: kể ghế sống / ghế ẩn / số báo cáo còn trong sổ, chưa đụng gì.
+	 */
+	public static function xoa_han_coso( $id, $that = false ) {
+		global $wpdb;
+		$id = (int) $id;
+		if ( $id <= 0 ) { return array( 'ok' => false, 'error' => 'Thiếu cơ sở.' ); }
+		$t_cs = VHG_DB::t( 'coso' ); $t_may = VHG_DB::t( 'may' );
+		$cs = $wpdb->get_row( $wpdb->prepare( "SELECT id, ten, dong_cua FROM $t_cs WHERE id=%d", $id ), ARRAY_A );
+		if ( ! $cs ) { return array( 'ok' => false, 'error' => 'Không thấy cơ sở.' ); }
+		$ten = (string) $cs['ten'];
+
+		$ghe = $wpdb->get_results( $wpdb->prepare( "SELECT ma, an FROM $t_may WHERE coso_id=%d ORDER BY ma", $id ), ARRAY_A );
+		$song = array(); $an = array();
+		foreach ( (array) $ghe as $g ) { if ( empty( $g['an'] ) ) { $song[] = (string) $g['ma']; } else { $an[] = (string) $g['ma']; } }
+
+		/* Sổ còn gì nói về cơ sở này — chỉ để NGƯỜI đọc trước khi bấm, không phải chốt chặn. */
+		$key = VHG_BaoCao::squash( $ten );
+		$so_bc = (int) $wpdb->get_var( $wpdb->prepare(
+			'SELECT COUNT(*) FROM ' . VHG_DB::t( 'bc' ) . ' WHERE coso_key=%s', $key ) );
+		$tien_bc = (int) $wpdb->get_var( $wpdb->prepare(
+			'SELECT COALESCE(SUM(d.tong),0) FROM ' . VHG_DB::t( 'bc_dong' ) . ' d JOIN ' . VHG_DB::t( 'bc' )
+			. ' h ON h.report_id=d.report_id WHERE h.coso_key=%s', $key ) );
+		$co_misa = (int) $wpdb->get_var( $wpdb->prepare(
+			'SELECT COUNT(*) FROM ' . VHG_DB::t( 'bc_ma_misa' ) . ' WHERE coso_key=%s', $key ) );
+
+		if ( count( $song ) ) {
+			return array( 'ok' => false, 'xem_truoc' => ! $that, 'coso' => $ten, 'ghe_song' => $song, 'ghe_an' => $an,
+				'error' => 'Cơ sở còn ' . count( $song ) . ' ghế ĐANG CHẠY (' . implode( ', ', array_slice( $song, 0, 8 ) )
+					. ( count( $song ) > 8 ? '…' : '' ) . ') — KHÔNG xoá được. Ghế ẩn thì xoá theo được, ghế đang chạy thì '
+					. 'phải "Đổi cơ sở" sang nơi khác trước, không thì cả loạt rơi khỏi màn nhập.' );
+		}
+
+		if ( ! $that ) {
+			return array( 'ok' => true, 'xem_truoc' => true, 'coso' => $ten, 'dong_cua' => (int) $cs['dong_cua'],
+				'ghe_song' => array(), 'ghe_an' => $an, 'so_bao_cao' => $so_bc, 'tien_bao_cao' => $tien_bc, 'co_misa' => $co_misa );
+		}
+
+		/* Ghế ẩn đi trước (chỉ dòng `may`, đúng luật của xoa_han_may: `an=1`), rồi tới danh mục. */
+		$da_ghe = 0;
+		foreach ( $an as $ma ) {
+			$da_ghe += (int) $wpdb->query( $wpdb->prepare( "DELETE FROM $t_may WHERE ma=%s AND coso_id=%d AND an=1", $ma, $id ) );
+		}
+		$wpdb->delete( VHG_DB::t( 'bc_ma_misa' ), array( 'coso_key' => $key ) );
+		$wpdb->delete( $t_cs, array( 'id' => $id ) );
+		self::quen_dem_reset_();
+		return array( 'ok' => true, 'da_xoa' => 1, 'coso' => $ten, 'da_xoa_ghe' => $da_ghe, 'so_bao_cao' => $so_bc,
+			'thong_bao' => '🗑 Đã xoá hẳn cơ sở "' . $ten . '"'
+				. ( $da_ghe ? ( ' cùng ' . $da_ghe . ' mã ghế ẩn' ) : '' ) . '.'
+				. ( $so_bc ? ( ' ' . $so_bc . ' báo cáo cũ (' . number_format( $tien_bc, 0, ',', '.' ) . 'đ) vẫn nằm trong sổ — '
+					. 'tổng tiền không đổi, xuất MISA tháng có doanh thu vẫn ra. ĐỪNG tạo lại cơ sở trùng tên.' ) : '' ) );
+	}
+
+	/**
 	 * LỊCH NỘP BÁO CÁO THEO TUẦN của một cơ sở — anh Thắng 29/08/2026: "Với mỗi cơ sở sẽ set
 	 * lịch nộp báo cáo theo tuần, từ đó theo lịch cơ sở nào chưa nộp báo cáo". `$thu` là mảng số
 	 * thứ ISO (1=Thứ Hai…7=Chủ Nhật) — rỗng nghĩa là cơ sở KHÔNG được kỳ vọng nộp ngày nào (tạm

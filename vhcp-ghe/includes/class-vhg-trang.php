@@ -1210,11 +1210,14 @@ JS;
 			}
 			self::tra( $r ); return;
 		}
+		/* Xoá cơ sở nay là XOÁ HẲN có xem trước — anh Thắng 23/09/2026: *"cần xoá hẳn điểm đó
+		   luôn"*. `that=0` chỉ kể ra sẽ mất gì; `that=1` mới xoá. Xem VHG_May::xoa_han_coso(). */
 		if ( 'coso_xoa' === $viec ) {
-			$r = VHG_May::xoa_coso( isset( $d['id'] ) ? (int) $d['id'] : 0 );
-			if ( ! empty( $r['ok'] ) ) {
+			$r = VHG_May::xoa_han_coso( isset( $d['id'] ) ? (int) $d['id'] : 0, ! empty( $d['that'] ) );
+			if ( ! empty( $r['ok'] ) && ! empty( $r['da_xoa'] ) ) {
 				VHG_Nhat_Ky::ghi( array( 'nguon' => 'he-thong', 'ghi_chu' =>
-					$ai['name'] . ' xoá địa điểm id=' . (int) ( isset( $d['id'] ) ? $d['id'] : 0 ) ) );
+					$ai['name'] . ' XOÁ HẲN địa điểm "' . ( isset( $r['coso'] ) ? $r['coso'] : '' ) . '" (id=' . (int) ( isset( $d['id'] ) ? $d['id'] : 0 )
+					. ', ' . (int) ( isset( $r['da_xoa_ghe'] ) ? $r['da_xoa_ghe'] : 0 ) . ' ghế ẩn xoá theo)' ) );
 			}
 			self::tra( $r ); return;
 		}
@@ -11006,7 +11009,9 @@ function veQuanLy(){
             ? L('Mở lại cơ sở này','Reopen this site')
             : L('Đánh dấu ĐÃ ĐÓNG CỬA — ẩn khỏi danh sách, không xoá gì','Mark as CLOSED — hide from the list, nothing is deleted')) + '"'
         + (Number(c.dong_cua) ? ' class="on"' : '') + '>🚪</button> '
-      + '<button data-csxoa="' + c.id + '" data-csnhan="' + esc(c.ten) + '">🗑</button></td></tr>';
+      + '<button data-csxoa="' + c.id + '" data-csnhan="' + esc(c.ten) + '"'
+        + ' title="' + L('XOÁ HẲN cơ sở (xem trước rồi mới hỏi). Ghế đã ẩn xoá theo; ghế đang chạy thì phải Đổi cơ sở trước. Báo cáo cũ giữ nguyên.',
+                         'Permanently delete this site (preview first).') + '">🗑</button></td></tr>';
     /* 🔴 ĐÓNG CỬA XÉT TRƯỚC "rỗng ghế". Một cơ sở đã đóng thường cũng hết ghế; xét ngược thì nó
        rơi vào khối "chưa có ghế" và anh lại thấy nó y như một cơ sở mới chưa gán — đúng cái đang
        muốn dẹp. Đóng cửa là trạng thái NGƯỜI đặt, nó thắng suy đoán từ số ghế. */
@@ -12653,16 +12658,28 @@ function noi(){
   });
   [].forEach.call(document.querySelectorAll('[data-csxoa]'), function(b){
     b.onclick = function(){
-      var nhan = b.getAttribute('data-csnhan');
-      if (!confirm(L('Xoá địa điểm "' + nhan + '"?\nGhế của địa điểm này thành "chưa gán", KHÔNG bị xoá.',
-        'Delete site "' + nhan + '"?\nIts chairs become "unassigned" — they are NOT deleted.'))) return;
-      /* Xoá cơ sở đang lọc: ô lọc về "Tất cả". Ghế của nó thành "chưa gán" chứ không mất, nên
-         để ô lọc trỏ vào cái tên vừa xoá là bày ra một bảng trống và một nút Thêm ghế vô nghĩa.
-         Ở đây đặt thẳng, không cần ý định: máy chủ có chối thì cùng lắm mất bộ lọc — bảng hiện
-         đủ ghế, không gán nhầm cái gì. */
-      if (QL_LOC === nhan){ QL_LOC = ''; QL_PG = 0; QL_SEL = {}; }
-      if (CS_MO === nhan) CS_MO = '';   // cơ sở mất thì khối của nó cũng không còn chỗ mà mở
-      lam('coso_xoa', { id: b.getAttribute('data-csxoa') });
+      var nhan = b.getAttribute('data-csnhan'), id = b.getAttribute('data-csxoa');
+      /* 🔴 XEM TRƯỚC RỒI MỚI HỎI — anh Thắng 23/09/2026: *"cần xoá hẳn điểm đó luôn"*. Hộp hỏi
+         cũ nói "ghế thành chưa gán, KHÔNG bị xoá" — câu ấy đã SAI từ 12/09 (máy chủ chối khi còn
+         ghế), và nay càng sai: ghế ẩn XOÁ THEO cơ sở. Hộp hỏi phải kể đúng thứ sắp mất, lấy từ
+         máy chủ, không tự đoán. */
+      if (ban) return;
+      goi('coso_xoa', { id: id, that: 0 }, function(r){
+        if (!r || !r.ok) { alert((r && r.error) || L('Không xoá được.','Cannot delete.')); return; }
+        var an = (r.ghe_an || []);
+        var msg = L('XOÁ HẲN địa điểm "' + nhan + '"?\n\n', 'PERMANENTLY delete site "' + nhan + '"?\n\n')
+          + (an.length ? L('• ' + an.length + ' mã ghế ĐÃ ẨN xoá theo: ' + an.slice(0,10).join(', ') + (an.length>10?'…':'') + '\n',
+                           '• ' + an.length + ' hidden chair code(s) deleted with it\n') : L('• Không còn ghế nào.\n','• No chairs left.\n'))
+          + (r.so_bao_cao ? L('• ' + r.so_bao_cao + ' báo cáo cũ (' + ktVnd(r.tien_bao_cao||0) + 'đ) GIỮ NGUYÊN trong sổ — tổng tiền không đổi.\n',
+                              '• ' + r.so_bao_cao + ' old reports stay in the books.\n') : '')
+          + (r.co_misa ? L('• Dòng Unit ID MISA của nó xoá theo.\n','• Its MISA Unit ID row is removed.\n') : '')
+          + L('\nKhông có hoàn tác. ĐỪNG tạo lại cơ sở trùng tên — báo cáo cũ sẽ ghép lại vào nó.',
+              '\nNo undo. Do NOT recreate a site with the same name.');
+        if (!confirm(msg)) return;
+        if (QL_LOC === nhan){ QL_LOC = ''; QL_PG = 0; QL_SEL = {}; }
+        if (CS_MO === nhan) CS_MO = '';   // cơ sở mất thì khối của nó cũng không còn chỗ mà mở
+        lam('coso_xoa', { id: id, that: 1 });
+      });
     };
   });
   /* Nút "Thêm ghế" nay nằm trong khối xổ ra -> gán ở qlKhoiWire(), không gán ở đây. */

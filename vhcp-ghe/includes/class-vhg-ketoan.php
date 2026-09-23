@@ -2289,9 +2289,11 @@ class VHG_KeToan {
 		/* Danh mục CƠ SỞ và GHẾ lấy từ cấu hình, không từ dữ liệu — xem khối ⚠️ ở trên. */
 		$ma_kh = array();
 		$tinh  = array();
+		$dong  = array();   // cơ sở đã ĐÓNG CỬA — chỉ hiện khi kỳ này có tiền
 		foreach ( (array) VHG_May::ds_coso() as $c ) {
 			$ma_kh[ (string) $c['ten'] ] = (string) ( isset( $c['ma_kh'] ) ? $c['ma_kh'] : '' );
 			$tinh[ (string) $c['ten'] ]  = (string) ( isset( $c['tinh'] ) ? $c['tinh'] : '' );
+			if ( ! empty( $c['dong_cua'] ) ) { $dong[ (string) $c['ten'] ] = true; }
 		}
 		$ghe_cua = array();   // coso => [ ma => ten ]
 		$dem_ghe = array();
@@ -2336,7 +2338,25 @@ class VHG_KeToan {
 			}
 		}
 
-		$ds_cs = array_keys( $ma_kh );
+		/* 🔴 CƠ SỞ ĐÃ ĐÓNG CỬA KHÔNG IN DÒNG 0đ — anh Thắng 23/09/2026: *"một số cơ sở đã ẩn,
+		   nhưng khi xuất misa vẫn nhảy vào"*. Luật "cơ sở không thu được đồng nào vẫn nằm nguyên
+		   một dòng" là để soi cơ sở ĐANG MỞ mà không ra tiền; cơ sở anh đã bấm 🚪 đóng cửa thì
+		   không ra tiền là chuyện đương nhiên, in nó ra chỉ làm bảng dài thêm mấy chục dòng 0.
+		   ⚠️ Đóng cửa mà kỳ này CÓ tiền (thu nốt trước khi dọn, hay đóng giữa kỳ) thì VẪN HIỆN —
+		      đó là tiền thật, không bảng nào được giấu. Chốt là "có tiền trong khoảng" ($o), không
+		      phải cờ đóng cửa. */
+		$ds_cs = array();
+		foreach ( array_keys( $ma_kh ) as $cs ) {
+			if ( isset( $dong[ $cs ] ) ) {
+				$co_tien = false;
+				foreach ( $o as $k => $_ ) {
+					$kcs = ( 'coso' === $muc ) ? $k : substr( $k, 0, strpos( $k . '|', '|' ) );
+					if ( $kcs === $cs ) { $co_tien = true; break; }
+				}
+				if ( ! $co_tien ) { continue; }
+			}
+			$ds_cs[] = $cs;
+		}
 		foreach ( $o as $k => $_ ) {
 			$cs = ( 'coso' === $muc ) ? $k : substr( $k, 0, strpos( $k . '|', '|' ) );
 			if ( ! in_array( $cs, $ds_cs, true ) ) { $ds_cs[] = $cs; }

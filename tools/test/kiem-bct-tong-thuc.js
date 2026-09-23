@@ -51,7 +51,7 @@ t('vế tiền mặt lấy tien_mat khi tổng thực (không lấy `tong`)',
 t('cộng VietQR thực vào ô theo cơ sở + ngày', /if\s*\(\s*\$tong_thuc\s*\)\s*\{[\s\S]{0,400}\$vqd\['vq'\]/.test(b));
 t('chỉ cộng ngày nằm trong khoảng đang xem', /in_array\(\s*\$ng_vq\s*,\s*\$ds_ngay\s*,\s*true\s*\)/.test(b));
 t('cộng TRƯỚC khi dựng danh sách cơ sở (cơ sở chỉ có tiền bank vẫn ra dòng)',
-  b.indexOf("$vqd['vq']") > 0 && b.indexOf("$vqd['vq']") < b.indexOf('$ds_cs = array_keys'));
+  b.indexOf("$vqd['vq']") > 0 && b.indexOf("$vqd['vq']") < b.indexOf('$ds_cs = array'));   // khớp cả `array_keys(` cũ lẫn `array()` từ 2.129.0
 t('vietqr_thuc_() gọi ĐÚNG MỘT lần (không tính hai lượt)',
   (b.match(/self::vietqr_thuc_\(/g) || []).length === 1, (b.match(/self::vietqr_thuc_\(/g) || []).length);
 t('trả cờ tongThuc cho màn hình', /'tongThuc'\s*=>/.test(b));
