@@ -1736,14 +1736,18 @@
       </div>
     </div>
     <div class="card" id="luongBpCard">
-      <div class="ch"><h2>🧭 Luồng duyệt theo bộ phận</h2><div style="display:flex;gap:8px"><button class="btn b-g" onclick="saveCfgLuongBp()">💾 Lưu luồng</button></div></div>
+      <div class="ch"><h2>🧭 Luồng duyệt theo vai trò</h2><div style="display:flex;gap:8px"><button class="btn b-g" onclick="saveCfgLuongBp()">💾 Lưu luồng</button></div></div>
       <div style="padding:8px 14px 0;font-size:12px;color:#64748b">
-        Đơn do người của bộ phận ấy lập sẽ <b>đi luồng này</b> — hộp ＋ Tạo đơn mới <b>không hỏi nữa</b>,
-        chỉ nói đơn đi đường nào (tránh nhân viên chọn nhầm). Luồng được <b>đóng dấu vào đơn</b> ngay
-        lúc lập, nên sửa bảng này <b>không</b> làm đơn đang chạy dở đổi đường.<br>
+        <!-- 23/09/2026 — anh Thắng: *"tên vai trò tức là bộ phận"*, *"Đổi tên bộ phận sang tên vai trò
+             cho cùng tên"*. Mỗi VAI TỰ TẠO (bảng 🎭 ở trên) là một dòng ở đây; bảy tên bộ phận cũ thôi bày. -->
+        Mỗi <b>vai trò tự tạo</b> là một dòng (vai trò chính là bộ phận). Đơn do người mang vai ấy lập sẽ
+        <b>đi luồng này</b> — hộp ＋ Tạo đơn mới <b>không hỏi nữa</b>, chỉ nói đơn đi đường nào (tránh nhân viên
+        chọn nhầm). Luồng được <b>đóng dấu vào đơn</b> ngay lúc lập, nên sửa bảng này <b>không</b> làm đơn đang
+        chạy dở đổi đường.<br>
         Để trống = <b>theo khối như cũ</b> (Máy tự động · Văn phòng đi <b>Duyệt chi</b>, còn lại đi <b>Qua tạm ứng</b>).
+        Thêm vai mới ở bảng 🎭 Vai trò tự tạo rồi Lưu vai là dòng của nó mọc ra ở đây.
       </div>
-      <div class="tw"><table style="min-width:620px"><thead><tr><th style="width:260px">Bộ phận</th><th style="width:320px">Luồng duyệt mặc định</th></tr></thead><tbody id="cfgLuongBpBody"></tbody></table></div>
+      <div class="tw"><table style="min-width:620px"><thead><tr><th style="width:300px">Vai trò <span style="font-weight:400;color:#8c8781">(= bộ phận)</span></th><th style="width:320px">Luồng duyệt mặc định</th></tr></thead><tbody id="cfgLuongBpBody"></tbody></table></div>
     </div>
 
     <div class="card" id="vaiCard">
@@ -4430,8 +4434,8 @@
       ND_LUONG=khoa;
       var k=ND_LUONG_DS.filter(function(x){ return x.ma===khoa; })[0];
       box.innerHTML='<div style="padding:10px 12px;border:1px solid #e5e1da;border-radius:9px;background:#f8f6f2;line-height:1.5">'
-        +'🔒 <b>'+esc(k?k.ten:khoa)+'</b> <span style="font-size:11.5px;color:#64748b">— theo bộ phận của bạn đã khai, không chọn ở đây. '
-        +'Muốn đi đường khác, nhờ kế toán sửa ở ⚙️ Cấu hình › Luồng duyệt theo bộ phận.</span></div>';
+        +'🔒 <b>'+esc(k?k.ten:khoa)+'</b> <span style="font-size:11.5px;color:#64748b">— theo vai trò (bộ phận) của bạn, không chọn ở đây. '
+        +'Muốn đi đường khác, nhờ kế toán sửa ở ⚙️ Cấu hình › Luồng duyệt theo vai trò.</span></div>';
     } else box.innerHTML=ND_LUONG_DS.map(function(x){
       var on=(ND_LUONG===x.ma);
       return '<button type="button" class="btn '+(on?'b-p':'b-x')+'" onclick="ndChonLuong('
@@ -12745,8 +12749,8 @@
        quyền" thì mô tả nhóm ấy ("ai đăng nhập được, thấy gì, bấm được nút nào") thành nói dối:
        luồng duyệt không phải một thứ quyền, nó là ĐƯỜNG ĐI của đơn. Đặt ngay sau nhóm người vì
        nó tra bộ phận — mà bộ phận khai ở hàng Người dùng ngay trên. */
-    { ten:'🧭 Luồng duyệt theo bộ phận',  id:['luongBpCard'],
-      mo:'Bộ phận nào đi đường nào: qua tạm ứng · trực tiếp · duyệt chi. Đã chọn thì hộp Tạo đơn không hỏi nữa; để trống mới cho người lập chọn.' },
+    { ten:'🧭 Luồng duyệt theo vai trò',  id:['luongBpCard'],
+      mo:'Vai trò (= bộ phận) nào đi đường nào: qua tạm ứng · trực tiếp · duyệt chi. Đã chọn thì hộp Tạo đơn không hỏi nữa; để trống mới cho người lập chọn.' },
     { ten:'🧮 Danh mục chi phí & tài khoản', id:['loaiMxCard','tkCoCard','heTkCard'],
       mo:'Chi phí này là chi phí gì, và đi vào tài khoản nào khi xuất MISA.' },
     /* ⚠️ `qrCard` đã gộp vào `heTkCard` — nhóm này giờ chỉ còn mốc tuần. */
@@ -14974,9 +14978,19 @@
     if(el('luongBpCard')) el('luongBpCard').style.display=_laAdmin()?'':'none';
     if(!_laAdmin()) return;
     var mp=(CFG&&CFG.boPhanLuong)||(BOOT&&BOOT.boPhanLuong)||{};
-    el('cfgLuongBpBody').innerHTML=_bpDs().map(function(b){
-      var cur=String(mp[b]||'');
-      return '<tr><td><input value="'+esc(b)+'" readonly style="width:100%;background:#f4f1ec;cursor:default"></td>'
+    /* 🔴 DÒNG = VAI TỰ TẠO (23/09/2026). Anh Thắng: *"tên vai trò tức là bộ phận, nó chưa đang tạo
+       theo"* rồi *"Đổi tên bộ phận sang tên vai trò cho cùng tên"*. Trước đó bảng bày bảy tên bộ
+       phận cố định (Cơ sở · Văn phòng · Kỹ thuật…) — người thì mang vai "Nhân Viên Cơ Sở Khu Vui
+       Chơi", phải suy bộ phận qua chữ trong tên vai mới khớp được. Nay tên vai là tên bộ phận:
+       máy chủ `bo_phan_hang_nguoi()` tra thẳng tên vai của người trong bảng này.
+       ⚠️ Chưa có vai tự tạo nào → lui về danh sách bộ phận hiện có, không để bảng trắng. */
+    var vai=((CFG&&CFG.vaiTro)||[]).filter(function(x){ return x && String(x.ten||'').trim(); });
+    var hang=vai.length ? vai.map(function(x){ return {ten:String(x.ten).trim(), goc:String(x.goc||'')}; })
+                        : _bpDs().map(function(b){ return {ten:b, goc:''}; });
+    el('cfgLuongBpBody').innerHTML=hang.map(function(h){
+      var cur=String(mp[h.ten]||'');
+      return '<tr><td><input value="'+esc(h.ten)+'" readonly style="width:100%;background:#f4f1ec;cursor:default"'
+        +(h.goc?(' title="Kế thừa quyền của '+esc(h.goc)+'"'):'')+'></td>'
         +'<td><select style="width:100%">'+LUONG_BP_DS.map(function(o){
             return '<option value="'+esc(o[0])+'"'+(o[0]===cur?' selected':'')+'>'+esc(o[1])+'</option>'; }).join('')
         +'</select></td></tr>';
@@ -14986,8 +15000,8 @@
     var data=_readRows('cfgLuongBpBody').map(function(r){
       return { ten:String(r[0]||'').trim(), luong:String(r[1]||'').trim() };
     }).filter(function(x){ return x.ten; });
-    if(!data.length){ toast('warn','Chưa có bộ phận nào để khai'); return; }
-    _saveCfg({boPhanDs:data},'Đã lưu luồng duyệt theo bộ phận');
+    if(!data.length){ toast('warn','Chưa có vai trò nào để khai — thêm ở bảng 🎭 Vai trò tự tạo trước'); return; }
+    _saveCfg({boPhanDs:data},'Đã lưu luồng duyệt theo vai trò');
   }
   /* 🗂 `renderCfgBp()` · `addCfgBp()` · `saveCfgBp()` ĐÃ GỠ — 22/09/2026, cùng lượt với khối
      giao diện của chúng. Xem bia mộ ở chỗ `id="bpCard"` cũ.
@@ -15216,6 +15230,57 @@
     var d=_dvChuan(dv).toLowerCase();
     return (CFG.coso||[]).filter(function(x){ return _dvChuan(x.donVi).toLowerCase()===d; }).map(function(x){return x.ten;});
   }
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * HỘP CHỌN CƠ SỞ HAI CỘT — anh Thắng 23/09/2026: *"Tách ra 2 cột theo khối, chọn khối cha ra
+   * rồi con, chứ nó đang chung không chọn được"*. Danh mục nay gần trăm gian (POSH MN 67), một
+   * danh sách phẳng thì cuộn mỏi tay và tích nhầm.
+   * Nhóm cha = PHÂN LOẠI LỚN của cơ sở (KVC MN · MTĐ MN · POSH MN…) — đúng cách bảng Cơ sở đang
+   * gom. Cơ sở không có trong danh mục (lấy từ đơn) về nhóm "(Ngoài danh mục)".
+   * 🔴 MỌI Ô TÍCH CỦA MỌI NHÓM VẪN NẰM TRONG HỘP, chỉ ẩn/hiện — `_csDone()` đọc theo chỉ số
+   *    nên đổi nhóm không làm mất lựa chọn ở nhóm khác. "Chọn hết / Bỏ hết" chỉ áp cho dòng
+   *    ĐANG THẤY (nhóm đang chọn, hoặc kết quả tìm) — như cũ.
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  var CS_NHOM_LA='(Ngoài danh mục)';
+  function _csNhomCua(ten){
+    var x=null;
+    (CFG.coso||[]).forEach(function(c){ if(String(c.ten)===String(ten)) x=c; });
+    if(!x) return CS_NHOM_LA;
+    return String(x.phanLoaiLon||'').trim()||'(Chưa phân loại)';
+  }
+  /** Áp cả hai bộ lọc: nhóm đang chọn (`data-nhom` trên .csw, '*' = mọi nhóm) và ô tìm.
+      Đang gõ tìm thì tìm XUYÊN nhóm — người ta gõ tên là muốn thấy nó, không muốn đoán nó ở nhóm nào. */
+  function _csLoc(w){
+    var q=_bd((w.querySelector('.cs-tim')||{}).value||'').trim();
+    var nhom=String(w.getAttribute('data-nhom')||'*');
+    Array.prototype.forEach.call(w.querySelectorAll('.cs-list label'),function(l){
+      var okTim=(!q || String(l.getAttribute('data-tim')||'').indexOf(q)>=0);
+      var okNhom=(q || nhom==='*' || String(l.getAttribute('data-nhom')||'')===nhom);
+      l.style.display=(okTim&&okNhom)?'flex':'none';
+    });
+    Array.prototype.forEach.call(w.querySelectorAll('.cs-nh'),function(b){
+      var on=(!q && String(b.getAttribute('data-nhom'))===nhom);
+      b.style.background=on?'#eef2ff':''; b.style.fontWeight=on?'700':'400';
+    });
+  }
+  function _csNhom(btn){
+    var w=_csWrap(btn);
+    w.setAttribute('data-nhom', String(btn.getAttribute('data-nhom')||'*'));
+    var tim=w.querySelector('.cs-tim'); if(tim) tim.value='';
+    _csLoc(w);
+  }
+  /** Cập nhật "đã tích/tổng" trên từng nút nhóm. */
+  function _csDem(o){
+    var w=_csWrap(o), dem={}, tong={};
+    Array.prototype.forEach.call(w.querySelectorAll('.cs-list label'),function(l){
+      var g=String(l.getAttribute('data-nhom')||''), c=l.querySelector('input');
+      tong[g]=(tong[g]||0)+1; if(c&&c.checked) dem[g]=(dem[g]||0)+1;
+    });
+    var tatCa=0, tatTong=0; Object.keys(tong).forEach(function(g){ tatTong+=tong[g]; tatCa+=(dem[g]||0); });
+    Array.prototype.forEach.call(w.querySelectorAll('.cs-nh'),function(b){
+      var g=String(b.getAttribute('data-nhom')), d=b.querySelector('.cs-dem'); if(!d) return;
+      d.textContent=(g==='*')?(tatCa+'/'+tatTong):((dem[g]||0)+'/'+(tong[g]||0));
+    });
+  }
   function _cosoSel(v, dv){
     var sel=String(v||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
     var arr=(arguments.length>1)?_cosoTheoDv(dv):(CFG.coso||[]).map(function(x){return x.ten;});
@@ -15273,31 +15338,48 @@
      *    cảnh báo đúng.
      * ══════════════════════════════════════════════════════════════════════════════════════ */
     sel.forEach(function(s){ if(arr.indexOf(s)<0) arr.push(s); });
-    return '<div class="csw">'
+    /* Nhóm cha theo thứ tự xuất hiện trong danh mục; nhóm mở sẵn = nhóm của cơ sở ĐÃ TÍCH đầu
+       tiên (người ta mở hộp thường để sửa cái đang có), không có thì nhóm đầu. */
+    var nhomCua={}, nhomThu=[], demNhom={}, tongNhom={};
+    arr.forEach(function(c){ var g=_csNhomCua(c); nhomCua[c]=g; if(nhomThu.indexOf(g)<0) nhomThu.push(g); tongNhom[g]=(tongNhom[g]||0)+1; if(sel.indexOf(c)>=0) demNhom[g]=(demNhom[g]||0)+1; });
+    var nhomDau='*';
+    for(var k=0;k<arr.length;k++){ if(sel.indexOf(arr[k])>=0){ nhomDau=nhomCua[arr[k]]; break; } }
+    if(nhomDau==='*' && nhomThu.length) nhomDau=nhomThu[0];
+    var haiCot=(nhomThu.length>1);
+    if(!haiCot) nhomDau='*';
+    var nutNhom=function(g, nhan, dem, tong){
+      var on=(g===nhomDau);
+      return '<button type="button" class="cs-nh" data-nhom="'+esc(g)+'" onclick="_csNhom(this)" '
+        +'style="display:flex;justify-content:space-between;gap:6px;width:100%;text-align:left;border:0;border-bottom:1px solid #f4f1ec;background:'+(on?'#eef2ff':'')+';font-weight:'+(on?'700':'400')+';padding:6px 8px;font-size:12px;cursor:pointer">'
+        +'<span>'+esc(nhan)+'</span><span class="cs-dem" style="color:#8c8781;font-size:11px">'+dem+'/'+tong+'</span></button>';
+    };
+    return '<div class="csw" data-nhom="'+esc(nhomDau)+'">'
       + '<select multiple style="display:none">'+arr.map(function(c){return '<option value="'+esc(c)+'"'+(sel.indexOf(c)>=0?' selected':'')+'>'+esc(c)+'</option>';}).join('')+'</select>'
       + '<button type="button" class="btn b-x cs-btn" onclick="_csOpen(this)" style="width:100%;text-align:left;font-weight:400">'+esc(_csLabel(sel))+'</button>'
       + '<div class="cs-pop" style="display:none">'
-      +   '<div style="padding:6px 8px;border-bottom:1px solid #f0e9e1"><input type="text" class="cs-tim" placeholder="Gõ để lọc: tên gọi, tên MISA hay mã đơn vị" oninput="_csTim(this)" style="width:100%;font-size:12px;padding:5px 8px"></div>'
-      +   '<div style="display:flex;gap:6px;padding:6px 8px;border-bottom:1px solid #f0e9e1"><button type="button" class="btn b-x" onclick="_csAll(this,1)">Chọn hết</button><button type="button" class="btn b-x" onclick="_csAll(this,0)">Bỏ hết</button><button type="button" class="btn b-g" onclick="_csDone(this)">Xong</button></div>'
-      +   '<div class="cs-list">'+arr.map(function(c,i){
+      +   '<div style="padding:6px 8px;border-bottom:1px solid #f0e9e1"><input type="text" class="cs-tim" placeholder="Gõ để lọc (tìm xuyên nhóm): tên gọi, tên MISA hay mã đơn vị" oninput="_csTim(this)" style="width:100%;font-size:12px;padding:5px 8px"></div>'
+      +   '<div style="display:flex;gap:6px;padding:6px 8px;border-bottom:1px solid #f0e9e1"><button type="button" class="btn b-x" onclick="_csAll(this,1)">Chọn hết'+(haiCot?' nhóm':'')+'</button><button type="button" class="btn b-x" onclick="_csAll(this,0)">Bỏ hết'+(haiCot?' nhóm':'')+'</button><button type="button" class="btn b-g" onclick="_csDone(this)">Xong</button></div>'
+      +   '<div style="display:flex;max-height:300px">'
+      +     (haiCot ? ('<div class="cs-nhom" style="width:42%;min-width:150px;border-right:1px solid #f0e9e1;overflow:auto">'
+                + nutNhom('*','Tất cả nhóm', sel.filter(function(c){ return arr.indexOf(c)>=0; }).length, arr.length)
+                + nhomThu.map(function(g){ return nutNhom(g, g, demNhom[g]||0, tongNhom[g]||0); }).join('')
+                + '</div>') : '')
+      +     '<div class="cs-list" style="flex:1;overflow:auto">'+arr.map(function(c,i){
               // 🔴 TÊN THƯỜNG GỌI LÀ TÊN CHÍNH — anh Thắng chốt 25/08/2026. Tên theo MISA và mã
               //    đơn vị chỉ đứng sau, chữ nhỏ màu mờ: chúng có mặt để TÌM chứ không phải để
               //    đọc. Cho ba cái tên cùng cỡ chữ thì mắt không biết bám vào cái nào.
-              var ph=_csPhu(c);
-              return '<label data-tim="'+esc(_bd(_csNhan(c)))+'" style="display:flex;gap:8px;align-items:center;padding:4px 8px;font-size:12px;cursor:pointer"><input type="checkbox" data-i="'+i+'"'
+              var ph=_csPhu(c), g=nhomCua[c];
+              var an=(haiCot && nhomDau!=='*' && g!==nhomDau);
+              return '<label data-tim="'+esc(_bd(_csNhan(c)))+'" data-nhom="'+esc(g)+'" style="display:'+(an?'none':'flex')+';gap:8px;align-items:center;padding:4px 8px;font-size:12px;cursor:pointer"><input type="checkbox" data-i="'+i+'" onchange="_csDem(this)"'
                 +(sel.indexOf(c)>=0?' checked':'')
                 +'><span>'+esc(c)+(ph?(' <span style="color:#8c8781;font-size:11px">· '+esc(ph)+'</span>'):'')+'</span></label>';
             }).join('')+'</div>'
+      +   '</div>'
       + '</div></div>';
   }
   /** Lọc danh sách trong hộp chọn. Ô nào bị lọc đi vẫn còn nguyên checkbox — _csDone đọc theo
       chỉ số nên ẩn bớt KHÔNG làm mất lựa chọn đã tích của những ô đang không thấy. */
-  function _csTim(o){
-    var w=_csWrap(o), q=_bd(o.value).trim();
-    Array.prototype.forEach.call(w.querySelectorAll('.cs-list label'),function(l){
-      l.style.display=(!q || String(l.getAttribute('data-tim')||'').indexOf(q)>=0)?'flex':'none';
-    });
-  }
+  function _csTim(o){ _csLoc(_csWrap(o)); }
   function _csLabel(sel){
     if(!sel.length) return 'Tất cả cơ sở';
     if(sel.length===1) return sel[0];
@@ -15319,6 +15401,7 @@
       if(l.style.display==='none') return;
       var c=l.querySelector('input'); if(c) c.checked=!!on;
     });
+    _csDem(btn);
   }
   function _csDone(btn){
     var w=_csWrap(btn), sel=w.querySelector('select'), sels=[];

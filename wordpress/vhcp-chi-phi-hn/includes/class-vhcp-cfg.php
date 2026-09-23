@@ -320,6 +320,12 @@ class VHCPHN_Cfg {
 			if ( mb_strtolower( trim( (string) $u['ten'] ) ) === $k ) {
 				$bp = self::bo_phan_chuan( isset( $u['boPhan'] ) ? $u['boPhan'] : '' );
 				if ( '' !== $bp ) { return $bp; }
+				/* 🔴 TÊN VAI CHÍNH LÀ TÊN BỘ PHẬN (23/09/2026). Anh Thắng: *"tên vai trò tức là bộ
+				   phận"*, *"Đổi tên bộ phận sang tên vai trò cho cùng tên"*. Bảng Luồng duyệt nay
+				   mỗi vai tự tạo một dòng, nên tra THẲNG tên vai của người trong danh mục bộ phận
+				   trước; chỉ khi không có dòng ấy mới lui về đọc chữ trong tên vai (bảng còn tên cũ). */
+				$theo_vai = self::bo_phan_chuan( isset( $u['vaiTro'] ) ? $u['vaiTro'] : '' );
+				if ( '' !== $theo_vai ) { return $theo_vai; }
 				/* 🔴 Ô TRỐNG → SUY TỪ TÊN VAI, Y NHƯ MÀN. Anh Thắng 23/09/2026: *"đã phân luồng sao
 				   vẫn hỏi"* — chị Thảo mang vai "Nhân Viên Cơ Sở Khu Vui Chơi", cột Bộ phận để
 				   trống. Màn (`_bpCuaToi()`) đọc ra "Cơ sở" từ tên vai nên bày đúng màn của bộ
