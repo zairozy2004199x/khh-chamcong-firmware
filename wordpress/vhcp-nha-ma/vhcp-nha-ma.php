@@ -3,7 +3,7 @@
  * Plugin Name:       Nhà Ma · Bán vé theo khung giờ (Ghost Bride VIP)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé nhà ma theo KHUNG GIỜ, chạy thẳng trên host. Trang khách ở /ban-ve-nha-ma (chọn khung giờ, giữ chỗ, nhận mã QR VietQR để chuyển khoản), cổng nhận tiền tự động từ ngân hàng (SePay/Casso) tự duyệt thiệp, gửi mã vé + QR vé qua Zalo OA (nối bằng một nút, tự làm mới token), trang quản trị ở /ban-ve-nha-ma/#quanly (duyệt tiền, soát vé tại cửa, đối soát, sổ tiền về). Sổ vé nằm trong MySQL của chính website — không Google Sheet, không Firebase. ĐỘC LẬP với plugin bán vé khu vui chơi và plugin ghế.
- * Version:           1.6.0
+ * Version:           1.6.1
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -38,11 +38,18 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 if ( ! class_exists( 'NHAMA' ) ) :
 
+/* 🔴 SỐ BẢN KHAI BẰNG `define()`, KHÔNG PHẢI HẰNG TRONG LỚP — theo cùng quy ước với mọi plugin
+   khác của bộ, và để `tools/test/kiem-phien-ban.py` canh được nó khớp với dòng `Version:` ở
+   header. Bản trước khai `const VER` trong lớp: số vẫn đúng, nhưng bài kiểm không nhìn thấy,
+   nên ngày nào đó nâng header mà quên hằng là không ai biết — đúng bệnh chi phí 1.35/1.31.
+   `self::VER` trong lớp vẫn dùng được: nó trỏ về hằng này. */
+define( 'VHNM_VERSION', '1.6.1' );
+
 class NHAMA {
 
 	const NS   = 'nhama/v1';
 	const BANG = 'nhama_don';
-	const VER  = '1.6.0';
+	const VER  = VHNM_VERSION;
 
 	/** Trạng thái đơn — thứ tự này cũng là vòng đời. */
 	const TT = array(
