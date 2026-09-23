@@ -49,9 +49,9 @@ function bocMang(ten) { const i = HTML.indexOf('  var ' + ten + '='); return i <
 function bocDong(ten) { const i = HTML.indexOf('  var ' + ten + '='); return i < 0 ? '' : HTML.slice(i, HTML.indexOf('\n', i)); }
 
 const HAM = ['_bpTach', '_vaiTachLoai', '_tkNoCua', '_tkNoList', '_tapTkCo', '_mangCua', '_mangPham',
-  '_donNhieuCoSo', '_khoaNhom', '_khoiCuaLoai', '_locLoaiTheoKhoi', '_vaiDungDuocLoai', '_boDauVai', '_bpCuaVai', '_bpCuaToi',
+  '_donNhieuCoSo', '_khoaNhom', '_khoiCuaLoai', '_locLoaiTheoKhoi', '_loaiHopKhoi', '_vaiDungDuocLoai', '_boDauVai', '_bpCuaVai', '_bpCuaToi',
   '_khoiDvBang', '_khoiCuaDv', '_khoiCuaGian', '_gianHopKhoi', '_tenKhoi', '_loaiCpList', '_loaiCpVi'];
-const NEN = bocMang('KHOI_DS') + '\n' + bocDong('KHOI_DV_DUP') + '\n'
+const NEN = bocMang('KHOI_DS') + '\n' + bocDong('MIEN_MA') + '\n' + bocDong('KHOI_DV_DUP') + '\n'
   + bocMang('BP_THEO_TEN_VAI') + '\n' + HAM.map(bocHam).join('\n');
 t('⚠️ nền chạy thử dựng được', NEN.replace(/\s/g, '').length > 1500, NEN.length);
 HAM.forEach(function (h) { t('⚠️ bốc được `' + h + '`', bocHam(h).length > 20); });
@@ -100,7 +100,8 @@ t('⚠️ cơ sở chưa khai khối → KHÔNG dọa lệch khối', !/thuộc 
    bản gốc giữ nguyên. Nên phép này canh CÁI CỬA CÒN ĐÓ và còn HỎI CỜ, chứ không ghim nguyên
    văn một dòng `if` — ghim nguyên văn là đỏ vì lối viết đổi, không phải vì cửa mất. */
 t('🔴 `_loaiCpList` vẫn có cửa khối, và cửa ấy HỎI CỜ trước',
-  /_locLoaiTheoKhoi\(\) && _khoiCuaLoai\(x\)!==String\(KHOI_DANG\)\.toLowerCase\(\)/.test(bocHam('_loaiCpList')),
+  /* 23/09/2026: cửa khối đi qua `_loaiHopKhoi(x)` (chỉ so khi cùng trục) — xem kiem-loai-mien-o-tab-khoi-cu.js. */
+  /!_loaiHopKhoi\(x\)/.test(bocHam('_loaiCpList')) && /_locLoaiTheoKhoi\(\)/.test(bocHam('_loaiHopKhoi')),
   bocHam('_loaiCpList').slice(0, 200));
 t('🔴 cửa mảng ở cuối ĐÃ GỠ — ô mã trống thôi ẩn loại',
   !/return !!row\[mang\];/.test(bocHam('_loaiCpList')), 'cửa mảng còn nguyên');

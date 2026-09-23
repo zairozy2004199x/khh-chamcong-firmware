@@ -44,7 +44,7 @@ VHCP_Cfg::write( VHCP_Cfg::BP, array(
 	array( 'Văn phòng',   'dc' ),
 	array( 'Marketing',   'tt' ),
 	array( 'Máy tự động', ''   ),   // khai tên mà KHÔNG khai luồng
-	array( 'Cơ sở',       ''   ),
+	array( 'Cơ sở',       'gt' ),
 ), false );
 VHCP_Cfg::write( VHCP_Cfg::USER, array(
 	//     tên            pin    vai        cơ sở  tkCó  mãĐT  BỘ PHẬN
@@ -52,6 +52,10 @@ VHCP_Cfg::write( VHCP_Cfg::USER, array(
 	array( 'Anh Mkt',       '2', 'Nhân viên', '', '', '', 'Marketing' ),
 	array( 'Anh MTĐ',       '3', 'Nhân viên', '', '', '', 'Máy tự động' ),
 	array( 'Người Vô Danh', '4', 'Nhân viên', '', '', '', '' ),
+	/* 23/09/2026 — cảnh thật của chị Thảo: cột Bộ phận TRỐNG, vai nói rõ "Cơ Sở". */
+	array( 'Chị Thảo',      '5', 'Nhân Viên Cơ Sở Khu Vui Chơi', '', '', '', '' ),
+	/* Ô đã khai thì ô THẮNG tên vai — vai nói Kỹ thuật, ô nói Marketing → Marketing. */
+	array( 'Anh KT',        '6', 'Nhân Viên Kỹ Thuật Máy Tự Động', '', '', '', 'Marketing' ),
 ), false );
 VHCP_Cfg::clear_cache();
 
@@ -74,7 +78,7 @@ teq( '🔴 mã luồng LẠ trong danh mục → rỗng, không đẻ luồng th
 /* Trả bảng về như cũ cho các mục sau. */
 VHCP_Cfg::write( VHCP_Cfg::BP, array(
 	array( 'Văn phòng', 'dc' ), array( 'Marketing', 'tt' ),
-	array( 'Máy tự động', '' ), array( 'Cơ sở', '' ),
+	array( 'Máy tự động', '' ), array( 'Cơ sở', 'gt' ),
 ), false );
 VHCP_Cfg::clear_cache();
 
@@ -91,9 +95,75 @@ teq( '   người chưa khai bộ phận → rỗng',     '',          VHCP_Cfg:
 teq( '   tên không có trong bảng → rỗng',     '',          VHCP_Cfg::bo_phan_hang_nguoi( 'Ai Đó' ) );
 teq( '   rỗng → rỗng',                        '',          VHCP_Cfg::bo_phan_hang_nguoi( '' ) );
 
+/* ═══ 2b. 🔴 Ô TRỐNG → SUY TỪ TÊN VAI, Y NHƯ MÀN (23/09/2026) ═══════════════════════════
+ * Anh Thắng: *"đã phân luồng sao vẫn hỏi"* — chị Thảo mang vai "Nhân Viên Cơ Sở Khu Vui Chơi",
+ * cột Bộ phận trống. Màn (`_bpCuaToi`) đọc ra "Cơ sở", máy chủ chỉ đọc cột → `luongBo` rỗng →
+ * hộp Tạo đơn vẫn bày ba nút dù bảng đã khai Cơ sở → Qua tạm ứng. Hai bên phải cùng câu trả lời.
+ * ⚠️ Không phải trục "bộ phận của VAI" đã bỏ (cột riêng trên bảng Vai): đây là đọc CHỮ trong tên
+ *    vai, và CHỈ khi ô người dùng trống. */
+teq( '🔴 cột trống + vai "Nhân Viên Cơ Sở Khu Vui Chơi" → Cơ sở', 'Cơ sở', VHCP_Cfg::bo_phan_hang_nguoi( 'Chị Thảo' ) );
+teq( '🔴 ô đã khai THẮNG tên vai (vai Kỹ thuật, ô Marketing → Marketing)', 'Marketing', VHCP_Cfg::bo_phan_hang_nguoi( 'Anh KT' ) );
+teq( '   vai "Nhân viên" trần (không nói mảng) → vẫn rỗng', '', VHCP_Cfg::bo_phan_hang_nguoi( 'Người Vô Danh' ) );
+teq( '   `bo_phan_tu_ten_vai`: không phân biệt hoa/dấu', 'Văn phòng', VHCP_Cfg::bo_phan_tu_ten_vai( 'NHÂN VIÊN VĂN PHÒNG CHUNG' ) );
+/* Danh mục bệ đỡ không có "Kỹ thuật" → suy ra được chữ nhưng `bo_phan_chuan` chối — đúng luật. */
+teq( '   suy ra "Kỹ thuật" mà danh mục không có → rỗng', '', VHCP_Cfg::bo_phan_tu_ten_vai( 'NHÂN VIÊN KỸ THUẬT MÁY TỰ ĐỘNG' ) );
+teq( '   không dấu cũng nhận', 'Cơ sở', VHCP_Cfg::bo_phan_tu_ten_vai( 'nhan vien co so' ) );
+teq( '   "Kế toán cá nhân" → rỗng', '', VHCP_Cfg::bo_phan_tu_ten_vai( 'Kế toán cá nhân' ) );
+teq( '   "Quản Lý VP Chung" → rỗng (chữ "VP" không phải "văn phòng", như màn)', '', VHCP_Cfg::bo_phan_tu_ten_vai( 'Quản Lý VP Chung' ) );
+teq( '   chỉ nhận trọn từ: "co so" nằm trong "co sohuu" thì không', '', VHCP_Cfg::bo_phan_tu_ten_vai( 'nhan vien co sohuu' ) );
+teq( '   rỗng → rỗng', '', VHCP_Cfg::bo_phan_tu_ten_vai( '' ) );
+/* Bộ phận suy ra mà KHÔNG có trong danh mục → rỗng (đi qua `bo_phan_chuan`). */
+VHCP_Cfg::write( VHCP_Cfg::BP, array( array( 'Văn phòng', 'dc' ) ), false );
+VHCP_Cfg::clear_cache();
+teq( '🔴 suy ra "Cơ sở" nhưng danh mục không có → rỗng, không nhận bừa', '', VHCP_Cfg::bo_phan_tu_ten_vai( 'Nhân Viên Cơ Sở Khu Vui Chơi' ) );
+VHCP_Cfg::write( VHCP_Cfg::BP, array(
+	array( 'Văn phòng', 'dc' ), array( 'Marketing', 'tt' ),
+	array( 'Máy tự động', '' ), array( 'Cơ sở', 'gt' ),
+), false );
+VHCP_Cfg::clear_cache();
+
+/* ═══ 2c. 🔴 TÊN VAI CHÍNH LÀ TÊN BỘ PHẬN (23/09/2026) ═════════════════════════════════
+ * Anh Thắng: *"tên vai trò tức là bộ phận"*, *"Đổi tên bộ phận sang tên vai trò cho cùng tên"*.
+ * Bảng Luồng nay mỗi vai tự tạo một dòng → danh mục bộ phận chứa TÊN VAI. Máy chủ tra thẳng tên
+ * vai của người; ô khai tay vẫn thắng; chữ trong tên vai chỉ là đường lui khi bảng còn tên cũ. */
+VHCP_Cfg::write( VHCP_Cfg::BP, array(
+	array( 'Nhân Viên Cơ Sở Khu Vui Chơi', 'gt' ),
+	array( 'Nhân Viên Kỹ Thuật Máy Tự Động', 'dc' ),
+	array( 'Kế Toán VP Chung', 'tt' ),
+	array( 'Marketing', 'tt' ),        // tên bộ phận cũ còn sót — ô khai tay của Anh KT trỏ vào đây
+), false );
+VHCP_Cfg::clear_cache();
+teq( '🔴 vai "Nhân Viên Cơ Sở Khu Vui Chơi" là một dòng bộ phận → tra thẳng, không cần suy chữ',
+	'Nhân Viên Cơ Sở Khu Vui Chơi', VHCP_Cfg::bo_phan_hang_nguoi( 'Chị Thảo' ) );
+teq( '🔴 → luồng mặc định = luồng của dòng vai ấy', 'gt', VHCP_Don::luong_mac_dinh( 'Chị Thảo' ) );
+teq( '🔴 ô khai tay VẪN THẮNG tên vai (Anh KT: ô Marketing, vai Kỹ thuật MTĐ có dòng riêng "dc")',
+	'Marketing', VHCP_Cfg::bo_phan_hang_nguoi( 'Anh KT' ) );
+teq( '   → luồng theo ô khai (tt), không theo dòng vai (dc)', 'tt', VHCP_Don::luong_mac_dinh( 'Anh KT' ) );
+/* Người có vai gốc trần ("Nhân viên") và ô trống → không dòng nào → rỗng → hộp vẫn hỏi. */
+teq( '   vai gốc trần, ô trống → rỗng (hộp Tạo đơn vẫn hỏi ba nút)', '', VHCP_Don::luong_mac_dinh( 'Người Vô Danh' ) );
+/* Không phân biệt hoa thường giữa tên vai và dòng bảng. */
+VHCP_Cfg::write( VHCP_Cfg::USER, array( array( 'Chị Thảo 2', '7', 'NHÂN VIÊN CƠ SỞ KHU VUI CHƠI', '', '', '', '' ) ), false );
+VHCP_Cfg::clear_cache();
+teq( '   tên vai viết HOA vẫn khớp dòng bảng', 'Nhân Viên Cơ Sở Khu Vui Chơi', VHCP_Cfg::bo_phan_hang_nguoi( 'Chị Thảo 2' ) );
+/* Trả bệ đỡ về như cũ cho các mục sau. */
+VHCP_Cfg::write( VHCP_Cfg::BP, array(
+	array( 'Văn phòng', 'dc' ), array( 'Marketing', 'tt' ),
+	array( 'Máy tự động', '' ), array( 'Cơ sở', 'gt' ),
+), false );
+VHCP_Cfg::write( VHCP_Cfg::USER, array(
+	array( 'Chị Văn Phòng', '1', 'Nhân viên', '', '', '', 'Văn phòng' ),
+	array( 'Anh Mkt',       '2', 'Nhân viên', '', '', '', 'Marketing' ),
+	array( 'Anh MTĐ',       '3', 'Nhân viên', '', '', '', 'Máy tự động' ),
+	array( 'Người Vô Danh', '4', 'Nhân viên', '', '', '', '' ),
+	array( 'Chị Thảo',      '5', 'Nhân Viên Cơ Sở Khu Vui Chơi', '', '', '', '' ),
+	array( 'Anh KT',        '6', 'Nhân Viên Kỹ Thuật Máy Tự Động', '', '', '', 'Marketing' ),
+), false );
+VHCP_Cfg::clear_cache();
+
 /* Ghép hai cái trên. */
 teq( '🔴 `luong_mac_dinh()` — người Văn phòng → "dc"', 'dc', VHCP_Don::luong_mac_dinh( 'Chị Văn Phòng' ) );
 teq( '   người Marketing → "tt"',                      'tt', VHCP_Don::luong_mac_dinh( 'Anh Mkt' ) );
+teq( '🔴 chị Thảo (cột trống, vai Cơ sở) → "gt" — đúng luồng bảng đã khai cho Cơ sở', 'gt', VHCP_Don::luong_mac_dinh( 'Chị Thảo' ) );
 teq( '🔴 bộ phận chưa khai luồng → rỗng (theo khối)',  '',   VHCP_Don::luong_mac_dinh( 'Anh MTĐ' ) );
 teq( '   người chưa khai bộ phận → rỗng',              '',   VHCP_Don::luong_mac_dinh( 'Người Vô Danh' ) );
 teq( '   tên lạ → rỗng, không nổ',                     '',   VHCP_Don::luong_mac_dinh( 'Ai Đó' ) );
@@ -132,7 +202,7 @@ teq( '⚠️ đơn vừa lập mang "dc"', 'dc', _luong_cua_don( $ma_cu ) );
 /* Đổi luồng của cả bộ phận sang trực tiếp. */
 VHCP_Cfg::write( VHCP_Cfg::BP, array(
 	array( 'Văn phòng', 'tt' ), array( 'Marketing', 'tt' ),
-	array( 'Máy tự động', '' ), array( 'Cơ sở', '' ),
+	array( 'Máy tự động', '' ), array( 'Cơ sở', 'gt' ),
 ), false );
 VHCP_Cfg::clear_cache();
 teq( '⚠️ danh mục đã đổi sang "tt"', 'tt', VHCP_Cfg::luong_cua_bo_phan( 'Văn phòng' ) );

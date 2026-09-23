@@ -305,7 +305,7 @@ t('⚠️ không nhớ luồng vào localStorage/sessionStorage',
   !/(local|session)Storage[^\n]*[Ll]uong/.test(HTML) && !/ND_LUONG[^\n]*Storage/.test(HTML));
 function veLuong(chon) {
   const NK = {};
-  new Function('moi', 'return function(){ with(moi){ ' + mang('ND_LUONG_DS') + '\n' + ham('veNdLuong') + '\n' +
+  new Function('moi', 'return function(){ with(moi){ ' + mang('ND_LUONG_DS') + '\n' + ham('_luongKhoa') + '\n' + ham('veNdLuong') + '\n' +
     ham('ndChonLuong') + '\n var ND_LUONG=' + JSON.stringify(chon) + '; veNdLuong(); } }')(
     { esc: function (x) { return String(x == null ? '' : x); },
       el: function (id) { return (NK[id] = NK[id] || { innerHTML: '', textContent: '' }); } })();

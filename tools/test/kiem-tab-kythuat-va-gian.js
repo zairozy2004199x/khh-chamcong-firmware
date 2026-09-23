@@ -227,7 +227,7 @@ function beLoai(opt) {
 /* ⚠️ `_khoiCuaLoai` + `KHOI_DANG` thêm 21/09/2026 — loại chi phí nay thuộc đúng một khối
      (anh Thắng: *"chia ra 3 bảng của 3 khối, để tránh dùng chung"*) và `_loaiCpList()` bỏ
      loại của khối khác. Thiếu trong bệ đỡ là bài kiểm nổ `ReferenceError`. */
-  const src = `${BP_THAT}\n${boc('_khoiCuaLoai')}\n${boc('_vaiTachLoai')}\n${boc('_locLoaiTheoKhoi')}\n${boc('_vaiDungDuocLoai')}\n${boc('_mangCua')}\n${boc('_donNhieuCoSo')}\n${boc('_mangPham')}
+  const src = `${BP_THAT}\n${bocVar('MIEN_MA')}\n${boc('_khoiCuaLoai')}\n${boc('_vaiTachLoai')}\n${boc('_locLoaiTheoKhoi')}\n${boc('_loaiHopKhoi')}\n${boc('_vaiDungDuocLoai')}\n${boc('_mangCua')}\n${boc('_donNhieuCoSo')}\n${boc('_mangPham')}
     ${boc('_tkNoList')}\n${boc('_tkNoCua')}\n${boc('_bpTach')}\n${boc('_khoaNhom')}
     ${boc('_loaiCpList')}
     return { nhieu: _donNhieuCoSo, ds: _loaiCpList, tkList: _tkNoList };`;
@@ -364,7 +364,7 @@ function beNewDon(daChonTuan, bp) {
      vào, vì đó chính là dòng phải chạy được: bỏ nó ra là đơn sau lặng lẽ mang luồng của lần
      lập trước. */
   const src = `${BP_THAT}\n${bangTen}\n${boc('_tenNhom')}\n${boc('_tenNhomBp')}\n${boc('_apTenNhom')}
-    ${bocVar('ND_LUONG')}\n${bocVar('ND_LUONG_DS')}\n${boc('veNdLuong')}\n${boc('_luongMoi')}
+    ${bocVar('ND_LUONG')}\n${bocVar('ND_LUONG_DS')}\n${boc('_luongKhoa')}\n${boc('veNdLuong')}\n${boc('_luongMoi')}
     ${boc('_tabDuoc')}\n${boc('_vaoDuocDuAn')}\n${boc('_hoiLoaiDon')}\n${boc('newDon')}
     newDon(C); return {hoi:null, luong:ND_LUONG};`;
   const ra = new Function('moi', 'C', `with(moi){ ${src} }`)(moi, daChonTuan);
@@ -385,8 +385,11 @@ t('   nhân viên cơ sở vốn chỉ có một loại: cũng không hỏi', ND
    hộp Tạo đơn mới phải mở ra ở đúng luồng ấy — gõ cứng 'gt' là phép này đỏ. */
 t('🔴 mở "Tạo đơn mới" → luồng mồi theo BỘ PHẬN của người lập, không gõ cứng',
   ND1.luong === 'dc', ND1.luong);
-t('   và hai nút luồng được VẼ RA thật, không phải một ô rỗng',
-  /Qua tạm ứng/.test(ND1.luongHtml || '') && /Trực tiếp/.test(ND1.luongHtml || ''), ND1.luongHtml);
+/* 23/09/2026: bộ phận ĐÃ CHỐT luồng ('dc') thì hộp KHÔNG bày ba nút nữa — anh Thắng *"Đã chọn
+   luồng duyệt thì ẩn đi, để tránh nhân viên nhầm"*. Chỉ nói đơn đi Duyệt chi. Xem
+   kiem-luong-khoa-theo-bo-phan.js. */
+t('   ô luồng được VẼ RA thật: nói đơn đi "Duyệt chi", KHÔNG bày nút chọn (bộ phận đã chốt)',
+  /Duyệt chi/.test(ND1.luongHtml || '') && !/<button/.test(ND1.luongHtml || '') && !/Trực tiếp/.test(ND1.luongHtml || ''), ND1.luongHtml);
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
  * 🔴 CẶP NÚT CHUYỂN ĐƠN ĐÃ GỠ — 22/09/2026, anh Thắng: *"Bỏ cái chi phí kỹ thuật đi"*.

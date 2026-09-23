@@ -35,7 +35,7 @@ class VHCPHN_DB {
 	 *    lúc duy nhất số này có việc để làm.
 	 * ⚠️ `kiem-so-do-bang.php` canh: đổi sơ đồ mà số này y nguyên là ĐỎ.
 	 * ══════════════════════════════════════════════════════════════════════════════════════ */
-	const SCHEMA_VERSION = '1.15.0';   // 1.9.0: bảng lenh_tu · 1.10.0: don.ngay_gui_qt · 1.11.0: da_line.tao_luc · 1.12.0: cột `mang` · 1.13.0: đổi tên `mang` → `khoi` · 1.14.0: chiphi.giai_doan · 1.15.0: don.luong
+	const SCHEMA_VERSION = '1.16.0';   // 1.9.0: bảng lenh_tu · 1.10.0: don.ngay_gui_qt · 1.11.0: da_line.tao_luc · 1.12.0: cột `mang` · 1.13.0: đổi tên `mang` → `khoi` · 1.14.0: chiphi.giai_doan · 1.15.0: don.luong · 1.16.0: don.ngay_gui (mốc gửi xin tạm ứng — màn Duyệt xếp theo người gửi)
 	const DATA_ROW       = 5;   // DA_DATA_ROW / BP_DATA_ROW của app cũ
 
 	/* ══════════════════════════════════════════════════════════════════════════════════════════
@@ -134,6 +134,7 @@ class VHCPHN_DB {
 			nguoi_qt VARCHAR(120) NOT NULL DEFAULT '',
 			ngay_qt DATETIME NULL,
 			ngay_gui_qt DATETIME NULL,
+			ngay_gui DATETIME NULL,
 			chenh_lech_qt DECIMAL(18,2) NOT NULL DEFAULT 0,
 			xu_ly VARCHAR(60) NOT NULL DEFAULT '',
 			so_tien_thuc_mua DECIMAL(18,2) NULL,

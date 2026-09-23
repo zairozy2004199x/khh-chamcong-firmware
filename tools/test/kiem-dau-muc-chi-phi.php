@@ -273,9 +273,12 @@ foreach ( array_keys( $BAN ) as $ban ) {
 	t( "🔴 $ban: màn HỎI CỜ lọc theo khối", '' !== $khoi, $khoi );
 	t( "🔴 $ban: thiếu cờ thì rơi về CÓ LỌC (so `===false`, không dùng `!`)",
 		false !== strpos( $khoi, 'BOOT.locLoaiTheoKhoi===false' ), $khoi );
+	/* 23/09/2026: cửa khối đi qua `_loaiHopKhoi(x)` (chỉ so khi cùng trục miền/khối cũ) — cờ được hỏi
+	   NGAY TRONG hàm ấy, và `_loaiCpList` cắt bằng nó. Ý phép không đổi: có hỏi cờ trước khi cắt. */
 	$ds_ham = than_ham( $h, '_loaiCpList' );
+	$hop_ham = than_ham( $h, '_loaiHopKhoi' );
 	t( "🔴 $ban: ô chọn loại chi phí HỎI CỜ trước khi cắt theo khối",
-		false !== strpos( $ds_ham, '_locLoaiTheoKhoi() && _khoiCuaLoai(x)' ), $ds_ham );
+		false !== strpos( $ds_ham, '!_loaiHopKhoi(x)' ) && false !== strpos( $hop_ham, 'if(!_locLoaiTheoKhoi()) return true;' ), $ds_ham . "\n---\n" . $hop_ham );
 
 	/* 🔴 CHIỀU NGƯỢC LẠI — ĐỪNG GỠ LẠM. Anh Thắng nói tiếp: *"Khối là để xác định tài khoản
 	   nợ"*. Tức khối THÔI làm cổng của DANH MỤC, nhưng VẪN là trục của TK NỢ: cùng một loại

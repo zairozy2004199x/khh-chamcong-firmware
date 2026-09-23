@@ -61,6 +61,8 @@ function esc(x) { return String(x == null ? '' : x); }
 
 function moiTruong(extra) {
   return new Function('CFG', 'BOOT', 'esc', '_csLabel', '_csPhu', '_csNhan', '_bd',
+    /* 23/09/2026: hộp chọn hai cột — `_cosoSel` tra nhóm cha qua `_csNhomCua` (hàm THẬT, bốc từ app.html). */
+    "var CS_NHOM_LA='(Ngoài danh mục)';\n" + bocHam('_csNhomCua') + '\n' +
     fnDvMe + '\n' + fnLaDvMe + '\n' + fnDvChuan + '\n' + fnTheoDv + '\n' + fnSel + '\n' + (extra || '') +
     '\nreturn { chuan:_dvChuan, theo:_cosoTheoDv, sel:_cosoSel };')(
     CFG, BOOT, esc,

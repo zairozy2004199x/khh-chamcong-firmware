@@ -43,7 +43,8 @@ const bocMang = (ten) => {
   const i = HTML.indexOf('  var ' + ten + '=');
   return i < 0 ? '' : HTML.slice(i, HTML.indexOf('];', i) + 2);
 };
-const NGUON = bocMang('BP_THEO_TEN_VAI') + '\n' + ['_khoiCuaLoai', '_vaiTachLoai', '_locLoaiTheoKhoi', '_vaiDungDuocLoai', '_mangCua', '_donNhieuCoSo',
+/* `MIEN_MA` + `_loaiHopKhoi` (23/09/2026): cửa khối của `_loaiCpList` chỉ so khi cùng trục miền/khối cũ. */
+const NGUON = bocMang('BP_THEO_TEN_VAI') + '\n' + bocMang('MIEN_MA') + '\n' + ['_khoiCuaLoai', '_vaiTachLoai', '_locLoaiTheoKhoi', '_loaiHopKhoi', '_vaiDungDuocLoai', '_mangCua', '_donNhieuCoSo',
   '_mangPham', '_tkNoList', '_tapTkCo', '_tkNoCua', '_khoaNhom', '_bpTach', '_boDauVai',
   '_bpCuaVai', '_bpCuaToi', '_loaiCpList'].map(boc).join('\n')
   + '\n return _loaiCpList;';

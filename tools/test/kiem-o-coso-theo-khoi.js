@@ -40,7 +40,7 @@ t('🔴 ô tách dòng sang cơ sở khác cũng lọc',
   /\(BOOT\.coso\|\|\[\]\)\.filter\(_gianHopKhoi\)/.test(HTML));
 
 /* ═══ 2. CHẠY THẬT ═════════════════════════════════════════════════════════════ */
-const NEN = [bocMang('KHOI_DS'), bocDong('KHOI_DV_DUP'), bocHam('_khoiDvBang'), bocHam('_khoiCuaDv'),
+const NEN = [bocMang('KHOI_DS'), bocDong('MIEN_MA'), bocDong('KHOI_DV_DUP'), bocHam('_khoiDvBang'), bocHam('_khoiCuaDv'),
   bocHam('_khoiCuaGian'), bocHam('_gianHopKhoi'), bocHam('_veLaiOCoSo')].join('\n');
 t('⚠️ nền chạy thử dựng được', NEN.replace(/\s/g, '').length > 500, NEN.length);
 

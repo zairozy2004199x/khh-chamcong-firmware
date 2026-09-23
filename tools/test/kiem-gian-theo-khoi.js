@@ -50,7 +50,8 @@ t('   và lấy từ bảng đã dựng sẵn ở cấu hình, không dựng l�
   /'cosoDv'\s*=>\s*\(\s*isset\(\s*\$s_all\['cosoDonVi'\]\s*\)/.test(PHP), 'không thấy');
 
 /* ═══ 2. CHẠY THẬT BỘ LỌC ═══════════════════════════════════════════════════════ */
-const NEN = bocMang('KHOI_DS') + '\n' + bocDong('KHOI_DV_DUP') + '\n' + bocHam('_khoiDvBang') + '\n'
+/* `MIEN_MA` (23/09/2026): `_gianHopKhoi` chỉ so khi cùng trục miền/khối cũ — thiếu bảng này là nổ ReferenceError. */
+const NEN = bocMang('KHOI_DS') + '\n' + bocDong('MIEN_MA') + '\n' + bocDong('KHOI_DV_DUP') + '\n' + bocHam('_khoiDvBang') + '\n'
   + bocHam('_khoiCuaDv') + '\n' + bocHam('_khoiCuaGian') + '\n' + bocHam('_gianHopKhoi');
 const BOOT = {
   khoiTheoDv: { kvc: ['KVC'], mtd: ['MTĐ', 'MTD', 'POSH'], vp: ['VP'] },

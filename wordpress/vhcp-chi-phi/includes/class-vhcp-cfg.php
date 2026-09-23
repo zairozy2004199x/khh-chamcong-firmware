@@ -330,7 +330,49 @@ class VHCP_Cfg {
 		if ( '' === $k ) { return ''; }
 		foreach ( self::get_users() as $u ) {
 			if ( mb_strtolower( trim( (string) $u['ten'] ) ) === $k ) {
-				return self::bo_phan_chuan( isset( $u['boPhan'] ) ? $u['boPhan'] : '' );
+				$bp = self::bo_phan_chuan( isset( $u['boPhan'] ) ? $u['boPhan'] : '' );
+				if ( '' !== $bp ) { return $bp; }
+				/* 🔴 TÊN VAI CHÍNH LÀ TÊN BỘ PHẬN (23/09/2026). Anh Thắng: *"tên vai trò tức là bộ
+				   phận"*, *"Đổi tên bộ phận sang tên vai trò cho cùng tên"*. Bảng Luồng duyệt nay
+				   mỗi vai tự tạo một dòng, nên tra THẲNG tên vai của người trong danh mục bộ phận
+				   trước; chỉ khi không có dòng ấy mới lui về đọc chữ trong tên vai (bảng còn tên cũ). */
+				$theo_vai = self::bo_phan_chuan( isset( $u['vaiTro'] ) ? $u['vaiTro'] : '' );
+				if ( '' !== $theo_vai ) { return $theo_vai; }
+				/* 🔴 Ô TRỐNG → SUY TỪ TÊN VAI, Y NHƯ MÀN. Anh Thắng 23/09/2026: *"đã phân luồng sao
+				   vẫn hỏi"* — chị Thảo mang vai "Nhân Viên Cơ Sở Khu Vui Chơi", cột Bộ phận để
+				   trống. Màn (`_bpCuaToi()`) đọc ra "Cơ sở" từ tên vai nên bày đúng màn của bộ
+				   phận ấy, còn máy chủ chỉ đọc cột → `luongBo` rỗng → hộp Tạo đơn vẫn bày ba nút
+				   dù bảng Luồng đã khai Cơ sở → Qua tạm ứng. Hai bên cùng một câu hỏi phải cùng
+				   một câu trả lời.
+				   ⚠️ ĐÂY KHÔNG PHẢI trục "bộ phận của VAI" đã bỏ 21/09 (cột khai riêng trên bảng
+				      Vai, xung đột với ô người dùng). Đây là đọc CHỮ trong tên vai, chỉ khi ô người
+				      dùng trống — ô ấy vẫn thắng khi có. */
+				return self::bo_phan_tu_ten_vai( isset( $u['vaiTro'] ) ? $u['vaiTro'] : '' );
+			}
+		}
+		return '';
+	}
+
+	/** Từ khoá (đã bỏ dấu) trong TÊN VAI nói lên bộ phận — song sinh `BP_THEO_TEN_VAI` bên màn. */
+	const BP_THEO_TEN_VAI = array(
+		'Kỹ thuật'  => array( 'ky thuat' ),
+		'Cơ sở'     => array( 'co so' ),
+		'Marketing' => array( 'marketing' ),
+		'Văn phòng' => array( 'van phong' ),
+	);
+
+	/**
+	 * Bộ phận đọc ra từ TÊN MỘT VAI — song sinh `_bpCuaVai()` bên màn. '' nếu tên không nói rõ
+	 * mảng nào ("Kế toán cá nhân", "Quản lý VP Chung" → "Văn phòng" chỉ khi có đủ chữ "van phong").
+	 * Đi qua `bo_phan_chuan()` để chỉ trả tên có trong danh mục Bộ phận.
+	 */
+	public static function bo_phan_tu_ten_vai( $ten_vai ) {
+		$t = trim( (string) preg_replace( '/\s+/u', ' ', self::bo_dau( $ten_vai ) ) );
+		if ( '' === $t ) { return ''; }
+		$t = ' ' . $t . ' ';
+		foreach ( self::BP_THEO_TEN_VAI as $bp => $tu ) {
+			foreach ( $tu as $x ) {
+				if ( false !== mb_strpos( $t, ' ' . $x . ' ' ) ) { return self::bo_phan_chuan( $bp ); }
 			}
 		}
 		return '';
@@ -3626,6 +3668,109 @@ class VHCP_Cfg {
 	 *  là đụng khoá nối của mọi đơn họ đã lập, nên việc ấy phải do người bấm nút quyết, từng
 	 *  trường hợp một.
 	 * ========================================================================================== */
+
+	/* ═════════════════════════════════════════════════════════════════════════════════════════
+	 * 📦 NHÂN BẢN CẤU HÌNH SANG BẢN KHÁC — anh Thắng 23/09/2026: *"nhân bản cho chi phí hà nội"*.
+	 *
+	 * Bản Hà Nội là một site WordPress riêng (bảng mang tiền tố của bản ấy), sinh ra từ `tach-ban-vung.sh` với
+	 * danh mục TRẮNG. Khai lại tay mấy chục loại chi phí, mã TK Nợ, luồng bộ phận ở bản kia là
+	 * mời hai bản lệch nhau từng chữ. Nên: bản có danh mục sẵn TẢI một gói .json, bản kia NHẬP.
+	 *
+	 * 🔴 GÓI CHỈ CHỞ DANH MỤC. Không người dùng (hàng ấy có PIN), không quyền, không SSO, không QR
+	 *    — đó là chuyện riêng của từng site. `goi_bang_ds()` là DANH SÁCH TRẮNG và là cổng duy
+	 *    nhất: bảng không có tên ở đó thì không xuất, và cũng không nhập kể cả khi gói gửi lên có.
+	 * 🔴 NHẬP LÀ GHI ĐÈ CẢ BẢNG → chỉ Admin, có nhật ký, và `write()` vẫn chụp `cfg_undo` cho
+	 *    bảng ghi cuối (↩ Hoàn tác như mọi lượt Lưu khác).
+	 * ⚠️ Cơ sở NẰM TRONG danh sách nhưng màn để mặc định KHÔNG tích: cơ sở là của từng miền,
+	 *    chép cơ sở Khu vui chơi sang Hà Nội là sai; vẫn cho chọn vì có lúc cần (dựng site thử).
+	 * ═════════════════════════════════════════════════════════════════════════════════════════ */
+	public static function goi_bang_ds() {
+		return array(
+			self::LOAI => 'Loại chi phí (đầu mục · vai · khối · TK)',
+			self::TKNO => 'Mã TK Nợ theo cơ sở / mảng',
+			self::BP   => 'Bộ phận & luồng duyệt',
+			self::NHOM => 'Nhóm chi phí',
+			self::MANG => 'Mảng kinh doanh → nhóm TK',
+			self::TK   => 'Hệ thống tài khoản',
+			self::PL   => 'Phân loại',
+			self::DT   => 'Đối tượng',
+			self::VAI  => 'Vai trò tự tạo',
+			self::COSO => 'Cơ sở & đơn vị',
+		);
+	}
+
+	/** Tải gói: mọi bảng trong danh sách trắng (hoặc đúng những bảng xin, nếu có tên trong danh sách). */
+	public static function xuat_goi_cau_hinh( $bangs = null ) {
+		$ds   = self::goi_bang_ds();
+		$chon = array_keys( $ds );
+		if ( is_array( $bangs ) && $bangs ) {
+			$xin  = array_map( 'strval', array_values( $bangs ) );
+			$chon = array_values( array_filter( $chon, function ( $b ) use ( $xin ) { return in_array( $b, $xin, true ); } ) );
+		}
+		$out = array();
+		foreach ( $chon as $b ) { $out[ $b ] = self::read( $b ); }
+		return array(
+			'success'  => true,
+			/* 🔴 DẤU NHẬN DẠNG KHÔNG ĐƯỢC BẮT ĐẦU BẰNG `vhcp`. `tach-ban-vung.sh` đổi mọi `vhcp` sang
+			   tiền tố riêng của từng bản vùng (thêm mã hn / mtd / vp vào sau); bản đầu đặt
+			   'vhcp-goi-cau-hinh' và bản Hà Nội hoá thành một chuỗi khác — gói tải từ Khu vui chơi
+			   bị chính bản Hà Nội chối là "không phải gói". Đúng cái tính năng sinh ra để làm thì
+			   hỏng. Cắn thật 23/09/2026; `kiem-nhan-ban-cau-hinh.php` canh dấu này ở cả bốn bản. */
+			'loai'     => 'goi-cau-hinh-van-hanh-chi-phi',
+			'phienBan' => defined( 'VHCP_VERSION' ) ? (string) VHCP_VERSION : '',
+			'khoi'     => VHCP_DB::KHOI,
+			'luc'      => VHCP_Util::now_sql(),
+			'nhan'     => $ds,
+			'bang'     => $out,
+		);
+	}
+
+	/**
+	 * Nhập gói: ghi đè ĐÚNG những bảng được tích (`$bangs`) và có trong gói và có trong danh sách trắng.
+	 * Trả về {bang: {tên: {truoc, sau}}} để màn nói rõ mỗi bảng đổi từ bao nhiêu dòng sang bao nhiêu.
+	 */
+	public static function nhap_goi_cau_hinh( $goi, $bangs ) {
+		if ( 'Admin' !== VHCP_Auth::vai_tro() ) {
+			return VHCP_Util::err( 'Chỉ Admin nhập được gói cấu hình — nhập là ghi đè cả bảng.' );
+		}
+		$goi = is_object( $goi ) ? (array) $goi : (array) $goi;
+		if ( ! isset( $goi['loai'] ) || 'goi-cau-hinh-van-hanh-chi-phi' !== (string) $goi['loai'] ) {
+			return VHCP_Util::err( 'Tệp không phải gói cấu hình của Vận Hành Chi Phí.' );
+		}
+		$bang = isset( $goi['bang'] ) ? ( is_object( $goi['bang'] ) ? (array) $goi['bang'] : $goi['bang'] ) : null;
+		if ( ! is_array( $bang ) || ! $bang ) { return VHCP_Util::err( 'Gói rỗng — không có bảng nào.' ); }
+		$ds   = self::goi_bang_ds();
+		$xin  = array_map( 'strval', array_values( (array) $bangs ) );
+		$chon = array();
+		foreach ( array_keys( $ds ) as $b ) {
+			if ( in_array( $b, $xin, true ) && array_key_exists( $b, $bang ) ) { $chon[] = $b; }
+		}
+		if ( ! $chon ) { return VHCP_Util::err( 'Chưa tích bảng nào có trong gói (hoặc bảng ấy không được phép nhân bản).' ); }
+		$kq = array();
+		foreach ( $chon as $b ) {
+			$rows = array();
+			foreach ( (array) $bang[ $b ] as $r ) {
+				/* Mỗi dòng là một mảng giá trị theo thứ tự cột — gói do `xuat_goi_cau_hinh()` sinh
+				   ra nên đúng dạng; dòng lạ (chuỗi, số) bỏ, không ném lỗi giữa chừng để bảng nửa
+				   cũ nửa mới. */
+				if ( is_object( $r ) ) { $r = (array) $r; }
+				if ( ! is_array( $r ) ) { continue; }
+				$rows[] = array_map( function ( $v ) { return is_scalar( $v ) || null === $v ? (string) $v : json_encode( $v, JSON_UNESCAPED_UNICODE ); }, array_values( $r ) );
+			}
+			$truoc = count( self::read( $b ) );
+			self::write( $b, $rows );
+			$kq[ $b ] = array( 'truoc' => $truoc, 'sau' => count( $rows ) );
+		}
+		self::clear_cache();
+		VHCP_Log::log_action( array(
+			'actor'  => (string) VHCP_Auth::nguoi(),
+			'action' => 'Nhập gói cấu hình',
+			'target' => implode( ', ', $chon ),
+			'detail' => 'từ bản ' . ( isset( $goi['khoi'] ) ? (string) $goi['khoi'] : '?' ) . ' ' . ( isset( $goi['phienBan'] ) ? (string) $goi['phienBan'] : '' )
+				. ' · ' . implode( ' · ', array_map( function ( $b ) use ( $kq ) { return $b . ' ' . $kq[ $b ]['truoc'] . '→' . $kq[ $b ]['sau']; }, $chon ) ),
+		) );
+		return VHCP_Util::ok( array( 'bang' => $kq ) );
+	}
 
 	/** Bỏ dấu tiếng Việt — CHỈ để so sánh, không bao giờ để lưu hay bày ra. */
 	public static function bo_dau( $s ) {
