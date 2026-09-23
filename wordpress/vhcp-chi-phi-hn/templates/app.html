@@ -2222,7 +2222,7 @@
     var bp=_bpCuaToi();
     var co={}, ds=[];
     (BOOT.loaiChiPhi||[]).forEach(function(x){
-      if(_locLoaiTheoKhoi() && _khoiCuaLoai(x)!==String(KHOI_DANG).toLowerCase()) return;   /* xem `_locLoaiTheoKhoi()` */
+      if(!_loaiHopKhoi(x)) return;   /* xem `_loaiHopKhoi()` — chỉ so khi cùng trục */
       if(!_vaiDungDuocLoai(x)) return;                                /* nt */
       var bds=_bpTach(x.boPhan);                       // loại chi phí thuộc được NHIỀU bộ phận
       /* Gom về nút nào ở "Chọn chi phí nào": ưu tiên chính bộ phận của người đang xem, để
@@ -10213,7 +10213,7 @@
          thì chia chẳng để làm gì: người Văn phòng vẫn chọn nhầm được loại của Khu vui chơi,
          và dòng chi ấy đi thẳng vào sổ mang mã tài khoản của khối khác. */
       /* 🔴 KHỐI THÔI LÀ CỔNG khi cờ tắt — xem chốt dài ở `_locLoaiTheoKhoi()`. */
-      if(_locLoaiTheoKhoi() && _khoiCuaLoai(x)!==String(KHOI_DANG).toLowerCase()) return false;
+      if(!_loaiHopKhoi(x)) return false;
       /* 🔴 VÀ LỌC THEO VAI TRÒ — anh Thắng 21/09/2026: *"bỏ tích bộ phận đi, mà tích theo vai
          trò"*. Máy chủ đã gác ở `VHCPHN_Auth::xem_duoc_loai()`, nhưng Ô CHỌN lúc nhập đơn dựng
          ngay ở màn từ `BOOT.loaiChiPhi`. Không lọc ở đây là người nhập chọn được một loại mà
@@ -10485,7 +10485,7 @@
     var bp=_bpCuaToi();
     var nKhoi=0, nVai=0, nRac=0, nNhom=0, nTt=0, tongKhoi=0;
     (BOOT.loaiChiPhi||[]).forEach(function(x){
-      if(_locLoaiTheoKhoi() && _khoiCuaLoai(x)!==String(KHOI_DANG).toLowerCase()){ nKhoi++; return; }
+      if(!_loaiHopKhoi(x)){ nKhoi++; return; }
       tongKhoi++;
       if(!_vaiDungDuocLoai(x)){ nVai++; return; }
       var bds=_bpTach(x.boPhan);
@@ -13288,6 +13288,18 @@
        như mã hỏng chứ không phải bệ đỡ thiếu. `typeof` thì chạy được cả hai nơi. */
     var b=(typeof BOOT!=='undefined' && BOOT) ? BOOT.khoiBan : '';
     return String(b||'kvc').toLowerCase();
+  }
+  /* LOẠI NÀY CÓ HỢP KHỐI ĐANG ĐỨNG KHÔNG — chỉ so khi CÙNG TRỤC (23/09/2026).
+     Anh Thắng (ảnh): NV cơ sở mở "Nhập hạng mục xin tạm ứng", ô Loại chi phí trống, trong khi
+     Cấu hình có "Chi phí cơ sở" tích đúng vai, khối Miền Nam. Cột Khối của LOẠI nay là MIỀN
+     (mb · mn), thanh đơn bản gốc đứng 'kvc' → so thẳng là cắt sạch. Cùng luật với
+     `_gianHopKhoi()` (ô Cơ sở) và `_khoiSuaDuoc()` (Cấu hình): khác trục thì không so; đứng ở
+     tab miền (người tích Bắc/Nam) mới lọc loại theo miền; cờ `locLoaiTheoKhoi` tắt thì hợp hết. */
+  function _loaiHopKhoi(x){
+    if(!_locLoaiTheoKhoi()) return true;
+    var k=_khoiCuaLoai(x), d=String(KHOI_DANG==null?'':KHOI_DANG).toLowerCase();
+    if(k===d) return true;
+    return (MIEN_MA.indexOf(k)>=0)!==(MIEN_MA.indexOf(d)>=0);
   }
   /* Mọi thân bảng loại chi phí (ba cái, mỗi khối một cái). Trả mảng, và mọi chỗ đọc/ghi bảng
      trên phải đi qua đây — bám vào một id duy nhất như trước là chỉ thấy bảng đầu. */

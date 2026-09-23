@@ -79,8 +79,10 @@ t("   và KHÔNG còn bám vào một id `cfgMxBody` duy nhất", !/el\('cfgMxBo
 
 /* ═══ 2. Ô CHỌN LÚC NHẬP ĐƠN LỌC THEO KHỐI ═══════════════════════════════════════
  * Chia ở Cấu hình mà ô chọn vẫn xổ đủ ba khối thì chia chẳng để làm gì. */
-t('🔴 `_loaiCpList()` bỏ loại của khối khác', /_khoiCuaLoai\(x\)!==String\(KHOI_DANG\)/.test(bocSach('_loaiCpList')), 'không thấy');
-t('   `_cacNhomCp()` cũng vậy', /_khoiCuaLoai\(x\)!==String\(KHOI_DANG\)/.test(bocSach('_cacNhomCp')), 'không thấy');
+/* 23/09/2026: cửa khối đi qua `_loaiHopKhoi(x)` — chỉ so khi CÙNG TRỤC (loại miền hiện ở tab khối cũ),
+   xem kiem-loai-mien-o-tab-khoi-cu.js. Phép này chỉ canh "vẫn CÓ cửa khối", không canh cách so. */
+t('🔴 `_loaiCpList()` bỏ loại của khối khác (qua `_loaiHopKhoi`)', /!_loaiHopKhoi\(x\)/.test(bocSach('_loaiCpList')), 'không thấy');
+t('   `_cacNhomCp()` cũng vậy', /!_loaiHopKhoi\(x\)/.test(bocSach('_cacNhomCp')), 'không thấy');
 /* 🔴 ĐỔI 21/09/2026 — anh Thắng: *"Chưa có TK nợ theo máy tự động"*, rồi *"mỗi khối 1 bảng
    mã tk riêng"*. Trước đây bảng mã lọc bằng `KHOI_DANG` — biến của THANH KHỐI bên màn Đơn
    chi phí. Trang Cấu hình không có thanh ấy, nên nó đứng im ở khối nhớ từ lần trước và

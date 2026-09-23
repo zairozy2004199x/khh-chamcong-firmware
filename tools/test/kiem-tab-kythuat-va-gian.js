@@ -227,7 +227,7 @@ function beLoai(opt) {
 /* ⚠️ `_khoiCuaLoai` + `KHOI_DANG` thêm 21/09/2026 — loại chi phí nay thuộc đúng một khối
      (anh Thắng: *"chia ra 3 bảng của 3 khối, để tránh dùng chung"*) và `_loaiCpList()` bỏ
      loại của khối khác. Thiếu trong bệ đỡ là bài kiểm nổ `ReferenceError`. */
-  const src = `${BP_THAT}\n${boc('_khoiCuaLoai')}\n${boc('_vaiTachLoai')}\n${boc('_locLoaiTheoKhoi')}\n${boc('_vaiDungDuocLoai')}\n${boc('_mangCua')}\n${boc('_donNhieuCoSo')}\n${boc('_mangPham')}
+  const src = `${BP_THAT}\n${bocVar('MIEN_MA')}\n${boc('_khoiCuaLoai')}\n${boc('_vaiTachLoai')}\n${boc('_locLoaiTheoKhoi')}\n${boc('_loaiHopKhoi')}\n${boc('_vaiDungDuocLoai')}\n${boc('_mangCua')}\n${boc('_donNhieuCoSo')}\n${boc('_mangPham')}
     ${boc('_tkNoList')}\n${boc('_tkNoCua')}\n${boc('_bpTach')}\n${boc('_khoaNhom')}
     ${boc('_loaiCpList')}
     return { nhieu: _donNhieuCoSo, ds: _loaiCpList, tkList: _tkNoList };`;
