@@ -328,6 +328,14 @@ $so0 = 0;
 foreach ( $q3['aoa'] as $k => $row ) { if ( $k && 'QR ngân hàng' === $row[ $iGc ] && 0 === (int) $row[ $iTien ] ) { $so0++; } }
 t( 'chia ra 0đ thì BỎ HẲN DÒNG (không viết dòng 0đ vào sổ)', 0 === $so0, $so0 );
 
+/* Anh Thắng 23/09/2026: *"đóng MISA vẫn xuất bình thường nếu có doanh thu chứ"*. Đúng — và phải
+   giữ mãi như vậy: hai hàm xuất chỉ đi từ dòng tiền, KHÔNG đọc cờ đóng cửa, KHÔNG join bảng coso
+   để lọc. Ai thêm một `WHERE dong_cua=0` vào đây là tiền của cơ sở vừa đóng biến khỏi sổ. */
+echo "── Đóng cửa mà có doanh thu → VẪN ra MISA ─────────────────────\n";
+t( '🔴 misa_chungtu() không đọc cờ dong_cua', false === strpos( $f_ct, 'dong_cua' ) );
+t( '🔴 baocao_ngay() không đọc cờ dong_cua', false === strpos( $f_bcn, 'dong_cua' ) );
+t( 'cả hai không join bảng coso để lọc (chỉ đi từ bc_dong ⋈ bc)', ! preg_match( "/VHG_DB::t\( 'coso' \)/", $f_ct . $f_bcn ) );
+
 echo "\n";
 if ( $TRUOT ) { echo '🔴 TRƯỢT: ' . count( $TRUOT ) . '/' . ( $DAT + count( $TRUOT ) ) . "\n"; exit( 1 ); }
 echo "✓ SẠCH — $DAT phép\n";
