@@ -1213,11 +1213,20 @@ JS;
 		/* Xoá cơ sở nay là XOÁ HẲN có xem trước — anh Thắng 23/09/2026: *"cần xoá hẳn điểm đó
 		   luôn"*. `that=0` chỉ kể ra sẽ mất gì; `that=1` mới xoá. Xem VHG_May::xoa_han_coso(). */
 		if ( 'coso_xoa' === $viec ) {
-			$r = VHG_May::xoa_han_coso( isset( $d['id'] ) ? (int) $d['id'] : 0, ! empty( $d['that'] ) );
+			/* 🔴 CƯỠNG CHẾ CHỈ DÀNH CHO ADMIN THẬT — cùng chốt với may_xoa_han: nhánh này xoá cả ghế
+			   đang chạy nên kiểm lại ngay tại cổng, một chốt ở xa không đủ cho thao tác không hoàn
+			   tác được. Không phải admin thì hạ về đường thường (vẫn chối khi còn ghế sống). */
+			$cuong_che = ! empty( $d['cuong_che'] ) && VHG_Auth::la_quan_tri( $ai['role'] );
+			if ( ! empty( $d['cuong_che'] ) && ! $cuong_che && ! empty( $d['that'] ) ) {
+				self::tra( array( 'ok' => false, 'error' => 'Chỉ Quản trị mới xoá cưỡng chế cơ sở còn ghế đang chạy.' ) );
+				return;
+			}
+			$r = VHG_May::xoa_han_coso( isset( $d['id'] ) ? (int) $d['id'] : 0, ! empty( $d['that'] ), $cuong_che );
 			if ( ! empty( $r['ok'] ) && ! empty( $r['da_xoa'] ) ) {
 				VHG_Nhat_Ky::ghi( array( 'nguon' => 'he-thong', 'ghi_chu' =>
 					$ai['name'] . ' XOÁ HẲN địa điểm "' . ( isset( $r['coso'] ) ? $r['coso'] : '' ) . '" (id=' . (int) ( isset( $d['id'] ) ? $d['id'] : 0 )
-					. ', ' . (int) ( isset( $r['da_xoa_ghe'] ) ? $r['da_xoa_ghe'] : 0 ) . ' ghế ẩn xoá theo)' ) );
+					. ', ' . (int) ( isset( $r['da_xoa_ghe'] ) ? $r['da_xoa_ghe'] : 0 ) . ' ghế ẩn xoá theo'
+					. ( ! empty( $r['da_xoa_song'] ) ? ( ', CƯỠNG CHẾ ' . (int) $r['da_xoa_song'] . ' ghế đang chạy: ' . implode( ', ', (array) $r['ma_giai_phong'] ) ) : '' ) . ')' ) );
 			}
 			self::tra( $r ); return;
 		}
@@ -12672,12 +12681,19 @@ function noi(){
          ghế), và nay càng sai: ghế ẩn XOÁ THEO cơ sở. Hộp hỏi phải kể đúng thứ sắp mất, lấy từ
          máy chủ, không tự đoán. */
       if (ban) return;
-      goi('coso_xoa', { id: id, that: 0 }, function(r){
+      /* Admin xem trước ở chế độ CƯỠNG CHẾ: máy chủ kể luôn ghế đang chạy sẽ mất thay vì chối.
+         Anh Thắng 23/09/2026: *"cho phép admin toàn quyền xoá, miễn giữ doanh thu"*. */
+      var cc = QUAN_TRI() ? 1 : 0;
+      goi('coso_xoa', { id: id, that: 0, cuong_che: cc }, function(r){
         if (!r || !r.ok) { alert((r && r.error) || L('Không xoá được.','Cannot delete.')); return; }
-        var an = (r.ghe_an || []);
-        var msg = L('XOÁ HẲN địa điểm "' + nhan + '"?\n\n', 'PERMANENTLY delete site "' + nhan + '"?\n\n')
+        var an = (r.ghe_an || []), song = (r.ghe_song || []);
+        var msg = L((song.length ? 'XOÁ CƯỠNG CHẾ (Quản trị) địa điểm "' : 'XOÁ HẲN địa điểm "') + nhan + '"?\n\n',
+                    'PERMANENTLY delete site "' + nhan + '"?\n\n')
+          + (song.length ? L('• ' + song.length + ' ghế ĐANG CHẠY xoá theo, mã được trống lại: ' + song.slice(0,10).join(', ') + (song.length>10?'…':'') + '\n'
+                + '  ⚠ Tạo lại đúng mã ấy ở cơ sở khác là nó NHẶT LẠI toàn bộ tiền cũ của mã — đúng khi vẫn là cái ghế ấy chỉ đổi chỗ; SAI nếu gán cho một ghế khác.\n',
+                '• ' + song.length + ' ACTIVE chair(s) deleted, codes freed. Recreating the same code re-attaches its history.\n') : '')
           + (an.length ? L('• ' + an.length + ' mã ghế ĐÃ ẨN xoá theo: ' + an.slice(0,10).join(', ') + (an.length>10?'…':'') + '\n',
-                           '• ' + an.length + ' hidden chair code(s) deleted with it\n') : L('• Không còn ghế nào.\n','• No chairs left.\n'))
+                           '• ' + an.length + ' hidden chair code(s) deleted with it\n') : (song.length ? '' : L('• Không còn ghế nào.\n','• No chairs left.\n')))
           + (r.so_bao_cao ? L('• ' + r.so_bao_cao + ' báo cáo cũ (' + ktVnd(r.tien_bao_cao||0) + 'đ) GIỮ NGUYÊN trong sổ — tổng tiền không đổi.\n',
                               '• ' + r.so_bao_cao + ' old reports stay in the books.\n') : '')
           + (r.co_misa ? L('• Dòng Unit ID MISA của nó xoá theo.\n','• Its MISA Unit ID row is removed.\n') : '')
@@ -12686,7 +12702,7 @@ function noi(){
         if (!confirm(msg)) return;
         if (QL_LOC === nhan){ QL_LOC = ''; QL_PG = 0; QL_SEL = {}; }
         if (CS_MO === nhan) CS_MO = '';   // cơ sở mất thì khối của nó cũng không còn chỗ mà mở
-        lam('coso_xoa', { id: id, that: 1 });
+        lam('coso_xoa', { id: id, that: 1, cuong_che: cc });
       });
     };
   });

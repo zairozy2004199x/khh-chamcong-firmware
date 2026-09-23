@@ -60,12 +60,12 @@ t( 'bốc được xoa_han_coso', '' !== $f );
 if ( '' === $f ) { echo "✗ dừng\n"; exit( 1 ); }
 eval( 'class VHG_May { private static function quen_dem_reset_() {} ' . $f . ' }' );
 
-function dung( $ghe, $so, $that ) {
+function dung( $ghe, $so, $that, $cc = false ) {
 	global $wpdb;
 	$wpdb = new WpdbGia();
 	$wpdb->coso = array( 'id' => 9, 'ten' => 'CGV Pear Plaza', 'dong_cua' => 1 );
 	$wpdb->ghe = $ghe; $wpdb->so = $so;
-	$r = VHG_May::xoa_han_coso( 9, $that );
+	$r = VHG_May::xoa_han_coso( 9, $that, $cc );
 	$del = array_values( array_filter( $wpdb->sql, function ( $q ) { return 0 === strpos( $q, 'DELETE' ); } ) );
 	return array( $r, $del );
 }
@@ -93,6 +93,30 @@ t( '🔴 KHÔNG có câu DELETE nào chạm bc / bc_dong / thu / chot / nop (s�
 	&& false === strpos( $tat, 'wp_vhg_chot' ) && false === strpos( $tat, 'wp_vhg_nop' ), $del );
 t( 'thông báo nói rõ báo cáo cũ còn trong sổ và ĐỪNG tạo lại trùng tên',
 	false !== strpos( $r['thong_bao'], '3 báo cáo cũ' ) && false !== strpos( $r['thong_bao'], 'ĐỪNG tạo lại' ), $r['thong_bao'] );
+
+echo "── Cưỡng chế (admin): ghế đang chạy xoá theo, mã trống lại, SỔ vẫn nguyên ──\n";
+/* Anh Thắng 23/09/2026 sau khi bị chối "còn 2 ghế ĐANG CHẠY (80199, 80200)": *"cho phép admin toàn
+   quyền xoá. Miễn giữ doanh thu là được. Xoá cả mã ghế. Để anh lấy mã đó gán cho ghế đúng."* */
+$GHE2 = array( array( 'ma' => '80199', 'an' => 0 ), array( 'ma' => '80200', 'an' => 0 ), array( 'ma' => '80107', 'an' => 1 ) );
+list( $r, $del ) = dung( $GHE2, array( 5, 900000, 1 ), false, false );
+t( 'không cưỡng chế → vẫn chối như cũ, và báo có thể cưỡng chế', empty( $r['ok'] ) && ! empty( $r['can_cuong_che'] ), $r );
+list( $r, $del ) = dung( $GHE2, array( 5, 900000, 1 ), false, true );
+t( '🔴 cưỡng chế xem trước: OK, KỂ ĐÚNG ghế đang chạy sẽ mất (để hộp hỏi nói ra)',
+	! empty( $r['ok'] ) && ! empty( $r['xem_truoc'] ) && array( '80199', '80200' ) === $r['ghe_song'] && 1 === (int) $r['cuong_che'], $r );
+t( '   xem trước KHÔNG xoá gì', 0 === count( $del ), $del );
+list( $r, $del ) = dung( $GHE2, array( 5, 900000, 1 ), true, true );
+$tat = implode( "\n", $del );
+t( '🔴 cưỡng chế xoá thật: 2 ghế sống + 1 ghế ẩn, mã 80199/80200 báo đã trống',
+	! empty( $r['da_xoa'] ) && 2 === (int) $r['da_xoa_song'] && 1 === (int) $r['da_xoa_ghe'] && array( '80199', '80200' ) === $r['ma_giai_phong'], $r );
+t( '🔴 ghế sống xoá theo ĐÚNG coso_id (không quét lạc ghế cùng mã ở cơ sở khác)',
+	false !== strpos( $tat, "WHERE ma='80199' AND coso_id=9" ) && false !== strpos( $tat, "WHERE ma='80200' AND coso_id=9" ), $del );
+t( '🔴 ĐIỀU KIỆN ANH ĐẶT — sổ tiền còn nguyên: KHÔNG một câu DELETE nào chạm bc / bc_dong / thu / chot / nop',
+	false === strpos( $tat, 'wp_vhg_bc ' ) && false === strpos( $tat, 'wp_vhg_bc_dong' ) && false === strpos( $tat, 'wp_vhg_thu' )
+	&& false === strpos( $tat, 'wp_vhg_chot' ) && false === strpos( $tat, 'wp_vhg_nop' ), $del );
+t( 'thông báo nói mã đã trống, tạo lại được ở cơ sở đúng', false !== strpos( $r['thong_bao'], '80199, 80200' ) && false !== strpos( $r['thong_bao'], 'tạo lại được' ), $r['thong_bao'] );
+/* Cổng phải kiểm admin — dò đúng dòng chốt, cùng kiểu với may_xoa_han. */
+$tr = file_get_contents( __DIR__ . '/../../vhcp-ghe/includes/class-vhg-trang.php' );
+t( '🔴 cổng coso_xoa chỉ cho cưỡng chế khi la_quan_tri()', (bool) preg_match( "/\\\$cuong_che = ! empty\( \\\$d\['cuong_che'\] \) && VHG_Auth::la_quan_tri\( \\\$ai\['role'\] \);/", $tr ) );
 
 echo "── Báo cáo tổng: cơ sở ĐÓNG CỬA hết dòng 0đ, có tiền thì vẫn hiện \n";
 $kt = file_get_contents( __DIR__ . '/../../vhcp-ghe/includes/class-vhg-ketoan.php' );

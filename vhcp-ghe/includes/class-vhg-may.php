@@ -255,8 +255,21 @@ class VHG_May {
 	 *    squash(tên)). Đừng dùng lại tên đã xoá cho một điểm khác.
 	 *
 	 * `$that=false` = XEM TRƯỚC: kể ghế sống / ghế ẩn / số báo cáo còn trong sổ, chưa đụng gì.
+	 *
+	 * 🔴 `$cuong_che` — ADMIN TOÀN QUYỀN, anh Thắng 23/09/2026 sau khi bị chốt "còn 2 ghế ĐANG CHẠY
+	 *    (80199, 80200)": *"cho phép admin toàn quyền xoá. Miễn giữ doanh thu là được. Xoá cả mã
+	 *    ghế. Để anh lấy mã đó gán cho ghế đúng."*
+	 *    Cưỡng chế bỏ chốt "ghế đang chạy": xoá luôn mọi dòng `may` của cơ sở, kể cả ghế sống —
+	 *    mã được GIẢI PHÓNG để tạo lại ở đúng nơi. Điều KHÔNG bỏ: sổ tiền. Cưỡng chế hay không thì
+	 *    bc/bc_dong/thu/chot/nop vẫn nằm nguyên — đó là điều kiện anh đặt, và cũng là điều kiện
+	 *    của xoa_han_may() cưỡng chế từ 2.119.0. Ai được bấm: cổng kiểm `la_quan_tri()` (xem
+	 *    router), hàm này chỉ làm việc, không tự kiểm quyền.
+	 * ⚠️ HỆ QUẢ ANH CẦN BIẾT TRƯỚC KHI GÁN LẠI: tạo lại ghế TRÙNG MÃ (80199) ở cơ sở khác là nó
+	 *    NHẶT LẠI toàn bộ lịch sử tiền của mã ấy (mọi bảng nối bằng chuỗi `ma_may`). Với "gán cho
+	 *    ghế đúng" — cùng cái ghế, chỉ đổi chỗ — thì đúng là điều anh muốn: tiền theo ghế. Nhưng
+	 *    gán mã ấy cho MỘT GHẾ KHÁC thì lịch sử của ghế cũ dính vào ghế mới. Hộp hỏi nói câu này.
 	 */
-	public static function xoa_han_coso( $id, $that = false ) {
+	public static function xoa_han_coso( $id, $that = false, $cuong_che = false ) {
 		global $wpdb;
 		$id = (int) $id;
 		if ( $id <= 0 ) { return array( 'ok' => false, 'error' => 'Thiếu cơ sở.' ); }
@@ -279,8 +292,9 @@ class VHG_May {
 		$co_misa = (int) $wpdb->get_var( $wpdb->prepare(
 			'SELECT COUNT(*) FROM ' . VHG_DB::t( 'bc_ma_misa' ) . ' WHERE coso_key=%s', $key ) );
 
-		if ( count( $song ) ) {
+		if ( count( $song ) && ! $cuong_che ) {
 			return array( 'ok' => false, 'xem_truoc' => ! $that, 'coso' => $ten, 'ghe_song' => $song, 'ghe_an' => $an,
+				'can_cuong_che' => 1,
 				'error' => 'Cơ sở còn ' . count( $song ) . ' ghế ĐANG CHẠY (' . implode( ', ', array_slice( $song, 0, 8 ) )
 					. ( count( $song ) > 8 ? '…' : '' ) . ') — KHÔNG xoá được. Ghế ẩn thì xoá theo được, ghế đang chạy thì '
 					. 'phải "Đổi cơ sở" sang nơi khác trước, không thì cả loạt rơi khỏi màn nhập.' );
@@ -288,7 +302,8 @@ class VHG_May {
 
 		if ( ! $that ) {
 			return array( 'ok' => true, 'xem_truoc' => true, 'coso' => $ten, 'dong_cua' => (int) $cs['dong_cua'],
-				'ghe_song' => array(), 'ghe_an' => $an, 'so_bao_cao' => $so_bc, 'tien_bao_cao' => $tien_bc, 'co_misa' => $co_misa );
+				'ghe_song' => $song, 'ghe_an' => $an, 'cuong_che' => $cuong_che ? 1 : 0,
+				'so_bao_cao' => $so_bc, 'tien_bao_cao' => $tien_bc, 'co_misa' => $co_misa );
 		}
 
 		/* Ghế ẩn đi trước (chỉ dòng `may`, đúng luật của xoa_han_may: `an=1`), rồi tới danh mục. */
@@ -296,12 +311,22 @@ class VHG_May {
 		foreach ( $an as $ma ) {
 			$da_ghe += (int) $wpdb->query( $wpdb->prepare( "DELETE FROM $t_may WHERE ma=%s AND coso_id=%d AND an=1", $ma, $id ) );
 		}
+		/* Cưỡng chế: ghế ĐANG CHẠY xoá theo — khoá theo ĐÚNG coso_id để không quét lạc ghế cùng mã ở
+		   cơ sở khác (trùng mã liên cơ sở là chuyện đã xảy ra, xem 2.117.0). */
+		$da_song = 0;
+		if ( $cuong_che ) {
+			foreach ( $song as $ma ) {
+				$da_song += (int) $wpdb->query( $wpdb->prepare( "DELETE FROM $t_may WHERE ma=%s AND coso_id=%d", $ma, $id ) );
+			}
+		}
 		$wpdb->delete( VHG_DB::t( 'bc_ma_misa' ), array( 'coso_key' => $key ) );
 		$wpdb->delete( $t_cs, array( 'id' => $id ) );
 		self::quen_dem_reset_();
-		return array( 'ok' => true, 'da_xoa' => 1, 'coso' => $ten, 'da_xoa_ghe' => $da_ghe, 'so_bao_cao' => $so_bc,
+		return array( 'ok' => true, 'da_xoa' => 1, 'coso' => $ten, 'da_xoa_ghe' => $da_ghe, 'da_xoa_song' => $da_song,
+			'ma_giai_phong' => $cuong_che ? $song : array(), 'so_bao_cao' => $so_bc,
 			'thong_bao' => '🗑 Đã xoá hẳn cơ sở "' . $ten . '"'
-				. ( $da_ghe ? ( ' cùng ' . $da_ghe . ' mã ghế ẩn' ) : '' ) . '.'
+				. ( $da_ghe ? ( ' cùng ' . $da_ghe . ' mã ghế ẩn' ) : '' )
+				. ( $da_song ? ( ( $da_ghe ? ' và ' : ' cùng ' ) . $da_song . ' mã ghế ĐANG CHẠY (cưỡng chế) — mã ' . implode( ', ', $song ) . ' đã trống, tạo lại được ở cơ sở đúng' ) : '' ) . '.'
 				. ( $so_bc ? ( ' ' . $so_bc . ' báo cáo cũ (' . number_format( $tien_bc, 0, ',', '.' ) . 'đ) vẫn nằm trong sổ — '
 					. 'tổng tiền không đổi, xuất MISA tháng có doanh thu vẫn ra. ĐỪNG tạo lại cơ sở trùng tên.' ) : '' ) );
 	}

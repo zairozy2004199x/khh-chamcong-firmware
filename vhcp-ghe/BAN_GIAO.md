@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-09-23 · Phiên bản hiện tại: **2.130.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-09-23 · Phiên bản hiện tại: **2.131.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,25 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v2.131.0 — Xoá cơ sở CƯỠNG CHẾ (Quản trị): ghế đang chạy xoá theo, mã trống lại, sổ tiền nguyên
+
+Anh Thắng 23/09/2026, sau khi 2.129.0 chối *"còn 2 ghế ĐANG CHẠY (80199, 80200)"*: *"cho phép admin
+toàn quyền xoá. Miễn giữ doanh thu là được. Xoá cả mã ghế. Để anh lấy mã đó gán cho ghế đúng."*
+
+- `xoa_han_coso( $id, $that, $cuong_che )` — cưỡng chế bỏ chốt "ghế đang chạy": xoá mọi dòng `may`
+  của cơ sở (khoá theo đúng `coso_id`, không quét lạc ghế cùng mã nơi khác), rồi `bc_ma_misa`, rồi
+  `coso`. **Điều KHÔNG bỏ: sổ tiền** — bc/bc_dong/thu/chot/nop nguyên vẹn, đúng điều kiện anh đặt
+  và đúng luật của `xoa_han_may()` cưỡng chế từ 2.119.0.
+- Cổng `coso_xoa` chỉ nhận `cuong_che` khi `la_quan_tri()` — cùng chốt với `may_xoa_han`. Không
+  phải admin thì hạ về đường thường (vẫn chối khi còn ghế sống).
+- Hộp hỏi kể đúng ghế đang chạy sẽ mất, và nói thẳng hệ quả: **tạo lại đúng mã ấy ở cơ sở khác là
+  nó nhặt lại toàn bộ tiền cũ của mã** (mọi bảng nối bằng chuỗi `ma_may`). Với "gán cho ghế đúng" —
+  cùng cái ghế, chỉ đổi chỗ — đó là điều anh muốn. Gán mã cho **một ghế khác** thì lịch sử dính nhầm.
+- Nhật ký ghi rõ "CƯỠNG CHẾ N ghế đang chạy: mã…".
+
+`kiem-xoa-han-coso.php` lên 25 phép: không cưỡng chế vẫn chối · cưỡng chế xem trước kể đúng ghế sống ·
+xoá thật đúng `coso_id` · **không một câu DELETE nào chạm sổ** · cổng kiểm admin.
 
 ### v2.130.0 (+ Sao Kê 0.44.0) — Báo cáo tổng, Từng ghế × QR: VietQR thực đối chiếu tới TỪNG MÁY
 
