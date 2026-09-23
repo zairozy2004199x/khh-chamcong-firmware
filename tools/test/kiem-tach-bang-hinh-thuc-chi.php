@@ -1,0 +1,209 @@
+<?php
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * HAI HÌNH THỨC CHI: TÁCH BẢNG, VÀ TÁCH CẢ PHÉP TÍNH.
+ *
+ * Anh Thắng 10/09/2026: *"Khi trong đơn có 2 hình thức chi thì tách ra 2 bảng riêng"* và
+ * *"Để thể hiện rõ do ai chi và bên nào chi và tạm ứng. Vì nv tự trả thì kế toán sẽ tạm ứng và
+ * chi cho nhân viên. Còn kế toán tự trả nhà cung cấp, thì chỉ lên bảng để tổng chứ, chứ không
+ * thay đổi giá trị trong quá trình tạm ứng và quyết toán"*.
+ *
+ * =============================================================================================
+ * 🔴 DÒNG TRẢ THẲNG NCC KHÔNG ĐƯỢC LỌT VÀO PHÉP THỪA/THIẾU. Kế toán trả thẳng nhà cung cấp thì
+ *    tiền không qua tay nhân viên, nên nó không phải khoản nhân viên phải quyết toán. Cộng lẫn
+ *    vào là màn báo nhân viên còn thiếu (hoặc thừa) một khoản họ chưa hề cầm — và đó là con số
+ *    kế toán căn vào để thu/chi thêm.
+ *
+ * 🔴 MỤC CON THEO HÌNH THỨC CỦA HẠNG MỤC LỚN. Mục con không chọn hình thức riêng; đọc ô rỗng
+ *    của nó thành "tạm ứng" là mọi mục con của một hạng mục TRỰC TIẾP nhảy vào phép quyết toán.
+ *
+ * ⚠️ CHẠY THẬT `get_du_an()` trên dữ liệu thật (tạo dự án · thêm dòng · đọc lại).
+ *
+ * Chạy: php tools/test/kiem-tach-bang-hinh-thuc-chi.php
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+$goc = dirname( dirname( __DIR__ ) );
+require __DIR__ . '/wp-stub.php';
+vhcp_test_boot( $goc . '/wordpress/vhcp-chi-phi' );
+
+$DAT = 0; $TRUOT = array();
+function t( $ten, $ok, $them = null ) {
+	global $DAT, $TRUOT;
+	if ( $ok ) { $DAT++; return; }
+	$TRUOT[] = $ten . ( null !== $them ? ( "\n      → " . ( is_scalar( $them ) ? $them : var_export( $them, true ) ) ) : '' );
+}
+function teq( $ten, $mong, $thuc ) { t( $ten . ' (mong ' . var_export( $mong, true ) . ')', $mong == $thuc, $thuc ); }
+
+VHCP_Auth::dat_vai_tro( 'Admin', 'KT' );
+$r = VHCP_DuAn::create_du_an( 'Setup lắp đặt', 'Gian thử tách bảng', 'KT' );
+t( 'tạo được dự án thử', ! empty( $r['success'] ), $r );
+$ma = $r['maDA'];
+
+/* Hạng mục TẠM ỨNG: dự toán 10tr, hai mục con thực chi 4tr + 3tr. */
+VHCP_DuAn::add_line( $ma, array( 'noiDung' => 'Mua đồ điện', 'duToan' => 10000000, 'hinhThuc' => '' ) );
+VHCP_DuAn::add_line( $ma, array( 'noiDung' => 'Bóng đèn', 'capCha' => 'Mua đồ điện', 'thucTe' => 4000000 ) );
+VHCP_DuAn::add_line( $ma, array( 'noiDung' => 'Dây điện', 'capCha' => 'Mua đồ điện', 'thucTe' => 3000000 ) );
+/* Hạng mục TRỰC TIẾP: kế toán trả thẳng NCC 5tr. */
+VHCP_DuAn::add_line( $ma, array( 'noiDung' => 'Xe cẩu', 'duToan' => 6000000, 'thucTe' => 5000000, 'hinhThuc' => 'Trực tiếp' ) );
+
+$d = VHCP_DuAn::get_du_an( $ma );
+t( 'đọc được dự án', ! empty( $d['success'] ), $d );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 1. 🔴 HAI RỔ TIỀN TÁCH BẠCH
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+teq( '🔴 cần tạm ứng = dự toán của phần NV TỰ TRẢ (không cộng phần trả thẳng NCC)',
+	10000000, $d['canTamUng'] );
+teq( '🔴 thực chi tạm ứng = tiền NV đã tự trả', 7000000, $d['ttTamUng'] );
+teq( '   dự toán phần trả thẳng NCC đứng riêng', 6000000, $d['traTrucTiep'] );
+teq( '   thực chi trả thẳng NCC cũng đứng riêng', 5000000, $d['ttTrucTiep'] );
+
+/* 🔴 Đây là con số kế toán căn vào để thu/chi thêm với NHÂN VIÊN. */
+teq( '🔴 thừa/thiếu tạm ứng chỉ tính trên phần NV tự trả (7tr − 10tr = −3tr, tức dư)',
+	-3000000, $d['thieuTamUng'] );
+t( '🔴 và 5tr trả thẳng NCC KHÔNG được lọt vào đó (nếu lọt thì ra −8tr hoặc +2tr)',
+	-3000000 === (int) $d['thieuTamUng'], $d['thieuTamUng'] );
+
+/* Tổng chung thì vẫn gom cả hai — đó là tổng chi phí của dự án. */
+teq( 'tổng thực tế vẫn gom cả hai rổ (7tr + 5tr)', 12000000, $d['tongThucTe'] );
+teq( 'tổng dự toán cũng vậy (10tr + 6tr)', 16000000, $d['tongDuToan'] );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 2. 🔴 MỤC CON THEO HÌNH THỨC CỦA CHA
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+VHCP_DuAn::add_line( $ma, array( 'noiDung' => 'Thuê cẩu 20 tấn', 'capCha' => 'Xe cẩu', 'thucTe' => 2000000 ) );
+$d2 = VHCP_DuAn::get_du_an( $ma );
+teq( '🔴 mục con của hạng mục TRỰC TIẾP cũng vào rổ trực tiếp, không vào tạm ứng',
+	7000000, $d2['ttTamUng'] );
+teq( '   và cộng vào rổ trực tiếp', 2000000, $d2['ttTrucTiep'] );
+teq( '🔴 thừa/thiếu tạm ứng KHÔNG đổi vì thêm một mục con trả thẳng NCC',
+	-3000000, $d2['thieuTamUng'] );
+$con = null;
+foreach ( $d2['lines'] as $l ) { if ( $l['noiDung'] === 'Thuê cẩu 20 tấn' ) { $con = $l; } }
+teq( '   dòng con được gắn sẵn hình thức của cha khi trả về màn', 'Trực tiếp', $con['hinhThuc'] );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 3. MÀN TÁCH LÀM HAI BẢNG
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+$HTML = file_get_contents( dirname( dirname( __DIR__ ) ) . '/wordpress/vhcp-chi-phi/templates/app.html' );
+t( '🔴 màn chia dòng theo hình thức chi', false !== strpos( $HTML, 'var nhomHt={ung:[],ncc:[]}' ), '' );
+t( '🔴 chỉ tách khi có CẢ HAI (một hình thức thì vẫn một bảng)',
+	false !== strpos( $HTML, 'var coHai=(nhomHt.ung.length||psHt.ung.length) && (nhomHt.ncc.length||psHt.ncc.length);' )
+	&& false !== strpos( $HTML, 'html=veNhom(parents)+vePhatSinh(phatSinh);' ), '' );
+t( '🔴 nhãn nói rõ phần NV tự trả VÀO phép quyết toán',
+	false !== mb_strpos( $HTML, 'VÀO phép tạm ứng & quyết toán' ), '' );
+t( '🔴 và phần trả thẳng NCC thì KHÔNG',
+	false !== mb_strpos( $HTML, 'KHÔNG vào tạm ứng & quyết toán' ), '' );
+t( '   nói luôn ai chi cho ai', false !== mb_strpos( $HTML, 'kế toán tạm ứng cho nhân viên' )
+	&& false !== mb_strpos( $HTML, 'KẾ TOÁN TRẢ THẲNG NCC' ), '' );
+t( '   mỗi bảng có tổng riêng', false !== strpos( $HTML, 'money(tongNhom(nhomHt[k],psHt[k]))' ), '' );
+/* Tổng của bảng: hạng mục có con thì tiền nằm ở con — cộng cả cha lẫn con là đếm hai lần. */
+t( '🔴 tổng bảng không đếm hai lần (cha có con thì chỉ cộng con)',
+	false !== strpos( $HTML, 'if(kids.length) kids.forEach(function(k){ t+=Number(k.thucTe)||0; });' )
+	&& false !== strpos( $HTML, 'else t+=Number(p.thucTe)||0;' ), '' );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 4. 🔴 HẠNG MỤC LỚN NHÌN LÀ BIẾT
+ *
+ * Anh Thắng 10/09/2026: *"Hạng mục lớn phải viết đậm cùng màu để phân biệt nhau"*. Hạng mục lớn
+ * CÓ CON thì đã tô nền tím + đậm; hạng mục lớn CHƯA CÓ CON lại vẽ y hệt một mục con — nhìn bảng
+ * thì "Túi zip" (hạng mục lớn) và "↳ Linh kiện" (mục con của hạng mục khác) trông ngang hàng,
+ * mà hai thứ ấy khác hẳn: một cái xin tạm ứng được, một cái không.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+t( '🔴 hàng dựng theo cờ "là hạng mục lớn", không chỉ theo "có mục con"',
+	false !== strpos( $HTML, 'function daLineCells(l, indent, extraAct, laLon){' )
+	&& false !== strpos( $HTML, 'html+=daLineCells(p,false, addChild, true);' ), '' );
+t( '🔴 hạng mục lớn chưa có con cũng ĐẬM và CÙNG MÀU với hạng mục lớn có con',
+	false !== strpos( $HTML, "(laLon?' style=\"background:#eef2ff;font-weight:700\"':'')" )
+	&& false !== strpos( $HTML, 'style="background:#eef2ff;font-weight:700"><td>📦 ' ), '' );
+t( '   và mang cùng dấu 📦', false !== strpos( $HTML, "(laLon?'📦 ':'')" ), '' );
+t( '🔴 mục con vẫn thụt vào và KHÔNG bị tô như hạng mục lớn',
+	false !== strpos( $HTML, "var trS=indent?' style=\"background:#fcfdff\"':(laLon?" ), '' );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 5. 🔴 DỰ PHÒNG CẢ DỰ ÁN — BA CON SỐ KHÁC NHAU
+ *
+ * Anh Thắng 10/09/2026: *"Thêm ô nhập tổng dự toán (nó là con số dự tính tổng dự án để kế toán
+ * biết dự phòng. Chứ nó chưa phải là con tạm ứng, con số tạm ứng là tổng thực tế sau khi lên
+ * đơn. Sau khi kế toán tạm ứng lần 1, sẽ trừ này ra để còn biết thừa thiếu"*.
+ *
+ * 🔴 ĐỪNG TRỘN BA THỨ: dự phòng (ước lượng cả dự án, gõ tay) · dự toán (cộng từ hạng mục đã
+ *    khai) · đã tạm ứng (tiền THẬT đã chi). Kế toán căn vào "còn dự phòng" để chuẩn bị tiền;
+ *    lấy nhầm sang dự toán hạng mục là dự phòng thiếu, rồi hết tiền giữa lúc thi công.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+teq( 'chưa gõ dự phòng → 0', 0.0, VHCP_DuAn::get_du_toan_da( $ma ) );
+$r5 = VHCP_DuAn::set_du_toan_da( $ma, 50000000, 'KT' );
+t( 'gõ được con số dự phòng', ! empty( $r5['success'] ), $r5 );
+teq( '   đọc lại ra đúng số', 50000000.0, VHCP_DuAn::get_du_toan_da( $ma ) );
+$d5 = VHCP_DuAn::get_du_an( $ma );
+teq( '🔴 và gửi xuống màn ở ô RIÊNG, không lẫn vào tổng dự toán hạng mục',
+	50000000.0, $d5['duToanDA'] );
+teq( '   tổng dự toán hạng mục KHÔNG đổi vì gõ dự phòng', 16000000, $d5['tongDuToan'] );
+teq( '   và thừa/thiếu tạm ứng cũng không đổi', -3000000, $d5['thieuTamUng'] );
+$r5 = VHCP_DuAn::set_du_toan_da( $ma, -1, 'KT' );
+t( '🔴 chối số âm (âm thì phần "còn dự phòng" phình ra một cách lặng lẽ)',
+	empty( $r5['success'] ), $r5 );
+teq( '   và không ghi đè số cũ', 50000000.0, VHCP_DuAn::get_du_toan_da( $ma ) );
+$r5 = VHCP_DuAn::set_du_toan_da( 'DA-KHONG-CO', 1000, 'KT' );
+t( '   dự án không có thật → chối', empty( $r5['success'] ), $r5 );
+$r5 = VHCP_DuAn::set_du_toan_da( $ma, 0, 'KT' );
+t( '   gõ 0 để xoá thì được (0 khác với âm)', ! empty( $r5['success'] ), $r5 );
+
+t( '🔴 màn có ô nhập dự phòng riêng', false !== strpos( $HTML, "id=\"daDpInp\"" ), '' );
+t( '   và nói rõ nó KHÔNG phải số tạm ứng',
+	false !== mb_strpos( $HTML, 'KHÔNG phải số tạm ứng' ), '' );
+t( '🔴 màn tính "còn dự phòng" = dự phòng − đã tạm ứng',
+	false !== strpos( $HTML, 'var dpConLai=dpDT-dpUng;' )
+	&& false !== strpos( $HTML, 'var dpUng=Number((((r.payTong||{}).tamUng)||{}).tu)||0;' ), '' );
+t( '   chưa gõ thì nói chưa gõ, không bày một con số 0 trông như đã khai',
+	false !== mb_strpos( $HTML, 'chưa gõ con số dự phòng' ), '' );
+t( '   chối số âm ngay ở màn', false !== mb_strpos( $HTML, 'Tổng dự toán không được âm' ), '' );
+/* 🔴 Ô phải GÕ ĐƯỢC. Bản đầu mượn `role`/`canEdit` — hai biến khai bằng `var` ở DƯỚI khối ấy,
+   nên lúc chạy tới còn `undefined`, `indexOf(undefined)` ra -1 và ô thành chỉ-đọc với mọi
+   người. Không câu lỗi nào; người dùng chỉ thấy "không gõ được". */
+t( '🔴 quyền sửa ô dự phòng TỰ TÍNH, không mượn biến khai sau nó',
+	false !== strpos( $HTML, "var _dpRole=(CURUSER&&CURUSER.role)||'';" )
+	&& false !== strpos( $HTML, "indexOf(_dpRole)>=0" ), '' );
+t( '   và người đang nhập được dự án thì gõ được',
+	false !== strpos( $HTML, '|| !!(r.editable||r.thiCong) || !!r.isCoSo;' ), '' );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 6. THỜI GIAN SETUP · Ô TIỀN CÓ DẤU CHẤM
+ *
+ * Anh Thắng 10/09/2026: *"Bổ sung thêm thời gian setup (Từ ngày đến ngày)"* và *"thêm dấu chấm
+ * tự động nhìn cho đẹp"*.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+teq( 'dự án chưa gõ khoảng ngày → rỗng, không ép', '', VHCP_DuAn::get_ky_da( $ma )['tu'] );
+$r6 = VHCP_DuAn::set_ky_da( $ma, '2026-09-01', '2026-09-30', 'KT' );
+t( 'gõ được thời gian setup', ! empty( $r6['success'] ), $r6 );
+teq( '   đọc lại đúng ngày bắt đầu', '2026-09-01', VHCP_DuAn::get_ky_da( $ma )['tu'] );
+teq( '   và ngày kết thúc', '2026-09-30', VHCP_DuAn::get_ky_da( $ma )['den'] );
+teq( '   gửi xuống màn cùng dự án', '2026-09-30', VHCP_DuAn::get_du_an( $ma )['kyDA']['den'] );
+$r6 = VHCP_DuAn::set_ky_da( $ma, '2026-09-30', '2026-09-01', 'KT' );
+t( '🔴 ngày kết thúc TRƯỚC ngày bắt đầu → chối (khoảng ngày ngược thì mọi phép đo ra số âm)',
+	empty( $r6['success'] ), $r6 );
+teq( '   và không ghi đè khoảng ngày cũ', '2026-09-30', VHCP_DuAn::get_ky_da( $ma )['den'] );
+$r6 = VHCP_DuAn::set_ky_da( $ma, '2026-10-01', '', 'KT' );
+t( '   gõ mỗi ngày bắt đầu thì được (chưa biết bao giờ xong là chuyện thường)',
+	! empty( $r6['success'] ), $r6 );
+
+t( '🔴 màn có hai ô ngày setup',
+	false !== strpos( $HTML, 'id="daKyTu"' ) && false !== strpos( $HTML, 'id="daKyDen"' ), '' );
+t( '   và chặn khoảng ngày ngược ngay ở màn',
+	false !== mb_strpos( $HTML, 'Ngày kết thúc không được trước ngày bắt đầu' ), '' );
+/* 🔴 Ô tiền phải là type=text. `type=number` thì trình duyệt chối mọi giá trị có dấu chấm —
+   ô sẽ RỖNG TRƠN, và người dùng tưởng mất số vừa gõ. */
+t( '🔴 ô dự phòng là type=text (type=number thì dấu chấm làm ô rỗng trơn)',
+	false !== strpos( $HTML, 'id="daDpInp" type="text" inputmode="numeric"' ), '' );
+t( '   bấm vào về số trần, rời ra chấm lại (dùng lại cặp có sẵn của ô tiền trong đơn)',
+	false !== strpos( $HTML, 'onfocus="tienVao(this)" onblur="tienRa(this)"' ), '' );
+t( '🔴 lúc lưu thì BÓC DẤU CHẤM ra trước khi so (không thì 500.000.000 thành NaN)',
+	false !== strpos( $HTML, "var v=_tienSo((el('daDpInp')&&el('daDpInp').value)||'');" ), '' );
+
+VHCP_DuAn::delete( $ma );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════ */
+if ( $TRUOT ) {
+	echo "\n✗ TRƯỢT " . count( $TRUOT ) . " phép (đạt $DAT):\n";
+	foreach ( $TRUOT as $x ) { echo "  · $x\n"; }
+	exit( 1 );
+}
+echo "\n✓ SẠCH — $DAT phép: hai hình thức chi tách bảng, và tiền trả thẳng NCC không lọt vào quyết toán của nhân viên.\n";

@@ -88,7 +88,21 @@ class VHCC_Vai {
 
 		/* --- bậc 2: cửa hàng trưởng --- */
 		'cong_coso'    => self::CHT,      // xem bảng công cơ sở mình (còn phải qua co_quyen_coso)
-		'cham_bu'      => self::CHT,      // chấm công bù cho nhân viên cơ sở mình
+		'cham_bu'      => self::KE_TOAN,  // chấm công bù vào ô trống
+		                                  /* 🔴 NÂNG TỪ CỬA HÀNG TRƯỞNG LÊN KẾ TOÁN — 18/09/2026.
+		                                     Anh Thắng: *"Cửa hàng trưởng không được bù giờ công,
+		                                     nếu thiếu thì chỗ file excel"*.
+
+		                                     Cửa hàng trưởng nay có HAI đường, và cả hai đều đi
+		                                     qua kế toán:
+		                                       · thiếu giờ cả tuần → sửa trong tệp .xlsx tuần
+		                                         (`VHCC_TuanCong`), kế toán duyệt cả lượt;
+		                                       · nhân viên xin bù lẻ → `VHCC_XinBu`, cửa hàng
+		                                         trưởng duyệt cấp một rồi kế toán duyệt cấp hai.
+
+		                                     ⚠️ ĐỪNG HẠ LẠI CHO TIỆN. Hạ một bậc là mở lại cho
+		                                        TOÀN BỘ cửa hàng trưởng, và hai quy trình trên
+		                                        thành đường vòng không ai đi nữa. */
 		'lich_lam'     => self::CHT,      // lên lịch làm việc cho cửa hàng
 		'bao_loi'      => self::CHT,      // gắn cờ / báo lỗi lên trên
 		'ho_so_xem'    => self::CHT,      // xem hồ sơ người CỦA CƠ SỞ MÌNH (không có ô lương)
@@ -114,10 +128,26 @@ class VHCC_Vai {
 		                                  // hai bậc rủi ro khác hẳn nhau.
 		'ngoai_coso'   => self::QL,       // việc ẢNH HƯỞNG NGOÀI phạm vi một cửa hàng:
 		                                  // tăng cường, khoá bảng, xoá thống kê, cấu hình lịch
+		'gia_gio'      => self::QL,       // SỬA đơn giá giờ của cơ sở.
+		                                  // 🔴 TÁCH KHỎI `luong` (bậc 4) THEO ĐÚNG LỜI ANH THẮNG
+		                                  // 16/09/2026: *"Kế toán, quản lý chỉnh sửa được, còn
+		                                  // cửa hàng trưởng chỉ xem được"*. Để nó ở bậc 4 là
+		                                  // Quản lý — người trực tiếp chốt giá với cửa hàng —
+		                                  // phải đi nhờ kế toán gõ hộ từng con số.
+		                                  // ⚠️ CHỈ LÀ QUYỀN SỬA. Quyền XEM đơn giá thấp hơn hẳn:
+		                                  // Cửa hàng trưởng (`cong_coso`) nhìn được bảng giá của
+		                                  // cơ sở mình để đối chiếu lương, nhưng ô gõ hiện ra
+		                                  // dạng chỉ đọc. Xem `VHCC_GiaGio::QUYEN_XEM`.
 
 		/* --- bậc 4: kế toán ("full quyền ngoài admin") --- */
 		'luong'        => self::KE_TOAN,  // bảng lương, đơn giá, ngày công chuẩn
 		'ngay_le'      => self::KE_TOAN,  // lịch nghỉ lễ
+		'bhxh'         => self::KE_TOAN,  // sổ BHXH: ai đóng, mỗi tháng trừ bao nhiêu
+		                                  // 🔴 CỬA KẾ TOÁN, KHÔNG PHẢI CỬA HÀNG TRƯỞNG. Đây là
+		                                  // một khoản TRỪ THẲNG vào lương và nó tự lặp mọi
+		                                  // tháng — gõ một lần, trừ mãi. Anh Thắng 19/09/2026:
+		                                  // *"Bổ sung tab bên Phân Quyền Kế toán để kế toán
+		                                  // chốt BHXH bạn nào đóng"*.
 		'ho_so'        => self::KE_TOAN,  // sửa hồ sơ nhân sự, cấp PIN, cho nghỉ việc
 		'xem_luong_hs' => self::KE_TOAN,  // ô Lương cơ bản / số tài khoản trong hồ sơ
 
@@ -140,25 +170,52 @@ class VHCC_Vai {
 		                                  // Mặc định VẪN là Admin, y như đang chạy — bản này
 		                                  // không nới của ai. Nới thì khai một dòng ngoại lệ ở
 		                                  // bảng dưới, có tên, có chỗ soát lại.
-		'sua_gio'      => self::CHT,      // SỬA ĐÈ lên giờ đã có (kể cả giờ máy ghi), và xoá giờ
-		                                  /* 🔴 HẠ TỪ ADMIN XUỐNG CỬA HÀNG TRƯỞNG — 28/08/2026.
-		                                     Anh Thắng 26/08 chốt Admin, rồi 28/08 đổi ý:
-		                                     *"Cửa hàng trưởng được phép sửa cả giờ công đã
-		                                     chấm"*. Đây là quyết định của anh, không phải em
-		                                     nới, và nó có giá: cửa hàng trưởng viết lại được
-		                                     bảng công của chính cửa hàng mình.
-		                                     Ba thứ GIỮ NGUYÊN, không được bỏ theo:
+		'sua_gio'      => self::KE_TOAN,  // SỬA ĐÈ lên giờ đã có (kể cả giờ máy ghi), và xoá giờ
+		                                  /* 🔴 NÂNG TỪ CỬA HÀNG TRƯỞNG LÊN KẾ TOÁN — 18/09/2026.
+		                                     Anh Thắng: *"cơ chế hiện tại là cửa hàng trưởng
+		                                     không được sửa công nữa mà theo người được chỉ định
+		                                     bật quyền mới được sửa thôi"*.
+
+		                                     ĐÚNG BẬC KẾ TOÁN, KHÔNG PHẢI ADMIN. Mọi câu chối
+		                                     trong hệ đều bảo "vui lòng liên hệ kế toán" — đẩy
+		                                     lên Admin là chỉ người ta tới một cửa không mở, và
+		                                     kế toán chính là người ngồi chữa bảng công.
+
+		                                     CÒN CHỈ ĐỊNH THÌ KHÔNG PHẢI VIỆC CỦA BẬC. Cửa hàng
+		                                     trưởng nào được sửa thì Kế toán trở lên khai một
+		                                     dòng `nv:<Mã NV> · sua_gio · mo` ở bảng ngoại lệ
+		                                     (`dat_ngoai_le`) — có tên người, có chỗ soát lại,
+		                                     gỡ được bằng một dòng, và `khoa` thắng `mo`.
+
+		                                     ⚠️ ĐỪNG HẠ LẠI XUỐNG CHT CHO TIỆN. Hạ một bậc là mở
+		                                        lại cho TOÀN BỘ cửa hàng trưởng cùng lúc, lặng
+		                                        lẽ, và không ai thấy gì đổi cho tới lúc một ô
+		                                        giờ công sai không tra ra ai sửa.
+		                                     ⚠️ Chỉ định theo `nv:` cần người ấy CÓ MÃ NV. Tài
+		                                        khoản dựng ở màn Người dùng mà không gắn mã thì
+		                                        chỉ khai được theo `vai:`, tức mở cho cả vai. */
+		                                  /* BỐN CHỐT ĐI KÈM, KHÔNG PHỤ THUỘC VÀO BẬC — bậc đổi
+		                                     ba lần rồi, bốn cái này chưa đổi lần nào và đừng bỏ:
 		                                     · chốt cơ sở (`VHCC_Bu::vi_sao_khong_duoc`) — chỉ
 		                                       sửa người cơ sở mình;
 		                                     · bắt ghi VÌ SAO, tối thiểu 5 ký tự;
 		                                     · mọi lượt sửa vào sổ "Đã động vào giờ công", giữ
-		                                       giờ cũ, và KHÔNG xoá được.
-		                                     Đó là ba thứ khiến việc này còn tra ngược được. */
-		                                  // ⚠️ Cố ý ĐẶT TRÊN cả `nap_cong`. Bù và nạp chỉ THÊM
-		                                  // vào ô trống; việc này ĐÈ LÊN thứ máy đã ghi, tức là
-		                                  // xoá mất bằng chứng gốc. Anh Thắng 26/08 chốt: *"admin
-		                                  // có quyền chỉnh sửa lại giờ công cho nhân viên"* —
-		                                  // đúng chữ ADMIN, không nới xuống Quản lý.
+		                                       giờ cũ, và KHÔNG xoá được;
+		                                     · KHÔNG AI TỰ SỬA GIỜ CỦA CHÍNH MÌNH, kể cả Admin.
+		                                     Đó là bốn thứ khiến việc này còn tra ngược được.
+
+		                                     LÝ DO VÌ SAO NÓ ĐẮT: bù và nạp chỉ THÊM vào ô trống,
+		                                     còn việc này ĐÈ LÊN thứ máy đã ghi — tức xoá mất
+		                                     bằng chứng gốc. Rủi ro nhất trong ba cái.
+
+		                                     LỊCH SỬ, để khỏi ai đào lại: 26/08 Admin → 28/08 hạ
+		                                     xuống Cửa hàng trưởng theo yêu cầu của anh Thắng →
+		                                     18/09 nâng lại Admin + chỉ định từng người (khối 🔴
+		                                     ở trên). Giữa 28/08 và 17/09 chú thích ở đây còn ghi
+		                                     "đúng chữ ADMIN" trong khi mã đã là bậc 2 — nói
+		                                     ngược với con số ngay bên cạnh suốt ba tuần. Chú
+		                                     thích sai nguy hơn không có chú thích: người đọc tin
+		                                     nó và bỏ qua con số. Đổi bậc thì sửa luôn chỗ này. */
 		'xem_pin'      => self::ADMIN,    // nhìn thấy PIN của người khác.
 		                                  // 🔴 CAO HƠN `ho_so` (cấp PIN) MỘT BẬC, CỐ Ý. Cấp PIN là
 		                                  // đặt số MỚI — người ta biết ngay, vì số cũ thôi vào
@@ -204,8 +261,10 @@ class VHCC_Vai {
 		'xu_ly_loi'    => 'Kết luận / đóng cờ',
 		'nap_cong'     => 'Nạp cả tháng công từ .csv',
 		'ngoai_coso'   => 'Việc ảnh hưởng ngoài một cửa hàng',
-		'luong'        => 'Bảng lương, đơn giá, ngày công chuẩn',
+		'gia_gio'      => 'SỬA đơn giá giờ của cơ sở',
+		'luong'        => 'Bảng lương, ngày công chuẩn',
 		'ngay_le'      => 'Lịch nghỉ lễ',
+		'bhxh'         => 'Sổ BHXH: ai đóng, trừ bao nhiêu',
 		'ho_so'        => 'Hồ sơ nhân sự, cấp PIN',
 		'xem_luong_hs' => 'Ô Lương cơ bản / số tài khoản',
 		'he_thong'     => 'Cài đặt hệ thống, nguồn người dùng',
@@ -453,6 +512,37 @@ class VHCC_Vai {
 
 	/** Quên phần nhớ tạm — gọi sau mỗi lượt ghi, và bộ thử cũng cần. */
 	public static function quen_nho() { self::$nho_them = null; }
+
+	/**
+	 * GIEO VAI "CỬA HÀNG PHÓ" — MỘT LẦN, THÊM CHỨ KHÔNG ĐÈ.
+	 *
+	 * Anh Thắng 13/09/2026 chốt: Cửa hàng phó **ngang Cửa hàng trưởng** (chấm bù, xem công cơ
+	 * sở, xếp lịch — làm được mọi việc của trưởng). Bảng `VAI_BP_HAT_GIONG` đã khai vai này cho
+	 * Khối Nhân Viên Cơ Sở từ 3.72.0, nhưng vai ấy CHƯA TỒN TẠI trong hệ nên màn hình chỉ hiện
+	 * được câu "bộ phận có khai vai này, hệ chưa có". Gieo nốt là đóng vòng.
+	 *
+	 * ⚠️ THÊM, KHÔNG GHI ĐÈ DANH SÁCH. Site anh Thắng đã có vai tự tạo ("Kế Toán MTD",
+	 *    "Hotline MTD"); ghi đè cả mảng là xoá sạch chúng, và người mang vai ấy mất đường vào
+	 *    cổng ngay lượt đăng nhập sau.
+	 *
+	 * ⚠️ CHỈ GIEO MỘT LẦN, ghim bằng cờ riêng. Không có cờ thì mỗi lần nâng cấp lại mọc lại vai
+	 *    mà anh Thắng vừa cố ý xoá — hệ cãi lại người dùng, và cãi im lặng.
+	 */
+	public static function gieo_cua_hang_pho() {
+		if ( get_option( 'vhcc_gieo_ch_pho' ) ) { return false; }
+		update_option( 'vhcc_gieo_ch_pho', 1 );
+		$ten = 'Cửa hàng phó';
+		foreach ( self::ds_ten() as $co ) {
+			if ( self::khoa_ten( $co ) === self::khoa_ten( $ten ) ) { return false; }
+		}
+		$b = get_option( self::O_THEM );
+		$b = is_array( $b ) ? $b : array();
+		$b[ $ten ] = self::CHT;
+		update_option( self::O_THEM, $b );
+		self::quen_nho();
+		return true;
+	}
+
 
 	/** Mọi tên vai đang dùng được: vai gốc trước, vai tự tạo sau. */
 	public static function ds_ten() {

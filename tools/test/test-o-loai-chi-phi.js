@@ -46,18 +46,33 @@ const BOOT = {
 };
 
 const NHOM_CP_CS = '(cơ sở)';
-const nguon = ['_mangCua', '_tkNoList', '_tkNoCua', '_khoaNhom', '_loaiCpList', '_loaiCpVi'].map(layHam).join('\n')
+/* ⚠️ THÊM HÀM PHỤ THUỘC THÌ PHẢI KHAI VÀO ĐÂY. Ngày 09/09/2026 `_tkNoList` gọi thêm
+   `_donNhieuCoSo` và `_mangPham` (đơn ghép nhiều gian thì gom mã của mọi mảng), và bài này NỔ
+   `ReferenceError` — trông y như mã hỏng chứ không phải bệ đỡ thiếu. Bốc đủ họ hàng, đừng vá
+   bằng cách khai một hàm giả ở đây: hàm giả là bài kiểm chạy trên bản dựng lại, không phải mã
+   thật. */
+const nguon = ['_mangCua', '_donNhieuCoSo', '_mangPham', '_tkNoList', '_tapTkCo', '_tkNoCua', '_khoaNhom', '_bpTach', '_loaiCpList', '_loaiCpVi'].map(layHam).join('\n')
   + '\n  return { list:_loaiCpList, vi:_loaiCpVi, dat:function(n,u){ NHOM_CP=n; CURUSER=u; } };';
-function moi(nhomCp, user) {
-  const M = new Function('BOOT', 'NHOM_CP', 'NHOM_CP_CS', 'CURUSER', 'esc', nguon)(
-    BOOT, nhomCp, NHOM_CP_CS, user, v => String(v == null ? '' : v));
+function moi(nhomCp, user, cur) {
+  /* ⚠️ `_donNhieuCoSo` nay hỏi thêm `CUR_PAGE` / `DA_CUR` — xem chốt ở app.html. Bài này kiểm
+     ô loại chi phí của ĐƠN TUẦN, nên dựng đúng bối cảnh: đang ở tab đơn, chưa mở dự án nào. */
+  const M = new Function('BOOT', 'NHOM_CP', 'NHOM_CP_CS', 'CURUSER', 'CUR', 'CUR_PAGE', 'DA_CUR', 'esc', nguon)(
+    BOOT, nhomCp, NHOM_CP_CS, user, cur || { don: { nhieuCoSo: false } }, 'don', null, v => String(v == null ? '' : v));
   return M;
 }
 const NV_CS = { boPhan: 'Cơ sở' };
+/* Mã của một mục trong danh sách: `list()` trả về dòng danh mục, mã lấy qua chính hàm tra mã
+   của mã nguồn — không tự đoán lại. */
+const _tkCua = (M, x) => M.tkNoCua ? M.tkNoCua(x.ten, '') : '';
 
 // ---------------------------------------------------------------- 1. (a) chưa chọn cơ sở
 let M = moi(NHOM_CP_CS, NV_CS);
-teq('chưa chọn cơ sở -> ô rỗng (mã khai theo mảng của cơ sở)', 0, M.list('', '', '').length);
+/* Từ bản 1.108.0 loại ĐÃ KHAI BỘ PHẬN vẫn hiện dù chưa có mã (anh Thắng: *"theo kỹ thuật đang
+   có 2 loại chi phí, nhưng mới hiện 1 loại thôi"*). Nên chưa chọn cơ sở thì ô KHÔNG còn rỗng —
+   nhưng cũng KHÔNG được bịa ra mã: mã khai theo mảng của cơ sở, chưa biết cơ sở thì chưa có mã,
+   và câu nhắc bên dưới vẫn phải chỉ người ta đi chọn cơ sở. */
+t('chưa chọn cơ sở -> hiện loại đã khai bộ phận, nhưng KHÔNG cái nào có mã',
+  M.list('', '', '').length > 0 && M.list('', '', '').every(x => !_tkCua(M, x)), M.list('', '', ''));
 const vi0 = M.vi('', '', '');
 t('…nhưng PHẢI nói vì sao, không im lặng', /Chọn CƠ SỞ trước/.test(vi0.chu), vi0);
 t('và tô màu cảnh báo chứ không xám nhạt', vi0.mau === '#b45309', vi0);
@@ -86,7 +101,7 @@ t('và đếm đủ lý do bộ phận', /thuộc bộ phận khác/.test(vi2.ch
 // ---------------------------------------------------------------- 4. đủ dùng thì đừng làm ồn
 const M3 = moi('', NV_CS);
 const vi3 = M3.vi('TÀU ESTELLA', '', '');
-t('còn loại bị ẩn thì vẫn ghi chú nhẹ (xám)', vi3.chu === '' || vi3.mau === '#94a3b8', vi3);
+t('còn loại bị ẩn thì vẫn ghi chú nhẹ (xám)', vi3.chu === '' || vi3.mau === '#8c8781', vi3);
 t('danh mục trống thì nói thẳng',
   /Danh mục loại chi phí đang trống/.test(new Function('BOOT','NHOM_CP','NHOM_CP_CS','CURUSER','esc',nguon)(
     { cosoPll:{}, tkNoMx:{}, loaiChiPhi:[] }, '', NHOM_CP_CS, NV_CS, v=>String(v||'')).vi('X','','').chu));

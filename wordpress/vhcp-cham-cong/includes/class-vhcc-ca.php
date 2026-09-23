@@ -93,12 +93,30 @@ class VHCC_Ca {
 			return array( 'ok' => false, 'error' => 'Không có quyền cơ sở này.' );
 		}
 		$sach = self::lam_sach( $ds );
+		/* 🔴 CA BỊ BỎ PHẢI KỂ TÊN RA. `lam_sach()` lặng lẽ `continue` mọi dòng đọc không được —
+		   trước 3.65.0 bốn ô giờ là `type="time"` nên trình duyệt chặn sẵn, gõ bậy gần như
+		   không tới được đây. Nay là ô gõ thường: gõ nhầm một ô là mất nguyên một ca, mà màn
+		   hình vẫn báo "Đã khai N ca" — thiếu một ca thì giờ công của cả ca ấy rơi ra ngoài mọi
+		   ca, và không ai biết cho tới kỳ lương. */
+		$bo_qua = array();
+		foreach ( (array) $ds as $s_ca ) {
+			$s_ca = (array) $s_ca;
+			$ten_ca = trim( (string) ( isset( $s_ca['ten'] ) ? $s_ca['ten'] : '' ) );
+			if ( '' === $ten_ca ) { continue; }
+			$tu_ca  = self::gio( isset( $s_ca['tu'] ) ? $s_ca['tu'] : '' );
+			$den_ca = self::gio( isset( $s_ca['den'] ) ? $s_ca['den'] : '' );
+			if ( '' === $tu_ca || '' === $den_ca ) {
+				$bo_qua[] = $ten_ca . ' (giờ không đọc được — gõ 24 giờ, VD 08:30 hoặc 0830)';
+			} elseif ( $tu_ca === $den_ca ) {
+				$bo_qua[] = $ten_ca . ' (giờ bắt đầu trùng giờ kết thúc)';
+			}
+		}
 		$m    = self::ban_do();
 		/* Danh sách RỖNG = "bỏ khai riêng, quay về dùng ca chung", chứ không phải "cơ sở này
 		   không có ca nào". Không có ca nào thì mọi giờ công rơi ra ngoài mọi ca. */
 		if ( $sach ) { $m[ $coso ] = $sach; } else { unset( $m[ $coso ] ); }
 		VHCC_Luong::dat_cai_dat( self::O, $m, $u );
-		return array( 'ok' => true, 'so_ca' => count( $sach ), 'coSo' => $coso );
+		return array( 'ok' => true, 'so_ca' => count( $sach ), 'coSo' => $coso, 'bo_qua' => $bo_qua );
 	}
 
 	/* ==================================================================== tách ca */
@@ -156,6 +174,41 @@ class VHCC_Ca {
 		   tổng giờ làm mà không chỗ nào giải thích được phần hụt. */
 		$trong['ngoai_ca'] = max( 0, $trong['tong_phut'] - $da_phu );
 		return $trong;
+	}
+
+	/**
+	 * CA GÃY — ĐỀ XUẤT khoảng nghỉ giữa ca, tính từ chính khung ca của cơ sở.
+	 *
+	 * Anh Thắng 16/09/2026: *"ca gãy, như ca 1,3"* — người làm Ca 1 và Ca 3, KHÔNG làm Ca 2,
+	 * mà máy chỉ thấy một cặp giờ liền mạch từ đầu Ca 1 tới cuối Ca 3.
+	 *
+	 * Luật đề xuất: **có KHE HỞ giữa hết ca ĐẦU và đầu ca CUỐI** thì khe ấy là phần đáng ngờ.
+	 * Trả về `[từ, đến]` tính bằng GIÂY trong ngày, hoặc null khi không có gì để đề xuất.
+	 *
+	 * ⚠️ ĐỪNG ĐẾM SỐ CA. Bản đầu chốt "từ ba ca trở lên", nghe xuôi vì cảnh anh Thắng kể là
+	 *    Ca 1·2·3. Nhưng đột biến hạ chốt ấy xuống 2 mà bài kiểm KHÔNG đỏ — và lần theo thì
+	 *    thấy chốt đếm ca là THỪA VÀ SAI: thừa vì hai ca LIỀN NHAU tự có `đến <= từ` nên đã bị
+	 *    chốt dưới loại; sai vì một cơ sở khai đúng hai ca RỜI NHAU (07–14 và 17–22, không có
+	 *    ca giữa) thì khe 14:00–17:00 là khe thật, mà chốt đếm ca lại im lặng bỏ qua.
+	 *    Hỏi thẳng câu cần hỏi — "có khe hở không" — vừa ngắn hơn vừa đúng hơn.
+	 * ⚠️ CHỈ LÀ ĐỀ XUẤT, KHÔNG TỰ ÁP. Hàm này chỉ điền sẵn hai ô cho cửa hàng trưởng nhìn rồi
+	 *    sửa. Tự trừ giờ của người ta dựa trên một phép đoán là cắt tiền mà không ai bấm nút.
+	 * ⚠️ `tach()` đã bỏ mấy ca dính dưới 15 phút, nên mấy ca ở đây là ca NGƯỜI TA THẬT SỰ làm,
+	 *    không phải ca chạm mép — về trễ 5 phút không biến thành một lời mời cắt ba tiếng.
+	 */
+	public static function de_xuat_nghi( $ds_ca, $vao_giay, $ra_giay, $cuoi_tuan = false ) {
+		$t = self::tach( $ds_ca, $vao_giay, $ra_giay, $cuoi_tuan );
+		if ( count( $t['ds'] ) < 2 ) { return null; }
+		$dau  = $t['ds'][0];
+		$cuoi = $t['ds'][ count( $t['ds'] ) - 1 ];
+		$tu   = self::phut( $dau['den'] );      // hết ca đầu
+		$den  = self::phut( $cuoi['tu'] );      // đầu ca cuối
+		if ( null === $tu || null === $den || $den <= $tu ) { return null; }
+		/* Không đề xuất một khoảng nằm ngoài chính lượt chấm ấy. */
+		$v = intdiv( (int) $vao_giay, 60 );
+		$r = intdiv( (int) $ra_giay, 60 );
+		if ( $tu < $v || $den > $r ) { return null; }
+		return array( $tu * 60, $den * 60 );
 	}
 
 	/**
@@ -448,14 +501,16 @@ class VHCC_Ca {
 	/* ==================================================================== phụ */
 
 	/** 'H:mm' / 'HH:mm' -> 'HH:mm'; rỗng hoặc sai -> ''. */
+	/**
+	 * Chuỗi giờ -> `'HH:mm'`, hoặc `''` nếu không đọc được.
+	 *
+	 * ⚠️ Đi qua `VHCC_DB::gio_24()` từ 3.65.0 — bốn ô giờ khai ca nay là ô gõ thường (24 giờ),
+	 *    không còn `type="time"`, nên phải nhận cả kiểu gõ nhanh `0830`. Trả `''` cho cả ô
+	 *    trống lẫn gõ sai; `luu()` tự tách hai chuyện ấy để còn KỂ TÊN ca bị bỏ.
+	 */
 	public static function gio( $s ) {
-		$s = trim( (string) $s );
-		if ( '' === $s ) { return ''; }
-		if ( ! preg_match( '/^(\d{1,2}):(\d{2})/', $s, $m ) ) { return ''; }
-		$h = (int) $m[1];
-		$p = (int) $m[2];
-		if ( $h > 23 || $p > 59 ) { return ''; }
-		return sprintf( '%02d:%02d', $h, $p );
+		$c = VHCC_DB::gio_24( $s );
+		return ( '' === $c || false === $c ) ? '' : $c;
 	}
 
 	/** 'HH:mm' -> phút trong ngày. null nếu không đọc được. */

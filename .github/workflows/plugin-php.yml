@@ -135,6 +135,39 @@ jobs:
       - name: Bộ thử đối soát ngân hàng & quét dây chuyền JP
         run: php tools/test/kiem-jp-doi-soat.php
 
+      - name: Bộ thử gác vị trí cơ sở
+        run: php tools/test/kiem-vi-tri.php
+
+      - name: Bộ thử màn xin phép trên trạm
+        run: php tools/test/kiem-xin-phep.php
+
+      - name: Bộ thử hàng đợi khi mất mạng
+        run: php tools/test/kiem-hang-cho.php
+
+      - name: Bộ thử dải nhắc chỗ chấm công
+        run: php tools/test/kiem-nhac-cho-cham-cong.php
+
+      - name: Bộ thử lịch làm của tôi
+        run: php tools/test/kiem-lich-toi.php
+
+      - name: Bộ thử báo lượt chấm sai
+        run: php tools/test/kiem-bao-sai.php
+
+      - name: Bộ thử đơn xin nghỉ
+        run: php tools/test/kiem-xin-nghi.php
+
+      - name: Bộ thử phiếu lương của tôi
+        run: php tools/test/kiem-phieu-luong.php
+
+      - name: Bộ thử tab Cửa hàng
+        run: php tools/test/kiem-cua-hang.php
+
+      - name: Bộ thử lưới ứng dụng
+        run: php tools/test/kiem-luoi-ung.php
+
+      - name: Bộ thử app PWA
+        run: php tools/test/kiem-cc-app.php
+
       - name: Bộ thử chi phí
         run: php tools/test/test-flows.php
 

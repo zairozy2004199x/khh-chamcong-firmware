@@ -1,0 +1,336 @@
+<?php
+/**
+ * BẢN CHI PHÍ RIÊNG CHO MỘT VÙNG — PHẢI ĐỘC LẬP HOÀN TOÀN VỚI BẢN ĐANG CHẠY.
+ *
+ * Anh Thắng 08/09/2026: *"khu vực hn muốn dùng hệ thống vận hành chi phí … build 1 web riêng để
+ * tránh sai dữ liệu"*, rồi chốt *"tạo riêng, tức hn họ có quy trình khác thì đổi lại để không
+ * ảnh hưởng hcm"*.
+ *
+ * =============================================================================================
+ * 🔴 HAI BẢN CÙNG CÀI TRÊN MỘT WORDPRESS. Sót một chỗ đổi tên là hỏng theo bốn kiểu:
+ *      · trùng tên lớp  -> PHP chết ngay lúc nạp, TRẮNG CẢ SITE (kể cả bản đang chạy)
+ *      · trùng tên bảng -> hai vùng ghi đè dữ liệu của nhau, IM LẶNG, không câu lỗi nào
+ *      · trùng khoá cấu hình -> đổi cài đặt vùng này là đổi luôn vùng kia
+ *      · trùng đường dẫn -> chỉ một bản mở được
+ *    Ba cái đầu đều là mất tiền hoặc mất cả trang, nên bài này soi TỪNG cái tên một.
+ *
+ * ⚠️ CHỖ MÙ, ghi rõ: bài này KHÔNG chạy WordPress thật. Nó soi mã nguồn — đủ để bắt mọi kiểu
+ *    "sót một chỗ đổi tên", nhưng không kiểm được `dbDelta` dựng bảng ra sao trên host.
+ *
+ * Chạy: php tools/test/kiem-tach-ban-vung.php
+ */
+
+$DAT = 0; $TRUOT = array();
+function t( $ten, $ok, $them = null ) {
+	global $DAT, $TRUOT;
+	if ( $ok ) { $DAT++; return; }
+	$TRUOT[] = $ten . ( null !== $them ? ( "\n      → " . ( is_scalar( $them ) ? $them : var_export( $them, true ) ) ) : '' );
+}
+function teq( $ten, $mong, $thuc ) { t( $ten . ' (mong ' . var_export( $mong, true ) . ')', $mong === $thuc, $thuc ); }
+
+$GOC  = dirname( dirname( __DIR__ ) );
+$GOCP = $GOC . '/wordpress/vhcp-chi-phi';
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * SOI **MỌI** BẢN RỜI, KHÔNG CHỈ BẢN ĐẦU TIÊN — anh Thắng 14/09/2026
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 BẢN TRƯỚC GÕ CỨNG `$MA = 'hn'`. Hôm ấy chỉ có một bản rời nên nó đúng; nay anh Thắng tách
+ *    mỗi mảng kinh doanh một trang (*"tạo 2 mảng kinh doanh riêng ra 2 trang riêng"*) và có ba
+ *    bản. Gõ cứng một mã nghĩa là hai bản mới KHÔNG ai soi — mà cái hỏng ở đây không kêu:
+ *    một bản chiếm đường REST của bản gốc thì trang kia mở ra TRỐNG TRƠN, dữ liệu còn nguyên
+ *    mà nhìn y như mất sạch (đã xảy ra 08/09/2026).
+ *
+ * ⚠️ DÒ THƯ MỤC, KHÔNG LIỆT KÊ MÃ. Liệt kê thì mã thứ tư sinh ra tháng sau lại lọt, y như lần
+ *    trước — và lọt thì im lặng. Dò thì bản nào có mặt trong kho là bản ấy bị soi.
+ *
+ * Chạy không tham số -> tự gọi lại chính mình cho từng mã. Có tham số -> soi đúng mã ấy.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+$MA = isset( $argv[1] ) ? trim( (string) $argv[1] ) : '';
+if ( '' === $MA ) {
+	$cac = array();
+	foreach ( (array) glob( $GOC . '/wordpress/vhcp-chi-phi-*', GLOB_ONLYDIR ) as $d ) {
+		$ten_d = basename( $d );
+		$m_d   = substr( $ten_d, strlen( 'vhcp-chi-phi-' ) );
+		if ( '' === $m_d ) { continue; }
+		/* 🔴 TRANG TỔNG KHÔNG PHẢI MỘT BẢN VÙNG, dù tên thư mục cùng dạng. Nó không sinh từ
+		   `tach-ban-vung.sh`, không có sổ chi phí của riêng nó, và cố ý KHÔNG mang những tệp bài
+		   này đi soi (màn Cấu hình, cổng nạp ảnh, bộ nhập liệu…). Soi nó bằng thước của bản vùng
+		   là đỏ oan — mà đỏ oan vài lần là người ta thôi đọc cái đỏ.
+		   Bài riêng của nó: `tools/test/kiem-trang-tong.php`. */
+		if ( 'tong' === $m_d ) { continue; }
+		$cac[] = $m_d;
+	}
+	sort( $cac );
+	if ( ! $cac ) {
+		echo "✗ Không thấy bản rời nào (wordpress/vhcp-chi-phi-*).\n";
+		exit( 1 );
+	}
+	$hong = array();
+	foreach ( $cac as $m_d ) {
+		echo "── bản «" . $m_d . "» ─────────────────────────────────────────\n";
+		$ra = 0;
+		passthru( escapeshellarg( PHP_BINARY ) . ' ' . escapeshellarg( __FILE__ )
+			. ' ' . escapeshellarg( $m_d ), $ra );
+		if ( 0 !== $ra ) { $hong[] = $m_d; }
+	}
+	if ( $hong ) {
+		echo "\n✗ TRƯỢT ở bản: " . implode( ', ', $hong ) . "\n";
+		exit( 1 );
+	}
+	echo "\n✓ SẠCH — cả " . count( $cac ) . " bản rời (" . implode( ' · ', $cac )
+		. ") đều độc lập với bản đang chạy.\n";
+	exit( 0 );
+}
+if ( ! preg_match( '/^[a-z][a-z0-9]{0,7}$/', $MA ) ) {
+	echo "✗ Mã bản không hợp lệ: " . $MA . "\n";
+	exit( 2 );
+}
+$DICH = $GOC . '/wordpress/vhcp-chi-phi-' . $MA;
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 0. BẢN VÙNG PHẢI CÓ THẬT, VÀ SINH RA ĐƯỢC LẠI
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+t( '🔴 có bản vùng ' . $MA, is_dir( $DICH ), $DICH );
+t( 'có script sinh (không chép tay)', is_file( $GOC . '/tools/tach-ban-vung.sh' ) );
+t( 'tệp gốc plugin mang đúng tên', is_file( $DICH . '/vhcp-chi-phi-' . $MA . '.php' ) );
+if ( ! is_dir( $DICH ) ) { echo "\n✗ Chưa sinh bản vùng — dừng.\n"; exit( 1 ); }
+
+/** Mọi tệp mã của một thư mục plugin. */
+function tep_ma( $thu_muc ) {
+	$ra = array();
+	$it = new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $thu_muc, FilesystemIterator::SKIP_DOTS ) );
+	foreach ( $it as $f ) {
+		if ( preg_match( '/\.(php|html|js)$/i', $f->getFilename() ) ) { $ra[] = $f->getPathname(); }
+	}
+	sort( $ra );
+	return $ra;
+}
+$tep_dich = tep_ma( $DICH );
+t( 'bản vùng có đủ tệp mã', count( $tep_dich ) >= 20, count( $tep_dich ) );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 1. 🔴 KHÔNG CÒN MỘT TÊN NÀO CỦA BẢN GỐC
+ *
+ * Đây là phép quan trọng nhất của cả bài: một chuỗi `VHCP_` còn sót là một lớp trùng tên, và
+ * PHP chết ngay lúc nạp — trắng cả site, kể cả bản HCM đang chạy.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+$sot_hoa = array(); $sot_thuong = array();
+foreach ( $tep_dich as $f ) {
+	$s = file_get_contents( $f );
+	$ten_ngan = str_replace( $DICH . '/', '', $f );
+	/* `VHCP_` mà KHÔNG có mã vùng ngay sau = còn sót. */
+	if ( preg_match_all( '/VHCP_(?!' . strtoupper( $MA ) . ')/', $s, $m ) ) {
+		$sot_hoa[] = $ten_ngan . ' (' . count( $m[0] ) . ' chỗ)';
+	}
+	if ( preg_match_all( '/\bvhcp_(?!' . $MA . ')/', $s, $m2 ) ) {
+		$sot_thuong[] = $ten_ngan . ' (' . count( $m2[0] ) . ' chỗ)';
+	}
+}
+teq( '🔴 KHÔNG còn tên lớp / hằng nào của bản gốc (VHCP_)', array(), $sot_hoa );
+teq( '🔴 KHÔNG còn tiền tố bảng / khoá cấu hình nào của bản gốc (vhcp_)', array(), $sot_thuong );
+
+/* Và phải đổi THẬT — không phải thư mục rỗng. */
+$so_lop = 0;
+foreach ( $tep_dich as $f ) {
+	$so_lop += preg_match_all( '/class\s+VHCP' . strtoupper( $MA ) . '_/', file_get_contents( $f ) );
+}
+t( '🔴 có tên lớp mang mã vùng', $so_lop >= 15, $so_lop );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 2. TÊN BẢNG CSDL — HAI BÊN KHÔNG ĐƯỢC CHẠM NHAU
+ *
+ * 🔴 Trùng bảng là kiểu hỏng TỆ NHẤT: không câu lỗi nào, hai vùng lặng lẽ ghi đè lên nhau, và
+ *    tới lúc phát hiện thì số liệu đã trộn vào nhau không gỡ ra được.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+function tien_to_bang( $tep ) {
+	$s = file_get_contents( $tep );
+	return preg_match( "/\\\$wpdb->prefix \. '([a-z0-9_]+)'/", $s, $m ) ? $m[1] : '';
+}
+$tt_goc  = tien_to_bang( $GOCP . '/includes/class-vhcp-db.php' );
+$tt_dich = tien_to_bang( $DICH . '/includes/class-vhcp-db.php' );
+teq( 'bản gốc dùng tiền tố bảng', 'vhcp_', $tt_goc );
+teq( '🔴 bản vùng dùng tiền tố KHÁC', 'vhcp' . $MA . '_', $tt_dich );
+t( '   và hai tiền tố không lồng nhau', 0 !== strpos( $tt_dich, $tt_goc ), array( $tt_goc, $tt_dich ) );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 3. ĐƯỜNG DẪN TRANG RIÊNG
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+$app_goc  = file_get_contents( $GOCP . '/includes/class-vhcp-app.php' );
+$app_dich = file_get_contents( $DICH . '/includes/class-vhcp-app.php' );
+t( 'bản gốc vẫn ở /chi-phi', false !== strpos( $app_goc, "'chi-phi'" ), '' );
+t( '🔴 bản vùng ở /chi-phi-' . $MA, false !== strpos( $app_dich, "'chi-phi-" . $MA . "'" ), '' );
+/* ⚠️ `preg_match()` trả 0 khi KHÔNG khớp, không trả false. So bằng `false ===` là phép này đỏ
+   ngay cả lúc mã hoàn toàn đúng — đã đỏ đúng như thế ở lượt chạy đầu. */
+teq( '   và KHÔNG còn đường dẫn cũ', 0, preg_match( "/'chi-phi'/", $app_dich ) );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 4. TÊN PLUGIN KHÁC — không thì màn Plugin bày hai dòng giống hệt
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+$boot_goc  = file_get_contents( $GOCP . '/vhcp-chi-phi.php' );
+$boot_dich = file_get_contents( $DICH . '/vhcp-chi-phi-' . $MA . '.php' );
+preg_match( '/Plugin Name:\s*(.+)/', $boot_goc, $n1 );
+preg_match( '/Plugin Name:\s*(.+)/', $boot_dich, $n2 );
+t( 'bốc được tên hai plugin', ! empty( $n1[1] ) && ! empty( $n2[1] ), array( $n1, $n2 ) );
+t( '🔴 tên hai plugin KHÁC nhau', trim( $n1[1] ) !== trim( $n2[1] ), array( trim( $n1[1] ), trim( $n2[1] ) ) );
+/* ⚠️ TÊN PHẢI MANG MÃ BẢN, không chỉ "khác bản gốc". Trong danh sách Plugin của wp-admin người
+   ta thấy bốn dòng na ná nhau; thiếu mã thì gỡ nhầm hay cập nhật nhầm bản là chuyện sớm muộn,
+   mà gỡ nhầm một bản chi phí là mất đường vào sổ tiền của cả một mảng. Bản trước gõ cứng
+   'HN'/'Hà Nội' — đúng hôm chỉ có một bản, sai ngay hôm có ba. */
+t( '   và tên bản mang MÃ của nó (' . $MA . ')', false !== mb_stripos( $n2[1], $MA ), $n2[1] );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 5. MÃ VẪN ĐỌC ĐƯỢC SAU KHI ĐỔI TÊN
+ *
+ * 🔴 Đổi tên bằng `sed` mà lỡ tay là sinh ra mã sai cú pháp — và nó chỉ lộ ra lúc kích hoạt
+ *    plugin trên host thật, tức lúc site đã trắng.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+$hong = array();
+foreach ( $tep_dich as $f ) {
+	if ( ! preg_match( '/\.php$/i', $f ) ) { continue; }
+	$out = array(); $ma = 0;
+	exec( escapeshellcmd( PHP_BINARY ) . ' -l ' . escapeshellarg( $f ) . ' 2>&1', $out, $ma );
+	if ( 0 !== $ma ) { $hong[] = str_replace( $DICH . '/', '', $f ) . ': ' . implode( ' ', $out ); }
+}
+teq( '🔴 mọi tệp PHP của bản vùng đọc được', array(), $hong );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 6. BẢN GỐC KHÔNG BỊ ĐỤNG MỘT DÒNG NÀO
+ *
+ * 🔴 Anh Thắng chốt: *"để không ảnh hưởng hcm"*. Đây là phép canh đúng câu ấy.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+$goc_sot = array();
+foreach ( tep_ma( $GOCP ) as $f ) {
+	if ( false !== strpos( $f, '/goc/' ) ) { continue; }   // mã gốc tra cứu, không chạy
+	$s = file_get_contents( $f );
+	if ( preg_match( '/VHCP' . strtoupper( $MA ) . '_|vhcp' . $MA . '_|chi-phi-' . $MA . '/', $s ) ) {
+		$goc_sot[] = str_replace( $GOCP . '/', '', $f );
+	}
+}
+teq( '🔴 bản gốc KHÔNG dính một chữ nào của bản vùng', array(), $goc_sot );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 7. SCRIPT SINH PHẢI GÁC MẤY CHỖ DỄ CHẾT
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+$sh = file_get_contents( $GOC . '/tools/tach-ban-vung.sh' );
+t( '🔴 chối mã vùng có dấu / hoa / ký tự lạ (nó đi vào TÊN LỚP và TÊN BẢNG)',
+	false !== strpos( $sh, "grep -qE '^[a-z][a-z0-9]{0,7}\$'" ), '' );
+/* Đòi cả LỜI HỎI lẫn CHỐT KIỂM. Dò trống chữ `DONG-Y` thì bỏ hẳn dòng kiểm đi vẫn khớp vào
+   lời nhắc ngay trên — phá thử chỉ ra đúng lỗ ấy. */
+t( '🔴 hỏi lại trước khi ĐÈ bản vùng đã có', false !== strpos( $sh, 'read -r tra' ), '' );
+t( '   và THẬT SỰ dừng nếu không gõ đúng',
+	false !== strpos( $sh, '[ "$tra" = "DONG-Y" ] ||' ), '' );
+t( '   và nói rõ đè là mất thứ vùng ấy đã sửa riêng', false !== mb_strpos( $sh, 'đã sửa riêng' ), '' );
+/* 🔴 ĐỔI TÊN PHẢI LÀ MỘT LƯỢT DUY NHẤT.
+   Cắn thật 08/09/2026: bản trước chạy bốn `sed -e` nối tiếp, luật sau ăn vào kết quả luật
+   trước và sinh ra 'vhcphnhn_slug' ở 143 chỗ. Perl quét trái sang phải trong MỘT `s///` thì
+   phần vừa thay không bị soi lại — đó là thứ chốt chuyện này, nên bài kiểm canh đúng nó. */
+t( '🔴 đổi tên trong MỘT lượt s/// (không nối tiếp nhiều lượt)',
+	false !== strpos( $sh, 'class-vhcp- | vhcp\\.css | vhcp-chi-phi | VHCP | vhcp' ), '' );
+t( '   chừa tên tệp class-vhcp-* (đổi thì require_once trỏ vào tệp không có)',
+	false !== strpos( $sh, '$& eq "class-vhcp-" ? $&' ), '' );
+t( '   chừa tệp vhcp.css (nạp theo tên trong class-vhcp-app.php)',
+	false !== strpos( $sh, '$& eq "vhcp.css"    ? $&' ), '' );
+t( 'bỏ thư mục goc/ khỏi bản vùng', false !== strpos( $sh, 'rm -rf "$DICH/goc"' ), '' );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 8. 🔴 KHÔNG DÙNG CHUNG BẤT KỲ CHUỖI NÀO — PHÉP QUAN TRỌNG NHẤT CỦA CẢ BÀI
+ *
+ * Anh Thắng 08/09/2026 mở khmatrix.com/chi-phi/ ra thấy TRỐNG TRƠN, tưởng mất sạch dữ liệu.
+ * Dữ liệu còn nguyên (238 hàng cấu hình, 943 dòng chi, 104 đơn). Chuyện thật là:
+ *
+ *     CẢ HAI plugin cùng đăng ký `register_rest_route( 'vhcp/v1', '/call' )`.
+ *     WordPress cho cái đăng ký SAU đè lên cái trước. Plugin nạp theo thứ tự chữ cái nên
+ *     `vhcp-chi-phi-hn` nạp sau `vhcp-chi-phi` -> BẢN HN CHIẾM ĐƯỜNG.
+ *     Trang HCM vẫn dựng đúng, nhưng mọi lượt hỏi dữ liệu của nó rơi vào bảng RỖNG của HN.
+ *
+ * 🔴 VÌ SAO KHÔNG LIỆT KÊ TỪNG KHOÁ RA MÀ SOI. Bản trước đã liệt kê: lớp, bảng, option, đường
+ *    dẫn — bốn thứ, và sót đúng thứ năm. Liệt kê thì mỗi khoá thêm về sau lại lọt, mà lọt thì
+ *    IM LẶNG cho tới lúc hai bản cùng cài trên một site. Nên phép này làm ngược: gom MỌI chuỗi
+ *    trong mã có chữ `vhcp` của cả hai bên, rồi đòi hai tập KHÔNG giao nhau. Khoá mới kiểu gì
+ *    cũng lọt vào lưới, kể cả khoá chưa ai nghĩ ra.
+ *
+ * ⚠️ CHỪA TÊN TỆP. `includes/class-vhcp-cfg.php` và `assets/css/vhcp.css` trùng nhau là ĐÚNG:
+ *    mỗi bản nạp tệp trong thư mục của chính nó, không với sang nhau được.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+function chuoi_co_vhcp( $thu_muc ) {
+	$ra = array();
+	foreach ( tep_ma( $thu_muc ) as $f ) {
+		if ( false !== strpos( $f, '/goc/' ) ) { continue; }
+		$s = file_get_contents( $f );
+		if ( ! preg_match_all( '/([\'"])([^\'"\n]*vhcp[^\'"\n]*)\\1/i', $s, $m ) ) { continue; }
+		foreach ( $m[2] as $x ) {
+			/* Tên tệp — xem chốt ⚠️ ở trên. */
+			if ( preg_match( '/\\.(php|css|js|html)$/i', $x ) ) { continue; }
+			$ra[ $x ] = 1;
+		}
+	}
+	return $ra;
+}
+$chung = array_keys( array_intersect_key( chuoi_co_vhcp( $GOCP ), chuoi_co_vhcp( $DICH ) ) );
+sort( $chung );
+teq( '🔴 hai bản KHÔNG dùng chung một chuỗi nào', array(), $chung );
+
+/* Và soi đích danh mấy khoá đã cắn, để lúc trượt còn đọc ra ngay hỏng ở đâu. */
+$api_g = file_get_contents( $GOCP . '/includes/class-vhcp-api.php' );
+$api_v = file_get_contents( $DICH . '/includes/class-vhcp-api.php' );
+t( '🔴 đường REST của bản vùng KHÁC bản gốc (thứ đã làm /chi-phi/ trống trơn)',
+	false !== strpos( $api_g, "register_rest_route( 'vhcp/v1'" )
+	&& false !== strpos( $api_v, "register_rest_route( 'vhcp" . $MA . "/v1'" ), '' );
+$ad_v = file_get_contents( $DICH . '/includes/class-vhcp-admin.php' );
+t( '   slug menu wp-admin khác nhau (không thì chung cả màn Cài đặt)',
+	false !== strpos( $ad_v, "self::CAP, 'vhcp" . $MA . "'" ), '' );
+t( '   form trong wp-admin POST về màn CỦA CHÍNH NÓ',
+	false === strpos( $ad_v, "admin.php?page=vhcp'" ), '' );
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 NHÃN MENU wp-admin PHẢI KHÁC NHAU — anh Thắng 14/09/2026, ảnh màn quản trị.
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * Bốn dòng «Vận Hành Chi Phí» y hệt nhau trong menu bên trái, không biết dòng nào là mảng nào.
+ * Lượt đổi tiền tố ở script tách KHÔNG chạm tới nhãn, vì nhãn là chuỗi tiếng Việt không chứa
+ * chữ `vhcp`.
+ *
+ * ⚠️ Cái hại không phải xấu mắt: bấm nhầm dòng là mở màn Cấu hình của MẢNG KHÁC, rồi sửa danh
+ *    mục hay phân quyền ở đó mà tưởng đang sửa mảng mình. Không có gì báo, vì màn nào cũng
+ *    giống hệt màn nào.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+preg_match( '#add_menu_page\(\s*(["\'])(.*?)\1#', $ad_v, $nh_v );
+preg_match( '#add_menu_page\(\s*(["\'])(.*?)\1#', file_get_contents( $GOCP . '/includes/class-vhcp-admin.php' ), $nh_g );
+t( 'bốc được nhãn menu hai bên', ! empty( $nh_v[2] ) && ! empty( $nh_g[2] ), array( $nh_v, $nh_g ) );
+t( '🔴 nhãn menu KHÁC nhãn của bản gốc',
+	trim( $nh_v[2] ) !== trim( $nh_g[2] ), array( trim( $nh_v[2] ), trim( $nh_g[2] ) ) );
+t( '🔴 và nhãn mang MÃ của bản này (' . $MA . ')',
+	false !== mb_stripos( $nh_v[2], $MA ), $nh_v[2] );
+
+$up_v = file_get_contents( $DICH . '/includes/class-vhcp-upload.php' );
+t( '   thư mục ảnh tải lên khác nhau (không thì hai bản trộn ảnh chung)',
+	false !== strpos( $up_v, "const ROOT     = 'vhcp" . $MA . "'" ), '' );
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 KHÔNG BẢN NÀO ĐƯỢC GIÀNH ĐƯỜNG DẪN CỦA BẢN GỐC — anh Thắng 14/09/2026
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * Bản gốc nay mang HAI hằng slug: `SLUG_MAC_DINH = 'chi-phi-kvc'` (trang của mảng Khu Vui Chơi)
+ * và `SLUG_CU = 'chi-phi'` (đường đời đầu, giữ sống cho link cũ khỏi 404). Bản rời chép cả hai
+ * — sót một cái là bản rời đăng ký đúng đường của bản đang chở sổ tiền thật, và WordPress cho
+ * luật khai SAU đè luật trước. Plugin nạp theo thứ tự chữ cái nên `vhcp-chi-phi-mtd` nạp sau
+ * `vhcp-chi-phi`: /chi-phi rơi vào bảng RỖNG của bản mới.
+ *
+ * ⚠️ Y HỆT CÁI ĐÃ CẮN 08/09/2026 với đường REST — anh Thắng mở trang ra thấy trống trơn, dữ
+ *    liệu còn nguyên mà nhìn như mất sạch. Nên soi CHUỖI TRẦN, không soi "có vẻ đã đổi".
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+$app_v = file_get_contents( $DICH . '/includes/class-vhcp-app.php' );
+t( "🔴 không còn chuỗi 'chi-phi' trần (đường đời đầu của bản gốc)",
+	false === strpos( $app_v, "'chi-phi'" ), '' );
+t( "🔴 không còn chuỗi 'chi-phi-kvc' trần (đường của mảng KVC)",
+	false === strpos( $app_v, "'chi-phi-kvc'" ), '' );
+t( '   và slug mặc định của bản này đúng là chi-phi-' . $MA,
+	false !== strpos( $app_v, "'chi-phi-" . $MA . "'" ), '' );
+
+$au_v = file_get_contents( $DICH . '/includes/class-vhcp-auth.php' );
+t( '🔴 lệnh dọn transient chỉ đụng transient CỦA CHÍNH NÓ',
+	false === strpos( $au_v, "_transient_vhcp\\_fail" ), '' );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════ */
+if ( $TRUOT ) {
+	echo "\n✗ TRƯỢT " . count( $TRUOT ) . " phép (đạt $DAT):\n";
+	foreach ( $TRUOT as $x ) { echo "  · $x\n"; }
+	exit( 1 );
+}
+echo "\n✓ SẠCH — $DAT phép: bản «{$MA}» độc lập hoàn toàn, bản đang chạy không bị đụng.\n";

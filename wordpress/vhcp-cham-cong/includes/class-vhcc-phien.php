@@ -214,6 +214,11 @@ class VHCC_Phien {
 	 *
 	 * ⚠️ Style để INLINE, không phụ thuộc bảng CSS của trang gọi — trang mới nào cũng dùng được
 	 *    ngay, kể cả khi nó chưa có lớp `.nut` nào.
+	 * ⚠️ NÊN MỌI MÀU Ở ĐÂY VIẾT `var(--x,#hex)`, không gõ thẳng mã màu. Hai vế của cùng một
+	 *    yêu cầu: trang nào ĐÃ có bộ áo thì khối này ăn theo bộ áo ấy (đổi sắc xanh của cả nhà
+	 *    là nó đổi theo, không còn là cái nút xanh lạc lõng duy nhất trên trang); trang nào
+	 *    CHƯA có thì giá trị lui đỡ, đúng như câu trên hứa. Gõ thẳng mã màu là được vế sau mà
+	 *    mất vế trước — và mất lặng lẽ.
 	 *
 	 * @param array $dat loi · nhan (chữ trên nút) · goi_y (chữ mờ trong ô)
 	 */
@@ -224,17 +229,20 @@ class VHCC_Phien {
 
 		$h = '';
 		if ( '' !== $loi ) {
-			$h .= '<div class="bao loi" style="background:#fef2f2;border:1px solid #fecaca;'
-				. 'border-radius:9px;padding:11px 13px;margin:0 0 12px">' . esc_html( $loi ) . '</div>';
+			$h .= '<div class="bao loi" style="background:var(--do-nhat,#fef2f2);'
+				. 'border:1px solid var(--vien-dam,#cbd5e1);'
+				. 'border-radius:var(--bo-nho,9px);padding:11px 13px;margin:0 0 12px">'
+				. esc_html( $loi ) . '</div>';
 		}
 		$h .= '<form method="post" style="margin:0;display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
 			. '<input type="hidden" name="viec" value="dang_nhap">'
 			. '<input type="password" name="pin" inputmode="numeric" autocomplete="off" required '
 			. 'placeholder="' . esc_attr( $goi_y ) . '" '
-			. 'style="flex:1;min-width:190px;padding:10px 12px;border:1px solid #cbd5e1;'
-			. 'border-radius:8px;font-size:15px">'
+			. 'style="flex:1;min-width:190px;padding:10px 12px;border:1px solid var(--vien-dam,#cbd5e1);'
+			. 'border-radius:var(--bo-o,8px);font-size:15px">'
 			. '<button type="submit" style="font:inherit;font-weight:600;padding:10px 16px;'
-			. 'border-radius:8px;border:1px solid #2563eb;background:#2563eb;color:#fff;cursor:pointer">'
+			. 'border-radius:var(--bo-nut,8px);border:1px solid var(--nhan,#2563eb);'
+			. 'background:var(--nhan,#2563eb);color:var(--the,#fff);cursor:pointer">'
 			. esc_html( $nhan ) . '</button></form>';
 		return $h;
 	}
@@ -249,7 +257,8 @@ class VHCC_Phien {
 		return '<form method="post" style="margin:0">' . self::o_ky( $ns )
 			. '<input type="hidden" name="viec" value="thoat">'
 			. '<button type="submit" style="font:inherit;font-weight:600;padding:7px 12px;'
-			. 'border-radius:8px;border:1px solid #cbd5e1;background:#fff;color:#0f172a;cursor:pointer">'
+			. 'border-radius:var(--bo-nut,8px);border:1px solid var(--vien-dam,#cbd5e1);'
+			. 'background:var(--the,#fff);color:var(--chu,#0f172a);cursor:pointer">'
 			. esc_html( $nhan ) . '</button></form>';
 	}
 }

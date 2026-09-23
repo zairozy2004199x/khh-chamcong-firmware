@@ -12,10 +12,34 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class VHCP_App {
 
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * BẢN NÀY LÀ TRANG CỦA MẢNG KHU VUI CHƠI — anh Thắng 14/09/2026
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * *"Anh đang tách 2 mảng kinh doanh riêng ra 2 trang riêng, không dùng chung chi phí kvc
+	 * nữa"* · *"chi phí hiện tại là khmatrix.com/chi-phi-kvc"*.
+	 *
+	 * 🔴 BẢN ĐANG CHẠY GIỮ NGUYÊN BẢNG VÀ TÊN LỚP, CHỈ ĐỔI ĐƯỜNG DẪN. Nó đang chở sổ chi phí
+	 *    thật của Khu Vui Chơi; đổi tiền tố bảng là phải di trú dữ liệu, mà di trú một sổ tiền
+	 *    đang chạy để lấy cái tên đẹp hơn là đổi một thứ chắc chắn đúng lấy một thứ có thể sai.
+	 *    Hai bản MTD và VP sinh mới từ `tools/tach-ban-vung.sh` nên chúng mới là bản có tiền tố
+	 *    riêng — bản gốc không cần, vì nó không đụng ai.
+	 *
+	 * ⚠️ ĐƯỜNG CŨ `/chi-phi` VẪN PHẢI SỐNG. Nó nằm trong tin nhắn, trong dấu trang, trong mã QR
+	 *    đã in ra, và trong iframe của trang tổng. Đổi slug mà bỏ đường cũ là mọi thứ ấy trả 404
+	 *    cùng một lúc — mà 404 thì người dùng đọc thành "hệ thống sập", không đọc thành "đổi
+	 *    địa chỉ". Nên đăng ký CẢ HAI, xem init().
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+
+	/** Đường dẫn mặc định của bản này. */
+	const SLUG_MAC_DINH = 'chi-phi-kvc';
+
+	/** Đường dẫn đời đầu — giữ sống để link cũ không chết. */
+	const SLUG_CU = 'chi-phi';
+
 	public static function slug() {
 		$s = get_option( 'vhcp_slug' );
-		$s = $s ? sanitize_title( $s ) : 'chi-phi';
-		return $s ? $s : 'chi-phi';
+		$s = $s ? sanitize_title( $s ) : self::SLUG_MAC_DINH;
+		return $s ? $s : self::SLUG_MAC_DINH;
 	}
 
 	public static function app_url() {
@@ -23,8 +47,47 @@ class VHCP_App {
 		return add_query_arg( 'vhcp', 'app', home_url( '/' ) );
 	}
 
+	/**
+	 * MỌI ĐƯỜNG DẪN CỦA BẢN NÀY — cùng mở MỘT app, cùng đọc MỘT sổ.
+	 *
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 14/09/2026: *"nhớ trang chi phí cũ sẽ chạy 2 link, tránh các bạn rối"*.
+	 *
+	 * 🔴 KHAI CẢ BA, KHÔNG KHAI CÓ ĐIỀU KIỆN. Bản trước chỉ thêm đường đời đầu KHI slug hiện tại
+	 *    đã khác nó — nghe hợp lý, nhưng nó hỏng đúng ở ca thường gặp nhất:
+	 *
+	 *      ô Cài đặt trên host đang lưu sẵn 'chi-phi' (anh Thắng dùng link ấy từ đầu)
+	 *        -> slug() trả 'chi-phi'
+	 *        -> điều kiện "khác nhau" là SAI
+	 *        -> chỉ /chi-phi được khai, còn /chi-phi-kvc TRẢ 404.
+	 *
+	 *    Tức là cài bản mới lên xong, cái link mới in ra cho mọi người lại là link chết — cho
+	 *    tới khi có ai nhớ vào Cài đặt đổi tay. Mà "nhớ vào đổi tay" là thứ không xảy ra.
+	 *
+	 * ⚠️ KHAI THỪA THÌ VÔ HẠI: cùng một luật khai hai lần, WordPress giữ cái sau, và cả hai đều
+	 *    trỏ về đúng một chỗ. Khai THIẾU mới là 404. Nên lấy tập hợp rồi khai hết.
+	 *
+	 * 🔴 BẢN MTD/VP KHÔNG GIÀNH ĐƯỜNG CỦA AI. Script tách đổi CẢ HAI hằng slug thành
+	 *    'chi-phi-<mã>', nên tập hợp của chúng chỉ có đúng một phần tử — xem chốt trong
+	 *    `tools/tach-ban-vung.sh` và bài kiểm `kiem-tach-ban-vung.php`.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 *
+	 * @return string[] Đường dẫn, đã bỏ trùng và bỏ rỗng.
+	 */
+	public static function cac_slug() {
+		$ds = array( self::slug(), self::SLUG_MAC_DINH, self::SLUG_CU );
+		$ra = array();
+		foreach ( $ds as $s ) {
+			$s = sanitize_title( (string) $s );
+			if ( '' !== $s && ! in_array( $s, $ra, true ) ) { $ra[] = $s; }
+		}
+		return $ra;
+	}
+
 	public static function init() {
-		add_rewrite_rule( '^' . self::slug() . '/?$', 'index.php?vhcp_app=1', 'top' );
+		foreach ( self::cac_slug() as $s ) {
+			add_rewrite_rule( '^' . $s . '/?$', 'index.php?vhcp_app=1', 'top' );
+		}
 		add_filter( 'query_vars', array( __CLASS__, 'query_vars' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_render' ) );
 		// Nạp lại đường dẫn: xem vhcp_flush_rewrite() ở file chính — phải chạy SAU khi cả
@@ -58,7 +121,55 @@ class VHCP_App {
 	}
 
 	/** Danh tính SSO từ trang tổng (nếu có ?sso=). */
+	/**
+	 * DANH TÍNH MANG SANG TỪ TRẠM CHẤM CÔNG — vé một lần, không cần bí mật dùng chung.
+	 *
+	 * =========================================================================================
+	 * 🔴 LỖI NÀY LÀ LỖI ĐỔI NGƯỜI, KHÔNG PHẢI LỖI HIỂN THỊ
+	 * =========================================================================================
+	 * Anh Thắng 19/09/2026, hai ảnh đặt cạnh nhau: trạm Chấm công đang là *Trần Ngọc Minh
+	 * Truyền · TUTU_TP*, bấm sang app này thì hiện *Nguyễn Văn Bin · FARM_PT*. *"Phải tự link
+	 * chung 1 tk chứ"*.
+	 *
+	 * Ô Ứng dụng bên trạm vốn chỉ là một đường dẫn TRƠN. Sang tới đây, app không biết ai vừa
+	 * bấm nên lấy thẻ cũ còn sót trong máy — thẻ của người gần nhất gõ PIN trên chiếc điện
+	 * thoại ấy. Hậu quả thật: người này tạo và duyệt đơn chi phí dưới danh nghĩa người kia.
+	 *
+	 * ⚠️ KHÔNG DÙNG `?sso=` CÓ SẴN. Đường ấy đòi một chuỗi bí mật khai TAY trong từng bản chi
+	 *    phí (năm bản), và hiện đang để trống. Chính mã nguồn này đã viết: *"nhớ vào đổi tay
+	 *    là thứ không xảy ra"*. Vé thì không cần khai gì: hai plugin nằm trên CÙNG một site,
+	 *    nên hỏi thẳng `VHCC_Ve` "vé này của ai" là xong.
+	 *
+	 * ⚠️ Gác `class_exists` cùng hàm với lời gọi — plugin chấm công có thể chưa cài, hoặc cài
+	 *    bản cũ chưa có lớp này.
+	 */
+	private static function ve_cham_cong() {
+		if ( empty( $_GET['ccve'] ) ) { return null; }
+		if ( ! class_exists( 'VHCC_Ve' ) || ! method_exists( 'VHCC_Ve', 'doi' )
+			|| ! method_exists( 'VHCC_Ve', 'ma_vai' ) ) { return null; }
+		$d = VHCC_Ve::doi( sanitize_text_field( wp_unslash( $_GET['ccve'] ) ) );
+		if ( ! $d ) { return null; }
+		/* Quy về đúng hình dạng danh tính mà `resolve_sso_user()` đã biết đọc — kể cả bảng
+		   ngoại lệ theo email. Dựng một bảng ánh xạ vai riêng ở đây là hai bộ luật cho cùng
+		   một câu hỏi, và chúng sẽ lệch nhau vào ngày có người thêm một vai mới. */
+		$u = VHCP_Auth::resolve_sso_user( array(
+			'n' => (string) $d['name'],
+			'e' => '',
+			'r' => VHCC_Ve::ma_vai( (string) $d['role'] ),
+			'b' => (string) ( isset( $d['coso'] ) ? $d['coso'] : '' ),
+		) );
+		/* 🔴 PHÁT THẺ PHIÊN NGAY, VÀ GIAO DIỆN PHẢI CẤT NÓ ĐÈ LÊN THẺ CŨ. Không có bước ấy thì
+		   thanh tiêu đề hiện đúng tên mới, nhưng MỌI lệnh gọi máy chủ vẫn đi kèm thẻ cũ — tức
+		   vẫn ghi sổ dưới tên người kia. Xem `ssoToken` ở `head_block()`. */
+		$u['token'] = VHCP_Auth::issue_token( $u['name'], $u['role'], $u['coso'], '' );
+		return $u;
+	}
+
 	public static function sso_user() {
+		/* Vé của trạm thắng: người vừa bấm ở trạm là người đang đứng trước máy. */
+		$ve = self::ve_cham_cong();
+		if ( $ve ) { return $ve; }
+
 		if ( empty( $_GET['sso'] ) ) { return null; }
 		$tok   = sanitize_text_field( wp_unslash( $_GET['sso'] ) );
 		$ident = VHCP_Auth::verify_sso_token( $tok );
@@ -76,7 +187,30 @@ class VHCP_App {
 	 * @param string $trang   URL nhận lệnh của ĐƯỜNG GỌI THỨ BA (chính trang đang mở).
 	 * @param array  $fns     Danh sách hàm giao diện được phép gọi (null = tất cả).
 	 */
-	public static function head_block( $tieu_de = 'Vận Hành Chi Phí', $trang = '', $fns = null ) {
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * TÊN TRANG — KHAI ĐƯỢC, KHÔNG GÕ CỨNG.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 14/09/2026, ảnh trang Văn phòng: *"Đổi tên trang chi phí"*. Bốn bản chi phí cài
+	 * chung một site đều mở ra với đúng một dòng «Vận Hành Chi Phí» trên đầu — mở hai tab cạnh
+	 * nhau thì không biết tab nào là mảng nào.
+	 *
+	 * 🔴 CÙNG BỆNH VỚI NHÃN MENU wp-admin (vá 14/09 sáng): lượt đổi tiền tố của script tách
+	 *    không chạm tới chuỗi tiếng Việt. Nhưng lần này KHÔNG vá bằng cách cho script sửa chuỗi
+	 *    — vá thế thì mỗi lần anh Thắng muốn đổi tên lại phải sửa mã và cài lại. Nay tên nằm ở
+	 *    một khoá cấu hình, khai ngay trên màn Cài đặt.
+	 *
+	 * ⚠️ ĐỂ TRỐNG = DÙNG TÊN MẶC ĐỊNH, không phải = tên rỗng. Trang không có tiêu đề thì người
+	 *    dùng đọc thành "trang hỏng".
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	const TEN_MAC_DINH = 'Vận Hành Chi Phí';
+
+	public static function ten_trang() {
+		$t = trim( (string) get_option( 'vhcp_ten_trang', '' ) );
+		return ( '' !== $t ) ? $t : self::TEN_MAC_DINH;
+	}
+
+	public static function head_block( $tieu_de = null, $trang = '', $fns = null ) {
+		if ( null === $tieu_de || '' === trim( (string) $tieu_de ) ) { $tieu_de = self::ten_trang(); }
 		$sso = self::sso_user();
 		if ( $trang === '' ) { $trang = add_query_arg( 'vhcp_api', '1', self::app_url() ); }
 		if ( $fns === null )  { $fns = array_keys( VHCP_API::map() ); }
@@ -90,7 +224,18 @@ class VHCP_App {
 			'fns'      => $fns,
 			'ssoUser'  => $sso ? array( 'name' => $sso['name'], 'role' => $sso['role'],
 				'roleGoc' => VHCP_Cfg::vai_goc( (string) $sso['role'] ), 'coso' => $sso['coso'] ) : null,
+			/* 🔴 THẺ PHIÊN CỦA LƯỢT SSO PHẢI XUỐNG TỚI GIAO DIỆN. `gas-shim.js` gắn thẻ
+			   trong `localStorage` vào MỌI lệnh gọi, mà nó chỉ cất thẻ sau lượt gõ PIN —
+			   nên trước bản này, vào bằng SSO thì tên trên thanh tiêu đề là người mới còn
+			   thẻ gửi lên máy chủ vẫn là của người cũ: ghi sổ sai tên mà không gì báo.
+			   Shim thấy khoá này thì ghi đè thẻ cũ ngay trước lệnh gọi đầu tiên. */
+			'ssoToken' => ( $sso && ! empty( $sso['token'] ) ) ? (string) $sso['token'] : '',
 			'ver'      => VHCP_VERSION,
+			/* Giao diện lấy tên từ đây — xem khối dài ở `ten_trang()`. */
+			'tenTrang' => self::ten_trang(),
+			/* Mảng này có lấy cơ sở từ bên Ghế không — màn ẩn nút "Hút cơ sở từ Ghế" khi không.
+			   Bày một nút bấm vào chỉ nhận câu chối là thứ người ta bấm đi bấm lại. */
+			'layCoSoGhe' => VHCP_Cfg::lay_coso_ghe() ? 1 : 0,
 		);
 
 		$out  = '<title>' . esc_html( $tieu_de ) . '</title>' . "\n";

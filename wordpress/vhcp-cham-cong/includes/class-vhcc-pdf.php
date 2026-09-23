@@ -68,18 +68,24 @@ class VHCC_Pdf {
 	 *    hợp) mỗi nơi một bản; hai bản tính giờ trên cùng một tờ giấy là đúng cái mà Code.gs tự
 	 *    cảnh báo — sớm muộn lệch nhau, và lệch giờ trên bảng chấm công là lệch tiền.
 	 */
-	public static function phut_lam( $vao, $ra ) {
+	public static function phut_lam( $vao, $ra, $nghi_tu = null, $nghi_den = null ) {
 		if ( null === $vao || null === $ra || '' === $vao || '' === $ra ) { return null; }
 		$p = intdiv( (int) $ra, 60 ) - intdiv( (int) $vao, 60 );
 		/* Hàng ca đêm đã trải phẳng nên hiệu luôn dương; hàng chính vắt qua nửa đêm thì cộng bù,
 		   giống `_mtdTinhLuong`. Không xử thì ra số ÂM trên tờ giấy chấm công. */
 		if ( $p < 0 ) { $p += 1440; }
-		return $p;
+		/* ⚠️ CA GÃY — trừ khoảng nghỉ giữa ca. Tờ giấy in ra và màn hình phải nói CÙNG một con
+		   số; quên ở đây là kế toán cầm tờ in đi đối chiếu với màn rồi lệch nhau ở đúng mấy
+		   ngày ca gãy, và không ai biết bên nào đúng. */
+		if ( class_exists( 'VHCC_Cham' ) && method_exists( 'VHCC_Cham', 'phut_nghi' ) ) {
+			$p -= VHCC_Cham::phut_nghi( $nghi_tu, $nghi_den );
+		}
+		return max( 0, $p );
 	}
 
 	/** Cùng số đó, dạng chữ để in. */
-	public static function gio_lam( $vao, $ra ) {
-		$p = self::phut_lam( $vao, $ra );
+	public static function gio_lam( $vao, $ra, $nghi_tu = null, $nghi_den = null ) {
+		$p = self::phut_lam( $vao, $ra, $nghi_tu, $nghi_den );
 		return null === $p ? '' : ( number_format( $p / 60, 2 ) . 'h' );
 	}
 
@@ -90,16 +96,26 @@ class VHCC_Pdf {
 	public static function gom( $coso, $tu, $den ) {
 		global $wpdb;
 		$hang = VHCC_DB::rows( $wpdb->prepare(
-			'SELECT ngay, ma_nv, hau_to, ho_ten, gio_vao_giay, gio_ra_giay FROM '
+			'SELECT ngay, ma_nv, hau_to, ho_ten, gio_vao_giay, gio_ra_giay,'
+			. ' nghi_tu_giay, nghi_den_giay FROM '
 			. VHCC_DB::t( 'cham_cong' )
 			. ' WHERE coso=%s AND ngay >= %s AND ngay <= %s ORDER BY ngay, ho_ten, ma_nv, hau_to',
 			$coso, $tu, $den ) );
+
+		/* 🔴 TỜ GIẤY IN RA CŨNG PHẢI THEO SỔ ẨN. Anh Thắng 16/09/2026: *"nếu ẩn thì ẩn luôn"*.
+		   Hàm này có SQL RIÊNG, không đi qua `VHCC_Luong::doc_thang()` nơi phép lọc ở cửa vào
+		   đang đứng — nên nó là chỗ duy nhất còn phải lọc lấy. Ẩn xong mà tờ in nộp lên kế toán
+		   vẫn có tên người ấy thì việc ẩn coi như chưa làm.
+		   ⚠️ Gác `method_exists` cùng chỗ với lời gọi — luật của `kiem-goi-cheo.php`. */
+		$so_an = ( class_exists( 'VHCC_An' ) && method_exists( 'VHCC_An', 'la_an_chum' ) )
+			? VHCC_An::so() : array();
 
 		$chi_tiet = array();
 		$tong = array();
 		foreach ( $hang as $r ) {
 			$ma = trim( (string) $r['ma_nv'] );
 			if ( '' === $ma ) { continue; }
+			if ( $so_an && VHCC_An::la_an_chum( $coso, $ma, $so_an ) ) { continue; }
 			$hau_to = strtoupper( trim( (string) $r['hau_to'] ) );
 			$ma_hien = $ma . ( '' !== $hau_to ? '-' . $hau_to : '' );
 			$ten = '' !== trim( (string) $r['ho_ten'] ) ? $r['ho_ten'] : $ma_hien;
@@ -108,7 +124,7 @@ class VHCC_Pdf {
 
 			$chi_tiet[] = array( 'ngay' => $r['ngay'], 'ma' => $ma_hien, 'ten' => $ten,
 				'vao' => VHCC_DB::hhmmss( $vao ), 'ra' => VHCC_DB::hhmmss( $ra ),
-				'gio' => self::gio_lam( $vao, $ra ) );
+				'gio' => self::gio_lam( $vao, $ra, $r['nghi_tu_giay'], $r['nghi_den_giay'] ) );
 
 			if ( ! isset( $tong[ $ma_hien ] ) ) {
 				$tong[ $ma_hien ] = array( 'ma' => $ma_hien, 'ten' => $ten,
@@ -118,7 +134,7 @@ class VHCC_Pdf {
 			if ( null === $ra ) { $tong[ $ma_hien ]['thieuRa']++; }
 			/* Ngày thiếu một đầu KHÔNG cộng giờ — `phut_lam` trả null. Cộng bừa 0 hay cộng nửa ngày
 			   là tự bịa giờ làm cho một ngày mà máy không biết người ta làm bao lâu. */
-			$p = self::phut_lam( $vao, $ra );
+			$p = self::phut_lam( $vao, $ra, $r['nghi_tu_giay'], $r['nghi_den_giay'] );
 			if ( null !== $p ) { $tong[ $ma_hien ]['phut'] += $p; }
 		}
 		$tong = array_values( $tong );
@@ -372,6 +388,20 @@ class VHCC_Pdf {
 		   cột còn chưa tới 5mm và con số dính vào nhau. Cả tờ xoay ngang chứ không riêng mục
 		   lưới: `@page` không đổi hướng giữa chừng được, mà hai tờ hai hướng thì kẹp vào cặp
 		   tài liệu cũng không ai lật nổi. */
+		/* ══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 TỜ NÀY CỐ Ý ĐỨNG NGOÀI BỘ ÁO CHUNG — đừng "cho đồng bộ".
+		 *
+		 * 16/09/2026 cả plugin vào bộ áo chung của nhà (`tools/test/kiem-bo-ao-tron.php`): sáu
+		 * bước nhịp 4·8·12·16·20·24px, sáu bo góc, một bảng màu. Tờ này KHÔNG theo, và không
+		 * phải vì quên:
+		 *   · Nhịp ở đây đo bằng MILIMET giấy (`@page margin:8mm`), không phải điểm ảnh màn hình.
+		 *   · Ô ngày đệm `1px` vì 31 cột phải vừa bề ngang tờ A4. Ép lên `--d1` (4px) là bảng
+		 *     tràn sang tờ thứ hai — mà cả điểm của tờ này là một tháng lọt MỘT tờ.
+		 *   · Màu ở đây chọn theo MỰC IN, không theo màn hình: xám `#e8eef5` cho đầu bảng để
+		 *     máy in đen trắng vẫn ra một sắc xám phân biệt được, không phải để đẹp.
+		 * Thứ DUY NHẤT lấy theo bộ áo là thanh nút phía trên — nó là thứ hiện trên MÀN HÌNH và
+		 * không bao giờ in ra, nên nó phải trông như mọi nút khác của hệ.
+		 * ══════════════════════════════════════════════════════════════════════════════════ */
 		$h[] = '@page{size:A4 landscape;margin:8mm 8mm}';
 		$h[] = 'body{font-family:Arial,Helvetica,sans-serif;color:#111;font-size:11px;margin:0;padding:10mm}';
 		$h[] = 'h1{font-size:16px;margin:0 0 2px;text-align:center;text-transform:uppercase}';
@@ -416,8 +446,15 @@ class VHCC_Pdf {
 		$h[] = '.ky td{border:none;text-align:center;font-size:10px;padding-top:4px}';
 		/* Thanh nút chỉ có trên màn hình, KHÔNG in ra giấy. */
 		$h[] = '.thanh{position:sticky;top:0;background:#fffbe6;border:1px solid #e0c86a;padding:8px 10px;'
-			. 'margin:-6mm -6mm 10px;font-size:12px;border-radius:4px}';
-		$h[] = '.thanh button{font-size:13px;padding:5px 14px;cursor:pointer}';
+			. 'margin:-6mm -6mm 10px;font-size:12px;border-radius:8px;'
+			. 'box-shadow:0 1px 2px rgba(12,23,84,.05)}';
+		/* Nút bo 18px và nhún khi bấm — cùng nhịp với mọi nút khác của hệ. Đây là nút duy nhất
+		   của tờ này, và là thứ người ta bấm chứ không phải thứ in ra. */
+		$h[] = '.thanh button{font-size:13px;padding:5px 14px;cursor:pointer;border-radius:18px;'
+			. 'border:1px solid #2545ff;background:#2545ff;color:#fff;font-weight:600;'
+			. 'box-shadow:0 1px 2px rgba(12,23,84,.05);transition:transform .12s ease,box-shadow .12s ease}';
+		$h[] = '.thanh button:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(12,23,84,.10)}';
+		$h[] = '.thanh button:active{transform:translateY(0);box-shadow:0 1px 2px rgba(12,23,84,.05)}';
 		$h[] = '@media print{.thanh{display:none}body{padding:0}}';
 		$h[] = '</style></head><body>';
 

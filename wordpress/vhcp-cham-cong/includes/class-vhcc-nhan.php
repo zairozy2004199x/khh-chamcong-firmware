@@ -150,7 +150,18 @@ class VHCC_Nhan {
 			nocache_headers();
 			header( 'Content-Type: application/json; charset=utf-8' );
 		}
-		echo wp_json_encode( $tt );
+		/* 🔴 KHÔNG ESCAPE DẤU `/` TRONG THÂN TRẢ VỀ CHO MÁY — 09/09/2026.
+		   `json_encode` mặc định đổi `/` thành `\/`. Với mọi thứ khác thì vô hại (ArduinoJson
+		   đọc `\/` y như `/`), nhưng ẢNH KHUÔN MẶT đi qua một bộ giải mã base64 VIẾT TAY trong
+		   firmware — nó bám mốc `anh":"` rồi coi mọi ký tự sau đó là base64, không hiểu escape.
+		   Mà base64 của một tấm JPEG gần như luôn mở đầu bằng `/9j/`: gặp `\` là ký tự lạ →
+		   `err` → `fetchPhotoDecoded` trả -3 → người vào đầu đọc mà KHÔNG có khuôn mặt.
+		   Đây là lỗi THỨ HAI trên cùng một đường ảnh, độc lập với chuyện tiền tố `data:` (xem
+		   `VHCC_MayCong::b64_tron`) — sửa một cái mà quên cái kia thì ảnh vẫn không xuống được,
+		   nên phép thử dựng lại NGUYÊN bộ giải mã của firmware chứ không đo từng mảnh.
+		   ⚠️ Chỉ là chuyện in ấn: `\/` và `/` là CÙNG một chuỗi trong JSON, nên không cổng nào
+		      đọc khác đi. */
+		echo wp_json_encode( $tt, JSON_UNESCAPED_SLASHES );
 		if ( ! defined( 'VHCC_TEST' ) ) { exit; }
 	}
 
@@ -541,7 +552,8 @@ class VHCC_Nhan {
 	 * `$giay` phải là giờ ĐÃ trải phẳng nếu đây là hàng ca đêm — nơi gọi lo việc đó, xem
 	 * VHCC_Online::trai_phang(). `$ma_nv` nhận cả mã có hậu tố ('NV001-CD').
 	 */
-	public static function ghi_gio( $coso, $ngay, $ma_nv, $ho_ten, $giay, $anh_b64, $nguon = 'may', $ghi_chu = null ) {
+	public static function ghi_gio( $coso, $ngay, $ma_nv, $ho_ten, $giay, $anh_b64, $nguon = 'may', $ghi_chu = null,
+		$vi_tri = '' ) {
 		global $wpdb;
 		/* 🔴 LƯỚI CUỐI: tên cơ sở KHÔNG ĐƯỢC mang dấu phẩy.
 		   Mọi đường ghi vào bảng chấm công đều qua đây, nên chốt ở đây là chốt cho cả những
@@ -549,6 +561,42 @@ class VHCC_Nhan {
 		   có thật, và nó nằm lại trong ô xổ cơ sở của màn quản trị cho tới khi có người dọn tay. */
 		$coso = VHCC_NhanSu::chuan_coso( $coso );
 		$bang = VHCC_DB::t( 'cham_cong' );
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 MÃ PHỤ ĐÃ KHAI CẶP THÌ DỊCH VỀ MÃ CHÍNH — Ở ĐÂY, CHỐT CUỐI CỦA MỌI ĐƯỜNG GHI.
+		 *
+		 * Anh Thắng 16/09/2026: *"khi đồng bộ, nó lại sinh ra nhân viên mới, do 2 mã nhân viên
+		 * khác nhau"* — và trước đó, 28/08: *"cần đồng bộ 2 mã chạy song song được không, chứ
+		 * nó đang nhân 2 nhân viên ra"*.
+		 *
+		 * Cơ chế ghép đã có từ lâu (sổ `ma_song_song` + `ma_that()`), nhưng `ma_that()` CHỈ được
+		 * gọi ở `mot_luot()` — tức chỉ lượt do MÁY CHẤM CÔNG đẩy lên. Nút **Nạp về** đi đường
+		 * `VHCC_Keo::keo_thang()` → thẳng vào hàm này, và nạp .csv cũng thế. Nên mỗi lần đồng bộ
+		 * lại rót về một lô lượt mang MÃ CŨ, và bảng công lại mọc ra người thứ hai. Khai ghép
+		 * bao nhiêu lần cũng vô ích nếu đường đổ dữ liệu vào không thèm hỏi sổ ghép.
+		 *
+		 * Chốt ở đây là chốt đúng chỗ — chú thích ngay trên đã nói: *"Mọi đường ghi vào bảng
+		 * chấm công đều qua đây, nên chốt ở đây là chốt cho cả những đường sẽ mọc ra sau."*
+		 *
+		 * ⚠️ `mot_luot()` VẪN gọi `ma_that()` trước khi vào đây, và đó KHÔNG phải thừa: nó cần
+		 *    biết mã đã đổi để lấy luôn TÊN từ hồ sơ trước mấy nhánh nhật ký. Gọi hai lần vô hại
+		 *    — `ma_that()` của một mã chính trả lại chính nó. Đừng thấy trùng rồi gỡ cái ở đây.
+		 * ⚠️ `ma_that()` chỉ đổi khi đầu kia CÓ hồ sơ; chưa khai cặp thì nó trả lại nguyên mã cũ
+		 *    và lượt ấy vẫn vào bảng như trước. Không lượt nào biến mất.
+		 * ⚠️ Dịch TRƯỚC `tach_hau_to()`: hậu tố (`-CD`, `-TC`) là chuyện của CA, không phải của
+		 *    người, còn sổ ghép khai theo mã trần. Dịch xong lắp lại đúng hậu tố cũ.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		if ( class_exists( 'VHCC_NhanSu' ) && method_exists( 'VHCC_NhanSu', 'ma_that' ) ) {
+			list( $ma_tr, $ht_tr ) = self::tach_hau_to( $ma_nv );
+			$ma_th = VHCC_NhanSu::ma_that( $ma_tr );
+			if ( '' !== $ma_th && 0 !== strcasecmp( (string) $ma_th, (string) $ma_tr ) ) {
+				$ma_nv  = $ma_th . ( '' !== $ht_tr ? '-' . $ht_tr : '' );
+				$hs_th  = VHCC_NhanSu::ho_so( $ma_th );
+				if ( $hs_th && '' !== trim( (string) $hs_th['ho_ten'] ) ) {
+					$ho_ten = (string) $hs_th['ho_ten'];
+				}
+			}
+		}
+
 		list( $ma_goc, $hau_to ) = self::tach_hau_to( $ma_nv );
 
 		$cu = $wpdb->get_row( $wpdb->prepare(
@@ -626,10 +674,12 @@ class VHCC_Nhan {
 		if ( $ghi_anh ) {
 			/* Bấm giờ riêng khâu ghi ảnh — đây là khâu duy nhất trong lượt chấm công đụng tới
 			   ĐĨA, nên khi cả lượt chậm thì phải tách được nó ra khỏi phần MySQL. Xem
-			   class-vhcc-nhat-ky.php. */
-			VHCC_NhatKy::bam( 'anh' );
+			   class-vhcc-nhat-ky.php.
+			   ⚠️ Gác `class_exists`: sổ đo là đồ phụ, đường ghi giờ là đường CHÍNH. Vài bài kiểm nạp
+			      lớp này lẻ (không qua boot) và không có sổ đo — đường chính không được chết vì đồ phụ. */
+			if ( class_exists( 'VHCC_NhatKy' ) ) { VHCC_NhatKy::bam( 'anh' ); }
 			$anh_moi = self::luu_anh( $coso, $ngay, $ma_nv, $giay, $anh_b64 );
-			VHCC_NhatKy::dung( 'anh' );
+			if ( class_exists( 'VHCC_NhatKy' ) ) { VHCC_NhatKy::dung( 'anh' ); }
 			/* Lưu ảnh trượt -> VẪN GHI GIỜ, chỉ mất ảnh. Giờ là tiền, ảnh là bằng chứng phụ. */
 			if ( '' === $anh_moi ) { $ghi_anh = false; }
 		}
@@ -641,6 +691,23 @@ class VHCC_Nhan {
 		if ( $ghi_anh && ! empty( $qd['anh_vao'] ) ) { $dat['anh_vao'] = $anh_moi; }
 		if ( $ghi_anh && ! empty( $qd['anh_ra'] ) ) { $dat['anh_ra'] = $anh_moi; }
 		if ( ! empty( $qd['chuyen_anh_vao_sang_ra'] ) ) { $dat['anh_ra'] = $cu ? (string) $cu['anh_vao'] : ''; }
+
+		/* VỊ TRÍ ĐI ĐÚNG ĐƯỜNG CỦA ẢNH — cùng cặp cờ `anh_vao` / `anh_ra`, cùng phép chuyển.
+		   Chỗ đứng và tấm ảnh là hai bằng chứng của CÙNG một lượt bấm; tách chúng ra hai luật
+		   định tuyến là dựng sẵn cái ngày mà ảnh nằm ở ô ra còn toạ độ nằm ở ô vào.
+
+		   🔴 `chuyen_anh_vao_sang_ra` KHÔNG ĐƯỢC QUÊN Ở ĐÂY. Nhánh `daoThuTu` đẩy giờ vào cũ
+		      xuống làm giờ ra; toạ độ của lượt cũ phải đi theo con số của nó. Bỏ dòng ấy thì ô
+		      `vt_ra` mang toạ độ TRỐNG cho một giờ ra có thật, còn chỗ đứng của lượt cũ mất hẳn —
+		      và mất im lặng, vì bảng vẫn đủ cặp giờ.
+
+		   ⚠️ `$vi_tri` RỖNG THÌ KHÔNG GHI GÌ, không ghi chuỗi rỗng đè lên. Máy chấm vân tay và
+		      tệp .csv nạp về không có toạ độ; để chúng đè thì một lượt online buổi sáng có vị
+		      trí, lô đồng bộ buổi tối xoá mất. */
+		$co_vt = ( '' !== trim( (string) $vi_tri ) );
+		if ( $co_vt && ! empty( $qd['anh_vao'] ) ) { $dat['vt_vao'] = (string) $vi_tri; }
+		if ( $co_vt && ! empty( $qd['anh_ra'] ) ) { $dat['vt_ra'] = (string) $vi_tri; }
+		if ( ! empty( $qd['chuyen_anh_vao_sang_ra'] ) ) { $dat['vt_ra'] = $cu ? (string) $cu['vt_vao'] : ''; }
 
 		/* Ô "Thời gian trong ngày" của sheet: 'HH:mm' hoặc 'HH:mm HH:mm'. Tính lại từ cặp SAU khi
 		   đã đặt, chứ không chắp từ nhánh — chắp từ nhánh là chỗ dễ lệch nhất với bản gốc. */
@@ -659,9 +726,9 @@ class VHCC_Nhan {
 			if ( trim( (string) $cu['nguon'] ) !== '' && trim( (string) $cu['nguon'] ) !== $nguon ) {
 				$dat['nguon'] = 'hon-hop';
 			}
-			VHCC_NhatKy::bam( 'csdl' );
+			if ( class_exists( 'VHCC_NhatKy' ) ) { VHCC_NhatKy::bam( 'csdl' ); }
 			$ok = $wpdb->update( $bang, $dat, array( 'id' => (int) $cu['id'] ) );
-			VHCC_NhatKy::dung( 'csdl' );
+			if ( class_exists( 'VHCC_NhatKy' ) ) { VHCC_NhatKy::dung( 'csdl' ); }
 		} else {
 			$dat['coso']   = $coso;
 			$dat['ngay']   = $ngay;
@@ -670,13 +737,60 @@ class VHCC_Nhan {
 			$dat['ho_ten'] = $ho_ten;
 			$dat['nguon']  = $nguon;
 			$dat['ghi_luc'] = current_time( 'mysql' );
-			VHCC_NhatKy::bam( 'csdl' );
+			if ( class_exists( 'VHCC_NhatKy' ) ) { VHCC_NhatKy::bam( 'csdl' ); }
 			$ok = $wpdb->insert( $bang, $dat );
-			VHCC_NhatKy::dung( 'csdl' );
+			if ( class_exists( 'VHCC_NhatKy' ) ) { VHCC_NhatKy::dung( 'csdl' ); }
 		}
 		if ( false === $ok ) { return array( 'loi' => 'MySQL: ' . $wpdb->last_error ); }
 
 		return array( 'loai' => $loai, 'anh' => $ghi_anh ? ( 'ok:' . $anh_moi ) : ( strlen( $anh_b64 ) > 100 ? 'ERR' : 'no-img' ) );
+	}
+
+	/**
+	 * CHỈ ĐẶT KHOẢNG NGHỈ GIỮA CA — không chạm một giây nào của giờ vào / giờ ra.
+	 *
+	 * 🔴 VÌ SAO KHÔNG DÙNG `dat_gio()` CHO VIỆC NÀY. Hàm ấy ĐẶT THẲNG mọi thứ, tức là xoá được
+	 *    giờ máy đã ghi — và chú thích của nó nói rõ nó chỉ có đúng MỘT nơi gọi (`VHCC_Bu::sua`,
+	 *    nơi gác quyền Admin, đòi lý do, ghi nhật ký cũ→mới). Mở nó ra cho bộ nạp là mở lại
+	 *    đúng cái cửa ấy cho một việc chỉ cần hai cột.
+	 *
+	 * 🔴 VÌ SAO CẦN. Bảng công cũ có người làm HAI CA CÁCH QUÃNG trong một ngày (08:30–13:00 rồi
+	 *    17:05–22:00). `ghi_gio()` chỉ nới khung nên nó cho ra 08:30–22:00 = 13 giờ 30, trong
+	 *    khi thực là 9 giờ 25. Khoảng giữa phải được ghi ra, nếu không là trả dư bốn tiếng cho
+	 *    một người trong một ngày. Xem `VHCC_NapDoc`.
+	 *
+	 * ⚠️ HÀNG PHẢI CÓ SẴN. Hàm này không tạo hàng mới: khoảng nghỉ của một ngày không có giờ
+	 *    công là một con số không nói lên điều gì.
+	 */
+	public static function dat_nghi_giua( $coso, $ngay, $ma_nv, $tu_giay, $den_giay ) {
+		global $wpdb;
+		$coso = VHCC_NhanSu::chuan_coso( $coso );
+		list( $ma_goc, $hau_to ) = self::tach_hau_to( $ma_nv );
+		$bang = VHCC_DB::t( 'cham_cong' );
+		$cu = $wpdb->get_row( $wpdb->prepare(
+			"SELECT id, gio_vao_giay, gio_ra_giay FROM $bang WHERE coso=%s AND ngay=%s AND ma_nv=%s AND hau_to=%s",
+			$coso, $ngay, $ma_goc, $hau_to ), ARRAY_A );
+		if ( ! $cu ) { return false; }
+		$tu  = ( null === $tu_giay || '' === $tu_giay ) ? null : (int) $tu_giay;
+		$den = ( null === $den_giay || '' === $den_giay ) ? null : (int) $den_giay;
+		/* Khoảng rỗng hay ngược đầu thì XOÁ, không ghi. Một khoảng nghỉ 13:00–13:00 là rác, và
+		   một khoảng 17:00–13:00 thì mọi phép trừ ở nơi khác ra số âm. */
+		if ( null === $tu || null === $den || $den <= $tu ) { $tu = null; $den = null; }
+
+		/* 🔴 KHOẢNG NGHỈ PHẢI NẰM GỌN TRONG KHUNG GIỜ CỦA CHÍNH HÀNG ẤY — chối nếu không.
+		   Bộ nạp tính khoảng nghỉ từ TỆP, còn giờ trong sổ có thể đã khác: Admin sửa tay, hoặc
+		   máy chấm công đã ghi một khung khác. Đặt bừa khoảng của tệp vào khung của sổ là TRỪ
+		   mất mấy tiếng công của một người — trừ im lặng, vì bảng vẫn có đủ cặp giờ và ô nghỉ
+		   thì không ai soi. Trả `false` để nơi gọi kể ra và người ta sửa tay.
+		   ⚠️ Hàng thiếu một đầu giờ cũng chối: không biết khung thì không kiểm được. */
+		if ( null !== $tu ) {
+			$v = ( null === $cu['gio_vao_giay'] || '' === $cu['gio_vao_giay'] ) ? null : (int) $cu['gio_vao_giay'];
+			$r = ( null === $cu['gio_ra_giay'] || '' === $cu['gio_ra_giay'] ) ? null : (int) $cu['gio_ra_giay'];
+			if ( null === $v || null === $r || $tu < $v || $den > $r ) { return false; }
+		}
+		$wpdb->update( $bang, array( 'nghi_tu_giay' => $tu, 'nghi_den_giay' => $den ),
+			array( 'id' => (int) $cu['id'] ) );
+		return true;
 	}
 
 	/**
@@ -708,7 +822,8 @@ class VHCC_Nhan {
 	 * @param int|null $ra_giay  Giây trong ngày, hoặc null để xoá trắng ô.
 	 * @return array `cu` (giờ trước khi sửa) + `moi`, hoặc `loi`.
 	 */
-	public static function dat_gio( $coso, $ngay, $ma_nv, $ho_ten, $vao_giay, $ra_giay, $ghi_chu = null ) {
+	public static function dat_gio( $coso, $ngay, $ma_nv, $ho_ten, $vao_giay, $ra_giay, $ghi_chu = null,
+		$nghi_tu = false, $nghi_den = false ) {
 		global $wpdb;
 		/* 🔴 LƯỚI CUỐI: tên cơ sở KHÔNG ĐƯỢC mang dấu phẩy.
 		   Mọi đường ghi vào bảng chấm công đều qua đây, nên chốt ở đây là chốt cho cả những
@@ -741,6 +856,24 @@ class VHCC_Nhan {
 			'chuan'        => $chuan,
 			'nguon'        => 'sua',
 		);
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * CA GÃY — khoảng nghỉ giữa ca.
+		 *
+		 * 🔴 BA TRẠNG THÁI, KHÔNG PHẢI HAI:
+		 *      `false` (mặc định) = KHÔNG ĐỤNG TỚI — mọi nơi gọi cũ đi qua đây không mất ca gãy
+		 *                            đã khai. Quan trọng nhất: máy chấm công đẩy một lượt mới
+		 *                            về cũng không xoá mất thứ cửa hàng trưởng vừa khai tay.
+		 *      `null`              = XOÁ (bỏ tích ca gãy).
+		 *      số                  = ĐẶT.
+		 *    Dùng `null` làm "không đụng" thì không còn cách nào xoá; dùng `0` thì mất mốc
+		 *    00:00:00. Nên phải là ba.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		if ( false !== $nghi_tu ) {
+			$dat['nghi_tu_giay'] = ( null === $nghi_tu || '' === $nghi_tu ) ? null : (int) $nghi_tu;
+		}
+		if ( false !== $nghi_den ) {
+			$dat['nghi_den_giay'] = ( null === $nghi_den || '' === $nghi_den ) ? null : (int) $nghi_den;
+		}
 		if ( null !== $ghi_chu && '' !== $ghi_chu ) { $dat['ghi_chu'] = $ghi_chu; }
 
 		if ( $cu ) {
@@ -756,9 +889,16 @@ class VHCC_Nhan {
 		}
 		if ( false === $ok ) { return array( 'loi' => 'MySQL: ' . $wpdb->last_error ); }
 
+		$ntu_cu = ( $cu && null !== $cu['nghi_tu_giay'] && '' !== $cu['nghi_tu_giay'] )
+			? (int) $cu['nghi_tu_giay'] : null;
+		$nden_cu = ( $cu && null !== $cu['nghi_den_giay'] && '' !== $cu['nghi_den_giay'] )
+			? (int) $cu['nghi_den_giay'] : null;
 		return array(
-			'cu'  => array( 'vao' => $vao_cu,   'ra' => $ra_cu ),
-			'moi' => array( 'vao' => $vao_giay, 'ra' => $ra_giay ),
+			'cu'  => array( 'vao' => $vao_cu,   'ra' => $ra_cu,
+				'nghiTu' => $ntu_cu, 'nghiDen' => $nden_cu ),
+			'moi' => array( 'vao' => $vao_giay, 'ra' => $ra_giay,
+				'nghiTu'  => array_key_exists( 'nghi_tu_giay', $dat ) ? $dat['nghi_tu_giay'] : $ntu_cu,
+				'nghiDen' => array_key_exists( 'nghi_den_giay', $dat ) ? $dat['nghi_den_giay'] : $nden_cu ),
 		);
 	}
 

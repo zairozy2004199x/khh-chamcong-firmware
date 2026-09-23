@@ -296,6 +296,8 @@ class VHCC_NapCsv {
 
 		$them = 0; $sua = 0; $bo = array(); $canh = array(); $lech = 0;
 		$dai_pin = array();
+		/* PIN đã gặp TRONG CHÍNH FILE này -> mã NV + cơ sở của dòng ấy (xem khối soát trùng). */
+		$pin_trong_file = array( 'pin_dang_nhap' => array(), 'pin_may' => array() );
 		$coso    = trim( (string) $coso );
 		/* TỪNG Ô ĐỔI GÌ — anh Thắng: *"nạp bên trong này sai hết dữ liệu"*. Một con số
 		   "cập nhật 240" không cho biết nó sắp làm gì; phải chỉ ra `cũ -> mới` của từng ô thì
@@ -348,6 +350,53 @@ class VHCC_NapCsv {
 				if ( ! preg_match( '/^\d+$/', $ghi['pin_dang_nhap'] ) ) {
 					$canh[] = $ten_ng . ': PIN có ký tự không phải số';
 				}
+			}
+
+			/* ===================================================================================
+			 *  PIN TRÙNG TRONG LƯỢT NẠP — BỎ Ô PIN, GIỮ CÁC Ô KHÁC, VÀ BÁO RA
+			 * -----------------------------------------------------------------------------------
+			 *  🔴 08/09/2026 — anh Thắng: *"chặn trường hợp tạo mã pin trùng nhé"*. Đường nạp .csv
+			 *  trước đây chỉ soát KHUÔN của PIN, không soát TRÙNG — nên một file có hai dòng cùng
+			 *  PIN (hoặc trùng người đang có trong sổ) là nạp vào cả hai, rồi cổng đăng nhập nhận
+			 *  người gặp trước và nhật ký ghi tên người đó.
+			 *
+			 *  ⚠️ CHỈ BỎ Ô PIN, KHÔNG bỏ cả dòng. Nạp .csv là lượt đổ hàng trăm dòng: chối cả dòng
+			 *     vì một ô PIN là mất luôn tên/cơ sở/chức vụ của người đó, mà mấy ô ấy vẫn đúng.
+			 *     Bỏ đúng ô hỏng rồi báo tên ra thì người nạp sửa một chỗ là xong.
+			 *  ⚠️ Soát CẢ trùng với dòng khác TRONG CÙNG FILE (`$pin_trong_file`): chỉ so với sổ
+			 *     thì hai dòng mới cùng gõ một PIN lọt cả hai — đúng cái bẫy đường "lưu cả bảng"
+			 *     đã phải chặn riêng.
+			 * =================================================================================== */
+			$cs_dong = VHCC_NhanSu::ds_coso_hs( array(
+				'cua_hang' => isset( $ghi['cua_hang'] ) ? $ghi['cua_hang']
+					: ( isset( $hien_co[ $ma ]['cua_hang'] ) ? $hien_co[ $ma ]['cua_hang'] : '' ),
+				'coso_phu' => isset( $ghi['coso_phu'] ) ? $ghi['coso_phu']
+					: ( isset( $hien_co[ $ma ]['coso_phu'] ) ? $hien_co[ $ma ]['coso_phu'] : '' ),
+			) );
+			foreach ( array( 'pin_dang_nhap' => 'PIN đăng nhập', 'pin_may' => 'PIN máy' ) as $o_p => $nhan_p ) {
+				if ( empty( $ghi[ $o_p ] ) ) { continue; }
+				$p    = (string) $ghi[ $o_p ];
+				$dung = '';
+				/* Trùng ngay trong file: so trước, vì lỗi này người nạp sửa được ngay trên file. */
+				if ( isset( $pin_trong_file[ $o_p ][ $p ] ) && $pin_trong_file[ $o_p ][ $p ]['ma'] !== $ma ) {
+					$truoc = $pin_trong_file[ $o_p ][ $p ];
+					$chung = ( 'pin_dang_nhap' === $o_p )
+						|| array_intersect( array_map( 'strtolower', $cs_dong ),
+							array_map( 'strtolower', $truoc['cs'] ) );
+					if ( $chung ) { $dung = $truoc['ma'] . ' (cùng file)'; }
+				}
+				if ( '' === $dung ) {
+					$dung = ( 'pin_dang_nhap' === $o_p )
+						? VHCC_NhanSu::pin_dang_dung( $p, $ma )
+						: VHCC_NhanSu::pin_may_dang_dung( $p, $ma, $cs_dong );
+				}
+				if ( '' !== $dung ) {
+					$canh[] = $ten_ng . ': ' . $nhan_p . ' trùng với ' . $dung
+						. ' — đã BỎ ô ' . $nhan_p . ' của dòng này, các ô khác vẫn nạp';
+					unset( $ghi[ $o_p ] );
+					continue;
+				}
+				$pin_trong_file[ $o_p ][ $p ] = array( 'ma' => $ma, 'cs' => $cs_dong );
 			}
 
 			if ( isset( $hien_co[ $ma ] ) ) {

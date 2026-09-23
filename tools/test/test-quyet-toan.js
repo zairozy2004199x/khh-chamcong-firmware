@@ -16,7 +16,27 @@ const DON  = fs.readFileSync(path.join(GOC, 'wordpress/vhcp-chi-phi/includes/cla
 const API  = fs.readFileSync(path.join(GOC, 'wordpress/vhcp-chi-phi/includes/class-vhcp-api.php'), 'utf8');
 const DB   = fs.readFileSync(path.join(GOC, 'wordpress/vhcp-chi-phi/includes/class-vhcp-db.php'), 'utf8');
 const APP  = fs.readFileSync(path.join(GOC, 'wordpress/vhcp-chi-phi/includes/class-vhcp-app.php'), 'utf8');
-const CHAN = fs.readFileSync(path.join(GOC, 'wordpress/vhcp-ghe/includes/class-vhg-chan.php'), 'utf8');
+/* 🔴 Plugin Ghế sống ở nhánh `claude/posh-qr-kh1urz` (xem wordpress/DOC-TRUOC-KHI-DONG-GOI.md).
+   Đọc THẲNG từ nhánh ấy bằng `git show` — không chép một bản thứ hai vào cây này, vì một bản
+   chép là một bản sẽ cũ đi, và lần này ta đã biết cái giá của nó.
+   ⚠️ Chưa fetch nhánh kia thì BỎ QUA VÀ KÊU TO, đừng dựng dữ liệu giả cho xanh. */
+function docGhe(ten) {
+  const tai_cho = path.join(GOC, 'wordpress/vhcp-ghe/includes/', ten);
+  if (fs.existsSync(tai_cho)) { return fs.readFileSync(tai_cho, 'utf8'); }
+  for (const nhanh of ['origin/claude/posh-qr-kh1urz', 'claude/posh-qr-kh1urz']) {
+    try {
+      return require('child_process').execSync(
+        `git -C ${JSON.stringify(GOC)} show ${JSON.stringify(nhanh + ':vhcp-ghe/includes/' + ten)}`,
+        { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    } catch (e) { /* thử nhánh sau */ }
+  }
+  return null;
+}
+const CHAN = docGhe('class-vhg-chan.php');
+if (CHAN === null) {
+  console.log('  ⏭ BỎ QUA — chưa fetch nhánh claude/posh-qr-kh1urz.');
+  process.exit(0);
+}
 
 let dat = 0; const hong = [];
 function t(ten, dieu, nhan) { if (dieu) { dat++; return; } hong.push(ten + (nhan === undefined ? '' : ' → nhận được: ' + JSON.stringify(nhan))); }
@@ -274,10 +294,14 @@ t('có nút Bỏ lọc', /onclick="qtXoaLoc\(\)"/.test(HTML) && /function qtXoaL
    một tham số thứ tư (chọn sẵn tuần này, 07/09/2026) là gãy — gãy vì BÀI KIỂM chứ không phải
    vì mã hỏng. Điều cần canh là: màn này gọi CHÍNH `_napLocDon` với đúng ba ô lọc của nó. */
 t('dùng CHUNG bộ dựng ô lọc với tab Duyệt tạm ứng (không chép luật lọc ra bản thứ hai)',
-  /_napLocDon\(moiDon, 'qtThang', 'qtKy', 'qtCoso'[,)]/.test(HTML));
-// Dựng ô lọc từ danh sách ĐÃ LỌC thì chọn một tuần xong là mất luôn các tuần khác khỏi ô.
+  /_napLocDon\([^;]{0,120}'qtThang', 'qtKy', 'qtCoso'[,)]/.test(HTML));
+/* Dựng ô lọc từ danh sách ĐÃ LỌC thì chọn một tuần xong là mất luôn các tuần khác khỏi ô.
+   Danh sách ấy nay đi qua `_qtTrongMan()` (1.92.0) — vẫn là TOÀN BỘ đơn của màn, chỉ trừ đơn
+   người dùng chủ động ẩn. Canh vào đó, đừng ghim lại tên biến tạm cũ. */
 t('ô lọc dựng từ TOÀN BỘ đơn của màn, không phải từ danh sách đã lọc',
-  /var moiDon=\(BOOT\.dons\|\|\[\]\)\.filter[\s\S]{0,220}?_napLocDon\(moiDon/.test(HTML));
+  /_napLocDon\(\(BOOT\.dons\|\|\[\]\)\.filter\(_qtTrongMan\)/.test(HTML));
+t('và chốt ấy nhận đúng ba trạng thái của màn',
+  /function _qtTrongMan[\s\S]{0,400}?Chờ quyết toán[\s\S]{0,160}?Đã cấp tạm ứng/.test(HTML));
 t('lọc áp cho bảng Chờ và Đã quyết toán', /_qtLoc\(d\) && \(d\.trangThai==='Chờ quyết toán'/.test(HTML));
 t('và áp cho cả bảng "chưa nộp hóa đơn"', /d\.trangThai==='Đã cấp tạm ứng' && _qtLoc\(d\)/.test(HTML));
 t('lọc theo đúng 3 tiêu chí', /_thangCuaKy\(d\.ky\)!==fT/.test(HTML) && /String\(d\.ky\|\|''\)!==fK/.test(HTML) && /String\(d\.coso\|\|''\)!==fC/.test(HTML));

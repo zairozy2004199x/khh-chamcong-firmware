@@ -17,6 +17,17 @@ class VHNB_Bai {
 	/** Mỗi trang bao nhiêu bài. */
 	const MOI_TRANG = 20;
 
+	/** Mã người đăng của bài do HỆ THỐNG dựng — xem `dang_he_thong()`. Không trùng mã NV nào. */
+	const MA_HE_THONG = '__he_thong__';
+
+	/** Tên hiện dưới ô người đăng, theo nguồn. Nguồn lạ thì gọi chung là 'Hệ thống'. */
+	const NGUON_TEN = array(
+		'chi_phi'   => 'Vận hành chi phí',
+		'cham_cong' => 'Chấm công',
+		'ghe'       => 'Ghế massage',
+		've'        => 'Bán vé',
+	);
+
 	/* ==================================================================== đăng */
 
 	/**
@@ -89,6 +100,102 @@ class VHNB_Bai {
 			}
 		}
 		return array( 'ok' => true, 'id' => $id );
+	}
+
+	/**
+	 * ĐĂNG MỘT DÒNG DO HỆ THỐNG DỰNG — không có người đăng nhập nào ở đây.
+	 *
+	 * Anh Thắng 08/09/2026: *"khi có 1 giao dịch trên vận hành chi phí, chấm công, ghế thì hiện
+	 * thông báo lên trang nội bộ, cả thông báo và trong bảng tin"*.
+	 *
+	 * 🔴 KHÔNG ĐI QUA `dang()`, VÀ ĐÓ LÀ CỐ Ý. `dang()` đòi `$u['name']` rồi hỏi
+	 *    `VHNB_Quyen::vi_sao_khong()` — đúng cho người thật, nhưng ở đây không có người thật:
+	 *    lượt gọi đến từ plugin chi phí / chấm công / ghế trong lúc ai đó bấm nút bên ấy. Nhét
+	 *    một `$u` giả vào `dang()` để lách chốt quyền là mở sẵn đường cho lần sau ai cũng lách
+	 *    được. Nên tách hàm riêng, ghi thẳng, và KHÔNG nhận `$u` để không ai truyền vào được.
+	 *
+	 * 🔴 DANH TÍNH LÀ MỘT MÃ DÀNH RIÊNG, KHÔNG PHẢI MÃ RỖNG. `duoc_xoa()` có nhánh lui: mã rỗng
+	 *    thì so TÊN. Để `ma_nv` rỗng ở đây là một người chưa có mã, tên trùng nhãn nguồn, xoá
+	 *    được thông báo của hệ thống. Mã `__he_thong__` không trùng mã nhân viên nào nên chỉ
+	 *    Admin xoá được — không phải thêm luật mới, chỉ cần không tự mở lỗ.
+	 *
+	 * 🔴 KHÔNG RUNG CHUÔNG. Bài ở bảng tin thì cả công ty đọc được, và chuông riêng của từng
+	 *    người đã do `VHNB_Bao::gui()` lo — báo cả hai đường là mỗi giao dịch kêu hai lần.
+	 *    Cùng luật với bài chung ở `dang()`: bài chung không báo cho 240 người.
+	 *
+	 * ⚠️ `$khoa` RỖNG = MỖI LƯỢT MỘT BÀI. Chỉ dùng cho việc thật sự chỉ xảy ra một lần; ghế và
+	 *    chấm công thì BẮT BUỘC có khoá, không thì bảng tin thành cột số.
+	 * ⚠️ Gộp thì `tao_luc` ĐƯỢC ĐẨY LÊN MỚI NHẤT — cố ý. Không đẩy thì bài nằm im ở chỗ cũ và
+	 *    giao dịch mới không ai thấy, tức là gộp xong hoá ra bịt luôn tin. Đổi lại, mỗi nguồn
+	 *    chỉ chiếm ĐÚNG MỘT dòng gần đầu bảng tin, không phải vài chục dòng.
+	 *
+	 * @param string $nguon 'chi_phi' · 'cham_cong' · 'ghe' · 've' — chỉ để đặt tên người đăng.
+	 * @param string $chu   câu TRUNG TÍNH, do bên gửi viết. Xem cảnh báo ở `VHNB_Bao::viec()`.
+	 * @param string $khoa  khoá gộp. Bên gửi tự đặt, nên kèm ngày nếu muốn gộp theo ngày.
+	 * @param string $co_so cơ sở của giao dịch. Rỗng = không thuộc cơ sở nào (đơn chi phí gồm
+	 *                      nhiều cơ sở), lúc ấy ai qua được bậc là đọc được.
+	 * @return int|false id bài, hoặc false nếu không ghi được.
+	 */
+	public static function dang_he_thong( $nguon, $chu, $khoa = '', $co_so = '' ) {
+		global $wpdb;
+		$chu = self::gon( $chu, 300 );
+		if ( '' === $chu ) { return false; }
+
+		$nguon = trim( (string) $nguon );
+		$ten   = isset( self::NGUON_TEN[ $nguon ] ) ? self::NGUON_TEN[ $nguon ] : 'Hệ thống';
+		$t     = VHNB_DB::t( 'bai' );
+		$khoa  = self::gon( $khoa, 120 );
+
+		/* 🔴 CHỈ TỪ CỬA HÀNG TRƯỞNG TRỞ LÊN ĐỌC ĐƯỢC — anh Thắng 09/09/2026: *"nó sẽ hiện cho
+		   cửa hàng trưởng và quản lý trở lên xem chứ ngang hàng hoặc phía dưới sẽ không xem
+		   được"*. Bậc lấy từ `VHNB_Quyen` chứ không gõ số vào đây: Admin đổi được ở màn Cấu
+		   hình, và cả hệ chỉ có MỘT chỗ giữ luật.
+		   ⚠️ Bậc ghi vào TỪNG BÀI lúc đăng, không tra lại lúc đọc. Admin siết bậc lên sau này
+		      thì bài cũ vẫn ở bậc cũ — cố ý: đổi luật không được lặng lẽ viết lại quá khứ, mà
+		      dòng bảng tin thì gộp theo ngày nên hôm sau đã theo bậc mới. */
+		$bac_can = (int) VHNB_Quyen::bac_can( 'tin_gd' );
+		/* Chuẩn hoá bằng ĐÚNG hàm mà bên chấm công dùng để đọc cơ sở của người xem — hai bên
+		   phải ra cùng một chuỗi, không thì chốt so không bao giờ khớp và cửa hàng trưởng
+		   không thấy gì. Thiếu plugin chấm công thì để nguyên, chỉ cắt khoảng trắng. */
+		$co_so = trim( (string) $co_so );
+		if ( '' !== $co_so && class_exists( 'VHCC_NhanSu' )
+			&& method_exists( 'VHCC_NhanSu', 'chuan_coso' ) ) {
+			$co_so = (string) VHCC_NhanSu::chuan_coso( $co_so );
+		}
+		$co_so = self::gon( $co_so, 60 );
+
+		if ( '' !== $khoa ) {
+			$cu = $wpdb->get_row( $wpdb->prepare(
+				"SELECT id, so_lan FROM $t WHERE khoa=%s AND ma_nv=%s LIMIT 1",
+				$khoa, self::MA_HE_THONG ), ARRAY_A );
+			if ( $cu ) {
+				$n = (int) $cu['so_lan'] + 1;
+				$wpdb->update( $t, array(
+					'ho_ten'   => $ten,
+					'co_so'    => $co_so,
+					'noi_dung' => $chu . ' · ' . $n . ' lượt',
+					'so_lan'   => $n,
+					'tao_luc'  => current_time( 'mysql' ),
+				), array( 'id' => (int) $cu['id'] ) );
+				return (int) $cu['id'];
+			}
+		}
+
+		$ok = $wpdb->insert( $t, array(
+			'nhom'     => '',
+			'nhom_id'  => 0,
+			'ma_nv'    => self::MA_HE_THONG,
+			'ho_ten'   => $ten,
+			'vai_tro'  => 'Hệ thống',
+			'noi_dung' => $chu,
+			'anh'      => '',
+			'khoa'     => $khoa,
+			'so_lan'   => 1,
+			'bac_can'  => $bac_can,
+			'co_so'    => $co_so,
+			'tao_luc'  => current_time( 'mysql' ),
+		) );
+		return ( false === $ok ) ? false : (int) $wpdb->insert_id;
 	}
 
 	public static function binh_luan( $u, $bai_id, $noi_dung ) {
@@ -200,8 +307,10 @@ class VHNB_Bai {
 	 * Bảng tin. Bài GHIM luôn nằm trên, rồi tới bài mới nhất.
 	 *
 	 * @param string $nhom '' = xem tất cả; tên bộ phận = chỉ bài của bộ phận đó (kèm bài chung).
+	 * @param array|null $u NGƯỜI ĐANG XEM — cần để lọc bài có `bac_can`. Không truyền = chỉ
+	 *                      bài công khai; xem khối 🔴 ngay dưới trước khi bỏ tham số này đi.
 	 */
-	public static function bang_tin( $nhom = '', $trang = 1, $nhom_id = 0 ) {
+	public static function bang_tin( $nhom = '', $trang = 1, $nhom_id = 0, $u = null ) {
 		global $wpdb;
 		$t  = VHNB_DB::t( 'bai' );
 		$tr = max( 1, (int) $trang );
@@ -209,28 +318,67 @@ class VHNB_Bai {
 		$nhom = self::chuan_nhom( $nhom );
 		$nhom_id = (int) $nhom_id;
 
+		/* =====================================================================================
+		 * 🔴 LỌC THEO BẬC NGAY TRONG CÂU SQL, KHÔNG LỌC Ở MÀN HÌNH
+		 * =====================================================================================
+		 * Anh Thắng 09/09/2026: thông báo giao dịch *"hiện cho cửa hàng trưởng và quản lý trở
+		 * lên xem chứ ngang hàng hoặc phía dưới sẽ không xem được"*.
+		 *
+		 * Cùng luật với `dang()`: giấu ở màn hình là TRANG TRÍ. Bảng tin còn có đường phân
+		 * trang `?tr=` và mấy đường JSON — lọc ở chỗ vẽ là chỉ cần đổi một tham số trên URL là
+		 * đọc được. Chặn ở đây thì mọi đường đọc đều đi qua.
+		 *
+		 * `bac_can = 0` là bài công khai, tức MỌI bài người thật viết — bảng tin vẫn là trang
+		 * chung của cả công ty, lượt này không siết gì thêm với họ.
+		 * Người xem không đo được bậc thì `bac_nguoi()` trả 0 và chỉ còn thấy bài công khai —
+		 * cố ý đóng, xem khối cảnh báo ở hàm ấy.
+		 *
+		 * ⚠️ Ghép TRỰC TIẾP con số vào câu, KHÔNG lồng thêm một `prepare()` nữa: mảnh câu do
+		 *    `prepare()` sinh ra mà đem nhét vào một `prepare()` khác là bị xử lý hai lần, và
+		 *    `%` trong đó hoá ra thứ khác. `(int)` đã chốt đây là một con số, không phải chữ
+		 *    của người dùng. */
+		$bac = (int) VHNB_Quyen::bac_nguoi( $u );
+		$loc = ' AND bac_can <= ' . $bac;
+
+		/* ---- CƠ SỞ: cửa hàng trưởng chỉ thấy cơ sở mình, Quản lý trở lên thấy tất cả ----
+		   Anh Thắng 09/09/2026. `co_so = ''` là dòng không thuộc cơ sở nào (đơn chi phí gồm
+		   nhiều cơ sở) — ai qua được `bac_can` là đọc được.
+		   ⚠️ Không đọc ra được cơ sở nào thì CHỈ còn dòng `co_so=''`, không phải thấy hết —
+		      cùng chiều đóng với `bac_nguoi()`. Người mới, người chưa gán cơ sở rơi vào đây.
+		   ⚠️ Tên cơ sở CÓ dấu cách và dấu ngoặc (`(PART TIME )_POSH+JP` là tên thật trong sổ),
+		      nên không lọc theo bộ ký tự được. Mỗi tên đi qua `prepare('%s')` để thành một
+		      hằng đã đóng nháy và đã thoát, rồi mới ghép vào câu — và câu ghép xong KHÔNG đi
+		      qua `prepare()` lần nữa (xem cảnh báo phía trên). */
+		if ( ! VHNB_Quyen::xem_het_coso( $u ) ) {
+			$hang = array();
+			foreach ( VHNB_Quyen::coso_nguoi( $u ) as $x ) {
+				$hang[] = $wpdb->prepare( '%s', $x );
+			}
+			$loc .= $hang
+				? " AND ( co_so = '' OR co_so IN (" . implode( ',', $hang ) . ') )'
+				: " AND co_so = ''";
+		}
+
+		/* LIMIT/OFFSET ghép bằng số đã ép `(int)`, cùng lý do: câu này không còn qua `prepare()`. */
+		$duoi = ' ORDER BY ghim DESC, tao_luc DESC, id DESC LIMIT ' . (int) self::MOI_TRANG
+			. ' OFFSET ' . (int) $bo;
+
 		/* 🔴 BÀI CỦA NHÓM TỰ TẠO KHÔNG BAO GIỜ LỌT RA BẢNG TIN CHUNG.
 		   Mọi đường đọc ở dưới đều chặn `nhom_id=0`, trừ đúng đường "đang mở một nhóm". Thiếu
 		   một chỗ là bài trong nhóm kín hiện ra ở màn "Tất cả" của cả công ty — và người viết
 		   không hề biết, vì họ đăng vào nhóm. */
 		if ( $nhom_id > 0 ) {
-			return VHNB_DB::rows( $wpdb->prepare(
-				"SELECT * FROM $t WHERE nhom_id=%d ORDER BY ghim DESC, tao_luc DESC, id DESC LIMIT %d OFFSET %d",
-				$nhom_id, self::MOI_TRANG, $bo ) );
+			return VHNB_DB::rows( "SELECT * FROM $t WHERE nhom_id=" . (int) $nhom_id . $loc . $duoi );
 		}
 
 		/* Chọn một bộ phận thì VẪN thấy bài chung (`nhom=''`): thông báo toàn công ty mà biến
 		   mất chỉ vì đang lọc bộ phận thì lọc xong là bỏ sót đúng thứ quan trọng nhất. */
 		if ( '' !== $nhom ) {
-			$sql = $wpdb->prepare(
-				"SELECT * FROM $t WHERE nhom_id=0 AND ( nhom=%s OR nhom='' ) ORDER BY ghim DESC, tao_luc DESC, id DESC LIMIT %d OFFSET %d",
-				$nhom, self::MOI_TRANG, $bo );
-		} else {
-			$sql = $wpdb->prepare(
-				"SELECT * FROM $t WHERE nhom_id=0 ORDER BY ghim DESC, tao_luc DESC, id DESC LIMIT %d OFFSET %d",
-				self::MOI_TRANG, $bo );
+			$lit = $wpdb->prepare( '%s', $nhom );
+			return VHNB_DB::rows(
+				"SELECT * FROM $t WHERE nhom_id=0 AND ( nhom=$lit OR nhom='' )" . $loc . $duoi );
 		}
-		return VHNB_DB::rows( $sql );
+		return VHNB_DB::rows( "SELECT * FROM $t WHERE nhom_id=0" . $loc . $duoi );
 	}
 
 	public static function ds_binh_luan( $bai_id ) {
@@ -286,8 +434,27 @@ class VHNB_Bai {
 	 */
 	public static function doc_duoc( $u, $bai_id ) {
 		global $wpdb;
-		$nid = (int) $wpdb->get_var( $wpdb->prepare(
-			'SELECT nhom_id FROM ' . VHNB_DB::t( 'bai' ) . ' WHERE id=%d', (int) $bai_id ) );
+		$b = $wpdb->get_row( $wpdb->prepare(
+			'SELECT nhom_id, bac_can, co_so FROM ' . VHNB_DB::t( 'bai' ) . ' WHERE id=%d',
+			(int) $bai_id ), ARRAY_A );
+		if ( ! $b ) { return true; }
+
+		/* 🔴 BẬC CHẶN Ở ĐÂY NỮA, KHÔNG CHỈ Ở `bang_tin()`.
+		   `bang_tin()` lọc DANH SÁCH, còn `binh_luan()` và `tim()` nhận thẳng một `bai_id` từ
+		   biểu mẫu POST. Chỉ lọc danh sách thì người không được xem vẫn đoán được id rồi bình
+		   luận vào đúng bài ấy — và câu bình luận của họ hiện ra cho cấp trên đọc, kèm theo
+		   việc lộ rằng bài đó tồn tại. Hàm này là cửa mà cả hai đường kia đều đi qua. */
+		if ( (int) $b['bac_can'] > 0
+			&& (int) VHNB_Quyen::bac_nguoi( $u ) < (int) $b['bac_can'] ) { return false; }
+
+		/* Và cơ sở, cùng luật với `bang_tin()`: cửa hàng trưởng cơ sở khác cũng là ngang hàng.
+		   ⚠️ So bằng `in_array` chặt (`true`) — cả hai bên đều là chuỗi, mà so lỏng thì
+		      `'0' == ''` và một cơ sở tên `'0'` đọc được mọi dòng. */
+		$cs = trim( (string) $b['co_so'] );
+		if ( '' !== $cs && ! VHNB_Quyen::xem_het_coso( $u )
+			&& ! in_array( $cs, VHNB_Quyen::coso_nguoi( $u ), true ) ) { return false; }
+
+		$nid = (int) $b['nhom_id'];
 		if ( $nid <= 0 ) { return true; }
 		return VHNB_Nhom::duoc_vao( $u, $nid );
 	}

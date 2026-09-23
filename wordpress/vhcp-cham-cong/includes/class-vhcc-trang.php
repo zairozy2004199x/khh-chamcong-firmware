@@ -197,19 +197,26 @@ class VHCC_Trang {
 		$exec = VHCC_CauNoi::url();
 		$h  = '<!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8">';
 		$h .= '<meta name="viewport" content="width=device-width, initial-scale=1">';
-		$h .= '<title>Chấm Công — chưa nối được</title></head>';
-		$h .= '<body style="font:14px/1.6 \'Segoe UI\',Arial,sans-serif;background:#f0f4f8;color:#0f172a;margin:0;padding:40px 20px">';
-		$h .= '<div style="max-width:640px;margin:0 auto;background:#fff;border-radius:12px;padding:26px 28px;box-shadow:0 1px 6px rgba(0,0,0,.08)">';
+		/* 🔴 DÙNG CHUNG BẢNG KIỂU VỚI CẢ HỆ, không tự vẽ bằng `style=` rời.
+		   Trang này vốn có bảng màu RIÊNG (nền `#f0f4f8` xám xanh) — bảng màu thứ ba của một
+		   plugin đã có hai. Người ta gặp nó đúng lúc đang bối rối vì hệ chưa nối được; rơi vào
+		   một trang trông lạ hẳn là thêm một câu hỏi nữa ("mình lạc sang đâu?") vào đúng lúc
+		   không nên có câu hỏi nào. `.the` · `.bao loi` · `.bao canh` đã có sẵn và mang đúng
+		   nghĩa cần ở đây.
+		   ⚠️ Gác `method_exists` cùng hàm với lời gọi — xem `tools/test/kiem-goi-cheo.php`. */
+		$css = ( class_exists( 'VHCC_Web' ) && method_exists( 'VHCC_Web', 'css' ) ) ? VHCC_Web::css() : '';
+		$h .= '<title>Chấm Công — chưa nối được</title><style>' . $css
+			. '.bo{max-width:640px}</style></head><body>';
+		$h .= '<div class="bo"><div class="the">';
 		$h .= '<h1 style="font-size:19px;margin:0 0 6px">Chưa nối được với app Chấm Công</h1>';
-		$h .= '<div style="background:#fee2e2;border:1px solid #fecaca;color:#991b1b;border-radius:8px;padding:11px 13px;margin:14px 0">'
-			. esc_html( $loi ) . '</div>';
+		$h .= '<div class="bao loi">' . esc_html( $loi ) . '</div>';
 		$h .= '<p><b>Địa chỉ /exec đang khai:</b> ' . ( $exec ? '<code>' . esc_html( $exec ) . '</code>' : '<i>chưa khai</i>' ) . '</p>';
 		/* Nguyên nhân đã BIẾT thì nói thẳng, đừng đưa danh sách 4 mục để người ta dò.
 		   Tới đây thì url() đã tự chữa xong, nên nếu còn thấy dạng này là địa chỉ vừa được sửa
 		   và chỉ cần tải lại trang — nói đúng câu đó, không nói "kiểm lại địa chỉ". */
 		if ( strpos( VHCC_CauNoi::url_tho(), '/a/macros/' ) !== false
 			|| strpos( (string) $exec, '/a/macros/' ) !== false ) {
-			$h .= '<div style="background:#fef9c3;border:1px solid #fde047;border-radius:8px;padding:11px 13px;margin:14px 0">'
+			$h .= '<div class="bao canh">'
 				. '<b>Đã tìm ra nguyên nhân.</b> Địa chỉ đang khai có đoạn <code>/a/macros/&lt;tên miền&gt;</code>. '
 				. 'Dạng đó buộc người gọi phải đăng nhập bằng tài khoản của tên miền, mà WordPress gọi '
 				. 'máy-với-máy nên Google chối bằng <code>400 Bad Request</code> — một câu không hề nhắc gì '
@@ -222,9 +229,9 @@ class VHCC_Trang {
 		$h .= '<li>Đã <b>Deploy → New version</b> sau khi dán chưa? (dán mà không deploy thì bản đang chạy vẫn là bản cũ)</li>';
 		$h .= '<li>Vào <b>Cài đặt → Hệ thống chấm công</b> bấm <b>Thử cầu nối</b> để xem thông báo chi tiết.</li>';
 		$h .= '</ol>';
-		$h .= '<p style="color:#64748b;font-size:12.5px">Giờ chấm công không bị ảnh hưởng — máy vẫn đẩy về '
+		$h .= '<p class="mo">Giờ chấm công không bị ảnh hưởng — máy vẫn đẩy về '
 			. 'Google Sheet như trước, và app Apps Script vẫn mở được. Chỉ trang này chưa nối được.</p>';
-		$h .= '</div></body></html>';
+		$h .= '</div></div></body></html>';
 		return $h;
 	}
 

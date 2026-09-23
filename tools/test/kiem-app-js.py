@@ -87,7 +87,11 @@ if m:
     la('renderUsers KHÔNG khai var _laAdmin', 'var _laAdmin' not in than,
        'khai lại là bảng người dùng trắng trở lại')
     la('renderUsers vẫn dùng hàm _laAdmin()', '_laAdmin()' in than)
-    la('renderUsers có vẽ cfgUserBody', "el('cfgUserBody').innerHTML" in than)
+    # Từ 12/09/2026 bảng tách theo vai trò, dựng vào một khối chung rồi mới sinh từng tbody.
+    # Cái phải canh vẫn là "renderUsers CÓ VẼ RA gì đó" — vì đúng lỗi 25/08/2026 là hàm chết
+    # giữa chừng và bảng không bao giờ được vẽ.
+    la('renderUsers có vẽ bảng người dùng', "el('cfgUserNhom').innerHTML" in than)
+    la('   và sinh tbody cho từng vai', "cfgUserBody'+i" in than)
 
 # ---------------------------------------------------------------- chốt chặn xóa trắng
 print('— chốt chặn lưu danh sách rỗng —')
@@ -106,14 +110,30 @@ la('có đường gộp / đổi tên cơ sở', 'doiTenCoSo(' in src)
 
 # ---------------------------------------------------------------- bộ phận Văn phòng
 print('— bộ phận Văn phòng & kỳ tự do —')
-m3 = re.search(r"var BOPHAN_LIST=\[(.*?)\];", src)
-la('đọc được BOPHAN_LIST', m3 is not None)
+# 🔴 TỪ 10/09/2026 DANH SÁCH BỘ PHẬN KHÔNG CÒN GÕ CỨNG — nó khai ở Cấu hình → 🗂 Bộ phận và
+# máy chủ gửi xuống (`CFG.boPhanDs`). Bảy tên dưới chỉ còn là ĐƯỜNG LUI cho lúc CFG chưa nạp.
+# Bài này nay canh hai chuyện: đường lui còn đủ, và ô chọn ĐỌC TỪ MÁY CHỦ chứ không đọc đường lui.
+m3 = re.search(r"var BOPHAN_MAC_DINH=\[(.*?)\];", src)
+la('đọc được BOPHAN_MAC_DINH (đường lui)', m3 is not None)
 if m3:
     bp = [x.strip().strip("'") for x in m3.group(1).split(',')]
     la('có bộ phận Văn phòng', 'Văn phòng' in bp, str(bp))
     la('vẫn giữ đủ 5 bộ phận cũ',
        all(x in bp for x in ['Cơ sở', 'Kỹ thuật', 'Marketing', 'Công tác', 'Setup']), str(bp))
-la('Văn phòng được chọn kỳ tự do', "BP_KY_TU_DO=['Văn phòng']" in src)
+la('ô chọn Bộ phận dựng từ _bpDs(), không từ danh sách gõ cứng',
+   '_bpDs().map(function(b){return [b,_bpNhan(b)];})' in src)
+la('_bpDs() ưu tiên danh sách máy chủ gửi xuống',
+   'CFG.boPhanDs' in src and 'BOOT.boPhanDs' in src)
+la('🔴 danh sách máy chủ RỖNG thì ngã về đường lui, không trả mảng rỗng',
+   '(ds&&ds.length)?ds:BOPHAN_MAC_DINH' in src)
+la('không còn chỗ nào dùng BOPHAN_LIST gõ cứng', 'BOPHAN_LIST' not in src)
+# 🔴 Kỹ thuật cũng được chọn kỳ tự do — anh Thắng, về đơn cơ sở của bộ phận Kỹ thuật:
+#    "quyết toán theo tuần (nhưng không ép buộc tuần nào, khi nào gửi quyết toán thì mới chốt)".
+#    Nhân viên CƠ SỞ thì vẫn không: đơn của họ là đơn xin tạm ứng cho MỘT TUẦN vận hành.
+la('Văn phòng và Kỹ thuật được chọn kỳ tự do',
+   "BP_KY_TU_DO=['Văn phòng','Kỹ thuật']" in src)
+la('🔴 nhân viên CƠ SỞ vẫn KHÔNG được chọn kỳ tự do',
+   "'Cơ sở'" not in src.split('BP_KY_TU_DO=[')[1].split(']')[0])
 la('modal có ô khoảng ngày', 'ndTuDoBox' in src and 'ndTuNgay' in src and 'ndDenNgay' in src)
 
 m4 = re.search(r'function submitNewDon\(\)\{(.*?)\n  \}', src, re.S)
@@ -150,7 +170,9 @@ if m5:
 la('có ô lọc trong hộp chọn', 'cs-tim' in src and 'function _csTim(' in src)
 la('lọc bỏ dấu được', 'function _bd(' in src)
 
-m6 = re.search(r'function _cosoSel\(v\)\{(.*?)\n  \}', src, re.S)
+# ⚠️ CANH Ý ĐỊNH: hàm nhận thêm tham số ĐƠN VỊ từ 1.94.0 (`_cosoSel(v, dv)`), nên đừng ghim
+#    lại đúng một tham số — ghim là đỏ vì bài kiểm chứ không phải vì mã hỏng.
+m6 = re.search(r'function _cosoSel\(v[^)]*\)\{(.*?)\n  \}', src, re.S)
 la('tìm thấy _cosoSel()', m6 is not None)
 if m6:
     t6 = m6.group(1)
@@ -187,10 +209,21 @@ if m8:
     la('Kỹ thuật vẫn vào được tab Dự án', 'Kỹ thuật' in vd, str(vd))
     la('Cơ sở KHÔNG vào tab Dự án', 'Cơ sở' not in vd, str(vd))
 la('quyền tab Dự án tra theo BP_VAO_DUAN', 'BP_VAO_DUAN.indexOf(bp)>=0' in src)
-# Nút "Dự án · gian thi công" nằm TRONG trang chứ không trên hàng tab -> phải ẩn riêng,
+# Nút chuyển giữa hai loại đơn nằm TRONG trang chứ không trên hàng tab -> phải ẩn riêng,
 # không thì người không có quyền bấm vào rồi ăn trang trắng.
-la('ẩn nút GOM THEO khi không có quyền',
-   '[data-dcsw="duan"]' in src and 'b.style.display=vis.duan' in src)
+# 🔴 CẶP NÚT "LOẠI ĐƠN" CŨ ĐÃ BỎ (anh Thắng 11/09/2026: *"gộp nó lại thành 1, chọn xong tự hỏi
+#    ra đơn gì tránh lộn"*) — nó trông như bộ chọn LOẠI ĐƠN nhưng chỉ đổi TRANG. Nay là một nút
+#    chuyển một chiều `data-dcsw-di`, vẽ bằng `_veNutChuyenDon(vis)`.
+la('không còn cặp nút bật/tắt LOẠI ĐƠN', '[data-dcsw="duan"]' not in src)
+# 🔴 TỪ 12/09/2026 GÁC HAI LỚP. Anh Thắng, chỉ vào nút "← Quay lại chi phí Kỹ thuật" trên màn
+#    đơn tuần: *"Đối với nhân viên cơ sở ẩn nút này đi, tránh nhập nhầm"*. Lớp `vis` một mình
+#    không đủ: nó chỉ hạ xuống 0 khi ô Bộ phận CÓ khai, mà phần lớn tài khoản nhân viên cơ sở
+#    để trống ô ấy.
+la('ẩn nút chuyển loại đơn khi không có quyền (lớp 1: vis)',
+   '[data-dcsw-di]' in src and 'vis[di]' in src)
+la('lớp 2: nhân viên chưa khai bộ phận cũng ẩn',
+   "bp!==''" in src and 'BP_VAO_DUAN.indexOf(bp)' in src)
+la('và lớp 2 chỉ siết nhân viên', "la_nv=(_vaiGoc()==='Nhân viên')" in src)
 
 m9 = re.search(r'function _kyTuDo\(\)\{(.*?)\n  \}', src, re.S)
 la('tìm thấy _kyTuDo()', m9 is not None)
@@ -199,7 +232,9 @@ if m9:
     la('vai khác Nhân viên vẫn được kỳ tự do', "!=='Nhân viên') return true" in t9)
     la('Nhân viên phải nằm trong BP_KY_TU_DO', 'BP_KY_TU_DO.indexOf(' in t9)
 
-m10 = re.search(r'function newDon\(\)\{(.*?)\n  \}', src, re.S)
+# `newDon(daChonTuan)` nhận cờ "đã chọn loại ở bên kia rồi" từ 11/09/2026 — anh Thắng:
+# *"Bấm Đơn tuần của cơ sở vẫn hiện hỏi lần 2"*. Khuôn dò phải nhận cả bản có tham số.
+m10 = re.search(r'function newDon\([^)]*\)\{(.*?)\n  \}', src, re.S)
 la('tìm thấy newDon()', m10 is not None)
 if m10:
     t10 = m10.group(1)
@@ -229,8 +264,13 @@ print('— loại đơn: nhãn và phân quyền —')
 # Kiểm NHÃN HIỆN RA (nằm giữa hai thẻ), không phải chữ trong chú thích — bản đầu bắt cả
 # chú thích nên đỏ oan.
 la('bỏ nhãn GOM THEO', '>GOM THEO<' not in src)
-la('có nhãn LOẠI ĐƠN', '>LOẠI ĐƠN<' in src)
-la('nút đổi thành Chi phí · cơ sở', 'Chi phí · cơ sở' in src)
+# 🔴 NHÃN "LOẠI ĐƠN" CŨNG ĐÃ BỎ cùng cặp nút của nó (anh Thắng 11/09/2026: *"gộp nó lại thành 1,
+#    chọn xong tự hỏi ra đơn gì tránh lộn"*). Cặp nút ấy trông như bộ CHỌN LOẠI ĐƠN nhưng chỉ
+#    đổi TRANG đang xem — bấm xong thấy màn khác hẳn thứ mình định lập. Việc chọn loại nay nằm
+#    ở hộp "Đơn này là loại nào?" lúc bấm tạo đơn.
+la('bỏ nhãn LOẠI ĐƠN của cặp nút cũ', '>LOẠI ĐƠN<' not in src)
+la('hộp chọn loại đơn có đủ ba lối',
+   'id="ndLoaiCoSo"' in src and 'id="ndLoaiDaCoSo"' in src and 'id="ndLoaiDuAn"' in src)
 # 🔴 CỘNG THÊM chứ không THAY luật bộ phận: thay thẳng là nhân viên Kỹ thuật mất tab Dự án
 #    ngay lúc cài đè, trước khi kịp tích lại ở bảng phân quyền.
 la('quyền Dự án cộng thêm từ ma trận', "if(canDo('donDuAn')) vis.duan=1;" in src)
@@ -447,10 +487,13 @@ for _b, _goi in [('Duyệt tạm ứng', "el('duyetBody').innerHTML=_tachDonVi("
     la('bảng "%s" dùng _tachDonVi' % _b, _goi in src)
 la('dòng ngăn có kiểu chữ thật trong tệp css', 'tr.dv-ngan>td{' in css)
 
-# Cấu hình: hai cột Đơn vị / Xem đơn vị — hai việc khác nhau, không gộp.
+# Cấu hình: MỘT cột Đơn vị. Anh Thắng 12/09/2026: *"Đơn vị với xem đơn vị là 1, đã thuộc đơn
+# vị đó, thì toàn quyền xem của mình"*. Cột "Xem đơn vị" và cột "TK Có" đã bỏ; chi tiết và các
+# phép canh chỉ số ô nằm ở tools/test/kiem-gop-cot-don-vi.js + test-cauhinh-xo.js.
 la('bảng người dùng có cột Đơn vị', '>Đơn vị</th>' in src)
-la('và cột Xem đơn vị', '>Xem đơn vị</th>' in src)
-la('lưu người dùng gửi kèm cả hai ô', 'donVi:(r[7]' in src and 'xemDonVi:(r[8]' in src)
+la('🔴 KHÔNG còn cột Xem đơn vị', '>Xem đơn vị</th>' not in src)
+la('🔴 KHÔNG còn cột TK Có', 'TK Có (khi là người duyệt)' not in src)
+la('lưu người dùng gom từ MỌI bảng vai trò', '_uMoiHang()' in src and 'data-user-body' in src)
 # Ô Đơn vị là ô NHẬP kèm gợi ý, không phải ô xổ đóng: chi nhánh mới phải khai được ngay.
 la('ô Đơn vị nhập được tự do (có datalist gợi ý)',
    'function _dvInp(' in src and 'list="dl_donvi"' in src)
@@ -557,7 +600,9 @@ la('có câu cho sổ rỗng', 'id="lenhTUEmpty"' in _trang)
 for _c in ['Tổng tạm ứng', 'Số cơ sở', 'Cơ sở · số tiền · đơn']:
     la('cột "%s"' % _c, _c in _trang)
 # Nạp sổ mỗi lần vào tab — không thì duyệt xong phải tải lại trang mới thấy tờ lệnh.
-la('🔴 vào tab Duyệt là nạp sổ lệnh', 'function loadDuyet(){ boot(renderDuyet); loadLenhTU(); }' in src)
+la('🔴 vào tab Duyệt là nạp sổ lệnh', 'loadLenhTU();' in src and 'function loadDuyet(){ boot(renderDuyet);' in src)
+# Bảng "Đơn theo dự án" cũng phải nạp cùng lúc — kế toán mở tab Duyệt là thấy CẢ HAI loại đơn.
+la('🔴 và nạp luôn bảng đơn theo dự án', 'loadDonHM();' in src)
 la('sổ lệnh gọi đúng cửa máy chủ', '.dsLenhTU(' in src)
 
 # --- 🔴 BẢN THỨ HAI CHO KẾ TOÁN (anh Thắng 07/09/2026) ---
@@ -570,8 +615,13 @@ la('bốc được trọn trang Quyết toán', len(_trang_qt) > 1000, len(_tran
 la('🔴 màn kế toán CŨNG có khối lệnh tạm ứng', 'id="lenhTUCardKT"' in _trang_qt)
 la('và nó nằm SAU bảng đơn của màn ấy',
    _trang_qt.index('id="qtBody"') < _trang_qt.index('id="lenhTUBodyKT"'))
-la('🔴 vào tab Quyết toán cũng nạp sổ lệnh',
-   'function loadQT(){ boot(renderQTList); loadLenhTU(); }' in src)
+la('🔴 vào tab Quyết toán cũng nạp sổ lệnh tạm ứng',
+   'loadLenhTU();' in src.split('function loadQT()')[1].split('\n')[0])
+# 🔴 Anh Thắng: "Khi nv gửi chốt quyết toán, bên tab quyết toán của kế toán cũng sẽ hiện lên
+#    đơn đó giống tạm ứng để kế toán theo dõi". Không nạp thì bảng trắng trơn, mà lệnh thì có
+#    thật — kế toán tưởng chưa ai gửi.
+la('🔴 và nạp cả lệnh QUYẾT TOÁN của dự án',
+   'loadQtLenh();' in src.split('function loadQT()')[1].split('\n')[0])
 # 🔴 MỘT PHÉP VẼ CHO CẢ HAI CHỖ. Hai bản vẽ riêng là hai chỗ để lệch, rồi hai màn nói hai con
 #    số cho cùng một tờ lệnh — đúng cảnh ảnh 31/08/2026 "2 có số tổng tạm ứng khác nhau".
 la('🔴 hai chỗ bày dùng CHUNG một phép vẽ', 'function _veLenhTU(idBody, idSo, idEmpty){' in src)
@@ -623,6 +673,205 @@ la('cuộn trang thì đóng ảnh lại', "addEventListener('scroll'" in _fn_bz
 la('🔴 ảnh chứng từ trong bảng dòng chi rê được', src.count('data-bill="') >= 3, src.count('data-bill="'))
 la('⚠️ thẻ <a> giữ nguyên: bấm vẫn mở ảnh gốc (điện thoại không rê được)',
    src.count('target="_blank" title="Rê chuột để phóng to') >= 2)
+
+# ---------------------------------------------------- điền sẵn tên NV thanh toán = người nhập
+# Anh Thắng 14/09/2026: *"Lấy tên nhân viên nhập làm tên mặc định ban đầu nếu không sửa"*.
+#
+# 🔴 GỢI Ý VÀ GIÁ TRỊ MẶC ĐỊNH LÀ HAI VIỆC KHÁC NHAU. Bản trước trộn làm một: chỉ vai "Nhân
+#    viên" mới được điền sẵn, vì họ cũng là vai duy nhất bị thu hẹp danh sách gợi ý. Nên Admin,
+#    Quản lý, Kế toán mở đơn ra là ô trống — mà phần lớn đơn họ nhập vẫn là tiền của chính họ.
+print('— tên NV thanh toán điền sẵn —')
+_i_dt = src.index('function fillDoiTuongList(')
+_j_dt = src.index('\n  }', _i_dt) + 4
+_fn_dt = src[_i_dt:_j_dt]
+la('bốc được hàm fillDoiTuongList', len(_fn_dt) > 300, len(_fn_dt))
+la('đối chứng: hàm bốc ra khép kín', _fn_dt.rstrip().endswith('}'), _fn_dt[-40:])
+la('🔴 mọi vai đều được điền sẵn tên mình, không riêng Nhân viên',
+   "if(want==='NV' && f && CURUSER && CURUSER.name && !String(f.value||'').trim()) f.value=CURUSER.name;" in _fn_dt)
+# 🔴 CHỈ Ở LỐI "THANH TOÁN CÁ NHÂN". Ô này lúc chọn NCC là tên NHÀ CUNG CẤP — điền tên người
+#    nhập vào đó là dựng ra một nhà cung cấp mang tên nhân viên, và bút toán ấy đi thẳng sang MISA.
+la('🔴 không điền khi đang chọn Nhà cung cấp', "want==='NV' && f" in _fn_dt)
+# ⚠️ CHỈ ĐIỀN KHI Ô ĐANG TRỐNG: người ta gõ tên người khác rồi đổi qua đổi lại ô Phân loại là
+#    mất chữ vừa gõ, mất im lặng, ngay trước lúc bấm Thêm hạng mục.
+la('⚠️ không đè lên tên đã gõ', "!String(f.value||'').trim()" in _fn_dt)
+# ⚠️ Danh sách GỢI Ý vẫn thu hẹp cho Nhân viên — chọn nhầm người là tiền vào tay người khác.
+la('⚠️ gợi ý vẫn chỉ mình họ với vai Nhân viên', "CURUSER.role==='Nhân viên'" in _fn_dt)
+# ⚠️ Lượt gọi lúc nạp trang không truyền tham số; không đọc ô Phân loại đang có thì nó luôn
+#    chạy như "chưa chọn phân loại", và tên mặc định không bao giờ hiện ở lần mở trang đầu.
+la('🔴 gọi không tham số thì đọc ô Phân loại đang có',
+   "if(pltt===undefined||pltt===null) pltt=(el('f_pltt')&&el('f_pltt').value)||'';" in _fn_dt)
+
+# ------------------------------------------------- mọi khối nội dung nằm trong khung căn giữa
+# Anh Thắng 14/09/2026, ảnh /chi-phi: *"Chỉnh lệch trang"*. `#datKyBox` và `#donListCard` là
+# `.card` trần đứng ngoài mọi `.wrap`, nên trải hết bề ngang và dính sát mép trái, trong khi cả
+# trang (thanh xanh · thanh tab · thanh tìm đơn · mọi thẻ khác) căn theo trục 1600px.
+#
+# 🔴 SOI CẤU TRÚC, KHÔNG SOI MỘT CHUỖI. Dò "có chữ wrap ở gần donListCard" thì bọc sai chỗ hay
+#    quên thẻ đóng vẫn xanh. Đây đếm độ sâu thật: `.card` nào không có `.wrap` nào bao ngoài.
+print('— không khối nào tràn ra ngoài khung căn giữa —')
+import re as _re
+_body = src[src.index('<body>'):src.index("<script>")]
+_depth = 0
+_inwrap = []
+_lac = []
+for _m in _re.finditer(r'<div\b[^>]*>|</div>', _body):
+    _t = _m.group(0)
+    if _t == '</div>':
+        _depth -= 1
+        _inwrap = [d for d in _inwrap if d < _depth]
+    else:
+        if 'class="wrap"' in _t:
+            _inwrap.append(_depth)
+        if 'class="card"' in _t and not _inwrap:
+            _lac.append(_t[:70])
+        _depth += 1
+la('🔴 không còn .card nào nằm ngoài .wrap', not _lac, _lac)
+# ⚠️ Thẻ đóng thiếu thì cả phần dưới trang tụt vào trong khối — trình duyệt không báo gì.
+_mo = len(_re.findall(r'<div\b', _body)); _dong = len(_re.findall(r'</div>', _body))
+la('⚠️ số thẻ div mở bằng số thẻ đóng', _mo == _dong, '%d mở / %d đóng' % (_mo, _dong))
+# ⚠️ Lớp bọc phải bỏ đệm dọc: .card đã có margin-bottom riêng, cộng thêm 16px trên dưới là hai
+#    khối ấy tự dãn xa hẳn phần còn lại — sửa lệch ngang mà đẻ lệch dọc.
+la('⚠️ lớp bọc bỏ đệm dọc', 'class="wrap" style="padding-top:0;padding-bottom:0"' in _body)
+
+# ------------------------------------------------- bàn giao: người mới cùng cơ sở mở được đơn cũ
+# Anh Thắng 14/09/2026: *"bạn cũ nghỉ, bạn mới nhận việc thì đơn chi phí phải nhìn lại hết được
+# đơn của bạn để có thể tiếp tục chỉnh sửa đơn đó, cùng cơ sở"*.
+#
+# 🔴 DANH SÁCH VÀ CỬA MỞ ĐƠN PHẢI NỚI BẰNG NHAU. Danh sách đã lấp cơ sở từ hàng TẠM ỨNG từ
+#    07/09/2026 (`$cs_tu` trong `list_dons()`), nhưng cửa mở đơn thì chỉ hỏi bảng dòng chi. Hai
+#    bên lệch đúng ở ca hay gặp nhất: ĐƠN XIN ỨNG TRƯỚC — có số tạm ứng mà chưa liệt kê hạng mục
+#    nào. Người mới THẤY đơn ấy trong danh sách, bấm vào thì bị chối. Và đó đúng là những đơn
+#    đang treo tiền, cần bàn giao nhất.
+print('— bàn giao đơn cho người cùng cơ sở —')
+_don_php = io.open(os.path.join(GOC, 'wordpress', 'vhcp-chi-phi', 'includes', 'class-vhcp-don.php'),
+                   encoding='utf-8').read()
+_don_ma = _re.sub(r'/\*[\s\S]*?\*/', ' ', _don_php)
+_i_cs = _don_ma.index('function cac_coso_cua_don(')
+_fn_cs = _don_ma[_i_cs:_don_ma.index('\n\t}', _i_cs)]
+la('bốc được hàm cac_coso_cua_don', len(_fn_cs) > 150, len(_fn_cs))
+la('🔴 cửa mở đơn hỏi CẢ bảng tạm ứng, không chỉ dòng chi',
+   'UNION' in _fn_cs and '$tu' in _fn_cs)
+la('   và hỏi một câu, không hai lượt', _fn_cs.count('get_col') == 1, _fn_cs.count('get_col'))
+# ⚠️ Cửa này chạy trước MỌI lượt mở, sửa, xoá dòng — nên nó phải là chỗ DUY NHẤT quyết định,
+#    và vẫn hỏi đúng `trong_tam()` mà danh sách đang hỏi, để hai bên không thể lệch lần nữa.
+la('⚠️ vẫn hỏi đúng trong_tam() như danh sách',
+   'VHCP_Auth::trong_tam' in _don_ma[_don_ma.index('function loi_khong_phai_don_minh('):][:2000])
+la('⚠️ và dựng chuỗi cơ sở từ chính cac_coso_cua_don()',
+   'cac_coso_cua_don( $ma_don )' in _don_ma[_don_ma.index('function loi_khong_phai_don_minh('):][:2000])
+
+# ------------------------------------------------ phân cơ sở thì toàn quyền, không cảnh báo
+# Anh Thắng 14/09/2026, cả một chuỗi: *"2 nhân viên cùng cơ sở thì làm việc như nhau, nhìn thấy
+# nội dung như nhau, chức năng quyền hạn như nhau"* · *"có quyền làm tiếp đơn cũ của người cũ"*
+# · *"làm gì có danh mục cơ sở"* · *"cấu hình nội bộ chi phí mà, không liên quan bên ngoài"* ·
+# *"loại bỏ cảnh báo, phân cơ sở thì toàn quyền"*.
+#
+# 🔴 KHÔNG SOI Ô CƠ SỞ VỚI DANH MỤC NÀO. Bản 1.174.0 gắn cờ mọi giá trị không có trong CFG.coso,
+#    và cờ vàng bắn vào gần như mọi dòng — toàn cơ sở thật đang chạy trên đơn. Kết tội hàng loạt
+#    là cách chắc chắn nhất để người dùng thôi tin mọi cảnh báo khác, kể cả cảnh báo đúng.
+print('— phân cơ sở thì toàn quyền —')
+# ⚠️ SOI MÃ ĐÃ BỎ CHÚ THÍCH. Bản nháp dò cả tệp và đỏ vì đọc trúng chính câu giải thích *vì sao*
+#    bỏ cảnh báo — phép kiểm chửi đúng cái chú thích nói rằng nó đã được sửa. Cùng cái bẫy đã
+#    gặp với kiem-tach-ban-vung.php và kiem-trang-tong.php.
+_src_ma = _re.sub(r'/\*[\s\S]*?\*/', ' ', src)
+la('🔴 bảng Người dùng không còn gắn cờ ô Cơ sở',
+   'chưa có trong danh mục cơ sở' not in _src_ma and 'không có trong danh mục' not in _src_ma)
+la('   và không còn dò CFG.coso để kết tội', 'var lac=' not in src, [l for l in src.split('\n') if 'var lac=' in l][:2])
+# 🔴 MÁY CHỦ ĐÃ LỌC RỒI — MÀN KHÔNG LỌC LẠI. Hai bản luật phân quyền thì chỉ cần lệch một vế là
+#    màn GIẤU mất đơn mà máy chủ vẫn cho xem: im lặng, không câu lỗi nào. Đúng chuyện đã xảy ra.
+la('🔴 màn không lọc lại phạm vi, để máy chủ giữ một bản luật duy nhất',
+   'function _trongPhamVi(d){ return true; }' in src)
+la('   và không còn bản chép so ô Cơ sở với chuỗi trên đơn',
+   'd.nguoiLap===CURUSER.name || _trongCoSoToi(d)' not in src)
+# Dải phạm vi ĐÃ GỠ — anh Thắng 14/09/2026: *"loại bỏ này cho anh"*. Nó dựng để CHẨN ĐOÁN và
+# đã làm xong việc ấy (chỉ ra "108 đơn của cơ sở khác", tìm đúng chốt sau bốn lượt vá mò). Xong
+# việc thì gỡ: một dòng nhắc mỗi ngày rằng "bạn chỉ thấy cơ sở của mình" là thứ người dùng đọc
+# đúng một lần rồi thôi, còn nó thì chiếm chỗ mãi mãi.
+la('🔴 dải phạm vi đã gỡ khỏi màn', 'function vePhamVi(' not in src and 'phamViBox' not in src)
+la('   và không còn dòng "Đã ẩn …" trên trang', 'function veDaChan(' not in src)
+# ⚠️ PHẦN ĐẾM Ở MÁY CHỦ THÌ GIỮ: rẻ (ba phép cộng) và là công cụ đã chứng minh giá trị — lần sau
+#    có ai "không thấy đơn" thì bật lại một dòng là biết chốt nào cắt, khỏi mò lại từ đầu.
+_don_php2 = io.open(os.path.join(GOC, 'wordpress', 'vhcp-chi-phi', 'includes', 'class-vhcp-don.php'),
+                    encoding='utf-8').read()
+la('⚠️ nhưng phần đếm ở máy chủ vẫn còn, để bật lại khi cần',
+   'function so_da_chan()' in _don_php2 and "'daChan'" in _don_php2)
+
+# ------------------------------------------------------------------ dọn mấy khối thừa
+# Anh Thắng 14/09/2026: *"sẵn sửa trang chi phí loại bỏ mấy cái thừa"*.
+print('— dọn khối thừa trên trang chi phí —')
+# 🔴 Tab "Vận hành tuần" bỏ bằng đúng cơ chế đã có (`BO_TAB`), không xoá mã: bật lại chỉ là gỡ
+#    một chữ, rẻ hơn hẳn dựng lại cả màn.
+la('🔴 tab Vận hành tuần đã tắt', 'vhtuan:1' in src)
+la('   và tắt bằng BO_TAB, không xoá mã màn', 'function loadVHTuan' in src)
+# 🔴 Bảng khai tay "Mảng kinh doanh → nhóm tài khoản" gỡ khỏi màn, nhưng DỮ LIỆU giữ nguyên:
+#    "Mã tổng của mảng" vẫn ghi vào cột Nhóm TK của chính bảng ấy.
+la('🔴 bảng Mảng → nhóm tài khoản đã gỡ khỏi màn', 'id="mangTkCard"' not in src)
+la('⚠️ nhưng sổ mangTk giữ nguyên, không xoá dữ liệu', 'mangTk:data' in src)
+# 🔴 Gỡ một bảng mà quên gác `el(...)` là `renderCfg()` ném lỗi ngay và CẢ tab Cấu hình trắng.
+la('🔴 chỗ vẽ bảng đã gỡ có gác null', "if(el('cfgMangBody'))" in src)
+la('   và hàm đọc hàng cũng gác', 'var _tb=el(tbodyId); if(!_tb) return [];' in src)
+# 🔴 Nút "Dọn loại chưa khai mã" — một nút XOÁ HÀNG LOẠT đứng cạnh nút Lưu, trong bảng người ta
+#    mở ra mỗi ngày. Dựng cho một lần dọn dữ liệu cũ; giữ lại là để một cú bấm nhầm xoá cả danh mục.
+la('🔴 nút "Dọn loại chưa khai mã" đã gỡ', 'Dọn loại chưa khai mã' not in _re.sub(r'<!--[\s\S]*?-->', ' ', src))
+
+# ------------------------------------------------------ dọn tiếp: gộp thẻ, gỡ thẻ, gập khối
+print('— dọn đợt hai —')
+# 🔴 Hai thẻ "tài khoản" gộp làm một: cùng biểu tượng 🏦, cùng chữ "tài khoản", lại nằm hai nhóm
+#    cách xa nhau — người khai phải nhớ "tài khoản" nào ở đâu. Gộp CHỖ ĐỨNG, không trộn hai sổ.
+la('🔴 thẻ "Tài khoản nhận tiền" đã gộp vào thẻ hệ thống tài khoản',
+   'id="qrCard"' not in src and 'id="cfgQrStk"' in src)
+# ⚠️ Dò cả CỤM NÚT, không dò mỗi tên hàm: `saveCfgQR()` còn xuất hiện ở chỗ định nghĩa hàm, nên
+#    bản nháp chỉ dò tên vẫn xanh kể cả khi nút đã bị gỡ khỏi thẻ.
+la('   và giữ nguyên nút Lưu riêng của nó',
+   'onclick="saveCfgQR()">💾 Lưu tài khoản nhận tiền</button>' in src)
+la('   tiêu đề nói rõ CẢ HAI nghĩa', 'hệ thống kế toán &amp; tài khoản nhận tiền' in src)
+# 🔴 Thẻ "Mã gọi tắt" gỡ khỏi màn, nhưng LÕI TRA SỔ giữ nguyên: mã đã khai vẫn hiệu lực.
+la('🔴 thẻ Mã gọi tắt đã gỡ khỏi màn', 'id="maTatCard"' not in src)
+_auth = io.open(os.path.join(GOC, 'wordpress', 'vhcp-chi-phi', 'includes', 'class-vhcp-auth.php'),
+                encoding='utf-8').read()
+la('⚠️ nhưng lõi tra sổ mã gọi tắt giữ nguyên (gỡ màn ≠ xoá sổ)',
+   'function so_ma_tat()' in _auth and '$tat = self::so_ma_tat();' in _auth)
+# 🔴 Khối "chưa khai phân loại lớn" GẬP lại chứ không xoá: khối "ngoại lệ" bên dưới chỉ duyệt
+#    theo MẢNG, nên không bày những cơ sở chưa khai phân loại — xoá là sáu chục gian ấy hết
+#    đường khai mã chi phí, và không có câu lỗi nào báo cho ai biết.
+la('🔴 khối "chưa khai phân loại lớn" vẫn còn, chỉ gập lại',
+   'Chưa khai phân loại lớn' in src and '<details' in src)
+la('   và nói ra còn bao nhiêu cơ sở đang chờ khai', "+le.length+' cơ sở)</summary>'" in src)
+la('⚠️ ô tích của chúng vẫn dựng đủ, không mất cửa khai',
+   'data-coso="\'+esc(c)+\'" onchange="kcInfo()"' in src)
+
+# ------------------------------------------------ bảng TK Nợ của nhà thứ hai: GẬP, không bỏ
+print('— bảng TK Nợ theo đơn vị —')
+# 🔴 Anh Thắng 14/09/2026 chỉ vào "🔢 TK Nợ · POSH": *"bỏ cái này vì chi phí này là chi phí
+#    kvc"*, rồi chốt *"ẩn thôi đừng bỏ"*. Bỏ hẳn thì mã tài khoản của nhà ấy còn nằm trong sổ
+#    mà không còn cửa nào sửa — và nhìn màn thì tưởng đã sạch.
+# ⚠️ CẮT THÂN HÀM rồi mới dò. Cả tệp có <details> ở dăm chỗ khác (khối "chưa khai phân loại
+#    lớn", khối ngoại lệ…), nên dò trên cả tệp là xoá sạch đoạn này bài vẫn xanh.
+_m_mx = _re.search(r'function renderTkNoMatrix\(\)\{(.*?)\n  \}', src, _re.S)
+la('tìm thấy renderTkNoMatrix()', _m_mx is not None)
+if _m_mx:
+    _t_mx = _m_mx.group(1)
+    la('🔴 khối đơn vị thứ hai trở đi gập bằng <details>',
+       'if(nhom.length>1 && i>0){' in _t_mx and '<details' in _t_mx,
+       'gập ở đây mới ẩn được bảng TK Nợ của nhà kia')
+    la('   vòng lặp có đếm thứ tự để biết khối nào đứng đầu',
+       'nhom.forEach(function(g, i){' in _t_mx)
+    la('   khối đứng đầu vẫn mở sẵn, không bọc <details>',
+       '} else {\n        h+=\'<div style="font-weight:800;color:#171417;margin:16px 0 6px;font-size:13px">\'+nhan+phu' in _t_mx)
+    # ⚠️ GẬP CHỨ KHÔNG BỎ KHỎI DOM. saveCfgTkNoMx() gom mã bằng querySelectorAll('.mxNoBody
+    #    input'); ô trong <details> đang đóng vẫn đếm, còn display:none / thôi không vẽ thì mã
+    #    của cả nhà ấy bay sạch ngay lượt Lưu kế tiếp — im lặng, không một câu lỗi.
+    la('⚠️ bảng của nhà bị gập VẪN ĐƯỢC DỰNG (ô còn trong DOM để lượt Lưu đọc được)',
+       'than=\'<div class="tw"><table' in _t_mx and 'class="mxNoBody"' in _t_mx)
+    # 🔴 Không gõ cứng tên nhà: kế toán POSH chỉ xem được mỗi nhà của họ, chốt cứng "POSH" là
+    #    bảng duy nhất của họ cũng gập. Thứ tự quyết định, nên thêm nhà thứ ba tự chạy đúng.
+    # ⚠️ SOI MÃ ĐÃ BỎ CHÚ THÍCH. Chú thích ngay trên có nhắc cả "POSH" lẫn "display:none" để
+    #    giải thích vì sao KHÔNG dùng chúng — dò trên mã còn chú thích là hai phép dưới đây
+    #    đỏ oan, mà đục mất mã thật thì lại xanh.
+    _mx_ma = _re.sub(r'/\*[\s\S]*?\*/', ' ', _t_mx)
+    _mx_ma = _re.sub(r'//[^\n]*', ' ', _mx_ma)
+    la('⚠️ và KHÔNG giấu bằng display:none', 'display:none' not in _mx_ma)
+    la('🔴 KHÔNG gõ cứng tên nhà nào trong điều kiện gập', 'POSH' not in _mx_ma,
+       'chốt cứng là kế toán POSH mất luôn bảng của chính họ')
 
 print()
 if hong:

@@ -244,7 +244,16 @@ function demO(than) {
   return n;
 }
 /* Hàng người dùng dựng bằng những hàm nào, theo đúng thứ tự trong mã. */
-const HANG = (HTML.match(/return '<tr><td>'\+_inp\(u\.ten[\s\S]*?_delBtn\(\)\+'<\/tr>';/) || [])[0] || '';
+/* ⚠️ NEO VÀO `esc(u.ten`, KHÔNG GHIM `'<tr><td>'`. (Trước 10/09/2026 neo là `_inp(u.ten`; ô Tên
+   nay khoá lại nên viết thẳng `<input readonly>` chứ không qua `_inp` nữa — neo vào TÊN CỘT thì
+   đổi cách dựng ô không làm bài kiểm đỏ oan.) Ngày 09/09/2026 thẻ `<tr>` được thêm thuộc
+   tính (tô nền hàng khai lệch nhà/tầm nhìn) và bài này đỏ với năm dòng "mong undefined" — trông
+   y như mã hỏng, mà thật ra chỉ là cái neo ghim vào một thứ KHÔNG liên quan tới phép đang canh.
+   Phép này canh CHỈ SỐ Ô; thẻ mở hàng trông thế nào thì mặc kệ. */
+/* `[^\n]*?` chứ không phải `[\s\S]*?`: hàng CHỈ ĐỌC (tài khoản bị khoá) cũng mở bằng
+   `return '<tr` ở một dòng trên. Cho phép vắt qua dòng là nó ngoạm luôn cả hàng ấy — 86 ô thay
+   vì 9, và bài kiểm lại đỏ vì chính cái neo của mình. */
+const HANG = (HTML.match(/return '<tr[^\n]*?esc\(u\.ten[\s\S]*?_delBtn\(\)\+'<\/tr>';/) || [])[0] || '';
 t('cắt được dòng dựng hàng người dùng', HANG.length > 50, HANG.slice(0, 60));
 /* ⚠️ CÓ Ô VIẾT THẲNG TRONG HÀNG, không qua hàm dựng — ô PIN là một `<input>` gõ tay ngay
    trong chuỗi. Chỉ quét tên hàm là bỏ sót đúng nó, và mọi cột sau đó lệch một nhịp trong
@@ -255,7 +264,7 @@ t('cắt được dòng dựng hàng người dùng', HANG.length > 50, HANG.sli
    "số ô dựng ra bằng đúng số cột dữ liệu", mà `_readRows()` đọc theo CHỈ SỐ nên lệch một ô là
    mọi cột sau đó đọc trượt sang cột bên cạnh. Sửa bằng cách dạy nó tên hàm mới, KHÔNG phải
    bằng cách nới con số cho qua. */
-const GOI = [...HANG.matchAll(/(_inp|_roleSel|_bpSel|_cosoSel|_dvInp|_xemDvSel)\(|<(input|select)\b([^>]*)>/g)]
+const GOI = [...HANG.matchAll(/(_inp|_roleSel|_bpSel|_cosoSel|_dvInp)\(|<(input|select)\b([^>]*)>/g)]
   .filter(m => {
     if (m[1]) return true;
     if (BO_CHECKBOX && /type="checkbox"/.test(m[3] || '')) return false;
@@ -265,7 +274,15 @@ const GOI = [...HANG.matchAll(/(_inp|_roleSel|_bpSel|_cosoSel|_dvInp|_xemDvSel)\
   .map(m => m[1] || ('<' + m[2] + '>'));
 t('hàng người dùng dựng đủ ô cho mọi cột (≥8)', GOI.length >= 8, GOI);
 
-const COT = ['ten', 'pin', 'vaiTro', 'boPhan', 'coso', 'tkCo', 'maDt', 'donVi', 'xemDonVi'];
+/* 🔴 HAI CỘT ĐÃ BỎ 12/09/2026 — anh Thắng: *"Bỏ cột tài khoản có"* và *"Đơn vị với xem đơn vị
+   là 1"*. `tkCo` và `xemDonVi` không còn ô nào trên màn, nên cũng không còn chỉ số; chúng vẫn
+   được gửi lên dưới dạng chuỗi RỖNG CỨNG để máy chủ ghi đúng số cột của sổ.
+   ⚠️ Phép dưới cùng canh đúng chỗ ấy: hai khoá đó phải là hằng '' trong `saveCfgUsers`, KHÔNG
+      được là `r[n]` — lỡ ai đó trả lại chỉ số cho chúng là mọi cột sau lại trượt một nhịp. */
+/* Cột "Mã NV" thêm 13/09/2026 — anh Thắng: *"nếu đẩy từ nhân sự sang, mà nhân viên này trùng
+   với nhân viên tạo trực tiếp trên trang chi phí thì sao"*. Nó nằm NGAY SAU Tên, nên mọi cột
+   phía sau dịch đúng một nhịp — và đó chính là loại thay đổi phép này sinh ra để canh. */
+const COT = ['ten', 'maNv', 'pin', 'vaiTro', 'boPhan', 'coso', 'maDt', 'donVi'];
 teq('số hàm dựng ô bằng đúng số cột dữ liệu', COT.length, GOI.length);
 const CHI_SO = {};
 let dem = 0;
@@ -280,14 +297,71 @@ const SAVE = thanHam('saveCfgUsers');
 const DUNG = {};
 for (const m of SAVE.matchAll(/(\w+):\((?:r\[(\d+)\])\|\|''\)/g)) { DUNG[m[1]] = Number(m[2]); }
 for (const m of SAVE.matchAll(/(\w+):r\[(\d+)\]\|\|''/g))          { DUNG[m[1]] = Number(m[2]); }
-t('đọc được chỉ số saveCfgUsers đang dùng', Object.keys(DUNG).length >= 7, DUNG);
+t('đọc được chỉ số saveCfgUsers đang dùng', Object.keys(DUNG).length >= 6, DUNG);
 COT.forEach(k => {
   if (!(k in DUNG)) return;
   teq('cột "' + k + '" — chỉ số saveCfgUsers khớp số ô thật', CHI_SO[k], DUNG[k]);
 });
+t('🔴 "tkCo" không còn chỉ số ô nào — cột đã bỏ',     !('tkCo' in DUNG), DUNG);
+t('🔴 "xemDonVi" không còn chỉ số ô nào — cột đã bỏ', !('xemDonVi' in DUNG), DUNG);
+t('   nhưng vẫn gửi lên dưới dạng rỗng, khỏi lệch cột sổ',
+  /tkCo:''/.test(SAVE) && /xemDonVi:''/.test(SAVE), SAVE.slice(0, 200));
+
+/* 🔴 GOM TỪ MỌI BẢNG. Bảng người dùng tách theo vai trò (12/09/2026), nên `saveCfgUsers` phải
+   quét hết các tbody chứ không đọc một id cố định. Sót một bảng = những người trong đó không
+   nằm trong gói gửi lên, mà lượt Lưu ghi đè cả danh sách — tức XOÁ họ khỏi sổ, im lặng. */
+t('🔴 lưu người dùng gom từ MỌI bảng vai trò, không phải một id cố định',
+  /_uMoiHang\(\)/.test(SAVE) && /data-user-body/.test(thanHam('_uMoiHang')), SAVE.slice(0, 120));
 
 
 // ---------------------------------------------------------------- kết
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * TÊN VÀ PIN KHOÁ LẠI — LẤY TỪ HỆ THỐNG NHÂN SỰ
+ *
+ * Anh Thắng 10/09/2026: *"Chỗ tên người dùng được lấy từ hệ thống nhân sự, nên bên trang chi
+ * phí không cho sửa tên, sửa dễ sai hệ thống.. Cả mã pin cũng vậy"*.
+ *
+ * 🔴 TÊN LÀ KHOÁ NỐI HAI BÊN. Mọi đơn đã lập mang TÊN người lập, nên gõ lệch một chữ ở đây là
+ *    người ấy mất sạch đơn cũ của mình — không có câu lỗi nào, chỉ là màn của họ trống.
+ *
+ * 🔴 KHOÁ NHƯNG VẪN PHẢI GỬI LÊN. `readonly` giữ nguyên `.value`, nên hàng cũ lưu lại không
+ *    mất tên/PIN. Nếu ai đó đổi sang `disabled` thì trình duyệt BỎ QUA ô ấy — lưu một cái là
+ *    mọi người mất tên và PIN, và họ không đăng nhập được nữa.
+ * ═══════════════════════════════════════════════════════════════════════════════════════ */
+const O_TEN = (HANG.match(/<input value="'\+esc\(u\.ten[^>]*>/) || [])[0] || '';
+/* 🔴 Ô PIN nay là `type="password"` — anh Thắng 14/09/2026 gửi ảnh bảng bày ra hàng chục PIN
+   (`1000`, `1122`, `2233`…). Trang này chạy ngoài internet: ai đứng sau lưng, ai xem một ảnh
+   chụp màn, ai mở "xem mã nguồn trang" đều đọc được. Mẫu dò phải theo, nếu không phép kiểm
+   canh một ô không còn tồn tại và trượt cả bốn phép dưới. */
+const O_PIN = (HANG.match(/<input type="password" value="'\+esc\(u\.pin[^>]*>/) || [])[0] || '';
+t('🔴 ô Tên khoá lại (readonly)', /\breadonly\b/.test(O_TEN), O_TEN);
+t('🔴 ô PIN cũng khoá lại',      /\breadonly\b/.test(O_PIN), O_PIN);
+t('🔴 KHÔNG dùng disabled — disabled thì trình duyệt bỏ qua ô, lưu một cái là mất sạch tên/PIN',
+  !/\bdisabled\b/.test(O_TEN) && !/\bdisabled\b/.test(O_PIN), [O_TEN, O_PIN]);
+t('   và vẫn mang giá trị thật lên (readonly giữ nguyên .value)',
+  /value="'\+esc\(u\.ten/.test(O_TEN) && /value="'\+esc\(u\.pin/.test(O_PIN), [O_TEN, O_PIN]);
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 KHÔNG IN PIN RA MÀN HÌNH — luật cứng của cả hệ, và bảng này từng vi phạm nó.
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * ⚠️ CHE BẰNG `type="password"`, KHÔNG thay giá trị bằng dấu chấm: bảng lưu bằng cách đọc lại
+ *    MỌI ô trên hàng, nên thay giá trị là lượt Lưu kế tiếp ghi đè PIN thật bằng chuỗi che —
+ *    khoá tài khoản của cả bảng cùng lúc.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+t('🔴 ô PIN che đi, không bày mã ra màn', /type="password"/.test(O_PIN), O_PIN);
+t('⚠️ nhưng KHÔNG thay giá trị bằng dấu chấm (lưu một cái là mất sạch PIN)',
+  /value="'\+esc\(u\.pin\|\|''\)\+'"/.test(O_PIN), O_PIN);
+/* Hàng THÊM MỚI cũng phải che: người khai gõ PIN cho người khác, ngay giữa văn phòng. */
+t('🔴 ô PIN của hàng thêm mới cũng che',
+  /<input type="password" maxlength="8"/.test(HTML), '');
+t('🔴 rê chuột vào nói rõ phải sửa ở đâu (khoá mà không nói thì người ta tưởng hỏng)',
+  /title="[^"]*nhân sự/.test(O_TEN) && /title="[^"]*nhân sự/.test(O_PIN), [O_TEN, O_PIN]);
+t('   nhìn cũng biết là khoá, không phải ô gõ được', /background:#f4f1ec/.test(O_TEN), O_TEN);
+t('   tiêu đề cột nói rõ nguồn', HTML.indexOf('>Tên <span style="font-weight:400;color:#8c8781">(từ nhân sự)</span></th>') >= 0);
+t('   và có câu giải thích dưới bảng', HTML.indexOf('lấy từ <b>hệ thống nhân sự</b> nên khoá ở đây') >= 0);
+/* Các cột KHÁC vẫn phải sửa được — khoá quá tay thì bảng thành chỉ để ngắm. */
+t('🔴 vai trò · bộ phận · cơ sở · đơn vị vẫn sửa được',
+  !/readonly/.test(thanHam('_roleSel')) && !/readonly/.test(thanHam('_dvInp')), null);
+
 if (hong.length) {
   console.error('\nĐẠT: ' + dat + ' phép thử');
   console.error('HỎNG: ' + hong.length);

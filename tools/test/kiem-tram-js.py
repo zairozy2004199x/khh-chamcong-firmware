@@ -72,7 +72,14 @@ CO_SAN = set("""
     alert confirm prompt console document window navigator performance location
     localStorage sessionStorage history screen getComputedStyle btoa atob
     Map Set WeakMap WeakSet Symbol Proxy Reflect BigInt
+    # WebRTC — trình duyệt dựng sẵn. `getUserMedia` đi qua `navigator.mediaDevices` nên nó là
+    # truy cập thuộc tính chứ không phải một tên toàn cục, không cần khai ở đây.
+    RTCPeerConnection RTCSessionDescription RTCIceCandidate MediaStream
     if for while switch catch return typeof function
+    # `in` và `instanceof` là TOÁN TỬ, không bao giờ là hàm. Thiếu chúng thì `for(k in obj)` bị
+    # đọc thành lời gọi `in()` và bài kiểm đỏ oan — mà cách "sửa" hiển nhiên lúc ấy là viết vòng
+    # lặp xấu đi để né bộ kiểm, tức là bộ kiểm bắt đầu điều khiển mã thay vì canh mã.
+    in instanceof void delete new
 """.split())
 
 def ten_khai(ma):
@@ -145,6 +152,10 @@ print('— mọi nút đều có người nghe —')
 # Nút vẽ ra mà quên gài sự kiện là nút bấm không xảy ra gì, và trang không báo lỗi.
 nut = set(re.findall(r'<button id="([A-Za-z0-9_]+)"', src))
 o_nhap = set(re.findall(r'<input id="([A-Za-z0-9_]+)"', src))
+# Ô XỔ cũng tính. Nó không phải nút nên không bắt buộc phải có người nghe, nhưng gài `change`
+# cho nó là chuyện thường — mà nếu không kể vào đây thì phép thử dưới đọc thành "gài cho phần
+# tử không tồn tại" và bắt người ta gỡ một dòng hoàn toàn đúng.
+o_nhap |= set(re.findall(r'<select id="([A-Za-z0-9_]+)"', src))
 nghe = set(re.findall(r"el\('([A-Za-z0-9_]+)'\)\.addEventListener", js))
 la('không nút nào bị bỏ quên', nut <= nghe, 'thiếu: %s' % sorted(nut - nghe))
 # Ô nhập cũng được gài (Enter để gửi) nên tính cả vào; còn gài cho một id KHÔNG tồn tại thì
@@ -177,8 +188,98 @@ la('RB4 · có cờ chặn bấm lại', 'DANG_LUU' in js)
 print('— không rò HTML —')
 # Tên cơ sở / họ tên đi thẳng vào innerHTML là một dấu nháy trong tên cũng vỡ bảng.
 la('có hàm thoát HTML', 'function esc(' in js)
-tho = re.findall(r"innerHTML\s*=\s*'[^']*'\s*\+\s*(?!esc\()([A-Za-z_$][\w$.]*)", js)
+def hang_chuoi_thuan(src):
+    """Tên hằng khai ở mức ngoài cùng mà giá trị CHỈ gồm chuỗi ghép chuỗi.
+
+    🔴 VÌ SAO CẦN MIỄN TRỪ NÀY, VÀ VÌ SAO NÓ PHẢI HẸP ĐÚNG NHƯ VẬY.
+    Phép thử dưới canh việc ghép DỮ LIỆU chưa thoát vào innerHTML — một dấu nháy trong tên
+    cơ sở là vỡ bảng. Nhưng nó dò theo HÌNH của câu lệnh, nên một hằng chữ viết sẵn
+    (`var NHAC_UNG = '<p>…' + '…</p>';`) trông y hệt một biến mang dữ liệu, và bị báo đỏ oan.
+    Bản 4.29.1 nhập từ hosting về có đúng một trường hợp như thế.
+
+    ⚠️ ĐIỀU KIỆN PHẢI CHẶT: bỏ hết chuỗi ra khỏi vế phải thì phần còn lại chỉ được là dấu `+`
+       và khoảng trắng. Chỉ cần một cái tên lọt vào vế phải là hằng ấy có thể mang dữ liệu, và
+       nó rơi lại vào diện bị canh. Nới rộng hơn (ví dụ "cứ TÊN VIẾT HOA thì tha") là mở đúng
+       cái cửa phép thử này sinh ra để đóng.
+    """
+    ra = set()
+    for m in re.finditer(r"^var ([A-Za-z_$][\w$]*)\s*=\s*(.*?);\s*$", src, re.M | re.S):
+        con = re.sub(r"'(?:[^'\\]|\\.)*'", '', m.group(2), flags=re.S)
+        con = re.sub(r'"(?:[^"\\]|\\.)*"', '', con, flags=re.S)
+        if re.fullmatch(r'[\s+]*', con):
+            ra.add(m.group(1))
+    return ra
+
+an_toan = hang_chuoi_thuan(js)
+tho = [t for t in re.findall(r"innerHTML\s*=\s*'[^']*'\s*\+\s*(?!esc\()([A-Za-z_$][\w$.]*)", js)
+       if t not in an_toan]
 la('không ghép thẳng biến vào innerHTML', not tho, str(tho[:5]))
+
+# Phép thử NGƯỢC cho chính chỗ miễn trừ: một hằng có tên lọt vào vế phải thì KHÔNG được tha.
+gia_js = js + "\nvar THU_HANG = '<b>' + tenCoSo + '</b>';\n"
+la('miễn trừ không tha hằng có ghép biến vào', 'THU_HANG' not in hang_chuoi_thuan(gia_js))
+
+# ══════════════════════════════════════════════════════════════════════════════════════════
+# 🔴 KHUNG XEM CAMERA: HÌNH TRỰC TIẾP VÀ ẢNH VỪA CHỤP PHẢI CÙNG MỘT KHUNG
+#
+# Anh Thắng 20/09/2026: *"bấm chụp nó gom ảnh là sao vậy"*. Hình trực tiếp hiện nhỏ và hẹp
+# giữa hai lề trắng; bấm Chụp ngay xong thì ảnh nhảy ra to hết chiều ngang và cắt mất trên
+# dưới. Người ta canh mặt vào một khung, rồi nhận về một khung khác.
+#
+# Nguyên do: bản trước đặt `max-height` thẳng lên `<video>` và `<canvas>` mà không cho chúng
+# chiều cao. Với thẻ có kích thước gốc, chạm `max-height` thì trình duyệt co luôn CHIỀU NGANG
+# để giữ tỷ lệ — nên `<video>` teo thành dải hẹp, còn `<canvas>` (đã khai width/height bằng
+# thuộc tính HTML) đi nhánh khác của cùng luật ấy và bị `object-fit:cover` cắt trên dưới.
+# Cùng một dòng CSS, hai kết quả khác nhau.
+#
+# Phép thử canh cái hộp: `.khung` phải TỰ giữ chiều cao, và hai thẻ con phải `height:100%`.
+# Đó là thứ chặn luật co-theo-tỷ-lệ, và nó không thể hiện ra ở bất kỳ phép thử nào khác —
+# CSS hỏng kiểu này thì trang vẫn chạy, nút vẫn bấm được, không một dòng lỗi nào.
+# ══════════════════════════════════════════════════════════════════════════════════════════
+css_khung = re.search(r'^\.khung\{([^}]*)\}', src, re.M)
+la('.khung có khai chiều cao', bool(css_khung) and 'height:' in css_khung.group(1),
+   css_khung.group(1) if css_khung else 'không thấy .khung{...}')
+
+css_con = re.search(r'^\.khung video,\.khung canvas\.xem\{([^}]*)\}', src, re.M)
+c = css_con.group(1) if css_con else ''
+la('video và canvas dùng CHUNG một luật', bool(css_con), 'không thấy luật gộp hai thẻ')
+la('🔴 hai thẻ con phủ kín khung bằng height:100%', 'height:100%' in c, c)
+
+# ⚠️ `cover` CẮT phần nhìn trong khi ảnh lưu giữ nguyên cả khung — người ta canh theo một tấm
+#    ảnh không tồn tại. `contain` chịu hai dải đen để đổi lấy: thấy gì lưu nấy.
+la('🔴 dùng object-fit:contain, không phải cover', 'contain' in c and 'cover' not in c, c)
+
+# 🔴 `max-height` trên chính hai thẻ con là ĐÚNG CÁI đã gây ra lỗi này. Nó quay lại thì lỗi
+#    quay lại y nguyên, và lại không có phép thử nào khác bắt được.
+la('🔴 KHÔNG còn max-height trên video/canvas', 'max-height' not in c, c)
+
+# Khung vẫn phải thấp — anh Thắng 18/09/2026: *"Đẩy màn chụp nhỏ lại 1/2 để cho nút chụp lên
+# cao"*. Cao hơn là nút "Chụp ngay" rơi khỏi màn trên máy hẹp.
+la('khung vẫn đo bằng vh (không phụ thuộc máy)',
+   bool(css_khung) and 'vh' in css_khung.group(1), css_khung.group(1) if css_khung else '')
+
+# ══════════════════════════════════════════════════════════════════════════════════════════
+# 🔴 MỌI Ô `man` KHAI Ở `VHCC_Ung` PHẢI CÓ MỘT NHÁNH TRONG `moMan()`.
+#
+# Thêm một ô vào lưới Ứng dụng là sửa HAI tệp: khai ô ở `class-vhcc-ung.php`, và thêm một dòng
+# vào `moMan()` bên `tram.php`. Quên dòng thứ hai thì ô hiện ra, bấm vào, và KHÔNG CÓ GÌ XẢY
+# RA — `moMan()` không khớp tên nào nên im lặng thoát. Không lỗi, không cảnh báo, không một
+# dấu vết nào; người dùng chỉ thấy một cái nút chết.
+#
+# Đây đúng là lớp lỗi "hai nơi phải khớp nhau" mà cả bộ thử này sinh ra để canh.
+# ══════════════════════════════════════════════════════════════════════════════════════════
+UNG = os.path.join(GOC, 'wordpress', 'vhcp-cham-cong', 'includes', 'class-vhcc-ung.php')
+if os.path.exists(UNG):
+    ung = open(UNG, encoding='utf-8').read()
+    # bỏ chú thích PHP để không bắt nhầm một tên màn nhắc trong lời giải thích
+    ung_ma = re.sub(r'/\*.*?\*/', ' ', ung, flags=re.S)
+    khai = sorted(set(re.findall(r"'man'\s*=>\s*'([A-Za-z_][\w]*)'", ung_ma)))
+    la('lưới Ứng dụng có khai ô mở màn trong trạm', bool(khai), str(khai))
+    mo_man = re.search(r'function moMan\(ten\)\{(.*?)\n\}', js, re.S)
+    than_mm = mo_man.group(1) if mo_man else ''
+    la('tìm được hàm moMan()', bool(mo_man))
+    thieu = [m for m in khai if ("'" + m + "'") not in than_mm]
+    la('🔴 mọi ô `man` đều có nhánh trong moMan()', not thieu, ', '.join(thieu))
 
 print()
 if hong:

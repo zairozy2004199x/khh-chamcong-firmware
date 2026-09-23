@@ -70,8 +70,7 @@ class VHCC_Xuat {
 		$zip->addFromString( 'xl/_rels/workbook.xml.rels', self::wb_rels( count( $to ) ) );
 		$zip->addFromString( 'xl/styles.xml', self::styles() );
 		foreach ( $to as $i => $t ) {
-			$zip->addFromString( 'xl/worksheets/sheet' . ( $i + 1 ) . '.xml',
-				self::sheet( isset( $t['hang'] ) ? $t['hang'] : array() ) );
+			$zip->addFromString( 'xl/worksheets/sheet' . ( $i + 1 ) . '.xml', self::sheet( $t ) );
 		}
 		$zip->close();
 
@@ -104,7 +103,26 @@ class VHCC_Xuat {
 			$x .= '<sheet name="' . self::ten_to( isset( $t['ten'] ) ? $t['ten'] : '', $i )
 				. '" sheetId="' . ( $i + 1 ) . '" r:id="rId' . ( $i + 1 ) . '"/>';
 		}
-		return $x . '</sheets></workbook>';
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 BẢO EXCEL TÍNH LẠI LÚC MỞ — KHÔNG CÓ DÒNG NÀY THÌ MỌI Ô CÔNG THỨC RA Ô TRỐNG.
+		 *
+		 * Anh Thắng 16/09/2026 gửi ảnh file lương: cột **Lương chính** và **TOTAL SALARY** trống
+		 * trơn, mà thanh công thức của Excel VẪN hiện `=G9*H9`. Tức công thức có được ghi, chỉ là
+		 * Excel không chịu tính.
+		 *
+		 * Vì sao: `o()` ghi `<f>` mà CỐ Ý không kèm `<v>` (xem chú thích ở đó — một giá trị đệm
+		 * đoán sẵn là con số trông như thật mà sai). Đúng. Nhưng thiếu `<calcPr>` thì Excel coi
+		 * workbook này "đã tính rồi", đi đọc giá trị đệm, không thấy gì, và in ra ô trống. Hai
+		 * quyết định đúng riêng lẻ, ghép lại thành một tờ lương không có tiền.
+		 *
+		 * `fullCalcOnLoad="1"` bắt tính lại toàn bộ lúc mở. Giữ được cả hai: mở ra là có số NGAY,
+		 * mà kế toán gõ vào mấy cột phụ cấp thì tổng vẫn tự nhảy.
+		 *
+		 * ⚠️ VỊ TRÍ LÀ BẮT BUỘC: lược đồ `CT_Workbook` xếp `calcPr` SAU `</sheets>`. Đặt trước là
+		 *    Excel từ chối mở cả tệp và không nói vì sao — cùng loại bẫy với `<cols>`/`<mergeCells>`
+		 *    ở `to()`, và bài kiểm canh thứ tự ấy cũng canh cái này.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		return $x . '</sheets><calcPr calcId="0" fullCalcOnLoad="1"/></workbook>';
 	}
 
 	private static function wb_rels( $so ) {
@@ -121,31 +139,150 @@ class VHCC_Xuat {
 		return $x . '</Relationships>';
 	}
 
-	/** Hai kiểu ô: 0 = thường, 1 = đậm (dòng tiêu đề). Đủ dùng, không bày thêm. */
+	/**
+	 * BẢNG KIỂU Ô.
+	 *
+	 * 🔴 CHỈ SỐ 0 VÀ 1 LÀ HỢP ĐỒNG CŨ, KHÔNG ĐƯỢC ĐỔI CHỖ.
+	 *    Bản đầu chỉ có hai kiểu (thường / đậm) và `sheet()` tự đóng `s="1"` cho dòng đầu. Mọi
+	 *    nơi đang xuất .xlsx vẫn trông vào hai chỉ số ấy. Chèn kiểu mới vào GIỮA là mọi tiêu đề
+	 *    cũ đổi kiểu mà không ai sửa gì — nên kiểu mới CHỈ thêm vào CUỐI.
+	 *
+	 * 2 tiêu đề to · 3 băng tiêu đề cột · 4 chữ có viền · 5 tiền có viền · 6 giờ có viền
+	 * 7 dòng tên khối · 8 dòng tổng · 9 số thứ tự (canh giữa, có viền)
+	 */
 	private static function styles() {
 		return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
 			. '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-			. '<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font>'
-			. '<font><b/><sz val="11"/><name val="Calibri"/></font></fonts>'
-			. '<fills count="2"><fill><patternFill patternType="none"/></fill>'
-			. '<fill><patternFill patternType="gray125"/></fill></fills>'
-			. '<borders count="1"><border/></borders>'
+			/* 164 tiền: không lẻ, có dấu phân nhóm. 165 giờ: hai số lẻ — 19,2 và 49,15 là giờ thật
+			   trong file kế toán, làm tròn lên số nguyên là lệch tiền ngay dòng đầu tiên. */
+			. '<numFmts count="2"><numFmt numFmtId="164" formatCode="#,##0"/>'
+			. '<numFmt numFmtId="165" formatCode="0.00"/></numFmts>'
+			. '<fonts count="3"><font><sz val="11"/><name val="Calibri"/></font>'
+			. '<font><b/><sz val="11"/><name val="Calibri"/></font>'
+			. '<font><b/><sz val="14"/><name val="Calibri"/></font></fonts>'
+			. '<fills count="4"><fill><patternFill patternType="none"/></fill>'
+			. '<fill><patternFill patternType="gray125"/></fill>'
+			. '<fill><patternFill patternType="solid"><fgColor rgb="FFD9D9D9"/>'
+			. '<bgColor indexed="64"/></patternFill></fill>'
+			. '<fill><patternFill patternType="solid"><fgColor rgb="FFF2F2F2"/>'
+			. '<bgColor indexed="64"/></patternFill></fill></fills>'
+			. '<borders count="2"><border/>'
+			. '<border><left style="thin"/><right style="thin"/><top style="thin"/>'
+			. '<bottom style="thin"/></border></borders>'
 			. '<cellStyleXfs count="1"><xf/></cellStyleXfs>'
-			. '<cellXfs count="2"><xf xfId="0"/><xf xfId="0" fontId="1" applyFont="1"/></cellXfs>'
+			. '<cellXfs count="12">'
+			. '<xf xfId="0"/>'
+			. '<xf xfId="0" fontId="1" applyFont="1"/>'
+			. '<xf xfId="0" fontId="2" applyFont="1" applyAlignment="1">'
+			. '<alignment horizontal="center"/></xf>'
+			. '<xf xfId="0" fontId="1" fillId="2" borderId="1" applyFont="1" applyFill="1"'
+			. ' applyBorder="1" applyAlignment="1">'
+			. '<alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
+			. '<xf xfId="0" borderId="1" applyBorder="1"/>'
+			. '<xf xfId="0" numFmtId="164" borderId="1" applyNumberFormat="1" applyBorder="1"/>'
+			. '<xf xfId="0" numFmtId="165" borderId="1" applyNumberFormat="1" applyBorder="1"/>'
+			. '<xf xfId="0" fontId="1" fillId="3" borderId="1" applyFont="1" applyFill="1"'
+			. ' applyBorder="1"/>'
+			. '<xf xfId="0" fontId="1" numFmtId="164" fillId="3" borderId="1" applyFont="1"'
+			. ' applyNumberFormat="1" applyFill="1" applyBorder="1"/>'
+			. '<xf xfId="0" borderId="1" applyBorder="1" applyAlignment="1">'
+			. '<alignment horizontal="center"/></xf>'
+			/* 10 — HAI HÀNG TRONG MỘT Ô. `wrapText` là thứ bắt Excel xuống hàng ở ký tự `\n`;
+			   thiếu nó thì ô vẫn CHỨA hai hàng nhưng hiện ra một hàng dính liền, và người ta
+			   tưởng tệp hỏng. Dùng cho ô giờ vào/ra của tệp bảng công tháng. */
+			. '<xf xfId="0" borderId="1" applyBorder="1" applyAlignment="1">'
+			. '<alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
+			/* 11 — Ô MỘT HÀNG ĐỨNG CẠNH Ô HAI HÀNG. Hàng nào có ô hai dòng thì cao gấp đôi, và
+			   mấy ô một dòng bên cạnh tụt hẳn xuống đáy — nhìn như lệch hàng. Canh giữa theo
+			   chiều dọc là hết. */
+			. '<xf xfId="0" borderId="1" applyBorder="1" applyAlignment="1">'
+			. '<alignment vertical="center"/></xf>'
+			. '</cellXfs>'
+			/* ⚠️ `<cellStyles>` nhìn thì thừa, nhưng thiếu nó thì một số trình đọc (openpyxl, vài bản
+			   LibreOffice) kêu "không có kiểu mặc định" rồi tự đắp kiểu của chúng vào — định dạng
+			   tiền và giờ mình đặt có thể bị bỏ. Một dòng, để khỏi phải đoán máy người ta dùng gì. */
+			. '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'
 			. '</styleSheet>';
 	}
 
-	private static function sheet( $hang ) {
+	/** Kiểu ô HAI HÀNG (xuống dòng trong ô). Xem chú thích ở `styles()` mục 10. */
+	const HAI_HANG = 10;
+
+	/** Ô một hàng đứng cạnh ô hai hàng — canh giữa theo chiều dọc. Xem `styles()` mục 11. */
+	const GIUA_DOC = 11;
+
+	/** Một ô mang kiểu riêng: `o_kieu( 441600, VHCC_Xuat::TIEN )`. */
+	public static function o_kieu( $v, $s ) { return array( 'v' => $v, 's' => (int) $s ); }
+	/** Một ô là CÔNG THỨC: `ct( 'M10+U10-Y10', VHCC_Xuat::TIEN )`. */
+	/**
+	 * Ô CÔNG THỨC. `$v` là GIÁ TRỊ ĐÃ TÍNH SẴN — có thì ghi kèm, không thì thôi.
+	 *
+	 * 🔴 PHẢI GHI KÈM GIÁ TRỊ. Chú thích cũ ở `o()` bảo "đừng kèm `<v>` đoán sẵn" và em giữ nó
+	 *    qua mấy bản. SAI — nó đúng với một giá trị ĐOÁN, còn đây là con số chính lõi lương vừa
+	 *    tính ra, cùng một phép với công thức. Không kèm thì tệp CHỈ có số khi mở bằng một ứng
+	 *    dụng chịu tính lại; xem nhanh trên điện thoại, Google Sheets, WPS hay ô xem trước của
+	 *    hòm thư thì cả cột Lương chính và TOTAL SALARY trống trơn.
+	 *    Anh Thắng 16/09/2026: *"Sao bảo làm y chang lại xuất bảng không có gì"* — kèm chính
+	 *    tệp hệ xuất ra. Soi trong file mẫu của kế toán: 560 ô công thức đều có `<v>` đi kèm.
+	 * ⚠️ Vẫn giữ `fullCalcOnLoad` ở `workbook()`: kế toán gõ vào ô phụ cấp là Excel tính lại,
+	 *    nên con số ghi sẵn không bao giờ kịp cũ.
+	 */
+	public static function ct( $f, $s = 0, $v = null ) {
+		return array( 'ct' => (string) $f, 's' => (int) $s, 'v' => $v );
+	}
+
+	const DAM   = 1;
+	const TUA   = 2;
+	const BANG  = 3;
+	const CHU_V = 4;
+	const TIEN  = 5;
+	const GIO   = 6;
+	const KHOI  = 7;
+	const TONG  = 8;
+	const STT   = 9;
+
+	/**
+	 * Một trang tính.
+	 *
+	 * @param array $t  ten · hang[][] · cot[] (độ rộng) · gop[] ('A4:AA4')
+	 *
+	 * ⚠️ `<cols>` phải đứng TRƯỚC `<sheetData>` và `<mergeCells>` phải đứng SAU — lược đồ của
+	 *    Excel bắt đúng thứ tự ấy. Sai thứ tự thì Excel báo "found unreadable content" và KHÔNG mở
+	 *    tệp, chứ không bỏ qua phần nó không hiểu.
+	 */
+	private static function sheet( $t ) {
+		$hang = isset( $t['hang'] ) ? (array) $t['hang'] : array();
 		$x = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-			. '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>';
-		foreach ( array_values( (array) $hang ) as $r => $dong ) {
+			. '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">';
+		if ( ! empty( $t['cot'] ) ) {
+			$x .= '<cols>';
+			foreach ( array_values( (array) $t['cot'] ) as $i => $w ) {
+				$w = (float) $w;
+				if ( $w <= 0 ) { continue; }
+				$x .= '<col min="' . ( $i + 1 ) . '" max="' . ( $i + 1 ) . '" width="'
+					. round( $w, 2 ) . '" customWidth="1"/>';
+			}
+			$x .= '</cols>';
+		}
+		$x .= '<sheetData>';
+		/* `dam_dong_dau` mặc định BẬT để giữ nguyên hành vi cũ của mọi nơi đang xuất; bảng
+		   nào tự đặt kiểu cho từng ô thì tắt đi. */
+		$dam_dau = ! isset( $t['damDongDau'] ) || $t['damDongDau'];
+		foreach ( array_values( $hang ) as $r => $dong ) {
 			$x .= '<row r="' . ( $r + 1 ) . '">';
 			foreach ( array_values( (array) $dong ) as $c => $o ) {
-				$x .= self::o( self::cot( $c ) . ( $r + 1 ), $o, 0 === $r );
+				$x .= self::o( self::cot( $c ) . ( $r + 1 ), $o, ( $dam_dau && 0 === $r ) );
 			}
 			$x .= '</row>';
 		}
-		return $x . '</sheetData></worksheet>';
+		$x .= '</sheetData>';
+		if ( ! empty( $t['gop'] ) ) {
+			$g = array_values( (array) $t['gop'] );
+			$x .= '<mergeCells count="' . count( $g ) . '">';
+			foreach ( $g as $v ) { $x .= '<mergeCell ref="' . self::x( $v ) . '"/>'; }
+			$x .= '</mergeCells>';
+		}
+		return $x . '</worksheet>';
 	}
 
 	/**
@@ -157,8 +294,19 @@ class VHCC_Xuat {
 	 */
 	private static function o( $vt, $gia, $dam ) {
 		$s = $dam ? ' s="1"' : '';
+		if ( is_array( $gia ) && isset( $gia['s'] ) ) { $s = ' s="' . (int) $gia['s'] . '"'; }
+		/* Công thức: ghi `<f>`, và KÈM `<v>` khi nơi gọi đưa xuống một giá trị đã tính. Xem khối
+		   chú thích ở `ct()` về việc vì sao phải kèm — và vì sao "đừng kèm" của bản cũ là sai. */
+		if ( is_array( $gia ) && isset( $gia['ct'] ) ) {
+			$gt = ( array_key_exists( 'v', $gia ) && null !== $gia['v'] && '' !== $gia['v'] )
+				? '<v>' . ( 0 + $gia['v'] ) . '</v>' : '';
+			return '<c r="' . $vt . '"' . $s . '><f>' . self::x( (string) $gia['ct'] ) . '</f>'
+				. $gt . '</c>';
+		}
+		if ( is_array( $gia ) && array_key_exists( 'v', $gia ) ) { $gia = $gia['v']; }
 		if ( is_array( $gia ) && isset( $gia['chu'] ) ) { $gia = (string) $gia['chu']; }
-		elseif ( is_int( $gia ) || is_float( $gia ) ) {
+		if ( null === $gia ) { return '<c r="' . $vt . '"' . $s . '/>'; }
+		if ( is_int( $gia ) || is_float( $gia ) ) {
 			return '<c r="' . $vt . '"' . $s . '><v>' . ( 0 + $gia ) . '</v></c>';
 		}
 		$gia = (string) $gia;

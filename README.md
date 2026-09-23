@@ -81,6 +81,10 @@ riêng thay vì Google Sheet. File cài đặt sẵn: `dist/vhcp-chi-phi.zip`.
 
 Hướng dẫn cài + mang dữ liệu cũ sang: [`docs/HUONG-DAN-CAI-DAT-WORDPRESS.md`](docs/HUONG-DAN-CAI-DAT-WORDPRESS.md).
 
+Đơn của bộ phận **Kỹ thuật** đi một luồng khác hẳn đơn tuần của cơ sở — một dự án là một đơn,
+trong đó có nhiều *lệnh* tạm ứng và quyết toán. Xem
+[`docs/DON-DU-AN-KY-THUAT.md`](docs/DON-DU-AN-KY-THUAT.md).
+
 ```bash
 bash tools/build-plugin-zip.sh    # đóng gói lại plugin
 php tools/test/test-flows.php     # 300 phép thử logic, không cần WordPress/MySQL

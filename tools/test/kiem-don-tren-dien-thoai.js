@@ -299,7 +299,7 @@ function cỡ(khoi, sau) {
   return m ? Number(m[1]) : null;
 }
 teq('🔴 tên trạng thái: 17px -> 14px', 14, cỡ(khoiDai, "font-size:(\\d+(?:\\.\\d+)?)px;font-weight:800;letter-spacing"));
-teq('🔴 dòng nhận dạng: 12px -> 11px', 11, cỡ(khoiDai, "font-size:(\\d+(?:\\.\\d+)?)px;color:#475569"));
+teq('🔴 dòng nhận dạng: 12px -> 11px', 11, cỡ(khoiDai, "font-size:(\\d+(?:\\.\\d+)?)px;color:#8c8781"));
 teq('🔴 câu giải thích: 12.5px -> 11.5px', 11.5, cỡ(khoiDai, "font-size:(\\d+(?:\\.\\d+)?)px;line-height"));
 /* Lề trong — nhóm thứ hai. */
 teq('🔴 lề trong dọc: 13px -> 10px', 10, cỡ(khoiDai, "padding:(\\d+)px \\d+px;background"));

@@ -61,12 +61,22 @@ function khai_bao( $tep ) {
 				$id = $t[0];
 				if ( $id === T_WHITESPACE || $id === T_COMMENT || $id === T_DOC_COMMENT ) { continue; }
 				if ( $id === T_CLASS )    { $sau = 'lop';   continue; }
+				/* 🔴 LỚP CON KẾ THỪA THÌ THÀNH VIÊN CỦA CHA CŨNG LÀ CỦA NÓ.
+				   15/09/2026 `VHCC_DayChiPhiVP extends VHCC_DayChiPhi` — bài này báo ba chỗ
+				   "không có hàm" cho `QUYEN` · `da_day()` · `luu_nhieu()`, đều là thành viên
+				   thừa kế và đều CHẠY ĐÚNG. Báo sai kiểu ấy tệ hơn không báo: người đọc mất
+				   một vòng để biết bài kiểm mới là chỗ sai, rồi lần sau họ thôi tin nó. */
+				if ( $id === T_EXTENDS )  { $sau = 'extends'; continue; }
 				if ( $id === T_CONST )    { $sau = 'const'; continue; }
 				if ( $id === T_FUNCTION ) { $sau = 'function'; continue; }
 				if ( $id === T_STRING && $sau !== null ) {
 					if ( $sau === 'lop' ) {
 						$lop = $t[1];
-						if ( ! isset( $dm[ $lop ] ) ) { $dm[ $lop ] = array( 'hang' => array(), 'ham' => array() ); }
+						if ( ! isset( $dm[ $lop ] ) ) {
+							$dm[ $lop ] = array( 'hang' => array(), 'ham' => array(), 'cha' => '' );
+						}
+					} elseif ( $sau === 'extends' ) {
+						$dm[ $lop ]['cha'] = $t[1];
 					} elseif ( $lop !== '' ) {
 						$dm[ $lop ][ $sau === 'const' ? 'hang' : 'ham' ][] = $t[1];
 					}
@@ -123,14 +133,26 @@ foreach ( cho_dung( $tep ) as $d ) {
 		$sai[] = array( $d, 'không có lớp này' );
 		continue;
 	}
-	$co = $d['ham']
-		? in_array( $d['ten'], $dm[ $d['lop'] ]['ham'], true )
-		: in_array( $d['ten'], $dm[ $d['lop'] ]['hang'], true );
+	/**
+	 * Có thành viên ấy không — LEO CẢ CÂY KẾ THỪA.
+	 *
+	 * ⚠️ Có chặn vòng lặp (`$da`): `A extends B` mà `B extends A` là mã hỏng, nhưng bài kiểm
+	 *    gặp nó thì treo cứng chứ không báo — treo thì không ai biết vì sao.
+	 */
+	$co_thanh_vien = function ( $lop, $ten, $la_ham ) use ( $dm ) {
+		$da = array();
+		while ( '' !== $lop && isset( $dm[ $lop ] ) && ! isset( $da[ $lop ] ) ) {
+			$da[ $lop ] = true;
+			$kho = $la_ham ? $dm[ $lop ]['ham'] : $dm[ $lop ]['hang'];
+			if ( in_array( $ten, $kho, true ) ) { return true; }
+			$lop = isset( $dm[ $lop ]['cha'] ) ? (string) $dm[ $lop ]['cha'] : '';
+		}
+		return false;
+	};
+	$co = $co_thanh_vien( $d['lop'], $d['ten'], $d['ham'] );
 	if ( $co ) { continue; }
 	// Gọi ::ten() mà `ten` lại là hằng (hoặc ngược lại) thì nói rõ, vì đó là lỗi hay gặp nhất.
-	$nguoc = $d['ham']
-		? in_array( $d['ten'], $dm[ $d['lop'] ]['hang'], true )
-		: in_array( $d['ten'], $dm[ $d['lop'] ]['ham'], true );
+	$nguoc = $co_thanh_vien( $d['lop'], $d['ten'], ! $d['ham'] );
 	$vi = $d['ham'] ? 'không có hàm' : 'không có hằng';
 	if ( $nguoc ) { $vi .= $d['ham'] ? ' — nhưng có HẰNG cùng tên, bỏ dấu ngoặc đi' : ' — nhưng có HÀM cùng tên, thêm () vào'; }
 	$sai[] = array( $d, $vi );

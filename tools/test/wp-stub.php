@@ -47,13 +47,30 @@ register_shutdown_function( function () {
 	exit( 1 );
 } );
 
-$GLOBALS['VHCP_TMP'] = sys_get_temp_dir() . '/vhcp-test-' . getmypid();
+/* Thư mục tạm RIÊNG CHO TỪNG TIẾN TRÌNH — đúng cho bộ thử: hai bài chạy song song không giẫm
+   lên tệp của nhau.
+
+   ⚠️ LỐI THOÁT CHỈ CHO BỘ XEM TRƯỚC. Máy chủ xem trước phục vụ nhiều lượt gọi, và khi bật nhiều
+      luồng thì mỗi luồng là một TIẾN TRÌNH khác — luồng này ghi tệp đính kèm vào thư mục của
+      nó, luồng kia đi tìm và không thấy, rồi trả 404. Triệu chứng: ảnh trong chat hiện ra một ô
+      vỡ, mà curl thẳng vào cùng đường dẫn thì trả về đúng tấm ảnh. Đã mất hai lượt chụp để tìm
+      ra, và suýt đi sửa nhầm phần phục vụ tệp — vốn chạy đúng. */
+$GLOBALS['VHCP_TMP'] = getenv( 'VHCC_STUB_TMP' )
+	? getenv( 'VHCC_STUB_TMP' )
+	: ( sys_get_temp_dir() . '/vhcp-test-' . getmypid() );
 @mkdir( $GLOBALS['VHCP_TMP'] . '/wp-admin/includes', 0777, true );
 @mkdir( $GLOBALS['VHCP_TMP'] . '/uploads', 0777, true );
 file_put_contents( $GLOBALS['VHCP_TMP'] . '/wp-admin/includes/upgrade.php', "<?php\n" );
 
 define( 'ABSPATH', $GLOBALS['VHCP_TMP'] . '/' );
 define( 'ARRAY_A', 'ARRAY_A' );
+/* Hằng thời gian của lõi WordPress. Luôn có trên máy thật, nên mã plugin dùng thoải mái — mà
+   thiếu ở đây thì bài kiểm chết bằng "Undefined constant", một câu lỗi chẳng liên quan gì tới
+   thứ đang thử. */
+define( 'MINUTE_IN_SECONDS', 60 );
+define( 'HOUR_IN_SECONDS', 3600 );
+define( 'DAY_IN_SECONDS', 86400 );
+define( 'WEEK_IN_SECONDS', 604800 );
 
 $GLOBALS['VHCP_OPT'] = array();
 $GLOBALS['VHCP_TR']  = array();
@@ -62,11 +79,32 @@ function dbDelta( $sql ) { return array(); }
 function get_option( $k, $d = false ) { return array_key_exists( $k, $GLOBALS['VHCP_OPT'] ) ? $GLOBALS['VHCP_OPT'][ $k ] : $d; }
 function update_option( $k, $v ) { $GLOBALS['VHCP_OPT'][ $k ] = $v; return true; }
 function delete_option( $k ) { unset( $GLOBALS['VHCP_OPT'][ $k ] ); return true; }
+/* Đủ dùng cho lớp tự cập nhật: nó chỉ cần chuỗi `<thư mục>/<tệp>.php` để làm khoá nhận plugin. */
+function plugin_basename( $tep ) {
+	$tep = str_replace( '\\', '/', (string) $tep );
+	$p   = explode( '/', trim( $tep, '/' ) );
+	$n   = count( $p );
+	return ( $n >= 2 ) ? ( $p[ $n - 2 ] . '/' . $p[ $n - 1 ] ) : $tep;
+}
+function wpautop( $s ) { return '<p>' . str_replace( "\n\n", '</p><p>', (string) $s ) . '</p>'; }
+
 function get_transient( $k ) { return array_key_exists( $k, $GLOBALS['VHCP_TR'] ) ? $GLOBALS['VHCP_TR'][ $k ] : false; }
 function set_transient( $k, $v, $t = 0 ) { $GLOBALS['VHCP_TR'][ $k ] = $v; return true; }
 function delete_transient( $k ) { unset( $GLOBALS['VHCP_TR'][ $k ] ); return true; }
 function wp_cache_delete( $k, $g = '' ) { return true; }
-function wp_json_encode( $v ) { return json_encode( $v, JSON_UNESCAPED_UNICODE ); }
+/* 🔴 PHẢI NHẬN THAM SỐ `$options` — Y NHƯ WORDPRESS THẬT.
+ * Bản giả cũ nuốt mất tham số thứ hai, nên `wp_json_encode( $x, JSON_UNESCAPED_SLASHES )` trong
+ * mã thật vẫn ra chuỗi CÓ escape ở bài kiểm. Cổng máy chấm công đáp bằng cờ ấy đúng để bộ giải
+ * mã base64 viết tay trong firmware đọc được (`/9j/` chứ không phải `\/9j\/`) — bản giả dễ dãi
+ * hơn bản thật ở đúng chỗ ấy là phép thử xanh mà máy vẫn không nhận được ảnh.
+ * Cùng loại bẫy với `esc_url` nuốt `data:` — xem chú thích ở đó.
+ *
+ * ⚠️ GIỮ `JSON_UNESCAPED_UNICODE` làm mặc định. WordPress thật KHÔNG bật cờ này, nhưng cả bộ
+ *    thử này đọc chữ Việt trong JSON để soi, và đổi mặc định là sửa hàng chục phép thử cho một
+ *    thứ chẳng liên quan tới lỗi đang xét. Cờ do nơi gọi truyền vào vẫn được cộng thêm đủ. */
+function wp_json_encode( $v, $options = 0, $depth = 512 ) {
+	return json_encode( $v, ( (int) $options ) | JSON_UNESCAPED_UNICODE, (int) $depth );
+}
 function wp_rand( $min = 0, $max = 0 ) { return random_int( $min, $max ); }
 function wp_generate_password( $len = 12, $sp = true, $xsp = false ) {
 	$c = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -79,6 +117,11 @@ function trailingslashit( $s ) { return rtrim( (string) $s, '/\\' ) . '/'; }
 function untrailingslashit( $s ) { return rtrim( (string) $s, '/\\' ); }
 function wp_mkdir_p( $p ) { return is_dir( $p ) || mkdir( $p, 0777, true ); }
 function sanitize_text_field( $s ) { return trim( strip_tags( (string) $s ) ); }
+/* Khác `sanitize_text_field` đúng một điều: GIỮ xuống dòng. WordPress thật cũng vậy — dùng cho
+   ô <textarea>, nơi xuống dòng là một phần nội dung chứ không phải rác. */
+function sanitize_textarea_field( $s ) {
+	return trim( preg_replace( '/[ \t]+$/m', '', strip_tags( (string) $s ) ) );
+}
 function sanitize_file_name( $s ) { return preg_replace( '/[^A-Za-z0-9._-]+/u', '-', (string) $s ); }
 function sanitize_title( $s ) { return strtolower( preg_replace( '/[^A-Za-z0-9-]+/', '-', (string) $s ) ); }
 function wp_unslash( $s ) { return is_string( $s ) ? stripslashes( $s ) : $s; }
@@ -91,12 +134,43 @@ $GLOBALS['VHCP_MOC']   = array();   // hook => danh sách callback
 $GLOBALS['VHCP_LUAT']  = array();   // luật đường dẫn đã gài
 $GLOBALS['VHCP_QVAR']  = array();
 $GLOBALS['VHCP_MA_HTTP'] = 0;
+$GLOBALS['VHCP_CRON'] = array();
 function add_action( $h, $cb, $uu = 10, $n = 1 ) { $GLOBALS['VHCP_MOC'][ $h ][] = array( $cb, $uu ); return true; }
 function add_filter( $h, $cb, $uu = 10, $n = 1 ) { $GLOBALS['VHCP_MOC'][ $h ][] = array( $cb, $uu ); return true; }
 function remove_action( $h, $cb, $uu = 10 ) { $GLOBALS['VHCP_MOC'][ '-' . $h ][] = array( $cb, $uu ); return true; }
 function remove_filter( $h, $cb, $uu = 10 ) { $GLOBALS['VHCP_MOC'][ '-' . $h ][] = array( $cb, $uu ); return true; }
 function apply_filters( $h, $v ) { return $v; }
-function do_action( $h ) { return null; }
+/* Lịch cron. Giữ trong một mảng thật chứ không trả bừa `false`/`true`: `init()` của mấy lớp
+   gọi `wp_next_scheduled()` rồi mới `wp_schedule_event()`, và bài kiểm nào nạp `init()` hai
+   lần mà stub luôn nói "chưa xếp" thì xếp chồng hai lượt — đúng cái lỗi ngoài đời. */
+function wp_next_scheduled( $h, $args = array() ) {
+	return isset( $GLOBALS['VHCP_CRON'][ $h ] ) ? $GLOBALS['VHCP_CRON'][ $h ] : false;
+}
+function wp_schedule_event( $khi, $nhip, $h, $args = array() ) {
+	if ( isset( $GLOBALS['VHCP_CRON'][ $h ] ) ) { return false; }
+	$GLOBALS['VHCP_CRON'][ $h ] = (int) $khi;
+	return true;
+}
+function wp_clear_scheduled_hook( $h, $args = array() ) {
+	unset( $GLOBALS['VHCP_CRON'][ $h ] );
+	return 1;
+}
+/* 🔴 `do_action` PHẢI GỌI THẬT CÁC TAI NGHE. Trước đây nó trả `null` và không làm gì — nên mọi
+   đường đi qua móc (plugin này bắn, plugin kia nghe) đều XANH OAN: bỏ hẳn `add_action` đi bài
+   kiểm vẫn không đỏ. Bắt được lúc dựng đường đẩy cơ sở từ plugin Ghế sang (08/09/2026).
+   Gọi theo đúng thứ tự ưu tiên như WordPress; ưu tiên bằng nhau thì theo thứ tự đăng ký. */
+function do_action( $h ) {
+	$ds = isset( $GLOBALS['VHCP_MOC'][ $h ] ) ? $GLOBALS['VHCP_MOC'][ $h ] : array();
+	if ( ! $ds ) { return null; }
+	$args = array_slice( func_get_args(), 1 );
+	$i = 0;
+	foreach ( $ds as $k => $v ) { $ds[ $k ] = array( $v[0], $v[1], $i++ ); }
+	usort( $ds, function ( $a, $b ) { return ( $a[1] === $b[1] ) ? ( $a[2] - $b[2] ) : ( $a[1] - $b[1] ); } );
+	foreach ( $ds as $x ) {
+		if ( is_callable( $x[0] ) ) { call_user_func_array( $x[0], $args ); }
+	}
+	return null;
+}
 function add_rewrite_rule( $mau, $dich, $vt = 'bottom' ) { $GLOBALS['VHCP_LUAT'][ $mau ] = array( $dich, $vt ); }
 function add_shortcode( $t, $cb ) { return true; }
 function flush_rewrite_rules( $x = true ) { return true; }
@@ -175,7 +249,26 @@ function add_submenu_page( $cha, $tt, $mt, $cap, $slug, $cb = '' ) {
 }
 function esc_html( $s ) { return htmlspecialchars( (string) $s, ENT_QUOTES, 'UTF-8' ); }
 function esc_attr( $s ) { return esc_html( $s ); }
-function esc_url( $s ) { return (string) $s; }
+/* 🔴 `esc_url` PHẢI NUỐT `data:` — Y NHƯ WORDPRESS THẬT.
+ *
+ * WordPress chỉ cho qua một danh sách giao thức (`wp_allowed_protocols`), và `data` KHÔNG có
+ * trong đó: `esc_url('data:image/jpeg;base64,...')` trả về **chuỗi rỗng**. Ảnh biến mất, không
+ * một lời báo.
+ *
+ * Bản giả trước đây trả nguyên chuỗi, nên một chỗ viết `esc_url($anh_the)` vẫn XANH trong bài
+ * kiểm mà ĐEN ngoài đời — đúng loại xanh giả đắt nhất. Nay bản giả cũng nuốt, để cái bẫy ấy nổ
+ * ngay tại đây. Ảnh thẻ (data URI) phải đi qua `esc_attr`, kèm phép soát khuôn.
+ *
+ * ⚠️ Chỉ mô phỏng đúng phần giao thức. Bản thật còn gột nhiều thứ khác — bài kiểm không dựa vào
+ *    những thứ ấy, và mô phỏng nửa vời một hàm lọc là tự dựng một hàm thứ hai để tin nhầm. */
+function esc_url( $s ) {
+	$s = (string) $s;
+	if ( preg_match( '#^\s*([A-Za-z][A-Za-z0-9+.-]*):#', $s, $m )
+		&& ! in_array( strtolower( $m[1] ), array( 'http', 'https', 'ftp', 'ftps', 'mailto', 'tel' ), true ) ) {
+		return '';
+	}
+	return $s;
+}
 function esc_url_raw( $s ) { return (string) $s; }
 function esc_textarea( $s ) { return (string) $s; }
 /* 🔴 KHÔNG KHAI `wp_tempnam` Ở ĐÂY — VÀ ĐÓ LÀ CHỦ Ý.
@@ -311,8 +404,21 @@ function wp_remote_retrieve_header( $r, $ten ) {
 }
 function wp_remote_retrieve_body( $r ) { return isset( $r['body'] ) ? (string) $r['body'] : ''; }
 function wp_parse_url( $u, $c = -1 ) { return parse_url( $u, $c ); }
+/* ⚠️ THIẾU MỘT HÀM Ở ĐÂY LÀ TRANG BỊ CẮT CỤT GIỮA CHỪNG, KHÔNG PHẢI BÁO LỖI TO.
+   16/09/2026: mã dùng `wp_parse_str()` mà bộ giả chưa có, và kết quả là SÁU phép thử ở mấy mục
+   chẳng liên quan cùng đỏ ("thiếu cơ sở thứ hai", "lệch số thẻ details") — vì trang ngã giữa
+   lúc vẽ nên phần sau không có. Mất một lúc mới lần ra. Hàm nào WordPress có mà mã dùng thì
+   khai vào đây, đừng đợi nó ngã. */
+function wp_parse_str( $s, &$a ) { parse_str( (string) $s, $a ); return $a; }
 function rest_url( $p = '' ) { return 'http://example.test/wp-json/' . ltrim( $p, '/' ); }
-function home_url( $p = '/' ) { return 'http://example.test' . $p; }
+/* ⚠️ Biến môi trường chỉ cho bộ xem trước. Trang trạm dựng địa chỉ cổng bằng chính hàm này rồi
+   nhét vào JavaScript, nên để nguyên `example.test` thì trình duyệt gọi ra một tên miền không
+   tồn tại — màn hình hiện "Không gửi được lên máy chủ" và không chụp nổi màn nào sau màn gõ
+   PIN. Bộ thử không đặt biến này, nên nó vẫn thấy đúng `example.test` như trước. */
+function home_url( $p = '/' ) {
+	$goc = getenv( 'VHCC_STUB_HOME' );
+	return ( $goc ? rtrim( $goc, '/' ) : 'http://example.test' ) . $p;
+}
 /* Bản giả CŨ trả '' — vô hại cho tới lúc có màn hình in ra địa chỉ dựng bằng hàm này, rồi phép
    thử báo "không hiện địa chỉ" mà mã nguồn thì đúng. Một hàm giả trả rỗng là một phép thử tự
    nói dối, nên dựng cho đúng: add_query_arg( $mang, $url ) và add_query_arg( $k, $v, $url ). */
@@ -358,7 +464,15 @@ class VHCP_Test_WPDB {
 	private $pdo;
 
 	public function __construct() {
-		$this->pdo = new PDO( 'sqlite::memory:' );
+		/* Mặc định là CSDL trong bộ nhớ — mỗi bài kiểm một sổ sạch, không bài nào dây sang bài
+		   nào. Đó là điều đúng cho bộ thử và không được đổi.
+
+		   ⚠️ Lối thoát bằng biến môi trường CHỈ cho bộ xem trước (`tools/xem/`): máy chủ xem
+		      trước phục vụ NHIỀU lượt gọi, mà thẻ phiên thì nằm trong bảng `session` — sổ trong
+		      bộ nhớ chết theo từng lượt, nên đăng nhập xong lượt sau đã quên. Không có lối này
+		      thì không chụp nổi bất kỳ màn nào sau màn gõ PIN. */
+		$tep = getenv( 'VHCC_STUB_DB' );
+		$this->pdo = new PDO( $tep ? ( 'sqlite:' . $tep ) : 'sqlite::memory:' );
 		$this->pdo->setAttribute( PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION );
 	}
 
@@ -366,12 +480,41 @@ class VHCP_Test_WPDB {
 
 	public function esc_like( $t ) { return addcslashes( (string) $t, '_%\\' ); }
 
-	public function exec_raw( $sql ) { return $this->pdo->exec( $sql ); }
+	public function exec_raw( $sql ) {
+		/* ⚠️ `CREATE TABLE` -> `CREATE TABLE IF NOT EXISTS`.
+		   Với sổ trong bộ nhớ thì thừa (sổ nào cũng trống). Nhưng máy chủ xem trước
+		   (`tools/xem/may-chu-tram.php`) dùng sổ nằm trong TỆP và khởi động lại bệ đỡ ở MỖI
+		   lượt gọi — lượt thứ hai đâm vào "table already exists" và chết, nên chụp được đúng
+		   một màn rồi thôi. Sửa ở đây là sửa cho cả hai bộ bảng, không phải đi thêm `IF NOT
+		   EXISTS` vào hai chục câu khai. */
+		$sql = preg_replace( '/^(\s*)CREATE\s+TABLE\s+(?!IF\s+NOT\s+EXISTS)/i',
+			'$1CREATE TABLE IF NOT EXISTS ', (string) $sql );
+		return $this->pdo->exec( $sql );
+	}
 
 	private function tr( $sql ) {
 		// SQLite không có SHOW TABLES — plugin dùng câu đó để hỏi "bảng của plugin kia có không".
 		if ( preg_match( "/^\s*SHOW\s+TABLES\s+LIKE\s+'([^']*)'/i", $sql, $m ) ) {
 			return "SELECT name FROM sqlite_master WHERE type='table' AND name='" . $m[1] . "'";
+		}
+		/* ══════════════════════════════════════════════════════════════════════════════
+		 * `SHOW COLUMNS` — HAI DẠNG, VÀ PHẢI GIỮ CẢ HAI.
+		 *
+		 * Plugin dùng câu này để hỏi "bản plugin KIA đã có cột ấy chưa". Bốn plugin cài độc lập
+		 * và bản lệch nhau là chuyện thường (09/09/2026: ghế trên live là 2.16.0 trong khi repo
+		 * mới tới 1.41.0; 13/09/2026: chấm công trên live 3.73.0 còn nhánh chi phí mới 3.43.0),
+		 * nên "cột chưa có" là một nhánh CÓ THẬT phải thử được — không mô phỏng thì nhánh
+		 * nói-ra-lý-do ấy không phép thử nào chạm tới.
+		 *
+		 * ⚠️ DẠNG CÓ `LIKE` PHẢI ĐỨNG TRƯỚC. Nó hẹp hơn; để dạng không-LIKE lên trước là nó
+		 *    nuốt luôn cả câu có LIKE và trả về MỌI cột, nên phép "cột này chưa có" lúc nào
+		 *    cũng thấy có.
+		 * ══════════════════════════════════════════════════════════════════════════════ */
+		if ( preg_match( "/^\s*SHOW\s+COLUMNS\s+FROM\s+`?([A-Za-z0-9_]+)`?\s+LIKE\s+'([^']*)'/i", $sql, $m ) ) {
+			return "SELECT name FROM pragma_table_info('" . $m[1] . "') WHERE name='" . $m[2] . "'";
+		}
+		if ( preg_match( '/^\s*SHOW\s+COLUMNS\s+FROM\s+`?([A-Za-z0-9_]+)`?/i', $sql, $m ) ) {
+			return "SELECT name FROM pragma_table_info('" . $m[1] . "')";
 		}
 		$sql = str_ireplace( 'UTC_TIMESTAMP()', "datetime('now')", $sql );
 		if ( stripos( $sql, 'ON DUPLICATE KEY UPDATE' ) !== false ) {
@@ -585,7 +728,16 @@ function vhcp_test_bang_thieu() {
 
 /** Nạp các lớp của plugin (không nạp file bootstrap để tránh hook WordPress). */
 function vhcp_test_boot( $dir ) {
-	define( 'VHCP_VERSION', 'test' );
+	$chinh_ver = @file_get_contents( $dir . '/vhcp-chi-phi.php' );
+	if ( ! is_string( $chinh_ver ) ) { $chinh_ver = ''; }
+	/* 🔴 ĐỌC SỐ PHIÊN BẢN THẬT TỪ TỆP PLUGIN, không đặt chuỗi 'test'.
+	   Lớp tự cập nhật so phiên bản bằng `version_compare()` để quyết định "có bản mới không".
+	   Với chuỗi 'test' thì phép so ấy cho kết quả vô nghĩa, nên phép "không bao giờ HẠ CẤP"
+	   không thể thử được — mà hạ cấp chính là chỗ nguy nhất: bấm một nút để quay ngược thời
+	   gian, mất đúng những bản vá vừa cài. */
+	$ver_chinh = '0.0.0';
+	if ( preg_match( '/^\s*\*?\s*Version:\s*(\S+)/m', $chinh_ver, $m_ver ) ) { $ver_chinh = $m_ver[1]; }
+	define( 'VHCP_VERSION', $ver_chinh );
 	define( 'VHCP_DIR', $dir . '/' );
 	define( 'VHCP_URL', 'http://example.test/plugin/' );
 	/* 🔴 ĐỌC DANH SÁCH LỚP TỪ CHÍNH TỆP PLUGIN, không gõ tay lại.
@@ -688,6 +840,60 @@ function vhcc_dung_bang() {
 		$wpdb->exec_raw( 'DROP TABLE IF EXISTS ' . VHCC_DB::t( $ten ) );
 	}
 	vhcc_test_create_tables();
+}
+
+/**
+ * NẠP MỘT LỚP CỦA PLUGIN GHẾ — plugin ấy KHÔNG nằm ở nhánh này.
+ *
+ * =================================================================================================
+ * 🔴 VÌ SAO PHẢI CÓ HÀM NÀY
+ * =================================================================================================
+ * Nhà của plugin Ghế là nhánh `claude/posh-qr-kh1urz` (thư mục `vhcp-ghe/` ngay gốc kho). Nhánh
+ * chấm công từng giữ một bản chép 1.48.0 trong khi host chạy 2.111.0, và bản chép ấy suýt được
+ * đóng gói đè lên bản thật — xem `wordpress/DOC-TRUOC-KHI-DONG-GOI.md`. Nên bản chép đã gỡ.
+ *
+ * Nhưng vài bài kiểm của NHÁNH NÀY có việc thật với plugin ấy: `VHCC_DayGhe` đẩy người sang sổ
+ * người dùng bên ghế, `VHCC_Cty` đọc thông tin công ty từ `VHG_Chan`. Bỏ luôn mấy phép ấy là mất
+ * đúng phần kiểm chỗ HAI PLUGIN GẶP NHAU — chỗ hay hỏng nhất.
+ *
+ * 🔴 NÊN: ĐỌC THẲNG TỪ NHÁNH KIA BẰNG `git show`, KHÔNG CHÉP LẠI MỘT BẢN THỨ HAI.
+ *    Một bản chép là một bản sẽ cũ đi, và lần này ta đã biết cái giá của nó.
+ *
+ * ⚠️ THIẾU THÌ BÁO FALSE, ĐỪNG GIẢ LỚP. Máy nào chưa `git fetch` nhánh kia (bản sao nông của CI)
+ *    thì trả false để nơi gọi BỎ QUA VÀ KÊU TO. Dựng một lớp giả ở đây thì phép thử vẫn xanh mà
+ *    nó đang kiểm một thứ do chính nó bịa ra — tệ hơn hẳn việc thiếu một mảng kiểm.
+ *
+ * @param string $ten Tên tệp, ví dụ 'class-vhg-db.php'.
+ * @return bool Nạp được hay không.
+ */
+function vhcc_nap_ghe( $ten ) {
+	static $thu = null;
+	$goc = dirname( __DIR__, 2 );
+
+	/* 1. Có sẵn trong cây (nhánh khác, hoặc ai đó đã chép về) thì dùng luôn. */
+	$tai_cho = $goc . '/wordpress/vhcp-ghe/includes/' . $ten;
+	if ( is_file( $tai_cho ) ) { require_once $tai_cho; return true; }
+
+	/* 2. Lấy từ nhánh gốc của plugin ghế. Chỉ đọc, không đụng cây làm việc. */
+	if ( null === $thu ) {
+		$thu = sys_get_temp_dir() . '/vhcc-ghe-' . getmypid();
+		if ( ! is_dir( $thu ) ) { @mkdir( $thu, 0777, true ); }
+	}
+	$dich = $thu . '/' . $ten;
+	if ( ! is_file( $dich ) ) {
+		$ma = null;
+		foreach ( array( 'origin/claude/posh-qr-kh1urz', 'claude/posh-qr-kh1urz' ) as $nhanh ) {
+			$ra = array();
+			$mã = 0;
+			exec( 'git -C ' . escapeshellarg( $goc ) . ' show '
+				. escapeshellarg( $nhanh . ':vhcp-ghe/includes/' . $ten ) . ' 2>/dev/null', $ra, $mã );
+			if ( 0 === $mã && $ra ) { $ma = implode( "\n", $ra ); break; }
+		}
+		if ( null === $ma ) { return false; }
+		file_put_contents( $dich, $ma );
+	}
+	require_once $dich;
+	return true;
 }
 
 function vhcc_test_boot( $dir ) {
@@ -864,4 +1070,115 @@ if ( ! function_exists( 'remove_query_arg' ) ) {
 		}
 		return $giu ? $phan[0] . '?' . implode( '&', $giu ) : $phan[0];
 	}
+}
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// DỰNG BẢNG MySQL BẰNG SQLite — KÈM CẢ KHOÁ, KHÔNG VỨT ĐI
+//
+// 🔴 VÌ SAO PHẢI CÓ HÀM NÀY, THAY VÌ MỖI BÀI TỰ DỰNG LẤY:
+//    Năm chỗ trong bộ thử chép nhau cùng một lối dựng bảng, và lối ấy làm thế này:
+//        if ( preg_match( '/^(PRIMARY KEY|UNIQUE KEY|KEY)\b/', $d ) ) { continue; }
+//    tức VỨT SẠCH mọi dòng khoá, vì SQLite không hiểu cú pháp khoá của MySQL.
+//
+//    Hậu quả: trên bệ thử, `UNIQUE KEY ref (ref)` KHÔNG TỒN TẠI. Mà ở plugin Ghế, khoá ấy là
+//    thứ DUY NHẤT chặn cộng đôi khi hai gói webhook chạy song song — `ghi()` tra trước rồi mới
+//    thêm, giữa hai nước đi có một khe hở, và cơ sở dữ liệu là chốt cuối. Bệ thử bỏ chốt ấy đi
+//    thì không bài nào bắt được lỗi trùng ở tầng cơ sở dữ liệu, dù bộ thử có bao nhiêu phép.
+//    Bệ đỡ nói dối về lược đồ còn nguy hơn không có bệ đỡ: không có thì mình biết là chưa thử,
+//    còn nói dối thì mình tin là đã thử rồi.
+//
+// ⚠️ LỐI ĐÚNG ĐÃ CÓ SẴN TRONG KHO — `test-cham-cong.php` từ lâu đã dịch dòng khoá thành
+//    `CREATE INDEX` rời thay vì vứt. Hàm này chỉ nâng lối ấy lên thành của dùng chung, để phía
+//    Ghế thôi lệch chuẩn và để lần sau không ai phải nghĩ lại.
+//
+// ⚠️ TÊN CHỈ MỤC PHẢI KÈM TÊN BẢNG. MySQL đặt tên chỉ mục theo từng bảng, SQLite đặt theo cả
+//    cơ sở dữ liệu — mà lược đồ Ghế dùng lại `ref`, `luc`, `ma`, `nguoi`, `cho` ở nhiều bảng.
+//    Không thêm tiền tố là bảng thứ hai dựng trượt vì "index already exists".
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Dịch thân `CREATE TABLE` kiểu MySQL sang SQLite.
+ *
+ * Trả `array( 'tao' => câu CREATE TABLE, 'chi_muc' => array các câu CREATE INDEX )`.
+ */
+function vhcp_stub_ddl( $bang, $than ) {
+	$cot = array();
+	$chi_muc = array();
+	$co_tu_tang = false;
+
+	foreach ( array_filter( array_map( 'trim', explode( "\n", (string) $than ) ) ) as $d ) {
+		$d = rtrim( $d, ',' );
+
+		/* `PRIMARY KEY  (id)` — hai dấu cách là đúng nguyên văn lược đồ, đừng sửa "cho đẹp". */
+		if ( preg_match( '/^PRIMARY KEY\s+\((.+)\)$/i', $d, $m ) ) {
+			/* SQLite đòi AUTOINCREMENT đi liền `INTEGER PRIMARY KEY`, nên cột tự tăng đã ôm
+			   khoá chính rồi; khai thêm một dòng rời là lỗi cú pháp. */
+			if ( ! $co_tu_tang ) { $cot[] = 'PRIMARY KEY (' . vhcp_stub_cot_chi_muc( $m[1] ) . ')'; }
+			continue;
+		}
+		if ( preg_match( '/^(UNIQUE\s+)?KEY\s+(\S+)\s+\((.+)\)$/i', $d, $m ) ) {
+			$chi_muc[] = 'CREATE ' . ( $m[1] ? 'UNIQUE ' : '' ) . 'INDEX ix_' . $bang . '_' . $m[2]
+				. ' ON ' . $bang . ' (' . vhcp_stub_cot_chi_muc( $m[3] ) . ')';
+			continue;
+		}
+
+		$moi = preg_replace( '/BIGINT\(20\) NOT NULL AUTO_INCREMENT/i',
+			'INTEGER PRIMARY KEY AUTOINCREMENT', $d, -1, $so );
+		if ( $so > 0 ) { $co_tu_tang = true; }
+		$cot[] = $moi;
+	}
+
+	return array(
+		'tao'     => 'CREATE TABLE ' . $bang . " (\n" . implode( ",\n", $cot ) . "\n)",
+		'chi_muc' => $chi_muc,
+	);
+}
+
+/**
+ * Danh sách cột của một chỉ mục, bỏ độ dài tiền tố kiểu MySQL (`noi_dung(50)`).
+ * SQLite không có khái niệm ấy và sẽ hiểu `(50)` thành lời gọi hàm rồi chết.
+ */
+function vhcp_stub_cot_chi_muc( $cot ) {
+	return preg_replace( '/\(\s*\d+\s*\)/', '', (string) $cot );
+}
+
+/**
+ * Dựng lại TOÀN BỘ bảng của một lược đồ — xoá cũ, tạo mới, kèm chỉ mục.
+ *
+ * `$so_do` là mảng `tên bảng ngắn => thân CREATE TABLE`, đúng thứ `VHG_DB::bang()` trả về.
+ * `$tien_to` ghép trước tên bảng ngắn để ra tên thật (`$wpdb->prefix . 'vhg_'`).
+ */
+function vhcp_stub_dung_bang( $so_do, $tien_to ) {
+	global $wpdb;
+	/* 🔴 DỰNG BẢNG TRƯỢT PHẢI RA BÁO TRƯỢT, KHÔNG RA SẬP.
+	 *
+	 * `exec_raw()` để PDO ném thẳng ngoại lệ ra ngoài. Một câu DDL hỏng ở đây vì thế giết cả
+	 * bài thử bằng fatal error ngay giữa phần dựng bảng — và vì khối in kết quả nằm ở CUỐI
+	 * tệp, mọi phép đã chạy trước đó biến mất cùng. Người đọc thấy một dấu vết ngăn xếp, không
+	 * thấy phép nào sai lẫn còn bao nhiêu phép chưa chạy.
+	 *
+	 * Dính đúng lúc đục thử "bỏ tiền tố tên bảng khỏi tên chỉ mục": SQLite chối chỉ mục trùng
+	 * tên, bài thử sập, và phép canh vốn dựng ra ĐỂ BẮT chuyện ấy không kịp in ra dòng nào —
+	 * nhìn qua tưởng đục thử sống sót.
+	 *
+	 * Nên: gom lỗi lại, để bài thử tự hỏi và tự báo trượt. Cùng lối `test-cham-cong.php` đã
+	 * dùng cho khối dựng bảng của nó. */
+	$GLOBALS['VHCP_STUB_LOI_DDL'] = array();
+	foreach ( $so_do as $ten => $than ) {
+		$bang = $tien_to . $ten;
+		$ddl  = vhcp_stub_ddl( $bang, $than );
+		foreach ( array_merge( array( 'DROP TABLE IF EXISTS ' . $bang, $ddl['tao'] ), $ddl['chi_muc'] ) as $sql ) {
+			try {
+				$wpdb->exec_raw( $sql );
+			} catch ( Exception $e ) {
+				$GLOBALS['VHCP_STUB_LOI_DDL'][] = $ten . ': ' . $e->getMessage();
+			}
+		}
+	}
+	return $GLOBALS['VHCP_STUB_LOI_DDL'];
+}
+
+/** Những câu DDL đã trượt ở lượt `vhcp_stub_dung_bang()` gần nhất. Rỗng là lành. */
+function vhcp_stub_loi_ddl() {
+	return isset( $GLOBALS['VHCP_STUB_LOI_DDL'] ) ? $GLOBALS['VHCP_STUB_LOI_DDL'] : array();
 }

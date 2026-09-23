@@ -123,8 +123,21 @@ class VHCP_BP {
 	}
 
 	public static function list_bp( $loai = 'all' ) {
-		$coso = array();
-		foreach ( VHCP_Cfg::cfg_static()['coso'] as $x ) { $coso[] = $x['ten']; }
+		/* 🔴 Ô CHỌN CƠ SỞ KHÔNG ĐƯỢC BÀY GIAN CỦA BÊN KIA — anh Thắng 11/09/2026: *"Thêm đơn vị
+		   KVC để tách ra được không. Vì để bên K&H vẫn thấy bên Posh"*, kèm ảnh ô "Gian / cơ
+		   sở" của đơn Kỹ thuật xổ ra cả "POSH MN CGV VINCOM LANDMARK".
+
+		   Danh sách này trước đây lấy THẲNG toàn bộ danh mục cơ sở, nên mọi lớp tách đơn vị
+		   dựng công phu ở `VHCP_DonVi` đều vô nghĩa ngay tại ô người ta gõ hằng ngày: chọn
+		   nhầm một gian của bên kia là dòng chi rơi sang sổ của họ.
+
+		   ⚠️ `coso_xem_duoc()` trả `null` nghĩa là XEM CẢ (Admin · Quản lý · Kế toán) — lúc ấy
+		      phải bày đủ, không phải bày rỗng. */
+		$coso = VHCP_DonVi::coso_xem_duoc();
+		if ( null === $coso ) {
+			$coso = array();
+			foreach ( VHCP_Cfg::cfg_static()['coso'] as $x ) { $coso[] = $x['ten']; }
+		}
 		$out = array();
 		$dv_xem = VHCP_DonVi::xem_duoc();
 		foreach ( self::all_with_lines() as $r ) {

@@ -56,6 +56,31 @@ class VHCC_May {
 	 * LEFT JOIN chứ không JOIN: máy vừa khai mà chưa gửi nhịp nào vẫn phải hiện ra, nếu không thì
 	 * người ta không thấy nó để mà gán cơ sở, và lượt bấm cứ nằm mãi trong bảng "chờ gán".
 	 */
+	/**
+	 * CƠ SỞ NÀY ĐANG GẮN MẤY CÁI MÁY.
+	 *
+	 * 🔴 09/09/2026 — anh Thắng: *"nên tách ra 2 phần, vì 1 số cơ sở không có máy chấm công,
+	 *    việc đẩy sẽ sinh ra lệnh thừa"*.
+	 *    Lệnh thừa thì KHÔNG sinh ra thật (`lenh_may_()` chỉ đặt lệnh cho từng máy khớp cơ sở,
+	 *    không máy nào thì không lệnh nào — đã dựng lại để chắc). Nhưng anh đúng ở chỗ quan
+	 *    trọng hơn: **cái nút đang HỨA một việc mà nó sẽ không làm**. Đứng ở cơ sở không có máy
+	 *    mà đọc "đẩy xuống máy" thì hoặc là tưởng đã đẩy, hoặc là ngờ phần mềm hỏng. Hàm này để
+	 *    màn hình biết mà đừng hứa.
+	 *
+	 * ⚠️ So bằng `chuan_coso` + chữ thường, y như `lenh_may_()`. Hai nơi so hai kiểu là có ngày
+	 *    màn nói "có máy" mà lệnh không tới máy nào — đúng loại lệch im lặng.
+	 */
+	public static function so_may_coso( $coso ) {
+		$cs = strtolower( VHCC_NhanSu::chuan_coso( (string) $coso ) );
+		if ( '' === $cs ) { return 0; }
+		$ds = self::ds_may();
+		$so = 0;
+		foreach ( (array) ( isset( $ds['data'] ) ? $ds['data'] : array() ) as $m ) {
+			if ( strtolower( VHCC_NhanSu::chuan_coso( (string) $m['cua_hang'] ) ) === $cs ) { $so++; }
+		}
+		return $so;
+	}
+
 	public static function ds_may() {
 		$may  = VHCC_DB::t( 'may' );
 		$nhip = VHCC_DB::t( 'may_nhip' );

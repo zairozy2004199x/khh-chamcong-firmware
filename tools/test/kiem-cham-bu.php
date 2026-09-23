@@ -61,9 +61,15 @@ function bu( $u, $dat_them = array() ) {
 		'ma_nv' => 'NV001', 'vao' => '08:00', 'ra' => '17:00',
 		'ly_do' => 'máy hỏng, có camera' ), $dat_them ) );
 }
+/* ⚠️ NGÀY MẶC ĐỊNH ĐỔI GIỮA CHỪNG, CỐ Ý. Mục BÙ chạy trên ngày HÔM QUA (bù là điền ô trống,
+   và luật cho bù ngày cũ). Mục SỬA ĐÈ thì phải chạy trên HÔM NAY, vì từ 17/09/2026 cửa hàng
+   trưởng chỉ sửa được giờ của chính hôm nay (`VHCC_Bu::han_ngay`). Một biến chung, đổi đúng
+   một lần ở ranh giới hai mục, thay vì rải ngày vào mười chỗ rồi lệch nhau. */
+$NGAY_MD = date( 'Y-m-d', strtotime( '-1 day' ) );
+
 function hang( $ma = 'NV001', $ngay = null, $hau = '' ) {
-	global $wpdb;
-	$ngay = $ngay ? $ngay : date( 'Y-m-d', strtotime( '-1 day' ) );
+	global $wpdb, $NGAY_MD;
+	$ngay = $ngay ? $ngay : $NGAY_MD;
 	return $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . VHCC_DB::t( 'cham_cong' )
 		. ' WHERE coso=%s AND ngay=%s AND ma_nv=%s AND hau_to=%s', 'TUTU_BT', $ngay, $ma, $hau ), ARRAY_A );
 }
@@ -71,9 +77,20 @@ function hang( $ma = 'NV001', $ngay = null, $hau = '' ) {
 // ============================================================ 1. GÁC CỬA
 echo "— gác cửa —\n";
 $r = bu( $NV );
-t( 'Nhân viên KHÔNG bù được',
-	empty( $r['ok'] ) && false !== strpos( $r['error'], 'Cửa hàng trưởng' ), $r );
+t( 'Nhân viên KHÔNG bù được', empty( $r['ok'] ), $r );
 teq( 'và KHÔNG có hàng nào được tạo', null, hang() );
+
+/* 🔴 18/09/2026 — CỬA HÀNG TRƯỞNG CŨNG KHÔNG BÙ ĐƯỢC NỮA. Anh Thắng: *"Cửa hàng trưởng không
+   được bù giờ công, nếu thiếu thì chỗ file excel"*. `cham_bu` lên bậc Kế toán, và ai được bù
+   thì chỉ định từng người bằng một dòng ngoại lệ — y như `sua_gio`. */
+$r = bu( $CHT );
+t( '🔴 cửa hàng trưởng CHƯA được chỉ định thì không bù được', empty( $r['ok'] ), $r );
+t( 'câu chối nói ra cần bậc nào',
+	! empty( $r['error'] ) && false !== mb_strpos( $r['error'], 'Kế toán trở lên' ), $r );
+teq( 'và vẫn KHÔNG có hàng nào được tạo', null, hang() );
+
+/* Chỉ định người này được bù. Từ đây trở xuống bài canh CƠ CHẾ bù, không canh cái gác bậc. */
+VHCC_Vai::dat_ngoai_le( $ADMIN, 'nv:' . $CHT['ma_nv'], 'cham_bu', 'mo' );
 
 /* 🔴 Chốt nặng nhất của lớp này: bù công là đổi thẳng ra tiền, nên không ai tự ký duyệt tiền
    của mình được — kể cả Admin. */
@@ -196,55 +213,78 @@ teq( 'và hàng chính không bị đụng', VHCC_DB::giay( '08:10:00' ), (int) 
 echo "— sửa đè —\n";
 
 function sua( $u, $dat_them = array() ) {
+	global $NGAY_MD;
 	return VHCC_Bu::sua( $u, array_merge( array(
-		'coso' => 'TUTU_BT', 'ngay' => date( 'Y-m-d', strtotime( '-1 day' ) ),
+		'coso' => 'TUTU_BT', 'ngay' => $NGAY_MD,
 		'ma_nv' => 'NV009', 'ly_do' => 'máy lệch đồng hồ, đối chiếu camera' ), $dat_them ) );
 }
 
-/* Dựng một ngày đã có đủ giờ, ghi qua đúng cổng máy. */
-$ND = date( 'Y-m-d', strtotime( '-1 day' ) );
+/* Dựng một ngày đã có đủ giờ, ghi qua đúng cổng máy.
+   🔴 TỪ ĐÂY TRỞ XUỐNG LÀ HÔM NAY — xem chú thích ở `$NGAY_MD`. Cửa hàng trưởng chỉ sửa được
+      giờ của chính hôm nay, nên mọi phép thử CƠ CHẾ sửa đè phải đứng trên một ngày còn mở;
+      cái khoá theo ngày có bài riêng ở `kiem-cua-hang.php`. */
+$NGAY_MD = current_time( 'Y-m-d' );
+$ND      = $NGAY_MD;
 VHCC_Nhan::ghi_gio( 'TUTU_BT', $ND, 'NV009', 'Người NV009', VHCC_DB::giay( '08:00:00' ), '', 'may' );
 VHCC_Nhan::ghi_gio( 'TUTU_BT', $ND, 'NV009', 'Người NV009', VHCC_DB::giay( '17:00:00' ), '', 'may' );
 teq( 'dựng được ngày có đủ giờ, nguồn máy', 'may', hang( 'NV009' )['nguon'] );
 
 /* ---- gác cửa ---- */
-/* 🔴 CỬA HÀNG TRƯỞNG NAY SỬA ĐÈ ĐƯỢC — anh Thắng 28/08/2026: *"Cửa hàng trưởng được phép sửa
-   cả giờ công đã chấm"*. Trước đó (26/08) chính anh chốt Admin; đây là anh đổi ý.
-   ⚠️ ĐỔI BẬC KHÔNG ĐƯỢC KÉO THEO ĐỔI PHẠM VI hay bỏ dấu vết — ba chốt còn lại canh ngay dưới. */
+/* 🔴 CỬA HÀNG TRƯỞNG KHÔNG CÒN SỬA ĐÈ ĐƯỢC — anh Thắng 18/09/2026: *"cơ chế hiện tại là cửa
+   hàng trưởng không được sửa công nữa mà theo người được chỉ định bật quyền mới được sửa
+   thôi"*. Bậc `sua_gio` nâng lại lên Admin, và việc CHỈ ĐỊNH làm bằng bảng ngoại lệ.
+   Lịch sử: 26/08 Admin → 28/08 hạ xuống CHT → 18/09 nâng lại + chỉ định từng người. */
 $r = sua( $CHT, array( 'vao' => '09:00' ) );
-t( '🔴 Cửa hàng trưởng sửa đè được giờ của cơ sở mình', ! empty( $r['ok'] ), $r );
+t( '🔴 Cửa hàng trưởng KHÔNG tự sửa đè được nữa', empty( $r['ok'] ), $r );
+teq( 'và giờ cũ còn nguyên', VHCC_DB::giay( '08:00:00' ),
+	(int) hang( 'NV009' )['gio_vao_giay'] );
+t( 'câu chối nói ra cần bậc nào', ! empty( $r['error'] )
+	&& false !== mb_strpos( $r['error'], 'Kế toán trở lên' ), $r );
+
+/* 🔴 CHỈ ĐỊNH TỪNG NGƯỜI — đây là cách duy nhất mở việc này ra, và nó phải chạy thật.
+   Một dòng `nv:<Mã NV> · sua_gio · mo` do Kế toán trở lên khai. */
+VHCC_Vai::dat_ngoai_le( $ADMIN, 'nv:' . $CHT['ma_nv'], 'sua_gio', 'mo' );
+$r = sua( $CHT, array( 'vao' => '09:00' ) );
+t( '🔴 được chỉ định thì sửa được', ! empty( $r['ok'] ), $r );
 teq( 'và giờ mới vào đúng ô', VHCC_DB::giay( '09:00:00' ), (int) hang( 'NV009' )['gio_vao_giay'] );
 /* Trả lại cảnh cũ cho những phép thử phía dưới. */
 sua( $ADMIN, array( 'vao' => '08:00' ) );
 teq( 'trả lại giờ cũ để chạy tiếp', VHCC_DB::giay( '08:00:00' ),
 	(int) hang( 'NV009' )['gio_vao_giay'] );
 
-/* 🔴 CƠ SỞ KHÁC THÌ VẪN CHỐI — đây là chốt còn lại sau khi bậc đã hạ. */
+/* 🔴 CHỈ ĐỊNH MỞ ĐÚNG MỘT ĐẦU VIỆC, KHÔNG MỞ CẢ BẬC. Người được bật `sua_gio` vẫn không
+   với được sang những việc khác của bậc Admin — nếu không thì một dòng ngoại lệ nhỏ hoá ra
+   là phát một chìa Admin. */
+t( '🔴 được bật sua_gio KHÔNG kéo theo quyền khác của bậc Admin',
+	! VHCC_Vai::duoc( $CHT, 'xem_pin' ) && ! VHCC_Vai::duoc( $CHT, 'he_thong' ) );
+
+/* 🔴 CƠ SỞ KHÁC THÌ VẪN CHỐI — chỉ định mở QUYỀN, không mở PHẠM VI. */
 $r_xa = VHCC_Bu::sua( $CHT, array( 'coso' => 'JP_HCM', 'ngay' => $ND, 'ma_nv' => 'NV009',
 	'vao' => '09:00', 'ly_do' => 'thử sửa sang cơ sở khác' ) );
-t( '🔴 nhưng KHÔNG sửa được cơ sở khác', empty( $r_xa['ok'] ), $r_xa );
-/* 🔴 VẪN BẮT GHI VÌ SAO. Bậc hạ xuống thì lý do người ta gõ vào là thứ duy nhất còn tra ngược
-   được — mất nó là bảng công sửa được mà không ai biết vì sao. */
+t( '🔴 người được chỉ định vẫn KHÔNG sửa được cơ sở khác', empty( $r_xa['ok'] ), $r_xa );
+/* 🔴 VẪN BẮT GHI VÌ SAO — lý do người ta gõ vào là thứ duy nhất còn tra ngược được. */
 $r_kolydo = VHCC_Bu::sua( $CHT, array( 'coso' => 'TUTU_BT', 'ngay' => $ND, 'ma_nv' => 'NV009',
 	'vao' => '09:00', 'ly_do' => '' ) );
 t( '🔴 và vẫn bắt ghi vì sao', empty( $r_kolydo['ok'] ), $r_kolydo );
 
-/* 🔴 CHỐT `sua_gio` PHẢI LÀ MỘT ĐẦU VIỆC RIÊNG, không nhập vào `vi_sao_khong_duoc()`.
-   Sau khi bậc hạ xuống Cửa hàng trưởng thì hai chốt đòi CÙNG một bậc — nên chỉ có NGOẠI LỆ
-   KHOÁ RIÊNG mới tách được chúng ra. Giữ tách để Admin khoá lẻ được cho từng người, và để mai
-   kia siết lại thì sửa MỘT dòng trong bảng vai. */
+/* 🔴 KHOÁ RIÊNG THẮNG CHỈ ĐỊNH. Bật nhầm một người thì phải gỡ được bằng một dòng, và dòng
+   gỡ ấy phải thắng dòng bật — không thì chữa một cái sai lại cần vào thẳng cơ sở dữ liệu. */
 VHCC_Vai::dat_ngoai_le( $ADMIN, 'nv:' . $CHT['ma_nv'], 'sua_gio', 'khoa' );
 $r_khoa = sua( $CHT, array( 'vao' => '09:30' ) );
-t( '🔴 khoá riêng sua_gio thì cửa hàng trưởng ấy không sửa được nữa',
+t( '🔴 khoá riêng sua_gio thì người đã được chỉ định cũng không sửa được nữa',
 	empty( $r_khoa['ok'] ), $r_khoa );
 teq( 'và giờ cũ còn nguyên', VHCC_DB::giay( '08:00:00' ),
 	(int) hang( 'NV009' )['gio_vao_giay'] );
-VHCC_Vai::dat_ngoai_le( $ADMIN, 'nv:' . $CHT['ma_nv'], 'sua_gio', '' );
+
+VHCC_Vai::dat_ngoai_le( $ADMIN, 'nv:' . $CHT['ma_nv'], 'sua_gio', 'mo' );
 /* ⚠️ Sửa sang một giờ KHÁC giờ đang có: `VHCC_Bu::sua` coi "không đổi gì" là không có việc để
    làm, nên đặt lại đúng 08:00 thì nó chối — mà chối ấy không nói gì về khoá quyền. */
 $r_mo = sua( $CHT, array( 'vao' => '08:15' ) );
-t( 'bỏ khoá thì sửa lại được', ! empty( $r_mo['ok'] ), $r_mo );
+t( 'bật lại thì sửa lại được', ! empty( $r_mo['ok'] ), $r_mo );
 sua( $ADMIN, array( 'vao' => '08:00' ) );
+
+/* Gỡ chỉ định, trả cảnh mặc định cho phần còn lại của bài. */
+VHCC_Vai::dat_ngoai_le( $ADMIN, 'nv:' . $CHT['ma_nv'], 'sua_gio', '' );
 $r = sua( $NV, array( 'vao' => '09:00' ) );
 t( 'Nhân viên càng không', empty( $r['ok'] ), $r );
 
@@ -285,7 +325,19 @@ teq( '🔴 để trống ô giờ vào thì giờ vào GIỮ NGUYÊN, không b�
 teq( 'và giờ ra đã đổi', VHCC_DB::giay( '16:00:00' ), (int) hang( 'NV009' )['gio_ra_giay'] );
 
 /* ---- gõ SAI dạng phải báo lỗi, không được lặng lẽ thành xoá trắng ---- */
+
+/* ⚠️ `8h30` KHÔNG CÒN LÀ "SAI DẠNG" TỪ 3.65.0 — và đó là chủ ý, không phải nới lỏng.
+   `VHCC_DB::gio_24()` nhận `8h30`, `08.30`, `0830`, `830` vì đó đúng là những kiểu người ta gõ
+   thật trên bàn phím số. Bài thử này viết TRƯỚC lúc ấy nên còn dùng `8h30` làm mẫu "sai dạng";
+   để nguyên thì nó canh một luật đã bị thay, tức là canh cho một bản cũ không còn tồn tại.
+   Nay canh đúng hai việc: kiểu gõ nhanh phải ĂN, còn chuỗi thật sự vô nghĩa phải bị CHỐI. */
 $r = sua( $ADMIN, array( 'vao' => '8h30' ) );
+t( 'kiểu gõ nhanh "8h30" được nhận', ! empty( $r['ok'] ), $r );
+teq( 'và hiểu đúng thành 08:30', VHCC_DB::giay( '08:30:00' ), (int) hang( 'NV009' )['gio_vao_giay'] );
+$r = sua( $ADMIN, array( 'vao' => '09:30' ) );   // trả lại mốc cũ cho mấy phép dưới
+t( 'trả lại 09:30 được', ! empty( $r['ok'] ), $r );
+
+$r = sua( $ADMIN, array( 'vao' => '8 giờ rưỡi' ) );
 t( '🔴 gõ sai dạng giờ -> báo lỗi', empty( $r['ok'] ) && false !== strpos( $r['error'], 'dạng' ), $r );
 teq( 'và KHÔNG xoá mất giờ vào', VHCC_DB::giay( '09:30:00' ), (int) hang( 'NV009' )['gio_vao_giay'] );
 
@@ -341,7 +393,25 @@ teq( 'và giờ cũ để rỗng (ô vốn trống)', null, $nk_bu[0]['gio_cu_gi
 // ============================================================ 7. NHẬT KÝ KHÔNG XOÁ ĐƯỢC
 echo "— nhật ký —\n";
 $than = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-bu.php' );
-t( 'lớp bù KHÔNG có câu DELETE nào', false === stripos( $than, 'DELETE' ), 'có DELETE' );
+/* 🔴 SỬA 17/09/2026 — SIẾT VÀO ĐÚNG Ý, KHÔNG NỚI RA.
+   Câu cũ: *"lớp bù KHÔNG có câu DELETE nào"*. Ý nó là NHẬT KÝ KHÔNG XOÁ ĐƯỢC, và cấm sạch
+   DELETE là cách rẻ để bảo đảm điều ấy khi cả lớp chưa hề xoá gì.
+   Nay `VHCC_Bu::xoa()` xoá một dòng CHẤM CÔNG (anh Thắng 17/09: *"làm nút xóa hẳn dòng
+   công"*) — đó là bảng KHÁC, và ý cũ vẫn còn nguyên. Nên phép thử nói thẳng ra cái ý ấy
+   thay vì đếm chữ "DELETE":
+     · không câu DELETE nào chạm bảng nhật ký `cham_bu`;
+     · và chỉ có ĐÚNG MỘT câu DELETE trong cả lớp, nằm trong `xoa()`.
+   Chốt thứ hai quan trọng ngang chốt thứ nhất: nới thành "được phép xoá" mà không đếm thì
+   mai có thêm một đường xoá thứ hai ở chỗ khác cũng lọt. */
+t( '🔴 KHÔNG câu DELETE nào chạm bảng nhật ký',
+	false === strpos( $than, "delete( VHCC_DB::t( 'cham_bu'" ), 'có DELETE lên cham_bu' );
+t( '🔴 cả lớp chỉ có ĐÚNG MỘT câu DELETE', 1 === substr_count( $than, '$wpdb->delete(' ),
+	substr_count( $than, '$wpdb->delete(' ) );
+$i_xoa = strpos( $than, 'public static function xoa(' );
+t( 'và nó nằm trong xoa()', false !== $i_xoa
+	&& strpos( $than, '$wpdb->delete(' ) > $i_xoa );
+t( 'nó xoá dòng CHẤM CÔNG, không xoá thứ gì khác',
+	false !== strpos( $than, "delete( VHCC_DB::t( 'cham_cong' )" ), $than );
 t( 'và không có câu UPDATE nào lên nhật ký',
 	false === strpos( $than, "update( VHCC_DB::t( 'cham_bu'" ) );
 /* Bù đi qua đúng cổng ghi chung, không tự viết INSERT vào bảng chấm công — nếu tự viết thì luật
@@ -352,18 +422,45 @@ t( 'bù KHÔNG tự viết INSERT/UPDATE vào bảng chấm công',
 t( 'mà đi qua đúng VHCC_Nhan::ghi_gio', false !== strpos( $than, 'VHCC_Nhan::ghi_gio' ) );
 t( 'sửa đè cũng đi qua cổng chung VHCC_Nhan::dat_gio, không tự viết SQL',
 	false !== strpos( $than, 'VHCC_Nhan::dat_gio' ) );
-/* 🔴 `dat_gio` là cửa DUY NHẤT đè được. Chỉ `VHCC_Bu::sua()` được gọi nó — nơi gác quyền Admin,
-   đòi lý do và ghi nhật ký. Có chỗ thứ hai gọi là có đường sửa lương không dấu vết. */
-$ai_goi = array();
-foreach ( glob( $goc . '/wordpress/vhcp-cham-cong/includes/*.php' ) as $f_dg ) {
-	$ma_dg = '';
-	foreach ( token_get_all( file_get_contents( $f_dg ) ) as $tk_dg ) {
-		if ( is_array( $tk_dg ) && in_array( $tk_dg[0], array( T_COMMENT, T_DOC_COMMENT ), true ) ) { continue; }
-		$ma_dg .= is_array( $tk_dg ) ? $tk_dg[1] : $tk_dg;
+/* ═════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 `dat_gio` LÀ CỬA DUY NHẤT ĐÈ ĐƯỢC GIỜ CÔNG — AI GỌI NÓ CŨNG PHẢI GHI NHẬT KÝ.
+ *
+ * Luật cũ ở đây là "chỉ ĐÚNG MỘT tệp được gọi" (`class-vhcc-bu.php`), với lý do ghi rõ: *có
+ * chỗ thứ hai gọi là có đường sửa lương không dấu vết*. Lý do ấy vẫn đúng nguyên — nhưng nó
+ * nói về DẤU VẾT, không nói về con số một.
+ *
+ * 21/09/2026 có cửa thứ hai thật: anh Thắng *"bản excel tức là bản chốt, nên cầm ghi đè lên
+ * bản có sẵn để chốt"*, nên `VHCC_NapDoc` có chế độ chốt-theo-bảng, và chế độ ấy buộc phải đè
+ * được lên giờ máy chấm công. Nó mang theo nhật ký cũ→mới (`VHCC_Bu::nhat_ky_nap`).
+ *
+ * Nới danh sách thì phải siết bằng đúng cái điều kiện mà danh sách ấy vốn bảo vệ, chứ không
+ * chỉ thêm một cái tên rồi đi tiếp — thêm tên trơn là biến một chốt thật thành một thủ tục.
+ * Nên nay có HAI phép: danh sách ai được gọi (chặn cửa thứ ba mọc lên lặng lẽ), VÀ mỗi tệp
+ * trong danh sách phải thật sự có đường ghi nhật ký.
+ * ═════════════════════════════════════════════════════════════════════════════════════════ */
+$ma_sach = function ( $f ) {
+	$r = '';
+	foreach ( token_get_all( file_get_contents( $f ) ) as $tk ) {
+		if ( is_array( $tk ) && in_array( $tk[0], array( T_COMMENT, T_DOC_COMMENT ), true ) ) { continue; }
+		$r .= is_array( $tk ) ? $tk[1] : $tk;
 	}
-	if ( false !== strpos( $ma_dg, 'VHCC_Nhan::dat_gio(' ) ) { $ai_goi[] = basename( $f_dg ); }
+	return $r;
+};
+$ai_goi = array();
+$thieu_ky = array();
+foreach ( glob( $goc . '/wordpress/vhcp-cham-cong/includes/*.php' ) as $f_dg ) {
+	$ma_dg = $ma_sach( $f_dg );
+	if ( false === strpos( $ma_dg, 'VHCC_Nhan::dat_gio(' ) ) { continue; }
+	$ai_goi[] = basename( $f_dg );
+	/* ⚠️ Dò trên mã ĐÃ BỎ CHÚ THÍCH. Cả hai tệp này đều có đoạn văn dài giải thích vì sao phải
+	   ghi nhật ký — dò trên nguyên văn thì chính mấy đoạn văn ấy làm phép thử xanh, kể cả khi
+	   lời gọi thật đã bị gỡ. */
+	if ( false === strpos( $ma_dg, 'nhat_ky' ) ) { $thieu_ky[] = basename( $f_dg ); }
 }
-teq( '🔴 chỉ ĐÚNG MỘT tệp gọi dat_gio()', array( 'class-vhcc-bu.php' ), $ai_goi );
+sort( $ai_goi );
+teq( '🔴 chỉ hai tệp được gọi dat_gio()',
+	array( 'class-vhcc-bu.php', 'class-vhcc-nap-doc.php' ), $ai_goi );
+teq( '🔴 mọi tệp gọi dat_gio() đều có đường ghi nhật ký', array(), $thieu_ky );
 
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";

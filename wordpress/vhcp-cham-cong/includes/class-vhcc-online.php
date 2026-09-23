@@ -192,6 +192,43 @@ class VHCC_Online {
 	}
 
 	/**
+	 * CƠ SỞ NGƯỜI NÀY **CHẤM CÔNG** ĐƯỢC = `ds_coso_cua_nv()` TRỪ mấy cơ sở đặt "chỉ quản lý".
+	 *
+	 * 🔴 Anh Thắng 09/09/2026: *"đối với cửa hàng chỉ quản lý nhân viên không chấm công thì làm
+	 *    sao để loại ra khỏi bảng chấm công, nhưng vẫn quản lý được nhân viên cơ sở đó"*. Cờ
+	 *    khai ở hồ sơ (`nhan_vien.coso_ql` — xem `VHCC_NhanSu::ds_coso_ql()`).
+	 *
+	 * 🔴 HÀM RIÊNG, KHÔNG SỬA `ds_coso_cua_nv()`. Hàm kia còn ba đường gọi nữa và chúng ĐỌC LỊCH
+	 *    SỬ: "Công của tôi" trên web, `lichsu` và `thang` của trạm. Trừ ở đó là người vừa được
+	 *    đặt cờ MẤT LUÔN mấy tháng công cũ họ đã chấm thật ở cơ sở ấy khỏi màn hình của chính
+	 *    họ — im lặng, và họ sẽ tưởng công bị xoá. Cờ này chặn lượt chấm MỚI, không xoá cái đã
+	 *    ghi.
+	 */
+	public static function ds_coso_cham_cua_nv( $ma_nv, $mac_dinh ) {
+		global $wpdb;
+		$ds = self::ds_coso_cua_nv( $ma_nv, $mac_dinh );
+		if ( ! class_exists( 'VHCC_NhanSu' ) || ! method_exists( 'VHCC_NhanSu', 'ds_coso_ql' ) ) {
+			return $ds;
+		}
+		$t = VHCC_DB::t( 'nhan_vien' );
+		if ( ! VHCC_DB::co_bang( $t ) ) { return $ds; }
+		$r = $wpdb->get_row( $wpdb->prepare(
+			"SELECT cua_hang, coso_phu, coso_ql FROM $t WHERE ma_nv=%s", $ma_nv ), ARRAY_A );
+		if ( ! $r ) { return $ds; }
+		$bo = array();
+		foreach ( VHCC_NhanSu::ds_coso_ql( $r ) as $x ) {
+			$bo[ VHCC_NhanSu::chu_thuong( $x ) ] = 1;
+		}
+		if ( ! $bo ) { return $ds; }
+		$ra = array();
+		foreach ( $ds as $x ) {
+			if ( isset( $bo[ VHCC_NhanSu::chu_thuong( VHCC_NhanSu::chuan_coso( $x ) ) ] ) ) { continue; }
+			$ra[] = $x;
+		}
+		return $ra;
+	}
+
+	/**
 	 * SỐ CÔNG CỦA MỘT NGƯỜI, LẤY TỪ CHÍNH ENGINE ĐÃ DỰNG NÊN BẢNG CỦA QUẢN LÝ.
 	 *
 	 * 🔴 Anh Thắng 31/08/2026: *"tài khoản nhân viên sao khác với bản của quản lý"* — chị Tường
@@ -272,7 +309,8 @@ class VHCC_Online {
 	 *
 	 * `$u` là người đã đăng nhập: array('pin','ma_nv','ho_ten','coso'). Giờ KHÔNG nhận từ tham số.
 	 */
-	public static function cham_cong( $u, $anh_data_url = '', $gps = null, $coso_chon = '', $nhiem_vu_chon = '' ) {
+	public static function cham_cong( $u, $anh_data_url = '', $gps = null, $coso_chon = '',
+		$nhiem_vu_chon = '', $moc_giu = null, $tre_gui = 0 ) {
 		if ( empty( $u['ma_nv'] ) ) {
 			return array( 'ok' => false, 'error' => 'Tài khoản này chưa bật chấm công online.' );
 		}
@@ -291,15 +329,36 @@ class VHCC_Online {
 		// Gác 2: cơ sở đi lên từ client -> đối chiếu với danh sách người đó thật sự có.
 		$chon = trim( preg_replace( '/^CS_/', '', (string) $coso_chon ) );
 		if ( '' !== $chon ) {
-			$duoc = self::ds_coso_cua_nv( $ma_nv, $the_coso );
+			$duoc = self::ds_coso_cham_cua_nv( $ma_nv, $the_coso );
 			$ok   = false;
 			foreach ( $duoc as $x ) { if ( strtolower( $x ) === strtolower( $chon ) ) { $ok = true; $coso = $x; } }
 			if ( ! $ok ) {
+				/* 🔴 HAI LÝ DO KHÁC NHAU, HAI CÂU KHÁC NHAU. "Không có ở cơ sở đó" là câu đúng khi
+				   hồ sơ thật sự không tích cơ sở ấy. Nhưng người bị loại vì cờ "chỉ quản lý" thì
+				   hồ sơ CÓ tích — họ quản ở đó, họ vừa đứng ở đó, và câu "bạn không có ở cơ sở
+				   này" nghe như hệ thống hỏng. Nói đúng việc đang xảy ra và ai sửa được. */
+				if ( class_exists( 'VHCC_NhanSu' ) && method_exists( 'VHCC_NhanSu', 'la_chi_quan_ly' )
+					&& method_exists( 'VHCC_NhanSu', 'ho_so' ) ) {
+					$hs_q = VHCC_NhanSu::ho_so( $ma_nv );
+					if ( $hs_q && VHCC_NhanSu::la_chi_quan_ly( $hs_q, $chon ) ) {
+						return array( 'ok' => false, 'error' => 'Cơ sở "' . $chon . '" trong hồ sơ '
+							. 'của anh/chị đang đặt là CHỈ QUẢN LÝ — không chấm công ở đó. '
+							. 'Nếu nay có làm ở đây thật thì nhờ quản lý bỏ ô "chỉ QL" của cơ sở '
+							. 'này trong hồ sơ.' );
+					}
+				}
 				return array( 'ok' => false, 'error' => 'Bạn không có ở cơ sở "' . $chon . '". Chọn lại cơ sở.' );
 			}
 		}
 		if ( '' === $coso ) {
-			return array( 'ok' => false, 'error' => 'Chưa khai "Cơ sở chấm công online" cho tài khoản này.' );
+			/* 🔴 08/09/2026 — CÂU NÀY TỪNG CHỈ SAI CHỖ. Nó nhắc ô *"Cơ sở chấm công online"*, mà ô
+			   ấy chỉ có ở màn PhanQuyen cũ; người vừa được lập hồ sơ qua biểu mẫu một cửa thì
+			   thứ còn thiếu là **lưới Cơ sở** trong hồ sơ. Anh Thắng: *"tại báo cáo lỗi không rõ
+			   ràng"* — người đọc câu chối phải đi thẳng được tới ô phải sửa, chứ không phải đi
+			   tìm một ô không tồn tại trên trang họ vừa dùng. */
+			return array( 'ok' => false, 'error' => 'Hồ sơ của ' . trim( (string) $u['ho_ten'] )
+				. ' (mã ' . $ma_nv . ') chưa tích cơ sở nào, nên lượt chấm không biết ghi vào đâu. '
+				. 'Nhờ quản lý mở hồ sơ người này và tích ít nhất một ô ở lưới "Cơ sở" rồi Lưu.' );
 		}
 
 		// Gác 3: nhiệm vụ cũng đi lên từ client -> cũng đối chiếu với hồ sơ.
@@ -315,9 +374,19 @@ class VHCC_Online {
 			}
 		}
 
-		// Gác 1: GIỜ LẤY Ở ĐÂY. Không có tham số nào cho client truyền giờ vào.
-		$ngay = current_time( 'Y-m-d' );
-		$giay = VHCC_DB::giay( current_time( 'H:i:s' ) );
+		/* Gác 1: GIỜ LẤY Ở ĐÂY. Không có tham số nào cho client truyền giờ vào.
+		 *
+		 * ⚠️ `$moc_giu` KHÔNG PHẢI MỘT NGOẠI LỆ CỦA GÁC 1 — đọc kỹ chỗ nó tới từ đâu. Nó là một
+		 *    con số CHÍNH MÁY CHỦ đã phát ra và đã ký (vé giờ, xem `VHCC_Tram::doc_ve`), dùng
+		 *    cho lượt gửi lại sau khi mất mạng. Điện thoại không nghĩ ra được một giá trị nào
+		 *    nằm ngoài khoảng vé cho phép, và mọi phép kiểm nằm ở CỬA chứ không ở đây.
+		 *
+		 * 🔴 CHO NÊN HÀM NÀY KHÔNG ĐƯỢC TỰ KIỂM LẠI VÉ, VÀ CŨNG KHÔNG ĐƯỢC NHẬN GIỜ TRẦN. Nơi
+		 *    gọi nào truyền thẳng một con số chưa qua `doc_ve()` là đã mở lại đúng cái lỗ ấy —
+		 *    có phép thử soi rằng chỉ có một nơi gọi duy nhất truyền tham số này. */
+		$moc  = ( null !== $moc_giu && (int) $moc_giu > 0 ) ? (int) $moc_giu : (int) current_time( 'timestamp' );
+		$ngay = gmdate( 'Y-m-d', $moc );
+		$giay = VHCC_DB::giay( gmdate( 'H:i:s', $moc ) );
 
 		/* Định tuyến Văn phòng. Phải kiểm "hàng 1 đã có giờ vào mà chưa có giờ ra" TRƯỚC khi quyết
 		   định, vì đó là điều kiện của ân hạn tan làm. */
@@ -356,16 +425,69 @@ class VHCC_Online {
 		/* Sổ đo ghi CƠ SỞ ĐÃ CHỐT, không phải chuỗi cơ sở của thẻ phiên: người làm hai nơi thì
 		   thẻ mang cả hai, mà lượt chấm này chỉ thuộc về một. Đọc sổ để tìm "cơ sở nào hay chậm"
 		   mà cột cơ sở ghi cả hai thì con số nào cũng sai. */
-		VHCC_NhatKy::tin( 'coso', $coso );
+		if ( class_exists( 'VHCC_NhatKy' ) ) { VHCC_NhatKy::tin( 'coso', $coso ); }
 
 		// GPS: bản gốc ghi làm GHI CHÚ trên ô giờ. Ở đây có cột riêng.
 		$ghi_chu = self::gps_thanh_chu( $gps );
 
-		$kq = VHCC_Nhan::ghi_gio( $coso, $ngay, $ma_ghi, (string) $u['ho_ten'], $giay_ghi, $b64, 'online', $ghi_chu );
+		/* 🔴 LƯỢT GỬI LẠI PHẢI TỰ KHAI RA LÀ NÓ GỬI LẠI. Hàng này mang một giờ khác hẳn giờ nó
+		   được ghi vào bảng; ba tháng sau không có cách nào nhìn ra điều đó từ con số. Mà đúng
+		   những hàng ấy là thứ đầu tiên bị nghi khi có tranh cãi về giờ công — nên nó phải tự
+		   nói, chứ không để ai đi tìm trong nhật ký máy chủ. */
+		if ( null !== $moc_giu && (int) $tre_gui >= self::TRE_DANG_KE ) {
+			$phut = (int) round( (int) $tre_gui / 60 );
+			$gc_gui = 'GỬI LẠI SAU KHI MẤT MẠNG: bấm lúc ' . gmdate( 'H:i:s', $moc )
+				. ', máy chủ nhận lúc ' . current_time( 'H:i:s' )
+				. ' (chậm ' . ( $phut < 1 ? '<1' : $phut ) . ' phút).';
+			$ghi_chu = ( '' !== $ghi_chu ) ? $ghi_chu . ' · ' . $gc_gui : $gc_gui;
+		}
+
+		/* Gác 5: ĐỐI CHIẾU VỚI MỐC CỦA CƠ SỞ (xem VHCC_ViTri).
+		   🔴 XÉT SAU khi `$coso` đã chốt, KHÔNG xét theo `$coso_chon` của client. Người làm hai
+		      nơi gửi lên một tên, gác 2 đổi nó sang tên đúng trong hồ sơ — so mốc theo tên chưa
+		      chốt là so với mốc của cơ sở khác.
+		   🔴 CHỐI TRƯỚC KHI GHI. Đặt phép chối sau `ghi_gio()` thì hàng đã nằm trong bảng, và
+		      "lượt bị chặn" hoá ra vẫn là công. */
+		$vet = null;
+		$dong_vt = '';
+		if ( class_exists( 'VHCC_ViTri' ) ) {
+			$xv = VHCC_ViTri::xet( $coso, $gps );
+			if ( ! empty( $xv['chan'] ) ) {
+				return array( 'ok' => false, 'error' => VHCC_ViTri::loi_chan( $coso, $xv ),
+					'viTri' => $xv );
+			}
+			if ( ! empty( $xv['gac'] ) && '' !== (string) $xv['chu'] ) {
+				$ghi_chu = ( '' !== $ghi_chu ) ? $ghi_chu . ' · ' . $xv['chu'] : $xv['chu'];
+			}
+
+			/* Gác 6: TRUY VẾT — toạ độ này rơi vào vùng của cơ sở NÀO KHÁC.
+			   🔴 CHẠY DÙ GÁC ĐANG TẮT, và chạy SAU khi `$coso` đã chốt. Đây là câu trả lời cho
+			      anh Thắng 20/09/2026: *"khi nhân viên đi qua cơ sở khác, chấm báo cáo cơ sở"* —
+			      lượt chấm tự nói ra nó được bấm ở đâu, chứ không đợi ai đi hỏi.
+			   ⚠️ CHỈ GHI CHÚ, KHÔNG CHẶN và KHÔNG TỰ ĐỔI `$coso`. Tự chuyển cơ sở theo GPS là để
+			      một phép đo sai 300m dời công của người ta sang cửa hàng khác — mà lương thì
+			      tính theo cơ sở. Người quyết định vẫn là người. */
+			if ( method_exists( 'VHCC_ViTri', 'gan_nhat' ) ) {
+				$vet = VHCC_ViTri::gan_nhat( $gps, $coso );
+				if ( $vet && ! empty( $vet['trong'] ) ) {
+					$c_vet = 'TRUY VẾT: toạ độ nằm TRONG vùng cơ sở "' . $vet['coSo'] . '" (cách '
+						. VHCC_ViTri::met( $vet['met'] ) . '), trong khi lượt chấm ghi về "' . $coso . '".';
+					$ghi_chu = ( '' !== $ghi_chu ) ? $ghi_chu . ' · ' . $c_vet : $c_vet;
+				}
+			}
+			if ( method_exists( 'VHCC_ViTri', 'dong' ) ) {
+				$dong_vt = VHCC_ViTri::dong( $gps, $xv, $vet );
+			}
+		}
+
+		$kq = VHCC_Nhan::ghi_gio( $coso, $ngay, $ma_ghi, (string) $u['ho_ten'], $giay_ghi, $b64, 'online', $ghi_chu,
+			$dong_vt );
 		if ( isset( $kq['loi'] ) ) { return array( 'ok' => false, 'error' => $kq['loi'] ); }
 
 		return array( 'ok' => true, 'loai' => $kq['loai'], 'coSo' => $coso, 'ngay' => $ngay,
-			'gio' => VHCC_DB::hhmmss( $giay ), 'ma' => $ma_ghi, 'img' => $kq['anh'] );
+			'gio' => VHCC_DB::hhmmss( $giay ), 'ma' => $ma_ghi, 'img' => $kq['anh'],
+			'viTri' => ( isset( $xv ) ? $xv : null ), 'vet' => $vet,
+			'guiLai' => ( (int) $tre_gui >= self::TRE_DANG_KE ), 'treGiay' => (int) $tre_gui );
 	}
 
 	/** Hậu tố hàng của một nhiệm vụ. Không khớp -> rỗng = ghi vào hàng chính. */
@@ -391,6 +513,22 @@ class VHCC_Online {
 
 	/** Sai số (mét) từ đó trở lên thì toạ độ KHÔNG còn xác nhận được ai đứng ở đâu. */
 	const GPS_THO = 2000;
+
+	/**
+	 * Trễ từ bấy nhiêu giây trở lên thì lượt ấy mới đáng gọi là "gửi lại".
+	 *
+	 * 🔴 VÌ SAO KHÔNG PHẢI `> 0`. Từ 4.16.0 MỌI lượt chấm của trạm đều đi qua vé giờ, kể cả
+	 *    lượt online — cố ý, để một lượt gửi lại mang ĐÚNG TỪNG GIÂY con số của lượt đầu và
+	 *    `quyet_dinh_gio()` nhận ra nó là 'trung' rồi bỏ qua. Nếu lượt đầu ghi bằng giờ máy
+	 *    chủ lúc NHẬN còn lượt gửi lại ghi bằng giờ lúc BẤM thì hai con số lệch nhau vài
+	 *    giây, và lượt thứ hai thành GIỜ RA — một ca dài 0 phút, mà bảng công lại thấy đã đủ
+	 *    cặp nên không báo thiếu. Đó là hỏng im lặng, đúng loại tệ nhất.
+	 *
+	 *    Cái giá của quyết định ấy: lượt online bình thường cũng có `tre_gui` khác 0 (một, hai
+	 *    giây đường truyền). Dán chữ "GỬI LẠI SAU KHI MẤT MẠNG" vào mọi hàng thì dòng ghi chú
+	 *    ấy hết nghĩa đúng lúc cần nó nhất. Nên chỉ ghi khi trễ THẬT.
+	 */
+	const TRE_DANG_KE = 60;
 
 	/**
 	 * GPS -> dòng chữ đóng vào ghi chú của lượt chấm.
@@ -447,10 +585,25 @@ class VHCC_Online {
 		}
 		$mac_dinh = VHCC_NhanSu::chuan_coso( isset( $u['coso'] ) ? $u['coso'] : '' );
 		$ds_coso = self::ds_coso_cua_nv( $ma_nv, $mac_dinh );
+		/* 🔴 HAI DANH SÁCH, VÀ CHÚNG KHÁC NHAU CÓ CHỦ Ý.
+		   `dsCoSo` = cơ sở CHẤM ĐƯỢC (đã trừ cờ "chỉ quản lý") — nó dựng ô xổ lúc lưu và khối
+		   "Cơ sở được chấm công", tức là đúng chỗ anh Thắng muốn ngắn lại.
+		   `homNay` thì tính trên ĐỦ cơ sở: người vừa được đặt cờ mà hôm nay đã kịp chấm ở đó
+		   (hoặc quản lý bù cho họ) thì lượt ấy phải còn nhìn thấy — ẩn đi là họ tưởng mất giờ
+		   vào và bấm lại, mà lượt thứ hai ngay sau giờ vào là GIỜ RA. */
+		$ds_cham = self::ds_coso_cham_cua_nv( $ma_nv, $mac_dinh );
+		$ds_ql   = array();
+		foreach ( $ds_coso as $cs_x ) {
+			$co_o = false;
+			foreach ( $ds_cham as $cs_y ) {
+				if ( strtolower( $cs_y ) === strtolower( $cs_x ) ) { $co_o = true; break; }
+			}
+			if ( ! $co_o ) { $ds_ql[] = $cs_x; }
+		}
 		$hn = array();
 		foreach ( $ds_coso as $cs ) { $hn[ $cs ] = self::hom_nay( $cs, $ma_nv ); }
 		return array( 'ok' => true, 'bat' => true, 'maNV' => $ma_nv, 'hoTen' => (string) $u['ho_ten'],
-			'coSoMacDinh' => $mac_dinh, 'dsCoSo' => $ds_coso,
+			'coSoMacDinh' => $mac_dinh, 'dsCoSo' => $ds_cham, 'dsCoSoQL' => $ds_ql,
 			'dsNhiemVu' => self::nhiem_vu_cua_nv( $ma_nv ),
 			'homNay' => $hn, 'gio' => self::gio_may_chu() );
 	}
@@ -736,7 +889,8 @@ class VHCC_Online {
 		      lệch, là việc của phần mềm; quyết định hai tên ấy có phải một không là việc của
 		      người khai. */
 		$r = $wpdb->get_results( $wpdb->prepare(
-			'SELECT coso, ngay, hau_to, gio_vao_giay, gio_ra_giay FROM ' . VHCC_DB::t( 'cham_cong' )
+			'SELECT coso, ngay, hau_to, gio_vao_giay, gio_ra_giay, nghi_tu_giay, nghi_den_giay FROM '
+			. VHCC_DB::t( 'cham_cong' )
 			. ' WHERE ma_nv=%s AND ngay BETWEEN %s AND %s'
 			. ' ORDER BY ngay ASC, coso ASC, hau_to ASC',
 			$ma_nv, $thang . '-01', $thang . '-31' ), ARRAY_A );
@@ -756,7 +910,12 @@ class VHCC_Online {
 			if ( $rong_v && $rong_a ) { continue; }
 			$p = null;
 			if ( null !== $v && '' !== $v && null !== $a && '' !== $a ) {
-				$p = VHCC_Luong::phut_ca( intdiv( (int) $v, 60 ), intdiv( (int) $a, 60 ) );
+				/* ⚠️ CA GÃY — màn "Công của tôi" mà nhân viên tự mở phải ra CÙNG con số với bảng
+				   lương. Lệch một chỗ là họ cầm điện thoại cãi với bảng lương, không ai biết bên
+				   nào đúng — đúng cái mà chú thích của `phut_ca()` đã dặn. */
+				$p = VHCC_Luong::phut_ca( intdiv( (int) $v, 60 ), intdiv( (int) $a, 60 ),
+					isset( $x['nghi_tu_giay'] ) ? $x['nghi_tu_giay'] : null,
+					isset( $x['nghi_den_giay'] ) ? $x['nghi_den_giay'] : null );
 				$phut += $p;
 			} elseif ( null !== $v && '' !== $v ) {
 				/* Có vào mà không có ra. Đếm riêng — đây chính là thứ người ta cần thấy để đi
@@ -790,7 +949,8 @@ class VHCC_Online {
 		$oc = implode( ',', array_fill( 0, count( $ds_coso ), '%s' ) );
 		$tv = array_merge( array( $ma_nv ), $ds_coso );
 		$r  = $wpdb->get_results( $wpdb->prepare(
-			'SELECT coso, ngay, hau_to, gio_vao_giay, gio_ra_giay FROM ' . VHCC_DB::t( 'cham_cong' )
+			'SELECT coso, ngay, hau_to, gio_vao_giay, gio_ra_giay, nghi_tu_giay, nghi_den_giay FROM '
+			. VHCC_DB::t( 'cham_cong' )
 			. " WHERE ma_nv=%s AND coso IN ($oc) ORDER BY ngay DESC, coso ASC, hau_to ASC LIMIT $n",
 			$tv ), ARRAY_A );
 		$out = array();

@@ -351,30 +351,90 @@ class VHCC_Quyen {
 					. 'Nhờ quản lý cửa hàng lấy giúp mã PIN.' );
 		}
 
+		/* =========================================================================================
+		 * 🔴 TRA ĐỦ HAI KHO, ĐÚNG NHƯ CỬA ĐĂNG NHẬP — BÀI HỌC 14/09/2026
+		 * =========================================================================================
+		 * Anh Thắng gửi hai ảnh chụp cùng một người, nói ngược nhau:
+		 *   · màn Quản lý nhân sự hiện PIN rõ ràng ("đã vào sổ");
+		 *   · màn Quên PIN gõ đúng số căn cước thì nhận *"Hồ sơ có nhưng chưa được cấp mật khẩu
+		 *     đăng nhập"*.
+		 *
+		 * Vì bản trước của hàm này chỉ đọc MỘT kho — bảng `phan_quyen`, tức sổ CŨ. Trong khi
+		 * `VHCC_Tram::tim_pin()` (cửa đăng nhập thật) đọc CẢ HAI: `phan_quyen` trước, rồi
+		 * `nhan_vien.pin_dang_nhap`. Site đã chuyển nguồn người dùng sang `ho_so`, nên PIN nằm ở
+		 * hồ sơ — người ta ĐĂNG NHẬP ĐƯỢC mà TRA LẠI thì bị chối.
+		 *
+		 * ⚠️ HẬU QUẢ NẶNG HƠN MỘT CÂU BÁO SAI. Câu ấy đá người ta sang quản lý cho một việc không
+		 *    có thật; quản lý đọc "chưa được cấp" thì CẤP MỚI — và thế là PIN của người ta bị đổi,
+		 *    trong khi PIN cũ vẫn đang chạy. Một câu chối sai khiến người ta đi làm hỏng thêm.
+		 *
+		 * 🔴 VÀ TRÙNG CĂN CƯỚC CŨNG PHẢI LO. Bản trước lấy hồ sơ ĐẦU TIÊN khớp rồi `break`. Sổ
+		 *    này có thật những cặp trùng (xem `dau_hieu_trung()`); vớ trúng hồ sơ tạo lỡ — cái
+		 *    không có PIN — là lại đúng câu chối sai ở trên. Nay quét HẾT, ưu tiên hồ sơ CÓ PIN.
+		 * ========================================================================================= */
+
 		/* KHỚP TUYỆT ĐỐI, không khớp một phần: khớp một phần là gõ 4 số cũng ra người khác. */
-		$hs = null;
-		foreach ( VHCC_DB::rows( 'SELECT ma_nv, ho_ten, cccd FROM ' . VHCC_DB::t( 'nhan_vien' )
-			. " WHERE cccd <> ''" ) as $r ) {
-			if ( self::chuan_cccd( $r['cccd'] ) === $so ) { $hs = $r; break; }
+		$khop = array();
+		foreach ( VHCC_DB::rows( 'SELECT ma_nv, ho_ten, cccd, pin_dang_nhap, cua_hang, '
+			. 'trang_thai_lam_viec FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE cccd <> ''" ) as $r ) {
+			if ( self::chuan_cccd( $r['cccd'] ) === $so ) { $khop[] = $r; }
 		}
-		if ( ! $hs ) {
+		if ( ! $khop ) {
 			self::dem( 'trapin_hong', self::TRA_PIN_TONG );
 			self::ghi_nhat_ky( $so, 'khong-thay' );
 			return array( 'ok' => false, 'error' => 'Không tìm thấy số căn cước này trong hệ thống. '
 				. 'Nếu anh/chị chưa có hồ sơ thì dùng ô "Gửi thông tin vào máy chấm công".' );
 		}
-		$pq = $wpdb->get_row( $wpdb->prepare(
-			'SELECT pin, coso_cc_online FROM ' . VHCC_DB::t( 'phan_quyen' )
-			. ' WHERE LOWER(ma_cc_online)=LOWER(%s) LIMIT 1', $hs['ma_nv'] ), ARRAY_A );
-		if ( ! $pq || '' === trim( (string) $pq['pin'] ) ) {
-			self::dem( 'trapin_hong', self::TRA_PIN_TONG );
-			self::ghi_nhat_ky( $so, 'chua-co-tai-khoan', $hs['ma_nv'] );
-			return array( 'ok' => false, 'error' => 'Hồ sơ có nhưng chưa được cấp mật khẩu đăng nhập. '
-				. 'Nhờ quản lý cửa hàng cấp giúp.' );
+
+		$t_pq  = VHCC_DB::t( 'phan_quyen' );
+		$co_pq = VHCC_DB::co_bang( $t_pq );
+		$nghi  = '';
+		foreach ( $khop as $hs ) {
+			$ma = trim( (string) $hs['ma_nv'] );
+
+			/* kho 1: sổ PhanQuyen (bản cũ) */
+			$pin  = '';
+			$coso = '';
+			if ( $co_pq && '' !== $ma ) {
+				$pq = $wpdb->get_row( $wpdb->prepare(
+					"SELECT pin, coso_cc_online FROM $t_pq WHERE LOWER(ma_cc_online)=LOWER(%s) LIMIT 1",
+					$ma ), ARRAY_A );
+				if ( $pq && '' !== trim( (string) $pq['pin'] ) ) {
+					$pin  = (string) $pq['pin'];
+					$coso = (string) $pq['coso_cc_online'];
+				}
+			}
+			/* kho 2: hồ sơ nhân sự — nơi nguồn `ho_so` thật sự giữ PIN */
+			if ( '' === $pin && '' !== trim( (string) $hs['pin_dang_nhap'] ) ) {
+				$pin  = (string) $hs['pin_dang_nhap'];
+				$coso = (string) $hs['cua_hang'];
+			}
+			if ( '' === $pin ) { continue; }
+
+			/* 🔴 ĐÃ NGHỈ THÌ KHÔNG TRẢ PIN RA. Cùng luật với cửa đăng nhập (`tim_pin()`), và ở
+			   đây còn thêm một lý do: đưa PIN cho người đã rời công ty là đưa chìa khoá. Nhưng
+			   nói thẳng lý do, đừng để họ đứng gõ lại mãi. */
+			if ( class_exists( 'VHCC_NhanSu' ) && method_exists( 'VHCC_NhanSu', 'da_nghi' )
+				&& VHCC_NhanSu::da_nghi( $hs['trang_thai_lam_viec'] ) ) {
+				$nghi = 'Hồ sơ ' . trim( (string) $hs['ho_ten'] ) . ' đang ghi "'
+					. trim( (string) $hs['trang_thai_lam_viec'] ) . '" nên không tra PIN được. '
+					. 'Nếu đi làm lại, nhờ quản lý sửa Trạng thái làm việc trong hồ sơ.';
+				continue;
+			}
+
+			self::ghi_nhat_ky( $so, 'tra-duoc', $ma );
+			return array( 'ok' => true, 'pin' => $pin, 'ten' => $hs['ho_ten'],
+				'coSo' => VHCC_NhanSu::chuan_coso( $coso ) );
 		}
-		self::ghi_nhat_ky( $so, 'tra-duoc', $hs['ma_nv'] );
-		return array( 'ok' => true, 'pin' => $pq['pin'], 'ten' => $hs['ho_ten'],
-			'coSo' => VHCC_NhanSu::chuan_coso( $pq['coso_cc_online'] ) );
+
+		self::dem( 'trapin_hong', self::TRA_PIN_TONG );
+		if ( '' !== $nghi ) {
+			self::ghi_nhat_ky( $so, 'da-nghi', trim( (string) $khop[0]['ma_nv'] ) );
+			return array( 'ok' => false, 'error' => $nghi );
+		}
+		self::ghi_nhat_ky( $so, 'chua-co-tai-khoan', trim( (string) $khop[0]['ma_nv'] ) );
+		return array( 'ok' => false, 'error' => 'Hồ sơ có nhưng chưa được cấp mật khẩu đăng nhập. '
+			. 'Nhờ quản lý cửa hàng cấp giúp.' );
 	}
 
 	// ======================================================================= dọn tài khoản

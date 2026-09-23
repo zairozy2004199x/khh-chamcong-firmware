@@ -40,14 +40,24 @@ global $wpdb;
 t( '🔴 máy chủ biết bộ phận "Máy tự động"',
 	in_array( 'Máy tự động', VHCP_Cfg::BO_PHAN_DS, true ), VHCP_Cfg::BO_PHAN_DS );
 
-/* 🔴 GIAO DIỆN VÀ MÁY CHỦ PHẢI KHỚP TỪNG TÊN. Lệch một chữ thì ô chọn bày ra một bộ phận mà
-   máy chủ coi là không tồn tại — người ta khai xong, lưu xong, và vai ấy KHÔNG bó gì cả. */
+/* 🔴 LUẬT NÀY ĐỔI NGÀY 10/09/2026 — ghi lại vì phép cũ trông vẫn hợp lý.
+   Trước: hai danh sách GÕ CỨNG (hằng máy chủ + `BOPHAN_LIST` trong app.html) phải khớp từng
+   tên, vì lệch một chữ là ô chọn bày ra một bộ phận mà máy chủ coi là không tồn tại.
+   Nay: chỉ còn MỘT nguồn — bảng cấu hình, máy chủ gửi xuống `CFG.boPhanDs`. Không còn hai
+   danh sách để mà lệch, nên phép "khớp từng tên" mất chỗ đứng.
+
+   Thứ CÒN phải canh là hai chuyện khác:
+     · giao diện KHÔNG được gõ cứng lại danh sách (gõ lại là dựng lại đúng cái bẫy vừa bỏ)
+     · đường lui trên màn phải khớp hằng mặc định của máy chủ — hai bên đều dùng nó khi bảng
+       chưa gieo, lệch nhau là lúc ấy hai bên nói hai danh sách khác nhau.
+   Chốt đầy đủ cho bảng cấu hình nằm ở `kiem-bo-phan-khai-duoc.php`. */
 $app = file_get_contents( dirname( dirname( __DIR__ ) ) . '/wordpress/vhcp-chi-phi/templates/app.html' );
-$js  = array();
-if ( preg_match( "/var BOPHAN_LIST=\[([^\]]*)\]/u", $app, $m ) ) {
+t( '🔴 giao diện KHÔNG gõ cứng danh sách bộ phận nữa', false === strpos( $app, 'BOPHAN_LIST' ), '' );
+$js = array();
+if ( preg_match( "/var BOPHAN_MAC_DINH=\[([^\]]*)\]/u", $app, $m ) ) {
 	foreach ( explode( ',', $m[1] ) as $x ) { $js[] = trim( trim( trim( $x ), "'" ) ); }
 }
-teq( 'danh sách bộ phận của giao diện khớp máy chủ từng tên',
+teq( 'đường lui trên màn khớp hằng mặc định của máy chủ từng tên',
 	VHCP_Cfg::BO_PHAN_DS, $js );
 
 /* Chuẩn hoá: nhận đúng tên, còn tên lạ thì trả '' (= không bó) chứ không nhận bừa. */
@@ -128,9 +138,14 @@ teq( 'loại không có trong danh mục -> rỗng',     '',            VHCP_Cfg
 /* Đăng nhập bằng đúng tên người LẬP ĐƠN thử. Vai Nhân viên vốn chỉ thấy đơn của chính mình
    (luật có sẵn, không liên quan bản này) — đăng nhập tên khác thì bảng rỗng vì lý do đó, và
    phép thử sẽ đổ lỗi nhầm cho chốt bộ phận. */
-function lam( $vai, $ten = 'NV' ) { VHCP_Auth::dat_vai_tro( $vai, $ten, '' ); }
+/* 🔴 PHÒNG BAN ĐI THEO TÀI KHOẢN, KHÔNG THEO VAI (đổi 13/09/2026). Anh Thắng: *"anh sẽ tạo
+   ban bệ phòng ban sẵn, ai thuộc bộ phận nào thì thêm vào, tránh sai vai hay tự tạo vai lạ"*.
+   Trước bản ấy bộ phận khai ở cột "Chỉ làm bộ phận" của bảng VAI TRÒ, nên `lam()` chỉ cần
+   truyền tên vai. Nay nó là tham số thứ tư của `dat_vai_tro()` — đúng như cổng API truyền
+   xuống từ ô Bộ phận của tài khoản. */
+function lam( $vai, $ten = 'NV', $bp = '' ) { VHCP_Auth::dat_vai_tro( $vai, $ten, '', $bp ); }
 
-lam( 'Kế toán máy tự động' );
+lam( 'Kế toán máy tự động', 'NV', 'Máy tự động' );
 teq( 'người bó bộ phận đọc đúng bộ phận của mình', 'Máy tự động', VHCP_Auth::bo_phan_bo() );
 teq( '🔴 đọc được dòng của bộ phận mình',  true,  VHCP_Auth::xem_duoc_loai( 'Sửa máy gắp thú' ) );
 teq( '🔴 KHÔNG đọc được dòng của mảng khác', false, VHCP_Auth::xem_duoc_loai( 'Chạy quảng cáo' ) );
@@ -163,7 +178,7 @@ function sc_ids() {
 }
 lam( 'Kế toán cá nhân' );
 teq( 'đối chứng · kế toán thường thấy cả ba dòng', array( 'S_KHAC', 'S_MKT', 'S_MTD' ), sc_ids() );
-lam( 'Kế toán máy tự động' );
+lam( 'Kế toán máy tự động', 'NV', 'Máy tự động' );
 teq( '🔴 kế toán máy tự động chỉ thấy dòng của mình + dòng chưa phân loại',
 	array( 'S_KHAC', 'S_MTD' ), sc_ids() );
 
@@ -196,7 +211,7 @@ function don_mas() {
 lam( 'Kế toán cá nhân' );
 teq( 'đối chứng · kế toán thường thấy cả bốn đơn',
 	array( 'D_LAN', 'D_MKT', 'D_MTD', 'D_TRONG' ), don_mas() );
-lam( 'Kế toán máy tự động' );
+lam( 'Kế toán máy tự động', 'NV', 'Máy tự động' );
 teq( '🔴 kế toán máy tự động: thấy đơn của mình, đơn LẪN, và đơn chưa có dòng nào — không thấy đơn thuần marketing',
 	array( 'D_LAN', 'D_MTD', 'D_TRONG' ), don_mas() );
 
@@ -221,7 +236,7 @@ function mang_cho() {
 lam( 'Kế toán cá nhân' );
 teq( 'đối chứng · kế toán thường thấy cả ba mảng',
 	array( 'Công tác', 'Kỹ thuật', 'Marketing' ), mang_cho() );
-lam( 'Kế toán máy tự động' );
+lam( 'Kế toán máy tự động', 'NV', 'Máy tự động' );
 teq( '🔴 kế toán máy tự động KHÔNG thấy mảng nào trong bốn mảng kia',
 	array(), mang_cho() );
 
@@ -232,7 +247,7 @@ VHCP_Cfg::write( VHCP_Cfg::VAI, array(
 	array( 'Kế toán chung',       'Kế toán cá nhân', '' ),
 	array( 'Kế toán marketing',   'Kế toán cá nhân', 'Marketing' ),
 ) );
-lam( 'Kế toán marketing' );
+lam( 'Kế toán marketing', 'NV', 'Marketing' );
 teq( '🔴 vai bó Marketing chỉ thấy mảng Marketing', array( 'Marketing' ), mang_cho() );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -268,7 +283,7 @@ teq( '🔴 ô Bộ phận trên tài khoản KHÔNG bó gì cả',
  *    không chạy — anh Thắng đã kết luận đúng như thế khi nhìn màn Tổng quan còn nguyên 21 mục.
  *    Số loại CHƯA khai bộ phận là thứ biến "trông như hỏng" thành "còn N dòng phải khai".
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
-lam( 'Kế toán máy tự động' );
+lam( 'Kế toán máy tự động', 'NV', 'Máy tự động' );
 $b = VHCP_Don::get_bootstrap();
 teq( '🔴 boot nói rõ đang bó bộ phận nào', 'Máy tự động', $b['boPhanBo'] );
 /* Dữ liệu thử có ba loại trên các dòng chi: "Sửa máy gắp thú" (Máy tự động), "Chạy quảng cáo"
@@ -290,29 +305,49 @@ $b4 = VHCP_Don::get_bootstrap();
 teq( '🔴 người KHÔNG bó thì boot trả rỗng -> màn không hiện dải nhắc', '', $b4['boPhanBo'] );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
- * 6. VAI ĐƯỢC DỰNG SẴN — anh Thắng không phải khai tay
+ * 6. KHÔNG CÒN VAI NÀO ĐƯỢC DỰNG SẴN — anh Thắng 14/09/2026: *"bỏ cái này, vì phân quyền trang
+ *    nên không cần nữa"*
  *
- * 🔴 Khai tay mà gõ "máy tự động " thừa dấu cách, hay "MTD", là vai ấy KHÔNG bó gì cả và người
- *    mang nó nhìn thấy sổ của mọi mảng — hỏng đúng theo kiểu không ai nhận ra.
+ * ⚠️ PHÉP NÀY ĐÃ ĐẢO CHIỀU. Bản trước canh ngược lại: vai "Kế toán máy tự động" PHẢI được dựng
+ *    sẵn, vì hồi ấy ba mảng dùng chung MỘT trang chi phí và chỉ có cột Bộ phận của vai ấy mới
+ *    tách được sổ. Nay mỗi mảng một trang riêng (/chi-phi-kvc · /chi-phi-mtd · /chi-phi-vp), mỗi
+ *    trang một bộ bảng riêng — vào đúng trang là đã chỉ thấy mảng ấy. Vai dựng sẵn thành thừa,
+ *    và thừa ở đây không vô hại: nó hiện lại trong bảng Vai trò tự tạo của CẢ BỐN trang.
+ *
+ * 🔴 Ghi rõ để lần sau khỏi tưởng bài kiểm hỏng mà "vá" ngược lại: mất phép này thì mỗi lượt cài
+ *    mới lại đẻ ra một vai anh vừa cố ý bỏ đi.
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+$cfg_ma_vai = file_get_contents( dirname( dirname( __DIR__ ) ) . '/wordpress/vhcp-chi-phi/includes/class-vhcp-cfg.php' );
+
 VHCP_Cfg::write( VHCP_Cfg::VAI, array() );
-VHCP_Meta::set( 'seeded_vai_mtd_v1', '' );
+VHCP_Meta::set( 'seeded_vai_mtd_v1', '' );   // xoá cả cờ: giả cảnh cài mới tinh
 VHCP_Cfg::clear_cache();
 VHCP_Cfg::cfg_static();   // lượt đọc này chạy seed
 
+teq( '🔴 cài mới: seed KHÔNG tự đẻ vai nào', 0, count( VHCP_Cfg::vai_tuy_bien() ) );
+t( '🔴 và mã nguồn không còn nhánh dựng vai "Kế toán máy tự động"',
+	false !== strpos( $cfg_ma_vai, 'ĐÃ BỎ' )
+		&& false === strpos( $cfg_ma_vai, "self::append( self::VAI, array( 'Kế toán máy tự động'" ),
+	'' );
+
+/* Bỏ dựng sẵn KHÔNG được làm hỏng cơ chế vai tự tạo có bó bộ phận — anh vẫn khai tay được. */
+VHCP_Cfg::write( VHCP_Cfg::VAI, array(
+	array( 'Kế toán máy tự động', 'Kế toán cá nhân', 'Máy tự động' ),
+) );
+VHCP_Cfg::clear_cache();
 $ten_vai = array();
 foreach ( VHCP_Cfg::vai_tuy_bien() as $v ) { $ten_vai[ $v['ten'] ] = $v; }
-t( '🔴 vai "Kế toán máy tự động" được dựng sẵn', isset( $ten_vai['Kế toán máy tự động'] ), array_keys( $ten_vai ) );
+t( 'khai tay thì vai ấy vẫn nhận', isset( $ten_vai['Kế toán máy tự động'] ), array_keys( $ten_vai ) );
 if ( isset( $ten_vai['Kế toán máy tự động'] ) ) {
-	teq( 'và nó bó đúng bộ phận Máy tự động', 'Máy tự động', $ten_vai['Kế toán máy tự động']['boPhan'] );
-	teq( 'và kế thừa Kế toán cá nhân',        'Kế toán cá nhân', $ten_vai['Kế toán máy tự động']['goc'] );
+	teq( 'và vẫn bó đúng bộ phận Máy tự động', 'Máy tự động', $ten_vai['Kế toán máy tự động']['boPhan'] );
+	teq( 'và vẫn kế thừa Kế toán cá nhân',     'Kế toán cá nhân', VHCP_Cfg::vai_goc( 'Kế toán máy tự động' ) );
 }
-/* ⚠️ Đánh dấu đã seed để anh Thắng còn XOÁ hoặc ĐỔI được. Không đánh dấu thì mỗi lượt nâng cấp
-   lại dựng lại một vai anh vừa cố ý bỏ đi. */
+
+/* Và xoá đi thì lượt sau vẫn ở yên đã xoá. */
 VHCP_Cfg::write( VHCP_Cfg::VAI, array() );
 VHCP_Cfg::clear_cache();
 VHCP_Cfg::cfg_static();
-teq( '🔴 anh Thắng xoá vai ấy đi thì lượt sau KHÔNG dựng lại', 0, count( VHCP_Cfg::vai_tuy_bien() ) );
+teq( '🔴 xoá vai đi thì lượt sau KHÔNG dựng lại', 0, count( VHCP_Cfg::vai_tuy_bien() ) );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════ */
 if ( $truot ) {

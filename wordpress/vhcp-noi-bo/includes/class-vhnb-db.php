@@ -29,6 +29,42 @@ class VHNB_DB {
 		      đọc từng DÒNG của chuỗi này; một dòng chú thích rơi vào đó thì nó tưởng là một cột
 		      và cả bảng dựng hỏng — "table has no column named anh", một lỗi trông y như lỗi
 		      của plugin. Đã sập đúng bẫy này lúc thêm cột `anh` (26/08/2026). */
+		/* ===== `khoa` + `so_lan`: DÀNH RIÊNG CHO BÀI DO HỆ THỐNG ĐĂNG =====
+		   Anh Thắng 08/09/2026: *"khi có 1 giao dịch trên vận hành chi phí, chấm công, ghế thì
+		   hiện thông báo lên trang nội bộ, cả thông báo và trong bảng tin"*.
+
+		   🔴 CÙNG Ý VỚI `khoa` CỦA BẢNG `bao`, VÀ VÌ CÙNG MỘT LÝ DO. Ghế một cơ sở có thể sinh
+		      vài chục giao dịch một ngày; đẻ mỗi giao dịch một bài thì bảng tin của 240 người
+		      chỉ còn là một cột số, và bài người thật viết bị đẩy xuống trang hai trong buổi
+		      sáng. Cùng `khoa` thì rơi vào ĐÚNG bài cũ, `so_lan` cộng lên và câu chữ viết lại.
+
+		   ⚠️ KEY THƯỜNG, KHÔNG PHẢI UNIQUE — khác bảng `bao`. Mọi bài người thật viết đều có
+		      `khoa` rỗng; đặt UNIQUE lên đây là bài thứ hai của cả công ty không đăng nổi.
+		      Việc gộp do `VHNB_Bai::dang_he_thong()` lo, không nhờ database chốt hộ.
+
+		   ⚠️ Bài người thật để `so_lan = 0`, không phải 1 — nhìn con số là biết ngay hàng nào
+		      do hệ thống dựng, khỏi phải đoán theo `ma_nv`.
+
+		   ===== `bac_can`: BẬC TỐI THIỂU ĐỌC ĐƯỢC BÀI NÀY =====
+		   Anh Thắng 09/09/2026: *"nó sẽ hiện cho cửa hàng trưởng và quản lý trở lên xem chứ
+		   ngang hàng hoặc phía dưới sẽ không xem được"*.
+
+		   0 = ai cũng đọc, và mọi bài người thật viết đều là 0 — bảng tin vẫn là trang chung
+		   của cả công ty, không siết gì thêm. Chỉ dòng do hệ thống dựng mới mang bậc.
+		   Số ở đây là thang 1..5 của `VHCC_Vai::BAC` (Nhân viên 1 → Admin 5), không phải một
+		   thang riêng: hai thang là sớm muộn lệch nhau, mà lệch thang phân quyền thì im lặng.
+
+		   ===== `co_so`: DÒNG NÀY THUỘC CƠ SỞ NÀO =====
+		   Anh Thắng 09/09/2026, khi được hỏi lại: cửa hàng trưởng chỉ thấy cơ sở mình, Quản lý
+		   trở lên thấy tất cả. Vì *"ngang hàng thì không xem được"* — mà cửa hàng trưởng của
+		   cơ sở khác cũng đúng là ngang hàng.
+
+		   ⚠️ KHÁC HẲN cột `nhom` ở trên. `nhom` là BỘ PHẬN, và là cái người xem tự CHỌN để lọc
+		      (một cái tab) — ai cũng bấm sang tab nào cũng được. `co_so` là PHẠM VI QUYỀN: nó
+		      quyết định người xem có được đọc hay không, không phải người xem muốn xem gì.
+		      Nhét chung một cột là biến một cái tab thành một chốt quyền, và ngược lại.
+		   ⚠️ Rỗng = KHÔNG thuộc cơ sở nào, ai từ `bac_can` trở lên cũng đọc. Đơn chi phí gồm
+		      nhiều cơ sở trong một đơn nên nó ở đây; ghế và vé thì luôn có đúng một cơ sở. */
 		$b['bai'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
 			nhom VARCHAR(60) NOT NULL DEFAULT '',
@@ -41,11 +77,16 @@ class VHNB_DB {
 			ghim TINYINT(1) NOT NULL DEFAULT 0,
 			so_tim INT NOT NULL DEFAULT 0,
 			so_bl INT NOT NULL DEFAULT 0,
+			khoa VARCHAR(120) NOT NULL DEFAULT '',
+			so_lan INT NOT NULL DEFAULT 0,
+			bac_can TINYINT(1) NOT NULL DEFAULT 0,
+			co_so VARCHAR(60) NOT NULL DEFAULT '',
 			tao_luc DATETIME NULL,
 			PRIMARY KEY  (id),
 			KEY moi (ghim,tao_luc),
 			KEY theo_nhom (nhom,tao_luc),
 			KEY theo_nhom_id (nhom_id,ghim,tao_luc),
+			KEY theo_khoa (khoa),
 			KEY nguoi (ma_nv)";
 
 		$b['binh_luan'] = "

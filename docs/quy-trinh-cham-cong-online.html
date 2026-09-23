@@ -1,0 +1,856 @@
+<title>Chấm Công Online K&amp;H</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=JetBrains+Mono:wght@400;600&display=swap">
+
+<style>
+:root{
+  --nen:#e9eef1;
+  --the:#ffffff;
+  --the2:#f4f7f8;
+  --vien:#cfdade;
+  --vien2:#e3ebee;
+  --muc:#0c1f25;
+  --mo:#546b74;
+  --dau:#0d6b76;
+  --dau-nen:#d8ecee;
+  --canh:#9a5b06;
+  --canh-nen:#fdf0dc;
+  --canh-vien:#e9c893;
+  --do:#a82a20;
+  --do-nen:#fbe6e3;
+  --do-vien:#e9b4ad;
+  --luc:#1d6b41;
+  --luc-nen:#dcefe3;
+  --ma-nen:#eef3f4;
+  --bong:0 1px 2px rgba(12,31,37,.06), 0 6px 18px -10px rgba(12,31,37,.22);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --nen:#0b1417;
+    --the:#132025;
+    --the2:#18272d;
+    --vien:#2b3f47;
+    --vien2:#22343a;
+    --muc:#e4edf0;
+    --mo:#93a9b1;
+    --dau:#5cc0cb;
+    --dau-nen:#123238;
+    --canh:#e6ab5c;
+    --canh-nen:#33240f;
+    --canh-vien:#6b4a1c;
+    --do:#f0918a;
+    --do-nen:#391a17;
+    --do-vien:#6d302b;
+    --luc:#6fc496;
+    --luc-nen:#11291d;
+    --ma-nen:#1a2b31;
+    --bong:0 1px 2px rgba(0,0,0,.4), 0 8px 22px -12px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"]{
+  --nen:#0b1417;
+  --the:#132025;
+  --the2:#18272d;
+  --vien:#2b3f47;
+  --vien2:#22343a;
+  --muc:#e4edf0;
+  --mo:#93a9b1;
+  --dau:#5cc0cb;
+  --dau-nen:#123238;
+  --canh:#e6ab5c;
+  --canh-nen:#33240f;
+  --canh-vien:#6b4a1c;
+  --do:#f0918a;
+  --do-nen:#391a17;
+  --do-vien:#6d302b;
+  --luc:#6fc496;
+  --luc-nen:#11291d;
+  --ma-nen:#1a2b31;
+  --bong:0 1px 2px rgba(0,0,0,.4), 0 8px 22px -12px rgba(0,0,0,.7);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--nen);
+  color:var(--muc);
+  font:400 16px/1.62 "Be Vietnam Pro","Segoe UI",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.khung{max-width:760px;margin:0 auto;padding-inline:20px;padding-block:0 64px}
+
+/* ───────────────── đầu trang ───────────────── */
+.dau{
+  padding-block:40px 30px;
+  border-bottom:2px solid var(--muc);
+}
+.eyebrow{
+  font:600 11.5px/1 "JetBrains Mono",ui-monospace,monospace;
+  letter-spacing:.18em;text-transform:uppercase;color:var(--dau);
+  margin:0 0 14px;
+}
+h1{
+  font:800 clamp(30px,7vw,44px)/1.06 "Bricolage Grotesque","Be Vietnam Pro",sans-serif;
+  letter-spacing:-.02em;margin:0;text-wrap:balance;
+}
+.dau p{margin:12px 0 0;color:var(--mo);max-width:56ch}
+.meta{
+  display:flex;flex-wrap:wrap;gap:8px 18px;margin:20px 0 0;
+  font:400 13px/1.4 "JetBrains Mono",ui-monospace,monospace;color:var(--mo);
+}
+.meta b{color:var(--muc);font-weight:600}
+
+/* ───────────────── phần theo vai người đọc ───────────────── */
+.phan{margin-block:52px 0}
+.phan-dau{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:0 0 6px}
+h2{
+  font:600 clamp(21px,4.4vw,27px)/1.2 "Bricolage Grotesque","Be Vietnam Pro",sans-serif;
+  letter-spacing:-.015em;margin:0;text-wrap:balance;
+}
+.ai{
+  font:600 11px/1 "JetBrains Mono",ui-monospace,monospace;
+  letter-spacing:.14em;text-transform:uppercase;
+  color:var(--dau);background:var(--dau-nen);
+  padding:5px 9px;border-radius:3px;white-space:nowrap;
+}
+.phan > p.dan{margin:10px 0 0;color:var(--mo);max-width:62ch}
+
+/* ───────────────── các bước ───────────────── */
+.buoc{list-style:none;margin:26px 0 0;padding:0;display:flex;flex-direction:column;gap:2px}
+.buoc > li{
+  display:grid;grid-template-columns:44px 1fr;gap:0 16px;
+  padding:18px 0;border-top:1px solid var(--vien2);
+}
+.buoc > li:first-child{border-top:0}
+.so{
+  font:800 19px/44px "Bricolage Grotesque",sans-serif;
+  text-align:center;color:var(--the);background:var(--muc);
+  border-radius:50%;width:44px;height:44px;
+  font-variant-numeric:tabular-nums;
+}
+.buoc h3{
+  font:600 17.5px/1.34 "Be Vietnam Pro",sans-serif;margin:9px 0 0;
+  align-self:center;text-wrap:balance;
+}
+.buoc .than{grid-column:2;margin-top:8px}
+.buoc .than > :first-child{margin-top:0}
+.buoc p{margin:9px 0 0}
+.buoc .phu{color:var(--mo);font-size:14.5px}
+
+kbd{
+  font:600 13.5px/1 "JetBrains Mono",ui-monospace,monospace;
+  background:var(--ma-nen);border:1px solid var(--vien);
+  border-bottom-width:2px;border-radius:5px;padding:4px 7px;
+  display:inline-block;color:var(--muc);white-space:nowrap;
+}
+code{
+  font:400 14px/1.5 "JetBrains Mono",ui-monospace,monospace;
+  background:var(--ma-nen);padding:2px 5px;border-radius:4px;
+  word-break:break-word;
+}
+
+/* đồng hồ đếm — chi tiết riêng của màn chụp ảnh */
+.dem-hop{display:flex;align-items:center;gap:14px;margin:14px 0 0}
+.dem{
+  flex:0 0 auto;width:52px;height:52px;border-radius:50%;
+  border:2.5px solid var(--dau);color:var(--dau);
+  display:grid;place-items:center;
+  font:800 22px/1 "Bricolage Grotesque",sans-serif;
+  font-variant-numeric:tabular-nums;background:var(--dau-nen);
+}
+.dem-hop p{margin:0;font-size:14.5px;color:var(--mo)}
+
+/* ───────────────── hộp lưu ý ───────────────── */
+.luu{
+  margin:22px 0 0;padding:14px 16px;border-radius:4px;
+  border:1px solid var(--vien);border-left:4px solid var(--dau);
+  background:var(--the);font-size:15px;
+}
+.luu.canh{border-color:var(--canh-vien);border-left-color:var(--canh);background:var(--canh-nen)}
+.luu.nang{border-color:var(--do-vien);border-left-color:var(--do);background:var(--do-nen)}
+.luu p{margin:0}
+.luu p + p{margin-top:9px}
+.luu .nhan{
+  display:block;font:600 11px/1 "JetBrains Mono",ui-monospace,monospace;
+  letter-spacing:.14em;text-transform:uppercase;margin:0 0 7px;
+}
+.luu.canh .nhan{color:var(--canh)}
+.luu.nang .nhan{color:var(--do)}
+.luu:not(.canh):not(.nang) .nhan{color:var(--dau)}
+
+/* ───────────────── bảng tra lỗi ───────────────── */
+.cuon{overflow-x:auto;margin:24px 0 0;border:1px solid var(--vien);border-radius:4px;background:var(--the)}
+table{border-collapse:collapse;width:100%;min-width:520px;font-size:14.5px}
+thead th{
+  text-align:left;padding:11px 14px;background:var(--the2);
+  border-bottom:1px solid var(--vien);
+  font:600 11px/1.3 "JetBrains Mono",ui-monospace,monospace;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--mo);
+}
+tbody td{padding:13px 14px;border-bottom:1px solid var(--vien2);vertical-align:top}
+tbody tr:last-child td{border-bottom:0}
+td.loi{
+  font:400 13.5px/1.5 "JetBrains Mono",ui-monospace,monospace;
+  color:var(--muc);width:43%;
+}
+td.loi .kieu{
+  display:block;font:600 10.5px/1 "JetBrains Mono",monospace;
+  letter-spacing:.1em;text-transform:uppercase;margin:0 0 6px;
+}
+.kieu.k-do{color:var(--do)}
+.kieu.k-canh{color:var(--canh)}
+.kieu.k-thuong{color:var(--mo)}
+td .ai-sua{
+  display:inline-block;margin-top:7px;
+  font:600 11px/1 "JetBrains Mono",monospace;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--mo);
+  border:1px solid var(--vien);border-radius:3px;padding:4px 7px;
+}
+
+/* ───────────────── màn hình mẫu trong từng bước ───────────────── */
+.dt{
+  width:100%;max-width:262px;margin:14px 0 0;
+  background:var(--the);border:1px solid var(--vien);border-radius:12px;
+  box-shadow:var(--bong);overflow:hidden;
+}
+.dt-thanh{
+  display:flex;align-items:center;gap:7px;
+  padding:7px 11px;background:var(--the2);border-bottom:1px solid var(--vien2);
+  font:600 10px/1 "JetBrains Mono",ui-monospace,monospace;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--mo);
+}
+.dt-thanh::before{
+  content:"";width:7px;height:7px;border-radius:50%;background:var(--luc);flex:0 0 auto;
+}
+.dt-than{padding:13px 13px 15px;display:flex;flex-direction:column;gap:9px}
+.dt-h1{font:600 17px/1.2 "Be Vietnam Pro",sans-serif;margin:0}
+.dt-mo{font-size:12.5px;color:var(--mo);margin:0;line-height:1.45}
+.dt-nh{
+  font:600 10.5px/1 "JetBrains Mono",ui-monospace,monospace;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--mo);margin:0;
+}
+.dt-o{
+  border:1px solid var(--vien);border-radius:6px;padding:9px 11px;
+  background:var(--the2);font-size:14px;color:var(--muc);
+}
+.dt-o.pin{
+  font:600 20px/1 "JetBrains Mono",monospace;letter-spacing:.34em;
+  color:var(--mo);text-align:center;padding:11px;
+}
+.dt-o.xo{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13.5px}
+.dt-o.xo::after{content:"▾";color:var(--mo);font-size:11px}
+.dt-nut{
+  border-radius:7px;padding:10px;text-align:center;
+  font:600 13.5px/1 "Be Vietnam Pro",sans-serif;letter-spacing:.02em;
+}
+.dt-nut.chinh{background:var(--dau);color:#fff}
+.dt-nut.phu{background:var(--the2);border:1px solid var(--vien);color:var(--mo);font-weight:500}
+.dt-hang{display:flex;gap:8px}
+.dt-hang > *{flex:1}
+/* khung ngắm camera */
+.dt-cam{
+  position:relative;aspect-ratio:4/5;border-radius:8px;overflow:hidden;
+  background:linear-gradient(160deg,#2a3b42,#16232a);display:grid;place-items:center;
+}
+.dt-cam .vien-mat{
+  width:56%;aspect-ratio:3/4;border:2px dashed rgba(255,255,255,.5);border-radius:46% 46% 42% 42%;
+}
+.dt-cam .dem-to{
+  position:absolute;width:46px;height:46px;border-radius:50%;
+  background:rgba(13,107,118,.92);color:#fff;display:grid;place-items:center;
+  font:800 22px/1 "Bricolage Grotesque",sans-serif;
+}
+.dt-bang{width:100%;border-collapse:collapse;font-size:11.5px;min-width:0}
+.dt-bang th,.dt-bang td{
+  text-align:left;padding:5px 6px;border-bottom:1px solid var(--vien2);
+  font-variant-numeric:tabular-nums;
+}
+.dt-bang th{
+  font:600 9.5px/1.2 "JetBrains Mono",monospace;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--mo);background:var(--the2);
+}
+.dt-bang td{font-size:11.5px}
+.dt-bang tr:last-child td{border-bottom:0}
+.dt-nhan-cs{
+  display:inline-block;font:600 9px/1 "JetBrains Mono",monospace;
+  letter-spacing:.06em;text-transform:uppercase;
+  background:var(--dau-nen);color:var(--dau);padding:3px 5px;border-radius:3px;margin-left:5px;
+}
+.dt-ghi{font-size:11.5px;color:var(--mo);margin:0}
+figure.hinh{margin:0}
+figcaption{font-size:12.5px;color:var(--mo);margin:8px 0 0;max-width:34ch}
+@media (min-width:620px){
+  .co-hinh{display:grid;grid-template-columns:1fr 262px;gap:20px;align-items:start}
+  .co-hinh .dt{margin-top:4px}
+}
+
+/* ───────────────── ảnh mẫu ô Vị trí ───────────────── */
+.mau{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
+  gap:14px;margin:18px 0 0;
+}
+.man{
+  background:var(--the);border:1px solid var(--vien);border-radius:8px;
+  padding:12px;box-shadow:var(--bong);display:flex;flex-direction:column;gap:9px;
+}
+.man-nhan{
+  font:600 10.5px/1 "JetBrains Mono",ui-monospace,monospace;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--mo);
+}
+.man-nhan em{font-style:normal;color:var(--dau)}
+.o-vt{
+  border-radius:5px;padding:9px 11px;font-size:13.2px;line-height:1.5;
+  border:1px solid;
+}
+.o-vt.xanh{background:var(--luc-nen);border-color:var(--luc);color:var(--muc)}
+.o-vt.vang{background:var(--canh-nen);border-color:var(--canh-vien);color:var(--muc)}
+.o-vt .toado{
+  font:600 13px/1.4 "JetBrains Mono",ui-monospace,monospace;
+  font-variant-numeric:tabular-nums;
+}
+.o-vt .sai{opacity:.75;font:400 12.5px/1 "JetBrains Mono",monospace}
+.o-vt .them{display:block;margin-top:5px;opacity:.85;font-size:12.5px}
+.bando{
+  width:100%;aspect-ratio:3/2;max-width:100%;border-radius:5px;
+  border:1px solid var(--vien);display:block;
+}
+.nut-gia{
+  border:1px solid var(--vien);border-radius:6px;background:var(--the2);
+  color:var(--mo);text-align:center;padding:7px;font-size:12.5px;font-weight:500;
+}
+.doc-mau{
+  font-size:13px;color:var(--mo);margin:0;
+}
+/* Bảng mức sai số — số cột phải thẳng hàng để so được. */
+.muc-bang td:first-child{
+  font:600 13.5px/1.4 "JetBrains Mono",ui-monospace,monospace;
+  font-variant-numeric:tabular-nums;white-space:nowrap;width:1%;
+}
+.cham{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;vertical-align:baseline}
+.cham.c-luc{background:var(--luc)}
+.cham.c-canh{background:var(--canh)}
+
+/* ───────────────── một ngày làm hai nơi ───────────────── */
+.doi{margin:20px 0 0;border-left:2px solid var(--vien);padding-left:0;list-style:none}
+.doi li{
+  display:grid;grid-template-columns:64px 1fr;gap:0 14px;
+  padding:0 0 18px 16px;margin-left:-2px;border-left:2px solid transparent;position:relative;
+}
+.doi li::before{
+  content:"";position:absolute;left:-7px;top:5px;width:12px;height:12px;border-radius:50%;
+  background:var(--the);border:2.5px solid var(--dau);
+}
+.doi li.ra::before{border-color:var(--canh)}
+.doi .gio{
+  font:600 14px/1.5 "JetBrains Mono",ui-monospace,monospace;
+  font-variant-numeric:tabular-nums;color:var(--muc);
+}
+.doi .viec{font-size:14.5px;line-height:1.5}
+.doi .viec b{font-weight:600}
+.doi .cs{
+  display:inline-block;font:600 11.5px/1 "JetBrains Mono",monospace;
+  background:var(--dau-nen);color:var(--dau);padding:3px 6px;border-radius:3px;
+}
+.doi .sau{
+  display:block;margin-top:6px;font-size:12.5px;color:var(--mo);
+  font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;
+}
+.bay{
+  margin:20px 0 0;border:1px solid var(--do-vien);border-radius:4px;overflow:hidden;
+}
+.bay-dau{
+  background:var(--do-nen);color:var(--do);padding:10px 14px;
+  font:600 11px/1.3 "JetBrains Mono",ui-monospace,monospace;
+  letter-spacing:.12em;text-transform:uppercase;
+}
+.bay-than{padding:13px 14px;background:var(--the);font-size:15px}
+.bay-than p{margin:0}
+.bay-than p + p{margin-top:9px}
+
+/* ───────────────── danh sách kiểm ───────────────── */
+.kiem{list-style:none;margin:22px 0 0;padding:0;display:flex;flex-direction:column;gap:10px}
+.kiem li{
+  display:grid;grid-template-columns:22px 1fr;gap:12px;align-items:start;
+  padding:13px 15px;background:var(--the);border:1px solid var(--vien);border-radius:4px;
+  font-size:15px;
+}
+.kiem li::before{
+  content:"";width:16px;height:16px;margin-top:4px;
+  border:2px solid var(--dau);border-radius:3px;
+}
+.kiem b{font-weight:600}
+
+.chan{
+  margin-block:58px 0;padding-block:22px 0;border-top:2px solid var(--muc);
+  font-size:13.5px;color:var(--mo);
+}
+.chan p{margin:0}
+.chan p + p{margin-top:6px}
+
+/* ═══════════════════ BẢN IN / PDF ═══════════════════
+   Tài liệu này được in ra dán ở cơ sở, nên bản in không phải là thứ đến sau.
+   · Ép bảng màu SÁNG: máy nào đang để giao diện tối mà in thẳng là ra một trang đen kịt,
+     tốn mực và đọc không nổi.
+   · `print-color-adjust:exact`: không có nó thì trình duyệt bỏ hết nền màu, mà màu chính là
+     thứ phân biệt ô cảnh báo với ô thường — bỏ màu là bỏ mất một tầng thông tin.
+   · Cấm ngắt trang giữa một bước hay một màn mẫu: ảnh mẫu rơi sang trang sau, tách khỏi câu
+     chữ giải thích nó, là người đọc phải lật qua lật lại.                                   */
+@media print{
+  :root{
+    --nen:#ffffff; --the:#ffffff; --the2:#f4f7f8; --vien:#c3d1d6; --vien2:#dde7ea;
+    --muc:#0c1f25; --mo:#4a6069; --dau:#0d6b76; --dau-nen:#dceff1;
+    --canh:#8a5106; --canh-nen:#fdf2e2; --canh-vien:#e3c48f;
+  }
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{background:#fff;font-size:11.5pt;line-height:1.5}
+  .khung{max-width:none;padding-inline:0;padding-block:0}
+  .dau{padding-block:0 18px}
+  h1{font-size:26pt}
+  .phan{margin-block:26px 0;break-before:page;page-break-before:always}
+  .phan:first-of-type{break-before:auto;page-break-before:auto}
+  h2{font-size:16pt}
+  .buoc > li,.man,.luu,figure.hinh,.kiem li,.dem-hop,tr{
+    break-inside:avoid;page-break-inside:avoid;
+  }
+  .cuon{overflow:visible;break-inside:auto}
+  table{min-width:0;font-size:9.5pt}
+  .dt{box-shadow:none;max-width:240px}
+  .mau{grid-template-columns:1fr 1fr}
+  a{color:var(--dau);text-decoration:none}
+  .chan{margin-block:26px 0}
+}
+
+@media (max-width:430px){
+  .buoc > li{grid-template-columns:36px 1fr;gap:0 12px}
+  .so{width:36px;height:36px;font-size:16px;line-height:36px}
+  .buoc .than{grid-column:1 / -1}
+}
+</style>
+
+<div class="khung">
+
+<header class="dau">
+  <p class="eyebrow">K&amp;H · Quy trình vận hành</p>
+  <h1>Chấm công online bằng điện thoại</h1>
+  <p>Một lượt chấm mất khoảng 20 giây: gõ PIN, chụp một tấm ảnh, chọn đúng cơ sở đang đứng. Trang này là bản dán ở cơ sở và gửi Zalo cho nhân viên mới.</p>
+  <div class="meta">
+    <span>Áp dụng: <b>mọi cơ sở đã bật chấm công online</b></span>
+    <span>Bản: <b>Chấm công 3.81.0</b></span>
+  </div>
+</header>
+
+<!-- ══════════════ PHẦN 1 ══════════════ -->
+<section class="phan">
+  <div class="phan-dau">
+    <h2>Chấm công, từng bước</h2>
+    <span class="ai">Nhân viên</span>
+  </div>
+  <p class="dan">Làm đúng thứ tự này. Năm bước, không bỏ bước nào — bước 4 mới là bước quyết định lượt chấm ghi vào đâu.</p>
+
+  <ol class="buoc">
+    <li>
+      <span class="so">1</span>
+      <h3>Mở trang chấm công</h3>
+      <div class="than">
+        <p>Mở link cơ sở gửi, bằng <b>Chrome</b> hoặc <b>Safari</b>. Lưu vào màn hình chính điện thoại để lần sau bấm một cái là vào.</p>
+        <p class="phu">Đừng mở trong trình duyệt bên trong Zalo hay Facebook — mấy trình duyệt đó hay chặn camera, và nút chụp sẽ bấm không lên.</p>
+      </div>
+    </li>
+
+    <li>
+      <span class="so">2</span>
+      <h3>Gõ PIN rồi bấm VÀO</h3>
+      <div class="than">
+        <p>PIN là <b>6 số</b> quản lý cấp. Không nhớ thì bấm <kbd>Quên PIN?</kbd> rồi gõ <b>số CCCD</b> — hệ sẽ hiện lại PIN cho chính người đó.</p>
+        <figure class="hinh">
+          <div class="dt">
+            <div class="dt-thanh">Màn đăng nhập</div>
+            <div class="dt-than">
+              <p class="dt-h1">Chấm công</p>
+              <p class="dt-mo">Gõ mã PIN của anh/chị để vào.</p>
+              <p class="dt-nh">Mã PIN</p>
+              <div class="dt-o pin">••••••</div>
+              <div class="dt-nut chinh">VÀO</div>
+              <div class="dt-nut phu">Quên PIN?</div>
+            </div>
+          </div>
+          <figcaption>Minh hoạ. Gõ đủ 6 số rồi bấm <b>VÀO</b>.</figcaption>
+        </figure>
+        <div class="luu canh">
+          <span class="nhan">Gõ sai nhiều lần thì bị khoá tạm</span>
+          <p>Sai <b>12 lần trong 10 phút</b> là cả cửa hàng dùng chung mạng ấy bị chặn tạm — vì hệ đếm theo đường mạng, không đếm theo người. Chờ hết 10 phút, hoặc chuyển sang 4G của điện thoại.</p>
+        </div>
+      </div>
+    </li>
+
+    <li>
+      <span class="so">3</span>
+      <h3>Bấm <span style="white-space:nowrap">📷 CHẤM CÔNG</span> và để máy tự chụp</h3>
+      <div class="than">
+        <p>Lần đầu điện thoại sẽ hỏi cho phép <b>camera</b> — bấm <b>Cho phép</b>. Không cho thì không chấm được.</p>
+        <div class="dem-hop">
+          <span class="dem" aria-hidden="true">5</span>
+          <p>Đưa mặt vào khung, máy đếm ngược 5 giây rồi tự chụp. Ảnh mờ hay ngược sáng thì bấm <b>Chụp lại</b>; ưng rồi thì bấm <b>Dùng ảnh này</b>.</p>
+        </div>
+        <figure class="hinh">
+          <div class="dt">
+            <div class="dt-thanh">Màn chụp ảnh</div>
+            <div class="dt-than">
+              <div class="dt-cam"><span class="vien-mat"></span><span class="dem-to">5</span></div>
+              <div class="dt-hang">
+                <div class="dt-nut chinh">Chụp ngay</div>
+                <div class="dt-nut phu">Huỷ</div>
+              </div>
+              <p class="dt-ghi">Chụp xong đổi thành <b>Dùng ảnh này</b> / <b>Chụp lại</b>.</p>
+            </div>
+          </div>
+          <figcaption>Minh hoạ. Đếm tới 0 là máy tự chụp — không phải bấm gì.</figcaption>
+        </figure>
+        <p class="phu">Giờ in trên ảnh là <b>giờ máy chủ</b>, không phải giờ điện thoại. Điện thoại chỉnh sai giờ cũng không ảnh hưởng gì tới công.</p>
+      </div>
+    </li>
+
+    <li>
+      <span class="so">4</span>
+      <h3>Chọn đúng cơ sở <em>đang đứng</em></h3>
+      <div class="than">
+        <p>Hệ hỏi cơ sở ở <b>bước cuối</b>, không hỏi lúc mở trang — để người chạy hai nơi không chọn từ sáng rồi chiều ghi nhầm chỗ.</p>
+        <p>Ai có thêm <b>nhiệm vụ</b> (Thu Tiền, Trực Ghế…) thì chọn luôn ở đây. Xong bấm <kbd>LƯU CHẤM CÔNG</kbd>.</p>
+        <figure class="hinh">
+          <div class="dt">
+            <div class="dt-thanh">Màn lưu chấm công</div>
+            <div class="dt-than">
+              <p class="dt-h1">Lưu chấm công</p>
+              <p class="dt-mo">Chọn đúng nơi anh/chị đang có mặt <em>lúc này</em>.</p>
+              <p class="dt-nh">Cơ sở đang có mặt</p>
+              <div class="dt-o xo">FZ_LTVT</div>
+              <p class="dt-nh">Nhiệm vụ</p>
+              <div class="dt-o xo">— việc chính —</div>
+              <div class="dt-nut chinh">LƯU CHẤM CÔNG</div>
+              <div class="dt-nut phu">Quay lại</div>
+            </div>
+          </div>
+          <figcaption>Minh hoạ. Ô <b>Nhiệm vụ</b> chỉ hiện với ai có khai thêm việc.</figcaption>
+        </figure>
+        <div class="luu">
+          <span class="nhan">"Cơ sở chính" không phải hạng nhất</span>
+          <p>Nhãn <b>chính</b> chỉ nghĩa là cơ sở được <b>chọn sẵn</b> trong ô. Chấm ở cơ sở nào trong danh sách cũng được tính công <b>đủ như nhau</b>.</p>
+        </div>
+      </div>
+    </li>
+
+    <li>
+      <span class="so">5</span>
+      <h3>Nhìn mục <b>Hôm nay</b> để chắc đã ghi</h3>
+      <div class="than">
+        <p>Lượt vừa chấm phải hiện ở bảng <b>Hôm nay</b> với đúng cơ sở và đúng giờ. Không thấy dòng nào thì lượt đó <b>chưa ghi</b> — làm lại.</p>
+        <figure class="hinh">
+          <div class="dt">
+            <div class="dt-thanh">Bảng Hôm nay</div>
+            <div class="dt-than">
+              <table class="dt-bang">
+                <thead><tr><th>Cơ sở</th><th>Hàng</th><th>Vào</th><th>Ra</th></tr></thead>
+                <tbody>
+                  <tr><td>FZ_LTVT</td><td>chính</td><td>08:26</td><td>—</td></tr>
+                </tbody>
+              </table>
+              <p class="dt-ghi">Chưa có giờ ra là bình thường — chiều chấm lượt nữa là nó điền vào.</p>
+            </div>
+          </div>
+          <figcaption>Minh hoạ sau lượt chấm đầu ngày.</figcaption>
+        </figure>
+      </div>
+    </li>
+  </ol>
+
+  <div class="luu">
+    <span class="nhan">Vào và ra dùng chung một nút</span>
+    <p>Lượt <b>đầu tiên</b> trong ngày thành <b>giờ vào</b>. Lượt <b>sau</b> thành <b>giờ ra</b>, và mỗi lượt muộn hơn lại đẩy giờ ra ra sau. Không có nút "ra" riêng, không sợ bấm nhầm.</p>
+    <p>Bấm hai lần liền trong cùng một giây thì lượt thứ hai bị bỏ qua — không đè mất giờ vào.</p>
+  </div>
+
+  <div class="luu">
+    <span class="nhan">Vị trí: nên bật, nhưng không bắt buộc</span>
+    <p>Trang có xin <b>vị trí</b> để ghi kèm vào phiếu. Trong nhà hay dưới hầm thường không bắt được — <b>vẫn chấm công bình thường</b>, phiếu chỉ ghi rõ là vị trí ước lượng. Đừng đứng chờ định vị.</p>
+  </div>
+
+  <h3 style="font:600 17px/1.3 'Be Vietnam Pro',sans-serif;margin:34px 0 0">Ô <em>Vị trí đang đứng</em> trông như thế nào</h3>
+  <p class="doc-mau" style="margin:8px 0 0;max-width:62ch">Bốn mẫu dưới đây là <b>minh hoạ</b> — toạ độ và bản đồ là vẽ, không phải chỗ thật. Thứ cần nhớ chỉ có hai: <b>màu của ô</b> và <b>con số ± phía sau</b>.</p>
+
+  <div class="mau">
+    <div class="man">
+      <span class="man-nhan"><em>Tốt nhất</em> · GPS đã khoá</span>
+      <div class="o-vt xanh">📍 <span class="toado">10,776412, 106,700981</span> <span class="sai">(±12m)</span></div>
+      <svg class="bando" viewBox="0 0 300 200" role="img" aria-label="Bản đồ minh hoạ quanh chỗ đang đứng">
+        <rect width="300" height="200" fill="var(--the2)"/>
+        <g stroke="var(--vien)" stroke-width="1.5" fill="none">
+          <path d="M0 58 H300 M0 132 H300 M62 0 V200 M168 0 V200 M242 0 V200"/>
+        </g>
+        <g fill="var(--vien2)">
+          <rect x="8" y="8" width="42" height="38" rx="2"/><rect x="76" y="8" width="78" height="38" rx="2"/>
+          <rect x="182" y="70" width="46" height="50" rx="2"/><rect x="8" y="146" width="42" height="44" rx="2"/>
+          <rect x="256" y="146" width="36" height="44" rx="2"/>
+        </g>
+        <circle cx="150" cy="95" r="22" fill="var(--luc)" fill-opacity="0.18" stroke="var(--luc)" stroke-width="1.5"/>
+        <circle cx="150" cy="95" r="5.5" fill="var(--luc)" stroke="var(--the)" stroke-width="2"/>
+      </svg>
+      <div class="nut-gia">Lấy lại vị trí</div>
+      <p class="doc-mau">Ô <b>xanh</b>. Đủ để nói đang đứng ở toà nhà nào.</p>
+    </div>
+
+    <div class="man">
+      <span class="man-nhan">Tạm · theo Wi-Fi</span>
+      <div class="o-vt vang">📍 <span class="toado">10,776, 106,701</span> <span class="sai">(±350m)</span>
+        <span class="them">Đang lấy theo Wi-Fi / trạm phát sóng, chưa phải GPS. Ra chỗ thoáng rồi bấm "Lấy lại vị trí".</span></div>
+      <svg class="bando" viewBox="0 0 300 200" role="img" aria-label="Bản đồ minh hoạ quanh chỗ đang đứng">
+        <rect width="300" height="200" fill="var(--the2)"/>
+        <g stroke="var(--vien)" stroke-width="1.5" fill="none">
+          <path d="M0 58 H300 M0 132 H300 M62 0 V200 M168 0 V200 M242 0 V200"/>
+        </g>
+        <g fill="var(--vien2)">
+          <rect x="8" y="8" width="42" height="38" rx="2"/><rect x="76" y="8" width="78" height="38" rx="2"/>
+          <rect x="182" y="70" width="46" height="50" rx="2"/><rect x="8" y="146" width="42" height="44" rx="2"/>
+          <rect x="256" y="146" width="36" height="44" rx="2"/>
+        </g>
+        <circle cx="150" cy="95" r="58" fill="var(--canh)" fill-opacity="0.18" stroke="var(--canh)" stroke-width="1.5"/>
+        <circle cx="150" cy="95" r="5.5" fill="var(--canh)" stroke="var(--the)" stroke-width="2"/>
+      </svg>
+      <div class="nut-gia">Lấy lại vị trí</div>
+      <p class="doc-mau">Ô <b>vàng</b>, vòng tròn to hẳn ra. Đúng khu phố, chưa chắc đúng toà nhà.</p>
+    </div>
+
+    <div class="man">
+      <span class="man-nhan">Thô · theo địa chỉ mạng</span>
+      <div class="o-vt vang">📍 <b>Chưa bắt được GPS thật.</b> Toạ độ đang lấy theo <b>địa chỉ mạng</b>, sai số <b>±8km</b> — chỉ nói được "đâu đó trong vùng này".
+        <span class="them">Vẫn chấm công được — phiếu sẽ ghi rõ là vị trí ước lượng.</span></div>
+      <p class="doc-mau"><b>Cố ý không vẽ bản đồ ở mức này.</b> Vẽ một chấm giữa Quận 1 khi sai số là 8km chính là nói dối bằng hình ảnh — người xem tin cái chấm chứ không đọc dòng ±.</p>
+    </div>
+
+    <div class="man">
+      <span class="man-nhan">Bị chặn</span>
+      <div class="o-vt vang">📍 <b>Trình duyệt đang chặn định vị.</b> Bấm biểu tượng ổ khoá 🔒 cạnh địa chỉ web → cho phép <b>Vị trí</b> → bấm "Lấy lại vị trí".
+        <span class="them">Vẫn chấm công được — phiếu sẽ ghi <b>KHÔNG có GPS</b>.</span></div>
+      <div class="nut-gia">Lấy lại vị trí</div>
+      <p class="doc-mau">Câu này chỉ cách sửa ngay trong câu. Làm theo đúng ba bước đó.</p>
+    </div>
+  </div>
+
+  <div class="cuon">
+    <table class="muc-bang">
+      <thead><tr><th scope="col">Sai số</th><th scope="col">Nghĩa là gì</th></tr></thead>
+      <tbody>
+        <tr><td><span class="cham c-luc"></span>≤ 50m</td><td>GPS đã khoá — nói được đang đứng ở <b>toà nhà nào</b>.</td></tr>
+        <tr><td><span class="cham c-canh"></span>≤ 200m</td><td>GPS chưa khoá hẳn — đúng <b>khu phố</b>. Đợi vài giây thì số này nhỏ lại.</td></tr>
+        <tr><td><span class="cham c-canh"></span>≤ 2km</td><td>Theo <b>Wi-Fi / trạm phát sóng</b>, chưa phải GPS. Chỉ đúng phường, quận.</td></tr>
+        <tr><td><span class="cham c-canh"></span>&gt; 2km</td><td>Theo <b>địa chỉ mạng</b> — <b>không</b> dùng để xác nhận có mặt, và không vẽ bản đồ.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</section>
+
+<!-- ══════════════ PHẦN 1B ══════════════ -->
+<section class="phan">
+  <div class="phan-dau">
+    <h2>Làm ở hai cơ sở trong một ngày</h2>
+    <span class="ai">Nhân viên chạy hai nơi</span>
+  </div>
+  <p class="dan">Đọc thêm phần này nếu ô <b>Cơ sở được chấm công</b> của anh/chị có từ hai dòng. Cả phần này chỉ để tránh đúng hai chuyện: <b>chấm lộn cơ sở</b>, và <b>thiếu giờ ra</b>.</p>
+
+  <div class="luu">
+    <span class="nhan">Luật gốc: mỗi cơ sở là một bảng công riêng</span>
+    <p>Hệ ghi công theo <b>từng cơ sở</b>. Làm ở hai nơi trong một ngày thì có <b>hai dòng</b> ở bảng Hôm nay, và <b>mỗi dòng phải đủ cả giờ vào lẫn giờ ra</b> — tức là <b>bốn lượt chấm</b>, không phải hai.</p>
+    <p>Hai dòng ấy <b>độc lập</b>: chưa chấm ra ở nơi cũ thì vẫn chấm vào ở nơi mới được. Hệ không chặn — nên nó cũng không nhắc.</p>
+  </div>
+
+  <div class="bay">
+    <div class="bay-dau">🔴 Cái bẫy: ô cơ sở luôn chọn sẵn cơ sở CHÍNH</div>
+    <div class="bay-than">
+      <p>Lúc bấm <b>LƯU CHẤM CÔNG</b>, ô cơ sở đã điền sẵn <b>cơ sở chính</b> của anh/chị. Đang đứng ở <b>cơ sở phụ</b> mà bấm lướt không nhìn ô là <b>lượt ấy ghi vào cơ sở chính</b>.</p>
+      <p>Hỏng kép: cơ sở phụ <b>mất trắng</b> lượt đó, còn cơ sở chính <b>mọc thêm</b> một giờ ra không có thật. Và <b>không có gì báo</b> — màn hình vẫn hiện "đã ghi".</p>
+      <p><b>Mỗi lượt, đọc lại tên cơ sở trong ô trước khi bấm Lưu.</b> Đúng một giây.</p>
+    </div>
+  </div>
+
+  <h3 style="font:600 17px/1.3 'Be Vietnam Pro',sans-serif;margin:34px 0 0">Một ngày làm hai nơi, đủ bốn lượt</h3>
+  <p class="doc-mau" style="margin:8px 0 0;max-width:62ch">Ví dụ sáng ở <code>VP_KH-HCM</code>, chiều sang <code>SETUP_VP</code>. Cột dưới mỗi việc là <b>bảng Hôm nay phải hiện ra gì</b> sau lượt ấy.</p>
+
+  <ol class="doi">
+    <li>
+      <span class="gio">08:00</span>
+      <span class="viec">Tới nơi → chấm, chọn <span class="cs">VP_KH-HCM</span>
+        <span class="sau">Hôm nay: VP_KH-HCM · vào 08:00 · ra —</span></span>
+    </li>
+    <li class="ra">
+      <span class="gio">11:45</span>
+      <span class="viec"><b>Chấm RA trước khi rời</b>, vẫn chọn <span class="cs">VP_KH-HCM</span>
+        <span class="sau">Hôm nay: VP_KH-HCM · vào 08:00 · ra 11:45</span></span>
+    </li>
+    <li>
+      <span class="gio">13:10</span>
+      <span class="viec">Tới nơi thứ hai → chấm, <b>đổi ô</b> sang <span class="cs">SETUP_VP</span>
+        <span class="sau">Hôm nay: thêm dòng SETUP_VP · vào 13:10 · ra —</span></span>
+    </li>
+    <li class="ra">
+      <span class="gio">17:30</span>
+      <span class="viec">Về → chấm, vẫn chọn <span class="cs">SETUP_VP</span>
+        <span class="sau">Hôm nay: SETUP_VP · vào 13:10 · ra 17:30</span></span>
+    </li>
+  </ol>
+
+  <div class="co-hinh">
+    <div>
+      <div class="luu">
+        <span class="nhan">Chấm RA trước khi rời, đừng để tới nơi mới</span>
+        <p>Rời rồi mới nhớ thì hai chuyện hay xảy ra: <b>quên luôn</b>, hoặc chấm ra mà ô cơ sở <b>đã nhảy</b> theo nơi mới — thành ra nơi cũ vẫn thiếu giờ ra, mà nơi mới mọc thêm một giờ vào sai.</p>
+      </div>
+      <div class="luu">
+        <span class="nhan">Cuối ngày, đếm hai thứ</span>
+        <p><b>Số dòng</b> ở bảng Hôm nay phải bằng <b>số cơ sở đã làm</b>. Và <b>mỗi dòng</b> phải có <b>cả Vào lẫn Ra</b>. Thiếu một ô nào thì báo quản lý <b>ngay trong ngày</b>.</p>
+      </div>
+    </div>
+    <figure class="hinh">
+      <div class="dt">
+        <div class="dt-thanh">Bảng Hôm nay · cuối ngày</div>
+        <div class="dt-than">
+          <table class="dt-bang">
+            <thead><tr><th>Cơ sở</th><th>Hàng</th><th>Vào</th><th>Ra</th></tr></thead>
+            <tbody>
+              <tr><td>VP_KH-HCM</td><td>chính</td><td>08:00</td><td>11:45</td></tr>
+              <tr><td>SETUP_VP</td><td>chính</td><td>13:10</td><td>17:30</td></tr>
+            </tbody>
+          </table>
+          <p class="dt-ghi">Đủ <b>2 dòng</b>, mỗi dòng <b>đủ Vào và Ra</b> — ngày đó xong.</p>
+        </div>
+      </div>
+      <figcaption>Minh hoạ. Đây là thứ phải thấy trước khi về.</figcaption>
+    </figure>
+  </div>
+
+  <div class="luu nang">
+    <span class="nhan">Chấm nhầm cơ sở rồi thì tự sửa KHÔNG được</span>
+    <p>Không có nút xoá lượt chấm — cố chấm lại cho đúng chỉ làm dòng sai thêm rối. <b>Báo quản lý ngay trong ngày</b>, họ sửa ở màn <b>Bảng công</b>. Để sang tháng sau là đụng vào bảng lương đã chốt.</p>
+  </div>
+</section>
+
+<!-- ══════════════ PHẦN 2 ══════════════ -->
+<section class="phan">
+  <div class="phan-dau">
+    <h2>Màn hình báo gì thì làm gì</h2>
+    <span class="ai">Tra nhanh</span>
+  </div>
+  <p class="dan">Tìm đúng câu đang hiện trên máy, rồi làm theo cột bên phải. Cột cuối nói ai sửa được — nhân viên tự sửa hay phải nhờ quản lý.</p>
+
+  <div class="cuon">
+    <table>
+      <thead>
+        <tr><th scope="col">Màn hình hiện</th><th scope="col">Nghĩa là gì · làm gì</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="loi"><span class="kieu k-thuong">Thường gặp</span>Phiên đã hết — đăng nhập lại bằng PIN.</td>
+          <td>Để trang mở quá lâu. Gõ lại PIN là xong, không mất gì.<span class="ai-sua">Tự làm</span></td>
+        </tr>
+        <tr>
+          <td class="loi"><span class="kieu k-do">Chặn</span>Hồ sơ của … chưa tích cơ sở nào, nên lượt chấm không biết ghi vào đâu.</td>
+          <td>Hồ sơ chưa khai cơ sở. Quản lý mở hồ sơ người này, tích ít nhất một ô ở lưới <b>Cơ sở</b> rồi Lưu.<span class="ai-sua">Quản lý</span></td>
+        </tr>
+        <tr>
+          <td class="loi"><span class="kieu k-do">Chặn</span>Cơ sở "…" trong hồ sơ của anh/chị đang đặt là CHỈ QUẢN LÝ — không chấm công ở đó.</td>
+          <td>Hồ sơ có cơ sở đó, nhưng đánh dấu <b>chỉ QL</b> — quản người chứ không làm ở đó. Nay có làm thật thì nhờ quản lý bỏ ô <b>chỉ QL</b>.<span class="ai-sua">Quản lý</span></td>
+        </tr>
+        <tr>
+          <td class="loi"><span class="kieu k-canh">Chọn lại</span>Bạn không có ở cơ sở "…". Chọn lại cơ sở.</td>
+          <td>Chọn nhầm cơ sở không có trong hồ sơ. Chọn lại cho đúng. Nếu thật sự mới chuyển sang đó thì nhờ quản lý tích thêm cơ sở.<span class="ai-sua">Tự làm</span></td>
+        </tr>
+        <tr>
+          <td class="loi"><span class="kieu k-canh">Chọn lại</span>Bạn không được khai nhiệm vụ "…".</td>
+          <td>Nhiệm vụ đó chưa khai trong hồ sơ. Bỏ chọn nhiệm vụ là chấm được ngay; muốn tính đúng việc thì nhờ Admin bổ sung.<span class="ai-sua">Admin</span></td>
+        </tr>
+        <tr>
+          <td class="loi"><span class="kieu k-canh">Sai khung giờ</span>Giờ này không thuộc hàng tăng ca / ca đêm.</td>
+          <td>Chỉ gặp ở khối Văn phòng. Giờ đang chấm rơi vào ca ngày nhưng hệ đang định ghi sang hàng tăng ca — báo quản lý, <b>đừng chấm lại nhiều lần</b>.<span class="ai-sua">Quản lý</span></td>
+        </tr>
+        <tr>
+          <td class="loi"><span class="kieu k-do">Chặn</span>Tài khoản này chưa bật chấm công online.</td>
+          <td>Hồ sơ chưa có <b>Mã NV</b>. Không có mã thì lượt chấm không bám vào ai được.<span class="ai-sua">Quản lý</span></td>
+        </tr>
+        <tr>
+          <td class="loi"><span class="kieu k-do">Khó đoán nhất</span>PIN không đúng — dù gõ đúng PIN</td>
+          <td>Gần như chắc là <b>vai trò trong hồ sơ ghi một tên hệ không có</b> (gõ tay, sót từ sổ cũ). Cổng chối nhưng chỉ nói được "PIN không đúng". Quản lý xem dải <b>⛔ vai không vào được cổng</b> ở màn Quản lý nhân sự.<span class="ai-sua">Kế toán</span></td>
+        </tr>
+        <tr>
+          <td class="loi"><span class="kieu k-do">Chặn</span>Quên PIN → "Hồ sơ có nhưng chưa được cấp mật khẩu đăng nhập."</td>
+          <td>Hồ sơ có thật nhưng chưa ai cấp PIN cho người này. Quản lý mở hồ sơ, đặt PIN 6 số rồi Lưu.<span class="ai-sua">Quản lý</span></td>
+        </tr>
+        <tr>
+          <td class="loi"><span class="kieu k-canh">Không bấm được</span>Bấm 📷 CHẤM CÔNG mà không lên camera</td>
+          <td>Chưa cho phép camera, hoặc đang mở trong trình duyệt của Zalo/Facebook. Bấm ổ khoá 🔒 cạnh địa chỉ web → cho phép <b>Camera</b>, hoặc mở lại bằng Chrome/Safari.<span class="ai-sua">Tự làm</span></td>
+        </tr>
+        <tr>
+          <td class="loi"><span class="kieu k-thuong">Không sao</span>📍 Chưa bắt được vị trí</td>
+          <td>Bình thường khi ở trong nhà. <b>Vẫn chấm công được.</b> Ra chỗ thoáng rồi bấm <b>Lấy lại vị trí</b> nếu muốn phiếu có toạ độ chính xác.<span class="ai-sua">Bỏ qua</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="luu nang">
+    <span class="nhan">Trang đứng im, không hiện gì cả</span>
+    <p>Mở địa chỉ trang chấm công rồi thêm <code>?viec=chan_doan</code> vào cuối. Nó in ra một trang chữ: bản plugin, giờ máy chủ, bảng đã dựng chưa. <b>Chụp màn hình đó gửi đi</b> — nó không in tên ai, không in PIN, ai mở cũng được.</p>
+  </div>
+</section>
+
+<!-- ══════════════ PHẦN 3 ══════════════ -->
+<section class="phan">
+  <div class="phan-dau">
+    <h2>Trước khi cho một người chấm online</h2>
+    <span class="ai">Cửa hàng trưởng</span>
+  </div>
+  <p class="dan">Bốn ô này thiếu một ô là người ta đứng ở quầy bấm mãi không được, mà màn hình lại báo một câu nghe như hỏng máy. Soát trước, đừng để họ tự phát hiện.</p>
+
+  <ul class="kiem">
+    <li><div><b>Có Mã NV</b> trong hồ sơ — không có mã thì lượt chấm không bám vào ai.</div></li>
+    <li><div><b>Có PIN 6 số</b> — và người ấy biết nó. Chưa có thì cấp ở màn Hồ sơ.</div></li>
+    <li><div><b>Đã tích ít nhất một cơ sở</b> ở lưới Cơ sở, và cơ sở người ta thật sự làm <b>không</b> bị đánh dấu <b>chỉ QL</b>.</div></li>
+    <li><div><b>Vai trò là một vai có thật</b> trong hệ — vai gõ tay sai một chữ là họ gõ đúng PIN vẫn bị chối.</div></li>
+  </ul>
+
+  <div class="luu">
+    <span class="nhan">Cuối ngày</span>
+    <p>Mở <b>Bảng công</b> của cơ sở, nhìn ai thiếu giờ ra. Quên chấm thì <b>chấm bù</b> ngay trong ngày — để sang tháng mới sửa là đụng vào bảng lương đã chốt.</p>
+  </div>
+</section>
+
+<!-- ══════════════ PHẦN 4 ══════════════ -->
+<section class="phan">
+  <div class="phan-dau">
+    <h2>Bật chấm công online cho một cơ sở</h2>
+    <span class="ai">Admin · Kế toán</span>
+  </div>
+  <p class="dan">Đọc hết mục này trước khi bật cho cơ sở đầu tiên. Hai điều dưới đây không có gì báo khi làm sai.</p>
+
+  <div class="luu nang">
+    <span class="nhan">Bật rồi thì lương phải tính từ hệ thống, không tính từ sheet</span>
+    <p>Từ lúc một cơ sở chuyển sang chấm online, lượt online <b>không còn vào sheet</b> nữa — sheet chỉ còn lượt của máy chấm công. Tính lương từ sheet là <b>thiếu công của đúng những người chấm bằng điện thoại</b>, mà khối Văn phòng thì gần như chỉ chấm bằng điện thoại.</p>
+  </div>
+
+  <div class="luu canh">
+    <span class="nhan">Đối chiếu khuôn mặt: để chạy im vài tuần đã</span>
+    <p>Hệ so mặt <b>sau khi giờ đã ghi</b>, nên mạng rớt giữa chừng chỉ mất phần đối chiếu, lượt chấm vẫn nguyên.</p>
+    <p>Mặc định chạy chế độ <b>im</b>: có so, có ghi nhật ký, <b>không gắn cờ</b>. Ngưỡng <code>0,60</code> là số của ngành, không phải số của K&amp;H — nó đổi theo ánh sáng từng cơ sở và đời camera. Bật cờ ngay bằng số mặc định thì hoặc cả trăm cờ oan (hai tuần sau không ai mở màn cờ nữa, cờ thật chìm theo), hoặc không cờ nào mà tưởng là sạch. Chạy im, đọc nhật ký, rồi mới chọn ngưỡng theo số đo được.</p>
+  </div>
+
+  <div class="luu">
+    <span class="nhan">Ảnh và băng thông</span>
+    <p>Ảnh được thu nhỏ về <b>720px ngay trên điện thoại</b> trước khi gửi, nên cơ sở dùng 3G vẫn chấm được. Không cần dặn nhân viên chỉnh gì.</p>
+  </div>
+</section>
+
+<footer class="chan">
+  <p>Quy trình này mô tả đúng hành vi của bản <b>Chấm công 3.81.0</b>. Câu chữ trong bảng tra lỗi lấy nguyên văn từ hệ thống.</p>
+  <p>Có câu lỗi nào không nằm trong bảng thì chụp màn hình gửi về — bảng này sẽ được bổ sung.</p>
+</footer>
+
+</div>

@@ -295,6 +295,16 @@ class VHNB_Trang {
 		$them( 'VHCC_Web',  'url',     '🕐', 'Chấm công' );
 		$them( 'VHCC_Tram', 'url',     '📷', 'Chấm công online' );
 		$them( 'VHCP_App',  'app_url', '💰', 'Vận hành chi phí' );
+		/* Bản chi phí RIÊNG CỦA VÙNG (`VHCPHN_App`…) — anh Thắng 08/09/2026: *"đẩy link trang chi
+		   phí hà nội vào trang nội bộ để theo dõi"*. Dò theo khuôn tên mà `tools/tach-ban-vung.sh`
+		   sinh ra, nên vùng mới tự lên, khỏi phải nhớ sửa thêm ở đây.
+		   ⚠️ Đây là NHÁNH LUI (chưa cài plugin Cổng). Chỗ khai đầy đủ — kèm tên plugin thật — vẫn
+		      là `VHTC_Trang::app_vung()`; ở đây chỉ cần trang không cụt đường. */
+		foreach ( get_declared_classes() as $lop ) {
+			if ( preg_match( '/^VHCP([A-Z0-9]{1,8})_App$/', $lop, $m ) ) {
+				$them( $lop, 'app_url', '💰', 'Vận hành chi phí (' . $m[1] . ')' );
+			}
+		}
 		$them( 'VHG_Trang', 'url',     '💺', 'Ghế massage' );
 		$them( 'VHD_Trang', 'url',     '📄', 'Thư viện hợp đồng' );
 		/* JP tách hai ô y như sổ chính bên `VHTC_Trang::ds_app()` — `dia_chi()` nhận một tham số
@@ -817,6 +827,11 @@ class VHNB_Trang {
 			foreach ( self::ds_trang_khac() as $tr ) {
 				if ( class_exists( 'VHTC_Trang' ) && method_exists( 'VHTC_Trang', 'url' )
 					&& $tr['url'] === VHTC_Trang::url() ) { continue; }   // đã có nút Cổng riêng
+				/* Bỏ nút quản trị đã tích ẩn. ẨN KHỎI THANH KHÔNG PHẢI CẤM QUYỀN — người có
+				   quyền vẫn vào được bằng địa chỉ và vẫn thấy trang ấy ở Cổng K&H. Xem
+				   VHNB_Thanh. */
+				if ( class_exists( 'VHNB_Thanh' ) && method_exists( 'VHNB_Thanh', 'hien' )
+					&& ! VHNB_Thanh::hien( $tr['url'] ) ) { continue; }
 				echo '<a class="nut" href="' . esc_url( $tr['url'] ) . '">'
 					. esc_html( $tr['icon'] . ' ' . $tr['ten'] ) . '</a>';
 			}
@@ -925,6 +940,10 @@ class VHNB_Trang {
 			$h = VHCC_Cty::html();
 			if ( '' !== $h ) { echo '<div class="bo">' . $h . '</div>'; }
 		}
+		/* Dải nhắc chỗ chấm công — vẽ SAU chân trang, ngay trước `</body>`. Đặt ở đầu trang
+		   thì nó đẩy cả nội dung xuống và người đang đọc bảng tin mất chỗ đang đọc. Lớp tự
+		   im khi chưa bật hoặc đã hết hạn (xem VHNB_Nhac::nen_ve). */
+		if ( class_exists( 'VHNB_Nhac' ) && method_exists( 'VHNB_Nhac', 've' ) ) { VHNB_Nhac::ve(); }
 		echo '</body></html>';
 	}
 
@@ -1378,7 +1397,11 @@ class VHNB_Trang {
 
 	private static function bang_tin( $toi, $nhom, $g ) {
 		$trang = isset( $_GET['tr'] ) ? max( 1, (int) $_GET['tr'] ) : 1;
-		$ds    = VHNB_Bai::bang_tin( $nhom, $trang, $g );
+		/* ⚠️ PHẢI truyền `$toi` — lõi cần biết ai đang xem để lọc bài có bậc (thông báo giao
+		   dịch chỉ từ Cửa hàng trưởng trở lên). Bỏ tham số này là nó rơi về "chỉ bài công
+		   khai" và quản lý mất luôn thông báo, chứ KHÔNG phải nhân viên xem được — hỏng theo
+		   chiều an toàn, nhưng vẫn là hỏng. */
+		$ds    = VHNB_Bai::bang_tin( $nhom, $trang, $g, $toi );
 		if ( ! $ds ) {
 			echo '<div class="the"><p class="mo">Chưa có bài nào'
 				. ( $g > 0 ? ' trong nhóm này' : ( '' !== $nhom ? ' ở ' . esc_html( $nhom ) : '' ) )

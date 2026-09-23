@@ -31,7 +31,8 @@
  *    Nếu để trống mà hiểu thành cấm hết thì ngay giây phút bản này lên, mọi kế toán đang chạy
  *    đều mù: 240 người dùng, không ai có ô đó, và không ai hiểu vì sao đơn biến mất. Một bản
  *    nâng cấp không được phép làm gãy thứ đang chạy để chờ người ta đi khai lại từng dòng.
- *    Mặc định: Admin · Kế toán · Quản lý -> XEM CẢ; còn lại -> chỉ nhà mình.
+ *    Mặc định: Admin · Kế toán · Quản lý -> XEM CẢ; ai ở NHÀ MẸ (K&H) -> XEM CẢ bất kể vai
+ *    (xem khối 🔴 ở `DON_VI_ME_MAC_DINH`); còn lại -> chỉ nhà mình.
  *    Muốn siết kế toán POSH lại thì khai thẳng "POSH" vào ô đó — một dòng, cố ý, thấy được.
  */
 
@@ -42,28 +43,90 @@ class VHCP_DonVi {
 	/** Nhà mặc định. Đơn cũ (chưa có cột) và người chưa khai đều rơi về đây. */
 	const MAC_DINH = 'K&H';
 
-	/**
-	 * Vai được nhìn cả hệ khi ô "Xem đơn vị" còn trống.
+	/* 🔴 ĐÃ BỎ `VAI_XEM_CA` (12/09/2026). Nó là đường thứ ba trả lời câu "được đọc sổ nhà
+	   nào", cạnh cột "Đơn vị" và cột "Xem đơn vị" — ba đường thì lệch nhau, và đã lệch thật
+	   hai lần. Nay chỉ còn NHÀ quyết định: nhà mẹ nhìn cả hệ, nhà khác nhìn nhà mình, bất kể
+	   vai. Vai trò vẫn quyết định ĐƯỢC LÀM GÌ, ở bảng Phân quyền (Hành động × Vai trò). */
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════
+	 * ĐƠN VỊ MẸ — NHÀ NÀY NHÌN CẢ HỆ.
 	 *
-	 * ⚠️ PHẢI LÀ TÊN VAI GỐC ĐÚNG NHƯ `VHCP_Cfg::VAI_GOC` VIẾT — 'Kế toán cá nhân' và
-	 *    'Kế toán NCC', không phải 'Kế toán'. Viết sai một chữ thì `vai_goc()` đưa vai lạ về
-	 *    'Nhân viên', và kế toán nào cũng chỉ còn thấy đơn do chính mình lập: danh sách trống
-	 *    trơn, không câu lỗi nào, không ai đoán ra vì sao.
-	 */
-	const VAI_XEM_CA = array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC' );
+	 * Anh Thắng 11/09/2026, sau khi mở màn Cấu hình thấy bảng "🏢 Mã đơn vị theo Cơ sở" trắng
+	 * trơn và tưởng mất dữ liệu: *"thấy rồi, do để đơn vị K&H nên không thấy. Để K&H là xem
+	 * được tất cả đơn vị"*.
+	 *
+	 * 🔴 K&H KHÔNG NGANG HÀNG VỚI POSH VÀ KVC. Ba cái tên nằm chung một cột nên trông như ba
+	 *    anh em, nhưng K&H là nhà mẹ: POSH và KVC là hai mảng tách ra từ đó. Bó nhân viên K&H
+	 *    lại chỉ thấy K&H là bó chính người phải nhìn toàn cục — còn chiều ngược lại (POSH
+	 *    không thấy K&H) thì vẫn đúng và vẫn giữ.
+	 *
+	 * ⚠️ CHỈ ÁP KHI Ô "Xem đơn vị" ĐỂ TRỐNG. Khai thẳng "K&H" vào ô ấy vẫn là bó lại đúng K&H
+	 *    — đó là đường siết một người nhà mẹ lại, và `kiem-tach-don-vi-posh.php` đang dựa vào
+	 *    nó. Ô khai tay luôn thắng luật mặc định, y như với vai.
+	 *
+	 * ⚠️ HỆ QUẢ PHẢI BIẾT: `chuan('')` đưa ô trống về đúng nhà mẹ, nên NGƯỜI CHƯA KHAI ĐƠN VỊ
+	 *    cũng nhìn cả hệ. Đó là hành vi thời chưa tách đơn vị, nên không có gì đang chạy bị
+	 *    gãy — nhưng người POSH/KVC mà quên khai ô Đơn vị thì thấy cả sổ K&H. Khai đủ cột
+	 *    "Đơn vị" ở Cấu hình → Người dùng là việc bắt buộc, không phải tuỳ chọn.
+	 *
+	 * Đổi tên nhà mẹ (hay tắt hẳn luật này) bằng khoá `vhcp_dv_me`; để trống khoá = tắt.
+	 * ══════════════════════════════════════════════════════════════════════════════════════ */
+
+	/** Nhà mẹ mặc định. Tách hẳn khỏi `MAC_DINH` dù nay trùng giá trị: hai câu hỏi khác nhau
+	 *  ("ô trống rơi về đâu" với "ai nhìn cả hệ"), gộp lại là ngày đổi một cái kéo theo cái kia. */
+	const DON_VI_ME_MAC_DINH = 'K&H';
+
+	/** Tên nhà mẹ đang đặt. '' = không có nhà mẹ, mọi đơn vị ngang hàng. */
+	public static function don_vi_me() {
+		$x = get_option( 'vhcp_dv_me', null );
+		if ( ! is_string( $x ) ) { return self::DON_VI_ME_MAC_DINH; }
+		return trim( $x );
+	}
+
+	/** Nhà này có phải nhà mẹ không. */
+	public static function la_don_vi_me( $don_vi ) {
+		$me = self::don_vi_me();
+		return ( '' !== $me ) && self::bang( $me, $don_vi );
+	}
 
 	/* ====================================================================== danh sách */
 
 	/**
 	 * Các đơn vị đang có.
 	 *
-	 * ⚠️ ĐỌC TỪ CHÍNH BẢNG NGƯỜI DÙNG, không giữ một danh sách riêng. Hai danh sách là sớm
-	 *    muộn lệch: ai đó khai "POSH " (thừa dấu cách) cho một tài khoản thì đơn vị ấy có
-	 *    thật trong dữ liệu mà không có trong danh mục — và mọi ô lọc dựng từ danh mục sẽ
-	 *    không bao giờ chạm tới đơn của họ.
+	 * ⚠️ ĐỌC TỪ CHÍNH DỮ LIỆU, không giữ một danh sách riêng. Hai danh sách là sớm muộn lệch:
+	 *    ai đó khai "POSH " (thừa dấu cách) ở một chỗ thì đơn vị ấy có thật trong dữ liệu mà
+	 *    không có trong danh mục — và mọi ô lọc dựng từ danh mục sẽ không bao giờ chạm tới
+	 *    đơn của họ.
+	 *
+	 * 🔴 PHẢI ĐỌC CẢ DANH MỤC CƠ SỞ, VÀ ĐỌC TRƯỚC HAI NGUỒN KIA.
+	 *    Anh Thắng 08/09/2026, sau khi đã khai xong khối "ĐƠN VỊ POSH · 1 cơ sở" ở danh mục
+	 *    cơ sở: *"đơn vị posh chưa có"* — hộp tích "Xem đơn vị" vẫn trơ mỗi K&H.
+	 *
+	 *    Vì hàm này trước chỉ nhìn bảng NGƯỜI DÙNG và cột `don_vi` trên ĐƠN. Cả hai đều là
+	 *    thứ có SAU: muốn có người POSH thì phải tích được "Xem đơn vị POSH", muốn tích được
+	 *    thì POSH phải nằm trong danh sách này, muốn nằm trong danh sách thì phải có người
+	 *    POSH. Vòng luẩn quẩn khoá chặt — không cách nào mở được đơn vị thứ hai.
+	 *
+	 *    Mà DANH MỤC CƠ SỞ mới đúng là nơi khai: `cua_coso()` đã lấy chính bảng ấy làm chốt
+	 *    duy nhất cho câu "dòng chi này của bên nào". Nơi khai ranh giới và nơi liệt kê ranh
+	 *    giới phải là một, không thì khai xong vẫn như chưa khai.
 	 */
 	public static function ds() {
+		/* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG, ghi lại để lần sau khỏi đuổi theo: bỏ hạt giống này KHÔNG
+		   đổi kết quả hôm nay, vì `get_users()` luôn gieo lại tài khoản Admin với ô Đơn vị
+		   trống, và ô trống thì `chuan()` đưa về đúng nhà mặc định. Giữ nó vì cái "luôn" ấy là
+		   chuyện của MỘT hàm khác: ngày nào `get_users()` thôi gieo, mất K&H khỏi danh sách là
+		   mọi dòng cũ (ô Đơn vị trống) rơi vào một đơn vị không ô lọc nào chạm tới — hỏng lặng
+		   lẽ, không câu lỗi nào. `kiem-don-vi-moi-hien-ra.php` có phép đối chứng canh giả định
+		   ấy, nên nếu nó gãy thì bài kiểm đỏ ở đúng chỗ gãy. */
 		$ra = array( self::MAC_DINH => 1 );
+		/* Danh mục cơ sở — NƠI KHAI. `cosoDonVi` đã qua `chuan()` lúc dựng, xem `cfg_static()`. */
+		$cfg = VHCP_Cfg::cfg_static();
+		foreach ( (array) ( isset( $cfg['cosoDonVi'] ) ? $cfg['cosoDonVi'] : array() ) as $d ) {
+			$d = self::chuan( $d );
+			$ra[ $d ] = 1;
+		}
 		foreach ( VHCP_Cfg::get_users() as $u ) {
 			$d = self::chuan( isset( $u['donVi'] ) ? $u['donVi'] : '' );
 			$ra[ $d ] = 1;
@@ -85,6 +148,94 @@ class VHCP_DonVi {
 			if ( '' !== $d ) { $out[] = $d; }
 		}
 		return $out;
+	}
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════
+	 * MỘT ĐƠN = MỘT CƠ SỞ, HAY MỘT ĐƠN NHIỀU CƠ SỞ — TUỲ ĐƠN VỊ.
+	 *
+	 * Anh Thắng 09/09/2026: *"đối với kvc chọn theo cơ sở để lên đơn, còn đối với [POSH], 1 đơn
+	 * sẽ nhiều cơ sở cho từng chi phí nhỏ"*. Chốt trục phân biệt: *"theo trục đơn vị"*.
+	 *
+	 * 🔴 KHÔNG PHẢI DỰNG MỚI — LÀ MỞ LẠI. Bảng tạm ứng khoá theo CẶP `(ma_don, coso)` ngay từ
+	 *    đầu, và màn đơn vẫn trả `tamUng` dạng bảng tra theo cơ sở. Luật "một đơn = một cơ sở"
+	 *    là lớp khoá GẮN THÊM ngày 01/09/2026, đúng lúc ấy đúng cho KVC: tiền giao cho một người
+	 *    ở một gian rồi đối chiếu theo gian đó, nên xin tạm ứng nơi này mà chi nơi khác là sai.
+	 *    Mảng POSH đi ngược lại: một đợt chi rải qua nhiều gian, mỗi dòng nhỏ một gian.
+	 *
+	 * ⚠️ ĐỐI CHIẾU THỪA/THIẾU VẪN TÍNH THEO CẢ ĐƠN, không tách theo gian — anh Thắng chốt
+	 *    *"tính theo 1 đơn"*. Phần cộng tiền sẵn đã cộng hết mọi cơ sở của đơn nên không đụng.
+	 *
+	 * ⚠️ KHAI THÊM ĐƠN VỊ thì đặt khoá `vhcp_dv_nhieu_coso` (danh sách ngăn bằng dấu phẩy).
+	 *    Để mặc định trong hằng chứ không rải chữ "POSH" khắp mã: đổi một chỗ là xong.
+	 * ══════════════════════════════════════════════════════════════════════════════════════ */
+
+	/** Đơn vị nào cho một đơn ghép nhiều cơ sở — mặc định, đổi được bằng khoá cấu hình. */
+	const NHIEU_COSO_MAC_DINH = 'POSH';
+
+	/** Đơn vị này có cho một đơn ghép nhiều cơ sở không. */
+	public static function nhieu_coso( $don_vi ) {
+		$ds = get_option( 'vhcp_dv_nhieu_coso', null );
+		if ( ! is_string( $ds ) || '' === trim( $ds ) ) { $ds = self::NHIEU_COSO_MAC_DINH; }
+		foreach ( explode( ',', $ds ) as $x ) {
+			if ( '' !== trim( $x ) && self::bang( $x, $don_vi ) ) { return true; }
+		}
+		return false;
+	}
+
+	/**
+	 * BẢN NÀY CÓ THEO LUẬT "KHÔNG TẠM ỨNG THÌ MỖI DÒNG MỘT CƠ SỞ" KHÔNG.
+	 *
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 14/09/2026: *"Đối với bộ phận văn phòng và máy tự động — nếu nhập tạm ứng thì nó
+	 * sẽ khóa theo cơ sở chọn tạm ứng; còn nếu không nhập tạm ứng mà nhập chi phí bình thường
+	 * thì cho cơ chế mỗi chi phí sẽ 1 cơ sở, nên không khóa cơ sở đó lại"*.
+	 *
+	 * 🔴 HAI CÁCH LÀM VIỆC KHÁC NHAU, KHÔNG PHẢI HAI SỞ THÍCH.
+	 *    · CÓ TẠM ỨNG: tiền đã giao cho một người ở một gian, rồi đối chiếu thừa/thiếu theo
+	 *      chính gian ấy. Xin ứng gian này mà chi gian khác là sổ không khớp — khoá là đúng.
+	 *    · KHÔNG TẠM ỨNG: người ta tiêu tiền túi hoặc trả thẳng nhà cung cấp, rồi gom một đợt
+	 *      để thanh toán. Văn phòng và Máy tự động chi kiểu ấy: một đợt rải qua nhiều gian, mỗi
+	 *      dòng một gian. Khoá cả đơn theo dòng đầu là ép họ lập năm đơn cho một đợt chi.
+	 *
+	 * 🔴 KVC KHÔNG ĐỔI. Hằng này để `false` ở bản gốc; script `tools/tach-ban-vung.sh` bật `true`
+	 *    cho bản mảng riêng. Anh Thắng đã dặn *"đừng can thiệp gì bên phần chi phí khu vui chơi"*,
+	 *    và luật một-đơn-một-gian bên ấy là có lý do riêng của nó (xem khối trên).
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 */
+	const MO_KHI_KHONG_TAM_UNG = false;
+
+	/**
+	 * Đơn này có được ghép nhiều cơ sở không.
+	 *
+	 * Hai đường, cùng trả lời một câu:
+	 *   1. ĐƠN VỊ của đơn nằm trong danh sách cho ghép (POSH) — luật cũ, không đổi.
+	 *   2. Bản này theo luật "không tạm ứng thì mở", và đơn ấy CHƯA có đồng tạm ứng nào.
+	 *
+	 * ⚠️ THƯỚC ĐO LÀ "CÓ DÒNG TẠM ỨNG MANG CƠ SỞ HAY KHÔNG", không phải "tổng tiền ứng > 0".
+	 *    Người ta lưu tạm ứng 0đ cho một gian để đánh dấu "đơn này thuộc gian ấy, kế toán chi bù
+	 *    khi quyết toán" — đó VẪN là chốt gian, và phải khoá. Đo bằng số tiền là mở toang đúng
+	 *    những đơn ấy.
+	 *
+	 * 🔴 VÀ NÓ PHẢI ĐÓNG LẠI ĐƯỢC: thêm một dòng tạm ứng vào đơn đang mở là đơn chốt gian ngay
+	 *    từ lượt đọc sau. Hàm hỏi thẳng bảng mỗi lượt nên không có trạng thái nào kẹt lại.
+	 */
+	public static function don_nhieu_coso( $ma_don ) {
+		$d = VHCP_Don::don_row( $ma_don );
+		if ( ! $d ) { return false; }
+		if ( self::nhieu_coso( self::chuan( isset( $d['don_vi'] ) ? $d['don_vi'] : '' ) ) ) { return true; }
+		if ( ! self::MO_KHI_KHONG_TAM_UNG ) { return false; }
+		return ! self::don_co_tam_ung( $ma_don );
+	}
+
+	/** Đơn này đã có dòng tạm ứng nào mang cơ sở chưa. */
+	public static function don_co_tam_ung( $ma_don ) {
+		global $wpdb;
+		$tt = VHCP_DB::t( 'tamung' );
+		$n  = $wpdb->get_var( $wpdb->prepare(
+			"SELECT COUNT(*) FROM $tt WHERE ma_don=%s AND coso<>''",
+			(string) $ma_don
+		) );
+		return ( (int) $n ) > 0;
 	}
 
 	/** Bỏ khoảng trắng thừa; rỗng -> nhà mặc định. KHÔNG hạ chữ thường: tên hiện lên màn. */
@@ -132,19 +283,27 @@ class VHCP_DonVi {
 	 *    Admin. `null` = không lọc, nên không có gì rơi ra được.
 	 */
 	public static function xem_duoc() {
-		$u = self::dong_nguoi( VHCP_Auth::nguoi() );
-		$xem = ( $u && isset( $u['xemDonVi'] ) ) ? trim( (string) $u['xemDonVi'] ) : '';
-		if ( '' !== $xem ) {
-			$ds = array();
-			foreach ( explode( ',', $xem ) as $x ) {
-				$x = trim( $x );
-				if ( '' !== $x ) { $ds[] = $x; }
-			}
-			if ( $ds ) { return $ds; }
-		}
-		/* Ô để trống -> theo mặc định của VAI GỐC (vai tự tạo đã quy về gốc ở cửa vào). */
-		if ( in_array( VHCP_Auth::vai_tro(), self::VAI_XEM_CA, true ) ) { return null; }
-		return array( self::cua_toi() );
+		/* 🔴 MỘT CỘT, MỘT LUẬT — anh Thắng 12/09/2026: *"Đơn vị với xem đơn vị là 1, đã thuộc
+		   đơn vị đó thì toàn quyền xem của mình. Đã phân quyền xem và cấp quyền nên không sợ
+		   bị ngoài luồng thông tin"*.
+
+		   Trước bản này có HAI cột đứng cạnh nhau, tên gần giống — "Đơn vị" (nhà của người ấy,
+		   quyết định đơn họ lập rơi về đâu) và "Xem đơn vị" (những nhà họ đọc được) — cộng một
+		   luật thứ ba nữa là VAI_XEM_CA. Ba đường cùng trả lời một câu hỏi, nên lệch nhau là
+		   chuyện sớm muộn, và lệch thì hỏng theo kiểu tệ nhất: đơn ghi xong biến mất ngay
+		   trước mắt người vừa lập, không một câu lỗi. Đã cắn thật hai lần (09/09 anh Quyền,
+		   rồi 12/09 khi khai KVC cho loạt tài khoản nhân viên).
+
+		   Nay chỉ còn ĐÚNG MỘT NGUỒN: cột "Đơn vị". Nhà mẹ (K&H) nhìn cả hệ, nhà khác nhìn
+		   đúng nhà mình — bất kể vai. Ai được LÀM GÌ thì hỏi bảng Phân quyền (Hành động × Vai
+		   trò), đó mới là nơi gác việc; chỗ này chỉ trả lời "được đọc sổ của nhà nào".
+
+		   ⚠️ Trường `xemDonVi` trong sổ KHÔNG bị xoá — bảng cũ khôi phục lại vẫn đọc được, và
+		      nếu ngày nào cần tách lại hai cột thì dữ liệu còn nguyên. Chỉ là không ai đọc
+		      tới nữa, nên không còn chỗ nào lệch được. */
+		$nha = self::cua_toi();
+		if ( self::la_don_vi_me( $nha ) ) { return null; }
+		return array( $nha );
 	}
 
 	/** Người đang gọi có được đọc đơn vị này không. */
@@ -274,36 +433,44 @@ class VHCP_DonVi {
 	 *
 	 * Anh Thắng 08/09/2026: *"Làm phần phân quyền ai xem được"*.
 	 *
-	 * 🔴 KHAI SAI Ô NÀY HỎNG THEO KIỂU IM LẶNG NHẤT. Ô "Xem đơn vị" trước là ô gõ tay; gõ
-	 *    "POS", hay nhầm sang tên CƠ SỞ ("POSH HCM"), thì tên ấy không khớp đơn vị nào — người
-	 *    đó không xem được gì, màn trắng trơn, không câu lỗi nào. Người khai thì tin là xong.
+	 * 🔴 KHAI SAI Ô NÀY HỎNG THEO KIỂU IM LẶNG NHẤT. Gõ "POS", hay nhầm sang tên CƠ SỞ
+	 *    ("POSH HCM"), thì tên ấy không khớp đơn vị nào — người đó không xem được gì, màn
+	 *    trắng trơn, không câu lỗi nào. Người khai thì tin là xong.
 	 *
-	 *    Bản 1.91.0 đổi ô ấy thành hộp tích nên khai mới không lạc được nữa. Nhưng dòng đã khai
-	 *    từ trước vẫn nằm đó, và chúng chính là những dòng cần soi.
+	 * 🔴 SOI CỘT "ĐƠN VỊ", KHÔNG PHẢI "XEM ĐƠN VỊ" — đổi 12/09/2026 cùng lượt gộp hai cột làm
+	 *    một (xem khối ở `xem_duoc()`). Nay chỉ còn một cột quyết định cả hai việc (đơn người
+	 *    ấy lập rơi về đâu, và họ đọc được sổ nào), nên gõ lạc ở đây hỏng NẶNG GẤP ĐÔI lúc
+	 *    trước: vừa không thấy sổ nào, vừa lập ra đơn không ai mở lại được.
 	 *
 	 * ⚠️ KHÔNG TỰ RỬA. Đơn vị mới có thể vừa khai cho một người mà chưa ai/đơn nào mang nó, nên
 	 *    `ds()` chưa thấy. Rửa là xoá mất phân quyền vừa đặt, và tệ hơn nữa là không bao giờ
 	 *    tạo được đơn vị mới. Chỉ BÁO, để người khai tự quyết.
 	 */
 	public static function ai_khai_lac() {
-		$co = array();
-		foreach ( self::ds() as $d ) { $co[ mb_strtolower( trim( $d ) ) ] = 1; }
+		/* 🔴 KHÔNG DÙNG `ds()` LÀM THƯỚC ĐO. `ds()` gom cả cột `donVi` của bảng người dùng vào
+		   danh sách, tức gom chính cái cột hàm này đang soi — nên mọi tên gõ lạc tự hợp thức
+		   hoá mình và hàm không bao giờ báo gì. Đã cắn thật ngay lượt viết đầu (12/09/2026),
+		   bài kiểm đỏ đúng chỗ.
+		   Thước đo phải là những NƠI KHAI ĐƠN VỊ thật sự: danh mục cơ sở (`cosoDonVi` — nơi
+		   ranh giới được vạch), nhà mặc định, và nhà mẹ. */
+		$co = array( mb_strtolower( self::MAC_DINH ) => 1 );
+		$me = self::don_vi_me();
+		if ( '' !== $me ) { $co[ mb_strtolower( trim( $me ) ) ] = 1; }
+		$cfg = VHCP_Cfg::cfg_static();
+		foreach ( (array) ( isset( $cfg['cosoDonVi'] ) ? $cfg['cosoDonVi'] : array() ) as $d ) {
+			$co[ mb_strtolower( self::chuan( $d ) ) ] = 1;
+		}
 		$ra = array();
 		foreach ( VHCP_Cfg::get_users() as $u ) {
 			$ten = trim( (string) ( isset( $u['ten'] ) ? $u['ten'] : '' ) );
-			$xem = trim( (string) ( isset( $u['xemDonVi'] ) ? $u['xemDonVi'] : '' ) );
-			/* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG, ghi lại để lần sau khỏi đuổi theo: bỏ vế `'' === $xem`
-			   KHÔNG đổi kết quả — `explode( ',', '' )` trả về một phần tử rỗng, và vòng dưới
-			   `continue` ngay ở nó, nên `$lac` vẫn rỗng. Giữ vế ấy vì nó nói thẳng ra ý "bỏ
-			   trống là hợp lệ", và vì nó cắt hẳn một vòng lặp cho phần lớn tài khoản. */
-			if ( '' === $ten || '' === $xem ) { continue; }
-			$lac = array();
-			foreach ( explode( ',', $xem ) as $x ) {
-				$x = trim( $x );
-				if ( '' === $x ) { continue; }
-				if ( ! isset( $co[ mb_strtolower( $x ) ] ) ) { $lac[] = $x; }
+			/* ⚠️ Ô TRỐNG LÀ HỢP LỆ, và phải thoát TRƯỚC `chuan()`: `chuan('')` đưa ô trống về
+			   đúng nhà mẹ, nên bỏ vế này là mọi tài khoản chưa khai đều "khớp" và không bao
+			   giờ bị soi — mà im lặng chính là kiểu hỏng cả hàm này sinh ra để chặn. */
+			$nha = trim( (string) ( isset( $u['donVi'] ) ? $u['donVi'] : '' ) );
+			if ( '' === $ten || '' === $nha ) { continue; }
+			if ( ! isset( $co[ mb_strtolower( $nha ) ] ) ) {
+				$ra[] = array( 'ten' => $ten, 'lac' => $nha );
 			}
-			if ( $lac ) { $ra[] = array( 'ten' => $ten, 'lac' => implode( ', ', $lac ) ); }
 		}
 		return $ra;
 	}
@@ -389,10 +556,38 @@ class VHCP_DonVi {
 	 */
 	public static function vi_sao_khong_dung( $ma_don ) {
 		$d = VHCP_Don::don_row( $ma_don );
-		if ( ! $d ) { return 'Không tìm thấy đơn'; }
-		if ( ! self::duoc_xem( self::chuan( isset( $d['don_vi'] ) ? $d['don_vi'] : '' ) ) ) {
-			return 'Không tìm thấy đơn';
-		}
+		if ( ! $d ) { return 'Không tìm thấy đơn ' . $ma_don . ' trong sổ.'; }
+		$dv = self::chuan( isset( $d['don_vi'] ) ? $d['don_vi'] : '' );
+		if ( ! self::duoc_xem( $dv ) ) { return self::loi_khac_don_vi_( $d, $dv ); }
 		return '';
+	}
+
+	/**
+	 * CÂU TỪ CHỐI CHO ĐƠN THUỘC ĐƠN VỊ KHÁC — nói rõ với CHÍNH CHỦ, giữ kín với người lạ.
+	 *
+	 * =========================================================================================
+	 * 🔴 VÌ SAO PHẢI TÁCH LÀM HAI. Cắn thật 09/09/2026: anh Thắng lập đơn xong, màn báo "Đã tạo
+	 *    đơn" rồi lập tức "Không tìm thấy đơn". Bảy chữ ấy khi đó phát ra từ BA chỗ khác hẳn
+	 *    nhau — đơn không có trong bảng · đơn thuộc đơn vị khác · đơn của người khác — nên
+	 *    không ai lần ra được chỗ nào, kể cả người viết ra chúng. Một câu lỗi không phân biệt
+	 *    được ba nguyên nhân thì không phải câu lỗi, nó là một bức tường.
+	 *
+	 * 🔴 NHƯNG KHÔNG ĐƯỢC NÓI HẾT CHO MỌI NGƯỜI. Câu mờ "không tìm thấy" là CỐ Ý: nói thẳng
+	 *    "đơn này của K&H" cho kế toán POSH là biến ô gõ mã đơn thành cái máy dò — gõ thử một
+	 *    loạt mã là biết bên kia có những đơn nào, đúng thứ chốt này sinh ra để bịt.
+	 *
+	 * Chỗ cắt: NGƯỜI LẬP ra đơn thì được nói thẳng. Đơn của chính họ, họ đã biết nó tồn tại và
+	 * biết nó của mảng nào — nói ra không lộ gì mới, mà giấu đi thì đúng là bịt mắt người đang
+	 * cần thấy nhất. Người khác giữ nguyên câu mờ.
+	 */
+	private static function loi_khac_don_vi_( $d, $dv ) {
+		$lap = mb_strtolower( trim( (string) ( isset( $d['nguoi_lap'] ) ? $d['nguoi_lap'] : '' ) ) );
+		$toi = mb_strtolower( trim( (string) VHCP_Auth::nguoi() ) );
+		if ( '' === $lap || $lap !== $toi ) { return 'Không tìm thấy đơn'; }
+		$ds = self::xem_duoc();
+		return 'Đơn này thuộc đơn vị "' . $dv . '", còn tài khoản của anh/chị chỉ xem được: '
+			. ( null === $ds ? '(tất cả)' : implode( ', ', $ds ) ) . '. '
+			. 'Đơn lấy đơn vị từ NGƯỜI LẬP lúc tạo — sửa ô "Đơn vị" của người lập ở Cấu hình → '
+			. 'Người dùng & Phân quyền rồi lập lại đơn, hoặc nhờ Quản lý chuyển đơn sang đơn vị đúng.';
 	}
 }

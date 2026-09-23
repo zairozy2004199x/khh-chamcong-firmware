@@ -33,7 +33,11 @@ class VHCP_API {
 	private static function required_roles( $fn ) {
 		// Sửa hàng loạt NGÀY của dòng chi là đụng thẳng vào số liệu kế toán (ngày quyết định
 		// kỳ hạch toán). Chốt ở máy chủ, không tin mỗi giao diện.
-		$admin_only = array( 'deleteDonAdmin', 'unmarkExportedSoChi', 'suaNamVoLy', 'suaNgayHong', 'suaKyHong', 'setDonNgay',
+		/* 🔴 SỔ MÃ GỌI TẮT LÀ MỘT CỬA PHÂN QUYỀN. Khai thêm một dòng `MÃ|CƠ SỞ` là mở cho mọi tài
+		   khoản đang giữ mã ấy nhìn thấy sổ tiền của gian ấy — nên chỉ Admin, ngang hàng với
+		   mấy việc đụng thẳng vào số liệu bên dưới. */
+		$admin_only = array( 'luuMaTatCoso',
+			'deleteDonAdmin', 'unmarkExportedSoChi', 'suaNamVoLy', 'suaNgayHong', 'suaKyHong', 'setDonNgay',
 			/* Sửa TIỀN hàng loạt trên đơn đã duyệt — chỉ Admin, và chỉ sau khi xem trước. */
 			'donBuTruCu',
 			/* Đặt lại mốc một tuần ("tuần này chạy từ ngày nào đến ngày nào") — anh Thắng chốt
@@ -51,7 +55,12 @@ class VHCP_API {
 			// Khôi phục bảng người dùng là đụng thẳng vào ai đăng nhập được — chỉ Admin.
 			'listUserBak', 'khoiPhucUsers',
 			// Đổi tên cơ sở là sửa hàng loạt trên bốn bảng dữ liệu — chỉ Admin.
-			'doiTenCoSo' );
+			'doiTenCoSo',
+			/* Soát trùng nhân sự bày ra cả sổ hồ sơ bên trang Nhân sự (tên · mã NV · cơ sở ·
+			   chức vụ · ai đã có PIN) — đó là dữ liệu nhân sự của cả công ty, không phải việc
+			   của kế toán. Và `doiTenNguoi` thì sửa hàng loạt trên tám bảng cộng thẻ phiên,
+			   đụng thẳng vào khoá nối của mọi đơn cũ. Cả hai: chỉ Admin. */
+			'soatNhanSu', 'doiTenNguoi' );
 		// Việc của NGƯỜI DUYỆT / KẾ TOÁN — nhân viên KHÔNG được gọi, bất kể bảng phân quyền
 		// khai gì. Bảng đó nạp từ bảng tính cũ có thể lệch cột, mà đây là chỗ đụng tới tiền
 		// của người khác nên phải chốt ở máy chủ.
@@ -81,13 +90,14 @@ class VHCP_API {
 			   ứng đã cấp, tức đụng vào báo cáo của HAI tuần cùng lúc — người lập đơn không được
 			   tự làm, kẻo tuần nào sắp bị soi thì đơn lặng lẽ trôi sang tuần sau. */
 			'chuyenKy',
+			'datKhoangKyDon',
 			/* Đổi con số tiền quản lý đã duyệt — việc của chính người duyệt, không phải người xin. */
 			'duyetLaiTamUng',
 		);
 		if ( in_array( $fn, $nguoi_duyet, true ) ) {
 			return array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC' );
 		}
-		$cau_hinh   = array( 'getUsers', 'cosoLa', 'dsKyDangCo', 'saveConfig', 'undoConfig', 'setQuyen', 'resetQuyen', 'getQuyenConfig', 'migrateOldImages', 'ganMaTaiKhoanSoChi', 'ganMaTaiKhoanDon', 'ganMaTaiKhoanTatCa', 'dongBoTkLoai', 'xoaLoaiTuTao', 'getTaiKhoan', 'ghepHeThongTk', 'doMangTuTaiKhoan', 'khaiChiPhiChoCoSo', 'loaiCuaCoSo', 'datLoaiChoCoSo' );
+		$cau_hinh   = array( 'getUsers', 'cosoLa', 'dsKyDangCo', 'saveConfig', 'undoConfig', 'setQuyen', 'resetQuyen', 'getQuyenConfig', 'migrateOldImages', 'ganMaTaiKhoanSoChi', 'ganMaTaiKhoanDon', 'ganMaTaiKhoanTatCa', 'dongBoTkLoai', 'xoaLoaiTuTao', 'getTaiKhoan', 'ghepHeThongTk', 'doMangTuTaiKhoan', 'khaiChiPhiChoCoSo', 'loaiCuaCoSo', 'datLoaiChoCoSo', 'hutCoSoGhe' );
 		if ( in_array( $fn, $admin_only, true ) ) { return array( 'Admin' ); }
 		// Kế toán cũng phải vào được Cấu hình (khai mã tài khoản, tên MISA, mã đơn vị là
 		// việc của kế toán). Riêng tài khoản Admin thì chỉ Admin sửa — chặn trong
@@ -198,6 +208,7 @@ class VHCP_API {
 			'logAction'             => array( 'VHCP_Log', 'log_action' ),
 			'getLog'                => array( 'VHCP_Log', 'get_log' ),
 			'getDonLog'             => array( 'VHCP_Don', 'nhat_ky_don' ),
+			'getDuAnLog'            => array( 'VHCP_DuAn', 'nhat_ky_du_an' ),
 			'timDon'                => array( 'VHCP_Don', 'tim_don' ),
 			'dsLoaiChiPhi'          => array( 'VHCP_Don', 'ds_loai_chi_phi' ),
 
@@ -209,20 +220,27 @@ class VHCP_API {
 			'dsKyDangCo'            => array( 'VHCP_Don', 'ds_ky_dang_co' ),
 			'undoConfig'            => array( 'VHCP_Cfg', 'undo_config' ),
 			'getUsers'              => array( 'VHCP_Cfg', 'get_users' ),
+			/* Sổ mã gọi tắt của cơ sở — "TUTU_BD = TÀU BÌNH DƯƠNG". Xem khối dài ở
+			   `VHCP_Auth::so_ma_tat()`. */
+			'docMaTatCoso'          => array( 'VHCP_Auth', 'doc_ma_tat_api' ),
+			'luuMaTatCoso'          => array( 'VHCP_Auth', 'luu_ma_tat_api' ),
 			'listUserBak'           => array( 'VHCP_Cfg', 'list_user_bak' ),
 			'khoiPhucUsers'         => array( 'VHCP_Cfg', 'khoi_phuc_users' ),
 			'cosoLa'                => array( 'VHCP_Cfg', 'coso_la' ),
 			'doiTenCoSo'            => array( 'VHCP_Cfg', 'doi_ten_coso' ),
+			'soatNhanSu'            => array( 'VHCP_Cfg', 'soat_nhan_su' ),
+			'doiTenNguoi'           => array( 'VHCP_Cfg', 'doi_ten_nguoi' ),
 			'getQuyen'              => array( 'VHCP_Cfg', 'get_quyen' ),
 			'getQuyenConfig'        => array( 'VHCP_Cfg', 'get_quyen_config' ),
 			'setQuyen'              => array( 'VHCP_Cfg', 'set_quyen' ),
 			'resetQuyen'            => array( 'VHCP_Cfg', 'reset_quyen' ),
 
 			'dongCuaCoSo'           => array( 'VHCP_Cfg', 'dong_cua_coso' ),
+			'hutCoSoGhe'            => array( 'VHCP_Cfg', 'hut_coso_ghe_api' ),
 
 			// đơn vận hành
 			'listDons'              => array( 'VHCP_Don', 'list_dons' ),
-			'createDon'             => array( 'VHCP_Don', 'create_don' ),
+			'createDon'             => array( 'VHCP_Don', 'tao_don_moi' ),
 			'getDon'                => array( 'VHCP_Don', 'get_don' ),
 			'setTamUng'             => array( 'VHCP_Don', 'set_tam_ung' ),
 			'setDuPhong'            => array( 'VHCP_Don', 'set_du_phong' ),
@@ -258,6 +276,7 @@ class VHCP_API {
 			'chuyenDonVi'           => array( 'VHCP_Don', 'chuyen_don_vi' ),
 			/* Nhảy đơn sang tuần khác khi không quyết toán kịp trong tuần của nó. */
 			'chuyenKy'              => array( 'VHCP_Don', 'chuyen_ky' ),
+			'datKhoangKyDon'        => array( 'VHCP_Don', 'dat_khoang_ky' ),
 			'dsKyQuanh'             => array( 'VHCP_Don', 'ds_ky_quanh_api' ),
 			/* Tổng xin đổi sau khi duyệt (nhân viên sửa hạng mục, hoặc luật tính đổi) — cho
 			   quản lý chốt lại số, miễn là chưa cấp tiền. */
@@ -306,6 +325,18 @@ class VHCP_API {
 			'renameDuAn'            => array( 'VHCP_DuAn', 'rename_du_an' ),
 			'getDuAn'               => array( 'VHCP_DuAn', 'get_du_an' ),
 			'addDuAnLine'           => array( 'VHCP_DuAn', 'add_line' ),
+			'datDuToanDuAn'         => array( 'VHCP_DuAn', 'set_du_toan_da' ),
+			'datTrangThaiHangMuc'   => array( 'VHCP_DuAn', 'dat_hm' ),
+			'listDonHangMuc'        => array( 'VHCP_DuAn', 'list_don_hm' ),
+			'xinTamUngDuAn'         => array( 'VHCP_DuAn', 'xin_tam_ung_dot' ),
+			'datTrangThaiLenhDuAn'  => array( 'VHCP_DuAn', 'dat_tt_dot' ),
+			'listLenhDuAn'          => array( 'VHCP_DuAn', 'list_lenh_da' ),
+			'xinQuyetToanDuAn'      => array( 'VHCP_DuAn', 'xin_quyet_toan_dot' ),
+			'datTrangThaiQTDuAn'    => array( 'VHCP_DuAn', 'dat_tt_qt' ),
+			'datAnhDuAnLine'        => array( 'VHCP_DuAn', 'dat_anh_line' ),
+			'goAnhDuAnLine'         => array( 'VHCP_DuAn', 'go_anh_line' ),
+			'themHoSoDuAnLine'      => array( 'VHCP_DuAn', 'them_ho_so_line' ),
+			'datKyDuAn'             => array( 'VHCP_DuAn', 'set_ky_da' ),
 			'updateDuAnLine'        => array( 'VHCP_DuAn', 'update_line' ),
 			'deleteDuAnLine'        => array( 'VHCP_DuAn', 'delete_line' ),
 			'submitDuAn'            => array( 'VHCP_DuAn', 'submit' ),
@@ -401,8 +432,14 @@ class VHCP_API {
 			/* Cơ sở phụ trách đi kèm luôn: `list_dons()` cần nó để mở phạm vi đơn cho nhân viên
 			   phụ trách nhiều cơ sở (anh Thắng 30/08/2026). Không truyền thì `coso_ds()` rỗng,
 			   và mọi thứ rơi về đúng hành vi cũ — chỉ thấy đơn của chính mình. */
+			/* Phòng ban đi kèm luôn (13/09/2026): từ nay nó bó theo TÀI KHOẢN chứ không theo
+			   vai, nên không truyền là mọi chốt phòng ban im lặng mở toang. */
+			/* Mã NV đi kèm luôn: `soatNhanSu()` và `doiTenNguoi()` cần biết người đang gọi là
+			   ai bên Nhân sự. Không truyền là chúng đọc ra chuỗi rỗng và im lặng bỏ qua. */
 			VHCP_Auth::dat_vai_tro( $role_ht, $user ? (string) $user['name'] : '',
-				$user && isset( $user['coso'] ) ? (string) $user['coso'] : '' );
+				$user && isset( $user['coso'] ) ? (string) $user['coso'] : '',
+				$user && isset( $user['boPhan'] ) ? (string) $user['boPhan'] : '',
+				$user && isset( $user['maNv'] ) ? (string) $user['maNv'] : '' );
 			$need = self::required_roles( $fn );
 			if ( $need ) {
 				/* So bằng VAI GỐC, không phải tên vai người ta khai. Vai tự tạo "Nhân viên văn

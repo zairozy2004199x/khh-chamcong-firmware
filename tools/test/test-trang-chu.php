@@ -182,7 +182,17 @@ teq( 'thêm chân trang KHÔNG làm đổi số thẻ app', $SO_APP,
    Mấy phép thử trên chạy TRƯỚC dòng require dưới đây, nên chúng đang đúng là cảnh "chưa cài". */
 t( 'lúc này quả thật CHƯA có plugin Ghế', ! class_exists( 'VHG_Chan' ) );
 
-require_once $goc . '/wordpress/vhcp-ghe/includes/class-vhg-chan.php';
+/* 🔴 PLUGIN GHẾ KHÔNG CÒN Ở NHÁNH NÀY — 18/09/2026. Nhà của nó là nhánh
+   `claude/posh-qr-kh1urz`, thư mục `vhcp-ghe/` ngay gốc kho (xem
+   wordpress/DOC-TRUOC-KHI-DONG-GOI.md: bản 1.48.0 lạc ở đây suýt được đóng gói đè lên bản
+   2.111.0 đang chạy).
+   ⚠️ NÊN KHÚC NÀY BỎ QUA KHI KHÔNG CÓ TỆP, VÀ PHẢI KÊU TO. Bỏ qua im lặng là mất một mảng
+      kiểm mà bảng kết quả vẫn xanh — đúng kiểu hỏng mà cả bộ thử này sinh ra để chặn. */
+if ( ! vhcc_nap_ghe( 'class-vhg-chan.php' ) ) {
+	echo "  ⏭ BỎ QUA phần plugin Ghế — chưa fetch nhánh claude/posh-qr-kh1urz.\n";
+	echo "\nĐẠT: $dat (đã bỏ qua khúc cần plugin Ghế)\n";
+	exit( $truot ? 1 : 0 );
+}
 
 /* 🔴 CÓ PLUGIN GHẾ THÌ ĐỌC TỪ ĐÓ, không đọc bản dự phòng của mình.
    Plugin Ghế đã có màn quản trị để sửa địa chỉ / người đại diện / chi nhánh. Đọc bản riêng là

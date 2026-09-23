@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Cùng tông với trang trạm (`templates/tram.php`): người ta mở app rồi bấm sang mấy
+         trang khác của cùng hệ trong một buổi, hai bảng màu là hai lần phải làm quen. -->
+    <color name="nen">#0B0D16</color>
+    <color name="chinh">#2F6BFF</color>
+</resources>

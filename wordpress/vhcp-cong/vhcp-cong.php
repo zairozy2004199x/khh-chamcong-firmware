@@ -2,7 +2,7 @@
 /**
  * Plugin Name: VHCP Chấm công (dựng mới)
  * Description: Chấm công dựng lại từ đầu — nạp CSV xuất thẳng từ Google Sheets, mọi thao tác nằm NGOÀI trang quản trị.
- * Version: 1.2.2
+ * Version: 1.2.3
  * Text Domain: vhcp-cong
  *
  * VÌ SAO CÓ PLUGIN NÀY THAY VÌ SỬA BẢN CŨ
@@ -18,7 +18,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VCG_PHIEN_BAN', '1.2.2' );
+define( 'VCG_PHIEN_BAN', '1.2.3' );
 define( 'VCG_DUONG_DAN', plugin_dir_path( __FILE__ ) );
 
 require_once VCG_DUONG_DAN . 'includes/class-vcg-db.php';
@@ -27,7 +27,6 @@ require_once VCG_DUONG_DAN . 'includes/class-vcg-nap.php';
 require_once VCG_DUONG_DAN . 'includes/class-vcg-nhap.php';
 require_once VCG_DUONG_DAN . 'includes/class-vcg-nguoi.php';
 require_once VCG_DUONG_DAN . 'includes/class-vcg-trang.php';
-
 register_activation_hook( __FILE__, array( 'VCG_Boot', 'bat' ) );
 
 class VCG_Boot {

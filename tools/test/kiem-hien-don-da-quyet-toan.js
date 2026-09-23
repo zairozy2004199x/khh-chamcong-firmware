@@ -124,10 +124,17 @@ teq('🔴 xem theo tuần cũng đếm đơn đã xuất MISA (không thì quỹ
 t('nhưng KHÔNG rước đơn đang cầm tiền vào danh sách chung', dsAll.indexOf('D4') < 0, dsAll);
 
 /* Ô "Tuần / kỳ riêng" cũng phải dựng từ cùng một chốt — không thì bảng có đơn mà ô lọc rỗng. */
-t('ô tuần riêng dựng từ cùng chốt _daQT', /_napKyRieng\('qtKyXong',\s*\(BOOT\.dons\|\|\[\]\)\.filter\(_daQT\)\)/.test(fnRender));
+/* ⚠️ CANH Ý ĐỊNH, ĐỪNG GHIM NGUYÊN VĂN. Từ 1.92.0 ô này còn loại thêm đơn đang bị ẩn vì chưa
+   rõ bộ phận, nên câu lệnh dài ra — mà điều phải đúng vẫn chỉ là: nó dựng từ `_daQT`. */
+t('ô tuần riêng dựng từ cùng chốt _daQT', /_napKyRieng\('qtKyXong',[^;]{0,160}_daQT/.test(fnRender));
 /* Ô lọc chung (tháng / tuần / cơ sở) cũng phải thấy đơn đã xuất MISA, không thì tháng cũ
    biến mất khỏi ô và không ai chọn tới được. */
-t('ô lọc chung cũng đếm đơn đã xuất MISA', /var moiDon=[\s\S]{0,200}?_daQT\(d\)/.test(fnRender));
+/* Ô lọc chung nay dựng qua `_qtTrongMan()` (1.92.0 tách ra để chốt "ẩn đơn chưa rõ bộ phận"
+   chạy được cả ở đây) — nên soi vào chính hàm ấy, đừng ghim vào cách viết cũ. */
+const fnTrongMan = bocHam('_qtTrongMan');
+t('bốc được _qtTrongMan()', fnTrongMan.length > 40);
+t('ô lọc chung cũng đếm đơn đã xuất MISA', /_daQT\(d\)/.test(fnTrongMan), fnTrongMan);
+t('và màn Quyết toán dựng ô lọc qua đúng hàm ấy', /_napLocDon\([^;]{0,80}_qtTrongMan/.test(fnRender));
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
  * 3. BẢNG RỖNG PHẢI NÓI VÌ SAO RỖNG
@@ -138,8 +145,11 @@ t('bốc được _qtEmptyXongText()', fnEmpty.length > 200, fnEmpty.length);
 function chayEmpty(soHien, dons, oLoc) {
   const o = { qtEmptyXong: { textContent: 'CHUA-DAT' } };
   ['qtKyXong', 'qtThang', 'qtCoso'].forEach(function (id) { o[id] = { value: (oLoc && oLoc[id]) || '' }; });
-  new Function('el', 'BOOT', '_daQT', 'soHien', fnEmpty + '\n_qtEmptyXongText(soHien);')(
-    function (id) { return o[id] || null; }, { dons: dons }, daQT, soHien);
+  /* Từ 1.92.0 câu này còn kể cả ô tích "Ẩn hẳn đơn chưa rõ bộ phận" (xem
+     `kiem-an-don-chua-ro-bo-phan.js`). Ở đây ô tích luôn TẮT, nên phần ấy đứng yên và mấy phép
+     dưới vẫn soi đúng thứ chúng sinh ra để soi. */
+  new Function('el', 'BOOT', '_daQT', '_anVaoMo', 'soHien', fnEmpty + '\n_qtEmptyXongText(soHien);')(
+    function (id) { return o[id] || null; }, { dons: dons }, daQT, function () { return false; }, soHien);
   return o.qtEmptyXong.textContent;
 }
 teq('có đơn hiện ra → không đụng tới dòng chữ', 'CHUA-DAT', chayEmpty(3, KHO));

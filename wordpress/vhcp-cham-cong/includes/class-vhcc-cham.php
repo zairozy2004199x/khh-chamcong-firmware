@@ -31,11 +31,37 @@ class VHCC_Cham {
 	 *        đáng lẽ phải đập vào mắt người đang soát.
 	 *
 	 *    Nên: null, và màn hình hiện "—" để người ta nhìn thấy mà mở ra xem.
+	 *
+	 * ⚠️ CA GÃY: hai tham số cuối là khoảng NGHỈ GIỮA CA, trừ thẳng ở đây. Trừ BÊN TRONG hàm
+	 *    tính giờ, không bắt mỗi nơi gọi tự trừ lấy — nơi nào quên là trả dư tiền cho mấy giờ
+	 *    người ta về nhà, mà bảng vẫn đầy số nên không ai kêu. Xem `VHCC_Cham::phut_nghi()`.
 	 */
-	public static function phut_lam( $vao_giay, $ra_giay ) {
+	public static function phut_lam( $vao_giay, $ra_giay, $nghi_tu = null, $nghi_den = null ) {
 		if ( null === $vao_giay || '' === $vao_giay || null === $ra_giay || '' === $ra_giay ) { return null; }
 		$d = (int) $ra_giay - (int) $vao_giay;
 		if ( $d < 0 ) { return null; }
+		return max( 0, (int) round( $d / 60 ) - self::phut_nghi( $nghi_tu, $nghi_den ) );
+	}
+
+	/**
+	 * CA GÃY — số PHÚT NGHỈ GIỮA CA của một lượt, tức phần KHÔNG tính tiền.
+	 *
+	 * Anh Thắng 16/09/2026: *"có những trường hợp ca gãy, như ca 1,3 ... tích vào ca gãy, nó sẽ
+	 * tách thành 2 giờ vào và 2 giờ ra để gộp giờ và bỏ giờ giữa ra"*.
+	 *
+	 * 🔴 MỘT CHỖ TÍNH DUY NHẤT. Khoảng nghỉ phải bị trừ ở MỌI nơi đang cộng giờ — lưới, bảng
+	 *    lương, tờ in, tệp xuất. Mỗi nơi tự trừ lấy là có ngày một nơi quên, và nơi quên ấy
+	 *    lặng lẽ trả dư tiền cho mấy giờ người ta về nhà.
+	 *
+	 * ⚠️ TRẢ 0 CHO MỌI THỨ KHÔNG HỢP LỆ, không trả null. Nơi gọi luôn viết `giờ trừ nghỉ`, nên
+	 *    null ở đây là biến cả phép tính thành null và ngày ấy mất trắng.
+	 * ⚠️ Nghỉ NGƯỢC (đến < từ) coi như không có. Nó chỉ tới được đây nếu ai đó ghi tay vào cơ sở
+	 *    dữ liệu — và lúc ấy trừ một số âm là CỘNG THÊM giờ, đúng thứ tệ nhất có thể làm.
+	 */
+	public static function phut_nghi( $tu_giay, $den_giay ) {
+		if ( null === $tu_giay || '' === $tu_giay || null === $den_giay || '' === $den_giay ) { return 0; }
+		$d = (int) $den_giay - (int) $tu_giay;
+		if ( $d <= 0 ) { return 0; }
 		return (int) round( $d / 60 );
 	}
 
@@ -174,13 +200,38 @@ class VHCC_Cham {
 	 */
 	public static function bang_cham_cong( $u, $coso, $thang ) {
 		$coso = VHCC_NhanSu::chuan_coso( $coso );
+
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 HAI MỨC, KHÔNG PHẢI MỘT CỬA ĐÓNG/MỞ
+		 *
+		 * Anh Thắng 18/09/2026: *"nếu chấm công thì xem quản thân chứ, còn quản lý mới xem được
+		 * cả cửa hàng"*. Câu ấy có hai vế:
+		 *   · QUẢN cơ sở này        -> thấy cả cửa hàng;
+		 *   · chỉ CHẤM CÔNG ở đây   -> thấy công của CHÍNH MÌNH, không thấy người khác.
+		 *
+		 * Bản 4.50.0 chỉ làm vế đầu rồi chối thẳng vế sau, nên ô xổ bày ra một cơ sở mà bấm vào
+		 * ăn đúng một câu "Không có quyền cơ sở này." — anh gặp ngay hôm ấy. Bày một lựa chọn
+		 * rồi chối nó là kiểu hỏng tệ hơn cả không bày.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$rieng_minh = '';
 		if ( ! VHCC_NhanSu::co_quyen_coso( $u, $coso ) ) {
-			return array( 'ok' => false, 'error' => 'Không có quyền cơ sở này.' );
+			if ( ! VHCC_NhanSu::co_cham_coso( $u, $coso ) ) {
+				return array( 'ok' => false, 'error' => 'Không có quyền cơ sở này.' );
+			}
+			$rieng_minh = strtoupper( trim( (string) ( isset( $u['ma_nv'] ) ? $u['ma_nv'] : '' ) ) );
+			if ( '' === $rieng_minh ) {
+				return array( 'ok' => false, 'error' => 'Không có quyền cơ sở này.' );
+			}
 		}
 		$tt = VHCC_Luong::tien_to_thang( $thang );
 		if ( '' === $tt ) { return array( 'ok' => false, 'error' => 'Tháng không hợp lệ.' ); }
 		$hang = array();
 		foreach ( VHCC_Luong::doc_thang( $coso, $tt ) as $r ) {
+			/* Cơ sở mình chỉ đi làm: lọc còn đúng hàng của mình. Lọc Ở ĐÂY chứ không ở màn —
+			   màn chỉ vẽ thứ hàm này trả về, nên lọc tại nguồn thì mọi đường đọc (lưới, xuất
+			   Excel, xuất ảnh, bảng lương) đều được che cùng một lúc. */
+			if ( '' !== $rieng_minh
+				&& strtoupper( trim( (string) $r['ma_nv'] ) ) !== $rieng_minh ) { continue; }
 			$hang[] = array(
 				'ngay' => $r['ngay'], 'maNV' => $r['ma_nv'], 'hauTo' => (string) $r['hau_to'],
 				'hoTen' => $r['ho_ten'],
@@ -191,12 +242,21 @@ class VHCC_Cham {
 				   ca từ chuỗi ấy là mất đúng ca đêm. Phép tách phải ăn giây thô. */
 				'vaoGiay' => $r['gio_vao_giay'],
 				'raGiay'  => $r['gio_ra_giay'],
-				'phut' => self::phut_lam( $r['gio_vao_giay'], $r['gio_ra_giay'] ),
+				/* CA GÃY — hai đầu của khoảng nghỉ giữa ca, không tính tiền. Đi kèm hàng để mọi
+				   nơi vẽ ra màn (ô ngày, chú thích rê chuột, bảng tổng giờ theo ca) đọc được
+				   cùng một sự thật, thay vì mỗi nơi tự hỏi lại cơ sở dữ liệu. */
+				'nghiTu'  => $r['nghi_tu_giay'],
+				'nghiDen' => $r['nghi_den_giay'],
+				'phut' => self::phut_lam( $r['gio_vao_giay'], $r['gio_ra_giay'],
+					$r['nghi_tu_giay'], $r['nghi_den_giay'] ),
 				'ghiChu' => isset( $r['ghi_chu'] ) ? (string) $r['ghi_chu'] : '',
 				'nguon'  => isset( $r['nguon'] ) ? (string) $r['nguon'] : '',
 			);
 		}
+		/* Nói ra cho màn biết đang ở mức nào — để nó dán một dòng giải thích, chứ không để
+		   người ta ngồi đoán vì sao bảng chỉ có một cái tên. */
 		return array( 'ok' => true, 'coSo' => $coso, 'thang' => $tt, 'hang' => $hang,
+			'riengMinh' => ( '' !== $rieng_minh ),
 			'tong' => self::gom_tong( $hang ),
 			'co' => self::ds_ghi_chu( $u, $coso, $tt ) );
 	}
@@ -332,6 +392,64 @@ class VHCC_Cham {
 		return $h . 'h' . ( $m ? ' ' . $m . 'm' : '' );
 	}
 
+	/* ═══════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 GIỜ THẬP PHÂN — MỘT LỐI VIẾT DUY NHẤT VỚI CỘT "SỐ GIỜ" CỦA BẢNG LƯƠNG.
+	 *
+	 * Anh Thắng 16/09/2026 gửi ảnh `211,50` nằm cạnh `211h 30m` trên cùng một màn: *"sửa lại
+	 * đúng số giờ đồng nhất cho đối chiếu chứ"*. Hai lối viết cho CÙNG một đại lượng thì mắt
+	 * không đối chiếu được — tệ hơn, `211,50` dễ bị đọc thành "211 giờ 50 phút".
+	 *
+	 * ⚠️ NHẬN PHÚT, TRẢ GIỜ. Phải đổi đơn vị, không chỉ đổi hàm in.
+	 *
+	 * ⚠️ PHÉP LÀM TRÒN PHẢI ĐÚNG BẰNG `VHCC_BangLuong::dung()` (`round( phút / 60, 2 )`) và
+	 *    cách in phải đúng bằng cột Số giờ (`number_format( …, 2, ',', '.' )`). Lệch một trong
+	 *    hai là hai màn lại nói hai con số cho cùng một người — đúng cái đang đi sửa.
+	 * ═══════════════════════════════════════════════════════════════════════════════════════ */
+	public static function gio_tp( $phut ) {
+		if ( null === $phut || '' === $phut ) { return '—'; }
+		if ( self::KIEU_HM === self::$kieu_gio ) {
+			$p = (int) $phut;
+			return intdiv( $p, 60 ) . ':' . sprintf( '%02d', $p % 60 );
+		}
+		return number_format( round( (int) $phut / 60, 2 ), 2, ',', '.' );
+	}
+
+	/* ═══════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 NÚT ĐỔI SANG GIỜ:PHÚT — MỘT CÔNG TẮC CHO CẢ MÀN, KHÔNG PHẢI MỖI CHỖ MỘT KIỂU
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 19/09/2026 gửi ảnh ô `5.3` nằm cạnh `05:20` trong tệp của anh, rồi trước đó là
+	 * `186,50` cạnh `186:30`. Hai lối viết cho CÙNG một đại lượng, và lối thập phân đọc rất dễ
+	 * nhầm: `5.3` trông như "5 giờ 3 phút" trong khi nó là 5 giờ 20 phút.
+	 *
+	 * 🔴 GIỜ:PHÚT LÀ MẶC ĐỊNH. Anh Thắng 19/09/2026, dứt khoát: *"mình quy ra tiếng là 5h20
+	 *    phút chứ, 5,33 là sai rồi"*. Đây là lưới người ta ĐỌC giờ công, không phải chỗ nhân
+	 *    tiền — mà `5,33` thì ai cũng đọc thành "5 giờ 33 phút" trước khi kịp nghĩ.
+	 *
+	 * ⚠️ NHƯNG CỘT "SỐ GIỜ" CỦA BẢNG LƯƠNG THÌ KHÔNG ĐI QUA ĐÂY, và cố ý. Đó là con số NHÂN
+	 *    THẲNG với đơn giá; viết `186:30` ở đó thì không ai nhân ra tiền được, và người ta sẽ
+	 *    tự quy đổi lấy — đúng cái đã làm tệp của anh nhân với `186,3` thay vì `186,5`, lệch
+	 *    4.800đ trên một người. Nút này cho đổi lưới sang thập phân khi cần khớp hai màn.
+	 *
+	 * ⚠️ CÔNG TẮC ĐẶT Ở `gio_tp()`, nơi DUY NHẤT in giờ ra màn quản trị. Để mỗi nơi tự đổi lấy
+	 *    là sớm muộn có một chỗ quên, và lúc ấy trên cùng một màn lại có hai lối viết — đúng
+	 *    cái mà `gio_tp()` sinh ra để dẹp (anh Thắng 16/09/2026: *"sửa lại đúng số giờ đồng
+	 *    nhất cho đối chiếu chứ"*).
+	 * ⚠️ CHỈ ĐỔI CÁCH IN, KHÔNG ĐỔI MỘT PHÉP TÍNH NÀO. Tiền vẫn tính từ phút thật.
+	 * ═══════════════════════════════════════════════════════════════════════════════════════ */
+	const KIEU_TP = 'tp';
+	const KIEU_HM = 'hm';
+
+	private static $kieu_gio = self::KIEU_HM;
+
+	/** Trống / lạ = về MẶC ĐỊNH (giờ:phút). Chỉ `tp` mới chuyển sang thập phân. */
+	public static function dat_kieu_gio( $k ) {
+		self::$kieu_gio = ( self::KIEU_TP === (string) $k ) ? self::KIEU_TP : self::KIEU_HM;
+	}
+
+	public static function kieu_gio() { return self::$kieu_gio; }
+
+	public static function la_hm() { return self::KIEU_HM === self::$kieu_gio; }
+
 	// ======================================================================= cờ cần kiểm
 
 	public static function ds_ghi_chu( $u, $coso = '', $thang = '' ) {
@@ -396,6 +514,121 @@ class VHCC_Cham {
 		if ( $cu ) { $wpdb->update( VHCC_DB::t( 'ghi_chu' ), $ghi, array( 'id' => (int) $cu['id'] ) ); }
 		else       { $wpdb->insert( VHCC_DB::t( 'ghi_chu' ), $ghi ); }
 		return array( 'ok' => true, 'flagId' => $id );
+	}
+
+	/** Trạng thái của cờ do CHÍNH NHÂN VIÊN gắn — tách khỏi "Cần kiểm" của quản lý. */
+	const NV_BAO = 'Nhân viên báo';
+
+	/** Báo lùi được xa nhất bấy nhiêu ngày. Xa hơn là chuyện của bảng lương, không phải của đây. */
+	const BAO_MUON_TOI_DA = 31;
+
+	/**
+	 * NHÂN VIÊN TỰ BÁO MỘT LƯỢT CHẤM SAI.
+	 *
+	 * =============================================================================================
+	 * Tài liệu phát cho cơ sở ghi thẳng: *"Chấm nhầm cơ sở rồi thì tự sửa không được — không có nút
+	 * xoá lượt chấm, cố chấm lại chỉ làm dòng sai thêm rối. Báo quản lý sửa ở màn Bảng công, trong
+	 * ngày."* Câu ấy đúng, nhưng "báo quản lý" không có đường nào trong app — nó là nhắn Zalo, và
+	 * tin nhắn Zalo thì trôi mất giữa hai trăm tin khác trước khi ai kịp mở Bảng công.
+	 * =============================================================================================
+	 *
+	 * 🔴 CỬA NÀY KHÔNG SỬA GIỜ, VÀ ĐÓ LÀ TOÀN BỘ THIẾT KẾ. Nó gắn một cái cờ nằm CẠNH ngày ấy,
+	 *    đúng cơ chế `luu_ghi_chu` mà quản lý vẫn dùng — nên cửa hàng trưởng thấy nó ở CHÍNH màn
+	 *    cờ đang mở hằng ngày, không phải một màn thứ hai mọc thêm. Cho nhân viên sửa được giờ
+	 *    của chính mình là bỏ luôn ý nghĩa của việc chấm công.
+	 *
+	 * 🔴 VÌ SAO KHÔNG GỌI THẲNG `luu_ghi_chu`. Hàm ấy mở đầu bằng `co_quyen_coso()` — nhân viên
+	 *    thường không phụ trách cơ sở nào nên luôn bị chối. Nới phép gác ấy để lọt nhân viên vào
+	 *    là cùng lúc cho họ gắn cờ lên ngày của BẤT KỲ AI trong cơ sở. Nên đây là cửa RIÊNG, hẹp
+	 *    hơn hẳn: chỉ ngày của chính mình, chỉ cơ sở mình thật sự có, và mang trạng thái riêng.
+	 *
+	 * ⚠️ TRẠNG THÁI RIÊNG `NV_BAO`, không dùng chung "Cần kiểm". Hai nguồn khác nhau cần đọc khác
+	 *    nhau: cờ của quản lý là "tôi thấy ngày này lạ", còn cờ này là "người trong cuộc nói nó
+	 *    sai". Gộp làm một thì tới lúc lọc, không tách được cái nào đáng hỏi lại người ta.
+	 */
+	public static function nv_bao_sai( $u, $dat ) {
+		$ma = trim( (string) ( isset( $u['ma_nv'] ) ? $u['ma_nv'] : '' ) );
+		if ( '' === $ma ) {
+			return array( 'ok' => false, 'error' => 'Tài khoản này chưa bật chấm công online.' );
+		}
+
+		$ngay = trim( isset( $dat['ngay'] ) ? (string) $dat['ngay'] : '' );
+		if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $ngay ) ) {
+			return array( 'ok' => false, 'error' => 'Ngày không hợp lệ.' );
+		}
+		$hom_nay = (string) current_time( 'Y-m-d' );
+		if ( $ngay > $hom_nay ) {
+			return array( 'ok' => false, 'error' => 'Chưa tới ngày ' . $ngay . ' thì chưa có lượt chấm nào để báo.' );
+		}
+		$cach = (int) round( ( strtotime( $hom_nay . ' 00:00:00 UTC' ) - strtotime( $ngay . ' 00:00:00 UTC' ) ) / 86400 );
+		if ( $cach > self::BAO_MUON_TOI_DA ) {
+			return array( 'ok' => false, 'error' => 'Ngày ' . $ngay . ' đã qua hơn '
+				. self::BAO_MUON_TOI_DA . ' ngày — việc này thuộc về bảng lương, nhờ kế toán xem giúp.' );
+		}
+
+		/* 🔴 CƠ SỞ ĐỐI CHIẾU VỚI DANH SÁCH NGƯỜI ĐÓ THẬT SỰ CÓ — đúng gác 2 của đường chấm công.
+		   Không kiểm thì một người gắn được cờ vào cơ sở khác, và cửa hàng trưởng bên ấy nhận một
+		   cái tên lạ báo sai một ngày họ không quản. */
+		$cs_vao = trim( (string) ( isset( $dat['coso'] ) ? $dat['coso'] : '' ) );
+		$duoc   = VHCC_Online::ds_coso_cham_cua_nv( $ma, isset( $u['coso'] ) ? $u['coso'] : '' );
+		$coso   = '';
+		foreach ( $duoc as $x ) { if ( 0 === strcasecmp( (string) $x, $cs_vao ) ) { $coso = (string) $x; } }
+		if ( '' === $coso ) { $coso = VHCC_NhanSu::chuan_coso( isset( $u['coso'] ) ? $u['coso'] : '' ); }
+		if ( '' === $coso ) {
+			return array( 'ok' => false, 'error' => 'Hồ sơ của anh/chị chưa tích cơ sở nào nên '
+				. 'lượt báo không biết gửi cho ai.' );
+		}
+
+		$ly_do = trim( (string) ( isset( $dat['lyDo'] ) ? $dat['lyDo'] : '' ) );
+		if ( '' === $ly_do ) {
+			return array( 'ok' => false, 'error' => 'Ghi rõ sai chỗ nào — "sai" một mình thì người '
+				. 'sửa không biết sửa gì.' );
+		}
+
+		/* MỘT NGƯỜI, MỘT NGÀY, MỘT CỜ. Báo lại là ĐÈ lên cờ cũ và quay về chờ xử lý, không xếp
+		   thêm — xếp thêm thì cửa hàng trưởng phải đọc ba cái cờ cho cùng một ngày và không biết
+		   cái nào mới nhất. Cùng luật với đơn xin đi trễ. */
+		global $wpdb;
+		$bang = VHCC_DB::t( 'ghi_chu' );
+		$cu = $wpdb->get_row( $wpdb->prepare(
+			"SELECT id, flag_id FROM $bang WHERE ma_nv=%s AND ngay=%s AND LOWER(coso)=LOWER(%s) AND trang_thai=%s",
+			$ma, $ngay, $coso, self::NV_BAO ), ARRAY_A );
+
+		$hs  = VHCC_NhanSu::ho_so( $ma );
+		$ten = ( $hs && ! empty( $hs['ho_ten'] ) ) ? (string) $hs['ho_ten'] : (string) $u['ho_ten'];
+
+		$id = $cu ? (string) $cu['flag_id'] : VHCC_DB::ma_moi( 'CO', 'ghi_chu', 'flag_id' );
+		if ( '' === $id ) {
+			return array( 'ok' => false, 'error' => 'Không cấp được mã, thử lại giúp em.' );
+		}
+		$hang = array(
+			'flag_id'    => $id,
+			'coso'       => $coso,
+			'ngay'       => $ngay,
+			'ma_nv'      => $ma,
+			'ho_ten'     => $ten,
+			'ghi_chu'    => mb_substr( $ly_do, 0, 500 ),
+			/* Người gắn là CHÍNH NGƯỜI ẤY, ghi rõ để đọc phát biết ngay đây không phải cờ quản lý. */
+			'nguoi_gan'  => $ten . ' (tự báo)',
+			'trang_thai' => self::NV_BAO,
+			'tao_luc'    => current_time( 'mysql' ),
+			'xu_ly_luc'  => null,
+		);
+		if ( $cu ) { $wpdb->update( $bang, $hang, array( 'id' => (int) $cu['id'] ) ); }
+		else       { $wpdb->insert( $bang, $hang ); }
+		return array( 'ok' => true, 'flagId' => $id, 'ngay' => $ngay, 'coSo' => $coso, 'lai' => (bool) $cu );
+	}
+
+	/** Cờ do chính một người tự báo — để trạm bày lại cho họ thấy đã gửi và kết quả. */
+	public static function nv_bao_cua( $ma_nv, $so = 20 ) {
+		global $wpdb;
+		$ma = trim( (string) $ma_nv );
+		if ( '' === $ma ) { return array(); }
+		$r = $wpdb->get_results( $wpdb->prepare(
+			'SELECT ngay, coso, ghi_chu, trang_thai, tao_luc FROM ' . VHCC_DB::t( 'ghi_chu' )
+			. ' WHERE ma_nv=%s AND nguoi_gan LIKE %s ORDER BY tao_luc DESC LIMIT %d',
+			$ma, '%(tự báo)', max( 1, (int) $so ) ), ARRAY_A );
+		return is_array( $r ) ? $r : array();
 	}
 
 	public static function xu_ly_ghi_chu( $u, $flag_id, $ket_luan = '' ) {

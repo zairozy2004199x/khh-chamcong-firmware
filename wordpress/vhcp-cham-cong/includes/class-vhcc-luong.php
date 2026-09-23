@@ -479,11 +479,53 @@ class VHCC_Luong {
 		if ( ! $chum ) { return array(); }
 		$cho  = implode( ',', array_fill( 0, count( $chum ), '%s' ) );
 		$tham = array_merge( $chum, array( $tt . '-%' ) );
-		return VHCC_DB::rows( $wpdb->prepare(
-			'SELECT ngay, ma_nv, hau_to, ho_ten, gio_vao_giay, gio_ra_giay, coso, anh_vao, anh_ra FROM '
+		$hang = VHCC_DB::rows( $wpdb->prepare(
+			/* `nghi_tu_giay`/`nghi_den_giay` = CA GÃY, khoảng nghỉ giữa ca không tính tiền.
+			   Phải có mặt ở ĐÂY vì đây là cửa vào của gần như mọi nơi đọc công cả tháng —
+			   lưới, bảng lương, lưới văn phòng, báo cáo. Thiếu ở đây thì mấy nơi ấy không có
+			   cách nào biết ngày ấy có nghỉ giữa ca, và trả dư tiền cho mấy giờ người ta về
+			   nhà — không ai kêu, vì bảng vẫn đầy số. */
+			'SELECT ngay, ma_nv, hau_to, ho_ten, gio_vao_giay, gio_ra_giay,'
+			. ' nghi_tu_giay, nghi_den_giay, coso, anh_vao, anh_ra, vt_vao, vt_ra FROM '
 			. VHCC_DB::t( 'cham_cong' )
 			. ' WHERE coso IN (' . $cho . ') AND ngay LIKE %s ORDER BY ngay, ma_nv, hau_to',
 			$tham ) );
+
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 MÃ ĐANG ẨN THÌ LỌC NGAY Ở ĐÂY — CỬA VÀO, KHÔNG PHẢI SÁU CÁI MÀN.
+		 *
+		 * Anh Thắng 16/09/2026: *"nếu ẩn thì ẩn luôn, không hiện tất cả các tháng"*.
+		 *
+		 * Sổ ẩn (`VHCC_An`) vốn ĐÃ toàn cục theo cơ sở, không theo tháng — nên chỗ hỏng chưa bao
+		 * giờ nằm ở nó. Chỗ hỏng là chỉ HAI trong khoảng TÁM nơi vẽ ra màn có hỏi nó: lưới giờ
+		 * và bảng lương thì lọc, còn bảng "Tổng giờ theo ca" NGAY DƯỚI LƯỚI, lưới của cơ sở tính
+		 * theo công, ba đường xuất tệp và tờ in A4 thì không. Ẩn một hàng rồi cuộn xuống một
+		 * khối là thấy nó ngồi đó.
+		 *
+		 * Dò ngược thì mọi màn / tệp xuất / tờ in đều lấy hàng qua đúng hàm này (hoặc
+		 * `VHCC_Pdf::gom()`, có SQL riêng và đã lọc y hệt). Nên lọc ở đây là một luật một chỗ,
+		 * và mọi màn viết về sau tự thừa hưởng. Phép lọc rải rác ở `ve_luoi_gio()` và
+		 * `VHCC_BangLuong::dung()` đã gỡ — hai luật ẩn trong một plugin là có ngày chúng lệch.
+		 *
+		 * ⚠️ CHÚ THÍCH Ở `ve_luoi_vp()` DẶN *"vá ở đó, KHÔNG vá trong VHCC_Luong"* — lời dặn ấy
+		 *    nói về phép lọc QUYỀN, thứ cần `$toi` mà lõi lương không nhận. `VHCC_An::la_an()`
+		 *    không cần người dùng, nên nó không chặn việc này. Đừng đọc chú thích kia rồi gỡ
+		 *    khối này ra.
+		 *
+		 * ⚠️ VÒNG DỰNG HÀNG TRỐNG TỪ HỒ SƠ (`ds_nhan_vien`) KHÔNG đi qua đây — hai lưới phải tự
+		 *    lọc lấy, kẻo mã ẩn mà CÓ hồ sơ vẫn hiện ra một hàng toàn dấu chấm.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		if ( ! class_exists( 'VHCC_An' ) || ! method_exists( 'VHCC_An', 'la_an_chum' ) ) {
+			return $hang;
+		}
+		$so_an = VHCC_An::so();
+		if ( ! $so_an ) { return $hang; }          // chưa ai ẩn gì: khỏi lọc, khỏi tốn
+		$ra = array();
+		foreach ( $hang as $r ) {
+			if ( VHCC_An::la_an_chum( $coso, $r['ma_nv'], $so_an ) ) { continue; }
+			$ra[] = $r;
+		}
+		return $ra;
 	}
 
 	// ======================================================================= engine MTD
@@ -502,10 +544,23 @@ class VHCC_Luong {
 		return $o;
 	}
 
-	/** Ngày lễ: 'yyyy-MM-dd' (một lần) hoặc 'MM-dd' (lặp hằng năm). */
+	/**
+	 * Ngày lễ: 'yyyy-MM-dd' (một lần) hoặc 'MM-dd' (lặp hằng năm).
+	 *
+	 * 🔴 GỘP LỊCH CHUNG CẢ CHUỖI VÀO. `MTD_NGAY_LE` là danh sách đời cũ, không có màn nào sửa
+	 *    được — khai xong chỉ nằm đó. Từ 19/09/2026 lịch nghỉ lễ có màn khai thật
+	 *    (`VHCC_NgayLe`, chung cả chuỗi theo lựa chọn của anh Thắng). Không gộp thì người ta
+	 *    khai Tết ở màn mới, thấy bảng lương theo giờ đổi, còn nhánh Máy Tự Động vẫn tính như
+	 *    ngày thường — hai bảng lương nói hai chuyện về cùng một ngày.
+	 * ⚠️ Gác `class_exists` cùng hàm với lời gọi — luật của `kiem-goi-cheo.php`.
+	 */
 	public static function mtd_ngay_le() {
 		$ds = self::cai_dat( 'MTD_NGAY_LE', array() );
-		return is_array( $ds ) ? $ds : array();
+		$ds = is_array( $ds ) ? $ds : array();
+		if ( class_exists( 'VHCC_NgayLe' ) && method_exists( 'VHCC_NgayLe', 'ds_ngay' ) ) {
+			$ds = array_merge( $ds, VHCC_NgayLe::ds_ngay() );
+		}
+		return array_values( array_unique( $ds ) );
 	}
 
 	public static function mtd_la_le( $ngay, $ds_le ) {
@@ -547,11 +602,20 @@ class VHCC_Luong {
 	 * Tách riêng vì có HAI nơi hỏi cùng câu này: bảng lương, và màn "Công của tôi" mà nhân viên
 	 * tự mở trên điện thoại. Hai nơi tự tính lấy thì sớm muộn lệch nhau đúng ở ca đêm — và lúc
 	 * đó nhân viên cầm màn hình của mình cãi với bảng lương, không ai biết bên nào đúng.
+	 *
+	 * ⚠️ CA GÃY: hai tham số cuối là khoảng NGHỈ GIỮA CA, trừ thẳng ở đây. Trừ BÊN TRONG hàm
+	 *    tính giờ, không bắt mỗi nơi gọi tự trừ lấy — nơi nào quên là trả dư tiền cho mấy giờ
+	 *    người ta về nhà, mà bảng vẫn đầy số nên không ai kêu. Xem `VHCC_Cham::phut_nghi()`.
+	 * ⚠️ Gác `class_exists` cùng chỗ với lời gọi — luật của `kiem-goi-cheo.php`.
 	 */
-	public static function phut_ca( $vao_m, $ra_m ) {
+	public static function phut_ca( $vao_m, $ra_m, $nghi_tu = null, $nghi_den = null ) {
 		$vao_m = (int) $vao_m;
 		$ra_m  = (int) $ra_m;
-		return ( $ra_m > $vao_m ) ? ( $ra_m - $vao_m ) : ( $ra_m + 1440 - $vao_m );
+		$p = ( $ra_m > $vao_m ) ? ( $ra_m - $vao_m ) : ( $ra_m + 1440 - $vao_m );
+		if ( class_exists( 'VHCC_Cham' ) && method_exists( 'VHCC_Cham', 'phut_nghi' ) ) {
+			$p -= VHCC_Cham::phut_nghi( $nghi_tu, $nghi_den );
+		}
+		return max( 0, $p );
 	}
 
 	public static function mtd_tinh_luong( $coso, $tt ) {
@@ -590,7 +654,9 @@ class VHCC_Luong {
 			if ( '' === $by[ $ma ]['ten'] ) { $by[ $ma ]['ten'] = $ma; }
 
 			if ( $theo_gio ) {
-				$phut = self::phut_ca( $vao_m, $ra_m );
+				$phut = self::phut_ca( $vao_m, $ra_m,
+					isset( $r['nghi_tu_giay'] ) ? $r['nghi_tu_giay'] : null,
+					isset( $r['nghi_den_giay'] ) ? $r['nghi_den_giay'] : null );
 				$so   = round( $phut / 60, 2 );
 				$dg   = $gia[ 'gio' . $hoa ];
 				$by[ $ma ]['gio'][ $loai ] += $so;
@@ -987,7 +1053,10 @@ class VHCC_Luong {
 					   công"*. Ở NGUYÊN ngày ghi giờ thô (h2vao/h2ra), không dồn theo congDem sang
 					   ngày hôm sau: ảnh là bằng chứng của LƯỢT BẤM, còn công đêm mới là thứ dồn
 					   ngày — hai chuyện khác nhau. */
-					'anhVao' => '', 'anhRa' => '', 'anhH2Vao' => '', 'anhH2Ra' => '' );
+					'anhVao' => '', 'anhRa' => '', 'anhH2Vao' => '', 'anhH2Ra' => '',
+					/* Chỗ đứng lúc bấm, một dòng `VHCC_ViTri::dong()` cho mỗi đầu giờ. Cùng luật
+					   với ảnh: ở NGUYÊN ngày ghi giờ thô, không dồn theo công đêm. */
+					'vtVao' => '', 'vtRa' => '', 'vtH2Vao' => '', 'vtH2Ra' => '' );
 			}
 			return $ngay;
 		};
@@ -1016,6 +1085,8 @@ class VHCC_Luong {
 				$out[ $ngay ]['ra']  = VHCC_DB::hhmm( $chinh[1] );
 				$out[ $ngay ]['anhVao'] = isset( $chinh[2] ) ? (string) $chinh[2] : '';
 				$out[ $ngay ]['anhRa']  = isset( $chinh[3] ) ? (string) $chinh[3] : '';
+				$out[ $ngay ]['vtVao']  = isset( $chinh[4] ) ? (string) $chinh[4] : '';
+				$out[ $ngay ]['vtRa']   = isset( $chinh[5] ) ? (string) $chinh[5] : '';
 			}
 			/* Kế toán CHỦ NHẬT: lịch nghỉ -> 0 công ngày. Vẫn GIỮ số phút để giao diện hiện được
 			   "đi làm chủ nhật nhưng chủ nhật là ngày nghỉ", không xoá dấu vết. */
@@ -1029,6 +1100,8 @@ class VHCC_Luong {
 				$out[ $ngay ]['h2ra']  = VHCC_DB::hhmm( $dem[1] );
 				$out[ $ngay ]['anhH2Vao'] = isset( $dem[2] ) ? (string) $dem[2] : '';
 				$out[ $ngay ]['anhH2Ra']  = isset( $dem[3] ) ? (string) $dem[3] : '';
+				$out[ $ngay ]['vtH2Vao']  = isset( $dem[4] ) ? (string) $dem[4] : '';
+				$out[ $ngay ]['vtH2Ra']   = isset( $dem[5] ) ? (string) $dem[5] : '';
 			}
 			$ca  = self::vp_ca_hang2( $cfg, $dem ? $dem[0] : null, $dem ? $dem[1] : null );
 			if ( 'tangca' === $ca['loai'] ) {
@@ -1247,8 +1320,12 @@ class VHCC_Luong {
 			   `VHCC_Nhan::luu_anh()`) — anh Thắng 07/09/2026: *"hiện ảnh chấm công"*, thêm vào
 			   CUỐI mảng để không đụng chỗ nào đang đọc `$chinh[0]`/`$chinh[1]`/`$dem[0]`/`$dem[1]`
 			   bằng số. */
+			/* [4]/[5] = VỊ TRÍ của đúng lượt bấm ấy, đi cặp với ảnh [2]/[3] — anh Thắng
+			   20/09/2026: *"Như chấm vào. Chấm ra"*. Cũng thêm vào CUỐI mảng, cùng lý do. */
 			$nguoi[ $ma ][ $r['ngay'] ][ $khe ] = array( $r['gio_vao_giay'], $r['gio_ra_giay'],
-				(string) $r['anh_vao'], (string) $r['anh_ra'] );
+				(string) $r['anh_vao'], (string) $r['anh_ra'],
+				isset( $r['vt_vao'] ) ? (string) $r['vt_vao'] : '',
+				isset( $r['vt_ra'] ) ? (string) $r['vt_ra'] : '' );
 			/* Nhớ ngày này đến từ MÃ CƠ SỞ nào. Bảng ghép cộng công của nhiều mã lại; không giữ
 			   dấu vết thì con số đúng mà không ai soi lại được ca đêm nằm ở đâu. */
 			if ( isset( $r['coso'] ) && 0 !== strcasecmp( (string) $r['coso'], (string) $coso ) ) {

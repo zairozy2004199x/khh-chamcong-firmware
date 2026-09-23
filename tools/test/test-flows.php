@@ -1018,47 +1018,27 @@ teq( 'đơn đã cấp tiền không suy suyển', 650000.0,
 	(float) VHCP_Don::get_don( $mmc2 )['tongCN']['tamUng'] );
 teq( 'chạy lại thì sạch', 0, (int) VHCP_Don::don_bu_tru_cu( false )['tong'] );
 
-/* ⚠️ MÀN HÌNH PHẢI NÓI RÕ HAI LOẠI. Bảng cũ chỉ có cột "Bù trừ dính" — đơn mồ côi không có bù
-   trừ nào, mà cột "Sẽ thành" lại ghi một con số tiền, người đọc sẽ tưởng đơn được duyệt bằng
-   số ấy. Phải nói thẳng: xoá số duyệt, chờ duyệt lại. */
+/* ⚠️ MÀN "Dọn bù trừ cũ" ĐÃ BỎ — anh Thắng 10/09/2026: *"Đã xong, loại bỏ"*. Việc dọn là việc
+   MỘT LẦN cho sổ trước bản 1.53.0; xong rồi thì để lại chỉ tổ mời người ta bấm vào một việc
+   không còn gì để làm. Mọi phép canh GIAO DIỆN của khối ấy bỏ theo — canh một cái không còn
+   trên màn là bài kiểm đỏ mãi mà chẳng ai sửa được.
+   🔴 PHẦN LÕI THÌ GIỮ NGUYÊN: các phép chạy thật phía trên vẫn soi `don_bu_tru_cu()` nhận đúng
+      hai loại đơn và sửa đúng số. Hàm vẫn gọi được qua API, nên nó vẫn phải đúng. */
 $_app4 = file_get_contents( dirname( __DIR__, 2 ) . '/wordpress/vhcp-chi-phi/templates/app.html' );
-t( '🔴 bảng dò có cột nói vì sao đơn dính', false !== strpos( $_app4, 'Vì sao dính' ), null );
-t( 'và phân biệt đơn mồ côi', false !== strpos( $_app4, "x.loai==='mocoi'" ), null );
-t( '🔴 cột "Sẽ thành" của đơn mồ côi KHÔNG bày ra một con số duyệt',
-	false !== strpos( $_app4, ">chưa duyệt</span><br>" ), null );
-t( 'ô xác nhận nói rõ sẽ xoá hẳn số duyệt',
-	false !== strpos( $_app4, 'xoá hẳn con số duyệt còn sót' ), null );
-/* ⚠️ Neo vào ĐÚNG chuỗi trong ô xác nhận. Câu "chờ quản lý duyệt lại" còn nằm cả ở phần mô tả
-   tĩnh phía trên thẻ; soi chuỗi trần thì phần mô tả đỡ đòn cho ô xác nhận — đã ra XANH giả một
-   lần lúc phá thử. */
-t( 'và ô xác nhận nói tiếp đơn sẽ đi đâu sau đó',
-	false !== strpos( $_app4, 'đơn quay về đúng trạng thái "chưa duyệt", chờ quản lý duyệt lại' ), null );
-t( 'phần mô tả kể cả hai loại', false !== strpos( $_app4, 'Chưa duyệt mà vẫn mang số duyệt' ), null );
-/* ⚠️ NEO VÀO ĐÚNG NHÁNH JS, KHÔNG NEO VÀO PHẦN MÔ TẢ TĨNH. Hai chỗ dùng cùng một câu chữ; soi
-   chuỗi trần thì phần mô tả ở trên đỡ đòn cho ô trong bảng, và ô ấy có ghi sai cũng không ai
-   biết — phá thử đúng cảnh này ra XANH một lần rồi. */
-t( '🔴 ô "Vì sao dính" của đơn mồ côi nói đúng chuyện chưa duyệt',
-	1 === preg_match( '/x\.loai===\x27mocoi\x27[\s\S]{0,900}?Chưa duyệt mà vẫn mang số duyệt/u', $_app4 ), null );
-t( 'và nói luôn đơn đang nằm ở trạng thái nào',
-	1 === preg_match( '/x\.loai===\x27mocoi\x27[\s\S]{0,1100}?esc\(x\.trangThai/u', $_app4 ), null );
-t( '🔴 dòng đầu bảng đếm riêng bao nhiêu đơn mồ côi',
-	false !== strpos( $_app4, "BTC.soMoCoi+' mang số duyệt mồ côi" ), null );
+t( '🔴 màn "Dọn bù trừ cũ" đã bỏ khỏi Cấu hình', false === strpos( $_app4, 'id="btCuCard"' ), null );
+t( '   bỏ sạch, không sót mảnh nào',
+	false === strpos( $_app4, 'btcu-ck' ) && false === strpos( $_app4, 'doDoBtCu' ), null );
 
-/* ⚠️ Ô TÍCH PHẢI CÓ THẬT TRÊN MÀN. Máy chủ chối lượt dọn không kèm mã đơn — nếu giao diện không
-   có chỗ tích thì nút chỉ còn là cái bấm vào để nhận câu chối. */
-t( '🔴 mỗi hàng có ô tích mang mã đơn',
-	1 === preg_match( '/class="btcu-ck" value="\x27\+esc\(x\.maDon\)\+\x27"/u', $_app4 ), null );
-t( 'có ô tích chọn/bỏ tất cả ở đầu bảng', false !== strpos( $_app4, 'id="btCuAll" onclick="btCuTichHet(this)"' ), null );
-t( '🔴 nút gửi ĐÚNG danh sách đã tích lên máy chủ',
-	false !== strpos( $_app4, '.donBuTruCu(chot?1:0, chon||[])' ), null );
-t( 'và chặn ngay ở màn khi chưa tích đơn nào',
-	false !== strpos( $_app4, "if(!chon.length){ toast('warn','Tích vào những đơn cần dọn trước đã'); return; }" ), null );
-t( 'nhãn nút đếm theo số đơn đã tích',
-	false !== strpos( $_app4, "nut.textContent='✔ Dọn '+n+' đơn đã chọn'" ), null );
-t( '🔴 hàng đã dọn thôi bày ô tích, chỉ còn dấu ✓',
-	1 === preg_match( '/\(x\.daSua[\s\S]{0,140}?title="đã dọn">✓[\s\S]{0,140}?class="btcu-ck"/u', $_app4 ), null );
-t( 'ô xác nhận nói rõ đơn không tích thì không đụng',
-	false !== strpos( $_app4, 'Đơn KHÔNG tích thì không đụng tới' ), null );
+/* 🔴 CHỐT AN TOÀN KHÔNG ĐI THEO MÀN. Anh Thắng dặn: *"Cần tích vào dọn đơn chọn thôi, để tránh
+   phát lỗi cho đơn khác"*. Bỏ màn không có nghĩa là nới chốt — hàm vẫn gọi được qua API, nên
+   nó vẫn phải chối lượt dọn không kèm mã đơn. Bỏ cả chốt là mở đường cho một lượt sửa quét cả
+   sổ mà không ai tích gì. */
+$_r_bt = VHCP_Don::don_bu_tru_cu( true, array() );
+t( '🔴 nhưng hàm máy chủ vẫn CHỐI lượt dọn không kèm mã đơn (chốt an toàn không đi theo màn)',
+	empty( $_r_bt['success'] ) && false !== mb_strpos( (string) $_r_bt['error'], 'Chưa chọn đơn nào' ), $_r_bt );
+$_r_bt = VHCP_Don::don_bu_tru_cu( false );
+t( '   dò (chưa chốt) thì vẫn chạy được, không sửa gì',
+	! empty( $_r_bt['success'] ) || isset( $_r_bt['ds'] ), $_r_bt );
 
 VHCP_Don::delete_don_admin( $mmc1 );
 VHCP_Don::delete_don_admin( $mmc2 );
@@ -1156,7 +1136,12 @@ $sum = 0;
 foreach ( $ex['rows'] as $rw ) { $sum += $rw[7]; }
 teq( 'MISA: tổng tiền = 1.750.000', 1750000, $sum );
 $r0 = $ex['rows'][0];
-teq( 'MISA: TK Có theo người duyệt tạm ứng', '3341', $r0[6] );
+/* 🔴 ĐỔI 12/09/2026 — anh Thắng: *"Bỏ cột tài khoản có"*. TK Có không còn tra theo NGƯỜI DUYỆT
+   nữa (cột ấy đã bỏ khỏi bảng Người dùng, nên giữ bảng tra lại là một giá trị ẩn trong sổ cũ
+   vẫn lặng lẽ chi phối bút toán mà không ai xem hay sửa được). Nay TK Có đi theo HÌNH THỨC CHI
+   — 141 khi cá nhân ứng tiền, 331 khi trả thẳng NCC — tức theo đồng tiền chứ không theo người
+   ký. Dòng này là chi cá nhân nên phải ra 141, dù người duyệt vẫn khai `tkCo = 3341`. */
+teq( '🔴 MISA: TK Có theo HÌNH THỨC CHI, không theo người duyệt', '141', $r0[6] );
 teq( 'MISA: mã đối tượng theo người duyệt', 'NV_QL', $r0[8] );
 t( 'MISA: diễn giải có kỳ + tên người duyệt', strpos( $r0[3], 'Trần Quản Lý' ) !== false, $r0[3] );
 $tk_no = array();
@@ -1216,9 +1201,9 @@ teq( 'MISA lọc NCC: chưa duyệt NCC thì không xuất', 0, VHCP_Misa::expor
 t( 'kế toán NCC duyệt độc lập', ! empty( VHCP_Don::xac_nhan_quyet_toan_ncc( $ma_ncc, 'Phạm KT NCC' )['success'] ) );
 $exn = VHCP_Misa::export_misa( 'all', 'chuaxuat', 'ncc' );
 teq( 'MISA lọc NCC: 1 dòng', 1, $exn['count'] );
-// App cũ: TK Có LUÔN ưu tiên TK Có của người duyệt tạm ứng, chỉ khi người đó chưa
-// cấu hình TK Có thì mới rơi về TK Có của phân loại (141 cá nhân / 331 NCC).
-teq( 'MISA lọc NCC: TK Có = TK Có người duyệt (ưu tiên hơn 331)', '3341', $exn['rows'][0][6] );
+// App cũ: TK Có LUÔN ưu tiên TK Có của người duyệt tạm ứng. Bỏ 12/09/2026 (xem khối trên) —
+// nay dòng trả thẳng nhà cung cấp ra đúng 331, bất kể người duyệt khai gì.
+teq( '🔴 MISA lọc NCC: TK Có = 331 theo hình thức chi', '331', $exn['rows'][0][6] );
 teq( 'MISA lọc NCC: TK Nợ theo ma trận', '1561', $exn['rows'][0][5] );
 teq( 'MISA lọc cá nhân: 3 dòng', 3, VHCP_Misa::export_misa( 'all', 'chuaxuat', 'cn' )['count'] );
 
@@ -1381,7 +1366,11 @@ teq( 'MISA kỹ thuật: 64125 cho tạm ứng', 9000000, isset( $tkco['64125'] 
 $c1 = VHCP_DuAn::create_du_an( 'Chi phí cơ sở', '', 'Kỹ thuật viên' );
 $c2 = VHCP_DuAn::create_du_an( 'Chi phí cơ sở', '', 'Người khác' );
 teq( 'chi phí cơ sở chung chỉ 1 bản', $c1['maDA'], $c2['maDA'] );
-t( 'không xóa được chi phí cơ sở chung', empty( VHCP_DuAn::delete( $c1['maDA'] )['success'] ) );
+/* 🔴 SỔ CHUNG CÒN DÒNG THÌ KHÔNG XOÁ — dòng trong đó có thể đã xuất MISA.
+   Rỗng thì xoá được (anh Thắng 11/09/2026: *"xoá đơn này cho anh"*, chỉ vào dòng sổ chung 0đ);
+   bài riêng cho ca ấy ở `kiem-don-coso-nhieu-gian.php`. */
+VHCP_DuAn::add_line( $c1['maDA'], array( 'noiDung' => 'Khoản cũ', 'gian' => 'Gian X', 'thucTe' => 500000 ) );
+t( 'sổ chi phí cơ sở chung CÒN DÒNG thì không xoá được', empty( VHCP_DuAn::delete( $c1['maDA'] )['success'] ) );
 t( 'không đổi tên chi phí cơ sở chung', empty( VHCP_DuAn::rename_du_an( $c1['maDA'], 'X' )['success'] ) );
 
 // ---------------------------------------------------------------- 7. marketing
@@ -4097,6 +4086,9 @@ VHCP_Cfg::write( VHCP_Cfg::USER, array(
 	array( 'KT POSH',      '2004', 'Kế toán cá nhân', '', '', '', '', 'POSH', 'POSH' ),
 	array( 'QL POSH',      '2005', 'Quản lý',  '', '', '', '', 'POSH', 'POSH' ),
 	array( 'KT Chỉ K&H',   '2006', 'Kế toán cá nhân', '', '', '', '', 'K&H',  'K&H' ),
+	/* Nhà thứ ba, để giữ CHIỀU ĐÓNG sau khi K&H thành nhà mẹ: tên cũ "KT Chỉ K&H" nay đọc
+	   được cả hệ (nhà mẹ), nên phải có một người thật sự bị bó mới soi được vế ấy. */
+	array( 'KT KVC',       '2007', 'Kế toán cá nhân', '', '', '', '', 'KVC',  '' ),
 ) );
 
 teq( 'nhà của người khai POSH', 'POSH', VHCP_DonVi::cua_nguoi( 'NV POSH' ) );
@@ -4144,8 +4136,13 @@ t( '🔴 kế toán POSH thấy đơn POSH',      in_array( $_mp, $_ds_ktp, true
 t( '🔴 kế toán POSH KHÔNG thấy đơn K&H', ! in_array( $_mk, $_ds_ktp, true ), $_ds_ktp );
 
 $_ds_ktk = _dv_ma_don_cua( 'Kế toán cá nhân', 'KT Chỉ K&H' );
-t( 'kế toán chỉ-K&H thấy đơn K&H (kể cả đơn cũ ô rỗng)', in_array( $_mk, $_ds_ktk, true ), $_ds_ktk );
-t( 'kế toán chỉ-K&H KHÔNG thấy đơn POSH', ! in_array( $_mp, $_ds_ktk, true ), $_ds_ktk );
+t( 'kế toán nhà K&H thấy đơn K&H (kể cả đơn cũ ô rỗng)', in_array( $_mk, $_ds_ktk, true ), $_ds_ktk );
+/* 🔴 ĐỔI CHIỀU CÓ CHỦ Ý (12/09/2026): K&H là NHÀ MẸ nên đọc cả hệ — kể cả sổ POSH. Chiều đóng
+   chuyển sang canh bằng "KT KVC" ngay dưới, là một nhà con thật sự bị bó. */
+t( '🔴 và vì K&H là nhà mẹ nên thấy CẢ đơn POSH', in_array( $_mp, $_ds_ktk, true ), $_ds_ktk );
+$_ds_kvc = _dv_ma_don_cua( 'Kế toán cá nhân', 'KT KVC' );
+t( '🔴 kế toán nhà KVC KHÔNG thấy đơn K&H',  ! in_array( $_mk, $_ds_kvc, true ), $_ds_kvc );
+t( '🔴 kế toán nhà KVC KHÔNG thấy đơn POSH', ! in_array( $_mp, $_ds_kvc, true ), $_ds_kvc );
 
 /* Kế toán cá nhân KHÔNG khai ô "Xem đơn vị" -> nhìn chung cả hai. Đây là bản nâng cấp cho một
    hệ đang chạy: 240 người, không ai có ô đó, nên "để trống" phải là "như cũ", không phải "mù". */
@@ -4302,7 +4299,12 @@ $_tim_k = VHCP_Don::tim_don( 'Đèn' );
 $_ma_k = array();
 foreach ( $_tim_k['items'] as $x ) { $_ma_k[] = $x['maDon']; }
 t( '🔴 ô tìm vẫn ra đơn cũ có ô đơn vị RỖNG', in_array( $_mk, $_ma_k, true ), $_ma_k );
-t( 'và không ra đơn POSH', ! in_array( $_mp, $_ma_k, true ), $_ma_k );
+/* Nhà mẹ thì ra cả hai; chiều đóng của ô tìm canh bằng kế toán POSH ngay dưới. */
+t( 'nhà mẹ K&H thì ô tìm ra cả đơn POSH', in_array( $_mp, $_ma_k, true ), $_ma_k );
+VHCP_Auth::dat_vai_tro( 'Kế toán cá nhân', 'KT KVC' );
+$_ma_kvc = array();
+foreach ( VHCP_Don::tim_don( 'Đèn' )['items'] as $x ) { $_ma_kvc[] = $x['maDon']; }
+t( '🔴 ô tìm của kế toán KVC không ra đơn của nhà khác', ! in_array( $_mk, $_ma_kvc, true ) && ! in_array( $_mp, $_ma_kvc, true ), $_ma_kvc );
 
 VHCP_Auth::dat_vai_tro( 'Kế toán cá nhân', 'KT POSH' );
 $_tim_p = VHCP_Don::tim_don( 'Đèn' );

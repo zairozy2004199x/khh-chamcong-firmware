@@ -64,6 +64,21 @@ class VHNB_Quyen {
 		'dang' => array( 'nhan' => 'Đăng bài · bình luận · thả tim',  'md' => 'NHAN_VIEN' ),
 		'nhom' => array( 'nhan' => 'Lập nhóm riêng',                  'md' => 'NHAN_VIEN' ),
 		'don'  => array( 'nhan' => 'Ghim bài · xoá bài của người khác', 'md' => 'ADMIN' ),
+		/* Anh Thắng 09/09/2026: *"nó sẽ hiện cho cửa hàng trưởng và quản lý trở lên xem chứ
+		   ngang hàng hoặc phía dưới sẽ không xem được"*. Nên mặc định là Cửa hàng trưởng —
+		   thang này bậc trên làm được việc của bậc dưới, nên "từ CHT trở lên" gồm luôn Quản lý,
+		   Kế toán, Admin.
+		   ⚠️ Việc này KHÁC ba việc trên ở một điểm: ba việc kia là quyền LÀM, còn đây là quyền
+		      ĐỌC. Nên chỗ hỏi nó KHÔNG dùng `duoc()` — xem `bac_nguoi()` ngay dưới. */
+		'tin_gd' => array( 'nhan' => 'Xem thông báo giao dịch (chi phí · chấm công · ghế · vé)',
+			'md' => 'CUA_HANG_TRUONG' ),
+		/* Anh Thắng 09/09/2026: cửa hàng trưởng chỉ thấy cơ sở MÌNH, Quản lý trở lên thấy TẤT
+		   CẢ. Hai việc chứ không một, vì thang bậc chỉ có MỘT ngưỡng cho mỗi việc: muốn Quản lý
+		   thấy nhiều hơn Cửa hàng trưởng thì phải là hai việc với hai ngưỡng.
+		   ⚠️ Ngưỡng này PHẢI cao hơn hoặc bằng `tin_gd` mới có nghĩa. Khai thấp hơn thì nó vô
+		      hại (người chưa qua `tin_gd` vẫn không đọc được gì), chỉ là vô dụng. */
+		'tin_gd_het' => array( 'nhan' => 'Xem thông báo giao dịch của MỌI cơ sở',
+			'md' => 'QUAN_LY' ),
 	);
 
 	/** Năm bậc, đúng thang của `VHCC_Vai`. Khai lại TÊN HIỆN ra màn, không khai lại luật. */
@@ -109,6 +124,54 @@ class VHNB_Quyen {
 		if ( ! class_exists( 'VHCC_Vai' ) || ! defined( 'VHCC_Vai::BAC' ) ) { return 1; }
 		$bac = constant( 'VHCC_Vai::BAC' );
 		return isset( $bac[ $ma ] ) ? (int) $bac[ $ma ] : 5;
+	}
+
+	/**
+	 * BẬC CỦA NGƯỜI ĐANG XEM, dạng SỐ 1..5. Trả **0** khi không đo được.
+	 *
+	 * =========================================================================================
+	 * 🔴 KHÔNG ĐO ĐƯỢC THÌ TRẢ 0 — NGƯỢC HẲN `duoc()`, VÀ CỐ Ý NGƯỢC
+	 * =========================================================================================
+	 * `duoc()` thiếu `VHCC_Vai` thì CHO QUA, vì nó gác quyền LÀM: chối sạch là cả trang đóng
+	 * cửa với mọi người, kể cả Admin, và không còn ai vào để bật lại (xem đầu tệp).
+	 *
+	 * Hàm này gác quyền ĐỌC một thứ có chủ đích chỉ cho quản lý xem. Cho qua khi không đo được
+	 * nghĩa là gỡ plugin chấm công ra là cả công ty đọc được thông báo giao dịch — hỏng theo
+	 * chiều KHÔNG ai nhìn thấy, vì trang vẫn chạy bình thường và không có gì báo. Nên ở đây
+	 * hỏng thì ĐÓNG: thà quản lý mất một dòng bảng tin còn hơn 240 người đọc thứ không dành
+	 * cho họ. Bậc 0 nhỏ hơn mọi `bac_can` từ 1 trở lên, nên chỉ còn thấy bài công khai.
+	 *
+	 * ⚠️ Vì vậy ĐỪNG viết lại hàm này thành `duoc( $u, 'tin_gd' )` cho gọn — hai hàm khác nhau
+	 *    ở đúng cái nhánh thiếu `VHCC_Vai`, và đó là cả lý do hàm này tồn tại.
+	 */
+	public static function bac_nguoi( $u ) {
+		if ( ! is_array( $u ) || ! $u ) { return 0; }
+		if ( ! class_exists( 'VHCC_Vai' ) || ! method_exists( 'VHCC_Vai', 'bac' ) ) { return 0; }
+		return (int) VHCC_Vai::bac( $u );
+	}
+
+	/**
+	 * CƠ SỞ NGƯỜI NÀY PHỤ TRÁCH, dạng mảng tên. Rỗng = không biết / không thuộc cơ sở nào.
+	 *
+	 * ⚠️ MỘT NGƯỜI CÓ THỂ NHIỀU CƠ SỞ, và thẻ phiên nối chúng bằng dấu phẩy. Tách bằng
+	 *    `VHCC_NhanSu::ds_coso_cua()` — hàm của chính plugin chấm công, nơi đã xử đủ mấy ca
+	 *    khó (chuẩn hoá tên, cắt tên ghép). Tự `explode(',')` ở đây là dựng bản chép tay thứ
+	 *    hai, và hai bản thì sớm muộn lệch nhau ở đúng những ca ấy.
+	 * ⚠️ Thiếu plugin chấm công thì trả RỖNG, không đoán. Rỗng nghĩa là chỉ đọc được dòng
+	 *    không thuộc cơ sở nào — cùng chiều đóng với `bac_nguoi()`.
+	 */
+	public static function coso_nguoi( $u ) {
+		if ( ! is_array( $u ) || ! $u ) { return array(); }
+		if ( ! class_exists( 'VHCC_NhanSu' ) || ! method_exists( 'VHCC_NhanSu', 'ds_coso_cua' ) ) {
+			return array();
+		}
+		$ds = VHCC_NhanSu::ds_coso_cua( $u );
+		return is_array( $ds ) ? $ds : array();
+	}
+
+	/** Người này có được xem thông báo giao dịch của MỌI cơ sở không. */
+	public static function xem_het_coso( $u ) {
+		return self::bac_nguoi( $u ) >= (int) self::bac_can( 'tin_gd_het' );
 	}
 
 	/* ====================================================================== hỏi quyền */

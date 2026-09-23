@@ -128,6 +128,83 @@ dưới hai thẻ to (nạp `.csv`, tài khoản đăng nhập) — nên vẫn p
   không ép thành ô chọn: luật "đã nghỉ" đọc theo chữ *nghỉ* trong câu (`VHCC_NhanSu::da_nghi`) và
   sổ cũ có những câu như "Đã nghỉ 12/2025".
 
+### Chặn PIN trùng ở mọi đường ghi (3.47.0)
+
+> Anh Thắng: *"chặn trường hợp tạo mã pin trùng nhé"*.
+
+Có **bốn đường** ghi được vào hai ô PIN, mà trước bản này chỉ **một** đường soát trùng:
+
+| Đường ghi | Trước | Nay |
+|---|---|---|
+| Màn Hồ sơ ngoài web (`sua_hs`) | soát PIN đăng nhập | soát cả **PIN máy** |
+| Màn wp-admin (`luu_ho_so`) | **không soát gì** | soát cả hai |
+| Nạp `.csv` | chỉ soát *khuôn* PIN | soát trùng: **bỏ đúng ô PIN** của dòng ấy, giữ các ô khác, báo tên ra |
+| Kéo từ app gốc | không soát | như trên, và ghi lý do vào dòng báo cáo |
+
+Luật chung nằm ở **`VHCC_NhanSu::pin_trung_loi()`** — một hàm cho cả bốn đường, vì mỗi đường tự
+viết một phép soát là sớm muộn có đường quên, mà đường quên thì hỏng im lặng.
+
+**Hai ô PIN, hai phạm vi khác nhau:**
+
+* **PIN đăng nhập** — so **cả chuỗi**. Trùng là cổng nhận người *gặp trước*, nhật ký ghi tên người
+  đó, còn người kia gõ đúng PIN của mình mà vào hồ sơ người khác — và họ tưởng mình bấm nhầm nên
+  **không ai báo**.
+* **PIN máy chấm công** — so **trong cùng cơ sở** (tính cả cơ sở phụ). Trùng là **giờ của người này
+  ghi vào người kia**. Cố ý *không* so cả chuỗi: mỗi đầu đọc chỉ giữ người của cơ sở nó, chặn cả
+  chuỗi thì tới cơ sở thứ mười là không còn số 4 chữ số nào cấp được, và người ta sẽ đi vòng qua
+  bằng cách bỏ trống ô.
+
+Ô PIN **để trống vẫn là "không đổi"** — không soát ô trống, kẻo mọi lượt sửa số điện thoại cũng bị
+chối oan.
+
+**Chỗ đang trùng từ TRƯỚC thì chặn không dọn được** (sổ kéo về từ Sheets, nơi PIN gõ tay). Nên thẻ
+*Hồ sơ nhân sự* nay tự chỉ ra: một dải đỏ **"N mã PIN đang bị M người dùng chung"** kèm đường bấm,
+và một mục lọc **⚠ PIN đang TRÙNG nhau** để xem đúng nhóm ấy. Dọn hết thì dải báo tắt — báo mãi
+thành tiếng ồn rồi không ai đọc nữa.
+
+Phép thử (30 phép): chối PIN đăng nhập trùng ở `luu_ho_so` và nêu **trùng với ai** · PIN máy trùng
+**cùng cơ sở** thì chối, **khác cơ sở** thì cho · lưu lại chính hồ sơ đang giữ PIN đó không bị tự
+chối · không gửi ô PIN thì lưu bình thường · màn web chối PIN máy trùng · `.csv` bỏ đúng ô PIN mà
+vẫn nạp các ô khác, bắt cả **trùng giữa hai dòng trong cùng file** · đường kéo bỏ PIN của dòng sau
+và **nói ra trong dòng báo cáo** · dải đỏ + mục lọc chỉ ra đúng người đang trùng, và **tắt** sau khi
+dọn.
+
+---
+
+### Dọn hai chỗ gây nhầm (3.46.0)
+
+> Anh Thắng: *"loại bỏ chỗ này tránh nhầm"* (nút ở `/nhan-su/`) và *"loại bỏ chỗ này"* (thẻ 🔑).
+
+**1. Bỏ nút `➕ Thêm nhân sự` khỏi trang `/nhan-su/`.** Nó chỉ là một đường dẫn sang biểu mẫu ở màn
+*Hồ sơ & tài khoản*, nhưng đặt ở đây thì trang này trông như một cửa thêm người thứ hai — đúng cái
+rối đợt 3.42.0 đang gỡ. Trang `/nhan-su/` làm **một việc**: khai ai vào được trang nào.
+
+**2. Thẻ 🔑 `Tài khoản đăng nhập` chỉ còn hiện khi cổng đang đọc SAI chỗ.** Ở trạng thái đúng —
+cổng đọc thẳng Hồ sơ Nhân sự — thẻ ấy không còn việc gì, mà **hai nút của nó đều hỏng im lặng**:
+
+* *Nạp tài khoản* chép hồ sơ sang **danh sách riêng**, mà cổng không đọc danh sách ấy nữa — bấm
+  xong báo "đã nạp N người" mà chẳng đổi gì;
+* *Khai Admin* cũng ghi vào chính danh sách đó (`VHCC_NguoiDung::khai_admin`), nên tài khoản vừa
+  khai **không đăng nhập được**.
+
+Nguồn khác thì thẻ **vẫn hiện**, vì lúc đó nó là *chỗ sửa* (nút "Cho cổng đọc thẳng Hồ sơ Nhân
+sự") — đường duy nhất ở trang web. Không mất đường nào: đổi nguồn còn làm được ở **wp-admin →
+Cài đặt**, còn cấp quyền đăng nhập thì mở hồ sơ người đó, đặt **Vai trò + PIN** — có hiệu lực ngay.
+
+Ẩn thẻ thì phải giữ lại cái *biết*: thẻ **Hồ sơ nhân sự** nay có một dòng "Cho ai đăng nhập được:
+mở hồ sơ người đó, đặt Vai trò + PIN". Và **ba câu nhắc cũ** trỏ vào thẻ 🔑 ("nhớ bấm Nạp tài
+khoản ở ô 🔑 bên trên") nay đổi theo nguồn — không thì chúng chỉ người đọc đi tìm một cái thẻ
+không còn ở đó.
+
+Phép thử (11 phép): trang `/nhan-su/` không còn nút lẫn liên kết `sua=moi` nhưng **bảng quyền vẫn
+nguyên** · nguồn `ho_so` thì thẻ 🔑 biến hẳn, không còn cả chữ "Nạp tài khoản"/"Khai Admin" ở đâu
+trên màn, mà thẻ tạo nhân sự + bảng hồ sơ + dòng chỉ cách cấp đăng nhập vẫn còn · nguồn khác thì
+thẻ hiện kèm nút trỏ cổng về đọc thẳng hồ sơ. Kèm một chốt **chống xanh giả**: phép thử tự kiểm
+"đã đăng nhập được chưa" trước, vì đổi nguồn là đổi luôn chỗ cổng tra PIN — đăng nhập trượt thì
+trang chỉ có ô PIN và mọi phép "không thấy thẻ" đều xanh mà chẳng chứng minh gì.
+
+---
+
 ### Nhân viên đang có của cơ sở, hiện ngay trong biểu mẫu tạo (3.45.0)
 
 > Anh Thắng: *"trước khi tạo làm sao biết nhân viên đó có chưa, thì bổ sung danh sách cửa hàng đó
@@ -203,13 +280,963 @@ tạo người).
 
 ---
 
+## 4c. Người mới thêm xong không chấm công được — 3.48.0 (08/09/2026)
+
+Anh Thắng chụp màn `/cham-cong/` mở trong Zalo: *"thêm nhân viên bị lỗi ở chấm công"*, rồi hỏi
+*"khả năng nào không chọn nhiệm vụ lỗi không"* và chốt lại *"tại báo cáo lỗi không rõ ràng"*.
+
+Dựng lại đúng cảnh ấy trong bộ giả lập (`scratchpad/sim-moi.php`, và nay là phép thử thật) ra **ba
+câu trả lời khác nhau** — không cái nào là cái ban đầu tưởng.
+
+### a) Không chọn nhiệm vụ **không** phải nguyên nhân
+
+Gác nhiệm vụ trong `VHCC_Online::cham_cong()` chỉ chạy khi ô ấy **khác rỗng**. Bỏ trống là đi
+thẳng: bộ giả lập cho người vừa được thêm chấm với `nhiemVu:''` → `ok:true, loai:"vao"`. Trang
+trạm cũng không dựng ô nhiệm vụ khi hồ sơ chưa khai việc nào. Đã khoá lại bằng phép thử trong
+`kiem-tram.php` để lần sau không phải hỏi lại.
+
+### b) Lỗ thật: **PIN đăng nhập trùng với sổ PhanQuyen cũ**
+
+Chốt chặn PIN trùng ở 3.47.0 chỉ soát **bảng hồ sơ**. Nhưng cửa trạm `VHCC_Tram::tim_pin()` tra
+**sổ PhanQuyen TRƯỚC**, hồ sơ sau. Nên cấp cho người mới đúng con số mà sổ cũ đã cấp cho người
+khác thì **lọt** — rồi người mới gõ PIN của mình lại **vào nhầm tài khoản người kia**: tên hiện
+trên trạm là tên người kia, lượt chấm ghi sang mã người kia. Không một dòng báo lỗi, đúng loại
+hỏng im lặng mà người dùng tưởng mình bấm nhầm.
+
+Nay `pin_dang_dung()` soát **cả hai kho, theo đúng thứ tự cửa trạm đọc**. Hai ngoại lệ cố ý:
+
+* hàng sổ cũ mang **đúng mã đang sửa** → cho, vì đó là hai bản ghi của **cùng một người**;
+* hàng sổ cũ **chưa khai mã chấm công** → cho, vì `tim_pin` bỏ qua hàng ấy nên nó không cướp được
+  phiên của ai — mà chuyện thường gặp nhất lại là *chính người ấy* đã có tên trong sổ cũ và nay
+  mới được lập hồ sơ với đúng PIN quen dùng. Chặn nhóm đó là chối oan hàng loạt.
+
+Câu chối cũng nói thẳng số ấy **nằm ở sổ PhanQuyen cũ**, kẻo người sửa đi tìm cái mã đó trong
+danh sách hồ sơ và không thấy đâu.
+
+### c) Báo lỗi rõ ràng ở trạm
+
+| Trước | Nay |
+|---|---|
+| `Chưa khai "Cơ sở chấm công online" cho tài khoản này.` — ô ấy **chỉ có ở màn PhanQuyen cũ**, không có trên biểu mẫu một cửa họ vừa dùng | gọi tên người phải sửa, và chỉ đúng **lưới "Cơ sở"** trong hồ sơ |
+| chưa có cơ sở mà nút **CHẤM CÔNG** vẫn sáng: bấm → chờ camera → chụp → bấm lưu → mới ăn câu chối | khoá nút **ngay lúc mở trang**, kèm câu nói rõ ai phải sửa gì |
+| `Máy chủ không trả lời sau 10 giây` rồi hết — người đứng đó không biết bấm lại hay không | **hỏi lại máy chủ** rồi trả lời dứt khoát (xem dưới) |
+| `Failed to fetch` / `Load failed` — chữ của trình duyệt, ba trình ba câu | dịch ra việc phải làm, **giữ chữ gốc trong ngoặc** để còn đối chiếu |
+| không có gì để đọc trên ảnh chụp màn | mã ngắn cuối câu: `[QUA-HAN: cham]`, `[MAT-MANG: …]`, `[HTTP-500: cham]` |
+
+**Quá hạn KHÔNG đồng nghĩa chưa ghi.** Lượt `cham` là lượt duy nhất mang ảnh; quá hạn thường là
+ảnh đã đi rồi, chỉ câu trả lời chưa về. Bảo "chưa lưu được" là mời người ta bấm lượt thứ hai — mà
+lượt thứ hai ngay sau giờ vào là **giờ ra**, mất cả ca công. Nên `soatLaiDaGhi()` chụp bảng *hôm
+nay* của cơ sở ấy **trước khi gửi**, và khi lượt gọi hỏng thì hỏi lại bằng một lượt `toi` nhẹ
+(không ảnh) rồi so:
+
+* bảng đổi → **đã ghi thật**: đóng màn chọn, bỏ ảnh, và dặn *đừng bấm lại*;
+* bảng y nguyên → **chưa ghi**: bảo bấm lưu lần nữa;
+* hỏi lại cũng hỏng → nói thẳng là **chưa biết**, và chỉ cách tự kiểm bằng bảng *Hôm nay*.
+
+So **cả bảng** (kèm giờ ra) chứ không chỉ *"đã có giờ vào chưa"* — buổi chiều thì giờ vào buổi
+sáng vẫn nằm đó, đếm kiểu ấy là lượt tan làm nào cũng ra "đã ghi rồi".
+
+Phép thử: 8 phép trong `test-cham-cong.php` (đo **cả hai đầu**: cửa ghi có chối không, *và* cửa
+trạm có thật sự nhận nhầm người không — đo mỗi cửa ghi thì chốt đặt sai chỗ vẫn xanh) và 20 phép
+trong `kiem-tram.php`.
+
+## 4d. Chuyển đổi cơ sở chính ↔ cơ sở phụ — 3.62.0 (09/09/2026)
+
+Anh Thắng, trước khối **"Cơ sở được chấm công"** trên trạm (`JP_HCM · cơ sở chính` /
+`VP_KH-HCM · cơ sở phụ`): *"làm sao để chuyển đổi cơ sở chính cà cơ sở phụ"*.
+
+### Trả lời ngắn
+
+Ở **ô Cơ sở** (cột *Cơ sở* của trang `/nhan-su/`, hoặc ô *Cơ sở làm việc* trong hồ sơ) nay mỗi cơ
+sở có thêm một **nút tròn `chính`**. Bấm nút tròn của cơ sở muốn đặt làm chính rồi bấm **Lưu** —
+xong. Không cần bỏ tích cơ sở nào, và **không ai bị gỡ khỏi cửa hàng nào**.
+
+Nút tròn chỉ hiện khi người ấy có **từ hai cơ sở trở lên** — một cơ sở thì "chính" không có nghĩa.
+
+### "Cơ sở chính" nghĩa là gì (và không nghĩa là gì)
+
+| Có nghĩa | Không có nghĩa |
+|---|---|
+| Cơ sở được **chọn sẵn** trong ô "đang có mặt ở cơ sở nào" lúc lưu lượt chấm | Không phải "cơ sở duy nhất được tính công" |
+| Cơ sở đứng ở cột `cua_hang` — vài phép gom cần **một** tên thì lấy tên này | Không phải thứ bậc: cơ sở phụ **được tính công đủ như nhau** |
+| Cơ sở đi vào thẻ phiên (`coso`), nên nó là nhãn `cơ sở chính` anh thấy trên trạm | Không quyết định quyền: quyền đi theo **vai**, phạm vi theo **ô tích** |
+
+Trạm nay in thẳng câu ấy dưới bảng cơ sở, vì hai cái nhãn kia đọc lên như thứ bậc và người làm
+hai nơi tưởng công ở cơ sở "phụ" là hạng hai.
+
+### Trước 3.62.0 thì **không có đường nào** — ba lớp cùng chặn
+
+1. Cả hai lưới ô tích gửi tên cơ sở lên theo **thứ tự vẽ**, mà thứ tự vẽ đã `sort()`/`ksort()`
+   theo bảng chữ cái.
+2. Nơi ghi lấy **phần tử đầu** làm `cua_hang`. Nên `JP_HCM` + `VP_KH-HCM` thì cơ sở chính vĩnh
+   viễn là `JP_HCM`.
+3. `VHCC_NhanSu::dat_ds_coso()` so hai danh sách theo **tập hợp** rồi trả về sớm — có kéo lại thứ
+   tự cũng không ghi.
+
+Đường duy nhất còn lại là gõ tay lại cả ô *Cơ sở làm việc* ở màn **wp-admin** (nó giữ nguyên thứ
+tự gõ) — không ai biết, và màn ấy sắp bỏ.
+
+### Ba chốt đi kèm
+
+* **Đổi cơ sở chính KHÔNG reset quyền riêng.** Chuyển cơ sở thật (thêm/bỏ) thì ngoại lệ quyền của
+  người ấy bị xoá về mặc định — đúng luật cũ. Nhưng đổi cái đứng đầu của **cùng một danh sách**
+  thì không: phạt một ô quyền cho một cú bấm đổi mặc định là phạt oan.
+* **Phải phụ trách cả hai đầu.** Đổi cơ sở chính giữa `A` và `B` thì người bấm phải phụ trách cả
+  `A` lẫn `B` — cơ sở chính là cơ sở mặc định của người ta, đổi hộ ở một nơi mình không phụ trách
+  là đổi sau lưng.
+* **Không truyền chỉ định thì thứ tự danh sách không tự quyết định gì.** Luật cũ còn nguyên cho
+  mọi đường ghi khác (lượt nạp .csv, bản kéo sheet): *"kéo lại thứ tự tích không phải là chuyển cơ
+  sở của ai"*.
+
+Và chốt *"đổi cửa hàng cần Quản lý"* trong `VHCC_NhanSu::luu_ho_so()` nay có vế
+`$chi_doi_thu_tu`: đổi thứ tự chính/phụ **trong cùng danh sách cơ sở người ấy đang có** không
+phải là chuyển cửa hàng, nên Kế toán bấm được — không thì cái nút vừa thêm bị khoá với đúng những
+người hay dùng nó, kèm một câu chối nhắc "ô Cơ sở phụ" đã bỏ từ 3.13.0.
+
+Đo bằng 37 phép trong `tools/test/test-cham-cong.php` — kể cả đường thật anh Thắng nhìn thấy:
+`cua_hang` → `VHCC_Tram::tim_pin()` → `VHCC_Online::thong_tin()['coSoMacDinh']`.
+
+---
+
+## 4e. Cơ sở "chỉ quản lý — không chấm công" — 3.63.0 (09/09/2026)
+
+Anh Thắng, trước khối *"Cơ sở được chấm công"* của chính mình đang liệt kê **sáu** cơ sở:
+*"đối với cửa hàng chỉ quản lý nhân viên không chấm công thì làm sao để loại ra khỏi bảng chấm
+công, nhưng vẫn quản lý được nhân viên cơ sở đó"*.
+
+### Trả lời ngắn
+
+Trong **ô Cơ sở**, mỗi cơ sở nay có thêm ô tích **`chỉ QL`** cạnh nút tròn *chính*. Tích nó thì
+cơ sở ấy:
+
+* **biến khỏi ô chọn cơ sở lúc chấm công** trên trạm (và lượt POST gửi thẳng cũng bị chối),
+* **không mọc hàng trống** trong lưới bảng công của cơ sở ấy,
+
+nhưng **ô tích cơ sở vẫn nguyên**, nên:
+
+* thẻ phiên vẫn mang cơ sở ấy → `co_quyen_coso()` vẫn đúng,
+* **danh sách nhân sự của cơ sở ấy vẫn quản được như thường**,
+* và **mấy lượt đã chấm trước đó không mất** — cờ chặn lượt MỚI, không xoá cái đã ghi.
+
+### Vì sao phải là "cờ phụ thêm", không phải một cột riêng
+
+Từ 31/08/2026 một ô tích mang **ba nghĩa** cùng lúc: nơi người ta **làm**, nơi người ta **quản**,
+nơi người ta **chấm**. Ba nghĩa ấy trùng nhau với gần hết mọi người — nhưng không trùng với
+người quản nhiều cơ sở mà chỉ đứng làm ở một hai nơi.
+
+Cách rẻ nhất là bỏ tích cơ sở đi — nhưng đó là **làm sai đúng nửa sau câu hỏi**: bỏ tích là mất
+luôn quyền quản lý ở đó. Cách thứ hai là dựng một cột "cơ sở quản lý" riêng ngoài ô tích — nhưng
+khi ấy **mọi** câu hỏi "người này ở đâu" trong cả plugin phải sửa lại, và mỗi câu bỏ sót là một
+chỗ mất quyền câm.
+
+Nên: `nhan_vien.coso_ql` là **tập con của những cơ sở đã tích**. Mọi thứ cấp phạm vi chạy y như
+cũ, không đổi một dòng; chỉ vế **chấm công** trừ ra.
+
+### Ba chốt đi kèm
+
+* **Cơ sở chính không được đặt `chỉ QL`.** Cơ sở chính là cơ sở trạm **chọn sẵn** (nó đi vào thẻ
+  phiên rồi thành `coSoMacDinh`), và lượt chấm không kèm ô chọn ghi thẳng vào đó. Cho phép thì ô
+  xổ chọn sẵn một cơ sở không có trong danh sách, còn lượt chấm im lặng ghi vào đúng cơ sở vừa
+  bị loại. Cả hai cửa ghi (`dat_ds_coso()` và biểu mẫu hồ sơ) chối, và chỉ luôn cách làm: bấm
+  nút tròn **chính** cho một cơ sở người ấy CÓ chấm công.
+* **Không được biến mất lặng lẽ.** Người bị loại là người mở trang trạm ra — sáu cơ sở còn hai
+  thì họ tưởng hồ sơ bị sửa mất. Trạm **kể tên** mấy cơ sở "chỉ quản lý" ra, nói rõ *vẫn quản lý
+  nhân viên ở đó*, và chỉ chỗ sửa nếu đặt nhầm.
+* **Bảng "Hôm nay" và "Công của tôi" vẫn phủ ĐỦ cơ sở.** Chỉ `dsCoSo` (ô xổ) bị trừ.
+  `VHCC_Online::ds_coso_cham_cua_nv()` là **hàm riêng**, không sửa `ds_coso_cua_nv()` — hàm kia
+  còn ba đường gọi nữa và chúng ĐỌC LỊCH SỬ ("Công của tôi", `lichsu`, `thang` của trạm). Trừ ở
+  đó là người vừa được đặt cờ mất mấy tháng công cũ khỏi màn hình của chính họ, im lặng.
+
+### Câu chối phải nói đúng việc
+
+Người bị loại vì cờ này thì hồ sơ **CÓ** tích cơ sở ấy — họ quản ở đó, họ đang đứng ở đó. Câu cũ
+*"Bạn không có ở cơ sở này"* nghe như hệ thống hỏng, nên cửa ghi tách hẳn một câu riêng: cơ sở ấy
+**đang đặt là CHỈ QUẢN LÝ**, và nếu nay có làm ở đây thật thì nhờ quản lý bỏ ô `chỉ QL`.
+
+Đo bằng 44 phép trong `tools/test/test-cham-cong.php`. Mỗi cảnh đo **song song hai vế**: cái gì
+biến mất (ô xổ, hàng lưới) và cái gì còn nguyên (thẻ phiên, `co_quyen_coso`, danh sách nhân sự,
+lịch sử công). Lưới có **đối chứng cùng hình dạng nhưng không đặt cờ** trên cùng một lưới —
+thiếu nó thì một bản vá lỡ tay bỏ sạch hàng trống vẫn xanh.
+
+---
+
+## 4f. "Bên app gốc có, bên bảng công không thấy" — 3.64.0 (11/09/2026)
+
+Anh Thắng gửi hai ảnh cạnh nhau: **Dashboard của app gốc** trên `script.google.com` báo
+*"THÁNG 09/2026 — ĐÃ CHẤM 5/30 NGÀY"*, còn **lưới bảng công** của web thì hàng người ấy toàn dấu
+chấm — *"Bên trang chấm công lại có, bên bảng anh không thấy"*.
+
+### Vì sao chuyện này xảy ra được: **hai cuốn sổ**
+
+| Nơi | Ghi vào đâu |
+|---|---|
+| App chấm công cũ (`script.google.com`) | **Google Sheet** |
+| Lưới bảng công của web | **MySQL của WordPress** |
+
+Lượt chấm chỉ sang được bằng **đúng ba đường**:
+
+1. **`GhiSongSongWP`** — hàng đợi + lịch mỗi phút bên app gốc. ⚠️ Nó **chỉ chép lượt đi qua
+   `doPost`**, tức lượt **MÁY chấm công** đẩy lên. Người chấm bằng **trang web của app gốc** thì
+   không có gì để chép.
+2. **Kéo tay theo tháng** — `VHCC_Keo::keo_thang()`; trước 3.64.0 chỉ có ở wp-admin.
+3. **Chấm thẳng trên trạm mới** `/cham-cong/` — ghi luôn vào MySQL, không qua sheet.
+
+Thiếu cả ba thì bên kia có mà bên này không, **im lặng** — không màn nào nói ra.
+
+### Nay: khối **Đối chiếu với app gốc** ngay trong màn Bảng công
+
+Cuối màn Bảng công (đúng chỗ nhìn ra vấn đề), theo **cơ sở + tháng đang xem**, bậc **Quản lý trở
+lên**:
+
+* **Đối chiếu** — chỉ đọc, không ghi gì. Hỏi app gốc rồi đặt cạnh bảng công.
+* **Nạp về những ngày còn thiếu** — ghi thật, nhưng đi qua `VHCC_Nhan::ghi_gio()` nên **giờ đã có
+  ở đây KHÔNG bị đè**, và bấm lại lượt nữa cũng không sinh thêm hàng nào. Nạp xong **tự đối chiếu
+  lại ngay** — bắt người ta bấm thêm một nút để biết kết quả của nút vừa bấm là để họ đoán.
+
+### Ba loại chênh lệch, ba cách sửa — nên không gộp thành một con số
+
+| Loại | Nghĩa là gì | Làm gì |
+|---|---|---|
+| **App gốc có – ở đây KHÔNG** | lượt chấm chưa sang | bấm **Nạp về** |
+| **Chỉ có ở đây** | chấm trên **trạm mới** (ghi thẳng MySQL, không qua sheet) | **bình thường**, đừng "sửa" |
+| **Lệch giờ** | hai bên cùng có, giờ khác nhau | xem lại từng ngày |
+| **Mã bên app không có hồ sơ ở đây** | nạp về xong **vẫn không hiện trong lưới** (lưới dựng hàng theo sổ nhân sự) | lập hồ sơ đúng Mã NV đó **rồi** hãy nạp |
+
+Vế cuối là vế dễ mất nhất: không kể riêng ra thì màn hình báo *"đã nạp N lượt"* mà lưới không đổi
+gì, và người đọc tưởng phần mềm hỏng.
+
+Một chốt nhỏ nhưng đáng nhớ: **thiếu hẳn một giờ** (bên app có giờ ra, bên này chỉ có giờ vào) xếp
+vào **"thiếu"**, không vào "lệch" — nó là nửa ngày công chưa sang và sửa bằng đúng nút *Nạp về*;
+xếp nhầm là người ta đi tìm ai gõ sai giờ.
+
+25 phép thử trong `tools/test/test-cham-cong.php`, chạy trên bộ giả lập gọi mạng — kể cả chốt
+*"Đối chiếu KHÔNG ghi một hàng nào"* và *"Cửa hàng trưởng gửi thẳng POST cũng không ghi được"*.
+
+---
+
+## 4g. Ô gõ giờ: 24 giờ, bỏ `type="time"` — 3.65.0 (11/09/2026)
+
+Anh Thắng, ảnh hàng **Chấm công bù** với hai ô `01:37 CH` / `09:01 CH`: *"chuyển này sang 24h cho
+dễ gõ"*.
+
+### Vì sao không sửa được bằng một thuộc tính
+
+`<input type="time">` hiện **12 giờ hay 24 giờ là do ngôn ngữ của TRÌNH DUYỆT**, không phải do
+trang: Chrome không đọc thuộc tính `lang` cho ô giờ, Firefox và Safari theo hệ điều hành. Đứng từ
+máy chủ **không ép được**. Muốn chắc thì phải tự cầm lấy ô.
+
+### Nay: ô gõ thường, 24 giờ, và **gõ liền cũng được**
+
+| Gõ | Ra |
+|---|---|
+| `13:37` · `13.37` · `13h37` · `13 37` | 13:37 |
+| **`1337`** · **`937`** · `0830` | 13:37 · 09:37 · 08:30 |
+| `8:30` | 08:30 |
+| `24:00` · `13:60` · `tám rưỡi` · **`01:37 CH`** | **chối** |
+
+Dạng 12 giờ **cố ý không nhận**: đoán `01:37` là 1 giờ sáng hay 1 giờ chiều là đoán một ca làm
+việc — sai một lần là lệch tám tiếng công, và không ai nhìn ra.
+
+Áp cho **cả sáu ô giờ** của màn: Giờ vào / Giờ ra (bù + sửa) và bốn ô khai ca. Để lẫn hai kiểu ô
+trên một màn là mỗi lần gõ phải nhớ ô nào kiểu nào.
+
+### Bỏ `type="time"` là bỏ luôn phần trình duyệt chặn gõ bậy
+
+Nên phải thay bằng **đủ hai lớp**:
+
+* `pattern` + `title` ngay trên ô — chặn tại chỗ, khỏi mất công gửi đi rồi mới biết sai;
+* chốt ở **cửa ghi** (`VHCC_Bu::ghi()` / `sua()` / `VHCC_Ca::luu()`) — POST gửi tay cũng phải qua.
+
+Lớp thứ hai mới là lớp quan trọng, vì `giay()` trả `null` cho **cả ô trống lẫn gõ bậy**. Trước bản
+này `sua()` đã tách hai chuyện ấy (đã từng vá), còn `ghi()` thì **chưa**: gõ nhầm `8h3o` ở ô giờ
+vào là nó bù **mỗi giờ ra**, màn hình báo *"Đã bù giờ ra 17:00"*, và người bù tưởng xong cả hai.
+Phép thử mới dựng đúng cảnh ấy và đếm lại bảng — gỡ miếng vá ra là nó đỏ thật.
+
+Cùng loại: `VHCC_Ca::lam_sach()` lặng lẽ bỏ mọi dòng ca đọc không được giờ. Nay `luu()` **kể tên
+ca bị bỏ**, và màn hình in ra — thiếu một ca thì giờ công của cả ca ấy rơi ra ngoài mọi ca, và
+không ai biết cho tới kỳ lương.
+
+### Dấu `:` tự hiện lúc gõ — 3.66.0, và là **ngoại lệ script duy nhất**
+
+Anh Thắng, ảnh ô đang gõ dở `130522`: *"gõ có hiện ra : luôn được không"*.
+
+Được, nhưng phải có JavaScript — mà màn quản trị xưa nay **không một dòng script**, luật ấy từng
+được giữ kể cả khi phải bỏ một tính năng khác (tính dãy đặc trưng khuôn mặt ngay lúc chọn ảnh).
+Anh Thắng chốt mở ngoại lệ đúng cho việc này, 11/09/2026.
+
+Ba điều kiện làm cho ngoại lệ này không trở thành cái khe cho khối thứ hai:
+
+1. **Không chạy cũng không sao.** Trình duyệt chặn script, máy cũ, mạng cắt giữa chừng — ô vẫn gõ
+   được và vẫn lưu được, vì luật đọc giờ nằm ở **máy chủ** (`VHCC_DB::gio_24()`). Khối này chỉ
+   chèn dấu `:` cho đỡ mỏi tay.
+2. **In đúng một lần, chỉ khi màn thật sự có ô giờ.** Màn dựng tám cơ sở cũng chỉ một khối; màn
+   không có ô giờ thì sạch trơn như cũ.
+3. **Phép thử không nới thành "được có script"** — nó đổi thành *"mọi khối script phải mang dấu
+   `/*vhcc-gio24*​/`"* (`vhcc_script_la()`). Nhét một khối lạ vào là **7 phép đỏ**.
+
+Khối chỉ nghe sự kiện `input`, chỉ đụng ô mang `data-gio24`, và **chỉ sửa khi con trỏ đang ở cuối
+chuỗi** — đặt lại `value` là con trỏ nhảy về cuối, nên sửa giữa chuỗi mà bị nhảy thì mỗi lần sửa
+một số phải rê chuột lại một lần.
+
+⚠️ Khối cắt `HH:MM` ở **hai số đầu**, cố ý **không** đoán kiểu ba số như máy chủ: lúc đang gõ thì
+`93` mới là hai phím đầu của `0937` hay của `9337` — không biết được. Kiểu ba số vẫn còn nguyên ở
+máy chủ, cho lượt dán vào và cho máy không chạy script.
+
+Và `gio_24()` nay nhận **cả sáu số**: `130522` → 13:05 (giây bị bỏ, vì ô này chỉ dùng tới phút).
+Sáu số là dạng ô "Giờ vào" của sổ cũ nên tay quen gõ vậy — chối cả chuỗi là người ta gõ lại ba
+lần rồi tưởng ô hỏng.
+
+39 phép thử trong `tools/test/test-cham-cong.php`.
+
+---
+
+---
+
+## 4h. Mảng kinh doanh & bộ phận (3.67.0)
+
+Anh Thắng 13/09/2026: *"Cơ cấu lại hệ nhân sự để phân quyền theo mảng kinh doanh và bộ phận được
+phân"* — *"Sau này ai thuộc mảng nào và bộ phận nào sẽ phân quyền và điều động dễ hơn"*.
+
+Bảng nhân sự có thêm **hai cột**: Mảng kinh doanh · Bộ phận. Thanh lọc có hai ô tương ứng (kèm
+lựa chọn `(chưa xếp)`), và đầu bảng có **dải đếm** — mỗi ô là một đường lọc, bấm vào là bảng dưới
+còn đúng nhóm ấy.
+
+**Hai trục khác hẳn nhau, đừng gộp:**
+
+| | Là gì | Vốn từ |
+|---|---|---|
+| **Mảng kinh doanh** | Mảng việc tiền chạy qua | Dùng CHUNG `bo_phan_coso` (`VHCC_Luong::BP_DS`): Máy tự động · Khu vui chơi · Văn phòng · Part time |
+| **Bộ phận** | Ô trong sơ đồ tổ chức | Option `vhcc_ds_bo_phan`, gieo sẵn 12 phòng ban + `Khối Nhân Viên Cơ Sở` |
+
+Không dựng vốn từ thứ hai cho mảng: hai danh sách của một khái niệm thì sớm muộn lệch nhau.
+
+### 🔴 Cột TRỐNG nghĩa là "theo cơ sở" — suy lúc ĐỌC, không ghi đè
+
+Cả thiết kế đứng trên điểm này. Cột `mang`/`bo_phan` để trống = người ấy **trôi theo cơ sở**, giá
+trị thật suy ra lúc đọc (`mang_bo_phan_cua()`). Khai tay thì ghi đè và cột mới có chữ.
+
+Vì sao không chạy một lượt nâng cấp điền sẵn cả 225 hồ sơ:
+
+1. Đổi mảng của một cơ sở thì 40 hồ sơ ghi cứng vẫn mang mảng cũ, **không ai biết mà sửa**.
+2. Không phân biệt được "đã xếp đúng" với "máy đoán hộ", nên không bao giờ biết còn ai chưa soát.
+
+Để trống thì cả hai tính chất ấy có sẵn, và dải đếm nói thẳng *"N người đang trôi theo cơ sở"*.
+
+⚠️ **Đừng đổi ý nửa chừng.** Ai thêm một lượt ghi đè "cho sạch" là mất hết, mà **không có gì đỏ** —
+bảng vẫn hiện đủ tên mảng như cũ. `kiem-mang-bo-phan.php` canh đúng chỗ này (mục 3).
+
+### Điều động hàng loạt
+
+Đầu mỗi cột có ô xổ + nút **Áp** (điều động cả cột đang hiện) và nút **theo cơ sở** (trả cả cột về
+mặc định). Chỉ áp cho người **đang hiện** — cùng luật với nút Lưu, không phải cả 225 người.
+
+⚠️ Đi qua `VHCC_NhanSu::dat_mang_bo_phan()` từng người, **không có đường UPDATE tắt**: chốt quyền
+(Kế toán trở lên, cùng bậc với đổi vai trò) và danh sách trắng nằm trong hàm ấy. Áp cột Mảng thì
+giữ nguyên Bộ phận của từng người và ngược lại — ghi đè cả hai là một cú bấm xoá sạch sơ đồ tổ
+chức của cả trang, không có đường lùi.
+
+**Bản này CHƯA bó quyền theo mảng/bộ phận** — anh Thắng chốt vậy: gắn + lọc + điều động trước, dữ
+liệu sạch rồi bản sau mới bó, lúc ấy bó mới chính xác.
+
+### 🔴 Suy từ đâu — và làm sao soát được (3.68.0)
+
+Anh Thắng: *"nếu đổi mà tự suy, giờ làm sao biết nhân viên đó làm cơ sở đó mà suy"*. Câu ấy trúng
+**ba lỗ hổng** của bản 3.67.0 đầu tiên, cả ba đều câm:
+
+1. **Chỉ nhìn cơ sở đầu tiên.** Bản ấy suy từ `cua_hang`, mà `chuan_coso()` **cắt ở dấu phẩy đầu**.
+   Người làm hai nơi — VIVO (Khu vui chơi) và POSH_Q1 (Máy tự động) — chỉ được xét theo VIVO. Màn
+   hình ghi "Khu vui chơi" gọn gàng, không gì cho biết nó vừa bỏ qua một nửa.
+2. **Cơ sở chính trống = coi như không có cơ sở.** Ai chỉ có `coso_phu` bị xếp "chưa xếp" trong khi
+   họ có nơi làm hẳn hoi.
+3. **Không nói suy từ đâu**, nên không ai soát được — mà phép suy không soát được thì chẳng khác gì
+   phép đoán.
+
+Luật từ 3.68.0 (`VHCC_NhanSu::suy_mang()`):
+
+- Xét trên **`ds_coso_cham()`** — mọi cơ sở người ta **làm**, đã bỏ cơ sở «chỉ QL». Quản một nơi
+  khác mảng mà không làm ở đó thì không vì thế mà đổi mảng. Ai **chỉ đi quản** thì mới lấy cơ sở
+  quản làm căn cứ, chứ không bỏ trắng.
+- **Các cơ sở thuộc nhiều mảng khác nhau → KHÔNG suy.** Đây là chốt quan trọng nhất: im lặng chọn
+  lấy một mảng là gán sai mà không ai biết, và sai ở đây là sai cái trục bản sau sẽ **bó quyền**
+  theo. Nói "không biết" vẫn đúng hơn đoán.
+- Hàm trả kèm **câu giải thích** (`vi`), và ô xổ in thẳng ra: «theo cơ sở VIVO, GO_AN_LAC →
+  Khu vui chơi», hoặc «cơ sở thuộc NHIỀU mảng: Khu vui chơi (VIVO) · Máy tự động (POSH_Q1) — phải
+  chọn tay», hoặc «cơ sở LA_HOAC chưa khai mảng — khai ở màn Cấu hình». Soát được bằng mắt.
+
+**Hai con số, đừng gộp:** *"N người đang trôi theo cơ sở"* (phần lớn là ĐÚNG, không phải việc phải
+làm) và *"N người hệ KHÔNG suy ra mảng"* (**đây** mới là danh sách việc, có đường dẫn lọc thẳng ra).
+Gộp chung thì con số lúc nào cũng to — 199 người trôi — nên không ai nhìn nữa, và mấy người thật sự
+cần xếp tay chìm nghỉm trong đó.
+
+### 🔴 Một người thuộc NHIỀU mảng là chuyện thường, không phải lỗi (3.69.0)
+
+Anh Thắng: *"Đối với nhân viên là người làm thì họ có thể làm ở 2 mảng nhiều cơ sở, nhưng đối với
+quản lý 1 mảng thì mình không lo"* — *"làm ở 2 mảng, thì chấm công ở 2 mảng"*.
+
+3.68.0 coi "cơ sở thuộc nhiều mảng" là chỗ hệ chịu thua: trả rỗng, gắn nhãn đỏ «lệch mảng», đẩy
+người ấy vào danh sách việc. **Sai, và sai theo kiểu tệ nhất:** nhân viên quầy chạy giữa Khu vui
+chơi và Máy tự động là chuyện hàng ngày, nên cờ ấy bật cho phần lớn sổ. Một danh sách việc dài
+bằng cả công ty thì không phải danh sách việc — nó là nhiễu, và nhiễu dạy người ta thôi đọc cờ,
+hỏng luôn cờ thật. Đúng bài học của `dat_vai_tro()`.
+
+Từ 3.69.0: **thuộc bao nhiêu mảng thì ghi nhận bấy nhiêu**, y như một người có nhiều cơ sở.
+
+| | Trước | Nay |
+|---|---|---|
+| Cột `mang` | một mảng | danh sách, ngăn bằng dấu phẩy (như `coso_phu`) |
+| Ô trên bảng | xổ một lựa chọn | **hộp tích nhiều mảng** (cùng hình dạng với cột Cơ sở) |
+| Nhiều mảng | cờ đỏ «lệch mảng», bắt chọn tay | trạng thái hợp lệ, không cờ |
+| Danh sách việc | gồm cả người nhiều mảng | **chỉ còn** người không suy ra nổi mảng nào |
+
+⚠️ `mang` là chuỗi **để đọc** ("Khu vui chơi + Máy tự động"); `dsMang` là danh sách **để so**. Lọc
+và đếm phải dùng `dsMang` — so bằng chuỗi ghép thì người làm hai mảng **không khớp ô lọc nào và
+biến mất khỏi mọi bộ lọc**, mà biến mất thì không ai thấy để mà thắc mắc.
+
+⚠️ Dải đếm đếm vào **từng** mảng, nên tổng **lớn hơn** số người. Đó là đúng — đó chính là câu người
+ta hỏi dải này ("mảng Khu vui chơi có bao nhiêu người") — và màn hình nói rõ ra.
+
+Quản lý thì anh Thắng chốt mỗi người một mảng nên *"không lo"*: không cần luật riêng, một mảng thì
+phép suy trả đúng một mảng. Cơ sở «chỉ QL» vẫn **không** kéo mảng theo — quản một nơi khác mảng mà
+không làm ở đó thì không vì thế mà thuộc mảng ấy.
+
+80 phép thử trong `tools/test/kiem-mang-bo-phan.php`.
+
+---
+
+## 4i. Lỗi mất GIÂY của ô giờ 24h (vá ở 3.67.0)
+
+3.66.0 gom mọi phép đọc giờ về `VHCC_DB::gio_24()`, và hàm ấy trả `HH:MM` vì ô nhập chỉ cần tới
+phút. Nhưng `VHCC_Bu::giay()` cũng đi qua đó, mà nó đọc cả ô "Giờ vào" của sổ cũ — vốn **có giây**.
+Thế là `08:30:15` lặng lẽ thành `08:30`: mỗi lượt chấm mất tới 59 giây, không dòng đỏ nào, và sổ
+vẫn trông đúng vì ai nhìn cũng chỉ đọc tới phút.
+
+Vá bằng cờ `gio_24( $chu, $giu_giay )` — **một hàm một cờ**, không tách thành hai hàm: hai bản chép
+của một luật đọc giờ thì sớm muộn lệch, và lệch ở đây nghĩa là ô nhập hiểu một giờ còn sổ ghi một
+giờ khác.
+
+⚠️ `kiem-cham-bu.php` **đã bắt được lỗi này ngay từ 3.66.0** — nhưng bài đỏ mà không ai chạy thì
+cũng như không có. Kho này cần một lệnh chạy hết như `chay-het.sh` bên nhánh POSH.
+
+Cũng trong lượt này: bài thử ấy còn dùng `8h30` làm mẫu "sai dạng", trong khi từ 3.65.0 `gio_24()`
+**cố ý nhận** `8h30` / `08.30` / `0830` / `830`. Nay nó canh đúng hai việc: kiểu gõ nhanh phải ăn,
+chuỗi thật sự vô nghĩa phải bị chối.
+
+---
+
+## 4j. Đổi nguồn người dùng — chốt "không khoá cả công ty" (3.70.0)
+
+Cổng PIN của chấm công có **bốn** nguồn: `chung` (sổ `CH_NguoiDung` của app chi phí) · `rieng`
+(option riêng) · `app` (sổ PhanQuyen của app gốc) · `ho_so` (**đọc thẳng hồ sơ nhân sự**).
+
+Anh Thắng 13/09/2026: *"Vai trò này sẽ do bên nhân sự quyết định chứ không phải trang chi phí
+quyết định, vì nhân sự nó đi chung hết, đầu cuối là trang chi phí"* — tức đích đến là `ho_so`.
+
+### 🔴 Chốt cũ chống nhầm thứ
+
+`VHCC_Web` xử `doi_nguon` vốn chỉ đòi **có ít nhất MỘT người** vào được ở nguồn mới. Nó chống
+Admin tự khoá **mình** ra ngoài — nhưng không chống khoá **200 người còn lại**: đổi sang một sổ
+mới có đúng 3 người là chạy lọt, và sáng hôm sau cả chuỗi đứng ngoài cửa.
+
+Và **người mất đường vào không tự báo được** — cái họ mất chính là đường để báo. Màn hình chỉ nói
+"PIN không đúng", nên họ đổ cho cái PIN, không ai nghĩ tới chuyện cả cuốn sổ vừa bị đổi.
+
+### 🔴 Có HAI cửa đổi nguồn, và cửa thứ hai chưa ai gác
+
+| Cửa | Trước 3.70.0 |
+|---|---|
+| Màn **Quản lý nhân sự** → khối *Đồng bộ* | Khoá nút tới khi hết mục nặng ✓ |
+| Màn **Hồ sơ & tài khoản** → 🔑 *Tài khoản đăng nhập* | **Bấm là đổi ngay** ✗ |
+
+Trớ trêu là chính chú thích ở cửa thứ nhất đã cảnh báo đúng chuyện này — *"hai cửa cho cùng một
+việc, và cửa mới thì chưa ai gác"* — mà thực tế lại đúng có hai cửa. Cửa thứ hai nằm **ngay dưới
+chỗ khai PIN** nên lại là cửa hay bấm nhất.
+
+### Vá
+
+**Chốt chuyển vào HÀM LÀM VIỆC, không nằm ở nút bấm** — cửa thứ ba mọc ra ngày nào cũng được gác
+sẵn. `VHCC_Auth::doi_chieu_ho_so()` tổng quát hoá thành `doi_chieu_nguon( $dich )` để soát được
+với nguồn đích bất kỳ; `doi_nguon` gọi nó, đếm mục `mat_duong`, và **chối kèm danh sách đích danh**
+ai sẽ rớt.
+
+Muốn vượt thì **gõ tay** `MAT DUONG` — ô tích thì bấm nhầm được, gõ đúng một chuỗi thì phải đọc
+câu cảnh báo mới gõ nổi (cùng lối với ô `XOA HET` của lượt xoá sổ hồ sơ).
+
+Cửa thứ hai nay cũng **bày hậu quả ra trước khi bấm**: trước 3.70.0 nó chỉ khoe *"N người vào
+được"* — một con số của sổ **mới**, không so với sổ đang dùng. Đổi từ sổ 200 người sang sổ 3 người
+thì nó vẫn khoe "3 người vào được", nghe như tin tốt.
+
+Đã bẻ để chắc có răng: bỏ chốt → đỏ, và màn hình lộ ra *"4 người vừa MẤT đường vào"*; nhận bừa mọi
+chuỗi xác nhận → đỏ.
+
+---
+
+## 4k. Dải đếm theo VAI — và ai đang bị chối ở cổng (3.71.0)
+
+Sau khi anh Thắng chuyển nguồn người dùng sang `ho_so`, cột Vai trò **thôi là một ô xổ** và trở
+thành **thứ quyết định ai vào được cổng**: `VHCC_Phien` so vai trong thẻ phiên với
+`VHCC_Auth::vai_tro_vao()`.
+
+Hệ quả: một hồ sơ mang chuỗi vai hệ không có (vai sót từ sổ cũ, gõ sai chính tả, vai của app
+khác) là người đó **đăng nhập không được** — mà màn hình chỉ nói *"PIN không đúng hoặc chưa được
+cấp"*. Họ đổ cho cái PIN, gõ lại mấy lượt rồi thôi. Không ai lần ra là vì cái tên vai.
+
+Dải mới đếm **theo chuỗi thật trong sổ** (không quy về bậc — quy về bậc thì "Kế Toán MTD" và
+"Kế toán cá nhân" gộp vào một ô, che mất đúng thứ cần nhìn), mỗi ô là một đường lọc, và **tô đỏ
+⛔** vai nào không qua được cửa.
+
+### 🔴 Bài học: đừng tự viết luật, hãy gọi đúng đường cổng đi
+
+Bản đầu của `dem_vai()` tự so chuỗi với `vai_tro_vao()` bằng `khoa_ten()`. Dải lập tức tô đỏ vai
+**"Kế toán"** — một trong *năm vai dựng sẵn* — và báo "3 người không vào được cổng".
+
+Thử qua cửa thật thì họ **vào được**: nguồn `ho_so` chạy mỗi chuỗi qua
+`VHCC_NguoiDung::vai_tro_biet()` trước, hàm ấy quy `Kế toán → Kế toán cá nhân`, `ql → Quản lý`,
+`cht → Cửa hàng trưởng`…
+
+⚠️ **Báo oan ở đây là loại tệ nhất**: nó bảo người ta đi sửa vai của mấy chục hồ sơ đang chạy
+tốt — sửa xong mới là lúc hỏng thật. Dòng đỏ kêu oan không chỉ vô dụng, nó **sai khiến**.
+
+`VHCC_NhanSu::vai_vao_duoc()` nay đi đúng đường: khớp thẳng `vai_tro_vao()` trước (bắt vai **tự
+tạo**, thứ `vai_tro_biet()` không biết), rồi mới quy đổi. Vai **trống** không tính là bị chối —
+`users_cua()` hạ nó về 'Nhân viên'.
+
+Bộ lọc `nvai` nhận **cả hai kiểu**: mã bậc (từ ô xổ trên thanh lọc) và tên vai thật (từ dải đếm).
+Chỉ nhận một kiểu thì cái kia bấm vào ra bảng rỗng — mà bảng rỗng trông y như "không có ai như
+vậy" chứ không giống một bộ lọc hiểu nhầm.
+
+109 phép thử trong `tools/test/kiem-mang-bo-phan.php`.
+
+---
+
+## 4l. Co giãn theo trang — bảng 11 cột vừa màn hình (3.76.0)
+
+Anh Thắng 13/09/2026: *"Chỉnh lại co giãn theo trang"*, kèm ảnh cột **Ghế massage** bị mép phải
+cắt cụt.
+
+Mở ra đo bằng `bash tools/xem/xem-man.sh` thì thấy **hai chuyện khác nhau**, phải chữa cả hai —
+chữa một cái thì cái kia vẫn còn:
+
+### 🔴 (1) Cả TRANG trôi ngang — lỗi thật, không phải chuyện bảng rộng
+
+Ô chọn ẩn của dải ba nút (`vai · Mở · Khoá`) là `position:absolute` mà **không có ổ neo nào**.
+Không có ổ neo thì nó đo theo cả trang chứ không theo ô chứa — và `overflow-x` của `.cuon` chỉ
+cắt được thứ nằm trong lòng nó, không cắt được thứ neo ra ngoài.
+
+Hậu quả nặng hơn vẻ ngoài:
+
+* trang thừa ra ~60px bề ngang, **thanh cuộn dưới cùng kéo luôn cả tiêu đề lẫn dải lọc** đi theo;
+* cột **Mã NV ghim trái hết ghim** — nó ghim theo khung `.cuon`, không phải theo trang, nên cuộn
+  sang phải là mất luôn thứ cho biết đang sửa hồ sơ của ai.
+
+Vá bằng đúng một chữ: `.ba{position:relative}`.
+
+### (2) Bảng 11 cột rộng hơn khung — bóp lại, không bỏ cột
+
+Bảng chạy chế độ **gọn** qua lớp riêng `table.b-ns` / `.cuon-ns` (không bóp `table` chung — mấy
+bảng nhỏ cùng trang không cần): chữ 12.5px, ô sát lại, năm cột nút bỏ sàn 170px xuống 116px, cột
+Cơ sở chữ 11px. Khung chung cũng nới từ 1760px lên 2200px để màn 1920 dùng hết bề ngang.
+
+Đo được, ở cảnh thử 9 cột (`tools/xem/dung-man.php`):
+
+| | trước | sau |
+|---|---|---|
+| trang trôi ngang | **57px** | 0 |
+| bảng cần | 1576px | **1318px** |
+
+Quy ra bảng thật 11 cột (thêm *Nội bộ* và *Ghế massage*): **1916px → 1556px**. Vừa khung ở màn
+1600px trở lên. Màn hẹp hơn thì **chỉ RIÊNG bảng cuộn** — tiêu đề và dải lọc đứng yên, cột Mã NV
+ghim trái chạy đúng — và không bóp chữ thêm nữa, vì bóp nữa là không đọc được.
+
+### ⚠️ Bẫy đã sập một lần, nay có chốt
+
+`table.b-ns select.o-q-vai{max-width:152px}` **nặng ký hơn** `td select[name^="mbp_bp"]{max-width:none}`
+ở trên. Không ghi lại `max-width:none` trong chính luật `.b-ns` thì ô **Bộ phận** bị cắt cụt đuôi
+«theo cơ sở → …» — đúng lỗi bản 3.69.0, che mất đúng phần thông tin mà cái nhãn ấy sinh ra để nói.
+`tools/test/kiem-mang-bo-phan.php` mục 12 giữ cả ba luật này.
+
+`tools/xem/chup.js` nay in thẳng bảng bề ngang ở 1366 · 1500 · 1730 · 1920 — trang có trôi ngang
+không, bảng cần bao nhiêu, khung có bấy nhiêu.
+
+## 4m. Quyền theo BỘ PHẬN & MẢNG — và năm cột gộp thành một (3.77.0)
+
+Anh Thắng 13/09/2026: *"Khi xây bộ phận xong thì chỗ này theo bộ rồi, không cần phân quyền từng
+người nữa. Ghế massa dành cho mảng kinh doanh máy tự động. Mà phân theo bộ phận. nên làm gọn lại
+cho ah"*.
+
+### 🔴 BỐN TẦNG, XÉT TỪ HẸP TỚI RỘNG
+
+```
+đặt riêng cho một người  →  luật BỘ PHẬN  →  luật MẢNG  →  thang vai
+```
+
+Thứ tự này **là cả cái luật**, và nó không nhìn thấy được trên màn hình — nên `VHCC_Cong::giai()`
+là một nơi duy nhất trả lời, và `tools/test/kiem-mang-bo-phan.php` mục 13 canh từng tầng:
+
+* Đảo hai tầng giữa → luật mảng đè luật bộ phận, người khai luật bộ phận thấy nó "không ăn".
+* Đảo tầng đầu → ngoại lệ đặt cho đích danh một người bị luật cả phòng nuốt mất, tức là **mất
+  luôn đường duy nhất khoá được một người** khi cả bộ phận đang mở.
+
+Tầng mới nằm **giữa** ngoại lệ và thang vai. Thang vai vẫn là mặc định; không khai luật nào thì
+mọi thứ y hệt trước — và **không tra hồ sơ một lượt nào** (`duoc_vao()` chạy ở mọi lượt tải trang
+của ba plugin, nên site chưa bật tính năng này không phải trả tiền cho nó).
+
+### 🔴 LÀM HAI MẢNG THÌ "MỞ" THẮNG
+
+Anh Thắng: *"làm ở 2 mảng, thì chấm công ở 2 mảng"*. Đó là trạng thái **thường** của nhân viên
+chạy giữa hai mảng. Lấy "khoá" thắng thì họ mất đường vào trang mà mảng chính vẫn cần, và màn
+hình chối họ bằng một câu không nói ra lý do. Muốn khoá đích danh một người → **đặt riêng**, tầng
+1, và nó thắng.
+
+### Hai chiều, cố ý không gộp
+
+| | trả lời câu | hợp với |
+|---|---|---|
+| **Bộ phận** | người này làm **việc gì** | ba trang gác cửa |
+| **Mảng** | người này làm **ở đâu** | Ghế massage (nằm trong mảng Máy tự động) |
+
+Gộp hai chiều vào một bảng là sớm muộn phải khai "Khối Nhân Viên Cơ Sở ở mảng Máy tự động" thành
+một dòng riêng — tức quay lại đúng chỗ tích tay từng trường hợp.
+
+### 🔴 HAI CỘT ĐẨY NGƯỜI CHỈ LÀ LỜI KHAI, KHÔNG TỰ TẠO TÀI KHOẢN
+
+`Ghế massage` và `Vận hành chi phí` không gác được bằng ngoại lệ: hai hệ ấy có **sổ người dùng
+riêng** và không đọc `ma_nv` bên này. Luật nhóm ở đây chỉ nói **ai nên có tài khoản**. Việc tạo
+tài khoản thật vẫn phải bấm — **dải chênh lệch** ngay dưới bảng luật đếm ra bao nhiêu người lệch
+và có nút "Đẩy hết N người" / "Gỡ hết N người".
+
+Không tự đẩy, vì cả hai đều là màn **có ngăn tiền**: tự tạo tài khoản cho 37 người vì ai đó vừa
+tích một ô là trao chìa khoá mà chính họ cũng không biết mình đang cầm, và không có một lượt bấm
+nào để quy trách nhiệm. Khai luật cột đẩy cũng cần bậc **Admin**, y như nút đẩy từng người —
+không thì Kế toán khai luật rồi một Admin bấm "Đẩy hết" mà tưởng là luật của mình.
+
+⚠️ Nút "Đẩy hết" **đếm lại ở máy chủ** khi bấm, không tin danh sách gửi lên: biểu mẫu có thể đã
+mở từ nửa tiếng trước, trong khoảng ấy luật đổi và người vào người ra.
+
+### Năm cột quyền gộp thành một
+
+Trước: mỗi trang một cột, mỗi cột một dải ba nút, cho **từng người** — 245 người × 5 cột là
+**1.225 ô phải tích tay**, và ~600px bề ngang chỉ để chở mấy ô ấy.
+
+Nay cột **Quyền vào trang** chỉ **đọc**: một dải chip nói người ấy vào được đâu **và vì đâu**
+(`bp` · `mảng` · `riêng` · không ghi gì = theo vai). Chữ "vì đâu" mới là phần có giá trị — cái
+chip xanh thì nhìn bảng vai cũng đoán ra, còn nó xanh **vì** luật bộ phận hay **vì** ai đó đặt
+riêng từ sáu tháng trước thì không đoán được.
+
+Đường **đặt riêng cho từng người vẫn còn**, chuyển vào khối **sửa ▾** của chính hàng ấy. Bỏ hẳn
+thì mọi ngoại lệ đang có thành không gỡ được bằng màn hình, chỉ còn cách sửa CSDL.
+
+Nút đầu của dải ba nút nay nói đúng nó đang theo **gì**: có luật nhóm thì ghi «theo bộ ✓/✕», chứ
+không còn ghi «vai ✓/✕» — vì "bỏ ngoại lệ" nay không còn nghĩa là "về theo vai".
+
+Đo bằng `bash tools/xem/xem-man.sh`, bảng thu từ **1.556px xuống 1.071px** — vừa khung ở cả màn
+1366px, không còn phải cuộn ngang ở đâu cả.
+
+### ⚠️ Nhớ sẵn bộ phận & mảng cho cả lát cắt
+
+Cột chip hỏi `VHCC_Cong::giai()` ba lần mỗi hàng. Không mồi sẵn thì mỗi hàng là một lượt `SELECT`
+hồ sơ — cho đúng những dòng vừa đọc xong ở ngay trên. `the_bang()` gọi `VHCC_Cong::nhom_cua( $ma,
+$row )` một vòng trước khi vẽ; dải chênh lệch thì đọc **một** lượt sáu cột cho cả sổ.
+
+## 4n. Sơ đồ tổ chức sửa được — mảng kinh doanh & phòng ban (3.78.0)
+
+Anh Thắng 13/09/2026: *"cơ cấu vai trò phòng ban nó đang sai"*, rồi *"Tạo mảng kinh doanh trước
+(Mảng Kinh Doanh Máy Tự Động) (Mảng Kinh Doanh Khu Vui Chơi). Mỗi mảng sẽ có một bộ phận riêng"*.
+
+Cái sai lớn nhất không phải mấy cái tên — là **không có chỗ nào sửa chúng**. Danh sách phòng ban
+gieo một lần vào option rồi nằm đó; thấy sai thì phải nhắn cho người viết mã và chờ một bản cập
+nhật, cho một việc lẽ ra là gõ lại một cái tên.
+
+### 🔴 ĐỔI TÊN HIỆN RA, KHÔNG ĐỔI GIÁ TRỊ LƯU — chỗ này suýt làm hỏng lương cả chuỗi
+
+Chuỗi `'Máy tự động'` không phải một cái nhãn. Nó là **khoá khớp chính xác ở bốn plugin**:
+
+| nơi | dùng làm gì |
+|---|---|
+| `VHCC_Luong::BP_DS` | danh sách trắng; `bo_phan_cua()` trả `'Chưa xếp'` cho mọi giá trị ngoài nó — mà `'Chưa xếp'` nghĩa là **không có công thức lương nào** |
+| `VHCC_Luong::vp_cfg_khoi()` | khoá cấu hình công theo đúng cái tên ấy |
+| `VHCP_Cfg` (chi phí) · `VHDA_Quyen` (dự án) | bó quyền theo đúng cái tên ấy |
+| `VCG_Nap` (cổng) | chuẩn hoá chuỗi về đúng cái tên ấy |
+
+Đổi giá trị lưu thành `"Mảng Kinh Doanh Máy Tự Động"` là cả bốn chỗ trên đồng loạt tra không ra:
+lương của cả mảng rơi về "Chưa xếp", **im lặng**, tới kỳ lương sau mới lộ.
+
+Nên: **giá trị lưu giữ nguyên**, màn hình đọc tên dài qua `VHCC_NhanSu::ten_mang()`. Nhãn ở ô
+tích, dải đếm, ô lọc và bảng luật đều đọc tên dài; **giá trị gửi lên vẫn là mã lưu**. Muốn đổi hẳn
+giá trị lưu thì phải là một lượt riêng đi qua cả bốn plugin — chưa làm.
+
+### 🔴 KHÔNG có cột "Thuộc mảng" — tên phòng tự nói ra
+
+Bản đầu có thêm một ô xổ "Thuộc mảng" cho mỗi phòng. Anh Thắng bỏ ngay: *"Bỏ mảng luôn… anh tạo
+phòng ban theo mảng đó luôn cho gọn"* — tức là đặt tên phòng kèm mảng (`MTĐ · Phòng Kỹ Thuật`) thì
+cái tên đã nói hết, khỏi cần 12 ô xổ nhắc lại.
+
+Anh ấy đúng, và lý do sâu hơn "cho gọn": một cột chỉ để nhắc lại điều cái tên đã nói là **khai hai
+lần cùng một thứ**, và hai chỗ ấy lệch nhau lúc nào không ai biết — đổi tên phòng thì ô xổ vẫn trỏ
+mảng cũ, mà chẳng có gì đỏ lên.
+
+### Ẩn một mảng — ẩn, không xoá
+
+Ô "Thuộc mảng" còn lòi ra hai dòng rác ở đáy (ảnh 13/09/2026: *"bỏ 2 cái dưới cùng cho anh"*), và
+**hai dòng ấy sai vì hai lý do khác hẳn nhau** — gộp lại thành "ẩn cả hai" là giấu mất một lỗi:
+
+| dòng | vì sao có | chữa kiểu gì |
+|---|---|---|
+| `Part time` | là **kiểu làm việc**, không phải mảng kinh doanh | **ẩn** khỏi ô chọn |
+| `Máy tự động, Khu vui chơi, Văn phòng, Part time` | **lỗi thật**: `mang` chở nhiều mảng ngăn bằng dấu phẩy, mà `SELECT DISTINCT mang` trả nguyên chuỗi → mỗi **tổ hợp** đẻ ra một "mảng" giả | `mang_dang_khai()` gọi `tach_mang()` |
+
+Dòng tổ hợp hỏng theo ba đường, đường nào cũng im lặng: ô chọn mọc dòng rác (tích vào là ghi một
+tổ hợp cứng cho người ta); dải đếm và ô lọc có một ô không khớp ai ngoài đúng nhúm ấy; và **bảng
+luật quyền mọc một hàng nhóm giả** — khai luật vào đó thì người khai tưởng mình vừa khai cho cả
+bốn mảng.
+
+Ẩn thì **ẩn, không xoá**: chuỗi vẫn nằm trong `VHCC_Luong::BP_DS`, cơ sở nào đang xếp vào đó thì
+lương vẫn tra ra công thức như cũ. Bỏ hẳn khỏi danh sách trắng là lương cơ sở ấy rơi về "Chưa xếp".
+
+Hai chốt đi kèm, cả hai đều là đường hỏng-im-lặng:
+
+* **Chốt danh sách trắng dùng `ds_mang_tat_ca()`**, không dùng `ds_mang()`. Hẹp theo thì người
+  đang khai tay mảng vừa bị ẩn bấm Lưu là nhận câu chối *"mảng không có trong hệ"* — cho một giá
+  trị chính họ đang mang, và không có cách nào sửa.
+* **Hộp tích của người đang khai tay mảng ẩn vẫn hiện ô ấy.** Bỏ đi là ô mất dấu tích, và một cú
+  bấm Lưu xoá luôn mảng của họ — im lặng, vì trên màn chưa bao giờ có ô ấy để mà thấy nó biến mất.
+
+### 🔴 ĐỔI TÊN PHÒNG BAN MANG THEO CẢ BA SỔ
+
+Tên phòng ban là khoá của ba nơi. Rụng nơi nào cũng hỏng im lặng:
+
+1. `nhan_vien.bo_phan` — người thuộc phòng ấy;
+2. `vhcc_vai_bo_phan` — vai bày lên đầu ô xổ;
+3. `vhcc_quyen_nhom['bp']` — **luật quyền vào trang**;
+Rụng (3) là cả phòng lặng lẽ rơi xuống thang vai — bảng vẫn xanh, và chỉ lộ khi có người kêu "sao
+tôi không vào được nữa".
+
+* **Đổi tên** sang một phòng **đang có** thì **chối**, kèm lời chỉ sang nút Gộp — gõ nhầm một cái
+  mà hệ im lặng nhập hai phòng làm một thì người gõ không hề biết mình vừa xoá một phòng.
+* **Gộp** (Admin): người chuyển sang hết, vai **hợp** hai danh sách (không đè). Hai bên khai
+  **ngược nhau** ở cùng một cột quyền → giữ của phòng đích **và nói thành lời**; im lặng thì cả
+  một phòng vừa đổi quyền mà không ai biết.
+* **Xoá** (Admin): chỉ khi phòng **không còn ai khai tay** — nút không hiện khi còn người, vì một
+  nút bấm vào chỉ nhận câu chối thì trông như hệ hỏng chứ không phải như một cái chốt. Khối Nhân
+  Viên Cơ Sở không xoá được: ai có cơ sở đều tự rơi vào đó.
+
+### ⚠️ Bộ nhớ trong-lượt phải quên được
+
+`VHCC_Cong::nhom_cua()` nhớ bộ phận của từng người cho cả lượt tải trang. Đổi tên rồi vẽ lại bảng
+trong **cùng lượt POST** mà không quên thì mọi hàng vẫn mang bộ phận cũ, luật tra theo tên cũ
+không khớp, và cả phòng hiện ra như vừa rơi xuống thang vai — người bấm thấy đúng cái mình vừa sợ.
+`VHCC_Cong::quen_nhom()` được gọi sau mọi lượt đổi tên / gộp / xoá. (Bắt được ở mục 14 của bộ thử,
+không phải đoán ra.)
+
+### Gợi ý vai cho phòng đang trống
+
+Ảnh anh Thắng gửi: **10 trên 12 phòng trống trơn**, nên khối *Vai trò theo bộ phận* gần như vô
+dụng. Nút **"Điền gợi ý cho phòng đang trống"** điền một đề nghị (phòng kế toán → vai kế toán;
+khối cơ sở → Nhân viên · Cửa hàng trưởng · Cửa hàng phó; còn lại → Nhân viên · Quản lý), **chỉ vào
+phòng chưa khai gì**, và chỉ gợi ý **vai có thật trong hệ**.
+
+🔴 Vẫn **không tự điền**: đoán hộ cả sơ đồ tổ chức rồi bày lên đầu ô xổ là dạy người khai chọn sai
+một cách tự tin. Điền hay không là một lượt bấm.
+
+## 4o. Hai vấn đề phải giải quyết TRƯỚC khi sắp xếp lại phòng ban (3.80.0)
+
+Anh Thắng 13/09/2026: *"Trước khi sắp xếp lại bộ phận và phòng ban và mảng, có mấy vấn đề cần
+giải quyết"*, rồi *"làm sao phân vai trò cho nv phòng ban đó làm gì"*.
+
+Cả hai đều là đường **hỏng im lặng**, và cả hai đều **bật thành thường xuyên** đúng lúc đổi tên
+phòng ban hàng loạt.
+
+### Bốn chỗ khai vai trò, mỗi chỗ một việc
+
+| chỗ khai | quyết định gì |
+|---|---|
+| **Vai trò** (trên hồ sơ) | người đó **làm được việc gì** — thang 5 bậc |
+| **Vai trò theo bộ phận** | phòng đó **thường dùng vai nào** — chỉ bày lên đầu ô xổ, không chốt quyền |
+| **Phân quyền theo bộ phận & mảng** | phòng đó **vào được trang nào** |
+| **Chia đầu việc** | mở/thu **một đầu việc lẻ** cho một vai — VD vai *Kỹ thuật* được `may` mà không phải lên Admin |
+
+### 🔴 A. Tách phòng theo mảng mà không bó phạm vi thì cái tên chỉ là cái nhãn
+
+Từ bậc **Quản lý** trở lên, `co_quyen_coso()` gặp `cong_tat_ca` là `return true` cho **mọi cơ
+sở** — không hỏi mảng một câu nào. Nên `KVC · Phòng Kế Toán` vẫn xem được công, lương, hồ sơ và
+số tài khoản của cả mảng MTD. Cách duy nhất trước bản này là hạ họ xuống Cửa hàng trưởng rồi tick
+`coso_ql` — nhưng làm vậy họ **mất quyền lương và hồ sơ**, tức hết làm được việc kế toán.
+
+Nay: cột **Phạm vi** ở khối *Phân quyền theo bộ phận* — tick thì người của phòng ấy chỉ thấy cơ sở
+thuộc **mảng của chính họ**, áp cho **mọi bậc kể cả Kế toán**.
+
+**🔴 MẶC ĐỊNH TẮT, VÀ MỌI CHỖ KHÔNG CHẮC ĐỀU MỞ.** Đây là cái siết duy nhất trong khối ấy, mà siết
+nhầm thì người ta mở màn hình ra thấy sổ trống trơn và không có dòng nào nói vì sao:
+
+* chưa tick phòng nào → **không ai bị bó**; cài bản này lên không đổi quyền của một ai;
+* người **chưa suy ra mảng nào** → không bó (bó một danh sách rỗng là khoá sạch);
+* **cơ sở chưa ai khai mảng** → cho qua (cơ sở mới mở mà chưa kịp khai là cả phòng mất đường vào
+  nó, đúng lúc đang cần nhất).
+
+Siết hụt thì thấy được và sửa được; siết oan thì âm thầm chặn việc của người ta.
+
+### 🔴 B. Ô "Chức vụ" là một đường nới quyền sang app chi phí
+
+`VHCC_DayChiPhi::ho_so_day()` trước đây gửi thẳng ô **Chức vụ** (chữ tự do, ai sửa hồ sơ cũng gõ
+được) sang cột **Bộ phận** của sổ người dùng bên chi phí, **không kiểm gì**. Mà bên ấy,
+`VHCP_Cfg::bo_phan_chuan()` quy mọi tên nó không nhận ra về **chuỗi rỗng — nghĩa là KHÔNG BÓ BỘ
+PHẬN**, tức nhìn thấy sổ chi phí của **mọi mảng**.
+
+Gõ đúng `Máy tự động` thì bị bó; gõ `Kế toán MTD`, `máy tự động ` thừa dấu cách, hay **bất kỳ tên
+phòng ban mới nào** thì hết bó. Không một dòng nào báo, ở cả hai bên.
+
+⚠️ Và nó sắp bật thành thường xuyên: mỗi cái tên `KVC · Phòng Kế Toán` là một chuỗi bên chi phí
+không biết, tức **mỗi lượt đẩy là một người hết bị bó**.
+
+**Vá** — chỉ gửi tên bên kia **thật sự hiểu**, tra hẹp trước rộng sau:
+
+1. Chức vụ khớp đúng một bộ phận của chi phí → dùng luôn (giữ nguyên nết cũ khi nó vốn đúng);
+2. **Mảng** của người ấy có bản đồ sang bộ phận chi phí → dùng bản đồ;
+3. Không ra gì → gửi **chuỗi rỗng**.
+
+🔴 Bước 3 **không phải là vá** — nó vẫn là "không bó". Không có cách nào đoán hộ một bộ phận mà
+không đoán sai, và bịa một bộ phận cho người ta còn tệ hơn: họ mất đường vào đúng phần việc của
+mình. Cái vá thật là **nói ra ai đang không bị bó** — khối *Đẩy sang Vận hành chi phí* đếm và kê
+tên, con số ấy trước bản này **không hiện ở đâu, cả hai bên**.
+
+⚠️ Khai bản đồ xong thì **đồng bộ lại ngay** mọi tài khoản đã đẩy — không thì sổ bên kia giữ bộ
+phận cũ, người khai đóng trang và tin là xong. Khai bản đồ cần **Admin**: nó đổi phạm vi nhìn tiền.
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════════════════════
+     🔴 HAI NHÁNH CÙNG ĐÁNH SỐ 3.81–3.83 CHO BA VIỆC KHÁC NHAU — hoà lại 15/09/2026.
+
+     Nhánh «rebuild-chi-phi» và nhánh «quan-tri-cham-cong»/«magical-goldberg» cùng làm plugin
+     Chấm công song song, và cùng đánh 3.81.0 · 3.82.0 · 3.83.0 cho những việc khác hẳn nhau.
+     Anh Thắng cài bản của nhánh này lên site đang chạy bản của nhánh kia, và WordPress báo
+     "Bạn đang tải lên một phiên bản cũ của plugin hiện tại" — một câu nói ĐÚNG về con số mà
+     SAI về việc: hai bản ấy không phải cũ/mới, chúng là hai nhánh việc rời nhau.
+
+     Mục 4p (dưới) là của nhánh này; mục 4q là của nhánh kia, đánh lại số lúc hoà.
+
+     ⚠️ TRƯỚC KHI ĐÁNH SỐ MỚI CHO BẤT KỲ PLUGIN NÀO: dò số trên MỌI nhánh, đừng chỉ nhìn
+        nhánh mình. Lệnh:
+          for b in $(git branch -r | sed 's| *origin/||' | grep -v HEAD); do
+            echo -n "$b "; git show origin/$b:wordpress/<plugin>/<plugin>.php \
+              2>/dev/null | grep -m1 'Version:'; done
+     ══════════════════════════════════════════════════════════════════════════════════════════ -->
+## 4p. Thêm ĐÍCH DANH một người vào trang Chi phí — 3.81.0 (13/09/2026)
+
+Anh Thắng, kèm ảnh bảng nhân sự:
+
+> *"lúc đầu phân quyền trang theo bộ phận, mà bộ phận nó đang dính chung các nv khác, nên đã
+> ngừng"* · *"giờ đang bị dính vào đó"* · *"đang có 1 nhân viên mới, cần add vào trang chi phí để
+> nhập báo cáo, nhưng không có chỗ"*
+
+**Đúng là không còn chỗ.** Mục 4m (3.77.0) gộp năm cột quyền thành MỘT cột chỉ đọc và dời chỗ
+khai xuống khối luật bộ phận & mảng. Ba cột *quyền trang* vẫn còn đường riêng trong khối `sửa ▾`
+của từng hàng — nhưng hai cột **đẩy người** (Ghế · Vận hành chi phí) thì mất hẳn. Đường duy nhất
+còn lại là nút **"Đẩy hết N người"** ở dải chênh lệch, mà nút ấy đi theo luật **cả phòng**. Thêm
+một người vào chi phí hoá ra phải mở luật cho cả bộ phận của họ — đúng cái anh Thắng vừa ngừng
+dùng vì *"dính chung các nv khác"*.
+
+### Nút `+` / `−` ngay trên chip
+
+Cột **Quyền vào trang**, hai chip cuối (Ghế · Chi phí) nay mang một nút nhỏ:
+
+| Chip đang | Nút | Bấm vào |
+|---|---|---|
+| xám (chưa có tài khoản) | `+` | đẩy RIÊNG người ấy sang, không đụng ai khác |
+| xanh (đang có) | `−` | gỡ RIÊNG người ấy ra |
+
+Nút nằm trong `<form>` của bảng chính, mang tên riêng `day_1` — chỉ lượt bấm đúng nó mới có mặt
+trong `$_POST`, cùng lối `ghep_voi` / `xoa_ma` đã dùng từ trước.
+
+Đẩy xong, dòng báo **nói luôn người ấy có bị bó bộ phận không**. Rỗng bên chi phí nghĩa là *không
+bó* — xem được sổ của mọi mảng. Một nút tiện tay mà im lặng chỗ này thì chính nó thành đường nới
+quyền mới.
+
+### Bản đồ thứ hai: phòng ban → bộ phận chi phí
+
+Mục 4o dựng bản đồ **mảng → bộ phận**. Chưa đủ, và đây mới là lý do chính khiến gần cả sổ không
+bị bó: hai danh mục không trùng nhau.
+
+| Bên nhân sự khai | Bên chi phí biết |
+|---|---|
+| Phòng Kỹ Thuật · Phòng Kế Toán - Tài Chính · Khối Nhân Viên Cơ Sở… | Cơ sở · Văn phòng · Kỹ thuật · Marketing · Công tác · Setup · Máy tự động |
+
+*"Phòng Kỹ Thuật"* và *"Kỹ thuật"* là hai chuỗi khác nhau — `bo_phan_chuan()` so chữ, không đoán
+nghĩa, nên nó trả rỗng. Bản đồ mảng không đỡ được: mảng là hạt to (*Khu Vui Chơi*), một mảng chứa
+cả Kế toán lẫn Kỹ thuật, ép chung một bộ phận là **bó sai** — mà bó sai còn tệ hơn không bó, vì
+người ta mất đúng phần việc của mình.
+
+Nên khối *"Đẩy sang Vận hành chi phí — bó bộ phận"* nay có **hai bảng**: mảng (như cũ) và **phòng
+ban** (mới, và được tra TRƯỚC).
+
+### Thứ tự tra, sau bản này
+
+```
+1.  ô Bộ phận của hồ sơ khớp thẳng một bộ phận chi phí   -> dùng
+1b. ô Bộ phận có trong BẢN ĐỒ PHÒNG BAN                  -> dùng tên đã khai
+2.  Chức vụ khớp thẳng một bộ phận chi phí               -> dùng  (đường lui cho hồ sơ cũ)
+3.  mảng của người ấy có bản đồ                          -> dùng bản đồ
+4.  không ra gì                                          -> RỖNG, và màn hình phải kê tên
+```
+
+🔴 **Bước 1 đứng trước bước 2, không đảo được.** Anh Thắng 13/09/2026: *"quyết định bộ phận do
+nhân sự quyết định, bên chi phí chỉ biết bộ phận đó có được quyền không thôi, chứ không can thiệp
+được đổi bộ phận"*. Ô Bộ phận là ô chính thức của hệ nhân sự; Chức vụ chỉ là chữ mô tả việc (Thu
+ngân, Ca trưởng). Để chức vụ thắng là trả quyền quyết định về đúng cái ô không ai coi là sơ đồ tổ
+chức.
+
+⚠️ **Chức vụ vẫn được tra, nhưng phải qua cửa `bo_phan_hop_le()`.** Cái hại của bản cũ không nằm ở
+việc *đọc* chức vụ — nó nằm ở việc *gửi thẳng* một chuỗi tự do sang bên kia.
+
+`tools/test/kiem-phong-ban-nhan-su.php` — 43 phép, có phép **hành vi** gọi thẳng
+`VHCC_TrangNS::lam_viec('day_mot')`: ba đột biến đầu tiên (gỡ nút khỏi chip, cắt dispatcher, bỏ
+cảnh báo không-bó) đều sống sót qua phép soi chữ, vì chữ vẫn còn trong tệp — chỉ đường đi bị cắt.
+
+---
+## 4q. Bảng này là bảng QUYỀN, không phải bảng sơ đồ tổ chức (3.83.0)
+
+Anh Thắng 14/09/2026: *"loại bỏ mảng kinh doanh và bộ phận (sẽ tạo trong thông tin nhân viên)"*,
+rồi ngay sau đó: *"mở lại quyền truy cập trang"*.
+
+Hai câu ấy là **một cặp đổi chỗ**, không phải hai việc rời nhau — và chúng sửa một lỗi bố cục mà
+bản 3.77.0 tự gây ra.
+
+### 🔴 3.77.0 đã ưu tiên ngược
+
+| | khai bao lâu một lần | 3.77.0 cho nó gì |
+|---|---|---|
+| Mảng / Bộ phận | **một lần** lúc vào làm, đổi khi điều động | hai cột rộng nhất bảng, mỗi ô một hộp tích bốn dòng × 50 hàng |
+| Quyền vào trang | **hàng ngày** | một dải chip **chỉ đọc** |
+
+Màn hình dành chỗ đẹp nhất cho thứ khai một lần, còn thứ phải bấm hàng ngày thì chỉ được nhìn.
+
+Nay trả đúng chỗ:
+
+* **quyền vào trang** bấm thẳng trên hàng, kèm nút **áp cả cột** ở đầu cột;
+* **mảng và bộ phận** chuyển vào khối **«sửa ▾»** — thông tin nhân viên của chính người ấy.
+
+Bảng thu từ 1.318px xuống **1.042px**.
+
+### ⚠️ Vì sao đặt ở «sửa ▾», không đặt ở màn hồ sơ của cửa hàng trưởng
+
+`VHCC_WebNS::the_sua()` gác bằng `ho_so_coso` — **cửa hẹp**, chỉ mở bốn ô liên lạc và ô PIN, cố ý
+không cho đụng tới thứ ra tiền hay ra quyền. Mà mảng và bộ phận **nay chính là thứ ra quyền**
+(luật nhóm 3.77.0, bó phạm vi theo mảng 3.80.0), nên chúng phải ở bậc **Kế toán** — tức ở khối
+sửa của màn Quản lý nhân sự.
+
+### ⚠️ Bỏ cột là bỏ chỗ KHAI, không phải bỏ chỗ NHÌN
+
+**Dải đếm** và **ô lọc** theo mảng / bộ phận ở đầu trang **giữ nguyên**. Mất dải đếm là mất luôn
+danh sách *"N người hệ KHÔNG suy ra mảng"* — thứ duy nhất nói ra ai còn thiếu.
+
+Nút "điều động cả cột" thì đi theo cột: điều động hàng loạt nay làm bằng **luật nhóm** (khai một
+lần cho cả phòng), không phải bằng một lượt ghi 50 dòng cho lát cắt đang hiện.
 ## 5. Nằm ở đâu trong mã
 
 | Việc | Tệp |
 |---|---|
 | Sổ trang + luật "ai vào được trang nào" | `wordpress/vhcp-cham-cong/includes/class-vhcc-cong.php` |
 | Trang `/nhan-su/` | `wordpress/vhcp-cham-cong/includes/class-vhcc-trang-ns.php` |
-| Phép thử | `tools/test/test-cham-cong.php` (mục 60 · mục 39b cho cửa thêm người), `tools/test/kiem-noi-bo.php` |
+| Mảng kinh doanh & bộ phận (mô hình) | `wordpress/vhcp-cham-cong/includes/class-vhcc-nhan-su.php` |
+| Phép thử | `tools/test/test-cham-cong.php` (mục 60 · mục 39b cho cửa thêm người), `tools/test/kiem-noi-bo.php`, `tools/test/kiem-mang-bo-phan.php` |
 
 Danh sách trang **tự dò** bằng `class_exists` + `method_exists('url')` — gỡ một plugin thì cột
 của nó tự biến mất, không để lại dòng trỏ vào hư không. Số phiên bản ở chân trang đọc thẳng từ

@@ -83,6 +83,7 @@ function chay(opt) {
      thật cho vừa bài kiểm, và bài kiểm ấy thôi nói về thứ đang chạy. */
   const f = new Function('sessionStorage', 'localStorage', 'google', 'el', 'loading',
     'onLoggedIn', '_moCongPin', 'SSO_USER', 'LOG', 'setTimeout', '_billZoomInit', 'toast',
+    '_tienGanHet',
     fnDung + '\n' + fnInit + '\ninitApp();');
   f(
     { getItem: function (k) { return ss[k] || null; }, setItem: function (k, v) { ss[k] = v; log.luuLai = JSON.parse(v); } },
@@ -100,7 +101,7 @@ function chay(opt) {
     function () {},
     function () { log.veLai++; },
     function () { log.moCong++; },
-    null, log, function (fn) { fn(); }, function () {}, function () {}
+    null, log, function (fn) { fn(); }, function () {}, function () {}, function () {}
   );
   return { log: log, o: o };
 }
