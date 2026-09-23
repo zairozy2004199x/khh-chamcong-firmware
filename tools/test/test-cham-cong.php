@@ -19674,6 +19674,27 @@ teq( 'và bộ phận vào luôn', 'Part time', VHCC_Luong::bo_phan_cua( 'MOI_CS
 t( 'tên đầy đủ cũng vào', strpos( VHCC_NhanSu::ten_coso( 'MOI_CS_1' ), 'Cơ Sở Mới Một' ) !== false,
 	VHCC_NhanSu::ten_coso( 'MOI_CS_1' ) );
 
+/* 🔴 CƠ SỞ VỪA KHAI PHẢI HIỆN TRONG LƯỚI Ô TÍCH CỦA HỒ SƠ — anh Thắng 23/09/2026: *"Tạo cơ sở
+   mới, nó không hiện trong này"*. Ca phân biệt: `MOI_CHUA_AI` (không dùng tiền tố `CS_` — `chuan_coso()` gỡ nó) khai KHÔNG bộ phận và CHƯA một hồ
+   sơ nào mang nó, nên nó chỉ có thể tới lưới từ danh mục (`ds_coso()`), không thể tới từ hai
+   cột cơ sở của bảng nhân viên. Mở hồ sơ NV_CS_1 (người chỉ ở MOI_CS_1) để chắc không phải
+   do "đã tích sẵn". */
+$r_chua_ai = VHCC_NhanSu::them_coso( $U_CS, 'MOI_CHUA_AI', '', '' );
+t( 'khai được cơ sở trống (không bộ phận, chưa ai làm)', ! empty( $r_chua_ai['ok'] ), $r_chua_ai );
+t( 'và chưa hồ sơ nào mang nó', array() === VHCC_DB::rows(
+	"SELECT id FROM " . VHCC_DB::t( 'nhan_vien' )
+	. " WHERE cua_hang LIKE '%MOI_CHUA_AI%' OR coso_phu LIKE '%MOI_CHUA_AI%'" ) );
+VHCC_NhanSu::luu_ho_so( $U_CS, array( 'ma_nv' => 'NV_CS_1', 'ho_ten' => 'Người Ở Cơ Sở Cũ',
+	'cua_hang' => 'MOI_CS_1', 'chuc_vu' => 'Thu ngân', 'pin_dang_nhap' => '445566',
+	'trang_thai_lam_viec' => 'Đang làm' ) );
+$h_sua_moi = vhcc_web_nhu2( 'CSAD', 'Admin', '', array( 'man' => 'ho_so', 'sua' => 'NV_CS_1' ) );
+t( 'mở được hồ sơ người ấy', strpos( $h_sua_moi, 'Không thấy hồ sơ' ) === false, $h_sua_moi );
+t( '🔴 lưới ô tích hồ sơ có cơ sở vừa khai dù chưa ai làm ở đó',
+	strpos( $h_sua_moi, 'name="coso_o[]" value="MOI_CHUA_AI"' ) !== false, $h_sua_moi );
+t( 'và nó chưa được tích sẵn', strpos( $h_sua_moi, 'value="MOI_CHUA_AI" checked' ) === false, $h_sua_moi );
+/* Dọn hồ sơ tạm: bài (e) bên dưới đếm số hồ sơ đang giữ ở `MOI_CS_1`. */
+$wpdb->delete( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'NV_CS_1' ) );
+
 /* 🔴 THÊM TRÙNG THÌ CHỐI, và chối theo kiểu KHÔNG PHÂN BIỆT HOA THƯỜNG. `moi_cs_1` và
    `MOI_CS_1` là một chỗ; cho qua là màn hình có hai dòng cho cùng một cửa hàng, tức đẻ đúng
    cái "cơ sở ảo" mà cả bản này sinh ra để dẹp. */

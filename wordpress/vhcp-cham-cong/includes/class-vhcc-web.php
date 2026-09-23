@@ -13316,10 +13316,31 @@ class VHCC_Web {
 		return $h;
 	}
 
-	/** Mọi mã cơ sở đang có trong sổ nhân sự: [ chữ thường => cách viết gốc ]. */
+	/**
+	 * Mọi mã cơ sở đang có: [ chữ thường => cách viết gốc ] — DANH MỤC ĐÃ KHAI ∪ sổ nhân sự.
+	 *
+	 * 🔴 ANH THẮNG 23/09/2026: *"Tạo cơ sở mới, nó không hiện trong này"* — vừa bấm «Thêm cơ
+	 *    sở» ở Dữ liệu đầu vào xong, mở hồ sơ một người để xếp vào đó thì lưới ô tích không có
+	 *    nó. Trước đây hàm này CHỈ quét hai cột cơ sở của bảng nhân viên, tức chỉ biết cơ sở
+	 *    nào ĐÃ CÓ NGƯỜI; cơ sở mới khai chưa ai làm thì theo định nghĩa ấy không tồn tại, và
+	 *    người đầu tiên chỉ có thể vào bằng ô gõ tay "cơ sở khác" — đúng cái ô mà nút «Thêm cơ
+	 *    sở» sinh ra để người ta khỏi phải dùng. Nay lấy thêm `VHCC_NhanSu::ds_coso()` (bảng
+	 *    `bo_phan_coso` ∪ máy chấm), là chính danh mục mà nút ấy ghi vào.
+	 *
+	 * ⚠️ VẪN GIỮ vế quét sổ nhân sự, không thay bằng danh mục. Hồ sơ cũ có thể đang mang một
+	 *    mã nằm ngoài danh mục (gõ tay từ trước khi có danh mục); bỏ vế này là mở hồ sơ ra
+	 *    thấy MẤT một ô đang tích, và bấm Lưu là mất thật (xem bài «cơ sở chỉ tồn tại ở cột phụ
+	 *    của NGƯỜI KHÁC» trong `test-cham-cong.php`).
+	 * ⚠️ DANH MỤC ĐI TRƯỚC để cách viết trong danh mục thắng cách viết trong hồ sơ khi hai bên
+	 *    chỉ khác hoa/thường — khoá vẫn là chữ thường nên không sinh hai ô cho một chỗ.
+	 */
 	private static function ds_moi_coso() {
 		$b  = VHCC_DB::t( 'nhan_vien' );
 		$ra = array();
+		foreach ( VHCC_NhanSu::ds_coso() as $m ) {
+			$k = VHCC_NhanSu::chu_thuong( $m );
+			if ( '' !== $k && ! isset( $ra[ $k ] ) ) { $ra[ $k ] = $m; }
+		}
 		$sql = "SELECT DISTINCT cua_hang AS v FROM $b WHERE cua_hang<>''"
 			. " UNION SELECT DISTINCT coso_phu AS v FROM $b WHERE coso_phu<>''";
 		foreach ( VHCC_DB::rows( $sql ) as $x ) {
