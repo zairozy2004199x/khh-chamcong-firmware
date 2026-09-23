@@ -8472,6 +8472,91 @@ teq( '🔴 chỗ định tuyến lượt chấm cũng đọc bản riêng của 
 	'17:00', VHCC_Online::vp_cfg( $CFG_CS )['ngayDen'] );
 teq( 'còn cơ sở khác vẫn là bản chung', '21:30', VHCC_Online::vp_cfg( 'TUTU_BT' )['ngayDen'] );
 
+/* ═════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 CƠ SỞ PHỤ ĐÃ GHÉP PHẢI ĐƯỢC ĐỊNH TUYẾN THEO LUẬT CỦA CƠ SỞ CHÍNH — "CÔNG SETUP".
+ *
+ * Anh Thắng 23/09/2026: *"hệ thống nó không hiểu công setup"* · *"vì qua ngày hôm sau các bạn về
+ * chấm công vẫn chọn setup mà"* · *"setup nó sẽ đợi ngày ra, tức đợi đến ngày hôm sau"*.
+ *
+ * Ca đêm của VP_KH-HCM chấm vào mã riêng `SETUP_VP`, đã khai GHÉP vào VP_KH-HCM. Nhưng luật ca
+ * đêm hỏi `la_van_phong( 'SETUP_VP' )` — mã ấy KHÔNG khai bộ phận Văn phòng — nên không định
+ * tuyến: lượt 19:51 thành hàng thường ngày 06, lượt 04:02 hôm sau thành giờ VÀO của ngày 07. Hai
+ * hàng mỗi hàng một đầu giờ, không hàng nào ra công, cả tháng đầy ô `0 ?`.
+ *
+ * ⚠️ DỰNG ĐÚNG HÌNH DẠNG SẢN XUẤT: cơ sở phụ KHÔNG khai bộ phận. Khai nó là Văn phòng thì bài
+ *    xanh ngay cả trên mã cũ — và đó chính là lý do lỗi này sống được tới hôm nay.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+$GH_CHINH = 'VP_GHEP_TEST';
+$GH_PHU   = 'SETUP_GHEP_TEST';
+$wpdb->insert( VHCC_DB::t( 'bo_phan_coso' ), array( 'coso' => $GH_CHINH, 'bo_phan' => 'Văn phòng' ) );
+/* CỐ Ý không khai bộ phận cho cơ sở phụ. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'VPG1', 'ho_ten' => 'Nguyễn Bá Tuấn',
+	'pin_dang_nhap' => '4455', 'vai_tro' => 'Nhân viên', 'cua_hang' => $GH_CHINH, 'coso_phu' => $GH_PHU,
+	'nhiem_vu' => '', 'chuc_vu' => 'NV', 'trang_thai_lam_viec' => 'Đang làm' ) );
+$r_gh = VHCC_Luong::dat_ghep( $u_ad_cfg, array( $GH_PHU => $GH_CHINH ) );
+t( 'dựng cảnh: ghép cơ sở phụ vào cơ sở chính', ! empty( $r_gh['ok'] ), $r_gh );
+teq( 'dựng cảnh: cơ sở phụ đúng là CHƯA xếp bộ phận', 'Chưa xếp', VHCC_Luong::bo_phan_cua( $GH_PHU ) );
+
+teq( 'coso_luat: cơ sở phụ -> cơ sở chính', $GH_CHINH, VHCC_Online::coso_luat( $GH_PHU ) );
+teq( 'coso_luat: cơ sở chính -> chính nó', $GH_CHINH, VHCC_Online::coso_luat( $GH_CHINH ) );
+teq( 'coso_luat: cơ sở đứng một mình -> chính nó', 'TUTU_BT', VHCC_Online::coso_luat( 'TUTU_BT' ) );
+/* 🔴 Chỗ định tuyến coi cơ sở phụ là Văn phòng — nhưng KHÔNG đổi bộ phận thật của nó. */
+t( '🔴 định tuyến coi cơ sở phụ là Văn phòng', VHCC_Online::la_van_phong( $GH_PHU ) );
+t( '   mà bộ phận THẬT của nó vẫn nguyên (không dán nhãn bừa)', ! VHCC_Luong::la_van_phong( $GH_PHU ) );
+/* 🔴 Bộ số cũng phải là của cơ sở chính (khối Văn phòng đang khai ngayDen=17:00), không phải bản
+   chung (21:30). Đọc lệch bộ số là lượt bấm rơi nhầm hàng ở đúng những cơ sở đã ghép. */
+teq( '🔴 cơ sở phụ đọc BỘ SỐ của cơ sở chính (17:00), không phải bản chung (21:30)',
+	'17:00', VHCC_Online::vp_cfg( $GH_PHU )['ngayDen'] );
+
+$u_gh = array( 'pin' => '4455', 'ma_nv' => 'VPG1', 'ho_ten' => 'Nguyễn Bá Tuấn', 'coso' => $GH_CHINH );
+vhcp_test_dat_gio( '2026-09-06 19:51:00' );
+$kq = VHCC_Online::cham_cong( $u_gh, '', null, $GH_PHU );
+t( 'bấm VÀO 19:51 chọn cơ sở phụ -> nhận', ! empty( $kq['ok'] ), $kq );
+teq( '🔴 lượt 19:51 vào HÀNG CA ĐÊM (-CD), không phải hàng thường', 'VPG1-CD', $kq['ma'] );
+teq( '   và hàng vẫn GHI Ở CƠ SỞ PHỤ (giữ dấu vết "chấm ở SETUP")', $GH_PHU, $kq['coSo'] );
+
+vhcp_test_dat_gio( '2026-09-07 04:02:00' );
+$kq = VHCC_Online::cham_cong( $u_gh, '', null, $GH_PHU );
+t( 'sáng hôm sau bấm RA 04:02 vẫn chọn cơ sở phụ -> nhận', ! empty( $kq['ok'] ), $kq );
+teq( '🔴 lượt 04:02 hôm sau LÙI VỀ ngày 06 (setup đợi giờ ra sang hôm sau)', '2026-09-06', $kq['ngay'] );
+teq( '   và là giờ RA, không phải giờ vào mới', 'ra', $kq['loai'] );
+$h_gh = vhcc_hang( $GH_PHU, '2026-09-06', 'VPG1', 'CD' );
+teq( '🔴 một hàng -CD đủ cặp 19:51 → 04:02', '19:51:00|04:02:00',
+	$h_gh ? VHCC_DB::hhmmss( $h_gh['gio_vao_giay'] ) . '|' . VHCC_DB::hhmmss( $h_gh['gio_ra_giay'] ) : 'không có hàng' );
+t( '   giờ ra nằm trên trục phẳng (> 24h) nên đứng SAU giờ vào',
+	$h_gh && (int) $h_gh['gio_ra_giay'] > (int) $h_gh['gio_vao_giay'] && (int) $h_gh['gio_ra_giay'] > 86400, $h_gh );
+t( '🔴 KHÔNG đẻ ra hàng thường "vào 04:02" ở ngày 07',
+	null === vhcc_hang( $GH_PHU, '2026-09-07', 'VPG1' ) && null === vhcc_hang( $GH_PHU, '2026-09-07', 'VPG1', 'CD' ) );
+
+/* Engine Văn phòng đọc bảng ghép: đêm 06 cho MỘT công đêm vào ngày 07, và không còn "chưa đủ cặp". */
+$bl_gh = VHCC_Luong::vp_bang_cong_va_luong( $GH_CHINH, '2026-09' );
+$d06 = null; $d07 = null;
+foreach ( (array) $bl_gh['detail'] as $ct ) {
+	if ( 'VPG1' !== $ct['ma'] ) { continue; }
+	if ( '2026-09-06' === $ct['ngay'] ) { $d06 = $ct; }
+	if ( '2026-09-07' === $ct['ngay'] ) { $d07 = $ct; }
+}
+t( 'engine thấy đêm 06 đủ cặp', $d06 && empty( $d06['demChuaDuCap'] ), $d06 );
+teq( '🔴 đêm 06 cho 1 CÔNG ĐÊM vào ngày 07', 1.0, $d07 ? (float) $d07['congDem'] : -1.0 );
+/* ⚠️ Nhãn "đến từ cơ sở phụ" nằm ở NGÀY CÓ HÀNG (06 — nơi lượt bấm nằm), không nằm ở ngày nhận
+   công (07). Hai chuyện khác nhau: lượt bấm là bằng chứng của đêm 06, công là thứ dồn sang hôm
+   sau. Bản đầu của phép thử này hỏi ngày 07 và đỏ oan — suýt đi "sửa" một chỗ đang đúng. */
+teq( '   và đêm 06 được đánh dấu là đến từ cơ sở phụ', $GH_PHU, $d06 ? (string) $d06['tuCoSo'] : '' );
+
+/* ⚠️ CHIỀU NGƯỢC: cơ sở phụ ghép vào một cơ sở KHÔNG PHẢI Văn phòng thì KHÔNG được định tuyến
+   ca đêm. Bản vá nói "hỏi luật của cơ sở chính", không nói "cơ sở phụ nào cũng là Văn phòng". */
+$KH_CHINH = 'KHO_GHEP_TEST'; $KH_PHU = 'KHO_GHEP_PHU';
+$wpdb->insert( VHCC_DB::t( 'bo_phan_coso' ), array( 'coso' => $KH_CHINH, 'bo_phan' => 'Khu vui chơi' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'KHG1', 'ho_ten' => 'Người Kho',
+	'pin_dang_nhap' => '4456', 'vai_tro' => 'Nhân viên', 'cua_hang' => $KH_CHINH, 'coso_phu' => $KH_PHU,
+	'nhiem_vu' => '', 'chuc_vu' => 'NV', 'trang_thai_lam_viec' => 'Đang làm' ) );
+VHCC_Luong::dat_ghep( $u_ad_cfg, array( $KH_PHU => $KH_CHINH ) );
+t( 'cơ sở phụ của một cơ sở KHÔNG Văn phòng -> không phải Văn phòng', ! VHCC_Online::la_van_phong( $KH_PHU ) );
+vhcp_test_dat_gio( '2026-09-07 04:02:00' );
+$kq = VHCC_Online::cham_cong( array( 'pin' => '4456', 'ma_nv' => 'KHG1', 'ho_ten' => 'Người Kho', 'coso' => $KH_CHINH ),
+	'', null, $KH_PHU );
+teq( '   lượt 04:02 ở đó là hàng thường, ngày hôm ấy', 'KHG1|2026-09-07', $kq['ma'] . '|' . $kq['ngay'] );
+
 /* ---- màn hình ---- */
 $h_ct = vhcc_web( '135791', array(), array( 'man' => 'cau_hinh', 'ccs' => $CFG_CS, 'cth' => '2026-07' ) );
 t( 'màn có khối Công thức tính công', strpos( $h_ct, 'id="congthuc"' ) !== false, $h_ct );

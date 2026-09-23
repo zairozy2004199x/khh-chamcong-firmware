@@ -47,7 +47,39 @@ class VHCC_Online {
 	 * Cấu hình công Văn phòng. Đọc từ bảng `cai_dat`, trộn với mặc định.
 	 * Giữ đúng tên khoá của Code.gs để hai bên đọc cùng một bộ số.
 	 */
+	/**
+	 * CƠ SỞ MÀ LUẬT CA ĐÊM / KHUNG GIỜ ÁP VÀO — cơ sở CHÍNH nếu cơ sở này là PHỤ đã ghép.
+	 *
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 Anh Thắng 23/09/2026: *"hệ thống nó không hiểu công setup"* — cả tháng 9 của VP_KH-HCM
+	 *    đầy ô `0 ?`. Dựng lại được đúng ca: nhân viên bấm VÀO lúc 19:51 chọn `SETUP_VP`, sáng
+	 *    hôm sau bấm RA lúc 04:02 vẫn chọn `SETUP_VP` (*"vì qua ngày hôm sau các bạn về chấm công
+	 *    vẫn chọn setup mà"*). Luật ca đêm hỏi `la_van_phong( 'SETUP_VP' )` — mã ấy không khai bộ
+	 *    phận Văn phòng, nên trả `false`, không định tuyến gì: lượt 19:51 thành hàng THƯỜNG của
+	 *    ngày 06, lượt 04:02 thành giờ VÀO của ngày 07. Hai hàng, mỗi hàng một đầu giờ, không
+	 *    hàng nào ra công. Đúng y hai ô `0 ?` cạnh nhau trên màn anh chụp.
+	 *
+	 *    Mà `SETUP_VP` không phải một nơi làm việc khác — nó là ca đêm của VP_KH-HCM, đã khai GHÉP
+	 *    (xem `VHCC_Luong::GHEP_O`). Phép tính công đã đọc nó bằng cấu hình của cơ sở CHÍNH; chỗ
+	 *    ĐỊNH TUYẾN lượt bấm cũng phải hỏi đúng cơ sở ấy. Hai chỗ hỏi hai cơ sở khác nhau thì
+	 *    lượt bấm rơi nhầm hàng, và rơi im lặng.
+	 *
+	 * ⚠️ CHỈ ĐỔI CƠ SỞ ĐỂ TRA LUẬT, KHÔNG ĐỔI CƠ SỞ GHI XUỐNG BẢNG. Hàng vẫn nằm ở `SETUP_VP` —
+	 *    nhờ vậy lưới còn dán được nhãn "ngày này chấm ở SETUP_VP", và người ta soi lại được ca
+	 *    đêm nằm ở đâu. Đổi luôn chỗ ghi là mất dấu vết ấy.
+	 * ⚠️ Cơ sở KHÔNG ghép thì trả lại chính nó — mọi cơ sở đứng một mình không đổi gì.
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 */
+	public static function coso_luat( $coso ) {
+		$coso = VHCC_NhanSu::chuan_coso( $coso );
+		if ( '' === $coso || ! method_exists( 'VHCC_Luong', 'ghep_vao' ) ) { return $coso; }
+		$chinh = VHCC_Luong::ghep_vao( $coso );
+		return ( '' !== $chinh ) ? $chinh : $coso;
+	}
+
 	public static function vp_cfg( $coso = '' ) {
+		/* Cơ sở PHỤ đã ghép đọc bộ số của cơ sở CHÍNH — xem `coso_luat()`. */
+		$coso = ( '' !== trim( (string) $coso ) ) ? self::coso_luat( $coso ) : $coso;
 		/* 🔴 HỎI `VHCC_Luong` TRƯỚC — nó là nơi DUY NHẤT biết đủ ba lớp cấu hình (mặc định ·
 		   bản chung · bản riêng của khối). Bản rút gọn ở dưới chỉ đọc bản CHUNG, nên từ lúc có
 		   cấu hình riêng cho khối Văn phòng (26/08/2026) mà vẫn dùng nó thì chỗ ĐỊNH TUYẾN lượt
@@ -90,7 +122,8 @@ class VHCC_Online {
 	 *    ra công thức cho một cơ sở chưa được xếp là tự sinh ra tiền.
 	 */
 	public static function la_van_phong( $coso ) {
-		return VHCC_Luong::la_van_phong( $coso );
+		/* Cơ sở PHỤ đã ghép mang bộ phận của cơ sở CHÍNH — xem `coso_luat()`. */
+		return VHCC_Luong::la_van_phong( self::coso_luat( $coso ) );
 	}
 
 	/**
