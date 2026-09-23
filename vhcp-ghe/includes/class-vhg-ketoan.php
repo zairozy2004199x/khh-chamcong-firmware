@@ -2011,6 +2011,79 @@ class VHG_KeToan {
 		return array( 'ok' => true, 'message' => 'Đã đặt dư đầu kỳ ' . $th . ' · ' . $coso . '.' );
 	}
 
+	// ══════════════════════════════════════════════════════════════════ BỔ SUNG TỔNG THÁNG (ADMIN)
+
+	/**
+	 * BỔ SUNG DOANH THU TỔNG THEO THÁNG cho một cơ sở — anh Thắng 23/09/2026: *"hiển thị doanh thu
+	 * tháng/năm, ngày trước đang thiếu. Cho phép admin bổ sung lại doanh thu tổng theo tháng/năm của
+	 * từng cơ sở trước. Còn bổ sung máy theo ngày thì sau. Chỉ áp dụng admin."*
+	 *
+	 * 🔴 BẢNG RIÊNG `bc_thang_bs`, KHÔNG ĐẺ DÒNG GIẢ VÀO `bc_dong`. Một dòng tiền tổng-tháng không có
+	 *    ngày, không có ghế; nhét nó vào `bc_dong` với một ngày bịa là Báo cáo ngày MISA in ra một
+	 *    cột nhảy vọt, Báo cáo tổng có một ô bằng cả tháng, chứng từ có một dòng không ghế nào. Số
+	 *    tổng tháng chỉ có nghĩa ở MÀN THÁNG/NĂM (`lich_su()`), nên chỉ màn ấy đọc bảng này. MISA và
+	 *    Báo cáo tổng không đụng — chúng là sổ theo ngày, và ngày thì mình không có.
+	 * 🔴 KHÔNG CHỒNG LÊN THÁNG ĐÃ CÓ DỮ LIỆU NGÀY. Tháng đã có báo cáo ghế mà còn cộng thêm tổng tay
+	 *    là đếm hai lần. Chặn lúc lưu (kể ra tháng ấy đã có N báo cáo); và nếu dữ liệu ngày về SAU
+	 *    khi đã bổ sung (nhập cũ, nộp muộn) thì `lich_su()` BỎ QUA số bổ sung và kêu lên, không cộng.
+	 * 🔴 CHỈ ADMIN — chốt ở cổng (la_quan_tri), hàm này chỉ làm việc. Mỗi dòng ghi ai + lúc nào.
+	 */
+	public static function thang_bs_luu( $coso, $thang, $tong, $tien_mat, $qr, $ghi_chu, $boi ) {
+		global $wpdb;
+		$coso = trim( (string) $coso ); $thang = trim( (string) $thang );
+		if ( '' === $coso ) { return array( 'ok' => false, 'error' => 'Chọn một cơ sở cụ thể trước.' ); }
+		if ( ! preg_match( '/^\d{4}-(0[1-9]|1[0-2])$/', $thang ) ) { return array( 'ok' => false, 'error' => 'Tháng phải dạng YYYY-MM (vd 2026-03).' ); }
+		if ( $thang > current_time( 'Y-m' ) ) { return array( 'ok' => false, 'error' => 'Không bổ sung tháng chưa tới.' ); }
+		$so_ = function ( $v ) { $s = preg_replace( '/[^0-9]/', '', (string) $v ); return '' === $s ? null : (int) $s; };
+		$tg = $so_( $tong ); $tm = $so_( $tien_mat ); $q = $so_( $qr );
+		/* Tổng là bắt buộc; TM/QR là tuỳ. Thiếu một vế thì suy từ hai vế kia; không có gì thì coi
+		   toàn tiền mặt — nói rõ trong thông báo, không lặng lẽ. */
+		if ( null === $tg ) {
+			if ( null === $tm && null === $q ) { return array( 'ok' => false, 'error' => 'Nhập Tổng tháng (hoặc Tiền mặt + QR).' ); }
+			$tg = (int) $tm + (int) $q;
+		}
+		if ( null === $tm && null === $q ) { $tm = $tg; $q = 0; }
+		elseif ( null === $tm ) { $tm = $tg - (int) $q; }
+		elseif ( null === $q ) { $q = $tg - (int) $tm; }
+		if ( $tg < 0 || $tm < 0 || $q < 0 ) { return array( 'ok' => false, 'error' => 'Số tiền không được âm.' ); }
+		if ( $tm + $q !== $tg ) { return array( 'ok' => false, 'error' => 'Tiền mặt + QR (' . number_format( $tm + $q, 0, ',', '.' ) . ') phải bằng Tổng (' . number_format( $tg, 0, ',', '.' ) . ').' ); }
+		$ck = self::squash( $coso );
+		$co_ngay = (int) $wpdb->get_var( $wpdb->prepare(
+			'SELECT COUNT(*) FROM ' . VHG_DB::t( 'bc_dong' ) . ' d JOIN ' . VHG_DB::t( 'bc' ) . ' h ON h.report_id=d.report_id'
+			. ' WHERE h.coso_key=%s AND DATE_FORMAT(d.ngay,%s)=%s AND (d.chi_so_sau IS NOT NULL OR d.tong<>0 OR d.actual<>0)',
+			$ck, '%Y-%m', $thang ) );
+		if ( $co_ngay > 0 ) {
+			return array( 'ok' => false, 'error' => 'Tháng ' . $thang . ' của ' . $coso . ' ĐÃ CÓ ' . $co_ngay . ' dòng báo cáo theo ngày — không bổ sung tổng tháng chồng lên (đếm hai lần). Sửa ở Duyệt báo cáo.' );
+		}
+		$t = VHG_DB::t( 'bc_thang_bs' );
+		$data = array( 'coso_key' => $ck, 'coso' => $coso, 'thang' => $thang, 'tong' => $tg, 'tien_mat' => $tm, 'qr' => $q,
+			'ghi_chu' => mb_substr( trim( (string) $ghi_chu ), 0, 250 ), 'boi' => mb_substr( (string) $boi, 0, 190 ), 'luc' => current_time( 'mysql' ) );
+		$id = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $t WHERE coso_key=%s AND thang=%s", $ck, $thang ) );
+		if ( $id ) { $wpdb->update( $t, $data, array( 'id' => $id ) ); }
+		else { $wpdb->insert( $t, $data ); $id = (int) $wpdb->insert_id; }
+		return array( 'ok' => true, 'id' => $id, 'thang' => $thang, 'tong' => $tg, 'tien_mat' => $tm, 'qr' => $q,
+			'thong_bao' => 'Đã bổ sung ' . $thang . ' · ' . $coso . ': ' . number_format( $tg, 0, ',', '.' ) . 'đ (TM ' . number_format( $tm, 0, ',', '.' ) . ' · QR ' . number_format( $q, 0, ',', '.' ) . ').'
+				. ( null === $so_( $tien_mat ) && null === $so_( $qr ) ? ' Chưa tách TM/QR nên ghi toàn tiền mặt.' : '' ) );
+	}
+	public static function thang_bs_xoa( $id ) {
+		global $wpdb;
+		$id = (int) $id; if ( $id <= 0 ) { return array( 'ok' => false, 'error' => 'Thiếu id.' ); }
+		$r = $wpdb->get_row( $wpdb->prepare( 'SELECT coso, thang, tong FROM ' . VHG_DB::t( 'bc_thang_bs' ) . ' WHERE id=%d', $id ), ARRAY_A );
+		if ( ! $r ) { return array( 'ok' => false, 'error' => 'Không thấy dòng bổ sung.' ); }
+		$wpdb->delete( VHG_DB::t( 'bc_thang_bs' ), array( 'id' => $id ) );
+		return array( 'ok' => true, 'thong_bao' => 'Đã xoá bổ sung ' . $r['thang'] . ' · ' . $r['coso'] . ' (' . number_format( (int) $r['tong'], 0, ',', '.' ) . 'đ).' );
+	}
+	/** Các dòng bổ sung của (cơ sở hoặc tất cả) × năm — `lich_su()` dùng để trộn vào bảng tháng. */
+	private static function thang_bs_( $ck, $nam ) {
+		global $wpdb;
+		$t = VHG_DB::t( 'bc_thang_bs' );
+		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $t ) ) !== $t ) { return array(); }
+		$sql = "SELECT id, coso_key, coso, thang, tong, tien_mat, qr, ghi_chu, boi, luc FROM $t WHERE thang LIKE %s";
+		$tham = array( $nam . '-%' );
+		if ( '' !== $ck ) { $sql .= ' AND coso_key=%s'; $tham[] = $ck; }
+		return (array) $wpdb->get_results( $wpdb->prepare( $sql . ' ORDER BY thang ASC', $tham ), ARRAY_A );
+	}
+
 	// ══════════════════════════════════════════════════════════════════ DOANH THU ĐỊA ĐIỂM (LỊCH SỬ)
 
 	/**
@@ -2057,6 +2130,26 @@ class VHG_KeToan {
 			$N['tong'] += $tg; $N['tien_mat'] += $tm; $N['qr'] += $qr; $N['ghe'][ $ma ] = 1;
 			unset( $N );
 		}
+		/* 🔴 TRỘN SỐ BỔ SUNG TAY (bc_thang_bs) — tháng KHÔNG có dữ liệu ngày thì lấy số bổ sung làm
+		   số của tháng, cờ `bo_sung`. Tháng ĐÃ có dữ liệu ngày thì BỎ QUA số bổ sung và kêu lên
+		   (`bo_sung_bo_qua`): cộng cả hai là đếm hai lần; lặng lẽ bỏ là admin không biết mà xoá. */
+		$bs_bo_qua = array();
+		foreach ( self::thang_bs_( $ck, $nam ) as $b ) {
+			$m = (string) $b['thang'];
+			$tg = (int) $b['tong']; $tm = (int) $b['tien_mat']; $q = (int) $b['qr'];
+			if ( isset( $th[ $m ] ) && ( count( $th[ $m ]['ngay'] ) > 0 ) ) {
+				$bs_bo_qua[] = array( 'id' => (int) $b['id'], 'thang' => $m, 'coso' => (string) $b['coso'], 'tong' => $tg );
+				if ( ! isset( $th[ $m ]['bs_bo_qua'] ) ) { $th[ $m ]['bs_bo_qua'] = array(); }
+				$th[ $m ]['bs_bo_qua'][] = array( 'id' => (int) $b['id'], 'coso' => (string) $b['coso'], 'tong' => $tg );
+				continue;
+			}
+			if ( ! isset( $th[ $m ] ) ) { $th[ $m ] = array( 'tong' => 0, 'tien_mat' => 0, 'qr' => 0, 'actual' => 0, 'ghe' => array(), 'ngay' => array() ); }
+			$th[ $m ]['tong'] += $tg; $th[ $m ]['tien_mat'] += $tm; $th[ $m ]['qr'] += $q;
+			$tong_nam['tong'] += $tg; $tong_nam['tien_mat'] += $tm; $tong_nam['qr'] += $q;
+			if ( ! isset( $th[ $m ]['bo_sung'] ) ) { $th[ $m ]['bo_sung'] = array(); }
+			$th[ $m ]['bo_sung'][] = array( 'id' => (int) $b['id'], 'coso' => (string) $b['coso'], 'tong' => $tg, 'tien_mat' => $tm, 'qr' => $q,
+				'ghi_chu' => (string) $b['ghi_chu'], 'boi' => (string) $b['boi'], 'luc' => (string) $b['luc'] );
+		}
 		krsort( $th );   // tháng mới nhất lên trước
 		$ra = array();
 		foreach ( $th as $m => $T ) {
@@ -2066,9 +2159,11 @@ class VHG_KeToan {
 			foreach ( $T['ngay'] as $n ) { $n['so_ghe'] = count( $n['ghe'] ); unset( $n['ghe'] ); $ngay[] = $n; }
 			usort( $ngay, function ( $a, $b ) { return strcmp( (string) $b['ngay'], (string) $a['ngay'] ); } );
 			$ra[] = array( 'thang' => $m, 'tong' => $T['tong'], 'tien_mat' => $T['tien_mat'], 'qr' => $T['qr'],
-				'actual' => $T['actual'], 'so_ghe' => count( $ghe ), 'so_ngay' => count( $ngay ), 'ghe' => $ghe, 'ngay' => $ngay );
+				'actual' => $T['actual'], 'so_ghe' => count( $ghe ), 'so_ngay' => count( $ngay ), 'ghe' => $ghe, 'ngay' => $ngay,
+				'bo_sung' => isset( $T['bo_sung'] ) ? $T['bo_sung'] : array(),
+				'bs_bo_qua' => isset( $T['bs_bo_qua'] ) ? $T['bs_bo_qua'] : array() );
 		}
-		return array( 'ok' => true, 'coso' => (string) $coso, 'nam' => $nam, 'thang' => $ra, 'tong_nam' => $tong_nam );
+		return array( 'ok' => true, 'coso' => (string) $coso, 'nam' => $nam, 'thang' => $ra, 'tong_nam' => $tong_nam, 'bs_bo_qua' => $bs_bo_qua );
 	}
 
 	/**

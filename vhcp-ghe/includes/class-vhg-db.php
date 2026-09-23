@@ -972,6 +972,23 @@ class VHG_DB {
 			ghi_chu VARCHAR(255) NOT NULL DEFAULT '',
 			PRIMARY KEY  (coso_key)";
 
+		/* Bổ sung DOANH THU TỔNG THEO THÁNG cho một cơ sở (admin) — anh Thắng 23/09/2026. Bảng riêng,
+		   KHÔNG đẻ dòng giả vào bc_dong: số tổng tháng không có ngày, không có ghế, chỉ có nghĩa ở màn
+		   tháng/năm (VHG_KeToan::lich_su). MISA và Báo cáo tổng không đọc bảng này. */
+		$b['bc_thang_bs'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			coso_key VARCHAR(190) NOT NULL,
+			coso VARCHAR(190) NOT NULL DEFAULT '',
+			thang VARCHAR(7) NOT NULL,
+			tong BIGINT(20) NOT NULL DEFAULT 0,
+			tien_mat BIGINT(20) NOT NULL DEFAULT 0,
+			qr BIGINT(20) NOT NULL DEFAULT 0,
+			ghi_chu VARCHAR(255) NOT NULL DEFAULT '',
+			boi VARCHAR(190) NOT NULL DEFAULT '',
+			luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY cs_thang (coso_key,thang)";
+
 		/* Dư đầu kỳ công nợ (số chốt) — sổ công nợ lấy làm gốc rồi cộng lũy kế các tháng sau. */
 		$b['bc_congno_dau'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,

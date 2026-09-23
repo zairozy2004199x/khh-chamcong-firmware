@@ -1080,6 +1080,18 @@ JS;
 			if ( 'kt_misa_bo_xuat' === $viec )   { self::tra( VHG_KeToan::misa_bo_xuat( isset( $d['ngay'] ) ? $d['ngay'] : '' ) ); return; }
 			if ( 'kt_selftest' === $viec )    { self::tra( VHG_KeToan::selftest() ); return; }
 			if ( 'kt_lichsu' === $viec )      { self::tra( VHG_KeToan::lich_su( isset( $d['coso'] ) ? $d['coso'] : '', isset( $d['nam'] ) ? $d['nam'] : '' ) ); return; }
+			/* 🔴 BỔ SUNG TỔNG THÁNG — CHỈ ADMIN THẬT (anh Thắng 23/09/2026: "chỉ áp dụng admin"). Cổng
+			   kt_* chung cho Quản trị + Chốt doanh số; việc này ghi số tiền vào sổ năm nên kiểm lại
+			   ngay đây, một chốt ở xa không đủ. */
+			if ( 'kt_thang_bs_luu' === $viec || 'kt_thang_bs_xoa' === $viec ) {
+				if ( ! VHG_Auth::la_quan_tri( $ai['role'] ) ) { self::tra( array( 'ok' => false, 'error' => 'Chỉ Quản trị mới bổ sung / xoá doanh thu tổng tháng.' ) ); return; }
+				if ( 'kt_thang_bs_xoa' === $viec ) { self::tra( VHG_KeToan::thang_bs_xoa( isset( $d['id'] ) ? (int) $d['id'] : 0 ) ); return; }
+				$r = VHG_KeToan::thang_bs_luu( isset( $d['coso'] ) ? $d['coso'] : '', isset( $d['thang'] ) ? $d['thang'] : '',
+					isset( $d['tong'] ) ? $d['tong'] : '', isset( $d['tien_mat'] ) ? $d['tien_mat'] : '', isset( $d['qr'] ) ? $d['qr'] : '',
+					isset( $d['ghi_chu'] ) ? $d['ghi_chu'] : '', (string) $ai['name'] );
+				if ( ! empty( $r['ok'] ) ) { VHG_Nhat_Ky::ghi( array( 'nguon' => 'he-thong', 'ghi_chu' => $ai['name'] . ' bổ sung tổng tháng ' . $r['thang'] . ' · ' . (string) $d['coso'] . ': ' . number_format( (int) $r['tong'], 0, ',', '.' ) . 'đ' ) ); }
+				self::tra( $r ); return;
+			}
 			if ( 'kt_bangcheo' === $viec )    { self::tra( VHG_KeToan::bang_cheo( isset( $d['coso'] ) ? $d['coso'] : '', isset( $d['nam'] ) ? $d['nam'] : '', isset( $d['thang'] ) ? $d['thang'] : '' ) ); return; }
 			if ( 'kt_bctong' === $viec ) {
 				self::tra( VHG_KeToan::bao_cao_tong(
@@ -8236,6 +8248,20 @@ function veKtLichSu(){
     + '<b style="margin-left:6px">' + L('Năm','Year') + ':</b>'
     + '<input type="number" id="kls-nam" min="2020" max="2100" value="' + esc(KLS_NAM) + '" style="max-width:110px">'
     + '<button id="kls-xem" class="on">' + L('Xem','Load') + '</button></div>'
+    /* 🔴 BỔ SUNG TỔNG THÁNG (ADMIN) — anh Thắng 23/09/2026: "ngày trước đang thiếu, cho phép admin bổ
+       sung lại doanh thu tổng theo tháng/năm của từng cơ sở trước; còn bổ sung máy theo ngày thì
+       sau; chỉ áp dụng admin". Chỉ vẽ khi QUAN_TRI(); máy chủ kiểm lại lần nữa. Cần chọn MỘT cơ sở. */
+    + (QUAN_TRI() ? ('<details id="kls-bs" style="margin-top:10px"><summary style="cursor:pointer;font-weight:700;color:#b45309">✎ '
+      + L('Bổ sung doanh thu TỔNG THÁNG cho cơ sở đang chọn (chỉ Quản trị)','Backfill a MONTH total for the selected site (admin only)') + '</summary>'
+      + '<div class="mut" style="font-size:12px;margin:6px 0">' + L('Cho những tháng TRƯỚC khi có báo cáo ngày. Chỉ hiện ở màn tháng/năm này — KHÔNG vào MISA, KHÔNG vào Báo cáo tổng (hai sổ đó theo ngày, mà ngày thì không có). Tháng đã có báo cáo ngày thì không bổ sung được (đếm hai lần).',
+          'For months before daily reports existed. Shows here only — not in MISA or the daily cross-tab.') + '</div>'
+      + '<div class="act" style="flex-wrap:wrap;gap:6px">'
+      + '<input type="month" id="kls-bs-thang" style="max-width:150px">'
+      + '<input type="text" id="kls-bs-tong" inputmode="numeric" placeholder="' + L('Tổng tháng (đ)','Month total') + '" style="max-width:150px">'
+      + '<input type="text" id="kls-bs-tm" inputmode="numeric" placeholder="' + L('Tiền mặt (tuỳ)','Cash (opt.)') + '" style="max-width:130px">'
+      + '<input type="text" id="kls-bs-qr" inputmode="numeric" placeholder="QR (' + L('tuỳ','opt.') + ')" style="max-width:120px">'
+      + '<input type="text" id="kls-bs-gc" placeholder="' + L('Ghi chú (nguồn số: sổ cũ, Excel…)','Note (source)') + '" style="max-width:240px">'
+      + '<button id="kls-bs-luu" class="on">' + L('Bổ sung tháng','Save month') + '</button><span id="kls-bs-msg" class="mut"></span></div></details>') : '')
     + '<div id="kls-wrap" style="margin-top:12px"></div></div>'
     /* Bảng chéo GHẾ × NGÀY — anh Thắng 28/08 gửi ảnh báo cáo cũ (Sheets) để xem CẢ NĂM liên
        tục, không bấm mở từng tháng như khối trên. Bản đầu dựng ngược chiều (ngày theo hàng);
@@ -8652,6 +8678,20 @@ function klsInit(){
      bắt người ta chạy lên đó bấm cho một ô nằm dưới này là đúng kiểu nút không ở cạnh việc. */
   var mt = document.getElementById('kcg-thang');
   if (mt) mt.onchange = function(){ KCG_THANG = mt.value; kcgLoad(); };
+  var bsB = document.getElementById('kls-bs-luu');
+  if (bsB) bsB.onclick = function(){
+    var m = document.getElementById('kls-bs-msg');
+    var cs = (s && s.value) || KLS_COSO;
+    if (!cs) { m.textContent = L('Chọn MỘT cơ sở cụ thể ở ô trên trước.','Pick one specific site first.'); m.className = 'mut err'; return; }
+    var th = (document.getElementById('kls-bs-thang').value || '').trim();
+    var tg = document.getElementById('kls-bs-tong').value, tm = document.getElementById('kls-bs-tm').value, qr = document.getElementById('kls-bs-qr').value;
+    if (!th) { m.textContent = L('Chọn tháng.','Pick a month.'); m.className = 'mut err'; return; }
+    if (!confirm(L('Bổ sung tổng tháng ' + th + ' cho "' + cs + '"?\nTổng: ' + (tg || '(suy từ TM + QR)') + (tm ? '\nTiền mặt: ' + tm : '') + (qr ? '\nQR: ' + qr : '')
+      + '\n\nChỉ hiện ở màn tháng/năm. Lưu lại lần nữa cùng tháng là GHI ĐÈ.', 'Backfill ' + th + ' for ' + cs + '?'))) return;
+    ktAct('kt_thang_bs_luu', { coso: cs, thang: th, tong: tg, tien_mat: tm, qr: qr, ghi_chu: document.getElementById('kls-bs-gc').value }, m, function(){
+      KLS_COSO = cs; if (/^\d{4}/.test(th)) { KLS_NAM = th.slice(0, 4); if (n) n.value = KLS_NAM; } klsLoad();
+    });
+  };
   klsLoad();
   kcgLoad();
 }
@@ -8810,7 +8850,18 @@ function klsThang(T){
   var head = ktEl('div', 'act'); head.style.cssText = 'cursor:pointer;padding:10px 12px;background:#f4f6f9;flex-wrap:wrap;align-items:center';
   var mm = T.thang.slice(5) + '/' + T.thang.slice(0, 4);
   head.appendChild(ktEl('b', null, (mo ? '▾ ' : '▸ ') + L('Tháng','Month') + ' ' + mm));
-  head.appendChild(ktEl('span', 'mut', ' · ' + T.so_ghe + ' ' + L('ghế','chairs') + ' · ' + T.so_ngay + ' ' + L('ngày','days')));
+  var laBS = (T.bo_sung || []).length > 0;
+  if (laBS) {
+    /* Tháng lấy từ số BỔ SUNG TAY — phải nói ra ngay dòng tiêu đề, không để nó trông y như tháng
+       có báo cáo ngày. Số này không có ghế, không có ngày; mở ra là thấy ai nhập, lúc nào, từ đâu. */
+    var nh = ktEl('span', null, ' ✎ ' + L('bổ sung tay','backfilled')); nh.style.cssText = 'color:#b45309;font-weight:700;font-size:12px'; head.appendChild(nh);
+  } else {
+    head.appendChild(ktEl('span', 'mut', ' · ' + T.so_ghe + ' ' + L('ghế','chairs') + ' · ' + T.so_ngay + ' ' + L('ngày','days')));
+  }
+  if ((T.bs_bo_qua || []).length) {
+    var cb = ktEl('span', null, ' ⚠ ' + L('có số bổ sung tay bị BỎ QUA (tháng đã có dữ liệu ngày)','manual backfill IGNORED — daily data exists'));
+    cb.style.cssText = 'color:#dc2626;font-weight:700;font-size:12px'; head.appendChild(cb);
+  }
   var sp = ktEl('span'); sp.style.flex = '1'; head.appendChild(sp);
   head.appendChild(ktEl('b', null, ktVnd(T.tong) + 'đ'));
   head.appendChild(ktEl('span', 'mut', ' (TM ' + ktVnd(T.tien_mat) + ' · QR ' + ktVnd(T.qr) + ')'));
@@ -8828,6 +8879,21 @@ function klsThang(T){
   return card;
 }
 function klsBody(body, T){
+  /* Khối bổ sung tay / bị bỏ qua — kể nguồn số và cho Quản trị xoá. */
+  (T.bo_sung || []).concat((T.bs_bo_qua || []).map(function(b){ b._boqua = 1; return b; })).forEach(function(b){
+    var d = ktEl('div', 'mut'); d.style.cssText = 'margin-bottom:8px;padding:8px 10px;border-radius:8px;background:' + (b._boqua ? '#fee2e2' : '#fff7ed') + ';color:#1f2937';
+    d.textContent = (b._boqua ? '⚠ ' + L('BỎ QUA số bổ sung tay ','IGNORED manual backfill ') : '✎ ' + L('Bổ sung tay ','Manual backfill '))
+      + (b.coso ? b.coso + ' · ' : '') + ktVnd(b.tong) + 'đ'
+      + (b._boqua ? ' — ' + L('tháng này đã có báo cáo theo ngày, cộng cả hai là đếm hai lần. Xoá dòng bổ sung đi.','daily data exists; delete this backfill.')
+                  : (' (TM ' + ktVnd(b.tien_mat) + ' · QR ' + ktVnd(b.qr) + ')' + (b.ghi_chu ? ' · ' + b.ghi_chu : '') + (b.boi ? ' · ' + b.boi : '') + (b.luc ? ' · ' + b.luc : '')));
+    if (QUAN_TRI() && b.id) {
+      var x = ktEl('button', 'ghost', L('Xoá','Delete')); x.style.cssText = 'margin-left:8px;padding:2px 8px;font-size:12px';
+      x.onclick = function(){ if (!confirm(L('Xoá dòng bổ sung ' + T.thang + ' (' + ktVnd(b.tong) + 'đ)?','Delete this backfill?'))) return;
+        goi('kt_thang_bs_xoa', { id: b.id }, function(r){ if (!r || !r.ok) { alert((r && r.error) || 'Lỗi.'); return; } klsLoad(); }); };
+      d.appendChild(x);
+    }
+    body.appendChild(d);
+  });
   /* Biểu đồ doanh thu theo NGÀY trong tháng (giữ thứ tự ngày), xếp chồng Tiền mặt/QR. */
   if ((T.ngay || []).length) {
     var cd = ktEl('div'); cd.style.marginBottom = '12px';

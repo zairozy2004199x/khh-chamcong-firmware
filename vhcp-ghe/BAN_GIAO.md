@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-09-23 · Phiên bản hiện tại: **2.134.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-09-23 · Phiên bản hiện tại: **2.135.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,30 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v2.135.0 — Admin bổ sung DOANH THU TỔNG THEO THÁNG cho từng cơ sở (màn Doanh thu địa điểm)
+
+Anh Thắng 23/09/2026: *"hiển thị doanh thu tháng/năm, ngày trước đang thiếu. Cho phép admin bổ sung
+lại doanh thu tổng theo tháng/năm của từng cơ sở trước. Còn bổ sung máy theo ngày thì sau."* —
+*"Chỉ áp dụng admin."*
+
+- Bảng riêng **`bc_thang_bs`** (cơ sở × tháng, UNIQUE): tổng · tiền mặt · QR · ghi chú · ai · lúc.
+  **Không đẻ dòng giả vào `bc_dong`**: số tổng tháng không có ngày, không có ghế — nhét vào sổ ngày
+  là Báo cáo ngày MISA in một cột nhảy vọt, Báo cáo tổng có một ô bằng cả tháng. Nên **chỉ màn
+  tháng/năm (`lich_su`) đọc bảng này; MISA và Báo cáo tổng không đụng** — nói rõ ngay trên form.
+- **Không chồng lên tháng đã có dữ liệu ngày**: lưu thì chặn (kể ra N dòng đã có); dữ liệu ngày về
+  sau (nhập cũ, nộp muộn) thì `lich_su()` **bỏ qua** số bổ sung và kêu đỏ *"BỎ QUA — tháng đã có
+  dữ liệu ngày, xoá dòng bổ sung đi"*. Cộng cả hai là đếm hai lần; lặng lẽ bỏ là admin không biết.
+- Tổng bắt buộc; TM/QR tuỳ — thiếu một vế suy từ hai vế kia; không có gì thì ghi toàn tiền mặt và
+  **nói ra** trong thông báo. TM + QR ≠ Tổng thì chối. Không nhận tháng chưa tới, không nhận số âm.
+- Form gập **"✎ Bổ sung doanh thu TỔNG THÁNG"** ở màn Doanh thu địa điểm, chỉ vẽ khi Quản trị; cổng
+  `kt_thang_bs_luu/xoa` kiểm `la_quan_tri()` lần nữa. Lưu lại cùng tháng = ghi đè (hộp hỏi nói).
+- Thẻ tháng bổ sung gắn nhãn cam **"✎ bổ sung tay"** thay chỗ "N ghế · N ngày"; mở ra thấy nguồn
+  số, ai nhập, lúc nào, và nút Xoá (admin). Nhật ký ghi từng lượt.
+
+`kiem-bo-sung-tong-thang.php` (16 phép): bốc `thang_bs_luu()` + `lich_su()` ra chạy với `$wpdb`
+giả — kiểm luật suy TM/QR, chặn tháng đã có ngày, trộn vào năm, bỏ qua + kêu khi có dữ liệu ngày,
+cổng chỉ admin.
 
 ### v2.134.0 — Bảng Unit ID MISA: thiếu lên đầu, đóng cửa xuống khối riêng; khẳng định MISA chỉ đi từ dòng tiền
 
