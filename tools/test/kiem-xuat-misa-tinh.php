@@ -140,8 +140,15 @@ foreach ( $khai as $k ) {
 	$wpdb->bcDong[] = array( 'coso' => $k[0], 'coso_key' => $k[0], 'ng' => 6, 'tong' => 100000 );
 	$wpdb->bcDong[] = array( 'coso' => $k[0], 'coso_key' => $k[0], 'ng' => 9, 'tong' => 200000 );
 }
+/* Anh Thắng 23/09/2026: *"xuất MISA nếu tháng đó phát sinh doanh thu, không phát sinh thì không
+   hiện"*. Cơ sở này CÓ trong danh mục Unit ID (đã đóng cửa, hay chỉ là chưa có báo cáo) nhưng KHÔNG
+   có một dòng tiền nào trong tháng → không được xuất hiện. Báo cáo ngày đi từ dòng tiền, không đi
+   từ danh mục — phép này giữ đúng điều đó. */
+$wpdb->maMisa[] = array( 'coso_key' => 'DA DONG CUA', 'unit_id' => '99DONG', 'unit_name' => 'DA DONG CUA', 'vung' => 'CA MAU', 'thu_tu' => 0 );
 $r = VHG_KeToan::baocao_ngay( '2026-09', 0 );
 $aoa = $r['aoa'];
+$co_dong = false; foreach ( $aoa as $row ) { if ( '99DONG' === (string) $row[0] || 'DA DONG CUA' === (string) $row[1] ) { $co_dong = true; } }
+t( '🔴 cơ sở có trong danh mục nhưng KHÔNG có doanh thu tháng đó → KHÔNG hiện trong Báo cáo ngày MISA', ! $co_dong );
 /* Chỉ lấy khối VND (khối đầu), cột 0 — đủ soi thứ tự và chỗ ngắt tỉnh. */
 $cotA = array();
 foreach ( $aoa as $row ) {

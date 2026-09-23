@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-09-23 · Phiên bản hiện tại: **2.133.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-09-23 · Phiên bản hiện tại: **2.134.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,26 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v2.134.0 — Bảng Unit ID MISA: thiếu lên đầu, đóng cửa xuống khối riêng; khẳng định MISA chỉ đi từ dòng tiền
+
+Anh Thắng 23/09/2026: *"khi cửa hàng đóng cửa cần ẩn cơ sở và tạo bảng riêng… ở cuối trang. Xuất
+MISA nếu tháng đó phát sinh doanh thu; không phát sinh thì không hiện. Cơ sở nào thiếu thông tin như
+unit hoặc mã ghế thì hiện đầu để kế toán bổ sung — chứ nhiều quá không biết được."*
+
+**Từng ý, cái gì đã có, cái gì làm mới:**
+- *Đóng cửa → bảng riêng cuối trang*: tab Địa điểm đã có từ 2.75.0 (🚪) và 2.132.0 (🙈 chỉ còn ghế
+  ẩn). **Mới**: bảng **Unit ID MISA** (tab Xuất MISA) cũng tách cơ sở đóng cửa xuống khối gập cuối.
+- *MISA chỉ ra cơ sở có doanh thu tháng đó*: **đã đúng từ đầu** — chứng từ và Báo cáo ngày đi từ
+  `bc_dong`, không đi từ danh mục. **Mới**: thêm phép kiểm khẳng định (cơ sở có trong danh mục nhưng
+  không có dòng tiền → không hiện), để ai sửa sau này không vô tình đổi.
+- *Thiếu thông tin lên đầu*: **mới** — `ma_misa_ds()` gắn `thieu` = [unit · kh · ghe] cho từng cơ
+  sở đang mở và **xếp thiếu nhiều nhất lên đầu**; màn hình dán nhãn đỏ *"⚠ thiếu: Unit ID · Mã KH"*
+  ngay dưới tên. Thêm cột **Ghế** (ghế sống); 0 ghế tô đỏ. Cơ sở đóng cửa **không** bị tính thiếu —
+  không ai bổ sung Unit ID cho một chỗ đã đóng.
+
+`kiem-ma-misa-thieu-len-dau.php` (10 phép) bốc `ma_misa_ds()` ra chạy với `$wpdb` giả: thứ tự, nhãn
+thiếu, đóng cửa xuống cuối và không bị gắn thiếu, ghế ẩn không tính là "có ghế".
 
 ### v2.133.0 — Địa điểm: thêm sắp xếp "Theo mã ghế (nhỏ → lớn)"
 

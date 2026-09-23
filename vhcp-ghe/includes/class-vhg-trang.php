@@ -9304,45 +9304,68 @@ function ktxMaMisa(){
   goi('kt_ma_misa_ds',{},function(r){
     box.textContent='';
     var ds=(r&&r.rows||[]);
-    /* 🔴 MÃ KH CHỈ ĐỂ XEM, KHÔNG SỬA Ở ĐÂY — anh Thắng 22/09/2026 chỉ thẳng thẻ cơ sở màn Địa
-       điểm: *"chính là mã khách hàng"* (AEON MALL BÌNH DƯƠNG · 🏷 KH00108). Đó là `coso.ma_kh`,
-       có từ 1.99.8, và chính nó là Mã đối tượng Nợ trên chứng từ MISA.
-       Cho gõ lại ở đây là hai chỗ giữ cùng một con số, rồi một ngày chúng lệch nhau mà không ô
-       nào tự nhận mình sai. Nên: hiện ra để đứng ngay chỗ sắp bấm Xuất là thấy cơ sở nào thiếu,
-       còn sửa thì sang Địa điểm — một nơi duy nhất. */
-    var thieuKh=ds.filter(function(x){ return !String(x.ma_kh||'').trim(); }).length;
-    var thieuU =ds.filter(function(x){ return !String(x.unit_id||'').trim(); }).length;
+    /* 🔴 MÃ KH CHỈ ĐỂ XEM — là `coso.ma_kh` của màn Địa điểm, chính là Mã đối tượng Nợ trên chứng
+       từ. Sửa ở Địa điểm, một nơi duy nhất (2.125.0).
+       🔴 THIẾU LÊN ĐẦU, ĐÓNG CỬA XUỐNG KHỐI RIÊNG — anh Thắng 23/09/2026: *"cơ sở nào thiếu thông tin
+       như unit hoặc mã ghế thì hiện đầu để kế toán bổ sung, chứ nhiều quá không biết được"* và *"khi
+       cửa hàng đóng cửa cần ẩn cơ sở và tạo bảng riêng ở cuối trang"*. Máy chủ đã xếp và gắn `thieu`
+       (ma_misa_ds); màn này chỉ dán nhãn và tách khối, không tự xếp lại. */
+    var mo=ds.filter(function(x){ return !Number(x.dong_cua); }), dong=ds.filter(function(x){ return Number(x.dong_cua); });
+    var dem=function(k){ return mo.filter(function(x){ return (x.thieu||[]).indexOf(k)>=0; }).length; };
+    var tU=dem('unit'), tK=dem('kh'), tG=dem('ghe'), tAny=mo.filter(function(x){ return (x.thieu||[]).length; }).length;
     if(ds.length){
-      var ts=ktEl('div',(thieuKh||thieuU)?'mut err':'mut'); ts.style.margin='0 0 6px';
-      ts.textContent=L(ds.length+' cơ sở · thiếu Unit ID: '+thieuU+' · thiếu Mã KH: '+thieuKh
-                       +(thieuKh?' (khai ở màn Địa điểm — cột Mã KH chính là Mã đối tượng Nợ khi xuất MISA)':''),
-                       ds.length+' branches · missing Unit ID: '+thieuU+' · missing customer code: '+thieuKh);
+      var ts=ktEl('div',tAny?'mut err':'mut'); ts.style.margin='0 0 6px';
+      ts.textContent=L(mo.length+' cơ sở đang mở · '+tAny+' cần bổ sung (thiếu Unit ID: '+tU+' · thiếu Mã KH: '+tK+' · không có ghế: '+tG+')'
+        +(dong.length?(' · '+dong.length+' đã đóng cửa (khối dưới)'):'')
+        +(tK?' — Mã KH khai ở màn Địa điểm':''),
+        mo.length+' open · '+tAny+' need attention (Unit ID '+tU+' · cust. code '+tK+' · no chairs '+tG+')'+(dong.length?(' · '+dong.length+' closed'):''));
       box.appendChild(ts);
     }
-    var sc=ktEl('div','table-scroll'); var tb=ktEl('table'); tb.style.minWidth='820px';
-    tb.innerHTML='<tr><th>'+L('Cơ sở','Branch')+'</th><th>Unit ID</th><th>'+L('Tên MISA','MISA name')+'</th>'
-      +'<th>'+L('Vùng / Tỉnh','Region')+'</th><th>'+L('TT','#')+'</th>'
-      +'<th>'+L('Mã KH','Cust. code')+'</th><th></th></tr>';
-    ds.forEach(function(x){
-      var tr=ktEl('tr'); tr.appendChild(ktEl('td',null,x.coso));
-      function inp(v,w){ var i=document.createElement('input'); i.value=(v==null?'':v); i.style.width=(w||90)+'px'; return i; }
-      var iU=inp(x.unit_id,90), iN=inp(x.unit_name,150), iV=inp(x.vung,110), iT=inp(x.thu_tu,50);
-      [iU,iN,iV,iT].forEach(function(el){ var td=ktEl('td'); td.appendChild(el); tr.appendChild(td); });
-      var mk=String(x.ma_kh||'').trim();
-      var tdK=ktEl('td',mk?null:'mut err',mk||L('chưa khai','not set'));
-      tdK.title=L('Lấy từ màn Địa điểm (coso.ma_kh) — đây là Mã đối tượng Nợ khi xuất MISA. Sửa ở Địa điểm.',
-                  'From the Locations screen — this is the MISA debtor code. Edit it there.');
-      if(mk) tdK.style.fontWeight='700';
-      tr.appendChild(tdK);
-      var td=ktEl('td'); var m=ktEl('span','mut'); var b=ktEl('button','on',L('Lưu','Save')); b.style.cssText='padding:4px 8px;font-size:12px';
-      b.onclick=function(){ ktAct('kt_ma_misa_luu',{coso:x.coso,unit_id:iU.value,unit_name:iN.value,vung:iV.value,
-        thu_tu:(iT.value||'').replace(/[^0-9]/g,'')||0},m,function(){}); };
-      var bx=ktEl('button','ghost',L('Xoá','Del')); bx.style.cssText='padding:4px 8px;font-size:12px;margin-left:4px';
-      bx.onclick=function(){ if(!confirm('Xoá '+x.coso+'?')) return; goi('kt_ma_misa_xoa',{coso_key:x.coso_key},function(){ ktxMaMisa(); }); };
-      td.appendChild(b); td.appendChild(bx); td.appendChild(m); tr.appendChild(td); tb.appendChild(tr);
-    });
-    sc.appendChild(tb); box.appendChild(sc);
-    if(!ds.length) box.appendChild(ktEl('p','mut',L('Chưa có — bấm "Mồi từ danh mục ghế".','Empty — click Seed.')));
+    function nhanThieu(x){
+      var t=(x.thieu||[]); if(!t.length) return null;
+      var s=ktEl('div','mut err'); s.style.cssText='font-size:11px;margin-top:2px;font-weight:700';
+      s.textContent='⚠ '+L('thiếu: ','missing: ')+t.map(function(k){ return k==='unit'?'Unit ID':(k==='kh'?L('Mã KH','cust. code'):L('ghế','chairs')); }).join(' · ');
+      return s;
+    }
+    function bang(rows, laDong){
+      var sc=ktEl('div','table-scroll'); var tb=ktEl('table'); tb.style.minWidth='880px';
+      tb.innerHTML='<tr><th>'+L('Cơ sở','Branch')+'</th><th>'+L('Ghế','Chairs')+'</th><th>Unit ID</th><th>'+L('Tên MISA','MISA name')+'</th>'
+        +'<th>'+L('Vùng / Tỉnh','Region')+'</th><th>'+L('TT','#')+'</th>'
+        +'<th>'+L('Mã KH','Cust. code')+'</th><th></th></tr>';
+      rows.forEach(function(x){
+        var tr=ktEl('tr');
+        var td0=ktEl('td'); td0.appendChild(ktEl('b',null,x.coso)); var nt=nhanThieu(x); if(nt) td0.appendChild(nt); tr.appendChild(td0);
+        var tdG=ktEl('td', Number(x.so_ghe)?null:'mut err', String(x.so_ghe||0)); tdG.style.textAlign='right'; tr.appendChild(tdG);
+        function inp(v,w){ var i=document.createElement('input'); i.value=(v==null?'':v); i.style.width=(w||90)+'px'; return i; }
+        var iU=inp(x.unit_id,90), iN=inp(x.unit_name,150), iV=inp(x.vung,110), iT=inp(x.thu_tu,50);
+        if(!String(x.unit_id||'').trim() && !laDong) iU.style.borderColor='#ef4444';
+        [iU,iN,iV,iT].forEach(function(el){ var td=ktEl('td'); td.appendChild(el); tr.appendChild(td); });
+        var mk=String(x.ma_kh||'').trim();
+        var tdK=ktEl('td',mk?null:(laDong?'mut':'mut err'),mk||L('chưa khai','not set'));
+        tdK.title=L('Lấy từ màn Địa điểm (coso.ma_kh) — đây là Mã đối tượng Nợ khi xuất MISA. Sửa ở Địa điểm.','From the Locations screen — edit it there.');
+        if(mk) tdK.style.fontWeight='700';
+        tr.appendChild(tdK);
+        var td=ktEl('td'); var m=ktEl('span','mut'); var b=ktEl('button','on',L('Lưu','Save')); b.style.cssText='padding:4px 8px;font-size:12px';
+        b.onclick=function(){ ktAct('kt_ma_misa_luu',{coso:x.coso,unit_id:iU.value,unit_name:iN.value,vung:iV.value,
+          thu_tu:(iT.value||'').replace(/[^0-9]/g,'')||0},m,function(){}); };
+        var bx=ktEl('button','ghost',L('Xoá','Del')); bx.style.cssText='padding:4px 8px;font-size:12px;margin-left:4px';
+        bx.onclick=function(){ if(!confirm('Xoá '+x.coso+'?')) return; goi('kt_ma_misa_xoa',{coso_key:x.coso_key},function(){ ktxMaMisa(); }); };
+        td.appendChild(b); td.appendChild(bx); td.appendChild(m); tr.appendChild(td); tb.appendChild(tr);
+      });
+      sc.appendChild(tb); return sc;
+    }
+    if(!ds.length){ box.appendChild(ktEl('p','mut',L('Chưa có — bấm "Mồi từ danh mục ghế".','Empty — click Seed.'))); return; }
+    box.appendChild(bang(mo,false));
+    if(dong.length){
+      var dt=document.createElement('details'); dt.style.marginTop='10px';
+      var sm=document.createElement('summary'); sm.style.cssText='cursor:pointer;font-weight:700;color:#64748b';
+      sm.textContent='🚪 '+L('Cơ sở đã đóng cửa','Closed sites')+' ('+dong.length+') — '+L('không tính "thiếu"; vẫn ra MISA nếu tháng đó có doanh thu','not flagged; still exported if that month has revenue');
+      dt.appendChild(sm);
+      var gc=ktEl('div','mut',L('Chứng từ và Báo cáo ngày chỉ đi từ dòng tiền (bc_dong), không đi từ danh mục này — cơ sở đóng cửa không có doanh thu tháng đó thì KHÔNG hiện trong MISA. Đóng cửa ở màn Địa điểm (nút 🚪).',
+        'MISA exports follow revenue rows, not this list: a closed site with no revenue that month is simply absent.'));
+      gc.style.cssText='font-size:12px;margin:6px 0'; dt.appendChild(gc);
+      dt.appendChild(bang(dong,true)); box.appendChild(dt);
+    }
   });
 }
 

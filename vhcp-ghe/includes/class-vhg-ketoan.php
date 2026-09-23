@@ -1368,26 +1368,61 @@ class VHG_KeToan {
 	// ══════════════════════════════════════════════════════════════════ UNIT ID MISA
 
 	/**
-	 * Danh mục Unit ID, kèm MÃ KHÁCH HÀNG chỉ để XEM.
+	 * Danh mục Unit ID, kèm MÃ KHÁCH HÀNG chỉ để XEM, cờ ĐÓNG CỬA, số ghế sống — và danh sách
+	 * THIẾU GÌ để kế toán bổ sung.
 	 *
 	 * 🔴 `ma_kh` GẮN KÈM NHƯNG KHÔNG SỬA ĐƯỢC Ở ĐÂY. Nó là cột của bảng `coso`, khai ở màn Địa
 	 *    điểm, và chính nó là Mã đối tượng Nợ trên chứng từ MISA. Cho sửa ở hai màn là hai chỗ gõ
-	 *    cùng một con số — rồi một ngày chúng lệch nhau và không ô nào tự nhận mình sai. Đưa sang
-	 *    đây để kế toán đứng ngay chỗ sắp bấm Xuất là thấy cơ sở nào còn thiếu, chứ không phải để
-	 *    gõ lần thứ hai.
+	 *    cùng một con số — rồi một ngày chúng lệch nhau và không ô nào tự nhận mình sai.
+	 *
+	 * 🔴 THIẾU LÊN ĐẦU — anh Thắng 23/09/2026: *"cơ sở nào thiếu thông tin như unit hoặc mã ghế thì
+	 *    hiện đầu để kế toán bổ sung. Chứ nhiều quá không biết được"*. Sáu chục dòng, ba cái thiếu
+	 *    nằm rải rác thì mắt không tìm ra — đó không phải lỗi mắt, đó là bảng xếp sai. Máy chủ xếp:
+	 *    thiếu nhiều nhất lên đầu, rồi tới thiếu ít, rồi đủ; trong cùng nhóm theo `thu_tu`, tên.
+	 *    Mỗi dòng mang `thieu` = ['unit','kh','ghe'] để màn hình dán nhãn đúng cái thiếu.
+	 * 🔴 ĐÓNG CỬA TÁCH RIÊNG — *"khi cửa hàng đóng cửa cần ẩn cơ sở và tạo bảng riêng… ở cuối trang"*.
+	 *    Cờ `dong_cua` lấy từ `coso`; màn hình dồn xuống khối gập cuối. Cơ sở đóng cửa KHÔNG bị tính
+	 *    "thiếu": không ai bổ sung Unit ID cho một chỗ đã đóng. Nó vẫn ra MISA nếu tháng ấy có doanh
+	 *    thu — chứng từ và Báo cáo ngày vốn chỉ đi từ dòng tiền (`bc_dong`), không đi từ danh mục.
 	 */
 	public static function ma_misa_ds() {
 		global $wpdb;
 		$r = $wpdb->get_results( 'SELECT coso_key, coso, unit_id, unit_name, vung, thu_tu, ghi_chu FROM ' . VHG_DB::t( 'bc_ma_misa' ) . ' ORDER BY thu_tu ASC, coso ASC', ARRAY_A );
 		$r = $r ? $r : array();
-		$kh = array();
-		foreach ( (array) $wpdb->get_results( 'SELECT ten, ma_kh FROM ' . VHG_DB::t( 'coso' ), ARRAY_A ) as $c ) {
-			$kh[ self::squash( (string) $c['ten'] ) ] = trim( (string) $c['ma_kh'] );
+		$kh = array(); $dong = array(); $id_theo_key = array();
+		foreach ( (array) $wpdb->get_results( 'SELECT id, ten, ma_kh, dong_cua FROM ' . VHG_DB::t( 'coso' ), ARRAY_A ) as $c ) {
+			$k = self::squash( (string) $c['ten'] );
+			$kh[ $k ] = trim( (string) $c['ma_kh'] );
+			$dong[ $k ] = ! empty( $c['dong_cua'] ) ? 1 : 0;
+			$id_theo_key[ $k ] = (int) $c['id'];
+		}
+		/* Ghế SỐNG theo cơ sở — ghế ẩn không tính (đã dọn thì không phải "có ghế"). */
+		$ghe = array();
+		foreach ( (array) $wpdb->get_results( 'SELECT coso_id, COUNT(*) n FROM ' . VHG_DB::t( 'may' ) . ' WHERE coso_id>0 AND an=0 GROUP BY coso_id', ARRAY_A ) as $g ) {
+			$ghe[ (int) $g['coso_id'] ] = (int) $g['n'];
 		}
 		foreach ( $r as $i => $x ) {
-			$r[ $i ]['ma_kh'] = isset( $kh[ $x['coso_key'] ] ) ? $kh[ $x['coso_key'] ] : '';
+			$k = (string) $x['coso_key'];
+			$r[ $i ]['ma_kh']    = isset( $kh[ $k ] ) ? $kh[ $k ] : '';
+			$r[ $i ]['dong_cua'] = isset( $dong[ $k ] ) ? $dong[ $k ] : 0;
+			$r[ $i ]['so_ghe']   = isset( $id_theo_key[ $k ], $ghe[ $id_theo_key[ $k ] ] ) ? $ghe[ $id_theo_key[ $k ] ] : 0;
+			$thieu = array();
+			if ( ! $r[ $i ]['dong_cua'] ) {
+				if ( '' === trim( (string) $x['unit_id'] ) ) { $thieu[] = 'unit'; }
+				if ( '' === $r[ $i ]['ma_kh'] ) { $thieu[] = 'kh'; }
+				if ( 0 === $r[ $i ]['so_ghe'] ) { $thieu[] = 'ghe'; }
+			}
+			$r[ $i ]['thieu'] = $thieu;
 		}
-		return array( 'ok' => true, 'rows' => $r );
+		usort( $r, function ( $a, $b ) {
+			/* Đóng cửa xuống cuối; trong đám đang mở, thiếu nhiều lên đầu; rồi thu_tu, rồi tên. */
+			if ( $a['dong_cua'] !== $b['dong_cua'] ) { return $a['dong_cua'] - $b['dong_cua']; }
+			$ta = count( $a['thieu'] ); $tb = count( $b['thieu'] );
+			if ( $ta !== $tb ) { return $tb - $ta; }
+			if ( (int) $a['thu_tu'] !== (int) $b['thu_tu'] ) { return (int) $a['thu_tu'] - (int) $b['thu_tu']; }
+			return strcmp( (string) $a['coso'], (string) $b['coso'] );
+		} );
+		return array( 'ok' => true, 'rows' => array_values( $r ) );
 	}
 	public static function ma_misa_luu( $coso, $unit_id, $unit_name, $vung, $thu_tu, $ghichu ) {
 		global $wpdb;
