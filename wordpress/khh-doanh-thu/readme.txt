@@ -102,6 +102,12 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.59.2 =
+* **Ô gõ số trong bảng Kho hàng hoá thu hẹp** (64px, canh phải; ô ghi chú 120px). Anh Thắng 23/09/2026:
+  *"cho các ô này nhỏ lại, để tránh lệch cột"* — ô text mặc định của trình duyệt rộng ~150px, tám cột là
+  bảng tràn ngang, phải kéo thanh cuộn mới thấy cột Lệch. Trên điện thoại vẫn là thẻ dọc, ô 100% như cũ.
+  `kiem-kho-man.js` +3 phép canh bề rộng.
+
 = 1.59.1 =
 * 🔴 **Vé chưa khai TẠM TÍNH 1 khách mỗi vé, không bỏ qua.** Anh Thắng 23/09/2026 nhìn Lotte Gò Vấp: hai
   combo tên khác Aeon Tân Phú ("… + THẠCH", "… + BIM BIM") chưa được khai, máy chỉ cộng 12 + 2 = 14 và

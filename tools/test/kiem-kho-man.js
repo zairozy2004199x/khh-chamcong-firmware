@@ -153,6 +153,18 @@ t('🔴 mỗi ô tự in nhãn của nó ra bằng data-nhan',
   (dt.match(/content:attr\(data-nhan\)/g) || []).length >= 3);
 t('ô phải gõ cao 44px và chữ 16px trên điện thoại',
   /\.o-go input\{[^}]*min-height:44px/.test(dt) && /\.o-go input\{[^}]*font-size:16px/.test(dt));
+/* 23/09/2026 anh Thắng: "cho các ô này nhỏ lại, để tránh lệch cột" — trên máy tính ô gõ số phải hẹp,
+   không để trình duyệt tự cho ~150px. Luật này nằm NGOÀI @media (luật điện thoại đè lại thành 100%). */
+{
+  const cssGoc = css;
+  /* Cắt TRƯỚC khối điện thoại (đầu tệp còn một @media prefers-color-scheme, không phải mốc). */
+  const iDT = cssGoc.search(/@media\s*\(max-width:\s*560px\)/);
+  const truocMedia = cssGoc.slice(0, iDT < 0 ? cssGoc.length : iDT);
+  const m = truocMedia.match(/\.khh-dt \.o-go input\{([^}]*)\}/);
+  t('🔴 ô gõ số trong bảng kho có bề rộng cố định hẹp trên máy tính', !!m && /width:(\d+)px/.test(m[1]) && parseInt(/width:(\d+)px/.exec(m[1])[1], 10) <= 80);
+  t('và canh phải kiểu số', !!m && /text-align:right/.test(m[1]));
+  t('ô ghi chú rộng hơn và canh trái', /\.o-go input\[data-kho="ghi_chu"\]\{[^}]*width:1\d\dpx[^}]*text-align:left/.test(truocMedia));
+}
 t('thôi cuộn ngang khi đã thành thẻ', /\.bang-the\{overflow-x:visible\}/.test(dt));
 
 /* 🔴 MỌI ô trong bảng kho phải mang data-nhan. Thiếu một ô là trên điện thoại nó hiện ra một

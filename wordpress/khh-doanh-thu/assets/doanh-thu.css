@@ -115,6 +115,12 @@ body.khh-dt-body{margin:0;background:#f2f1ee}
 .khh-dt table{border-collapse:collapse;width:100%;font-size:13.5px;background:transparent}
 .khh-dt th,.khh-dt td{text-align:right;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
 .khh-dt th:first-child,.khh-dt td:first-child{text-align:left;white-space:normal;min-width:160px}
+/* Ô gõ số trong bảng kho: HẸP, canh phải, cỡ chữ số. Anh Thắng 23/09/2026: "cho các ô này nhỏ lại,
+   để tránh lệch cột" — ô text mặc định của trình duyệt rộng ~150px, tám cột là bảng tràn ngang và
+   phải kéo thanh cuộn mới thấy cột Lệch. Trên điện thoại luật .bang-the phía dưới đè lại thành 100%. */
+.khh-dt .o-go input{width:64px;max-width:100%;text-align:right;padding:4px 6px;border-radius:6px;
+  border:1px solid var(--line-2);background:var(--card);color:var(--ink);font-family:var(--chu-so);font-size:13px}
+.khh-dt .o-go input[data-kho="ghi_chu"]{width:120px;text-align:left;font-family:inherit}
 .khh-dt thead th{font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);
   font-weight:600;border-bottom:1px solid var(--line-2)}
 .khh-dt tbody tr:hover{background:var(--card-2)}
