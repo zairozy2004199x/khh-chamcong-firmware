@@ -557,6 +557,53 @@ $d = dong_cua( khh_dt_kho_bang_ngay( '2026-09-02', $CS ), 'Nước suối' );
 phep( '🔴 nạp báo cáo xong thì tự tính: tồn tính = 40 − 7 = 33', 33.0 === (float) $d['ton_tinh'] );
 phep( 'và lệch kho = 30 − 33 = −3, từ số đếm đã lưu trước đó', -3.0 === (float) $d['lech_kho'] );
 
+/* ── 17. THẺ KHO: MỘT MẶT HÀNG CHẠY TỪNG NGÀY ─────────────────────────────────────────
+      Anh Thắng 23/09/2026: *"Chưa thấy có chỗ thay đổi hàng hoá theo ngày, giống kiểu tồn kho
+      ngày đó bao nhiêu, bán bao nhiêu, tồn bao nhiêu"*. Màn ngày chỉ một ngày một lúc.
+
+      🔴 Thẻ kho và màn ngày phải DÙNG CHUNG lõi chạy chuỗi (`khh_dt_kho_chay`). Bản thứ hai
+         là sớm muộn hai màn ra hai số khác nhau cho cùng một ngày, không màn nào sai để lần ra.
+         Phép cuối mục này đối chiếu thẳng hai bên. */
+dung_bang();
+fabi( '2026-09-01', $CS, array( 'Nước suối' => 10 ) );
+khh_dt_kho_ghi( '2026-09-01', $CS, 'Nước suối', array( 'nhap' => 100, 'dem' => 88 ) );   // tính 90, đếm 88
+fabi( '2026-09-02', $CS, array( 'Nước suối' => 8 ) );                                       // không đếm
+/* 03/09: KHÔNG có báo cáo FABi, nhưng có nhập */
+khh_dt_kho_ghi( '2026-09-03', $CS, 'Nước suối', array( 'nhap' => 24 ) );
+fabi( '2026-09-04', $CS, array( 'Nước suối' => 12 ) );
+khh_dt_kho_ghi( '2026-09-04', $CS, 'Nước suối', array( 'dem' => 92 ) );
+
+$the = khh_dt_kho_the( $CS, 'Nước suối', '2026-09-01', '2026-09-04' );
+phep( 'thẻ kho có đúng 4 ngày có biến động', 4 === count( $the ) );
+$n = array(); foreach ( $the as $r ) { $n[ $r['ngay'] ] = $r; }
+
+/* 01/09 */
+phep( '01/09 tồn đầu chưa biết (chưa mốc), nhập 100 đặt mốc', null === $n['2026-09-01']['ton_dau'] );
+phep( '01/09 tồn tính = 0 + 100 − 10 = 90', 90.0 === (float) $n['2026-09-01']['ton_tinh'] );
+phep( '🔴 01/09 đếm 88 -> lệch −2, tồn CUỐI chốt theo số đếm = 88',
+	-2.0 === (float) $n['2026-09-01']['lech_kho'] && 88.0 === (float) $n['2026-09-01']['ton_cuoi'] );
+/* 02/09 */
+phep( '🔴 02/09 tồn đầu = 88 (số ĐẾM hôm trước, không phải 90 số tính)', 88.0 === (float) $n['2026-09-02']['ton_dau'] );
+phep( '02/09 bán 8, không đếm -> tồn cuối = tồn tính = 80', 80.0 === (float) $n['2026-09-02']['ton_cuoi'] && null === $n['2026-09-02']['dem'] );
+/* 03/09 — chưa nạp FABi */
+phep( '🔴 03/09 chưa nạp FABi: cờ co_fabi = false và máy bán là CHƯA BIẾT', false === $n['2026-09-03']['co_fabi'] && null === $n['2026-09-03']['ban_may'] );
+phep( '03/09 chuỗi vẫn chạy: 80 + 24 = 104 kéo sang ngày sau', 104.0 === (float) $n['2026-09-03']['ton_cuoi'] );
+/* 04/09 */
+phep( '04/09 tồn đầu 104, bán 12 -> tính 92, đếm 92 -> lệch 0', 104.0 === (float) $n['2026-09-04']['ton_dau'] && 0.0 === (float) $n['2026-09-04']['lech_kho'] );
+phep( 'ngày có FABi thì co_fabi = true', true === $n['2026-09-04']['co_fabi'] );
+
+/* Khoảng hẹp: chỉ trả ngày trong khoảng, nhưng tồn đầu vẫn đúng nhờ chạy từ trước. */
+$the2 = khh_dt_kho_the( $CS, 'Nước suối', '2026-09-03', '2026-09-04' );
+phep( 'lọc theo khoảng: 2 ngày', 2 === count( $the2 ) );
+phep( '🔴 tồn đầu ngày đầu khoảng vẫn đúng (80) — chuỗi chạy từ trước khoảng', 80.0 === (float) $the2[0]['ton_dau'] );
+
+/* Mặt hàng khác không lẫn vào. */
+phep( 'mặt hàng không có gì thì thẻ rỗng', array() === khh_dt_kho_the( $CS, 'Kẹo', '2026-09-01', '2026-09-04' ) );
+
+/* 🔴 ĐỐI CHIẾU HAI MÀN: tồn cuối 04/09 trên thẻ kho == tồn đầu 05/09 trên màn ngày. */
+$b05 = dong_cua( khh_dt_kho_bang_ngay( '2026-09-05', $CS ), 'Nước suối' );
+phep( '🔴 thẻ kho và màn ngày nói cùng một số (92)', null !== $b05 && 92.0 === (float) $b05['ton_dau'] && 92.0 === (float) $n['2026-09-04']['ton_cuoi'] );
+
 if ( $hong ) {
 	echo "\n✗ HỎNG " . count( $hong ) . " phép (đạt $dat):\n";
 	foreach ( $hong as $h ) { echo "   · 🔴 $h\n"; }

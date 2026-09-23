@@ -1160,7 +1160,11 @@
   function taiKho() {
     var o = q('#dtTabKho');
     var ds = (S.cf && S.cf.cua_hang) || [];
-    if (!S.kho) S.kho = { ngay: homQua(), cs: ds.length ? ds[0] : '' };
+    /* Mặc định HÔM NAY, khác tab Nhập báo cáo (hôm qua). Sổ kho là việc CUỐI NGÀY: nhân viên
+       đếm kệ lúc đóng cửa rồi khai ngay. Mặc định hôm qua là mỗi tối phải tự đổi ngày, và ai
+       quên đổi là số đếm hôm nay đè lên hôm qua — anh Thắng đã vấp: "khi tải lên cứ ghi nhận
+       theo ngày trước". */
+    if (!S.kho) S.kho = { ngay: homNay(), cs: ds.length ? ds[0] : '' };
     if (!S.kho.cs && ds.length) S.kho.cs = ds[0];
     if (!S.kho.cs) {
       o.innerHTML = '<div class="khung"><div class="trong">Chưa có cơ sở nào để mở sổ kho.</div></div>';
@@ -1310,7 +1314,12 @@
               : (dam ? '<b>' + nguyen(gt) + '</b>' : nguyen(gt));
             return '<td class="s o-may" data-nhan="' + esc(nhan) + '">' + t + '</td>';
           };
-          return '<tr><td class="o-ten" data-nhan="Mặt hàng">' + esc(d.mat_hang) +
+          /* Tên mặt hàng bấm được -> mở THẺ KHO: từng ngày tồn đầu / nhập / bán / đếm / tồn cuối.
+             Anh Thắng: "tồn kho ngày đó bao nhiêu, bán bao nhiêu, tồn bao nhiêu" — màn này chỉ
+             cho một ngày, muốn thấy hàng chạy thì phải có thẻ kho. */
+          return '<tr><td class="o-ten" data-nhan="Mặt hàng">' +
+            '<a href="#" data-kho-the="' + esc(d.mat_hang) + '" title="Mở thẻ kho: xem mặt hàng này chạy từng ngày" ' +
+            'style="color:inherit;text-decoration:underline dotted">' + esc(d.mat_hang) + '</a>' +
             (d.co_moc ? '' : ' <span class="chip" title="Chưa ai đếm mặt hàng này bao giờ, nên hệ chưa biết trên kệ có bao nhiêu. Gõ số đếm được vào ô &quot;NV đếm còn&quot; một lần là xong — từ hôm sau hệ tự tính.">đếm 1 lần để đặt mốc</span>') +
             /* 🔴 GIỮ VẾT MÀ KHÔNG BÀY RA THÌ CHẲNG AI BIẾT LÀ CÓ VẾT.
                Sổ ghi động giữ đủ mọi lượt khai, nhưng nếu màn không nói thì người trực vẫn
@@ -1350,6 +1359,7 @@
         'theo mọi ngày sau.</div>';
     }
 
+    h += '<div id="khoThe"></div>';
     if (ghi) { h += veKhoMatHang(r); h += veKhoCombo(r.combo || {}); }
     h += '</div>';
     o.innerHTML = h;
@@ -1361,6 +1371,65 @@
      BẠC XỈU, CACAO LATTE, COMBO TRÀ CHANH GIÃ TAY — đồ pha tại chỗ, không có kho để đếm. Đổ
      hết vào sổ thì nhân viên cuộn qua vài chục dòng vô nghĩa mới tới chai nước, và mấy dòng
      ấy mãi mãi đỏ vì chẳng ai đếm chúng bao giờ. Sổ đỏ vì lý do vớ vẩn là sổ bị bỏ. */
+  /* ---- THẺ KHO: một mặt hàng chạy từng ngày ---- */
+  function veKhoThe(o, r) {
+    var noi = o.querySelector('#khoThe');
+    if (!noi) return;
+    var ds = r.dong || [];
+    var h = '<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">' +
+      '<h3 class="tieu-nho">Thẻ kho: ' + esc(r.mat_hang) + '</h3>' +
+      '<div class="loc" style="gap:6px;margin:6px 0">' +
+        '<label class="o">Từ<input type="date" id="theTu" value="' + esc(r.tu) + '"></label>' +
+        '<label class="o">Đến<input type="date" id="theDen" value="' + esc(r.den) + '"></label>' +
+        '<button class="vien" type="button" id="theDong">Đóng</button>' +
+      '</div>';
+    if (!ds.length) {
+      h += '<div class="trong">Khoảng này không có ngày nào có biến động (không bán, không nhập, không đếm).</div>';
+    } else {
+      /* Cột "Tồn cuối" = số hệ CHỐT cho ngày ấy: có đếm thì là số đếm (mốc mới), không thì là
+         số tính. Bày cả "Tồn tính" bên cạnh để thấy ngay ngày nào đếm khác tính. */
+      h += '<div class="bang-cuon bang-the"><table><thead><tr>' +
+        '<th style="text-align:left">Ngày</th><th>Tồn đầu</th><th>Nhập</th><th>Máy bán</th>' +
+        '<th>Combo tay</th><th>Tồn tính</th><th>Đếm</th><th>Lệch</th><th>Tồn cuối</th>' +
+        '</tr></thead><tbody>' +
+        ds.map(function (x) {
+          var c = function (nhan, v, dam) {
+            var t = (v === null || v === undefined) ? '<span class="chu-them">—</span>'
+              : (dam ? '<b>' + nguyen(v) + '</b>' : nguyen(v));
+            return '<td class="s o-may" data-nhan="' + nhan + '">' + t + '</td>';
+          };
+          return '<tr' + (x.co_fabi ? '' : ' title="Ngày này chưa nạp báo cáo FABi — máy bán coi là 0 để còn kéo tồn sang ngày sau"') + '>' +
+            '<td class="o-ten" data-nhan="Ngày">' + esc(ngayVN(x.ngay)) +
+              (x.co_fabi ? '' : ' <span class="chip" style="border-color:var(--xau);color:var(--xau)">chưa nạp FABi</span>') +
+            '</td>' +
+            c('Tồn đầu', x.ton_dau) + c('Nhập', x.nhap) + c('Máy bán', x.ban_may) +
+            c('Combo tay', x.combo_tay) + c('Tồn tính', x.ton_tinh) + c('Đếm', x.dem) +
+            oLech(x.lech_kho, 'Lệch') + c('Tồn cuối', x.ton_cuoi, true) +
+            '</tr>';
+        }).join('') + '</tbody></table></div>';
+    }
+    h += '</div>';
+    noi.innerHTML = h;
+    var tai = function () {
+      taiKhoThe(o, r.mat_hang, (noi.querySelector('#theTu') || {}).value, (noi.querySelector('#theDen') || {}).value);
+    };
+    noiONgay(noi.querySelector('#theTu'), tai);
+    noiONgay(noi.querySelector('#theDen'), tai);
+    var d = noi.querySelector('#theDong');
+    if (d) d.addEventListener('click', function () { noi.innerHTML = ''; S.khoTheMH = ''; });
+    if (noi.scrollIntoView) noi.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
+
+  function taiKhoThe(o, mh, tu, den) {
+    S.khoTheMH = mh;
+    var den2 = den || S.kho.ngay;
+    var tu2 = tu || doi(den2, -30);
+    api('kho-the?co_so=' + encodeURIComponent(S.kho.cs) + '&mat_hang=' + encodeURIComponent(mh) +
+        '&tu=' + encodeURIComponent(tu2) + '&den=' + encodeURIComponent(den2))
+      .then(function (r) { veKhoThe(o, r); })
+      .catch(function (e) { window.alert(e.message || e); });
+  }
+
   function veKhoMatHang(r) {
     var daThay = r.mon_da_thay || {};
     var chon = r.mat_hang || [];
@@ -1466,6 +1535,14 @@
         });
       });
     }
+
+    /* Bấm tên mặt hàng -> thẻ kho. */
+    k.addEventListener('click', function (e) {
+      var a = e.target.closest ? e.target.closest('[data-kho-the]') : null;
+      if (!a) return;
+      e.preventDefault();
+      taiKhoThe(o, a.getAttribute('data-kho-the'));
+    });
 
     /* Xem đủ các lượt khai của một dòng — kèm người và giờ, để còn đối chất được. */
     k.addEventListener('click', function (e) {

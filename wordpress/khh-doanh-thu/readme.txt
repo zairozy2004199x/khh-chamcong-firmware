@@ -97,6 +97,22 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.54.0 =
+* **THẺ KHO** — bấm vào tên mặt hàng trong sổ kho là mở thẻ kho của nó: **từng ngày** tồn đầu ·
+  nhập · máy bán · combo tay · tồn tính · đếm · lệch · **tồn cuối**. Anh Thắng: *"tồn kho ngày
+  đó bao nhiêu, bán bao nhiêu, tồn bao nhiêu"* — màn ngày chỉ cho xem một ngày một lúc, muốn
+  thấy hàng chạy thì phải có thẻ kho. Chọn được khoảng ngày; mặc định 30 ngày về trước.
+* 🔴 **Thẻ kho và màn ngày dùng chung một lõi chạy chuỗi** (`khh_dt_kho_chay`). Viết bản thứ hai
+  là sớm muộn hai màn ra hai số khác nhau cho cùng một ngày, không màn nào sai để lần ra. Bài
+  thử đối chiếu thẳng: tồn cuối trên thẻ kho phải bằng tồn đầu ngày sau trên màn ngày.
+* Ngày **chưa nạp báo cáo FABi** được đánh dấu ngay trên thẻ, cột máy bán hiện "—"; chuỗi vẫn
+  chạy tiếp để kéo tồn sang ngày sau, nạp báo cáo xong tự tính lại.
+* **Tab Kho mặc định hôm nay** (trước là hôm qua). Sổ kho là việc cuối ngày — mặc định hôm qua là
+  mỗi tối phải tự đổi ngày, ai quên là số đếm hôm nay đè lên hôm qua.
+* Sửa một lệch nhỏ giữa hai màn mà bài thử bắt được: ngày nhập đầu tiên, màn ngày báo tồn đầu
+  "—" còn thẻ kho báo 0. Nay cả hai báo "—" (chưa biết), còn tính thì vẫn coi kho rỗng.
+* `tools/test/kiem-kho.php` lên **120 phép**, `tools/test/kiem-kho-man.js` lên **84 phép**.
+
 = 1.53.0 =
 * 🔴 **Nạp file bị chối "Xin lỗi, bạn không được phép làm điều đó" khi vào bằng PIN — đã sửa.**
   `khh_dt_duoc_nap()` chỉ nhận quyền WordPress `edit_posts`, không nhận vai PIN `duyệt`, trong

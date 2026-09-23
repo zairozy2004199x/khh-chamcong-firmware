@@ -213,6 +213,24 @@ t('🔴 có câu báo "Chưa nạp báo cáo FABi cho ngày"', /Chưa nạp[\s\S
 t('câu báo nói rõ trống là CHƯA CÓ SỐ, không phải bán 0', /chưa có số/.test(boCC) && /không phải bán 0/.test(boCC));
 t('và nói vẫn đếm & Lưu được ngay', /đếm và Lưu/.test(boCC));
 
+/* ── 9. thẻ kho ───────────────────────────────────────────────────────────────────── */
+t('🔴 tên mặt hàng bấm được để mở thẻ kho', /data-kho-the=/.test(boCC));
+t('có bộ xử lý mở thẻ kho', /closest\('\[data-kho-the\]'\)/.test(boCC));
+t('gọi đúng đường kho-the', /api\('kho-the\?co_so=/.test(boCC));
+t('có khung #khoThe dưới bảng', /id="khoThe"/.test(boCC));
+const mThe = boCC.match(/function veKhoThe\([\s\S]*?\n  \}/);
+t('có hàm vẽ thẻ kho', mThe !== null);
+if (mThe) {
+  t('thẻ kho bày đủ tồn đầu / nhập / máy bán / đếm / tồn cuối',
+    /Tồn đầu/.test(mThe[0]) && /Máy bán/.test(mThe[0]) && /Đếm/.test(mThe[0]) && /Tồn cuối/.test(mThe[0]));
+  t('🔴 ngày chưa nạp FABi được đánh dấu trên thẻ', /chưa nạp FABi/.test(mThe[0]));
+  t('thẻ kho dùng bang-the để xuống thẻ dọc trên điện thoại', /bang-the/.test(mThe[0]));
+  t('ô ngày của thẻ kho đi qua noiONgay', /noiONgay\(noi\.querySelector\('#theTu'\)/.test(mThe[0]));
+}
+/* 🔴 Sổ kho là việc CUỐI NGÀY -> mặc định HÔM NAY. Mặc định hôm qua là mỗi tối phải tự đổi
+   ngày, ai quên là số đếm hôm nay đè lên hôm qua. */
+t('🔴 tab kho mặc định HÔM NAY, không phải hôm qua', /S\.kho = \{ ngay: homNay\(\)/.test(boCC));
+
 if (hong.length) {
   console.log('\n✗ HỎNG ' + hong.length + ' phép (đạt ' + dat + '):');
   hong.forEach((h) => console.log('   · 🔴 ' + h));
