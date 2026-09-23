@@ -1099,7 +1099,13 @@
         q('#bcOCH').hidden = !!r.cua_toi;
         q('#bcTrangThai').textContent = b.nguoi
           ? (b.chot ? 'đã chốt' : 'đã lưu') + ' bởi ' + b.nguoi + (b.sua_luc ? ' · ' + String(b.sua_luc).slice(0, 16) : '')
-          : (khoa ? 'chỉ xem' : 'chưa nhập');
+          : (khoa
+              /* Người PIN đẩy sang mà chưa được cấp vai: nói rõ VÌ SAO khoá và AI mở được, chứ
+                 không để họ ngồi trước một bảng ô mờ rồi gọi điện hỏi. */
+              ? (S.cf && S.cf.bang_pin && !S.cf.vai
+                  ? 'chỉ xem — chưa được cấp quyền nhập, nhờ quản trị cấp ở tab Quản trị'
+                  : 'chỉ xem')
+              : 'chưa nhập');
         tinhLech();
       }).catch(function (e) {
         q('#bcTrangThai').textContent = '';
@@ -3497,7 +3503,8 @@
               ? nguoi.map(function (x) {
                   return esc(x.ho_ten) + ' <span style="color:var(--ink-3)">(' + esc(x.ma_nv) +
                     (x.vai === 'duyet' ? ', duyệt — xem tổng mọi cơ sở'
-                      : ((x.coso_ds || []).length > 1 ? ', ' + x.coso_ds.length + ' cơ sở' : '')) + ')</span>';
+                      : (!x.vai ? ', chưa cấp quyền'
+                        : ((x.coso_ds || []).length > 1 ? ', ' + x.coso_ds.length + ' cơ sở' : ''))) + ')</span>';
                 }).join('<br>')
               : '<span style="color:var(--ink-3)">—</span>') + '</td></tr>';
         }).join('') + '</tbody></table></div>' +
@@ -3540,11 +3547,48 @@
     };
     var quyens = [{ v: 'nhap', n: 'Nhập báo cáo' }, { v: 'duyet', n: 'Nhập và duyệt' }];
 
-    var h = '<div class="khung"><header><h2>Ai được nhập báo cáo cơ sở</h2>' +
+    /* ---- NGƯỜI ĐẨY TỪ TRANG NHÂN SỰ (vào bằng PIN) — CẤP VAI Ở ĐÂY ----
+       Anh Thắng 23/09/2026: *"chỉ đẩy nhân sự qua, chứ không phân quyền nhiệm vụ trong đó, mà do
+       trang tự phân quyền"*. Bên Nhân sự bấm Đẩy là người ấy có mặt ở bảng này với vai TRỐNG —
+       vào xem được cơ sở mình, chưa nhập được gì. Chọn vai rồi Lưu là họ nhập được ngay (phiên
+       đang mở cũng thấy, vai đọc lại từ bảng mỗi lượt). Đẩy lại bên Nhân sự KHÔNG xoá vai. */
+    var pin = r.pin || [];
+    var chuaCap = pin.filter(function (x) { return !x.vai; }).length;
+    var h = '<div class="khung" id="dtNguoiPin"><header><h2>Người đẩy từ trang Nhân sự — cấp vai</h2>' +
+      '<span class="goi">' + pin.length + ' người' + (chuaCap ? ' · ' + chuaCap + ' chưa cấp' : '') + '</span></header>';
+    if (!pin.length) {
+      h += '<div class="trong">Chưa có ai được đẩy sang. Vào trang Nhân sự, cột ' +
+        '<b>Quản trị báo cáo cơ sở</b>, bấm Đẩy cho cửa hàng trưởng — rồi quay lại đây chọn vai.</div>';
+    } else {
+      h += '<div class="bang-cuon"><table><thead><tr>' +
+        '<th>Người</th><th>Cơ sở (từ sổ nhân sự)</th><th>Quyền</th><th></th>' +
+        '</tr></thead><tbody>' +
+        pin.map(function (x) {
+          var cs = (x.coso_ds || []);
+          var ten = (x.coso_ten || []);
+          return '<tr data-ma-nv="' + esc(x.ma_nv) + '">' +
+            '<td>' + esc(x.ho_ten) + '<span style="display:block;color:var(--ink-3);font-size:12px">' +
+              esc(x.ma_nv) + (x.co_pin ? '' : ' · <b style="color:var(--xau)">mất PIN (trùng người khác)</b>') + '</span></td>' +
+            '<td style="text-align:left">' + (cs.length ? cs.map(esc).join(', ') : '<span style="color:var(--ink-3)">—</span>') +
+              '<span style="display:block;color:var(--ink-3);font-size:12px">' +
+              (x.vai === 'duyet' ? 'duyệt — xem tổng mọi cơ sở'
+                : (ten.length ? esc(ten.join(' · ')) : (cs.length ? 'chưa ghép tên POS — khai ở bảng Ghép cơ sở' : ''))) +
+              '</span></td>' +
+            '<td>' + chon('vai', x.vai || '', quyens, '— chưa cấp (chỉ xem) —') + '</td>' +
+            '<td><button class="nut" type="button" data-luu-pin="' + esc(x.ma_nv) + '">Lưu</button></td>' +
+          '</tr>';
+        }).join('') + '</tbody></table></div>';
+    }
+    h += '<div class="chu-them"><b>Nhập báo cáo</b>: nhập báo cáo ngày và kho của đúng cơ sở mình. ' +
+      '<b>Nhập và duyệt</b>: nhập, xem đối soát mọi cơ sở và nạp được file POS — dành cho kế toán, ' +
+      'quản lý. <b>Chưa cấp</b>: đăng nhập được, chỉ xem. Trang Nhân sự chỉ đẩy người sang; vai cấp ở đây.</div></div>';
+
+    h += '<div class="khung"><header><h2>Tài khoản WordPress được nhập báo cáo</h2>' +
       '<span class="goi">' + ds.length + ' người</span></header>';
     if (!ds.length) {
-      h += '<div class="trong">Chưa cấp quyền cho ai. Đẩy cửa hàng trưởng từ trang nhân sự sang, ' +
-        'hoặc vào Người dùng → sửa tài khoản → mục Doanh thu FABi.</div>';
+      h += '<div class="trong">Chưa cấp quyền cho tài khoản WordPress nào. Cửa hàng trưởng không cần ' +
+        'tài khoản — đẩy từ trang Nhân sự sang rồi cấp vai ở bảng trên. Người văn phòng có tài khoản thì ' +
+        'vào Người dùng → sửa tài khoản → mục Doanh thu FABi.</div>';
     } else {
       h += '<div class="bang-cuon"><table><thead><tr>' +
         '<th>Người</th><th>Tài khoản</th><th>Cơ sở phụ trách</th><th>Quyền</th><th></th>' +
@@ -3584,6 +3628,23 @@
           return '<tr><td><code>' + esc(p[0]) + '</code></td><td style="text-align:left">' + esc(p[1]) + '</td></tr>';
         }).join('') + '</tbody></table></div></div>';
     o.innerHTML = h;
+
+    Array.prototype.forEach.call(o.querySelectorAll('[data-luu-pin]'), function (b) {
+      b.addEventListener('click', function () {
+        var tr = b.closest('tr');
+        var fd = new FormData();
+        fd.append('ma_nv', tr.dataset.maNv);
+        fd.append('vai', tr.querySelector('[data-o="vai"]').value);
+        b.disabled = true; b.textContent = 'Đang lưu…';
+        api('nguoi-vai', { method: 'POST', body: fd }).then(function () {
+          b.textContent = 'Đã lưu';
+          /* Vẽ lại cả tab: cột Người ở bảng Ghép cơ sở và số "chưa cấp" ở tiêu đề đều đổi theo. */
+          setTimeout(taiQuanTri, 600);
+        }).catch(function (e) {
+          b.disabled = false; b.textContent = 'Lưu'; window.alert(e.message || e);
+        });
+      });
+    });
 
     Array.prototype.forEach.call(o.querySelectorAll('[data-luu]'), function (b) {
       b.addEventListener('click', function () {

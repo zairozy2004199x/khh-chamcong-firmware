@@ -7,8 +7,25 @@
  * nhân sự để cấp quyền đẩy sang"*.
  *
  * Bên chấm công có `VHCC_DayBaoCao` đẩy sang đây, mỗi người một hàng: mã NV · họ tên · PIN · mã cơ
- * sở · vai. Ba hàm dưới đây là cả cái cổng ấy — `khh_dt_day_vao()`, `khh_dt_day_ra()`,
+ * sở. Ba hàm dưới đây là cả cái cổng ấy — `khh_dt_day_vao()`, `khh_dt_day_ra()`,
  * `khh_dt_da_day()`. Bên kia dò đúng ba tên này trước khi gọi, nên ĐỔI TÊN LÀ TẮT CỘT.
+ *
+ * ==================================================================================================
+ * 🔴 ĐẨY SANG CHỈ LÀ ĐẨY NGƯỜI — VAI (NHẬP / DUYỆT) DO TAB QUẢN TRỊ BÊN NÀY CẤP.
+ * ==================================================================================================
+ * Anh Thắng 23/09/2026: *"đẩy dữ liệu nhân sự là cửa hàng trưởng từ danh sách nhân sự qua để anh
+ * phân quyền nộp báo cáo, vẫn như chi phí, chỉ đẩy nhân sự qua, chứ không phân quyền nhiệm vụ
+ * trong đó, mà do trang tự phân quyền"*.
+ *
+ * Trước 1.58.0 bên chấm công tự suy vai từ vai chấm công (Admin/Quản lý/Kế toán -> 'duyet', còn
+ * lại -> 'nhap') và mỗi lần đẩy lại là GHI ĐÈ vai bên này. Hai cái sai chồng nhau: ai đẩy sang là
+ * nhập được ngay chưa ai cấp; và cấp ở đây rồi bên kia sửa hồ sơ một cái (đổi PIN, thêm cơ sở) là
+ * `dong_bo()` đẩy lại, vai vừa cấp bay mất. Từ 1.58.0:
+ *   · trường `vai` bên kia gửi sang BỊ BỎ QUA (bên kia bản cũ vẫn gửi, vô hại);
+ *   · người mới đẩy sang mang vai '' — CHƯA CẤP: đăng nhập được, thấy cơ sở mình, nhưng KHÔNG
+ *     nhập được gì cho tới khi quản trị cấp ở tab Quản trị (`khh_dt_dat_vai()`);
+ *   · đẩy lại người đã có thì GIỮ NGUYÊN vai đang có — đẩy lại chỉ cập nhật tên, PIN, cơ sở.
+ * Hàng đã có trên hosting (vai 'nhap'/'duyet' cấp theo lối cũ) không bị đụng.
  *
  * ==================================================================================================
  * 🔴 KHÔNG TẠO TÀI KHOẢN WORDPRESS CHO HỌ.
@@ -64,7 +81,7 @@ function khh_dt_tao_bang_nguoi() {
 			ho_ten varchar(190) NOT NULL DEFAULT '',
 			pin varchar(16) NOT NULL DEFAULT '',
 			coso_ma varchar(80) NOT NULL DEFAULT '',
-			vai varchar(10) NOT NULL DEFAULT 'nhap',
+			vai varchar(10) NOT NULL DEFAULT '',
 			cap_nhat datetime NULL,
 			PRIMARY KEY  (id),
 			UNIQUE KEY ma_nv (ma_nv),
@@ -215,12 +232,21 @@ function khh_dt_da_day( $ma_nv ) {
 	return (bool) khh_dt_nguoi( $ma_nv );
 }
 
+/** Các vai cấp được cho người vào bằng PIN. '' = chưa cấp (vào xem được, không nhập). */
+function khh_dt_vai_ds() {
+	return array( '', 'nhap', 'duyet' );
+}
+
 /**
  * Nhận một người từ trang nhân sự.
  *
- * $hs = [ ma_nv, ho_ten, pin, vai ('nhap'|'duyet'), coso (MÃ cơ sở bên nhân sự) ]
+ * $hs = [ ma_nv, ho_ten, pin, coso (MÃ cơ sở bên nhân sự) ]
  *
- * Trả về [ ok, viec ('them'|'sua'), mat_pin (tên những người vừa bị xoá PIN vì trùng),
+ * 🔴 KHÔNG ĐỌC `$hs['vai']`. Vai do tab Quản trị bên này cấp (`khh_dt_dat_vai()`), xem đầu tệp.
+ *    Người mới mang vai '' (chưa cấp); người đã có giữ nguyên vai đang có.
+ *
+ * Trả về [ ok, viec ('them'|'sua'), vai (vai hiện có sau khi đẩy), chua_cap (true nếu vai ''),
+ *          mat_pin (tên những người vừa bị xoá PIN vì trùng),
  *          chua_ghep (true nếu mã cơ sở chưa khai trong bảng ghép) ].
  */
 function khh_dt_day_vao( $hs ) {
@@ -229,7 +255,6 @@ function khh_dt_day_vao( $hs ) {
 	$ma = strtoupper( trim( (string) ( isset( $hs['ma_nv'] ) ? $hs['ma_nv'] : '' ) ) );
 	$ten = trim( (string) ( isset( $hs['ho_ten'] ) ? $hs['ho_ten'] : '' ) );
 	$pin = trim( (string) ( isset( $hs['pin'] ) ? $hs['pin'] : '' ) );
-	$vai = (string) ( isset( $hs['vai'] ) ? $hs['vai'] : 'nhap' );
 	$cs  = implode( ',', khh_dt_tach_ma( isset( $hs['coso'] ) ? $hs['coso'] : '' ) );
 
 	if ( '' === $ma ) {
@@ -241,12 +266,12 @@ function khh_dt_day_vao( $hs ) {
 	if ( ! preg_match( '/^\d{4,8}$/', $pin ) ) {
 		return array( 'ok' => false, 'error' => 'PIN phải gồm 4–8 chữ số.' );
 	}
-	if ( ! in_array( $vai, array( 'nhap', 'duyet' ), true ) ) {
-		$vai = 'nhap';
-	}
 
 	$ng  = khh_dt_bang_nguoi();
 	$cu  = khh_dt_nguoi( $ma );
+	/* Vai: người đã có thì GIỮ (tab Quản trị đã cấp, đẩy lại không được xoá); người mới thì
+	   CHƯA CẤP. Hàng cũ lỡ mang một giá trị lạ thì coi như chưa cấp — hỏng theo hướng THIẾU quyền. */
+	$vai = $cu && in_array( (string) $cu['vai'], khh_dt_vai_ds(), true ) ? (string) $cu['vai'] : '';
 
 	/* 🔴 PIN TRÙNG THÌ NGƯỜI CŨ MẤT PIN, VÀ PHẢI KỂ LẠI.
 	   Đăng nhập ở đây chỉ hỏi PIN chứ không hỏi tên, nên hai người cùng PIN là hai người cùng
@@ -269,11 +294,11 @@ function khh_dt_day_vao( $hs ) {
 		'ho_ten'   => $ten,
 		'pin'      => $pin,
 		'coso_ma'  => $cs,
-		'vai'      => $vai,
 		'cap_nhat' => current_time( 'mysql' ),
 	);
 
 	if ( $cu ) {
+		/* ⚠️ KHÔNG có 'vai' trong $hang: đẩy lại không đụng vai đang có. */
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery
 		$wpdb->update( $ng, $hang, array( 'ma_nv' => $ma ) );
 		$viec = 'sua';
@@ -286,6 +311,7 @@ function khh_dt_day_vao( $hs ) {
 		}
 	} else {
 		$hang['ma_nv'] = $ma;
+		$hang['vai']   = $vai;
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery
 		$wpdb->insert( $ng, $hang );
 		$viec = 'them';
@@ -295,6 +321,8 @@ function khh_dt_day_vao( $hs ) {
 	return array(
 		'ok'        => true,
 		'viec'      => $viec,
+		'vai'       => $vai,
+		'chua_cap'  => '' === $vai,
 		'mat_pin'   => $mat_pin,
 		/* Hai cơ sở mà mới ghép được một thì VẪN là chưa xong — người ấy nhập được quán này,
 		   quán kia không thấy đâu, và đó là loại hỏng người ta không báo vì tưởng mình nhớ nhầm. */
@@ -305,6 +333,70 @@ function khh_dt_day_vao( $hs ) {
 			}
 		) ),
 	);
+}
+
+/**
+ * Cấp vai cho một người vào bằng PIN — việc của TAB QUẢN TRỊ bên này, không phải của trang nhân sự.
+ *
+ * $vai: '' (thu quyền — còn vào xem, không nhập) | 'nhap' | 'duyet'.
+ *
+ * ⚠️ Vai lạ thì CHỐI, không lặng lẽ quy về 'nhap' như cổng đẩy trước 1.58.0 — một chữ gõ sai mà
+ *    thành "được nhập" là nới quyền bằng lỗi chính tả.
+ * ⚠️ Không cần đóng phiên: vai đọc lại từ bảng mỗi lượt (`khh_dt_phien_nguoi()`), thu quyền là
+ *    thấy ngay ở lượt gọi kế tiếp.
+ */
+function khh_dt_dat_vai( $ma_nv, $vai ) {
+	global $wpdb;
+	$ma  = strtoupper( trim( (string) $ma_nv ) );
+	$vai = trim( (string) $vai );
+	if ( '' === $ma ) {
+		return array( 'ok' => false, 'error' => 'Thiếu Mã NV.' );
+	}
+	if ( ! in_array( $vai, khh_dt_vai_ds(), true ) ) {
+		return array( 'ok' => false, 'error' => 'Vai phải là "nhap", "duyet" hoặc để trống (chưa cấp).' );
+	}
+	if ( ! khh_dt_nguoi( $ma ) ) {
+		return array( 'ok' => false, 'error' => 'Mã ' . $ma . ' chưa được đẩy từ trang Nhân sự sang.' );
+	}
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery
+	$wpdb->update(
+		khh_dt_bang_nguoi(),
+		array( 'vai' => $vai, 'cap_nhat' => current_time( 'mysql' ) ),
+		array( 'ma_nv' => $ma )
+	);
+	khh_dt_phien_quen();
+	return array( 'ok' => true, 'ma_nv' => $ma, 'vai' => $vai );
+}
+
+/** Sổ người vào bằng PIN cho tab Quản trị: mã · tên · cơ sở (mã + tên POS đã ghép) · vai. Không có PIN. */
+function khh_dt_ds_nguoi_pin() {
+	global $wpdb;
+	$ng = khh_dt_bang_nguoi();
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$ds = (array) $wpdb->get_results( "SELECT ma_nv, ho_ten, coso_ma, vai, cap_nhat, pin FROM $ng ORDER BY coso_ma, ho_ten", ARRAY_A );
+	$ra = array();
+	foreach ( $ds as $n ) {
+		$ma_ds  = khh_dt_tach_ma( (string) $n['coso_ma'] );
+		$ten_ds = array();
+		foreach ( $ma_ds as $m ) {
+			foreach ( khh_dt_ghep_ten_ds( $m ) as $t ) {
+				if ( ! in_array( $t, $ten_ds, true ) ) {
+					$ten_ds[] = $t;
+				}
+			}
+		}
+		$vai  = (string) $n['vai'];
+		$ra[] = array(
+			'ma_nv'    => (string) $n['ma_nv'],
+			'ho_ten'   => (string) $n['ho_ten'],
+			'coso_ds'  => $ma_ds,
+			'coso_ten' => $ten_ds,
+			'vai'      => in_array( $vai, khh_dt_vai_ds(), true ) ? $vai : '',
+			'co_pin'   => '' !== (string) $n['pin'],
+			'cap_nhat' => (string) $n['cap_nhat'],
+		);
+	}
+	return $ra;
 }
 
 /** Gỡ một người khỏi sổ, và đóng luôn phiên đang mở của họ. */
@@ -524,6 +616,24 @@ function khh_dt_rest_nguoi() {
 			'permission_callback' => 'khh_dt_duoc_quan_tri',
 		)
 	);
+	register_rest_route(
+		'khh-dt/v1',
+		'/nguoi-vai',
+		array(
+			'methods'             => 'POST',
+			'callback'            => 'khh_dt_rest_dat_vai',
+			'permission_callback' => 'khh_dt_duoc_quan_tri',
+		)
+	);
+}
+
+/** POST ma_nv · vai — cấp / thu vai của một người vào bằng PIN. */
+function khh_dt_rest_dat_vai( $req ) {
+	$kq = khh_dt_dat_vai( (string) $req->get_param( 'ma_nv' ), (string) $req->get_param( 'vai' ) );
+	if ( empty( $kq['ok'] ) ) {
+		return new WP_Error( 'khh_dt_vai', $kq['error'], array( 'status' => 400 ) );
+	}
+	return $kq;
 }
 
 function khh_dt_rest_dang_nhap( $req ) {

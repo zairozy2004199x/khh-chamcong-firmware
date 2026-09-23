@@ -65,8 +65,13 @@ Nên cột **Thực nộp** lấy từ sao kê ngân hàng:
 
 Cửa hàng trưởng KHÔNG cần tài khoản WordPress. Ở trang **Nhân sự** của plugin Chấm công có cột
 **Quản trị báo cáo cơ sở** — bấm *Đẩy* là người ấy có mặt trong sổ người dùng của báo cáo, mang
-theo tên · PIN · mã cơ sở · vai. Họ mở link báo cáo, gõ chính PIN chấm công đang dùng hằng ngày,
-và chỉ thấy cơ sở của mình.
+theo tên · PIN · mã cơ sở. Họ mở link báo cáo, gõ chính PIN chấm công đang dùng hằng ngày, và chỉ
+thấy cơ sở của mình.
+
+**Đẩy sang chỉ là đẩy người — vai cấp ở đây.** Người vừa đẩy sang là *chưa cấp*: vào xem được,
+chưa nhập được. Vào **Quản trị → Người đẩy từ trang Nhân sự — cấp vai**, chọn *Nhập báo cáo* (cửa
+hàng trưởng) hay *Nhập và duyệt* (kế toán, quản lý: xem tổng mọi cơ sở, nạp được file POS) rồi Lưu.
+Đẩy lại bên Nhân sự không xoá vai đã cấp.
 
 Ai phụ trách **hai cơ sở** thì tích đủ hai cơ sở cho họ ở trang Nhân sự — bên này tự theo, và họ
 nhập báo cáo được cho cả hai. Còn nếu một điểm bán bị máy POS tách thành hai quán (khu vui chơi
@@ -96,6 +101,30 @@ code, không lên GitHub. Khi có tài liệu iPOS, chỗ duy nhất phải sử
 chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()`.
 
 == Changelog ==
+
+= 1.58.0 =
+* 🔴 **Đẩy người từ trang Nhân sự sang CHỈ LÀ ĐẨY NGƯỜI — vai (nhập / duyệt) cấp ở tab Quản trị bên
+  này.** Anh Thắng 23/09/2026: *"đẩy dữ liệu nhân sự là cửa hàng trưởng từ danh sách nhân sự qua
+  để anh phân quyền nộp báo cáo, vẫn như chi phí, chỉ đẩy nhân sự qua, chứ không phân quyền nhiệm
+  vụ trong đó, mà do trang tự phân quyền"*. Trước đây bên chấm công tự suy vai (Admin/Quản lý/Kế
+  toán → duyệt, còn lại → nhập) và mỗi lần đẩy lại là **ghi đè** vai bên này: ai đẩy sang là nhập
+  được ngay chưa ai cấp, và cấp xong bên kia sửa hồ sơ một cái (đổi PIN, thêm cơ sở) là vai bay.
+* **Người mới đẩy sang mang vai "chưa cấp"**: đăng nhập được bằng PIN, thấy cơ sở mình, nhưng mọi ô
+  nhập khoá và dòng trạng thái nói thẳng *"chỉ xem — chưa được cấp quyền nhập, nhờ quản trị cấp ở
+  tab Quản trị"*. Trường `vai` bên chấm công gửi kèm (bản cũ vẫn gửi) **bị bỏ qua**.
+* **Tab Quản trị có bảng mới "Người đẩy từ trang Nhân sự — cấp vai"**: từng người với mã, cơ sở (mã
+  nhân sự + tên POS đã ghép, hoặc nhắc chưa ghép), ô chọn *Chưa cấp (chỉ xem) · Nhập báo cáo · Nhập
+  và duyệt*, nút Lưu. Cấp xong là phiên đang mở của họ nhập được ngay (vai đọc lại từ bảng mỗi
+  lượt). Ai mất PIN vì trùng người khác được nêu đỏ ngay hàng đó.
+* **Đẩy lại không xoá vai đã cấp** — đẩy lại chỉ cập nhật tên, PIN, cơ sở. Thu vai thì chọn "Chưa
+  cấp" rồi Lưu; gỡ hẳn thì vẫn bấm Gỡ ở trang Nhân sự.
+* Vai lạ gửi tới cổng cấp vai bị **chối** (trước đây cổng đẩy lặng lẽ quy về "nhập" — một chữ gõ sai
+  mà thành được nhập). Cổng REST mới `POST khh-dt/v1/nguoi-vai` (`ma_nv`, `vai`), chỉ quản trị viên.
+* Hàng đã có trên hosting (đã cấp theo lối cũ) **không bị đụng** — chỉ người đẩy MỚI là chưa cấp.
+* Bài kiểm: `kiem-day-bao-cao.php` viết lại theo lối mới (52 phép: đẩy kèm vai vẫn là chưa cấp, đẩy
+  lại không đổi vai, vai lạ bị chối, sổ PIN cho tab Quản trị không lộ PIN); `kiem-quyen-nap.php`
+  thêm 3 phép (PIN chưa cấp → quyền rỗng, không được nạp); `kiem-phan-quyen-pin-man.js` mới 20 phép
+  canh màn và cổng (cổng đẩy không đọc `vai`, route có gác quản trị, ô chọn có mục chưa cấp).
 
 = 1.57.0 =
 * 🔴 **Thư không đính kèm tệp thì hệ tìm LINK TẢI trong thân thư và tải về.** FABi gửi kiểu này:
