@@ -1219,6 +1219,12 @@ class VHCPMTD_Cfg {
 			/* Danh sách BỘ PHẬN — giao diện dựng ô chọn từ đây, không gõ cứng lại. Gõ cứng ở
 			   hai nơi là hai nơi lệch nhau: máy chủ chối một tên mà ô chọn vẫn bày ra nó. */
 			'boPhanDs'   => isset( $s['boPhanDs'] ) ? $s['boPhanDs'] : self::BO_PHAN_DS,
+			/* 🔴 KHOÁ NÀY PHẢI ĐI QUA ĐÂY — cắn thật 23/09/2026. `boPhanLuong` được dựng đủ ở
+			   `cfg_static()`, nhưng `get_config()` LỌC KHOÁ theo danh sách này, nên nó rơi ra
+			   trước khi tới màn. Hậu quả: bấm Lưu báo xanh, sổ có đủ, mà mở lại bảng thì mọi ô
+			   về "theo khối như cũ" — anh Thắng: *"Nó vẫn chưa lưu được luồng"*. Bài kiểm hồi
+			   ấy chỉ soi hàm đọc sổ, không soi gói màn nhận, nên xanh oan. */
+			'boPhanLuong' => isset( $s['boPhanLuong'] ) && is_array( $s['boPhanLuong'] ) ? $s['boPhanLuong'] : array(),
 			/* 🔴 DANH MỤC CƠ SỞ GỬI XUỐNG ĐÃ LỌC THEO ĐƠN VỊ.
 			   Anh Thắng 08/09/2026: *"Mỗi đơn vị tách 1 bảng riêng, để kế toán bộ phận đó tự
 			   nhìn thấy cơ sở của mình và tự thêm sửa mã misa"*. Kế toán POSH mở màn Cấu hình
@@ -1553,6 +1559,11 @@ class VHCPMTD_Cfg {
 			}
 			$rows = array(); $da = array();
 			foreach ( $cfg['boPhanDs'] as $x ) {
+				/* ⚠️ Ép đối tượng về mảng như mọi nhánh khác ở đây (`$x = (array) $x`). API giải mã
+				   JSON bằng `json_decode(…, true)` nên thường là mảng sẵn, nhưng một lối gọi khác
+				   đưa `stdClass` vào là `(string) $x` NỔ — và nổ thành trang trắng, không phải một
+				   câu lỗi. */
+				if ( is_object( $x ) ) { $x = (array) $x; }
 				$t = trim( (string) ( is_array( $x ) ? ( isset( $x['ten'] ) ? $x['ten'] : '' ) : $x ) );
 				if ( '' === $t ) { continue; }
 				/* Trùng tên (bỏ qua hoa thường) thì bỏ dòng sau: `bo_phan_chuan()` trả về tên

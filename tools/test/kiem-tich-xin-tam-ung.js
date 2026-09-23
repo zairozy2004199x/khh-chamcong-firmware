@@ -548,13 +548,15 @@ t('🔴 bảng hạng mục của màn Duyệt không nổ khi chưa mở màn �
   const F = new Function('moi', `with(moi){ ${boc('lenhCapKep')}\n return lenhCapKep; }`)({
     money: x => String(x), toast: (k, m) => NK.toast.push([k, m]) });
 
+  /* 🔴 23/09/2026 — ĐỔI CHIỀU (anh Thắng: *"Cho cá nhân tạm ứng dư: tức kế toán sẽ nhập lớn
+     hơn số thực tế"*). Ô KHÔNG kẹp nữa: gõ 53.820.000 khi còn 30tr thì giữ nguyên số, và NÓI RA
+     phần dư 23.820.000 — câu báo ấy mới là cái chặn gõ nhầm thêm một số 0, không phải cái kẹp.
+     Chi tiết ở `kiem-tam-ung-du.php` và `kiem-tam-ung-du-man.js`. */
   const o = { value: '53.820.000' };
   F(o, 30000000);
-  t('🔴 gõ quá phần còn lại → KẸP về đúng phần còn lại', o.value === '30000000', o.value);
-  /* Đổi số dưới tay người gõ mà không nói gì là tệ hơn cả không kẹp: họ bấm Cấp tiền và tưởng
-     mình vừa đưa con số vừa gõ. */
-  t('🔴 và NÓI RA vì sao, kèm lối đi tiếp (xin một lệnh mới)',
-    NK.toast.some(x => /chỉ còn 30000000đ/.test(x[1]) && /lệnh mới/.test(x[1])), NK.toast);
+  t('🔴 gõ quá phần còn lại → GIỮ NGUYÊN số đã gõ, không kẹp', o.value === '53820000', o.value);
+  t('🔴 và NÓI RA phần dư kèm việc nhân viên phải hoàn',
+    NK.toast.some(x => /DƯ 23820000đ/.test(x[1]) && /hoàn lại/.test(x[1])), NK.toast);
 
   NK.toast.length = 0;
   const o2 = { value: '10.000.000' };
@@ -588,8 +590,12 @@ t('🔴 bảng hạng mục của màn Duyệt không nổ khi chưa mở màn �
   /* 🔴 LƯỚI THỨ HAI, CHẠY THẬT. Bấm thẳng nút Cấp tiền lúc con trỏ còn trong ô thì `onblur`
      (chỗ kẹp) chạy SAU cú bấm — không canh lại ở nút gửi là số vượt vẫn bay lên máy chủ. Canh
      bằng cách dò chuỗi thì gỡ mất câu lệnh mà đổi cách viết vẫn xanh; nên chạy hàm. */
-  const NK = { gui: null, toast: [] };
+  /* 🔴 23/09/2026 — ĐỔI CHIỀU (anh Thắng: *"Cho cá nhân tạm ứng dư"*). Số vượt phần còn lại nay
+     KHÔNG bị chặn: nút gửi HỎI một câu có con số dư, trả lời Không thì không gửi, Có thì gửi
+     đúng số đã gõ. Bệ đỡ cài `confirm` giả và đếm số lần hỏi. */
+  const NK = { gui: null, toast: [], hoi: 0, dap: false };
   const moi = {
+    confirm: () => { NK.hoi++; return NK.dap; },
     money: x => String(x), toast: (k, m) => NK.toast.push([k, m]), loading: () => {}, _log: () => {},
     _lenhTim: () => ({ soTien: 50000000, daCap: [{ choLan: 0, soTien: 20000000 }] }),
     document: { querySelector: sel => (/data-hmcap=/.test(sel) ? { value: '50.000.000' } : null) },
@@ -603,9 +609,13 @@ t('🔴 bảng hạng mục của màn Duyệt không nổ khi chưa mở màn �
   const F = new Function('moi', `with(moi){ ${boc('_daCapTong')}\n${boc('_conPhaiCap')}\n${boc('lenhGuiCap')}
     return lenhGuiCap; }`)(moi);
   F('K1', 'DA1', 3);
-  t('🔴 bấm Cấp tiền với số VƯỢT phần còn lại → KHÔNG gửi lên máy chủ', NK.gui === null, NK.gui);
-  t('   và nói rõ còn bao nhiêu, đang đưa bao nhiêu',
-    NK.toast.some(x => /chỉ còn 30000000đ/.test(x[1]) && /50000000đ/.test(x[1])), NK.toast);
+  t('🔴 bấm Cấp tiền với số VƯỢT phần còn lại → HỎI trước, trả lời Không thì KHÔNG gửi',
+    NK.hoi === 1 && NK.gui === null, NK);
+  NK.dap = true; NK.hoi = 0;
+  F('K1', 'DA1', 3);
+  t('🔴 trả lời Có → gửi đúng 50tr đã gõ (tạm ứng dư 20tr vào sổ)',
+    NK.hoi === 1 && NK.gui && NK.gui.them.soTien === 50000000, NK.gui);
+  NK.dap = false; NK.hoi = 0;
 
   /* Số hợp lệ thì vẫn đi bình thường — lưới không được chặn cả việc đúng. */
   const moi2 = Object.assign({}, moi, {
@@ -613,8 +623,8 @@ t('🔴 bảng hạng mục của màn Duyệt không nổ khi chưa mở màn �
   NK.gui = null;
   new Function('moi', `with(moi){ ${boc('_daCapTong')}\n${boc('_conPhaiCap')}\n${boc('lenhGuiCap')}
     return lenhGuiCap; }`)(moi2)('K1', 'DA1', 3);
-  t('   đưa đúng phần còn lại thì vẫn gửi bình thường',
-    NK.gui && NK.gui.them.soTien === 30000000, NK.gui);
+  t('   đưa đúng phần còn lại thì vẫn gửi bình thường — và KHÔNG hỏi',
+    NK.gui && NK.gui.them.soTien === 30000000 && NK.hoi === 0, NK);
 }
 t('🔴 `daCap` phải đi kèm lệnh xuống màn Duyệt — không thì mọi thứ trên đây tính trên số 0',
   /'daCap'\s*=> \$d\['daCap'\],/.test(

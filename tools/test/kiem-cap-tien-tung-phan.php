@@ -76,12 +76,10 @@ foreach ( array( 0, -5000 ) as $xau ) {
 	$r = VHCP_DuAn::cap_tien_phan( $ma, 1, array( 'soTien' => $xau ) );
 	t( '🔴 cấp ' . $xau . 'đ → chối (dòng 0đ chỉ làm sổ dài ra)', empty( $r['success'] ), $r );
 }
-$r = VHCP_DuAn::cap_tien_phan( $ma, 1, array( 'soTien' => 60000000 ) );
-t( '🔴 cấp QUÁ số của lệnh → chối (tiền ra nhiều hơn số đã duyệt)', empty( $r['success'] ), $r );
-t( '   câu chối nói còn bao nhiêu chưa cấp',
-	isset( $r['error'] ) && false !== mb_strpos( (string) $r['error'], '48.000.000' ), $r );
-t( '   và chỉ đường đúng: xin lệnh mới, ở đó có người duyệt',
-	isset( $r['error'] ) && false !== mb_strpos( (string) $r['error'], 'lệnh mới' ), $r );
+/* 🔴 23/09/2026 — ba phép "cấp QUÁ số của lệnh → chối" đã GỠ khỏi đây. Anh Thắng: *"Cho cá
+   nhân tạm ứng dư: tức kế toán sẽ nhập lớn hơn số thực tế"* — nay đưa hơn là NHẬN và ghi dư.
+   Không thể để phép ấy ở đây nữa: nó cấp 60tr thật lên lệnh 48tr, lệnh lật sang đủ, và cả
+   mục 4–5 (cấp làm ba lần) bên dưới mất chỗ chạy. Luật mới nằm trọn ở `kiem-tam-ung-du.php`. */
 
 /* ═══ 4. 🔴 CẤP LÀM BA LẦN ═════════════════════════════════════════════════════════════ */
 $r = VHCP_DuAn::cap_tien_phan( $ma, 1, array( 'soTien' => 10000000, 'ngay' => '03/09/2026', 'unc' => 'UNC-1' ) );
@@ -274,11 +272,13 @@ teq( '   trả dở cho lần 2 thì lần 2 cộng dồn', 8000000, VHCP_DuAn::
    vẫn dính nhau. Cách tách sạch: THÊM một lệnh khác chỉ có một lần. Ở đây dùng chính lần 2:
    trả nốt 12tr rồi thử gắn thêm — mức lệnh lúc ấy đã hết nên không tách được.
    → Tách bằng một dự án riêng ở khối 7e bên dưới. */
-$r = VHCP_DuAn::cap_tien_phan( $maL, 1, array( 'soTien' => 13000000, 'choLan' => 2 ) );
-t( '🔴 gắn tiếp quá PHẦN CÒN LẠI của lần 2 (12tr) → chối', empty( $r['success'] ), $r );
-VHCP_DuAn::cap_tien_phan( $maL, 1, array( 'soTien' => 12000000, 'choLan' => 2, 'unc' => 'UNC-L2b' ) );
+/* 🔴 23/09/2026 — ĐỔI CHIỀU (anh Thắng: *"Cho cá nhân tạm ứng dư"*). Lần 1 đã trả đủ, lần 2 là
+   lần CUỐI còn nợ → gắn 13tr vào lần 2 (còn 12tr) nay là NHẬN, dư 1tr, và lệnh lật sang đủ.
+   Ca "còn lần khác chưa nhận thì vẫn chối" nằm ở khối 7e bên dưới và ở `kiem-tam-ung-du.php`. */
+$r = VHCP_DuAn::cap_tien_phan( $maL, 1, array( 'soTien' => 13000000, 'choLan' => 2, 'unc' => 'UNC-L2b' ) );
+t( '🔴 gắn 13tr vào lần 2 (lần cuối còn nợ 12tr) → NHẬN, dư 1tr', ! empty( $r['success'] ) && 1000000 === (int) $r['du'], $r );
 $LL = VHCP_DuAn::dot_cua( $maL, 1 );
-teq( '   trả nốt lần 2 → đủ cả hai lần', array( 1 => 10000000, 2 => 20000000 ),
+teq( '   sổ theo lần ghi số THẬT: lần 2 = 21tr', array( 1 => 10000000, 2 => 21000000 ),
 	VHCP_DuAn::da_cap_theo_lan( $LL ) );
 teq( '🔴 và lệnh sang "ung" — đủ tiền là đủ, không cần bấm thêm', 'ung', $LL['tt'] );
 
@@ -465,11 +465,13 @@ foreach ( VHCP_DuAn::get_du_an( $maM )['lenh'] as $d ) { if ( 1 === (int) $d['do
 teq( '   trang dự án cũng ra đúng con số ấy (hai nguồn không được lệch nhau)',
 	30000000, (int) VHCP_DuAn::con_phai_cap( $LD ) );
 
-/* 🔴 VÀ MÁY CHỦ VẪN LÀ CHỐT THẬT: gõ vượt phần còn lại thì chối, dù màn có điền sẵn gì. */
+/* 🔴 23/09/2026 — ĐỔI CHIỀU: đưa hơn phần còn lại là TẠM ỨNG DƯ, không chối nữa. Anh Thắng:
+   *"Cho cá nhân tạm ứng dư: tức kế toán sẽ nhập lớn hơn số thực tế"*. Số dư phải VÀO SỔ (ô `du`
+   trên dòng cấp, và tổng đã cấp là số thật) — chi tiết ở `kiem-tam-ung-du.php`. */
 $x = VHCP_DuAn::cap_tien_phan( $maM, 1, array( 'soTien' => 50000000 ) );
-t( '🔴 đưa lại trọn 50tr khi chỉ còn 30tr → CHỐI (đây là lưới cuối, không phải lưới duy nhất)',
-	empty( $x['success'] ), $x );
-t( '   và nói đúng phần còn lại', isset( $x['error'] ) && false !== mb_strpos( $x['error'], '30.000.000' ), $x );
+t( '🔴 đưa 50tr khi chỉ còn 30tr → NHẬN, lệnh đủ', ! empty( $x['success'] ) && ! empty( $x['xong'] ), $x );
+teq( '🔴 và báo dư đúng 20tr', 20000000, (int) $x['du'] );
+teq( '   tổng đã cấp là số THẬT đã đưa (70tr), không phải số lệnh', 70000000, (int) $x['daCap'] );
 VHCP_DuAn::delete( $maM );
 
 /* ═══ 7b. MÀN HÌNH — phần người dùng thật sự nhìn và bấm ══════════════════════════════ */
@@ -485,7 +487,8 @@ t( '   có ô ngày đưa để sau còn đối chiếu', false !== strpos( $HTM
 /* 🔴 KẸP SỐ NGAY TẠI Ô, và nói ra trần. Để người ta gõ xong rồi mới bị máy chủ chối là bắt họ
    đoán con số đúng — mà con số ấy màn hình đang giữ sẵn. */
 t( '🔴 ô tiền kẹp lại theo phần còn lại ngay khi rời ô', false !== strpos( $HTML, 'onblur="lenhCapKep(this,' ) );
-t( '   và bày sẵn trần cho biết tối đa bao nhiêu', false !== mb_strpos( $HTML, 'tối đa \'+money(con)+\'đ' ) );
+/* 23/09/2026: không còn "trần" — chữ bên ô nay nói phần còn lại và nói thẳng đưa hơn là dư. */
+t( '   và nói phần còn lại kèm "đưa hơn = tạm ứng dư"', false !== mb_strpos( $HTML, 'còn lại \'+money(con)+\'đ · đưa hơn = tạm ứng dư' ) );
 /* ⚠️ LƯỚI THỨ HAI Ở NÚT GỬI: bấm thẳng nút lúc con trỏ còn trong ô thì `onblur` chạy SAU, nên
    không canh lại là số vượt vẫn bay lên máy chủ. */
 t( '🔴 nút Cấp tiền canh lại lần nữa trước khi gửi (onblur chạy sau cú bấm)',

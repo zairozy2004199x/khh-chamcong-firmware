@@ -1424,11 +1424,21 @@ class VHCPVP_DuAn {
 		if ( $so <= 0 ) {
 			return VHCPVP_Util::err( 'Nhập số tiền thật sự đưa lần này (lớn hơn 0).' );
 		}
-		if ( $so > $con ) {
-			return VHCPVP_Util::err( 'Lệnh này chỉ còn ' . number_format( (float) $con, 0, ',', '.' )
-				. 'đ chưa cấp, không đưa được ' . number_format( (float) $so, 0, ',', '.' ) . 'đ. '
-				. 'Cần đưa thêm thì nhân viên xin một lệnh mới — lệnh mới có người duyệt.' );
-		}
+		/* ══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 ĐƯA HƠN PHẦN CÒN LẠI = TẠM ỨNG DƯ, KHÔNG CHỐI NỮA.
+		 *
+		 * Anh Thắng 23/09/2026: *"Cho cá nhân tạm ứng dư: tức kế toán sẽ nhập lớn hơn số thực
+		 * tế"*. Bản trước chối thẳng (*"chỉ còn X chưa cấp, không đưa được Y"*) — hồi 18/09
+		 * chuyện đưa dư chưa có. Nay kế toán làm tròn, đưa thêm tiền mặt là chuyện thường.
+		 *
+		 * ⚠️ SỐ DƯ ĐI VÀO SỔ, KHÔNG BIẾN MẤT: `daCap` ghi số THẬT đã đưa, `da_cap_tong()` cộng
+		 *    số thật, và "đã chi" của dự án đọc từ đó (xem `get_du_an`). Nên thừa/thiếu lúc quyết
+		 *    toán tự ra đúng — nhân viên hoàn lại phần dư. Ghi thêm ô `du` vào dòng sổ để ai đọc
+		 *    sổ cũng thấy ngay lượt nào đưa dư bao nhiêu, không phải tự trừ.
+		 * ⚠️ VẪN KHÔNG NHẬN SỐ 0 / ÂM (ở trên), và vẫn phải là lệnh ĐÃ DUYỆT — chỉ nới đúng
+		 *    cái trần, không nới cửa.
+		 * ══════════════════════════════════════════════════════════════════════════════════ */
+		$du = ( $so > $con ) ? ( $so - $con ) : 0;
 
 		/* 🔴 KHÔNG CHỌN NGÀY THÌ LẤY ĐÚNG LÚC BẤM — KÈM GIỜ. Anh Thắng 18/09/2026: *"Nếu kế toán
 		   bấm cấp tiền mà không chọn ngày thì tự hiểu là lấy ngày bấm cấp làm ngày cấp tiền
@@ -1459,11 +1469,26 @@ class VHCPVP_DuAn {
 			}
 			$da_lan  = self::da_cap_theo_lan( $d );
 			$con_lan = $tien_lan - ( isset( $da_lan[ $cho_lan ] ) ? $da_lan[ $cho_lan ] : 0 );
+			/* 🔴 DƯ CHỈ ĐƯỢC GẮN VÀO LẦN CUỐI CÒN NỢ. Gắn dư vào lần 1 khi lần 2 vẫn chưa nhận
+			   thì tổng đã đưa vượt lệnh → lệnh lật sang 'ung' (đủ) → lần 2 BIẾN MẤT khỏi việc
+			   phải làm, trong khi nhân viên chưa cầm đồng nào của lần ấy. Sổ nói "đủ", người
+			   thì thiếu. Nên: còn lần KHÁC chưa nhận thì vẫn chối vượt phần của lần này; hết lần
+			   khác rồi thì đưa dư bao nhiêu cũng vào sổ. */
 			if ( $so > $con_lan ) {
-				return VHCPVP_Util::err( 'Lần ' . $cho_lan . ' chỉ còn '
-					. number_format( (float) $con_lan, 0, ',', '.' ) . 'đ chưa nhận, không gắn '
-					. number_format( (float) $so, 0, ',', '.' ) . 'đ vào đó được. '
-					. 'Đưa thêm cho lần khác thì chọn đúng lần ấy.' );
+				$con_khac = 0;
+				foreach ( (array) ( isset( $d['lich'] ) ? $d['lich'] : array() ) as $y ) {
+					$l = (int) ( isset( $y['lan'] ) ? $y['lan'] : 0 );
+					if ( $l <= 0 || $l === $cho_lan ) { continue; }
+					$c = VHCPVP_Util::num( isset( $y['soTien'] ) ? $y['soTien'] : 0 ) - ( isset( $da_lan[ $l ] ) ? $da_lan[ $l ] : 0 );
+					if ( $c > 0 ) { $con_khac += $c; }
+				}
+				if ( $con_khac > 0 ) {
+					return VHCPVP_Util::err( 'Lần ' . $cho_lan . ' chỉ còn '
+						. number_format( (float) $con_lan, 0, ',', '.' ) . 'đ chưa nhận, không gắn '
+						. number_format( (float) $so, 0, ',', '.' ) . 'đ vào đó được khi lần khác còn '
+						. number_format( (float) $con_khac, 0, ',', '.' ) . 'đ chưa nhận. '
+						. 'Đưa thêm cho lần khác thì chọn đúng lần ấy; đưa dư thì đưa ở lần cuối.' );
+				}
 			}
 		}
 
@@ -1474,6 +1499,7 @@ class VHCPVP_DuAn {
 			'lan'    => count( $ghi ) + 1,
 			'choLan' => $cho_lan,
 			'soTien' => $so,
+			'du'     => $du,
 			'ngay'   => ( '' !== $ngay ? $ngay : $luc ),
 			'unc'    => trim( (string) ( isset( $them['unc'] ) ? $them['unc'] : '' ) ),
 			'nguoi'  => VHCPVP_Auth::nguoi(),
@@ -1490,7 +1516,7 @@ class VHCPVP_DuAn {
 			if ( empty( $kq['success'] ) ) { return $kq; }
 			$moi = self::dot_cua( $ma_da, $dot );
 			return VHCPVP_Util::ok( array( 'dot' => $moi, 'daCap' => self::da_cap_tong( $moi ),
-				'con' => 0, 'xong' => true,
+				'con' => 0, 'xong' => true, 'du' => $du,
 				'tuQuyetToan' => isset( $kq['tuQuyetToan'] ) ? (int) $kq['tuQuyetToan'] : 0 ) );
 		}
 

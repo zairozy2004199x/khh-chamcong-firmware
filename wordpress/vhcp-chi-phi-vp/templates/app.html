@@ -7874,24 +7874,31 @@
       +'<span style="white-space:nowrap">Số tiền đưa lần này: <input type="text" inputmode="numeric" '
       +'data-hmcap="'+k+'" value="'+money(_capSoGoiY(x,con))+'" onfocus="tienVao(this)" '
       +'onblur="lenhCapKep(this,'+con+')" style="width:130px;font-size:12px;text-align:right"> đ</span>'
-      +'<span style="font-size:11px;color:#8c8781;white-space:nowrap">tối đa '+money(con)+'đ</span>'
+      +'<span style="font-size:11px;color:#8c8781;white-space:nowrap">còn lại '+money(con)+'đ · đưa hơn = tạm ứng dư</span>'
       +'<span style="white-space:nowrap">Ngày đưa: <input type="text" data-hmcapngay="'+k+'" '
       +'placeholder="dd/mm/yyyy" style="width:110px;font-size:12px"></span>'
       +_hmOTep(k,maDA,'unc','Uỷ nhiệm chi',false,220)+'</div>'
       +'<div style="margin-top:8px"><button class="btn b-g" onclick="lenhGuiCap(\''+k+'\',\''+esc(maDA)+'\','+dot+')">✓ Cấp tiền</button>'
       +' <button class="btn b-x" onclick="hmDongLai(\''+k+'\')">✕ Thôi</button></div>');
   }
-  /* 🔴 KẸP SỐ ĐƯA VỀ PHẦN CÒN LẠI. Anh Thắng 18/09/2026: *"bấm cấp lần 2,3 là số tiền còn lại
-     hoặc thấp hơn chứ"*. Máy chủ vẫn là chốt thật (`cap_tien_phan` chối khi vượt), nhưng để
-     người ta gõ xong rồi mới bị chối là bắt họ đoán con số đúng — mà con số ấy màn hình đang
-     giữ sẵn. Kẹp ngay tại ô, và NÓI RA vì sao, chứ không lặng lẽ đổi số dưới tay người gõ. */
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * Ô SỐ ĐƯA — KHÔNG KẸP NỮA, ĐƯA HƠN PHẦN CÒN LẠI LÀ TẠM ỨNG DƯ.
+   *
+   * Anh Thắng 23/09/2026: *"Cho cá nhân tạm ứng dư: tức kế toán sẽ nhập lớn hơn số thực tế"*.
+   * Bản 18/09 kẹp số về phần còn lại (*"bấm cấp lần 2,3 là số tiền còn lại hoặc thấp hơn
+   * chứ"*) — hôm ấy chưa có chuyện đưa dư. Nay kế toán làm tròn, đưa thêm tiền mặt là chuyện
+   * thường, và số dư ấy ĐI VÀO SỔ: `da_cap_tong()` cộng tiền THẬT đã đưa, nên thừa/thiếu lúc
+   * quyết toán tự ra đúng, nhân viên hoàn lại phần dư.
+   *
+   * ⚠️ KHÔNG LẶNG LẼ. Không kẹp, nhưng vẫn NÓI RA ngay khi rời ô: gõ nhầm thêm một số 0 là
+   *    đưa gấp mười — câu báo "đang đưa dư 270.000.000đ" là thứ chặn cái đó, không phải cái kẹp.
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
   function lenhCapKep(o, con){
     if(!o) return;
     var so=Number(String(o.value||'').replace(/[^0-9]/g,''))||0;
     con=Number(con)||0;
     if(con>0 && so>con){
-      so=con;
-      toast('warn','Lệnh này chỉ còn '+money(con)+'đ chưa cấp — đã kẹp lại. Cần đưa thêm thì nhân viên xin một lệnh mới.');
+      toast('warn','Đưa '+money(so)+'đ, hơn phần còn lại '+money(con)+'đ → tạm ứng DƯ '+money(so-con)+'đ. Nhân viên hoàn lại lúc quyết toán.');
     }
     o.value=money(so);
   }
@@ -7905,14 +7912,17 @@
     /* Lưới thứ hai: ô mất tiêu điểm thì `lenhCapKep` đã kẹp, nhưng bấm thẳng nút Cấp tiền lúc
        con trỏ còn trong ô thì `onblur` chạy sau — không canh lại ở đây là số vượt vẫn bay lên. */
     var _x=_lenhTim(maDA,dot), _con=_x?_conPhaiCap(_x):0;
+    /* 🔴 ĐƯA DƯ THÌ HỎI MỘT CÂU CÓ CON SỐ, không chối. Câu hỏi nêu đúng phần dư để người gõ
+       nhầm một số 0 nhìn thấy trước khi tiền đi. Anh Thắng 23/09/2026: cho tạm ứng dư. */
     if(_con>0 && so>_con){
-      toast('warn','Lệnh này chỉ còn '+money(_con)+'đ chưa cấp, không đưa được '+money(so)+'đ.');
-      return;
+      if(!confirm('Đưa '+money(so)+'đ — hơn phần còn lại '+money(_con)+'đ.\n\nTạm ứng DƯ '+money(so-_con)
+        +'đ, nhân viên sẽ hoàn lại lúc quyết toán.\n\nĐúng là đưa dư?')) return;
     }
     loading(true);
     google.script.run.withSuccessHandler(function(r){ loading(false);
       if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
-      toast('ok', r.xong ? ('Đã cấp đủ '+money(r.daCap)+'đ cho lệnh này')
+      var _du=Number(r.du)||0;
+      toast('ok', r.xong ? ('Đã cấp đủ '+money(r.daCap)+'đ cho lệnh này'+(_du?(' — dư '+money(_du)+'đ, NV hoàn lúc quyết toán'):''))
                          : ('Đã cấp '+money(so)+'đ — còn '+money(r.con)+'đ'));
       _log('Cấp tạm ứng dự án', maDA, money(so)+'đ'+(r.xong?' (đủ)':(' · còn '+money(r.con)+'đ')));
       var sau=_lenhSau(k); if(typeof sau==='function') sau();
@@ -8855,7 +8865,9 @@
       });
       h+='<div style="font-size:11.5px;margin:2px 0 0 10px;color:#0f766e;font-weight:600">'
         +'tổng đã đưa <b>'+money(daTong)+'đ</b>'
-        +(con?(' · còn phải đưa <b>'+money(con)+'đ</b>'):' · <b>đủ</b>')+'</div>';
+        +(con?(' · còn phải đưa <b>'+money(con)+'đ</b>')
+              :(' · <b>đủ</b>'+((daTong-tong)>0?(' · <span style="color:#b45309">dư <b>'+money(daTong-tong)+'đ</b> — kế toán cấp thêm, NV hoàn lúc quyết toán</span>'):'')))
+        +'</div>';
     }
     return h;
   }
