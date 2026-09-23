@@ -1016,6 +1016,19 @@ class VHCC_Luong {
 		foreach ( $gio as $m ) {
 			if ( $m >= $dem_tu || $m < $dem_den ) { return array( 'loai' => 'dem', 'gio' => $gio ); }
 		}
+		/* 🔴 CA TRÙM QUA CẢ KHUNG ĐÊM CŨNG LÀ CA ĐÊM — dù hai đầu đều nằm ngoài khung.
+		   Anh Thắng 23/09/2026: setup vào 19:51, về 11:18 hôm sau. Hai đầu: 19:51 chưa tới demTu,
+		   11:18 đã qua demDen — soi từng đầu thì không đầu nào "đêm", rồi 11:18 < ngayDen nên rơi
+		   xuống 'la' (ca lạ) và KHÔNG TÍNH. Người ta thức trắng đêm mà bảng ghi "ca lạ, xem lại".
+		   Ca bắt đầu TRƯỚC khung đêm và kết thúc SAU lúc khung ấy mở là ca đã đi xuyên qua nó.
+		   ⚠️ So trên trục PHẲNG: giờ ra đã trải (+24h) hoặc nhỏ hơn giờ vào thì cộng một ngày —
+		      không thì 11:18 < 19:51 và phép so nói ca kết thúc trước khi bắt đầu. */
+		if ( null !== $vao_giay && '' !== $vao_giay && null !== $ra_giay && '' !== $ra_giay ) {
+			$v_m = intdiv( ( (int) $vao_giay ) % VHCC_DB::NGAY_GIAY, 60 );
+			$r_m = intdiv( (int) $ra_giay, 60 );
+			if ( $r_m <= $v_m ) { $r_m += 1440; }
+			if ( $v_m < $dem_tu && $r_m > $dem_tu ) { return array( 'loai' => 'dem', 'gio' => $gio ); }
+		}
 		foreach ( $gio as $m ) {
 			if ( $m < $ngay_den ) { return array( 'loai' => 'la', 'gio' => $gio ); }
 		}

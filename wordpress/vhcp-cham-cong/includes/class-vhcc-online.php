@@ -431,14 +431,48 @@ class VHCC_Online {
 			$h = self::hang( $coso, $ngay, $ma_nv, '' );
 			$chinh_chua_ra = ( $h && null !== $h['gio_vao_giay'] && null === $h['gio_ra_giay'] );
 		}
-		$tuyen = self::dinh_tuyen( $coso, $ngay, $giay, $chinh_chua_ra );
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 "SETUP ĐỢI NGÀY RA" — cơ sở PHỤ đã ghép: lượt bấm HÔM SAU đóng ca đêm HÔM TRƯỚC.
+		 *
+		 * Anh Thắng 23/09/2026: *"công ngày thì ngày nào ra ngày đó, không liên quan; còn setup
+		 * nó sẽ đợi ngày ra, tức đợi đến ngày hôm sau (sau 1 ngày)"* — và trên màn sửa anh gõ
+		 * giờ ra `11:18` cho ca vào `19:51`: setup có thể về lúc gần trưa.
+		 *
+		 * `dinh_tuyen()` chỉ lùi ngày cho lượt TRƯỚC `demDen` (06:00). Lượt 11:18 rơi qua khe ấy:
+		 * không trước 06:00, không sau 17:00 -> hàng 1, giờ VÀO của ngày mới — ca đêm hôm trước
+		 * lại thiếu giờ ra, y như lỗi vừa sửa, chỉ muộn hơn vài tiếng.
+		 *
+		 * Luật: bấm vào cơ sở PHỤ, trong ngày (tới hết `ngayDen`), mà HÔM TRƯỚC người này có
+		 * hàng ca đêm ĐANG MỞ (có vào, chưa ra) ở đúng cơ sở ấy -> lượt này là giờ RA của hàng đó.
+		 *
+		 * ⚠️ CHỈ CHO CƠ SỞ PHỤ, KHÔNG CHO CƠ SỞ CHÍNH. Nhân viên văn phòng tăng ca tối qua quên
+		 *    bấm ra, sáng nay bấm 08:30 vào ca ngày — đem lượt ấy đóng hàng đêm là ca ngày mất giờ
+		 *    vào (mất trọn công ngày) và đêm qua thành 14 tiếng. Đúng lời anh: *"công ngày thì
+		 *    ngày nào ra ngày đó"*. Ở cơ sở phụ (setup) không có ca ngày để mà nhầm.
+		 * ⚠️ CHẶN Ở `ngayDen`: sau 17:00 hôm sau mà bấm thì đó là MỞ ca đêm mới (luật cũ), không
+		 *    phải đóng ca cũ — ca cũ vẫn đỏ để người ta đi bù, không tự nối hai đêm làm một.
+		 * ⚠️ Giờ ghi trải phẳng thẳng (+24h), không qua `trai_phang()`: hàm ấy trả null cho 11:18
+		 *    (giờ ca ngày) và lượt sẽ bị chối "không thuộc hàng ca đêm".
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$tuyen = null;
+		$cs_luat = self::coso_luat( $coso );
+		if ( 0 !== strcasecmp( $cs_luat, $coso ) && self::la_van_phong( $coso )
+			&& null !== $giay && null !== $ngay_den && $giay <= $ngay_den ) {
+			$hom_truoc = self::ngay_truoc( $ngay );
+			$mo = self::hang( $coso, $hom_truoc, $ma_nv, self::DUOI_CD );
+			if ( $mo && null !== $mo['gio_vao_giay'] && '' !== $mo['gio_vao_giay']
+				&& ( null === $mo['gio_ra_giay'] || '' === $mo['gio_ra_giay'] ) ) {
+				$tuyen = array( 'ngay' => $hom_truoc, 'duoi' => self::DUOI_CD, 'dem' => true, 'doi_ra' => true );
+			}
+		}
+		if ( null === $tuyen ) { $tuyen = self::dinh_tuyen( $coso, $ngay, $giay, $chinh_chua_ra ); }
 
 		$ma_ghi = $ma_nv;
 		$giay_ghi = $giay;
 		if ( $tuyen ) {
 			$ngay     = $tuyen['ngay'];
 			$ma_ghi   = $ma_nv . '-' . $tuyen['duoi'];
-			$giay_ghi = self::trai_phang( $giay, $cfg );
+			$giay_ghi = ! empty( $tuyen['doi_ra'] ) ? $giay + VHCC_DB::NGAY_GIAY : self::trai_phang( $giay, $cfg );
 			if ( null === $giay_ghi ) {
 				/* Giờ thuộc ca ngày mà lại định tuyến sang hàng 2 -> KHÔNG ghi bừa. Bên Code.gs
 				   chỗ này trả 'bo'; ghi bừa vào hàng 2 là công ngày biến thành tăng ca. */

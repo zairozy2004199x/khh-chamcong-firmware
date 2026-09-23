@@ -187,7 +187,8 @@ class VHCC_Bu {
 		}
 		if ( null !== $vao && null !== $ra && $ra <= $vao ) {
 			return array( 'ok' => false,
-				'error' => 'Giờ ra phải muộn hơn giờ vào. Ca đêm thì bù vào hàng ca đêm (mã kèm -CD).' );
+				'error' => 'Giờ ra phải muộn hơn giờ vào. Ca đêm thì bù vào hàng ca đêm (mã kèm -CD). '
+					. self::GOI_Y_DON );
 		}
 
 		/* Ô nào ĐÃ có giờ thì bỏ qua ô đó — không đè. Đọc trước khi ghi để còn nói cho người bù
@@ -433,7 +434,8 @@ class VHCC_Bu {
 		}
 		if ( null !== $vao_moi && null !== $ra_moi && $ra_moi <= $vao_moi ) {
 			return array( 'ok' => false,
-				'error' => 'Giờ ra phải muộn hơn giờ vào. Ca đêm thì sửa ở hàng ca đêm (mã kèm -CD).' );
+				'error' => 'Giờ ra phải muộn hơn giờ vào. Ca đêm thì sửa ở hàng ca đêm (mã kèm -CD). '
+					. self::GOI_Y_DON );
 		}
 
 		$kq = VHCC_Nhan::dat_gio( $coso, $ngay, $ma_nv, (string) $cu['ho_ten'],
@@ -675,6 +677,30 @@ class VHCC_Bu {
 	 * ⚠️ CHỈ GHI KHI GIỜ THẬT SỰ ĐỔI. Một tháng 122 ngày công mà ngày nào cũng chép một dòng
 	 *    nhật ký thì sổ sử ngập, và ngập thì không ai đọc — kể cả dòng đáng đọc.
 	 */
+	/**
+	 * Câu chỉ đường khi người ta gõ giờ ra SỚM HƠN giờ vào trên một hàng thường.
+	 *
+	 * 🔴 Anh Thắng 23/09/2026 đứng đúng bảng SETUP, mở ô `0 ?` ngày 06, gõ ra `11:18` cho vào
+	 *    `19:51`, và nhận câu "sửa ở hàng ca đêm (mã kèm -CD)" — trong khi ngày ấy KHÔNG có hàng
+	 *    ca đêm nào để sửa: lượt ra sáng hôm sau đang nằm ở ngày 07 dưới dạng giờ VÀO (lỗi định
+	 *    tuyến đã vá ở 4.77). Câu báo cũ đúng mà vô dụng: nó bảo đi tới một chỗ không tồn tại.
+	 *    Phải nói ra lượt kia đang nằm đâu và nút nào ghép được.
+	 */
+	const GOI_Y_DON = 'Nếu ngày này CHƯA có hàng ca đêm mà lượt ra sáng hôm sau đang nằm ở ngày kế '
+		. 'tiếp dưới dạng giờ VÀO, dùng «Dọn ca đêm lẻ» ở đầu bảng công để ghép hai lượt ấy lại.';
+
+	/**
+	 * CỬA GHI NHẬT KÝ CHO LƯỢT "DỌN CA ĐÊM LẺ" — xem `VHCC_DonDem`.
+	 *
+	 * Lượt dọn xoá hai hàng thường và dựng một hàng ca đêm; mỗi con số đổi chỗ đều phải để lại
+	 * dấu: giờ vào cũ ở đâu, giờ ra lấy từ lượt nào. Không có dấu thì ba tháng sau không ai
+	 * trả lời được vì sao ngày 07 mất một lượt bấm.
+	 */
+	public static function nhat_ky_don( $u, $coso, $ngay, $ma_nv, $o, $giay, $giay_cu, $ly_do ) {
+		self::nhat_ky( $u, $coso, $ngay, $ma_nv, $o, $giay, $ly_do, 'don', $giay_cu );
+		return true;
+	}
+
 	public static function nhat_ky_nap( $u, $coso, $ngay, $ma_nv, $o, $giay, $giay_cu, $ly_do ) {
 		if ( (string) $giay === (string) $giay_cu ) { return false; }
 		self::nhat_ky( $u, $coso, $ngay, $ma_nv, $o, $giay, $ly_do, 'nap', $giay_cu );

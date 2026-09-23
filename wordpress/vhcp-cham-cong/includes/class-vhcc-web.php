@@ -1279,6 +1279,8 @@ class VHCC_Web {
 	const VIEC_CHAM = array( 'co', 'xu_ly_co', 'bu', 'sua_gio', 'xem_cong', 'nap_cong', 'ca',
 		/* Bảng công CŨ của anh Thắng (mỗi ngày một dòng) — cùng quyền `nap_cong`, khác bộ đọc. */
 		'xem_doc', 'nap_doc',
+		/* Dọn ca đêm lẻ (ghép hai lượt đã ghi sai thành một hàng -CD) — gác thật ở `VHCC_DonDem`. */
+		'don_dem_xem', 'don_dem',
 		'cach_tinh',
 		'them_nv', 'muc_tre', 'duyet_tre', 'choi_tre', 'xin_tre', 'cho_tra',
 		/* Đối chiếu / nạp về từ app gốc: việc của màn Bảng công, KHÔNG phải việc hồ sơ. Người
@@ -1745,6 +1747,15 @@ class VHCC_Web {
 		/* ĐƠN GIÁ GIỜ CỦA CƠ SỞ — xem `VHCC_GiaGio`. Gác thật nằm trong chính lớp ấy
 		   (`luong`, tức bậc Kế toán); ở đây chỉ đọc biểu mẫu rồi chuyển xuống. */
 		/* ẨN / HIỆN một mã khỏi bảng công — xem `VHCC_An`. */
+		if ( 'don_dem_xem' === $viec || 'don_dem' === $viec ) {
+			$cs_d = isset( $_POST['ccs'] ) ? VHCC_NhanSu::chuan_coso( wp_unslash( $_POST['ccs'] ) ) : '';
+			$th_d = isset( $_POST['cth'] ) ? sanitize_text_field( wp_unslash( $_POST['cth'] ) ) : '';
+			$r_d  = VHCC_DonDem::chay( $toi, $cs_d, $th_d, 'don_dem' === $viec );
+			if ( empty( $r_d['ok'] ) ) { return array( array( 'loi' => $r_d['error'] ) ); }
+			$r_d['viec'] = $viec;
+			return array( $r_d );
+		}
+
 		if ( 'an_ma' === $viec ) {
 			$cs_a = isset( $_POST['ccs'] ) ? VHCC_NhanSu::chuan_coso( wp_unslash( $_POST['ccs'] ) ) : '';
 			$ma_a = isset( $_POST['an_ma'] ) ? sanitize_text_field( wp_unslash( $_POST['an_ma'] ) ) : '';
@@ -6381,6 +6392,9 @@ class VHCC_Web {
 				. '">Mở bảng ' . esc_html( $cs_ghep ) . '</a></div>';
 		}
 		echo '<p class="mo">Đổi đơn vị ở khối <b>Cách tính công của từng cơ sở</b> dưới cùng.</p>';
+		/* Nút Dọn ca đêm lẻ đứng NGAY DƯỚI lời dẫn của lưới — chỗ người ta đang nhìn mấy ô `0 ?`
+		   và vừa bị form sửa chối. Đặt tít dưới cùng là không ai tìm thấy. */
+		self::the_don_dem( $ky, $toi, $cs, $th );
 		/* ⚠️ KHÔNG đóng thẻ ở đây nữa. Trước 01/09/2026 khối này đóng ngay sau phần giới thiệu,
 		   rồi lưới thật vẽ ra thành mấy thẻ RIÊNG bên dưới — nên bọc `<details>` quanh phần giới
 		   thiệu là gập đi đúng cái lời dẫn mà giữ nguyên cái bảng dài. Nay `<details>` ôm trọn cả
@@ -12101,6 +12115,10 @@ class VHCC_Web {
 			self::ve_bao_doc( $b, $toi );
 			return;
 		}
+		if ( isset( $b['viec'] ) && ( 'don_dem' === $b['viec'] || 'don_dem_xem' === $b['viec'] ) ) {
+			self::ve_bao_don_dem( $b );
+			return;
+		}
 		if ( isset( $b['viec'] ) && 'doi_chieu_app' === $b['viec'] ) {
 			self::ve_bao_doi_chieu( $b );
 			return;
@@ -12294,6 +12312,75 @@ class VHCC_Web {
 			foreach ( array_slice( $ds, 0, 30 ) as $c ) { echo '<li>' . esc_html( $c ) . '</li>'; }
 			echo '</ul>';
 			if ( count( $ds ) > 30 ) { echo '<span class="mo">…và ' . ( count( $ds ) - 30 ) . ' dòng nữa.</span>'; }
+			echo '</div>';
+		}
+	}
+
+	/**
+	 * Khối DỌN CA ĐÊM LẺ — chỉ hiện ở cơ sở mà luật là Văn phòng (chính hoặc phụ đã ghép).
+	 *
+	 * Anh Thắng 23/09/2026 mở ô `0 ?` trên bảng SETUP để sửa tay và bị chối vì ngày ấy không có
+	 * hàng ca đêm — lượt ra sáng hôm sau nằm ở ngày kế tiếp dưới dạng giờ vào. Nút này làm đúng
+	 * việc máy lẽ ra đã làm lúc bấm. Luật ghép và mọi phép gác nằm ở `VHCC_DonDem`; đây chỉ vẽ.
+	 */
+	private static function the_don_dem( $ky, $toi, $cs, $th ) {
+		if ( '' === $cs || ! VHCC_Vai::duoc( $toi, 'sua_gio' ) ) { return; }
+		if ( ! class_exists( 'VHCC_DonDem' ) || ! VHCC_Online::la_van_phong( $cs ) ) { return; }
+		echo '<div class="the" id="dondem"><details><summary><b>Dọn ca đêm lẻ</b> '
+			. '<span class="mo">(ghép lượt ra sáng hôm sau vào ca đêm hôm trước · bấm để mở)</span></summary>';
+		echo '<p class="mo" style="margin:10px 0">Ô <b>0 ?</b> hai ngày liền nhau của cùng một người '
+			. '(tối hôm trước chỉ có giờ vào, sáng hôm sau cũng chỉ có giờ vào) là một ca đêm bị '
+			. 'chẻ đôi từ trước bản 4.77. Nút này ghép hai lượt ấy thành <b>một hàng ca đêm</b> — '
+			. 'đúng việc máy lẽ ra đã làm lúc bấm.</p>';
+		echo '<p class="mo">Chỉ ghép khi đủ điều kiện: hàng thường, tối hôm trước vào từ giờ tan '
+			. 'ca trở đi, sáng hôm sau bấm trước giờ tan ca, ngày ấy chưa có hàng ca đêm. Không đủ '
+			. 'thì <b>kể ra, không đụng</b>. Mọi lượt đổi đều có ở <b>Lịch sử sửa bảng công</b>.</p>';
+		echo '<form method="post"><input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+			. self::o_loc() . '<input type="hidden" name="ccs" value="' . esc_attr( $cs ) . '">'
+			. '<input type="hidden" name="cth" value="' . esc_attr( $th ) . '">';
+		echo '<div class="hang"><div>Cơ sở <b>' . esc_html( $cs ) . '</b> · tháng <b>' . esc_html( $th ) . '</b></div>'
+			. '<div><button name="viec" value="don_dem_xem">Xem trước</button></div>'
+			. '<div><button class="chay" name="viec" value="don_dem">Dọn thật</button></div></div>';
+		echo '<p class="mo">Bấm <b>Xem trước</b> trước đã — nó <b>không ghi gì</b>, chỉ kể ra sẽ ghép '
+			. 'cặp nào và bỏ qua lượt nào, vì sao.</p>';
+		echo '</form></details></div>';
+	}
+
+	private static function ve_bao_don_dem( $b ) {
+		$xem = ! empty( $b['chi_xem'] );
+		$cap = isset( $b['cap'] ) ? (array) $b['cap'] : array();
+		$le  = isset( $b['le'] ) ? (array) $b['le'] : array();
+		echo '<div class="bao ' . ( $xem ? 'canh' : 'ok' ) . '"><b>'
+			. ( $xem ? 'XEM TRƯỚC — chưa ghi gì.' : 'Đã dọn.' ) . '</b> Cơ sở <b>' . esc_html( $b['coSo'] )
+			. '</b> · tháng <b>' . esc_html( VHCC_NapDoc::thang_chu( $b['thang'] ) ) . '</b> · <b>'
+			. count( $cap ) . '</b> cặp ghép được · <b>' . count( $le ) . '</b> lượt lẻ để nguyên'
+			. ( $xem ? '' : ' · đã ghép <b>' . esc_html( (string) $b['da_ghi'] ) . '</b>, ghi <b>'
+				. esc_html( (string) $b['ky_ghi'] ) . '</b> dòng nhật ký' ) . '.</div>';
+		if ( ! empty( $b['loi'] ) ) {
+			echo '<div class="bao loi"><b>' . count( (array) $b['loi'] ) . ' cặp không ghép được:</b><ul>';
+			foreach ( (array) $b['loi'] as $x ) { echo '<li>' . esc_html( $x ) . '</li>'; }
+			echo '</ul></div>';
+		}
+		if ( $cap ) {
+			echo '<div class="the"><h2>' . ( $xem ? 'Sẽ ghép' : 'Đã ghép' ) . '</h2><div class="cuon"><table class="b"><thead><tr>'
+				. '<th>Người</th><th>Đêm</th><th>Vào</th><th>Ra (hôm sau)</th></tr></thead><tbody>';
+			foreach ( $cap as $c ) {
+				echo '<tr><td>' . esc_html( $c['ten'] ) . ' <span class="mo">' . esc_html( $c['ma'] ) . '</span></td>'
+					. '<td>' . esc_html( $c['ngay'] ) . '</td><td>' . esc_html( $c['vao'] ) . '</td>'
+					. '<td>' . esc_html( $c['ra'] ) . ' <span class="mo">(' . esc_html( $c['ngaySau'] ) . ')</span></td></tr>';
+			}
+			echo '</tbody></table></div></div>';
+		}
+		if ( $le ) {
+			echo '<div class="the"><h2>Để nguyên, cần xem tay</h2><div class="cuon"><table class="b"><thead><tr>'
+				. '<th>Người</th><th>Ngày</th><th>Vào</th><th>Vì sao không ghép</th></tr></thead><tbody>';
+			foreach ( array_slice( $le, 0, 60 ) as $c ) {
+				echo '<tr><td>' . esc_html( $c['ten'] ) . ' <span class="mo">' . esc_html( $c['ma'] ) . '</span></td>'
+					. '<td>' . esc_html( $c['ngay'] ) . '</td><td>' . esc_html( $c['vao'] ) . '</td>'
+					. '<td class="mo">' . esc_html( $c['lyDo'] ) . '</td></tr>';
+			}
+			echo '</tbody></table></div>';
+			if ( count( $le ) > 60 ) { echo '<p class="mo">…và ' . ( count( $le ) - 60 ) . ' lượt nữa.</p>'; }
 			echo '</div>';
 		}
 	}
