@@ -1404,6 +1404,50 @@ class VHCPVP_DuAn {
 	 *    lệnh thì chỉ được duyệt tới đấy. Cần đưa thêm thì xin một lệnh mới — ở đó có người duyệt.
 	 * ⚠️ 0đ HAY SỐ ÂM THÌ CHỐI. Một dòng cấp 0đ chỉ làm sổ dài ra mà không nói gì.
 	 */
+	/**
+	 * DỌN RÁC — XOÁ HẲN MỘT LỆNH ĐÃ BỊ TRẢ LẠI. Anh Thắng 23/09/2026: *"Cho admin có quyền dọn
+	 * rác"*, kèm ảnh bảng "Lệnh tạm ứng của dự án" bốn dòng đều "— đã trả / Bị trả lại".
+	 *
+	 * 🔴 CHỈ LỆNH Ở 'tra'. Lệnh đang xin / đã duyệt / đã cấp là tiền đang chạy — xoá là mất dấu
+	 *    một khoản có thật. Muốn bỏ thì Trả (hoặc Thu hồi) trước, rồi mới dọn. Hai bước cố ý.
+	 * 🔴 CHỈ ADMIN. Nhân viên tự xoá lệnh bị trả của mình là xoá luôn lý do người duyệt đã ghi.
+	 * ⚠️ HẠNG MỤC KHÔNG BỊ ĐỘNG. Lúc trả, `dat_tt_dot('tra')` đã gỡ `dot` về 0 cho từng hạng mục
+	 *    (xem 🔴 ở đó), nên lệnh này không còn hạng mục nào trỏ tới — xoá nó không làm dòng nào
+	 *    mất chủ. Phép này soi lại điều ấy trước khi xoá, cho chắc.
+	 * ⚠️ GHI NHẬT KÝ TRƯỚC KHI XOÁ — sau khi xoá thì không còn gì để ghi.
+	 */
+	public static function xoa_dot_tra( $ma_da, $dot, $loai = 'tu' ) {
+		if ( 'Admin' !== VHCPVP_Auth::vai_tro() ) { return VHCPVP_Util::err( 'Chỉ Admin dọn được lệnh bị trả.' ); }
+		if ( ! self::find( $ma_da ) ) { return VHCPVP_Util::err( 'Không tìm thấy dự án' ); }
+		$d = self::dot_cua( $ma_da, $dot, $loai );
+		if ( ! $d ) { return VHCPVP_Util::err( 'Không tìm thấy lệnh ' . (int) $dot ); }
+		if ( 'tra' !== $d['tt'] ) {
+			return VHCPVP_Util::err( 'Chỉ dọn được lệnh ĐÃ BỊ TRẢ LẠI. Lệnh này đang ở "' . $d['tt']
+				. '" — Trả (hoặc Thu hồi) trước rồi mới dọn.' );
+		}
+		/* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG — ghi để lần sau khỏi đuổi theo. Bỏ vòng soi này thì mọi bài
+		   kiểm vẫn xanh, vì không cửa công nào tới được ca "lệnh ở 'tra' mà hạng mục còn trỏ vào
+		   nó": `dat_tt_dot('tra')` luôn gỡ `dot` về 0 ngay lúc trả. Giữ vòng này vì nó là lớp
+		   chặn cuối cho dữ liệu nạp tay / sổ cũ / một cửa mai sau quên gỡ — xoá một lệnh mà còn
+		   hạng mục trỏ vào là dòng ấy mất chủ im lặng. Đừng gỡ vì phá thử báo "không bắt được". */
+		foreach ( self::lines_of( $ma_da ) as $l ) {
+			$h = self::hm_cua( $ma_da, (int) $l['row_no'] );
+			if ( $h && (int) $h['dot'] === (int) $dot ) {
+				return VHCPVP_Util::err( 'Hạng mục "' . trim( (string) $l['noi_dung'] ) . '" vẫn trỏ vào lệnh này — chưa dọn được.' );
+			}
+		}
+		VHCPVP_Log::log_action( array(
+			'actor'  => VHCPVP_Auth::nguoi(), 'role' => VHCPVP_Auth::vai_tro(),
+			'action' => 'Dọn lệnh bị trả (xoá hẳn)', 'target' => (string) $ma_da . ' · lệnh ' . (int) $dot,
+			'detail' => count( (array) $d['rows'] ) . ' hạng mục · ' . number_format( (float) $d['soTien'], 0, ',', '.' ) . 'đ'
+				. ( '' !== (string) $d['lyDo'] ? ( ' — ' . $d['lyDo'] ) : '' ),
+		) );
+		$o = self::get_dot( $ma_da, $loai );
+		unset( $o[ (string) (int) $dot ] );
+		VHCPVP_Meta::set_json( self::dot_meta_( $loai ) . $ma_da, $o );
+		return VHCPVP_Util::ok( array( 'daXoa' => (int) $dot, 'conLai' => count( $o ) ) );
+	}
+
 	public static function cap_tien_phan( $ma_da, $dot, $them = array() ) {
 		if ( ! self::find( $ma_da ) ) { return VHCPVP_Util::err( 'Không tìm thấy dự án' ); }
 		$d = self::dot_cua( $ma_da, $dot );

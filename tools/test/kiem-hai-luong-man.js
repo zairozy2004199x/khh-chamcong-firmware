@@ -337,8 +337,10 @@ t('   đối chứng · chọn "gt" thì nút đậm là "Qua tạm ứng"',
   /Qua tạm ứng/.test(damGT[0] || '') && !/Trực tiếp/.test(damGT[0] || ''), damGT[0]);
 t('⚠️ mã lạ thì bỏ qua, không đổi lựa chọn đang có', /ND_LUONG_DS\.some/.test(ham('ndChonLuong')), ham('ndChonLuong'));
 /* 🔴 VÀ PHẢI THẬT SỰ GỬI ĐI. Chọn xong mà không truyền xuống là ô này chỉ để trang trí. */
-t('🔴 `createDon` gửi kèm luồng đã chọn', /\.createDon\(ky,\s*nv,\s*ND_LUONG\)/.test(HTML));
-t('🔴 và máy chủ nhận đủ ba tham số', /function create_don\(\s*\$ky,\s*\$nguoi_lap,\s*\$luong\s*=\s*''\s*\)/.test(DON));
+/* 23/09/2026: gửi thêm KHỐI ĐANG ĐỨNG (tham số 4) — Bắc–Nam dùng chung một bản, người lập tích
+   nhiều khối thì đơn về tab đang mở. Xem `kiem-khoi-theo-nguoi-lap.php`. */
+t('🔴 `createDon` gửi kèm luồng đã chọn và khối đang đứng', /\.createDon\(ky,\s*nv,\s*ND_LUONG,\s*KHOI_DANG\)/.test(HTML));
+t('🔴 và máy chủ nhận đủ bốn tham số', /function create_don\(\s*\$ky,\s*\$nguoi_lap,\s*\$luong\s*=\s*'',\s*\$khoi_man\s*=\s*''\s*\)/.test(DON));
 
 /* ═══ 8. CÂU CHỮ QUANH NÚT PHẢI GỌI ĐÚNG TÊN NÚT ════════════════════════════════ */
 /* 🔴 Bảo người ta bấm một nút không tồn tại là họ ngồi tìm, rồi tưởng đơn của mình lỗi. */

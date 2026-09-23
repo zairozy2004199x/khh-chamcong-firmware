@@ -3134,7 +3134,21 @@
     var bay=_khoiBay();
     var ds=(window.BOOT&&BOOT.khoiXem);
     if(!ds||!ds.length) return bay;
-    return bay.filter(function(x){ return ds.indexOf(x.ma)>=0; });
+    var ra=bay.filter(function(x){ return ds.indexOf(x.ma)>=0; });
+    /* 🔴 MIỀN NGƯỜI ẤY TÍCH THÌ LUÔN CÓ NÚT, KỂ CẢ KHI CHƯA CÓ ĐƠN NÀO (23/09/2026 — Bắc–Nam
+       dùng chung một bản, đơn đóng dấu theo người lập). Không có dòng này thì NV Bắc mới vào,
+       kho chưa có đơn `mb` nào → `bay` không có `mb` → tập này RỖNG → thanh khối rơi về `kvc`,
+       và đơn đầu tiên họ lập (dấu `mb`) BIẾN MẤT khỏi chính màn của họ. Đơn mất tích ngay lượt
+       lập đầu là kiểu hỏng làm người ta bỏ app.
+       ⚠️ CHỈ THÊM MIỀN (`MIEN_MA`), không thêm mọi khối trong `khoiXem` — giữ đúng chốt ở trên:
+          khối đã ra riêng (`mtd`) không được mọc nút trên kho không còn đơn nào của nó. */
+    MIEN_MA.forEach(function(m){
+      if(ds.indexOf(m)<0) return;
+      if(ra.some(function(x){ return x.ma===m; })) return;
+      var k=KHOI_DS.filter(function(x){ return x.ma===m; })[0];
+      if(k) ra.push(k);
+    });
+    return ra;
   }
   var KHOI_DANG=(function(){
     try{ var v=localStorage.getItem('vhcp_khoi'); if(v) return String(v); }catch(e){}
@@ -4379,7 +4393,7 @@
     google.script.run.withSuccessHandler(function(r){loading(false);
       if(r.success){_log('Tạo đơn', r.maDon, 'kỳ '+ky+' · NV '+nv); toast('ok','Đã tạo đơn'); boot(function(){el('donSel').value=r.maDon; openDon(r.maDon);});}
       else toast('err',r.error);
-    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).createDon(ky,nv,ND_LUONG);
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).createDon(ky,nv,ND_LUONG,KHOI_DANG);
   }
   /* 🔴 TUẦN LIÊN TỤC, KHÔNG CẮT THEO THÁNG. Anh Thắng 01/09/2026: *"giờ luật tạo cho đơn mới
      theo tuần liên tục, không tạo theo tháng nữa"*.
@@ -7310,9 +7324,7 @@
          `tongNhom()` bên dưới và `VHCP_DuAn::tien_hm()` bên máy chủ. Cộng cả cha lẫn con là
          đếm hai lần, mà đây là con số kế toán chuẩn bị tiền. */
       var _kidsP=childrenBy[p.noiDung]||[];
-      var _tienP=_kidsP.length
-        ? _kidsP.reduce(function(a,k){ return a+(Number(k.thucTe)||0); },0)
-        : (Number(p.thucTe)||0);
+      var _tienP=_tienXinHm(p, _kidsP);
       addChild+=hmNutDaBang(p, _tienP);
       if(kids.length){
         var kidTT=kids.reduce(function(s,k){return s+(Number(k.thucTe)||0);},0);
@@ -7950,7 +7962,21 @@
           một khoản đã ra khỏi két. Cùng một chữ cho hai việc khác nhau là mời bấm nhầm. */
     if(tt==='ung' && String((CURUSER&&CURUSER.role)||'')==='Admin')
       out+=' <button class="btn b-d" onclick="lenhTra(\''+ma+'\','+dot+',\''+k+'\',1)" title="Gỡ lệnh đã cấp tiền — khoản này thôi tính là đã chi">⏪ Thu hồi</button>';
+    /* 🗑 DỌN RÁC — anh Thắng 23/09/2026: *"Cho admin có quyền dọn rác"*. Lệnh bị trả nằm lại
+       trong bảng mãi, bốn dòng "— đã trả" che mất lệnh đang chạy. Chỉ Admin, chỉ lệnh 'tra';
+       máy chủ chốt lại cả hai (`xoa_dot_tra`). */
+    if(tt==='tra' && String((CURUSER&&CURUSER.role)||'')==='Admin')
+      out+=' <button class="btn b-d" onclick="lenhXoaRac(\''+ma+'\','+dot+',\''+k+'\')" title="Xoá hẳn lệnh đã bị trả lại khỏi bảng — không đụng hạng mục">🗑 Dọn</button>';
     return out;
+  }
+  function lenhXoaRac(maDA, dot, k){
+    if(!confirm('Xoá hẳn lệnh bị trả lại này khỏi bảng?\n\nHạng mục không bị động — chúng đã được gỡ khỏi lệnh lúc trả. Lý do trả sẽ còn trong nhật ký.')) return;
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
+      toast('ok','Đã dọn lệnh '+dot); _log('Dọn lệnh bị trả', maDA, 'lệnh '+dot);
+      var sau=_lenhSau(k||''); if(typeof sau==='function') sau();
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).xoaLenhTraDuAn(maDA, dot);
   }
 
   function hmDat(maDA,row,tt,them,sau){
@@ -8902,6 +8928,30 @@
         +'<td style="text-align:center;white-space:nowrap">'+(nut||'<span style="color:#e2d6c7">—</span>')+'</td></tr>'
         +'<tr data-hmf="'+k+'" style="display:none"><td colspan="7" style="background:#f0fdf4;padding:8px 12px;border-left:3px solid #16a34a"></td></tr>';
     }).join('');
+  }
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * SỐ TIỀN MỘT HẠNG MỤC LÚC XIN TẠM ỨNG — bản song sinh của `VHCP_DuAn::tien_hm_du_kien()`.
+   *
+   * Anh Thắng 23/09/2026, ảnh form "Gửi lệnh tạm ứng — 11 hạng mục": mười dòng ghi 0, chỉ một
+   * dòng có tiền. *"Xin tạm ứng lại nó đang để 0. Vì trả về nó lại đi từ ban đầu tiền nhập
+   * chứ"*.
+   *
+   * 🔴 MÀN ĐỌC MỖI `thucTe`, MÁY CHỦ THÌ LÙI VỀ DỰ TOÁN. Hạng mục lập ra chỉ có dự toán (thực
+   *    tế 0 vì chưa tiêu) thì màn bày 0 và cộng tổng thiếu, trong khi máy chủ dựng lệnh bằng
+   *    `tien_hm_du_kien()` — thực tế > 0 thì lấy, không thì dự toán, không nữa thì thành tiền.
+   *    Hai bên nói hai con số cho cùng một lệnh; và cái người ta nhìn thấy là con số SAI.
+   * ⚠️ MỤC CON: cộng thực tế của con; con chưa có thực tế thì lùi về dự toán của CHA — đúng
+   *    thứ tự của máy chủ, không cộng cha lẫn con (đếm hai lần).
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  function _tienXinHm(p, kids){
+    kids=kids||[];
+    var keHoach=(Number(p&&p.duToan)||0)>0 ? Number(p.duToan) : (Number(p&&p.thanhTien)||0);
+    if(kids.length){
+      var con=kids.reduce(function(a,k){ return a+(Number(k.thucTe)||0); },0);
+      return con>0 ? con : keHoach;
+    }
+    var tuThan=Number(p&&p.thucTe)||0;
+    return tuThan>0 ? tuThan : keHoach;
   }
   function hmNutDaBang(p, tienHM){
     if(!DA_CUR) return '';
