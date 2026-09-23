@@ -1392,7 +1392,41 @@ class VHCP_Don {
 	 * ⚠️ Ai xem cả (Admin · Quản lý · Kế toán) thì `duoc_xem()` luôn đúng, nên chốt này không
 	 *    đụng tới họ — kể cả khi họ lập đơn hộ người của mảng khác.
 	 */
-	public static function tao_don_moi( $ky, $nguoi_lap, $luong = '' ) {
+	/**
+	 * KHỐI ĐÓNG DẤU CHO ĐƠN MỚI — THEO NGƯỜI LẬP, RỒI MỚI TỚI BẢN CÀI.
+	 *
+	 * Anh Thắng 23/09/2026: *"Nếu bắc nam dùng chung thì sao. Và Nhân viên miền bắc thì thấy
+	 * miền bắc, Nhân viên miền nam thì thấy miền nam"* — rồi chốt: DÙNG CHUNG một bản, khối
+	 * theo NGƯỜI LẬP.
+	 *
+	 * 🔴 TRƯỚC BẢN NÀY ĐƠN NÀO CŨNG MANG DẤU CỦA BẢN CÀI (`VHCP_DB::khoi()`): một bản cài = một
+	 *    khối. Bắc và Nam dùng chung một bản thì mọi đơn cùng một dấu, và cái "NV Bắc thấy Bắc"
+	 *    không có gì để tách. Cột Khối ở bảng Người dùng đã có (tích mb/mn), thanh khối đã bày
+	 *    nút theo cột ấy — chỉ thiếu đúng mắt xích này.
+	 *
+	 * Thứ tự hỏi, và vì sao:
+	 *   1. Người lập tích ĐÚNG MỘT khối → khối ấy. Người của một miền thì đơn về miền đó, bất kể
+	 *      người lập hộ đang đứng ở tab nào.
+	 *   2. Người lập tích NHIỀU khối (kế toán làm cả hai miền) → khối màn đang đứng, NẾU nó nằm
+	 *      trong mấy khối người ấy tích. Đứng ở tab Miền Bắc lập đơn thì đơn về Miền Bắc.
+	 *   3. Còn lại (chưa tích gì, màn không gửi, hoặc gửi khối không thuộc người lập) → dấu của
+	 *      bản cài như cũ. Đây là đường lui cho mọi site chưa khai cột Khối: không đơn nào
+	 *      đổi chỗ, không đơn nào mất tích.
+	 *
+	 * ⚠️ MÀN KHÔNG ĐƯỢC ÉP KHỐI KHÁC NGƯỜI LẬP. Người tích `mb` mà màn gửi `mn` thì đơn vẫn về
+	 *    `mb`: khối là thuộc tính của người, không phải của cái tab đang mở.
+	 * ⚠️ VẪN KHÔNG PHẢI TRỤC PHÂN QUYỀN — giữ nguyên chốt ở `VHCP_DonVi::khoi_xem_duoc()`: khối
+	 *    quyết định bày nút nào và đơn hiện ở tab nào; dữ liệu vẫn bị ĐƠN VỊ cắt ở máy chủ.
+	 */
+	public static function khoi_cho_don( $nguoi_lap, $khoi_man = '' ) {
+		$tay = VHCP_DonVi::khoi_khai_tay( $nguoi_lap );
+		if ( 1 === count( $tay ) ) { return $tay[0]; }
+		$m = mb_strtolower( trim( (string) $khoi_man ) );
+		if ( count( $tay ) > 1 && '' !== $m && in_array( $m, $tay, true ) ) { return $m; }
+		return VHCP_DB::khoi();
+	}
+
+	public static function tao_don_moi( $ky, $nguoi_lap, $luong = '', $khoi_man = '' ) {
 		$dv = VHCP_DonVi::cua_nguoi( $nguoi_lap );
 		if ( ! VHCP_DonVi::duoc_xem( $dv ) ) {
 			$ds = VHCP_DonVi::xem_duoc();
@@ -1404,14 +1438,14 @@ class VHCP_Don {
 				. 'Sửa cột "Đơn vị" của người lập ở Cấu hình → Người dùng & Phân quyền cho khớp '
 				. 'với cột "Xem đơn vị", rồi lập lại.' );
 		}
-		return self::create_don( $ky, $nguoi_lap, $luong );
+		return self::create_don( $ky, $nguoi_lap, $luong, $khoi_man );
 	}
 
 	/**
 	 * GHI một đơn mới vào sổ. Không hỏi quyền — cửa hỏi quyền là `tao_don_moi()` ở trên.
 	 * `chuyen_don_vi()` gọi thẳng vào đây, cố ý.
 	 */
-	public static function create_don( $ky, $nguoi_lap, $luong = '' ) {
+	public static function create_don( $ky, $nguoi_lap, $luong = '', $khoi_man = '' ) {
 		global $wpdb;
 		$dv = VHCP_DonVi::cua_nguoi( $nguoi_lap );
 		/* 🔴 LUỒNG ĐÓNG DẤU NGAY LÚC LẬP, và chuẩn hoá tại đây. Mã lạ về rỗng = "theo khối như
@@ -1444,8 +1478,10 @@ class VHCP_Don {
 			   THẤY — tiền có thật mà mở app ra như chưa từng tồn tại. Cùng lý do cột ấy khai
 			   `NOT NULL DEFAULT` ở `VHCP_DB`: rỗng nghĩa là mất tích, không phải "chưa khai".
 			   ⚠️ KHÔNG có ô cho người dùng chọn — y như `don_vi` ngay trên: một ô chọn là một
-			      chỗ chọn nhầm, mà chọn nhầm ở đây là đơn rơi sang sổ của mảng khác. */
-			'khoi'       => VHCP_DB::khoi(),
+			      chỗ chọn nhầm, mà chọn nhầm ở đây là đơn rơi sang sổ của mảng khác.
+			   🔴 Từ 23/09/2026 dấu lấy theo NGƯỜI LẬP trước (Bắc–Nam dùng chung một bản), lui về
+			      `VHCP_DB::khoi()` khi người ấy chưa tích khối — xem `khoi_cho_don()`. */
+			'khoi'       => self::khoi_cho_don( $nguoi_lap, $khoi_man ),
 			'luong'      => $lg,
 			'ngay_tao'   => VHCP_Util::now_sql(),
 			'trang_thai' => 'Nháp',

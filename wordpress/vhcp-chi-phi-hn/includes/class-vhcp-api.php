@@ -83,7 +83,7 @@ class VHCPHN_API {
 			'xacNhanQtCnNhieu', 'setTatToanTuan', 'setSoDuDauKy', 'dongCuaCoSo',
 			/* Đánh dấu ĐÃ THANH TOÁN (bước riêng của MTĐ/VP) là khai rằng tiền đã ra khỏi két —
 			   việc của kế toán, không phải của người lập đơn. */
-			'danhDauThanhToan', 'danhDauThanhToanNhieu',
+			'danhDauThanhToan', 'danhDauThanhToanNhieu', 'xoaLenhTraDuAn',
 			/* 🔴 `setLineThucMua` ĐÃ RỜI KHỎI ĐÂY — anh Thắng 01/09/2026, ảnh đơn FUNZONE VŨNG TÀU:
 			   *"nhân viên được phép nhập và sửa lại đơn chính xác trước khi quyết toán, nhưng
 			   nhập vào ô thực mua lại báo lỗi nhân viên không được chỉnh sửa"*.
@@ -363,6 +363,8 @@ class VHCPHN_API {
 			'xinTamUngDuAn'         => array( 'VHCPHN_DuAn', 'xin_tam_ung_dot' ),
 			'datTrangThaiLenhDuAn'  => array( 'VHCPHN_DuAn', 'dat_tt_dot' ),
 			'capTienPhanDuAn'       => array( 'VHCPHN_DuAn', 'cap_tien_phan' ),
+			/* Admin dọn lệnh đã bị trả — xem `VHCPHN_DuAn::xoa_dot_tra()`, chốt Admin nằm trong hàm. */
+			'xoaLenhTraDuAn'        => array( 'VHCPHN_DuAn', 'xoa_dot_tra' ),
 			'listLenhDuAn'          => array( 'VHCPHN_DuAn', 'list_lenh_da' ),
 			'xinQuyetToanDuAn'      => array( 'VHCPHN_DuAn', 'xin_quyet_toan_dot' ),
 			'datTrangThaiQTDuAn'    => array( 'VHCPHN_DuAn', 'dat_tt_qt' ),
