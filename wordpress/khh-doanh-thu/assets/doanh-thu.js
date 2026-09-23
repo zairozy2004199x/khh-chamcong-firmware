@@ -2607,7 +2607,7 @@
     var c = (r && r.cf) || {};
     var h = '<div class="khung" id="dtHopThu"><header><h2>Nhận báo cáo qua hộp thư</h2>' +
       '<span class="goi">' + (c.bat
-        ? 'đang bật · mỗi ' + (c.gio || 2) + ' giờ'
+        ? 'đang bật · ' + ('gio' === c.che_do ? 'mỗi ' + (c.gio || 2) + ' giờ' : 'hằng ngày lúc ' + (c.luc || '08:02'))
         : 'đang tắt') + '</span></header>' +
       '<div class="chu-them">FABi gửi báo cáo về một hộp thư riêng, hệ tự vào lấy tệp đính kèm ' +
       'theo giờ rồi nạp vào kho — <b>y như anh bấm nạp tay</b>, cùng một bộ đọc.</div>';
@@ -2635,6 +2635,13 @@
     h += '<div style="margin-top:12px">' +
       '<label class="o" style="margin:0 8px 8px 0"><input type="checkbox" data-thu="bat"' +
         (c.bat ? ' checked' : '') + '> Bật tự lấy</label>' +
+      /* FABi gửi đúng 08:00 mỗi sáng -> mặc định "hằng ngày lúc 08:02", một lượt. Kéo mỗi 2
+         giờ là 11 lượt nối IMAP vô ích một ngày. Chế độ theo giờ giữ lại cho nguồn gửi bất chợt. */
+      '<label class="o" style="margin:0 8px 8px 0">Chạy<select data-thu="che_do">' +
+        '<option value="ngay"' + ('gio' !== c.che_do ? ' selected' : '') + '>hằng ngày, một lượt lúc…</option>' +
+        '<option value="gio"' + ('gio' === c.che_do ? ' selected' : '') + '>mỗi N giờ</option>' +
+      '</select></label>' +
+      o1('Giờ lấy (HH:MM)', 'luc', c.luc || '08:02', 'time', 110) +
       o1('Nhịp (giờ)', 'gio', c.gio, 'number', 70) +
       '<label class="o" style="margin:0 8px 8px 0">Loại báo cáo<select data-thu="loai">' +
         THU_LOAI.map(function (x) {
