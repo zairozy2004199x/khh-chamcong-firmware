@@ -97,6 +97,22 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.53.0 =
+* 🔴 **Nạp file bị chối "Xin lỗi, bạn không được phép làm điều đó" khi vào bằng PIN — đã sửa.**
+  `khh_dt_duoc_nap()` chỉ nhận quyền WordPress `edit_posts`, không nhận vai PIN `duyệt`, trong
+  khi hàm ghi báo cáo ngay bên dưới đã nhận từ lâu. Nay vai `duyệt` (văn phòng) nạp được; `nhập`
+  (nhân viên cửa hàng) vẫn không. Và khi chối thì **nói rõ lý do** — máy chủ đang thấy anh/chị
+  là ai, cần gì để được nạp — thay vì câu chung chung của WordPress.
+* 🔴 **Sổ kho chỉ hiện hàng đang bán hoặc còn trên kệ**, không kéo cả thực đơn 90 ngày sang mỗi
+  ngày. Từ hôm qua chỉ kéo sang mặt hàng **còn tồn đã biết** (khác 0); tồn **âm** vẫn kéo — đó là
+  dấu hiệu sai sổ, phải bày ra.
+* 🔴 **Ngày chưa nạp báo cáo FABi thì cột "Máy bán" hiện "—" và có câu báo đỏ trên cùng**, không
+  in 0 nữa. 0 ở đây nghĩa là *chưa có số*, không phải *bán 0* — người trực nhìn 0 sẽ đếm rồi thấy
+  lệch kho bằng đúng số đã bán, rồi tưởng mất hàng. Số đếm vẫn lưu được; nạp báo cáo xong hệ tự
+  tính lại cho ngày ấy.
+* `tools/test/kiem-kho.php` lên **106 phép**, `tools/test/kiem-kho-man.js` lên **74 phép**, thêm
+  `tools/test/kiem-quyen-nap.php`.
+
 = 1.52.0 =
 Hai thay đổi học từ ERPNext và Odoo — cả hai đều ghi một **sổ ghi động bất biến** rồi tồn hiện
 tại chỉ là tổng của nó: *"đã ghi thì không sửa, sai thì ghi một bút toán bù"*.

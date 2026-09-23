@@ -494,6 +494,69 @@ phep( 'xoá từ 19/09 thì ngày 20 hết công thức',
 phep( '🔴 nhưng ngày 16 vẫn còn công thức cũ — xoá không lùi về quá khứ',
 	isset( khh_dt_kho_combo_bang( '2026-09-16' )['Combo 2 người'] ) );
 
+/* ── 15. 🔴 CHỈ HIỆN HÀNG ĐANG BÁN HOẶC CÒN TRÊN KỆ — KHÔNG KÉO CẢ THỰC ĐƠN ─────────
+      Anh Thắng 23/09/2026, mở ngày 22/09 khi file FABi cuối nạp là 19/09: cả thực đơn 25 món
+      hiện ra, toàn 0 và "—". *"Hàng hoá này chỉ hiện có những sản phẩm đang bán tại cửa hàng
+      thôi"*. Vì `khh_dt_kho_trang_thai()` trả về MỌI món từng thấy trong 90 ngày, kể cả món
+      chưa ai đặt mốc, và bản trước kéo hết sang ngày sau. */
+dung_bang();
+/* Ngày 01: bán 3 món. Không ai đặt mốc cho món nào. */
+fabi( '2026-09-01', $CS, array( 'Nước suối' => 10, 'Bạc xỉu' => 8, 'Coca cola' => 5 ) );
+/* Ngày 02: KHÔNG có báo cáo FABi. */
+$b02 = khh_dt_kho_bang_ngay( '2026-09-02', $CS );
+phep( '🔴 ngày chưa có báo cáo, chưa ai đặt mốc: KHÔNG kéo cả thực đơn hôm qua sang',
+	0 === count( $b02 ) );
+
+/* Đặt mốc cho MỘT món (đếm còn 40) -> món ấy còn trên kệ -> ngày sau vẫn phải hiện. */
+khh_dt_kho_ghi( '2026-09-01', $CS, 'Nước suối', array( 'dem' => 40 ) );
+$b02 = khh_dt_kho_bang_ngay( '2026-09-02', $CS );
+phep( '🔴 mặt hàng CÒN TỒN đã biết thì kéo sang, dù hôm nay không bán', 1 === count( $b02 ) );
+phep( 'và đúng mặt hàng ấy, mang tồn đầu 40', 'Nước suối' === $b02[0]['mat_hang'] && 40.0 === (float) $b02[0]['ton_dau'] );
+
+/* Mặt hàng đếm về 0 và hôm nay không bán -> thôi hiện (hết hàng rồi, không còn gì để đếm). */
+khh_dt_kho_ghi( '2026-09-01', $CS, 'Coca cola', array( 'dem' => 0 ) );
+$b02 = khh_dt_kho_bang_ngay( '2026-09-02', $CS );
+phep( 'mặt hàng đã về 0 và không bán thì không kéo sang', null === dong_cua( $b02, 'Coca cola' ) );
+
+/* Nhưng tồn ÂM thì PHẢI kéo sang — đó là dấu hiệu sai sổ, không được giấu. */
+dung_bang();
+fabi( '2026-09-01', $CS, array( 'Kẹo' => 10 ) );
+khh_dt_kho_ghi( '2026-09-01', $CS, 'Kẹo', array( 'dem' => 5 ) );
+fabi( '2026-09-02', $CS, array( 'Kẹo' => 8 ) );   // bán 8 mà chỉ còn 5 -> tồn tính −3
+$b03 = khh_dt_kho_bang_ngay( '2026-09-03', $CS );
+phep( '🔴 tồn ÂM vẫn kéo sang ngày sau — sai sổ thì phải bày ra, không giấu',
+	null !== dong_cua( $b03, 'Kẹo' ) && -3.0 === (float) dong_cua( $b03, 'Kẹo' )['ton_dau'] );
+
+/* Đã có người khai hôm nay thì hiện, bất kể có bán hay không. */
+dung_bang();
+khh_dt_kho_ghi( '2026-09-02', $CS, 'Đồ chơi', array( 'nhap' => 20 ) );
+phep( 'dòng đã khai hôm nay thì hiện, dù máy chưa có gì', null !== dong_cua( khh_dt_kho_bang_ngay( '2026-09-02', $CS ), 'Đồ chơi' ) );
+
+/* ── 16. 🔴 CHƯA NẠP BÁO CÁO FABi THÌ "MÁY BÁN" LÀ CHƯA BIẾT, KHÔNG PHẢI 0 ────────────
+      Cùng ảnh ấy: cột Máy bán in 0 cho mọi dòng, trông y như "hôm nay không bán cái nào" —
+      mà thật ra là "chưa có số". Hai nghĩa ngược nhau, và người trực nhìn 0 sẽ đếm rồi thấy
+      lệch kho bằng đúng số đã bán, rồi tưởng mất hàng. */
+dung_bang();
+fabi( '2026-09-01', $CS, array( 'Nước suối' => 10 ) );
+khh_dt_kho_ghi( '2026-09-01', $CS, 'Nước suối', array( 'dem' => 40 ) );
+phep( 'ngày có báo cáo thì cờ co_fabi = true', true === khh_dt_kho_co_fabi( '2026-09-01', $CS ) );
+phep( 'ngày chưa có báo cáo thì cờ co_fabi = false', false === khh_dt_kho_co_fabi( '2026-09-02', $CS ) );
+
+khh_dt_kho_ghi( '2026-09-02', $CS, 'Nước suối', array( 'dem' => 30 ) );   // nhân viên vẫn đếm được
+$d = dong_cua( khh_dt_kho_bang_ngay( '2026-09-02', $CS ), 'Nước suối' );
+phep( '🔴 chưa nạp FABi: máy bán là CHƯA BIẾT (null), không phải 0', null === $d['ban_may'] );
+phep( 'cả bán lẻ và theo combo cũng chưa biết', null === $d['ban_le'] && null === $d['ban_combo'] );
+phep( '🔴 nên tồn tính cũng chưa biết — thiếu một vế là ra số bịa', null === $d['ton_tinh'] );
+phep( 'và không có lệch kho để tô đỏ oan', null === $d['lech_kho'] );
+phep( 'nhưng số ĐẾM của nhân viên vẫn được lưu và hiện', 30.0 === (float) $d['dem'] );
+phep( 'tồn đầu vẫn biết (40, từ mốc hôm qua)', 40.0 === (float) $d['ton_dau'] );
+
+/* Nạp báo cáo cho ngày ấy xong -> tự tính lại, không phải khai lại. */
+fabi( '2026-09-02', $CS, array( 'Nước suối' => 7 ) );
+$d = dong_cua( khh_dt_kho_bang_ngay( '2026-09-02', $CS ), 'Nước suối' );
+phep( '🔴 nạp báo cáo xong thì tự tính: tồn tính = 40 − 7 = 33', 33.0 === (float) $d['ton_tinh'] );
+phep( 'và lệch kho = 30 − 33 = −3, từ số đếm đã lưu trước đó', -3.0 === (float) $d['lech_kho'] );
+
 if ( $hong ) {
 	echo "\n✗ HỎNG " . count( $hong ) . " phép (đạt $dat):\n";
 	foreach ( $hong as $h ) { echo "   · 🔴 $h\n"; }

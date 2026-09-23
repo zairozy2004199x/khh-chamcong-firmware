@@ -1237,6 +1237,18 @@
        món được cộng gộp theo tên, nên mặt hàng vừa bán lẻ vừa nằm trong combo thì tổng doanh
        thu > 0 và không bao giờ lọt vào danh sách này). Ảnh màn hình anh Thắng gửi chứng minh:
        danh sách toàn "… MIỄN PHÍ" và "VÉ ONLINE", không cái nào là thành phần combo. */
+    /* 🔴 CHƯA NẠP BÁO CÁO FABi CHO NGÀY NÀY THÌ NÓI THẲNG, ĐẶT TRÊN CÙNG.
+       Không nói thì người trực nhìn cột Máy bán toàn "—" (hoặc toàn 0 như bản trước) rồi tự
+       đoán — mà đoán sai theo hướng "hôm nay không bán gì" là đếm xong thấy lệch kho bằng đúng
+       số đã bán, rồi tưởng mất hàng. Số đếm vẫn lưu được; nạp báo cáo xong hệ tự tính lại. */
+    if (r.co_fabi === false) {
+      h += '<div class="canh-ghep" style="margin-top:6px;border-color:var(--xau)">🔴 <b>Chưa nạp ' +
+        'báo cáo FABi cho ngày ' + esc(ngayVN(r.ngay)) + '.</b> Cột <b>Máy bán</b> đang trống là vì ' +
+        '<b>chưa có số</b>, không phải bán 0. Anh/chị vẫn <b>đếm và Lưu</b> được ngay — số đếm nằm ' +
+        'trong sổ; nạp báo cáo FABi xong (thẻ Nạp báo cáo, hoặc hộp thư tự lấy) hệ tự tính tồn ' +
+        'và lệch cho ngày này.</div>';
+    }
+
     var kTien = Object.keys(r.mon_khong_tien || {});
     if (kTien.length) {
       h += '<div class="canh-ghep" style="margin-top:6px">ℹ️ <b>' + kTien.length +

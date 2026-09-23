@@ -205,6 +205,14 @@ t('và gửi tu_ngay lên máy chủ', /fd\.append\('tu_ngay'/.test(boCC));
 t('homNay() lấy theo múi giờ máy người dùng, không qua toISOString',
   /function homNay\(\) \{ return ymd\(new Date\(\)\); \}/.test(boCC));
 
+/* ── 8. chưa nạp báo cáo FABi thì nói thẳng, đặt trên cùng ─────────────────────────── */
+/* 🔴 Không nói thì người trực nhìn cột Máy bán toàn "—" rồi tự đoán — mà đoán theo hướng "hôm
+   nay không bán gì" là đếm xong thấy lệch kho bằng đúng số đã bán, rồi tưởng mất hàng. */
+t('màn đọc cờ co_fabi', /r\.co_fabi === false/.test(boCC));
+t('🔴 có câu báo "Chưa nạp báo cáo FABi cho ngày"', /Chưa nạp[\s\S]{0,40}báo cáo FABi cho ngày/.test(boCC));
+t('câu báo nói rõ trống là CHƯA CÓ SỐ, không phải bán 0', /chưa có số/.test(boCC) && /không phải bán 0/.test(boCC));
+t('và nói vẫn đếm & Lưu được ngay', /đếm và Lưu/.test(boCC));
+
 if (hong.length) {
   console.log('\n✗ HỎNG ' + hong.length + ' phép (đạt ' + dat + '):');
   hong.forEach((h) => console.log('   · 🔴 ' + h));
