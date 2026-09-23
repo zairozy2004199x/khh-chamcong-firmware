@@ -480,9 +480,10 @@ t('🔴 ô tuần riêng nạp thẳng từ BOOT.dons, không dùng ké danh sá
   /_napKyRieng\('qtKyXong',\s*\(BOOT\.dons\|\|\[\]\)/.test(HTML_MA2), 'napKyRieng');
 /* 🔴 VÀ BẢNG "ĐÃ QUYẾT TOÁN" PHẢI DỰNG LẠI TỪ ĐẦU, không lọc tiếp từ danh sách đã bị ô chung
    cắt — lọc tiếp thì tuần riêng không bao giờ với tới được mấy tuần ô chung đã loại. */
+/* ⚠️ 23/09/2026: dòng dựng nay tên `daQtHet` (rồi tách ra `choTT` / `xong`), vẫn từ BOOT.dons. */
 t('🔴 bảng đã quyết toán dựng lại từ BOOT.dons, không lọc tiếp từ `all`',
-  /var xong=\(BOOT\.dons\|\|\[\]\)\.filter\([^;]*_qtLocXong\(d\)/.test(HTML_MA2),
-  'xong=');
+  /var daQtHet=\(BOOT\.dons\|\|\[\]\)\.filter\([^;]*_qtLocXong\(d\)/.test(HTML_MA2),
+  'daQtHet=');
 t('nút bỏ lọc riêng có thật', HTML_MA2.indexOf('qtXoaLocXong()') > 0);
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════

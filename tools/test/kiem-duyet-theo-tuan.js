@@ -197,10 +197,12 @@ function chayLamCaTuan(oS, gid, viec, hoiDap) {
 /* ═══ 5. 🔴 CHỈ BẢNG CHI PHÍ CƠ SỞ GOM TUẦN ════════════════════════════════════ */
 /* Anh Thắng: *"Còn các chi phí khác thì kiểm tra và duyệt khi gửi"*. Dự án chạy theo khoảng
    ngày setup do nhân viên gõ, không theo tuần — bó chúng vào tuần là bày ra một trục sai. */
-/* ⚠️ Ba lời gọi: định nghĩa + `renderDuyet` (bảng chờ duyệt) + `_dvVeBang` (hai bảng kia).
-   Đếm để một khối lạ nào mượn nó là phép này đỏ ngay. */
-t('🔴 chỉ ba bảng CHI PHÍ CƠ SỞ đi qua `_dvGomTuan`',
-  (HTML.match(/_dvGomTuan\(/g) || []).length === 3, (HTML.match(/_dvGomTuan\(/g) || []));
+/* ⚠️ Bốn lời gọi: định nghĩa + `renderDuyet` (bảng chờ duyệt) + `_dvVeBang` (hai bảng kia)
+   + `_qtVeBangTT` (bảng chờ thanh toán ở tab Quyết toán, 23/09/2026 — cũng là sổ `don`, tức
+   cũng là chi phí cơ sở). Đếm để một khối lạ nào mượn nó là phép này đỏ ngay. */
+t('🔴 chỉ các bảng CHI PHÍ CƠ SỞ (sổ `don`) đi qua `_dvGomTuan`',
+  (HTML.match(/_dvGomTuan\(/g) || []).length === 4, (HTML.match(/_dvGomTuan\(/g) || []));
+t('   trong đó có bảng chờ thanh toán của tab Quyết toán', /_dvGomTuan\(rows,/.test(ham('_qtVeBangTT')));
 t('🔴 khối Lệnh tạm ứng KHÔNG bị gom tuần', !/_dvGomTuan/.test(ham('_veLenhTU')), '');
 t('🔴 khối Lệnh dự án KHÔNG bị gom tuần', !/_dvGomTuan/.test(ham('loadLenhDA')), '');
 t('🔴 khối Hạng mục chưa chốt KHÔNG bị gom tuần', !/_dvGomTuan/.test(ham('loadDonHM')), '');

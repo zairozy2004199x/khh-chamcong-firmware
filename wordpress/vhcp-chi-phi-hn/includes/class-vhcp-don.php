@@ -3138,6 +3138,27 @@ class VHCPHN_Don {
 	 *    tạm ứng), nên gọi vào đây với đơn KVC là chối — chứ không im lặng ghi một trạng thái
 	 *    mà luồng của họ không có, rồi đơn ấy rơi khỏi mọi màn.
 	 */
+	/**
+	 * THANH TOÁN NHIỀU ĐƠN MỘT LƯỢT — nút "💵 Thanh toán cả tuần" ở tab Quyết toán.
+	 *
+	 * Anh Thắng 23/09/2026: *"Gom 1 tuần nhiều cơ sở check 1 lần duyệt và chi 1 lần"*, rồi
+	 * *"làm luôn quyết toán đi em"*.
+	 *
+	 * 🔴 CHỈ LẶP LẠI `danh_dau_thanh_toan()`, KHÔNG CHÉP LUẬT. Mọi chốt (luồng có bước này không,
+	 *    đơn đã duyệt quyết toán chưa) nằm ở cửa đơn lẻ; viết lại ở đây là hai nơi phải nhớ sửa,
+	 *    và nơi quên là một cú bấm cả tuần lách qua chốt mà từng đơn vẫn bị chặn.
+	 * ⚠️ MỘT ĐƠN HỎNG KHÔNG KÉO CẢ LÔ — cùng khuôn với `duyet_tam_ung_nhieu()`: đơn nào qua thì
+	 *    ghi, đơn nào chối thì kể tên kèm lý do, và `success` chỉ đúng khi không đơn nào chối.
+	 */
+	public static function danh_dau_thanh_toan_nhieu( $ma_dons, $nguoi ) {
+		$ok = 0; $errs = array();
+		foreach ( (array) $ma_dons as $m ) {
+			$r = self::danh_dau_thanh_toan( $m, $nguoi );
+			if ( ! empty( $r['success'] ) ) { $ok++; } else { $errs[] = $m . ': ' . ( isset( $r['error'] ) ? $r['error'] : '?' ); }
+		}
+		return array( 'success' => count( $errs ) === 0, 'approved' => $ok, 'errors' => $errs );
+	}
+
 	public static function danh_dau_thanh_toan( $ma_don, $nguoi ) {
 		$d = self::don_row( $ma_don );
 		if ( ! $d ) { return VHCPHN_Util::err( 'Không tìm thấy đơn' ); }

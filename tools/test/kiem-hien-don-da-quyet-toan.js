@@ -102,9 +102,13 @@ const fnRender = bocHam('renderQTList');
 t('bốc được renderQTList()', fnRender.length > 1000, fnRender.length);
 
 /* Bốc NGUYÊN dòng dựng biến `xong` rồi chạy nó — không viết lại điều kiện ở đây. */
+/* ⚠️ Từ 23/09/2026 bảng "Đã quyết toán" dựng qua HAI dòng: `daQtHet` (mọi đơn đã chốt, qua bộ
+   lọc riêng) rồi `xong` = phần KHÔNG còn chờ thanh toán. Bài này canh bộ lọc riêng, nên bốc
+   dòng `daQtHet` và đặt tên lại là `xong` cho mấy phép dưới — còn phép tách chờ-thanh-toán có
+   bài riêng (`kiem-qt-cho-thanh-toan.js`). */
 const dongXong = (function () {
-  const m = /\n\s*var xong=\(BOOT\.dons\|\|\[\]\)\.filter\([^\n]*\);/.exec(fnRender);
-  return m ? m[0].trim() : '';
+  const m = /\n\s*var daQtHet=\(BOOT\.dons\|\|\[\]\)\.filter\([^\n]*\);/.exec(fnRender);
+  return m ? m[0].trim().replace('var daQtHet=', 'var xong=') : '';
 })();
 t('bốc được dòng dựng bảng "Đã quyết toán"', dongXong.length > 40, dongXong);
 

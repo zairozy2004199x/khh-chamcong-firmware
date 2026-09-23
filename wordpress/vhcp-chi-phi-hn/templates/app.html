@@ -1452,6 +1452,31 @@
     </div>
 
 
+    <!-- ══════════════════════════════════════════════════════════════════════════════════
+         BẢNG GIỮA — ĐÃ QUYẾT TOÁN, CHỜ THANH TOÁN. Anh Thắng 23/09/2026: *"làm luôn quyết
+         toán đi em"*, sau khi chốt tách theo BƯỚC ở tab Duyệt (*"check 1 lần duyệt và chi 1
+         lần"*). Trước đây đơn đã duyệt quyết toán nằm lẫn trong "✅ Đã quyết toán" cùng đơn đã
+         thanh toán và đã xuất MISA — kế toán phải dò từng dòng xem cái nào còn nút 💵.
+
+         🔴 CHỈ ĐƠN MÀ LUỒNG CÓ BƯỚC "Đã thanh toán" MỚI VÀO ĐÂY. Đơn qua tạm ứng của Khu vui
+            chơi không có bước ấy (tiền đã đưa từ lúc cấp), nên với nó "Đã quyết toán" là xong
+            và ở lại bảng dưới. Hỏi `_ttTrongLuong` theo LUỒNG CỦA ĐƠN — cùng luật với
+            `_nutThanhToan()` và với `danh_dau_thanh_toan()` bên máy chủ.
+         ⚠️ GOM THEO TUẦN, nút "Thanh toán cả tuần" — cùng lối với hai bảng ở tab Duyệt.
+         ══════════════════════════════════════════════════════════════════════════════════ -->
+    <div class="card" id="qtCardTT">
+      <div class="ch">
+        <h2>💵 Đã quyết toán — chờ thanh toán <span style="font-size:11px;font-weight:400;color:#64748b">— kế toán trả tiền, gom cả tuần một lần</span> <span class="badge st-cho" id="qtSoTT">0</span></h2>
+      </div>
+      <div class="tw">
+        <table>
+          <thead><tr><th>Kỳ / tuần</th><th>Người lập</th><th>Cơ sở</th><th style="text-align:right">Tạm ứng</th><th style="text-align:right">Thực chi</th><th style="text-align:right">Thừa/thiếu</th><th>Hình thức</th><th>Trạng thái</th><th style="text-align:center">Thao tác</th></tr></thead>
+          <tbody id="qtBodyTT"></tbody>
+        </table>
+        <div class="empty" id="qtEmptyTT">Không có đơn nào chờ thanh toán.</div>
+      </div>
+    </div>
+
     <div class="card" id="qtCardXong">
       <!-- 🔴 Ô LỌC TUẦN RIÊNG CHO BẢNG NÀY (anh Thắng 07/09/2026: *"Bổ sung phần đã quyết
            toán lọc theo tuần (tránh lọc trùng với chờ quyết toán)"*).
@@ -11363,6 +11388,47 @@
       +nut(trang-1,'‹ Trước',trang<=1)+' '+so+nut(trang+1,'Sau ›',trang>=soTrang)
       +'</div>';
   }
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * BẢNG "ĐÃ QUYẾT TOÁN — CHỜ THANH TOÁN": gom tuần, một nút trả tiền cả tuần.
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  function _qtChoTT(d){
+    return !!d && d.trangThai==='Đã quyết toán' && _ttTrongLuong('Đã thanh toán', d.khoi, _luongDon(d));
+  }
+  function _qtTtHdr(ky, rows, gid, gap){
+    var ms=rows.map(function(d){ return d.maDon; });
+    /* 🔴 NÚT THEO QUYỀN — cùng cửa quyền với nút 💵 trên từng dòng (`_nutThanhToan`). */
+    var nut=canDo('xacNhanQT')
+      ? ' <button class="btn b-g" data-ms="'+esc(ms.join(','))+'" onclick="event.stopPropagation();qtThanhToanTuan(this)">💵 Thanh toán cả tuần ('+rows.length+')</button>'
+      : '';
+    return '<tr class="dvGrpHdr" data-open="'+(gap?'0':'1')+'" onclick="dvNhomToggle(\''+gid+'\',this)">'
+      +'<td colspan="9" style="cursor:pointer;background:#eef2ff;font-weight:800;color:#3730a3;border-left:4px solid #6366f1;padding:9px 10px">'
+      +'<span class="dvcaret" style="display:inline-block;width:14px">'+(gap?'▸':'▾')+'</span> 📅 <span>Tuần/kỳ '+esc(ky)+'</span>'
+      +' <span style="color:#64748b;font-weight:600">· '+rows.length+' đơn</span>'
+      +' <span style="color:#8c8781;font-weight:400;font-size:11px">(bấm để xổ/gập)</span>'
+      +nut+'<div style="font-weight:600;font-size:12px;color:#8c8781;margin-top:4px">'+_qtSumHtml(rows)+'</div></td></tr>';
+  }
+  /* 🔴 MÃ ĐƠN LẤY TỪ CHÍNH NÚT (`data-ms`), không dò lại DOM. Bảng này không có ô tích, và
+     dựng ô tích chỉ để phục vụ một nút là thêm một lớp có thể lệch với dữ liệu đã vẽ. Nút
+     được dựng từ đúng `rows` của tuần ấy, nên nó mang đúng danh sách. */
+  function qtThanhToanTuan(btn){
+    var ms=String(btn.getAttribute('data-ms')||'').split(',').filter(function(x){ return x; });
+    if(!ms.length){ toast('warn','Tuần này không còn đơn nào chờ thanh toán'); return; }
+    if(!confirm('Xác nhận '+ms.length+' đơn của tuần này ĐÃ THANH TOÁN?\n\nSau bước này đơn mới ra bản xuất MISA.')) return;
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(r&&r.success) toast('ok','Đã đánh dấu thanh toán '+r.approved+' đơn');
+      else toast('warn','Thanh toán '+(r&&r.approved||0)+' đơn, lỗi: '+((r&&r.errors)||[]).join('; '));
+      _log('Thanh toán cả tuần', ms.join(','), ''); loadQT();
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).danhDauThanhToanNhieu(ms, (CURUSER&&CURUSER.name)||'');
+  }
+  function _qtVeBangTT(rows){
+    var b=el('qtBodyTT'); if(!b) return;
+    if(el('qtSoTT')) el('qtSoTT').textContent=rows.length+' đơn';
+    if(el('qtEmptyTT')) el('qtEmptyTT').style.display=rows.length?'none':'block';
+    /* Tiền tố `qtk` riêng — `dvNhomToggle()` tìm class trên cả trang, trùng với tab Duyệt là
+       hai tab xổ/gập lẫn nhau. */
+    b.innerHTML=_dvGomTuan(rows, function(d, gid, gap){ return _qtRowHtml(d, false, 9, gid, gap); }, {tien:'qtk', hdr:_qtTtHdr});
+  }
   // Vẽ MỘT bảng (chờ / đã xong). Trả về số đơn của cả nhóm.
   function _qtVeBang(khoa, rows, canBatch){
     var hoa=khoa==='cho'?'Cho':'Xong';
@@ -11505,6 +11571,7 @@
     if(el('qtXemTuan')) el('qtXemTuan').className='btn '+(tuan?'b-p':'b-x');
     if(el('qtCardCho'))  el('qtCardCho').style.display=tuan?'none':'';
     if(el('qtCardXong')) el('qtCardXong').style.display=tuan?'none':'';
+    if(el('qtCardTT'))   el('qtCardTT').style.display=tuan?'none':'';
     if(el('qtCardChuaNop')) el('qtCardChuaNop').style.display=tuan?'none':'';
     if(el('qtCardTuan')) el('qtCardTuan').style.display=tuan?'':'none';
 
@@ -11515,7 +11582,12 @@
         .concat((BOOT.dons||[]).filter(function(d){ return d.trangThai==='Đã cấp tạm ứng' && _qtLoc(d); }));
       /* Bảng "Đã quyết toán" đi qua bộ lọc RIÊNG, nên dựng lại từ đầu chứ không lọc tiếp từ
          `all` (vốn đã bị ô chung cắt mất mấy tuần). */
-      var xong=(BOOT.dons||[]).filter(function(d){ return _daQT(d) && _qtLocXong(d); });
+      var daQtHet=(BOOT.dons||[]).filter(function(d){ return _daQT(d) && _qtLocXong(d); });
+      /* 🔴 TÁCH ĐƠN CÒN NỢ BƯỚC THANH TOÁN ra bảng riêng (23/09/2026). Đơn nào luồng không có
+         bước ấy thì "Đã quyết toán" đã là xong — ở lại bảng dưới, không bị kéo lên bảng chờ
+         tiền một cách oan. */
+      var choTT=daQtHet.filter(_qtChoTT);
+      var xong=daQtHet.filter(function(d){ return !_qtChoTT(d); });
       /* 🔴 CHỜ QUYẾT TOÁN XẾP THEO LƯỢT GỬI — ai gửi trước lên trên.
          Anh Thắng 08/09/2026: *"cho anh sắp xếp đơn ai gửi quyết toán lên trước sẽ hiện phía
          trên"*. Đây là HÀNG ĐỢI của kế toán, nên phải theo thứ tự đến: ai nộp sớm được xử
@@ -11539,6 +11611,7 @@
       });
       xong.sort(function(a,b){ return _kyVal(b.ky)-_kyVal(a.ky); });
       _qtVeBang('cho', cho, canBatch);
+      _qtVeBangTT(choTT);
       _qtVeBang('xong', xong, false);   // đơn đã xong thì không tích duyệt nữa
       _qtEmptyXongText(xong.length);
       _qtVeChuaNop();
@@ -11953,7 +12026,9 @@
     var quy=opts.recon?_dvQuyTheoKy():null;
     return thu.map(function(k, gi){
       var rows=byKy[k], gid=(opts.tien||'dvk')+gi, gap=(gi>0);
-      var h=_dvNhomHdr(k, rows, gid, gap);
+      /* `opts.hdr` — bảng nào cần tiêu đề tuần khác (số cột khác, nút khác) thì đưa hàm của
+         mình vào; không đưa thì dùng tiêu đề của tab Duyệt. */
+      var h=(opts.hdr||_dvNhomHdr)(k, rows, gid, gap);
       /* 🔴 DÒNG ĐỐI CHIẾU QUỸ — anh Thắng 23/09/2026: *"Sang tuần thừa thiếu 1 lần đó"*. Nó
          phải đứng NGAY DƯỚI tiêu đề tuần và TRƯỚC mấy nút duyệt, vì đây chính là con số người
          ta cần trước khi quyết định duyệt bao nhiêu cho tuần mới. */
