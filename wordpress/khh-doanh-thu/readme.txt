@@ -102,6 +102,13 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.59.5 =
+* **Thẻ kho trên điện thoại thành lưới 3 cột cố định.** Anh Thắng 23/09/2026 gửi ảnh: hai số "Máy bán lẻ /
+  Theo combo" chen vào giữa làm dòng "Hàng tồn còn" lệch sang phải — *"chiều dài ô bằng chữ để sắp lại
+  cho gọn"*. Cột 1 là ô gõ rộng đúng bằng chữ nhãn (~124px), cột 2 lệch (canh giữa), cột 3 số máy (canh
+  phải); Nhập ↔ Tồn đầu, SL hàng bán ↔ Lệch khai ↔ Máy bán tổng, Hàng tồn còn ↔ Lệch kho ↔ Tồn tính;
+  hai số lẻ/combo thành một dòng chữ nhỏ riêng. `kiem-kho-man.js` viết lại 6 phép bố cục.
+
 = 1.59.4 =
 * **Thẻ kho trên điện thoại xếp lại: mỗi ô gõ một dòng — ô gõ · lệch · số máy.** Anh Thắng 23/09/2026:
   *"cho ô nhỏ lại cho thành 1 hàng xem gọn hơn"* · *"cho số theo máy đếm phía sau ô nhập, nếu lệch ở

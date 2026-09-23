@@ -339,13 +339,17 @@ body.khh-dt-body{margin:0;background:#f2f1ee}
   .khh-dt .bang-the table{display:block}
   .khh-dt .bang-the thead{display:none}
   .khh-dt .bang-the tbody{display:block}
-  .khh-dt .bang-the tr{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:flex-end;
+  /* LƯỚI 3 CỘT CỐ ĐỊNH (anh Thắng 23/09/2026: "chiều dài ô bằng chữ để sắp lại cho gọn"): cột 1 =
+     ô gõ, rộng đúng bằng nhãn dài nhất ("Hàng tồn còn" ≈ 124px); cột 2 = lệch; cột 3 = số máy. Lưới
+     thay flex-wrap vì flex không ngắt dòng được ở chỗ mình muốn — hai số lẻ/combo từng chen vào giữa
+     làm dòng "Hàng tồn còn" lệch sang phải. */
+  .khh-dt .bang-the tr{display:grid;grid-template-columns:124px 1fr 1fr;gap:6px 10px;align-items:end;
     border:1px solid var(--line-2);border-radius:10px;padding:10px 12px;margin-bottom:10px;
     background:var(--card)}
   .khh-dt .bang-the td{display:block;border:0;padding:0;text-align:left}
 
   /* Tên mặt hàng: một dòng riêng, đậm, không có nhãn (nhãn thừa ở đây). */
-  .khh-dt .bang-the .o-ten{flex:1 1 100%;font-weight:600;font-size:15px;
+  .khh-dt .bang-the .o-ten{grid-column:1 / -1;font-weight:600;font-size:15px;
     padding-bottom:4px;border-bottom:1px solid var(--line)}
 
   /* BỐ CỤC THẺ (anh Thắng 23/09/2026: "cho ô nhỏ lại cho thành 1 hàng xem gọn hơn" · "cho số theo
@@ -354,38 +358,39 @@ body.khh-dt-body{margin:0;background:#f2f1ee}
        Nhập          ·  (không lệch)  ·  Tồn đầu
        SL hàng bán   ·  Lệch khai     ·  Máy bán tổng  (máy bán lẻ, theo combo: chữ nhỏ phía sau)
        Hàng tồn còn  ·  Lệch kho      ·  Tồn tính
-     rồi Ghi chú. Xếp bằng `order` theo data-nhan, KHÔNG đổi markup — bảng máy tính vẫn y nguyên.
-     Ngắt dòng không cần phần tử phụ: ô gõ chiếm 52% bề ngang, nên ô gõ kế tiếp không bao giờ còn
-     chỗ trên dòng trước (52% > phần còn lại) và tự rớt xuống dòng mới. */
+     rồi Ghi chú. Xếp bằng `order` + `grid-column` theo data-nhan, KHÔNG đổi markup — bảng máy tính
+     vẫn y nguyên. Ô nào không có lệch (Nhập) thì cột 2 để trống, số máy vẫn đứng cột 3. */
   .khh-dt .bang-the .o-ten{order:1}
-  .khh-dt .bang-the .o-go[data-nhan="Nhập"]{order:10}
-  .khh-dt .bang-the .o-may[data-nhan="Tồn đầu"]{order:12}
-  .khh-dt .bang-the .o-go[data-nhan="SL hàng bán"]{order:20}
-  .khh-dt .bang-the .o-lech[data-nhan="Lệch khai"]{order:21}
-  .khh-dt .bang-the .o-may[data-nhan="Máy bán tổng"]{order:22}
-  .khh-dt .bang-the .o-may[data-nhan="Máy bán lẻ"],.khh-dt .bang-the .o-may[data-nhan="Theo combo"]{order:23;font-size:11px}
-  .khh-dt .bang-the .o-go[data-nhan="Hàng tồn còn"]{order:30}
-  .khh-dt .bang-the .o-lech[data-nhan="Lệch kho"]{order:31}
-  .khh-dt .bang-the .o-may[data-nhan="Tồn tính"]{order:32}
-  .khh-dt .bang-the .o-ghi{order:40}
+  .khh-dt .bang-the .o-go[data-nhan="Nhập"]{order:10;grid-column:1}
+  .khh-dt .bang-the .o-may[data-nhan="Tồn đầu"]{order:12;grid-column:3}
+  .khh-dt .bang-the .o-go[data-nhan="SL hàng bán"]{order:20;grid-column:1}
+  .khh-dt .bang-the .o-lech[data-nhan="Lệch khai"]{order:21;grid-column:2}
+  .khh-dt .bang-the .o-may[data-nhan="Máy bán tổng"]{order:22;grid-column:3}
+  /* Hai số phụ (lẻ / theo combo): một dòng chữ nhỏ riêng dưới dòng SL hàng bán, không chen vào lưới. */
+  .khh-dt .bang-the .o-may[data-nhan="Máy bán lẻ"]{order:23;grid-column:1;font-size:12px;padding-bottom:4px}
+  .khh-dt .bang-the .o-may[data-nhan="Theo combo"]{order:24;grid-column:2 / -1;font-size:12px;padding-bottom:4px;text-align:left}
+  .khh-dt .bang-the .o-go[data-nhan="Hàng tồn còn"]{order:30;grid-column:1}
+  .khh-dt .bang-the .o-lech[data-nhan="Lệch kho"]{order:31;grid-column:2}
+  .khh-dt .bang-the .o-may[data-nhan="Tồn tính"]{order:32;grid-column:3}
+  .khh-dt .bang-the .o-ghi{order:40;grid-column:1 / -1}
 
-  /* Số của máy và cột lệch: chữ nhỏ, nhãn nằm trên số cho thẳng hàng với ô gõ bên trái. */
-  .khh-dt .bang-the .o-may,.khh-dt .bang-the .o-lech{flex:0 0 auto;font-size:14px;font-family:var(--chu-so);
-    padding-bottom:10px}
+  /* Số của máy và cột lệch: nhãn nằm trên số, cho thẳng hàng với ô gõ bên trái. Số máy canh phải
+     (cột 3), lệch canh giữa (cột 2). */
+  .khh-dt .bang-the .o-may,.khh-dt .bang-the .o-lech{font-size:14px;font-family:var(--chu-so);padding-bottom:10px}
   .khh-dt .bang-the .o-may::before,.khh-dt .bang-the .o-lech::before{
     content:attr(data-nhan);display:block;color:var(--ink-3);font-size:11px;font-family:inherit;margin-bottom:3px}
-  .khh-dt .bang-the .o-lech{margin-left:auto;margin-right:auto;text-align:center}
+  .khh-dt .bang-the .o-may{text-align:right}
+  .khh-dt .bang-the .o-lech{text-align:center}
 
-  /* Ô PHẢI gõ: nhỏ lại còn ~nửa bề ngang (trước là cả dòng), nhãn nằm trên; vẫn cao 44px và chữ
-     16px (iOS không phóng to). */
-  .khh-dt .bang-the .o-go{flex:0 0 52%;min-width:0}
+  /* Ô PHẢI gõ: rộng đúng cột 1 (bằng chữ nhãn), nhãn nằm trên; vẫn cao 44px và chữ 16px (iOS không
+     phóng to). */
+  .khh-dt .bang-the .o-go{min-width:0}
   .khh-dt .bang-the .o-go::before{content:attr(data-nhan);display:block;white-space:nowrap;
     overflow:hidden;text-overflow:ellipsis;font-size:11px;font-weight:600;color:var(--ink-3);margin-bottom:3px}
   .khh-dt .bang-the .o-go input{width:100%;min-height:44px;font-size:16px;text-align:right;
     padding:6px 8px;border-radius:7px;border:1px solid var(--line-2);
     background:var(--card);color:var(--ink);font-family:var(--chu-so)}
 
-  .khh-dt .bang-the .o-ghi{flex:1 1 100%}
   .khh-dt .bang-the .o-ghi::before{content:attr(data-nhan);display:block;
     font-size:11px;font-weight:600;color:var(--ink-3);margin-bottom:3px}
   .khh-dt .bang-the .o-ghi input{width:100%;min-height:44px;font-size:16px;
