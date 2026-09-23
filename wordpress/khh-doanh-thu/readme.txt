@@ -102,6 +102,16 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.59.3 =
+* 🔴 **Sale phụ = số vé × tiền phụ mỗi vé.** Anh Thắng 23/09/2026 chỉnh lại: *"Cái này là chiết khấu 20k
+  cho 1 đơn vé combo 80k"* — trong giá vé combo 80.000đ có 20.000đ là phần phụ (chiết khấu / quà kèm),
+  sổ kế toán tách riêng. Cột "Sale phụ?" (ô tích) ở Quản trị đổi thành ô số **"Sale phụ mỗi vé (đ)"**
+  theo nhóm món: gõ 20000 ở hàng *VÉ COMBO.* là 36 combo ra 720.000đ; nhóm để trống = không có phụ.
+  Sale vé và Bán lẻ không đổi. Cấu hình ô tích của 1.59.0/1.59.1 bị bỏ (nghĩa cũ cộng cả tiền nhóm,
+  giữ lại là ra số sai); chưa khai thì Sale phụ = 0, không đoán.
+* `kiem-hang-ban-chot.php` viết lại phần sale phụ (36 × 20.000 = 720.000; ô tích cũ rửa ra rỗng; theo
+  cửa hàng), bài màn +2 phép.
+
 = 1.59.2 =
 * **Ô gõ số trong bảng Kho hàng hoá thu hẹp** (64px, canh phải; ô ghi chú 120px). Anh Thắng 23/09/2026:
   *"cho các ô này nhỏ lại, để tránh lệch cột"* — ô text mặc định của trình duyệt rộng ~150px, tám cột là

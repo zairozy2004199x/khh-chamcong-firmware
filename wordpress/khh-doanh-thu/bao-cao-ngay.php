@@ -317,25 +317,86 @@ function khh_dt_nhom_sach( $ds ) {
 }
 
 /**
- * Những NHÓM MÓN tích "tính vào SALE PHỤ". Anh Thắng 23/09/2026 — ô thứ ba: *"Tiền Sale Phụ"* = vé lẻ
- * + đồ đóng sẵn, tức mọi thứ TRỪ vé combo chính. `false` = chưa cấu hình -> tạm coi sale phụ = phần
- * không phải vé (bằng bán lẻ) cho tới khi anh tích VÉ LẺ. vào.
+ * SALE PHỤ = số vé × TIỀN PHỤ MỖI VÉ, khai theo nhóm món. Anh Thắng 23/09/2026 chỉnh lại lần cuối:
+ * *"Cái này là chiết khấu 20k cho 1 đơn vé combo 80k"* — tức trong giá vé combo 80.000đ có 20.000đ là
+ * phần phụ (chiết khấu / phần quà kèm), sổ kế toán tách riêng ra. Nên cấu hình không còn là ô tích
+ * mà là SỐ TIỀN mỗi vé cho từng nhóm: VÉ COMBO. -> 20.000; nhóm để trống -> không tính.
+ *
+ * Lưu dạng [ cửa hàng ('*' = chung) => [ tên nhóm => đ/vé ] ]. Bản 1.59.0/1.59.1 lưu DANH SÁCH nhóm
+ * (ô tích) — khoá số, không phải tên nhóm — nên `khh_dt_nhom_phu_sach()` rửa ra rỗng, tức coi như chưa
+ * cấu hình: nghĩa cũ (cộng cả tiền nhóm) khác hẳn nghĩa mới, giữ lại là ra số sai.
+ *
+ * `false` = chưa cấu hình -> sale phụ = 0 (không đoán).
  */
+function khh_dt_nhom_phu_sach( $ds ) {
+	$ra = array();
+	foreach ( (array) $ds as $g => $tien ) {
+		if ( is_int( $g ) ) {
+			continue;   // danh sách cũ (ô tích) — bỏ
+		}
+		$g = sanitize_text_field( (string) $g );
+		if ( '' === $g || is_array( $tien ) || ! is_numeric( $tien ) || (float) $tien <= 0 ) {
+			continue;
+		}
+		$ra[ $g ] = (float) $tien;
+	}
+	return $ra;
+}
+
 function khh_dt_nhom_phu_ds( $cua_hang = '' ) {
-	return khh_dt_nhom_doc( 'khh_dt_nhom_phu', $cua_hang );
+	$so = get_option( 'khh_dt_nhom_phu', false );
+	if ( ! is_array( $so ) ) {
+		return false;
+	}
+	$phang = false;
+	foreach ( $so as $v ) {
+		if ( ! is_array( $v ) ) {
+			$phang = true;
+			break;
+		}
+	}
+	if ( $phang ) {
+		$so = array( '*' => $so );
+	}
+	$cs = trim( (string) $cua_hang );
+	if ( '' !== $cs && '*' !== $cs && isset( $so[ $cs ] ) && is_array( $so[ $cs ] ) ) {
+		return khh_dt_nhom_phu_sach( $so[ $cs ] );
+	}
+	if ( isset( $so['*'] ) && is_array( $so['*'] ) ) {
+		return khh_dt_nhom_phu_sach( $so['*'] );
+	}
+	return false;
 }
 
 function khh_dt_nhom_phu_dat( $ds, $cua_hang = '' ) {
-	return khh_dt_nhom_ghi( 'khh_dt_nhom_phu', $ds, $cua_hang );
+	$so = get_option( 'khh_dt_nhom_phu', false );
+	$so = is_array( $so ) ? $so : array();
+	$phang = false;
+	foreach ( $so as $v ) {
+		if ( ! is_array( $v ) ) {
+			$phang = true;
+			break;
+		}
+	}
+	if ( $phang ) {
+		$so = array( '*' => $so );
+	}
+	$cs        = trim( (string) $cua_hang );
+	$cs        = '' === $cs ? '*' : $cs;
+	$sach      = khh_dt_nhom_phu_sach( $ds );
+	$so[ $cs ] = $sach;
+	update_option( 'khh_dt_nhom_phu', $so, false );
+	return $sach;
 }
 
-/** Món này có tính vào SALE PHỤ không. Chưa cấu hình -> không phải vé thì là phụ. */
-function khh_dt_bc_la_phu( $m, $nhom_phu = null, $nhom_ve = null ) {
+/** Tiền phụ mỗi vé của món này (theo nhóm món); 0 nếu nhóm không khai hay chưa cấu hình. */
+function khh_dt_bc_phu_moi_ve( $m, $nhom_phu = null ) {
 	$nhom_phu = null === $nhom_phu ? khh_dt_nhom_phu_ds() : $nhom_phu;
-	if ( is_array( $nhom_phu ) ) {
-		return in_array( trim( isset( $m['g'] ) ? (string) $m['g'] : '' ), $nhom_phu, true );
+	if ( ! is_array( $nhom_phu ) ) {
+		return 0.0;
 	}
-	return ! khh_dt_bc_la_ve( $m, $nhom_ve );
+	$g = trim( isset( $m['g'] ) ? (string) $m['g'] : '' );
+	return isset( $nhom_phu[ $g ] ) ? (float) $nhom_phu[ $g ] : 0.0;
 }
 
 /**
@@ -394,7 +455,9 @@ function khh_dt_nhom_mon_thay( $lui = 90, $cua_hang = '' ) {
 	foreach ( $gom as $x ) {
 		$m_gia    = array( 'g' => $x['nhom'], 'l' => $x['loai'] ? $x['loai'][0] : '', 'n' => '' );
 		$x['ve']  = khh_dt_bc_la_ve( $m_gia, $nhom_ve );
-		$x['phu'] = khh_dt_bc_la_phu( $m_gia, $nhom_phu, $nhom_ve );
+		/* đ/vé đang khai cho nhóm này, null = không tính. */
+		$p        = khh_dt_bc_phu_moi_ve( $m_gia, $nhom_phu );
+		$x['phu'] = $p > 0 ? $p : null;
 		$ra[]     = $x;
 	}
 	usort(
@@ -434,7 +497,7 @@ function khh_dt_rest_nhom_ve_xem( $req = null ) {
 		/* Quán này tự khai, hay đang thừa bảng chung. */
 		'rieng'       => '' !== $ch && khh_dt_nhom_co_rieng( 'khh_dt_nhom_ve', $ch ),
 		'nhom_ve'     => (array) khh_dt_nhom_ve_ds( $ch ),
-		'nhom_phu'    => (array) khh_dt_nhom_phu_ds( $ch ),
+		'nhom_phu'    => (array) khh_dt_nhom_phu_ds( $ch ),   // [ nhóm => đ/vé ]
 		'nhom'        => khh_dt_nhom_mon_thay( 90, $ch ),
 	);
 }
@@ -474,18 +537,17 @@ function khh_dt_bc_tach_tien( $mon_json, $doanh_thu, $cua_hang = '' ) {
 	$nhom_phu = khh_dt_nhom_phu_ds( $cua_hang );
 	foreach ( khh_dt_json( $mon_json, array() ) as $m ) {
 		$r = isset( $m['r'] ) ? (float) $m['r'] : 0;
+		$q = isset( $m['q'] ) ? (float) $m['q'] : 0;
 		if ( khh_dt_bc_la_ve( $m, $nhom_ve ) ) {
 			$ve += $r;
 		}
-		if ( khh_dt_bc_la_phu( $m, $nhom_phu, $nhom_ve ) ) {
-			$phu += $r;
-		}
+		/* Sale phụ = SỐ VÉ × tiền phụ mỗi vé (VÉ COMBO. 80k có 20k phụ) — không phải cộng tiền nhóm. */
+		$phu += $q * khh_dt_bc_phu_moi_ve( $m, $nhom_phu );
 	}
 	$dt = (float) $doanh_thu;
 	return array(
 		've'  => $ve,
 		'le'  => max( 0.0, $dt - $ve ),
-		/* Sale phụ cộng theo nhóm đã tích (vé lẻ + đóng sẵn), KHÔNG lấy hiệu — vì nó chồng lên cả vé lẫn lẻ. */
 		'phu' => $phu,
 	);
 }

@@ -3809,28 +3809,33 @@
      Nhóm đã tích = sale vé, còn lại = bán lẻ; cột phụ riêng. Chưa tích gì thì máy tạm theo cột Loại
      món của FABi. */
   function veNhomVe(o, r) {
-    var nhom = r.nhom || [], chon = r.nhom_ve || [], chonPhu = r.nhom_phu || [];
+    var nhom = r.nhom || [], chon = r.nhom_ve || [], chonPhu = r.nhom_phu || {};
+    var soPhu = Object.keys(chonPhu).length;
     var cu = o.querySelector('#dtNhomVe'); if (cu) cu.remove();
-    var h = '<div class="khung" id="dtNhomVe"><header><h2>Sale vé / Bán lẻ / Sale phụ — tích theo nhóm món</h2>' +
+    var h = '<div class="khung" id="dtNhomVe"><header><h2>Sale vé / Bán lẻ / Sale phụ — theo nhóm món</h2>' +
       '<span class="goi">' + esc(String(r.cua_hang || '').slice(0, 34)) + ' · ' +
       (r.da_cau_hinh
-        ? (r.rieng ? 'khai riêng' : '<b style="color:var(--xau)">đang thừa bảng chung</b>') + ' · ' + chon.length + ' nhóm sale vé · ' + chonPhu.length + ' nhóm sale phụ'
+        ? (r.rieng ? 'khai riêng' : '<b style="color:var(--xau)">đang thừa bảng chung</b>') + ' · ' + chon.length + ' nhóm sale vé · ' + soPhu + ' nhóm có phụ'
         : 'chưa cấu hình — đang tạm theo cột Loại món') + '</span></header>' +
-      '<div class="chu-them" style="margin-top:6px">Ba ô ở tab Nhập báo cáo (và ba cột ở Đối soát) cộng theo <b>nhóm món</b> của FABi. ' +
+      /* 23/09/2026 anh Thắng chỉnh lần cuối: sale phụ là "chiết khấu 20k cho 1 đơn vé combo 80k" —
+         số vé × tiền phụ mỗi vé, không phải cộng tiền cả nhóm. */
+      '<div class="chu-them" style="margin-top:6px">Ba ô ở tab Nhập báo cáo (và ba cột ở Đối soát) tính theo <b>nhóm món</b> của FABi. ' +
       '<b>Sale vé</b> = các nhóm tích cột "Sale vé" (ví dụ <i>VÉ COMBO.</i> và <i>VÉ LẺ.</i>); <b>Bán lẻ</b> = phần còn lại ' +
-      '(<i>ĐÓNG SẴN</i>: đồ ăn, đồ uống); <b>Sale phụ</b> = các nhóm tích cột "Sale phụ" (ví dụ <i>VÉ LẺ.</i> + <i>ĐÓNG SẴN</i>, ' +
-      'tức mọi thứ trừ vé combo chính). Nhóm liệt kê từ số liệu 90 ngày gần nhất của cửa hàng đang chọn.</div>' +
+      '(<i>ĐÓNG SẴN</i>: đồ ăn, đồ uống); <b>Sale phụ</b> = <b>số vé × tiền phụ mỗi vé</b> gõ ở cột cuối — ví dụ vé combo 80.000đ ' +
+      'có 20.000đ phụ (chiết khấu / quà kèm) thì gõ <b>20000</b> ở hàng <i>VÉ COMBO.</i>; nhóm để trống = không có phụ. ' +
+      'Nhóm liệt kê từ số liệu 90 ngày gần nhất của cửa hàng đang chọn.</div>' +
       oChonCS('nvCS', r);
     if (!nhom.length) {
       h += '<div class="trong">Cửa hàng này chưa có nhóm món nào trong kho số FABi 90 ngày gần đây.</div>';
     } else {
-      h += '<div class="bang-cuon" style="margin-top:8px"><table><thead><tr><th>Sale vé?</th><th>Sale phụ?</th><th>Nhóm món</th><th>Loại món (FABi)</th><th>Đã bán</th><th>Tiền 90 ngày</th></tr></thead><tbody>' +
+      h += '<div class="bang-cuon" style="margin-top:8px"><table><thead><tr><th>Sale vé?</th><th>Nhóm món</th><th>Loại món (FABi)</th><th>Đã bán</th><th>Tiền 90 ngày</th><th>Sale phụ mỗi vé (đ)</th></tr></thead><tbody>' +
         nhom.map(function (x) {
           return '<tr><td><input type="checkbox" data-nhom-ve="' + esc(x.nhom) + '"' + (x.ve ? ' checked' : '') + (x.nhom ? '' : ' disabled') + '></td>' +
-            '<td><input type="checkbox" data-nhom-phu="' + esc(x.nhom) + '"' + (x.phu ? ' checked' : '') + (x.nhom ? '' : ' disabled') + '></td>' +
             '<td style="text-align:left">' + (x.nhom ? esc(x.nhom) : '<i>(không có nhóm)</i>') + '</td>' +
             '<td style="text-align:left;color:var(--ink-3)">' + esc((x.loai || []).join(', ')) + '</td>' +
-            '<td class="s">' + nguyen(x.so_luong) + '</td><td class="s">' + tien(x.tien) + '</td></tr>';
+            '<td class="s">' + nguyen(x.so_luong) + '</td><td class="s">' + tien(x.tien) + '</td>' +
+            '<td><input type="number" min="0" step="1000" inputmode="numeric" data-nhom-phu="' + esc(x.nhom) + '" style="width:96px" value="' +
+              (x.phu != null ? Math.round(x.phu) : '') + '" placeholder="0"' + (x.nhom ? '' : ' disabled') + '></td></tr>';
         }).join('') + '</tbody></table></div>' +
         '<div style="margin-top:12px"><button class="nut chinh" type="button" id="nvLuu">Lưu cách tách cho cửa hàng này</button> ' +
         '<span id="nvBao" class="chu-them" style="margin:0"></span></div>';
@@ -3841,9 +3846,13 @@
     noiChonCS(o);
     var nut = o.querySelector('#nvLuu');
     if (nut) nut.addEventListener('click', function () {
-      var ds = [], dsPhu = [];
+      var ds = [], dsPhu = {};
       Array.prototype.forEach.call(o.querySelectorAll('input[data-nhom-ve]'), function (c) { if (c.checked) ds.push(c.dataset.nhomVe); });
-      Array.prototype.forEach.call(o.querySelectorAll('input[data-nhom-phu]'), function (c) { if (c.checked) dsPhu.push(c.dataset.nhomPhu); });
+      /* Sale phụ: [ nhóm => đ/vé ], chỉ gửi ô có số > 0. */
+      Array.prototype.forEach.call(o.querySelectorAll('input[data-nhom-phu]'), function (c) {
+        var v = parseInt(String(c.value).replace(/[^\d]/g, ''), 10);
+        if (v > 0) dsPhu[c.dataset.nhomPhu] = v;
+      });
       nut.disabled = true; nut.textContent = 'Đang lưu…';
       var fd = new FormData(); fd.append('nhom_ve', JSON.stringify(ds)); fd.append('nhom_phu', JSON.stringify(dsPhu)); fd.append('cua_hang', r.cua_hang || cauHinhCS());
       api('nhom-ve', { method: 'POST', body: fd }).then(function (r2) {

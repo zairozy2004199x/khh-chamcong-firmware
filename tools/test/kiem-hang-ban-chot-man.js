@@ -9,7 +9,8 @@
  *   · tab Nhập báo cáo: bảng hàng bán (SL máy, thành tiền, ô SL thực, lệch), ba ô Sale vé / bán lẻ /
  *     phụ; chỉ gửi dòng có gõ số VÀ khác máy; ô trống = đúng máy;
  *   · tab Đối soát: ba cột tiền + cột "Hàng bán" (khớp máy / N món lệch / chưa soát);
- *   · tab Quản trị: khối tích nhóm món với HAI cột (Sale vé?, Sale phụ?), POST nhom-ve kèm nhom_phu.
+ *   · tab Quản trị: khối nhóm món với cột tích Sale vé? và ô số "Sale phụ mỗi vé (đ)", POST nhom-ve
+ *     kèm nhom_phu dạng { nhóm: đ/vé }.
  *
  * Chạy: node tools/test/kiem-hang-ban-chot-man.js
  * ═════════════════════════════════════════════════════════════════════════════════════════════ */
@@ -51,13 +52,14 @@ t('dòng chưa nhập báo cáo trải đủ 6 cột', /colspan="6" class="chua"
 /* ---- tab Quản trị ---- */
 const nv = boc('veNhomVe');
 t('có veNhomVe và Quản trị gọi taiNhomVe', nv.length > 0 && /taiNhomVe\(o\);/.test(boc('taiQuanTri')));
-t('hai cột tích: Sale vé? và Sale phụ?', /<th>Sale vé\?<\/th><th>Sale phụ\?<\/th>/.test(nv));
-t('checkbox data-nhom-ve và data-nhom-phu', /data-nhom-ve=/.test(nv) && /data-nhom-phu=/.test(nv));
+t('cột tích Sale vé? và cột số "Sale phụ mỗi vé (đ)"', /<th>Sale vé\?<\/th>/.test(nv) && /<th>Sale phụ mỗi vé \(đ\)<\/th>/.test(nv));
+t('🔴 ô phụ là input NUMBER (đ/vé), không còn checkbox', /type="number"[^>]*data-nhom-phu=/.test(nv) && !/type="checkbox"[^>]*data-nhom-phu=/.test(nv));
+t('gửi nhom_phu dạng { nhóm: đ/vé }, chỉ số > 0', /var ds = \[\], dsPhu = \{\};/.test(nv) && /if \(v > 0\) dsPhu\[c\.dataset\.nhomPhu\] = v;/.test(nv));
 t("🔴 Lưu POST nhom-ve gửi cả nhom_ve và nhom_phu", /fd\.append\('nhom_ve', JSON\.stringify\(ds\)\)/.test(nv) && /fd\.append\('nhom_phu', JSON\.stringify\(dsPhu\)\)/.test(nv));
 t("🔴 và kèm cua_hang — cấu hình khai riêng từng quán", /fd\.append\('cua_hang', r\.cua_hang \|\| cauHinhCS\(\)\)/.test(nv));
 t('khối nhóm có ô chọn cửa hàng chung và GET theo cửa hàng', /oChonCS\('nvCS', r\)/.test(nv) && /api\('nhom-ve\?cua_hang='/.test(boc('taiNhomVe')));
 t('nói rõ đang thừa bảng chung khi quán chưa khai riêng', /đang thừa bảng chung/.test(nv));
-t('nói rõ bán lẻ = phần còn lại, phụ = mọi thứ trừ vé combo chính', /phần còn lại/.test(nv) && /trừ vé combo chính/.test(nv));
+t('nói rõ bán lẻ = phần còn lại, phụ = số vé × tiền phụ mỗi vé (ví dụ combo 80k có 20k phụ)', /phần còn lại/.test(nv) && /số vé × tiền phụ mỗi vé/.test(nv) && /20000/.test(nv));
 
 if (hong.length) {
   console.log('\n✗ HỎNG ' + hong.length + ' phép (đạt ' + dat + '):');
