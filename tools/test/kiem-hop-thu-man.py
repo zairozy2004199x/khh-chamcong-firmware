@@ -54,6 +54,12 @@ if m4:
     t('🔴 them xong tu bam Luu', "#dtThuLuu" in b and '.click()' in b)
 t('hien canh bao do khi o dia chi co muc khong phai email', 'canh_bao_nguoi_gui' in v)
 
+# Ô sinh qua o1(nhãn, tên, …) nên trong mã nguồn không có chuỗi data-thu="link_mien" — phải dò
+# lời gọi o1. Lần đầu dò chuỗi kia -> đỏ vì bài thử, không phải mã.
+t('🔴 co o "Ten mien link duoc tai" (o1(..., \'link_mien\'))', "o1('Tên miền link được tải', 'link_mien'" in v)
+t('co loi giai thich thu khong dinh kem -> tim link', 'link tải' in v)
+t('nhat ky hien link o dong bo qua', 'b.link' in s)
+
 if hong:
     print('\n✗ HỎNG %d phép (đạt %d):' % (len(hong), dat)); [print('   · 🔴 ' + h) for h in hong]; sys.exit(1)
 print('\n✓ SẠCH — %d phép: màn hộp thư chọn được hằng ngày lúc HH:MM.' % dat)

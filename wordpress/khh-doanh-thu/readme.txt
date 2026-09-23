@@ -97,6 +97,24 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.57.0 =
+* 🔴 **Thư không đính kèm tệp thì hệ tìm LINK TẢI trong thân thư và tải về.** FABi gửi kiểu này:
+  thư chỉ có chữ "Dữ liệu báo cáo hàng ngày… Báo cáo D05: Bán hàng" và một nút *Tải xuống file*.
+  Lượt chạy thử của anh Thắng ra *"thư không có tệp đính kèm (4 thư)"* — đúng như ảnh hộp thư đã
+  lộ từ trước (không có biểu tượng kẹp giấy).
+* **Chỉ tải link `https`, ở tên miền của người gửi hoặc tên miền gõ ở ô mới "Tên miền link được
+  tải".** Link trỏ tên miền lạ thì nhật ký **nêu tên miền ấy** để thêm; thư đã qua gác người gửi
+  vẫn có thể bị chèn link lạ (chuyển tiếp, chữ ký), tải hết là đem máy chủ đi gõ cửa bất kỳ đâu.
+* 🔴 **Nhận ra link đòi đăng nhập.** Link ấy trả mã 200 hẳn hoi nhưng thân là **trang web** đăng
+  nhập, không phải bảng tính — hệ phân biệt bằng cả Content-Type lẫn mấy byte đầu (`.xlsx` là tệp
+  zip, bắt đầu bằng `PK`) và nói thẳng *"link trả về TRANG WEB — nhiều khả năng đòi đăng nhập"*,
+  thay vì đem trang HTML đi đọc như xlsx rồi hỏng ở tận bộ đọc.
+* Tên tệp lấy từ `Content-Disposition` → đuôi đường dẫn → đặt theo kiểu nội dung. Tệp từ link và
+  tệp đính kèm **đi chung một hàm nạp** (`khh_dt_thu_nap_noi`), không lệch nhau.
+* Thư FABi chưa nạp được thì **không đánh dấu đã đọc** — sáng mai thử lại, không mất.
+* Nhật ký hiện **link** ở dòng bỏ qua. `kiem-hop-thu.php` lên **99 phép** (có lượt chạy thật với
+  hộp thư giả: link tên miền lạ, link đòi đăng nhập), `kiem-hop-thu-man.py` lên **20 phép**.
+
 = 1.56.0 =
 * 🔴 **"Xem 4 thư, nạp được 0 tệp" giờ nói VÌ SAO.** Câu báo sau *Lấy thư ngay* gom lý do bỏ qua
   theo nhóm (người gửi không trong danh sách / không có tệp / …) và **liệt kê địa chỉ gửi bị

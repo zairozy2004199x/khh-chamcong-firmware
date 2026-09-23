@@ -2674,7 +2674,13 @@
     h += '<div style="margin-top:10px">' +
       o1('Chỉ nhận thư từ', 'nguoi_gui', c.nguoi_gui, 'text', 280) +
       o1('Tên tệp khớp', 'mau_ten', c.mau_ten, 'text', 200) +
+      o1('Tên miền link được tải', 'link_mien', c.link_mien, 'text', 220) +
       '</div>' +
+      '<div class="chu-them">Thư <b>không đính kèm tệp</b> (FABi gửi kiểu này) thì hệ tìm <b>link tải</b> ' +
+      'trong thân thư. Chỉ tải link <b>https</b> ở tên miền của người gửi hoặc tên miền gõ ở ô trên ' +
+      '(cách nhau dấu phẩy, ví dụ <code>ipos.vn, s3.amazonaws.com</code>). Link trỏ tên miền lạ thì ' +
+      'nhật ký nêu tên miền ấy để anh thêm. Link <b>đòi đăng nhập</b> trả về trang web thay vì tệp — ' +
+      'hệ nhận ra và nói thẳng.</div>' +
       '<div class="chu-them">🔴 <b>Bỏ trống ô "Chỉ nhận thư từ" là hệ chối hết</b> — cố ý. Hộp thư ' +
       'nào cũng nhận được thư rác, mà một tệp .csv của người lạ đi thẳng vào kho doanh thu thì ' +
       'không ai nhìn ra ngay. Gõ đúng địa chỉ FABi gửi, hoặc cả tên miền kiểu <code>@fabi.vn</code>. ' +
@@ -2729,7 +2735,8 @@
           : (x.nap || []).map(function (n) {
               return esc(n.ten) + ' (' + nguyen(n.da_ghi || 0) + ' dòng)';
             }).concat((x.bo || []).map(function (b) {
-              return '<span class="chu-them">bỏ qua: ' + esc(b.ten || b.tu || '') + ' — ' + esc(b.vi) + '</span>';
+              return '<span class="chu-them">bỏ qua: ' + esc(b.ten || b.tu || '') + ' — ' + esc(b.vi) +
+                (b.link ? ' <span style="word-break:break-all">[' + esc(b.link) + ']</span>' : '') + '</span>';
             })).join(' · ') || '<span class="chu-them">không có gì mới</span>';
         return '<tr><td style="text-align:left" class="s">' + esc(x.luc) + '</td>' +
           '<td>' + nguyen(x.xem || 0) + '</td><td>' + nguyen(x.so_nap || 0) + '</td>' +

@@ -171,6 +171,53 @@ $dk = khh_dt_thu_dinh_kem( $thu );
 phep( '🔴 multipart lồng nhau: vẫn đúng một tệp, không nhặt nhầm phần chữ', 1 === count( $dk ) );
 phep( 'và đúng tệp ấy', $dk && 'long.csv' === $dk[0]['ten'] && $noi_that === $dk[0]['noi'] );
 
+/* ── 4b. THƯ KHÔNG ĐÍNH KÈM -> TÌM LINK TRONG THÂN, TẢI VỀ, NHƯNG GÁC TÊN MIỀN ─────────
+      23/09/2026: chạy thật ra "thư không có tệp đính kèm (4 thư)" — FABi gửi LINK, không gửi tệp. */
+$html = '<html><body><p>Bao cao ban hang ngay 22/09.</p>'
+	. '<a href="https://files.ipos.vn/bc/22-09.xlsx?token=abc&amp;x=1">Tai bao cao</a>'
+	. '<a href="https://files.ipos.vn/bc/22-09.xlsx?token=abc&amp;x=1">(lai link do)</a>'
+	. '<p>Xem them tai https://ipos.vn/huong-dan.</p></body></html>';
+$thu_link = "From: iPOS FABi <pos.fabi@ipos.vn>\r\nContent-Type: multipart/alternative; boundary=\"LK\"\r\n\r\n"
+	. "--LK\r\nContent-Type: text/plain\r\n\r\nXem HTML.\r\n"
+	. "--LK\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n"
+	. chunk_split( base64_encode( $html ), 76, "\r\n" )
+	. "--LK--\r\n";
+$lk = khh_dt_thu_link( $thu_link );
+phep( '🔴 bóc được link trong thân HTML mã hoá base64', in_array( 'https://files.ipos.vn/bc/22-09.xlsx?token=abc&x=1', $lk, true ) );
+phep( '&amp; trong href được gỡ thành &', ! in_array( 'https://files.ipos.vn/bc/22-09.xlsx?token=abc&amp;x=1', $lk, true ) );
+phep( 'link trùng chỉ lấy một', 1 === count( array_filter( $lk, function ( $u ) { return false !== strpos( $u, '22-09.xlsx' ); } ) ) );
+phep( 'dấu chấm cuối câu không bám vào link', in_array( 'https://ipos.vn/huong-dan', $lk, true ) );
+phep( 'thư không có tệp đính kèm thật', array() === khh_dt_thu_dinh_kem( $thu_link ) );
+
+/* Gác tên miền link. */
+phep( 'link cùng tên miền người gửi (con) thì được', '' === khh_dt_thu_link_hop_le( 'https://files.ipos.vn/a.xlsx', 'pos.fabi@ipos.vn', '' ) );
+phep( 'link đúng tên miền gốc thì được', '' === khh_dt_thu_link_hop_le( 'https://ipos.vn/a.xlsx', 'pos.fabi@ipos.vn', '' ) );
+$vi = khh_dt_thu_link_hop_le( 'https://s3.amazonaws.com/x/a.xlsx', 'pos.fabi@ipos.vn', '' );
+phep( '🔴 link tên miền lạ thì CHỐI', '' !== $vi );
+phep( 'và câu chối NÊU tên miền để người ta thêm', false !== strpos( $vi, 's3.amazonaws.com' ) );
+phep( 'thêm tên miền vào ô thì được', '' === khh_dt_thu_link_hop_le( 'https://s3.amazonaws.com/x/a.xlsx', 'pos.fabi@ipos.vn', 'ipos.vn, s3.amazonaws.com' ) );
+phep( '🔴 http (không s) thì chối', '' !== khh_dt_thu_link_hop_le( 'http://files.ipos.vn/a.xlsx', 'pos.fabi@ipos.vn', '' ) );
+phep( '🔴 "ipos.vn.ke-gian.com" KHÔNG được coi là ipos.vn', '' !== khh_dt_thu_link_hop_le( 'https://ipos.vn.ke-gian.com/a.xlsx', 'pos.fabi@ipos.vn', '' ) );
+
+/* Tải link — giả mạng qua VHCP_HTTP. */
+$GLOBALS['VHCP_HTTP'] = array(
+	'files.ipos.vn/bc/22-09.xlsx' => array( 'code' => 200, 'body' => "PK\x03\x04gia-xlsx", 'headers' => array( 'content-type' => 'application/octet-stream', 'content-disposition' => 'attachment; filename="BaoCao_22-09.xlsx"' ) ),
+	'files.ipos.vn/login'         => array( 'code' => 200, 'body' => '<!DOCTYPE html><html><body>Dang nhap</body></html>', 'headers' => array( 'content-type' => 'text/html; charset=utf-8' ) ),
+	'files.ipos.vn/mat'           => array( 'code' => 404, 'body' => '' ),
+	'files.ipos.vn/du-lieu.csv'   => array( 'code' => 200, 'body' => "ngay,tien\n2026-09-22,1000\n", 'headers' => array( 'content-type' => 'text/csv' ) ),
+	'files.ipos.vn/khong-ten'     => array( 'code' => 200, 'body' => "PK\x03\x04zip", 'headers' => array( 'content-type' => 'application/octet-stream' ) ),
+);
+$t1 = khh_dt_thu_tai_link( 'https://files.ipos.vn/bc/22-09.xlsx?token=abc' );
+phep( '🔴 tải được tệp, tên lấy từ Content-Disposition', isset( $t1['ten'] ) && 'BaoCao_22-09.xlsx' === $t1['ten'] );
+$t2 = khh_dt_thu_tai_link( 'https://files.ipos.vn/login' );
+phep( '🔴 link trả TRANG WEB (đòi đăng nhập) thì nhận ra, không đem HTML đi đọc như xlsx', isset( $t2['loi'] ) && false !== strpos( $t2['loi'], 'TRANG WEB' ) );
+$t3 = khh_dt_thu_tai_link( 'https://files.ipos.vn/mat' );
+phep( 'mã 404 thì báo mã', isset( $t3['loi'] ) && false !== strpos( $t3['loi'], '404' ) );
+$t4 = khh_dt_thu_tai_link( 'https://files.ipos.vn/du-lieu.csv' );
+phep( 'không có Content-Disposition thì lấy tên từ đường dẫn', isset( $t4['ten'] ) && 'du-lieu.csv' === $t4['ten'] );
+$t5 = khh_dt_thu_tai_link( 'https://files.ipos.vn/khong-ten' );
+phep( 'không tên, nhưng byte đầu là PK -> đặt tên .xlsx', isset( $t5['ten'] ) && '.xlsx' === substr( $t5['ten'], -5 ) );
+
 /* ── 5. đối đáp IMAP thật, trên một cặp socket ──────────────────────────────────────── */
 class Imap_Thu extends KHHDT_Imap {
 	public function gan( $s ) { $this->s = $s; }
@@ -310,6 +357,8 @@ class Imap_Gia extends KHHDT_Imap {
 		11 => array( 'from' => 'Ke La <ke.la@spam.vn>', 'body' => "From: Ke La <ke.la@spam.vn>\r\nContent-Type: text/plain\r\n\r\nrac" ),
 		12 => array( 'from' => 'iPOS FABi <noreply@ipos.vn>', 'body' => "From: iPOS FABi <noreply@ipos.vn>\r\nContent-Type: text/plain\r\n\r\nchi co chu" ),
 		13 => array( 'from' => 'Ke La <KE.LA@spam.vn>', 'body' => "From: Ke La <KE.LA@spam.vn>\r\nContent-Type: text/plain\r\n\r\nrac 2" ),
+		/* FABi thật: không tệp, có link tải — sang tên miền LẠ (chưa cho phép) và một link đòi đăng nhập. */
+		14 => array( 'from' => 'iPOS FABi <pos.fabi@ipos.vn>', 'body' => "From: iPOS FABi <pos.fabi@ipos.vn>\r\nContent-Type: text/html\r\n\r\n<a href=\"https://s3.amazonaws.com/ipos/bc.xlsx\">tai</a> <a href=\"https://files.ipos.vn/login\">dang nhap</a>" ),
 	);
 	public function chua_doc() { return array_keys( $this->thu ); }
 	public function dau_thu( $uid ) { return "From: " . $this->thu[ $uid ]['from'] . "\r\nMessage-ID: <m$uid\x40x>\r\n"; }
@@ -317,18 +366,27 @@ class Imap_Gia extends KHHDT_Imap {
 	public function danh_dau_da_doc( $uid ) { $this->da_doc[] = $uid; return true; }
 	public function dong() {}
 }
-update_option( KHH_DT_THU_OPT, array( 'bat' => true, 'nguoi_gui' => 'noreply@ipos.vn', 'mau_ten' => '*.xlsx, *.csv', 'loai' => 'pos' ) );
+/* Cho phép cả tên miền @ipos.vn: thư 12 (noreply@) và thư 14 (pos.fabi@) đều là FABi. Bản đầu
+   chỉ cho noreply@ nên thư 14 bị chối ở phép gác người gửi, không bao giờ tới nhánh link — bốn
+   phép về link đỏ vì BÀI THỬ dựng sai kịch bản, không phải mã sai. */
+update_option( KHH_DT_THU_OPT, array( 'bat' => true, 'nguoi_gui' => '@ipos.vn', 'mau_ten' => '*.xlsx, *.csv', 'loai' => 'pos' ) );
 update_option( KHH_DT_THU_DA, array() );
 $gia = new Imap_Gia();
 $kq  = khh_dt_thu_lay( $gia );
-phep( 'lượt chạy thật: xem đủ 3 thư', 3 === (int) $kq['xem'] );
+phep( 'lượt chạy thật: xem đủ 4 thư', 4 === (int) $kq['xem'] );
 phep( 'không nạp được tệp nào (đúng — không thư nào có tệp)', 0 === (int) $kq['so_nap'] );
 phep( '🔴 gom địa chỉ bị chối ra kết quả, KHÔNG trùng (hai thư cùng một địa chỉ khác hoa/thường)',
 	isset( $kq['nguoi_gui_la'] ) && array( 'ke.la@spam.vn' ) === $kq['nguoi_gui_la'] );
 phep( 'thư FABi (được phép) KHÔNG bị kể vào danh sách bị chối', ! in_array( 'noreply@ipos.vn', $kq['nguoi_gui_la'], true ) );
 $ly = array_count_values( array_map( function ( $b ) { return $b['vi']; }, $kq['bo'] ) );
-phep( 'lý do bỏ qua tách đúng: 2 người lạ, 1 không có tệp',
-	2 === (int) $ly['người gửi không nằm trong danh sách'] && 1 === (int) $ly['thư không có tệp đính kèm'] );
+phep( 'lý do bỏ qua tách đúng: 2 người lạ, 1 không tệp không link',
+	2 === (int) $ly['người gửi không nằm trong danh sách'] && 1 === (int) $ly['thư không có tệp đính kèm, cũng không có link nào'] );
+/* Thư 14: link tên miền lạ -> chối nêu tên miền; link đòi đăng nhập -> nói là trang web. Cả hai KHÔNG đánh dấu đã đọc. */
+$vi_all = implode( ' | ', array_map( function ( $b ) { return $b['vi']; }, $kq['bo'] ) );
+phep( '🔴 link sang tên miền lạ bị chối và NÊU tên miền', false !== strpos( $vi_all, 's3.amazonaws.com' ) );
+phep( '🔴 link đòi đăng nhập được nhận ra là TRANG WEB', false !== strpos( $vi_all, 'TRANG WEB' ) );
+phep( 'thư FABi chưa nạp được thì KHÔNG đánh dấu đã đọc — mai còn thử lại', ! in_array( 14, $gia->da_doc, true ) );
+phep( 'dòng bỏ qua có kèm link để người ta biết link nào', (bool) array_filter( $kq['bo'], function ( $b ) { return ! empty( $b['link'] ); } ) );
 phep( '🔴 thư người lạ KHÔNG bị đánh dấu đã đọc — hệ không được giấu thư của người khác',
 	! in_array( 11, $gia->da_doc, true ) && ! in_array( 13, $gia->da_doc, true ) );
 phep( 'nhật ký có ghi lượt này kèm địa chỉ bị chối', array( 'ke.la@spam.vn' ) === khh_dt_thu_nhat_ky()[0]['nguoi_gui_la'] );
