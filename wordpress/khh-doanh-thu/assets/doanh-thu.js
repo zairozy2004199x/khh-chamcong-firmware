@@ -2680,6 +2680,9 @@
       'không ai nhìn ra ngay. Gõ đúng địa chỉ FABi gửi, hoặc cả tên miền kiểu <code>@fabi.vn</code>. ' +
       'Nhiều địa chỉ thì cách nhau dấu phẩy.</div>';
 
+    if (r && r.canh_bao_nguoi_gui) {
+      h += '<div class="canh-ghep" style="border-color:var(--xau)">🔴 ' + esc(r.canh_bao_nguoi_gui) + '</div>';
+    }
     if ('bes' === c.loai) {
       h += '<div>' + o1('Tên cơ sở (Bes)', 'co_so', c.co_so, 'text', 250) + '</div>';
     }
@@ -2706,7 +2709,17 @@
     if (!nk.length) {
       return '<div class="chu-them" style="margin-top:12px">Chưa chạy lượt nào.</div>';
     }
-    return '<h3 class="tieu-nho" style="margin-top:14px">Nhật ký 50 lượt gần nhất</h3>' +
+    /* Lượt mới nhất có địa chỉ gửi bị chối -> mỗi địa chỉ một nút "Thêm". Bấm là ghép vào ô
+       "Chỉ nhận thư từ" rồi Lưu luôn — hết phải cuộn tìm, chép, gõ lại. Phép gác không nới:
+       vẫn là người quyết định địa chỉ nào được vào. */
+    var la = (nk[0] && nk[0].nguoi_gui_la) || [];
+    var nutThem = !la.length ? '' :
+      '<div class="canh-ghep" style="margin-top:12px">Lượt vừa rồi chối thư từ <b>' + la.length +
+      ' địa chỉ</b> chưa nằm trong danh sách. Nếu đúng là FABi gửi, bấm để thêm và lưu:<br>' +
+      la.map(function (a) {
+        return '<button class="vien" type="button" data-thu-them="' + esc(a) + '" style="margin:6px 6px 0 0">＋ Thêm ' + esc(a) + '</button>';
+      }).join('') + '</div>';
+    return nutThem + '<h3 class="tieu-nho" style="margin-top:14px">Nhật ký 50 lượt gần nhất</h3>' +
       '<div class="bang-cuon"><table><thead><tr><th style="text-align:left">Lúc</th>' +
       '<th>Thư xem</th><th>Nạp được</th><th style="text-align:left">Chi tiết</th>' +
       '</tr></thead><tbody>' +
@@ -2739,6 +2752,21 @@
       });
       return fd;
     };
+    /* Nút "＋ Thêm <địa chỉ>": ghép vào ô danh sách (không trùng) rồi bấm Lưu thay người ta. */
+    k.addEventListener('click', function (e) {
+      var b = e.target.closest ? e.target.closest('[data-thu-them]') : null;
+      if (!b) return;
+      e.preventDefault();
+      var o = k.querySelector('[data-thu="nguoi_gui"]');
+      if (!o) return;
+      var dc = b.getAttribute('data-thu-them');
+      var ds = o.value.split(',').map(function (x) { return x.trim(); }).filter(Boolean);
+      if (ds.indexOf(dc) < 0) ds.push(dc);
+      o.value = ds.join(', ');
+      var l = k.querySelector('#dtThuLuu');
+      if (l) l.click();
+    });
+
     var luu = k.querySelector('#dtThuLuu');
     if (luu) {
       luu.addEventListener('click', function () {
@@ -2762,8 +2790,18 @@
           .then(function (r) {
             veHopThu(o, r.xem);
             var c = r.chay || {};
+            /* "Xem 4 thư, nạp được 0 tệp" mà không nói VÌ SAO là bắt người ta cuộn xuống nhật ký
+               rồi tự đoán. Gom lý do bỏ qua theo nhóm, kèm địa chỉ gửi bị chối. */
+            var ly = {};
+            (c.bo || []).forEach(function (b) { ly[b.vi] = (ly[b.vi] || 0) + 1; });
+            var lyDo = Object.keys(ly).map(function (k) { return '· ' + k + ' (' + ly[k] + ' thư)'; }).join('\n');
             window.alert(c.loi ? c.loi
-              : 'Xem ' + (c.xem || 0) + ' thư, nạp được ' + (c.so_nap || 0) + ' tệp.');
+              : 'Xem ' + (c.xem || 0) + ' thư, nạp được ' + (c.so_nap || 0) + ' tệp.' +
+                (lyDo ? '\n\nBỏ qua vì:\n' + lyDo : '') +
+                ((c.nguoi_gui_la || []).length
+                  ? '\n\nĐịa chỉ gửi bị chối: ' + c.nguoi_gui_la.join(', ') +
+                    '\nNếu đúng là FABi, bấm nút "Thêm …" ngay dưới nhật ký.'
+                  : ''));
           })
           .catch(function (e) {
             chay.disabled = false; chay.textContent = 'Lấy thư ngay';

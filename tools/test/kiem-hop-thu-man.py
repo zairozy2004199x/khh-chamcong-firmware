@@ -37,6 +37,23 @@ t('van giu o nhip gio cho che do theo gio', "o1('Nhịp (giờ)', 'gio'" in v)
 m2 = re.search(r'function noiHopThu\(o\) \{(.*?)\n  \}', s, re.S)
 t('noiHopThu gom moi [data-thu] khi luu (nen che_do/luc di theo)', m2 is not None and "querySelectorAll('[data-thu]')" in m2.group(1))
 
+# ---- "nạp được 0" phải nói VÌ SAO, và chỉ đường thêm địa chỉ bị chối ----
+m3 = re.search(r"api\('hop-thu-chay'[\s\S]*?window\.alert\(([\s\S]*?)\);", s)
+t('tim thay cau bao sau Lay thu ngay', m3 is not None)
+if m3:
+    a = m3.group(1)
+    t('🔴 cau bao gom LY DO bo qua theo nhom (c.bo -> ly[b.vi])', 'c.bo' in a or 'lyDo' in a)
+    t('🔴 cau bao neu DIA CHI GUI bi choi', 'nguoi_gui_la' in a)
+t('🔴 co nut "Them <dia chi>" (data-thu-them) trong nhat ky', 'data-thu-them=' in s)
+m4 = re.search(r"closest\('\[data-thu-them\]'\)([\s\S]*?)\n    \}\);", s)
+t('co bo xu ly nut Them', m4 is not None)
+if m4:
+    b = m4.group(1)
+    t('ghep vao o [data-thu="nguoi_gui"]', 'data-thu="nguoi_gui"' in b)
+    t('khong them trung', 'indexOf(dc) < 0' in b)
+    t('🔴 them xong tu bam Luu', "#dtThuLuu" in b and '.click()' in b)
+t('hien canh bao do khi o dia chi co muc khong phai email', 'canh_bao_nguoi_gui' in v)
+
 if hong:
     print('\n✗ HỎNG %d phép (đạt %d):' % (len(hong), dat)); [print('   · 🔴 ' + h) for h in hong]; sys.exit(1)
 print('\n✓ SẠCH — %d phép: màn hộp thư chọn được hằng ngày lúc HH:MM.' % dat)
