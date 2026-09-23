@@ -1715,6 +1715,26 @@
          ⚠️ Vì thế cột trái là ô KHOÁ (readonly): gõ được vào đó là đẻ ra một bộ phận thứ tám
             không có trong danh mục, và mọi phép `bo_phan_chuan()` sẽ chối nó trong im lặng.
          ══════════════════════════════════════════════════════════════════════════════ -->
+    <!-- 📦 NHÂN BẢN CẤU HÌNH SANG BẢN KHÁC — anh Thắng 23/09/2026: *"nhân bản cho chi phí hà nội"*.
+         Bản Hà Nội là site riêng, danh mục sinh ra trắng. Ở đây tải một gói .json, sang bên kia
+         nhập. Gói chỉ chở DANH MỤC — không người dùng / PIN / quyền. Xem `VHCP_Cfg::goi_bang_ds()`. -->
+    <div class="card" id="nhanBanCard">
+      <div class="ch"><h2>📦 Nhân bản cấu hình sang bản khác</h2>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn b-x" onclick="nbXuat()">⬇ Tải gói cấu hình (.json)</button>
+          <button class="btn b-p" onclick="el('nbFile').click()">⬆ Nhập gói…</button>
+          <input type="file" id="nbFile" accept=".json,application/json" style="display:none" onchange="nbDocTep(this)">
+        </div>
+      </div>
+      <div style="padding:8px 14px 14px;font-size:12px;color:#64748b;line-height:1.6">
+        Bản Hà Nội (hay bản nào khác) sinh ra với danh mục trắng. Ở bản đã có danh mục bấm <b>⬇ Tải gói</b>;
+        sang bản kia mở ⚙️ Cấu hình › 📦 Nhân bản, bấm <b>⬆ Nhập gói</b>, tích bảng cần chép rồi ghi đè.<br>
+        Gói chỉ chở <b>danh mục</b> (loại chi phí · đầu mục · mã TK Nợ · bộ phận & luồng · nhóm · mảng ·
+        hệ thống TK · vai tự tạo · cơ sở) — <b>không</b> chở người dùng, PIN, quyền.
+        Nhập là <b>ghi đè cả bảng</b>, chỉ Admin làm được; bảng ghi cuối vẫn ↩ Hoàn tác được.
+        <div id="nbKq"></div>
+      </div>
+    </div>
     <div class="card" id="luongBpCard">
       <div class="ch"><h2>🧭 Luồng duyệt theo bộ phận</h2><div style="display:flex;gap:8px"><button class="btn b-g" onclick="saveCfgLuongBp()">💾 Lưu luồng</button></div></div>
       <div style="padding:8px 14px 0;font-size:12px;color:#64748b">
@@ -12646,6 +12666,70 @@
    * ⚠️ CHẠY SAU MỖI LƯỢT `renderCfg()`, vì vài khối bị ẩn/hiện theo vai (kyCard · quyenCard ·
    *    ngayHongCard) — xếp một lần lúc dựng trang thì khối hiện sau sẽ nằm lạc chỗ.
    * ══════════════════════════════════════════════════════════════════════════════════════ */
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * 📦 NHÂN BẢN CẤU HÌNH — tải gói ở bản này, nhập ở bản khác. Máy chủ: `xuat_goi_cau_hinh` /
+   * `nhap_goi_cau_hinh` (danh sách trắng `goi_bang_ds`, chỉ danh mục, không người dùng).
+   * ⚠️ Gói đọc bằng FileReader dạng CHỮ (không phải base64 như ảnh) rồi JSON.parse; sai dạng
+   *    thì nói thẳng, không gửi lên máy chủ.
+   * ⚠️ CƠ SỞ MẶC ĐỊNH KHÔNG TÍCH: cơ sở là của từng miền, chép cơ sở KVC sang Hà Nội là sai.
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  var NB_GOI=null;
+  var NB_MAC_DINH_TAT=['CH_CoSo'];
+  function nbXuat(){
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(!r||!r.success){ toast('err',(r&&r.error)||'Không tải được gói'); return; }
+      var ten='cau-hinh-'+String(r.khoi||'ban')+'-'+String(r.luc||'').slice(0,10).replace(/-/g,'')+'.json';
+      var blob=new Blob([JSON.stringify(r,null,1)],{type:'application/json'});
+      var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=ten; document.body.appendChild(a); a.click();
+      setTimeout(function(){ if(a.parentNode) a.parentNode.removeChild(a); },0);
+      toast('ok','Đã tải gói '+Object.keys(r.bang||{}).length+' bảng — sang bản kia: ⚙️ Cấu hình › 📦 Nhân bản › ⬆ Nhập gói');
+    }).withFailureHandler(function(e){ loading(false); toast('err',e.message); }).xuatGoiCauHinh();
+  }
+  function nbDocTep(inp){
+    var f=inp&&inp.files&&inp.files[0]; if(!f) return;
+    var rd=new FileReader();
+    rd.onload=function(e){ nbNhanGoi(String((e&&e.target&&e.target.result)||''), f.name); inp.value=''; };
+    rd.readAsText(f);
+  }
+  /** Đọc chữ của tệp → bày danh sách bảng có trong gói kèm số dòng, cho tích rồi ghi đè. */
+  function nbNhanGoi(chu, tenTep){
+    var g=null; try{ g=JSON.parse(chu); }catch(err){ g=null; }
+    var kq=el('nbKq');
+    if(!g || g.loai!=='goi-cau-hinh-van-hanh-chi-phi' || !g.bang || typeof g.bang!=='object'){
+      NB_GOI=null;
+      if(kq) kq.innerHTML='<div style="margin-top:8px;color:#b91c1c">Tệp này không phải gói cấu hình của Vận Hành Chi Phí (thiếu dấu "goi-cau-hinh-van-hanh-chi-phi").</div>';
+      return;
+    }
+    NB_GOI=g;
+    var nhan=g.nhan||{};
+    var h='<div style="margin:10px 0 6px;font-size:12.5px;color:#171417">Gói từ bản <b>'+esc(_tenKhoi(g.khoi)||g.khoi||'?')+'</b> · '+esc(g.phienBan||'')+' · '+esc(g.luc||'')+(tenTep?(' · '+esc(tenTep)):'')+'</div>';
+    h+=Object.keys(g.bang).map(function(b){
+      var n=(g.bang[b]||[]).length, tat=NB_MAC_DINH_TAT.indexOf(b)>=0;
+      return '<label style="display:block;margin:3px 0;color:#171417"><input type="checkbox" class="nbChk" value="'+esc(b)+'"'+(tat?'':' checked')+'> '
+        +esc(nhan[b]||b)+' <span style="color:#8c8781">· '+n+' dòng'+(tat?' · <i>cơ sở là của từng miền — không chép mặc định</i>':'')+'</span></label>';
+    }).join('');
+    h+='<button class="btn b-d" style="margin-top:8px" onclick="nbNhap()">⬆ Ghi đè các bảng đã tích vào bản này</button>';
+    if(kq) kq.innerHTML=h;
+  }
+  function nbNhap(){
+    if(!NB_GOI){ toast('warn','Chọn tệp gói trước'); return; }
+    var chon=[].slice.call(document.querySelectorAll('.nbChk:checked')).map(function(c){ return c.value; });
+    if(!chon.length){ toast('warn','Chưa tích bảng nào'); return; }
+    if(!confirm('GHI ĐÈ '+chon.length+' bảng cấu hình của bản này bằng gói vừa chọn?\n\n'
+      +'Dữ liệu hiện có trong các bảng ấy bị thay hết (bảng ghi cuối còn ↩ Hoàn tác). Người dùng / PIN / quyền không đổi.')) return;
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(!r||!r.success){ toast('err',(r&&r.error)||'Không nhập được'); return; }
+      var kq=r.bang||{}, nhan=(NB_GOI&&NB_GOI.nhan)||{};
+      var ds=Object.keys(kq);
+      toast('ok','Đã nhập '+ds.length+' bảng');
+      var box=el('nbKq');
+      if(box) box.innerHTML='<div style="margin-top:8px;color:#166534">✓ Đã ghi đè: '+ds.map(function(b){ return esc(nhan[b]||b)+' ('+kq[b].truoc+' → '+kq[b].sau+' dòng)'; }).join(' · ')+'</div>';
+      NB_GOI=null;
+      loadCfg();
+    }).withFailureHandler(function(e){ loading(false); toast('err',e.message); }).nhapGoiCauHinh(NB_GOI, chon);
+  }
   var CH_NHOM=[
     /* ⚠️ Mã gọi tắt đi CÙNG nhóm cơ sở, ngay sau bảng cơ sở: nó là cách gọi khác của chính
        những gian ấy, không phải một thứ riêng. Để nó lạc sang nhóm khác là người khai phải nhớ
@@ -12670,6 +12754,8 @@
       mo:'Mốc tuần của đơn: tuần này chạy từ ngày nào đến ngày nào.' },
     { ten:'🧩 Gộp ba khối (KVC · MTĐ · VP)', id:['gopCard'],
       mo:'Hai kho kia đang có gì, và danh mục ba bên lệch nhau chỗ nào. Chỉ đọc.' },
+    { ten:'📦 Nhân bản cấu hình',        id:['nhanBanCard'],
+      mo:'Tải gói danh mục ở bản này, nhập vào bản khác (VD Hà Nội). Không chở người dùng, PIN, quyền.' },
     { ten:'🛠 Bảo trì — đụng vào là đụng dữ liệu thật', id:['ngayHongCard','imgMaintCard'],
       mo:'Chỉ dùng khi thật sự cần. Mỗi nút ở đây sửa hàng loạt dòng đã có.' }
   ];

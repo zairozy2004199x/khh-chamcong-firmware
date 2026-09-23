@@ -42,6 +42,8 @@ class VHCPHN_API {
 		   khoản đang giữ mã ấy nhìn thấy sổ tiền của gian ấy — nên chỉ Admin, ngang hàng với
 		   mấy việc đụng thẳng vào số liệu bên dưới. */
 		$admin_only = array( 'luuMaTatCoso',
+			/* Nhập gói cấu hình = GHI ĐÈ cả bảng danh mục — chỉ Admin (23/09/2026). Xuất thì kế toán được. */
+			'nhapGoiCauHinh',
 			/* 🔴 BẢNG ĐỐI CHIẾU BA KHO — chỉ Admin, dù nó CHỈ ĐỌC.
 			   Nó đọc xuyên qua kho bảng của CẢ BA bản (gốc + hai bản vùng), tức là bày ra số tiền và
 			   danh sách người dùng của hai mảng KHÁC — đúng cái ranh giới mà thanh khối dựng
@@ -125,7 +127,7 @@ class VHCPHN_API {
 		if ( in_array( $fn, $nguoi_duyet, true ) ) {
 			return array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC' );
 		}
-		$cau_hinh   = array( 'getUsers', 'cosoLa', 'dsKyDangCo', 'saveConfig', 'undoConfig', 'setQuyen', 'resetQuyen', 'getQuyenConfig', 'migrateOldImages', 'ganMaTaiKhoanSoChi', 'ganMaTaiKhoanDon', 'ganMaTaiKhoanTatCa', 'dongBoTkLoai', 'xoaLoaiTuTao', 'getTaiKhoan', 'ghepHeThongTk', 'doMangTuTaiKhoan', 'khaiChiPhiChoCoSo', 'loaiCuaCoSo', 'datLoaiChoCoSo', 'hutCoSoGhe' );
+		$cau_hinh   = array( 'getUsers', 'cosoLa', 'dsKyDangCo', 'saveConfig', 'undoConfig', 'setQuyen', 'resetQuyen', 'getQuyenConfig', 'migrateOldImages', 'ganMaTaiKhoanSoChi', 'ganMaTaiKhoanDon', 'ganMaTaiKhoanTatCa', 'dongBoTkLoai', 'xoaLoaiTuTao', 'getTaiKhoan', 'ghepHeThongTk', 'doMangTuTaiKhoan', 'khaiChiPhiChoCoSo', 'loaiCuaCoSo', 'datLoaiChoCoSo', 'hutCoSoGhe', 'xuatGoiCauHinh' );
 		if ( in_array( $fn, $admin_only, true ) ) { return array( 'Admin' ); }
 		// Kế toán cũng phải vào được Cấu hình (khai mã tài khoản, tên MISA, mã đơn vị là
 		// việc của kế toán). Riêng tài khoản Admin thì chỉ Admin sửa — chặn trong
@@ -244,6 +246,8 @@ class VHCPHN_API {
 			'getBootstrap'          => array( 'VHCPHN_Don', 'get_bootstrap' ),
 			'getConfig'             => array( 'VHCPHN_Cfg', 'get_config' ),
 			'saveConfig'            => array( 'VHCPHN_Cfg', 'save_config' ),
+			'xuatGoiCauHinh'        => array( 'VHCPHN_Cfg', 'xuat_goi_cau_hinh' ),
+			'nhapGoiCauHinh'        => array( 'VHCPHN_Cfg', 'nhap_goi_cau_hinh' ),
 			'doiMocKy'              => array( 'VHCPHN_Don', 'doi_moc_ky' ),
 			'dsKyDangCo'            => array( 'VHCPHN_Don', 'ds_ky_dang_co' ),
 			'undoConfig'            => array( 'VHCPHN_Cfg', 'undo_config' ),
