@@ -181,7 +181,7 @@ function dungBe(ban, khoiXem) {
     + '\nvar MIEN_MA=' + bocDong('MIEN_MA') + ';'
     + '\n' + ['_khoiDvBang', '_khoiCuaDv', '_tenKhoi', '_boDauVai', '_khoiCuaVai', '_vaiOKhoi',
       '_vaiConCua', '_vaiSelNhieu', '_khoiCuaLoai', '_mxBodies', '_khoiMo', '_mienDs',
-      '_khoiLuuTru', '_khoiBay', '_khoiDuoc', '_khoiSelLoai', '_dvSelNhieu', '_loaiChoDv',
+      '_khoiLuuTru', '_khoiBay', '_khoiDuoc', '_khoiSuaDuoc', '_mienSuaDuoc', '_khoiSelLoai', '_dvSelNhieu', '_loaiChoDv',
       '_mangTong', '_mangTongDoan', '_mxMaGoc', '_mxSapCols', '_mxCols', '_mxNhomDv',
       '_xemDuocDv', '_dauMucSel', '_mxRowHtml', 'renderTkNoMatrix', '_khoaDongKhoiLa',
       'addCfgLoai', 'saveCfgTkNoMx'].map(boc).join('\n')
@@ -349,11 +349,15 @@ BAN.forEach(function (ban) {
     const moiHtml = nut[0]._them;
     t('🔴 ' + ban + ': bấm ＋ Thêm loại → dòng mới rơi vào ĐÚNG bảng đầu mục ấy',
       moiHtml.length > 0 && nut[1]._them === '', [moiHtml.length, nut[1]._them.length]);
-    /* 🔴 Khối của dòng mới = khối của NGƯỜI KHAI ('kvc'), không phải tên bảng. */
-    t('🔴 ' + ban + ': dòng mới mang KHỐI của người khai, không mang tên bảng',
-      /data-khoi-goc="kvc"/.test(moiHtml), (moiHtml.match(/data-khoi-goc="[^"]*"/) || ['(không có)'])[0]);
-    t('   và ô chọn Khối trên dòng cũng chọn sẵn khối ấy',
-      /<option value="kvc" selected>/.test(moiHtml), (moiHtml.match(/<select data-khoi-o[\s\S]*?<\/select>/) || [''])[0].slice(0, 300));
+    /* 🔴 Khối của dòng mới = một MIỀN người khai sửa được, không phải tên bảng, và không phải
+       khối trên thanh đơn. 23/09/2026: người này đơn vị K&H (`khoiXem=['kvc']`, tiếng cũ) —
+       danh sách không có miền nào nên họ khai được cả hai miền; dòng mới lấy miền đầu ('mb').
+       Trước đó bản này đòi 'kvc' — tức dòng mới mang "khối cũ" ngay lúc sinh, và bị khoá mờ
+       ở lượt vẽ sau (xem `_khoiSuaDuoc` trong app.html, bài kiem-cau-hinh-mien-khong-khoa). */
+    t('🔴 ' + ban + ': dòng mới mang MIỀN người khai sửa được, không mang tên bảng, không mang \'kvc\'',
+      /data-khoi-goc="mb"/.test(moiHtml), (moiHtml.match(/data-khoi-goc="[^"]*"/) || ['(không có)'])[0]);
+    t('   và ô chọn Khối trên dòng cũng chọn sẵn miền ấy',
+      /<option value="mb" selected>/.test(moiHtml), (moiHtml.match(/<select data-khoi-o[\s\S]*?<\/select>/) || [''])[0].slice(0, 300));
     t('🔴 ' + ban + ': và ô Đầu mục chọn sẵn ĐÚNG đầu mục của bảng',
       />Chi phí tiền thuê<\/option>/.test(moiHtml.replace(/<option/g, '\n<option').split('\n')
         .filter(function (x) { return / selected/.test(x); }).join('')),
@@ -376,12 +380,29 @@ BAN.forEach(function (ban) {
       b3.NK.bodies = nut3;
       b3.moi.MX_LOCK = false;
       b3.F.them('Khác');
-      t('🔴 ' + ban + ': kế toán Văn phòng bấm ＋ → dòng mới mang khối VP, không mang khối của bản chạy',
-        /data-khoi-goc="vp"/.test(nut3[0]._them),
+      /* 23/09/2026: cột Khối của loại chi phí là MIỀN, nên dòng mới mang một miền họ sửa được
+         (đơn vị VP nói tiếng cũ → khai được cả hai miền → 'mb'), KHÔNG mang 'kvc' của bản chạy. */
+      t('🔴 ' + ban + ': kế toán Văn phòng bấm ＋ → dòng mới mang MIỀN sửa được, không mang khối của bản chạy',
+        /data-khoi-goc="mb"/.test(nut3[0]._them) && !/data-khoi-goc="kvc"/.test(nut3[0]._them),
         (nut3[0]._them.match(/data-khoi-goc="[^"]*"/) || ['(không có)'])[0]);
-      t('   và ô chọn Khối trên dòng cũng chọn sẵn VP',
-        /<option value="vp" selected>/.test(nut3[0]._them),
+      t('   và ô chọn Khối trên dòng cũng chọn sẵn miền ấy',
+        /<option value="mb" selected>/.test(nut3[0]._them),
         (nut3[0]._them.match(/<select data-khoi-o[\s\S]*?<\/select>/) || [''])[0].slice(0, 300));
+    }
+    /* 🔴 ĐỐI CHỨNG THẬT của "miền NGƯỜI KHAI": kế toán tích Miền Nam, thanh đơn đứng 'kvc' →
+       dòng mới phải là 'mn', không phải miền đầu bảng ('mb'). Thiếu ca này thì 'mb' ở hai phép
+       trên có thể chỉ là "luôn lấy miền đầu" — đúng sai gì cũng ra một kết quả. */
+    {
+      const b4 = dungBe(ban, ['mn']);
+      b4.moi.KHOI_DANG = 'kvc';
+      b4.F.ve();
+      const nut4 = [lamBody('Khác')];
+      b4.NK.bodies = nut4;
+      b4.moi.MX_LOCK = false;
+      b4.F.them('Khác');
+      t('🔴 ' + ban + ': kế toán Miền Nam bấm ＋ → dòng mới mang \'mn\', không mang miền đầu bảng',
+        /data-khoi-goc="mn"/.test(nut4[0]._them),
+        (nut4[0]._them.match(/data-khoi-goc="[^"]*"/) || ['(không có)'])[0]);
     }
     /* 🔴 CHỐI NGƯỜI CHƯA THUỘC KHỐI NÀO — nút không vẽ cho họ, nhưng gọi thẳng từ thanh
        địa chỉ là qua được. */

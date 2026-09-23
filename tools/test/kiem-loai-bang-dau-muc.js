@@ -109,7 +109,9 @@ t('🔴 không còn nút thêm loại chung ở đầu thẻ', !/onclick="addCfg
    thử 22/09/2026: đục một trong hai nút sang mã khối thì phép này vẫn xanh nhờ nút còn lại. */
 teq('   CẢ HAI nút thêm (đầu bảng + cuối bảng) đều mang ĐẦU MỤC của nó', 2,
   (VE.match(/onclick="addCfgLoai\('\+esc\(JSON\.stringify\(dm0\)\)\+'\)"/g) || []).length);
-t('🔴 `addCfgLoai()` chối người chưa thuộc khối nào', /_khoiDuoc\(\)/.test(bocSach('addCfgLoai')), 'không thấy');
+/* 23/09/2026: thước là `_mienSuaDuoc()` (trục CẤU HÌNH), không còn `_khoiDuoc()` (trục ĐƠN) — xem
+   `_khoiSuaDuoc` trong app.html và bài kiem-cau-hinh-mien-khong-khoa.js. */
+t('🔴 `addCfgLoai()` chối người chưa thuộc khối nào', /_mienSuaDuoc\(\)/.test(bocSach('addCfgLoai')) && !/_khoiDuoc\(\)/.test(bocSach('addCfgLoai')), 'không thấy');
 t('   và mở cái <details> đang gập ra', /\.open\s*=\s*true/.test(bocSach('addCfgLoai')), 'không thấy');
 /* 🔴 MỐC CỦA TBODY ĐỔI TỪ KHỐI SANG ĐẦU MỤC — và CẢ BA chỗ đọc nó phải đổi theo, không thì
    một nửa đường dây nói khối còn nửa kia nói đầu mục. */

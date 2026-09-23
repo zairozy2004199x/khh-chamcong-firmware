@@ -1356,6 +1356,7 @@
             <tbody id="lenhTUBody"></tbody>
           </table>
           <div class="empty" id="lenhTUEmpty">Chưa có lệnh tạm ứng nào.</div>
+          <div id="lenhTUPager"></div>
           <div id="lenhTUChanDoan" style="display:none;margin-top:10px;padding:11px 13px;background:#fffbeb;border:1px solid #fde68a;border-radius:9px;font-size:12.5px;line-height:1.6"></div>
         </div>
       </div>
@@ -1551,6 +1552,7 @@
           <tbody id="lenhTUBodyKT"></tbody>
         </table>
         <div class="empty" id="lenhTUEmptyKT">Chưa có lệnh tạm ứng nào.</div>
+        <div id="lenhTUPagerKT"></div>
           <div id="lenhTUChanDoanKT" style="display:none;margin-top:10px;padding:11px 13px;background:#fffbeb;border:1px solid #fde68a;border-radius:9px;font-size:12.5px;line-height:1.6"></div>
       </div>
     </div>
@@ -3149,6 +3151,52 @@
       if(k) ra.push(k);
     });
     return ra;
+  }
+  /* ═══════════════════════════════════════════════════════════════════════════════════════
+   * KHỐI (MIỀN) NGƯỜI NÀY SỬA ĐƯỢC Ở CẤU HÌNH — TRỤC CẤU HÌNH, KHÔNG PHẢI TRỤC ĐƠN.
+   *
+   * Anh Thắng 23/09/2026: *"có 1 số chi phí bị ẩn"* (ảnh: mọi loại chi phí khối Miền Nam mờ
+   * và khoá, trong khi dòng khối Văn phòng thì sửa được — với chính tài khoản thấy cả hệ).
+   *
+   * 🔴 GỐC: màn cấu hình từng dùng `_khoiDuoc()` làm thước "khối của mình". Nhưng đó là trục
+   *    ĐƠN — tập khối BÀY NÚT trên thanh, dựng từ `KHOI_MO` + khối còn sổ — và trên bản gốc
+   *    `KHOI_MO=['kvc','vp']`, không bao giờ có `mb`/`mn`. Nên mọi loại chi phí đã chuyển sang
+   *    Miền Bắc / Miền Nam đều bị `_khoaDongKhoiLa()` coi là "khối lạ": khoá mờ với TẤT CẢ
+   *    mọi người, và lượt Lưu chép nguyên bản cũ → sửa gì cũng lặng lẽ mất. Đúng cái bẫy "HAI
+   *    TRỤC TÊN GIỐNG NHAU, ĐỪNG TRỘN" đã ghi ở đầu mục MIỀN.
+   *
+   * Thước đúng chỉ hỏi ĐƠN VỊ của người này (`BOOT.khoiXem`, máy chủ suy từ cột Đơn vị / ô
+   * khối tích tay): rỗng = nhà mẹ, sửa được hết; có danh sách = chỉ khối trong đó. Một miền
+   * CHƯA CÓ ĐƠN NÀO vẫn là miền của họ — khai loại chi phí đi trước lập đơn, không thể đòi có
+   * đơn rồi mới cho khai.
+   * ═══════════════════════════════════════════════════════════════════════════════════════ */
+  function _khoiSuaDuoc(ma){
+    var ds=(window.BOOT&&BOOT.khoiXem);
+    if(!ds||!ds.length) return true;
+    var k=String(ma||'').trim().toLowerCase();
+    if(ds.indexOf(k)>=0) return true;
+    /* 🔴 CHỈ SO KHI CÙNG TRỤC. `khoiXem` suy từ ĐƠN VỊ có thể còn nói tiếng cũ (kvc · mtd · vp),
+       trong khi cột Khối của loại chi phí nay nói tiếng MIỀN (mb · mn). Người đơn vị K&H
+       (`['kvc']`) không "thuộc" Miền Nam theo nghĩa nào cả — nhưng cũng không "không thuộc":
+       hai danh sách chẳng có gì để so. Khoá lúc ấy là khoá mọi dòng miền với cả công ty (đúng
+       ảnh 23/09/2026). Nên: dòng là MIỀN mà danh sách của người này THẬT SỰ nói tiếng cũ (có mã
+       khối trong `KHOI_DS`, không có miền nào) → mở.
+       ⚠️ "Không có miền nào" chưa đủ: danh sách toàn mã lạ (không khối nào của từ điển) là người
+          chưa thuộc khối nào — không mở gì cả, cùng chốt với `addCfgLoai()` chối họ. */
+    var laMien=MIEN_MA.indexOf(k)>=0;
+    var dsCoMien=ds.some(function(x){ return MIEN_MA.indexOf(String(x).toLowerCase())>=0; });
+    var dsTiengCu=ds.some(function(x){
+      var m=String(x).toLowerCase();
+      return MIEN_MA.indexOf(m)<0 && KHOI_DS.some(function(kd){ return kd.ma===m; });
+    });
+    if(laMien && !dsCoMien && dsTiengCu) return true;
+    return false;
+  }
+  /** Các MIỀN (ô chọn Khối của loại chi phí) người này được khai — dựng nút "＋ Thêm loại" và
+      chọn khối cho dòng mới. */
+  function _mienSuaDuoc(){
+    /* ⚠️ Viết nhiều dòng, đóng bằng `\n  }` — bệ đỡ các bài kiểm bốc hàm theo mốc ấy. */
+    return _mienDs().filter(function(k){ return _khoiSuaDuoc(k.ma); });
   }
   var KHOI_DANG=(function(){
     try{ var v=localStorage.getItem('vhcpvp_khoi'); if(v) return String(v); }catch(e){}
@@ -11425,12 +11473,15 @@
     if(c && c.scrollIntoView) c.scrollIntoView({block:'start'});
   }
   // Thanh chuyển trang. Dưới 1 trang thì không vẽ gì — thêm thanh rỗng chỉ tổ rối mắt.
-  function _qtPagerHtml(khoa, tong, trang, soTrang){
+  /* `opt` (23/09/2026, tuỳ chọn) cho bảng khác mượn thanh này mà không chép: {moi: số dòng/trang,
+     ham: tên hàm đổi trang, chu: chữ gọi một dòng}. Không truyền = y như cũ (15 đơn, `qtTrang`). */
+  function _qtPagerHtml(khoa, tong, trang, soTrang, opt){
     if(soTrang<=1) return '';
-    var tu=(trang-1)*QT_MOI_TRANG+1, den=Math.min(tong, trang*QT_MOI_TRANG);
+    var moi=(opt&&opt.moi>0)?opt.moi:QT_MOI_TRANG, ham=(opt&&opt.ham)||'qtTrang', chu1=(opt&&opt.chu)||'Đơn';
+    var tu=(trang-1)*moi+1, den=Math.min(tong, trang*moi);
     var nut=function(t, chu, tat, dam){
       if(tat) return '<button class="btn b-x" disabled style="opacity:.45">'+chu+'</button>';
-      return '<button class="btn '+(dam?'b-p':'b-x')+'" onclick="qtTrang(\''+khoa+'\','+t+')">'+chu+'</button>';
+      return '<button class="btn '+(dam?'b-p':'b-x')+'" onclick="'+ham+'(\''+khoa+'\','+t+')">'+chu+'</button>';
     };
     var so='';
     if(soTrang<=9){ for(var i=1;i<=soTrang;i++) so+=nut(i, String(i), false, i===trang)+' '; }
@@ -11445,7 +11496,7 @@
       });
     }
     return '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:10px 14px;border-top:1px solid #f4f1ec">'
-      +'<span style="font-size:12px;color:#64748b">Đơn <b>'+tu+'–'+den+'</b> trên <b>'+tong+'</b></span>'
+      +'<span style="font-size:12px;color:#64748b">'+chu1+' <b>'+tu+'–'+den+'</b> trên <b>'+tong+'</b></span>'
       +'<span style="flex:1"></span>'
       +nut(trang-1,'‹ Trước',trang<=1)+' '+so+nut(trang+1,'Sau ›',trang>=soTrang)
       +'</div>';
@@ -11959,13 +12010,35 @@
       loadLenhTU();
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).dungLenhBu();
   }
+  /* 5 LỆNH MỘT TRANG — anh Thắng 23/09/2026: *"Hiện 5 đơn 1 trang thôi cho gọn, vì nó ít khi
+     dùng"*, rồi *"bên trang quyết toán nó cũng vậy"* (ảnh: 34 tờ lệnh xếp dài kín màn, ở cả hai
+     tab). Tờ lệnh là thứ kế toán mở ra để cầm đi phát tiền RỒI THÔI, không phải bảng soát hàng
+     ngày; mấy tờ mới nhất mới cần trước mắt, còn lại lật trang.
+     ⚠️ SỐ TRANG NHỚ RIÊNG TỪNG BẢNG (khoá = id thân bảng): hai bảng bày cùng một sổ nhưng ở hai
+        tab, người ở tab Quyết toán lật tới trang 4 không được kéo bảng bên tab Duyệt đi theo.
+     ⚠️ KẸP TRANG về khoảng hợp lệ: đang ở trang 7 rồi bấm ↻ Tải lại mà sổ chỉ còn 2 trang thì
+        `slice` trả rỗng và màn trắng trơn, không câu lỗi nào — đúng bẫy đã ghi ở kiem-phan-trang.
+     ⚠️ Badge (`idSo`) vẫn là TỔNG THẬT, không phải số dòng trang đang xem. */
+  var LENH_MOI_TRANG=5, LENH_TRANG={lenhTUBody:1, lenhTUBodyKT:1};
+  function lenhTUTrang(idBody, t){
+    LENH_TRANG[idBody]=Math.max(1, t);
+    renderLenhTU();
+    var c=el({lenhTUBody:'lenhTUCard', lenhTUBodyKT:'lenhTUCardKT'}[idBody]);
+    if(c && c.scrollIntoView) c.scrollIntoView({block:'start'});
+  }
   /* MỘT PHÉP VẼ, DÙNG CHO CẢ HAI CHỖ BÀY (tab Duyệt tạm ứng · tab Quyết toán của kế toán).
      Dựng hai bản vẽ riêng là hai chỗ để lệch, rồi hai màn nói hai con số cho cùng một tờ lệnh. */
   function _veLenhTU(idBody, idSo, idEmpty){
     var tb=el(idBody); if(!tb) return;
     if(el(idSo)) el(idSo).textContent=LENH_TU.length;
     if(el(idEmpty)) el(idEmpty).style.display=LENH_TU.length?'none':'';
-    tb.innerHTML=LENH_TU.map(function(L){
+    var soTrang=Math.max(1, Math.ceil(LENH_TU.length/LENH_MOI_TRANG));
+    if(!(LENH_TRANG[idBody]>=1)) LENH_TRANG[idBody]=1;
+    if(LENH_TRANG[idBody]>soTrang) LENH_TRANG[idBody]=soTrang;
+    var trang=LENH_TRANG[idBody];
+    var pg=el(idBody.replace('Body','Pager'));
+    if(pg) pg.innerHTML=_qtPagerHtml(idBody, LENH_TU.length, trang, soTrang, {moi:LENH_MOI_TRANG, ham:'lenhTUTrang', chu:'Lệnh'});
+    tb.innerHTML=LENH_TU.slice((trang-1)*LENH_MOI_TRANG, trang*LENH_MOI_TRANG).map(function(L){
       /* Cơ sở nào tạm ứng bao nhiêu, VÀ VÀO NHỮNG ĐƠN NÀO — anh Thắng 07/09/2026. Kế toán cầm
          tờ lệnh đi phát tiền phải mở được thẳng đơn để soát, chứ không quay sang bảng đơn dò
          lại theo tên cơ sở: một cơ sở có thể có mấy đơn trong cùng lượt duyệt. */
@@ -13426,7 +13499,8 @@
      * ⚠️ ĐẦU MỤC LẠ (còn trong sổ mà danh sách đã bỏ) VẪN PHẢI CÓ BẢNG. Không thì loại ấy
      *    không hiện ở đâu cả, mà lượt Lưu kế tiếp lại đọc trên màn — tức xoá sạch.
      * ══════════════════════════════════════════════════════════════════════════════════════ */
-    var duocK=_khoiDuoc().map(function(k){ return k.ma; });
+    /* ⚠️ Trục CẤU HÌNH (`_mienSuaDuoc`), không phải `_khoiDuoc()` — xem chú thích tại `_khoiSuaDuoc`. */
+    var mo=(_mienSuaDuoc().length>0);
     var dmDs=((typeof BOOT!=="undefined"&&BOOT&&BOOT.dauMucDs)||[]).slice();
     rows.forEach(function(x){
       var d=String(x.dauMuc||'').trim();
@@ -13440,7 +13514,6 @@
          đầu mục thật. Có dòng thì PHẢI bày, để người ta thấy còn gì chưa khai. */
       if(''===dm0 && !rws.length) return;
       var nhanDm=dm0||'Chưa xếp đầu mục';
-      var mo=(duocK.length>0);
       /* Bảng đầu mở sẵn; còn lại gập cho đỡ rối. Cùng luật với bảng mã bên dưới. */
       h+='<details class="mxKhoi"'+(0===iD?' open':'')+' style="margin:10px 0 4px" data-dau-muc-box="'+esc(dm0)+'">'
         +'<summary style="cursor:pointer;font-weight:700;font-size:13px;color:#171417;padding:4px 0">'
@@ -13620,13 +13693,14 @@
    *    (`saveCfgTkNoMx()` chép nguyên bản cũ cho dòng khối lạ) và ở máy chủ.
    */
   function _khoaDongKhoiLa(){
-    var duocK=_khoiDuoc().map(function(k){ return k.ma; });
-    if(!duocK.length) return;
+    /* 🔴 HỎI `_khoiSuaDuoc(k)` — TRỤC CẤU HÌNH. Bản trước hỏi `_khoiDuoc()` (trục ĐƠN) và khoá
+       nhầm MỌI dòng Miền Bắc / Miền Nam với cả người thấy cả hệ — anh Thắng 23/09/2026 *"có 1 số
+       chi phí bị ẩn"*. Xem chú thích dài tại `_khoiSuaDuoc`. */
     _mxBodies().forEach(function(body){
       Array.prototype.forEach.call(body.getElementsByTagName('tr'), function(tr){
         var s=tr.querySelector('select[data-khoi-o]');
         var k=String((s&&s.value)||'').trim().toLowerCase();
-        if(!k || duocK.indexOf(k)>=0) return;
+        if(!k || _khoiSuaDuoc(k)) return;
         tr.setAttribute('data-khoi-la','1');
         tr.title='Loại này thuộc khối '+(_tenKhoi(k)||k)+' — tài khoản của bạn thuộc đơn vị khác, xem được nhưng không sửa';
         tr.style.opacity='.62';
@@ -14369,13 +14443,19 @@
     var dm0=String(dm==null?'':dm);
     /* 🔴 CHỐI Ở ĐÂY NỮA. Nút "＋ Thêm loại" chỉ vẽ khi người ta có khối, nhưng gọi thẳng
        `addCfgLoai('…')` từ thanh địa chỉ là qua được — cùng luật với `doiKhoi()`. */
-    var duocK=_khoiDuoc().map(function(k){ return k.ma; });
-    if(!duocK.length){
+    /* ⚠️ Trục CẤU HÌNH: khối của dòng mới là một MIỀN người này khai được (`_mienSuaDuoc`),
+       không phải khối trên thanh đơn (`_khoiDuoc()` — trên bản gốc là kvc/vp, không phải miền;
+       dòng mới mang 'kvc' là mang "khối cũ" ngay lúc sinh). Xem `_khoiSuaDuoc`. */
+    var duocM=_mienSuaDuoc().map(function(k){ return k.ma; });
+    if(!duocM.length){
       toast('warn','Tài khoản của bạn chưa thuộc khối nào — không thêm loại chi phí được');
       return;
     }
-    var khoiMoi=(duocK.indexOf(String(KHOI_DANG||'').toLowerCase())>=0)
-      ? String(KHOI_DANG).toLowerCase() : duocK[0];
+    /* `duocM[0]` là đủ: có miền trong `khoiXem` thì `duocM` đúng bằng các miền ấy; không có thì
+       họ khai được cả hai và lấy miền đầu. Lọc thêm "miền nằm trong khoiXem" là mã chết — phá
+       thử 23/09/2026 đục nó mà bài vẫn xanh, nên gỡ. */
+    var khoiMoi=(duocM.indexOf(String(KHOI_DANG||'').toLowerCase())>=0)
+      ? String(KHOI_DANG).toLowerCase() : duocM[0];
     var body=_mxBodies().filter(function(b){ return String(b.getAttribute('data-dau-muc')||'')===dm0; })[0];
     if(!body){ toast('warn','Chưa thấy bảng của đầu mục này'); return; }
     if(MX_LOCK) toggleMxLock();                       // thêm dòng thì mở khóa cho gõ

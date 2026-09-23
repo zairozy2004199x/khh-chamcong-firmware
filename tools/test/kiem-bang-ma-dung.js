@@ -230,7 +230,7 @@ function dungBe(loaiChiPhi, tkNoMatrix, coso, mangTk) {
     var KHOI_DV_DUP=${bocDongMd('KHOI_DV_DUP')};
     ${boc('_khoiDvBang')}\n${boc('_khoiCuaDv')}\n${boc('_tenKhoi')}
     ${boc('_boDauVai')}\n${boc('_khoiCuaVai')}\n${boc('_vaiOKhoi')}
-    ${boc('_khoiCuaLoai')}\n${boc('_mxBodies')}\n${boc('_khoiMo')}\nvar MIEN_MA=['mb','mn'];\n${boc('_mienDs')}\n${boc('_khoiLuuTru')}\n${boc('_khoiBay')}\n${boc('_khoiDuoc')}\n${boc('_vaiConCua')}\n${boc('_vaiSelNhieu')}\n${boc('_khoiSelLoai')}
+    ${boc('_khoiCuaLoai')}\n${boc('_mxBodies')}\n${boc('_khoiMo')}\nvar MIEN_MA=['mb','mn'];\n${boc('_mienDs')}\n${boc('_khoiLuuTru')}\n${boc('_khoiBay')}\n${boc('_khoiDuoc')}\n${boc('_khoiSuaDuoc')}\n${boc('_mienSuaDuoc')}\n${boc('_vaiConCua')}\n${boc('_vaiSelNhieu')}\n${boc('_khoiSelLoai')}
     ${boc('_dvSelNhieu')}\n${boc('_loaiChoDv')}\n${boc('_mangTong')}\n${boc('_mangTongDoan')}\n${boc('_mxMaGoc')}\n${boc('_mxSapCols')}\n${boc('_mxCols')}\n${boc('_mxNhomDv')}\n${boc('_xemDuocDv')}\n${boc('_dauMucSel')}\n${boc('_mxRowHtml')}\n${boc('renderTkNoMatrix')}\n${boc('_khoaDongKhoiLa')}\n${boc('saveCfgTkNoMx')}
     return { ve: renderTkNoMatrix, luu: saveCfgTkNoMx }; }`)(moi);
   return { moi, NK, KHO, F };
