@@ -3512,7 +3512,13 @@
         '<span id="dtGhepBao" class="chu-them"></span></div>';
     }
     h += '</div>';
-    o.insertAdjacentHTML('afterbegin', h);
+    /* Bảng Ghép cơ sở đứng NGAY SAU bảng phân quyền, không chiếm đầu tab. Anh Thắng 23/09/2026 mở
+       tab Quản trị, thấy Ghép cơ sở choán cả màn và hỏi "Tab Phân Quyền bên Fabi chưa có" — bảng
+       cấp vai nằm dưới, phải cuộn mới thấy. Việc làm thường (cấp vai) phải ở trên việc làm một
+       lần (ghép mã). */
+    var pq = o.querySelector('#dtNguoiPin');
+    if (pq) pq.insertAdjacentHTML('afterend', h);
+    else o.insertAdjacentHTML('afterbegin', h);
 
     var nut = o.querySelector('#dtLuuGhep');
     if (!nut) return;
@@ -3554,7 +3560,7 @@
        đang mở cũng thấy, vai đọc lại từ bảng mỗi lượt). Đẩy lại bên Nhân sự KHÔNG xoá vai. */
     var pin = r.pin || [];
     var chuaCap = pin.filter(function (x) { return !x.vai; }).length;
-    var h = '<div class="khung" id="dtNguoiPin"><header><h2>Người đẩy từ trang Nhân sự — cấp vai</h2>' +
+    var h = '<div class="khung" id="dtNguoiPin"><header><h2>Phân quyền nộp báo cáo — người đẩy từ trang Nhân sự</h2>' +
       '<span class="goi">' + pin.length + ' người' + (chuaCap ? ' · ' + chuaCap + ' chưa cấp' : '') + '</span></header>';
     if (!pin.length) {
       h += '<div class="trong">Chưa có ai được đẩy sang. Vào trang Nhân sự, cột ' +

@@ -102,6 +102,12 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.58.1 =
+* **Bảng "Phân quyền nộp báo cáo" lên ĐẦU tab Quản trị.** Anh Thắng 23/09/2026 mở tab ra thấy Ghép cơ
+  sở choán cả màn và hỏi *"Tab Phân Quyền bên Fabi chưa có"* — bảng cấp vai (1.58.0) nằm dưới, phải
+  cuộn mới thấy. Việc làm thường (cấp vai) đứng trên việc làm một lần (ghép mã); tiêu đề đổi thành
+  "Phân quyền nộp báo cáo — người đẩy từ trang Nhân sự". Bài kiểm tĩnh thêm 2 phép canh thứ tự.
+
 = 1.58.0 =
 * 🔴 **Đẩy người từ trang Nhân sự sang CHỈ LÀ ĐẨY NGƯỜI — vai (nhập / duyệt) cấp ở tab Quản trị bên
   này.** Anh Thắng 23/09/2026: *"đẩy dữ liệu nhân sự là cửa hàng trưởng từ danh sách nhân sự qua

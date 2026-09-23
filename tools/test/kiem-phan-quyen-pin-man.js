@@ -73,6 +73,16 @@ phep("gửi ma_nv và vai", /fd\.append\(\s*'ma_nv'/.test(veQT) && /fd\.append\(
 phep("nói rõ 'Trang Nhân sự chỉ đẩy người sang; vai cấp ở đây'", /chỉ đẩy người sang; vai cấp ở đây/.test(veQT));
 phep("người mất PIN vì trùng được nêu", /mất PIN/.test(veQT));
 
+/* Bảng phân quyền đứng ĐẦU tab: Ghép cơ sở phải chèn SAU #dtNguoiPin, không chèn afterbegin nữa
+   (23/09/2026 anh Thắng mở tab ra không thấy bảng cấp vai vì nó nằm dưới Ghép cơ sở). */
+const veGhep = (function () {
+  const i = js.indexOf('function veGhep('); const j = js.indexOf('function veQuanTri(', i);
+  return i >= 0 ? js.slice(i, j) : '';
+})();
+phep("🔴 Ghép cơ sở chèn sau #dtNguoiPin (bảng phân quyền đứng đầu tab)",
+  /querySelector\(\s*'#dtNguoiPin'\s*\)[\s\S]{0,80}insertAdjacentHTML\(\s*'afterend'/.test(veGhep));
+phep("tiêu đề bảng có chữ 'Phân quyền'", /<h2>Phân quyền nộp báo cáo/.test(veQT));
+
 /* Dòng trạng thái ở tab Nhập: người PIN chưa cấp phải được nói vì sao khoá. */
 phep("tab Nhập nói 'chưa được cấp quyền nhập' cho PIN chưa cấp",
   /S\.cf\.bang_pin\s*&&\s*!S\.cf\.vai[\s\S]{0,200}chưa được cấp quyền nhập/.test(js));
