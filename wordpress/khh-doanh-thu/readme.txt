@@ -102,6 +102,17 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.58.2 =
+* 🔴 **Thoát không còn nhảy sang trang WordPress.** Anh Thắng 23/09/2026: *"đăng xuất ra nó nhảy ra
+  trang wordpress"*. Người vào bằng tài khoản trước đây thoát qua link `wp_logout_url()` → trình
+  duyệt bị đưa sang wp-login.php và (tuỳ nonce, tuỳ plugin khác, tuỳ link đẹp) không quay lại. Nay
+  nút **Thoát** dùng chung cho cả hai lối: máy chủ huỷ phiên WordPress (`wp_logout()`) lẫn phiên PIN
+  ngay trong lượt REST `dang-xuat`, màn tải lại **đúng địa chỉ đang đứng** và hiện ô gõ PIN, kèm
+  link *đăng nhập bằng tài khoản* cho người văn phòng. Link WordPress cũ chỉ còn là đường lùi khi
+  REST bị plugin bảo mật chặn.
+* `kiem-thoat-dang-nhap.py` viết lại theo lối mới (một nút, máy chủ tự thoát, tải lại trang sau khi
+  huỷ phiên WordPress vì nonce cũ đã chết).
+
 = 1.58.1 =
 * **Bảng "Phân quyền nộp báo cáo" lên ĐẦU tab Quản trị.** Anh Thắng 23/09/2026 mở tab ra thấy Ghép cơ
   sở choán cả màn và hỏi *"Tab Phân Quyền bên Fabi chưa có"* — bảng cấp vai (1.58.0) nằm dưới, phải

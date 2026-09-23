@@ -936,8 +936,23 @@
   }
 
   function thoatPin() {
-    api('dang-xuat', { method: 'POST' }).catch(function () { /* thẻ hỏng thì thôi, vẫn xoá ở máy */ })
-      .then(function () { datThe(''); S.cf = null; khoiDong(); });
+    var cf = S.cf || {};
+    var t = q('#dtThoat');
+    if (t) { t.disabled = true; t.textContent = 'Đang thoát…'; }
+    api('dang-xuat', { method: 'POST' }).then(function (r) {
+      datThe(''); S.cf = null;
+      /* Vừa huỷ phiên WordPress thì nonce REST đang cầm là của phiên đã chết: gọi tiếp
+         `cau-hinh` sẽ bị chối 403. Tải lại trang để nhận nonce mới — và tải lại ĐÚNG địa chỉ đang
+         đứng, không phụ thuộc link đẹp đã flush hay chưa. */
+      if (r && r.wp) { window.location.reload(); return; }
+      khoiDong();
+    }).catch(function () {
+      datThe(''); S.cf = null;
+      /* REST hỏng (plugin bảo mật chặn) mà đang là tài khoản WordPress thì lùi về đường thoát
+         cũ của WordPress — còn hơn kẹt lại là người trước trên máy dùng chung. */
+      if (!cf.bang_pin && cf.link_ra) { window.location.href = cf.link_ra; return; }
+      khoiDong();
+    });
   }
 
   function veNguoiXem(cf) {
@@ -956,12 +971,12 @@
          · vào bằng tài khoản -> `cf.link_ra` (wp_logout_url): thoát hẳn khỏi WordPress.
        ⚠️ Lối thứ hai phải là <a> cho người BẤM, vì wp_logout_url mang nonce — gọi bằng fetch là
           WordPress chối, và chối im lặng nên người dùng chỉ thấy nút bấm không phản hồi. */
+    /* 23/09/2026 anh Thắng: "đăng xuất ra nó nhảy ra trang wordpress". Lối <a> wp_logout_url đưa
+       người ta sang wp-login.php và không quay lại. Nay CẢ HAI lối bấm cùng một nút: REST
+       `dang-xuat` huỷ phiên WordPress lẫn phiên PIN ngay ở máy chủ, rồi màn tải lại đúng địa chỉ
+       đang đứng -> gặp ô PIN. `link_ra` chỉ còn là đường LÙI khi REST hỏng (plugin bảo mật chặn). */
     o.innerHTML = '<span class="ten">' + esc(cf.ten_toi) + '</span>' +
-      (cf.bang_pin
-        ? '<button class="vien" type="button" id="dtThoat">Thoát</button>'
-        : (cf.link_ra
-            ? '<a class="vien" href="' + esc(cf.link_ra) + '">Thoát</a>'
-            : ''));
+      '<button class="vien" type="button" id="dtThoat">Thoát</button>';
     var t = q('#dtThoat');
     if (t) t.addEventListener('click', thoatPin);
   }

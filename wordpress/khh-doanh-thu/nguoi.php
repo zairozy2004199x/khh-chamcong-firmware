@@ -644,8 +644,27 @@ function khh_dt_rest_dang_nhap( $req ) {
 	return $kq;
 }
 
+/**
+ * Thoát — MỘT cửa cho cả hai lối vào.
+ *
+ * Anh Thắng 23/09/2026: *"đăng xuất ra nó nhảy ra trang wordpress"*. Trước đó người vào bằng tài
+ * khoản thoát qua `wp_logout_url()`: trình duyệt bị đưa sang wp-login.php, và trang ấy — tuỳ nonce
+ * còn hạn không, tuỳ plugin nào móc `logout_redirect`, tuỳ link đẹp đã flush chưa — trả về một
+ * trang WordPress chứ không quay lại màn báo cáo. Nay máy chủ tự thoát ngay trong lượt REST này:
+ * phiên WordPress bị huỷ bằng `wp_logout()` (xoá cookie đăng nhập), phiên PIN bị đóng như cũ; màn
+ * chỉ cần tải lại đúng địa chỉ đang đứng là gặp ô gõ PIN.
+ *
+ * ⚠️ Không lo bị gọi chéo từ trang lạ: người WordPress chỉ "đang đăng nhập" trong REST khi kèm
+ *    X-WP-Nonce hợp lệ; thiếu nonce là khách vãng lai, `is_user_logged_in()` sai, không thoát ai.
+ */
 function khh_dt_rest_dang_xuat() {
-	return khh_dt_phien_dong();
+	$kq       = khh_dt_phien_dong();
+	$kq['wp'] = false;
+	if ( is_user_logged_in() ) {
+		wp_logout();
+		$kq['wp'] = true;
+	}
+	return $kq;
 }
 
 /** Bảng ghép + những mã đang có người mà chưa khai. */

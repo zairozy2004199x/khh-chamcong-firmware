@@ -3,7 +3,7 @@
  * Plugin Name:       K&H — Báo cáo doanh thu FABi
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Nạp file "Báo cáo bán hàng" xuất từ máy POS FABi (iPOS) và dựng báo cáo doanh thu theo ngày, cửa hàng, khung giờ, hình thức thanh toán, tại chỗ/mang về và món bán chạy. Có sẵn đường nối API FABi để bật khi iPOS cấp khoá.
- * Version:           1.58.1
+ * Version:           1.58.2
  * Requires at least: 5.8
  * Requires PHP:      7.2
  * Author:            K&H
@@ -26,7 +26,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'KHH_DT_VERSION', '1.58.1' );
+define( 'KHH_DT_VERSION', '1.58.2' );
 define( 'KHH_DT_FILE', __FILE__ );
 define( 'KHH_DT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KHH_DT_URL', plugin_dir_url( __FILE__ ) );
@@ -379,7 +379,9 @@ function khh_dt_rest_cau_hinh() {
 		   REST `dang-xuat` (đóng phiên PIN, không đụng tới đăng nhập WordPress) — hai lối khác
 		   nhau, nên phải có cả hai chứ không dùng chung một đường.
 		   ⚠️ `wp_logout_url()` mang theo nonce, nên nó phải là LINK người bấm; gọi bằng fetch là
-		   WordPress chối. Và nonce gắn với phiên hiện tại nên không cache lại được ở máy. */
+		   WordPress chối. Và nonce gắn với phiên hiện tại nên không cache lại được ở máy.
+		   Từ 1.58.2 đây chỉ là đường LÙI: nút Thoát đi qua REST `dang-xuat` (máy chủ gọi
+		   `wp_logout()`), chỉ khi REST hỏng màn mới nhảy sang link này. */
 		'link_ra'   => esc_url_raw( wp_logout_url( khh_dt_link() ) ),
 		'chua_ghep_co_so' => in_array( KHH_DT_CHUA_GHEP, $cua_ds, true ),
 		'co_api'    => (bool) get_option( 'khh_dt_api_token' ),
