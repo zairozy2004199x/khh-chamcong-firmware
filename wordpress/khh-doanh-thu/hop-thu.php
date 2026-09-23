@@ -255,6 +255,28 @@ function khh_dt_thu_nguoi_gui_hop_le( $from, $cho_phep ) {
 	return false;
 }
 
+/**
+ * Ô "Chỉ nhận thư từ" có mục nào KHÔNG PHẢI địa chỉ không — trả về câu cảnh báo, rỗng nếu ổn.
+ *
+ * Hợp lệ: `ai@dau.vn` hoặc cả tên miền `@dau.vn`. "Fabi" — tên hiển thị — không bao giờ khớp
+ * được ai, nên hệ chối hết mà không ai hiểu vì sao. Cảnh báo chứ KHÔNG tự sửa: hệ không biết
+ * người ta định gõ địa chỉ nào.
+ */
+function khh_dt_thu_nguoi_gui_canh_bao( $cho_phep ) {
+	$sai = array();
+	foreach ( array_filter( array_map( 'trim', explode( ',', (string) $cho_phep ) ) ) as $x ) {
+		if ( false === strpos( $x, '@' ) ) {
+			$sai[] = $x;
+		}
+	}
+	if ( ! $sai ) {
+		return '';
+	}
+	return '"' . implode( '", "', $sai ) . '" không phải địa chỉ email (thiếu @) — đây là TÊN HIỂN THỊ, '
+		. 'hệ không khớp tên hiển thị vì tên ấy ai cũng giả được. Gõ địa chỉ thật (ví dụ noreply@ipos.vn) '
+		. 'hoặc cả tên miền (@ipos.vn). Bấm "Lấy thư ngay" rồi nhìn nhật ký: địa chỉ thật hiện ở dòng bỏ qua.';
+}
+
 /** Tên tệp có khớp mẫu không — mẫu kiểu `*.xlsx, bao-cao-*.csv`. */
 function khh_dt_thu_ten_hop_le( $ten, $mau ) {
 	$ten = strtolower( (string) $ten );
@@ -671,27 +693,33 @@ class KHHDT_Imap {
  *
  * @return array Tóm tắt lượt chạy, và cũng là dòng ghi vào nhật ký.
  */
-function khh_dt_thu_lay() {
+function khh_dt_thu_lay( $im = null ) {
 	$c = khh_dt_thu_cf();
-	if ( ! khh_dt_thu_du_cau_hinh() ) {
+	/* `$im` truyền sẵn = seam cho bài thử: cắm một KHHDT_Imap giả có sẵn thư, để chạy THẬT vòng
+	   lọc người gửi / nạp / đánh dấu mà không cần máy chủ thư. Mã thật gọi không truyền gì. */
+	$tu_ngoai = ( $im instanceof KHHDT_Imap );
+	if ( ! $tu_ngoai && ! khh_dt_thu_du_cau_hinh() ) {
 		$kq = array( 'xong' => false, 'loi' => 'Chưa đủ cấu hình hộp thư (máy chủ, địa chỉ, mật khẩu).' );
 		khh_dt_thu_ghi_nhat_ky( $kq );
 		return $kq;
 	}
 
-	$im = new KHHDT_Imap();
-	if ( ! $im->noi( $c['may'], $c['cong'], $c['bao_mat'] )
+	if ( ! $tu_ngoai ) {
+		$im = new KHHDT_Imap();
+	}
+	if ( ! $tu_ngoai && ( ! $im->noi( $c['may'], $c['cong'], $c['bao_mat'] )
 		|| ! $im->dang_nhap( $c['nguoi'], khh_dt_thu_mat_khau() )
-		|| ! $im->chon( $c['thu_muc'] ) ) {
+		|| ! $im->chon( $c['thu_muc'] ) ) ) {
 		$kq = array( 'xong' => false, 'loi' => $im->loi() );
 		$im->dong();
 		khh_dt_thu_ghi_nhat_ky( $kq );
 		return $kq;
 	}
 
-	$uids = array_slice( $im->chua_doc(), 0, KHH_DT_THU_MOI_LUOT );
-	$nap  = array();
-	$bo   = array();
+	$uids   = array_slice( $im->chua_doc(), 0, KHH_DT_THU_MOI_LUOT );
+	$nap    = array();
+	$bo     = array();
+	$la_mat = array();   // địa chỉ gửi bị chối vì không nằm trong danh sách
 	$da   = khh_dt_thu_da_nap();
 
 	foreach ( $uids as $uid ) {
@@ -702,7 +730,16 @@ function khh_dt_thu_lay() {
 		if ( ! khh_dt_thu_nguoi_gui_hop_le( $tu, $c['nguoi_gui'] ) ) {
 			/* 🔴 KHÔNG đánh dấu đã đọc. Thư của người lạ là việc của người, không phải của hệ —
 			   đánh dấu đã đọc là hệ lặng lẽ giấu thư trong hộp thư của anh Thắng. */
-			$bo[] = array( 'vi' => 'người gửi không nằm trong danh sách', 'tu' => khh_dt_thu_dia_chi( $tu ) );
+			$dc_la = khh_dt_thu_dia_chi( $tu );
+			$bo[]  = array( 'vi' => 'người gửi không nằm trong danh sách', 'tu' => $dc_la );
+			/* 🔴 GOM ĐỊA CHỈ BỊ CHỐI RA NGOÀI, ĐỂ MÀN ĐƯA LÊN NÚT "THÊM". 23/09/2026 anh Thắng gõ
+			   "Fabi" (tên hiển thị) vào ô địa chỉ, chạy thử: "Xem 4 thư, nạp được 0 tệp" — và
+			   không hiểu vì sao. Địa chỉ thật nằm trong nhật ký nhưng phải cuộn xuống tìm rồi gõ
+			   lại tay. Đưa thẳng lên nút thì chối vẫn chối (không nới phép gác), chỉ là hết
+			   phải đoán. */
+			if ( '' !== $dc_la && ! in_array( $dc_la, $la_mat, true ) ) {
+				$la_mat[] = $dc_la;
+			}
 			continue;
 		}
 		if ( '' !== $mid && in_array( $mid, $da, true ) ) {
@@ -763,6 +800,7 @@ function khh_dt_thu_lay() {
 		'nap'    => $nap,
 		'bo'     => $bo,
 		'so_nap' => count( $nap ),
+		'nguoi_gui_la' => $la_mat,
 	);
 	khh_dt_thu_ghi_nhat_ky( $kq );
 	return $kq;
@@ -819,6 +857,7 @@ function khh_dt_rest_thu_xem() {
 		   site cài trong thư mục con, hay chạy sau proxy, là ghép ra đường sai — mà người ta
 		   dán thẳng vào Cron Jobs bên hosting rồi tưởng đã xong. */
 		'cron_url' => site_url( 'wp-cron.php' ),
+		'canh_bao_nguoi_gui' => khh_dt_thu_nguoi_gui_canh_bao( $c['nguoi_gui'] ),
 		'lan_sau'  => $sau ? gmdate( 'c', $sau ) : '',
 		'qua_han'  => khh_dt_thu_qua_han(),
 		'nhat_ky'  => khh_dt_thu_nhat_ky(),

@@ -97,6 +97,19 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.56.0 =
+* 🔴 **"Xem 4 thư, nạp được 0 tệp" giờ nói VÌ SAO.** Câu báo sau *Lấy thư ngay* gom lý do bỏ qua
+  theo nhóm (người gửi không trong danh sách / không có tệp / …) và **liệt kê địa chỉ gửi bị
+  chối**. Anh Thắng gõ `Fabi` — tên hiển thị — vào ô địa chỉ, hệ chối cả 4 thư mà không nói gì.
+* **Nút "＋ Thêm <địa chỉ>"** ngay dưới nhật ký cho từng địa chỉ bị chối ở lượt gần nhất: bấm là
+  ghép vào ô *Chỉ nhận thư từ* (không trùng) và **Lưu luôn**. Hết phải cuộn tìm, chép, gõ lại.
+* **Cảnh báo đỏ** khi ô *Chỉ nhận thư từ* có mục **không có `@`** — đó là tên hiển thị, không phải
+  địa chỉ. Hệ **cố ý không khớp tên hiển thị**: tên ấy ai cũng đặt được, nới ra là kẻ lạ đặt tên
+  "iPOS FABi" rồi gửi .csv thẳng vào kho doanh thu. Chỗ sửa là chỉ đường, không phải nới cửa.
+* Thêm seam cho bài thử cắm hộp thư giả vào `khh_dt_thu_lay()` — lần đầu vòng lọc người gửi /
+  đánh dấu đã đọc được chạy **thật** trong bài kiểm. `kiem-hop-thu.php` lên **78 phép**,
+  `kiem-hop-thu-man.py` lên **17 phép**.
+
 = 1.55.0 =
 * **Hộp thư: chế độ "hằng ngày, một lượt lúc HH:MM"** — mặc định **08:02**. FABi gửi báo cáo đúng
   08:00 mỗi sáng, nên kéo mỗi 2 giờ là 11 lượt nối IMAP vô ích một ngày. Chế độ "mỗi N giờ" vẫn

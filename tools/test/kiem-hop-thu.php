@@ -51,6 +51,24 @@ phep( 'người lạ thì chối',
 phep( 'nhiều người gửi, cách nhau dấu phẩy',
 	khh_dt_thu_nguoi_gui_hop_le( 'b@x.vn', 'a@x.vn, b@x.vn' ) );
 
+/* 🔴 TÊN HIỂN THỊ KHÔNG BAO GIỜ ĐƯỢC COI LÀ KHỚP — chống giả mạo. 23/09/2026 anh Thắng gõ
+   "Fabi" vào ô địa chỉ; hệ chối cả 4 thư và đó là ĐÚNG: tên hiển thị ai cũng đặt được, nới ra
+   là kẻ lạ đặt tên "iPOS FABi" rồi gửi .csv thẳng vào kho doanh thu. Cái phải sửa là CHỈ ĐƯỜNG,
+   không phải nới cửa. */
+phep( '🔴 gõ tên hiển thị "Fabi" thì KHÔNG khớp — kể cả khi From có đúng tên ấy',
+	! khh_dt_thu_nguoi_gui_hop_le( 'iPOS FABi <noreply@ipos.vn>', 'Fabi' ) );
+phep( 'mục không có @ thì có câu cảnh báo, nêu đúng mục sai',
+	false !== strpos( khh_dt_thu_nguoi_gui_canh_bao( 'Fabi' ), '"Fabi"' ) );
+phep( 'cảnh báo nói rõ đây là tên hiển thị và hệ không khớp tên hiển thị',
+	false !== strpos( khh_dt_thu_nguoi_gui_canh_bao( 'Fabi' ), 'TÊN HIỂN THỊ' ) );
+phep( 'danh sách toàn địa chỉ/tên miền hợp lệ thì KHÔNG cảnh báo',
+	'' === khh_dt_thu_nguoi_gui_canh_bao( 'noreply@ipos.vn, @fabi.vn' ) );
+phep( 'danh sách rỗng thì không cảnh báo ở đây (đã có cảnh báo "bỏ trống là chối hết")',
+	'' === khh_dt_thu_nguoi_gui_canh_bao( '' ) );
+phep( 'trộn đúng/sai thì chỉ nêu mục sai',
+	false !== strpos( khh_dt_thu_nguoi_gui_canh_bao( 'a@b.vn, Fabi' ), '"Fabi"' )
+	&& false === strpos( khh_dt_thu_nguoi_gui_canh_bao( 'a@b.vn, Fabi' ), 'a@b.vn' ) );
+
 /* ── 2. tên tệp và đuôi tệp ─────────────────────────────────────────────────────────── */
 phep( 'mẫu "*.xlsx" khớp', khh_dt_thu_ten_hop_le( 'bao-cao-19-09.xlsx', '*.xlsx' ) );
 phep( 'mẫu "*.xlsx" không khớp .pdf', ! khh_dt_thu_ten_hop_le( 'hoa-don.pdf', '*.xlsx' ) );
@@ -281,6 +299,40 @@ update_option( KHH_DT_THU_OPT, array( 'bat' => false, 'che_do' => 'ngay' ) );
 khh_dt_thu_dat_lich();
 phep( '🔴 tắt thì KHÔNG còn lịch nào — tắt mà vẫn chạy ngầm là tệ nhất', empty( $GLOBALS['VHCP_LICH'] ) );
 $GLOBALS['VHCP_LICH'] = array();
+
+/* ── 6c. LƯỢT CHẠY THẬT với hộp thư giả: thư người lạ bị chối, địa chỉ được gom ra ────
+      Đột biến "không gom địa chỉ bị chối" đã lọt vì chưa bài nào chạy `khh_dt_thu_lay()` thật.
+      Cắm một KHHDT_Imap giả có sẵn ba thư: hai của người lạ (một địa chỉ trùng), một của FABi
+      nhưng KHÔNG có tệp. */
+class Imap_Gia extends KHHDT_Imap {
+	public $da_doc = array();
+	private $thu = array(
+		11 => array( 'from' => 'Ke La <ke.la@spam.vn>', 'body' => "From: Ke La <ke.la@spam.vn>\r\nContent-Type: text/plain\r\n\r\nrac" ),
+		12 => array( 'from' => 'iPOS FABi <noreply@ipos.vn>', 'body' => "From: iPOS FABi <noreply@ipos.vn>\r\nContent-Type: text/plain\r\n\r\nchi co chu" ),
+		13 => array( 'from' => 'Ke La <KE.LA@spam.vn>', 'body' => "From: Ke La <KE.LA@spam.vn>\r\nContent-Type: text/plain\r\n\r\nrac 2" ),
+	);
+	public function chua_doc() { return array_keys( $this->thu ); }
+	public function dau_thu( $uid ) { return "From: " . $this->thu[ $uid ]['from'] . "\r\nMessage-ID: <m$uid\x40x>\r\n"; }
+	public function ca_thu( $uid ) { return $this->thu[ $uid ]['body']; }
+	public function danh_dau_da_doc( $uid ) { $this->da_doc[] = $uid; return true; }
+	public function dong() {}
+}
+update_option( KHH_DT_THU_OPT, array( 'bat' => true, 'nguoi_gui' => 'noreply@ipos.vn', 'mau_ten' => '*.xlsx, *.csv', 'loai' => 'pos' ) );
+update_option( KHH_DT_THU_DA, array() );
+$gia = new Imap_Gia();
+$kq  = khh_dt_thu_lay( $gia );
+phep( 'lượt chạy thật: xem đủ 3 thư', 3 === (int) $kq['xem'] );
+phep( 'không nạp được tệp nào (đúng — không thư nào có tệp)', 0 === (int) $kq['so_nap'] );
+phep( '🔴 gom địa chỉ bị chối ra kết quả, KHÔNG trùng (hai thư cùng một địa chỉ khác hoa/thường)',
+	isset( $kq['nguoi_gui_la'] ) && array( 'ke.la@spam.vn' ) === $kq['nguoi_gui_la'] );
+phep( 'thư FABi (được phép) KHÔNG bị kể vào danh sách bị chối', ! in_array( 'noreply@ipos.vn', $kq['nguoi_gui_la'], true ) );
+$ly = array_count_values( array_map( function ( $b ) { return $b['vi']; }, $kq['bo'] ) );
+phep( 'lý do bỏ qua tách đúng: 2 người lạ, 1 không có tệp',
+	2 === (int) $ly['người gửi không nằm trong danh sách'] && 1 === (int) $ly['thư không có tệp đính kèm'] );
+phep( '🔴 thư người lạ KHÔNG bị đánh dấu đã đọc — hệ không được giấu thư của người khác',
+	! in_array( 11, $gia->da_doc, true ) && ! in_array( 13, $gia->da_doc, true ) );
+phep( 'nhật ký có ghi lượt này kèm địa chỉ bị chối', array( 'ke.la@spam.vn' ) === khh_dt_thu_nhat_ky()[0]['nguoi_gui_la'] );
+update_option( KHH_DT_THU_NHAT, array() );
 
 /* ── 7. chưa đủ cấu hình thì nói ra, đừng đi nối ─────────────────────────────────────── */
 update_option( KHH_DT_THU_OPT, array( 'may' => '', 'nguoi' => '', 'mat_khau' => '' ) );
