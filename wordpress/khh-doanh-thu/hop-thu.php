@@ -59,6 +59,11 @@ function khh_dt_thu_mac_dinh() {
 		'nguoi_gui' => '',            // danh sách người gửi được phép, cách nhau bằng dấu phẩy
 		'mau_ten'   => '*.xlsx, *.csv',
 		'loai'      => 'pos',
+		/* 23/09/2026 anh Thắng xem hộp thư: FABi gửi ĐÚNG 08:00 mỗi sáng, không hơn. Kéo mỗi 2
+		   giờ là 11 lượt nối IMAP vô ích một ngày — *"vậy tự lấy lúc 8h02 đi, 1 lần thôi"*.
+		   'ngay' = hằng ngày lúc `luc`; 'gio' = mỗi N giờ (giữ lại cho nguồn gửi bất chợt). */
+		'che_do'    => 'ngay',
+		'luc'       => '08:02',
 		'gio'       => 2,
 		'co_so'     => '',            // chỉ dùng khi loại = bes
 		'tai_khoan' => '',            // chỉ dùng khi loại = momo_sk
@@ -101,9 +106,34 @@ function khh_dt_thu_nhip( $ds ) {
 	$gio = max( 1, min( 24, (int) $c['gio'] ) );
 	$ds[ KHH_DT_THU_NHIP ] = array(
 		'interval' => $gio * HOUR_IN_SECONDS,
-		'display'  => sprintf( 'K&H — mỗi %d giờ (lấy báo cáo từ hộp thư)', $gio ),
+		'display'  => sprintf( 'K&H — mỗi %d giờ (lấy báo cáo từ hộp thư, chế độ theo giờ)', $gio ),
 	);
 	return $ds;
+}
+
+/**
+ * Mốc chạy KẾ TIẾP cho chế độ hằng ngày: lần `HH:MM` gần nhất còn ở tương lai, theo MÚI GIỜ CỦA
+ * SITE — không phải UTC của máy chủ. Đặt 08:02 mà tính theo UTC là chạy lúc 15:02 Việt Nam,
+ * trễ 7 tiếng, mà màn hình vẫn ghi "lượt sau 08:02". Hàm thuần để bài thử ép được "bây giờ".
+ *
+ * @param string   $luc     'HH:MM'.
+ * @param int      $bay_gio Unix time hiện tại.
+ * @param DateTimeZone $tz  Múi giờ site (`wp_timezone()`).
+ * @return int Unix time của lượt sau.
+ */
+function khh_dt_thu_lan_sau( $luc, $bay_gio, $tz ) {
+	if ( ! preg_match( '~^(\d{1,2}):(\d{2})$~', (string) $luc, $m ) ) {
+		$m = array( '', '8', '02' );
+	}
+	$h  = max( 0, min( 23, (int) $m[1] ) );
+	$mi = max( 0, min( 59, (int) $m[2] ) );
+	$d  = new DateTime( '@' . (int) $bay_gio );
+	$d->setTimezone( $tz );
+	$d->setTime( $h, $mi, 0 );
+	if ( $d->getTimestamp() <= (int) $bay_gio ) {
+		$d->modify( '+1 day' );   // giờ ấy hôm nay đã qua -> mai
+	}
+	return $d->getTimestamp();
 }
 
 function khh_dt_thu_dat_lich() {
@@ -112,9 +142,17 @@ function khh_dt_thu_dat_lich() {
 		wp_unschedule_event( $cu, KHH_DT_THU_MOC );
 	}
 	$c = khh_dt_thu_cf();
-	if ( ! empty( $c['bat'] ) ) {
-		wp_schedule_event( time() + 120, KHH_DT_THU_NHIP, KHH_DT_THU_MOC );
+	if ( empty( $c['bat'] ) ) {
+		return;
 	}
+	if ( 'ngay' === $c['che_do'] ) {
+		/* 'daily' của WordPress = đúng 86400 giây từ mốc đầu. Việt Nam không đổi giờ mùa nên
+		   không trôi; site ở múi có DST thì mỗi năm lệch một giờ hai lần — chấp nhận, vì nguồn
+		   gửi của mình ở Việt Nam. */
+		wp_schedule_event( khh_dt_thu_lan_sau( $c['luc'], time(), wp_timezone() ), 'daily', KHH_DT_THU_MOC );
+		return;
+	}
+	wp_schedule_event( time() + 120, KHH_DT_THU_NHIP, KHH_DT_THU_MOC );
 }
 
 /**
@@ -132,9 +170,15 @@ function khh_dt_thu_qua_han() {
 	if ( ! $nk ) {
 		return false;   // chưa chạy lần nào thì chưa kết luận được gì
 	}
-	$gio  = max( 1, min( 24, (int) $c['gio'] ) );
-	$lan  = strtotime( (string) $nk[0]['luc'] );
-	return $lan && ( time() - $lan ) > 2 * $gio * HOUR_IN_SECONDS;
+	$lan = strtotime( (string) $nk[0]['luc'] );
+	if ( ! $lan ) {
+		return false;
+	}
+	/* Hằng ngày: cho trượt 2 giờ sau mốc (26h kể từ lần trước) rồi mới kêu. Mỗi N giờ: hai nhịp. */
+	$muc = ( 'ngay' === $c['che_do'] )
+		? 26 * HOUR_IN_SECONDS
+		: 2 * max( 1, min( 24, (int) $c['gio'] ) ) * HOUR_IN_SECONDS;
+	return ( time() - $lan ) > $muc;
 }
 
 add_action( KHH_DT_THU_MOC, 'khh_dt_thu_cron' );
@@ -804,6 +848,18 @@ function khh_dt_rest_thu_luu( $req ) {
 		/* Kẹp trong 1–24. Không kẹp thì gõ nhầm số 0 là lịch chạy liên tục, mỗi lượt lại nối
 		   IMAP — máy chủ thư khoá địa chỉ vì nghi dò mật khẩu, rồi cả hệ tắc mà không rõ vì sao. */
 		$moi['gio'] = max( 1, min( 24, (int) $req->get_param( 'gio' ) ) );
+	}
+	if ( null !== $req->get_param( 'che_do' ) ) {
+		$cd            = (string) $req->get_param( 'che_do' );
+		$moi['che_do'] = in_array( $cd, array( 'ngay', 'gio' ), true ) ? $cd : 'ngay';
+	}
+	if ( null !== $req->get_param( 'luc' ) ) {
+		$l = trim( (string) $req->get_param( 'luc' ) );
+		/* Chỉ nhận HH:MM hợp lệ; gõ bừa thì giữ nguyên giá trị cũ chứ không lưu rác rồi lịch
+		   lặng lẽ rơi về 08:02 mà màn vẫn hiện thứ người ta gõ. */
+		if ( preg_match( '~^([01]?\d|2[0-3]):[0-5]\d$~', $l ) ) {
+			$moi['luc'] = strlen( $l ) === 4 ? '0' . $l : $l;
+		}
 	}
 	if ( null !== $req->get_param( 'bat' ) ) {
 		$moi['bat'] = (bool) $req->get_param( 'bat' );

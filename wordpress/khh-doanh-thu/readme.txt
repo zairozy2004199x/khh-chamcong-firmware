@@ -97,6 +97,21 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.55.0 =
+* **Hộp thư: chế độ "hằng ngày, một lượt lúc HH:MM"** — mặc định **08:02**. FABi gửi báo cáo đúng
+  08:00 mỗi sáng, nên kéo mỗi 2 giờ là 11 lượt nối IMAP vô ích một ngày. Chế độ "mỗi N giờ" vẫn
+  giữ cho nguồn gửi bất chợt.
+* 🔴 **Mốc chạy tính theo múi giờ của site, không phải UTC của máy chủ.** Đặt 08:02 mà tính theo
+  UTC là chạy 15:02 giờ Việt Nam, trễ 7 tiếng, trong khi màn vẫn ghi "lượt sau 08:02". Bài thử
+  ép thẳng "bây giờ 01:00 VN" và chốt mốc ra 08:02 VN cùng ngày.
+* Quá hạn theo chế độ: hằng ngày cho trượt 26 giờ rồi mới kêu; theo giờ vẫn hai nhịp.
+* Giờ gõ sai (`25:99`) thì **giữ giá trị cũ**, không lưu rác rồi lịch lặng lẽ rơi về mặc định
+  trong khi màn vẫn hiện thứ người ta gõ.
+* **Bệ đỡ bài thử**: thêm WP-Cron (`wp_schedule_event`…) có seam `$GLOBALS['VHCP_LICH']` và
+  `site_url()`. Có seam thì chốt được **lịch đặt ra đúng mốc, đúng nhịp, tắt là hết lịch** — trước
+  đây không bài nào chạm tới `khh_dt_thu_dat_lich()`.
+* `tools/test/kiem-hop-thu.php` lên **65 phép**, thêm `tools/test/kiem-hop-thu-man.py` (8 phép).
+
 = 1.54.0 =
 * **THẺ KHO** — bấm vào tên mặt hàng trong sổ kho là mở thẻ kho của nó: **từng ngày** tồn đầu ·
   nhập · máy bán · combo tay · tồn tính · đếm · lệch · **tồn cuối**. Anh Thắng: *"tồn kho ngày

@@ -220,6 +220,68 @@ update_option( KHH_DT_THU_OPT, array( 'gio' => 999 ) );
 $ds = khh_dt_thu_nhip( array() );
 phep( 'và kẹp trên ở 24 giờ', 86400 === (int) $ds[ KHH_DT_THU_NHIP ]['interval'] );
 
+/* ── 6b. HẰNG NGÀY LÚC HH:MM — tính theo MÚI GIỜ SITE, không phải UTC ─────────────────
+      23/09/2026 anh Thắng xem hộp thư: FABi gửi đúng 08:00 mỗi sáng. *"vậy tự lấy lúc 8h02 đi,
+      1 lần thôi"*. Bẫy: đặt 08:02 mà tính theo UTC của máy chủ là chạy 15:02 giờ Việt Nam, trễ
+      7 tiếng, mà màn vẫn ghi "lượt sau 08:02". */
+$tz = new DateTimeZone( 'Asia/Ho_Chi_Minh' );
+$gio = function ( $ymd_hm ) use ( $tz ) { return ( new DateTime( $ymd_hm, $tz ) )->getTimestamp(); };
+$sau = khh_dt_thu_lan_sau( '08:02', $gio( '2026-09-23 07:30' ), $tz );
+phep( '🔴 bây giờ 07:30 -> lượt sau là 08:02 HÔM NAY (giờ VN)', $sau === $gio( '2026-09-23 08:02' ) );
+$sau = khh_dt_thu_lan_sau( '08:02', $gio( '2026-09-23 08:05' ), $tz );
+phep( 'bây giờ 08:05 (đã qua) -> 08:02 NGÀY MAI', $sau === $gio( '2026-09-24 08:02' ) );
+$sau = khh_dt_thu_lan_sau( '08:02', $gio( '2026-09-23 08:02' ), $tz );
+phep( 'đúng 08:02 thì cũng sang mai (không chạy hai lượt sát nhau)', $sau === $gio( '2026-09-24 08:02' ) );
+/* 🔴 CHỐT MÚI GIỜ: 01:00 giờ VN = 18:00 UTC hôm trước. Tính theo UTC sẽ ra 08:02 UTC = 15:02 VN. */
+$sau = khh_dt_thu_lan_sau( '08:02', $gio( '2026-09-23 01:00' ), $tz );
+phep( '🔴 tính theo múi giờ SITE: 01:00 VN -> 08:02 VN cùng ngày, không phải 15:02',
+	$sau === $gio( '2026-09-23 08:02' ) && gmdate( 'H:i', $sau ) === '01:02' );
+$sau = khh_dt_thu_lan_sau( 'rác', $gio( '2026-09-23 07:00' ), $tz );
+phep( 'giờ gõ rác thì lùi về 08:02', $sau === $gio( '2026-09-23 08:02' ) );
+
+/* Quá hạn theo chế độ: hằng ngày cho trượt 26 giờ. */
+update_option( KHH_DT_THU_OPT, array( 'bat' => true, 'che_do' => 'ngay', 'may' => 'x', 'nguoi' => 'y', 'mat_khau' => 'z' ) );
+update_option( KHH_DT_THU_NHAT, array( array( 'luc' => gmdate( 'Y-m-d H:i:s', time() - 25 * 3600 ) ) ) );
+phep( 'hằng ngày, 25 giờ chưa chạy: CHƯA kêu (còn trong biên 26h)', ! khh_dt_thu_qua_han() );
+update_option( KHH_DT_THU_NHAT, array( array( 'luc' => gmdate( 'Y-m-d H:i:s', time() - 27 * 3600 ) ) ) );
+phep( '🔴 hằng ngày, 27 giờ chưa chạy: KÊU', khh_dt_thu_qua_han() );
+update_option( KHH_DT_THU_OPT, array( 'bat' => true, 'che_do' => 'gio', 'gio' => 2, 'may' => 'x', 'nguoi' => 'y', 'mat_khau' => 'z' ) );
+update_option( KHH_DT_THU_NHAT, array( array( 'luc' => gmdate( 'Y-m-d H:i:s', time() - 5 * 3600 ) ) ) );
+phep( 'mỗi 2 giờ, 5 giờ chưa chạy: kêu (quá hai nhịp)', khh_dt_thu_qua_han() );
+update_option( KHH_DT_THU_NHAT, array() );
+
+/* Lưu qua REST: chế độ lạ về "ngay"; giờ gõ rác thì GIỮ giá trị cũ, không lưu rác. */
+update_option( KHH_DT_THU_OPT, array( 'luc' => '08:02' ) );
+khh_dt_rest_thu_luu( new WP_REST_Request( array( 'che_do' => 'tuan', 'luc' => '25:99' ) ) );
+$c = khh_dt_thu_cf();
+phep( 'chế độ lạ rơi về "ngay"', 'ngay' === $c['che_do'] );
+phep( '🔴 giờ gõ rác thì GIỮ 08:02, không lưu "25:99"', '08:02' === $c['luc'] );
+khh_dt_rest_thu_luu( new WP_REST_Request( array( 'luc' => '7:45' ) ) );
+phep( '"7:45" được chuẩn thành "07:45"', '07:45' === khh_dt_thu_cf()['luc'] );
+phep( 'mặc định là hằng ngày 08:02', 'ngay' === khh_dt_thu_mac_dinh()['che_do'] && '08:02' === khh_dt_thu_mac_dinh()['luc'] );
+
+/* 🔴 LỊCH ĐẶT RA PHẢI ĐÚNG MỐC VÀ ĐÚNG NHỊP — nhìn thẳng vào seam WP-Cron của stub. */
+$GLOBALS['VHCP_LICH'] = array();
+update_option( KHH_DT_THU_OPT, array( 'bat' => true, 'che_do' => 'ngay', 'luc' => '08:02' ) );
+khh_dt_thu_dat_lich();
+$l = isset( $GLOBALS['VHCP_LICH'][ KHH_DT_THU_MOC ] ) ? $GLOBALS['VHCP_LICH'][ KHH_DT_THU_MOC ] : null;
+phep( '🔴 hằng ngày: có đặt lịch', null !== $l );
+phep( '🔴 hằng ngày: nhịp là "daily" của WordPress, không phải nhịp N giờ', $l && 'daily' === $l['nhip'] );
+$mong = khh_dt_thu_lan_sau( '08:02', time(), wp_timezone() );
+phep( '🔴 hằng ngày: mốc đầu = lượt 08:02 kế tiếp theo múi giờ site (lệch ≤ 2 giây)', $l && abs( $l['ts'] - $mong ) <= 2 );
+phep( 'mốc ấy ở tương lai', $l && $l['ts'] > time() );
+
+update_option( KHH_DT_THU_OPT, array( 'bat' => true, 'che_do' => 'gio', 'gio' => 3 ) );
+khh_dt_thu_dat_lich();
+$l = $GLOBALS['VHCP_LICH'][ KHH_DT_THU_MOC ];
+phep( 'mỗi N giờ: nhịp là nhịp riêng của plugin', KHH_DT_THU_NHIP === $l['nhip'] );
+phep( 'đổi chế độ thì lịch cũ bị gỡ, chỉ còn MỘT lịch', 1 === count( $GLOBALS['VHCP_LICH'] ) );
+
+update_option( KHH_DT_THU_OPT, array( 'bat' => false, 'che_do' => 'ngay' ) );
+khh_dt_thu_dat_lich();
+phep( '🔴 tắt thì KHÔNG còn lịch nào — tắt mà vẫn chạy ngầm là tệ nhất', empty( $GLOBALS['VHCP_LICH'] ) );
+$GLOBALS['VHCP_LICH'] = array();
+
 /* ── 7. chưa đủ cấu hình thì nói ra, đừng đi nối ─────────────────────────────────────── */
 update_option( KHH_DT_THU_OPT, array( 'may' => '', 'nguoi' => '', 'mat_khau' => '' ) );
 phep( 'thiếu cấu hình thì biết là thiếu', ! khh_dt_thu_du_cau_hinh() );

@@ -950,6 +950,35 @@ function vhd_dung_bang() {
 
 /* Múi giờ của website. WordPress thật đọc `timezone_string` rồi tới `gmt_offset`. Bản giả này
    để phép thử dựng được cả hai ca: đúng giờ Việt Nam, và ca UTC mà máy chủ mới cài hay dính. */
+/* ---- WP-Cron tối giản, có seam ------------------------------------------------------------
+   $GLOBALS['VHCP_LICH'] = [ hook => [ 'ts' => mốc, 'nhip' => tên nhịp, 'args' => … ] ].
+   Có seam thì bài thử chốt được "đặt lịch ĐÚNG MỐC, ĐÚNG NHỊP" — chứ không chỉ "không nổ".
+   Bài hộp thư đã vấp: lịch hằng ngày đặt sai múi giờ là chạy trễ 7 tiếng mà mọi phép vẫn xanh. */
+if ( ! function_exists( 'wp_next_scheduled' ) ) {
+	function wp_next_scheduled( $hook, $args = array() ) {
+		return isset( $GLOBALS['VHCP_LICH'][ $hook ] ) ? (int) $GLOBALS['VHCP_LICH'][ $hook ]['ts'] : false;
+	}
+	function wp_schedule_event( $ts, $nhip, $hook, $args = array() ) {
+		$GLOBALS['VHCP_LICH'][ $hook ] = array( 'ts' => (int) $ts, 'nhip' => (string) $nhip, 'args' => $args );
+		return true;
+	}
+	function wp_unschedule_event( $ts, $hook, $args = array() ) {
+		unset( $GLOBALS['VHCP_LICH'][ $hook ] );
+		return true;
+	}
+	function wp_clear_scheduled_hook( $hook, $args = array() ) {
+		unset( $GLOBALS['VHCP_LICH'][ $hook ] );
+		return 1;
+	}
+}
+
+if ( ! function_exists( 'site_url' ) ) {
+	function site_url( $duong = '', $scheme = null ) { return 'https://example.test/' . ltrim( (string) $duong, '/' ); }
+}
+if ( ! function_exists( 'home_url' ) ) {
+	function home_url( $duong = '', $scheme = null ) { return 'https://example.test/' . ltrim( (string) $duong, '/' ); }
+}
+
 function wp_timezone() {
 	$s = get_option( 'timezone_string' );
 	if ( is_string( $s ) && '' !== $s ) { return new DateTimeZone( $s ); }
