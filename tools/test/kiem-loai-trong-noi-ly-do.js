@@ -51,7 +51,7 @@ function bocDong(ten) { const i = HTML.indexOf('  var ' + ten + '='); return i <
 const HAM = ['_bpTach', '_vaiTachLoai', '_tkNoCua', '_tkNoList', '_tapTkCo', '_mangCua', '_mangPham',
   '_donNhieuCoSo', '_khoaNhom', '_khoiCuaLoai', '_locLoaiTheoKhoi', '_vaiDungDuocLoai', '_boDauVai', '_bpCuaVai', '_bpCuaToi',
   '_khoiDvBang', '_khoiCuaDv', '_khoiCuaGian', '_gianHopKhoi', '_tenKhoi', '_loaiCpList', '_loaiCpVi'];
-const NEN = bocMang('KHOI_DS') + '\n' + bocDong('KHOI_DV_DUP') + '\n'
+const NEN = bocMang('KHOI_DS') + '\n' + bocDong('MIEN_MA') + '\n' + bocDong('KHOI_DV_DUP') + '\n'
   + bocMang('BP_THEO_TEN_VAI') + '\n' + HAM.map(bocHam).join('\n');
 t('⚠️ nền chạy thử dựng được', NEN.replace(/\s/g, '').length > 1500, NEN.length);
 HAM.forEach(function (h) { t('⚠️ bốc được `' + h + '`', bocHam(h).length > 20); });

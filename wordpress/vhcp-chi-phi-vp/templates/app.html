@@ -1718,8 +1718,8 @@
     <div class="card" id="luongBpCard">
       <div class="ch"><h2>🧭 Luồng duyệt theo bộ phận</h2><div style="display:flex;gap:8px"><button class="btn b-g" onclick="saveCfgLuongBp()">💾 Lưu luồng</button></div></div>
       <div style="padding:8px 14px 0;font-size:12px;color:#64748b">
-        Đơn do người của bộ phận ấy lập sẽ <b>mồi sẵn</b> luồng này lúc bấm ＋ Tạo đơn mới —
-        <b>người lập vẫn đổi được</b> trên từng đơn. Luồng đã chọn được <b>đóng dấu vào đơn</b> ngay
+        Đơn do người của bộ phận ấy lập sẽ <b>đi luồng này</b> — hộp ＋ Tạo đơn mới <b>không hỏi nữa</b>,
+        chỉ nói đơn đi đường nào (tránh nhân viên chọn nhầm). Luồng được <b>đóng dấu vào đơn</b> ngay
         lúc lập, nên sửa bảng này <b>không</b> làm đơn đang chạy dở đổi đường.<br>
         Để trống = <b>theo khối như cũ</b> (Máy tự động · Văn phòng đi <b>Duyệt chi</b>, còn lại đi <b>Qua tạm ứng</b>).
       </div>
@@ -1969,7 +1969,7 @@
            ⚠️ HAI NÚT TO, KHÔNG PHẢI Ô CHỌN XỔ XUỐNG: mỗi luồng cần một câu giải thích, mà ô
               chọn thì chỉ chứa được một dòng chữ. Đây là câu hỏi người ta chỉ trả lời đúng khi
               hiểu, không phải một thuộc tính để tích cho xong. -->
-      <div class="fld" style="margin-bottom:14px"><label>Đơn này đi luồng nào?</label>
+      <div class="fld" style="margin-bottom:14px"><label id="ndLuongLbl">Đơn này đi luồng nào?</label>
         <div id="ndLuongBox" style="display:flex;flex-direction:column;gap:8px"></div>
         <div id="ndLuongVi" style="font-size:11.5px;color:#8c8781;margin-top:5px"></div></div>
       <div class="fld" style="margin-bottom:16px"><label>Người lập</label>
@@ -4382,8 +4382,11 @@
    *    tính) → rồi mới tới đường lui theo khối (`KHOI_LUONG_CHI`, đúng phép `luong_cua()`).
    *    Lệch một bậc là cái màn bày ra khác cái sổ ghi xuống.
    *
-   * ⚠️ MỒI, KHÔNG PHẢI KHOÁ. Anh Thắng chốt *"bộ phận khai, đơn vẫn sửa được"* — nên đây chỉ là
-   *    nút nào sáng lúc mở hộp; bấm nút khác là đổi được ngay.
+   * 🔴 ĐỔI 23/09/2026 — BỘ PHẬN ĐÃ CHỐT THÌ KHOÁ, KHÔNG CÒN LÀ MỒI. Anh Thắng: *"Đã chọn luồng
+   *    duyệt thì ẩn đi, để tránh nhân viên nhầm"* (ảnh: NV cơ sở mở hộp Tạo đơn vẫn thấy ba nút
+   *    Qua tạm ứng · Trực tiếp · Duyệt chi dù bộ phận Cơ sở đã khai Qua tạm ứng). Lật quyết định
+   *    22/09 *"bộ phận khai, đơn vẫn sửa được"*. Nay: bộ phận có luồng → `_luongKhoa()` trả mã,
+   *    hộp chỉ NÓI đơn đi đường nào, không bày nút; bộ phận để trống → vẫn ba nút như cũ.
    * ══════════════════════════════════════════════════════════════════════════════════════════ */
   function _luongMoi(){
     var bo=String((BOOT&&BOOT.luongBo)||'').trim().toLowerCase();
@@ -4392,9 +4395,24 @@
        để người lập thấy trước đơn sẽ đi đâu. */
     return (KHOI_LUONG_CHI.indexOf(String(KHOI_DANG||'').toLowerCase())>=0) ? 'dc' : 'gt';
   }
+  /** Luồng bộ phận đã CHỐT cho người này — '' nếu bộ phận để trống (khi đó mới hỏi). */
+  function _luongKhoa(){
+    var bo=String(((typeof BOOT!=='undefined')&&BOOT&&BOOT.luongBo)||'').trim().toLowerCase();
+    return (bo==='tt'||bo==='gt'||bo==='dc') ? bo : '';
+  }
   function veNdLuong(){
     var box=el('ndLuongBox'); if(!box) return;
-    box.innerHTML=ND_LUONG_DS.map(function(x){
+    var khoa=_luongKhoa();
+    var lbl=el('ndLuongLbl'); if(lbl) lbl.textContent=khoa?'Luồng của đơn':'Đơn này đi luồng nào?';
+    if(khoa){
+      /* 🔴 KHOÁ THẬT, KHÔNG CHỈ GIẤU NÚT: gán lại `ND_LUONG` ở đây để giá trị gửi lên máy chủ
+         đúng bằng luồng bộ phận, kể cả khi ai đó đã đổi biến bằng cách khác. */
+      ND_LUONG=khoa;
+      var k=ND_LUONG_DS.filter(function(x){ return x.ma===khoa; })[0];
+      box.innerHTML='<div style="padding:10px 12px;border:1px solid #e5e1da;border-radius:9px;background:#f8f6f2;line-height:1.5">'
+        +'🔒 <b>'+esc(k?k.ten:khoa)+'</b> <span style="font-size:11.5px;color:#64748b">— theo bộ phận của bạn đã khai, không chọn ở đây. '
+        +'Muốn đi đường khác, nhờ kế toán sửa ở ⚙️ Cấu hình › Luồng duyệt theo bộ phận.</span></div>';
+    } else box.innerHTML=ND_LUONG_DS.map(function(x){
       var on=(ND_LUONG===x.ma);
       return '<button type="button" class="btn '+(on?'b-p':'b-x')+'" onclick="ndChonLuong('
         +JSON.stringify(x.ma).replace(/"/g,'&quot;')+')" style="text-align:left;padding:10px 12px;line-height:1.4">'
@@ -4406,6 +4424,9 @@
       vi.textContent=c?c.vi:'';
     }
   }
+  /* ⚠️ KHÔNG chối ở đây khi bộ phận đã chốt — `veNdLuong()` (gọi ngay dưới) LUÔN kéo `ND_LUONG`
+     về luồng bộ phận, nên gọi thẳng `ndChonLuong('tt')` từ thanh địa chỉ cũng vô hiệu. Một phép
+     chối thêm ở đây là đột biến tương đương (phá thử 23/09/2026: đục nó mà bài vẫn xanh). */
   function ndChonLuong(ma){
     if(!ND_LUONG_DS.some(function(x){ return x.ma===ma; })) return;   /* mã lạ: bỏ qua, đừng đổi */
     ND_LUONG=ma; veNdLuong();
@@ -6653,9 +6674,17 @@
    * ⚠️ VẪN LÀ Ô NHẬP, không phải ô xổ đóng: gian mới chưa có trong danh mục phải gõ được, không
    *    thì đơn Setup gian mới không nhập nổi dòng nào.
    * ═════════════════════════════════════════════════════════════════════════════════ */
+  /* 🔴 CHỈ SO KHI CÙNG TRỤC (23/09/2026). Ảnh anh Thắng: NV cơ sở Khu vui chơi mở "Tạm ứng xin",
+     ô Cơ sở chỉ còn dấu "—". Vì từ 22/09 cột Khối của CƠ SỞ nói tiếng MIỀN (mb · mn), còn khối
+     ĐANG ĐỨNG trên thanh đơn của bản gốc vẫn là 'kvc' — so 'mn' với 'kvc' thì không gian nào
+     khớp, và hộp trắng trơn với cả công ty. Hai trục khác nhau thì KHÔNG so: gian miền hiện ở
+     tab khối cũ; đứng ở tab miền (người tích Bắc/Nam) mới lọc gian theo miền. Cùng luật với
+     `_khoiSuaDuoc()` bên Cấu hình. */
   function _gianHopKhoi(ten){
-    var k=_khoiCuaGian(ten);
-    return k==='' || k===String(KHOI_DANG).toLowerCase();
+    var k=_khoiCuaGian(ten), d=String(KHOI_DANG==null?'':KHOI_DANG).toLowerCase();
+    if(k==='' || k===d) return true;
+    var mienK=MIEN_MA.indexOf(k)>=0, mienD=MIEN_MA.indexOf(d)>=0;
+    return mienK!==mienD;
   }
   /* Danh sách GỐC máy chủ gửi về, chưa lọc — giữ lại để đổi khối còn lọc lại mà không phải
      hỏi máy chủ lần nữa. */
@@ -12583,7 +12612,7 @@
        luồng duyệt không phải một thứ quyền, nó là ĐƯỜNG ĐI của đơn. Đặt ngay sau nhóm người vì
        nó tra bộ phận — mà bộ phận khai ở hàng Người dùng ngay trên. */
     { ten:'🧭 Luồng duyệt theo bộ phận',  id:['luongBpCard'],
-      mo:'Bộ phận nào đi đường nào: qua tạm ứng · trực tiếp · duyệt chi. Chỉ là mồi sẵn — người lập vẫn đổi được trên từng đơn.' },
+      mo:'Bộ phận nào đi đường nào: qua tạm ứng · trực tiếp · duyệt chi. Đã chọn thì hộp Tạo đơn không hỏi nữa; để trống mới cho người lập chọn.' },
     { ten:'🧮 Danh mục chi phí & tài khoản', id:['loaiMxCard','tkCoCard','heTkCard'],
       mo:'Chi phí này là chi phí gì, và đi vào tài khoản nào khi xuất MISA.' },
     /* ⚠️ `qrCard` đã gộp vào `heTkCard` — nhóm này giờ chỉ còn mốc tuần. */
