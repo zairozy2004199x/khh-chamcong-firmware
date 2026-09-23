@@ -10,7 +10,7 @@
  * và không sổ nào báo.
  *
  * Ba cửa phải qua cả ba, và bài này thử phá từng cửa một:
- *   ① phiên trạm  ② vai ADMIN trong app  ③ mật khẩu WordPress CÓ quyền `install_plugins`
+ *   ① phiên trạm  ② vai ADMIN trong app  ③ gõ lại PIN CỦA CHÍNH MÌNH (anh Thắng chọn 23/09/2026)
  *
  * Cộng phép soi ruột tệp .zip: đường dẫn vượt cấp · nhiều thư mục gốc · không phải họ `vhcp-` ·
  * thiếu tệp chính · tệp chính không phải plugin.
@@ -27,37 +27,6 @@ if ( ! function_exists( 'hash_equals' ) ) {
 	function hash_equals( $a, $b ) { return (string) $a === (string) $b; }
 }
 if ( ! function_exists( 'is_plugin_active' ) ) { function is_plugin_active( $d ) { return true; } }
-
-/* Sổ tài khoản WordPress GIẢ — `wp_authenticate()` thật hỏi CSDL của WordPress, thứ không có ở
-   đây. Giả lập đúng hai điều mà mã đang dựa vào: mật khẩu đúng/sai, và có/không `install_plugins`. */
-$GLOBALS['WP_USERS'] = array();
-function wp_them_user( $login, $pass, $co_quyen ) {
-	$u = new stdClass();
-	$u->ID = count( $GLOBALS['WP_USERS'] ) + 1;
-	$u->user_login = $login;
-	$u->__pass = $pass;
-	$u->__cap  = (bool) $co_quyen;
-	$GLOBALS['WP_USERS'][ $login ] = $u;
-	return $u;
-}
-if ( ! function_exists( 'wp_authenticate' ) ) {
-	function wp_authenticate( $login, $pass ) {
-		/* ⚠️ Trả HAI mã lỗi khác nhau y như `wp_authenticate()` thật (`invalid_username` và
-		   `incorrect_password`). Gộp một mã là bài kiểm không thể thấy được lúc nào mã nguồn
-		   lỡ để lộ "tên này có thật" ra câu báo. */
-		$u = isset( $GLOBALS['WP_USERS'][ $login ] ) ? $GLOBALS['WP_USERS'][ $login ] : null;
-		if ( ! $u ) { return new WP_Error( 'invalid_username', 'Không có tài khoản này' ); }
-		if ( ! hash_equals( $u->__pass, (string) $pass ) ) {
-			return new WP_Error( 'incorrect_password', 'Sai mật khẩu' );
-		}
-		return $u;
-	}
-}
-if ( ! function_exists( 'user_can' ) ) {
-	function user_can( $u, $cap ) {
-		return is_object( $u ) && ! empty( $u->__cap ) && 'install_plugins' === $cap;
-	}
-}
 
 vhcp_test_boot( $goc . '/wordpress/vhcp-chi-phi' );
 vhcc_test_boot( $goc . '/wordpress/vhcp-cham-cong' );
@@ -92,6 +61,15 @@ function than_plugin( $ten ) {
 $NV    = array( 'ma_nv' => 'NV01', 'role' => 'Nhân viên' );
 $QL    = array( 'ma_nv' => 'QL01', 'role' => 'Quản lý' );
 $ADMIN = array( 'ma_nv' => 'AD01', 'role' => 'Admin' );
+
+/* PIN của từng người — cùng nguồn với cửa trạm (`VHCC_Tram::tim_pin`, kho `phan_quyen`). */
+global $wpdb;
+$wpdb->insert( VHCC_DB::t( 'phan_quyen' ), array( 'pin' => '246810', 'ho_ten' => 'Admin A',
+	'vai_tro' => 'Admin', 'ma_cc_online' => 'AD01', 'coso_cc_online' => 'CS1' ) );
+$wpdb->insert( VHCC_DB::t( 'phan_quyen' ), array( 'pin' => '111222', 'ho_ten' => 'NV B',
+	'vai_tro' => 'Nhân viên', 'ma_cc_online' => 'NV01', 'coso_cc_online' => 'CS1' ) );
+$wpdb->insert( VHCC_DB::t( 'phan_quyen' ), array( 'pin' => '333444', 'ho_ten' => 'Admin C',
+	'vai_tro' => 'Admin', 'ma_cc_online' => 'AD02', 'coso_cc_online' => 'CS1' ) );
 
 /* ═══════════════════════════════════════════ ⓪ ĐỌC DANH SÁCH PLUGIN ĐANG CÀI ═══════════ */
 /* 🔴 Đọc THẲNG thư mục, KHÔNG qua `get_plugins()` — hàm ấy chỉ có ở wp-admin và trang này là
@@ -236,73 +214,75 @@ file_put_contents( $khong_zip, str_repeat( 'x', 500 ) );
 $r = VHCC_NapPlugin::kiem_tep( $khong_zip, 'gia.zip' );
 t( 'Tệp không phải zip thật thì chối', empty( $r['ok'] ), $r );
 
-/* ══════════════════════════════════════════════ ③ CỬA MẬT KHẨU WORDPRESS ═══════════════ */
-wp_them_user( 'sep', 'MatKhauRatDai#2026', true );      // có quyền cài plugin
-wp_them_user( 'khach', 'KhachQua#2026', false );        // KHÔNG có quyền
+/* ═══════════════════════════════════════════════ ③ CỬA PIN: PHẢI LÀ PIN CỦA CHÍNH MÌNH ═══ */
+$GLOBALS['VHCP_TR'] = array();
+$r = VHCC_NapPlugin::kiem_pin( $ADMIN, '246810' );
+t( 'PIN của chính mình thì qua', ! empty( $r['ok'] ), $r );
 
-$GLOBALS['VHCP_TR'] = array();                          // xoá bộ đếm lượt sai
-$r = VHCC_NapPlugin::kiem_mat_khau( 'sep', 'MatKhauRatDai#2026' );
-t( 'Mật khẩu đúng + có quyền thì qua', ! empty( $r['ok'] ), $r );
-
-$r = VHCC_NapPlugin::kiem_mat_khau( 'khach', 'KhachQua#2026' );
-t( '🔴 Mật khẩu ĐÚNG nhưng tài khoản KHÔNG có quyền cài plugin thì CHỐI', empty( $r['ok'] ), $r );
+$r = VHCC_NapPlugin::kiem_pin( $ADMIN, '333444' );
+t( '🔴 PIN của một ADMIN KHÁC thì CHỐI — phải là người đang đứng trong phiên', empty( $r['ok'] ), $r );
+$r2 = VHCC_NapPlugin::kiem_pin( $ADMIN, '999999' );
+t( 'PIN sai hẳn thì chối', empty( $r2['ok'] ), $r2 );
+t( '🔴 PIN của người khác và PIN sai hẳn trả CÙNG một câu — không biến ô nhập thành máy dò PIN',
+	$r['error'] === $r2['error'], array( $r['error'], $r2['error'] ) );
+t( 'PIN của nhân viên khác cũng chối', empty( VHCC_NapPlugin::kiem_pin( $ADMIN, '111222' )['ok'] ) );
 
 $GLOBALS['VHCP_TR'] = array();
-$r1 = VHCC_NapPlugin::kiem_mat_khau( 'sep', 'sai-bet' );
-$r2 = VHCC_NapPlugin::kiem_mat_khau( 'khong-co-ai', 'sai-bet' );
-t( 'Mật khẩu sai thì chối', empty( $r1['ok'] ) );
-t( '🔴 Sai TÊN và sai MẬT KHẨU trả CÙNG một câu — không biến ô nhập thành máy dò tên admin',
-	$r1['error'] === $r2['error'], array( $r1['error'], $r2['error'] ) );
-
-$GLOBALS['VHCP_TR'] = array();
-for ( $i = 0; $i < VHCC_NapPlugin::SAI_TOI_DA; $i++ ) {
-	VHCC_NapPlugin::kiem_mat_khau( 'sep', 'sai-' . $i );
-}
-$r = VHCC_NapPlugin::kiem_mat_khau( 'sep', 'MatKhauRatDai#2026' );
+for ( $i = 0; $i < VHCC_NapPlugin::SAI_TOI_DA; $i++ ) { VHCC_NapPlugin::kiem_pin( $ADMIN, '10000' . $i ); }
+$r = VHCC_NapPlugin::kiem_pin( $ADMIN, '246810' );
 t( '🔴 Gõ sai quá mức thì KHOÁ, kể cả khi sau đó gõ ĐÚNG', empty( $r['ok'] ), $r );
 t( 'và nói rõ là đang bị khoá', false !== strpos( $r['error'], 'thử lại sau' ), $r );
 
 $GLOBALS['VHCP_TR'] = array();
-VHCC_NapPlugin::kiem_mat_khau( '', '' );
-VHCC_NapPlugin::kiem_mat_khau( 'sep', '' );
-t( '⚠️ Bỏ trống KHÔNG tính là một lượt dò', 0 === (int) VHCC_NapPlugin::con_duoc_thu()['daSai'],
-	VHCC_NapPlugin::con_duoc_thu() );
-
-$GLOBALS['VHCP_TR'] = array();
-VHCC_NapPlugin::kiem_mat_khau( 'sep', 'MatKhauRatDai#2026' );
+VHCC_NapPlugin::kiem_pin( $ADMIN, '' );
+VHCC_NapPlugin::kiem_pin( $ADMIN, '   ' );
+t( '⚠️ Bỏ trống KHÔNG tính là một lượt dò', 0 === (int) VHCC_NapPlugin::con_duoc_thu()['daSai'] );
+VHCC_NapPlugin::kiem_pin( $ADMIN, '246810' );
 t( '⚠️ Lượt ĐÚNG cũng không tính — không thì người làm thật tự khoá mình',
 	0 === (int) VHCC_NapPlugin::con_duoc_thu()['daSai'] );
+
+$GLOBALS['VHCP_TR'] = array();
+/* `pin_sach()` lọc hết chữ: 'abc' thành rỗng — là gõ nhầm bàn phím, KHÔNG phải một lượt dò,
+   nên không đếm (cùng luật với bỏ trống). Còn '12' là số thật nhưng quá ngắn: đó là một lượt dò. */
+$r = VHCC_NapPlugin::kiem_pin( $ADMIN, 'abc' );
+t( 'PIN toàn chữ thì chối như bỏ trống, KHÔNG đếm', empty( $r['ok'] )
+	&& 0 === (int) VHCC_NapPlugin::con_duoc_thu()['daSai'], $r );
+$r = VHCC_NapPlugin::kiem_pin( $ADMIN, '12' );
+t( 'PIN quá ngắn thì chối và TÍNH một lượt', empty( $r['ok'] )
+	&& 1 === (int) VHCC_NapPlugin::con_duoc_thu()['daSai'], $r );
+t( 'Phiên không có Mã NV thì chối',
+	empty( VHCC_NapPlugin::kiem_pin( array( 'ma_nv' => '', 'role' => 'Admin' ), '246810' )['ok'] ) );
 
 /* ══════════════════════════════════════════ ④ GHÉP BA CỬA: THỨ TỰ PHẢI ĐÚNG ════════════ */
 $GLOBALS['VHCP_TR'] = array();
 $tep_ok = array( 'tmp_name' => $tot, 'name' => 'vhcp-thu.zip', 'error' => UPLOAD_ERR_OK );
 
-$r = VHCC_NapPlugin::nap( $NV, 'sep', 'MatKhauRatDai#2026', $tep_ok );
-t( '🔴 Nhân viên có TRONG TAY mật khẩu admin WordPress vẫn bị chối', empty( $r['ok'] ), $r );
+$r = VHCC_NapPlugin::nap( $NV, '111222', $tep_ok );
+t( '🔴 Nhân viên gõ ĐÚNG PIN của mình vẫn bị chối — cửa vai đứng trước', empty( $r['ok'] ), $r );
 /* 🔴 Và chối Ở ĐÚNG CỬA VAI. Bỏ phép kiểm vai đi thì lượt này vẫn hỏng — nhưng hỏng mãi tận
    bước gọi bộ cài của WordPress, tức mã đã đi qua cả phép kiểm mật khẩu. Trên máy thật, chỗ ấy
    KHÔNG hỏng: bộ cài có đủ, và plugin được cài bởi một nhân viên. */
 t( '🔴 và chối ĐÚNG ở cửa vai, không phải rơi xuống tận bước cài',
 	false !== strpos( $r['error'], 'Nạp plugin' ), $r );
-t( 'và KHÔNG tốn lượt thử mật khẩu nào', 0 === (int) VHCC_NapPlugin::con_duoc_thu()['daSai'] );
+t( 'và KHÔNG tốn lượt thử PIN nào', 0 === (int) VHCC_NapPlugin::con_duoc_thu()['daSai'] );
 
-$r = VHCC_NapPlugin::nap( $ADMIN, 'khach', 'KhachQua#2026', $tep_ok );
-t( '🔴 Admin app + tài khoản WordPress KHÔNG có quyền cài thì vẫn chối', empty( $r['ok'] )
-	&& false !== strpos( $r['error'], 'không có quyền cài plugin' ), $r );
+$r = VHCC_NapPlugin::nap( $ADMIN, '333444', $tep_ok );
+t( '🔴 Admin app gõ PIN của admin KHÁC thì vẫn chối ở cửa PIN', empty( $r['ok'] )
+	&& 'PIN không đúng.' === $r['error'], $r );
 
-$r = VHCC_NapPlugin::nap( $ADMIN, 'sep', 'MatKhauRatDai#2026', array( 'tmp_name' => '' ) );
+$r = VHCC_NapPlugin::nap( $ADMIN, '246810', array( 'tmp_name' => '' ) );
 t( 'Chưa chọn tệp thì báo rõ', empty( $r['ok'] )
 	&& false !== strpos( $r['error'], 'Chưa chọn tệp' ), $r );
 
-$r = VHCC_NapPlugin::nap( $ADMIN, 'sep', 'MatKhauRatDai#2026',
+$r = VHCC_NapPlugin::nap( $ADMIN, '246810',
 	array( 'tmp_name' => $tot, 'name' => 'x.zip', 'error' => UPLOAD_ERR_INI_SIZE ) );
 t( 'Tải lên hỏng giữa chừng thì báo rõ, KHÔNG cài', empty( $r['ok'] )
 	&& false !== strpos( $r['error'], 'Tải tệp lên không xong' ), $r );
 
 $GLOBALS['VHCP_TR'] = array();
-$r = VHCC_NapPlugin::nap( $ADMIN, 'sep', 'MatKhauRatDai#2026',
+$r = VHCC_NapPlugin::nap( $ADMIN, '246810',
 	array( 'tmp_name' => $gia, 'name' => 'vhcp-cham-cong.zip', 'error' => UPLOAD_ERR_OK ) );
-t( '🔴 Admin + mật khẩu đúng, nhưng tệp sai ruột thì vẫn KHÔNG cài', empty( $r['ok'] )
+t( '🔴 Admin + PIN đúng, nhưng tệp sai ruột thì vẫn KHÔNG cài', empty( $r['ok'] )
 	&& false !== strpos( $r['error'], 'chỉ nhận plugin họ' ), $r );
 
 /* ⑤ dọn */

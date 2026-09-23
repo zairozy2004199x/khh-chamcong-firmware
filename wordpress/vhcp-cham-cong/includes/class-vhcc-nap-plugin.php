@@ -10,19 +10,28 @@
  * gác cùng một mức với những màn còn lại của app.
  *
  * BA CỬA, PHẢI QUA CẢ BA:
- *   ① Phiên trạm còn sống  — biết anh là ai.
- *   ② Vai ADMIN trong app  — chỉ người được khai mới thấy màn này.
- *   ③ MẬT KHẨU WORDPRESS   — và tài khoản ấy phải có quyền `install_plugins` thật.
+ *   ① Phiên trạm còn sống          — biết anh là ai.
+ *   ② Vai ADMIN trong app          — chỉ người được khai mới thấy màn này.
+ *   ③ GÕ LẠI PIN CỦA CHÍNH MÌNH    — xác nhận đúng người đang cầm máy là người bấm.
  *
- * 🔴 VÌ SAO KHÔNG DỪNG Ở CỬA ② (PIN). App vào bằng PIN. PIN là 4–8 chữ số, gõ trên điện thoại,
- *    dùng hằng ngày, và có người biết PIN của nhau. Dò được MỘT mã PIN của một người vai ADMIN là
- *    nạp được một tệp PHP và chiếm cả máy chủ — mất chấm công, mất JP, mất chi phí, mất mọi site
- *    chung hosting. Mật khẩu WordPress là thứ duy nhất ở đây đủ mạnh để đứng trước một cửa như
- *    vậy, nên nó bị đòi lại ĐÚNG LÚC BẤM NẠP, không phải lúc mở màn.
+ * =================================================================================================
+ * 🔴 CỬA ③ LÀ LỰA CHỌN CÓ CHỦ Ý CỦA ANH THẮNG, VÀ NÓ YẾU HƠN MẬT KHẨU WORDPRESS
+ * =================================================================================================
+ * Bản đầu (4.77) đòi TÀI KHOẢN + MẬT KHẨU WORDPRESS có quyền cài plugin. Anh Thắng 23/09/2026:
+ * *"thay vì nhập mật khẩu và đăng nhập, thì nhập pin không được không"* — em đã nói rõ cái giá
+ * (PIN là 4–8 chữ số, gõ hằng ngày trước mặt người khác, và lộ nó là lộ cả máy chủ), đưa phương
+ * án "mã nạp riêng ≥ 8 số", anh vẫn chọn PIN đăng nhập. Đây là quyết định của chủ hệ thống; mã
+ * này làm đúng theo đó, và làm CHẶT NHẤT trong khuôn khổ ấy:
  *
- * ⚠️ CỬA ③ KHÔNG CHỈ KIỂM MẬT KHẨU, CÒN KIỂM QUYỀN. Mật khẩu đúng của một tài khoản Subscriber
- *    vẫn bị chối: phải có `install_plugins`. Thiếu phép kiểm ấy thì bất kỳ tài khoản WordPress
- *    nào — kể cả tài khoản khách tự đăng ký — cũng nạp được plugin.
+ *   · PIN phải là PIN CỦA CHÍNH NGƯỜI ĐANG ĐỨNG TRONG PHIÊN (so Mã NV tra ra từ PIN với Mã NV của
+ *     phiên). Biết PIN của một admin KHÁC không đủ: phải đang đăng nhập bằng đúng phiên của người
+ *     ấy. Tức kẻ xấu cần cả điện thoại đang mở app LẪN PIN của cùng một người.
+ *   · PIN của người khác và PIN sai hẳn trả CÙNG một câu — không xác nhận hộ "PIN này có thật".
+ *   · Sai 5 lần khoá 15 phút, theo IP. Lượt đúng và lượt bỏ trống không bị đếm.
+ *   · PIN không bao giờ vào nhật ký, không bao giờ in ra.
+ *
+ * ⚠️ Muốn quay lại cửa mật khẩu WordPress thì xem lịch sử git của tệp này ở bản 4.77.0 (hàm
+ *    kiểm mật khẩu và phép đòi quyền cài plugin). Không giữ mã chết ở đây.
  *
  * =================================================================================================
  * 🔴 SOI RUỘT TỆP .ZIP, KHÔNG TIN CÁI TÊN
@@ -46,7 +55,7 @@ class VHCC_NapPlugin {
 	/** Chỉ nhận plugin họ nhà mình. Một tiền tố không chặn được kẻ xấu, nhưng chặn được nhầm. */
 	const TIEN_TO = 'vhcp-';
 
-	/** Gõ sai mật khẩu WordPress bao nhiêu lần thì khoá, và khoá bao lâu. */
+	/** Gõ sai PIN bao nhiêu lần thì khoá, và khoá bao lâu. */
 	const SAI_TOI_DA = 5;
 	const KHOA_LAU   = 900;      // 15 phút
 
@@ -92,20 +101,19 @@ class VHCC_NapPlugin {
 	}
 
 	/**
-	 * Kiểm mật khẩu WordPress, và kiểm luôn quyền của tài khoản ấy.
+	 * Gõ lại PIN — và PIN ấy phải là của CHÍNH người đang đứng trong phiên.
 	 *
-	 * 🔴 MẬT KHẨU KHÔNG BAO GIỜ ĐI VÀO NHẬT KÝ, KHÔNG BAO GIỜ IN RA. Cùng luật đã đặt cho PIN và
-	 *    khoá máy: trang chạy ngoài internet, một ảnh chụp màn hình là mất.
+	 * 🔴 SO MÃ NV, KHÔNG SO VAI. Tra PIN ra một người (cùng nguồn với cửa trạm, `VHCC_Tram::tim_pin`)
+	 *    rồi đòi Mã NV của người ấy TRÙNG Mã NV của phiên. Chỉ đòi "PIN này của một admin nào đó"
+	 *    là ai cầm được điện thoại đang mở app của anh cũng nạp được bằng PIN của một admin khác.
 	 *
-	 * 🔴 SAI TÊN VÀ SAI MẬT KHẨU TRẢ CÙNG MỘT CÂU. Nói "không có tài khoản này" là biến ô nhập
-	 *    thành máy dò tên tài khoản quản trị — thử một nghìn tên, câu trả lời khác nhau sẽ chỉ ra
-	 *    tên nào có thật.
+	 * 🔴 PIN CỦA NGƯỜI KHÁC và PIN SAI HẲN trả CÙNG MỘT CÂU. Câu khác nhau là biến ô nhập thành
+	 *    máy dò PIN: thử một nghìn số, câu nào khác là số ấy có thật.
 	 *
-	 * ⚠️ Lượt SAI mới bị đếm. Đếm cả lượt đúng thì một người làm việc thật sẽ tự khoá mình sau
-	 *    năm lần nạp.
+	 * ⚠️ PIN KHÔNG BAO GIỜ đi vào nhật ký hay câu báo lỗi.
 	 */
-	public static function kiem_mat_khau( $tai_khoan, $mat_khau ) {
-		$chung = 'Tài khoản hoặc mật khẩu WordPress không đúng.';
+	public static function kiem_pin( $u, $pin ) {
+		$chung = 'PIN không đúng.';
 
 		$con = self::con_duoc_thu();
 		if ( empty( $con['ok'] ) ) {
@@ -113,29 +121,27 @@ class VHCC_NapPlugin {
 				'error' => 'Gõ sai quá nhiều lần — thử lại sau ' . (int) ( self::KHOA_LAU / 60 ) . ' phút.' );
 		}
 
-		$tk = trim( (string) $tai_khoan );
-		$mk = (string) $mat_khau;
-		if ( '' === $tk || '' === $mk ) {
-			/* Bỏ trống KHÔNG tính là một lượt dò — nó là lỗi thao tác, và đếm nó thì người quên
-			   điền hai lần đã mất hai lượt. */
-			return array( 'ok' => false, 'error' => 'Điền cả tài khoản và mật khẩu WordPress.' );
+		$ma_phien = trim( (string) ( is_array( $u ) && isset( $u['ma_nv'] ) ? $u['ma_nv'] : '' ) );
+		if ( '' === $ma_phien ) {
+			return array( 'ok' => false, 'error' => 'Phiên không có Mã NV — đăng nhập lại.' );
 		}
 
-		$user = wp_authenticate( $tk, $mk );
-		if ( is_wp_error( $user ) || ! $user ) {
+		$p = VHCC_Auth::pin_sach( $pin );
+		if ( '' === $p ) {
+			/* Bỏ trống KHÔNG tính là một lượt dò — đó là lỗi thao tác. */
+			return array( 'ok' => false, 'error' => 'Gõ lại PIN của anh/chị để xác nhận.' );
+		}
+		if ( ! preg_match( '/^\d{4,8}$/', $p ) ) {
 			self::ghi_nhan_sai();
 			return array( 'ok' => false, 'error' => $chung );
 		}
 
-		/* 🔴 ĐÚNG MẬT KHẨU VẪN CHƯA ĐỦ — xem khối ⚠️ ở đầu tệp. */
-		if ( ! user_can( $user, 'install_plugins' ) ) {
+		$tim = VHCC_Tram::tim_pin( $p );
+		if ( empty( $tim['thay'] ) || trim( (string) $tim['ma_nv'] ) !== $ma_phien ) {
 			self::ghi_nhan_sai();
-			return array( 'ok' => false,
-				'error' => 'Tài khoản WordPress này không có quyền cài plugin.' );
+			return array( 'ok' => false, 'error' => $chung );
 		}
-
-		return array( 'ok' => true, 'userId' => (int) $user->ID,
-			'userLogin' => (string) $user->user_login );
+		return array( 'ok' => true, 'maNV' => $ma_phien );
 	}
 
 	/* ══════════════════════════════════════════════════════════════ SOI RUỘT ZIP ════════ */
@@ -294,7 +300,7 @@ class VHCC_NapPlugin {
 	/* ═══════════════════════════════════════════════════════════════════ CÀI ════════════ */
 
 	/**
-	 * Ghép cả ba cửa rồi mới cài.
+	 * Ghép cả ba cửa rồi mới cài: vai → soi tệp → gõ lại PIN của chính mình.
 	 *
 	 * 🔴 KIỂM THEO ĐÚNG THỨ TỰ NÀY, VÀ KHÔNG BỎ CỬA NÀO. Mỗi `return` ở đây là một cửa đóng lại;
 	 *    đảo thứ tự hay bỏ bớt một phép là mở đường chạy mã PHP cho người không đáng được mở.
@@ -303,7 +309,7 @@ class VHCC_NapPlugin {
 	 *    ghi, thư mục tạm, gỡ bản cũ, và lùi lại khi hỏng giữa chừng. Tự viết lại mấy việc ấy là
 	 *    tự chuốc đúng những lỗi mà người ta đã sửa suốt mười lăm năm.
 	 */
-	public static function nap( $u, $tai_khoan, $mat_khau, $tep ) {
+	public static function nap( $u, $pin, $tep ) {
 		$v = self::kiem_vai( $u );
 		if ( empty( $v['ok'] ) ) { return $v; }
 
@@ -319,11 +325,11 @@ class VHCC_NapPlugin {
 		$soi = self::kiem_tep( $tep['tmp_name'], isset( $tep['name'] ) ? $tep['name'] : '' );
 		if ( empty( $soi['ok'] ) ) { return $soi; }
 
-		/* Cửa ③ đặt SAU phép soi tệp có chủ ý: người gõ nhầm mật khẩu vì chọn nhầm tệp thì
-		   không mất một lượt thử. Đổi lại, phép soi chạy trước khi biết người bấm là ai — nó chỉ
-		   đọc, không ghi, không cài, nên đó là cái giá chấp nhận được. */
-		$mk = self::kiem_mat_khau( $tai_khoan, $mat_khau );
-		if ( empty( $mk['ok'] ) ) { return $mk; }
+		/* Cửa ③ đặt SAU phép soi tệp có chủ ý: người gõ nhầm PIN vì chọn nhầm tệp thì không mất
+		   một lượt thử. Đổi lại, phép soi chạy trước khi xác nhận lại người bấm — nó chỉ đọc,
+		   không ghi, không cài, nên đó là cái giá chấp nhận được. */
+		$xn = self::kiem_pin( $u, $pin );
+		if ( empty( $xn['ok'] ) ) { return $xn; }
 
 		$cu = self::da_cai( $soi['slug'] );
 
@@ -351,12 +357,12 @@ class VHCC_NapPlugin {
 
 		$moi = self::da_cai( $soi['slug'] );
 
-		/* 🔴 GHI SỔ — và KHÔNG ghi mật khẩu. Ghi ai, lúc nào, plugin nào, từ bản nào sang bản nào. */
+		/* 🔴 GHI SỔ — và KHÔNG ghi PIN. Ghi ai, lúc nào, plugin nào, từ bản nào sang bản nào. */
 		if ( class_exists( 'VHCC_NhatKy' ) && method_exists( 'VHCC_NhatKy', 'tin' ) ) {
 			VHCC_NhatKy::tin( 'nap_plugin', $soi['slug'] . ' ' . ( $cu ? $cu['ban'] : '—' )
 				. ' → ' . ( $moi ? $moi['ban'] : '?' )
 				. ' · ' . ( isset( $u['ma_nv'] ) ? $u['ma_nv'] : '?' )
-				. ' · wp:' . $mk['userLogin'] );
+				. ' · xác nhận: PIN' );
 		}
 
 		return array( 'ok' => true, 'slug' => $soi['slug'], 'tenPlugin' => $soi['tenPlugin'],

@@ -110,9 +110,7 @@ class VHCC_TrangNap {
 	/**
 	 * Một lượt bấm Nạp.
 	 *
-	 * ⚠️ KHÔNG `sanitize_text_field()` mật khẩu. Hàm ấy cắt bỏ ký tự — mật khẩu mạnh hay có đúng
-	 *    những ký tự bị cắt, và người dùng sẽ thấy "sai mật khẩu" với một mật khẩu hoàn toàn đúng.
-	 *    Mật khẩu đi thẳng sang `wp_authenticate()`, không qua tay ai.
+	 * Cửa xác nhận là PIN của chính người đang đứng trong phiên — xem khối 🔴 ở `VHCC_NapPlugin`.
 	 */
 	private static function xu_ly_post( $ai ) {
 		if ( ! self::ve_dung( $ai['token'], isset( $_POST['ve'] ) ? wp_unslash( $_POST['ve'] ) : '' ) ) {
@@ -120,13 +118,13 @@ class VHCC_TrangNap {
 		}
 		if ( ! is_ssl() ) {
 			return array( 'ok' => false, 'error' => 'Trang đang chạy KHÔNG mã hoá (http). '
-				. 'Gửi mật khẩu qua đường này là ai nghe trộm cũng đọc được — đã chặn.' );
+				. 'Gửi PIN qua đường này là ai nghe trộm cũng đọc được — đã chặn.' );
 		}
-		$tk  = isset( $_POST['tk'] ) ? sanitize_text_field( wp_unslash( $_POST['tk'] ) ) : '';
-		$mk  = isset( $_POST['mk'] ) ? (string) wp_unslash( $_POST['mk'] ) : '';
+		/* ⚠️ KHÔNG `sanitize_text_field()` PIN — `pin_sach()` bên trong đã lọc còn chữ số. */
+		$pin = isset( $_POST['pin'] ) ? (string) wp_unslash( $_POST['pin'] ) : '';
 		$tep = isset( $_FILES['tep'] ) ? $_FILES['tep'] : null;
 
-		return VHCC_NapPlugin::nap( $ai, $tk, $mk, $tep );
+		return VHCC_NapPlugin::nap( $ai, $pin, $tep );
 	}
 
 	/* ══════════════════════════════════════════════════════════════════ KHUNG ═══════════ */
@@ -175,8 +173,8 @@ class VHCC_TrangNap {
 
 		if ( ! is_ssl() ) {
 			$h .= self::bao( 'loi', 'Trang chưa mã hoá (http)',
-				'Trang này đòi mật khẩu WordPress, mà đường truyền chưa mã hoá thì ai nghe trộm '
-				. 'cũng đọc được. Ô nhập bị ẩn cho tới khi site chạy https.' );
+				'Trang này đòi gõ lại PIN, mà đường truyền chưa mã hoá thì ai nghe trộm cũng đọc '
+				. 'được. Ô nhập bị ẩn cho tới khi site chạy https.' );
 		}
 
 		/* ── bảng plugin đang cài ── */
@@ -208,14 +206,12 @@ class VHCC_TrangNap {
 				. '<p class="mo">Chỉ nhận plugin họ <code>vhcp-</code>. Máy chủ mở tệp ra soi '
 				. 'trước khi cài — sai ruột là chối, không cần biết tên tệp là gì.</p>'
 				. '<hr>'
-				. '<p class="mo"><b>Vì sao hỏi mật khẩu WordPress?</b> Nạp plugin là chạy mã trên '
-				. 'máy chủ. PIN của app không đủ mạnh để đứng trước một cửa như vậy, nên bước cuối '
-				. 'đòi đúng tài khoản WordPress có quyền cài plugin.</p>'
-				. '<label>Tài khoản WordPress'
-				. '<input type="text" name="tk" autocomplete="username" autocapitalize="none" '
-				. 'autocorrect="off" spellcheck="false" required></label>'
-				. '<label>Mật khẩu WordPress'
-				. '<input type="password" name="mk" autocomplete="current-password" required></label>';
+				. '<p class="mo"><b>Vì sao hỏi lại PIN?</b> Nạp plugin là chạy mã trên máy chủ, nên bước '
+				. 'cuối xác nhận đúng người đang cầm máy là người bấm. PIN phải là <b>PIN của chính '
+				. 'anh/chị</b> — PIN của người khác không dùng được, kể cả admin khác.</p>'
+				. '<label>PIN của anh/chị'
+				. '<input type="password" name="pin" inputmode="numeric" pattern="[0-9]*" '
+				. 'autocomplete="one-time-code" maxlength="8" required></label>';
 			if ( empty( $con['ok'] ) ) {
 				$h .= self::bao( 'loi', 'Đang tạm khoá',
 					'Gõ sai quá nhiều lần. Chờ ít phút rồi thử lại.' );
