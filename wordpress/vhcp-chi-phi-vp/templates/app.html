@@ -3152,6 +3152,52 @@
     });
     return ra;
   }
+  /* ═══════════════════════════════════════════════════════════════════════════════════════
+   * KHỐI (MIỀN) NGƯỜI NÀY SỬA ĐƯỢC Ở CẤU HÌNH — TRỤC CẤU HÌNH, KHÔNG PHẢI TRỤC ĐƠN.
+   *
+   * Anh Thắng 23/09/2026: *"có 1 số chi phí bị ẩn"* (ảnh: mọi loại chi phí khối Miền Nam mờ
+   * và khoá, trong khi dòng khối Văn phòng thì sửa được — với chính tài khoản thấy cả hệ).
+   *
+   * 🔴 GỐC: màn cấu hình từng dùng `_khoiDuoc()` làm thước "khối của mình". Nhưng đó là trục
+   *    ĐƠN — tập khối BÀY NÚT trên thanh, dựng từ `KHOI_MO` + khối còn sổ — và trên bản gốc
+   *    `KHOI_MO=['kvc','vp']`, không bao giờ có `mb`/`mn`. Nên mọi loại chi phí đã chuyển sang
+   *    Miền Bắc / Miền Nam đều bị `_khoaDongKhoiLa()` coi là "khối lạ": khoá mờ với TẤT CẢ
+   *    mọi người, và lượt Lưu chép nguyên bản cũ → sửa gì cũng lặng lẽ mất. Đúng cái bẫy "HAI
+   *    TRỤC TÊN GIỐNG NHAU, ĐỪNG TRỘN" đã ghi ở đầu mục MIỀN.
+   *
+   * Thước đúng chỉ hỏi ĐƠN VỊ của người này (`BOOT.khoiXem`, máy chủ suy từ cột Đơn vị / ô
+   * khối tích tay): rỗng = nhà mẹ, sửa được hết; có danh sách = chỉ khối trong đó. Một miền
+   * CHƯA CÓ ĐƠN NÀO vẫn là miền của họ — khai loại chi phí đi trước lập đơn, không thể đòi có
+   * đơn rồi mới cho khai.
+   * ═══════════════════════════════════════════════════════════════════════════════════════ */
+  function _khoiSuaDuoc(ma){
+    var ds=(window.BOOT&&BOOT.khoiXem);
+    if(!ds||!ds.length) return true;
+    var k=String(ma||'').trim().toLowerCase();
+    if(ds.indexOf(k)>=0) return true;
+    /* 🔴 CHỈ SO KHI CÙNG TRỤC. `khoiXem` suy từ ĐƠN VỊ có thể còn nói tiếng cũ (kvc · mtd · vp),
+       trong khi cột Khối của loại chi phí nay nói tiếng MIỀN (mb · mn). Người đơn vị K&H
+       (`['kvc']`) không "thuộc" Miền Nam theo nghĩa nào cả — nhưng cũng không "không thuộc":
+       hai danh sách chẳng có gì để so. Khoá lúc ấy là khoá mọi dòng miền với cả công ty (đúng
+       ảnh 23/09/2026). Nên: dòng là MIỀN mà danh sách của người này THẬT SỰ nói tiếng cũ (có mã
+       khối trong `KHOI_DS`, không có miền nào) → mở.
+       ⚠️ "Không có miền nào" chưa đủ: danh sách toàn mã lạ (không khối nào của từ điển) là người
+          chưa thuộc khối nào — không mở gì cả, cùng chốt với `addCfgLoai()` chối họ. */
+    var laMien=MIEN_MA.indexOf(k)>=0;
+    var dsCoMien=ds.some(function(x){ return MIEN_MA.indexOf(String(x).toLowerCase())>=0; });
+    var dsTiengCu=ds.some(function(x){
+      var m=String(x).toLowerCase();
+      return MIEN_MA.indexOf(m)<0 && KHOI_DS.some(function(kd){ return kd.ma===m; });
+    });
+    if(laMien && !dsCoMien && dsTiengCu) return true;
+    return false;
+  }
+  /** Các MIỀN (ô chọn Khối của loại chi phí) người này được khai — dựng nút "＋ Thêm loại" và
+      chọn khối cho dòng mới. */
+  function _mienSuaDuoc(){
+    /* ⚠️ Viết nhiều dòng, đóng bằng `\n  }` — bệ đỡ các bài kiểm bốc hàm theo mốc ấy. */
+    return _mienDs().filter(function(k){ return _khoiSuaDuoc(k.ma); });
+  }
   var KHOI_DANG=(function(){
     try{ var v=localStorage.getItem('vhcpvp_khoi'); if(v) return String(v); }catch(e){}
     return (window.BOOT&&BOOT.khoiBan)||'kvc';
@@ -13453,7 +13499,8 @@
      * ⚠️ ĐẦU MỤC LẠ (còn trong sổ mà danh sách đã bỏ) VẪN PHẢI CÓ BẢNG. Không thì loại ấy
      *    không hiện ở đâu cả, mà lượt Lưu kế tiếp lại đọc trên màn — tức xoá sạch.
      * ══════════════════════════════════════════════════════════════════════════════════════ */
-    var duocK=_khoiDuoc().map(function(k){ return k.ma; });
+    /* ⚠️ Trục CẤU HÌNH (`_mienSuaDuoc`), không phải `_khoiDuoc()` — xem chú thích tại `_khoiSuaDuoc`. */
+    var mo=(_mienSuaDuoc().length>0);
     var dmDs=((typeof BOOT!=="undefined"&&BOOT&&BOOT.dauMucDs)||[]).slice();
     rows.forEach(function(x){
       var d=String(x.dauMuc||'').trim();
@@ -13467,7 +13514,6 @@
          đầu mục thật. Có dòng thì PHẢI bày, để người ta thấy còn gì chưa khai. */
       if(''===dm0 && !rws.length) return;
       var nhanDm=dm0||'Chưa xếp đầu mục';
-      var mo=(duocK.length>0);
       /* Bảng đầu mở sẵn; còn lại gập cho đỡ rối. Cùng luật với bảng mã bên dưới. */
       h+='<details class="mxKhoi"'+(0===iD?' open':'')+' style="margin:10px 0 4px" data-dau-muc-box="'+esc(dm0)+'">'
         +'<summary style="cursor:pointer;font-weight:700;font-size:13px;color:#171417;padding:4px 0">'
@@ -13647,13 +13693,14 @@
    *    (`saveCfgTkNoMx()` chép nguyên bản cũ cho dòng khối lạ) và ở máy chủ.
    */
   function _khoaDongKhoiLa(){
-    var duocK=_khoiDuoc().map(function(k){ return k.ma; });
-    if(!duocK.length) return;
+    /* 🔴 HỎI `_khoiSuaDuoc(k)` — TRỤC CẤU HÌNH. Bản trước hỏi `_khoiDuoc()` (trục ĐƠN) và khoá
+       nhầm MỌI dòng Miền Bắc / Miền Nam với cả người thấy cả hệ — anh Thắng 23/09/2026 *"có 1 số
+       chi phí bị ẩn"*. Xem chú thích dài tại `_khoiSuaDuoc`. */
     _mxBodies().forEach(function(body){
       Array.prototype.forEach.call(body.getElementsByTagName('tr'), function(tr){
         var s=tr.querySelector('select[data-khoi-o]');
         var k=String((s&&s.value)||'').trim().toLowerCase();
-        if(!k || duocK.indexOf(k)>=0) return;
+        if(!k || _khoiSuaDuoc(k)) return;
         tr.setAttribute('data-khoi-la','1');
         tr.title='Loại này thuộc khối '+(_tenKhoi(k)||k)+' — tài khoản của bạn thuộc đơn vị khác, xem được nhưng không sửa';
         tr.style.opacity='.62';
@@ -14396,13 +14443,19 @@
     var dm0=String(dm==null?'':dm);
     /* 🔴 CHỐI Ở ĐÂY NỮA. Nút "＋ Thêm loại" chỉ vẽ khi người ta có khối, nhưng gọi thẳng
        `addCfgLoai('…')` từ thanh địa chỉ là qua được — cùng luật với `doiKhoi()`. */
-    var duocK=_khoiDuoc().map(function(k){ return k.ma; });
-    if(!duocK.length){
+    /* ⚠️ Trục CẤU HÌNH: khối của dòng mới là một MIỀN người này khai được (`_mienSuaDuoc`),
+       không phải khối trên thanh đơn (`_khoiDuoc()` — trên bản gốc là kvc/vp, không phải miền;
+       dòng mới mang 'kvc' là mang "khối cũ" ngay lúc sinh). Xem `_khoiSuaDuoc`. */
+    var duocM=_mienSuaDuoc().map(function(k){ return k.ma; });
+    if(!duocM.length){
       toast('warn','Tài khoản của bạn chưa thuộc khối nào — không thêm loại chi phí được');
       return;
     }
-    var khoiMoi=(duocK.indexOf(String(KHOI_DANG||'').toLowerCase())>=0)
-      ? String(KHOI_DANG).toLowerCase() : duocK[0];
+    /* `duocM[0]` là đủ: có miền trong `khoiXem` thì `duocM` đúng bằng các miền ấy; không có thì
+       họ khai được cả hai và lấy miền đầu. Lọc thêm "miền nằm trong khoiXem" là mã chết — phá
+       thử 23/09/2026 đục nó mà bài vẫn xanh, nên gỡ. */
+    var khoiMoi=(duocM.indexOf(String(KHOI_DANG||'').toLowerCase())>=0)
+      ? String(KHOI_DANG).toLowerCase() : duocM[0];
     var body=_mxBodies().filter(function(b){ return String(b.getAttribute('data-dau-muc')||'')===dm0; })[0];
     if(!body){ toast('warn','Chưa thấy bảng của đầu mục này'); return; }
     if(MX_LOCK) toggleMxLock();                       // thêm dòng thì mở khóa cho gõ
