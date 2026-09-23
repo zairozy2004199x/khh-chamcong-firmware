@@ -241,7 +241,8 @@ teq( 'cong_dong_trung() chỉ được gọi từ MỘT chỗ (trong luu_cong)',
    hợp lệ là đúng; điều bài học §6 cấm là CHÉP LẠI luật, không phải gọi lại. */
 /* 0.43.0 thêm chỗ thứ sáu: gd_cong_ds(), cửa đọc giao dịch lẻ cho plugin khác cùng site. Tái
    dùng đúng hàm chung nên hợp lệ — xem chú thích dài ở kiem-saoke-ma-cua-hang.php. */
-teq( 'cong_may_dong() gọi ở đúng 6 chỗ (tất cả tái dùng, không có bản sao)', 6,
+/* 0.44.0: nơi thứ 7 là vietqr_theo_may_ngay() — tái dùng cong_may_dong(), xem kiem-saoke-ma-cua-hang.php. */
+teq( 'cong_may_dong() gọi ở đúng 7 chỗ (tất cả tái dùng, không có bản sao)', 7,
 	substr_count( $SRC, 'self::cong_may_dong(' ) );
 t( 'VER_TBL đã lên 5 cho KEY ref', false !== strpos( $SRC, "const VER_TBL = '5';" ) );
 t( 'bảng cổng có KEY ref (đường dò trùng chéo đi qua nó)', false !== strpos( $SRC, 'KEY ref (ref)' ) );

@@ -70,7 +70,10 @@ teq( '🔴 may_hop_le() chỉ được gọi từ HAI chỗ (cong_ten_may + cong
    §6 cấm CHÉP lại luật, không cấm gọi lại.
    ⚠️ Con số này KHÔNG được sửa cho hết đỏ. Mỗi lần nó nhảy, phải mở ra xem chỗ mới là TÁI DÙNG
       hay là một bản sao của luật — bản sao thì sửa mã, không sửa con số. */
-teq( 'và sáu nơi cần biết máy đều gọi đúng hàm chung ấy', 6,
+/* 0.44.0 (23/09/2026): nơi thứ BẢY — `vietqr_theo_may_ngay()`, VietQR thực theo TỪNG MÁY cho Báo
+   cáo tổng bên Ghế (anh Thắng: *"hai bên đối chiếu lại máy nào lệch không"*). Đã mở ra xem: nó
+   GỌI `cong_may_dong()` rồi mới nối tên máy với ghế — tái dùng, không chép luật. Con số lên 7. */
+teq( 'và BẢY nơi cần biết máy đều gọi đúng hàm chung ấy', 7,
 	substr_count( $SRC, 'self::cong_may_dong(' ) );
 /* Hàm màn hình THẬT SỰ gọi phải lấy cột `ma_ch` về — thiếu nó thì gọi hàm chung cũng vô ích. */
 t( '🔴 rpc_getSaoKeCong lấy cột ma_ch + may_tay trong câu SELECT',

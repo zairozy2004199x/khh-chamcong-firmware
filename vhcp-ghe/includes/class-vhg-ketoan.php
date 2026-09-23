@@ -2402,9 +2402,80 @@ class VHG_KeToan {
 				}
 				$kq['vqCo'] = true; $kq['vqTongCot'] = array_values( $vqTongCot ); $kq['vqTong'] = $vqTongAll; $kq['vqKhongKhop'] = (int) $vqd['khongKhop'];
 			}
+		} elseif ( 'ghe' === $muc && 'qr' === $cot ) {
+			/* 🔴 LỚP VIETQR THỰC TỚI TỪNG MÁY — anh Thắng 23/09/2026: *"trong VietQR cũng có đánh
+			   từng máy 1,2,3,4… trên ghế cũng đánh 1,2,3,4… hai bên đối chiếu lại máy nào lệch
+			   không"*. Hôm 22/09 em nói "sao kê chỉ quy được tiền về cơ sở" — sai: Sao Kê gán mỗi
+			   giao dịch ra TÊN MÁY ("AMTP 12") rồi mới gộp lên cơ sở, số máy vẫn còn đó. Chỉ là
+			   chưa ai nối "AMTP 12" với ghế "AMTP-12". Nay SAOKE_App::vietqr_theo_may_ngay() nối.
+			   Chỉ ở chế độ QR: TỔNG theo ghế vẫn là tiền mặt + QR NHÂN VIÊN KHAI như cũ. */
+			if ( class_exists( 'SAOKE_App' ) && method_exists( 'SAOKE_App', 'vietqr_theo_may_ngay' ) ) {
+				$vqm = SAOKE_App::vietqr_theo_may_ngay( $tu, $den );
+				if ( is_array( $vqm ) && ! empty( $vqm['co'] ) ) {
+					$g = self::bct_gan_vq_may_( $kq['hang'], $vqm, $ds_ngay );
+					$kq['hang'] = $g['hang']; $kq['vqCo'] = true; $kq['vqTongCot'] = $g['vqTongCot']; $kq['vqTong'] = $g['vqTong'];
+					$kq['vqKhongKhop'] = (int) $vqm['khongKhop']; $kq['vqTheoMay'] = 1;
+				}
+			}
 		}
 		return $kq;
 	}
+
+	/**
+	 * GẮN LỚP VIETQR THỰC VÀO TỪNG DÒNG GHẾ của Báo cáo tổng (chế độ Từng ghế) — anh Thắng
+	 * 23/09/2026: *"hai bên đối chiếu lại máy nào lệch không"*.
+	 *
+	 * Tách riêng để bốc ra chạy thử được: luật ở đây là luật về TIỀN — dòng "(chưa rõ máy)" phải
+	 * cộng đúng phần cổng quy được cơ sở mà không ra máy, và tổng cột VietQR của cơ sở phải bằng
+	 * đúng số vietqr_theo_coso_ngay() trả về. Lệch là bảng theo ghế nói khác bảng theo cơ sở.
+	 *
+	 * Hàng ghế có khoá "cơ sở|mã"; máy cổng quy ra ghế nào thì ghi vào hàng ấy. Máy quy được cơ sở
+	 * mà không ra ghế → thêm MỘT hàng "(chưa rõ máy)" cuối cụm cơ sở ấy, số nhân viên nhập = 0.
+	 * Ghế có tiền cổng mà KHÔNG có hàng (ghế đã xoá/đổi mã) → cũng thêm hàng, tên = mã.
+	 */
+	public static function bct_gan_vq_may_( $hang, $vqm, $ds_ngay ) {
+		$vq = isset( $vqm['vq'] ) ? (array) $vqm['vq'] : array();
+		$chua = isset( $vqm['chuaMay'] ) ? (array) $vqm['chuaMay'] : array();
+		$n = count( $ds_ngay );
+		$tongCot = array_fill( 0, $n, 0 ); $tongAll = 0;
+		$out = array(); $daGan = array();
+		$lay = function ( $theoNgay ) use ( $ds_ngay, &$tongCot, &$tongAll ) {
+			$arr = array(); $rt = 0;
+			foreach ( $ds_ngay as $ci => $ng ) {
+				$v = isset( $theoNgay[ $ng ] ) ? (int) $theoNgay[ $ng ] : 0;
+				$arr[] = $v; $rt += $v; $tongCot[ $ci ] += $v;
+			}
+			$tongAll += $rt;
+			return array( $arr, $rt );
+		};
+		$so_cs = count( $hang );
+		foreach ( $hang as $i => $hg ) {
+			$cs = (string) $hg['coso']; $ma = (string) $hg['maGhe'];
+			list( $arr, $rt ) = $lay( isset( $vq[ $cs ][ $ma ] ) ? $vq[ $cs ][ $ma ] : array() );
+			$hg['vq'] = $arr; $hg['vqTong'] = $rt;
+			$daGan[ $cs ][ $ma ] = true;
+			$out[] = $hg;
+			/* Hết cụm cơ sở này (dòng sau khác cơ sở, hoặc là dòng cuối) → chèn phần dư. */
+			$cuoi = ( $i + 1 >= $so_cs ) || ( (string) $hang[ $i + 1 ]['coso'] !== $cs );
+			if ( ! $cuoi ) { continue; }
+			foreach ( isset( $vq[ $cs ] ) ? $vq[ $cs ] : array() as $m2 => $theoNgay ) {
+				if ( isset( $daGan[ $cs ][ $m2 ] ) ) { continue; }
+				list( $arr2, $rt2 ) = $lay( $theoNgay );
+				$out[] = array( 'coso' => $cs, 'maKH' => $hg['maKH'], 'tinh' => $hg['tinh'], 'soGhe' => $hg['soGhe'],
+					'maGhe' => (string) $m2, 'tenGhe' => (string) $m2 . ' (không còn trong danh mục)',
+					'so' => array_fill( 0, $n, 0 ), 'tong' => 0, 'vq' => $arr2, 'vqTong' => $rt2, 'vqLe' => 1 );
+				$daGan[ $cs ][ $m2 ] = true;
+			}
+			if ( isset( $chua[ $cs ] ) && array_sum( $chua[ $cs ] ) > 0 ) {
+				list( $arr3, $rt3 ) = $lay( $chua[ $cs ] );
+				$out[] = array( 'coso' => $cs, 'maKH' => $hg['maKH'], 'tinh' => $hg['tinh'], 'soGhe' => $hg['soGhe'],
+					'maGhe' => '', 'tenGhe' => '(chưa rõ máy)', 'so' => array_fill( 0, $n, 0 ), 'tong' => 0,
+					'vq' => $arr3, 'vqTong' => $rt3, 'vqLe' => 1 );
+			}
+		}
+		return array( 'hang' => $out, 'vqTongCot' => $tongCot, 'vqTong' => $tongAll );
+	}
+
 
 	/** Một hàng của báo cáo tổng. Tách ra để hai nhánh (cơ sở / ghế) dùng CHUNG phép cộng. */
 	private static function bct_hang_( $cs, $ma_kh, $tinh, $dem_ghe, $key, $ma_ghe, $o, $ds_ngay, &$tong_cot, &$tong_all, $ten_ghe = '' ) {

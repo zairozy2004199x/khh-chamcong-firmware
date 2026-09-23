@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.43.0
+ * Version:           0.44.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -25,7 +25,7 @@ class SAOKE_App {
 	   thêm file"* — câu đầu tiên phải trả lời là "bản đang chạy có khối ấy chưa", mà trang thì
 	   không in số bản ở đâu cả, nên không ai đáp được ngoài cách đi mở wp-admin. Ghi ở đây, hiện
 	   ở góc cột trái. ⚠️ PHẢI BẰNG số ở header `Version:` phía trên — hai chỗ, một giá trị. */
-	const VER = '0.43.0';
+	const VER = '0.44.0';
 
 	/* 3 cổng thanh toán + tên hiển thị. Việt QR về bank 1:1; MoMo/VNPAY gộp cục N:1. */
 	private static function cong_ds() { return array( 'vietqr', 'momo', 'vnpay' ); }
@@ -2045,7 +2045,7 @@ class SAOKE_App {
 		$rows = $wpdb->get_results( $sql, ARRAY_A ); $map = array();
 		foreach ( (array) $rows as $r ) {
 			$coso = trim( (string) $r['coso'] ); if ( '' === $coso ) { continue; }
-			$v = array( 'coso' => $coso, 'maKh' => (string) $r['ma_kh'], 'tinh' => (string) $r['tinh'] );
+			$v = array( 'coso' => $coso, 'maKh' => (string) $r['ma_kh'], 'tinh' => (string) $r['tinh'], 'ma' => (string) $r['ma'] );
 			foreach ( array( $r['ma'], $r['ten_khai'] ) as $nm ) { $k = self::chuan_ch( (string) $nm ); if ( '' !== $k && ! isset( $map[ $k ] ) ) { $map[ $k ] = $v; } }
 		}
 		return $map;
@@ -2120,6 +2120,88 @@ class SAOKE_App {
 			$vq[ $cs ][ $ng ] = ( isset( $vq[ $cs ][ $ng ] ) ? $vq[ $cs ][ $ng ] : 0 ) + $tien;
 		}
 		return array( 'co' => true, 'vq' => $vq, 'khongKhop' => $khong );
+	}
+
+	/* Khoá so TÊN MÁY với TÊN GHẾ: chuan_ch() rồi bỏ số 0 dẫn đầu của cụm số CUỐI — cổng đánh
+	   "LM-NSG 01" / "AMTP 02", bên Ghế khai "LM-NSG-1" / "AMTP-2"; chuan_ch() ra `lmnsg01` với
+	   `lmnsg1`, không khớp, dù ai nhìn cũng thấy là một máy. Chỉ đụng cụm số cuối: "GO 02 HCM"
+	   giữ nguyên số giữa. */
+	public static function chuan_may( $s ) {
+		return preg_replace( '/0*([0-9]+)$/', '$1', self::chuan_ch( $s ) );
+	}
+	/* Bản đồ tên máy -> MỘT GHẾ CỤ THỂ: chuan_may(mã) và chuan_may(tên khai) -> ['ma','coso'].
+	   Hai ghế ra cùng khoá (trùng mã/tên giữa hai cơ sở) -> đánh 'trung', KHÔNG đoán bừa. */
+	private static function ghe_map_may_ma() {
+		if ( ! self::ghe_co() ) { return array(); }
+		global $wpdb; static $map = null; if ( null !== $map ) { return $map; }
+		$rows = $wpdb->get_results( 'SELECT m.ma, m.ten_khai, c.ten AS coso FROM ' . self::ghe_tbl( 'may' ) . ' m'
+			. ' LEFT JOIN ' . self::ghe_tbl( 'coso' ) . ' c ON c.id = m.coso_id WHERE m.coso_id > 0', ARRAY_A );
+		$map = array();
+		foreach ( (array) $rows as $r ) {
+			$coso = trim( (string) $r['coso'] ); if ( '' === $coso ) { continue; }
+			foreach ( array( $r['ma'], $r['ten_khai'] ) as $nm ) {
+				$k = self::chuan_may( (string) $nm ); if ( '' === $k ) { continue; }
+				if ( isset( $map[ $k ] ) ) { if ( $map[ $k ]['ma'] !== (string) $r['ma'] ) { $map[ $k ]['trung'] = true; } continue; }
+				$map[ $k ] = array( 'ma' => (string) $r['ma'], 'coso' => $coso, 'trung' => false );
+			}
+		}
+		return $map;
+	}
+	/**
+	 * VietQR THỰC theo TỪNG MÁY × NGÀY — anh Thắng 23/09/2026: *"trong VietQR cũng có đánh từng
+	 * máy 1,2,3,4… trên ghế cũng đánh 1,2,3,4… hai bên đối chiếu lại máy nào lệch không"*.
+	 *
+	 * 🔴 CÙNG LUẬT GÁN VỚI vietqr_theo_coso_ngay() — cong_may_dong() ra TÊN MÁY ("AMTP 12") rồi
+	 *    mới quy ra ghế/cơ sở. Không tự dò lại từ noi_dung: một luật, một chỗ (§6).
+	 * 🔴 BA RỔ, KHÔNG ĐỒNG NÀO RƠI: `vq[cơ sở][mã ghế][ngày]` = quy được tới MÁY;
+	 *    `chuaMay[cơ sở][ngày]` = quy được cơ sở nhưng KHÔNG ra máy (QR tĩnh PaymentForOrder, tên
+	 *    máy không có số, hoặc số trùng hai ghế); `khongKhop` = không ra cả cơ sở. Bên Ghế in rổ
+	 *    hai thành dòng riêng "(chưa rõ máy)" của cơ sở ấy — tiền về thật, không bảng nào được giấu.
+	 *
+	 * @return array [ 'co'=>bool, 'vq'=>[coso=>[ma=>[ymd=>tiền]]], 'chuaMay'=>[coso=>[ymd=>tiền]], 'khongKhop'=>int ]
+	 */
+	public static function vietqr_theo_may_ngay( $tu, $den ) {
+		global $wpdb;
+		$tc = self::tbl_cong();
+		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $tc ) ) !== $tc ) {
+			return array( 'co' => false, 'vq' => array(), 'chuaMay' => array(), 'khongKhop' => 0 );
+		}
+		$anhXa = self::ds_anhxa( 'vietqr' );
+		$mapMa = self::ghe_map_may_ma();
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			"SELECT so_tien, DATE(thoi_diem) d, noi_dung, diem_ban, ma_ch, may_tay FROM $tc"
+			. " WHERE nguon='vietqr' AND doc_duoc=1 AND huong<>%s AND DATE(thoi_diem) BETWEEN %s AND %s",
+			'Đi', (string) $tu, (string) $den ), ARRAY_A );
+		$vq = array(); $chua = array(); $khong = 0;
+		foreach ( (array) $rows as $r ) {
+			$tien = (int) $r['so_tien']; if ( $tien <= 0 ) { continue; }
+			$ng = (string) $r['d'];
+			$tenMay = self::cong_may_dong( (string) $r['noi_dung'], (string) $r['ma_ch'], (string) $r['diem_ban'], (string) $r['may_tay'] );
+			/* Cơ sở: y hệt đường của vietqr_theo_coso_ngay(). */
+			$ax = self::ax_theo_ngay(
+				isset( $anhXa[ self::chuan_ch( $tenMay ) ] ) ? $anhXa[ self::chuan_ch( $tenMay ) ]
+					: ( isset( $anhXa[ self::chuan_ch( self::cong_coso( $tenMay ) ) ] ) ? $anhXa[ self::chuan_ch( self::cong_coso( $tenMay ) ) ] : null ),
+				self::ymd2vn( $r['d'] ) );
+			$ghe = self::ghe_coso_cua_may( $tenMay );
+			if ( ! $ghe && $ax && '' !== trim( (string) $ax['tenChuan'] ) && self::ghe_la_coso( $ax['tenChuan'] ) ) {
+				$ghe = array( 'coso' => $ax['tenChuan'] );
+			}
+			$cs = $ghe ? (string) $ghe['coso'] : '';
+			if ( '' === $cs ) { $khong += $tien; continue; }
+			/* Máy: chỉ nhận khi tên máy trỏ ĐÚNG MỘT ghế của ĐÚNG cơ sở ấy. Trỏ ghế cơ sở khác là
+			   dấu hiệu trùng mã liên cơ sở — bỏ vào "chưa rõ máy" chứ không gán chéo. */
+			$k = self::chuan_may( $tenMay );
+			$m = ( '' !== $k && isset( $mapMa[ $k ] ) && empty( $mapMa[ $k ]['trung'] ) && $mapMa[ $k ]['coso'] === $cs ) ? $mapMa[ $k ]['ma'] : '';
+			if ( '' === $m ) {
+				if ( ! isset( $chua[ $cs ] ) ) { $chua[ $cs ] = array(); }
+				$chua[ $cs ][ $ng ] = ( isset( $chua[ $cs ][ $ng ] ) ? $chua[ $cs ][ $ng ] : 0 ) + $tien;
+				continue;
+			}
+			if ( ! isset( $vq[ $cs ] ) ) { $vq[ $cs ] = array(); }
+			if ( ! isset( $vq[ $cs ][ $m ] ) ) { $vq[ $cs ][ $m ] = array(); }
+			$vq[ $cs ][ $m ][ $ng ] = ( isset( $vq[ $cs ][ $m ][ $ng ] ) ? $vq[ $cs ][ $m ][ $ng ] : 0 ) + $tien;
+		}
+		return array( 'co' => true, 'vq' => $vq, 'chuaMay' => $chua, 'khongKhop' => $khong );
 	}
 
 	/* Địa điểm ghế của 1 tên máy VietQR ("AMTP 02"): khớp máy trước, rồi thử cơ sở (bỏ số). null nếu chưa có. */

@@ -8470,8 +8470,8 @@ function bctBang(r){
          Không khớp = không phải của ghế ⇒ bỏ qua, không cộng vào TỔNG và cũng không kêu. */
     } else if (r.muc === 'ghe') {
       ghiChu = ktEl('div','mut');
-      ghiChu.textContent = L('TỔNG theo từng ghế = thực thu tiền mặt + QR NHÂN VIÊN KHAI. Sao kê chỉ quy được tiền về cơ sở, không về từng ghế, nên mức này không có QR thực — gộp theo Cơ sở để xem số tiền thật.',
-        'Per-chair TOTAL uses staff-entered QR: bank data resolves to sites, not chairs.');
+      ghiChu.textContent = L('TỔNG theo từng ghế = thực thu tiền mặt + QR NHÂN VIÊN KHAI. Muốn đối chiếu QR thực tới từng máy thì bấm Số liệu: QR — cổng VietQR có ghi số máy.',
+        'Per-chair TOTAL uses staff-entered QR. Switch to QR to compare real bank VietQR per machine.');
       wrap.appendChild(ghiChu);
     } else {
       ghiChu = ktEl('div','mut');
@@ -8480,6 +8480,14 @@ function bctBang(r){
             'TOTAL falls back to staff-entered figures. Install/sync the bank statement plugin.');
       wrap.appendChild(ghiChu);
     }
+  }
+  if (r.cot === 'qr' && r.muc === 'ghe' && r.vqCo && r.vqTheoMay) {
+    /* Anh Thắng 23/09/2026: đối chiếu tới TỪNG MÁY. Nói rõ ba loại dòng người đọc sẽ gặp. */
+    var gm = ktEl('div','mut');
+    gm.innerHTML = '<b style="color:#dc2626">◆ VietQR theo TỪNG MÁY</b> — '
+      + L('cổng ghi số máy ("AMTP 12"), nối với ghế "AMTP-12". Dòng <b>(chưa rõ máy)</b> = tiền về đúng cơ sở nhưng cổng không ghi số máy (QR tĩnh) hoặc số máy trùng hai ghế. Dòng <b>(không còn trong danh mục)</b> = máy có tiền nhưng ghế đã xoá/đổi mã.',
+          'gateway records the machine number. "(unknown machine)" = money for this site without a machine number; "(not in catalogue)" = machine has money but its chair was deleted/renamed.');
+    wrap.appendChild(gm);
   }
   var sc = ktEl('div','table-scroll bct-box'); var t = ktEl('table','bct');
   /* 4 cột cố định (cơ sở · mã KH · ghế · số ghế) + mỗi ngày 92px + cột Tổng. */
@@ -8502,7 +8510,7 @@ function bctBang(r){
   var body = r.hang.map(function(g){
     return '<tr><td class="bct-dinh"><b>' + esc(g.coso) + '</b></td>'
       + '<td class="mut">' + esc(g.maKH || '—') + '</td>'
-      + (cotGhe ? ('<td>' + esc(g.tenGhe || g.maGhe || '—')
+      + (cotGhe ? ('<td' + (g.vqLe ? ' class="mut" style="font-style:italic"' : '') + '>' + esc(g.tenGhe || g.maGhe || '—')
           + (g.maGhe && g.tenGhe && g.maGhe !== g.tenGhe ? '<br><span class="mut">' + esc(g.maGhe) + '</span>' : '')
           + '</td>') : '')
       + '<td class="r mut">' + (g.soGhe || '') + '</td>'

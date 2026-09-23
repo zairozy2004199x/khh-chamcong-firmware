@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-09-23 · Phiên bản hiện tại: **2.129.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-09-23 · Phiên bản hiện tại: **2.130.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,35 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v2.130.0 (+ Sao Kê 0.44.0) — Báo cáo tổng, Từng ghế × QR: VietQR thực đối chiếu tới TỪNG MÁY
+
+Anh Thắng 23/09/2026: *"trong VietQR cũng có đánh từng máy 1,2,3,4… trên ghế cũng đánh 1,2,3,4…
+hai bên đối chiếu lại máy nào lệch không"*.
+
+**Hôm 22/09 em nói sai**: *"sao kê chỉ quy được tiền về cơ sở, không về từng ghế"*. Thực ra Sao Kê
+gán **mỗi giao dịch ra TÊN MÁY** ("AMTP 12", "LM-NSG 01") bằng `cong_may_dong()` rồi mới gộp lên cơ
+sở — số máy vẫn còn đó, chỉ là chưa ai nối "AMTP 12" với ghế "AMTP-12".
+
+- **Sao Kê 0.44.0**: `SAOKE_App::vietqr_theo_may_ngay($tu,$den)` — cùng luật gán với
+  `vietqr_theo_coso_ngay()`, trả **ba rổ, không đồng nào rơi**: `vq[cơ sở][mã ghế][ngày]` (ra máy),
+  `chuaMay[cơ sở][ngày]` (ra cơ sở nhưng không ra máy: QR tĩnh *PaymentForOrder*, tên máy không có
+  số, hoặc số trùng hai ghế), `khongKhop` (không ra cả cơ sở).
+- Khoá nối `chuan_may()`: `chuan_ch()` rồi **bỏ số 0 dẫn đầu của cụm số cuối** — cổng đánh
+  "LM-NSG 01", Ghế khai "LM-NSG-1"; `chuan_ch` ra `lmnsg01` với `lmnsg1`, không khớp dù ai nhìn cũng
+  thấy là một máy. Chỉ nhận khi tên máy trỏ **đúng một ghế của đúng cơ sở ấy** — trỏ ghế cơ sở khác
+  là dấu hiệu trùng mã liên cơ sở, bỏ vào "chưa rõ máy" chứ không gán chéo.
+- **Ghế**: Báo cáo tổng, gộp **Từng ghế** + số liệu **QR** nay có lớp ◆ VietQR đỏ trên từng dòng
+  ghế, y như mức cơ sở. `bct_gan_vq_may_()` gắn lớp ấy và chèn cuối mỗi cụm cơ sở hai loại dòng
+  lẻ (in nghiêng): **(chưa rõ máy)** và **(không còn trong danh mục)** — để **tổng cột VietQR theo
+  ghế bằng đúng tổng theo cơ sở**; lệch là hai bảng nói khác nhau về cùng một khoản tiền.
+- CSV "Xuất .csv (VietQR thực)" của 2.127.0 tự ăn theo: chế độ Từng ghế × QR nay cũng ra hai khối.
+- Chế độ TỔNG theo ghế **không đổi** (tiền mặt + QR nhân viên khai) — ghi chú nói rõ muốn đối chiếu
+  máy thì bấm QR.
+
+Bài kiểm `tools/test/kiem-vietqr-tung-may.php` (18 phép): chạy thật `chuan_may()`,
+`vietqr_theo_may_ngay()` (bốc từ Sao Kê, bệ đỡ giả) và `bct_gan_vq_may_()` (bốc từ Ghế) — canh
+bất biến *tổng ba rổ = tổng cổng* và *tổng theo ghế = tổng theo cơ sở*.
 
 ### v2.129.0 — Xoá hẳn cơ sở (ghế ẩn xoá theo) · cơ sở đóng cửa hết dòng 0đ ở Báo cáo tổng
 
