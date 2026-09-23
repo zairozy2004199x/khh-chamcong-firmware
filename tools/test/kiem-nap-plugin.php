@@ -136,6 +136,27 @@ t( 'Câu chối nói RÕ đang là vai gì, để biết đi xin ai',
 	false !== strpos( VHCC_NapPlugin::kiem_vai( $NV )['error'], 'Nạp plugin' ),
 	VHCC_NapPlugin::kiem_vai( $NV ) );
 
+/* ═══════════════════════════════════════════ ①b Ô "NẠP PLUGIN" TRONG LƯỚI ỨNG DỤNG ═══════ */
+/* Anh Thắng 23/09/2026: *"anh chưa thấy chỗ nạp trong app với tài khoản admin"* — trang có
+   nhưng không có ô là chưa "gắn vào app". Và "mỗi admin thấy thôi" là nghĩa đen: người khác
+   KHÔNG thấy ô, kể cả dạng khoá — đây là cửa chạy mã trên máy chủ, không quảng cáo. */
+function o_nap( $u ) {
+	foreach ( VHCC_Ung::ds( array_merge( array( 'name' => 'x', 'coso' => 'CS1' ), $u ) ) as $x ) {
+		if ( 'Nạp plugin' === $x['ten'] ) { return $x; }
+	}
+	return null;
+}
+$o = o_nap( $ADMIN );
+t( 'Admin thấy ô "Nạp plugin" trong lưới', null !== $o, $o );
+/* `url()` trả `/nap-plugin/` khi site có permalink, còn không thì `?vhcc_nap=1` — khung thử
+   không có permalink nên phải nhận cả hai, y như trạm và trang quản trị. */
+t( 'và ô ấy MỞ được, trỏ đúng trang nạp', $o && ! empty( $o['mo_duoc'] ) && ! empty( $o['url'] )
+	&& ( false !== strpos( $o['url'], '/' . VHCC_TrangNap::slug() . '/' )
+		|| false !== strpos( $o['url'], 'vhcc_nap=1' ) ), $o );
+t( 'Ô có nhóm hợp lệ (bài kiểm lưới đòi)', $o && in_array( $o['nhom'], VHCC_Ung::NHOM, true ), $o );
+t( '🔴 Nhân viên KHÔNG thấy ô — kể cả dạng khoá', null === o_nap( $NV ), o_nap( $NV ) );
+t( '🔴 Quản lý cũng KHÔNG thấy', null === o_nap( $QL ), o_nap( $QL ) );
+
 /* ═══════════════════════════════════════════════════════ ② SOI RUỘT TỆP .ZIP ═══════════ */
 $tot = zip_thu( 'tot.zip', array(
 	'vhcp-thu/vhcp-thu.php' => than_plugin( 'Thử Nghiệm' ),

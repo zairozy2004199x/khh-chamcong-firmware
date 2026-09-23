@@ -249,6 +249,28 @@ class VHCC_Ung {
 			);
 		}
 
+		/* ---- 4c. Nạp plugin -------------------------------------------------------------
+		   Anh Thắng 22/09/2026: *"tạo trang nạp rời, gắn thẳng vào app chấm công cho admin tự
+		   xem và nạp. Phân quyền mỗi admin thấy thôi"*. Rồi 23/09: *"anh chưa thấy chỗ nạp
+		   trong app"* — bản đầu chỉ có địa chỉ /nap-plugin/, không có ô, tức chưa "gắn vào app".
+
+		   🔴 KHÔNG BÀY Ô KHOÁ CHO NGƯỜI KHÔNG PHẢI ADMIN — khác mọi ô còn lại của lưới.
+		      Ô khoá là lời mời đi xin quyền; với "Xin nghỉ" hay "Nội bộ" thì đúng. Còn đây là
+		      cửa CHẠY MÃ PHP TRÊN MÁY CHỦ: bày nó ra cho cả công ty là nói cho cả công ty biết
+		      có một cửa như thế ở đâu. Anh nói "mỗi admin thấy thôi" — nghĩa đen.
+		   ⚠️ Gác bằng ĐÚNG quyền mà `VHCC_NapPlugin::kiem_vai()` đòi. Hai luật thì lệch. */
+		if ( self::co_lop( 'VHCC_TrangNap', 'url' ) && class_exists( 'VHCC_NapPlugin' )
+			&& VHCC_Vai::duoc( $u, VHCC_NapPlugin::QUYEN ) ) {
+			$o[] = self::o( true, array(
+				'ten'  => 'Nạp plugin',
+				'nhom' => 'Quản lý cửa hàng',
+				'mo'   => 'Cập nhật plugin từ điện thoại — hỏi mật khẩu WordPress khi nạp',
+				'url'  => (string) VHCC_TrangNap::url(),
+				'icon' => '📦',
+				'mau'  => 'cam',
+			) );
+		}
+
 		/* ---- 5. Thêm nhân sự mới ---------------------------------------------------------
 		   Anh Thắng 17/09/2026: *"Chuyển sang thêm nhân sự là 1 tính năng"*, kèm ảnh khoanh
 		   đúng ô trống trong lưới.
