@@ -12179,20 +12179,62 @@
    * ⚠️ ĐƠN VỊ VẪN TÁCH, NHƯNG NẰM TRONG TUẦN. Anh Thắng 20/09: *"tránh duyệt lộn đơn vị"* —
    *    nên vạch ngăn 🏢 K&H · POSH giữ nguyên, chỉ chuyển vào bên trong mỗi nhóm tuần.
    * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * XẾP TRONG TUẦN THEO NGƯỜI GỬI — anh Thắng 23/09/2026: *"Sắp xếp theo người gửi, Ai Gửi Sớm
+   * nhất nằm trên"*. Đơn của cùng một người đứng liền nhau; người nào có đơn gửi sớm nhất thì
+   * cả cụm của người ấy lên trên; trong cụm xếp theo mốc gửi.
+   * Mốc = `d.guiLuc` (máy chủ: `ngay_gui` lúc bấm Gửi, đơn cũ lui về ngày tạo), chuỗi
+   * 'Y-m-d H:i:s' nên so chuỗi là so thời gian. Không có mốc → xuống cuối cụm / cuối bảng.
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  function _tenNguoiGui(d){ return String((d&&d.nguoiLap)||'').trim().toLowerCase(); }
+  function _xepTheoNguoiGui(rows){
+    var CUOI='~', som={};                     /* '~' đứng sau mọi chữ số → thiếu mốc là xuống cuối */
+    (rows||[]).forEach(function(d){
+      var n=_tenNguoiGui(d), t=String(d.guiLuc||'');
+      if(t && (!som[n] || t<som[n])) som[n]=t;
+    });
+    return (rows||[]).slice().sort(function(a,b){
+      var na=_tenNguoiGui(a), nb=_tenNguoiGui(b);
+      if(na!==nb){
+        var sa=som[na]||CUOI, sb=som[nb]||CUOI;
+        if(sa!==sb) return sa<sb?-1:1;
+        return na.localeCompare(nb,'vi');
+      }
+      var ta=String(a.guiLuc||'')||CUOI, tb=String(b.guiLuc||'')||CUOI;
+      return ta<tb?-1:(ta>tb?1:0);
+    });
+  }
+  /* DÒNG NHÁP MỜ — anh Thắng 23/09/2026: *"Nếu đơn nháp của tuần đó thì cứ nằm phía dưới dạng
+     link mờ để kế toán biết là cơ sở đó sắp gửi xin tạm ứng mà quên gửi"*. Không ô tích, không
+     nút duyệt, không cộng vào tổng tuần — chỉ một dòng nhạt bấm mở được đơn. */
+  function _dvHangNhapHtml(d, gid, gap){
+    return '<tr class="dvNhap '+gid+'" style="opacity:.55'+(gap?';display:none':'')+'">'
+      +'<td colspan="10" style="padding:5px 10px 5px 34px;font-size:12px;color:#64748b;background:#fafaf8">'
+      +'📝 <a href="javascript:void(0)" onclick="viewDon(\''+esc(d.maDon)+'\')" style="color:#475569;text-decoration:underline dotted" title="Mở đơn nháp '+esc(d.maDon)+'">'
+      +'<b>'+esc(d.coso||'(chưa chọn cơ sở)')+'</b> · '+esc(d.nguoiLap||'')+'</a>'
+      +' — đơn <b>Nháp</b>, chưa gửi xin tạm ứng'
+      +((Number(d.tamUng)||0)>0?(' · đang nhập '+money(d.tamUng)+'đ'):'')
+      +'</td></tr>';
+  }
   function _dvGomTuan(list, veHang, opts){
     opts=opts||{};
-    var byKy={}, thu=[];
+    var byKy={}, thu=[], byNhap={};
     list.forEach(function(d){ var k=String(d.ky||'(không kỳ)'); if(!byKy[k]){ byKy[k]=[]; thu.push(k); } byKy[k].push(d); });
+    /* Đơn NHÁP của tuần (`opts.nhap`) — tuần chỉ có nháp vẫn mọc nhóm: đó chính là tuần "sắp
+       gửi mà quên", thứ kế toán cần thấy nhất. Chúng KHÔNG vào `byKy`, nên không vào tổng tuần,
+       không vào nút "Duyệt cả tuần". */
+    (opts.nhap||[]).forEach(function(d){ var k=String(d.ky||'(không kỳ)'); if(!byKy[k]){ byKy[k]=[]; thu.push(k); } (byNhap[k]=byNhap[k]||[]).push(d); });
     /* Mới nhất trước — cùng phép xếp với màn Quyết toán (`_kyVal`), để hai màn không bày hai
        thứ tự khác nhau cho cùng một danh sách tuần. Kỳ không đọc được ra số (`-1`) rơi xuống
        cuối, chỗ đúng của nó: đó là đơn chưa chốt kỳ. */
     thu.sort(function(a,b){ return _kyVal(b)-_kyVal(a); });
     var quy=opts.recon?_dvQuyTheoKy():null;
     return thu.map(function(k, gi){
-      var rows=byKy[k], gid=(opts.tien||'dvk')+gi, gap=(gi>0);
+      var rows=_xepTheoNguoiGui(byKy[k]), nh=_xepTheoNguoiGui(byNhap[k]||[]), gid=(opts.tien||'dvk')+gi, gap=(gi>0);
       /* `opts.hdr` — bảng nào cần tiêu đề tuần khác (số cột khác, nút khác) thì đưa hàm của
-         mình vào; không đưa thì dùng tiêu đề của tab Duyệt. */
-      var h=(opts.hdr||_dvNhomHdr)(k, rows, gid, gap);
+         mình vào; không đưa thì dùng tiêu đề của tab Duyệt. Tham số 5 (`nh`) chỉ tiêu đề tab
+         Duyệt dùng, để đếm "· N nháp chưa gửi". */
+      var h=(opts.hdr||_dvNhomHdr)(k, rows, gid, gap, nh);
       /* 🔴 DÒNG ĐỐI CHIẾU QUỸ — anh Thắng 23/09/2026: *"Sang tuần thừa thiếu 1 lần đó"*. Nó
          phải đứng NGAY DƯỚI tiêu đề tuần và TRƯỚC mấy nút duyệt, vì đây chính là con số người
          ta cần trước khi quyết định duyệt bao nhiêu cho tuần mới. */
@@ -12203,7 +12245,8 @@
         h+='<tr class="dvFlow '+gid+'"'+(gap?' style="display:none"':'')+'><td colspan="10" style="'+wst+';padding:8px 10px;font-size:12px">'
           +_qtReconHtml(q.tu, q.mua, q.carry, q.hasPrev, q.isOpen)+'</td></tr>';
       }
-      return h + _tachDonVi(rows, function(d){ return veHang(d, gid, gap); }, gid, gap);
+      return h + _tachDonVi(rows, function(d){ return veHang(d, gid, gap); }, gid, gap)
+        + nh.map(function(d){ return _dvHangNhapHtml(d, gid, gap); }).join('');
     }).join('');
   }
   /* ══════════════════════════════════════════════════════════════════════════════════════════
@@ -12237,8 +12280,8 @@
     return ra;
   }
   /* Hàng tiêu đề của một tuần: tên tuần · số đơn · tổng tạm ứng · hai nút làm cả tuần. */
-  function _dvNhomHdr(ky, rows, gid, gap){
-    var tong=0, nDuyet=0, nCap=0;
+  function _dvNhomHdr(ky, rows, gid, gap, nhap){
+    var tong=0, nDuyet=0, nCap=0, nNhap=(nhap&&nhap.length)||0;
     rows.forEach(function(d){
       tong+=Number(d.tamUng)||0;
       if(d.trangThai==='Chờ duyệt tạm ứng') nDuyet++;
@@ -12257,6 +12300,7 @@
       +'<td colspan="10" style="cursor:pointer;background:#eef2ff;font-weight:800;color:#3730a3;border-left:4px solid #6366f1;padding:9px 10px">'
       +'<span class="dvcaret" style="display:inline-block;width:14px">'+(gap?'▸':'▾')+'</span> 📅 <span>Tuần/kỳ '+esc(ky)+'</span>'
       +' <span style="color:#64748b;font-weight:600">· '+rows.length+' đơn · tạm ứng '+money(tong)+'đ</span>'
+      +(nNhap?(' <span style="color:#8c8781;font-weight:500">· '+nNhap+' nháp chưa gửi</span>'):'')
       +' <span style="color:#8c8781;font-weight:400;font-size:11px">(bấm để xổ/gập)</span>'
       +nut+'</td></tr>';
   }
@@ -12343,13 +12387,19 @@
     // KHÂU TẠM ỨNG gồm đúng 3 trạng thái. Kể cả "Tất cả" cũng không kéo đơn của khâu sau
     // về đây — không thì bỏ 2 dòng khỏi ô chọn mà chọn "Tất cả" là chúng quay lại ngay.
     var KHAU_TU=['Chờ duyệt tạm ứng','Chờ cấp tạm ứng','Đã cấp tạm ứng'];
-    var list=all.filter(function(d){
+    var quaLoc=function(d){
       if(_anVaoMo(d)) return false;
       // Lọc cho gọn: tháng / tuần / cơ sở — ô nào trống là không lọc theo ô đó
       if(fT && _thangCuaKy(d.ky)!==fT) return false;
       if(fK && String(d.ky||'')!==fK) return false;
       if(fC && String(d.coso||'')!==fC) return false;
-      return KHAU_TU.indexOf(d.trangThai)>=0; });
+      return true;
+    };
+    var list=all.filter(function(d){ return quaLoc(d) && KHAU_TU.indexOf(d.trangThai)>=0; });
+    /* Đơn NHÁP còn nằm trên máy NV — bày mờ cuối nhóm tuần ở bảng chờ duyệt (anh Thắng
+       23/09/2026: *"cơ sở đó sắp gửi xin tạm ứng mà quên gửi"*). Đơn luồng TRỰC TIẾP không
+       đi qua tạm ứng nên không phải "sắp xin tạm ứng" — không bày. */
+    var lNhap=all.filter(function(d){ return quaLoc(d) && d.trangThai==='Nháp' && _luongDon(d)!=='tt'; });
     /* 🔴 GIỮ DANH SÁCH ĐANG HIỆN ĐỂ CỘNG TỔNG TỪ DỮ LIỆU, KHÔNG TỪ Ô TÍCH. Ô tích chỉ mọc ở
        dòng người đang xem có quyền thao tác (`canChk`), nên cộng theo ô tích là bỏ sót đúng
        những đơn họ không được đụng vào — mà tiền của chúng vẫn nằm trong tổng phải chi. */
@@ -12366,13 +12416,13 @@
     _dvVeBang('duyetBodyChi', 'duyetEmptyChi', 'duyetSoChi', lChi, 'dck');
     _dvVeBang('duyetBodyMua', 'duyetEmptyMua', 'duyetSoMua', lMua, 'dmk');
     if(el('duyetSoCho')) el('duyetSoCho').textContent=lCho.length;
-    el('duyetEmpty').style.display=lCho.length?'none':'block';
+    el('duyetEmpty').style.display=(lCho.length||lNhap.length)?'none':'block';
     el('duyetBody').innerHTML=_dvGomTuan(lCho, function(d, gid, gap){
       return _dvHangHtml(d, gid, gap);
     /* 🔴 DÒNG ĐỐI CHIẾU QUỸ CHỈ Ở BẢNG NÀY. Anh Thắng: *"Sang tuần thừa thiếu 1 lần đó"* —
        MỘT lần, và đúng chỗ phải quyết định: trước khi duyệt tuần mới. In lại nó ở bảng "chờ
        chi" và "đang mua" là ba lần cùng một con số trên một màn, rồi không ai đọc nữa. */
-    }, {recon:true, tien:'dvk'});
+    }, {recon:true, tien:'dvk', nhap:lNhap});
     if(el('dvChkAll')) el('dvChkAll').checked=false;
     dvUpdateBar();
   }

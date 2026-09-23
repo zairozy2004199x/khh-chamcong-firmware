@@ -33,7 +33,9 @@ const ham = (n) => { const i = HTML.indexOf('  function ' + n + '('); return i <
   t('⚠️ bốc được `' + n + '()`', ham(n).length > 40, ham(n).length);
 });
 
-const NEN = [ham('_kyVal'), ham('_tachDonVi'), ham('_dvNhomHdr'), ham('_dvGomTuan')].join('\n');
+/* 23/09/2026: `_dvGomTuan` xếp trong tuần theo người gửi (`_xepTheoNguoiGui`) và vẽ dòng nháp mờ
+   (`_dvHangNhapHtml`) — tiêm hàm THẬT, xem kiem-xep-theo-nguoi-gui.js. */
+const NEN = [ham('_kyVal'), ham('_tachDonVi'), ham('_tenNguoiGui'), ham('_xepTheoNguoiGui'), ham('_dvHangNhapHtml'), ham('_dvNhomHdr'), ham('_dvGomTuan')].join('\n');
 
 /* Vẽ thật bảng: mỗi đơn một dòng mang mã, để đọc lại thứ tự và nhóm. */
 function ve(dons, opts) {
@@ -290,7 +292,8 @@ t('🔴 hàm không đọc ô lọc nào (không nổ khi `el()` nổ)', (functi
 t('⚠️ kỳ không đọc được ra số bị bỏ khỏi chuỗi quỹ', !quy([DQ('x', '(không kỳ)', 'Chờ duyệt tạm ứng', 1, 0)])['(không kỳ)']);
 
 /* Dòng đối chiếu vẽ vào đúng bảng — và CHỈ bảng "chờ duyệt". */
-t('🔴 bảng "chờ duyệt" bật `recon`', /\}, \{recon:true, tien:'dvk'\}\);/.test(RD), RD.slice(-400));
+/* 23/09/2026: bảng này còn nhận `nhap:lNhap` (đơn nháp mờ cuối tuần) — xem kiem-xep-theo-nguoi-gui.js. */
+t('🔴 bảng "chờ duyệt" bật `recon`', /\}, \{recon:true, tien:'dvk'(, nhap:lNhap)?\}\);/.test(RD), RD.slice(-400));
 t('🔴 hai bảng kia KHÔNG bật `recon` (một con số, in một lần)', !/recon/.test(ham('_dvVeBang')), ham('_dvVeBang'));
 {
   /* Vẽ thật với recon bật: dòng quỹ phải nằm ngay dưới tiêu đề tuần, mang class nhóm, và gập

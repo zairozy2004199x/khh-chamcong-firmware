@@ -1152,6 +1152,8 @@ class VHCP_Don {
 				'luong'       => self::luong_don( $r ),
 				'coso'        => $coso,
 				'ngayTao'     => VHCP_Util::fmt( $r['ngay_tao'] ),
+				/* Mốc gửi xin tạm ứng, chuỗi xếp được — màn Duyệt xếp theo người gửi (23/09/2026). */
+				'guiLuc'      => self::gui_luc_xep( $r ),
 				'trangThai'   => ( $r['trang_thai'] !== '' ? $r['trang_thai'] : 'Nháp' ),
 				'ghiChu'      => (string) $r['ghi_chu'],
 				'nguoiDuyet'  => (string) $r['nguoi_duyet'],
@@ -3022,7 +3024,27 @@ class VHCP_Don {
 		// Chốt bù trừ theo đúng thời điểm gửi xin, trước khi đơn rời trạng thái "Nháp"
 		self::chot_bu_tru( $ma_don );
 		self::upd_don( $ma_don, array( 'trang_thai' => 'Chờ duyệt tạm ứng' ) );
+		/* MỐC GỬI — anh Thắng 23/09/2026: *"Sắp xếp theo người gửi, ai gửi sớm nhất nằm trên"*.
+		   Màn Duyệt xếp đơn trong tuần theo mốc này (`guiLuc`, xem `gui_luc_xep()`).
+		   ⚠️ GHI RIÊNG MỘT CÂU, SAU câu đổi trạng thái. Cột `ngay_gui` mới có ở sơ đồ 1.16.0;
+		      site chưa kịp `dbDelta()` thì `$wpdb->update` chối cả câu — gộp chung là đơn KHÔNG
+		      đổi được trạng thái chỉ vì thiếu một cột phụ. Câu này trượt thì mất mỗi mốc, và
+		      `gui_luc_xep()` lui về ngày tạo. */
+		self::upd_don( $ma_don, array( 'ngay_gui' => VHCP_Util::now_sql() ) );
 		return VHCP_Util::ok();
+	}
+
+	/**
+	 * Mốc GỬI của đơn, chuỗi 'Y-m-d H:i:s' để màn xếp bằng so chuỗi — không đổi định dạng ở đây.
+	 * Đơn gửi trước khi có cột `ngay_gui` (sơ đồ 1.16.0) lui về NGÀY TẠO: gần đúng nhất còn lại,
+	 * và vẫn là một thứ tự có nghĩa (lập trước thường gửi trước). Rỗng = không có mốc nào.
+	 */
+	public static function gui_luc_xep( $r ) {
+		foreach ( array( 'ngay_gui', 'ngay_tao' ) as $c ) {
+			$v = isset( $r[ $c ] ) ? trim( (string) $r[ $c ] ) : '';
+			if ( '' !== $v && 0 !== strpos( $v, '0000' ) ) { return $v; }
+		}
+		return '';
 	}
 
 	/**

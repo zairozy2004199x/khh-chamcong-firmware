@@ -282,7 +282,8 @@ t('vẫn còn đủ 3 khâu tạm ứng — mỗi khâu một bảng',
 // Không còn "Tất cả" để kéo về nhầm — nhưng danh sách khâu vẫn phải là chốt duy nhất.
 t('chỉ khâu tạm ứng mới vào màn này (`KHAU_TU`)',
   /var KHAU_TU=\['Chờ duyệt tạm ứng','Chờ cấp tạm ứng','Đã cấp tạm ứng'\];/.test(HTML)
-  && /return KHAU_TU\.indexOf\(d\.trangThai\)>=0;/.test(HTML));
+  /* 23/09/2026: bộ lọc tháng/tuần/cơ sở tách ra `quaLoc()` dùng chung với đơn nháp — câu lọc có thêm vế ấy. */
+  && /return (quaLoc\(d\) && )?KHAU_TU\.indexOf\(d\.trangThai\)>=0;/.test(HTML));
 t('ba bảng chia đúng ba trạng thái',
   /trangThai==='Chờ duyệt tạm ứng'; \}\);/.test(fnRD) && /trangThai==='Chờ cấp tạm ứng'; \}\);/.test(fnRD)
   && /trangThai==='Đã cấp tạm ứng'; \}\);/.test(fnRD));
