@@ -34,7 +34,7 @@ function bocHam(ten) {
   return (j > i) ? HTML.slice(i, j) : '';
 }
 
-const TEN = ['_vaiGocCua', '_vaiConCua', '_vaiConHtml', '_roleSel', '_vaiChaDoi'];
+const TEN = ['_vaiTuyBienDs', '_vaiGocCua', '_vaiConCua', '_vaiConHtml', '_roleSel', '_vaiChaDoi'];
 TEN.forEach(function (x) { t('bốc được `' + x + '`', bocHam(x).length > 30, x); });
 
 /* ═══ 1. 🔴 Ô CHA PHẢI BỊ `_readRows()` BỎ QUA ═══════════════════════════════════ */
@@ -52,7 +52,7 @@ const VAITRO = [
 ];
 const vm = require('vm');
 function moi() {
-  const ctx = { CFG: { vaiTro: VAITRO }, VAI_GOC: VAI_GOC,
+  const ctx = { CFG: { vaiTro: VAITRO }, BOOT: { vaiTuyBien: [] }, VAI_GOC: VAI_GOC,
     esc: (x) => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;') };
   vm.createContext(ctx);
   vm.runInContext(TEN.map(bocHam).join('\n'), ctx);
@@ -144,7 +144,7 @@ teq('🔴 cha để "— không rõ —" thì KHÔNG tự đụng vào ô con', 
  * ═══════════════════════════════════════════════════════════════════════════════ */
 {
   const ctx = {
-    CFG: { vaiTro: VAITRO }, VAI_GOC: VAI_GOC,
+    CFG: { vaiTro: VAITRO }, BOOT: { vaiTuyBien: [] }, VAI_GOC: VAI_GOC,
     esc: (x) => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'),
     _cosoSel: () => '<select data-o="coso"></select>',
     _inp: () => '<input data-o="inp">',
@@ -153,9 +153,15 @@ teq('🔴 cha để "— không rõ —" thì KHÔNG tự đụng vào ô con', 
           đây canh một sơ đồ cột khác với sơ đồ thật. */
     _khoiTichNguoi: () => '<input type="hidden" data-o="khoi"><input type="hidden" data-o="dv">',
     _delBtn: () => '<td><button></button></td>',
+    /* `_laAdminThat()` đọc hai biến này. Đặt Admin THẬT để `_uHang()` dựng cả nhánh có nút 👁
+       hiện PIN (từ 1.267.0) — dựng nhánh KHÔNG có nút thì phép đếm ô dưới đây canh một hàng
+       khác với hàng người khai thật sự nhìn thấy. */
+    CURUSER: { role: 'Admin' }, GL_THAT: null,
   };
   vm.createContext(ctx);
-  vm.runInContext([ '_vaiGocCua', '_vaiConCua', '_vaiConHtml', '_roleSel', '_uHang' ].map(bocHam).join('\n'), ctx);
+  /* ⚠️ `_laAdminThat` phải nằm trong danh sách bốc: `_uHang()` gọi nó. Thiếu là bài chết đứng
+     bằng ReferenceError — không phải trượt một phép, mà là không chạy nổi dòng nào. */
+  vm.runInContext([ '_vaiTuyBienDs', '_vaiGocCua', '_vaiConCua', '_vaiConHtml', '_roleSel', '_laAdminThat', '_uHang' ].map(bocHam).join('\n'), ctx);
   const h = ctx._uHang({ ten: 'Thọ', maNv: 'NV7', pin: '1234',
     vaiTro: 'Nhân Viên Kỹ Thuật Máy Tự Động', boPhan: 'Kỹ thuật', coso: '', maDt: '', donVi: 'K&H' }, false);
 

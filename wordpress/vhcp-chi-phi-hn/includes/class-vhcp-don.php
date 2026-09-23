@@ -35,11 +35,199 @@ class VHCPHN_Don {
 	 *    chỉ nêu tên trạng thái đầu tiên; hiểu theo nghĩa đen mà mở lại đơn đã xuất MISA thì hai
 	 *    bên sổ lệch nhau — số bên MISA đã gửi đi rồi, không rút về được.
 	 */
-	const TT_CHOT = array( 'Đã quyết toán', 'Đã xuất MISA' );
+	const TT_CHOT = array( 'Đã quyết toán', 'Đã thanh toán', 'Đã xuất MISA' );
 
 	/** Toàn bộ luồng, đúng thứ tự — để màn hình vẽ được thanh bước và biết mình đang ở đâu. */
 	const TT_LUONG = array( 'Nháp', 'Chờ duyệt tạm ứng', 'Chờ cấp tạm ứng', 'Đã cấp tạm ứng',
-		'Chờ quyết toán', 'Đã quyết toán', 'Đã xuất MISA' );
+		'Chờ quyết toán', 'Đã quyết toán', 'Đã thanh toán', 'Đã xuất MISA' );
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * LUỒNG RIÊNG CỦA MÁY TỰ ĐỘNG / VĂN PHÒNG — ĐỔI CHỮ VÀ BỎ BƯỚC, KHÔNG ĐỔI CHUỖI LƯU TRONG SỔ.
+	 *
+	 * Anh Thắng 21/09/2026: *"Đổi quy trình quyết toán với MTĐ và VP: Tạo Đơn · Gửi Chi · Duyệt
+	 * Chi · Duyệt Quyết Toán · Thanh Toán và Xuất Misa"*, kèm *"Không đi qua đường tạm ứng"* và
+	 * chốt lại rằng thanh toán với xuất MISA là *"hai bước tách rời"*.
+	 *
+	 * 🔴 KHÔNG ĐẶT SÁU CHUỖI TRẠNG THÁI MỚI. Tên trạng thái đang được đọc ở 377 chỗ trong mã
+	 *    (PHP + màn), phần lớn là `in_array($st, array(...))`. Thêm một bộ chuỗi song song là
+	 *    mỗi chốt ấy phải học thêm sáu tên — và chỗ nào quên thì đơn MTĐ lọt lưới im lặng: nó
+	 *    không hiện ở màn duyệt, không vào báo cáo, không ra MISA, mà cũng chẳng có câu lỗi nào.
+	 *    Đúng tiền lệ `_tenNhom()` bên màn (11/09/2026): *"LOẠI LƯU TRONG SỔ KHÔNG ĐỔI... Đổi
+	 *    chữ lưu xuống là đổi hạch toán của cả sổ cũ lẫn sổ mới, chỉ vì một cái nhãn trên màn."*
+	 *
+	 * 🔴 BA THỨ KHÁC NHAU GIỮA HAI LUỒNG, và chỉ ba:
+	 *      1. BỎ BƯỚC `Chờ cấp tạm ứng` — MTĐ/VP không đi qua đường tạm ứng, duyệt chi xong là
+	 *         sang thẳng "đã duyệt, đang chi".
+	 *      2. THÊM BƯỚC `Đã thanh toán` giữa quyết toán và xuất MISA — hai bước tách rời.
+	 *      3. ĐỔI CHỮ trên màn. Sổ vẫn ghi `Chờ duyệt tạm ứng`, người MTĐ đọc thấy "Chờ duyệt chi".
+	 *
+	 * ⚠️ `Đã thanh toán` NẰM SAU `Đã quyết toán` TRONG `TT_LUONG`, nên `da_cap_tien()` (so chỉ số
+	 *    với mốc `Đã cấp tạm ứng`) vẫn đúng mà không phải sửa một chữ — thêm bước TRƯỚC mốc mới
+	 *    là chỗ phải cẩn thận.
+	 * ⚠️ VÀ NÓ VÀO `TT_CHOT`: đứng sau `Đã quyết toán` thì đương nhiên đã chốt sổ. Quên là đơn đã
+	 *    thanh toán vẫn sửa được số tiền.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	const LUONG_KVC = array(
+		'Nháp'              => 'Nháp',
+		'Chờ duyệt tạm ứng' => 'Chờ duyệt tạm ứng',
+		'Chờ cấp tạm ứng'   => 'Chờ cấp tạm ứng',
+		'Đã cấp tạm ứng'    => 'Đã cấp tạm ứng',
+		'Chờ quyết toán'    => 'Chờ quyết toán',
+		'Đã quyết toán'     => 'Đã quyết toán',
+		'Đã xuất MISA'      => 'Đã xuất MISA',
+	);
+	const LUONG_CHI = array(
+		'Nháp'              => 'Tạo đơn',
+		'Chờ duyệt tạm ứng' => 'Chờ duyệt chi',
+		'Đã cấp tạm ứng'    => 'Đã duyệt chi',
+		'Chờ quyết toán'    => 'Chờ duyệt quyết toán',
+		'Đã quyết toán'     => 'Đã duyệt quyết toán',
+		'Đã thanh toán'     => 'Đã thanh toán',
+		'Đã xuất MISA'      => 'Đã xuất MISA',
+	);
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * LUỒNG TRỰC TIẾP — GỬI ĐƠN ĐẦY ĐỦ THẲNG CHO KẾ TOÁN, KHÔNG QUA TẠM ỨNG.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 22/09/2026: *"Bên anh đó có 2 luồng. 1 luồng trực tiếp, 1 luồng gián tiếp. Trực
+	 * tiếp là gửi đơn đầy đủ cho kế toán và quyết toán. Còn gián tiếp là tạm ứng, duyệt tạm
+	 * ứng… cái đang chạy"*, rồi chốt bốn bước: Tạo đơn → Chờ quyết toán → Đã quyết toán → Đã
+	 * thanh toán → Xuất MISA.
+	 *
+	 * 🔴 KHÁC `LUONG_CHI` Ở CHỖ NÀO. `LUONG_CHI` (của Máy tự động / Văn phòng) vẫn có khâu
+	 *    DUYỆT CHI trước khi tiêu — đơn phải được duyệt rồi mới chi. Luồng này thì tiền ĐÃ CHI
+	 *    RỒI: người lập gửi lên một bộ chứng từ đầy đủ, kế toán chỉ còn quyết toán và trả tiền.
+	 *    Nên nó bỏ luôn cả ba bước tạm ứng, không chỉ bỏ `Chờ cấp tạm ứng`.
+	 *
+	 * ⚠️ VẪN KHÔNG ĐẶT CHUỖI TRẠNG THÁI MỚI — dùng lại đúng bộ chuỗi đang lưu trong sổ, chỉ bỏ
+	 *    bước và đổi chữ. Lý do đầy đủ ở khối chú thích của `LUONG_CHI` ngay trên: tên trạng
+	 *    thái đang được đọc ở hàng trăm chỗ, thêm một bộ song song là mỗi chốt phải học thêm
+	 *    mấy tên, và chỗ nào quên thì đơn lọt lưới im lặng.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	const LUONG_TT = array(
+		'Nháp'           => 'Tạo đơn',
+		'Chờ quyết toán' => 'Chờ quyết toán',
+		'Đã quyết toán'  => 'Đã quyết toán',
+		'Đã thanh toán'  => 'Đã thanh toán',
+		'Đã xuất MISA'   => 'Đã xuất MISA',
+	);
+
+	/**
+	 * MÃ LUỒNG LƯU TRONG CỘT `don.luong`.
+	 *
+	 * ⚠️ MÃ NGẮN, KHÔNG LƯU TÊN TIẾNG VIỆT. Tên hiện trên màn còn đổi — anh Thắng đã đổi "Chờ
+	 *    duyệt tạm ứng" thành "Chờ duyệt chi" một lần rồi; lưu tên là mỗi lượt đổi chữ thành
+	 *    một lượt sửa dữ liệu.
+	 * ⚠️ RỖNG KHÔNG PHẢI MỘT MÃ — nó nghĩa là "chưa chọn, cứ theo khối như cũ". Xem `luong_cua()`.
+	 */
+	const LUONG_MA = array(
+		'tt' => 'Trực tiếp (gửi đầy đủ, không tạm ứng)',
+		'gt' => 'Qua tạm ứng',
+		/* 🔴 'dc' THÊM 22/09/2026 — anh Thắng: *"Hoặc bộ phận sẽ chọn phương án duyệt chi"*.
+		   Bảng `LUONG_CHI` vốn đã có từ lâu nhưng KHOÁ CỨNG THEO KHỐI (`KHOI_LUONG_CHI`): chỉ
+		   Máy tự động và Văn phòng đi đường ấy, và ngay cả họ cũng không chọn được — máy tự áp.
+		   Bộ phận khác muốn duyệt chi thì không có cửa nào. Nay nó thành một mã chọn được, đứng
+		   ngang hàng hai mã kia.
+		   ⚠️ KHÔNG BỎ `KHOI_LUONG_CHI`. Hàng trăm đơn MTĐ/VP đang chạy mang luồng RỖNG và phải
+		      tiếp tục đi luồng chi như hôm qua — đường lui theo khối chính là thứ giữ chúng
+		      đúng đường. Mã 'dc' chỉ thêm một lối VÀO, không đổi lối cũ. */
+		'dc' => 'Duyệt chi (duyệt trước khi tiêu, không tạm ứng)',
+	);
+
+	/** Khối nào đi luồng "chi" (không qua tạm ứng). Khai bằng DANH SÁCH, không bằng phép "khác kvc". */
+	const KHOI_LUONG_CHI = array( 'mtd', 'vp' );
+
+	/**
+	 * Luồng của một đơn: [chuỗi lưu trong sổ => chữ hiện trên màn], đúng thứ tự.
+	 *
+	 * 🔴 ĐƠN NÓI TRƯỚC, KHỐI NÓI SAU. Từ 22/09/2026 luồng là thuộc tính của TỪNG ĐƠN (cột
+	 *    `don.luong`), không phải của cả khối: cùng một cơ sở Hà Nội thì hôm nay chi thẳng nhà
+	 *    cung cấp, mai xin tiền trước.
+	 *
+	 * ⚠️ RỖNG = THEO KHỐI NHƯ CŨ, và đó là cả điểm của lượt đổi này. Hàng trăm đơn đang chạy
+	 *    đều rỗng; bắt chúng theo một mã nào đó là đổi luồng giữa chừng cho đơn đã duyệt một
+	 *    nửa — đơn Máy tự động đang ở "Đã duyệt chi" sẽ hoá thành một bước không có trong luồng
+	 *    mới, và màn không biết vẽ nó ở đâu.
+	 * ⚠️ MÃ LẠ CŨNG NGÃ VỀ THEO KHỐI. Thà chạy đúng như hôm qua còn hơn rơi vào một luồng thứ
+	 *    ba do gõ sai mà ra.
+	 */
+	public static function luong_cua( $khoi, $luong = '' ) {
+		$l = mb_strtolower( trim( (string) $luong ) );
+		if ( 'tt' === $l ) { return self::LUONG_TT; }
+		if ( 'gt' === $l ) { return self::LUONG_KVC; }
+		/* ⚠️ 'dc' TRỎ VÀO CHÍNH `LUONG_CHI`, không phải một bảng thứ tư chép lại. Chép ra một
+		   bảng song song là hai nơi phải nhớ sửa mỗi lượt anh Thắng đổi chữ, và chỗ quên thì
+		   đơn cùng một luồng hiện hai tên khác nhau ở hai màn. */
+		if ( 'dc' === $l ) { return self::LUONG_CHI; }
+		$k = mb_strtolower( trim( (string) $khoi ) );
+		return in_array( $k, self::KHOI_LUONG_CHI, true ) ? self::LUONG_CHI : self::LUONG_KVC;
+	}
+
+	/** Mã luồng đã chuẩn hoá của một hàng đơn — mã lạ về rỗng ("theo khối"). */
+	public static function luong_don( $d ) {
+		$d = (array) $d;
+		$l = mb_strtolower( trim( (string) ( isset( $d['luong'] ) ? $d['luong'] : '' ) ) );
+		return isset( self::LUONG_MA[ $l ] ) ? $l : '';
+	}
+
+	/**
+	 * LUỒNG MẶC ĐỊNH CHO ĐƠN MỘT NGƯỜI SẮP LẬP — theo BỘ PHẬN của người ấy.
+	 *
+	 * Anh Thắng 22/09/2026: *"Hoặc bộ phận sẽ chọn phương án duyệt chi"*, và anh chốt: bộ phận
+	 * khai một lần, người lập vẫn đổi được trên từng đơn.
+	 *
+	 * 🔴 CHỈ LÀ GIÁ TRỊ MỒI. Trả về đây được `create_don()` dùng KHI VÀ CHỈ KHI màn không gửi
+	 *    mã nào lên — tức người lập không đụng vào ô chọn. Ai đã bấm chọn thì cái họ bấm thắng,
+	 *    đúng nghĩa "đơn vẫn sửa được". Đọc hàm này ở chỗ khác (lúc mở đơn, lúc vẽ thanh bước)
+	 *    là hỏng cả luật: đơn đã đóng dấu rồi mà còn tra lại bảng thì sửa danh mục một lượt là
+	 *    đổi luồng cho mọi đơn đang chạy dở.
+	 *
+	 * ⚠️ RỖNG LÀ CÂU TRẢ LỜI HỢP LỆ, không phải lỗi: người chưa khai bộ phận, bộ phận chưa khai
+	 *    luồng, hoặc tên người lập gõ tay không khớp hàng nào — cả ba đều về rỗng, và rỗng nghĩa
+	 *    là "theo khối như cũ", đúng hành vi trước bản này.
+	 */
+	public static function luong_mac_dinh( $nguoi_lap ) {
+		return VHCPHN_Cfg::luong_cua_bo_phan( VHCPHN_Cfg::bo_phan_hang_nguoi( $nguoi_lap ) );
+	}
+
+	/** Đơn này có đi luồng TRỰC TIẾP không (gửi thẳng quyết toán, không qua tạm ứng). */
+	public static function la_truc_tiep( $d ) {
+		return 'tt' === self::luong_don( $d );
+	}
+
+	/** Chữ hiện trên màn cho một trạng thái, theo khối. Trạng thái lạ trả về NGUYÊN VĂN. */
+	public static function ten_tt( $st, $khoi = '', $luong = '' ) {
+		$st = trim( (string) $st );
+		if ( '' === $st ) { $st = 'Nháp'; }
+		$l = self::luong_cua( $khoi, $luong );
+		/* ⚠️ NGÃ VỀ NGUYÊN VĂN, không trả rỗng. Đơn MTĐ còn đứng ở `Chờ cấp tạm ứng` (lập trước
+		   bản này) không có trong luồng mới — trả rỗng là màn hiện một ô trắng và không ai biết
+		   đơn đang ở đâu. Hiện tên cũ thì ít nhất còn đọc được, và còn tra ra được. */
+		return isset( $l[ $st ] ) ? $l[ $st ] : $st;
+	}
+
+	/** Bước này có trong luồng của khối không (dùng để vẽ thanh bước). */
+	public static function tt_trong_luong( $st, $khoi = '', $luong = '' ) {
+		return isset( self::luong_cua( $khoi, $luong )[ trim( (string) $st ) ] );
+	}
+
+	/**
+	 * TRẠNG THÁI ĐỨNG NGAY TRƯỚC `Đã xuất MISA` trong luồng của khối — tức "đã sẵn sàng để xuất".
+	 *
+	 * 🔴 KHÔNG GÕ CỨNG 'Đã quyết toán'. Bên KVC nó đúng, nhưng bên MTĐ/VP còn một bước
+	 *    `Đã thanh toán` chen vào giữa — anh Thắng 21/09/2026 chốt thanh toán và xuất MISA là
+	 *    *"hai bước tách rời"*. Gõ cứng là đơn MTĐ vừa duyệt quyết toán đã rơi vào bản xuất,
+	 *    tức xuất MISA cho một khoản chưa trả tiền.
+	 *
+	 * ⚠️ ĐỌC TỪ CHÍNH BẢNG LUỒNG, không khai thêm một hằng nữa. Thêm/bớt bước ở `LUONG_*` là
+	 *    hàm này tự đúng theo — một chỗ khai, không có chỗ thứ hai để quên.
+	 */
+	public static function tt_truoc_misa( $khoi = '', $luong = '' ) {
+		$ds = array_keys( self::luong_cua( $khoi, $luong ) );
+		$i  = array_search( 'Đã xuất MISA', $ds, true );
+		if ( false === $i || $i < 1 ) { return 'Đã quyết toán'; }
+		return $ds[ $i - 1 ];
+	}
 
 	/**
 	 * ĐƠN NÀY ĐÃ ĐƯỢC CẤP TIỀN CHƯA — chốt dùng chung cho mọi phép tính thực chi.
@@ -519,7 +707,7 @@ class VHCPHN_Don {
 			   phá thử đã chỉ ra và đây là đột biến TƯƠNG ĐƯƠNG, không ép cho đỏ được. Giữ vì
 			   nó cắt hẳn số lần tra, không phải vì nó đổi con số. */
 			if ( isset( $da[ $k ] ) ) { continue; }
-			$da[ $k ] = ( '' === VHCPHN_Cfg::bo_phan_cua_loai( $ten ) );
+			$da[ $k ] = ! VHCPHN_Cfg::bo_phan_ds_cua_loai( $ten );
 		}
 		$n = 0;
 		foreach ( $da as $chua ) { if ( $chua ) { $n++; } }
@@ -554,7 +742,10 @@ class VHCPHN_Don {
 
 		$loai = array();
 		foreach ( (array) ( isset( $cfg['loaiChiPhi'] ) ? $cfg['loaiChiPhi'] : array() ) as $x ) {
-			$loai[] = array( 'ten' => $x['ten'], 'tkNo' => $x['tkNo'], 'tkCo' => $x['tkCo'], 'boPhan' => $x['boPhan'], 'loaiTt' => isset( $x['loaiTt'] ) ? $x['loaiTt'] : '' );
+			/* `vaiTro` = ai được dùng loại này (21/09/2026). Không gửi xuống là ô chọn lúc nhập
+			   đơn bày đủ mọi loại cho mọi vai, trong khi máy chủ thì lọc — hai bên nói hai
+			   chuyện, và người nhập chọn được thứ mà sổ của họ không hiện. */
+			$loai[] = array( 'ten' => $x['ten'], 'tkNo' => $x['tkNo'], 'tkCo' => $x['tkCo'], 'boPhan' => $x['boPhan'], 'loaiTt' => isset( $x['loaiTt'] ) ? $x['loaiTt'] : '', 'vaiTro' => isset( $x['vaiTro'] ) ? $x['vaiTro'] : '', 'khoi' => isset( $x['khoi'] ) ? $x['khoi'] : '', 'dauMuc' => isset( $x['dauMuc'] ) ? $x['dauMuc'] : '', 'cha' => isset( $x['cha'] ) ? $x['cha'] : '' );
 		}
 
 		// Cơ sở -> mảng kinh doanh, và ma trận [loại][mảng] -> TK Nợ: để ô "Loại chi phí"
@@ -590,9 +781,120 @@ class VHCPHN_Don {
 			   chạy. Nó có chạy — chỉ là phần lớn loại chi phí trong danh mục CHƯA khai ô Bộ
 			   phận, mà loại chưa khai thì cố ý cho hiện với mọi kế toán (chặn hết là màn
 			   trắng). Con số này biến "trông như hỏng" thành "còn N dòng phải khai". */
+			/* ══════════════════════════════════════════════════════════════════════════════
+			 * 🔴 DANH SÁCH BỘ PHẬN PHẢI XUỐNG TỚI GÓI KHỞI ĐỘNG, KHÔNG CHỈ Ở GÓI CẤU HÌNH.
+			 * ══════════════════════════════════════════════════════════════════════════════
+			 * Lộ ra hôm 21/09/2026 ở dải 👁 Xem như (anh Thắng: *"chỉnh phần khai bộ phận cho
+			 * admin để tes"* — ô chọn bộ phận trống trơn). Dải ấy nay đã gỡ theo yêu cầu
+			 * 22/09 (*"loại bỏ tính năng này"*), NHƯNG KHOÁ NÀY VẪN PHẢI Ở LẠI: giao diện đọc
+			 * nó ở `_bpDs()`, đường lui cho lúc gói Cấu hình chưa nạp — mở một tab cần tên bộ
+			 * phận TRƯỚC khi vào Cấu hình là rơi đúng vào đường lui ấy.
+			 *
+			 * ⚠️ ĐỪNG GỠ THEO DẢI XEM NHƯ. Nó chỉ là chỗ ĐẦU TIÊN lộ ra thiếu khoá, không phải
+			 *    chỗ duy nhất đọc. Bài học gốc thì không đổi: một khoá thiếu trông y hệt một
+			 *    danh sách rỗng, nên không có gì trên màn nói rằng chỗ kia đang đói dữ liệu.
+			 *
+			 * 🔴 GỌI `bo_phan_ds()`, ĐỪNG ĐỌC THẲNG BẢNG. Hàm ấy mới có nhánh "danh mục rỗng
+			 *    thì ngã về bảy tên mặc định"; đọc thẳng là site chưa khai gửi xuống danh sách
+			 *    rỗng trong khi máy chủ vẫn nhận bảy tên ấy — hai bên lệch nhau lặng lẽ.
+			 * ══════════════════════════════════════════════════════════════════════════════ */
+			/* ĐẦU MỤC LỚN — thứ dẫn đường cho người nhập, thay cho bộ lọc theo vai. Phải xuống
+			   tới gói khởi động chứ không chỉ gói Cấu hình: ô chọn lúc NHẬP ĐƠN dựng từ gói
+			   này, và một khoá thiếu ở đây trông y hệt một danh sách rỗng. */
+			'dauMucDs'   => VHCPHN_Cfg::dau_muc_ds(),
+			/* Vùng này có lọc loại theo vai không. Giao diện đọc CỜ, không tự suy: hai nơi tự
+			   suy là có ngày ô chọn bày một đằng, máy chủ gác một nẻo. */
+			'locLoaiTheoVai' => VHCPHN_Cfg::loc_loai_theo_vai(),
+			/* 🔴 Khối có lọc loại chi phí không — xem chốt dài ở `VHCPHN_Cfg::LOC_LOAI_THEO_KHOI`.
+			   Anh Thắng: *"Khối là dùng chung… Khối là liên quan Miền Bắc và Miền Nam thôi"*. */
+			'locLoaiTheoKhoi' => VHCPHN_Cfg::loc_loai_theo_khoi(),
+			'boPhanDs'   => VHCPHN_Cfg::bo_phan_ds(),
 			'boPhanBo'   => VHCPHN_Auth::bo_phan_bo(),
+			/* ══════════════════════════════════════════════════════════════════════════════
+			 * LUỒNG DUYỆT MẶC ĐỊNH CỦA NGƯỜI ĐANG MỞ MÀN — mồi cho ô chọn lúc lập đơn.
+			 * ══════════════════════════════════════════════════════════════════════════════
+			 * 🔴 CÁI MÀN THẤY PHẢI ĐÚNG BẰNG CÁI SỔ SẼ GHI. Ô chọn gửi thẳng mã lên
+			 *    `create_don()`, nên mồi sai là người lập nhìn thấy một luồng rồi đơn đi một
+			 *    luồng khác — và không câu nào báo, vì cả hai đều là mã hợp lệ.
+			 * ⚠️ RỖNG = CHƯA KHAI, và màn phải tự ngã về đường lui THEO KHỐI đúng như máy chủ
+			 *    (`luong_cua()`). Không chở khoá này thì màn đoán, mà đoán sai ở đây là đơn mới
+			 *    của Máy tự động / Văn phòng mất khâu duyệt chi.
+			 * ══════════════════════════════════════════════════════════════════════════════ */
+			'luongBo'    => self::luong_mac_dinh( VHCPHN_Auth::nguoi() ),
+			'luongMa'    => self::LUONG_MA,
+			'khoiLuongChi' => self::KHOI_LUONG_CHI,
 			'loaiChuaBP' => self::dem_loai_chua_bo_phan( $cp ),
 			'donVi'      => VHCPHN_DonVi::ds(),
+			/* 🔴 TÊN NHÀ MẸ PHẢI XUỐNG TỚI GIAO DIỆN. Luật "nhà mẹ đọc cả hệ" trước nay CHỈ có
+			   ở máy chủ (`VHCPHN_DonVi::la_don_vi_me()`), nên hộp chọn cơ sở bên kia đành so
+			   bằng nhau — và giấu mọi gian KVC / POSH khỏi tài khoản K&H, tức khỏi đúng người
+			   đáng thấy tất. Người khai mở hộp ra thấy thiếu thì gõ tay một chuỗi ("TUTU_BD"),
+			   và chuỗi ấy không khớp gian nào. Một luật mà hai nơi giữ hai bản là thế.
+			   ⚠️ '' nghĩa là KHÔNG CÓ NHÀ MẸ (khoá `vhcphn_dv_me` để trống) — mọi đơn vị ngang
+			      hàng. Giao diện phải hiểu đúng nghĩa ấy, đừng coi rỗng là "K&H". */
+			'donViMe'    => VHCPHN_DonVi::don_vi_me(),
+			/* Khối nào được bày nút trên thanh KHỐI — `null` = đủ ba. Đi thẳng từ `xem_duoc()`
+			   nên không đẻ thêm trục quyền nào; xem chốt dài ở `VHCPHN_DonVi::khoi_xem_duoc()`. */
+			'khoiXem'    => VHCPHN_DonVi::khoi_xem_duoc(),
+			/* Khối mặc định lúc mở lần đầu = khối của chính nhà người dùng, để họ không phải
+			   bấm một nhịp mới thấy việc của mình. */
+			'khoiBan'    => ( VHCPHN_DonVi::khoi_cua( VHCPHN_DonVi::cua_toi() ) ?: VHCPHN_DB::KHOI ),
+			/* ẢNH XẠ ĐƠN VỊ → KHỐI, GỬI NGUYÊN BẢNG XUỐNG MÀN.
+			   Anh Thắng 21/09/2026: *"đơn vị cơ sở theo khối — chuyển cột Đơn vị sang Khối"*. Ô
+			   chọn khối ở bảng cơ sở phải biết "KVC / POSH / MTĐ thuộc khối nào".
+			   🔴 GỬI BẢNG, ĐỪNG ĐỂ MÀN CHÉP LẠI MỘT BẢN. Chép tay là hai nơi khai cùng một luật,
+			      và ngày thêm một tên đơn vị (một chi nhánh mới) là hai bên lệch — màn xếp cơ sở
+			      vào khối này trong khi máy chủ đọc ra khối khác, không một câu lỗi nào. */
+			'khoiTheoDv' => VHCPHN_DonVi::KHOI_THEO_DON_VI,
+			/* ══════════════════════════════════════════════════════════════════════════════
+			 * 🔴 KHỐI NÀO CÒN ĐƠN TRONG KHO NÀY — để thanh KHỐI đừng giấu mất sổ cũ.
+			 * ══════════════════════════════════════════════════════════════════════════════
+			 * Anh Thắng 22/09/2026: *"Hiện tại chi phí máy tự động áp dụng web riêng nên không
+			 * dùng chung nữa"*. Bản gốc thôi phục vụ MTĐ, nên nút MTĐ rời thanh KHỐI.
+			 *
+			 * 🔴 NHƯNG ĐƠN MTĐ ĐÃ LẬP Ở ĐÂY THÌ VẪN NẰM ĐÂY. Đó là chứng từ kế toán, có đơn
+			 *    chưa xuất MISA. Gỡ nút đi mà không hỏi lại kho là mọi màn lọc theo khối đang
+			 *    đứng — và chúng biến mất khỏi giao diện dù dữ liệu còn nguyên. Anh Thắng đã
+			 *    gặp đúng cảnh ấy hôm 11/09 và tưởng mất dữ liệu; không lặp lại.
+			 *
+			 * ⚠️ ĐẾM TOÀN KHO, KHÔNG THEO NGƯỜI ĐANG XEM. Đây là câu hỏi "kho này còn sổ của
+			 *    khối nào", không phải "người này được xem gì" — chốt xem vẫn nằm nguyên ở
+			 *    `list_dons()`. Đếm theo người là Admin thấy nút, kế toán không, cho cùng một
+			 *    kho: hai người nhìn hai hệ thống khác nhau.
+			 * ⚠️ CHỈ TRẢ MÃ KHỐI, không trả số lượng — bao nhiêu đơn là chuyện của màn, còn
+			 *    đây chỉ cần trả lời có/không.
+			 * ══════════════════════════════════════════════════════════════════════════════ */
+			'khoiCoDon'  => self::khoi_con_don(),
+			/* 🔴 DANH SÁCH KHỐI — MỘT NGUỒN DUY NHẤT. Màn từng gõ cứng `[kvc, mtd, vp]`, nên
+			   bản vùng mã mới ('hn') có khối ở máy chủ mà KHÔNG có tab trên màn, và đơn của
+			   nó biến mất. Xem chốt dài ở `VHCPHN_DonVi::khoi_ds()`. */
+			'khoiDs'     => VHCPHN_DonVi::khoi_ds(),
+			/* 🔴 VAI TỰ TẠO XUỐNG THẲNG GÓI KHỞI ĐỘNG — anh Thắng 22/09/2026: *"Giả lập nhân
+			   viên từng bộ phận"*, gửi ảnh ô giả lập chỉ có bốn vai gốc trong khi bảng Vai trò
+			   tự tạo có MƯỜI vai (Kỹ Thuật KVC · Kế Toán MTD · Nhân Viên Kho Cơ Sở…).
+
+			   Lý do đúng: dải giả lập vẽ từ `applyPerms()`, tức NGAY SAU KHI ĐĂNG NHẬP — mà
+			   danh sách vai tự tạo trước nay chỉ có trong `CFG`, và `CFG` chỉ nạp khi ai đó
+			   bấm vào tab Cấu hình. Chưa vào Cấu hình thì ô chọn chỉ còn bốn vai gốc.
+
+			   ⚠️ CHỈ LÀ TÊN VAI VÀ VAI CHA, không kèm quyền gì — cùng thứ bảng Vai trò tự tạo
+			      vẫn bày cho mọi người xem. Không nới một chốt nào. */
+			'vaiTuyBien' => VHCPHN_Cfg::vai_tuy_bien(),
+			/* Hai lựa chọn của ô Setup / Vận hành — đưa từ máy chủ xuống để MỘT nơi khai duy
+			   nhất. Gõ lại chuỗi ở màn là có ngày hai bên lệch nhau một dấu, và `giai_doan_chuan()`
+			   lẳng lặng ngã mọi dòng về rỗng. */
+			'giaiDoanDs' => self::GIAI_DOAN_DS,
+			/* 🔴 ĐƯA TÊN TỪNG GIÁ TRỊ XUỐNG, không để màn lấy theo CHỖ ĐỨNG trong danh sách.
+			   Ô nhập nay là MỘT ô tích (tích = setup, không tích = vận hành), nên màn phải biết
+			   đích danh chuỗi nào là "setup" và chuỗi nào là "vận hành". Lấy `giaiDoanDs[0]` là
+			   bám vào thứ tự — đảo hai phần tử một cái là mọi dòng mới đóng dấu ngược, im lặng. */
+			'giaiDoanSetup' => self::GIAI_DOAN_SETUP,
+			'giaiDoanVh'    => self::GIAI_DOAN_VH,
+			/* 🔴 BẢNG TRỤC PHÂN TÍCH — màn dựng ô nhập TỪ ĐÂY, không gõ cứng trục nào. Thêm một
+			   trục ở `VHCPHN_Truc::ds()` là form tự mọc thêm ô, không phải sửa giao diện.
+			   ⚠️ Ba khoá `giaiDoan*` ở trên VẪN GIỮ: bản màn cũ còn đọc chúng, và gỡ đi là ai
+			      chưa tải lại trang mất ô Giai đoạn giữa chừng. */
+			'trucDs'     => VHCPHN_Truc::boot(),
 			/* Ai đang khai ô "Xem đơn vị" lạc ra ngoài danh sách — họ là người sắp ngồi trước
 			   một màn trắng. Xem chốt dài ở `VHCPHN_DonVi::ai_khai_lac()`. */
 			'khaiLac'    => VHCPHN_DonVi::ai_khai_lac(),
@@ -600,6 +902,21 @@ class VHCPHN_Don {
 			'xemDonVi'   => VHCPHN_DonVi::xem_duoc(),
 			'nhieuDonVi' => VHCPHN_DonVi::nhieu_don_vi(),
 			'cosoPll'    => $coso_ml,
+			/* ═══════════════════════════════════════════════════════════════════════════
+			   CƠ SỞ → ĐƠN VỊ, để màn biết mỗi gian thuộc KHỐI nào.
+
+			   Anh Thắng 21/09/2026: *"Đã phân quyền nhân viên, nhưng vẫn thấy cơ sở bên KVC"* — hộp
+			   "Gian / cơ sở" lúc lập đơn xổ ra cả 67 gian ghế lẫn mọi gian khu vui chơi. Màn không lọc
+			   được vì nó không hề biết gian nào thuộc khối nào — bảng tra này nằm ở máy chủ từ lâu
+			   (`VHCPHN_DonVi::cua_coso()`) mà chưa bao giờ được gửi xuống.
+
+			   🔴 GỬI BẢNG TRA, ĐỪNG GỬI SẴN DANH SÁCH ĐÃ LỌC. Khôi khác nhau theo từng tab người đang
+			      đứng, mà gói khởi động chỉ nạp MỘT lần; gửi sẵn danh sách đã lọc là đổi tab xong
+			      hộp gian vẫn đứng nguyên ở khối cũ, và phải tải lại cả trang mới đúng.
+			   ⚠️ Khoá đã hạ chữ thường sẵn từ `cfg_static()` — màn phải tra bằng khoá hạ chữ thường,
+			      không tra nguyên văn tên gian.
+			   ══════════════════════════════════════════════════════════════════════════ */
+			'cosoDv'     => ( isset( $s_all['cosoDonVi'] ) ? $s_all['cosoDonVi'] : array() ),
 			'tkNoMx'     => $mx,
 			'tenTk'      => $ten_tk,
 			'nhom'       => $nhom,
@@ -610,6 +927,10 @@ class VHCPHN_Don {
 			'quyen'      => VHCPHN_Cfg::get_quyen(),
 			'soDuDauKy'  => self::get_so_du_dau_ky(),
 			'dons'       => self::list_dons( $cp ),
+			/* ⚠️ ĐỌC SAU `list_dons()` — ba con số chỉ có giá trị sau khi nó chạy xong. Đặt
+			   trước là luôn nhận 0, và màn sẽ nói "không chốt nào cắt gì" trong khi 108 đơn
+			   vừa rơi đâu mất. PHP dựng mảng theo thứ tự viết, nên thứ tự này là chốt thật. */
+			'daChan'     => self::so_da_chan(),
 			'products'   => self::product_suggestions( $cp ),
 		);
 	}
@@ -677,6 +998,7 @@ class VHCPHN_Don {
 		      thì vẫn hiện: chưa có dòng nào để mà nói nó thuộc bộ phận nào, mà đó lại đúng là
 		      đơn đang treo tiền. */
 		$bo_phan_bo = VHCPHN_Auth::bo_phan_bo();
+		self::$chan_bp = 0; self::$chan_pv = 0; self::$chan_dv = 0;
 		$don_cham   = array();
 		/* true = đơn này có ÍT NHẤT MỘT dòng khai đúng bộ phận đang bó. Đơn không có dòng nào
 		   như thế mà vẫn lọt là lọt nhờ mấy nhánh "cho qua" — xem chốt 🔴 ở chỗ gán `$bp_mo`. */
@@ -692,7 +1014,8 @@ class VHCPHN_Don {
 				/* Dòng khai ĐÚNG bộ phận đang bó — khác hẳn dòng lọt vì loại của nó chưa khai,
 				   hay vì loại không có trong danh mục. Chỉ dòng như thế mới chứng minh được
 				   đơn này là việc của mình. */
-				if ( VHCPHN_Cfg::bo_phan_cua_loai( isset( $r['nhom'] ) ? $r['nhom'] : '' ) === $bo_phan_bo ) {
+				$_nhom = isset( $r['nhom'] ) ? $r['nhom'] : '';
+				if ( VHCPHN_Cfg::bo_phan_ds_cua_loai( $_nhom ) && VHCPHN_Cfg::loai_thuoc_bo_phan( $_nhom, $bo_phan_bo ) ) {
 					$don_ro[ $m ] = true;
 				}
 			}
@@ -718,7 +1041,32 @@ class VHCPHN_Don {
 			if ( $m === '' ) { continue; }
 			/* Có dòng chi mà KHÔNG dòng nào thuộc bộ phận mình -> bỏ. Đơn chưa có dòng nào thì
 			   `$don_cham` không có khoá ấy, và nó vẫn hiện — xem khối 🔴 ở trên. */
-			if ( '' !== $bo_phan_bo && isset( $don_cham[ $m ] ) && ! $don_cham[ $m ] ) { continue; }
+			/* ══════════════════════════════════════════════════════════════════════════════
+			 * 🔴 NHÂN VIÊN ĐÃ ĐƯỢC PHÂN CƠ SỞ THÌ CHỐT BỘ PHẬN KHÔNG CẮT NỮA.
+			 * ══════════════════════════════════════════════════════════════════════════════
+			 * Anh Thắng 14/09/2026: *"giống cơ chế admin thôi, admin thì full, nv thì cấp quyền
+			 * cơ sở nào thì nhìn thấy cơ sở đó thôi, mọi đơn"*.
+			 *
+			 * Chốt bộ phận sinh ra cho vai KẾ TOÁN CHUYÊN MẢNG ("Kế toán máy tự động chỉ thực
+			 * hiện công việc bên bộ phận máy tự động"). Đem nó áp lên người đứng cửa hàng là sai
+			 * chỗ: một cửa hàng nhập đủ thứ chi phí — cơ sở, marketing, nguyên vật liệu — nên bó
+			 * theo bộ phận thì ngay đơn của đồng nghiệp cùng quầy cũng biến mất. Đó đúng là thứ
+			 * đã đi tìm suốt bốn lượt vá hôm nay, mỗi lượt sửa một chốt khác.
+			 *
+			 * ⚠️ CHỈ MỞ TRONG PHẠM VI CƠ SỞ CỦA HỌ. Đơn của gian khác vẫn rơi ở chốt PHẠM VI
+			 *    ngay bên dưới — "full" ở đây là full TRONG cơ sở mình, không phải full cả nhà.
+			 *
+			 * ⚠️ ĐỌC CƠ SỞ CẢ Ở HÀNG TẠM ỨNG. Đơn xin ứng trước chưa có dòng chi nào; chỉ nhìn
+			 *    `$coso_by` là nó rơi đúng vào chốt vừa mở, và đó lại là đơn đang treo tiền.
+			 * ══════════════════════════════════════════════════════════════════════════════ */
+			if ( '' !== $bo_phan_bo && isset( $don_cham[ $m ] ) && ! $don_cham[ $m ] ) {
+				$_cs_m = isset( $coso_by[ $m ] ) ? implode( ', ', array_keys( $coso_by[ $m ] ) )
+					: ( isset( $cs_tu[ $m ] ) ? $cs_tu[ $m ] : '' );
+				if ( ! VHCPHN_Auth::nv_co_coso()
+					|| ! VHCPHN_Auth::trong_tam( (string) $r['nguoi_lap'], $_cs_m ) ) {
+					self::$chan_bp++; continue;
+				}
+			}
 			/* 🔴 ĐƠN "CHƯA RÕ BỘ PHẬN" — gắn cờ, để màn còn ẩn được nếu người dùng muốn.
 			   Anh Thắng 08/09/2026: *"lý do sao tk kế toán mtd vẫn hiện đơn kvc"*.
 
@@ -796,6 +1144,12 @@ class VHCPHN_Don {
 				'nguoiLap'    => (string) $r['nguoi_lap'],
 				/* Gác isset: cột `don_vi` thêm ở bản 1.43.0 — bảng nới ở lượt tải trang sau. */
 				'donVi'       => VHCPHN_DonVi::chuan( isset( $r['don_vi'] ) ? $r['don_vi'] : '' ),
+				/* Mảng của đơn — thanh KVC · MTĐ · VP lọc theo ô này. Đơn cũ (trước khi có cột)
+				   đã được `VHCPHN_DB::lap_mang()` lấp sẵn, nên ở đây không cần đoán gì. */
+				'khoi'        => trim( (string) ( isset( $r['khoi'] ) ? $r['khoi'] : '' ) ),
+				/* Luồng của đơn — màn vẽ thanh bước và bày nút gửi theo ô này. Rỗng = theo khối
+				   như cũ; xem `luong_cua()`. */
+				'luong'       => self::luong_don( $r ),
 				'coso'        => $coso,
 				'ngayTao'     => VHCPHN_Util::fmt( $r['ngay_tao'] ),
 				'trangThai'   => ( $r['trang_thai'] !== '' ? $r['trang_thai'] : 'Nháp' ),
@@ -844,38 +1198,34 @@ class VHCPHN_Don {
 			);
 		}
 		/* ═══════════════════════════════════════════════════════════════════════════════════
-		 * NHÂN VIÊN THẤY: ĐƠN CỦA MÌNH, CỘNG ĐƠN CỦA CƠ SỞ MÌNH PHỤ TRÁCH.
+		 * AI THẤY ĐƠN NÀO — theo cơ cấu anh Thắng vạch 12/09/2026.
 		 * ═══════════════════════════════════════════════════════════════════════════════════
 		 * Chặn ở đây, tức ở NGUỒN: mọi màn (danh sách đơn · duyệt tạm ứng · quyết toán ·
 		 * thừa/thiếu · báo cáo) đều lấy từ đây, nên không màn nào lỡ để lộ đơn ngoài phạm vi.
 		 * Lọc trên giao diện thì dữ liệu vẫn đã gửi xuống máy người ta rồi.
+		 *
+		 * 🔴 QUẢN LÝ CŨNG BỊ BÓ THEO CƠ SỞ (mới 12/09/2026): *"Quản Lý — chỉ xem, nhập dữ liệu
+		 *    được bộ phận cơ sở mình quản lý"*. Trước bản này chỉ Nhân viên bị bó, nên một
+		 *    quản lý khai đúng ba cơ sở của mình vẫn đọc được sổ của mọi cơ sở khác.
 		 *
 		 * 🔴 CƠ SỞ PHỤ TRÁCH MỚI ĐƯỢC TÍNH VÀO PHẠM VI. Anh Thắng 30/08/2026: *"Nhân viên được
 		 *    cấu hình 3 cơ sở, nhưng đơn chỉ hiện 1 cơ sở"*. Trước đây ô khai cơ sở ở màn Cấu
 		 *    hình chỉ được nhét vào thẻ phiên rồi thôi — không chỗ nào ở máy chủ đọc tới, nên
 		 *    khai ba cơ sở hay ba mươi cũng như nhau: danh sách vẫn chỉ lọc theo NGƯỜI LẬP.
 		 *
-		 * ⚠️ VẪN GIỮ VẾ "ĐƠN CỦA MÌNH". Bỏ nó đi là người chưa khai cơ sở nào (hoặc lập đơn cho
-		 *    một cơ sở vừa bị gỡ khỏi danh sách phụ trách) mất luôn chính đơn mình đang làm dở.
-		 *
-		 * ⚠️ CHƯA KHAI CƠ SỞ NÀO thì `coso_ds()` rỗng, và mọi thứ rơi về đúng hành vi cũ — chỉ
-		 *    đơn của mình. KHÔNG được hiểu "rỗng" thành "tất cả": người quên khai sẽ đọc được
-		 *    đơn của cả công ty mà không ai nhận ra.
+		 * ⚠️ LUẬT ĐẦY ĐỦ nằm trong `VHCPHN_Auth::trong_tam()` — kể cả chỗ hai vai hiểu ô Cơ
+		 *    sở RỖNG theo hai nghĩa ngược nhau. Để nó ở Auth vì `VHCPHN_Duan` và `VHCPHN_Bp` cũng
+		 *    phải hỏi đúng câu ấy; chép luật ra ba nơi là sớm muộn ba nơi lệch.
 		 *
 		 * ⚠️ MỘT ĐƠN CÓ THỂ MANG NHIỀU CƠ SỞ (`$x['coso']` là chuỗi "A, B" gom từ các dòng chi).
 		 *    Chỉ cần MỘT trong số đó nằm trong phạm vi là thấy được — đơn ghép nhiều cơ sở thì
 		 *    người phụ trách một trong các cơ sở ấy vẫn phải theo dõi được phần của mình.
 		 */
-		if ( VHCPHN_Auth::la_nhan_vien() ) {
-			$toi = mb_strtolower( trim( VHCPHN_Auth::nguoi() ) );
-			$out = array_values( array_filter( $out, function ( $x ) use ( $toi ) {
-				if ( mb_strtolower( trim( (string) $x['nguoiLap'] ) ) === $toi ) { return true; }
-				foreach ( explode( ',', (string) $x['coso'] ) as $cs ) {
-					if ( VHCPHN_Auth::trong_coso( $cs ) ) { return true; }
-				}
-				return false;
-			} ) );
-		}
+		$truoc = count( $out );
+		$out = array_values( array_filter( $out, function ( $x ) {
+			return VHCPHN_Auth::trong_tam( (string) $x['nguoiLap'], (string) $x['coso'] );
+		} ) );
+		self::$chan_pv = $truoc - count( $out );
 		/* 🔴 LỌC ĐƠN VỊ Ở ĐÚNG CHỖ NÀY, cạnh chốt trên, và vì đúng một lý do: mọi màn (danh
 		   sách đơn · duyệt tạm ứng · quyết toán · thừa/thiếu · báo cáo · xuất MISA) đều múc
 		   từ `list_dons()`. Chặn ở đây là chặn hết một lượt; chặn ở từng màn là sớm muộn sót
@@ -883,11 +1233,39 @@ class VHCPHN_Don {
 		   Anh Thắng 26/08: *"Bộ phận khác nên sẽ tách biệt không xem được doanh thu của nhau."* */
 		$dv_xem = VHCPHN_DonVi::xem_duoc();
 		if ( null !== $dv_xem ) {
+			$truoc2 = count( $out );
 			$out = array_values( array_filter( $out, function ( $x ) {
 				return VHCPHN_DonVi::duoc_xem( isset( $x['donVi'] ) ? $x['donVi'] : '' );
 			} ) );
+			self::$chan_dv = $truoc2 - count( $out );
 		}
 		return array_reverse( $out );
+	}
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * BA CHỐT CẮT ĐƠN, VÀ SỐ ĐƠN TỪNG CHỐT ĐÃ CẮT.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 14/09/2026, sau bốn lượt vá mà vẫn *"vẫn chả có gì"*: màn nói "Danh sách đơn (1)"
+	 * và hết — không ai biết 108 đơn kia rơi ở đâu. Ba chốt chạy nối nhau, mỗi chốt một lý do
+	 * hoàn toàn khác:
+	 *      · BỘ PHẬN  — đơn không có dòng nào thuộc bộ phận mình được bó vào
+	 *      · PHẠM VI  — không phải đơn của mình, không thuộc cơ sở mình, người lập cũng không
+	 *                   cùng cơ sở khai với mình (`VHCPHN_Auth::trong_tam`)
+	 *      · ĐƠN VỊ   — thuộc pháp nhân khác (K&H · POSH)
+	 *
+	 * 🔴 KHÔNG NÓI RA THÌ MỖI LẦN HỎNG LÀ MỘT VÒNG ĐOÁN. Sửa chốt cơ sở bốn lượt mà đơn vẫn mất,
+	 *    vì nó rơi ở chốt khác — đó là giá của việc để hệ thống im lặng. Ba con số này rẻ (cộng
+	 *    thêm vài phép đếm) và chấm dứt hẳn vòng ấy.
+	 *
+	 * ⚠️ CHỈ LÀ SỐ ĐẾM, KHÔNG PHẢI CỬA. Chúng không nới cho ai vào đâu cả; thiếu chúng thì màn
+	 *    vẫn chạy y nguyên, chỉ là không giải thích được gì.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	private static $chan_bp = 0;
+	private static $chan_pv = 0;
+	private static $chan_dv = 0;
+	public static function so_da_chan() {
+		return array( 'boPhan' => (int) self::$chan_bp, 'phamVi' => (int) self::$chan_pv,
+			'donVi' => (int) self::$chan_dv );
 	}
 
 	/**
@@ -903,7 +1281,12 @@ class VHCPHN_Don {
 		   thứ hai thì cái thứ nhất chỉ là lớp sơn. */
 		$loi_dv = VHCPHN_DonVi::vi_sao_khong_dung( $ma_don );
 		if ( '' !== $loi_dv ) { return $loi_dv; }
-		if ( ! VHCPHN_Auth::la_nhan_vien() ) { return ''; }
+		/* 🔴 QUẢN LÝ CŨNG PHẢI ĐI TIẾP (12/09/2026). Anh Thắng: *"Quản Lý — chỉ xem, NHẬP DỮ
+		   LIỆU được bộ phận cơ sở mình quản lý"*. Trước bản này dòng thoát sớm ở đây bỏ qua
+		   mọi vai không phải Nhân viên, nên quản lý khai đúng ba cơ sở của mình vẫn sửa được
+		   đơn của cơ sở bất kỳ. Nay cả hai vai đi xuống cùng một chốt; Admin và Kế toán vẫn
+		   thoát — `trong_tam()` trả `true` ngay cho họ. */
+		if ( ! VHCPHN_Auth::la_nhan_vien() && 'Quản lý' !== VHCPHN_Auth::vai_tro() ) { return ''; }
 		$d = self::don_row( $ma_don );
 		if ( ! $d ) { return 'Không tìm thấy đơn ' . $ma_don . ' trong sổ.'; }
 		$cua = mb_strtolower( trim( (string) $d['nguoi_lap'] ) );
@@ -914,10 +1297,9 @@ class VHCPHN_Don {
 		   lại bị chối "đơn của người khác" thì tính năng coi như không có — và người dùng sẽ
 		   tưởng hệ thống hỏng chứ không nghĩ là hai chốt khai khác nhau.
 		   Phạm vi: đơn có ÍT NHẤT MỘT dòng chi thuộc cơ sở mình phụ trách. Dùng chính
-		   `cac_coso_cua_don()` — lấy ĐỦ mọi cơ sở của đơn, không phải mỗi dòng đầu. */
-		foreach ( self::cac_coso_cua_don( $ma_don ) as $cs ) {
-			if ( VHCPHN_Auth::trong_coso( $cs ) ) { return ''; }
-		}
+		   `cac_coso_cua_don()` — lấy ĐỦ mọi cơ sở của đơn, không phải mỗi dòng đầu, và hỏi
+		   đúng cái hàm mà danh sách đang hỏi (`trong_tam`) để hai bên không thể lệch. */
+		if ( VHCPHN_Auth::trong_tam( (string) $d['nguoi_lap'], implode( ', ', self::cac_coso_cua_don( $ma_don ) ) ) ) { return ''; }
 		return 'Đơn này của người khác, và không thuộc cơ sở anh/chị phụ trách.';
 	}
 
@@ -1010,7 +1392,7 @@ class VHCPHN_Don {
 	 * ⚠️ Ai xem cả (Admin · Quản lý · Kế toán) thì `duoc_xem()` luôn đúng, nên chốt này không
 	 *    đụng tới họ — kể cả khi họ lập đơn hộ người của mảng khác.
 	 */
-	public static function tao_don_moi( $ky, $nguoi_lap ) {
+	public static function tao_don_moi( $ky, $nguoi_lap, $luong = '' ) {
 		$dv = VHCPHN_DonVi::cua_nguoi( $nguoi_lap );
 		if ( ! VHCPHN_DonVi::duoc_xem( $dv ) ) {
 			$ds = VHCPHN_DonVi::xem_duoc();
@@ -1022,16 +1404,30 @@ class VHCPHN_Don {
 				. 'Sửa cột "Đơn vị" của người lập ở Cấu hình → Người dùng & Phân quyền cho khớp '
 				. 'với cột "Xem đơn vị", rồi lập lại.' );
 		}
-		return self::create_don( $ky, $nguoi_lap );
+		return self::create_don( $ky, $nguoi_lap, $luong );
 	}
 
 	/**
 	 * GHI một đơn mới vào sổ. Không hỏi quyền — cửa hỏi quyền là `tao_don_moi()` ở trên.
 	 * `chuyen_don_vi()` gọi thẳng vào đây, cố ý.
 	 */
-	public static function create_don( $ky, $nguoi_lap ) {
+	public static function create_don( $ky, $nguoi_lap, $luong = '' ) {
 		global $wpdb;
 		$dv = VHCPHN_DonVi::cua_nguoi( $nguoi_lap );
+		/* 🔴 LUỒNG ĐÓNG DẤU NGAY LÚC LẬP, và chuẩn hoá tại đây. Mã lạ về rỗng = "theo khối như
+		   cũ" — thà chạy đúng như hôm qua còn hơn rơi vào một luồng thứ ba do gõ sai mà ra.
+		   ⚠️ KHÁC `khoi` và `don_vi` ngay dưới ở một điểm: hai cột kia KHÔNG có ô cho người dùng
+		      chọn, còn cột này thì CÓ — vì anh Thắng chốt 22/09/2026 người lập chọn trên từng
+		      đơn. Chọn nhầm ở đây không làm đơn mất tích: nó chỉ đi sai đường duyệt, và người
+		      duyệt thấy ngay. */
+		$lg = self::luong_don( array( 'luong' => $luong ) );
+		/* 🔴 KHÔNG GỬI MÃ NÀO -> LẤY MẶC ĐỊNH CỦA BỘ PHẬN NGƯỜI LẬP (22/09/2026).
+		   ⚠️ CHỈ KHI RỖNG. Người lập đã bấm chọn thì cái họ bấm thắng mặc định của bộ phận —
+		      anh Thắng chốt "bộ phận khai, đơn vẫn sửa được". Đảo thứ tự hai vế ở đây là ô chọn
+		      trên màn thành vô nghĩa: bấm gì cũng bị bộ phận ghi đè, mà không một câu báo nào.
+		   ⚠️ Và mã lạ đã về rỗng ở dòng trên, nên nó cũng rơi vào đây — đúng ý: thà theo mặc
+		      định của bộ phận còn hơn theo một mã gõ sai. */
+		if ( '' === $lg ) { $lg = self::luong_mac_dinh( $nguoi_lap ); }
 		$m = VHCPHN_Util::uid( 'D' );
 		$ok = $wpdb->insert( VHCPHN_DB::t( 'don' ), array(
 			'ma_don'     => $m,
@@ -1043,6 +1439,14 @@ class VHCPHN_Don {
 			   là một chỗ chọn nhầm, mà chọn nhầm ở đây là đơn rơi sang sổ của bên kia và biến
 			   mất khỏi màn của chính người vừa lập nó. */
 			'don_vi'     => $dv,
+			/* 🔴 MẢNG ĐÓNG DẤU NGAY LÚC LẬP, và không đổi nữa. Anh Thắng 19/09/2026 chốt gộp
+			   KVC · MTĐ · VP làm một app, ba tab. Đơn không mang dấu mảng là đơn KHÔNG TAB NÀO
+			   THẤY — tiền có thật mà mở app ra như chưa từng tồn tại. Cùng lý do cột ấy khai
+			   `NOT NULL DEFAULT` ở `VHCPHN_DB`: rỗng nghĩa là mất tích, không phải "chưa khai".
+			   ⚠️ KHÔNG có ô cho người dùng chọn — y như `don_vi` ngay trên: một ô chọn là một
+			      chỗ chọn nhầm, mà chọn nhầm ở đây là đơn rơi sang sổ của mảng khác. */
+			'khoi'       => VHCPHN_DB::khoi(),
+			'luong'      => $lg,
 			'ngay_tao'   => VHCPHN_Util::now_sql(),
 			'trang_thai' => 'Nháp',
 			'ghi_chu'    => '',
@@ -1082,6 +1486,16 @@ class VHCPHN_Don {
 			'nguoiLap'    => (string) $r['nguoi_lap'],
 			'ngayTao'     => VHCPHN_Util::fmt( $r['ngay_tao'] ),
 			'trangThai'   => ( $r['trang_thai'] !== '' ? $r['trang_thai'] : 'Nháp' ),
+			/* 🔴 KHỐI VÀ LUỒNG PHẢI ĐI KÈM ĐƠN MỞ RA, không chỉ đi kèm danh sách. Màn đơn vẽ
+			   thanh bước và bày nút gửi theo hai ô này; thiếu chúng thì `_luongDon(CUR.don)`
+			   trả rỗng và mọi đơn — kể cả đơn TRỰC TIẾP — lại rơi về luồng mặc định của khối
+			   đang đứng. Lỗi ấy im lặng tuyệt đối: thanh bước vẫn vẽ, nút vẫn hiện, chỉ là vẽ
+			   sai luồng, và người lập bấm "Gửi xin tạm ứng" cho một đơn đã tiêu tiền xong.
+			   ⚠️ Gác isset: cột `luong` thêm ở bản 1.286.0, `khoi` ở 1.43.0 — site nâng plugin
+			      xong mà bảng chưa kịp nới (dbDelta chạy ở lượt tải trang sau) thì đọc thẳng là
+			      cảnh báo tràn nhật ký lỗi, và trang trắng nếu WP_DEBUG bật. */
+			'khoi'        => trim( (string) ( isset( $r['khoi'] ) ? $r['khoi'] : '' ) ),
+			'luong'       => self::luong_don( $r ),
 			'ghiChu'      => (string) $r['ghi_chu'],
 			'nguoiDuyet'  => (string) $r['nguoi_duyet'],
 			'ngayDuyet'   => VHCPHN_Util::fmt( $r['ngay_duyet'] ),
@@ -1111,6 +1525,12 @@ class VHCPHN_Don {
 		// và trả kèm lý do để giao diện nói rõ số ở đâu ra — ô nhập nay chỉ để xem.
 		// Cơ sở đã chốt của đơn (mỗi đơn 1 cơ sở) — giao diện khóa ô chọn theo cái này
 		$don['cosoDon'] = self::coso_cua_don( $ma_don );
+		/* ⚠️ KHÁC `cosoDon` MỘT BẬC, và cố ý gửi cả hai. `cosoDon` là cơ sở đã CHỐT của đơn —
+		   nó trả rỗng với đơn vị cho ghép nhiều gian, và đó là thứ mấy chốt khoá ô nhập đang
+		   hỏi. `cosoTrongDon` là những gì đang THẬT SỰ nằm trong dữ liệu, kể cả cơ sở ảo không
+		   có trong danh mục. Nút "Đổi cơ sở của đơn" cần đúng cái sau: nó sinh ra để dọn chính
+		   mấy cái tên mà `cosoDon` cố tình không thừa nhận. */
+		$don['cosoTrongDon'] = self::ds_coso_cua_don( $ma_don );
 		/* Giao diện cần BIẾT VÌ SAO ô cơ sở đang mở: đơn chưa có dòng nào (sắp chốt), hay đơn
 		   vị này vốn cho ghép nhiều gian (không bao giờ chốt). Hai ca ấy phải nhắc khác nhau —
 		   nhắc "thêm hạng mục đầu tiên là chốt cơ sở" cho đơn POSH là nói sai. */
@@ -1141,7 +1561,7 @@ class VHCPHN_Don {
 		}
 		$lines = array();
 		foreach ( $cp as $x ) {
-			$lines[] = array(
+			$dong = array(
 				'id'         => (string) $x['id'],
 				'coso'       => (string) $x['coso'],
 				'ngay'       => VHCPHN_Util::fmt( $x['ngay'] ),
@@ -1162,7 +1582,17 @@ class VHCPHN_Don {
 				'phatSinh'   => VHCPHN_Util::is_phat_sinh( $x['phat_sinh'] ),
 				'tkNo'       => (string) $x['tk_no'],
 				'tkCo'       => (string) $x['tk_co'],
+				/* NGÀY NHẬP — khác hẳn cột `ngay` (ngày chi, người nhập tự khai và sửa được).
+				   Anh Thắng 18/09/2026 xin thêm cột này: ngày chi khai lại lúc nào cũng được,
+				   nên khi hai người nhớ khác nhau thì phải có một mốc không ai gõ được. Nó vốn
+				   đã nằm trong sổ (`tao_luc`), chỉ chưa bao giờ xuống tới màn. */
+				'taoLuc'     => VHCPHN_Util::fmt( $x['tao_luc'] ),
 			);
+			/* TRỤC PHÂN TÍCH — đọc qua khung, và ĐỌC chứ không đưa nguyên chuỗi trong sổ xuống:
+			   dòng cũ mang rỗng, mà rỗng nghĩa là giá trị MẶC ĐỊNH của trục. Đưa rỗng xuống là
+			   màn phải tự đoán lấy nghĩa — hai nơi cùng suy một luật, và ngày nào một bên sửa
+			   thì bên kia lặng lẽ nói khác. Xem `VHCPHN_Truc::doc()`. */
+			$lines[] = array_merge( $dong, VHCPHN_Truc::doc_dong( $x ) );
 		}
 
 		/* 🔴 KHÔNG suy tạm ứng từ tổng hạng mục (anh Thắng 01/09/2026: cửa hàng không xin thì tạm
@@ -1267,6 +1697,35 @@ class VHCPHN_Don {
 		$cs_don = self::coso_cua_don( $ma_don );
 		if ( $cs_don !== '' && strcasecmp( $cs_don, (string) $coso ) !== 0 ) {
 			return VHCPHN_Util::err( 'Đơn này của cơ sở "' . $cs_don . '" — muốn tạm ứng cơ sở khác thì tạo đơn mới.' );
+		}
+
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 BẢN "KHÔNG TẠM ỨNG THÌ MỖI DÒNG MỘT GIAN": LƯU TẠM ỨNG LÀ ĐÓNG ĐƠN LẠI MỘT GIAN.
+		 * ══════════════════════════════════════════════════════════════════════════════════════
+		 * Bên Văn phòng / Máy tự động, đơn chưa có tạm ứng thì mở — dòng chi gắn gian nào cũng
+		 * được (`VHCPHN_DonVi::don_nhieu_coso()`). Nhưng lưu một dòng tạm ứng vào là đơn LẬP TỨC
+		 * quay về luật một-đơn-một-gian, và gian ấy là gian của tạm ứng.
+		 *
+		 * 🔴 NẾU ĐƠN ĐÃ CÓ DÒNG CHI Ở GIAN KHÁC thì việc ấy làm sổ lệch KHÔNG MỘT TIẾNG ĐỘNG:
+		 *    đơn ghi là của gian A, còn tiền nằm ở gian B và C. Đối chiếu thừa/thiếu cộng cả đơn
+		 *    nên tổng vẫn khớp — chỉ có báo cáo theo gian là sai, và nó sai ở chỗ không ai soi.
+		 *
+		 * ⚠️ CHỐI, KHÔNG TỰ SỬA. Đừng đoán hộ là người ta muốn dời mấy dòng kia sang gian A hay
+		 *    muốn bỏ tạm ứng: cả hai đều đổi số tiền của một gian. Nói ra đang vướng gì và để
+		 *    họ quyết.
+		 * ══════════════════════════════════════════════════════════════════════════════════════ */
+		if ( VHCPHN_DonVi::MO_KHI_KHONG_TAM_UNG ) {
+			$khac = array();
+			foreach ( self::cac_coso_cua_don( $ma_don ) as $cs ) {
+				if ( strcasecmp( $cs, (string) $coso ) !== 0 ) { $khac[] = $cs; }
+			}
+			if ( $khac ) {
+				return VHCPHN_Util::err(
+					'Đơn này đang có dòng chi của cơ sở khác (' . implode( ', ', $khac ) . '). '
+					. 'Nhập tạm ứng là chốt cả đơn về cơ sở "' . (string) $coso . '", nên mấy dòng ấy sẽ '
+					. 'nằm sai chỗ. Bỏ hoặc chuyển chúng trước, hoặc để đơn này không tạm ứng và '
+					. 'tách phần cần ứng sang đơn mới.' );
+			}
 		}
 		$t  = VHCPHN_DB::t( 'tamung' );
 		$so = VHCPHN_Util::num( $so );
@@ -1509,7 +1968,7 @@ class VHCPHN_Don {
 		// lại hàm dò ma trận. (Xuất MISA vẫn ưu tiên TK Có của người duyệt tạm ứng như cũ.)
 		$tk = self::tk_of_line( $get( 'nhom' ), $get( 'phanLoaiTT' ), $get( 'coso' ) );
 
-		return array(
+		$row = array(
 			'id'           => (string) $id,
 			'ma_don'       => (string) $ma_don,
 			'coso'         => VHCPHN_Util::st( $get( 'coso' ) ),
@@ -1533,6 +1992,67 @@ class VHCPHN_Don {
 			'tk_no'        => $tk['tk_no'],
 			'tk_co'        => $tk['tk_co'],
 		);
+
+		/* ══════════════════════════════════════════════════════════════════════════════════
+		 * TRỤC PHÂN TÍCH — mỗi trục một cột, khai một chỗ (`VHCPHN_Truc::ds()`).
+		 * ══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 VÒNG, KHÔNG LIỆT KÊ. Trước bản này mỗi trục là một dòng gõ tay ngay trong mảng
+		 *    trên; thêm trục thứ hai là phải nhớ sửa đúng SÁU nơi, và bỏ sót nơi nào cũng hỏng
+		 *    im lặng — tuần này đã cắn đúng thế ba lần.
+		 * ⚠️ MỘT TRỤC KHAI NHẦM `cot` TRÙNG CỘT NGHIỆP VỤ (VD 'nhom') SẼ ĐÈ LÊN DỮ LIỆU NGƯỜI
+		 *    TA VỪA NHẬP — vòng này ghi sau mảng trên. Không chặn ở đây bằng một câu `if`: chặn
+		 *    lúc chạy là hỏng lặng lẽ ở máy khách hàng. `kiem-truc-phan-tich.php` đòi mọi `cot`
+		 *    phải là cột RIÊNG của trục, không trùng cột nghiệp vụ nào — bắt ngay lúc viết mã. */
+		foreach ( VHCPHN_Truc::ghi_dong( $get ) as $cot => $gt ) {
+			$row[ $cot ] = $gt;
+		}
+		return $row;
+	}
+
+	/**
+	 * Chuẩn hoá GIAI ĐOẠN — chỉ nhận đúng hai giá trị, còn lại về rỗng.
+	 *
+	 * 🔴 KHÔNG ĐỂ MÀN MUỐN GỬI GÌ THÌ GỬI. Cột này rồi sẽ đứng trong câu gom báo cáo ("setup
+	 *    tốn bao nhiêu, vận hành bao nhiêu"); một dòng mang "setup " thừa dấu cách, hay
+	 *    "Set up", là nó rơi ra ngoài cả hai nhóm và tổng không bao giờ cộng đủ — mà chênh
+	 *    lệch ấy không kêu tiếng nào, chỉ sai số.
+	 *
+	 * ⚠️ RỖNG LÀ HỢP LỆ, không phải lỗi: mọi dòng nhập trước bản này đều rỗng, và không ai đi
+	 *    khai lại cả trăm dòng cũ. Giá trị lạ cũng ngã về rỗng — thà "chưa xác định" còn hơn
+	 *    một nhóm thứ ba do gõ sai mà ra.
+	 */
+	const GIAI_DOAN_SETUP = 'Setup';
+	const GIAI_DOAN_VH    = 'Vận hành';
+	const GIAI_DOAN_DS    = array( self::GIAI_DOAN_SETUP, self::GIAI_DOAN_VH );
+
+	/**
+	 * ĐỌC giai đoạn của một dòng — **RỖNG NGHĨA LÀ VẬN HÀNH**.
+	 *
+	 * 🔴 ĐỔI NGHĨA CỦA Ô RỖNG, 22/09/2026. Anh Thắng: *"Nếu tích vào trước vận hành thì gọi là
+	 *    chi phí setup ban đầu. Còn ko tích thì mặc định là chi phí vận hành"*. Trước bản này
+	 *    rỗng là "chưa xác định" — một nhóm thứ ba, và mọi dòng nhập từ trước đều nằm trong đó.
+	 *    Nay nó có nghĩa: **vận hành**.
+	 *
+	 * 🔴 ĐỔI Ở CHỖ ĐỌC, KHÔNG ĐI GHI ĐÈ SỔ. Một lượt `UPDATE` quét cả bảng để lấp "Vận hành"
+	 *    vào mấy trăm dòng cũ là thứ không lùi lại được, mà cũng chẳng cần: nghĩa của ô rỗng là
+	 *    một LUẬT ĐỌC, và luật thì sửa ở một chỗ. Dòng cũ nào được mở ra sửa thì tự mang giá
+	 *    trị tường minh từ lượt Lưu ấy.
+	 *
+	 * ⚠️ HAI HÀM, HAI VIỆC — đừng gộp.
+	 *    `giai_doan_chuan()` = "màn gửi lên cái gì thì GHI cái gì" (giá trị lạ -> rỗng, và rỗng
+	 *      vẫn ghi rỗng: đừng bịa ra dữ liệu cho một lượt gọi không hề khai ô này).
+	 *    `giai_doan_doc()`   = "dòng trong sổ ĐỌC ra là gì" (rỗng -> Vận hành).
+	 *    Gộp làm một là mọi lượt lưu đều đóng dấu "Vận hành" lên cả những đường gọi chỉ sửa một
+	 *    ô khác — tức tự bịa dữ liệu, im lặng.
+	 */
+	public static function giai_doan_doc( $v ) {
+		/* Từ 22/09/2026 luật nằm ở khung TRỤC PHÂN TÍCH (`VHCPHN_Truc`) — hai hàm này ở lại làm
+		   lối gọi quen cho mã cũ, KHÔNG giữ bản luật thứ hai. */
+		return VHCPHN_Truc::doc( 'giaiDoan', $v );
+	}
+
+	public static function giai_doan_chuan( $v ) {
+		return VHCPHN_Truc::chuan( 'giaiDoan', $v );
 	}
 
 	/** Mã tài khoản của 1 dòng chi: TK Nợ theo loại chi phí, TK Có theo phân loại thanh toán. */
@@ -1630,9 +2150,30 @@ class VHCPHN_Don {
 	public static function cac_coso_cua_don( $ma_don ) {
 		global $wpdb;
 		$t  = VHCPHN_DB::t( 'chiphi' );
+		$tu = VHCPHN_DB::t( 'tamung' );
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 HỎI CẢ HAI BẢNG — CƠ SỞ CŨNG NẰM Ở HÀNG TẠM ỨNG, KHÔNG CHỈ Ở DÒNG CHI.
+		 * ══════════════════════════════════════════════════════════════════════════════════════
+		 * Anh Thắng 14/09/2026: *"bạn cũ nghỉ, bạn mới nhận việc thì đơn chi phí phải nhìn lại
+		 * hết được đơn của bạn để có thể tiếp tục chỉnh sửa đơn đó, cùng cơ sở"*.
+		 *
+		 * Hàm này là CỬA MỞ ĐƠN (`loi_khong_phai_don_minh()`). Danh sách đơn thì đã lấp cơ sở
+		 * từ hàng tạm ứng từ 07/09/2026 (xem `$cs_tu` trong `list_dons()`) — nhưng cửa này thì
+		 * chưa, nên hai bên lệch đúng ở ca hay gặp nhất: ĐƠN XIN ỨNG TRƯỚC, có số tạm ứng mà
+		 * chưa liệt kê hạng mục nào. Người mới nhận việc THẤY đơn ấy trong danh sách, bấm vào
+		 * thì bị chối *"Đơn này của người khác, và không thuộc cơ sở anh/chị phụ trách"* — và
+		 * đó đúng là những đơn đang treo tiền, cần bàn giao nhất.
+		 *
+		 * Chú thích ngay dưới kia đã chốt: *"CỬA MỞ ĐƠN PHẢI NỚI THEO ĐÚNG BẰNG DANH SÁCH"*.
+		 * Nay nó đúng như vậy thật.
+		 *
+		 * ⚠️ MỘT CÂU UNION, không hai lượt hỏi: cửa này chạy trước MỌI lượt mở, sửa, xoá dòng.
+		 * ══════════════════════════════════════════════════════════════════════════════════════ */
 		$rs = $wpdb->get_col( $wpdb->prepare(
-			"SELECT DISTINCT coso FROM $t WHERE ma_don=%s AND coso<>''",
-			(string) $ma_don
+			"SELECT coso FROM $t  WHERE ma_don=%s AND coso<>''
+			 UNION
+			 SELECT coso FROM $tu WHERE ma_don=%s AND coso<>''",
+			(string) $ma_don, (string) $ma_don
 		) );
 		$ra = array();
 		foreach ( (array) $rs as $x ) {
@@ -1708,7 +2249,30 @@ class VHCPHN_Don {
 		$rec['phatSinh'] = $ps;
 		$id   = VHCPHN_Util::uid( 'L' );
 		$data = self::line_data( $id, $ma_don, $rec );
-		$wpdb->insert( VHCPHN_DB::t( 'chiphi' ), $data );
+		/* ══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 KHÔNG BÁO "ĐÃ THÊM DÒNG" KHI CHƯA CHẮC ĐÃ GHI ĐƯỢC.
+		 * ══════════════════════════════════════════════════════════════════════════════════
+		 * Cắn thật 22/09/2026 — anh Thắng: *"có thấy báo thêm hạng mục, nhưng không thấy gì"*.
+		 * Bản trước gọi `insert()` rồi đi tiếp KHÔNG HỀ SOI KẾT QUẢ, nên một lượt ghi hỏng vẫn
+		 * ra màn xanh: toast "Đã thêm dòng", bảng vẫn 0 dòng, và không một câu nào nói vì sao.
+		 *
+		 * Lượt ghi hỏng ấy có thật và dễ xảy ra: mỗi lần sơ đồ bảng thêm một cột (`giai_doan`
+		 * ở 1.266.0 chẳng hạn) mà lượt nâng cấp CSDL chưa chạy trên site, MySQL chối cả câu
+		 * `INSERT` vì "Unknown column". Không soi thì người nhập gõ cả buổi mà chẳng có dòng
+		 * nào vào sổ.
+		 *
+		 * ⚠️ ĐÂY LÀ ĐÚNG BỆNH ĐÃ CẮN NGÀY 09/09/2026 Ở `create_don()`, và đã vá ở đó. Vá một
+		 *    chỗ mà không đi soi mấy chỗ còn lại thì nó quay lại bằng một cửa khác — lần này
+		 *    mất mười ba ngày. Xem `kiem-ghi-so-phai-soi-ket-qua.php`.
+		 *
+		 * Câu lỗi mang theo lời của MySQL: hỏng nữa thì nó nói thẳng hỏng ở đâu.
+		 * ══════════════════════════════════════════════════════════════════════════════════ */
+		$ok = $wpdb->insert( VHCPHN_DB::t( 'chiphi' ), $data );
+		if ( ! $ok ) {
+			$chi_tiet = trim( (string) $wpdb->last_error );
+			return VHCPHN_Util::err( 'Không ghi được dòng chi vào sổ'
+				. ( '' !== $chi_tiet ? ' — ' . $chi_tiet : '.' ) );
+		}
 		self::ghi_vet( $ma_don, ( $ps ? 'Thêm dòng phát sinh' : 'Thêm hạng mục xin' ),
 			self::ta_dong( $data ) . ' · lúc đơn ở "' . $st . '"' );
 		return VHCPHN_Util::ok( array( 'id' => $id, 'phatSinh' => $ps ) );
@@ -1870,6 +2434,137 @@ class VHCPHN_Don {
 		}
 		$wpdb->update( VHCPHN_DB::t( 'chiphi' ), array( 'ngay' => $moi ), array( 'id' => (string) $id ) );
 		return VHCPHN_Util::ok( array( 'ngay' => VHCPHN_Util::fmt( $moi ) ) );
+	}
+
+	/**
+	 * SỬA LOẠI CHI PHÍ CỦA MỘT DÒNG — kế toán gắn lại mã khi nhóm bị chọn sai.
+	 *
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 Anh Thắng 18/09/2026: *"cột loại chi phí (kế toán có thể [sửa] loại chi phí nếu nó sai).
+	 *    Còn chưa có thì báo chưa gắn mã"*.
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * Loại chi phí ở đơn tuần chính là NHÓM MẶT HÀNG: nó suy ra TK Nợ (`VHCPHN_Cfg::tkno_loai`).
+	 * Người nhập chọn nhóm lúc gõ dòng; chọn sai là dòng ấy vào sai tài khoản, và cái sai chỉ lộ
+	 * ra lúc xuất MISA — khi đã quá muộn để hỏi lại người nhập họ mua cái gì.
+	 *
+	 * ⚠️ CHỈ KẾ TOÁN. Đây là việc gắn mã hạch toán, không phải sửa nội dung dòng. Người nhập đổi
+	 *    được thì con số nhảy tài khoản sau lưng kế toán, và không ai biết vì sao.
+	 * ⚠️ TÍNH LẠI TK NGAY. Đổi nhóm mà giữ mã cũ thì màn hình nói một đằng, tệp MISA đi một nẻo.
+	 * ⚠️ CHỈ ĐỔI NHÓM + MÃ, không đụng ô nào khác — `update_line()` ghi lại cả dòng, đi nhờ nó là
+	 *    mấy ô không gửi lên bị dọn về rỗng, im lặng.
+	 */
+	public static function set_line_nhom( $id, $nhom ) {
+		$_loi = self::loi_khong_phai_dong_minh( $id );
+		if ( '' !== $_loi ) { return VHCPHN_Util::err( $_loi ); }
+
+		global $wpdb;
+		$cur = self::line_row( $id );
+		if ( ! $cur ) { return VHCPHN_Util::err( 'Không tìm thấy dòng' ); }
+		$vai = VHCPHN_Auth::vai_tro();
+		if ( ! in_array( $vai, array( 'Admin', 'Kế toán cá nhân', 'Kế toán NCC' ), true ) ) {
+			return VHCPHN_Util::err( 'Chỉ kế toán gắn lại loại chi phí được — '
+				. 'đây là mã hạch toán, không phải nội dung dòng.' );
+		}
+		$nhom = trim( (string) $nhom );
+		if ( '' === $nhom ) { return VHCPHN_Util::err( 'Chọn loại chi phí' ); }
+
+		$tk = self::tk_of_line( $nhom, (string) $cur['phan_loai_tt'], (string) $cur['coso'] );
+		$wpdb->update( VHCPHN_DB::t( 'chiphi' ), array(
+			'nhom'  => $nhom,
+			'tk_no' => $tk['tk_no'],
+			'tk_co' => $tk['tk_co'],
+		), array( 'id' => (string) $id ) );
+		VHCPHN_Log::log_action( array(
+			'actor'  => VHCPHN_Auth::nguoi(),
+			'role'   => $vai,
+			'action' => 'Gắn lại loại chi phí cho dòng',
+			'target' => (string) $cur['ma_don'] . '#' . (string) $id,
+			'detail' => (string) $cur['nhom'] . ' → ' . $nhom
+				. ( '' !== $tk['tk_no'] ? ( ' · Nợ ' . $tk['tk_no'] ) : ' · CHƯA GẮN MÃ' ),
+		) );
+		return VHCPHN_Util::ok( array( 'nhom' => $nhom, 'tkNo' => $tk['tk_no'], 'tkCo' => $tk['tk_co'] ) );
+	}
+
+	/**
+	 * Mã của những khối CÒN ĐƠN trong kho này. Xem chốt dài ở chỗ gọi (`khoiCoDon`).
+	 *
+	 * ⚠️ Ô `khoi` rỗng (đơn lập trước khi có cột) tính là 'kvc' — cùng luật với `lap_khoi()`
+	 *    và với mặc định của cột. Bỏ qua chúng là một nhúm đơn cũ không khối nào nhận.
+	 */
+	public static function khoi_con_don() {
+		global $wpdb;
+		$t   = VHCPHN_DB::t( 'don' );
+		$ra  = array();
+		$rows = $wpdb->get_col( "SELECT DISTINCT khoi FROM $t" );
+		foreach ( (array) $rows as $k ) {
+			$k = strtolower( trim( (string) $k ) );
+			if ( '' === $k ) { $k = 'kvc'; }
+			if ( ! in_array( $k, $ra, true ) ) { $ra[] = $k; }
+		}
+		return $ra;
+	}
+
+	/**
+	 * KẾ TOÁN CHỈNH TK NỢ CỦA MỘT DÒNG — mã riêng cho dòng này, không đụng danh mục.
+	 *
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 Anh Thắng 22/09/2026: *"Sau khi quyết toán, thì kế toán có quyền điều chỉnh tk nợ theo
+	 *    nhu cầu, vì Cùng tên gọi nhưng nội dung khác, Nên lúc tạo đơn nhân viên không cần quan
+	 *    tâm (đến phần quyết toán thì nó mới hiện qua và kế toán chọn các số lập sẵn và bấm
+	 *    quyết toán là xong)"*.
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * `set_line_nhom()` đổi LOẠI rồi suy ra mã; hàm này đổi thẳng MÃ mà giữ nguyên loại. Hai
+	 * việc khác nhau: hai dòng cùng loại "Chi phí khác" có thể hạch toán vào hai tài khoản, và
+	 * thứ phân biệt chúng là nội dung dòng — chỉ kế toán đọc ra được, ở bước quyết toán.
+	 *
+	 * ⚠️ CHỈ NHẬN MÃ ĐÃ KHAI. "Các số lập sẵn" là chữ của anh Thắng, và đó cũng là chốt: mã chưa
+	 *    khai ở ⚙️ Cấu hình thì từ chối. Nhận bừa là dòng mang mã ma, mà mã ma chỉ lộ ra lúc nhập
+	 *    tệp vào MISA — sau khi kỳ đã chốt.
+	 * ⚠️ KHÔNG NHẬN MỘT TK CÓ. 141/331 và mọi TK Có đã khai đều bị chối: chúng thuộc vế bên kia
+	 *    của bút toán, đặt vào TK Nợ là sổ lệch mà không báo gì.
+	 * ⚠️ Ô TRỐNG = TRẢ VỀ TỰ ĐỘNG, không phải "xoá mã". Tính lại bằng `tk_of_line()` — cùng một
+	 *    phép với lúc lưu dòng, nên đường lui luôn về đúng chỗ luật chung đang trỏ tới.
+	 * ⚠️ CHỈ ĐỔI `tk_no`. `update_line()` ghi lại cả dòng, đi nhờ nó là mấy ô không gửi lên bị
+	 *    dọn về rỗng, im lặng — cùng cái bẫy đã ghi ở `set_line_nhom()`.
+	 */
+	public static function set_line_tk_no( $id, $tk ) {
+		$_loi = self::loi_khong_phai_dong_minh( $id );
+		if ( '' !== $_loi ) { return VHCPHN_Util::err( $_loi ); }
+
+		global $wpdb;
+		$cur = self::line_row( $id );
+		if ( ! $cur ) { return VHCPHN_Util::err( 'Không tìm thấy dòng' ); }
+		$vai = VHCPHN_Auth::vai_tro();
+		if ( ! in_array( $vai, array( 'Admin', 'Kế toán cá nhân', 'Kế toán NCC' ), true ) ) {
+			return VHCPHN_Util::err( 'Chỉ kế toán chỉnh TK Nợ được — đây là mã hạch toán, '
+				. 'không phải nội dung dòng.' );
+		}
+
+		$tk  = trim( (string) $tk );
+		$cu  = trim( (string) $cur['tk_no'] );
+		if ( '' === $tk ) {
+			$moi = self::tk_of_line( (string) $cur['nhom'], (string) $cur['phan_loai_tt'], (string) $cur['coso'] );
+			$tk  = $moi['tk_no'];
+		} else {
+			if ( VHCPHN_Cfg::la_tk_co( $tk ) ) {
+				return VHCPHN_Util::err( 'Mã ' . $tk . ' là TK CÓ (vế đối ứng), không đặt vào TK Nợ được.' );
+			}
+			if ( ! in_array( $tk, VHCPHN_Cfg::tkno_da_khai(), true ) ) {
+				return VHCPHN_Util::err( 'Mã ' . $tk . ' chưa khai ở ⚙️ Cấu hình → 🧮 Loại chi phí × '
+					. 'Mảng kinh doanh. Khai mã ở đó trước, rồi chọn lại ở đây.' );
+			}
+		}
+
+		$wpdb->update( VHCPHN_DB::t( 'chiphi' ), array( 'tk_no' => $tk ), array( 'id' => (string) $id ) );
+		VHCPHN_Log::log_action( array(
+			'actor'  => VHCPHN_Auth::nguoi(),
+			'role'   => $vai,
+			'action' => 'Chỉnh TK Nợ của dòng',
+			'target' => (string) $cur['ma_don'] . '#' . (string) $id,
+			'detail' => (string) $cur['nhom'] . ': Nợ ' . ( '' !== $cu ? $cu : '(trống)' )
+				. ' → ' . ( '' !== $tk ? $tk : '(trống)' ),
+		) );
+		return VHCPHN_Util::ok( array( 'tkNo' => $tk ) );
 	}
 
 	/**
@@ -2247,7 +2942,12 @@ class VHCPHN_Don {
 			'phatSinh'   => (int) $v['phat_sinh'],
 		);
 		$nid = VHCPHN_Util::uid( 'L' );
-		$wpdb->insert( VHCPHN_DB::t( 'chiphi' ), self::line_data( $nid, $ma_don, $rec ) );
+		/* Cùng luật với `add_line()`: ghi hỏng thì NÓI RA, đừng báo xong. */
+		$ok_nb = $wpdb->insert( VHCPHN_DB::t( 'chiphi' ), self::line_data( $nid, $ma_don, $rec ) );
+		if ( ! $ok_nb ) {
+			$ct = trim( (string) $wpdb->last_error );
+			return VHCPHN_Util::err( 'Không ghi được dòng chi vào sổ' . ( '' !== $ct ? ' — ' . $ct : '.' ) );
+		}
 		if ( $st === 'Chờ quyết toán' ) { self::mark_kt_sua( $ma_don, $actor ); }
 		return VHCPHN_Util::ok( array( 'id' => $nid ) );
 	}
@@ -2262,6 +2962,13 @@ class VHCPHN_Don {
 		$d = self::don_row( $ma_don );
 		if ( ! $d ) { return VHCPHN_Util::err( 'Không tìm thấy đơn' ); }
 		if ( (string) $d['trang_thai'] !== 'Nháp' ) { return VHCPHN_Util::err( 'Chỉ gửi xin tạm ứng khi đơn ở "Nháp"' ); }
+		/* 🔴 ĐƠN TRỰC TIẾP KHÔNG ĐI ĐƯỜNG NÀY. Luồng trực tiếp không có bước tạm ứng nào cả —
+		   cho qua là đơn rơi vào `Chờ duyệt tạm ứng`, một trạng thái KHÔNG CÓ trong luồng của
+		   nó: thanh bước không biết vẽ ở đâu, màn duyệt tạm ứng thì bày ra một đơn mà tiền đã
+		   chi rồi. Chối ở đây, và NÓI RA phải bấm nút nào. */
+		if ( self::la_truc_tiep( $d ) ) {
+			return VHCPHN_Util::err( 'Đơn này đi luồng TRỰC TIẾP — không qua tạm ứng. Bấm "Gửi quyết toán" để gửi thẳng cho kế toán.' );
+		}
 		$t = VHCPHN_DB::t( 'chiphi' );
 		$n = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $t WHERE ma_don=%s", (string) $ma_don ) );
 		// Ở "Nháp" mọi dòng là hạng mục XIN: gộp cả dòng phát sinh (nếu có do đơn bị trả về).
@@ -2294,7 +3001,25 @@ class VHCPHN_Don {
 
 		$d = self::don_row( $ma_don );
 		if ( ! $d ) { return VHCPHN_Util::err( 'Không tìm thấy đơn' ); }
-		if ( (string) $d['trang_thai'] !== 'Đã cấp tạm ứng' ) { return VHCPHN_Util::err( 'Chỉ gửi khi đơn "Đã cấp tạm ứng"' ); }
+		/* ══════════════════════════════════════════════════════════════════════════════════
+		 * HAI LUỒNG, HAI CHỖ XUẤT PHÁT.
+		 * ══════════════════════════════════════════════════════════════════════════════════
+		 * · Qua tạm ứng: gửi quyết toán khi đơn `Đã cấp tạm ứng` — tiền đã ra, giờ báo tiêu hết
+		 *   bao nhiêu.
+		 * · Trực tiếp (22/09/2026): gửi thẳng từ `Nháp` — anh Thắng: *"Trực tiếp là gửi đơn đầy
+		 *   đủ cho kế toán và quyết toán"*. Tiền đã chi rồi, không có gì để tạm ứng.
+		 *
+		 * 🔴 ĐỌC BƯỚC XUẤT PHÁT TỪ CHÍNH BẢNG LUỒNG, không gõ cứng hai chuỗi. Bảng luồng là nơi
+		 *    khai thứ tự bước; hỏi nó "bước ngay trước Chờ quyết toán là gì" thì thêm/bớt bước ở
+		 *    `LUONG_*` là hàm này tự đúng theo — một chỗ khai, không có chỗ thứ hai để quên.
+		 *    Cùng lối với `tt_truoc_misa()`.
+		 * ══════════════════════════════════════════════════════════════════════════════════ */
+		$buoc = array_keys( self::luong_cua( isset( $d['khoi'] ) ? $d['khoi'] : '', self::luong_don( $d ) ) );
+		$i_qt = array_search( 'Chờ quyết toán', $buoc, true );
+		$tu   = ( false !== $i_qt && $i_qt > 0 ) ? $buoc[ $i_qt - 1 ] : 'Đã cấp tạm ứng';
+		if ( (string) $d['trang_thai'] !== $tu ) {
+			return VHCPHN_Util::err( 'Chỉ gửi khi đơn "' . self::ten_tt( $tu, isset( $d['khoi'] ) ? $d['khoi'] : '', self::luong_don( $d ) ) . '"' );
+		}
 		self::clear_tra_marker( $ma_don );
 		/* 🔴 GHI MỐC GỬI. Anh Thắng 08/09/2026: *"cho anh sắp xếp đơn ai gửi quyết toán lên
 		   trước sẽ hiện phía trên"* — hàng đợi của kế toán phải theo thứ tự đến, ai nộp sớm
@@ -2363,17 +3088,71 @@ class VHCPHN_Don {
 
 	// ---------------------------------------------------------------- kế toán / quản lý
 
+	/**
+	 * DUYỆT — một cửa, hai đích, tuỳ khối của đơn.
+	 *
+	 * 🔴 MTĐ / VP KHÔNG ĐI QUA ĐƯỜNG TẠM ỨNG. Anh Thắng 21/09/2026: *"Không đi qua đường tạm
+	 *    ứng"*. Bên KVC, duyệt xong đơn còn phải đợi kế toán ĐƯA TIỀN (`Chờ cấp tạm ứng` →
+	 *    `Đã cấp tạm ứng`). Bên MTĐ/VP không có đồng nào đưa trước, nên bước đợi ấy là một ô
+	 *    chờ vĩnh viễn: đơn nằm ở "Chờ cấp tạm ứng" mà không ai có việc gì để làm với nó.
+	 *    Nên duyệt xong là sang thẳng `Đã cấp tạm ứng` — chuỗi trong sổ giữ nguyên, còn người
+	 *    MTĐ đọc thấy "Đã duyệt chi" (xem `LUONG_CHI`).
+	 *
+	 * ⚠️ NHẢY BƯỚC, KHÔNG BỎ BƯỚC KHỎI SỔ. `da_cap_tien()` so chỉ số với mốc `Đã cấp tạm ứng`,
+	 *    nên đơn MTĐ tới đây là thực chi bắt đầu được tính — đúng, vì từ lúc duyệt chi là tiền
+	 *    đã tiêu thật. Nếu dừng ở `Chờ cấp tạm ứng` thì thực chi mãi bằng 0 và màn Quyết toán
+	 *    của MTĐ trống trơn.
+	 * ⚠️ `tam_ung_duyet` VẪN GHI cho cả hai. Bên MTĐ nó thường rỗng/0, và đó là số ĐÚNG — không
+	 *    ai ứng đồng nào. Thôi ghi là mất chỗ ghi lại con số kế toán đã chốt lúc duyệt.
+	 */
 	public static function duyet_tam_ung( $ma_don, $nguoi, $so_tam_ung = '' ) {
 		$d = self::don_row( $ma_don );
 		if ( ! $d ) { return VHCPHN_Util::err( 'Không tìm thấy đơn' ); }
 		if ( (string) $d['trang_thai'] !== 'Chờ duyệt tạm ứng' ) { return VHCPHN_Util::err( 'Đơn không ở "Chờ duyệt tạm ứng"' ); }
+		$khoi   = isset( $d['khoi'] ) ? $d['khoi'] : '';
+		/* ⚠️ HỎI LUỒNG CỦA CHÍNH ĐƠN, không hỏi mỗi khối. Từ 22/09/2026 người lập chọn luồng
+		   trên từng đơn; hỏi mỗi khối là đơn trực tiếp của một khối "qua tạm ứng" vẫn bị đẩy
+		   sang `Chờ cấp tạm ứng` — một bước không có trong luồng của nó. */
+		$qua_tu = self::tt_trong_luong( 'Chờ cấp tạm ứng', $khoi, self::luong_don( $d ) );
 		self::upd_don( $ma_don, array(
-			'trang_thai'    => 'Chờ cấp tạm ứng',
+			'trang_thai'    => $qua_tu ? 'Chờ cấp tạm ứng' : 'Đã cấp tạm ứng',
 			'nguoi_duyet'   => (string) $nguoi,
 			'ngay_duyet'    => VHCPHN_Util::now_sql(),
 			'tam_ung_duyet' => VHCPHN_Util::blank_or_num( $so_tam_ung ),
 		) );
-		self::bao_noi_bo( $ma_don, 'đã được duyệt tạm ứng — chờ kế toán chuyển tiền' );
+		self::bao_noi_bo( $ma_don, $qua_tu
+			? 'đã được duyệt tạm ứng — chờ kế toán chuyển tiền'
+			: 'đã được duyệt chi — tiêu xong thì gửi quyết toán' );
+		return VHCPHN_Util::ok();
+	}
+
+	/**
+	 * ĐÁNH DẤU ĐÃ THANH TOÁN — bước riêng của MTĐ / VP, đứng giữa quyết toán và xuất MISA.
+	 *
+	 * Anh Thắng 21/09/2026 chốt thanh toán và xuất MISA là *"hai bước tách rời"*: duyệt quyết
+	 * toán xong tiền chưa chắc đã trả (còn nằm ở công nợ 331), mà xuất MISA thì lại là việc của
+	 * kế toán KVC (1.245.0). Gộp hai việc vào một nút là bấm xuất MISA thành ra khai luôn "đã
+	 * trả tiền" cho một khoản chưa trả.
+	 *
+	 * ⚠️ CHỈ ĐƠN CỦA KHỐI CÓ BƯỚC NÀY. Bên KVC không có bước thanh toán riêng (tiền đưa từ lúc
+	 *    tạm ứng), nên gọi vào đây với đơn KVC là chối — chứ không im lặng ghi một trạng thái
+	 *    mà luồng của họ không có, rồi đơn ấy rơi khỏi mọi màn.
+	 */
+	public static function danh_dau_thanh_toan( $ma_don, $nguoi ) {
+		$d = self::don_row( $ma_don );
+		if ( ! $d ) { return VHCPHN_Util::err( 'Không tìm thấy đơn' ); }
+		$khoi = isset( $d['khoi'] ) ? $d['khoi'] : '';
+		$lg   = self::luong_don( $d );
+		if ( ! self::tt_trong_luong( 'Đã thanh toán', $khoi, $lg ) ) {
+			return VHCPHN_Util::err( 'Luồng của đơn này không có bước "Đã thanh toán" riêng — tiền đã đưa từ lúc cấp tạm ứng.' );
+		}
+		if ( (string) $d['trang_thai'] !== 'Đã quyết toán' ) {
+			return VHCPHN_Util::err( 'Chỉ đánh dấu thanh toán cho đơn đã duyệt quyết toán. Đơn này đang ở "'
+				. self::ten_tt( (string) $d['trang_thai'], $khoi, $lg ) . '".' );
+		}
+		self::upd_don( $ma_don, array( 'trang_thai' => 'Đã thanh toán' ) );
+		self::ghi_vet( $ma_don, 'Đánh dấu ĐÃ THANH TOÁN', 'người chốt: ' . (string) $nguoi );
+		self::bao_noi_bo( $ma_don, 'đã được đánh dấu THANH TOÁN — chờ kế toán Khu vui chơi xuất MISA' );
 		return VHCPHN_Util::ok();
 	}
 
@@ -2387,6 +3166,57 @@ class VHCPHN_Don {
 	 * 🔴 Trừ thẳng `tamUngDuyet` ra khỏi phép tính bằng cách đọc `tamUng` theo cơ sở — `tongCN`
 	 *    trả về số ĐÃ DUYỆT khi có, nên dùng nó ở đây là quay lại chính con số cần thay.
 	 */
+	/**
+	 * SỐ TIỀN BÀY CHO NGƯỜI DUYỆT — "bấm duyệt cái này là duyệt bao nhiêu".
+	 *
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 14/09/2026: *"Nếu theo cơ chế, nếu không nhập tạm ứng thì hiểu là đơn thường
+	 * nhiều cơ sở thì số tiền sẽ lấy theo số thực tế trên đơn."* — kèm ảnh trang tổng: một đơn
+	 * có hai dòng cộng 3.000.000đ mà cột SỐ XIN ghi **0đ**.
+	 *
+	 * 🔴 0đ Ở ĐÂY LÀ MỘT CON SỐ SAI, KHÔNG PHẢI MỘT Ô TRỐNG. Người duyệt đọc cột ấy để quyết
+	 *    định; bày 0đ cho một đơn ba triệu là mời họ bấm Duyệt mà không biết đang duyệt cái gì.
+	 *
+	 * ⚠️ VÌ SAO KHÔNG SỬA THẲNG `tong_xin_hien_tai()`. Hàm ấy trả lời câu khác: *"đơn này XIN
+	 *    TẠM ỨNG bao nhiêu"*. Hai công cụ soát số duyệt mồ côi / bù trừ (`soat_so_duyet()`) đối
+	 *    chiếu nó với số duyệt lịch sử theo phép "duyệt = xin + bù trừ"; đổi nghĩa của nó là hai
+	 *    công cụ ấy bắt đầu thấy lệch ở những đơn không có gì sai. Nên đây là CỬA RIÊNG.
+	 *
+	 * 🔴 VÀ KHÔNG ĐỤNG KHỐI QUYẾT TOÁN. Ở đó luật cố ý ngược lại: đơn không xin tạm ứng phải ra
+	 *    *"Thiếu N — kế toán bù cho NV"*, chứ không phải "Khớp" (xem chú thích ở `get_don()`).
+	 *    Lấy thực chi lấp vào chỗ tạm ứng tại đó là xoá mất khoản kế toán còn nợ nhân viên.
+	 *
+	 * ⚠️ CHỈ ĐỔI Ở BẢN MẢNG RIÊNG (`MO_KHI_KHONG_TAM_UNG`). Bên khu vui chơi mọi đơn đều đi qua
+	 *    tạm ứng, nên nhánh này không có việc gì; để nó chạy ở đó là đổi con số của một mảng
+	 *    đang chạy thật mà không ai yêu cầu.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 *
+	 * @return float|null null = không đọc được đơn (giữ nguyên nghĩa của hàm gốc).
+	 */
+	public static function tong_de_duyet( $ma_don ) {
+		$t = self::tong_xin_hien_tai( $ma_don );
+		if ( null === $t ) { return null; }
+		if ( ! VHCPHN_DonVi::MO_KHI_KHONG_TAM_UNG ) { return $t; }
+		/* Có dòng tạm ứng (kể cả 0đ — nó vẫn là lời chốt gian) thì con số của đơn là số xin. */
+		if ( VHCPHN_DonVi::don_co_tam_ung( $ma_don ) ) { return $t; }
+		return self::tong_thanh_tien( $ma_don ) + VHCPHN_Util::num( self::du_phong_cua( $ma_don ) );
+	}
+
+	/** Cộng THÀNH TIỀN mọi dòng chi của đơn — "số thực tế trên đơn". */
+	public static function tong_thanh_tien( $ma_don ) {
+		global $wpdb;
+		$t = VHCPHN_DB::t( 'chiphi' );
+		$v = $wpdb->get_var( $wpdb->prepare(
+			"SELECT COALESCE(SUM(thanh_tien),0) FROM $t WHERE ma_don=%s", (string) $ma_don ) );
+		return VHCPHN_Util::num( $v );
+	}
+
+	/** Ô dự phòng của đơn — cộng vào cả hai lối, để hai con số không lệch nhau vì nó. */
+	public static function du_phong_cua( $ma_don ) {
+		$d = self::don_row( $ma_don );
+		return $d && isset( $d['du_phong'] ) ? $d['du_phong'] : 0;
+	}
+
 	public static function tong_xin_hien_tai( $ma_don ) {
 		$g = self::get_don( $ma_don, false );
 		if ( empty( $g['success'] ) ) { return null; }
@@ -2817,6 +3647,9 @@ class VHCPHN_Don {
 	private static function vao_thung_rac( $loai, $khoa, $nhan, $du_lieu, $don_vi = '' ) {
 		global $wpdb;
 		$wpdb->insert( VHCPHN_DB::t( 'thungrac' ), array(
+			/* Thùng rác cũng mang dấu mảng: hoàn lại một đơn đã xoá mà không biết nó của mảng
+			   nào thì hoàn xong nó rơi vào tab khác. */
+			'khoi'    => VHCPHN_DB::khoi(),
 			'luc'     => current_time( 'mysql' ),
 			'loai'    => (string) $loai,
 			'khoa'    => (string) $khoa,
@@ -2912,14 +3745,52 @@ class VHCPHN_Don {
 				return VHCPHN_Util::err( 'Mã đơn ' . $ma . ' nay đã có một đơn khác đang dùng — '
 					. 'không dựng đè lên được.' );
 			}
-			$wpdb->insert( VHCPHN_DB::t( 'don' ), $don );
+			/* ══════════════════════════════════════════════════════════════════════════════
+			 * 🔴 HOÀN LẠI THÌ GIỮ MẢNG CŨ CỦA ĐƠN, KHÔNG ĐÓNG DẤU MẢNG ĐANG ĐỨNG.
+			 * ══════════════════════════════════════════════════════════════════════════════
+			 * Bản sao trong thùng rác đã mang sẵn ô `mang` của đơn lúc bị xoá — dựng lại y
+			 * nguyên là đúng: đơn của Văn phòng phải về lại tab Văn phòng, kể cả khi người bấm
+			 * hoàn đang đứng ở tab Khu vui chơi.
+			 *
+			 * ⚠️ BẢN SAO CŨ THÌ KHÔNG CÓ Ô ẤY (xoá trước ngày mở cột). Để trống là dính mặc
+			 *    định của cột — 'kvc' — nên một đơn MTĐ cũ hoàn lại sẽ rơi sang tab Khu vui
+			 *    chơi. Lấp bằng ô `mang` CỦA CHÍNH DÒNG THÙNG RÁC: dòng ấy ghi lúc xoá, nên nó
+			 *    biết đơn thuộc mảng nào, còn mảng đang đứng thì không.
+			 * ══════════════════════════════════════════════════════════════════════════════ */
+			if ( ! isset( $don['khoi'] ) || '' === trim( (string) $don['khoi'] ) ) {
+				$don['khoi'] = trim( (string) ( isset( $r['khoi'] ) ? $r['khoi'] : '' ) );
+				if ( '' === $don['khoi'] ) { $don['khoi'] = VHCPHN_DB::khoi(); }
+			}
+			/* ══════════════════════════════════════════════════════════════════════════
+			 * 🔴 HOÀN TÁC XOÁ CŨNG PHẢI SOI KẾT QUẢ — và đây là chỗ đắt nhất nếu bỏ qua.
+			 * ══════════════════════════════════════════════════════════════════════════
+			 * Lượt này dựng lại MỘT ĐƠN ĐÃ XOÁ từ thùng rác. Ghi hỏng giữa chừng mà vẫn
+			 * báo xong là: đơn dựng lại thiếu dòng, `danh_dau_hoan()` đánh dấu đã hoàn, và
+			 * bản sao trong thùng rác coi như dùng xong — tức mất hẳn, không còn đường lui
+			 * lần thứ hai. Thà chối cả lượt còn hơn dựng lại một đơn cụt.
+			 * ⚠️ ĐẾM RỒI CHỐI TRƯỚC KHI `danh_dau_hoan()`, không chối sau.
+			 * ══════════════════════════════════════════════════════════════════════════ */
+			$hong = array();
+			if ( ! $wpdb->insert( VHCPHN_DB::t( 'don' ), $don ) ) {
+				$hong[] = 'đơn (' . trim( (string) $wpdb->last_error ) . ')';
+			}
 			$so = 0;
 			foreach ( (array) ( isset( $d['chiphi'] ) ? $d['chiphi'] : array() ) as $x ) {
-				$wpdb->insert( VHCPHN_DB::t( 'chiphi' ), (array) $x );
+				if ( ! $wpdb->insert( VHCPHN_DB::t( 'chiphi' ), (array) $x ) ) {
+					$hong[] = 'dòng chi (' . trim( (string) $wpdb->last_error ) . ')';
+					continue;
+				}
 				$so++;
 			}
 			foreach ( (array) ( isset( $d['tamung'] ) ? $d['tamung'] : array() ) as $x ) {
-				$wpdb->insert( VHCPHN_DB::t( 'tamung' ), (array) $x );
+				if ( ! $wpdb->insert( VHCPHN_DB::t( 'tamung' ), (array) $x ) ) {
+					$hong[] = 'tạm ứng (' . trim( (string) $wpdb->last_error ) . ')';
+				}
+			}
+			if ( $hong ) {
+				return VHCPHN_Util::err( 'Hoàn tác chưa xong — không ghi lại được: '
+					. implode( ' · ', array_unique( $hong ) )
+					. '. Bản sao trong thùng rác VẪN CÒN, thử lại được.' );
 			}
 			self::danh_dau_hoan( $id );
 			self::ghi_vet( $ma, 'Hoàn tác xoá đơn', 'Dựng lại từ thùng rác #' . $id . ' · ' . $so . ' dòng chi' );
@@ -2936,7 +3807,11 @@ class VHCPHN_Don {
 		if ( isset( $row['id'] ) && self::line_row( (string) $row['id'] ) ) {
 			return VHCPHN_Util::err( 'Dòng này đã có lại trong đơn rồi.' );
 		}
-		$wpdb->insert( VHCPHN_DB::t( 'chiphi' ), $row );
+		$ok_row = $wpdb->insert( VHCPHN_DB::t( 'chiphi' ), $row );
+		if ( ! $ok_row ) {
+			$ct = trim( (string) $wpdb->last_error );
+			return VHCPHN_Util::err( 'Không ghi được dòng chi vào sổ' . ( '' !== $ct ? ' — ' . $ct : '.' ) );
+		}
 		self::danh_dau_hoan( $id );
 		self::ghi_vet( $ma, 'Hoàn tác xoá dòng chi',
 			'Dựng lại từ thùng rác #' . $id . ' · ' . self::ta_dong( $row ) );
@@ -3248,6 +4123,84 @@ class VHCPHN_Don {
 	}
 
 	/**
+	 * Dựng CHUỖI KỲ từ một khoảng ngày — khuôn `T9/2026 (7/9-13/9/2026)`.
+	 *
+	 * 🔴 KHUÔN NÀY LÀ HỢP ĐỒNG, KHÔNG PHẢI CHỮ TRANG TRÍ. Mọi chỗ đọc kỳ (`khoang_ky()`, lọc
+	 *    theo tuần, xuất MISA, báo cáo) đều bám vào nó. Sai một dấu gạch là đơn rơi vào một kỳ
+	 *    không ai lọc ra được — mất đơn trong im lặng.
+	 *
+	 * ⚠️ Tháng và năm lấy theo ngày CUỐI kỳ, giống hệt `_kyRange()` bên trình duyệt. Hai nơi
+	 *    dựng cùng một chuỗi nên phải ra CÙNG một kết quả — có bài kiểm chạy cả hai và so.
+	 *
+	 * @return string '' nếu ngày không đọc được hoặc ngày cuối trước ngày đầu.
+	 */
+	public static function ky_tu_khoang( $tu, $den ) {
+		$a = self::ngay_iso_( $tu );
+		$z = self::ngay_iso_( $den );
+		if ( '' === $a || '' === $z ) { return ''; }
+		if ( $z < $a ) { return ''; }
+		list( $y1, $m1, $d1 ) = array_map( 'intval', explode( '-', $a ) );
+		list( $y2, $m2, $d2 ) = array_map( 'intval', explode( '-', $z ) );
+		return 'T' . $m2 . '/' . $y2 . ' (' . $d1 . '/' . $m1 . '-' . $d2 . '/' . $m2 . '/' . $y2 . ')';
+	}
+
+	/**
+	 * ĐẶT LẠI KHOẢNG NGÀY CỦA ĐƠN — cho tới lúc gửi quyết toán.
+	 *
+	 * 🔴 Anh Thắng, nói về đơn cơ sở của bộ phận Kỹ thuật: *"quyết toán theo tuần (nhưng không
+	 *    ép buộc tuần nào, khi nào gửi quyết toán thì mới chốt)"*.
+	 *
+	 *    Đơn cơ sở của Kỹ thuật không phải một tuần vận hành: họ đi setup rồi tháo dỡ, đợt việc
+	 *    dài ngắn tuỳ nơi. Ép chọn một tuần lịch ngay lúc lập đơn là bắt đoán trước đợt việc
+	 *    kéo tới đâu — đoán sai thì đơn nằm sai tuần, mà tuần là cái ngăn kế toán chốt số.
+	 *
+	 * 🔴 ĐÃ GỬI QUYẾT TOÁN THÌ THÔI. `vi_sao_khong_sua()` chối khi đơn đã quyết toán / đã xuất
+	 *    MISA: số đã vào sổ, mà kỳ là cái ngăn nó nằm — kéo sang khoảng khác là báo cáo của cả
+	 *    hai kỳ cùng sai, và kỳ đã chốt thì không ai mở lại để đối chiếu nữa.
+	 *
+	 * ⚠️ KHÔNG ĐỤNG NGÀY CỦA DÒNG CHI, y như `chuyen_ky()`: ngày mua là chuyện đã xảy ra.
+	 *
+	 * ⚠️ CHUỖI KỲ DO MÁY CHỦ DỰNG. Nhận sẵn một chuỗi từ trình duyệt là mở cửa cho một khuôn
+	 *    thứ hai lọt vào sổ, và mọi phép lọc theo tuần sẽ không thấy đơn ấy nữa.
+	 */
+	public static function dat_khoang_ky( $ma_don, $tu, $den, $ly_do = '', $nguoi = '' ) {
+		$_loi = self::loi_khong_phai_don_minh( $ma_don );
+		if ( '' !== $_loi ) { return VHCPHN_Util::err( $_loi ); }
+		$d = self::don_row( $ma_don );
+		if ( ! $d ) { return VHCPHN_Util::err( 'Không tìm thấy đơn' ); }
+
+		$_c = self::vi_sao_khong_sua( $ma_don );
+		if ( '' !== $_c ) { return VHCPHN_Util::err( $_c ); }
+
+		$a = self::ngay_iso_( $tu );
+		$z = self::ngay_iso_( $den );
+		if ( '' === $a || '' === $z ) { return VHCPHN_Util::err( 'Chọn đủ ngày bắt đầu và ngày kết thúc.' ); }
+		if ( $z < $a ) { return VHCPHN_Util::err( 'Ngày kết thúc phải sau ngày bắt đầu.' ); }
+		$ky_moi = self::ky_tu_khoang( $a, $z );
+		if ( '' === $ky_moi ) { return VHCPHN_Util::err( 'Khoảng ngày không dựng ra được kỳ.' ); }
+
+		$ky_cu = trim( (string) $d['ky'] );
+		if ( $ky_moi === $ky_cu ) { return VHCPHN_Util::err( 'Đơn này đang ở đúng khoảng ngày đó rồi.' ); }
+
+		$nguoi = trim( (string) $nguoi );
+		if ( '' === $nguoi ) { $nguoi = VHCPHN_Auth::nguoi(); }
+
+		self::upd_don( $ma_don, array( 'ky' => $ky_moi ) );
+		$ly_do = trim( (string) $ly_do );
+		self::ghi_vet( $ma_don, 'Đặt lại khoảng ngày của đơn',
+			( '' !== $ky_cu ? $ky_cu : '(chưa có)' ) . '  →  ' . $ky_moi
+			. ( '' !== $ly_do ? ' — ' . $ly_do : '' ) );
+
+		return VHCPHN_Util::ok( array(
+			'maDon' => (string) $ma_don,
+			'kyCu'  => $ky_cu,
+			'kyMoi' => $ky_moi,
+			'tu'    => $a,
+			'den'   => $z,
+		) );
+	}
+
+	/**
 	 * NHẢY ĐƠN SANG TUẦN KHÁC — cả đơn, kèm tạm ứng, sang kỳ mới.
 	 *
 	 * 🔴 Anh Thắng 31/08/2026: *"Trường hợp 1 đơn không quyết toán kịp tuần đó thì không thể
@@ -3324,6 +4277,131 @@ class VHCPHN_Don {
 			'tu'    => $tu_m,
 			'den'   => $den_m,
 		) );
+	}
+
+	/**
+	 * ĐỔI CƠ SỞ CỦA CẢ MỘT ĐƠN — việc của Admin, và chỉ Admin.
+	 *
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 19/09/2026: *"nhân viên lỡ tạo cơ sở ảo, giờ làm sao chuyển qua cơ sở, vì đã nhập
+	 * dữ liệu"*, rồi chốt cách làm: *"cho quyền admin đổi đơn sang cơ sở khác là được"*.
+	 *
+	 * 🔴 VÌ SAO KHÔNG DÙNG `doi_ten_coso()` CHO CA NÀY. Hàm ấy đổi MỌI dòng mang cái tên ấy, ở
+	 *    mọi đơn của mọi người — đúng khi cần dọn hẳn một cơ sở ảo khỏi hệ, nhưng quá tay khi
+	 *    chỉ một đơn lạc chỗ. Hai việc khác nhau nên để hai cửa: cửa này sửa ĐÚNG MỘT đơn.
+	 *
+	 * 🔴 CƠ SỞ CỦA ĐƠN KHÔNG NẰM Ở BẢNG `don`. Nó nằm rải trên `chiphi` (từng dòng chi) và
+	 *    `tamung` (số xin theo cơ sở) — nhãn cơ sở trên đầu đơn là kết quả gom lại từ hai bảng
+	 *    ấy. Nên đổi mà chỉ đụng một bảng thì đầu đơn hiện tên mới còn tiền vẫn nằm ở tên cũ.
+	 *
+	 * ⚠️ `tamung` KHOÁ DUY NHẤT THEO (ma_don, coso). Đơn đang có dòng tạm ứng cho CẢ tên cũ lẫn
+	 *    tên đích thì một câu UPDATE thẳng sẽ đụng khoá và MySQL chối im — số tạm ứng ở lại tên
+	 *    cũ, còn dòng chi thì đã sang tên mới. Phải CỘNG DỒN hai dòng làm một.
+	 *
+	 * ⚠️ KHÔNG ĐỤNG NGÀY, KHÔNG ĐỤNG KỲ, y như `chuyen_ky()`: đây là sửa chỗ ĐỨNG của khoản
+	 *    tiền, không phải sửa chuyện đã xảy ra.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 */
+	public static function doi_coso_don( $ma_don, $coso_moi = '', $coso_cu = '', $ly_do = '' ) {
+		global $wpdb;
+		/* 🔴 CHỈ ADMIN. Đây là sửa hàng loạt trên dữ liệu đã nhập, và nó dời tiền sang sổ của
+		   một gian khác — cùng bậc với xoá đơn, không phải với sửa một dòng. */
+		if ( 'Admin' !== VHCPHN_Auth::vai_tro() ) {
+			return VHCPHN_Util::err( 'Đổi cơ sở của cả đơn là việc của Admin — '
+				. 'nó dời tiền đã nhập sang sổ của gian khác.' );
+		}
+		$d = self::don_row( $ma_don );
+		if ( ! $d ) { return VHCPHN_Util::err( 'Không tìm thấy đơn' ); }
+
+		/* Đã quyết toán / đã xuất MISA thì thôi — cùng lý do với `chuyen_ky()`: số đã vào sổ,
+		   kéo sang gian khác là báo cáo của CẢ HAI gian cùng sai. */
+		$_c = self::vi_sao_khong_sua( $ma_don );
+		if ( '' !== $_c ) { return VHCPHN_Util::err( $_c ); }
+
+		$coso_moi = trim( (string) $coso_moi );
+		if ( '' === $coso_moi ) { return VHCPHN_Util::err( 'Chưa chọn cơ sở đích' ); }
+		/* 🔴 CƠ SỞ ĐÍCH PHẢI CÓ TRONG DANH MỤC. Nhận bừa một chuỗi là đẻ ra đúng con cơ sở ảo
+		   mà việc này sinh ra để dọn. */
+		$_khai = false;
+		foreach ( VHCPHN_Cfg::cfg_static()['coso'] as $_x ) {
+			if ( mb_strtolower( trim( (string) $_x['ten'] ) ) === mb_strtolower( $coso_moi ) ) { $_khai = true; break; }
+		}
+		if ( ! $_khai ) {
+			return VHCPHN_Util::err( 'Cơ sở "' . $coso_moi . '" chưa có trong danh mục. '
+				. 'Khai ở Cấu hình → 🏢 Mã đơn vị theo Cơ sở trước, rồi đổi.' );
+		}
+
+		$ds_cu = self::ds_coso_cua_don( $ma_don );
+		$coso_cu = trim( (string) $coso_cu );
+		if ( '' === $coso_cu ) {
+			/* Không chỉ đích danh thì chỉ tự suy được khi đơn CHỈ có một cơ sở. Đơn ghép nhiều
+			   gian mà đoán bừa là gom nhầm tiền của gian không liên quan. */
+			if ( count( $ds_cu ) > 1 ) {
+				return VHCPHN_Util::err( 'Đơn này đang có ' . count( $ds_cu ) . ' cơ sở ('
+					. implode( ' · ', $ds_cu ) . ') — phải chỉ rõ đổi cơ sở nào.' );
+			}
+			$coso_cu = $ds_cu ? $ds_cu[0] : '';
+		}
+		if ( '' === $coso_cu ) { return VHCPHN_Util::err( 'Đơn này chưa có dòng nào mang cơ sở.' ); }
+		if ( mb_strtolower( $coso_cu ) === mb_strtolower( $coso_moi ) ) {
+			return VHCPHN_Util::err( 'Đơn này đang ở cơ sở "' . $coso_cu . '" rồi.' );
+		}
+
+		$t_cp = VHCPHN_DB::t( 'chiphi' );
+		$t_tu = VHCPHN_DB::t( 'tamung' );
+
+		/* ── tạm ứng: cộng dồn nếu tên đích đã có dòng, vì (ma_don, coso) là khoá duy nhất ── */
+		$cu_row = VHCPHN_DB::row( $wpdb->prepare(
+			"SELECT * FROM $t_tu WHERE ma_don=%s AND coso=%s", $ma_don, $coso_cu ) );
+		$moi_row = VHCPHN_DB::row( $wpdb->prepare(
+			"SELECT * FROM $t_tu WHERE ma_don=%s AND coso=%s", $ma_don, $coso_moi ) );
+		$n_tu = 0;
+		if ( $cu_row ) {
+			if ( $moi_row ) {
+				$wpdb->update( $t_tu,
+					array( 'so' => VHCPHN_Util::num( $moi_row['so'] ) + VHCPHN_Util::num( $cu_row['so'] ) ),
+					array( 'id' => $moi_row['id'] ) );
+				$wpdb->delete( $t_tu, array( 'id' => $cu_row['id'] ) );
+			} else {
+				$wpdb->update( $t_tu, array( 'coso' => $coso_moi ), array( 'id' => $cu_row['id'] ) );
+			}
+			$n_tu = 1;
+		}
+
+		$n_cp = (int) $wpdb->update( $t_cp, array( 'coso' => $coso_moi ),
+			array( 'ma_don' => $ma_don, 'coso' => $coso_cu ) );
+
+		$ly_do = trim( (string) $ly_do );
+		self::ghi_vet( $ma_don, 'Đổi cơ sở của đơn',
+			$coso_cu . '  →  ' . $coso_moi . ' · ' . $n_cp . ' dòng chi'
+			. ( $n_tu ? ' · cả dòng tạm ứng' : '' )
+			. ( '' !== $ly_do ? ' — ' . $ly_do : '' ) );
+
+		return VHCPHN_Util::ok( array(
+			'maDon'  => (string) $ma_don,
+			'cosoCu' => $coso_cu,
+			'cosoMoi'=> $coso_moi,
+			'dongChi'=> $n_cp,
+			'tamUng' => $n_tu,
+		) );
+	}
+
+	/** Các cơ sở đang có mặt trên một đơn (dòng chi + dòng tạm ứng), không trùng.
+	 *  ⚠️ KHÁC `coso_cua_don()` — hàm ấy trả MỘT chuỗi: cơ sở đã CHỐT của đơn, và cố ý trả rỗng
+	 *     với đơn vị cho ghép nhiều gian. Hàm này trả DANH SÁCH những gì đang thật sự nằm trong
+	 *     dữ liệu, kể cả cơ sở ảo — vì nó dùng để dọn chính mấy cơ sở ấy. */
+	public static function ds_coso_cua_don( $ma_don ) {
+		global $wpdb;
+		$ra = array();
+		foreach ( array( 'chiphi', 'tamung' ) as $b ) {
+			$t = VHCPHN_DB::t( $b );
+			foreach ( VHCPHN_DB::rows( $wpdb->prepare(
+				"SELECT DISTINCT coso FROM $t WHERE ma_don=%s AND coso<>''", (string) $ma_don ) ) as $r ) {
+				$c = trim( (string) $r['coso'] );
+				if ( '' !== $c && ! in_array( $c, $ra, true ) ) { $ra[] = $c; }
+			}
+		}
+		return $ra;
 	}
 
 	/** Các dòng chi của một đơn (đọc thô, không qua lớp bày biện). */
@@ -3417,6 +4495,9 @@ class VHCPHN_Don {
 		$id = VHCPHN_Util::uid( 'LTU' );
 		$ok = $wpdb->insert( VHCPHN_DB::t( 'lenh_tu' ), array(
 			'id'       => $id,
+			/* Mảng đóng dấu lúc lập lệnh — xem chốt ở `VHCPHN_SoChi::add()`. Lệnh tạm ứng là tờ
+			   kế toán cầm đi phát tiền, nên nó phải nói rõ tiền của mảng nào. */
+			'khoi'     => VHCPHN_DB::khoi(),
 			'luc'      => $luc,
 			'nguoi'    => (string) $nguoi,
 			'don_vi'   => $dv,

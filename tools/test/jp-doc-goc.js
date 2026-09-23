@@ -1,25 +1,53 @@
 /*
- * CẦU NỐI CHO `kiem-jp-doc.php` — chạy CHÍNH mấy hàm trong mã gốc JP.
+ * CẦU NỐI CHO CÁC BÀI KIỂM JP — chạy CHÍNH mấy hàm trong mã gốc JP.
  *
- * 🔴 Nó NẠP THẲNG `goc/jp-capsule-v2/JP2_01_Core.gs`, không chép hàm sang đây. Chép sang là từ
+ * 🔴 Nó NẠP THẲNG mã gốc ở `goc/jp-capsule-v2/`, không chép hàm sang đây. Chép sang là từ
  *    lúc ấy có hai bản sự thật: mã gốc đổi mà bản chép không đổi thì bài kiểm vẫn xanh, trong
  *    khi bản PHP đã lệch khỏi thứ đang chạy thật.
  *
  * `Utilities` của Apps Script không có ở node, nên dựng bản giả CHỈ cho `formatDate`, và chỉ
  * đủ hai khuôn mà mấy hàm này dùng. Múi giờ ghim 'Asia/Ho_Chi_Minh' y bản gốc.
+ *
+ * ---------------------------------------------------------------------------------------------
+ * HAI CÁI GIẢ, VÀ VÌ SAO ĐẶT SEAM ĐÚNG CHỖ ẤY
+ * ---------------------------------------------------------------------------------------------
+ * Mấy hàm đọc báo cáo (`jpGetReport`, `jpMyReports`, `jpPrevClosing_`…) không thuần: chúng đọc
+ * sổ và đòi người đăng nhập. Muốn chạy được bằng node thì phải giả hai thứ ấy — nhưng giả ở
+ * chỗ nào là chuyện sống còn của bài kiểm:
+ *
+ *   · Giả `jpVals_` (một hàm, trả mảng hai chiều thô) ⇒ `jpRows_` · `jpFind_` · `jpFindOne_`
+ *     VẪN LÀ MÃ GỐC THẬT. Lọc theo chuỗi, bỏ dòng rỗng, dựng object mới mỗi lượt — tất cả
+ *     những nết ấy vẫn được đối chiếu.
+ *     Giả thẳng `jpFind_` thì mất hết, mà `jpFind_` đúng là chỗ bản gốc từng sửa vì hiệu năng.
+ *
+ *   · Giả `jpAuth_` (trả sẵn người dùng) ⇒ `jpNeedNV_` · `jpNeedLoc_` · `jpIsKT_` · `jpIsNV_`
+ *     vẫn là mã gốc. Phần thẻ phiên / PIN đã có bài kiểm riêng (`kiem-jp-auth.php`), lặp lại
+ *     ở đây chỉ tốn chỗ; còn LUẬT QUYỀN thì phải chạy thật vì nó quyết định ai đọc được gì.
+ *
+ * Dùng:  node jp-doc-goc.js <tên hàm> <mảng các bộ tham số> [dữ liệu sổ] [người dùng]
  */
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
 /* Nạp CẢ Config lẫn Core: mấy quy tắc "rơi về" (`jpCoDhTrung_`, `jpGiaTuMa_`…) nằm ở Config,
-   còn Config lại dùng `jpStr_`/`jpNum_` của Core. Cả hai chỉ khai hàm và biến nên nạp chung
-   một ngữ cảnh là đủ — không câu nào tự chạy lúc nạp. */
+   còn Config lại dùng `jpStr_`/`jpNum_` của Core. Các tệp đều chỉ khai hàm và biến nên nạp
+   chung một ngữ cảnh là đủ — không câu nào tự chạy lúc nạp. */
 const thu_muc = path.join(__dirname, '..', '..', 'goc', 'jp-capsule-v2');
-const ds_tep = ['JP2_01_Core.gs', 'JP2_00_Config.gs', 'JP2_04_TinhToan.gs'].map(t => path.join(thu_muc, t));
-const tep = ds_tep[0];
+const ds_tep = [
+  'JP2_01_Core.gs', 'JP2_00_Config.gs', 'JP2_02_Auth.gs', 'JP2_04_TinhToan.gs',
+  'JP2_05_BaoCao.gs', 'JP2_06_Duyet.gs', 'JP2_07_Anh.gs', 'JP2_10_Sua24h_NopTien.gs',
+].map(t => path.join(thu_muc, t));
 
-function hai_so(n) { return ('0' + n).slice(-2); }
+/*
+ * KHO HAI TẦNG — `jpXuatKhoBaoCao_` / `jpHoanKhoBaoCao_` nằm ở mấy tệp kho chưa nạp ở đây, và
+ * bản PHP cũng chưa chuyển mô-đun ấy. Dựng bản giả trả `null` để `jpKtApprove` / `jpKtReject`
+ * chạy trọn đường; bài kiểm so MỌI trường KHÁC, còn `kho` và câu thông báo thì đòi riêng ở
+ * phía PHP — xem chú thích trong `kiem-jp-duyet.php`.
+ */
+const KHO_GIA = 'function jpXuatKhoBaoCao_() { return null; }\n'
+  + 'function jpHoanKhoBaoCao_() { return null; }\n';
+
 const Utilities = {
   formatDate(d, tz, fmt) {
     const p = new Intl.DateTimeFormat('en-GB', {
@@ -32,15 +60,112 @@ const Utilities = {
 };
 
 /* Mấy lớp Apps Script khác chỉ cần TỒN TẠI để tệp nạp trôi — không hàm nào dưới đây gọi tới. */
+/*
+ * `LockService` — khoá script của Apps Script. Node chạy một luồng nên khoá là vô nghĩa ở đây,
+ * nhưng `jpLock_` (mã GỐC, và mọi đường ghi đều đi qua nó) gọi thẳng vào nó, nên phải có mặt.
+ * Dựng một cái khoá luôn lấy được: giữ `jpLock_` là mã gốc thật, chỉ thay thứ bên dưới nó.
+ */
+const LockService = {
+  getScriptLock() {
+    return { waitLock() { return true; }, tryLock() { return true; }, releaseLock() {} };
+  },
+};
+
 const hop = {
-  Utilities, console,
-  SpreadsheetApp: {}, PropertiesService: {}, DriveApp: {}, LockService: {}, Session: {},
+  Utilities, console, LockService,
+  SpreadsheetApp: {}, PropertiesService: {}, DriveApp: {}, Session: {},
+  CacheService: {}, UrlFetchApp: {}, HtmlService: {}, ScriptApp: {}, MailApp: {},
 };
 vm.createContext(hop);
 for (const t of ds_tep) vm.runInContext(fs.readFileSync(t, 'utf8'), hop, { filename: t });
+vm.runInContext(KHO_GIA, hop, { filename: 'kho-gia.js' });
 
 const ten = process.argv[2];
 const vao = JSON.parse(process.argv[3]);
+const so  = process.argv[4] ? JSON.parse(process.argv[4]) : null;
+const ai  = process.argv[5] ? JSON.parse(process.argv[5]) : null;
+
+/*
+ * SỔ GIẢ — thay đúng `jpVals_`, giữ nguyên mọi hàm đọc phía trên nó.
+ *
+ * Dựng mảng hai chiều y như Sheets trả về: dòng đầu là header lấy từ `tabDef.cols` (đúng thứ
+ * bản gốc tự tạo khi tab còn rỗng), các dòng sau xếp theo đúng thứ tự cột ấy.
+ *
+ * ⚠️ Ô thiếu để '' chứ không `undefined`: Sheets không bao giờ trả `undefined`, và `jpRows_`
+ *    đếm ô rỗng để bỏ dòng trắng — trả `undefined` là đổi luôn phép đếm ấy.
+ */
+if (so) {
+  hop.jpVals_ = function (tabDef) {
+    const cols = tabDef.cols;
+    const v = [cols.slice()];
+    (so[tabDef.name] || []).forEach(function (o) {
+      v.push(cols.map(function (c) { return (o[c] === undefined || o[c] === null) ? '' : o[c]; }));
+    });
+    hop.JP__HDR[tabDef.name] = cols.slice();
+    return v;
+  };
+}
+
+/*
+ * GHI GIẢ — `jpAppend_` · `jpAppendMany_` · `jpNextId_`, đúng ba hàm CHẠM VÀO Sheets và
+ * PropertiesService. Mọi hàm gọi chúng (`jpGieoDongTuKyTruoc_`, `jpBulkAppendRows_`,
+ * `jpAudit_`, `jpOpenReport`) vẫn là mã gốc.
+ *
+ * Ghi vào chính bộ sổ giả, nên lượt ĐỌC ngay sau đó thấy được — `jpOpenReport` tạo báo cáo
+ * rồi gọi `jpGetReport` để trả về, không có chuyện này thì nó trả về một báo cáo rỗng.
+ *
+ * ⚠️ `jpNextId_` lấy mã từ `so.__maMoi` nếu bài kiểm có đưa. Phải đưa, vì mã báo cáo đẻ ra mã
+ *    khu và mã dòng (`<mã bc>-R1`): hai bên sinh mã khác nhau thì mọi khoá đều lệch và phép
+ *    đối chiếu thành vô nghĩa. Bài kiểm để bản PHP sinh mã trước rồi bảo mã gốc dùng lại đúng
+ *    mã ấy — thứ ĐƯỢC ĐỐI CHIẾU là nội dung dòng, không phải bộ đếm.
+ */
+if (so) {
+  hop.jpAppend_ = function (tabDef, obj) {
+    (so[tabDef.name] = so[tabDef.name] || []).push(obj);
+    return obj;
+  };
+  hop.jpAppendMany_ = function (tabDef, ds) {
+    (ds || []).forEach(function (o) { hop.jpAppend_(tabDef, o); });
+    return (ds || []).length;
+  };
+  /*
+   * `jpDeleteWhere_` và `jpFields_` — hai hàm SỬA/XOÁ trên Sheets.
+   *
+   * ⚠️ `jpFields_` ghi theo SỐ DÒNG (`head._row`), đúng cái mà bản PHP cố ý bỏ đi. Bộ sổ giả
+   *    phải dựng lại cho đúng: `jpRows_`/`jpFind_` gán `_row = chỉ số trong mảng hai chiều + 1`,
+   *    mà dòng đầu của mảng ấy là header — nên dòng dữ liệu thứ k có `_row = k + 2`.
+   */
+  hop.jpDeleteWhere_ = function (tabDef, key, val) {
+    const ds = so[tabDef.name] || [];
+    const s_ = String(val);
+    so[tabDef.name] = ds.filter(function (o) { return String(o[key]) !== s_; });
+    return ds.length - so[tabDef.name].length;
+  };
+  hop.jpFields_ = function (tabDef, rowIndex, fields) {
+    const o = (so[tabDef.name] || [])[rowIndex - 2];
+    if (!o) return false;
+    Object.keys(fields || {}).forEach(function (k) { o[k] = fields[k]; });
+    return true;
+  };
+  var __seq = 0;
+  hop.jpNextId_ = function (prefix) {
+    if (so.__maMoi) { return so.__maMoi; }
+    return prefix + '00000000-' + ('0000' + (++__seq)).slice(-4);
+  };
+}
+
+/* NGƯỜI DÙNG GIẢ — `jpAuth_` là cửa duy nhất, mọi hàm quyền phía sau vẫn chạy thật. */
+if (ai) { hop.jpAuth_ = function () { return ai; }; }
+
+/*
+ * BẢNG CẢNH BÁO của mã gốc — không phải hàm, nên lấy riêng.
+ *
+ * 🔴 Có mặt ở đây để `kiem-jp-tinh.php` đối chiếu ĐỦ CẢ BẢNG, không chỉ mấy mã mà phép tính
+ *    tình cờ đi qua. Câu chữ của cảnh báo là thứ kế toán ĐỌC để quyết định ký hay trả về —
+ *    lệch một câu là lệch cái người ta dựa vào, mà không phép tính nào đỏ.
+ */
+if (ten === 'warn_def') { process.stdout.write(JSON.stringify(hop.JP_WARN)); process.exit(0); }
+
 const ham = {
   num: 'jpNum_', str: 'jpStr_', blank: 'jpBlank_', num_hoac_trong: 'jpNumOrBlank_',
   so_anh: 'jpSoAnh_', ngay: 'jpDate_', ngay_gio: 'jpNgayGio_', dmy: 'jpDMY_',
@@ -55,8 +180,35 @@ const ham = {
   dong_kho_ngoai: 'jpCalcNgoaiRow_', dong_may_tach: 'jpCalcMayRow_',
   dong_hang_tach: 'jpCalcHangRow_', may_go_tay: 'jpMayGoTay_', dong: 'jpCalcRow_',
   bao_cao: 'jpCalcReport_', canh_bao_dau: 'jpCanhBaoHead_', hoan_tong: 'jpHoanTong_',
+  /* Đọc báo cáo — xem `class-vhjp-bao-cao.php`. Mấy hàm này cần `sổ` (và vài hàm cần
+     `người dùng`), nếu không truyền thì chúng sẽ đọc `jpVals_` thật và chết ở SpreadsheetApp. */
+  pub_head: 'jpPubHead_', pub_khu: 'jpPubZone_', pub_dong: 'jpPubRow_', pub_anh: 'jpPubPhoto_',
+  chu_ky: 'jpChuKy_', anh_url: 'jpAnhUrl_', mo_ton_dau: 'jpMoTonDau_',
+  sua_duoc: 'jpCanEditReport_', ton_ky_truoc: 'jpPrevClosing_',
+  ky_chong_nhau: 'jpKyChongNhau_', trung_nguoi_khac: 'jpTrungNguoiKhac_',
+  cua_toi: 'jpMyReports', lay_bao_cao: 'jpGetReport',
+  /* Tạo / mở báo cáo — cần CẢ sổ lẫn người dùng, và ghi vào chính bộ sổ giả. */
+  mo_bao_cao: 'jpOpenReport', ky_lien_truoc: 'jpKyLienTruoc_',
+  vi_sao_khong_gieo: 'jpViSaoKhongGieo_', gieo_dong: 'jpGieoDongTuKyTruoc_',
+  bo_dong_tra_kho: 'jpBoDongTraKho_', dong_theo_ma: 'jpDongTheoMa_',
+  ton_cuoi_gieo: 'jpTonCuoiGieo_',
+  /* Lưu nháp — xoá sạch rồi ghi lại, nên cần cả `jpDeleteWhere_` lẫn `jpFields_`. */
+  luu: 'jpSaveReport', ban_do_hang: 'jpItemMap_', tra_hang: 'jpTraItem_',
+  id_moi: 'jpIdMoi_', ids_dang_dung: 'jpIdsDangDung_', diff_phan: 'jpDiffParts_',
+  /* Nộp báo cáo, và phần ĐẾM của đường ảnh (không đụng Drive nên chạy được bằng node). */
+  nop: 'jpSubmitReport', thieu_chi_so: 'jpThieuChiSo_', dong_trong: 'jpDongTrong_',
+  qr_vuot_tien: 'jpQRVuotTien_', kiem_anh: 'jpCheckPhotos_', anh_tien_do: 'jpPhotoProgress',
+  /* Kế toán duyệt. */
+  ket_ky: 'jpKetKy_', ky_duoc: 'jpCanSign_', anh_da_chot: 'jpPhotoWarnList_',
+  gop_canh_bao: 'jpGopCanhBao_', tien_vs_hang: 'jpTienVsHang_',
+  ds_bao_cao: 'jpKtListReports', lay_kt: 'jpKtGetReport', ky: 'jpKtApprove', tra_ve: 'jpKtReject',
 }[ten];
 if (!ham) { console.error('không biết hàm ' + ten); process.exit(2); }
 if (typeof hop[ham] !== 'function') { console.error('mã gốc không có ' + ham); process.exit(3); }
 
-process.stdout.write(JSON.stringify(vao.map(a => hop[ham].apply(null, a))));
+const ketqua = vao.map(a => hop[ham].apply(null, a));
+/*
+ * Với hàm CÓ GHI, bài kiểm cần soi cả thứ vừa được ghi xuống sổ, không chỉ giá trị trả về —
+ * `jpGieoDongTuKyTruoc_` trả về một bản tóm tắt, còn dòng thật thì nằm trong `JP_Rows`.
+ */
+process.stdout.write(JSON.stringify(process.env.JP_TRA_SO ? { ra: ketqua, so: so } : ketqua));

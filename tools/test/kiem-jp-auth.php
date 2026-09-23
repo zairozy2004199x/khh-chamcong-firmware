@@ -53,7 +53,24 @@ jp_dung_user();
 
 // ============================================================ 1. Băm PIN
 $b = VHJP_Auth::bam( '357' );
-t( '🔴 PIN lưu KHÔNG phải chữ thô', '357' !== $b && false === strpos( $b, '357' ), $b );
+t( '🔴 PIN lưu KHÔNG phải chữ thô', '357' !== $b, $b );
+/*
+ * ⚠️ KHÔNG soi chuỗi '357' BÊN TRONG chuỗi băm — đó là phép CHẬP CHỜN.
+ *
+ * Chuỗi bcrypt là 53 ký tự gần như ngẫu nhiên trên bảng 64 ký tự, nên cứ khoảng 5.000 lượt
+ * chạy là có một lượt tình cờ chứa '357' và bài đỏ oan. Một bài kiểm thỉnh thoảng đỏ vô cớ
+ * còn tệ hơn không có bài kiểm: vài lần như vậy là người ta thôi tin nó, rồi bỏ qua cả lần
+ * đỏ THẬT.
+ *
+ * Thay bằng phép ĐÚNG THỨ ĐANG CẦN CHẶN và KHÔNG ngẫu nhiên: hỏi thẳng PHP xem giá trị này
+ * có phải do một hàm băm mật khẩu thật sinh ra không. Băm giả kiểu "tiền tố + PIN" thì
+ * `password_get_info` không nhận ra thuật toán nào cả.
+ */
+$tt = password_get_info( $b );
+t( '🔴 giá trị lưu là chuỗi băm THẬT (PHP nhận ra thuật toán)',
+	! empty( $tt['algo'] ), $tt );
+t( 'và PIN không nằm ở đầu hay cuối chuỗi',
+	'357' !== substr( $b, 0, 3 ) && '357' !== substr( $b, -3 ), $b );
 /* 🔴 SHA-256 trần với 1.000 khả năng là bảng tra dựng xong trong một phần nghìn giây. Phải là
    hàm băm CHẬM (bcrypt/argon2) — chuỗi của chúng bắt đầu bằng `$`. */
 t( '🔴 dùng hàm băm CHẬM, không phải SHA-256 trần',
@@ -86,9 +103,28 @@ t( 'có thẻ phiên',     ! empty( $r['token'] ), $r );
 
 /* 🔴 PHÉP QUAN TRỌNG NHẤT CỦA CẢ BÀI: soi TOÀN BỘ câu trả lời, không soi từng trường — thêm
    một trường mới vào phiên mà quên che là nó tự chảy ra đây. */
-$json = wp_json_encode( $r );
+/*
+ * ⚠️ BỎ THẺ PHIÊN RA TRƯỚC KHI SOI — nếu không, đây là phép CHẬP CHỜN.
+ *
+ * Thẻ phiên là 64 ký tự hex NGẪU NHIÊN, tức 62 cụm ba ký tự liên tiếp, mỗi cụm có 1/4096 cơ
+ * hội đúng bằng '357'. Cộng lại là **khoảng 1,5% mỗi lượt chạy** bài này đỏ oan — và nó đã
+ * đỏ thật trong một lượt chạy cả bộ ngày 21/09/2026. Một bài thỉnh thoảng đỏ vô cớ là bài
+ * người ta thôi đọc.
+ *
+ * Nhưng vẫn phải soi TOÀN BỘ phần còn lại, không soi từng trường: thêm một trường mới vào
+ * phiên mà quên che là nó tự chảy ra đây.
+ */
+t( 'câu trả lời CÓ thẻ phiên', ! empty( $r['token'] ), $r );
+$khong_the = $r;
+unset( $khong_the['token'] );
+$json = wp_json_encode( $khong_the );
 t( '🔴 câu trả lời KHÔNG chứa PIN', false === strpos( $json, '357' ), $json );
 t( '🔴 và KHÔNG chứa chuỗi băm',    false === strpos( $json, '$2y$' ) && false === strpos( $json, 'pin' ), $json );
+/* Và chính THẺ PHIÊN cũng không được là PIN hay dính PIN ở hai đầu — soi riêng, không soi
+   giữa chuỗi, vì giữa chuỗi là ngẫu nhiên. */
+t( '🔴 thẻ phiên không phải PIN, và không bắt đầu/kết thúc bằng PIN',
+	'357' !== $r['token'] && '357' !== substr( $r['token'], 0, 3 )
+		&& '357' !== substr( $r['token'], -3 ), $r['token'] );
 teq( 'nhưng có tên người để hiện lên màn', 'Chị Kế Toán', $r['user']['hoTen'] );
 teq( 'và có danh sách cơ sở đã tách', array( 'L-1', 'L-2' ), $r['user']['locationIds'] );
 
@@ -251,6 +287,50 @@ $md2 = VHJP_Auth::dang_nhap( '222' );
 VHJP_Auth::doi_pin( $md2['token'], '222', '101' );
 teq( '🔴 đổi 222 sang 101 (cũng là PIN mặc định) -> VẪN chặn', 'PHAI_DOI_PIN',
 	VHJP_Auth::kiem( $md2['token'] )['ma'] );
+
+// ============================================================ 9bb. 🔴 Tài khoản đầu tiên
+/* Cài mới thì bảng người dùng RỖNG TRƠN, mà màn đăng nhập chỉ hỏi PIN — tức KHÔNG AI VÀO
+   ĐƯỢC, kể cả người vừa cài. Bản gốc không gặp cảnh này vì sổ người dùng đã sẵn trong Sheet. */
+global $wpdb;
+$wpdb->exec_raw( 'DELETE FROM ' . VHJP_Nguon::bang( 'JP_Users' ) );
+delete_option( VHJP_Auth::O_PHIEN );
+
+teq( 'bảng rỗng thì đúng là không ai vào được', false,
+	! empty( VHJP_Auth::dang_nhap( '222' )['ok'] ) );
+
+$moi = VHJP_Auth::cap_tai_khoan_dau();
+t( '🔴 cấp được tài khoản đầu tiên', false !== $moi && null !== $moi, $moi );
+teq( 'và chỉ đúng MỘT tài khoản', 1, count( VHJP_Nguon::doc( 'JP_Users' ) ) );
+/* ⚠️ ĐỌC PIN ĐÃ LƯU TRƯỚC KHI ĐĂNG NHẬP. `dang_nhap()` cố ý BĂM LẠI mọi PIN còn ở dạng chữ
+   thô ngay tại chỗ (cho dữ liệu chuyển từ Sheets sang) — nên đăng nhập trước rồi mới đọc là
+   chính bài kiểm xoá mất bằng chứng, và lượt đục "lưu PIN chữ thô" sống sót. */
+$hs = VHJP_Nguon::doc( 'JP_Users' )[0];
+t( '🔴 PIN của tài khoản tự cấp được BĂM ngay từ lúc tạo',
+	'222' !== $hs['pin'] && '$' === substr( (string) $hs['pin'], 0, 1 ), $hs['pin'] );
+
+$vao = VHJP_Auth::dang_nhap( '222' );
+t( '🔴 vào được bằng PIN mặc định', ! empty( $vao['ok'] ), $vao );
+t( 'là vai kế toán', VHJP_Auth::VAI_KT === $vao['user']['role'], $vao );
+/* 🔴 Vào được, nhưng MỌI CỬA ĐÓNG cho tới khi đổi PIN — không thì tài khoản ai cũng đoán ra
+   lại mở sẵn toàn hệ. */
+teq( '🔴 nhưng mọi cửa thường vẫn ĐÓNG', 'PHAI_DOI_PIN', VHJP_Auth::kiem( $vao['token'] )['ma'] );
+
+/* 🔴 GỌI LẠI KHÔNG ĐƯỢC ĐẺ THÊM. Móc kích hoạt chạy lại mỗi lần bật plugin; đẻ thêm là sổ
+   người dùng phình ra một tài khoản mở sẵn sau mỗi lượt bật/tắt. */
+teq( '🔴 gọi lại khi đã có tài khoản -> KHÔNG làm gì', null, VHJP_Auth::cap_tai_khoan_dau() );
+teq( 'và vẫn đúng một tài khoản', 1, count( VHJP_Nguon::doc( 'JP_Users' ) ) );
+
+/* Và KHÔNG được đụng PIN của sổ đang dùng. */
+VHJP_Nguon::sua( 'JP_Users', $hs['id'], array( 'pin' => VHJP_Auth::bam( '789' ) ) );
+VHJP_Auth::cap_tai_khoan_dau();
+t( '🔴 KHÔNG đụng PIN của tài khoản đang dùng', ! empty( VHJP_Auth::dang_nhap( '789' )['ok'] ) );
+
+/* Màn quản trị chỉ nhắc số PIN mặc định KHI NÓ CÒN ĐÚNG. */
+teq( 'đổi PIN rồi thì thôi nhắc số mặc định', '', VHJP_Auth::con_pin_mac_dinh() );
+VHJP_Nguon::sua( 'JP_Users', $hs['id'], array( 'pin' => VHJP_Auth::bam( '222' ) ) );
+teq( 'còn mặc định thì nhắc đúng số', '222', VHJP_Auth::con_pin_mac_dinh() );
+
+jp_dung_user();
 
 // ============================================================ 9c. Quyền xem cơ sở
 $kt_u = array( 'role' => VHJP_Auth::VAI_KT, 'locationIds' => array() );

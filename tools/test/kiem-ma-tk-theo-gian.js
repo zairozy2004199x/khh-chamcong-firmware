@@ -33,7 +33,9 @@ function bocHam(ten) {
   const j = HTML.indexOf('\n  }', i) + 4;
   return (j > i) ? HTML.slice(i, j) : '';
 }
-const HAM = ['_mangCua', '_mangPham', '_tkNoList', '_tapTkCo', '_tkNoCua', '_tenTk', '_loaiCpOpts', '_selLoai', '_tkHint'];
+/* `_dauMucCua` nằm trong danh sách vì `_loaiCpOpts()` gọi nó để gắn đầu mục lên từng dòng —
+   thiếu nó là bài kiểm chết đứng bằng ReferenceError, không phải trượt một phép. */
+const HAM = ['_mangCua', '_mangPham', '_tkNoList', '_tapTkCo', '_tkNoCua', '_tenTk', '_dauMucCua', '_loaiCpOpts', '_selLoai', '_tkHint'];
 const MOI = HAM.map(function (x) { const c = bocHam(x); t('bốc được ' + x + '()', c.length > 20, c.length); return c; }).join('\n');
 
 /* Danh mục thử theo đúng ảnh anh Thắng gửi: một loại "Chi phí cơ sở" khai bốn mã ở bốn mảng. */

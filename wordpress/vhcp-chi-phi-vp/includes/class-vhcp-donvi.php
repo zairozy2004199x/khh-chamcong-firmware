@@ -302,11 +302,47 @@ class VHCPVP_DonVi {
 	 *    trả `null` (bày đủ nút) — không lộ gì cả, vì sau mỗi nút vẫn là dữ liệu đã bị chốt đơn
 	 *    vị cắt. Hỏng theo hướng bày thừa một cái nút rỗng, không phải hướng mở cửa.
 	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	/* ══════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 KHỐI NAY LÀ MIỀN — MB / MN. Anh Thắng 22/09/2026: *"Khối là liên quan Miền Bắc và
+	 *    Miền Nam ôi"*, rồi *"Chuyển nó sang là MB hay MN tương đương với Miền Bắc, Miền Nam"*.
+	 *
+	 * ⚠️ BA MÃ CŨ (kvc · mtd · vp) Ở LẠI TRONG TỪ ĐIỂN, VÀ CỐ Ý. Danh mục loại chi phí và bảng
+	 *    mã TK Nợ đang mang chúng; bỏ khỏi từ điển là mấy dòng ấy hiện ra với cái mã trần thay
+	 *    vì tên, hoặc rơi hẳn khỏi bảng mã — mã tài khoản còn trong sổ mà không ai sửa được.
+	 *    Thứ ĐỔI là danh sách khối còn NHẬN VIỆC MỚI (`KHOI_MO` bên màn): từ nay chỉ MB/MN.
+	 *    Kế toán tự đổi từng dòng bằng ô chọn Khối — máy không ép đổi khối của ai.
+	 *
+	 * ⚠️ MIỀN KHÔNG ÁNH XẠ TỪ ĐƠN VỊ. Ba mã cũ suy ra được từ cột Đơn vị ('POSH' → mtd), còn
+	 *    miền thì không: một đơn vị có cơ sở ở cả hai miền. Nên hai khoá mới nhận đúng tên
+	 *    viết tắt của chính nó, để `khoi_cua()` không gán bừa cơ sở vào một miền.
+	 * ══════════════════════════════════════════════════════════════════════════════════════ */
 	const KHOI_THEO_DON_VI = array(
+		'mb'  => array( 'MB', 'MIỀN BẮC', 'MIEN BAC' ),
+		'mn'  => array( 'MN', 'MIỀN NAM', 'MIEN NAM' ),
 		'kvc' => array( 'KVC' ),
 		'mtd' => array( 'MTĐ', 'MTD', 'POSH' ),
 		'vp'  => array( 'VP', 'VĂN PHÒNG', 'VAN PHONG' ),
 	);
+
+	/**
+	 * DANH SÁCH KHỐI của bản này — mã + tên, để MÀN khỏi gõ cứng.
+	 *
+	 * 🔴 CẮN THẬT 22/09/2026, LẦN THỨ HAI CÙNG MỘT BỆNH. Anh Thắng: *"Vẫn mất đơn khi tạo hoặc
+	 *    F5"*. Bản 1.264.0 đã vá đúng bệnh ấy — nhưng chỉ vá NỬA ĐƯỜNG: chèn mã vùng vào
+	 *    `KHOI_THEO_DON_VI` và `ten_khoi()` ở MÁY CHỦ, rồi quên mất rằng MÀN có một danh sách
+	 *    RIÊNG gõ cứng (`var KHOI_DS=[kvc, mtd, vp]`). Máy chủ biết khối 'hn', màn thì không —
+	 *    nên đơn vẫn không tab nào bày ra, y như trước khi vá.
+	 *
+	 * ⚠️ HAI DANH SÁCH CHO MỘT SỰ THẬT LÀ CÁI BẪY. Nay chỉ còn MỘT nguồn: hàm này. Màn đọc
+	 *    `BOOT.khoiDs` và thôi tự khai.
+	 */
+	public static function khoi_ds() {
+		$ra = array();
+		foreach ( array_keys( self::KHOI_THEO_DON_VI ) as $ma ) {
+			$ra[] = array( 'ma' => $ma, 'ten' => VHCPVP_Cfg::ten_khoi( $ma ) );
+		}
+		return $ra;
+	}
 
 	/** Mã khối của một đơn vị — '' nếu không ánh xạ được. */
 	public static function khoi_cua( $don_vi ) {

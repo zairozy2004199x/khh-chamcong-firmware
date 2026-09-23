@@ -8,7 +8,7 @@ class VHCPHN_Admin {
 	const CAP = 'manage_options';
 
 	public static function menu() {
-		add_menu_page( 'Chi Phí HN', 'Chi Phí HN', self::CAP, 'vhcphn', array( __CLASS__, 'page_main' ), 'dashicons-money-alt', 58 );
+		add_menu_page( "Chi Phí HN", "Chi Phí HN", self::CAP, 'vhcphn', array( __CLASS__, 'page_main' ), 'dashicons-money-alt', 58 );
 		add_submenu_page( 'vhcphn', 'Nhập dữ liệu từ Google Sheet', 'Nhập dữ liệu', self::CAP, 'vhcphn-import', array( __CLASS__, 'page_import' ) );
 		add_submenu_page( 'vhcphn', 'Nạp cả bảng tính từ link', 'Nạp từ link Sheet', self::CAP, 'vhcphn-sheet', array( __CLASS__, 'page_sheet' ) );
 		add_submenu_page( 'vhcphn', 'Cài đặt Vận Hành Chi Phí', 'Cài đặt', self::CAP, 'vhcphn-settings', array( __CLASS__, 'page_settings' ) );
@@ -23,6 +23,11 @@ class VHCPHN_Admin {
 		check_admin_referer( 'vhcphn_' . $action );
 
 		if ( $action === 'settings' ) {
+			/* ⚠️ Ô TRỐNG = DÙNG TÊN MẶC ĐỊNH, không phải = tên rỗng. Trang không có tiêu đề thì
+			   người dùng đọc thành "trang hỏng". Xem `VHCPHN_App::ten_trang()`. */
+			if ( isset( $_POST['vhcphn_ten_trang'] ) ) {
+				update_option( 'vhcphn_ten_trang', sanitize_text_field( wp_unslash( $_POST['vhcphn_ten_trang'] ) ) );
+			}
 			$slug = isset( $_POST['vhcphn_slug'] ) ? sanitize_title( wp_unslash( $_POST['vhcphn_slug'] ) ) : 'chi-phi';
 			if ( $slug === '' ) { $slug = 'chi-phi'; }
 			$old = get_option( 'vhcphn_slug' );
@@ -34,6 +39,23 @@ class VHCPHN_Admin {
 
 			$secret = isset( $_POST['vhcphn_sso_secret'] ) ? trim( (string) wp_unslash( $_POST['vhcphn_sso_secret'] ) ) : '';
 			VHCPHN_Meta::set( 'SSO_SECRET', $secret );
+
+			/* ══════════════════════════════════════════════════════════════════════════════
+			 * KHOÁ GITHUB — Ô TRỐNG LÀ GIỮ NGUYÊN, KHÔNG PHẢI XOÁ.
+			 *
+			 * Ô này KHÔNG BAO GIỜ hiện khoá đang lưu (xem `page_settings()`), nên "trống" là
+			 * trạng thái BÌNH THƯỜNG của nó. Hiểu trống là xoá thì mỗi lượt đổi múi giờ hay
+			 * đổi đường dẫn app là mất khoá, và lần cập nhật sau im lặng không thấy bản mới.
+			 * Cùng đúng cái bẫy đã gặp với ô PIN bên trang nhân sự.
+			 *
+			 * Muốn bỏ hẳn khoá thì có ô tích riêng — một việc CÓ Ý, không phải hậu quả của
+			 * việc để trống một ô.
+			 * ══════════════════════════════════════════════════════════════════════════════ */
+			if ( ! empty( $_POST['vhcphn_gh_xoa'] ) ) {
+				VHCPHN_TuCapNhat::xoa_khoa();
+			} elseif ( isset( $_POST['vhcphn_gh_token'] ) ) {
+				VHCPHN_TuCapNhat::dat_khoa( wp_unslash( $_POST['vhcphn_gh_token'] ) );
+			}
 
 			VHCPHN_Cfg::clear_cache();
 			wp_safe_redirect( add_query_arg( array( 'page' => 'vhcphn-settings', 'vhcphn_msg' => 'saved' ), admin_url( 'admin.php' ) ) );
@@ -367,6 +389,18 @@ class VHCPHN_Admin {
 		wp_nonce_field( 'vhcphn_settings' );
 		echo '<input type="hidden" name="vhcphn_action" value="settings">';
 		echo '<table class="form-table"><tbody>';
+		/* 🔴 TÊN TRANG — anh Thắng 14/09/2026: *"Đổi tên trang chi phí"*. Bốn bản chi phí cài
+		   chung một site đều mở ra với đúng một dòng tiêu đề; mở hai tab cạnh nhau thì không
+		   biết tab nào là mảng nào. Khai ở đây thay vì gõ cứng trong mã: đổi tên là việc người
+		   dùng làm, không phải việc phải cài lại plugin. */
+		echo '<tr><th scope="row"><label for="vhcphn_ten_trang">Tên trang</label></th><td>'
+			. '<input name="vhcphn_ten_trang" id="vhcphn_ten_trang" value="'
+			. esc_attr( (string) get_option( 'vhcphn_ten_trang', '' ) ) . '" class="regular-text" placeholder="'
+			. esc_attr( VHCPHN_App::TEN_MAC_DINH ) . '">'
+			. '<p class="description">Hiện trên đầu trang và trên thẻ tiêu đề trình duyệt. '
+			. 'Để trống thì dùng <code>' . esc_html( VHCPHN_App::TEN_MAC_DINH ) . '</code>. '
+			. 'Bốn bản chi phí cài chung một site — đặt tên riêng cho mỗi mảng thì mở nhiều tab '
+			. 'mới phân biệt được.</p></td></tr>';
 		echo '<tr><th scope="row"><label for="vhcphn_slug">Đường dẫn app</label></th><td>' . esc_html( home_url( '/' ) ) . '<input name="vhcphn_slug" id="vhcphn_slug" value="' . esc_attr( $slug ) . '" class="regular-text"> /<p class="description">Mặc định <code>chi-phi</code>. Đổi xong hãy mở lại app 1 lần để đường dẫn được nạp.</p></td></tr>';
 		echo '<tr><th scope="row"><label for="vhcphn_timezone">Múi giờ</label></th><td><select name="vhcphn_timezone" id="vhcphn_timezone">';
 		foreach ( timezone_identifiers_list() as $z ) {
@@ -374,6 +408,30 @@ class VHCPHN_Admin {
 		}
 		echo '</select><p class="description">App cũ chạy múi <code>Asia/Bangkok</code> (GMT+7).</p></td></tr>';
 		echo '<tr><th scope="row"><label for="vhcphn_sso_secret">SSO_SECRET</label></th><td><input name="vhcphn_sso_secret" id="vhcphn_sso_secret" value="' . esc_attr( $secret ) . '" class="regular-text code"><p class="description">Chuỗi bí mật dùng chung với trang tổng K&amp;H để đăng nhập một lần (<code>?sso=&lt;token&gt;</code>). Để trống nếu chỉ đăng nhập bằng PIN.</p></td></tr>';
+
+		/* ══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 KHÔNG BAO GIỜ ĐỔ KHOÁ ĐANG LƯU RA `value`.
+		 *
+		 * Cùng luật đã đặt cho PIN và khoá máy chấm công: trang chạy ngoài internet, một ảnh
+		 * chụp màn hình là mất khoá. Ô chỉ NÓI CÓ HAY KHÔNG và nhận khoá mới dán đè.
+		 * ══════════════════════════════════════════════════════════════════════════════════ */
+		$co_khoa = VHCPHN_TuCapNhat::co_khoa();
+		echo '<tr><th scope="row"><label for="vhcphn_gh_token">Khoá GitHub</label></th><td>';
+		echo '<input type="password" name="vhcphn_gh_token" id="vhcphn_gh_token" value="" autocomplete="new-password" class="regular-text code" placeholder="'
+			. ( $co_khoa ? 'đã có khoá — dán khoá mới để thay' : 'chưa khai' ) . '">';
+		echo '<p class="description">'
+			. ( $co_khoa
+				? '<b style="color:#16a34a">Đã khai khoá.</b> Trang sẽ tự thấy bản mới trên GitHub và hiện nút <b>Cập nhật</b> ở màn Plugin.'
+				: '<b style="color:#b45309">Chưa khai.</b> Khai xong thì mỗi bản mới hiện ngay ở màn Plugin, khỏi tải tệp .zip về nữa.' )
+			. '<br>Tạo ở GitHub → Settings → Developer settings → <b>Fine-grained tokens</b>: chọn đúng kho <code>'
+			. esc_html( VHCPHN_TuCapNhat::REPO ) . '</code>, mục <b>Contents</b> để <b>Read-only</b>. '
+			. 'Khoá chỉ đọc nên lỡ lộ cũng không ai ghi được gì vào mã.<br>'
+			. '<em>Ô này không bao giờ hiện khoá đang lưu — để trống là giữ nguyên.</em></p>';
+		if ( $co_khoa ) {
+			echo '<p><label><input type="checkbox" name="vhcphn_gh_xoa" value="1"> Xoá hẳn khoá đang lưu</label></p>';
+		}
+		echo '</td></tr>';
+
 		echo '</tbody></table>';
 		submit_button();
 		echo '</form></div>';

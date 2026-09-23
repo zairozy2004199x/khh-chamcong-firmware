@@ -22,8 +22,56 @@ class VHCPHN_DB {
 	/* 1.10.0: thêm cột `ngay_gui_qt` — mốc NHÂN VIÊN BẤM GỬI quyết toán. Khác hẳn `ngay_qt`
 	   (mốc KẾ TOÁN xác nhận), và trước bản này không có gì ghi lại lượt gửi, nên bảng "Chờ
 	   quyết toán" không xếp được theo "ai gửi trước xử trước". */
-	const SCHEMA_VERSION = '1.10.0';   // 1.9.0: bảng lenh_tu · 1.10.0: don.ngay_gui_qt
+	/* ══════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 ĐỔI SƠ ĐỒ BẢNG THÌ PHẢI NÂNG SỐ NÀY. KHÔNG NÂNG LÀ MẤT DỮ LIỆU, IM LẶNG.
+	 * ══════════════════════════════════════════════════════════════════════════════════════
+	 * Cắn thật 22/09/2026 — anh Thắng: *"có thấy báo thêm hạng mục, nhưng không thấy gì"*.
+	 * Bản 1.266.0 thêm cột `chiphi.giai_doan` mà quên nâng số này. `vhcphn_maybe_upgrade()` chỉ
+	 * gọi `install()` khi số này KHÁC `vhcphn_db_version` đang lưu — nên `dbDelta()` không chạy,
+	 * cột không hề được tạo trong CSDL thật, và MySQL chối MỌI câu `INSERT` vào bảng ấy vì
+	 * "Unknown column". Người nhập gõ cả buổi, màn báo "Đã thêm dòng" mỗi lần, và sổ vẫn trống.
+	 *
+	 * ⚠️ MỘT CỘT MỚI KHÔNG BAO GIỜ LÀ "SỬA NHỎ". Nó chia đôi thế giới: mã mới, CSDL cũ. Đó là
+	 *    lúc duy nhất số này có việc để làm.
+	 * ⚠️ `kiem-so-do-bang.php` canh: đổi sơ đồ mà số này y nguyên là ĐỎ.
+	 * ══════════════════════════════════════════════════════════════════════════════════════ */
+	const SCHEMA_VERSION = '1.15.0';   // 1.9.0: bảng lenh_tu · 1.10.0: don.ngay_gui_qt · 1.11.0: da_line.tao_luc · 1.12.0: cột `mang` · 1.13.0: đổi tên `mang` → `khoi` · 1.14.0: chiphi.giai_doan · 1.15.0: don.luong
 	const DATA_ROW       = 5;   // DA_DATA_ROW / BP_DATA_ROW của app cũ
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * MẢNG — KVC · MTD · VP TRONG CÙNG MỘT KHO.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 19/09/2026: *"Chia 3 tab (KVC, MTD, VP)"*, và chọn **gộp thật làm một app** chứ
+	 * không phải ba đường dẫn đặt cạnh nhau. Đây là BƯỚC 1: mở chỗ trong sơ đồ bảng, chưa đổi
+	 * một nét nào trên màn.
+	 *
+	 * 🔴 CỘT NÀY CHỈ ĐẶT Ở BẢN GHI ĐẦU (đơn · dự án · marketing · công tác · lệnh tạm ứng · sổ
+	 *    chi · nhật ký · thùng rác). DÒNG CON KHÔNG CÓ — `chiphi`, `da_line`, `mk_line`,
+	 *    `bp_line`, `tamung` đều đã khoá theo mã của bản ghi cha, nên mảng của chúng suy ra từ
+	 *    cha. Đặt thêm một bản sao ở dòng con là hai nơi cùng giữ MỘT sự thật, và ngày chúng
+	 *    lệch nhau thì tiền của một hạng mục nằm ở mảng này còn đơn chứa nó nằm ở mảng kia —
+	 *    không màn nào cộng ra đúng nữa, mà cũng không màn nào báo sai.
+	 *    `so_chi` thì CÓ, vì nó là sổ đứng riêng: dòng của nó không treo vào đơn nào.
+	 *
+	 * 🔴 KHÔNG BAO GIỜ ĐỂ RỖNG. Rỗng nghĩa là "không biết mảng nào", mà mọi màn sẽ lọc theo
+	 *    mảng — một bản ghi rỗng là một bản ghi KHÔNG TAB NÀO THẤY: tiền có thật, đơn có thật,
+	 *    mà mở app ra thì như chưa từng tồn tại. Nên cột khai `NOT NULL DEFAULT` và `install()`
+	 *    còn quét lại một lượt lấp nốt (xem `lap_khoi()`).
+	 *
+	 * ⚠️ HẰNG NÀY ĐỔI THEO TỪNG BẢN. `tools/tach-ban-vung.sh` viết lại nó thành mã vùng khi
+	 *    sinh bản Máy Tự Động / Văn Phòng, y như `TEN_MAC_DINH`. Để nguyên 'kvc' ở bản mảng
+	 *    khác thì dữ liệu họ nhập vào lúc này mang nhãn sai, và bước dời dữ liệu về sau sẽ dời
+	 *    nhầm chỗ.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	const KHOI = 'hn';
+
+	/** Các bảng mang cột `mang` — dùng cho cả `install()` lẫn bài kiểm, để hai bên không lệch. */
+	const BANG_CO_KHOI = array( 'don', 'so_chi', 'da_index', 'mk_don', 'bp_index', 'lenh_tu', 'log', 'thungrac' );
+
+	/** Mảng của bản đang chạy. Bước 2 sẽ cho nó trả về mảng đang chọn trên thanh tab. */
+	public static function khoi() {
+		return self::KHOI;
+	}
 
 	public static function t( $name ) {
 		global $wpdb;
@@ -63,6 +111,7 @@ class VHCPHN_DB {
 		global $wpdb;
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 		$c = $wpdb->get_charset_collate();
+		$m = self::KHOI;   /* hằng lớp không nội suy vào chuỗi nháy kép — phải qua biến */
 
 		$sql = array();
 
@@ -105,11 +154,36 @@ class VHCPHN_DB {
 			du_phong DECIMAL(18,2) NULL,
 			bu_tru DECIMAL(18,2) NULL,
 			stt BIGINT(20) NOT NULL AUTO_INCREMENT,
+			khoi VARCHAR(20) NOT NULL DEFAULT '$m',
+			luong VARCHAR(10) NOT NULL DEFAULT '',
 			PRIMARY KEY  (ma_don),
+			KEY khoi (khoi),
 			UNIQUE KEY stt (stt),
 			KEY trang_thai (trang_thai),
 			KEY ky (ky)
 		) $c";
+
+		/* ══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 CỘT `don.luong`: ĐƠN NÀY ĐI LUỒNG NÀO.
+		 * ══════════════════════════════════════════════════════════════════════════════════
+		 * Anh Thắng 22/09/2026: *"Bên anh đó có 2 luồng. 1 luồng trực tiếp, 1 luồng gián tiếp.
+		 * Trực tiếp là gửi đơn đầy đủ cho kế toán và quyết toán. Còn gián tiếp là tạm ứng,
+		 * duyệt tạm ứng… cái đang chạy"*, rồi chốt: người lập chọn trên TỪNG ĐƠN.
+		 *
+		 * 🔴 TRỤC CỦA LUỒNG ĐỔI TỪ KHỐI SANG ĐƠN. Trước bản này luồng khoá theo khối
+		 *    (`KHOI_LUONG_CHI = ['mtd','vp']`) — cả một mảng đi chung một đường. Nhưng cùng một
+		 *    cơ sở Hà Nội thì hôm nay chi thẳng nhà cung cấp (trực tiếp), mai xin tiền trước
+		 *    (tạm ứng); khoá theo khối là bắt họ chọn một lần cho cả năm.
+		 *
+		 * ⚠️ RỖNG = THEO KHỐI NHƯ CŨ, và đó là lý do cột này có giá trị mặc định rỗng chứ không
+		 *    phải 'gt'. Hàng trăm đơn đang chạy đều rỗng; lấp 'gt' vào là đơn của Máy tự động và
+		 *    Văn phòng (vốn đi luồng chi) bị kéo ngược về đường tạm ứng — đổi luồng giữa chừng
+		 *    cho những đơn đã duyệt một nửa.
+		 *
+		 * ⚠️ MÃ NGẮN ('tt' · 'gt'), KHÔNG LƯU TÊN TIẾNG VIỆT. Tên hiện trên màn còn đổi (anh
+		 *    Thắng đã đổi "Chờ duyệt tạm ứng" thành "Chờ duyệt chi" một lần rồi); lưu tên là mỗi
+		 *    lượt đổi chữ thành một lượt sửa dữ liệu. Xem `VHCPHN_Don::LUONG_MA`.
+		 * ══════════════════════════════════════════════════════════════════════════════════ */
 
 		$sql[] = "CREATE TABLE " . self::t( 'tamung' ) . " (
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
@@ -120,6 +194,30 @@ class VHCPHN_DB {
 			UNIQUE KEY don_coso (ma_don,coso)
 		) $c";
 
+		/* ══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 CỘT `giai_doan`: khoản này là SETUP (dựng cơ sở) hay VẬN HÀNH (chạy hằng ngày).
+		 * ══════════════════════════════════════════════════════════════════════════════════
+		 * Anh Thắng vẽ đúng câu hỏi này trong sơ đồ tay 22/09/2026 — *CP set up hay đã đi vào
+		 * VH?* — rồi chốt: *Thêm 1 ô tích (Chi Phí Setup, Chi Phí Vận Hành) để sau này xác
+		 * định nó thuộc chi phí nào*.
+		 *
+		 * ⚠️ KHÔNG NHÉT VÀO DANH MỤC LOẠI CHI PHÍ. Cùng một loại ("Chi phí điện nước") vừa
+		 *    phát sinh lúc setup vừa phát sinh lúc vận hành — đây là TRỤC KHÁC, không phải một
+		 *    nhánh của cây danh mục. Nhét vào danh mục là nhân đôi mọi loại, và vẫn không trả
+		 *    lời được câu hỏi khi một dòng rơi vào cả hai.
+		 *
+		 * ⚠️ `NOT NULL DEFAULT ''` — rỗng nghĩa là CHƯA XÁC ĐỊNH, và rỗng PHẢI hợp lệ: mọi
+		 *    dòng đã nhập trước bản này đều rỗng, và không ai đi khai lại cả trăm dòng cũ.
+		 *    Bắt buộc chọn là chặn đứng người nhập ngay lượt sửa một dòng cũ.
+		 *
+		 * ⚠️ CHÚ THÍCH PHẢI NẰM NGOÀI CÂU SQL, và KHÔNG ĐƯỢC NHẮC LẠI hai chữ mở đầu câu ấy.
+		 *    Hai cái bẫy, mắc đủ cả hai trong một lượt thêm cột:
+		 *      · viết chú thích vào GIỮA chuỗi SQL -> một dấu nháy kép trong lời anh Thắng đóng
+		 *        luôn chuỗi PHP, tệp không chạy nổi;
+		 *      · nhắc lại hai chữ mở đầu câu SQL trong chú thích -> `kiem-so-do-bang.php` bóc
+		 *        câu bằng đúng hai chữ ấy, nên nó bắt từ giữa chú thích rồi báo "có dòng mở đầu
+		 *        bằng dấu sao". Bài kiểm đúng; lời văn mới là chỗ sai.
+		 * ═════════════════════════════════════════════════════════════════════════════════ */
 		$sql[] = "CREATE TABLE " . self::t( 'chiphi' ) . " (
 			id VARCHAR(40) NOT NULL,
 			ma_don VARCHAR(40) NOT NULL,
@@ -143,6 +241,7 @@ class VHCPHN_DB {
 			phat_sinh TINYINT(1) NOT NULL DEFAULT 0,
 			tk_no VARCHAR(20) NOT NULL DEFAULT '',
 			tk_co VARCHAR(20) NOT NULL DEFAULT '',
+			giai_doan VARCHAR(20) NOT NULL DEFAULT '',
 			stt BIGINT(20) NOT NULL AUTO_INCREMENT,
 			PRIMARY KEY  (id),
 			UNIQUE KEY stt (stt),
@@ -180,7 +279,9 @@ class VHCPHN_DB {
 			tao_luc DATETIME NULL,
 			ngay_xuat DATETIME NULL,
 			stt BIGINT(20) NOT NULL AUTO_INCREMENT,
+			khoi VARCHAR(20) NOT NULL DEFAULT '$m',
 			PRIMARY KEY  (id),
+			KEY khoi (khoi),
 			UNIQUE KEY stt (stt),
 			KEY ngay (ngay),
 			KEY coso (coso),
@@ -198,7 +299,9 @@ class VHCPHN_DB {
 			ngay_tao DATETIME NULL,
 			nguoi_tao VARCHAR(120) NOT NULL DEFAULT '',
 			stt BIGINT(20) NOT NULL AUTO_INCREMENT,
+			khoi VARCHAR(20) NOT NULL DEFAULT '$m',
 			PRIMARY KEY  (ma_da),
+			KEY khoi (khoi),
 			UNIQUE KEY stt (stt),
 			KEY loai (loai)
 		) $c";
@@ -224,6 +327,7 @@ class VHCPHN_DB {
 			tk_no VARCHAR(20) NOT NULL DEFAULT '',
 			tk_co VARCHAR(20) NOT NULL DEFAULT '',
 			ma_dt VARCHAR(60) NOT NULL DEFAULT '',
+			tao_luc DATETIME NULL,
 			PRIMARY KEY  (id),
 			UNIQUE KEY da_row (ma_da,row_no),
 			KEY tk_no (tk_no)
@@ -239,7 +343,9 @@ class VHCPHN_DB {
 			ngay_tao VARCHAR(40) NOT NULL DEFAULT '',
 			nguoi_tao VARCHAR(120) NOT NULL DEFAULT '',
 			stt BIGINT(20) NOT NULL AUTO_INCREMENT,
+			khoi VARCHAR(20) NOT NULL DEFAULT '$m',
 			PRIMARY KEY  (ma),
+			KEY khoi (khoi),
 			UNIQUE KEY stt (stt),
 			KEY coso (coso)
 		) $c";
@@ -279,7 +385,9 @@ class VHCPHN_DB {
 			ngay_tao VARCHAR(40) NOT NULL DEFAULT '',
 			nguoi_tao VARCHAR(120) NOT NULL DEFAULT '',
 			stt BIGINT(20) NOT NULL AUTO_INCREMENT,
+			khoi VARCHAR(20) NOT NULL DEFAULT '$m',
 			PRIMARY KEY  (ma),
+			KEY khoi (khoi),
 			UNIQUE KEY stt (stt),
 			KEY loai (loai)
 		) $c";
@@ -335,7 +443,9 @@ class VHCPHN_DB {
 			hanh_dong VARCHAR(190) NOT NULL DEFAULT '',
 			doi_tuong VARCHAR(190) NOT NULL DEFAULT '',
 			chi_tiet TEXT NULL,
+			khoi VARCHAR(20) NOT NULL DEFAULT '$m',
 			PRIMARY KEY  (id),
+			KEY khoi (khoi),
 			KEY tg (tg)
 		) $c";
 
@@ -368,7 +478,9 @@ class VHCPHN_DB {
 			da_hoan TINYINT(1) NOT NULL DEFAULT 0,
 			hoan_luc DATETIME NULL,
 			hoan_nguoi VARCHAR(120) NOT NULL DEFAULT '',
+			khoi VARCHAR(20) NOT NULL DEFAULT '$m',
 			PRIMARY KEY  (id),
+			KEY khoi (khoi),
 			KEY luc (luc),
 			KEY khoa (khoa)
 		) $c";
@@ -403,7 +515,9 @@ class VHCPHN_DB {
 			so_coso INT NOT NULL DEFAULT 0,
 			chi_tiet LONGTEXT NULL,
 			stt BIGINT(20) NOT NULL AUTO_INCREMENT,
+			khoi VARCHAR(20) NOT NULL DEFAULT '$m',
 			PRIMARY KEY  (id),
+			KEY khoi (khoi),
 			UNIQUE KEY stt (stt),
 			KEY luc (luc)
 		) $c";
@@ -432,6 +546,8 @@ class VHCPHN_DB {
 		   chỗ này. */
 		foreach ( $sql as $q ) { dbDelta( $q ); }
 
+		self::doi_ten_mang_thanh_khoi();
+		self::lap_khoi();
 		self::bo_khau_gom();
 
 		update_option( 'vhcphn_db_version', self::SCHEMA_VERSION );
@@ -443,6 +559,89 @@ class VHCPHN_DB {
 		if ( method_exists( 'VHCPHN_Cfg', 'va_quyen_quyet_toan' ) ) {
 			VHCPHN_Cfg::va_quyen_quyet_toan();
 		}
+	}
+
+	/**
+	 * DI CƯ: CỘT `mang` CỦA BẢN 1.217.x → `khoi`.
+	 *
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 VÌ SAO ĐỔI TÊN. Chữ "mảng" trong hệ này đã mang HAI nghĩa từ trước:
+	 *      · `VHCPHN_Cfg::MANG` (= 'CH_MangTK') — MẢNG KINH DOANH: Event · Farm · Funzone · TuTu,
+	 *        thứ quyết định mã tài khoản 641x của một dòng chi;
+	 *      · `VHCPHN_TraMa` — NGUỒN của một dòng: 'sochi' · 'don' · 'kt' · 'mkt'.
+	 *    Bản 1.217.x thêm nghĩa thứ BA cho cùng chữ ấy (KVC · MTĐ · VP), và hằng mới
+	 *    `VHCPHN_DB::MANG` chỉ khác `VHCPHN_Cfg::MANG` đúng một tên lớp. Ở đây đọc nhầm nghĩa là
+	 *    tiền chạy sang sổ khác.
+	 *    Anh Thắng 20/09/2026 chốt: dùng chữ **KHỐI** cho trục KVC · MTĐ · VP.
+	 *
+	 * ⚠️ CHÉP RỒI MỚI BỎ, VÀ CHỈ BỎ KHI CHÉP XONG. Bản 1.217.x đã cài lên host nên cột `mang`
+	 *    ngoài đó ĐANG CÓ DỮ LIỆU. Bỏ thẳng là mất dấu khối của mọi bản ghi đã đóng dấu.
+	 *
+	 * ⚠️ `dbDelta()` KHÔNG BAO GIỜ BỎ CỘT — nó chỉ thêm và nới. Nên phải tự gọi `DROP COLUMN`,
+	 *    không thì cột chết nằm lại mãi, và nó là đúng cái tên gây nhầm mà việc này đi dọn.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 *
+	 * @return array [bảng => số dòng đã chép]
+	 */
+	public static function doi_ten_mang_thanh_khoi() {
+		global $wpdb;
+		$ra = array();
+		foreach ( self::BANG_CO_KHOI as $ten ) {
+			$t = self::t( $ten );
+			if ( (string) $wpdb->get_var( "SHOW TABLES LIKE '$t'" ) !== $t ) { continue; }
+			$cot = (array) $wpdb->get_col( "SHOW COLUMNS FROM $t" );
+			if ( ! in_array( 'mang', $cot, true ) ) { continue; }   // chưa từng cài 1.217.x
+			if ( ! in_array( 'khoi', $cot, true ) ) { continue; }   // dbDelta chưa thêm kịp — lượt sau
+			$n = $wpdb->query( "UPDATE $t SET khoi = mang WHERE khoi = '' AND mang <> ''" );
+			if ( $n ) { $ra[ $ten ] = (int) $n; }
+			$wpdb->query( "ALTER TABLE $t DROP COLUMN mang" );
+		}
+		return $ra;
+	}
+
+	/**
+	 * LẤP KHỐI CHO MỌI BẢN GHI CHƯA CÓ.
+	 *
+	 * 🔴 RỖNG LÀ MẤT TÍCH, KHÔNG PHẢI "CHƯA KHAI". Từ bước 2 trở đi mọi màn lọc theo mảng, nên
+	 *    một bản ghi mang chuỗi rỗng là bản ghi KHÔNG TAB NÀO THẤY: đơn có thật, tiền có thật,
+	 *    mà mở app ra thì như chưa từng tồn tại — và không câu lỗi nào báo, vì đứng về phía máy
+	 *    thì bộ lọc chạy đúng y như được bảo.
+	 *
+	 * ⚠️ VÌ SAO VẪN QUÉT DÙ CỘT ĐÃ CÓ `DEFAULT`. `dbDelta()` thêm cột NOT NULL kèm mặc định thì
+	 *    MySQL tự lấp cho dòng cũ — đúng, NHƯNG chỉ ở lượt THÊM CỘT. Cột đã có sẵn từ một bản
+	 *    nửa vời trước đó (hoặc ai đó thêm tay, hoặc `dbDelta` đã chạy rồi mà đổi mặc định sau)
+	 *    thì dòng cũ giữ nguyên chuỗi rỗng và không ai lấp hộ. Quét một lượt là rẻ: chạy đúng
+	 *    lúc đổi số sơ đồ bảng, và cột đã đánh chỉ mục.
+	 *
+	 * ⚠️ GÁC `SHOW TABLES`: lượt cài mới chạy `install()` khi bảng vừa dựng xong, nhưng một
+	 *    bảng lỡ trượt `dbDelta()` (xem chốt "không viết chú thích trong chuỗi CREATE TABLE")
+	 *    thì UPDATE vào bảng không có là một câu lỗi MySQL đổ ra giữa trang quản trị.
+	 *
+	 * @return array [bảng => số dòng vừa lấp]
+	 */
+	public static function lap_khoi() {
+		global $wpdb;
+		$ra = array();
+		foreach ( self::BANG_CO_KHOI as $ten ) {
+			$t = self::t( $ten );
+			if ( (string) $wpdb->get_var( "SHOW TABLES LIKE '$t'" ) !== $t ) { continue; }
+			/* 🔴 HỎI CỘT TRƯỚC KHI GHI. Gác `SHOW TABLES` ở trên chỉ chắc có BẢNG; nhưng
+			   `dbDelta()` có thể thêm bảng mà TRƯỢT một cột — nó tách câu theo từng dòng rồi dò
+			   bằng biểu thức, gặp chỗ nó không hiểu là bỏ qua và KHÔNG ném lỗi ra ngoài (xem
+			   chốt dài cuối `install()`, đã cắn thật với bảng `lenh_tu` ngày 07/09/2026).
+			   Lúc ấy câu UPDATE dưới đây thành "Unknown column 'mang'", mà `$wpdb` trong
+			   wp-admin thì IN THẲNG lỗi SQL ra màn hình — người ta cài xong plugin và thấy một
+			   trang đỏ, trong khi chuyện duy nhất hỏng là một cột chưa kịp thêm. Thiếu cột thì
+			   bỏ qua bảng ấy: lượt `install()` sau sẽ thêm được và lấp nốt. */
+			$co_cot = false;
+			foreach ( (array) $wpdb->get_col( "SHOW COLUMNS FROM $t" ) as $c ) {
+				if ( 'khoi' === $c ) { $co_cot = true; break; }
+			}
+			if ( ! $co_cot ) { continue; }
+			$n = $wpdb->query( $wpdb->prepare( "UPDATE $t SET khoi=%s WHERE khoi=''", self::KHOI ) );
+			if ( $n ) { $ra[ $ten ] = (int) $n; }
+		}
+		return $ra;
 	}
 
 	/**

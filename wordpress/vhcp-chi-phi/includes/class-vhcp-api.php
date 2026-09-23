@@ -81,6 +81,9 @@ class VHCP_API {
 			'dungLenhBu',
 			'traLaiDon', 'traLaiDonNhieu', 'xacNhanQuyetToanCN', 'xacNhanQuyetToanNCC',
 			'xacNhanQtCnNhieu', 'setTatToanTuan', 'setSoDuDauKy', 'dongCuaCoSo',
+			/* Đánh dấu ĐÃ THANH TOÁN (bước riêng của MTĐ/VP) là khai rằng tiền đã ra khỏi két —
+			   việc của kế toán, không phải của người lập đơn. */
+			'danhDauThanhToan',
 			/* 🔴 `setLineThucMua` ĐÃ RỜI KHỎI ĐÂY — anh Thắng 01/09/2026, ảnh đơn FUNZONE VŨNG TÀU:
 			   *"nhân viên được phép nhập và sửa lại đơn chính xác trước khi quyết toán, nhưng
 			   nhập vào ô thực mua lại báo lỗi nhân viên không được chỉnh sửa"*.
@@ -98,7 +101,11 @@ class VHCP_API {
 			   [sửa] loại chi phí nếu nó sai"*. Loại chi phí suy ra TK Nợ, nên người nhập đổi được
 			   là con số nhảy tài khoản sau lưng kế toán — và cái sai chỉ lộ ra lúc xuất MISA.
 			   Lõi `set_line_nhom()` cũng gác, đây là lớp thứ hai ở cổng. */
-			'setLineNhom', 'datLoaiCpDuAnLine',
+			/* 🔴 VÀ CHỈNH THẲNG TK NỢ CỦA MỘT DÒNG — anh Thắng 22/09/2026: *"Sau khi quyết toán,
+			   thì kế toán có quyền điều chỉnh tk nợ theo nhu cầu"*. Cùng hạng với `setLineNhom`:
+			   nó đụng đúng con số đi vào sổ, chỉ khác là đổi thẳng mã thay vì đổi loại rồi suy
+			   ra mã. Lõi `set_line_tk_no()` cũng gác vai, đây là lớp thứ hai ở cổng. */
+			'setLineNhom', 'setLineTkNo', 'datLoaiCpDuAnLine',
 			/* Đẩy tiền sang sổ của đơn vị khác — không phải việc của nhân viên. */
 			'chuyenDonVi',
 			/* 🔴 NHẢY ĐƠN SANG TUẦN KHÁC — anh Thắng 31/08/2026: *"kế toán sẽ gửi lệnh nhảy đơn
@@ -274,6 +281,7 @@ class VHCP_API {
 			'setLineAnh'            => array( 'VHCP_Don', 'set_line_anh' ),
 			'setLineNgay'           => array( 'VHCP_Don', 'set_line_ngay' ),
 			'setLineNhom'           => array( 'VHCP_Don', 'set_line_nhom' ),
+			'setLineTkNo'           => array( 'VHCP_Don', 'set_line_tk_no' ),
 			'setDonNgay'            => array( 'VHCP_Don', 'set_don_ngay' ),
 			'suaNamVoLy'            => array( 'VHCP_Don', 'sua_nam_vo_ly' ),
 			'suaNgayHong'           => array( 'VHCP_Don', 'sua_ngay_hong' ),
@@ -423,6 +431,8 @@ class VHCP_API {
 			'exportMisaMarketing'   => array( 'VHCP_Misa', 'export_marketing' ),
 			'exportMisaBP'          => array( 'VHCP_Misa', 'export_bp' ),
 			'markExported'          => array( 'VHCP_Misa', 'mark_exported' ),
+			/* Bước thanh toán riêng của MTĐ/VP — xem `VHCP_Don::danh_dau_thanh_toan()`. */
+			'danhDauThanhToan'      => array( 'VHCP_Don', 'danh_dau_thanh_toan' ),
 
 			// tệp
 			'uploadImage'           => array( 'VHCP_Upload', 'upload_image' ),

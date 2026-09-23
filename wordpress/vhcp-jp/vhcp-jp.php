@@ -3,7 +3,7 @@
  * Plugin Name:       JP Capsule (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Báo cáo JP Capsule chạy THẲNG trên host: nhân viên nhập báo cáo từ chỉ số máy, kế toán duyệt hai phần, đối soát ngân hàng, kho hai tầng. Không Apps Script, không Google Sheets.
- * Version:           1.3.0
+ * Version:           1.9.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -21,17 +21,31 @@
  * KHÔNG chạy gì, và không nằm trong bản cài.
  *
  * ---------------------------------------------------------------------------
- * ĐANG DỰNG DỞ — MỚI CÓ TẦNG BẢNG.
+ * ĐANG DỰNG DỞ — CẢ VÒNG NHÂN VIÊN → KẾ TOÁN ĐÃ CHẠY. CHƯA CÓ ẢNH VÀ SỔ KHO.
  *
  * Xong:  lược đồ 23 bảng (`class-vhjp-db.php`) · lớp đổi giá trị (`class-vhjp-doc.php`, đối
  *        chiếu thẳng với mã JavaScript gốc chạy bằng node) · lớp truy cập dữ liệu DUY NHẤT
  *        (`class-vhjp-nguon.php`) · sinh mã bản ghi (`class-vhjp-ma.php`) · đăng nhập PIN và
  *        phiên làm việc (`class-vhjp-auth.php`) · nhật ký thao tác (`class-vhjp-nhat-ky.php`)
  *        · danh mục (`class-vhjp-cau-hinh.php`) · cổng dịch `google.script.run`
- *        (`class-vhjp-cong.php`) · tính tiền dòng máy tiền (`class-vhjp-tinh.php`).
- * Chưa:  90 / 100 hàm máy chủ — `VHJP_Cong::chua_lam()` khai đủ tên, và
- *        `tools/test/kiem-jp-cong.php` đếm lại mỗi lượt chạy. Nặng nhất còn lại: tính tiền +
- *        17 cảnh báo W1–W17 · báo cáo · duyệt · ảnh · đối soát ngân hàng · kho hai tầng.
+ *        (`class-vhjp-cong.php`) · tính tiền sáu loại dòng và bản tổng (`class-vhjp-tinh.php`)
+ *        · ĐỌC · TẠO · GIEO DÒNG · LƯU NHÁP · NỘP báo cáo (`class-vhjp-bao-cao.php`)
+ *        · ĐẾM và CẢNH BÁO thiếu ảnh (`class-vhjp-anh.php`)
+ *        · KẾ TOÁN duyệt / trả về (`class-vhjp-duyet.php`).
+ * Chưa:  78 / 100 hàm máy chủ — `VHJP_Cong::chua_lam()` khai đủ tên, và
+ *        `tools/test/kiem-jp-cong.php` đếm lại mỗi lượt chạy. Nặng nhất còn lại: TẢI ẢNH lên
+ *        · KHO HAI TẦNG (sổ 632) · đối soát ngân hàng · nộp tiền.
+ *
+ * 🔴 DUYỆT XONG CHƯA RA SỔ KHO. Bản gốc lúc báo cáo HOÀN TẤT thì trừ lớp tồn và ghi giá vốn
+ *    vào sổ 632; mô-đun kho hai tầng chưa chuyển. Bộ này KHÔNG im lặng chuyện đó: mỗi lượt ký
+ *    xong và mỗi lượt trả về một báo cáo đã hoàn tất đều trả về một câu nói rõ sổ kho chưa
+ *    ghi được, hậu quả là gì, và phải làm gì. Im lặng ở đây là báo cáo TRÔNG NHƯ ĐÃ XONG mà
+ *    giá vốn không có ở đâu cả — sổ vẫn cân, không ai báo.
+ *
+ * ⚠️ ĐỌC TRƯỚC, GHI SAU — có lý do. Đường đọc dựng lại được bằng bài kiểm đối chiếu với mã gốc
+ *    chạy thật, nên nó vừa là tính năng vừa là CÁI THƯỚC để đo đường ghi: `jpOpenReport` gieo
+ *    dòng xuống sổ rồi trả về bằng chính `jpGetReport`, nên mọi ô gieo sai đều lộ ngay ở phép
+ *    đối chiếu. Làm ngược lại thì ghi vào rồi không có gì đọc ra để soát.
  *
  * ⚠️ GIAO DIỆN KHÔNG PHẢI VIẾT LẠI. 11 tệp HTML/JS của JP (≈11.000 dòng) gọi máy chủ qua đúng
  *    một chỗ (`srv()` trong `Js01_Core.html`) dựng trên `google.script.run`. `VHJP_Cong` dựng
@@ -66,7 +80,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHJP_VERSION', '1.3.0' );
+define( 'VHJP_VERSION', '1.9.0' );
 define( 'VHJP_FILE', __FILE__ );
 define( 'VHJP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHJP_URL', plugin_dir_url( __FILE__ ) );
@@ -79,8 +93,12 @@ require_once VHJP_DIR . 'includes/class-vhjp-nhat-ky.php';
 require_once VHJP_DIR . 'includes/class-vhjp-auth.php';
 require_once VHJP_DIR . 'includes/class-vhjp-cau-hinh.php';
 require_once VHJP_DIR . 'includes/class-vhjp-tinh.php';
+require_once VHJP_DIR . 'includes/class-vhjp-anh.php';
+require_once VHJP_DIR . 'includes/class-vhjp-bao-cao.php';
+require_once VHJP_DIR . 'includes/class-vhjp-duyet.php';
 require_once VHJP_DIR . 'includes/class-vhjp-cong.php';
 require_once VHJP_DIR . 'includes/class-vhjp-trang.php';
+require_once VHJP_DIR . 'includes/class-vhjp-admin.php';
 require_once VHJP_DIR . 'includes/class-vhjp-tu-cap-nhat.php';
 
 /* Nối bộ tự cập nhật ngay từ bản đầu, dù bộ này chưa dựng trang nào.
@@ -102,6 +120,9 @@ VHJP_TuCapNhat::init();
 register_activation_hook( __FILE__, 'vhjp_kich_hoat' );
 function vhjp_kich_hoat() {
 	VHJP_DB::install();
+	/* Không có bước này thì bảng người dùng rỗng trơn, mà màn đăng nhập chỉ hỏi PIN — tức
+	   KHÔNG AI VÀO ĐƯỢC, kể cả người vừa cài. Xem `cap_tai_khoan_dau()`. */
+	VHJP_Auth::cap_tai_khoan_dau();
 	VHJP_Trang::them_duong();
 	flush_rewrite_rules();
 	update_option( 'vhjp_db_ver', VHJP_VERSION );
@@ -110,6 +131,7 @@ function vhjp_kich_hoat() {
 register_deactivation_hook( __FILE__, 'flush_rewrite_rules' );
 
 VHJP_Trang::init();
+VHJP_Admin::init();
 
 add_action( 'plugins_loaded', 'vhjp_co_the_nang', 20 );
 function vhjp_co_the_nang() {

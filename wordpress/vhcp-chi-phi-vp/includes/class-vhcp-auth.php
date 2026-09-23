@@ -137,6 +137,11 @@ class VHCPVP_Auth {
 		if ( '' === $vai ) { $vai = trim( (string) self::$vai_tro ); }
 		if ( '' === $vai || 'Admin' === $vai || 'Giám đốc' === $vai ) { return true; }
 		if ( ! class_exists( 'VHCPVP_Cfg' ) ) { return true; }
+		/* 🔴 VÙNG TẮT LỌC THEO VAI thì MỌI VAI thấy đủ loại — xem `VHCPVP_Cfg::loc_loai_theo_vai()`.
+		   Bản Hà Nội chạy ở chế độ này: đầu mục lớn dẫn đường thay cho bộ lọc, nên bộ phận nào
+		   cũng nhập được. Chốt ai xem được ĐƠN nào vẫn nguyên — nó nằm ở đơn vị và cơ sở, chỗ
+		   khác hẳn, và cờ này không đụng tới. */
+		if ( ! VHCPVP_Cfg::loc_loai_theo_vai() ) { return true; }
 		return VHCPVP_Cfg::loai_thuoc_vai( $ten_loai, $vai );
 	}
 

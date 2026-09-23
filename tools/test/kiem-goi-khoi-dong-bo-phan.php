@@ -2,22 +2,24 @@
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
  * GÓI KHỞI ĐỘNG PHẢI MANG THEO DANH SÁCH BỘ PHẬN.
  *
- * Anh Thắng 21/09/2026, ảnh chụp dải 👁 Xem như: *"chỉnh phần khai bộ phận cho admin để tes"* —
- * ô chọn bộ phận chỉ có hai dòng *"như tôi"* và *"để TRỐNG"*, không một tên bộ phận nào.
+ * Lộ ra 21/09/2026 ở dải 👁 Xem như (anh Thắng: *"chỉnh phần khai bộ phận cho admin để tes"* —
+ * ô chọn bộ phận trống trơn).
  *
  * =============================================================================================
  * 🔴 HAI NỬA ĐỀU ĐÚNG, MỐI NỐI THÌ KHÔNG AI CANH
  * =============================================================================================
- * `glDung()` đọc `BOOT.boPhanDs` — có phép canh, xanh. `boot()` gọi lại `glDung()` sau khi nạp
- * — có phép canh, xanh. Mà tính năng vẫn hỏng, vì `get_bootstrap()` CHƯA TỪNG gửi khoá ấy: nó
- * chỉ có trong gói Cấu hình (`CFG.boPhanDs`).
+ * Giao diện đọc `BOOT.boPhanDs` — có phép canh, xanh. Máy chủ dựng danh sách bộ phận — có phép
+ * canh, xanh. Mà tính năng vẫn hỏng, vì `get_bootstrap()` CHƯA TỪNG gửi khoá ấy: nó chỉ có
+ * trong gói Cấu hình (`CFG.boPhanDs`).
  *
  * Một khoá thiếu trông y hệt một danh sách rỗng. Và vì bảng Loại chi phí lấy tên từ `CFG` nên
  * nó vẫn bày đủ bảy ô tích bình thường — không có gì trên màn gợi ý rằng chỗ kia đang đói dữ
  * liệu. Bài này canh đúng cái mối nối ấy.
  *
- * ⚠️ Dải Xem như là CÔNG CỤ THỬ của Admin. Không chọn được bộ phận thì mọi luật "ai thấy loại
- *    chi phí nào" không thử được bằng tay — đúng phần anh Thắng đang sửa tới lui mấy hôm nay.
+ * ⚠️ DẢI XEM NHƯ ĐÃ GỠ (22/09/2026, anh Thắng: *"loại bỏ tính năng này"*) — BÀI NÀY THÌ KHÔNG.
+ *    Dải ấy chỉ là chỗ đầu tiên lộ ra thiếu khoá, không phải chỗ duy nhất đọc: `_bpDs()` bên
+ *    giao diện vẫn ngã về `BOOT.boPhanDs` khi gói Cấu hình chưa nạp. Gỡ bài kiểm theo tính
+ *    năng đã gỡ là tháo luôn người canh cho một mối nối vẫn đang chịu lực.
  *
  * Chạy: php tools/test/kiem-goi-khoi-dong-bo-phan.php
  * ═════════════════════════════════════════════════════════════════════════════════════════════ */
@@ -91,4 +93,4 @@ if ( $TRUOT ) {
 	foreach ( $TRUOT as $x ) { echo '  · ' . $x . "\n"; }
 	exit( 1 );
 }
-echo "\n✓ SẠCH — $DAT phép: gói khởi động mang danh sách bộ phận, và ô Xem như của Admin có cái để chọn.\n";
+echo "\n✓ SẠCH — $DAT phép: gói khởi động mang danh sách bộ phận, đường lui của giao diện có cái để đọc.\n";

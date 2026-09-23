@@ -167,12 +167,23 @@ t('🔴 là Ô CHỌN — một gian nằm ở ĐÚNG MỘT khối', /<select/.t
 const K = new Function('BOOT', 'esc', 'dv',
   bocMang('KHOI_DS') + '\n' + bocDong('KHOI_DV_DUP') + '\n' + bocHam('_khoiDvBang') + '\n'
   + bocHam('_khoiCuaDv') + '\n' + bocHam('_dvChuanCuaKhoi') + '\n' + bocHam('_tenKhoi') + '\n'
-  + bocHam('_dvMacDinh') + '\n' + bocHam('_khoiSelCoso') + '\nreturn _khoiSelCoso(dv);');
-const BOOT = { donVi: ['K&H'], khoiTheoDv: { kvc: ['KVC'], mtd: ['MTĐ', 'MTD', 'POSH'], vp: ['VP'] } };
+  + bocHam('_dvMacDinh') + "\nvar MIEN_MA=['mb','mn'];\n" + bocHam('_mienDs')
+  + '\n' + bocHam('_khoiSelCoso') + '\nreturn _khoiSelCoso(dv);');
+/* ⚠️ `mb`/`mn` thêm 22/09/2026 — cột Khối của cơ sở nay bày MIỀN (anh Thắng: *"Chuyển nó sang
+   là MB hay MN"*). Thiếu chúng trong bảng ánh xạ là `_dvChuanCuaKhoi()` trả rỗng và mọi option
+   miền mang `value=""` — phép dưới đỏ vì bệ đỡ thiếu, không phải vì mã hỏng. */
+const BOOT = { donVi: ['K&H'], khoiTheoDv: { mb: ['MB', 'MIỀN BẮC'], mn: ['MN', 'MIỀN NAM'],
+  kvc: ['KVC'], mtd: ['MTĐ', 'MTD', 'POSH'], vp: ['VP'] } };
 const esc = (x) => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const ops = (h) => [...h.matchAll(/<option value="([^"]*)"( selected)?>([^<]*)</g)].map(m => m[1] + (m[2] ? ' ✓' : '') + ' = ' + m[3]);
-teq('cơ sở đang KVC → chọn sẵn Khu vui chơi', true,
-  ops(K(BOOT, esc, 'KVC')).indexOf('KVC ✓ = Khu vui chơi') >= 0);
+/* 🔴 KHỐI CŨ VẪN ĐƯỢC GIỮ NGUYÊN VĂN VÀ CHỌN SẴN (22/09/2026). Nó không còn trong danh sách
+   bày ra (nay là hai miền), nhưng phải có một option cho nó — không thì trình duyệt chọn
+   option đầu và lượt Lưu ghi "MB" đè lên mọi cơ sở cũ. */
+teq('🔴 cơ sở đang KVC → giữ nguyên, đánh dấu là khối cũ, và chọn sẵn', true,
+  ops(K(BOOT, esc, 'KVC')).indexOf('KVC ✓ = Khu vui chơi (khối cũ)') >= 0);
+teq('   và bày hai MIỀN để chọn sang', true,
+  ops(K(BOOT, esc, 'KVC')).indexOf('MB = Miền Bắc') >= 0
+  && ops(K(BOOT, esc, 'KVC')).indexOf('MN = Miền Nam') >= 0);
 /* 🔴 CHỐT ĐẮT NHẤT CỦA BẢN NÀY. Một khối có NHIỀU tên đơn vị ("MTĐ", "MTD", "POSH" cùng là
    khối máy tự động). Nếu ô chọn luôn ghi tên CHUẨN thì gian đang khai "POSH" âm thầm thành
    "MTĐ" ở lượt Lưu đầu tiên. `khoi_cua()` vẫn ra đúng khối nên nhìn bên ngoài không thấy gì,
@@ -180,9 +191,9 @@ teq('cơ sở đang KVC → chọn sẵn Khu vui chơi', true,
    "POSH" lập tức thiếu gian ấy khỏi sổ của họ. Không một câu lỗi. */
 const hPosh = ops(K(BOOT, esc, 'POSH'));
 t('🔴 gian đang khai POSH giữ NGUYÊN VĂN "POSH", không bị đổi thành MTĐ',
-  hPosh.indexOf('POSH ✓ = Máy tự động') >= 0, hPosh);
+  hPosh.indexOf('POSH ✓ = Máy tự động (khối cũ)') >= 0, hPosh);
 t('   nhưng ô của khối KHÁC thì mang tên chuẩn của khối ấy',
-  hPosh.indexOf('KVC = Khu vui chơi') >= 0, hPosh);
+  hPosh.indexOf('MB = Miền Bắc') >= 0, hPosh);
 /* 🔴 GIÁ TRỊ LẠ KHÔNG ÁNH XẠ ĐƯỢC PHẢI GIỮ MỘT DÒNG RIÊNG — danh mục dựng từ sổ cũ, có gian
    còn mang tên đơn vị ngoài bảng; bỏ nó là một cú Lưu đổi nhà cho gian đó mà không ai biết. */
 const hLa = ops(K(BOOT, esc, 'K&H'));

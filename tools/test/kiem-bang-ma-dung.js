@@ -76,6 +76,11 @@ function docHangTren(html) {
   const rows = [];
   html.split('<tr').slice(1).forEach(tr => {
     const body = tr.slice(0, tr.indexOf('</tr>') + 1);
+    /* 🔴 THUỘC TÍNH CỦA CHÍNH THẺ <tr>, không chỉ của mấy ô bên trong. Từ 22/09/2026 lượt Lưu
+       đọc `data-khoi-goc` (khối lúc vẽ) và `data-khoi-la` (dòng của khối người này không sửa
+       được) NGAY TRÊN HÀNG — bệ đỡ trả `null` cho mọi thứ là hai luật ấy không bao giờ đỏ. */
+    const dauTr = tr.slice(0, tr.indexOf('>'));
+    const atTr = a => { const x = dauTr.match(new RegExp(a + '="([^"]*)"')); return x ? x[1] : null; };
     const tags = body.match(/<input[^>]*>|<select[\s\S]*?<\/select>/g) || [];
     if (!tags.length) return;
     const o = { ten: null, loai: null, misa: null, bp: [], dv: [], vai: [], khoi: null };
@@ -104,6 +109,7 @@ function docHangTren(html) {
       }
     });
     if (!o.ten) return;
+    o.getAttribute = atTr;
     o.querySelector = sel => sel.indexOf('data-goc') >= 0 ? o.ten
       : sel.indexOf('data-khoi-o') >= 0 ? o.khoi
       : sel.indexOf('loaiTt') >= 0 ? o.loai
@@ -143,7 +149,13 @@ function dungBe(loaiChiPhi, tkNoMatrix, coso, mangTk) {
     /* `mangTk` = bảng "Mảng kinh doanh → nhóm tài khoản", nay chính là chỗ ở của MÃ TỔNG
        (anh Thắng 12/09/2026: *"TUTU MN (6410)"*). Bệ đỡ phải có nó, không thì `_mangTong()`
        nổ ngay dòng đầu và cả bài đỏ vì một lý do chẳng liên quan tới bảng mã. */
-    CFG: { loaiChiPhi: loaiChiPhi, tkNoMatrix: tkNoMatrix, coso: coso, mangTk: (mangTk || []) },
+    /* 🔴 `vaiTro` (vai TỰ TẠO) phải có trong bệ đỡ. Từ 22/09/2026 vai GỐC thôi là ô tích —
+       anh Thắng: *"Vai trò đang tích lẻ, nên vai trò chung không dùng nữa"* — nên hộp ô tích
+       dựng ra từ vai CON. Bỏ trống `vaiTro` là hộp KHÔNG có ô nào, và phép "ô Vai trò là hộp
+       tích" đỏ vì bệ đỡ thiếu chứ không phải vì mã hỏng. */
+    CFG: { loaiChiPhi: loaiChiPhi, tkNoMatrix: tkNoMatrix, coso: coso, mangTk: (mangTk || []),
+           vaiTro: [ { ten: 'Quản Lý Khu Vui Chơi', goc: 'Quản lý' },
+                     { ten: 'Kế Toán Khu Vui Chơi', goc: 'Kế toán cá nhân' } ] },
     MX_LOCK: true, TKNAME: {}, TKCHART: [],
     /* 🔴 CHẾ ĐỘ SẮP MẢNG (12/09/2026) phải có trong bệ đỡ, kể cả khi bài này không canh nó:
        `renderTkNoMatrix()` đọc `MX_SAP` để dựng dải nút, thiếu là hàm chết ngay dòng ấy và
@@ -160,12 +172,24 @@ function dungBe(loaiChiPhi, tkNoMatrix, coso, mangTk) {
     _bpDs: () => ['Cơ sở', 'Kỹ thuật', 'Setup', 'Marketing'],
     _bpNhan: b => b,
     _saveCfg: (p) => { NK.luu = p; },
-    BOOT: { donVi: ['K&H', 'POSH'], xemDonVi: null, khoiBan: 'kvc' },
+    /* 🔴 `dauMucDs` thêm 22/09/2026 — bảng TRÊN nay gom theo ĐẦU MỤC, không theo khối nữa
+       (anh Thắng: *"Mỗi đầu mục là 1 bảng riêng,,"*). Thiếu nó thì mọi loại dồn hết vào ô
+       hứng "Chưa xếp đầu mục" và luật gom không được sờ tới. */
+    BOOT: { donVi: ['K&H', 'POSH'], xemDonVi: null, khoiBan: 'kvc',
+            dauMucDs: ['Chi phí chung', 'Chi phí cơ sở', 'Chi phí tiền thuê', 'Khác'] },
     /* 🔴 BA KHỐI (21/09/2026). Bảng trên nay tách làm ba — anh Thắng: *"chỗ loại chi phí, chia
        ra 3 bảng của 3 khối, để tránh dùng chung"*. `renderTkNoMatrix()` đọc `KHOI_DS` để dựng
        ba thẻ <details>, và `saveCfgTkNoMx()` đi qua `_mxBodies()`; thiếu là cả bài nổ
        `ReferenceError` vì một lý do chẳng liên quan tới bảng mã. */
-    KHOI_DS: [{ ma: 'kvc', ten: 'Khu vui chơi' }, { ma: 'mtd', ten: 'Máy tự động' }, { ma: 'vp', ten: 'Văn phòng' }],
+    /* ⚠️ HAI MIỀN thêm 22/09/2026 — `KHOI_DS` là TỪ ĐIỂN đầy đủ, còn thứ bảng mã dựng mục theo
+       là `_mienDs()`. Thiếu chúng ở đây là mục miền hiện ra với mã trần thay vì tên. */
+    KHOI_DS: [{ ma: 'mb', ten: 'Miền Bắc' }, { ma: 'mn', ten: 'Miền Nam' },
+      { ma: 'kvc', ten: 'Khu vui chơi' }, { ma: 'mtd', ten: 'Máy tự động' }, { ma: 'vp', ten: 'Văn phòng' }],
+    /* ⚠️ `KHOI_MO` thêm 22/09/2026 — khối còn NHẬN VIỆC MỚI, tách khỏi `KHOI_DS` (nay là từ
+       điển đầy đủ, còn giữ 'mtd' để đọc sổ cũ sau khi MTĐ ra web riêng). Bệ đỡ để cả ba: bảng
+       mã là màn CẤU HÌNH, nó phải sửa được mã của mọi khối còn dữ liệu — anh Thắng 14/09/2026
+       về đúng chuyện này: *"ẩn thôi đừng bỏ"*. */
+    KHOI_MO: ['kvc', 'mtd', 'vp'],
     KHOI_DANG: 'kvc',
     /* Ô tích trên bảng loại chi phí nay là VAI TRÒ (21/09/2026) — `_vaiSelNhieu()` đọc
        `VAI_GOC` để xếp cha–con. */
@@ -206,8 +230,8 @@ function dungBe(loaiChiPhi, tkNoMatrix, coso, mangTk) {
     var KHOI_DV_DUP=${bocDongMd('KHOI_DV_DUP')};
     ${boc('_khoiDvBang')}\n${boc('_khoiCuaDv')}\n${boc('_tenKhoi')}
     ${boc('_boDauVai')}\n${boc('_khoiCuaVai')}\n${boc('_vaiOKhoi')}
-    ${boc('_khoiCuaLoai')}\n${boc('_mxBodies')}\n${boc('_khoiDuoc')}\n${boc('_vaiConCua')}\n${boc('_vaiSelNhieu')}\n${boc('_khoiSelLoai')}
-    ${boc('_dvSelNhieu')}\n${boc('_loaiChoDv')}\n${boc('_mangTong')}\n${boc('_mangTongDoan')}\n${boc('_mxMaGoc')}\n${boc('_mxSapCols')}\n${boc('_mxCols')}\n${boc('_mxNhomDv')}\n${boc('_xemDuocDv')}\n${boc('_mxRowHtml')}\n${boc('renderTkNoMatrix')}\n${boc('saveCfgTkNoMx')}
+    ${boc('_khoiCuaLoai')}\n${boc('_mxBodies')}\n${boc('_khoiMo')}\nvar MIEN_MA=['mb','mn'];\n${boc('_mienDs')}\n${boc('_khoiLuuTru')}\n${boc('_khoiBay')}\n${boc('_khoiDuoc')}\n${boc('_vaiConCua')}\n${boc('_vaiSelNhieu')}\n${boc('_khoiSelLoai')}
+    ${boc('_dvSelNhieu')}\n${boc('_loaiChoDv')}\n${boc('_mangTong')}\n${boc('_mangTongDoan')}\n${boc('_mxMaGoc')}\n${boc('_mxSapCols')}\n${boc('_mxCols')}\n${boc('_mxNhomDv')}\n${boc('_xemDuocDv')}\n${boc('_dauMucSel')}\n${boc('_mxRowHtml')}\n${boc('renderTkNoMatrix')}\n${boc('_khoaDongKhoiLa')}\n${boc('saveCfgTkNoMx')}
     return { ve: renderTkNoMatrix, luu: saveCfgTkNoMx }; }`)(moi);
   return { moi, NK, KHO, F };
 }
@@ -215,9 +239,12 @@ function dungBe(loaiChiPhi, tkNoMatrix, coso, mangTk) {
 /* ⚠️ LOẠI THUỘC ĐÚNG MỘT KHỐI (1.226.0), và từ 21/09/2026 bảng mã cũng tách theo khối —
    anh Thắng: *"mỗi khối 1 bảng mã tk riêng"*. Nên bộ gieo phải có ít nhất một loại ở khối
    KHÁC, không thì mọi phép chỉ đi qua một bảng và luật tách khối không được sờ tới. */
+/* ⚠️ VÀ TỪ 22/09/2026 BẢNG TRÊN GOM THEO ĐẦU MỤC — nên bộ gieo phải trải đủ ba ca: hai đầu
+   mục khác nhau, cộng một loại CHƯA xếp đầu mục (rơi vào ô hứng). Để cả ba cùng một đầu mục
+   là luật gom không được sờ tới, và ô hứng thì không bao giờ dựng. */
 const LOAI = [
-  { ten: 'Chi phí cơ sở',  loaiTt: '',       boPhan: 'Cơ sở', khoi: 'kvc' },
-  { ten: 'Chi phí setup',  loaiTt: 'ncc',    boPhan: 'Kỹ thuật, Setup', khoi: 'kvc' },
+  { ten: 'Chi phí cơ sở',  loaiTt: '',       boPhan: 'Cơ sở', khoi: 'kvc', dauMuc: 'Chi phí cơ sở' },
+  { ten: 'Chi phí setup',  loaiTt: 'ncc',    boPhan: 'Kỹ thuật, Setup', khoi: 'kvc', dauMuc: 'Chi phí chung' },
   { ten: 'Chi phí lương',  loaiTt: 'canhan', boPhan: '', tenMisa: 'Tên xuất MISA', khoi: 'kvc' },
 ];
 const MX = [
@@ -248,18 +275,31 @@ const MANG_TK = [
   const b = dungBe(LOAI, MX, COSO, MANG_TK);
   b.F.ve();
   const h = b.moi.el('cfgTkNoMx').innerHTML;
-  /* Từ 21/09/2026 bảng trên là BA thân bảng mang `class="cfgMxBody" data-khoi=…`, không còn
-     một `id` duy nhất — anh Thắng: *"chia ra 3 bảng của 3 khối, để tránh dùng chung"*. */
+  /* Bảng trên là NHIỀU thân bảng mang `class="cfgMxBody"`, không còn một `id` duy nhất.
+     21/09/2026 chia theo khối; 22/09/2026 đổi trục sang ĐẦU MỤC — anh Thắng: *"Mỗi đầu mục
+     là 1 bảng riêng,,"*. Trục chia có bài riêng canh (`kiem-loai-bang-dau-muc.js`). */
   t('🔴 có bảng thuộc tính (cfgMxBody)', h.indexOf('class="cfgMxBody"') >= 0);
-  t('   và đủ ba thân bảng, mỗi khối một cái', (h.match(/class="cfgMxBody"/g) || []).length === 3,
-    (h.match(/class="cfgMxBody"/g) || []).length);
+  /* Một bảng cho MỖI đầu mục máy chủ khai, cộng ô hứng "Chưa xếp" (bộ gieo có một loại chưa
+     xếp). Suy từ chính `BOOT.dauMucDs` chứ không gõ tay con số — thêm một đầu mục ở máy chủ
+     là bài này đỏ oan. */
+  teq('🔴 một thân bảng cho mỗi ĐẦU MỤC, cộng ô hứng "Chưa xếp"',
+    b.moi.BOOT.dauMucDs.length + 1, (h.match(/class="cfgMxBody"/g) || []).length);
+  t('   và ô hứng có mặt vì bộ gieo có loại chưa xếp đầu mục',
+    h.indexOf('Chưa xếp đầu mục') >= 0 && h.indexOf('data-dau-muc=""') >= 0, '');
+  t('🔴 bảng mang mốc ĐẦU MỤC, không mang mốc khối', h.indexOf('data-dau-muc="Chi phí cơ sở"') >= 0
+    && h.indexOf('data-khoi="kvc"') < 0, '');
+  /* 🔴 KHỐI VẪN ĐI THEO TỪNG DÒNG — đó là thứ bảng mã bên dưới cắt theo. */
+  t('🔴 mỗi hàng vẫn mang khối lúc vẽ (`data-khoi-goc`)', h.indexOf('data-khoi-goc="kvc"') >= 0, '');
   t('🔴 và bảng mã riêng, MỘT BẢNG MỖI KHỐI', h.indexOf('class="mxNoBody" data-dv="kvc"') >= 0);
   /* ⚠️ Ô TÍCH TỪ 21/09/2026 LÀ VAI TRÒ, không còn là bộ phận (anh Thắng: *"bỏ tích bộ phận đi,
      mà tích theo vai trò"*). Khuôn vẫn phải là HỘP TÍCH — danh sách nhiều lựa chọn của trình
      duyệt đòi giữ Ctrl, bấm thường là bỏ sạch những cái đang chọn, tức nới quyền trong im lặng. */
+  /* ⚠️ TÍCH VAI CON, không phải vai gốc (22/09/2026 — *"vai trò chung không dùng nữa"*). */
   t('🔴 ô Vai trò là HỘP TÍCH, không phải danh sách phải giữ Ctrl',
-    h.indexOf('<div data-vai') >= 0 && h.indexOf('type="checkbox" value="Quản lý"') >= 0
+    h.indexOf('<div data-vai') >= 0 && h.indexOf('type="checkbox" value="Quản Lý Khu Vui Chơi"') >= 0
     && h.indexOf('<select multiple') < 0, h.slice(0, 600));
+  t('   và vai GỐC chỉ là nhãn nhóm, không tích được',
+    h.indexOf('type="checkbox" value="Quản lý"') < 0 && h.indexOf('>Quản lý</b>') >= 0, '');
   t('   nói rõ không tích gì = mọi vai', h.indexOf('Không tích gì = MỌI vai') >= 0);
   /* Cột đầu nay bọc tên mảng trong một `<div>` để nhét thêm ô MÃ TỔNG xuống dưới (anh Thắng
      12/09/2026: *"TUTU MN (6410)"*), nên đừng canh `>Funzone</td>` nữa — canh tên có mặt ở
@@ -311,28 +351,36 @@ function veRoiLuu(sua, xemDonVi) {
   /* 🔴 BẢNG TRÊN NAY LÀ BA THÂN BẢNG, mỗi khối một cái (21/09/2026). Trước đây chỉ có một
      `id="cfgMxBody"`; bám vào cái id ấy là lát cắt trượt và cả bài nổ. Dữ liệu gieo của bài này
      không khai khối nên rơi hết về khối của bản đang chạy — dựng đúng một thân bảng 'kvc',
-     mang `data-khoi` để `saveCfgTkNoMx()` đóng dấu được. Bảng trên tách theo khối có bài
-     riêng canh (`kiem-loai-3-bang.js`); bài này canh BẢNG MÃ. */
+     mang `data-dau-muc` để `saveCfgTkNoMx()` đóng dấu được (từ 22/09/2026 mốc của tbody là
+     ĐẦU MỤC, không còn là khối — khối nay đi theo từng dòng). Trục chia bảng trên có bài
+     riêng canh (`kiem-loai-bang-dau-muc.js`); bài này canh BẢNG MÃ. */
   const tren = docHangTren(h.slice(h.indexOf('class="cfgMxBody"'), h.indexOf('mxNoBody')));
   const oMa = docOMa(h.slice(h.indexOf('mxNoBody')));
   if (sua) sua(tren, oMa);
   b.NK.mxBodies = [{
-    getAttribute: n => (n === 'data-khoi' ? 'kvc' : null),
+    getAttribute: n => (n === 'data-dau-muc' ? '' : null),
     getElementsByTagName: () => tren,
   }];
   b.NK.oMa = oMa;
   b.F.luu();
   return b.NK.luu;
 }
+/* 🔴 DÒ HÀNG THEO TÊN, ĐỪNG THEO CHỖ ĐỨNG. Cắn thật 22/09/2026: bảng trên đổi trục chia từ
+   KHỐI sang ĐẦU MỤC, thứ tự hàng đổi theo thứ tự đầu mục — và bảy phép của bài này đỏ oan,
+   không phép nào dính tới thứ mà bài này canh (bảng mã). Thứ tự bày là chuyện trình bày;
+   bám vào nó là bài kiểm đỏ mỗi lần ai đó sắp lại màn. */
+const hang = (tren, ten) => tren.filter(o => o.ten.value === ten)[0];
+const muc  = (ds, ten) => (ds || []).filter(x => x.ten === ten)[0] || {};
 {
   const r = veRoiLuu(null);
   teq('🔴 lưu lại: danh mục còn đủ ba loại', 3, r.loaiChiPhi.length);
   teq('   thuộc tính giữ nguyên', { ten: 'Chi phí setup', loaiTt: 'ncc', boPhan: 'Kỹ thuật, Setup' },
-    { ten: r.loaiChiPhi[1].ten, loaiTt: r.loaiChiPhi[1].loaiTt, boPhan: r.loaiChiPhi[1].boPhan });
+    { ten: muc(r.loaiChiPhi, 'Chi phí setup').ten, loaiTt: muc(r.loaiChiPhi, 'Chi phí setup').loaiTt,
+      boPhan: muc(r.loaiChiPhi, 'Chi phí setup').boPhan });
   /* Tên MISA là tên đem đi xuất sổ. Lưu một cái mà nó bay thì bản xuất mang tên khác hẳn, và
      không ai soi ra cho tới lúc đối chiếu với kế toán. */
   teq('🔴 Tên theo MISA cũng phải sống sót qua một lượt lưu', 'Tên xuất MISA',
-    r.loaiChiPhi[2].tenMisa);
+    muc(r.loaiChiPhi, 'Chi phí lương').tenMisa);
   teq('🔴 và MÃ TÀI KHOẢN còn đủ ba ô, đúng cặp loại × mảng',
     [['Chi phí cơ sở','Farm','64166'],['Chi phí cơ sở','Funzone','64126'],['Chi phí cơ sở','Rạp','64199'],['Chi phí setup','Funzone','2413']],
     r.tkNoMatrix.map(x => [x.nhom, x.pll, x.tkNo]).sort((a,b)=>a[0].localeCompare(b[0])||a[1].localeCompare(b[1])));
@@ -340,7 +388,7 @@ function veRoiLuu(sua, xemDonVi) {
 }
 /* 🔴 Đổi tên loại: mã của nó phải đi theo tên mới, không được bay. */
 {
-  const r = veRoiLuu(tren => { tren[0].ten.value = 'Chi phí cơ sở (mới)'; });
+  const r = veRoiLuu(tren => { hang(tren, 'Chi phí cơ sở').ten.value = 'Chi phí cơ sở (mới)'; });
   t('🔴 đổi tên loại → mã đi theo tên MỚI, không mất',
     r.tkNoMatrix.filter(x => x.nhom === 'Chi phí cơ sở (mới)').length === 3, r.tkNoMatrix);
   t('   và không còn dòng nào mang tên cũ',
@@ -348,7 +396,7 @@ function veRoiLuu(sua, xemDonVi) {
 }
 /* 🔴 Xoá một loại ở bảng trên: mã của nó bỏ theo, và mã loại KHÁC không được gán nhầm. */
 {
-  const r = veRoiLuu(tren => { tren.splice(0, 1); });
+  const r = veRoiLuu(tren => { tren.splice(tren.indexOf(hang(tren, 'Chi phí cơ sở')), 1); });
   teq('🔴 xoá loại đầu → danh mục còn hai', 2, r.loaiChiPhi.length);
   teq('🔴 mã của loại bị xoá bỏ theo, mã loại còn lại KHÔNG bị gán nhầm',
     [['Chi phí setup','Funzone','2413']], r.tkNoMatrix.map(x => [x.nhom, x.pll, x.tkNo]));
@@ -366,7 +414,7 @@ function veRoiLuu(sua, xemDonVi) {
 }
 /* Dòng tên rỗng ở bảng trên thì bỏ, không đẻ loại vô danh. */
 {
-  const r = veRoiLuu(tren => { tren[2].ten.value = '   '; });
+  const r = veRoiLuu(tren => { hang(tren, 'Chi phí lương').ten.value = '   '; });
   teq('tên loại để trống → bỏ dòng ấy', 2, r.loaiChiPhi.length);
 }
 
@@ -397,7 +445,8 @@ const MX_K = [
      bảng → không ai khai được: đúng vòng luẩn quẩn anh Thắng vục phải.
      ⚠️ Canh bằng TIÊU ĐỀ: khối chưa có loại nào thì không dựng thân bảng, chỉ dựng một dòng
         nói vì sao rỗng — và đó mới là thứ phải có. */
-  t('🔴 khối chưa có gì VẪN có mục riêng', h.indexOf('>Văn phòng<') >= 0,
+  /* 🔴 NAY LÀ MIỀN (22/09/2026): hai mục MB/MN luôn có, kể cả chưa cơ sở nào khai miền. */
+  t('🔴 miền chưa có gì VẪN có mục riêng', h.indexOf('>Miền Bắc<') >= 0 && h.indexOf('>Miền Nam<') >= 0,
     (h.match(/TK Nợ · <span[^>]*>[^<]*/g) || []));
   t('   và nói rõ vì sao rỗng', /Khối này chưa có loại chi phí nào/.test(h));
   const kh = mucMa(h, 'Khu vui chơi');
@@ -447,13 +496,13 @@ const MX_K = [
 }
 /* Nhưng loại chi phí bị XOÁ thì mã của nó đi theo, kể cả ở đơn vị không hiện. */
 {
-  const r = veRoiLuu(tren => { tren.splice(0, 1); }, ['POSH']);
+  const r = veRoiLuu(tren => { tren.splice(tren.indexOf(hang(tren, 'Chi phí cơ sở')), 1); }, ['POSH']);
   t('🔴 xoá loại ở bảng trên → mã của nó bỏ ở MỌI đơn vị, kể cả đơn vị đang ẩn',
     r.tkNoMatrix.every(x => x.nhom !== 'Chi phí cơ sở'), r.tkNoMatrix);
 }
 /* Đổi tên loại: mã của đơn vị đang ẩn cũng phải đi theo tên mới. */
 {
-  const r = veRoiLuu(tren => { tren[0].ten.value = 'Chi phí cơ sở (mới)'; }, ['POSH']);
+  const r = veRoiLuu(tren => { hang(tren, 'Chi phí cơ sở').ten.value = 'Chi phí cơ sở (mới)'; }, ['POSH']);
   t('🔴 đổi tên loại → mã của đơn vị đang ẩn cũng theo tên mới, không kẹt lại tên cũ',
     r.tkNoMatrix.filter(x => x.nhom === 'Chi phí cơ sở').length === 0
     && r.tkNoMatrix.filter(x => x.nhom === 'Chi phí cơ sở (mới)').length === 3, r.tkNoMatrix);
@@ -520,7 +569,7 @@ const MX_K = [
   const tren = h.slice(0, h.indexOf('mxNoBody'));
   t('🔴 bảng thuộc tính có Ô CHỌN Khối', tren.indexOf('<select data-khoi-o') >= 0, tren.slice(0, 700));
   t('   và KHÔNG còn ô tích Đơn vị', tren.indexOf('data-dv-nhieu') < 0);
-  t('   đầu bảng đổi nhãn theo', tren.indexOf('>Khối</th>') >= 0 && tren.indexOf('>Đơn vị <span') < 0, tren.slice(0, 700));
+  t('   đầu bảng đổi nhãn theo', tren.indexOf('>Khối <span') >= 0 && tren.indexOf('>Đơn vị <span') < 0, tren.slice(0, 700));
   /* Ô chọn phải bày đủ ba khối và chọn sẵn khối của dòng. */
   const oKhoi = (tren.match(/<select data-khoi-o[\s\S]*?<\/select>/) || [''])[0];
   teq('   ô chọn bày đủ ba khối', 3, (oKhoi.match(/<option/g) || []).length);
@@ -531,7 +580,13 @@ const MX_K = [
      vì hàng ô tích vai; nút nằm sau dòng cuối thì phải cuộn hết cả khối mới thấy, và người ta
      kết luận là KHÔNG CÓ. Giữ luôn nút dưới đáy cho ai vừa gõ xong dòng chót. */
   const iNut = tren.indexOf('＋ Thêm loại');
-  const iBang = tren.indexOf('<table style="min-width:870px"');
+  /* ⚠️ ĐỪNG ghim bề ngang của bảng vào đây. Bài này đo THỨ TỰ (nút trước bảng), mà mỗi lần
+     bảng thêm một cột là bề ngang đổi theo — bản 1.258.0 thêm cột "Đầu mục" và con số 870px
+     cũ thành -1, làm bài đỏ vì một lý do chẳng dính gì tới điều nó muốn canh. Tìm bảng bằng
+     chính cái làm nên nó: đầu bảng "Loại chi phí". */
+  const iBang = tren.indexOf('<table style="min-width:');
+  t('   (nền) bốc đúng bảng loại chi phí, không phải bảng nào khác',
+    iBang >= 0 && tren.indexOf('>Loại chi phí</th>') > iBang, { iBang });
   t('🔴 có nút ＋ Thêm loại', iNut >= 0, tren.slice(0, 400));
   t('🔴 và nó đứng TRƯỚC bảng, không phải mãi dưới đáy', iNut >= 0 && iNut < iBang, { iNut, iBang });
   t('   vẫn còn một nút nữa ở cuối khối', (tren.match(/＋ Thêm loại/g) || []).length >= 2,
@@ -560,7 +615,7 @@ const MX_K = [
   const h = b.moi.el('cfgTkNoMx').innerHTML;
   const tren = docHangTren(h.slice(h.indexOf('class="cfgMxBody"'), h.indexOf('mxNoBody')));
   const oMa = docOMa(h.slice(h.indexOf('mxNoBody')));
-  b.NK.mxBodies = [{ getAttribute: n => (n === 'data-khoi' ? 'kvc' : null), getElementsByTagName: () => tren }];
+  b.NK.mxBodies = [{ getAttribute: n => (n === 'data-dau-muc' ? '' : null), getElementsByTagName: () => tren }];
   b.NK.oMa = oMa;
   b.F.luu();
   const g = {}; (b.NK.luu.tkNoMatrix || []).forEach(x => { g[x.nhom + '|' + x.pll] = x.tkNo; });
@@ -578,7 +633,7 @@ const MX_K = [
   const tren2 = docHangTren(h2.slice(h2.indexOf('class="cfgMxBody"'), h2.indexOf('mxNoBody')));
   const oMa2 = docOMa(h2.slice(h2.indexOf('mxNoBody')));
   oMa2.forEach(o => { if (!o.__tong && o.getAttribute('data-loai') === 'Chi phí cơ sở') o.value = ''; });
-  b2.NK.mxBodies = [{ getAttribute: n => (n === 'data-khoi' ? 'kvc' : null), getElementsByTagName: () => tren2 }];
+  b2.NK.mxBodies = [{ getAttribute: n => (n === 'data-dau-muc' ? '' : null), getElementsByTagName: () => tren2 }];
   b2.NK.oMa = oMa2;
   b2.F.luu();
   const g2 = {}; (b2.NK.luu.tkNoMatrix || []).forEach(x => { g2[x.nhom + '|' + x.pll] = x.tkNo; });

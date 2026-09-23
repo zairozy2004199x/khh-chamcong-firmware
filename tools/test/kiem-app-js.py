@@ -229,11 +229,15 @@ la('không còn cặp nút bật/tắt LOẠI ĐƠN', '[data-dcsw="duan"]' not i
 #    đơn tuần: *"Đối với nhân viên cơ sở ẩn nút này đi, tránh nhập nhầm"*. Lớp `vis` một mình
 #    không đủ: nó chỉ hạ xuống 0 khi ô Bộ phận CÓ khai, mà phần lớn tài khoản nhân viên cơ sở
 #    để trống ô ấy.
-la('ẩn nút chuyển loại đơn khi không có quyền (lớp 1: vis)',
-   '[data-dcsw-di]' in src and 'vis[di]' in src)
-la('lớp 2: nhân viên chưa khai bộ phận cũng ẩn',
-   "bp!==''" in src and 'BP_VAO_DUAN.indexOf(bp)' in src)
-la('và lớp 2 chỉ siết nhân viên', "la_nv=(_vaiLuat()==='Nhân viên')" in src)
+# 🔴 CẶP NÚT CHUYỂN ĐƠN ĐÃ GỠ — 22/09/2026, anh Thắng: *"Bỏ cái chi phí kỹ thuật đi"*.
+# Ba phép ở đây trước kia canh luật ẩn/hiện của chúng; nay đảo chiều thành "đã gỡ sạch".
+# Xoá phép đi thì lần sau ai dựng lại cũng không ai hay.
+la('cặp nút chuyển loại đơn đã gỡ', '[data-dcsw-di]' not in src)
+la('và hàm vẽ nó cũng gỡ theo', 'function _veNutChuyenDon' not in src)
+# ⚠️ NHƯNG ĐỪNG GỠ LẠM: hai chốt TAB phải còn — chúng mới là chốt quyền thật, cái nút chỉ
+#    mượn chúng để bày một lối tắt. Quét sạch cả cụm là nhân viên cơ sở mất tab đơn tuần.
+la('🔴 `BP_VAO_DUAN` VẪN còn — nó gác TAB', 'BP_VAO_DUAN.indexOf(bp)' in src)
+la('🔴 `_vaoDonCoSo()` VẪN còn', 'function _vaoDonCoSo' in src)
 
 m9 = re.search(r'function _kyTuDo\(\)\{(.*?)\n  \}', src, re.S)
 la('tìm thấy _kyTuDo()', m9 is not None)
@@ -338,14 +342,25 @@ if m_luong:
 la('nói thẳng "CHƯA GỬI DUYỆT" khi còn Nháp', 'CHƯA GỬI DUYỆT' in src)
 la('và "ĐÃ GỬI DUYỆT" khi đã gửi', 'ĐÃ GỬI DUYỆT' in src)
 la('và "ĐÃ CHỐT SỔ" khi hết sửa được', 'ĐÃ CHỐT SỔ' in src)
-la('dải trạng thái gắn vào đầu đơn', "el('donBadge').innerHTML=" in src and '_thanhBuoc(st)' in src)
+# `_thanhBuoc` nay nhận thêm KHỐI CỦA ĐƠN (21/09/2026): kế toán KVC mở đơn MTĐ bàn giao sang
+# mà thấy thanh bước có "Chờ cấp tạm ứng" thì họ đi tìm một bước không tồn tại.
+la('dải trạng thái gắn vào đầu đơn', "el('donBadge').innerHTML=" in src and '_thanhBuoc(st, ' in src)
 
 # 🔴 MỘT RANH GIỚI. Khoá theo `stChot` chứ không theo danh sách trạng thái gõ tay.
 la('khoá sửa dòng theo ĐÃ CHỐT SỔ', 'CUR.lockChi=CUR.stChot;' in src)
-la('và stChot đúng hai trạng thái',
-   "CUR.stChot=(st==='Đã quyết toán'||st==='Đã xuất MISA');" in src)
+# 🔴 KHÔNG GHIM CHUỖI NỮA. Ranh giới "đã chốt" từng nằm rải rác sáu chỗ gõ tay; thêm bước
+# `Đã thanh toán` cho MTĐ/VP là phải nhớ sửa đủ sáu. Nay một hàm `_daChot()`, bản song sinh
+# của `VHCP_Don::TT_CHOT` — canh nó đi qua hàm ấy thì thêm bước nữa cũng không phải sửa bài.
+la('và stChot hỏi đúng một hàm `_daChot`', 'CUR.stChot=_daChot(st);' in src)
+la('🔴 `_daChot` khai đúng ba trạng thái đã chốt',
+   re.search(r"var TT_CHOT=\[(.*?)\];", src) is not None
+   and set(re.findall(r"'([^']+)'", re.search(r"var TT_CHOT=\[(.*?)\];", src).group(1)))
+       == {'Đã quyết toán', 'Đã thanh toán', 'Đã xuất MISA'})
+# 🔴 TỪ 1.268.0 FORM NHẬP LÀ HỘP NỔI, nên cái được giấu KHÔNG còn là `lineFormCard` (nó nằm
+# trong một hộp vốn đã `display:none` — giấu nó là giấu thứ đang ẩn sẵn) mà là NÚT MỞ hộp.
+# Canh đúng ý định: đơn đã chốt thì không còn đường vào form.
 la('form nhập dòng mở ở mọi trạng thái chưa chốt',
-   "el('lineFormCard').style.display= CUR.stChot?'none':''" in src)
+   "el('btnMoLineForm').style.display= CUR.stChot?'none':''" in src)
 la('bỏ luật cũ "chỉ Nháp hoặc Đã cấp mới sửa dòng"',
    'CUR.lockChi=!(CUR.stNhap||CUR.stCap)' not in src)
 # Nhãn khối nhập phải đổi theo trạng thái — thêm dòng sau khi gửi duyệt là PHÁT SINH.
@@ -511,10 +526,15 @@ la('có hàm tách khối theo đơn vị', 'function _tachDonVi(' in src)
 # Chỉ tách khi người xem nhìn được HƠN MỘT đơn vị — kế toán POSH chỉ có đơn POSH, chèn thêm
 # một dải "POSH" lên đầu mọi bảng là thêm một dòng chữ không mang tin gì.
 la('chỉ tách khi nhìn được hơn một đơn vị', 'if(!BOOT.nhieuDonVi) return' in src)
-for _b, _goi in [('Duyệt tạm ứng', "el('duyetBody').innerHTML=_tachDonVi("),
-                ('Quyết toán chờ/xong', "el('qtBody'+hoa).innerHTML=_tachDonVi("),
+for _b, _goi in [('Quyết toán chờ/xong', "el('qtBody'+hoa).innerHTML=_tachDonVi("),
                 ('Đã cấp chưa nộp', "el('qtBodyChuaNop').innerHTML=_tachDonVi(")]:
     la('bảng "%s" dùng _tachDonVi' % _b, _goi in src)
+# 🔴 Bảng Duyệt tạm ứng nay GOM THEO TUẦN (22/09/2026, anh Thắng: *"hiện chi phí cơ sở lên và
+#    duyệt theo tuần"*), nên nó gọi `_tachDonVi` BÊN TRONG mỗi nhóm tuần chứ không gọi thẳng.
+#    Vạch ngăn đơn vị vẫn phải còn — *"tránh duyệt lộn đơn vị"* (20/09) không đổi.
+la('bảng "Duyệt tạm ứng" gom theo tuần', "el('duyetBody').innerHTML=_dvGomTuan(" in src)
+la('và vẫn tách đơn vị BÊN TRONG mỗi tuần',
+   '_tachDonVi(rows, function(d){ return veHang(d, gid, gap); }, gid, gap)' in src)
 la('dòng ngăn có kiểu chữ thật trong tệp css', 'tr.dv-ngan>td{' in css)
 
 # Cấu hình: MỘT cột Đơn vị. Anh Thắng 12/09/2026: *"Đơn vị với xem đơn vị là 1, đã thuộc đơn

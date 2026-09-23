@@ -34,6 +34,10 @@
 
 $goc = dirname( dirname( __DIR__ ) );
 
+/* Vân tay sơ đồ bảng — xem khối 🔴 ở cuối bài. Đổi sơ đồ thì phải sửa CẢ hằng này LẪN
+   `SCHEMA_VERSION`; sửa một cái là bài đỏ, và đó đúng là ý đồ. */
+const VAN_TAY_SO_DO = 'so_cot=218';
+
 $dat = 0; $truot = array();
 /* Sơ đồ THẬT của từng bảng, gom lúc soi — dùng ở khối đối chiếu bệ đỡ cuối bài. */
 $cau_theo_bang = array();
@@ -147,6 +151,47 @@ foreach ( $cau_theo_bang as $ten => $cau ) {
 }
 /* Ngưỡng: đối chiếu trượt hết mà vẫn xanh thì phép trên chẳng canh gì. */
 t( 'đối chiếu được ít nhất vài bảng với bệ đỡ', $so_doi >= 3, $so_doi );
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 ĐỔI SƠ ĐỒ BẢNG THÌ PHẢI NÂNG `SCHEMA_VERSION` — KHÔNG NÂNG LÀ MẤT DỮ LIỆU, IM LẶNG
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Cắn thật 22/09/2026 — anh Thắng: *"có thấy báo thêm hạng mục, nhưng không thấy gì"*.
+ *
+ * Bản 1.266.0 thêm cột `chiphi.giai_doan` mà quên nâng `SCHEMA_VERSION`. `vhcp_maybe_upgrade()`
+ * chỉ gọi `install()` khi số ấy KHÁC `vhcp_db_version` đang lưu — nên `dbDelta()` không chạy,
+ * cột không hề được tạo trong CSDL thật, và MySQL chối MỌI câu `INSERT` vào bảng ấy vì "Unknown
+ * column". Người nhập gõ cả buổi, màn báo "Đã thêm dòng" mỗi lần, và sổ vẫn trống.
+ *
+ * ⚠️ CANH BẰNG VÂN TAY, KHÔNG BẰNG TRÍ NHỚ. Không ai tự nhớ "lần này có đổi sơ đồ không" —
+ *    chính em vừa quên. Bài đếm tổng số cột của sơ đồ bản gốc và so với con số ghim ở đầu tệp.
+ *    Thêm hay bớt một cột là hai số lệch và bài ĐỎ, kèm đúng lời cần đọc lúc ấy.
+ * ⚠️ PHẢI SỬA CẢ HAI SỐ MỚI XANH LẠI: người sửa buộc phải động vào dòng `SCHEMA_VERSION`, tức
+ *    buộc phải nghĩ tới lượt nâng cấp CSDL. Đó mới là thứ bài này muốn, không phải con số.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+$db_goc = file_get_contents( $goc . '/wordpress/vhcp-chi-phi/includes/class-vhcp-db.php' );
+$so_cot = 0;
+if ( preg_match_all( '#CREATE TABLE[\s\S]*?\n\s*\)\s*\$?[a-z_]*"#', $db_goc, $mc ) ) {
+	foreach ( $mc[0] as $c ) {
+		foreach ( explode( "\n", $c ) as $d ) {
+			$d = trim( $d );
+			/* Một dòng cột: tên cột thường + kiểu. Bỏ qua KEY / PRIMARY KEY / UNIQUE KEY. */
+			if ( preg_match( '/^[a-z_]+\s+(VARCHAR|TEXT|INT|BIGINT|TINYINT|DECIMAL|DATE|DATETIME|LONGTEXT|MEDIUMTEXT)/i', $d ) ) {
+				$so_cot++;
+			}
+		}
+	}
+}
+t( 'đếm được số cột của sơ đồ bản gốc', $so_cot > 100, $so_cot );
+preg_match( "/const SCHEMA_VERSION = '([^']+)'/", $db_goc, $mv );
+t( 'đọc được SCHEMA_VERSION', ! empty( $mv[1] ), '' );
+t( "🔴 SƠ ĐỒ ĐỔI THÌ `SCHEMA_VERSION` PHẢI ĐỔI THEO.\n"
+	. "      Bài này vừa đỏ nghĩa là sơ đồ bảng vừa thêm/bớt cột. Làm hai việc, đủ cả hai:\n"
+	. "        1. NÂNG `SCHEMA_VERSION` trong wordpress/vhcp-chi-phi/includes/class-vhcp-db.php\n"
+	. "           (đang là " . ( isset( $mv[1] ) ? $mv[1] : '?' ) . ");\n"
+	. "        2. sửa `VAN_TAY_SO_DO` ở đầu bài này thành 'so_cot=$so_cot'.\n"
+	. "      Bỏ qua việc 1 là `install()` không chạy trên site đang dùng, cột không được tạo,\n"
+	. "      và mọi INSERT vào bảng ấy bị MySQL chối — màn vẫn báo xong, sổ vẫn trống.",
+	VAN_TAY_SO_DO === ( 'so_cot=' . $so_cot ), 'so_cot=' . $so_cot );
 
 if ( count( $truot ) ) {
 	echo "\n=== SƠ ĐỒ BẢNG ===\n";

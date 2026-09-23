@@ -1,7 +1,15 @@
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
- * BA BẢNG LOẠI CHI PHÍ THEO KHỐI — PHÍA MÀN HÌNH, BỐC HÀM THẬT RA CHẠY.
+ * BẢNG LOẠI CHI PHÍ — MỖI ĐẦU MỤC MỘT BẢNG — PHÍA MÀN HÌNH, BỐC HÀM THẬT RA CHẠY.
  *
- * Anh Thắng 21/09/2026: *"chỗ loại chi phí, chia ra 3 bảng của 3 khối, để tránh dùng chung"*.
+ * Anh Thắng 21/09/2026: *"chỗ loại chi phí, chia ra 3 bảng của 3 khối, để tránh dùng chung"*,
+ * rồi 22/09/2026 đổi trục: *"Khối là dùng chung, vì đã phân theo vai trò rồi"* · *"Khối là để
+ * xác định tài khoản nợ"* · *"Mỗi đầu mục là 1 bảng riêng,,"*.
+ *
+ * 🔴 ĐỔI TRỤC CHIA BẢNG, KHÔNG ĐỔI DỮ LIỆU — và đó chính là chỗ bài này canh gắt nhất. Mỗi
+ *    dòng VẪN mang đúng một `khoi`, vì bảng mã TK Nợ bên dưới vẫn cắt theo khối. Trước bản
+ *    này khối của một dòng đọc từ mốc `data-khoi` của tbody; nay tbody mang ĐẦU MỤC, nên bỏ
+ *    sót một chỗ là lượt Lưu đóng TÊN ĐẦU MỤC vào cột `khoi` của mọi dòng — mọi loại rơi khỏi
+ *    bảng mã, im lặng.
  *
  * =============================================================================================
  * 🔴 LỖI ĐÃ CẮN NGAY LƯỢT DỰNG ĐẦU, VÀ BÀI NÀY GIỮ NÓ
@@ -82,18 +90,49 @@ t('   `_cacNhomCp()` cũng vậy', /_khoiCuaLoai\(x\)!==String\(KHOI_DANG\)/.tes
 t('🔴 bảng mã TK Nợ lấy khối của CHÍNH mục đó, không theo khối đang chọn ở màn khác',
   /var khoiB=g\.khoi\|\|String\(KHOI_DANG\)\.toLowerCase\(\);/.test(VE)
     && /rows\.filter\(function\(x\)\{ return _khoiCuaLoai\(x\)===khoiB; \}\)/.test(VE), 'không thấy');
-t('   và mỗi khối có một mục, kể cả khối chưa có cơ sở nào',
-  /KHOI_DS\.map\(function\(k\)\{ return \{ dv:k\.ma, khoi:k\.ma/.test(bocSach('_mxNhomDv')), 'không thấy');
+/* 🔴 TỪ 22/09/2026 DỰNG THEO `_mienDs()`, không theo cả từ điển khối — anh Thắng: *"Khối là
+   để xác định tài khoản nợ"*, và khối nay là MIỀN. Lấy `KHOI_DS` (từ điển đầy đủ) là dựng ra
+   ba mục rỗng vĩnh viễn của khối đã ra web riêng. */
+t('   và mỗi MIỀN có một mục, kể cả miền chưa có cơ sở nào',
+  /var bay=_mienDs\(\);/.test(bocSach('_mxNhomDv'))
+  && /bay\.map\(function\(k\)\{ return \{ dv:k\.ma, khoi:k\.ma/.test(bocSach('_mxNhomDv')), 'không thấy');
+/* ⚠️ Khối CŨ còn mảng vẫn ra một mục riêng, và phải GIỮ MÃ KHỐI của nó — trả `''` là mục ấy
+   rơi về `KHOI_DANG` ở chỗ lọc loại, tức bảng mã của khối này bày loại của khối kia. */
+t('   khối cũ còn mảng vẫn có mục riêng, mang đúng mã của nó',
+  /khoi:\(KHOI_DS\.some\(function\(x\)\{ return x\.ma===k; \}\) \? k : ''\)/.test(bocSach('_mxNhomDv')), 'không thấy');
 t('   và thôi lọc bằng ô Đơn vị của loại (ô ấy đã gỡ)', !/_loaiChoDv\(x, g\.dv\)/.test(VE));
 t('   đổi khối thì vẽ lại bảng Cấu hình', /renderTkNoMatrix\(\)/.test(bocSach('doiKhoi')), 'không thấy');
 
-/* ═══ 3. NÚT "＋ THÊM LOẠI" CHUNG ĐÃ BỎ, MỖI KHỐI MỘT NÚT ════════════════════════ */
+/* ═══ 3. MỖI ĐẦU MỤC MỘT BẢNG, VÀ MỖI BẢNG MỘT NÚT "＋ THÊM LOẠI" ════════════════ */
 t('🔴 không còn nút thêm loại chung ở đầu thẻ', !/onclick="addCfgLoai\(\)"/.test(HTML));
-t('   mỗi bảng có nút thêm mang mã khối của nó', /onclick="addCfgLoai\(\\'/.test(VE), 'không thấy');
-t('🔴 `addCfgLoai()` chối khối không thuộc', /_khoiDuoc\(\)/.test(bocSach('addCfgLoai')), 'không thấy');
+/* 🔴 CẢ HAI NÚT (đầu bảng VÀ cuối bảng), không phải "có chỗ nào đó đúng". Cắn ngay lượt phá
+   thử 22/09/2026: đục một trong hai nút sang mã khối thì phép này vẫn xanh nhờ nút còn lại. */
+teq('   CẢ HAI nút thêm (đầu bảng + cuối bảng) đều mang ĐẦU MỤC của nó', 2,
+  (VE.match(/onclick="addCfgLoai\('\+esc\(JSON\.stringify\(dm0\)\)\+'\)"/g) || []).length);
+t('🔴 `addCfgLoai()` chối người chưa thuộc khối nào', /_khoiDuoc\(\)/.test(bocSach('addCfgLoai')), 'không thấy');
 t('   và mở cái <details> đang gập ra', /\.open\s*=\s*true/.test(bocSach('addCfgLoai')), 'không thấy');
-t('🔴 thân bảng mang `data-khoi`', /data-khoi="'\+esc\(k\.ma\)\+'"/.test(VE), 'không thấy');
-t('   khối không thuộc vẫn HIỆN (gập + ổ khoá), không bị bỏ', /🔒 /.test(VE) && /mxKhoi/.test(VE));
+/* 🔴 MỐC CỦA TBODY ĐỔI TỪ KHỐI SANG ĐẦU MỤC — và CẢ BA chỗ đọc nó phải đổi theo, không thì
+   một nửa đường dây nói khối còn nửa kia nói đầu mục. */
+t('🔴 thân bảng mang `data-dau-muc`', /data-dau-muc="'\+esc\(dm0\)\+'"/.test(VE), 'không thấy');
+t('🔴 và KHÔNG còn đóng dấu `data-khoi` lên tbody (nay nó là đầu mục)',
+  !/data-khoi="'\+esc\(k\.ma\)\+'"/.test(VE), 'vẫn còn');
+t('   `addCfgLoai()` tìm bảng theo `data-dau-muc`', /getAttribute\('data-dau-muc'\)/.test(bocSach('addCfgLoai')), 'không thấy');
+t('🔴 lượt Lưu KHÔNG còn lấy khối từ mốc của tbody', !/getAttribute\('data-khoi'\)/.test(LUU), 'vẫn còn');
+t('   mà lấy đầu mục ở đó', /getAttribute\('data-dau-muc'\)/.test(LUU), 'không thấy');
+/* 🔴 KHỐI LÚC VẼ PHẢI NẰM TRÊN CHÍNH HÀNG. Mất mốc này là lượt Lưu không dò được bản ghi cũ,
+   và mấy cột không có ô trên màn (TK Nợ, mã đối tượng, bộ phận) bay sạch — im lặng. */
+t('🔴 hàng mang `data-khoi-goc` (khối lúc vẽ)', /data-khoi-goc="'\+esc\(_khoiCuaLoai\(x\)\)\+'"/.test(bocSach('_mxRowHtml')), 'không thấy');
+t('   và lượt Lưu dò bản cũ bằng nó', /getAttribute\('data-khoi-goc'\)/.test(LUU), 'không thấy');
+/* ⚠️ Bảng nay gom theo đầu mục nên một bảng chứa lẫn dòng của cả ba khối — khoá cả bảng như
+   bản trước là hoặc khoá oan dòng của chính họ, hoặc mở toang dòng của khối khác. */
+t('🔴 khoá theo TỪNG DÒNG, không theo cả bảng', /_khoaDongKhoiLa\(\)/.test(VE)
+  && /data-khoi-la/.test(bocSach('_khoaDongKhoiLa')), 'không thấy');
+t('   và cú bấm 🔓 KHÔNG mở được mấy dòng ấy',
+  /:not\(\[data-khong-mo\]\)/.test(bocSach('toggleMxLock')), 'không thấy');
+t('🔴 lượt Lưu chép nguyên bản cũ cho dòng khối lạ, không tin mỗi cái khoá trên màn',
+  /data-khoi-la/.test(LUU), 'không thấy');
+t('   đầu mục lạ (đã rời danh sách) vẫn có bảng, không nuốt dòng', /dmDs\.indexOf\(d\)<0/.test(VE), 'không thấy');
+t('   và ô hứng "Chưa xếp đầu mục" đứng CUỐI', /dmDs\.push\(''\)/.test(VE), 'không thấy');
 
 /* ── chạy thật: `_khoiCuaLoai` ─────────────────────────────────────────────────── */
 const vm = require('vm');
@@ -124,11 +163,14 @@ const DS = [
   { ten: 'VPP', khoi: 'vp' },
 ];
 /* Chạy lại đúng vòng gom hàng của `renderTkNoMatrix()`, không chép tay luật. */
-const ctx2 = { CFG: { loaiChiPhi: DS }, BOOT: { khoiBan: 'kvc' }, window: {}, rows: [], seen: {} };
+const ctx2 = { CFG: { loaiChiPhi: DS }, BOOT: { khoiBan: 'kvc' }, window: {}, rows: [], seen: {}, coTen: {} };
 ctx2.window.BOOT = ctx2.BOOT;
 vm.createContext(ctx2);
 vm.runInContext(bocHam('_khoiCuaLoai'), ctx2);
-const VONG = VE.slice(VE.indexOf('var rows=[], seen={};'), VE.indexOf('var mx={};'));
+/* ⚠️ Mốc bốc bám ĐẦU dòng khai, không bám nguyên văn `var rows=[], seen={};`: từ 21/09/2026
+   dòng ấy khai thêm `coTen` (chữa lỗi "xoá xong nó vẫn còn" — xem
+   `kiem-xoa-loai-khong-moc-lai.js`). Bám nguyên văn là mỗi lần thêm một biến lại đỏ oan. */
+const VONG = VE.slice(VE.indexOf('var rows=[], seen={}'), VE.indexOf('var mx={};'));
 t('bốc được vòng gom hàng để chạy', VONG.length > 60, VONG.length);
 vm.runInContext(VONG, ctx2);
 teq('🔴 gom đủ 4 dòng — "Chi phí khác" của MTĐ KHÔNG bị nuốt', 4, ctx2.rows.length);
@@ -170,16 +212,41 @@ t('🔴 lượt Lưu chép lại bộ phận cũ thay vì ghi rỗng', /boPhan:\
      khối nào mới hiện ra"*. Từ bản 1.235.0 hộp ô tích chỉ bày vai CỦA KHỐI ẤY cộng vai
      chạy ngang; gọi không kèm khối là không khối nào khớp và hộp trụi xuống còn bốn vai gốc. */
   const hv = ctxv._vaiSelNhieu('Kế Toán Máy Tự Động', 'kvc');
-  /* 4 vai gốc (chạy ngang) + 2 vai con KVC + 1 vai MTĐ đang TÍCH nên vẫn được bày. */
-  teq('🔴 bảng KVC bày 4 vai gốc + 2 vai con KVC + 1 vai lạc đang tích', 7, (hv.match(/type="checkbox"/g) || []).length);
+  /* 🔴 VAI GỐC THÔI LÀ Ô TÍCH (22/09/2026) — anh Thắng: *"Vai trò đang tích lẻ, nên vai trò
+     chung không dùng nữa"*. Trước bản này ở đây đếm 7 (4 vai gốc + 2 vai con KVC + 1 vai MTĐ
+     đang tích); nay còn 3 ô tích, bốn vai gốc thành NHÃN NHÓM.
+     Vì sao bỏ: `_vaiDungDuocLoai()` so TÊN VAI người ta mang với danh sách, và vai gốc KHÔNG
+     tự suy cho vai con (có phép canh ngay dưới). Nên tích "Quản lý" mà không tích vai con nào
+     là mọi quản lý thật đều KHÔNG thấy loại ấy — ô tích trông như mở cả nhóm mà thật ra đóng
+     sạch. */
+  teq('🔴 bảng KVC bày 2 vai con KVC + 1 vai lạc đang tích — vai GỐC thôi là ô tích', 3,
+    (hv.match(/type="checkbox"/g) || []).length);
+  t('🔴 vai gốc nay là NHÃN NHÓM, không phải ô tích',
+    /<b style="font-size:11.5px[^"]*"[^>]*>Quản lý<\/b>/.test(hv) && hv.indexOf('value="Quản lý"') < 0, hv.slice(0, 500));
+  t('   và mỗi nhóm có nút ✓ hết / ✕ bỏ để tích lẻ đỡ mệt',
+    /onclick="vaiNhomHet\(this,1\)"/.test(hv) && /onclick="vaiNhomHet\(this,0\)"/.test(hv), '');
   /* 🔴 PHÉP ĐỐI CHỨNG — VÀ NÓ ĐÃ ĐỔI NGHĨA NGÀY 21/09/2026.
-     Bản 1.235.0 giấu hẳn vai khối khác khi chưa tích, nên ở đây đếm ra 6. Nhưng giấu hẳn
+     Bản 1.235.0 giấu hẳn vai khối khác khi chưa tích, nên ở đây đếm ra ít hơn. Nhưng giấu hẳn
      nghĩa là KHÔNG CÓ CÁCH NÀO tích mới một vai khối khác — mà anh Thắng nói rõ: *"1 người
      có thể nhận 2 vai trò của 2 khối khác nhau"*. Nay chúng nằm trong nếp gấp "vai khối khác":
-     VẪN ĐỦ 7 Ô, chỉ là một ô nằm trong `<details>`. */
+     VẪN ĐỦ Ô, chỉ là một ô nằm trong `<details>`. */
   const hTrong = ctxv._vaiSelNhieu('', 'kvc');
-  teq('🔴 không tích gì thì vẫn đủ 7 ô — vai khối khác chỉ gấp lại, không biến', 7,
+  teq('🔴 không tích gì thì vẫn đủ 3 ô — vai khối khác chỉ gấp lại, không biến', 3,
     (hTrong.match(/type="checkbox"/g) || []).length);
+  /* ═══ 🔴 VAI CHUNG CÒN SÓT TRONG SỔ: GIẤU ĐI, KHÔNG XOÁ ═══════════════════════
+     Danh mục thật đang có dòng tích vai gốc. Bỏ ô tích ra khỏi DOM là lượt Lưu kế tiếp xoá
+     đúng mấy vai ấy — người bấm Lưu chỉ định sửa một ô khác hẳn. */
+  const hSot = ctxv._vaiSelNhieu('Quản lý', 'kvc');
+  t('🔴 vai chung còn sót VẪN nằm trong DOM và vẫn `checked` (lượt Lưu không được xoá lặng lẽ)',
+    /<input type="checkbox" data-vai-chung value="Quản lý" checked style="display:none">/.test(hSot), hSot.slice(0, 900));
+  t('   và có dòng nhắc để kế toán tự thấy',
+    /data-vai-sot/.test(hSot) && hSot.indexOf('Còn tích vai chung') >= 0, '');
+  t('🔴 kèm HAI đường gỡ, do người quyết — nở ra vai con, hoặc bỏ hẳn',
+    /onclick="vaiNoChung\(this\)"/.test(hSot) && /onclick="vaiBoChung\(this\)"/.test(hSot), '');
+  t('   loại KHÔNG tích vai chung thì không có dòng nhắc nào', !/data-vai-sot/.test(hTrong));
+  /* 🔴 KHÔNG TỰ NỞ LÚC VẼ. Nở là ĐỔI QUYỀN; máy làm thay là đổi quyền trong im lặng. */
+  t('🔴 lúc VẼ không tự nở vai chung ra vai con — đó là cú bấm của người',
+    !/value="Quản Lý Khu Vui Chơi" checked/.test(hSot), hSot.slice(0, 900));
   t('🔴 và nếp ấy ĐÓNG khi không có ô nào đang tích',
     /<details class="vaiNgoai"(?! open)/.test(hTrong), hTrong);
   t('🔴 nhưng MỞ SẴN khi bên trong có ô đang tích — không để quyền đã khai nằm khuất',
@@ -207,4 +274,4 @@ if (TRUOT.length) {
   TRUOT.forEach(function (x) { console.log('  · ' + x); });
   process.exit(1);
 }
-console.log('\n✓ SẠCH — ' + DAT + ' phép: ba bảng tách thật, trùng tên khác khối không nuốt nhau, ô chọn lọc theo khối.');
+console.log('\n✓ SẠCH — ' + DAT + ' phép: mỗi đầu mục một bảng, khối vẫn đi theo từng dòng (cho TK Nợ), trùng tên khác khối không nuốt nhau.');
