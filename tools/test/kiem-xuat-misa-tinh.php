@@ -334,7 +334,16 @@ t( 'chia ra 0đ thì BỎ HẲN DÒNG (không viết dòng 0đ vào sổ)', 0 ==
 echo "── Đóng cửa mà có doanh thu → VẪN ra MISA ─────────────────────\n";
 t( '🔴 misa_chungtu() không đọc cờ dong_cua', false === strpos( $f_ct, 'dong_cua' ) );
 t( '🔴 baocao_ngay() không đọc cờ dong_cua', false === strpos( $f_bcn, 'dong_cua' ) );
-t( 'cả hai không join bảng coso để lọc (chỉ đi từ bc_dong ⋈ bc)', ! preg_match( "/VHG_DB::t\( 'coso' \)/", $f_ct . $f_bcn ) );
+/* misa_chungtu() CÓ đọc bảng coso — nhưng chỉ `SELECT ten, ma_kh` để lấy Mã đối tượng (2.125.0),
+   không phải để lọc dòng. Canh đúng điều đó: mọi chỗ chạm bảng coso trong hàm phải nằm trên dòng
+   đọc ma_kh; câu lấy dòng tiền của cả hai hàm vẫn chỉ là bc_dong ⋈ bc. */
+$cham_coso = array_values( array_filter( explode( "\n", $f_ct ), function ( $l ) { return false !== strpos( $l, "VHG_DB::t( 'coso' )" ); } ) );
+$chi_ma_kh = count( $cham_coso ) > 0;
+foreach ( $cham_coso as $l ) { if ( false === strpos( $l, 'ma_kh' ) ) { $chi_ma_kh = false; } }
+t( 'misa_chungtu chạm bảng coso CHỈ để lấy ma_kh (Mã đối tượng), không để lọc dòng', $chi_ma_kh, $cham_coso );
+t( 'baocao_ngay không chạm bảng coso; dòng tiền của cả hai lấy từ bc_dong ⋈ bc',
+	false === strpos( $f_bcn, "VHG_DB::t( 'coso' )" ) && false !== strpos( $f_ct, "VHG_DB::t( 'bc_dong' ) . ' d JOIN ' . VHG_DB::t( 'bc' )" )
+	&& false !== strpos( $f_bcn, "VHG_DB::t( 'bc_dong' ) . ' d'" ) && false !== strpos( $f_bcn, "JOIN ' . VHG_DB::t( 'bc' ) . ' h" ) );
 
 echo "\n";
 if ( $TRUOT ) { echo '🔴 TRƯỢT: ' . count( $TRUOT ) . '/' . ( $DAT + count( $TRUOT ) ) . "\n"; exit( 1 ); }
