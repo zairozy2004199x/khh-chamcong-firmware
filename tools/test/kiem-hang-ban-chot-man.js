@@ -50,10 +50,13 @@ t('dòng chưa nhập báo cáo trải đủ 6 cột', /colspan="6" class="chua"
 
 /* ---- tab Quản trị ---- */
 const nv = boc('veNhomVe');
-t('có veNhomVe và Quản trị gọi api nhom-ve', nv.length > 0 && /api\('nhom-ve'\)\.then/.test(boc('taiQuanTri')));
+t('có veNhomVe và Quản trị gọi taiNhomVe', nv.length > 0 && /taiNhomVe\(o\);/.test(boc('taiQuanTri')));
 t('hai cột tích: Sale vé? và Sale phụ?', /<th>Sale vé\?<\/th><th>Sale phụ\?<\/th>/.test(nv));
 t('checkbox data-nhom-ve và data-nhom-phu', /data-nhom-ve=/.test(nv) && /data-nhom-phu=/.test(nv));
 t("🔴 Lưu POST nhom-ve gửi cả nhom_ve và nhom_phu", /fd\.append\('nhom_ve', JSON\.stringify\(ds\)\)/.test(nv) && /fd\.append\('nhom_phu', JSON\.stringify\(dsPhu\)\)/.test(nv));
+t("🔴 và kèm cua_hang — cấu hình khai riêng từng quán", /fd\.append\('cua_hang', r\.cua_hang \|\| cauHinhCS\(\)\)/.test(nv));
+t('khối nhóm có ô chọn cửa hàng chung và GET theo cửa hàng', /oChonCS\('nvCS', r\)/.test(nv) && /api\('nhom-ve\?cua_hang='/.test(boc('taiNhomVe')));
+t('nói rõ đang thừa bảng chung khi quán chưa khai riêng', /đang thừa bảng chung/.test(nv));
 t('nói rõ bán lẻ = phần còn lại, phụ = mọi thứ trừ vé combo chính', /phần còn lại/.test(nv) && /trừ vé combo chính/.test(nv));
 
 if (hong.length) {

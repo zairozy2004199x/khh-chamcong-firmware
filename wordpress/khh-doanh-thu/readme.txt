@@ -102,6 +102,29 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.59.1 =
+* 🔴 **Vé chưa khai TẠM TÍNH 1 khách mỗi vé, không bỏ qua.** Anh Thắng 23/09/2026 nhìn Lotte Gò Vấp: hai
+  combo tên khác Aeon Tân Phú ("… + THẠCH", "… + BIM BIM") chưa được khai, máy chỉ cộng 12 + 2 = 14 và
+  bày như số thật — *"bên khách lại lấy khách vào sai… phải 28 chứ"*. Nay 10 + 12 + 4 + 2 = 28, ô ghi
+  **"Khách vào (POS) · tạm tính"** và dòng dưới nói rõ vé nào đang tạm 1 khách/vé; khai 2 cho combo
+  là số lên 42. Ngày không có vé nào mới bày "—".
+* **Khối Bóc tách vé ở Quản trị có bảng "vé chưa khai" GOM MỌI CƠ SỞ** (90 ngày), kèm cơ sở bán, số đã
+  bán, và **điền sẵn gợi ý** — sửa nếu cần rồi bấm Lưu một lần là xong cả chuỗi, không phải dò từng
+  quán. Gợi ý nay **đếm chữ chỉ người** trong tên vé ("trẻ em", "người lớn", "bé", "phụ huynh"):
+  "TRẺ EM + NGƯỜI LỚN + THẠCH" → 2 (thạch không phải người); không có chữ chỉ người thì dấu "+" → 2,
+  còn lại → 1.
+* 🔴 **Mỗi cửa hàng một cấu hình.** Anh Thắng 23/09/2026: *"Mỗi cửa hàng 1 cấu hình đi. Để cho dễ"* —
+  *"trong tài khoản admin… cứ chọn cửa hàng để cấu hình tránh lẫn lộn"*. Hai khối ở Quản trị (Bóc tách
+  vé → khách; Sale vé / Bán lẻ / Sale phụ) dùng **một ô chọn cửa hàng** chung: chọn quán rồi khai, Lưu
+  là ghi riêng cho quán ấy; đổi ô chọn là cả hai khối tải lại. Bảng chung của bản 1.59.0 (nếu đã khai)
+  chỉ còn là **mặc định cho quán chưa khai riêng**, và màn ghi rõ ô nào đang *"thừa bảng chung"*. Khối
+  bóc tách nhắc **quán khác còn vé chưa khai** (bấm tên quán là chuyển sang), và vé chưa khai của quán
+  đang chọn được **điền sẵn gợi ý** để một lần Lưu là xong quán ấy. Cổng REST `ve-khach` và `nhom-ve`
+  nay đòi `cua_hang` khi ghi.
+* Bài kiểm `kiem-ve-khach.php` viết lại phần tạm tính và theo cửa hàng (đúng ca Gò Vấp 28 → 42; khai ở
+  Gò Vấp không lẫn sang Tân Phú; sổ phẳng cũ là bảng chung; riêng đè chung), 45 phép; `kiem-hang-ban-chot.php`
+  +8 phép theo cửa hàng; hai bài màn +10 phép.
+
 = 1.59.0 =
 * 🔴 **Bóc tách vé → khách vào.** Anh Thắng 23/09/2026: *"mình sẽ bóc tách sẵn cho nhân viên, giờ áp
   dụng cho gian Tàu trước"* — *"nếu vé là combo VÉ TRẺ EM + NGƯỜI LỚN tính là 2 người, còn nếu nó là

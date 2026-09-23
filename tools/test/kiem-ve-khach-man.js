@@ -27,6 +27,7 @@ const nap = boc('napBaoCao');
 t('bày ô "Khách vào (POS)"', /o_pos\('Khách vào \(POS\)'/.test(nap));
 t("🔴 null thì bày '—', không bày 0", /p\.khach_may != null \? nguyen\(p\.khach_may\) : '—'/.test(nap));
 t('kể tên vé chưa bóc tách (ve_chua_tach)', /ve_chua_tach/.test(nap) && /chưa bóc tách/.test(nap));
+t('🔴 có vé chưa khai thì nhãn ô ghi "tạm tính" và nói tạm tính 1 khách mỗi vé', /p\.khach_tam \? ' · tạm tính'/.test(nap) && /tạm tính 1 khách mỗi vé/.test(nap));
 const lech = boc('tinhLech');
 t('🔴 lệch so với khách máy khi có bóc tách', /var may = p\.khach_may != null \? Math\.round\(p\.khach_may\) : ve;/.test(lech));
 t('và dùng biến ấy để tính', /khach - may/.test(lech));
@@ -40,14 +41,21 @@ t('🔴 ô đối soát ưu tiên khach_may, lùi về so_ve', /x\.khach_may != 
 const tai = boc('taiVeKhach'), ve = boc('veVeKhach');
 t('có taiVeKhach / veVeKhach', tai.length > 0 && ve.length > 0);
 t('Quản trị gọi taiVeKhach', /taiVeKhach\(o\);/.test(boc('taiQuanTri')));
-t('mặc định chọn gian Tàu trước', /t\[àa\]u\|train/i.test(tai));
+t('mặc định chọn gian Tàu trước', /t\[àa\]u\|train/i.test(boc('cauHinhCS')));
 t("GET ve-khach theo cơ sở", /api\('ve-khach\?cua_hang='/.test(tai));
 t('ô nhập khách mỗi vé data-vk', /data-vk=/.test(ve));
 t('placeholder mang gợi ý', /gợi ý ' \+ x\.goi_y/.test(ve));
-t('nút điền gợi ý vào ô trống', /vkGoiY/.test(ve) && /gợi ý \(\\d\+\)/.test(ve));
+t('nút Lưu ghi rõ "cho cửa hàng này"', /Lưu bóc tách cho cửa hàng này/.test(ve));
 t("🔴 Lưu gọi POST ve-khach với 'bang' JSON", /api\('ve-khach', \{ method: 'POST'/.test(ve) && /fd\.append\('bang', JSON\.stringify\(b\)\)/.test(ve));
-t('nói rõ khai theo tên món, dùng chung mọi cơ sở', /dùng chung cho mọi cơ sở/.test(ve));
+t('nói rõ cấu hình khai riêng cho cửa hàng này', /riêng cho cửa hàng này/.test(boc('oChonCS')));
 t('nói rõ 0 khác ô trống', /Ô để trống = không tính/.test(ve));
+/* 23/09/2026 anh Thắng: "Mỗi cửa hàng 1 cấu hình đi" — một ô chọn cửa hàng dùng chung cho hai khối. */
+t('🔴 vé chưa khai được ĐIỀN SẴN gợi ý (không chỉ placeholder)', /\(thieu && x\.goi_y != null \? x\.goi_y : ''\)/.test(ve));
+t('🔴 Lưu gửi kèm cua_hang (khai riêng từng quán)', /fd\.append\('cua_hang', r\.cua_hang \|\| cauHinhCS\(\)\)/.test(ve));
+t('có ô chọn cửa hàng chung (oChonCS) ở khối bóc tách', /oChonCS\('vkCS', r\)/.test(ve));
+t('đổi ô chọn là tải lại CẢ HAI khối', /S\.cauHinhCS = sel\.value; taiVeKhach\(o\); taiNhomVe\(o\);/.test(boc('noiChonCS')));
+t('nhắc quán khác còn vé chưa khai (con_thieu) và bấm là sang quán ấy', /r\.con_thieu/.test(ve) && /data-sang-cs=/.test(ve));
+t('ô thừa bảng chung được ghi rõ', /thừa bảng chung/.test(ve));
 
 if (hong.length) {
   console.log('\n✗ HỎNG ' + hong.length + ' phép (đạt ' + dat + '):');

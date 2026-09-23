@@ -11,9 +11,11 @@
  * quản trị khai MỘT LẦN mỗi tên vé tính mấy khách; máy tự ra "Khách vào (POS)" = Σ số lượng × số
  * khách mỗi vé, và nhân viên chỉ còn việc đếm.
  *
- * ⚠️ KHAI THEO TÊN MÓN, dùng chung cho mọi cơ sở bán món tên ấy — gian Tàu ở Aeon Tân Phú và ở
- *    Vũng Tàu cùng bán "VÉ TRẺ EM + NGƯỜI LỚN" thì khai một lần là đủ cả hai. Cơ sở chưa có vé nào
- *    được khai thì "Khách vào (POS)" là RỖNG (chưa bóc tách), không phải 0 — 0 là "không ai vào".
+ * 🔴 KHAI THEO TỪNG CỬA HÀNG. Anh Thắng 23/09/2026: *"Mỗi cửa hàng 1 cấu hình đi. Để cho dễ"* —
+ *    *"trong tài khoản admin… cứ chọn cửa hàng để cấu hình tránh lẫn lộn"*. Tên vé mỗi quán mỗi khác
+ *    (Gò Vấp "COMBO … + THẠCH", Tân Phú "VÉ TRẺ EM + NGƯỜI LỚN"), gom một bảng là lẫn. Bảng lưu dạng
+ *    [ cửa hàng => [ tên vé => khách ] ]; khoá '*' là bảng CHUNG (bản 1.59.0 lưu phẳng, tự hiểu là
+ *    '*') và chỉ làm mặc định cho quán chưa khai riêng tên vé ấy.
  *
  * ⚠️ VÉ CHƯA KHAI THÌ PHẢI NÓI RA. Cộng thiếu một loại vé là số máy thấp hơn thật, lệch trông như
  *    nhân viên đếm dư — sai im lặng đúng kiểu người ta không đi tìm. Nên mỗi ngày trả kèm danh sách
@@ -26,44 +28,92 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-/** Bảng khai: [ tên món => số khách mỗi vé (int ≥ 0) ]. */
-function khh_dt_ve_khach_bang() {
+/** Toàn bộ sổ khai, đã chuẩn hoá: [ cửa hàng ('*' = chung) => [ tên vé => khách ] ]. */
+function khh_dt_ve_khach_so() {
 	$b = get_option( 'khh_dt_ve_khach', array() );
 	if ( ! is_array( $b ) ) {
 		return array();
 	}
+	/* Bản 1.59.0 lưu phẳng [ tên => số ] -> coi là bảng chung '*'. Nhận ra bằng: có giá trị là số. */
+	$phang = false;
+	foreach ( $b as $v ) {
+		if ( ! is_array( $v ) ) {
+			$phang = true;
+			break;
+		}
+	}
+	if ( $phang ) {
+		$b = array( '*' => $b );
+	}
 	$ra = array();
-	foreach ( $b as $ten => $so ) {
-		$ten = trim( (string) $ten );
-		if ( '' !== $ten && is_numeric( $so ) ) {
-			$ra[ $ten ] = (int) $so;
+	foreach ( $b as $cs => $bang ) {
+		$cs = trim( (string) $cs );
+		if ( '' === $cs || ! is_array( $bang ) ) {
+			continue;
+		}
+		foreach ( $bang as $ten => $so ) {
+			$ten = trim( (string) $ten );
+			if ( '' !== $ten && is_numeric( $so ) ) {
+				$ra[ $cs ][ $ten ] = (int) $so;
+			}
 		}
 	}
 	return $ra;
 }
 
 /**
- * Ghi thêm/sửa/xoá vào bảng khai. Giá trị '' hay null là XOÁ tên ấy; số âm bị chối (giữ nguyên).
- * Trả về bảng sau khi ghi.
+ * Bảng khai áp cho MỘT cửa hàng: [ tên vé => khách ] — bảng chung '*' làm nền, bảng riêng của quán
+ * đè lên. Không truyền cửa hàng thì chỉ là bảng chung.
  */
-function khh_dt_ve_khach_dat( $bang ) {
-	$cu = khh_dt_ve_khach_bang();
-	foreach ( (array) $bang as $ten => $so ) {
+function khh_dt_ve_khach_bang( $cua_hang = '' ) {
+	$so = khh_dt_ve_khach_so();
+	$ra = isset( $so['*'] ) ? $so['*'] : array();
+	$cs = trim( (string) $cua_hang );
+	if ( '' !== $cs && '*' !== $cs && isset( $so[ $cs ] ) ) {
+		foreach ( $so[ $cs ] as $ten => $n ) {
+			$ra[ $ten ] = $n;
+		}
+	}
+	return $ra;
+}
+
+/** Bảng RIÊNG của một cửa hàng (không lẫn bảng chung) — để màn biết ô nào là quán tự khai. */
+function khh_dt_ve_khach_bang_rieng( $cua_hang ) {
+	$so = khh_dt_ve_khach_so();
+	$cs = trim( (string) $cua_hang );
+	return '' !== $cs && isset( $so[ $cs ] ) ? $so[ $cs ] : array();
+}
+
+/**
+ * Ghi thêm/sửa/xoá vào bảng khai của MỘT cửa hàng ('' hay '*' = bảng chung). Giá trị '' hay null là
+ * XOÁ tên ấy khỏi bảng quán đó; số âm bị chối (giữ nguyên). Trả về bảng áp cho quán sau khi ghi.
+ */
+function khh_dt_ve_khach_dat( $bang, $cua_hang = '' ) {
+	$cs = trim( (string) $cua_hang );
+	$cs = '' === $cs ? '*' : $cs;
+	$so = khh_dt_ve_khach_so();
+	$cu = isset( $so[ $cs ] ) ? $so[ $cs ] : array();
+	foreach ( (array) $bang as $ten => $gia ) {
 		$ten = trim( (string) $ten );
 		if ( '' === $ten ) {
 			continue;
 		}
-		if ( null === $so || '' === trim( (string) $so ) ) {
+		if ( null === $gia || '' === trim( (string) $gia ) ) {
 			unset( $cu[ $ten ] );
 			continue;
 		}
-		if ( ! is_numeric( $so ) || (float) $so < 0 ) {
+		if ( ! is_numeric( $gia ) || (float) $gia < 0 ) {
 			continue;
 		}
-		$cu[ $ten ] = (int) round( (float) $so );
+		$cu[ $ten ] = (int) round( (float) $gia );
 	}
-	update_option( 'khh_dt_ve_khach', $cu, false );
-	return $cu;
+	if ( $cu ) {
+		$so[ $cs ] = $cu;
+	} else {
+		unset( $so[ $cs ] );
+	}
+	update_option( 'khh_dt_ve_khach', $so, false );
+	return khh_dt_ve_khach_bang( '*' === $cs ? '' : $cs );
 }
 
 /** Món này trông như một loại VÉ (tên hay nhóm món có chữ "Vé" đứng đầu một từ). */
@@ -77,10 +127,23 @@ function khh_dt_ve_la_ve( $ten, $nhom = '' ) {
 	return false;
 }
 
-/** Gợi ý số khách cho một tên vé: có dấu "+" là vé ghép -> 2; vé lẻ -> 1; không phải vé -> null. */
+/**
+ * Gợi ý số khách cho một tên vé — không phải vé -> null.
+ *   · Đếm số chữ chỉ NGƯỜI trong tên ("trẻ em", "người lớn", "bé", "em bé", "phụ huynh"): "TRẺ EM +
+ *     NGƯỜI LỚN + THẠCH" -> 2 (thạch không phải người); "VÉ TRẺ EM" -> 1.
+ *   · Không có chữ chỉ người: có dấu "+" -> 2, còn lại -> 1.
+ */
 function khh_dt_ve_khach_goi_y( $ten, $nhom = '' ) {
 	if ( ! khh_dt_ve_la_ve( $ten, $nhom ) ) {
 		return null;
+	}
+	$k = ' ' . preg_replace( '/\s+/', ' ', khh_dt_khong_dau( (string) $ten ) ) . ' ';
+	$n = 0;
+	foreach ( array( 'tre em', 'nguoi lon', 'em be', 'phu huynh', 'be ' ) as $tu ) {
+		$n += preg_match_all( '/(?<![a-z])' . preg_quote( $tu, '/' ) . '(?![a-z])/', $k );
+	}
+	if ( $n > 0 ) {
+		return $n;
 	}
 	return false !== strpos( (string) $ten, '+' ) ? 2 : 1;
 }
@@ -88,14 +151,25 @@ function khh_dt_ve_khach_goi_y( $ten, $nhom = '' ) {
 /**
  * Tính khách từ danh sách món của một ngày ([ {n, g, q, r} ... ]).
  *
- * @return array khach (int|null — null khi chưa có vé nào được khai khớp), da_tach (số loại vé đã
- *               cộng), chua_tach ([ tên => số lượng ] vé có bán mà chưa khai).
+ * 🔴 VÉ CHƯA KHAI THÌ TẠM TÍNH 1 KHÁCH MỘT VÉ, KHÔNG BỎ QUA. Anh Thắng 23/09/2026 nhìn Lotte Gò Vấp:
+ *    hai combo tên khác Aeon Tân Phú chưa được khai, máy chỉ cộng 12 + 2 = 14 rồi bày như số thật —
+ *    *"bên khách lại lấy khách vào sai… phải 28 chứ"* (10 + 12 + 4 + 2). Bỏ qua một loại vé là số
+ *    máy tụt xuống dưới cả số vé bán, vô lý ngay. Nay vé chưa khai góp 1 khách/vé và được KỂ TÊN
+ *    kèm chữ "tạm tính"; khai 2 cho combo ở Quản trị là số nhảy lên đúng.
+ *
+ * @return array khach (int|null — null khi không có vé nào, khai hay chưa), chac (phần từ vé đã
+ *               khai), tam (phần tạm tính 1 khách/vé từ vé chưa khai), da_tach (số loại vé đã khai
+ *               khớp), chua_tach ([ tên => số lượng ] vé có bán mà chưa khai), du (không còn vé chưa
+ *               khai).
  */
 function khh_dt_khach_may_tu_mon( $mon, $bang = null ) {
+	/* ⚠️ Không truyền bảng thì chỉ có bảng CHUNG — người gọi biết cửa hàng phải truyền
+	   `khh_dt_ve_khach_bang( $cua_hang )`. */
 	$bang = null === $bang ? khh_dt_ve_khach_bang() : (array) $bang;
-	$khach = 0;
-	$n     = 0;
-	$chua  = array();
+	$chac = 0;
+	$tam  = 0;
+	$n    = 0;
+	$chua = array();
 	foreach ( (array) $mon as $m ) {
 		$ten = isset( $m['n'] ) ? trim( (string) $m['n'] ) : '';
 		$sl  = isset( $m['q'] ) ? (float) $m['q'] : 0;
@@ -103,19 +177,62 @@ function khh_dt_khach_may_tu_mon( $mon, $bang = null ) {
 			continue;
 		}
 		if ( array_key_exists( $ten, $bang ) ) {
-			$khach += $sl * (int) $bang[ $ten ];
+			$chac += $sl * (int) $bang[ $ten ];
 			$n++;
 			continue;
 		}
 		if ( $sl > 0 && khh_dt_ve_la_ve( $ten, isset( $m['g'] ) ? (string) $m['g'] : '' ) ) {
 			$chua[ $ten ] = ( isset( $chua[ $ten ] ) ? $chua[ $ten ] : 0 ) + $sl;
+			$tam         += $sl;
 		}
 	}
+	$co = $n > 0 || $chua;
 	return array(
-		'khach'     => $n ? (int) round( $khach ) : null,
+		'khach'     => $co ? (int) round( $chac + $tam ) : null,
+		'chac'      => (int) round( $chac ),
+		'tam'       => (int) round( $tam ),
 		'da_tach'   => $n,
 		'chua_tach' => $chua,
+		'du'        => ! $chua,
 	);
+}
+
+/**
+ * Mỗi cửa hàng còn bao nhiêu loại vé chưa khai (N ngày gần nhất) — để màn nhắc "còn quán X, Y" và
+ * người quản trị đổi ô chọn cửa hàng sang khai tiếp. [ cửa hàng => số loại vé chưa khai ], chỉ quán
+ * còn thiếu, thiếu nhiều xếp trước.
+ */
+function khh_dt_ve_khach_chua_khai( $lui = 90 ) {
+	global $wpdb;
+	$bang = khh_dt_bang();
+	$den  = current_time( 'Y-m-d' );
+	$tu   = gmdate( 'Y-m-d', strtotime( $den . ' -' . max( 1, (int) $lui ) . ' days' ) );
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$ds  = (array) $wpdb->get_results( $wpdb->prepare( "SELECT cua_hang, mon FROM $bang WHERE ngay >= %s AND ngay <= %s", $tu, $den ), ARRAY_A );
+	$gom = array();   // cửa hàng => [ tên vé chưa khai => true ]
+	$nho = array();   // bảng khai theo cửa hàng, nhớ lại
+	foreach ( $ds as $r ) {
+		$cs = (string) $r['cua_hang'];
+		if ( ! isset( $nho[ $cs ] ) ) {
+			$nho[ $cs ] = khh_dt_ve_khach_bang( $cs );
+		}
+		$mon = json_decode( (string) $r['mon'], true );
+		foreach ( is_array( $mon ) ? $mon : array() as $m ) {
+			$ten = isset( $m['n'] ) ? trim( (string) $m['n'] ) : '';
+			$sl  = isset( $m['q'] ) ? (float) $m['q'] : 0;
+			$g   = isset( $m['g'] ) ? (string) $m['g'] : '';
+			if ( '' === $ten || $sl <= 0 || array_key_exists( $ten, $nho[ $cs ] ) || ! khh_dt_ve_la_ve( $ten, $g ) ) {
+				continue;
+			}
+			$gom[ $cs ][ $ten ] = true;
+		}
+	}
+	$ra = array();
+	foreach ( $gom as $cs => $ds_ten ) {
+		$ra[ $cs ] = count( $ds_ten );
+	}
+	arsort( $ra );
+	return $ra;
 }
 
 /** Khách vào theo máy cho một ngày, một cơ sở — đọc thẳng cột `mon` của kho số FABi. */
@@ -125,7 +242,7 @@ function khh_dt_khach_may( $ngay, $cua_hang ) {
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
 	$mon = $wpdb->get_var( $wpdb->prepare( "SELECT mon FROM $bang WHERE ngay = %s AND cua_hang = %s", $ngay, $cua_hang ) );
 	$ds  = json_decode( (string) $mon, true );
-	return khh_dt_khach_may_tu_mon( is_array( $ds ) ? $ds : array() );
+	return khh_dt_khach_may_tu_mon( is_array( $ds ) ? $ds : array(), khh_dt_ve_khach_bang( $cua_hang ) );
 }
 
 /**
@@ -158,14 +275,17 @@ function khh_dt_ve_khach_mon_cua( $cua_hang, $lui = 90 ) {
 			$gom[ $ten ]['q'] += isset( $m['q'] ) ? (float) $m['q'] : 0;
 		}
 	}
-	$khai = khh_dt_ve_khach_bang();
-	$ra   = array();
+	$khai  = khh_dt_ve_khach_bang( $cua_hang );
+	$rieng = khh_dt_ve_khach_bang_rieng( $cua_hang );
+	$ra    = array();
 	foreach ( $gom as $ten => $x ) {
 		$ra[] = array(
 			'ten'      => $ten,
 			'nhom'     => $x['g'],
 			'so_luong' => $x['q'],
 			'khach'    => array_key_exists( $ten, $khai ) ? $khai[ $ten ] : null,
+			/* Số đang áp là của quán tự khai, hay thừa từ bảng chung. */
+			'rieng'    => array_key_exists( $ten, $rieng ),
 			'goi_y'    => khh_dt_ve_khach_goi_y( $ten, $x['g'] ),
 			'la_ve'    => khh_dt_ve_la_ve( $ten, $x['g'] ),
 		);
@@ -214,9 +334,12 @@ function khh_dt_ve_khach_route() {
 function khh_dt_rest_ve_khach_xem( $req ) {
 	$ch = (string) $req->get_param( 'cua_hang' );
 	return array(
-		'bang'     => khh_dt_ve_khach_bang(),
-		'cua_hang' => $ch,
-		'mon'      => '' !== $ch ? khh_dt_ve_khach_mon_cua( $ch ) : array(),
+		'bang'      => khh_dt_ve_khach_bang( $ch ),
+		'bang_rieng' => khh_dt_ve_khach_bang_rieng( $ch ),
+		'cua_hang'  => $ch,
+		'mon'       => '' !== $ch ? khh_dt_ve_khach_mon_cua( $ch ) : array(),
+		/* Quán nào còn vé chưa khai — để nhắc đổi ô chọn cửa hàng sang khai tiếp. */
+		'con_thieu' => khh_dt_ve_khach_chua_khai(),
 	);
 }
 
@@ -226,10 +349,14 @@ function khh_dt_rest_ve_khach_dat( $req ) {
 	if ( ! is_array( $bang ) ) {
 		return new WP_Error( 'khh_dt_ve_khach', 'Không đọc được bảng khai gửi lên.', array( 'status' => 400 ) );
 	}
+	$ch = sanitize_text_field( (string) $req->get_param( 'cua_hang' ) );
+	if ( '' === $ch ) {
+		return new WP_Error( 'khh_dt_ve_khach', 'Chưa chọn cửa hàng — bảng bóc tách khai riêng từng cửa hàng.', array( 'status' => 400 ) );
+	}
 	$sach = array();
 	foreach ( $bang as $ten => $so ) {
 		$sach[ sanitize_text_field( (string) $ten ) ] = null === $so ? '' : sanitize_text_field( (string) $so );
 	}
-	khh_dt_ve_khach_dat( $sach );
+	khh_dt_ve_khach_dat( $sach, $ch );
 	return khh_dt_rest_ve_khach_xem( $req );
 }

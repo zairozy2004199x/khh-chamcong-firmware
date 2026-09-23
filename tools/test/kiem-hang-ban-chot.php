@@ -90,6 +90,17 @@ khh_dt_nhom_ve_dat( array() );
 khh_dt_nhom_phu_dat( array() );
 $t = khh_dt_bc_tach_tien( wp_json_encode( $MON_L ), 3590000 );
 phep( 'tích rỗng (đã cấu hình) -> vé 0, phụ 0, KHÔNG lùi về đoán', 0.0 === $t['ve'] && 3590000.0 === $t['le'] && 0.0 === $t['phu'] );
+/* 🔴 THEO TỪNG CỬA HÀNG (anh Thắng 23/09/2026: "Mỗi cửa hàng 1 cấu hình đi"): bảng chung làm nền, quán khai riêng thì theo quán. */
+update_option( 'khh_dt_nhom_ve', array( 'VÉ COMBO.', 'VÉ LẺ.' ) );   // dạng phẳng bản 1.59.0 = bảng chung
+delete_option( 'khh_dt_nhom_phu' );
+phep( 'sổ phẳng cũ tự hiểu là bảng chung', array( 'VÉ COMBO.', 'VÉ LẺ.' ) === khh_dt_nhom_ve_ds( 'Quán B' ) );
+khh_dt_nhom_ve_dat( array( 'VÉ COMBO.' ), 'Quán B' );
+phep( 'quán B khai riêng: chỉ VÉ COMBO.', array( 'VÉ COMBO.' ) === khh_dt_nhom_ve_ds( 'Quán B' ) && true === khh_dt_nhom_co_rieng( 'khh_dt_nhom_ve', 'Quán B' ) );
+phep( 'quán khác vẫn thừa bảng chung', array( 'VÉ COMBO.', 'VÉ LẺ.' ) === khh_dt_nhom_ve_ds( 'Quán C' ) && false === khh_dt_nhom_co_rieng( 'khh_dt_nhom_ve', 'Quán C' ) );
+phep( '🔴 tách tiền theo quán: B vé 2.880.000, C vé 3.420.000', 2880000.0 === khh_dt_bc_tach_tien( wp_json_encode( $MON_L ), 3590000, 'Quán B' )['ve'] && 3420000.0 === khh_dt_bc_tach_tien( wp_json_encode( $MON_L ), 3590000, 'Quán C' )['ve'] );
+phep( 'chưa có phụ ở đâu -> phụ = phần không phải vé của quán ấy (B: 710.000, C: 170.000)', 710000.0 === khh_dt_bc_tach_tien( wp_json_encode( $MON_L ), 3590000, 'Quán B' )['phu'] && 170000.0 === khh_dt_bc_tach_tien( wp_json_encode( $MON_L ), 3590000, 'Quán C' )['phu'] );
+khh_dt_nhom_phu_dat( array( 'VÉ LẺ.', 'ĐÓNG SẴN' ), 'Quán B' );
+phep( 'phụ khai riêng cho B: 710.000; C vẫn theo mặc định 170.000', 710000.0 === khh_dt_bc_tach_tien( wp_json_encode( $MON_L ), 3590000, 'Quán B' )['phu'] && 170000.0 === khh_dt_bc_tach_tien( wp_json_encode( $MON_L ), 3590000, 'Quán C' )['phu'] );
 delete_option( 'khh_dt_nhom_ve' );
 delete_option( 'khh_dt_nhom_phu' );
 /* Món bán lẻ mà tên có chữ "Vé đồ chơi" nhưng Loại món = Đồ ăn -> theo CỘT, không theo tên. */
@@ -113,12 +124,16 @@ phep( 'nhóm kèm loại món, tiền và hai cờ vé/phụ', array( 'Vé' ) ==
 phep( 'VÉ LẺ.: không là vé (chưa tích), có là phụ', false === $theo( 'VÉ LẺ.' )['ve'] && true === $theo( 'VÉ LẺ.' )['phu'] );
 $dong_san = $theo( 'ĐÓNG SẴN' );
 phep( 'ĐÓNG SẴN gom hai loại món Đồ ăn, Đồ uống; không là vé; là phụ', array( 'Đồ ăn', 'Đồ uống' ) === $dong_san['loai'] && false === $dong_san['ve'] && true === $dong_san['phu'] );
-$r = khh_dt_rest_nhom_ve_dat( new WP_REST_Request( array( 'nhom_ve' => 'hỏng' ) ) );
+$r = khh_dt_rest_nhom_ve_dat( new WP_REST_Request( array( 'nhom_ve' => 'hỏng', 'cua_hang' => 'Quán B' ) ) );
 phep( 'REST nhom-ve: JSON hỏng -> chối', is_wp_error( $r ) );
-$r = khh_dt_rest_nhom_ve_dat( new WP_REST_Request( array( 'nhom_ve' => wp_json_encode( array( 'VÉ COMBO.', 'VÉ LẺ.' ) ) ) ) );
-phep( 'REST nhom-ve: lưu và trả bảng; không gửi nhom_phu thì giữ cấu hình phụ cũ', true === $r['da_cau_hinh'] && array( 'VÉ COMBO.', 'VÉ LẺ.' ) === $r['nhom_ve'] && array( 'VÉ LẺ.', 'ĐÓNG SẴN' ) === $r['nhom_phu'] && count( $r['nhom'] ) >= 3 );
-$r = khh_dt_rest_nhom_ve_dat( new WP_REST_Request( array( 'nhom_ve' => '[]', 'nhom_phu' => wp_json_encode( array( 'ĐÓNG SẴN' ) ) ) ) );
-phep( 'REST nhom-ve: gửi cả hai thì lưu cả hai', array() === $r['nhom_ve'] && array( 'ĐÓNG SẴN' ) === $r['nhom_phu'] );
+$r = khh_dt_rest_nhom_ve_dat( new WP_REST_Request( array( 'nhom_ve' => '[]' ) ) );
+phep( '🔴 REST nhom-ve: thiếu cửa hàng -> chối', is_wp_error( $r ) );
+$r = khh_dt_rest_nhom_ve_dat( new WP_REST_Request( array( 'nhom_ve' => wp_json_encode( array( 'VÉ COMBO.', 'VÉ LẺ.' ) ), 'cua_hang' => 'Quán B' ) ) );
+phep( 'REST nhom-ve: lưu riêng quán B và trả bảng của quán B; không gửi nhom_phu thì giữ phụ cũ (chung)', true === $r['da_cau_hinh'] && true === $r['rieng'] && 'Quán B' === $r['cua_hang'] && array( 'VÉ COMBO.', 'VÉ LẺ.' ) === $r['nhom_ve'] && array( 'VÉ LẺ.', 'ĐÓNG SẴN' ) === $r['nhom_phu'] && 3 === count( $r['nhom'] ) );
+$r = khh_dt_rest_nhom_ve_dat( new WP_REST_Request( array( 'nhom_ve' => '[]', 'nhom_phu' => wp_json_encode( array( 'ĐÓNG SẴN' ) ), 'cua_hang' => 'Quán B' ) ) );
+phep( 'REST nhom-ve: gửi cả hai thì lưu cả hai cho quán ấy', array() === $r['nhom_ve'] && array( 'ĐÓNG SẴN' ) === $r['nhom_phu'] );
+$rc = khh_dt_rest_nhom_ve_xem( new WP_REST_Request( array( 'cua_hang' => $CS ) ) );
+phep( 'quán khác chỉ thấy nhóm của mình (Vé, Đồ uống) và vẫn thừa bảng chung', false === $rc['rieng'] && array( 'VÉ COMBO.' ) === $rc['nhom_ve'] && 2 === count( $rc['nhom'] ) );
 $src_bc = preg_replace( '~/\*.*?\*/~s', '', file_get_contents( $goc . '/bao-cao-ngay.php' ) );
 phep( "🔴 route /nhom-ve gác khh_dt_duoc_nap cả GET và POST", 2 <= substr_count( substr( $src_bc, strpos( $src_bc, "'/nhom-ve'" ) ), "'permission_callback' => 'khh_dt_duoc_nap'" ) );
 $wpdb->query( "DELETE FROM " . khh_dt_bang() . " WHERE cua_hang = 'Quán B'" );

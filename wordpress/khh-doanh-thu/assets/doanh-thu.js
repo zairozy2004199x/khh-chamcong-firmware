@@ -1129,13 +1129,13 @@
               o_pos('Số vé bán', p.so_ve ? nguyen(p.so_ve) : '—') +
               /* Khách theo máy = vé × số khách mỗi vé (combo Trẻ em + Người lớn = 2). Anh Thắng
                  23/09/2026. null = cơ sở này chưa bóc tách vé -> bày "—", không bày 0. */
-              o_pos('Khách vào (POS)', p.khach_may != null ? nguyen(p.khach_may) : '—') +
+              o_pos('Khách vào (POS)' + (p.khach_tam ? ' · tạm tính' : ''), p.khach_may != null ? nguyen(p.khach_may) : '—') +
               o_pos('Tiền mặt (POS)', tien(p.tien_mat)) +
               o_pos('Chuyển khoản (POS)', tien(p.ck)) +
             '</div>' +
             ((p.ve_chua_tach || []).length
-              ? '<div class="chu-them" id="bcVeChuaTach">Vé có bán mà <b>chưa bóc tách</b> (chưa tính vào Khách vào POS): ' +
-                p.ve_chua_tach.map(esc).join(', ') + ' — ' +
+              ? '<div class="chu-them" id="bcVeChuaTach">Vé <b>chưa bóc tách</b>, đang <b>tạm tính 1 khách mỗi vé</b> (' + nguyen(p.khach_tam || 0) + ' khách): ' +
+                p.ve_chua_tach.map(esc).join(', ') + ' — combo 2 người thì phải khai 2, ' +
                 (S.cf && S.cf.duoc_nap ? 'khai ở <b>Quản trị → Bóc tách vé → khách</b>.' : 'nhờ văn phòng khai ở tab Quản trị.') + '</div>'
               : '')
           : '<div class="trong">Ngày này chưa có số liệu máy POS trong kho. Nạp file FABi cho ngày đó rồi quay lại.</div>';
@@ -2742,8 +2742,8 @@
       api('hop-thu').then(function (r) { veHopThu(o, r); }).catch(function () {});
       /* Bóc tách vé → khách: cũng xin riêng, chỉ người được nạp file (văn phòng) mới đọc được. */
       taiVeKhach(o);
-      /* Nhóm món nào là sale vé, nhóm nào bán lẻ — cũng xin riêng, cùng cửa quyền. */
-      api('nhom-ve').then(function (r) { veNhomVe(o, r); }).catch(function () {});
+      /* Nhóm món nào là sale vé, nhóm nào bán lẻ — cũng xin riêng, cùng cửa quyền, cùng cửa hàng đang chọn. */
+      taiNhomVe(o);
     }).catch(function (e) {
       o.innerHTML = '<div class="khung"><div class="trong">' + esc(e.message || e) + '</div></div>';
     });
@@ -3692,52 +3692,82 @@
     });
   }
 
-  /* ---- BÓC TÁCH VÉ → KHÁCH VÀO ----
-     Anh Thắng 23/09/2026: *"mình sẽ bóc tách sẵn cho nhân viên, giờ áp dụng cho gian Tàu trước"* —
-     *"nếu vé là combo VÉ TRẺ EM + NGƯỜI LỚN tính là 2 người, còn nếu nó là trẻ hoặc người lớn riêng
-     thì là 1 người"*. Khai theo TÊN MÓN, dùng chung mọi cơ sở bán món ấy. */
-  function taiVeKhach(o) {
+  /* ---- CẤU HÌNH THEO TỪNG CỬA HÀNG: bóc tách vé → khách, và nhóm Sale vé / Sale phụ ----
+     Anh Thắng 23/09/2026: *"Mỗi cửa hàng 1 cấu hình đi. Để cho dễ"* — *"trong tài khoản admin… cứ
+     chọn cửa hàng để cấu hình tránh lẫn lộn"*. MỘT ô chọn cửa hàng (S.cauHinhCS) dùng chung cho cả
+     hai khối; đổi quán là cả hai tải lại. Bảng chung cũ (bản 1.59.0) chỉ còn là mặc định cho quán
+     chưa khai riêng. */
+  function cauHinhCS() {
     var ds = (S.cf && S.cf.cua_hang) || [];
-    if (!S.veKhachCS) {
+    if (!S.cauHinhCS || ds.indexOf(S.cauHinhCS) < 0) {
       /* Mặc định gian Tàu đầu tiên — "áp dụng cho gian Tàu trước". */
       var tau = ds.filter(function (t) { return /t[àa]u|train/i.test(t); });
-      S.veKhachCS = tau.length ? tau[0] : (ds[0] || '');
+      S.cauHinhCS = tau.length ? tau[0] : (ds[0] || '');
     }
-    api('ve-khach?cua_hang=' + encodeURIComponent(S.veKhachCS)).then(function (r) {
+    return S.cauHinhCS;
+  }
+  function oChonCS(id, r) {
+    var ds = (S.cf && S.cf.cua_hang) || [];
+    return '<div class="loc" style="margin:12px 0 4px"><label class="o">Cửa hàng<select id="' + id + '" data-chon-cs>' +
+      ds.map(function (t) { return '<option value="' + esc(t) + '"' + (t === r.cua_hang ? ' selected' : '') + '>' + esc(t) + '</option>'; }).join('') +
+      '</select></label><span class="chu-them" style="margin:0">Cấu hình khai <b>riêng cho cửa hàng này</b>. Đổi ô chọn là đổi cả hai khối bên dưới.</span></div>';
+  }
+  function noiChonCS(o) {
+    Array.prototype.forEach.call(o.querySelectorAll('select[data-chon-cs]'), function (sel) {
+      if (sel.dataset.noi) return;
+      sel.dataset.noi = '1';
+      sel.addEventListener('change', function () { S.cauHinhCS = sel.value; taiVeKhach(o); taiNhomVe(o); });
+    });
+  }
+
+  function taiVeKhach(o) {
+    var cs = cauHinhCS();
+    api('ve-khach?cua_hang=' + encodeURIComponent(cs)).then(function (r) {
       var cu = o.querySelector('#dtVeKhach');
       if (cu) cu.remove();
       veVeKhach(o, r);
     }).catch(function () {});
   }
+  function taiNhomVe(o) {
+    var cs = cauHinhCS();
+    api('nhom-ve?cua_hang=' + encodeURIComponent(cs)).then(function (r) { veNhomVe(o, r); }).catch(function () {});
+  }
 
   function veVeKhach(o, r) {
-    var ds = (S.cf && S.cf.cua_hang) || [];
-    var mon = r.mon || [], bang = r.bang || {};
+    var mon = r.mon || [], bang = r.bang || {}, rieng = r.bang_rieng || {}, conThieu = r.con_thieu || {};
     var ve = mon.filter(function (x) { return x.la_ve || x.khach != null; });
     var khac = mon.filter(function (x) { return !x.la_ve && x.khach == null; });
     var chua = ve.filter(function (x) { return x.khach == null; }).length;
+    var quanThieu = Object.keys(conThieu).filter(function (c) { return c !== r.cua_hang; });
     var h = '<div class="khung" id="dtVeKhach"><header><h2>Bóc tách vé → khách vào</h2>' +
-      '<span class="goi">' + Object.keys(bang).length + ' vé đã khai' + (chua ? ' · ' + chua + ' chưa khai ở cơ sở này' : '') + '</span></header>' +
+      '<span class="goi">' + esc(String(r.cua_hang || '').slice(0, 34)) + ' · ' + Object.keys(rieng).length + ' vé khai riêng' +
+      (chua ? ' · <b style="color:var(--xau)">' + chua + ' chưa khai</b>' : '') + '</span></header>' +
       '<div class="chu-them" style="margin-top:6px">Mỗi loại vé trên máy POS tính <b>bao nhiêu khách</b>: vé ghép ' +
       '<i>Trẻ em + Người lớn</i> là <b>2</b>, vé lẻ là <b>1</b>. Máy tự ra <b>Khách vào (POS)</b> ở tab Nhập báo cáo ' +
-      'để so với số nhân viên đếm ở cửa. Khai theo <b>tên món</b>, dùng chung cho mọi cơ sở bán món ấy — gian Tàu ' +
-      'nào cũng bán "VÉ TRẺ EM + NGƯỜI LỚN" thì khai một lần là đủ. Ô để trống = không tính; <b>0</b> = vé không ' +
-      'ứng với người (vé online đã gộp, vé bù…).</div>' +
-      '<div class="loc" style="margin:12px 0 4px"><label class="o">Cơ sở<select id="vkCS">' +
-        ds.map(function (t) { return '<option value="' + esc(t) + '"' + (t === r.cua_hang ? ' selected' : '') + '>' + esc(t) + '</option>'; }).join('') +
-      '</select></label><span class="chu-them" style="margin:0">Món đã bán 90 ngày gần nhất ở cơ sở này.</span></div>';
+      'để so với số nhân viên đếm ở cửa. Vé <b>chưa khai</b> đang tạm tính 1 khách/vé và đã được <b>điền sẵn gợi ý</b> ' +
+      'ở bảng dưới — sửa nếu cần rồi bấm Lưu. Ô để trống = không tính; <b>0</b> = vé không ứng với người (vé online đã gộp, vé bù…).</div>' +
+      oChonCS('vkCS', r);
+    if (quanThieu.length) {
+      h += '<div class="canh-ghep">Còn vé chưa khai ở ' + quanThieu.length + ' cửa hàng khác: ' +
+        quanThieu.map(function (c) {
+          return '<button class="vien" type="button" data-sang-cs="' + esc(c) + '" style="margin:2px">' + esc(String(c).slice(0, 30)) + ' (' + conThieu[c] + ')</button>';
+        }).join(' ') + '</div>';
+    }
     if (!mon.length) {
-      h += '<div class="trong">Cơ sở này chưa có món nào trong kho số FABi 90 ngày gần đây.</div>';
+      h += '<div class="trong">Cửa hàng này chưa có món nào trong kho số FABi 90 ngày gần đây.</div>';
     } else {
       var hang = function (x) {
-        return '<tr data-ten="' + esc(x.ten) + '">' +
-          '<td style="text-align:left">' + esc(x.ten) + (x.nhom ? '<span style="display:block;color:var(--ink-3);font-size:12px">' + esc(x.nhom) + '</span>' : '') + '</td>' +
+        var thieu = x.la_ve && x.khach == null;
+        return '<tr data-ten="' + esc(x.ten) + '"' + (thieu ? ' style="background:var(--app-mem)"' : '') + '>' +
+          '<td style="text-align:left">' + esc(x.ten) + '<span style="display:block;color:var(--ink-3);font-size:12px">' + esc(x.nhom || '') +
+            (x.khach != null && !x.rieng ? ' · <i>thừa bảng chung</i>' : '') + (thieu ? ' · <b style="color:var(--xau)">chưa khai — điền sẵn gợi ý</b>' : '') + '</span></td>' +
           '<td class="s">' + nguyen(x.so_luong) + '</td>' +
+          /* Chưa khai thì ĐIỀN SẴN gợi ý (không chỉ placeholder) để một lần Lưu là xong quán này. */
           '<td><input type="number" min="0" step="1" inputmode="numeric" data-vk="' + esc(x.ten) + '" style="width:84px" value="' +
-            (x.khach != null ? x.khach : '') + '" placeholder="' + (x.goi_y != null ? 'gợi ý ' + x.goi_y : '—') + '"></td>' +
+            (x.khach != null ? x.khach : (thieu && x.goi_y != null ? x.goi_y : '')) + '" placeholder="' + (x.goi_y != null ? 'gợi ý ' + x.goi_y : '—') + '"></td>' +
           '</tr>';
       };
-      h += '<div class="bang-cuon"><table><thead><tr><th>Món / vé</th><th>Đã bán</th><th>Khách mỗi vé</th></tr></thead><tbody>' +
+      h += '<div class="bang-cuon"><table><thead><tr><th>Món / vé</th><th>Đã bán 90 ngày</th><th>Khách mỗi vé</th></tr></thead><tbody>' +
         ve.map(hang).join('') +
         (khac.length
           ? '<tr><td colspan="3" style="text-align:left;color:var(--ink-3)"><details><summary style="cursor:pointer">' +
@@ -3745,58 +3775,54 @@
             '<table><tbody>' + khac.map(hang).join('') + '</tbody></table></details></td></tr>'
           : '') +
         '</tbody></table></div>' +
-        '<div style="margin-top:12px"><button class="nut chinh" type="button" id="vkLuu">Lưu bóc tách</button> ' +
-        '<button class="vien" type="button" id="vkGoiY" title="Điền gợi ý vào những ô còn trống">Điền gợi ý vào ô trống</button> ' +
+        '<div style="margin-top:12px"><button class="nut chinh" type="button" id="vkLuu">Lưu bóc tách cho cửa hàng này</button> ' +
         '<span id="vkBao" class="chu-them" style="margin:0"></span></div>';
     }
     h += '</div>';
     var moc = o.querySelector('#dtGhep');
     if (moc) moc.insertAdjacentHTML('beforebegin', h);
     else o.insertAdjacentHTML('beforeend', h);
-
-    var sel = o.querySelector('#vkCS');
-    if (sel) sel.addEventListener('change', function () { S.veKhachCS = sel.value; taiVeKhach(o); });
-    var gy = o.querySelector('#vkGoiY');
-    if (gy) gy.addEventListener('click', function () {
-      Array.prototype.forEach.call(o.querySelectorAll('input[data-vk]'), function (i) {
-        if (i.value !== '') return;
-        var m = /gợi ý (\d+)/.exec(i.placeholder || '');
-        if (m) i.value = m[1];
-      });
+    noiChonCS(o);
+    Array.prototype.forEach.call(o.querySelectorAll('[data-sang-cs]'), function (b) {
+      b.addEventListener('click', function () { S.cauHinhCS = b.dataset.sangCs; taiVeKhach(o); taiNhomVe(o); });
     });
     var nut = o.querySelector('#vkLuu');
     if (nut) nut.addEventListener('click', function () {
       var b = {};
-      Array.prototype.forEach.call(o.querySelectorAll('input[data-vk]'), function (i) { b[i.dataset.vk] = i.value.trim(); });
+      Array.prototype.forEach.call(o.querySelectorAll('#dtVeKhach input[data-vk]'), function (i) { b[i.dataset.vk] = i.value.trim(); });
       nut.disabled = true; nut.textContent = 'Đang lưu…';
-      var fd = new FormData(); fd.append('bang', JSON.stringify(b)); fd.append('cua_hang', S.veKhachCS);
-      api('ve-khach', { method: 'POST', body: fd }).then(function (r) {
-        nut.disabled = false; nut.textContent = 'Lưu bóc tách';
+      var fd = new FormData(); fd.append('bang', JSON.stringify(b)); fd.append('cua_hang', r.cua_hang || cauHinhCS());
+      api('ve-khach', { method: 'POST', body: fd }).then(function (r2) {
         var cu = o.querySelector('#dtVeKhach'); if (cu) cu.remove();
-        veVeKhach(o, r);
-        var bao = o.querySelector('#vkBao'); if (bao) bao.textContent = 'Đã lưu — tab Nhập báo cáo và Đối soát dùng ngay.';
+        veVeKhach(o, r2);
+        var bao = o.querySelector('#vkBao'); if (bao) bao.textContent = 'Đã lưu cho ' + String(r2.cua_hang || '').slice(0, 30) + ' — tab Nhập báo cáo và Đối soát dùng ngay.';
       }).catch(function (e) {
-        nut.disabled = false; nut.textContent = 'Lưu bóc tách';
+        nut.disabled = false; nut.textContent = 'Lưu bóc tách cho cửa hàng này';
         var bao = o.querySelector('#vkBao'); if (bao) bao.textContent = e.message || e;
       });
     });
   }
 
-  /* ---- SALE VÉ / BÁN LẺ: TÍCH NHÓM MÓN ----
-     Anh Thắng 23/09/2026: *"tách giúp anh 2 ô là tiền sale vé và tiền sale bán lẻ"* rồi *"thêm cấu
-     hình tích trong cấu hình để tính loại nào sale vé, loại nào sale bán lẻ"*. Nhóm đã tích = sale vé,
-     còn lại = bán lẻ. Chưa tích gì thì máy tạm theo cột Loại món của FABi. */
+  /* ---- SALE VÉ / BÁN LẺ / SALE PHỤ: TÍCH NHÓM MÓN, THEO TỪNG CỬA HÀNG ----
+     Anh Thắng 23/09/2026: *"tách giúp anh 2 ô là tiền sale vé và tiền sale bán lẻ"*, *"Tiền Sale
+     Phụ"*, *"thêm cấu hình tích trong cấu hình để tính loại nào sale vé, loại nào sale bán lẻ"*.
+     Nhóm đã tích = sale vé, còn lại = bán lẻ; cột phụ riêng. Chưa tích gì thì máy tạm theo cột Loại
+     món của FABi. */
   function veNhomVe(o, r) {
     var nhom = r.nhom || [], chon = r.nhom_ve || [], chonPhu = r.nhom_phu || [];
     var cu = o.querySelector('#dtNhomVe'); if (cu) cu.remove();
     var h = '<div class="khung" id="dtNhomVe"><header><h2>Sale vé / Bán lẻ / Sale phụ — tích theo nhóm món</h2>' +
-      '<span class="goi">' + (r.da_cau_hinh ? chon.length + ' nhóm là sale vé · ' + chonPhu.length + ' nhóm vào sale phụ' : 'chưa cấu hình — đang tạm theo cột Loại món') + '</span></header>' +
+      '<span class="goi">' + esc(String(r.cua_hang || '').slice(0, 34)) + ' · ' +
+      (r.da_cau_hinh
+        ? (r.rieng ? 'khai riêng' : '<b style="color:var(--xau)">đang thừa bảng chung</b>') + ' · ' + chon.length + ' nhóm sale vé · ' + chonPhu.length + ' nhóm sale phụ'
+        : 'chưa cấu hình — đang tạm theo cột Loại món') + '</span></header>' +
       '<div class="chu-them" style="margin-top:6px">Ba ô ở tab Nhập báo cáo (và ba cột ở Đối soát) cộng theo <b>nhóm món</b> của FABi. ' +
       '<b>Sale vé</b> = các nhóm tích cột "Sale vé" (ví dụ <i>VÉ COMBO.</i> và <i>VÉ LẺ.</i>); <b>Bán lẻ</b> = phần còn lại ' +
       '(<i>ĐÓNG SẴN</i>: đồ ăn, đồ uống); <b>Sale phụ</b> = các nhóm tích cột "Sale phụ" (ví dụ <i>VÉ LẺ.</i> + <i>ĐÓNG SẴN</i>, ' +
-      'tức mọi thứ trừ vé combo chính). Nhóm liệt kê từ số liệu 90 ngày gần nhất, mọi cơ sở.</div>';
+      'tức mọi thứ trừ vé combo chính). Nhóm liệt kê từ số liệu 90 ngày gần nhất của cửa hàng đang chọn.</div>' +
+      oChonCS('nvCS', r);
     if (!nhom.length) {
-      h += '<div class="trong">Chưa có nhóm món nào trong kho số FABi 90 ngày gần đây.</div>';
+      h += '<div class="trong">Cửa hàng này chưa có nhóm món nào trong kho số FABi 90 ngày gần đây.</div>';
     } else {
       h += '<div class="bang-cuon" style="margin-top:8px"><table><thead><tr><th>Sale vé?</th><th>Sale phụ?</th><th>Nhóm món</th><th>Loại món (FABi)</th><th>Đã bán</th><th>Tiền 90 ngày</th></tr></thead><tbody>' +
         nhom.map(function (x) {
@@ -3806,24 +3832,25 @@
             '<td style="text-align:left;color:var(--ink-3)">' + esc((x.loai || []).join(', ')) + '</td>' +
             '<td class="s">' + nguyen(x.so_luong) + '</td><td class="s">' + tien(x.tien) + '</td></tr>';
         }).join('') + '</tbody></table></div>' +
-        '<div style="margin-top:12px"><button class="nut chinh" type="button" id="nvLuu">Lưu cách tách</button> ' +
+        '<div style="margin-top:12px"><button class="nut chinh" type="button" id="nvLuu">Lưu cách tách cho cửa hàng này</button> ' +
         '<span id="nvBao" class="chu-them" style="margin:0"></span></div>';
     }
     h += '</div>';
     var moc = o.querySelector('#dtVeKhach') || o.querySelector('#dtGhep');
     if (moc) moc.insertAdjacentHTML('beforebegin', h); else o.insertAdjacentHTML('beforeend', h);
+    noiChonCS(o);
     var nut = o.querySelector('#nvLuu');
     if (nut) nut.addEventListener('click', function () {
       var ds = [], dsPhu = [];
       Array.prototype.forEach.call(o.querySelectorAll('input[data-nhom-ve]'), function (c) { if (c.checked) ds.push(c.dataset.nhomVe); });
       Array.prototype.forEach.call(o.querySelectorAll('input[data-nhom-phu]'), function (c) { if (c.checked) dsPhu.push(c.dataset.nhomPhu); });
       nut.disabled = true; nut.textContent = 'Đang lưu…';
-      var fd = new FormData(); fd.append('nhom_ve', JSON.stringify(ds)); fd.append('nhom_phu', JSON.stringify(dsPhu));
+      var fd = new FormData(); fd.append('nhom_ve', JSON.stringify(ds)); fd.append('nhom_phu', JSON.stringify(dsPhu)); fd.append('cua_hang', r.cua_hang || cauHinhCS());
       api('nhom-ve', { method: 'POST', body: fd }).then(function (r2) {
         veNhomVe(o, r2);
-        var b = o.querySelector('#nvBao'); if (b) b.textContent = 'Đã lưu — tab Nhập báo cáo và Đối soát tách theo cách mới.';
+        var b = o.querySelector('#nvBao'); if (b) b.textContent = 'Đã lưu cho ' + String(r2.cua_hang || '').slice(0, 30) + ' — tab Nhập báo cáo và Đối soát tách theo cách mới.';
       }).catch(function (e) {
-        nut.disabled = false; nut.textContent = 'Lưu cách tách';
+        nut.disabled = false; nut.textContent = 'Lưu cách tách cho cửa hàng này';
         var b = o.querySelector('#nvBao'); if (b) b.textContent = e.message || e;
       });
     });

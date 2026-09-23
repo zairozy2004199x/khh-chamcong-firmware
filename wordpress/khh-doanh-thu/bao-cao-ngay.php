@@ -205,7 +205,7 @@ function khh_dt_so_pos( $ngay, $cua_hang ) {
 	/* Khách vào theo máy = Σ số vé × số khách mỗi vé (bảng bóc tách ở `ve-khach.php`). null khi cơ
 	   sở này chưa có vé nào được khai — màn bày "—", không bày 0. */
 	$kh = function_exists( 'khh_dt_khach_may_tu_mon' )
-		? khh_dt_khach_may_tu_mon( khh_dt_json( isset( $r['mon'] ) ? $r['mon'] : '', array() ) )
+		? khh_dt_khach_may_tu_mon( khh_dt_json( isset( $r['mon'] ) ? $r['mon'] : '', array() ), khh_dt_ve_khach_bang( $cua_hang ) )
 		: array( 'khach' => null, 'da_tach' => 0, 'chua_tach' => array() );
 	return array(
 		'doanh_thu'  => (float) $r['doanh_thu'],
@@ -217,15 +217,17 @@ function khh_dt_so_pos( $ngay, $cua_hang ) {
 		'tien_mat'   => $tien_mat,
 		'ck'         => $ck,
 		'khach_may'  => $kh['khach'],
+		/* Phần tạm tính 1 khách/vé từ vé chưa khai — 0 là số đã chắc. */
+		'khach_tam'  => isset( $kh['tam'] ) ? (int) $kh['tam'] : 0,
 		've_da_tach' => (int) $kh['da_tach'],
 		've_chua_tach' => array_keys( (array) $kh['chua_tach'] ),
 		/* Hàng bán theo máy, từng món: để nhân viên soát "bán được đúng máy không". Anh Thắng
 		   23/09/2026: *"hiện số lượng hàng bán và thành tiền để nhân viên kiểm kho bán được và chốt
 		   bán thực tế đúng máy POS không, nếu lệch nhân viên mới nhập, đúng rồi thì để nguyên"*. */
 		'mon'        => khh_dt_bc_mon_may( isset( $r['mon'] ) ? $r['mon'] : '' ),
-		'tien_ve'    => khh_dt_bc_tach_tien( isset( $r['mon'] ) ? $r['mon'] : '', $r['doanh_thu'] )['ve'],
-		'tien_le'    => khh_dt_bc_tach_tien( isset( $r['mon'] ) ? $r['mon'] : '', $r['doanh_thu'] )['le'],
-		'tien_phu'   => khh_dt_bc_tach_tien( isset( $r['mon'] ) ? $r['mon'] : '', $r['doanh_thu'] )['phu'],
+		'tien_ve'    => khh_dt_bc_tach_tien( isset( $r['mon'] ) ? $r['mon'] : '', $r['doanh_thu'], $cua_hang )['ve'],
+		'tien_le'    => khh_dt_bc_tach_tien( isset( $r['mon'] ) ? $r['mon'] : '', $r['doanh_thu'], $cua_hang )['le'],
+		'tien_phu'   => khh_dt_bc_tach_tien( isset( $r['mon'] ) ? $r['mon'] : '', $r['doanh_thu'], $cua_hang )['phu'],
 	);
 }
 
@@ -237,18 +239,70 @@ function khh_dt_so_pos( $ngay, $cua_hang ) {
  * (VÉ LẺ., ĐÓNG SẴN…), rồi *"thêm cấu hình tích trong cấu hình để tính loại nào sale vé, loại nào sale
  * bán lẻ"*. Máy đoán "vé là vé" đã đoán sai một lần — nên để người tích, máy chỉ cộng.
  */
-function khh_dt_nhom_ve_ds() {
-	$ds = get_option( 'khh_dt_nhom_ve', false );
-	if ( ! is_array( $ds ) ) {
+/**
+ * Đọc một cấu hình nhóm theo cửa hàng. Lưu dạng [ cửa hàng ('*' = chung) => [ tên nhóm ] ]; bản
+ * 1.59.0 lưu phẳng [ tên nhóm ] -> coi là '*'. Anh Thắng 23/09/2026: *"Mỗi cửa hàng 1 cấu hình đi"*.
+ * Trả về: mảng của quán nếu quán đã khai riêng; không thì mảng chung; không có gì thì false.
+ */
+function khh_dt_nhom_doc( $khoa, $cua_hang = '' ) {
+	$so = get_option( $khoa, false );
+	if ( ! is_array( $so ) ) {
 		return false;
 	}
-	return array_values( array_unique( array_filter( array_map( 'trim', array_map( 'strval', $ds ) ), 'strlen' ) ) );
+	$phang = false;
+	foreach ( $so as $v ) {
+		if ( ! is_array( $v ) ) {
+			$phang = true;
+			break;
+		}
+	}
+	if ( $phang ) {
+		$so = array( '*' => $so );
+	}
+	$cs = trim( (string) $cua_hang );
+	if ( '' !== $cs && '*' !== $cs && isset( $so[ $cs ] ) && is_array( $so[ $cs ] ) ) {
+		return khh_dt_nhom_sach( $so[ $cs ] );
+	}
+	if ( isset( $so['*'] ) && is_array( $so['*'] ) ) {
+		return khh_dt_nhom_sach( $so['*'] );
+	}
+	return false;
 }
 
-function khh_dt_nhom_ve_dat( $ds ) {
-	$sach = khh_dt_nhom_sach( $ds );
-	update_option( 'khh_dt_nhom_ve', $sach, false );
+function khh_dt_nhom_ghi( $khoa, $ds, $cua_hang = '' ) {
+	$so = get_option( $khoa, false );
+	$so = is_array( $so ) ? $so : array();
+	$phang = false;
+	foreach ( $so as $v ) {
+		if ( ! is_array( $v ) ) {
+			$phang = true;
+			break;
+		}
+	}
+	if ( $phang ) {
+		$so = array( '*' => $so );
+	}
+	$cs        = trim( (string) $cua_hang );
+	$cs        = '' === $cs ? '*' : $cs;
+	$sach      = khh_dt_nhom_sach( $ds );
+	$so[ $cs ] = $sach;
+	update_option( $khoa, $so, false );
 	return $sach;
+}
+
+/** Quán này đã khai RIÊNG cấu hình nhóm chưa (khác với thừa từ bảng chung). */
+function khh_dt_nhom_co_rieng( $khoa, $cua_hang ) {
+	$so = get_option( $khoa, false );
+	$cs = trim( (string) $cua_hang );
+	return is_array( $so ) && '' !== $cs && isset( $so[ $cs ] ) && is_array( $so[ $cs ] );
+}
+
+function khh_dt_nhom_ve_ds( $cua_hang = '' ) {
+	return khh_dt_nhom_doc( 'khh_dt_nhom_ve', $cua_hang );
+}
+
+function khh_dt_nhom_ve_dat( $ds, $cua_hang = '' ) {
+	return khh_dt_nhom_ghi( 'khh_dt_nhom_ve', $ds, $cua_hang );
 }
 
 function khh_dt_nhom_sach( $ds ) {
@@ -267,18 +321,12 @@ function khh_dt_nhom_sach( $ds ) {
  * + đồ đóng sẵn, tức mọi thứ TRỪ vé combo chính. `false` = chưa cấu hình -> tạm coi sale phụ = phần
  * không phải vé (bằng bán lẻ) cho tới khi anh tích VÉ LẺ. vào.
  */
-function khh_dt_nhom_phu_ds() {
-	$ds = get_option( 'khh_dt_nhom_phu', false );
-	if ( ! is_array( $ds ) ) {
-		return false;
-	}
-	return array_values( array_unique( array_filter( array_map( 'trim', array_map( 'strval', $ds ) ), 'strlen' ) ) );
+function khh_dt_nhom_phu_ds( $cua_hang = '' ) {
+	return khh_dt_nhom_doc( 'khh_dt_nhom_phu', $cua_hang );
 }
 
-function khh_dt_nhom_phu_dat( $ds ) {
-	$sach = khh_dt_nhom_sach( $ds );
-	update_option( 'khh_dt_nhom_phu', $sach, false );
-	return $sach;
+function khh_dt_nhom_phu_dat( $ds, $cua_hang = '' ) {
+	return khh_dt_nhom_ghi( 'khh_dt_nhom_phu', $ds, $cua_hang );
 }
 
 /** Món này có tính vào SALE PHỤ không. Chưa cấu hình -> không phải vé thì là phụ. */
@@ -313,13 +361,17 @@ function khh_dt_bc_la_ve( $m, $nhom_ve = null ) {
  * Các nhóm món từng xuất hiện trong kho số FABi (N ngày gần nhất, mọi cơ sở) — để màn Quản trị bày ra
  * cho tích. Mỗi nhóm: tên, những loại món trong nhóm, số lượng, tiền, và đang tính là vé hay không.
  */
-function khh_dt_nhom_mon_thay( $lui = 90 ) {
+function khh_dt_nhom_mon_thay( $lui = 90, $cua_hang = '' ) {
 	global $wpdb;
 	$bang = khh_dt_bang();
 	$den  = current_time( 'Y-m-d' );
 	$tu   = gmdate( 'Y-m-d', strtotime( $den . ' -' . max( 1, (int) $lui ) . ' days' ) );
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
-	$ds = (array) $wpdb->get_results( $wpdb->prepare( "SELECT mon FROM $bang WHERE ngay >= %s AND ngay <= %s", $tu, $den ), ARRAY_A );
+	$cs   = trim( (string) $cua_hang );
+	// phpcs:disable WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$ds = '' !== $cs
+		? (array) $wpdb->get_results( $wpdb->prepare( "SELECT mon FROM $bang WHERE ngay >= %s AND ngay <= %s AND cua_hang = %s", $tu, $den, $cs ), ARRAY_A )
+		: (array) $wpdb->get_results( $wpdb->prepare( "SELECT mon FROM $bang WHERE ngay >= %s AND ngay <= %s", $tu, $den ), ARRAY_A );
+	// phpcs:enable
 	$gom = array();
 	foreach ( $ds as $r ) {
 		foreach ( khh_dt_json( $r['mon'], array() ) as $m ) {
@@ -336,8 +388,8 @@ function khh_dt_nhom_mon_thay( $lui = 90 ) {
 			$gom[ $k ]['tien']     += isset( $m['r'] ) ? (float) $m['r'] : 0;
 		}
 	}
-	$nhom_ve  = khh_dt_nhom_ve_ds();
-	$nhom_phu = khh_dt_nhom_phu_ds();
+	$nhom_ve  = khh_dt_nhom_ve_ds( $cs );
+	$nhom_phu = khh_dt_nhom_phu_ds( $cs );
 	$ra       = array();
 	foreach ( $gom as $x ) {
 		$m_gia    = array( 'g' => $x['nhom'], 'l' => $x['loai'] ? $x['loai'][0] : '', 'n' => '' );
@@ -374,30 +426,38 @@ function khh_dt_nhom_ve_route() {
 		)
 	);
 }
-function khh_dt_rest_nhom_ve_xem() {
+function khh_dt_rest_nhom_ve_xem( $req = null ) {
+	$ch = $req ? sanitize_text_field( (string) $req->get_param( 'cua_hang' ) ) : '';
 	return array(
-		'da_cau_hinh' => false !== khh_dt_nhom_ve_ds(),
-		'nhom_ve'     => (array) khh_dt_nhom_ve_ds(),
-		'nhom_phu'    => (array) khh_dt_nhom_phu_ds(),
-		'nhom'        => khh_dt_nhom_mon_thay(),
+		'cua_hang'    => $ch,
+		'da_cau_hinh' => false !== khh_dt_nhom_ve_ds( $ch ),
+		/* Quán này tự khai, hay đang thừa bảng chung. */
+		'rieng'       => '' !== $ch && khh_dt_nhom_co_rieng( 'khh_dt_nhom_ve', $ch ),
+		'nhom_ve'     => (array) khh_dt_nhom_ve_ds( $ch ),
+		'nhom_phu'    => (array) khh_dt_nhom_phu_ds( $ch ),
+		'nhom'        => khh_dt_nhom_mon_thay( 90, $ch ),
 	);
 }
 function khh_dt_rest_nhom_ve_dat( $req ) {
+	$ch  = sanitize_text_field( (string) $req->get_param( 'cua_hang' ) );
 	$tho = $req->get_param( 'nhom_ve' );
 	$ds  = is_array( $tho ) ? $tho : json_decode( (string) $tho, true );
 	if ( ! is_array( $ds ) ) {
 		return new WP_Error( 'khh_dt_nhom_ve', 'Không đọc được danh sách nhóm gửi lên.', array( 'status' => 400 ) );
 	}
-	khh_dt_nhom_ve_dat( $ds );
+	if ( '' === $ch ) {
+		return new WP_Error( 'khh_dt_nhom_ve', 'Chưa chọn cửa hàng — cấu hình khai riêng từng cửa hàng.', array( 'status' => 400 ) );
+	}
+	khh_dt_nhom_ve_dat( $ds, $ch );
 	/* Sale phụ gửi cùng lượt; không gửi thì giữ nguyên cấu hình cũ. */
 	$tho_p = $req->get_param( 'nhom_phu' );
 	if ( null !== $tho_p ) {
 		$ds_p = is_array( $tho_p ) ? $tho_p : json_decode( (string) $tho_p, true );
 		if ( is_array( $ds_p ) ) {
-			khh_dt_nhom_phu_dat( $ds_p );
+			khh_dt_nhom_phu_dat( $ds_p, $ch );
 		}
 	}
-	return khh_dt_rest_nhom_ve_xem();
+	return khh_dt_rest_nhom_ve_xem( $req );
 }
 
 /**
@@ -407,11 +467,11 @@ function khh_dt_rest_nhom_ve_dat( $req ) {
  * Bán lẻ = doanh thu máy − vé, không cộng từng món: danh sách món có trần (KHH_DT_MON_MOI_NGAY), cộng
  * từng món có thể hụt vài dòng lẻ tẻ, mà hai cột phải cộng lại đúng bằng doanh thu máy.
  */
-function khh_dt_bc_tach_tien( $mon_json, $doanh_thu ) {
+function khh_dt_bc_tach_tien( $mon_json, $doanh_thu, $cua_hang = '' ) {
 	$ve       = 0.0;
 	$phu      = 0.0;
-	$nhom_ve  = khh_dt_nhom_ve_ds();
-	$nhom_phu = khh_dt_nhom_phu_ds();
+	$nhom_ve  = khh_dt_nhom_ve_ds( $cua_hang );
+	$nhom_phu = khh_dt_nhom_phu_ds( $cua_hang );
 	foreach ( khh_dt_json( $mon_json, array() ) as $m ) {
 		$r = isset( $m['r'] ) ? (float) $m['r'] : 0;
 		if ( khh_dt_bc_la_ve( $m, $nhom_ve ) ) {
@@ -785,9 +845,9 @@ function khh_dt_rest_doi_soat( $req ) {
 			'cua_hang'   => $r['cua_hang'],
 			'doanh_thu'  => (float) $r['doanh_thu'],
 			/* Hai cột sổ kế toán: sale vé / bán lẻ (anh Thắng 23/09/2026). */
-			'tien_ve'    => khh_dt_bc_tach_tien( isset( $r['mon'] ) ? $r['mon'] : '', $r['doanh_thu'] )['ve'],
-			'tien_le'    => khh_dt_bc_tach_tien( isset( $r['mon'] ) ? $r['mon'] : '', $r['doanh_thu'] )['le'],
-			'tien_phu'   => khh_dt_bc_tach_tien( isset( $r['mon'] ) ? $r['mon'] : '', $r['doanh_thu'] )['phu'],
+			'tien_ve'    => khh_dt_bc_tach_tien( isset( $r['mon'] ) ? $r['mon'] : '', $r['doanh_thu'], (string) $r['cua_hang'] )['ve'],
+			'tien_le'    => khh_dt_bc_tach_tien( isset( $r['mon'] ) ? $r['mon'] : '', $r['doanh_thu'], (string) $r['cua_hang'] )['le'],
+			'tien_phu'   => khh_dt_bc_tach_tien( isset( $r['mon'] ) ? $r['mon'] : '', $r['doanh_thu'], (string) $r['cua_hang'] )['phu'],
 			'so_hd'      => (int) $r['so_hd'],
 			'so_ve'      => (float) $r['so_ve'],
 			'pos_tm'     => $tm,
@@ -818,7 +878,7 @@ function khh_dt_rest_doi_soat( $req ) {
 			'khach'      => (int) $r['tong_khach'],
 			/* Khách theo máy (đã bóc tách vé) — null khi chưa khai vé cho cơ sở này. */
 			'khach_may'  => function_exists( 'khh_dt_khach_may_tu_mon' )
-				? khh_dt_khach_may_tu_mon( khh_dt_json( isset( $r['mon'] ) ? $r['mon'] : '', array() ) )['khach'] : null,
+				? khh_dt_khach_may_tu_mon( khh_dt_json( isset( $r['mon'] ) ? $r['mon'] : '', array() ), khh_dt_ve_khach_bang( (string) $r['cua_hang'] ) )['khach'] : null,
 			'chuyen'     => (int) $r['tong_chuyen'],
 			/* Hàng bán: cơ sở chốt khớp máy hay lệch mấy món — để kế toán xác nhận. */
 			'mon_lech'   => $co ? khh_dt_bc_mon_lech( isset( $r['mon'] ) ? $r['mon'] : '', isset( $r['mon_thuc'] ) ? $r['mon_thuc'] : null ) : null,
