@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-09-23 · Phiên bản hiện tại: **2.131.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-09-23 · Phiên bản hiện tại: **2.132.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,23 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v2.132.0 — Địa điểm: khối riêng "🙈 Cơ sở chỉ còn ghế ẩn" để soi và xoá
+
+Anh Thắng 23/09/2026: *"anh muốn soi lại cơ sở bị ẩn để xoá. Nó đang nằm ở đâu"*.
+
+**Nó không mất — nó trông y như một thứ khác.** Bộ đếm ghế chỉ đếm ghế sống (đúng ý anh 12/09), nên
+cơ sở còn 3 ghế ẩn hiện ra "0 ghế" và rơi vào khối gập **"📭 Cơ sở chưa có ghế"**, lẫn với cơ sở mới
+tạo chưa gán gì. Đã bấm 🚪 thì nằm ở "🚪 Cơ sở đã đóng cửa".
+
+- Đếm riêng `demAn` (ghế ẩn theo cơ sở). Ô Số ghế in `0 (+3 ẩn)` ở mọi khối — nhìn là biết.
+- Chia bốn khối theo thứ tự ưu tiên: 🚪 đóng cửa → có ghế sống (bảng chính) → **🙈 chỉ còn ghế ẩn
+  (mới)** → 📭 trống thật. Khối mới đặt ngay dưới bảng chính, tiêu đề màu cam, nói rõ 🗑 là xoá hẳn
+  cả cơ sở lẫn mã ẩn và sổ tiền giữ nguyên.
+- Không đụng máy chủ: dữ liệu `an` đã có sẵn trong danh sách ghế màn này.
+
+`tools/test/kiem-coso-chi-con-ghe-an.js` (9 phép) — bốc đúng đoạn chia khối ra chạy với dữ liệu giả:
+cơ sở toàn ghế ẩn phải vào `hAn`, không vào `hRong`; đóng cửa vẫn thắng; ô Số ghế có "(+N ẩn)".
 
 ### v2.131.0 — Xoá cơ sở CƯỠNG CHẾ (Quản trị): ghế đang chạy xoá theo, mã trống lại, sổ tiền nguyên
 

@@ -10819,8 +10819,13 @@ function veQuanLy(){
      hoạt động, không đếm ghế đã ẩn/điều chuyển". Ghế an=1 (đã dọn/điều chuyển) nằm ở khối riêng
      "Ghế đã ẩn", KHÔNG tính vào số ghế của cơ sở. */
   var demGhe = {}, chuaGan = 0, soGheHD = 0;   // đếm ghế SỐNG theo cơ sở
+  /* 🔴 ĐẾM RIÊNG GHẾ ẨN — anh Thắng 23/09/2026: *"anh muốn soi lại cơ sở bị ẩn để xoá. Nó đang
+     nằm ở đâu"*. Vì chỉ đếm ghế sống, cơ sở có 3 ghế ẩn hiện ra "0 ghế" và rơi vào khối "chưa có
+     ghế" — trông y hệt một cơ sở mới tạo. Anh tìm không ra không phải vì nó mất, mà vì nó GIỐNG
+     một thứ khác. Đếm riêng để tách ra khối riêng bên dưới. */
+  var demAn = {};
   may.forEach(function(m){
-    if (m.an) return;
+    if (m.an) { if (m.coso) demAn[m.coso] = (demAn[m.coso]||0) + 1; return; }
     soGheHD++;
     if (!m.coso) { chuaGan++; } else { demGhe[m.coso] = (demGhe[m.coso]||0) + 1; }
   });
@@ -10986,7 +10991,7 @@ function veQuanLy(){
     + L('Chưa có địa điểm nào — thêm ở trên.','No sites yet — add one above.') + '</td></tr>';
   /* CƠ SỞ 0 GHẾ gom xuống khối riêng (gập) ở cuối — admin vẫn mở gán ghế/xoá; nhân viên vốn
      không thấy (danh sách theo ghế). Anh Thắng 12/09/2026. */
-  var hRong='', nRong=0, hDong='', nDong=0;
+  var hRong='', nRong=0, hDong='', nDong=0, hAn='', nAn=0;
   coso.forEach(function(c){
     var r = dt[c.ten] || { tong:0, qr:0, tien_mat:0 };
     var _rh = '<tr data-cstim="' + esc(kdJS(c.ten + ' ' + (c.tinh || '') + ' ' + (c.ma_kh || ''))) + '">'
@@ -11009,7 +11014,9 @@ function veQuanLy(){
           + L('Có ghế TRÙNG MÃ: ','Chairs with duplicate codes: ')
           + esc(cosoTrungMa[c.ten].filter(function(v,i,a){ return a.indexOf(v)===i; }).join(', ')) + '</div>' : '')
       + '</td>'
-      + '<td class="r">' + (demGhe[c.ten]||0) + '</td>'
+      + '<td class="r">' + (demGhe[c.ten]||0)
+        + (demAn[c.ten] ? ' <span class="mut" title="' + L('ghế đã ẩn — không tính vào số ghế','hidden chairs, not counted') + '">(+' + demAn[c.ten] + ' ' + L('ẩn','hidden') + ')</span>' : '')
+        + '</td>'
       + misaO_(c.ten)
       + '<td style="line-height:1.9">' + dsMaHtml_(maTheoCoso[c.ten]) + '</td>'
       + '<td class="r" style="white-space:nowrap">'
@@ -11033,7 +11040,10 @@ function veQuanLy(){
        rơi vào khối "chưa có ghế" và anh lại thấy nó y như một cơ sở mới chưa gán — đúng cái đang
        muốn dẹp. Đóng cửa là trạng thái NGƯỜI đặt, nó thắng suy đoán từ số ghế. */
     if(Number(c.dong_cua)){ hDong+=_rh; nDong++; }
-    else if((demGhe[c.ten]||0)>0){ h+=_rh; } else { hRong+=_rh; nRong++; }
+    else if((demGhe[c.ten]||0)>0){ h+=_rh; }
+    /* Không còn ghế sống nhưng CÒN ghế ẩn → khối "chỉ còn ghế ẩn", tách khỏi cơ sở trống thật. */
+    else if((demAn[c.ten]||0)>0){ hAn+=_rh; nAn++; }
+    else { hRong+=_rh; nRong++; }
   });
   if (chuaGan) {
     var rc = dt['(chưa gán)'] || { tong:0, qr:0, tien_mat:0 };
@@ -11060,6 +11070,17 @@ function veQuanLy(){
       + '</td></tr>';
   }
   h += '</table>';
+  if (nAn) {
+    h += '<details style="margin-top:10px"><summary style="cursor:pointer;font-weight:700;color:#b45309">🙈 '
+      + L('Cơ sở chỉ còn ghế ẩn','Sites with only hidden chairs') + ' (' + nAn + ') — ' + L('bấm để soi / xoá hẳn','click to review / delete') + '</summary>'
+      + '<div style="font-size:12px;color:#64748b;margin:6px 0">'
+      + L('Cơ sở không còn ghế nào đang chạy, chỉ còn mã đã ẩn (từ 2.115.0 không ẩn/mở lại được). '
+          + 'Bấm 🗑 là xoá hẳn cả cơ sở lẫn các mã ẩn — sổ tiền cũ giữ nguyên. Còn ghế đang chạy ở nơi khác thì không nằm đây.',
+          'No active chairs left, only hidden codes. 🗑 deletes the site and its hidden codes — old money stays in the books.') + '</div>'
+      + '<table id="cs-bang-an"><tr><th>' + L('Địa điểm','Site') + '</th><th class="r">' + L('Số ghế','Chairs')
+      + '</th><th class="misa-col">Unit ID</th><th class="misa-col misa-ten">' + L('Tên MISA','MISA name') + '</th>'
+      + '<th>' + L('Mã ghế','Chair codes') + '</th><th class="r"></th></tr>' + hAn + '</table></details>';
+  }
   if (nRong) {
     h += '<details style="margin-top:10px"><summary style="cursor:pointer;font-weight:700;color:#64748b">📭 '
       + L('Cơ sở chưa có ghế','Sites with no chairs') + ' (' + nRong + ') — ' + L('bấm để xem / gán ghế / xoá','click to view / assign / delete') + '</summary>'
