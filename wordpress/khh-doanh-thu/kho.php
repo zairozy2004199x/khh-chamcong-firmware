@@ -620,17 +620,41 @@ function khh_dt_kho_ghi_cong_don( $ngay, $co_so, $mat_hang, $o ) {
  *
  * @return array [ mặt hàng => [ 'ton' => số, 'co_moc' => đã từng được đếm tay chưa ] ]
  */
-function khh_dt_kho_trang_thai( $co_so, $den_ngay ) {
-	$bd   = gmdate( 'Y-m-d', strtotime( $den_ngay ) - KHH_DT_KHO_LUI * DAY_IN_SECONDS );
-	$khai = khh_dt_kho_dong( $bd, $den_ngay, $co_so );
-	$may  = khh_dt_kho_ban_may( $bd, $den_ngay, $co_so );
+/** Những ngày trong khoảng đã có dòng báo cáo FABi của cơ sở này — [ ngày => true ]. */
+function khh_dt_kho_ngay_co_fabi( $tu, $den, $co_so ) {
+	global $wpdb;
+	$bang = khh_dt_bang();
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$ds = (array) $wpdb->get_col(
+		$wpdb->prepare( "SELECT DISTINCT ngay FROM $bang WHERE ngay >= %s AND ngay <= %s AND cua_hang = %s", $tu, $den, $co_so )
+	);
+	return array_fill_keys( array_map( 'strval', $ds ), true );
+}
+
+/**
+ * LÕI CHẠY CHUỖI TỒN — dùng chung cho màn ngày (`khh_dt_kho_trang_thai`) và thẻ kho
+ * (`khh_dt_kho_the`). Một luật, một chỗ: viết bản thứ hai cho thẻ kho là sớm muộn hai màn ra
+ * hai con số khác nhau cho cùng một ngày, mà không màn nào sai để lần ra.
+ *
+ * Chạy từng ngày từ `$tu` tới `$den`, ghi lại TỪNG NGÀY của TỪNG mặt hàng (thẻ kho cần) và
+ * trạng thái cuối (màn ngày cần).
+ *
+ * @return array [ 'cuoi' => [ mh => ['ton','co_moc'] ],
+ *                 'ngay' => [ mh => [ [ngay, ton_dau, nhap, ban_may, combo_tay, dem, ton_tinh,
+ *                                       ton_cuoi, lech_kho, co_fabi], … ] ] ]
+ */
+function khh_dt_kho_chay( $co_so, $tu, $den ) {
+	$khai    = khh_dt_kho_dong( $tu, $den, $co_so );
+	$may     = khh_dt_kho_ban_may( $tu, $den, $co_so );
+	$co_fabi = khh_dt_kho_ngay_co_fabi( $tu, $den, $co_so );
 
 	$ngay_ds = array_unique( array_merge( array_keys( $khai ), array_keys( $may ) ) );
 	sort( $ngay_ds );
 
-	$tt = array();
+	$tt   = array();
+	$dong = array();
 	foreach ( $ngay_ds as $ng ) {
-		if ( $ng > $den_ngay ) {
+		if ( $ng > $den ) {
 			break;
 		}
 		$mh_ds = array_unique(
@@ -652,24 +676,86 @@ function khh_dt_kho_trang_thai( $co_so, $den_ngay ) {
 			$nhap  = isset( $d['nhap'] ) ? (float) $d['nhap'] : 0.0;
 			$ctay  = isset( $d['combo_tay'] ) ? (float) $d['combo_tay'] : 0.0;
 			$b_may = isset( $may[ $ng ][ $mh ] ) ? (float) $may[ $ng ][ $mh ] : 0.0;
+			$dem   = ( isset( $d['dem'] ) && null !== $d['dem'] && '' !== $d['dem'] ) ? (float) $d['dem'] : null;
 
+			/* `$t_dau` là số BÁO RA (null = chưa biết); `$goc` là số ĐEM TÍNH. Tách đôi vì ngày
+			   nhập đầu tiên: tồn đầu thật là "chưa biết", nhưng tính thì coi kho rỗng = 0. Gộp
+			   hai thứ vào một biến là thẻ kho in 0 trong khi màn ngày in "—" cho cùng ngày ấy —
+			   bài thử đã bắt đúng chỗ này. */
+			$t_dau = $tt[ $mh ]['ton'];
+			$goc   = $t_dau;
 			/* Lượt NHẬP đầu tiên cũng là một mốc: nhập vào kho rỗng thì tồn chính bằng số nhập. */
-			if ( null === $tt[ $mh ]['ton'] && $nhap > 0 ) {
-				$tt[ $mh ]['ton'] = 0.0;
+			if ( null === $goc && $nhap > 0 ) {
+				$goc = 0.0;
 			}
-			if ( null !== $tt[ $mh ]['ton'] ) {
-				$tt[ $mh ]['ton'] = $tt[ $mh ]['ton'] + $nhap - $b_may - $ctay;
-			}
+			$tinh = ( null === $goc ) ? null : $goc + $nhap - $b_may - $ctay;
 
 			/* Đếm tay thắng số tính — đây là chỗ cắt đứt cái lệch cũ, và cũng là cách đặt mốc
 			   đầu tiên cho một mặt hàng chưa ai đếm bao giờ. */
-			if ( isset( $d['dem'] ) && null !== $d['dem'] && '' !== $d['dem'] ) {
-				$tt[ $mh ]['ton']    = (float) $d['dem'];
+			$cuoi = $tinh;
+			if ( null !== $dem ) {
+				$cuoi                = $dem;
 				$tt[ $mh ]['co_moc'] = true;
 			}
+			$tt[ $mh ]['ton'] = $cuoi;
+
+			$dong[ $mh ][] = array(
+				'ngay'      => $ng,
+				'ton_dau'   => $t_dau,
+				'nhap'      => $nhap,
+				'ban_may'   => isset( $co_fabi[ $ng ] ) ? $b_may : null,
+				'combo_tay' => $ctay,
+				'dem'       => $dem,
+				'ton_tinh'  => $tinh,
+				'ton_cuoi'  => $cuoi,
+				'lech_kho'  => ( null === $dem || null === $tinh ) ? null : $dem - $tinh,
+				/* Ngày chưa nạp FABi: chuỗi vẫn phải chạy tiếp (coi bán = 0 để còn kéo tồn
+				   sang ngày sau), nhưng phải NÓI RA — thẻ kho hiện "—" ở cột máy bán và đánh dấu
+				   ngày ấy, để không ai đọc 0 thành "không bán". Nạp báo cáo xong tự tính lại. */
+				'co_fabi'   => isset( $co_fabi[ $ng ] ),
+			);
 		}
 	}
-	return $tt;
+	return array( 'cuoi' => $tt, 'ngay' => $dong );
+}
+
+/**
+ * Trạng thái kho ở CUỐI ngày `$den_ngay`, dựng lại bằng cách chạy lại từng ngày.
+ *
+ * 🔴 MỖI LẦN ĐẾM TAY LÀ MỘT MỐC MỚI. Gặp `dem` là lấy luôn số ấy làm tồn cuối, bỏ số tính ra.
+ *    Không làm thế thì một ngày lệch sẽ theo mãi về sau: mọi ngày sau đều đỏ vì một lỗi đã xử
+ *    lý xong từ lâu, và người ta sẽ thôi nhìn cột lệch.
+ *
+ * @return array [ mặt hàng => [ 'ton' => số, 'co_moc' => đã từng được đếm tay chưa ] ]
+ */
+function khh_dt_kho_trang_thai( $co_so, $den_ngay ) {
+	$bd = gmdate( 'Y-m-d', strtotime( $den_ngay ) - KHH_DT_KHO_LUI * DAY_IN_SECONDS );
+	return khh_dt_kho_chay( $co_so, $bd, $den_ngay )['cuoi'];
+}
+
+/**
+ * THẺ KHO của một mặt hàng: từng ngày trong [$tu, $den] — tồn đầu, nhập, bán, đếm, tồn cuối.
+ *
+ * Anh Thắng 23/09/2026: *"Chưa thấy có chỗ thay đổi hàng hoá theo ngày, giống kiểu tồn kho ngày
+ * đó bao nhiêu, bán bao nhiêu, tồn bao nhiêu"*. Màn ngày chỉ cho xem một ngày một lúc; muốn
+ * thấy hàng chạy thì phải có thẻ kho — đúng khái niệm sổ chi tiết vật tư trong kế toán.
+ *
+ * Chạy chuỗi từ trước `$tu` 90 ngày để tồn đầu của ngày `$tu` đúng, rồi chỉ trả các ngày trong
+ * khoảng. Ngày không có gì (không bán, không khai) thì không có dòng — thẻ kho chỉ ghi ngày có
+ * biến động, y như sổ tay.
+ */
+function khh_dt_kho_the( $co_so, $mat_hang, $tu, $den ) {
+	$bd = gmdate( 'Y-m-d', strtotime( $tu ) - KHH_DT_KHO_LUI * DAY_IN_SECONDS );
+	$kq = khh_dt_kho_chay( $co_so, $bd, $den );
+	$ds = isset( $kq['ngay'][ $mat_hang ] ) ? $kq['ngay'][ $mat_hang ] : array();
+	return array_values(
+		array_filter(
+			$ds,
+			function ( $r ) use ( $tu ) {
+				return $r['ngay'] >= $tu;
+			}
+		)
+	);
 }
 
 /**
@@ -931,6 +1017,15 @@ function khh_dt_kho_route() {
 	);
 	register_rest_route(
 		'khh-dt/v1',
+		'/kho-the',
+		array(
+			'methods'             => 'GET',
+			'callback'            => 'khh_dt_rest_kho_the',
+			'permission_callback' => 'khh_dt_duoc_xem',
+		)
+	);
+	register_rest_route(
+		'khh-dt/v1',
 		'/kho-su',
 		array(
 			'methods'             => 'GET',
@@ -1044,6 +1139,35 @@ function khh_dt_rest_kho_luu( $req ) {
 	$r          = khh_dt_rest_kho_xem( $req );
 	$r['da_ghi'] = $n;
 	return $r;
+}
+
+/** Thẻ kho một mặt hàng trong một khoảng ngày. */
+function khh_dt_rest_kho_the( $req ) {
+	$co_so = (string) $req->get_param( 'co_so' );
+	$mh    = (string) $req->get_param( 'mat_hang' );
+	$tu    = (string) $req->get_param( 'tu' );
+	$den   = (string) $req->get_param( 'den' );
+	if ( '' === $co_so || '' === $mh ) {
+		return new WP_Error( 'khh_dt_kho', 'Thiếu cơ sở hoặc mặt hàng.', array( 'status' => 400 ) );
+	}
+	if ( ! preg_match( '~^\d{4}-\d{2}-\d{2}$~', $den ) ) {
+		$den = current_time( 'Y-m-d' );
+	}
+	if ( ! preg_match( '~^\d{4}-\d{2}-\d{2}$~', $tu ) ) {
+		$tu = gmdate( 'Y-m-d', strtotime( $den ) - 30 * DAY_IN_SECONDS );
+	}
+	/* Gác theo cơ sở y như đường xem sổ. */
+	$cho_phep = function_exists( 'khh_dt_co_so_ds' ) ? khh_dt_co_so_ds() : array();
+	if ( $cho_phep && ! in_array( $co_so, $cho_phep, true ) ) {
+		return new WP_Error( 'khh_dt_kho', 'Anh/chị không phụ trách cơ sở này.', array( 'status' => 403 ) );
+	}
+	return array(
+		'co_so'    => $co_so,
+		'mat_hang' => $mh,
+		'tu'       => $tu,
+		'den'      => $den,
+		'dong'     => khh_dt_kho_the( $co_so, $mh, $tu, $den ),
+	);
 }
 
 /** Lịch sử khai của MỘT dòng — mọi lượt, mới nhất trước. */
