@@ -102,6 +102,46 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.59.0 =
+* 🔴 **Bóc tách vé → khách vào.** Anh Thắng 23/09/2026: *"mình sẽ bóc tách sẵn cho nhân viên, giờ áp
+  dụng cho gian Tàu trước"* — *"nếu vé là combo VÉ TRẺ EM + NGƯỜI LỚN tính là 2 người, còn nếu nó là
+  trẻ hoặc người lớn riêng thì là 1 người"*. Trước đây ô "Tổng khách vào" (đếm ở cửa) chỉ so được với
+  "Số vé bán", mà một vé combo là hai người qua cửa nên số máy luôn thấp hơn số đếm, cột lệch đỏ oan.
+* Tab **Quản trị → Bóc tách vé → khách vào** (chỉ văn phòng: vai duyệt / tài khoản biên tập): chọn cơ
+  sở (mặc định gian Tàu đầu tiên), bảng món đã bán 90 ngày, vé xếp trước, ô **khách mỗi vé** có gợi ý
+  (vé có dấu "+" → 2, vé lẻ → 1), nút *Điền gợi ý vào ô trống*, Lưu. Khai theo **tên món**, dùng chung
+  mọi cơ sở bán món ấy. Ô trống = không tính; **0** = vé không ứng với người.
+* Tab **Nhập báo cáo** có thêm ô máy **Khách vào (POS)** = Σ vé × khách mỗi vé; cơ sở chưa bóc tách thì
+  bày "—" (không bày 0). Lệch nay so **khách đếm ở cửa với khách máy**; chưa bóc tách thì vẫn so với
+  số vé như cũ. Vé có bán mà **chưa khai được kể tên** ngay dưới hàng số máy — cộng thiếu một loại là
+  lệch đổ oan cho nhân viên.
+* Tab **Đối soát** cột "Khách − vé" thành **"Khách − máy"**, dùng khách máy khi có, lùi về số vé khi chưa.
+* Cổng REST mới `khh-dt/v1/ve-khach` GET/POST, gác bằng quyền nạp file.
+* 🔴 **Hàng bán theo máy — nhân viên soát tại chỗ, lệch mới nhập.** Anh Thắng 23/09/2026: *"hiện số
+  lượng hàng bán và thành tiền để nhân viên kiểm kho bán được và chốt bán thực tế đúng máy POS không,
+  nếu lệch nhân viên mới nhập, đúng rồi thì để nguyên, chốt đúng xong thì bấm lưu và chốt, để kế toán
+  xác nhận"*. Tab Nhập báo cáo có bảng **Hàng bán theo máy POS**: từng món với nhóm/loại, SL máy,
+  thành tiền, ô **SL thực (nếu lệch)** và cột lệch tính ngay. Ô trống = đúng máy; chỉ dòng có gõ số
+  khác máy mới được lưu (cột mới `mon_thuc` trong bảng báo cáo ngày, đổi cũng vào lịch sử sửa). Tab
+  Đối soát thêm cột **Hàng bán**: *khớp máy* / *N món lệch* (rê chuột thấy máy bao nhiêu, thực bao
+  nhiêu) / *chưa soát*.
+* 🔴 **Ba ô tiền tách theo nhóm món: Sale vé · Sale bán lẻ · Sale phụ.** Anh Thắng 23/09/2026: *"tách
+  giúp anh 2 ô là tiền sale vé và tiền sale bán lẻ"*, rồi ô thứ ba *"Tiền Sale Phụ"* (vé lẻ + đồ đóng
+  sẵn, tức mọi thứ trừ vé combo chính), và *"thêm cấu hình tích trong cấu hình để tính loại nào sale
+  vé, loại nào sale bán lẻ"*. Tab **Quản trị → Sale vé / Bán lẻ / Sale phụ** liệt kê mọi **nhóm món**
+  FABi từng bán (90 ngày, mọi cơ sở) với loại món, số lượng, tiền, và hai cột tích **Sale vé?** /
+  **Sale phụ?**. Sale vé = nhóm đã tích; **bán lẻ = doanh thu máy − vé** (luôn cộng lại đúng doanh thu
+  máy); sale phụ = cộng các nhóm đã tích cột phụ. Chưa tích gì thì tạm theo cột *Loại món* của FABi
+  (Vé / Đồ ăn / Đồ uống), dòng nạp trước bản này không có cột ấy thì đoán qua tên/nhóm. Ba ô hiện ở
+  hàng số máy tab Nhập báo cáo và ba cột ở Đối soát. Trình đọc file FABi từ nay ghi thêm *Loại món*
+  vào từng dòng món.
+* Cổng REST mới `khh-dt/v1/nhom-ve` GET/POST (quyền nạp file).
+* Bài kiểm: `kiem-ve-khach.php` mới (chạy thật: combo 2 + lẻ 1 = 32 khách, chưa khai → null, vé chưa
+  khai được kể tên, khai 0, xoá bằng '', số âm bị chối, route gác quyền), `kiem-ve-khach-man.js` mới
+  canh ba màn; `kiem-hang-ban-chot.php` mới (37 phép: tách tiền theo nhóm đã tích đúng ba con số của
+  anh 3.420.000 / 170.000 / 710.000, rửa số thực, lệch so lại với máy, chưa soát ≠ soát rồi khớp hết,
+  lưu/đọc mon_thuc), `kiem-hang-ban-chot-man.js` mới (20 phép canh ba màn).
+
 = 1.58.3 =
 * 🔴 **Vai cấp tự động theo lối cũ được đánh dấu để kiểm.** Anh Thắng 23/09/2026 gửi ảnh chị Thảo —
   cửa hàng trưởng vào bằng PIN — thấy doanh thu cả 15 quán và có nút Nạp báo cáo: *"nhân viên quản
