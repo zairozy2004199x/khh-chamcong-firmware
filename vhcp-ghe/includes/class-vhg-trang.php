@@ -10860,6 +10860,11 @@ function veQuanLy(){
   });
   /* Mỗi ghế: MÃ (ô) kèm TÊN máy — anh Thắng 12/09/2026: "mã thì phải kèm tên máy chứ". Mã trùng
      (nằm ở ≥2 cơ sở) tô ĐỎ cả cụm. */
+  /* Mã ghế nhỏ nhất của một cơ sở, so theo SỐ y như dsMaHtml_ (cùng một bộ so, không lệch nhau). */
+  function csMaNhoNhat_(list){
+    if (!list || !list.length) return '';
+    return String(list.slice().sort(function(a,b){ return String(a.ma).localeCompare(String(b.ma), undefined, {numeric:true}); })[0].ma || '');
+  }
   function dsMaHtml_(list){
     if (!list || !list.length) return '<span class="mut">—</span>';
     return list.slice().sort(function(a,b){ return String(a.ma).localeCompare(String(b.ma), undefined, {numeric:true}); })
@@ -10945,6 +10950,7 @@ function veQuanLy(){
       + '<option value="ten">' + L('A→Z theo địa điểm','A→Z by site') + '</option>'
       + '<option value="thieu">' + L('Chưa có Unit ID lên đầu','Missing Unit ID first') + '</option>'
       + '<option value="unit">' + L('A→Z theo Unit ID','A→Z by Unit ID') + '</option>'
+      + '<option value="ma">' + L('Theo mã ghế (nhỏ → lớn)','By chair code (low → high)') + '</option>'
       + '<option value="misa">' + L('A→Z theo tên MISA','A→Z by MISA name') + '</option>'
       + '<option value="ghe">' + L('Nhiều ghế nhất','Most chairs') + '</option>'
       + '</select>'
@@ -10994,7 +11000,13 @@ function veQuanLy(){
   var hRong='', nRong=0, hDong='', nDong=0, hAn='', nAn=0;
   coso.forEach(function(c){
     var r = dt[c.ten] || { tong:0, qr:0, tien_mat:0 };
-    var _rh = '<tr data-cstim="' + esc(kdJS(c.ten + ' ' + (c.tinh || '') + ' ' + (c.ma_kh || ''))) + '">'
+    /* 🔴 KHOÁ SẮP "THEO MÃ GHẾ" — anh Thắng 23/09/2026: *"cho thêm sắp xếp theo mã ghế"*. Mỗi cơ sở
+       lấy MÃ NHỎ NHẤT của nó (so theo số: 9999 < 80013), vì mã cấp tuần tự theo ngày mở điểm nên
+       xếp theo mã nhỏ nhất ≈ xếp theo thứ tự mở điểm — đúng thứ mắt anh quen khi dò danh sách.
+       Đặt sẵn trên hàng để csSapKhoa_() đọc thẳng, không tra lại bản đồ. */
+    var _csma = csMaNhoNhat_(maTheoCoso[c.ten]);
+    var _rh = '<tr data-cstim="' + esc(kdJS(c.ten + ' ' + (c.tinh || '') + ' ' + (c.ma_kh || ''))) + '"'
+      + (_csma ? ' data-csma="' + esc(_csma) + '"' : '') + '>'
       /* Bấm thẳng tên địa điểm là ra ghế của nó — anh Thắng 10/09/2026: "thay vì chọn cơ sở sẽ
          ra ghế, thì bấm vào địa điểm nó sẽ ra ghế luôn". Ô lọc ở khối Ghế vẫn còn (vẫn cần để
          về "Tất cả" hay xem "chưa gán"); đây chỉ là lối tắt từ chỗ người ta đang nhìn, khỏi
@@ -12237,6 +12249,12 @@ function csSapKhoa_(tr, kieu){
   var a = tr.querySelector('[data-csxem]');
   var ten = a ? (a.getAttribute('data-csxem') || '') : '';
   if (kieu === 'ghe')  { return -(parseInt((tr.children[1] || {}).textContent, 10) || 0); }
+  if (kieu === 'ma') {
+    /* So theo SỐ dù mã là chuỗi: đệm mọi cụm số lên 10 chữ số rồi so chuỗi → "9999" đứng trước
+       "80013", "VC-GP-6" trước "VC-GP-12". Cơ sở không có ghế dồn cuối, trong đó vẫn A→Z theo tên. */
+    var m = tr.getAttribute('data-csma') || '';
+    return (m ? m.replace(/\d+/g, function(d){ return ('0000000000' + d).slice(-10); }) : '\uffff') + '\u0000' + kdJS(ten);
+  }
   if (kieu === 'unit' || kieu === 'misa' || kieu === 'thieu') {
     var o = tr.querySelector(kieu === 'misa' ? '[data-misan]' : '[data-misau]');
     var v = o ? (o.value || '').trim() : '';
@@ -12273,6 +12291,7 @@ function csSapXep(){
   csSapMot_(document.getElementById('cs-bang'), kieu);
   csSapMot_(document.getElementById('cs-bang-rong'), kieu);
   csSapMot_(document.getElementById('cs-bang-dong'), kieu);
+  csSapMot_(document.getElementById('cs-bang-an'), kieu);   /* khối 2.132.0 — cùng luật sắp với ba khối kia */
 }
 
 /* ══════════════════════ UNIT ID / TÊN MISA trên bảng Địa điểm ══════════════════════════════

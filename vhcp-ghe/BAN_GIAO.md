@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-09-23 · Phiên bản hiện tại: **2.132.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-09-23 · Phiên bản hiện tại: **2.133.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,19 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v2.133.0 — Địa điểm: thêm sắp xếp "Theo mã ghế (nhỏ → lớn)"
+
+Anh Thắng 23/09/2026: *"cho thêm sắp xếp theo mã ghế"*.
+
+- Mỗi hàng cơ sở mang `data-csma` = **mã ghế nhỏ nhất** của nó, so theo số (`csMaNhoNhat_`, cùng bộ so
+  `numeric` với `dsMaHtml_` — một bộ so, không lệch nhau). Mã cấp tuần tự theo ngày mở điểm nên xếp
+  theo mã nhỏ nhất ≈ **thứ tự mở điểm**.
+- Khoá sắp đệm mọi cụm số lên 10 chữ số rồi so chuỗi → `9999` đứng trước `80013`, `VC-GP-6` trước
+  `VC-GP-12`. Cơ sở không có ghế dồn cuối, trong đó vẫn A→Z theo tên; "(chưa gán)" luôn cuối.
+- Sửa luôn sót của 2.132.0: khối "🙈 chỉ còn ghế ẩn" nay cũng được sắp cùng luật với ba khối kia.
+
+`tools/test/kiem-cs-sap-theo-ma.js` (9 phép) — bốc `csSapKhoa_` + `csSapMot_` ra chạy trên DOM giả.
 
 ### v2.132.0 — Địa điểm: khối riêng "🙈 Cơ sở chỉ còn ghế ẩn" để soi và xoá
 
