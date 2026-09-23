@@ -3,7 +3,7 @@
  * Plugin Name:       K&H — Báo cáo doanh thu FABi
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Nạp file "Báo cáo bán hàng" xuất từ máy POS FABi (iPOS) và dựng báo cáo doanh thu theo ngày, cửa hàng, khung giờ, hình thức thanh toán, tại chỗ/mang về và món bán chạy. Có sẵn đường nối API FABi để bật khi iPOS cấp khoá.
- * Version:           1.52.0
+ * Version:           1.53.0
  * Requires at least: 5.8
  * Requires PHP:      7.2
  * Author:            K&H
@@ -26,7 +26,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'KHH_DT_VERSION', '1.52.0' );
+define( 'KHH_DT_VERSION', '1.53.0' );
 define( 'KHH_DT_FILE', __FILE__ );
 define( 'KHH_DT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KHH_DT_URL', plugin_dir_url( __FILE__ ) );
@@ -140,9 +140,43 @@ function khh_dt_nang_cap() {
 	khh_dt_kich_hoat();
 }
 
-/** Ai được nạp file POS và xoá kho — chỉ người của văn phòng. */
+/**
+ * Ai được nạp file POS / sao kê / MoMo và xoá kho — người của văn phòng.
+ *
+ * 🔴 PHẢI NHẬN CẢ VAI PIN `duyet`, KHÔNG CHỈ QUYỀN WORDPRESS.
+ *    23/09/2026 anh Thắng thả file sao kê MoMo và nhận "Xin lỗi, bạn không được phép làm điều
+ *    đó" — câu chung chung của WordPress khi permission_callback trả `false`. Anh đang vào bằng
+ *    trang đăng nhập PIN của plugin (nút Thoát là của plugin), nên `is_user_logged_in()` sai và
+ *    `current_user_can('edit_posts')` sai theo — trong khi `khh_dt_duoc_ghi()` ngay dưới đã
+ *    nhận vai PIN từ lâu. Hai hàm cạnh nhau, một hàm biết PIN, một hàm không: đó là lỗi.
+ *
+ *    Chỉ mở cho `duyet` (người duyệt, tức văn phòng). `nhap` là nhân viên cửa hàng — không được
+ *    nạp báo cáo của cả công ty.
+ *
+ * 🔴 TRẢ `WP_Error` CÓ LÝ DO, KHÔNG TRẢ `false`. `false` là WordPress in câu chung chung, người
+ *    dùng không biết mình bị chối vì đâu và phải làm gì. permission_callback được phép trả
+ *    WP_Error, và câu ấy sẽ hiện thẳng lên màn.
+ */
 function khh_dt_duoc_nap() {
-	return current_user_can( 'edit_posts' );
+	if ( current_user_can( 'edit_posts' ) ) {
+		return true;
+	}
+	$vai = function_exists( 'khh_dt_quyen_cua' ) ? khh_dt_quyen_cua() : '';
+	if ( 'duyet' === $vai ) {
+		return true;
+	}
+	$u    = wp_get_current_user();
+	$ten  = ! empty( $u->user_login ) ? $u->user_login : ( ! empty( $u->display_name ) ? $u->display_name : '?' );
+	$thay = is_user_logged_in()
+		? 'tài khoản WordPress "' . $ten . '" (không có quyền biên tập, vai: ' . ( $vai ? $vai : 'chưa cấp' ) . ')'
+		: ( $vai ? 'phiên PIN vai "' . $vai . '"' : 'chưa đăng nhập' );
+	return new WP_Error(
+		'khh_dt_khong_duoc_nap',
+		'Nạp file cần tài khoản văn phòng — WordPress có quyền biên tập, hoặc PIN vai "duyệt". ' .
+		'Hiện máy chủ thấy anh/chị là: ' . $thay . '. Đăng nhập lại bằng tài khoản văn phòng, hoặc ' .
+		'nhờ quản trị cấp vai "duyệt" ở tab Quản trị.',
+		array( 'status' => 403 )
+	);
 }
 
 /**
@@ -333,7 +367,7 @@ function khh_dt_rest_cau_hinh() {
 		'nap_luc'   => isset( $meta['nap_luc'] ) ? $meta['nap_luc'] : '',
 		'ky'        => isset( $meta['ky'] ) ? $meta['ky'] : '',
 		'duoc_ghi'  => khh_dt_duoc_ghi(),
-		'duoc_nap'  => khh_dt_duoc_nap(),
+		'duoc_nap'  => true === khh_dt_duoc_nap(),
 		'quan_tri'  => khh_dt_duoc_quan_tri(),
 		'cua_toi'   => khh_dt_co_so_mac_dinh(),
 		'cua_toi_ds' => $cua_ds,

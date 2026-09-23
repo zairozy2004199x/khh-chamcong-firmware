@@ -682,8 +682,23 @@ function khh_dt_kho_trang_thai( $co_so, $den_ngay ) {
  *      · dòng nhân viên đã khai hôm nay  -> khai rồi thì không được biến mất.
  *    Thiếu nguồn thứ hai là món hết bán sẽ rơi khỏi sổ mang theo cả phần tồn của nó.
  */
+/** Ngày này, cơ sở này đã có dòng báo cáo FABi nào chưa. */
+function khh_dt_kho_co_fabi( $ngay, $co_so ) {
+	global $wpdb;
+	$bang = khh_dt_bang();
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	return (bool) $wpdb->get_var(
+		$wpdb->prepare( "SELECT 1 FROM $bang WHERE ngay = %s AND cua_hang = %s LIMIT 1", $ngay, $co_so )
+	);
+}
+
 function khh_dt_kho_bang_ngay( $ngay, $co_so ) {
 	$hom_qua = gmdate( 'Y-m-d', strtotime( $ngay ) - DAY_IN_SECONDS );
+	/* 🔴 CHƯA NẠP BÁO CÁO FABi CHO NGÀY NÀY THÌ "MÁY BÁN" LÀ CHƯA BIẾT, KHÔNG PHẢI 0.
+	   Anh Thắng mở ngày 22/09 khi file FABi cuối nạp là 19/09: cả cột Máy bán in 0, trông y
+	   như "hôm nay không bán cái nào" — mà thật ra là "chưa có số". Hai nghĩa ấy ngược nhau, và
+	   người trực nhìn 0 sẽ đếm rồi thấy lệch kho bằng đúng số đã bán, rồi tưởng mất hàng. */
+	$co_fabi = khh_dt_kho_co_fabi( $ngay, $co_so );
 	$dau     = khh_dt_kho_trang_thai( $co_so, $hom_qua );
 	$khai    = khh_dt_kho_dong( $ngay, $ngay, $co_so );
 	$khai    = isset( $khai[ $ngay ] ) ? $khai[ $ngay ] : array();
@@ -691,7 +706,17 @@ function khh_dt_kho_bang_ngay( $ngay, $co_so ) {
 	$tach    = isset( $tach[ $ngay ] ) ? $tach[ $ngay ] : array();
 
 	$mh_ds = array_keys( $tach );
-	foreach ( array_keys( $dau ) as $mh ) {
+	/* 🔴 TỪ HÔM QUA CHỈ KÉO SANG MẶT HÀNG CÒN TỒN ĐÃ BIẾT — không kéo cả thực đơn.
+	   `khh_dt_kho_trang_thai()` trả về MỌI món từng thấy trong 90 ngày, kể cả món chưa ai đặt
+	   mốc (`ton` = null) và món đã về 0. Bản trước kéo hết sang, nên một ngày chưa có báo cáo
+	   FABi là cả thực đơn 25 món hiện ra với toàn số 0 và "—". Anh Thắng: *"Hàng hoá này chỉ
+	   hiện có những sản phẩm đang bán tại cửa hàng thôi"*. Đúng: hôm nay có bán, hoặc trên kệ
+	   còn hàng, hoặc đã có người khai — ba nguồn ấy thôi. Còn tồn âm thì vẫn kéo: đó là dấu
+	   hiệu sai sổ, phải bày ra. */
+	foreach ( $dau as $mh => $tt ) {
+		if ( null === $tt['ton'] || 0.0 === (float) $tt['ton'] ) {
+			continue;
+		}
 		if ( ! in_array( $mh, $mh_ds, true ) ) {
 			$mh_ds[] = $mh;
 		}
@@ -730,12 +755,20 @@ function khh_dt_kho_bang_ngay( $ngay, $co_so ) {
 		$co_moc = ! empty( $dau[ $mh ]['co_moc'] );
 		$nhap   = isset( $d['nhap'] ) ? (float) $d['nhap'] : 0.0;
 		$c_tay  = isset( $d['combo_tay'] ) ? (float) $d['combo_tay'] : 0.0;
-		$b_le   = isset( $tach[ $mh ]['le'] ) ? (float) $tach[ $mh ]['le'] : 0.0;
-		$b_cb   = isset( $tach[ $mh ]['combo'] ) ? (float) $tach[ $mh ]['combo'] : 0.0;
-		$b_may  = $b_le + $b_cb;
-		/* Chưa biết tồn đầu thì KHÔNG tính ra tồn cuối. Lượt nhập đầu tiên đặt mốc = 0. */
+		if ( $co_fabi ) {
+			$b_le  = isset( $tach[ $mh ]['le'] ) ? (float) $tach[ $mh ]['le'] : 0.0;
+			$b_cb  = isset( $tach[ $mh ]['combo'] ) ? (float) $tach[ $mh ]['combo'] : 0.0;
+			$b_may = $b_le + $b_cb;
+		} else {
+			$b_le  = null;   // chưa có báo cáo -> CHƯA BIẾT, xem chú thích đầu hàm
+			$b_cb  = null;
+			$b_may = null;
+		}
+		/* Chưa biết tồn đầu thì KHÔNG tính ra tồn cuối. Lượt nhập đầu tiên đặt mốc = 0.
+		   Chưa biết máy bán bao nhiêu (chưa nạp FABi) thì cũng không tính — thiếu một vế là
+		   ra số bịa. Số đếm của nhân viên vẫn được lưu, nạp báo cáo xong hệ tự tính lại. */
 		$goc    = ( null === $t_dau && $nhap > 0 ) ? 0.0 : $t_dau;
-		$tinh   = ( null === $goc ) ? null : $goc + $nhap - $b_may - $c_tay;
+		$tinh   = ( null === $goc || null === $b_may ) ? null : $goc + $nhap - $b_may - $c_tay;
 
 		$khai_ban = ( isset( $d['ban_khai'] ) && null !== $d['ban_khai'] && '' !== $d['ban_khai'] )
 			? (float) $d['ban_khai'] : null;
@@ -757,7 +790,7 @@ function khh_dt_kho_bang_ngay( $ngay, $co_so ) {
 			/* `null` khi chưa khai — KHÁC HẲN số 0. Trộn hai thứ là một ô bỏ trống trông y như
 			   một ô đã đếm và đếm đúng, rồi cả sổ xanh mướt trong khi chưa ai đếm gì. */
 			'lech_kho'  => ( null === $dem || null === $tinh ) ? null : $dem - $tinh,
-			'lech_khai' => ( null === $khai_ban ) ? null : $khai_ban - $b_may,
+			'lech_khai' => ( null === $khai_ban || null === $b_may ) ? null : $khai_ban - $b_may,
 			'ghi_chu'   => isset( $d['ghi_chu'] ) ? (string) $d['ghi_chu'] : '',
 			'nguoi'     => isset( $d['nguoi'] ) ? (string) $d['nguoi'] : '',
 		);
@@ -949,6 +982,9 @@ function khh_dt_rest_kho_xem( $req ) {
 	return array(
 		'ngay'       => $ngay,
 		'co_so'      => $co_so,
+		/* Màn hình dùng cờ này để nói thẳng "chưa nạp báo cáo FABi cho ngày này" — chứ không
+		   để người ta đọc một cột "—" rồi tự đoán. */
+		'co_fabi'    => khh_dt_kho_co_fabi( $ngay, $co_so ),
 		'dong'       => khh_dt_kho_bang_ngay( $ngay, $co_so ),
 		'combo'      => khh_dt_kho_combo_bang(),
 		/* Bao nhiêu lượt khai cho từng mặt hàng — màn hiện "đã sửa N lần". Đây là vế người xem
