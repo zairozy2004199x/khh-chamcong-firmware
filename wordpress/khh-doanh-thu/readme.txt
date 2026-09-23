@@ -102,6 +102,22 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.59.4 =
+* **Thẻ kho trên điện thoại xếp lại: mỗi ô gõ một dòng — ô gõ · lệch · số máy.** Anh Thắng 23/09/2026:
+  *"cho ô nhỏ lại cho thành 1 hàng xem gọn hơn"* · *"cho số theo máy đếm phía sau ô nhập, nếu lệch ở
+  giữa"*. Ô gõ còn ~nửa dòng (trước cả dòng), bên phải là con số máy tương ứng (Nhập ↔ Tồn đầu; SL hàng
+  bán ↔ Máy bán tổng; Hàng tồn còn ↔ Tồn tính), lệch đứng giữa. Thẻ ngắn đi gần nửa. Bảng máy tính
+  không đổi.
+* **Đổi tên hai cột**: "NV khai bán" → **"SL hàng bán"**, "NV đếm còn" → **"Hàng tồn còn"**.
+* **Sale phụ khai được tới từng LOẠI VÉ, riêng từng cửa hàng.** Anh Thắng 23/09/2026: *"cứ Sale … = loại vé
+  (sl) × tiền tại mỗi cửa hàng, khác cách tính sale phụ khác"*. Bảng *Bóc tách vé → khách* của cửa hàng
+  đang chọn có cột mới **"Sale phụ mỗi vé (đ)"** bên cạnh "Khách mỗi vé": combo này 20.000, combo kia
+  15.000 đều được. Để trống là theo số của **nhóm món** (khối Sale vé / Bán lẻ / Sale phụ, ô ghi sẵn
+  "nhóm: 20.000"); gõ **0** là loại vé ấy không có phụ dù nhóm có. Sale phụ = Σ số vé × tiền phụ của
+  chính vé ấy.
+* Bài kiểm: `kiem-hang-ban-chot.php` +5 phép (tên vé đè nhóm, 0 loại vé ra, xoá về theo nhóm, riêng
+  quán), `kiem-ve-khach.php` +3, bài màn +2; `kiem-kho-man.js` +7 phép canh bố cục thẻ và tên cột.
+
 = 1.59.3 =
 * 🔴 **Sale phụ = số vé × tiền phụ mỗi vé.** Anh Thắng 23/09/2026 chỉnh lại: *"Cái này là chiết khấu 20k
   cho 1 đơn vé combo 80k"* — trong giá vé combo 80.000đ có 20.000đ là phần phụ (chiết khấu / quà kèm),
@@ -388,7 +404,7 @@ tại chỉ là tổng của nó: *"đã ghi thì không sửa, sai thì ghi m�
 * **Sổ kho bày lại thành thẻ dọc trên điện thoại.** Bảng 12 cột với ba ô phải gõ, trên điện
   thoại là dải cuộn ngang với ô bé bằng đầu ngón tay — mà đây đúng là màn nhân viên dùng hằng
   ngày ngoài cửa hàng. Nay mỗi mặt hàng là một thẻ: tên ở trên, mấy số của máy thu lại thành
-  một hàng chữ nhỏ, còn **ba ô phải gõ** (Nhập · NV khai bán · NV đếm còn) nổi lên thành hàng ô
+  một hàng chữ nhỏ, còn **ba ô phải gõ** (Nhập · SL hàng bán · Hàng tồn còn) nổi lên thành hàng ô
   to, cao 44px, chữ 16px.
 * **Cùng một markup, đổi cách bày bằng CSS** — không dựng hai bản HTML. Hai bản thì sớm muộn
   sửa một bên quên bên kia, và bên bị quên sẽ là bên điện thoại, vì lúc lập trình ai cũng nhìn

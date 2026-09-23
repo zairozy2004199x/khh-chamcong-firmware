@@ -1429,8 +1429,8 @@
         '<th style="text-align:left">Mặt hàng</th>' +
         '<th>Tồn đầu</th><th>Nhập</th>' +
         '<th>Máy bán lẻ</th><th>Theo combo</th><th>Máy bán tổng</th>' +
-        '<th>NV khai bán</th><th>Lệch khai</th>' +
-        '<th>Tồn tính</th><th>NV đếm còn</th><th>Lệch kho</th>' +
+        '<th>SL hàng bán</th><th>Lệch khai</th>' +
+        '<th>Tồn tính</th><th>Hàng tồn còn</th><th>Lệch kho</th>' +
         '<th style="text-align:left">Ghi chú</th>' +
         '</tr></thead><tbody>' +
         dong.map(function (d, i) {
@@ -1457,7 +1457,7 @@
           return '<tr><td class="o-ten" data-nhan="Mặt hàng">' +
             '<a href="#" data-kho-the="' + esc(d.mat_hang) + '" title="Mở thẻ kho: xem mặt hàng này chạy từng ngày" ' +
             'style="color:inherit;text-decoration:underline dotted">' + esc(d.mat_hang) + '</a>' +
-            (d.co_moc ? '' : ' <span class="chip" title="Chưa ai đếm mặt hàng này bao giờ, nên hệ chưa biết trên kệ có bao nhiêu. Gõ số đếm được vào ô &quot;NV đếm còn&quot; một lần là xong — từ hôm sau hệ tự tính.">đếm 1 lần để đặt mốc</span>') +
+            (d.co_moc ? '' : ' <span class="chip" title="Chưa ai đếm mặt hàng này bao giờ, nên hệ chưa biết trên kệ có bao nhiêu. Gõ số đếm được vào ô &quot;Hàng tồn còn&quot; một lần là xong — từ hôm sau hệ tự tính.">đếm 1 lần để đặt mốc</span>') +
             /* 🔴 GIỮ VẾT MÀ KHÔNG BÀY RA THÌ CHẲNG AI BIẾT LÀ CÓ VẾT.
                Sổ ghi động giữ đủ mọi lượt khai, nhưng nếu màn không nói thì người trực vẫn
                tưởng sửa là xoá dấu — và người soát cũng không nghĩ tới chuyện đi xem lịch sử.
@@ -1474,10 +1474,10 @@
             oMay('Máy bán lẻ', d.ban_le) +
             oMay('Theo combo', d.ban_combo) +
             oMay('Máy bán tổng', d.ban_may, true) +
-            oNhap('ban_khai', 'NV khai bán', d.ban_khai) +
+            oNhap('ban_khai', 'SL hàng bán', d.ban_khai) +
             oLech(d.lech_khai, 'Lệch khai') +
             oMay('Tồn tính', d.ton_tinh) +
-            oNhap('dem', 'NV đếm còn', d.dem) +
+            oNhap('dem', 'Hàng tồn còn', d.dem) +
             oLech(d.lech_kho, 'Lệch kho') +
             '<td class="o-ghi" data-nhan="Ghi chú">' + (ghi
               ? '<input type="text" data-kho="ghi_chu" data-i="' + i + '" value="' + esc(d.ghi_chu || '') + '">'
@@ -1487,9 +1487,9 @@
         h += '<div style="margin-top:10px"><button class="nut chinh" type="button" id="khoLuu">Lưu sổ kho</button></div>';
       }
       h += '<div class="chu-them" style="margin-top:8px">' +
-        '<b>Lệch khai</b> = nhân viên khai bán − máy POS ghi bán. Âm là khai thiếu.<br>' +
+        '<b>Lệch khai</b> = SL hàng bán (nhân viên khai) − máy POS ghi bán. Âm là khai thiếu.<br>' +
         '<b>Tồn tính</b> = tồn đầu + nhập − máy POS ghi bán − combo nhập tay. ' +
-        '<b>Lệch kho</b> = đếm còn − tồn tính. Âm là thiếu hàng.<br>' +
+        '<b>Lệch kho</b> = hàng tồn còn (đếm được) − tồn tính. Âm là thiếu hàng.<br>' +
         '🔴 Tồn tính lấy <b>số máy</b>, không lấy số nhân viên khai — lấy số khai thì người khai ' +
         'thiếu bao nhiêu tồn tính cũng thừa bấy nhiêu, hai vế triệt tiêu và cột lệch luôn bằng 0.<br>' +
         'Ngày mai <b>tồn đầu lấy số đã đếm</b> chứ không lấy số tính, nên một ngày lệch không kéo ' +
@@ -3745,7 +3745,9 @@
       '<div class="chu-them" style="margin-top:6px">Mỗi loại vé trên máy POS tính <b>bao nhiêu khách</b>: vé ghép ' +
       '<i>Trẻ em + Người lớn</i> là <b>2</b>, vé lẻ là <b>1</b>. Máy tự ra <b>Khách vào (POS)</b> ở tab Nhập báo cáo ' +
       'để so với số nhân viên đếm ở cửa. Vé <b>chưa khai</b> đang tạm tính 1 khách/vé và đã được <b>điền sẵn gợi ý</b> ' +
-      'ở bảng dưới — sửa nếu cần rồi bấm Lưu. Ô để trống = không tính; <b>0</b> = vé không ứng với người (vé online đã gộp, vé bù…).</div>' +
+      'ở bảng dưới — sửa nếu cần rồi bấm Lưu. Ô để trống = không tính; <b>0</b> = vé không ứng với người (vé online đã gộp, vé bù…). ' +
+      'Cột <b>Sale phụ mỗi vé</b>: tiền phụ của <b>riêng loại vé này</b> (combo này 20.000, combo kia 15.000) — để trống là theo ' +
+      'số của nhóm món khai ở khối dưới; gõ 0 là vé này không có phụ.</div>' +
       oChonCS('vkCS', r);
     if (quanThieu.length) {
       h += '<div class="canh-ghep">Còn vé chưa khai ở ' + quanThieu.length + ' cửa hàng khác: ' +
@@ -3765,13 +3767,17 @@
           /* Chưa khai thì ĐIỀN SẴN gợi ý (không chỉ placeholder) để một lần Lưu là xong quán này. */
           '<td><input type="number" min="0" step="1" inputmode="numeric" data-vk="' + esc(x.ten) + '" style="width:84px" value="' +
             (x.khach != null ? x.khach : (thieu && x.goi_y != null ? x.goi_y : '')) + '" placeholder="' + (x.goi_y != null ? 'gợi ý ' + x.goi_y : '—') + '"></td>' +
+          /* Sale phụ theo TÊN vé: trống = theo nhóm (placeholder cho biết nhóm đang áp bao nhiêu); gõ 0 = vé này không phụ. */
+          '<td><input type="number" min="0" step="1000" inputmode="numeric" data-vp="' + esc(x.ten) + '" style="width:96px" value="' +
+            (x.phu != null ? x.phu : '') + '" placeholder="' + (x.phu_nhom != null ? 'nhóm: ' + nguyen(x.phu_nhom) : '—') + '"' +
+            (x.phu != null && !x.phu_rieng ? ' title="thừa bảng chung"' : '') + '></td>' +
           '</tr>';
       };
-      h += '<div class="bang-cuon"><table><thead><tr><th>Món / vé</th><th>Đã bán 90 ngày</th><th>Khách mỗi vé</th></tr></thead><tbody>' +
+      h += '<div class="bang-cuon"><table><thead><tr><th>Món / vé</th><th>Đã bán 90 ngày</th><th>Khách mỗi vé</th><th>Sale phụ mỗi vé (đ)</th></tr></thead><tbody>' +
         ve.map(hang).join('') +
         (khac.length
-          ? '<tr><td colspan="3" style="text-align:left;color:var(--ink-3)"><details><summary style="cursor:pointer">' +
-            khac.length + ' món khác không phải vé (đồ ăn, nước…) — mở nếu cần tính khách cho món nào</summary>' +
+          ? '<tr><td colspan="4" style="text-align:left;color:var(--ink-3)"><details><summary style="cursor:pointer">' +
+            khac.length + ' món khác không phải vé (đồ ăn, nước…) — mở nếu cần tính khách hay sale phụ cho món nào</summary>' +
             '<table><tbody>' + khac.map(hang).join('') + '</tbody></table></details></td></tr>'
           : '') +
         '</tbody></table></div>' +
@@ -3788,10 +3794,11 @@
     });
     var nut = o.querySelector('#vkLuu');
     if (nut) nut.addEventListener('click', function () {
-      var b = {};
+      var b = {}, bp = {};
       Array.prototype.forEach.call(o.querySelectorAll('#dtVeKhach input[data-vk]'), function (i) { b[i.dataset.vk] = i.value.trim(); });
+      Array.prototype.forEach.call(o.querySelectorAll('#dtVeKhach input[data-vp]'), function (i) { bp[i.dataset.vp] = i.value.trim(); });
       nut.disabled = true; nut.textContent = 'Đang lưu…';
-      var fd = new FormData(); fd.append('bang', JSON.stringify(b)); fd.append('cua_hang', r.cua_hang || cauHinhCS());
+      var fd = new FormData(); fd.append('bang', JSON.stringify(b)); fd.append('phu', JSON.stringify(bp)); fd.append('cua_hang', r.cua_hang || cauHinhCS());
       api('ve-khach', { method: 'POST', body: fd }).then(function (r2) {
         var cu = o.querySelector('#dtVeKhach'); if (cu) cu.remove();
         veVeKhach(o, r2);

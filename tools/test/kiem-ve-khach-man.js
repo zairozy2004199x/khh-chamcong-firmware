@@ -56,6 +56,8 @@ t('có ô chọn cửa hàng chung (oChonCS) ở khối bóc tách', /oChonCS\('
 t('đổi ô chọn là tải lại CẢ HAI khối', /S\.cauHinhCS = sel\.value; taiVeKhach\(o\); taiNhomVe\(o\);/.test(boc('noiChonCS')));
 t('nhắc quán khác còn vé chưa khai (con_thieu) và bấm là sang quán ấy', /r\.con_thieu/.test(ve) && /data-sang-cs=/.test(ve));
 t('ô thừa bảng chung được ghi rõ', /thừa bảng chung/.test(ve));
+t('🔴 cột "Sale phụ mỗi vé (đ)" theo tên vé, ô data-vp, placeholder nêu số của nhóm', /<th>Sale phụ mỗi vé \(đ\)<\/th>/.test(ve) && /data-vp=/.test(ve) && /'nhóm: ' \+ nguyen\(x\.phu_nhom\)/.test(ve));
+t('Lưu gửi kèm phu (theo tên vé)', /fd\.append\('phu', JSON\.stringify\(bp\)\)/.test(ve));
 
 if (hong.length) {
   console.log('\n✗ HỎNG ' + hong.length + ' phép (đạt ' + dat + '):');

@@ -348,17 +348,41 @@ body.khh-dt-body{margin:0;background:#f2f1ee}
   .khh-dt .bang-the .o-ten{flex:1 1 100%;font-weight:600;font-size:15px;
     padding-bottom:4px;border-bottom:1px solid var(--line)}
 
-  /* Số của máy và cột lệch: chữ nhỏ, xếp liền nhau thành một hàng đọc lướt. */
-  .khh-dt .bang-the .o-may,.khh-dt .bang-the .o-lech{flex:0 0 auto;font-size:12.5px}
-  .khh-dt .bang-the .o-may::before,.khh-dt .bang-the .o-lech::before{
-    content:attr(data-nhan) ": ";color:var(--ink-3);font-size:11px}
+  /* BỐ CỤC THẺ (anh Thắng 23/09/2026: "cho ô nhỏ lại cho thành 1 hàng xem gọn hơn" · "cho số theo
+     máy đếm phía sau ô nhập, nếu lệch ở giữa"): MỖI Ô GÕ MỘT DÒNG, trên dòng ấy ô gõ bên trái, cột
+     lệch ở giữa, số của máy tương ứng bên phải:
+       Nhập          ·  (không lệch)  ·  Tồn đầu
+       SL hàng bán   ·  Lệch khai     ·  Máy bán tổng  (máy bán lẻ, theo combo: chữ nhỏ phía sau)
+       Hàng tồn còn  ·  Lệch kho      ·  Tồn tính
+     rồi Ghi chú. Xếp bằng `order` theo data-nhan, KHÔNG đổi markup — bảng máy tính vẫn y nguyên.
+     Ngắt dòng không cần phần tử phụ: ô gõ chiếm 52% bề ngang, nên ô gõ kế tiếp không bao giờ còn
+     chỗ trên dòng trước (52% > phần còn lại) và tự rớt xuống dòng mới. */
+  .khh-dt .bang-the .o-ten{order:1}
+  .khh-dt .bang-the .o-go[data-nhan="Nhập"]{order:10}
+  .khh-dt .bang-the .o-may[data-nhan="Tồn đầu"]{order:12}
+  .khh-dt .bang-the .o-go[data-nhan="SL hàng bán"]{order:20}
+  .khh-dt .bang-the .o-lech[data-nhan="Lệch khai"]{order:21}
+  .khh-dt .bang-the .o-may[data-nhan="Máy bán tổng"]{order:22}
+  .khh-dt .bang-the .o-may[data-nhan="Máy bán lẻ"],.khh-dt .bang-the .o-may[data-nhan="Theo combo"]{order:23;font-size:11px}
+  .khh-dt .bang-the .o-go[data-nhan="Hàng tồn còn"]{order:30}
+  .khh-dt .bang-the .o-lech[data-nhan="Lệch kho"]{order:31}
+  .khh-dt .bang-the .o-may[data-nhan="Tồn tính"]{order:32}
+  .khh-dt .bang-the .o-ghi{order:40}
 
-  /* Ba ô PHẢI gõ: mỗi ô một phần ba bề ngang, nhãn nằm trên, ô cao 44px. */
-  .khh-dt .bang-the .o-go{flex:1 1 28%;min-width:88px}
-  .khh-dt .bang-the .o-go::before{content:attr(data-nhan);display:block;
-    font-size:11px;font-weight:600;color:var(--ink-3);margin-bottom:3px}
+  /* Số của máy và cột lệch: chữ nhỏ, nhãn nằm trên số cho thẳng hàng với ô gõ bên trái. */
+  .khh-dt .bang-the .o-may,.khh-dt .bang-the .o-lech{flex:0 0 auto;font-size:14px;font-family:var(--chu-so);
+    padding-bottom:10px}
+  .khh-dt .bang-the .o-may::before,.khh-dt .bang-the .o-lech::before{
+    content:attr(data-nhan);display:block;color:var(--ink-3);font-size:11px;font-family:inherit;margin-bottom:3px}
+  .khh-dt .bang-the .o-lech{margin-left:auto;margin-right:auto;text-align:center}
+
+  /* Ô PHẢI gõ: nhỏ lại còn ~nửa bề ngang (trước là cả dòng), nhãn nằm trên; vẫn cao 44px và chữ
+     16px (iOS không phóng to). */
+  .khh-dt .bang-the .o-go{flex:0 0 52%;min-width:0}
+  .khh-dt .bang-the .o-go::before{content:attr(data-nhan);display:block;white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis;font-size:11px;font-weight:600;color:var(--ink-3);margin-bottom:3px}
   .khh-dt .bang-the .o-go input{width:100%;min-height:44px;font-size:16px;text-align:right;
-    padding:8px 10px;border-radius:7px;border:1px solid var(--line-2);
+    padding:6px 8px;border-radius:7px;border:1px solid var(--line-2);
     background:var(--card);color:var(--ink);font-family:var(--chu-so)}
 
   .khh-dt .bang-the .o-ghi{flex:1 1 100%}

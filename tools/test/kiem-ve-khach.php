@@ -116,6 +116,15 @@ phep( '🔴 REST POST thiếu cửa hàng thì chối (khai riêng từng quán)
 $mc = khh_dt_ve_khach_mon_cua( $GV, 3650 );
 $m0 = array_values( array_filter( $mc, function ( $x ) { return 'VÉ TUTU TRAIN: VÉ TRẺ EM' === $x['ten']; } ) )[0];
 phep( 'danh sách món của quán cắm cờ rieng cho ô quán tự khai', true === $m0['rieng'] && 3 === $m0['khach'] );
+/* Sale phụ theo TÊN vé — cùng sổ hình dạng cửa hàng => tên => số, REST gửi kèm 'phu'. */
+$r = khh_dt_rest_ve_khach_dat( new WP_REST_Request( array( 'bang' => '{}', 'phu' => wp_json_encode( array( 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + THẠCH' => '20000', 'X' => -1 ) ), 'cua_hang' => $GV ) ) );
+phep( 'REST ghi phụ theo tên vé riêng quán (bỏ số âm)', array( 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + THẠCH' => 20000 ) === $r['phu_rieng'] && array() === khh_dt_ve_phu_bang( $CS ) );
+$mc = khh_dt_ve_khach_mon_cua( $GV, 3650 );
+$m1 = array_values( array_filter( $mc, function ( $x ) { return 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + THẠCH' === $x['ten']; } ) )[0];
+phep( 'danh sách món mang phu, phu_rieng, phu_nhom (nhóm chưa khai -> null)', 20000 === $m1['phu'] && true === $m1['phu_rieng'] && null === $m1['phu_nhom'] );
+$r = khh_dt_rest_ve_khach_dat( new WP_REST_Request( array( 'bang' => '{}', 'cua_hang' => $GV ) ) );
+phep( 'không gửi phu thì giữ nguyên phụ đã khai', 1 === count( $r['phu_rieng'] ) );
+delete_option( 'khh_dt_ve_phu' );
 delete_option( 'khh_dt_ve_khach' );
 phep( 'dọn lại bảng khai cho các phép sau', array() === khh_dt_ve_khach_bang() );
 

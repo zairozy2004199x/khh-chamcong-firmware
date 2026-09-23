@@ -28,9 +28,17 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-/** Toàn bộ sổ khai, đã chuẩn hoá: [ cửa hàng ('*' = chung) => [ tên vé => khách ] ]. */
-function khh_dt_ve_khach_so() {
-	$b = get_option( 'khh_dt_ve_khach', array() );
+/* ================================================================== *
+ * Sổ khai theo cửa hàng — dùng chung cho HAI bảng cùng hình dạng:
+ *   · 'khh_dt_ve_khach' : [ cửa hàng => [ tên vé => KHÁCH mỗi vé ] ]
+ *   · 'khh_dt_ve_phu'   : [ cửa hàng => [ tên vé => TIỀN SALE PHỤ mỗi vé (đ) ] ]
+ * Anh Thắng 23/09/2026: *"Sau mình áp dụng trong cấu hình cứ Sale … = loại vé (sl) × tiền tại mỗi cửa
+ * hàng, khác cách tính sale phụ khác"* — tiền phụ khai được tới từng LOẠI VÉ, riêng từng quán; tên vé
+ * có số riêng thì đè số của nhóm món (khai ở khối Sale vé / Bán lẻ / Sale phụ).
+ * ================================================================== */
+
+function khh_dt_ve_so_cua( $khoa ) {
+	$b = get_option( $khoa, array() );
 	if ( ! is_array( $b ) ) {
 		return array();
 	}
@@ -54,19 +62,15 @@ function khh_dt_ve_khach_so() {
 		foreach ( $bang as $ten => $so ) {
 			$ten = trim( (string) $ten );
 			if ( '' !== $ten && is_numeric( $so ) ) {
-				$ra[ $cs ][ $ten ] = (int) $so;
+				$ra[ $cs ][ $ten ] = (int) round( (float) $so );
 			}
 		}
 	}
 	return $ra;
 }
 
-/**
- * Bảng khai áp cho MỘT cửa hàng: [ tên vé => khách ] — bảng chung '*' làm nền, bảng riêng của quán
- * đè lên. Không truyền cửa hàng thì chỉ là bảng chung.
- */
-function khh_dt_ve_khach_bang( $cua_hang = '' ) {
-	$so = khh_dt_ve_khach_so();
+function khh_dt_ve_bang_cua( $khoa, $cua_hang = '' ) {
+	$so = khh_dt_ve_so_cua( $khoa );
 	$ra = isset( $so['*'] ) ? $so['*'] : array();
 	$cs = trim( (string) $cua_hang );
 	if ( '' !== $cs && '*' !== $cs && isset( $so[ $cs ] ) ) {
@@ -77,21 +81,16 @@ function khh_dt_ve_khach_bang( $cua_hang = '' ) {
 	return $ra;
 }
 
-/** Bảng RIÊNG của một cửa hàng (không lẫn bảng chung) — để màn biết ô nào là quán tự khai. */
-function khh_dt_ve_khach_bang_rieng( $cua_hang ) {
-	$so = khh_dt_ve_khach_so();
+function khh_dt_ve_rieng_cua( $khoa, $cua_hang ) {
+	$so = khh_dt_ve_so_cua( $khoa );
 	$cs = trim( (string) $cua_hang );
 	return '' !== $cs && isset( $so[ $cs ] ) ? $so[ $cs ] : array();
 }
 
-/**
- * Ghi thêm/sửa/xoá vào bảng khai của MỘT cửa hàng ('' hay '*' = bảng chung). Giá trị '' hay null là
- * XOÁ tên ấy khỏi bảng quán đó; số âm bị chối (giữ nguyên). Trả về bảng áp cho quán sau khi ghi.
- */
-function khh_dt_ve_khach_dat( $bang, $cua_hang = '' ) {
+function khh_dt_ve_dat_cua( $khoa, $bang, $cua_hang = '' ) {
 	$cs = trim( (string) $cua_hang );
 	$cs = '' === $cs ? '*' : $cs;
-	$so = khh_dt_ve_khach_so();
+	$so = khh_dt_ve_so_cua( $khoa );
 	$cu = isset( $so[ $cs ] ) ? $so[ $cs ] : array();
 	foreach ( (array) $bang as $ten => $gia ) {
 		$ten = trim( (string) $ten );
@@ -112,8 +111,45 @@ function khh_dt_ve_khach_dat( $bang, $cua_hang = '' ) {
 	} else {
 		unset( $so[ $cs ] );
 	}
-	update_option( 'khh_dt_ve_khach', $so, false );
-	return khh_dt_ve_khach_bang( '*' === $cs ? '' : $cs );
+	update_option( $khoa, $so, false );
+	return khh_dt_ve_bang_cua( $khoa, '*' === $cs ? '' : $cs );
+}
+
+/** Toàn bộ sổ khai khách/vé, đã chuẩn hoá: [ cửa hàng ('*' = chung) => [ tên vé => khách ] ]. */
+function khh_dt_ve_khach_so() {
+	return khh_dt_ve_so_cua( 'khh_dt_ve_khach' );
+}
+
+/**
+ * Bảng khai áp cho MỘT cửa hàng: [ tên vé => khách ] — bảng chung '*' làm nền, bảng riêng của quán
+ * đè lên. Không truyền cửa hàng thì chỉ là bảng chung.
+ */
+function khh_dt_ve_khach_bang( $cua_hang = '' ) {
+	return khh_dt_ve_bang_cua( 'khh_dt_ve_khach', $cua_hang );
+}
+
+/** Bảng RIÊNG của một cửa hàng (không lẫn bảng chung) — để màn biết ô nào là quán tự khai. */
+function khh_dt_ve_khach_bang_rieng( $cua_hang ) {
+	return khh_dt_ve_rieng_cua( 'khh_dt_ve_khach', $cua_hang );
+}
+
+/**
+ * Ghi thêm/sửa/xoá vào bảng khai của MỘT cửa hàng ('' hay '*' = bảng chung). Giá trị '' hay null là
+ * XOÁ tên ấy khỏi bảng quán đó; số âm bị chối (giữ nguyên). Trả về bảng áp cho quán sau khi ghi.
+ */
+function khh_dt_ve_khach_dat( $bang, $cua_hang = '' ) {
+	return khh_dt_ve_dat_cua( 'khh_dt_ve_khach', $bang, $cua_hang );
+}
+
+/* ---- Sale phụ theo TÊN VÉ (đ/vé), riêng từng quán. 0 = "vé này không có phụ" dù nhóm có. ---- */
+function khh_dt_ve_phu_bang( $cua_hang = '' ) {
+	return khh_dt_ve_bang_cua( 'khh_dt_ve_phu', $cua_hang );
+}
+function khh_dt_ve_phu_bang_rieng( $cua_hang ) {
+	return khh_dt_ve_rieng_cua( 'khh_dt_ve_phu', $cua_hang );
+}
+function khh_dt_ve_phu_dat( $bang, $cua_hang = '' ) {
+	return khh_dt_ve_dat_cua( 'khh_dt_ve_phu', $bang, $cua_hang );
 }
 
 /** Món này trông như một loại VÉ (tên hay nhóm món có chữ "Vé" đứng đầu một từ). */
@@ -277,6 +313,9 @@ function khh_dt_ve_khach_mon_cua( $cua_hang, $lui = 90 ) {
 	}
 	$khai  = khh_dt_ve_khach_bang( $cua_hang );
 	$rieng = khh_dt_ve_khach_bang_rieng( $cua_hang );
+	$phu   = khh_dt_ve_phu_bang( $cua_hang );
+	$phu_r = khh_dt_ve_phu_bang_rieng( $cua_hang );
+	$nhom_phu = function_exists( 'khh_dt_nhom_phu_ds' ) ? khh_dt_nhom_phu_ds( $cua_hang ) : false;
 	$ra    = array();
 	foreach ( $gom as $ten => $x ) {
 		$ra[] = array(
@@ -286,6 +325,10 @@ function khh_dt_ve_khach_mon_cua( $cua_hang, $lui = 90 ) {
 			'khach'    => array_key_exists( $ten, $khai ) ? $khai[ $ten ] : null,
 			/* Số đang áp là của quán tự khai, hay thừa từ bảng chung. */
 			'rieng'    => array_key_exists( $ten, $rieng ),
+			/* Sale phụ đ/vé khai theo TÊN vé (null = chưa), và số của NHÓM đang áp nếu không khai tên. */
+			'phu'      => array_key_exists( $ten, $phu ) ? $phu[ $ten ] : null,
+			'phu_rieng' => array_key_exists( $ten, $phu_r ),
+			'phu_nhom' => is_array( $nhom_phu ) && isset( $nhom_phu[ trim( $x['g'] ) ] ) ? (float) $nhom_phu[ trim( $x['g'] ) ] : null,
 			'goi_y'    => khh_dt_ve_khach_goi_y( $ten, $x['g'] ),
 			'la_ve'    => khh_dt_ve_la_ve( $ten, $x['g'] ),
 		);
@@ -336,6 +379,8 @@ function khh_dt_rest_ve_khach_xem( $req ) {
 	return array(
 		'bang'      => khh_dt_ve_khach_bang( $ch ),
 		'bang_rieng' => khh_dt_ve_khach_bang_rieng( $ch ),
+		'phu'       => khh_dt_ve_phu_bang( $ch ),
+		'phu_rieng' => khh_dt_ve_phu_bang_rieng( $ch ),
 		'cua_hang'  => $ch,
 		'mon'       => '' !== $ch ? khh_dt_ve_khach_mon_cua( $ch ) : array(),
 		/* Quán nào còn vé chưa khai — để nhắc đổi ô chọn cửa hàng sang khai tiếp. */
@@ -358,5 +403,17 @@ function khh_dt_rest_ve_khach_dat( $req ) {
 		$sach[ sanitize_text_field( (string) $ten ) ] = null === $so ? '' : sanitize_text_field( (string) $so );
 	}
 	khh_dt_ve_khach_dat( $sach, $ch );
+	/* Sale phụ theo tên vé, gửi cùng lượt; không gửi thì giữ nguyên. */
+	$tho_p = $req->get_param( 'phu' );
+	if ( null !== $tho_p ) {
+		$phu = is_array( $tho_p ) ? $tho_p : json_decode( (string) $tho_p, true );
+		if ( is_array( $phu ) ) {
+			$sach_p = array();
+			foreach ( $phu as $ten => $so ) {
+				$sach_p[ sanitize_text_field( (string) $ten ) ] = null === $so ? '' : sanitize_text_field( (string) $so );
+			}
+			khh_dt_ve_phu_dat( $sach_p, $ch );
+		}
+	}
 	return khh_dt_rest_ve_khach_xem( $req );
 }

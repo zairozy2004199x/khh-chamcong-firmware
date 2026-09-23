@@ -535,14 +535,17 @@ function khh_dt_bc_tach_tien( $mon_json, $doanh_thu, $cua_hang = '' ) {
 	$phu      = 0.0;
 	$nhom_ve  = khh_dt_nhom_ve_ds( $cua_hang );
 	$nhom_phu = khh_dt_nhom_phu_ds( $cua_hang );
+	/* Tiền phụ khai theo TÊN vé (riêng quán) đè số của nhóm — kể cả khai 0 để loại một vé ra. */
+	$phu_ve = function_exists( 'khh_dt_ve_phu_bang' ) ? khh_dt_ve_phu_bang( $cua_hang ) : array();
 	foreach ( khh_dt_json( $mon_json, array() ) as $m ) {
-		$r = isset( $m['r'] ) ? (float) $m['r'] : 0;
-		$q = isset( $m['q'] ) ? (float) $m['q'] : 0;
+		$r   = isset( $m['r'] ) ? (float) $m['r'] : 0;
+		$q   = isset( $m['q'] ) ? (float) $m['q'] : 0;
+		$ten = isset( $m['n'] ) ? trim( (string) $m['n'] ) : '';
 		if ( khh_dt_bc_la_ve( $m, $nhom_ve ) ) {
 			$ve += $r;
 		}
 		/* Sale phụ = SỐ VÉ × tiền phụ mỗi vé (VÉ COMBO. 80k có 20k phụ) — không phải cộng tiền nhóm. */
-		$phu += $q * khh_dt_bc_phu_moi_ve( $m, $nhom_phu );
+		$phu += $q * ( array_key_exists( $ten, $phu_ve ) ? (float) $phu_ve[ $ten ] : khh_dt_bc_phu_moi_ve( $m, $nhom_phu ) );
 	}
 	$dt = (float) $doanh_thu;
 	return array(

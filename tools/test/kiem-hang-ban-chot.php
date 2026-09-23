@@ -84,6 +84,23 @@ phep( '🔴 sale vé = VÉ COMBO. + VÉ LẺ. = 3.420.000', 3420000.0 === $t['ve
 phep( '🔴 bán lẻ = ĐÓNG SẴN = 170.000', 170000.0 === $t['le'] );
 phep( '🔴 sale phụ = 36 combo × 20.000 = 720.000', 720000.0 === $t['phu'] );
 phep( 'sale phụ KHÔNG đụng sale vé / bán lẻ (vé vẫn 3.420.000)', 3420000.0 === $t['ve'] );
+/* 🔴 Theo TÊN VÉ đè theo NHÓM (anh Thắng 23/09/2026: "Sale … = loại vé (sl) × tiền tại mỗi cửa hàng"). */
+khh_dt_ve_phu_dat( array( 'VÉ TRẺ EM + NGƯỜI LỚN' => 15000 ) );          // bảng chung
+$t = khh_dt_bc_tach_tien( wp_json_encode( $MON_L ), 3590000 );
+phep( '🔴 tên vé khai 15.000 đè nhóm 20.000: 36 × 15.000 = 540.000', 540000.0 === $t['phu'] );
+khh_dt_ve_phu_dat( array( 'VÉ TUTU TRAIN: VÉ TRẺ EM' => 5000 ) );
+$t = khh_dt_bc_tach_tien( wp_json_encode( $MON_L ), 3590000 );
+phep( 'vé lẻ (nhóm không có phụ) khai riêng 5.000: + 11 × 5.000 = 595.000', 595000.0 === $t['phu'] );
+khh_dt_ve_phu_dat( array( 'VÉ TRẺ EM + NGƯỜI LỚN' => 0 ) );
+$t = khh_dt_bc_tach_tien( wp_json_encode( $MON_L ), 3590000 );
+phep( '🔴 khai 0 cho tên vé là LOẠI vé ấy ra dù nhóm có 20.000: còn 55.000', 55000.0 === $t['phu'] );
+khh_dt_ve_phu_dat( array( 'VÉ TRẺ EM + NGƯỜI LỚN' => '', 'VÉ TUTU TRAIN: VÉ TRẺ EM' => '' ) );
+$t = khh_dt_bc_tach_tien( wp_json_encode( $MON_L ), 3590000 );
+phep( 'xoá khai theo tên -> về theo nhóm 720.000', 720000.0 === $t['phu'] );
+/* Riêng từng quán: B khai 25.000 cho combo, C thừa nhóm. */
+khh_dt_ve_phu_dat( array( 'VÉ TRẺ EM + NGƯỜI LỚN' => 25000 ), 'Quán B' );
+phep( 'theo tên vé riêng quán B: 36 × 25.000 = 900.000; quán C vẫn 720.000', 900000.0 === khh_dt_bc_tach_tien( wp_json_encode( $MON_L ), 3590000, 'Quán B' )['phu'] && 720000.0 === khh_dt_bc_tach_tien( wp_json_encode( $MON_L ), 3590000, 'Quán C' )['phu'] );
+delete_option( 'khh_dt_ve_phu' );
 /* Danh sách ô tích của bản 1.59.0/1.59.1 (khoá số) phải bị bỏ, không hiểu nhầm thành đ/vé. */
 phep( 'danh sách ô tích cũ rửa ra rỗng', array() === khh_dt_nhom_phu_sach( array( 'VÉ LẺ.', 'ĐÓNG SẴN' ) ) );
 phep( 'rửa: bỏ số âm, chữ, 0; giữ số > 0', array( 'VÉ COMBO.' => 20000.0 ) === khh_dt_nhom_phu_sach( array( 'VÉ COMBO.' => '20000', 'VÉ LẺ.' => 0, 'X' => -5, 'Y' => 'abc' ) ) );
