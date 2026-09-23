@@ -269,20 +269,23 @@ t('chân trang luôn nằm dưới đáy trang',
 // ---------------------------------------------------------------- 10. mỗi khâu một tab
 // "Chờ quyết toán" / "Đã quyết toán" thuộc tab 🧾 Quyết toán. Để chúng ở tab Duyệt tạm ứng
 // thì cùng một đơn nằm hai chỗ, mà chỗ đó lại không làm được gì với nó.
-const mLoc = HTML.match(/<select id="duyetFilter"[\s\S]*?<\/select>/);
-t('tìm được ô lọc của tab Duyệt tạm ứng', !!mLoc);
-const LOC = mLoc ? mLoc[0] : '';
-t('bỏ "Chờ quyết toán" khỏi tab Duyệt tạm ứng', LOC.indexOf('Chờ quyết toán') < 0, LOC);
-t('bỏ "Đã quyết toán" khỏi tab Duyệt tạm ứng', LOC.indexOf('Đã quyết toán') < 0, LOC);
-t('vẫn còn đủ 3 khâu tạm ứng',
-  LOC.indexOf('Chờ duyệt tạm ứng') >= 0 && LOC.indexOf('Chờ cấp tạm ứng') >= 0 && LOC.indexOf('Đã cấp tạm ứng') >= 0, LOC);
-t('nhãn "Cần xử lý" thôi nhắc quyết toán', /Cần xử lý \(chờ duyệt \/ chờ gửi tiền\)/.test(LOC), LOC);
-// Bỏ khỏi ô chọn mà "Tất cả" vẫn kéo về là bỏ hụt.
-t('"Tất cả" cũng chỉ trong khâu tạm ứng',
+/* ⚠️ 23/09/2026 — Ô LỌC TRẠNG THÁI ĐÃ BỎ, ba khâu nay là BA BẢNG (anh Thắng: *"tách 2 bảng
+   riêng để dễ theo dõi đơn"*). Luật của mục này KHÔNG đổi — tab Duyệt chỉ lo khâu tạm ứng —
+   chỉ đổi chỗ canh: từ ô chọn sang danh sách `KHAU_TU` và ba tbody. */
+t('ô lọc trạng thái đã BỎ khỏi tab Duyệt (ba bảng thay nó)', !/id="duyetFilter"/.test(HTML));
+const fnRD = (function () { const i = HTML.indexOf('  function renderDuyet('); return HTML.slice(i, HTML.indexOf('\n  }', i) + 4); })();
+t('tìm được `renderDuyet`', fnRD.length > 300);
+t('bỏ "Chờ quyết toán" khỏi tab Duyệt tạm ứng', fnRD.indexOf("'Chờ quyết toán'") < 0);
+t('bỏ "Đã quyết toán" khỏi khâu lọc của tab Duyệt', !/KHAU_TU=\[[^\]]*Đã quyết toán/.test(fnRD));
+t('vẫn còn đủ 3 khâu tạm ứng — mỗi khâu một bảng',
+  /id="duyetBody"/.test(HTML) && /id="duyetBodyChi"/.test(HTML) && /id="duyetBodyMua"/.test(HTML));
+// Không còn "Tất cả" để kéo về nhầm — nhưng danh sách khâu vẫn phải là chốt duy nhất.
+t('chỉ khâu tạm ứng mới vào màn này (`KHAU_TU`)',
   /var KHAU_TU=\['Chờ duyệt tạm ứng','Chờ cấp tạm ứng','Đã cấp tạm ứng'\];/.test(HTML)
-  && /if\(KHAU_TU\.indexOf\(d\.trangThai\)<0\) return false;/.test(HTML));
-t('"Cần xử lý" = chờ duyệt + chờ gửi tiền, không còn quyết toán',
-  /if\(f==='cho'\) return \['Chờ duyệt tạm ứng','Chờ cấp tạm ứng'\]\.indexOf/.test(HTML));
+  && /return KHAU_TU\.indexOf\(d\.trangThai\)>=0;/.test(HTML));
+t('ba bảng chia đúng ba trạng thái',
+  /trangThai==='Chờ duyệt tạm ứng'; \}\);/.test(fnRD) && /trangThai==='Chờ cấp tạm ứng'; \}\);/.test(fnRD)
+  && /trangThai==='Đã cấp tạm ứng'; \}\);/.test(fnRD));
 // Cắt tab mà quên đường dẫn tới là tạo liên kết chết — đúng bẫy đã gặp ở khâu gom.
 t('Tổng quan đưa đơn "Chờ quyết toán" sang tab Quyết toán, không phải Duyệt',
   /tab:\(d\.trangThai==='Chờ quyết toán'\?'qt':'duyet'\)/.test(HTML));

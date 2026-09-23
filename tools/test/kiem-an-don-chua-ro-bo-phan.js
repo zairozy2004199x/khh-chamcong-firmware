@@ -316,20 +316,26 @@ function duyetVoi(dons, anMo, hopKhoi) {
   /* ⚠️ Từ 22/09/2026 `renderDuyet()` gom theo TUẦN, nên chỗ bắt danh sách đang hiện chuyển
      từ `_tachDonVi` sang `_dvGomTuan`. Bài này canh phép LỌC (đơn chưa rõ bộ phận có bị bỏ
      không), không canh cách bày — nên chỉ cần đổi đúng cái phễu. */
+  /* ⚠️ Từ 23/09/2026 màn Duyệt là BA bảng theo bước. Bài này canh phép LỌC (đơn chưa rõ bộ
+     phận có bị bỏ không) nên gom cả ba phễu về một danh sách: bảng "chờ duyệt" đi qua
+     `_dvGomTuan`, hai bảng kia đi qua `_dvVeBang`. */
+  thay = [];
   new Function('el', 'esc', 'money', 'canDo', 'stCls', 'BOOT', 'CURUSER', '_AN_MO',
-    '_thangCuaKy', '_napLocDon', '_renderTongLH', '_dvGomTuan', 'dvUpdateBar', 'ghiLai', '_hopKhoi',
+    '_thangCuaKy', '_napLocDon', '_renderTongLH', '_dvGomTuan', '_dvVeBang', 'dvUpdateBar', 'ghiLai', '_hopKhoi',
     NEN_TT + '\n' + fnAnVaoMo + '\n' + fnDuyet + '\nrenderDuyet();')(
     function (id) { return Object.prototype.hasOwnProperty.call(O3, id) ? O3[id] : null; },
     esc, function (x) { return String(Number(x) || 0); }, function () { return true; },
     function () { return 'st-duyet'; }, { dons: dons }, { role: 'Kế toán máy tự động' }, anMo,
     _thangCuaKy, function () {}, function () {},
-    function (l) { thay = l.map(function (x) { return x.maDon; }); return ''; },
+    function (l) { l.forEach(function (x) { thay.push(x.maDon); }); return ''; },
+    function (b, e, so, l) { l.forEach(function (x) { thay.push(x.maDon); }); },
     function () {}, function () {}, (hopKhoi || function () { return true; }));
-  return thay;
+  /* So TẬP HỢP, không so thứ tự vẽ — ba bảng vẽ theo thứ tự nào là chuyện bày, không phải luật. */
+  return thay.sort();
 }
 const TU_RO = { maDon: 'T_MTD', ky: 'K', trangThai: 'Chờ duyệt tạm ứng', bpMo: false };
 const TU_MO = { maDon: 'T_KVC', ky: 'K', trangThai: 'Chờ cấp tạm ứng', bpMo: true };
-teq('ô tích TẮT · màn Duyệt bày cả hai đơn', ['T_MTD', 'T_KVC'], duyetVoi([TU_RO, TU_MO], false));
+teq('ô tích TẮT · màn Duyệt bày cả hai đơn', ['T_KVC', 'T_MTD'], duyetVoi([TU_RO, TU_MO], false));
 teq('🔴 ô tích BẬT · màn Duyệt cũng bỏ đơn chưa rõ', ['T_MTD'], duyetVoi([TU_RO, TU_MO], true));
 teq('🔴 và không bỏ nhầm đơn đã rõ', ['T_MTD'], duyetVoi([TU_RO], true));
 
@@ -389,7 +395,7 @@ const dvK = duyetVoi([K_TU_T, K_TU_N], false, function (d) { return d && d.maDon
 teq('🔴 màn Duyệt tạm ứng: đơn khối khác KHÔNG lọt vào bảng', ['T_TRONG'], dvK);
 /* Đối chứng: không chối gì thì cả hai đơn phải có mặt — nếu không, phép trên xanh vì bảng rỗng
    sẵn chứ không phải vì bộ lọc chạy đúng. */
-teq('   đối chứng · không lọc khối thì cả hai đơn đều có', ['T_TRONG', 'T_NGOAI'],
+teq('   đối chứng · không lọc khối thì cả hai đơn đều có', ['T_NGOAI', 'T_TRONG'],
   duyetVoi([K_TU_T, K_TU_N], false));
 
 if (TRUOT.length) {

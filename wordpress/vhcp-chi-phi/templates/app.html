@@ -1196,23 +1196,21 @@
     <div id="duyetTongLH" style="margin-bottom:12px;padding:12px 16px;border-radius:12px;font-size:14px"></div>
     <div class="card">
       <div class="ch">
-        <h2>✅ Duyệt đơn (Kế toán)</h2>
+        <h2>⏳ Chờ duyệt tạm ứng <span style="font-size:11px;font-weight:400;color:#64748b">— đơn tuần của cơ sở, gom cả tuần một lần</span> <span class="badge st-cho" id="duyetSoCho">0</span></h2>
         <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
           <div class="fld"><label>Tháng</label><select id="dvThang" onchange="renderDuyet()" style="min-width:115px"></select></div>
           <div class="fld"><label>Tuần / kỳ</label><select id="dvKy" onchange="renderDuyet()" style="min-width:185px"></select></div>
           <div class="fld"><label>Cơ sở</label><select id="dvCoso" onchange="renderDuyet()" style="min-width:165px"></select></div>
           <button class="btn b-x" onclick="dvXoaLoc()" title="Bỏ lọc tháng / tuần / cơ sở">✕ Bỏ lọc</button>
-          <!-- TAB NÀY CHỈ LO KHÂU TẠM ỨNG: duyệt → gửi tiền → đang mua.
-               "Chờ quyết toán" và "Đã quyết toán" thuộc tab 🧾 Quyết toán — để ở đây thì
-               cùng một đơn nằm hai chỗ, mà chỗ này lại không làm được gì với nó (code cũ
-               còn phải in thêm dòng "→ xử lý ở tab Quyết toán" ngay cạnh). -->
-          <select id="duyetFilter" onchange="renderDuyet()">
-            <option value="cho">Cần xử lý (chờ duyệt / chờ gửi tiền)</option>
-            <option value="Chờ duyệt tạm ứng">Chờ duyệt tạm ứng</option>
-            <option value="Chờ cấp tạm ứng">Chờ cấp tạm ứng (gửi tiền)</option>
-            <option value="Đã cấp tạm ứng">Đã cấp tạm ứng (đang mua)</option>
-            <option value="all">Tất cả đơn ở khâu tạm ứng</option>
-          </select>
+          <!-- 🔴 Ô LỌC TRẠNG THÁI ĐÃ BỎ — 23/09/2026, anh Thắng: *"tab duyệt tạm ứng và
+               duyệt quyết toán tách 2 bảng riêng để dễ theo dõi đơn"*, và *"check 1 lần
+               duyệt và chi 1 lần"*. Ba khâu nay là BA BẢNG đứng sẵn cạnh nhau, nên một ô
+               chọn để nhảy giữa chúng là thừa — và tệ hơn: nó GIẤU hai khâu kia. Kế toán mở
+               tab ra ở "Cần xử lý" thì không thấy có bao nhiêu đơn đang chờ chi tiền.
+
+               ⚠️ TAB NÀY VẪN CHỈ LO KHÂU TẠM ỨNG. "Chờ quyết toán" / "Đã quyết toán" thuộc
+                  tab 🧾 Quyết toán — để ở đây thì cùng một đơn nằm hai chỗ, mà chỗ này lại
+                  không làm được gì với nó. Luật ấy nay nằm ở `KHAU_TU`, không ở ô chọn. -->
           <button class="btn b-x" onclick="loadDuyet()">↻ Tải lại</button>
         </div>
       </div>
@@ -1224,12 +1222,52 @@
         <button class="btn b-g" id="btnCapChon" onclick="doCapChon()" style="display:none">💵 Cấp cho các đơn đã chọn</button>
         <button class="btn b-d" id="btnTraChon" onclick="doTraChon()">↩ Trả các đơn đã chọn</button>
       </div>
+      <div style="padding:0 0 10px;font-size:12px;color:#64748b">
+        Ba khâu tạm ứng, mỗi khâu một bảng — <b>kiểm một lần, duyệt một lần, chi một lần</b> cho cả tuần.
+        Đơn dự án · công tác · setup nằm ở bảng riêng bên dưới và <b>không</b> gom theo tuần.
+      </div>
       <div class="tw">
         <table>
           <thead><tr><th style="width:32px;text-align:center"><input type="checkbox" id="dvChkAll" onchange="dvToggleAll(this)" title="Chọn tất cả"></th><th>Kỳ / tuần</th><th>Người lập</th><th>Cơ sở</th><th style="text-align:right">Tạm ứng</th><th style="text-align:right">Thực chi CN</th><th style="text-align:right">NCC</th><th style="text-align:right">Thừa/thiếu</th><th>Trạng thái</th><th style="text-align:center">Thao tác</th></tr></thead>
           <tbody id="duyetBody"></tbody>
         </table>
-        <div class="empty" id="duyetEmpty">Không có đơn.</div>
+        <div class="empty" id="duyetEmpty">Không có đơn nào chờ duyệt.</div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════════════════
+         BẢNG 2 — ĐÃ DUYỆT, CHỜ CHI TIỀN. Anh Thắng 23/09/2026: *"check 1 lần duyệt và chi
+         1 lần"*. Duyệt và chi là HAI ĐỘNG TÁC CỦA HAI NGƯỜI (quản lý duyệt · kế toán chi),
+         nên chúng phải là hai bảng đứng cạnh nhau chứ không phải hai lựa chọn trong một ô
+         lọc: ô lọc bắt người ta nhớ mà bấm sang, và ai không bấm thì không biết bên kia
+         đang có mấy đơn chờ tiền.
+         ══════════════════════════════════════════════════════════════════════════════════ -->
+    <div class="card" id="duyetCardChi" style="margin-top:14px">
+      <div class="ch"><h2>💵 Đã duyệt — chờ chi tiền <span style="font-size:11px;font-weight:400;color:#64748b">— kế toán chuyển tiền, gom cả tuần một lần</span> <span class="badge st-cho" id="duyetSoChi">0</span></h2></div>
+      <div class="tw">
+        <table>
+          <thead><tr><th style="width:32px;text-align:center"></th><th>Kỳ / tuần</th><th>Người lập</th><th>Cơ sở</th><th style="text-align:right">Tạm ứng</th><th style="text-align:right">Thực chi CN</th><th style="text-align:right">NCC</th><th style="text-align:right">Thừa/thiếu</th><th>Trạng thái</th><th style="text-align:center">Thao tác</th></tr></thead>
+          <tbody id="duyetBodyChi"></tbody>
+        </table>
+        <div class="empty" id="duyetEmptyChi">Không có đơn nào chờ chi tiền.</div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════════════════
+         BẢNG 3 — ĐÃ CẤP TIỀN, ĐANG MUA. CHỈ ĐỂ THEO DÕI, không có nút nào.
+         🔴 KHÔNG BỎ HẲN KHỎI MÀN dù ở đây không còn việc gì để làm: ô lọc cũ có mục "Đã cấp
+            tạm ứng (đang mua)", và người quen bấm vào đó mỗi tuần để xem tiền đã phát đang
+            nằm ở ai. Gỡ đi là họ tưởng mất tính năng. Việc CHỐT của mấy đơn này nằm ở tab
+            🧾 Quyết toán (bảng "Đã cấp tạm ứng — CHƯA nộp hóa đơn").
+         ══════════════════════════════════════════════════════════════════════════════════ -->
+    <div class="card" id="duyetCardMua" style="margin-top:14px">
+      <div class="ch"><h2>🛒 Đã cấp tạm ứng — đang mua <span style="font-size:11px;font-weight:400;color:#64748b">— chỉ để theo dõi, chốt ở tab Quyết toán</span> <span class="badge st-cho" id="duyetSoMua">0</span></h2></div>
+      <div class="tw">
+        <table>
+          <thead><tr><th style="width:32px;text-align:center"></th><th>Kỳ / tuần</th><th>Người lập</th><th>Cơ sở</th><th style="text-align:right">Tạm ứng</th><th style="text-align:right">Thực chi CN</th><th style="text-align:right">NCC</th><th style="text-align:right">Thừa/thiếu</th><th>Trạng thái</th><th style="text-align:center">Thao tác</th></tr></thead>
+          <tbody id="duyetBodyMua"></tbody>
+        </table>
+        <div class="empty" id="duyetEmptyMua">Không có đơn nào đang mua.</div>
       </div>
     </div>
 
@@ -11904,18 +11942,60 @@
    * ⚠️ ĐƠN VỊ VẪN TÁCH, NHƯNG NẰM TRONG TUẦN. Anh Thắng 20/09: *"tránh duyệt lộn đơn vị"* —
    *    nên vạch ngăn 🏢 K&H · POSH giữ nguyên, chỉ chuyển vào bên trong mỗi nhóm tuần.
    * ══════════════════════════════════════════════════════════════════════════════════════════ */
-  function _dvGomTuan(list, veHang){
+  function _dvGomTuan(list, veHang, opts){
+    opts=opts||{};
     var byKy={}, thu=[];
     list.forEach(function(d){ var k=String(d.ky||'(không kỳ)'); if(!byKy[k]){ byKy[k]=[]; thu.push(k); } byKy[k].push(d); });
     /* Mới nhất trước — cùng phép xếp với màn Quyết toán (`_kyVal`), để hai màn không bày hai
        thứ tự khác nhau cho cùng một danh sách tuần. Kỳ không đọc được ra số (`-1`) rơi xuống
        cuối, chỗ đúng của nó: đó là đơn chưa chốt kỳ. */
     thu.sort(function(a,b){ return _kyVal(b)-_kyVal(a); });
+    var quy=opts.recon?_dvQuyTheoKy():null;
     return thu.map(function(k, gi){
-      var rows=byKy[k], gid='dvk'+gi, gap=(gi>0);
-      return _dvNhomHdr(k, rows, gid, gap)
-        + _tachDonVi(rows, function(d){ return veHang(d, gid, gap); }, gid, gap);
+      var rows=byKy[k], gid=(opts.tien||'dvk')+gi, gap=(gi>0);
+      var h=_dvNhomHdr(k, rows, gid, gap);
+      /* 🔴 DÒNG ĐỐI CHIẾU QUỸ — anh Thắng 23/09/2026: *"Sang tuần thừa thiếu 1 lần đó"*. Nó
+         phải đứng NGAY DƯỚI tiêu đề tuần và TRƯỚC mấy nút duyệt, vì đây chính là con số người
+         ta cần trước khi quyết định duyệt bao nhiêu cho tuần mới. */
+      if(quy && quy[k]){
+        var q=quy[k];
+        var wst=(q.giaiNgan<0)?'background:#fef2f2;border-left:4px solid #ef4444;color:#7f1d1d'
+                              :'background:#fffbeb;border-left:4px solid #f59e0b;color:#78350f';
+        h+='<tr class="dvFlow '+gid+'"'+(gap?' style="display:none"':'')+'><td colspan="10" style="'+wst+';padding:8px 10px;font-size:12px">'
+          +_qtReconHtml(q.tu, q.mua, q.carry, q.hasPrev, q.isOpen)+'</td></tr>';
+      }
+      return h + _tachDonVi(rows, function(d){ return veHang(d, gid, gap); }, gid, gap);
     }).join('');
+  }
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * ĐỐI CHIẾU QUỸ THEO TUẦN — bản dùng chung cho màn Duyệt, mượn nguyên phép của màn Quyết
+   * toán (`_qtSums` · `_qtReconHtml`) chứ không tính lại.
+   * ══════════════════════════════════════════════════════════════════════════════════════════
+   * 🔴 TÍNH TRÊN TOÀN BỘ ĐƠN CỦA KHỐI, KHÔNG TRÊN DANH SÁCH ĐANG HIỆN. Bảng này chỉ chở đơn ở
+   *    khâu tạm ứng; cộng thừa/thiếu từ đó là bỏ sót mọi đơn đã quyết toán của tuần trước —
+   *    tức con số "dư kỳ trước" sai, và sai theo hướng NGUY: nó báo còn dư trong khi tiền đã
+   *    tiêu hết, rồi kế toán duyệt tiếp một tuần nữa trên một cái quỹ không có thật.
+   *
+   * 🔴 VÀ KHÔNG ĐỌC MẤY Ô LỌC. Lọc theo cơ sở rồi mà số dư đổi theo là con số ấy vô nghĩa:
+   *    quỹ là của cả khối, không của riêng một gian.
+   *
+   * ⚠️ TUẦN ĐẦU SEED BẰNG `BOOT.soDuDauKy` — y như màn Quyết toán. Hai màn nói hai con số cho
+   *    cùng một tuần là kế toán mất niềm tin vào cả hai.
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  function _dvQuyTheoKy(){
+    var all=(BOOT.dons||[]).filter(_hopKhoi);
+    var byKy={}; all.forEach(function(d){ var k=String(d.ky||'(không kỳ)'); (byKy[k]=byKy[k]||[]).push(d); });
+    var asc=Object.keys(byKy).filter(function(k){ return _kyVal(k)>=0; })
+      .sort(function(a,b){ return _kyVal(a)-_kyVal(b); });
+    var ra={}, prev=null, seed=Number(BOOT.soDuDauKy)||0;
+    asc.forEach(function(k, i){
+      var s=_qtSums(byKy[k]);
+      var carry=(i===0)?seed:prev;
+      ra[k]={ tu:s.tu, mua:s.mua, carry:carry, hasPrev:(i===0)?(seed!==0):true,
+              isOpen:(i===0), giaiNgan:s.tu-carry };
+      prev=(s.tu||0)-(s.mua||0);
+    });
+    return ra;
   }
   /* Hàng tiêu đề của một tuần: tên tuần · số đơn · tổng tạm ứng · hai nút làm cả tuần. */
   function _dvNhomHdr(ky, rows, gid, gap){
@@ -11981,34 +12061,12 @@
       +'\n\nVẫn làm cả tuần một lượt?')){ all.forEach(function(c){ c.checked=false; }); dvUpdateBar(); return; }
     if(viec==='cap') doCapChon(); else doDuyetChon();
   }
-  function renderDuyet(){
-    _renderTongLH('duyetTongLH');
-    var f=el('duyetFilter').value;
-    /* 🔴 LỌC THEO KHỐI Ở ĐÂY NỮA — đây mới là màn nguy nhất. Anh Thắng 20/09/2026: *"tránh
-       duyệt lộn đơn vị"*. Trộn ba khối trong một bảng duyệt thì một cú bấm nhầm là duyệt tiền
-       của đơn vị khác, mà nhìn bảng không có gì báo. */
-    var all=(BOOT.dons||[]).filter(_hopKhoi);
-    _napLocDon(all, 'dvThang', 'dvKy', 'dvCoso');
-    var fT=el('dvThang')?el('dvThang').value:'', fK=el('dvKy')?el('dvKy').value:'', fC=el('dvCoso')?el('dvCoso').value:'';
-    // KHÂU TẠM ỨNG gồm đúng 3 trạng thái. Kể cả "Tất cả" cũng không kéo đơn của khâu sau
-    // về đây — không thì bỏ 2 dòng khỏi ô chọn mà chọn "Tất cả" là chúng quay lại ngay.
-    var KHAU_TU=['Chờ duyệt tạm ứng','Chờ cấp tạm ứng','Đã cấp tạm ứng'];
-    var list=all.filter(function(d){
-      if(_anVaoMo(d)) return false;
-      // Lọc cho gọn: tháng / tuần / cơ sở — ô nào trống là không lọc theo ô đó
-      if(fT && _thangCuaKy(d.ky)!==fT) return false;
-      if(fK && String(d.ky||'')!==fK) return false;
-      if(fC && String(d.coso||'')!==fC) return false;
-      if(KHAU_TU.indexOf(d.trangThai)<0) return false;
-      if(f==='all') return true;
-      if(f==='cho') return ['Chờ duyệt tạm ứng','Chờ cấp tạm ứng'].indexOf(d.trangThai)>=0;
-      return d.trangThai===f; });
-    el('duyetEmpty').style.display=list.length?'none':'block';
-    /* 🔴 GIỮ DANH SÁCH ĐANG HIỆN ĐỂ CỘNG TỔNG TỪ DỮ LIỆU, KHÔNG TỪ Ô TÍCH. Ô tích chỉ mọc ở
-       dòng người đang xem có quyền thao tác (`canChk`), nên cộng theo ô tích là bỏ sót đúng
-       những đơn họ không được đụng vào — mà tiền của chúng vẫn nằm trong tổng phải chi. */
-    DV_LIST=list;
-    el('duyetBody').innerHTML=_dvGomTuan(list, function(d, gid, gap){
+  /* MỘT DÒNG ĐƠN Ở MÀN DUYỆT — dùng chung cho cả ba bảng (chờ duyệt · chờ chi · đang mua).
+     🔴 MỘT BẢN DUY NHẤT. Ba bảng cùng bộ cột; chép thân dòng ra ba chỗ là ngày ai đó thêm một
+        cột thì hai bảng lệch một ô, và bảng lệch trông vẫn bình thường — chỉ là số nằm sai cột.
+     ⚠️ Nút và ô tích TỰ QUYẾT THEO TRẠNG THÁI CỦA ĐƠN, không theo bảng nó đang nằm. Truyền
+        thêm một tham số "bảng nào" là mở đường cho hai nguồn sự thật cãi nhau. */
+  function _dvHangHtml(d, gid, gap){
       var st=d.trangThai; var cl=d.chenhLech>=0?'pos':'neg'; var role=_vaiLuat();
       var canChk=(st==='Chờ duyệt tạm ứng'&&canDo('duyetTU'))||(st==='Chờ cấp tạm ứng'&&canDo('capTU'));
       var chk=canChk?('<td style="text-align:center"><input type="checkbox" class="dvChk" data-m="'+esc(d.maDon)+'" data-st="'+esc(st)+'" data-ky="'+esc(d.ky||'')+'" data-tu="'+(Number(d.tamUng)||0)+'" onchange="dvUpdateBar()"></td>'):'<td></td>';
@@ -12033,9 +12091,60 @@
         '<td class="money '+cl+'">'+money(d.chenhLech)+'</td>'+
         '<td><span class="badge '+stCls(st)+'">'+esc(_tenTT(st,d.khoi,_luongDon(d)))+'</span>'+info+'</td>'+
         '<td style="text-align:center;white-space:nowrap">'+act+'</td></tr>';
-    });
+  }
+  function renderDuyet(){
+    _renderTongLH('duyetTongLH');
+
+    /* 🔴 LỌC THEO KHỐI Ở ĐÂY NỮA — đây mới là màn nguy nhất. Anh Thắng 20/09/2026: *"tránh
+       duyệt lộn đơn vị"*. Trộn ba khối trong một bảng duyệt thì một cú bấm nhầm là duyệt tiền
+       của đơn vị khác, mà nhìn bảng không có gì báo. */
+    var all=(BOOT.dons||[]).filter(_hopKhoi);
+    _napLocDon(all, 'dvThang', 'dvKy', 'dvCoso');
+    var fT=el('dvThang')?el('dvThang').value:'', fK=el('dvKy')?el('dvKy').value:'', fC=el('dvCoso')?el('dvCoso').value:'';
+    // KHÂU TẠM ỨNG gồm đúng 3 trạng thái. Kể cả "Tất cả" cũng không kéo đơn của khâu sau
+    // về đây — không thì bỏ 2 dòng khỏi ô chọn mà chọn "Tất cả" là chúng quay lại ngay.
+    var KHAU_TU=['Chờ duyệt tạm ứng','Chờ cấp tạm ứng','Đã cấp tạm ứng'];
+    var list=all.filter(function(d){
+      if(_anVaoMo(d)) return false;
+      // Lọc cho gọn: tháng / tuần / cơ sở — ô nào trống là không lọc theo ô đó
+      if(fT && _thangCuaKy(d.ky)!==fT) return false;
+      if(fK && String(d.ky||'')!==fK) return false;
+      if(fC && String(d.coso||'')!==fC) return false;
+      return KHAU_TU.indexOf(d.trangThai)>=0; });
+    /* 🔴 GIỮ DANH SÁCH ĐANG HIỆN ĐỂ CỘNG TỔNG TỪ DỮ LIỆU, KHÔNG TỪ Ô TÍCH. Ô tích chỉ mọc ở
+       dòng người đang xem có quyền thao tác (`canChk`), nên cộng theo ô tích là bỏ sót đúng
+       những đơn họ không được đụng vào — mà tiền của chúng vẫn nằm trong tổng phải chi. */
+    DV_LIST=list;
+    /* 🔴 BA KHÂU, BA BẢNG (23/09/2026). Chia ở ĐÂY chứ không chia ở `_dvGomTuan`: hàm ấy chỉ
+       biết gom tuần, và cho nó biết thêm chuyện "bước nào thuộc bảng nào" là nó phải học một
+       thứ nó không cần biết. Một hàm một việc.
+       ⚠️ BA TIỀN TỐ NHÓM KHÁC NHAU (`dvk` · `dck` · `dmk`). Ba bảng cùng dùng `dvk0` thì bấm
+          xổ tuần ở bảng này là tuần ở bảng kia cũng xổ theo — `dvNhomToggle()` tìm theo class
+          trên CẢ trang, không trong một bảng. */
+    var lCho=list.filter(function(d){ return d.trangThai==='Chờ duyệt tạm ứng'; });
+    var lChi=list.filter(function(d){ return d.trangThai==='Chờ cấp tạm ứng'; });
+    var lMua=list.filter(function(d){ return d.trangThai==='Đã cấp tạm ứng'; });
+    _dvVeBang('duyetBodyChi', 'duyetEmptyChi', 'duyetSoChi', lChi, 'dck');
+    _dvVeBang('duyetBodyMua', 'duyetEmptyMua', 'duyetSoMua', lMua, 'dmk');
+    if(el('duyetSoCho')) el('duyetSoCho').textContent=lCho.length;
+    el('duyetEmpty').style.display=lCho.length?'none':'block';
+    el('duyetBody').innerHTML=_dvGomTuan(lCho, function(d, gid, gap){
+      return _dvHangHtml(d, gid, gap);
+    /* 🔴 DÒNG ĐỐI CHIẾU QUỸ CHỈ Ở BẢNG NÀY. Anh Thắng: *"Sang tuần thừa thiếu 1 lần đó"* —
+       MỘT lần, và đúng chỗ phải quyết định: trước khi duyệt tuần mới. In lại nó ở bảng "chờ
+       chi" và "đang mua" là ba lần cùng một con số trên một màn, rồi không ai đọc nữa. */
+    }, {recon:true, tien:'dvk'});
     if(el('dvChkAll')) el('dvChkAll').checked=false;
     dvUpdateBar();
+  }
+  /* Hai bảng dưới dùng chung một phép vẽ — cùng cột, cùng lối gom tuần, chỉ khác chỗ đổ ra.
+     ⚠️ MƯỢN LẠI `_dvHangHtml()` chứ không chép lại thân dòng: chép là hai bản sẽ lệch nhau
+        đúng lúc ai đó thêm một cột. */
+  function _dvVeBang(bodyId, emptyId, soId, rows, tien){
+    var b=el(bodyId); if(!b) return;
+    if(el(soId)) el(soId).textContent=rows.length;
+    if(el(emptyId)) el(emptyId).style.display=rows.length?'none':'block';
+    b.innerHTML=_dvGomTuan(rows, function(d, gid, gap){ return _dvHangHtml(d, gid, gap); }, {tien:tien});
   }
   // ---- Batch chọn nhiều đơn trong tab Duyệt ----
   function dvSelected(){ return [].slice.call(document.querySelectorAll('.dvChk:checked')); }
