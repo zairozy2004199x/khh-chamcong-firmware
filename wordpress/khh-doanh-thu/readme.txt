@@ -102,6 +102,32 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.58.3 =
+* 🔴 **Vai cấp tự động theo lối cũ được đánh dấu để kiểm.** Anh Thắng 23/09/2026 gửi ảnh chị Thảo —
+  cửa hàng trưởng vào bằng PIN — thấy doanh thu cả 15 quán và có nút Nạp báo cáo: *"nhân viên quản
+  lý cửa hàng nào thì hiện doanh thu cửa hàng của mình thôi"*. Máy chủ vốn cắt số liệu theo cơ sở
+  ngay trong câu truy vấn; chị thấy hết vì mang vai **duyệt** do bên Chấm công tự suy trước 1.58.0
+  (vai chấm công quy về Quản lý), mà duyệt nghĩa là xem tổng. 1.58.0 cố ý không đụng hàng cũ nên
+  vai suy sai vẫn nằm đó im lặng.
+* Lần đầu chạy bản này, mọi người **đang có vai** (chỉ có thể là do lối cũ cấp) được ghi vào danh
+  sách "cần kiểm". Bảng Phân quyền bày cảnh báo đầu bảng kể tên họ, ai đang duyệt thì tô đỏ *"đang
+  xem mọi cơ sở"*, từng hàng ghi *"vai cấp tự động lối cũ — kiểm rồi Lưu"*. Bấm **Lưu** (kể cả giữ
+  nguyên vai) là hết cờ; đẩy lại từ Nhân sự không xoá cờ. **Không tự hạ vai ai** — kế toán ở mã văn
+  phòng cũng nằm trong danh sách, hạ nhầm là người cần xem tổng lại thấy rỗng.
+* Cột cơ sở của người vai duyệt nay ghi rõ *"xem tổng MỌI cơ sở"*, và nếu mã của họ là một quán thì
+  nhắc *"nếu là cửa hàng trưởng thì chọn Nhập báo cáo"*.
+* 🔴 **Nút "Lọc" cạnh hai ô ngày Từ/đến** ở tab Doanh thu và tab Đối soát. Anh Thắng 23/09/2026:
+  *"chọn ngày nó ko tự ra, thêm nút tìm kiếm để nó chạy ngày lọc"*. Bấm Lọc (hoặc Enter trong ô
+  ngày) là đọc cả hai ô một lượt rồi chạy, kể cả khi giá trị không đổi; thiếu một ô thì báo thay vì
+  đi hỏi một khoảng dở. Ô ngày vẫn tự chạy khi chọn xong như 1.44.
+* 🔴 **Tab Doanh thu không còn nuốt lượt gọi sau.** Nguyên nhân thật của chuyện "chọn ngày không
+  ra": `tai()` gặp lượt đang tải là bỏ luôn lượt mới — đổi Từ rồi đổi đến ngay là lượt hai mất im
+  lặng, thanh ngày ghi khoảng mới mà số vẫn của khoảng cũ. Nay đánh số lượt như tab Đối soát: lượt
+  về trễ thì bỏ, lượt mới nhất luôn được vẽ.
+* Bài kiểm: `kiem-day-bao-cao.php` +8 phép (đánh dấu một lần, cờ theo người, Lưu là hết cờ, đẩy
+  lại không xoá cờ, gỡ người mất cờ), `kiem-phan-quyen-pin-man.js` +4 phép, `kiem-o-ngay.js` +12 phép
+  (nút Lọc hai tab, `tai()` không bỏ rơi lượt, `locTay` chạy thật ba tình huống).
+
 = 1.58.2 =
 * 🔴 **Thoát không còn nhảy sang trang WordPress.** Anh Thắng 23/09/2026: *"đăng xuất ra nó nhảy ra
   trang wordpress"*. Người vào bằng tài khoản trước đây thoát qua link `wp_logout_url()` → trình

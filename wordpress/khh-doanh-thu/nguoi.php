@@ -364,8 +364,50 @@ function khh_dt_dat_vai( $ma_nv, $vai ) {
 		array( 'vai' => $vai, 'cap_nhat' => current_time( 'mysql' ) ),
 		array( 'ma_nv' => $ma )
 	);
+	khh_dt_vai_tu_dong_bo( $ma );
 	khh_dt_phien_quen();
 	return array( 'ok' => true, 'ma_nv' => $ma, 'vai' => $vai );
+}
+
+/**
+ * Những người đang mang vai do LỐI CŨ cấp tự động (bên chấm công suy từ vai chấm công, trước 1.58.0).
+ *
+ * 23/09/2026 anh Thắng gửi ảnh chị Thảo — cửa hàng trưởng vào bằng PIN — thấy doanh thu cả 15 quán
+ * và có cả nút Nạp báo cáo: *"nhân viên quản lý cửa hàng nào thì hiện doanh thu cửa hàng của mình
+ * thôi"*. Chị mang vai 'duyet' vì vai chấm công của chị quy về Quản lý, mà 'duyet' nghĩa là xem
+ * tổng. 1.58.0 cố ý không đụng hàng cũ, nên những vai suy sai ấy vẫn nằm đó im lặng.
+ *
+ * Cách làm: lần đầu chạy bản này, mọi hàng đang có vai đều là do lối cũ cấp (trước 1.58.0 không có
+ * chỗ nào khác cấp vai) — ghi mã họ vào một danh sách. Tab Quản trị bày cảnh báo ở từng người cho
+ * tới khi quản trị bấm Lưu (tức đã nhìn và quyết). KHÔNG tự hạ vai ai: kế toán ở mã văn phòng cũng
+ * nằm trong danh sách này, hạ nhầm là người duy nhất cần xem tổng lại thấy rỗng.
+ */
+function khh_dt_vai_tu_dong_ds() {
+	$ds = get_option( 'khh_dt_vai_tu_dong', false );
+	return is_array( $ds ) ? array_values( array_map( 'strval', $ds ) ) : array();
+}
+
+/** Đánh dấu một lần — gọi lúc kích hoạt / nâng cấp. Đã có danh sách (kể cả rỗng) thì không làm lại. */
+function khh_dt_danh_dau_vai_cu() {
+	global $wpdb;
+	if ( false !== get_option( 'khh_dt_vai_tu_dong', false ) ) {
+		return false;
+	}
+	$ng = khh_dt_bang_nguoi();
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$ma = (array) $wpdb->get_col( "SELECT ma_nv FROM $ng WHERE vai<>''" );
+	update_option( 'khh_dt_vai_tu_dong', array_values( array_map( 'strval', $ma ) ), false );
+	return true;
+}
+
+/** Quản trị đã nhìn và quyết vai người này — bỏ dấu. */
+function khh_dt_vai_tu_dong_bo( $ma_nv ) {
+	$ma = strtoupper( trim( (string) $ma_nv ) );
+	$ds = khh_dt_vai_tu_dong_ds();
+	$moi = array_values( array_filter( $ds, function ( $x ) use ( $ma ) { return $x !== $ma; } ) );
+	if ( count( $moi ) !== count( $ds ) ) {
+		update_option( 'khh_dt_vai_tu_dong', $moi, false );
+	}
 }
 
 /** Sổ người vào bằng PIN cho tab Quản trị: mã · tên · cơ sở (mã + tên POS đã ghép) · vai. Không có PIN. */
@@ -374,6 +416,7 @@ function khh_dt_ds_nguoi_pin() {
 	$ng = khh_dt_bang_nguoi();
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
 	$ds = (array) $wpdb->get_results( "SELECT ma_nv, ho_ten, coso_ma, vai, cap_nhat, pin FROM $ng ORDER BY coso_ma, ho_ten", ARRAY_A );
+	$tu_dong = khh_dt_vai_tu_dong_ds();
 	$ra = array();
 	foreach ( $ds as $n ) {
 		$ma_ds  = khh_dt_tach_ma( (string) $n['coso_ma'] );
@@ -392,6 +435,8 @@ function khh_dt_ds_nguoi_pin() {
 			'coso_ds'  => $ma_ds,
 			'coso_ten' => $ten_ds,
 			'vai'      => in_array( $vai, khh_dt_vai_ds(), true ) ? $vai : '',
+			/* Vai do lối cũ cấp tự động, quản trị chưa nhìn — xem `khh_dt_vai_tu_dong_ds()`. */
+			'tu_dong'  => '' !== $vai && in_array( (string) $n['ma_nv'], $tu_dong, true ),
 			'co_pin'   => '' !== (string) $n['pin'],
 			'cap_nhat' => (string) $n['cap_nhat'],
 		);
@@ -408,6 +453,7 @@ function khh_dt_day_ra( $ma_nv ) {
 	}
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery
 	$wpdb->delete( khh_dt_bang_nguoi(), array( 'ma_nv' => $ma ) );
+	khh_dt_vai_tu_dong_bo( $ma );
 	khh_dt_dong_phien( $ma );
 	return array( 'ok' => true );
 }

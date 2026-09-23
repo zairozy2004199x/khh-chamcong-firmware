@@ -218,8 +218,33 @@ khh_dt_test_dat_the( $dn['token'] );
 khh_dt_test_quen_phien();
 phep( 'đúng người mới', khh_dt_phien_nguoi()['ma_nv'] === 'NV003' );
 
+/* ---- 🔴 VAI CẤP TỰ ĐỘNG LỐI CŨ PHẢI ĐƯỢC ĐÁNH DẤU ĐỂ KIỂM (anh Thắng 23/09/2026: chị Thảo cửa hàng
+   trưởng thấy doanh thu cả 15 quán vì bên Chấm công từng tự suy vai duyệt) ---- */
+delete_option( 'khh_dt_vai_tu_dong' );
+/* Giả một site cũ: hai người đang có vai (NV001 duyet, NV003 nhap qua lối cũ), một người chưa cấp. */
+$GLOBALS['wpdb']->update( khh_dt_bang_nguoi(), array( 'vai' => 'nhap' ), array( 'ma_nv' => 'NV003' ) );
+khh_dt_day_vao( array( 'ma_nv' => 'NV010', 'ho_ten' => 'Chưa Cấp', 'pin' => '101010', 'coso' => 'FZ_ADV_TP' ) );
+phep( 'lần đầu nâng cấp: đánh dấu được', true === khh_dt_danh_dau_vai_cu() );
+$td = khh_dt_vai_tu_dong_ds();
+sort( $td );
+phep( '🔴 mọi người ĐANG có vai đều bị đánh dấu, người chưa cấp thì không', array( 'KT01', 'NV001', 'NV003' ) === $td );
+phep( 'chạy lại không đánh dấu lại (đã có danh sách)', false === khh_dt_danh_dau_vai_cu() );
+$so = khh_dt_ds_nguoi_pin();
+$co = array();
+foreach ( $so as $x ) { $co[ $x['ma_nv'] ] = $x['tu_dong']; }
+phep( 'sổ PIN cắm cờ tu_dong đúng người', true === $co['NV001'] && true === $co['NV003'] && false === $co['NV010'] );
+/* Quản trị nhìn và Lưu -> hết cờ, kể cả khi giữ nguyên vai. */
+khh_dt_dat_vai( 'NV001', 'duyet' );
+phep( '🔴 quản trị bấm Lưu (giữ vai) là hết cờ', ! in_array( 'NV001', khh_dt_vai_tu_dong_ds(), true ) );
+phep( 'người khác vẫn còn cờ', in_array( 'NV003', khh_dt_vai_tu_dong_ds(), true ) );
+/* Đẩy lại từ Nhân sự KHÔNG xoá cờ — đẩy lại không phải quản trị đã nhìn. */
+khh_dt_day_vao( array( 'ma_nv' => 'NV003', 'ho_ten' => 'Lê Văn D', 'pin' => '4321', 'coso' => 'FZ_ADV_TP' ) );
+phep( 'đẩy lại từ Nhân sự không xoá cờ', in_array( 'NV003', khh_dt_vai_tu_dong_ds(), true ) );
+khh_dt_day_ra( 'NV010' );
+
 /* --- gỡ người: hàng mất, phiên đang mở chết theo --- */
 khh_dt_day_ra( 'NV003' );
+phep( 'gỡ người thì cờ cũng mất', ! in_array( 'NV003', khh_dt_vai_tu_dong_ds(), true ) );
 khh_dt_test_quen_phien();
 phep( 'gỡ xong thì không còn trong sổ', ! khh_dt_da_day( 'NV003' ) );
 phep( 'và phiên đang mở hết hiệu lực ngay', null === khh_dt_phien_nguoi() );

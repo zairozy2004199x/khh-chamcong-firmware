@@ -149,6 +149,32 @@ t('🔴 danh so luot goi', /\+\+dsLuot/.test(td));
 t('luot tra ve tre thi BO, khong de len luot moi',
   (td.match(/luot !== dsLuot/g) || []).length >= 2);
 
+/* ── 11. nút Lọc và tab Doanh thu không bỏ rơi lượt gọi (anh Thắng 23/09/2026: "chọn ngày nó ko
+      tự ra, thêm nút tìm kiếm để nó chạy ngày lọc") ───────────────────────────────────────── */
+t('tab Doanh thu có nút #dtLoc', /id="dtLoc"/.test(boCC));
+t('tab Doi soat có nút #dsLoc', /id="dsLoc"/.test(boCC));
+t('nút dtLoc gọi locTay với hai ô ngày', /#dtLoc'\)\.addEventListener\('click'[\s\S]{0,120}locTay\(q\('#dtTu'\), q\('#dtDen'\)/.test(boCC));
+t('nút dsLoc gọi locTay', /#dsLoc'\)[\s\S]{0,160}locTay\(t, d,/.test(boCC));
+t('Enter trong ô ngày cũng chạy Lọc', /locKhiEnter\(q\('#dtTu'\), q\('#dtLoc'\)\)/.test(boCC));
+const taiSrc = boc('tai').replace(/\/\*[\s\S]*?\*\//g, ' ');
+t('🔴 tai() KHÔNG còn bỏ rơi lượt gọi khi đang tải', !/if \(S\.dangTai\) return;/.test(taiSrc));
+t('🔴 tai() đánh số lượt (++dtLuot)', /\+\+dtLuot/.test(taiSrc));
+t('lượt trả về trễ thì bỏ (cả then và catch)', (taiSrc.match(/luot !== dtLuot/g) || []).length >= 2);
+/* locTay chạy thật: thiếu một ngày -> không chạy; đủ hai ngày -> chạy đúng thứ tự. */
+{
+  const m = src.match(/  function locTay\([\s\S]*?\n  \}\n/);
+  t('tìm thấy locTay', !!m);
+  if (m) {
+    let baoGoi = 0;
+    const f = new Function('NGAY_DU', 'bao', m[0] + '\nreturn locTay;')(new RegExp(mRe[0].match(/\/(.*)\//)[1]), () => { baoGoi++; });
+    const goi = [];
+    t('thiếu ngày đến -> không chạy, có báo', f({ value: '2026-09-16' }, { value: '' }, (a, b) => goi.push([a, b])) === false && goi.length === 0 && baoGoi === 1);
+    t('đủ hai ngày -> chạy một lượt', f({ value: '2026-09-16' }, { value: '2026-09-23' }, (a, b) => goi.push([a, b])) === true && goi.length === 1 && goi[0][0] === '2026-09-16' && goi[0][1] === '2026-09-23');
+    f({ value: '2026-09-23' }, { value: '2026-09-16' }, (a, b) => goi.push([a, b]));
+    t('Từ sau đến thì đảo lại, không hỏi khoảng ngược', goi[1][0] === '2026-09-16' && goi[1][1] === '2026-09-23');
+  }
+}
+
 if (hong.length) {
   console.log('\n✗ HỎNG ' + hong.length + ' phép (đạt ' + dat + '):');
   hong.forEach((h) => console.log('   · 🔴 ' + h));

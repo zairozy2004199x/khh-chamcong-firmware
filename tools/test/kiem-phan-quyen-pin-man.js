@@ -83,6 +83,12 @@ phep("🔴 Ghép cơ sở chèn sau #dtNguoiPin (bảng phân quyền đứng đ
   /querySelector\(\s*'#dtNguoiPin'\s*\)[\s\S]{0,80}insertAdjacentHTML\(\s*'afterend'/.test(veGhep));
 phep("tiêu đề bảng có chữ 'Phân quyền'", /<h2>Phân quyền nộp báo cáo/.test(veQT));
 
+/* Vai cấp tự động lối cũ (23/09/2026, chị Thảo thấy cả 15 quán): màn phải cắm cờ và nói vai duyệt = xem hết. */
+phep("màn đọc cờ tu_dong", /x\.tu_dong/.test(veQT));
+phep("và nói rõ 'vai cấp tự động lối cũ'", /vai cấp tự động lối cũ/.test(veQT));
+phep("và nhắc 'Nhập và duyệt' xem doanh thu mọi cơ sở", /Nhập và duyệt<\/b> xem doanh thu <b>mọi<\/b>/.test(veQT));
+phep("kích hoạt gọi khh_dt_danh_dau_vai_cu()", /khh_dt_danh_dau_vai_cu\(\)/.test(boChuThich(fs.readFileSync('wordpress/khh-doanh-thu/khh-doanh-thu.php', 'utf8'))));
+
 /* Dòng trạng thái ở tab Nhập: người PIN chưa cấp phải được nói vì sao khoá. */
 phep("tab Nhập nói 'chưa được cấp quyền nhập' cho PIN chưa cấp",
   /S\.cf\.bang_pin\s*&&\s*!S\.cf\.vai[\s\S]{0,200}chưa được cấp quyền nhập/.test(js));

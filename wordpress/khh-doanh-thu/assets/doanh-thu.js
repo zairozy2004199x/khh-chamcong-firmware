@@ -141,19 +141,46 @@
     o.addEventListener('blur', chay);              // luật 3
   }
 
+  var dtLuot = 0;   // đếm lượt gọi của tab Doanh thu, cùng lối với `dsLuot` ở Đối soát
   function tai() {
-    if (S.dangTai) return;
+    /* 🔴 KHÔNG BỎ RƠI LƯỢT GỌI SAU. Trước 1.58.3 chỗ này `if (S.dangTai) return;` — đổi ngày Từ
+       rồi đổi tiếp ngày đến trong lúc lượt đầu chưa về là lượt hai bị nuốt im lặng: thanh ngày
+       ghi khoảng mới, số vẫn của khoảng cũ. Anh Thắng 23/09/2026: *"chọn ngày nó ko tự ra"*.
+       Nay đánh số lượt: lượt nào về trễ thì bỏ, lượt mới nhất luôn được vẽ. */
+    var luot = ++dtLuot;
     var k = tinhKy();
     var dai = cach(k.tu, k.den) + 1;
     var truoc = doi(k.tu, -dai);
     S.dangTai = true;
     api('bao-cao?tu=' + truoc + '&den=' + k.den).then(function (r) {
+      if (luot !== dtLuot) return;
       S.dangTai = false;
       S.ngay = (r && r.ngay) || [];
       ve();
     }).catch(function (e) {
+      if (luot !== dtLuot) return;
       S.dangTai = false;
       bao(esc(String(e.message || e)), 'loi');
+    });
+  }
+
+  /* Nút Lọc: đọc CẢ HAI ô ngày một lượt rồi chạy. Anh Thắng 23/09/2026: *"chọn ngày nó ko tự
+     ra, thêm nút tìm kiếm để nó chạy ngày lọc"*. Ô ngày vẫn tự chạy khi chọn xong (noiONgay),
+     nhưng nút là đường chắc chắn: bấm là chạy, kể cả khi giá trị không đổi. */
+  function locTay(oTu, oDen, dat) {
+    var tu = oTu ? oTu.value : '', den = oDen ? oDen.value : '';
+    if (!NGAY_DU.test(tu) || !NGAY_DU.test(den)) {
+      bao('Chọn đủ ngày <b>Từ</b> và <b>đến</b> rồi bấm Lọc.', 'loi');
+      return false;
+    }
+    if (tu > den) { var t = tu; tu = den; den = t; }
+    dat(tu, den);
+    return true;
+  }
+  function locKhiEnter(o, nut) {
+    if (!o || !nut) return;
+    o.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter') { ev.preventDefault(); nut.click(); }
     });
   }
 
@@ -678,7 +705,8 @@
           '<span class="o" id="dtOCH"><label for="dtChonCH">Cửa hàng</label>' +
             '<select id="dtChonCH"><option value="*">Tất cả cửa hàng</option></select></span>' +
           '<span class="o"><label for="dtTu">Từ</label><input type="date" id="dtTu">' +
-            '<label for="dtDen">đến</label><input type="date" id="dtDen"></span>' +
+            '<label for="dtDen">đến</label><input type="date" id="dtDen">' +
+            '<button class="nut" type="button" id="dtLoc" title="Chạy theo hai ngày đã chọn">Lọc</button></span>' +
         '</div>' +
         '<div id="dtTrong" class="khung" hidden><div class="trong">' +
           '<b>Kho chưa có số liệu.</b><br>Bấm <b>Nạp báo cáo</b> ở trên rồi thả file xuất từ FABi vào.' +
@@ -719,6 +747,11 @@
     });
     noiONgay(q('#dtTu'), function (v) { S.ky = 'tay'; S.tu = v; tai(); });
     noiONgay(q('#dtDen'), function (v) { S.ky = 'tay'; S.den = v; tai(); });
+    q('#dtLoc').addEventListener('click', function () {
+      locTay(q('#dtTu'), q('#dtDen'), function (tu, den) { S.ky = 'tay'; S.tu = tu; S.den = den; tai(); });
+    });
+    locKhiEnter(q('#dtTu'), q('#dtLoc'));
+    locKhiEnter(q('#dtDen'), q('#dtLoc'));
     q('#dtChonCH').addEventListener('change', function () { S.ch = q('#dtChonCH').value; ve(); });
     q('#dtXepR').addEventListener('click', function () { S.xepMon = 'r'; ve(); });
     q('#dtXepQ').addEventListener('click', function () { S.xepMon = 'q'; ve(); });
@@ -1684,7 +1717,8 @@
           }).join('') + '</select></span>'
         : '') +
       '<span class="o"><label for="dsTu">Từ</label><input type="date" id="dsTu" value="' + esc(d.tu || '') + '">' +
-        '<label for="dsDen">đến</label><input type="date" id="dsDen" value="' + esc(d.den || '') + '"></span>' +
+        '<label for="dsDen">đến</label><input type="date" id="dsDen" value="' + esc(d.den || '') + '">' +
+        '<button class="nut" type="button" id="dsLoc" title="Chạy theo hai ngày đã chọn">Lọc</button></span>' +
       '<span class="o"><label for="dsCanh"><input type="checkbox" id="dsCanh"' + (d.chiCanh ? ' checked' : '') +
         '> chỉ dòng cần xem</label></span>' +
     '</div>';
@@ -1698,6 +1732,11 @@
         c = o.querySelector('#dsCH'), k = o.querySelector('#dsCanh');
     noiONgay(t, function (v) { S.ds.ky = 'tay'; S.ds.tu = v; taiDoiSoat(); });
     noiONgay(d, function (v) { S.ds.ky = 'tay'; S.ds.den = v; taiDoiSoat(); });
+    var nl = o.querySelector('#dsLoc');
+    if (nl) nl.addEventListener('click', function () {
+      locTay(t, d, function (tu, den) { S.ds.ky = 'tay'; S.ds.tu = tu; S.ds.den = den; taiDoiSoat(); });
+    });
+    locKhiEnter(t, nl); locKhiEnter(d, nl);
     if (c) c.addEventListener('change', function () { S.ds.ch = c.value; taiDoiSoat(); });
     /* Lọc "chỉ dòng cần xem" vẽ lại tại chỗ, không hỏi lại máy chủ — cùng một bộ số. */
     if (k) k.addEventListener('change', function () { S.ds.chiCanh = k.checked; veDoiSoat(q('#dtTabDoiSoat'), S.dsR, S.dsK); });
@@ -3575,8 +3614,21 @@
        đang mở cũng thấy, vai đọc lại từ bảng mỗi lượt). Đẩy lại bên Nhân sự KHÔNG xoá vai. */
     var pin = r.pin || [];
     var chuaCap = pin.filter(function (x) { return !x.vai; }).length;
+    var tuDong = pin.filter(function (x) { return x.tu_dong; });
     var h = '<div class="khung" id="dtNguoiPin"><header><h2>Phân quyền nộp báo cáo — người đẩy từ trang Nhân sự</h2>' +
-      '<span class="goi">' + pin.length + ' người' + (chuaCap ? ' · ' + chuaCap + ' chưa cấp' : '') + '</span></header>';
+      '<span class="goi">' + pin.length + ' người' + (chuaCap ? ' · ' + chuaCap + ' chưa cấp' : '') +
+      (tuDong.length ? ' · ' + tuDong.length + ' cần kiểm' : '') + '</span></header>';
+    if (tuDong.length) {
+      /* 23/09/2026: chị Thảo (cửa hàng trưởng) thấy doanh thu cả 15 quán vì bên Chấm công từng tự
+         suy vai duyệt cho chị. Những vai ấy 1.58.0 cố ý không đụng — nên phải NÓI RA ở đây, và
+         nói rõ vai duyệt nghĩa là xem hết. */
+      h += '<div class="canh-ghep"><b>' + tuDong.length + ' người đang mang vai do lối cũ cấp tự động</b> ' +
+        '(bên Chấm công suy từ vai chấm công, trước bản 1.58.0) — anh kiểm lại từng người rồi bấm Lưu. ' +
+        'Cửa hàng trưởng phải là <b>Nhập báo cáo</b>: vai <b>Nhập và duyệt</b> xem doanh thu <b>mọi</b> ' +
+        'cơ sở và nạp được file POS. Đang cần kiểm: ' +
+        tuDong.map(function (x) { return esc(x.ho_ten) + (x.vai === 'duyet' ? ' <b style="color:var(--xau)">(duyệt — đang xem mọi cơ sở)</b>' : ''); }).join(', ') +
+        '.</div>';
+    }
     if (!pin.length) {
       h += '<div class="trong">Chưa có ai được đẩy sang. Vào trang Nhân sự, cột ' +
         '<b>Quản trị báo cáo cơ sở</b>, bấm Đẩy cho cửa hàng trưởng — rồi quay lại đây chọn vai.</div>';
@@ -3589,10 +3641,12 @@
           var ten = (x.coso_ten || []);
           return '<tr data-ma-nv="' + esc(x.ma_nv) + '">' +
             '<td>' + esc(x.ho_ten) + '<span style="display:block;color:var(--ink-3);font-size:12px">' +
-              esc(x.ma_nv) + (x.co_pin ? '' : ' · <b style="color:var(--xau)">mất PIN (trùng người khác)</b>') + '</span></td>' +
+              esc(x.ma_nv) + (x.co_pin ? '' : ' · <b style="color:var(--xau)">mất PIN (trùng người khác)</b>') +
+              (x.tu_dong ? ' · <b style="color:var(--xau)">vai cấp tự động lối cũ — kiểm rồi Lưu</b>' : '') + '</span></td>' +
             '<td style="text-align:left">' + (cs.length ? cs.map(esc).join(', ') : '<span style="color:var(--ink-3)">—</span>') +
               '<span style="display:block;color:var(--ink-3);font-size:12px">' +
-              (x.vai === 'duyet' ? 'duyệt — xem tổng mọi cơ sở'
+              (x.vai === 'duyet'
+                ? 'duyệt — xem tổng MỌI cơ sở' + (ten.length ? ' (mã này là quán ' + esc(ten.join(' · ')) + ' — nếu là cửa hàng trưởng thì chọn Nhập báo cáo)' : '')
                 : (ten.length ? esc(ten.join(' · ')) : (cs.length ? 'chưa ghép tên POS — khai ở bảng Ghép cơ sở' : ''))) +
               '</span></td>' +
             '<td>' + chon('vai', x.vai || '', quyens, '— chưa cấp (chỉ xem) —') + '</td>' +
