@@ -108,25 +108,23 @@ foreach ( VHCP_Cfg::cfg_static()['coso'] as $x ) {
 t( '   gom theo tỉnh ra đúng nhóm', isset( $theo['Bình Thuận'] ) && isset( $theo['Khánh Hoà'] ), array_keys( $theo ) );
 t( '   gian chưa khai tỉnh gom vào rổ riêng, không biến mất', isset( $theo['(chưa khai)'] ), array_keys( $theo ) );
 
-/* ═══ 6. MÀN: Ô TỈNH PHẢI ĐỌC ĐÚNG CỘT ═════════════════════════════════════════════════
- * `_dongCoso()` đọc một hàng của bảng theo VỊ TRÍ ô nhập. Chèn cột mới mà quên hàm này là mọi
- * ô lệch đi một nấc: tỉnh ghi vào ô Đơn vị, và cơ sở POSH lặng lẽ về K&H.
+/* ═══ 6. MÀN: CỘT TỈNH THÔI BÀY (24/09/2026), DỮ LIỆU TỈNH KHÔNG MẤT ═════════════════════
+ * Anh Thắng: *"Chỗ Tỉnh, Bỏ thay vào đó là Bộ Phận (MTD, KVC, VP)"*. Ô thứ 6 của hàng nay là ô
+ * chọn BỘ PHẬN; `_dongCoso()` KHÔNG gửi `tinh` nữa — máy chủ giữ nguyên tỉnh đã khai (mục 4 ở trên
+ * canh "không gửi ô = giữ cũ"). Đơn vị vẫn ở ô thứ 5.
  * ═══════════════════════════════════════════════════════════════════════════════════════ */
 $app = file_get_contents( dirname( dirname( __DIR__ ) ) . '/wordpress/vhcp-chi-phi/templates/app.html' );
 if ( preg_match( '/function _dongCoso\(r\)\{(.*?)
   \}/s', $app, $m ) ) {
 	$h = $m[1];
-	t( '🔴 _dongCoso đọc tỉnh ở ô thứ 6 (sau Đơn vị)', false !== mb_strpos( $h, 'tinh:(r[5]' ), $h );
+	t( '🔴 _dongCoso đọc BỘ PHẬN ở ô thứ 6 (chỗ ô Tỉnh cũ) và KHÔNG gửi tinh', false !== mb_strpos( $h, 'boPhan:(r[5]' ) && false === mb_strpos( $h, 'tinh:' ), $h );
 	t( '   và Đơn vị vẫn ở ô thứ 5, không bị đẩy lệch', false !== mb_strpos( $h, 'donVi:(r[4]' ), $h );
 } else {
 	t( 'bốc được _dongCoso()', false );
 }
-/* 🔴 CANH Ô TRONG HÀNG CỦA BẢNG, không canh chuỗi `list="dl_tinh"` trần: form "Thêm cơ sở"
-   cũng có ô mang đúng thuộc tính ấy, nên xoá ô khỏi bảng mà phép vẫn xanh. */
-t( '🔴 mỗi hàng của bảng có ô nhập tỉnh', false !== mb_strpos( $app, "esc(x.tinh||'')" ), '' );
-t( '   ô ấy gắn danh sách gợi ý tỉnh', false !== mb_strpos( $app, 'list="dl_tinh"' ) );
-t( '   và danh sách gợi ý có thật trong trang', false !== mb_strpos( $app, '<datalist id="dl_tinh">' ) );
-t( '   form "Thêm cơ sở" cũng hỏi tỉnh', false !== mb_strpos( $app, 'id="ncTinh"' ) );
+t( '🔴 hàng của bảng không còn ô nhập tỉnh, thay bằng ô chọn bộ phận', false === mb_strpos( $app, "esc(x.tinh||'')" ) && false !== mb_strpos( $app, '_bpSelCoso(x.boPhan, x.donVi)' ), '' );
+t( '   form "Thêm cơ sở" hỏi bộ phận, không hỏi tỉnh', false !== mb_strpos( $app, 'id="ncBoPhan"' ) && false === mb_strpos( $app, 'id="ncTinh"' ) );
+t( '   tiêu đề cột là Bộ phận', false !== mb_strpos( $app, '>Bộ phận</th>' ) && false === mb_strpos( $app, '>Tỉnh / Thành</th>' ) );
 /* Hai dải gom nhóm trải hết bề ngang bảng — thêm cột mà quên nới `colspan` là dải ngắn hơn
    bảng một ô, nhìn như bảng vỡ. */
 t( '🔴 dải gom nhóm nới theo số cột mới (colspan 8)',

@@ -99,8 +99,11 @@ function chay(coso, xemDonVi) {
   function esc(x) { return String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); }
   const CFG = { coso: coso };
   const BOOT = { donVi: ['K&H', 'POSH', 'KVC'], xemDonVi: xemDonVi };
+  /* 24/09/2026: cột Tỉnh → ô chọn Bộ phận (`_bpSelCoso`) — bốc hàm THẬT kèm `MIEN_MA`. */
+  const bocBp = (n) => { const i = HTML.indexOf('  function ' + n + '('); return i < 0 ? '' : HTML.slice(i, HTML.indexOf('\n  }', i) + 4); };
+  const fnBp = "var MIEN_MA=['mb','mn'];\n" + bocBp('_bpDsCoso') + '\n' + bocBp('_bpSelCoso');
   new Function('CFG', 'BOOT', 'el', 'esc', '_inp', '_delBtn', '_dvMacDinh', '_csLock', 'doCoSoLa', 'doDongCua',
-    KHOI_THAT + '\n' + fnXemDuoc + '\n' + fnRender + '\nrenderCosoBody();')(
+    KHOI_THAT + '\n' + fnBp + '\n' + fnXemDuoc + '\n' + fnRender + '\nrenderCosoBody();')(
     CFG, BOOT, el, esc,
     function (v) { return '<input value="' + esc(v) + '">'; },
     function () { return '<td></td>'; },
@@ -182,7 +185,8 @@ t('🔴 và cột đơn vị thành Ô CHỌN khối, không còn ô gõ tay',
   coDu.html.indexOf('list="dl_donvi"') < 0 && /<select[^>]*>[\s\S]*Khu vui chơi/.test(coDu.html), coDu.html);
 t('   vẫn dựng dải phân loại lớn',        coDu.html.indexOf('EVENT FZ MN') >= 0, coDu.html);
 t('   vẫn vẽ hàng cơ sở',                 coDu.html.indexOf('EVFZADVGAL') >= 0, coDu.html);
-t('   vẫn giữ cột Tỉnh (1.137.0)',        coDu.html.indexOf('TP HCM') >= 0, coDu.html);
+/* 24/09/2026: cột Tỉnh thôi bày, thay bằng ô chọn BỘ PHẬN (anh Thắng: *"Chỗ Tỉnh, Bỏ thay vào đó là Bộ Phận"*). */
+t('   cột Tỉnh thôi bày, thay bằng ô chọn Bộ phận', coDu.html.indexOf('TP HCM') < 0 && /Khu vui chơi \(KVC\)/.test(coDu.html) && /Máy tự động \(MTD\)/.test(coDu.html), coDu.html.slice(0, 300));
 t('🔴 KHÔNG chen lời nhắc vào bảng có dữ liệu',
   coDu.html.indexOf('Không phải mất dữ liệu') < 0 && coDu.html.indexOf('Chưa khai cơ sở nào') < 0, coDu.html);
 

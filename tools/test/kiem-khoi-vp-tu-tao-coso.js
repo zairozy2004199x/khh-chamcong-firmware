@@ -39,7 +39,7 @@ t('⚠️ ô khối đổ từ `_mienDs()`, cùng nguồn với cột Khối c�
 
 const NEN = bocMang('KHOI_DS') + '\n' + bocDong('KHOI_DV_DUP') + '\n'
   + "\nvar MIEN_MA=['mb','mn'];\n"
-  + ['_khoiDvBang', '_khoiCuaDv', '_tenKhoi', '_mienDs', 'addCfgCoso', 'submitCfgCoso'].map(bocHam).join('\n');
+  + ['_khoiDvBang', '_khoiCuaDv', '_tenKhoi', '_mienDs', '_bpDsCoso', '_bpSelCoso', 'addCfgCoso', 'submitCfgCoso'].map(bocHam).join('\n');
 t('⚠️ nền chạy thử dựng được', NEN.replace(/\s/g, '').length > 600, NEN.length);
 
 function themCoSo(khoiSan, khoiDang, ten) {

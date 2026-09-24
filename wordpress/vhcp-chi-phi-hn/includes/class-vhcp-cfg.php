@@ -43,7 +43,10 @@ class VHCPHN_Cfg {
 
 			   ⚠️ Ô để trống = K&H (nhà mặc định). Mọi cơ sở khai trước bản này đều rỗng, mà
 			      trước khi có POSH thì cơ sở nào cũng là cơ sở K&H. */
-			self::COSO  => array( 'Cơ sở', 'Mã đơn vị', 'Phân loại lớn', 'Tên MISA', 'Đóng cửa', 'Đơn vị' ),
+			/* Cột 6 `Tỉnh / Thành` (11/09/2026) còn dữ liệu nhưng thôi bày; cột 7 `Bộ phận` (24/09/2026):
+			   KVC · MTĐ · VP — anh Thắng: *"Chỗ Tỉnh, Bỏ thay vào đó là Bộ Phận (MTD, KVC, VP)"*, dùng để
+			   đầu mục "có cơ sở" xổ đúng gian của bộ phận ấy (cột Khối nay là MIỀN, không dùng được). */
+			self::COSO  => array( 'Cơ sở', 'Mã đơn vị', 'Phân loại lớn', 'Tên MISA', 'Đóng cửa', 'Đơn vị', 'Tỉnh / Thành', 'Bộ phận' ),
 			self::NHOM  => array( 'Nhóm mặt hàng', 'Loại', 'TK Nợ', 'Bộ phận' ),
 			self::PL    => array( 'Phân loại TT', 'TK Có' ),
 			/* Bộ phận — trước bản này gõ cứng ở hai nơi (hằng dưới + `BOPHAN_LIST` trong
@@ -1127,7 +1130,9 @@ class VHCPHN_Cfg {
 				/* TỈNH / THÀNH — anh Thắng 11/09/2026: *"thêm cột phân loại theo tỉnh"*.
 				   ⚠️ KHÔNG qua `chuan()` như cột Đơn vị: để trống là CHƯA KHAI, không phải
 				      "về tỉnh mặc định" — gán bừa một tỉnh là báo cáo theo vùng sai ngay. */
-				'tinh' => trim( (string) ( isset( $r[6] ) ? $r[6] : '' ) ) );
+				'tinh' => trim( (string) ( isset( $r[6] ) ? $r[6] : '' ) ),
+				/* BỘ PHẬN của gian (kvc · mtd · vp) — chuẩn về mã khối qua bảng tên; lạ → '' (chưa khai). */
+				'boPhan' => VHCPHN_DonVi::khoi_cua( isset( $r[7] ) ? $r[7] : '' ) );
 		}
 		foreach ( self::rows_of( $all, self::NHOM ) as $r ) {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
@@ -1217,11 +1222,21 @@ class VHCPHN_Cfg {
 		/* Cơ sở -> ĐƠN VỊ. Tra nhanh, khoá đã hạ chữ thường — mọi màn hỏi "dòng chi này của
 		   bên nào" đều đi qua bảng này, xem `VHCPHN_DonVi::cua_coso()`. */
 		$out['cosoDonVi'] = array();
+		/* Cơ sở -> BỘ PHẬN (kvc · mtd · vp). Chưa khai cột Bộ phận mà cột Khối còn mang khối CŨ
+		   (kvc/mtd/vp, trước khi khối thành miền) thì lấy khối ấy — dữ liệu cũ tự đúng, không
+		   phải khai lại 94 gian. Khối là miền (mb/mn) thì không suy được → ''. */
+		$out['cosoBoPhan'] = array();
 		foreach ( $out['coso'] as $x ) {
 			$k = mb_strtolower( trim( (string) $x['ten'] ) );
 			if ( $k !== '' ) {
 				$out['cosoPll'][ $k ]   = trim( (string) $x['phanLoaiLon'] );
 				$out['cosoDonVi'][ $k ] = VHCPHN_DonVi::chuan( isset( $x['donVi'] ) ? $x['donVi'] : '' );
+				$bp = isset( $x['boPhan'] ) ? (string) $x['boPhan'] : '';
+				if ( '' === $bp ) {
+					$kh = VHCPHN_DonVi::khoi_cua( isset( $x['donVi'] ) ? $x['donVi'] : '' );
+					if ( in_array( $kh, array( 'kvc', 'mtd', 'vp' ), true ) ) { $bp = $kh; }
+				}
+				$out['cosoBoPhan'][ $k ] = $bp;
 			}
 		}
 		// Một ô có thể khai NHIỀU mã (cách nhau bởi "|") khi cùng một tên gọi chi phí ở
@@ -1411,7 +1426,7 @@ class VHCPHN_Cfg {
 			   đang phải tách. Không có ô thì giữ nguyên ô đang lưu. */
 			/* Cột TỈNH cũng vậy — thêm sau, nên mọi bản giao diện cũ và mọi tệp .csv cũ đều
 			   không có ô ấy. Ghi đè bằng rỗng là xoá sạch phân loại vùng vừa khai cả buổi. */
-			$dv_cu = array(); $tinh_cu = array();
+			$dv_cu = array(); $tinh_cu = array(); $bp_cu = array();
 			foreach ( self::read( self::COSO ) as $r0 ) {
 				$r0 = array_values( (array) $r0 );
 				$t0 = isset( $r0[0] ) ? mb_strtolower( trim( (string) $r0[0] ) ) : '';
@@ -1419,6 +1434,7 @@ class VHCPHN_Cfg {
 				if ( isset( $r0[4] ) && trim( (string) $r0[4] ) !== '' ) { $dong_cu[ $t0 ] = (string) $r0[4]; }
 				if ( isset( $r0[5] ) && trim( (string) $r0[5] ) !== '' ) { $dv_cu[ $t0 ] = (string) $r0[5]; }
 				if ( isset( $r0[6] ) && trim( (string) $r0[6] ) !== '' ) { $tinh_cu[ $t0 ] = (string) $r0[6]; }
+				if ( isset( $r0[7] ) && trim( (string) $r0[7] ) !== '' ) { $bp_cu[ $t0 ] = (string) $r0[7]; }
 			}
 			foreach ( $cfg['coso'] as $x ) {
 				$x  = (array) $x;
@@ -1438,7 +1454,15 @@ class VHCPHN_Cfg {
 					$k2 = mb_strtolower( trim( $tn ) );
 					if ( isset( $tinh_cu[ $k2 ] ) ) { $tinh = $tinh_cu[ $k2 ]; }
 				}
-				$rows[] = array( $tn, VHCPHN_Util::ma_so( $g( $x, 'maDonVi' ) ), $g( $x, 'phanLoaiLon' ), $g( $x, 'tenMisa' ), $dc, $dv, $tinh );
+				/* Cột BỘ PHẬN (24/09/2026): không gửi ô → giữ cũ; gửi rỗng có chủ ý → xoá; giá trị
+				   lạ → '' (không đoán). Lưu MÃ khối (kvc/mtd/vp), không lưu chữ người gõ. */
+				$bp = $g( $x, 'boPhan' );
+				if ( $bp === '' && ! array_key_exists( 'boPhan', $x ) ) {
+					$k3 = mb_strtolower( trim( $tn ) );
+					if ( isset( $bp_cu[ $k3 ] ) ) { $bp = $bp_cu[ $k3 ]; }
+				}
+				$bp = VHCPHN_DonVi::khoi_cua( $bp );
+				$rows[] = array( $tn, VHCPHN_Util::ma_so( $g( $x, 'maDonVi' ) ), $g( $x, 'phanLoaiLon' ), $g( $x, 'tenMisa' ), $dc, $dv, $tinh, $bp );
 			}
 
 			/* ══════════════════════════════════════════════════════════════════════════════

@@ -14,7 +14,7 @@ let DAT = 0; const TRUOT = [];
 function t(n, ok, them) { if (ok) { DAT++; } else { TRUOT.push(n + (them !== undefined ? (' → ' + JSON.stringify(them)) : '')); } }
 function teq(n, mong, thuc) { t(n + ' (mong ' + JSON.stringify(mong) + ')', JSON.stringify(mong) === JSON.stringify(thuc), thuc); }
 const ham = (n) => { const i = HTML.indexOf('  function ' + n + '('); return i < 0 ? '' : HTML.slice(i, HTML.indexOf('\n  }', i) + 4); };
-['_tn', '_dmCoSoCua', '_dmDs', 'fillDauMuc', 'onDauMucPick', '_oCoSoTheoDauMuc', 'fillNhom', '_dauMucCua', '_dauMucCuaTen', 'opts', 'loaiOf', '_tenKhoi', 'renderNhomCp'].forEach((n) => t('⚠️ bốc được `' + n + '`', ham(n).length > 30, n));
+['_tn', '_dmCoSoCua', '_dmDs', 'fillDauMuc', 'onDauMucPick', '_oCoSoTheoDauMuc', 'fillNhom', '_dauMucCua', '_dauMucCuaTen', 'opts', 'loaiOf', '_tenKhoi', 'renderNhomCp', '_boPhanCuaGian'].forEach((n) => t('⚠️ bốc được `' + n + '`', ham(n).length > 30, n));
 
 const LOAI = [
   { ten: 'Chi phí cơ sở',        dauMuc: 'Chi Phí Cơ Sở KVC', khoi: 'mn' },
@@ -25,6 +25,10 @@ const LOAI = [
   { ten: 'Chi phí lạ',           dauMuc: '',                  khoi: 'mn' },   // chưa xếp
   { ten: 'Chi phí thuê mall',    dauMuc: 'Chi phí tiền thuê', khoi: 'mn' },   // đầu mục KHÔNG khai khối cơ sở → như cũ
 ];
+/* 24/09/2026: gian thuộc bộ phận qua CỘT BỘ PHẬN của bảng Cơ sở (`BOOT.cosoBoPhan`), không qua cột
+   Khối (nay là miền) — anh Thắng: *"Chỗ Tỉnh, Bỏ thay vào đó là Bộ Phận (MTD, KVC, VP)… chọn Bộ phận
+   thì nó ra cơ sở của bộ phận đó"*. Khối của mọi gian ở đây là miền 'mn' — để chắc là lọc không
+   lén đọc cột Khối. */
 const COSO_KHOI = { 'aeon tân phú': 'kvc', 'farm nha trang': 'kvc', 'tàu tân phú': 'mtd', 'cali thảo điền': 'mtd', 'vp hcm': 'vp', 'gian chưa khai': '' };
 function be(o) {
   o = o || {};
@@ -36,16 +40,16 @@ function be(o) {
     BOOT: { dauMucDs: ['Chi Phí Cơ Sở KVC', 'Chi Phí Cơ Sở MTĐ', 'Chi Phí Chung', 'Chi phí tiền thuê', 'Đầu mục rỗng'],
       dauMucCoSo: { 'Chi Phí Cơ Sở KVC': 'kvc', 'Chi Phí Cơ Sở MTĐ': 'mtd', 'Chi Phí Chung': '' }, loaiChiPhi: LOAI,
       /* 🧪 cờ BẬT với người này — bài này canh đường MỚI; đường cũ/cờ có bài riêng kiem-co-tinh-nang-man.js */
-      tinhNang: { phanLoaiHaiBac: (o.co === undefined) ? true : o.co } },
+      tinhNang: { phanLoaiHaiBac: (o.co === undefined) ? true : o.co }, cosoBoPhan: COSO_KHOI },
     KHOI_DS: [{ ma: 'mb', ten: 'Miền Bắc' }, { ma: 'mn', ten: 'Miền Nam' }, { ma: 'kvc', ten: 'Khu vui chơi' }, { ma: 'mtd', ten: 'Máy tự động' }, { ma: 'vp', ten: 'Văn phòng' }],
     KHOI_DANG: 'kvc', NHOM_CP: 'x', DM_CUR: o.dm || '',
     el: sel, esc: (x) => String(x == null ? '' : x), window: { _COSO_OPTS_GOC: Object.keys(COSO_KHOI).map((k) => k.toUpperCase()) },
     _loaiCpList: () => LOAI.slice(), _gianHopKhoi: (c) => (COSO_KHOI[c.toLowerCase()] || 'kvc') === 'kvc' || !COSO_KHOI[c.toLowerCase()],
-    _khoiCuaGian: (c) => COSO_KHOI[String(c).toLowerCase()] || '', _donNhieuCoSo: () => false, _khoaCoSoHint: () => {},
+    _khoiCuaGian: () => 'mn', _donNhieuCoSo: () => false, _khoaCoSoHint: () => {},
     fillNoiDungList: () => {}, showTkNhom: () => {}, _cacNhomCp: () => ['(cơ sở)', 'Kỹ thuật'], _nhanNhomCp: (k) => k, _veLoaiCpVi: (id) => { sel(id).textContent = '⬆ Chọn CƠ SỞ trước'; sel(id).style.color = '#b45309'; }, _lnDongThem: () => '',
   };
   moi.window.BOOT = moi.BOOT;
-  new Function('moi', 'with(moi){' + ['_tn', '_dmCoSoCua', '_dmDs', 'fillDauMuc', 'onDauMucPick', '_oCoSoTheoDauMuc', 'fillNhom', '_dauMucCua', '_dauMucCuaTen', 'opts', 'loaiOf', '_tenKhoi', 'renderNhomCp'].map(ham).join('\n')
+  new Function('moi', 'with(moi){' + ['_tn', '_boPhanCuaGian', '_dmCoSoCua', '_dmDs', 'fillDauMuc', 'onDauMucPick', '_oCoSoTheoDauMuc', 'fillNhom', '_dauMucCua', '_dauMucCuaTen', 'opts', 'loaiOf', '_tenKhoi', 'renderNhomCp'].map(ham).join('\n')
     + '\nmoi.F={fillDauMuc:fillDauMuc,onDauMucPick:onDauMucPick,fillNhom:fillNhom,oCoSo:_oCoSoTheoDauMuc,dmCoSo:_dmCoSoCua,dmDs:_dmDs,renderNhomCp:renderNhomCp}; moi.lay=function(){return DM_CUR;}; moi.layNhom=function(){return NHOM_CP;}; }')(moi);
   sel('f_pltt').value = ''; sel('lineId').value = o.lineId || '';
   if (o.cosoKhoa) { sel('f_coso').disabled = true; sel('f_coso').value = o.cosoKhoa; }
@@ -70,14 +74,14 @@ const opt = (s) => s.options.map((x) => x.value).filter(Boolean);
   const b = be(); b.F.fillDauMuc(''); b.sel('f_dauMuc').value = 'Chi Phí Cơ Sở KVC'; b.F.onDauMucPick();
   teq('🔴 phân loại nhỏ chỉ còn loại của đầu mục KVC', ['Chi phí cơ sở', 'Chi phí marketing'], opt(b.sel('f_nhom')));
   t('🔴 ô Cơ sở HIỆN, chỉ xổ cơ sở KVC', b.sel('fldCoso').style.display === '' && JSON.stringify(opt(b.sel('f_coso'))) === JSON.stringify(['AEON TÂN PHÚ', 'FARM NHA TRANG']), opt(b.sel('f_coso')));
-  t('   nhãn nói rõ khối', /Cơ sở Khu vui chơi \*/.test(b.sel('lblCoso').textContent), b.sel('lblCoso').textContent);
-  t('   gợi ý nói có cơ sở, khối nào', /Có cơ sở — chỉ xổ cơ sở Khu vui chơi/.test(b.sel('f_dauMucVi').textContent), b.sel('f_dauMucVi').textContent);
+  t('   nhãn nói rõ bộ phận', /Cơ sở bộ phận Khu vui chơi \*/.test(b.sel('lblCoso').textContent), b.sel('lblCoso').textContent);
+  t('   gợi ý nói có cơ sở, bộ phận nào', /Có cơ sở — chỉ xổ gian của bộ phận Khu vui chơi/.test(b.sel('f_dauMucVi').textContent), b.sel('f_dauMucVi').textContent);
 }
 /* ── 3. 🔴 Chọn "Chi Phí Cơ Sở MTĐ" → cơ sở MTĐ, dù đang đứng khối kvc ────────────────── */
 {
   const b = be(); b.F.fillDauMuc(''); b.sel('f_dauMuc').value = 'Chi Phí Cơ Sở MTĐ'; b.F.onDauMucPick();
   teq('🔴 loại MTĐ', ['Chi phí cơ sở MTĐ'], opt(b.sel('f_nhom')));
-  teq('🔴 cơ sở chỉ MTĐ (khối đang đứng kvc không cản)', ['TÀU TÂN PHÚ', 'CALI THẢO ĐIỀN'], opt(b.sel('f_coso')));
+  teq('🔴 cơ sở chỉ MTĐ theo cột Bộ phận (khối đang đứng kvc, khối gian là miền — không cản)', ['TÀU TÂN PHÚ', 'CALI THẢO ĐIỀN'], opt(b.sel('f_coso')));
   t('   một cơ sở duy nhất thì KHÔNG tự chọn khi có hai', b.sel('f_coso').value === '');
 }
 /* ── 4. 🔴 "Chi Phí Chung" → không có cơ sở: ẩn ô, cơ sở trống ─────────────────────────── */

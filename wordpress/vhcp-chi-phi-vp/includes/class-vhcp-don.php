@@ -923,6 +923,8 @@ class VHCPVP_Don {
 			      không tra nguyên văn tên gian.
 			   ══════════════════════════════════════════════════════════════════════════ */
 			'cosoDv'     => ( isset( $s_all['cosoDonVi'] ) ? $s_all['cosoDonVi'] : array() ),
+			/* Cơ sở -> BỘ PHẬN (kvc · mtd · vp), khoá hạ chữ thường — form lọc ô Cơ sở theo đầu mục. */
+			'cosoBoPhan' => ( isset( $s_all['cosoBoPhan'] ) ? $s_all['cosoBoPhan'] : array() ),
 			'tkNoMx'     => $mx,
 			'tenTk'      => $ten_tk,
 			'nhom'       => $nhom,

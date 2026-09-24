@@ -1860,7 +1860,7 @@
     <div class="card" id="cosoCard">
       <div class="ch"><h2>🏢 Mã đơn vị theo Cơ sở</h2><div style="display:flex;gap:8px"><button class="btn b-x" id="csLockBtn" onclick="toggleCsLock()">🔒 Đang khóa — bấm để mở</button><button class="btn b-x" onclick="addCfgCoso()">＋ Thêm cơ sở</button><button class="btn b-x" id="btnHutGhe" onclick="hutCoSoGhe()" title="Kéo các địa điểm bên trang Ghế massage sang đây. Chỉ THÊM — không sửa, không xoá dòng nào đang có.">🪑 Hút cơ sở từ Ghế</button><button class="btn b-g" onclick="saveCfgCoso()">💾 Lưu</button></div></div>
       <div id="cosoLaBox" style="display:none"></div>
-      <div class="tw"><table style="min-width:820px"><thead><tr><th>Tên thường gọi (hiển thị)</th><th>Tên theo MISA</th><th>Mã đơn vị (MISA)</th><th>Phân loại lớn</th><th style="width:150px" title="Khối của gian này — quyết định chi phí của nó rơi vào sổ nào. Một gian thuộc ĐÚNG MỘT khối, nên đây là ô chọn. Giá trị đơn vị cũ đã khai được giữ nguyên văn.">Khối</th><th style="width:150px" title="Tỉnh / thành của gian này — để gom và lọc theo vùng. Ô NHẬP kèm gợi ý: gõ tên tỉnh mới vào là có. Để trống = chưa khai.">Tỉnh / Thành</th><th style="width:190px">Đóng cửa gian hàng</th><th style="width:44px"></th></tr></thead><tbody id="cfgCosoBody"></tbody></table></div>
+      <div class="tw"><table style="min-width:820px"><thead><tr><th>Tên thường gọi (hiển thị)</th><th>Tên theo MISA</th><th>Mã đơn vị (MISA)</th><th>Phân loại lớn</th><th style="width:150px" title="Khối của gian này — quyết định chi phí của nó rơi vào sổ nào. Một gian thuộc ĐÚNG MỘT khối, nên đây là ô chọn. Giá trị đơn vị cũ đã khai được giữ nguyên văn.">Khối</th><th style="width:170px" title="Bộ phận của gian: Khu vui chơi · Máy tự động · Văn phòng. Đầu mục (phân loại lớn) nào &quot;có cơ sở&quot; thì form nhập chỉ xổ gian của bộ phận ấy. Để trống = chưa khai.">Bộ phận</th><th style="width:190px">Đóng cửa gian hàng</th><th style="width:44px"></th></tr></thead><tbody id="cfgCosoBody"></tbody></table></div>
       <datalist id="dl_pll"></datalist>
       <datalist id="dl_donvi"></datalist>
       <datalist id="dl_tinh"></datalist>
@@ -1938,7 +1938,7 @@
              chọn thêm Cơ Sở) còn không thì nó là chi phí không có cơ sở"*. -->
         Form nhập hạng mục hỏi <b>Phân loại lớn</b> (= đầu mục) trước, rồi <b>Phân loại nhỏ</b> (loại chi phí thuộc đầu mục ấy).
         Cột <b>Cơ sở</b> quyết định ô Cơ sở trên form: <b>Không có cơ sở</b> → ẩn ô, dòng chi không gắn gian;
-        <b>Cơ sở KVC / MTĐ / VP</b> → chỉ xổ gian của khối ấy; <b>như cũ</b> → theo khối đang đứng.<br>
+        <b>Cơ sở của bộ phận KVC / MTĐ / VP</b> → chỉ xổ gian có cột <b>Bộ phận</b> ấy ở bảng 🏢 Cơ sở; <b>như cũ</b> → theo khối đang đứng.<br>
         Gắn loại vào đầu mục ở cột <b>Đầu mục</b> của bảng 🧮 Loại chi phí bên dưới. Đổi tên đầu mục ở đây thì phải đổi ở loại theo,
         không thì loại rơi về "Chưa xếp đầu mục".
       </div>
@@ -2131,7 +2131,7 @@
              ══════════════════════════════════════════════════════════════════════════════════ -->
         <label>Khối — cơ sở này thuộc khối nào</label><select id="ncKhoi"></select></div>
       <div class="fld" style="margin-bottom:10px"><label>Phân loại lớn</label><input id="ncPll" list="dl_pll" placeholder="Chọn/nhập (VD: FARM MN)"></div>
-      <div class="fld" style="margin-bottom:16px"><label>Tỉnh / Thành <span style="font-weight:400;color:#8c8781">(không bắt buộc)</span></label><input id="ncTinh" list="dl_tinh" placeholder="VD: TP HCM"></div>
+      <div class="fld" style="margin-bottom:16px"><label>Bộ phận <span style="font-weight:400;color:#8c8781">(KVC · MTĐ · VP — đầu mục có cơ sở xổ gian theo đây)</span></label><select id="ncBoPhan"></select></div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button class="btn b-x" onclick="closeCfgCoso()">Huỷ</button>
         <button class="btn b-p" onclick="submitCfgCoso()">Thêm vào danh sách</button>
@@ -2396,7 +2396,7 @@
     if(vi){
       if(!ds.length) vi.innerHTML='<span style="color:#dc2626">Chưa có loại chi phí nào chọn được — khai ở ⚙️ Cấu hình › Loại chi phí.</span>';
       else if(!DM_CUR) vi.textContent=ds.length+' phân loại lớn — chọn một để lọc phân loại nhỏ bên dưới.';
-      else { var k=_dmCoSoCua(DM_CUR); vi.textContent = k==='' ? 'Chi phí không gắn cơ sở.' : (k==='*' ? '' : ('Có cơ sở — chỉ xổ cơ sở '+(_tenKhoi(k)||k)+'.')); }
+      else { var k=_dmCoSoCua(DM_CUR); vi.textContent = k==='' ? 'Chi phí không gắn cơ sở.' : (k==='*' ? '' : ('Có cơ sở — chỉ xổ gian của bộ phận '+(_tenKhoi(k)||k)+'.')); }
     }
     _oCoSoTheoDauMuc();
   }
@@ -2420,13 +2420,15 @@
     fld.style.display='';
     if(sel.disabled) return;
     var goc=(typeof window!=='undefined'&&window._COSO_OPTS_GOC)||[];
-    var ds=(k==='*') ? goc.filter(_gianHopKhoi) : goc.filter(function(c){ return _khoiCuaGian(c)===k; });
+    /* 🔴 LỌC THEO BỘ PHẬN CỦA GIAN (cột Bộ phận bảng Cơ sở), KHÔNG theo cột Khối: khối nay là
+       MIỀN (mb/mn) — anh Thắng 24/09/2026: *"chọn Bộ phận thì nó ra cơ sở của bộ phận đó"*. */
+    var ds=(k==='*') ? goc.filter(_gianHopKhoi) : goc.filter(function(c){ return _boPhanCuaGian(c)===k; });
     var giu=String(sel.value||'');
     /* Dòng đang SỬA mang cơ sở ngoài danh sách (dữ liệu cũ) vẫn phải chọn lại được, không mất. */
     if(giu && ds.indexOf(giu)<0 && el('lineId') && String(el('lineId').value||'')) ds=ds.concat([giu]);
     sel.innerHTML=opts(ds);
     if(giu && ds.indexOf(giu)>=0) sel.value=giu; else if(ds.length===1) sel.value=ds[0]; else sel.value='';
-    if(lbl) lbl.textContent = (k==='*') ? (_donNhieuCoSo()?'Cơ sở của hạng mục này *':'Cơ sở *') : ('Cơ sở '+(_tenKhoi(k)||k)+' *');
+    if(lbl) lbl.textContent = (k==='*') ? (_donNhieuCoSo()?'Cơ sở của hạng mục này *':'Cơ sở *') : ('Cơ sở bộ phận '+(_tenKhoi(k)||k)+' *');
     try{ _khoaCoSoHint(); }catch(e){}
   }
   function fillNhom(keep){
@@ -14505,14 +14507,8 @@
     /* Gợi ý đơn vị lấy từ CHÍNH danh sách máy chủ gửi xuống (`BOOT.donVi`), không gõ cứng
        "K&H, POSH" ở đây: thêm đơn vị thứ ba thì ô này tự có, khỏi phải nhớ sửa hai nơi. */
     if(el('dl_donvi')) el('dl_donvi').innerHTML=(BOOT.donVi||[]).map(function(v){return '<option value="'+esc(v)+'">';}).join('');
-    /* Gợi ý TỈNH dựng từ chính những tỉnh đã khai — giống hệt lý do của ô Đơn vị: giữ một
-       danh mục tỉnh riêng là hai nơi phải khai, và hai nơi thì lệch. Gõ tỉnh mới vẫn được. */
-    if(el('dl_tinh')){
-      var _tinhCo={}, _tinhDs=[];
-      (CFG.coso||[]).forEach(function(x){ var v=String(x.tinh||'').trim(); if(v&&!_tinhCo[v]){_tinhCo[v]=1;_tinhDs.push(v);} });
-      _tinhDs.sort();
-      el('dl_tinh').innerHTML=_tinhDs.map(function(v){return '<option value="'+esc(v)+'">';}).join('');
-    }
+    /* Cột TỈNH / THÀNH thôi bày (24/09/2026, anh Thắng: *"Chỗ Tỉnh, Bỏ thay vào đó là Bộ Phận"*).
+       Dữ liệu tỉnh đã khai vẫn nằm trong sổ, lượt Lưu không đụng (không gửi ô là giữ nguyên). */
     // Cột ĐÓNG CỬA: đóng gian là kế toán đã tất toán hết bằng tiền -> thôi luân chuyển bù
     // trừ sang kỳ sau, và gian đó không nhận chi phí mới. Nút riêng chứ không phải ô nhập:
     // lệnh này còn tất toán các đơn còn treo nên phải hỏi lại trước khi làm.
@@ -14525,7 +14521,7 @@
          tệp xuất; còn ô này quyết định BÊN NÀO NHÌN THẤY chi phí của gian. Khai nhầm chỗ là
          số của POSH nằm trong sổ K&H. Nên ô này có gợi ý sẵn từ danh sách đơn vị đang có,
          không phải gõ chay. */
-      return '<tr'+(dc?' style="background:#fef2f2"':'')+'><td>'+_inp(x.ten,'Tên thường gọi')+'</td><td>'+_inp(x.tenMisa,'Tên trong MISA')+'</td><td>'+_inp(x.maDonVi,'VD: FLMPT')+'</td><td><input value="'+esc(x.phanLoaiLon||'')+'" list="dl_pll" placeholder="Chọn/nhập (VD: FARM MN)" style="width:100%"></td><td>'+_khoiSelCoso(x.donVi)+'</td><td><input value="'+esc(x.tinh||'')+'" list="dl_tinh" placeholder="VD: TP HCM" style="width:100%"></td><td style="white-space:nowrap">'+oDong+'</td>'+_delBtn()+'</tr>'; };
+      return '<tr'+(dc?' style="background:#fef2f2"':'')+'><td>'+_inp(x.ten,'Tên thường gọi')+'</td><td>'+_inp(x.tenMisa,'Tên trong MISA')+'</td><td>'+_inp(x.maDonVi,'VD: FLMPT')+'</td><td><input value="'+esc(x.phanLoaiLon||'')+'" list="dl_pll" placeholder="Chọn/nhập (VD: FARM MN)" style="width:100%"></td><td>'+_khoiSelCoso(x.donVi)+'</td><td>'+_bpSelCoso(x.boPhan, x.donVi)+'</td><td style="white-space:nowrap">'+oDong+'</td>'+_delBtn()+'</tr>'; };
     /* 🔴 GOM THEO ĐƠN VỊ TRƯỚC, RỒI MỚI THEO PHÂN LOẠI LỚN.
        Anh Thắng 08/09/2026: *"Mỗi đơn vị tách 1 bảng riêng, để kế toán bộ phận đó tự nhìn thấy
        cơ sở của mình và tự thêm sửa mã misa"*. Trước đây bảng chỉ gom theo Phân loại lớn, nên
@@ -14653,6 +14649,23 @@
    *    dòng đầu. Danh mục dựng từ sổ cũ, có gian còn mang tên đơn vị không có trong bảng ánh
    *    xạ; bỏ nó là một cú Lưu đổi nhà cho gian đó mà không ai biết.
    * ═════════════════════════════════════════════════════════════════════════════════ */
+  /* Bộ phận (kvc · mtd · vp) của bảng Cơ sở — ô chọn. Cơ sở chưa khai mà cột Khối còn là khối cũ
+     (kvc/mtd/vp) thì chọn sẵn khối ấy (máy chủ cũng suy y vậy ở `cosoBoPhan`). */
+  function _bpDsCoso(){ return (KHOI_DS||[]).filter(function(k){ return MIEN_MA.indexOf(k.ma)<0; }); }
+  function _bpSelCoso(bp, dv){
+    var c=String(bp||'').trim().toLowerCase();
+    if(!c){ var k=_khoiCuaDv(dv); if(k && MIEN_MA.indexOf(k)<0) c=k; }
+    var h='<select style="width:100%" title="Bộ phận của gian — đầu mục có cơ sở sẽ xổ gian theo đây."><option value=""'+(c?'':' selected')+'>— chưa khai —</option>';
+    _bpDsCoso().forEach(function(k){ h+='<option value="'+esc(k.ma)+'"'+(k.ma===c?' selected':'')+'>'+esc(k.ten)+' ('+esc(k.ma.toUpperCase())+')</option>'; });
+    if(c && !_bpDsCoso().some(function(k){ return k.ma===c; })) h+='<option value="'+esc(c)+'" selected>'+esc(c)+'</option>';
+    return h+'</select>';
+  }
+  /* Bộ phận của một gian, tra gói khởi động (khoá hạ chữ thường — xem `cosoBoPhan` máy chủ). */
+  function _boPhanCuaGian(ten){
+    var m=(typeof BOOT!=='undefined'&&BOOT&&BOOT.cosoBoPhan)||null;
+    if(!m) return '';
+    return String(m[String(ten==null?'':ten).trim().toLowerCase()]||'').toLowerCase();
+  }
   function _khoiSelCoso(dv){
     var cu=String(dv==null?'':dv).trim();
     var k=_khoiCuaDv(cu);
@@ -14676,8 +14689,10 @@
       +(la?'<div style="font-size:10px;color:#b45309">khối cũ — chọn Miền Bắc / Miền Nam rồi Lưu</div>':'');
   }
   function _dongCoso(r){
+    /* r[5] nay là Ô CHỌN BỘ PHẬN (kvc/mtd/vp/''), không còn ô Tỉnh. Không gửi `tinh` → máy chủ
+       giữ nguyên tỉnh đã khai. */
     return { ten:(r[0]||'').trim(), tenMisa:r[1]||'', maDonVi:r[2]||'', phanLoaiLon:r[3]||'',
-      donVi:(r[4]||'').trim(), tinh:(r[5]||'').trim() };
+      donVi:(r[4]||'').trim(), boPhan:(r[5]||'').trim() };
   }
   /* Nhà mặc định = đơn vị đầu danh sách máy chủ gửi xuống. Ô để trống nghĩa là nhà này. */
   function _dvMacDinh(){ return (BOOT.donVi&&BOOT.donVi[0])||'K&H'; }
@@ -14725,7 +14740,7 @@
   /* `khoiSan` = khối của bảng người ta vừa bấm "+ Thêm cơ sở"; không có thì lấy khối đang đứng. */
   function addCfgCoso(khoiSan){
     el('ncTen').value=''; el('ncMisa').value=''; el('ncMa').value=''; el('ncPll').value='';
-    if(el('ncTinh')) el('ncTinh').value='';
+    if(el('ncBoPhan')) el('ncBoPhan').innerHTML=_bpSelCoso('', '').replace(/^<select[^>]*>|<\/select>$/g,'');
     var k=el('ncKhoi');
     if(k){
       /* 🔴 CƠ SỞ MỚI CHỌN MIỀN, không chọn khối cũ (22/09/2026). `khoiSan` truyền vào có thể
@@ -14757,7 +14772,7 @@
     var khoiMoi=(el('ncKhoi')?String(el('ncKhoi').value||'').trim():'');
     if(!khoiMoi){ toast('warn','Chọn miền cho gian này đã — nó quyết định chi phí của gian rơi vào bảng mã nào'); return; }
     CFG.coso.push({ten:ten, tenMisa:el('ncMisa').value.trim(), maDonVi:el('ncMa').value.trim(), phanLoaiLon:el('ncPll').value.trim(),
-      donVi:khoiMoi, tinh:(el('ncTinh')?el('ncTinh').value.trim():'')});
+      donVi:khoiMoi, boPhan:(el('ncBoPhan')?String(el('ncBoPhan').value||'').trim():'')});
     closeCfgCoso(); renderCosoBody(); toast('ok','Đã thêm vào khối '+(_tenKhoi(khoiMoi)||khoiMoi)+' — nhớ bấm 💾 Lưu');
   }
   function saveCfgCoso(){ var data=_readRows('cfgCosoBody').map(_dongCoso).filter(function(x){return x.ten;});
@@ -15416,8 +15431,8 @@
   function _dmCoSoSel(cur){
     var c=String(cur==null?'*':cur).trim().toLowerCase();
     var ds=[['*','— như cũ: theo khối đang đứng —'],['','Không có cơ sở (ẩn ô Cơ sở)']];
-    (KHOI_DS||[]).forEach(function(k){ if(MIEN_MA.indexOf(k.ma)<0) ds.push([k.ma,'Cơ sở '+k.ten]); });
-    if(c!=='*' && c!=='' && !ds.some(function(x){ return x[0]===c; })) ds.push([c,'Cơ sở '+c]);
+    (KHOI_DS||[]).forEach(function(k){ if(MIEN_MA.indexOf(k.ma)<0) ds.push([k.ma,'Cơ sở của bộ phận '+k.ten]); });
+    if(c!=='*' && c!=='' && !ds.some(function(x){ return x[0]===c; })) ds.push([c,'Cơ sở của bộ phận '+c]);
     return '<select style="width:100%">'+ds.map(function(x){ return '<option value="'+esc(x[0])+'"'+(x[0]===c?' selected':'')+'>'+esc(x[1])+'</option>'; }).join('')+'</select>';
   }
   function renderDauMuc(){
