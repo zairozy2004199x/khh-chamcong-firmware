@@ -37,6 +37,9 @@ t('bảng có SL máy, Thành tiền, SL thực, Lệch', /<th>SL máy<\/th><th>
 t('ô SL thực data-thuc, placeholder = số máy', /data-thuc="' \+ esc\(m\.n\) \+ '" value="' \+ v \+ '" placeholder="' \+ nguyen\(m\.q\)/.test(hb));
 t('thẻ điện thoại: lớp bang-the ở khung bọc và data-nhan từng ô', /class="bang-the bang-cuon"/.test(hb) && /data-nhan="SL máy"/.test(hb));
 t('nói rõ "Đúng máy thì để trống"', /Đúng máy thì để trống/.test(hb));
+/* 24/09/2026 anh Thắng: "theo combo là 6, vé lẻ là 2, tổng là 8" */
+t('🔴 món là thành phần combo ghi "lẻ q + N theo combo → rời kho T"', /m\.kho_combo \? '<span[^']*lẻ ' \+ nguyen\(m\.q\)/.test(hb) && /theo combo<\/b> → rời kho <b>' \+ nguyen\(m\.kho_tong\)/.test(hb));
+t('dưới bảng kể mọi thành phần rời kho theo combo (p.theo_combo), kể cả món không có dòng FABi', /id="bcTheoCombo"/.test(hb) && /p\.theo_combo/.test(hb));
 const dmt = boc('docMonThuc');
 t('có docMonThuc', dmt.length > 0);
 t('🔴 chỉ gửi dòng có gõ số VÀ khác máy', /if \(w === ''\) return;/.test(dmt) && /v === may\) return;/.test(dmt));

@@ -217,6 +217,27 @@ function khh_dt_so_pos( $ngay, $cua_hang ) {
 	$kh = function_exists( 'khh_dt_khach_may_tu_mon' )
 		? khh_dt_khach_may_tu_mon( khh_dt_json( isset( $r['mon'] ) ? $r['mon'] : '', array() ), khh_dt_ve_khach_bang( $cua_hang ) )
 		: array( 'khach' => null, 'da_tach' => 0, 'chua_tach' => array() );
+	/* Phần thành phần RỜI KHO THEO COMBO của ngày (anh Thắng 24/09/2026: *"chỗ theo combo là 6, vé lẻ là 2, tổng là
+	   8"* — dòng Nước suối ở tab Nhập chỉ ghi 2 vì FABi chỉ ghi phần bán lẻ). Lấy đúng phép tách của sổ kho, để hai
+	   màn không bao giờ nói hai số. Không có module kho -> rỗng. */
+	$mon_may   = khh_dt_bc_mon_may( isset( $r['mon'] ) ? $r['mon'] : '' );
+	$theo_cb   = array();
+	if ( function_exists( 'khh_dt_kho_ban_may_tach' ) && function_exists( 'khh_dt_kho_khoa_long' ) ) {
+		$tach = khh_dt_kho_ban_may_tach( $ngay, $ngay, $cua_hang );
+		$tach = isset( $tach[ $ngay ] ) ? $tach[ $ngay ] : array();
+		foreach ( $mon_may as $i => $m ) {
+			$k = khh_dt_kho_khoa_long( $tach, $m['n'] );
+			if ( null !== $k && (float) $tach[ $k ]['combo'] > 0 ) {
+				$mon_may[ $i ]['kho_combo'] = (float) $tach[ $k ]['combo'];
+				$mon_may[ $i ]['kho_tong']  = (float) $tach[ $k ]['le'] + (float) $tach[ $k ]['combo'];
+			}
+		}
+		foreach ( $tach as $mh => $x ) {
+			if ( (float) $x['combo'] > 0 ) {
+				$theo_cb[] = array( 'n' => (string) $mh, 'combo' => (float) $x['combo'], 'le' => (float) $x['le'] );
+			}
+		}
+	}
 	return array(
 		'doanh_thu'  => (float) $r['doanh_thu'],
 		'thanh_tien' => (float) $r['thanh_tien'],
@@ -236,7 +257,9 @@ function khh_dt_so_pos( $ngay, $cua_hang ) {
 		/* Hàng bán theo máy, từng món: để nhân viên soát "bán được đúng máy không". Anh Thắng
 		   23/09/2026: *"hiện số lượng hàng bán và thành tiền để nhân viên kiểm kho bán được và chốt
 		   bán thực tế đúng máy POS không, nếu lệch nhân viên mới nhập, đúng rồi thì để nguyên"*. */
-		'mon'        => khh_dt_bc_mon_may( isset( $r['mon'] ) ? $r['mon'] : '' ),
+		'mon'        => $mon_may,
+		/* [ {n, combo, le} ] mọi thành phần có rời kho theo combo hôm ấy — kể cả món FABi không ghi bán lẻ (thạch, bim bim). */
+		'theo_combo' => $theo_cb,
 		'tien_ve'    => khh_dt_bc_tach_tien( isset( $r['mon'] ) ? $r['mon'] : '', $r['doanh_thu'], $cua_hang )['ve'],
 		'tien_le'    => khh_dt_bc_tach_tien( isset( $r['mon'] ) ? $r['mon'] : '', $r['doanh_thu'], $cua_hang )['le'],
 		'tien_phu'   => khh_dt_bc_tach_tien( isset( $r['mon'] ) ? $r['mon'] : '', $r['doanh_thu'], $cua_hang )['phu'],

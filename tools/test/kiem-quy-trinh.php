@@ -211,6 +211,27 @@ phep( 'quán KHÁC thì vẫn chối 403', is_wp_error( $r ) && 403 === (int) $r
 $GLOBALS['VHCP_META'] = array();
 $GLOBALS['VHCP_CO_QUYEN'] = true;
 
+/* ── Tab Nhập: món là thành phần combo phải thấy "lẻ 2 + 6 theo combo → rời kho 8" (anh Thắng 24/09/2026). ── */
+$CS_K = 'Quán thử theo combo';
+khh_dt_kho_mh_dat( $CS_K, array( 'Nước suối Danasi', 'Thạch trái cây' ) );
+delete_option( 'khh_dt_kho_combo_ls' );
+khh_dt_kho_combo_dat( 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + NƯỚC SUỐI', array( 'Nước suối Danasi' => 1 ), '2026-09-01' );
+khh_dt_kho_combo_dat( 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + THẠCH', array( 'Thạch trái cây' => 1 ), '2026-09-01' );
+$wpdb->query( $wpdb->prepare( 'INSERT OR REPLACE INTO ' . khh_dt_bang() . ' (ngay,cua_hang,doanh_thu,so_hd,so_ve,pttt,mon) VALUES (%s,%s,%f,%d,%f,%s,%s)',
+	'2026-09-24', $CS_K, 1820000, 20, 20, '[]', wp_json_encode( array(
+		array( 'n' => 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + NƯỚC SUỐI ', 'g' => 'VÉ COMBO.', 'q' => 6,  'r' => 540000 ),
+		array( 'n' => 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + THẠCH',      'g' => 'VÉ COMBO.', 'q' => 14, 'r' => 1260000 ),
+		array( 'n' => 'NƯỚC SUỐI DANASI',                                  'g' => 'ĐÓNG SẴN',  'q' => 2,  'r' => 20000 ),
+	) ) ) );
+$pos = khh_dt_so_pos( '2026-09-24', $CS_K );
+$ns  = array_values( array_filter( $pos['mon'], function ( $m ) { return 'NƯỚC SUỐI DANASI' === $m['n']; } ) );
+phep( '🔴 dòng Nước suối: q = 2 (lẻ), kho_combo = 6, kho_tong = 8', 1 === count( $ns ) && 2.0 === $ns[0]['q'] && 6.0 === $ns[0]['kho_combo'] && 8.0 === $ns[0]['kho_tong'] );
+phep( 'dòng combo không mang kho_combo', ! isset( array_values( array_filter( $pos['mon'], function ( $m ) { return false !== strpos( $m['n'], 'THẠCH' ); } ) )[0]['kho_combo'] ) );
+$tc = array(); foreach ( $pos['theo_combo'] as $x ) { $tc[ $x['n'] ] = $x; }
+phep( '🔴 theo_combo kể cả thành phần không có dòng FABi: Thạch trái cây 14 (lẻ 0), Nước suối Danasi 6 (lẻ 2)', 14.0 === $tc['Thạch trái cây']['combo'] && 0.0 === $tc['Thạch trái cây']['le'] && 6.0 === $tc['Nước suối Danasi']['combo'] && 2.0 === $tc['Nước suối Danasi']['le'] );
+delete_option( 'khh_dt_kho_combo_ls' );
+delete_option( 'khh_dt_kho_mat_hang' );
+
 /* Mã nguồn: plugin nạp module, đặt lịch lúc nâng cấp, gỡ lúc tắt. */
 $src = preg_replace( '~/\*.*?\*/~s', '', file_get_contents( $goc . '/khh-doanh-thu.php' ) );
 phep( 'khh-doanh-thu.php nạp quy-trinh.php và gọi khh_dt_qt_dat_lich() lúc kích hoạt', false !== strpos( $src, "require_once KHH_DT_DIR . 'quy-trinh.php';" ) && false !== strpos( $src, 'khh_dt_qt_dat_lich();' ) && false !== strpos( $src, 'khh_dt_qt_go_lich();' ) );

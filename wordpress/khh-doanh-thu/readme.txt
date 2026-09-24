@@ -102,6 +102,13 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.64.6 =
+* **Tab Nhập báo cáo: món là thành phần combo ghi rõ "lẻ 2 + 6 theo combo → rời kho 8".** Anh Thắng 24/09/2026:
+  *"ghi nhận 8 là đúng, nhưng chỗ theo combo là 6, vé lẻ là 2, tổng là 8"*. FABi chỉ ghi phần bán lẻ (2), phần đi
+  theo combo nằm ở sổ kho; nay dòng món ở tab Nhập lấy đúng phép tách của sổ kho ghi thêm, và dưới bảng kể mọi
+  thành phần rời kho theo combo hôm ấy (kể cả thạch, bim bim không có dòng FABi). Hai màn không bao giờ nói hai số.
+  `kiem-quy-trinh.php` +3 phép (so_pos mang kho_combo / kho_tong / theo_combo), `kiem-hang-ban-chot-man.js` +2.
+
 = 1.64.5 =
 * **Sửa lỗi 500 khi bấm Lưu ở khối Bóc tách vé** (bản 1.64.4, anh Thắng 24/09/2026: *"bấm lưu nó báo lỗi"*). Đường
   POST dựng lại yêu cầu REST theo kiểu của bộ thử (`new WP_REST_Request( array(...) )`); WordPress thật nhận

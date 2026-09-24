@@ -1404,13 +1404,25 @@
         var v = thuc[m.n] != null ? Math.round(thuc[m.n]) : '';
         var d = v === '' ? 0 : v - Math.round(m.q);
         return '<tr data-mon="' + esc(m.n) + '" data-may="' + Math.round(m.q) + '">' +
-          '<td data-nhan="Món" style="text-align:left">' + esc(m.n) + (m.g || m.l ? '<span style="display:block;color:var(--ink-3);font-size:12px">' + esc(m.g) + (m.l ? ' · ' + esc(m.l) : (m.ve ? ' · vé' : '')) + '</span>' : '') + '</td>' +
+          '<td data-nhan="Món" style="text-align:left">' + esc(m.n) + (m.g || m.l ? '<span style="display:block;color:var(--ink-3);font-size:12px">' + esc(m.g) + (m.l ? ' · ' + esc(m.l) : (m.ve ? ' · vé' : '')) + '</span>' : '') +
+            /* Món là thành phần combo: FABi chỉ ghi phần bán lẻ; ghi thêm phần đi theo combo và tổng rời kho (anh Thắng
+               24/09/2026: "theo combo là 6, vé lẻ là 2, tổng là 8"). Cùng số với sổ kho. */
+            (m.kho_combo ? '<span style="display:block;font-size:12px;color:var(--app)">lẻ ' + nguyen(m.q) + ' + <b>' + nguyen(m.kho_combo) + ' theo combo</b> → rời kho <b>' + nguyen(m.kho_tong) + '</b></span>' : '') + '</td>' +
           '<td class="s" data-nhan="SL máy">' + nguyen(m.q) + '</td>' +
           '<td class="s" data-nhan="Thành tiền">' + tien(m.r) + '</td>' +
           '<td data-nhan="SL thực"><input type="number" min="0" step="1" inputmode="numeric" autocomplete="off" data-thuc="' + esc(m.n) + '" value="' + v + '" placeholder="' + nguyen(m.q) + '" style="width:92px"></td>' +
           '<td class="s o-lech-mon" data-nhan="Lệch"' + (d ? ' style="color:var(--xau);font-weight:600"' : '') + '>' + (d ? (d > 0 ? '+' : '') + nguyen(d) : '') + '</td>' +
         '</tr>';
-      }).join('') + '</tbody></table></div></details>';
+      }).join('') + '</tbody></table></div>' +
+      /* Thành phần chỉ rời kho theo combo (thạch, bim bim…) không có dòng FABi — kể ra dưới bảng, cùng số với sổ kho. */
+      (function () {
+        var tc = (p && p.theo_combo) || [];
+        var chiCombo = tc.filter(function (x) { return !mon.some(function (m) { return String(m.n).replace(/\s+/g, ' ').trim().toLowerCase() === String(x.n).replace(/\s+/g, ' ').trim().toLowerCase(); }); });
+        if (!tc.length) return '';
+        return '<div class="chu-them" id="bcTheoCombo" style="margin-top:8px"><b>Rời kho theo combo hôm nay:</b> ' +
+          tc.map(function (x) { return esc(x.n) + ' <b>' + nguyen(x.combo) + '</b>' + (x.le ? ' (+' + nguyen(x.le) + ' lẻ = ' + nguyen(x.le + x.combo) + ')' : ''); }).join(' · ') +
+          (chiCombo.length ? '' : '') + '. Sổ kho trừ đúng các số này.</div>';
+      })() + '</details>';
     o.innerHTML = h;
     Array.prototype.forEach.call(o.querySelectorAll('input[data-thuc]'), function (i) {
       i.addEventListener('input', function () {
