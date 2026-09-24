@@ -802,6 +802,9 @@ class VHCP_Don {
 			   tới gói khởi động chứ không chỉ gói Cấu hình: ô chọn lúc NHẬP ĐƠN dựng từ gói
 			   này, và một khoá thiếu ở đây trông y hệt một danh sách rỗng. */
 			'dauMucDs'   => VHCP_Cfg::dau_muc_ds(),
+			/* Đầu mục nào có cơ sở (và của khối nào) — form ẩn/hiện ô Cơ sở theo đây. Xem
+			   `VHCP_Cfg::dau_muc_rows()`. */
+			'dauMucCoSo' => VHCP_Cfg::dau_muc_coso(),
 			/* Vùng này có lọc loại theo vai không. Giao diện đọc CỜ, không tự suy: hai nơi tự
 			   suy là có ngày ô chọn bày một đằng, máy chủ gác một nẻo. */
 			'locLoaiTheoVai' => VHCP_Cfg::loc_loai_theo_vai(),

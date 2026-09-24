@@ -19,6 +19,7 @@ class VHCPMTD_Cfg {
 	const TKNO  = 'CH_TKNo';
 	const SSO   = 'CH_SSO';
 	const BP    = 'CH_BoPhan';       // BỘ PHẬN — khai được, xem `bo_phan_ds()`
+	const DM    = 'CH_DauMuc';       // ĐẦU MỤC (phân loại lớn) + khối cơ sở — xem `dau_muc_rows()`
 	const QUYEN = 'CH_Quyen';
 	const LOAI  = 'CH_LoaiChiPhi';   // DANH MỤC LOẠI CHI PHÍ — mỗi loại gắn sẵn mã tài khoản
 	const TK    = 'CH_TaiKhoan';     // HỆ THỐNG TÀI KHOẢN của kế toán (nạp từ file Excel/CSV)
@@ -53,6 +54,10 @@ class VHCPMTD_Cfg {
 			      Trống là mặc định, và phải thế: bảy bộ phận đang khai đều trống, lấp một mã
 			      vào là đổi luồng cho cả một bộ phận mà không ai yêu cầu. */
 			self::BP    => array( 'Bộ phận', 'Luồng duyệt' ),
+			/* ĐẦU MỤC = PHÂN LOẠI LỚN của form nhập (anh Thắng 24/09/2026). Cột 2 `Khối cơ sở`:
+			   '*' = như cũ (ô Cơ sở theo khối đang đứng) · '' = chi phí KHÔNG có cơ sở (ẩn ô) ·
+			   'kvc'/'mtd'/'vp' = chỉ xổ cơ sở của khối ấy. */
+			self::DM    => array( 'Đầu mục', 'Khối cơ sở' ),
 			self::DT    => array( 'Đối tượng', 'Mã đối tượng', 'Loại (NV/NCC)' ),
 			self::QR    => array( 'Khóa', 'Giá trị' ),
 			/* Hai cột cuối là ĐƠN VỊ (K&H · POSH) — xem `VHCPMTD_DonVi`. "Đơn vị" là NHÀ (đơn
@@ -1164,6 +1169,9 @@ class VHCPMTD_Cfg {
 		   sách rỗng, ô chọn Bộ phận trắng trơn, mà máy chủ thì vẫn nhận 7 tên cũ. Hai bên lệch
 		   nhau đúng kiểu bản này sinh ra để bỏ. */
 		$out['boPhanDs'] = self::bo_phan_ds();
+		/* Đầu mục (phân loại lớn) khai được — xem `dau_muc_rows()`. */
+		$out['dauMucDs']   = self::dau_muc_ds();
+		$out['dauMucCoSo'] = self::dau_muc_coso();
 		/* Luồng duyệt mặc định của từng bộ phận: { 'Văn phòng' => 'dc', … }. Bảng RIÊNG chứ
 		   không nhét vào `boPhanDs` — ô ấy là mảng CHUỖI và đang được đọc ở cả chục chỗ (ô chọn
 		   bộ phận, phân quyền vai, bảng loại chi phí); đổi kiểu của nó là mỗi chỗ ấy hiện ra
@@ -1261,6 +1269,8 @@ class VHCPMTD_Cfg {
 			/* Danh sách BỘ PHẬN — giao diện dựng ô chọn từ đây, không gõ cứng lại. Gõ cứng ở
 			   hai nơi là hai nơi lệch nhau: máy chủ chối một tên mà ô chọn vẫn bày ra nó. */
 			'boPhanDs'   => isset( $s['boPhanDs'] ) ? $s['boPhanDs'] : self::BO_PHAN_DS,
+			'dauMucDs'   => isset( $s['dauMucDs'] ) ? $s['dauMucDs'] : self::DAU_MUC_MAC_DINH,
+			'dauMucCoSo' => isset( $s['dauMucCoSo'] ) && is_array( $s['dauMucCoSo'] ) ? $s['dauMucCoSo'] : array(),
 			/* 🔴 KHOÁ NÀY PHẢI ĐI QUA ĐÂY — cắn thật 23/09/2026. `boPhanLuong` được dựng đủ ở
 			   `cfg_static()`, nhưng `get_config()` LỌC KHOÁ theo danh sách này, nên nó rơi ra
 			   trước khi tới màn. Hậu quả: bấm Lưu báo xanh, sổ có đủ, mà mở lại bảng thì mọi ô
@@ -1634,6 +1644,28 @@ class VHCPMTD_Cfg {
 			}
 			self::write( self::BP, $rows );
 			self::$bp_memo = null;
+		}
+		if ( isset( $cfg['dauMucDs'] ) && is_array( $cfg['dauMucDs'] ) ) {
+			/* Đầu mục = phân loại lớn của form nhập (xem `dau_muc_rows()`). Nhận cả mảng chuỗi
+			   (tên thôi → giữ khối cơ sở đang lưu, chưa có thì '*') lẫn mảng {ten, coso}. */
+			$cu_map = self::dau_muc_coso();
+			$rows = array(); $da = array();
+			foreach ( $cfg['dauMucDs'] as $x ) {
+				if ( is_object( $x ) ) { $x = (array) $x; }
+				$t = trim( (string) ( is_array( $x ) ? ( isset( $x['ten'] ) ? $x['ten'] : '' ) : $x ) );
+				if ( '' === $t ) { continue; }
+				$k = mb_strtolower( $t );
+				if ( isset( $da[ $k ] ) ) { continue; }
+				$da[ $k ] = 1;
+				$cs = ( is_array( $x ) && array_key_exists( 'coso', $x ) ) ? $x['coso'] : ( isset( $cu_map[ $t ] ) ? $cu_map[ $t ] : '*' );
+				$rows[] = array( $t, self::khoi_coso_chuan( $cs ) );
+			}
+			/* Bảng rỗng → chối, cùng lẽ với bộ phận: xoá hết thì hệ dùng lại bốn tên mặc định,
+			   không phải "không có đầu mục nào" — người xoá tưởng một đằng, màn bày một nẻo. */
+			if ( ! $rows ) {
+				return VHCPMTD_Util::err( 'Phải còn ít nhất một đầu mục. Xoá hết thì hệ tự dùng lại danh sách mặc định.' );
+			}
+			self::write( self::DM, $rows );
 		}
 		if ( isset( $cfg['sso'] ) && is_array( $cfg['sso'] ) ) {
 			$rows = array();
@@ -2074,6 +2106,8 @@ class VHCPMTD_Cfg {
 	 *    mà họ không có cách nào tự chữa, vì khai danh mục là việc của kế toán.
 	 */
 	public static function dau_muc_ds() {
+		$rows = self::dau_muc_rows();
+		if ( $rows ) { return array_map( function ( $r ) { return $r['ten']; }, $rows ); }
 		$ds = get_option( 'vhcpmtd_dau_muc_ds', null );
 		if ( is_string( $ds ) ) { $ds = array_map( 'trim', explode( "\n", str_replace( "\r", '', $ds ) ) ); }
 		$ra = array();
@@ -2082,6 +2116,54 @@ class VHCPMTD_Cfg {
 			if ( '' !== $t && ! in_array( $t, $ra, true ) ) { $ra[] = $t; }
 		}
 		return $ra ? $ra : self::DAU_MUC_MAC_DINH;
+	}
+
+	/**
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 * ĐẦU MỤC KHAI ĐƯỢC, VÀ MỖI ĐẦU MỤC NÓI NÓ CÓ CƠ SỞ HAY KHÔNG.
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 24/09/2026: *"chọn chi phí theo phân loại, Chọn Phân Loại Lớn trước, Đến Phân
+	 * Loại con (Nếu chọn chi phí cơ sở thì sẽ có chọn thêm Cơ Sở) còn không thì nó là chi phí
+	 * không có cơ sở"*, kèm cây ví dụ:
+	 *     Chi Phí Cơ Sở KVC  ->  Chi Phí Cơ Sở (các cơ sở KVC hiện thôi) · Chi Phí Marketing
+	 *     Chi Phí Cơ Sở MTĐ  ->  Chi Phí Cơ Sở (các cơ sở MTĐ hiện ra)
+	 *     Chi Phí Chung      ->  Chi Phí Chung MTĐ · KVC · VP-MTĐ · VP-KVC
+	 *
+	 * 🔴 ĐẦU MỤC TRƯỚC NAY KHÔNG KHAI ĐƯỢC. `dau_muc_ds()` đọc `get_option('vhcpmtd_dau_muc_ds')`
+	 *    mà không nơi nào ghi ô ấy — tức danh sách luôn là bốn tên mặc định. Anh cần "Chi Phí Cơ
+	 *    Sở KVC" / "… MTĐ" là hai đầu mục riêng, nên phải có bảng.
+	 * 🔴 CỘT `Khối cơ sở` LÀ THỨ QUYẾT ĐỊNH Ô CƠ SỞ TRÊN FORM:
+	 *      '*'   như cũ — ô Cơ sở hiện, lọc theo khối đang đứng (đường lui cho đầu mục chưa khai)
+	 *      ''    chi phí KHÔNG có cơ sở — ô Cơ sở ẩn, dòng ghi cơ sở trống
+	 *      'kvc' / 'mtd' / 'vp' — ô Cơ sở chỉ xổ cơ sở của khối ấy
+	 *    Bảng rỗng → `dau_muc_ds()` ngã về bốn tên mặc định và mọi đầu mục coi là '*' — không đổi
+	 *    hành vi của site chưa khai.
+	 * ⚠️ TÊN ĐẦU MỤC là khoá nối với cột `dauMuc` của từng loại chi phí — đổi tên ở đây mà không
+	 *    đổi ở loại là loại rơi về "Chưa xếp đầu mục". Màn cảnh báo chỗ ấy, máy chủ không tự đoán.
+	 */
+	public static function dau_muc_rows() {
+		$ra = array(); $da = array();
+		foreach ( self::read( self::DM ) as $r ) {
+			$t = trim( (string) ( isset( $r[0] ) ? $r[0] : '' ) );
+			if ( '' === $t ) { continue; }
+			$k = mb_strtolower( $t );
+			if ( isset( $da[ $k ] ) ) { continue; }
+			$da[ $k ] = 1;
+			$ra[] = array( 'ten' => $t, 'coso' => self::khoi_coso_chuan( isset( $r[1] ) ? $r[1] : '*' ) );
+		}
+		return $ra;
+	}
+	/** Chuẩn hoá ô `Khối cơ sở`: '*' · '' · mã khối chữ thường. Giá trị lạ → '*' (như cũ). */
+	public static function khoi_coso_chuan( $v ) {
+		$v = mb_strtolower( trim( (string) $v ) );
+		if ( '' === $v || '*' === $v ) { return $v; }
+		return in_array( $v, array_keys( VHCPMTD_DonVi::KHOI_THEO_DON_VI ), true ) ? $v : '*';
+	}
+	/** { tên đầu mục => khối cơ sở }. Đầu mục không có trong bảng → không có khoá → màn hiểu là '*'. */
+	public static function dau_muc_coso() {
+		$m = array();
+		foreach ( self::dau_muc_rows() as $r ) { $m[ $r['ten'] ] = $r['coso']; }
+		return $m;
 	}
 
 	/* ═══════════════════════════════════════════════════════════════════════════════════════
@@ -3702,6 +3784,7 @@ class VHCPMTD_Cfg {
 			self::LOAI => 'Loại chi phí (đầu mục · vai · khối · TK)',
 			self::TKNO => 'Mã TK Nợ theo cơ sở / mảng',
 			self::BP   => 'Bộ phận & luồng duyệt',
+			self::DM   => 'Đầu mục (phân loại lớn) & khối cơ sở',
 			self::NHOM => 'Nhóm chi phí',
 			self::MANG => 'Mảng kinh doanh → nhóm TK',
 			self::TK   => 'Hệ thống tài khoản',

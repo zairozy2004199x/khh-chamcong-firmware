@@ -561,9 +561,16 @@
                hiện loại của mảng đó — trước đây Marketing / Công tác / Setup là 3 tab riêng,
                nhập một chỗ mà phải nhảy qua nhảy lại. Nhóm lấy theo cột Bộ phận của danh mục
                loại chi phí, nên khai thêm mảng ở Cấu hình là ô này tự có thêm. -->
-          <div class="fld" style="grid-column:1 / -1"><label>Chọn chi phí nào *</label>
-            <div id="f_nhomCp" style="display:flex;gap:6px;flex-wrap:wrap"></div></div>
-          <div class="fld"><label>Loại chi phí * <span id="lblNhomTk" style="font-weight:700;font-family:Consolas,monospace"></span></label><select id="f_nhom" onchange="onNhomPick()"></select>
+          <!-- 🔴 PHÂN LOẠI LỚN TRƯỚC, PHÂN LOẠI NHỎ SAU (anh Thắng 24/09/2026): *"chọn chi phí theo phân
+               loại, Chọn Phân Loại Lớn trước, Đến Phân Loại con (Nếu chọn chi phí cơ sở thì sẽ có
+               chọn thêm Cơ Sở) còn không thì nó là chi phí không có cơ sở"*. Phân loại lớn = ĐẦU MỤC
+               (khai ở ⚙️ Cấu hình › 🗂 Đầu mục); mỗi đầu mục nói nó có cơ sở của khối nào, ô Cơ sở ở
+               trên hiện/ẩn và lọc theo đó (`_oCoSoTheoDauMuc`). Dải nút "Chọn chi phí nào" theo bộ
+               phận thôi bày — đầu mục dẫn đường thay nó; giữ hộp rỗng để mã cũ gọi vào không nổ. -->
+          <div class="fld" style="display:none"><div id="f_nhomCp"></div></div>
+          <div class="fld"><label>Phân loại lớn *</label><select id="f_dauMuc" onchange="onDauMucPick()"></select>
+            <div id="f_dauMucVi" style="font-size:11px;margin-top:3px;color:#8c8781"></div></div>
+          <div class="fld"><label>Phân loại nhỏ (loại chi phí) * <span id="lblNhomTk" style="font-weight:700;font-family:Consolas,monospace"></span></label><select id="f_nhom" onchange="onNhomPick()"></select>
             <!-- KHÔNG ẨN IM LẶNG. Ô này lọc 4 lớp (đã khai mã cho mảng của cơ sở · đúng nút
                  "Chọn chi phí nào" · đúng bộ phận người đăng nhập · đúng phân loại TT). Ô rỗng
                  mà không nói gì thì người dùng chỉ thấy "app hỏng" — đã xảy ra hai lần trong
@@ -1909,6 +1916,20 @@
             của chính bảng ấy (xem khối 🔴 ở `luuMaTongMang()`), và `_saveCfg({mangTk:…})` vẫn
             chạy. Gỡ bảng khai tay ≠ bỏ sổ. -->
 
+    <div class="card" id="dauMucCard">
+      <div class="ch"><h2>🗂 Đầu mục (phân loại lớn)</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="addCfgDauMuc()">＋ Thêm đầu mục</button><button class="btn b-g" onclick="saveCfgDauMuc()">💾 Lưu đầu mục</button></div></div>
+      <div style="padding:8px 14px 0;font-size:12px;color:#64748b">
+        <!-- Anh Thắng 24/09/2026: *"Chọn Phân Loại Lớn trước, Đến Phân Loại con (Nếu chọn chi phí cơ sở thì sẽ có
+             chọn thêm Cơ Sở) còn không thì nó là chi phí không có cơ sở"*. -->
+        Form nhập hạng mục hỏi <b>Phân loại lớn</b> (= đầu mục) trước, rồi <b>Phân loại nhỏ</b> (loại chi phí thuộc đầu mục ấy).
+        Cột <b>Cơ sở</b> quyết định ô Cơ sở trên form: <b>Không có cơ sở</b> → ẩn ô, dòng chi không gắn gian;
+        <b>Cơ sở KVC / MTĐ / VP</b> → chỉ xổ gian của khối ấy; <b>như cũ</b> → theo khối đang đứng.<br>
+        Gắn loại vào đầu mục ở cột <b>Đầu mục</b> của bảng 🧮 Loại chi phí bên dưới. Đổi tên đầu mục ở đây thì phải đổi ở loại theo,
+        không thì loại rơi về "Chưa xếp đầu mục".
+      </div>
+      <div class="tw"><table style="min-width:640px"><thead><tr><th style="width:320px">Đầu mục (phân loại lớn)</th><th style="width:280px">Cơ sở</th><th style="width:60px"></th></tr></thead><tbody id="cfgDauMucBody"></tbody></table></div>
+    </div>
+
     <div class="card" id="loaiMxCard">
       <div class="ch"><h2>🧮 Loại chi phí × Mảng kinh doanh</h2><div style="display:flex;gap:8px"><button class="btn b-x" id="mxLockBtn" onclick="toggleMxLock()">🔒 Đang khóa — bấm để mở</button><!-- ⚠️ NÚT "＋ THÊM LOẠI" CHUNG ĐÃ BỎ (21/09/2026). Từ lượt chia ba bảng theo khối, mỗi
              bảng có nút thêm của riêng nó — một nút chung ở đầu thẻ thì không trả lời được câu
@@ -2265,14 +2286,14 @@
   }
   /** Vẽ dãy nút "Chọn chi phí nào". Chỉ 1 nhóm thì khỏi bày ra cho rối. */
   function renderNhomCp(){
+    /* 🔴 DẢI NÚT THEO BỘ PHẬN ĐÃ NHƯỜNG CHỖ CHO Ô PHÂN LOẠI LỚN (24/09/2026). Anh Thắng: *"Chọn
+       Phân Loại Lớn trước, Đến Phân Loại con"* — đầu mục là trục dẫn đường, không phải bộ phận.
+       `NHOM_CP` luôn rỗng để `_loaiCpList()` không cắt theo nút nào nữa; lọc theo đầu mục nằm ở
+       `fillNhom()`. Hộp `f_nhomCp` giữ lại (ẩn) cho mã cũ gọi vào không nổ. */
+    NHOM_CP='';
     var box=el('f_nhomCp'); if(!box) return;
-    var ds=_cacNhomCp();
-    if(ds.indexOf(NHOM_CP)<0) NHOM_CP=ds.length?ds[0]:'';
-    box.parentNode.style.display=(ds.length>1)?'':'none';
-    box.innerHTML=ds.map(function(k){
-      var on=(k===NHOM_CP);
-      return '<button type="button" class="btn '+(on?'b-p':'b-x')+'" onclick="pickNhomCp('+JSON.stringify(k).replace(/"/g,'&quot;')+')">'+esc(_nhanNhomCp(k))+'</button>';
-    }).join('');
+    box.innerHTML='';
+    if(box.parentNode&&box.parentNode.style) box.parentNode.style.display='none';
   }
   function pickNhomCp(k){ NHOM_CP=k; renderNhomCp(); fillNhom(''); }
 
@@ -2285,10 +2306,85 @@
    * ngoài không thấy. Nay một nguồn duy nhất: danh mục loại chi phí, đã khai mã, đúng mảng
    * đang chọn ở ô "Chọn chi phí nào".
    */
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * PHÂN LOẠI LỚN (ĐẦU MỤC) → PHÂN LOẠI NHỎ (LOẠI) → CƠ SỞ THEO KHỐI CỦA ĐẦU MỤC.
+   * Anh Thắng 24/09/2026 — xem chú thích tại thẻ `f_dauMuc` và `VHCP_Cfg::dau_muc_rows()`.
+   * `DM_CUR` = đầu mục đang chọn ('' = chưa chọn → ô loại bày đủ, kèm nhắc chọn đầu mục).
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  var DM_CUR='';
+  /* Đầu mục này có cơ sở không, của khối nào: '*' = như cũ (theo khối đang đứng) · '' = KHÔNG có
+     cơ sở · 'kvc'/'mtd'/'vp'. Đầu mục chưa khai trong bảng (hoặc ô hứng "Chưa xếp") → '*': không
+     đổi hành vi cũ cho site chưa khai. */
+  function _dmCoSoCua(dm){
+    var d=String(dm||'').trim();
+    if(!d || d==='Chưa xếp đầu mục') return '*';
+    var m=(typeof BOOT!=='undefined'&&BOOT&&BOOT.dauMucCoSo)||{};
+    if(!Object.prototype.hasOwnProperty.call(m,d)) return '*';
+    var v=String(m[d]==null?'':m[d]).trim().toLowerCase();
+    return v;
+  }
+  /* Đầu mục bày ở ô Phân loại lớn: theo thứ tự máy chủ khai, chỉ đầu mục CÓ loại chọn được (đầu
+     mục rỗng bày ra là một ngõ cụt); đầu mục lạ còn gắn trên loại vẫn bày; loại chưa xếp → ô hứng. */
+  function _dmDs(){
+    var goc=((typeof BOOT!=='undefined'&&BOOT&&BOOT.dauMucDs)||[]).slice();
+    var co={}, chua=false;
+    _loaiCpList(el('f_coso')?el('f_coso').value:'', '', loaiOf(el('f_pltt').value)).forEach(function(x){
+      var d=String((x&&x.dauMuc)||'').trim(); if(d) co[d]=1; else chua=true;
+    });
+    var ds=goc.filter(function(d){ return co[d]; });
+    Object.keys(co).forEach(function(d){ if(ds.indexOf(d)<0) ds.push(d); });
+    if(chua) ds.push('Chưa xếp đầu mục');
+    return ds;
+  }
+  function fillDauMuc(keep){
+    var sel=el('f_dauMuc'); if(!sel) return;
+    var cur=String((keep!==undefined)?keep:(sel.value||DM_CUR)||'').trim();
+    var ds=_dmDs();
+    sel.innerHTML='<option value="">— chọn phân loại lớn —</option>'+ds.map(function(d){ return '<option value="'+esc(d)+'">'+esc(d)+'</option>'; }).join('');
+    DM_CUR=(cur && ds.indexOf(cur)>=0)?cur:'';
+    sel.value=DM_CUR;
+    var vi=el('f_dauMucVi');
+    if(vi){
+      if(!ds.length) vi.innerHTML='<span style="color:#dc2626">Chưa có loại chi phí nào chọn được — khai ở ⚙️ Cấu hình › Loại chi phí.</span>';
+      else if(!DM_CUR) vi.textContent=ds.length+' phân loại lớn — chọn một để lọc phân loại nhỏ bên dưới.';
+      else { var k=_dmCoSoCua(DM_CUR); vi.textContent = k==='' ? 'Chi phí không gắn cơ sở.' : (k==='*' ? '' : ('Có cơ sở — chỉ xổ cơ sở '+(_tenKhoi(k)||k)+'.')); }
+    }
+    _oCoSoTheoDauMuc();
+  }
+  function onDauMucPick(){
+    DM_CUR=String((el('f_dauMuc')&&el('f_dauMuc').value)||'').trim();
+    fillDauMuc(DM_CUR);
+    fillNhom('');
+  }
+  /* Ô CƠ SỞ THEO ĐẦU MỤC: ẩn khi đầu mục không có cơ sở; lọc theo khối của đầu mục; như cũ khi '*'.
+     Đơn đã chốt một cơ sở (`sel.disabled`) thì giữ nguyên khoá — đơn của gian nào thì dòng ở gian ấy. */
+  function _oCoSoTheoDauMuc(){
+    var fld=el('fldCoso'), sel=el('f_coso'); if(!fld||!sel) return;
+    var k=_dmCoSoCua(DM_CUR), lbl=el('lblCoso');
+    if(k===''){
+      fld.style.display='none';
+      if(!sel.disabled) sel.value='';
+      var vi0=el('f_nhomVi'); if(vi0 && DM_CUR){ vi0.textContent='Chi phí không gắn cơ sở — mã TK Nợ theo loại.'; vi0.style.color='#8c8781'; }
+      return;
+    }
+    fld.style.display='';
+    if(sel.disabled) return;
+    var goc=(typeof window!=='undefined'&&window._COSO_OPTS_GOC)||[];
+    var ds=(k==='*') ? goc.filter(_gianHopKhoi) : goc.filter(function(c){ return _khoiCuaGian(c)===k; });
+    var giu=String(sel.value||'');
+    /* Dòng đang SỬA mang cơ sở ngoài danh sách (dữ liệu cũ) vẫn phải chọn lại được, không mất. */
+    if(giu && ds.indexOf(giu)<0 && el('lineId') && String(el('lineId').value||'')) ds=ds.concat([giu]);
+    sel.innerHTML=opts(ds);
+    if(giu && ds.indexOf(giu)>=0) sel.value=giu; else if(ds.length===1) sel.value=ds[0]; else sel.value='';
+    if(lbl) lbl.textContent = (k==='*') ? (_donNhieuCoSo()?'Cơ sở của hạng mục này *':'Cơ sở *') : ('Cơ sở '+(_tenKhoi(k)||k)+' *');
+    try{ _khoaCoSoHint(); }catch(e){}
+  }
   function fillNhom(keep){
     var cur=(keep!==undefined)?keep:el('f_nhom').value;
     var coso=el('f_coso')?el('f_coso').value:'';
     var ds=_loaiCpList(coso, '', loaiOf(el('f_pltt').value));
+    /* 🔴 LỌC THEO PHÂN LOẠI LỚN ĐANG CHỌN — xem `DM_CUR`. Chưa chọn thì bày đủ (dòng gợi ý nhắc). */
+    if(DM_CUR) ds=ds.filter(function(x){ return _dauMucCua(x)===DM_CUR; });
     var names=ds.map(function(x){ return String(x.ten||'').trim(); }).filter(Boolean);
     // Dòng đang sửa mà loại nay không còn trong danh mục -> vẫn để chọn được, khỏi mất dữ liệu
     if(cur && names.indexOf(cur)<0) names.push(cur);
@@ -2297,9 +2393,13 @@
     fillNoiDungList(el('f_nhom').value);
     showTkNhom();
     _veLoaiCpVi('f_nhomVi', coso, '', loaiOf(el('f_pltt').value));
+    /* Đầu mục KHÔNG có cơ sở thì câu "⬆ Chọn CƠ SỞ trước" của `_loaiCpVi` là sai — không có ô nào
+       để chọn. Ghi đè bằng câu đúng. */
+    var _vi=el('f_nhomVi');
+    if(_vi && DM_CUR && _dmCoSoCua(DM_CUR)===''){ _vi.textContent='Chi phí không gắn cơ sở — mã TK Nợ theo loại.'; _vi.style.color='#8c8781'; }
   }
   // Chọn Phân loại (Cá nhân/NCC) trước -> lọc Nhóm mặt hàng + Đối tượng theo loại đó
-  function onPlttChange(){ var pltt=el('f_pltt').value; fillNhom(''); updateDoiTuongUI(pltt); }
+  function onPlttChange(){ var pltt=el('f_pltt').value; fillDauMuc(DM_CUR); fillNhom(''); updateDoiTuongUI(pltt); }
   function updateDoiTuongUI(pltt){
     var ncc=(pltt==='Nhà cung cấp');
     var lbl=el('lblDoiTuong'); if(lbl) lbl.textContent=!pltt?'Đối tượng (NV/NCC)':(ncc?'Đối tượng — Nhà cung cấp':'Đối tượng — NV thanh toán');
@@ -4334,6 +4434,7 @@
       // lọc bằng giá trị chưa chốt — ô rỗng, bấm qua lại một nút mới hiện.
       el('f_pltt').innerHTML=opts(BOOT.phanloai,'—');
       if(typeof renderNhomCp==='function') renderNhomCp();
+      if(typeof fillDauMuc==='function') fillDauMuc(DM_CUR);
       fillNhom(''); setProducts(BOOT.products); fillDoiTuongList();
       /* Cùng một luật với `_myDons()` — hai chỗ lọc khác nhau là danh sách đơn và ô "Chọn đơn"
          hiện hai tập khác nhau, mà người dùng thì tưởng mình mất đơn. */
@@ -5361,7 +5462,9 @@
   function _saveLine(){
     if(_guardChi())return;
     var r=collectLine();
-    if(!r.coso){_lyDoKhongThem('Chưa chọn CƠ SỞ cho hạng mục này','f_coso');return;}
+    /* Đầu mục KHÔNG có cơ sở (anh Thắng 24/09/2026: *"còn không thì nó là chi phí không có cơ
+       sở"*) → dòng đi với cơ sở trống, không đòi. Còn lại đòi như cũ. */
+    if(!r.coso && _dmCoSoCua(DM_CUR)!==''){_lyDoKhongThem('Chưa chọn CƠ SỞ cho hạng mục này','f_coso');return;}
     if(!r.nhom){_lyDoKhongThem('Chưa chọn LOẠI CHI PHÍ','f_nhom');return;}
     if(!r.noiDung){_lyDoKhongThem('Chưa nhập NỘI DUNG','f_nd');return;}
     // SỐ LƯỢNG LÀ BẮT BUỘC.
@@ -5421,7 +5524,7 @@
     var _t=new Date(); el('f_ngay').value=_t.getFullYear()+'-'+('0'+(_t.getMonth()+1)).slice(-2)+'-'+('0'+_t.getDate()).slice(-2);   // mặc định ngày nhập (hôm nay), sửa được
     _veNgayVi();
     el('imgBtn').textContent='📎 Đính ảnh';
-    el('f_pltt').value=''; renderNhomCp(); fillNhom(''); updateDoiTuongUI('');
+    el('f_pltt').value=''; renderNhomCp(); DM_CUR=''; fillDauMuc(''); fillNhom(''); updateDoiTuongUI('');
     /* 🔴 XOÁ LUÔN LỐT CỦA DÒNG VỪA SỬA. Không xoá thì nhập tiếp một hạng mục khác là nó mang
        theo dấu "setup" của dòng trước — người ta không hề tích, và cũng không nhìn thấy mình
        vừa khai gì, vì mắt đang ở ô Nội dung. `veTrucs()` phải gọi SAU khi đặt lại biến.
@@ -5445,6 +5548,13 @@
       if(b===null) (BOOT.nhom||[]).forEach(function(x){ if(String(x.ten||'').trim().toLowerCase()===k) b=_lay(x.boPhan); });
       if(b!==null){ NHOM_CP=_khoaNhom(b, l.nhom); renderNhomCp(); }
     })();
+    /* Phân loại lớn = đầu mục của loại trên dòng; ô Cơ sở dựng lại theo nó rồi mới đặt cơ sở cũ
+       (cơ sở ngoài danh sách vẫn được thêm vào — xem `_oCoSoTheoDauMuc`). */
+    DM_CUR=_dauMucCuaTen(l.nhom||''); fillDauMuc(DM_CUR);
+    (function(){ var _s=el('f_coso'); if(!_s||!l.coso) return;
+      var co=Array.prototype.some.call(_s.options||[], function(o){ return o.value===l.coso; });
+      if(!co && !_s.disabled) _s.insertAdjacentHTML('beforeend','<option value="'+esc(l.coso)+'">'+esc(l.coso)+'</option>');
+      _s.value=l.coso; })();
     el('f_dt').value=l.doiTuong||''; fillNhom(l.nhom||''); updateDoiTuongUI(l.phanLoaiTT||''); el('f_nd').value=l.noiDung||'';
     el('f_dvt').value=l.dvt||''; el('f_sl').value=l.soLuong||''; _datTien('f_dg', l.donGia); _datTien('f_tt', l.thanhTien); el('f_thue').value=(l.thueSuat===''||l.thueSuat==null)?'':String(l.thueSuat);
     el('f_gc').value=l.ghiChu||''; el('f_anh').value=l.anh||''; el('imgBtn').textContent=l.anh?'✓ Đã đính ảnh':'📎 Đính ảnh';
@@ -11151,6 +11261,8 @@
     }
     _xepOCoSo();
     _khoaCoSoHint();
+    /* Ô Cơ sở còn đi theo PHÂN LOẠI LỚN đang chọn (24/09/2026) — dựng lại danh sách rồi mới lọc. */
+    try{ if(typeof _oCoSoTheoDauMuc==='function') _oCoSoTheoDauMuc(); }catch(e){}
   }
   /** Chọn cơ sở ở ô TẠM ỨNG (trên) -> ô nhập hạng mục (dưới) theo luôn cùng cơ sở, để không lệch.
    *  Chỉ mirror khi ô dưới CHƯA bị khóa (đơn chưa chốt cơ sở); khóa rồi thì hai ô đã bằng nhau. */
@@ -12894,7 +13006,7 @@
        nó tra bộ phận — mà bộ phận khai ở hàng Người dùng ngay trên. */
     { ten:'🧭 Luồng duyệt theo vai trò',  id:['luongBpCard'],
       mo:'Vai trò (= bộ phận) nào đi đường nào: qua tạm ứng · trực tiếp · duyệt chi. Đã chọn thì hộp Tạo đơn không hỏi nữa; để trống mới cho người lập chọn.' },
-    { ten:'🧮 Danh mục chi phí & tài khoản', id:['loaiMxCard','tkCoCard','heTkCard'],
+    { ten:'🧮 Danh mục chi phí & tài khoản', id:['dauMucCard','loaiMxCard','tkCoCard','heTkCard'],
       mo:'Chi phí này là chi phí gì, và đi vào tài khoản nào khi xuất MISA.' },
     /* ⚠️ `qrCard` đã gộp vào `heTkCard` — nhóm này giờ chỉ còn mốc tuần. */
     { ten:'💵 Kỳ & mốc tuần',             id:['kyCard'],
@@ -13594,6 +13706,7 @@
     renderCosoBody();
     renderVai();
     renderLuongBp();
+    renderDauMuc();
     el('cfgTkInfo').innerHTML = _tkChartHtml() + (TKCHART.length ? ('✅ Đã nạp <b>'+TKCHART.length+'</b> tài khoản — mọi ô mã tài khoản trong trang này đã có gợi ý theo số hiệu + tên.') : '<span style="color:#dc2626">Chưa nạp hệ thống tài khoản — mã phải gõ tay, dễ sai số.</span>');
     /* ⚠️ Bảng khai tay `mangTk` đã gỡ khỏi màn 14/09/2026 — gác `null` ở đây, không thì
        `renderCfg()` ném lỗi ngay dòng này và CẢ tab Cấu hình trắng trơn. */
@@ -15214,6 +15327,34 @@
    *    màn báo xong, mà mã cũ vẫn nằm nguyên trong sổ.
    * ══════════════════════════════════════════════════════════════════════════════════════ */
   var LUONG_BP_DS=[['','— theo khối như cũ —'],['gt','💵 Qua tạm ứng'],['tt','🧾 Trực tiếp'],['dc','🧮 Duyệt chi']];
+  /* ── 🗂 ĐẦU MỤC (PHÂN LOẠI LỚN) — xem `VHCP_Cfg::dau_muc_rows()` và thẻ `dauMucCard` ────── */
+  function _dmCoSoSel(cur){
+    var c=String(cur==null?'*':cur).trim().toLowerCase();
+    var ds=[['*','— như cũ: theo khối đang đứng —'],['','Không có cơ sở (ẩn ô Cơ sở)']];
+    (KHOI_DS||[]).forEach(function(k){ if(MIEN_MA.indexOf(k.ma)<0) ds.push([k.ma,'Cơ sở '+k.ten]); });
+    if(c!=='*' && c!=='' && !ds.some(function(x){ return x[0]===c; })) ds.push([c,'Cơ sở '+c]);
+    return '<select style="width:100%">'+ds.map(function(x){ return '<option value="'+esc(x[0])+'"'+(x[0]===c?' selected':'')+'>'+esc(x[1])+'</option>'; }).join('')+'</select>';
+  }
+  function renderDauMuc(){
+    var body=el('cfgDauMucBody'); if(!body) return;
+    var ds=((CFG&&CFG.dauMucDs)||(typeof BOOT!=='undefined'&&BOOT&&BOOT.dauMucDs)||[]);
+    var m=(CFG&&CFG.dauMucCoSo)||{};
+    body.innerHTML=ds.map(function(d){
+      var cs=Object.prototype.hasOwnProperty.call(m,d)?m[d]:'*';
+      return '<tr><td>'+_inp(d,'VD: Chi Phí Cơ Sở KVC')+'</td><td>'+_dmCoSoSel(cs)+'</td>'+_delBtn()+'</tr>';
+    }).join('');
+  }
+  function addCfgDauMuc(){
+    var body=el('cfgDauMucBody'); if(!body) return;
+    body.insertAdjacentHTML('beforeend','<tr><td>'+_inp('','VD: Chi Phí Cơ Sở MTĐ')+'</td><td>'+_dmCoSoSel('*')+'</td>'+_delBtn()+'</tr>');
+  }
+  function saveCfgDauMuc(){
+    var data=_readRows('cfgDauMucBody').map(function(r){
+      return { ten:String(r[0]||'').trim(), coso:String(r[1]==null?'*':r[1]) };
+    }).filter(function(x){ return x.ten; });
+    if(!data.length){ toast('warn','Phải còn ít nhất một đầu mục — xoá hết thì hệ dùng lại danh sách mặc định.'); return; }
+    _saveCfg({dauMucDs:data},'Đã lưu đầu mục (phân loại lớn)');
+  }
   function renderLuongBp(){
     if(!el('cfgLuongBpBody')) return;
     /* Chỉ Admin — bộ phận là thứ bó tầm nhìn kế toán, và máy chủ cũng chối ai khác. Giấu thẻ

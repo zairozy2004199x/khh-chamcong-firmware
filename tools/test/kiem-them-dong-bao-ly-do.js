@@ -71,6 +71,9 @@ function moi(gia) {
        bệ đỡ thiếu, chứ không phải vì mã hỏng. Trả một trục mẫu, không trả rỗng: rỗng thì phép
        "dòng gửi lên mang đủ ô" vẫn xanh dù khung đã gãy. */
     trucGui: () => ({ giaiDoan: 'Vận hành' }),
+    /* 24/09/2026 — cơ sở chỉ bắt buộc khi PHÂN LOẠI LỚN đang chọn có cơ sở (`_dmCoSoCua`); bệ này
+       chưa chọn đầu mục → '*' (như cũ, đòi cơ sở). Bốc hàm THẬT, kèm BOOT rỗng, để luật ấy chạy. */
+    DM_CUR: '', BOOT: { dauMucCoSo: {} },
     CUR: { don: { maDon: 'D1' } },
     google: { script: { run: {
       withSuccessHandler() { return this; },
@@ -80,7 +83,7 @@ function moi(gia) {
     } } },
   };
   vm.createContext(ctx);
-  vm.runInContext([than('collectLine'), than('_lyDoKhongThem'), than('saveLine'), than('_saveLine')].join('\n'), ctx);
+  vm.runInContext([than('_dmCoSoCua'), than('collectLine'), than('_lyDoKhongThem'), than('saveLine'), than('_saveLine')].join('\n'), ctx);
   return { ctx, O, goi, noi };
 }
 
