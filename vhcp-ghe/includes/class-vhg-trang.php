@@ -1265,6 +1265,16 @@ JS;
 			}
 			self::tra( $r ); return;
 		}
+		/* 📒 GỘP SỔ MỘT TÊN CŨ KHÔNG CÒN TRONG DANH MỤC — anh Thắng 24/09/2026: *"Địa điểm đã xoá,
+		   nhưng nó đang dính dữ liệu cũ, nên xuất MISA nó ra cả điểm xoá và điểm mới"*. */
+		if ( 'coso_gopso_ten' === $viec ) {
+			if ( ! VHG_Auth::la_quan_tri( $ai['role'] ) ) { self::tra( array( 'ok' => false, 'error' => 'Chỉ Quản trị mới gộp sổ báo cáo giữa các tên cơ sở.' ) ); return; }
+			$r = VHG_May::gop_so_ten_cu( isset( $d['ten_cu'] ) ? (string) $d['ten_cu'] : '', isset( $d['dich'] ) ? (int) $d['dich'] : 0 );
+			if ( ! empty( $r['ok'] ) ) {
+				VHG_Nhat_Ky::ghi( array( 'nguon' => 'he-thong', 'ghi_chu' => $ai['name'] . ' ' . (string) $r['tom_tat'] ) );
+			}
+			self::tra( $r ); return;
+		}
 		if ( 'coso_dong' === $viec ) {
 			$r = VHG_May::dong_cua_coso( isset( $d['id'] ) ? (int) $d['id'] : 0, ! empty( $d['dong'] ) );
 			if ( ! empty( $r['ok'] ) ) {
@@ -1901,6 +1911,9 @@ JS;
 		return array( 'ok' => true, 'ky' => $ky, 'ai' => $ai, 'tong' => $t,
 			'may' => $may, 'cho' => $cho, 'gd' => $gd,
 			'choGan' => $cho_gan, 'coso' => $ds_coso,
+			/* Tên còn trong sổ mà không còn trong danh mục (cơ sở đã xoá / đổi tên) — chỉ Quản trị,
+			   một câu GROUP BY. Xem VHG_May::ten_so_mo_coi(). */
+			'cosoMoCoi' => ! empty( $q['quan_tri'] ) ? VHG_May::ten_so_mo_coi() : array(),
 			'saoKeUrl' => self::sao_ke_url(),   // link sang trang Sao Kê (nếu có) cho menu Kế toán
 			'capNhat'  => self::cap_nhat_info_(),   // 'có bản mới' + link sang trang Cập nhật (xem hàm)
 			'bat' => array( 'ky' => $bat_ky, 'thang' => $bat_thang,
@@ -11098,6 +11111,33 @@ function veQuanLy(){
     h += '</div>';
   }
 
+  /* 📒 TÊN CŨ CÒN TRONG SỔ, KHÔNG CÒN TRONG DANH MỤC — anh Thắng 24/09/2026: *"Địa điểm đã xoá,
+     nhưng nó đang dính dữ liệu cũ, nên xuất MISA nó ra cả điểm xoá và điểm mới"*. Không có hàng nào
+     trong bảng dưới để bấm ⇄ (cơ sở đã xoá), nên kể riêng ở đây với nút gộp sổ vào cơ sở đúng. */
+  var _mc = (QUAN_TRI() && D.cosoMoCoi) ? D.cosoMoCoi : [];
+  if (_mc.length) {
+    var _dsDich = coso.slice().sort(function(a, b){ return String(a.ten).localeCompare(String(b.ten)); })
+      .map(function(c){ return '<option value="' + c.id + '">' + esc(c.ten) + (c.ma_kh ? ' · ' + esc(c.ma_kh) : '') + '</option>'; }).join('');
+    h += '<div style="margin:10px 0;padding:11px 13px;border:1px solid #93c5fd;background:#eff6ff;border-radius:10px">'
+      + '<div style="font-weight:800;color:#1e3a8a;margin-bottom:6px">📒 '
+      + L('TÊN CŨ CÒN TRONG SỔ, KHÔNG CÒN TRONG DANH MỤC','Names still in the books but no longer in the catalogue') + ' (' + _mc.length + ')</div>'
+      + '<div style="font-size:12px;color:#1e40af;margin-bottom:8px">'
+      + L('Cơ sở đã xoá / đổi tên nhưng báo cáo cũ vẫn mang tên này, nên Báo cáo tổng và MISA ra thêm một dòng. '
+          + 'Chọn cơ sở đúng rồi bấm Gộp sổ: chỉ đổi nhãn cơ sở trên dòng, không xoá không sửa số; tên cũ thành bí danh của cơ sở ấy.',
+          'Deleted or renamed sites whose old reports still carry this name, so reports and MISA show an extra line. Pick the right site and merge: labels change, no money is touched.')
+      + '</div>';
+    _mc.forEach(function(m, i){
+      h += '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:6px 0;border-top:' + (i ? '1px solid #bfdbfe' : 'none') + '">'
+        + '<b style="min-width:200px">' + esc(m.ten) + '</b>'
+        + '<span class="mut">' + (m.n ? (m.n + ' ' + L('báo cáo','reports') + ' · ' + esc(m.tu) + ' → ' + esc(m.den) + ' · ' + tien(m.tien)) : L('không còn báo cáo','no reports'))
+        + (m.unit ? ' · Unit MISA ' + esc(m.unit) : '') + '</span>'
+        + '<select data-mcdich="' + esc(m.ten) + '" style="min-width:220px"><option value="">' + L('— gộp sổ vào cơ sở —','— merge into site —') + '</option>' + _dsDich + '</select>'
+        + '<button data-mcgop="' + esc(m.ten) + '">📒 ' + L('Gộp sổ','Merge books') + '</button>'
+        + '</div>';
+    });
+    h += '</div>';
+  }
+
   h += '<table id="cs-bang"><tr><th>' + L('Địa điểm','Site') + '</th><th class="r">' + L('Số ghế','Chairs')
     + '</th><th class="misa-col">Unit ID</th><th class="misa-col misa-ten">' + L('Tên MISA','MISA name') + '</th>'
     + '<th>' + L('Mã ghế','Chair codes') + '</th><th class="r"></th></tr>';
@@ -12873,6 +12913,19 @@ function noi(){
         if (!confirm(L('Chắc chắn xoá hẳn cơ sở "','Really delete site "') + ten + L('"?','"?'))) return;
         lam('coso_gop', { nguon: id, dich: dich });
       };
+    };
+  });
+  /* 📒 GỘP SỔ MỘT TÊN CŨ (không còn trong danh mục) vào cơ sở chọn trong ô xổ cùng dòng. */
+  [].forEach.call(document.querySelectorAll('[data-mcgop]'), function(b){
+    b.onclick = function(){
+      var ten = b.getAttribute('data-mcgop');
+      var sel = b.parentNode ? b.parentNode.querySelector('select[data-mcdich]') : null; var dich = sel ? sel.value : '';
+      if (!dich) { alert(L('Chưa chọn cơ sở để gộp sổ vào.','Pick the site to merge into.')); return; }
+      var giu = sel.options[sel.selectedIndex].text;
+      if (!confirm(L('GỘP SỔ\n\n  tên cũ:  ' + ten + '\n  → về:    ' + giu
+          + '\n\nMọi báo cáo, khoá ngày, Unit MISA… còn mang tên cũ đổi sang tên cơ sở này. Không xoá, không sửa một con số. Tên cũ thành bí danh của cơ sở này (tiền VietQR mang tên cũ vẫn về đây).\n\nKhông có hoàn tác.',
+          'MERGE BOOKS\n\n  old name: ' + ten + '\n  → into:   ' + giu + '\n\nEvery report still filed under the old name moves to this site. No money is deleted or recalculated. No undo.'))) return;
+      lam('coso_gopso_ten', { ten_cu: ten, dich: dich });
     };
   });
   /* 📒 GỘP SỔ THEO BÍ DANH — chỉ đổi nhãn cơ sở trên dòng sổ, không xoá không sửa số. */

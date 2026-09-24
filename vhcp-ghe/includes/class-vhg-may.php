@@ -98,14 +98,44 @@ class VHG_May {
 		$co_reset = ( null !== $reset );
 		$reset = $reset ? 1 : 0;
 		if ( (int) $id > 0 ) {
+			$ten_cu = (string) $wpdb->get_var( $wpdb->prepare( "SELECT ten FROM $bang WHERE id=%d", (int) $id ) );
+			$doi_ten = ( '' !== $ten_cu && $ten_cu !== $ten );
+			$kc = VHG_BaoCao::squash( $ten_cu ); $kd = VHG_BaoCao::squash( $ten );
+			if ( $doi_ten ) {
+				/* Đổi sang tên (hoặc bí danh) của một cơ sở KHÁC là hai cơ sở chung một tên — sổ hai nơi
+				   trộn vào nhau mà không ai gộp. Chặn; cùng một chỗ thì ⇄ gộp cơ sở mới đúng đường. */
+				foreach ( (array) $wpdb->get_results( $wpdb->prepare( "SELECT id, ten, bi_danh FROM $bang WHERE id<>%d", (int) $id ), ARRAY_A ) as $x ) {
+					foreach ( array_merge( array( (string) $x['ten'] ), self::bi_danh_tach_( isset( $x['bi_danh'] ) ? $x['bi_danh'] : '' ) ) as $t ) {
+						if ( VHG_BaoCao::squash( $t ) === $kd ) {
+							return array( 'ok' => false, 'error' => 'Đã có cơ sở "' . $x['ten'] . '" mang tên/bí danh ấy. Nếu là cùng một chỗ, dùng ⇄ để GỘP cơ sở này vào đó (sổ đi theo); không phải thì đặt tên phân biệt.' );
+						}
+					}
+				}
+			}
 			$data = array( 'ten' => $ten );
 			if ( $co_tinh ) { $data['tinh'] = $tinh; }
 			if ( $co_makh ) { $data['ma_kh'] = $ma_kh; }
 			if ( $co_reset ) { $data['reset_moi_lan'] = $reset; }
 			$wpdb->update( $bang, $data, array( 'id' => (int) $id ) );
+			$so = null;
+			if ( $doi_ten ) {
+				/* 🔴 ĐỔI TÊN THÌ SỔ ĐI THEO — 2.139.0, anh Thắng 24/09/2026: *"Địa điểm đã xoá, nhưng nó đang
+				   dính dữ liệu cũ, nên xuất MISA nó ra cả điểm xoá và điểm mới"*. Gốc của ca POSH MN CGV
+				   VINCOM LANDMARK / CGV LANDMARK 81: tên đổi (hoặc xoá rồi tạo mới) mà `bc` vẫn giữ tên cũ →
+				   Báo cáo tổng, MISA ra hai dòng cho một chỗ. Đổi tên là ĐỔI NHÃN cùng một điểm, sổ phải
+				   đi theo; tên cũ giữ làm bí danh để tiền VietQR cổng còn ghi tên cũ vẫn về đây. */
+				if ( $kc !== $kd ) {
+					$so = self::gop_so_coso( $ten, array( $ten_cu ) );
+					$bd = (string) $wpdb->get_var( $wpdb->prepare( "SELECT bi_danh FROM $bang WHERE id=%d", (int) $id ) );
+					$wpdb->update( $bang, array( 'bi_danh' => self::bi_danh_gop_( $bd, array( $ten_cu ), $ten ) ), array( 'id' => (int) $id ) );
+				} else {
+					self::dong_bo_nhan_so_( $ten, $kd );   // chỉ khác hoa-thường / dấu: cùng khoá, đổi nhãn hiển thị
+				}
+			}
 			self::quen_dem_reset_();
 			self::bao_da_luu_( $ten );
-			return array( 'ok' => true, 'id' => (int) $id, 'thong_bao' => 'Đã lưu cơ sở.' );
+			return array( 'ok' => true, 'id' => (int) $id, 'so' => $so,
+				'thong_bao' => 'Đã lưu cơ sở.' . ( $so && isset( $so['tom_tat'] ) ? ' ' . $so['tom_tat'] : '' ) );
 		}
 		$co = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $bang WHERE ten=%s LIMIT 1", $ten ) );
 		if ( $co ) {
@@ -344,6 +374,80 @@ class VHG_May {
 		self::quen_dem_reset_();
 		$so['thong_bao'] = $so['tom_tat'];
 		return $so;
+	}
+
+	/**
+	 * TÊN CÒN TRONG SỔ NHƯNG KHÔNG CÒN TRONG DANH MỤC — anh Thắng 24/09/2026: *"Địa điểm đã xoá, nhưng
+	 * nó đang dính dữ liệu cũ, nên xuất MISA nó ra cả điểm xoá và điểm mới"*. Xoá cơ sở không đụng
+	 * sổ (đúng luật giữ tiền), nên tên cũ vẫn đứng một dòng riêng ở Báo cáo tổng và MISA — và không có
+	 * hàng nào trong danh mục để bấm ⇄. Kể ra đây cho Quản trị kéo sổ ấy về đúng điểm bằng một nút.
+	 * Trả [ ['ten','key','n','tu','den','tien','unit'] … ], mới nhất lên đầu; bỏ tên/bí danh đang có.
+	 */
+	public static function ten_so_mo_coi() {
+		global $wpdb;
+		$co = array();
+		foreach ( (array) self::ds_coso() as $c ) {
+			$co[ VHG_BaoCao::squash( (string) $c['ten'] ) ] = 1;
+			foreach ( self::bi_danh_tach_( isset( $c['bi_danh'] ) ? $c['bi_danh'] : '' ) as $b ) { $co[ VHG_BaoCao::squash( $b ) ] = 1; }
+		}
+		$ra = array();
+		$bc = VHG_DB::t( 'bc' ); $bd = VHG_DB::t( 'bc_dong' );
+		$rows = $wpdb->get_results( "SELECT h.coso_key k, MAX(h.coso) ten, COUNT(DISTINCT h.id) n, MIN(h.ngay) tu, MAX(h.ngay) den, COALESCE(SUM(d.tong),0) tien"
+			. " FROM $bc h LEFT JOIN $bd d ON d.report_id=h.report_id GROUP BY h.coso_key", ARRAY_A );
+		foreach ( (array) $rows as $r ) {
+			$k = (string) $r['k']; if ( '' === $k || isset( $co[ $k ] ) ) { continue; }
+			$ra[ $k ] = array( 'ten' => (string) $r['ten'], 'key' => $k, 'n' => (int) $r['n'], 'tu' => (string) $r['tu'], 'den' => (string) $r['den'], 'tien' => (int) $r['tien'], 'unit' => '' );
+		}
+		/* Dòng Unit MISA của tên đã xoá — chính cái "dính vào MISA" — cũng là sổ mồ côi, dù không còn báo cáo. */
+		foreach ( (array) $wpdb->get_results( 'SELECT coso_key, coso, unit_id FROM ' . VHG_DB::t( 'bc_ma_misa' ), ARRAY_A ) as $r ) {
+			$k = (string) $r['coso_key']; if ( '' === $k || isset( $co[ $k ] ) ) { continue; }
+			if ( ! isset( $ra[ $k ] ) ) { $ra[ $k ] = array( 'ten' => (string) $r['coso'], 'key' => $k, 'n' => 0, 'tu' => '', 'den' => '', 'tien' => 0, 'unit' => '' ); }
+			$ra[ $k ]['unit'] = (string) $r['unit_id'];
+		}
+		usort( $ra, function ( $a, $b ) { return strcmp( (string) $b['den'], (string) $a['den'] ); } );
+		return array_values( $ra );
+	}
+
+	/**
+	 * GỘP SỔ MỘT TÊN CŨ (không còn trong danh mục) VÀO CƠ SỞ ĐÍCH — nút 📒 ở khối "tên cũ còn trong
+	 * sổ". Tên cũ thành bí danh của đích để tiền VietQR cổng còn ghi tên cũ vẫn về đây.
+	 */
+	public static function gop_so_ten_cu( $ten_cu, $dich ) {
+		global $wpdb;
+		$ten_cu = trim( (string) $ten_cu ); $dich = (int) $dich;
+		if ( '' === $ten_cu || $dich <= 0 ) { return array( 'ok' => false, 'error' => 'Thiếu tên cũ hoặc cơ sở đích.' ); }
+		$bang = VHG_DB::t( 'coso' );
+		$c = $wpdb->get_row( $wpdb->prepare( "SELECT id, ten, bi_danh FROM $bang WHERE id=%d", $dich ), ARRAY_A );
+		if ( ! $c ) { return array( 'ok' => false, 'error' => 'Không thấy cơ sở đích.' ); }
+		$kc = VHG_BaoCao::squash( $ten_cu );
+		if ( $kc === VHG_BaoCao::squash( (string) $c['ten'] ) ) { return array( 'ok' => false, 'error' => '"' . $ten_cu . '" chính là tên của cơ sở đích — không có gì để gộp.' ); }
+		/* Còn là tên/bí danh của một cơ sở ĐANG CÓ thì không phải sổ mồ côi — ⇄ gộp cơ sở mới đúng đường. */
+		foreach ( (array) $wpdb->get_results( $wpdb->prepare( "SELECT id, ten, bi_danh FROM $bang WHERE id<>%d", $dich ), ARRAY_A ) as $x ) {
+			foreach ( array_merge( array( (string) $x['ten'] ), self::bi_danh_tach_( isset( $x['bi_danh'] ) ? $x['bi_danh'] : '' ) ) as $t ) {
+				if ( VHG_BaoCao::squash( $t ) === $kc ) {
+					return array( 'ok' => false, 'error' => '"' . $ten_cu . '" đang là tên/bí danh của cơ sở "' . $x['ten'] . '" — dùng ⇄ trên hàng ấy để gộp cả cơ sở.' );
+				}
+			}
+		}
+		$so = self::gop_so_coso( (string) $c['ten'], array( $ten_cu ) );
+		if ( empty( $so['ok'] ) ) { return $so; }
+		$bd = self::bi_danh_gop_( isset( $c['bi_danh'] ) ? (string) $c['bi_danh'] : '', array( $ten_cu ), (string) $c['ten'] );
+		$wpdb->update( $bang, array( 'bi_danh' => $bd ), array( 'id' => $dich ) );
+		self::quen_dem_reset_();
+		$so['bi_danh'] = $bd;
+		$so['thong_bao'] = $so['tom_tat'] . ' "' . $ten_cu . '" nay là bí danh của "' . $c['ten'] . '".';
+		return $so;
+	}
+
+	/* Cùng khoá (chỉ khác hoa-thường / dấu / khoảng trắng): đổi NHÃN hiển thị trên dòng sổ cho khớp tên mới,
+	   không thì Báo cáo tổng (gom theo chuỗi `coso`) tách "CGV Landmark 81" và "CGV LANDMARK 81" làm hai. */
+	private static function dong_bo_nhan_so_( $ten, $key ) {
+		global $wpdb;
+		foreach ( array( 'bc', 'bc_khoa', 'bc_ma_misa', 'bc_congno_dau', 'bc_yeucau', 'bao_tri', 'bc_ma_nop', 'bc_thang_bs' ) as $b ) {
+			$t = VHG_DB::t( $b );
+			if ( 'bc_thang_bs' === $b && $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $t ) ) !== $t ) { continue; }
+			$wpdb->query( $wpdb->prepare( "UPDATE $t SET coso=%s WHERE coso_key=%s", $ten, $key ) );
+		}
 	}
 
 	/* Bí danh lưu một dòng một tên (ngăn bằng xuống dòng) — tên cửa hàng có thể chứa dấu phẩy. */

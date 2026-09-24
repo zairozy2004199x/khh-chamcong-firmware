@@ -72,6 +72,37 @@ có bảng: đổi nhãn, số không đổi, trùng ngày → lần 2, không D
 bổ sung trùng → treo + cảnh báo, PIN đổi phạm vi, gộp sổ chạy sau xoá nguồn, xoá hụt không dời, cổng
 chặn không phải admin, payload có dong_cua/bi_danh, câu "báo cáo cũ giữ nguyên" đã gỡ hết.
 
+### v2.139.0 — Sổ mồ côi: "Địa điểm đã xoá, nhưng nó đang dính dữ liệu cũ, nên xuất MISA ra cả điểm xoá và điểm mới"
+
+Anh Thắng 24/09/2026, ảnh Địa điểm lọc "LANDMARK": chỉ còn **một** hàng CGV LANDMARK 81 (KH00245,
+Unit 50CGVLM, tên MISA "POSH MN CGV VINCOM LANDMARK") — *"nó đang hiện 1 điểm sao mà gộp"*. Tức
+"POSH MN CGV VINCOM LANDMARK" **không còn là cơ sở**; nó chỉ còn trên các dòng `bc` cũ (1.040.000
+tiền mặt). Nút ⇄ của 2.138.0 cần hai hàng, ở đây chỉ có một.
+
+**Gốc.** Xoá / đổi tên cơ sở không đụng sổ (đúng luật giữ tiền) → tên cũ đứng riêng một dòng ở Báo
+cáo tổng và MISA, mà danh mục không còn chỗ nào để bấm.
+
+**Làm gì.**
+- `VHG_May::ten_so_mo_coi()`: tên có trong `bc` (một câu GROUP BY, kèm số báo cáo, khoảng ngày, tổng
+  tiền từ `bc_dong`) hoặc trong `bc_ma_misa` mà **không** là tên/bí danh của cơ sở nào. Gửi ra trang
+  qua `cosoMoCoi`, **chỉ Quản trị**.
+- Tab Địa điểm: khối xanh **"📒 TÊN CŨ CÒN TRONG SỔ, KHÔNG CÒN TRONG DANH MỤC"** trên bảng — mỗi tên
+  một dòng: số báo cáo · từ → đến · tiền · Unit MISA, ô xổ chọn cơ sở đích, nút **Gộp sổ**.
+- `gop_so_ten_cu($ten_cu, $dich)` (cổng `coso_gopso_ten`, Quản trị): chối nếu tên cũ là tên/bí danh
+  của cơ sở đang có (khi ấy ⇄ mới đúng); gộp sổ (`gop_so_coso`) rồi ghi tên cũ làm **bí danh** của
+  đích để tiền VietQR cổng còn ghi tên cũ vẫn về.
+- **Đổi tên cơ sở (✎) nay kéo sổ theo** (`luu_coso`): tên khác khoá → `gop_so_coso(tên mới, [tên
+  cũ])` + tên cũ thành bí danh; chỉ khác hoa-thường/dấu → đổi nhãn hiển thị trên dòng sổ
+  (`dong_bo_nhan_so_`). Đổi sang tên/bí danh của cơ sở KHÁC → **chối**, chỉ sang ⇄ (trước đây cho
+  qua → hai cơ sở một tên). Đây là chỗ đã sinh ra ca này; từ nay đổi tên không tách sổ nữa.
+
+**Việc anh làm:** Địa điểm → khối 📒 trên cùng → dòng "POSH MN CGV VINCOM LANDMARK" (2 báo cáo …
+1.040.000đ) → chọn "CGV LANDMARK 81 · KH00245" → **Gộp sổ** → xác nhận. Xuất MISA lại: một dòng.
+
+`kiem-gop-so-coso.php` (65 phép) thêm: liệt kê sổ mồ côi (bỏ tên/bí danh đang có, kể Unit MISA
+không còn báo cáo), gộp tên cũ vào đích + bí danh, chối khi tên cũ thuộc cơ sở khác, đổi tên kéo sổ /
+chối trùng / cùng khoá chỉ đổi nhãn / không đổi tên không chạm sổ, cổng và khối trang.
+
 ### v2.137.0 (+ Sao Kê 0.45.0) — BÍ DANH cơ sở: gộp tên cũ vào điểm mới mà tiền VietQR không rơi
 
 Anh Thắng 24/09/2026, ảnh CSV Báo cáo tổng: **"POSH MN CGV VINCOM LANDMARK"** (không Mã KH, 0 ghế)

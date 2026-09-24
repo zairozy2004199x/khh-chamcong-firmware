@@ -55,9 +55,22 @@ class WpdbSo {
 	public function dong( $t, $id, $cot = 'id' ) { foreach ( (array) $this->tb[ $t ] as $r ) { if ( (string) $r[ $cot ] === (string) $id ) { return $r; } } return null; }
 }
 
+/* Câu GROUP BY của ten_so_mo_coi(): gom bc theo coso_key, tiền lấy từ bc_dong theo report_id. */
+class WpdbMoCoi extends WpdbSo {
+	public function get_results( $q, $o = null ) {
+		if ( false === strpos( $q, 'GROUP BY h.coso_key' ) ) { return parent::get_results( $q, $o ); }
+		$this->sql[] = $q; $g = array();
+		foreach ( $this->tb['wp_vhg_bc'] as $h ) { $k = $h['coso_key'];
+			if ( ! isset( $g[ $k ] ) ) { $g[ $k ] = array( 'k' => $k, 'ten' => $h['coso'], 'n' => 0, 'tu' => $h['ngay'], 'den' => $h['ngay'], 'tien' => 0 ); }
+			$g[ $k ]['n']++; $g[ $k ]['tu'] = min( $g[ $k ]['tu'], $h['ngay'] ); $g[ $k ]['den'] = max( $g[ $k ]['den'], $h['ngay'] );
+			foreach ( $this->tb['wp_vhg_bc_dong'] as $d ) { if ( $d['report_id'] === $h['report_id'] ) { $g[ $k ]['tien'] += (int) $d['tong']; } } }
+		return array_values( $g );
+	}
+}
 $may = file_get_contents( __DIR__ . '/../../vhcp-ghe/includes/class-vhg-may.php' );
-$fs = ''; foreach ( array( 'public static function gop_coso(', 'public static function gop_so_coso(', 'private static function gop_so_tom_tat_(', 'public static function gop_so_bi_danh(', 'public static function bi_danh_tach_(', 'public static function bi_danh_gop_(' ) as $mo ) { $f = boc( $may, $mo ); t( 'bốc ' . trim( str_replace( array( 'public static function ', 'private static function ', '(' ), '', $mo ) ), '' !== $f ); $fs .= "\n" . $f; }
+$fs = ''; foreach ( array( 'public static function gop_coso(', 'public static function gop_so_coso(', 'private static function gop_so_tom_tat_(', 'public static function gop_so_bi_danh(', 'public static function ten_so_mo_coi(', 'public static function gop_so_ten_cu(', 'private static function dong_bo_nhan_so_(', 'public static function luu_coso(', 'public static function bi_danh_tach_(', 'public static function bi_danh_gop_(' ) as $mo ) { $f = boc( $may, $mo ); t( 'bốc ' . trim( str_replace( array( 'public static function ', 'private static function ', '(' ), '', $mo ) ), '' !== $f ); $fs .= "\n" . $f; }
 eval( 'class VHG_May { private static function quen_dem_reset_() {} private static function bao_da_luu_( $t ) {}
+	public static function ds_coso() { global $wpdb; return $wpdb->tb["wp_vhg_coso"]; }
 	public static function xoa_coso( $id ) { global $wpdb; $wpdb->sql[] = "XOA_COSO " . $id; if ( ! $wpdb->xoa_coso_ok ) { return array( "ok" => false, "error" => "còn ghế" ); } $wpdb->delete( "wp_vhg_coso", array( "id" => (int) $id ) ); return array( "ok" => true ); }
 	' . $fs . ' }' );
 
@@ -66,11 +79,11 @@ function du_lieu_() { global $CU, $KCU, $MOI, $KMOI; return array(
 	'wp_vhg_coso' => array( array( 'id' => 7, 'ten' => $CU, 'bi_danh' => '' ), array( 'id' => 3, 'ten' => $MOI, 'bi_danh' => '' ) ),
 	'wp_vhg_may' => array( array( 'ma' => '80001', 'coso_id' => 7 ) ),
 	'wp_vhg_bc' => array(
-		array( 'id' => 1, 'coso' => $CU,  'coso_key' => $KCU,  'ngay' => '2026-09-03', 'lan' => 1, 'tong' => 600000 ),
-		array( 'id' => 2, 'coso' => $CU,  'coso_key' => $KCU,  'ngay' => '2026-09-12', 'lan' => 1, 'tong' => 440000 ),
-		array( 'id' => 3, 'coso' => $MOI, 'coso_key' => $KMOI, 'ngay' => '2026-09-12', 'lan' => 1, 'tong' => 0 ),
-		array( 'id' => 4, 'coso' => 'GO BẾN TRE', 'coso_key' => 'GOBENTRE', 'ngay' => '2026-09-12', 'lan' => 1, 'tong' => 5 ) ),
-	'wp_vhg_bc_dong' => array( array( 'id' => 1, 'report_id' => 'r1', 'ma_may' => '80001' ) ),
+		array( 'id' => 1, 'report_id' => 'r1', 'coso' => $CU,  'coso_key' => $KCU,  'ngay' => '2026-09-03', 'lan' => 1, 'tong' => 600000 ),
+		array( 'id' => 2, 'report_id' => 'r2', 'coso' => $CU,  'coso_key' => $KCU,  'ngay' => '2026-09-12', 'lan' => 1, 'tong' => 440000 ),
+		array( 'id' => 3, 'report_id' => 'r3', 'coso' => $MOI, 'coso_key' => $KMOI, 'ngay' => '2026-09-12', 'lan' => 1, 'tong' => 0 ),
+		array( 'id' => 4, 'report_id' => 'r4', 'coso' => 'GO BẾN TRE', 'coso_key' => 'GOBENTRE', 'ngay' => '2026-09-12', 'lan' => 1, 'tong' => 5 ) ),
+	'wp_vhg_bc_dong' => array( array( 'id' => 1, 'report_id' => 'r1', 'ma_may' => '80001', 'tong' => 600000 ), array( 'id' => 2, 'report_id' => 'r2', 'ma_may' => '80001', 'tong' => 440000 ), array( 'id' => 4, 'report_id' => 'r4', 'ma_may' => '80337', 'tong' => 5 ) ),
 	'wp_vhg_bc_khoa' => array(
 		array( 'id' => 1, 'coso' => $CU, 'coso_key' => $KCU, 'ngay' => '2026-09-03' ),
 		array( 'id' => 2, 'coso' => $CU, 'coso_key' => $KCU, 'ngay' => '2026-09-12' ),
@@ -171,5 +184,56 @@ t( 'nút ⇄ gọi coso_gop với nguon/dich; 📒 gọi coso_gopso', false !== 
 t( 'hộp chọn đích loại chính cơ sở đang gộp', false !== strpos( $tr, "filter(function(c){ return String(c.id) !== String(id); })" ) );
 t( '🔴 không còn câu "Báo cáo đã nộp dưới tên cũ vẫn giữ nguyên" (đã sai từ 2.138.0)', false === strpos( $tr, 'Báo cáo đã nộp dưới tên cũ vẫn giữ nguyên' ) && false === strpos( $may, 'Báo cáo đã nộp dưới tên cũ vẫn giữ nguyên' ) );
 t( 'hàng hiện bí danh (🔁) khi có', false !== strpos( $tr, "(c.bi_danh ? '<div class=\"mut\"" ) );
+
+
+/* ══════ 5. Tên còn trong sổ, không còn trong danh mục ══════ */
+echo "── 5. Sổ mồ côi (cơ sở đã xoá) ─────────────────────────────────────\n";
+$wpdb = new WpdbMoCoi( du_lieu_() );
+$wpdb->tb['wp_vhg_coso'] = array( array( 'id' => 3, 'ten' => $MOI, 'bi_danh' => 'LANDMARK CU' ) );   // POSH… đã XOÁ khỏi danh mục
+$wpdb->tb['wp_vhg_bc'][] = array( 'id' => 5, 'report_id' => 'r5', 'coso' => 'LANDMARK CU', 'coso_key' => 'LANDMARKCU', 'ngay' => '2026-08-01', 'lan' => 1 );
+$wpdb->tb['wp_vhg_bc_ma_misa'][] = array( 'coso_key' => 'XYZ', 'coso' => 'XYZ', 'unit_id' => 'U-XYZ', 'unit_name' => '' );
+$mc = VHG_May::ten_so_mo_coi(); $theo = array(); foreach ( $mc as $m ) { $theo[ $m['key'] ] = $m; }
+t( '🔴 POSH MN CGV VINCOM LANDMARK (đã xoá, còn 2 báo cáo) được kể ra: 2 báo cáo, 03/09→12/09, 1.040.000, Unit U-OLD',
+	isset( $theo[ $KCU ] ) && 2 === $theo[ $KCU ]['n'] && '2026-09-03' === $theo[ $KCU ]['tu'] && '2026-09-12' === $theo[ $KCU ]['den'] && 1040000 === $theo[ $KCU ]['tien'] && 'U-OLD' === $theo[ $KCU ]['unit'], $theo );
+t( 'tên đang trong danh mục (CGV LANDMARK 81) và BÍ DANH của nó (LANDMARK CU) KHÔNG bị kể', ! isset( $theo[ $KMOI ] ) && ! isset( $theo['LANDMARKCU'] ) );
+t( 'GO BẾN TRE không có trong danh mục → kể (1 báo cáo, 5đ)', isset( $theo['GOBENTRE'] ) && 1 === $theo['GOBENTRE']['n'] && 5 === $theo['GOBENTRE']['tien'] );
+t( '🔴 dòng Unit MISA của tên đã xoá mà không còn báo cáo (XYZ) vẫn kể — chính cái "dính vào MISA"', isset( $theo['XYZ'] ) && 0 === $theo['XYZ']['n'] && 'U-XYZ' === $theo['XYZ']['unit'] );
+t( 'mới nhất lên đầu, không còn báo cáo xuống cuối', 'XYZ' === $mc[ count( $mc ) - 1 ]['key'] && '2026-09-12' === $mc[0]['den'] );
+
+/* ══════ 6. 📒 gộp sổ một tên cũ vào cơ sở đích ══════ */
+echo "── 6. Gộp sổ tên cũ vào cơ sở ─────────────────────────────────────\n";
+$wpdb = new WpdbSo( du_lieu_() ); $wpdb->tb['wp_vhg_coso'] = array( array( 'id' => 3, 'ten' => $MOI, 'bi_danh' => '' ), array( 'id' => 9, 'ten' => 'GO BẾN TRE', 'bi_danh' => 'GO BT' ) );
+$r = VHG_May::gop_so_ten_cu( $CU, 3 );
+t( '🔴 sổ POSH… về CGV LANDMARK 81; tên cũ thành bí danh; thông báo kể', ! empty( $r['ok'] ) && 2 === $r['bc'] && $MOI === $wpdb->dong( 'wp_vhg_bc', 1 )['coso'] && $CU === $wpdb->dong( 'wp_vhg_coso', 3 )['bi_danh'] && false !== strpos( $r['thong_bao'], 'nay là bí danh của "' . $MOI . '"' ), $r );
+t( 'tên cũ chính là tên đích → chối', empty( VHG_May::gop_so_ten_cu( 'cgv landmark 81', 3 )['ok'] ) );
+$r = VHG_May::gop_so_ten_cu( 'GO BT', 3 );
+t( '🔴 tên cũ đang là bí danh của cơ sở KHÁC (GO BẾN TRE) → chối, chỉ sang ⇄', empty( $r['ok'] ) && false !== strpos( $r['error'], 'GO BẾN TRE' ) && false !== strpos( $r['error'], '⇄' ), $r );
+t( 'thiếu đích → chối', empty( VHG_May::gop_so_ten_cu( $CU, 0 )['ok'] ) && empty( VHG_May::gop_so_ten_cu( $CU, 77 )['ok'] ) );
+
+/* ══════ 7. ✎ đổi tên cơ sở → sổ đi theo ══════ */
+echo "── 7. Đổi tên cơ sở: sổ đi theo, tên cũ thành bí danh ─────────────\n";
+$wpdb = new WpdbSo( du_lieu_() ); $wpdb->tb['wp_vhg_coso'] = array( array( 'id' => 3, 'ten' => $MOI, 'bi_danh' => '' ), array( 'id' => 9, 'ten' => 'GO BẾN TRE', 'bi_danh' => '' ) );
+$r = VHG_May::luu_coso( 3, 'CGV LANDMARK 81 NEW', 'Hồ Chí Minh', 'KH00245' );
+$b3 = $wpdb->dong( 'wp_vhg_bc', 3 ); $c3 = $wpdb->dong( 'wp_vhg_coso', 3 );
+t( '🔴 đổi tên → báo cáo cũ mang tên + khoá mới; tên cũ thành bí danh; thông báo kể gộp sổ',
+	! empty( $r['ok'] ) && 'CGV LANDMARK 81 NEW' === $b3['coso'] && 'CGVLANDMARK81NEW' === $b3['coso_key'] && 'CGV LANDMARK 81 NEW' === $c3['ten'] && $MOI === $c3['bi_danh'] && false !== strpos( $r['thong_bao'], 'GỘP SỔ' ), array( $b3, $c3, $r ) );
+t( 'cơ sở khác không bị chạm', 'GO BẾN TRE' === $wpdb->dong( 'wp_vhg_bc', 4 )['coso'] && $CU === $wpdb->dong( 'wp_vhg_bc', 1 )['coso'] );
+$r = VHG_May::luu_coso( 3, 'go ben tre' );
+t( '🔴 đổi sang tên của cơ sở KHÁC (so bỏ dấu) → chối, chỉ sang ⇄', empty( $r['ok'] ) && false !== strpos( $r['error'], 'GO BẾN TRE' ) && false !== strpos( $r['error'], '⇄' ) && 'CGV LANDMARK 81 NEW' === $wpdb->dong( 'wp_vhg_coso', 3 )['ten'], $r );
+$wpdb = new WpdbSo( du_lieu_() ); $wpdb->tb['wp_vhg_coso'] = array( array( 'id' => 3, 'ten' => $MOI, 'bi_danh' => '' ) );
+$r = VHG_May::luu_coso( 3, 'Cgv Landmark 81' );
+$b3 = $wpdb->dong( 'wp_vhg_bc', 3 );
+t( 'chỉ đổi hoa-thường (cùng khoá) → đổi NHÃN trên dòng sổ, khoá giữ, KHÔNG thêm bí danh', ! empty( $r['ok'] ) && 'Cgv Landmark 81' === $b3['coso'] && $KMOI === $b3['coso_key'] && '' === $wpdb->dong( 'wp_vhg_coso', 3 )['bi_danh'] && ! isset( $r['so']['bc'] ), array( $b3, $r ) );
+$wpdb = new WpdbSo( du_lieu_() ); $wpdb->tb['wp_vhg_coso'] = array( array( 'id' => 3, 'ten' => $MOI, 'bi_danh' => '' ) );
+$r = VHG_May::luu_coso( 3, $MOI, 'Hồ Chí Minh' );
+t( 'lưu không đổi tên → không chạm sổ', ! empty( $r['ok'] ) && ! preg_grep( '/^UPDATE wp_vhg_bc /', $wpdb->sql ) && 'Đã lưu cơ sở.' === $r['thong_bao'] );
+
+/* ══════ 8. Trang: khối mồ côi + cổng ══════ */
+echo "── 8. Trang /ghe: khối tên cũ còn trong sổ ─────────────────────────\n";
+$gst = boc( $tr, "if ( 'coso_gopso_ten' === \$viec )" );
+t( '🔴 coso_gopso_ten chặn không phải Quản trị, gọi gop_so_ten_cu, ghi nhật ký', '' !== $gst && false !== strpos( $gst, 'la_quan_tri' ) && false !== strpos( $gst, 'VHG_May::gop_so_ten_cu(' ) && false !== strpos( $gst, 'VHG_Nhat_Ky::ghi(' ) );
+t( 'payload gửi cosoMoCoi CHỈ cho Quản trị', false !== strpos( $tr, "'cosoMoCoi' => ! empty( \$q['quan_tri'] ) ? VHG_May::ten_so_mo_coi() : array()" ) );
+t( 'khối 📒 chỉ vẽ khi QUAN_TRI() và có D.cosoMoCoi', false !== strpos( $tr, "var _mc = (QUAN_TRI() && D.cosoMoCoi) ? D.cosoMoCoi : [];" ) );
+t( 'mỗi dòng có ô chọn đích (data-mcdich) + nút gộp (data-mcgop) gọi coso_gopso_ten', false !== strpos( $tr, "<select data-mcdich=" ) && false !== strpos( $tr, "<button data-mcgop=" ) && false !== strpos( $tr, "lam('coso_gopso_ten', { ten_cu: ten, dich: dich })" ) );
 
 echo "\n"; if ( $TRUOT ) { echo '🔴 TRƯỢT: ' . count( $TRUOT ) . "\n"; exit( 1 ); } echo "✓ SẠCH — $DAT phép\n";
