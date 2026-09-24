@@ -11095,7 +11095,12 @@ function veQuanLy(){
        Đặt sẵn trên hàng để csSapKhoa_() đọc thẳng, không tra lại bản đồ. */
     var _csma = csMaNhoNhat_(maTheoCoso[c.ten]);
     var _rh = '<tr data-cstim="' + esc(kdJS(c.ten + ' ' + (c.tinh || '') + ' ' + (c.ma_kh || ''))) + '"'
-      + (_csma ? ' data-csma="' + esc(_csma) + '"' : '') + '>'
+      /* ⚠️ TÊN THUỘC TÍNH KHÔNG ĐƯỢC TRÙNG `data-csma` — đó là thuộc tính của ô <select> "Đổi cơ sở"
+         cho ghế, và có hai chỗ gán `onchange` cho MỌI phần tử mang nó. 2.133.0 lỡ dùng đúng tên ấy
+         trên <tr>: anh Thắng gõ Mã KH trong hàng → sự kiện change nổi bọt lên <tr> → bắn lệnh đổi cơ
+         sở ghế với đích rỗng → "Chưa chọn cơ sở đích". Máy chủ chối nên không ghế nào bị dời — nhưng
+         chỉ vì đích rỗng. Tên riêng, và hai chỗ gán kia nay chỉ bắt <select>. */
+      + (_csma ? ' data-cssapma="' + esc(_csma) + '"' : '') + '>'
       /* Bấm thẳng tên địa điểm là ra ghế của nó — anh Thắng 10/09/2026: "thay vì chọn cơ sở sẽ
          ra ghế, thì bấm vào địa điểm nó sẽ ra ghế luôn". Ô lọc ở khối Ghế vẫn còn (vẫn cần để
          về "Tất cả" hay xem "chưa gán"); đây chỉ là lối tắt từ chỗ người ta đang nhìn, khỏi
@@ -11643,7 +11648,9 @@ function qlGheRender(){
     for (var k = from; k < to; k++){ if (cp.checked) QL_SEL[list[k].ma] = true; else delete QL_SEL[list[k].ma]; }
     qlGheRender();
   };
-  [].forEach.call(box.querySelectorAll('[data-csma]'), function(s){
+  /* CHỈ <select> — xem chú thích ở hàng cơ sở (data-cssapma): một thuộc tính trùng tên trên thẻ khác
+     đã từng biến "gõ Mã KH" thành "lệnh dời ghế". Lệnh dời ghế phải đi từ đúng cái ô chọn. */
+  [].forEach.call(box.querySelectorAll('select[data-csma]'), function(s){
     s.onchange = function(){ lam('may_coso', { ma: s.getAttribute('data-csma'), coso_id: s.value }); };
   });
   /* ══════════════════════════════════════════════════════════════════════════════════════
@@ -12341,7 +12348,7 @@ function csSapKhoa_(tr, kieu){
   if (kieu === 'ma') {
     /* So theo SỐ dù mã là chuỗi: đệm mọi cụm số lên 10 chữ số rồi so chuỗi → "9999" đứng trước
        "80013", "VC-GP-6" trước "VC-GP-12". Cơ sở không có ghế dồn cuối, trong đó vẫn A→Z theo tên. */
-    var m = tr.getAttribute('data-csma') || '';
+    var m = tr.getAttribute('data-cssapma') || '';
     return (m ? m.replace(/\d+/g, function(d){ return ('0000000000' + d).slice(-10); }) : '\uffff') + '\u0000' + kdJS(ten);
   }
   if (kieu === 'unit' || kieu === 'misa' || kieu === 'thieu') {
@@ -12836,7 +12843,7 @@ function noi(){
     };
   });
   /* Nút "Thêm ghế" nay nằm trong khối xổ ra -> gán ở qlKhoiWire(), không gán ở đây. */
-  [].forEach.call(document.querySelectorAll('[data-csma]'), function(s){
+  [].forEach.call(document.querySelectorAll('select[data-csma]'), function(s){
     s.onchange = function(){
       lam('may_coso', { ma: s.getAttribute('data-csma'), coso_id: s.value });  // đổi cơ sở, giữ giá
     };

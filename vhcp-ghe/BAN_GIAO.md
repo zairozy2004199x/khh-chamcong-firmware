@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-09-23 · Phiên bản hiện tại: **2.135.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-09-24 · Phiên bản hiện tại: **2.136.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,24 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v2.136.0 — SỬA LỖI 2.133.0: gõ Mã KH trong hàng cơ sở bị bắn thành lệnh "đổi cơ sở" ghế
+
+Anh Thắng 24/09/2026, ảnh sửa Cali Thảo Điền → KH00270 rồi Lưu: *"Chưa chọn cơ sở đích — không đổi"*.
+
+**Lỗi của 2.133.0.** Sắp xếp theo mã ghế gắn `data-csma` lên `<tr>` cơ sở — **trùng tên** với thuộc
+tính của ô `<select>` "Đổi cơ sở" cho ghế, mà hai chỗ gán `onchange` cho **mọi** phần tử mang tên
+ấy. Sự kiện `change` từ ô Mã KH nổi bọt lên `<tr>` → bắn `may_coso` với `ma` = mã ghế nhỏ nhất của
+cơ sở và đích rỗng → máy chủ chối. **Không ghế nào bị dời** — nhưng chỉ vì đích rỗng; đây là loại
+lỗi có thể dời ghế thật nếu cấu trúc khác đi một chút.
+
+- Đổi tên thuộc tính sắp xếp thành `data-cssapma`.
+- **Siết hai chỗ gán**: chỉ bắt `select[data-csma]`. Lệnh dời ghế phải đi từ đúng cái ô chọn; một
+  thuộc tính lạc trên thẻ khác không bao giờ thành lệnh dời ghế nữa.
+- Lưu Mã KH có đường riêng (`coso_luu`) nên nhiều khả năng đã lưu được dù có hộp báo — kiểm lại hàng
+  Cali Thảo Điền; chưa đúng thì Lưu lại sau khi nạp bản này.
+
+`kiem-cs-sap-theo-ma.js` thêm 2 phép: hàng cơ sở không mang `data-csma`; hai chỗ gán chỉ bắt `<select>`.
 
 ### v2.135.0 — Admin bổ sung DOANH THU TỔNG THEO THÁNG cho từng cơ sở (màn Doanh thu địa điểm)
 

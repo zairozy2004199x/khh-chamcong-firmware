@@ -23,7 +23,7 @@ function hang(ten, csma, soGhe, none) {
   const tr = {
     cells: [{ tagName: 'TD' }], children: [{}, { textContent: String(soGhe || 0) }],
     querySelector: (q) => q === '[data-csxem]' ? a : null,
-    getAttribute: (k) => k === 'data-csma' ? (csma || null) : null, ten,
+    getAttribute: (k) => k === 'data-cssapma' ? (csma || null) : null, ten,
   };
   return tr;
 }
@@ -33,7 +33,11 @@ t('bốc được csSapKhoa_ + csSapMot_', !!f.csSapKhoa_ && !!f.csSapMot_);
 
 console.log('── Ô chọn có kiểu mới ───────────────────────────────────────');
 t('có option value="ma" trong #cs-sap', /<option value="ma">/.test(src));
-t('hàng cơ sở mang data-csma (mã nhỏ nhất)', /data-csma="' \+ esc\(_csma\)/.test(src) && /function csMaNhoNhat_/.test(src));
+t('hàng cơ sở mang data-cssapma (mã nhỏ nhất)', /data-cssapma="' \+ esc\(_csma\)/.test(src) && /function csMaNhoNhat_/.test(src));
+/* 🔴 24/09/2026: 2.133.0 lỡ đặt tên `data-csma` — trùng ô "Đổi cơ sở" của ghế; gõ Mã KH trong hàng
+   là bắn lệnh dời ghế. Hai phép dưới giữ cho việc ấy không quay lại. */
+t('🔴 hàng cơ sở KHÔNG mang data-csma (tên của ô Đổi cơ sở ghế)', !/<tr data-cstim="[^>]*data-csma="/.test(src) && !/data-csma="' \+ esc\(_csma\)/.test(src));
+t('🔴 hai chỗ gán lệnh dời ghế chỉ bắt <select data-csma>, không bắt mọi phần tử', (src.match(/querySelectorAll\('select\[data-csma\]'\)/g) || []).length === 2 && !/querySelectorAll\('\[data-csma\]'\)/.test(src));
 t('csMaNhoNhat_ dùng CÙNG bộ so numeric với dsMaHtml_', (src.match(/localeCompare\(String\(b\.ma\), undefined, \{numeric:true\}\)/g) || []).length >= 2);
 
 console.log('── Chạy thật phép sắp ───────────────────────────────────────');
