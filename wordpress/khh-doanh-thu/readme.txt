@@ -102,6 +102,18 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.63.1 =
+* **Bảng kho tính lại ngay khi gõ.** Anh Thắng 24/09/2026: *"nhập tồn mà sao nó không tính realtime trước
+  và sau của ngày đó"*. Gõ vào Tồn đầu, Nhập, Hàng huỷ hay Hàng tồn còn là **Tồn tính** và **Lệch kho**
+  của dòng ấy đổi ngay, cùng công thức máy chủ (tồn đầu + nhập − máy bán − combo − huỷ; lệch = hàng tồn
+  còn − tồn tính, chỉ khi có gõ). Bấm Lưu vẫn là máy chủ tính và ghi sổ. `kiem-kho-man.js` +9 phép chạy
+  thật công thức (đặt lại 148 + huỷ 3 → 140; chưa nạp FABi thì không bịa; đếm 0 khác trống…).
+* **Sửa: "qua ngày 24 tồn đầu không nhảy".** Dòng kho ghi trước 1.61.3 còn dính "Hàng tồn còn = 0" và
+  "SL Hàng Bán = 0" do ô trống bị ép thành 0; 0 là một mốc đếm nên tồn cuối 23/09 = 0 kéo sang 24/09,
+  và mở lại màn 23/09 bấm Lưu vẫn giữ 0. Lúc nâng cấp hệ gỡ **một lần** các dòng có CẢ HAI ô đều 0 về
+  trống (dòng chỉ đếm 0 thật thì giữ). `kiem-kho.php` +8 phép: tái hiện lỗi, sửa, không sửa nhầm, chỉ
+  chạy một lần.
+
 = 1.63.0 =
 * **Tải ảnh báo cáo và chia sẻ lên Zalo.** Anh Thắng 24/09/2026: *"Lưu và chốt xong nó sẽ có thêm tải ảnh
   và chia sẻ báo cáo này lên Zalo"*. Tab Nhập báo cáo, khi ngày đã có báo cáo lưu, hiện hai nút **Tải ảnh

@@ -699,6 +699,36 @@ function khh_dt_kho_so( $x ) {
 }
 
 /**
+ * Sửa MỘT LẦN vết lỗi trước 1.61.3: ô "SL Hàng Bán" và "Hàng tồn còn" bỏ TRỐNG mà bị ghi thành 0
+ * (WordPress đổi null → '' rồi MySQL ép '' vào cột double thành 0). Hậu quả anh Thắng thấy 24/09/2026
+ * ở Lotte Gò Vấp: 23/09 đặt tồn đầu 148, 48, 15… mà "qua ngày 24 tồn đầu không nhảy" — cả cột 0. Vì
+ * `dem = 0` là một MỐC ĐẾM ("đếm được 0 cái"), tồn cuối 23/09 thành 0 và kéo sang 24/09; riêng THẠCH
+ * TRÁI CÂY thêm sau khi sửa lỗi (dem NULL) nên kéo đúng 506. Mở lại màn 23/09 thì ô hiện "0", bấm Lưu
+ * lại 5 lần vẫn giữ 0 — người dùng không có cách nào tự thoát.
+ *
+ * Dấu vết của lỗi là dòng có CẢ HAI ô đều 0: bản cũ để trống hai ô là ra đúng cặp ấy, còn "bán 0 mà
+ * còn 0" với hàng có tồn là điều không xảy ra ngoài đời. Chỉ chạy một lần (ghi option), để về sau ai
+ * cố ý gõ 0 thì 0 ấy đứng yên. Sổ nhật ký `khh_dt_kho_su` giữ nguyên — nó là lịch sử.
+ *
+ * @return int Số dòng đã sửa (0 nếu đã chạy rồi hoặc chưa có bảng).
+ */
+function khh_dt_kho_sua_so_0() {
+	global $wpdb;
+	if ( get_option( 'khh_dt_kho_sua_0', false ) ) {
+		return 0;
+	}
+	$bang = khh_dt_bang_kho();
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	if ( ! $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $bang ) ) ) {
+		return 0;
+	}
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$n = $wpdb->query( "UPDATE $bang SET dem = NULL, ban_khai = NULL WHERE dem = 0 AND ban_khai = 0" );
+	update_option( 'khh_dt_kho_sua_0', gmdate( 'Y-m-d H:i:s' ), false );
+	return (int) $n;
+}
+
+/**
  * Ghi một lượt khai.
  *
  * 🔴 GHI VÀO SỔ GHI ĐỘNG TRƯỚC, RỒI MỚI CỘNG DỒN. Thứ tự ấy quan trọng: nếu cộng dồn xong mới
