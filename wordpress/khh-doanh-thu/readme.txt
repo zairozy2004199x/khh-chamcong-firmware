@@ -102,6 +102,42 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.63.0 =
+* **Tải ảnh báo cáo và chia sẻ lên Zalo.** Anh Thắng 24/09/2026: *"Lưu và chốt xong nó sẽ có thêm tải ảnh
+  và chia sẻ báo cáo này lên Zalo"*. Tab Nhập báo cáo, khi ngày đã có báo cáo lưu, hiện hai nút **Tải ảnh
+  báo cáo** và **Chia sẻ lên Zalo** (chưa chốt thì nút ghi "Chia sẻ (chưa chốt)"). Ảnh PNG dựng bằng
+  canvas từ **chính số đã lưu**: đầu ảnh ngày · cơ sở · ĐÃ CHỐT / CHƯA CHỐT · người · giờ; ô máy POS
+  (doanh thu, Sale vé / bán lẻ / phụ, hoá đơn, khách máy, tiền mặt, CK); ô cơ sở khai (đếm két, nộp quỹ,
+  bill huỷ, lượt chạy, khách đếm, vé giấy); các dòng lệch (xanh khi 0, đỏ khi lệch); bảng hàng bán với
+  SL máy / SL thực (đỏ nếu khác); ghi chú. Không dùng thư viện ngoài.
+* Chia sẻ trên **điện thoại** mở khung chia sẻ của máy (có Zalo) kèm ảnh và tóm tắt chữ; **máy tính**
+  không có khung ấy thì tải ảnh về và chép tóm tắt vào bộ nhớ tạm để dán vào Zalo web. Tên tệp
+  `bao-cao-<ngày>-<cơ sở>.png`.
+* **Xoá món thêm tay nếu sai.** *"Cho admin xoá món nếu sai"* — món "mới · FABi chưa bán" có nút **✕ xoá**
+  cho người văn phòng (quyền nạp file): hỏi xác nhận, xoá khỏi danh mục và bỏ mã đã gán; cửa hàng
+  không xoá được (403). Số đã khai vẫn nằm trong sổ ghi động.
+* `kiem-hang-ban-chot-man.js` +9 phép, trong đó tóm tắt chạy thật với số giả (lệch két −100.000, lệch
+  khách +5, 1 món lệch máy, ĐÃ CHỐT · người · giờ); `kiem-kho.php` +2 (xoá cần văn phòng), `kiem-kho-man.js` +1.
+
+= 1.62.0 =
+* 🔴 **Thêm sản phẩm mới vào danh mục kho theo tên + mã hàng FABi.** Anh Thắng 24/09/2026: *"muốn bổ sung
+  thêm sản phẩm mới (lấy tên sản phẩm mà mã theo FABi), để sau đồng bộ nó chạy cùng"*. Hàng mới về chưa
+  bán nên FABi chưa có dòng, không tích được từ danh sách; nay khối "Mặt hàng có kho" có ô **Thêm mặt hàng
+  mới** (tên đúng như FABi sẽ ghi + **mã hàng** FABi). Món thêm tay được đánh dấu *"mới · FABi chưa bán"*,
+  có dòng trong bảng ngay để nhập hàng về. Trình đọc file FABi nay ghi thêm **mã hàng** vào từng dòng
+  món; khi FABi bán món mang **đúng mã** (dù tên gõ khác chút) số bán tự rơi vào dòng kho ấy — ở bảng
+  ngày, thẻ kho, chuỗi ngày và cả bảng tách lẻ/combo. Một mã không gán được cho hai tên.
+* 🔴 **Khai thành phần combo bằng CHỌN, không gõ tên.** *"Hiện combo đang chạy và thành phần đang bán, mới
+  hiểu được combo đó có hàng bán gì để trừ, chứ nhập hay ghi sai tên sản phẩm"*. Ô "Món combo" thành
+  **danh sách chọn** gồm combo hệ nghi (đang bán mà chưa khai), món FABi có chữ "combo" và combo đã khai
+  (kèm số bán 90 ngày); thành phần là **bảng các món trong danh mục kho, mỗi món một ô số lượng**. Chọn
+  combo đã khai là công thức điền sẵn vào ô để sửa. Vẫn còn "Khác — gõ tên…" và ô thêm nhanh cho món
+  chưa có trong danh mục. Bảng combo đã khai **tô đỏ thành phần không trùng tên món nào** trong kho hay
+  FABi (ảnh anh gửi: "bimbim", "nước suối", "thạch" gõ tay — combo bán ra không trừ được dòng nào).
+* Cổng `kho-mat-hang` nhận thêm `them_ten`, `them_ma`, `ma`; trả về `ma_hang`.
+* Bài kiểm: `kiem-kho.php` +13 phép (thêm món kèm mã, chối trùng mã, mã khớp đổi tên về danh mục ở bốn
+  chỗ, REST), `kiem-kho-man.js` +9 phép.
+
 = 1.61.3 =
 * 🔴 **Lưu sổ kho mà chưa đếm thì "Hàng tồn còn" phải là trống, không phải 0.** Anh Thắng 24/09/2026 mở
   kho thấy cột Hàng tồn còn toàn 0 và lệch kho = −tồn tính dù chưa ai đếm — *"khi nào nhập hàng tồn còn

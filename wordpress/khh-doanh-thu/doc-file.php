@@ -164,6 +164,7 @@ function khh_dt_ten_cot() {
 		'cua_hang'   => array( 'cua hang', 'chi nhanh', 'co so' ),
 		'pos_id'     => array( 'pos id' ),
 		'ten_hang'   => array( 'ten hang', 'ten mon', 'ten san pham' ),
+		'ma_hang'    => array( 'ma hang', 'ma san pham', 'ma mon', 'sku' ),
 		'nhom_mon'   => array( 'nhom mon', 'nhom hang', 'danh muc' ),
 		'loai_mon'   => array( 'loai mon' ),
 		'pttt'       => array( 'pttt', 'hinh thuc thanh toan', 'phuong thuc thanh toan' ),
@@ -508,6 +509,7 @@ function khh_dt_phan_tich( $duong_dan, $ten_file = '' ) {
 					'n' => $ten_mon,
 					'g' => isset( $o['mon_g'][ $ten_mon ] ) ? $o['mon_g'][ $ten_mon ] : '',
 					'l' => isset( $o['mon_l'][ $ten_mon ] ) ? $o['mon_l'][ $ten_mon ] : '',
+					'm' => isset( $o['mon_m'][ $ten_mon ] ) ? $o['mon_m'][ $ten_mon ] : '',
 					'q' => $o['mon_q'][ $ten_mon ],
 					'r' => $r,
 				);
@@ -642,6 +644,12 @@ function khh_dt_gop_dong( $dong, $map, &$gop ) {
 		$lm = trim( (string) $lay( 'loai_mon' ) );
 		if ( '' !== $lm && '-' !== $lm ) {
 			$o['mon_l'][ $tm ] = $lm;
+		}
+		/* Mã hàng FABi (MNKVCDS017…) — để sổ kho nhận ra một món dù tên có đổi: anh Thắng 24/09/2026
+		   thêm sản phẩm mới "lấy tên sản phẩm mà mã theo FABi, để sau đồng bộ nó chạy cùng". */
+		$mh = trim( (string) $lay( 'ma_hang' ) );
+		if ( '' !== $mh && '-' !== $mh ) {
+			$o['mon_m'][ $tm ] = $mh;
 		}
 	}
 	unset( $o );

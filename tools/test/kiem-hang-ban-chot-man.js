@@ -65,6 +65,28 @@ t('bấm link là mở Quản trị đúng cửa hàng đang nhập', /S\.cauHin
 t('nói rõ đang thừa bảng chung khi quán chưa khai riêng', /đang thừa bảng chung/.test(nv));
 t('nói rõ bán lẻ = phần còn lại, phụ = số vé × tiền phụ mỗi vé (ví dụ combo 80k có 20k phụ)', /phần còn lại/.test(nv) && /số vé × tiền phụ mỗi vé/.test(nv) && /20000/.test(nv));
 
+/* ---- 24/09/2026 anh Thắng: "Lưu và chốt xong nó sẽ có thêm tải ảnh và chia sẻ báo cáo này lên Zalo" ---- */
+t('có hai nút Tải ảnh báo cáo / Chia sẻ lên Zalo, ẩn cho tới khi có báo cáo đã lưu', /id="bcTaiAnh" hidden/.test(js) && /id="bcChiaSe" hidden/.test(js) && /q\('#bcTaiAnh'\)\.hidden = !daLuu/.test(nap));
+t('🔴 ảnh dựng từ SỐ ĐÃ LƯU (S.bcHienTai) bằng canvas, không chụp màn', /S\.bcHienTai = \{ pos: p, bao_cao: b, ngay: ngay, ch: ch \}/.test(nap) && /document\.createElement\('canvas'\)/.test(boc('veAnhBC')));
+t('chia sẻ dùng khung chia sẻ của máy (navigator.share với tệp ảnh)', /navigator\.canShare\(\{ files: \[tep\] \}\)/.test(boc('chiaSeBC')) && /navigator\.share\(\{ files: \[tep\]/.test(boc('chiaSeBC')));
+t('không có khung chia sẻ thì tải ảnh + chép tóm tắt vào bộ nhớ tạm', /a\.download = tep\.name/.test(boc('chiaSeBC')) && /navigator\.clipboard\.writeText\(tom\)/.test(boc('chiaSeBC')));
+t('tải ảnh đặt tên theo ngày và cơ sở', /'bao-cao-' \+ d\.ngay \+ '-'/.test(boc('tenTepBC')));
+/* Tóm tắt chạy thật với số giả — dòng chữ dán vào Zalo phải đủ ý: doanh thu, tách tiền, đếm két, khách, lệch, chốt. */
+{
+  const VND = new Intl.NumberFormat('vi-VN');
+  const S = { bcHienTai: { ngay: '2026-09-24', ch: 'TuTu Train - Aeon Tân Phú',
+    pos: { doanh_thu: 4030000, so_hd: 43, tien_ve: 3500000, tien_le: 530000, tien_phu: 680000, tien_mat: 2100000, ck: 1930000, khach_may: 75, so_ve: 51,
+      mon: [{ n: 'KẸO CỨNG', q: 2, r: 40000 }, { n: 'PORORO', q: 1, r: 30000 }] },
+    bao_cao: { tien_mat_dem: 2000000, tien_nop: 1500000, tong_khach: 80, so_bill_huy: 1, tien_bill_huy: 50000, mon_thuc: { 'KẸO CỨNG': 3 }, ghi_chu: 'Khách đoàn', chot: 1, nguoi: 'Thảo', sua_luc: '2026-09-24 21:05:00' } } };
+  const F = new Function('S', 'VND', 'tien', 'nguyen', 'ngayVN', boc('dongBC') + boc('tomTatBC') + '\nreturn tomTatBC;')(
+    S, VND, (n) => VND.format(Math.round(n || 0)) + ' ₫', (n) => VND.format(Math.round(n || 0)), (s) => s.split('-').reverse().join('/'));
+  const tom = F();
+  t('tóm tắt có ngày + cơ sở', /BÁO CÁO NGÀY 24\/09\/2026 — TuTu Train - Aeon Tân Phú/.test(tom));
+  t('tóm tắt có ba ô tiền và đếm két / nộp', /Sale vé 3\.500\.000 ₫ · Bán lẻ 530\.000 ₫ · Sale phụ 680\.000 ₫/.test(tom) && /Đếm két 2\.000\.000 ₫ · Nộp quỹ 1\.500\.000 ₫/.test(tom));
+  t('🔴 tóm tắt có lệch két (−100.000) và lệch khách (+5)', /Đếm két − tiền mặt POS: -100\.000 ₫/.test(tom) && /Khách đếm − khách máy: \+5/.test(tom));
+  t('tóm tắt kể hàng bán lệch máy và trạng thái chốt', /Hàng bán: 1 món lệch máy/.test(tom) && /ĐÃ CHỐT · Thảo · 2026-09-24 21:05/.test(tom));
+}
+
 if (hong.length) {
   console.log('\n✗ HỎNG ' + hong.length + ' phép (đạt ' + dat + '):');
   hong.forEach((h) => console.log('   · 🔴 ' + h));
