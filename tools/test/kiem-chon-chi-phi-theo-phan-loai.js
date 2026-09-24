@@ -14,7 +14,7 @@ let DAT = 0; const TRUOT = [];
 function t(n, ok, them) { if (ok) { DAT++; } else { TRUOT.push(n + (them !== undefined ? (' → ' + JSON.stringify(them)) : '')); } }
 function teq(n, mong, thuc) { t(n + ' (mong ' + JSON.stringify(mong) + ')', JSON.stringify(mong) === JSON.stringify(thuc), thuc); }
 const ham = (n) => { const i = HTML.indexOf('  function ' + n + '('); return i < 0 ? '' : HTML.slice(i, HTML.indexOf('\n  }', i) + 4); };
-['_dmCoSoCua', '_dmDs', 'fillDauMuc', 'onDauMucPick', '_oCoSoTheoDauMuc', 'fillNhom', '_dauMucCua', '_dauMucCuaTen', 'opts', 'loaiOf', '_tenKhoi', 'renderNhomCp'].forEach((n) => t('⚠️ bốc được `' + n + '`', ham(n).length > 30, n));
+['_tn', '_dmCoSoCua', '_dmDs', 'fillDauMuc', 'onDauMucPick', '_oCoSoTheoDauMuc', 'fillNhom', '_dauMucCua', '_dauMucCuaTen', 'opts', 'loaiOf', '_tenKhoi', 'renderNhomCp'].forEach((n) => t('⚠️ bốc được `' + n + '`', ham(n).length > 30, n));
 
 const LOAI = [
   { ten: 'Chi phí cơ sở',        dauMuc: 'Chi Phí Cơ Sở KVC', khoi: 'mn' },
@@ -34,16 +34,18 @@ function be(o) {
     get innerHTML() { return this._h || ''; } });
   const moi = {
     BOOT: { dauMucDs: ['Chi Phí Cơ Sở KVC', 'Chi Phí Cơ Sở MTĐ', 'Chi Phí Chung', 'Chi phí tiền thuê', 'Đầu mục rỗng'],
-      dauMucCoSo: { 'Chi Phí Cơ Sở KVC': 'kvc', 'Chi Phí Cơ Sở MTĐ': 'mtd', 'Chi Phí Chung': '' }, loaiChiPhi: LOAI },
+      dauMucCoSo: { 'Chi Phí Cơ Sở KVC': 'kvc', 'Chi Phí Cơ Sở MTĐ': 'mtd', 'Chi Phí Chung': '' }, loaiChiPhi: LOAI,
+      /* 🧪 cờ BẬT với người này — bài này canh đường MỚI; đường cũ/cờ có bài riêng kiem-co-tinh-nang-man.js */
+      tinhNang: { phanLoaiHaiBac: (o.co === undefined) ? true : o.co } },
     KHOI_DS: [{ ma: 'mb', ten: 'Miền Bắc' }, { ma: 'mn', ten: 'Miền Nam' }, { ma: 'kvc', ten: 'Khu vui chơi' }, { ma: 'mtd', ten: 'Máy tự động' }, { ma: 'vp', ten: 'Văn phòng' }],
     KHOI_DANG: 'kvc', NHOM_CP: 'x', DM_CUR: o.dm || '',
     el: sel, esc: (x) => String(x == null ? '' : x), window: { _COSO_OPTS_GOC: Object.keys(COSO_KHOI).map((k) => k.toUpperCase()) },
     _loaiCpList: () => LOAI.slice(), _gianHopKhoi: (c) => (COSO_KHOI[c.toLowerCase()] || 'kvc') === 'kvc' || !COSO_KHOI[c.toLowerCase()],
     _khoiCuaGian: (c) => COSO_KHOI[String(c).toLowerCase()] || '', _donNhieuCoSo: () => false, _khoaCoSoHint: () => {},
-    fillNoiDungList: () => {}, showTkNhom: () => {}, _veLoaiCpVi: (id) => { sel(id).textContent = '⬆ Chọn CƠ SỞ trước'; sel(id).style.color = '#b45309'; }, _lnDongThem: () => '',
+    fillNoiDungList: () => {}, showTkNhom: () => {}, _cacNhomCp: () => ['(cơ sở)', 'Kỹ thuật'], _nhanNhomCp: (k) => k, _veLoaiCpVi: (id) => { sel(id).textContent = '⬆ Chọn CƠ SỞ trước'; sel(id).style.color = '#b45309'; }, _lnDongThem: () => '',
   };
   moi.window.BOOT = moi.BOOT;
-  new Function('moi', 'with(moi){' + ['_dmCoSoCua', '_dmDs', 'fillDauMuc', 'onDauMucPick', '_oCoSoTheoDauMuc', 'fillNhom', '_dauMucCua', '_dauMucCuaTen', 'opts', 'loaiOf', '_tenKhoi', 'renderNhomCp'].map(ham).join('\n')
+  new Function('moi', 'with(moi){' + ['_tn', '_dmCoSoCua', '_dmDs', 'fillDauMuc', 'onDauMucPick', '_oCoSoTheoDauMuc', 'fillNhom', '_dauMucCua', '_dauMucCuaTen', 'opts', 'loaiOf', '_tenKhoi', 'renderNhomCp'].map(ham).join('\n')
     + '\nmoi.F={fillDauMuc:fillDauMuc,onDauMucPick:onDauMucPick,fillNhom:fillNhom,oCoSo:_oCoSoTheoDauMuc,dmCoSo:_dmCoSoCua,dmDs:_dmDs,renderNhomCp:renderNhomCp}; moi.lay=function(){return DM_CUR;}; moi.layNhom=function(){return NHOM_CP;}; }')(moi);
   sel('f_pltt').value = ''; sel('lineId').value = o.lineId || '';
   if (o.cosoKhoa) { sel('f_coso').disabled = true; sel('f_coso').value = o.cosoKhoa; }
@@ -124,7 +126,7 @@ t('   `resetLineForm` về đầu mục rỗng', /DM_CUR=''; fillDauMuc\(''\); f
 t('   boot dựng ô đầu mục trước ô loại', /fillDauMuc\(DM_CUR\);\n\s*fillNhom\(''\)/.test(HTML));
 t('   `_khoaCoSo` áp lại lọc theo đầu mục sau khi dựng ô', /_oCoSoTheoDauMuc\(\)/.test(ham('_khoaCoSo')));
 t('   `onPlttChange` vẽ lại đầu mục (loại lọc theo hình thức)', /fillDauMuc\(DM_CUR\); fillNhom\(''\)/.test(ham('onPlttChange')));
-t('🔴 form có ô `f_dauMuc` nhãn "Phân loại lớn" đứng TRƯỚC ô `f_nhom` "Phân loại nhỏ"', /<label>Phân loại lớn \*<\/label><select id="f_dauMuc" onchange="onDauMucPick\(\)">/.test(HTML) && HTML.indexOf('id="f_dauMuc"') < HTML.indexOf('id="f_nhom"') && /Phân loại nhỏ \(loại chi phí\) \*/.test(HTML));
+t('🔴 form có ô `f_dauMuc` nhãn "Phân loại lớn" đứng TRƯỚC ô `f_nhom` "Phân loại nhỏ"', /<label>Phân loại lớn \*<\/label><select id="f_dauMuc" onchange="onDauMucPick\(\)">/.test(HTML) && HTML.indexOf('id="f_dauMuc"') < HTML.indexOf('id="f_nhom"') && /<span id="lblNhom">Phân loại nhỏ \(loại chi phí\)<\/span> \*/.test(HTML));
 t('🔴 thẻ Cấu hình 🗂 Đầu mục: bảng + Thêm + Lưu, nằm trong nhóm Danh mục chi phí', /id="dauMucCard"/.test(HTML) && /onclick="addCfgDauMuc\(\)"/.test(HTML) && /onclick="saveCfgDauMuc\(\)"/.test(HTML) && /id:\['dauMucCard','loaiMxCard'/.test(HTML) && /renderDauMuc\(\);/.test(HTML));
 {
   const S = ham('_dmCoSoSel');

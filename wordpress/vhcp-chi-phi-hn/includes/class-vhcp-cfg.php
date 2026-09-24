@@ -20,6 +20,7 @@ class VHCPHN_Cfg {
 	const SSO   = 'CH_SSO';
 	const BP    = 'CH_BoPhan';       // BỘ PHẬN — khai được, xem `bo_phan_ds()`
 	const DM    = 'CH_DauMuc';       // ĐẦU MỤC (phân loại lớn) + khối cơ sở — xem `dau_muc_rows()`
+	const TN    = 'CH_TinhNang';     // CỜ TÍNH NĂNG — xem `TINH_NANG` / `tinh_nang_bat()`
 	const QUYEN = 'CH_Quyen';
 	const LOAI  = 'CH_LoaiChiPhi';   // DANH MỤC LOẠI CHI PHÍ — mỗi loại gắn sẵn mã tài khoản
 	const TK    = 'CH_TaiKhoan';     // HỆ THỐNG TÀI KHOẢN của kế toán (nạp từ file Excel/CSV)
@@ -58,6 +59,8 @@ class VHCPHN_Cfg {
 			   '*' = như cũ (ô Cơ sở theo khối đang đứng) · '' = chi phí KHÔNG có cơ sở (ẩn ô) ·
 			   'kvc'/'mtd'/'vp' = chỉ xổ cơ sở của khối ấy. */
 			self::DM    => array( 'Đầu mục', 'Khối cơ sở' ),
+			/* CỜ TÍNH NĂNG: 'tat' · 'admin' (chỉ Admin xem trước) · 'bat' (mọi người). Xem `TINH_NANG`. */
+			self::TN    => array( 'Mã tính năng', 'Trạng thái' ),
 			self::DT    => array( 'Đối tượng', 'Mã đối tượng', 'Loại (NV/NCC)' ),
 			self::QR    => array( 'Khóa', 'Giá trị' ),
 			/* Hai cột cuối là ĐƠN VỊ (K&H · POSH) — xem `VHCPHN_DonVi`. "Đơn vị" là NHÀ (đơn
@@ -1172,6 +1175,8 @@ class VHCPHN_Cfg {
 		/* Đầu mục (phân loại lớn) khai được — xem `dau_muc_rows()`. */
 		$out['dauMucDs']   = self::dau_muc_ds();
 		$out['dauMucCoSo'] = self::dau_muc_coso();
+		/* Cờ tính năng cho thẻ 🧪 — xem `TINH_NANG`. */
+		$out['tinhNangDs'] = self::tinh_nang_ds();
 		/* Luồng duyệt mặc định của từng bộ phận: { 'Văn phòng' => 'dc', … }. Bảng RIÊNG chứ
 		   không nhét vào `boPhanDs` — ô ấy là mảng CHUỖI và đang được đọc ở cả chục chỗ (ô chọn
 		   bộ phận, phân quyền vai, bảng loại chi phí); đổi kiểu của nó là mỗi chỗ ấy hiện ra
@@ -1271,6 +1276,7 @@ class VHCPHN_Cfg {
 			'boPhanDs'   => isset( $s['boPhanDs'] ) ? $s['boPhanDs'] : self::BO_PHAN_DS,
 			'dauMucDs'   => isset( $s['dauMucDs'] ) ? $s['dauMucDs'] : self::DAU_MUC_MAC_DINH,
 			'dauMucCoSo' => isset( $s['dauMucCoSo'] ) && is_array( $s['dauMucCoSo'] ) ? $s['dauMucCoSo'] : array(),
+			'tinhNangDs' => isset( $s['tinhNangDs'] ) && is_array( $s['tinhNangDs'] ) ? $s['tinhNangDs'] : self::tinh_nang_ds(),
 			/* 🔴 KHOÁ NÀY PHẢI ĐI QUA ĐÂY — cắn thật 23/09/2026. `boPhanLuong` được dựng đủ ở
 			   `cfg_static()`, nhưng `get_config()` LỌC KHOÁ theo danh sách này, nên nó rơi ra
 			   trước khi tới màn. Hậu quả: bấm Lưu báo xanh, sổ có đủ, mà mở lại bảng thì mọi ô
@@ -1644,6 +1650,24 @@ class VHCPHN_Cfg {
 			}
 			self::write( self::BP, $rows );
 			self::$bp_memo = null;
+		}
+		if ( isset( $cfg['tinhNang'] ) && is_array( $cfg['tinhNang'] ) ) {
+			/* 🔴 CHỈ ADMIN. Bật một tính năng cho mọi người là đổi cách cả hệ thao tác. */
+			if ( 'Admin' !== VHCPHN_Auth::vai_tro() ) {
+				return VHCPHN_Util::err( 'Chỉ Admin mới bật/tắt tính năng được.' );
+			}
+			$luu = self::tinh_nang_luu();
+			foreach ( $cfg['tinhNang'] as $ma => $tt ) {
+				$ma = (string) $ma; $tt = mb_strtolower( trim( (string) $tt ) );
+				if ( ! isset( self::TINH_NANG[ $ma ] ) ) { return VHCPHN_Util::err( 'Không có tính năng mã "' . $ma . '" trong bản này.' ); }
+				if ( ! in_array( $tt, self::TN_TRANG_THAI, true ) ) { return VHCPHN_Util::err( 'Trạng thái "' . $tt . '" không hợp lệ — chỉ tat · admin · bat.' ); }
+				$luu[ $ma ] = $tt;
+			}
+			$rows = array();
+			foreach ( $luu as $ma => $tt ) { $rows[] = array( $ma, $tt ); }
+			self::write( self::TN, $rows );
+			VHCPHN_Log::log_action( array( 'actor' => VHCPHN_Auth::nguoi(), 'role' => VHCPHN_Auth::vai_tro(), 'action' => 'Đổi cờ tính năng',
+				'target' => implode( ', ', array_keys( $cfg['tinhNang'] ) ), 'detail' => json_encode( $cfg['tinhNang'], JSON_UNESCAPED_UNICODE ) ) );
 		}
 		if ( isset( $cfg['dauMucDs'] ) && is_array( $cfg['dauMucDs'] ) ) {
 			/* Đầu mục = phân loại lớn của form nhập (xem `dau_muc_rows()`). Nhận cả mảng chuỗi
@@ -2116,6 +2140,82 @@ class VHCPHN_Cfg {
 			if ( '' !== $t && ! in_array( $t, $ra, true ) ) { $ra[] = $t; }
 		}
 		return $ra ? $ra : self::DAU_MUC_MAC_DINH;
+	}
+
+	/**
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 * CỜ TÍNH NĂNG — BẢN MỚI CÀI LÊN, ADMIN XEM TRƯỚC RỒI MỚI ÁP CHO MỌI NGƯỜI.
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 24/09/2026: *"trước khi xác thay đổi, thì giao diện đó admin sẽ xem trước, rồi
+	 * admin cấu hình xong bấm thay đổi thì nó áp dụng luôn, chứ nạp lên, nó thay đổi danh mục,
+	 * các nhân viên đang đăng nhập nó mất và chưa kịp set"*.
+	 *
+	 * 🔴 BA MỨC, KHÔNG PHẢI HAI:
+	 *      'tat'   — chạy như bản cũ với mọi người
+	 *      'admin' — CHỈ Admin thấy đường mới (để khai danh mục, thử), nhân viên vẫn đường cũ
+	 *      'bat'   — mọi người thấy đường mới
+	 *    Bản mới cài lên: cờ chưa có trong bảng → lấy `mac_dinh` của tính năng (thường 'admin').
+	 *    Admin vào Cấu hình › 🧪 Tính năng mới, khai xong, đổi sang 'bat' → cả hệ đổi khi tải lại.
+	 *
+	 * 🔴 CỜ CHỈ CHO THAY ĐỔI GIAO DIỆN / CÁCH THAO TÁC. Vá lỗi nền (TK Nợ 141, số dư theo thực
+	 *    tế…) áp thẳng, không qua cờ — chúng không đổi cách ai bấm gì, và giữ hai đường cho một
+	 *    phép tính là giữ luôn lỗi cũ trong một nhánh.
+	 * ⚠️ TÍNH NĂNG KHÔNG CÓ TRONG BẢNG NÀY = LUÔN BẬT. Màn hỏi một mã lạ thì trả true — cờ là
+	 *    thứ thêm vào để giữ đường cũ, không phải cổng chặn mọi thứ chưa khai.
+	 * ⚠️ Khi anh đã 'bat' một thời gian, đường cũ của tính năng ấy được gỡ ở bản sau và mã cờ
+	 *    xoá khỏi bảng này — cờ sống mãi là hai đường sống mãi.
+	 */
+	const TINH_NANG = array(
+		'phanLoaiHaiBac' => array(
+			'ten'      => 'Form nhập hạng mục chọn Phân loại lớn → Phân loại nhỏ → Cơ sở theo đầu mục',
+			'mo'       => 'Ô "Phân loại lớn" (đầu mục) đứng trước ô loại chi phí; đầu mục có cơ sở thì ô Cơ sở chỉ xổ gian của khối ấy, đầu mục không có cơ sở thì ẩn ô. Cần khai trước ở 🗂 Đầu mục và cột Đầu mục của bảng Loại chi phí. Tắt = dải nút "Chọn chi phí nào" theo bộ phận như cũ.',
+			'ban'      => '1.306.0',
+			'mac_dinh' => 'admin',
+		),
+	);
+	const TN_TRANG_THAI = array( 'tat', 'admin', 'bat' );
+
+	/** Trạng thái đã lưu của từng cờ (chỉ những mã còn trong `TINH_NANG`). */
+	public static function tinh_nang_luu() {
+		$m = array();
+		foreach ( self::read( self::TN ) as $r ) {
+			$ma = trim( (string) ( isset( $r[0] ) ? $r[0] : '' ) );
+			$tt = mb_strtolower( trim( (string) ( isset( $r[1] ) ? $r[1] : '' ) ) );
+			if ( '' === $ma || ! isset( self::TINH_NANG[ $ma ] ) || ! in_array( $tt, self::TN_TRANG_THAI, true ) ) { continue; }
+			$m[ $ma ] = $tt;
+		}
+		return $m;
+	}
+	/** Trạng thái hiệu lực của một cờ: đã lưu → mặc định của tính năng → 'bat' (mã lạ). */
+	public static function tinh_nang_trang_thai( $ma ) {
+		$ma = (string) $ma;
+		$luu = self::tinh_nang_luu();
+		if ( isset( $luu[ $ma ] ) ) { return $luu[ $ma ]; }
+		if ( isset( self::TINH_NANG[ $ma ] ) ) { return self::TINH_NANG[ $ma ]['mac_dinh']; }
+		return 'bat';
+	}
+	/** Người ĐANG đăng nhập có thấy đường mới của tính năng này không. */
+	public static function tinh_nang_bat( $ma, $vai = null ) {
+		$tt = self::tinh_nang_trang_thai( $ma );
+		if ( 'bat' === $tt ) { return true; }
+		if ( 'tat' === $tt ) { return false; }
+		$vai = null === $vai ? VHCPHN_Auth::vai_tro() : (string) $vai;
+		return 'Admin' === $vai;
+	}
+	/** Bản đồ { mã => bật/tắt } cho người đang đăng nhập — gói khởi động chở xuống màn. */
+	public static function tinh_nang_map( $vai = null ) {
+		$m = array();
+		foreach ( array_keys( self::TINH_NANG ) as $ma ) { $m[ $ma ] = self::tinh_nang_bat( $ma, $vai ); }
+		return $m;
+	}
+	/** Danh sách cho thẻ Cấu hình: [{ma, ten, mo, ban, macDinh, trangThai}]. */
+	public static function tinh_nang_ds() {
+		$ra = array();
+		foreach ( self::TINH_NANG as $ma => $x ) {
+			$ra[] = array( 'ma' => $ma, 'ten' => $x['ten'], 'mo' => $x['mo'], 'ban' => $x['ban'],
+				'macDinh' => $x['mac_dinh'], 'trangThai' => self::tinh_nang_trang_thai( $ma ) );
+		}
+		return $ra;
 	}
 
 	/**

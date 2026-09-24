@@ -567,10 +567,13 @@
                (khai ở ⚙️ Cấu hình › 🗂 Đầu mục); mỗi đầu mục nói nó có cơ sở của khối nào, ô Cơ sở ở
                trên hiện/ẩn và lọc theo đó (`_oCoSoTheoDauMuc`). Dải nút "Chọn chi phí nào" theo bộ
                phận thôi bày — đầu mục dẫn đường thay nó; giữ hộp rỗng để mã cũ gọi vào không nổ. -->
-          <div class="fld" style="display:none"><div id="f_nhomCp"></div></div>
-          <div class="fld"><label>Phân loại lớn *</label><select id="f_dauMuc" onchange="onDauMucPick()"></select>
+          <!-- 🧪 SAU CỜ `phanLoaiHaiBac` (xem `_tn()` và `VHCPHN_Cfg::TINH_NANG`): cờ tắt với người này
+               → dải nút "Chọn chi phí nào" theo bộ phận hiện lại y như bản cũ, ô Phân loại lớn ẩn. -->
+          <div class="fld" id="fldNhomCp" style="grid-column:1 / -1;display:none"><label>Chọn chi phí nào *</label>
+            <div id="f_nhomCp" style="display:flex;gap:6px;flex-wrap:wrap"></div></div>
+          <div class="fld" id="fldDauMuc"><label>Phân loại lớn *</label><select id="f_dauMuc" onchange="onDauMucPick()"></select>
             <div id="f_dauMucVi" style="font-size:11px;margin-top:3px;color:#8c8781"></div></div>
-          <div class="fld"><label>Phân loại nhỏ (loại chi phí) * <span id="lblNhomTk" style="font-weight:700;font-family:Consolas,monospace"></span></label><select id="f_nhom" onchange="onNhomPick()"></select>
+          <div class="fld"><label><span id="lblNhom">Phân loại nhỏ (loại chi phí)</span> * <span id="lblNhomTk" style="font-weight:700;font-family:Consolas,monospace"></span></label><select id="f_nhom" onchange="onNhomPick()"></select>
             <!-- KHÔNG ẨN IM LẶNG. Ô này lọc 4 lớp (đã khai mã cho mảng của cơ sở · đúng nút
                  "Chọn chi phí nào" · đúng bộ phận người đăng nhập · đúng phân loại TT). Ô rỗng
                  mà không nói gì thì người dùng chỉ thấy "app hỏng" — đã xảy ra hai lần trong
@@ -1842,6 +1845,18 @@
       </div>
       <div style="padding:8px 14px;font-size:11.5px;color:#64748b">Tích ✓ = vai trò đó <b>được phép</b> làm hành động. Bỏ tích = chặn. <b>Admin luôn toàn quyền</b> (không nằm trong bảng). Các bước vẫn theo trạng thái đơn (vd "Duyệt tạm ứng" chỉ hiện khi đơn ở "Chờ duyệt tạm ứng"). Lưu xong áp dụng ngay cho mọi người (khi họ tải lại).</div>
     </div>
+    <div class="card" id="tinhNangCard">
+      <div class="ch"><h2>🧪 Tính năng mới trong bản này</h2><div style="display:flex;gap:8px"><button class="btn b-g" onclick="saveCfgTinhNang()">💾 Áp dụng</button></div></div>
+      <div style="padding:8px 14px 0;font-size:12px;color:#64748b">
+        <!-- Anh Thắng 24/09/2026: *"giao diện đó admin sẽ xem trước, rồi admin cấu hình xong bấm thay đổi thì nó
+             áp dụng luôn, chứ nạp lên, nó thay đổi danh mục, các nhân viên đang đăng nhập nó mất và chưa kịp set"*. -->
+        Bản mới cài lên, thay đổi giao diện mặc định ở <b>Chỉ Admin xem trước</b>: nhân viên vẫn thấy y như cũ.
+        Admin khai danh mục cần thiết, thử xong, đổi sang <b>Bật cho mọi người</b> rồi bấm 💾 Áp dụng — ai tải lại trang là thấy bản mới.
+        <b>Tắt</b> = quay về đường cũ cho cả Admin. Vá lỗi nền không nằm ở đây, chúng áp thẳng.
+      </div>
+      <div class="tw"><table style="min-width:760px"><thead><tr><th style="width:380px">Tính năng</th><th style="width:80px">Từ bản</th><th style="width:240px">Trạng thái</th></tr></thead><tbody id="cfgTinhNangBody"></tbody></table></div>
+    </div>
+
     <div class="card" id="cosoCard">
       <div class="ch"><h2>🏢 Mã đơn vị theo Cơ sở</h2><div style="display:flex;gap:8px"><button class="btn b-x" id="csLockBtn" onclick="toggleCsLock()">🔒 Đang khóa — bấm để mở</button><button class="btn b-x" onclick="addCfgCoso()">＋ Thêm cơ sở</button><button class="btn b-x" id="btnHutGhe" onclick="hutCoSoGhe()" title="Kéo các địa điểm bên trang Ghế massage sang đây. Chỉ THÊM — không sửa, không xoá dòng nào đang có.">🪑 Hút cơ sở từ Ghế</button><button class="btn b-g" onclick="saveCfgCoso()">💾 Lưu</button></div></div>
       <div id="cosoLaBox" style="display:none"></div>
@@ -2285,15 +2300,38 @@
     return ({'Kỹ thuật':'🔧 Setup / Tháo dỡ','Marketing':'🔥 Marketing','Công tác':'✈️ Công tác','Setup':'🛠 Setup'}[k]) || k;
   }
   /** Vẽ dãy nút "Chọn chi phí nào". Chỉ 1 nhóm thì khỏi bày ra cho rối. */
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * 🧪 CỜ TÍNH NĂNG — màn chỉ HỎI, không tự suy vai. Anh Thắng 24/09/2026: *"giao diện đó admin
+   * sẽ xem trước, rồi admin cấu hình xong bấm thay đổi thì nó áp dụng luôn"*.
+   * `BOOT.tinhNang` do máy chủ tính sẵn theo người đang đăng nhập ({mã: true/false}); mã không có
+   * trong gói = luôn bật (cờ là thứ giữ đường cũ, không phải cổng chặn). Xem `VHCPHN_Cfg::TINH_NANG`.
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  function _tn(ma){
+    var m=(typeof BOOT!=='undefined'&&BOOT&&BOOT.tinhNang)||null;
+    if(!m || !Object.prototype.hasOwnProperty.call(m, ma)) return true;
+    return !!m[ma];
+  }
   function renderNhomCp(){
-    /* 🔴 DẢI NÚT THEO BỘ PHẬN ĐÃ NHƯỜNG CHỖ CHO Ô PHÂN LOẠI LỚN (24/09/2026). Anh Thắng: *"Chọn
-       Phân Loại Lớn trước, Đến Phân Loại con"* — đầu mục là trục dẫn đường, không phải bộ phận.
-       `NHOM_CP` luôn rỗng để `_loaiCpList()` không cắt theo nút nào nữa; lọc theo đầu mục nằm ở
-       `fillNhom()`. Hộp `f_nhomCp` giữ lại (ẩn) cho mã cũ gọi vào không nổ. */
-    NHOM_CP='';
-    var box=el('f_nhomCp'); if(!box) return;
-    box.innerHTML='';
-    if(box.parentNode&&box.parentNode.style) box.parentNode.style.display='none';
+    var box=el('f_nhomCp');
+    /* 🔴 CỜ `phanLoaiHaiBac` BẬT: dải nút theo bộ phận nhường chỗ cho ô Phân loại lớn (24/09/2026,
+       anh Thắng: *"Chọn Phân Loại Lớn trước, Đến Phân Loại con"*). `NHOM_CP` rỗng để `_loaiCpList()`
+       không cắt theo nút; lọc theo đầu mục nằm ở `fillNhom()`. */
+    if(_tn('phanLoaiHaiBac')){
+      NHOM_CP='';
+      if(!box) return;
+      box.innerHTML='';
+      if(box.parentNode&&box.parentNode.style) box.parentNode.style.display='none';
+      return;
+    }
+    /* Cờ TẮT với người này: y như bản trước — nút theo bộ phận, nhiều hơn một nút mới bày. */
+    if(!box) return;
+    var ds=_cacNhomCp();
+    if(ds.indexOf(NHOM_CP)<0) NHOM_CP=ds.length?ds[0]:'';
+    if(box.parentNode&&box.parentNode.style) box.parentNode.style.display=(ds.length>1)?'':'none';
+    box.innerHTML=ds.map(function(k){
+      var on=(k===NHOM_CP);
+      return '<button type="button" class="btn '+(on?'b-p':'b-x')+'" onclick="pickNhomCp('+JSON.stringify(k).replace(/"/g,'&quot;')+')">'+esc(_nhanNhomCp(k))+'</button>';
+    }).join('');
   }
   function pickNhomCp(k){ NHOM_CP=k; renderNhomCp(); fillNhom(''); }
 
@@ -2316,6 +2354,7 @@
      cơ sở · 'kvc'/'mtd'/'vp'. Đầu mục chưa khai trong bảng (hoặc ô hứng "Chưa xếp") → '*': không
      đổi hành vi cũ cho site chưa khai. */
   function _dmCoSoCua(dm){
+    if(!_tn('phanLoaiHaiBac')) return '*';      // cờ tắt: ô Cơ sở như cũ, không đầu mục nào ẩn nó
     var d=String(dm||'').trim();
     if(!d || d==='Chưa xếp đầu mục') return '*';
     var m=(typeof BOOT!=='undefined'&&BOOT&&BOOT.dauMucCoSo)||{};
@@ -2338,6 +2377,16 @@
   }
   function fillDauMuc(keep){
     var sel=el('f_dauMuc'); if(!sel) return;
+    var fldDm=el('fldDauMuc'), lblN=el('lblNhom');
+    if(!_tn('phanLoaiHaiBac')){
+      /* Cờ tắt với người này: giấu ô Phân loại lớn, ô loại mang nhãn cũ, không lọc theo đầu mục. */
+      DM_CUR=''; sel.innerHTML=''; sel.value='';
+      if(fldDm) fldDm.style.display='none';
+      if(lblN) lblN.textContent='Loại chi phí';
+      return;
+    }
+    if(fldDm) fldDm.style.display='';
+    if(lblN) lblN.textContent='Phân loại nhỏ (loại chi phí)';
     var cur=String((keep!==undefined)?keep:(sel.value||DM_CUR)||'').trim();
     var ds=_dmDs();
     sel.innerHTML='<option value="">— chọn phân loại lớn —</option>'+ds.map(function(d){ return '<option value="'+esc(d)+'">'+esc(d)+'</option>'; }).join('');
@@ -2359,6 +2408,7 @@
   /* Ô CƠ SỞ THEO ĐẦU MỤC: ẩn khi đầu mục không có cơ sở; lọc theo khối của đầu mục; như cũ khi '*'.
      Đơn đã chốt một cơ sở (`sel.disabled`) thì giữ nguyên khoá — đơn của gian nào thì dòng ở gian ấy. */
   function _oCoSoTheoDauMuc(){
+    if(!_tn('phanLoaiHaiBac')) return;          // cờ tắt: ô Cơ sở do `_khoaCoSo` / `_veLaiOCoSo` lo như cũ
     var fld=el('fldCoso'), sel=el('f_coso'); if(!fld||!sel) return;
     var k=_dmCoSoCua(DM_CUR), lbl=el('lblCoso');
     if(k===''){
@@ -12990,6 +13040,9 @@
     }).withFailureHandler(function(e){ loading(false); toast('err',e.message); }).nhapGoiCauHinh(NB_GOI, chon);
   }
   var CH_NHOM=[
+    /* 🧪 Đứng đầu: là việc đầu tiên Admin làm sau khi cài bản mới. */
+    { ten:'🧪 Tính năng mới',              id:['tinhNangCard'],
+      mo:'Bản mới cài lên chỉ Admin thấy trước; khai danh mục xong bấm Áp dụng cho mọi người.' },
     /* ⚠️ Mã gọi tắt đi CÙNG nhóm cơ sở, ngay sau bảng cơ sở: nó là cách gọi khác của chính
        những gian ấy, không phải một thứ riêng. Để nó lạc sang nhóm khác là người khai phải nhớ
        hai chỗ cho một câu hỏi. */
@@ -13707,6 +13760,7 @@
     renderVai();
     renderLuongBp();
     renderDauMuc();
+    renderTinhNang();
     el('cfgTkInfo').innerHTML = _tkChartHtml() + (TKCHART.length ? ('✅ Đã nạp <b>'+TKCHART.length+'</b> tài khoản — mọi ô mã tài khoản trong trang này đã có gợi ý theo số hiệu + tên.') : '<span style="color:#dc2626">Chưa nạp hệ thống tài khoản — mã phải gõ tay, dễ sai số.</span>');
     /* ⚠️ Bảng khai tay `mangTk` đã gỡ khỏi màn 14/09/2026 — gác `null` ở đây, không thì
        `renderCfg()` ném lỗi ngay dòng này và CẢ tab Cấu hình trắng trơn. */
@@ -15327,6 +15381,32 @@
    *    màn báo xong, mà mã cũ vẫn nằm nguyên trong sổ.
    * ══════════════════════════════════════════════════════════════════════════════════════ */
   var LUONG_BP_DS=[['','— theo khối như cũ —'],['gt','💵 Qua tạm ứng'],['tt','🧾 Trực tiếp'],['dc','🧮 Duyệt chi']];
+  /* ── 🧪 CỜ TÍNH NĂNG — xem `_tn()` và `VHCPHN_Cfg::TINH_NANG` ──────────────────────────────── */
+  var TN_TRANG_THAI=[['tat','⛔ Tắt — mọi người dùng đường cũ'],['admin','👁 Chỉ Admin xem trước'],['bat','✅ Bật cho mọi người']];
+  function renderTinhNang(){
+    var body=el('cfgTinhNangBody'); if(!body) return;
+    if(el('tinhNangCard')) el('tinhNangCard').style.display=_laAdmin()?'':'none';
+    if(!_laAdmin()) return;
+    var ds=(CFG&&CFG.tinhNangDs)||[];
+    if(!ds.length){ body.innerHTML='<tr><td colspan="3" style="color:#8c8781">Bản này không có thay đổi giao diện nào cần xem trước.</td></tr>'; return; }
+    body.innerHTML=ds.map(function(x){
+      return '<tr data-tn="'+esc(x.ma)+'"><td><b>'+esc(x.ten)+'</b><div style="font-size:11px;color:#8c8781;margin-top:2px">'+esc(x.mo||'')+'</div></td>'
+        +'<td style="font-family:Consolas,monospace;font-size:12px">'+esc(x.ban||'')+'</td>'
+        +'<td><select style="width:100%">'+TN_TRANG_THAI.map(function(o){ return '<option value="'+o[0]+'"'+(o[0]===x.trangThai?' selected':'')+'>'+o[1]+'</option>'; }).join('')+'</select>'
+        +(x.trangThai!=='bat'?'<div style="font-size:10.5px;color:#b45309;margin-top:2px">Nhân viên đang thấy đường cũ.</div>':'')+'</td></tr>';
+    }).join('');
+  }
+  function saveCfgTinhNang(){
+    var body=el('cfgTinhNangBody'); if(!body) return;
+    var m={};
+    Array.prototype.forEach.call(body.querySelectorAll('tr[data-tn]'), function(tr){
+      var s=tr.querySelector('select'); if(s) m[tr.getAttribute('data-tn')]=String(s.value||'');
+    });
+    if(!Object.keys(m).length){ toast('warn','Không có tính năng nào để áp dụng.'); return; }
+    var bat=Object.keys(m).filter(function(k){ return m[k]==='bat'; }).length;
+    if(bat && !confirm('Áp dụng cho MỌI NGƯỚI '+bat+' tính năng? Ai tải lại trang là thấy giao diện mới.\n\nĐã khai đủ danh mục cần thiết chưa?')) return;
+    _saveCfg({tinhNang:m},'Đã áp dụng cờ tính năng');
+  }
   /* ── 🗂 ĐẦU MỤC (PHÂN LOẠI LỚN) — xem `VHCPHN_Cfg::dau_muc_rows()` và thẻ `dauMucCard` ────── */
   function _dmCoSoSel(cur){
     var c=String(cur==null?'*':cur).trim().toLowerCase();

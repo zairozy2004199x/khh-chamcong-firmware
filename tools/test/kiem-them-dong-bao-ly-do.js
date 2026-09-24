@@ -83,7 +83,7 @@ function moi(gia) {
     } } },
   };
   vm.createContext(ctx);
-  vm.runInContext([than('_dmCoSoCua'), than('collectLine'), than('_lyDoKhongThem'), than('saveLine'), than('_saveLine')].join('\n'), ctx);
+  vm.runInContext([than('_tn'), than('_dmCoSoCua'), than('collectLine'), than('_lyDoKhongThem'), than('saveLine'), than('_saveLine')].join('\n'), ctx);
   return { ctx, O, goi, noi };
 }
 

@@ -805,6 +805,9 @@ class VHCPMTD_Don {
 			/* Đầu mục nào có cơ sở (và của khối nào) — form ẩn/hiện ô Cơ sở theo đây. Xem
 			   `VHCPMTD_Cfg::dau_muc_rows()`. */
 			'dauMucCoSo' => VHCPMTD_Cfg::dau_muc_coso(),
+			/* Cờ tính năng ĐÃ TÍNH theo người đang đăng nhập: { mã => true/false }. Màn chỉ hỏi
+			   `_tn(mã)`, không tự suy vai — xem `VHCPMTD_Cfg::TINH_NANG`. */
+			'tinhNang'   => VHCPMTD_Cfg::tinh_nang_map(),
 			/* Vùng này có lọc loại theo vai không. Giao diện đọc CỜ, không tự suy: hai nơi tự
 			   suy là có ngày ô chọn bày một đằng, máy chủ gác một nẻo. */
 			'locLoaiTheoVai' => VHCPMTD_Cfg::loc_loai_theo_vai(),
