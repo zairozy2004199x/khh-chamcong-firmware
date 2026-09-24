@@ -205,10 +205,95 @@ $h = man(); $_POST = array();
 kiem( 'form: mặc định đợt tháng', false !== strpos( $h, 'value="-2" selected>Đợt tháng (tự xếp): Payoo KH989 tháng 9/2026' ), true );
 kiem( 'form: không liệt kê đợt khác kênh', false !== strpos( $h, '>Đợt 3<' ), false );
 
+// ------------------- nạp MỘT LƯỢT nhiều tệp, hai pháp nhân lẫn nhau
+// QR có "Tài khoản nhận" → tài khoản bên nào thì vào bên đó; tệp cổng theo mã cửa hàng; đơn app cho cả hai.
+KHTC_Cty::chon( 'kh_moi' );
+KHTC_Diem::them( array( 'ma_cua_hang' => 'MOI1', 'ten_diem' => 'Điểm bên Mới', 'ma_misa' => 'MM', 'khu_vuc' => 'HN', 'dich_vu' => 'ghế' ) );
+$nh_m = KHTC_NganHang::them( array( 'ten' => 'BIDV 8690077021', 'so_tk' => '8690077021', 'so_du_dau' => 0, 'ngay_dau' => '2026-08-01' ) );
+KHTC_Cty::chon( 'kh_cu' );
+$nh_c = KHTC_NganHang::them( array( 'ten' => 'MB 11521268', 'so_tk' => '11521268', 'so_du_dau' => 0, 'ngay_dau' => '2026-08-01' ) );
+$qr_cu  = "STT\tThời gian TT\tSố tiền đến (VND)\tSố tiền đi (VND)\tLoại\tTrạng thái\tMã tham chiếu\tMã đơn hàng\tMã điểm bán\tMã cửa hàng\tTài khoản nhận\tThời gian tạo\tNội dung TT\n"
+	. "1\t10-09-2026 09:00:00\t120000\t0\tGiao dịch đến\tThành công\tFTLO1\tX\tVVB\tQRA\t11521268 - MB\t10-09-2026\tQR\n";
+$qr_moi = str_replace( array( 'FTLO1', '11521268 - MB', 'QRA' ), array( 'FTLO2', '8690077021 - BIDV', 'MOI1' ), $qr_cu );
+$qr_la  = str_replace( array( 'FTLO1', '11521268 - MB' ), array( 'FTLO3', '99999999 - ACB' ), $qr_cu );
+$payoo_moi = str_replace( array( 'PAYA', 'PAY1', '05/08/2026' ), array( 'MOI1', 'PAYLO1', '10/09/2026' ), $payoo );
+$lo = KHTC_NapLo::nap( array(
+	array( 'ten' => 'qr-cu.xlsx',  'trang' => array( array( 'ten' => 'S', 'van_ban' => $qr_cu,  'so_dong' => 2 ) ) ),
+	array( 'ten' => 'qr-moi.xlsx', 'trang' => array( array( 'ten' => 'S', 'van_ban' => $qr_moi, 'so_dong' => 2 ) ) ),
+	array( 'ten' => 'qr-la.xlsx',  'trang' => array( array( 'ten' => 'S', 'van_ban' => $qr_la,  'so_dong' => 2 ) ) ),
+	array( 'ten' => 'payoo-moi.xlsx', 'trang' => array( array( 'ten' => 'S', 'van_ban' => $payoo_moi, 'so_dong' => 3 ) ) ),
+	array( 'ten' => 'don.xls', 'trang' => array( array( 'ten' => 'S', 'van_ban' => "Mã đơn hàng\tNgày đặt hàng\tTrạng thái đơn hàng\tTrạng thái thanh toán\tTổng tiền phải trả\tTên sản phẩm\n#5551\t10/09/2026\tĐã giao\tĐã thanh toán\t100000\tCƠ SỞ A\n", 'so_dong' => 2 ) ) ),
+	array( 'ten' => 'rac.xlsx', 'trang' => array( array( 'ten' => 'S', 'van_ban' => "a\tb\n1\t2\n", 'so_dong' => 2 ) ) ),
+) );
+$kq_lo = array(); foreach ( $lo['ket_qua'] as $x ) { $kq_lo[ $x['ten'] ] = $x; }
+kiem( 'lô: QR tài khoản KH Cũ vào KH Cũ', array( $kq_lo['qr-cu.xlsx']['cty'], $kq_lo['qr-cu.xlsx']['them'] ), array( 'kh_cu', 1 ) );
+kiem( 'lô: QR tài khoản KH Mới vào KH Mới dù đang đứng ở KH Cũ', array( $kq_lo['qr-moi.xlsx']['cty'], $kq_lo['qr-moi.xlsx']['them'] ), array( 'kh_moi', 1 ) );
+kiem( 'lô: QR tài khoản chưa khai → bỏ, nói rõ', $kq_lo['qr-la.xlsx']['bo'] && false !== strpos( $kq_lo['qr-la.xlsx']['ghi_chu'], '99999999' ), true );
+kiem( 'lô: Payoo mã bên Mới → đợt tháng bên Mới', array( $kq_lo['payoo-moi.xlsx']['cty'], $kq_lo['payoo-moi.xlsx']['them'] ), array( 'kh_moi', 1 ) );
+kiem( 'lô: tên đợt tháng đúng pháp nhân', false !== strpos( $kq_lo['payoo-moi.xlsx']['ghi_chu'], 'Payoo KH705 tháng 9/2026' ), true );
+kiem( 'lô: đơn app lưu cho cả hai', array( $kq_lo['don.xls']['cty'], KHTC_DonApp::dem( 'kh_cu' ) > 0, KHTC_DonApp::dem( 'kh_moi' ) > 0 ), array( 'cả hai', true, true ) );
+kiem( 'lô: tệp rác bị bỏ', $kq_lo['rac.xlsx']['bo'], true );
+kiem( 'lô: đứng lại ở pháp nhân ban đầu', KHTC_Cty::dang_chon(), 'kh_cu' );
+kiem( 'lô: kỳ để đi tiếp có cả hai bên', array_keys( $lo['cty_da_nap'] ), array( 'kh_cu', 'kh_moi' ) );
+kiem( 'lô: bên Mới mang tài khoản và đợt vừa nạp', array( count( $lo['cty_da_nap']['kh_moi']['nh'] ), count( $lo['cty_da_nap']['kh_moi']['dot'] ) ), array( 1, 1 ) );
+// nạp lại y bộ → 0 dòng mới
+$lo2 = KHTC_NapLo::nap( array(
+	array( 'ten' => 'qr-cu.xlsx',  'trang' => array( array( 'ten' => 'S', 'van_ban' => $qr_cu,  'so_dong' => 2 ) ) ),
+	array( 'ten' => 'payoo-moi.xlsx', 'trang' => array( array( 'ten' => 'S', 'van_ban' => $payoo_moi, 'so_dong' => 3 ) ) ),
+) );
+kiem( 'nạp lại cả bộ: 0 dòng mới, báo trùng', array( $lo2['ket_qua'][0]['them'], $lo2['ket_qua'][0]['trung'], $lo2['ket_qua'][1]['them'], $lo2['ket_qua'][1]['trung'] ), array( 0, 1, 0, 1 ) );
+
+// ------------------- gộp đợt lẻ theo ngày về đợt tháng
+// Dựng lại hình dạng bản cũ: ba đợt "Payoo 23/09/2026" y nhau + một đợt VNPay lẻ.
+$le = array();
+for ( $i = 0; $i < 3; $i++ ) {
+	$id = KHTC_DoiSoat::tao_dot( array( 'ten' => 'Payoo 23/09/2026', 'kenh' => 'payoo', 'tu' => '2026-09-23', 'den' => '2026-09-23', 'ngan_hang_id' => $nh ) );
+	$wpdb->insert( KHTC_DB::bang( 'ds_dong' ), array( 'dot_id' => $id, 'ngay' => '2026-09-23', 'ma_gd' => 'PAYLE1', 'so_tien' => 100000, 'phi' => 0, 'dien_giai' => 'x', 'ma_cua_hang' => 'PAYA' ) );
+	$wpdb->insert( KHTC_DB::bang( 'ds_dong' ), array( 'dot_id' => $id, 'ngay' => '2026-09-23', 'ma_gd' => 'PAYLE2', 'so_tien' => 50000, 'phi' => 0, 'dien_giai' => 'x', 'ma_cua_hang' => 'PAYA' ) );
+	$le[] = $id;
+}
+$vn_le = KHTC_DoiSoat::tao_dot( array( 'ten' => 'VNPay 23/09/2026', 'kenh' => 'vnpay', 'tu' => '2026-09-23', 'den' => '2026-09-23', 'ngan_hang_id' => $nh ) );
+$wpdb->insert( KHTC_DB::bang( 'ds_dong' ), array( 'dot_id' => $vn_le, 'ngay' => '2026-09-23', 'ma_gd' => 'VNLE1', 'so_tien' => 70000, 'phi' => 0, 'dien_giai' => 'x', 'ma_cua_hang' => 'VNPA' ) );
+$tien_truoc = (int) $wpdb->get_var( 'SELECT COALESCE(SUM(so_tien),0) FROM ' . KHTC_DB::bang( 'ds_dong' ) . ' d JOIN ' . KHTC_DB::bang( 'doi_soat' ) . " o ON o.id=d.dot_id WHERE o.cty='kh_cu'" );
+$so_dot_truoc = count( KHTC_DoiSoat::ds_dot( 'kh_cu' ) );
+$gop = KHTC_DoiSoat::gop_ve_thang( 'kh_cu' );
+kiem( 'gộp: bỏ 4 dòng trùng của hai đợt đôi', $gop['trung'], 4 );
+kiem( 'gộp: xoá hết đợt lẻ rỗng (4 đợt 23/09 + các đợt thử tháng 8)', $gop['xoa'] >= 4, true );
+$con_le = 0; foreach ( KHTC_DoiSoat::ds_dot( 'kh_cu' ) as $d ) { if ( 'khac' !== $d->kenh && ! preg_match( '/ KH\d+ tháng \d+\/\d{4}$/u', $d->ten ) ) { $con_le++; } }
+kiem( 'gộp: mọi đợt còn lại đều là đợt tháng', $con_le, 0 );
+kiem( 'gộp: có đợt tháng Payoo và VNPay', in_array( 'Payoo KH989 tháng 9/2026', $gop['dich'], true ) && in_array( 'VNPay KH989 tháng 9/2026', $gop['dich'], true ), true );
+kiem( 'không còn đợt lẻ theo ngày', (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . KHTC_DB::bang( 'doi_soat' ) . " WHERE ten LIKE '%23/09/2026'" ), 0 );
+$tien_sau = (int) $wpdb->get_var( 'SELECT COALESCE(SUM(so_tien),0) FROM ' . KHTC_DB::bang( 'ds_dong' ) . ' d JOIN ' . KHTC_DB::bang( 'doi_soat' ) . " o ON o.id=d.dot_id WHERE o.cty='kh_cu'" );
+kiem( 'tiền sau gộp = tiền trước trừ đúng phần trùng (2 đợt đôi × 150k)', $tien_sau, $tien_truoc - 300000 );
+$dt9 = null; foreach ( KHTC_DoiSoat::ds_dot( 'kh_cu' ) as $d ) { if ( 'Payoo KH989 tháng 9/2026' === $d->ten ) { $dt9 = $d; } }
+kiem( 'đợt tháng 9 Payoo có đủ dòng: 2 cũ + 2 dồn', (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . KHTC_DB::bang( 'ds_dong' ) . ' WHERE dot_id=%d', $dt9->id ) ), 4 );
+kiem( 'gộp lần hai: không có gì để làm', KHTC_DoiSoat::gop_ve_thang( 'kh_cu' ), array( 'don' => 0, 'trung' => 0, 'xoa' => 0, 'dich' => array() ) );
+$_POST = array( 'khtc_gop_thang' => 1 ); $_GET = array(); $_REQUEST = array();
+ob_start(); KHTC_Trang::doi_soat(); $h = ob_get_clean(); $_POST = array();
+kiem( 'màn hình có nút gộp và báo kết quả', false !== strpos( $h, 'Đã gộp về đợt tháng' ) && false !== strpos( $h, 'name="khtc_gop_thang"' ), true );
+
+// ------------------- sao kê nạp nhầm TÀI KHOẢN: vẫn chặn, và nói đang ở tài khoản nào
+$nh2 = KHTC_NganHang::them( array( 'ten' => 'BIDV 8660077020', 'so_tk' => '8660077020', 'so_du_dau' => 0, 'ngay_dau' => '2026-08-01' ) );
+$tt_truoc = (int) $wpdb->get_var( 'SELECT COALESCE(SUM(so_tien),0) FROM ' . KHTC_DB::bang( 'giao_dich' ) );
+$_POST = array( 'tho' => $qr, '_wpnonce' => 'test', 'khtc_nap_sao_ke' => 1, 'nh' => $nh2 );
+$h = man(); $_POST = array();
+kiem( 'sao kê cũ nạp vào tài khoản khác: không thêm đồng nào', (int) $wpdb->get_var( 'SELECT COALESCE(SUM(so_tien),0) FROM ' . KHTC_DB::bang( 'giao_dich' ) ), $tt_truoc );
+kiem( 'nói thẳng file đã nạp rồi', false !== strpos( $h, 'File này đã nạp rồi' ), true );
+kiem( 'và chỉ tài khoản đang giữ', false !== strpos( $h, 'ở tài khoản “Vietcombank' ) || false !== strpos( $h, 'ở tài khoản “' ), true );
+kiem( 'tài khoản mới vẫn trống', (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . KHTC_DB::bang( 'giao_dich' ) . ' WHERE ngan_hang_id=%d', $nh2 ) ), 0 );
+// pháp nhân khác thì KHÔNG chặn (sổ tách bạch)
+KHTC_Cty::chon( 'kh_moi' );
+$nh_moi = KHTC_NganHang::them( array( 'ten' => 'MB bên kia', 'so_tk' => '02865168', 'so_du_dau' => 0, 'ngay_dau' => '2026-08-01' ) );
+$r_moi = KHTC_GiaoDich::dan_hang_loat( $nh_moi, "05/08/2026\tQR\t100.000\tthu\tFT1\tQRA\n" );
+kiem( 'cùng mã ở pháp nhân khác vẫn vào (sổ tách bạch)', $r_moi['them'], 1 );
+KHTC_Cty::chon( 'kh_cu' );
+
 // ------------------- đợt đã vào hoá đơn thì không xoá được
-$kq_xoa = KHTC_DoiSoat::xoa_dot( $dots[0] );
+$dot_co_hd = (int) $wpdb->get_var( 'SELECT dot_id FROM ' . KHTC_DB::bang( 'ds_dong' ) . ' WHERE hd_ra_id > 0 LIMIT 1' );
+kiem( 'dòng đã vào hoá đơn vẫn giữ liên kết sau khi gộp', $dot_co_hd > 0, true );
+$kq_xoa = KHTC_DoiSoat::xoa_dot( $dot_co_hd );
 kiem( 'đợt có dòng trong hoá đơn: chặn xoá', is_wp_error( $kq_xoa ), true );
-kiem( 'và đợt vẫn còn', KHTC_DoiSoat::mot_dot( $dots[0] ) !== null, true );
+kiem( 'và đợt vẫn còn', KHTC_DoiSoat::mot_dot( $dot_co_hd ) !== null, true );
 
 printf( "%d kiểm tra đạt, %d lỗi\n", $dat, count( $hong ) );
 foreach ( $hong as $x ) { echo "  ✗ $x\n"; }

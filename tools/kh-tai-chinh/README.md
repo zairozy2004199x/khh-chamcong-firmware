@@ -159,6 +159,22 @@ SST trải qua CONTINUE đi từng byte. Đối chiếu với xlrd trên file đ
 2.471 dòng × 26 cột: không lệch ô nào. Không đọc BIFF5 (Excel 95) và file
 HTML/CSV đổi đuôi .xls — báo rõ thay vì đoán.
 
+### Nạp một lượt cả bộ file trong ngày
+
+Ô Nạp tệp ở Dán thô nhận nhiều tệp. Chọn cả 12–14 tệp của một sáng (6 sao kê
+QR, 2 MoMo, 2 VNPay, 2 Payoo, đơn mini app — hai pháp nhân lẫn nhau), máy
+tự nhận từng tệp và tự chia (`KHTC_NapLo`): sao kê QR về tài khoản có số
+trong cột "Tài khoản nhận" (tìm ở cả hai bên); tệp cổng về đợt tháng của bên
+có mã cửa hàng đó (cộng tiền khớp danh mục mỗi bên, chọn bên nhiều hơn, nói
+ra nếu khớp cả hai); đơn mini app lưu cho cả hai vì không mang tiền. Không
+quyết được (tài khoản chưa khai, mã không có bên nào, tệp không nhận ra) thì
+bỏ tệp đó và nói lý do, không đoán. Kết quả in một bảng mỗi tệp một dòng và
+nút sang Sinh hoá đơn cho từng bên với đúng kỳ và nguồn vừa nạp. Nạp lại cả
+bộ hôm qua: 0 dòng mới. Bộ 13 tệp thật ngày 23/09/2026 chạy 0,2 giây.
+
+Gộp đợt về tháng: nút ở Cổng thanh toán dồn mọi đợt lẻ theo ngày (từ bản
+cũ) về đợt tháng của kênh, bỏ trùng mã, xoá đợt rỗng, giữ liên kết hoá đơn.
+
 ### Hoán đổi pháp nhân (sửa bản dữ liệu 1.2–1.3)
 
 Bản dữ liệu kèm 1.2–1.3 gán ngược hai công ty: sổ KH989 (11521268 MB,

@@ -72,6 +72,10 @@ class KHTC_UI {
 	public static function nhan_doi_cty() {
 		if ( isset( $_POST['khtc_cty'] ) && check_admin_referer( 'khtc_cty' ) ) {
 			KHTC_Cty::chon( sanitize_text_field( wp_unslash( $_POST['khtc_cty'] ) ) );
+		} elseif ( isset( $_GET['khtc_cty'] ) ) {
+			// Đường link "Sinh hoá đơn KH Cũ" sau nạp lô mang sẵn pháp nhân. Chỉ là
+			// chọn bên nào để XEM, không ghi gì, nên không cần nonce.
+			KHTC_Cty::chon( sanitize_text_field( wp_unslash( $_GET['khtc_cty'] ) ) );
 		}
 	}
 }

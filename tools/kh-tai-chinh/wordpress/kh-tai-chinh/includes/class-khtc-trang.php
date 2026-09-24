@@ -426,6 +426,16 @@ class KHTC_Trang {
 			$bao_ok = 'Đã xoá toàn bộ dòng cổng của đợt này. Nạp lại bảng mới.';
 		}
 
+		if ( isset( $_POST['khtc_gop_thang'] ) && check_admin_referer( 'khtc_ds' ) ) {
+			$g = KHTC_DoiSoat::gop_ve_thang();
+			$bao_ok = sprintf(
+				'Đã gộp về đợt tháng: dồn %s dòng, bỏ %s dòng trùng mã, xoá %s đợt rỗng.%s',
+				number_format( $g['don'], 0, ',', '.' ), number_format( $g['trung'], 0, ',', '.' ), number_format( $g['xoa'], 0, ',', '.' ),
+				$g['dich'] ? ' Đợt tháng: ' . implode( ', ', $g['dich'] ) . '.' : ' Không có gì để gộp.'
+			);
+			$mo = 0;
+		}
+
 		if ( isset( $_POST['khtc_xoa_dot'] ) && check_admin_referer( 'khtc_ds' ) ) {
 			$kq_xoa = KHTC_DoiSoat::xoa_dot( (int) $_POST['khtc_xoa_dot'] );
 			if ( is_wp_error( $kq_xoa ) ) {
@@ -473,6 +483,10 @@ class KHTC_Trang {
 
 		$ds = KHTC_DoiSoat::ds_dot();
 		echo '<div class="khtc-panel"><h2>Các đợt đã tạo</h2>';
+		echo '<form method="post" class="khtc-loc" onsubmit="return confirm(\'Dồn mọi đợt lẻ về đợt tháng của từng kênh (Payoo KH989 tháng 9/2026…)? Dòng trùng mã bỏ, đợt rỗng xoá. Không mất tiền, chỉ đổi chỗ.\')">';
+		wp_nonce_field( 'khtc_ds' );
+		echo '<button type="submit" name="khtc_gop_thang" value="1" class="button">Gộp các đợt về đợt tháng</button>';
+		echo '<span class="khtc-sub">Mỗi kênh mỗi tháng một đợt. Đợt lẻ theo ngày từ bản cũ dồn hết về đây; nạp mới đã tự vào đợt tháng.</span></form>';
 		if ( ! $ds ) {
 			echo '<div class="khtc-trong">Chưa có đợt nào.</div>';
 		} else {
@@ -1214,7 +1228,24 @@ class KHTC_Trang {
 		// Nạp tệp: đọc MỌI sheet, sheet nào có dạng bảng của cổng thì mới tính.
 		// File tổng hợp của kế toán hay có 5–9 sheet, trong đó chỉ vài sheet là
 		// sao kê thật — lấy "sheet đầu" là lấy nhầm bảng hoá đơn.
-		if ( KHTC_Tep::co_tep( 'tep_tho' ) && check_admin_referer( 'khtc_tho' ) ) {
+		$lo = null;   // kết quả nạp một lượt nhiều tệp
+		$ds_tep = KHTC_Tep::ds_tep( 'tep_tho' );
+		if ( count( $ds_tep ) > 1 && check_admin_referer( 'khtc_tho' ) ) {
+			// Nhiều tệp → nạp một lượt: máy tự nhận từng tệp, tự chia pháp nhân
+			// theo tài khoản nhận / mã cửa hàng. Không xem trước từng tệp được vì
+			// tệp không giữ lại giữa hai lần bấm; bù lại mọi chặn trùng vẫn còn.
+			$danh_sach = array();
+			foreach ( $ds_tep as $f ) {
+				$ten = sanitize_file_name( basename( (string) $f['name'] ) );
+				if ( $f['error'] || empty( $f['tmp_name'] ) || ! is_uploaded_file( $f['tmp_name'] ) ) {
+					$danh_sach[] = array( 'ten' => $ten, 'trang' => array(), 'loi' => $f['error'] ? KHTC_Tep::loi_upload( (int) $f['error'] ) : 'không lên được' );
+					continue;
+				}
+				$m = KHTC_Tep::doc_moi_trang( $f['tmp_name'], (string) $f['name'] );
+				$danh_sach[] = is_wp_error( $m ) ? array( 'ten' => $ten, 'trang' => array(), 'loi' => $m->get_error_message() ) : $m;
+			}
+			$lo = KHTC_NapLo::nap( $danh_sach );
+		} elseif ( KHTC_Tep::co_tep( 'tep_tho' ) && check_admin_referer( 'khtc_tho' ) ) {
 			$moi = KHTC_Tep::lay_moi_trang( 'tep_tho' );
 			if ( is_wp_error( $moi ) ) {
 				$bao_loi = $moi->get_error_message();
@@ -1259,12 +1290,23 @@ class KHTC_Trang {
 				$bao_loi = 'Chưa chọn tài khoản ngân hàng để nạp vào.';
 			} else {
 				$r = KHTC_GiaoDich::dan_hang_loat( $nh, KHTC_DanTho::ra_sao_ke( $kq['rows'] ) );
-				$bao_ok = sprintf(
-					'Đã nạp %s dòng vào sao kê.%s%s',
-					number_format( $r['them'], 0, ',', '.' ),
-					$r['trung'] ? ' Bỏ qua ' . number_format( $r['trung'], 0, ',', '.' ) . ' dòng đã có sẵn.' : '',
-					$r['loi'] ? ' ' . count( $r['loi'] ) . ' dòng lỗi.' : ''
-				);
+				$o_tk = array();
+				foreach ( $r['trung_tk'] ?? array() as $id_tk => $n ) { $t = KHTC_NganHang::mot( $id_tk ); $o_tk[] = ( $t ? '“' . $t->ten . '”' : '#' . $id_tk ) . ' (' . number_format( $n, 0, ',', '.' ) . ' dòng)'; }
+				if ( 0 === $r['them'] && $r['trung'] > 0 ) {
+					$bao_loi = sprintf(
+						'File này đã nạp rồi: toàn bộ %s dòng đang có trong sổ%s. Không nạp thêm.',
+						number_format( $r['trung'], 0, ',', '.' ),
+						$o_tk ? ' — ở tài khoản ' . implode( ', ', $o_tk ) . ', không phải tài khoản vừa chọn' : ''
+					);
+				} else {
+					$bao_ok = sprintf(
+						'Đã nạp %s dòng vào sao kê.%s%s%s',
+						number_format( $r['them'], 0, ',', '.' ),
+						$r['trung'] ? ' Bỏ qua ' . number_format( $r['trung'], 0, ',', '.' ) . ' dòng đã có sẵn.' : '',
+						$o_tk ? ' Dòng trùng đang ở tài khoản ' . implode( ', ', $o_tk ) . '.' : '',
+						$r['loi'] ? ' ' . count( $r['loi'] ) . ' dòng lỗi.' : ''
+					);
+				}
 				// Nạp xong thì chỉ thẳng sang bước tiếp, mang sẵn kỳ và nguồn.
 				// Dán không tự sinh hoá đơn — cấp số hoá đơn là việc phải có
 				// người bấm — nhưng bắt người ta tự mò lại kỳ thì cũng thừa.
@@ -1384,6 +1426,36 @@ class KHTC_Trang {
 		if ( $bao_loi ) { printf( '<p class="khtc-canh-bao">%s</p>', esc_html( $bao_loi ) ); }
 		if ( $bao_ok )  { printf( '<div class="notice notice-success"><p>%s</p></div>', esc_html( $bao_ok ) ); }
 		if ( $tu_tep )  { printf( '<p class="khtc-sub khtc-tu-tep">%s Kiểm bảng xem trước rồi bấm nạp.</p>', esc_html( $tu_tep ) ); }
+		if ( $lo ) {
+			$them_tong = 0; $bo = 0;
+			foreach ( $lo['ket_qua'] as $x ) { $them_tong += $x['them']; if ( $x['bo'] ) { $bo++; } }
+			printf( '<div class="khtc-panel"><h2>Nạp một lượt %d tệp — thêm %s dòng%s</h2>', count( $lo['ket_qua'] ), number_format( $them_tong, 0, ',', '.' ), $bo ? ', <strong>' . $bo . ' tệp bị bỏ</strong> (xem cột ghi chú)' : '' );
+			echo '<table><thead><tr><th>Tệp</th><th>Nhận ra</th><th>Pháp nhân</th><th class="so">Thêm</th><th class="so">Trùng (bỏ)</th><th class="so">Mã lạ</th><th>Ghi chú</th></tr></thead><tbody>';
+			foreach ( $lo['ket_qua'] as $x ) {
+				printf(
+					'<tr%s><td>%s</td><td>%s</td><td>%s</td><td class="so">%s</td><td class="so">%s</td><td class="so">%s</td><td>%s</td></tr>',
+					$x['bo'] ? ' class="khtc-mo"' : '',
+					esc_html( mb_substr( $x['ten'], 0, 48 ) ),
+					esc_html( $x['dang'] ?: '—' ),
+					esc_html( 'cả hai' === $x['cty'] ? 'cả hai' : ( $x['cty'] ? KHTC_Cty::ten( $x['cty'] ) : '—' ) ),
+					$x['bo'] ? '—' : number_format( $x['them'], 0, ',', '.' ),
+					$x['trung'] ? number_format( $x['trung'], 0, ',', '.' ) : '—',
+					$x['la'] ? '<span class="khtc-canh-bao-chu">' . esc_html( KHTC_UI::tien( $x['la'] ) ) . '</span>' : '—',
+					esc_html( $x['ghi_chu'] )
+				);
+			}
+			echo '</tbody></table>';
+			foreach ( $lo['cty_da_nap'] as $c => $t ) {
+				printf(
+					'<p><a class="button button-primary" href="%s">Sinh hoá đơn %s (%s → %s)</a></p>',
+					esc_url( self::url( 'sinh-hoa-don', array( 'tu' => $t['tu'], 'den' => $t['den'], 'tach' => 'ngay', 'nh' => $t['nh'], 'dot' => $t['dot'], 'khtc_cty' => $c ) ) ),
+					esc_html( KHTC_Cty::ten( $c ) ),
+					esc_html( KHTC_UI::ngay( $t['tu'] ) ),
+					esc_html( KHTC_UI::ngay( $t['den'] ) )
+				);
+			}
+			echo '<p class="khtc-sub">Nạp lại cả bộ này ngày mai vẫn an toàn: dòng đã có tự bỏ, không nhân đôi. Tệp bị bỏ thì sửa theo ghi chú rồi nạp riêng tệp đó.</p></div>';
+		}
 		if ( $chon ) {
 			printf(
 				'<div class="khtc-panel"><h2>Tệp %s có %d sheet là bảng của cổng — chọn sheet muốn nạp</h2><p class="khtc-sub">Mỗi lần nạp một sheet. Nạp xong quay lại nạp sheet kế, cùng tệp.</p><table class="khtc-bang"><thead><tr><th>Sheet</th><th>Dạng</th><th class="khtc-so">Dòng</th><th></th></tr></thead><tbody>',
@@ -1415,7 +1487,8 @@ class KHTC_Trang {
 		$ten = array();
 		foreach ( KHTC_DanTho::dinh_dang() as $dd ) { $ten[] = '<strong>' . esc_html( $dd['ten'] ) . '</strong>'; }
 		echo implode( ' · ', $ten ) . '.</p>';
-		KHTC_Tep::o_nap( 'tho', 'Dán vào đây…', 8, $tho, false );
+		KHTC_Tep::o_nap( 'tho', 'Dán vào đây…', 8, $tho, false, true );
+		echo '<p class="khtc-sub"><strong>Chọn nhiều tệp một lượt</strong> (cả bộ file trong ngày, hai pháp nhân lẫn nhau cũng được): máy tự nhận từng tệp, sao kê QR về đúng tài khoản theo số “Tài khoản nhận”, tệp cổng về đợt tháng của bên có mã cửa hàng đó, đơn mini app vào bảng tra. Không quyết được tệp nào thì bỏ tệp đó và nói lý do.</p>';
 		echo '<p><button class="button button-primary">Nhận dạng và xem trước</button></p>';
 		echo '</div>';
 

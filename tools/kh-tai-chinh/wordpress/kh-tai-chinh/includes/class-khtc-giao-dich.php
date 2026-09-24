@@ -141,15 +141,22 @@ class KHTC_GiaoDich {
 		$khong_ma = 0;
 		$loi   = array();
 
-		// Mã đã có sẵn trong tài khoản này. Lấy một lần, không hỏi lại từng dòng.
-		$da_co = array_flip(
-			(array) $wpdb->get_col(
-				$wpdb->prepare(
-					'SELECT ma_gd FROM ' . KHTC_DB::bang( 'giao_dich' ) . " WHERE ngan_hang_id = %d AND ma_gd <> ''",
-					(int) $ngan_hang_id
-				)
+		// Mã đã có sẵn trong CẢ PHÁP NHÂN (mọi tài khoản), không chỉ tài khoản
+		// này: nạp nhầm sao kê của tài khoản A vào tài khoản B mà chỉ soi B thì
+		// lọt hết, và tiền xuất hiện hai lần ở hai tài khoản. Mã tham chiếu ngân
+		// hàng là duy nhất, nên phạm vi pháp nhân là đúng. Nhớ luôn mã đó đang
+		// ở tài khoản nào để nói cho người nạp.
+		$nh_nay = KHTC_NganHang::mot( $ngan_hang_id );
+		$da_co  = array();
+		$rows   = $wpdb->get_results(
+			$wpdb->prepare(
+				'SELECT g.ma_gd, g.ngan_hang_id FROM ' . KHTC_DB::bang( 'giao_dich' ) . ' g JOIN ' . KHTC_DB::bang( 'ngan_hang' ) . " n ON n.id = g.ngan_hang_id
+				 WHERE n.cty = %s AND g.ma_gd <> ''",
+				$nh_nay ? $nh_nay->cty : KHTC_Cty::dang_chon()
 			)
 		);
+		foreach ( $rows as $r ) { $da_co[ $r->ma_gd ] = (int) $r->ngan_hang_id; }
+		$trung_tk = array();   // tài khoản khác đang giữ mã trùng → số dòng
 		// Một dòng nhật ký cho cả lô, không phải một dòng cho mỗi giao dịch.
 		KHTC_NhatKy::mo_lo();
 		foreach ( $dong as $i => $d ) {
@@ -170,11 +177,12 @@ class KHTC_GiaoDich {
 				$khong_ma++;
 			} elseif ( isset( $da_co[ $ma ] ) ) {
 				$trung++;
+				if ( $da_co[ $ma ] !== (int) $ngan_hang_id ) { $trung_tk[ $da_co[ $ma ] ] = ( $trung_tk[ $da_co[ $ma ] ] ?? 0 ) + 1; }
 				continue;
 			} else {
 				// Đánh dấu ngay, để hai dòng trùng mã NGAY TRONG một lần dán
 				// cũng chỉ vào một dòng.
-				$da_co[ $ma ] = true;
+				$da_co[ $ma ] = (int) $ngan_hang_id;
 			}
 
 			$kq = self::them(
@@ -210,7 +218,7 @@ class KHTC_GiaoDich {
 				$loi ? ' (' . count( $loi ) . ' dòng lỗi)' : ''
 			)
 		);
-		return array( 'them' => $them, 'trung' => $trung, 'khong_ma' => $khong_ma, 'loi' => $loi );
+		return array( 'them' => $them, 'trung' => $trung, 'trung_tk' => $trung_tk, 'khong_ma' => $khong_ma, 'loi' => $loi );
 	}
 
 	/** Lọc + phân trang. Trả về [rows, tong_dong, tong_thu, tong_chi]. */

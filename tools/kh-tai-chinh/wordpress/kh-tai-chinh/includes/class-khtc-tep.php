@@ -184,9 +184,28 @@ class KHTC_Tep {
 	/** Ghi chú của lần đọc tệp vừa rồi, theo tên ô — o_nap() in lại ngay trên ô. */
 	public static $ghi_chu = array();
 
+	/**
+	 * Danh sách tệp ở một ô (ô một tệp hay ô nhiều tệp đều về cùng dạng).
+	 * @return array [ ['name','tmp_name','error'] ] — chỉ những tệp có tên.
+	 */
+	public static function ds_tep( $o_tep ) {
+		if ( ! isset( $_FILES[ $o_tep ] ) || ! is_array( $_FILES[ $o_tep ] ) ) { return array(); }
+		$f = $_FILES[ $o_tep ];
+		$ra = array();
+		if ( is_array( $f['name'] ) ) {
+			foreach ( $f['name'] as $i => $n ) {
+				if ( '' === (string) $n ) { continue; }
+				$ra[] = array( 'name' => $n, 'tmp_name' => $f['tmp_name'][ $i ] ?? '', 'error' => (int) ( $f['error'][ $i ] ?? 0 ) );
+			}
+		} elseif ( '' !== (string) ( $f['name'] ?? '' ) ) {
+			$ra[] = array( 'name' => $f['name'], 'tmp_name' => $f['tmp_name'] ?? '', 'error' => (int) ( $f['error'] ?? 0 ) );
+		}
+		return $ra;
+	}
+
 	/** Form có gửi tệp ở ô này không (đã chọn tệp, kể cả khi lên lỗi). */
 	public static function co_tep( $o_tep ) {
-		return isset( $_FILES[ $o_tep ] ) && is_array( $_FILES[ $o_tep ] ) && '' !== (string) ( $_FILES[ $o_tep ]['name'] ?? '' );
+		return count( self::ds_tep( $o_tep ) ) > 0;
 	}
 
 	/**
@@ -196,10 +215,11 @@ class KHTC_Tep {
 	 * @return array{ten_tep:string, trang:array}|WP_Error  trang = [ ['ten','van_ban','so_dong'] ].
 	 */
 	public static function lay_moi_trang( $o_tep ) {
-		if ( ! self::co_tep( $o_tep ) ) {
+		$ds = self::ds_tep( $o_tep );
+		if ( ! $ds ) {
 			return new WP_Error( 'tep', 'Chưa chọn tệp.' );
 		}
-		$f = $_FILES[ $o_tep ];
+		$f = $ds[0];
 		if ( ! empty( $f['error'] ) ) {
 			return new WP_Error( 'tep', self::loi_upload( (int) $f['error'] ) );
 		}
@@ -664,13 +684,16 @@ class KHTC_Tep {
 	 * @param string $gia_tri    Nội dung có sẵn trong textarea.
 	 * @param bool   $chon_sheet Có in ô chọn sheet không.
 	 */
-	public static function o_nap( $ten, $placeholder, $rows = 7, $gia_tri = '', $chon_sheet = true ) {
+	public static function o_nap( $ten, $placeholder, $rows = 7, $gia_tri = '', $chon_sheet = true, $nhieu = false ) {
 		$id = 'khtc-tep-' . sanitize_html_class( $ten );
 		echo '<div class="khtc-nap-tep">';
 		printf(
-			'<label class="khtc-nap-tep-o"><span class="khtc-nap-tep-nhan">Nạp tệp</span> <input type="file" id="%s" name="tep_%s" accept=".xlsx,.xlsm,.xls,.csv,.tsv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv,text/plain"></label>',
+			'<label class="khtc-nap-tep-o"><span class="khtc-nap-tep-nhan">%s</span> <input type="file" id="%s" name="tep_%s%s"%s accept=".xlsx,.xlsm,.xls,.csv,.tsv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv,text/plain"></label>',
+			$nhieu ? 'Nạp tệp (chọn được nhiều)' : 'Nạp tệp',
 			esc_attr( $id ),
-			esc_attr( $ten )
+			esc_attr( $ten ),
+			$nhieu ? '[]' : '',
+			$nhieu ? ' multiple' : ''
 		);
 		if ( $chon_sheet ) {
 			printf(

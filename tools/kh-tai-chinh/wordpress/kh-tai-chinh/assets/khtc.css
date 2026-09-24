@@ -421,3 +421,4 @@ body.khtc-web form { margin: 0; }
 .khtc .khtc-them-ma input[type="text"], .khtc .khtc-them-ma select { padding: 3px 6px; min-height: 30px; font-size: 13px; }
 .khtc .khtc-tick-nho { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; white-space: nowrap; }
 .khtc table.khtc-ma-la td { vertical-align: middle; }
+.khtc .khtc-canh-bao-chu { color: #b42318; font-weight: 600; }

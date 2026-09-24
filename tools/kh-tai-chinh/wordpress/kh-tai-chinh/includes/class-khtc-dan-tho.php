@@ -51,6 +51,7 @@ class KHTC_DanTho {
 					'ma_gd'       => array( 'mã tham chiếu' ),
 					'ma_cua_hang' => array( 'mã cửa hàng' ),
 					'dien_giai'   => array( 'nội dung tt', 'nội dung thanh toán', 'nội dung' ),
+					'tk'          => array( 'tài khoản nhận', 'số tài khoản', 'tài khoản' ),   // để nạp lô biết tệp của tài khoản nào
 				),
 				'cot'      => array( 'ngay' => 1, 'thu' => 2, 'chi' => 3, 'ma_gd' => 6, 'ma_cua_hang' => 9, 'dien_giai' => 12 ),
 			),
@@ -260,6 +261,7 @@ class KHTC_DanTho {
 				'ma_gd'       => (string) ( $o[ $c['ma_gd'] ] ?? '' ),
 				'ma_cua_hang' => (string) ( $o[ $c['ma_cua_hang'] ] ?? '' ),
 				'phi'         => isset( $c['phi'] ) ? KHTC_GiaoDich::doc_so( $o[ $c['phi'] ] ?? 0 ) : 0,
+				'tk'          => isset( $c['tk'] ) ? (string) ( $o[ $c['tk'] ] ?? '' ) : '',
 			);
 			$tong     += $hang['so_tien'];
 			$tong_phi += $hang['phi'];

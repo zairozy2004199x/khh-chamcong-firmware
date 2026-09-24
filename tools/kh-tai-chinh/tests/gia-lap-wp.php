@@ -347,6 +347,6 @@ define( 'KHTC_VERSION', $m[1] ?? '0' );
 define( 'KHTC_DIR', $goc );
 define( 'KHTC_URL', 'https://vi.du/wp-content/plugins/kh-tai-chinh/' );
 define( 'KHTC_CAP', 'edit_pages' );
-foreach ( array( 'db', 'cty', 'nguoi-dung', 'tep', 'xls', 'don-app', 'diem', 'sinh-hd', 'dan-tho', 'nhat-ky', 'khoa', 'ngan-hang', 'giao-dich', 'doi-soat', 'chi-phi', 'hoa-don-ra', 'hoa-don-vao', 'cong-no', 'phap-danh', 'ho-so', 'bao-cao', 'mau', 'sao-luu', 'ui', 'trang', 'web', 'admin' ) as $t ) {
+foreach ( array( 'db', 'cty', 'nguoi-dung', 'tep', 'xls', 'don-app', 'nap-lo', 'diem', 'sinh-hd', 'dan-tho', 'nhat-ky', 'khoa', 'ngan-hang', 'giao-dich', 'doi-soat', 'chi-phi', 'hoa-don-ra', 'hoa-don-vao', 'cong-no', 'phap-danh', 'ho-so', 'bao-cao', 'mau', 'sao-luu', 'ui', 'trang', 'web', 'admin' ) as $t ) {
 	require_once $goc . 'includes/class-khtc-' . $t . '.php';
 }

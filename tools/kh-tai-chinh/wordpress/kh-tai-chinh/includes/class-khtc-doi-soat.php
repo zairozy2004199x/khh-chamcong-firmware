@@ -173,6 +173,56 @@ class KHTC_DoiSoat {
 		}
 	}
 
+	/**
+	 * Gộp mọi đợt của pháp nhân về ĐỢT THÁNG của kênh — dọn các đợt lẻ theo ngày
+	 * ("Payoo 23/09/2026") tạo từ bản cũ. Dòng dồn về đợt tháng đúng với tháng
+	 * của nó; dòng trùng mã với dòng đã có ở đợt đích thì bỏ (đó chính là các
+	 * đợt nạp đôi); đợt rỗng sau khi dồn thì xoá. Dòng đã vào hoá đơn vẫn mang
+	 * hd_ra_id theo, không mất liên kết.
+	 *
+	 * @return array don => số dòng dồn, trung => số dòng bỏ, xoa => số đợt xoá, dich => [tên đợt tháng]
+	 */
+	public static function gop_ve_thang( $cty = null ) {
+		global $wpdb;
+		$cty  = $cty ?: KHTC_Cty::dang_chon();
+		$b    = KHTC_DB::bang( 'ds_dong' );
+		$don = 0; $trung = 0; $xoa = 0; $dich = array();
+		foreach ( self::ds_dot( $cty ) as $d ) {
+			if ( 'khac' === $d->kenh ) { continue; }   // đợt tự gom của người dùng, không đụng
+			$rows = $wpdb->get_results( $wpdb->prepare( "SELECT id, ngay, ma_gd FROM $b WHERE dot_id = %d", (int) $d->id ) );
+			foreach ( $rows as $r ) {
+				$thang = substr( (string) $r->ngay, 0, 7 );
+				$ten_thang = self::ten_dot_thang( $d->kenh, $thang, $cty );
+				if ( $ten_thang === $d->ten ) { continue; }   // đã ở đúng đợt tháng
+				$id_dich = self::dot_thang( $d->kenh, $thang, (int) $d->ngan_hang_id );
+				if ( is_wp_error( $id_dich ) || (int) $id_dich === (int) $d->id ) { continue; }
+				$dich[ $id_dich ] = $ten_thang;
+				if ( '' !== (string) $r->ma_gd ) {
+					$co = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $b WHERE dot_id = %d AND ma_gd = %s", (int) $id_dich, $r->ma_gd ) );
+					if ( $co ) {
+						// Trùng: nếu dòng này đã vào hoá đơn mà dòng ở đích chưa, chuyển liên kết sang dòng đích trước khi bỏ.
+						$hd = (int) $wpdb->get_var( $wpdb->prepare( "SELECT hd_ra_id FROM $b WHERE id = %d", (int) $r->id ) );
+						if ( $hd > 0 ) { $wpdb->query( $wpdb->prepare( "UPDATE $b SET hd_ra_id = %d WHERE dot_id = %d AND ma_gd = %s AND hd_ra_id = 0", $hd, (int) $id_dich, $r->ma_gd ) ); }
+						$wpdb->delete( $b, array( 'id' => (int) $r->id ), array( '%d' ) );
+						$trung++;
+						continue;
+					}
+				}
+				$wpdb->update( $b, array( 'dot_id' => (int) $id_dich ), array( 'id' => (int) $r->id ), array( '%d' ), array( '%d' ) );
+				$don++;
+			}
+			$con = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $b WHERE dot_id = %d", (int) $d->id ) );
+			if ( 0 === $con && ! isset( $dich[ (int) $d->id ] ) ) {
+				KHTC_NhatKy::ghi_xoa( 'doi_soat', (int) $d->id, 'Xoá đợt rỗng sau khi gộp về tháng: ' . $d->ten );
+				$wpdb->delete( KHTC_DB::bang( 'doi_soat' ), array( 'id' => (int) $d->id ), array( '%d' ) );
+				$xoa++;
+			}
+		}
+		foreach ( array_keys( $dich ) as $id ) { self::mo_rong_ky( $id ); self::chay( $id ); }
+		KHTC_NhatKy::ghi( 'sua', 'doi_soat', 0, sprintf( 'Gộp đợt về tháng: dồn %d dòng, bỏ %d trùng, xoá %d đợt rỗng', $don, $trung, $xoa ) );
+		return array( 'don' => $don, 'trung' => $trung, 'xoa' => $xoa, 'dich' => array_values( array_unique( $dich ) ) );
+	}
+
 	public static function xoa_dot( $id ) {
 		global $wpdb;
 		$dot = self::mot_dot( $id );

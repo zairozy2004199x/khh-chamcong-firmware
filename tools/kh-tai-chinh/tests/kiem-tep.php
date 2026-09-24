@@ -344,7 +344,7 @@ foreach ( $man as $ham => $o ) {
 	$html = dung( function () use ( $ham ) { KHTC_Trang::$ham(); } );
 	$_GET = array();
 	foreach ( $o as $ten ) {
-		co( "$ham có ô nạp tệp $ten", $html, 'name="' . $ten . '"' );
+		co( "$ham có ô nạp tệp $ten", $html, 'name="' . $ten );
 	}
 	co( "$ham form nhận tệp (multipart)", $html, 'enctype="multipart/form-data"' );
 	co( "$ham nhận .xlsx", $html, 'accept=".xlsx' );
