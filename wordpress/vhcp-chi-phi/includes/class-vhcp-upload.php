@@ -71,6 +71,11 @@ class VHCP_Upload {
 			'image/webp' => 'webp',
 			'image/heic' => 'heic',
 			'image/heif' => 'heif',
+			/* 24/09/2026 — anh Thắng: *"Cho upload cả file pdf nhé"*. Hoá đơn điện tử, phiếu thu
+			   của nhà cung cấp nay phần lớn là PDF; bắt chụp màn hình lại thành ảnh là bước thừa
+			   và mất chữ. Vẫn chỉ MỘT loại ngoài ảnh — PDF không chạy được trên máy chủ, còn
+			   docx/xlsx/zip thì đã có cửa hồ sơ dự án riêng (`upload_doc`). */
+			'application/pdf' => 'pdf',
 		);
 		$m = strtolower( trim( (string) $mime ) );
 		return isset( $map[ $m ] ) ? $map[ $m ] : '';
@@ -124,7 +129,14 @@ class VHCP_Upload {
 		if ( strlen( $bin ) > self::MAX_SIZE ) { return VHCP_Util::err( 'Ảnh quá lớn (tối đa 15MB)' ); }
 		$mime = isset( $data['type'] ) ? $data['type'] : 'image/jpeg';
 		$ext  = self::img_ext( $mime );
-		if ( $ext === '' ) { return VHCP_Util::err( 'Chỉ nhận ảnh (JPG/PNG/GIF/WEBP/HEIC)' ); }
+		if ( $ext === '' ) { return VHCP_Util::err( 'Chỉ nhận ảnh (JPG/PNG/GIF/WEBP/HEIC) hoặc PDF' ); }
+		/* 🔴 PDF: SOI 5 BYTE ĐẦU. `type` là do trình duyệt đoán từ ĐUÔI tên tệp — một tệp bất kỳ
+		   đổi đuôi .pdf là khai `application/pdf` và được ghi lên hosting dưới đuôi .pdf. Chữ ký
+		   `%PDF-` chặn được chuyện ấy mà không cần thư viện gì. Ảnh thì trình duyệt tự chối tệp
+		   hỏng khi vẽ, còn PDF mở ra bằng trình đọc ngoài nên phải chặn ở đây. */
+		if ( 'pdf' === $ext && '%PDF-' !== substr( $bin, 0, 5 ) ) {
+			return VHCP_Util::err( 'Tệp không phải PDF thật (thiếu chữ ký %PDF-)' );
+		}
 
 		$meta      = VHCP_Don::don_folder_meta( $ma_don );
 		$use_coso  = ( $coso !== null && trim( (string) $coso ) !== '' ) ? (string) $coso : $meta['coso'];

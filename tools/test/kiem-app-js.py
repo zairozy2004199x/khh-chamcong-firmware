@@ -734,8 +734,10 @@ la('🔴 giữ ảnh trong khung nhìn, không tràn ra ngoài màn',
 la('cuộn trang thì đóng ảnh lại', "addEventListener('scroll'" in _fn_bz)
 # Ảnh nào rê được: hai bảng có ảnh chứng từ + liên kết ảnh chuyển khoản.
 la('🔴 ảnh chứng từ trong bảng dòng chi rê được', src.count('data-bill="') >= 3, src.count('data-bill="'))
+# 24/09/2026: hai bảng gom về MỘT hàm `_chungTuHtml` (ảnh → <img data-bill> · PDF → 📄), nên thẻ <a>
+# chỉ còn một chỗ viết — đếm hàm ấy + hai chỗ gọi, không đếm nguyên văn hai lần nữa.
 la('⚠️ thẻ <a> giữ nguyên: bấm vẫn mở ảnh gốc (điện thoại không rê được)',
-   src.count('target="_blank" title="Rê chuột để phóng to') >= 2)
+   src.count('target="_blank" title="Rê chuột để phóng to') >= 1 and src.count('_chungTuHtml(l.anh,') >= 2)
 
 # ---------------------------------------------------- điền sẵn tên NV thanh toán = người nhập
 # Anh Thắng 14/09/2026: *"Lấy tên nhân viên nhập làm tên mặc định ban đầu nếu không sửa"*.

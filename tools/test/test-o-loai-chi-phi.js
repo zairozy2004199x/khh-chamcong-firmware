@@ -243,7 +243,10 @@ t('máy chủ mới là nơi gác, không phải giao diện',
    mà gãy vì BÀI KIỂM chứ không phải vì mã hỏng. Đã gãy đúng như thế khi thêm `data-bill`
    cho tính năng rê chuột phóng to (07/09/2026). Điều cần canh là: dòng có ảnh thì DỰNG THẺ
    ẢNH NHỎ từ chính `l.anh`, và cỡ vẫn là cỡ ảnh nhỏ trong bảng. */
-const _the_anh = /<img src="'\+esc\(l\.anh\)\+'"[^>]*height:28px/.test(HTML);
+/* 24/09/2026: thẻ ảnh nhỏ nay dựng trong hàm chung `_chungTuHtml(url, cao)` (ảnh → <img data-bill>, PDF → 📄);
+   `renderLines` gọi nó với cỡ 28. Canh ý cũ qua hai mảnh ấy. */
+const _ham_ct = (HTML.match(/  function _chungTuHtml\([\s\S]*?\n  \}/) || [''])[0];
+const _the_anh = /_chungTuHtml\(l\.anh, 28\)/.test(HTML) && /<img src="'\+u\+'" data-bill="'\+u\+'"[^>]*height:'\+\(cao\|\|28\)\+'px/.test(_ham_ct);
 t('hiện ảnh nhỏ để nhìn ra dòng nào đã có chứng từ', _the_anh);
 
 // ---------------------------------------------------------------- 7. ngày & tiền ở bảng dòng

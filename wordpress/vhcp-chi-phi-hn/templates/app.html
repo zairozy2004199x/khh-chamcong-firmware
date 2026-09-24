@@ -721,7 +721,7 @@
           <datalist id="dl_mada"></datalist>
           <div class="fld"><label>Hóa đơn / ảnh</label>
             <div style="display:flex;gap:6px"><button class="btn b-x" id="scImgBtn" onclick="attachScImg()" style="flex:1">📎 Đính ảnh</button></div>
-            <input id="sc_anh" type="hidden"><input id="scImgFile" type="file" accept="image/*" class="hide">
+            <input id="sc_anh" type="hidden"><input id="scImgFile" type="file" accept="image/*,.pdf,application/pdf" class="hide">
           </div>
           <div class="fld"><label>&nbsp;</label>
             <div style="display:flex;gap:6px">
@@ -1934,9 +1934,10 @@
          MISA cho đối tượng NCC), chỉ bỏ chỗ khai tay trong Cấu hình. -->
   </div>
 
-  <input type="file" id="imgFile" accept="image/*" style="display:none">
+  <!-- 24/09/2026 — anh Thắng: *"Cho upload cả file pdf nhé"*: chứng từ nhận ảnh HOẶC PDF. Máy chủ `VHCPHN_Upload::upload_image` soi chữ ký %PDF-. -->
+  <input type="file" id="imgFile" accept="image/*,.pdf,application/pdf" style="display:none">
   <input type="file" id="docFile" style="display:none">
-  <input type="file" id="hoaDonFile" accept="image/*" style="display:none">
+  <input type="file" id="hoaDonFile" accept="image/*,.pdf,application/pdf" style="display:none">
 
   <!-- HỘP THOẠI TẠO ĐƠN MỚI -->
   <div id="newDonModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.4);z-index:1800;align-items:center;justify-content:center">
@@ -2348,6 +2349,24 @@
         khi hàm này chạy.
 
      ⚠️ Lớp phủ dựng MỘT lần rồi dùng lại — dựng mỗi lần rê là rác chồng rác trong DOM. */
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * Ô CHỨNG TỪ CỦA MỘT DÒNG — ảnh thì thumbnail (rê chuột phóng to, bấm mở gốc); PDF thì huy hiệu
+   * 📄 PDF bấm mở tab mới. Anh Thắng 24/09/2026: *"Cho upload cả file pdf nhé"*.
+   * 🔴 PDF KHÔNG mang `data-bill`: lớp phủ phóng to vẽ bằng <img>, đưa URL .pdf vào là một ô
+   *    trống lơ lửng cạnh con trỏ. Hai bảng (dòng đơn · bảng dòng ở Quyết toán) dùng chung hàm này
+   *    — viết hai bản là sớm muộn một bên quên PDF.
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  function _laPdf(url){ return /\.pdf($|[?#])/i.test(String(url||'')); }
+  function _chungTuHtml(url, cao){
+    if(!url) return '';
+    var u=esc(url);
+    if(_laPdf(url)){
+      return '<a href="'+u+'" target="_blank" rel="noopener" title="Chứng từ PDF — bấm để mở" '
+        +'style="display:inline-flex;align-items:center;gap:4px;height:'+(cao||28)+'px;padding:0 8px;border:1px solid #fecaca;border-radius:6px;'
+        +'background:#fef2f2;color:#b91c1c;font-size:11px;font-weight:700;text-decoration:none;vertical-align:middle">📄 PDF</a>';
+    }
+    return '<a href="'+u+'" target="_blank" title="Rê chuột để phóng to · bấm để mở ảnh gốc"><img src="'+u+'" data-bill="'+u+'" style="height:'+(cao||28)+'px;border-radius:4px;vertical-align:middle" loading="lazy"></a>';
+  }
   function _billZoomInit(){
     var ov=null;
     function hop(){
@@ -5473,7 +5492,7 @@
           // chủ (set_line_anh) vốn đã cho đính khi Nháp — chỉ giao diện không bày ra.
           // Hiện ảnh nhỏ luôn: nhìn một cái biết dòng nào đã có chứng từ.
           '<td style="text-align:center;white-space:nowrap">'+(function(){
-             var xem=l.anh?'<a href="'+esc(l.anh)+'" target="_blank" title="Rê chuột để phóng to · bấm để mở ảnh gốc"><img src="'+esc(l.anh)+'" data-bill="'+esc(l.anh)+'" style="height:28px;border-radius:4px;vertical-align:middle" loading="lazy"></a>':'';
+             var xem=_chungTuHtml(l.anh, 28);   /* ảnh → thumbnail · PDF → 📄 (xem `_chungTuHtml`) */
              /* 🔴 ĐƠN ĐÃ CHỐT SỔ VẪN PHẢI BỔ SUNG ĐƯỢC HÓA ĐƠN — nhưng chỉ KẾ TOÁN.
                 Hóa đơn giấy về sau ngày chốt, hoặc hóa đơn sai phải thay, là chuyện thường;
                 khóa luôn cả ảnh là bộ chứng từ vĩnh viễn thiếu trong khi số tiền đã đúng.
@@ -11888,7 +11907,7 @@
         '<td class="money">'+money(l.thanhTien)+'</td>'+
         '<td class="money">'+(tm==null?('<span style="color:#8c8781">='+money(e)+'</span>'):('<b>'+money(e)+'</b>'))+'</td>'+
         '<td style="text-align:center;font-size:11px">'+loai+'</td>'+
-        '<td style="text-align:center">'+(l.anh?'<a href="'+esc(l.anh)+'" target="_blank" title="Rê chuột để phóng to · bấm để mở ảnh gốc"><img src="'+esc(l.anh)+'" data-bill="'+esc(l.anh)+'" style="height:34px;border-radius:4px;vertical-align:middle" loading="lazy"></a>':'—')+'</td></tr>';
+        '<td style="text-align:center">'+(l.anh?_chungTuHtml(l.anh, 34):'—')+'</td></tr>';
     }
     var COT='<thead><tr><th style="width:104px">Ngày</th><th>Nội dung</th><th style="text-align:center">ĐVT</th><th style="text-align:right">SL</th><th style="text-align:right">Đơn giá</th><th style="text-align:right">Thành tiền</th><th style="text-align:right">Thực chi</th><th style="text-align:center">Loại</th><th style="text-align:center">Ảnh</th></tr></thead>';
     // MỘT LOẠI CHI PHÍ = một khối: tiêu đề loại + danh sách + chi phí con của chính loại đó
