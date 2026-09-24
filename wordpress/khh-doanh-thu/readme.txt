@@ -102,6 +102,27 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.64.4 =
+* **Bóc tách vé → khách: khai theo TÊN VÉ, dùng cho mọi cửa hàng; quán nào khác thì tự set riêng.** Anh Thắng 24/09/2026:
+  *"vé đã có sẵn lấy theo và anh đã set vé đó là tính 2 người mà"*, *"khai linh tinh rồi quán có quán không"*, rồi *"để
+  nhỡ vé đó riêng thì cơ sở đó chủ động tự set"*. Bản 1.60–1.64.3 nút Lưu ghi vào đúng quán đang chọn, nên combo khai
+  2 ở Gò Vấp mà Bình Tân vẫn tạm tính 1 (23 khách thay vì 43). Nay: nút chính **Lưu cho tất cả cửa hàng** ghi bảng
+  chung; **Lưu riêng cho quán này** chỉ ghi những vé gõ **khác** số chung, số riêng đè số chung ở đúng quán ấy (màn ghi
+  "quán này set riêng (chung: N)"); **Bỏ set riêng, dùng số chung**. Lúc nâng cấp hệ **gộp một lần** các khai theo quán
+  cũ về bảng chung (vé chưa có ở bảng chung lấy từ quán), cho cả khách/vé lẫn sale phụ/vé.
+* **Tên vé tra lỏng.** *"Hiện đủ vé. Nhập 2 mà vẫn cứ báo sai"*: tên trong file FABi có hai dấu cách, bảng khai một dấu
+  cách -> tra không ra. Nay khớp đúng trước, không thì khớp lỏng (gộp dấu cách, bỏ hoa thường); ghi lại tên lệch dấu
+  cách đè đúng dòng đang có. Áp cho khách/vé, sale phụ/vé và cả phép tách tiền ở tab Nhập báo cáo.
+* **Sửa: cửa hàng trưởng Estella bấm Lưu báo cáo bị "Anh/chị không phụ trách cơ sở này".** Đường ghi gộp hai dấu cách
+  rồi so chặt với hồ sơ; đường đọc thì so tên nguyên văn nên vẫn mở được. Nay mọi cổng nhận tên quán (lưu báo cáo, gán
+  cơ sở cho tài khoản, bóc tách vé, nhóm món) đều tra về tên nguyên văn trong kho POS, và phép "được đụng quán này" so
+  lỏng theo dấu cách.
+* Hai bảng cấu hình (bóc tách vé, nhóm Sale vé) đổ thành **thẻ dọc trên điện thoại** — hết cắt cột "Khách mỗi vé",
+  "Sale phụ" (ảnh anh Thắng 24/09).
+* `kiem-ve-khach.php` viết lại theo luật mới: 59 phép (ca Gò Vấp 42, ca Bình Tân 43, set riêng 63 không lây quán khác,
+  bỏ riêng về 43, gộp một lần, tên hai dấu cách); `kiem-quy-trinh.php` +3 (Estella lưu được, quán khác vẫn 403);
+  `kiem-ve-khach-man.js` 29.
+
 = 1.64.3 =
 * **Tab "Cảnh báo" mới — việc còn treo chuyển sang đây.** Anh Thắng 24/09/2026: *"cho nó sang tab cảnh báo đi, đây
   tab báo cáo mà"* — 91 thẻ ngày chưa chốt chèn đầu tab Nhập là quá ồn cho văn phòng. Tab Cảnh báo gom **theo cơ sở**:

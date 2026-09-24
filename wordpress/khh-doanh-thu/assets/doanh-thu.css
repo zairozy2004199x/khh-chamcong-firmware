@@ -420,4 +420,20 @@ body.khh-dt-body{margin:0;background:#f2f1ee}
   .khh-dt .bang-the .o-ghi input{width:100%;min-height:44px;font-size:16px;
     padding:8px 10px;border-radius:7px;border:1px solid var(--line-2);
     background:var(--card);color:var(--ink)}
+
+  /* THẺ CẤU HÌNH (khối Bóc tách vé, khối nhóm Sale vé — 24/09/2026 anh Thắng gửi ảnh bảng bị cắt cột trên
+     điện thoại): tên một dòng, dưới là ba ô đều nhau: số đã bán · ô khách/ô tiền · ô phụ. Thứ tự theo DOM. */
+  .khh-dt .bang-the.the-cf tr{grid-template-columns:1fr 1fr 1fr}
+  .khh-dt .bang-the.the-cf .o-ten{order:0}
+  .khh-dt .bang-the.the-cf .o-tick{order:1;grid-column:1 / -1;font-size:14px;padding-bottom:4px}
+  .khh-dt .bang-the.the-cf .o-may{order:2;text-align:left}
+  .khh-dt .bang-the.the-cf .o-go{order:3}
+  .khh-dt .bang-the.the-cf .o-go input{width:100% !important}
+  .khh-dt .bang-the.the-cf .chi-ban{display:none}
+  .khh-dt .bang-the.the-cf td[colspan]{grid-column:1 / -1}
 }
+/* Chữ chỉ hiện trên thẻ điện thoại (nhãn cạnh ô tích, loại món dưới tên nhóm). */
+.khh-dt .chi-the{display:none}
+@media (max-width:560px){ .khh-dt .chi-the{display:inline} .khh-dt .bang-the.the-cf .o-ten .chi-the{display:block} }
+/* Link "Cách tách" trong ô số máy: chữ thường, không dùng phông số. */
+.khh-dt .bc-pos-o b a{font-family:inherit;font-weight:600}

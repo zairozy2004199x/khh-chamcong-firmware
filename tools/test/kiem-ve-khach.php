@@ -79,10 +79,12 @@ phep( 'so_pos: vẫn có so_ve như cũ', 25.0 === (float) $pos['so_ve'] );
 /* Ngày chỉ bán đồ uống, không có vé nào -> NULL (không phải 0). */
 ngay_ban( '2026-09-21', $CS, array( array( 'n' => 'Nước suối', 'g' => 'ĐỒ UỐNG', 'q' => 3, 'r' => 30000 ) ) );
 phep( '🔴 ngày không có vé nào -> khách máy NULL, không phải 0', null === khh_dt_khach_may( '2026-09-21', $CS )['khach'] );
-/* 🔴 Đúng ca Lotte Gò Vấp 23/09/2026 — KHAI RIÊNG CHO GÒ VẤP (anh Thắng: "mỗi cửa hàng 1 cấu hình"):
-   vé lẻ đã khai (1), hai combo chưa khai -> 12 + 2 + 10 + 4 = 28. */
+/* 🔴 Đúng ca Lotte Gò Vấp 23/09/2026: vé lẻ đã khai (1), hai combo chưa khai -> 12 + 2 + 10 + 4 = 28.
+   LUẬT TỪ 1.64.4 (anh Thắng 24/09): khai theo TÊN VÉ dùng cho mọi quán (bảng chung '*'); quán nào vé ấy khác thì
+   "cơ sở đó chủ động tự set" — số riêng đè số chung ở đúng quán ấy. */
 $GV = 'TuTu Train - Lotte Gò Vấp';
-khh_dt_ve_khach_dat( array( 'VÉ TUTU TRAIN: VÉ TRẺ EM' => 1, 'VÉ TUTU TRAIN: VÉ NGƯỜI LỚN' => 1 ), $GV );
+$BT = 'Tutu Train - Aeon Bình Tân';
+khh_dt_ve_khach_dat( array( 'VÉ TUTU TRAIN: VÉ TRẺ EM' => 1, 'VÉ TUTU TRAIN: VÉ NGƯỜI LỚN' => 1 ) );   // chung
 ngay_ban( '2026-09-23', $GV, array(
 	array( 'n' => 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + THẠCH',  'g' => 'VÉ COMBO.', 'q' => 10, 'r' => 800000 ),
 	array( 'n' => 'VÉ TUTU TRAIN: VÉ TRẺ EM',                      'g' => 'VÉ LẺ.',    'q' => 12, 'r' => 480000 ),
@@ -90,40 +92,71 @@ ngay_ban( '2026-09-23', $GV, array(
 	array( 'n' => 'VÉ TUTU TRAIN: VÉ NGƯỜI LỚN',                   'g' => 'VÉ LẺ.',    'q' => 2,  'r' => 100000 ),
 	array( 'n' => 'NƯỚC SUỐI DANASI',                              'g' => 'ĐÓNG SẴN',  'q' => 7,  'r' => 70000 ),
 ) );
+ngay_ban( '2026-09-24', $BT, array(
+	array( 'n' => 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + THẠCH', 'g' => 'VÉ COMBO.', 'q' => 20, 'r' => 1600000 ),
+	array( 'n' => 'VÉ TUTU TRAIN: VÉ TRẺ EM',                     'g' => 'VÉ LẺ.',    'q' => 3,  'r' => 120000 ),
+) );
 $k = khh_dt_khach_may( '2026-09-23', $GV );
 phep( '🔴 Gò Vấp: combo chưa khai tạm 1/vé -> 28, không phải 14', 28 === $k['khach'] && 14 === $k['tam'] );
-khh_dt_ve_khach_dat( array( 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + THẠCH' => 2, 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + BIM BIM' => 2 ), $GV );
+/* Khai chung (REST, cua_hang = '*') như nút "Lưu cho tất cả cửa hàng" bấm khi đang xem Gò Vấp. */
+$GLOBALS['VHCP_CO_QUYEN'] = true; $GLOBALS['VHCP_DANG_NHAP_WP'] = true;
+$r = khh_dt_rest_ve_khach_dat( new WP_REST_Request( array( 'cua_hang' => '*', 'xem_cua_hang' => $GV, 'bang' => wp_json_encode( array( 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + THẠCH' => 2, 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + BIM BIM' => 2 ) ) ) ) );
+phep( 'REST cua_hang="*" ghi bảng chung, trả về theo quán đang xem (xem_cua_hang)', ! is_wp_error( $r ) && $GV === $r['cua_hang'] && 2 === $r['bang_chung']['COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + THẠCH'] && array() === $r['bang_rieng'] );
 $k = khh_dt_khach_may( '2026-09-23', $GV );
 phep( 'khai combo = 2 -> 20 + 12 + 8 + 2 = 42, đủ', 42 === $k['khach'] && 0 === $k['tam'] && true === $k['du'] );
-/* 🔴 KHAI RIÊNG KHÔNG LẪN SANG QUÁN KHÁC: Tân Phú cùng bán "VÉ TUTU TRAIN: VÉ TRẺ EM" mà bảng của Tân Phú vẫn rỗng. */
-phep( '🔴 bảng của Tân Phú không thấy gì Gò Vấp khai', array() === khh_dt_ve_khach_bang( $CS ) );
-phep( 'bảng riêng của Gò Vấp có 4 vé', 4 === count( khh_dt_ve_khach_bang_rieng( $GV ) ) );
-/* Bảng CHUNG ('*', bản 1.59.0 lưu phẳng) làm mặc định cho quán chưa khai riêng, và bảng riêng đè lên. */
-update_option( 'khh_dt_ve_khach', array( 'Vé Online' => 0, 'VÉ TUTU TRAIN: VÉ TRẺ EM' => 1 ) );   // dạng phẳng cũ
+/* 🔴 KHAI CHUNG DÙNG CHO MỌI QUÁN: Bình Tân cùng bán combo THẠCH -> 20 × 2 + 3 = 43, không phải 23 (ảnh anh Thắng 24/09). */
+$k = khh_dt_khach_may( '2026-09-24', $BT );
+phep( '🔴 Bình Tân thấy ngay combo khai ở Gò Vấp: 43 khách, không tạm tính', 43 === $k['khach'] && 0 === $k['tam'] );
+phep( 'bảng của Tân Phú cũng thấy', 2 === khh_dt_ve_khach_bang( $CS )['COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + THẠCH'] );
+/* Quán tự set riêng: Bình Tân bảo combo THẠCH ở quán mình là 3 người (nút "Lưu riêng cho quán này" chỉ gửi ô khác chung). */
+$r = khh_dt_rest_ve_khach_dat( new WP_REST_Request( array( 'cua_hang' => $BT, 'xem_cua_hang' => $BT, 'bang' => wp_json_encode( array( 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + THẠCH' => 3, 'VÉ TUTU TRAIN: VÉ TRẺ EM' => '' ) ) ) ) );
+phep( '🔴 số riêng đè số chung Ở QUÁN ẤY: Bình Tân 20 × 3 + 3 = 63', 63 === khh_dt_khach_may( '2026-09-24', $BT )['khach'] && array( 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + THẠCH' => 3 ) === $r['bang_rieng'] && 3 === $r['bang']['COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + THẠCH'] && 2 === $r['bang_chung']['COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + THẠCH'] );
+phep( '🔴 quán khác KHÔNG bị ảnh hưởng bởi số riêng của Bình Tân: Gò Vấp vẫn 42', 42 === khh_dt_khach_may( '2026-09-23', $GV )['khach'] && array() === khh_dt_ve_khach_bang_rieng( $GV ) );
+$mc = khh_dt_ve_khach_mon_cua( $BT, 3650 );
+$m0 = array_values( array_filter( $mc, function ( $x ) { return 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + THẠCH' === $x['ten']; } ) )[0];
+phep( 'danh sách món của quán cắm cờ rieng + kèm số chung để màn bày "(chung: 2)"', true === $m0['rieng'] && 3 === $m0['khach'] && 2 === $m0['khach_chung'] );
+/* Bỏ set riêng -> quán thừa lại số chung. */
+$r = khh_dt_rest_ve_khach_dat( new WP_REST_Request( array( 'cua_hang' => $BT, 'xoa_rieng' => '1' ) ) );
+phep( '🔴 xoa_rieng: Bình Tân về số chung, 43 khách', ! is_wp_error( $r ) && array() === $r['bang_rieng'] && 43 === khh_dt_khach_may( '2026-09-24', $BT )['khach'] );
+phep( 'xoa_rieng với "*" -> 400', is_wp_error( khh_dt_rest_ve_khach_dat( new WP_REST_Request( array( 'cua_hang' => '*', 'xoa_rieng' => '1' ) ) ) ) );
+/* Sổ phẳng 1.59.0 vẫn hiểu là bảng chung. */
+update_option( 'khh_dt_ve_khach', array( 'Vé Online' => 0, 'VÉ TUTU TRAIN: VÉ TRẺ EM' => 1 ) );
 phep( 'sổ phẳng cũ tự hiểu là bảng chung "*"', array( '*' => array( 'Vé Online' => 0, 'VÉ TUTU TRAIN: VÉ TRẺ EM' => 1 ) ) === khh_dt_ve_khach_so() );
-phep( 'quán chưa khai riêng thừa bảng chung', array( 'Vé Online' => 0, 'VÉ TUTU TRAIN: VÉ TRẺ EM' => 1 ) === khh_dt_ve_khach_bang( $CS ) );
-khh_dt_ve_khach_dat( array( 'VÉ TUTU TRAIN: VÉ TRẺ EM' => 3 ), $GV );
-phep( 'bảng riêng đè lên bảng chung ở quán ấy, quán khác giữ chung', 3 === khh_dt_ve_khach_bang( $GV )['VÉ TUTU TRAIN: VÉ TRẺ EM'] && 1 === khh_dt_ve_khach_bang( $CS )['VÉ TUTU TRAIN: VÉ TRẺ EM'] );
-phep( 'sổ chung không bị mất khi ghi riêng', isset( khh_dt_ve_khach_so()['*'] ) && isset( khh_dt_ve_khach_so()[ $GV ] ) );
-/* Quán nào còn vé chưa khai (để màn nhắc đổi ô chọn cửa hàng). */
+/* 🔴 GỘP MỘT LẦN sổ 1.60–1.64.3 (khai theo quán) về bảng chung: "khai linh tinh rồi quán có quán không". */
+update_option( 'khh_dt_ve_khach', array(
+	'*'  => array( 'Vé Online' => 0, 'VÉ TUTU TRAIN: VÉ TRẺ EM' => 1 ),
+	$GV  => array( 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + THẠCH' => 2, 'VÉ TUTU TRAIN: VÉ TRẺ EM' => 3 ),
+	'Tutu Train - Estella' => array( 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + BIM BIM' => 2 ),
+) );
+update_option( 'khh_dt_ve_phu', array( $GV => array( 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + THẠCH' => 20000 ) ) );
+delete_option( 'khh_dt_ve_gop_1644' );
+$n = khh_dt_ve_gop_mot_lan();
+$so = khh_dt_ve_khach_so();
+phep( '🔴 gộp: 3 số dồn về chung (2 combo + phụ), bảng chung giữ số của mình khi trùng, hết khoá theo quán', 3 === $n && array_keys( $so ) === array( '*' ) && 2 === $so['*']['COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + THẠCH'] && 2 === $so['*']['COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + BIM BIM'] && 1 === $so['*']['VÉ TUTU TRAIN: VÉ TRẺ EM'] && 20000 === khh_dt_ve_phu_bang( $CS )['COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + THẠCH'] );
+phep( 'gộp chỉ chạy một lần', 0 === khh_dt_ve_gop_mot_lan() && false !== get_option( 'khh_dt_ve_gop_1644', false ) );
+phep( 'khh-doanh-thu.php gọi gộp lúc nâng cấp', false !== strpos( preg_replace( '~/\*.*?\*/~s', '', file_get_contents( $goc . '/khh-doanh-thu.php' ) ), 'khh_dt_ve_gop_mot_lan();' ) );
+/* Quán nào còn vé chưa khai (để màn nhắc). Sau gộp: Tân Phú còn combo TRẺ EM + NGƯỜI LỚN, VÉ NGƯỜI LỚN -> 2; Gò Vấp còn người lớn -> 1. */
 $ct = khh_dt_ve_khach_chua_khai( 3650 );
-/* Bước "sổ phẳng cũ" ở trên đã ghi đè cả sổ: Gò Vấp mất 4 vé riêng, chỉ khai lại 1 -> còn 3 (2 combo + người lớn). */
-phep( 'Tân Phú còn 2 loại vé chưa khai (combo + người lớn), Gò Vấp còn 3', isset( $ct[ $CS ] ) && 2 === $ct[ $CS ] && 3 === $ct[ $GV ] );
+phep( 'Tân Phú còn 2 loại vé chưa khai, Gò Vấp còn 1', isset( $ct[ $CS ] ) && 2 === $ct[ $CS ] && 1 === $ct[ $GV ] );
 $rx = khh_dt_rest_ve_khach_xem( new WP_REST_Request( array( 'cua_hang' => $GV ) ) );
-phep( 'REST GET theo cửa hàng: bang (riêng đè chung), bang_rieng, con_thieu', 3 === $rx['bang']['VÉ TUTU TRAIN: VÉ TRẺ EM'] && 0 === $rx['bang']['Vé Online'] && array( 'VÉ TUTU TRAIN: VÉ TRẺ EM' => 3 ) === $rx['bang_rieng'] && isset( $rx['con_thieu'][ $CS ] ) && 3 === $rx['con_thieu'][ $GV ] );
+phep( 'REST GET theo cửa hàng: bang, bang_chung, bang_rieng (rỗng), con_thieu', 1 === $rx['bang']['VÉ TUTU TRAIN: VÉ TRẺ EM'] && 0 === $rx['bang_chung']['Vé Online'] && array() === $rx['bang_rieng'] && isset( $rx['con_thieu'][ $CS ] ) );
 $r = khh_dt_rest_ve_khach_dat( new WP_REST_Request( array( 'bang' => wp_json_encode( array( 'X' => 1 ) ) ) ) );
-phep( '🔴 REST POST thiếu cửa hàng thì chối (khai riêng từng quán)', is_wp_error( $r ) );
-$mc = khh_dt_ve_khach_mon_cua( $GV, 3650 );
-$m0 = array_values( array_filter( $mc, function ( $x ) { return 'VÉ TUTU TRAIN: VÉ TRẺ EM' === $x['ten']; } ) )[0];
-phep( 'danh sách món của quán cắm cờ rieng cho ô quán tự khai', true === $m0['rieng'] && 3 === $m0['khach'] );
-/* Sale phụ theo TÊN vé — cùng sổ hình dạng cửa hàng => tên => số, REST gửi kèm 'phu'. */
-$r = khh_dt_rest_ve_khach_dat( new WP_REST_Request( array( 'bang' => '{}', 'phu' => wp_json_encode( array( 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + THẠCH' => '20000', 'X' => -1 ) ), 'cua_hang' => $GV ) ) );
-phep( 'REST ghi phụ theo tên vé riêng quán (bỏ số âm)', array( 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + THẠCH' => 20000 ) === $r['phu_rieng'] && array() === khh_dt_ve_phu_bang( $CS ) );
+phep( 'REST POST thiếu cửa hàng thì chối', is_wp_error( $r ) );
+/* Sale phụ theo TÊN vé — cùng sổ, REST gửi kèm 'phu'; ghi chung. */
+$r = khh_dt_rest_ve_khach_dat( new WP_REST_Request( array( 'bang' => '{}', 'phu' => wp_json_encode( array( 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + BIM BIM' => '15000', 'X' => -1 ) ), 'cua_hang' => '*', 'xem_cua_hang' => $GV ) ) );
+phep( 'REST ghi phụ chung theo tên vé (bỏ số âm), quán khác cũng thấy', 15000 === $r['phu_chung']['COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + BIM BIM'] && 15000 === khh_dt_ve_phu_bang( $CS )['COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + BIM BIM'] );
 $mc = khh_dt_ve_khach_mon_cua( $GV, 3650 );
 $m1 = array_values( array_filter( $mc, function ( $x ) { return 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + THẠCH' === $x['ten']; } ) )[0];
-phep( 'danh sách món mang phu, phu_rieng, phu_nhom (nhóm chưa khai -> null)', 20000 === $m1['phu'] && true === $m1['phu_rieng'] && null === $m1['phu_nhom'] );
-$r = khh_dt_rest_ve_khach_dat( new WP_REST_Request( array( 'bang' => '{}', 'cua_hang' => $GV ) ) );
-phep( 'không gửi phu thì giữ nguyên phụ đã khai', 1 === count( $r['phu_rieng'] ) );
+phep( 'danh sách món mang phu (20.000 từ gộp), phu_rieng false, phu_nhom (nhóm chưa khai -> null)', 20000 === $m1['phu'] && false === $m1['phu_rieng'] && null === $m1['phu_nhom'] );
+$r = khh_dt_rest_ve_khach_dat( new WP_REST_Request( array( 'bang' => '{}', 'cua_hang' => '*', 'xem_cua_hang' => $GV ) ) );
+phep( 'không gửi phu thì giữ nguyên phụ đã khai', 2 === count( $r['phu_chung'] ) );
+/* 🔴 TÊN VÉ lệch dấu cách giữa FABi và bảng khai vẫn phải tra ra (anh Thắng: "Hiện đủ vé. Nhập 2 mà vẫn cứ báo sai"). */
+ngay_ban( '2026-09-25', $GV, array( array( 'n' => 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN +  THẠCH', 'g' => 'VÉ COMBO.', 'q' => 5, 'r' => 400000 ) ) );
+$k = khh_dt_khach_may( '2026-09-25', $GV );
+phep( '🔴 FABi ghi tên có hai dấu cách, bảng khai một dấu cách -> vẫn tính 2/vé: 10 khách, không tạm tính', 10 === $k['khach'] && 0 === $k['tam'] );
+$r = khh_dt_rest_ve_khach_dat( new WP_REST_Request( array( 'bang' => wp_json_encode( array( 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN +  THẠCH' => 2 ) ), 'cua_hang' => '*', 'xem_cua_hang' => $GV ) ) );
+phep( 'ghi lại bằng tên hai dấu cách -> đè đúng dòng đang có, không sinh dòng thứ hai', 1 === count( array_filter( array_keys( $r['bang_chung'] ), function ( $t ) { return false !== strpos( $t, 'THẠCH' ); } ) ) );
+$GLOBALS['VHCP_CO_QUYEN'] = false; $GLOBALS['VHCP_DANG_NHAP_WP'] = false;
 delete_option( 'khh_dt_ve_phu' );
 delete_option( 'khh_dt_ve_khach' );
 phep( 'dọn lại bảng khai cho các phép sau', array() === khh_dt_ve_khach_bang() );
@@ -164,7 +197,7 @@ phep( 'cơ sở khác chưa bán gì -> rỗng', array() === khh_dt_ve_khach_mon
 $r = khh_dt_rest_ve_khach_dat( new WP_REST_Request( array( 'bang' => 'không phải json', 'cua_hang' => $CS ) ) );
 phep( 'REST: bảng hỏng thì chối 400', is_wp_error( $r ) );
 $r = khh_dt_rest_ve_khach_dat( new WP_REST_Request( array( 'bang' => wp_json_encode( array( 'Nước suối' => '1' ) ), 'cua_hang' => $CS ) ) );
-phep( 'REST: khai được cả món không phải vé (nếu quản trị muốn), ghi RIÊNG cho cửa hàng gửi lên', ! is_wp_error( $r ) && 1 === $r['bang']['Nước suối'] && 5 === count( $r['mon'] ) && 1 === khh_dt_ve_khach_bang_rieng( $CS )['Nước suối'] );
+phep( 'REST: khai được cả món không phải vé (nếu quản trị muốn), ghi RIÊNG cho cửa hàng gửi lên', ! is_wp_error( $r ) && 1 === $r['bang']['Nước suối'] && 5 === count( $r['mon'] ) && 1 === khh_dt_ve_khach_bang_rieng( $CS )['Nước suối'] && ! isset( khh_dt_ve_khach_bang()['Nước suối'] ) );
 $src = file_get_contents( $goc . '/ve-khach.php' );
 $src = preg_replace( '~/\*.*?\*/~s', '', $src );
 phep( "🔴 route /ve-khach gác bằng khh_dt_duoc_nap (văn phòng), cả GET lẫn POST", 2 === substr_count( $src, "'permission_callback' => 'khh_dt_duoc_nap'" ) && false === strpos( $src, '__return_true' ) );
@@ -172,17 +205,16 @@ phep( "🔴 route /ve-khach gác bằng khh_dt_duoc_nap (văn phòng), cả GET 
 /* ── "lúc thì tự lưu, lúc thì không lưu" (anh Thắng 24/09/2026, Estella): tên quán có HAI dấu cách. ── */
 $CS_E = 'Tutu Train - Estella ( Dịch vụ  và Giải trí )';   // nguyên văn trong kho POS: hai dấu cách
 ngay_ban( '2026-09-23', $CS_E, $MON, 25 );
-/* Bản cũ đã lưu dưới khoá bị gộp dấu cách -> đọc theo tên nguyên văn vẫn phải thấy. */
-khh_dt_ve_khach_dat( array( 'VÉ TRẺ EM + NGƯỜI LỚN' => 2 ), 'Tutu Train - Estella ( Dịch vụ và Giải trí )' );
-phep( '🔴 bảng lưu dưới khoá thiếu dấu cách vẫn đọc ra bằng tên nguyên văn', 2 === (int) khh_dt_ve_khach_bang( $CS_E )['VÉ TRẺ EM + NGƯỜI LỚN'] && array() !== khh_dt_ve_khach_bang_rieng( $CS_E ) );
-/* Ghi bằng tên nguyên văn -> dồn khoá cũ về một, không còn hai bản song song. */
+/* Quán set riêng dưới khoá tên gộp dấu cách -> đọc bằng tên nguyên văn (khoá lỏng) vẫn thấy; ghi thì dồn về khoá nguyên văn. */
+update_option( 'khh_dt_ve_khach', array( 'Tutu Train - Estella ( Dịch vụ và Giải trí )' => array( 'VÉ TRẺ EM + NGƯỜI LỚN' => 2 ) ) );
+phep( '🔴 bảng riêng lưu dưới khoá thiếu dấu cách vẫn đọc ra bằng tên nguyên văn', 2 === (int) khh_dt_ve_khach_bang( $CS_E )['VÉ TRẺ EM + NGƯỜI LỚN'] && array() !== khh_dt_ve_khach_bang_rieng( $CS_E ) );
 khh_dt_ve_khach_dat( array( 'VÉ TUTU TRAIN: VÉ TRẺ EM' => 1 ), $CS_E );
 $so_e = khh_dt_ve_so_cua( 'khh_dt_ve_khach' );
 phep( '🔴 ghi bằng tên nguyên văn thì chỉ còn MỘT khoá cho quán, giữ cả số cũ', isset( $so_e[ $CS_E ] ) && ! isset( $so_e['Tutu Train - Estella ( Dịch vụ và Giải trí )'] ) && 2 === (int) $so_e[ $CS_E ]['VÉ TRẺ EM + NGƯỜI LỚN'] && 1 === (int) $so_e[ $CS_E ]['VÉ TUTU TRAIN: VÉ TRẺ EM'] );
 /* REST: POST rồi GET với tên gộp dấu cách (như màn gửi) -> trả về tên nguyên văn và thấy số vừa lưu. */
 $GLOBALS['VHCP_CO_QUYEN'] = true; $GLOBALS['VHCP_DANG_NHAP_WP'] = true;
 $r = khh_dt_rest_ve_khach_dat( new WP_REST_Request( array( 'cua_hang' => 'Tutu Train - Estella ( Dịch vụ và Giải trí )', 'bang' => wp_json_encode( array( 'VÉ TUTU TRAIN: VÉ NGƯỜI LỚN' => 1 ) ), 'phu' => wp_json_encode( array( 'VÉ TRẺ EM + NGƯỜI LỚN' => 20000 ) ) ) ) );
-phep( '🔴 REST lưu với tên gộp dấu cách: trả về tên nguyên văn, khai đủ 3 vé + phụ 20.000', ! is_wp_error( $r ) && $CS_E === $r['cua_hang'] && 1 === (int) $r['bang']['VÉ TUTU TRAIN: VÉ NGƯỜI LỚN'] && 20000 === (int) $r['phu']['VÉ TRẺ EM + NGƯỜI LỚN'] );
+phep( '🔴 REST lưu riêng với tên quán gộp dấu cách: trả về tên nguyên văn, khai đủ 3 vé + phụ 20.000', ! is_wp_error( $r ) && $CS_E === $r['cua_hang'] && 1 === (int) $r['bang']['VÉ TUTU TRAIN: VÉ NGƯỜI LỚN'] && 20000 === (int) $r['phu']['VÉ TRẺ EM + NGƯỜI LỚN'] && 1 === (int) $r['bang_rieng']['VÉ TUTU TRAIN: VÉ NGƯỜI LỚN'] );
 $r = khh_dt_rest_ve_khach_xem( new WP_REST_Request( array( 'cua_hang' => $CS_E ) ) );
 phep( 'GET bằng tên nguyên văn thấy đúng bảng vừa lưu (không còn "chưa khai")', 20000 === (int) $r['phu']['VÉ TRẺ EM + NGƯỜI LỚN'] && 1 === (int) $r['bang']['VÉ TUTU TRAIN: VÉ NGƯỜI LỚN'] );
 $GLOBALS['VHCP_CO_QUYEN'] = false; $GLOBALS['VHCP_DANG_NHAP_WP'] = false;

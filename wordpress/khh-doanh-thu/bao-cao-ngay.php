@@ -129,7 +129,17 @@ function khh_dt_duoc_cua_hang( $cua_hang ) {
 		return false;
 	}
 	$ds = khh_dt_co_so_ds();
-	return ! $ds || in_array( (string) $cua_hang, $ds, true );
+	if ( ! $ds || in_array( (string) $cua_hang, $ds, true ) ) {
+		return true;
+	}
+	/* Tên trong bảng ghép / hồ sơ có thể lệch dấu cách với tên POS — so lỏng rồi mới chối. */
+	$k = khh_dt_bc_long( $cua_hang );
+	foreach ( $ds as $d ) {
+		if ( khh_dt_bc_long( $d ) === $k ) {
+			return true;
+		}
+	}
+	return false;
 }
 
 add_action( 'show_user_profile', 'khh_dt_o_ho_so' );
@@ -632,7 +642,8 @@ function khh_dt_bc_tach_tien( $mon_json, $doanh_thu, $cua_hang = '' ) {
 			$ve += $r;
 		}
 		/* Sale phụ = SỐ VÉ × tiền phụ mỗi vé (VÉ COMBO. 80k có 20k phụ) — không phải cộng tiền nhóm. */
-		$phu += $q * ( array_key_exists( $ten, $phu_ve ) ? (float) $phu_ve[ $ten ] : khh_dt_bc_phu_moi_ve( $m, $nhom_phu ) );
+		$k_phu = function_exists( 'khh_dt_ve_tra' ) ? khh_dt_ve_tra( $phu_ve, $ten ) : ( array_key_exists( $ten, $phu_ve ) ? array( 'gia' => $phu_ve[ $ten ] ) : null );
+		$phu  += $q * ( null !== $k_phu ? (float) $k_phu['gia'] : khh_dt_bc_phu_moi_ve( $m, $nhom_phu ) );
 	}
 	$dt = (float) $doanh_thu;
 	return array(
@@ -791,8 +802,11 @@ function khh_dt_rest_bc_lay( $req ) {
 function khh_dt_rest_bc_luu( $req ) {
 	global $wpdb;
 	$ngay = preg_replace( '/[^0-9\-]/', '', (string) $req->get_param( 'ngay' ) );
-	$ch   = sanitize_text_field( (string) $req->get_param( 'cua_hang' ) );
-	if ( ! $ngay || ! $ch ) {
+	/* 🔴 Tên quán về tên NGUYÊN VĂN trong kho POS, không `sanitize_text_field`: hàm ấy gộp hai dấu cách, cửa
+	   hàng trưởng Estella bấm Lưu là "Anh/chị không phụ trách cơ sở này" trong khi đường đọc vẫn mở được
+	   (anh Thắng 24/09/2026). */
+	$ch   = khh_dt_bc_ten_cua( $req->get_param( 'cua_hang' ) );
+	if ( ! $ngay || ! $ch || '*' === $ch ) {
 		return new WP_Error( 'khh_dt_bc', 'Thiếu ngày hoặc cơ sở.', array( 'status' => 400 ) );
 	}
 	if ( ! khh_dt_duoc_cua_hang( $ch ) ) {

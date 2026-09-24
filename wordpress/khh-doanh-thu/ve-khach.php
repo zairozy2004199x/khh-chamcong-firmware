@@ -97,13 +97,81 @@ function khh_dt_ve_khoa_cua( $so, $cua_hang ) {
 	return '';
 }
 
+/**
+ * Tra một TÊN VÉ trong bảng khai — khớp đúng, không thì khớp LỎNG (gộp dấu cách, bỏ hoa thường).
+ * 🔴 Bảng khai lưu tên qua `sanitize_text_field` (gộp hai dấu cách thành một) còn tên trong file FABi giữ
+ *    nguyên văn. Một combo trong FABi có hai dấu cách hay dấu cách thừa là "khai 2 mà vẫn báo chưa khai,
+ *    tạm tính 1" — anh Thắng 24/09/2026: *"Hiện đủ vé. Nhập 2 mà vẫn cứ báo sai"*.
+ * @return array|null [ 'khoa' => khoá đang có, 'gia' => giá trị ] hay null khi không có.
+ */
+function khh_dt_ve_tra( $bang, $ten ) {
+	$ten = trim( (string) $ten );
+	if ( '' === $ten || ! is_array( $bang ) ) {
+		return null;
+	}
+	if ( array_key_exists( $ten, $bang ) ) {
+		return array( 'khoa' => $ten, 'gia' => $bang[ $ten ] );
+	}
+	$long = function ( $t ) {
+		$t = preg_replace( '/[\s\x{00A0}]+/u', ' ', (string) $t );
+		return function_exists( 'mb_strtolower' ) ? mb_strtolower( trim( $t ), 'UTF-8' ) : strtolower( trim( $t ) );
+	};
+	$k = $long( $ten );
+	foreach ( $bang as $khoa => $gia ) {
+		if ( $long( $khoa ) === $k ) {
+			return array( 'khoa' => (string) $khoa, 'gia' => $gia );
+		}
+	}
+	return null;
+}
+
+/**
+ * GỘP MỘT LẦN các khai theo quán của bản 1.60–1.64.3 về bảng chung.
+ *
+ * Bản ấy nút Lưu ghi vào đúng quán đang chọn, nên anh Thắng khai combo = 2 ở Gò Vấp mà Bình Tân vẫn tạm tính 1
+ * (24/09/2026: *"vé đã có sẵn lấy theo và anh đã set vé đó là tính 2 người mà"*, *"khai linh tinh rồi quán có
+ * quán không"*). Ý anh là khai cho VÉ, dùng mọi quán; quán nào vé ấy khác thì *"cơ sở đó chủ động tự set"*.
+ * Nên: vé nào chưa có ở bảng chung thì lấy từ quán (quán khai trước lấy trước), rồi xoá phần theo quán — từ
+ * đây phần riêng chỉ còn những gì cửa hàng cố ý bấm "Lưu riêng". Chạy một lần lúc nâng cấp, cho cả hai sổ.
+ *
+ * @return int Số vé đã dồn về bảng chung.
+ */
+function khh_dt_ve_gop_mot_lan() {
+	if ( get_option( 'khh_dt_ve_gop_1644', false ) ) {
+		return 0;
+	}
+	$n = 0;
+	foreach ( array( 'khh_dt_ve_khach', 'khh_dt_ve_phu' ) as $khoa ) {
+		$so    = khh_dt_ve_so_cua( $khoa );
+		$chung = isset( $so['*'] ) ? $so['*'] : array();
+		foreach ( $so as $cs => $bang ) {
+			if ( '*' === $cs ) {
+				continue;
+			}
+			foreach ( (array) $bang as $ten => $gia ) {
+				if ( null === khh_dt_ve_tra( $chung, $ten ) ) {
+					$chung[ $ten ] = $gia;
+					$n++;
+				}
+			}
+		}
+		update_option( $khoa, $chung ? array( '*' => $chung ) : array(), false );
+	}
+	update_option( 'khh_dt_ve_gop_1644', gmdate( 'Y-m-d H:i:s' ), false );
+	return $n;
+}
+
+/**
+ * Bảng áp cho MỘT quán: bảng chung '*' làm nền, phần quán tự set riêng đè lên (tra lỏng theo tên vé).
+ */
 function khh_dt_ve_bang_cua( $khoa, $cua_hang = '' ) {
 	$so = khh_dt_ve_so_cua( $khoa );
 	$ra = isset( $so['*'] ) ? $so['*'] : array();
 	$kh = khh_dt_ve_khoa_cua( $so, $cua_hang );
 	if ( '' !== $kh ) {
 		foreach ( $so[ $kh ] as $ten => $n ) {
-			$ra[ $ten ] = $n;
+			$co = khh_dt_ve_tra( $ra, $ten );
+			$ra[ null !== $co ? $co['khoa'] : $ten ] = $n;
 		}
 	}
 	return $ra;
@@ -129,6 +197,11 @@ function khh_dt_ve_dat_cua( $khoa, $bang, $cua_hang = '' ) {
 		$ten = trim( (string) $ten );
 		if ( '' === $ten ) {
 			continue;
+		}
+		/* Tên gửi lên khác dấu cách với tên đang có -> ghi vào đúng khoá đang có, khỏi hai dòng một vé. */
+		$co = khh_dt_ve_tra( $cu, $ten );
+		if ( null !== $co ) {
+			$ten = $co['khoa'];
 		}
 		if ( null === $gia || '' === trim( (string) $gia ) ) {
 			unset( $cu[ $ten ] );
@@ -245,8 +318,9 @@ function khh_dt_khach_may_tu_mon( $mon, $bang = null ) {
 		if ( '' === $ten ) {
 			continue;
 		}
-		if ( array_key_exists( $ten, $bang ) ) {
-			$chac += $sl * (int) $bang[ $ten ];
+		$co = khh_dt_ve_tra( $bang, $ten );
+		if ( null !== $co ) {
+			$chac += $sl * (int) $co['gia'];
 			$n++;
 			continue;
 		}
@@ -346,21 +420,29 @@ function khh_dt_ve_khach_mon_cua( $cua_hang, $lui = 90 ) {
 	}
 	$khai  = khh_dt_ve_khach_bang( $cua_hang );
 	$rieng = khh_dt_ve_khach_bang_rieng( $cua_hang );
+	$chung = khh_dt_ve_khach_bang();
 	$phu   = khh_dt_ve_phu_bang( $cua_hang );
 	$phu_r = khh_dt_ve_phu_bang_rieng( $cua_hang );
+	$phu_c = khh_dt_ve_phu_bang();
 	$nhom_phu = function_exists( 'khh_dt_nhom_phu_ds' ) ? khh_dt_nhom_phu_ds( $cua_hang ) : false;
 	$ra    = array();
 	foreach ( $gom as $ten => $x ) {
+		$k_khai = khh_dt_ve_tra( $khai, $ten );
+		$k_chung = khh_dt_ve_tra( $chung, $ten );
+		$k_phu  = khh_dt_ve_tra( $phu, $ten );
+		$k_phu_c = khh_dt_ve_tra( $phu_c, $ten );
 		$ra[] = array(
 			'ten'      => $ten,
 			'nhom'     => $x['g'],
 			'so_luong' => $x['q'],
-			'khach'    => array_key_exists( $ten, $khai ) ? $khai[ $ten ] : null,
-			/* Số đang áp là của quán tự khai, hay thừa từ bảng chung. */
-			'rieng'    => array_key_exists( $ten, $rieng ),
+			'khach'    => null !== $k_khai ? $k_khai['gia'] : null,
+			/* Số đang áp là do quán tự set riêng (đè số chung) — kèm số chung để màn bày "chung: N". */
+			'rieng'    => null !== khh_dt_ve_tra( $rieng, $ten ),
+			'khach_chung' => null !== $k_chung ? $k_chung['gia'] : null,
 			/* Sale phụ đ/vé khai theo TÊN vé (null = chưa), và số của NHÓM đang áp nếu không khai tên. */
-			'phu'      => array_key_exists( $ten, $phu ) ? $phu[ $ten ] : null,
-			'phu_rieng' => array_key_exists( $ten, $phu_r ),
+			'phu'      => null !== $k_phu ? $k_phu['gia'] : null,
+			'phu_rieng' => null !== khh_dt_ve_tra( $phu_r, $ten ),
+			'phu_chung' => null !== $k_phu_c ? $k_phu_c['gia'] : null,
 			'phu_nhom' => is_array( $nhom_phu ) && isset( $nhom_phu[ trim( $x['g'] ) ] ) ? (float) $nhom_phu[ trim( $x['g'] ) ] : null,
 			'goi_y'    => khh_dt_ve_khach_goi_y( $ten, $x['g'] ),
 			'la_ve'    => khh_dt_ve_la_ve( $ten, $x['g'] ),
@@ -410,9 +492,12 @@ function khh_dt_ve_khach_route() {
 function khh_dt_rest_ve_khach_xem( $req ) {
 	$ch = function_exists( 'khh_dt_bc_ten_cua' ) ? khh_dt_bc_ten_cua( $req->get_param( 'cua_hang' ) ) : (string) $req->get_param( 'cua_hang' );
 	return array(
+		/* bang = chung + riêng của quán đè lên; bang_chung = chỉ bảng chung; bang_rieng = phần quán tự set. */
 		'bang'      => khh_dt_ve_khach_bang( $ch ),
+		'bang_chung' => khh_dt_ve_khach_bang(),
 		'bang_rieng' => khh_dt_ve_khach_bang_rieng( $ch ),
 		'phu'       => khh_dt_ve_phu_bang( $ch ),
+		'phu_chung' => khh_dt_ve_phu_bang(),
 		'phu_rieng' => khh_dt_ve_phu_bang_rieng( $ch ),
 		'cua_hang'  => $ch,
 		'mon'       => '' !== $ch ? khh_dt_ve_khach_mon_cua( $ch ) : array(),
@@ -423,14 +508,36 @@ function khh_dt_rest_ve_khach_xem( $req ) {
 
 function khh_dt_rest_ve_khach_dat( $req ) {
 	$tho  = $req->get_param( 'bang' );
+	/* Lệnh "bỏ set riêng" không kèm bảng — đừng bắt nó có. */
+	if ( $req->get_param( 'xoa_rieng' ) && null === $tho ) {
+		$tho = '{}';
+	}
 	$bang = is_array( $tho ) ? $tho : json_decode( (string) $tho, true );
 	if ( ! is_array( $bang ) ) {
 		return new WP_Error( 'khh_dt_ve_khach', 'Không đọc được bảng khai gửi lên.', array( 'status' => 400 ) );
 	}
 	$ch = function_exists( 'khh_dt_bc_ten_cua' ) ? khh_dt_bc_ten_cua( $req->get_param( 'cua_hang' ) ) : sanitize_text_field( (string) $req->get_param( 'cua_hang' ) );
 	if ( '' === $ch ) {
-		return new WP_Error( 'khh_dt_ve_khach', 'Chưa chọn cửa hàng — bảng bóc tách khai riêng từng cửa hàng.', array( 'status' => 400 ) );
+		return new WP_Error( 'khh_dt_ve_khach', 'Chưa chọn cửa hàng.', array( 'status' => 400 ) );
 	}
+	/* "Bỏ khai riêng": xoá phần quán tự set (cả khách lẫn phụ), quán thừa lại bảng chung. Trả về theo quán đang xem. */
+	if ( $req->get_param( 'xoa_rieng' ) ) {
+		$xem = function_exists( 'khh_dt_bc_ten_cua' ) ? khh_dt_bc_ten_cua( $req->get_param( 'xem_cua_hang' ) ) : '';
+		if ( '*' === $ch ) {
+			return new WP_Error( 'khh_dt_ve_khach', 'Chưa chọn cửa hàng để bỏ khai riêng.', array( 'status' => 400 ) );
+		}
+		foreach ( array( 'khh_dt_ve_khach', 'khh_dt_ve_phu' ) as $khoa ) {
+			$so = khh_dt_ve_so_cua( $khoa );
+			$kh = khh_dt_ve_khoa_cua( $so, $ch );
+			if ( '' !== $kh ) {
+				unset( $so[ $kh ] );
+				update_option( $khoa, $so, false );
+			}
+		}
+		return khh_dt_rest_ve_khach_xem( new WP_REST_Request( array( 'cua_hang' => $ch ) ) );
+	}
+	/* '*' = ghi bảng CHUNG cho mọi quán (nút chính); tên quán = quán tự set riêng. Trả về theo quán đang xem. */
+	$xem = function_exists( 'khh_dt_bc_ten_cua' ) ? khh_dt_bc_ten_cua( $req->get_param( 'xem_cua_hang' ) ) : '';
 	$sach = array();
 	foreach ( $bang as $ten => $so ) {
 		$sach[ sanitize_text_field( (string) $ten ) ] = null === $so ? '' : sanitize_text_field( (string) $so );
@@ -448,5 +555,5 @@ function khh_dt_rest_ve_khach_dat( $req ) {
 			khh_dt_ve_phu_dat( $sach_p, $ch );
 		}
 	}
-	return khh_dt_rest_ve_khach_xem( $req );
+	return khh_dt_rest_ve_khach_xem( new WP_REST_Request( array( 'cua_hang' => '' !== $xem && '*' !== $xem ? $xem : ( '*' === $ch ? '' : $ch ) ) ) );
 }

@@ -196,6 +196,21 @@ $GLOBALS['VHCP_DANG_NHAP_WP'] = true;
 $r = khh_dt_rest_bc_lay( new WP_REST_Request( array( 'ngay' => '2026-09-23', 'cua_hang' => $GV ) ) );
 phep( 'GET bao-cao-ngay kèm quy_trinh với bốn bước', ! is_wp_error( $r ) && isset( $r['quy_trinh']['buoc']['kho'] ) && 'da_luu' === $r['quy_trinh']['trang_thai'] );
 
+/* ── Cửa hàng trưởng Estella bấm Lưu báo cáo bị "không phụ trách cơ sở này" (anh Thắng 24/09/2026): tên POS có hai
+      dấu cách, đường ghi gộp còn một rồi so chặt với hồ sơ. Nay tra tên nguyên văn + so lỏng. ── */
+$CS_E2 = 'Tutu Train - Estella ( Dịch vụ  và Giải trí )';
+pos_ngay( '2026-09-23', $CS_E2 );
+$GLOBALS['VHCP_CO_QUYEN'] = false;
+$GLOBALS['VHCP_META'] = array( 'khh_dt_co_so' => 'Tutu Train - Estella ( Dịch vụ và Giải trí )' );   // hồ sơ lưu bản một dấu cách
+$r = khh_dt_rest_bc_luu( new WP_REST_Request( array( 'ngay' => '2026-09-23', 'cua_hang' => $CS_E2, 'tien_mat_dem' => '500000' ) ) );
+phep( '🔴 Lưu báo cáo với tên quán nguyên văn (hai dấu cách) trong khi hồ sơ ghi một dấu cách -> KHÔNG bị chối', ! is_wp_error( $r ) && $CS_E2 === $r['bao_cao']['cua_hang'] );
+$r = khh_dt_rest_bc_luu( new WP_REST_Request( array( 'ngay' => '2026-09-23', 'cua_hang' => 'Tutu Train - Estella ( Dịch vụ và Giải trí )', 'tien_mat_dem' => '600000' ) ) );
+phep( 'gửi bản một dấu cách cũng ghi vào đúng dòng tên nguyên văn (không sinh dòng thứ hai)', ! is_wp_error( $r ) && $CS_E2 === $r['bao_cao']['cua_hang'] && 1 === (int) $wpdb->get_var( "SELECT COUNT(*) FROM " . khh_dt_bang_bc() . " WHERE ngay = '2026-09-23' AND cua_hang LIKE '%Estella%'" ) );
+$r = khh_dt_rest_bc_luu( new WP_REST_Request( array( 'ngay' => '2026-09-23', 'cua_hang' => $GV, 'tien_mat_dem' => '1' ) ) );
+phep( 'quán KHÁC thì vẫn chối 403', is_wp_error( $r ) && 403 === (int) $r->get_error_data()['status'] );
+$GLOBALS['VHCP_META'] = array();
+$GLOBALS['VHCP_CO_QUYEN'] = true;
+
 /* Mã nguồn: plugin nạp module, đặt lịch lúc nâng cấp, gỡ lúc tắt. */
 $src = preg_replace( '~/\*.*?\*/~s', '', file_get_contents( $goc . '/khh-doanh-thu.php' ) );
 phep( 'khh-doanh-thu.php nạp quy-trinh.php và gọi khh_dt_qt_dat_lich() lúc kích hoạt', false !== strpos( $src, "require_once KHH_DT_DIR . 'quy-trinh.php';" ) && false !== strpos( $src, 'khh_dt_qt_dat_lich();' ) && false !== strpos( $src, 'khh_dt_qt_go_lich();' ) );

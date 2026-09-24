@@ -3,7 +3,7 @@
  * Plugin Name:       K&H — Báo cáo doanh thu FABi
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Nạp file "Báo cáo bán hàng" xuất từ máy POS FABi (iPOS) và dựng báo cáo doanh thu theo ngày, cửa hàng, khung giờ, hình thức thanh toán, tại chỗ/mang về và món bán chạy. Có sẵn đường nối API FABi để bật khi iPOS cấp khoá.
- * Version:           1.64.3
+ * Version:           1.64.4
  * Requires at least: 5.8
  * Requires PHP:      7.2
  * Author:            K&H
@@ -26,7 +26,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'KHH_DT_VERSION', '1.64.3' );
+define( 'KHH_DT_VERSION', '1.64.4' );
 define( 'KHH_DT_FILE', __FILE__ );
 define( 'KHH_DT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KHH_DT_URL', plugin_dir_url( __FILE__ ) );
@@ -134,6 +134,10 @@ function khh_dt_kich_hoat() {
 	/* Một lần: gỡ cặp 0/0 do lỗi ép ô trống thành 0 trước 1.61.3 (tồn đầu hôm sau về 0). */
 	if ( function_exists( 'khh_dt_kho_sua_so_0' ) ) {
 		khh_dt_kho_sua_so_0();
+	}
+	/* Một lần: gộp khai bóc tách vé theo quán (1.60–1.64.3) về bảng chung theo tên vé. */
+	if ( function_exists( 'khh_dt_ve_gop_mot_lan' ) ) {
+		khh_dt_ve_gop_mot_lan();
 	}
 	/* Quy trình báo cáo cơ sở hằng ngày: đặt (lại) lịch tổng hợp lúc giờ hạn. */
 	if ( function_exists( 'khh_dt_qt_dat_lich' ) ) {

@@ -45,17 +45,20 @@ t('mặc định chọn gian Tàu trước', /t\[àa\]u\|train/i.test(boc('cauHi
 t("GET ve-khach theo cơ sở", /api\('ve-khach\?cua_hang='/.test(tai));
 t('ô nhập khách mỗi vé data-vk', /data-vk=/.test(ve));
 t('placeholder mang gợi ý', /gợi ý ' \+ x\.goi_y/.test(ve));
-t('nút Lưu ghi rõ "cho cửa hàng này"', /Lưu bóc tách cho cửa hàng này/.test(ve));
+t('🔴 nút chính "Lưu cho tất cả cửa hàng" (bảng chung), nút phụ "Lưu riêng cho quán này" (24/09/2026: "để nhỡ vé đó riêng thì cơ sở đó chủ động tự set")', /id="vkLuuChung" data-vk-luu="\*">Lưu cho tất cả cửa hàng</.test(ve) && /id="vkLuu" data-vk-luu="rieng">Lưu riêng cho quán này</.test(ve));
+t('🔴 lưu riêng CHỈ gửi ô gõ khác số chung, ô bằng số chung gửi trống', /ra\[i\.dataset\.vk \|\| i\.dataset\.vp\] = \(v !== '' && v !== c\) \? v : '';/.test(ve) && /data-chung="' \+ \(x\.khach_chung != null/.test(ve));
+t('vé quán set riêng được ghi rõ kèm số chung; có nút Bỏ set riêng (POST xoa_rieng)', /quán này set riêng/.test(ve) && /id="vkBoRieng"/.test(ve) && /fd\.append\('xoa_rieng', '1'\)/.test(ve));
 t("🔴 Lưu gọi POST ve-khach với 'bang' JSON", /api\('ve-khach', \{ method: 'POST'/.test(ve) && /fd\.append\('bang', JSON\.stringify\(b\)\)/.test(ve));
-t('nói rõ cấu hình khai riêng cho cửa hàng này', /riêng cho cửa hàng này/.test(boc('oChonCS')));
+t('ô chọn nói rõ: bảng chung cho mọi quán, quán nào khác thì set riêng', /bảng chung cho mọi quán/.test(boc('oChonCS')));
 t('nói rõ 0 khác ô trống', /Ô để trống = không tính/.test(ve));
 /* 23/09/2026 anh Thắng: "Mỗi cửa hàng 1 cấu hình đi" — một ô chọn cửa hàng dùng chung cho hai khối. */
 t('🔴 vé chưa khai được ĐIỀN SẴN gợi ý (không chỉ placeholder)', /\(thieu && x\.goi_y != null \? x\.goi_y : ''\)/.test(ve));
-t('🔴 Lưu gửi kèm cua_hang (khai riêng từng quán)', /fd\.append\('cua_hang', r\.cua_hang \|\| cauHinhCS\(\)\)/.test(ve));
+t("🔴 Lưu gửi cua_hang = '*' khi lưu chung, tên quán khi lưu riêng, kèm xem_cua_hang", /fd\.append\('cua_hang', chungK \? '\*' : \(r\.cua_hang \|\| cauHinhCS\(\)\)\)/.test(ve) && /fd\.append\('xem_cua_hang', r\.cua_hang \|\| cauHinhCS\(\)\)/.test(ve));
+t('bảng đổ thành thẻ trên điện thoại: bang-the the-cf + data-nhan', /class="bang-the the-cf bang-cuon"/.test(ve) && /data-nhan="Khách mỗi vé"/.test(ve) && /data-nhan="Sale phụ mỗi vé \(đ\)"/.test(ve));
 t('có ô chọn cửa hàng chung (oChonCS) ở khối bóc tách', /oChonCS\('vkCS', r\)/.test(ve));
 t('đổi ô chọn là tải lại CẢ HAI khối', /S\.cauHinhCS = sel\.value; taiVeKhach\(o\); taiNhomVe\(o\);/.test(boc('noiChonCS')));
 t('nhắc quán khác còn vé chưa khai (con_thieu) và bấm là sang quán ấy', /r\.con_thieu/.test(ve) && /data-sang-cs=/.test(ve));
-t('ô thừa bảng chung được ghi rõ', /thừa bảng chung/.test(ve));
+
 t('🔴 cột "Sale phụ mỗi vé (đ)" theo tên vé, ô data-vp, placeholder nêu số của nhóm', /<th>Sale phụ mỗi vé \(đ\)<\/th>/.test(ve) && /data-vp=/.test(ve) && /'nhóm: ' \+ nguyen\(x\.phu_nhom\)/.test(ve));
 t('Lưu gửi kèm phu (theo tên vé)', /fd\.append\('phu', JSON\.stringify\(bp\)\)/.test(ve));
 
