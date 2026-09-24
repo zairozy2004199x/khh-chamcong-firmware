@@ -3636,7 +3636,10 @@
      Hai hệ gọi cùng một cái quán bằng hai cái tên: nhân sự ghi "FZ_SC_VIVO_T4", máy POS ghi
      "FUNZONE - Vivo City (...)". Không ai đoán hộ được, nên khai một lần ở đây. */
   function veGhep(o, r) {
-    var ghep = r.ghep || [], ch = r.cua_hang || [], ng = r.nguoi || [], thieu = r.chua_ghep || [];
+    var ghep = r.ghep || [], ch = r.cua_hang || [], ng = r.nguoi || [], thieu = r.chua_ghep || [], lech = r.ten_lech || [];
+    /* So tên LỎNG (bỏ khoảng trắng thừa, không phân biệt hoa thường) chỉ để BÀY ô tích; lưu lại là máy
+       chủ đổi về đúng nguyên văn tên POS. 24/09/2026 anh Thắng: "tại sao có cơ sở không thêm được". */
+    var long_ = function (t) { return String(t || '').replace(/[\s\u00a0]+/g, ' ').trim().toLowerCase(); };
     var h = '<div class="khung" id="dtGhep"><header><h2>Ghép cơ sở</h2>' +
       '<span class="goi">' + ghep.length + ' mã</span></header>';
     h += '<div class="chu-them" style="margin-top:6px">Mã bên trái là cơ sở trong sổ nhân sự; ' +
@@ -3649,6 +3652,13 @@
     if (thieu.length) {
       h += '<div class="canh-ghep">Đang có người ở ' + thieu.length + ' mã chưa ghép: <b>' +
         thieu.map(esc).join(', ') + '</b></div>';
+    }
+    if (lech.length) {
+      h += '<div class="canh-ghep"><b>' + lech.length + ' tên đã lưu không khớp nguyên văn tên trên máy POS</b> ' +
+        '(thường do khoảng trắng thừa trong tên FABi) — người ở mã ấy sẽ không thấy quán. Bấm <b>Lưu bảng ghép</b> một lần là ' +
+        'hệ tự đổi về đúng tên POS: ' + lech.map(function (x) {
+          return '<code>' + esc(x.ma) + '</code> "' + esc(x.ten) + '"' + (x.goi_y !== x.ten ? ' → "' + esc(x.goi_y) + '"' : ' (chưa có quán này trong số liệu)');
+        }).join('; ') + '</div>';
     }
     if (!ghep.length) {
       h += '<div class="trong">Chưa có ai được đẩy sang. Vào trang Nhân sự, cột ' +
@@ -3668,8 +3678,9 @@
             '<td><div class="ghep-chon' + (chiDuyet ? ' mo-nhat' : '') + '" data-o-ghep="' + esc(g.ma) + '">' +
               (chiDuyet ? '<div class="ghep-nhac">Ai cũng vai duyệt — xem tổng mọi cơ sở, không cần tích.</div>' : '') +
               ch.map(function (t) {
+                var daTich = chon.indexOf(t) >= 0 || chon.some(function (c) { return long_(c) === long_(t); });
                 return '<label><input type="checkbox" data-ghep="' + esc(g.ma) + '" value="' + esc(t) + '"' +
-                  (chon.indexOf(t) >= 0 ? ' checked' : '') + '><span>' + esc(t) + '</span></label>';
+                  (daTich ? ' checked' : '') + '><span>' + esc(t) + '</span></label>';
               }).join('') +
             '</div></td>' +
             '<td style="text-align:left">' + (nguoi.length

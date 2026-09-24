@@ -902,6 +902,17 @@ function khh_dt_kho_bang_ngay( $ngay, $co_so ) {
 				}
 			)
 		);
+		/* 🔴 ĐÃ CHỌN DANH MỤC THÌ BÀY ĐỦ DANH MỤC. Anh Thắng 24/09/2026 tích 21 món, Lưu, mà bảng chỉ có
+		   8 dòng — *"nhiều hàng mà sao lại không hiện sl trong kho"*. Vì ở trên chỉ gom món CÓ BÁN hôm
+		   nay, CÓ tồn đã biết, hay ĐÃ khai hôm nay; món trong danh mục chưa rơi vào ba nguồn ấy bị ẩn,
+		   nghĩa là không có ô để nhập hàng hay đặt mốc cho nó — mà nhập hàng mới về đúng là lúc nó chưa
+		   có gì cả. Danh mục là lời tuyên bố "món này có kho để đếm", nên món nào trong danh mục cũng
+		   phải có dòng; số chưa biết thì bày "—". */
+		foreach ( $chon as $mh ) {
+			if ( ! in_array( $mh, $mh_ds, true ) ) {
+				$mh_ds[] = $mh;
+			}
+		}
 	}
 	sort( $mh_ds );
 

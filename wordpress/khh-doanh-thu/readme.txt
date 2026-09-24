@@ -102,6 +102,22 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.61.2 =
+* 🔴 **Đã chọn danh mục thì bảng kho bày đủ danh mục.** Anh Thắng 24/09/2026 tích 21 món ở "Mặt hàng có
+  kho", Lưu, mà bảng chỉ có 8 dòng — *"nhiều hàng mà sao lại không hiện sl trong kho"*. Bảng chỉ gom món
+  có bán hôm nay, có tồn đã biết hay đã khai hôm nay; món trong danh mục chưa rơi vào ba nguồn ấy bị ẩn,
+  tức không có ô để nhập hàng mới về hay đặt mốc. Nay món nào trong danh mục cũng có dòng; số chưa biết
+  bày "—", nhập hàng vào dòng ấy là đặt mốc như cũ. `kiem-kho.php` +4 phép.
+
+= 1.61.1 =
+* 🔴 **Ghép cơ sở: có quán tích rồi mà "không thêm được".** Anh Thắng 24/09/2026. Nguyên nhân: bảng ghép
+  lưu tên quán qua bộ rửa chữ (cắt khoảng trắng đầu/cuối, gộp khoảng trắng đôi), trong khi tên quán FABi
+  xuất ra hay có khoảng trắng thừa — tên đã lưu không còn bằng từng ký tự với tên trong số liệu, nên ô
+  tích mở lại như chưa tích và người ở mã ấy mở màn thấy rỗng. Nay **lưu đúng nguyên văn tên POS** (so
+  lỏng với danh sách quán đang có rồi lấy đúng chuỗi trong danh sách); bảng Ghép **báo tên đã lưu không
+  khớp** kèm tên đúng, bấm Lưu bảng ghép một lần là tự sửa; ô tích bày theo so lỏng nên bảng cũ vẫn hiện
+  đúng. `kiem-day-bao-cao.php` +5 phép, bài màn +3.
+
 = 1.61.0 =
 * 🔴 **Cột "SL hàng bán" trong Kho hàng hoá thành "Hàng huỷ".** Anh Thắng 24/09/2026: *"cột này ghi là hàng
   huỷ (nếu huỷ nhập vào nó trừ ra)"* — *"vì hàng bán lệch đã nhập sẵn bên này rồi"* (bảng Hàng bán theo

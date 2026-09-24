@@ -89,6 +89,12 @@ phep("và nói rõ 'vai cấp tự động lối cũ'", /vai cấp tự động 
 phep("và nhắc 'Nhập và duyệt' xem doanh thu mọi cơ sở", /Nhập và duyệt<\/b> xem doanh thu <b>mọi<\/b>/.test(veQT));
 phep("kích hoạt gọi khh_dt_danh_dau_vai_cu()", /khh_dt_danh_dau_vai_cu\(\)/.test(boChuThich(fs.readFileSync('wordpress/khh-doanh-thu/khh-doanh-thu.php', 'utf8'))));
 
+/* 24/09/2026 anh Thắng: "tại sao có cơ sở không thêm được" — bảng Ghép báo tên đã lưu lệch tên POS, và bày ô tích theo so lỏng. */
+const veGhepSrc = (function () { const i = js.indexOf('function veGhep('); const j = js.indexOf('function veQuanTri(', i); return i >= 0 ? js.slice(i, j) : ''; })();
+phep("bảng Ghép đọc r.ten_lech và nói 'không khớp nguyên văn tên trên máy POS'", /r\.ten_lech/.test(veGhepSrc) && /không khớp nguyên văn tên trên máy POS/.test(veGhepSrc));
+phep("ô tích bày theo so lỏng (long_) để tên lưu kiểu cũ vẫn hiện tích", /chon\.some\(function \(c\) \{ return long_\(c\) === long_\(t\); \}\)/.test(veGhepSrc));
+phep("khh_dt_dat_ghep lưu tên qua khh_dt_ten_pos_chuan (nguyên văn POS), không qua sanitize_text_field", /\$t = khh_dt_ten_pos_chuan\( \(string\) \$t, \$ds_pos \);/.test(thanHam(ng, 'khh_dt_dat_ghep')) && !/sanitize_text_field\( \(string\) \$t \)/.test(thanHam(ng, 'khh_dt_dat_ghep')));
+
 /* Dòng trạng thái ở tab Nhập: người PIN chưa cấp phải được nói vì sao khoá. */
 phep("tab Nhập nói 'chưa được cấp quyền nhập' cho PIN chưa cấp",
   /S\.cf\.bang_pin\s*&&\s*!S\.cf\.vai[\s\S]{0,200}chưa được cấp quyền nhập/.test(js));

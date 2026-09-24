@@ -242,6 +242,32 @@ khh_dt_day_vao( array( 'ma_nv' => 'NV003', 'ho_ten' => 'Lê Văn D', 'pin' => '4
 phep( 'đẩy lại từ Nhân sự không xoá cờ', in_array( 'NV003', khh_dt_vai_tu_dong_ds(), true ) );
 khh_dt_day_ra( 'NV010' );
 
+/* ---- 🔴 TÊN CƠ SỞ LƯU NGUYÊN VĂN NHƯ POS (anh Thắng 24/09/2026: "tại sao có cơ sở không thêm được") ----
+   Tên FABi hay có khoảng trắng thừa; bảng ghép rửa tên -> không còn bằng từng ký tự với cua_hang -> ô tích
+   mở lại như chưa tích, và người ở mã ấy thấy rỗng. */
+$GLOBALS['KHH_DT_TEST_CH'] = array( 'Tutu Train - Estella ( Dịch vụ K&H ) ', 'TuTu Train -  Aeon Tân Phú' );   // đuôi trống, hai dấu cách
+khh_dt_dat_ghep( array( 'TUTU_TP' => array( 'Tutu Train - Estella ( Dịch vụ K&H )', 'tutu train - aeon tân phú' ) ) );
+phep( '🔴 tên gửi lên đã bị cắt khoảng trắng / khác hoa thường vẫn lưu ĐÚNG NGUYÊN VĂN tên POS',
+	array( 'Tutu Train - Estella ( Dịch vụ K&H ) ', 'TuTu Train -  Aeon Tân Phú' ) === khh_dt_ghep_ten_ds( 'TUTU_TP' ) );
+khh_dt_day_vao( array( 'ma_nv' => 'NV020', 'ho_ten' => 'Trần Ngọc Minh Truyền', 'pin' => '202020', 'coso' => 'TUTU_TP' ) );
+khh_dt_dat_vai( 'NV020', 'nhap' );
+$dn20 = khh_dt_pin_dang_nhap( '202020' );
+khh_dt_test_dat_the( $dn20['token'] );
+phep( 'người ở mã ấy thấy đúng hai quán, tên nguyên văn (khớp được cua_hang IN)', array( 'Tutu Train - Estella ( Dịch vụ K&H ) ', 'TuTu Train -  Aeon Tân Phú' ) === khh_dt_phien_co_so_ds() );
+phep( 'tên chưa có trong số liệu POS thì vẫn lưu (đã rửa), không mất', array( 'Quán Mới' ) === khh_dt_dat_ghep( array( 'X1' => array( ' Quán Mới ' ) ) )['X1'] );
+/* Bảng đã lưu kiểu cũ (tên đã rửa) -> REST kể ra tên lệch kèm gợi ý tên đúng. */
+update_option( 'khh_dt_ghep_coso', array( 'TUTU_TP' => array( 'Tutu Train - Estella ( Dịch vụ K&H )' ) ) );
+$rg = khh_dt_rest_ghep();
+phep( '🔴 REST ghep kể tên đã lưu không khớp POS, kèm gợi ý tên nguyên văn',
+	1 === count( $rg['ten_lech'] ) && 'TUTU_TP' === $rg['ten_lech'][0]['ma'] && 'Tutu Train - Estella ( Dịch vụ K&H ) ' === $rg['ten_lech'][0]['goi_y'] );
+khh_dt_rest_dat_ghep( new WP_REST_Request( array( 'ghep' => wp_json_encode( array( 'TUTU_TP' => array( 'Tutu Train - Estella ( Dịch vụ K&H )' ) ) ) ) ) );
+phep( 'Lưu lại một lần là hết lệch', array() === khh_dt_rest_ghep()['ten_lech'] );
+khh_dt_day_ra( 'NV020' );
+unset( $GLOBALS['KHH_DT_TEST_CH'] );
+khh_dt_dat_ghep( array( 'FZ_ADV_TP' => array( 'TuTu Train - Aeon Tân Phú', 'COFFE GO AN LẠC' ), 'TUTU_TP' => 'TuTu Train - Tân Phú' ) );
+$dn = khh_dt_pin_dang_nhap( '4321' );
+khh_dt_test_dat_the( $dn['token'] );
+
 /* --- gỡ người: hàng mất, phiên đang mở chết theo --- */
 khh_dt_day_ra( 'NV003' );
 phep( 'gỡ người thì cờ cũng mất', ! in_array( 'NV003', khh_dt_vai_tu_dong_ds(), true ) );
