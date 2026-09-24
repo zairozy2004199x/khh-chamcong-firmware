@@ -117,9 +117,45 @@ class VHCPHN_Misa {
 		return VHCPHN_Cfg::bo_duoi_nhom( $nhom );
 	}
 
+	/* ════════════════════════════════════════════════════════════════════════
+	 * DIỄN GIẢI — anh Thắng 24/09/2026 (ảnh sổ 641 thật của kế toán + bảng Cơ sở + bảng Loại):
+	 * *"Cấu trúc có linh động 1 chút: Loại Chi Phí_Phân Loại Lớn_Tên Cơ Sở_Tháng T9/2026 hoặc
+	 * Ngày từ … đến …"*. Sổ thật của kế toán ghi "Chi phí khác POSH MN AMBD T9/2026_Phí gửi da ghế".
+	 *
+	 * Ba việc, mỗi việc một hàm nhỏ để bài kiểm gọi thẳng:
+	 *   · `ky_dien_giai()`  — kỳ "T9/2026 (21/9-27/9/2026)" → "T9/2026" (kiểu tháng) hay
+	 *                          "Ngày từ 21/9 đến 27/9/2026" (kiểu ngày). Người xuất chọn trên màn.
+	 *   · `ten_coso_gon()`  — tên MISA của gian thường đã mang sẵn mảng ("POSH MN AEON MALL…"), mà
+	 *                          diễn giải đã có mảng đứng trước → bỏ phần lặp, khỏi ra "POSH MN POSH MN".
+	 *   · tên loại theo MISA — cột "Tên theo MISA" của bảng Loại chi phí (`ten_misa_loai`), trước
+	 *                          đây chỉ luồng Marketing dùng, luồng đơn tuần bỏ quên.
+	 * ════════════════════════════════════════════════════════════════════════ */
+	const KY_THANG = 'thang';
+	const KY_NGAY  = 'ngay';
+
+	/** Kỳ của đơn viết gọn cho diễn giải. Kỳ không có khoảng ngày (đơn cũ, đơn dự án) → trả nguyên. */
+	public static function ky_dien_giai( $ky, $kieu = self::KY_THANG ) {
+		$ky = trim( (string) $ky );
+		if ( ! preg_match( '/^(.*?)\s*\(\s*([^()\-–]+?)\s*[\-–]\s*([^()]+?)\s*\)\s*$/u', $ky, $m ) ) { return $ky; }
+		if ( self::KY_NGAY === $kieu ) { return 'Ngày từ ' . trim( $m[2] ) . ' đến ' . trim( $m[3] ); }
+		return trim( $m[1] ) !== '' ? trim( $m[1] ) : $ky;
+	}
+
+	/** Tên gian cho diễn giải: tên MISA (hay tên gian), bỏ phần mở đầu trùng với mảng đứng trước nó. */
+	public static function ten_coso_gon( $ten_misa, $pll ) {
+		$t = trim( (string) $ten_misa ); $p = trim( (string) $pll );
+		if ( '' === $t || '' === $p ) { return $t; }
+		if ( 0 === mb_stripos( $t, $p ) ) {
+			$con = trim( mb_substr( $t, mb_strlen( $p ) ), " \t-_·" );
+			return '' !== $con ? $con : $t;
+		}
+		return $t;
+	}
+
 	/** exportMisa(): đơn vận hành. mode = chuaxuat|daxuat ; plF = all|cn|ncc. */
-	public static function export_misa( $ky = 'all', $mode = 'chuaxuat', $pl_f = 'all', $mau = self::MAU_CHUAN, $tk_f = 'all' ) {
+	public static function export_misa( $ky = 'all', $mode = 'chuaxuat', $pl_f = 'all', $mau = self::MAU_CHUAN, $tk_f = 'all', $ky_kieu = self::KY_THANG ) {
 		$mau  = ( self::MAU_SOCT === $mau ) ? self::MAU_SOCT : self::MAU_CHUAN;
+		$ky_kieu = ( self::KY_NGAY === $ky_kieu ) ? self::KY_NGAY : self::KY_THANG;
 		$tk_f = VHCPHN_Util::ma_so( trim( (string) $tk_f ) );
 		if ( 'ALL' === mb_strtoupper( (string) $tk_f ) ) { $tk_f = ''; }
 		$mode = $mode ? $mode : 'chuaxuat';
@@ -285,10 +321,15 @@ class VHCPHN_Misa {
 			if ( $ngay === '' ) { $ngay = $d['ngay']; }
 			VHCPHN_Misa::gom_ngay_xau( $ngay_xau, $ngay, $r['ngay'], $m );
 			$nhom_c   = self::clean_nhom( $nhom );
+			/* Cột "Tên theo MISA" của loại (bảng Loại chi phí) — khai thì diễn giải dùng tên ấy. */
+			$nhom_dg  = VHCPHN_Cfg::ten_misa_loai( $nhom_c );
 			$ten_misa = ! empty( $m_tm[ $coso ] ) ? $m_tm[ $coso ] : $coso;
+			$ky_dg    = self::ky_dien_giai( $d['ky'], $ky_kieu );
 			$ten1     = $d['nguoiDuyet'];
-			$dg1      = VHCPHN_Util::j( array( $nhom_c, $pll, $d['ky'] ) ) . ( $ten1 !== '' ? '_' . $ten1 : '' );
-			$dg2      = VHCPHN_Util::j( array( $nhom_c, $pll, $ten_misa ) ) . ( trim( $nd ) !== '' ? '_' . $nd : '' );
+			/* Loại _ Mảng _ [Cơ sở] _ Kỳ, rồi "_" + phần riêng (người duyệt ở diễn giải chung, nội dung ở
+			   diễn giải hạch toán) — đúng cấu trúc anh Thắng chốt 24/09/2026. */
+			$dg1      = VHCPHN_Util::j( array( $nhom_dg, $pll, $ky_dg ) ) . ( $ten1 !== '' ? '_' . $ten1 : '' );
+			$dg2      = VHCPHN_Util::j( array( $nhom_dg, $pll, self::ten_coso_gon( $ten_misa, $pll ), $ky_dg ) ) . ( trim( $nd ) !== '' ? '_' . $nd : '' );
 
 			/* 🔴 GOM THEO MẢNG KINH DOANH TRƯỚC, RỒI MỚI TỚI LOẠI CHI PHÍ (anh Thắng 07/09/2026:
 			   *"Chỗ phần xuất misa. Sắp xếp theo cùng phân loại lớn"*).
