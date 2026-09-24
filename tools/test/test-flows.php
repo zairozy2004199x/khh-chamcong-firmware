@@ -106,14 +106,30 @@ teq( 'tiền thuế dòng NCC = 24.000', 24000, $g_ncc['lines'][0]['tienThue'] )
 teq( 'ngày dòng hiện dd/MM/yyyy', $today, $g['lines'][0]['ngay'] );
 t( 'thực mua để trống', $g['lines'][0]['thucMua'] === '' );
 
-// MỘT ĐƠN = MỘT CƠ SỞ. Đơn trên đã có dòng của FARM PHAN THIẾT và TÀU TÂN PHÚ do dữ liệu
-// thử dựng từ trước; kiểm luật khóa trên một đơn mới cho sạch.
+// MỘT ĐƠN = MỘT CƠ SỞ — KHI ĐƠN CÓ TẠM ỨNG. 24/09/2026 anh Thắng chốt luật mặc định: "chọn tạm ứng
+// xin thì khoá gian trong thêm hạng mục; không chọn thì mỗi chi phí một gian, đơn đi nhiều gian".
+// (a) đơn KHÔNG tạm ứng: dòng đầu KHÔNG chốt gian, dòng gian khác được nhận.
+$dcs0 = VHCP_Don::create_don( 'T8/2026 (17/8-23/8/2026)', 'NV Nhiều Gian' );
+$mcs0 = $dcs0['maDon'];
+teq( 'đơn mới chưa chốt cơ sở nào', '', VHCP_Don::coso_cua_don( $mcs0 ) );
+$l0 = VHCP_Don::add_line( $mcs0, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today, 'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Sửa đèn', 'soLuong' => 1, 'donGia' => 100000, 'thanhTien' => 100000 ) );
+t( 'dòng đầu vào được', ! empty( $l0['success'] ) );
+teq( '🔴 KHÔNG tạm ứng → dòng đầu KHÔNG chốt gian (24/09/2026)', '', VHCP_Don::coso_cua_don( $mcs0 ) );
+$l0b = VHCP_Don::add_line( $mcs0, array( 'coso' => 'TÀU TÂN PHÚ', 'ngay' => $today, 'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Sửa quạt', 'soLuong' => 1, 'donGia' => 100000, 'thanhTien' => 100000 ) );
+t( '🔴 → dòng gian khác ĐƯỢC NHẬN (đơn đi nhiều gian)', ! empty( $l0b['success'] ), $l0b );
+teq( '   đơn đụng hai gian', 2, count( VHCP_Don::cac_coso_cua_don( $mcs0 ) ) );
+t( '   get_don: cosoDon rỗng, nhieuCoSo bật', '' === VHCP_Don::get_don( $mcs0 )['don']['cosoDon'] && ! empty( VHCP_Don::get_don( $mcs0 )['don']['nhieuCoSo'] ) );
+$tu0 = VHCP_Don::set_tam_ung( $mcs0, 'FARM PHAN THIẾT', 100000 );
+t( '🔴 đã rải hai gian rồi mới lưu tạm ứng một gian → CHỐI, không tự dời dòng', empty( $tu0['success'] ), $tu0 );
+VHCP_Don::delete_don_admin( $mcs0 );
+// (b) đơn CÓ tạm ứng trước: luật một-đơn-một-gian giữ nguyên.
 $dcs = VHCP_Don::create_don( 'T8/2026 (17/8-23/8/2026)', 'NV Một Cơ Sở' );
 $mcs = $dcs['maDon'];
 teq( 'đơn mới chưa chốt cơ sở nào', '', VHCP_Don::coso_cua_don( $mcs ) );
+t( 'lưu tạm ứng FARM trước', ! empty( VHCP_Don::set_tam_ung( $mcs, 'FARM PHAN THIẾT', 100000 )['success'] ) );
+teq( '🔴 có tạm ứng → đơn chốt gian của tạm ứng', 'FARM PHAN THIẾT', VHCP_Don::coso_cua_don( $mcs ) );
 $lcs = VHCP_Don::add_line( $mcs, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today, 'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Sửa đèn', 'soLuong' => 1, 'donGia' => 100000, 'thanhTien' => 100000 ) );
-t( 'dòng đầu vào được', ! empty( $lcs['success'] ) );
-teq( 'đơn chốt cơ sở theo dòng đầu', 'FARM PHAN THIẾT', VHCP_Don::coso_cua_don( $mcs ) );
+t( 'dòng cùng gian vào được', ! empty( $lcs['success'] ) );
 $lcs2 = VHCP_Don::add_line( $mcs, array( 'coso' => 'TÀU TÂN PHÚ', 'ngay' => $today, 'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Sửa quạt', 'soLuong' => 1, 'donGia' => 100000, 'thanhTien' => 100000 ) );
 t( 'cơ sở khác bị chặn', empty( $lcs2['success'] ) );
 t( 'và nói rõ phải tạo đơn mới', strpos( (string) $lcs2['error'], 'tạo đơn mới' ) !== false, $lcs2 );
@@ -4538,8 +4554,10 @@ teq( '🔴 cac_coso_cua_don() lấy ĐỦ hai cơ sở, không chỉ dòng đầ
    phạm vi. KHÔNG khẳng định nó trả đúng cái nào: thứ tự id là chuyện của kho, không phải luật;
    phép thử buộc vào đó là phép thử vỡ mỗi khi ai đổi thứ tự chèn, mà chẳng canh thêm được gì. */
 $_cs_mot = VHCP_Don::coso_cua_don( $cs_ghep['maDon'] );
-t( '(coso_cua_don() cũ chỉ trả MỘT cơ sở — nên đừng dùng nó để gác phạm vi)',
-	'' !== $_cs_mot && false === strpos( $_cs_mot, ',' ), $_cs_mot );
+/* 24/09/2026: đơn này KHÔNG có tạm ứng → theo luật mặc định mới nó là đơn nhiều gian và
+   `coso_cua_don()` trả RỖNG (không gian nào được chốt). Càng đúng ý phép này: đừng dùng nó gác phạm vi. */
+t( '(coso_cua_don() không dùng để gác phạm vi — đơn không tạm ứng trả rỗng)',
+	'' === $_cs_mot, $_cs_mot );
 t( 'và nó bỏ sót cơ sở còn lại của đơn',
 	count( VHCP_Don::cac_coso_cua_don( $cs_ghep['maDon'] ) ) > 1, $_cs_mot );
 

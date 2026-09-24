@@ -293,8 +293,9 @@ php -l "$DICH/includes/class-vhcp-cfg.php" >/dev/null || { echo "✗ Dọn danh 
 #    người ta tiêu tiền túi hoặc trả thẳng nhà cung cấp rồi gom một đợt: một đợt rải qua nhiều
 #    gian, mỗi dòng một gian. Khoá cả đơn theo dòng đầu là ép họ lập năm đơn cho một đợt chi.
 #
-# ⚠️ BẢN GỐC KHU VUI CHƠI GIỮ NGUYÊN `false` — luật một-đơn-một-gian bên ấy có lý do riêng, và
-#    anh Thắng đã dặn đừng can thiệp phần chi phí khu vui chơi.
+# ⚠️ 24/09/2026: bản gốc cũng đã bật `true` (anh Thắng chốt luật "không tạm ứng thì mỗi dòng một
+#    gian" là mặc định), nên lệnh thay dưới thường không đổi gì — GIỮ chốt kiểm ngay sau: bản
+#    vùng mà hằng này về `false` là cả bộ phận Văn phòng bị khoá gian.
 perl -0777 -pi -e '
   s/(const MO_KHI_KHONG_TAM_UNG = )false;/${1}true;/;
 ' "$DICH/includes/class-vhcp-donvi.php"

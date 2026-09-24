@@ -3265,9 +3265,9 @@ class VHCPVP_Don {
 	 *    *"Thiếu N — kế toán bù cho NV"*, chứ không phải "Khớp" (xem chú thích ở `get_don()`).
 	 *    Lấy thực chi lấp vào chỗ tạm ứng tại đó là xoá mất khoản kế toán còn nợ nhân viên.
 	 *
-	 * ⚠️ CHỈ ĐỔI Ở BẢN MẢNG RIÊNG (`MO_KHI_KHONG_TAM_UNG`). Bên khu vui chơi mọi đơn đều đi qua
-	 *    tạm ứng, nên nhánh này không có việc gì; để nó chạy ở đó là đổi con số của một mảng
-	 *    đang chạy thật mà không ai yêu cầu.
+	 * ⚠️ GÁC BẰNG `MO_KHI_KHONG_TAM_UNG` — từ 24/09/2026 bật ở cả bản gốc (anh Thắng chốt luật là
+	 *    mặc định). Bên khu vui chơi mọi đơn đều có dòng tạm ứng nên nhánh dưới không chạy cho
+	 *    họ; nó chỉ đổi con số của đơn KHÔNG tạm ứng (Văn phòng, Máy tự động lập trên cùng site).
 	 * ══════════════════════════════════════════════════════════════════════════════════════════
 	 *
 	 * @return float|null null = không đọc được đơn (giữ nguyên nghĩa của hàm gốc).

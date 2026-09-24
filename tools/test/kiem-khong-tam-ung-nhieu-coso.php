@@ -14,8 +14,9 @@
  *   · KHÔNG TẠM ỨNG: tiêu tiền túi hoặc trả thẳng NCC rồi gom một đợt, rải qua nhiều gian.
  *     Khoá cả đơn theo dòng đầu là ép họ lập năm đơn cho một đợt chi.
  *
- * 🔴 KVC KHÔNG ĐỔI — hằng `MO_KHI_KHONG_TAM_UNG` để `false` ở bản gốc, script tách lật `true`
- *    cho bản mảng riêng. Bài này canh cả hai đầu ấy.
+ * 🔴 24/09/2026: hằng `MO_KHI_KHONG_TAM_UNG` = `true` Ở CẢ BẢN GỐC — anh Thắng chốt luật này là
+ *    MẶC ĐỊNH (Văn phòng dùng chung site với Khu vui chơi bị khoá gian oan). Bản vùng cũng true;
+ *    script tách vẫn giữ chốt kiểm. Bài này canh cả hai đầu ấy.
  *
  * Chạy: php tools/test/kiem-khong-tam-ung-nhieu-coso.php
  * ═════════════════════════════════════════════════════════════════════════════════════════════ */
@@ -41,7 +42,7 @@ function boc( $src, $ten ) {
 /* ═══ 1. BẢN GỐC GIỮ LUẬT CHẶT, BẢN MẢNG RIÊNG MỞ ════════════════════════════════ */
 preg_match( '/const MO_KHI_KHONG_TAM_UNG = (true|false);/', $DV, $m );
 t( '🔴 có hằng MO_KHI_KHONG_TAM_UNG', ! empty( $m[1] ), $m );
-teq( '🔴 bản gốc KHU VUI CHƠI: hằng = false (đừng đụng mảng đang chạy)', 'false', $m[1] );
+teq( '🔴 bản gốc: hằng = true (24/09/2026 — luật là mặc định; đơn có dòng tạm ứng vẫn khoá như cũ)', 'true', $m[1] );
 
 foreach ( array( 'mtd', 'vp' ) as $ma ) {
 	$d = $GOC . '/wordpress/vhcp-chi-phi-' . $ma . '/includes/class-vhcp-donvi.php';

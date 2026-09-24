@@ -48,7 +48,12 @@ class WPDB_GIA {
 	public function get_var( $x ) {
 		list( $q, $a ) = $x;
 		$ma = (string) $a[0];
-		if ( false !== strpos( $q, 'tamung' ) ) { return isset( KHO::$tu[ $ma ] ) ? KHO::$tu[ $ma ] : null; }
+		/* 24/09/2026: `don_co_tam_ung()` hỏi COUNT(*) trên bảng tạm ứng — trả SỐ ĐẾM, không trả tên
+		   cơ sở (tên ép về int là 0 → "không có tạm ứng" → mọi đơn K&H mở toang, đỏ oan 4 phép). */
+		if ( false !== strpos( $q, 'tamung' ) ) {
+			if ( false !== strpos( $q, 'COUNT(*)' ) ) { return isset( KHO::$tu[ $ma ] ) ? 1 : 0; }
+			return isset( KHO::$tu[ $ma ] ) ? KHO::$tu[ $ma ] : null;
+		}
 		return isset( KHO::$chi[ $ma ] ) ? KHO::$chi[ $ma ] : null;
 	}
 }
@@ -65,11 +70,12 @@ function boc( $src, $ten ) {
 preg_match( "/const NHIEU_COSO_MAC_DINH = '([^']+)';/", $DV, $m_md );
 t( '🔴 có hằng NHIEU_COSO_MAC_DINH trong mã thật', ! empty( $m_md[1] ), $m_md );
 
-/* Hằng "mở khi không tạm ứng" đọc TỪ MÃ THẬT của bản gốc — bài này canh bản KVC, nơi nó phải
-   là `false`. Bản mảng riêng do `tools/tach-ban-vung.sh` lật thành `true` (có chốt riêng ở đó). */
+/* Hằng "mở khi không tạm ứng" đọc TỪ MÃ THẬT. 24/09/2026: anh Thắng chốt luật này là MẶC ĐỊNH
+   ("chọn tạm ứng xin thì khoá gian; không chọn thì mỗi chi phí một gian") → bản gốc cũng `true`.
+   K&H không đổi gì trong thực tế: đơn tuần của cơ sở luôn có dòng tạm ứng (kể cả 0đ) → vẫn chốt. */
 preg_match( '/const MO_KHI_KHONG_TAM_UNG = (true|false);/', $DV, $m_mo );
 t( '🔴 có hằng MO_KHI_KHONG_TAM_UNG trong mã thật', ! empty( $m_mo[1] ), $m_mo );
-teq( '🔴 bản gốc KHU VUI CHƠI giữ luật chặt (hằng = false)', 'false', isset( $m_mo[1] ) ? $m_mo[1] : '' );
+teq( '🔴 bản gốc: hằng = true (24/09/2026 — luật là mặc định)', 'true', isset( $m_mo[1] ) ? $m_mo[1] : '' );
 
 eval( 'class DVI { const MAC_DINH = "K&H"; const NHIEU_COSO_MAC_DINH = ' . var_export( $m_md[1], true ) . '; '
 	. 'const MO_KHI_KHONG_TAM_UNG = ' . ( 'true' === $m_mo[1] ? 'true' : 'false' ) . '; '
@@ -132,12 +138,17 @@ teq( '🔴 ' . $POSH . ': dòng chi gian nào cũng NHẬN', '', TD::loi_khac_co
 teq( '   và gian thứ ba cũng nhận',                    '', TD::loi_khac_coso( 'D_POSH', 'TÀU ESTELLA' ) );
 
 /* Đơn chưa có gì thì bên nào cũng còn tự do. */
-KHO::$tu = array();
+KHO::$tu = array(); KHO::$chi = array();
 teq( 'đơn K&H chưa có dòng → chưa chốt', '', TD::coso_cua_don( 'D_KVC' ) );
+/* 🔴 24/09/2026 — LUẬT MẶC ĐỊNH: K&H KHÔNG có dòng tạm ứng, chỉ có dòng chi → đơn MỞ, mỗi dòng một
+   gian (ảnh anh Thắng: đơn Văn phòng "không xin tạm ứng (= 0)", 11 dòng, ô Cơ sở bị khoá oan). */
+KHO::$chi = array( 'D_KVC' => 'Từ dòng chi' );
+teq( '🔴 K&H không tạm ứng, đã có dòng chi → KHÔNG chốt gian (đơn đi nhiều gian)', '', TD::coso_cua_don( 'D_KVC' ) );
+teq( '   → dòng chi gian khác được NHẬN', '', TD::loi_khac_coso( 'D_KVC', 'AEON MALL TÂN PHÚ' ) );
 /* Ưu tiên tạm ứng trước dòng chi — giữ nguyên thứ tự cũ. */
 KHO::$tu  = array( 'D_KVC' => 'Từ tạm ứng' );
-KHO::$chi = array( 'D_KVC' => 'Từ dòng chi' );
 teq( 'K&H: chốt theo TẠM ỨNG trước, rồi mới tới dòng chi', 'Từ tạm ứng', TD::coso_cua_don( 'D_KVC' ) );
+teq( '🔴 có dòng tạm ứng rồi → dòng chi gian khác bị CHỐI (luật cũ vẫn nguyên)', true, '' !== TD::loi_khac_coso( 'D_KVC', 'AEON MALL TÂN PHÚ' ) );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
  * 3. 🔴 BỐN CHỐT PHẢI CÙNG HỎI MỘT CHỖ

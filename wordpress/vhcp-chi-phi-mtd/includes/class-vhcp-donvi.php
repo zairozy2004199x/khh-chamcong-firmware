@@ -197,9 +197,15 @@ class VHCPMTD_DonVi {
 	 *      để thanh toán. Văn phòng và Máy tự động chi kiểu ấy: một đợt rải qua nhiều gian, mỗi
 	 *      dòng một gian. Khoá cả đơn theo dòng đầu là ép họ lập năm đơn cho một đợt chi.
 	 *
-	 * 🔴 KVC KHÔNG ĐỔI. Hằng này để `false` ở bản gốc; script `tools/tach-ban-vung.sh` bật `true`
-	 *    cho bản mảng riêng. Anh Thắng đã dặn *"đừng can thiệp gì bên phần chi phí khu vui chơi"*,
-	 *    và luật một-đơn-một-gian bên ấy là có lý do riêng của nó (xem khối trên).
+	 * 🔴 ĐỔI 24/09/2026 — BẬT Ở CẢ BẢN GỐC. Trước đó hằng để `false` ở bản gốc (giữ chốt *"đừng can
+	 *    thiệp gì bên phần chi phí khu vui chơi"*), chỉ bản vùng mới bật. Nhưng từ khi Bắc–Nam và
+	 *    Văn phòng dùng chung một site với Khu vui chơi, người Văn phòng lập đơn không tạm ứng
+	 *    trên bản gốc bị khoá gian ngay dòng đầu (ảnh anh Thắng: đơn "không xin tạm ứng (= 0)",
+	 *    11 dòng Chi Phí Chung VP, ô Cơ sở khoá "Văn Phòng Hồ Chí Minh"). Anh chốt lại luật là
+	 *    MẶC ĐỊNH: *"nếu chọn tạm ứng xin thì nó sẽ khóa gian trong thêm hạng mục, còn nếu không
+	 *    chọn thì mỗi chi phí được chọn theo gian để đơn đi nhiều gian"*.
+	 *    Với Khu vui chơi không đổi gì trong thực tế: đơn tuần của cơ sở luôn có dòng tạm ứng
+	 *    (kể cả 0đ) nên vẫn khoá như cũ. Script tách bản vùng giữ chốt kiểm hằng = true.
 	 * ══════════════════════════════════════════════════════════════════════════════════════════
 	 */
 	const MO_KHI_KHONG_TAM_UNG = true;
