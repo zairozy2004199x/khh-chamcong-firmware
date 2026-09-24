@@ -1636,7 +1636,7 @@
           /* Tên mặt hàng bấm được -> mở THẺ KHO: từng ngày tồn đầu / nhập / bán / đếm / tồn cuối.
              Anh Thắng: "tồn kho ngày đó bao nhiêu, bán bao nhiêu, tồn bao nhiêu" — màn này chỉ
              cho một ngày, muốn thấy hàng chạy thì phải có thẻ kho. */
-          return '<tr><td class="o-ten" data-nhan="Mặt hàng">' +
+          return '<tr data-dong="' + i + '"><td class="o-ten" data-nhan="Mặt hàng">' +
             '<a href="#" data-kho-the="' + esc(d.mat_hang) + '" title="Mở thẻ kho: xem mặt hàng này chạy từng ngày" ' +
             'style="color:inherit;text-decoration:underline dotted">' + esc(d.mat_hang) + '</a>' +
             (d.co_moc ? '' : ' <span class="chip" title="Chưa ai đếm mặt hàng này bao giờ, nên hệ chưa biết trên kệ có bao nhiêu. Gõ số đếm được vào ô &quot;Hàng tồn còn&quot; một lần là xong — từ hôm sau hệ tự tính.">đếm 1 lần để đặt mốc</span>') +
@@ -1888,9 +1888,59 @@
     return ra;
   }
 
+  /* TÍNH LẠI MỘT DÒNG KHO NGAY KHI GÕ — anh Thắng 24/09/2026: *"nhập tồn mà sao nó không tính realtime
+     trước và sau của ngày đó"*. Cùng công thức với máy chủ (`khh_dt_kho_bang_ngay`): tồn đầu (ô đặt lại
+     nếu có, không thì số kéo) + nhập − máy bán − combo nhập tay − huỷ = tồn tính; hàng tồn còn − tồn
+     tính = lệch kho, chỉ khi có gõ hàng tồn còn. `d` là dòng máy chủ trả, `o` là các ô đang gõ. Máy
+     chủ vẫn là nơi quyết định khi Lưu — chỗ này chỉ để mắt thấy ngay. */
+  function tinhKhoDong(d, o) {
+    var so = function (v) {
+      if (v === null || v === undefined) return null;
+      var t = String(v).replace(/[^\d\-.,]/g, '');
+      // "1.000" / "1,000" là ngăn nghìn (đúng 3 chữ số sau dấu) -> bỏ dấu; còn lại dấu phẩy là thập phân.
+      t = t.replace(/[.,](?=\d{3}(?:[.,]|$))/g, '').replace(',', '.');
+      if (t === '' || t === '-') return null;
+      var n = parseFloat(t); return isNaN(n) ? null : n;
+    };
+    var datDau = so(o.dat_dau);
+    var tonDau = datDau !== null ? datDau : (d.ton_dau === null || d.ton_dau === undefined ? null : Number(d.ton_dau));
+    var nhap = so(o.nhap) || 0, huy = so(o.huy) || 0;
+    var goc = tonDau === null && nhap > 0 ? 0 : tonDau;
+    var may = d.ban_may === null || d.ban_may === undefined ? null : Number(d.ban_may);
+    var tonTinh = (goc === null || may === null) ? null : goc + nhap - may - Number(d.combo_tay || 0) - huy;
+    var dem = so(o.dem);
+    var lech = (dem === null || tonTinh === null) ? null : dem - tonTinh;
+    return { ton_tinh: tonTinh, lech_kho: lech };
+  }
+
+  function veLaiDongKho(tr) {
+    if (!tr || !S.khoR || !S.khoR.dong) return;
+    var d = S.khoR.dong[parseInt(tr.getAttribute('data-dong'), 10)];
+    if (!d) return;
+    var o = {};
+    Array.prototype.forEach.call(tr.querySelectorAll('[data-kho]'), function (x) { o[x.getAttribute('data-kho')] = x.value; });
+    var kq = tinhKhoDong(d, o);
+    var oTinh = tr.querySelector('.o-may[data-nhan="Tồn tính"]');
+    if (oTinh) oTinh.innerHTML = kq.ton_tinh === null ? '<span class="chu-them">—</span>' : nguyen(kq.ton_tinh);
+    var oLechKho = tr.querySelector('.o-lech[data-nhan="Lệch kho"]');
+    if (oLechKho) {
+      var tmp = document.createElement('tbody');
+      tmp.innerHTML = '<tr>' + oLech(kq.lech_kho, 'Lệch kho') + '</tr>';
+      oLechKho.replaceWith(tmp.querySelector('td'));
+    }
+  }
+
   function noiKho(o) {
     var k = o.querySelector('#dtKho');
     if (!k) return;
+    /* Gõ ô nào trong dòng là tồn tính / lệch kho của dòng ấy đổi ngay. */
+    k.addEventListener('input', function (e) {
+      var x = e.target;
+      if (!x || !x.getAttribute || !x.getAttribute('data-kho')) return;
+      var kho = x.getAttribute('data-kho');
+      if (kho !== 'dat_dau' && kho !== 'nhap' && kho !== 'huy' && kho !== 'dem') return;
+      veLaiDongKho(x.closest('tr'));
+    });
     noiONgay(k.querySelector('#khoNgay'), function (v) { S.kho.ngay = v; taiKho(); });
     var cs = k.querySelector('#khoCS');
     if (cs) cs.addEventListener('change', function () { S.kho.cs = cs.value; taiKho(); });

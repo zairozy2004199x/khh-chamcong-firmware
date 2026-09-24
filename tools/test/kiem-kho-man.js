@@ -185,6 +185,28 @@ t('"Khác — gõ tên…" mới mở ô gõ tên', /value="__khac__"/.test(boCC
 t('Lưu gộp ô số lượng với ô thêm nhanh', /if \(v > 0\) tp\[i\.getAttribute\('data-cb-mon'\)\] = v;/.test(boCC));
 t('🔴 thành phần đã khai không trùng món nào trong kho thì đỏ "không khớp món nào"', /không khớp món nào<\/b>/.test(boCC) && /coKho\.indexOf\(m\) >= 0/.test(boCC));
 
+/* 24/09/2026 anh Thắng: "nhập tồn mà sao nó không tính realtime" — tinhKhoDong chạy thật, cùng công thức máy chủ. */
+{
+  const T = new Function(boc('tinhKhoDong') + '\nreturn tinhKhoDong;')();
+  const d = { ton_dau: -2, ban_may: 5, combo_tay: 0 };
+  let k = T(d, { dat_dau: '148', nhap: '0', huy: '3', dem: '' });
+  t('🔴 gõ tồn đầu 148, huỷ 3, máy 5 -> tồn tính 140 ngay; chưa đếm -> lệch trống', k.ton_tinh === 140 && k.lech_kho === null);
+  k = T(d, { dat_dau: '148', nhap: '10', huy: '', dem: '150' });
+  t('gõ nhập 10, đếm 150 -> tồn tính 153, lệch −3', k.ton_tinh === 153 && k.lech_kho === -3);
+  k = T(d, { dat_dau: '', nhap: '', huy: '', dem: '' });
+  t('ô tồn đầu trống -> dùng số kéo (−2 − 5 = −7)', k.ton_tinh === -7);
+  k = T({ ton_dau: null, ban_may: 5, combo_tay: 0 }, { dat_dau: '', nhap: '', huy: '', dem: '' });
+  t('chưa biết tồn đầu và không nhập -> tồn tính trống (null)', k.ton_tinh === null && k.lech_kho === null);
+  k = T({ ton_dau: null, ban_may: 5, combo_tay: 0 }, { dat_dau: '', nhap: '20', huy: '', dem: '' });
+  t('lượt nhập đầu vào kho rỗng là mốc 0: 0 + 20 − 5 = 15', k.ton_tinh === 15);
+  k = T({ ton_dau: 10, ban_may: null, combo_tay: 0 }, { dat_dau: '', nhap: '5', huy: '', dem: '9' });
+  t('chưa nạp FABi (máy bán null) -> không bịa tồn tính', k.ton_tinh === null && k.lech_kho === null);
+  k = T({ ton_dau: 10, ban_may: 2, combo_tay: 1 }, { dat_dau: '', nhap: '1.000', huy: '', dem: '0' });
+  t('số có dấu chấm ngăn nghìn đọc đúng; đếm 0 khác trống -> lệch = 0 − 1007', k.ton_tinh === 1007 && k.lech_kho === -1007);
+}
+t('hàng kho mang data-dong và sự kiện input gọi veLaiDongKho', /<tr data-dong="' \+ i \+ '">/.test(boCC) && /veLaiDongKho\(x\.closest\('tr'\)\)/.test(boCC));
+t('chỉ bốn ô gõ số mới kích tính lại (không phải ghi chú)', /kho !== 'dat_dau' && kho !== 'nhap' && kho !== 'huy' && kho !== 'dem'/.test(boCC));
+
 /* 24/09/2026 anh Thắng: "cho set lại tồn đầu" — ô Tồn đầu gõ được khi có quyền ghi, trống = số kéo (placeholder). */
 t('🔴 Tồn đầu là ô gõ data-kho="dat_dau" khi được ghi', /data-kho="dat_dau"/.test(boCC) && /class="o-go o-dau" data-nhan="Tồn đầu"/.test(boCC));
 t('ô ấy hiện số kéo mờ (placeholder = soKho(d.ton_dau))', /placeholder="' \+ esc\(soKho\(d\.ton_dau\)\)/.test(boCC));

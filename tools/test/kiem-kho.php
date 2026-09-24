@@ -777,6 +777,36 @@ phep( "trình đọc file có cột 'ma_hang' và ghi 'm' vào món", false !== 
 delete_option( 'khh_dt_kho_mat_hang' );
 delete_option( 'khh_dt_kho_ma' );
 
+/* ── Sửa một lần cặp 0/0 do lỗi ép ô trống thành 0 (anh Thắng 24/09/2026: "qua ngày 24 tồn đầu không nhảy") ── */
+$CS0 = 'Kho thử sửa 0';
+$w   = $GLOBALS['wpdb'];
+$kb  = khh_dt_bang_kho();
+$chen = function ( $mh, $dat, $dem, $khai ) use ( $w, $kb, $CS0 ) {
+	$w->query( "INSERT INTO $kb (ngay,co_so,mat_hang,nhap,ban_khai,combo_tay,dem,dat_dau,huy,ghi_chu,nguoi,luc) VALUES ('2026-09-23','" . $CS0 . "','" . $mh . "',0," . ( null === $khai ? 'NULL' : $khai ) . ",0," . ( null === $dem ? 'NULL' : $dem ) . ',' . ( null === $dat ? 'NULL' : $dat ) . ",0,'','nv',1)" );
+};
+/* Danh mục cửa hàng có đủ món — như màn thật, dòng tồn 0 vẫn hiện (chứ không biến mất). */
+khh_dt_kho_mh_dat( $CS0, array( 'Bim bim nhỏ', 'Kẹo cứng', 'Kẹo dẻo', 'Thạch trái cây', 'Pororo' ) );
+$chen( 'Bim bim nhỏ', 148, 0, 0 );      // vết lỗi cũ: cả hai ô "0"
+$chen( 'Kẹo cứng', 48, 0, 0 );
+$chen( 'Kẹo dẻo', 15, 0, null );        // đếm 0 THẬT, SL bán để trống (bản mới) -> phải giữ
+$chen( 'Thạch trái cây', 506, null, null );
+$b = khh_dt_kho_bang_ngay( '2026-09-24', $CS0 );
+phep( '🔴 tái hiện lỗi: dem = 0 dính từ bản cũ -> 24/09 tồn đầu 0 dù 23/09 đặt 148', null !== dong_cua( $b, 'Bim bim nhỏ' ) && 0.0 === (float) dong_cua( $b, 'Bim bim nhỏ' )['ton_dau'] && null !== dong_cua( $b, 'Bim bim nhỏ' )['ton_dau'] );
+phep( 'món thêm sau khi sửa (dem NULL) thì kéo đúng 506', 506.0 === (float) dong_cua( $b, 'Thạch trái cây' )['ton_dau'] );
+delete_option( 'khh_dt_kho_sua_0' );
+$n = khh_dt_kho_sua_so_0();
+phep( '🔴 sửa một lần: gỡ đúng 2 dòng có CẢ HAI ô 0', 2 === $n );
+$b = khh_dt_kho_bang_ngay( '2026-09-24', $CS0 );
+phep( '🔴 sau sửa, 24/09 tồn đầu nhảy đúng 148 và 48', 148.0 === (float) dong_cua( $b, 'Bim bim nhỏ' )['ton_dau'] && 48.0 === (float) dong_cua( $b, 'Kẹo cứng' )['ton_dau'] );
+phep( '🔴 đếm 0 thật (SL bán trống) KHÔNG bị gỡ: 24/09 tồn đầu vẫn 0', null !== dong_cua( $b, 'Kẹo dẻo' ) && null !== dong_cua( $b, 'Kẹo dẻo' )['ton_dau'] && 0.0 === (float) dong_cua( $b, 'Kẹo dẻo' )['ton_dau'] );
+$b23 = khh_dt_kho_bang_ngay( '2026-09-23', $CS0 );
+phep( 'màn 23/09: ô Hàng tồn còn và SL bán về trống, tồn đầu đặt 148 còn nguyên', null === dong_cua( $b23, 'Bim bim nhỏ' )['dem'] && null === dong_cua( $b23, 'Bim bim nhỏ' )['ban_khai'] && 148.0 === (float) dong_cua( $b23, 'Bim bim nhỏ' )['dat_dau'] );
+$chen( 'Pororo', 19, 0, 0 );            // sau khi đã sửa, ai cố ý gõ 0/0 thì đứng yên
+phep( '🔴 chỉ chạy MỘT LẦN: gọi lại không đụng dòng mới', 0 === khh_dt_kho_sua_so_0() && null !== dong_cua( khh_dt_kho_bang_ngay( '2026-09-24', $CS0 ), 'Pororo' )['ton_dau'] && 0.0 === (float) dong_cua( khh_dt_kho_bang_ngay( '2026-09-24', $CS0 ), 'Pororo' )['ton_dau'] );
+phep( 'khh-doanh-thu.php gọi bước sửa lúc nâng cấp', false !== strpos( preg_replace( '~/\*.*?\*/~s', '', file_get_contents( $goc . '/khh-doanh-thu.php' ) ), 'khh_dt_kho_sua_so_0();' ) );
+delete_option( 'khh_dt_kho_sua_0' );
+delete_option( 'khh_dt_kho_mat_hang' );
+
 if ( $hong ) {
 	echo "\n✗ HỎNG " . count( $hong ) . " phép (đạt $dat):\n";
 	foreach ( $hong as $h ) { echo "   · 🔴 $h\n"; }
