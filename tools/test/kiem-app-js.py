@@ -719,7 +719,8 @@ la('đối chứng: hàm bốc ra khép kín', _fn_bz.rstrip().endswith('}'), _f
 #    lỗi gì cả — đúng cái bẫy đã cắn nút xoá ghế bên nhánh Ghế.
 la('🔴 nghe ở document, không gắn vào từng thẻ ảnh',
    "document.addEventListener('mouseover'" in _fn_bz)
-la('   và lọc bằng closest([data-bill])', "closest('[data-bill]')" in _fn_bz)
+# 24/09/2026: PDF mang `data-bill-pdf` (rê hiện trang 1) — lọc chung một câu closest cho cả hai.
+la('   và lọc bằng closest([data-bill],[data-bill-pdf])', "closest('[data-bill],[data-bill-pdf]')" in _fn_bz)
 la('   không gắn tay vào từng img', '.querySelectorAll' not in _fn_bz)
 # Lớp phủ phải ở body: bảng có overflow-x nên ảnh phóng to bên trong ô sẽ bị khung cuộn cắt.
 la('🔴 lớp phủ gắn vào body, thoát khỏi khung cuộn của bảng',

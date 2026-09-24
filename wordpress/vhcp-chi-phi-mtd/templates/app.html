@@ -2351,9 +2351,12 @@
      ⚠️ Lớp phủ dựng MỘT lần rồi dùng lại — dựng mỗi lần rê là rác chồng rác trong DOM. */
   /* ══════════════════════════════════════════════════════════════════════════════════════════
    * Ô CHỨNG TỪ CỦA MỘT DÒNG — ảnh thì thumbnail (rê chuột phóng to, bấm mở gốc); PDF thì huy hiệu
-   * 📄 PDF bấm mở tab mới. Anh Thắng 24/09/2026: *"Cho upload cả file pdf nhé"*.
-   * 🔴 PDF KHÔNG mang `data-bill`: lớp phủ phóng to vẽ bằng <img>, đưa URL .pdf vào là một ô
-   *    trống lơ lửng cạnh con trỏ. Hai bảng (dòng đơn · bảng dòng ở Quyết toán) dùng chung hàm này
+   * 📄 PDF: rê chuột hiện ẢNH TRANG 1 ngay trên lớp phủ, bấm mở tab mới.
+   * Anh Thắng 24/09/2026: *"Cho upload cả file pdf nhé"*, rồi *"Cho tính năng rê chuột vào PDF để
+   * để hiện ảnh thẳng lên luôn"*.
+   * 🔴 PDF KHÔNG mang `data-bill` mà mang `data-bill-pdf`: lớp phủ vẽ bằng <img>, đưa thẳng URL
+   *    .pdf vào là một ô trống lơ lửng cạnh con trỏ — phải qua `_pdfAnh()` dựng trang 1 ra ảnh
+   *    trước (xem khối ngay dưới). Hai bảng (dòng đơn · bảng dòng ở Quyết toán) dùng chung hàm này
    *    — viết hai bản là sớm muộn một bên quên PDF.
    * ══════════════════════════════════════════════════════════════════════════════════════════ */
   function _laPdf(url){ return /\.pdf($|[?#])/i.test(String(url||'')); }
@@ -2361,11 +2364,91 @@
     if(!url) return '';
     var u=esc(url);
     if(_laPdf(url)){
-      return '<a href="'+u+'" target="_blank" rel="noopener" title="Chứng từ PDF — bấm để mở" '
+      return '<a href="'+u+'" target="_blank" rel="noopener" data-bill-pdf="'+u+'" title="Rê chuột để xem trang 1 · bấm để mở PDF" '
         +'style="display:inline-flex;align-items:center;gap:4px;height:'+(cao||28)+'px;padding:0 8px;border:1px solid #fecaca;border-radius:6px;'
         +'background:#fef2f2;color:#b91c1c;font-size:11px;font-weight:700;text-decoration:none;vertical-align:middle">📄 PDF</a>';
     }
     return '<a href="'+u+'" target="_blank" title="Rê chuột để phóng to · bấm để mở ảnh gốc"><img src="'+u+'" data-bill="'+u+'" style="height:'+(cao||28)+'px;border-radius:4px;vertical-align:middle" loading="lazy"></a>';
+  }
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * RÊ CHUỘT VÀO 📄 PDF → HIỆN ẢNH TRANG 1. Anh Thắng 24/09/2026: *"Cho tính năng rê chuột vào
+   * PDF để để hiện ảnh thẳng lên luôn"*.
+   *
+   * Trình duyệt không vẽ được PDF vào <img>, nên dùng pdf.js dựng trang 1 ra canvas → PNG →
+   * đưa vào CHÍNH lớp phủ #billZoom của ảnh (một lớp phủ, một cách đặt cạnh con trỏ, một chỗ
+   * sửa). Ba luật:
+   *   1. NẠP LƯỚI: thư viện ~1MB chỉ tải ở lần ĐẦU rê vào một PDF. Người không đụng PDF không
+   *      tải thêm gì — trang chi phí mở trên 4G ở cơ sở, không gánh thêm 1MB cho tính năng ít dùng.
+   *   2. NHỚ THEO URL: dựng xong giữ ảnh lại (`PDF_ANH_SAN`), rê lần hai là có ngay; kế toán
+   *      soát một đơn rê đi rê lại cùng vài tệp. Nhớ trong phiên, đổi trang là bỏ — không phình.
+   *   3. LỖI KHÔNG NHỚ: mạng rớt / cdn chết / PDF hỏng → hiện tấm "không dựng được", lần rê sau
+   *      thử lại. Nhớ lỗi là một lần rớt mạng thành hỏng cả buổi.
+   * ⚠️ Worker của pdf.js nằm khác gốc (cdnjs) — trình duyệt không cho dựng Worker khác gốc,
+   *    pdf.js tự lui về "fake worker" chạy trên luồng chính. Chậm hơn đôi chút, chấp nhận:
+   *    trang 1 của một hoá đơn điện tử vẫn dưới một giây. Đường thứ hai là chở worker về đúng
+   *    gốc khmatrix.com — làm khi thấy chậm thật.
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  var PDF_JS_URL='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+  var PDF_JS_WORKER='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  var PDF_LIB=null;       // Promise nạp thư viện — một lần cho cả trang
+  var PDF_ANH={};         // url → Promise<dataURL|null> đang dựng / đã dựng
+  var PDF_ANH_SAN={};     // url → dataURL đã dựng xong (đọc ĐỒNG BỘ lúc mousemove)
+  /* Tấm chờ / tấm lỗi: SVG khổ A4 dọc để lớp phủ giữ đúng cỡ, không giật khi ảnh thật đến. */
+  function _pdfTam(chu, mau){
+    var svg='<svg xmlns="http://www.w3.org/2000/svg" width="420" height="594">'
+      +'<rect width="420" height="594" rx="10" fill="#fef2f2" stroke="'+mau+'" stroke-width="3"/>'
+      +'<text x="210" y="270" text-anchor="middle" font-size="64">📄</text>'
+      +'<text x="210" y="330" text-anchor="middle" font-family="system-ui,Segoe UI,Roboto,sans-serif" font-size="17" fill="'+mau+'">'+chu+'</text></svg>';
+    return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);
+  }
+  var PDF_CHO=_pdfTam('Đang dựng trang 1 của PDF…', '#b91c1c');
+  var PDF_LOI=_pdfTam('Không dựng được — bấm để mở PDF', '#6b7280');
+  function _pdfLib(){
+    if(window.pdfjsLib){
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc=PDF_JS_WORKER;
+      return Promise.resolve(window.pdfjsLib);
+    }
+    if(PDF_LIB) return PDF_LIB;
+    PDF_LIB=new Promise(function(ok, loi){
+      var s=document.createElement('script'); s.src=PDF_JS_URL; s.async=true;
+      s.onload=function(){
+        if(!window.pdfjsLib){ PDF_LIB=null; loi(new Error('pdf.js nạp xong nhưng không có pdfjsLib')); return; }
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc=PDF_JS_WORKER;
+        ok(window.pdfjsLib);
+      };
+      s.onerror=function(){ PDF_LIB=null; loi(new Error('không tải được pdf.js')); };
+      document.head.appendChild(s);
+    });
+    return PDF_LIB;
+  }
+  function _pdfAnh(url){
+    url=String(url||'');
+    if(!url) return Promise.resolve(null);
+    if(PDF_ANH[url]) return PDF_ANH[url];
+    var p=_pdfLib()
+      .then(function(lib){ return lib.getDocument({url:url}).promise; })
+      .then(function(doc){ return doc.getPage(1); })
+      .then(function(pg){
+        /* Cỡ: cao ~1100px ảnh là đủ đọc trên lớp phủ 560px kể cả màn retina; chặn tỉ lệ 2 để
+           tệp khổ nhỏ không bị phóng lem, và không dựng bitmap 5000px cho một bill dài. */
+        var v1=pg.getViewport({scale:1});
+        var ti=Math.min(2, 1100/Math.max(1, v1.height));
+        var vp=pg.getViewport({scale:ti});
+        var c=document.createElement('canvas');
+        c.width=Math.ceil(vp.width); c.height=Math.ceil(vp.height);
+        return pg.render({canvasContext:c.getContext('2d'), viewport:vp}).promise
+          .then(function(){ return c.toDataURL('image/png'); });
+      })
+      .then(function(anh){ if(!anh) throw new Error('canvas rỗng'); PDF_ANH_SAN[url]=anh; return anh; })
+      .catch(function(e){
+        /* Luật 3: quên lời hứa hỏng để lần rê sau thử lại. Nhớ tấm lỗi ĐỒNG BỘ để mousemove
+           không nhấp nháy giữa "đang dựng" và "không dựng được" — mouseover sau gỡ nó rồi thử lại. */
+        delete PDF_ANH[url]; PDF_ANH_SAN[url]=PDF_LOI;
+        if(window.console) console.warn('PDF trang 1:', url, e && e.message);
+        return null;
+      });
+    PDF_ANH[url]=p;
+    return p;
   }
   function _billZoomInit(){
     var ov=null;
@@ -2393,20 +2476,46 @@
       if(y+h+m>window.innerHeight) y=window.innerHeight-h-m;
       o.style.left=x+'px'; o.style.top=y+'px';
     }
-    function an(){ if(ov) ov.style.display='none'; }
+    function an(){ if(ov) ov.style.display='none'; pdfDang=''; }
+    /* PDF đang rê + toạ độ con trỏ cuối: ảnh trang 1 đến MUỘN (nạp thư viện, tải tệp, vẽ),
+       lúc ấy chỉ thay ảnh nếu con trỏ VẪN đang trên đúng PDF đó — rê sang ảnh khác rồi mà PDF
+       cũ nhảy lên đè là sai. */
+    var pdfDang='', pdfXY=null;
+    function the(e){ return e.target&&e.target.closest?e.target.closest('[data-bill],[data-bill-pdf]'):null; }
+    /* Ảnh để đặt lên lớp phủ cho thẻ đang rê: ảnh thì chính nó; PDF thì trang 1 đã dựng, chưa
+       có thì tấm chờ. */
+    function anhCua(t){
+      var b=t.getAttribute('data-bill'); if(b) return b;
+      var p=t.getAttribute('data-bill-pdf'); if(!p) return '';
+      return PDF_ANH_SAN[p]||PDF_CHO;
+    }
     document.addEventListener('mouseover',function(e){
-      var t=e.target&&e.target.closest?e.target.closest('[data-bill]'):null;
-      if(!t) return;
-      var u=t.getAttribute('data-bill'); if(!u) return;
-      dat(e,u);
+      var t=the(e); if(!t) return;
+      var p=t.getAttribute('data-bill-pdf');
+      if(p){
+        if(PDF_ANH_SAN[p]===PDF_LOI) delete PDF_ANH_SAN[p];   // lần trước hỏng → thử lại
+        pdfDang=p; pdfXY={clientX:e.clientX, clientY:e.clientY};
+        dat(e, PDF_ANH_SAN[p]||PDF_CHO);
+        /* `_pdfAnh` tự nhớ lời hứa theo URL: đã dựng / đang dựng thì không dựng lại — không cần
+           rào thêm ở đây. */
+        _pdfAnh(p).then(function(anh){
+          if(pdfDang!==p) return;                                // đã rê đi chỗ khác
+          dat(pdfXY, anh||PDF_LOI);
+        });
+        return;
+      }
+      var u=anhCua(t); if(!u) return;
+      pdfDang=''; dat(e,u);
     });
     document.addEventListener('mousemove',function(e){
       if(!ov||ov.style.display==='none') return;
-      var t=e.target&&e.target.closest?e.target.closest('[data-bill]'):null;
-      if(t) dat(e,t.getAttribute('data-bill')); else an();
+      var t=the(e);
+      if(!t){ an(); return; }
+      if(t.getAttribute('data-bill-pdf')) pdfXY={clientX:e.clientX, clientY:e.clientY};
+      dat(e, anhCua(t));
     });
     document.addEventListener('mouseout',function(e){
-      var t=e.target&&e.target.closest?e.target.closest('[data-bill]'):null;
+      var t=the(e);
       if(t) an();
     });
     /* Cuộn trang trong lúc ảnh đang mở thì ảnh treo lơ lửng sai chỗ — đóng luôn cho gọn. */
