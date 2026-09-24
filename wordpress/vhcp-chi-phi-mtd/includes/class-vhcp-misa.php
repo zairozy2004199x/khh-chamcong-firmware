@@ -123,22 +123,33 @@ class VHCPMTD_Misa {
 	 * Ngày từ … đến …"*. Sổ thật của kế toán ghi "Chi phí khác POSH MN AMBD T9/2026_Phí gửi da ghế".
 	 *
 	 * Ba việc, mỗi việc một hàm nhỏ để bài kiểm gọi thẳng:
-	 *   · `ky_dien_giai()`  — kỳ "T9/2026 (21/9-27/9/2026)" → "T9/2026" (kiểu tháng) hay
-	 *                          "Ngày từ 21/9 đến 27/9/2026" (kiểu ngày). Người xuất chọn trên màn.
+	 *   · `ky_dien_giai()`  — kỳ là HAI LOẠI, tự tách theo từng đơn (anh Thắng 24/09/2026, ảnh
+	 *                          "T9/2026 (21/9-27/9/2026)": *"Cái này chia ra 2 loại, chứ không phải
+	 *                          ghép lại"*): khoảng đúng một tuần 7 ngày → "T9/2026"; khoảng tự chọn
+	 *                          (3 ngày, hay kỳ thuê 26/8-25/9) → "ngày 26/8-25/9/2026". Sổ thật của kế
+	 *                          toán ghi đúng như vậy trong CÙNG một đơn: "…VHM T9/2026" cạnh "…Kubo BMT
+	 *                          ngày 26/8-25/9/2026". Bản 1.317.0 từng để một ô chọn chung cho cả tệp —
+	 *                          sai ý, đã bỏ.
 	 *   · `ten_coso_gon()`  — tên MISA của gian thường đã mang sẵn mảng ("POSH MN AEON MALL…"), mà
 	 *                          diễn giải đã có mảng đứng trước → bỏ phần lặp, khỏi ra "POSH MN POSH MN".
 	 *   · tên loại theo MISA — cột "Tên theo MISA" của bảng Loại chi phí (`ten_misa_loai`), trước
 	 *                          đây chỉ luồng Marketing dùng, luồng đơn tuần bỏ quên.
 	 * ════════════════════════════════════════════════════════════════════════ */
-	const KY_THANG = 'thang';
-	const KY_NGAY  = 'ngay';
-
-	/** Kỳ của đơn viết gọn cho diễn giải. Kỳ không có khoảng ngày (đơn cũ, đơn dự án) → trả nguyên. */
-	public static function ky_dien_giai( $ky, $kieu = self::KY_THANG ) {
+	/** Kỳ của đơn viết cho diễn giải — tuần chuẩn → "T9/2026"; khoảng tự chọn → "ngày a-b/Y".
+	 *  Kỳ không có khoảng ngày (đơn cũ, đơn dự án, nhãn lạ) → trả nguyên văn. */
+	public static function ky_dien_giai( $ky ) {
 		$ky = trim( (string) $ky );
 		if ( ! preg_match( '/^(.*?)\s*\(\s*([^()\-–]+?)\s*[\-–]\s*([^()]+?)\s*\)\s*$/u', $ky, $m ) ) { return $ky; }
-		if ( self::KY_NGAY === $kieu ) { return 'Ngày từ ' . trim( $m[2] ) . ' đến ' . trim( $m[3] ); }
-		return trim( $m[1] ) !== '' ? trim( $m[1] ) : $ky;
+		$nhan = trim( $m[1] ); $tu = trim( $m[2] ); $den = trim( $m[3] );
+		return self::la_tuan_chuan( $ky ) && '' !== $nhan ? $nhan : ( 'ngày ' . $tu . '-' . $den );
+	}
+
+	/** Khoảng ngày của kỳ dài ĐÚNG 7 ngày — cách tuần chuẩn được sinh ra (`VHCPMTD_Don::nhan_ky`). */
+	public static function la_tuan_chuan( $ky ) {
+		list( $tu, $den ) = VHCPMTD_Don::khoang_ky( $ky );
+		if ( '' === $tu || '' === $den ) { return false; }
+		$a = strtotime( $tu . ' 00:00:00 UTC' ); $z = strtotime( $den . ' 00:00:00 UTC' );
+		return $a && $z && ( ( $z - $a ) === 6 * 86400 );
 	}
 
 	/** Tên gian cho diễn giải: tên MISA (hay tên gian), bỏ phần mở đầu trùng với mảng đứng trước nó. */
@@ -153,9 +164,8 @@ class VHCPMTD_Misa {
 	}
 
 	/** exportMisa(): đơn vận hành. mode = chuaxuat|daxuat ; plF = all|cn|ncc. */
-	public static function export_misa( $ky = 'all', $mode = 'chuaxuat', $pl_f = 'all', $mau = self::MAU_CHUAN, $tk_f = 'all', $ky_kieu = self::KY_THANG ) {
+	public static function export_misa( $ky = 'all', $mode = 'chuaxuat', $pl_f = 'all', $mau = self::MAU_CHUAN, $tk_f = 'all' ) {
 		$mau  = ( self::MAU_SOCT === $mau ) ? self::MAU_SOCT : self::MAU_CHUAN;
-		$ky_kieu = ( self::KY_NGAY === $ky_kieu ) ? self::KY_NGAY : self::KY_THANG;
 		$tk_f = VHCPMTD_Util::ma_so( trim( (string) $tk_f ) );
 		if ( 'ALL' === mb_strtoupper( (string) $tk_f ) ) { $tk_f = ''; }
 		$mode = $mode ? $mode : 'chuaxuat';
@@ -324,7 +334,7 @@ class VHCPMTD_Misa {
 			/* Cột "Tên theo MISA" của loại (bảng Loại chi phí) — khai thì diễn giải dùng tên ấy. */
 			$nhom_dg  = VHCPMTD_Cfg::ten_misa_loai( $nhom_c );
 			$ten_misa = ! empty( $m_tm[ $coso ] ) ? $m_tm[ $coso ] : $coso;
-			$ky_dg    = self::ky_dien_giai( $d['ky'], $ky_kieu );
+			$ky_dg    = self::ky_dien_giai( $d['ky'] );
 			$ten1     = $d['nguoiDuyet'];
 			/* Loại _ Mảng _ [Cơ sở] _ Kỳ, rồi "_" + phần riêng (người duyệt ở diễn giải chung, nội dung ở
 			   diễn giải hạch toán) — đúng cấu trúc anh Thắng chốt 24/09/2026. */

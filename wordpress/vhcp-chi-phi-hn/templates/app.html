@@ -1649,13 +1649,9 @@
                hiệu tài khoản — nó nằm ở tiêu đề sổ. Lọc về một tài khoản thì tệp khớp nguyên văn
                mẫu MISA; để "mọi TK Nợ" thì app thêm cột TK Nợ ở đầu, để tệp không bao giờ trộn
                chung mà không phân biệt được. Danh sách đổ từ chính các mã CÓ MẶT trong kỳ. -->
-          <!-- 📅 KỲ TRONG DIỄN GIẢI — anh Thắng 24/09/2026: *"Tháng T9/2026 hoặc Ngày từ … đến …"*. Sổ
-               thật của kế toán ghi theo tháng, nên tháng là mặc định; chọn "Ngày từ … đến …" khi cần
-               dò theo tuần. Chỉ đổi CHỮ diễn giải, không đổi dòng nào. Xem `VHCPHN_Misa::ky_dien_giai()`. -->
-          <select id="xuatKyKieu" onchange="callExport()" title="Kỳ ghi trong hai cột Diễn giải: theo tháng (T9/2026) hay theo khoảng ngày của đơn (Ngày từ 21/9 đến 27/9/2026). Chỉ đổi chữ, không đổi số.">
-            <option value="thang">📅 Kỳ: Tháng (T9/2026)</option>
-            <option value="ngay">📅 Kỳ: Ngày từ … đến …</option>
-          </select>
+          <!-- 📅 Kỳ trong diễn giải KHÔNG có ô chọn: máy chủ tự tách theo từng đơn — tuần chuẩn ghi
+               "T9/2026", khoảng tự chọn ghi "ngày 26/8-25/9/2026" (anh Thắng 24/09/2026: *"chia ra 2
+               loại, chứ không phải ghép lại"*). Xem `VHCPHN_Misa::ky_dien_giai()`. -->
           <select id="xuatTkNo" onchange="callExport()" style="display:none" title="Sổ chi tiết là sổ của MỘT tài khoản. Chọn một mã → tệp đúng 13 cột như mẫu MISA. Để 'mọi TK Nợ' → app thêm cột TK Nợ ở đầu để tệp không lẫn.">
             <option value="all">— mọi TK Nợ (thêm cột TK Nợ) —</option>
           </select>
@@ -10074,8 +10070,7 @@
       .withFailureHandler(function(e){loading(false);toast('err',e.message);})
       .exportMisa(el('xuatKy').value, el('xuatTT').value, plF,
                   (el('xuatMau')&&el('xuatMau').value)||'chuan',
-                  (el('xuatTkNo')&&el('xuatTkNo').value)||'all',
-                  (el('xuatKyKieu')&&el('xuatKyKieu').value)||'thang');
+                  (el('xuatTkNo')&&el('xuatTkNo').value)||'all');
   }
   function renderXuat(){
     el('xuatSoDon').textContent=XUAT.sodon||0; el('xuatSoDong').textContent=XUAT.count||0;

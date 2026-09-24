@@ -14,13 +14,15 @@ $DAT = 0; $TRUOT = array();
 function t( $ten, $ok, $them = null ) { global $DAT, $TRUOT; if ( $ok ) { $DAT++; return; } $TRUOT[] = $ten . ( null !== $them ? ( "\n      → " . ( is_scalar( $them ) ? $them : json_encode( $them, JSON_UNESCAPED_UNICODE ) ) ) : '' ); }
 function teq( $ten, $mong, $thuc ) { t( $ten . ' (mong ' . json_encode( $mong, JSON_UNESCAPED_UNICODE ) . ')', $mong === $thuc, $thuc ); }
 
-/* ═══ 1. Kỳ viết gọn ═══ */
-teq( '🔴 kiểu tháng: "T9/2026 (21/9-27/9/2026)" → "T9/2026"', 'T9/2026', VHCP_Misa::ky_dien_giai( 'T9/2026 (21/9-27/9/2026)' ) );
-teq( '🔴 kiểu ngày: → "Ngày từ 21/9 đến 27/9/2026"', 'Ngày từ 21/9 đến 27/9/2026', VHCP_Misa::ky_dien_giai( 'T9/2026 (21/9-27/9/2026)', 'ngay' ) );
-teq( '   tuần bắc tháng giữ đúng hai đầu', 'Ngày từ 31/8 đến 6/9/2026', VHCP_Misa::ky_dien_giai( 'T9/2026 (31/8-6/9/2026)', 'ngay' ) );
-teq( '   kỳ không có khoảng ngày → nguyên văn', 'T9/2026', VHCP_Misa::ky_dien_giai( 'T9/2026', 'ngay' ) );
+/* ═══ 1. Kỳ là HAI LOẠI, tự tách theo đơn ═══ */
+teq( '🔴 tuần chuẩn 7 ngày "T9/2026 (21/9-27/9/2026)" → "T9/2026"', 'T9/2026', VHCP_Misa::ky_dien_giai( 'T9/2026 (21/9-27/9/2026)' ) );
+teq( '🔴 khoảng tự chọn (kỳ thuê) "T9/2026 (26/8-25/9/2026)" → "ngày 26/8-25/9/2026"', 'ngày 26/8-25/9/2026', VHCP_Misa::ky_dien_giai( 'T9/2026 (26/8-25/9/2026)' ) );
+teq( '   khoảng 3 ngày → kiểu ngày', 'ngày 2/9-4/9/2026', VHCP_Misa::ky_dien_giai( 'T9/2026 (2/9-4/9/2026)' ) );
+teq( '   tuần bắc tháng (31/8-6/9) vẫn là tuần chuẩn → theo tháng của nhãn', 'T9/2026', VHCP_Misa::ky_dien_giai( 'T9/2026 (31/8-6/9/2026)' ) );
+teq( '   khoảng 8 ngày → kiểu ngày (không phải tuần)', 'ngày 21/9-28/9/2026', VHCP_Misa::ky_dien_giai( 'T9/2026 (21/9-28/9/2026)' ) );
+teq( '   kỳ không có khoảng ngày → nguyên văn', 'T9/2026', VHCP_Misa::ky_dien_giai( 'T9/2026' ) );
 teq( '   kỳ lạ → nguyên văn', 'Đợt 3 Vũng Tàu', VHCP_Misa::ky_dien_giai( 'Đợt 3 Vũng Tàu' ) );
-teq( '   kiểu lạ → coi như tháng', 'T9/2026', VHCP_Misa::ky_dien_giai( 'T9/2026 (21/9-27/9/2026)', 'gi-do' ) );
+teq( '   la_tuan_chuan đúng/sai', array( true, false ), array( VHCP_Misa::la_tuan_chuan( 'T9/2026 (21/9-27/9/2026)' ), VHCP_Misa::la_tuan_chuan( 'T9/2026 (26/8-25/9/2026)' ) ) );
 /* ═══ 2. Tên gian bỏ phần lặp mảng ═══ */
 teq( '🔴 "POSH MN AEON MALL BÌNH DƯƠNG" với mảng "POSH MN" → "AEON MALL BÌNH DƯƠNG"', 'AEON MALL BÌNH DƯƠNG', VHCP_Misa::ten_coso_gon( 'POSH MN AEON MALL BÌNH DƯƠNG', 'POSH MN' ) );
 teq( '   không lặp thì giữ nguyên', 'FUNZONE VUNG TAU', VHCP_Misa::ten_coso_gon( 'FUNZONE VUNG TAU', 'FUNZONE MN' ) );
@@ -55,18 +57,27 @@ teq( '🔴 Diễn giải (hạch toán) = TênMISA-của-loại · Mảng · Cơ
 teq( '🔴 Diễn giải chung = TênMISA-của-loại · Mảng · Tháng _ Người duyệt', 'Chi phí khác POSH MN T9/2026_Nguyễn Mai Anh', $vh[3] );
 teq( '   loại không khai Tên theo MISA → dùng tên gốc', 'Chi Phí Thuê Mặt Bằng POSH MN AEON MALL BÌNH DƯƠNG T9/2026_Lần 3/3', $mb[4] );
 teq( '   TK Nợ/Có không đổi vì đổi diễn giải', array( '6418', '141' ), array( $vh[5], $vh[6] ) );
-$ex2 = VHCP_Misa::export_misa( 'all', 'chuaxuat', 'all', 'chuan', 'all', 'ngay' );
-$vh2 = null; foreach ( $ex2['rows'] as $r ) { if ( false !== mb_strpos( $r[4], 'da ghế' ) ) { $vh2 = $r; } }
-teq( '🔴 kiểu ngày: "Ngày từ 21/9 đến 27/9/2026" thay cho tháng, cả hai cột', array( 'Chi phí khác POSH MN Ngày từ 21/9 đến 27/9/2026_Nguyễn Mai Anh', 'Chi phí khác POSH MN AEON MALL BÌNH DƯƠNG Ngày từ 21/9 đến 27/9/2026_Phí gửi da ghế' ), array( $vh2[3], $vh2[4] ) );
+/* Đơn khoảng tự chọn (kỳ thuê mặt bằng) trong CÙNG lượt xuất → kiểu ngày, đơn tuần bên trên vẫn kiểu tháng */
+$d2 = VHCP_Don::create_don( 'T9/2026 (26/8-25/9/2026)', 'Nguyễn Mai Anh' ); $m2 = $d2['maDon'];
+VHCP_Don::add_line( $m2, array( 'coso' => 'AEON MALL BÌNH DƯƠNG', 'ngay' => '2026-09-09', 'phanLoaiTT' => 'Nhà cung cấp', 'nhom' => 'Chi Phí Thuê Mặt Bằng', 'noiDung' => 'Kỳ 26/8-25/9', 'soLuong' => 1, 'donGia' => 3300000, 'thanhTien' => 3300000 ) );
+VHCP_Don::set_tam_ung( $m2, 'AEON MALL BÌNH DƯƠNG', 0 ); VHCP_Don::gui_duyet_tam_ung( $m2 ); VHCP_Don::duyet_tam_ung( $m2, 'Nguyễn Mai Anh', '' );
+VHCP_Don::cap_tam_ung( $m2, 'Nguyễn Mai Anh', 'Tiền mặt' ); VHCP_Don::gui_quyet_toan( $m2 ); VHCP_Don::xac_nhan_qt_cn_nhieu( array( $m2 ), 'Nguyễn Mai Anh' );
+$ex2 = VHCP_Misa::export_misa( 'all', 'chuaxuat', 'all' );
+$vh2 = null; $mb2 = null; foreach ( $ex2['rows'] as $r ) { if ( false !== mb_strpos( $r[4], 'da ghế' ) ) { $vh2 = $r; } if ( false !== mb_strpos( $r[4], 'Kỳ 26/8-25/9' ) ) { $mb2 = $r; } }
+t( '⚠️ có cả hai dòng', $vh2 && $mb2, $ex2['rows'] );
+teq( '🔴 cùng một tệp: đơn tuần → "T9/2026", đơn khoảng tự chọn → "ngày 26/8-25/9/2026"',
+	array( 'Chi phí khác POSH MN AEON MALL BÌNH DƯƠNG T9/2026_Phí gửi da ghế', 'Chi Phí Thuê Mặt Bằng POSH MN AEON MALL BÌNH DƯƠNG ngày 26/8-25/9/2026_Kỳ 26/8-25/9' ),
+	array( $vh2[4], $mb2[4] ) );
+teq( '   diễn giải chung của đơn khoảng tự chọn cũng kiểu ngày', 'Chi Phí Thuê Mặt Bằng POSH MN ngày 26/8-25/9/2026_Nguyễn Mai Anh', $mb2[3] );
 /* Mẫu sổ chi tiết cũng đi qua cùng diễn giải */
-$ex3 = VHCP_Misa::export_misa( 'all', 'chuaxuat', 'all', 'soct', 'all', 'thang' );
+$ex3 = VHCP_Misa::export_misa( 'all', 'chuaxuat', 'all', 'soct', 'all' );
 $vh3 = null; foreach ( $ex3['rows'] as $r ) { if ( false !== mb_strpos( $r[5], 'da ghế' ) ) { $vh3 = $r; } }
 t( '   mẫu 13 cột (có cột TK Nợ đầu) cũng mang diễn giải mới', $vh3 && 'Chi phí khác POSH MN AEON MALL BÌNH DƯƠNG T9/2026_Phí gửi da ghế' === $vh3[5], $ex3['rows'] );
 
-/* ═══ 4. Màn Xuất MISA có ô chọn và truyền xuống ═══ */
+/* ═══ 4. Màn Xuất MISA KHÔNG còn ô chọn kiểu kỳ (máy chủ tự tách) ═══ */
 $app = (string) file_get_contents( $goc . '/wordpress/vhcp-chi-phi/templates/app.html' );
-t( '🔴 có ô chọn `xuatKyKieu` với hai kiểu', false !== strpos( $app, 'id="xuatKyKieu"' ) && false !== strpos( $app, '<option value="thang">' ) && false !== strpos( $app, '<option value="ngay">' ) );
-t( '🔴 callExport truyền kiểu kỳ làm tham số thứ 6', 1 === preg_match( "/\.exportMisa\(el\('xuatKy'\)\.value, el\('xuatTT'\)\.value, plF,\s*\(el\('xuatMau'\)&&el\('xuatMau'\)\.value\)\|\|'chuan',\s*\(el\('xuatTkNo'\)&&el\('xuatTkNo'\)\.value\)\|\|'all',\s*\(el\('xuatKyKieu'\)&&el\('xuatKyKieu'\)\.value\)\|\|'thang'\);/", $app ) );
+t( '🔴 không còn ô `xuatKyKieu`', false === strpos( $app, 'id="xuatKyKieu"' ) );
+t( '   callExport gọi exportMisa với 5 tham số như trước', 1 === preg_match( "/\.exportMisa\(el\('xuatKy'\)\.value, el\('xuatTT'\)\.value, plF,\s*\(el\('xuatMau'\)&&el\('xuatMau'\)\.value\)\|\|'chuan',\s*\(el\('xuatTkNo'\)&&el\('xuatTkNo'\)\.value\)\|\|'all'\);/", $app ) );
 
 if ( $TRUOT ) { echo "\n✗ TRƯỢT " . count( $TRUOT ) . " phép (đạt $DAT):\n"; foreach ( $TRUOT as $x ) { echo "  · $x\n"; } exit( 1 ); }
-echo "\n✓ SẠCH — $DAT phép: diễn giải MISA = Loại(tên MISA) · Mảng · Cơ sở · Tháng|Ngày từ…đến… _ phần riêng; kiểu kỳ chọn trên màn.\n";
+echo "\n✓ SẠCH — $DAT phép: diễn giải MISA = Loại(tên MISA) · Mảng · Cơ sở · (T9/2026 | ngày a-b) _ phần riêng; hai loại kỳ tự tách theo đơn.\n";
