@@ -745,8 +745,11 @@
     Array.prototype.forEach.call(G.querySelectorAll('.loc .vien'), function (c) {
       c.addEventListener('click', function () { S.ky = c.dataset.k; tai(); });
     });
-    noiONgay(q('#dtTu'), function (v) { S.ky = 'tay'; S.tu = v; tai(); });
-    noiONgay(q('#dtDen'), function (v) { S.ky = 'tay'; S.den = v; tai(); });
+    /* 🔴 KHÔNG tự chạy khi đổi ngày ở tab có nút Lọc. Anh Thắng 24/09/2026: *"cứ bấm nào nó lại mất
+       bảng"* — chọn ngày Từ xong, nửa giây sau tab tự tải và vẽ lại cả thanh lọc, bảng lịch đang mở
+       của ô "đến" biến mất, chưa kịp chọn ngày thứ hai. Hai ô ngày chỉ là nơi gõ; chạy khi bấm Lọc
+       hoặc Enter (`locTay` kiểm đủ hai ngày, tự đảo nếu ngược). Ô ngày lẻ (sổ kho, thẻ kho) không
+       có nút nên vẫn dùng `noiONgay`. */
     q('#dtLoc').addEventListener('click', function () {
       locTay(q('#dtTu'), q('#dtDen'), function (tu, den) { S.ky = 'tay'; S.tu = tu; S.den = den; tai(); });
     });
@@ -2256,8 +2259,8 @@
     });
     var t = o.querySelector('#dsTu'), d = o.querySelector('#dsDen'),
         c = o.querySelector('#dsCH'), k = o.querySelector('#dsCanh');
-    noiONgay(t, function (v) { S.ds.ky = 'tay'; S.ds.tu = v; taiDoiSoat(); });
-    noiONgay(d, function (v) { S.ds.ky = 'tay'; S.ds.den = v; taiDoiSoat(); });
+    /* Hai ô ngày KHÔNG tự chạy — xem chú thích ở `noiSuKien` (tab Doanh thu): tự chạy là vẽ lại cả
+       thanh lọc, bảng lịch đang mở biến mất ("cứ bấm nào nó lại mất bảng"). Chạy khi bấm Lọc / Enter. */
     var nl = o.querySelector('#dsLoc');
     if (nl) nl.addEventListener('click', function () {
       locTay(t, d, function (tu, den) { S.ds.ky = 'tay'; S.ds.tu = tu; S.ds.den = den; taiDoiSoat(); });

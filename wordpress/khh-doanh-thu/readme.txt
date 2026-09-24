@@ -102,6 +102,13 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.64.2 =
+* **Sửa "cứ bấm nào nó lại mất bảng" ở ô ngày (Đối soát, Doanh thu).** Anh Thắng 24/09/2026. Chọn ngày Từ xong,
+  nửa giây sau tab tự tải lại và vẽ lại cả thanh lọc, nên bảng lịch đang mở của ô "đến" biến mất, chưa kịp chọn
+  ngày thứ hai. Từ khi có nút Lọc (1.58.x) thì tự chạy chỉ gây hại: nay hai ô ngày ở tab có nút Lọc **không tự
+  chạy** nữa — chọn đủ hai ngày rồi bấm **Lọc** hoặc Enter. Ô ngày lẻ ở sổ kho / thẻ kho vẫn tự chạy như cũ.
+  `kiem-o-ngay.js` đổi 2 phép, thêm 2.
+
 = 1.64.1 =
 * **Sửa nốt "qua ngày 24 tồn đầu không nhảy" — bước sửa 1.63.1 bỏ sót dòng đã Lưu lại bằng bản mới.** Ảnh anh
   Thắng 24/09/2026 sau khi cài: sáu dòng Gò Vấp "đã sửa 5 lần" vẫn Hàng tồn còn = 0, lệch −148… Vì màn mới
