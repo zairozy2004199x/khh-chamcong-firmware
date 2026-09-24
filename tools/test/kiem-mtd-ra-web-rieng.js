@@ -91,7 +91,7 @@ teq('🔴 khối còn mở = KVC + VP', ['kvc', 'vp'], ma(be([]).mo()));
   t('   và dựng nút từ `bay`, không từ `KHOI_DS`',
     /o\.innerHTML=bay\.map\(/.test(v) && !/o\.innerHTML=KHOI_DS\.map\(/.test(v), v);
   t('   vẫn vẽ lại menu ▾ trước khi thoát sớm (hai chỗ không được lệch)',
-    /if\(bay\.length<2\)[\s\S]{0,200}?veMenuKhoi\('duyet'\); veMenuKhoi\('qt'\)/.test(v), v);
+    /if\(bay\.length<2\)[\s\S]{0,200}?veMenuKhoi\('duyet'\);/.test(v), v);
   t('🔴 menu ▾ trên tab cũng dựng từ `_khoiBay()`',
     /o\.innerHTML=_khoiBay\(\)\.map\(/.test(bocHam('veMenuKhoi')), bocHam('veMenuKhoi'));
 }

@@ -269,7 +269,7 @@ t('bốc được renderQTList()', fnQTList.length > 800);
 function chayQTList(dons, anMo, hopKhoi) {
   const thu = { loc: null, kyRieng: null, cho: null, xong: null };
   const el4 = function (id) { return Object.prototype.hasOwnProperty.call(O, id) ? { value: O[id] } : null; };
-  new Function('el', 'BOOT', '_AN_MO', 'QT_XEM', '_thangCuaKy', 'canDo', 'renderBpBanner',
+  new Function('el', 'BOOT', '_AN_MO', 'QT_XEM', 'QT_MAN', 'QT_THE', '_thangCuaKy', 'canDo', 'renderBpBanner',
     '_napLocDon', '_napKyRieng', '_qtVeBang', '_qtVeBangTT', '_qtVeChuaNop', '_qtEmptyXongText', 'qtUpdateBar',
     '_laChim', '_kyVal', '_hopKhoi', 'thu',
     /* ⚠️ `_qtChoTT` (23/09/2026) mượn HÀM THẬT — nó quyết đơn nào rời bảng "đã xong" sang bảng
@@ -277,7 +277,7 @@ function chayQTList(dons, anMo, hopKhoi) {
        kể cả khi luật thật kéo nhầm đơn. */
     NEN_TT + '\n' + bocHam('_qtChoTT') + '\n' + fnDaQT + '\n' + fnAnVaoMo + '\n' + fnTrongMan + '\n' + fnQtLoc + '\n' + fnQtLocXong + '\n' +
     fnQTList + '\nrenderQTList();')(
-    el4, { dons: dons }, anMo, 'bang', _thangCuaKy, function () { return false; }, function () {},
+    el4, { dons: dons }, anMo, 'bang', 'cho', { cho: [], xong: [] }, _thangCuaKy, function () { return false; }, function () {},
     function (l) { thu.loc = l.map(function (x) { return x.maDon; }); },
     function (_i, l) { thu.kyRieng = l.map(function (x) { return x.maDon; }); },
     function (ten, l) { thu[ten] = l.map(function (x) { return x.maDon; }); },

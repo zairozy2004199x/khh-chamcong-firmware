@@ -207,7 +207,8 @@ t('🔴 luật `:hover` nằm TRONG `@media (hover:hover)`',
   /@media \(hover:hover\)\{ \.tabMenu:hover \.tabMenuBox\{ display:block \}/.test(CSS.replace(/\s+/g, ' ')), 'không thấy');
 t('🔴 có đường mở KHÔNG cần rê chuột (class `mo`)', /\.tabMenu\.mo\s+\.tabMenuBox\s*\{\s*display:\s*block/.test(CSS));
 t('   và mũi ▾ có đường bấm', /class="tabMenuNut"[\s\S]{0,260}?onclick="bapMenuKhoi\('duyet'/.test(HTML));
-t('   cho cả tab quyết toán', /class="tabMenuNut"[\s\S]{0,260}?onclick="bapMenuKhoi\('qt'/.test(HTML));
+/* 24/09/2026: tab Quyết toán không còn menu ▾ khối — nó tách thành HAI TAB (Chờ · Đã). Xem kiem-qt-hai-trang.js. */
+t('   tab Quyết toán KHÔNG còn mũi ▾ (đã tách hai tab)', !/bapMenuKhoi\('qt'/.test(HTML) && !/id="tm-qt"/.test(HTML) && /id="tab-qtxong"/.test(HTML));
 /* ─── chạy thật hai trình nghe ───────────────────────────────────────────────── */
 function moSan() {
   const cc = chay({ dons: DONS, dang: 'kvc' });
@@ -281,8 +282,8 @@ t('   và cờ `true` để bắt cả lượt cuộn NGANG của hàng tab', /_
 t('   lượt đổi cỡ màn cũng vậy', /addEventListener\('resize', _tmTheoCho\)/.test(HTML));
 cP = chay({ dons: DONS, dang: 'kvc', manRong: 1366, oTab: { duyet: { left: 600, bottom: 70, right: 760 }, qt: { left: 800, bottom: 70, right: 900 } } });
 cP._tmTheoCho();
-teq('🔴 đặt lại chỗ cho CẢ HAI menu, không sót cái nào',
-  ['600px', '800px'], [cP.KHO['tmBox-duyet'].style.left, cP.KHO['tmBox-qt'].style.left]);
+teq('🔴 đặt lại chỗ cho menu Duyệt (Quyết toán không còn menu ▾, hộp giả để nguyên)',
+  ['600px', null], [cP.KHO['tmBox-duyet'].style.left, cP.KHO['tmBox-qt'].style.left || null]);
 
 /* ═══ 7c. 🔴 SỐ TRÊN NÚT KHỐI LÀ THỨ DUY NHẤT CÒN NÓI "KHỐI NÀY RỖNG" ════════════
  * Anh Thắng 21/09/2026: *"chọn phía trên rồi, phía dưới bỏ đi cho gọn"* — dải nhắc vàng
@@ -311,17 +312,18 @@ t('   và thanh khối khớp với menu ▾ ở cùng con số', /🔒 Văn ph�
  * Kế toán NCC không có tab Duyệt tạm ứng. Ẩn mỗi nút thì mũi ▾ còn trơ lại giữa hàng tab: một
  * nút không tên, bấm vào ra menu của đúng cái tab vừa bị ẩn. */
 t('🔴 `applyPerms()` ẩn cả vỏ bọc `tm-…`', /el\('tm-'\+x\)/.test(HTML), 'không thấy');
-['duyet', 'qt'].forEach(function (x) {
+['duyet'].forEach(function (x) {
   t('   vỏ bọc `tm-' + x + '` có thật trong trang', new RegExp('id="tm-' + x + '"').test(HTML));
   t('   và hộp `tmBox-' + x + '` có thật', new RegExp('id="tmBox-' + x + '"').test(HTML));
 });
+t('   tab Quyết toán là hai nút trần, không vỏ bọc', !/id="tmBox-qt"/.test(HTML) && /id="tab-qt" onclick="showPage\('qt'\)"/.test(HTML) && /id="tab-qtxong" onclick="showPage\('qtxong'\)"/.test(HTML));
 /* Nút tab cũ phải GIỮ NGUYÊN hành vi — menu là thứ thêm vào, không thay thế. */
 t('🔴 nút tab vẫn vào thẳng màn như cũ', /id="tab-duyet" onclick="showPage\('duyet'\)"/.test(HTML));
 t('   (quyết toán cũng vậy)', /id="tab-qt" onclick="showPage\('qt'\)"/.test(HTML));
 
 /* ═══ 9. MENU VẼ LẠI MỖI LƯỢT VẼ THANH KHỐI ══════════════════════════════════════
  * Hai chỗ cùng nói một chuyện; lệch nhau thì người ta tin cái nào? */
-t('🔴 `veThanhKhoi()` vẽ lại cả hai menu', /veMenuKhoi\('duyet'\);\s*veMenuKhoi\('qt'\)/.test(bocHam('veThanhKhoi')), 'không thấy');
+t('🔴 `veThanhKhoi()` vẽ lại menu Duyệt (menu Quyết toán đã bỏ)', /veMenuKhoi\('duyet'\);/.test(bocHam('veThanhKhoi')) && !/veMenuKhoi\('qt'\)/.test(bocHam('veThanhKhoi')), 'không thấy');
 
 /* ═════════════════════════════════════════════════════════════════════════════════════════ */
 if (TRUOT.length) {

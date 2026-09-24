@@ -2574,7 +2574,7 @@ class VHCPMTD_Don {
 	 * ⚠️ CHỈ ĐỔI `tk_no`. `update_line()` ghi lại cả dòng, đi nhờ nó là mấy ô không gửi lên bị
 	 *    dọn về rỗng, im lặng — cùng cái bẫy đã ghi ở `set_line_nhom()`.
 	 */
-	public static function set_line_tk_no( $id, $tk ) {
+	public static function set_line_tk_no( $id, $tk, $them = 0 ) {
 		$_loi = self::loi_khong_phai_dong_minh( $id );
 		if ( '' !== $_loi ) { return VHCPMTD_Util::err( $_loi ); }
 
@@ -2596,9 +2596,16 @@ class VHCPMTD_Don {
 			if ( VHCPMTD_Cfg::la_tk_co( $tk ) ) {
 				return VHCPMTD_Util::err( 'Mã ' . $tk . ' là TK CÓ (vế đối ứng), không đặt vào TK Nợ được.' );
 			}
-			if ( ! in_array( $tk, VHCPMTD_Cfg::tkno_da_khai(), true ) ) {
+			/* 🔴 KẾ TOÁN TỰ THÊM MÃ (anh Thắng 24/09/2026: *"nếu thiếu có thể thêm mã để kế toán tự tạo
+			   số mới đúng"*): cờ `$them` mở cửa cho mã CHƯA khai ở ma trận, nhưng chỉ cho MỘT DÒNG này,
+			   phải là số (3–10 chữ số) và vẫn không được là TK Có (đã gạt ở trên). Không có cờ thì luật
+			   cũ giữ nguyên — ô chọn thường không gõ ra được mã lạ. Ghi rõ trong nhật ký. */
+			if ( $them && ! preg_match( '/^\d{3,10}$/', $tk ) ) {
+				return VHCPMTD_Util::err( 'Mã TK Nợ tự thêm phải là 3–10 chữ số, nhận được "' . $tk . '".' );
+			}
+			if ( ! $them && ! in_array( $tk, VHCPMTD_Cfg::tkno_da_khai(), true ) ) {
 				return VHCPMTD_Util::err( 'Mã ' . $tk . ' chưa khai ở ⚙️ Cấu hình → 🧮 Loại chi phí × '
-					. 'Mảng kinh doanh. Khai mã ở đó trước, rồi chọn lại ở đây.' );
+					. 'Mảng kinh doanh. Khai mã ở đó trước, hoặc chọn "＋ Mã khác — kế toán tự thêm…".' );
 			}
 		}
 
@@ -2609,7 +2616,7 @@ class VHCPMTD_Don {
 			'action' => 'Chỉnh TK Nợ của dòng',
 			'target' => (string) $cur['ma_don'] . '#' . (string) $id,
 			'detail' => (string) $cur['nhom'] . ': Nợ ' . ( '' !== $cu ? $cu : '(trống)' )
-				. ' → ' . ( '' !== $tk ? $tk : '(trống)' ),
+				. ' → ' . ( '' !== $tk ? $tk : '(trống)' ) . ( $them ? ' (kế toán tự thêm, chưa có ở ma trận)' : '' ),
 		) );
 		return VHCPMTD_Util::ok( array( 'tkNo' => $tk ) );
 	}

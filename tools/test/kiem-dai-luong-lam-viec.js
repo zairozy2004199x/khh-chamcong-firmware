@@ -44,7 +44,7 @@ t('⚠️ bốc được bảng ghép bước ↔ tab', BANG.length > 300, BANG.
   t('🔴 bảng khai bước "' + st + '" (khoá theo chuỗi trong sổ)', BANG.indexOf("'" + st + "'") >= 0);
 });
 t('⚠️ mỗi bước chỉ vào một tab CÓ THẬT',
-  (BANG.match(/tab:'([a-z]+)'/g) || []).every(function (x) { return ['don', 'duyet', 'qt', 'xuat'].indexOf(x.slice(5, -1)) >= 0; }),
+  (BANG.match(/tab:'([a-z]+)'/g) || []).every(function (x) { return ['don', 'duyet', 'qt', 'qtxong', 'xuat'].indexOf(x.slice(5, -1)) >= 0; }),
   BANG.match(/tab:'([a-z]+)'/g));
 
 /* ═══ 1b. 🔴 TRÊN ĐIỆN THOẠI LÀ MỘT HÀNG CUỘN NGANG ════════════════════════════
