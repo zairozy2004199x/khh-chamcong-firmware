@@ -42,17 +42,23 @@ if ( ! function_exists( 'khh_dt_bang' ) ) {
 	}
 }
 
+if ( ! function_exists( 'khh_dt_bang_bc' ) ) {
+	function khh_dt_bang_bc() { global $wpdb; return $wpdb->prefix . 'khh_dt_bao_cao'; }
+}
 function dung_bang() {
 	global $wpdb;
-	foreach ( array( khh_dt_bang(), khh_dt_bang_kho(), khh_dt_bang_kho_su() ) as $b ) {
+	foreach ( array( khh_dt_bang(), khh_dt_bang_kho(), khh_dt_bang_kho_su(), khh_dt_bang_bc() ) as $b ) {
 		$wpdb->exec_raw( "DROP TABLE IF EXISTS $b" );
 	}
+	/* Báo cáo ngày giả — chỉ cần cột mon_thuc để sổ kho lấy SL thực cơ sở đã chốt. */
+	$wpdb->exec_raw( 'CREATE TABLE ' . khh_dt_bang_bc() . " ( id INTEGER PRIMARY KEY AUTOINCREMENT,
+			ngay TEXT NOT NULL, cua_hang TEXT NOT NULL DEFAULT '', mon_thuc TEXT NULL, UNIQUE(ngay,cua_hang) )" );
 	/* Sổ ghi động: CỐ Ý không có UNIQUE — nhiều dòng cùng (ngày, cơ sở, mặt hàng) là lịch sử sửa. */
 	$wpdb->exec_raw(
 		'CREATE TABLE ' . khh_dt_bang_kho_su() . " ( id INTEGER PRIMARY KEY AUTOINCREMENT,
 			ngay TEXT NOT NULL, co_so TEXT NOT NULL DEFAULT '', mat_hang TEXT NOT NULL DEFAULT '',
 			nhap REAL NOT NULL DEFAULT 0, ban_khai REAL NULL DEFAULT NULL,
-			combo_tay REAL NOT NULL DEFAULT 0, dem REAL NULL DEFAULT NULL, dat_dau REAL NULL DEFAULT NULL,
+			combo_tay REAL NOT NULL DEFAULT 0, dem REAL NULL DEFAULT NULL, dat_dau REAL NULL DEFAULT NULL, huy REAL NOT NULL DEFAULT 0,
 			ghi_chu TEXT DEFAULT '', nguoi TEXT DEFAULT '', luc TEXT NULL )"
 	);
 	$wpdb->exec_raw(
@@ -64,7 +70,7 @@ function dung_bang() {
 		'CREATE TABLE ' . khh_dt_bang_kho() . " ( id INTEGER PRIMARY KEY AUTOINCREMENT,
 			ngay TEXT NOT NULL, co_so TEXT NOT NULL DEFAULT '', mat_hang TEXT NOT NULL DEFAULT '',
 			nhap REAL NOT NULL DEFAULT 0, ban_khai REAL NULL DEFAULT NULL,
-			combo_tay REAL NOT NULL DEFAULT 0, dem REAL NULL DEFAULT NULL, dat_dau REAL NULL DEFAULT NULL,
+			combo_tay REAL NOT NULL DEFAULT 0, dem REAL NULL DEFAULT NULL, dat_dau REAL NULL DEFAULT NULL, huy REAL NOT NULL DEFAULT 0,
 			ghi_chu TEXT DEFAULT '', nguoi TEXT DEFAULT '', luc TEXT NULL,
 			UNIQUE(ngay,co_so,mat_hang) )"
 	);
@@ -640,6 +646,40 @@ phep( 'xoá ô đặt -> tồn đầu lại kéo từ hôm trước (−1)', -1.
 $su = khh_dt_kho_su_cua( '2026-09-24', $CS, 'Kẹo cứng' );
 $dat_ds = array_map( function ( $x ) { return array_key_exists( 'dat_dau', $x ) ? $x['dat_dau'] : 'thiếu cột'; }, $su );
 phep( 'sổ ghi động lưu từng lượt đặt lại (50, 0, trống), không ghi đè', 3 === count( $su ) && in_array( 50.0, array_map( 'floatval', array_filter( $dat_ds, 'is_numeric' ) ), true ) && in_array( null, $dat_ds, true ) );
+
+/* ── 15. 🔴 HÀNG HUỶ trừ tồn; MÁY BÁN lấy SL THỰC cơ sở đã chốt ở tab Nhập báo cáo ────────────────
+      Anh Thắng 24/09/2026: "cột này ghi là hàng huỷ (nếu huỷ nhập vào nó trừ ra)" — "vì hàng bán lệch đã
+      nhập sẵn bên này rồi" (bảng Hàng bán theo máy POS ở tab Nhập báo cáo). */
+dung_bang();
+fabi( '2026-09-24', $CS, array( 'Kẹo cứng' => 5, 'Nước suối' => 4 ) );
+khh_dt_kho_ghi( '2026-09-24', $CS, 'Kẹo cứng', array( 'dat_dau' => 20, 'nhap' => 0, 'huy' => 3 ) );
+$b = dong_cua( khh_dt_kho_bang_ngay( '2026-09-24', $CS ), 'Kẹo cứng' );
+phep( '🔴 hàng huỷ trừ khỏi tồn: 20 − 5 (máy) − 3 (huỷ) = 12', 3.0 === (float) $b['huy'] && 12.0 === (float) $b['ton_tinh'] );
+$the = khh_dt_kho_the( $CS, 'Kẹo cứng', '2026-09-24', '2026-09-24' );
+phep( 'thẻ kho cũng trừ huỷ và có cột huy', 12.0 === (float) $the[0]['ton_cuoi'] && 3.0 === (float) $the[0]['huy'] );
+$su = khh_dt_kho_su_cua( '2026-09-24', $CS, 'Kẹo cứng' );
+phep( 'sổ ghi động lưu huỷ', 3.0 === (float) $su[0]['huy'] );
+/* Cơ sở chốt SL thực ở tab Nhập báo cáo: Kẹo cứng máy 5 nhưng thực 7; Nước suối không chốt -> theo máy. */
+$GLOBALS['wpdb']->query( $GLOBALS['wpdb']->prepare( 'INSERT OR REPLACE INTO ' . khh_dt_bang_bc() . ' (ngay,cua_hang,mon_thuc) VALUES (%s,%s,%s)',
+	'2026-09-24', $CS, wp_json_encode( array( 'Kẹo cứng' => 7 ) ) ) );
+$bang = khh_dt_kho_bang_ngay( '2026-09-24', $CS );
+$b = dong_cua( $bang, 'Kẹo cứng' );
+phep( '🔴 máy bán lấy SL thực đã chốt (7, không phải 5), có cờ ban_chot', 7.0 === (float) $b['ban_may'] && true === $b['ban_chot'] );
+phep( 'tồn tính theo số chốt: 20 − 7 − 3 = 10', 10.0 === (float) $b['ton_tinh'] );
+$n = dong_cua( $bang, 'Nước suối' );
+phep( 'món không chốt vẫn theo máy, không cờ', 4.0 === (float) $n['ban_may'] && false === $n['ban_chot'] );
+phep( 'khh_dt_kho_ban_may cũng lấy số chốt (dùng cho thẻ kho & chuỗi ngày)', 7.0 === (float) khh_dt_kho_ban_may( '2026-09-24', '2026-09-24', $CS )['2026-09-24']['Kẹo cứng'] );
+phep( 'bảng tách lẻ/combo cũng theo số chốt', 7.0 === (float) khh_dt_kho_ban_may_tach( '2026-09-24', '2026-09-24', $CS )['2026-09-24']['Kẹo cứng']['le'] );
+/* Chốt SL thực cho một COMBO -> thành phần trừ theo số chốt. */
+khh_dt_kho_combo_dat( 'Combo 2 người', array( 'Nước suối' => 2 ), '2026-09-01' );
+fabi( '2026-09-25', $CS, array( 'Combo 2 người' => 3, 'Nước suối' => 1 ) );
+$GLOBALS['wpdb']->query( $GLOBALS['wpdb']->prepare( 'INSERT OR REPLACE INTO ' . khh_dt_bang_bc() . ' (ngay,cua_hang,mon_thuc) VALUES (%s,%s,%s)',
+	'2026-09-25', $CS, wp_json_encode( array( 'Combo 2 người' => 4 ) ) ) );
+$m25 = khh_dt_kho_ban_may( '2026-09-25', '2026-09-25', $CS )['2026-09-25'];
+phep( 'combo chốt 4 (máy 3) -> nước suối rời kho 4×2 + 1 = 9', 9.0 === (float) $m25['Nước suối'] );
+/* Không có bảng báo cáo (plugin cũ / test khác) -> rỗng, không nổ. */
+$GLOBALS['wpdb']->exec_raw( 'DROP TABLE IF EXISTS ' . khh_dt_bang_bc() );
+phep( 'không có bảng báo cáo -> theo máy, không nổ', array() === khh_dt_kho_ban_thuc( '2026-09-24', '2026-09-25', $CS ) && 5.0 === (float) khh_dt_kho_ban_may( '2026-09-24', '2026-09-24', $CS )['2026-09-24']['Kẹo cứng'] );
 
 if ( $hong ) {
 	echo "\n✗ HỎNG " . count( $hong ) . " phép (đạt $dat):\n";

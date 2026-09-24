@@ -356,17 +356,16 @@ body.khh-dt-body{margin:0;background:#f2f1ee}
      máy đếm phía sau ô nhập, nếu lệch ở giữa"): MỖI Ô GÕ MỘT DÒNG, trên dòng ấy ô gõ bên trái, cột
      lệch ở giữa, số của máy tương ứng bên phải:
        Nhập          ·  (không lệch)  ·  Tồn đầu
-       SL hàng bán   ·  Lệch khai     ·  Máy bán tổng  (máy bán lẻ, theo combo: chữ nhỏ phía sau)
+       Hàng huỷ      ·  (không lệch)  ·  Máy bán tổng  (máy bán lẻ, theo combo: chữ nhỏ phía sau)
        Hàng tồn còn  ·  Lệch kho      ·  Tồn tính
      rồi Ghi chú. Xếp bằng `order` + `grid-column` theo data-nhan, KHÔNG đổi markup — bảng máy tính
      vẫn y nguyên. Ô nào không có lệch (Nhập) thì cột 2 để trống, số máy vẫn đứng cột 3. */
   .khh-dt .bang-the .o-ten{order:1}
   .khh-dt .bang-the .o-go[data-nhan="Nhập"]{order:10;grid-column:1}
   .khh-dt .bang-the .o-may[data-nhan="Tồn đầu"],.khh-dt .bang-the .o-go[data-nhan="Tồn đầu"]{order:12;grid-column:3}
-  .khh-dt .bang-the .o-go[data-nhan="SL hàng bán"]{order:20;grid-column:1}
-  .khh-dt .bang-the .o-lech[data-nhan="Lệch khai"]{order:21;grid-column:2}
+  .khh-dt .bang-the .o-go[data-nhan="Hàng huỷ"]{order:20;grid-column:1}
   .khh-dt .bang-the .o-may[data-nhan="Máy bán tổng"]{order:22;grid-column:3}
-  /* Hai số phụ (lẻ / theo combo): một dòng chữ nhỏ riêng dưới dòng SL hàng bán, không chen vào lưới. */
+  /* Hai số phụ (lẻ / theo combo): một dòng chữ nhỏ riêng dưới dòng Hàng huỷ, không chen vào lưới. */
   .khh-dt .bang-the .o-may[data-nhan="Máy bán lẻ"]{order:23;grid-column:1;font-size:12px;padding-bottom:4px}
   .khh-dt .bang-the .o-may[data-nhan="Theo combo"]{order:24;grid-column:2 / -1;font-size:12px;padding-bottom:4px;text-align:left}
   .khh-dt .bang-the .o-go[data-nhan="Hàng tồn còn"]{order:30;grid-column:1}
