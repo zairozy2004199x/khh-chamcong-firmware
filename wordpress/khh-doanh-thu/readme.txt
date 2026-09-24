@@ -102,6 +102,28 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.64.0 =
+* **Quy trình báo cáo cơ sở hằng ngày — tự động theo dõi, nhắc, tổng hợp.** Anh Thắng 24/09/2026: *"làm quy
+  trình báo cáo hằng ngày tự động"* — *"báo cáo cơ sở thôi"*. Mỗi ngày bán hàng đi qua bốn bước: **số máy
+  POS về** (hộp thư 08:02) → **cơ sở khai** (soát hàng bán, đếm két, khách vào) → **sổ kho** → **Lưu và
+  chốt**. Hạn chốt: giờ cấu hình (mặc định **10:00**) sáng hôm sau.
+  - Tab Nhập báo cáo: trên cùng là **việc còn treo** của đúng cơ sở mình (ngày chưa chốt trong 7 ngày,
+    ngày quá hạn đỏ) — bấm là mở ngày ấy; dưới ô chọn ngày là **thanh bốn bước** của ngày đang mở kèm hạn.
+  - Tab Quản trị: khối **Quy trình báo cáo cơ sở hằng ngày** — bật/tắt, giờ hạn, nhìn lùi, địa chỉ nhận
+    thư tổng hợp; bảng **hôm qua** từng cơ sở (trạng thái, két lệch, món lệch, quá hạn); nhật ký 30 lượt;
+    nút "Tổng hợp và gửi ngay".
+  - Lịch hằng ngày lúc giờ hạn (WP-Cron, cùng lưu ý phải bật Cron Jobs hosting như hộp thư): tổng hợp
+    mọi cơ sở, ghi nhật ký, gửi **một thư** cho văn phòng (nhiều địa chỉ cách nhau dấu phẩy; trống = chỉ
+    ghi nhật ký). Địa chỉ gõ sai báo lỗi, không lặng lẽ bỏ.
+  - 🔴 **Hệ không tự điền số thay cơ sở.** Két đếm, khách đếm là số người đếm — lên "nháp" bằng số máy
+    là Đối soát lệch 0 tăm tắp trong khi chẳng ai đếm. Tự động ở đây là theo dõi, nhắc, tổng hợp.
+  - Cổng REST `quy-trinh` (GET ai cũng gọi được nhưng chỉ nhận việc của cơ sở mình; POST và
+    `quy-trinh-chay` chỉ quản trị). `bao-cao-ngay` GET kèm `quy_trinh` (bốn bước + hạn).
+  - `kiem-quy-trinh.php` 46 phép chạy thật (bốn trạng thái, hạn theo múi giờ site kể cả ca UTC, danh
+    sách việc lọc theo cơ sở, thư đúng người đúng tiêu đề, không thêm dòng báo cáo nào);
+    `kiem-quy-trinh-man.js` 26 phép (màn nối đúng cổng, chạy thật veViec/veBuoc). `wp-stub` thêm
+    `wp_mail()` ghi lại thư.
+
 = 1.63.1 =
 * **Bảng kho tính lại ngay khi gõ.** Anh Thắng 24/09/2026: *"nhập tồn mà sao nó không tính realtime trước
   và sau của ngày đó"*. Gõ vào Tồn đầu, Nhập, Hàng huỷ hay Hàng tồn còn là **Tồn tính** và **Lệch kho**

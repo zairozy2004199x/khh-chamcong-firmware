@@ -1,0 +1,106 @@
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * QUY TRÌNH BÁO CÁO CƠ SỞ HẰNG NGÀY — MÀN PHẢI NỐI ĐÚNG VÀO LÕI, VÀ CHẠY THẬT PHẦN VẼ.
+ *
+ * Anh Thắng 24/09/2026: *"Làm quy trình báo cáo hằng ngày tự động"* — *"Báo cáo cơ sở thôi"*.
+ * `kiem-quy-trinh.php` chạy thật máy chủ. Bài này canh:
+ *   · tab Nhập báo cáo: khối "việc còn treo" (GET quy-trinh, bấm là nhảy ngày), thanh bốn bước từ
+ *     `r.quy_trinh`, lưu xong tải lại việc;
+ *   · tab Quản trị: khối cấu hình (bật, hạn, lùi, email) POST quy-trinh; "Tổng hợp và gửi ngay" LƯU
+ *     TRƯỚC rồi POST quy-trinh-chay; bảng hôm qua; nhật ký; chỉ vẽ khi có `cf` (quản trị);
+ *   · chạy thật veViec / veBuoc trên DOM giả: không việc -> "Đã chốt hết"; quá hạn -> lớp xau; bước
+ *     kho null -> lớp khong; kho false -> chua.
+ *
+ * Chạy: node tools/test/kiem-quy-trinh-man.js
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+const fs = require('fs');
+const src = fs.readFileSync('wordpress/khh-doanh-thu/assets/doanh-thu.js', 'utf8');
+const css = fs.readFileSync('wordpress/khh-doanh-thu/assets/doanh-thu.css', 'utf8');
+const js = src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:'"])\/\/[^\n]*/g, '$1');
+let dat = 0; const hong = [];
+function t(ten, dk) { if (dk) dat++; else hong.push(ten); }
+function boc(ten) {
+  const i = js.indexOf('  function ' + ten + '(');
+  if (i < 0) return '';
+  const j = js.indexOf('\n  }\n', i);
+  return js.slice(i, j + 4);
+}
+
+/* ---- tab Nhập báo cáo ---- */
+const dn = boc('dungNhap');
+t('khung Nhập có #bcViec trên cùng và #bcBuoc dưới ô chọn ngày', /id="bcViec" class="bc-viec"/.test(dn) && /id="bcBuoc" class="bc-buoc"/.test(dn) && dn.indexOf('id="bcViec"') < dn.indexOf('id="bcNgay"') && dn.indexOf('id="bcBuoc"') < dn.indexOf('id="bcPos"'));
+t('dungNhap gọi taiViec() và bấm việc là đổi ngày + napBaoCao', /taiViec\(\);/.test(dn) && /data-viec-ngay/.test(dn) && /q\('#bcNgay'\)\.value = b\.getAttribute\('data-viec-ngay'\)/.test(dn));
+t('taiViec GET quy-trinh', /api\('quy-trinh'\)/.test(boc('taiViec')));
+t('napBaoCao vẽ bốn bước từ r.quy_trinh', /veBuoc\(r\.quy_trinh\)/.test(boc('napBaoCao')));
+t('🔴 lưu xong tải lại danh sách việc', /napBaoCao\(\);\s*taiViec\(\);/.test(boc('luuBaoCao')));
+const vb = boc('veBuoc');
+t('bốn bước đúng tên và thứ tự', /\['Số máy POS về'/.test(vb) && /\['Cơ sở khai'/.test(vb) && /\['Sổ kho'/.test(vb) && /\['Chốt ngày'/.test(vb) && vb.indexOf('Số máy POS về') < vb.indexOf('Cơ sở khai') && vb.indexOf('Sổ kho') < vb.indexOf('Chốt ngày'));
+
+/* ---- tab Quản trị ---- */
+t('taiQuanTri gọi taiQuyTrinh(o)', /taiQuyTrinh\(o\);/.test(boc('taiQuanTri')));
+t('🔴 chỉ vẽ khối khi có cf (quản trị) — người thường không thấy cấu hình', /if \(r && r\.cf\) veQuyTrinh\(o, r\)/.test(boc('taiQuyTrinh')));
+const vq = boc('veQuyTrinh');
+t('khối #dtQuyTrinh có bật / hạn / lùi / email (ô qua o1 mang data-qt)', /data-qt="bat"/.test(vq) && /data-qt="' \+ ten \+ '"/.test(vq) && /o1\('Hạn chốt[^']*', 'han'/.test(vq) && /o1\('Nhìn lùi \(ngày\)', 'lui'/.test(vq) && /, 'email', c\.email/.test(vq));
+t('nút Lưu và Tổng hợp và gửi ngay', /id="dtQtLuu"/.test(vq) && /id="dtQtChay"/.test(vq));
+t('bảng hôm qua: Cơ sở / Máy POS / Trạng thái / Két lệch / Món lệch / Người, thẻ điện thoại', /<th>Máy POS<\/th><th>Trạng thái<\/th><th>Két lệch<\/th><th>Món lệch<\/th><th>Người<\/th>/.test(vq) && /class="bang-the bang-cuon"/.test(vq));
+t('nhật ký 30 lượt', /Nhật ký 30 lượt gần nhất/.test(vq));
+t('nói rõ hệ KHÔNG tự điền số thay cơ sở', /Hệ không tự điền số/.test(vq));
+const nq = boc('noiQuyTrinh');
+t('Lưu POST quy-trinh', /api\('quy-trinh', \{ method: 'POST', body: thu\(\) \}\)/.test(nq));
+t('🔴 "gửi ngay" LƯU TRƯỚC rồi mới POST quy-trinh-chay', /api\('quy-trinh', \{ method: 'POST', body: thu\(\) \}\)\s*\.then\(function \(\) \{ return api\('quy-trinh-chay', \{ method: 'POST' \}\); \}\)/.test(nq));
+
+/* ---- CSS ---- */
+t('CSS có bc-viec, viec .vien.qua-han, buoc span.xong/.chua/.khong, tr.qua-han', /\.khh-dt \.bc-viec-o\.xau/.test(css) && /\.khh-dt \.viec \.vien\.qua-han/.test(css) && /\.khh-dt \.buoc span\.xong/.test(css) && /\.khh-dt \.buoc span\.chua i/.test(css) && /\.khh-dt \.buoc span\.khong/.test(css) && /\.khh-dt tr\.qua-han td/.test(css));
+
+/* ---- chạy thật veViec / veBuoc trên DOM giả ---- */
+function taoO() {
+  return { innerHTML: '' };
+}
+const G = { querySelector(sel) { return G._o[sel] || null; }, _o: {} };
+const ctx = {};
+const than = boc('veViec') + boc('veBuoc') + '\n  var QT_NHAN = { chua_fabi: "chưa có số máy POS", chua_nop: "chưa nộp", da_luu: "đã lưu, chưa chốt", da_chot: "đã chốt" };' +
+  '\n  return { veViec: veViec, veBuoc: veBuoc };';
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const ngayVN = (s) => (s ? s.split('-').reverse().join('/') : '');
+const q = (sel) => G.querySelector(sel);
+let m;
+try {
+  m = new Function('esc', 'ngayVN', 'q', than)(esc, ngayVN, q);
+} catch (e) { hong.push('không nạp được veViec/veBuoc: ' + e.message); }
+if (m) {
+  const o = taoO();
+  m.veViec(o, { viec: [], han: '10:00' });
+  t('không việc -> "Đã chốt hết" kèm giờ hạn', /Đã chốt hết/.test(o.innerHTML) && /10:00/.test(o.innerHTML) && /bc-viec-o xong/.test(o.innerHTML));
+  m.veViec(o, { han: '10:00', viec: [
+    { ngay: '2026-09-22', cua_hang: 'Gò Vấp', trang_thai: 'chua_nop', qua_han: true },
+    { ngay: '2026-09-23', cua_hang: 'Gò Vấp', trang_thai: 'da_luu', qua_han: false },
+  ] });
+  t('🔴 2 ngày chưa chốt · 1 quá hạn, khối đỏ', /<b>2 ngày chưa chốt<\/b>/.test(o.innerHTML) && /<b>1 quá hạn<\/b>/.test(o.innerHTML) && /bc-viec-o xau/.test(o.innerHTML));
+  t('mỗi việc một nút mang ngày + cơ sở, ngày quá hạn có lớp qua-han', /data-viec-ngay="2026-09-22" data-viec-ch="Gò Vấp"/.test(o.innerHTML) && /class="vien qua-han" type="button" data-viec-ngay="2026-09-22"/.test(o.innerHTML) && /class="vien" type="button" data-viec-ngay="2026-09-23"/.test(o.innerHTML));
+  t('nhãn trạng thái tiếng Việt, một cơ sở thì không lặp tên quán', /22\/09\/2026 <span>chưa nộp · quá hạn<\/span>/.test(o.innerHTML) && !/· Gò Vấp/.test(o.innerHTML));
+  m.veViec(o, { han: '10:00', viec: [
+    { ngay: '2026-09-23', cua_hang: 'Gò Vấp', trang_thai: 'chua_nop', qua_han: false },
+    { ngay: '2026-09-23', cua_hang: 'Tân Phú', trang_thai: 'chua_fabi', qua_han: false },
+  ] });
+  t('văn phòng xem nhiều quán -> nút ghi tên quán', /23\/09\/2026 · Gò Vấp/.test(o.innerHTML) && /23\/09\/2026 · Tân Phú <span>chưa có số máy POS<\/span>/.test(o.innerHTML));
+
+  G._o['#bcBuoc'] = taoO();
+  m.veBuoc({ buoc: { fabi: true, khai: true, kho: null, chot: false }, qua_han: false, han: '2026-09-24 10:00' });
+  let b = G._o['#bcBuoc'].innerHTML;
+  t('bước xong đánh ✓, bước chưa đánh số, kho null mờ (khong)', /class="xong"[^>]*><i>✓<\/i>Số máy POS về/.test(b) && /class="xong"[^>]*><i>✓<\/i>Cơ sở khai/.test(b) && /class="khong"[^>]*><i>3<\/i>Sổ kho/.test(b) && /class="chua"[^>]*><i>4<\/i>Chốt ngày/.test(b));
+  t('chưa chốt, chưa quá hạn -> ghi "hạn 10:00 24/09/2026"', /<b class="han">hạn 10:00 24\/09\/2026<\/b>/.test(b) && !/buoc xau/.test(b));
+  m.veBuoc({ buoc: { fabi: true, khai: false, kho: false, chot: false }, qua_han: true, han: '2026-09-24 10:00' });
+  b = G._o['#bcBuoc'].innerHTML;
+  t('🔴 quá hạn -> thanh đỏ, ghi "quá hạn 10:00", kho false = chua (không mờ)', /class="buoc xau"/.test(b) && /<b class="han">quá hạn 10:00<\/b>/.test(b) && /class="chua"[^>]*><i>3<\/i>Sổ kho/.test(b));
+  m.veBuoc({ buoc: { fabi: true, khai: true, kho: true, chot: true }, qua_han: false, han: '2026-09-24 10:00' });
+  b = G._o['#bcBuoc'].innerHTML;
+  t('đã chốt -> bốn ✓, không còn dòng hạn', (b.match(/<i>✓<\/i>/g) || []).length === 4 && !/class="han"/.test(b));
+  m.veBuoc(null);
+  t('không có quy_trinh (máy chủ cũ) -> để trống, không nổ', '' === G._o['#bcBuoc'].innerHTML);
+}
+
+if (hong.length) {
+  console.log('\n✗ HỎNG ' + hong.length + ' phép (đạt ' + dat + '):');
+  hong.forEach((h) => console.log('   · 🔴 ' + h));
+  process.exit(1);
+}
+console.log('\n✓ SẠCH — ' + dat + ' phép: màn nối đúng cổng quy-trinh, việc treo và bốn bước vẽ đúng.');

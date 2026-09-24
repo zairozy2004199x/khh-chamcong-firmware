@@ -1057,12 +1057,17 @@
     o.innerHTML =
       '<div class="khung"><header><h2>Nhập báo cáo ngày</h2>' +
         '<span class="goi">Máy POS tự điền phần của nó — cơ sở chỉ nhập phần máy không biết.</span></header>' +
+        /* Quy trình hằng ngày (anh Thắng 24/09/2026: "làm quy trình báo cáo hằng ngày tự động — báo cáo cơ
+           sở thôi"): trên cùng là VIỆC CÒN TREO của đúng cơ sở mình, bấm là nhảy tới ngày ấy; dưới ô chọn
+           ngày là BỐN BƯỚC của ngày đang mở. Hệ theo dõi và nhắc — không tự điền số thay cơ sở. */
+        '<div id="bcViec" class="bc-viec"></div>' +
         '<div class="loc" style="margin:14px 0 4px">' +
           '<span class="o"><label for="bcNgay">Ngày</label><input type="date" id="bcNgay"></span>' +
           '<span class="o" id="bcOCH"><label for="bcCH">Cơ sở</label><select id="bcCH">' +
             ds.map(function (c) { return '<option value="' + esc(c) + '">' + esc(c) + '</option>'; }).join('') +
           '</select></span>' +
         '</div>' +
+        '<div id="bcBuoc" class="bc-buoc"></div>' +
         '<div id="bcPos" class="bc-pos"></div>' +
         '<div id="bcHang"></div>' +
         '<div class="bc-luoi" id="bcNhap">' +
@@ -1101,7 +1106,62 @@
     q('#bcChot').addEventListener('click', function () { luuBaoCao(1); });
     q('#bcTaiAnh').addEventListener('click', taiAnhBC);
     q('#bcChiaSe').addEventListener('click', chiaSeBC);
+    q('#bcViec').addEventListener('click', function (ev) {
+      var b = ev.target.closest ? ev.target.closest('[data-viec-ngay]') : null;
+      if (!b) return;
+      ev.preventDefault();
+      q('#bcNgay').value = b.getAttribute('data-viec-ngay');
+      var c = b.getAttribute('data-viec-ch');
+      if (c && q('#bcCH').querySelector('option[value="' + c.replace(/"/g, '\\"') + '"]')) q('#bcCH').value = c;
+      napBaoCao();
+    });
+    taiViec();
     napBaoCao();
+  }
+
+  /* ---- VIỆC CÒN TREO của cơ sở mình (máy chủ lọc theo người xem) ---- */
+  function taiViec() {
+    var o = q('#bcViec');
+    if (!o) return;
+    api('quy-trinh').then(function (r) { veViec(o, r); }).catch(function () { o.innerHTML = ''; });
+  }
+
+  var QT_NHAN = { chua_fabi: 'chưa có số máy POS', chua_nop: 'chưa nộp', da_luu: 'đã lưu, chưa chốt', da_chot: 'đã chốt' };
+
+  function veViec(o, r) {
+    var ds = (r && r.viec) || [], han = (r && r.han) || '10:00';
+    if (!ds.length) {
+      o.innerHTML = '<div class="bc-viec-o xong">✓ <b>Đã chốt hết</b> tới hôm qua. Ngày mới chốt trước <b>' + esc(han) + '</b> sáng hôm sau.</div>';
+      return;
+    }
+    var quaHan = ds.filter(function (x) { return x.qua_han; }).length;
+    o.innerHTML = '<div class="bc-viec-o' + (quaHan ? ' xau' : '') + '"><b>' + ds.length + ' ngày chưa chốt</b>' +
+      (quaHan ? ' · <b>' + quaHan + ' quá hạn</b>' : '') + ' — chốt trước ' + esc(han) + ' sáng hôm sau. Bấm để mở:</div>' +
+      '<div class="viec">' + ds.map(function (x) {
+        return '<button class="vien' + (x.qua_han ? ' qua-han' : '') + '" type="button" data-viec-ngay="' + esc(x.ngay) + '" data-viec-ch="' + esc(x.cua_hang) + '">' +
+          esc(ngayVN(x.ngay)) + (r.viec.some(function (y) { return y.cua_hang !== x.cua_hang; }) ? ' · ' + esc(String(x.cua_hang).slice(0, 28)) : '') +
+          ' <span>' + esc(QT_NHAN[x.trang_thai] || x.trang_thai) + (x.qua_han ? ' · quá hạn' : '') + '</span></button>';
+      }).join('') + '</div>';
+  }
+
+  /* ---- BỐN BƯỚC của ngày đang mở: số máy về → cơ sở khai → sổ kho → chốt ---- */
+  function veBuoc(t) {
+    var o = q('#bcBuoc');
+    if (!o) return;
+    if (!t || !t.buoc) { o.innerHTML = ''; return; }
+    var b = t.buoc;
+    var buoc = [
+      ['Số máy POS về', b.fabi, b.fabi ? '' : 'FABi chưa gửi / hộp thư chưa lấy — nhờ văn phòng nạp'],
+      ['Cơ sở khai', b.khai, b.khai ? '' : 'soát hàng bán, đếm két, khách vào rồi Lưu'],
+      ['Sổ kho', b.kho, b.kho === null ? '' : (b.kho ? '' : 'nhập / huỷ / tồn còn ở tab Kho hàng hoá')],
+      ['Chốt ngày', b.chot, b.chot ? '' : 'bấm Lưu và chốt ngày trước ' + String(t.han || '').slice(11)],
+    ];
+    o.innerHTML = '<div class="buoc' + (t.qua_han ? ' xau' : '') + '">' + buoc.map(function (x, i) {
+      var lop = x[1] === true ? 'xong' : (x[1] === null ? 'khong' : 'chua');
+      return '<span class="' + lop + '" title="' + esc(x[2]) + '"><i>' + (x[1] === true ? '✓' : (i + 1)) + '</i>' + esc(x[0]) + '</span>';
+    }).join('') +
+      (t.qua_han ? '<b class="han">quá hạn ' + esc(String(t.han || '').slice(11)) + '</b>' : (b.chot ? '' : '<b class="han">hạn ' + esc(String(t.han || '').slice(11)) + ' ' + esc(ngayVN(String(t.han || '').slice(0, 10))) + '</b>')) +
+      '</div>';
   }
 
   function o_nhap(id, nhan, goi) {
@@ -1150,6 +1210,7 @@
           : '<div class="trong">Ngày này chưa có số liệu máy POS trong kho. Nạp file FABi cho ngày đó rồi quay lại.</div>';
         var b = r.bao_cao || {};
         S.bcHienTai = { pos: p, bao_cao: b, ngay: ngay, ch: ch };
+        veBuoc(r.quy_trinh);
         /* Có báo cáo đã lưu (có người nhập) thì mới có gì để tải ảnh / chia sẻ. */
         var daLuu = !!(b && b.nguoi);
         q('#bcTaiAnh').hidden = !daLuu;
@@ -1466,6 +1527,7 @@
       baoBC(chot ? 'Đã lưu và chốt ngày.' : 'Đã lưu báo cáo.' +
         (r.sua_lan ? ' (bản trước được giữ lại trong lịch sử sửa)' : ''), 'xong');
       napBaoCao();
+      taiViec();
     }).catch(function (e) {
       q('#bcLuu').disabled = false; q('#bcChot').disabled = false;
       baoBC(String(e.message || e), 'loi');
@@ -3094,8 +3156,116 @@
       taiVeKhach(o);
       /* Nhóm món nào là sale vé, nhóm nào bán lẻ — cũng xin riêng, cùng cửa quyền, cùng cửa hàng đang chọn. */
       taiNhomVe(o);
+      /* Quy trình báo cáo cơ sở hằng ngày: cấu hình + tổng hợp hôm qua + nhật ký (chỉ quản trị). */
+      taiQuyTrinh(o);
     }).catch(function (e) {
       o.innerHTML = '<div class="khung"><div class="trong">' + esc(e.message || e) + '</div></div>';
+    });
+  }
+
+  /* ---- QUY TRÌNH BÁO CÁO CƠ SỞ HẰNG NGÀY ----
+     Anh Thắng 24/09/2026: *"Làm quy trình báo cáo hằng ngày tự động"* — *"Báo cáo cơ sở thôi"*.
+     Máy chủ theo dõi bốn bước từng ngày × cơ sở, đến giờ hạn thì tổng hợp + gửi thư cho văn phòng. */
+  function taiQuyTrinh(o) {
+    api('quy-trinh').then(function (r) { if (r && r.cf) veQuyTrinh(o, r); })
+      .catch(function () {});
+  }
+
+  function veQuyTrinh(o, r) {
+    var c = r.cf || {}, th = r.tong_hop || { dem: {}, dong: [], tong: 0 }, d = th.dem || {};
+    var chuaXong = (d.chua_nop || 0) + (d.chua_fabi || 0) + (d.da_luu || 0);
+    var h = '<div class="khung" id="dtQuyTrinh"><header><h2>Quy trình báo cáo cơ sở hằng ngày</h2>' +
+      '<span class="goi">' + (c.bat ? 'đang bật · hạn chốt ' + esc(c.han || '10:00') + ' sáng hôm sau' : 'đang tắt') + '</span></header>' +
+      '<div class="chu-them">Mỗi ngày bán hàng đi qua bốn bước: <b>số máy POS về</b> (hộp thư 08:02) → <b>cơ sở khai</b> ' +
+      '(soát hàng bán, đếm két, khách vào) → <b>sổ kho</b> → <b>Lưu và chốt</b>. Cửa hàng trưởng mở tab Nhập báo cáo ' +
+      'thấy ngay ngày nào còn treo; đến giờ hạn hệ tổng hợp mọi cơ sở, ghi nhật ký và gửi <b>một thư</b> cho văn phòng. ' +
+      '<b>Hệ không tự điền số</b> thay cơ sở — két, khách là số người đếm.</div>';
+
+    var o1 = function (nhan, ten, gt, kieu, rong) {
+      return '<label class="o" style="margin:0 8px 8px 0">' + esc(nhan) +
+        '<input type="' + (kieu || 'text') + '" data-qt="' + ten + '" value="' + esc(gt == null ? '' : gt) + '" style="width:' + (rong || 160) + 'px"></label>';
+    };
+    h += '<div style="margin-top:12px">' +
+      '<label class="o" style="margin:0 8px 8px 0"><input type="checkbox" data-qt="bat"' + (c.bat ? ' checked' : '') + '> Bật theo dõi và tổng hợp hằng ngày</label>' +
+      o1('Hạn chốt (giờ sáng hôm sau)', 'han', c.han || '10:00', 'time', 110) +
+      o1('Nhìn lùi (ngày)', 'lui', c.lui || 7, 'number', 70) +
+      '</div><div>' +
+      o1('Thư tổng hợp gửi tới (nhiều địa chỉ, cách nhau dấu phẩy)', 'email', c.email, 'text', 340) +
+      '</div>' +
+      '<div class="chu-them">Trống ô thư thì hệ chỉ ghi nhật ký. Thư gửi bằng bộ gửi thư của WordPress — hosting phải cho gửi thư.</div>' +
+      '<div style="margin-top:10px">' +
+      '<button class="nut chinh" type="button" id="dtQtLuu">Lưu</button> ' +
+      '<button class="nut" type="button" id="dtQtChay">Tổng hợp và gửi ngay</button>' +
+      (r.lan_sau ? '<span class="chu-them" style="margin-left:10px">Lượt sau: ' + esc(new Date(r.lan_sau).toLocaleString('vi-VN')) + '</span>' : '') +
+      '</div>';
+    if (r.vua_chay) {
+      h += '<div class="canh-ghep" style="margin-top:10px">' + (r.vua_chay.gui
+        ? '✓ Đã gửi <b>' + esc(r.vua_chay.tieu_de) + '</b> tới ' + esc((r.vua_chay.toi || []).join(', '))
+        : (r.vua_chay.loi ? '⚠️ ' + esc(r.vua_chay.loi) : 'Đã tổng hợp, ghi nhật ký. Chưa gửi thư vì chưa có địa chỉ.')) + '</div>';
+    }
+
+    /* Hôm qua: từng cơ sở một dòng. */
+    h += '<h3 class="tieu-nho" style="margin-top:14px">Hôm qua ' + esc(ngayVN(r.hom_qua || '')) + ': <b>' + (d.da_chot || 0) + '/' + (th.tong || 0) + ' đã chốt</b>' +
+      (chuaXong ? ' · <b style="color:var(--xau)">' + chuaXong + ' chưa xong</b>' : '') + '</h3>';
+    if (!(th.dong || []).length) {
+      h += '<div class="trong">Chưa có cơ sở nào trong kho POS.</div>';
+    } else {
+      h += '<div class="bang-the bang-cuon"><table><thead><tr><th style="text-align:left">Cơ sở</th><th>Máy POS</th><th>Trạng thái</th><th>Két lệch</th><th>Món lệch</th><th>Người</th></tr></thead><tbody>' +
+        th.dong.map(function (x) {
+          return '<tr' + (x.qua_han ? ' class="qua-han"' : '') + '><td data-nhan="Cơ sở" style="text-align:left">' + esc(x.cua_hang) + '</td>' +
+            '<td class="s" data-nhan="Máy POS">' + (x.doanh_thu != null ? tien(x.doanh_thu) : '—') + '</td>' +
+            '<td data-nhan="Trạng thái"><b' + ('da_chot' === x.trang_thai ? ' style="color:var(--tot)"' : (x.qua_han ? ' style="color:var(--xau)"' : '')) + '>' + esc(QT_NHAN[x.trang_thai] || x.trang_thai) + (x.qua_han ? ' · quá hạn' : '') + '</b></td>' +
+            '<td class="s" data-nhan="Két lệch">' + (x.lech_ket != null ? (x.lech_ket > 0 ? '+' : '') + tien(x.lech_ket) : '—') + '</td>' +
+            '<td class="s" data-nhan="Món lệch">' + (x.mon_lech ? '<b style="color:var(--xau)">' + nguyen(x.mon_lech) + '</b>' : (x.buoc && x.buoc.khai ? 'khớp' : '—')) + '</td>' +
+            '<td data-nhan="Người">' + esc(x.nguoi || '') + '</td></tr>';
+        }).join('') + '</tbody></table></div>';
+    }
+
+    var nk = r.nhat_ky || [];
+    h += '<h3 class="tieu-nho" style="margin-top:14px">Nhật ký 30 lượt gần nhất</h3>';
+    if (!nk.length) {
+      h += '<div class="chu-them">Chưa chạy lượt nào — đến giờ hạn hệ tự chạy, hoặc bấm "Tổng hợp và gửi ngay".</div>';
+    } else {
+      h += '<div class="bang-cuon"><table><thead><tr><th style="text-align:left">Lúc</th><th>Ngày</th><th>Chốt</th><th>Chưa xong</th><th style="text-align:left">Thư</th></tr></thead><tbody>' +
+        nk.slice(0, 30).map(function (x) {
+          var dd = x.dem || {};
+          return '<tr><td style="text-align:left" class="s">' + esc(x.luc) + '</td><td>' + esc(ngayVN(x.ngay)) + '</td>' +
+            '<td>' + nguyen(dd.da_chot || 0) + '/' + nguyen(x.tong || 0) + '</td>' +
+            '<td>' + nguyen((dd.da_luu || 0) + (dd.chua_nop || 0) + (dd.chua_fabi || 0)) + '</td>' +
+            '<td style="text-align:left">' + (x.gui ? 'đã gửi ' + esc((x.toi || []).join(', ')) : (x.loi ? '<span style="color:var(--xau)">' + esc(x.loi) + '</span>' : '<span class="chu-them">không gửi (chưa có địa chỉ)</span>')) + '</td></tr>';
+        }).join('') + '</tbody></table></div>';
+    }
+    h += '</div>';
+    var cu = o.querySelector('#dtQuyTrinh');
+    if (cu) { cu.outerHTML = h; } else { o.insertAdjacentHTML('beforeend', h); }
+    noiQuyTrinh(o);
+  }
+
+  function noiQuyTrinh(o) {
+    var k = o.querySelector('#dtQuyTrinh');
+    if (!k) return;
+    var thu = function () {
+      var fd = new FormData();
+      Array.prototype.forEach.call(k.querySelectorAll('[data-qt]'), function (x) {
+        var n = x.getAttribute('data-qt');
+        if ('checkbox' === x.type) { fd.append(n, x.checked ? '1' : ''); return; }
+        fd.append(n, x.value);
+      });
+      return fd;
+    };
+    var luu = k.querySelector('#dtQtLuu'), chay = k.querySelector('#dtQtChay');
+    luu.addEventListener('click', function () {
+      luu.disabled = true; luu.textContent = 'Đang lưu…';
+      api('quy-trinh', { method: 'POST', body: thu() }).then(function (r) { veQuyTrinh(o, r); })
+        .catch(function (e) { luu.disabled = false; luu.textContent = 'Lưu'; window.alert(e.message || e); });
+    });
+    chay.addEventListener('click', function () {
+      chay.disabled = true; chay.textContent = 'Đang chạy…';
+      /* Lưu trước rồi chạy — bấm chạy sau khi vừa sửa ô thư mà chưa Lưu thì phải gửi tới địa chỉ mới. */
+      api('quy-trinh', { method: 'POST', body: thu() })
+        .then(function () { return api('quy-trinh-chay', { method: 'POST' }); })
+        .then(function (r) { veQuyTrinh(o, r); })
+        .catch(function (e) { chay.disabled = false; chay.textContent = 'Tổng hợp và gửi ngay'; window.alert(e.message || e); });
     });
   }
 

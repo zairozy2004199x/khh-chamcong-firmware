@@ -3,7 +3,7 @@
  * Plugin Name:       K&H — Báo cáo doanh thu FABi
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Nạp file "Báo cáo bán hàng" xuất từ máy POS FABi (iPOS) và dựng báo cáo doanh thu theo ngày, cửa hàng, khung giờ, hình thức thanh toán, tại chỗ/mang về và món bán chạy. Có sẵn đường nối API FABi để bật khi iPOS cấp khoá.
- * Version:           1.63.1
+ * Version:           1.64.0
  * Requires at least: 5.8
  * Requires PHP:      7.2
  * Author:            K&H
@@ -26,7 +26,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'KHH_DT_VERSION', '1.63.1' );
+define( 'KHH_DT_VERSION', '1.64.0' );
 define( 'KHH_DT_FILE', __FILE__ );
 define( 'KHH_DT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KHH_DT_URL', plugin_dir_url( __FILE__ ) );
@@ -50,6 +50,7 @@ require_once KHH_DT_DIR . 'momo-phi.php';
 require_once KHH_DT_DIR . 'hop-thu.php';
 require_once KHH_DT_DIR . 'kho.php';
 require_once KHH_DT_DIR . 've-khach.php';
+require_once KHH_DT_DIR . 'quy-trinh.php';
 
 /** Đường dẫn ngoài của báo cáo, ví dụ khmatrix.com/doanh-thu-hcm */
 function khh_dt_slug() {
@@ -133,6 +134,10 @@ function khh_dt_kich_hoat() {
 	/* Một lần: gỡ cặp 0/0 do lỗi ép ô trống thành 0 trước 1.61.3 (tồn đầu hôm sau về 0). */
 	if ( function_exists( 'khh_dt_kho_sua_so_0' ) ) {
 		khh_dt_kho_sua_so_0();
+	}
+	/* Quy trình báo cáo cơ sở hằng ngày: đặt (lại) lịch tổng hợp lúc giờ hạn. */
+	if ( function_exists( 'khh_dt_qt_dat_lich' ) ) {
+		khh_dt_qt_dat_lich();
 	}
 	khh_dt_tao_bang_momo_sk();
 	update_option( 'khh_dt_version', KHH_DT_VERSION );
@@ -1139,6 +1144,9 @@ function khh_dt_tat_dong_bo() {
 	$ts = wp_next_scheduled( 'khh_dt_cron_dong_bo' );
 	if ( $ts ) {
 		wp_unschedule_event( $ts, 'khh_dt_cron_dong_bo' );
+	}
+	if ( function_exists( 'khh_dt_qt_go_lich' ) ) {
+		khh_dt_qt_go_lich();
 	}
 	return true;
 }

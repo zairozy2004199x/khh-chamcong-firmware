@@ -696,6 +696,8 @@ function khh_dt_rest_bc_lay( $req ) {
 		'duoc_ghi' => khh_dt_duoc_cua_hang( $ch ),
 		'cua_toi'  => khh_dt_co_so_mac_dinh(),
 		'cua_toi_ds' => khh_dt_co_so_ds(),
+		/* Bốn bước của ngày này (số máy về / cơ sở khai / sổ kho / chốt) + hạn — màn vẽ thanh tiến độ. */
+		'quy_trinh' => function_exists( 'khh_dt_qt_tinh_trang' ) ? khh_dt_qt_tinh_trang( $ngay, $ch ) : null,
 	);
 }
 
