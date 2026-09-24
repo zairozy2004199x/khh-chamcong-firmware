@@ -172,6 +172,18 @@ t('số máy canh phải, lệch canh giữa', /\.o-may\{text-align:right\}/.tes
 t("🔴 JS dùng đúng nhãn 'Hàng huỷ' và 'Hàng tồn còn' mà CSS order bám theo", /oNhap\('huy', 'Hàng huỷ'/.test(boCC) && /oNhap\('dem', 'Hàng tồn còn'/.test(boCC) && !/NV khai bán|NV đếm còn/.test(boCC));
 t("và các nhãn số máy khớp CSS", /oMay\('Tồn đầu'/.test(boCC) && /oMay\('Máy bán tổng'/.test(boCC) && /oMay\('Tồn tính'/.test(boCC));
 
+/* 24/09/2026 anh Thắng: thêm sản phẩm mới theo tên + mã FABi; combo CHỌN thay gõ ("nhập hay ghi sai tên sản phẩm"). */
+t('🔴 khối danh mục có ô thêm mặt hàng mới (tên + mã FABi) và nút Thêm', /id="mhThemTen"/.test(boCC) && /id="mhThemMa"/.test(boCC) && /id="mhThem"/.test(boCC));
+t('món thêm tay mà FABi chưa bán được đánh dấu', /mới · FABi chưa bán/.test(boCC));
+t('danh sách bày = FABi từng bán ∪ danh mục (món mới không mất ô)', /chon\.forEach\(function \(t\) \{ if \(ten\.indexOf\(t\) < 0\) ten\.push\(t\); \}\);/.test(boCC));
+t('nút Thêm gửi them_ten / them_ma qua kho-mat-hang', /fd\.append\('them_ten', tenMoi\); fd\.append\('them_ma', maMoi\)/.test(boCC));
+t('🔴 combo CHỌN từ danh sách (#cbChon) gồm combo hệ nghi + món có chữ combo + đã khai', /id="cbChon"/.test(boCC) && /r\.combo_nghi \|\| \[\]\)\.forEach/.test(boCC) && /\/combo\/i\.test\(t\)/.test(boCC));
+t('🔴 thành phần là ô số lượng theo từng món danh mục (data-cb-mon), không gõ tên', /data-cb-mon=/.test(boCC));
+t('chọn combo đã khai thì điền sẵn công thức vào các ô', /S\.khoR\.combo\[v\]/.test(boCC) && /i\.value = ct\[m\] != null \? ct\[m\] : '';/.test(boCC));
+t('"Khác — gõ tên…" mới mở ô gõ tên', /value="__khac__"/.test(boCC) && /oTen\.hidden = v !== '__khac__'/.test(boCC));
+t('Lưu gộp ô số lượng với ô thêm nhanh', /if \(v > 0\) tp\[i\.getAttribute\('data-cb-mon'\)\] = v;/.test(boCC));
+t('🔴 thành phần đã khai không trùng món nào trong kho thì đỏ "không khớp món nào"', /không khớp món nào<\/b>/.test(boCC) && /coKho\.indexOf\(m\) >= 0/.test(boCC));
+
 /* 24/09/2026 anh Thắng: "cho set lại tồn đầu" — ô Tồn đầu gõ được khi có quyền ghi, trống = số kéo (placeholder). */
 t('🔴 Tồn đầu là ô gõ data-kho="dat_dau" khi được ghi', /data-kho="dat_dau"/.test(boCC) && /class="o-go o-dau" data-nhan="Tồn đầu"/.test(boCC));
 t('ô ấy hiện số kéo mờ (placeholder = soKho(d.ton_dau))', /placeholder="' \+ esc\(soKho\(d\.ton_dau\)\)/.test(boCC));

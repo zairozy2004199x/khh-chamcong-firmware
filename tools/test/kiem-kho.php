@@ -724,6 +724,46 @@ khh_dt_kho_ghi( '2026-09-24', $CS, 'Kẹo cứng', array( 'dat_dau' => 148, 'dem
 $b = dong_cua( khh_dt_kho_bang_ngay( '2026-09-24', $CS ), 'Kẹo cứng' );
 phep( 'đếm được 0 thật thì lệch −143 (0 khác trống)', -143.0 === (float) $b['lech_kho'] );
 
+/* ── 17. 🔴 THÊM SẢN PHẨM MỚI THEO TÊN + MÃ FABi; MÃ KHỚP LÀ SỐ BÁN RƠI VÀO ĐÚNG DÒNG ─────────────────
+      Anh Thắng 24/09/2026: "muốn bổ sung thêm sản phẩm mới (lấy tên sản phẩm mà mã theo FABi, để sau đồng bộ
+      nó chạy cùng)". Hàng mới về chưa bán -> FABi chưa có dòng -> không tích được; thêm tay kèm mã. */
+dung_bang();
+delete_option( 'khh_dt_kho_mat_hang' );
+delete_option( 'khh_dt_kho_ma' );
+$kq = khh_dt_kho_them_mh( $CS, 'Nước suối Danasi', 'MNKVCDS023' );
+phep( 'thêm mặt hàng mới vào danh mục kèm mã', ! empty( $kq['ok'] ) && empty( $kq['da_co'] ) && array( 'Nước suối Danasi' ) === khh_dt_kho_mh_cua( $CS ) && array( 'Nước suối Danasi' => 'MNKVCDS023' ) === khh_dt_kho_ma_cua( $CS ) );
+phep( 'thiếu tên thì chối', empty( khh_dt_kho_them_mh( $CS, '  ', 'X' )['ok'] ) );
+phep( 'trùng mã với món khác thì chối', empty( khh_dt_kho_them_mh( $CS, 'Nước khác', 'MNKVCDS023' )['ok'] ) );
+phep( 'thêm lại tên đã có chỉ cập nhật mã, không nhân đôi', ! empty( khh_dt_kho_them_mh( $CS, 'Nước suối Danasi', 'MNKVCDS023' )['da_co'] ) && 1 === count( khh_dt_kho_mh_cua( $CS ) ) );
+/* Chưa bán: bảng ngày vẫn có dòng (1.61.2) để nhập hàng về. */
+fabi( '2026-09-24', $CS, array( 'Kẹo cứng' => 2 ) );
+$b = dong_cua( khh_dt_kho_bang_ngay( '2026-09-24', $CS ), 'Nước suối Danasi' );
+phep( 'món mới chưa bán vẫn có dòng trong bảng ngày', null !== $b && 0.0 === (float) $b['ban_may'] );
+/* FABi bán món ấy dưới tên KHÁC nhưng đúng MÃ -> số bán rơi vào dòng kho theo tên danh mục. */
+$GLOBALS['wpdb']->query( $GLOBALS['wpdb']->prepare( 'INSERT OR REPLACE INTO ' . khh_dt_bang() . ' (ngay,cua_hang,mon) VALUES (%s,%s,%s)',
+	'2026-09-25', $CS, wp_json_encode( array(
+		array( 'n' => 'NƯỚC SUỐI DANASI 500ML', 'g' => 'ĐÓNG SẴN', 'm' => 'MNKVCDS023', 'q' => 7, 'r' => 70000 ),
+		array( 'n' => 'Kẹo cứng', 'g' => 'ĐÓNG SẴN', 'm' => 'MNKVCDS017', 'q' => 2, 'r' => 40000 ),
+	) ) ) );
+$may = khh_dt_kho_ban_may( '2026-09-25', '2026-09-25', $CS )['2026-09-25'];
+phep( '🔴 mã khớp -> máy bán 7 rơi vào "Nước suối Danasi", không sinh dòng tên FABi', 7.0 === (float) $may['Nước suối Danasi'] && ! isset( $may['NƯỚC SUỐI DANASI 500ML'] ) );
+phep( 'món không có mã trong danh mục thì vẫn theo tên FABi', 2.0 === (float) $may['Kẹo cứng'] );
+phep( 'bảng tách lẻ/combo cũng đổi tên theo mã', 7.0 === (float) khh_dt_kho_ban_may_tach( '2026-09-25', '2026-09-25', $CS )['2026-09-25']['Nước suối Danasi']['le'] );
+$dt = khh_dt_kho_mon_da_thay( '2026-09-24', '2026-09-25', $CS );
+phep( 'danh sách "món đã thấy" gom về tên danh mục', isset( $dt['Nước suối Danasi'] ) && 7.0 === (float) $dt['Nước suối Danasi'] && ! isset( $dt['NƯỚC SUỐI DANASI 500ML'] ) );
+$b = dong_cua( khh_dt_kho_bang_ngay( '2026-09-25', $CS ), 'Nước suối Danasi' );
+phep( 'bảng ngày: dòng danh mục nhận máy bán 7', 7.0 === (float) $b['ban_may'] );
+/* REST: thêm qua cổng kho-mat-hang, và gán mã cho món đã có. */
+$r = khh_dt_rest_kho_mat_hang( new WP_REST_Request( array( 'co_so' => $CS, 'ngay' => '2026-09-25', 'ds' => wp_json_encode( array( 'Nước suối Danasi', 'Kẹo cứng' ) ), 'them_ten' => 'Bim bim mới', 'them_ma' => 'MNKVCDS099', 'ma' => wp_json_encode( array( 'Kẹo cứng' => 'MNKVCDS017' ) ) ) ) );
+phep( 'REST: thêm món mới + gán mã món cũ, trả ma_hang', ! is_wp_error( $r ) && 'MNKVCDS099' === $r['ma_hang']['Bim bim mới'] && 'MNKVCDS017' === $r['ma_hang']['Kẹo cứng'] && in_array( 'Bim bim mới', $r['mat_hang'], true ) );
+$r = khh_dt_rest_kho_mat_hang( new WP_REST_Request( array( 'co_so' => $CS, 'ngay' => '2026-09-25', 'ds' => '[]', 'them_ten' => 'Nước khác', 'them_ma' => 'MNKVCDS023' ) ) );
+phep( 'REST: trùng mã -> WP_Error 400', is_wp_error( $r ) );
+/* Trình đọc file ghi mã hàng vào từng món. */
+$src_df = preg_replace( '~/\*.*?\*/~s', '', file_get_contents( $goc . '/doc-file.php' ) );
+phep( "trình đọc file có cột 'ma_hang' và ghi 'm' vào món", false !== strpos( $src_df, "'ma_hang'    => array( 'ma hang'" ) && false !== strpos( $src_df, "'m' => isset( \$o['mon_m'][ \$ten_mon ] )" ) );
+delete_option( 'khh_dt_kho_mat_hang' );
+delete_option( 'khh_dt_kho_ma' );
+
 if ( $hong ) {
 	echo "\n✗ HỎNG " . count( $hong ) . " phép (đạt $dat):\n";
 	foreach ( $hong as $h ) { echo "   · 🔴 $h\n"; }

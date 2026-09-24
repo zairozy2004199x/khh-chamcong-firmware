@@ -102,6 +102,25 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.62.0 =
+* 🔴 **Thêm sản phẩm mới vào danh mục kho theo tên + mã hàng FABi.** Anh Thắng 24/09/2026: *"muốn bổ sung
+  thêm sản phẩm mới (lấy tên sản phẩm mà mã theo FABi), để sau đồng bộ nó chạy cùng"*. Hàng mới về chưa
+  bán nên FABi chưa có dòng, không tích được từ danh sách; nay khối "Mặt hàng có kho" có ô **Thêm mặt hàng
+  mới** (tên đúng như FABi sẽ ghi + **mã hàng** FABi). Món thêm tay được đánh dấu *"mới · FABi chưa bán"*,
+  có dòng trong bảng ngay để nhập hàng về. Trình đọc file FABi nay ghi thêm **mã hàng** vào từng dòng
+  món; khi FABi bán món mang **đúng mã** (dù tên gõ khác chút) số bán tự rơi vào dòng kho ấy — ở bảng
+  ngày, thẻ kho, chuỗi ngày và cả bảng tách lẻ/combo. Một mã không gán được cho hai tên.
+* 🔴 **Khai thành phần combo bằng CHỌN, không gõ tên.** *"Hiện combo đang chạy và thành phần đang bán, mới
+  hiểu được combo đó có hàng bán gì để trừ, chứ nhập hay ghi sai tên sản phẩm"*. Ô "Món combo" thành
+  **danh sách chọn** gồm combo hệ nghi (đang bán mà chưa khai), món FABi có chữ "combo" và combo đã khai
+  (kèm số bán 90 ngày); thành phần là **bảng các món trong danh mục kho, mỗi món một ô số lượng**. Chọn
+  combo đã khai là công thức điền sẵn vào ô để sửa. Vẫn còn "Khác — gõ tên…" và ô thêm nhanh cho món
+  chưa có trong danh mục. Bảng combo đã khai **tô đỏ thành phần không trùng tên món nào** trong kho hay
+  FABi (ảnh anh gửi: "bimbim", "nước suối", "thạch" gõ tay — combo bán ra không trừ được dòng nào).
+* Cổng `kho-mat-hang` nhận thêm `them_ten`, `them_ma`, `ma`; trả về `ma_hang`.
+* Bài kiểm: `kiem-kho.php` +13 phép (thêm món kèm mã, chối trùng mã, mã khớp đổi tên về danh mục ở bốn
+  chỗ, REST), `kiem-kho-man.js` +9 phép.
+
 = 1.61.3 =
 * 🔴 **Lưu sổ kho mà chưa đếm thì "Hàng tồn còn" phải là trống, không phải 0.** Anh Thắng 24/09/2026 mở
   kho thấy cột Hàng tồn còn toàn 0 và lệch kho = −tồn tính dù chưa ai đếm — *"khi nào nhập hàng tồn còn

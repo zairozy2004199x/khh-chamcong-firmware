@@ -1519,7 +1519,7 @@
     }
 
     h += '<div id="khoThe"></div>';
-    if (ghi) { h += veKhoMatHang(r); h += veKhoCombo(r.combo || {}); }
+    if (ghi) { h += veKhoMatHang(r); h += veKhoCombo(r.combo || {}, r); }
     h += '</div>';
     o.innerHTML = h;
     noiKho(o);
@@ -1592,8 +1592,12 @@
   function veKhoMatHang(r) {
     var daThay = r.mon_da_thay || {};
     var chon = r.mat_hang || [];
+    var maHang = r.ma_hang || {};
+    /* Danh sách bày = món FABi từng bán ∪ món đã có trong danh mục (kể cả món MỚI thêm tay, FABi chưa
+       bán) — không thì món mới thêm không có ô để bỏ tích. */
     var ten = Object.keys(daThay);
-    if (!ten.length) return '';
+    chon.forEach(function (t) { if (ten.indexOf(t) < 0) ten.push(t); });
+    ten.sort(function (a, b) { return a.localeCompare(b, 'vi'); });
     return '<details style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)"' +
       (chon.length ? '' : ' open') + '>' +
       '<summary style="cursor:pointer"><b>Mặt hàng có kho của cơ sở này</b> — ' +
@@ -1605,14 +1609,29 @@
       'đếm được, mà để trong sổ thì ngày nào cũng đỏ vì chẳng ai đếm chúng.' +
       '<br>Số trong ngoặc là <b>số lượng bán 90 ngày qua</b>, để biết món nào đáng theo dõi. ' +
       'Bỏ tích hết rồi Lưu là thôi lọc, bày lại tất cả.</div>' +
-      '<div style="margin-top:8px;max-height:320px;overflow-y:auto;display:grid;' +
-        'grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:4px 12px">' +
-      ten.map(function (t) {
-        return '<label class="o" style="justify-content:flex-start;gap:7px;padding:6px 8px">' +
-          '<input type="checkbox" data-mh="' + esc(t) + '"' +
-          (chon.indexOf(t) >= 0 ? ' checked' : '') + '>' +
-          '<span>' + esc(t) + ' <span class="chu-them">(' + nguyen(daThay[t]) + ')</span></span></label>';
-      }).join('') +
+      (ten.length
+        ? '<div style="margin-top:8px;max-height:320px;overflow-y:auto;display:grid;' +
+          'grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:4px 12px">' +
+          ten.map(function (t) {
+            var moi = !(t in daThay);
+            return '<label class="o" style="justify-content:flex-start;gap:7px;padding:6px 8px">' +
+              '<input type="checkbox" data-mh="' + esc(t) + '"' +
+              (chon.indexOf(t) >= 0 ? ' checked' : '') + '>' +
+              '<span>' + esc(t) +
+                (maHang[t] ? ' <code style="font-size:11px">' + esc(maHang[t]) + '</code>' : '') +
+                (moi ? ' <span class="chip" title="Thêm tay, FABi chưa có dòng bán nào. Khi FABi bán món mang đúng mã này, số bán tự rơi vào dòng kho này.">mới · FABi chưa bán</span>'
+                     : ' <span class="chu-them">(' + nguyen(daThay[t]) + ')</span>') +
+              '</span></label>';
+          }).join('') +
+          '</div>'
+        : '<div class="trong">Chưa có món nào — thêm mặt hàng mới ở dưới.</div>') +
+      /* THÊM SẢN PHẨM MỚI (anh Thắng 24/09/2026: "lấy tên sản phẩm mà mã theo FABi, để sau đồng bộ nó
+         chạy cùng"): hàng mới về chưa bán -> FABi chưa có dòng -> không tích được từ danh sách trên. */
+      '<div class="loc" style="margin-top:10px;gap:6px">' +
+        '<label class="o">Thêm mặt hàng mới<input type="text" id="mhThemTen" placeholder="Tên đúng như FABi sẽ ghi" style="width:230px"></label>' +
+        '<label class="o">Mã hàng FABi<input type="text" id="mhThemMa" placeholder="MNKVCDS017" style="width:130px"></label>' +
+        '<button class="nut" type="button" id="mhThem">Thêm vào danh mục</button>' +
+        '<span class="chu-them" style="margin:0">Khai đúng <b>mã hàng</b> là về sau FABi bán món này (dù tên gõ khác chút) số vẫn rơi vào đúng dòng.</span>' +
       '</div>' +
       '<div style="margin-top:8px">' +
         '<button class="nut" type="button" id="mhLuu">Lưu danh mục</button> ' +
@@ -1620,29 +1639,60 @@
       '</div></details>';
   }
 
-  function veKhoCombo(cb) {
+  function veKhoCombo(cb, r) {
+    r = r || {};
     var ten = Object.keys(cb).sort();
+    /* COMBO ĐANG BÁN: chọn từ danh sách, không gõ. Anh Thắng 24/09/2026: *"hiện combo đang chạy và
+       thành phần đang bán, mới hiểu được combo đó có hàng bán gì để trừ, chứ nhập hay ghi sai tên sản
+       phẩm"*. Ứng viên = combo hệ nghi (đang bán mà chưa khai) ∪ món FABi có chữ "combo" ∪ combo đã khai. */
+    var daThay = r.mon_da_thay || {};
+    var ungVien = [];
+    (r.combo_nghi || []).forEach(function (t) { if (ungVien.indexOf(t) < 0) ungVien.push(t); });
+    Object.keys(daThay).forEach(function (t) { if (/combo/i.test(t) && ungVien.indexOf(t) < 0) ungVien.push(t); });
+    ten.forEach(function (t) { if (ungVien.indexOf(t) < 0) ungVien.push(t); });
+    ungVien.sort(function (a, b) { return a.localeCompare(b, 'vi'); });
+    /* THÀNH PHẦN ĐANG BÁN: tích từ danh mục kho (không có danh mục thì mọi món FABi từng bán), mỗi món
+       một ô số lượng. */
+    var mon = (r.mat_hang && r.mat_hang.length) ? r.mat_hang.slice() : Object.keys(daThay);
+    mon = mon.filter(function (t) { return !/combo/i.test(t); });
+    mon.sort(function (a, b) { return a.localeCompare(b, 'vi'); });
     return '<details style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)"' +
       (ten.length ? '' : ' open') + '>' +
       '<summary style="cursor:pointer"><b>Thành phần combo</b> — ' +
       (ten.length ? ten.length + ' combo đã khai' : '<b>chưa khai combo nào</b>') + '</summary>' +
-      '<div class="chu-them" style="margin-top:6px">Một combo bán ra là mấy món rời kho. Gõ đúng ' +
-      '<b>tên món combo như FABi ghi</b>, rồi liệt kê thành phần kiểu ' +
-      '<code>Nước suối x2, Kẹo cầu vồng x1</code>. Để trống ô thành phần rồi Lưu là xoá combo ấy.' +
+      '<div class="chu-them" style="margin-top:6px">Một combo bán ra là mấy món rời kho. <b>Chọn combo</b> đang bán ' +
+      'trong danh sách (hệ lấy từ FABi, không phải gõ tên), rồi <b>gõ số lượng</b> vào ô của từng món thành phần ' +
+      'đang có trong danh mục kho. Bỏ trống hết rồi Lưu là xoá công thức combo ấy.' +
       '<br>🔴 Hệ <b>không tự đoán</b> công thức: đoán sai là trừ nhầm kho hàng loạt mà không dòng nào sai.</div>' +
       (ten.length
         ? '<div class="bang-cuon" style="margin-top:8px"><table><thead><tr>' +
           '<th style="text-align:left">Món combo</th><th style="text-align:left">Thành phần</th>' +
           '</tr></thead><tbody>' + ten.map(function (t) {
+            /* Thành phần không trùng tên món nào trong kho (gõ tay sai tên: "bimbim", "nước suối") thì
+               combo bán ra KHÔNG trừ vào dòng nào — phải đỏ lên để khai lại bằng chọn. */
+            var coKho = mon.concat(Object.keys(daThay));
             return '<tr><td style="text-align:left">' + esc(t) + '</td>' +
-              '<td style="text-align:left" class="s">' + esc(Object.keys(cb[t]).map(function (m) {
-                return m + ' x' + cb[t][m];
-              }).join(', ')) + '</td></tr>';
+              '<td style="text-align:left" class="s">' + Object.keys(cb[t]).map(function (m) {
+                var khop = coKho.indexOf(m) >= 0;
+                return (khop ? esc(m) : '<b style="color:var(--xau)" title="Không trùng tên món nào trong kho hay FABi — combo này bán ra không trừ được dòng nào. Chọn lại combo ở dưới, tích đúng món rồi Lưu.">' + esc(m) + ' ⚠ không khớp món nào</b>') + ' x' + cb[t][m];
+              }).join(', ') + '</td></tr>';
           }).join('') + '</tbody></table></div>'
         : '') +
       '<div class="loc" style="margin-top:10px;gap:6px">' +
-        '<label class="o">Món combo<input type="text" id="cbTen" placeholder="Combo 2 người" style="width:190px"></label>' +
-        '<label class="o">Thành phần<input type="text" id="cbTP" placeholder="Nước suối x2, Kẹo cầu vồng x1" style="width:300px"></label>' +
+        '<label class="o">Món combo<select id="cbChon" style="max-width:320px">' +
+          '<option value="">— chọn combo đang bán —</option>' +
+          ungVien.map(function (t) { return '<option value="' + esc(t) + '">' + esc(t) + (cb[t] ? ' ✓' : '') + (daThay[t] ? ' (' + nguyen(daThay[t]) + ')' : '') + '</option>'; }).join('') +
+          '<option value="__khac__">Khác — gõ tên…</option></select></label>' +
+        '<label class="o" id="cbTenO" hidden>Tên combo<input type="text" id="cbTen" placeholder="đúng như FABi ghi" style="width:190px"></label>' +
+      '</div>' +
+      '<div id="cbTP_bang" style="margin-top:6px;max-height:260px;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:4px 12px">' +
+        mon.map(function (t) {
+          return '<label class="o" style="justify-content:space-between;gap:7px;padding:4px 8px"><span>' + esc(t) + '</span>' +
+            '<input type="number" min="0" step="1" inputmode="numeric" data-cb-mon="' + esc(t) + '" placeholder="0" style="width:64px"></label>';
+        }).join('') +
+      '</div>' +
+      '<div class="loc" style="margin-top:6px;gap:6px">' +
+        '<label class="o">Thêm nhanh<input type="text" id="cbTP" placeholder="tuỳ chọn: Món lẻ x2, Món khác x1" style="width:260px" title="Món chưa có trong danh mục — gõ đúng tên FABi"></label>' +
         /* 🔴 NGÀY HIỆU LỰC, MẶC ĐỊNH HÔM NAY. Công thức đóng băng theo ngày nên sửa hôm nay
            KHÔNG viết lại số tồn của những ngày trước — muốn áp lùi thì phải tự gõ ngày, vì
            áp lùi là cố ý sửa lại quá khứ. */
@@ -1755,14 +1805,53 @@
       });
     }
 
+    var mhT = k.querySelector('#mhThem');
+    if (mhT) {
+      mhT.addEventListener('click', function () {
+        var tenMoi = ((k.querySelector('#mhThemTen') || {}).value || '').trim();
+        var maMoi = ((k.querySelector('#mhThemMa') || {}).value || '').trim();
+        if (!tenMoi) { window.alert('Gõ tên mặt hàng đúng như FABi sẽ ghi.'); return; }
+        /* Giữ những món đang tích, cộng thêm món mới (tự tích). */
+        var ds = [];
+        Array.prototype.forEach.call(k.querySelectorAll('[data-mh]'), function (x) { if (x.checked) ds.push(x.getAttribute('data-mh')); });
+        if (ds.indexOf(tenMoi) < 0) ds.push(tenMoi);
+        var fd = new FormData();
+        fd.append('co_so', S.kho.cs); fd.append('ngay', S.kho.ngay);
+        fd.append('ds', JSON.stringify(ds)); fd.append('them_ten', tenMoi); fd.append('them_ma', maMoi);
+        mhT.disabled = true; mhT.textContent = 'Đang thêm…';
+        api('kho-mat-hang', { method: 'POST', body: fd }).then(function (rr) {
+          S.khoR = rr; veKho(o, rr);
+        }).catch(function (e) {
+          mhT.disabled = false; mhT.textContent = 'Thêm vào danh mục'; window.alert(e.message || e);
+        });
+      });
+    }
+
     var cbL = k.querySelector('#cbLuu');
     if (cbL) {
+      /* Chọn combo -> điền sẵn công thức đã khai (nếu có) vào các ô số lượng; "Khác" -> mở ô gõ tên. */
+      var cbSel = k.querySelector('#cbChon');
+      if (cbSel) cbSel.addEventListener('change', function () {
+        var v = cbSel.value, oTen = k.querySelector('#cbTenO');
+        if (oTen) oTen.hidden = v !== '__khac__';
+        var ct = (S.khoR && S.khoR.combo && S.khoR.combo[v]) || {};
+        Array.prototype.forEach.call(k.querySelectorAll('[data-cb-mon]'), function (i) {
+          var m = i.getAttribute('data-cb-mon');
+          i.value = ct[m] != null ? ct[m] : '';
+        });
+      });
       cbL.addEventListener('click', function () {
-        var ten = (k.querySelector('#cbTen') || {}).value || '';
-        if (!ten.trim()) { window.alert('Gõ tên món combo đúng như FABi ghi.'); return; }
+        var chon = (k.querySelector('#cbChon') || {}).value || '';
+        var ten = chon === '__khac__' || !chon ? ((k.querySelector('#cbTen') || {}).value || '') : chon;
+        if (!ten.trim()) { window.alert('Chọn combo đang bán trong danh sách (hoặc chọn "Khác" rồi gõ đúng tên FABi).'); return; }
+        var tp = docThanhPhan((k.querySelector('#cbTP') || {}).value);
+        Array.prototype.forEach.call(k.querySelectorAll('[data-cb-mon]'), function (i) {
+          var v = parseFloat(String(i.value).replace(',', '.'));
+          if (v > 0) tp[i.getAttribute('data-cb-mon')] = v;
+        });
         var fd = new FormData();
         fd.append('ten', ten.trim());
-        fd.append('thanh_phan', JSON.stringify(docThanhPhan((k.querySelector('#cbTP') || {}).value)));
+        fd.append('thanh_phan', JSON.stringify(tp));
         fd.append('tu_ngay', (k.querySelector('#cbTu') || {}).value || '');
         cbL.disabled = true; cbL.textContent = 'Đang lưu…';
         /* 🔴 Đổi thành phần combo là đổi cách trừ kho của MỌI ngày, nên phải nạp LẠI cả sổ —

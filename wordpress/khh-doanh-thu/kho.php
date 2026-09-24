@@ -240,6 +240,93 @@ function khh_dt_kho_mh_dat( $co_so, $ds ) {
 	return count( $sach );
 }
 
+/* ---- MÃ HÀNG FABi cho từng món trong danh mục, và BÍ DANH theo mã ----
+   Anh Thắng 24/09/2026: *"muốn bổ sung thêm sản phẩm mới (lấy tên sản phẩm mà mã theo FABi), để sau
+   đồng bộ nó chạy cùng"*. Hàng mới về chưa bán thì FABi chưa có dòng nào -> không thể tích từ danh sách
+   "món đã thấy". Cho thêm thẳng vào danh mục bằng tên + mã hàng FABi; về sau báo cáo FABi có dòng
+   mang ĐÚNG MÃ ấy (dù tên gõ lệch hoa thường, thừa chữ) thì số bán vẫn rơi vào đúng dòng kho này. */
+function khh_dt_kho_ma_cua( $co_so ) {
+	$b = get_option( 'khh_dt_kho_ma', array() );
+	$b = is_array( $b ) ? $b : array();
+	$d = isset( $b[ (string) $co_so ] ) && is_array( $b[ (string) $co_so ] ) ? $b[ (string) $co_so ] : array();
+	$ra = array();
+	foreach ( $d as $ten => $ma ) {
+		$ten = trim( (string) $ten );
+		$ma  = trim( (string) $ma );
+		if ( '' !== $ten && '' !== $ma ) {
+			$ra[ $ten ] = $ma;
+		}
+	}
+	return $ra;
+}
+
+function khh_dt_kho_ma_dat( $co_so, $ten, $ma ) {
+	$b   = get_option( 'khh_dt_kho_ma', array() );
+	$b   = is_array( $b ) ? $b : array();
+	$cs  = (string) $co_so;
+	$ten = trim( (string) $ten );
+	$ma  = trim( (string) $ma );
+	if ( ! isset( $b[ $cs ] ) || ! is_array( $b[ $cs ] ) ) {
+		$b[ $cs ] = array();
+	}
+	if ( '' === $ma ) {
+		unset( $b[ $cs ][ $ten ] );
+	} else {
+		$b[ $cs ][ $ten ] = $ma;
+	}
+	update_option( 'khh_dt_kho_ma', $b, false );
+	return khh_dt_kho_ma_cua( $co_so );
+}
+
+/** Thêm một mặt hàng MỚI vào danh mục (chưa cần FABi từng bán). Trả về [ ok, error? ]. */
+function khh_dt_kho_them_mh( $co_so, $ten, $ma = '' ) {
+	$ten = trim( (string) $ten );
+	$ma  = trim( (string) $ma );
+	if ( '' === $ten ) {
+		return array( 'ok' => false, 'error' => 'Thiếu tên mặt hàng (gõ đúng như FABi sẽ ghi).' );
+	}
+	$ds = khh_dt_kho_mh_cua( $co_so );
+	if ( in_array( $ten, $ds, true ) ) {
+		if ( '' !== $ma ) {
+			khh_dt_kho_ma_dat( $co_so, $ten, $ma );
+		}
+		return array( 'ok' => true, 'da_co' => true );
+	}
+	/* Mã đã gán cho món khác thì chối — một mã hai tên là hai dòng kho tranh nhau một số bán. */
+	if ( '' !== $ma ) {
+		foreach ( khh_dt_kho_ma_cua( $co_so ) as $t2 => $m2 ) {
+			if ( $m2 === $ma && $t2 !== $ten ) {
+				return array( 'ok' => false, 'error' => 'Mã ' . $ma . ' đã gán cho "' . $t2 . '".' );
+			}
+		}
+	}
+	$ds[] = $ten;
+	khh_dt_kho_mh_dat( $co_so, $ds );
+	if ( '' !== $ma ) {
+		khh_dt_kho_ma_dat( $co_so, $ten, $ma );
+	}
+	return array( 'ok' => true, 'da_co' => false );
+}
+
+/** [ mã hàng => tên trong danh mục ] — để đổi tên món FABi về tên kho khi mã khớp. */
+function khh_dt_kho_bi_danh( $co_so ) {
+	$ra = array();
+	foreach ( khh_dt_kho_ma_cua( $co_so ) as $ten => $ma ) {
+		$ra[ $ma ] = $ten;
+	}
+	return $ra;
+}
+
+/** Tên kho của một dòng món FABi: trùng mã với danh mục thì lấy tên danh mục, không thì tên FABi. */
+function khh_dt_kho_ten_chuan( $m, $bi_danh ) {
+	$ten = isset( $m['n'] ) ? (string) $m['n'] : '';
+	$ma  = isset( $m['m'] ) ? trim( (string) $m['m'] ) : '';
+	if ( '' !== $ma && isset( $bi_danh[ $ma ] ) ) {
+		return (string) $bi_danh[ $ma ];
+	}
+	return $ten;
+}
+
 /** Mọi món FABi từng ghi ở cơ sở này — để bày ra cho người chọn. */
 function khh_dt_kho_mon_da_thay( $tu, $den, $co_so ) {
 	global $wpdb;
@@ -255,10 +342,11 @@ function khh_dt_kho_mon_da_thay( $tu, $den, $co_so ) {
 		ARRAY_A
 	);
 	$ra = array();
+	$bd = khh_dt_kho_bi_danh( $co_so );
 	foreach ( $ds as $r ) {
 		$mon = json_decode( (string) $r['mon'], true );
 		foreach ( is_array( $mon ) ? $mon : array() as $m ) {
-			$ten = isset( $m['n'] ) ? (string) $m['n'] : '';
+			$ten = khh_dt_kho_ten_chuan( $m, $bd );
 			if ( '' === $ten ) {
 				continue;
 			}
@@ -458,6 +546,7 @@ function khh_dt_kho_ban_may( $tu, $den, $co_so ) {
 	$ra    = array();
 	$nho   = array();   // công thức theo ngày, nhớ lại để khỏi dựng lại mỗi dòng
 	$thuc  = khh_dt_kho_ban_thuc( $tu, $den, $co_so );
+	$bd    = khh_dt_kho_bi_danh( $co_so );
 	foreach ( $ds as $r ) {
 		$mon = json_decode( (string) $r['mon'], true );
 		if ( ! is_array( $mon ) ) {
@@ -471,7 +560,7 @@ function khh_dt_kho_ban_may( $tu, $den, $co_so ) {
 		}
 		$combo = $nho[ $ngay ];
 		foreach ( $mon as $m ) {
-			$ten = isset( $m['n'] ) ? (string) $m['n'] : '';
+			$ten = khh_dt_kho_ten_chuan( $m, $bd );
 			$sl  = isset( $m['q'] ) ? (float) $m['q'] : 0;
 			if ( '' === $ten ) {
 				continue;
@@ -512,6 +601,7 @@ function khh_dt_kho_ban_may_tach( $tu, $den, $co_so ) {
 	$ra    = array();
 	$nho   = array();
 	$thuc = khh_dt_kho_ban_thuc( $tu, $den, $co_so );
+	$bd   = khh_dt_kho_bi_danh( $co_so );
 	foreach ( $ds as $r ) {
 		$mon = json_decode( (string) $r['mon'], true );
 		if ( ! is_array( $mon ) ) {
@@ -524,7 +614,7 @@ function khh_dt_kho_ban_may_tach( $tu, $den, $co_so ) {
 		}
 		$combo = $nho[ $ngay ];
 		foreach ( $mon as $m ) {
-			$ten = isset( $m['n'] ) ? (string) $m['n'] : '';
+			$ten = khh_dt_kho_ten_chuan( $m, $bd );
 			$sl  = isset( $m['q'] ) ? (float) $m['q'] : 0;
 			if ( '' === $ten ) {
 				continue;
@@ -1192,6 +1282,7 @@ function khh_dt_rest_kho_xem( $req ) {
 		'combo_ls'   => khh_dt_kho_combo_ls(),
 		/* Danh mục hàng hoá của cơ sở, và mọi món FABi từng ghi ở đây — để màn bày ra cho chọn. */
 		'mat_hang'   => khh_dt_kho_mh_cua( $co_so ),
+		'ma_hang'    => khh_dt_kho_ma_cua( $co_so ),
 		'mon_da_thay' => khh_dt_kho_mon_da_thay(
 			gmdate( 'Y-m-d', strtotime( $ngay ) - 90 * DAY_IN_SECONDS ),
 			$ngay,
@@ -1299,6 +1390,22 @@ function khh_dt_rest_kho_mat_hang( $req ) {
 	$ds  = is_array( $tho ) ? $tho : json_decode( (string) $tho, true );
 	/* Gửi danh sách RỖNG là hợp lệ — nghĩa là "thôi lọc, bày hết". Không được coi là lỗi. */
 	khh_dt_kho_mh_dat( $co_so, is_array( $ds ) ? $ds : array() );
+	/* Thêm mặt hàng MỚI (chưa có trong FABi) kèm mã hàng — xem `khh_dt_kho_them_mh`. */
+	$them_ten = sanitize_text_field( (string) $req->get_param( 'them_ten' ) );
+	if ( '' !== $them_ten ) {
+		$kq = khh_dt_kho_them_mh( $co_so, $them_ten, sanitize_text_field( (string) $req->get_param( 'them_ma' ) ) );
+		if ( empty( $kq['ok'] ) ) {
+			return new WP_Error( 'khh_dt_kho', $kq['error'], array( 'status' => 400 ) );
+		}
+	}
+	/* Gán mã cho món đã có: [ tên => mã ], '' là bỏ mã. */
+	$tho_ma = $req->get_param( 'ma' );
+	$ma_ds  = is_array( $tho_ma ) ? $tho_ma : json_decode( (string) $tho_ma, true );
+	if ( is_array( $ma_ds ) ) {
+		foreach ( $ma_ds as $ten => $ma ) {
+			khh_dt_kho_ma_dat( $co_so, sanitize_text_field( (string) $ten ), sanitize_text_field( (string) $ma ) );
+		}
+	}
 	return khh_dt_rest_kho_xem( $req );
 }
 
