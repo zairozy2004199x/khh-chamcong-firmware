@@ -1418,12 +1418,31 @@
       </div>
       <div class="tw">
         <table>
-          <thead><tr><th id="qtChkHead" style="width:32px;text-align:center;display:none"><input type="checkbox" id="qtChkAll" onchange="qtToggleAll(this)" title="Chọn tất cả"></th><th>Kỳ / tuần</th><th>Người lập</th><th>Cơ sở</th><th style="text-align:right">Tạm ứng</th><th style="text-align:right">Thực chi</th><th style="text-align:right">Thừa/thiếu</th><th>Hình thức</th><th>Trạng thái</th><th style="text-align:center">Thao tác</th></tr></thead>
+          <thead><tr><th id="qtChkHead" style="width:32px;text-align:center;display:none"><input type="checkbox" id="qtChkAll" onchange="qtToggleAll(this,'qtBodyCho')" title="Chọn tất cả"></th><th>Kỳ / tuần</th><th>Người lập</th><th>Cơ sở</th><th style="text-align:right">Tạm ứng</th><th style="text-align:right">Thực chi</th><th style="text-align:right">Thừa/thiếu</th><th>Hình thức</th><th>Trạng thái</th><th style="text-align:center">Thao tác</th></tr></thead>
           <tbody id="qtBodyCho"></tbody>
         </table>
         <div class="empty" id="qtEmptyCho">Không còn đơn nào chờ quyết toán.</div>
       </div>
       <div id="qtPagerCho"></div>
+    </div>
+    <!-- 🏢 BẢNG RIÊNG CHO ĐƠN VĂN PHÒNG — anh Thắng 24/09/2026 (ảnh đơn "Văn Phòng Hồ Chí Minh, AEON MALL
+         TÂN PHÚ, Văn Phòng MTĐ MN" nằm lẫn với đơn cơ sở): *"Tách 1 bảng riêng là chi phí chung"*, chốt
+         *"tách theo cơ sở là Văn phòng"*. Đơn có ÍT NHẤT MỘT gian thuộc bộ phận VP (cột Bộ phận bảng Cơ
+         sở, xem `_donVanPhong`) rời bảng trên xuống đây. Cùng cột, cùng nút, cùng thanh tích duyệt —
+         chỉ khác chỗ đứng. Không có đơn nào thì thẻ ẩn, khỏi chiếm chỗ. -->
+    <div class="card" id="qtCardChoVp" style="display:none;border-color:#c7d2fe">
+      <div class="ch">
+        <h2>🏢 Chờ quyết toán — Văn phòng <span style="font-size:11px;font-weight:400;color:#64748b">— đơn có gian thuộc bộ phận VP (chi phí chung)</span> <span class="badge st-cho" id="qtSoChoVp">0</span></h2>
+        <div style="font-size:12px;color:#8c8781" id="qtSumChoVp"></div>
+      </div>
+      <div class="tw">
+        <table>
+          <thead><tr><th id="qtChkHeadVp" style="width:32px;text-align:center;display:none"><input type="checkbox" id="qtChkAllVp" onchange="qtToggleAll(this,'qtBodyChoVp')" title="Chọn tất cả"></th><th>Kỳ / tuần</th><th>Người lập</th><th>Cơ sở</th><th style="text-align:right">Tạm ứng</th><th style="text-align:right">Thực chi</th><th style="text-align:right">Thừa/thiếu</th><th>Hình thức</th><th>Trạng thái</th><th style="text-align:center">Thao tác</th></tr></thead>
+          <tbody id="qtBodyChoVp"></tbody>
+        </table>
+        <div class="empty" id="qtEmptyChoVp">Không có đơn Văn phòng nào chờ quyết toán.</div>
+      </div>
+      <div id="qtPagerChoVp"></div>
     </div>
 
     <!-- 🔴 LỆNH QUYẾT TOÁN THEO DỰ ÁN — anh Thắng: "Khi nv gửi chốt quyết toán, bên tab quyết
@@ -11878,13 +11897,13 @@
   // 15 đơn/trang: vừa một màn hình, không phải cuộn mới tới hàng tổng. Hàng tổng ∑ luôn
   // tính trên TOÀN BỘ nhóm chứ không phải trang đang xem — kế toán cần con số của cả
   // nhóm, phân trang chỉ là chuyện hiển thị.
-  var QT_MOI_TRANG=15, QT_TRANG={cho:1, xong:1, chuanop:1}, QT_XEM='bang';
+  var QT_MOI_TRANG=15, QT_TRANG={cho:1, choVp:1, xong:1, chuanop:1}, QT_XEM='bang';
   /* 'cho' = trang Chờ quyết toán (việc phải làm: chờ · lệnh dự án · đã cấp chưa nộp) ·
      'xong' = trang Đã quyết toán (chờ thanh toán · đã quyết toán). Xem chốt ở `id="tab-qtxong"`. */
   var QT_MAN='cho';
   try{ if(localStorage.getItem('vhcpmtd_qt_man')==='xong') QT_MAN='xong'; }catch(e){}
   /** Thẻ nào bày ở trang nào — một chỗ khai, `renderQTList` và bài kiểm cùng đọc. */
-  var QT_THE={cho:['qtCardCho','qtLenhCard','qtCardChuaNop'], xong:['qtCardTT','qtCardXong']};
+  var QT_THE={cho:['qtCardCho','qtCardChoVp','qtLenhCard','qtCardChuaNop'], xong:['qtCardTT','qtCardXong']};
   try{ if(localStorage.getItem('vhcpmtd_qt_xem')==='tuan') QT_XEM='tuan'; }catch(e){}
   function qtDoiXem(v){
     QT_XEM=(v==='tuan')?'tuan':'bang';
@@ -11894,7 +11913,7 @@
   function qtTrang(khoa, t){
     QT_TRANG[khoa]=Math.max(1, t);
     renderQTList();
-    var c=el({cho:'qtCardCho', xong:'qtCardXong', chuanop:'qtCardChuaNop'}[khoa]);
+    var c=el({cho:'qtCardCho', choVp:'qtCardChoVp', xong:'qtCardXong', chuanop:'qtCardChuaNop'}[khoa]);
     if(c && c.scrollIntoView) c.scrollIntoView({block:'start'});
   }
   // Thanh chuyển trang. Dưới 1 trang thì không vẽ gì — thêm thanh rỗng chỉ tổ rối mắt.
@@ -11968,15 +11987,27 @@
     b.innerHTML=_dvGomTuan(rows, function(d, gid, gap){ return _qtRowHtml(d, false, 9, gid, gap); }, {tien:'qtk', hdr:_qtTtHdr});
   }
   // Vẽ MỘT bảng (chờ / đã xong). Trả về số đơn của cả nhóm.
+  /** Đơn có gian nào thuộc bộ phận VĂN PHÒNG không — cột Bộ phận của bảng Cơ sở (`BOOT.cosoBoPhan`);
+      gian chưa khai bộ phận thì nhìn tên ("Văn phòng…", "VP …"). Đơn ghép nhiều gian: một gian VP là đủ. */
+  function _donVanPhong(d){
+    return String((d&&d.coso)||'').split(',').some(function(g){
+      g=g.trim(); if(!g) return false;
+      var bp=_boPhanCuaGian(g);
+      if(bp) return bp==='vp';
+      return /văn\s*phòng|van\s*phong|^vp\b|\bvp\s/i.test(g);
+    });
+  }
   function _qtVeBang(khoa, rows, canBatch){
-    var hoa=khoa==='cho'?'Cho':'Xong';
+    var hoa=khoa==='cho'?'Cho':(khoa==='choVp'?'ChoVp':'Xong');
     var COLS=canBatch?10:9;
     var soTrang=Math.max(1, Math.ceil(rows.length/QT_MOI_TRANG));
     if(QT_TRANG[khoa]>soTrang) QT_TRANG[khoa]=soTrang;
     var trang=QT_TRANG[khoa];
     var lat=rows.slice((trang-1)*QT_MOI_TRANG, trang*QT_MOI_TRANG);
-    /* Giữ CẢ NHÓM (không phải chỉ trang đang xem) để thanh tổng cộng đúng — xem `qtUpdateBar`. */
+    /* Giữ CẢ NHÓM (không phải chỉ trang đang xem) để thanh tổng cộng đúng — xem `qtUpdateBar`.
+       Bảng Văn phòng CỘNG VÀO chứ không thay: thanh tích duyệt là chung cho cả hai bảng. */
     if(khoa==='cho') QT_ROWS_CHO=rows;
+    if(khoa==='choVp') QT_ROWS_CHO=QT_ROWS_CHO.concat(rows);
     el('qtBody'+hoa).innerHTML=_tachDonVi(lat, function(d){ return _qtRowHtml(d, canBatch, COLS); });
     el('qtEmpty'+hoa).style.display=rows.length?'none':'block';
     /* Badge đếm RIÊNG: đơn chờ quyết toán là việc phải làm, đơn chìm là việc phải NHẮC — gộp
@@ -12150,7 +12181,14 @@
         return _kyVal(a.ky)-_kyVal(b.ky);
       });
       xong.sort(function(a,b){ return _kyVal(b.ky)-_kyVal(a.ky); });
-      _qtVeBang('cho', cho, canBatch);
+      /* 🏢 Đơn có gian Văn phòng xuống bảng riêng (anh Thắng 24/09/2026) — vẽ 'cho' TRƯỚC vì nó đặt
+         `QT_ROWS_CHO`, rồi 'choVp' cộng thêm vào. */
+      var choVp=cho.filter(_donVanPhong), choCs=cho.filter(function(d){ return !_donVanPhong(d); });
+      _qtVeBang('cho', choCs, canBatch);
+      _qtVeBang('choVp', choVp, canBatch);
+      if(el('qtCardChoVp')) el('qtCardChoVp').style.display=choVp.length?'':'none';
+      if(el('qtChkHeadVp')) el('qtChkHeadVp').style.display=canBatch?'':'none';
+      if(el('qtChkAllVp')) el('qtChkAllVp').checked=false;
       _qtVeBangTT(choTT);
       _qtVeBang('xong', xong, false);   // đơn đã xong thì không tích duyệt nữa
       _qtEmptyXongText(xong.length);
@@ -12316,7 +12354,11 @@
   }
   // ---- Batch duyệt chi phí (KT cá nhân) ----
   function qtSelected(){ return [].slice.call(document.querySelectorAll('.qtChk:checked')); }
-  function qtToggleAll(cb){ [].slice.call(document.querySelectorAll('.qtChk')).forEach(function(c){ c.checked=cb.checked; }); qtUpdateBar(); }
+  /* "Chọn tất cả" chỉ tích trong BẢNG CỦA NÓ — hai bảng chờ (cơ sở · Văn phòng) mỗi bảng một ô. */
+  function qtToggleAll(cb, tbodyId){
+    var goc=(tbodyId&&el(tbodyId))||document;
+    [].slice.call(goc.querySelectorAll('.qtChk')).forEach(function(c){ c.checked=cb.checked; }); qtUpdateBar();
+  }
   var QT_ROWS_CHO=[], QT_ROWS_CHIM=[];
   /* 🔴 CÙNG LUẬT VỚI THANH BÊN TAB DUYỆT (anh Thắng 07/09/2026: *"nhớ cả bên quyết toán
      luôn"*): lúc nào cũng hiện, chưa tích gì thì cộng CẢ BẢNG chờ quyết toán.

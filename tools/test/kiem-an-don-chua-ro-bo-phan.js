@@ -271,11 +271,11 @@ function chayQTList(dons, anMo, hopKhoi) {
   const el4 = function (id) { return Object.prototype.hasOwnProperty.call(O, id) ? { value: O[id] } : null; };
   new Function('el', 'BOOT', '_AN_MO', 'QT_XEM', 'QT_MAN', 'QT_THE', '_thangCuaKy', 'canDo', 'renderBpBanner',
     '_napLocDon', '_napKyRieng', '_qtVeBang', '_qtVeBangTT', '_qtVeChuaNop', '_qtEmptyXongText', 'qtUpdateBar',
-    '_laChim', '_kyVal', '_hopKhoi', 'thu',
+    '_laChim', '_kyVal', '_hopKhoi', 'thu', '_boPhanCuaGian',
     /* ⚠️ `_qtChoTT` (23/09/2026) mượn HÀM THẬT — nó quyết đơn nào rời bảng "đã xong" sang bảng
        "chờ thanh toán". Bịa một cái luôn `false` là phép "bảng đã xong có đơn đã xuất" xanh
        kể cả khi luật thật kéo nhầm đơn. */
-    NEN_TT + '\n' + bocHam('_qtChoTT') + '\n' + fnDaQT + '\n' + fnAnVaoMo + '\n' + fnTrongMan + '\n' + fnQtLoc + '\n' + fnQtLocXong + '\n' +
+    NEN_TT + '\n' + bocHam('_qtChoTT') + '\n' + bocHam('_donVanPhong') + '\n' + fnDaQT + '\n' + fnAnVaoMo + '\n' + fnTrongMan + '\n' + fnQtLoc + '\n' + fnQtLocXong + '\n' +
     fnQTList + '\nrenderQTList();')(
     el4, { dons: dons }, anMo, 'bang', 'cho', { cho: [], xong: [] }, _thangCuaKy, function () { return false; }, function () {},
     function (l) { thu.loc = l.map(function (x) { return x.maDon; }); },
@@ -284,7 +284,7 @@ function chayQTList(dons, anMo, hopKhoi) {
     function (l) { thu.tt = l.map(function (x) { return x.maDon; }); },
     function () {}, function () {}, function () {},
     function (x) { return x && x.trangThai === 'Đã cấp tạm ứng'; },
-    function () { return 0; }, (hopKhoi || function () { return true; }), thu);
+    function () { return 0; }, (hopKhoi || function () { return true; }), thu, function () { return ''; });
   return thu;
 }
 const Q_RO = { maDon: 'Q_MTD', ky: 'Tuần 1 · 09/2026', coso: 'CS1', trangThai: 'Chờ quyết toán', bpMo: false };

@@ -11,7 +11,7 @@ function t(n, ok, them) { if (ok) { DAT++; } else { TRUOT.push(n + (them !== und
 function teq(n, mong, thuc) { t(n + ' (mong ' + JSON.stringify(mong) + ')', JSON.stringify(mong) === JSON.stringify(thuc), thuc); }
 const ham = (n) => { const i = HTML.indexOf('  function ' + n + '('); return i < 0 ? '' : HTML.slice(i, HTML.indexOf('\n  }', i) + 4); };
 const dong = (n) => { const i = HTML.indexOf('  var ' + n + '='); return i < 0 ? '' : HTML.slice(i, HTML.indexOf('\n', i)); };
-['_khoiBay', 'veMenuKhoi', '_tabDuoc', 'renderQTList', '_oTkNoDong', 'saveLineTkNo', 'showPage'].forEach((n) => t('⚠️ bốc được `' + n + '`', ham(n).length > 40, n));
+['_khoiBay', 'veMenuKhoi', '_tabDuoc', 'renderQTList', '_oTkNoDong', 'saveLineTkNo', 'showPage', '_donVanPhong'].forEach((n) => t('⚠️ bốc được `' + n + '`', ham(n).length > 40, n));
 
 /* ── 1. Hàng tab: hai tab Quyết toán, không còn menu ▾ khối ─────────────────────────────── */
 t('🔴 tab "Chờ quyết toán" → showPage(\'qt\')', /id="tab-qt" onclick="showPage\('qt'\)">🧾 Chờ quyết toán</.test(HTML));
@@ -36,20 +36,21 @@ t('🔴 dải luồng: "Đã quyết toán" và "Đã thanh toán" → tab qtxon
 }
 
 /* ── 2. renderQTList: mỗi trang bày đúng thẻ của nó ─────────────────────────────────────── */
-function chayQT(man, xem) {
-  const O = {};
+function chayQT(man, xem, dons, boPhan) {
+  const O = {}; const bang = {};
   const o = (id) => (O[id] = O[id] || { style: {}, textContent: '', innerHTML: '', className: '', value: '' });
-  const the = ['qtCardCho', 'qtLenhCard', 'qtCardChuaNop', 'qtCardTT', 'qtCardXong', 'qtCardTuan', 'qtTieuDe', 'qtXemBang', 'qtXemTuan', 'qtChkHead', 'qtChkAll', 'qtBody', 'qtListEmpty'];
+  const the = ['qtCardCho', 'qtCardChoVp', 'qtChkHeadVp', 'qtChkAllVp', 'qtLenhCard', 'qtCardChuaNop', 'qtCardTT', 'qtCardXong', 'qtCardTuan', 'qtTieuDe', 'qtXemBang', 'qtXemTuan', 'qtChkHead', 'qtChkAll', 'qtBody', 'qtListEmpty'];
   const el = (id) => (the.indexOf(id) >= 0 ? o(id) : null);
   const kh = () => {};
   new Function('el', 'BOOT', 'QT_XEM', 'QT_MAN', 'QT_THE', 'canDo', 'renderBpBanner', '_napLocDon', '_napKyRieng', '_qtVeBang', '_qtVeBangTT', '_qtVeChuaNop',
     '_qtEmptyXongText', 'qtUpdateBar', '_laChim', '_kyVal', '_hopKhoi', '_daQT', '_anVaoMo', '_qtTrongMan', '_qtLoc', '_qtLocXong', '_qtChoTT', '_qtSums', '_qtSumHtml',
-    '_qtReconHtml', '_reconTablesHtml', '_qtRowHtml', 'qtGroupToggle', 'viewDon', 'money', 'esc',
-    dong('QT_THE') + '\n' + ham('renderQTList') + '\nrenderQTList();')(
-    el, { dons: [] }, xem || 'bang', man, undefined, () => false, kh, kh, kh, kh, kh, kh, () => '', kh, () => false, () => '', () => true, () => false, () => false,
-    () => false, () => false, () => false, () => false, () => ({}), () => '', () => '', () => '', () => '', kh, kh, (n) => String(n), (s) => String(s));
+    '_qtReconHtml', '_reconTablesHtml', '_qtRowHtml', 'qtGroupToggle', 'viewDon', 'money', 'esc', '_boPhanCuaGian',
+    dong('QT_THE') + '\n' + ham('_donVanPhong') + '\n' + ham('renderQTList') + '\nrenderQTList();')(
+    el, { dons: dons || [] }, xem || 'bang', man, undefined, () => false, kh, kh, kh, (k, rows) => { bang[k] = rows.map((d) => d.maDon); }, kh, kh, () => '', kh, () => false, () => 0,
+    () => true, () => false, () => false, () => true, (d) => d.trangThai === 'Chờ quyết toán' || d.trangThai === 'Đã cấp tạm ứng', () => false, () => false, () => ({}), () => '', () => '', () => '', () => '', kh, kh, (n) => String(n), (s) => String(s),
+    (g) => ((boPhan || {})[g] || ''));
   const hien = the.filter((id) => O[id] && O[id].style.display === '').sort();
-  return { hien, tieuDe: O.qtTieuDe.textContent };
+  return { hien, tieuDe: O.qtTieuDe.textContent, bang };
 }
 {
   const c = chayQT('cho');
@@ -61,6 +62,43 @@ function chayQT(man, xem) {
   teq('   tiêu đề trang Đã', '✅ Đã quyết toán', x.tieuDe);
   const tu = chayQT('xong', 'tuan');
   teq('   xem theo tuần: chỉ thẻ tuần, ở trang nào cũng vậy', ['qtCardTuan'], tu.hien.filter((x) => /Card|Lenh/.test(x)));
+}
+/* ── 2b. Bảng riêng cho đơn có gian Văn phòng ─────────────────────────────────────────────── */
+{
+  const dv = (l) => new Function('_boPhanCuaGian', ham('_donVanPhong') + '\nreturn _donVanPhong(' + JSON.stringify(l) + ');');
+  const bp = { 'Văn Phòng Hồ Chí Minh': 'vp', 'AEON MALL TÂN PHÚ': 'kvc', 'Văn Phòng MTĐ MN': 'vp', 'FUNZONE VŨNG TÀU': 'kvc' };
+  const tra = (g) => bp[g] || '';
+  teq('🔴 đơn ghép "VP HCM, AEON MALL TÂN PHÚ, VP MTĐ MN" → Văn phòng (một gian VP là đủ)', true, dv({ coso: 'Văn Phòng Hồ Chí Minh, AEON MALL TÂN PHÚ, Văn Phòng MTĐ MN' })(tra));
+  teq('   đơn chỉ gian KVC → không', false, dv({ coso: 'FUNZONE VŨNG TÀU' })(tra));
+  teq('   gian chưa khai bộ phận nhưng tên "Văn phòng Đà Nẵng" → Văn phòng (nhìn tên)', true, dv({ coso: 'Văn phòng Đà Nẵng' })(tra));
+  teq('   gian đã khai bộ phận kvc dù tên có chữ VP → theo bộ phận, không theo tên', false, dv({ coso: 'VP Game Zone' })(() => 'kvc'));
+  teq('   không cơ sở → không', false, dv({ coso: '' })(tra));
+  const D = [
+    { maDon: 'A', trangThai: 'Chờ quyết toán', coso: 'Văn Phòng Hồ Chí Minh, AEON MALL TÂN PHÚ', ky: 'T9' },
+    { maDon: 'B', trangThai: 'Chờ quyết toán', coso: 'FUNZONE VŨNG TÀU', ky: 'T9' },
+    { maDon: 'C', trangThai: 'Đã cấp tạm ứng', coso: 'Văn Phòng MTĐ MN', ky: 'T9' },
+  ];
+  const r = chayQT('cho', 'bang', D, bp);
+  teq('🔴 bảng Chờ (cơ sở) chỉ còn B', ['B'], r.bang.cho);
+  teq('🔴 bảng Văn phòng nhận A và đơn chìm C', ['A', 'C'], (r.bang.choVp || []).sort());
+  t('   thẻ Văn phòng hiện khi có đơn', r.hien.indexOf('qtCardChoVp') >= 0, r.hien);
+  const r0 = chayQT('cho', 'bang', [D[1]], bp);
+  t('   không có đơn Văn phòng → thẻ ẩn, bảng cơ sở vẫn đủ', r0.hien.indexOf('qtCardChoVp') < 0 && JSON.stringify(r0.bang.cho) === '["B"]', r0);
+  t('   markup: thẻ có bảng, ô "chọn tất cả" riêng theo bảng', /id="qtCardChoVp"/.test(HTML) && /id="qtBodyChoVp"/.test(HTML) && /id="qtChkAllVp" onchange="qtToggleAll\(this,'qtBodyChoVp'\)"/.test(HTML) && /id="qtChkAll" onchange="qtToggleAll\(this,'qtBodyCho'\)"/.test(HTML));
+  t('   QT_THE.cho gồm thẻ Văn phòng', /cho:\['qtCardCho','qtCardChoVp'/.test(dong('QT_THE')));
+  /* qtToggleAll chỉ tích trong bảng của nó */
+  const ch = (n) => ({ checked: false, cls: 'qtChk' });
+  const b1 = [ch(), ch()], b2 = [ch()];
+  new Function('el', 'document', 'qtUpdateBar', ham('qtToggleAll') + "\nqtToggleAll({checked:true}, 'qtBodyChoVp');")(
+    (id) => (id === 'qtBodyChoVp' ? { querySelectorAll: () => b2 } : { querySelectorAll: () => b1 }), { querySelectorAll: () => b1.concat(b2) }, () => {});
+  teq('🔴 "Chọn tất cả" của bảng Văn phòng không đụng bảng cơ sở', [false, false, true], b1.concat(b2).map((c) => c.checked));
+  /* Thanh tích duyệt tính trên CẢ HAI bảng: `_qtVeBang('cho')` đặt QT_ROWS_CHO, `_qtVeBang('choVp')` cộng vào. */
+  const O2 = {}; const o2 = (id) => (O2[id] = O2[id] || { innerHTML: '', textContent: '', style: {} });
+  const ket = new Function('el', 'QT_TRANG', 'QT_MOI_TRANG', 'QT_ROWS_CHO', '_tachDonVi', '_qtRowHtml', '_laChim', '_qtSumHtml', '_qtPagerHtml',
+    ham('_qtVeBang') + "\n_qtVeBang('cho', [{maDon:'B'}], true); _qtVeBang('choVp', [{maDon:'A'},{maDon:'C'}], true); return QT_ROWS_CHO.map(function(d){ return d.maDon; });")(
+    o2, { cho: 1, choVp: 1, xong: 1 }, 15, [], (l) => '', () => '', () => false, () => '', () => '');
+  teq('🔴 QT_ROWS_CHO gồm đơn của CẢ HAI bảng chờ (thanh tổng không bỏ đơn Văn phòng)', ['B', 'A', 'C'], ket);
+  t('   bảng Văn phòng ghi vào đúng ô của nó', O2.qtBodyChoVp && O2.qtSoChoVp && /2 đơn/.test(O2.qtSoChoVp.textContent), O2.qtSoChoVp);
 }
 
 /* ── 3. _khoiBay: khối mở mà chưa có đơn thì không bày ───────────────────────────────────── */
@@ -118,4 +156,4 @@ teq('⚠️ gói khởi động cũ (không khoiBan) → bày như trước, kh�
   teq('   chọn "— tự động —" → gửi rỗng, them=0', [['L1', '', 0]], luu('', 'x').goiDi);
 }
 if (TRUOT.length) { console.log('\n✗ TRƯỢT ' + TRUOT.length + ' phép (đạt ' + DAT + '):'); TRUOT.forEach(function (x) { console.log('  · ' + x); }); process.exit(1); }
-console.log('\n✓ SẠCH — ' + DAT + ' phép: hai tab Quyết toán mỗi trang đúng thẻ; khối rỗng không bày; kế toán tự thêm mã TK qua hộp hỏi có soi số.');
+console.log('\n✓ SẠCH — ' + DAT + ' phép: hai tab Quyết toán mỗi trang đúng thẻ; đơn có gian Văn phòng ra bảng riêng; khối rỗng không bày; kế toán tự thêm mã TK qua hộp hỏi có soi số.');
