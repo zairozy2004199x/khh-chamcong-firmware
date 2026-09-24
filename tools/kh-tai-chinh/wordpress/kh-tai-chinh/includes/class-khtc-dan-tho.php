@@ -52,6 +52,9 @@ class KHTC_DanTho {
 					'ma_cua_hang' => array( 'mã cửa hàng' ),
 					'dien_giai'   => array( 'nội dung tt', 'nội dung thanh toán', 'nội dung' ),
 					'tk'          => array( 'tài khoản nhận', 'số tài khoản', 'tài khoản' ),   // để nạp lô biết tệp của tài khoản nào
+					// Kèm mã điểm bán (VVB…) vào diễn giải: mã cửa hàng mới (ghế mới) tra trên
+					// cổng QR bằng mã này nhanh hơn, và "PaymentForOrder" thì chẳng nói gì.
+					'them'        => array( 'mã điểm bán' ),
 				),
 				'cot'      => array( 'ngay' => 1, 'thu' => 2, 'chi' => 3, 'ma_gd' => 6, 'ma_cua_hang' => 9, 'dien_giai' => 12 ),
 			),

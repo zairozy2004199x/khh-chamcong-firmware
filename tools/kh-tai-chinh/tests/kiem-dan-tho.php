@@ -42,7 +42,7 @@ kiem( 'lấy đúng cột ngày', $r['ngay'], '02/08/2026' );
 kiem( 'lấy đúng cột số tiền', $r['so_tien'], 50000 );
 kiem( 'lấy đúng cột mã giao dịch', $r['ma_gd'], 'FT001' );
 kiem( 'lấy đúng cột MÃ CỬA HÀNG (không nhầm mã điểm bán)', $r['ma_cua_hang'], 'W7DNR0ARCX' );
-kiem( 'lấy đúng cột nội dung', $r['dien_giai'], 'PaymentForOrder' );
+kiem( 'lấy đúng cột nội dung, kèm mã điểm bán để tra', $r['dien_giai'], 'PaymentForOrder — VVB322043' );
 kiem( 'nhận đúng là khoản thu', $r['loai'], 'thu' );
 
 // Payoo: số tiền ở cột 21, phí cột 22 — lệch một cột là sai hẳn con số.
