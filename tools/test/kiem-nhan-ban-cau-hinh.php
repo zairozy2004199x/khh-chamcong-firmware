@@ -109,8 +109,8 @@ foreach ( array( 'vhcp-chi-phi', 'vhcp-chi-phi-hn', 'vhcp-chi-phi-mtd', 'vhcp-ch
 	if ( ! is_file( $f ) ) { continue; }
 	$src = (string) file_get_contents( $f );
 	teq( "🔴 $ban: dấu nhận dạng gói đúng và không bị đổi", 2, substr_count( $src, "'goi-cau-hinh-van-hanh-chi-phi'" ) );
-	$app = (string) file_get_contents( $goc . '/wordpress/' . $ban . '/templates/app.html' );
-	t( "   $ban: màn kiểm cùng một dấu", false !== strpos( $app, "g.loai!=='goi-cau-hinh-van-hanh-chi-phi'" ) );
+	/* Màn nhập gói (`nbNhanGoi`) đã gỡ 24/09/2026 cùng thẻ 📦 — anh Thắng: *"nạp plugin riêng mà"*.
+	   Chỉ còn phía máy chủ; không soi app.html nữa. */
 }
 
 /* ═══ 5. CỬA API ═══════════════════════════════════════════════════════════════════════ */

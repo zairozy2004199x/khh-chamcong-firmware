@@ -1676,29 +1676,9 @@
     </div>
 
     <!-- ══════════════════════════════════════════════════════════════════════════════════
-         BẢNG ĐỐI CHIẾU TRƯỚC KHI GỘP BA KHỐI — CHỈ ĐỌC, KHÔNG CÓ NÚT NÀO GHI.
-
-         Anh Thắng 20/09/2026: *"vậy gộp đi em"*. Nhưng trước đó anh hỏi *"nếu bên kia có dữ
-         liệu có cần dời không"* — và chính anh chưa có con số. Khối này là chỗ con số ấy hiện
-         ra, do WordPress của anh tự đếm, vì em không mở được kho thật.
-
-         🔴 KHÔNG THÊM NÚT "GỘP LUÔN" VÀO ĐÂY. Khối này tồn tại để người ta NHÌN trước khi
-            quyết. Gắn một nút ghi vào cùng khung là lại thành bấm trước nhìn sau — mà gộp thì
-            không có nút hoàn tác: ba kho trộn xong, hai gian hàng trùng tên đã cộng tiền vào
-            nhau rồi thì không tách lại được. -->
-    <div class="card" id="gopCard" style="display:none;border:2px solid #bfdbfe">
-      <div class="ch"><h2>🧩 Soát trước khi gộp ba khối</h2><button class="btn b-x" onclick="loadSoatGop()">↻ Đếm lại</button></div>
-      <div style="padding:8px 14px 0;font-size:12px;color:#64748b">
-        Ba bản <b>KVC · MTĐ · VP</b> hiện dùng <b>ba kho bảng tách hẳn</b> — dữ liệu bên này bên kia không thấy.
-        Bảng dưới đếm hộ xem hai kho kia đang có gì, và danh mục ba bên lệch nhau chỗ nào.
-        <br><b style="color:#1d4ed8">Chỉ đọc.</b> Bấm ↻ bao nhiêu lần cũng không đổi một dòng dữ liệu nào.
-        <br><b style="color:#b45309">⚠️ Thứ tự bắt buộc: gộp DANH MỤC trước, dời DỮ LIỆU sau.</b>
-        Dòng chi không giữ mã tài khoản — nó giữ <b>tên loại chi phí</b>. Dời đơn sang trước khi danh mục
-        có cái tên ấy thì hàng loạt dòng thành <b>"⚠ chưa gắn mã"</b>. Cột <b>Mồ côi</b> bên dưới đếm đúng
-        số dòng sẽ dính nếu làm ngược.
-      </div>
-      <div id="gopBox" style="padding:10px 14px 14px"></div>
-    </div>
+    <!-- 🧩 KHỐI "SOÁT TRƯỚC KHI GỘP BA KHỐI" (`gopCard`) ĐÃ GỠ — 24/09/2026. Anh Thắng (ảnh): *"Xóa này
+         đi"*. Ba bản nay cài thành plugin riêng, không gộp kho nữa. Tuyến máy chủ `soatGop`
+         (`VHCPMTD_Gop::soat`, chỉ đọc) vẫn còn, không có nút nào gọi. -->
 
       <!-- ══════════════════════════════════════════════════════════════════════════════
            🗂 KHỐI "BỘ PHẬN" ĐÃ GỠ KHỎI CẤU HÌNH — 22/09/2026. Anh Thắng: *"bỏ bộ phận đi"*.
@@ -1725,26 +1705,8 @@
          ⚠️ Vì thế cột trái là ô KHOÁ (readonly): gõ được vào đó là đẻ ra một bộ phận thứ tám
             không có trong danh mục, và mọi phép `bo_phan_chuan()` sẽ chối nó trong im lặng.
          ══════════════════════════════════════════════════════════════════════════════ -->
-    <!-- 📦 NHÂN BẢN CẤU HÌNH SANG BẢN KHÁC — anh Thắng 23/09/2026: *"nhân bản cho chi phí hà nội"*.
-         Bản Hà Nội là site riêng, danh mục sinh ra trắng. Ở đây tải một gói .json, sang bên kia
-         nhập. Gói chỉ chở DANH MỤC — không người dùng / PIN / quyền. Xem `VHCPMTD_Cfg::goi_bang_ds()`. -->
-    <div class="card" id="nhanBanCard">
-      <div class="ch"><h2>📦 Nhân bản cấu hình sang bản khác</h2>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn b-x" onclick="nbXuat()">⬇ Tải gói cấu hình (.json)</button>
-          <button class="btn b-p" onclick="el('nbFile').click()">⬆ Nhập gói…</button>
-          <input type="file" id="nbFile" accept=".json,application/json" style="display:none" onchange="nbDocTep(this)">
-        </div>
-      </div>
-      <div style="padding:8px 14px 14px;font-size:12px;color:#64748b;line-height:1.6">
-        Bản Hà Nội (hay bản nào khác) sinh ra với danh mục trắng. Ở bản đã có danh mục bấm <b>⬇ Tải gói</b>;
-        sang bản kia mở ⚙️ Cấu hình › 📦 Nhân bản, bấm <b>⬆ Nhập gói</b>, tích bảng cần chép rồi ghi đè.<br>
-        Gói chỉ chở <b>danh mục</b> (loại chi phí · đầu mục · mã TK Nợ · bộ phận & luồng · nhóm · mảng ·
-        hệ thống TK · vai tự tạo · cơ sở) — <b>không</b> chở người dùng, PIN, quyền.
-        Nhập là <b>ghi đè cả bảng</b>, chỉ Admin làm được; bảng ghi cuối vẫn ↩ Hoàn tác được.
-        <div id="nbKq"></div>
-      </div>
-    </div>
+    <!-- 📦 KHỐI "NHÂN BẢN CẤU HÌNH" (`nhanBanCard`) ĐÃ GỠ — 24/09/2026. Anh Thắng: *"xóa đi, nạp
+         plugin riêng mà"*. Tuyến máy chủ `xuatGoiCauHinh` / `nhapGoiCauHinh` vẫn còn, không có nút gọi. -->
     <div class="card" id="luongBpCard">
       <div class="ch"><h2>🧭 Luồng duyệt theo vai trò</h2><div style="display:flex;gap:8px"><button class="btn b-g" onclick="saveCfgLuongBp()">💾 Lưu luồng</button></div></div>
       <div style="padding:8px 14px 0;font-size:12px;color:#64748b">
@@ -1802,10 +1764,8 @@
         <b style="color:#b45309">Cột Bộ phận đã bỏ khỏi bảng này</b> — anh Thắng 21/09/2026: mảng làm việc nay nói bằng chính <b>tên vai con</b> (VD <i>Nhân Viên Kỹ Thuật Máy Tự Động</i>). Giá trị bộ phận cũ vẫn còn trong sổ, không bị xoá.<br>
         Admin ban đầu PIN <b>1111</b> — hãy đổi ngay.</div>
     </div>
-    <div class="card" id="imgMaintCard">
-      <div class="ch"><h2>🗂️ Bảo trì ảnh</h2><button class="btn b-p" onclick="doMigrateImages()">🗂️ Dời ảnh cũ về cây thư mục</button></div>
-      <div style="padding:8px 14px;font-size:11px;color:#8c8781">Dời ảnh cũ đang nằm ở thư mục gốc <b>AnhChiPhi_VanHanh</b> về đúng cây <b>Cơ sở / Người tạo đơn</b> (dựa theo mã đơn trong tên file). Bấm nhiều lần đến khi "đã dời = 0". Ảnh không suy được đơn sẽ được giữ nguyên.<div id="imgMaintMsg" style="margin-top:6px;color:#8c8781;font-size:12px"></div></div>
-    </div>
+    <!-- 🗂️ KHỐI "BẢO TRÌ ẢNH" (`imgMaintCard`) ĐÃ GỠ — 24/09/2026. Anh Thắng: *"Bỏ luôn"*. Ảnh cũ ở
+         thư mục gốc đã dời xong từ lâu; tuyến `migrateOldImages` vẫn còn phía máy chủ. -->
     <!-- SỬA NGÀY HỎNG HÀNG LOẠT — chỉ Admin. Đang có 580 dòng mang ngày "22/08/4621" nằm
          rải khắp các đơn ĐÃ QUYẾT TOÁN, tức tệp gửi MISA đang sai kỳ hạch toán. Sửa tay
          580 dòng thì không làm nổi. -->
@@ -1912,7 +1872,7 @@
               thống tài khoản. Gộp là gộp CHỖ ĐỨNG, không trộn hai sổ. -->
       <div style="border-top:1px solid #f4f1ec;padding:12px 14px 4px;display:flex;
                   justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-        <b style="font-size:13px">💳 Tài khoản nhận tiền (QR chuyển khoản)</b>
+        <b style="font-size:13px">💳 Tài khoản nhận tiền của CÔNG TY (QR chuyển khoản)</b>
         <button class="btn b-g" onclick="saveCfgQR()">💾 Lưu tài khoản nhận tiền</button>
       </div>
 <div class="cb" style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end">
@@ -1920,7 +1880,7 @@
         <div class="fld"><label>Mã ngân hàng (VietQR)</label><input id="cfgQrBank" placeholder="VD: VCB, TCB, MB, ACB, BIDV, TPB..."></div>
         <div class="fld"><label>Tên chủ tài khoản</label><input id="cfgQrTen" placeholder="VD: CONG TY POSH" style="min-width:220px"></div>
       </div>
-      <div style="padding:0 14px 12px;font-size:11px;color:#8c8781">Mã ngân hàng theo chuẩn VietQR (VCB, TCB, MB, ACB, BIDV, VietinBank, TPB, VPB, Sacombank...). QR dùng khi NV chuyển trả tiền <b>thừa</b> về công ty.</div>
+      <div style="padding:0 14px 12px;font-size:11px;color:#8c8781">Mã ngân hàng theo chuẩn VietQR (VCB, TCB, MB, ACB, BIDV, VietinBank, TPB, VPB, Sacombank...). Đây là tài khoản <b>CÔNG TY</b>, không phải của nhân viên: QR dùng khi NV chuyển trả tiền <b>thừa</b> về công ty. Tiền <b>thiếu</b> kế toán chuyển bù theo tài khoản riêng của từng NV, không khai ở đây.</div>
     </div>
 
     <!-- 🧭 "Mảng kinh doanh → nhóm tài khoản" ĐÃ GỠ 14/09/2026 — anh Thắng: *"bỏ cái này"*.
@@ -13038,70 +12998,7 @@
    * ⚠️ CHẠY SAU MỖI LƯỢT `renderCfg()`, vì vài khối bị ẩn/hiện theo vai (kyCard · quyenCard ·
    *    ngayHongCard) — xếp một lần lúc dựng trang thì khối hiện sau sẽ nằm lạc chỗ.
    * ══════════════════════════════════════════════════════════════════════════════════════ */
-  /* ══════════════════════════════════════════════════════════════════════════════════════════
-   * 📦 NHÂN BẢN CẤU HÌNH — tải gói ở bản này, nhập ở bản khác. Máy chủ: `xuat_goi_cau_hinh` /
-   * `nhap_goi_cau_hinh` (danh sách trắng `goi_bang_ds`, chỉ danh mục, không người dùng).
-   * ⚠️ Gói đọc bằng FileReader dạng CHỮ (không phải base64 như ảnh) rồi JSON.parse; sai dạng
-   *    thì nói thẳng, không gửi lên máy chủ.
-   * ⚠️ CƠ SỞ MẶC ĐỊNH KHÔNG TÍCH: cơ sở là của từng miền, chép cơ sở KVC sang Hà Nội là sai.
-   * ══════════════════════════════════════════════════════════════════════════════════════════ */
-  var NB_GOI=null;
-  var NB_MAC_DINH_TAT=['CH_CoSo'];
-  function nbXuat(){
-    loading(true);
-    google.script.run.withSuccessHandler(function(r){ loading(false);
-      if(!r||!r.success){ toast('err',(r&&r.error)||'Không tải được gói'); return; }
-      var ten='cau-hinh-'+String(r.khoi||'ban')+'-'+String(r.luc||'').slice(0,10).replace(/-/g,'')+'.json';
-      var blob=new Blob([JSON.stringify(r,null,1)],{type:'application/json'});
-      var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=ten; document.body.appendChild(a); a.click();
-      setTimeout(function(){ if(a.parentNode) a.parentNode.removeChild(a); },0);
-      toast('ok','Đã tải gói '+Object.keys(r.bang||{}).length+' bảng — sang bản kia: ⚙️ Cấu hình › 📦 Nhân bản › ⬆ Nhập gói');
-    }).withFailureHandler(function(e){ loading(false); toast('err',e.message); }).xuatGoiCauHinh();
-  }
-  function nbDocTep(inp){
-    var f=inp&&inp.files&&inp.files[0]; if(!f) return;
-    var rd=new FileReader();
-    rd.onload=function(e){ nbNhanGoi(String((e&&e.target&&e.target.result)||''), f.name); inp.value=''; };
-    rd.readAsText(f);
-  }
-  /** Đọc chữ của tệp → bày danh sách bảng có trong gói kèm số dòng, cho tích rồi ghi đè. */
-  function nbNhanGoi(chu, tenTep){
-    var g=null; try{ g=JSON.parse(chu); }catch(err){ g=null; }
-    var kq=el('nbKq');
-    if(!g || g.loai!=='goi-cau-hinh-van-hanh-chi-phi' || !g.bang || typeof g.bang!=='object'){
-      NB_GOI=null;
-      if(kq) kq.innerHTML='<div style="margin-top:8px;color:#b91c1c">Tệp này không phải gói cấu hình của Vận Hành Chi Phí (thiếu dấu "goi-cau-hinh-van-hanh-chi-phi").</div>';
-      return;
-    }
-    NB_GOI=g;
-    var nhan=g.nhan||{};
-    var h='<div style="margin:10px 0 6px;font-size:12.5px;color:#171417">Gói từ bản <b>'+esc(_tenKhoi(g.khoi)||g.khoi||'?')+'</b> · '+esc(g.phienBan||'')+' · '+esc(g.luc||'')+(tenTep?(' · '+esc(tenTep)):'')+'</div>';
-    h+=Object.keys(g.bang).map(function(b){
-      var n=(g.bang[b]||[]).length, tat=NB_MAC_DINH_TAT.indexOf(b)>=0;
-      return '<label style="display:block;margin:3px 0;color:#171417"><input type="checkbox" class="nbChk" value="'+esc(b)+'"'+(tat?'':' checked')+'> '
-        +esc(nhan[b]||b)+' <span style="color:#8c8781">· '+n+' dòng'+(tat?' · <i>cơ sở là của từng miền — không chép mặc định</i>':'')+'</span></label>';
-    }).join('');
-    h+='<button class="btn b-d" style="margin-top:8px" onclick="nbNhap()">⬆ Ghi đè các bảng đã tích vào bản này</button>';
-    if(kq) kq.innerHTML=h;
-  }
-  function nbNhap(){
-    if(!NB_GOI){ toast('warn','Chọn tệp gói trước'); return; }
-    var chon=[].slice.call(document.querySelectorAll('.nbChk:checked')).map(function(c){ return c.value; });
-    if(!chon.length){ toast('warn','Chưa tích bảng nào'); return; }
-    if(!confirm('GHI ĐÈ '+chon.length+' bảng cấu hình của bản này bằng gói vừa chọn?\n\n'
-      +'Dữ liệu hiện có trong các bảng ấy bị thay hết (bảng ghi cuối còn ↩ Hoàn tác). Người dùng / PIN / quyền không đổi.')) return;
-    loading(true);
-    google.script.run.withSuccessHandler(function(r){ loading(false);
-      if(!r||!r.success){ toast('err',(r&&r.error)||'Không nhập được'); return; }
-      var kq=r.bang||{}, nhan=(NB_GOI&&NB_GOI.nhan)||{};
-      var ds=Object.keys(kq);
-      toast('ok','Đã nhập '+ds.length+' bảng');
-      var box=el('nbKq');
-      if(box) box.innerHTML='<div style="margin-top:8px;color:#166534">✓ Đã ghi đè: '+ds.map(function(b){ return esc(nhan[b]||b)+' ('+kq[b].truoc+' → '+kq[b].sau+' dòng)'; }).join(' · ')+'</div>';
-      NB_GOI=null;
-      loadCfg();
-    }).withFailureHandler(function(e){ loading(false); toast('err',e.message); }).nhapGoiCauHinh(NB_GOI, chon);
-  }
+  /* 📦 `nbXuat()` · `nbDocTep()` · `nbNhanGoi()` · `nbNhap()` ĐÃ GỠ cùng thẻ `nhanBanCard` — 24/09/2026. */
   var CH_NHOM=[
     /* 🧪 Đứng đầu: là việc đầu tiên Admin làm sau khi cài bản mới. */
     { ten:'🧪 Tính năng mới',              id:['tinhNangCard'],
@@ -13116,7 +13013,7 @@
        nhóm này từng có bốn khối. */
     { ten:'👥 Người & quyền',             id:['vaiCard','userCard','quyenCard'],
       mo:'Ai đăng nhập được, thấy gì, và bấm được nút nào.' },
-    /* 🧭 NHÓM RIÊNG, dù chỉ một khối — y như `kyCard` và `gopCard`. Nhét nó vào "Người &
+    /* 🧭 NHÓM RIÊNG, dù chỉ một khối — y như `kyCard`. Nhét nó vào "Người &
        quyền" thì mô tả nhóm ấy ("ai đăng nhập được, thấy gì, bấm được nút nào") thành nói dối:
        luồng duyệt không phải một thứ quyền, nó là ĐƯỜNG ĐI của đơn. Đặt ngay sau nhóm người vì
        nó tra bộ phận — mà bộ phận khai ở hàng Người dùng ngay trên. */
@@ -13127,11 +13024,9 @@
     /* ⚠️ `qrCard` đã gộp vào `heTkCard` — nhóm này giờ chỉ còn mốc tuần. */
     { ten:'💵 Kỳ & mốc tuần',             id:['kyCard'],
       mo:'Mốc tuần của đơn: tuần này chạy từ ngày nào đến ngày nào.' },
-    { ten:'🧩 Gộp ba khối (KVC · MTĐ · VP)', id:['gopCard'],
-      mo:'Hai kho kia đang có gì, và danh mục ba bên lệch nhau chỗ nào. Chỉ đọc.' },
-    { ten:'📦 Nhân bản cấu hình',        id:['nhanBanCard'],
-      mo:'Tải gói danh mục ở bản này, nhập vào bản khác (VD Hà Nội). Không chở người dùng, PIN, quyền.' },
-    { ten:'🛠 Bảo trì — đụng vào là đụng dữ liệu thật', id:['ngayHongCard','imgMaintCard'],
+    /* 🧩 Gộp ba khối · 📦 Nhân bản cấu hình · 🗂️ Bảo trì ảnh ĐÃ GỠ — 24/09/2026, anh Thắng: ba bản cài
+       plugin riêng. Xem bia mộ ở chỗ `id="gopCard"` / `id="nhanBanCard"` / `id="imgMaintCard"` cũ. */
+    { ten:'🛠 Bảo trì — đụng vào là đụng dữ liệu thật', id:['ngayHongCard'],
       mo:'Chỉ dùng khi thật sự cần. Mỗi nút ở đây sửa hàng loạt dòng đã có.' }
   ];
   function xepCauHinh(){
@@ -13856,14 +13751,7 @@
      ⚠️ CHỈ BỎ MÀN. Các dòng ngoại lệ đã khai vẫn nằm trong cấu hình và VẪN CÓ HIỆU LỰC — máy
         chủ đọc `CFG.sso` như cũ. Bỏ dữ liệu là đổi quyền của người đang dùng mà không ai bấm
         gì cả, nên không đụng tới. */
-  function doMigrateImages(){
-    if(!confirm('Dời ảnh cũ ở thư mục gốc AnhChiPhi_VanHanh về cây Cơ sở/Người tạo đơn?')) return;
-    if(el('imgMaintMsg')) el('imgMaintMsg').textContent='Đang dời…'; loading(true);
-    google.script.run.withSuccessHandler(function(r){ loading(false);
-      if(r&&r.success){ el('imgMaintMsg').textContent='✅ Đã dời '+r.moved+' ảnh · bỏ qua '+r.skipped+' · còn '+r.remaining+' trong gốc'+(r.remaining>0&&r.moved>0?' → bấm lại để tiếp':''); }
-      else el('imgMaintMsg').textContent='❌ '+((r&&r.message)||'Lỗi');
-    }).withFailureHandler(function(e){ loading(false); el('imgMaintMsg').textContent='❌ '+e.message; }).migrateOldImages(400);
-  }
+  /* 🗂️ `doMigrateImages()` ĐÃ GỠ cùng thẻ `imgMaintCard` — 24/09/2026. */
   // MA TRẬN TK Nợ: hàng = LOẠI CHI PHÍ, cột = Mảng kinh doanh (Phân loại lớn của Cơ sở)
   var MX_LOCK=true;
   function toggleMxLock(){
@@ -15607,115 +15495,10 @@
      giao diện của chúng. Xem bia mộ ở chỗ `id="bpCard"` cũ.
      ⚠️ `_bpDs()` · `_bpSel()` · `_bpTach()` THÌ GIỮ: ô Bộ phận ở bảng 🔐 Người dùng còn dùng,
         và đó mới là chỗ bộ phận còn bó tầm nhìn thật sự. */
-  /* ══════════════════════════════════════════════════════════════════════════════════════
-     SOÁT TRƯỚC KHI GỘP BA KHỐI — vẽ bảng đối chiếu. CHỈ ĐỌC, không có đường nào ghi.
-
-     🔴 KHÔNG BAO GIỜ IN MÃ PIN Ở ĐÂY. Máy chủ đã thay ô PIN bằng chữ "(có PIN)" trong
-        `VHCPMTD_Gop::hien()`, nên hàm này chỉ việc in thẳng những gì nhận được — và đừng bao giờ
-        thêm một đường nào lấy PIN từ chỗ khác vào bảng này. Bảng này hay bị chụp màn hình. */
-  var GOP_TEN={kvc:'KVC — Khu vui chơi', mtd:'MTĐ — Máy tự động', vp:'VP — Văn phòng'};
-  var GOP_BANG={don:'Đơn',tamung:'Tạm ứng (dòng)',chiphi:'Dòng chi trong đơn',so_chi:'Sổ chi phí',
-    da_index:'Dự án',da_line:'Dòng dự án',mk_don:'Marketing',mk_line:'Dòng marketing',
-    bp_index:'Công tác / Setup',bp_line:'Dòng công tác',log:'Nhật ký'};
-  function loadSoatGop(){
-    if(!el('gopBox')) return;
-    if(el('gopCard')) el('gopCard').style.display=_laAdmin()?'':'none';
-    if(!_laAdmin()) return;
-    el('gopBox').innerHTML='<div style="color:#64748b;font-size:12px">Đang đếm ba kho…</div>';
-    google.script.run.withSuccessHandler(function(r){
-      if(!r||r.success===false){ el('gopBox').innerHTML='<div class="empty">Không đếm được: '+esc((r&&r.error)||'lỗi không rõ')+'</div>'; return; }
-      el('gopBox').innerHTML=_veSoatGop(r);
-    }).withFailureHandler(function(e){
-      el('gopBox').innerHTML='<div class="empty">Không đếm được: '+esc(e.message||'')+'</div>';
-    }).soatGop();
-  }
-  function _veSoatGop(r){
-    var kho=(r&&r.kho)||{}, nha=r.nha||'kvc', h='';
-    /* ─── 1. BẢNG SỐ: mỗi kho một cột, để so bằng mắt trong một lượt nhìn. ─── */
-    /* 🔴 CỘT LẤY TỪ KHO MÁY CHỦ TÌM THẤY, không từ danh sách gõ sẵn ở đây. Máy chủ dò bảng
-       `…vhcpmtd<mã>_don` nên nó biết cả bản vùng thứ tư chưa ai nghĩ ra; gõ sẵn ba mã ở giao diện
-       là bản ấy có dữ liệu mà không cột nào hiện. `GOP_TEN` chỉ để ĐẶT TÊN cho đẹp — mã lạ thì
-       in thẳng mã ra, chứ không bỏ qua. */
-    var cai=Object.keys(kho).filter(function(k){ return kho[k]&&kho[k].cai_dat; });
-    /* Kho nhà đứng đầu; máy chủ đã xếp sẵn, đây chỉ giữ nguyên thứ tự ấy. */
-    var chua=Object.keys(GOP_TEN).filter(function(k){ return cai.indexOf(k)<0; });
-    h+='<div class="tw"><table style="min-width:620px"><thead><tr><th>Bảng</th>'
-      +cai.map(function(k){ return '<th style="width:150px;text-align:right">'+esc(GOP_TEN[k]||k)+'</th>'; }).join('')
-      +'</tr></thead><tbody>';
-    for(var b in GOP_BANG){ if(!GOP_BANG.hasOwnProperty(b)) continue;
-      var cot=cai.map(function(k){
-        var x=(kho[k].bang||{})[b];
-        /* "chưa có bảng" KHÁC "có bảng mà rỗng". Bản cũ chưa nâng cấp thì thiếu hẳn bảng —
-           in số 0 vào đó là nói dối, người đọc sẽ tưởng bên ấy không có dữ liệu. */
-        if(!x||!x.co) return '<td class="money" style="color:#b45309">— chưa có bảng —</td>';
-        var t=(x.dong||0)+' dòng';
-        if(x.tien!==null&&x.tien!==undefined) t+='<br><span style="font-size:11px;color:#64748b">'+money(x.tien)+' đ</span>';
-        return '<td class="money">'+t+'</td>';
-      }).join('');
-      h+='<tr><td>'+esc(GOP_BANG[b])+'</td>'+cot+'</tr>';
-    }
-    /* Tổng tiền CHỈ gồm tạm ứng + sổ chi — xem chú thích ở `VHCPMTD_Gop::dem_kho()`. Nói ra ngay
-       dưới con số, kẻo người đọc cộng nhẩm mấy dòng trên rồi thấy không khớp. */
-    h+='<tr style="background:#f1f5f9;font-weight:700"><td>Tổng tiền (tạm ứng + sổ chi)</td>'
-      +cai.map(function(k){ return '<td class="money">'+money(kho[k].tong_tien||0)+' đ</td>'; }).join('')+'</tr>';
-    h+='</tbody></table></div>';
-    if(chua.length) h+='<div style="font-size:12px;color:#b45309;margin-top:6px">Chưa cài / không thấy kho: <b>'
-      +chua.map(function(k){ return esc(GOP_TEN[k]||k); }).join(' · ')+'</b></div>';
-    h+='<div style="font-size:11px;color:#8c8781;margin-top:4px">Kho của bản đang mở: <b>'+esc(GOP_TEN[nha]||nha)+'</b> — mọi kho khác đem so với nó.</div>';
-
-    /* ─── 2. DẤU KHỐI: kho MTĐ đáng lẽ chỉ có dấu 'mtd'. Lệch = có bản cài sai `const KHOI`. ─── */
-    cai.forEach(function(k){
-      var d=kho[k].dau_khoi||{}, ks=Object.keys(d);
-      var la=ks.filter(function(x){ return x!==k; });
-      if(!la.length) return;
-      h+='<div style="margin-top:10px;padding:8px 10px;border:2px solid #fca5a5;border-radius:8px;background:#fef2f2;font-size:12px">'
-        +'🔴 <b>Kho '+esc(GOP_TEN[k]||k)+' có đơn đóng dấu khối LẠ:</b> '
-        +la.map(function(x){ return esc(x||'(trống)')+' — '+d[x]+' đơn'; }).join(' · ')
-        +'<br>Phải sửa dấu TRƯỚC khi dời, không thì dời xong tiền nằm nhầm tab.</div>';
-    });
-
-    /* ─── 3. ĐỐI CHIẾU DANH MỤC: chỉ rổ "đụng độ" mới cần anh Thắng quyết. ─── */
-    cai.forEach(function(k){
-      if(k===nha||!kho[k].danh_muc) return;
-      h+='<h3 style="margin:16px 0 6px;font-size:14px">📋 Danh mục '+esc(GOP_TEN[k]||k)+' so với '+esc(GOP_TEN[nha]||nha)+'</h3>';
-      var dm=kho[k].danh_muc, co=false;
-      for(var b in dm){ if(!dm.hasOwnProperty(b)) continue; co=true;
-        var d=dm[b];
-        h+='<div style="margin:6px 0;font-size:12px"><b>'+esc(b)+'</b> — '
-          +'thêm mới <b>'+d.rieng.length+'</b> · khớp sẵn <b>'+d.trung+'</b> · '
-          +'<b style="color:'+(d.dung_do.length?'#dc2626':'#16a34a')+'">đụng độ '+d.dung_do.length+'</b></div>';
-        if(d.dung_do.length){
-          h+='<div class="tw"><table style="min-width:620px"><thead><tr><th>Tên</th><th style="width:150px">Ô lệch</th><th>'+esc(nha.toUpperCase())+' đang khai</th><th>'+esc(k.toUpperCase())+' đang khai</th></tr></thead><tbody>';
-          d.dung_do.forEach(function(x){
-            x.lech.forEach(function(l,i){
-              h+='<tr><td>'+(i?'':esc(x.ten))+'</td><td>'+esc(l.cot)+'</td><td>'+esc(l.kvc)+'</td><td>'+esc(l.kia)+'</td></tr>';
-            });
-          });
-          h+='</tbody></table></div>';
-        }
-        if(d.tu_trung&&d.tu_trung.length) h+='<div style="font-size:12px;color:#b45309">⚠️ Bên '+esc(k.toUpperCase())+' tự trùng tên với chính nó: '+d.tu_trung.map(esc).join(' · ')+'</div>';
-      }
-      if(!co) h+='<div class="empty">Kho này chưa có bảng cấu hình.</div>';
-
-      /* ─── 4. MỒ CÔI: đúng số dòng sẽ mất mã nếu dời trước khi gộp danh mục. ─── */
-      var mc=kho[k].mo_coi||{loai:{},coso:{}};
-      [['loai','loại chi phí'],['coso','cơ sở']].forEach(function(pr){
-        var m=mc[pr[0]]||{}, ten=Object.keys(m);
-        if(!ten.length) return;
-        var tong=0; ten.forEach(function(t){ tong+=m[t]; });
-        h+='<div style="margin:8px 0;padding:8px 10px;border:2px solid #fde68a;border-radius:8px;background:#fffbeb;font-size:12px">'
-          +'⚠️ <b>'+tong+' dòng</b> bên '+esc(k.toUpperCase())+' đang dùng <b>'+ten.length+' tên '+pr[1]+'</b> mà danh mục '+esc(nha.toUpperCase())+' chưa có. '
-          +'Dời trước khi khai là đúng bấy nhiêu dòng thành "⚠ chưa gắn mã".<br>'
-          +ten.slice(0,20).map(function(t){ return esc(t)+' <span style="color:#64748b">('+m[t]+')</span>'; }).join(' · ')
-          +(ten.length>20?' … và '+(ten.length-20)+' tên nữa':'')+'</div>';
-      });
-    });
-    h+='<div style="margin-top:12px;font-size:12px;color:#1d4ed8">'+esc(r.thu_tu||'')+'</div>';
-    return h;
-  }
+  /* 🧩 `loadSoatGop()` · `_veSoatGop()` · `GOP_TEN` · `GOP_BANG` ĐÃ GỠ cùng thẻ `gopCard` — 24/09/2026. */
   function renderVai(){
     if(!el('cfgVaiBody')) return;
-    loadDsKy(); loadSoatGop();
+    loadDsKy();
     if(el('vaiCard')) el('vaiCard').style.display=_laAdmin()?'':'none';
     el('cfgVaiBody').innerHTML=((CFG.vaiTro)||[]).map(function(x){
       return '<tr><td>'+_inp(x.ten,'VD: Nhân viên văn phòng')+'</td><td>'+_vaiGocSel(x.goc)+'</td>'+_delBtn()+'</tr>';
@@ -16039,7 +15822,6 @@
     _veNutCheHetPin();
     var adm=coCauHinh();
     if(el('userCard')) el('userCard').style.display=adm?'':'none';
-    if(el('imgMaintCard')) el('imgMaintCard').style.display=adm?'':'none';
     if(el('quyenCard')){ el('quyenCard').style.display=adm?'':'none'; if(adm) renderQuyen(); }
     // Sửa ngày hàng loạt là đụng thẳng kỳ hạch toán -> CHỈ Admin (máy chủ chặn lần nữa).
     if(el('ngayHongCard')) el('ngayHongCard').style.display=_laAdmin()?'':'none';
