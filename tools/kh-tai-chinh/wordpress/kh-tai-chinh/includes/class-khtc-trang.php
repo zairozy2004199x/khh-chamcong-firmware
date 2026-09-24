@@ -14,6 +14,24 @@ defined( 'ABSPATH' ) || exit;
 
 class KHTC_Trang {
 
+	/**
+	 * Lấy văn bản bảng cho một ô dán: có tệp nạp lên thì đọc tệp, không thì lấy
+	 * ô dán. Lỗi đọc tệp → ghi vào $bao_loi và trả null để khối nạp KHÔNG chạy
+	 * (chạy tiếp với văn bản rỗng sẽ báo "Đã nạp 0 dòng" — nghe như xong việc).
+	 */
+	private static function lay_bang( $ten, &$bao_loi ) {
+		$tep = KHTC_Tep::lay( $ten, '', sanitize_text_field( wp_unslash( $_POST[ 'trang_' . $ten ] ?? '' ) ) );
+		if ( $tep['loi'] ) {
+			$bao_loi = $tep['loi'];
+			return null;
+		}
+		if ( '' === trim( (string) $tep['van_ban'] ) ) {
+			$bao_loi = 'Chưa chọn tệp, cũng chưa dán bảng.';
+			return null;
+		}
+		return $tep['van_ban'];
+	}
+
 	public static function hien( $man ) {
 		switch ( $man ) {
 			case 'ngan-hang': self::ngan_hang(); break;
@@ -212,12 +230,12 @@ class KHTC_Trang {
 			if ( is_wp_error( $kq ) ) { $bao_loi = $kq->get_error_message(); } else { $bao_ok = 'Đã thêm giao dịch.'; }
 		}
 
-		if ( isset( $_POST['khtc_dan'] ) && check_admin_referer( 'khtc_gd' ) ) {
+		if ( isset( $_POST['khtc_dan'] ) && check_admin_referer( 'khtc_gd' ) && null !== ( $vb = self::lay_bang( 'sao_ke', $bao_loi ) ) ) {
 			$nh = (int) ( $_POST['dan_ngan_hang_id'] ?? 0 );
 			if ( ! $nh ) {
 				$bao_loi = 'Chưa chọn tài khoản để nạp sao kê vào.';
 			} else {
-				$kq     = KHTC_GiaoDich::dan_hang_loat( $nh, wp_unslash( $_POST['sao_ke'] ?? '' ) );
+				$kq     = KHTC_GiaoDich::dan_hang_loat( $nh, $vb );
 				$bao_ok = 'Đã nạp ' . $kq['them'] . ' dòng.';
 				if ( $kq['loi'] ) {
 					$bao_loi = implode( ' · ', array_slice( $kq['loi'], 0, 5 ) )
@@ -295,14 +313,14 @@ class KHTC_Trang {
 		echo '<button type="submit" name="khtc_them_gd" value="1" class="button button-primary">Thêm</button>';
 		echo '</div></form></details>';
 
-		echo '<details class="khtc-panel khtc-gap"><summary>Dán sao kê hàng loạt</summary><form method="post">';
+		echo '<details class="khtc-panel khtc-gap"><summary>Dán sao kê hàng loạt</summary><form method="post" enctype="multipart/form-data">';
 		wp_nonce_field( 'khtc_gd' );
 		echo '<div class="khtc-loc"><label>Nạp vào tài khoản<select name="dan_ngan_hang_id" required>';
 		foreach ( $ngan_hang as $b ) { printf( '<option value="%d">%s</option>', (int) $b->id, esc_html( $b->ten ) ); }
 		echo '</select></label></div>';
 		echo '<p class="khtc-sub">Mỗi dòng: <code>Ngày (dd/mm/yyyy) · Diễn giải · Số tiền · Thu/Chi · Mã giao dịch</code> — cách nhau bằng Tab (copy thẳng từ Excel) hoặc dấu phẩy. Bỏ trống cột Thu/Chi thì số dương là Thu, số âm là Chi.</p>';
 		echo '<p class="khtc-sub"><strong>Dán chồng kỳ cũng không sao.</strong> Dòng nào đã có sẵn trong tài khoản này — nhận ra qua <em>mã giao dịch</em> ở cột 5 — sẽ bị bỏ qua, nên tháng nào cũng tải cả file về dán cũng không nhân đôi số dư. Cột mã để trống thì máy không chặn được, dán lại là vào thêm lần nữa.</p>';
-		echo '<textarea name="sao_ke" rows="7" placeholder="20/07/2026&#9;Thu tien khach ABC&#9;1.500.000&#9;Thu&#10;21/07/2026&#9;Chi tra nha cung cap&#9;850.000&#9;Chi"></textarea>';
+		KHTC_Tep::o_nap( 'sao_ke', '20/07/2026&#9;Thu tien khach ABC&#9;1.500.000&#9;Thu&#10;21/07/2026&#9;Chi tra nha cung cap&#9;850.000&#9;Chi', 7 );
 		echo '<p><button type="submit" name="khtc_dan" value="1" class="button button-primary">Nạp sao kê</button></p></form></details>';
 
 		echo '<div class="khtc-panel"><h2>Danh sách giao dịch</h2>';
@@ -371,9 +389,9 @@ class KHTC_Trang {
 			}
 		}
 
-		if ( isset( $_POST['khtc_nap_dong'] ) && check_admin_referer( 'khtc_ds' ) ) {
+		if ( isset( $_POST['khtc_nap_dong'] ) && check_admin_referer( 'khtc_ds' ) && null !== ( $vb = self::lay_bang( 'bang_cong', $bao_loi ) ) ) {
 			$mo = (int) $_POST['khtc_nap_dong'];
-			$kq = KHTC_DoiSoat::nap_dong( $mo, wp_unslash( $_POST['bang_cong'] ?? '' ) );
+			$kq = KHTC_DoiSoat::nap_dong( $mo, $vb );
 			$bao_ok = 'Đã nạp ' . $kq['them'] . ' dòng'
 				. ( $kq['trung'] ? ', bỏ qua ' . $kq['trung'] . ' dòng trùng mã giao dịch' : '' ) . '.';
 			if ( $kq['loi'] ) {
@@ -539,10 +557,10 @@ class KHTC_Trang {
 			printf( '<p class="khtc-sub">Ghép nhờ: %s. Khớp theo mã giao dịch là chắc nhất; khớp theo ngày và số tiền chỉ nên tin khi sao kê ít dòng trùng mệnh giá.</p>', implode( ' · ', $nhan ) );
 		}
 
-		echo '<details class="khtc-panel khtc-gap"><summary>Nạp bảng cổng gửi về</summary><form method="post">';
+		echo '<details class="khtc-panel khtc-gap"><summary>Nạp bảng cổng gửi về</summary><form method="post" enctype="multipart/form-data">';
 		wp_nonce_field( 'khtc_ds' );
 		echo '<p class="khtc-sub">Mỗi dòng: <code>Ngày · Mã GD · Số tiền · Phí · Nội dung</code> — cách nhau bằng Tab (copy thẳng từ file cổng) hoặc dấu phẩy. Thiếu cột Phí thì để trống. Dòng trùng mã giao dịch với dòng đã nạp sẽ bị bỏ qua.</p>';
-		echo '<textarea name="bang_cong" rows="7" placeholder="05/08/2026&#9;PAY123456&#9;1.000.000&#9;11.000&#9;Thanh toan QR&#10;05/08/2026&#9;PAY123457&#9;250.000&#9;2.750&#9;Thanh toan the"></textarea>';
+		KHTC_Tep::o_nap( 'bang_cong', '05/08/2026&#9;PAY123456&#9;1.000.000&#9;11.000&#9;Thanh toan QR&#10;05/08/2026&#9;PAY123457&#9;250.000&#9;2.750&#9;Thanh toan the', 7 );
 		printf( '<p><button type="submit" name="khtc_nap_dong" value="%d" class="button button-primary">Nạp và đối soát</button></p>', (int) $d->id );
 		echo '</form></details>';
 
@@ -658,9 +676,9 @@ class KHTC_Trang {
 			if ( is_wp_error( $kq ) ) { $bao_loi = $kq->get_error_message(); } else { $bao_ok = 'Đã ghi khoản chi.'; }
 		}
 
-		if ( isset( $_POST['khtc_dan_cp'] ) && check_admin_referer( 'khtc_cp' ) ) {
+		if ( isset( $_POST['khtc_dan_cp'] ) && check_admin_referer( 'khtc_cp' ) && null !== ( $vb = self::lay_bang( 'bang_chi_phi', $bao_loi ) ) ) {
 			$kq = KHTC_ChiPhi::dan_hang_loat(
-				wp_unslash( $_POST['bang_chi_phi'] ?? '' ),
+				$vb,
 				(int) ( $_POST['dan_ngan_hang_id'] ?? 0 ),
 				sanitize_text_field( wp_unslash( $_POST['dan_hinh_thuc'] ?? 'chuyen_khoan' ) )
 			);
@@ -786,14 +804,14 @@ class KHTC_Trang {
 		echo '</div><p class="khtc-sub">Chi tiền mặt không đi qua ngân hàng nên đối soát chi phí sẽ bỏ qua — chọn đúng hình thức để nó không bị báo "chưa thấy tiền ra" oan.</p></form></details>';
 
 		// ---- dán hàng loạt
-		echo '<details class="khtc-panel khtc-gap"><summary>Dán bảng chi phí</summary><form method="post"><div class="khtc-loc">';
+		echo '<details class="khtc-panel khtc-gap"><summary>Dán bảng chi phí</summary><form method="post" enctype="multipart/form-data"><div class="khtc-loc">';
 		wp_nonce_field( 'khtc_cp' );
 		echo '<label>Hình thức<select name="dan_hinh_thuc"><option value="chuyen_khoan">Chuyển khoản</option><option value="tien_mat">Tiền mặt</option></select></label>';
 		echo '<label>Từ tài khoản<select name="dan_ngan_hang_id"><option value="0">— Chưa rõ —</option>';
 		foreach ( $ngan_hang as $b ) { printf( '<option value="%d">%s</option>', (int) $b->id, esc_html( $b->ten ) ); }
 		echo '</select></label></div>';
 		echo '<p class="khtc-sub">Mỗi dòng: <code>Ngày · Bộ phận · Khoản mục · Nhà cung cấp · Số tiền · Số chứng từ · Diễn giải</code> — cách nhau bằng Tab hoặc dấu phẩy. Hai cột cuối không bắt buộc.</p>';
-		echo '<textarea name="bang_chi_phi" rows="7" placeholder="10/08/2026&#9;Khu vui chơi&#9;Tiền điện&#9;EVN HCMC&#9;2.400.000&#9;HD00123&#9;Dien thang 7&#10;12/08/2026&#9;Văn phòng&#9;Vật tư — tiêu hao&#9;VP Hong Ha&#9;780.000"></textarea>';
+		KHTC_Tep::o_nap( 'bang_chi_phi', '10/08/2026&#9;Khu vui chơi&#9;Tiền điện&#9;EVN HCMC&#9;2.400.000&#9;HD00123&#9;Dien thang 7&#10;12/08/2026&#9;Văn phòng&#9;Vật tư — tiêu hao&#9;VP Hong Ha&#9;780.000', 7 );
 		echo '<p><button type="submit" name="khtc_dan_cp" value="1" class="button button-primary">Nạp bảng</button></p></form></details>';
 
 		// ---- danh sách
@@ -1142,9 +1160,38 @@ class KHTC_Trang {
 	public static function dan_tho() {
 		$bao_ok  = '';
 		$bao_loi = '';
-		$tho     = isset( $_POST['tho'] ) ? wp_unslash( $_POST['tho'] ) : '';
+		$tho     = '';
 		$kq      = null;
 		$di_tiep = null;   // [nhãn, đường dẫn] — chỗ đi tiếp sau khi nạp xong
+		$chon    = null;   // nhiều sheet cùng là bảng của cổng → người chọn
+		$tu_tep  = '';     // câu "đã đọc sheet … trong tệp …"
+
+		// Nạp tệp: đọc MỌI sheet, sheet nào có dạng bảng của cổng thì mới tính.
+		// File tổng hợp của kế toán hay có 5–9 sheet, trong đó chỉ vài sheet là
+		// sao kê thật — lấy "sheet đầu" là lấy nhầm bảng hoá đơn.
+		if ( KHTC_Tep::co_tep( 'tep_tho' ) && check_admin_referer( 'khtc_tho' ) ) {
+			$moi = KHTC_Tep::lay_moi_trang( 'tep_tho' );
+			if ( is_wp_error( $moi ) ) {
+				$bao_loi = $moi->get_error_message();
+			} else {
+				$ung = array();
+				foreach ( $moi['trang'] as $t ) {
+					$nd = KHTC_DanTho::nhan_dang( $t['van_ban'] );
+					if ( $nd ) { $ung[] = array( 'ten' => $t['ten'], 'van_ban' => $t['van_ban'], 'so_dong' => $t['so_dong'], 'dang' => $nd[1]['ten'] ); }
+				}
+				if ( 1 === count( $ung ) ) {
+					$tho    = $ung[0]['van_ban'];
+					$tu_tep = sprintf( 'Đã đọc sheet "%s" (%s dòng) trong tệp %s.', $ung[0]['ten'], number_format( $ung[0]['so_dong'], 0, ',', '.' ), $moi['ten_tep'] );
+				} elseif ( count( $ung ) > 1 ) {
+					$chon = array( 'ten_tep' => $moi['ten_tep'], 'ung' => $ung );
+				} else {
+					$ten_sheet = array_map( function ( $t ) { return $t['ten'] . ' (' . $t['so_dong'] . ' dòng)'; }, $moi['trang'] );
+					$bao_loi   = sprintf( 'Tệp %s không có sheet nào là bảng của cổng (cần dòng tiêu đề như file gốc VietQR / Payoo / VNPay / MoMo). Tệp có: %s.', $moi['ten_tep'], implode( ' · ', $ten_sheet ) );
+				}
+			}
+		} elseif ( isset( $_POST['tho'] ) ) {
+			$tho = wp_unslash( $_POST['tho'] );
+		}
 
 		if ( '' !== trim( (string) $tho ) && check_admin_referer( 'khtc_tho' ) ) {
 			$kq = KHTC_DanTho::doc( $tho );
@@ -1212,6 +1259,22 @@ class KHTC_Trang {
 		KHTC_UI::dau_trang( 'Dán thô' );
 		if ( $bao_loi ) { printf( '<p class="khtc-canh-bao">%s</p>', esc_html( $bao_loi ) ); }
 		if ( $bao_ok )  { printf( '<div class="notice notice-success"><p>%s</p></div>', esc_html( $bao_ok ) ); }
+		if ( $tu_tep )  { printf( '<p class="khtc-sub khtc-tu-tep">%s Kiểm bảng xem trước rồi bấm nạp.</p>', esc_html( $tu_tep ) ); }
+		if ( $chon ) {
+			printf(
+				'<div class="khtc-panel"><h2>Tệp %s có %d sheet là bảng của cổng — chọn sheet muốn nạp</h2><p class="khtc-sub">Mỗi lần nạp một sheet. Nạp xong quay lại nạp sheet kế, cùng tệp.</p><table class="khtc-bang"><thead><tr><th>Sheet</th><th>Dạng</th><th class="khtc-so">Dòng</th><th></th></tr></thead><tbody>',
+				esc_html( $chon['ten_tep'] ),
+				count( $chon['ung'] )
+			);
+			foreach ( $chon['ung'] as $u ) {
+				echo '<tr><td>' . esc_html( $u['ten'] ) . '</td><td>' . esc_html( $u['dang'] ) . '</td><td class="khtc-so">' . number_format( $u['so_dong'], 0, ',', '.' ) . '</td><td>';
+				echo '<form method="post" style="margin:0">';
+				wp_nonce_field( 'khtc_tho' );
+				printf( '<textarea name="tho" hidden>%s</textarea>', esc_textarea( $u['van_ban'] ) );
+				echo '<button class="button">Xem trước sheet này</button></form></td></tr>';
+			}
+			echo '</tbody></table></div>';
+		}
 		if ( $di_tiep ) {
 			printf(
 				'<div class="khtc-panel"><h2>Xong bước 1. Tiếp theo</h2><p class="khtc-sub">Số liệu đã vào sổ. Dán chưa sinh hoá đơn — cấp số hoá đơn là việc phải có người bấm.</p><p><a class="button button-primary" href="%s">%s</a></p><p class="khtc-sub">Còn file của cổng khác trong ngày thì dán nốt trước khi sang bước sinh hoá đơn, để một tờ gom đủ mọi nguồn của điểm đó.</p></div>',
@@ -1220,15 +1283,15 @@ class KHTC_Trang {
 			);
 		}
 
-		echo '<form method="post"><div class="khtc-panel">';
+		echo '<form method="post" enctype="multipart/form-data"><div class="khtc-panel">';
 		wp_nonce_field( 'khtc_tho' );
 		echo '<h2>Dán nguyên cả sheet</h2>';
-		echo '<p class="khtc-sub">Mở file của cổng, bôi đen cả sheet, copy, dán vào đây. <strong>Nhớ lấy cả dòng tiêu đề</strong> — máy nhận ra là file gì nhờ dòng đó. Dòng tổng cộng nằm trên tiêu đề cứ để nguyên, máy tự bỏ.</p>';
+		echo '<p class="khtc-sub"><strong>Nạp tệp</strong>: chọn thẳng file .xlsx của cổng, máy tự tìm sheet là bảng sao kê. <strong>Hoặc dán</strong>: mở file, bôi đen cả sheet, copy, dán vào ô — <strong>nhớ lấy cả dòng tiêu đề</strong>, máy nhận ra là file gì nhờ dòng đó. Dòng tổng cộng nằm trên tiêu đề cứ để nguyên, máy tự bỏ.</p>';
 		echo '<p class="khtc-sub">Nhận được: ';
 		$ten = array();
 		foreach ( KHTC_DanTho::dinh_dang() as $dd ) { $ten[] = '<strong>' . esc_html( $dd['ten'] ) . '</strong>'; }
 		echo implode( ' · ', $ten ) . '.</p>';
-		printf( '<textarea name="tho" rows="8" placeholder="Dán vào đây…">%s</textarea>', esc_textarea( $tho ) );
+		KHTC_Tep::o_nap( 'tho', 'Dán vào đây…', 8, $tho, false );
 		echo '<p><button class="button button-primary">Nhận dạng và xem trước</button></p>';
 		echo '</div>';
 
@@ -1333,8 +1396,8 @@ class KHTC_Trang {
 		$bao_ok = '';
 		$bao_loi = '';
 
-		if ( isset( $_POST['khtc_dan_diem'] ) && check_admin_referer( 'khtc_diem' ) ) {
-			$kq = KHTC_Diem::dan_hang_loat( wp_unslash( $_POST['bang_diem'] ?? '' ) );
+		if ( isset( $_POST['khtc_dan_diem'] ) && check_admin_referer( 'khtc_diem' ) && null !== ( $vb = self::lay_bang( 'bang_diem', $bao_loi ) ) ) {
+			$kq = KHTC_Diem::dan_hang_loat( $vb );
 			$bao_ok = sprintf( 'Thêm %d điểm, cập nhật %d điểm.', $kq['them'], $kq['sua'] );
 			if ( $kq['loi'] ) {
 				$bao_loi = implode( ' · ', array_slice( $kq['loi'], 0, 5 ) );
@@ -1367,10 +1430,10 @@ class KHTC_Trang {
 		);
 		echo '<p class="khtc-sub">Mỗi dòng tiền vào tài khoản mang một <strong>mã cửa hàng</strong>. Bảng này nói mã đó thuộc điểm nào, để gom sao kê thành hoá đơn. Thiếu một mã ở đây là số tiền của mã đó không vào hoá đơn nào — màn hình Sinh hoá đơn sẽ liệt kê riêng chứ không bỏ lặng.</p>';
 
-		echo '<details class="khtc-panel khtc-gap"><summary>Nạp danh mục hàng loạt</summary><form method="post">';
+		echo '<details class="khtc-panel khtc-gap"><summary>Nạp danh mục hàng loạt</summary><form method="post" enctype="multipart/form-data">';
 		wp_nonce_field( 'khtc_diem' );
 		echo '<p class="khtc-sub">Mỗi dòng: <code>Mã cửa hàng · Tên gian · Mã điểm bán · Tên điểm xuất hoá đơn · Mã Misa · Khu vực · Dịch vụ · Số TK</code> — Tab hoặc dấu phẩy. Mã đã có thì <strong>cập nhật đè</strong>, cờ “bỏ qua” giữ nguyên.</p>';
-		echo '<textarea name="bang_diem" rows="6" placeholder="1W642MMO1S&#9;SB Vinh 06 Posh&#9;MC1776921483982&#9;Sân bay vinh&#9;SB VINH KVC&#9;Hà Nội&#9;KVC&#9;8660077020"></textarea>';
+		KHTC_Tep::o_nap( 'bang_diem', '1W642MMO1S&#9;SB Vinh 06 Posh&#9;MC1776921483982&#9;Sân bay vinh&#9;SB VINH KVC&#9;Hà Nội&#9;KVC&#9;8660077020', 6 );
 		echo '<p><button type="submit" name="khtc_dan_diem" value="1" class="button button-primary">Nạp danh mục</button></p>';
 		echo '</form></details>';
 
@@ -1717,8 +1780,8 @@ class KHTC_Trang {
 			if ( is_wp_error( $kq ) ) { $bao_loi = $kq->get_error_message(); } else { $bao_ok = 'Đã ghi hoá đơn.'; }
 		}
 
-		if ( isset( $_POST['khtc_dan_hd'] ) && check_admin_referer( 'khtc_hd' ) ) {
-			$kq     = KHTC_HoaDonRa::dan_hang_loat( wp_unslash( $_POST['bang_hd'] ?? '' ) );
+		if ( isset( $_POST['khtc_dan_hd'] ) && check_admin_referer( 'khtc_hd' ) && null !== ( $vb = self::lay_bang( 'bang_hd', $bao_loi ) ) ) {
+			$kq     = KHTC_HoaDonRa::dan_hang_loat( $vb );
 			$bao_ok = 'Đã nạp ' . $kq['them'] . ' hoá đơn'
 				. ( $kq['trung'] ? ', bỏ qua ' . $kq['trung'] . ' hoá đơn đã có trong sổ' : '' ) . '.';
 			$canh = array();
@@ -1811,11 +1874,11 @@ class KHTC_Trang {
 		self::bang_gom( 'Theo dịch vụ', KHTC_HoaDonRa::gom_theo( 'dich_vu', $loc ), false );
 
 		// ---- dán từ file VAT
-		echo '<details class="khtc-panel khtc-gap"><summary>Dán từ file Đối soát VAT</summary><form method="post">';
+		echo '<details class="khtc-panel khtc-gap"><summary>Dán từ file Đối soát VAT</summary><form method="post" enctype="multipart/form-data">';
 		wp_nonce_field( 'khtc_hd' );
 		echo '<p class="khtc-sub">Bôi đen bảng trong file VAT rồi dán thẳng vào đây — <strong>đúng 22 cột, đúng thứ tự</strong>, kể cả cột STT và cột trống thứ 21. Dòng tiêu đề dán kèm cũng được, máy tự bỏ. Hoá đơn đã có trong sổ sẽ bị bỏ qua theo số hoá đơn.</p>';
 		printf( '<p class="khtc-sub">Thứ tự cột: <code>%s</code></p>', esc_html( implode( ' · ', array_filter( KHTC_HoaDonRa::cot() ) ) ) );
-		echo '<textarea name="bang_hd" rows="7" placeholder="1&#9;05/08/2026&#9;00000123&#9;CONG TY TNHH ABC&#9;0301234567&#9;&#9;&#9;Dich vu vui choi&#9;1&#9;Lan&#9;1000000&#9;1000000&#9;80000&#9;1080000&#9;HCM&#9;KVC"></textarea>';
+		KHTC_Tep::o_nap( 'bang_hd', '1&#9;05/08/2026&#9;00000123&#9;CONG TY TNHH ABC&#9;0301234567&#9;&#9;&#9;Dich vu vui choi&#9;1&#9;Lan&#9;1000000&#9;1000000&#9;80000&#9;1080000&#9;HCM&#9;KVC', 7 );
 		echo '<p><button type="submit" name="khtc_dan_hd" value="1" class="button button-primary">Nạp hoá đơn</button></p></form></details>';
 
 		// ---- ghi một hoá đơn
@@ -2218,8 +2281,8 @@ class KHTC_Trang {
 			if ( is_wp_error( $kq ) ) { $bao_loi = $kq->get_error_message(); } else { $bao_ok = 'Đã ghi hoá đơn đầu vào.'; }
 		}
 
-		if ( isset( $_POST['khtc_dan_hdv'] ) && check_admin_referer( 'khtc_hdv' ) ) {
-			$kq     = KHTC_HoaDonVao::dan_hang_loat( wp_unslash( $_POST['bang_hdv'] ?? '' ) );
+		if ( isset( $_POST['khtc_dan_hdv'] ) && check_admin_referer( 'khtc_hdv' ) && null !== ( $vb = self::lay_bang( 'bang_hdv', $bao_loi ) ) ) {
+			$kq     = KHTC_HoaDonVao::dan_hang_loat( $vb );
 			$bao_ok = 'Đã nạp ' . $kq['them'] . ' hoá đơn'
 				. ( $kq['trung'] ? ', bỏ qua ' . $kq['trung'] . ' hoá đơn đã có' : '' ) . '.';
 			if ( $kq['loi'] ) {
@@ -2338,10 +2401,10 @@ class KHTC_Trang {
 		self::bang_gom_vao( 'Theo nhà cung cấp', KHTC_HoaDonVao::gom_theo( 'nha_cung_cap', $loc ), false );
 
 		// ---- dán
-		echo '<details class="khtc-panel khtc-gap"><summary>Dán bảng hoá đơn đầu vào</summary><form method="post">';
+		echo '<details class="khtc-panel khtc-gap"><summary>Dán bảng hoá đơn đầu vào</summary><form method="post" enctype="multipart/form-data">';
 		wp_nonce_field( 'khtc_hdv' );
 		echo '<p class="khtc-sub">Mỗi dòng: <code>Ngày · Số HĐ · Nhà cung cấp · MST · Nội dung · Chưa VAT · VAT · Có VAT · Hình thức</code> — cách nhau bằng Tab hoặc dấu phẩy. Ba cột cuối không bắt buộc. Dòng tiêu đề dán kèm cũng được.</p>';
-		echo '<textarea name="bang_hdv" rows="7" placeholder="05/08/2026&#9;00012345&#9;EVN HCMC&#9;0300942001&#9;Tien dien thang 7&#9;2.400.000&#9;192.000&#9;2.592.000&#9;Chuyen khoan"></textarea>';
+		KHTC_Tep::o_nap( 'bang_hdv', '05/08/2026&#9;00012345&#9;EVN HCMC&#9;0300942001&#9;Tien dien thang 7&#9;2.400.000&#9;192.000&#9;2.592.000&#9;Chuyen khoan', 7 );
 		echo '<p><button type="submit" name="khtc_dan_hdv" value="1" class="button button-primary">Nạp hoá đơn</button></p></form></details>';
 
 		// ---- ghi một hoá đơn
@@ -2761,8 +2824,8 @@ class KHTC_Trang {
 			if ( is_wp_error( $kq ) ) { $bao_loi = $kq->get_error_message(); } else { $bao_ok = 'Đã lưu hợp đồng.'; }
 		}
 
-		if ( isset( $_POST['khtc_dan_pd'] ) && check_admin_referer( 'khtc_pd' ) ) {
-			$kq     = KHTC_PhapDanh::dan_hang_loat( $loai, wp_unslash( $_POST['bang_pd'] ?? '' ) );
+		if ( isset( $_POST['khtc_dan_pd'] ) && check_admin_referer( 'khtc_pd' ) && null !== ( $vb = self::lay_bang( 'bang_pd', $bao_loi ) ) ) {
+			$kq     = KHTC_PhapDanh::dan_hang_loat( $loai, $vb );
 			$bao_ok = 'Đã nạp ' . $kq['them'] . ' hợp đồng.';
 			if ( $kq['loi'] ) {
 				$bao_loi = implode( ' · ', array_slice( $kq['loi'], 0, 5 ) )
@@ -2925,15 +2988,15 @@ class KHTC_Trang {
 		}
 
 		// ---- dán bảng
-		echo '<details class="khtc-panel khtc-gap"><summary>Dán bảng hợp đồng</summary><form method="post">';
+		echo '<details class="khtc-panel khtc-gap"><summary>Dán bảng hợp đồng</summary><form method="post" enctype="multipart/form-data">';
 		wp_nonce_field( 'khtc_pd' );
 		printf( '<input type="hidden" name="loai" value="%s">', esc_attr( $loai ) );
 		if ( 'thue' === $loai ) {
 			echo '<p class="khtc-sub">Mỗi dòng: <code>Gian · Bên cho thuê · MST · Khu vực · Mã điểm · Hình thức · Tiền thuê tháng · Bắt đầu · Hết hạn · % chia sẻ</code>. Từ cột 3 trở đi không bắt buộc. Có điền % chia sẻ thì tự đặt hình thức “giữ tiền”.</p>';
-			echo '<textarea name="bang_pd" rows="6" placeholder="Gian A1-05&#9;CTY BDS An Phu&#9;0301234567&#9;HCM&#9;KVC-CRESCENT&#9;Thue co dinh&#9;35.000.000&#9;01/01/2026&#9;31/12/2026&#9;0"></textarea>';
+			KHTC_Tep::o_nap( 'bang_pd', 'Gian A1-05&#9;CTY BDS An Phu&#9;0301234567&#9;HCM&#9;KVC-CRESCENT&#9;Thue co dinh&#9;35.000.000&#9;01/01/2026&#9;31/12/2026&#9;0', 6 );
 		} else {
 			echo '<p class="khtc-sub">Mỗi dòng: <code>Nhà cung cấp · MST · Số HĐ · Nội dung · Giá trị · Ngày ký · Hết hạn</code>. Từ cột 3 trở đi không bắt buộc.</p>';
-			echo '<textarea name="bang_pd" rows="6" placeholder="CTY BAO TRI THANH DAT&#9;0303334444&#9;HD-2026-07&#9;Bao tri may lanh&#9;120.000.000&#9;05/01/2026&#9;31/12/2026"></textarea>';
+			KHTC_Tep::o_nap( 'bang_pd', 'CTY BAO TRI THANH DAT&#9;0303334444&#9;HD-2026-07&#9;Bao tri may lanh&#9;120.000.000&#9;05/01/2026&#9;31/12/2026', 6 );
 		}
 		echo '<p><button type="submit" name="khtc_dan_pd" value="1" class="button button-primary">Nạp bảng</button></p></form></details>';
 
@@ -3042,8 +3105,8 @@ class KHTC_Trang {
 			}
 		}
 
-		if ( isset( $_POST['khtc_dan_hs'] ) && check_admin_referer( 'khtc_hs' ) ) {
-			$kq     = KHTC_HoSo::dan_hang_loat( wp_unslash( $_POST['bang_hs'] ?? '' ) );
+		if ( isset( $_POST['khtc_dan_hs'] ) && check_admin_referer( 'khtc_hs' ) && null !== ( $vb = self::lay_bang( 'bang_hs', $bao_loi ) ) ) {
+			$kq     = KHTC_HoSo::dan_hang_loat( $vb );
 			$noi    = KHTC_HoSo::do_noi();
 			$bao_ok = sprintf( 'Đã nạp %d hồ sơ, nối được %d với bút toán trong sổ.', $kq['them'], $noi );
 			if ( $kq['loi'] ) {
@@ -3164,10 +3227,10 @@ class KHTC_Trang {
 		echo '<p class="khtc-sub">Dò nối chỉ ghép khi số chứng từ khớp và trong sổ chỉ có <strong>đúng một</strong> bút toán mang số đó. Hai bút toán cùng số thì bỏ qua — nối nhầm còn tệ hơn không nối, vì bảng trên sẽ báo “đã có chứng từ” cho một bút toán thật ra chưa có.</p></div>';
 
 		// ---- dán bảng
-		echo '<details class="khtc-panel khtc-gap"><summary>Dán bảng hồ sơ</summary><form method="post">';
+		echo '<details class="khtc-panel khtc-gap"><summary>Dán bảng hồ sơ</summary><form method="post" enctype="multipart/form-data">';
 		wp_nonce_field( 'khtc_hs' );
 		echo '<p class="khtc-sub">Mỗi dòng: <code>Loại · Số chứng từ · Ngày · Đối tác · Số tiền · Tên file · Link</code>. Từ cột 4 trở đi không bắt buộc. Loại ghi đúng tên như trong ô chọn bên dưới, ghi sai thì vào nhóm “Khác”.</p>';
-		echo '<textarea name="bang_hs" rows="6" placeholder="Hoá đơn đầu vào&#9;00012345&#9;05/08/2026&#9;EVN HCMC&#9;19.872.000&#9;hd-evn-t7.pdf&#9;https://..."></textarea>';
+		KHTC_Tep::o_nap( 'bang_hs', 'Hoá đơn đầu vào&#9;00012345&#9;05/08/2026&#9;EVN HCMC&#9;19.872.000&#9;hd-evn-t7.pdf&#9;https://...', 6 );
 		echo '<p><button type="submit" name="khtc_dan_hs" value="1" class="button button-primary">Nạp và dò nối</button></p></form></details>';
 
 		// ---- thêm một hồ sơ

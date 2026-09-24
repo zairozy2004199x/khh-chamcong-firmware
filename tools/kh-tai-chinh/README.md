@@ -81,6 +81,33 @@ sau dấu cuối cùng dài đúng 3 chữ số thì đó là phân cách nghìn
 thập phân. Không có quy ước này thì `20.000 ₫` đọc ra 20 đồng — sai 1000 lần mà
 không có gì báo, vì 20 vẫn là số hợp lệ.
 
+### Nạp tệp thay cho dán
+
+Mọi ô "dán bảng" đều có ô **Nạp tệp** ngay trên: chọn file `.xlsx`, `.csv`,
+`.tsv` hoặc `.txt` thay cho copy-dán. Có tệp thì máy đọc tệp và bỏ ô dán.
+Tệp được đọc thành đúng văn bản tab-phân-cách mà ô dán vẫn nhận, rồi đi qua
+đúng hàm nạp cũ — không mở thêm một đường vào sổ thứ hai để rồi phải kiểm lại
+từ đầu.
+
+`.xlsx` đọc bằng ZipArchive + SimpleXML có sẵn trong PHP, không cần thư viện —
+host chỉ có wp-admin thì không cài được gì thêm. Ô ngày trong Excel là số (ngày
+thứ n kể từ 1900), máy đổi về `dd/mm/yyyy` như người ta nhìn thấy trên màn
+hình, nên cột ngày đọc ra y như khi copy-dán. Ô công thức lỗi (`#N/A`,
+`#REF!`) coi là trống. `.xls` đời cũ không đọc — mở bằng Excel, Lưu thành
+`.xlsx`.
+
+File nhiều sheet: ô **Sheet** để trống thì lấy sheet có dữ liệu đầu tiên, máy
+nói rõ đã đọc sheet nào và còn sheet nào khác. Riêng **Dán thô** không hỏi:
+máy soi từng sheet, sheet nào có dòng tiêu đề của cổng (VietQR / Payoo / VNPay
+/ MoMo) mới tính; một sheet thì vào thẳng xem trước, nhiều sheet thì bày bảng
+cho người chọn, không sheet nào thì nói thẳng và kể tên các sheet có trong
+tệp. File tổng hợp của kế toán hay có 5–9 sheet mà chỉ vài sheet là sao kê
+thật — lấy "sheet đầu" là lấy nhầm bảng hoá đơn.
+
+Lỗi đọc tệp (quá lớn, lên chưa hết, hỏng) thì khối nạp **không chạy** và báo
+đúng lỗi. Chạy tiếp với văn bản rỗng sẽ ra "Đã nạp 0 dòng" — nghe như xong
+việc.
+
 ## Chi phí
 
 **Một bảng cho tất cả bộ phận, không phải mỗi bộ phận một trang.** wp-admin hiện

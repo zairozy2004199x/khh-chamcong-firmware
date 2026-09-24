@@ -167,6 +167,8 @@ function esc_js( $s ) {
 	$s = str_replace( array( "\r", "\n" ), array( '', '\\n' ), addslashes( $s ) );
 	return str_replace( "'", "&#039;", $s );
 }
+function wp_max_upload_size() { return 8 * 1024 * 1024; }
+function sanitize_html_class( $s ) { return preg_replace( '/[^A-Za-z0-9_-]/', '', (string) $s ); }
 function size_format( $n, $le = 0 ) {
 	$n = (int) $n;
 	foreach ( array( 'GB' => 1073741824, 'MB' => 1048576, 'KB' => 1024 ) as $d => $m ) {
@@ -344,6 +346,6 @@ define( 'KHTC_VERSION', $m[1] ?? '0' );
 define( 'KHTC_DIR', $goc );
 define( 'KHTC_URL', 'https://vi.du/wp-content/plugins/kh-tai-chinh/' );
 define( 'KHTC_CAP', 'edit_pages' );
-foreach ( array( 'db', 'cty', 'nguoi-dung', 'diem', 'sinh-hd', 'dan-tho', 'nhat-ky', 'khoa', 'ngan-hang', 'giao-dich', 'doi-soat', 'chi-phi', 'hoa-don-ra', 'hoa-don-vao', 'cong-no', 'phap-danh', 'ho-so', 'bao-cao', 'mau', 'sao-luu', 'ui', 'trang', 'web', 'admin' ) as $t ) {
+foreach ( array( 'db', 'cty', 'nguoi-dung', 'tep', 'diem', 'sinh-hd', 'dan-tho', 'nhat-ky', 'khoa', 'ngan-hang', 'giao-dich', 'doi-soat', 'chi-phi', 'hoa-don-ra', 'hoa-don-vao', 'cong-no', 'phap-danh', 'ho-so', 'bao-cao', 'mau', 'sao-luu', 'ui', 'trang', 'web', 'admin' ) as $t ) {
 	require_once $goc . 'includes/class-khtc-' . $t . '.php';
 }

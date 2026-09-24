@@ -399,3 +399,20 @@ body.khtc-web form { margin: 0; }
 .khtc .khtc-tick:has(input:checked) { border-color: var(--chinh); box-shadow: var(--bong-1); }
 /* Dòng đã đặt "bỏ qua" — vẫn đọc được, nhưng lùi ra sau. */
 .khtc tr.khtc-mo td { opacity: .55; }
+/* Ô nạp tệp đứng trên ô dán: một hàng, xuống dòng khi hẹp. */
+.khtc .khtc-nap-tep {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px 14px;
+	margin: 0 0 8px;
+	padding: 8px 10px;
+	border: 1px dashed var(--vien);
+	border-radius: 8px;
+	background: var(--nen-the);
+}
+.khtc .khtc-nap-tep-o { display: inline-flex; align-items: center; gap: 6px; }
+.khtc .khtc-nap-tep-nhan { font-weight: 600; }
+.khtc .khtc-nap-tep input[type="file"] { max-width: 100%; }
+.khtc .khtc-nap-tep .khtc-sub { flex: 1 1 100%; margin: 0; }
+.khtc .khtc-tu-tep { margin: 4px 0 8px; font-weight: 500; }
