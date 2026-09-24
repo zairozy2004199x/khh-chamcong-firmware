@@ -191,6 +191,48 @@ kiem( 'ngày không giảm khi số tăng', $ngay5, ( function ( $a ) { sort( $a
 kiem( 'ngày tờ đầu là ngày doanh thu sớm nhất, không phải cuối kỳ', $ngay5[0] < '2026-08-31', true );
 foreach ( $to5 as $r ) { kiem( "tờ {$r->so_hd}: ghi chú khớp ngày hoá đơn", false !== strpos( $r->ghi_chu, mysql2date( 'd/m/Y', $r->ngay ) ), true ); }
 
+// ------------------------------------------- tiền mini app: tra cơ sở qua bảng đơn
+// Dòng VNPay ghi "thanh toan don hang 141819 tu funzone" dưới mã điểm thu chung
+// FUNZONE1; cơ sở nằm trong đơn. Bảng đơn là bảng TRA, không phải tiền.
+$nh_app = KHTC_NganHang::them( array( 'ten' => 'TK app', 'so_tk' => 'APP1', 'so_du_dau' => 0, 'ngay_dau' => '2026-08-31' ) );
+KHTC_GiaoDich::dan_hang_loat( $nh_app,
+	"23/09/2026\tthanh toan don hang 141819 tu funzone tri gia 200 000 d\t200.000\tthu\tVN1\tFUNZONE1\n"
+	. "23/09/2026\tthanh toan don hang 141815 tu funzone\t150.000\tthu\tVN2\tFUNZONE1\n"
+	. "23/09/2026\tthanh toan don hang 999999 tu funzone\t70.000\tthu\tVN3\tFUNZONE1\n"   // đơn không có trong bảng
+	. "23/09/2026\tTHANH TOAN QR PAY\t50.000\tthu\tVN4\tGHOSTVCT\n" );
+$ky_app = array( 'tu' => '2026-09-23', 'den' => '2026-09-23', 'nh' => array( $nh_app ), 'tach' => 'ngay' );
+$g0 = KHTC_SinhHD::gom( $ky_app );
+kiem( 'chưa có bảng đơn: cả 4 dòng là mã lạ theo mã cổng', array_keys( $g0['la'] ), array( 'FUNZONE1', 'GHOSTVCT' ) );
+kiem( 'chưa tra được gì', $g0['qua_app']['dong'], 0 );
+$r_don = KHTC_DonApp::nap( array(
+	array( 'ma_don' => '141819', 'ngay' => '2026-09-23', 'co_so' => 'VINCOM PHAN VĂN TRỊ - SALE 50% VÉ NHÀ MA ÂM PHỦ', 'tien' => 200000, 'tt_don' => 'Đã giao', 'tt_tt' => 'Đã thanh toán' ),
+	array( 'ma_don' => '141815', 'ngay' => '2026-09-23', 'co_so' => 'AEON MALL TÂN PHÚ - SALE 50% VÉ NHÀ MA ÂM PHỦ', 'tien' => 150000, 'tt_don' => 'Đã giao', 'tt_tt' => 'Đã thanh toán' ),
+) );
+kiem( 'lưu 2 đơn', $r_don['them'], 2 );
+$r_don2 = KHTC_DonApp::nap( array( array( 'ma_don' => '141819', 'ngay' => '2026-09-23', 'co_so' => 'VINCOM PHAN VĂN TRỊ - SALE 50% VÉ NHÀ MA ÂM PHỦ', 'tien' => 200000 ) ) );
+kiem( 'nạp lại đơn cũ: cập nhật, không nhân đôi', array( $r_don2['them'], $r_don2['sua'], KHTC_DonApp::dem() ), array( 0, 1, 2 ) );
+kiem( 'rút mã đơn từ diễn giải', KHTC_DonApp::ma_don_trong( 'thanh toan don hang  141819 tu funzone tri gia 200 000 d' ), '141819' );
+kiem( 'không rút bừa số ngắn', KHTC_DonApp::ma_don_trong( 'don hang 12 tu abc' ), '' );
+$g1 = KHTC_SinhHD::gom( $ky_app );
+kiem( 'tra được 2 dòng qua đơn', $g1['qua_app'], array( 'tien' => 350000, 'dong' => 2 ) );
+kiem( 'cơ sở (tên sản phẩm) thành mã lạ chờ gán', isset( $g1['la']['VINCOM PHAN VĂN TRỊ - SALE 50% VÉ NHÀ MA ÂM PHỦ'] ), true );
+kiem( 'gợi ý ghi rõ là đơn app', $g1['la_ten']['VINCOM PHAN VĂN TRỊ - SALE 50% VÉ NHÀ MA ÂM PHỦ'], 'đơn app #141819' );
+kiem( 'đơn không có trong bảng vẫn nằm ở mã cổng', $g1['la']['FUNZONE1'], 70000 );
+kiem( 'không đồng nào mất', $g1['tong'] + $g1['tong_la'] + $g1['tong_bo'], 470000 );
+// gán tên sản phẩm vào điểm → tiền về đúng điểm; mã dài hơn 80 ký tự vẫn vào danh mục
+$ten_dai = 'LOTTE Phan Thiết - VÉ GIẢM 40% (áp dụng khi đặt từ 2 vé trở lên) - ECOKIDS FARM';
+kiem( 'mã dài > 80 ký tự vào được danh mục', is_int( KHTC_Diem::them( array( 'ma_cua_hang' => $ten_dai, 'ten_diem' => 'Farm Lotte Phan Thiết' ) ) ), true );
+KHTC_Diem::them( array( 'ma_cua_hang' => 'VINCOM PHAN VĂN TRỊ - SALE 50% VÉ NHÀ MA ÂM PHỦ', 'ten_diem' => 'Nhà ma Vincom Phan Văn Trị', 'ma_misa' => 'GHOST PVT', 'khu_vuc' => 'HCM', 'dich_vu' => 'KVC' ) );
+$g2 = KHTC_SinhHD::gom( $ky_app );
+$diem_app = null; foreach ( $g2['diem'] as $x ) { if ( 'Nhà ma Vincom Phan Văn Trị' === $x['ten_diem'] ) { $diem_app = $x; } }
+kiem( 'tiền đơn app về đúng điểm đã gán', $diem_app['tien'] ?? 0, 200000 );
+kiem( 'điểm nhận nguồn là sao kê', isset( $diem_app['nguon']['sao kê'] ), true );
+$_GET = array( 'tu' => '2026-09-23', 'den' => '2026-09-23', 'nh' => array( $nh_app ) ); $_REQUEST = $_GET; $_POST = array();
+$h_app = dung( fn() => KHTC_Trang::sinh_hoa_don() );
+kiem( 'màn hình báo dòng tra qua đơn app', false !== strpos( $h_app, 'là đơn Zalo mini app' ), true );
+kiem( 'mã lạ hiện gợi ý đơn app', false !== strpos( $h_app, 'đơn app #141815' ), true );
+$_GET = array(); $_REQUEST = array();
+
 // ---------------------------------------------------------- dựng màn hình
 $_GET = array( 'tu' => '2026-08-01', 'den' => '2026-08-31', 'nh' => array( $nh ) );
 $_REQUEST = $_GET; $_POST = array();

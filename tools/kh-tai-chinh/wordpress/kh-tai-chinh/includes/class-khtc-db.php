@@ -10,7 +10,7 @@ defined( 'ABSPATH' ) || exit;
 class KHTC_DB {
 
 	/** Tăng số này mỗi lần đổi cấu trúc bảng thì bản đang chạy tự nâng cấp. */
-	const SCHEMA = 11;
+	const SCHEMA = 12;
 
 	public static function bang( $ten ) {
 		global $wpdb;
@@ -34,6 +34,7 @@ class KHTC_DB {
 		$hop_dong  = self::bang( 'hop_dong' );
 		$ho_so     = self::bang( 'ho_so' );
 		$diem      = self::bang( 'diem' );
+		$don_app   = self::bang( 'don_app' );
 
 		// so_du_dau = số dư TÍNH ĐẾN ngay_dau; giao dịch trước ngày đó coi như đã
 		// gộp sẵn vào số dư này, không cộng lại lần nữa (giữ đúng cách bản gốc tính).
@@ -64,7 +65,7 @@ class KHTC_DB {
 				so_tien BIGINT NOT NULL DEFAULT 0,
 				loai VARCHAR(10) NOT NULL DEFAULT 'thu',
 				ma_gd VARCHAR(120) NOT NULL DEFAULT '',
-				ma_cua_hang VARCHAR(80) NOT NULL DEFAULT '',
+				ma_cua_hang VARCHAR(190) NOT NULL DEFAULT '',
 				hd_ra_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
 				tao_luc DATETIME NOT NULL,
 				tao_boi VARCHAR(120) NOT NULL DEFAULT '',
@@ -84,11 +85,30 @@ class KHTC_DB {
 		//
 		// ma_cua_hang duy nhất trong mỗi pháp nhân: một mã trỏ hai điểm thì
 		// doanh thu chia sai mà không có gì báo, nên chặn ở tầng bảng.
+		// Đơn Zalo mini app — bảng tra "mã đơn → cơ sở", để tiền VNPay/MoMo của mini
+		// app tìm được điểm xuất hoá đơn. Tên sản phẩm dài (có cả tên khuyến mại)
+		// nên 190; ma_cua_hang ở các bảng khác cũng nới lên 190 cho vừa tên đó.
+		dbDelta(
+			"CREATE TABLE $don_app (
+				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+				cty VARCHAR(20) NOT NULL DEFAULT 'kh_cu',
+				ma_don VARCHAR(40) NOT NULL,
+				ngay DATE NULL,
+				co_so VARCHAR(190) NOT NULL DEFAULT '',
+				tien BIGINT NOT NULL DEFAULT 0,
+				tt_don VARCHAR(40) NOT NULL DEFAULT '',
+				tt_tt VARCHAR(40) NOT NULL DEFAULT '',
+				tao_luc DATETIME NOT NULL,
+				PRIMARY KEY (id),
+				UNIQUE KEY cty_don (cty, ma_don),
+				KEY cty_ngay (cty, ngay)
+			) $collate;"
+		);
 		dbDelta(
 			"CREATE TABLE $diem (
 				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 				cty VARCHAR(20) NOT NULL DEFAULT 'kh_cu',
-				ma_cua_hang VARCHAR(80) NOT NULL,
+				ma_cua_hang VARCHAR(190) NOT NULL,
 				ma_diem_ban VARCHAR(80) NOT NULL DEFAULT '',
 				ten_gian VARCHAR(190) NOT NULL DEFAULT '',
 				ten_diem VARCHAR(190) NOT NULL DEFAULT '',
@@ -136,7 +156,7 @@ class KHTC_DB {
 				dien_giai TEXT NULL,
 				khop_gd_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
 				kieu_khop VARCHAR(20) NOT NULL DEFAULT '',
-				ma_cua_hang VARCHAR(80) NOT NULL DEFAULT '',
+				ma_cua_hang VARCHAR(190) NOT NULL DEFAULT '',
 				hd_ra_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
 				PRIMARY KEY (id),
 				KEY dot_id (dot_id),

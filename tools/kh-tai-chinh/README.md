@@ -135,6 +135,30 @@ chỗ**: gắn vào điểm có sẵn (kế thừa Misa, khu vực, dịch vụ)
 mới, hoặc tick bỏ qua. Tên cổng ghi kèm (Điểm thu, Tên cửa hàng) hiện bên
 cạnh làm gợi ý và được lưu vào Tên gian.
 
+### Tiền Zalo mini app: tra cơ sở qua bảng đơn
+
+Mini app bán vé cho nhiều cơ sở, tiền về VNPay/MoMo dưới một mã điểm thu
+chung (FUNZONE1 "FUNZONE MINI APP"), diễn giải "thanh toan don hang 141819 tu
+funzone". Cơ sở nằm trong **tên sản phẩm của đơn**. Nạp file xuất đơn hàng của
+mini app (.xls Haravan/Sapo) ở Dán thô: máy nhận dạng "Đơn hàng Zalo mini
+app", gom một dòng mỗi đơn, lưu vào bảng tra `don_app` (mã đơn → tên sản
+phẩm). Bảng này **không mang tiền**, nạp bao nhiêu lần cũng không đếm đôi.
+
+Khi gom hoá đơn, dòng tiền nào có "don hang N" mà N có trong bảng tra thì
+mã cửa hàng của nó là tên sản phẩm; tên đó vào danh mục điểm như mọi mã khác
+(thêm tại chỗ bằng nút ở bảng mã lạ). Đơn không có trong bảng thì giữ mã
+cổng, hiện ở mã lạ, không lặng lẽ nhét vào đâu. Trên file thật 23/09/2026:
+102/102 giao dịch FUNZONE1 khớp đơn, tiền bằng nhau từng đơn. Tên sản phẩm
+đổi theo khuyến mại nên mỗi tên mới là một mã mới; 58 tên trong file tháng 9.
+
+### Đọc .xls đời cũ
+
+`KHTC_Xls` đọc BIFF8 (Excel 97–2003) không thư viện: Compound File → luồng
+Workbook → bản ghi SST/LABELSST/NUMBER/RK/MULRK/FORMULA, ngày qua XF→FORMAT,
+SST trải qua CONTINUE đi từng byte. Đối chiếu với xlrd trên file đơn thật
+2.471 dòng × 26 cột: không lệch ô nào. Không đọc BIFF5 (Excel 95) và file
+HTML/CSV đổi đuôi .xls — báo rõ thay vì đoán.
+
 ### Tiêu đề tách dấu
 
 File MoMo Business ghi chữ Việt dạng tách dấu (NFD): "gốc" là "ô" + dấu sắc

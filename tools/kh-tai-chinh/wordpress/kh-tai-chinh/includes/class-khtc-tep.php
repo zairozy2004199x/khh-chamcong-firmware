@@ -22,7 +22,7 @@ class KHTC_Tep {
 	const TOI_DA = 20 * 1024 * 1024;
 
 	/** Đuôi tệp nhận. */
-	const DUOI = array( 'xlsx', 'xlsm', 'csv', 'tsv', 'txt' );
+	const DUOI = array( 'xlsx', 'xlsm', 'xls', 'csv', 'tsv', 'txt' );
 
 	/**
 	 * Đưa chữ Việt về dạng dựng sẵn (NFC). File MoMo Business ghi "gốc" là
@@ -213,10 +213,10 @@ class KHTC_Tep {
 	public static function doc_moi_trang( $duong, $ten ) {
 		$ten_tep = sanitize_file_name( basename( $ten ) ) ?: 'tệp';
 		$duoi    = strtolower( pathinfo( $ten, PATHINFO_EXTENSION ) );
-		if ( 'xlsx' === $duoi || 'xlsm' === $duoi ) {
+		if ( 'xlsx' === $duoi || 'xlsm' === $duoi || 'xls' === $duoi ) {
 			$kiem = self::kiem_tep( $duong, $ten );
 			if ( is_wp_error( $kiem ) ) { return $kiem; }
-			$ds = self::doc_xlsx( $duong );
+			$ds = 'xls' === $duoi ? KHTC_Xls::doc( $duong ) : self::doc_xlsx( $duong );
 			if ( is_wp_error( $ds ) ) { return $ds; }
 			$trang = array();
 			foreach ( $ds as $s ) {
@@ -243,7 +243,7 @@ class KHTC_Tep {
 		}
 		$duoi = strtolower( pathinfo( $ten, PATHINFO_EXTENSION ) );
 		if ( ! in_array( $duoi, self::DUOI, true ) ) {
-			return new WP_Error( 'tep', sprintf( 'Không nhận đuôi .%s. Nhận: .xlsx, .csv, .tsv, .txt. File .xls đời cũ thì mở bằng Excel, Lưu thành .xlsx rồi nạp.', $duoi ?: '?' ) );
+			return new WP_Error( 'tep', sprintf( 'Không nhận đuôi .%s. Nhận: .xlsx, .xls, .csv, .tsv, .txt.', $duoi ?: '?' ) );
 		}
 		return true;
 	}
@@ -320,9 +320,11 @@ class KHTC_Tep {
 		if ( is_wp_error( $kiem ) ) { return $kiem; }
 		$duoi = strtolower( pathinfo( $ten, PATHINFO_EXTENSION ) );
 
-		if ( 'xlsx' === $duoi || 'xlsm' === $duoi ) {
-			$ds = self::doc_xlsx( $duong );
+		if ( 'xlsx' === $duoi || 'xlsm' === $duoi || 'xls' === $duoi ) {
+			$ds = 'xls' === $duoi ? KHTC_Xls::doc( $duong ) : self::doc_xlsx( $duong );
 			if ( is_wp_error( $ds ) ) { return $ds; }
+			foreach ( $ds as &$s ) { foreach ( $s['dong'] as &$d ) { foreach ( $d as &$o ) { $o = self::chuan_unicode( $o ); } } }
+			unset( $s, $d, $o );
 			return self::chon_trang( $ds, $trang );
 		}
 
@@ -666,7 +668,7 @@ class KHTC_Tep {
 		$id = 'khtc-tep-' . sanitize_html_class( $ten );
 		echo '<div class="khtc-nap-tep">';
 		printf(
-			'<label class="khtc-nap-tep-o"><span class="khtc-nap-tep-nhan">Nạp tệp</span> <input type="file" id="%s" name="tep_%s" accept=".xlsx,.xlsm,.csv,.tsv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain"></label>',
+			'<label class="khtc-nap-tep-o"><span class="khtc-nap-tep-nhan">Nạp tệp</span> <input type="file" id="%s" name="tep_%s" accept=".xlsx,.xlsm,.xls,.csv,.tsv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv,text/plain"></label>',
 			esc_attr( $id ),
 			esc_attr( $ten )
 		);
@@ -676,7 +678,7 @@ class KHTC_Tep {
 				esc_attr( $ten )
 			);
 		}
-		echo '<span class="khtc-sub">Nhận .xlsx, .csv, .tsv, .txt — hoặc dán bảng vào ô dưới. Có tệp thì máy đọc tệp, bỏ ô dán.</span>';
+		echo '<span class="khtc-sub">Nhận .xlsx, .xls, .csv, .tsv, .txt — hoặc dán bảng vào ô dưới. Có tệp thì máy đọc tệp, bỏ ô dán.</span>';
 		echo '</div>';
 		if ( ! empty( self::$ghi_chu[ $ten ] ) ) {
 			printf( '<p class="khtc-sub khtc-tu-tep">%s</p>', esc_html( self::$ghi_chu[ $ten ] ) );

@@ -116,6 +116,20 @@ class KHTC_SinhHD {
 		// lần, đếm riêng để màn hình bảo người ta xoá bớt đợt.
 		$trung = array( 'tien' => 0, 'dong' => 0 );
 		$da_thay = array();
+		// Tiền mini app: dòng VNPay/MoMo ghi "thanh toan don hang N ..." → tra N
+		// trong bảng đơn ra cơ sở, dùng cơ sở đó làm mã cửa hàng thay cho mã
+		// điểm thu chung của cổng. Không có đơn khớp thì giữ nguyên mã cổng.
+		$tra_app = KHTC_DonApp::tra( $cty );
+		$qua_app = array( 'tien' => 0, 'dong' => 0 );
+		$doi_ma  = function ( $ma, $dien_giai, $tien ) use ( $tra_app, &$qua_app ) {
+			if ( ! $tra_app ) { return array( $ma, '' ); }
+			$n = KHTC_DonApp::ma_don_trong( $dien_giai );
+			if ( '' !== $n && isset( $tra_app[ $n ] ) && '' !== $tra_app[ $n ] ) {
+				$qua_app['dong']++; $qua_app['tien'] += $tien;
+				return array( $tra_app[ $n ], 'đơn app #' . $n );
+			}
+			return array( $ma, '' );
+		};
 
 		// --- nguồn 1: sao kê ngân hàng, mã cửa hàng nằm ở cột mã giao dịch phụ
 		$nh = array_filter( array_map( 'intval', (array) ( $l['nh'] ?? array() ) ) );
@@ -130,7 +144,8 @@ class KHTC_SinhHD {
 			);
 			foreach ( $rows as $r ) {
 				if ( (int) $r->hd_ra_id > 0 ) { $da_xuat['tien'] += (int) $r->so_tien; $da_xuat['dong']++; $da_xuat['to'][ (int) $r->hd_ra_id ] = true; continue; }
-				$nhan( $r->ma_cua_hang, (int) $r->so_tien, 'sao kê', $r->ngay, 'gd', $r->id, $r->dien_giai );
+				list( $ma_r, $goi_y ) = $doi_ma( $r->ma_cua_hang, $r->dien_giai, (int) $r->so_tien );
+				$nhan( $ma_r, (int) $r->so_tien, 'sao kê', $r->ngay, 'gd', $r->id, $goi_y ?: $r->dien_giai );
 			}
 		}
 
@@ -153,7 +168,8 @@ class KHTC_SinhHD {
 					$da_thay[ $k ] = true;
 				}
 				if ( (int) $r->hd_ra_id > 0 ) { $da_xuat['tien'] += (int) $r->so_tien; $da_xuat['dong']++; $da_xuat['to'][ (int) $r->hd_ra_id ] = true; continue; }
-				$nhan( $r->ma_cua_hang, (int) $r->so_tien, $r->ten, $r->ngay, 'ds', $r->id, $r->dien_giai );
+				list( $ma_r, $goi_y ) = $doi_ma( $r->ma_cua_hang, $r->dien_giai, (int) $r->so_tien );
+				$nhan( $ma_r, (int) $r->so_tien, $r->ten, $r->ngay, 'ds', $r->id, $goi_y ?: $r->dien_giai );
 			}
 		}
 
@@ -170,6 +186,7 @@ class KHTC_SinhHD {
 			'tong_la' => $tong_la,
 			'da_xuat' => $da_xuat,   // tiền trong kỳ đã nằm trong hoá đơn rồi, không đề xuất lại
 			'trung'   => $trung,     // cùng mã GD ở hai đợt đã tick — đợt nạp đôi, chỉ tính một lần
+			'qua_app' => $qua_app,   // dòng tiền mini app đã tra được cơ sở qua bảng đơn
 		);
 	}
 

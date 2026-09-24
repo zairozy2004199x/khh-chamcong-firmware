@@ -1246,6 +1246,18 @@ class KHTC_Trang {
 				$tho = '';
 			}
 		}
+		if ( $kq && isset( $_POST['khtc_nap_don_app'] ) && 'don_app' === $kq['dich'] ) {
+			$r = KHTC_DonApp::nap( array_map( function ( $x ) { $x['ngay'] = KHTC_GiaoDich::doc_ngay( $x['ngay'] ); return $x; }, $kq['rows'] ) );
+			$bao_ok = sprintf(
+				'Đã lưu %s đơn mini app%s để tra cơ sở. Tổng trong danh mục tra: %s đơn. Tiền của các đơn này vẫn lấy từ VNPay/MoMo — sang Sinh hoá đơn, tick đợt VNPay/MoMo, dòng “thanh toan don hang …” sẽ tự về đúng cơ sở.',
+				number_format( $r['them'], 0, ',', '.' ),
+				$r['sua'] ? ' (cập nhật ' . number_format( $r['sua'], 0, ',', '.' ) . ' đơn đã có)' : '',
+				number_format( KHTC_DonApp::dem(), 0, ',', '.' )
+			);
+			$di_tiep = self::cho_di_tiep( $kq['rows'], array() );
+			$kq  = null;
+			$tho = '';
+		}
 		if ( $kq && isset( $_POST['khtc_nap_cong'] ) ) {
 			$chon_dot = (int) $_POST['dot'];
 			$nh_dot  = (int) ( $_POST['nh_dot'] ?? 0 );
@@ -1413,6 +1425,21 @@ class KHTC_Trang {
 				return;
 			}
 
+			if ( 'don_app' === $kq['dich'] ) {
+				// Bảng tra, không phải tiền: xem trước theo đơn, nút lưu riêng.
+				$tra_cu = KHTC_DonApp::tra();
+				$moi = 0; foreach ( $r as $x ) { if ( ! isset( $tra_cu[ $x['ma_don'] ] ) ) { $moi++; } }
+				printf( '<p class="khtc-sub">%s đơn trong file, <strong>%s đơn mới</strong>, %s đã có (sẽ cập nhật). Đây là <strong>bảng tra cơ sở</strong>, không phải tiền: tiền vẫn lấy từ dòng VNPay/MoMo.</p>', number_format( count( $r ), 0, ',', '.' ), number_format( $moi, 0, ',', '.' ), number_format( count( $r ) - $moi, 0, ',', '.' ) );
+				echo '<table><thead><tr><th>Mã đơn</th><th>Ngày</th><th>Cơ sở (tên sản phẩm)</th><th class="so">Tiền đơn</th><th>Trạng thái</th></tr></thead><tbody>';
+				foreach ( array_slice( $r, 0, 10 ) as $x ) {
+					printf( '<tr><td><code>%s</code></td><td>%s</td><td>%s</td><td class="so">%s</td><td>%s</td></tr>', esc_html( $x['ma_don'] ), esc_html( $x['ngay'] ), esc_html( $x['co_so'] ), esc_html( KHTC_UI::tien( $x['tien'] ) ), esc_html( trim( $x['tt_don'] . ' · ' . $x['tt_tt'], ' ·' ) ) );
+				}
+				echo '</tbody></table>';
+				echo '<div class="khtc-loc"><button type="submit" name="khtc_nap_don_app" value="1" class="button button-primary">Lưu bảng đơn để tra cơ sở</button></div>';
+				echo '<p class="khtc-sub">Nạp bao nhiêu lần cũng được: cùng mã đơn thì cập nhật, không đếm đôi đồng nào vì bảng này không mang tiền.</p>';
+				echo '</div></form></div>';
+				return;
+			}
 			echo '<p class="khtc-sub"><strong>Soát 10 dòng đầu trước khi nạp.</strong> Cột nào lệch chỗ thì dừng lại, đừng nạp.</p>';
 			echo '<table><thead><tr><th>Ngày</th><th>Diễn giải</th><th class="so">Số tiền</th><th class="so">Phí</th><th>Mã giao dịch</th><th>Mã cửa hàng</th></tr></thead><tbody>';
 			foreach ( array_slice( $r, 0, 10 ) as $x ) {
@@ -1778,6 +1805,13 @@ class KHTC_Trang {
 			printf( '<tfoot><tr><th colspan="%d">Tổng</th><th class="so">%s</th><th class="so thu">%s</th></tr></tfoot>', 'ngay' === $tach ? 5 : 4, number_format( array_sum( array_column( $g['diem'], 'so_dong' ) ), 0, ',', '.' ), esc_html( KHTC_UI::tien( $g['tong'] ) ) );
 		}
 		echo '</table>';
+		if ( ! empty( $g['qua_app']['dong'] ) ) {
+			printf(
+				'<p class="khtc-sub khtc-tu-tep">%s dòng tiền (%s) là đơn Zalo mini app, đã tra được cơ sở qua bảng đơn. Cơ sở của mini app là tên sản phẩm — tên nào chưa có trong danh mục sẽ hiện ở bảng mã lạ bên dưới, thêm một lần là xong.</p>',
+				number_format( $g['qua_app']['dong'], 0, ',', '.' ),
+				esc_html( KHTC_UI::tien( $g['qua_app']['tien'] ) )
+			);
+		}
 		if ( ! empty( $g['trung']['dong'] ) ) {
 			printf(
 				'<p class="khtc-canh-bao">Có %s dòng (%s) mang cùng mã giao dịch ở hai đợt đã tick — cùng một file cổng nạp thành hai đợt. Máy chỉ tính một lần, nhưng nên vào <strong>Cổng thanh toán</strong> xoá đợt thừa để bảng đối soát không lệch.</p>',

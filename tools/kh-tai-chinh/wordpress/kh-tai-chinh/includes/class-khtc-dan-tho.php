@@ -82,8 +82,27 @@ class KHTC_DanTho {
 					'phi'         => array( 'số tiền phí thu hộ' ),
 					'ma_cua_hang' => array( 'mã điểm thu' ),
 					'dien_giai'   => array( 'điểm thu' ),
+					// Kèm nội dung đơn vào diễn giải: dòng mini app ghi "thanh toan don
+					// hang 141819 tu funzone" ở đây — không giữ thì sau không tra được cơ sở.
+					'them'        => array( 'thông tin đặt hàng', 'chi tiết sản phẩm', 'ghi chú' ),
 				),
 				'cot'      => array( 'ngay' => 2, 'ma_gd' => 3, 'thu' => 22, 'phi' => 27, 'ma_cua_hang' => 5, 'dien_giai' => 6 ),
+			),
+			// Đơn Zalo mini app — KHÔNG phải tiền. Đích là bảng tra "mã đơn → cơ sở"
+			// để dòng VNPay/MoMo "thanh toan don hang N tu funzone" tìm được điểm.
+			'zalo_app' => array(
+				'ten'      => 'Đơn hàng Zalo mini app',
+				'dau_hieu' => array( 'mã đơn hàng', 'tên sản phẩm', 'tổng tiền phải trả' ),
+				'dich'     => 'don_app',
+				'ten_cot'  => array(
+					'ma_don' => array( 'mã đơn hàng' ),
+					'ngay'   => array( 'ngày đặt hàng', 'ngày tạo' ),
+					'co_so'  => array( 'tên sản phẩm' ),
+					'tien'   => array( 'tổng tiền phải trả', 'tổng tiền hàng' ),
+					'tt_don' => array( 'trạng thái đơn hàng' ),
+					'tt_tt'  => array( 'trạng thái thanh toán' ),
+				),
+				'cot'      => array( 'ma_don' => 0, 'ngay' => 1, 'co_so' => 22, 'tien' => 18, 'tt_don' => 11, 'tt_tt' => 14 ),
 			),
 			'momo' => array(
 				'ten'      => 'MoMo',
@@ -101,6 +120,7 @@ class KHTC_DanTho {
 					'thu'         => array( 'ms.total amount', 'số tiền' ),
 					'ma_cua_hang' => array( 'ms.mã cửa hàng', 'mã cửa hàng' ),
 					'dien_giai'   => array( 'tên cửa hàng', 'ms.mã cửa hàng', 'mã cửa hàng' ),
+					'them'        => array( 'mô tả giao dịch', 'ms.mã hđơn/ sđt nhận' ),
 				),
 				'cot'      => array( 'ngay' => 24, 'ma_gd' => 25, 'thu' => 5, 'ma_cua_hang' => 14, 'dien_giai' => 14 ),
 			),
@@ -197,6 +217,9 @@ class KHTC_DanTho {
 		$dong  = preg_split( '/\r\n|\r|\n/', (string) $text );
 		$tc    = self::tim_cot( $dd, array_map( 'trim', self::o( $dong[ $i_tieu_de ] ) ) );
 		$c     = $tc['cot'];
+		if ( 'don_app' === $dd['dich'] ) {
+			return self::doc_don_app( $khoa, $dd, $dong, $i_tieu_de, $tc );
+		}
 
 		$rows      = array();
 		$bo_loc    = 0;   // dòng bị loại vì trạng thái không phải "Thành công"
@@ -223,9 +246,15 @@ class KHTC_DanTho {
 			$chi = isset( $c['chi'] ) ? KHTC_GiaoDich::doc_so( $o[ $c['chi'] ] ?? 0 ) : 0;
 			if ( ! $thu && ! $chi ) { continue; }
 
+			$dien_giai = (string) ( $o[ $c['dien_giai'] ] ?? '' );
+			if ( isset( $c['them'] ) ) {
+				$them = trim( (string) ( $o[ $c['them'] ] ?? '' ) );
+				// Không kèm khi nó chỉ lặp lại mã giao dịch (MoMo ghi mã đơn vào "Mô tả").
+				if ( '' !== $them && $them !== $dien_giai && $them !== trim( (string) ( $o[ $c['ma_gd'] ] ?? '' ) ) ) { $dien_giai = trim( $dien_giai . ' — ' . $them, ' —' ); }
+			}
 			$hang = array(
 				'ngay'        => mysql2date( 'd/m/Y', $ngay ),
-				'dien_giai'   => (string) ( $o[ $c['dien_giai'] ] ?? '' ),
+				'dien_giai'   => $dien_giai,
 				'so_tien'     => $thu ? $thu : $chi,
 				'loai'        => $thu ? 'thu' : 'chi',
 				'ma_gd'       => (string) ( $o[ $c['ma_gd'] ] ?? '' ),
@@ -247,6 +276,55 @@ class KHTC_DanTho {
 			'tong'      => $tong,
 			'tong_phi'  => $tong_phi,
 			'theo_ten'  => $tc['theo_ten'],   // trường → tên cột đã lấy, để màn hình cho người soát
+		);
+	}
+
+	/**
+	 * Bảng đơn mini app: mỗi dòng file là một SẢN PHẨM, nhiều dòng một đơn.
+	 * Gom về một dòng mỗi đơn; đơn có sản phẩm ở hai cơ sở khác nhau thì ghi
+	 * cả hai nối bằng " + " — tên đó sẽ không có trong danh mục và hiện ra
+	 * cho người quyết, không tự chọn một cái.
+	 */
+	private static function doc_don_app( $khoa, $dd, $dong, $i_tieu_de, $tc ) {
+		$c    = $tc['cot'];
+		$don  = array();
+		$thieu = 0;
+		foreach ( array_slice( $dong, $i_tieu_de + 1 ) as $d ) {
+			if ( '' === trim( $d ) ) { continue; }
+			$o = array_map( 'trim', self::o( $d ) );
+			if ( count( $o ) <= max( $c['ma_don'], $c['co_so'], $c['tien'] ) ) { $thieu++; continue; }
+			$ma = ltrim( (string) $o[ $c['ma_don'] ], "# \t" );
+			if ( '' === $ma ) { $thieu++; continue; }
+			$ngay_tho = (string) ( $o[ $c['ngay'] ] ?? '' );
+			// .xls không gắn định dạng ngày thì ô ngày ra số Excel
+			if ( is_numeric( $ngay_tho ) && (float) $ngay_tho > 20000 ) { $ngay_tho = KHTC_Tep::ngay_excel( (float) $ngay_tho ); }
+			$ngay  = KHTC_GiaoDich::doc_ngay( $ngay_tho );
+			$co_so = (string) ( $o[ $c['co_so'] ] ?? '' );
+			if ( ! isset( $don[ $ma ] ) ) {
+				$don[ $ma ] = array(
+					'ma_don' => $ma,
+					'ngay'   => $ngay ? mysql2date( 'd/m/Y', $ngay ) : '',
+					'co_so'  => $co_so,
+					'tien'   => KHTC_GiaoDich::doc_so( $o[ $c['tien'] ] ?? 0 ),
+					'tt_don' => (string) ( $o[ $c['tt_don'] ] ?? '' ),
+					'tt_tt'  => (string) ( $o[ $c['tt_tt'] ] ?? '' ),
+				);
+			} elseif ( '' !== $co_so && false === mb_strpos( $don[ $ma ]['co_so'], $co_so ) ) {
+				$don[ $ma ]['co_so'] .= ' + ' . $co_so;
+			}
+		}
+		$tong = 0;
+		foreach ( $don as $r ) { $tong += (int) $r['tien']; }
+		return array(
+			'dinh_dang' => $khoa,
+			'ten'       => $dd['ten'],
+			'dich'      => 'don_app',
+			'rows'      => array_values( $don ),
+			'bo_loc'    => 0,
+			'thieu_cot' => $thieu,
+			'tong'      => $tong,
+			'tong_phi'  => 0,
+			'theo_ten'  => $tc['theo_ten'],
 		);
 	}
 

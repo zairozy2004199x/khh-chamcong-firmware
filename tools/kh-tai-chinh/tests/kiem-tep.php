@@ -158,6 +158,100 @@ kiem( 'ngày dòng đầu (dán thô cắt phần giờ)', $kq['rows'][0]['ngay'
 kiem( 'mã cửa hàng đúng cột', $kq['rows'][0]['ma_cua_hang'], 'W7DNR0ARCX' );
 kiem( 'doc_ngay ra ISO', KHTC_GiaoDich::doc_ngay( $kq['rows'][0]['ngay'] ), '2026-08-02' );
 
+// ---------------------------------------------------------------- 4b. .xls đời cũ (BIFF8) — tự dựng tệp nhị phân
+/**
+ * Dựng .xls tối giản đúng chuẩn: Compound File (1 FAT sector, 1 thư mục) chứa
+ * luồng Workbook BIFF8 với SST, XF ngày, NUMBER, RK, LABELSST.
+ * $rows: ô là chuỗi, int/float, ['ngay'=>serial], ['rk'=>int].
+ */
+function dung_xls( $duong, $ten_sheet, $rows, $bof_ver = 0x0600 ) {
+	$rec = function ( $id, $d ) { return pack( 'vv', $id, strlen( $d ) ) . $d; };
+	// Độ dài BIFF8 đếm theo ĐƠN VỊ UTF-16 (emoji = 2), không phải số ký tự.
+	$ustr = function ( $s ) { $u = mb_convert_encoding( $s, 'UTF-16LE', 'UTF-8' ); return pack( 'v', strlen( $u ) / 2 ) . "\x01" . $u; };
+	// SST
+	$sst = array(); $idx = array();
+	foreach ( $rows as $r ) { foreach ( $r as $o ) { if ( is_string( $o ) && ! isset( $idx[ $o ] ) ) { $idx[ $o ] = count( $sst ); $sst[] = $o; } } }
+	$sst_d = pack( 'VV', count( $sst ), count( $sst ) );
+	foreach ( $sst as $x ) { $sst_d .= $ustr( $x ); }
+	$xf = function ( $fmt ) { return pack( 'vvvvvvvvvv', 0, $fmt, 0x0001, 0x0020, 0, 0, 0, 0, 0, 0 ); };
+	$globals = $rec( 0x0809, pack( 'vvvvVV', $bof_ver, 0x0005, 0x0DBB, 0x07CC, 0, 0 ) )
+		. $rec( 0x0042, pack( 'v', 1200 ) )
+		. $rec( 0x0022, pack( 'v', 0 ) )
+		. $rec( 0x041E, pack( 'v', 164 ) . $ustr( 'dd/mm/yyyy' ) )
+		. $rec( 0x00E0, $xf( 0 ) )      // XF 0: General
+		. $rec( 0x00E0, $xf( 164 ) )    // XF 1: ngày
+		. $rec( 0x00FC, $sst_d );
+	$ten16  = mb_convert_encoding( $ten_sheet, 'UTF-16LE', 'UTF-8' );
+	$bs_len = 12 + strlen( $ten16 );   // BOUNDSHEET: header4 + off4 vis1 type1 len1 flag1 + name UTF-16
+	$sheet_off = strlen( $globals ) + $bs_len + 4;      // + EOF
+	$globals .= $rec( 0x0085, pack( 'V', $sheet_off ) . "\x00\x00" . chr( strlen( $ten16 ) / 2 ) . "\x01" . $ten16 );
+	$globals .= $rec( 0x000A, '' );
+	$sheet = $rec( 0x0809, pack( 'vvvvVV', $bof_ver, 0x0010, 0x0DBB, 0x07CC, 0, 0 ) );
+	foreach ( $rows as $ri => $r ) {
+		foreach ( $r as $ci => $o ) {
+			if ( null === $o ) { continue; }
+			if ( is_string( $o ) ) { $sheet .= $rec( 0x00FD, pack( 'vvvV', $ri, $ci, 0, $idx[ $o ] ) ); }
+			elseif ( is_array( $o ) && isset( $o['ngay'] ) ) { $sheet .= $rec( 0x0203, pack( 'vvv', $ri, $ci, 1 ) . pack( 'e', (float) $o['ngay'] ) ); }
+			elseif ( is_array( $o ) && isset( $o['rk'] ) ) { $sheet .= $rec( 0x027E, pack( 'vvvV', $ri, $ci, 0, ( (int) $o['rk'] << 2 ) | 2 ) ); }
+			else { $sheet .= $rec( 0x0203, pack( 'vvv', $ri, $ci, 0 ) . pack( 'e', (float) $o ) ); }
+		}
+	}
+	$sheet .= $rec( 0x000A, '' );
+	$wb = $globals . $sheet;
+	// ---- OLE2: sector 0 FAT, sector 1 thư mục, sector 2.. workbook
+	$sec = 512;
+	$n_wb = (int) ceil( strlen( $wb ) / $sec );
+	$fat = array( 0xFFFFFFFD, 0xFFFFFFFE );
+	for ( $i = 0; $i < $n_wb; $i++ ) { $fat[] = ( $i === $n_wb - 1 ) ? 0xFFFFFFFE : 2 + $i + 1; }
+	while ( count( $fat ) < 128 ) { $fat[] = 0xFFFFFFFF; }
+	$fat_d = ''; foreach ( $fat as $v ) { $fat_d .= pack( 'V', $v ); }
+	$dir_entry = function ( $ten, $loai, $child, $st, $len ) {
+		$u = mb_convert_encoding( $ten, 'UTF-16LE', 'UTF-8' ) . "\x00\x00";
+		return str_pad( $u, 64, "\x00" ) . pack( 'v', strlen( $u ) ) . chr( $loai ) . "\x01" . pack( 'VVV', 0xFFFFFFFF, 0xFFFFFFFF, $child ) . str_repeat( "\x00", 16 ) . pack( 'V', 0 ) . str_repeat( "\x00", 16 ) . pack( 'VV', $st, $len ) . pack( 'V', 0 );
+	};
+	$dir = $dir_entry( 'Root Entry', 5, 1, 0xFFFFFFFE, 0 ) . $dir_entry( 'Workbook', 2, 0xFFFFFFFF, 2, strlen( $wb ) ) . str_repeat( "\x00", 256 );
+	$hdr = "\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1" . str_repeat( "\x00", 16 ) . pack( 'vv', 0x003E, 0x0003 ) . "\xFE\xFF" . pack( 'vv', 9, 6 ) . str_repeat( "\x00", 6 )
+		. pack( 'VVVVVVVVV', 0, 1, 1, 0, 0, 0xFFFFFFFE, 0, 0xFFFFFFFE, 0 );   // dir_n, so_fat=1, dir_start=1, trans, mini_cut=0, minifat_st, minifat_n, difat_st, difat_n
+	$difat = pack( 'V', 0 ); for ( $i = 1; $i < 109; $i++ ) { $difat .= pack( 'V', 0xFFFFFFFF ); }
+	$hdr .= $difat;
+	if ( 512 !== strlen( $hdr ) ) { throw new Exception( 'header ' . strlen( $hdr ) ); }
+	file_put_contents( $duong, $hdr . $fat_d . str_pad( $dir, 512, "\x00" ) . str_pad( $wb, $n_wb * $sec, "\x00" ) );
+}
+$xls = $tam . '/don.xls';
+dung_xls( $xls, 'Sheet1', array(
+	array( 'Mã đơn hàng', 'Ngày đặt hàng', 'Trạng thái đơn hàng', 'Trạng thái thanh toán', 'Tổng tiền phải trả', 'Tên sản phẩm' ),
+	array( '#141819', array( 'ngay' => 46288.5 ), 'Đã giao', 'Đã thanh toán', array( 'rk' => 200000 ), 'VINCOM PHAN VĂN TRỊ - SALE 50% VÉ NHÀ MA ÂM PHỦ' ),
+	array( '#141815', array( 'ngay' => 46288.25 ), 'Chờ xác nhận', 'Đã thanh toán', 150000, 'AEON MALL TÂN PHÚ - SALE 50% VÉ NHÀ MA ÂM PHỦ' ),
+	array( '#141815', array( 'ngay' => 46288.25 ), 'Chờ xác nhận', 'Đã thanh toán', 150000, 'AEON MALL TÂN PHÚ - SALE 50% VÉ NHÀ MA ÂM PHỦ' ),   // dòng sản phẩm thứ hai cùng đơn
+	array( '#141800', array( 'ngay' => 46288.1 ), 'Đã hủy', 'Chờ xử lý', 50000, '🌸 HẢI PHÒNG - FUNZONE - COMBO 10 VÉ 🌸' ),
+) );
+$ds = KHTC_Xls::doc( $xls );
+kiem( 'đọc được .xls tự dựng', is_wp_error( $ds ) ? $ds->get_error_message() : count( $ds ), 1 );
+kiem( '.xls: tên sheet', $ds[0]['ten'], 'Sheet1' );
+kiem( '.xls: đủ dòng', count( $ds[0]['dong'] ), 5 );
+kiem( '.xls: chuỗi tiếng Việt (SST)', $ds[0]['dong'][1][5], 'VINCOM PHAN VĂN TRỊ - SALE 50% VÉ NHÀ MA ÂM PHỦ' );
+kiem( '.xls: emoji giữ nguyên', $ds[0]['dong'][4][5], '🌸 HẢI PHÒNG - FUNZONE - COMBO 10 VÉ 🌸' );
+kiem( '.xls: ngày theo XF', $ds[0]['dong'][1][1], '23/09/2026 12:00:00' );
+kiem( '.xls: số RK', $ds[0]['dong'][1][4], '200000' );
+kiem( '.xls: số NUMBER', $ds[0]['dong'][2][4], '150000' );
+$b = KHTC_Tep::doc_bang( $xls, 'don.xls' );
+kiem( 'doc_bang nhận .xls', is_wp_error( $b ), false );
+$kq_don = KHTC_DanTho::doc( $b['van_ban'] );
+kiem( 'dán thô nhận ra đơn mini app', $kq_don['dinh_dang'], 'zalo_app' );
+kiem( 'đích là bảng tra đơn', $kq_don['dich'], 'don_app' );
+kiem( 'gom về một dòng mỗi đơn (3 đơn từ 4 dòng)', count( $kq_don['rows'] ), 3 );
+kiem( 'mã đơn bỏ dấu #', $kq_don['rows'][0]['ma_don'], '141819' );
+kiem( 'cơ sở là tên sản phẩm', $kq_don['rows'][0]['co_so'], 'VINCOM PHAN VĂN TRỊ - SALE 50% VÉ NHÀ MA ÂM PHỦ' );
+kiem( 'ngày đơn', $kq_don['rows'][0]['ngay'], '23/09/2026' );
+kiem( 'tiền đơn', $kq_don['rows'][0]['tien'], 200000 );
+// .xls giả (HTML đổi đuôi) và BIFF5 → báo rõ, không nổ
+file_put_contents( $tam . '/gia.xls', '<html><table><tr><td>a</td></tr></table></html>' );
+$g5 = KHTC_Xls::doc( $tam . '/gia.xls' );
+co( 'xls giả → báo HTML/CSV đổi đuôi', is_wp_error( $g5 ) ? $g5->get_error_message() : 'KHÔNG LỖI', 'đổi đuôi' );
+dung_xls( $tam . '/cu.xls', 'S', array( array( 'a' ) ), 0x0500 );
+$g6 = KHTC_Xls::doc( $tam . '/cu.xls' );
+co( 'BIFF5 → bảo lưu thành .xlsx', is_wp_error( $g6 ) ? $g6->get_error_message() : 'KHÔNG LỖI', 'Lưu thành .xlsx' );
+
 // ---------------------------------------------------------------- 5. xlsx nhiều sheet — chọn sheet
 $nhieu = $tam . '/nhieu.xlsx';
 dung_xlsx( $nhieu, array(
@@ -194,9 +288,9 @@ kiem( 'dán thô soi từng sheet: 2 sheet là bảng cổng, bỏ sheet hoá đ
 // ---------------------------------------------------------------- 6. lỗi tệp
 $b = KHTC_Tep::doc_bang( $tam . '/khong-co.xlsx', 'x.xlsx' );
 kiem( 'tệp không có → lỗi', is_wp_error( $b ), true );
-file_put_contents( $tam . '/a.xls', 'abc' );
+file_put_contents( $tam . '/a.xls', '<html><body>khong phai excel</body></html>' );
 $b = KHTC_Tep::doc_bang( $tam . '/a.xls', 'a.xls' );
-co( '.xls đời cũ → bảo lưu thành .xlsx', $b->get_error_message(), 'Lưu thành .xlsx' );
+co( '.xls giả (HTML đổi đuôi) → báo rõ', $b->get_error_message(), 'đổi đuôi' );
 file_put_contents( $tam . '/hong.xlsx', 'không phải zip' );
 $b = KHTC_Tep::doc_bang( $tam . '/hong.xlsx', 'hong.xlsx' );
 kiem( 'xlsx hỏng → lỗi, không nổ', is_wp_error( $b ), true );
