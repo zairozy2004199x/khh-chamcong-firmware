@@ -793,7 +793,7 @@ $chen( 'Thạch trái cây', 506, null, null );
 $b = khh_dt_kho_bang_ngay( '2026-09-24', $CS0 );
 phep( '🔴 tái hiện lỗi: dem = 0 dính từ bản cũ -> 24/09 tồn đầu 0 dù 23/09 đặt 148', null !== dong_cua( $b, 'Bim bim nhỏ' ) && 0.0 === (float) dong_cua( $b, 'Bim bim nhỏ' )['ton_dau'] && null !== dong_cua( $b, 'Bim bim nhỏ' )['ton_dau'] );
 phep( 'món thêm sau khi sửa (dem NULL) thì kéo đúng 506', 506.0 === (float) dong_cua( $b, 'Thạch trái cây' )['ton_dau'] );
-delete_option( 'khh_dt_kho_sua_0' );
+delete_option( 'khh_dt_kho_sua_0b' );
 $n = khh_dt_kho_sua_so_0();
 phep( '🔴 sửa một lần: gỡ đúng 2 dòng có CẢ HAI ô 0', 2 === $n );
 $b = khh_dt_kho_bang_ngay( '2026-09-24', $CS0 );
@@ -804,6 +804,52 @@ phep( 'màn 23/09: ô Hàng tồn còn và SL bán về trống, tồn đầu đ
 $chen( 'Pororo', 19, 0, 0 );            // sau khi đã sửa, ai cố ý gõ 0/0 thì đứng yên
 phep( '🔴 chỉ chạy MỘT LẦN: gọi lại không đụng dòng mới', 0 === khh_dt_kho_sua_so_0() && null !== dong_cua( khh_dt_kho_bang_ngay( '2026-09-24', $CS0 ), 'Pororo' )['ton_dau'] && 0.0 === (float) dong_cua( khh_dt_kho_bang_ngay( '2026-09-24', $CS0 ), 'Pororo' )['ton_dau'] );
 phep( 'khh-doanh-thu.php gọi bước sửa lúc nâng cấp', false !== strpos( preg_replace( '~/\*.*?\*/~s', '', file_get_contents( $goc . '/khh-doanh-thu.php' ) ), 'khh_dt_kho_sua_so_0();' ) );
+
+/* ── B. Vết B: SL bán đã về NULL (màn mới không gửi cột ấy), chỉ còn dem = 0 — chính sáu dòng Gò Vấp "đã sửa 5 lần"
+      sau khi cài 1.63.1 vẫn 0 (ảnh anh Thắng 24/09/2026). Phải tra sổ nhật ký. ── */
+$ksu  = khh_dt_bang_kho_su();
+$CSB  = 'Kho thử vết B';
+$w->query( "DELETE FROM $kb WHERE co_so = '" . $CS0 . "'" );   // dọn dòng Pororo 0/0 của kịch bản A để đếm riêng lượt B
+khh_dt_kho_mh_dat( $CSB, array( 'Bim bim nhỏ', 'Kẹo dẻo', 'Nước suối', 'Pororo' ) );
+$chenB = function ( $mh, $dem, $khai ) use ( $w, $kb, $CSB ) {
+	$w->query( "INSERT INTO $kb (ngay,co_so,mat_hang,nhap,ban_khai,combo_tay,dem,dat_dau,huy,ghi_chu,nguoi,luc) VALUES ('2026-09-23','" . $CSB . "','" . $mh . "',0," . ( null === $khai ? 'NULL' : $khai ) . ",0," . ( null === $dem ? 'NULL' : $dem ) . ",148,0,'','nv',1)" );
+};
+$suB = function ( $mh, $dem, $khai ) use ( $w, $ksu, $CSB ) {
+	$w->query( "INSERT INTO $ksu (ngay,co_so,mat_hang,nhap,ban_khai,combo_tay,dem,dat_dau,huy,ghi_chu,nguoi,luc) VALUES ('2026-09-23','" . $CSB . "','" . $mh . "',0," . ( null === $khai ? 'NULL' : $khai ) . ",0," . ( null === $dem ? 'NULL' : $dem ) . ",148,0,'','nv','2026-09-23 20:00:00')" );
+};
+/* Bim bim: lượt 1 bản cũ 0/0, rồi 4 lượt Lưu lại bản mới (dem 0, SL bán NULL) -> tổng dem 0, ban_khai NULL. */
+$suB( 'Bim bim nhỏ', 0, 0 ); $suB( 'Bim bim nhỏ', 0, null ); $suB( 'Bim bim nhỏ', 0, null ); $suB( 'Bim bim nhỏ', 0, null ); $suB( 'Bim bim nhỏ', 0, null );
+$chenB( 'Bim bim nhỏ', 0, null );
+/* Kẹo dẻo: bản cũ 0/0, sau đó có lượt ĐẾM THẬT 3, rồi đếm lại 0 -> 0 thật, giữ. */
+$suB( 'Kẹo dẻo', 0, 0 ); $suB( 'Kẹo dẻo', 3, null ); $suB( 'Kẹo dẻo', 0, null );
+$chenB( 'Kẹo dẻo', 0, null );
+/* Nước suối: toàn lượt bản mới, gõ 0 ngay từ đầu (không có vết 0/0) -> 0 thật, giữ. */
+$suB( 'Nước suối', 0, null );
+$chenB( 'Nước suối', 0, null );
+/* Pororo: dem NULL sẵn -> không đụng. */
+$suB( 'Pororo', null, null );
+$chenB( 'Pororo', null, null );
+$b = khh_dt_kho_bang_ngay( '2026-09-24', $CSB );
+phep( '🔴 tái hiện vết B: 24/09 tồn đầu Bim bim = 0 dù 23/09 đặt 148', 0.0 === (float) dong_cua( $b, 'Bim bim nhỏ' )['ton_dau'] && null !== dong_cua( $b, 'Bim bim nhỏ' )['ton_dau'] );
+delete_option( 'khh_dt_kho_sua_0b' );
+$n = khh_dt_kho_sua_so_0();
+phep( '🔴 vết B: gỡ đúng 1 dòng (Bim bim) — 0 sinh từ 0/0 và chưa bao giờ đếm ra số khác 0', 1 === $n );
+$b = khh_dt_kho_bang_ngay( '2026-09-24', $CSB );
+phep( '🔴 sau sửa, Bim bim 24/09 tồn đầu = 148', 148.0 === (float) dong_cua( $b, 'Bim bim nhỏ' )['ton_dau'] );
+phep( '🔴 Kẹo dẻo từng đếm 3 rồi đếm 0 -> 0 THẬT, giữ: tồn đầu 24/09 vẫn 0', null !== dong_cua( $b, 'Kẹo dẻo' )['ton_dau'] && 0.0 === (float) dong_cua( $b, 'Kẹo dẻo' )['ton_dau'] );
+phep( '🔴 Nước suối gõ 0 bằng bản mới (không vết 0/0) -> giữ', null !== dong_cua( $b, 'Nước suối' )['ton_dau'] && 0.0 === (float) dong_cua( $b, 'Nước suối' )['ton_dau'] );
+phep( 'Pororo dem NULL kéo 148 như thường', 148.0 === (float) dong_cua( $b, 'Pororo' )['ton_dau'] );
+phep( 'sổ nhật ký giữ nguyên 10 lượt — không sửa lịch sử', 10 === (int) $w->get_var( "SELECT COUNT(*) FROM $ksu WHERE co_so = '" . $CSB . "'" ) );
+phep( 'chạy xong ghi khoá mới khh_dt_kho_sua_0b và xoá khoá cũ', false !== get_option( 'khh_dt_kho_sua_0b', false ) && false === get_option( 'khh_dt_kho_sua_0', false ) );
+/* Đã cài 1.63.1 trước (khoá cũ đã ghi) thì bản này VẪN phải chạy lượt B — khoá cũ không chặn. */
+delete_option( 'khh_dt_kho_sua_0b' );
+update_option( 'khh_dt_kho_sua_0', '2026-09-24 03:00:00' );
+$w->query( "UPDATE $kb SET dem = 0 WHERE co_so = '" . $CSB . "' AND mat_hang = 'Bim bim nhỏ'" );
+phep( '🔴 khoá cũ của 1.63.1 không chặn lượt sửa mới', 1 === khh_dt_kho_sua_so_0() );
+/* Màn: cảnh báo dòng dem = 0 mà tồn tính > 0, chỉ cách xoá trống. */
+$js = preg_replace( '~/\*.*?\*/~s', '', file_get_contents( $goc . '/assets/doanh-thu.js' ) );
+phep( 'màn kho cảnh báo dòng Hàng tồn còn = 0 khi tồn tính > 0 và chỉ cách xoá trống rồi Lưu', false !== strpos( $js, "id=\"khoDemKhong\"" ) && false !== strpos( $js, 'Number(d.dem) === 0' ) && false !== strpos( $js, 'Number(d.ton_tinh) > 0' ) && false !== strpos( $js, 'xoá trống ô Hàng tồn còn' ) );
+delete_option( 'khh_dt_kho_sua_0b' );
 delete_option( 'khh_dt_kho_sua_0' );
 delete_option( 'khh_dt_kho_mat_hang' );
 

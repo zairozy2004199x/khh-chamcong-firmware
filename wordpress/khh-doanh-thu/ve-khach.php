@@ -69,12 +69,40 @@ function khh_dt_ve_so_cua( $khoa ) {
 	return $ra;
 }
 
+/**
+ * Khoá đang có của một quán trong bảng theo cửa hàng — tra LỎNG: khác dấu cách / hoa thường vẫn là một quán.
+ * 🔴 Trước 1.64.3 đường ghi đi qua `sanitize_text_field` (gộp hai dấu cách thành một) còn đường đọc lấy tên
+ *    nguyên văn: quán tên có hai dấu cách như Estella lưu xong đọc lại không thấy — anh Thắng 24/09/2026:
+ *    *"lúc thì tự lưu, lúc thì không lưu"*. Quán tên không có dấu cách đôi thì… lưu được. Hai đường nay cùng
+ *    tra về tên nguyên văn (`khh_dt_bc_ten_cua`), và bảng cũ lưu dưới khoá lệch vẫn đọc được nhờ hàm này.
+ */
+function khh_dt_ve_khoa_cua( $so, $cua_hang ) {
+	$cs = trim( (string) $cua_hang );
+	if ( '' === $cs || '*' === $cs || ! is_array( $so ) ) {
+		return '';
+	}
+	if ( isset( $so[ $cs ] ) ) {
+		return $cs;
+	}
+	$long = function ( $t ) {
+		$t = preg_replace( '/[\s\x{00A0}]+/u', ' ', (string) $t );
+		return function_exists( 'mb_strtolower' ) ? mb_strtolower( trim( $t ), 'UTF-8' ) : strtolower( trim( $t ) );
+	};
+	$k = $long( $cs );
+	foreach ( array_keys( $so ) as $khoa ) {
+		if ( '*' !== $khoa && $long( $khoa ) === $k ) {
+			return (string) $khoa;
+		}
+	}
+	return '';
+}
+
 function khh_dt_ve_bang_cua( $khoa, $cua_hang = '' ) {
 	$so = khh_dt_ve_so_cua( $khoa );
 	$ra = isset( $so['*'] ) ? $so['*'] : array();
-	$cs = trim( (string) $cua_hang );
-	if ( '' !== $cs && '*' !== $cs && isset( $so[ $cs ] ) ) {
-		foreach ( $so[ $cs ] as $ten => $n ) {
+	$kh = khh_dt_ve_khoa_cua( $so, $cua_hang );
+	if ( '' !== $kh ) {
+		foreach ( $so[ $kh ] as $ten => $n ) {
 			$ra[ $ten ] = $n;
 		}
 	}
@@ -83,15 +111,20 @@ function khh_dt_ve_bang_cua( $khoa, $cua_hang = '' ) {
 
 function khh_dt_ve_rieng_cua( $khoa, $cua_hang ) {
 	$so = khh_dt_ve_so_cua( $khoa );
-	$cs = trim( (string) $cua_hang );
-	return '' !== $cs && isset( $so[ $cs ] ) ? $so[ $cs ] : array();
+	$kh = khh_dt_ve_khoa_cua( $so, $cua_hang );
+	return '' !== $kh ? $so[ $kh ] : array();
 }
 
 function khh_dt_ve_dat_cua( $khoa, $bang, $cua_hang = '' ) {
 	$cs = trim( (string) $cua_hang );
 	$cs = '' === $cs ? '*' : $cs;
 	$so = khh_dt_ve_so_cua( $khoa );
-	$cu = isset( $so[ $cs ] ) ? $so[ $cs ] : array();
+	/* Khoá cũ khác dấu cách của cùng quán -> dồn về khoá nguyên văn, khỏi hai bản song song. */
+	$kh = khh_dt_ve_khoa_cua( $so, $cs );
+	$cu = '' !== $kh ? $so[ $kh ] : ( isset( $so[ $cs ] ) ? $so[ $cs ] : array() );
+	if ( '' !== $kh && $kh !== $cs ) {
+		unset( $so[ $kh ] );
+	}
 	foreach ( (array) $bang as $ten => $gia ) {
 		$ten = trim( (string) $ten );
 		if ( '' === $ten ) {
@@ -375,7 +408,7 @@ function khh_dt_ve_khach_route() {
 }
 
 function khh_dt_rest_ve_khach_xem( $req ) {
-	$ch = (string) $req->get_param( 'cua_hang' );
+	$ch = function_exists( 'khh_dt_bc_ten_cua' ) ? khh_dt_bc_ten_cua( $req->get_param( 'cua_hang' ) ) : (string) $req->get_param( 'cua_hang' );
 	return array(
 		'bang'      => khh_dt_ve_khach_bang( $ch ),
 		'bang_rieng' => khh_dt_ve_khach_bang_rieng( $ch ),
@@ -394,7 +427,7 @@ function khh_dt_rest_ve_khach_dat( $req ) {
 	if ( ! is_array( $bang ) ) {
 		return new WP_Error( 'khh_dt_ve_khach', 'Không đọc được bảng khai gửi lên.', array( 'status' => 400 ) );
 	}
-	$ch = sanitize_text_field( (string) $req->get_param( 'cua_hang' ) );
+	$ch = function_exists( 'khh_dt_bc_ten_cua' ) ? khh_dt_bc_ten_cua( $req->get_param( 'cua_hang' ) ) : sanitize_text_field( (string) $req->get_param( 'cua_hang' ) );
 	if ( '' === $ch ) {
 		return new WP_Error( 'khh_dt_ve_khach', 'Chưa chọn cửa hàng — bảng bóc tách khai riêng từng cửa hàng.', array( 'status' => 400 ) );
 	}

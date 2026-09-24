@@ -138,8 +138,12 @@ t('ô không có thì im lặng bỏ qua, không nổ', !no);
 const boCC = src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^\s*\/\/.*$/gm, ' ');
 t('🔴 khong con o ngay nao noi thang vao change',
   !/#(dtTu|dtDen|dsTu|dsDen)'\)\.addEventListener\('change'/.test(boCC));
-t('tab Doanh thu dung noiONgay', /noiONgay\(q\('#dtTu'\)/.test(boCC));
-t('tab Doi soat dung noiONgay', /noiONgay\(t,/.test(boCC) && /noiONgay\(d,/.test(boCC));
+/* 24/09/2026 anh Thắng: "cứ bấm nào nó lại mất bảng" — tab có nút Lọc thì hai ô ngày KHÔNG tự chạy nữa
+   (tự chạy = vẽ lại cả thanh lọc = bảng lịch đang mở biến mất). Chỉ Lọc / Enter mới chạy. */
+t('🔴 tab Doanh thu KHÔNG nối noiONgay vào #dtTu/#dtDen (chỉ chạy khi Lọc)', !/noiONgay\(q\('#dtTu'\)/.test(boCC) && !/noiONgay\(q\('#dtDen'\)/.test(boCC));
+t('🔴 tab Đối soát KHÔNG nối noiONgay vào hai ô ngày', !/noiONgay\(t,/.test(boCC) && !/noiONgay\(d,/.test(boCC));
+t('ô ngày lẻ (sổ kho, thẻ kho) vẫn dùng noiONgay', /noiONgay\(k\.querySelector\('#khoNgay'\)/.test(boCC) && /noiONgay\(noi\.querySelector\('#theTu'\)/.test(boCC));
+t('Đối soát: nút Lọc gọi locTay và Enter cũng chạy Lọc', /locTay\(t, d, function \(tu, den\)/.test(boCC) && /locKhiEnter\(t, nl\); locKhiEnter\(d, nl\);/.test(boCC));
 
 /* ── 10. taiDoiSoat: giữ số cũ trên màn, và bỏ lượt trả về trễ ────────────────────── */
 const td = boc('taiDoiSoat').replace(/\/\*[\s\S]*?\*\//g, ' ');

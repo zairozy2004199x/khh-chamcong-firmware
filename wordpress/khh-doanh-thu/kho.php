@@ -706,26 +706,68 @@ function khh_dt_kho_so( $x ) {
  * TRÁI CÂY thêm sau khi sửa lỗi (dem NULL) nên kéo đúng 506. Mở lại màn 23/09 thì ô hiện "0", bấm Lưu
  * lại 5 lần vẫn giữ 0 — người dùng không có cách nào tự thoát.
  *
- * Dấu vết của lỗi là dòng có CẢ HAI ô đều 0: bản cũ để trống hai ô là ra đúng cặp ấy, còn "bán 0 mà
- * còn 0" với hàng có tồn là điều không xảy ra ngoài đời. Chỉ chạy một lần (ghi option), để về sau ai
- * cố ý gõ 0 thì 0 ấy đứng yên. Sổ nhật ký `khh_dt_kho_su` giữ nguyên — nó là lịch sử.
+ * Hai dấu vết, xét theo thứ tự:
+ *   A. Dòng tổng có CẢ HAI ô đều 0 — bản cũ để trống hai ô là ra đúng cặp ấy.
+ *   B. 🔴 Dòng tổng chỉ còn `dem = 0` (SL bán đã về NULL vì màn mới không gửi cột ấy nữa, mà ô Hàng
+ *      tồn còn thì hiện sẵn "0" nên Lưu lại bao nhiêu lần vẫn là 0). Bản 1.63.1 chỉ xét A nên bỏ sót
+ *      đúng sáu dòng Gò Vấp "đã sửa 5 lần" — ảnh anh Thắng gửi sau khi cài. Ở đây tra SỔ NHẬT KÝ: số 0
+ *      ấy SINH RA từ một lượt ghi 0/0 (vết bản cũ) và từ đó tới nay CHƯA BAO GIỜ có lượt đếm ra số
+ *      khác 0 -> là 0 giả, gỡ về trống. Từng có lượt đếm 3 rồi sau đếm 0 -> 0 thật, giữ.
+ *
+ * Chỉ chạy một lần (ghi option `khh_dt_kho_sua_0b`), để về sau ai cố ý gõ 0 thì 0 ấy đứng yên. Sổ
+ * nhật ký giữ nguyên — nó là lịch sử.
  *
  * @return int Số dòng đã sửa (0 nếu đã chạy rồi hoặc chưa có bảng).
  */
 function khh_dt_kho_sua_so_0() {
 	global $wpdb;
-	if ( get_option( 'khh_dt_kho_sua_0', false ) ) {
+	if ( get_option( 'khh_dt_kho_sua_0b', false ) ) {
 		return 0;
 	}
 	$bang = khh_dt_bang_kho();
+	$su   = khh_dt_bang_kho_su();
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
 	if ( ! $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $bang ) ) ) {
 		return 0;
 	}
+	/* A. */
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
-	$n = $wpdb->query( "UPDATE $bang SET dem = NULL, ban_khai = NULL WHERE dem = 0 AND ban_khai = 0" );
-	update_option( 'khh_dt_kho_sua_0', gmdate( 'Y-m-d H:i:s' ), false );
-	return (int) $n;
+	$n = (int) $wpdb->query( "UPDATE $bang SET dem = NULL, ban_khai = NULL WHERE dem = 0 AND ban_khai = 0" );
+
+	/* B. */
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$co_su = (bool) $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $su ) );
+	if ( $co_su ) {
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+		$con = (array) $wpdb->get_results( "SELECT id, ngay, co_so, mat_hang FROM $bang WHERE dem = 0", ARRAY_A );
+		foreach ( $con as $r ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+			$luot = (array) $wpdb->get_results(
+				$wpdb->prepare( "SELECT dem, ban_khai FROM $su WHERE ngay = %s AND co_so = %s AND mat_hang = %s ORDER BY id ASC", $r['ngay'], $r['co_so'], $r['mat_hang'] ),
+				ARRAY_A
+			);
+			$vet_cu   = false;   // có lượt ghi 0/0 kiểu bản cũ
+			$dem_that = false;   // có lượt đếm ra số khác 0
+			foreach ( $luot as $l ) {
+				$d = ( null === $l['dem'] || '' === $l['dem'] ) ? null : (float) $l['dem'];
+				$k = ( null === $l['ban_khai'] || '' === $l['ban_khai'] ) ? null : (float) $l['ban_khai'];
+				if ( 0.0 === $d && 0.0 === $k ) {
+					$vet_cu = true;
+				}
+				if ( null !== $d && 0.0 !== $d ) {
+					$dem_that = true;
+				}
+			}
+			if ( $vet_cu && ! $dem_that ) {
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery
+				$wpdb->update( $bang, array( 'dem' => null ), array( 'id' => (int) $r['id'] ), array( '%s' ), array( '%d' ) );
+				$n++;
+			}
+		}
+	}
+	update_option( 'khh_dt_kho_sua_0b', gmdate( 'Y-m-d H:i:s' ), false );
+	delete_option( 'khh_dt_kho_sua_0' );
+	return $n;
 }
 
 /**

@@ -102,6 +102,70 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.64.3 =
+* **Tab "Cảnh báo" mới — việc còn treo chuyển sang đây.** Anh Thắng 24/09/2026: *"cho nó sang tab cảnh báo đi, đây
+  tab báo cáo mà"* — 91 thẻ ngày chưa chốt chèn đầu tab Nhập là quá ồn cho văn phòng. Tab Cảnh báo gom **theo cơ sở**:
+  mỗi quán một dòng (số ngày chưa chốt, số quá hạn, các thẻ ngày), quán quá hạn xếp trước; bấm thẻ ngày là sang tab
+  Nhập đúng ngày ấy. Nhãn tab mang số ngày chưa chốt (đỏ khi có quá hạn). Tab Nhập chỉ còn **một dòng** tóm tắt + nút
+  sang Cảnh báo, và thanh bốn bước của ngày đang mở.
+* **Sale vé / Sale phụ: lưu một lần cho mọi cửa hàng.** Anh Thắng: *"có là đều hết chứ"*. Thêm nút **Lưu cho tất cả
+  cửa hàng** (bảng chung, mọi quán chưa khai riêng đều theo), nút **Lưu riêng cho cửa hàng này** chỉ khi quán ấy khác,
+  và nút **Bỏ khai riêng, dùng bảng chung** cho quán đang khai riêng (Gò Vấp). Cổng `nhom-ve` nhận `cua_hang=*` và
+  `xoa_rieng`.
+* **Sửa: tiêu đề khối ghi Tân An mà ô chọn nhảy về Tân Phú, báo "chưa có nhóm món nào".** Tên máy POS có hai dấu cách,
+  máy chủ gộp thành một rồi tra không ra. Nay tra về tên **nguyên văn** trong kho POS (`khh_dt_bc_ten_cua`, dùng cho
+  cả khối bóc tách vé); ô chọn không còn rơi về quán đầu danh sách.
+* **Sửa "lúc thì tự lưu, lúc thì không lưu" ở khối Bóc tách vé** (Estella). Cùng gốc: đường ghi gộp dấu cách, đường
+  đọc lấy tên nguyên văn, nên quán tên có hai dấu cách lưu xong đọc lại không thấy. Nay hai đường cùng tra về tên
+  nguyên văn; bảng đã lưu dưới khoá lệch vẫn đọc được và được dồn về một khoá ở lượt lưu sau. Áp cho cả bảng nhóm
+  Sale vé / Sale phụ. `kiem-ve-khach.php` +4 phép.
+* **Sửa: Chrome tự điền chữ "admin" vào ô "Vé giấy đã soát".** Mọi ô nhập báo cáo / hàng bán / sổ kho tắt tự điền.
+* `kiem-hang-ban-chot.php` +7 phép, `kiem-hang-ban-chot-man.js` +5, `kiem-quy-trinh-man.js` 32 phép theo bố cục mới.
+
+= 1.64.2 =
+* **Sửa "cứ bấm nào nó lại mất bảng" ở ô ngày (Đối soát, Doanh thu).** Anh Thắng 24/09/2026. Chọn ngày Từ xong,
+  nửa giây sau tab tự tải lại và vẽ lại cả thanh lọc, nên bảng lịch đang mở của ô "đến" biến mất, chưa kịp chọn
+  ngày thứ hai. Từ khi có nút Lọc (1.58.x) thì tự chạy chỉ gây hại: nay hai ô ngày ở tab có nút Lọc **không tự
+  chạy** nữa — chọn đủ hai ngày rồi bấm **Lọc** hoặc Enter. Ô ngày lẻ ở sổ kho / thẻ kho vẫn tự chạy như cũ.
+  `kiem-o-ngay.js` đổi 2 phép, thêm 2.
+
+= 1.64.1 =
+* **Sửa nốt "qua ngày 24 tồn đầu không nhảy" — bước sửa 1.63.1 bỏ sót dòng đã Lưu lại bằng bản mới.** Ảnh anh
+  Thắng 24/09/2026 sau khi cài: sáu dòng Gò Vấp "đã sửa 5 lần" vẫn Hàng tồn còn = 0, lệch −148… Vì màn mới
+  không còn gửi cột "SL Hàng Bán", mỗi lần Lưu lại cột ấy về trống mà ô Hàng tồn còn hiện sẵn "0" nên 0 giữ
+  nguyên — điều kiện "cả hai ô đều 0" không còn khớp. Bản này tra **sổ nhật ký**: số 0 sinh ra từ một lượt
+  ghi 0/0 của bản cũ và từ đó chưa bao giờ có lượt đếm ra số khác 0 → là 0 giả, gỡ về trống; từng đếm 3 rồi
+  đếm 0 → 0 thật, giữ. Chạy một lần lúc nâng cấp (khoá mới, khoá của 1.63.1 không chặn). Sổ nhật ký giữ nguyên.
+* Màn Kho: dòng nào ghi **Hàng tồn còn = 0 trong khi tồn tính còn hàng** thì cảnh báo đỏ ngay dưới bảng, nêu
+  tên món và chỉ cách thoát: nếu chưa đếm, xoá trống ô rồi Lưu — ngày mai tồn đầu kéo đúng.
+* `kiem-kho.php` +11 phép (vết B gỡ đúng dòng, không gỡ 0 thật, không sửa lịch sử, khoá cũ không chặn).
+* **Sửa "Anh/chị không phụ trách cơ sở này" ở tab Kho, phải F5 mới hết** (chị Truyền 24/09/2026). Trang mở từ
+  trước khi văn phòng ghép cơ sở / cấp vai nên còn nhớ danh sách quán cũ và sổ kho gọi nhầm quán. Giờ tab Kho
+  lấy **quán mình phụ trách** làm mặc định, và gặp câu chối ấy thì tự hỏi lại cấu hình, đổi sang quán mình rồi
+  tải lại (một lần); không đổi được thì nói rõ cách tải lại trang. `kiem-kho-man.js` +4 phép.
+
+= 1.64.0 =
+* **Quy trình báo cáo cơ sở hằng ngày — tự động theo dõi, nhắc, tổng hợp.** Anh Thắng 24/09/2026: *"làm quy
+  trình báo cáo hằng ngày tự động"* — *"báo cáo cơ sở thôi"*. Mỗi ngày bán hàng đi qua bốn bước: **số máy
+  POS về** (hộp thư 08:02) → **cơ sở khai** (soát hàng bán, đếm két, khách vào) → **sổ kho** → **Lưu và
+  chốt**. Hạn chốt: giờ cấu hình (mặc định **10:00**) sáng hôm sau.
+  - Tab Nhập báo cáo: trên cùng là **việc còn treo** của đúng cơ sở mình (ngày chưa chốt trong 7 ngày,
+    ngày quá hạn đỏ) — bấm là mở ngày ấy; dưới ô chọn ngày là **thanh bốn bước** của ngày đang mở kèm hạn.
+  - Tab Quản trị: khối **Quy trình báo cáo cơ sở hằng ngày** — bật/tắt, giờ hạn, nhìn lùi, địa chỉ nhận
+    thư tổng hợp; bảng **hôm qua** từng cơ sở (trạng thái, két lệch, món lệch, quá hạn); nhật ký 30 lượt;
+    nút "Tổng hợp và gửi ngay".
+  - Lịch hằng ngày lúc giờ hạn (WP-Cron, cùng lưu ý phải bật Cron Jobs hosting như hộp thư): tổng hợp
+    mọi cơ sở, ghi nhật ký, gửi **một thư** cho văn phòng (nhiều địa chỉ cách nhau dấu phẩy; trống = chỉ
+    ghi nhật ký). Địa chỉ gõ sai báo lỗi, không lặng lẽ bỏ.
+  - 🔴 **Hệ không tự điền số thay cơ sở.** Két đếm, khách đếm là số người đếm — lên "nháp" bằng số máy
+    là Đối soát lệch 0 tăm tắp trong khi chẳng ai đếm. Tự động ở đây là theo dõi, nhắc, tổng hợp.
+  - Cổng REST `quy-trinh` (GET ai cũng gọi được nhưng chỉ nhận việc của cơ sở mình; POST và
+    `quy-trinh-chay` chỉ quản trị). `bao-cao-ngay` GET kèm `quy_trinh` (bốn bước + hạn).
+  - `kiem-quy-trinh.php` 46 phép chạy thật (bốn trạng thái, hạn theo múi giờ site kể cả ca UTC, danh
+    sách việc lọc theo cơ sở, thư đúng người đúng tiêu đề, không thêm dòng báo cáo nào);
+    `kiem-quy-trinh-man.js` 26 phép (màn nối đúng cổng, chạy thật veViec/veBuoc). `wp-stub` thêm
+    `wp_mail()` ghi lại thư.
+
 = 1.63.1 =
 * **Bảng kho tính lại ngay khi gõ.** Anh Thắng 24/09/2026: *"nhập tồn mà sao nó không tính realtime trước
   và sau của ngày đó"*. Gõ vào Tồn đầu, Nhập, Hàng huỷ hay Hàng tồn còn là **Tồn tính** và **Lệch kho**

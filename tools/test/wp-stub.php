@@ -976,6 +976,18 @@ if ( ! function_exists( 'wp_next_scheduled' ) ) {
 	}
 }
 
+/* ---- Gửi thư: chỉ GHI LẠI, không gửi. $GLOBALS['VHCP_MAIL'] = [ [to, subject, message], … ].
+   Bài quy trình chốt được "gửi đúng người, đúng tiêu đề" thay vì chỉ "không nổ". */
+if ( ! function_exists( 'wp_mail' ) ) {
+	function wp_mail( $to, $subject, $message, $headers = '', $attachments = array() ) {
+		if ( ! empty( $GLOBALS['VHCP_MAIL_HONG'] ) ) { return false; }
+		$GLOBALS['VHCP_MAIL'][] = array( 'to' => $to, 'subject' => $subject, 'message' => $message );
+		return true;
+	}
+}
+if ( ! function_exists( 'is_email' ) ) {
+	function is_email( $e ) { return filter_var( (string) $e, FILTER_VALIDATE_EMAIL ) ? (string) $e : false; }
+}
 if ( ! function_exists( 'site_url' ) ) {
 	function site_url( $duong = '', $scheme = null ) { return 'https://example.test/' . ltrim( (string) $duong, '/' ); }
 }
