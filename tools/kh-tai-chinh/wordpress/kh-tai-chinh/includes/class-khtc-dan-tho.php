@@ -26,8 +26,13 @@ class KHTC_DanTho {
 	 *
 	 *   dau_hieu : những chữ PHẢI có trong dòng tiêu đề, đủ cả mới tính là khớp
 	 *   dich     : 'sao_ke' (vào bảng giao dịch) | 'cong' (vào một đợt đối soát)
-	 *   cot      : chỉ số cột 0-based, lấy từ chính tệp thật của công ty
-	 *   loc      : [cột, giá trị] — chỉ nhận dòng có đúng giá trị đó
+	 *   ten_cot  : trường → các TÊN TIÊU ĐỀ có thể mang trường đó, ưu tiên theo
+	 *              thứ tự. Cột được tìm THEO TÊN, không theo vị trí: kế toán hay
+	 *              chèn thêm cột "Lọc ngày" vào file gốc, và file gốc tải thẳng từ
+	 *              cổng thì không có cột đó — cùng một cổng, hai file, cột lệch
+	 *              nhau một. Theo vị trí thì một trong hai đọc sai hết.
+	 *   cot      : chỉ số cột 0-based dự phòng, chỉ dùng khi không thấy tên
+	 *   loc      : [tên cột, giá trị] — chỉ nhận dòng có đúng giá trị đó
 	 */
 	public static function dinh_dang() {
 		return array(
@@ -35,56 +40,103 @@ class KHTC_DanTho {
 				'ten'      => 'Sao kê QR ngân hàng',
 				'dau_hieu' => array( 'mã tham chiếu', 'số tiền đến' ),
 				'dich'     => 'sao_ke',
-				'loc'      => array( 5, 'thành công' ),
-				'cot'      => array(
-					'ngay'        => 1,
-					'thu'         => 2,
-					'chi'         => 3,
-					'ma_gd'       => 6,
-					'ma_cua_hang' => 9,
-					'dien_giai'   => 12,
+				'loc'      => array( 'trạng thái', 'thành công' ),
+				'ten_cot'  => array(
+					'ngay'        => array( 'thời gian tt', 'thời gian thanh toán', 'thời gian tạo' ),
+					'thu'         => array( 'số tiền đến' ),
+					'chi'         => array( 'số tiền đi' ),
+					'ma_gd'       => array( 'mã tham chiếu' ),
+					'ma_cua_hang' => array( 'mã cửa hàng' ),
+					'dien_giai'   => array( 'nội dung tt', 'nội dung thanh toán', 'nội dung' ),
 				),
+				'cot'      => array( 'ngay' => 1, 'thu' => 2, 'chi' => 3, 'ma_gd' => 6, 'ma_cua_hang' => 9, 'dien_giai' => 12 ),
 			),
 			'payoo' => array(
 				'ten'      => 'Payoo',
 				'dau_hieu' => array( 'số tiền thanh toán', 'phí xử lý giao dịch' ),
 				'dich'     => 'cong',
-				'cot'      => array(
-					'ngay'        => 2,
-					'ma_gd'       => 13,
-					'thu'         => 21,
-					'phi'         => 22,
-					'ma_cua_hang' => 1,
-					'dien_giai'   => 1,
+				'ten_cot'  => array(
+					'ngay'        => array( 'ngày giao dịch' ),
+					'ma_gd'       => array( 'số hóa đơn', 'số hoá đơn' ),
+					'thu'         => array( 'số tiền thanh toán' ),
+					'phi'         => array( 'phí xử lý giao dịch' ),
+					'ma_cua_hang' => array( 'cửa hàng' ),
+					'dien_giai'   => array( 'cửa hàng' ),
 				),
+				'cot'      => array( 'ngay' => 2, 'ma_gd' => 13, 'thu' => 21, 'phi' => 22, 'ma_cua_hang' => 1, 'dien_giai' => 1 ),
 			),
 			'vnpay' => array(
 				'ten'      => 'VNPay',
 				'dau_hieu' => array( 'mã điểm thu', 'điểm thu' ),
 				'dich'     => 'cong',
-				'cot'      => array(
-					'ngay'        => 2,
-					'ma_gd'       => 3,
-					'thu'         => 22,
-					'phi'         => 23,
-					'ma_cua_hang' => 5,
-					'dien_giai'   => 6,
+				'loc'      => array( 'trạng thái', 'thành công' ),
+				'ten_cot'  => array(
+					'ngay'        => array( 'thời gian gd', 'thời gian giao dịch' ),
+					'ma_gd'       => array( 'mã giao dịch' ),
+					// Trước KM: cổng vẫn hạch toán trả đủ số này cho mình khi có khuyến mại
+					// (KM là tiền cổng bỏ ra) — soi trên file thật 23/09/2026.
+					'thu'         => array( 'số tiền trước km', 'số tiền hạch toán thu hộ', 'số tiền sau km' ),
+					'phi'         => array( 'số tiền phí thu hộ' ),
+					'ma_cua_hang' => array( 'mã điểm thu' ),
+					'dien_giai'   => array( 'điểm thu' ),
 				),
+				'cot'      => array( 'ngay' => 2, 'ma_gd' => 3, 'thu' => 22, 'phi' => 27, 'ma_cua_hang' => 5, 'dien_giai' => 6 ),
 			),
 			'momo' => array(
 				'ten'      => 'MoMo',
 				'dau_hieu' => array( 'ms.transid', 'ms.total amount' ),
 				'dich'     => 'cong',
-				'loc'      => array( 18, 'thành công' ),
-				'cot'      => array(
-					'ngay'        => 24,
-					'ma_gd'       => 25,
-					'thu'         => 5,
-					'ma_cua_hang' => 14,
-					'dien_giai'   => 14,
+				'loc'      => array( array( 'ms.trạng thái gd', 'trạng thái' ), 'thành công' ),
+				'ten_cot'  => array(
+					'ngay'        => array( 'thời gian', 'ms.ngày hoàn thành' ),
+					'ma_gd'       => array( 'mã đơn hàng', 'ms.transid' ),
+					'thu'         => array( 'ms.total amount', 'số tiền' ),
+					'ma_cua_hang' => array( 'ms.mã cửa hàng', 'mã cửa hàng' ),
+					'dien_giai'   => array( 'ms.mã cửa hàng', 'mã cửa hàng' ),
 				),
+				'cot'      => array( 'ngay' => 24, 'ma_gd' => 25, 'thu' => 5, 'ma_cua_hang' => 14, 'dien_giai' => 14 ),
 			),
 		);
+	}
+
+	/** Chuẩn tên tiêu đề để so: thường, bỏ đơn vị "(₫)" "(vnd)", gọn khoảng trắng. */
+	public static function chuan_ten( $s ) {
+		$s = mb_strtolower( trim( (string) $s ) );
+		$s = preg_replace( '/\((₫|vnd|đ)\)/u', '', $s );
+		return trim( preg_replace( '/\s+/u', ' ', $s ) );
+	}
+
+	/**
+	 * Từ dòng tiêu đề, tìm chỉ số cột cho từng trường theo tên. Không thấy tên
+	 * thì lùi về chỉ số dự phòng.
+	 *
+	 * @return array [ 'cot' => trường→chỉ số, 'theo_ten' => trường→tên đã khớp (để màn hình cho xem), 'loc' => [chỉ số, giá trị]|null ]
+	 */
+	public static function tim_cot( $dd, $tieu_de ) {
+		$ten = array_map( array( __CLASS__, 'chuan_ten' ), $tieu_de );
+		$tim = function ( $ung ) use ( $ten ) {
+			foreach ( (array) $ung as $u ) {
+				$i = array_search( self::chuan_ten( $u ), $ten, true );
+				if ( false !== $i ) { return $i; }
+			}
+			return null;
+		};
+		$cot = array(); $theo_ten = array();
+		foreach ( $dd['ten_cot'] ?? array() as $truong => $ung ) {
+			$i = $tim( $ung );
+			if ( null !== $i ) { $cot[ $truong ] = $i; $theo_ten[ $truong ] = $tieu_de[ $i ]; }
+		}
+		foreach ( $dd['cot'] as $truong => $i ) {
+			if ( ! isset( $cot[ $truong ] ) ) { $cot[ $truong ] = $i; }
+		}
+		$loc = null;
+		if ( isset( $dd['loc'] ) ) {
+			list( $ten_loc, $gia_tri ) = $dd['loc'];
+			$i = is_int( $ten_loc ) ? $ten_loc : $tim( $ten_loc );
+			// Không có cột trạng thái thì không lọc — thà nhận thừa dòng còn hơn lọc theo cột bừa.
+			if ( null !== $i ) { $loc = array( $i, $gia_tri ); }
+		}
+		return array( 'cot' => $cot, 'theo_ten' => $theo_ten, 'loc' => $loc );
 	}
 
 	/** Cắt dòng thành ô. Tab (copy từ Excel) hoặc dấu phẩy. */
@@ -129,7 +181,9 @@ class KHTC_DanTho {
 			);
 		}
 		list( $khoa, $dd, $i_tieu_de ) = $nd;
-		$c = $dd['cot'];
+		$dong  = preg_split( '/\r\n|\r|\n/', (string) $text );
+		$tc    = self::tim_cot( $dd, array_map( 'trim', self::o( $dong[ $i_tieu_de ] ) ) );
+		$c     = $tc['cot'];
 
 		$rows      = array();
 		$bo_loc    = 0;   // dòng bị loại vì trạng thái không phải "Thành công"
@@ -137,7 +191,6 @@ class KHTC_DanTho {
 		$tong      = 0;
 		$tong_phi  = 0;
 
-		$dong = preg_split( '/\r\n|\r|\n/', (string) $text );
 		foreach ( array_slice( $dong, $i_tieu_de + 1 ) as $d ) {
 			if ( '' === trim( $d ) ) { continue; }
 			$o = array_map( 'trim', self::o( $d ) );
@@ -145,9 +198,9 @@ class KHTC_DanTho {
 			$can = max( $c ) ;
 			if ( count( $o ) <= $can ) { $thieu_cot++; continue; }
 
-			if ( isset( $dd['loc'] ) ) {
-				list( $cot_loc, $gia_tri ) = $dd['loc'];
-				if ( mb_strtolower( (string) ( $o[ $cot_loc ] ?? '' ) ) !== $gia_tri ) { $bo_loc++; continue; }
+			if ( $tc['loc'] ) {
+				list( $cot_loc, $gia_tri ) = $tc['loc'];
+				if ( mb_strtolower( trim( (string) ( $o[ $cot_loc ] ?? '' ) ) ) !== $gia_tri ) { $bo_loc++; continue; }
 			}
 
 			$ngay = KHTC_GiaoDich::doc_ngay( $o[ $c['ngay'] ] );
@@ -180,6 +233,7 @@ class KHTC_DanTho {
 			'thieu_cot' => $thieu_cot,
 			'tong'      => $tong,
 			'tong_phi'  => $tong_phi,
+			'theo_ten'  => $tc['theo_ten'],   // trường → tên cột đã lấy, để màn hình cho người soát
 		);
 	}
 

@@ -1216,6 +1216,12 @@ class KHTC_Trang {
 		}
 
 		// ---- ghi vào sổ
+		// Không đọc được dòng nào thì không có gì để ghi — và không được tạo đợt
+		// rỗng (kỳ của đợt lấy từ ngày trong bảng, bảng rỗng là kỳ rỗng).
+		if ( $kq && empty( $kq['rows'] ) && ( isset( $_POST['khtc_nap_sao_ke'] ) || isset( $_POST['khtc_nap_cong'] ) ) ) {
+			$bao_loi = 'Không có dòng nào đọc được nên không nạp. Kiểm lại bảng xem trước.';
+			$kq      = null;
+		}
 		if ( $kq && isset( $_POST['khtc_nap_sao_ke'] ) ) {
 			$nh = (int) $_POST['nh'];
 			if ( ! $nh ) {
@@ -1315,6 +1321,14 @@ class KHTC_Trang {
 				'<div class="khtc-panel"><h2>Nhận ra: %s</h2>',
 				esc_html( $kq['ten'] )
 			);
+			if ( ! empty( $kq['theo_ten'] ) ) {
+				// Cột lấy theo TÊN tiêu đề — cho người soát thấy máy đã lấy cột nào,
+				// vì cổng đổi tên cột là chỗ sai không ai thấy nếu không in ra.
+				$nhan = array( 'ngay' => 'Ngày', 'thu' => 'Tiền', 'chi' => 'Tiền đi', 'phi' => 'Phí', 'ma_gd' => 'Mã GD', 'ma_cua_hang' => 'Mã cửa hàng', 'dien_giai' => 'Diễn giải' );
+				$cap  = array();
+				foreach ( $nhan as $k => $n ) { if ( isset( $kq['theo_ten'][ $k ] ) ) { $cap[] = $n . ' ← <code>' . esc_html( $kq['theo_ten'][ $k ] ) . '</code>'; } }
+				echo '<p class="khtc-sub">Cột đã lấy theo tên tiêu đề: ' . implode( ' · ', $cap ) . '</p>';
+			}
 			KHTC_UI::the_so(
 				array(
 					array( 'Dòng đọc được', number_format( count( $r ), 0, ',', '.' ) ),

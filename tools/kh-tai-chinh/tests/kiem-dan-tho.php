@@ -118,6 +118,63 @@ kiem( 'nạp lại qua màn hình cũng chặn trùng', (int) $wpdb->get_var( $w
 $_POST = array();
 $_POST = array();
 
+// ---------------------------------------------------------------- tìm cột THEO TÊN, không theo vị trí
+// Lỗi thật 24/09/2026: file VNPay tải thẳng từ cổng KHÔNG có cột "Lọc ngày"
+// (cột đó kế toán chèn thêm ở file tháng 8). Mọi cột lệch một → máy đọc 0 dòng.
+$vn_goc = "DỮ LIỆU BÁO CÁO PHÍ THEO GD THANH TOÁN\n\tTổng số giao dịch:\t122\n"
+	. "STT\tThời gian GD\tMã giao dịch\tChi nhánh\tMã điểm thu\tĐiểm thu\tSố hóa đơn\tSố hợp đồng\tMã đơn hàng\tMã trừ tiền/Mã chuẩn chi\tMã tham chiếu\tMã thiết bị\tMã khuyến mại\tSố điện thoại\tTên khách hàng\tSố TK/Thẻ\tLoại giao dịch\tMID Bank\tTID Bank\tMCC\tKênh thanh toán KTS\tSố tiền trước KM\tSố tiền khuyến mại\tSố tiền sau KM\tSố tiền hạch toán thu hộ\tNgày hạch toán thu hộ\tSố tiền phí thu hộ\tSố tiền sau khi trừ phí\tNgày hạch toán phí thu hộ\tChi tiết sản phẩm\tThông tin đặt hàng\tNgân hàng\tLoại thẻ/Tài khoản\tLoại phát hành\tNguồn tiền\tDịch vụ\tKênh thanh toán\tYC trả góp\tTrạng thái trả góp\tKỳ hạn\tSố tiền phí trả góp\tNgày hạch toán phí trả góp\tTrạng thái\tThời gian đối soát\tGhi chú\n"
+	. "1\t23/09/2026 23:29:34\t340506317\tCTY\tFUNZONE1\tFUNZONE MINI APP\t491880919\t\t260923_1\t651230206\t\t\t\t034x\tNGO\txxx612\tGiao dịch thường\t\t\t\tVNPAY\t200000\t\t200000\t200000\t23/09/2026 23:29:34\t3850\t\t23/09/2026\t\tthanh toan\tMBBANK\tTK\tNội địa\tThẻ\tCTT\tQR\tKhông\t\t\t0\t\tThành công\t24/09/2026\tghi chu\n"
+	// có khuyến mại: trước KM 240k, sau KM 220k, cổng hạch toán trả đủ 240k → lấy 240k
+	. "2\t23/09/2026 20:00:00\t340506318\tCTY\tGHOSTVCT\tGHOST VC TIMES CITY\t491880920\t\t260923_2\t651230207\t\t\t\t\t\t\tGiao dịch thường\t\t\t\tVNPAY\t240000\t\t220000\t240000\t23/09/2026\t4620\t\t23/09/2026\t\t\tMBBANK\tTK\tNội địa\tThẻ\tCTT\tQR\tKhông\t\t\t0\t\tThành công\t24/09/2026\t\n"
+	. "3\t23/09/2026 21:00:00\t340506319\tCTY\tGHOSTDN1\tGHOST BRIDE MEGA DN\t\t\t\t\t\t\t\t\t\t\t\t\t\t\tVNPAY\t100000\t\t100000\t100000\t\t1925\t\t\t\t\t\t\t\t\t\t\t\t\t\t0\t\tThất bại\t\t\n";
+$kv = KHTC_DanTho::doc( $vn_goc );
+kiem( 'VNPay gốc (không Lọc ngày): nhận ra', $kv['dinh_dang'], 'vnpay' );
+kiem( 'VNPay gốc: đọc đủ dòng thành công', count( $kv['rows'] ), 2 );
+kiem( 'VNPay gốc: dòng Thất bại bị loại', $kv['bo_loc'], 1 );
+kiem( 'VNPay gốc: ngày đúng cột', $kv['rows'][0]['ngay'], '23/09/2026' );
+kiem( 'VNPay gốc: mã GD đúng cột', $kv['rows'][0]['ma_gd'], '340506317' );
+kiem( 'VNPay gốc: mã điểm thu đúng cột', $kv['rows'][0]['ma_cua_hang'], 'FUNZONE1' );
+kiem( 'VNPay gốc: tiền = trước KM', $kv['rows'][0]['so_tien'], 200000 );
+kiem( 'VNPay gốc: phí = phí thu hộ (không phải khuyến mại)', $kv['rows'][0]['phi'], 3850 );
+kiem( 'VNPay có KM: vẫn lấy trước KM vì cổng hạch toán trả đủ', $kv['rows'][1]['so_tien'], 240000 );
+kiem( 'VNPay gốc: tổng', $kv['tong'], 440000 );
+kiem( 'VNPay gốc: tổng phí', $kv['tong_phi'], 8470 );
+kiem( 'báo tên cột đã lấy cho tiền', $kv['theo_ten']['thu'], 'Số tiền trước KM' );
+
+// Cùng file, kế toán chèn "Lọc ngày" vào cột B → phải ra y hệt
+$dong_vn = explode( "\n", $vn_goc );
+foreach ( $dong_vn as $i => $d ) {
+	if ( $i >= 2 && '' !== $d ) { $o = explode( "\t", $d ); array_splice( $o, 1, 0, 2 === $i ? 'Lọc ngày' : '23' ); $dong_vn[ $i ] = implode( "\t", $o ); }
+}
+$kv2 = KHTC_DanTho::doc( implode( "\n", $dong_vn ) );
+kiem( 'VNPay chèn cột Lọc ngày: cùng số dòng', count( $kv2['rows'] ), 2 );
+kiem( 'VNPay chèn cột: cùng tổng', $kv2['tong'], 440000 );
+kiem( 'VNPay chèn cột: cùng phí', $kv2['tong_phi'], 8470 );
+kiem( 'VNPay chèn cột: cùng mã điểm', $kv2['rows'][0]['ma_cua_hang'], 'FUNZONE1' );
+
+// MoMo: file có "lọc ngày" ở cột A (tháng 8) và file bỏ cột đó → như nhau
+$mm_a = "lọc ngày\tSTT\tMS.TransID\tMSl.ParentID\tMS.SĐT TK\tMS.Total Amount\tMS.Nợ\tMS.Có\tMS.Ngày hoàn thành\t\tMS.Loại GD\tMS.Mã HĐơn\tMS.Phân loại\tMS.Mã sản phẩm\tMS.Mã cửa hàng\tMS.Tên khách hàng\tMS.Mã đối tác\tMS.Mã khác\tMS.Trạng Thái GD\tVoucher\tTài trợ\tPaylater\t\t\tThời gian\tMã đơn hàng\tMã đơn hàng gốc\n"
+	. "5\t1\tT1\t\t\t500000\t\t\t\t\tCK\t\t\t\tMOMOA\t\t\t\tThành công\t\t\t\t\t\t05-08-2026 13:00:00\tMM1\t\n"
+	. "5\t2\tT2\t\t\t900000\t\t\t\t\tCK\t\t\t\tMOMOA\t\t\t\tHuỷ\t\t\t\t\t\t05-08-2026 14:00:00\tMM2\t\n";
+$mm_b = implode( "\n", array_map( function ( $d ) { $o = explode( "\t", $d ); array_shift( $o ); return implode( "\t", $o ); }, explode( "\n", $mm_a ) ) );
+$ka = KHTC_DanTho::doc( $mm_a ); $kb = KHTC_DanTho::doc( $mm_b );
+kiem( 'MoMo có cột lọc ngày: 1 dòng thành công', count( $ka['rows'] ), 1 );
+kiem( 'MoMo bỏ cột lọc ngày: vẫn 1 dòng', count( $kb['rows'] ), 1 );
+kiem( 'MoMo hai bản đều loại dòng Huỷ', array( $ka['bo_loc'], $kb['bo_loc'] ), array( 1, 1 ) );
+kiem( 'MoMo hai bản cùng mã cửa hàng', array( $ka['rows'][0]['ma_cua_hang'], $kb['rows'][0]['ma_cua_hang'] ), array( 'MOMOA', 'MOMOA' ) );
+kiem( 'MoMo hai bản cùng mã GD', array( $ka['rows'][0]['ma_gd'], $kb['rows'][0]['ma_gd'] ), array( 'MM1', 'MM1' ) );
+kiem( 'MoMo bỏ cột: ngày vẫn đúng', $kb['rows'][0]['ngay'], '05/08/2026' );
+
+// Không có cột trạng thái → không lọc bừa
+$qr_khong_tt = "STT\tThời gian TT\tSố tiền đến (VND)\tSố tiền đi (VND)\tLoại\tMã tham chiếu\tMã đơn hàng\tMã điểm bán\tMã cửa hàng\tTK\tThời gian tạo\tNội dung TT\n"
+	. "1\t02-08-2026 23:56:03\t50000\t0\tGiao dịch đến\tFT001\tVPB1\tVVB\tW7D\tMB\t02-08-2026\tNoi dung\n";
+$kq0 = KHTC_DanTho::doc( $qr_khong_tt );
+kiem( 'QR thiếu cột Trạng thái: không lọc, vẫn đọc', count( $kq0['rows'] ), 1 );
+kiem( 'QR thiếu cột: mã cửa hàng vẫn đúng theo tên', $kq0['rows'][0]['ma_cua_hang'], 'W7D' );
+kiem( 'QR thiếu cột: mã GD theo tên', $kq0['rows'][0]['ma_gd'], 'FT001' );
+kiem( 'chuẩn tên bỏ đơn vị', KHTC_DanTho::chuan_ten( ' Số tiền đến (VND) ' ), 'số tiền đến' );
+kiem( 'chuẩn tên bỏ (₫)', KHTC_DanTho::chuan_ten( 'Phí xử lý giao dịch (₫)' ), 'phí xử lý giao dịch' );
+
 printf( "%d kiểm tra đạt, %d lỗi\n", $dat, count( $hong ) );
 foreach ( $hong as $x ) { echo "  ✗ $x\n"; }
 exit( $hong ? 1 : 0 );

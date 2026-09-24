@@ -51,7 +51,7 @@ $payoo = "\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t999\t9\t99\n"
 
 $vnpay = "DỮ LIỆU\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t999\t9\n"
 	. "\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\n"
-	. "STT\tLọc ngày\tThời gian GD\tMã giao dịch\tChi nhánh\tMã điểm thu\tĐiểm thu\tSố hóa đơn\tSố hợp đồng\tMã đơn hàng\tMã trừ tiền\tMã tham chiếu\tMã thiết bị\tMã KM\tSĐT\tTên KH\tc16\tc17\tc18\tc19\tc20\tc21\tSố tiền\tPhí\n"
+	. "STT\tLọc ngày\tThời gian GD\tMã giao dịch\tChi nhánh\tMã điểm thu\tĐiểm thu\tSố hóa đơn\tSố hợp đồng\tMã đơn hàng\tMã trừ tiền\tMã tham chiếu\tMã thiết bị\tMã KM\tSĐT\tTên KH\tc16\tc17\tc18\tc19\tc20\tc21\tSố tiền trước KM\tSố tiền phí thu hộ\n"
 	. "1\t5\t05/08/2026 12:00:00\tVN1\tCN\tVNPA\tDiem VNPay\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t400000\t2000\n";
 
 $momo = "\t\t\t\t\t999\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\n"
