@@ -130,9 +130,19 @@ class KHTC_DoiSoat {
 		global $wpdb;
 		$dot = self::mot_dot( $id );
 		if ( ! $dot ) { return; }
+		// Dòng của đợt đã đứng tên hoá đơn thì không xoá đợt được: xoá là mất
+		// đường truy ngược tờ đó gom tiền nào, và lần chạy sau không còn gì để
+		// chặn hoá đơn đôi. Muốn xoá thì xoá hoá đơn trước.
+		$da_vao = (int) $wpdb->get_var(
+			$wpdb->prepare( 'SELECT COUNT(*) FROM ' . KHTC_DB::bang( 'ds_dong' ) . ' WHERE dot_id = %d AND hd_ra_id > 0', (int) $id )
+		);
+		if ( $da_vao > 0 ) {
+			return new WP_Error( 'da_vao_hd', sprintf( 'Đợt "%s" có %s dòng đã nằm trong hoá đơn. Xoá hoá đơn đó ở mục Đầu ra trước, rồi mới xoá đợt.', $dot->ten, number_format( $da_vao, 0, ',', '.' ) ) );
+		}
 		KHTC_NhatKy::ghi_xoa( 'doi_soat', $id, 'Xoá đợt đối soát ' . $dot->ten );
 		$wpdb->delete( KHTC_DB::bang( 'ds_dong' ), array( 'dot_id' => (int) $id ), array( '%d' ) );
 		$wpdb->delete( KHTC_DB::bang( 'doi_soat' ), array( 'id' => (int) $id ), array( '%d' ) );
+		return true;
 	}
 
 	// ------------------------------------------------------------ nạp dòng
@@ -141,9 +151,14 @@ class KHTC_DoiSoat {
 	 * Dán bảng cổng gửi về. Mỗi dòng: Ngày · Mã GD · Số tiền · Phí · Nội dung.
 	 * Cách nhau bằng Tab (copy thẳng từ Excel) hoặc dấu phẩy. Phí bỏ trống = 0.
 	 *
-	 * Dòng trùng mã giao dịch với dòng đã có trong cùng đợt thì BỎ QUA. Dán hai
-	 * lần cùng một bảng là chuyện thường xuyên xảy ra, và không chặn thì tổng
-	 * cổng gấp đôi trong khi sao kê giữ nguyên — ra một bảng lệch không có thật.
+	 * Dòng trùng mã giao dịch với dòng đã có trong CÙNG KÊNH của pháp nhân
+	 * (bất kể đợt nào) thì BỎ QUA. Dán hai lần cùng một bảng là chuyện thường
+	 * xuyên xảy ra — và trên dữ liệu thật đã thấy cùng một file Payoo nạp bốn
+	 * lần thành bốn đợt y nhau; chỉ chặn trong một đợt thì bốn đợt đó vẫn qua,
+	 * tick cả bốn là tiền nhân bốn. Mã giao dịch của cổng là duy nhất trong
+	 * kênh đó, nên đây là phạm vi chặn đúng.
+	 *
+	 * @return array them, trung, trung_dot (đợt khác đang giữ mã trùng → số dòng), loi
 	 */
 	public static function nap_dong( $dot_id, $text ) {
 		global $wpdb;
@@ -152,14 +167,21 @@ class KHTC_DoiSoat {
 			return array( 'them' => 0, 'trung' => 0, 'loi' => array( 'Không tìm thấy đợt đối soát.' ) );
 		}
 
-		$da_co = $wpdb->get_col(
-			$wpdb->prepare( 'SELECT ma_gd FROM ' . KHTC_DB::bang( 'ds_dong' ) . " WHERE dot_id = %d AND ma_gd <> ''", (int) $dot_id )
+		$da_co = array();   // ma_gd → dot_id đang giữ nó
+		$rows  = $wpdb->get_results(
+			$wpdb->prepare(
+				'SELECT d.ma_gd, d.dot_id FROM ' . KHTC_DB::bang( 'ds_dong' ) . ' d JOIN ' . KHTC_DB::bang( 'doi_soat' ) . " o ON o.id = d.dot_id
+				 WHERE o.cty = %s AND o.kenh = %s AND d.ma_gd <> ''",
+				$dot->cty,
+				$dot->kenh
+			)
 		);
-		$da_co = array_flip( $da_co );
+		foreach ( $rows as $r ) { $da_co[ $r->ma_gd ] = (int) $r->dot_id; }
 
-		$them = 0;
-		$trung = 0;
-		$loi  = array();
+		$them      = 0;
+		$trung     = 0;
+		$trung_dot = array();
+		$loi       = array();
 		foreach ( preg_split( '/\r\n|\r|\n/', (string) $text ) as $i => $d ) {
 			$d = trim( $d );
 			if ( '' === $d ) { continue; }
@@ -177,6 +199,7 @@ class KHTC_DoiSoat {
 			$ma = (string) $o[1];
 			if ( '' !== $ma && isset( $da_co[ $ma ] ) ) {
 				$trung++;
+				if ( $da_co[ $ma ] !== (int) $dot_id ) { $trung_dot[ $da_co[ $ma ] ] = ( $trung_dot[ $da_co[ $ma ] ] ?? 0 ) + 1; }
 				continue;
 			}
 			$wpdb->insert(
@@ -194,11 +217,11 @@ class KHTC_DoiSoat {
 				),
 				array( '%d', '%s', '%s', '%d', '%d', '%s', '%s' )
 			);
-			if ( '' !== $ma ) { $da_co[ $ma ] = 1; }
+			if ( '' !== $ma ) { $da_co[ $ma ] = (int) $dot_id; }
 			$them++;
 		}
 		KHTC_NhatKy::ghi( 'nap', 'ds_dong', (int) $dot_id, sprintf( 'Nạp %d dòng cổng vào %s%s', $them, $dot->ten, $trung ? ', bỏ ' . $trung . ' trùng mã' : '' ) );
-		return array( 'them' => $them, 'trung' => $trung, 'loi' => $loi );
+		return array( 'them' => $them, 'trung' => $trung, 'trung_dot' => $trung_dot, 'loi' => $loi );
 	}
 
 	public static function xoa_dong_cua_dot( $dot_id ) {

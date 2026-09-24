@@ -110,6 +110,10 @@ class KHTC_SinhHD {
 		// máy bày lại y nguyên các tờ đã xuất là cách nhanh nhất ra hoá đơn đôi.
 		// Nhưng không giấu: đếm riêng, nói ra là đã xuất bao nhiêu.
 		$da_xuat = array( 'tien' => 0, 'dong' => 0, 'to' => array() );
+		// Hai đợt đã tick cùng giữ một mã giao dịch (đợt nạp đôi) → chỉ tính một
+		// lần, đếm riêng để màn hình bảo người ta xoá bớt đợt.
+		$trung = array( 'tien' => 0, 'dong' => 0 );
+		$da_thay = array();
 
 		// --- nguồn 1: sao kê ngân hàng, mã cửa hàng nằm ở cột mã giao dịch phụ
 		$nh = array_filter( array_map( 'intval', (array) ( $l['nh'] ?? array() ) ) );
@@ -133,7 +137,7 @@ class KHTC_SinhHD {
 		if ( $dot ) {
 			$rows = $wpdb->get_results(
 				$wpdb->prepare(
-					'SELECT d.id, d.ma_cua_hang, d.so_tien, d.ngay, d.hd_ra_id, o.ten FROM ' . KHTC_DB::bang( 'ds_dong' ) . ' d
+					'SELECT d.id, d.ma_cua_hang, d.so_tien, d.ngay, d.hd_ra_id, d.ma_gd, o.ten, o.kenh FROM ' . KHTC_DB::bang( 'ds_dong' ) . ' d
 					 JOIN ' . KHTC_DB::bang( 'doi_soat' ) . ' o ON o.id = d.dot_id
 					 WHERE d.ngay >= %s AND d.ngay <= %s
 					   AND d.dot_id IN (' . implode( ',', array_fill( 0, count( $dot ), '%d' ) ) . ')',
@@ -141,6 +145,11 @@ class KHTC_SinhHD {
 				)
 			);
 			foreach ( $rows as $r ) {
+				if ( '' !== (string) $r->ma_gd ) {
+					$k = $r->kenh . '|' . $r->ma_gd;
+					if ( isset( $da_thay[ $k ] ) ) { $trung['tien'] += (int) $r->so_tien; $trung['dong']++; continue; }
+					$da_thay[ $k ] = true;
+				}
 				if ( (int) $r->hd_ra_id > 0 ) { $da_xuat['tien'] += (int) $r->so_tien; $da_xuat['dong']++; $da_xuat['to'][ (int) $r->hd_ra_id ] = true; continue; }
 				$nhan( $r->ma_cua_hang, (int) $r->so_tien, $r->ten, $r->ngay, 'ds', $r->id );
 			}
@@ -157,6 +166,7 @@ class KHTC_SinhHD {
 			'tong_bo' => $tong_bo,
 			'tong_la' => $tong_la,
 			'da_xuat' => $da_xuat,   // tiền trong kỳ đã nằm trong hoá đơn rồi, không đề xuất lại
+			'trung'   => $trung,     // cùng mã GD ở hai đợt đã tick — đợt nạp đôi, chỉ tính một lần
 		);
 	}
 

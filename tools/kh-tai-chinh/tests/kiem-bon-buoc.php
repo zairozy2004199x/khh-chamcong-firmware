@@ -115,14 +115,65 @@ kiem( 'và mang đúng tiền gom bốn nguồn', (int) $hd->co_vat, 1300000 );
 kiem( 'ghi chú nói ngày doanh thu', false !== strpos( $hd->ghi_chu, '05/08/2026' ), true );
 
 // ------------------------------- làm lại cả bốn bước: không được nhân đôi gì
+// Mỗi file dán lại vào đúng đợt của kênh nó.
+$dot_kenh = array();
+foreach ( KHTC_DoiSoat::ds_dot( 'kh_cu' ) as $d ) { $dot_kenh[ $d->kenh ] = (int) $d->id; }
 foreach ( $buoc as $i => $b ) {
-	$_POST = array( 'tho' => $b[0], '_wpnonce' => 'test', $b[1] => 1, 'nh' => $nh, 'dot' => $dots[ min( $i, 2 ) ], 'nh_dot' => $nh );
+	$kenh = KHTC_DanTho::nhan_dang( $b[0] )[0];
+	$_POST = array( 'tho' => $b[0], '_wpnonce' => 'test', $b[1] => 1, 'nh' => $nh, 'dot' => $dot_kenh[ $kenh ] ?? -1, 'nh_dot' => $nh );
 	man();
 }
 $_POST = array();
+// Dán file Payoo vào đợt VNPay (chọn nhầm) → từ chối, không ghi gì.
+$_POST = array( 'tho' => $payoo, '_wpnonce' => 'test', 'khtc_nap_cong' => 1, 'nh' => $nh, 'dot' => $dot_kenh['vnpay'], 'nh_dot' => $nh );
+$h_nham = man();
+$_POST = array();
+kiem( 'nạp Payoo vào đợt VNPay bị từ chối', false !== strpos( $h_nham, 'là đợt VNPay' ), true );
+kiem( 'và không ghi dòng nào vào đợt đó', (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . KHTC_DB::bang( 'ds_dong' ) . ' WHERE dot_id=%d', $dot_kenh['vnpay'] ) ), 1 );
 $tt2 = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COALESCE(SUM(so_tien),0) FROM ' . KHTC_DB::bang( 'giao_dich' ) . " WHERE ngan_hang_id=%d AND loai='thu'", $nh ) );
 kiem( 'dán lại cả bốn tệp: sao kê không nhân đôi', $tt2, $tt );
 kiem( 'và số hoá đơn trong sổ không đổi', KHTC_HoaDonRa::loc( array( 'tu' => '2026-08-05', 'den' => '2026-08-05' ) )['so_hd'], 2 );
+$tc2 = (int) $wpdb->get_var( 'SELECT COALESCE(SUM(so_tien),0) FROM ' . KHTC_DB::bang( 'ds_dong' ) );
+kiem( 'dòng cổng cũng không nhân đôi', $tc2, $tc );
+
+// ------------------- nạp lại file cổng mà chọn "tạo đợt mới": không ra đợt thứ hai
+// Lỗi thật 24/09/2026: cùng một file Payoo nạp bốn lần → bốn đợt y nhau; tick
+// cả bốn là tiền nhân bốn.
+$so_dot_truoc = count( KHTC_DoiSoat::ds_dot( 'kh_cu' ) );
+$_POST = array( 'tho' => $payoo, '_wpnonce' => 'test', 'khtc_nap_cong' => 1, 'nh' => $nh, 'dot' => -1, 'nh_dot' => $nh, 'ten_dot' => 'Đợt lặp' );
+$h = man();
+$_POST = array();
+kiem( 'không tạo thêm đợt', count( KHTC_DoiSoat::ds_dot( 'kh_cu' ) ), $so_dot_truoc );
+kiem( 'nói thẳng là file đã nạp rồi', false !== strpos( $h, 'File này đã nạp rồi' ), true );
+kiem( 'và kể tên đợt đang giữ', false !== strpos( $h, '“Đợt 2”' ), true );
+kiem( 'vẫn có lối đi tiếp sang đợt đó', false !== strpos( $h, 'Xong bước 1' ), true );
+kiem( 'tiền cổng không đổi', (int) $wpdb->get_var( 'SELECT COALESCE(SUM(so_tien),0) FROM ' . KHTC_DB::bang( 'ds_dong' ) ), $tc );
+
+// Nạp file có một nửa mới, một nửa đã có ở đợt khác → đợt mới chỉ giữ nửa mới, báo rõ nửa kia ở đâu
+$payoo_nua = $payoo . "2\tPAYA\t06/08/2026\t\tThanh toán\tBán hàng\tQR\tTK\t\t\t\t\tQ2\tPAY2\t\t\t\t\t\tD1\t1\t150000\t825\t149175\n";
+$_POST = array( 'tho' => $payoo_nua, '_wpnonce' => 'test', 'khtc_nap_cong' => 1, 'nh' => $nh, 'dot' => -1, 'nh_dot' => $nh, 'ten_dot' => 'Đợt nửa' );
+$h = man();
+$_POST = array();
+kiem( 'nửa mới → có đợt mới', count( KHTC_DoiSoat::ds_dot( 'kh_cu' ) ), $so_dot_truoc + 1 );
+kiem( 'báo nạp 1 dòng, bỏ 1 trùng', (bool) preg_match( '/Đã nạp 1 dòng.*Bỏ qua 1 dòng trùng mã/u', $h ), true );
+kiem( 'và chỉ ra dòng trùng đang ở đợt nào', false !== strpos( $h, 'đang ở đợt “Đợt 2”' ), true );
+
+// ------------------- hai đợt đã tick cùng giữ một mã (đợt nạp đôi từ bản cũ): chỉ tính một lần
+$dot_doi = KHTC_DoiSoat::tao_dot( array( 'ten' => 'Đợt đôi', 'kenh' => 'payoo', 'tu' => '2026-08-05', 'den' => '2026-08-05', 'ngan_hang_id' => $nh ) );
+$wpdb->insert( KHTC_DB::bang( 'ds_dong' ), array( 'dot_id' => $dot_doi, 'ngay' => '2026-08-05', 'ma_gd' => 'PAY1', 'so_tien' => 300000, 'phi' => 1650, 'dien_giai' => 'PAYA', 'ma_cua_hang' => 'PAYA' ) );
+$g_doi = KHTC_SinhHD::gom( array( 'tu' => '2026-08-05', 'den' => '2026-08-05', 'nh' => array(), 'dot' => array_merge( $dots, array( $dot_doi ) ), 'tach' => 'ngay' ) );
+kiem( 'mã trùng giữa hai đợt chỉ tính một lần', $g_doi['trung'], array( 'tien' => 300000, 'dong' => 1 ) );
+kiem( 'nên không đề xuất thêm tờ nào (dòng gốc đã vào hoá đơn)', $g_doi['diem'], array() );
+$_GET = array( 'tu' => '2026-08-05', 'den' => '2026-08-05', 'dot' => array_merge( $dots, array( $dot_doi ) ) ); $_REQUEST = $_GET; $_POST = array();
+ob_start(); KHTC_Trang::sinh_hoa_don(); $h = ob_get_clean();
+kiem( 'màn hình bảo xoá đợt thừa', false !== strpos( $h, 'cùng một file cổng nạp thành hai đợt' ), true );
+$_GET = array(); $_REQUEST = array();
+kiem( 'xoá được đợt đôi (chưa vào hoá đơn)', KHTC_DoiSoat::xoa_dot( $dot_doi ), true );
+
+// ------------------- đợt đã vào hoá đơn thì không xoá được
+$kq_xoa = KHTC_DoiSoat::xoa_dot( $dots[0] );
+kiem( 'đợt có dòng trong hoá đơn: chặn xoá', is_wp_error( $kq_xoa ), true );
+kiem( 'và đợt vẫn còn', KHTC_DoiSoat::mot_dot( $dots[0] ) !== null, true );
 
 printf( "%d kiểm tra đạt, %d lỗi\n", $dat, count( $hong ) );
 foreach ( $hong as $x ) { echo "  ✗ $x\n"; }

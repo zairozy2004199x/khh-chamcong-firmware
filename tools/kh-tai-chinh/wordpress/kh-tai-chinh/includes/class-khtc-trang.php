@@ -427,9 +427,13 @@ class KHTC_Trang {
 		}
 
 		if ( isset( $_POST['khtc_xoa_dot'] ) && check_admin_referer( 'khtc_ds' ) ) {
-			KHTC_DoiSoat::xoa_dot( (int) $_POST['khtc_xoa_dot'] );
-			$mo     = 0;
-			$bao_ok = 'Đã xoá đợt đối soát.';
+			$kq_xoa = KHTC_DoiSoat::xoa_dot( (int) $_POST['khtc_xoa_dot'] );
+			if ( is_wp_error( $kq_xoa ) ) {
+				$bao_loi = $kq_xoa->get_error_message();
+			} else {
+				$mo     = 0;
+				$bao_ok = 'Đã xoá đợt đối soát.';
+			}
 		}
 
 		$ngan_hang = KHTC_NganHang::ds();
@@ -1259,17 +1263,49 @@ class KHTC_Trang {
 					)
 				);
 			}
-			if ( ! $dot ) {
+			$dot_moi = ( -1 === (int) $_POST['dot'] );
+			// Nạp file Payoo vào đợt VNPay là sai kênh: chặn trùng theo kênh sẽ
+			// không bắt được, đối soát của đợt đó lệch, và hai đợt cùng giữ một
+			// khoản. Đợt kênh "khác" thì cho, vì đó là chỗ người dùng tự gom.
+			$d_chon = $dot ? KHTC_DoiSoat::mot_dot( $dot ) : null;
+			if ( $d_chon && ! $dot_moi && 'khac' !== $d_chon->kenh && $d_chon->kenh !== $kq['dinh_dang'] ) {
+				$bao_loi = sprintf(
+					'Đây là file %s nhưng đợt “%s” là đợt %s. Chọn đợt cùng kênh, hoặc “tạo đợt mới”.',
+					$kq['ten'],
+					$d_chon->ten,
+					KHTC_DoiSoat::ten_kenh( $d_chon->kenh )
+				);
+				$dot = 0;
+			} elseif ( ! $dot ) {
 				$bao_loi = 'Chưa chọn đợt đối soát để nạp vào.';
 			} else {
 				$r = KHTC_DoiSoat::nap_dong( $dot, KHTC_DanTho::ra_cong( $kq['rows'] ) );
-				KHTC_DoiSoat::chay( $dot );
-				$bao_ok = sprintf(
-					'Đã nạp %s dòng vào đợt và chạy đối soát.%s',
-					number_format( $r['them'], 0, ',', '.' ),
-					$r['trung'] ? ' Bỏ qua ' . number_format( $r['trung'], 0, ',', '.' ) . ' dòng trùng mã.' : ''
-				);
-				$di_tiep = self::cho_di_tiep( $kq['rows'], array( 'dot' => array( $dot ) ) );
+				// Tên các đợt khác đang giữ mã trùng — để nói thẳng "file này đã nạp rồi, ở đợt X".
+				$ten_dot_trung = array();
+				foreach ( $r['trung_dot'] ?? array() as $id_khac => $n ) {
+					$d_khac = KHTC_DoiSoat::mot_dot( $id_khac );
+					$ten_dot_trung[] = ( $d_khac ? '“' . $d_khac->ten . '”' : '#' . $id_khac ) . ' (' . number_format( $n, 0, ',', '.' ) . ' dòng)';
+				}
+				if ( 0 === $r['them'] && $dot_moi ) {
+					// Không dòng nào mới → file này đã nạp rồi. Không để lại một đợt
+					// rỗng mang cùng tên: đó chính là cách sinh ra bốn đợt y nhau.
+					KHTC_DoiSoat::xoa_dot( $dot );
+					$bao_loi = sprintf(
+						'File này đã nạp rồi: toàn bộ %s dòng đang nằm trong đợt %s. Không tạo đợt mới. Sang bước sinh hoá đơn thì tick đợt đó.',
+						number_format( $r['trung'], 0, ',', '.' ),
+						$ten_dot_trung ? implode( ', ', $ten_dot_trung ) : 'đã có'
+					);
+					$di_tiep = self::cho_di_tiep( $kq['rows'], array( 'dot' => array_keys( $r['trung_dot'] ?? array() ) ) );
+				} else {
+					KHTC_DoiSoat::chay( $dot );
+					$bao_ok = sprintf(
+						'Đã nạp %s dòng vào đợt và chạy đối soát.%s%s',
+						number_format( $r['them'], 0, ',', '.' ),
+						$r['trung'] ? ' Bỏ qua ' . number_format( $r['trung'], 0, ',', '.' ) . ' dòng trùng mã.' : '',
+						$ten_dot_trung ? ' Các dòng trùng đang ở đợt ' . implode( ', ', $ten_dot_trung ) . '.' : ''
+					);
+					$di_tiep = self::cho_di_tiep( $kq['rows'], array( 'dot' => array( $dot ) ) );
+				}
 				$kq = null;
 				$tho = '';
 			}
@@ -1638,6 +1674,13 @@ class KHTC_Trang {
 			printf( '<tfoot><tr><th colspan="%d">Tổng</th><th class="so">%s</th><th class="so thu">%s</th></tr></tfoot>', 'ngay' === $tach ? 5 : 4, number_format( array_sum( array_column( $g['diem'], 'so_dong' ) ), 0, ',', '.' ), esc_html( KHTC_UI::tien( $g['tong'] ) ) );
 		}
 		echo '</table>';
+		if ( ! empty( $g['trung']['dong'] ) ) {
+			printf(
+				'<p class="khtc-canh-bao">Có %s dòng (%s) mang cùng mã giao dịch ở hai đợt đã tick — cùng một file cổng nạp thành hai đợt. Máy chỉ tính một lần, nhưng nên vào <strong>Cổng thanh toán</strong> xoá đợt thừa để bảng đối soát không lệch.</p>',
+				number_format( $g['trung']['dong'], 0, ',', '.' ),
+				esc_html( KHTC_UI::tien( $g['trung']['tien'] ) )
+			);
+		}
 		if ( ! empty( $g['da_xuat']['tien'] ) ) {
 			printf(
 				'<p class="khtc-sub khtc-da-xuat">Đã xuất rồi trong kỳ này: <strong>%s</strong> — %s dòng tiền, nằm trong %s tờ hoá đơn. Không đề xuất lại. Muốn làm lại tờ nào thì xoá tờ đó ở mục Đầu ra, tiền của nó quay về đây.</p>',
