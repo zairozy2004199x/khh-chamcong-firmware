@@ -231,6 +231,8 @@ function khh_dt_so_pos( $ngay, $cua_hang ) {
 		'khach_tam'  => isset( $kh['tam'] ) ? (int) $kh['tam'] : 0,
 		've_da_tach' => (int) $kh['da_tach'],
 		've_chua_tach' => array_keys( (array) $kh['chua_tach'] ),
+		/* Từng vé: số vé × khách/vé — để màn bày "cách tính" (anh Thắng 24/09/2026: "set xong lại sao nó không áp dụng"). */
+		'khach_chi_tiet' => isset( $kh['chi_tiet'] ) ? $kh['chi_tiet'] : array(),
 		/* Hàng bán theo máy, từng món: để nhân viên soát "bán được đúng máy không". Anh Thắng
 		   23/09/2026: *"hiện số lượng hàng bán và thành tiền để nhân viên kiểm kho bán được và chốt
 		   bán thực tế đúng máy POS không, nếu lệch nhân viên mới nhập, đúng rồi thì để nguyên"*. */

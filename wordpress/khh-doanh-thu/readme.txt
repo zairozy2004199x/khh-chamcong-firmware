@@ -102,6 +102,23 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.64.5 =
+* **Sửa lỗi 500 khi bấm Lưu ở khối Bóc tách vé** (bản 1.64.4, anh Thắng 24/09/2026: *"bấm lưu nó báo lỗi"*). Đường
+  POST dựng lại yêu cầu REST theo kiểu của bộ thử (`new WP_REST_Request( array(...) )`); WordPress thật nhận
+  (`$method, $route`) nên nổ. Nay gọi thẳng hàm gói trả về theo tên quán. `kiem-ve-khach.php` thêm phép rà mã plugin
+  không được dựng yêu cầu kiểu ấy.
+* **Vé bán theo lố "X2" gợi ý nhân đôi**: *"sai, combo này là 4"* — COMBO TRẺ EM + NGƯỜI LỚN + BIM BIM X2 gợi ý 4,
+  VÉ TRẺ EM X2 gợi ý 2 (chữ "x" trong tên thường như "Vé Xe điện" không tính). Số đã khai không tự đổi — anh mở khối
+  bóc tách, xem lại các vé X2 rồi Lưu.
+* **Kho: tên combo và thành phần so lỏng.** *"Đã set combo đó bao gồm nước… đọc theo combo đó bán gì thì hiểu có sản
+  nào chứ"* — combo "+ NƯỚC SUỐI" đã khai mà kho vẫn "Theo combo 0" và vẫn nhắc chưa khai, vì tên trong file FABi
+  có dấu cách thừa; bảng thành phần còn hai dòng chỉ khác dấu cách. Nay khớp lỏng (gộp dấu cách, bỏ hoa thường) ở
+  trừ kho, tách lẻ/combo, nhắc combo chưa khai và SL thực đã chốt; thành phần khai lệch hoa thường về đúng tên danh
+  mục; hai lượt khai chỉ khác dấu cách gộp thành một. `kiem-kho.php` +5 phép.
+* **Tab Nhập báo cáo bày "Cách tính khách vào (POS)"**: từng vé × khách/vé đang áp, vé chưa khai đánh dấu "tạm 1" — để
+  thấy ngay vé nào đang tính mấy thay vì đoán (*"set xong lại sao nó không áp dụng"*: số 4 anh set là cho vé
+  "TRẺ EM + NGƯỜI LỚN X2" của quán khác, còn Estella bán "TRẺ EM + NGƯỜI LỚN + BIM BIM X2" — tên khác).
+
 = 1.64.4 =
 * **Bóc tách vé → khách: khai theo TÊN VÉ, dùng cho mọi cửa hàng; quán nào khác thì tự set riêng.** Anh Thắng 24/09/2026:
   *"vé đã có sẵn lấy theo và anh đã set vé đó là tính 2 người mà"*, *"khai linh tinh rồi quán có quán không"*, rồi *"để

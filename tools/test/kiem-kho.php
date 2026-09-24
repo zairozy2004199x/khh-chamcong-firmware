@@ -777,6 +777,31 @@ phep( "trình đọc file có cột 'ma_hang' và ghi 'm' vào món", false !== 
 delete_option( 'khh_dt_kho_mat_hang' );
 delete_option( 'khh_dt_kho_ma' );
 
+/* ── Tên combo / thành phần so LỎNG (anh Thắng 24/09/2026: "đã set combo đó bao gồm nước… đọc theo combo đó bán gì
+      thì hiểu có sản nào chứ" — kho vẫn "Theo combo 0", bảng thành phần hai dòng chỉ khác dấu cách). ── */
+$CSL = 'Kho thử combo lỏng';
+khh_dt_kho_mh_dat( $CSL, array( 'Nước suối Danasi', 'Thạch trái cây' ) );
+delete_option( 'khh_dt_kho_combo_ls' );
+/* Khai hai lần, tên chỉ khác dấu cách -> bảng chỉ còn MỘT combo, lượt sau thắng. */
+khh_dt_kho_combo_dat( 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + NƯỚC SUỐI', array( 'nước suối danasi' => 1 ), '2026-09-01' );
+khh_dt_kho_combo_dat( 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN +  NƯỚC SUỐI', array( 'Nước suối Danasi' => 1 ), '2026-09-01' );
+$cb = khh_dt_kho_combo_bang( '2026-09-24' );
+phep( '🔴 hai lượt khai chỉ khác dấu cách gộp thành một combo', 1 === count( array_filter( array_keys( $cb ), function ( $t ) { return false !== strpos( $t, 'NƯỚC SUỐI' ); } ) ) );
+/* FABi ghi tên combo có dấu cách thừa ở cuối + thành phần khai chữ thường -> vẫn trừ đúng "Nước suối Danasi". */
+$GLOBALS['wpdb']->query( $GLOBALS['wpdb']->prepare( 'INSERT OR REPLACE INTO ' . khh_dt_bang() . ' (ngay,cua_hang,mon) VALUES (%s,%s,%s)',
+	'2026-09-24', $CSL, wp_json_encode( array(
+		array( 'n' => 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + NƯỚC SUỐI ', 'g' => 'VÉ COMBO.', 'q' => 6, 'r' => 540000 ),
+		array( 'n' => 'NƯỚC SUỐI  DANASI',                                 'g' => 'ĐÓNG SẴN',  'q' => 2, 'r' => 20000 ),
+	) ) ) );
+$t = khh_dt_kho_ban_may_tach( '2026-09-24', '2026-09-24', $CSL )['2026-09-24'];
+phep( '🔴 tách lẻ/combo: Nước suối Danasi lẻ 2 + theo combo 6, không sinh dòng tên lệch', isset( $t['Nước suối Danasi'] ) && 2.0 === (float) $t['Nước suối Danasi']['le'] && 6.0 === (float) $t['Nước suối Danasi']['combo'] && 1 === count( $t ) );
+phep( '🔴 máy bán tổng = 8 dưới đúng tên danh mục', 8.0 === (float) khh_dt_kho_ban_may( '2026-09-24', '2026-09-24', $CSL )['2026-09-24']['Nước suối Danasi'] );
+phep( '🔴 combo đã khai (dù tên FABi thừa dấu cách) KHÔNG còn bị nhắc "chưa khai"', array() === khh_dt_kho_combo_chua_khai( '2026-09-24', '2026-09-24', $CSL ) );
+$b = dong_cua( khh_dt_kho_bang_ngay( '2026-09-24', $CSL ), 'Nước suối Danasi' );
+phep( 'bảng ngày: dòng Nước suối Danasi máy bán 8 (lẻ 2, combo 6)', 8.0 === (float) $b['ban_may'] && 6.0 === (float) $b['ban_combo'] );
+delete_option( 'khh_dt_kho_combo_ls' );
+delete_option( 'khh_dt_kho_mat_hang' );
+
 /* ── Sửa một lần cặp 0/0 do lỗi ép ô trống thành 0 (anh Thắng 24/09/2026: "qua ngày 24 tồn đầu không nhảy") ── */
 $CS0 = 'Kho thử sửa 0';
 $w   = $GLOBALS['wpdb'];

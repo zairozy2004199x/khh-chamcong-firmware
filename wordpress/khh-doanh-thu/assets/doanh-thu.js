@@ -1288,6 +1288,14 @@
               ? '<div class="chu-them" id="bcVeChuaTach">Vé <b>chưa bóc tách</b>, đang <b>tạm tính 1 khách mỗi vé</b> (' + nguyen(p.khach_tam || 0) + ' khách): ' +
                 p.ve_chua_tach.map(esc).join(', ') + ' — combo 2 người thì phải khai 2, ' +
                 (S.cf && S.cf.duoc_nap ? 'khai ở <b>Quản trị → Bóc tách vé → khách</b>.' : 'nhờ văn phòng khai ở tab Quản trị.') + '</div>'
+              : '') +
+            /* "Set xong lại sao nó không áp dụng" (24/09/2026): bày từng vé × khách/vé để thấy ngay vé nào đang tính mấy. */
+            ((p.khach_chi_tiet || []).length
+              ? '<details class="chu-them" id="bcKhachCach"><summary style="cursor:pointer">Cách tính khách vào (POS): ' + nguyen(p.khach_may) + ' = ' +
+                p.khach_chi_tiet.map(function (c) { return nguyen(c.q) + '×' + c.k; }).join(' + ') + '</summary>' +
+                '<div style="margin-top:4px">' + p.khach_chi_tiet.map(function (c) {
+                  return esc(c.n) + ': <b>' + nguyen(c.q) + ' vé × ' + c.k + '</b>' + (c.tam ? ' <span style="color:var(--xau)">(chưa khai, tạm 1)</span>' : '');
+                }).join('<br>') + '</div></details>'
               : '')
           : '<div class="trong">Ngày này chưa có số liệu máy POS trong kho. Nạp file FABi cho ngày đó rồi quay lại.</div>';
         var b = r.bao_cao || {};

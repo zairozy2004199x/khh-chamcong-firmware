@@ -65,6 +65,10 @@ phep( '"Vé Online" cũng là vé (gợi ý 1, quản trị tự đặt 0 nếu 
 phep( 'đếm chữ chỉ người: "TRẺ EM + NGƯỜI LỚN + THẠCH" -> 2 (thạch không phải người)', 2 === khh_dt_ve_khach_goi_y( 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + THẠCH', 'VÉ COMBO.' ) );
 phep( '"TRẺ EM + NGƯỜI LỚN + BIM BIM" (nhận là vé qua nhóm VÉ COMBO.) -> 2', 2 === khh_dt_ve_khach_goi_y( 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + BIM BIM', 'VÉ COMBO.' ) );
 phep( 'tên không có chữ "vé" và không có nhóm thì không phải vé -> null', null === khh_dt_ve_khach_goi_y( 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + BIM BIM' ) );
+/* 24/09/2026 anh Thắng: "sai, combo này là 4" — vé bán theo lố X2. */
+phep( '🔴 "TRẺ EM + NGƯỜI LỚN + BIM BIM X2" -> 4', 4 === khh_dt_ve_khach_goi_y( 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + BIM BIM X2', 'VÉ COMBO.' ) );
+phep( '"VÉ TRẺ EM X2" -> 2; "VÉ NGƯỜI LỚN x 3" -> 3', 2 === khh_dt_ve_khach_goi_y( 'VÉ TUTU TRAIN: VÉ TRẺ EM X2' ) && 3 === khh_dt_ve_khach_goi_y( 'VÉ TUTU TRAIN: VÉ NGƯỜI LỚN x 3' ) );
+phep( 'chữ x trong tên thường ("Vé Xe điện", "Vé Xanh") không phải bội số', 1 === khh_dt_ve_khach_goi_y( 'Vé Xe điện' ) && 1 === khh_dt_ve_khach_goi_y( 'Vé Xanh 2 chiều' ) );
 phep( '"VÉ GIA ĐÌNH: 2 NGƯỜI LỚN + 1 TRẺ EM" đếm được 2 cụm -> 2 (số đứng trước không đọc, quản trị sửa tay)', 2 === khh_dt_ve_khach_goi_y( 'VÉ GIA ĐÌNH: 2 NGƯỜI LỚN + 1 TRẺ EM' ) );
 phep( 'chữ "ve" nằm giữa từ khác không phải vé', null === khh_dt_ve_khach_goi_y( 'Cà phê Việt', 'ĐỒ UỐNG' ) );
 
@@ -98,6 +102,7 @@ ngay_ban( '2026-09-24', $BT, array(
 ) );
 $k = khh_dt_khach_may( '2026-09-23', $GV );
 phep( '🔴 Gò Vấp: combo chưa khai tạm 1/vé -> 28, không phải 14', 28 === $k['khach'] && 14 === $k['tam'] );
+phep( 'chi tiết cách tính: từng vé kèm số vé, khách/vé, cờ tạm tính', 4 === count( $k['chi_tiet'] ) && 1 === count( array_filter( $k['chi_tiet'], function ( $c ) { return 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + THẠCH' === $c['n'] && 10 === $c['q'] && 1 === $c['k'] && true === $c['tam']; } ) ) && 1 === count( array_filter( $k['chi_tiet'], function ( $c ) { return 'VÉ TUTU TRAIN: VÉ TRẺ EM' === $c['n'] && 12 === $c['q'] && 1 === $c['k'] && false === $c['tam']; } ) ) );
 /* Khai chung (REST, cua_hang = '*') như nút "Lưu cho tất cả cửa hàng" bấm khi đang xem Gò Vấp. */
 $GLOBALS['VHCP_CO_QUYEN'] = true; $GLOBALS['VHCP_DANG_NHAP_WP'] = true;
 $r = khh_dt_rest_ve_khach_dat( new WP_REST_Request( array( 'cua_hang' => '*', 'xem_cua_hang' => $GV, 'bang' => wp_json_encode( array( 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + THẠCH' => 2, 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + BIM BIM' => 2 ) ) ) ) );
@@ -200,6 +205,7 @@ $r = khh_dt_rest_ve_khach_dat( new WP_REST_Request( array( 'bang' => wp_json_enc
 phep( 'REST: khai được cả món không phải vé (nếu quản trị muốn), ghi RIÊNG cho cửa hàng gửi lên', ! is_wp_error( $r ) && 1 === $r['bang']['Nước suối'] && 5 === count( $r['mon'] ) && 1 === khh_dt_ve_khach_bang_rieng( $CS )['Nước suối'] && ! isset( khh_dt_ve_khach_bang()['Nước suối'] ) );
 $src = file_get_contents( $goc . '/ve-khach.php' );
 $src = preg_replace( '~/\*.*?\*/~s', '', $src );
+phep( '🔴 mã plugin KHÔNG dựng `new WP_REST_Request( array(` (kiểu của bộ thử) — WordPress thật nổ 500 (anh Thắng 24/09/2026)', 0 === preg_match( '~new WP_REST_Request\s*\(\s*array~', implode( '', array_map( function ( $f ) { return preg_replace( '~/\*.*?\*/~s', '', file_get_contents( $f ) ); }, glob( $goc . '/*.php' ) ) ) ) );
 phep( "🔴 route /ve-khach gác bằng khh_dt_duoc_nap (văn phòng), cả GET lẫn POST", 2 === substr_count( $src, "'permission_callback' => 'khh_dt_duoc_nap'" ) && false === strpos( $src, '__return_true' ) );
 
 /* ── "lúc thì tự lưu, lúc thì không lưu" (anh Thắng 24/09/2026, Estella): tên quán có HAI dấu cách. ── */

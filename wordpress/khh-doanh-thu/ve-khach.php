@@ -280,14 +280,20 @@ function khh_dt_ve_khach_goi_y( $ten, $nhom = '' ) {
 		return null;
 	}
 	$k = ' ' . preg_replace( '/\s+/', ' ', khh_dt_khong_dau( (string) $ten ) ) . ' ';
+	/* "X2", "x 3" ở cuối tên = bán theo lố: combo TRẺ EM + NGƯỜI LỚN X2 là 4 người, VÉ TRẺ EM X2 là 2.
+	   Anh Thắng 24/09/2026: *"sai, combo này là 4"*. */
+	$boi = 1;
+	if ( preg_match( '/(?<![a-z0-9])x\s?(\d{1,2})(?![a-z0-9])/', $k, $m ) && (int) $m[1] > 1 ) {
+		$boi = (int) $m[1];
+	}
 	$n = 0;
 	foreach ( array( 'tre em', 'nguoi lon', 'em be', 'phu huynh', 'be ' ) as $tu ) {
 		$n += preg_match_all( '/(?<![a-z])' . preg_quote( $tu, '/' ) . '(?![a-z])/', $k );
 	}
 	if ( $n > 0 ) {
-		return $n;
+		return $n * $boi;
 	}
-	return false !== strpos( (string) $ten, '+' ) ? 2 : 1;
+	return ( false !== strpos( (string) $ten, '+' ) ? 2 : 1 ) * $boi;
 }
 
 /**
@@ -312,6 +318,7 @@ function khh_dt_khach_may_tu_mon( $mon, $bang = null ) {
 	$tam  = 0;
 	$n    = 0;
 	$chua = array();
+	$chi  = array();   // từng vé: tên, số vé, khách/vé đang áp, có phải tạm tính — để màn bày "cách tính"
 	foreach ( (array) $mon as $m ) {
 		$ten = isset( $m['n'] ) ? trim( (string) $m['n'] ) : '';
 		$sl  = isset( $m['q'] ) ? (float) $m['q'] : 0;
@@ -322,11 +329,15 @@ function khh_dt_khach_may_tu_mon( $mon, $bang = null ) {
 		if ( null !== $co ) {
 			$chac += $sl * (int) $co['gia'];
 			$n++;
+			if ( $sl > 0 ) {
+				$chi[] = array( 'n' => $ten, 'q' => (int) round( $sl ), 'k' => (int) $co['gia'], 'tam' => false );
+			}
 			continue;
 		}
 		if ( $sl > 0 && khh_dt_ve_la_ve( $ten, isset( $m['g'] ) ? (string) $m['g'] : '' ) ) {
 			$chua[ $ten ] = ( isset( $chua[ $ten ] ) ? $chua[ $ten ] : 0 ) + $sl;
 			$tam         += $sl;
+			$chi[]        = array( 'n' => $ten, 'q' => (int) round( $sl ), 'k' => 1, 'tam' => true );
 		}
 	}
 	$co = $n > 0 || $chua;
@@ -337,6 +348,7 @@ function khh_dt_khach_may_tu_mon( $mon, $bang = null ) {
 		'da_tach'   => $n,
 		'chua_tach' => $chua,
 		'du'        => ! $chua,
+		'chi_tiet'  => $chi,
 	);
 }
 
@@ -491,6 +503,16 @@ function khh_dt_ve_khach_route() {
 
 function khh_dt_rest_ve_khach_xem( $req ) {
 	$ch = function_exists( 'khh_dt_bc_ten_cua' ) ? khh_dt_bc_ten_cua( $req->get_param( 'cua_hang' ) ) : (string) $req->get_param( 'cua_hang' );
+	return khh_dt_ve_khach_goi_ve( $ch );
+}
+
+/**
+ * Gói trả về cho một cửa hàng (đã tra tên). 🔴 Tách riêng để đường POST gọi thẳng bằng TÊN, không dựng
+ * `new WP_REST_Request( array(...) )` — kiểu ấy là của bản giả trong bộ thử; WordPress thật nhận
+ * ($method, $route) nên `strtoupper( mảng )` nổ 500 ngay khi bấm Lưu (anh Thắng 24/09/2026).
+ */
+function khh_dt_ve_khach_goi_ve( $ch ) {
+	$ch = (string) $ch;
 	return array(
 		/* bang = chung + riêng của quán đè lên; bang_chung = chỉ bảng chung; bang_rieng = phần quán tự set. */
 		'bang'      => khh_dt_ve_khach_bang( $ch ),
@@ -534,7 +556,7 @@ function khh_dt_rest_ve_khach_dat( $req ) {
 				update_option( $khoa, $so, false );
 			}
 		}
-		return khh_dt_rest_ve_khach_xem( new WP_REST_Request( array( 'cua_hang' => $ch ) ) );
+		return khh_dt_ve_khach_goi_ve( $ch );
 	}
 	/* '*' = ghi bảng CHUNG cho mọi quán (nút chính); tên quán = quán tự set riêng. Trả về theo quán đang xem. */
 	$xem = function_exists( 'khh_dt_bc_ten_cua' ) ? khh_dt_bc_ten_cua( $req->get_param( 'xem_cua_hang' ) ) : '';
@@ -555,5 +577,5 @@ function khh_dt_rest_ve_khach_dat( $req ) {
 			khh_dt_ve_phu_dat( $sach_p, $ch );
 		}
 	}
-	return khh_dt_rest_ve_khach_xem( new WP_REST_Request( array( 'cua_hang' => '' !== $xem && '*' !== $xem ? $xem : ( '*' === $ch ? '' : $ch ) ) ) );
+	return khh_dt_ve_khach_goi_ve( '' !== $xem && '*' !== $xem ? $xem : ( '*' === $ch ? '' : $ch ) );
 }

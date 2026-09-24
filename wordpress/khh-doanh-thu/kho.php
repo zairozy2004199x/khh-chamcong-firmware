@@ -392,6 +392,52 @@ function khh_dt_kho_mon_da_thay( $tu, $den, $co_so ) {
  *    đúng (khai muộn một combo đã bán từ đầu tháng), nên cho phép, nhưng phải do người gõ
  *    chứ không mặc định.
  */
+/**
+ * Khoá so LỎNG cho tên món / tên combo: gộp mọi dấu cách (kể cả NBSP), bỏ hoa thường.
+ * 🔴 Tên trong file FABi giữ nguyên dấu cách thừa; bảng thành phần combo khai "COMBO … + NƯỚC SUỐI" xong kho
+ *    vẫn "Theo combo 0" và vẫn nhắc "chưa khai" (anh Thắng 24/09/2026: *"đã set combo đó bao gồm nước… nó là
+ *    combo và đã set rồi thì đọc theo combo đó bán gì thì hiểu có sản nào chứ"*). So chặt là đúng máy, sai người.
+ */
+function khh_dt_kho_long( $t ) {
+	$t = preg_replace( '/[\s\x{00A0}]+/u', ' ', (string) $t );
+	return function_exists( 'mb_strtolower' ) ? mb_strtolower( trim( $t ), 'UTF-8' ) : strtolower( trim( $t ) );
+}
+
+/** Tra một tên trong mảng [ tên => … ]: khớp đúng trước, không thì khớp lỏng. Trả về khoá đang có hay null. */
+function khh_dt_kho_khoa_long( $bang, $ten ) {
+	$ten = trim( (string) $ten );
+	if ( '' === $ten || ! is_array( $bang ) ) {
+		return null;
+	}
+	if ( array_key_exists( $ten, $bang ) ) {
+		return $ten;
+	}
+	$k = khh_dt_kho_long( $ten );
+	foreach ( array_keys( $bang ) as $khoa ) {
+		if ( khh_dt_kho_long( $khoa ) === $k ) {
+			return (string) $khoa;
+		}
+	}
+	return null;
+}
+
+/** Tên thành phần combo -> tên mặt hàng trong danh mục kho của quán (khớp lỏng), không có thì giữ nguyên. */
+function khh_dt_kho_ten_mh_chuan( $mh, $danh_muc ) {
+	$mh = trim( (string) $mh );
+	foreach ( (array) $danh_muc as $t ) {
+		if ( (string) $t === $mh ) {
+			return $mh;
+		}
+	}
+	$k = khh_dt_kho_long( $mh );
+	foreach ( (array) $danh_muc as $t ) {
+		if ( khh_dt_kho_long( $t ) === $k ) {
+			return (string) $t;
+		}
+	}
+	return $mh;
+}
+
 function khh_dt_kho_combo_ls() {
 	$ls = get_option( 'khh_dt_kho_combo_ls', array() );
 	return is_array( $ls ) ? $ls : array();
@@ -417,9 +463,9 @@ function khh_dt_kho_combo_bang( $ngay = '' ) {
 		$b = get_option( 'khh_dt_kho_combo', array() );
 		return is_array( $b ) ? $b : array();
 	}
-	$chon = array();   // tên combo => dòng hiệu lực đang thắng
+	$chon = array();   // khoá lỏng của tên combo => dòng hiệu lực đang thắng (hai lượt khai chỉ khác dấu cách = một combo)
 	foreach ( $ls as $d ) {
-		$ten = isset( $d['ten'] ) ? (string) $d['ten'] : '';
+		$ten = isset( $d['ten'] ) ? trim( (string) $d['ten'] ) : '';
 		$tu  = isset( $d['tu_ngay'] ) ? (string) $d['tu_ngay'] : '';
 		if ( '' === $ten ) {
 			continue;
@@ -427,22 +473,23 @@ function khh_dt_kho_combo_bang( $ngay = '' ) {
 		if ( '' !== $ngay && $tu > $ngay ) {
 			continue;   // chưa có hiệu lực vào ngày đang xét
 		}
-		if ( ! isset( $chon[ $ten ] ) ) {
-			$chon[ $ten ] = $d;
+		$kl = khh_dt_kho_long( $ten );
+		if ( ! isset( $chon[ $kl ] ) ) {
+			$chon[ $kl ] = $d;
 			continue;
 		}
-		$cu = $chon[ $ten ];
+		$cu = $chon[ $kl ];
 		$x  = strcmp( $tu, (string) $cu['tu_ngay'] );
 		/* Ngày hiệu lực muộn hơn thì thắng; cùng ngày thì lượt ghi sau thắng. */
 		if ( $x > 0 || ( 0 === $x && strcmp( (string) $d['luc'], (string) $cu['luc'] ) >= 0 ) ) {
-			$chon[ $ten ] = $d;
+			$chon[ $kl ] = $d;
 		}
 	}
 	$ra = array();
-	foreach ( $chon as $ten => $d ) {
+	foreach ( $chon as $d ) {
 		$tp = isset( $d['tp'] ) && is_array( $d['tp'] ) ? $d['tp'] : array();
 		if ( $tp ) {
-			$ra[ $ten ] = $tp;   // thành phần rỗng = đã xoá combo ấy từ ngày ấy
+			$ra[ trim( (string) $d['ten'] ) ] = $tp;   // thành phần rỗng = đã xoá combo ấy từ ngày ấy
 		}
 	}
 	ksort( $ra );
@@ -559,6 +606,7 @@ function khh_dt_kho_ban_may( $tu, $den, $co_so ) {
 	$nho   = array();   // công thức theo ngày, nhớ lại để khỏi dựng lại mỗi dòng
 	$thuc  = khh_dt_kho_ban_thuc( $tu, $den, $co_so );
 	$bd    = khh_dt_kho_bi_danh( $co_so );
+	$dm    = khh_dt_kho_mh_cua( $co_so );
 	foreach ( $ds as $r ) {
 		$mon = json_decode( (string) $r['mon'], true );
 		if ( ! is_array( $mon ) ) {
@@ -572,24 +620,28 @@ function khh_dt_kho_ban_may( $tu, $den, $co_so ) {
 		}
 		$combo = $nho[ $ngay ];
 		foreach ( $mon as $m ) {
-			$ten = khh_dt_kho_ten_chuan( $m, $bd );
+			$ten = trim( khh_dt_kho_ten_chuan( $m, $bd ) );
 			$sl  = isset( $m['q'] ) ? (float) $m['q'] : 0;
 			if ( '' === $ten ) {
 				continue;
 			}
 			/* Cơ sở đã chốt SL thực khác máy ở tab Nhập báo cáo -> lấy số chốt. */
-			if ( isset( $thuc[ $ngay ][ trim( $ten ) ] ) ) {
-				$sl = $thuc[ $ngay ][ trim( $ten ) ];
+			$k_thuc = isset( $thuc[ $ngay ] ) ? khh_dt_kho_khoa_long( $thuc[ $ngay ], $ten ) : null;
+			if ( null !== $k_thuc ) {
+				$sl = $thuc[ $ngay ][ $k_thuc ];
 			}
-			if ( isset( $combo[ $ten ] ) ) {
+			$k_cb = khh_dt_kho_khoa_long( $combo, $ten );
+			if ( null !== $k_cb ) {
 				/* Món này là một combo: KHÔNG trừ kho theo tên combo (kho không có "combo"),
 				   mà trừ từng thành phần. Một combo bán ra là ngần ấy chai nước rời kho. */
-				foreach ( $combo[ $ten ] as $mh => $moi_cai ) {
+				foreach ( $combo[ $k_cb ] as $mh => $moi_cai ) {
+					$mh = khh_dt_kho_ten_mh_chuan( $mh, $dm );
 					$ra[ $ngay ][ $mh ] = ( isset( $ra[ $ngay ][ $mh ] ) ? $ra[ $ngay ][ $mh ] : 0 )
 						+ $sl * (float) $moi_cai;
 				}
 				continue;
 			}
+			$ten = khh_dt_kho_ten_mh_chuan( $ten, $dm );
 			$ra[ $ngay ][ $ten ] = ( isset( $ra[ $ngay ][ $ten ] ) ? $ra[ $ngay ][ $ten ] : 0 ) + $sl;
 		}
 	}
@@ -614,6 +666,7 @@ function khh_dt_kho_ban_may_tach( $tu, $den, $co_so ) {
 	$nho   = array();
 	$thuc = khh_dt_kho_ban_thuc( $tu, $den, $co_so );
 	$bd   = khh_dt_kho_bi_danh( $co_so );
+	$dm   = khh_dt_kho_mh_cua( $co_so );
 	foreach ( $ds as $r ) {
 		$mon = json_decode( (string) $r['mon'], true );
 		if ( ! is_array( $mon ) ) {
@@ -626,16 +679,19 @@ function khh_dt_kho_ban_may_tach( $tu, $den, $co_so ) {
 		}
 		$combo = $nho[ $ngay ];
 		foreach ( $mon as $m ) {
-			$ten = khh_dt_kho_ten_chuan( $m, $bd );
+			$ten = trim( khh_dt_kho_ten_chuan( $m, $bd ) );
 			$sl  = isset( $m['q'] ) ? (float) $m['q'] : 0;
 			if ( '' === $ten ) {
 				continue;
 			}
-			if ( isset( $thuc[ $ngay ][ trim( $ten ) ] ) ) {
-				$sl = $thuc[ $ngay ][ trim( $ten ) ];
+			$k_thuc = isset( $thuc[ $ngay ] ) ? khh_dt_kho_khoa_long( $thuc[ $ngay ], $ten ) : null;
+			if ( null !== $k_thuc ) {
+				$sl = $thuc[ $ngay ][ $k_thuc ];
 			}
-			if ( isset( $combo[ $ten ] ) ) {
-				foreach ( $combo[ $ten ] as $mh => $moi_cai ) {
+			$k_cb = khh_dt_kho_khoa_long( $combo, $ten );
+			if ( null !== $k_cb ) {
+				foreach ( $combo[ $k_cb ] as $mh => $moi_cai ) {
+					$mh = khh_dt_kho_ten_mh_chuan( $mh, $dm );
 					if ( ! isset( $ra[ $ngay ][ $mh ] ) ) {
 						$ra[ $ngay ][ $mh ] = array( 'le' => 0, 'combo' => 0 );
 					}
@@ -643,6 +699,7 @@ function khh_dt_kho_ban_may_tach( $tu, $den, $co_so ) {
 				}
 				continue;
 			}
+			$ten = khh_dt_kho_ten_mh_chuan( $ten, $dm );
 			if ( ! isset( $ra[ $ngay ][ $ten ] ) ) {
 				$ra[ $ngay ][ $ten ] = array( 'le' => 0, 'combo' => 0 );
 			}
@@ -1181,8 +1238,8 @@ function khh_dt_kho_combo_chua_khai( $tu, $den, $co_so ) {
 	foreach ( $ds as $r ) {
 		$mon = json_decode( (string) $r['mon'], true );
 		foreach ( is_array( $mon ) ? $mon : array() as $m ) {
-			$ten = isset( $m['n'] ) ? (string) $m['n'] : '';
-			if ( '' === $ten || isset( $co[ $ten ] ) || isset( $nghi[ $ten ] ) ) {
+			$ten = isset( $m['n'] ) ? trim( (string) $m['n'] ) : '';
+			if ( '' === $ten || null !== khh_dt_kho_khoa_long( $co, $ten ) || isset( $nghi[ $ten ] ) ) {
 				continue;
 			}
 			/* Đoán theo tên: chỉ để NHẮC, không để tự trừ kho. Đoán sai công thức combo là trừ
