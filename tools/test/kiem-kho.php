@@ -52,7 +52,7 @@ function dung_bang() {
 		'CREATE TABLE ' . khh_dt_bang_kho_su() . " ( id INTEGER PRIMARY KEY AUTOINCREMENT,
 			ngay TEXT NOT NULL, co_so TEXT NOT NULL DEFAULT '', mat_hang TEXT NOT NULL DEFAULT '',
 			nhap REAL NOT NULL DEFAULT 0, ban_khai REAL NULL DEFAULT NULL,
-			combo_tay REAL NOT NULL DEFAULT 0, dem REAL NULL DEFAULT NULL,
+			combo_tay REAL NOT NULL DEFAULT 0, dem REAL NULL DEFAULT NULL, dat_dau REAL NULL DEFAULT NULL,
 			ghi_chu TEXT DEFAULT '', nguoi TEXT DEFAULT '', luc TEXT NULL )"
 	);
 	$wpdb->exec_raw(
@@ -64,7 +64,7 @@ function dung_bang() {
 		'CREATE TABLE ' . khh_dt_bang_kho() . " ( id INTEGER PRIMARY KEY AUTOINCREMENT,
 			ngay TEXT NOT NULL, co_so TEXT NOT NULL DEFAULT '', mat_hang TEXT NOT NULL DEFAULT '',
 			nhap REAL NOT NULL DEFAULT 0, ban_khai REAL NULL DEFAULT NULL,
-			combo_tay REAL NOT NULL DEFAULT 0, dem REAL NULL DEFAULT NULL,
+			combo_tay REAL NOT NULL DEFAULT 0, dem REAL NULL DEFAULT NULL, dat_dau REAL NULL DEFAULT NULL,
 			ghi_chu TEXT DEFAULT '', nguoi TEXT DEFAULT '', luc TEXT NULL,
 			UNIQUE(ngay,co_so,mat_hang) )"
 	);
@@ -603,6 +603,43 @@ phep( 'mặt hàng không có gì thì thẻ rỗng', array() === khh_dt_kho_the
 /* 🔴 ĐỐI CHIẾU HAI MÀN: tồn cuối 04/09 trên thẻ kho == tồn đầu 05/09 trên màn ngày. */
 $b05 = dong_cua( khh_dt_kho_bang_ngay( '2026-09-05', $CS ), 'Nước suối' );
 phep( '🔴 thẻ kho và màn ngày nói cùng một số (92)', null !== $b05 && 92.0 === (float) $b05['ton_dau'] && 92.0 === (float) $n['2026-09-04']['ton_cuoi'] );
+
+/* ── 14. 🔴 ĐẶT LẠI TỒN ĐẦU (anh Thắng 24/09/2026: "cho set lại tồn đầu") ─────────────────────
+      Tân Phú 24/09: cả cột tồn đầu âm (−2, −8, −34) vì hôm trước máy bán mà chưa ai đặt mốc. Gõ số vào ô
+      Tồn đầu là một bút toán mốc: ngày ấy lấy đúng số đó, chuỗi sau tính tiếp từ đó; để trống là theo số kéo. */
+dung_bang();
+fabi( '2026-09-23', $CS, array( 'Kẹo cứng' => 2 ) );
+fabi( '2026-09-24', $CS, array( 'Kẹo cứng' => 3 ) );
+fabi( '2026-09-25', $CS, array( 'Kẹo cứng' => 1 ) );
+/* Ngày 23 nhập 1 (lượt nhập đầu = mốc 0) -> cuối 23 = 1 − 2 = −1 -> tồn đầu 24 = −1: số âm vô nghĩa kiểu ảnh. */
+khh_dt_kho_ghi( '2026-09-23', $CS, 'Kẹo cứng', array( 'nhap' => 1 ) );
+$b24 = dong_cua( khh_dt_kho_bang_ngay( '2026-09-24', $CS ), 'Kẹo cứng' );
+phep( 'trước khi đặt: tồn đầu 24/09 kéo ra −1 (âm như ảnh)', null !== $b24 && -1.0 === (float) $b24['ton_dau'] && null === $b24['dat_dau'] );
+/* Đặt lại tồn đầu 24/09 = 50 qua đúng cửa REST mà màn gọi. */
+$r = khh_dt_rest_kho_luu( new WP_REST_Request( array( 'ngay' => '2026-09-24', 'co_so' => $CS,
+	'dong' => wp_json_encode( array( array( 'mat_hang' => 'Kẹo cứng', 'dat_dau' => '50', 'nhap' => '10' ) ) ) ) ) );
+phep( 'lưu được dòng có dat_dau', ! is_wp_error( $r ) && 1 === $r['da_ghi'] );
+$b24 = dong_cua( khh_dt_kho_bang_ngay( '2026-09-24', $CS ), 'Kẹo cứng' );
+phep( '🔴 tồn đầu 24/09 = 50 (số đặt), không còn −1', 50.0 === (float) $b24['ton_dau'] && 50.0 === (float) $b24['dat_dau'] );
+phep( 'tồn tính 24/09 = 50 + 10 − 3 = 57, và đã có mốc', 57.0 === (float) $b24['ton_tinh'] && true === $b24['co_moc'] );
+$b25 = dong_cua( khh_dt_kho_bang_ngay( '2026-09-25', $CS ), 'Kẹo cứng' );
+phep( '🔴 ngày sau nối tiếp từ mốc: tồn đầu 25/09 = 57, tính = 56', 57.0 === (float) $b25['ton_dau'] && 56.0 === (float) $b25['ton_tinh'] && null === $b25['dat_dau'] );
+/* Thẻ kho nói cùng một số, và có cột dat_dau để đối chất. */
+$the = khh_dt_kho_the( $CS, 'Kẹo cứng', '2026-09-23', '2026-09-25' );
+$t24 = null; foreach ( $the as $x ) { if ( '2026-09-24' === $x['ngay'] ) { $t24 = $x; } }
+phep( 'thẻ kho 24/09: tồn đầu 50, dat_dau 50, cuối 57', $t24 && 50.0 === (float) $t24['ton_dau'] && 50.0 === (float) $t24['dat_dau'] && 57.0 === (float) $t24['ton_cuoi'] );
+/* Đặt 0 cũng là đặt — 0 khác trống. */
+khh_dt_kho_ghi( '2026-09-24', $CS, 'Kẹo cứng', array( 'dat_dau' => 0, 'nhap' => 10 ) );
+$b24 = dong_cua( khh_dt_kho_bang_ngay( '2026-09-24', $CS ), 'Kẹo cứng' );
+phep( '🔴 đặt 0 là tồn đầu 0 (không phải "trống = kéo −1")', 0.0 === (float) $b24['ton_dau'] && 7.0 === (float) $b24['ton_tinh'] );
+/* Xoá ô (gửi trống) -> về số kéo. */
+khh_dt_kho_ghi( '2026-09-24', $CS, 'Kẹo cứng', array( 'dat_dau' => '', 'nhap' => 10 ) );
+$b24 = dong_cua( khh_dt_kho_bang_ngay( '2026-09-24', $CS ), 'Kẹo cứng' );
+phep( 'xoá ô đặt -> tồn đầu lại kéo từ hôm trước (−1)', -1.0 === (float) $b24['ton_dau'] && null === $b24['dat_dau'] );
+/* Sổ ghi động giữ đủ ba lượt (50, 0, trống) — có dấu vết ai đặt lại. */
+$su = khh_dt_kho_su_cua( '2026-09-24', $CS, 'Kẹo cứng' );
+$dat_ds = array_map( function ( $x ) { return array_key_exists( 'dat_dau', $x ) ? $x['dat_dau'] : 'thiếu cột'; }, $su );
+phep( 'sổ ghi động lưu từng lượt đặt lại (50, 0, trống), không ghi đè', 3 === count( $su ) && in_array( 50.0, array_map( 'floatval', array_filter( $dat_ds, 'is_numeric' ) ), true ) && in_array( null, $dat_ds, true ) );
 
 if ( $hong ) {
 	echo "\n✗ HỎNG " . count( $hong ) . " phép (đạt $dat):\n";

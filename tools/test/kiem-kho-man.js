@@ -168,6 +168,13 @@ t('số máy canh phải, lệch canh giữa', /\.o-may\{text-align:right\}/.tes
 t("🔴 JS dùng đúng nhãn 'SL hàng bán' và 'Hàng tồn còn' mà CSS order bám theo", /oNhap\('ban_khai', 'SL hàng bán'/.test(boCC) && /oNhap\('dem', 'Hàng tồn còn'/.test(boCC) && !/NV khai bán|NV đếm còn/.test(boCC));
 t("và các nhãn số máy khớp CSS", /oMay\('Tồn đầu'/.test(boCC) && /oMay\('Máy bán tổng'/.test(boCC) && /oMay\('Tồn tính'/.test(boCC));
 
+/* 24/09/2026 anh Thắng: "cho set lại tồn đầu" — ô Tồn đầu gõ được khi có quyền ghi, trống = số kéo (placeholder). */
+t('🔴 Tồn đầu là ô gõ data-kho="dat_dau" khi được ghi', /data-kho="dat_dau"/.test(boCC) && /class="o-go o-dau" data-nhan="Tồn đầu"/.test(boCC));
+t('ô ấy hiện số kéo mờ (placeholder = soKho(d.ton_dau))', /placeholder="' \+ esc\(soKho\(d\.ton_dau\)\)/.test(boCC));
+t('không có quyền ghi thì vẫn là số đọc (oMay Tồn đầu)', /: oMay\('Tồn đầu', d\.ton_dau\)/.test(boCC));
+t('điện thoại: ô Tồn đầu gõ được vẫn đứng cột 3 dòng Nhập', /\.o-go\[data-nhan="Tồn đầu"\]\{order:12;grid-column:3\}/.test(dt));
+t('chú giải nói gõ số để đặt lại mốc', /gõ số thật vào ô<\/b> để đặt lại mốc/.test(boCC));
+
 /* 23/09/2026 anh Thắng: "cho các ô này nhỏ lại, để tránh lệch cột" — trên máy tính ô gõ số phải hẹp,
    không để trình duyệt tự cho ~150px. Luật này nằm NGOÀI @media (luật điện thoại đè lại thành 100%). */
 {
