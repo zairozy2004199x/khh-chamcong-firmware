@@ -169,6 +169,24 @@ $src = file_get_contents( $goc . '/ve-khach.php' );
 $src = preg_replace( '~/\*.*?\*/~s', '', $src );
 phep( "🔴 route /ve-khach gác bằng khh_dt_duoc_nap (văn phòng), cả GET lẫn POST", 2 === substr_count( $src, "'permission_callback' => 'khh_dt_duoc_nap'" ) && false === strpos( $src, '__return_true' ) );
 
+/* ── "lúc thì tự lưu, lúc thì không lưu" (anh Thắng 24/09/2026, Estella): tên quán có HAI dấu cách. ── */
+$CS_E = 'Tutu Train - Estella ( Dịch vụ  và Giải trí )';   // nguyên văn trong kho POS: hai dấu cách
+ngay_ban( '2026-09-23', $CS_E, $MON, 25 );
+/* Bản cũ đã lưu dưới khoá bị gộp dấu cách -> đọc theo tên nguyên văn vẫn phải thấy. */
+khh_dt_ve_khach_dat( array( 'VÉ TRẺ EM + NGƯỜI LỚN' => 2 ), 'Tutu Train - Estella ( Dịch vụ và Giải trí )' );
+phep( '🔴 bảng lưu dưới khoá thiếu dấu cách vẫn đọc ra bằng tên nguyên văn', 2 === (int) khh_dt_ve_khach_bang( $CS_E )['VÉ TRẺ EM + NGƯỜI LỚN'] && array() !== khh_dt_ve_khach_bang_rieng( $CS_E ) );
+/* Ghi bằng tên nguyên văn -> dồn khoá cũ về một, không còn hai bản song song. */
+khh_dt_ve_khach_dat( array( 'VÉ TUTU TRAIN: VÉ TRẺ EM' => 1 ), $CS_E );
+$so_e = khh_dt_ve_so_cua( 'khh_dt_ve_khach' );
+phep( '🔴 ghi bằng tên nguyên văn thì chỉ còn MỘT khoá cho quán, giữ cả số cũ', isset( $so_e[ $CS_E ] ) && ! isset( $so_e['Tutu Train - Estella ( Dịch vụ và Giải trí )'] ) && 2 === (int) $so_e[ $CS_E ]['VÉ TRẺ EM + NGƯỜI LỚN'] && 1 === (int) $so_e[ $CS_E ]['VÉ TUTU TRAIN: VÉ TRẺ EM'] );
+/* REST: POST rồi GET với tên gộp dấu cách (như màn gửi) -> trả về tên nguyên văn và thấy số vừa lưu. */
+$GLOBALS['VHCP_CO_QUYEN'] = true; $GLOBALS['VHCP_DANG_NHAP_WP'] = true;
+$r = khh_dt_rest_ve_khach_dat( new WP_REST_Request( array( 'cua_hang' => 'Tutu Train - Estella ( Dịch vụ và Giải trí )', 'bang' => wp_json_encode( array( 'VÉ TUTU TRAIN: VÉ NGƯỜI LỚN' => 1 ) ), 'phu' => wp_json_encode( array( 'VÉ TRẺ EM + NGƯỜI LỚN' => 20000 ) ) ) ) );
+phep( '🔴 REST lưu với tên gộp dấu cách: trả về tên nguyên văn, khai đủ 3 vé + phụ 20.000', ! is_wp_error( $r ) && $CS_E === $r['cua_hang'] && 1 === (int) $r['bang']['VÉ TUTU TRAIN: VÉ NGƯỜI LỚN'] && 20000 === (int) $r['phu']['VÉ TRẺ EM + NGƯỜI LỚN'] );
+$r = khh_dt_rest_ve_khach_xem( new WP_REST_Request( array( 'cua_hang' => $CS_E ) ) );
+phep( 'GET bằng tên nguyên văn thấy đúng bảng vừa lưu (không còn "chưa khai")', 20000 === (int) $r['phu']['VÉ TRẺ EM + NGƯỜI LỚN'] && 1 === (int) $r['bang']['VÉ TUTU TRAIN: VÉ NGƯỜI LỚN'] );
+$GLOBALS['VHCP_CO_QUYEN'] = false; $GLOBALS['VHCP_DANG_NHAP_WP'] = false;
+
 if ( $hong ) {
 	echo "\n✗ HỎNG " . count( $hong ) . " phép (đạt $dat):\n";
 	foreach ( $hong as $h ) { echo "   · 🔴 $h\n"; }

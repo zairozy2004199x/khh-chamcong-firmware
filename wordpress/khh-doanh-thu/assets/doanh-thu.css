@@ -223,6 +223,10 @@ body.khh-dt-body{margin:0;background:#f2f1ee}
 .khh-dt .bc-o input:disabled,.khh-dt .bc-o textarea:disabled{background:var(--card-2);color:var(--ink-3)}
 
 .khh-dt .bc-lech{display:flex;flex-direction:column;gap:6px;margin-top:16px}
+/* Nhãn số trên tab Cảnh báo. */
+.khh-dt .tab .dem{display:inline-block;min-width:18px;padding:0 5px;margin-left:4px;border-radius:9px;font-size:11px;line-height:18px;
+  background:var(--app-mem);color:var(--app);font-weight:700;text-align:center}
+.khh-dt .tab .dem.xau{background:var(--xau);color:#fff}
 /* Quy trình hằng ngày: việc còn treo + thanh bốn bước (24/09/2026). */
 .khh-dt .bc-viec{margin:12px 0 0}
 .khh-dt .bc-viec-o{font-size:13px;color:var(--ink-2);padding:9px 12px;border-radius:8px;background:var(--app-mem);border:1px solid var(--line)}

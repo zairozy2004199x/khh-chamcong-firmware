@@ -102,6 +102,26 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.64.3 =
+* **Tab "Cảnh báo" mới — việc còn treo chuyển sang đây.** Anh Thắng 24/09/2026: *"cho nó sang tab cảnh báo đi, đây
+  tab báo cáo mà"* — 91 thẻ ngày chưa chốt chèn đầu tab Nhập là quá ồn cho văn phòng. Tab Cảnh báo gom **theo cơ sở**:
+  mỗi quán một dòng (số ngày chưa chốt, số quá hạn, các thẻ ngày), quán quá hạn xếp trước; bấm thẻ ngày là sang tab
+  Nhập đúng ngày ấy. Nhãn tab mang số ngày chưa chốt (đỏ khi có quá hạn). Tab Nhập chỉ còn **một dòng** tóm tắt + nút
+  sang Cảnh báo, và thanh bốn bước của ngày đang mở.
+* **Sale vé / Sale phụ: lưu một lần cho mọi cửa hàng.** Anh Thắng: *"có là đều hết chứ"*. Thêm nút **Lưu cho tất cả
+  cửa hàng** (bảng chung, mọi quán chưa khai riêng đều theo), nút **Lưu riêng cho cửa hàng này** chỉ khi quán ấy khác,
+  và nút **Bỏ khai riêng, dùng bảng chung** cho quán đang khai riêng (Gò Vấp). Cổng `nhom-ve` nhận `cua_hang=*` và
+  `xoa_rieng`.
+* **Sửa: tiêu đề khối ghi Tân An mà ô chọn nhảy về Tân Phú, báo "chưa có nhóm món nào".** Tên máy POS có hai dấu cách,
+  máy chủ gộp thành một rồi tra không ra. Nay tra về tên **nguyên văn** trong kho POS (`khh_dt_bc_ten_cua`, dùng cho
+  cả khối bóc tách vé); ô chọn không còn rơi về quán đầu danh sách.
+* **Sửa "lúc thì tự lưu, lúc thì không lưu" ở khối Bóc tách vé** (Estella). Cùng gốc: đường ghi gộp dấu cách, đường
+  đọc lấy tên nguyên văn, nên quán tên có hai dấu cách lưu xong đọc lại không thấy. Nay hai đường cùng tra về tên
+  nguyên văn; bảng đã lưu dưới khoá lệch vẫn đọc được và được dồn về một khoá ở lượt lưu sau. Áp cho cả bảng nhóm
+  Sale vé / Sale phụ. `kiem-ve-khach.php` +4 phép.
+* **Sửa: Chrome tự điền chữ "admin" vào ô "Vé giấy đã soát".** Mọi ô nhập báo cáo / hàng bán / sổ kho tắt tự điền.
+* `kiem-hang-ban-chot.php` +7 phép, `kiem-hang-ban-chot-man.js` +5, `kiem-quy-trinh-man.js` 32 phép theo bố cục mới.
+
 = 1.64.2 =
 * **Sửa "cứ bấm nào nó lại mất bảng" ở ô ngày (Đối soát, Doanh thu).** Anh Thắng 24/09/2026. Chọn ngày Từ xong,
   nửa giây sau tab tự tải lại và vẽ lại cả thanh lọc, nên bảng lịch đang mở của ô "đến" biến mất, chưa kịp chọn

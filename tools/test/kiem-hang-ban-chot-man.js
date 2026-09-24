@@ -56,7 +56,13 @@ t('cột tích Sale vé? và cột số "Sale phụ mỗi vé (đ)"', /<th>Sale 
 t('🔴 ô phụ là input NUMBER (đ/vé), không còn checkbox', /type="number"[^>]*data-nhom-phu=/.test(nv) && !/type="checkbox"[^>]*data-nhom-phu=/.test(nv));
 t('gửi nhom_phu dạng { nhóm: đ/vé }, chỉ số > 0', /var ds = \[\], dsPhu = \{\};/.test(nv) && /if \(v > 0\) dsPhu\[c\.dataset\.nhomPhu\] = v;/.test(nv));
 t("🔴 Lưu POST nhom-ve gửi cả nhom_ve và nhom_phu", /fd\.append\('nhom_ve', JSON\.stringify\(ds\)\)/.test(nv) && /fd\.append\('nhom_phu', JSON\.stringify\(dsPhu\)\)/.test(nv));
-t("🔴 và kèm cua_hang — cấu hình khai riêng từng quán", /fd\.append\('cua_hang', r\.cua_hang \|\| cauHinhCS\(\)\)/.test(nv));
+t("🔴 và kèm cua_hang — '*' khi lưu cho tất cả, tên quán khi lưu riêng", /fd\.append\('cua_hang', chung \? '\*' : \(r\.cua_hang \|\| cauHinhCS\(\)\)\)/.test(nv));
+/* 24/09/2026 anh Thắng: "có là đều hết chứ" */
+t('🔴 có nút "Lưu cho tất cả cửa hàng" (bảng chung) và nút lưu riêng', /id="nvLuuChung" data-nv-luu="\*">Lưu cho tất cả cửa hàng</.test(nv) && /id="nvLuu" data-nv-luu="rieng">Lưu riêng cho cửa hàng này</.test(nv));
+t('quán đang khai riêng mà có bảng chung thì có nút "Bỏ khai riêng" -> POST xoa_rieng', /r\.rieng && r\.chung \? '<button[^>]*id="nvBoRieng"/.test(nv) && /fd\.append\('xoa_rieng', '1'\)/.test(nv));
+t('lưu xong tải lại theo quán ĐANG CHỌN (không hiện "*")', /return api\('nhom-ve\?cua_hang=' \+ encodeURIComponent\(cauHinhCS\(\)\)\)/.test(nv));
+t('ô chọn quán: tên máy chủ trả về không có trong danh sách thì chọn theo quán đang chọn', /var chon = ds\.indexOf\(r\.cua_hang\) >= 0 \? r\.cua_hang : cauHinhCS\(\);/.test(boc('oChonCS')));
+t('🔴 ô nhập báo cáo tắt tự điền của trình duyệt (Chrome điền "admin" vào Vé giấy đã soát)', /autocomplete="off" id="bc_' \+ id/.test(boc('o_nhap')) && /autocomplete="off" data-thuc=/.test(boc('veHangBan')));
 t('khối nhóm có ô chọn cửa hàng chung và GET theo cửa hàng', /oChonCS\('nvCS', r\)/.test(nv) && /api\('nhom-ve\?cua_hang='/.test(boc('taiNhomVe')));
 /* 24/09/2026 anh Thắng: "chỗ set Sale Phụ anh không thấy" — lỗi tải khối phải hiện ra, và có link dẫn từ tab Nhập. */
 t('🔴 lỗi tải hai khối cấu hình hiện ra (khoiLoi), không nuốt bằng catch rỗng', /catch\(function \(e\) \{ khoiLoi\(o, 'dtNhomVe'/.test(js) && /catch\(function \(e\) \{ khoiLoi\(o, 'dtVeKhach'/.test(js));

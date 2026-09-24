@@ -31,6 +31,10 @@ if ( ! function_exists( 'khh_dt_duoc_ghi' ) ) { function khh_dt_duoc_ghi() { ret
 if ( ! function_exists( 'sanitize_textarea_field' ) ) { function sanitize_textarea_field( $s ) { return trim( (string) $s ); } }
 if ( ! function_exists( 'get_current_user_id' ) ) { function get_current_user_id() { return 0; } }
 if ( ! function_exists( 'get_user_meta' ) ) { function get_user_meta( $u, $k, $one = true ) { return ''; } }
+if ( ! function_exists( 'khh_dt_ten_long' ) && file_exists( $goc . '/nguoi.php' ) ) {
+	/* `khh_dt_ten_pos_chuan` (tra tên POS nguyên văn) nằm ở nguoi.php. */
+	if ( ! function_exists( 'khh_dt_phien_nguoi' ) ) { function khh_dt_phien_nguoi() { return false; } }
+}
 require_once $goc . '/ve-khach.php';
 require_once $goc . '/bao-cao-ngay.php';
 
@@ -158,6 +162,24 @@ $rc = khh_dt_rest_nhom_ve_xem( new WP_REST_Request( array( 'cua_hang' => $CS ) )
 phep( 'quán khác chỉ thấy nhóm của mình (Vé, Đồ uống) và vẫn thừa bảng chung', false === $rc['rieng'] && array( 'VÉ COMBO.' ) === $rc['nhom_ve'] && 2 === count( $rc['nhom'] ) );
 $src_bc = preg_replace( '~/\*.*?\*/~s', '', file_get_contents( $goc . '/bao-cao-ngay.php' ) );
 phep( "🔴 route /nhom-ve gác khh_dt_duoc_nap cả GET và POST", 2 <= substr_count( substr( $src_bc, strpos( $src_bc, "'/nhom-ve'" ) ), "'permission_callback' => 'khh_dt_duoc_nap'" ) );
+/* ── 24/09/2026 anh Thắng: "có là đều hết chứ" — lưu MỘT LẦN cho mọi quán (bảng chung), bỏ khai riêng, và tên quán
+      có hai dấu cách phải tra ra đúng quán (ảnh: tiêu đề Tân An, ô chọn nhảy về Tân Phú, "chưa có nhóm món nào"). ── */
+$r = khh_dt_rest_nhom_ve_dat( new WP_REST_Request( array( 'nhom_ve' => wp_json_encode( array( 'VÉ COMBO.', 'VÉ LẺ.' ) ), 'nhom_phu' => wp_json_encode( array( 'VÉ COMBO.' => 20000 ) ), 'cua_hang' => '*' ) ) );
+phep( '🔴 cua_hang = "*" là lưu BẢNG CHUNG: không lỗi, trả về cờ chung', ! is_wp_error( $r ) && true === $r['chung'] );
+$rc = khh_dt_rest_nhom_ve_xem( new WP_REST_Request( array( 'cua_hang' => $CS ) ) );
+phep( '🔴 quán chưa khai riêng thừa ngay bảng chung: 2 nhóm vé, phụ 20.000', array( 'VÉ COMBO.', 'VÉ LẺ.' ) === $rc['nhom_ve'] && array( 'VÉ COMBO.' => 20000.0 ) === $rc['nhom_phu'] && false === $rc['rieng'] && true === $rc['chung'] );
+$rb = khh_dt_rest_nhom_ve_xem( new WP_REST_Request( array( 'cua_hang' => 'Quán B' ) ) );
+phep( 'quán B vẫn giữ bảng riêng của nó (phụ 15.000, không nhóm vé)', true === $rb['rieng'] && array() === $rb['nhom_ve'] && array( 'VÉ COMBO.' => 15000.0 ) === $rb['nhom_phu'] );
+$r = khh_dt_rest_nhom_ve_dat( new WP_REST_Request( array( 'xoa_rieng' => '1', 'cua_hang' => 'Quán B' ) ) );
+phep( '🔴 "Bỏ khai riêng": quán B thừa lại bảng chung cả vé lẫn phụ', ! is_wp_error( $r ) && false === $r['rieng'] && array( 'VÉ COMBO.', 'VÉ LẺ.' ) === $r['nhom_ve'] && array( 'VÉ COMBO.' => 20000.0 ) === $r['nhom_phu'] );
+phep( 'bỏ khai riêng mà không nêu quán / nêu "*" -> 400', is_wp_error( khh_dt_rest_nhom_ve_dat( new WP_REST_Request( array( 'xoa_rieng' => '1', 'cua_hang' => '*' ) ) ) ) );
+/* Tên quán có HAI dấu cách trong kho POS: gửi lên bản một dấu cách (hay ngược lại) vẫn phải tra ra đúng quán. */
+$CS2 = 'Tutu Train - Aeon Tân An ( Dịch vụ  và Giải trí )';
+$wpdb->query( $wpdb->prepare( 'INSERT INTO ' . khh_dt_bang() . ' (ngay,cua_hang,doanh_thu,so_hd,so_ve,pttt,mon) VALUES (%s,%s,%f,%d,%f,%s,%s)', '2026-09-23', $CS2, 100000, 1, 1, '[]', wp_json_encode( $MON_L ) ) );
+$rc = khh_dt_rest_nhom_ve_xem( new WP_REST_Request( array( 'cua_hang' => 'Tutu Train - Aeon Tân An ( Dịch vụ và Giải trí )' ) ) );
+phep( '🔴 tên gửi lên khác dấu cách vẫn tra ra tên NGUYÊN VĂN và thấy nhóm món của quán', $CS2 === $rc['cua_hang'] && count( $rc['nhom'] ) > 0 );
+phep( 'bản có "*" giữa dấu cách vẫn là bảng chung', '*' === khh_dt_bc_ten_cua( ' * ' ) );
+$wpdb->query( $wpdb->prepare( 'DELETE FROM ' . khh_dt_bang() . ' WHERE cua_hang = %s', $CS2 ) );
 $wpdb->query( "DELETE FROM " . khh_dt_bang() . " WHERE cua_hang = 'Quán B'" );
 delete_option( 'khh_dt_nhom_ve' );
 delete_option( 'khh_dt_nhom_phu' );

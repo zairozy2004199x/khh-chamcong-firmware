@@ -28,7 +28,14 @@ function boc(ten) {
 /* ---- tab Nhập báo cáo ---- */
 const dn = boc('dungNhap');
 t('khung Nhập có #bcViec trên cùng và #bcBuoc dưới ô chọn ngày', /id="bcViec" class="bc-viec"/.test(dn) && /id="bcBuoc" class="bc-buoc"/.test(dn) && dn.indexOf('id="bcViec"') < dn.indexOf('id="bcNgay"') && dn.indexOf('id="bcBuoc"') < dn.indexOf('id="bcPos"'));
-t('dungNhap gọi taiViec() và bấm việc là đổi ngày + napBaoCao', /taiViec\(\);/.test(dn) && /data-viec-ngay/.test(dn) && /q\('#bcNgay'\)\.value = b\.getAttribute\('data-viec-ngay'\)/.test(dn));
+t('dungNhap gọi taiViec(); bấm dòng tóm tắt là sang tab Cảnh báo (không còn thẻ ngày ở tab Nhập)', /taiViec\(\);/.test(dn) && /data-sang-cb/.test(dn) && /doiTab\('canhbao'\)/.test(dn) && !/data-viec-ngay/.test(dn));
+/* Anh Thắng 24/09/2026: "cho nó sang tab cảnh báo đi, đây tab báo cáo mà". */
+t('🔴 có tab Cảnh báo (#dtTabCB, khung #dtTabCanhBao) và doiTab gọi taiCanhBao', /data-tab="canhbao" id="dtTabCB"/.test(js) && /id="dtTabCanhBao"/.test(js) && /if \(t === 'canhbao'\) taiCanhBao\(\);/.test(boc('doiTab')));
+t('tab Cảnh báo GET quy-trinh và vẽ veCanhBao', /api\('quy-trinh'\)/.test(boc('taiCanhBao')) && /veCanhBao\(o, r\)/.test(boc('taiCanhBao')));
+const vcb = boc('veCanhBao');
+t('🔴 gom theo cơ sở: bảng Cơ sở / Chưa chốt / Quá hạn / Ngày, thẻ điện thoại', /<th>Chưa chốt<\/th><th>Quá hạn<\/th>/.test(vcb) && /class="bang-the bang-cuon"/.test(vcb) && /nhom\[x\.cua_hang\]\.push\(x\)/.test(vcb));
+t('bấm thẻ ngày ở tab Cảnh báo -> đặt S.nhapNgay/S.nhapCH, sang tab Nhập, napBaoCao', /S\.nhapNgay = b\.getAttribute\('data-viec-ngay'\)/.test(boc('noiCanhBao')) && /doiTab\('nhap'\)/.test(boc('noiCanhBao')) && /napBaoCao\(\)/.test(boc('noiCanhBao')));
+t('nhãn tab mang số ngày chưa chốt, đỏ khi có quá hạn; gọi lúc mở trang và sau khi tải việc', /class="dem' \+ \(qh \? ' xau' : ''\)/.test(boc('nhanCanhBao')) && /demCanhBao\(\);/.test(js) && /nhanCanhBao\(r\)/.test(boc('taiViec')));
 t('taiViec GET quy-trinh', /api\('quy-trinh'\)/.test(boc('taiViec')));
 t('napBaoCao vẽ bốn bước từ r.quy_trinh', /veBuoc\(r\.quy_trinh\)/.test(boc('napBaoCao')));
 t('🔴 lưu xong tải lại danh sách việc', /napBaoCao\(\);\s*taiViec\(\);/.test(boc('luuBaoCao')));
@@ -57,31 +64,35 @@ function taoO() {
 }
 const G = { querySelector(sel) { return G._o[sel] || null; }, _o: {} };
 const ctx = {};
-const than = boc('veViec') + boc('veBuoc') + '\n  var QT_NHAN = { chua_fabi: "chưa có số máy POS", chua_nop: "chưa nộp", da_luu: "đã lưu, chưa chốt", da_chot: "đã chốt" };' +
-  '\n  return { veViec: veViec, veBuoc: veBuoc };';
+const than = boc('veViec') + boc('veCanhBao') + boc('veBuoc') + '\n  function noiCanhBao() {}' +
+  '\n  var QT_NHAN = { chua_fabi: "chưa có số máy POS", chua_nop: "chưa nộp", da_luu: "đã lưu, chưa chốt", da_chot: "đã chốt" };' +
+  '\n  return { veViec: veViec, veCanhBao: veCanhBao, veBuoc: veBuoc };';
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ngayVN = (s) => (s ? s.split('-').reverse().join('/') : '');
 const q = (sel) => G.querySelector(sel);
 let m;
 try {
   m = new Function('esc', 'ngayVN', 'q', than)(esc, ngayVN, q);
-} catch (e) { hong.push('không nạp được veViec/veBuoc: ' + e.message); }
+} catch (e) { hong.push('không nạp được veViec/veCanhBao/veBuoc: ' + e.message); }
 if (m) {
   const o = taoO();
   m.veViec(o, { viec: [], han: '10:00' });
-  t('không việc -> "Đã chốt hết" kèm giờ hạn', /Đã chốt hết/.test(o.innerHTML) && /10:00/.test(o.innerHTML) && /bc-viec-o xong/.test(o.innerHTML));
-  m.veViec(o, { han: '10:00', viec: [
+  t('tab Nhập, không việc -> "Đã chốt hết" kèm giờ hạn', /Đã chốt hết/.test(o.innerHTML) && /10:00/.test(o.innerHTML) && /bc-viec-o xong/.test(o.innerHTML));
+  const VIEC = [
     { ngay: '2026-09-22', cua_hang: 'Gò Vấp', trang_thai: 'chua_nop', qua_han: true },
     { ngay: '2026-09-23', cua_hang: 'Gò Vấp', trang_thai: 'da_luu', qua_han: false },
-  ] });
-  t('🔴 2 ngày chưa chốt · 1 quá hạn, khối đỏ', /<b>2 ngày chưa chốt<\/b>/.test(o.innerHTML) && /<b>1 quá hạn<\/b>/.test(o.innerHTML) && /bc-viec-o xau/.test(o.innerHTML));
-  t('mỗi việc một nút mang ngày + cơ sở, ngày quá hạn có lớp qua-han', /data-viec-ngay="2026-09-22" data-viec-ch="Gò Vấp"/.test(o.innerHTML) && /class="vien qua-han" type="button" data-viec-ngay="2026-09-22"/.test(o.innerHTML) && /class="vien" type="button" data-viec-ngay="2026-09-23"/.test(o.innerHTML));
-  t('nhãn trạng thái tiếng Việt, một cơ sở thì không lặp tên quán', /22\/09\/2026 <span>chưa nộp · quá hạn<\/span>/.test(o.innerHTML) && !/· Gò Vấp/.test(o.innerHTML));
-  m.veViec(o, { han: '10:00', viec: [
-    { ngay: '2026-09-23', cua_hang: 'Gò Vấp', trang_thai: 'chua_nop', qua_han: false },
     { ngay: '2026-09-23', cua_hang: 'Tân Phú', trang_thai: 'chua_fabi', qua_han: false },
-  ] });
-  t('văn phòng xem nhiều quán -> nút ghi tên quán', /23\/09\/2026 · Gò Vấp/.test(o.innerHTML) && /23\/09\/2026 · Tân Phú <span>chưa có số máy POS<\/span>/.test(o.innerHTML));
+  ];
+  m.veViec(o, { han: '10:00', viec: VIEC });
+  t('🔴 tab Nhập chỉ MỘT DÒNG: 3 ngày chưa chốt · 1 quá hạn + nút sang tab Cảnh báo, KHÔNG có thẻ ngày', /<b>3 ngày chưa chốt<\/b>/.test(o.innerHTML) && /<b>1 quá hạn<\/b>/.test(o.innerHTML) && /data-sang-cb="1"/.test(o.innerHTML) && !/data-viec-ngay/.test(o.innerHTML));
+  const o2 = { innerHTML: '', addEventListener() {} };
+  m.veCanhBao(o2, { han: '10:00', viec: VIEC });
+  const cb = o2.innerHTML;
+  t('🔴 tab Cảnh báo gom theo cơ sở: Gò Vấp một dòng 2 ngày · 1 quá hạn, Tân Phú một dòng 1 ngày', /<b>Gò Vấp<\/b>/.test(cb) && /<b>Tân Phú<\/b>/.test(cb) && (cb.match(/<tr[ >]/g) || []).length === 3 && /data-nhan="Chưa chốt">2</.test(cb) && /data-nhan="Chưa chốt">1</.test(cb));
+  t('quán có quá hạn xếp trước, dòng tô đỏ', cb.indexOf('Gò Vấp') < cb.indexOf('Tân Phú') && /<tr class="qua-han">/.test(cb));
+  t('mỗi ngày một thẻ mang ngày + cơ sở, ngày quá hạn lớp qua-han, nhãn tiếng Việt', /class="vien qua-han" type="button" data-viec-ngay="2026-09-22" data-viec-ch="Gò Vấp"/.test(cb) && /22\/09<span>chưa nộp<\/span>/.test(cb) && /23\/09<span>chưa có số máy POS<\/span>/.test(cb));
+  m.veCanhBao(o2, { han: '10:00', viec: [] });
+  t('tab Cảnh báo, không việc -> "Mọi cơ sở đã chốt"', /Mọi cơ sở đã chốt/.test(o2.innerHTML));
 
   G._o['#bcBuoc'] = taoO();
   m.veBuoc({ buoc: { fabi: true, khai: true, kho: null, chot: false }, qua_han: false, han: '2026-09-24 10:00' });

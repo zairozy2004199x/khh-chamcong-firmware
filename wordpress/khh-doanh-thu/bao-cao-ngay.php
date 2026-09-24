@@ -260,8 +260,9 @@ function khh_dt_nhom_doc( $khoa, $cua_hang = '' ) {
 		$so = array( '*' => $so );
 	}
 	$cs = trim( (string) $cua_hang );
-	if ( '' !== $cs && '*' !== $cs && isset( $so[ $cs ] ) && is_array( $so[ $cs ] ) ) {
-		return khh_dt_nhom_sach( $so[ $cs ] );
+	$kh = ( '' !== $cs && '*' !== $cs ) ? khh_dt_bc_khoa_cua( $so, $cs ) : '';
+	if ( '' !== $kh && is_array( $so[ $kh ] ) ) {
+		return khh_dt_nhom_sach( $so[ $kh ] );
 	}
 	if ( isset( $so['*'] ) && is_array( $so['*'] ) ) {
 		return khh_dt_nhom_sach( $so['*'] );
@@ -284,6 +285,11 @@ function khh_dt_nhom_ghi( $khoa, $ds, $cua_hang = '' ) {
 	}
 	$cs        = trim( (string) $cua_hang );
 	$cs        = '' === $cs ? '*' : $cs;
+	/* Khoá cũ khác dấu cách của cùng quán -> dồn về khoá nguyên văn, khỏi hai bản song song. */
+	$kh = '*' === $cs ? '' : khh_dt_bc_khoa_cua( $so, $cs );
+	if ( '' !== $kh && $kh !== $cs ) {
+		unset( $so[ $kh ] );
+	}
 	$sach      = khh_dt_nhom_sach( $ds );
 	$so[ $cs ] = $sach;
 	update_option( $khoa, $so, false );
@@ -293,8 +299,8 @@ function khh_dt_nhom_ghi( $khoa, $ds, $cua_hang = '' ) {
 /** Quán này đã khai RIÊNG cấu hình nhóm chưa (khác với thừa từ bảng chung). */
 function khh_dt_nhom_co_rieng( $khoa, $cua_hang ) {
 	$so = get_option( $khoa, false );
-	$cs = trim( (string) $cua_hang );
-	return is_array( $so ) && '' !== $cs && isset( $so[ $cs ] ) && is_array( $so[ $cs ] );
+	$kh = khh_dt_bc_khoa_cua( $so, $cua_hang );
+	return '' !== $kh && '*' !== $kh && is_array( $so[ $kh ] );
 }
 
 function khh_dt_nhom_ve_ds( $cua_hang = '' ) {
@@ -359,7 +365,9 @@ function khh_dt_nhom_phu_ds( $cua_hang = '' ) {
 		$so = array( '*' => $so );
 	}
 	$cs = trim( (string) $cua_hang );
-	if ( '' !== $cs && '*' !== $cs && isset( $so[ $cs ] ) && is_array( $so[ $cs ] ) ) {
+	$kh = ( '' !== $cs && '*' !== $cs ) ? khh_dt_bc_khoa_cua( $so, $cs ) : '';
+	if ( '' !== $kh && is_array( $so[ $kh ] ) ) {
+		$cs = $kh;
 		return khh_dt_nhom_phu_sach( $so[ $cs ] );
 	}
 	if ( isset( $so['*'] ) && is_array( $so['*'] ) ) {
@@ -383,6 +391,10 @@ function khh_dt_nhom_phu_dat( $ds, $cua_hang = '' ) {
 	}
 	$cs        = trim( (string) $cua_hang );
 	$cs        = '' === $cs ? '*' : $cs;
+	$kh        = '*' === $cs ? '' : khh_dt_bc_khoa_cua( $so, $cs );
+	if ( '' !== $kh && $kh !== $cs ) {
+		unset( $so[ $kh ] );   // dồn khoá cũ khác dấu cách về khoá nguyên văn
+	}
 	$sach      = khh_dt_nhom_phu_sach( $ds );
 	$so[ $cs ] = $sach;
 	update_option( 'khh_dt_nhom_phu', $so, false );
@@ -489,20 +501,95 @@ function khh_dt_nhom_ve_route() {
 		)
 	);
 }
+/**
+ * Tên cửa hàng gửi từ màn về -> tên NGUYÊN VĂN trong kho POS. 🔴 Không `sanitize_text_field` rồi đem đi tra:
+ * hàm ấy gộp hai dấu cách thành một, mà tên máy POS như "Tutu Train - Aeon Tân An ( Dịch vụ  và …" có
+ * hai dấu cách thật — tra không ra, khối Quản trị báo "chưa có nhóm món nào", ô chọn nhảy về quán đầu
+ * danh sách trong khi tiêu đề vẫn ghi Tân An (ảnh anh Thắng 24/09/2026). '*' = bảng chung.
+ */
+function khh_dt_bc_long( $t ) {
+	$t = preg_replace( '/[\s\x{00A0}]+/u', ' ', (string) $t );
+	return function_exists( 'mb_strtolower' ) ? mb_strtolower( trim( $t ), 'UTF-8' ) : strtolower( trim( $t ) );
+}
+
+function khh_dt_bc_ten_cua( $tho ) {
+	$t = (string) $tho;
+	if ( '*' === trim( $t ) ) {
+		return '*';
+	}
+	$ds = function_exists( 'khh_dt_ds_cua_hang' ) ? (array) khh_dt_ds_cua_hang() : array();
+	if ( in_array( $t, $ds, true ) ) {
+		return $t;
+	}
+	$k = khh_dt_bc_long( $t );
+	foreach ( $ds as $p ) {
+		if ( khh_dt_bc_long( $p ) === $k ) {
+			return (string) $p;
+		}
+	}
+	return sanitize_text_field( $t );
+}
+
+/**
+ * Khoá đang có trong một bảng cấu hình theo cửa hàng, tra LỎNG (khác dấu cách / hoa thường vẫn là một quán).
+ * Bản trước 1.64.3 lưu tên qua `sanitize_text_field` nên có quán nằm dưới khoá thiếu một dấu cách — đọc bằng
+ * tên nguyên văn thì không thấy, trông như "lúc thì lưu, lúc thì không" (anh Thắng 24/09/2026, Estella).
+ */
+function khh_dt_bc_khoa_cua( $so, $cua_hang ) {
+	$cs = trim( (string) $cua_hang );
+	if ( '' === $cs || ! is_array( $so ) ) {
+		return '';
+	}
+	if ( isset( $so[ $cs ] ) ) {
+		return $cs;
+	}
+	$k = khh_dt_bc_long( $cs );
+	foreach ( array_keys( $so ) as $khoa ) {
+		if ( '*' !== $khoa && khh_dt_bc_long( $khoa ) === $k ) {
+			return (string) $khoa;
+		}
+	}
+	return '';
+}
+
+/** Bỏ phần khai RIÊNG của một quán — từ đó quán thừa lại bảng chung. */
+function khh_dt_nhom_xoa_rieng( $khoa, $cua_hang ) {
+	$so = get_option( $khoa, false );
+	$kh = khh_dt_bc_khoa_cua( $so, $cua_hang );
+	if ( '' === $kh || '*' === $kh ) {
+		return false;
+	}
+	unset( $so[ $kh ] );
+	update_option( $khoa, $so, false );
+	return true;
+}
+
 function khh_dt_rest_nhom_ve_xem( $req = null ) {
-	$ch = $req ? sanitize_text_field( (string) $req->get_param( 'cua_hang' ) ) : '';
+	$ch = $req ? khh_dt_bc_ten_cua( $req->get_param( 'cua_hang' ) ) : '';
+	$so = get_option( 'khh_dt_nhom_ve', false );
 	return array(
 		'cua_hang'    => $ch,
 		'da_cau_hinh' => false !== khh_dt_nhom_ve_ds( $ch ),
 		/* Quán này tự khai, hay đang thừa bảng chung. */
-		'rieng'       => '' !== $ch && khh_dt_nhom_co_rieng( 'khh_dt_nhom_ve', $ch ),
+		'rieng'       => '' !== $ch && '*' !== $ch && khh_dt_nhom_co_rieng( 'khh_dt_nhom_ve', $ch ),
+		/* Đã có bảng chung cho mọi quán chưa (anh Thắng 24/09/2026: "có là đều hết chứ"). */
+		'chung'       => is_array( $so ) && ( isset( $so['*'] ) || ! array_filter( $so, 'is_array' ) ),
 		'nhom_ve'     => (array) khh_dt_nhom_ve_ds( $ch ),
 		'nhom_phu'    => (array) khh_dt_nhom_phu_ds( $ch ),   // [ nhóm => đ/vé ]
 		'nhom'        => khh_dt_nhom_mon_thay( 90, $ch ),
 	);
 }
 function khh_dt_rest_nhom_ve_dat( $req ) {
-	$ch  = sanitize_text_field( (string) $req->get_param( 'cua_hang' ) );
+	$ch = khh_dt_bc_ten_cua( $req->get_param( 'cua_hang' ) );
+	/* "Bỏ khai riêng, dùng bảng chung": xoá phần riêng của quán này ở cả hai khoá rồi trả về trạng thái mới. */
+	if ( $req->get_param( 'xoa_rieng' ) ) {
+		if ( '' === $ch || '*' === $ch ) {
+			return new WP_Error( 'khh_dt_nhom_ve', 'Chưa chọn cửa hàng để bỏ khai riêng.', array( 'status' => 400 ) );
+		}
+		khh_dt_nhom_xoa_rieng( 'khh_dt_nhom_ve', $ch );
+		khh_dt_nhom_xoa_rieng( 'khh_dt_nhom_phu', $ch );
+		return khh_dt_rest_nhom_ve_xem( $req );
+	}
 	$tho = $req->get_param( 'nhom_ve' );
 	$ds  = is_array( $tho ) ? $tho : json_decode( (string) $tho, true );
 	if ( ! is_array( $ds ) ) {
