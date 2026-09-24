@@ -13967,6 +13967,14 @@
       } else {
       phu=' <span style="font-weight:400;color:#8c8781">— '+g.cols.length+' mảng · '+rws.length+' loại · xếp theo '
         +(MX_SAP==='tk'?'số tài khoản':'tên mảng')+'</span>';
+      /* 🧰 ĐIỀN NHANH — chép CỘT (loại → loại) và chép HÀNG (mảng → mảng), CHỈ vào ô trống.
+         Anh Thắng 24/09/2026, ảnh ma trận Miền Nam: cột "Chi phí cơ sở" trống cả 12 mảng, hàng
+         EVENT FZ MN hụt sáu ô so với ba hàng EVENT kia — *"đang bị thiếu thật"*. Lấp lại bằng
+         tay là vài chục ô, mỗi ô một cơ hội gõ nhầm số. Chép chỉ đổi ô trên MÀN; vẫn phải soát
+         rồi 💾 Lưu — nên không cần hộp xác nhận. */
+      var oSel=function(o, ds, nhan){ return '<select data-o="'+o+'" data-khong-khoa="1" style="font-size:11.5px;max-width:200px"><option value="">— '+nhan+' —</option>'
+        +ds.map(function(x){ return '<option value="'+esc(x)+'">'+esc(x)+'</option>'; }).join('')+'</select>'; };
+      var tenLoai=rws.map(function(x){ return String(x.ten||''); });
       than='<div class="tw"><table style="min-width:'+(220+rws.length*128)+'px"><thead><tr>'
         +'<th style="text-align:left;min-width:220px;position:sticky;left:0;background:#f9f8f6;z-index:1">Mảng kinh doanh</th>'
         +rws.map(function(x){ return '<th style="width:128px">'+esc(String(x.ten||''))+'</th>'; }).join('')
@@ -13982,12 +13990,22 @@
               +'</td>'
               +rws.map(function(x){
                   var ten=String(x.ten||'');
+                  /* `data-khoi` = khối của bảng mã này — lượt Lưu dùng để đổi tên đúng khối (xem
+                     `_tenMoiLoai` trong `saveCfgTkNoMx`). */
                   return '<td><input list="tkChartList" value="'+esc(mx[ten+'|'+c]||'')+'" placeholder="—" style="width:100%"'
-                    +' data-loai="'+esc(ten)+'" data-pll="'+esc(c)+'" oninput="onPickTk(this)"></td>';
+                    +' data-loai="'+esc(ten)+'" data-pll="'+esc(c)+'" data-khoi-ma="'+esc(khoiB)+'" oninput="onPickTk(this)"></td>';
                 }).join('')
               +'</tr>';
           }).join('')
         +'</tbody></table></div>';
+      than+='<div data-mx-nhanh="'+esc(g.dv)+'" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:6px 0 2px;font-size:11.5px;color:#8c8781">'
+        +'<b style="color:#171417">🧰 Điền nhanh (chỉ ô trống):</b>'
+        +'chép cột '+oSel('cotTu', tenLoai, 'từ loại')+' → '+oSel('cotSang', tenLoai, 'sang loại')
+        +'<button type="button" class="btn b-x" data-khong-khoa="1" onclick="mxChepCot('+esc(JSON.stringify(g.dv))+')" style="padding:2px 8px;font-size:11px">Chép cột</button>'
+        +'<span style="color:#e2d6c7">|</span>'
+        +'chép hàng '+oSel('hangTu', g.cols, 'từ mảng')+' → '+oSel('hangSang', g.cols, 'sang mảng')
+        +'<button type="button" class="btn b-x" data-khong-khoa="1" onclick="mxChepHang('+esc(JSON.stringify(g.dv))+')" style="padding:2px 8px;font-size:11px">Chép hàng</button>'
+        +'</div>';
       }
       /* Khối đầu mở sẵn; nhà thứ hai trở đi gập lại, bấm một cái là ra. Một nhà thì
          không bọc <details> — thêm một cú bấm cho thứ chẳng giấu được gì là vô ích. */
@@ -14001,6 +14019,47 @@
     box.innerHTML=h;
     _khoaDongKhoiLa();               // khoá TỪNG DÒNG của khối người này không sửa được
     MX_LOCK=false; toggleMxLock();   // vẽ xong thì khóa lại
+  }
+  /* ── 🧰 Điền nhanh trên bảng mã — xem chú thích tại chỗ dựng dải trong `renderTkNoMatrix` ── */
+  function _mxCssGt(v){ return String(v==null?'':v).replace(/\\/g,'\\\\').replace(/"/g,'\\"'); }
+  function _mxNhanhO(dv, o){
+    return document.querySelector('[data-mx-nhanh="'+_mxCssGt(dv)+'"] select[data-o="'+o+'"]');
+  }
+  function _mxOMa(dv){
+    var b=document.querySelector('.mxNoBody[data-dv="'+_mxCssGt(dv)+'"]');
+    return b ? Array.prototype.slice.call(b.querySelectorAll('input[data-loai]')) : [];
+  }
+  /* Chép theo một trục: `truc`='data-loai' (chép cột: cùng mảng, khác loại) hay 'data-pll' (chép
+     hàng: cùng loại, khác mảng). Chỉ điền ô đích ĐANG TRỐNG; ô đã có mã giữ nguyên và được đếm
+     để câu báo nói rõ. Không ghi sổ — người dùng soát rồi 💾 Lưu. */
+  function _mxChep(dv, truc, tu, sang, nhan){
+    if(MX_LOCK){ toast('warn','Bấm 🔓 mở khoá bảng mã trước rồi mới chép.'); return 0; }
+    tu=String(tu||'').trim(); sang=String(sang||'').trim();
+    if(!tu||!sang){ toast('warn','Chọn đủ "từ" và "sang" rồi bấm chép.'); return 0; }
+    if(tu===sang){ toast('warn','Hai '+nhan+' đang chọn trùng nhau — chọn '+nhan+' đích khác.'); return 0; }
+    var khac=(truc==='data-loai')?'data-pll':'data-loai';
+    var nguon={};
+    _mxOMa(dv).forEach(function(o){ if(o.getAttribute(truc)===tu && String(o.value||'').trim()) nguon[o.getAttribute(khac)]=String(o.value).trim(); });
+    if(!Object.keys(nguon).length){ toast('warn','"'+tu+'" chưa có mã nào để chép.'); return 0; }
+    var n=0, giu=0;
+    _mxOMa(dv).forEach(function(o){
+      if(o.getAttribute(truc)!==sang) return;
+      var v=nguon[o.getAttribute(khac)]; if(!v) return;
+      if(String(o.value||'').trim()){ giu++; return; }
+      o.value=v; n++;
+      if(typeof onPickTk==='function') onPickTk(o);
+    });
+    toast(n?'ok':'warn', 'Chép '+n+' ô trống từ "'+tu+'" sang "'+sang+'"'+(giu?(' · giữ nguyên '+giu+' ô đã có mã'):'')
+      +(n?'. Soát lại rồi bấm 💾 Lưu.':'.'));
+    return n;
+  }
+  function mxChepCot(dv){
+    var a=_mxNhanhO(dv,'cotTu'), b=_mxNhanhO(dv,'cotSang');
+    return _mxChep(dv, 'data-loai', a&&a.value, b&&b.value, 'loại');
+  }
+  function mxChepHang(dv){
+    var a=_mxNhanhO(dv,'hangTu'), b=_mxNhanhO(dv,'hangSang');
+    return _mxChep(dv, 'data-pll', a&&a.value, b&&b.value, 'mảng');
   }
   /**
    * KHOÁ TỪNG DÒNG THUỘC KHỐI NGƯỜI NÀY KHÔNG SỬA ĐƯỢC.
@@ -14807,7 +14866,7 @@
        Cắn thật ngay lượt chia ba bảng (21/09/2026): em đổi `da` sang khoá có khối rồi để
        nguyên chỗ dò mã dùng lại nó — câu `if(!da[ten])` không khớp gì nữa và MỌI mã tài khoản
        bay sạch trong một lượt Lưu. Bài `kiem-bang-ma-dung.js` đỏ 10 phép, đúng chỗ. */
-    var dm=[], mx=[], da={}, daTen={}, doiTen={};
+    var dm=[], mx=[], da={}, daTen={}, doiTen={}, giuTen={}, doiSang={}, coKhoiTen={};
     /* BẢNG TRÊN — thuộc tính. `data-goc` là tên lúc vẽ; đối chiếu với tên đang gõ để biết
        loại nào vừa đổi tên, rồi mới đọc được mã của nó ở bảng dưới. */
     /* 🔴 DUYỆT CẢ BA BẢNG, VÀ KHOÁ TRÙNG TÊN THEO TỪNG KHỐI — không phải toàn bộ.
@@ -14836,9 +14895,29 @@
       var oKhoi=tr.querySelector('select[data-khoi-o]');
       var khoiR=String((oKhoi&&oKhoi.value)||'').trim().toLowerCase()||khoiG||_khoiCuaLoai({});
       var k=khoiR+'|'+ten.toLowerCase(); if(da[k]) return;   // trùng tên TRONG CÙNG KHỐI -> giữ dòng đầu
-      da[k]=1; daTen[ten.toLowerCase()]=1;
+      da[k]=1; daTen[ten.toLowerCase()]=1; coKhoiTen[k]=1;
       var goc0=String(oTen.getAttribute('data-goc')||'').trim();
-      if(goc0) doiTen[goc0.toLowerCase()]=ten;
+      /* ══════════════════════════════════════════════════════════════════════════════════
+       * 🔴 ĐỔI TÊN KHOÁ THEO KHỐI|TÊN CŨ, KHÔNG THEO MỖI TÊN CŨ.
+       *
+       * Anh Thắng 24/09/2026, ảnh ma trận Miền Nam: cột "Chi phí cơ sở" TRỐNG, còn mã
+       * 64196/64166/64126/64106 nằm dưới cột "Chi phí chung VP" — và bản xuất MISA của đơn
+       * "Chi phí cơ sở" ra Nợ 141: *"Sao lại đổi tk nợ"*.
+       *
+       * Từ 21/09 hai khối được phép cùng có một tên loại. Bản trước ghi `doiTen[tênCũ]=tênMới`
+       * — chỉ theo tên — nên đổi tên "Chi phí chung" của VP thành "Chi phí chung VP" là MỌI dòng
+       * ma trận mang tên "Chi phí chung", kể cả của Khu vui chơi / Miền Nam, bị đổi theo. Mã
+       * của khối kia lặng lẽ dời sang cột của khối này; cột cũ trống; bản xuất rơi về 141.
+       *
+       * Nay: `doiTen[khối|tênCũ]`. Ô ma trận biết khối của bảng chứa nó (`data-khoi-ma`), dòng
+       * trong sổ suy khối từ mảng (`_mxNhomDv`). Dòng không rõ khối chỉ đổi khi CẢ HỆ đổi
+       * thống nhất: không khối nào còn giữ tên cũ, và mọi khối đổi đều đổi sang cùng một tên.
+       * ══════════════════════════════════════════════════════════════════════════════════ */
+      if(goc0){
+        var g0=goc0.toLowerCase();
+        doiTen[khoiG+'|'+g0]=ten;
+        if(g0===ten.toLowerCase()) giuTen[g0]=1; else (doiSang[g0]=doiSang[g0]||{})[ten]=1;
+      }
       /* Dò bản cũ theo DANH TÍNH LÚC VẼ trước (khối cũ + tên cũ) — đó đúng là bản ghi đã dựng
          ra hàng này; có thế thì đổi tên hay đổi khối vẫn lôi lại được TK Nợ / mã đối tượng. */
       var goc=(goc0?cu[khoiG+'|'+goc0.toLowerCase()]:null)||cu[k]||{};
@@ -14894,19 +14973,36 @@
        cột của loại thuộc nhà mình, nên một mảng ĐANG HIỆN vẫn có những loại KHÔNG có ô nào.
        Xét theo mảng như trước là mã của mấy loại ấy bay sạch ngay lượt Lưu đầu tiên — im lặng,
        và chỉ lộ ra khi ai đó tích lại ô Đơn vị rồi thấy bảng trống trơn. */
+    /* Tên MỚI của một loại tên `cu` thuộc khối `khoi` — xem 🔴 ở chỗ dựng `doiTen`. */
+    function _tenMoiLoai(cu, khoi){
+      var c=String(cu||'').trim().toLowerCase(); if(!c) return cu;
+      var k=String(khoi||'').trim().toLowerCase();
+      if(k && doiTen[k+'|'+c]) return doiTen[k+'|'+c];       // khối này vừa đổi tên nó
+      if(k && coKhoiTen[k+'|'+c]) return cu;                  // khối này vẫn giữ nguyên tên
+      if(giuTen[c]) return cu;                                // khối khác còn giữ tên cũ → không kéo
+      var ms=Object.keys(doiSang[c]||{});
+      return ms.length===1 ? ms[0] : cu;                      // cả hệ đổi thống nhất → theo
+    }
+    /* Khối của từng mảng — cho dòng trong sổ không có ô trên màn. */
+    var khoiCuaPll={};
+    _mxNhomDv().forEach(function(g){ if(!g.khoi) return; (g.cols||[]).forEach(function(c){ khoiCuaPll[String(c).toLowerCase()]=g.khoi; }); });
     var hienMang={}, hienO={};
     Array.prototype.forEach.call(document.querySelectorAll('.mxNoBody input'), function(inp){
       var lg=String(inp.getAttribute('data-loai')||'').trim();
       var pll=String(inp.getAttribute('data-pll')||'').trim();
       if(!pll) return;
       hienMang[pll]=1;
-      var ten=doiTen[lg.toLowerCase()] || lg;
+      var ten=_tenMoiLoai(lg, inp.getAttribute('data-khoi-ma')||khoiCuaPll[pll.toLowerCase()]||'');
       if(!ten) return;
       /* 🔴 ĐÁNH DẤU Ô CÓ MẶT TRƯỚC KHI XÉT Ô TRỐNG. `hienO` trả lời câu "ô này CÓ trên màn
          không", không phải "ô này có mã không". Đánh dấu sau khi lọc `!v` thì ô người ta vừa
          XOÁ TRẮNG không được đánh dấu, và vòng khôi phục bên dưới lôi mã cũ về — không ai xoá
          nổi một mã gõ nhầm. */
       hienO[ten.toLowerCase()+'|'+pll.toLowerCase()]=1;
+      /* Đánh dấu cả TÊN CŨ của ô: dòng trong sổ còn mang tên cũ mà không theo được tên mới
+         (không rõ khối) vẫn là CHÍNH Ô NÀY — không đánh dấu là nó được push lần nữa dưới tên cũ,
+         sổ có hai dòng cho một ô. */
+      hienO[lg.toLowerCase()+'|'+pll.toLowerCase()]=1;
       var v=String(inp.value||'').trim(); if(!v) return;
       if(!daTen[ten.toLowerCase()]) return;         // loại đã bị xoá ở bảng trên -> bỏ luôn mã
       mx.push({nhom:ten, pll:pll, tkNo:v});
@@ -14926,11 +15022,15 @@
          qua `doiTen`), còn `$nhom` ở đây là tên CŨ trong sổ. Tra bằng tên cũ thì không khớp,
          và mã vừa đọc từ màn bị push LẦN NỮA ở đây — sổ có hai dòng cùng {loại, mảng}. Bài
          kiểm đỏ đúng chỗ, ngay lượt viết đầu. */
-      var ten=doiTen[nhom.toLowerCase()] || nhom;
+      var ten=_tenMoiLoai(nhom, khoiCuaPll[pll.toLowerCase()]||'');
       /* Ô ấy CÓ trên màn -> lấy theo màn, kể cả khi người ta vừa xoá trắng nó.
          Không có ô nào -> loại này không dùng ở nhà ấy, giữ nguyên mã đã lưu. */
       if(hienO[ten.toLowerCase()+'|'+pll.toLowerCase()]) return;
-      if(!loaiCon[ten.toLowerCase()]) return;       // loại đã bị xoá -> mã của nó đi theo
+      /* Loại đã bị xoá -> mã của nó đi theo. NHƯNG tên cũ vừa được ĐỔI ở khối nào đó mà dòng này
+         không theo được (không rõ khối, hai khối đổi sang hai tên khác nhau) thì KHÔNG xoá — giữ
+         nguyên tên cũ để lượt vẽ sau nó hiện ra thành dòng mồ côi, người ta tự xếp. Xoá là mất
+         mã trong im lặng, đúng cái vừa làm trống cột "Chi phí cơ sở". */
+      if(!loaiCon[ten.toLowerCase()] && !doiSang[ten.toLowerCase()]) return;
       mx.push({nhom:ten, pll:pll, tkNo:v});
     });
     /* ══════════════════════════════════════════════════════════════════════════════════

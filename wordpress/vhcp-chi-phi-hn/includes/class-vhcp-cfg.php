@@ -2355,12 +2355,36 @@ class VHCPHN_Cfg {
 		$row = $s['tkNoMx'][ $k ];
 
 		$c = mb_strtolower( trim( (string) $coso ) );
-		if ( $c !== '' && isset( $row[ $c ] ) ) { return (array) $row[ $c ]; }
+		if ( $c !== '' && isset( $row[ $c ] ) ) { return self::bo_ma_ben_tra_( (array) $row[ $c ] ); }
 
 		$pll = self::pll_of( $coso );
 		if ( $pll === '' ) { return array(); }
 		$p = mb_strtolower( $pll );
-		return isset( $row[ $p ] ) ? (array) $row[ $p ] : array();
+		return isset( $row[ $p ] ) ? self::bo_ma_ben_tra_( (array) $row[ $p ] ) : array();
+	}
+
+	/**
+	 * 🔴 CỘT TK NỢ KHÔNG BAO GIỜ NHẬN MÃ BÊN TRẢ TIỀN (141 / 331) — DÙ NÓ ĐẾN TỪ ĐÂU.
+	 *
+	 * Anh Thắng 24/09/2026, ảnh bảng xuất MISA đơn Chi phí cơ sở EVENT FZ MN: *"Sao lại đổi tk
+	 * nợ"* — mọi dòng ra "Nợ 141 · Có 141". Bảng ma trận Miền Nam lúc ấy TRỐNG cột "Chi phí cơ
+	 * sở" (mã 64196/64166/64126/64106 nằm dưới cột "Chi phí chung VP"), nên `tkno_loai()` rơi
+	 * xuống bậc sau: cột TK Nợ của DANH MỤC loại chi phí — mà cột ấy được gieo từ bảng Nhóm
+	 * mặt hàng cũ, nơi "TK Nợ" hầu hết là 141 (thời mọi thứ hạch toán qua tạm ứng).
+	 *
+	 * Lúc xuất, `tkno_xuat()` đã gạt 141 nếu nó nằm TRÊN DÒNG, nhưng không gạt nếu nó nằm trong
+	 * DANH MỤC hay MA TRẬN — hai nguồn được coi là "sạch". Chúng không sạch. Nên gạt ở tận
+	 * nguồn: ma trận và danh mục trả rỗng thay cho 141, để bản xuất BÁO THIẾU đúng loại, đúng
+	 * mảng — anh Thắng thấy ngay ô nào trống — thay vì lặng lẽ hạch toán sai.
+	 * Anh Thắng cùng ngày: *"tk nợ là theo bảng ma trận chứ"* — đúng, và khi ma trận trống thì
+	 * câu trả lời phải là "trống", không phải "141".
+	 */
+	private static function bo_ma_ben_tra_( $ds ) {
+		$ra = array();
+		foreach ( (array) $ds as $m ) {
+			if ( ! self::la_tk_ben_tra( $m ) ) { $ra[] = $m; }
+		}
+		return $ra;
 	}
 
 	/**
@@ -2512,8 +2536,9 @@ class VHCPHN_Cfg {
 			if ( $tk !== '' ) { return $tk; }
 		}
 		foreach ( $ds as $ten ) {
-			$tk = self::loai_tk( $ten )['tkNo'];
-			if ( trim( (string) $tk ) !== '' ) { return trim( (string) $tk ); }
+			$tk = trim( (string) self::loai_tk( $ten )['tkNo'] );
+			/* Mã cố định của danh mục mà là 141/331 thì coi như CHƯA KHAI — xem `bo_ma_ben_tra_`. */
+			if ( $tk !== '' && ! self::la_tk_ben_tra( $tk ) ) { return $tk; }
 		}
 		return '';
 	}

@@ -507,6 +507,91 @@ const MX_K = [
     r.tkNoMatrix.filter(x => x.nhom === 'Chi phí cơ sở').length === 0
     && r.tkNoMatrix.filter(x => x.nhom === 'Chi phí cơ sở (mới)').length === 3, r.tkNoMatrix);
 }
+/* ══ ĐỔI TÊN THEO KHỐI — KHÔNG KÉO MÃ CỦA KHỐI KHÁC ═════════════════════════════════════
+ * Anh Thắng 24/09/2026, ảnh ma trận Miền Nam: cột "Chi phí cơ sở" TRỐNG, mã nằm dưới cột
+ * "Chi phí chung VP"; bản xuất MISA ra Nợ 141 — *"Sao lại đổi tk nợ"*. Hai khối cùng có một tên
+ * loại; đổi tên bên khối này mà mã ma trận của khối kia đi theo là cột bên kia trống. */
+const LOAI2 = [
+  { ten: 'Chi phí chung', khoi: 'kvc', dauMuc: 'Chi phí chung' },
+  { ten: 'Chi phí chung', khoi: 'mtd', dauMuc: 'Chi phí chung' },
+  { ten: 'Chi phí cơ sở', khoi: 'kvc', dauMuc: 'Chi phí cơ sở' },
+];
+const MX2 = [
+  { nhom: 'Chi phí chung', pll: 'Funzone', tkNo: '64196' },   // kvc
+  { nhom: 'Chi phí chung', pll: 'Farm',    tkNo: '64166' },   // kvc
+  { nhom: 'Chi phí chung', pll: 'Rạp',     tkNo: '6427' },    // mtd
+  { nhom: 'Chi phí chung', pll: 'Mảng lạ', tkNo: '6499' },    // không rõ khối (cơ sở đã xoá)
+  { nhom: 'Chi phí cơ sở', pll: 'Funzone', tkNo: '64126' },
+];
+function veRoiLuu2(sua, xemDonVi) {
+  const b = dungBe(LOAI2, MX2, COSO, MANG_TK);
+  if (xemDonVi !== undefined) b.moi.BOOT.xemDonVi = xemDonVi;
+  b.F.ve();
+  const h = b.moi.el('cfgTkNoMx').innerHTML;
+  const tren = docHangTren(h.slice(h.indexOf('class="cfgMxBody"'), h.indexOf('mxNoBody')));
+  const oMa = docOMa(h.slice(h.indexOf('mxNoBody')));
+  if (sua) sua(tren, oMa, h);
+  b.NK.mxBodies = [{ getAttribute: n => (n === 'data-dau-muc' ? '' : null), getElementsByTagName: () => tren }];
+  b.NK.oMa = oMa;
+  b.F.luu();
+  return b.NK.luu;
+}
+const hangK = (tren, ten, khoi) => tren.filter(o => o.ten.value === ten && o.getAttribute('data-khoi-goc') === khoi)[0];
+const ma = (r, pll) => (r.tkNoMatrix.filter(x => x.pll === pll).map(x => x.nhom + '=' + x.tkNo).sort());
+{
+  const r = veRoiLuu2((tren, oMa, h) => {
+    t('⚠️ bệ: ô mã mang khối của bảng (`data-khoi-ma`)', /data-loai="Chi phí chung" data-pll="Rạp" data-khoi-ma="mtd"/.test(h)
+      && /data-loai="Chi phí chung" data-pll="Funzone" data-khoi-ma="kvc"/.test(h), (h.match(/<input[^>]*data-pll="Rạp"[^>]*>/) || [''])[0]);
+    hangK(tren, 'Chi phí chung', 'mtd').ten.value = 'Chi phí chung MTĐ';
+  });
+  teq('🔴 đổi tên "Chi phí chung" của MTĐ → mã của MTĐ (Rạp) theo tên mới', ['Chi phí chung MTĐ=6427'], ma(r, 'Rạp'));
+  teq('🔴 mã của KVC (Funzone) VẪN ở "Chi phí chung" — không bị kéo theo', ['Chi phí chung=64196', 'Chi phí cơ sở=64126'], ma(r, 'Funzone'));
+  teq('🔴 mã của KVC (Farm) cũng vậy', ['Chi phí chung=64166'], ma(r, 'Farm'));
+  teq('   mảng không rõ khối: KVC còn giữ tên cũ → không kéo', ['Chi phí chung=6499'], ma(r, 'Mảng lạ'));
+  t('   không sinh dòng trùng', r.tkNoMatrix.length === 5, r.tkNoMatrix);
+}
+/* Người POSH (chỉ thấy bảng MTĐ) đổi tên → mã của KVC nằm ngoài tầm nhìn vẫn phải yên. */
+{
+  const r = veRoiLuu2((tren) => { hangK(tren, 'Chi phí chung', 'mtd').ten.value = 'Chi phí chung MTĐ'; }, ['POSH']);
+  teq('🔴 người POSH đổi tên → Rạp theo tên mới', ['Chi phí chung MTĐ=6427'], ma(r, 'Rạp'));
+  teq('🔴 … mã KVC đang ẩn KHÔNG bị đổi tên', ['Chi phí chung=64196', 'Chi phí cơ sở=64126'], ma(r, 'Funzone'));
+}
+/* Cả hai khối cùng đổi sang MỘT tên mới → mọi dòng theo, kể cả mảng không rõ khối. */
+{
+  const r = veRoiLuu2((tren) => {
+    hangK(tren, 'Chi phí chung', 'mtd').ten.value = 'Chi phí chung 2';
+    hangK(tren, 'Chi phí chung', 'kvc').ten.value = 'Chi phí chung 2';
+  });
+  teq('   cả hệ đổi thống nhất → Funzone theo', ['Chi phí chung 2=64196', 'Chi phí cơ sở=64126'], ma(r, 'Funzone'));
+  teq('   … Rạp theo', ['Chi phí chung 2=6427'], ma(r, 'Rạp'));
+  teq('   … mảng không rõ khối cũng theo (không còn ai giữ tên cũ)', ['Chi phí chung 2=6499'], ma(r, 'Mảng lạ'));
+}
+/* Hai khối đổi sang HAI tên khác nhau → mảng không rõ khối không đoán, giữ tên cũ. */
+{
+  const r = veRoiLuu2((tren) => {
+    hangK(tren, 'Chi phí chung', 'mtd').ten.value = 'Chi phí chung MTĐ';
+    hangK(tren, 'Chi phí chung', 'kvc').ten.value = 'Chi phí chung KVC';
+  });
+  teq('   hai tên mới khác nhau → Funzone theo KVC', ['Chi phí chung KVC=64196', 'Chi phí cơ sở=64126'], ma(r, 'Funzone'));
+  teq('   … Rạp theo MTĐ', ['Chi phí chung MTĐ=6427'], ma(r, 'Rạp'));
+  /* Mảng không rõ khối ĐANG HIỆN trên màn thì bảng của nó ngã về khối đang chọn (kvc — xem
+     `khoiB=g.khoi||KHOI_DANG` ở `renderTkNoMatrix`), nên ô ấy mang `data-khoi-ma="kvc"` và đi
+     theo KVC — đúng như thứ người dùng nhìn thấy trên màn. Luật "không đoán" chỉ áp cho dòng
+     KHÔNG có ô nào trên màn. */
+  teq('   … mảng không rõ khối đang hiện → theo bảng nó đang nằm (kvc)', ['Chi phí chung KVC=6499'], ma(r, 'Mảng lạ'));
+}
+/* Dòng trong sổ KHÔNG có ô trên màn và không rõ khối → hai tên mới khác nhau thì không đoán. */
+{
+  const r = veRoiLuu2((tren, oMa) => {
+    hangK(tren, 'Chi phí chung', 'mtd').ten.value = 'Chi phí chung MTĐ';
+    hangK(tren, 'Chi phí chung', 'kvc').ten.value = 'Chi phí chung KVC';
+    /* Gỡ ô của "Mảng lạ" khỏi màn — giả cảnh mảng ấy nằm ngoài tầm nhìn. */
+    for (let i = oMa.length - 1; i >= 0; i--) { if (oMa[i].getAttribute('data-pll') === 'Mảng lạ') oMa.splice(i, 1); }
+  });
+  teq('🔴 dòng ngoài màn, không rõ khối, hai tên mới khác nhau → KHÔNG đoán, giữ tên cũ', ['Chi phí chung=6499'], ma(r, 'Mảng lạ'));
+  teq('   Funzone vẫn theo KVC', ['Chi phí chung KVC=64196', 'Chi phí cơ sở=64126'], ma(r, 'Funzone'));
+}
+
 /* `xemDonVi` = null nghĩa là XEM CẢ, không phải "không xem được gì". */
 {
   /* Bộ gieo có loại ở HAI khối — không thì phép "xem cả" chỉ đi qua một bảng và luôn xanh. */
@@ -718,4 +803,4 @@ if (TRUOT.length) {
   TRUOT.forEach(x => console.log('  · ' + x));
   process.exit(1);
 }
-console.log('\n✓ SẠCH — ' + DAT + ' phép: mảng xếp dọc, và vẽ rồi lưu lại không mất mã nào.');
+console.log('\n✓ SẠCH — ' + DAT + ' phép: mảng xếp dọc, vẽ rồi lưu lại không mất mã nào, đổi tên không kéo mã khối khác.');

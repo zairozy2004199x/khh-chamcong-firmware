@@ -2099,7 +2099,8 @@ class VHCPVP_Don {
 		// Nợ tra qua tkno_loai(): có ma trận [loại × mảng của cơ sở] và chịu được tên nhóm
 		// còn đuôi "- NCC" / "- Mua lẻ", nên dòng nhập theo tên nhóm vẫn ra đúng mã chi phí.
 		$tk_no = VHCPVP_Cfg::tkno_loai( $nhom, $coso );
-		if ( $tk_no === '' ) { $tk_no = $cat['tkNo']; }
+		/* Mã danh mục mà là 141/331 thì không đem gắn lên dòng — xem `VHCPVP_Cfg::bo_ma_ben_tra_`. */
+		if ( $tk_no === '' && ! VHCPVP_Cfg::la_tk_ben_tra( $cat['tkNo'] ) ) { $tk_no = $cat['tkNo']; }
 		$tk_co = $cat['tkCo'];
 		if ( $tk_co === '' ) {
 			$pl  = ( trim( (string) $phan_loai_tt ) === 'Nhà cung cấp' ) ? 'Nhà cung cấp' : 'Thanh toán cá nhân';

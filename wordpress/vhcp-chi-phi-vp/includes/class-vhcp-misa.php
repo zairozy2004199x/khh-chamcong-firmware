@@ -140,6 +140,8 @@ class VHCPVP_Misa {
 		$m_loai = array();   // danh mục LOẠI CHI PHÍ -> TK Nợ
 		foreach ( (array) ( isset( $cfg['loaiChiPhi'] ) ? $cfg['loaiChiPhi'] : array() ) as $x ) {
 			if ( trim( (string) $x['tkNo'] ) === '' ) { continue; }
+			/* 141/331 gieo từ bảng Nhóm cũ không phải TK Nợ — xem `VHCPVP_Cfg::bo_ma_ben_tra_`. */
+			if ( VHCPVP_Cfg::la_tk_ben_tra( $x['tkNo'] ) ) { continue; }
 			$m_loai[ mb_strtolower( trim( (string) $x['ten'] ) ) ] = (string) $x['tkNo'];
 		}
 
@@ -245,7 +247,7 @@ class VHCPVP_Misa {
 			// chi phí. TK Nợ của CH_Nhom hầu hết là 141 nên phải lọc mã bên trả tiền ở đây.
 			if ( $tk_no === '' && ! empty( $m_loai[ mb_strtolower( trim( $nhom ) ) ] ) ) { $tk_no = $m_loai[ mb_strtolower( trim( $nhom ) ) ]; }
 			if ( $tk_no === '' && ! empty( $m_loai[ $nhom_k ] ) )                        { $tk_no = $m_loai[ $nhom_k ]; }
-			if ( $tk_no === '' && ! empty( $m_no_mx[ $mx_k ] ) )                         { $tk_no = $m_no_mx[ $mx_k ]; }
+			if ( $tk_no === '' && ! empty( $m_no_mx[ $mx_k ] ) && ! VHCPVP_Cfg::la_tk_ben_tra( $m_no_mx[ $mx_k ] ) ) { $tk_no = $m_no_mx[ $mx_k ]; }
 			if ( $tk_no === '' && ! empty( $m_no[ $nhom ] ) && ! VHCPVP_Cfg::la_tk_ben_tra( $m_no[ $nhom ] ) ) { $tk_no = $m_no[ $nhom ]; }
 			/* TK Có = BÊN TRẢ TIỀN. Ba bậc, và bậc đầu là mới (anh Thắng 21/09/2026: *"MTĐ tùy
 			   loại sẽ có TK đối ứng khác"*):

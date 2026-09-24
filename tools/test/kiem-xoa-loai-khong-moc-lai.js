@@ -111,7 +111,9 @@ teq('   và đúng hai khối ấy', ['kvc', 'mtd'], hai.map(function (x) { retu
 t('⚠️ nút ✕ gỡ hàng khỏi bảng', /function delCfgRow\(btn\)\{[^}]*removeChild\(tr\)/.test(HTML.replace(/\s+/g, ' ')));
 /* Và đường lưu vẫn bỏ mã của loại đã xoá — chốt này có từ trước, giữ cho khỏi ai gỡ nhầm. */
 t('🔴 lượt Lưu bỏ luôn mã của loại đã xoá', /if\(!daTen\[ten\.toLowerCase\(\)\]\) return;/.test(HTML));
-t('   và không lôi mã cũ về cho loại đã xoá', /if\(!loaiCon\[ten\.toLowerCase\(\)\]\) return;/.test(HTML));
+/* 24/09/2026: thêm vế `&& !doiSang[…]` — tên cũ vừa được ĐỔI ở khối nào đó mà dòng không theo được
+   thì giữ chứ không xoá (xem chú thích tại chỗ). Loại XOÁ hẳn (không ai đổi tên nó) vẫn bị bỏ. */
+t('   và không lôi mã cũ về cho loại đã xoá', /if\(!loaiCon\[ten\.toLowerCase\(\)\] && !doiSang\[ten\.toLowerCase\(\)\]\) return;/.test(HTML));
 
 /* ═════════════════════════════════════════════════════════════════════════════════════════ */
 if (TRUOT.length) {
