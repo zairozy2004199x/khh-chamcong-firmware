@@ -3,6 +3,10 @@
 Áp dụng cho trang **/ghe** (plugin Ghế 2.139.0) và plugin Sao Kê 0.46.0. Soạn 24/09/2026 theo đúng
 hành vi hệ thống đang chạy. Dùng cho: nhân viên thu tiền, cửa hàng trưởng, kế toán, quản trị.
 
+> **Ảnh mẫu** trong tài liệu chụp từ giao diện thật của bản 2.139.0, chạy với **dữ liệu giả**
+> (cơ sở GO BẾN TRE, nhân viên Nguyễn Văn A, số tài khoản 0123456789, mã nộp KH705MTDMN0012…).
+> Không phải số liệu thật của công ty.
+
 ---
 
 ## 0. Bốn nguyên tắc
@@ -49,9 +53,18 @@ hành vi hệ thống đang chạy. Dùng cho: nhân viên thu tiền, cửa hà
    - **Sản lượng** = (chỉ số sau − chỉ số trước) × 5.000đ/lượt (đơn vị do Quản trị cấu hình) − lượt kích từ xa đã cấp.
    - **Tiền mặt** = sản lượng − QR. **Nếu có gõ Thực thu thì Tiền mặt = Thực thu** (ghi đè, máy tự ghi chú).
    - **Tổng** = tiền mặt + QR.
+
+   ![Một ghế trên điện thoại: chỉ số trước tự điền, nhập chỉ số sau, QR, Thực thu, ghi chú, ảnh](img/nop-tien/01-mot-ghe.png)
+
+   ![Khối tổng dưới bảng: Actual, Tiền mặt phải nộp, QR, Doanh thu ngày](img/nop-tien/01b-tong-phai-nop.png)
+
 6. Cuối phiếu, khai **nộp tiền**: **Tiền mặt** / **Chuyển khoản** / **Chưa nộp**; số tiền nộp (để trống = nộp đủ phần tiền mặt).
 7. Bấm **Gửi**. Mỗi lần gửi là một **lần thu** riêng trong ngày; mốc chỉ số tự nối cho lần sau.
    Thanh **Tiến độ** đếm x/y cơ sở đã gửi. Hôm nào không thu hết thì bấm **Chốt sớm** và ghi lý do.
+
+   ![Sau khi gửi: câu báo đã gửi + ảnh báo cáo POSH để tải hoặc gửi Zalo](img/nop-tien/06-gui-xong.png)
+
+   ![Thanh Tiến độ hôm nay: cơ sở đã nộp, chưa nộp, tổng đã thu](img/nop-tien/05-tien-do-sau-gui.png)
 
 ### 2.2 Máy chặn gì, cảnh báo gì
 
@@ -75,28 +88,137 @@ hành vi hệ thống đang chạy. Dùng cho: nhân viên thu tiền, cửa hà
 
 ---
 
-## 3. Nộp tiền mặt: từ tay nhân viên về kế toán
+## 3. Nộp doanh thu: từ tay nhân viên về kế toán
 
-Tiền của mỗi phiếu đi qua ba trạng thái: **Đang cầm → Đã nộp, chờ kế toán → Kế toán đã nhận.**
+Tiền mặt của mỗi phiếu đi qua ba trạng thái. Chỉ khi kế toán bấm **Đã nhận** thì nợ của nhân viên
+mới hết.
 
-### Cách A. Chuyển khoản có bill (khuyến nghị)
-1. Trong 24 giờ sau khi gửi báo cáo, người gửi bấm **Nộp bill**.
-2. Chuyển đúng **phần tiền mặt** của phiếu, nội dung là **MÃ NỘP** của cơ sở (máy hiện sẵn mã VietQR "mã nộp" để quét).
-3. Chụp bill, đính vào. Đính bill xong thì phiếu bị **khoá sửa**.
-4. Kế toán đối chiếu sao kê rồi **Đã nhận**. Cần sửa phiếu thì kế toán **gỡ bill** (bắt buộc lý do); đã nhận rồi thì không gỡ được.
+| Trạng thái | Màu trên màn | Nghĩa |
+|---|---|---|
+| **Đang cầm** | vàng | Tiền còn trong tay nhân viên (hoặc đã chuyển khoản nhưng chưa đính bill) |
+| **Đã nộp, chờ kế toán** | xanh dương, có 🔒 | Nhân viên đã đính bill hoặc tạo lượt nộp; phiếu khoá sửa; kế toán chưa xác nhận |
+| **Kế toán đã nhận** | xanh lá | Kế toán đã bấm Đã nhận; hết nợ phiếu này |
 
-### Cách B. Nộp tiền mặt về quầy / kế toán
-1. *Quỹ & nộp tiền* → **Nộp**: chọn cơ sở, máy tự cộng số đang cầm và tạo **lượt nộp** (trạng thái *chờ*).
-2. Kế toán đếm, bấm **Đã nhận**; máy báo **thiếu / thừa** so với số máy tính. Lượt còn *chờ* thì huỷ được.
+### 3.1 Khai nộp ngay trên phiếu báo cáo (bước 6 của mục 2)
 
-### Cách C. Kế toán xác nhận thay, theo ngày
-*Ai đang cầm tiền* → bấm tên nhân viên → hiện **từng ngày chưa nộp** → tích những ngày đã nộp → **Xác nhận đã nộp N ngày**.
-Dùng khi nhân viên nộp từng ngày lẻ; không phải chốt cả cục. Vẫn có nút *Xác nhận cả cục* nếu cần.
+![Khối Nộp tiền cuối phiếu: Hình thức, Số tiền nộp, Ghi chú](img/nop-tien/02-nop-tien-hinh-thuc.png)
 
-### Nộp thiếu, chưa nộp
-- Khai **Chưa nộp** hoặc nộp ít hơn tiền mặt → phần còn lại là **nợ** của nhân viên trên phiếu.
-- **Nộp bổ sung** cộng vào phiếu cũ; bị chặn nếu phiếu đã có bill hoặc ngày đã khoá.
-- Tab *Doanh thu đã nộp* dò **MÃ NỘP** trong sao kê ngân hàng → cột *Đã nộp* và *Còn lại* (đỏ khi thiếu).
+- Dòng **"Phải nộp …đ"** cạnh ô Số tiền chính là **Tiền mặt phải nộp** ở khối tổng: cộng Thực thu
+  tiền mặt của từng ghế. **QR không nằm trong đây** vì đã vào tài khoản công ty.
+- **Hình thức** (bấm một trong ba nút):
+  - **Tiền mặt**: sẽ mang tiền về quầy / kế toán, nộp theo **Cách B** (mục 3.4).
+  - **Chuyển khoản**: sẽ chuyển vào tài khoản công ty và đính bill, theo **Cách A** (mục 3.3).
+  - **Chưa nộp**: hôm nay chưa nộp; phần tiền mặt ghi thành **nợ** trên phiếu, nộp bổ sung sau (mục 3.6).
+- **Số tiền nộp**: **để trống = nộp đủ**. Gõ số nhỏ hơn = nộp thiếu, phần còn lại thành nợ trên phiếu.
+- **Ghi chú**: ngân hàng, giờ chuyển, lý do nộp thiếu… (không bắt buộc).
+
+![Đã chọn Chuyển khoản, để trống số tiền (= nộp đủ), có ghi chú](img/nop-tien/03-nop-tien-chuyen-khoan.png)
+
+- **Ảnh chứng từ nộp tiền** (khối riêng, tuỳ chọn): QR chuyển khoản, hoá đơn… Không phải ảnh ghế.
+  Khối này còn là đường **báo cáo TỔNG**: không điền bảng từng ghế, chỉ đính ảnh + gõ tổng doanh thu
+  vào ô Số tiền nộp rồi Gửi.
+
+![Khối Ảnh chứng từ nộp tiền](img/nop-tien/04-anh-chung-tu.png)
+
+- Bấm **Gửi báo cáo cơ sở này**. Câu báo xanh nhắc lại: số ghế, tiền mặt phải nộp, QR, hình thức nộp.
+
+### 3.2 Sau khi gửi: phiếu nằm ở "Báo cáo trong 24h"
+
+![Báo cáo trong 24h: phiếu vừa gửi, trạng thái Đang cầm, khối Bill chuyển khoản với hai nút](img/nop-tien/07-24h-dang-cam.png)
+
+Mỗi phiếu là một thẻ: ngày · số ghế · **TM** (tiền mặt phải nộp) · **QR**, huy hiệu trạng thái tiền,
+huy hiệu ảnh còn thiếu, giờ nhập. Dưới thẻ là khối **🧾 Bill chuyển khoản** với:
+- dòng **"Tiền mặt phải nộp của báo cáo này"**: đúng số phải chuyển hoặc mang về;
+- nút **💸 Tạo mã nộp tiền** và nút **✓ Xác nhận đã nộp**.
+Phiếu **toàn QR** (tiền mặt 0đ) thì khối này ghi "không cần nộp", không có nút.
+
+### 3.3 Cách A — chuyển khoản theo MÃ NỘP rồi đính bill (khuyến nghị)
+
+**Bước 1. Bấm "💸 Tạo mã nộp tiền".** Máy dựng mã VietQR với **đúng số tiền mặt của phiếu**, tài
+khoản nhận tiền chung của công ty, và **nội dung chuyển khoản = MÃ NỘP của cơ sở**.
+
+![Mã nộp tiền: QR VietQR, ngân hàng, số tài khoản, nội dung CK = mã nộp, số tiền](img/nop-tien/08-ma-nop-tien-qr.png)
+
+- Mở app ngân hàng, quét QR, kiểm tra số tiền và nội dung rồi chuyển. Không quét được thì bấm
+  **Tải ảnh QR** hoặc chuyển tay đúng số tài khoản + **giữ nguyên nội dung**.
+- **Vì sao phải giữ nguyên nội dung**: kế toán đối chiếu sao kê ngân hàng bằng mã này; sai nội dung
+  thì khoản tiền không tự khớp về cơ sở, kế toán phải dò tay.
+- Cơ sở **chưa có MÃ NỘP** thì máy báo và không tạo QR: kế toán đặt mã ở *Kế toán → Mã nộp tiền*
+  (hoặc danh sách điểm bên Sao Kê) rồi nhân viên tạo lại.
+
+**Bước 2. Chụp bill, đính vào phiếu.** Bấm **Chọn ảnh** ở "Ảnh bill chuyển khoản" (chọn được nhiều
+ảnh), gõ mã giao dịch / ngân hàng vào ô ghi chú nếu có.
+
+![Đã chọn ảnh bill và gõ mã giao dịch, chuẩn bị xác nhận](img/nop-tien/09-dinh-bill.png)
+
+**Bước 3. Bấm "✓ Xác nhận đã nộp".** Máy hỏi lại một lần, nói rõ ba việc sắp xảy ra: ảnh bill đính
+vào phiếu; một **lượt nộp** bằng đúng số tiền mặt hiện lên cho kế toán bấm Đã nhận; **phiếu khoá**,
+không sửa được nữa.
+
+![Sau xác nhận: trạng thái Đã nộp, chờ kế toán, phiếu khoá, bill hiện thu nhỏ](img/nop-tien/10-24h-cho-ke-toan.png)
+
+Điều kiện: **phải có ít nhất một ảnh bill** (không ảnh thì máy chối); chỉ **người gửi phiếu** bấm
+được, **trong 24 giờ**; phiếu đã đính bill thì không sửa, không nộp bổ sung được nữa. Đính nhầm bill
+hoặc gõ sai số thì nhờ kế toán **Mở khoá báo cáo** (mục 3.5).
+
+### 3.4 Cách B — mang tiền mặt về quầy / kế toán
+
+Vào **Quỹ & nộp tiền** (trang chính, đăng nhập bằng tài khoản nhân viên).
+
+![Tôi đang cầm: tổng phải nộp, tách theo cơ sở với ô tích, nút Nộp về quầy](img/nop-tien/11-quy-toi-dang-cam.png)
+
+- Khối **Tôi đang cầm** cộng mọi khoản còn trên tay: từ ngăn ghế (chốt ca), khách trả tại quầy, và
+  **từ báo cáo doanh thu** (tiền mặt các phiếu chưa nộp).
+- Phụ trách nhiều cơ sở thì có bảng **Cơ sở chưa nộp** với ô tích: mặc định tích hết; bỏ tích cơ sở
+  chưa mang tiền về, số tổng đổi theo.
+- Bấm **Nộp về quầy** → một **lượt nộp** ở trạng thái *chờ* xuất hiện bên kế toán. Tiền vẫn ghi là
+  của nhân viên cho tới khi kế toán đếm và bấm Đã nhận.
+
+### 3.5 Kế toán xác nhận (tab Quỹ & nộp tiền)
+
+![Lượt nộp chờ xác nhận: bill thu nhỏ, gợi ý đã về tài khoản, ô số đếm lại, nút Đã nhận / Huỷ](img/nop-tien/12-quy-cho-xac-nhan.png)
+
+Khối **Lượt nộp chờ xác nhận** (nền vàng) liệt kê từng lượt: giờ, ai nộp, ghi chú, **ảnh bill thu
+nhỏ** (rê chuột phóng to, bấm mở tab), số **Sổ ghi** (máy cộng), và gợi ý đối chiếu:
+- **✓ Đã về TK · giờ · ngân hàng**: sao kê có khoản tiền vào khớp đúng số tiền.
+- **⚠ Chưa thấy trên sao kê**: kiểm lại bill trước khi nhận.
+
+Kế toán gõ số **đếm lại được** (mặc định bằng sổ ghi) rồi bấm:
+- **Đã nhận** → lượt sang *đã nhận*, phiếu sang **Kế toán đã nhận**, hết nợ. Lệch thiếu / thừa được
+  ghi vào lượt, không sửa số của phiếu.
+- **Huỷ** → xoá lượt nộp, tiền quay về **Đang cầm** của nhân viên (chỉ huỷ được khi còn *chờ*).
+- **🔓 Mở khoá báo cáo** (bắt buộc lý do) → gỡ bill, phiếu sửa lại được. Không mở được khi lượt đã
+  *đã nhận*.
+
+![Ai đang cầm tiền: từng người, tách nguồn, nút Xác nhận CẢ CỤC](img/nop-tien/13-quy-ai-dang-cam.png)
+
+Khối **Ai đang cầm tiền** là sổ nợ theo người. Bấm **tên nhân viên** để mở **từng ngày chưa nộp**:
+
+![Bấm tên nhân viên: bảng từng ngày chưa nộp, tích ngày đã nhận tiền, nút Xác nhận đã nộp N ngày](img/nop-tien/14-quy-cam-theo-ngay.png)
+
+- Tích những ngày kế toán **đã thật sự nhận tiền** → **✓ Xác nhận đã nộp N ngày · số tiền**. Máy
+  hỏi lại, liệt kê đúng các ngày, rồi ghi hết nợ **chỉ cho các ngày ấy**; ngày khác giữ nguyên.
+  Đây là cách dùng khi nhân viên nộp từng ngày lẻ, không chốt được cả cục.
+- **Xác nhận CẢ CỤC**: ghi hết nợ toàn bộ của người ấy ngay, không qua bước chờ. Dùng cho tiền cũ đã
+  về tay ngoài đời (dữ liệu nhập lại), không dùng cho tiền đang nộp hằng ngày.
+
+### 3.6 Nộp thiếu, chưa nộp, nộp bổ sung
+
+- Khai **Chưa nộp**, hoặc gõ số tiền nộp nhỏ hơn tiền mặt phải nộp → phần còn lại là **nợ** của
+  nhân viên trên phiếu; khối **Nộp bổ sung** trên màn báo cáo liệt kê các phiếu còn nợ để nộp thêm.
+- **Nộp bổ sung** cộng vào phiếu cũ; bị chặn nếu phiếu đã đính bill hoặc ngày đã khoá.
+- Tab **Doanh thu đã nộp**: dò **MÃ NỘP** trong sao kê ngân hàng theo ngày → cột *Đã nộp* và *Còn
+  lại* cho từng cơ sở (đỏ khi thiếu). Cơ sở "chưa đặt mã" thì vào Sao Kê đặt mã.
+
+### 3.7 Việc của ai, khi nào
+
+| Ai | Khi nào | Làm gì |
+|---|---|---|
+| Nhân viên | Ngay khi gửi phiếu | Chọn hình thức nộp, số tiền (trống = đủ) |
+| Nhân viên | Trong 24 giờ | Chuyển khoản theo mã nộp → đính bill → Xác nhận đã nộp; hoặc Nộp về quầy |
+| Kế toán | Hằng ngày | Đối chiếu bill với sao kê, bấm Đã nhận / Huỷ; xác nhận theo ngày ở Ai đang cầm tiền |
+| Kế toán | Khi nhân viên đính nhầm | Mở khoá báo cáo (có lý do) |
+| Kế toán | Cuối kỳ | Khoá ngày; nợ còn treo hiện ở Ai đang cầm tiền và Theo người thu |
 
 ---
 
