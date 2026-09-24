@@ -102,6 +102,18 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.60.0 =
+* 🔴 **Đặt lại tồn đầu.** Anh Thắng 24/09/2026 mở Tân Phú thấy cả cột Tồn đầu âm (−2, −8, −34) vì hôm
+  trước máy bán mà chưa ai đặt mốc — *"cho set lại tồn đầu"*. Ô **Tồn đầu** trong bảng Kho hàng hoá nay
+  gõ được (với người có quyền ghi): số mờ trong ô là tồn cuối hôm trước kéo sang; gõ số thật là ngày ấy
+  lấy đúng số đó làm tồn đầu (kể cả **0**), tồn tính = số đặt + nhập − máy bán, và các ngày sau nối tiếp
+  từ mốc mới. Để trống là giữ số kéo. Đặt lại là một **bút toán mốc** ghi vào sổ ghi động (cột mới
+  `dat_dau` ở cả hai bảng kho) — thẻ kho và "xem các lượt khai" thấy ai đặt, lúc nào, đặt bao nhiêu;
+  không sửa lịch sử.
+* Trên điện thoại ô Tồn đầu vẫn đứng cột 3 dòng Nhập. Chú giải dưới bảng nói cách dùng.
+* Bài kiểm: `kiem-kho.php` +9 phép (kéo âm → đặt 50 → 57 → ngày sau 56; đặt 0 khác trống; xoá về số kéo;
+  sổ ghi động giữ từng lượt), `kiem-kho-man.js` +5.
+
 = 1.59.5 =
 * **Thẻ kho trên điện thoại thành lưới 3 cột cố định.** Anh Thắng 23/09/2026 gửi ảnh: hai số "Máy bán lẻ /
   Theo combo" chen vào giữa làm dòng "Hàng tồn còn" lệch sang phải — *"chiều dài ô bằng chữ để sắp lại

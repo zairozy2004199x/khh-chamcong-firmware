@@ -58,6 +58,7 @@ function khh_dt_tao_bang_kho() {
 			ban_khai double NULL DEFAULT NULL,
 			combo_tay double NOT NULL DEFAULT 0,
 			dem double NULL DEFAULT NULL,
+			dat_dau double NULL DEFAULT NULL,
 			ghi_chu varchar(190) NOT NULL DEFAULT '',
 			nguoi varchar(120) NOT NULL DEFAULT '',
 			luc datetime NULL,
@@ -111,6 +112,7 @@ function khh_dt_tao_bang_kho_su() {
 			ban_khai double NULL DEFAULT NULL,
 			combo_tay double NOT NULL DEFAULT 0,
 			dem double NULL DEFAULT NULL,
+			dat_dau double NULL DEFAULT NULL,
 			ghi_chu varchar(190) NOT NULL DEFAULT '',
 			nguoi varchar(120) NOT NULL DEFAULT '',
 			luc datetime NULL,
@@ -550,6 +552,9 @@ function khh_dt_kho_ghi( $ngay, $co_so, $mat_hang, $o ) {
 		'ban_khai'  => khh_dt_kho_so( isset( $o['ban_khai'] ) ? $o['ban_khai'] : null ),
 		'combo_tay' => khh_dt_kho_so( isset( $o['combo_tay'] ) ? $o['combo_tay'] : null ),
 		'dem'       => khh_dt_kho_so( isset( $o['dem'] ) ? $o['dem'] : null ),
+		/* ĐẶT LẠI TỒN ĐẦU (anh Thắng 24/09/2026: "cho set lại tồn đầu"): một bút toán mốc — ngày này
+		   lấy đúng số ấy làm tồn đầu, bỏ số kéo từ hôm trước (kể cả số âm vô nghĩa). null = không đặt. */
+		'dat_dau'   => khh_dt_kho_so( isset( $o['dat_dau'] ) ? $o['dat_dau'] : null ),
 		'ghi_chu'   => isset( $o['ghi_chu'] ) ? (string) $o['ghi_chu'] : '',
 		'nguoi'     => function_exists( 'khh_dt_ten_ghi_so' ) ? khh_dt_ten_ghi_so() : '',
 		'luc'       => current_time( 'mysql' ),
@@ -561,8 +566,8 @@ function khh_dt_kho_ghi( $ngay, $co_so, $mat_hang, $o ) {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery
 		$wpdb->query(
 			$wpdb->prepare(
-				"INSERT INTO $su (ngay,co_so,mat_hang,nhap,ban_khai,combo_tay,dem,ghi_chu,nguoi,luc)
-				 VALUES (%s,%s,%s,%f,%s,%f,%s,%s,%s,%s)",
+				"INSERT INTO $su (ngay,co_so,mat_hang,nhap,ban_khai,combo_tay,dem,dat_dau,ghi_chu,nguoi,luc)
+				 VALUES (%s,%s,%s,%f,%s,%f,%s,%s,%s,%s,%s)",
 				$ngay,
 				$co_so,
 				$mat_hang,
@@ -570,6 +575,7 @@ function khh_dt_kho_ghi( $ngay, $co_so, $mat_hang, $o ) {
 				$dong['ban_khai'],
 				null === $dong['combo_tay'] ? 0 : $dong['combo_tay'],
 				$dong['dem'],
+				$dong['dat_dau'],
 				$dong['ghi_chu'],
 				$dong['nguoi'],
 				$dong['luc']
@@ -588,10 +594,10 @@ function khh_dt_kho_ghi_cong_don( $ngay, $co_so, $mat_hang, $o ) {
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery
 	return false !== $wpdb->query(
 		$wpdb->prepare(
-			"INSERT INTO $bang (ngay,co_so,mat_hang,nhap,ban_khai,combo_tay,dem,ghi_chu,nguoi,luc)
-			 VALUES (%s,%s,%s,%f,%s,%f,%s,%s,%s,%s)
+			"INSERT INTO $bang (ngay,co_so,mat_hang,nhap,ban_khai,combo_tay,dem,dat_dau,ghi_chu,nguoi,luc)
+			 VALUES (%s,%s,%s,%f,%s,%f,%s,%s,%s,%s,%s)
 			 ON DUPLICATE KEY UPDATE nhap=VALUES(nhap), ban_khai=VALUES(ban_khai),
-			   combo_tay=VALUES(combo_tay), dem=VALUES(dem), ghi_chu=VALUES(ghi_chu),
+			   combo_tay=VALUES(combo_tay), dem=VALUES(dem), dat_dau=VALUES(dat_dau), ghi_chu=VALUES(ghi_chu),
 			   nguoi=VALUES(nguoi), luc=VALUES(luc)",
 			$ngay,
 			$co_so,
@@ -600,6 +606,7 @@ function khh_dt_kho_ghi_cong_don( $ngay, $co_so, $mat_hang, $o ) {
 			khh_dt_kho_so( isset( $o['ban_khai'] ) ? $o['ban_khai'] : null ),
 			null === $combo ? 0 : $combo,
 			khh_dt_kho_so( isset( $o['dem'] ) ? $o['dem'] : null ),
+			khh_dt_kho_so( isset( $o['dat_dau'] ) ? $o['dat_dau'] : null ),
 			isset( $o['ghi_chu'] ) ? (string) $o['ghi_chu'] : '',
 			isset( $o['nguoi'] ) ? (string) $o['nguoi'] : '',
 			isset( $o['luc'] ) ? (string) $o['luc'] : current_time( 'mysql' )
@@ -677,12 +684,20 @@ function khh_dt_kho_chay( $co_so, $tu, $den ) {
 			$ctay  = isset( $d['combo_tay'] ) ? (float) $d['combo_tay'] : 0.0;
 			$b_may = isset( $may[ $ng ][ $mh ] ) ? (float) $may[ $ng ][ $mh ] : 0.0;
 			$dem   = ( isset( $d['dem'] ) && null !== $d['dem'] && '' !== $d['dem'] ) ? (float) $d['dem'] : null;
+			$dat   = ( isset( $d['dat_dau'] ) && null !== $d['dat_dau'] && '' !== $d['dat_dau'] ) ? (float) $d['dat_dau'] : null;
 
 			/* `$t_dau` là số BÁO RA (null = chưa biết); `$goc` là số ĐEM TÍNH. Tách đôi vì ngày
 			   nhập đầu tiên: tồn đầu thật là "chưa biết", nhưng tính thì coi kho rỗng = 0. Gộp
 			   hai thứ vào một biến là thẻ kho in 0 trong khi màn ngày in "—" cho cùng ngày ấy —
 			   bài thử đã bắt đúng chỗ này. */
 			$t_dau = $tt[ $mh ]['ton'];
+			/* 🔴 ĐẶT LẠI TỒN ĐẦU thắng số kéo từ hôm trước — kể cả kéo ra số âm vô nghĩa (24/09/2026
+			   anh Thắng mở Tân Phú thấy cả cột −2, −8, −34 vì hôm trước máy bán mà chưa ai đặt mốc).
+			   Đặt là một mốc, như đếm tay: từ đây chuỗi tính lại từ số này. */
+			if ( null !== $dat ) {
+				$t_dau               = $dat;
+				$tt[ $mh ]['co_moc'] = true;
+			}
 			$goc   = $t_dau;
 			/* Lượt NHẬP đầu tiên cũng là một mốc: nhập vào kho rỗng thì tồn chính bằng số nhập. */
 			if ( null === $goc && $nhap > 0 ) {
@@ -702,6 +717,7 @@ function khh_dt_kho_chay( $co_so, $tu, $den ) {
 			$dong[ $mh ][] = array(
 				'ngay'      => $ng,
 				'ton_dau'   => $t_dau,
+				'dat_dau'   => $dat,
 				'nhap'      => $nhap,
 				'ban_may'   => isset( $co_fabi[ $ng ] ) ? $b_may : null,
 				'combo_tay' => $ctay,
@@ -839,6 +855,12 @@ function khh_dt_kho_bang_ngay( $ngay, $co_so ) {
 		   `khh_dt_kho_trang_thai()` — ép về 0 là ngày đầu cả màn ra số âm. */
 		$t_dau  = ( isset( $dau[ $mh ] ) && null !== $dau[ $mh ]['ton'] ) ? (float) $dau[ $mh ]['ton'] : null;
 		$co_moc = ! empty( $dau[ $mh ]['co_moc'] );
+		/* Đặt lại tồn đầu hôm nay thắng số kéo từ hôm trước — xem `khh_dt_kho_chay()`. */
+		$dat    = ( isset( $d['dat_dau'] ) && null !== $d['dat_dau'] && '' !== $d['dat_dau'] ) ? (float) $d['dat_dau'] : null;
+		if ( null !== $dat ) {
+			$t_dau  = $dat;
+			$co_moc = true;
+		}
 		$nhap   = isset( $d['nhap'] ) ? (float) $d['nhap'] : 0.0;
 		$c_tay  = isset( $d['combo_tay'] ) ? (float) $d['combo_tay'] : 0.0;
 		if ( $co_fabi ) {
@@ -864,6 +886,7 @@ function khh_dt_kho_bang_ngay( $ngay, $co_so ) {
 		$ra[] = array(
 			'mat_hang'  => $mh,
 			'ton_dau'   => $t_dau,
+			'dat_dau'   => $dat,
 			'co_moc'    => $co_moc,
 			'nhap'      => $nhap,
 			'ban_le'    => $b_le,

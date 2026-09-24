@@ -1469,7 +1469,13 @@
                 'đã sửa ' + (so_lan[d.mat_hang] - 1) + ' lần</button>'
               : '') +
             '</td>' +
-            oMay('Tồn đầu', d.ton_dau) +
+            /* Tồn đầu GÕ ĐƯỢC (anh Thắng 24/09/2026: "cho set lại tồn đầu"): trống = theo tồn cuối
+               hôm trước (số hiện mờ trong ô); gõ số = đặt mốc mới cho ngày này, kể cả 0. */
+            (ghi
+              ? '<td class="o-go o-dau" data-nhan="Tồn đầu"><input type="text" inputmode="numeric" data-kho="dat_dau" data-i="' + i +
+                '" value="' + esc(d.dat_dau === null || d.dat_dau === undefined ? '' : d.dat_dau) + '" placeholder="' + esc(soKho(d.ton_dau)) +
+                '" title="Để trống = theo tồn cuối hôm trước. Gõ số để đặt lại tồn đầu ngày này."></td>'
+              : oMay('Tồn đầu', d.ton_dau)) +
             oNhap('nhap', 'Nhập', d.nhap) +
             oMay('Máy bán lẻ', d.ban_le) +
             oMay('Theo combo', d.ban_combo) +
@@ -1487,6 +1493,7 @@
         h += '<div style="margin-top:10px"><button class="nut chinh" type="button" id="khoLuu">Lưu sổ kho</button></div>';
       }
       h += '<div class="chu-them" style="margin-top:8px">' +
+        '<b>Tồn đầu</b>: số mờ là tồn cuối hôm trước kéo sang; thấy sai (âm, lệch) thì <b>gõ số thật vào ô</b> để đặt lại mốc cho ngày này — từ đó hệ tính tiếp. Để trống là giữ số kéo.<br>' +
         '<b>Lệch khai</b> = SL hàng bán (nhân viên khai) − máy POS ghi bán. Âm là khai thiếu.<br>' +
         '<b>Tồn tính</b> = tồn đầu + nhập − máy POS ghi bán − combo nhập tay. ' +
         '<b>Lệch kho</b> = hàng tồn còn (đếm được) − tồn tính. Âm là thiếu hàng.<br>' +
