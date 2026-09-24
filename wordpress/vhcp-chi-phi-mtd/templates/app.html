@@ -2389,6 +2389,13 @@
     if(lblN) lblN.textContent='Phân loại nhỏ (loại chi phí)';
     var cur=String((keep!==undefined)?keep:(sel.value||DM_CUR)||'').trim();
     var ds=_dmDs();
+    /* 🔴 DÒNG ĐANG SỬA: đầu mục của loại trên dòng PHẢI BÀY, dù loại ấy không còn trong danh sách
+       đang xổ (ẩn vì không tích vai người sửa, hay lọc theo cơ sở). Anh Thắng 24/09/2026 (ảnh hộp
+       Sửa dòng chi: ô Phân loại lớn "— chọn —" trong khi ô loại vẫn là "Chi Phí Chung VP"): *"Sao
+       bấm sửa cái phân loại nó mất"*. `_dmDs()` chỉ gom đầu mục của loại ĐANG XỔ, nên đầu mục của
+       một loại bị ẩn rơi ra ngoài và `cur` bị ép về rỗng — cùng luật với `fillNhom` giữ `cur`. */
+    var _suaId=el('lineId')?String(el('lineId').value||'').trim():'';
+    if(cur && _suaId && ds.indexOf(cur)<0) ds.push(cur);
     sel.innerHTML='<option value="">— chọn phân loại lớn —</option>'+ds.map(function(d){ return '<option value="'+esc(d)+'">'+esc(d)+'</option>'; }).join('');
     DM_CUR=(cur && ds.indexOf(cur)>=0)?cur:'';
     sel.value=DM_CUR;
@@ -5848,8 +5855,44 @@
     google.script.run.withSuccessHandler(function(r){loading(false); if(r.success){toast('ok','Đã gửi xin tạm ứng — chờ quản lý duyệt');boot();openDon(CUR.don.maDon);} else toast('err',r.error);})
       .withFailureHandler(function(e){loading(false);toast('err',e.message);}).guiDuyetTamUng(CUR.don.maDon);
   }
+  /* Tổng ĐÃ CHI theo dòng, cùng luật `VHCPMTD_Don::thuc_chi()`: ô Thực chi đã gõ thì lấy, chưa gõ thì
+     lấy Thành tiền. Dùng cho đơn TRỰC TIẾP ở Nháp — máy chủ trả `tongCN.thucChi = 0` ở bước ấy
+     (chưa qua mốc cấp tiền), mà tiền của đơn trực tiếp thì đã ra khỏi túi người mua rồi. */
+  function _tongChiDong(){
+    return (CUR&&CUR.lines||[]).reduce(function(s,l){
+      var tm=(l.thucMua===''||l.thucMua==null)?null:Number(l.thucMua);
+      return s+((tm==null)?(Number(l.thanhTien)||0):tm);
+    },0);
+  }
+  /* 🔴 ĐƠN TRỰC TIẾP GỬI THẲNG TỪ NHÁP — cửa riêng, không soi khối Quyết toán.
+     Anh Thắng 24/09/2026 (ảnh toast cạnh nút Gửi quyết toán): *"Chưa có dòng đã mua — nhập ở bảng
+     bên dưới (hoặc bấm 🚫 Không dùng)"* — bấm nút mà bị chối, trong khi đơn đã có hạng mục. Vì
+     `guiQT()` cũ đọc ô `qtThucMua` của khối Quyết toán, mà khối ấy chỉ bày từ "Đã cấp tạm ứng"
+     (xem `renderQT`): ở Nháp ô rỗng → 0 → chối; câu chối lại trỏ vào một bảng không hiện và một
+     nút 🚫 vốn không có trong luồng trực tiếp. Đơn trực tiếp đủ điều kiện khi CÓ HẠNG MỤC — máy
+     chủ (`gui_quyet_toan`) cũng chỉ hỏi đúng bước xuất phát. */
+  function _guiQtTrucTiep(){
+    var n=(CUR.lines||[]).length;
+    if(!n){ toast('warn','Chưa có hạng mục nào — thêm ở mục 1 (Thành tiền = số đã chi) rồi mới gửi kế toán.'); return; }
+    var tong=_tongChiDong();
+    if(!confirm('Đơn TRỰC TIẾP — không qua tạm ứng.\nGửi '+n+' hạng mục · '+money(tong)+'đ thẳng cho kế toán quyết toán?'))return;
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){loading(false); if(r.success){_log('Gửi quyết toán (trực tiếp)', CUR.don.maDon, n+' hạng mục · '+money(tong)+'đ'); toast('ok','Đã gửi cho kế toán');boot();openDon(CUR.don.maDon);} else toast('err',r.error);})
+      .withFailureHandler(function(e){loading(false);toast('err',e.message);}).guiQuyetToan(CUR.don.maDon);
+  }
   function guiQT(){ if(!CUR)return;
-    if(!Number(_tienSo(el('qtThucMua').value))){toast('warn','Chưa có dòng đã mua — nhập ở bảng bên dưới (hoặc bấm 🚫 Không dùng)');return;}
+    var _st=(CUR.don&&CUR.don.trangThai)||'Nháp';
+    if(_st==='Nháp' && _laTrucTiep(CUR.don)){ _guiQtTrucTiep(); return; }
+    /* Câu chối phải nói ĐÚNG CHỖ THIẾU: chưa có dòng nào, hay có dòng mà thực chi cộng lại = 0
+       (từng dòng gõ Thực chi 0, hoặc toàn dòng Nhà cung cấp trả). Bảng hạng mục nằm TRÊN khối
+       này (mục 1), không phải "bên dưới". */
+    if(!Number(_tienSo(el('qtThucMua').value))){
+      var _n=(CUR.lines||[]).length;
+      toast('warn', _n
+        ? ('Có '+_n+' hạng mục nhưng tổng thực chi cá nhân = 0 — sửa ô Thực chi từng dòng ở mục 1 (0 = không mua), hoặc bấm 🚫 Không dùng nếu không mua gì.')
+        : 'Chưa có hạng mục đã mua — thêm ở bảng hạng mục (mục 1), hoặc bấm 🚫 Không dùng — hoàn tạm ứng.');
+      return;
+    }
     if(!el('qtHTTT').value){toast('warn','Chọn hình thức trả kế toán');return;}
     if(!confirm('Gửi hóa đơn thẳng cho kế toán quyết toán?'))return;
     loading(true);
