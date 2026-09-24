@@ -58,7 +58,9 @@ t('⚠️ bốc được `renderQTList`', RQ.length > 800, RQ.length);
 t('🔴 tách từ CÙNG một nguồn (`daQtHet`), hai bảng bù nhau bằng chính `_qtChoTT`',
   /var choTT=daQtHet\.filter\(_qtChoTT\);/.test(RQ) && /var xong=daQtHet\.filter\(function\(d\)\{ return !_qtChoTT\(d\); \}\);/.test(RQ));
 t('🔴 và vẽ ra bảng riêng', /_qtVeBangTT\(choTT\);/.test(RQ));
-t('⚠️ chế độ xem theo tuần giấu thẻ này y như hai thẻ kia', /el\('qtCardTT'\)\.style\.display=tuan\?'none':''/.test(RQ));
+/* 24/09/2026: thẻ thuộc trang "Đã quyết toán" (`QT_THE.xong`); xem theo tuần giấu qua cùng một vòng với mọi thẻ. */
+t('⚠️ thẻ nằm ở trang Đã quyết toán và bị giấu khi xem theo tuần y như các thẻ kia',
+  /var QT_THE=\{cho:\[[^\]]*\], xong:\[[^\]]*'qtCardTT'[^\]]*\]\}/.test(HTML) && /QT_THE\[m\]\.forEach\(function\(id\)\{ if\(el\(id\)\) el\(id\)\.style\.display=\(!tuan && m===man\)\?'':'none'; \}\);/.test(RQ));
 {
   /* Chạy thật phép chia: 4 đơn → không đơn nào rơi, không đơn nào nằm hai bảng. */
   const ds = [{ maDon: 'a', trangThai: 'Đã quyết toán', khoi: 'kvc', luong: 'tt' },

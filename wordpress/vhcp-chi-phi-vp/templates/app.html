@@ -92,12 +92,12 @@
         title="Xem riêng từng khối — tránh duyệt lộn đơn vị" onclick="bapMenuKhoi('duyet',event)">▾</button>
       <div class="tabMenuBox" id="tmBox-duyet" role="menu"></div>
     </span>
-    <span class="tabMenu" id="tm-qt" onmouseenter="veMenuKhoi('qt')">
-      <button class="btn b-x" id="tab-qt" onclick="showPage('qt')">🧾 Quyết toán</button>
-      <button type="button" class="tabMenuNut" aria-haspopup="true" aria-expanded="false"
-        title="Xem riêng từng khối — tránh duyệt lộn đơn vị" onclick="bapMenuKhoi('qt',event)">▾</button>
-      <div class="tabMenuBox" id="tmBox-qt" role="menu"></div>
-    </span>
+    <!-- 🧾 HAI TRANG QUYẾT TOÁN — anh Thắng 24/09/2026 (ảnh menu ▾ dưới tab Quyết toán): *"Tách ra
+         là Chờ Quyết Toán · Đã Quyết Toán"*, *"Ra 2 trang riêng cho gọn"*. Trước là một tab + menu ▾
+         xổ KHỐI; nay hai tab, mỗi tab một việc: việc cần làm (chờ) và sổ để tra lại (đã). Cả hai dùng
+         chung `#page-qt`, khác nhau ở `QT_MAN` (xem `showPage` / `renderQTList`). -->
+    <button class="btn b-x" id="tab-qt" onclick="showPage('qt')">🧾 Chờ quyết toán</button>
+    <button class="btn b-x" id="tab-qtxong" onclick="showPage('qtxong')" title="Đơn đã quyết toán · chờ thanh toán · đã xuất — để tra lại">✅ Đã quyết toán</button>
     <button class="btn b-x" id="tab-tattoan" onclick="showPage('tattoan')">💰 Thừa/thiếu tuần</button>
     <button class="btn b-x" id="tab-xuat" onclick="showPage('xuat')">📤 Xuất MISA</button>
     <button class="btn b-x" id="tab-cauhinh" onclick="showPage('cauhinh')">⚙️ Cấu hình</button>
@@ -1382,7 +1382,7 @@
          mình. Tách hai bảng: việc cần làm nằm sẵn trên đầu màn hình.
          Mỗi bảng 15 đơn/trang — dài hơn thì cuộn mãi không tới hàng tổng. -->
     <div style="display:flex;align-items:flex-end;gap:10px;margin-bottom:10px;flex-wrap:wrap">
-      <b style="font-size:15px;padding-bottom:6px">🧾 Quyết toán</b>
+      <b style="font-size:15px;padding-bottom:6px" id="qtTieuDe">🧾 Chờ quyết toán</b>
       <!-- LỌC THÁNG / TUẦN / CƠ SỞ — cùng bộ với tab Duyệt tạm ứng (_napLocDon).
            Kế toán đối chiếu theo TUẦN với từng cơ sở; không có ô lọc thì phải lật từng
            trang bảng để nhặt đơn của một tuần. Lọc áp cho CẢ BA bảng của trang. -->
@@ -2877,7 +2877,7 @@
         Nên gỡ nó không nới lỏng một chốt nào — chỉ mất một cách xem thử. */
   var QUYEN_TAB=null;   // bảng tab được xem, do applyPerms() đặt
   /* Chưa có bảng quyền (gọi trước applyPerms) thì coi như được — không thì màn trắng trơn. */
-  function _tabDuoc(p){ return !QUYEN_TAB || !!QUYEN_TAB[p]; }
+  function _tabDuoc(p){ if(p==='qtxong') p='qt'; return !QUYEN_TAB || !!QUYEN_TAB[p]; }   /* hai tab Quyết toán chung một cửa quyền */
   // trang chủ = Tổng quan dòng tiền (trừ Nhân viên vào thẳng Nhập đơn).
   // 🔴 Nhân viên Kỹ thuật không có tab đơn tuần -> vào thẳng tab Kỹ thuật, kẻo mở app ra là
   //    một trang bị ẩn: hàng tab không có nút nào sáng, và họ tưởng app hỏng.
@@ -2947,7 +2947,8 @@
        chỉ check chứ ko đẩy misa"*. `_applyTabPerms()` chỉ CỘNG THÊM tab, nó không cắt được
        cái đã bật ở đây. Xem `_xuatMisaDuoc()`. */
     if(!_xuatMisaDuoc()) vis.xuat=0;
-    ['tongquan','don','sochi','duan','mkt','congtac','setup','vhtuan','trama','duyet','qt','tattoan','xuat','cauhinh','log'].forEach(function(x){
+    vis.qtxong=vis.qt;   /* trang Đã quyết toán đi cùng cửa với Chờ quyết toán */
+    ['tongquan','don','sochi','duan','mkt','congtac','setup','vhtuan','trama','duyet','qt','qtxong','tattoan','xuat','cauhinh','log'].forEach(function(x){
       var hien=(vis[x]&&!BO_TAB[x]);
       var t=el('tab-'+x); if(t) t.style.display=hien?'inline-block':'none';
       /* 🔴 TAB CÓ MENU XỔ KHỐI THÌ CÁI NẰM TRONG HÀNG LÀ VỎ BỌC, KHÔNG PHẢI CÁI NÚT. Ẩn mỗi
@@ -3375,7 +3376,21 @@
     return KHOI_DS.filter(function(x){ return KHOI_MO.indexOf(x.ma)<0 && co.indexOf(x.ma)>=0; });
   }
   /** Khối BÀY RA trên thanh: khối đang mở + khối lưu trữ còn sổ. */
-  function _khoiBay(){ return _khoiMo().concat(_khoiLuuTru()); }
+  function _khoiBay(){
+    var ds=_khoiMo().concat(_khoiLuuTru());
+    /* 🔴 KHỐI CHƯA CÓ ĐƠN NÀO THÌ KHÔNG BÀY — anh Thắng 24/09/2026 (ảnh thanh "KHỐI: Khu vui chơi
+       125 · Văn phòng 0"): *"bỏ nè"*. Ba bản nay cài plugin riêng, nút "Văn phòng 0" trên bản gốc
+       chỉ chiếm một dòng đầu màn mà bấm vào là trang trắng. Còn đúng một khối thì `veThanhKhoi`
+       ẩn cả thanh và `veMenuKhoi` giấu mũi ▾.
+       ⚠️ VẪN BÀY khối của CHÍNH BẢN (nơi đơn mới đóng dấu) và khối người đang xem thuộc về
+          (`BOOT.khoiXem`) — NV Văn phòng mới vào chưa có đơn vẫn phải thấy nút của mình. Và
+          hễ khối ấy có đơn thật thì nút tự mọc lại: dữ liệu quyết định, không phải một cờ. */
+    var co=(window.BOOT&&BOOT.khoiCoDon), xem=(window.BOOT&&BOOT.khoiXem)||[];
+    var ban=String((window.BOOT&&BOOT.khoiBan)||'').toLowerCase();
+    /* Đường lui: gói khởi động bản CŨ không có `khoiBan` / `khoiCoDon` → bày như trước, không lọc. */
+    if(!ban || !Array.isArray(co)) return ds;
+    return ds.filter(function(x){ return co.indexOf(x.ma)>=0 || x.ma===ban || xem.indexOf(x.ma)>=0; });
+  }
   function _laLuuTru(ma){
     return KHOI_MO.indexOf(String(ma).toLowerCase())<0;
   }
@@ -3580,6 +3595,9 @@
   }
   function veMenuKhoi(man){
     var o=el('tmBox-'+man); if(!o) return;
+    /* Còn một khối thì menu chỉ có một mục, bấm không đổi gì — giấu mũi ▾ cùng lúc với thanh khối. */
+    var w=el('tm-'+man), nut=w&&w.querySelector?w.querySelector('.tabMenuNut'):null;
+    if(nut&&nut.style) nut.style.display=(_khoiBay().length<2)?'none':'';
     var duoc=_khoiDuoc().map(function(x){ return x.ma; });
     var dang=String(KHOI_DANG).toLowerCase();
     /* ⚠️ CÙNG TẬP VỚI THANH KHỐI (`_khoiBay()`). Menu ▾ trên tab và thanh khối nói cùng một
@@ -3632,7 +3650,7 @@
   /* Hộp `fixed` không tự đi theo trang — cuộn hay xoay máy là nó đứng lại một chỗ, treo lơ
      lửng giữa màn. Tính lại chỗ thay vì đóng: đang rê chuột mà menu tự tắt thì khó chịu hơn. */
   function _tmTheoCho(){
-    ['duyet','qt'].forEach(function(m){ if(el('tm-'+m)) _tmDatCho(m); });
+    ['duyet'].forEach(function(m){ if(el('tm-'+m)) _tmDatCho(m); });   /* Quyết toán nay là hai tab, không còn menu ▾ */
   }
   /* Bấm ra ngoài / bấm Esc thì đóng — không thì menu mở trên điện thoại rồi nằm đó che mất
      hàng tab, và người ta phải nạp lại trang.
@@ -3669,8 +3687,8 @@
     'Chờ cấp tạm ứng':   {tab:'duyet', icon:'💰', lam:'Kế toán chuyển tiền'},
     'Đã cấp tạm ứng':    {tab:'don',   icon:'🛒', lam:'Nhân viên tiêu, nhập thực chi + hóa đơn'},
     'Chờ quyết toán':    {tab:'qt',    icon:'🧾', lam:'Kế toán đối chiếu thừa/thiếu'},
-    'Đã quyết toán':     {tab:'qt',    icon:'✅', lam:'Đã chốt số'},
-    'Đã thanh toán':     {tab:'qt',    icon:'💵', lam:'Kế toán xác nhận tiền đã trả'},
+    'Đã quyết toán':     {tab:'qtxong', icon:'✅', lam:'Đã chốt số'},
+    'Đã thanh toán':     {tab:'qtxong', icon:'💵', lam:'Kế toán xác nhận tiền đã trả'},
     'Đã xuất MISA':      {tab:'xuat',  icon:'📦', lam:'Kế toán KVC xuất tệp MISA'}
   };
   /* Số đơn ĐANG ĐỨNG ở mỗi bước, trong khối đang chọn — con số mới là thứ nói "chỗ nào đang
@@ -3825,7 +3843,7 @@
      *    vẫn lọc theo nó, dữ liệu vẫn mang dấu khối. Chỉ cái thanh đi.
      * ══════════════════════════════════════════════════════════════════════════════════════ */
     var bay=_khoiBay();
-    if(bay.length<2){ o.innerHTML=''; o.style.display='none'; try{ veMenuKhoi('duyet'); veMenuKhoi('qt'); }catch(e){} return; }
+    if(bay.length<2){ o.innerHTML=''; o.style.display='none'; try{ veMenuKhoi('duyet'); }catch(e){} return; }
     o.style.display='';
     o.innerHTML=bay.map(function(x){
       var dang=(String(KHOI_DANG).toLowerCase()===x.ma);
@@ -3858,7 +3876,7 @@
     }).join('');
     /* Thanh khối vẽ lại lúc nào thì menu trên tab vẽ lại lúc ấy — hai chỗ cùng nói một chuyện,
        lệch nhau là người ta tin cái nào? */
-    try{ veMenuKhoi('duyet'); veMenuKhoi('qt'); }catch(e){}
+    try{ veMenuKhoi('duyet'); }catch(e){}
   }
   /* ══════════════════════════════════════════════════════════════════════════════════════════
    * 🔴 HAI THỨ NÀY PHẢI TÁCH HẲN, ĐỪNG GỘP.
@@ -4422,6 +4440,7 @@
     show('duyet', canDo('duyetTU')||canDo('capTU')||canDo('traDon'));
     // 3 tab Marketing / Công tác / Setup đã bỏ -> đừng mở lại theo phân quyền
     show('qt',    canDo('xacNhanQT')||canDo('duyetNCC')||canDo('traDon'));
+    show('qtxong',canDo('xacNhanQT')||canDo('duyetNCC')||canDo('traDon'));
     show('xuat',  canDo('xuatMISA') && _xuatMisaDuoc());
   }
   function boot(cb){
@@ -5415,9 +5434,11 @@
   }
   function _oTkNoDong(l){
     var ten=String(l.nhom||''), cur=String(l.tkNo||'');
-    var rieng=_tkNoCuaLoai(ten), da={};
+    var rieng=_tkNoCuaLoai(ten), da={}, khac0=[];
     rieng.forEach(function(m){ da[m]=1; });
-    var khac=_tkNoTatCa().filter(function(m){ return !da[m]; });
+    /* Mã kế toán vừa tự thêm trên một dòng khác của ĐƠN NÀY cũng bày ra — gõ một lần, dùng cho cả đơn. */
+    ((typeof CUR!=='undefined'&&CUR&&CUR.lines)||[]).forEach(function(x){ var m=String((x&&x.tkNo)||'').trim(); if(m && !da[m] && _tkNoTatCa().indexOf(m)<0){ da[m]=1; khac0.push(m); } });
+    var khac=_tkNoTatCa().filter(function(m){ return !da[m]; }).concat(khac0).sort();
     var h='<select onchange="saveLineTkNo(\''+l.id+'\',this.value)" title="TK Nợ của riêng dòng này"'
       +' style="font-size:11px;width:116px;margin-top:3px;font-family:Consolas,monospace">'
       +'<option value="">— tự động theo loại —</option>';
@@ -5428,18 +5449,33 @@
     if(cur && rieng.indexOf(cur)<0 && khac.indexOf(cur)<0){
       h+='<option value="'+esc(cur)+'" selected>'+esc(cur)+'  (không còn trong Cấu hình)</option>';
     }
+    /* 🔴 KẾ TOÁN TỰ THÊM MÃ — anh Thắng 24/09/2026 (ảnh ô chọn này): *"Tạo mã này hay, để kế toán tự
+       gán, nó chuẩn hơn, với nếu thiếu có thể thêm mã để kế toán tự tạo số mới đúng"*. Đảo lại chốt
+       "không gõ tự do" phía trên, có chủ ý: người gõ là KẾ TOÁN, ở bước quyết toán, và mã đi kèm tên
+       người + nhật ký. Vẫn không gõ thẳng vào ô: đi qua `TK_THEM` → hộp hỏi → máy chủ soi số + gạt TK
+       Có (`set_line_tk_no(..., them=1)`). */
+    h+='<option value="'+TK_THEM+'">＋ Mã khác — kế toán tự thêm…</option>';
     return h+'</select>';
   }
+  var TK_THEM='__them__';
   function saveLineTkNo(id, val){
     var lai=function(){ if(CUR&&CUR.don) openDon(CUR.don.maDon); };
+    var them=0;
+    if(val===TK_THEM){
+      var go=prompt('Mã TK Nợ mới cho dòng này (chỉ chữ số, VD 64211):','');
+      if(go===null){ lai(); return; }
+      val=String(go).replace(/\s+/g,'');
+      if(!/^\d{3,10}$/.test(val)){ toast('warn','Mã TK phải là 3–10 chữ số — chưa ghi gì.'); lai(); return; }
+      them=1;
+    }
     loading(true);
     google.script.run.withSuccessHandler(function(r){ loading(false);
       if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); lai(); return; }
       _log('Chỉnh TK Nợ của dòng',(CUR&&CUR.don&&CUR.don.maDon)||'', 'id '+id+' -> '+(r.tkNo||'(tự động)'));
-      toast('ok', r.tkNo ? ('Dòng này nay hạch toán Nợ '+r.tkNo) : 'Đã trả về mã tự động theo loại');
+      toast('ok', r.tkNo ? ('Dòng này nay hạch toán Nợ '+r.tkNo+(them?' (mã kế toán tự thêm)':'')) : 'Đã trả về mã tự động theo loại');
       lai();
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);lai();})
-      .setLineTkNo(id, val);
+      .setLineTkNo(id, val, them);
   }
   function saveLineNhom(id, val){
     var lai=function(){ if(CUR&&CUR.don) openDon(CUR.don.maDon); };
@@ -6146,14 +6182,16 @@
      *    tự mọc ra ở chỗ vô nghĩa, hoặc tệ hơn, biến mất ở chỗ cần. */
     try{
       var _kw=el('khoiWrap');
-      if(_kw) _kw.style.display=(['don','duan','duyet','qt'].indexOf(p)>=0)?'':'none';
+      if(_kw) _kw.style.display=(['don','duan','duyet','qt','qtxong'].indexOf(p)>=0)?'':'none';
       if(_kw && _kw.style.display==='') veThanhKhoi();
     }catch(e){}
-    var targetPage=(p==='congtac'||p==='setup')?'bp':p;   // 2 tab Công tác/Setup dùng chung trang page-bp
+    /* 🧾 Hai tab Quyết toán dùng chung `#page-qt`; `QT_MAN` nói trang nào đang mở. */
+    if(p==='qt'||p==='qtxong'){ QT_MAN=(p==='qtxong')?'xong':'cho'; try{ localStorage.setItem('vhcpvp_qt_man', QT_MAN); }catch(e){} }
+    var targetPage=(p==='congtac'||p==='setup')?'bp':(p==='qtxong'?'qt':p);   // 2 tab Công tác/Setup dùng chung trang page-bp
     ['tongquan','don','sochi','duan','mkt','bp','vhtuan','trama','duyet','qt','tattoan','xuat','cauhinh','log'].forEach(function(x){
       var pg=el('page-'+x); if(pg) pg.style.display=(x===targetPage)?'':'none';
     });
-    ['tongquan','don','sochi','duan','mkt','congtac','setup','vhtuan','trama','duyet','qt','tattoan','xuat','cauhinh','log'].forEach(function(x){
+    ['tongquan','don','sochi','duan','mkt','congtac','setup','vhtuan','trama','duyet','qt','qtxong','tattoan','xuat','cauhinh','log'].forEach(function(x){
       var tb=el('tab-'+x); if(tb) tb.className='btn '+(x===p?'b-p':'b-x');
     });
     // Đơn theo tuần và đơn theo dự án là CÙNG một loại đơn, chỉ khác cái gom:
@@ -6175,7 +6213,7 @@
     if(p==='don') boot();
     if(p==='sochi') loadSoChi();
     if(p==='duyet') loadDuyet();
-    if(p==='qt') loadQT();
+    if(p==='qt'||p==='qtxong') loadQT();
     if(p==='tattoan') loadTatToan();
     if(p==='xuat') loadXuat();
     if(p==='cauhinh') loadCfg();
@@ -11841,6 +11879,12 @@
   // tính trên TOÀN BỘ nhóm chứ không phải trang đang xem — kế toán cần con số của cả
   // nhóm, phân trang chỉ là chuyện hiển thị.
   var QT_MOI_TRANG=15, QT_TRANG={cho:1, xong:1, chuanop:1}, QT_XEM='bang';
+  /* 'cho' = trang Chờ quyết toán (việc phải làm: chờ · lệnh dự án · đã cấp chưa nộp) ·
+     'xong' = trang Đã quyết toán (chờ thanh toán · đã quyết toán). Xem chốt ở `id="tab-qtxong"`. */
+  var QT_MAN='cho';
+  try{ if(localStorage.getItem('vhcpvp_qt_man')==='xong') QT_MAN='xong'; }catch(e){}
+  /** Thẻ nào bày ở trang nào — một chỗ khai, `renderQTList` và bài kiểm cùng đọc. */
+  var QT_THE={cho:['qtCardCho','qtLenhCard','qtCardChuaNop'], xong:['qtCardTT','qtCardXong']};
   try{ if(localStorage.getItem('vhcpvp_qt_xem')==='tuan') QT_XEM='tuan'; }catch(e){}
   function qtDoiXem(v){
     QT_XEM=(v==='tuan')?'tuan':'bang';
@@ -12063,10 +12107,12 @@
     var tuan=(QT_XEM==='tuan');
     if(el('qtXemBang')) el('qtXemBang').className='btn '+(tuan?'b-x':'b-p');
     if(el('qtXemTuan')) el('qtXemTuan').className='btn '+(tuan?'b-p':'b-x');
-    if(el('qtCardCho'))  el('qtCardCho').style.display=tuan?'none':'';
-    if(el('qtCardXong')) el('qtCardXong').style.display=tuan?'none':'';
-    if(el('qtCardTT'))   el('qtCardTT').style.display=tuan?'none':'';
-    if(el('qtCardChuaNop')) el('qtCardChuaNop').style.display=tuan?'none':'';
+    /* 🧾 HAI TRANG: mỗi thẻ thuộc đúng một trang (`QT_THE`); xem theo tuần thì thay hết bằng thẻ tuần. */
+    var man=(QT_MAN==='xong')?'xong':'cho';
+    if(el('qtTieuDe')) el('qtTieuDe').textContent=(man==='xong')?'✅ Đã quyết toán':'🧾 Chờ quyết toán';
+    ['cho','xong'].forEach(function(m){
+      QT_THE[m].forEach(function(id){ if(el(id)) el(id).style.display=(!tuan && m===man)?'':'none'; });
+    });
     if(el('qtCardTuan')) el('qtCardTuan').style.display=tuan?'':'none';
 
     if(!tuan){

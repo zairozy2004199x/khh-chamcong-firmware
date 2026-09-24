@@ -45,16 +45,18 @@ const BOOT = {
   tenTk: { 64166: 'CP khác - Farm', 64106: 'CP khác - TuTu', 64127: 'Điện nước' },
 };
 function ve(dong) {
-  return new Function('BOOT', 'TKNAME', 'esc', NEN + '\nreturn _oTkNoDong(' + JSON.stringify(dong) + ');')(
-    BOOT, null, (v) => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'));
+  return new Function('BOOT', 'TKNAME', 'CUR', 'TK_THEM', 'esc', NEN + '\nreturn _oTkNoDong(' + JSON.stringify(dong) + ');')(
+    BOOT, null, { lines: [] }, '__them__', (v) => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'));
 }
 const giaTri = (h) => (h.match(/value="[^"]*"/g) || []).map((x) => x.slice(7, -1));
 
 const h1 = ve({ id: 'L1', nhom: 'Chi phí khác', tkNo: '64166' });
 /* ⚠️ XẾP THEO SỐ, không theo thứ tự khai. Bảng Cấu hình khai theo mảng, nên thứ tự khai là
    thứ tự người ta gõ — kế toán dò mã thì dò theo con số. */
-teq('🔴 bày ĐÚNG những mã đã khai, cộng ô trống "tự động", xếp theo số',
-  ['', '64106', '64166', '64127'], giaTri(h1));
+/* 24/09/2026: thêm mục cuối "＋ Mã khác — kế toán tự thêm…" (`TK_THEM`) — anh Thắng: *"nếu thiếu có thể
+   thêm mã để kế toán tự tạo số mới đúng"*. Vẫn không gõ thẳng vào ô: đi qua hộp hỏi + máy chủ soi. */
+teq('🔴 bày ĐÚNG những mã đã khai, cộng ô trống "tự động", xếp theo số, cuối là mục tự thêm',
+  ['', '64106', '64166', '64127', '__them__'], giaTri(h1));
 t('🔴 mã của CHÍNH loại ấy nhóm riêng và đứng trước',
   h1.indexOf('Mã của loại này') >= 0
   && h1.indexOf('Mã của loại này') < h1.indexOf('Mã khác đã khai'), h1);
@@ -102,7 +104,7 @@ t('   và cửa thoát ấy KHÔNG hề gọi `_oTkNoDong`',
 /* ═══ 5. LƯU XONG PHẢI NÓI RA ĐÃ THÀNH MÃ NÀO ═══════════════════════════════════════════ */
 const luu = bocHam('saveLineTkNo');
 t('⚠️ bốc được `saveLineTkNo`', luu.length > 100);
-t('🔴 gọi đúng hàm cổng `setLineTkNo`', /\.setLineTkNo\(id, val\)/.test(luu), luu);
+t('🔴 gọi đúng hàm cổng `setLineTkNo` (kèm cờ them từ 24/09/2026)', /\.setLineTkNo\(id, val, them\)/.test(luu), luu);
 t('🔴 ghi nhật ký (đây là mã hạch toán, phải có vết)', /_log\(/.test(luu), luu);
 t('🔴 báo lại mã mới, và báo riêng khi trả về tự động',
   /r\.tkNo \? \(/.test(luu) && /tự động/.test(luu), luu);
