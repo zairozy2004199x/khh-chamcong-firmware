@@ -231,6 +231,11 @@ class KHTC_HoaDonRa {
 		// còn những dòng trỏ vào hư không: không hiện ở đâu nữa nhưng vẫn nằm
 		// trong sao lưu và vẫn cộng vào tổng đã trả.
 		$wpdb->delete( KHTC_DB::bang( 'thanh_toan' ), array( 'bang' => 'hd_ra', 'chung_tu_id' => (int) $id ), array( '%s', '%d' ) );
+		// Hoá đơn sinh từ sao kê: các dòng tiền đã đứng tên tờ này phải được
+		// trả về, để lần sinh sau đề xuất lại — không thì tiền đó "mất" khỏi mọi
+		// tờ mà không ai thấy.
+		$wpdb->update( KHTC_DB::bang( 'giao_dich' ), array( 'hd_ra_id' => 0 ), array( 'hd_ra_id' => (int) $id ), array( '%d' ), array( '%d' ) );
+		$wpdb->update( KHTC_DB::bang( 'ds_dong' ), array( 'hd_ra_id' => 0 ), array( 'hd_ra_id' => (int) $id ), array( '%d' ), array( '%d' ) );
 		$wpdb->delete( KHTC_DB::bang( 'hd_ra' ), array( 'id' => (int) $id ), array( '%d' ) );
 		return true;
 	}

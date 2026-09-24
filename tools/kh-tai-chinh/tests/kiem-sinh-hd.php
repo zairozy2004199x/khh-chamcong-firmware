@@ -142,13 +142,54 @@ $t3 = KHTC_SinhHD::tao( $ky + array( 'ngay_hd' => '31/08/2026', 'bat_dau' => 700
 kiem( 'số trùng ở giữa dải cũng chặn', is_wp_error( $t3 ), true );
 kiem( 'vẫn không ghi thêm dòng nào', KHTC_HoaDonRa::loc( array() )['so_hd'], $truoc + 1 );
 
+// ------------------------------------------- mỗi dòng tiền chỉ vào MỘT tờ
+// Lỗi suýt xảy ra trên dữ liệu thật 23/09/2026: tạo xong, thêm mã vào danh
+// mục rồi xem lại cùng ngày — máy bày lại y nguyên các tờ đã xuất.
+$id_5001 = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . KHTC_DB::bang('hd_ra') . ' WHERE so_hd=%s', '5001' ) );
+kiem( 'dòng sao kê đã đứng tên tờ 5001', (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . KHTC_DB::bang('giao_dich') . ' WHERE hd_ra_id=%d', $id_5001 ) ) > 0, true );
+$g_lai = KHTC_SinhHD::gom( $ky );
+kiem( 'chạy lại cùng kỳ: không đề xuất lại tờ nào', $g_lai['diem'], array() );
+kiem( 'nhưng nói rõ đã xuất bao nhiêu tiền', $g_lai['da_xuat']['tien'], 600000 );
+kiem( 'và trong mấy tờ', $g_lai['da_xuat']['to'], 2 );
+kiem( 'tiền bỏ qua / mã lạ vẫn hiện như cũ', array( $g_lai['tong_bo'], $g_lai['tong_la'] ), array( $g['tong_bo'], $g['tong_la'] ) );
+kiem( 'tạo lại thì từ chối vì không còn gì', is_wp_error( KHTC_SinhHD::tao( $ky + array( 'ngay_hd' => '31/08/2026', 'bat_dau' => 9001 ) ) ), true );
+// Xoá một tờ → tiền của nó quay về, tờ kia vẫn đứng.
+KHTC_HoaDonRa::xoa( $id_5001 );
+$g_xoa = KHTC_SinhHD::gom( $ky );
+kiem( 'xoá tờ 5001 thì điểm của nó quay lại đề xuất', count( $g_xoa['diem'] ), 1 );
+kiem( 'đúng là điểm của tờ đã xoá', $g_xoa['diem'][0]['ten_diem'], 'Điểm Hai' );
+kiem( 'tờ còn lại vẫn tính là đã xuất', $g_xoa['da_xuat']['to'], 1 );
+kiem( 'không đồng nào biến mất: đề xuất + đã xuất = tổng ban đầu', $g_xoa['tong'] + $g_xoa['da_xuat']['tien'], $g['tong'] );
+// Trả nốt về để kiểm phần tách ngày trên dữ liệu sạch
+$id_5002 = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . KHTC_DB::bang('hd_ra') . ' WHERE so_hd=%s', '5002' ) );
+KHTC_HoaDonRa::xoa( $id_5002 );
+kiem( 'xoá hết thì không dòng nào còn đứng tên tờ', (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . KHTC_DB::bang('giao_dich') . ' WHERE hd_ra_id > 0' ), 0 );
+
+// Số kế tiếp = số lớn nhất trong sổ + 1 (7002 đã thêm tay ở trên)
+kiem( 'số kế tiếp là số lớn nhất + 1', KHTC_SinhHD::so_tiep(), 7003 );
+
 // Tạo theo kiểu tách ngày: ghi chú phải nói rõ NGÀY DOANH THU, vì ngày hoá đơn
 // là ngày xuất — hai thứ khác nhau và kế toán cần truy lại được.
 $t4 = KHTC_SinhHD::tao( $ky + array( 'tach' => 'ngay', 'ngay_hd' => '31/08/2026', 'bat_dau' => 8001 ) );
 kiem( 'tạo theo ngày ra 3 tờ', $t4['tao'], 3 );
+kiem( 'báo cả số đầu', $t4['so_dau'], 8001 );
 $hd4 = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . KHTC_DB::bang('hd_ra') . ' WHERE so_hd=%s', '8001' ) );
 kiem( 'ghi chú nói ngày doanh thu', false !== strpos( $hd4->ghi_chu, 'doanh thu ngày' ), true );
-kiem( 'nhưng ngày hoá đơn vẫn là ngày xuất đã chọn', $hd4->ngay, '2026-08-31' );
+kiem( 'chọn một ngày thì ngày hoá đơn là ngày đã chọn', $hd4->ngay, '2026-08-31' );
+
+// Ngày hoá đơn THEO NGÀY DOANH THU của từng tờ — "mỗi điểm mỗi ngày một tờ" đúng nghĩa.
+foreach ( array( '8001', '8002', '8003' ) as $so ) { KHTC_HoaDonRa::xoa( (int) $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . KHTC_DB::bang('hd_ra') . ' WHERE so_hd=%s', $so ) ) ); }
+kiem( 'gộp cả kỳ mà đòi ngày theo tờ thì từ chối', is_wp_error( KHTC_SinhHD::tao( $ky + array( 'tach' => '', 'ngay_hd' => 'theo_ngay', 'bat_dau' => 8001 ) ) ), true );
+$t5 = KHTC_SinhHD::tao( $ky + array( 'tach' => 'ngay', 'ngay_hd' => 'theo_ngay', 'bat_dau' => 8001 ) );
+kiem( 'theo ngày doanh thu: tạo được 3 tờ', $t5['tao'], 3 );
+$to5 = $wpdb->get_results( 'SELECT so_hd, ngay, ghi_chu FROM ' . KHTC_DB::bang('hd_ra') . " WHERE so_hd IN ('8001','8002','8003') ORDER BY so_hd" );
+$ngay5 = array_map( fn( $r ) => $r->ngay, $to5 );
+$ngay_dt = $wpdb->get_col( 'SELECT DISTINCT ngay FROM ' . KHTC_DB::bang('giao_dich') . ' WHERE hd_ra_id > 0 ORDER BY ngay' );
+kiem( 'mỗi tờ mang đúng ngày doanh thu của dòng tiền trong nó', $ngay5, $ngay_dt );
+kiem( 'ba tờ là ba ngày khác nhau', count( array_unique( $ngay5 ) ), 3 );
+kiem( 'ngày không giảm khi số tăng', $ngay5, ( function ( $a ) { sort( $a ); return $a; } )( $ngay5 ) );
+kiem( 'ngày tờ đầu là ngày doanh thu sớm nhất, không phải cuối kỳ', $ngay5[0] < '2026-08-31', true );
+foreach ( $to5 as $r ) { kiem( "tờ {$r->so_hd}: ghi chú khớp ngày hoá đơn", false !== strpos( $r->ghi_chu, mysql2date( 'd/m/Y', $r->ngay ) ), true ); }
 
 // ---------------------------------------------------------- dựng màn hình
 $_GET = array( 'tu' => '2026-08-01', 'den' => '2026-08-31', 'nh' => array( $nh ) );
@@ -159,6 +200,7 @@ $h = dung( fn() => KHTC_Trang::sinh_hoa_don() );
 kiem( 'mặc định là tách theo ngày', false !== strpos( $h, 'mỗi điểm mỗi ngày một hoá đơn' ), true );
 kiem( 'và nút tách theo ngày được chọn sẵn', false !== strpos( $h, 'value="ngay" checked' ), true );
 kiem( 'có cột Ngày doanh thu', false !== strpos( $h, 'Ngày doanh thu' ), true );
+kiem( 'báo tiền đã xuất trong kỳ', false !== strpos( $h, 'Đã xuất rồi trong kỳ này' ), true );
 // Màn hình này chạy hằng ngày (~160 tờ mỗi lần), nên phải có nút kỳ nhanh
 // theo NGÀY chứ không phải theo tháng như màn hình Báo cáo.
 kiem( 'có nút Hôm qua', false !== strpos( $h, 'Hôm qua' ), true );

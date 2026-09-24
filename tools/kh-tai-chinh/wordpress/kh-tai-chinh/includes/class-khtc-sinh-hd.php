@@ -62,7 +62,7 @@ class KHTC_SinhHD {
 
 		$tach = ( 'ngay' === ( $l['tach'] ?? '' ) );
 
-		$nhan = function ( $ma_ch, $tien, $nguon, $ngay = '' ) use ( &$theo_diem, &$bo_qua, &$la, &$tong, &$tong_bo, &$tong_la, $tra, $tach ) {
+		$nhan = function ( $ma_ch, $tien, $nguon, $ngay = '', $bang = '', $id = 0 ) use ( &$theo_diem, &$bo_qua, &$la, &$tong, &$tong_bo, &$tong_la, $tra, $tach ) {
 			$ma_ch = trim( (string) $ma_ch );
 			if ( '' === $ma_ch || ! isset( $tra[ $ma_ch ] ) ) {
 				// Tiền có thật mà không biết của điểm nào. KHÔNG được im lặng bỏ
@@ -94,26 +94,38 @@ class KHTC_SinhHD {
 					'tien'     => 0,
 					'so_dong'  => 0,
 					'nguon'    => array(),
+					'gd'       => array(),   // id dòng sao kê đi vào tờ này
+					'ds'       => array(),   // id dòng cổng đi vào tờ này
 				);
 			}
 			$theo_diem[ $k ]['tien']    += $tien;
 			$theo_diem[ $k ]['so_dong']++;
 			$theo_diem[ $k ]['nguon'][ $nguon ] = true;
+			if ( $bang && $id ) { $theo_diem[ $k ][ $bang ][] = (int) $id; }
 			$tong += $tien;
 		};
+
+		// Dòng đã đứng tên một hoá đơn rồi thì KHÔNG đề xuất lại — chạy lại cùng
+		// kỳ (thêm mã vào danh mục rồi xem lại, hay nạp nốt file cổng khác) mà
+		// máy bày lại y nguyên các tờ đã xuất là cách nhanh nhất ra hoá đơn đôi.
+		// Nhưng không giấu: đếm riêng, nói ra là đã xuất bao nhiêu.
+		$da_xuat = array( 'tien' => 0, 'dong' => 0, 'to' => array() );
 
 		// --- nguồn 1: sao kê ngân hàng, mã cửa hàng nằm ở cột mã giao dịch phụ
 		$nh = array_filter( array_map( 'intval', (array) ( $l['nh'] ?? array() ) ) );
 		if ( $nh ) {
 			$rows = $wpdb->get_results(
 				$wpdb->prepare(
-					'SELECT ma_cua_hang, so_tien, ngay FROM ' . KHTC_DB::bang( 'giao_dich' ) . "
+					'SELECT id, ma_cua_hang, so_tien, ngay, hd_ra_id FROM ' . KHTC_DB::bang( 'giao_dich' ) . "
 					 WHERE cty = %s AND loai = 'thu' AND ngay >= %s AND ngay <= %s
 					   AND ngan_hang_id IN (" . implode( ',', array_fill( 0, count( $nh ), '%d' ) ) . ')',
 					array_merge( array( $cty, $tu, $den ), $nh )
 				)
 			);
-			foreach ( $rows as $r ) { $nhan( $r->ma_cua_hang, (int) $r->so_tien, 'sao kê', $r->ngay ); }
+			foreach ( $rows as $r ) {
+				if ( (int) $r->hd_ra_id > 0 ) { $da_xuat['tien'] += (int) $r->so_tien; $da_xuat['dong']++; $da_xuat['to'][ (int) $r->hd_ra_id ] = true; continue; }
+				$nhan( $r->ma_cua_hang, (int) $r->so_tien, 'sao kê', $r->ngay, 'gd', $r->id );
+			}
 		}
 
 		// --- nguồn 2: các đợt cổng đã nạp (Payoo / VNPay / MoMo / Zalo)
@@ -121,18 +133,22 @@ class KHTC_SinhHD {
 		if ( $dot ) {
 			$rows = $wpdb->get_results(
 				$wpdb->prepare(
-					'SELECT d.ma_cua_hang, d.so_tien, d.ngay, o.ten FROM ' . KHTC_DB::bang( 'ds_dong' ) . ' d
+					'SELECT d.id, d.ma_cua_hang, d.so_tien, d.ngay, d.hd_ra_id, o.ten FROM ' . KHTC_DB::bang( 'ds_dong' ) . ' d
 					 JOIN ' . KHTC_DB::bang( 'doi_soat' ) . ' o ON o.id = d.dot_id
 					 WHERE d.ngay >= %s AND d.ngay <= %s
 					   AND d.dot_id IN (' . implode( ',', array_fill( 0, count( $dot ), '%d' ) ) . ')',
 					array_merge( array( $tu, $den ), $dot )
 				)
 			);
-			foreach ( $rows as $r ) { $nhan( $r->ma_cua_hang, (int) $r->so_tien, $r->ten, $r->ngay ); }
+			foreach ( $rows as $r ) {
+				if ( (int) $r->hd_ra_id > 0 ) { $da_xuat['tien'] += (int) $r->so_tien; $da_xuat['dong']++; $da_xuat['to'][ (int) $r->hd_ra_id ] = true; continue; }
+				$nhan( $r->ma_cua_hang, (int) $r->so_tien, $r->ten, $r->ngay, 'ds', $r->id );
+			}
 		}
 
 		ksort( $theo_diem );
 		arsort( $la );
+		$da_xuat['to'] = count( $da_xuat['to'] );
 		return array(
 			'diem'    => array_values( $theo_diem ),
 			'bo_qua'  => $bo_qua,
@@ -140,7 +156,24 @@ class KHTC_SinhHD {
 			'tong'    => $tong,
 			'tong_bo' => $tong_bo,
 			'tong_la' => $tong_la,
+			'da_xuat' => $da_xuat,   // tiền trong kỳ đã nằm trong hoá đơn rồi, không đề xuất lại
 		);
+	}
+
+	/**
+	 * Số hoá đơn kế tiếp: số lớn nhất trong sổ của pháp nhân + 1. Sổ trống → 1.
+	 * Chỉ là số ĐIỀN SẴN — người dùng vẫn sửa được, vì sổ thuế thật có thể đã
+	 * cấp số ngoài plugin.
+	 */
+	public static function so_tiep() {
+		global $wpdb;
+		$max = $wpdb->get_var(
+			$wpdb->prepare(
+				'SELECT MAX(CAST(so_hd AS UNSIGNED)) FROM ' . KHTC_DB::bang( 'hd_ra' ) . ' WHERE cty = %s',
+				KHTC_Cty::dang_chon()
+			)
+		);
+		return (int) $max + 1;
 	}
 
 	/**
@@ -159,9 +192,15 @@ class KHTC_SinhHD {
 		if ( ! $g['diem'] ) {
 			return new WP_Error( 'trong', 'Kỳ này không gom được đồng nào. Kiểm lại kỳ, nguồn tiền, và danh mục điểm.' );
 		}
-		$ngay = KHTC_GiaoDich::doc_ngay( (string) ( $l['ngay_hd'] ?? '' ) );
-		if ( '' === $ngay ) {
+		// Ngày hoá đơn: một ngày chung cho cả đợt, hoặc 'theo_ngay' — mỗi tờ
+		// lấy đúng ngày doanh thu của nó (chỉ có nghĩa khi tách theo ngày).
+		$theo_ngay = ( 'theo_ngay' === ( $l['ngay_hd'] ?? '' ) );
+		$ngay      = $theo_ngay ? '' : KHTC_GiaoDich::doc_ngay( (string) ( $l['ngay_hd'] ?? '' ) );
+		if ( ! $theo_ngay && '' === $ngay ) {
 			return new WP_Error( 'ngay', 'Chưa chọn ngày hoá đơn.' );
+		}
+		if ( $theo_ngay && 'ngay' !== ( $l['tach'] ?? '' ) ) {
+			return new WP_Error( 'ngay', 'Gộp cả kỳ thành một tờ thì phải chọn một ngày hoá đơn — tờ gộp không có "ngày doanh thu" duy nhất để lấy.' );
 		}
 		$so = (int) ( $l['bat_dau'] ?? 0 );
 		if ( $so <= 0 ) {
@@ -198,9 +237,10 @@ class KHTC_SinhHD {
 		$tien = 0;
 		$loi  = array();
 		foreach ( $g['diem'] as $d ) {
+			$ngay_to = $theo_ngay ? $d['ngay'] : $ngay;
 			$kq = KHTC_HoaDonRa::them(
 				array(
-					'ngay'       => mysql2date( 'd/m/Y', $ngay ),
+					'ngay'       => mysql2date( 'd/m/Y', $ngay_to ),
 					'so_hd'      => (string) $so,
 					'khach'      => (string) ( $l['khach'] ?? 'Bán cho người tiêu dùng' ),
 					'noi_dung'   => (string) ( $l['noi_dung'] ?? 'Dịch vụ vui chơi giải trí' ),
@@ -224,6 +264,21 @@ class KHTC_SinhHD {
 				$loi[] = $d['ten_diem'] . ': ' . $kq->get_error_message();
 				continue;
 			}
+			// Ghi tên tờ lên từng dòng tiền đã vào nó. Đây là thứ chặn hoá đơn
+			// đôi khi chạy lại, và là đường truy ngược tờ này gom những dòng nào.
+			$hd_id = (int) $kq;
+			if ( $hd_id > 0 ) {
+				foreach ( array( 'gd' => 'giao_dich', 'ds' => 'ds_dong' ) as $k => $bang ) {
+					if ( empty( $d[ $k ] ) ) { continue; }
+					$ids = array_map( 'intval', $d[ $k ] );
+					$wpdb->query(
+						$wpdb->prepare(
+							'UPDATE ' . KHTC_DB::bang( $bang ) . ' SET hd_ra_id = %d WHERE id IN (' . implode( ',', array_fill( 0, count( $ids ), '%d' ) ) . ')',
+							array_merge( array( $hd_id ), $ids )
+						)
+					);
+				}
+			}
 			$tao++;
 			$tien += $d['tien'];
 			$so++;
@@ -241,6 +296,6 @@ class KHTC_SinhHD {
 				number_format( $tien, 0, ',', '.' )
 			)
 		);
-		return array( 'tao' => $tao, 'tien' => $tien, 'so_cuoi' => $so - 1, 'loi' => $loi );
+		return array( 'tao' => $tao, 'tien' => $tien, 'so_dau' => (int) ( $l['bat_dau'] ?? 0 ), 'so_cuoi' => $so - 1, 'loi' => $loi );
 	}
 }

@@ -1521,7 +1521,7 @@ class KHTC_Trang {
 			$kq = KHTC_SinhHD::tao(
 				array(
 					'tu' => $tu, 'den' => $den, 'nh' => $nh_c, 'dot' => $dot_c, 'tach' => $tach,
-					'ngay_hd'   => wp_unslash( $_POST['ngay_hd'] ?? '' ),
+					'ngay_hd'   => ( 'theo_ngay' === ( $_POST['ngay_kieu'] ?? '' ) ) ? 'theo_ngay' : wp_unslash( $_POST['ngay_hd'] ?? '' ),
 					'bat_dau'   => (int) ( $_POST['bat_dau'] ?? 0 ),
 					'thue_suat' => sanitize_text_field( wp_unslash( $_POST['thue_suat'] ?? '' ) ),
 				)
@@ -1530,8 +1530,8 @@ class KHTC_Trang {
 				$bao_loi = $kq->get_error_message();
 			} else {
 				$bao_ok = sprintf(
-					'Đã tạo %d hoá đơn, số đến %d, tổng %s đ.',
-					$kq['tao'], $kq['so_cuoi'], number_format( $kq['tien'], 0, ',', '.' )
+					'Đã tạo %d hoá đơn, số %d đến %d, tổng %s đ.',
+					$kq['tao'], $kq['so_dau'], $kq['so_cuoi'], number_format( $kq['tien'], 0, ',', '.' )
 				);
 			}
 		}
@@ -1628,21 +1628,42 @@ class KHTC_Trang {
 				number_format( $d['so_dong'], 0, ',', '.' ), esc_html( KHTC_UI::tien( $d['tien'] ) )
 			);
 		}
-		if ( ! $g['diem'] ) { echo '<tr><td colspan="7" class="khtc-trong">Kỳ này chưa gom được đồng nào. Kiểm lại kỳ và nguồn tiền đã tick.</td></tr>'; }
+		if ( ! $g['diem'] ) {
+			echo '<tr><td colspan="7" class="khtc-trong">'
+				. ( ! empty( $g['da_xuat']['tien'] ) ? 'Tiền trong kỳ này đã nằm hết trong hoá đơn rồi (xem dòng dưới). Không còn gì để đề xuất.' : 'Kỳ này chưa gom được đồng nào. Kiểm lại kỳ và nguồn tiền đã tick.' )
+				. '</td></tr>';
+		}
 		echo '</tbody>';
 		if ( $g['diem'] ) {
 			printf( '<tfoot><tr><th colspan="%d">Tổng</th><th class="so">%s</th><th class="so thu">%s</th></tr></tfoot>', 'ngay' === $tach ? 5 : 4, number_format( array_sum( array_column( $g['diem'], 'so_dong' ) ), 0, ',', '.' ), esc_html( KHTC_UI::tien( $g['tong'] ) ) );
 		}
-		echo '</table></div>';
+		echo '</table>';
+		if ( ! empty( $g['da_xuat']['tien'] ) ) {
+			printf(
+				'<p class="khtc-sub khtc-da-xuat">Đã xuất rồi trong kỳ này: <strong>%s</strong> — %s dòng tiền, nằm trong %s tờ hoá đơn. Không đề xuất lại. Muốn làm lại tờ nào thì xoá tờ đó ở mục Đầu ra, tiền của nó quay về đây.</p>',
+				esc_html( KHTC_UI::tien( $g['da_xuat']['tien'] ) ),
+				number_format( $g['da_xuat']['dong'], 0, ',', '.' ),
+				number_format( $g['da_xuat']['to'], 0, ',', '.' )
+			);
+		}
+		echo '</div>';
 
 		if ( $g['diem'] ) {
+			$so_tiep = KHTC_SinhHD::so_tiep();
 			echo '<div class="khtc-panel"><h2>Tạo hoá đơn</h2><form method="post"><div class="khtc-loc">';
 			wp_nonce_field( 'khtc_sinh' );
 			foreach ( $nh_c as $v ) { printf( '<input type="hidden" name="nh[]" value="%d">', $v ); }
 			foreach ( $dot_c as $v ) { printf( '<input type="hidden" name="dot[]" value="%d">', $v ); }
 			printf( '<input type="hidden" name="tu" value="%s"><input type="hidden" name="den" value="%s"><input type="hidden" name="tach" value="%s">', esc_attr( $tu ), esc_attr( $den ), esc_attr( $tach ) );
-			printf( '<label>Ngày hoá đơn<input type="date" name="ngay_hd" value="%s" required></label>', esc_attr( $den ) );
-			echo '<label>Số hoá đơn bắt đầu<input type="number" name="bat_dau" min="1" required placeholder="2576"></label>';
+			// Ngày hoá đơn: tách theo ngày thì mặc định mỗi tờ lấy đúng ngày doanh
+			// thu của nó — đó là "mỗi điểm mỗi ngày một tờ" đúng nghĩa. Gộp cả kỳ
+			// thì chỉ còn cách chọn một ngày.
+			echo '<label>Ngày hoá đơn<select name="ngay_kieu">';
+			if ( 'ngay' === $tach ) { echo '<option value="theo_ngay" selected>Theo ngày doanh thu của từng tờ</option>'; }
+			printf( '<option value="mot_ngay"%s>Một ngày cho cả đợt (ô bên cạnh)</option>', 'ngay' === $tach ? '' : ' selected' );
+			echo '</select></label>';
+			printf( '<label>Ngày (nếu chọn một ngày)<input type="date" name="ngay_hd" value="%s"></label>', esc_attr( $den ) );
+			printf( '<label>Số hoá đơn bắt đầu<input type="number" name="bat_dau" min="1" required value="%d"></label>', $so_tiep );
 			echo '<label>Thuế suất<select name="thue_suat">';
 			foreach ( KHTC_HoaDonRa::thue_suat() as $k => $v ) {
 				printf( '<option value="%s"%s>%s</option>', esc_attr( $k ), (string) $k === KHTC_HoaDonRa::TS_MAC_DINH ? ' selected' : '', esc_html( $v ) );
@@ -1650,7 +1671,11 @@ class KHTC_Trang {
 			echo '</select></label>';
 			printf( '<button type="submit" name="khtc_tao_hd" value="1" class="button button-primary" onclick="return confirm(\'Tạo %d hoá đơn vào sổ?\')">Tạo %d hoá đơn</button>', count( $g['diem'] ), count( $g['diem'] ) );
 			echo '</div>';
-			echo '<p class="khtc-sub">Số hoá đơn cấp liên tiếp từ số bắt đầu. Trùng một số nào đó ở giữa thì máy <strong>dừng hẳn và không ghi gì</strong> — số hoá đơn nhảy cóc là thứ cơ quan thuế hỏi đầu tiên.</p>';
+			printf(
+				'<p class="khtc-sub">Số bắt đầu điền sẵn là <strong>số lớn nhất trong sổ + 1</strong> (%s). Sổ thuế thật đã cấp số ngoài plugin thì sửa lại. Số cấp liên tiếp từ đó; trùng một số nào ở giữa thì máy <strong>dừng hẳn và không ghi gì</strong> — số hoá đơn nhảy cóc là thứ cơ quan thuế hỏi đầu tiên.</p>',
+				$so_tiep > 1 ? 'sổ đang đến số ' . number_format( $so_tiep - 1, 0, ',', '.' ) : 'sổ còn trống'
+			);
+			echo '<p class="khtc-sub">Mỗi dòng tiền chỉ vào <strong>một</strong> tờ. Tạo xong mà chạy lại cùng kỳ, máy chỉ đề xuất phần chưa xuất.</p>';
 			echo '<p class="khtc-sub">Tiền gom được hiểu là <strong>đã có VAT</strong> (tiền khách trả thật), máy tách ngược ra chưa VAT và VAT.</p>';
 			echo '</form></div>';
 		}

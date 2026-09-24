@@ -10,7 +10,7 @@ defined( 'ABSPATH' ) || exit;
 class KHTC_DB {
 
 	/** Tăng số này mỗi lần đổi cấu trúc bảng thì bản đang chạy tự nâng cấp. */
-	const SCHEMA = 10;
+	const SCHEMA = 11;
 
 	public static function bang( $ten ) {
 		global $wpdb;
@@ -65,13 +65,15 @@ class KHTC_DB {
 				loai VARCHAR(10) NOT NULL DEFAULT 'thu',
 				ma_gd VARCHAR(120) NOT NULL DEFAULT '',
 				ma_cua_hang VARCHAR(80) NOT NULL DEFAULT '',
+				hd_ra_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
 				tao_luc DATETIME NOT NULL,
 				tao_boi VARCHAR(120) NOT NULL DEFAULT '',
 				PRIMARY KEY (id),
 				KEY cty_ngay (cty, ngay),
 				KEY ngan_hang_id (ngan_hang_id),
 				KEY ma_gd (ma_gd),
-				KEY ma_cua_hang (ma_cua_hang)
+				KEY ma_cua_hang (ma_cua_hang),
+				KEY hd_ra_id (hd_ra_id)
 			) $collate;"
 		);
 
@@ -135,10 +137,12 @@ class KHTC_DB {
 				khop_gd_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
 				kieu_khop VARCHAR(20) NOT NULL DEFAULT '',
 				ma_cua_hang VARCHAR(80) NOT NULL DEFAULT '',
+				hd_ra_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
 				PRIMARY KEY (id),
 				KEY dot_id (dot_id),
 				KEY dot_tien (dot_id, so_tien),
-				KEY ma_gd (ma_gd)
+				KEY ma_gd (ma_gd),
+				KEY hd_ra_id (hd_ra_id)
 			) $collate;"
 		);
 
