@@ -217,6 +217,37 @@ kiem( 'và bỏ cột Ngày doanh thu', false !== strpos( $hg, 'Ngày doanh thu'
 unset( $_GET['tach'] ); $_REQUEST = $_GET;
 kiem( 'và cảnh báo mã chưa có trong danh mục', false !== strpos( $h, 'không có trong danh mục điểm' ), true );
 kiem( 'liệt kê mã lạ ra tận nơi', false !== strpos( $h, 'ZZZ' ), true );
+// Thêm mã lạ vào danh mục NGAY TẠI TRANG — khỏi chạy qua Danh mục rồi quay lại.
+kiem( 'có nút thêm mã tại chỗ', false !== strpos( $h, 'name="khtc_them_ma"' ), true );
+kiem( 'có ô chọn điểm có sẵn', false !== strpos( $h, 'Điểm Một · M1' ), true );
+kiem( 'gợi ý tên cổng ghi kèm', false !== strpos( $h, '<th>Cổng ghi tên</th>' ), true );
+$la_truoc = KHTC_SinhHD::gom( $ky )['tong_la'];
+// thiếu tên, không bỏ qua → từ chối
+$_POST = array( 'khtc_them_ma' => 1, 'ma' => 'ZZZ', 'diem_id' => 0, 'ten_diem' => '', 'tu' => '2026-08-01', 'den' => '2026-08-31', 'nh' => array( $nh ) );
+$_REQUEST = $_POST;
+$h_loi = dung( fn() => KHTC_Trang::sinh_hoa_don() );
+kiem( 'không tên không bỏ qua → báo', false !== strpos( $h_loi, 'Chưa có tên điểm xuất hoá đơn cho mã ZZZ' ), true );
+kiem( 'và chưa thêm gì', KHTC_SinhHD::gom( $ky )['tong_la'], $la_truoc );
+// gắn vào điểm có sẵn → kế thừa Misa/khu vực/dịch vụ, lưu tên gian gợi ý
+$_POST = array( 'khtc_them_ma' => 1, 'ma' => 'ZZZ', 'diem_id' => $d1, 'ten_gian' => 'QR', 'tu' => '2026-08-01', 'den' => '2026-08-31', 'nh' => array( $nh ) );
+$_REQUEST = $_POST;
+$h_ok = dung( fn() => KHTC_Trang::sinh_hoa_don() );
+kiem( 'báo đã thêm', false !== strpos( $h_ok, 'Đã thêm mã ZZZ → Điểm Một' ), true );
+$zzz = KHTC_Diem::bang_tra()['ZZZ'] ?? null;
+kiem( 'ZZZ vào danh mục', null !== $zzz, true );
+kiem( 'kế thừa Misa của điểm gắn', $zzz->ma_misa, 'M1' );
+kiem( 'kế thừa khu vực', $zzz->khu_vuc, 'HCM' );
+kiem( 'tên gian = tên cổng ghi kèm', $zzz->ten_gian, 'QR' );
+$g_sau = KHTC_SinhHD::gom( $ky );
+kiem( 'mã lạ giảm đúng 500k', $la_truoc - $g_sau['tong_la'], 500000 );
+kiem( 'ZZZ không còn trong mã lạ', isset( $g_sau['la']['ZZZ'] ), false );
+kiem( 'bảng dưới tính lại ngay trong cùng lần hiện', false !== strpos( $h_ok, 'Đã thêm mã ZZZ' ) && false === strpos( $h_ok, '<code>ZZZ</code>' ), true );
+// mã trùng → báo lỗi danh mục, không nổ
+$_POST = array( 'khtc_them_ma' => 1, 'ma' => 'ZZZ', 'diem_id' => $d1, 'tu' => '2026-08-01', 'den' => '2026-08-31', 'nh' => array( $nh ) );
+$_REQUEST = $_POST;
+$h_trung = dung( fn() => KHTC_Trang::sinh_hoa_don() );
+kiem( 'thêm lại mã đã có → báo trùng', false !== strpos( $h_trung, 'đã có trong danh mục' ), true );
+$_POST = array(); $_REQUEST = array( 'tu' => '2026-08-01', 'den' => '2026-08-31', 'nh' => array( $nh ) ); $_GET = $_REQUEST;
 $h2 = dung( fn() => KHTC_Trang::danh_muc_diem() );
 kiem( 'màn hình danh mục dựng được', false !== strpos( $h2, 'Điểm Một' ), true );
 kiem( 'hai màn hình là đường dẫn hợp lệ', isset( KHTC_Web::man_hinh()['sinh-hoa-don'], KHTC_Web::man_hinh()['danh-muc-diem'] ), true );

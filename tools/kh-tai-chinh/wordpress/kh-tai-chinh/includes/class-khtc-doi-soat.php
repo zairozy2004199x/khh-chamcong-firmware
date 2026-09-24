@@ -126,6 +126,53 @@ class KHTC_DoiSoat {
 		return $moi;
 	}
 
+	/**
+	 * Tên đợt theo quy ước kế toán đang dùng: "Payoo KH989 tháng 9/2026".
+	 * Kênh + pháp nhân + tháng, không phải ngày — một tháng một đợt mỗi kênh,
+	 * file của từng ngày dồn vào cùng đợt.
+	 */
+	public static function ten_dot_thang( $kenh, $thang, $cty = null ) {
+		return sprintf( '%s %s tháng %d/%d', self::ten_kenh( $kenh ), KHTC_Cty::ma( $cty ), (int) substr( $thang, 5, 2 ), (int) substr( $thang, 0, 4 ) );
+	}
+
+	/**
+	 * Tìm đợt tháng của kênh (theo đúng tên quy ước) — không có thì tạo.
+	 *
+	 * @param string $kenh   payoo | vnpay | momo | ...
+	 * @param string $thang  'YYYY-MM'
+	 * @param int    $nh     tài khoản nhận tiền (chỉ dùng khi phải tạo)
+	 * @return int|WP_Error id đợt
+	 */
+	public static function dot_thang( $kenh, $thang, $nh ) {
+		global $wpdb;
+		$ten = self::ten_dot_thang( $kenh, $thang );
+		$id  = (int) $wpdb->get_var(
+			$wpdb->prepare(
+				'SELECT id FROM ' . KHTC_DB::bang( 'doi_soat' ) . ' WHERE cty = %s AND kenh = %s AND ten = %s ORDER BY id LIMIT 1',
+				KHTC_Cty::dang_chon(),
+				$kenh,
+				$ten
+			)
+		);
+		if ( $id ) { return $id; }
+		$tu  = $thang . '-01';
+		$den = gmdate( 'Y-m-t', strtotime( $tu ) );
+		return self::tao_dot( array( 'ten' => $ten, 'kenh' => $kenh, 'tu' => $tu, 'den' => $den, 'ngan_hang_id' => $nh ) );
+	}
+
+	/** Kỳ của đợt nới ra để ôm hết ngày của các dòng đã nạp — nạp thêm ngày mới thì kỳ phải theo. */
+	public static function mo_rong_ky( $id ) {
+		global $wpdb;
+		$r = $wpdb->get_row( $wpdb->prepare( 'SELECT MIN(ngay) tu, MAX(ngay) den FROM ' . KHTC_DB::bang( 'ds_dong' ) . ' WHERE dot_id = %d', (int) $id ) );
+		$d = self::mot_dot( $id );
+		if ( ! $r || ! $r->tu || ! $d ) { return; }
+		$tu  = min( $d->tu, $r->tu );
+		$den = max( $d->den, $r->den );
+		if ( $tu !== $d->tu || $den !== $d->den ) {
+			$wpdb->update( KHTC_DB::bang( 'doi_soat' ), array( 'tu' => $tu, 'den' => $den ), array( 'id' => (int) $id ), array( '%s', '%s' ), array( '%d' ) );
+		}
+	}
+
 	public static function xoa_dot( $id ) {
 		global $wpdb;
 		$dot = self::mot_dot( $id );

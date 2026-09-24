@@ -17,9 +17,15 @@ class KHTC_Cty {
 
 	public static function ds() {
 		return array(
-			'kh_cu'  => array( 'ten' => 'KH Cũ', 'day_du' => 'CÔNG TY TNHH DỊCH VỤ VÀ GIẢI TRÍ K&H' ),
-			'kh_moi' => array( 'ten' => 'KH Mới', 'day_du' => 'CÔNG TY TNHH K&H (mới)' ),
+			'kh_cu'  => array( 'ten' => 'KH Cũ', 'ma' => 'KH989', 'day_du' => 'CÔNG TY TNHH DỊCH VỤ VÀ GIẢI TRÍ K&H' ),
+			'kh_moi' => array( 'ten' => 'KH Mới', 'ma' => 'KH705', 'day_du' => 'CÔNG TY TNHH K&H (mới)' ),
 		);
+	}
+
+	/** Mã ngắn kế toán quen dùng trong tên file, tên đợt: KH989 / KH705. */
+	public static function ma( $c = null ) {
+		$c = $c ?: self::dang_chon();
+		return self::ds()[ $c ]['ma'] ?? strtoupper( $c );
 	}
 
 	/**

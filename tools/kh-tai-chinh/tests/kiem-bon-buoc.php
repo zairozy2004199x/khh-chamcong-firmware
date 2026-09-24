@@ -170,6 +170,41 @@ kiem( 'màn hình bảo xoá đợt thừa', false !== strpos( $h, 'cùng một 
 $_GET = array(); $_REQUEST = array();
 kiem( 'xoá được đợt đôi (chưa vào hoá đơn)', KHTC_DoiSoat::xoa_dot( $dot_doi ), true );
 
+// ------------------- đợt THÁNG: file mỗi ngày dồn vào một đợt "Kênh KH989 tháng m/Y"
+$so_dot_0 = count( KHTC_DoiSoat::ds_dot( 'kh_cu' ) );
+$payoo_d1 = str_replace( array( '05/08/2026', 'PAY1', 'Q1' ), array( '03/09/2026', 'PAY91', 'Q91' ), $payoo );
+$_POST = array( 'tho' => $payoo_d1, '_wpnonce' => 'test', 'khtc_nap_cong' => 1, 'nh' => $nh, 'dot' => -2, 'nh_dot' => $nh );
+$h = man(); $_POST = array();
+kiem( 'đợt tháng: tạo đúng một đợt', count( KHTC_DoiSoat::ds_dot( 'kh_cu' ) ), $so_dot_0 + 1 );
+kiem( 'tên đợt theo kênh + pháp nhân + tháng', false !== strpos( $h, 'Payoo KH989 tháng 9/2026' ), true );
+$dt = null; foreach ( KHTC_DoiSoat::ds_dot( 'kh_cu' ) as $d ) { if ( 'Payoo KH989 tháng 9/2026' === $d->ten ) { $dt = $d; } }
+kiem( 'kỳ của đợt tháng ôm cả tháng', array( $dt->tu, $dt->den ), array( '2026-09-01', '2026-09-30' ) );
+// ngày hôm sau, nạp tiếp → cùng đợt, không thêm đợt
+$payoo_d2 = str_replace( array( '05/08/2026', 'PAY1', 'Q1' ), array( '04/09/2026', 'PAY92', 'Q92' ), $payoo );
+$_POST = array( 'tho' => $payoo_d2, '_wpnonce' => 'test', 'khtc_nap_cong' => 1, 'nh' => $nh, 'dot' => -2, 'nh_dot' => $nh );
+$h = man(); $_POST = array();
+kiem( 'nạp ngày kế: vẫn một đợt', count( KHTC_DoiSoat::ds_dot( 'kh_cu' ) ), $so_dot_0 + 1 );
+kiem( 'đợt tháng có 2 dòng', (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . KHTC_DB::bang( 'ds_dong' ) . ' WHERE dot_id=%d', $dt->id ) ), 2 );
+kiem( 'báo đúng tên đợt đã vào', false !== strpos( $h, 'dòng vào “Payoo KH989 tháng 9/2026”' ), true );
+// nạp lại file hôm qua → không thêm gì, báo đã có
+$_POST = array( 'tho' => $payoo_d1, '_wpnonce' => 'test', 'khtc_nap_cong' => 1, 'nh' => $nh, 'dot' => -2, 'nh_dot' => $nh );
+$h = man(); $_POST = array();
+kiem( 'nạp lại: không đợt mới', count( KHTC_DoiSoat::ds_dot( 'kh_cu' ) ), $so_dot_0 + 1 );
+kiem( 'nạp lại: vẫn 2 dòng', (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . KHTC_DB::bang( 'ds_dong' ) . ' WHERE dot_id=%d', $dt->id ) ), 2 );
+kiem( 'nạp lại: nói thẳng đã nạp rồi', false !== strpos( $h, 'File này đã nạp rồi' ), true );
+// file trải hai tháng → hai đợt, mỗi tháng một
+$payoo_2thang = $payoo_d1 . str_replace( array( '05/08/2026', 'PAY1', 'Q1' ), array( '30/10/2026', 'PAY93', 'Q93' ), explode( "\n", $payoo )[2] ) . "\n";
+$_POST = array( 'tho' => $payoo_2thang, '_wpnonce' => 'test', 'khtc_nap_cong' => 1, 'nh' => $nh, 'dot' => -2, 'nh_dot' => $nh );
+$h = man(); $_POST = array();
+kiem( 'hai tháng → thêm đúng một đợt tháng 10', count( KHTC_DoiSoat::ds_dot( 'kh_cu' ) ), $so_dot_0 + 2 );
+kiem( 'và có tên tháng 10', false !== strpos( $h, 'Payoo KH989 tháng 10/2026' ), true );
+kiem( 'dòng tháng 9 trong file đó bị bỏ vì đã có', false !== strpos( $h, 'Bỏ qua 1 dòng trùng mã' ), true );
+// form mặc định chọn đợt tháng và nói trước tên
+$_POST = array( 'tho' => $payoo_d2, '_wpnonce' => 'test' );
+$h = man(); $_POST = array();
+kiem( 'form: mặc định đợt tháng', false !== strpos( $h, 'value="-2" selected>Đợt tháng (tự xếp): Payoo KH989 tháng 9/2026' ), true );
+kiem( 'form: không liệt kê đợt khác kênh', false !== strpos( $h, '>Đợt 3<' ), false );
+
 // ------------------- đợt đã vào hoá đơn thì không xoá được
 $kq_xoa = KHTC_DoiSoat::xoa_dot( $dots[0] );
 kiem( 'đợt có dòng trong hoá đơn: chặn xoá', is_wp_error( $kq_xoa ), true );

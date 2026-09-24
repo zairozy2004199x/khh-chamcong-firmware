@@ -108,6 +108,40 @@ Lỗi đọc tệp (quá lớn, lên chưa hết, hỏng) thì khối nạp **kh
 đúng lỗi. Chạy tiếp với văn bản rỗng sẽ ra "Đã nạp 0 dòng" — nghe như xong
 việc.
 
+### Đợt cổng theo tháng, nạp nhiều lần
+
+Dán thô mặc định xếp file cổng vào **đợt tháng của kênh đó**, tên theo quy
+ước kế toán: `Payoo KH989 tháng 9/2026` (kênh · mã pháp nhân · tháng). File
+mỗi ngày dồn vào cùng đợt; dòng đã có (trùng mã giao dịch trong cả kênh, bất
+kể đợt) tự bỏ; kỳ của đợt nới theo ngày mới. Nạp lại nguyên file cũ thì máy
+nói "đã nạp rồi, ở đợt X" và không tạo đợt rỗng. File trải hai tháng thì
+chia về hai đợt. Trên dữ liệu thật đã thấy cùng một file Payoo nạp bốn lần
+thành bốn đợt y nhau — tick cả bốn là tiền nhân bốn — nên chặn trùng phải
+theo kênh, không theo đợt.
+
+Không nạp được file Payoo vào đợt VNPay (khác kênh). Đợt có dòng đã vào hoá
+đơn thì không xoá được, phải xoá hoá đơn trước.
+
+### Sinh hoá đơn: mỗi dòng tiền chỉ vào một tờ
+
+Tạo hoá đơn xong, từng dòng tiền được ghi tên tờ đó (`hd_ra_id`). Chạy lại
+cùng kỳ máy chỉ đề xuất phần chưa xuất và báo "đã xuất X đ trong N tờ". Xoá
+tờ thì tiền của nó quay về. Số hoá đơn bắt đầu điền sẵn = số lớn nhất trong
+sổ + 1. Ngày hoá đơn mặc định lấy **theo ngày doanh thu của từng tờ** khi tách
+theo ngày; gộp cả kỳ thì phải chọn một ngày.
+
+Mã cửa hàng chưa có trong danh mục hiện ngay tại trang với **nút thêm tại
+chỗ**: gắn vào điểm có sẵn (kế thừa Misa, khu vực, dịch vụ) hoặc lập điểm
+mới, hoặc tick bỏ qua. Tên cổng ghi kèm (Điểm thu, Tên cửa hàng) hiện bên
+cạnh làm gợi ý và được lưu vào Tên gian.
+
+### Tiêu đề tách dấu
+
+File MoMo Business ghi chữ Việt dạng tách dấu (NFD): "gốc" là "ô" + dấu sắc
+rời, nhìn y hệt mà so chuỗi thì khác. Mọi văn bản vào (tệp và ô dán) được
+đưa về NFC trước; có intl thì dùng Normalizer, không có thì tra bảng ghép
+dấu tiếng Việt.
+
 ## Chi phí
 
 **Một bảng cho tất cả bộ phận, không phải mỗi bộ phận một trang.** wp-admin hiện

@@ -416,3 +416,8 @@ body.khtc-web form { margin: 0; }
 .khtc .khtc-nap-tep input[type="file"] { max-width: 100%; }
 .khtc .khtc-nap-tep .khtc-sub { flex: 1 1 100%; margin: 0; }
 .khtc .khtc-tu-tep { margin: 4px 0 8px; font-weight: 500; }
+/* Bảng mã lạ ở Sinh hoá đơn: thêm mã ngay tại dòng. */
+.khtc .khtc-them-ma { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; }
+.khtc .khtc-them-ma input[type="text"], .khtc .khtc-them-ma select { padding: 3px 6px; min-height: 30px; font-size: 13px; }
+.khtc .khtc-tick-nho { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; white-space: nowrap; }
+.khtc table.khtc-ma-la td { vertical-align: middle; }

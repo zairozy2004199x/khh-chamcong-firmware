@@ -24,7 +24,10 @@ class KHTC_DanTho {
 	/**
 	 * Các định dạng nhận được.
 	 *
-	 *   dau_hieu : những chữ PHẢI có trong dòng tiêu đề, đủ cả mới tính là khớp
+	 *   dau_hieu : những chữ PHẢI có trong dòng tiêu đề, đủ cả mới tính là khớp.
+	 *              Một cổng xuất được nhiều kiểu file (MoMo: bản "MS.*" từ cổng
+	 *              đối soát và bản "Transaction report" từ MoMo Business) thì
+	 *              ghi nhiều bộ dấu hiệu, khớp bộ nào cũng nhận.
 	 *   dich     : 'sao_ke' (vào bảng giao dịch) | 'cong' (vào một đợt đối soát)
 	 *   ten_cot  : trường → các TÊN TIÊU ĐỀ có thể mang trường đó, ưu tiên theo
 	 *              thứ tự. Cột được tìm THEO TÊN, không theo vị trí: kế toán hay
@@ -84,15 +87,20 @@ class KHTC_DanTho {
 			),
 			'momo' => array(
 				'ten'      => 'MoMo',
-				'dau_hieu' => array( 'ms.transid', 'ms.total amount' ),
+				'dau_hieu' => array(
+					array( 'ms.transid', 'ms.total amount' ),          // bản đối soát "MS.*" (file tháng 8 kế toán ghép)
+					array( 'mã đơn hàng gốc', 'tên cửa hàng' ),          // "Transaction report" tải từ MoMo Business
+				),
 				'dich'     => 'cong',
 				'loc'      => array( array( 'ms.trạng thái gd', 'trạng thái' ), 'thành công' ),
 				'ten_cot'  => array(
 					'ngay'        => array( 'thời gian', 'ms.ngày hoàn thành' ),
+					// Mã đơn hàng, không phải Mã giao dịch: đợt tháng 8 đã nạp theo mã
+					// đơn hàng; đổi cột là chặn trùng giữa hai tháng hỏng.
 					'ma_gd'       => array( 'mã đơn hàng', 'ms.transid' ),
 					'thu'         => array( 'ms.total amount', 'số tiền' ),
 					'ma_cua_hang' => array( 'ms.mã cửa hàng', 'mã cửa hàng' ),
-					'dien_giai'   => array( 'ms.mã cửa hàng', 'mã cửa hàng' ),
+					'dien_giai'   => array( 'tên cửa hàng', 'ms.mã cửa hàng', 'mã cửa hàng' ),
 				),
 				'cot'      => array( 'ngay' => 24, 'ma_gd' => 25, 'thu' => 5, 'ma_cua_hang' => 14, 'dien_giai' => 14 ),
 			),
@@ -153,15 +161,19 @@ class KHTC_DanTho {
 	 * @return array|null [khoá, định dạng, số dòng tiêu đề (0-based)]
 	 */
 	public static function nhan_dang( $text ) {
-		$dong = preg_split( '/\r\n|\r|\n/', (string) $text );
+		$dong = preg_split( '/\r\n|\r|\n/', KHTC_Tep::chuan_unicode( $text ) );
 		foreach ( array_slice( $dong, 0, 12 ) as $i => $d ) {
 			$thap = mb_strtolower( $d );
 			foreach ( self::dinh_dang() as $khoa => $dd ) {
-				$du = true;
-				foreach ( $dd['dau_hieu'] as $dh ) {
-					if ( false === mb_strpos( $thap, $dh ) ) { $du = false; break; }
+				// Một bộ dấu hiệu hay nhiều bộ — chuẩn về danh sách các bộ.
+				$cac_bo = is_array( reset( $dd['dau_hieu'] ) ) ? $dd['dau_hieu'] : array( $dd['dau_hieu'] );
+				foreach ( $cac_bo as $bo ) {
+					$du = true;
+					foreach ( $bo as $dh ) {
+						if ( false === mb_strpos( $thap, $dh ) ) { $du = false; break; }
+					}
+					if ( $du ) { return array( $khoa, $dd, $i ); }
 				}
-				if ( $du ) { return array( $khoa, $dd, $i ); }
 			}
 		}
 		return null;
@@ -173,7 +185,8 @@ class KHTC_DanTho {
 	 * @return array|WP_Error [dinh_dang, ten, dich, rows, bo_loc, thieu_cot, tong, tong_phi]
 	 */
 	public static function doc( $text ) {
-		$nd = self::nhan_dang( $text );
+		$text = KHTC_Tep::chuan_unicode( $text );
+		$nd   = self::nhan_dang( $text );
 		if ( ! $nd ) {
 			return new WP_Error(
 				'khong_nhan',

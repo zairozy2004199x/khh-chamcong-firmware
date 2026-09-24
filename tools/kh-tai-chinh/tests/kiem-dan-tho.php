@@ -175,6 +175,35 @@ kiem( 'QR thiếu cột: mã GD theo tên', $kq0['rows'][0]['ma_gd'], 'FT001' );
 kiem( 'chuẩn tên bỏ đơn vị', KHTC_DanTho::chuan_ten( ' Số tiền đến (VND) ' ), 'số tiền đến' );
 kiem( 'chuẩn tên bỏ (₫)', KHTC_DanTho::chuan_ten( 'Phí xử lý giao dịch (₫)' ), 'phí xử lý giao dịch' );
 
+// ---------------------------------------------------------------- MoMo "Transaction report" (tải thẳng từ MoMo Business)
+// Không có cột MS.* nào — bản tháng 8 là kế toán ghép hai bản xuất lại.
+$mm_bc = "Thời gian\tMã đơn hàng\tMã đơn hàng gốc\tMã giao dịch\tTrạng thái\tTên khách hàng\tSố điện thoại khách hàng\tLoại giao dịch\tSố tiền\tSố tiền giảm giá\tKênh thanh toán\tPhương thức thanh toán\tNguồn tiền\tMô tả giao dịch\tMã cửa hàng\tTên cửa hàng\n"
+	. "23-09-2026 21:21:44\tQQEYC8CK4PH3S0I10E9H\tQQEYC8CK4PH3S0I10E9H\t148234220101\tThành công\t*** RENJIE\t\tChuyển khoản\t80000\t\tQR Code động đa năng\tChuyển khoản Ngân Hàng\tNgân hàng hoặc Ví khác\tQQEYC8CK4PH3S0I10E9H\tAMb4JEehI9XhFRD7\tTU TU TRAIN - AEON TÂN PHÚ\n"
+	. "23-09-2026 21:12:36\tPVYV181988QOTORB0Z5R\tPVYV181988QOTORB0Z5R\t148268114028\tThành công\t*** My\t0916****017\tThanh toán\t100000\t\tQR Code động đa năng\tVí MoMo\tVí MoMo\tPVYV181988QOTORB0Z5R\tLyizFxsEsnVAjxfD\tVR FUN - SC BÌNH DƯƠNG\n"
+	. "23-09-2026 20:00:00\tHUYXXXX\tHUYXXXX\t148200000000\tĐã hoàn tiền\t*** A\t\tThanh toán\t50000\t\tQR Code động đa năng\tVí MoMo\tVí MoMo\tHUYXXXX\tLyizFxsEsnVAjxfD\tVR FUN - SC BÌNH DƯƠNG\n";
+$kb = KHTC_DanTho::doc( $mm_bc );
+kiem( 'MoMo Transaction report: nhận ra là MoMo', $kb['dinh_dang'], 'momo' );
+kiem( 'MoMo báo cáo: 2 dòng thành công', count( $kb['rows'] ), 2 );
+kiem( 'MoMo báo cáo: dòng hoàn tiền bị loại', $kb['bo_loc'], 1 );
+kiem( 'MoMo báo cáo: ngày đúng', $kb['rows'][0]['ngay'], '23/09/2026' );
+kiem( 'MoMo báo cáo: mã GD là Mã đơn hàng (khớp cách nạp tháng 8)', $kb['rows'][0]['ma_gd'], 'QQEYC8CK4PH3S0I10E9H' );
+kiem( 'MoMo báo cáo: tiền', $kb['rows'][0]['so_tien'], 80000 );
+kiem( 'MoMo báo cáo: mã cửa hàng', $kb['rows'][0]['ma_cua_hang'], 'AMb4JEehI9XhFRD7' );
+kiem( 'MoMo báo cáo: diễn giải là tên cửa hàng', $kb['rows'][0]['dien_giai'], 'TU TU TRAIN - AEON TÂN PHÚ' );
+kiem( 'MoMo báo cáo: tổng', $kb['tong'], 180000 );
+// Bản "MS.*" cũ vẫn nhận (đã kiểm ở trên) — hai bản cùng một cổng, cùng khoá 'momo' để chặn trùng chung một kênh.
+kiem( 'bản MS.* vẫn là momo', KHTC_DanTho::doc( $mm_a )['dinh_dang'], 'momo' );
+
+// ---------------------------------------------------------------- tiêu đề tiếng Việt TÁCH DẤU (NFD)
+// File MoMo Business thật ghi "gốc" là "ô" + dấu sắc rời: nhìn y hệt, so chuỗi khác.
+$nfd = str_replace( "g\u{1ED1}c", "g\u{00F4}\u{0301}c", $mm_bc );
+kiem( 'chuỗi thử đúng là dạng tách dấu', $nfd !== $mm_bc, true );
+$kn = KHTC_DanTho::doc( $nfd );
+kiem( 'tiêu đề tách dấu vẫn nhận ra MoMo', is_wp_error( $kn ) ? null : $kn['dinh_dang'], 'momo' );
+kiem( 'và đọc đủ dòng', is_wp_error( $kn ) ? 0 : count( $kn['rows'] ), 2 );
+kiem( 'chuan_unicode ghép dấu về dạng dựng sẵn', KHTC_Tep::chuan_unicode( "g\u{00F4}\u{0301}c" ), "g\u{1ED1}c" );
+kiem( 'chuan_unicode để nguyên chuỗi đã chuẩn', KHTC_Tep::chuan_unicode( 'Mã đơn hàng gốc' ), 'Mã đơn hàng gốc' );
+
 printf( "%d kiểm tra đạt, %d lỗi\n", $dat, count( $hong ) );
 foreach ( $hong as $x ) { echo "  ✗ $x\n"; }
 exit( $hong ? 1 : 0 );

@@ -1247,66 +1247,95 @@ class KHTC_Trang {
 			}
 		}
 		if ( $kq && isset( $_POST['khtc_nap_cong'] ) ) {
-			$dot = (int) $_POST['dot'];
-			if ( -1 === $dot ) {
-				// Tạo đợt mới, kỳ lấy đúng theo khoảng ngày của chính bảng dán.
+			$chon_dot = (int) $_POST['dot'];
+			$nh_dot  = (int) ( $_POST['nh_dot'] ?? 0 );
+			$dot_moi = ( -1 === $chon_dot );
+			$kenh    = $kq['dinh_dang'];
+
+			// Chia dòng theo THÁNG doanh thu: mặc định mỗi kênh một đợt mỗi tháng,
+			// file từng ngày dồn vào cùng đợt. Chọn đợt cụ thể hay "tạo đợt mới"
+			// thì cả bảng vào một đợt.
+			$nhom = array();   // dot_id → rows
+			$loi_dot = '';
+			if ( -2 === $chon_dot ) {
+				$theo_thang = array();
+				foreach ( $kq['rows'] as $r ) { $theo_thang[ substr( KHTC_GiaoDich::doc_ngay( $r['ngay'] ), 0, 7 ) ][] = $r; }
+				ksort( $theo_thang );
+				foreach ( $theo_thang as $thang => $rows ) {
+					$id = KHTC_DoiSoat::dot_thang( $kenh, $thang, $nh_dot );
+					if ( is_wp_error( $id ) ) { $loi_dot = $id->get_error_message(); break; }
+					$nhom[ $id ] = $rows;
+				}
+			} elseif ( $dot_moi ) {
 				$ngay = array_column( $kq['rows'], 'ngay' );
 				$iso  = array_map( array( 'KHTC_GiaoDich', 'doc_ngay' ), $ngay );
 				sort( $iso );
-				$dot = KHTC_DoiSoat::tao_dot(
+				$id = KHTC_DoiSoat::tao_dot(
 					array(
-						'ten'          => sanitize_text_field( wp_unslash( $_POST['ten_dot'] ?? '' ) ) ?: $kq['ten'] . ' ' . mysql2date( 'd/m/Y', end( $iso ) ),
-						'kenh'         => $kq['dinh_dang'],
+						'ten'          => sanitize_text_field( wp_unslash( $_POST['ten_dot'] ?? '' ) ) ?: KHTC_DoiSoat::ten_dot_thang( $kenh, substr( end( $iso ), 0, 7 ) ),
+						'kenh'         => $kenh,
 						'tu'           => reset( $iso ),
 						'den'          => end( $iso ),
-						'ngan_hang_id' => (int) ( $_POST['nh_dot'] ?? 0 ),
+						'ngan_hang_id' => $nh_dot,
 					)
 				);
-			}
-			$dot_moi = ( -1 === (int) $_POST['dot'] );
-			// Nạp file Payoo vào đợt VNPay là sai kênh: chặn trùng theo kênh sẽ
-			// không bắt được, đối soát của đợt đó lệch, và hai đợt cùng giữ một
-			// khoản. Đợt kênh "khác" thì cho, vì đó là chỗ người dùng tự gom.
-			$d_chon = $dot ? KHTC_DoiSoat::mot_dot( $dot ) : null;
-			if ( $d_chon && ! $dot_moi && 'khac' !== $d_chon->kenh && $d_chon->kenh !== $kq['dinh_dang'] ) {
-				$bao_loi = sprintf(
-					'Đây là file %s nhưng đợt “%s” là đợt %s. Chọn đợt cùng kênh, hoặc “tạo đợt mới”.',
-					$kq['ten'],
-					$d_chon->ten,
-					KHTC_DoiSoat::ten_kenh( $d_chon->kenh )
-				);
-				$dot = 0;
-			} elseif ( ! $dot ) {
-				$bao_loi = 'Chưa chọn đợt đối soát để nạp vào.';
-			} else {
-				$r = KHTC_DoiSoat::nap_dong( $dot, KHTC_DanTho::ra_cong( $kq['rows'] ) );
-				// Tên các đợt khác đang giữ mã trùng — để nói thẳng "file này đã nạp rồi, ở đợt X".
-				$ten_dot_trung = array();
-				foreach ( $r['trung_dot'] ?? array() as $id_khac => $n ) {
-					$d_khac = KHTC_DoiSoat::mot_dot( $id_khac );
-					$ten_dot_trung[] = ( $d_khac ? '“' . $d_khac->ten . '”' : '#' . $id_khac ) . ' (' . number_format( $n, 0, ',', '.' ) . ' dòng)';
-				}
-				if ( 0 === $r['them'] && $dot_moi ) {
-					// Không dòng nào mới → file này đã nạp rồi. Không để lại một đợt
-					// rỗng mang cùng tên: đó chính là cách sinh ra bốn đợt y nhau.
-					KHTC_DoiSoat::xoa_dot( $dot );
-					$bao_loi = sprintf(
-						'File này đã nạp rồi: toàn bộ %s dòng đang nằm trong đợt %s. Không tạo đợt mới. Sang bước sinh hoá đơn thì tick đợt đó.',
-						number_format( $r['trung'], 0, ',', '.' ),
-						$ten_dot_trung ? implode( ', ', $ten_dot_trung ) : 'đã có'
-					);
-					$di_tiep = self::cho_di_tiep( $kq['rows'], array( 'dot' => array_keys( $r['trung_dot'] ?? array() ) ) );
+				if ( is_wp_error( $id ) ) { $loi_dot = $id->get_error_message(); } else { $nhom[ $id ] = $kq['rows']; }
+			} elseif ( $chon_dot > 0 ) {
+				$d_chon = KHTC_DoiSoat::mot_dot( $chon_dot );
+				// Nạp file Payoo vào đợt VNPay là sai kênh: chặn trùng theo kênh sẽ
+				// không bắt được, đối soát của đợt đó lệch, và hai đợt cùng giữ một
+				// khoản. Đợt kênh "khác" thì cho, vì đó là chỗ người dùng tự gom.
+				if ( ! $d_chon ) {
+					$loi_dot = 'Không tìm thấy đợt đã chọn.';
+				} elseif ( 'khac' !== $d_chon->kenh && $d_chon->kenh !== $kenh ) {
+					$loi_dot = sprintf( 'Đây là file %s nhưng đợt “%s” là đợt %s. Chọn đợt cùng kênh, hoặc để máy tự xếp vào đợt tháng.', $kq['ten'], $d_chon->ten, KHTC_DoiSoat::ten_kenh( $d_chon->kenh ) );
 				} else {
-					KHTC_DoiSoat::chay( $dot );
-					$bao_ok = sprintf(
-						'Đã nạp %s dòng vào đợt và chạy đối soát.%s%s',
-						number_format( $r['them'], 0, ',', '.' ),
-						$r['trung'] ? ' Bỏ qua ' . number_format( $r['trung'], 0, ',', '.' ) . ' dòng trùng mã.' : '',
-						$ten_dot_trung ? ' Các dòng trùng đang ở đợt ' . implode( ', ', $ten_dot_trung ) . '.' : ''
-					);
-					$di_tiep = self::cho_di_tiep( $kq['rows'], array( 'dot' => array( $dot ) ) );
+					$nhom[ $chon_dot ] = $kq['rows'];
 				}
-				$kq = null;
+			} else {
+				$loi_dot = 'Chưa chọn đợt đối soát để nạp vào.';
+			}
+
+			if ( $loi_dot ) {
+				$bao_loi = $loi_dot;
+			} else {
+				$them_tong = 0; $trung_tong = 0; $cau = array(); $dot_da = array(); $trung_o = array();
+				foreach ( $nhom as $id => $rows ) {
+					$r  = KHTC_DoiSoat::nap_dong( $id, KHTC_DanTho::ra_cong( $rows ) );
+					$d  = KHTC_DoiSoat::mot_dot( $id );
+					$them_tong  += $r['them'];
+					$trung_tong += $r['trung'];
+					foreach ( $r['trung_dot'] ?? array() as $id_khac => $n ) {
+						$d_khac = KHTC_DoiSoat::mot_dot( $id_khac );
+						$trung_o[] = ( $d_khac ? '“' . $d_khac->ten . '”' : '#' . $id_khac ) . ' (' . number_format( $n, 0, ',', '.' ) . ' dòng)';
+					}
+					if ( 0 === $r['them'] && ( $dot_moi || -2 === $chon_dot ) && 0 === (int) $GLOBALS['wpdb']->get_var( $GLOBALS['wpdb']->prepare( 'SELECT COUNT(*) FROM ' . KHTC_DB::bang( 'ds_dong' ) . ' WHERE dot_id = %d', $id ) ) ) {
+						// Đợt vừa tạo mà không nhận dòng nào → xoá, không để lại đợt rỗng.
+						KHTC_DoiSoat::xoa_dot( $id );
+						continue;
+					}
+					KHTC_DoiSoat::mo_rong_ky( $id );
+					KHTC_DoiSoat::chay( $id );
+					$dot_da[] = $id;
+					$cau[]    = sprintf( '%s dòng vào “%s”', number_format( $r['them'], 0, ',', '.' ), $d ? $d->ten : '#' . $id );
+				}
+				if ( 0 === $them_tong ) {
+					$bao_loi = sprintf(
+						'File này đã nạp rồi: toàn bộ %s dòng đang nằm trong đợt %s. Không nạp thêm, không tạo đợt mới. Sang bước sinh hoá đơn thì tick đợt đó.',
+						number_format( $trung_tong, 0, ',', '.' ),
+						$trung_o ? implode( ', ', array_unique( $trung_o ) ) : 'đã có'
+					);
+					$di_tiep = self::cho_di_tiep( $kq['rows'], array( 'dot' => $dot_da ) );
+				} else {
+					$bao_ok = sprintf(
+						'Đã nạp %s và chạy đối soát.%s%s',
+						implode( ', ', $cau ),
+						$trung_tong ? ' Bỏ qua ' . number_format( $trung_tong, 0, ',', '.' ) . ' dòng trùng mã (đã có từ lần nạp trước).' : '',
+						$trung_o ? ' Dòng trùng đang ở đợt ' . implode( ', ', array_unique( $trung_o ) ) . '.' : ''
+					);
+					$di_tiep = self::cho_di_tiep( $kq['rows'], array( 'dot' => $dot_da ) );
+				}
+				$kq  = null;
 				$tho = '';
 			}
 		}
@@ -1409,13 +1438,21 @@ class KHTC_Trang {
 				echo '</select></label>';
 				echo '<button type="submit" name="khtc_nap_sao_ke" value="1" class="button button-primary">Nạp vào sao kê</button>';
 			} else {
+				// Tháng của bảng đang dán — để nói trước tên đợt sẽ vào.
+				$thang_dan = array();
+				foreach ( $kq['rows'] as $r ) { $thang_dan[ substr( KHTC_GiaoDich::doc_ngay( $r['ngay'] ), 0, 7 ) ] = 1; }
+				ksort( $thang_dan );
+				$ten_thang = array();
+				foreach ( array_keys( $thang_dan ) as $th ) { $ten_thang[] = KHTC_DoiSoat::ten_dot_thang( $kq['dinh_dang'], $th ); }
 				echo '<label>Đợt đối soát<select name="dot">';
-				echo '<option value="-1">— Tạo đợt mới —</option>';
+				printf( '<option value="-2" selected>Đợt tháng (tự xếp): %s</option>', esc_html( implode( ' + ', $ten_thang ) ) );
+				echo '<option value="-1">— Tạo đợt mới, đặt tên riêng —</option>';
 				foreach ( KHTC_DoiSoat::ds_dot() as $o ) {
+					if ( $o->kenh !== $kq['dinh_dang'] && 'khac' !== $o->kenh ) { continue; }   // đợt khác kênh không nạp vào được
 					printf( '<option value="%d">%s</option>', (int) $o->id, esc_html( $o->ten ) );
 				}
 				echo '</select></label>';
-				printf( '<label>Tên đợt mới<input type="text" name="ten_dot" placeholder="%s"></label>', esc_attr( $kq['ten'] . ' ' . gmdate( 'm/Y' ) ) );
+				printf( '<label>Tên đợt mới (nếu chọn tạo)<input type="text" name="ten_dot" placeholder="%s"></label>', esc_attr( reset( $ten_thang ) ?: $kq['ten'] ) );
 				echo '<label>Tiền về tài khoản<select name="nh_dot">';
 				foreach ( KHTC_NganHang::ds() as $n ) {
 					printf( '<option value="%d">%s</option>', (int) $n->id, esc_html( $n->ten ) );
@@ -1424,7 +1461,7 @@ class KHTC_Trang {
 				echo '<button type="submit" name="khtc_nap_cong" value="1" class="button button-primary">Nạp vào đợt và chạy đối soát</button>';
 			}
 			echo '</div>';
-			echo '<p class="khtc-sub">Nạp đi qua đúng đường dán thường ngày, nên vẫn <strong>chặn trùng theo mã giao dịch</strong>, vẫn chặn kỳ đã khoá, và chỉ ghi một dòng nhật ký cho cả lô.</p>';
+			echo '<p class="khtc-sub">Nạp <strong>nhiều lần được</strong>: file mỗi ngày dồn vào đợt tháng của kênh đó, dòng đã có (trùng mã giao dịch) tự bỏ, kỳ của đợt tự nới theo ngày mới. Vẫn chặn kỳ đã khoá, một dòng nhật ký cho cả lô.</p>';
 			echo '</div>';
 		}
 		echo '</form></div>';
@@ -1553,6 +1590,38 @@ class KHTC_Trang {
 		$bao_ok = '';
 		$bao_loi = '';
 
+		// Thêm mã lạ vào danh mục ngay tại đây, khỏi chạy qua màn hình Danh mục
+		// rồi quay lại. Gắn vào điểm có sẵn (một điểm nhiều mã là chuyện thường:
+		// mỗi máy POS một mã) hoặc lập điểm mới. Đi qua đúng KHTC_Diem::them
+		// nên mọi luật của danh mục (mã duy nhất, nhật ký) vẫn giữ.
+		if ( isset( $_POST['khtc_them_ma'] ) && check_admin_referer( 'khtc_sinh' ) ) {
+			$ma  = sanitize_text_field( wp_unslash( $_POST['ma'] ?? '' ) );
+			$d   = array(
+				'ma_cua_hang' => $ma,
+				'ten_gian'    => sanitize_text_field( wp_unslash( $_POST['ten_gian'] ?? '' ) ),
+				'bo_qua'      => ! empty( $_POST['bo_qua'] ) ? 1 : 0,
+			);
+			$gan = (int) ( $_POST['diem_id'] ?? 0 );
+			if ( $gan > 0 ) {
+				$mau = KHTC_Diem::mot( $gan );
+				if ( $mau ) {
+					foreach ( array( 'ten_diem', 'ma_misa', 'khu_vuc', 'dich_vu', 'so_tk' ) as $c ) { $d[ $c ] = $mau->$c; }
+				}
+			} else {
+				foreach ( array( 'ten_diem', 'ma_misa', 'khu_vuc', 'dich_vu' ) as $c ) { $d[ $c ] = sanitize_text_field( wp_unslash( $_POST[ $c ] ?? '' ) ); }
+			}
+			if ( '' === trim( (string) ( $d['ten_diem'] ?? '' ) ) && empty( $d['bo_qua'] ) ) {
+				$bao_loi = 'Chưa có tên điểm xuất hoá đơn cho mã ' . $ma . '. Chọn điểm có sẵn, gõ tên điểm mới, hoặc tick "bỏ qua".';
+			} else {
+				$kq = KHTC_Diem::them( $d );
+				if ( is_wp_error( $kq ) ) {
+					$bao_loi = $kq->get_error_message();
+				} else {
+					$bao_ok = sprintf( 'Đã thêm mã %s → %s. Bảng dưới đã tính lại.', $ma, ! empty( $d['bo_qua'] ) ? 'bỏ qua (không xuất)' : $d['ten_diem'] );
+				}
+			}
+		}
+
 		if ( isset( $_POST['khtc_tao_hd'] ) && check_admin_referer( 'khtc_sinh' ) ) {
 			$kq = KHTC_SinhHD::tao(
 				array(
@@ -1638,17 +1707,52 @@ class KHTC_Trang {
 		);
 
 		if ( $g['la'] ) {
-			echo '<div class="khtc-panel"><p class="khtc-canh-bao">Có tiền vào mang mã cửa hàng <strong>không có trong danh mục điểm</strong>. Số tiền này sẽ KHÔNG vào hoá đơn nào. Thêm mã vào danh mục rồi xem lại, hoặc để vậy nếu đúng là không xuất.</p><table><thead><tr><th>Mã cửa hàng</th><th class="so">Số tiền</th></tr></thead><tbody>';
+			echo '<div class="khtc-panel"><p class="khtc-canh-bao">Có tiền vào mang mã cửa hàng <strong>không có trong danh mục điểm</strong>. Số tiền này sẽ KHÔNG vào hoá đơn nào. Thêm mã ngay ở đây: gắn vào điểm có sẵn, hoặc gõ tên điểm mới; đúng là không xuất thì tick “bỏ qua”. Thêm xong bảng tính lại liền.</p>';
+			// Danh sách điểm có sẵn để gắn: mỗi TÊN ĐIỂM một dòng (một điểm nhiều mã).
+			$diem_co = array();
+			foreach ( KHTC_Diem::ds() as $dm ) {
+				if ( $dm->bo_qua || '' === trim( (string) $dm->ten_diem ) ) { continue; }
+				if ( ! isset( $diem_co[ $dm->ten_diem ] ) ) { $diem_co[ $dm->ten_diem ] = $dm; }
+			}
+			$an = '';
+			foreach ( $nh_c as $v ) { $an .= sprintf( '<input type="hidden" name="nh[]" value="%d">', $v ); }
+			foreach ( $dot_c as $v ) { $an .= sprintf( '<input type="hidden" name="dot[]" value="%d">', $v ); }
+			$an .= sprintf( '<input type="hidden" name="tu" value="%s"><input type="hidden" name="den" value="%s"><input type="hidden" name="tach" value="%s">', esc_attr( $tu ), esc_attr( $den ), esc_attr( $tach ) );
+			echo '<table class="khtc-ma-la"><thead><tr><th>Mã cửa hàng</th><th>Cổng ghi tên</th><th class="so">Số tiền</th><th>Thêm vào danh mục</th></tr></thead><tbody>';
 			foreach ( array_slice( $g['la'], 0, 30, true ) as $ma => $t ) {
+				$goi_y = $g['la_ten'][ $ma ] ?? '';
 				// Mã cửa hàng là ASCII nên hợp với phông đẳng rộng; câu "để trống"
 				// là tiếng Việt, để trong <code> thì phông đó nuốt mất dấu.
 				printf(
-					'<tr><td>%s</td><td class="so">%s</td></tr>',
+					'<tr><td>%s</td><td>%s</td><td class="so">%s</td><td>',
 					$ma ? '<code>' . esc_html( $ma ) . '</code>' : '<em>không ghi mã</em>',
+					esc_html( $goi_y ),
 					esc_html( KHTC_UI::tien( $t ) )
 				);
+				if ( '' !== $ma ) {
+					echo '<form method="post" class="khtc-them-ma">';
+					wp_nonce_field( 'khtc_sinh' );
+					echo $an;
+					printf( '<input type="hidden" name="ma" value="%s"><input type="hidden" name="ten_gian" value="%s">', esc_attr( $ma ), esc_attr( $goi_y ) );
+					echo '<select name="diem_id"><option value="0">— điểm mới (gõ bên cạnh) —</option>';
+					foreach ( $diem_co as $ten => $dm ) { printf( '<option value="%d">%s</option>', (int) $dm->id, esc_html( $ten . ( $dm->ma_misa ? ' · ' . $dm->ma_misa : '' ) ) ); }
+					echo '</select>';
+					echo '<input type="text" name="ten_diem" placeholder="Tên điểm mới" size="18">';
+					echo '<input type="text" name="ma_misa" placeholder="Mã Misa" size="12">';
+					echo '<input type="text" name="khu_vuc" placeholder="Khu vực" size="8" list="khtc-kv">';
+					echo '<input type="text" name="dich_vu" placeholder="Dịch vụ" size="6" list="khtc-dv">';
+					echo '<label class="khtc-tick-nho"><input type="checkbox" name="bo_qua" value="1"> bỏ qua</label>';
+					echo '<button class="button button-small" name="khtc_them_ma" value="1">Thêm</button>';
+					echo '</form>';
+				}
+				echo '</td></tr>';
 			}
-			echo '</tbody></table></div>';
+			echo '</tbody></table>';
+			$kv = array(); $dv = array();
+			foreach ( $diem_co as $dm ) { if ( $dm->khu_vuc ) { $kv[ $dm->khu_vuc ] = 1; } if ( $dm->dich_vu ) { $dv[ $dm->dich_vu ] = 1; } }
+			echo '<datalist id="khtc-kv">'; foreach ( array_keys( $kv ) as $v ) { printf( '<option value="%s">', esc_attr( $v ) ); } echo '</datalist>';
+			echo '<datalist id="khtc-dv">'; foreach ( array_keys( $dv ) as $v ) { printf( '<option value="%s">', esc_attr( $v ) ); } echo '</datalist>';
+			echo '<p class="khtc-sub">Chọn điểm có sẵn thì mã Misa, khu vực, dịch vụ lấy theo điểm đó. Tên cổng ghi kèm được lưu vào cột Tên gian để sau còn tra.</p></div>';
 		}
 
 		printf(

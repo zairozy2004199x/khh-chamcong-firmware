@@ -56,19 +56,21 @@ class KHTC_SinhHD {
 		$theo_diem = array();   // khoá gom → [ten_diem, ma_misa, khu_vuc, dich_vu, tien, so_dong, ma[]]
 		$bo_qua    = array();   // điểm có cờ bỏ qua
 		$la        = array();   // mã cửa hàng không có trong danh mục
+		$la_ten    = array();   // mã lạ → tên cửa hàng cổng ghi kèm (gợi ý khi thêm vào danh mục)
 		$tong      = 0;
 		$tong_bo   = 0;
 		$tong_la   = 0;
 
 		$tach = ( 'ngay' === ( $l['tach'] ?? '' ) );
 
-		$nhan = function ( $ma_ch, $tien, $nguon, $ngay = '', $bang = '', $id = 0 ) use ( &$theo_diem, &$bo_qua, &$la, &$tong, &$tong_bo, &$tong_la, $tra, $tach ) {
+		$nhan = function ( $ma_ch, $tien, $nguon, $ngay = '', $bang = '', $id = 0, $ten_goi_y = '' ) use ( &$theo_diem, &$bo_qua, &$la, &$la_ten, &$tong, &$tong_bo, &$tong_la, $tra, $tach ) {
 			$ma_ch = trim( (string) $ma_ch );
 			if ( '' === $ma_ch || ! isset( $tra[ $ma_ch ] ) ) {
 				// Tiền có thật mà không biết của điểm nào. KHÔNG được im lặng bỏ
 				// đi: doanh thu hụt mà không ai thấy. Gom riêng, đếm, nói ra.
 				$la[ $ma_ch ] = ( $la[ $ma_ch ] ?? 0 ) + $tien;
 				$tong_la     += $tien;
+				if ( '' !== $ma_ch && '' !== trim( (string) $ten_goi_y ) && empty( $la_ten[ $ma_ch ] ) && $ten_goi_y !== $ma_ch ) { $la_ten[ $ma_ch ] = trim( (string) $ten_goi_y ); }
 				return;
 			}
 			$d = $tra[ $ma_ch ];
@@ -120,7 +122,7 @@ class KHTC_SinhHD {
 		if ( $nh ) {
 			$rows = $wpdb->get_results(
 				$wpdb->prepare(
-					'SELECT id, ma_cua_hang, so_tien, ngay, hd_ra_id FROM ' . KHTC_DB::bang( 'giao_dich' ) . "
+					'SELECT id, ma_cua_hang, so_tien, ngay, hd_ra_id, dien_giai FROM ' . KHTC_DB::bang( 'giao_dich' ) . "
 					 WHERE cty = %s AND loai = 'thu' AND ngay >= %s AND ngay <= %s
 					   AND ngan_hang_id IN (" . implode( ',', array_fill( 0, count( $nh ), '%d' ) ) . ')',
 					array_merge( array( $cty, $tu, $den ), $nh )
@@ -128,7 +130,7 @@ class KHTC_SinhHD {
 			);
 			foreach ( $rows as $r ) {
 				if ( (int) $r->hd_ra_id > 0 ) { $da_xuat['tien'] += (int) $r->so_tien; $da_xuat['dong']++; $da_xuat['to'][ (int) $r->hd_ra_id ] = true; continue; }
-				$nhan( $r->ma_cua_hang, (int) $r->so_tien, 'sao kê', $r->ngay, 'gd', $r->id );
+				$nhan( $r->ma_cua_hang, (int) $r->so_tien, 'sao kê', $r->ngay, 'gd', $r->id, $r->dien_giai );
 			}
 		}
 
@@ -137,7 +139,7 @@ class KHTC_SinhHD {
 		if ( $dot ) {
 			$rows = $wpdb->get_results(
 				$wpdb->prepare(
-					'SELECT d.id, d.ma_cua_hang, d.so_tien, d.ngay, d.hd_ra_id, d.ma_gd, o.ten, o.kenh FROM ' . KHTC_DB::bang( 'ds_dong' ) . ' d
+					'SELECT d.id, d.ma_cua_hang, d.so_tien, d.ngay, d.hd_ra_id, d.ma_gd, d.dien_giai, o.ten, o.kenh FROM ' . KHTC_DB::bang( 'ds_dong' ) . ' d
 					 JOIN ' . KHTC_DB::bang( 'doi_soat' ) . ' o ON o.id = d.dot_id
 					 WHERE d.ngay >= %s AND d.ngay <= %s
 					   AND d.dot_id IN (' . implode( ',', array_fill( 0, count( $dot ), '%d' ) ) . ')',
@@ -151,7 +153,7 @@ class KHTC_SinhHD {
 					$da_thay[ $k ] = true;
 				}
 				if ( (int) $r->hd_ra_id > 0 ) { $da_xuat['tien'] += (int) $r->so_tien; $da_xuat['dong']++; $da_xuat['to'][ (int) $r->hd_ra_id ] = true; continue; }
-				$nhan( $r->ma_cua_hang, (int) $r->so_tien, $r->ten, $r->ngay, 'ds', $r->id );
+				$nhan( $r->ma_cua_hang, (int) $r->so_tien, $r->ten, $r->ngay, 'ds', $r->id, $r->dien_giai );
 			}
 		}
 
@@ -162,6 +164,7 @@ class KHTC_SinhHD {
 			'diem'    => array_values( $theo_diem ),
 			'bo_qua'  => $bo_qua,
 			'la'      => $la,
+			'la_ten'  => $la_ten,
 			'tong'    => $tong,
 			'tong_bo' => $tong_bo,
 			'tong_la' => $tong_la,
