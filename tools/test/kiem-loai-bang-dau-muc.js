@@ -225,9 +225,11 @@ t('🔴 lượt Lưu chép lại bộ phận cũ thay vì ghi rỗng', /boPhan:\
      sạch. */
   teq('🔴 bảng KVC bày 2 vai con KVC + 1 vai lạc đang tích — vai GỐC thôi là ô tích', 3,
     (hv.match(/type="checkbox"/g) || []).length);
-  t('🔴 vai gốc nay là NHÃN NHÓM, không phải ô tích',
-    /<b style="font-size:11.5px[^"]*"[^>]*>Quản lý<\/b>/.test(hv) && hv.indexOf('value="Quản lý"') < 0, hv.slice(0, 500));
-  t('   và mỗi nhóm có nút ✓ hết / ✕ bỏ để tích lẻ đỡ mệt',
+  /* 24/09/2026: không gom theo vai gốc nữa (anh Thắng: *"Lấy tên vai chứ, lấy cái kế thừa quyền chi
+     đâu"*) — vai gốc không là ô tích, và cũng KHÔNG còn nhãn nhóm. */
+  t('🔴 vai gốc không phải ô tích, và không còn nhãn nhóm nào',
+    !/>Quản lý<\/b>/.test(hv) && hv.indexOf('value="Quản lý"') < 0, hv.slice(0, 500));
+  t('   và có nút ✓ hết / ✕ bỏ để tích lẻ đỡ mệt',
     /onclick="vaiNhomHet\(this,1\)"/.test(hv) && /onclick="vaiNhomHet\(this,0\)"/.test(hv), '');
   /* 🔴 PHÉP ĐỐI CHỨNG — VÀ NÓ ĐÃ ĐỔI NGHĨA NGÀY 21/09/2026.
      Bản 1.235.0 giấu hẳn vai khối khác khi chưa tích, nên ở đây đếm ra ít hơn. Nhưng giấu hẳn
@@ -235,7 +237,7 @@ t('🔴 lượt Lưu chép lại bộ phận cũ thay vì ghi rỗng', /boPhan:\
      có thể nhận 2 vai trò của 2 khối khác nhau"*. Nay chúng nằm trong nếp gấp "vai khối khác":
      VẪN ĐỦ Ô, chỉ là một ô nằm trong `<details>`. */
   const hTrong = ctxv._vaiSelNhieu('', 'kvc');
-  teq('🔴 không tích gì thì vẫn đủ 3 ô — vai khối khác chỉ gấp lại, không biến', 3,
+  teq('🔴 không tích gì thì vẫn đủ 3 ô — mọi vai tự tạo liệt kê thẳng, không vai nào biến', 3,
     (hTrong.match(/type="checkbox"/g) || []).length);
   /* ═══ 🔴 VAI CHUNG CÒN SÓT TRONG SỔ: GIẤU ĐI, KHÔNG XOÁ ═══════════════════════
      Danh mục thật đang có dòng tích vai gốc. Bỏ ô tích ra khỏi DOM là lượt Lưu kế tiếp xoá
@@ -251,11 +253,11 @@ t('🔴 lượt Lưu chép lại bộ phận cũ thay vì ghi rỗng', /boPhan:\
   /* 🔴 KHÔNG TỰ NỞ LÚC VẼ. Nở là ĐỔI QUYỀN; máy làm thay là đổi quyền trong im lặng. */
   t('🔴 lúc VẼ không tự nở vai chung ra vai con — đó là cú bấm của người',
     !/value="Quản Lý Khu Vui Chơi" checked/.test(hSot), hSot.slice(0, 900));
-  t('🔴 và nếp ấy ĐÓNG khi không có ô nào đang tích',
-    /<details class="vaiNgoai"(?! open)/.test(hTrong), hTrong);
-  t('🔴 nhưng MỞ SẴN khi bên trong có ô đang tích — không để quyền đã khai nằm khuất',
-    /<details class="vaiNgoai" open/.test(hv), hv);
-  t('   và ô trong nếp vẫn giữ dấu tích', /value="Kế Toán Máy Tự Động" checked/.test(hv), hv);
+  /* 24/09/2026: không còn nếp "vai khối khác" — mọi vai liệt kê thẳng (anh Thắng: *"Lấy tên vai
+     chứ, lấy cái kế thừa quyền chi đâu"*). Vai khối khác đứng ngang hàng, không gấp. */
+  t('🔴 không còn nếp gấp "vai khối khác" — vai khối khác đứng thẳng trong danh sách',
+    hTrong.indexOf('<details') < 0 && hv.indexOf('<details') < 0 && /value="Kế Toán Máy Tự Động"/.test(hTrong), hTrong);
+  t('   và vai khối khác đang tích vẫn giữ dấu tích', /value="Kế Toán Máy Tự Động" checked/.test(hv), hv);
   t('   vai đã tích được đánh dấu', /value="Kế Toán Máy Tự Động" checked/.test(hv), hv);
   t('   vai chưa tích thì không', !/value="Kế Toán Khu Vui Chơi" checked/.test(hv));
   /* 🔴 Admin không bao giờ bị lọc — bày ô tích cho Admin là ô bấm vào không đổi gì. */

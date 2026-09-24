@@ -13460,42 +13460,54 @@
    *    phải bấm từng ô thì người ta bỏ cuộc rồi để trống — mà trống nghĩa là MỌI vai.
    */
   function _vaiSelNhieu(v, khoi){
-    var da={};
-    String(v||'').split(',').forEach(function(x){ var k=x.trim().toLowerCase(); if(k) da[k]=1; });
-    khoi=String(khoi||'').toLowerCase();
-    var o=function(r,dam){
+    /* ══════════════════════════════════════════════════════════════════════════════════════
+     * 🔴 LIỆT KÊ THẲNG TÊN VAI TỰ TẠO — KHÔNG GOM THEO VAI GỐC, KHÔNG TÁCH "VAI KHỐI KHÁC".
+     * Anh Thắng 24/09/2026 (ảnh hộp bày "Quản lý — chưa có vai con nào" ba dòng, còn Quản Lý
+     * Khu Vui Chơi… bị đẩy xuống nếp "vai khối khác (11)"): *"Lấy tên vai chứ, lấy cái kế thừa
+     * quyền chi đâu"*. Vai gốc mà vai tự tạo kế thừa là chuyện QUYỀN (bảng 🎭), không phải cách
+     * kế toán tìm một vai để tích; khối của vai suy từ tên cũng chỉ là đoán. Nên: mọi vai trong
+     * bảng 🎭 Vai trò tự tạo, đúng thứ tự bảng ấy, mỗi vai một ô — hết.
+     * ⚠️ `khoi` GIỮ Ở CHỮ KÝ cho chỗ gọi cũ (`_mxRowHtml`, `_khoiODoi`) không đổi; không dùng nữa.
+     * 🔴 VAI GỐC CÒN SÓT TRONG SỔ vẫn giấu đi + dòng nhắc (nở ra / bỏ hẳn) — xem `vaiNoChung`:
+     *    bỏ ô ra khỏi DOM là lượt Lưu kế tiếp xoá quyền lặng lẽ.
+     * 🔴 VAI ĐANG TÍCH MÀ KHÔNG CÒN TRONG BẢNG (đã xoá / đổi tên) vẫn bày, có đánh dấu — cùng lẽ.
+     * ══════════════════════════════════════════════════════════════════════════════════════ */
+    var da={}, goc={};
+    String(v||'').split(',').forEach(function(x){ var t=x.trim(); if(t){ da[t.toLowerCase()]=1; goc[t.toLowerCase()]=t; } });
+    var o=function(r,dam,ghi){
       return '<label style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;white-space:nowrap;cursor:pointer'
-        +(dam?';font-weight:700':'')+'">'
+        +(dam?';font-weight:700':'')+'"'+(ghi?(' title="'+esc(ghi)+'"'):'')+'>'
         +'<input type="checkbox" value="'+esc(r)+'"'+(da[r.toLowerCase()]?' checked':'')+' style="margin:0;cursor:pointer">'
-        +esc(r)+'</label>';
+        +esc(r)+(ghi?' <span style="color:#b45309">?</span>':'')+'</label>';
     };
-    /* Ô tích GIẤU ĐI cho một vai gốc còn sót trong sổ — xem chốt dài ở đầu hàm. */
+    /* Ô tích GIẤU ĐI cho một vai gốc còn sót trong sổ — xem chốt ở đầu hàm. */
     var oAn=function(r){
       return '<input type="checkbox" data-vai-chung value="'+esc(r)+'" checked style="display:none">';
     };
+    var ds=[], daCo={};
+    (((typeof CFG!=='undefined'&&CFG)||{}).vaiTro||[]).forEach(function(x){
+      var t=String((x&&x.ten)||'').trim(); if(!t||daCo[t.toLowerCase()]) return;
+      daCo[t.toLowerCase()]=1; ds.push(t);
+    });
+    var chungSot=[];
+    VAI_GOC.forEach(function(cha){ if(da[cha.toLowerCase()]) chungSot.push(cha); });
+    var la=[];
+    Object.keys(da).forEach(function(k){
+      if(daCo[k]) return;
+      if(VAI_GOC.some(function(g){ return g.toLowerCase()===k; })) return;
+      la.push(goc[k]);
+    });
     var h='<div data-vai style="display:flex;flex-direction:column;gap:3px;padding:2px 0" '
       +'title="Không tích gì = MỌI vai đều dùng được loại này. Admin không bao giờ bị lọc nên không có ở đây.">';
-    var ngoai=[], coTich=false, chungSot=[];
-    VAI_GOC.forEach(function(cha){
-      var con=[];
-      _vaiConCua(cha).forEach(function(r){
-        if(_vaiOKhoi(r, khoi)){ con.push(r); return; }
-        ngoai.push(r);
-        if(da[r.toLowerCase()]) coTich=true;
-      });
-      var sot=!!da[cha.toLowerCase()];
-      if(sot) chungSot.push(cha);
-      h+='<div style="display:flex;flex-wrap:wrap;gap:2px 10px;align-items:center">'
-        /* 🔴 NHÃN, KHÔNG PHẢI Ô TÍCH. Xem chốt dài ở đầu hàm. */
-        +'<b style="font-size:11.5px;white-space:nowrap" title="Nhóm vai — không tích được nữa. Tích từng vai con bên phải.">'+esc(cha)+'</b>'
-        +(con.length
-          ? ('<button type="button" data-khong-khoa="1" onclick="vaiNhomHet(this,1)" title="Tích hết vai của nhóm này" style="border:0;background:none;color:#2545ff;font-size:10.5px;cursor:pointer;padding:0">✓ hết</button>'
-            +'<button type="button" data-khong-khoa="1" onclick="vaiNhomHet(this,0)" title="Bỏ tích hết vai của nhóm này" style="border:0;background:none;color:#8c8781;font-size:10.5px;cursor:pointer;padding:0">✕ bỏ</button>')
-          : '<span style="font-size:10.5px;color:#8c8781">chưa có vai con nào</span>')
-        +con.map(function(r){ return o(r,false); }).join('')
-        +(sot?oAn(cha):'')
-        +'</div>';
-    });
+    h+='<div style="display:flex;flex-wrap:wrap;gap:2px 10px;align-items:center">'
+      +(ds.length
+        ? ('<button type="button" data-khong-khoa="1" onclick="vaiNhomHet(this,1)" title="Tích hết mọi vai" style="border:0;background:none;color:#2545ff;font-size:10.5px;cursor:pointer;padding:0">✓ hết</button>'
+          +'<button type="button" data-khong-khoa="1" onclick="vaiNhomHet(this,0)" title="Bỏ tích hết" style="border:0;background:none;color:#8c8781;font-size:10.5px;cursor:pointer;padding:0">✕ bỏ</button>')
+        : '<span style="font-size:10.5px;color:#8c8781">chưa có vai tự tạo nào — khai ở bảng 🎭 Vai trò tự tạo</span>')
+      +ds.map(function(r){ return o(r,false,''); }).join('')
+      +la.map(function(r){ return o(r,false,'Vai này không còn trong bảng 🎭 Vai trò tự tạo — bỏ tích nếu không dùng nữa'); }).join('')
+      +chungSot.map(oAn).join('')
+      +'</div>';
     if(chungSot.length){
       h+='<div data-vai-sot style="font-size:10.5px;color:#b45309;background:#fffbeb;border:1px solid #fde68a;border-radius:4px;padding:3px 6px;margin-top:2px">'
         +'⚠️ Còn tích vai chung: <b>'+esc(chungSot.join(', '))+'</b> — vai chung không còn dùng, '
@@ -13504,21 +13516,14 @@
         +'<button type="button" data-khong-khoa="1" onclick="vaiBoChung(this)" style="border:0;background:none;color:#8c8781;font-size:10.5px;cursor:pointer;padding:0">✕ Bỏ hẳn</button>'
         +'</div>';
     }
-    if(ngoai.length){
-      h+='<details class="vaiNgoai"'+(coTich?' open':'')+' style="margin-top:2px">'
-        +'<summary style="font-size:11px;color:#8c8781;cursor:pointer;list-style:none">'
-        +'\u2795 vai khối khác ('+ngoai.length+')</summary>'
-        +'<div style="display:flex;flex-wrap:wrap;gap:2px 10px;padding-top:2px">'
-        +ngoai.map(function(r){ return o(r,false); }).join('')+'</div></details>';
-    }
     return h+'</div>';
   }
   /**
    * "✓ hết" / "✕ bỏ" cho MỘT NHÓM VAI (một hàng trong hộp ô tích).
    *
-   * ⚠️ CHỈ TRONG HÀNG CHỨA NÚT, không phải cả hộp. Bốn nhóm nằm trong cùng một `[data-vai]`;
-   *    quét cả hộp là bấm "✓ hết" ở nhóm Quản lý mà tích luôn cả Nhân viên — nới quyền trong
-   *    im lặng, và người bấm không hề thấy vì mấy ô kia nằm ngoài tầm mắt.
+   * ⚠️ CHỈ TRONG HÀNG CHỨA NÚT. Từ 24/09/2026 hộp chỉ còn MỘT hàng (mọi vai tự tạo liệt kê
+   *    thẳng, không gom nhóm — anh Thắng: *"Lấy tên vai chứ"*), nên "✓ hết" = tích mọi vai.
+   *    Vẫn quét theo hàng chứ không theo hộp để dòng nhắc vai chung (hàng khác) không bị đụng.
    * ⚠️ CHỪA Ô GIẤU (`data-vai-chung`) RA: nó là vai chung còn sót, có đường gỡ riêng. "✕ bỏ"
    *    mà gỡ luôn nó thì dòng nhắc màu cam vẫn còn mà ô đã tắt — hai bên nói hai chuyện.
    */

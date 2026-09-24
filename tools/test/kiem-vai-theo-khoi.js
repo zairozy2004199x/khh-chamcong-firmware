@@ -98,26 +98,20 @@ if (M) {
 
 /* ═══ 5. Ô TÍCH VAI NHẬN KHỐI CỦA HÀNG, VÀ HÀNG TRUYỀN KHỐI VÀO ═════════════════ */
 const SEL = bocSach('_vaiSelNhieu');
-t('🔴 `_vaiSelNhieu` nhận tham số khối', /function _vaiSelNhieu\(v,\s*khoi\)/.test(bocHam('_vaiSelNhieu')), 'không thấy');
-t('🔴 và xếp vai con theo khối qua `_vaiOKhoi`', /_vaiOKhoi\(r, khoi\)/.test(SEL) && /ngoai\.push\(r\)/.test(SEL), 'không thấy');
-/* ⚠️ SOI CHÍNH CHỖ CŨ TÔ CẢNH BÁO — hàm `o()` dựng một ô tích — chứ KHÔNG soi cả hàm.
-   Cắn thật 22/09/2026: hàm này nay có một dòng nhắc "⚠️ Còn tích vai chung" cho việc KHÁC HẲN
-   (vai gốc còn sót trong sổ), và phép cũ `SEL.indexOf('⚠') < 0` đỏ oan vì đúng cái dấu ấy.
-   Phép thử phải bám vào thứ nó nói, không bám vào một ký tự đi ngang qua. */
-const SEL_O = (SEL.match(/var o=function\(r,dam\)\{[\s\S]*?\n    \};/) || [''])[0];
+t('🔴 `_vaiSelNhieu` vẫn nhận tham số khối (chữ ký giữ cho chỗ gọi cũ)', /function _vaiSelNhieu\(v,\s*khoi\)/.test(bocHam('_vaiSelNhieu')), 'không thấy');
+/* 🔴 24/09/2026 — anh Thắng: *"Lấy tên vai chứ, lấy cái kế thừa quyền chi đâu"*. Hộp KHÔNG còn xếp
+   vai theo khối (không `_vaiOKhoi`, không nếp "vai khối khác"), không gom theo vai gốc. Mọi vai
+   tự tạo liệt kê thẳng theo thứ tự bảng 🎭. `_vaiOKhoi` / `_khoiCuaVai` vẫn sống cho việc khác
+   (mục 1–4 ở trên canh chúng). */
+t('🔴 hộp KHÔNG còn xếp theo khối, không còn nếp "vai khối khác"', !/_vaiOKhoi\(/.test(SEL) && !/<details class="vaiNgoai"/.test(SEL) && !/ngoai\.push/.test(SEL), 'còn dấu cũ');
+const SEL_O = (SEL.match(/var o=function\(r,dam,ghi\)\{[\s\S]*?\n    \};/) || [''])[0];
 t('bốc được hàm dựng một ô tích', SEL_O.length > 80, SEL_O);
-t('🔴 không còn tô cảnh báo lên ô tích chéo khối nữa',
-  !/lacKhoi/.test(SEL) && SEL_O.indexOf('⚠') < 0 && !/#c0392b|#b45309/.test(SEL_O), SEL_O);
-t('🔴 vai khối khác vào nếp gấp, không bị bỏ ra khỏi DOM', /<details class="vaiNgoai"/.test(SEL), 'không thấy');
-t('   nếp mở sẵn khi bên trong có ô đang tích', /coTich\?' open':''/.test(SEL), 'không thấy');
-t('🔴 hàng loại chi phí truyền khối của chính nó vào',
+t('🔴 không tô cảnh báo lên ô tích theo khối', !/lacKhoi/.test(SEL) && SEL_O.indexOf('⚠') < 0, SEL_O);
+t('🔴 hàng loại chi phí vẫn truyền khối của chính nó vào (chữ ký không đổi)',
   /_vaiSelNhieu\(x\.vaiTro\|\|'',\s*_khoiCuaLoai\(x\)\)/.test(bocSach('_mxRowHtml')), 'không thấy');
 
 /* ═══ 5b. VẼ THẬT MỘT HỘP Ô TÍCH RỒI ĐẾM ═════════════════════════════
- * 🔴 DÒ CHỮ TRONG MÃ KHÔNG ĐỦ Ở ĐÂY, và đã cắn ngay lượt viết này: phép `!/Admin/` đỏ
- *    vì chữ "Admin" nằm trong LờI CHÚ GIẢI của thuộc tính `title` — lời văn bày cho người
- *    dùng đọc, không phải một ô tích. Đếm ô THẬT thì không nhầm được, và còn bắt được
- *    cả những thứ dò chữ không thấy: ô đã tích có sống sót không, lọc có đúng số ô không. */
+ * Đếm ô THẬT: mọi vai tự tạo, đúng thứ tự bảng, một danh sách phẳng, khối nào cũng như nhau. */
 const VAI_MAU = [
   { ten: 'Quản Lý Khu Vui Chơi', goc: 'Quản lý' },
   { ten: 'Quản Lý Máy Tự Động', goc: 'Quản lý' },
@@ -140,52 +134,28 @@ function oTich(h) {
   while ((m = re.exec(h))) { ra.push(m[1] + (m[2] ? ' ✓' : '')); }
   return ra;
 }
-/* Hai vùng của một hộp: trước nếp gấp (vai của khối này) và trong nếp (vai khối khác).
-   ⚠️ ĐẾM RIÊNG HAI VÙNG, không đếm gộp: gộp lại thì một hàm KHÔNG xếp gì cả — đổ
-      tất mười lăm ô ra một đống phẳng như trước — vẫn đếm ra đúng con số. */
-function haiVung(h) {
-  const i = h.indexOf('<details');
-  return i < 0 ? { ngoai: oTich(h), trong: [] }
-               : { ngoai: oTich(h.slice(0, i)), trong: oTich(h.slice(i)) };
-}
 let HK = '';
 try { HK = veHop('', 'kvc'); t('vẽ thật được hộp ô tích', HK.length > 100); }
 catch (e) { t('vẽ thật được hộp ô tích', false, String(e)); }
 if (HK) {
-  const V = haiVung(HK);
-  t('🔴 KHÔNG có ô tích nào tên Admin', V.ngoai.concat(V.trong).indexOf('Admin') < 0, V);
-  /* 🔴 VAI GỐC THÔI LÀ Ô TÍCH (22/09/2026) — anh Thắng: *"Vai trò đang tích lẻ, nên vai trò
-     chung không dùng nữa"*. Nên "Kế toán NCC" KHÔNG còn trong danh sách ô tích; nó là NHÃN. */
-  t('🔴 bảng KVC bày thẳng vai KVC + vai chạy ngang',
-    V.ngoai.indexOf('Quản Lý Khu Vui Chơi') >= 0 && V.ngoai.indexOf('Nhân Viên Marketing') >= 0, V.ngoai);
-  t('🔴 và vai GỐC không còn là ô tích — chỉ là nhãn nhóm',
-    V.ngoai.indexOf('Kế toán NCC') < 0 && V.trong.indexOf('Kế toán NCC') < 0
-      && HK.indexOf('>Kế toán NCC</b>') >= 0, V);
-  t('🔴 và ĐẨY vai khối khác xuống nếp gấp, không bỏ đi',
-    V.ngoai.indexOf('Quản Lý Máy Tự Động') < 0 && V.trong.indexOf('Quản Lý Máy Tự Động') >= 0, V);
-  t('   ô của Văn phòng cũng ở trong nếp',
-    V.ngoai.indexOf('Quản Lý VP Chung') < 0 && V.trong.indexOf('Quản Lý VP Chung') >= 0, V);
-  /* 🔴 CHỐT ĐẮT NHẤT: KHÔNG Ô NÀO ĐƯỢC BIẾN. Anh Thắng: *"1 người có thể nhận 2
-     vai trò của 2 khối khác nhau"* — tích chéo khối phải LÀM ĐƯỢC, không phải chỉ giữ
-     lại mấy ô lỡ tích từ trước. Đếm tổng là chỗ canh điều đó. */
-  /* Tám vai CON của bộ gieo; bốn vai gốc nay là nhãn, không đếm. Suy từ bộ gieo chứ không gõ
-     tay con số — thêm một vai mẫu là bài này đỏ oan. */
-  teq('🔴 tổng số ô vẫn đủ MỌI vai con — chỉ xếp lại, không bớt', VAI_MAU.length,
-    V.ngoai.length + V.trong.length);
-  teq('   và đủ bốn nhãn nhóm, không nhóm nào biến mất', 4,
-    (HK.match(/<b style="font-size:11\.5px;white-space:nowrap"/g) || []).length);
-  const oM = haiVung(veHop('', 'mtd'));
-  t('🔴 bảng MTĐ xếp ngược lại — vai MTĐ ra ngoài, vai KVC vào nếp',
-    oM.ngoai.indexOf('Quản Lý Máy Tự Động') >= 0 && oM.trong.indexOf('Quản Lý Khu Vui Chơi') >= 0, oM);
-  const oL = haiVung(veHop('Quản Lý Máy Tự Động', 'kvc'));
-  t('🔴 vai khối khác ĐANG TÍCH vẫn giữ dấu tích trong nếp',
-    oL.trong.indexOf('Quản Lý Máy Tự Động ✓') >= 0, oL);
-  t('🔴 và nếp ấy MỞ SẴN để không ai tưởng đã mất quyền',
-    /<details class="vaiNgoai" open/.test(veHop('Quản Lý Máy Tự Động', 'kvc')));
-  t('   còn khi không có gì tích thì nếp ĐÓNG cho gọn',
-    /<details class="vaiNgoai"(?! open)/.test(HK), HK);
-  t('🔴 không còn dấu cảnh báo nào trên ô tích chéo khối',
-    veHop('Quản Lý Máy Tự Động', 'kvc').indexOf('⚠') < 0);
+  const V = oTich(HK);
+  t('🔴 KHÔNG có ô tích nào tên Admin', V.indexOf('Admin') < 0, V);
+  teq('🔴 MỌI vai tự tạo, đúng thứ tự bảng 🎭, một danh sách phẳng', VAI_MAU.map(function (x) { return x.ten; }), V);
+  t('🔴 vai GỐC không là ô tích, cũng không là nhãn nhóm', V.indexOf('Kế toán NCC') < 0 && HK.indexOf('>Kế toán NCC</b>') < 0 && HK.indexOf('>Quản lý</b>') < 0, HK.slice(0, 400));
+  t('🔴 không còn nếp "vai khối khác", không còn "chưa có vai con nào"', HK.indexOf('<details') < 0 && HK.indexOf('vai khối khác') < 0 && HK.indexOf('chưa có vai con') < 0, HK);
+  teq('🔴 bảng MTĐ bày y hệt — khối không xếp gì nữa', HK, veHop('', 'mtd'));
+  const oL = oTich(veHop('Quản Lý Máy Tự Động', 'kvc'));
+  t('🔴 vai đang tích giữ dấu tích, đứng đúng chỗ của nó', oL.indexOf('Quản Lý Máy Tự Động ✓') === 1, oL);
+  t('   không dấu cảnh báo trên ô tích', veHop('Quản Lý Máy Tự Động', 'kvc').indexOf('⚠') < 0);
+  /* Vai đang tích mà bảng 🎭 không còn (đã xoá / đổi tên) → vẫn bày, có đánh dấu, không mất lặng lẽ. */
+  const oX = veHop('Vai Đã Xoá, Nhân Viên Marketing', 'kvc');
+  t('🔴 vai đang tích mà không còn trong bảng vẫn hiện, có tích, có đánh dấu "?"', oTich(oX).indexOf('Vai Đã Xoá ✓') >= 0 && /không còn trong bảng/.test(oX), oTich(oX));
+  const oR = veHop('', 'kvc').replace(/VAI_MAU/g, '');
+  const rong = new Function('var CFG={vaiTro:[]};\n' + bocHam('esc') + '\n' + bocBien('VAI_GOC') + '\n' + bocHam('_vaiSelNhieu') + '\nreturn _vaiSelNhieu("", "kvc");')();
+  t('   bảng 🎭 trống → nói rõ đi khai, không bày nút ✓ hết vô nghĩa', /chưa có vai tự tạo nào/.test(rong) && !/vaiNhomHet/.test(rong), rong);
+  /* Bảng 🎭 có hai dòng cùng tên (hoa/thường) — bảng ấy vốn khử trùng lúc Lưu, nhưng sổ cũ có thể còn. */
+  const trung = new Function('var CFG={vaiTro:[{ten:"Nhân Viên Marketing",goc:"Nhân viên"},{ten:"nhân viên marketing",goc:"Nhân viên"},{ten:"  ",goc:"Nhân viên"}]};\n' + bocHam('esc') + '\n' + bocBien('VAI_GOC') + '\n' + bocHam('_vaiSelNhieu') + '\nreturn _vaiSelNhieu("", "kvc");')();
+  teq('   tên trùng (hoa/thường) chỉ một ô, dòng trống bỏ', ['Nhân Viên Marketing'], oTich(trung));
 }
 
 /* ═══ 6. ĐỔI Ô KHỐI THÌ DỰNG LẠI DANH SÁCH VAI NGAY, GIỮ Ô ĐANG TÍCH ═══════════
@@ -262,4 +232,4 @@ if (TRUOT.length) {
   TRUOT.forEach(function (x) { console.log('  · ' + x); });
   process.exit(1);
 }
-console.log('\n✓ SẠCH — ' + DAT + ' phép: ô tích vai xếp theo khối (khối khác vào nếp gấp), cột Khối tích được nhiều.');
+console.log('\n✓ SẠCH — ' + DAT + ' phép: ô tích vai liệt kê thẳng tên vai tự tạo (không gom vai gốc, không nếp khối), cột Khối tích được nhiều.');

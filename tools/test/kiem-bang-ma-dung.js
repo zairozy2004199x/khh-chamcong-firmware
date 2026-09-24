@@ -298,8 +298,10 @@ const MANG_TK = [
   t('🔴 ô Vai trò là HỘP TÍCH, không phải danh sách phải giữ Ctrl',
     h.indexOf('<div data-vai') >= 0 && h.indexOf('type="checkbox" value="Quản Lý Khu Vui Chơi"') >= 0
     && h.indexOf('<select multiple') < 0, h.slice(0, 600));
-  t('   và vai GỐC chỉ là nhãn nhóm, không tích được',
-    h.indexOf('type="checkbox" value="Quản lý"') < 0 && h.indexOf('>Quản lý</b>') >= 0, '');
+  /* 24/09/2026: hộp liệt kê THẲNG tên vai tự tạo, không gom theo vai gốc nữa (anh Thắng: *"Lấy tên
+     vai chứ, lấy cái kế thừa quyền chi đâu"*) — vai gốc không là ô tích, cũng không còn là nhãn nhóm. */
+  t('   và vai GỐC không tích được, cũng không còn là nhãn nhóm',
+    h.indexOf('type="checkbox" value="Quản lý"') < 0 && h.indexOf('>Quản lý</b>') < 0, '');
   t('   nói rõ không tích gì = mọi vai', h.indexOf('Không tích gì = MỌI vai') >= 0);
   /* Cột đầu nay bọc tên mảng trong một `<div>` để nhét thêm ô MÃ TỔNG xuống dưới (anh Thắng
      12/09/2026: *"TUTU MN (6410)"*), nên đừng canh `>Funzone</td>` nữa — canh tên có mặt ở

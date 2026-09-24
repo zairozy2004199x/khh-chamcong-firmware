@@ -153,9 +153,12 @@ BAN.forEach(function (ban) {
     t('🔴 ' + ban + ': không ô tích nào mang tên một vai GỐC',
       ['Quản lý', 'Kế toán cá nhân', 'Kế toán NCC', 'Nhân viên'].every(function (g) { return oHet.indexOf(g) < 0; }), oHet);
     t('   nhưng vẫn có ô tích cho từng vai CON', oHet.indexOf('Quản Lý Khu Vui Chơi') >= 0, oHet);
-    t('   và vai gốc còn đó làm NHÃN NHÓM, không biến mất',
-      d.hop.querySelectorAll('b').map(function (b) { return b.textContent; }).indexOf('Quản lý') >= 0,
+    /* 24/09/2026: không còn nhãn nhóm theo vai gốc — anh Thắng: *"Lấy tên vai chứ, lấy cái kế thừa
+       quyền chi đâu"*. Mọi vai tự tạo liệt kê thẳng. */
+    t('   và vai gốc KHÔNG còn hiện làm nhãn nhóm',
+      d.hop.querySelectorAll('b').map(function (b) { return b.textContent; }).indexOf('Quản lý') < 0,
       d.hop.querySelectorAll('b').map(function (b) { return b.textContent; }));
+    teq('   đủ MỌI vai tự tạo, đúng thứ tự bảng 🎭', VAI_MAU.map(function (x) { return x.ten; }), oHet);
     t('   loại chưa tích gì thì không có dòng nhắc nào', !d.hop.querySelector('[data-vai-sot]'));
   }
 
@@ -213,30 +216,21 @@ BAN.forEach(function (ban) {
     t('   dòng nhắc gỡ theo', !d.hop.querySelector('[data-vai-sot]'), '');
   }
 
-  /* ═══ 5. NÚT "✓ hết / ✕ bỏ" CỦA MỖI NHÓM — CHẠY THẬT ═══════════════════════════
-   * 🔴 CHỈ TRONG HÀNG CHỨA NÚT. Quét cả hộp là bấm ở nhóm Quản lý mà tích luôn Nhân viên —
-   *    nới quyền trong im lặng, và người bấm không hề thấy vì mấy ô kia ngoài tầm mắt. */
+  /* ═══ 5. NÚT "✓ hết / ✕ bỏ" — CHẠY THẬT ═══════════════════════════════════════════
+   * 24/09/2026: hộp còn MỘT hàng phẳng (anh Thắng: *"Lấy tên vai chứ"*), nên "✓ hết" = tích mọi
+   * vai tự tạo, và nó nói rõ thế ở title. Vẫn quét theo HÀNG để không đụng ô chung đang giấu. */
   {
     const d = dung('', 'kvc');
     const nutHet = d.hop.querySelectorAll('button').filter(function (b) {
       return /vaiNhomHet\(this,1\)/.test(b.getAttribute('onclick') || ''); });
-    t(ban + ': mỗi nhóm CÓ vai con đều có nút ✓ hết', nutHet.length >= 2, nutHet.length);
+    teq(ban + ': đúng MỘT nút ✓ hết cho cả hộp', 1, nutHet.length);
     F.het(nutHet[0], 1);
     const sau = d.tich();
-    t('🔴 ' + ban + ': "✓ hết" tích đủ vai bày ra ở ĐÚNG hàng ấy',
-      sau.indexOf('Quản Lý Khu Vui Chơi') >= 0, sau);
-    t('🔴 và KHÔNG đụng nhóm khác — nới quyền lặng lẽ là lỗi nặng nhất ở đây',
-      sau.indexOf('Kế Toán Khu Vui Chơi') < 0 && sau.indexOf('Nhân Viên Cơ Sở Khu Vui Chơi') < 0, sau);
-    /* 🔴 CŨNG KHÔNG VỚI SANG KHỐI KHÁC. "Quản Lý Máy Tự Động" nằm trong nếp gấp "vai khối
-       khác", ngoài hàng — người bấm không nhìn thấy nó, nên tích hộ là nới quyền sang một khối
-       khác trong im lặng. Muốn tích thì mở nếp ra bấm, hoặc bấm "↧ Nở ra các vai con" (nút ấy
-       CÓ với tới cả nhóm, và nó nói rõ là đang nở cả nhóm). */
-    t('🔴 và KHÔNG với sang vai của khối khác đang nằm trong nếp gấp',
-      sau.indexOf('Quản Lý Máy Tự Động') < 0, sau);
+    teq('🔴 ' + ban + ': "✓ hết" tích đủ MỌI vai tự tạo', VAI_MAU.map(function (x) { return x.ten; }).sort(), sau);
     const nutBo = d.hop.querySelectorAll('button').filter(function (b) {
       return /vaiNhomHet\(this,0\)/.test(b.getAttribute('onclick') || ''); });
     F.het(nutBo[0], 0);
-    teq('   "✕ bỏ" gỡ đúng nhóm ấy về trống', [], d.tich());
+    teq('   "✕ bỏ" gỡ hết về trống', [], d.tich());
   }
 
   /* ═══ 5b. 🔴 "✕ bỏ" KHÔNG ĐƯỢC GỠ Ô CHUNG ĐANG GIẤU ═════════════════════════════
