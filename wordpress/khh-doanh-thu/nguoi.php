@@ -153,17 +153,52 @@ function khh_dt_ghep_ten_ds( $ma ) {
 	$v  = $ds[ $ma ];
 	$ra = array();
 	foreach ( is_array( $v ) ? $v : array( $v ) as $x ) {
-		$t = trim( (string) $x );
-		if ( '' !== $t && ! in_array( $t, $ra, true ) ) {
+		/* GIỮ NGUYÊN VĂN, kể cả khoảng trắng đuôi — tên POS có thể có đuôi ấy và mọi phép so là so
+		   từng ký tự (xem `khh_dt_ten_pos_chuan`). trim chỉ để loại tên rỗng. */
+		$t = (string) $x;
+		if ( '' !== trim( $t ) && ! in_array( $t, $ra, true ) ) {
 			$ra[] = $t;
 		}
 	}
 	return $ra;
 }
 
-/** Khai lại cả bảng ghép. Danh sách rỗng = bỏ khai mã đó. */
+/** Dạng so khớp lỏng của một tên cơ sở: bỏ khoảng trắng đầu/cuối, gộp khoảng trắng, không phân biệt hoa thường. */
+function khh_dt_ten_long( $t ) {
+	$t = preg_replace( '/[\s\x{00A0}]+/u', ' ', (string) $t );
+	return function_exists( 'mb_strtolower' ) ? mb_strtolower( trim( $t ), 'UTF-8' ) : strtolower( trim( $t ) );
+}
+
+/**
+ * Tên cơ sở đúng NGUYÊN VĂN như trong số liệu POS, cho một tên người/máy gửi lên.
+ *
+ * 🔴 24/09/2026 anh Thắng: *"tại sao có cơ sở không thêm được"*. Bảng ghép lưu tên qua
+ *    `sanitize_text_field()` — cắt khoảng trắng đầu/cuối, gộp khoảng trắng đôi. Tên quán FABi xuất ra
+ *    hay có khoảng trắng thừa ("… K&H ) "), nên tên đã lưu KHÔNG còn bằng từng ký tự với `cua_hang`
+ *    trong bảng số liệu: ô tích mở lại thì như chưa tích, và `cua_hang IN (...)` không khớp — người ở
+ *    mã ấy mở màn thấy rỗng. Mọi phép so tên cơ sở trong hệ đều là so nguyên văn, nên chỗ này phải LƯU
+ *    NGUYÊN VĂN tên POS: khớp lỏng với danh sách cơ sở đang có rồi trả về đúng chuỗi trong danh sách.
+ *    Không khớp được ai (quán chưa có số liệu) thì giữ tên đã rửa như cũ.
+ */
+function khh_dt_ten_pos_chuan( $t, $ds_pos = null ) {
+	$ds_pos = null === $ds_pos ? ( function_exists( 'khh_dt_ds_cua_hang' ) ? (array) khh_dt_ds_cua_hang() : array() ) : (array) $ds_pos;
+	$t_raw  = (string) $t;
+	if ( in_array( $t_raw, $ds_pos, true ) ) {
+		return $t_raw;
+	}
+	$k = khh_dt_ten_long( $t_raw );
+	foreach ( $ds_pos as $p ) {
+		if ( khh_dt_ten_long( $p ) === $k ) {
+			return (string) $p;
+		}
+	}
+	return sanitize_text_field( $t_raw );
+}
+
+/** Khai lại cả bảng ghép. Danh sách rỗng = bỏ khai mã đó. Tên POS lưu NGUYÊN VĂN (xem `khh_dt_ten_pos_chuan`). */
 function khh_dt_dat_ghep( $bang ) {
-	$sach = array();
+	$sach   = array();
+	$ds_pos = function_exists( 'khh_dt_ds_cua_hang' ) ? (array) khh_dt_ds_cua_hang() : array();
 	foreach ( (array) $bang as $ma => $ten ) {
 		$ma  = strtoupper( sanitize_text_field( (string) $ma ) );
 		if ( '' === $ma ) {
@@ -171,7 +206,7 @@ function khh_dt_dat_ghep( $bang ) {
 		}
 		$ds = array();
 		foreach ( is_array( $ten ) ? $ten : array( $ten ) as $t ) {
-			$t = sanitize_text_field( (string) $t );
+			$t = khh_dt_ten_pos_chuan( (string) $t, $ds_pos );
 			if ( '' !== $t && ! in_array( $t, $ds, true ) ) {
 				$ds[] = $t;
 			}
@@ -732,17 +767,27 @@ function khh_dt_rest_ghep() {
 	ksort( $ma_ds );
 
 	$ghep = array();
+	$pos     = (array) khh_dt_ds_cua_hang();
+	$lech    = array();   // tên đã lưu mà không có trong số liệu POS (khoảng trắng thừa, quán đổi tên…)
 	foreach ( array_keys( $ma_ds ) as $m ) {
+		$ten_ds = khh_dt_ghep_ten_ds( $m );
+		foreach ( $ten_ds as $t ) {
+			if ( ! in_array( $t, $pos, true ) ) {
+				$lech[] = array( 'ma' => $m, 'ten' => $t, 'goi_y' => khh_dt_ten_pos_chuan( $t, $pos ) );
+			}
+		}
 		$ghep[] = array(
 			'ma'     => $m,
-			'ten_ds' => khh_dt_ghep_ten_ds( $m ),
+			'ten_ds' => $ten_ds,
 		);
 	}
 	return array(
 		'ghep'      => $ghep,
-		'cua_hang'  => khh_dt_ds_cua_hang(),
+		'cua_hang'  => $pos,
 		'nguoi'     => $nguoi,
 		'chua_ghep' => khh_dt_ma_chua_ghep(),
+		/* Tên đã lưu KHÔNG khớp nguyên văn tên POS — chính là "tích rồi mà không thêm được". */
+		'ten_lech'  => $lech,
 	);
 }
 
