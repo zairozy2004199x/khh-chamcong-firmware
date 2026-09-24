@@ -69,8 +69,18 @@ teq( '🔴 đơn đang chạy → theo bảng mới', '64199', tk_trong_tep( $ex
 VHCP_Auth::dat_vai_tro( 'Kế toán cá nhân', 'Kế Toán A' );
 $id1 = (string) VHCP_Don::get_don( $m1 )['lines'][0]['id'];
 $r = VHCP_Don::set_line_tk_no( $id1, '6413', 1 );
-t( '🔴 chỉnh TK Nợ dòng đã xuất → chối, nói rõ đã xuất MISA', empty( $r['success'] ) && false !== mb_strpos( (string) $r['error'], 'đã xuất MISA' ), $r );
+t( '🔴 kế toán chỉnh TK Nợ dòng đã xuất → chối, nói rõ đã xuất MISA và chỉ Admin', empty( $r['success'] ) && false !== mb_strpos( (string) $r['error'], 'đã xuất MISA' ) && false !== mb_strpos( (string) $r['error'], 'Chỉ Admin' ), $r );
 teq( '   dòng vẫn giữ mã đóng', '64166', dong_tk( $m1 )['cỏ'] );
+/* Admin sửa được (anh Thắng: "sau admin sửa được không, ví dụ lần đầu gán mã sai") — có nhật ký riêng. */
+VHCP_Auth::dat_vai_tro( 'Admin', 'Anh Thắng' );
+$r = VHCP_Don::set_line_tk_no( $id1, '64188', 1 );
+teq( '🔴 Admin sửa dòng đã xuất → nhận, kèm cờ daXuat', array( '64188', 1 ), array( isset( $r['tkNo'] ) ? $r['tkNo'] : $r, isset( $r['daXuat'] ) ? $r['daXuat'] : null ) );
+teq( '   dòng mang mã Admin vừa sửa', '64188', dong_tk( $m1 )['cỏ'] );
+$lg = json_encode( VHCP_Log::get_log( 20 ), JSON_UNESCAPED_UNICODE );
+t( '🔴 nhật ký ghi "SỬA TK Nợ SAU KHI ĐÃ XUẤT MISA" và nhắc sửa tay MISA', false !== mb_strpos( $lg, 'SỬA TK Nợ SAU KHI ĐÃ XUẤT MISA' ) && false !== mb_strpos( $lg, 'sửa tay bên MISA' ), $lg );
+$ex_sua = VHCP_Misa::export_misa( 'all', 'daxuat', 'all' );
+teq( '   xuất lại đơn đã xuất → mã Admin đã sửa (không lùi về bảng)', '64188', tk_trong_tep( $ex_sua, 'cỏ' ) );
+VHCP_Auth::dat_vai_tro( 'Kế toán cá nhân', 'Kế Toán A' );
 $id2 = (string) VHCP_Don::get_don( $m2 )['lines'][0]['id'];
 teq( '   đơn chưa xuất vẫn chỉnh được', '6413', VHCP_Don::set_line_tk_no( $id2, '6413' )['tkNo'] );
 VHCP_Auth::dat_vai_tro( 'Admin', 'Anh Thắng' );
@@ -78,7 +88,7 @@ VHCP_Auth::dat_vai_tro( 'Admin', 'Anh Thắng' );
 /* ═══ 4. "Gán mã cho dòng cũ" không đụng đơn đã xuất ═══ */
 $g = VHCP_Don::gan_ma_tai_khoan( true );
 teq( '🔴 gán lại mọi dòng: bỏ qua 4 dòng của hai đơn đã xuất', 4, isset( $g['boQuaDaXuat'] ) ? $g['boQuaDaXuat'] : $g );
-teq( '   đơn đã xuất giữ nguyên mã đóng', array( 'cỏ' => '64166', 'điện' => '6412', 'lương' => '6421' ), dong_tk( $m1 ) );
+teq( '   đơn đã xuất giữ nguyên mã đóng (kể cả mã Admin vừa sửa)', array( 'cỏ' => '64188', 'điện' => '6412', 'lương' => '6421' ), dong_tk( $m1 ) );
 teq( '   đơn đang chạy được áp bảng mới (6413 tay → 64199 theo bảng)', '64199', dong_tk( $m2 )['cỏ mới'] );
 
 /* ═══ 5. Lọc TK Nợ theo cây ═══ */

@@ -2593,10 +2593,13 @@ class VHCP_Don {
 				. 'không phải nội dung dòng.' );
 		}
 
-		/* 🔴 ĐƠN ĐÃ XUẤT MISA → mã đã đóng, không sửa (anh Thắng 24/09/2026: *"sau khi bấm xuất misa thì nó sẽ
-		   khóa chi phí đó theo tk nợ được cài sẵn"*). Sửa ở đây là sổ app lệch tệp đã nộp. */
-		if ( 'Đã xuất MISA' === self::state( (string) $cur['ma_don'] ) ) {
-			return VHCP_Util::err( 'Đơn đã xuất MISA — mã TK của dòng đã đóng theo tệp đã nộp, không sửa được.' );
+		/* 🔴 ĐƠN ĐÃ XUẤT MISA → mã đã đóng (anh Thắng 24/09/2026: *"sau khi bấm xuất misa thì nó sẽ khóa chi
+		   phí đó theo tk nợ được cài sẵn"*). Kế toán không sửa; CHỈ ADMIN sửa được — anh hỏi tiếp *"sau admin
+		   sửa được không, ví dụ lần đầu gán mã sai"*: được, nhưng là sửa sổ app sau khi tệp đã nộp, nên ghi
+		   nhật ký riêng và màn nhắc phải sửa tay bên MISA. Bảng mã đổi sau đó vẫn không đụng dòng này. */
+		$da_xuat = ( 'Đã xuất MISA' === self::state( (string) $cur['ma_don'] ) );
+		if ( $da_xuat && 'Admin' !== $vai ) {
+			return VHCP_Util::err( 'Đơn đã xuất MISA — mã TK của dòng đã đóng theo tệp đã nộp. Chỉ Admin sửa được, và phải sửa tay cả trong MISA.' );
 		}
 		$tk  = trim( (string) $tk );
 		$cu  = trim( (string) $cur['tk_no'] );
@@ -2624,12 +2627,13 @@ class VHCP_Don {
 		VHCP_Log::log_action( array(
 			'actor'  => VHCP_Auth::nguoi(),
 			'role'   => $vai,
-			'action' => 'Chỉnh TK Nợ của dòng',
+			'action' => $da_xuat ? 'SỬA TK Nợ SAU KHI ĐÃ XUẤT MISA' : 'Chỉnh TK Nợ của dòng',
 			'target' => (string) $cur['ma_don'] . '#' . (string) $id,
 			'detail' => (string) $cur['nhom'] . ': Nợ ' . ( '' !== $cu ? $cu : '(trống)' )
-				. ' → ' . ( '' !== $tk ? $tk : '(trống)' ) . ( $them ? ' (kế toán tự thêm, chưa có ở ma trận)' : '' ),
+				. ' → ' . ( '' !== $tk ? $tk : '(trống)' ) . ( $them ? ' (kế toán tự thêm, chưa có ở ma trận)' : '' )
+				. ( $da_xuat ? ' — tệp MISA đã nộp KHÔNG tự đổi, phải sửa tay bên MISA' : '' ),
 		) );
-		return VHCP_Util::ok( array( 'tkNo' => $tk ) );
+		return VHCP_Util::ok( array( 'tkNo' => $tk, 'daXuat' => $da_xuat ? 1 : 0 ) );
 	}
 
 	/**

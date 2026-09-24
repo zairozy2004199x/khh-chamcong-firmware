@@ -5460,12 +5460,18 @@
   }
   function _oTkNoDong(l){
     var ten=String(l.nhom||''), cur=String(l.tkNo||'');
+    /* 🔴 ĐƠN ĐÃ XUẤT MISA: mã đã đóng. Không phải Admin thì chỉ ĐỌC (bày ô chọn mà máy chủ chối là mời bấm
+       rồi ăn câu đỏ); Admin thấy ô chọn kèm lời nhắc — sửa là sửa sổ app sau khi tệp đã nộp. */
+    var _daXuat=!!(typeof CUR!=='undefined'&&CUR&&CUR.don&&CUR.don.trangThai==='Đã xuất MISA');
+    if(_daXuat && !_laAdmin()){
+      return '<div style="font-size:11px;margin-top:3px;font-family:Consolas,monospace;color:#6b21a8" title="Đơn đã xuất MISA — mã đã đóng theo tệp đã nộp. Chỉ Admin sửa được.">🔒 Nợ '+(cur?esc(cur):'(tự động)')+'</div>';
+    }
     var rieng=_tkNoCuaLoai(ten), da={}, khac0=[];
     rieng.forEach(function(m){ da[m]=1; });
     /* Mã kế toán vừa tự thêm trên một dòng khác của ĐƠN NÀY cũng bày ra — gõ một lần, dùng cho cả đơn. */
     ((typeof CUR!=='undefined'&&CUR&&CUR.lines)||[]).forEach(function(x){ var m=String((x&&x.tkNo)||'').trim(); if(m && !da[m] && _tkNoTatCa().indexOf(m)<0){ da[m]=1; khac0.push(m); } });
     var khac=_tkNoTatCa().filter(function(m){ return !da[m]; }).concat(khac0).sort();
-    var h='<select onchange="saveLineTkNo(\''+l.id+'\',this.value)" title="TK Nợ của riêng dòng này"'
+    var h='<select onchange="saveLineTkNo(\''+l.id+'\',this.value)" title="'+(_daXuat?'ĐÃ XUẤT MISA — mã đã đóng. Admin sửa ở đây thì phải sửa tay cả trong MISA.':'TK Nợ của riêng dòng này')+'"'
       +' style="font-size:11px;width:116px;margin-top:3px;font-family:Consolas,monospace">'
       +'<option value="">— tự động theo loại —</option>';
     if(rieng.length) h+='<optgroup label="Mã của loại này">'+rieng.map(function(m){return _tkOpt(m,cur);}).join('')+'</optgroup>';
@@ -5487,6 +5493,11 @@
   function saveLineTkNo(id, val){
     var lai=function(){ if(CUR&&CUR.don) openDon(CUR.don.maDon); };
     var them=0;
+    /* Đơn đã xuất MISA: hỏi lại trước — đây là sửa sổ app SAU khi tệp đã nộp (anh Thắng 24/09/2026:
+       *"sau admin sửa được không, ví dụ lần đầu gán mã sai"* → được, nhưng phải biết mình đang làm gì). */
+    if(CUR&&CUR.don&&CUR.don.trangThai==='Đã xuất MISA'){
+      if(!confirm('Đơn này ĐÃ XUẤT MISA — mã TK đã đóng theo tệp đã nộp.\nSửa ở đây chỉ đổi sổ trên app; tệp MISA đã nộp KHÔNG tự đổi, anh/chị phải sửa tay bên MISA.\nVẫn sửa?')){ lai(); return; }
+    }
     if(val===TK_THEM){
       var go=prompt('Mã TK Nợ mới cho dòng này (chỉ chữ số, VD 64211):','');
       if(go===null){ lai(); return; }
@@ -5498,7 +5509,7 @@
     google.script.run.withSuccessHandler(function(r){ loading(false);
       if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); lai(); return; }
       _log('Chỉnh TK Nợ của dòng',(CUR&&CUR.don&&CUR.don.maDon)||'', 'id '+id+' -> '+(r.tkNo||'(tự động)'));
-      toast('ok', r.tkNo ? ('Dòng này nay hạch toán Nợ '+r.tkNo+(them?' (mã kế toán tự thêm)':'')) : 'Đã trả về mã tự động theo loại');
+      toast(r.daXuat?'warn':'ok', (r.tkNo ? ('Dòng này nay hạch toán Nợ '+r.tkNo+(them?' (mã kế toán tự thêm)':'')) : 'Đã trả về mã tự động theo loại')+(r.daXuat?' — ĐƠN ĐÃ XUẤT MISA: nhớ sửa tay trong MISA':''));
       lai();
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);lai();})
       .setLineTkNo(id, val, them);
