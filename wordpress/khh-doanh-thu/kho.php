@@ -578,6 +578,16 @@ function khh_dt_kho_dong( $tu, $den, $co_so ) {
 	return $ra;
 }
 
+/**
+ * Một số có thể null, viết THẲNG vào câu SQL: `NULL` hoặc số. 🔴 KHÔNG đưa null qua `%s` của
+ * `$wpdb->prepare()` — WordPress đổi nó thành '' và MySQL ép '' vào cột double thành 0: "chưa đếm"
+ * biến thành "đếm được 0", lệch kho đỏ cả cột (anh Thắng 24/09/2026). Số thì in bằng %F cho khỏi dính
+ * dấu phẩy thập phân theo locale.
+ */
+function khh_dt_kho_sql_so( $v ) {
+	return null === $v ? 'NULL' : sprintf( '%F', (float) $v );
+}
+
 /** Đọc một số người ta gõ. `null` = CHƯA KHAI, khác hẳn số 0 — 0 là "đếm được 0 cái". */
 function khh_dt_kho_so( $x ) {
 	if ( null === $x || '' === $x ) {
@@ -619,15 +629,13 @@ function khh_dt_kho_ghi( $ngay, $co_so, $mat_hang, $o ) {
 		$wpdb->query(
 			$wpdb->prepare(
 				"INSERT INTO $su (ngay,co_so,mat_hang,nhap,ban_khai,combo_tay,dem,dat_dau,huy,ghi_chu,nguoi,luc)
-				 VALUES (%s,%s,%s,%f,%s,%f,%s,%s,%f,%s,%s,%s)",
+				 VALUES (%s,%s,%s,%f," . khh_dt_kho_sql_so( $dong['ban_khai'] ) . ",%f," . khh_dt_kho_sql_so( $dong['dem'] ) . ','
+				 . khh_dt_kho_sql_so( $dong['dat_dau'] ) . ',%f,%s,%s,%s)',
 				$ngay,
 				$co_so,
 				$mat_hang,
 				null === $dong['nhap'] ? 0 : $dong['nhap'],
-				$dong['ban_khai'],
 				null === $dong['combo_tay'] ? 0 : $dong['combo_tay'],
-				$dong['dem'],
-				$dong['dat_dau'],
 				null === $dong['huy'] ? 0 : $dong['huy'],
 				$dong['ghi_chu'],
 				$dong['nguoi'],
@@ -648,7 +656,9 @@ function khh_dt_kho_ghi_cong_don( $ngay, $co_so, $mat_hang, $o ) {
 	return false !== $wpdb->query(
 		$wpdb->prepare(
 			"INSERT INTO $bang (ngay,co_so,mat_hang,nhap,ban_khai,combo_tay,dem,dat_dau,huy,ghi_chu,nguoi,luc)
-			 VALUES (%s,%s,%s,%f,%s,%f,%s,%s,%f,%s,%s,%s)
+			 VALUES (%s,%s,%s,%f," . khh_dt_kho_sql_so( khh_dt_kho_so( isset( $o['ban_khai'] ) ? $o['ban_khai'] : null ) ) . ',%f,'
+			 . khh_dt_kho_sql_so( khh_dt_kho_so( isset( $o['dem'] ) ? $o['dem'] : null ) ) . ','
+			 . khh_dt_kho_sql_so( khh_dt_kho_so( isset( $o['dat_dau'] ) ? $o['dat_dau'] : null ) ) . ",%f,%s,%s,%s)
 			 ON DUPLICATE KEY UPDATE nhap=VALUES(nhap), ban_khai=VALUES(ban_khai),
 			   combo_tay=VALUES(combo_tay), dem=VALUES(dem), dat_dau=VALUES(dat_dau), huy=VALUES(huy), ghi_chu=VALUES(ghi_chu),
 			   nguoi=VALUES(nguoi), luc=VALUES(luc)",
@@ -656,10 +666,7 @@ function khh_dt_kho_ghi_cong_don( $ngay, $co_so, $mat_hang, $o ) {
 			$co_so,
 			$mat_hang,
 			null === $nhap ? 0 : $nhap,
-			khh_dt_kho_so( isset( $o['ban_khai'] ) ? $o['ban_khai'] : null ),
 			null === $combo ? 0 : $combo,
-			khh_dt_kho_so( isset( $o['dem'] ) ? $o['dem'] : null ),
-			khh_dt_kho_so( isset( $o['dat_dau'] ) ? $o['dat_dau'] : null ),
 			null === ( $h = khh_dt_kho_so( isset( $o['huy'] ) ? $o['huy'] : null ) ) ? 0 : $h,
 			isset( $o['ghi_chu'] ) ? (string) $o['ghi_chu'] : '',
 			isset( $o['nguoi'] ) ? (string) $o['nguoi'] : '',
