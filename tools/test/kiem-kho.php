@@ -364,6 +364,21 @@ $b = khh_dt_kho_bang_ngay( '2026-09-01', $CS );
 phep( '🔴 mặt hàng ngoài danh mục MÀ ĐÃ KHAI thì vẫn hiện, không giấu số đã gõ',
 	null !== dong_cua( $b, 'Bạc xỉu' ) );
 phep( 'còn món ngoài danh mục chưa ai khai thì vẫn ẩn', null === dong_cua( $b, 'Cacao latte' ) );
+/* 🔴 Đã chọn danh mục thì BÀY ĐỦ danh mục (anh Thắng 24/09/2026: tích 21 món chỉ hiện 8): món trong danh mục
+   chưa bán, chưa có tồn, chưa khai vẫn phải có dòng để nhập hàng / đặt mốc; số chưa biết bày null. */
+khh_dt_kho_mh_dat( $CS, array( 'Nước suối', 'Kẹo mới về' ) );
+$b = khh_dt_kho_bang_ngay( '2026-09-01', $CS );
+$moi = dong_cua( $b, 'Kẹo mới về' );
+phep( '🔴 món trong danh mục chưa có gì vẫn có dòng', null !== $moi );
+phep( 'dòng ấy tồn đầu chưa biết (null), máy bán 0, chưa mốc', null === $moi['ton_dau'] && 0.0 === (float) $moi['ban_may'] && false === $moi['co_moc'] && null === $moi['ton_tinh'] );
+phep( 'món ngoài danh mục chưa khai vẫn ẩn', null === dong_cua( $b, 'Cacao latte' ) );
+khh_dt_kho_ghi( '2026-09-01', $CS, 'Kẹo mới về', array( 'nhap' => 12 ) );
+$moi = dong_cua( khh_dt_kho_bang_ngay( '2026-09-01', $CS ), 'Kẹo mới về' );
+phep( 'nhập hàng mới về qua dòng ấy -> mốc 0 + 12 = tồn tính 12', 12.0 === (float) $moi['ton_tinh'] );
+/* Dọn dòng thử để các phép đếm số dòng phía dưới không lệch. */
+$GLOBALS['wpdb']->query( "DELETE FROM " . khh_dt_bang_kho() . " WHERE mat_hang = 'Kẹo mới về'" );
+$GLOBALS['wpdb']->query( "DELETE FROM " . khh_dt_bang_kho_su() . " WHERE mat_hang = 'Kẹo mới về'" );
+khh_dt_kho_mh_dat( $CS, array( 'Nước suối' ) );
 
 /* Danh mục lưu riêng theo cơ sở. */
 khh_dt_kho_mh_dat( 'Cơ sở khác', array( 'Kẹo' ) );

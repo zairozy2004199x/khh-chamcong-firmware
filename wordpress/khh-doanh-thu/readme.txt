@@ -102,6 +102,13 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.61.2 =
+* 🔴 **Đã chọn danh mục thì bảng kho bày đủ danh mục.** Anh Thắng 24/09/2026 tích 21 món ở "Mặt hàng có
+  kho", Lưu, mà bảng chỉ có 8 dòng — *"nhiều hàng mà sao lại không hiện sl trong kho"*. Bảng chỉ gom món
+  có bán hôm nay, có tồn đã biết hay đã khai hôm nay; món trong danh mục chưa rơi vào ba nguồn ấy bị ẩn,
+  tức không có ô để nhập hàng mới về hay đặt mốc. Nay món nào trong danh mục cũng có dòng; số chưa biết
+  bày "—", nhập hàng vào dòng ấy là đặt mốc như cũ. `kiem-kho.php` +4 phép.
+
 = 1.61.1 =
 * 🔴 **Ghép cơ sở: có quán tích rồi mà "không thêm được".** Anh Thắng 24/09/2026. Nguyên nhân: bảng ghép
   lưu tên quán qua bộ rửa chữ (cắt khoảng trắng đầu/cuối, gộp khoảng trắng đôi), trong khi tên quán FABi
