@@ -507,6 +507,7 @@ function khh_dt_phan_tich( $duong_dan, $ten_file = '' ) {
 				$mon[] = array(
 					'n' => $ten_mon,
 					'g' => isset( $o['mon_g'][ $ten_mon ] ) ? $o['mon_g'][ $ten_mon ] : '',
+					'l' => isset( $o['mon_l'][ $ten_mon ] ) ? $o['mon_l'][ $ten_mon ] : '',
 					'q' => $o['mon_q'][ $ten_mon ],
 					'r' => $r,
 				);
@@ -634,6 +635,13 @@ function khh_dt_gop_dong( $dong, $map, &$gop ) {
 		$nm                = trim( (string) $lay( 'nhom_mon' ) );
 		if ( '' !== $nm && '-' !== $nm ) {
 			$o['mon_g'][ $tm ] = $nm;
+		}
+		/* Loại món (Vé / Đồ ăn / Đồ uống) — để tách "sale vé" với "bán lẻ" theo đúng cột FABi, không
+		   phải đoán qua tên. Anh Thắng 23/09/2026: *"tách giúp anh 2 ô là tiền sale vé và tiền sale
+		   bán lẻ"*. Dòng nạp trước bản này không có 'l' -> tách theo tên/nhóm (`khh_dt_ve_la_ve`). */
+		$lm = trim( (string) $lay( 'loai_mon' ) );
+		if ( '' !== $lm && '-' !== $lm ) {
+			$o['mon_l'][ $tm ] = $lm;
 		}
 	}
 	unset( $o );

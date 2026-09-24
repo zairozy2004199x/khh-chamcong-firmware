@@ -153,6 +153,33 @@ t('🔴 mỗi ô tự in nhãn của nó ra bằng data-nhan',
   (dt.match(/content:attr\(data-nhan\)/g) || []).length >= 3);
 t('ô phải gõ cao 44px và chữ 16px trên điện thoại',
   /\.o-go input\{[^}]*min-height:44px/.test(dt) && /\.o-go input\{[^}]*font-size:16px/.test(dt));
+/* 23/09/2026 anh Thắng (điện thoại): "cho ô nhỏ lại cho thành 1 hàng" · "cho số theo máy đếm phía sau ô
+   nhập, nếu lệch ở giữa" — mỗi ô gõ một dòng: ô gõ · lệch · số máy tương ứng, xếp bằng order theo data-nhan. */
+/* 23/09/2026 anh Thắng (ảnh 23:51): hai số lẻ/combo chen vào giữa làm dòng "Hàng tồn còn" lệch phải — "chiều
+   dài ô bằng chữ để sắp lại cho gọn" -> LƯỚI 3 cột cố định, cột ô gõ rộng bằng chữ nhãn. */
+t('🔴 thẻ là LƯỚI 3 cột: cột ô gõ cố định (~124px), lệch, số máy', /\.bang-the tr\{display:grid;grid-template-columns:1[0-4]\dpx 1fr 1fr/.test(dt));
+t('🔴 SL hàng bán · Lệch khai · Máy bán tổng đúng cột 1·2·3', /"SL hàng bán"\]\{order:20;grid-column:1\}/.test(dt) && /"Lệch khai"\]\{order:21;grid-column:2\}/.test(dt) && /"Máy bán tổng"\]\{order:22;grid-column:3\}/.test(dt));
+t('🔴 Hàng tồn còn · Lệch kho · Tồn tính đúng cột 1·2·3', /"Hàng tồn còn"\]\{order:30;grid-column:1\}/.test(dt) && /"Lệch kho"\]\{order:31;grid-column:2\}/.test(dt) && /"Tồn tính"\]\{order:32;grid-column:3\}/.test(dt));
+t('Nhập cột 1, Tồn đầu cột 3 (cột lệch trống); ghi chú trải hết', /"Nhập"\]\{order:10;grid-column:1\}/.test(dt) && /"Tồn đầu"\]\{order:12;grid-column:3\}/.test(dt) && /\.o-ghi\{order:40;grid-column:1 \/ -1\}/.test(dt));
+t('🔴 máy bán lẻ / theo combo có chỗ riêng, không chen vào lưới', /"Máy bán lẻ"\]\{order:23;grid-column:1/.test(dt) && /"Theo combo"\]\{order:24;grid-column:2 \/ -1/.test(dt));
+t('số máy canh phải, lệch canh giữa', /\.o-may\{text-align:right\}/.test(dt) && /\.o-lech\{text-align:center\}/.test(dt));
+/* Nhãn cột đổi theo lời anh: "NV khai bán" -> "SL hàng bán", "NV đếm còn" -> "Hàng tồn còn" — CSS order bám
+   theo data-nhan nên đổi nhãn ở JS mà quên CSS là bố cục điện thoại vỡ im lặng. */
+t("🔴 JS dùng đúng nhãn 'SL hàng bán' và 'Hàng tồn còn' mà CSS order bám theo", /oNhap\('ban_khai', 'SL hàng bán'/.test(boCC) && /oNhap\('dem', 'Hàng tồn còn'/.test(boCC) && !/NV khai bán|NV đếm còn/.test(boCC));
+t("và các nhãn số máy khớp CSS", /oMay\('Tồn đầu'/.test(boCC) && /oMay\('Máy bán tổng'/.test(boCC) && /oMay\('Tồn tính'/.test(boCC));
+
+/* 23/09/2026 anh Thắng: "cho các ô này nhỏ lại, để tránh lệch cột" — trên máy tính ô gõ số phải hẹp,
+   không để trình duyệt tự cho ~150px. Luật này nằm NGOÀI @media (luật điện thoại đè lại thành 100%). */
+{
+  const cssGoc = css;
+  /* Cắt TRƯỚC khối điện thoại (đầu tệp còn một @media prefers-color-scheme, không phải mốc). */
+  const iDT = cssGoc.search(/@media\s*\(max-width:\s*560px\)/);
+  const truocMedia = cssGoc.slice(0, iDT < 0 ? cssGoc.length : iDT);
+  const m = truocMedia.match(/\.khh-dt \.o-go input\{([^}]*)\}/);
+  t('🔴 ô gõ số trong bảng kho có bề rộng cố định hẹp trên máy tính', !!m && /width:(\d+)px/.test(m[1]) && parseInt(/width:(\d+)px/.exec(m[1])[1], 10) <= 80);
+  t('và canh phải kiểu số', !!m && /text-align:right/.test(m[1]));
+  t('ô ghi chú rộng hơn và canh trái', /\.o-go input\[data-kho="ghi_chu"\]\{[^}]*width:1\d\dpx[^}]*text-align:left/.test(truocMedia));
+}
 t('thôi cuộn ngang khi đã thành thẻ', /\.bang-the\{overflow-x:visible\}/.test(dt));
 
 /* 🔴 MỌI ô trong bảng kho phải mang data-nhan. Thiếu một ô là trên điện thoại nó hiện ra một

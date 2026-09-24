@@ -57,6 +57,13 @@ phep( 'WordPress có edit_posts thì được nạp', true === khh_dt_duoc_nap()
 reset_all(); pin( 'duyet' );
 phep( '🔴 PIN vai "duyet" được nạp', true === khh_dt_duoc_nap() );
 
+/* 2b. 🔴 PIN vai TRỐNG (đẩy sang mà chưa cấp) -> quyền là '' chứ KHÔNG lùi về 'nhap' (1.58.0). */
+reset_all(); pin( '' );
+phep( '🔴 PIN chưa cấp vai -> quyền "" (không phải "nhap")', '' === khh_dt_quyen_cua() );
+phep( 'và không được nạp', true !== khh_dt_duoc_nap() );
+reset_all(); pin( 'admin' );
+phep( 'PIN mang vai lạ -> cũng là ""', '' === khh_dt_quyen_cua() );
+
 /* 3. 🔴 PIN vai nhập -> KHÔNG, và có lý do. */
 reset_all(); pin( 'nhap' );
 $r = khh_dt_duoc_nap();

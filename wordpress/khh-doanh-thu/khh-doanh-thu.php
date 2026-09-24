@@ -3,7 +3,7 @@
  * Plugin Name:       K&H — Báo cáo doanh thu FABi
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Nạp file "Báo cáo bán hàng" xuất từ máy POS FABi (iPOS) và dựng báo cáo doanh thu theo ngày, cửa hàng, khung giờ, hình thức thanh toán, tại chỗ/mang về và món bán chạy. Có sẵn đường nối API FABi để bật khi iPOS cấp khoá.
- * Version:           1.57.0
+ * Version:           1.59.5
  * Requires at least: 5.8
  * Requires PHP:      7.2
  * Author:            K&H
@@ -26,7 +26,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'KHH_DT_VERSION', '1.57.0' );
+define( 'KHH_DT_VERSION', '1.59.5' );
 define( 'KHH_DT_FILE', __FILE__ );
 define( 'KHH_DT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KHH_DT_URL', plugin_dir_url( __FILE__ ) );
@@ -49,6 +49,7 @@ require_once KHH_DT_DIR . 'momo-ipn.php';
 require_once KHH_DT_DIR . 'momo-phi.php';
 require_once KHH_DT_DIR . 'hop-thu.php';
 require_once KHH_DT_DIR . 'kho.php';
+require_once KHH_DT_DIR . 've-khach.php';
 
 /** Đường dẫn ngoài của báo cáo, ví dụ khmatrix.com/doanh-thu-hcm */
 function khh_dt_slug() {
@@ -119,6 +120,10 @@ function khh_dt_kich_hoat() {
 	);
 	khh_dt_tao_bang_bc();
 	khh_dt_tao_bang_nguoi();
+	/* Một lần: đánh dấu những vai do lối cũ (trước 1.58.0) cấp tự động, để tab Quản trị nhắc kiểm. */
+	if ( function_exists( 'khh_dt_danh_dau_vai_cu' ) ) {
+		khh_dt_danh_dau_vai_cu();
+	}
 	khh_dt_tao_bang_sk();
 	khh_dt_tao_bang_momo();
 	khh_dt_tao_bang_momo_ipn();
@@ -367,6 +372,8 @@ function khh_dt_rest_cau_hinh() {
 		'nap_luc'   => isset( $meta['nap_luc'] ) ? $meta['nap_luc'] : '',
 		'ky'        => isset( $meta['ky'] ) ? $meta['ky'] : '',
 		'duoc_ghi'  => khh_dt_duoc_ghi(),
+		/* '' | 'nhap' | 'duyet' — để màn nói được "chưa được cấp quyền nhập" thay vì chỉ khoá ô. */
+		'vai'       => khh_dt_quyen_cua(),
 		'duoc_nap'  => true === khh_dt_duoc_nap(),
 		'quan_tri'  => khh_dt_duoc_quan_tri(),
 		'cua_toi'   => khh_dt_co_so_mac_dinh(),
@@ -377,7 +384,9 @@ function khh_dt_rest_cau_hinh() {
 		   REST `dang-xuat` (đóng phiên PIN, không đụng tới đăng nhập WordPress) — hai lối khác
 		   nhau, nên phải có cả hai chứ không dùng chung một đường.
 		   ⚠️ `wp_logout_url()` mang theo nonce, nên nó phải là LINK người bấm; gọi bằng fetch là
-		   WordPress chối. Và nonce gắn với phiên hiện tại nên không cache lại được ở máy. */
+		   WordPress chối. Và nonce gắn với phiên hiện tại nên không cache lại được ở máy.
+		   Từ 1.58.2 đây chỉ là đường LÙI: nút Thoát đi qua REST `dang-xuat` (máy chủ gọi
+		   `wp_logout()`), chỉ khi REST hỏng màn mới nhảy sang link này. */
 		'link_ra'   => esc_url_raw( wp_logout_url( khh_dt_link() ) ),
 		'chua_ghep_co_so' => in_array( KHH_DT_CHUA_GHEP, $cua_ds, true ),
 		'co_api'    => (bool) get_option( 'khh_dt_api_token' ),

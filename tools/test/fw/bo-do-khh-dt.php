@@ -29,7 +29,7 @@ function khh_dt_test_dung_bang() {
 			ho_ten TEXT NOT NULL DEFAULT '',
 			pin TEXT NOT NULL DEFAULT '',
 			coso_ma TEXT NOT NULL DEFAULT '',
-			vai TEXT NOT NULL DEFAULT 'nhap',
+			vai TEXT NOT NULL DEFAULT '',
 			cap_nhat TEXT NULL )"
 	);
 	$wpdb->exec_raw(

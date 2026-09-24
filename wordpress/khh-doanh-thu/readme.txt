@@ -65,8 +65,13 @@ Nên cột **Thực nộp** lấy từ sao kê ngân hàng:
 
 Cửa hàng trưởng KHÔNG cần tài khoản WordPress. Ở trang **Nhân sự** của plugin Chấm công có cột
 **Quản trị báo cáo cơ sở** — bấm *Đẩy* là người ấy có mặt trong sổ người dùng của báo cáo, mang
-theo tên · PIN · mã cơ sở · vai. Họ mở link báo cáo, gõ chính PIN chấm công đang dùng hằng ngày,
-và chỉ thấy cơ sở của mình.
+theo tên · PIN · mã cơ sở. Họ mở link báo cáo, gõ chính PIN chấm công đang dùng hằng ngày, và chỉ
+thấy cơ sở của mình.
+
+**Đẩy sang chỉ là đẩy người — vai cấp ở đây.** Người vừa đẩy sang là *chưa cấp*: vào xem được,
+chưa nhập được. Vào **Quản trị → Người đẩy từ trang Nhân sự — cấp vai**, chọn *Nhập báo cáo* (cửa
+hàng trưởng) hay *Nhập và duyệt* (kế toán, quản lý: xem tổng mọi cơ sở, nạp được file POS) rồi Lưu.
+Đẩy lại bên Nhân sự không xoá vai đã cấp.
 
 Ai phụ trách **hai cơ sở** thì tích đủ hai cơ sở cho họ ở trang Nhân sự — bên này tự theo, và họ
 nhập báo cáo được cho cả hai. Còn nếu một điểm bán bị máy POS tách thành hai quán (khu vui chơi
@@ -96,6 +101,175 @@ code, không lên GitHub. Khi có tài liệu iPOS, chỗ duy nhất phải sử
 chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()`.
 
 == Changelog ==
+
+= 1.59.5 =
+* **Thẻ kho trên điện thoại thành lưới 3 cột cố định.** Anh Thắng 23/09/2026 gửi ảnh: hai số "Máy bán lẻ /
+  Theo combo" chen vào giữa làm dòng "Hàng tồn còn" lệch sang phải — *"chiều dài ô bằng chữ để sắp lại
+  cho gọn"*. Cột 1 là ô gõ rộng đúng bằng chữ nhãn (~124px), cột 2 lệch (canh giữa), cột 3 số máy (canh
+  phải); Nhập ↔ Tồn đầu, SL hàng bán ↔ Lệch khai ↔ Máy bán tổng, Hàng tồn còn ↔ Lệch kho ↔ Tồn tính;
+  hai số lẻ/combo thành một dòng chữ nhỏ riêng. `kiem-kho-man.js` viết lại 6 phép bố cục.
+
+= 1.59.4 =
+* **Thẻ kho trên điện thoại xếp lại: mỗi ô gõ một dòng — ô gõ · lệch · số máy.** Anh Thắng 23/09/2026:
+  *"cho ô nhỏ lại cho thành 1 hàng xem gọn hơn"* · *"cho số theo máy đếm phía sau ô nhập, nếu lệch ở
+  giữa"*. Ô gõ còn ~nửa dòng (trước cả dòng), bên phải là con số máy tương ứng (Nhập ↔ Tồn đầu; SL hàng
+  bán ↔ Máy bán tổng; Hàng tồn còn ↔ Tồn tính), lệch đứng giữa. Thẻ ngắn đi gần nửa. Bảng máy tính
+  không đổi.
+* **Đổi tên hai cột**: "NV khai bán" → **"SL hàng bán"**, "NV đếm còn" → **"Hàng tồn còn"**.
+* **Sale phụ khai được tới từng LOẠI VÉ, riêng từng cửa hàng.** Anh Thắng 23/09/2026: *"cứ Sale … = loại vé
+  (sl) × tiền tại mỗi cửa hàng, khác cách tính sale phụ khác"*. Bảng *Bóc tách vé → khách* của cửa hàng
+  đang chọn có cột mới **"Sale phụ mỗi vé (đ)"** bên cạnh "Khách mỗi vé": combo này 20.000, combo kia
+  15.000 đều được. Để trống là theo số của **nhóm món** (khối Sale vé / Bán lẻ / Sale phụ, ô ghi sẵn
+  "nhóm: 20.000"); gõ **0** là loại vé ấy không có phụ dù nhóm có. Sale phụ = Σ số vé × tiền phụ của
+  chính vé ấy.
+* Bài kiểm: `kiem-hang-ban-chot.php` +5 phép (tên vé đè nhóm, 0 loại vé ra, xoá về theo nhóm, riêng
+  quán), `kiem-ve-khach.php` +3, bài màn +2; `kiem-kho-man.js` +7 phép canh bố cục thẻ và tên cột.
+
+= 1.59.3 =
+* 🔴 **Sale phụ = số vé × tiền phụ mỗi vé.** Anh Thắng 23/09/2026 chỉnh lại: *"Cái này là chiết khấu 20k
+  cho 1 đơn vé combo 80k"* — trong giá vé combo 80.000đ có 20.000đ là phần phụ (chiết khấu / quà kèm),
+  sổ kế toán tách riêng. Cột "Sale phụ?" (ô tích) ở Quản trị đổi thành ô số **"Sale phụ mỗi vé (đ)"**
+  theo nhóm món: gõ 20000 ở hàng *VÉ COMBO.* là 36 combo ra 720.000đ; nhóm để trống = không có phụ.
+  Sale vé và Bán lẻ không đổi. Cấu hình ô tích của 1.59.0/1.59.1 bị bỏ (nghĩa cũ cộng cả tiền nhóm,
+  giữ lại là ra số sai); chưa khai thì Sale phụ = 0, không đoán.
+* `kiem-hang-ban-chot.php` viết lại phần sale phụ (36 × 20.000 = 720.000; ô tích cũ rửa ra rỗng; theo
+  cửa hàng), bài màn +2 phép.
+
+= 1.59.2 =
+* **Ô gõ số trong bảng Kho hàng hoá thu hẹp** (64px, canh phải; ô ghi chú 120px). Anh Thắng 23/09/2026:
+  *"cho các ô này nhỏ lại, để tránh lệch cột"* — ô text mặc định của trình duyệt rộng ~150px, tám cột là
+  bảng tràn ngang, phải kéo thanh cuộn mới thấy cột Lệch. Trên điện thoại vẫn là thẻ dọc, ô 100% như cũ.
+  `kiem-kho-man.js` +3 phép canh bề rộng.
+
+= 1.59.1 =
+* 🔴 **Vé chưa khai TẠM TÍNH 1 khách mỗi vé, không bỏ qua.** Anh Thắng 23/09/2026 nhìn Lotte Gò Vấp: hai
+  combo tên khác Aeon Tân Phú ("… + THẠCH", "… + BIM BIM") chưa được khai, máy chỉ cộng 12 + 2 = 14 và
+  bày như số thật — *"bên khách lại lấy khách vào sai… phải 28 chứ"*. Nay 10 + 12 + 4 + 2 = 28, ô ghi
+  **"Khách vào (POS) · tạm tính"** và dòng dưới nói rõ vé nào đang tạm 1 khách/vé; khai 2 cho combo
+  là số lên 42. Ngày không có vé nào mới bày "—".
+* **Khối Bóc tách vé ở Quản trị có bảng "vé chưa khai" GOM MỌI CƠ SỞ** (90 ngày), kèm cơ sở bán, số đã
+  bán, và **điền sẵn gợi ý** — sửa nếu cần rồi bấm Lưu một lần là xong cả chuỗi, không phải dò từng
+  quán. Gợi ý nay **đếm chữ chỉ người** trong tên vé ("trẻ em", "người lớn", "bé", "phụ huynh"):
+  "TRẺ EM + NGƯỜI LỚN + THẠCH" → 2 (thạch không phải người); không có chữ chỉ người thì dấu "+" → 2,
+  còn lại → 1.
+* 🔴 **Mỗi cửa hàng một cấu hình.** Anh Thắng 23/09/2026: *"Mỗi cửa hàng 1 cấu hình đi. Để cho dễ"* —
+  *"trong tài khoản admin… cứ chọn cửa hàng để cấu hình tránh lẫn lộn"*. Hai khối ở Quản trị (Bóc tách
+  vé → khách; Sale vé / Bán lẻ / Sale phụ) dùng **một ô chọn cửa hàng** chung: chọn quán rồi khai, Lưu
+  là ghi riêng cho quán ấy; đổi ô chọn là cả hai khối tải lại. Bảng chung của bản 1.59.0 (nếu đã khai)
+  chỉ còn là **mặc định cho quán chưa khai riêng**, và màn ghi rõ ô nào đang *"thừa bảng chung"*. Khối
+  bóc tách nhắc **quán khác còn vé chưa khai** (bấm tên quán là chuyển sang), và vé chưa khai của quán
+  đang chọn được **điền sẵn gợi ý** để một lần Lưu là xong quán ấy. Cổng REST `ve-khach` và `nhom-ve`
+  nay đòi `cua_hang` khi ghi.
+* Bài kiểm `kiem-ve-khach.php` viết lại phần tạm tính và theo cửa hàng (đúng ca Gò Vấp 28 → 42; khai ở
+  Gò Vấp không lẫn sang Tân Phú; sổ phẳng cũ là bảng chung; riêng đè chung), 45 phép; `kiem-hang-ban-chot.php`
+  +8 phép theo cửa hàng; hai bài màn +10 phép.
+
+= 1.59.0 =
+* 🔴 **Bóc tách vé → khách vào.** Anh Thắng 23/09/2026: *"mình sẽ bóc tách sẵn cho nhân viên, giờ áp
+  dụng cho gian Tàu trước"* — *"nếu vé là combo VÉ TRẺ EM + NGƯỜI LỚN tính là 2 người, còn nếu nó là
+  trẻ hoặc người lớn riêng thì là 1 người"*. Trước đây ô "Tổng khách vào" (đếm ở cửa) chỉ so được với
+  "Số vé bán", mà một vé combo là hai người qua cửa nên số máy luôn thấp hơn số đếm, cột lệch đỏ oan.
+* Tab **Quản trị → Bóc tách vé → khách vào** (chỉ văn phòng: vai duyệt / tài khoản biên tập): chọn cơ
+  sở (mặc định gian Tàu đầu tiên), bảng món đã bán 90 ngày, vé xếp trước, ô **khách mỗi vé** có gợi ý
+  (vé có dấu "+" → 2, vé lẻ → 1), nút *Điền gợi ý vào ô trống*, Lưu. Khai theo **tên món**, dùng chung
+  mọi cơ sở bán món ấy. Ô trống = không tính; **0** = vé không ứng với người.
+* Tab **Nhập báo cáo** có thêm ô máy **Khách vào (POS)** = Σ vé × khách mỗi vé; cơ sở chưa bóc tách thì
+  bày "—" (không bày 0). Lệch nay so **khách đếm ở cửa với khách máy**; chưa bóc tách thì vẫn so với
+  số vé như cũ. Vé có bán mà **chưa khai được kể tên** ngay dưới hàng số máy — cộng thiếu một loại là
+  lệch đổ oan cho nhân viên.
+* Tab **Đối soát** cột "Khách − vé" thành **"Khách − máy"**, dùng khách máy khi có, lùi về số vé khi chưa.
+* Cổng REST mới `khh-dt/v1/ve-khach` GET/POST, gác bằng quyền nạp file.
+* 🔴 **Hàng bán theo máy — nhân viên soát tại chỗ, lệch mới nhập.** Anh Thắng 23/09/2026: *"hiện số
+  lượng hàng bán và thành tiền để nhân viên kiểm kho bán được và chốt bán thực tế đúng máy POS không,
+  nếu lệch nhân viên mới nhập, đúng rồi thì để nguyên, chốt đúng xong thì bấm lưu và chốt, để kế toán
+  xác nhận"*. Tab Nhập báo cáo có bảng **Hàng bán theo máy POS**: từng món với nhóm/loại, SL máy,
+  thành tiền, ô **SL thực (nếu lệch)** và cột lệch tính ngay. Ô trống = đúng máy; chỉ dòng có gõ số
+  khác máy mới được lưu (cột mới `mon_thuc` trong bảng báo cáo ngày, đổi cũng vào lịch sử sửa). Tab
+  Đối soát thêm cột **Hàng bán**: *khớp máy* / *N món lệch* (rê chuột thấy máy bao nhiêu, thực bao
+  nhiêu) / *chưa soát*.
+* 🔴 **Ba ô tiền tách theo nhóm món: Sale vé · Sale bán lẻ · Sale phụ.** Anh Thắng 23/09/2026: *"tách
+  giúp anh 2 ô là tiền sale vé và tiền sale bán lẻ"*, rồi ô thứ ba *"Tiền Sale Phụ"* (vé lẻ + đồ đóng
+  sẵn, tức mọi thứ trừ vé combo chính), và *"thêm cấu hình tích trong cấu hình để tính loại nào sale
+  vé, loại nào sale bán lẻ"*. Tab **Quản trị → Sale vé / Bán lẻ / Sale phụ** liệt kê mọi **nhóm món**
+  FABi từng bán (90 ngày, mọi cơ sở) với loại món, số lượng, tiền, và hai cột tích **Sale vé?** /
+  **Sale phụ?**. Sale vé = nhóm đã tích; **bán lẻ = doanh thu máy − vé** (luôn cộng lại đúng doanh thu
+  máy); sale phụ = cộng các nhóm đã tích cột phụ. Chưa tích gì thì tạm theo cột *Loại món* của FABi
+  (Vé / Đồ ăn / Đồ uống), dòng nạp trước bản này không có cột ấy thì đoán qua tên/nhóm. Ba ô hiện ở
+  hàng số máy tab Nhập báo cáo và ba cột ở Đối soát. Trình đọc file FABi từ nay ghi thêm *Loại món*
+  vào từng dòng món.
+* Cổng REST mới `khh-dt/v1/nhom-ve` GET/POST (quyền nạp file).
+* Bài kiểm: `kiem-ve-khach.php` mới (chạy thật: combo 2 + lẻ 1 = 32 khách, chưa khai → null, vé chưa
+  khai được kể tên, khai 0, xoá bằng '', số âm bị chối, route gác quyền), `kiem-ve-khach-man.js` mới
+  canh ba màn; `kiem-hang-ban-chot.php` mới (37 phép: tách tiền theo nhóm đã tích đúng ba con số của
+  anh 3.420.000 / 170.000 / 710.000, rửa số thực, lệch so lại với máy, chưa soát ≠ soát rồi khớp hết,
+  lưu/đọc mon_thuc), `kiem-hang-ban-chot-man.js` mới (20 phép canh ba màn).
+
+= 1.58.3 =
+* 🔴 **Vai cấp tự động theo lối cũ được đánh dấu để kiểm.** Anh Thắng 23/09/2026 gửi ảnh chị Thảo —
+  cửa hàng trưởng vào bằng PIN — thấy doanh thu cả 15 quán và có nút Nạp báo cáo: *"nhân viên quản
+  lý cửa hàng nào thì hiện doanh thu cửa hàng của mình thôi"*. Máy chủ vốn cắt số liệu theo cơ sở
+  ngay trong câu truy vấn; chị thấy hết vì mang vai **duyệt** do bên Chấm công tự suy trước 1.58.0
+  (vai chấm công quy về Quản lý), mà duyệt nghĩa là xem tổng. 1.58.0 cố ý không đụng hàng cũ nên
+  vai suy sai vẫn nằm đó im lặng.
+* Lần đầu chạy bản này, mọi người **đang có vai** (chỉ có thể là do lối cũ cấp) được ghi vào danh
+  sách "cần kiểm". Bảng Phân quyền bày cảnh báo đầu bảng kể tên họ, ai đang duyệt thì tô đỏ *"đang
+  xem mọi cơ sở"*, từng hàng ghi *"vai cấp tự động lối cũ — kiểm rồi Lưu"*. Bấm **Lưu** (kể cả giữ
+  nguyên vai) là hết cờ; đẩy lại từ Nhân sự không xoá cờ. **Không tự hạ vai ai** — kế toán ở mã văn
+  phòng cũng nằm trong danh sách, hạ nhầm là người cần xem tổng lại thấy rỗng.
+* Cột cơ sở của người vai duyệt nay ghi rõ *"xem tổng MỌI cơ sở"*, và nếu mã của họ là một quán thì
+  nhắc *"nếu là cửa hàng trưởng thì chọn Nhập báo cáo"*.
+* 🔴 **Nút "Lọc" cạnh hai ô ngày Từ/đến** ở tab Doanh thu và tab Đối soát. Anh Thắng 23/09/2026:
+  *"chọn ngày nó ko tự ra, thêm nút tìm kiếm để nó chạy ngày lọc"*. Bấm Lọc (hoặc Enter trong ô
+  ngày) là đọc cả hai ô một lượt rồi chạy, kể cả khi giá trị không đổi; thiếu một ô thì báo thay vì
+  đi hỏi một khoảng dở. Ô ngày vẫn tự chạy khi chọn xong như 1.44.
+* 🔴 **Tab Doanh thu không còn nuốt lượt gọi sau.** Nguyên nhân thật của chuyện "chọn ngày không
+  ra": `tai()` gặp lượt đang tải là bỏ luôn lượt mới — đổi Từ rồi đổi đến ngay là lượt hai mất im
+  lặng, thanh ngày ghi khoảng mới mà số vẫn của khoảng cũ. Nay đánh số lượt như tab Đối soát: lượt
+  về trễ thì bỏ, lượt mới nhất luôn được vẽ.
+* Bài kiểm: `kiem-day-bao-cao.php` +8 phép (đánh dấu một lần, cờ theo người, Lưu là hết cờ, đẩy
+  lại không xoá cờ, gỡ người mất cờ), `kiem-phan-quyen-pin-man.js` +4 phép, `kiem-o-ngay.js` +12 phép
+  (nút Lọc hai tab, `tai()` không bỏ rơi lượt, `locTay` chạy thật ba tình huống).
+
+= 1.58.2 =
+* 🔴 **Thoát không còn nhảy sang trang WordPress.** Anh Thắng 23/09/2026: *"đăng xuất ra nó nhảy ra
+  trang wordpress"*. Người vào bằng tài khoản trước đây thoát qua link `wp_logout_url()` → trình
+  duyệt bị đưa sang wp-login.php và (tuỳ nonce, tuỳ plugin khác, tuỳ link đẹp) không quay lại. Nay
+  nút **Thoát** dùng chung cho cả hai lối: máy chủ huỷ phiên WordPress (`wp_logout()`) lẫn phiên PIN
+  ngay trong lượt REST `dang-xuat`, màn tải lại **đúng địa chỉ đang đứng** và hiện ô gõ PIN, kèm
+  link *đăng nhập bằng tài khoản* cho người văn phòng. Link WordPress cũ chỉ còn là đường lùi khi
+  REST bị plugin bảo mật chặn.
+* `kiem-thoat-dang-nhap.py` viết lại theo lối mới (một nút, máy chủ tự thoát, tải lại trang sau khi
+  huỷ phiên WordPress vì nonce cũ đã chết).
+
+= 1.58.1 =
+* **Bảng "Phân quyền nộp báo cáo" lên ĐẦU tab Quản trị.** Anh Thắng 23/09/2026 mở tab ra thấy Ghép cơ
+  sở choán cả màn và hỏi *"Tab Phân Quyền bên Fabi chưa có"* — bảng cấp vai (1.58.0) nằm dưới, phải
+  cuộn mới thấy. Việc làm thường (cấp vai) đứng trên việc làm một lần (ghép mã); tiêu đề đổi thành
+  "Phân quyền nộp báo cáo — người đẩy từ trang Nhân sự". Bài kiểm tĩnh thêm 2 phép canh thứ tự.
+
+= 1.58.0 =
+* 🔴 **Đẩy người từ trang Nhân sự sang CHỈ LÀ ĐẨY NGƯỜI — vai (nhập / duyệt) cấp ở tab Quản trị bên
+  này.** Anh Thắng 23/09/2026: *"đẩy dữ liệu nhân sự là cửa hàng trưởng từ danh sách nhân sự qua
+  để anh phân quyền nộp báo cáo, vẫn như chi phí, chỉ đẩy nhân sự qua, chứ không phân quyền nhiệm
+  vụ trong đó, mà do trang tự phân quyền"*. Trước đây bên chấm công tự suy vai (Admin/Quản lý/Kế
+  toán → duyệt, còn lại → nhập) và mỗi lần đẩy lại là **ghi đè** vai bên này: ai đẩy sang là nhập
+  được ngay chưa ai cấp, và cấp xong bên kia sửa hồ sơ một cái (đổi PIN, thêm cơ sở) là vai bay.
+* **Người mới đẩy sang mang vai "chưa cấp"**: đăng nhập được bằng PIN, thấy cơ sở mình, nhưng mọi ô
+  nhập khoá và dòng trạng thái nói thẳng *"chỉ xem — chưa được cấp quyền nhập, nhờ quản trị cấp ở
+  tab Quản trị"*. Trường `vai` bên chấm công gửi kèm (bản cũ vẫn gửi) **bị bỏ qua**.
+* **Tab Quản trị có bảng mới "Người đẩy từ trang Nhân sự — cấp vai"**: từng người với mã, cơ sở (mã
+  nhân sự + tên POS đã ghép, hoặc nhắc chưa ghép), ô chọn *Chưa cấp (chỉ xem) · Nhập báo cáo · Nhập
+  và duyệt*, nút Lưu. Cấp xong là phiên đang mở của họ nhập được ngay (vai đọc lại từ bảng mỗi
+  lượt). Ai mất PIN vì trùng người khác được nêu đỏ ngay hàng đó.
+* **Đẩy lại không xoá vai đã cấp** — đẩy lại chỉ cập nhật tên, PIN, cơ sở. Thu vai thì chọn "Chưa
+  cấp" rồi Lưu; gỡ hẳn thì vẫn bấm Gỡ ở trang Nhân sự.
+* Vai lạ gửi tới cổng cấp vai bị **chối** (trước đây cổng đẩy lặng lẽ quy về "nhập" — một chữ gõ sai
+  mà thành được nhập). Cổng REST mới `POST khh-dt/v1/nguoi-vai` (`ma_nv`, `vai`), chỉ quản trị viên.
+* Hàng đã có trên hosting (đã cấp theo lối cũ) **không bị đụng** — chỉ người đẩy MỚI là chưa cấp.
+* Bài kiểm: `kiem-day-bao-cao.php` viết lại theo lối mới (52 phép: đẩy kèm vai vẫn là chưa cấp, đẩy
+  lại không đổi vai, vai lạ bị chối, sổ PIN cho tab Quản trị không lộ PIN); `kiem-quyen-nap.php`
+  thêm 3 phép (PIN chưa cấp → quyền rỗng, không được nạp); `kiem-phan-quyen-pin-man.js` mới 20 phép
+  canh màn và cổng (cổng đẩy không đọc `vai`, route có gác quản trị, ô chọn có mục chưa cấp).
 
 = 1.57.0 =
 * 🔴 **Thư không đính kèm tệp thì hệ tìm LINK TẢI trong thân thư và tải về.** FABi gửi kiểu này:
@@ -237,7 +411,7 @@ tại chỉ là tổng của nó: *"đã ghi thì không sửa, sai thì ghi m�
 * **Sổ kho bày lại thành thẻ dọc trên điện thoại.** Bảng 12 cột với ba ô phải gõ, trên điện
   thoại là dải cuộn ngang với ô bé bằng đầu ngón tay — mà đây đúng là màn nhân viên dùng hằng
   ngày ngoài cửa hàng. Nay mỗi mặt hàng là một thẻ: tên ở trên, mấy số của máy thu lại thành
-  một hàng chữ nhỏ, còn **ba ô phải gõ** (Nhập · NV khai bán · NV đếm còn) nổi lên thành hàng ô
+  một hàng chữ nhỏ, còn **ba ô phải gõ** (Nhập · SL hàng bán · Hàng tồn còn) nổi lên thành hàng ô
   to, cao 44px, chữ 16px.
 * **Cùng một markup, đổi cách bày bằng CSS** — không dựng hai bản HTML. Hai bản thì sớm muộn
   sửa một bên quên bên kia, và bên bị quên sẽ là bên điện thoại, vì lúc lập trình ai cũng nhìn
