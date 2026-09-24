@@ -1545,8 +1545,11 @@
        đếm kệ lúc đóng cửa rồi khai ngay. Mặc định hôm qua là mỗi tối phải tự đổi ngày, và ai
        quên đổi là số đếm hôm nay đè lên hôm qua — anh Thắng đã vấp: "khi tải lên cứ ghi nhận
        theo ngày trước". */
-    if (!S.kho) S.kho = { ngay: homNay(), cs: ds.length ? ds[0] : '' };
-    if (!S.kho.cs && ds.length) S.kho.cs = ds[0];
+    /* Cơ sở mặc định: quán MÌNH phụ trách trước, rồi mới tới quán đầu danh sách. Danh sách đã cắt
+       theo người xem, nhưng `cua_toi` là câu trả lời thẳng, không lệ thuộc thứ tự doanh thu. */
+    var csMac = (S.cf && S.cf.cua_toi) || (ds.length ? ds[0] : '');
+    if (!S.kho) S.kho = { ngay: homNay(), cs: csMac };
+    if (!S.kho.cs) S.kho.cs = csMac;
     if (!S.kho.cs) {
       o.innerHTML = '<div class="khung"><div class="trong">Chưa có cơ sở nào để mở sổ kho.</div></div>';
       return;
@@ -1569,6 +1572,24 @@
       .catch(function (e) {
         if (luot !== khoLuot) return;
         o.removeAttribute('aria-busy');
+        /* 🔴 "Anh/chị không phụ trách cơ sở này" mà phải F5 mới hết (chị Truyền 24/09/2026): trang mở
+           từ trước khi văn phòng ghép cơ sở / cấp vai, nên `S.cf` còn danh sách cũ và sổ kho gọi
+           nhầm quán. Máy chủ đã biết đúng rồi — hỏi lại cấu hình một lượt, đổi sang quán mình rồi
+           tải lại, thay vì bắt người ta đoán ra chữ F5. Chỉ thử một lần, khỏi xoay vòng. */
+        if (/không phụ trách/i.test(String(e.message || e)) && !S.khoDaHoiLai) {
+          S.khoDaHoiLai = true;
+          api('cau-hinh').then(function (cf) {
+            S.cf = cf;
+            var ds2 = cf.cua_hang || [];
+            var moi = cf.cua_toi || (ds2.indexOf(S.kho.cs) >= 0 ? S.kho.cs : (ds2[0] || ''));
+            if (moi && moi !== S.kho.cs) { S.kho.cs = moi; S.khoR = null; taiKho(); return; }
+            o.innerHTML = '<div class="khung"><div class="trong">' + esc(e.message || e) +
+              '<br><span class="chu-them">Nếu văn phòng vừa ghép cơ sở hoặc cấp quyền cho anh/chị, hãy tải lại trang (F5).</span></div></div>';
+          }).catch(function () {
+            o.innerHTML = '<div class="khung"><div class="trong">' + esc(e.message || e) + '</div></div>';
+          });
+          return;
+        }
         o.innerHTML = '<div class="khung"><div class="trong">' + esc(e.message || e) + '</div></div>';
       });
   }
@@ -1738,6 +1759,16 @@
         }).join('') + '</tbody></table></div>';
       if (ghi) {
         h += '<div style="margin-top:10px"><button class="nut chinh" type="button" id="khoLuu">Lưu sổ kho</button></div>';
+      }
+      /* 🔴 Ô "Hàng tồn còn" ghi 0 trong khi tồn tính > 0: hoặc quán mất sạch hàng, hoặc — hay gặp hơn —
+         số 0 là vết bản cũ ép ô trống thành 0 rồi mỗi lần Lưu lại giữ nguyên (Gò Vấp 23/09/2026, sáu dòng
+         "đã sửa 5 lần"). 0 là MỐC ĐẾM nên hôm sau tồn đầu = 0. Phải nói ra ngay tại đây và chỉ cách thoát. */
+      var demKhong = dong.filter(function (d) { return d.dem !== null && d.dem !== undefined && Number(d.dem) === 0 && d.ton_tinh !== null && d.ton_tinh !== undefined && Number(d.ton_tinh) > 0; });
+      if (demKhong.length && ghi) {
+        h += '<div class="canh-ghep" id="khoDemKhong" style="margin-top:8px;border-color:var(--xau)">⚠️ <b>' + demKhong.length +
+          ' dòng ghi Hàng tồn còn = 0</b> trong khi tồn tính còn hàng: ' + demKhong.slice(0, 8).map(function (d) { return esc(d.mat_hang); }).join(' · ') + (demKhong.length > 8 ? ' …' : '') +
+          '. Số 0 là <b>đếm được 0 món</b>, nên <b>ngày mai tồn đầu = 0</b>. Nếu thật ra <b>chưa đếm</b>, ' +
+          '<b>xoá trống ô Hàng tồn còn</b> rồi bấm Lưu sổ kho — tồn đầu hôm sau sẽ kéo đúng từ tồn tính.</div>';
       }
       h += '<div class="chu-them" style="margin-top:8px">' +
         '<b>Tồn đầu</b>: số mờ là tồn cuối hôm trước kéo sang; thấy sai (âm, lệch) thì <b>gõ số thật vào ô</b> để đặt lại mốc cho ngày này — từ đó hệ tính tiếp. Để trống là giữ số kéo.<br>' +

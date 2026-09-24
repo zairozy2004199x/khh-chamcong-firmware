@@ -304,6 +304,15 @@ if (mThe) {
    ngày, ai quên là số đếm hôm nay đè lên hôm qua. */
 t('🔴 tab kho mặc định HÔM NAY, không phải hôm qua', /S\.kho = \{ ngay: homNay\(\)/.test(boCC));
 
+/* ---- "không phụ trách cơ sở này" mà phải F5 (chị Truyền 24/09/2026) ---- */
+{
+  const tk = boc('taiKho');
+  t('có taiKho', tk.length > 0);
+  t('🔴 cơ sở mặc định lấy cua_toi trước, rồi mới tới quán đầu danh sách', /var csMac = \(S\.cf && S\.cf\.cua_toi\) \|\| \(ds\.length \? ds\[0\] : ''\);/.test(tk));
+  t('🔴 gặp "không phụ trách" thì hỏi lại cau-hinh, đổi sang quán mình và tải lại — chỉ một lần', /không phụ trách\/i\.test/.test(tk) && /!S\.khoDaHoiLai/.test(tk) && /api\('cau-hinh'\)\.then/.test(tk) && /S\.kho\.cs = moi; S\.khoR = null; taiKho\(\); return;/.test(tk));
+  t('không đổi được quán thì nói rõ cách thoát (F5) thay vì chỉ câu lỗi trơ', /tải lại trang \(F5\)/.test(tk));
+}
+
 if (hong.length) {
   console.log('\n✗ HỎNG ' + hong.length + ' phép (đạt ' + dat + '):');
   hong.forEach((h) => console.log('   · 🔴 ' + h));

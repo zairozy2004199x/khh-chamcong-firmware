@@ -102,6 +102,21 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.64.1 =
+* **Sửa nốt "qua ngày 24 tồn đầu không nhảy" — bước sửa 1.63.1 bỏ sót dòng đã Lưu lại bằng bản mới.** Ảnh anh
+  Thắng 24/09/2026 sau khi cài: sáu dòng Gò Vấp "đã sửa 5 lần" vẫn Hàng tồn còn = 0, lệch −148… Vì màn mới
+  không còn gửi cột "SL Hàng Bán", mỗi lần Lưu lại cột ấy về trống mà ô Hàng tồn còn hiện sẵn "0" nên 0 giữ
+  nguyên — điều kiện "cả hai ô đều 0" không còn khớp. Bản này tra **sổ nhật ký**: số 0 sinh ra từ một lượt
+  ghi 0/0 của bản cũ và từ đó chưa bao giờ có lượt đếm ra số khác 0 → là 0 giả, gỡ về trống; từng đếm 3 rồi
+  đếm 0 → 0 thật, giữ. Chạy một lần lúc nâng cấp (khoá mới, khoá của 1.63.1 không chặn). Sổ nhật ký giữ nguyên.
+* Màn Kho: dòng nào ghi **Hàng tồn còn = 0 trong khi tồn tính còn hàng** thì cảnh báo đỏ ngay dưới bảng, nêu
+  tên món và chỉ cách thoát: nếu chưa đếm, xoá trống ô rồi Lưu — ngày mai tồn đầu kéo đúng.
+* `kiem-kho.php` +11 phép (vết B gỡ đúng dòng, không gỡ 0 thật, không sửa lịch sử, khoá cũ không chặn).
+* **Sửa "Anh/chị không phụ trách cơ sở này" ở tab Kho, phải F5 mới hết** (chị Truyền 24/09/2026). Trang mở từ
+  trước khi văn phòng ghép cơ sở / cấp vai nên còn nhớ danh sách quán cũ và sổ kho gọi nhầm quán. Giờ tab Kho
+  lấy **quán mình phụ trách** làm mặc định, và gặp câu chối ấy thì tự hỏi lại cấu hình, đổi sang quán mình rồi
+  tải lại (một lần); không đổi được thì nói rõ cách tải lại trang. `kiem-kho-man.js` +4 phép.
+
 = 1.64.0 =
 * **Quy trình báo cáo cơ sở hằng ngày — tự động theo dõi, nhắc, tổng hợp.** Anh Thắng 24/09/2026: *"làm quy
   trình báo cáo hằng ngày tự động"* — *"báo cáo cơ sở thôi"*. Mỗi ngày bán hàng đi qua bốn bước: **số máy
