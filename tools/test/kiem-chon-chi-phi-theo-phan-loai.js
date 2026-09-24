@@ -135,7 +135,7 @@ t('🔴 thẻ Cấu hình 🗂 Đầu mục: bảng + Thêm + Lưu, nằm trong 
 {
   const S = ham('_dmCoSoSel');
   t('   ô Cơ sở của đầu mục: như cũ · không có · từng khối (trừ miền)', /\['\*','— như cũ/.test(S) && /\['','Không có cơ sở/.test(S) && /MIEN_MA\.indexOf\(k\.ma\)<0/.test(S));
-  t('   lưu gửi {ten, coso}', /_saveCfg\(\{dauMucDs:data\}/.test(ham('saveCfgDauMuc')) && /coso:String\(r\[1\]==null\?'\*':r\[1\]\)/.test(ham('saveCfgDauMuc')));
+  t('   lưu gửi {ten, coso, goc}', /_saveCfg\(\{dauMucDs:data\}/.test(ham('saveCfgDauMuc')) && /coso:String\(s\?\(s\.value==null\?'\*':s\.value\):'\*'\)/.test(ham('saveCfgDauMuc')) && /goc:String\(\(i&&i\.getAttribute\('data-goc'\)\)\|\|''\)/.test(ham('saveCfgDauMuc')));
 }
 if (TRUOT.length) { console.log('\n✗ TRƯỢT ' + TRUOT.length + ' phép (đạt ' + DAT + '):'); TRUOT.forEach(function (x) { console.log('  · ' + x); }); process.exit(1); }
 console.log('\n✓ SẠCH — ' + DAT + ' phép: phân loại lớn → nhỏ; đầu mục có cơ sở thì lọc theo khối, không thì ẩn ô; đơn chốt cơ sở giữ khoá.');

@@ -53,6 +53,34 @@ t( '   lưu mảng chuỗi được', ! empty( $r['success'] ), $r );
 VHCP_Cfg::clear_cache();
 teq( '🔴 gửi tên thôi → GIỮ khối cơ sở đã lưu, tên mới = "*"', array( 'Chi Phí Chung' => '', 'Chi Phí Cơ Sở KVC' => 'kvc', 'Mới toanh' => '*' ), VHCP_Cfg::dau_muc_coso() );
 
+/* ═══ 4b. 🔴 Đổi tên đầu mục → loại đang gắn tên cũ ĐI THEO (anh Thắng: "Muốn sửa phân loại chi phí này") ═ */
+VHCP_Cfg::save_config( array( 'loaiChiPhi' => array(
+	array( 'ten' => 'Chi phí thuê mall', 'tkNo' => '6421', 'khoi' => 'mn', 'dauMuc' => 'Chi phí tiền thuê' ),
+	array( 'ten' => 'Chi phí điện nước', 'tkNo' => '6427', 'khoi' => 'mn', 'dauMuc' => 'chi phí tiền thuê' ),   // khác hoa/thường vẫn theo
+	array( 'ten' => 'Chi phí cơ sở',     'tkNo' => '64196', 'khoi' => 'mn', 'dauMuc' => 'Chi Phí Cơ Sở KVC' ),
+) ) ); VHCP_Cfg::clear_cache();
+/* Đầu mục sắp đổi tên đang mang khối cơ sở 'vp' — đổi tên không gửi coso thì phải GIỮ 'vp'. */
+VHCP_Cfg::save_config( array( 'dauMucDs' => array( array( 'ten' => 'Chi phí tiền thuê', 'coso' => 'vp' ), array( 'ten' => 'Chi Phí Cơ Sở KVC', 'coso' => 'kvc' ) ) ) ); VHCP_Cfg::clear_cache();
+$r = VHCP_Cfg::save_config( array( 'dauMucDs' => array(
+	array( 'ten' => 'Chi phí mặt bằng', 'goc' => 'Chi phí tiền thuê' ),            // đổi tên, không gửi coso → giữ theo tên cũ
+	array( 'ten' => 'Chi Phí Cơ Sở KVC', 'coso' => 'kvc', 'goc' => 'Chi Phí Cơ Sở KVC' ),
+	array( 'ten' => 'Chi Phí Chung', 'coso' => '', 'goc' => '' ),                   // dòng mới
+) ) );
+t( '   lưu đổi tên được', ! empty( $r['success'] ), $r ); VHCP_Cfg::clear_cache();
+$dm = array(); foreach ( VHCP_Cfg::get_config()['loaiChiPhi'] as $x ) { $dm[ $x['ten'] ] = $x['dauMuc']; }
+teq( '🔴 loại gắn tên cũ → sang tên mới', 'Chi phí mặt bằng', $dm['Chi phí thuê mall'] );
+teq( '🔴 khác hoa/thường vẫn theo', 'Chi phí mặt bằng', $dm['Chi phí điện nước'] );
+teq( '   loại của đầu mục khác không đụng', 'Chi Phí Cơ Sở KVC', $dm['Chi phí cơ sở'] );
+teq( '   danh sách đầu mục là tên mới', array( 'Chi phí mặt bằng', 'Chi Phí Cơ Sở KVC', 'Chi Phí Chung' ), VHCP_Cfg::dau_muc_ds() );
+teq( '🔴 đổi tên mà không gửi coso → giữ khối cơ sở của tên cũ ("vp")', 'vp', VHCP_Cfg::dau_muc_coso()['Chi phí mặt bằng'] );
+/* Không gửi goc (màn cũ) mà tên khác → KHÔNG đoán, loại giữ nguyên. */
+VHCP_Cfg::save_config( array( 'dauMucDs' => array( array( 'ten' => 'Tên khác hẳn', 'coso' => '*' ), array( 'ten' => 'Chi Phí Cơ Sở KVC', 'coso' => 'kvc' ) ) ) ); VHCP_Cfg::clear_cache();
+$dm = array(); foreach ( VHCP_Cfg::get_config()['loaiChiPhi'] as $x ) { $dm[ $x['ten'] ] = $x['dauMuc']; }
+teq( '   không gửi goc → không đổi loại nào (không đoán)', 'Chi phí mặt bằng', $dm['Chi phí thuê mall'] );
+teq( '   doi_ten_dau_muc_o_loai trả số dòng đổi', 2, VHCP_Cfg::doi_ten_dau_muc_o_loai( array( 'Chi phí mặt bằng' => 'Chi phí tiền thuê' ) ) );
+/* Trả bảng về ba dòng cho hai mục dưới. */
+VHCP_Cfg::save_config( array( 'dauMucDs' => array( 'Chi Phí Chung', 'Chi Phí Cơ Sở KVC', 'Mới toanh' ) ) ); VHCP_Cfg::clear_cache();
+
 /* ═══ 5. Chối bảng rỗng ═══════════════════════════════════════════════════════════════ */
 $r = VHCP_Cfg::save_config( array( 'dauMucDs' => array( '', '  ' ) ) );
 t( '🔴 xoá hết → CHỐI, nói rõ hệ dùng lại mặc định', empty( $r['success'] ) && false !== mb_strpos( (string) $r['error'], 'mặc định' ), $r );

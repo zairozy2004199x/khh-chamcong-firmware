@@ -1709,7 +1709,7 @@ class VHCP_Cfg {
 			/* Đầu mục = phân loại lớn của form nhập (xem `dau_muc_rows()`). Nhận cả mảng chuỗi
 			   (tên thôi → giữ khối cơ sở đang lưu, chưa có thì '*') lẫn mảng {ten, coso}. */
 			$cu_map = self::dau_muc_coso();
-			$rows = array(); $da = array();
+			$rows = array(); $da = array(); $doi_ten = array();
 			foreach ( $cfg['dauMucDs'] as $x ) {
 				if ( is_object( $x ) ) { $x = (array) $x; }
 				$t = trim( (string) ( is_array( $x ) ? ( isset( $x['ten'] ) ? $x['ten'] : '' ) : $x ) );
@@ -1717,7 +1717,16 @@ class VHCP_Cfg {
 				$k = mb_strtolower( $t );
 				if ( isset( $da[ $k ] ) ) { continue; }
 				$da[ $k ] = 1;
-				$cs = ( is_array( $x ) && array_key_exists( 'coso', $x ) ) ? $x['coso'] : ( isset( $cu_map[ $t ] ) ? $cu_map[ $t ] : '*' );
+				/* Đổi tên đầu mục (`goc` = tên lúc vẽ) → loại đang gắn tên cũ ĐI THEO, không rơi về
+				   "Chưa xếp đầu mục". Anh Thắng 24/09/2026: *"Muốn sửa phân loại chi phí này"*. Nếu
+				   `goc` không gửi (màn cũ) thì không đổi gì — không đoán. */
+				$goc = is_array( $x ) ? trim( (string) ( isset( $x['goc'] ) ? $x['goc'] : '' ) ) : '';
+				/* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG, ghi lại: bỏ vế `'' !== $goc` KHÔNG đổi kết quả — `doi_ten_dau_muc_o_loai`
+				   tự gạt khoá rỗng. Giữ vế này vì nó nói thẳng ý "dòng mới không phải một lượt đổi tên". */
+				if ( '' !== $goc && $goc !== $t ) { $doi_ten[ $goc ] = $t; }
+				/* Khối cơ sở: gửi kèm thì lấy; không gửi thì giữ theo tên MỚI, rồi tên CŨ (vừa đổi tên). */
+				$cs = ( is_array( $x ) && array_key_exists( 'coso', $x ) ) ? $x['coso']
+					: ( isset( $cu_map[ $t ] ) ? $cu_map[ $t ] : ( ( '' !== $goc && isset( $cu_map[ $goc ] ) ) ? $cu_map[ $goc ] : '*' ) );
 				$rows[] = array( $t, self::khoi_coso_chuan( $cs ) );
 			}
 			/* Bảng rỗng → chối, cùng lẽ với bộ phận: xoá hết thì hệ dùng lại bốn tên mặc định,
@@ -1726,6 +1735,7 @@ class VHCP_Cfg {
 				return VHCP_Util::err( 'Phải còn ít nhất một đầu mục. Xoá hết thì hệ tự dùng lại danh sách mặc định.' );
 			}
 			self::write( self::DM, $rows );
+			if ( $doi_ten ) { self::doi_ten_dau_muc_o_loai( $doi_ten ); }
 		}
 		if ( isset( $cfg['sso'] ) && is_array( $cfg['sso'] ) ) {
 			$rows = array();
@@ -2300,6 +2310,28 @@ class VHCP_Cfg {
 		$m = array();
 		foreach ( self::dau_muc_rows() as $r ) { $m[ $r['ten'] ] = $r['coso']; }
 		return $m;
+	}
+	/**
+	 * Đổi tên đầu mục trên CỘT `Đầu mục` (ô 11) của danh mục loại chi phí: { tên cũ => tên mới }.
+	 * So không phân biệt hoa/thường; ô không khớp giữ nguyên. Trả số dòng đã đổi.
+	 */
+	public static function doi_ten_dau_muc_o_loai( $map ) {
+		$tra = array();
+		foreach ( (array) $map as $cu => $moi ) {
+			$cu = mb_strtolower( trim( (string) $cu ) ); $moi = trim( (string) $moi );
+			if ( '' !== $cu && '' !== $moi ) { $tra[ $cu ] = $moi; }
+		}
+		if ( ! $tra ) { return 0; }
+		$rows = self::read( self::LOAI ); $n = 0;
+		foreach ( $rows as $i => $r ) {
+			$dm = mb_strtolower( trim( (string) ( isset( $r[11] ) ? $r[11] : '' ) ) );
+			if ( '' !== $dm && isset( $tra[ $dm ] ) ) {
+				for ( $j = count( $rows[ $i ] ); $j < 12; $j++ ) { $rows[ $i ][ $j ] = ''; }
+				$rows[ $i ][11] = $tra[ $dm ]; $n++;
+			}
+		}
+		if ( $n ) { self::write( self::LOAI, $rows ); self::clear_cache(); }
+		return $n;
 	}
 
 	/* ═══════════════════════════════════════════════════════════════════════════════════════

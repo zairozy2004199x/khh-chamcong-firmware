@@ -14016,7 +14016,10 @@
       h+='<details class="mxKhoi"'+(0===iD?' open':'')+' style="margin:10px 0 4px" data-dau-muc-box="'+esc(dm0)+'">'
         +'<summary style="cursor:pointer;font-weight:700;font-size:13px;color:#171417;padding:4px 0">'
         +'🧩 '+esc(nhanDm)
-        +' <span style="font-weight:400;color:#8c8781">— '+rws.length+' loại</span></summary>';
+        +' <span style="font-weight:400;color:#8c8781">— '+rws.length+' loại</span>'
+        /* ✏️ sửa tên / khối cơ sở của đầu mục — nhảy sang thẻ 🗂 (xem `moSuaDauMuc`). Không bày cho ô hứng. */
+        +(dm0?(' <button type="button" data-khong-khoa="1" onclick="moSuaDauMuc(event,'+esc(JSON.stringify(dm0))+')" title="Sửa tên / khối cơ sở của đầu mục này ở thẻ 🗂 Đầu mục" style="border:0;background:none;color:#2545ff;font-size:11px;cursor:pointer;padding:0 4px;font-weight:400">✏️ sửa</button>'):'')
+        +'</summary>';
       /* 🔴 NÚT THÊM PHẢI Ở NGAY ĐẦU BẢNG, KHÔNG CHỈ DƯỚI ĐÁY. Anh Thắng 21/09/2026: *"chưa có
          chỗ thêm loại chi phí"* — mỗi dòng cao gần trăm điểm ảnh vì hàng ô tích vai; nút nằm
          sau dòng cuối thì phải cuộn hết cả bảng mới thấy, và người ta kết luận là KHÔNG CÓ.
@@ -15441,16 +15444,32 @@
     var m=(CFG&&CFG.dauMucCoSo)||{};
     body.innerHTML=ds.map(function(d){
       var cs=Object.prototype.hasOwnProperty.call(m,d)?m[d]:'*';
-      return '<tr><td>'+_inp(d,'VD: Chi Phí Cơ Sở KVC')+'</td><td>'+_dmCoSoSel(cs)+'</td>'+_delBtn()+'</tr>';
+      /* `data-goc` = tên lúc vẽ — lượt Lưu gửi kèm để máy chủ đổi tên trên loại đang gắn (xem
+         `VHCPHN_Cfg::doi_ten_dau_muc_o_loai`). */
+      return '<tr><td><input value="'+esc(d)+'" data-goc="'+esc(d)+'" placeholder="VD: Chi Phí Cơ Sở KVC" style="width:100%"></td><td>'+_dmCoSoSel(cs)+'</td>'+_delBtn()+'</tr>';
     }).join('');
+  }
+  /* Từ tiêu đề nhóm ở bảng Loại chi phí bấm ✏️ → cuộn tới thẻ 🗂 và trỏ vào đúng dòng đầu mục ấy.
+     Anh Thắng 24/09/2026 (ảnh ba tiêu đề nhóm): *"Muốn sửa phân loại chi phí này"*. */
+  function moSuaDauMuc(ev, ten){
+    if(ev){ if(ev.preventDefault) ev.preventDefault(); if(ev.stopPropagation) ev.stopPropagation(); }
+    var card=el('dauMucCard'); if(!card){ toast('warn','Không thấy thẻ 🗂 Đầu mục — cần quyền Cấu hình.'); return; }
+    var det=card.querySelector&&card.querySelector('details'); if(det) det.open=true;
+    if(card.scrollIntoView) card.scrollIntoView({behavior:'smooth', block:'start'});
+    var o=null, t=String(ten||'');
+    Array.prototype.forEach.call(card.querySelectorAll?card.querySelectorAll('input[data-goc]'):[], function(i){ if(i.getAttribute('data-goc')===t) o=i; });
+    if(o){ o.style.outline='2px solid #2545ff'; try{ o.focus(); o.select(); }catch(e){} setTimeout(function(){ o.style.outline=''; }, 2500); }
+    else if(t) toast('info','Đầu mục "'+t+'" chưa có trong thẻ 🗂 — bấm ＋ Thêm đầu mục để khai.');
   }
   function addCfgDauMuc(){
     var body=el('cfgDauMucBody'); if(!body) return;
     body.insertAdjacentHTML('beforeend','<tr><td>'+_inp('','VD: Chi Phí Cơ Sở MTĐ')+'</td><td>'+_dmCoSoSel('*')+'</td>'+_delBtn()+'</tr>');
   }
   function saveCfgDauMuc(){
-    var data=_readRows('cfgDauMucBody').map(function(r){
-      return { ten:String(r[0]||'').trim(), coso:String(r[1]==null?'*':r[1]) };
+    var body=el('cfgDauMucBody'); if(!body) return;
+    var data=Array.prototype.map.call(body.getElementsByTagName('tr'), function(tr){
+      var i=tr.querySelector('input'), s=tr.querySelector('select');
+      return { ten:String((i&&i.value)||'').trim(), coso:String(s?(s.value==null?'*':s.value):'*'), goc:String((i&&i.getAttribute('data-goc'))||'') };
     }).filter(function(x){ return x.ten; });
     if(!data.length){ toast('warn','Phải còn ít nhất một đầu mục — xoá hết thì hệ dùng lại danh sách mặc định.'); return; }
     _saveCfg({dauMucDs:data},'Đã lưu đầu mục (phân loại lớn)');
