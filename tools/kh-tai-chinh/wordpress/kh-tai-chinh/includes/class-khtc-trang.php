@@ -29,6 +29,19 @@ class KHTC_Trang {
 			$bao_loi = 'Chưa chọn tệp, cũng chưa dán bảng.';
 			return null;
 		}
+		// File sao kê của cổng (Payoo, VNPay, MoMo, QR) nạp nhầm vào ô khác: nhận
+		// ra ngay và chỉ đúng chỗ. Để chạy tiếp thì ra "Đã nạp 0 dòng" cộng một
+		// tràng lỗi từng dòng — người đọc không biết mình sai ở đâu.
+		if ( 'tho' !== $ten ) {
+			$nd = KHTC_DanTho::nhan_dang( $tep['van_ban'] );
+			if ( $nd ) {
+				$bao_loi = sprintf(
+					'Bảng này là file %s — sao kê của cổng, không phải bảng cho ô này. Nạp nó ở mục Dòng tiền → Dán thô, máy tự lấy đúng cột.',
+					$nd[1]['ten']
+				);
+				return null;
+			}
+		}
 		return $tep['van_ban'];
 	}
 

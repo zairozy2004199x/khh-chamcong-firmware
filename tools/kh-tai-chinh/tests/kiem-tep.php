@@ -272,6 +272,24 @@ $html = dung( function () { KHTC_Trang::hoa_don_vao(); } );
 co( 'không tệp không dán → báo rõ', $html, 'Chưa chọn tệp, cũng chưa dán bảng' );
 $_POST = array();
 
+// ---------------------------------------------------------------- 9b. nạp nhầm file cổng vào ô khác → chỉ sang Dán thô, không "Đã nạp 0"
+$payoo = "\t\t\t\t\t\tSố lượng\tSố tiền (₫)\n\t\t\t\tTổng cộng\t\t46\t8.191.000₫\n\n"
+	. "STT\tCửa hàng\tNgày giao dịch\tNgày tổng kết GD trên POS\tLoại tác nghiệp\tLoại giao dịch\tHình thức thanh toán\tChi tiết H.Thức T.Toán\tNgân hàng phát hành\tLoại thẻ thanh toán\tHình thức phát hành thẻ\tĐặc điểm giao dịch\tMã QR\tSố hóa đơn\tMã chuẩn chi\tMã đơn hàng\tMã khách hàng\tSố tiền thanh toán\tPhí xử lý giao dịch\n"
+	. "1\tDVGIAITRIKH_FZ_IPH\t23/09/2026 21:51:41\t\tThanh toán\tBán hàng\tQuét mã QR\t\t\t\t\t\tQR5G4T5W\tFG4T5W\t\t\t\t30000\t165\n";
+foreach ( array( 'hoa_don_vao' => array( 'khtc_dan_hdv', 'bang_hdv' ), 'giao_dich' => array( 'khtc_dan', 'sao_ke' ), 'chi_phi' => array( 'khtc_dan_cp', 'bang_chi_phi' ) ) as $ham => $o ) {
+	$_POST = array( $o[0] => 1, $o[1] => $payoo, 'dan_ngan_hang_id' => 1 );
+	$html  = dung( function () use ( $ham ) { KHTC_Trang::$ham(); } );
+	co( "$ham: nhận ra là file Payoo", $html, 'là file Payoo' );
+	co( "$ham: chỉ sang Dán thô", $html, 'Dán thô' );
+	kiem( "$ham: không có câu Đã nạp", strpos( $html, 'Đã nạp' ), false );
+}
+$_POST = array();
+// còn ở đúng chỗ (Dán thô) thì vẫn nhận bình thường
+$_POST = array( 'tho' => $payoo );
+$html  = dung( function () { KHTC_Trang::dan_tho(); } );
+co( 'Dán thô vẫn nhận Payoo', $html, 'Nhận ra:' );
+$_POST = array();
+
 // ---------------------------------------------------------------- 10. dán thô với tệp nhiều sheet cổng → bảng chọn sheet (giả lập qua doc_moi_trang)
 // is_uploaded_file không giả được, nên kiểm phần chọn sheet bằng đúng dữ liệu mà lay_moi_trang trả về.
 $moi = KHTC_Tep::doc_moi_trang( $nhieu, 'nhieu.xlsx' );
