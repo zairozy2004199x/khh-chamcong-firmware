@@ -696,6 +696,34 @@ phep( 'combo chốt 4 (máy 3) -> nước suối rời kho 4×2 + 1 = 9', 9.0 ==
 $GLOBALS['wpdb']->exec_raw( 'DROP TABLE IF EXISTS ' . khh_dt_bang_bc() );
 phep( 'không có bảng báo cáo -> theo máy, không nổ', array() === khh_dt_kho_ban_thuc( '2026-09-24', '2026-09-25', $CS ) && 5.0 === (float) khh_dt_kho_ban_may( '2026-09-24', '2026-09-24', $CS )['2026-09-24']['Kẹo cứng'] );
 
+/* ── 16. 🔴 CHƯA ĐẾM PHẢI LÀ NULL TRONG SQL, KHÔNG PHẢI '' (MySQL ép '' thành 0) ───────────────────
+      24/09/2026 anh Thắng mở kho: "Hàng tồn còn" toàn 0, lệch kho = −tồn tính dù chưa ai đếm — "khi nào nhập
+      hàng tồn còn khác tồn tính mới báo lệch kho chứ". `$wpdb->prepare('%s', null)` ra '' và MySQL ép '' vào
+      cột double thành 0. Mã phải viết NULL thẳng vào câu SQL. */
+phep( 'khh_dt_kho_sql_so(null) là chữ NULL', 'NULL' === khh_dt_kho_sql_so( null ) );
+phep( 'khh_dt_kho_sql_so(số) là số, dấu chấm thập phân', '12.500000' === khh_dt_kho_sql_so( 12.5 ) && '0.000000' === khh_dt_kho_sql_so( 0 ) );
+$src_kho = preg_replace( '~/\*.*?\*/~s', '', file_get_contents( $goc . '/kho.php' ) );
+$than_ham = function ( $src, $ten ) {
+	$i = strpos( $src, 'function ' . $ten . '(' );
+	$j = strpos( $src, "\nfunction ", $i + 10 );
+	return false === $j ? substr( $src, $i ) : substr( $src, $i, $j - $i );
+};
+$ghi_su  = $than_ham( $src_kho, 'khh_dt_kho_ghi' );
+$ghi_cd  = $than_ham( $src_kho, 'khh_dt_kho_ghi_cong_don' );
+phep( '🔴 hai câu INSERT dùng khh_dt_kho_sql_so cho ban_khai, dem, dat_dau (mỗi câu 3 lần)', 3 === substr_count( $ghi_su, 'khh_dt_kho_sql_so(' ) && 3 === substr_count( $ghi_cd, 'khh_dt_kho_sql_so(' ) );
+phep( 'và không còn đưa dem/dat_dau qua %s', ! preg_match( '/VALUES \(%s,%s,%s,%f,%s,%f,%s,%s/', $ghi_su ) && ! preg_match( '/VALUES \(%s,%s,%s,%f,%s,%f,%s,%s/', $ghi_cd ) );
+/* Chạy thật: lưu không đếm -> dem null, không phải 0 hay ''. */
+dung_bang();
+fabi( '2026-09-24', $CS, array( 'Kẹo cứng' => 5 ) );
+khh_dt_kho_ghi( '2026-09-24', $CS, 'Kẹo cứng', array( 'dat_dau' => 148, 'nhap' => '', 'dem' => '', 'huy' => '' ) );
+$row = $GLOBALS['wpdb']->get_row( 'SELECT * FROM ' . khh_dt_bang_kho() . " WHERE mat_hang = 'Kẹo cứng'", ARRAY_A );
+phep( '🔴 lưu không đếm: cột dem trong bảng là NULL thật (không phải 0, không phải chuỗi rỗng)', null === $row['dem'] && null === $row['ban_khai'] );
+$b = dong_cua( khh_dt_kho_bang_ngay( '2026-09-24', $CS ), 'Kẹo cứng' );
+phep( '🔴 và lệch kho là "—" (null), không phải −143', null === $b['lech_kho'] && 143.0 === (float) $b['ton_tinh'] );
+khh_dt_kho_ghi( '2026-09-24', $CS, 'Kẹo cứng', array( 'dat_dau' => 148, 'dem' => 0 ) );
+$b = dong_cua( khh_dt_kho_bang_ngay( '2026-09-24', $CS ), 'Kẹo cứng' );
+phep( 'đếm được 0 thật thì lệch −143 (0 khác trống)', -143.0 === (float) $b['lech_kho'] );
+
 if ( $hong ) {
 	echo "\n✗ HỎNG " . count( $hong ) . " phép (đạt $dat):\n";
 	foreach ( $hong as $h ) { echo "   · 🔴 $h\n"; }

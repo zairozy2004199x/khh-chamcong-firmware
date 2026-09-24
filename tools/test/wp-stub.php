@@ -592,7 +592,11 @@ class VHCP_Test_WPDB {
 			$i++;
 			if ( $m[0] === '%d' ) { return (string) (int) $v; }
 			if ( $m[0] === '%f' ) { return (string) (float) $v; }
-			return $this->quote( $v );
+			/* 🔴 `%s` VỚI null LÀ CHUỖI RỖNG, KHÔNG PHẢI NULL — y như `$wpdb->prepare()` thật. Bệ đỡ từng
+			   trả NULL ở đây, nên bài kiểm sổ kho xanh trong khi trên hosting MySQL ép '' vào cột số thành
+			   0: 24/09/2026 anh Thắng mở kho thấy "Hàng tồn còn" toàn 0 và lệch kho = −tồn tính dù chưa ai
+			   đếm. Bệ đỡ dễ dãi hơn thật là bài kiểm dối. Muốn NULL thì mã phải viết NULL vào câu SQL. */
+			return $this->quote( null === $v ? '' : $v );
 		}, $sql );
 	}
 

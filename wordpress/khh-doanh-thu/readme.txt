@@ -102,6 +102,17 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.61.3 =
+* 🔴 **Lưu sổ kho mà chưa đếm thì "Hàng tồn còn" phải là trống, không phải 0.** Anh Thắng 24/09/2026 mở
+  kho thấy cột Hàng tồn còn toàn 0 và lệch kho = −tồn tính dù chưa ai đếm — *"khi nào nhập hàng tồn còn
+  khác tồn tính mới báo lệch kho chứ"*. Lỗi của em: ô trống được đưa vào câu SQL qua `%s`, WordPress đổi
+  thành chuỗi rỗng và MySQL ép chuỗi rỗng vào cột số thành **0** — "chưa đếm" thành "đếm được 0". Nay các
+  ô có thể trống (Hàng tồn còn, Tồn đầu đặt lại, SL khai cũ) ghi **NULL** thẳng vào SQL. Bệ đỡ thử cũng
+  sửa cho giống WordPress thật (trước đây nó tự trả NULL nên bài kiểm xanh oan).
+* Những dòng đã lưu hôm nay với Hàng tồn còn = 0 mà anh không đếm: xoá số 0 trong ô rồi bấm Lưu sổ kho
+  một lần là về trống.
+* `kiem-kho.php` +7 phép (NULL thật trong bảng, lệch kho "—", 0 thật vẫn ra lệch).
+
 = 1.61.2 =
 * 🔴 **Đã chọn danh mục thì bảng kho bày đủ danh mục.** Anh Thắng 24/09/2026 tích 21 món ở "Mặt hàng có
   kho", Lưu, mà bảng chỉ có 8 dòng — *"nhiều hàng mà sao lại không hiện sl trong kho"*. Bảng chỉ gom món
