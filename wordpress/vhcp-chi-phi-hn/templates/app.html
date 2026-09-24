@@ -12186,7 +12186,10 @@
       var choVp=cho.filter(_donVanPhong), choCs=cho.filter(function(d){ return !_donVanPhong(d); });
       _qtVeBang('cho', choCs, canBatch);
       _qtVeBang('choVp', choVp, canBatch);
-      if(el('qtCardChoVp')) el('qtCardChoVp').style.display=choVp.length?'':'none';
+      /* ⚠️ CHỈ Ở TRANG CHỜ. Dòng này chạy SAU vòng `QT_THE` nên nó là lời cuối về thẻ Văn phòng —
+         thiếu điều kiện trang là thẻ "Chờ quyết toán — Văn phòng" mọc ra giữa trang Đã quyết toán
+         (anh Thắng 24/09/2026, ảnh: *"cái này là chờ quyết toán, chứ sao lại ghi là đã quyết toán"*). */
+      if(el('qtCardChoVp')) el('qtCardChoVp').style.display=(choVp.length && man==='cho')?'':'none';
       if(el('qtChkHeadVp')) el('qtChkHeadVp').style.display=canBatch?'':'none';
       if(el('qtChkAllVp')) el('qtChkAllVp').checked=false;
       _qtVeBangTT(choTT);

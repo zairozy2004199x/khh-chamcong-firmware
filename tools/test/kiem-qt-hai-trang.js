@@ -82,6 +82,8 @@ function chayQT(man, xem, dons, boPhan) {
   teq('🔴 bảng Chờ (cơ sở) chỉ còn B', ['B'], r.bang.cho);
   teq('🔴 bảng Văn phòng nhận A và đơn chìm C', ['A', 'C'], (r.bang.choVp || []).sort());
   t('   thẻ Văn phòng hiện khi có đơn', r.hien.indexOf('qtCardChoVp') >= 0, r.hien);
+  const rx = chayQT('xong', 'bang', D, bp);
+  t('🔴 trang ĐÃ quyết toán: thẻ Văn phòng (chờ) KHÔNG được mọc ra dù có đơn VP chờ', rx.hien.indexOf('qtCardChoVp') < 0 && rx.hien.indexOf('qtCardCho') < 0, rx.hien);
   const r0 = chayQT('cho', 'bang', [D[1]], bp);
   t('   không có đơn Văn phòng → thẻ ẩn, bảng cơ sở vẫn đủ', r0.hien.indexOf('qtCardChoVp') < 0 && JSON.stringify(r0.bang.cho) === '["B"]', r0);
   t('   markup: thẻ có bảng, ô "chọn tất cả" riêng theo bảng', /id="qtCardChoVp"/.test(HTML) && /id="qtBodyChoVp"/.test(HTML) && /id="qtChkAllVp" onchange="qtToggleAll\(this,'qtBodyChoVp'\)"/.test(HTML) && /id="qtChkAll" onchange="qtToggleAll\(this,'qtBodyCho'\)"/.test(HTML));
