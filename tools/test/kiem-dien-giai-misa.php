@@ -23,6 +23,10 @@ teq( '   khoảng 8 ngày → kiểu ngày (không phải tuần)', 'ngày 21/9-
 teq( '   kỳ không có khoảng ngày → nguyên văn', 'T9/2026', VHCP_Misa::ky_dien_giai( 'T9/2026' ) );
 teq( '   kỳ lạ → nguyên văn', 'Đợt 3 Vũng Tàu', VHCP_Misa::ky_dien_giai( 'Đợt 3 Vũng Tàu' ) );
 teq( '   la_tuan_chuan đúng/sai', array( true, false ), array( VHCP_Misa::la_tuan_chuan( 'T9/2026 (21/9-27/9/2026)' ), VHCP_Misa::la_tuan_chuan( 'T9/2026 (26/8-25/9/2026)' ) ) );
+/* Tuần cũ bị cắt theo tháng (ảnh anh Thắng 24/09: "ngày 1/9-6/9/2026" — thứ Ba → Chủ nhật) vẫn là tuần. */
+teq( '🔴 tuần cũ cắt theo tháng "1/9-6/9/2026" (Ba→CN) → vẫn kiểu tháng', 'T9/2026', VHCP_Misa::ky_dien_giai( 'T9/2026 (1/9-6/9/2026)' ) );
+teq( '   nửa tuần đầu tháng "31/8-31/8/2026" (thứ Hai) → kiểu tháng', 'T8/2026', VHCP_Misa::ky_dien_giai( 'T8/2026 (31/8-31/8/2026)' ) );
+teq( '   3 ngày giữa tuần (Tư→Sáu) → vẫn kiểu ngày', 'ngày 2/9-4/9/2026', VHCP_Misa::ky_dien_giai( 'T9/2026 (2/9-4/9/2026)' ) );
 /* ═══ 2. Tên gian bỏ phần lặp mảng ═══ */
 teq( '🔴 "POSH MN AEON MALL BÌNH DƯƠNG" với mảng "POSH MN" → "AEON MALL BÌNH DƯƠNG"', 'AEON MALL BÌNH DƯƠNG', VHCP_Misa::ten_coso_gon( 'POSH MN AEON MALL BÌNH DƯƠNG', 'POSH MN' ) );
 teq( '   không lặp thì giữ nguyên', 'FUNZONE VUNG TAU', VHCP_Misa::ten_coso_gon( 'FUNZONE VUNG TAU', 'FUNZONE MN' ) );

@@ -2128,7 +2128,13 @@ class VHCP_Don {
 		global $wpdb;
 		$t = VHCP_DB::t( 'chiphi' );
 		$n = 0; $thieu = array();
+		/* 🔴 KHÔNG ĐỤNG ĐƠN ĐÃ XUẤT MISA — mã trên dòng của chúng là mã đã nộp cho kế toán. Nút "Gán mã cho
+		   dòng cũ" áp lại bảng mã hiện tại lên MỌI dòng là đúng cảnh anh Thắng gọi *"sáng bị lỗi 1 lần"*. */
+		$da_xuat = array();
+		foreach ( self::don_rows() as $dr ) { if ( 'Đã xuất MISA' === (string) $dr['trang_thai'] ) { $da_xuat[ (string) $dr['ma_don'] ] = 1; } }
+		$bo_qua = 0;
 		foreach ( self::cp_rows() as $r ) {
+			if ( isset( $da_xuat[ (string) $r['ma_don'] ] ) ) { $bo_qua++; continue; }
 			$thieu_ma = ( trim( (string) $r['tk_no'] ) === '' || trim( (string) $r['tk_co'] ) === '' );
 			if ( ! $all && ! $thieu_ma ) { continue; }
 			$tk = self::tk_of_line( $r['nhom'], $r['phan_loai_tt'], isset( $r['coso'] ) ? $r['coso'] : '' );
@@ -2137,7 +2143,7 @@ class VHCP_Don {
 			$wpdb->update( $t, array( 'tk_no' => $tk['tk_no'], 'tk_co' => $tk['tk_co'] ), array( 'id' => (string) $r['id'] ) );
 			$n++;
 		}
-		return VHCP_Util::ok( array( 'updated' => $n, 'thieuMa' => array_keys( $thieu ) ) );
+		return VHCP_Util::ok( array( 'updated' => $n, 'thieuMa' => array_keys( $thieu ), 'boQuaDaXuat' => $bo_qua ) );
 	}
 
 	/**
@@ -2587,6 +2593,11 @@ class VHCP_Don {
 				. 'không phải nội dung dòng.' );
 		}
 
+		/* 🔴 ĐƠN ĐÃ XUẤT MISA → mã đã đóng, không sửa (anh Thắng 24/09/2026: *"sau khi bấm xuất misa thì nó sẽ
+		   khóa chi phí đó theo tk nợ được cài sẵn"*). Sửa ở đây là sổ app lệch tệp đã nộp. */
+		if ( 'Đã xuất MISA' === self::state( (string) $cur['ma_don'] ) ) {
+			return VHCP_Util::err( 'Đơn đã xuất MISA — mã TK của dòng đã đóng theo tệp đã nộp, không sửa được.' );
+		}
 		$tk  = trim( (string) $tk );
 		$cu  = trim( (string) $cur['tk_no'] );
 		if ( '' === $tk ) {

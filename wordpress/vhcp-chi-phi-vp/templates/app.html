@@ -10103,12 +10103,17 @@
   function _veOTkNo(){
     var o=el('xuatTkNo'); if(!o) return;
     var src=(el('xuatNguon')&&el('xuatNguon').value)||'vh';
-    var hien=(src==='vh' && (el('xuatMau')&&el('xuatMau').value)==='soct');
+    /* Ô lọc bày ở CẢ HAI mẫu (anh Thắng 24/09/2026: *"bổ sung thêm bộ lọc tk nợ"* trên mẫu 10 cột);
+       chỉ câu "thêm cột TK Nợ" là riêng của sổ chi tiết. */
+    var soct=((el('xuatMau')&&el('xuatMau').value)||'soct')==='soct';
+    var hien=(src==='vh');
     o.style.display=hien?'':'none';
     if(!hien) return;
-    var cu=o.value, ds=(XUAT&&XUAT.tkDs)||[];
-    o.innerHTML='<option value="all">— mọi TK Nợ (thêm cột TK Nợ) —</option>'
-      +ds.map(function(m){ return '<option value="'+esc(m)+'">'+esc(m)+'</option>'; }).join('');
+    /* 🔴 CÂY TÀI KHOẢN: 641 là cha của 6412, cháu 64122 — chọn cha là ra cả con cháu (máy chủ lọc theo
+       tiền tố). `tkCay` = mã có dòng thật + mọi mã cha; mã cha không có dòng riêng ghi rõ "cả con/cháu". */
+    var cu=o.value, cay=(XUAT&&XUAT.tkCay)||((XUAT&&XUAT.tkDs)||[]).map(function(m){ return {ma:m, thuc:true}; });
+    o.innerHTML='<option value="all">'+(soct?'— mọi TK Nợ (thêm cột TK Nợ) —':'— mọi TK Nợ —')+'</option>'
+      +cay.map(function(x){ return '<option value="'+esc(x.ma)+'">'+esc(x.ma)+(x.thuc?'':' — cả con/cháu')+'</option>'; }).join('');
     if(cu){ o.value=cu; if(!o.value) o.value='all'; }
   }
   /* ═════════════════════════════════════════════════════════════════════════════════
