@@ -308,6 +308,18 @@ function khh_dt_kho_them_mh( $co_so, $ten, $ma = '' ) {
 	return array( 'ok' => true, 'da_co' => false );
 }
 
+/** Xoá một mặt hàng thêm tay khỏi danh mục và bỏ mã đã gán (anh Thắng 24/09/2026: "cho admin xoá món nếu sai"). */
+function khh_dt_kho_xoa_mh( $co_so, $ten ) {
+	$ten = trim( (string) $ten );
+	if ( '' === $ten ) {
+		return array( 'ok' => false, 'error' => 'Thiếu tên mặt hàng.' );
+	}
+	$ds = array_values( array_filter( khh_dt_kho_mh_cua( $co_so ), function ( $x ) use ( $ten ) { return $x !== $ten; } ) );
+	khh_dt_kho_mh_dat( $co_so, $ds );
+	khh_dt_kho_ma_dat( $co_so, $ten, '' );
+	return array( 'ok' => true );
+}
+
 /** [ mã hàng => tên trong danh mục ] — để đổi tên món FABi về tên kho khi mã khớp. */
 function khh_dt_kho_bi_danh( $co_so ) {
 	$ra = array();
@@ -1386,17 +1398,35 @@ function khh_dt_rest_kho_mat_hang( $req ) {
 	if ( '' === $co_so ) {
 		return new WP_Error( 'khh_dt_kho', 'Chưa chọn cơ sở.', array( 'status' => 400 ) );
 	}
-	$tho = $req->get_param( 'ds' );
-	$ds  = is_array( $tho ) ? $tho : json_decode( (string) $tho, true );
-	/* Gửi danh sách RỖNG là hợp lệ — nghĩa là "thôi lọc, bày hết". Không được coi là lỗi. */
-	khh_dt_kho_mh_dat( $co_so, is_array( $ds ) ? $ds : array() );
-	/* Thêm mặt hàng MỚI (chưa có trong FABi) kèm mã hàng — xem `khh_dt_kho_them_mh`. */
+	/* 🔴 KIỂM HẾT RỒI MỚI GHI. Bản đầu ghi danh sách tích trước rồi mới kiểm món thêm: thêm hỏng (trùng
+	   mã) vẫn trả lỗi, nhưng danh mục đã bị ghi đè — bài kiểm bắt được đúng chỗ này. */
+	$xoa = sanitize_text_field( (string) $req->get_param( 'xoa_ten' ) );
+	if ( '' !== $xoa ) {
+		/* Xoá món thêm tay — CHỈ văn phòng (quyền nạp file); cửa hàng không tự xoá dòng kho. */
+		$vp = function_exists( 'khh_dt_duoc_nap' ) ? khh_dt_duoc_nap() : false;
+		if ( true !== $vp ) {
+			return new WP_Error( 'khh_dt_kho', 'Xoá mặt hàng cần tài khoản văn phòng (vai duyệt / biên tập).', array( 'status' => 403 ) );
+		}
+	}
 	$them_ten = sanitize_text_field( (string) $req->get_param( 'them_ten' ) );
+	$them_ma  = sanitize_text_field( (string) $req->get_param( 'them_ma' ) );
 	if ( '' !== $them_ten ) {
-		$kq = khh_dt_kho_them_mh( $co_so, $them_ten, sanitize_text_field( (string) $req->get_param( 'them_ma' ) ) );
+		/* Thêm mặt hàng MỚI (chưa có trong FABi) kèm mã hàng — xem `khh_dt_kho_them_mh`. Chối là chưa đụng gì. */
+		$kq = khh_dt_kho_them_mh( $co_so, $them_ten, $them_ma );
 		if ( empty( $kq['ok'] ) ) {
 			return new WP_Error( 'khh_dt_kho', $kq['error'], array( 'status' => 400 ) );
 		}
+	}
+	$tho = $req->get_param( 'ds' );
+	$ds  = is_array( $tho ) ? $tho : json_decode( (string) $tho, true );
+	$ds  = is_array( $ds ) ? $ds : array();
+	if ( '' !== $them_ten && ! in_array( $them_ten, $ds, true ) ) {
+		$ds[] = $them_ten;
+	}
+	/* Gửi danh sách RỖNG là hợp lệ — nghĩa là "thôi lọc, bày hết". Không được coi là lỗi. */
+	khh_dt_kho_mh_dat( $co_so, $ds );
+	if ( '' !== $xoa ) {
+		khh_dt_kho_xoa_mh( $co_so, $xoa );
 	}
 	/* Gán mã cho món đã có: [ tên => mã ], '' là bỏ mã. */
 	$tho_ma = $req->get_param( 'ma' );

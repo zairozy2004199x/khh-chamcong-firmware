@@ -1080,6 +1080,10 @@
         '<div class="bc-nut">' +
           '<button class="nut chinh" type="button" id="bcLuu">Lưu báo cáo</button>' +
           '<button class="nut" type="button" id="bcChot">Lưu và chốt ngày</button>' +
+          /* Anh Thắng 24/09/2026: "Lưu và chốt xong nó sẽ có thêm tải ảnh và chia sẻ báo cáo này lên Zalo".
+             Hai nút chỉ hiện khi ngày này ĐÃ có báo cáo lưu (ảnh dựng từ số đã lưu, không từ ô đang gõ). */
+          '<button class="vien" type="button" id="bcTaiAnh" hidden>Tải ảnh báo cáo</button>' +
+          '<button class="vien" type="button" id="bcChiaSe" hidden>Chia sẻ lên Zalo</button>' +
           '<span class="day"></span><span id="bcTrangThai"></span>' +
         '</div>' +
         '<div class="khh-dt-bao" id="bcBao" hidden></div>' +
@@ -1095,6 +1099,8 @@
     });
     q('#bcLuu').addEventListener('click', function () { luuBaoCao(0); });
     q('#bcChot').addEventListener('click', function () { luuBaoCao(1); });
+    q('#bcTaiAnh').addEventListener('click', taiAnhBC);
+    q('#bcChiaSe').addEventListener('click', chiaSeBC);
     napBaoCao();
   }
 
@@ -1143,6 +1149,12 @@
               : '')
           : '<div class="trong">Ngày này chưa có số liệu máy POS trong kho. Nạp file FABi cho ngày đó rồi quay lại.</div>';
         var b = r.bao_cao || {};
+        S.bcHienTai = { pos: p, bao_cao: b, ngay: ngay, ch: ch };
+        /* Có báo cáo đã lưu (có người nhập) thì mới có gì để tải ảnh / chia sẻ. */
+        var daLuu = !!(b && b.nguoi);
+        q('#bcTaiAnh').hidden = !daLuu;
+        q('#bcChiaSe').hidden = !daLuu;
+        q('#bcChiaSe').textContent = b && b.chot ? 'Chia sẻ lên Zalo' : 'Chia sẻ (chưa chốt)';
         veHangBan(p, b);
         var sang = q('#bcSangCauHinh');
         if (sang) sang.addEventListener('click', function (ev) {
@@ -1278,6 +1290,165 @@
       b[i.dataset.thuc] = v;
     });
     return b;
+  }
+
+  /* ================= ẢNH BÁO CÁO NGÀY & CHIA SẺ ZALO =================
+     Anh Thắng 24/09/2026: *"bổ sung tính năng Lưu và chốt xong nó sẽ có thêm tải ảnh và chia sẻ báo cáo
+     này lên Zalo"*. Ảnh vẽ bằng <canvas> từ CHÍNH SỐ ĐÃ LƯU (S.bcHienTai), không chụp màn: chụp màn kéo
+     theo nút bấm, ô nhập, cuộn dở; còn Zalo cần một tấm ảnh đọc được trên điện thoại. Không dùng thư
+     viện ngoài. Chia sẻ dùng khung chia sẻ của hệ điều hành (Web Share API, có Zalo trong đó); máy tính
+     không có khung ấy thì tải ảnh về và chép tóm tắt vào bộ nhớ tạm để dán vào Zalo web. */
+  function dongBC() {
+    var h = S.bcHienTai || {};
+    var p = h.pos || {}, b = h.bao_cao || {};
+    var mon = p.mon || [], thuc = b.mon_thuc || {};
+    var so = function (v) { return v == null || v === '' ? 0 : Math.round(Number(v)); };
+    var khach = so(b.tong_khach), dem = so(b.tien_mat_dem), nop = so(b.tien_nop);
+    var may = p.khach_may != null ? Math.round(p.khach_may) : Math.round(p.so_ve || 0);
+    var lech = [];
+    if (dem) lech.push(['Đếm két − tiền mặt POS', (dem - Math.round(p.tien_mat || 0)), 'tien']);
+    if (dem && nop) lech.push(['Đếm được − đã nộp', dem - nop, 'tien']);
+    if (khach && may) lech.push([p.khach_may != null ? 'Khách đếm − khách máy' : 'Khách đếm − vé bán', khach - may, 'so']);
+    var lechMon = mon.filter(function (m) { return thuc[m.n] != null && Math.round(thuc[m.n]) !== Math.round(m.q); });
+    return { p: p, b: b, mon: mon, thuc: thuc, lech: lech, lechMon: lechMon, so: so, ngay: h.ngay || '', ch: h.ch || '' };
+  }
+
+  function tomTatBC() {
+    var d = dongBC(), p = d.p, b = d.b;
+    var dong = [
+      'BÁO CÁO NGÀY ' + ngayVN(d.ngay) + ' — ' + d.ch,
+      'Doanh thu máy POS: ' + tien(p.doanh_thu) + ' · ' + nguyen(p.so_hd) + ' hoá đơn',
+      'Sale vé ' + tien(p.tien_ve || 0) + ' · Bán lẻ ' + tien(p.tien_le || 0) + ' · Sale phụ ' + tien(p.tien_phu || 0),
+      'Tiền mặt POS ' + tien(p.tien_mat) + ' · Chuyển khoản ' + tien(p.ck),
+      'Đếm két ' + tien(d.so(b.tien_mat_dem)) + ' · Nộp quỹ ' + tien(d.so(b.tien_nop)),
+      'Khách vào đếm ' + nguyen(d.so(b.tong_khach)) + (p.khach_may != null ? ' · máy ' + nguyen(p.khach_may) : ''),
+      'Bill huỷ ' + nguyen(d.so(b.so_bill_huy)) + ' · ' + tien(d.so(b.tien_bill_huy)),
+      'Hàng bán: ' + (d.lechMon.length ? d.lechMon.length + ' món lệch máy' : 'khớp máy'),
+    ];
+    d.lech.forEach(function (l) { dong.push(l[0] + ': ' + (l[1] > 0 ? '+' : '') + (l[2] === 'tien' ? tien(l[1]) : nguyen(l[1]))); });
+    if (b.ghi_chu) dong.push('Ghi chú: ' + b.ghi_chu);
+    dong.push((b.chot ? 'ĐÃ CHỐT' : 'đã lưu, chưa chốt') + (b.nguoi ? ' · ' + b.nguoi : '') + (b.sua_luc ? ' · ' + String(b.sua_luc).slice(0, 16) : ''));
+    return dong.join('\n');
+  }
+
+  /* Vẽ ảnh. Trả về <canvas>. Bề ngang 900px, tỉ lệ 2 cho nét trên điện thoại. */
+  function veAnhBC() {
+    var d = dongBC(), p = d.p, b = d.b;
+    var W = 900, TL = 2, y = 0;
+    var dongMon = d.mon.slice(0, 40);
+    var H = 470 + d.lech.length * 30 + dongMon.length * 30 + (b.ghi_chu ? 60 : 0) + 70;
+    var c = document.createElement('canvas');
+    c.width = W * TL; c.height = H * TL;
+    var g = c.getContext('2d');
+    g.scale(TL, TL);
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, H);
+    var chu = function (t, x, yy, opt) {
+      opt = opt || {};
+      g.font = (opt.dam ? '700 ' : '400 ') + (opt.co || 15) + 'px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+      g.fillStyle = opt.mau || '#111827';
+      g.textAlign = opt.phai ? 'right' : 'left';
+      g.fillText(String(t), x, yy);
+    };
+    var ke = function (yy) { g.strokeStyle = '#e5e7eb'; g.lineWidth = 1; g.beginPath(); g.moveTo(24, yy); g.lineTo(W - 24, yy); g.stroke(); };
+    /* Đầu */
+    g.fillStyle = '#1e3a8a'; g.fillRect(0, 0, W, 78);
+    chu('BÁO CÁO NGÀY ' + ngayVN(d.ngay), 24, 34, { dam: true, co: 22, mau: '#fff' });
+    chu(d.ch, 24, 60, { co: 14, mau: '#dbeafe' });
+    chu(b.chot ? 'ĐÃ CHỐT' : 'CHƯA CHỐT', W - 24, 34, { dam: true, co: 16, mau: b.chot ? '#86efac' : '#fde68a', phai: true });
+    chu((b.nguoi ? b.nguoi : '') + (b.sua_luc ? ' · ' + String(b.sua_luc).slice(0, 16) : ''), W - 24, 60, { co: 13, mau: '#dbeafe', phai: true });
+    y = 110;
+    /* Ô máy POS: 4 cột × 2 hàng */
+    var oMay = [
+      ['Doanh thu máy POS', tien(p.doanh_thu)], ['Sale vé', tien(p.tien_ve || 0)], ['Sale bán lẻ', tien(p.tien_le || 0)], ['Sale phụ', tien(p.tien_phu || 0)],
+      ['Số hoá đơn', nguyen(p.so_hd)], ['Khách vào (POS)' + (p.khach_tam ? ' · tạm' : ''), p.khach_may != null ? nguyen(p.khach_may) : '—'], ['Tiền mặt (POS)', tien(p.tien_mat)], ['Chuyển khoản (POS)', tien(p.ck)],
+    ];
+    chu('MÁY POS', 24, y, { dam: true, co: 12, mau: '#6b7280' }); y += 10;
+    oMay.forEach(function (o, i) {
+      var cx = 24 + (i % 4) * ((W - 48) / 4), cy = y + Math.floor(i / 4) * 56;
+      chu(o[0], cx, cy + 16, { co: 11, mau: '#6b7280' });
+      chu(o[1], cx, cy + 40, { dam: true, co: 17 });
+    });
+    y += 2 * 56 + 8; ke(y); y += 26;
+    /* Cơ sở khai */
+    var oKhai = [
+      ['Tiền mặt đếm két', tien(d.so(b.tien_mat_dem))], ['Thực nộp về quỹ', tien(d.so(b.tien_nop))], ['Bill huỷ', nguyen(d.so(b.so_bill_huy)) + ' · ' + tien(d.so(b.tien_bill_huy))], ['Lượt chạy', nguyen(d.so(b.tong_chuyen))],
+      ['Khách vào (đếm ở cửa)', nguyen(d.so(b.tong_khach))], ['Vé giấy đã soát', nguyen(d.so(b.ve_giay))],
+    ];
+    chu('CƠ SỞ KHAI', 24, y, { dam: true, co: 12, mau: '#6b7280' }); y += 10;
+    oKhai.forEach(function (o, i) {
+      var cx = 24 + (i % 4) * ((W - 48) / 4), cy = y + Math.floor(i / 4) * 56;
+      chu(o[0], cx, cy + 16, { co: 11, mau: '#6b7280' });
+      chu(o[1], cx, cy + 40, { dam: true, co: 17 });
+    });
+    y += 2 * 56 + 8; ke(y); y += 26;
+    /* Lệch */
+    chu('LỆCH', 24, y, { dam: true, co: 12, mau: '#6b7280' }); y += 22;
+    if (!d.lech.length) { chu('Chưa có số để so.', 24, y, { co: 14, mau: '#6b7280' }); y += 30; }
+    d.lech.forEach(function (l) {
+      var v = l[1], txt = (v > 0 ? '+' : '') + (l[2] === 'tien' ? tien(v) : nguyen(v));
+      chu(l[0], 24, y, { co: 14 });
+      chu(txt, W - 24, y, { dam: true, co: 15, mau: v === 0 ? '#15803d' : '#b91c1c', phai: true });
+      y += 30;
+    });
+    ke(y); y += 26;
+    /* Hàng bán */
+    chu('HÀNG BÁN THEO MÁY' + (d.lechMon.length ? ' — ' + d.lechMon.length + ' món cơ sở chốt khác máy' : ' — cơ sở chốt khớp máy'), 24, y, { dam: true, co: 12, mau: '#6b7280' }); y += 22;
+    chu('Món', 24, y, { co: 11, mau: '#6b7280' }); chu('SL máy', 560, y, { co: 11, mau: '#6b7280', phai: true });
+    chu('SL thực', 680, y, { co: 11, mau: '#6b7280', phai: true }); chu('Thành tiền', W - 24, y, { co: 11, mau: '#6b7280', phai: true }); y += 8;
+    dongMon.forEach(function (m) {
+      y += 30;
+      var t = d.thuc[m.n], lechM = t != null && Math.round(t) !== Math.round(m.q);
+      var ten = String(m.n); if (ten.length > 46) ten = ten.slice(0, 45) + '…';
+      chu(ten, 24, y, { co: 14 });
+      chu(nguyen(m.q), 560, y, { co: 14, phai: true });
+      chu(t != null ? nguyen(t) : '=', 680, y, { co: 14, dam: lechM, mau: lechM ? '#b91c1c' : '#6b7280', phai: true });
+      chu(tien(m.r), W - 24, y, { co: 14, phai: true });
+    });
+    if (d.mon.length > dongMon.length) { y += 26; chu('… và ' + (d.mon.length - dongMon.length) + ' món nữa', 24, y, { co: 12, mau: '#6b7280' }); }
+    y += 20;
+    if (b.ghi_chu) { ke(y); y += 26; chu('Ghi chú: ' + String(b.ghi_chu).slice(0, 110), 24, y, { co: 13 }); y += 14; }
+    ke(y + 6);
+    chu('Doanh thu FABi · ' + (S.cf && S.cf.ten_toi ? 'in bởi ' + S.cf.ten_toi + ' · ' : '') + new Date().toLocaleString('vi-VN'), 24, H - 18, { co: 11, mau: '#9ca3af' });
+    return c;
+  }
+
+  function tenTepBC() {
+    var d = dongBC();
+    return 'bao-cao-' + d.ngay + '-' + String(d.ch).replace(/[^\w\u00C0-\u1EF9]+/g, '-').slice(0, 40) + '.png';
+  }
+
+  function taiAnhBC() {
+    var c = veAnhBC();
+    c.toBlob(function (blob) {
+      if (!blob) { window.alert('Không dựng được ảnh trên trình duyệt này.'); return; }
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = tenTepBC();
+      document.body.appendChild(a); a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+      baoBC('Đã tải ảnh ' + a.download + '.', 'xong');
+    }, 'image/png');
+  }
+
+  function chiaSeBC() {
+    var c = veAnhBC(), tom = tomTatBC();
+    c.toBlob(function (blob) {
+      if (!blob) { window.alert('Không dựng được ảnh trên trình duyệt này.'); return; }
+      var tep = new File([blob], tenTepBC(), { type: 'image/png' });
+      /* Điện thoại: khung chia sẻ của máy, có Zalo trong đó. */
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [tep] })) {
+        navigator.share({ files: [tep], title: 'Báo cáo ngày', text: tom }).catch(function () { /* người dùng đóng khung */ });
+        return;
+      }
+      /* Máy tính: tải ảnh + chép tóm tắt, rồi dán vào Zalo. */
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = tep.name;
+      document.body.appendChild(a); a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+      var xong = function () {
+        baoBC('Trình duyệt này không có khung chia sẻ. Đã tải ảnh về và chép tóm tắt vào bộ nhớ tạm — mở Zalo, dán (Ctrl+V) rồi kéo ảnh vừa tải vào.', 'xong');
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(tom).then(xong, xong); else xong();
+    }, 'image/png');
   }
 
   function luuBaoCao(chot) {
@@ -1619,7 +1790,9 @@
               (chon.indexOf(t) >= 0 ? ' checked' : '') + '>' +
               '<span>' + esc(t) +
                 (maHang[t] ? ' <code style="font-size:11px">' + esc(maHang[t]) + '</code>' : '') +
-                (moi ? ' <span class="chip" title="Thêm tay, FABi chưa có dòng bán nào. Khi FABi bán món mang đúng mã này, số bán tự rơi vào dòng kho này.">mới · FABi chưa bán</span>'
+                (moi ? ' <span class="chip" title="Thêm tay, FABi chưa có dòng bán nào. Khi FABi bán món mang đúng mã này, số bán tự rơi vào dòng kho này.">mới · FABi chưa bán</span>' +
+                       /* Anh Thắng 24/09/2026: "cho admin xoá món nếu sai" — chỉ văn phòng (quyền nạp). */
+                       (S.cf && S.cf.duoc_nap ? ' <button class="chip" type="button" data-mh-xoa="' + esc(t) + '" title="Xoá món thêm tay này khỏi danh mục (bỏ cả mã đã gán)">✕ xoá</button>' : '')
                      : ' <span class="chu-them">(' + nguyen(daThay[t]) + ')</span>') +
               '</span></label>';
           }).join('') +
@@ -1804,6 +1977,22 @@
         });
       });
     }
+
+    Array.prototype.forEach.call(k.querySelectorAll('[data-mh-xoa]'), function (bx) {
+      bx.addEventListener('click', function (ev) {
+        ev.preventDefault();
+        var tenXoa = bx.getAttribute('data-mh-xoa');
+        if (!window.confirm('Xoá "' + tenXoa + '" khỏi danh mục kho của cơ sở này? Số đã khai (nếu có) vẫn nằm trong sổ ghi động.')) return;
+        var ds = [];
+        Array.prototype.forEach.call(k.querySelectorAll('[data-mh]'), function (x) { if (x.checked && x.getAttribute('data-mh') !== tenXoa) ds.push(x.getAttribute('data-mh')); });
+        var fd = new FormData();
+        fd.append('co_so', S.kho.cs); fd.append('ngay', S.kho.ngay);
+        fd.append('ds', JSON.stringify(ds)); fd.append('xoa_ten', tenXoa);
+        api('kho-mat-hang', { method: 'POST', body: fd }).then(function (rr) {
+          S.khoR = rr; veKho(o, rr);
+        }).catch(function (e) { window.alert(e.message || e); });
+      });
+    });
 
     var mhT = k.querySelector('#mhThem');
     if (mhT) {

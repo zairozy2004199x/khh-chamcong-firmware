@@ -408,6 +408,10 @@ if ( ! function_exists( 'khh_dt_co_so_ds' ) ) {
 if ( ! function_exists( 'khh_dt_duoc_ghi' ) ) {
 	function khh_dt_duoc_ghi() { return true; }
 }
+/* Quyền văn phòng (nạp file) giả theo seam của wp-stub: VHCP_CO_QUYEN. */
+if ( ! function_exists( 'khh_dt_duoc_nap' ) ) {
+	function khh_dt_duoc_nap() { return ! empty( $GLOBALS['VHCP_CO_QUYEN'] ) ? true : new WP_Error( 'x', 'không', array( 'status' => 403 ) ); }
+}
 dung_bang();
 fabi( '2026-09-01', $CS, array( 'Nước suối' => 10 ) );
 
@@ -758,6 +762,15 @@ $r = khh_dt_rest_kho_mat_hang( new WP_REST_Request( array( 'co_so' => $CS, 'ngay
 phep( 'REST: thêm món mới + gán mã món cũ, trả ma_hang', ! is_wp_error( $r ) && 'MNKVCDS099' === $r['ma_hang']['Bim bim mới'] && 'MNKVCDS017' === $r['ma_hang']['Kẹo cứng'] && in_array( 'Bim bim mới', $r['mat_hang'], true ) );
 $r = khh_dt_rest_kho_mat_hang( new WP_REST_Request( array( 'co_so' => $CS, 'ngay' => '2026-09-25', 'ds' => '[]', 'them_ten' => 'Nước khác', 'them_ma' => 'MNKVCDS023' ) ) );
 phep( 'REST: trùng mã -> WP_Error 400', is_wp_error( $r ) );
+phep( '🔴 thêm hỏng thì danh mục KHÔNG bị ghi đè (vẫn 3 món)', 3 === count( khh_dt_kho_mh_cua( $CS ) ) );
+/* Xoá món thêm tay (anh Thắng 24/09/2026: "cho admin xoá món nếu sai") — chỉ văn phòng. */
+$GLOBALS['VHCP_CO_QUYEN'] = false; $GLOBALS['VHCP_DANG_NHAP_WP'] = false;
+$r = khh_dt_rest_kho_mat_hang( new WP_REST_Request( array( 'co_so' => $CS, 'ngay' => '2026-09-25', 'ds' => wp_json_encode( array( 'Nước suối Danasi' ) ), 'xoa_ten' => 'Bim bim mới' ) ) );
+phep( '🔴 không phải văn phòng thì không xoá được (403)', is_wp_error( $r ) && 403 === (int) $r->get_error_data()['status'] && in_array( 'Bim bim mới', khh_dt_kho_mh_cua( $CS ), true ) );
+$GLOBALS['VHCP_CO_QUYEN'] = true; $GLOBALS['VHCP_DANG_NHAP_WP'] = true;
+$r = khh_dt_rest_kho_mat_hang( new WP_REST_Request( array( 'co_so' => $CS, 'ngay' => '2026-09-25', 'ds' => wp_json_encode( array( 'Nước suối Danasi', 'Kẹo cứng' ) ), 'xoa_ten' => 'Bim bim mới' ) ) );
+phep( 'văn phòng xoá được: hết trong danh mục và hết mã', ! is_wp_error( $r ) && ! in_array( 'Bim bim mới', $r['mat_hang'], true ) && ! isset( $r['ma_hang']['Bim bim mới'] ) );
+$GLOBALS['VHCP_CO_QUYEN'] = false; $GLOBALS['VHCP_DANG_NHAP_WP'] = false;
 /* Trình đọc file ghi mã hàng vào từng món. */
 $src_df = preg_replace( '~/\*.*?\*/~s', '', file_get_contents( $goc . '/doc-file.php' ) );
 phep( "trình đọc file có cột 'ma_hang' và ghi 'm' vào món", false !== strpos( $src_df, "'ma_hang'    => array( 'ma hang'" ) && false !== strpos( $src_df, "'m' => isset( \$o['mon_m'][ \$ten_mon ] )" ) );
