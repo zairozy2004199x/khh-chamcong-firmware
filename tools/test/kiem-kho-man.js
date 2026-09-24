@@ -87,7 +87,11 @@ t('🔴 ô ngày của màn kho đi qua noiONgay, không nối thẳng vào chan
 t('đổi thành phần combo thì NẠP LẠI cả sổ', /api\('kho-combo'[\s\S]{0,120}then\(taiKho\)/.test(boCC));
 t('bày cả hai cột máy: bán lẻ và theo combo',
   /Máy bán lẻ/.test(boCC) && /Theo combo/.test(boCC));
-t('bày cả hai cột lệch', /Lệch khai/.test(boCC) && /Lệch kho/.test(boCC));
+/* 24/09/2026 anh Thắng: cột "SL hàng bán / Lệch khai" thành "Hàng huỷ" — soát bán so máy đã ở tab Nhập báo cáo. */
+t('🔴 cột Hàng huỷ thay SL hàng bán, không còn Lệch khai', /<th>Hàng huỷ<\/th>/.test(boCC) && /oNhap\('huy', 'Hàng huỷ'/.test(boCC) && !/Lệch khai/.test(boCC) && !/SL hàng bán/.test(boCC));
+t('vẫn có cột Lệch kho', /Lệch kho/.test(boCC));
+t('máy bán lấy SL thực đã chốt thì đánh dấu * kèm giải thích', /d\.ban_chot/.test(boCC) && /soKho\(d\.ban_may\) \+ '\*/.test(boCC));
+t('chú giải nói hàng huỷ trừ thẳng khỏi tồn', /Hàng huỷ<\/b> = hàng hỏng/.test(boCC) && /− hàng huỷ/.test(boCC));
 t('🔴 nhắc combo chưa khai thành phần', /combo_nghi/.test(boCC));
 /* Cảnh báo trừ hai lần vẫn còn, nhưng nay nói đúng mức chắc chắn của nó: "xem lại kẻo",
    không phải "ĐANG trừ hai lần" — vì dòng 0đ có thể chỉ là hàng cho. */
@@ -158,14 +162,14 @@ t('ô phải gõ cao 44px và chữ 16px trên điện thoại',
 /* 23/09/2026 anh Thắng (ảnh 23:51): hai số lẻ/combo chen vào giữa làm dòng "Hàng tồn còn" lệch phải — "chiều
    dài ô bằng chữ để sắp lại cho gọn" -> LƯỚI 3 cột cố định, cột ô gõ rộng bằng chữ nhãn. */
 t('🔴 thẻ là LƯỚI 3 cột: cột ô gõ cố định (~124px), lệch, số máy', /\.bang-the tr\{display:grid;grid-template-columns:1[0-4]\dpx 1fr 1fr/.test(dt));
-t('🔴 SL hàng bán · Lệch khai · Máy bán tổng đúng cột 1·2·3', /"SL hàng bán"\]\{order:20;grid-column:1\}/.test(dt) && /"Lệch khai"\]\{order:21;grid-column:2\}/.test(dt) && /"Máy bán tổng"\]\{order:22;grid-column:3\}/.test(dt));
+t('🔴 Hàng huỷ · (trống) · Máy bán tổng đúng cột 1·3', /"Hàng huỷ"\]\{order:20;grid-column:1\}/.test(dt) && /"Máy bán tổng"\]\{order:22;grid-column:3\}/.test(dt) && !/"Lệch khai"/.test(dt));
 t('🔴 Hàng tồn còn · Lệch kho · Tồn tính đúng cột 1·2·3', /"Hàng tồn còn"\]\{order:30;grid-column:1\}/.test(dt) && /"Lệch kho"\]\{order:31;grid-column:2\}/.test(dt) && /"Tồn tính"\]\{order:32;grid-column:3\}/.test(dt));
 t('Nhập cột 1, Tồn đầu cột 3 (cột lệch trống); ghi chú trải hết', /"Nhập"\]\{order:10;grid-column:1\}/.test(dt) && /"Tồn đầu"\]\{order:12;grid-column:3\}/.test(dt) && /\.o-ghi\{order:40;grid-column:1 \/ -1\}/.test(dt));
 t('🔴 máy bán lẻ / theo combo có chỗ riêng, không chen vào lưới', /"Máy bán lẻ"\]\{order:23;grid-column:1/.test(dt) && /"Theo combo"\]\{order:24;grid-column:2 \/ -1/.test(dt));
 t('số máy canh phải, lệch canh giữa', /\.o-may\{text-align:right\}/.test(dt) && /\.o-lech\{text-align:center\}/.test(dt));
 /* Nhãn cột đổi theo lời anh: "NV khai bán" -> "SL hàng bán", "NV đếm còn" -> "Hàng tồn còn" — CSS order bám
    theo data-nhan nên đổi nhãn ở JS mà quên CSS là bố cục điện thoại vỡ im lặng. */
-t("🔴 JS dùng đúng nhãn 'SL hàng bán' và 'Hàng tồn còn' mà CSS order bám theo", /oNhap\('ban_khai', 'SL hàng bán'/.test(boCC) && /oNhap\('dem', 'Hàng tồn còn'/.test(boCC) && !/NV khai bán|NV đếm còn/.test(boCC));
+t("🔴 JS dùng đúng nhãn 'Hàng huỷ' và 'Hàng tồn còn' mà CSS order bám theo", /oNhap\('huy', 'Hàng huỷ'/.test(boCC) && /oNhap\('dem', 'Hàng tồn còn'/.test(boCC) && !/NV khai bán|NV đếm còn/.test(boCC));
 t("và các nhãn số máy khớp CSS", /oMay\('Tồn đầu'/.test(boCC) && /oMay\('Máy bán tổng'/.test(boCC) && /oMay\('Tồn tính'/.test(boCC));
 
 /* 24/09/2026 anh Thắng: "cho set lại tồn đầu" — ô Tồn đầu gõ được khi có quyền ghi, trống = số kéo (placeholder). */

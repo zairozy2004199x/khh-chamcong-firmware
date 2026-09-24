@@ -58,6 +58,10 @@ t('gửi nhom_phu dạng { nhóm: đ/vé }, chỉ số > 0', /var ds = \[\], dsP
 t("🔴 Lưu POST nhom-ve gửi cả nhom_ve và nhom_phu", /fd\.append\('nhom_ve', JSON\.stringify\(ds\)\)/.test(nv) && /fd\.append\('nhom_phu', JSON\.stringify\(dsPhu\)\)/.test(nv));
 t("🔴 và kèm cua_hang — cấu hình khai riêng từng quán", /fd\.append\('cua_hang', r\.cua_hang \|\| cauHinhCS\(\)\)/.test(nv));
 t('khối nhóm có ô chọn cửa hàng chung và GET theo cửa hàng', /oChonCS\('nvCS', r\)/.test(nv) && /api\('nhom-ve\?cua_hang='/.test(boc('taiNhomVe')));
+/* 24/09/2026 anh Thắng: "chỗ set Sale Phụ anh không thấy" — lỗi tải khối phải hiện ra, và có link dẫn từ tab Nhập. */
+t('🔴 lỗi tải hai khối cấu hình hiện ra (khoiLoi), không nuốt bằng catch rỗng', /catch\(function \(e\) \{ khoiLoi\(o, 'dtNhomVe'/.test(js) && /catch\(function \(e\) \{ khoiLoi\(o, 'dtVeKhach'/.test(js));
+t('tab Nhập báo cáo có link "Quản trị → Sale vé / Bán lẻ / Sale phụ" cho quản trị', /id="bcSangCauHinh"/.test(nap) && /Quản trị → Sale vé \/ Bán lẻ \/ Sale phụ/.test(nap));
+t('bấm link là mở Quản trị đúng cửa hàng đang nhập', /S\.cauHinhCS = ch;\s*doiTab\('quantri'\)/.test(nap));
 t('nói rõ đang thừa bảng chung khi quán chưa khai riêng', /đang thừa bảng chung/.test(nv));
 t('nói rõ bán lẻ = phần còn lại, phụ = số vé × tiền phụ mỗi vé (ví dụ combo 80k có 20k phụ)', /phần còn lại/.test(nv) && /số vé × tiền phụ mỗi vé/.test(nv) && /20000/.test(nv));
 

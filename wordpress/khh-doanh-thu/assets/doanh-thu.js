@@ -1125,6 +1125,9 @@
               o_pos('Sale vé (POS)', tien(p.tien_ve || 0)) +
               o_pos('Sale bán lẻ (POS)', tien(p.tien_le || 0)) +
               o_pos('Sale phụ (POS)', tien(p.tien_phu || 0)) +
+              (S.cf && S.cf.quan_tri
+                ? '<div class="bc-pos-o"><span class="lb">Cách tách</span><b><a href="#" id="bcSangCauHinh" style="font-weight:600">Quản trị → Sale vé / Bán lẻ / Sale phụ</a></b></div>'
+                : '') +
               o_pos('Số hoá đơn', nguyen(p.so_hd)) +
               o_pos('Số vé bán', p.so_ve ? nguyen(p.so_ve) : '—') +
               /* Khách theo máy = vé × số khách mỗi vé (combo Trẻ em + Người lớn = 2). Anh Thắng
@@ -1141,6 +1144,14 @@
           : '<div class="trong">Ngày này chưa có số liệu máy POS trong kho. Nạp file FABi cho ngày đó rồi quay lại.</div>';
         var b = r.bao_cao || {};
         veHangBan(p, b);
+        var sang = q('#bcSangCauHinh');
+        if (sang) sang.addEventListener('click', function (ev) {
+          ev.preventDefault();
+          /* Cấu hình theo cửa hàng: mở Quản trị đúng quán đang nhập, cuộn tới khối. */
+          S.cauHinhCS = ch;
+          doiTab('quantri');
+          setTimeout(function () { var k = q('#dtNhomVe'); if (k) k.scrollIntoView({ behavior: 'smooth' }); }, 900);
+        });
         ['tien_mat_dem', 'tien_nop', 'so_bill_huy', 'tien_bill_huy', 'tong_chuyen', 'tong_khach', 've_giay']
           .forEach(function (k) {
             var v = b[k] != null ? Math.round(b[k]) : '';
@@ -1429,7 +1440,7 @@
         '<th style="text-align:left">Mặt hàng</th>' +
         '<th>Tồn đầu</th><th>Nhập</th>' +
         '<th>Máy bán lẻ</th><th>Theo combo</th><th>Máy bán tổng</th>' +
-        '<th>SL hàng bán</th><th>Lệch khai</th>' +
+        '<th>Hàng huỷ</th>' +
         '<th>Tồn tính</th><th>Hàng tồn còn</th><th>Lệch kho</th>' +
         '<th style="text-align:left">Ghi chú</th>' +
         '</tr></thead><tbody>' +
@@ -1479,9 +1490,12 @@
             oNhap('nhap', 'Nhập', d.nhap) +
             oMay('Máy bán lẻ', d.ban_le) +
             oMay('Theo combo', d.ban_combo) +
-            oMay('Máy bán tổng', d.ban_may, true) +
-            oNhap('ban_khai', 'SL hàng bán', d.ban_khai) +
-            oLech(d.lech_khai, 'Lệch khai') +
+            (d.ban_chot
+              ? '<td class="s o-may" data-nhan="Máy bán tổng" title="Lấy SL thực cơ sở đã chốt ở tab Nhập báo cáo (khác máy)"><b>' + soKho(d.ban_may) + '*</b></td>'
+              : oMay('Máy bán tổng', d.ban_may, true)) +
+            /* Hàng huỷ (anh Thắng 24/09/2026): hỏng/đổ/vỡ bỏ đi, trừ khỏi tồn. Cột "SL hàng bán / Lệch khai"
+               cũ bỏ: soát bán so máy đã làm ở tab Nhập báo cáo, sổ kho lấy đúng SL thực đã chốt bên ấy. */
+            oNhap('huy', 'Hàng huỷ', d.huy ? d.huy : null) +
             oMay('Tồn tính', d.ton_tinh) +
             oNhap('dem', 'Hàng tồn còn', d.dem) +
             oLech(d.lech_kho, 'Lệch kho') +
@@ -1494,8 +1508,9 @@
       }
       h += '<div class="chu-them" style="margin-top:8px">' +
         '<b>Tồn đầu</b>: số mờ là tồn cuối hôm trước kéo sang; thấy sai (âm, lệch) thì <b>gõ số thật vào ô</b> để đặt lại mốc cho ngày này — từ đó hệ tính tiếp. Để trống là giữ số kéo.<br>' +
-        '<b>Lệch khai</b> = SL hàng bán (nhân viên khai) − máy POS ghi bán. Âm là khai thiếu.<br>' +
-        '<b>Tồn tính</b> = tồn đầu + nhập − máy POS ghi bán − combo nhập tay. ' +
+        '<b>Hàng huỷ</b> = hàng hỏng, đổ, vỡ bỏ đi — rời kho không qua máy, trừ thẳng khỏi tồn.<br>' +
+        '<b>Máy bán</b>: nếu cơ sở đã chốt <b>SL thực</b> khác máy ở tab Nhập báo cáo thì sổ kho lấy số chốt ấy (ô đánh dấu *).<br>' +
+        '<b>Tồn tính</b> = tồn đầu + nhập − máy POS ghi bán − combo nhập tay − hàng huỷ. ' +
         '<b>Lệch kho</b> = hàng tồn còn (đếm được) − tồn tính. Âm là thiếu hàng.<br>' +
         '🔴 Tồn tính lấy <b>số máy</b>, không lấy số nhân viên khai — lấy số khai thì người khai ' +
         'thiếu bao nhiêu tồn tính cũng thừa bấy nhiêu, hai vế triệt tiêu và cột lệch luôn bằng 0.<br>' +
@@ -1704,7 +1719,7 @@
             ds.map(function (x, i) {
               return (i + 1) + '. ' + (x.luc || '') + (x.nguoi ? ' · ' + x.nguoi : '') +
                 '\n   nhập ' + soKho(x.nhap) +
-                ' · khai bán ' + (soKho(x.ban_khai) || '—') +
+                ' · huỷ ' + (soKho(x.huy) || '—') +
                 ' · đếm còn ' + (soKho(x.dem) || '—') +
                 (x.ghi_chu ? '\n   ghi chú: ' + x.ghi_chu : '');
             }).join('\n'));
@@ -3727,17 +3742,29 @@
     });
   }
 
+  /* Lỗi tải hai khối cấu hình PHẢI HIỆN RA. 24/09/2026 anh Thắng: "chỗ set Sale Phụ anh không thấy" —
+     bản trước nuốt lỗi bằng catch rỗng, hỏng là khối biến mất không dấu vết. Người không có quyền nạp
+     (403) thì đúng là không thấy, nhưng phải nói vì sao. */
+  function khoiLoi(o, id, ten, e) {
+    var cu = o.querySelector('#' + id); if (cu) cu.remove();
+    var h = '<div class="khung" id="' + id + '"><header><h2>' + esc(ten) + '</h2></header>' +
+      '<div class="trong">Không tải được: ' + esc(e && e.message ? e.message : String(e)) +
+      '. Khối này chỉ mở cho người được nạp file (vai duyệt / tài khoản biên tập).</div></div>';
+    var moc = o.querySelector('#dtGhep');
+    if (moc) moc.insertAdjacentHTML('beforebegin', h); else o.insertAdjacentHTML('beforeend', h);
+  }
   function taiVeKhach(o) {
     var cs = cauHinhCS();
     api('ve-khach?cua_hang=' + encodeURIComponent(cs)).then(function (r) {
       var cu = o.querySelector('#dtVeKhach');
       if (cu) cu.remove();
       veVeKhach(o, r);
-    }).catch(function () {});
+    }).catch(function (e) { khoiLoi(o, 'dtVeKhach', 'Bóc tách vé → khách vào', e); });
   }
   function taiNhomVe(o) {
     var cs = cauHinhCS();
-    api('nhom-ve?cua_hang=' + encodeURIComponent(cs)).then(function (r) { veNhomVe(o, r); }).catch(function () {});
+    api('nhom-ve?cua_hang=' + encodeURIComponent(cs)).then(function (r) { veNhomVe(o, r); })
+      .catch(function (e) { khoiLoi(o, 'dtNhomVe', 'Sale vé / Bán lẻ / Sale phụ', e); });
   }
 
   function veVeKhach(o, r) {

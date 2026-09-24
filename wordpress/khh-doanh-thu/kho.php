@@ -59,6 +59,7 @@ function khh_dt_tao_bang_kho() {
 			combo_tay double NOT NULL DEFAULT 0,
 			dem double NULL DEFAULT NULL,
 			dat_dau double NULL DEFAULT NULL,
+			huy double NOT NULL DEFAULT 0,
 			ghi_chu varchar(190) NOT NULL DEFAULT '',
 			nguoi varchar(120) NOT NULL DEFAULT '',
 			luc datetime NULL,
@@ -113,6 +114,7 @@ function khh_dt_tao_bang_kho_su() {
 			combo_tay double NOT NULL DEFAULT 0,
 			dem double NULL DEFAULT NULL,
 			dat_dau double NULL DEFAULT NULL,
+			huy double NOT NULL DEFAULT 0,
 			ghi_chu varchar(190) NOT NULL DEFAULT '',
 			nguoi varchar(120) NOT NULL DEFAULT '',
 			luc datetime NULL,
@@ -398,9 +400,47 @@ function khh_dt_kho_combo_dat( $ten_combo, $thanh_phan, $tu_ngay = '' ) {
  * ================================================================== */
 
 /**
+ * SL THỰC cơ sở đã chốt ở tab Nhập báo cáo (bảng `mon_thuc` của báo cáo ngày) — [ ngày => [ tên món =>
+ * số lượng thực ] ]. Anh Thắng 24/09/2026: *"vì hàng bán lệch đã nhập sẵn bên này rồi"* — nhân viên soát
+ * hàng bán so với máy ở tab Nhập báo cáo, lệch mới gõ; sổ kho lấy đúng con số đã chốt ấy thay số máy,
+ * không bắt khai lần hai. Không có bảng / không có dòng -> rỗng -> theo máy.
+ */
+function khh_dt_kho_ban_thuc( $tu, $den, $co_so ) {
+	global $wpdb;
+	if ( ! function_exists( 'khh_dt_bang_bc' ) ) {
+		return array();
+	}
+	$bc = khh_dt_bang_bc();
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	if ( ! $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $bc ) ) ) {
+		return array();
+	}
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$ds = (array) $wpdb->get_results(
+		$wpdb->prepare( "SELECT ngay, mon_thuc FROM $bc WHERE ngay >= %s AND ngay <= %s AND cua_hang = %s", $tu, $den, $co_so ),
+		ARRAY_A
+	);
+	$ra = array();
+	foreach ( $ds as $r ) {
+		$m = json_decode( (string) ( isset( $r['mon_thuc'] ) ? $r['mon_thuc'] : '' ), true );
+		if ( ! is_array( $m ) ) {
+			continue;
+		}
+		foreach ( $m as $ten => $sl ) {
+			$ten = trim( (string) $ten );
+			if ( '' !== $ten && is_numeric( $sl ) && (float) $sl >= 0 ) {
+				$ra[ (string) $r['ngay'] ][ $ten ] = (float) $sl;
+			}
+		}
+	}
+	return $ra;
+}
+
+/**
  * Số lượng bán theo máy, cho một cơ sở, trong một khoảng.
  *
- * @return array [ ngày => [ mặt hàng => số lượng ] ]  — đã CỘNG cả phần đi theo combo.
+ * @return array [ ngày => [ mặt hàng => số lượng ] ]  — đã CỘNG cả phần đi theo combo, và đã lấy SL
+ *               thực cơ sở chốt (xem `khh_dt_kho_ban_thuc`) thay số máy ở món có chốt.
  */
 function khh_dt_kho_ban_may( $tu, $den, $co_so ) {
 	global $wpdb;
@@ -417,6 +457,7 @@ function khh_dt_kho_ban_may( $tu, $den, $co_so ) {
 	);
 	$ra    = array();
 	$nho   = array();   // công thức theo ngày, nhớ lại để khỏi dựng lại mỗi dòng
+	$thuc  = khh_dt_kho_ban_thuc( $tu, $den, $co_so );
 	foreach ( $ds as $r ) {
 		$mon = json_decode( (string) $r['mon'], true );
 		if ( ! is_array( $mon ) ) {
@@ -434,6 +475,10 @@ function khh_dt_kho_ban_may( $tu, $den, $co_so ) {
 			$sl  = isset( $m['q'] ) ? (float) $m['q'] : 0;
 			if ( '' === $ten ) {
 				continue;
+			}
+			/* Cơ sở đã chốt SL thực khác máy ở tab Nhập báo cáo -> lấy số chốt. */
+			if ( isset( $thuc[ $ngay ][ trim( $ten ) ] ) ) {
+				$sl = $thuc[ $ngay ][ trim( $ten ) ];
 			}
 			if ( isset( $combo[ $ten ] ) ) {
 				/* Món này là một combo: KHÔNG trừ kho theo tên combo (kho không có "combo"),
@@ -466,6 +511,7 @@ function khh_dt_kho_ban_may_tach( $tu, $den, $co_so ) {
 	);
 	$ra    = array();
 	$nho   = array();
+	$thuc = khh_dt_kho_ban_thuc( $tu, $den, $co_so );
 	foreach ( $ds as $r ) {
 		$mon = json_decode( (string) $r['mon'], true );
 		if ( ! is_array( $mon ) ) {
@@ -482,6 +528,9 @@ function khh_dt_kho_ban_may_tach( $tu, $den, $co_so ) {
 			$sl  = isset( $m['q'] ) ? (float) $m['q'] : 0;
 			if ( '' === $ten ) {
 				continue;
+			}
+			if ( isset( $thuc[ $ngay ][ trim( $ten ) ] ) ) {
+				$sl = $thuc[ $ngay ][ trim( $ten ) ];
 			}
 			if ( isset( $combo[ $ten ] ) ) {
 				foreach ( $combo[ $ten ] as $mh => $moi_cai ) {
@@ -555,6 +604,9 @@ function khh_dt_kho_ghi( $ngay, $co_so, $mat_hang, $o ) {
 		/* ĐẶT LẠI TỒN ĐẦU (anh Thắng 24/09/2026: "cho set lại tồn đầu"): một bút toán mốc — ngày này
 		   lấy đúng số ấy làm tồn đầu, bỏ số kéo từ hôm trước (kể cả số âm vô nghĩa). null = không đặt. */
 		'dat_dau'   => khh_dt_kho_so( isset( $o['dat_dau'] ) ? $o['dat_dau'] : null ),
+		/* HÀNG HUỶ (anh Thắng 24/09/2026: "cột này ghi là hàng huỷ, nếu huỷ nhập vào nó trừ ra"): hàng
+		   hỏng, đổ, vỡ bỏ đi — rời kho mà không qua máy POS. Trừ khỏi tồn tính. */
+		'huy'       => khh_dt_kho_so( isset( $o['huy'] ) ? $o['huy'] : null ),
 		'ghi_chu'   => isset( $o['ghi_chu'] ) ? (string) $o['ghi_chu'] : '',
 		'nguoi'     => function_exists( 'khh_dt_ten_ghi_so' ) ? khh_dt_ten_ghi_so() : '',
 		'luc'       => current_time( 'mysql' ),
@@ -566,8 +618,8 @@ function khh_dt_kho_ghi( $ngay, $co_so, $mat_hang, $o ) {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery
 		$wpdb->query(
 			$wpdb->prepare(
-				"INSERT INTO $su (ngay,co_so,mat_hang,nhap,ban_khai,combo_tay,dem,dat_dau,ghi_chu,nguoi,luc)
-				 VALUES (%s,%s,%s,%f,%s,%f,%s,%s,%s,%s,%s)",
+				"INSERT INTO $su (ngay,co_so,mat_hang,nhap,ban_khai,combo_tay,dem,dat_dau,huy,ghi_chu,nguoi,luc)
+				 VALUES (%s,%s,%s,%f,%s,%f,%s,%s,%f,%s,%s,%s)",
 				$ngay,
 				$co_so,
 				$mat_hang,
@@ -576,6 +628,7 @@ function khh_dt_kho_ghi( $ngay, $co_so, $mat_hang, $o ) {
 				null === $dong['combo_tay'] ? 0 : $dong['combo_tay'],
 				$dong['dem'],
 				$dong['dat_dau'],
+				null === $dong['huy'] ? 0 : $dong['huy'],
 				$dong['ghi_chu'],
 				$dong['nguoi'],
 				$dong['luc']
@@ -594,10 +647,10 @@ function khh_dt_kho_ghi_cong_don( $ngay, $co_so, $mat_hang, $o ) {
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery
 	return false !== $wpdb->query(
 		$wpdb->prepare(
-			"INSERT INTO $bang (ngay,co_so,mat_hang,nhap,ban_khai,combo_tay,dem,dat_dau,ghi_chu,nguoi,luc)
-			 VALUES (%s,%s,%s,%f,%s,%f,%s,%s,%s,%s,%s)
+			"INSERT INTO $bang (ngay,co_so,mat_hang,nhap,ban_khai,combo_tay,dem,dat_dau,huy,ghi_chu,nguoi,luc)
+			 VALUES (%s,%s,%s,%f,%s,%f,%s,%s,%f,%s,%s,%s)
 			 ON DUPLICATE KEY UPDATE nhap=VALUES(nhap), ban_khai=VALUES(ban_khai),
-			   combo_tay=VALUES(combo_tay), dem=VALUES(dem), dat_dau=VALUES(dat_dau), ghi_chu=VALUES(ghi_chu),
+			   combo_tay=VALUES(combo_tay), dem=VALUES(dem), dat_dau=VALUES(dat_dau), huy=VALUES(huy), ghi_chu=VALUES(ghi_chu),
 			   nguoi=VALUES(nguoi), luc=VALUES(luc)",
 			$ngay,
 			$co_so,
@@ -607,6 +660,7 @@ function khh_dt_kho_ghi_cong_don( $ngay, $co_so, $mat_hang, $o ) {
 			null === $combo ? 0 : $combo,
 			khh_dt_kho_so( isset( $o['dem'] ) ? $o['dem'] : null ),
 			khh_dt_kho_so( isset( $o['dat_dau'] ) ? $o['dat_dau'] : null ),
+			null === ( $h = khh_dt_kho_so( isset( $o['huy'] ) ? $o['huy'] : null ) ) ? 0 : $h,
 			isset( $o['ghi_chu'] ) ? (string) $o['ghi_chu'] : '',
 			isset( $o['nguoi'] ) ? (string) $o['nguoi'] : '',
 			isset( $o['luc'] ) ? (string) $o['luc'] : current_time( 'mysql' )
@@ -682,6 +736,7 @@ function khh_dt_kho_chay( $co_so, $tu, $den ) {
 			$d     = isset( $khai[ $ng ][ $mh ] ) ? $khai[ $ng ][ $mh ] : array();
 			$nhap  = isset( $d['nhap'] ) ? (float) $d['nhap'] : 0.0;
 			$ctay  = isset( $d['combo_tay'] ) ? (float) $d['combo_tay'] : 0.0;
+			$huy   = isset( $d['huy'] ) ? (float) $d['huy'] : 0.0;
 			$b_may = isset( $may[ $ng ][ $mh ] ) ? (float) $may[ $ng ][ $mh ] : 0.0;
 			$dem   = ( isset( $d['dem'] ) && null !== $d['dem'] && '' !== $d['dem'] ) ? (float) $d['dem'] : null;
 			$dat   = ( isset( $d['dat_dau'] ) && null !== $d['dat_dau'] && '' !== $d['dat_dau'] ) ? (float) $d['dat_dau'] : null;
@@ -703,7 +758,8 @@ function khh_dt_kho_chay( $co_so, $tu, $den ) {
 			if ( null === $goc && $nhap > 0 ) {
 				$goc = 0.0;
 			}
-			$tinh = ( null === $goc ) ? null : $goc + $nhap - $b_may - $ctay;
+			/* Hàng huỷ rời kho như hàng bán, chỉ khác là không qua máy — trừ thẳng. */
+			$tinh = ( null === $goc ) ? null : $goc + $nhap - $b_may - $ctay - $huy;
 
 			/* Đếm tay thắng số tính — đây là chỗ cắt đứt cái lệch cũ, và cũng là cách đặt mốc
 			   đầu tiên cho một mặt hàng chưa ai đếm bao giờ. */
@@ -721,6 +777,7 @@ function khh_dt_kho_chay( $co_so, $tu, $den ) {
 				'nhap'      => $nhap,
 				'ban_may'   => isset( $co_fabi[ $ng ] ) ? $b_may : null,
 				'combo_tay' => $ctay,
+				'huy'       => $huy,
 				'dem'       => $dem,
 				'ton_tinh'  => $tinh,
 				'ton_cuoi'  => $cuoi,
@@ -848,6 +905,8 @@ function khh_dt_kho_bang_ngay( $ngay, $co_so ) {
 	}
 	sort( $mh_ds );
 
+	$thuc_ng = khh_dt_kho_ban_thuc( $ngay, $ngay, $co_so );
+	$chot    = isset( $thuc_ng[ $ngay ] ) ? $thuc_ng[ $ngay ] : array();
 	$ra = array();
 	foreach ( $mh_ds as $mh ) {
 		$d      = isset( $khai[ $mh ] ) ? $khai[ $mh ] : array();
@@ -863,6 +922,7 @@ function khh_dt_kho_bang_ngay( $ngay, $co_so ) {
 		}
 		$nhap   = isset( $d['nhap'] ) ? (float) $d['nhap'] : 0.0;
 		$c_tay  = isset( $d['combo_tay'] ) ? (float) $d['combo_tay'] : 0.0;
+		$huy    = isset( $d['huy'] ) ? (float) $d['huy'] : 0.0;
 		if ( $co_fabi ) {
 			$b_le  = isset( $tach[ $mh ]['le'] ) ? (float) $tach[ $mh ]['le'] : 0.0;
 			$b_cb  = isset( $tach[ $mh ]['combo'] ) ? (float) $tach[ $mh ]['combo'] : 0.0;
@@ -876,7 +936,7 @@ function khh_dt_kho_bang_ngay( $ngay, $co_so ) {
 		   Chưa biết máy bán bao nhiêu (chưa nạp FABi) thì cũng không tính — thiếu một vế là
 		   ra số bịa. Số đếm của nhân viên vẫn được lưu, nạp báo cáo xong hệ tự tính lại. */
 		$goc    = ( null === $t_dau && $nhap > 0 ) ? 0.0 : $t_dau;
-		$tinh   = ( null === $goc || null === $b_may ) ? null : $goc + $nhap - $b_may - $c_tay;
+		$tinh   = ( null === $goc || null === $b_may ) ? null : $goc + $nhap - $b_may - $c_tay - $huy;
 
 		$khai_ban = ( isset( $d['ban_khai'] ) && null !== $d['ban_khai'] && '' !== $d['ban_khai'] )
 			? (float) $d['ban_khai'] : null;
@@ -893,6 +953,9 @@ function khh_dt_kho_bang_ngay( $ngay, $co_so ) {
 			'ban_combo' => $b_cb,
 			'ban_may'   => $b_may,
 			'combo_tay' => $c_tay,
+			'huy'       => $huy,
+			/* Máy bán ở đây đã LẤY SL THỰC cơ sở chốt ở tab Nhập báo cáo nếu có — cờ này để màn ghi rõ. */
+			'ban_chot'  => isset( $chot[ $mh ] ),
 			'ban_khai'  => $khai_ban,
 			'ton_tinh'  => $tinh,
 			'dem'       => $dem,

@@ -102,6 +102,22 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.61.0 =
+* 🔴 **Cột "SL hàng bán" trong Kho hàng hoá thành "Hàng huỷ".** Anh Thắng 24/09/2026: *"cột này ghi là hàng
+  huỷ (nếu huỷ nhập vào nó trừ ra)"* — *"vì hàng bán lệch đã nhập sẵn bên này rồi"* (bảng Hàng bán theo
+  máy POS ở tab Nhập báo cáo). Hàng hỏng, đổ, vỡ bỏ đi gõ vào đây là trừ thẳng khỏi tồn: **tồn tính =
+  tồn đầu + nhập − máy bán − combo nhập tay − hàng huỷ**. Cột "Lệch khai" bỏ (không còn khai bán lần hai).
+  Cột mới `huy` ở cả hai bảng kho; sổ ghi động và "xem các lượt khai" ghi huỷ.
+* 🔴 **Sổ kho lấy SL thực cơ sở đã chốt.** Món nào cơ sở đã gõ *SL thực (nếu lệch)* ở tab Nhập báo cáo thì
+  sổ kho dùng đúng số ấy thay số máy (ô Máy bán tổng đánh dấu `*`), kể cả combo (thành phần trừ theo số
+  chốt). Không bắt khai lần hai, hai tab nói cùng một con số.
+* **Tìm được chỗ cấu hình Sale phụ.** *"Chỗ set Sale Phụ anh không thấy"* — hai khối cấu hình nằm ở tab
+  Quản trị (dưới Phân quyền). Hàng số máy ở tab Nhập báo cáo nay có link **"Quản trị → Sale vé / Bán lẻ /
+  Sale phụ"** mở thẳng đúng cửa hàng đang nhập; hai khối ấy tải lỗi thì **hiện lỗi ra** thay vì biến mất
+  im lặng (trước đây `catch` rỗng).
+* Bài kiểm: `kiem-kho.php` +11 phép (huỷ trừ tồn; SL thực đè máy ở bảng ngày, thẻ kho, chuỗi ngày, combo;
+  không có bảng báo cáo thì theo máy), `kiem-kho-man.js` viết lại 5 phép, `kiem-hang-ban-chot-man.js` +3.
+
 = 1.60.0 =
 * 🔴 **Đặt lại tồn đầu.** Anh Thắng 24/09/2026 mở Tân Phú thấy cả cột Tồn đầu âm (−2, −8, −34) vì hôm
   trước máy bán mà chưa ai đặt mốc — *"cho set lại tồn đầu"*. Ô **Tồn đầu** trong bảng Kho hàng hoá nay
