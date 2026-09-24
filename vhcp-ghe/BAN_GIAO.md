@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-09-24 · Phiên bản hiện tại: **2.136.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-09-24 · Phiên bản hiện tại: **2.137.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,39 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v2.137.0 (+ Sao Kê 0.45.0) — BÍ DANH cơ sở: gộp tên cũ vào điểm mới mà tiền VietQR không rơi
+
+Anh Thắng 24/09/2026, ảnh CSV Báo cáo tổng: **"POSH MN CGV VINCOM LANDMARK"** (không Mã KH, 0 ghế)
+nằm cạnh **"CGV LANDMARK 81 · KH00245"**; **"BỆNH VIỆN UNG BƯỚU HCM"** (0 ghế, 45,87 triệu theo cục)
+cạnh **"BV UNG BƯỚU · KH00186"** — *"điểm này đang dính vào MISA, cần loại bỏ ngay, vì điểm mới đã
+có"*; *"nguyên nhân bị sao bị trùng 2 điểm"*.
+
+**Nguyên nhân trùng.** Hai TÊN cho một chỗ. Tên có ghế + Mã KH là tên bên Ghế; tên kia là **tên cửa
+hàng bên cổng VietQR** (kiểu Excel "POSH MN …"), cũng tồn tại như một cơ sở **rỗng** bên Ghế. Khi
+máy cổng không khớp được ghế nào (tên máy bên cổng khác tên khai ghế), Sao Kê lùi về **tên cửa hàng**
+— và vì Ghế có cơ sở đúng tên ấy, tiền VietQR đổ vào đó thành một dòng riêng. Dấu vết đúng như ảnh:
+dòng trùng **0 ghế, không Mã KH, tiền chỉ có theo cục vào vài ngày** = tiền ngân hàng, không phải
+báo cáo ghế. **Xoá suông cơ sở rỗng là sai kiểu khác**: tên mất → Sao Kê trả "không khớp" → tiền
+biến khỏi báo cáo, không sang điểm mới.
+
+**Làm gì.**
+- Ghế: cột **`coso.bi_danh`** (mỗi dòng một tên). `gop_coso()` **giữ tên cũ (và bí danh của nó) làm
+  bí danh của đích** — đọc trước khi xoá nguồn, kẻo mất; xoá nguồn hụt thì không ghi. Nút **⇄** trên
+  từng hàng: gộp vào cơ sở bất kỳ (chọn theo số), hai lần xác nhận. Nút **🔁**: khai bí danh tay. Một
+  tên không thể là tên/bí danh của hai cơ sở — máy chủ chối, bảo gộp nếu là cùng một điểm.
+- Sao Kê 0.45.0: `ghe_coso_chuan($ten)` tra **tên hoặc bí danh → tên đích**; ba chỗ lùi theo
+  `tenChuan` dùng nó. Tên thật thắng bí danh. `ghe_ds_coso()` dùng `SELECT *`: Ghế cũ chưa có cột vẫn
+  chạy.
+
+**Việc anh làm (nạp cả hai plugin trước):** Địa điểm → hàng "POSH MN CGV VINCOM LANDMARK" → **⇄** →
+chọn "CGV LANDMARK 81". Tương tự "BỆNH VIỆN UNG BƯỚU HCM" → **⇄** → "BV UNG BƯỚU". Dòng cũ hết dính,
+tiền VietQR mang tên cũ chạy về đúng chỗ. **Gốc sâu hơn** để dọn dần: tên máy bên cổng phải khớp
+`ten_khai` của ghế (xem `chuan_may` 0.44.0) — khớp được thì không cần lùi theo tên cửa hàng nữa.
+
+`kiem-bi-danh-coso.php` (17 phép): gộp ghi bí danh vào đích trước khi xoá nguồn; xoá hụt không ghi;
+bí danh không trùng hai nơi (so bỏ dấu); Sao Kê tra bí danh ra tên đích, tên thật thắng, không có
+cột `bi_danh` vẫn chạy.
 
 ### v2.136.0 — SỬA LỖI 2.133.0: gõ Mã KH trong hàng cơ sở bị bắn thành lệnh "đổi cơ sở" ghế
 

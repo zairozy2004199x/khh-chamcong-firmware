@@ -180,16 +180,74 @@ class VHG_May {
 		$doi = (int) $wpdb->query( $wpdb->prepare(
 			'UPDATE ' . VHG_DB::t( 'may' ) . ' SET coso_id=%d WHERE coso_id=%d', $dich, $nguon ) );
 
+		/* 🔴 TÊN CŨ THÀNH BÍ DANH CỦA CƠ SỞ ĐÍCH — anh Thắng 24/09/2026: "POSH MN CGV VINCOM LANDMARK"
+		   là tên cửa hàng bên cổng VietQR; Sao Kê quy tiền về cơ sở Ghế theo đúng tên ấy. Gộp mà
+		   xoá suông tên cũ thì tiền VietQR của máy Landmark rơi thành "không khớp" — biến khỏi báo
+		   cáo, không sang được cơ sở mới. Giữ tên cũ (và mọi bí danh của nó) trong `bi_danh` của
+		   đích: Sao Kê tra bí danh → về đúng cơ sở mới. Lấy trước khi xoá, kẻo mất. */
+		$bd_n = (string) $wpdb->get_var( $wpdb->prepare( "SELECT bi_danh FROM $bang WHERE id=%d", $nguon ) );
+		$bd_d = (string) $wpdb->get_var( $wpdb->prepare( "SELECT bi_danh FROM $bang WHERE id=%d", $dich ) );
+
 		$xoa = self::xoa_coso( $nguon );
 		if ( empty( $xoa['ok'] ) ) {
 			return array( 'ok' => false, 'error' => 'Đã dời ' . $doi . ' ghế sang "' . $ten_d . '" nhưng CHƯA xoá được cơ sở cũ: '
 				. ( isset( $xoa['error'] ) ? $xoa['error'] : '' ) . ' Cơ sở cũ vẫn còn, anh xem lại rồi xoá tay.' );
 		}
+		$bd_moi = self::bi_danh_gop_( $bd_d, array_merge( array( (string) $ten_n ), self::bi_danh_tach_( $bd_n ) ), (string) $ten_d );
+		$wpdb->update( $bang, array( 'bi_danh' => $bd_moi ), array( 'id' => $dich ) );
 		self::quen_dem_reset_();
 		self::bao_da_luu_( (string) $ten_d );
-		return array( 'ok' => true, 'doi' => $doi, 'ten_nguon' => (string) $ten_n, 'ten_dich' => (string) $ten_d,
-			'thong_bao' => 'Đã gộp "' . $ten_n . '" vào "' . $ten_d . '": dời ' . $doi . ' ghế, xoá cơ sở cũ. '
-				. 'Báo cáo đã nộp dưới tên cũ vẫn giữ nguyên (sổ tháng đã chốt không sửa lại).' );
+		return array( 'ok' => true, 'doi' => $doi, 'ten_nguon' => (string) $ten_n, 'ten_dich' => (string) $ten_d, 'bi_danh' => $bd_moi,
+			'thong_bao' => 'Đã gộp "' . $ten_n . '" vào "' . $ten_d . '": dời ' . $doi . ' ghế, xoá cơ sở cũ; "' . $ten_n . '" nay là BÍ DANH của "' . $ten_d
+				. '" (tiền VietQR mang tên cũ vẫn quy về đây). Báo cáo đã nộp dưới tên cũ vẫn giữ nguyên (sổ tháng đã chốt không sửa lại).' );
+	}
+
+	/* Bí danh lưu một dòng một tên (ngăn bằng xuống dòng) — tên cửa hàng có thể chứa dấu phẩy. */
+	public static function bi_danh_tach_( $raw ) {
+		$ra = array();
+		foreach ( preg_split( '/[\r\n;|]+/', (string) $raw ) as $x ) { $x = trim( $x ); if ( '' !== $x && ! in_array( $x, $ra, true ) ) { $ra[] = $x; } }
+		return $ra;
+	}
+	/* Gộp bí danh: bỏ trùng theo VHG_BaoCao::squash(), bỏ chính tên cơ sở (tên thật không phải bí danh). */
+	public static function bi_danh_gop_( $raw_cu, $them, $ten_chinh ) {
+		$ra = array(); $thay = array( VHG_BaoCao::squash( (string) $ten_chinh ) => 1 );
+		foreach ( array_merge( self::bi_danh_tach_( $raw_cu ), (array) $them ) as $x ) {
+			$x = trim( (string) $x ); $k = VHG_BaoCao::squash( $x );
+			if ( '' === $k || isset( $thay[ $k ] ) ) { continue; }
+			$thay[ $k ] = 1; $ra[] = $x;
+		}
+		return implode( "\n", $ra );
+	}
+	/**
+	 * Khai BÍ DANH cho một cơ sở (tên cũ, tên cửa hàng bên cổng VietQR…) — anh Thắng 24/09/2026.
+	 * Mỗi dòng một tên. Một tên không được là bí danh của hai cơ sở, cũng không được trùng tên thật
+	 * của cơ sở khác: hai nơi cùng nhận một tên là Sao Kê quy tiền cho nơi nào tuỳ thứ tự đọc.
+	 */
+	public static function bi_danh_luu( $id, $bi_danh ) {
+		global $wpdb;
+		$id = (int) $id; if ( $id <= 0 ) { return array( 'ok' => false, 'error' => 'Thiếu cơ sở.' ); }
+		$bang = VHG_DB::t( 'coso' );
+		$ten = $wpdb->get_var( $wpdb->prepare( "SELECT ten FROM $bang WHERE id=%d", $id ) );
+		if ( null === $ten ) { return array( 'ok' => false, 'error' => 'Không thấy cơ sở.' ); }
+		$ds = self::bi_danh_tach_( $bi_danh );
+		$moi = self::bi_danh_gop_( '', $ds, (string) $ten );
+		$ds_moi = self::bi_danh_tach_( $moi );
+		/* Không trùng tên thật / bí danh của cơ sở KHÁC. */
+		$khac = $wpdb->get_results( $wpdb->prepare( "SELECT id, ten, bi_danh FROM $bang WHERE id<>%d", $id ), ARRAY_A );
+		foreach ( (array) $khac as $c ) {
+			$co = array_merge( array( (string) $c['ten'] ), self::bi_danh_tach_( isset( $c['bi_danh'] ) ? $c['bi_danh'] : '' ) );
+			foreach ( $ds_moi as $b ) {
+				foreach ( $co as $t ) {
+					if ( VHG_BaoCao::squash( $b ) === VHG_BaoCao::squash( $t ) ) {
+						return array( 'ok' => false, 'error' => '"' . $b . '" đang là tên/bí danh của cơ sở "' . $c['ten'] . '" — một tên không thể thuộc hai nơi. Gộp hai cơ sở nếu đó là cùng một điểm.' );
+					}
+				}
+			}
+		}
+		$wpdb->update( $bang, array( 'bi_danh' => $moi ), array( 'id' => $id ) );
+		self::quen_dem_reset_();
+		return array( 'ok' => true, 'bi_danh' => $moi, 'ds' => $ds_moi,
+			'thong_bao' => count( $ds_moi ) ? ( 'Đã khai ' . count( $ds_moi ) . ' bí danh cho "' . $ten . '": ' . implode( ' · ', $ds_moi ) ) : ( 'Đã xoá hết bí danh của "' . $ten . '".' ) );
 	}
 
 	/**

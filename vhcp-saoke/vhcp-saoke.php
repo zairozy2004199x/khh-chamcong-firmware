@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.44.0
+ * Version:           0.45.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -25,7 +25,7 @@ class SAOKE_App {
 	   thêm file"* — câu đầu tiên phải trả lời là "bản đang chạy có khối ấy chưa", mà trang thì
 	   không in số bản ở đâu cả, nên không ai đáp được ngoài cách đi mở wp-admin. Ghi ở đây, hiện
 	   ở góc cột trái. ⚠️ PHẢI BẰNG số ở header `Version:` phía trên — hai chỗ, một giá trị. */
-	const VER = '0.44.0';
+	const VER = '0.45.0';
 
 	/* 3 cổng thanh toán + tên hiển thị. Việt QR về bank 1:1; MoMo/VNPAY gộp cục N:1. */
 	private static function cong_ds() { return array( 'vietqr', 'momo', 'vnpay' ); }
@@ -1936,8 +1936,10 @@ class SAOKE_App {
 	private static function ghe_ds_coso() {
 		if ( ! self::ghe_co() ) { return array(); }
 		global $wpdb; static $ds = null; if ( null !== $ds ) { return $ds; }
-		$rows = $wpdb->get_results( 'SELECT ten, tinh, ma_kh FROM ' . self::ghe_tbl( 'coso' ) . ' ORDER BY ten ASC', ARRAY_A );
-		$ds = array(); foreach ( (array) $rows as $r ) { $ds[] = array( 'ten' => (string) $r['ten'], 'tinh' => (string) $r['tinh'], 'maKh' => (string) $r['ma_kh'] ); }
+		/* `SELECT *` chứ không kể cột: `bi_danh` có từ Ghế 2.137.0, Ghế cũ hơn thì không có cột ấy —
+		   kể tên cột là câu SELECT hỏng và CẢ danh sách cơ sở về rỗng, không riêng bí danh. */
+		$rows = $wpdb->get_results( 'SELECT * FROM ' . self::ghe_tbl( 'coso' ) . ' ORDER BY ten ASC', ARRAY_A );
+		$ds = array(); foreach ( (array) $rows as $r ) { $ds[] = array( 'ten' => (string) $r['ten'], 'tinh' => (string) ( isset( $r['tinh'] ) ? $r['tinh'] : '' ), 'maKh' => (string) ( isset( $r['ma_kh'] ) ? $r['ma_kh'] : '' ), 'biDanh' => (string) ( isset( $r['bi_danh'] ) ? $r['bi_danh'] : '' ) ); }
 		return $ds;
 	}
 	/* ══════════════════════════════════════════════════════════════════════════════════════════
@@ -2051,12 +2053,38 @@ class SAOKE_App {
 		return $map;
 	}
 	/* $ten có phải tên 1 địa điểm bên Ghế không (so bỏ dấu/khoảng trắng). */
-	private static function ghe_la_coso( $ten ) {
-		if ( ! self::ghe_co() || '' === trim( (string) $ten ) ) { return false; }
-		static $set = null;
-		if ( null === $set ) { $set = array(); foreach ( self::ds_coso_all() as $c ) { $set[ self::chuan_ch( $c['ten'] ) ] = 1; } }
-		return isset( $set[ self::chuan_ch( $ten ) ] );
+	/**
+	 * TÊN CHUẨN của một địa điểm Ghế từ tên hoặc BÍ DANH — '' nếu không phải địa điểm Ghế.
+	 *
+	 * 🔴 BÍ DANH (Ghế 2.137.0, `coso.bi_danh`) — anh Thắng 24/09/2026: tên cửa hàng bên cổng "POSH MN CGV
+	 *    VINCOM LANDMARK" đang là một cơ sở rỗng bên Ghế, còn điểm thật là "CGV LANDMARK 81". Gộp bên Ghế
+	 *    xong, tên cũ nằm trong bí danh của đích; ở đây tra bí danh → trả TÊN ĐÍCH, để tiền VietQR mang tên
+	 *    cũ quy về đúng cơ sở mới thay vì rơi thành "không khớp". Tên thật thắng bí danh khi trùng.
+	 */
+	private static function ghe_coso_chuan( $ten ) {
+		if ( ! self::ghe_co() || '' === trim( (string) $ten ) ) { return ''; }
+		static $map = null;
+		if ( null === $map ) {
+			/* TÊN THẬT lấy từ ds_coso_all() — danh sách gộp Ghế + Chi Phí đã khử trùng theo tên, dùng
+			   chung cho mọi câu "tên này có phải cơ sở không" (xem chú thích KVC ở trên). Không dựng lại
+			   phép gộp ấy ở đây: hai bản của một luật thì sớm muộn lệch nhau. */
+			$map = array(); $bd = array();
+			foreach ( self::ds_coso_all() as $c ) {
+				$k = self::chuan_ch( $c['ten'] ); if ( '' !== $k && ! isset( $map[ $k ] ) ) { $map[ $k ] = (string) $c['ten']; }
+			}
+			/* BÍ DANH chỉ có ở cơ sở Ghế — overlay lên, và không bao giờ đè tên thật. */
+			foreach ( self::ghe_ds_coso() as $c ) {
+				foreach ( preg_split( '/[\r\n;|]+/', (string) ( isset( $c['biDanh'] ) ? $c['biDanh'] : '' ) ) as $b ) {
+					$kb = self::chuan_ch( $b ); if ( '' !== $kb && ! isset( $bd[ $kb ] ) ) { $bd[ $kb ] = (string) $c['ten']; }
+				}
+			}
+			foreach ( $bd as $kb => $t ) { if ( ! isset( $map[ $kb ] ) ) { $map[ $kb ] = $t; } }   // tên thật thắng bí danh
+		}
+		$k = self::chuan_ch( $ten );
+		return isset( $map[ $k ] ) ? $map[ $k ] : '';
 	}
+	/* $ten có phải tên (hoặc bí danh) 1 địa điểm bên Ghế không. */
+	private static function ghe_la_coso( $ten ) { return '' !== self::ghe_coso_chuan( $ten ); }
 	/* Mã nộp tiền RIÊNG theo cơ sở (do người dùng chỉnh) — dùng để lọc sao kê ngân hàng xem cơ sở
 	   đó đã nộp tiền mặt chưa. Lưu option saoke_coso_ma: [ chuan_ch(tên cơ sở) => mã ]. */
 	private static function coso_ma_map() { $o = get_option( 'saoke_coso_ma' ); return is_array( $o ) ? $o : array(); }
@@ -2111,8 +2139,8 @@ class SAOKE_App {
 					: ( isset( $anhXa[ self::chuan_ch( self::cong_coso( $tenMay ) ) ] ) ? $anhXa[ self::chuan_ch( self::cong_coso( $tenMay ) ) ] : null ),
 				self::ymd2vn( $r['d'] ) );
 			$ghe = self::ghe_coso_cua_may( $tenMay );
-			if ( ! $ghe && $ax && '' !== trim( (string) $ax['tenChuan'] ) && self::ghe_la_coso( $ax['tenChuan'] ) ) {
-				$ghe = array( 'coso' => $ax['tenChuan'] );
+			if ( ! $ghe && $ax && '' !== trim( (string) $ax['tenChuan'] ) && '' !== self::ghe_coso_chuan( $ax['tenChuan'] ) ) {
+				$ghe = array( 'coso' => self::ghe_coso_chuan( $ax['tenChuan'] ) );   // bí danh → tên đích
 			}
 			$cs = $ghe ? (string) $ghe['coso'] : '';
 			if ( '' === $cs ) { $khong += $tien; continue; }
@@ -2183,8 +2211,8 @@ class SAOKE_App {
 					: ( isset( $anhXa[ self::chuan_ch( self::cong_coso( $tenMay ) ) ] ) ? $anhXa[ self::chuan_ch( self::cong_coso( $tenMay ) ) ] : null ),
 				self::ymd2vn( $r['d'] ) );
 			$ghe = self::ghe_coso_cua_may( $tenMay );
-			if ( ! $ghe && $ax && '' !== trim( (string) $ax['tenChuan'] ) && self::ghe_la_coso( $ax['tenChuan'] ) ) {
-				$ghe = array( 'coso' => $ax['tenChuan'] );
+			if ( ! $ghe && $ax && '' !== trim( (string) $ax['tenChuan'] ) && '' !== self::ghe_coso_chuan( $ax['tenChuan'] ) ) {
+				$ghe = array( 'coso' => self::ghe_coso_chuan( $ax['tenChuan'] ) );   // bí danh → tên đích
 			}
 			$cs = $ghe ? (string) $ghe['coso'] : '';
 			if ( '' === $cs ) { $khong += $tien; continue; }
@@ -2848,7 +2876,7 @@ class SAOKE_App {
 			$suy = self::ax_ma_nop( $ax, $mapTen ); $soTien = (int) $r['so_tien'];
 			// POSH: tự lấy địa điểm từ trang Ghế theo tên máy; nếu trượt mà anh đã gán tay tới 1 địa điểm ghế thì dùng nó.
 			$ghe = self::ghe_coso_cua_may( $tenMay );
-			if ( ! $ghe && $ax && '' !== trim( (string) $ax['tenChuan'] ) && self::ghe_la_coso( $ax['tenChuan'] ) ) { $ghe = array( 'coso' => $ax['tenChuan'], 'maKh' => '', 'tinh' => '' ); }
+			if ( ! $ghe && $ax && '' !== trim( (string) $ax['tenChuan'] ) && '' !== self::ghe_coso_chuan( $ax['tenChuan'] ) ) { $ghe = array( 'coso' => self::ghe_coso_chuan( $ax['tenChuan'] ), 'maKh' => '', 'tinh' => '' ); }
 			$cuaHang = $ghe ? $ghe['coso'] : ( $ax ? ( '' !== $ax['tenChuan'] ? $ax['tenChuan'] : $coSo ) : $coSo );
 			$daAnhXa = $ghe ? true : ( '' !== $suy['ma'] );
 			if ( '' === $tenMay ) {

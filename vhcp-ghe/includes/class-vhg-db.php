@@ -91,6 +91,13 @@ class VHG_DB {
 		if ( ! $co_dong ) {
 			$wpdb->query( "ALTER TABLE $coso ADD COLUMN dong_cua TINYINT(1) NOT NULL DEFAULT 0" );
 		}
+		/* `bi_danh` (v2.137.0) — TÊN KHÁC của cùng một cơ sở (tên cũ đã gộp, tên cửa hàng bên cổng VietQR
+		   kiểu "POSH MN CGV VINCOM LANDMARK"). Anh Thắng 24/09/2026: tên cũ "đang dính vào MISA, cần loại
+		   bỏ ngay, vì điểm mới đã có" — xoá suông thì tiền VietQR quy theo tên cũ rơi thành "không khớp";
+		   giữ tên cũ làm bí danh thì Sao Kê vẫn quy về cơ sở mới. Thêm tay cùng lý do với `ma_kh`. */
+		if ( ! $wpdb->get_var( "SHOW COLUMNS FROM $coso LIKE 'bi_danh'" ) ) {
+			$wpdb->query( "ALTER TABLE $coso ADD COLUMN bi_danh TEXT NULL" );
+		}
 
 		/* `may.ten_goi` (v2.80.0) — TÊN THƯỜNG GỌI của ghế. Anh Thắng 14/09/2026: *"thêm tên
 		   thường gọi cho ghế để nhân viên dễ biết, nhiều khi lấy mã cố định thành tra tên không
@@ -167,6 +174,7 @@ class VHG_DB {
 			ghi_chu VARCHAR(255) NOT NULL DEFAULT '',
 			lich_bc VARCHAR(20) NOT NULL DEFAULT '1,2,3,4,5,6,7',
 			reset_moi_lan TINYINT(1) NOT NULL DEFAULT 0,
+			bi_danh TEXT NULL,
 			PRIMARY KEY  (id),
 			UNIQUE KEY ten (ten)";
 
