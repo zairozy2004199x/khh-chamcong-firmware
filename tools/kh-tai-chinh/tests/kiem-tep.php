@@ -302,6 +302,29 @@ $html  = dung( function () { KHTC_Trang::dan_tho(); } );
 co( 'xem trước nhận ra QR', $html, 'Nhận ra:' );
 $_POST = array();
 
+// ---------------------------------------------------------------- 11. nút đổi KH Cũ / KH Mới phải có tác dụng ở MỌI màn hình
+// Lỗi thật: Danh mục điểm, Dán thô, Sinh từ sao kê, Người dùng không nhận nút,
+// bấm KH Mới đứng nguyên KH Cũ — người dùng không biết vì sao.
+$r = new ReflectionClass( 'KHTC_Trang' );
+$man_hinh = array();
+foreach ( $r->getMethods( ReflectionMethod::IS_PUBLIC | ReflectionMethod::IS_STATIC ) as $m ) {
+	if ( $m->isPublic() && $m->isStatic() && $m->getNumberOfParameters() === 0 && ! in_array( $m->getName(), array( 'url', 'url_form' ), true ) ) { $man_hinh[] = $m->getName(); }
+}
+kiem( 'liệt kê được các màn hình', count( $man_hinh ) >= 18, true );
+foreach ( $man_hinh as $ham ) {
+	KHTC_Cty::chon( 'kh_cu' );
+	$_POST = array( 'khtc_cty' => 'kh_moi' ); $_GET = array();
+	try { dung( function () use ( $ham ) { KHTC_Trang::$ham(); } ); } catch ( Throwable $e ) { $hong[] = "$ham nổ khi đổi cty: " . $e->getMessage(); continue; }
+	kiem( "$ham: bấm KH Mới thì sang KH Mới", KHTC_Cty::dang_chon(), 'kh_moi' );
+}
+$_POST = array(); KHTC_Cty::chon( 'kh_cu' );
+// khung web chung cũng nhận
+$kw = new ReflectionMethod( 'KHTC_Web', 'khung' ); $kw->setAccessible( true );
+$_POST = array( 'khtc_cty' => 'kh_moi' ); $GLOBALS['khtc_qv'] = array( 'khtc_man' => 'danh-muc-diem' );
+dung( function () use ( $kw ) { $kw->invoke( null, 'danh-muc-diem' ); } );
+kiem( 'khung web: bấm KH Mới ở Danh mục điểm → sang KH Mới', KHTC_Cty::dang_chon(), 'kh_moi' );
+$_POST = array(); KHTC_Cty::chon( 'kh_cu' );
+
 foreach ( glob( $tam . '/*' ) as $f ) { @unlink( $f ); }
 @rmdir( $tam );
 

@@ -156,6 +156,10 @@ class KHTC_Web {
 	}
 
 	private static function khung( $man ) {
+		// Nút đổi KH Cũ / KH Mới nằm ở khung chung, nên nhận ở đây — trước khi
+		// bất kỳ màn hình nào đọc dữ liệu. Từng màn hình tự gọi thì thiếu một
+		// màn hình là nút ở đó bấm không có tác dụng (đã xảy ra với Danh mục điểm).
+		KHTC_UI::nhan_doi_cty();
 		$du_quyen = current_user_can( KHTC_CAP );
 		$nhan     = self::man_hinh();
 		?><!DOCTYPE html>

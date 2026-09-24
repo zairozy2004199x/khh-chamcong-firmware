@@ -1171,6 +1171,7 @@ class KHTC_Trang {
 	 * ký cho cả lô.
 	 */
 	public static function dan_tho() {
+		KHTC_UI::nhan_doi_cty();
 		$bao_ok  = '';
 		$bao_loi = '';
 		$tho     = '';
@@ -1406,6 +1407,7 @@ class KHTC_Trang {
 	 * Danh mục điểm — nối mã cửa hàng trong sao kê với điểm xuất hoá đơn.
 	 */
 	public static function danh_muc_diem() {
+		KHTC_UI::nhan_doi_cty();
 		$bao_ok = '';
 		$bao_loi = '';
 
@@ -1487,6 +1489,7 @@ class KHTC_Trang {
 	 * hợp lý mà sai kỳ, và không ai soát lại vì nó trông hợp lý.
 	 */
 	public static function sinh_hoa_don() {
+		KHTC_UI::nhan_doi_cty();
 		$ky   = KHTC_UI::thang_nay();
 		$tu   = isset( $_REQUEST['tu'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['tu'] ) ) : $ky[0];
 		$den  = isset( $_REQUEST['den'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['den'] ) ) : $ky[1];
@@ -1650,6 +1653,7 @@ class KHTC_Trang {
 	 * khẩu ở một chỗ đọc được.
 	 */
 	public static function nguoi_dung() {
+		KHTC_UI::nhan_doi_cty();
 		if ( ! KHTC_NguoiDung::duoc_quan_ly() ) {
 			echo '<div class="wrap khtc"><h1>Người dùng</h1>';
 			echo '<p class="khtc-canh-bao">Chỉ quản trị viên của website mới xem được mục này.</p></div>';
