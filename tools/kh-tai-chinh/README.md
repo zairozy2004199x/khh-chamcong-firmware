@@ -159,6 +159,16 @@ SST trải qua CONTINUE đi từng byte. Đối chiếu với xlrd trên file đ
 2.471 dòng × 26 cột: không lệch ô nào. Không đọc BIFF5 (Excel 95) và file
 HTML/CSV đổi đuôi .xls — báo rõ thay vì đoán.
 
+### Hoán đổi pháp nhân (sửa bản dữ liệu 1.2–1.3)
+
+Bản dữ liệu kèm 1.2–1.3 gán ngược hai công ty: sổ KH989 (11521268 MB,
+8660077020 BIDV) nằm dưới nhãn KH Mới. Danh mục điểm nạp sau theo đúng nhãn
+nên sổ và danh mục chéo nhau — triệu chứng là mã có trong danh mục mà vẫn
+hiện "chưa có". Màn hình Sao lưu có bảng "Hai pháp nhân đang giữ gì" và nút
+**Hoán đổi KH Cũ ↔ KH Mới**: đổi nhãn `cty` cho mọi bảng của sổ (kể cả đơn
+app và danh mục chi phí), danh mục điểm để nguyên trừ khi tick kèm. Chỉ đổi
+nhãn, không mất dòng nào; bấm hai lần là về như cũ.
+
 ### Tiêu đề tách dấu
 
 File MoMo Business ghi chữ Việt dạng tách dấu (NFD): "gốc" là "ô" + dấu sắc

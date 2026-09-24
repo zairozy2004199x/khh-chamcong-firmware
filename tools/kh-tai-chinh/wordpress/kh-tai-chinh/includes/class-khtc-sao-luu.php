@@ -71,6 +71,63 @@ class KHTC_SaoLuu {
 		return self::nhap( $json );
 	}
 
+	/** Bảng có cột cty — mọi bảng của sổ, trừ diem (danh mục) được tách riêng vì hay nạp đúng nhãn sau. */
+	public static function bang_co_cty() {
+		return array( 'ngan_hang', 'giao_dich', 'doi_soat', 'chi_phi', 'hd_ra', 'hd_vao', 'hop_dong', 'ho_so', 'thanh_toan', 'nhat_ky', 'don_app' );
+	}
+
+	/**
+	 * Tóm tắt mỗi pháp nhân đang giữ gì — để người ta nhìn trước khi bấm hoán đổi.
+	 *
+	 * @return array cty → [ 'tai_khoan' => [tên], 'so' => [bảng → số dòng] ]
+	 */
+	public static function tom_tat_cty() {
+		global $wpdb;
+		$ra = array();
+		foreach ( array_keys( KHTC_Cty::ds() ) as $cty ) {
+			$tk = $wpdb->get_col( $wpdb->prepare( 'SELECT ten FROM ' . KHTC_DB::bang( 'ngan_hang' ) . ' WHERE cty = %s ORDER BY ten', $cty ) );
+			$so = array();
+			foreach ( array( 'giao_dich', 'doi_soat', 'hd_ra', 'hd_vao', 'chi_phi', 'don_app', 'diem' ) as $b ) {
+				$so[ $b ] = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . KHTC_DB::bang( $b ) . ' WHERE cty = %s', $cty ) );
+			}
+			$ra[ $cty ] = array( 'tai_khoan' => $tk, 'so' => $so );
+		}
+		return $ra;
+	}
+
+	/**
+	 * Hoán đổi KH Cũ ↔ KH Mới cho phần SỔ. Dùng một lần để sửa bản dữ liệu
+	 * 1.2–1.3 (lúc đó gán ngược hai pháp nhân: sổ KH989 nằm dưới nhãn KH Mới).
+	 * Danh mục điểm để nguyên trừ khi bảo kèm — vì danh mục thường được nạp
+	 * SAU, theo đúng nhãn, và chính sự lệch giữa sổ và danh mục là triệu chứng.
+	 *
+	 * Hai bước UPDATE qua giá trị tạm để không đụng UNIQUE (cty, ma_cua_hang) ở diem.
+	 *
+	 * @return array bảng → số dòng đã đổi
+	 */
+	public static function hoan_doi_cty( $kem_diem = false ) {
+		global $wpdb;
+		$bang = self::bang_co_cty();
+		if ( $kem_diem ) { $bang[] = 'diem'; }
+		$doi = array();
+		foreach ( $bang as $b ) {
+			$t = KHTC_DB::bang( $b );
+			$n1 = $wpdb->query( "UPDATE $t SET cty = '__tam__' WHERE cty = 'kh_cu'" );
+			$n2 = $wpdb->query( "UPDATE $t SET cty = 'kh_cu' WHERE cty = 'kh_moi'" );
+			$wpdb->query( "UPDATE $t SET cty = 'kh_moi' WHERE cty = '__tam__'" );
+			$doi[ $b ] = (int) $n1 + (int) $n2;
+		}
+		// Danh mục chi phí (bộ phận, khoản mục) lưu ở option theo cty — đổi theo sổ.
+		foreach ( array( 'bo_phan', 'khoan_muc' ) as $loai ) {
+			$a = get_option( 'khtc_dm_' . $loai . '_kh_cu', null );
+			$b = get_option( 'khtc_dm_' . $loai . '_kh_moi', null );
+			if ( null === $b ) { delete_option( 'khtc_dm_' . $loai . '_kh_cu' ); } else { update_option( 'khtc_dm_' . $loai . '_kh_cu', $b ); }
+			if ( null === $a ) { delete_option( 'khtc_dm_' . $loai . '_kh_moi' ); } else { update_option( 'khtc_dm_' . $loai . '_kh_moi', $a ); }
+		}
+		KHTC_NhatKy::ghi( 'sua', 'sao_luu', 0, 'Hoán đổi pháp nhân KH Cũ ↔ KH Mới cho phần sổ' . ( $kem_diem ? ' và danh mục điểm' : '' ) . ': ' . implode( ', ', array_map( function ( $k, $v ) { return $k . ' ' . $v; }, array_keys( $doi ), $doi ) ) );
+		return $doi;
+	}
+
 	/** Gom cả kho dữ liệu thành một mảng. Không lọc theo pháp nhân: sao lưu là sao lưu tất. */
 	public static function gom() {
 		global $wpdb;

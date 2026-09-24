@@ -1026,6 +1026,13 @@ class KHTC_Trang {
 			$bao_ok = sprintf( 'Đã xoá %s dòng dữ liệu mẫu.', number_format( KHTC_Mau::xoa(), 0, ',', '.' ) );
 		}
 
+		if ( isset( $_POST['khtc_hoan_doi'] ) && check_admin_referer( 'khtc_sl' ) ) {
+			$doi = KHTC_SaoLuu::hoan_doi_cty( ! empty( $_POST['kem_diem'] ) );
+			$cau = array();
+			foreach ( $doi as $b => $n ) { if ( $n ) { $cau[] = KHTC_NhatKy::ten_bang( $b ) . ' ' . number_format( $n, 0, ',', '.' ); } }
+			$bao_ok = 'Đã hoán đổi KH Cũ ↔ KH Mới cho: ' . ( $cau ? implode( ' · ', $cau ) : 'không có dòng nào' ) . '. Xem lại bảng dưới: tài khoản 11521268 / 8660077020 và các đợt KH989 phải nằm ở KH Cũ.';
+		}
+
 		if ( isset( $_POST['khtc_nhap_kem'] ) && check_admin_referer( 'khtc_sl' ) ) {
 			$ten = sanitize_file_name( wp_unslash( $_POST['khtc_nhap_kem'] ) );
 			$kq  = KHTC_SaoLuu::nhap_tep_kem( $ten );
@@ -1129,6 +1136,26 @@ class KHTC_Trang {
 			echo '<p class="khtc-sub">Mọi dòng mẫu đều mang dấu <code>[Mẫu]</code> ở tên tài khoản, tên gian và số hoá đơn. Xoá lại bằng một nút, và nút xoá chỉ đụng đúng những dòng đã nạp.</p>';
 		}
 		echo '</div>';
+
+		// ---- Hoán đổi pháp nhân: sửa bản dữ liệu 1.2–1.3 gán ngược hai công ty.
+		$tt = KHTC_SaoLuu::tom_tat_cty();
+		echo '<div class="khtc-panel"><h2>Hai pháp nhân đang giữ gì</h2>';
+		echo '<p class="khtc-sub">KH Cũ là KH989 (CÔNG TY TNHH DỊCH VỤ VÀ GIẢI TRÍ K&H): tài khoản 11521268 MB, 8660077020 BIDV. KH Mới là KH705: 02865168 MB, 8613600999 BIDV, 8690077021 BIDV. Nếu bảng dưới thấy ngược lại là sổ đang mang nhãn sai — bản dữ liệu cài từ bản 1.2–1.3 bị thế.</p>';
+		echo '<table><thead><tr><th>Pháp nhân</th><th>Tài khoản ngân hàng</th><th class="so">Sao kê</th><th class="so">Đợt cổng</th><th class="so">Hoá đơn ra</th><th class="so">Đơn app</th><th class="so">Điểm (danh mục)</th></tr></thead><tbody>';
+		foreach ( $tt as $cty => $x ) {
+			printf(
+				'<tr><td><strong>%s</strong> <span class="khtc-sub">%s</span></td><td>%s</td><td class="so">%s</td><td class="so">%s</td><td class="so">%s</td><td class="so">%s</td><td class="so">%s</td></tr>',
+				esc_html( KHTC_Cty::ten( $cty ) ), esc_html( KHTC_Cty::ma( $cty ) ),
+				$x['tai_khoan'] ? esc_html( implode( ' · ', $x['tai_khoan'] ) ) : '<em>chưa có</em>',
+				number_format( $x['so']['giao_dich'], 0, ',', '.' ), number_format( $x['so']['doi_soat'], 0, ',', '.' ), number_format( $x['so']['hd_ra'], 0, ',', '.' ), number_format( $x['so']['don_app'], 0, ',', '.' ), number_format( $x['so']['diem'], 0, ',', '.' )
+			);
+		}
+		echo '</tbody></table>';
+		echo '<form method="post" onsubmit="return confirm(\'Hoán đổi nhãn KH Cũ và KH Mới cho toàn bộ sổ (sao kê, đợt cổng, hoá đơn, chi phí, hợp đồng, hồ sơ, đơn app)? Danh mục điểm giữ nguyên trừ khi tick kèm.\')">';
+		wp_nonce_field( 'khtc_sl' );
+		echo '<div class="khtc-loc"><label class="khtc-tick-nho"><input type="checkbox" name="kem_diem" value="1"> đổi cả danh mục điểm</label>';
+		echo '<button type="submit" name="khtc_hoan_doi" value="1" class="button">Hoán đổi KH Cũ ↔ KH Mới</button></div>';
+		echo '<p class="khtc-sub">Chỉ đổi nhãn, không xoá không sửa số. Bấm hai lần là về như cũ. Danh mục điểm để nguyên vì thường nạp sau theo đúng nhãn; sổ và danh mục lệch nhau chính là dấu hiệu cần bấm nút này.</p></div>';
 
 		$kem = KHTC_SaoLuu::tep_kem();
 		if ( $kem ) {

@@ -65,6 +65,10 @@ class KHTC_NhatKy {
 			'hop_dong'  => 'Hợp đồng',
 			'ho_so'     => 'Hồ sơ',
 			'thanh_toan' => 'Thanh toán',
+			'diem'      => 'Danh mục điểm',
+			'don_app'   => 'Đơn mini app',
+			'nhat_ky'   => 'Nhật ký',
+			'sao_luu'   => 'Sao lưu',
 		);
 		return $ds[ $b ] ?? $b;
 	}
