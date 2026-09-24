@@ -488,7 +488,9 @@ class VHCPHN_DuAn {
 		foreach ( self::ds_dot( $ma_da ) as $d ) {
 			$tn = array();
 			foreach ( $d['rows'] as $rw ) { if ( isset( $ten_cua[ $rw ] ) ) { $tn[] = $ten_cua[ $rw ]; } }
-			$d['tenHM'] = $tn;
+			$d['tenHM']   = $tn;
+			/* Số theo thực tế hôm nay — màn tính "dư / thiếu" theo đây (xem `tien_lenh_nay`). */
+			$d['tienNay'] = self::tien_lenh_nay( $ma_da, $d );
 			$lenh[] = $d;
 			/* 🔴 LỆNH BỊ TRẢ LẠI KHÔNG TÍNH LÀ ĐÃ XIN. Nó đã quay về cho nhân viên sửa; cộng vào
 			   là con số "đã xin" phình lên bởi những lệnh không còn tồn tại, rồi nhân viên gửi
@@ -1093,6 +1095,30 @@ class VHCPHN_DuAn {
 	}
 
 	/**
+	 * TIỀN CỦA MỘT LỆNH THEO SỐ ĐÃ BIẾT TỐT NHẤT HÔM NAY — cộng `tien_hm_du_kien()` của từng
+	 * hạng mục trong lệnh: hạng mục đã có thực tế thì lấy thực tế, chưa thì lùi về dự toán /
+	 * thành tiền (đúng con số đã dùng lúc dựng lệnh).
+	 *
+	 * 🔴 SỐ DƯ SO VỚI THỰC TẾ, KHÔNG SO VỚI SỐ XIN. Anh Thắng 24/09/2026: *"Số dư là số còn lại
+	 *    nếu có chênh lệch thực tế thì lấy cột thực tế chứ không lấy tạm ứng nữa"*. Ảnh: lệnh xin
+	 *    53.810.000đ, kế toán đưa 70.000.000đ, bảng báo dư 16.190.000đ — trong khi 11 hạng mục
+	 *    đã nhập thực tế 54.210.000đ. Phần nhân viên phải hoàn là 70tr − 54,21tr = 15.790.000đ;
+	 *    16,19tr là so với một con số đã lỗi thời từ lúc họ đi mua.
+	 * ⚠️ `soTien` của lệnh KHÔNG đổi theo — nó là số đã xin/duyệt/cấp, là mốc của sổ. Chỉ con
+	 *    số "dư / thiếu" đọc theo đây. "Còn phải đưa" vẫn so với `soTien`: kế toán đưa theo lệnh
+	 *    đã duyệt, không đưa theo số nhân viên vừa gõ.
+	 * ⚠️ Lệnh không có hạng mục nào (sổ cũ / hỏng) → 0; màn hiểu 0 là "không biết" và lùi về
+	 *    `soTien`.
+	 */
+	public static function tien_lenh_nay( $ma_da, $d ) {
+		$t = 0;
+		foreach ( (array) ( isset( $d['rows'] ) ? $d['rows'] : array() ) as $rw ) {
+			$t += self::tien_hm_du_kien( $ma_da, (int) $rw );
+		}
+		return $t;
+	}
+
+	/**
 	 * Mọi lệnh của một dự án, đợt nhỏ trước — kèm `soHien`, SỐ ĐỢT NGƯỜI TA NHÌN THẤY.
 	 *
 	 * ═════════════════════════════════════════════════════════════════════════════════════════
@@ -1559,8 +1585,18 @@ class VHCPHN_DuAn {
 				isset( $them['unc'] ) ? array( 'unc' => trim( (string) $them['unc'] ) ) : array() );
 			if ( empty( $kq['success'] ) ) { return $kq; }
 			$moi = self::dot_cua( $ma_da, $dot );
+			/* 🔴 `du` BÁO VỀ MÀN SO VỚI THỰC TẾ, không so với số lệnh (anh Thắng 24/09/2026, xem
+			   `tien_lenh_nay`). Dòng sổ ở trên vẫn ghi `du` = phần lượt này vượt số lệnh — đó là
+			   chuyện của lượt cấp; còn câu toast "dư X, NV hoàn lúc quyết toán" phải nói đúng số
+			   nhân viên sẽ hoàn, tức so với tiền họ đã tiêu thật. Không có thực tế thì hai số
+			   trùng nhau. */
+			$nay    = self::tien_lenh_nay( $ma_da, $moi );
+			/* `$nay = 0` chỉ xảy ra khi lệnh mất hàng (sổ cũ) — `update_line` không cho gõ cả dự
+			   toán lẫn thực tế về 0, nên không dựng được ca kiểm; giữ lưới để không báo dư = cả
+			   số đã đưa. */
+			$du_nay = self::da_cap_tong( $moi ) - ( $nay > 0 ? $nay : VHCPHN_Util::num( $moi['soTien'] ) );
 			return VHCPHN_Util::ok( array( 'dot' => $moi, 'daCap' => self::da_cap_tong( $moi ),
-				'con' => 0, 'xong' => true, 'du' => $du,
+				'con' => 0, 'xong' => true, 'du' => ( $du_nay > 0 ? $du_nay : 0 ),
 				'tuQuyetToan' => isset( $kq['tuQuyetToan'] ) ? (int) $kq['tuQuyetToan'] : 0 ) );
 		}
 
@@ -1919,6 +1955,9 @@ class VHCPHN_DuAn {
 					'rows'     => $d['rows'],
 					'tenHM'    => $ten,
 					'soTien'   => $d['soTien'],
+					/* Số theo thực tế hôm nay — màn Duyệt cũng in "dư" theo đây, không lệch với
+					   trang dự án (xem `tien_lenh_nay`). */
+					'tienNay'  => self::tien_lenh_nay( $ma_da, $d ),
 					/* 🔴 PHẢI GỬI KÈM SỔ CẤP TIỀN. Thiếu nó thì màn Duyệt đọc "đã đưa" ra 0 với
 					   MỌI lệnh, nên ô "Số tiền đưa lần này" điền sẵn TRỌN số lệnh kể cả lúc đã
 					   đưa một phần — bấm lần hai là mời chuyển đi lần nữa. Máy chủ chặn được

@@ -9118,10 +9118,25 @@
           +(y.nguoi?(' <span style="color:#8c8781">— '+esc(y.nguoi)+'</span>'):'')
           +'</div>';
       });
+      /* 🔴 DƯ / THIẾU SO VỚI THỰC TẾ, KHÔNG SO VỚI SỐ XIN. Anh Thắng 24/09/2026: *"Số dư là số
+         còn lại nếu có chênh lệch thực tế thì lấy cột thực tế chứ không lấy tạm ứng nữa"*. Ảnh:
+         lệnh xin 53.810.000đ, đưa 70.000.000đ, bảng báo dư 16.190.000đ — trong khi 11 hạng mục
+         đã nhập thực tế 54.210.000đ; phần NV phải hoàn là 15.790.000đ. `tienNay` do máy chủ
+         cộng theo thực tế từng hạng mục (chưa có thực tế thì lùi về dự toán — đúng số lúc xin);
+         0 = không biết → lùi về số lệnh, bảng đọc như cũ.
+         ⚠️ "Còn phải đưa" VẪN so với số lệnh: kế toán đưa theo lệnh đã duyệt. Chỉ khi đã đưa
+            đủ lệnh mới hỏi "so với tiêu thật thì dư hay thiếu". Thực tế vượt tiền đã đưa → nói
+            "thiếu", NV được thanh toán thêm lúc quyết toán — im ở đó là kế toán tưởng đủ. */
+      var nay=(Number(d&&d.tienNay)||0)>0 ? Number(d.tienNay) : tong;
+      var du=daTong-nay, thieu=nay-daTong;
+      var theo=(nay!==tong) ? ' (theo thực tế <b>'+money(nay)+'đ</b>, lệnh xin '+money(tong)+'đ)' : '';
+      /* `duChu` chỉ được in ở nhánh "đủ" bên dưới — còn phải đưa thì chưa bàn dư/thiếu. */
+      var duChu='';
+      if(du>0)    duChu=' · <span style="color:#b45309">dư <b>'+money(du)+'đ</b>'+theo+' — kế toán cấp thêm, NV hoàn lúc quyết toán</span>';
+      if(thieu>0) duChu=' · <span style="color:#b91c1c">thiếu <b>'+money(thieu)+'đ</b>'+theo+' — thực tế vượt tạm ứng, thanh toán thêm lúc quyết toán</span>';
       h+='<div style="font-size:11.5px;margin:2px 0 0 10px;color:#0f766e;font-weight:600">'
         +'tổng đã đưa <b>'+money(daTong)+'đ</b>'
-        +(con?(' · còn phải đưa <b>'+money(con)+'đ</b>')
-              :(' · <b>đủ</b>'+((daTong-tong)>0?(' · <span style="color:#b45309">dư <b>'+money(daTong-tong)+'đ</b> — kế toán cấp thêm, NV hoàn lúc quyết toán</span>'):'')))
+        +(con?(' · còn phải đưa <b>'+money(con)+'đ</b>'):(' · <b>đủ</b>'+duChu))
         +'</div>';
     }
     return h;

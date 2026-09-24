@@ -108,7 +108,8 @@ $gui  = substr( $gui, 0, strpos( $gui, "\n  }" ) );
 t( '🔴 nút gửi KHÔNG chặn số vượt nữa', false === mb_strpos( $gui, 'không đưa được' ), $gui );
 t( '🔴 mà HỎI XÁC NHẬN kèm con số dư', false !== mb_strpos( $gui, 'Tạm ứng DƯ' ) && false !== strpos( $gui, 'confirm(' ), $gui );
 t( '   và câu báo thành công kể phần dư', false !== mb_strpos( $gui, 'NV hoàn lúc quyết toán' ), $gui );
-t( '🔴 khối "đã cấp" nói ra phần dư thay vì chỉ "đủ"', false !== mb_strpos( $HTML, 'dư <b>\'+money(daTong-tong)+\'đ</b> — kế toán cấp thêm' ) );
+/* 24/09/2026: dư tính theo thực tế (`du`, xem kiem-so-du-theo-thuc-te*.{php,js}), không còn `daTong-tong` cứng. */
+t( '🔴 khối "đã cấp" nói ra phần dư thay vì chỉ "đủ"', false !== mb_strpos( $HTML, 'dư <b>\'+money(du)+\'đ</b>\'+theo+\' — kế toán cấp thêm' ) );
 
 if ( $TRUOT ) {
 	echo "\n✗ TRƯỢT " . count( $TRUOT ) . " phép (đạt $DAT):\n";
