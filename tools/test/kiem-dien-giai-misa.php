@@ -77,7 +77,12 @@ t( '   mẫu 13 cột (có cột TK Nợ đầu) cũng mang diễn giải mới'
 /* ═══ 4. Màn Xuất MISA KHÔNG còn ô chọn kiểu kỳ (máy chủ tự tách) ═══ */
 $app = (string) file_get_contents( $goc . '/wordpress/vhcp-chi-phi/templates/app.html' );
 t( '🔴 không còn ô `xuatKyKieu`', false === strpos( $app, 'id="xuatKyKieu"' ) );
-t( '   callExport gọi exportMisa với 5 tham số như trước', 1 === preg_match( "/\.exportMisa\(el\('xuatKy'\)\.value, el\('xuatTT'\)\.value, plF,\s*\(el\('xuatMau'\)&&el\('xuatMau'\)\.value\)\|\|'chuan',\s*\(el\('xuatTkNo'\)&&el\('xuatTkNo'\)\.value\)\|\|'all'\);/", $app ) );
+t( '   callExport gọi exportMisa với 5 tham số, mẫu lùi về soct', 1 === preg_match( "/\.exportMisa\(el\('xuatKy'\)\.value, el\('xuatTT'\)\.value, plF,\s*\(el\('xuatMau'\)&&el\('xuatMau'\)\.value\)\|\|'soct',\s*\(el\('xuatTkNo'\)&&el\('xuatTkNo'\)\.value\)\|\|'all'\);/", $app ) );
+/* ═══ 5. Mẫu 13 cột là MẶC ĐỊNH, nhãn không còn "MTĐ · VP" ═══ */
+t( '🔴 option soct đứng trước và selected', 1 === preg_match( '/<select id="xuatMau"[^>]*>\s*(<!--[\s\S]*?-->\s*)?<option value="soct" selected>/', $app ) );
+t( '🔴 nhãn không còn gắn riêng MTĐ · VP', false === strpos( $app, 'Sổ chi tiết — MTĐ · VP' ) && false !== strpos( $app, 'Sổ chi tiết tài khoản (13 cột)' ) );
+t( '   mẫu 10 cột vẫn còn để chọn', false !== strpos( $app, '<option value="chuan">📄 Nhật ký chung (10 cột)' ) );
+t( '   máy chủ không đổi mặc định (người gọi cũ không truyền mẫu vẫn nhận 10 cột)', 10 === count( VHCP_Misa::export_misa( 'all', 'chuaxuat', 'all' )['cols'] ) );
 
 if ( $TRUOT ) { echo "\n✗ TRƯỢT " . count( $TRUOT ) . " phép (đạt $DAT):\n"; foreach ( $TRUOT as $x ) { echo "  · $x\n"; } exit( 1 ); }
 echo "\n✓ SẠCH — $DAT phép: diễn giải MISA = Loại(tên MISA) · Mảng · Cơ sở · (T9/2026 | ngày a-b) _ phần riêng; hai loại kỳ tự tách theo đơn.\n";

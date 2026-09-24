@@ -1642,8 +1642,12 @@
                dạng. Tự đoán theo khối là lúc ấy phải chọn bừa một bên, im lặng. Để người xuất
                chọn thì họ xuất hai lượt, mỗi lượt một mẫu, và biết mình đang cầm tệp gì. -->
           <select id="xuatMau" onchange="callExport()" title="Hình dạng tệp xuất ra. Nhật ký chung: TK Nợ và TK Có nằm cạnh nhau, số tiền một cột. Sổ chi tiết: TK đối ứng + Phát sinh Nợ/Có tách đôi, kèm Tên đơn vị.">
-            <option value="chuan">📄 Nhật ký chung (10 cột)</option>
-            <option value="soct">📑 Sổ chi tiết — MTĐ · VP (13 cột)</option>
+            <!-- 🔴 MẶC ĐỊNH LÀ SỔ CHI TIẾT 13 CỘT — anh Thắng 24/09/2026 gửi ảnh sổ 641 thật có cả JP lẫn
+                 POSH, hỏi *"File xuất misa mẫu đủ cột này chưa"* rồi chốt *"ok"* cho việc đổi nhãn và đặt
+                 mặc định: cả ba khối đều nộp mẫu này, không riêng MTĐ · VP. Mẫu 10 cột giữ lại làm lựa
+                 chọn cũ. Thứ tự option quyết định mặc định của <select>, nên 13 cột đứng trước. -->
+            <option value="soct" selected>📑 Sổ chi tiết tài khoản (13 cột)</option>
+            <option value="chuan">📄 Nhật ký chung (10 cột) — mẫu cũ</option>
           </select>
           <!-- 🔴 SỔ CHI TIẾT LÀ SỔ **CỦA MỘT TÀI KHOẢN**, nên 13 cột mẫu không có chỗ nào ghi số
                hiệu tài khoản — nó nằm ở tiêu đề sổ. Lọc về một tài khoản thì tệp khớp nguyên văn
@@ -10069,7 +10073,7 @@
     google.script.run.withSuccessHandler(function(res){loading(false); XUAT=res||{cols:[],rows:[]}; renderXuat();})
       .withFailureHandler(function(e){loading(false);toast('err',e.message);})
       .exportMisa(el('xuatKy').value, el('xuatTT').value, plF,
-                  (el('xuatMau')&&el('xuatMau').value)||'chuan',
+                  (el('xuatMau')&&el('xuatMau').value)||'soct',
                   (el('xuatTkNo')&&el('xuatTkNo').value)||'all');
   }
   function renderXuat(){
