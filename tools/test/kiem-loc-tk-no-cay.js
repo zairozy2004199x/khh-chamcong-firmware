@@ -25,5 +25,16 @@ const c = ve('chuan', 'vh', { tkDs: ['6421'] });
 t('   máy chủ cũ không trả tkCay → lui về tkDs', /<option value="6421">6421<\/option>/.test(c.innerHTML), c.innerHTML);
 const d = ve('chuan', 'vh', X, '641');
 teq('   giữ lựa chọn cũ khi vẽ lại', '641', d.value);
+/* Số chứng từ = mã đơn → đường dẫn mở đơn (anh Thắng: "muốn sửa ở chỗ nào") */
+{
+  const O = { xuatSoDon: {}, xuatSoDong: {}, xuatEmpty: { style: {} }, xuatHead: {}, xuatBody: {} };
+  const X2 = { sodon: 1, count: 2, cols: ['TK Nợ', 'Ngày hạch toán', 'Ngày chứng từ', 'Số chứng từ', 'Diễn giải chung', 'Phát sinh Nợ'],
+    rows: [['64196', '07/09/2026', '07/09/2026', 'D_abc', 'x', 277000], ['64196', '07/09/2026', '07/09/2026', 'NVK-la', 'y', 5000]] };
+  new Function('el', 'XUAT', 'BOOT', 'esc', 'money', 'renderXuatWarn', 'renderXuatBanGiao', '_veOTkNo', ham('_laMaDon') + ham('renderXuat') + '\nrenderXuat();')(
+    (id) => O[id], X2, { dons: [{ maDon: 'D_abc' }] }, (s) => String(s), (n) => String(n), () => {}, () => {}, () => {});
+  t('🔴 Số chứng từ là mã đơn trong kho → thành liên kết mở đơn', /onclick="viewDon\('D_abc'\);return false"/.test(O.xuatBody.innerHTML), O.xuatBody.innerHTML);
+  t('   chuỗi không phải mã đơn → chữ thường, không liên kết', !/viewDon\('NVK-la'/.test(O.xuatBody.innerHTML) && /NVK-la/.test(O.xuatBody.innerHTML), O.xuatBody.innerHTML);
+  t('   cột tiền vẫn canh phải', /class="money"[^>]*>277000</.test(O.xuatBody.innerHTML), O.xuatBody.innerHTML);
+}
 if (TRUOT.length) { console.log('\n✗ TRƯỢT ' + TRUOT.length + ' phép (đạt ' + DAT + '):'); TRUOT.forEach((x) => console.log('  · ' + x)); process.exit(1); }
 console.log('\n✓ SẠCH — ' + DAT + ' phép: ô lọc TK Nợ bày ở cả hai mẫu, đổ theo cây cha/con.');

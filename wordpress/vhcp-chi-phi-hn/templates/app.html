@@ -10087,6 +10087,10 @@
                   (el('xuatMau')&&el('xuatMau').value)||'soct',
                   (el('xuatTkNo')&&el('xuatTkNo').value)||'all');
   }
+  /** Chuỗi ở cột Số chứng từ có phải mã đơn trong kho không — chỉ mã đơn mới thành đường dẫn. */
+  function _laMaDon(m){
+    return ((typeof BOOT!=='undefined'&&BOOT&&BOOT.dons)||[]).some(function(d){ return d && String(d.maDon)===m; });
+  }
   function renderXuat(){
     el('xuatSoDon').textContent=XUAT.sodon||0; el('xuatSoDong').textContent=XUAT.count||0;
     el('xuatEmpty').style.display=(XUAT.rows&&XUAT.rows.length)?'none':'block';
@@ -10097,6 +10101,11 @@
          này canh phải ô tiền của mẫu kia. */
       var ten=(XUAT.cols||[])[i]||'';
       var num=(ten==='Số tiền'||ten.indexOf('Phát sinh')===0||ten.indexOf('Dư ')===0);
+      /* 🔗 SỐ CHỨNG TỪ = MÃ ĐƠN → bấm mở thẳng đơn. Anh Thắng 24/09/2026 đứng ở màn này hỏi *"muốn sửa ở
+         chỗ nào"*: chỗ sửa (TK Nợ từng dòng) nằm trong trang đơn, mà từ đây không có đường sang. */
+      if(ten.indexOf('Số chứng từ')===0 && v && _laMaDon(String(v))){
+        return '<td style="white-space:nowrap"><a href="#" onclick="viewDon(\''+esc(String(v))+'\');return false" title="Mở đơn này để xem / sửa từng dòng" style="color:#2545ff;font-weight:600">'+esc(v)+'</a></td>';
+      }
       return '<td'+(num?' class="money"':'')+' style="white-space:nowrap">'+(num?(v===''||v==null?'':money(v)):esc(v))+'</td>';}).join('')+'</tr>';}).join('');
     renderXuatWarn();
     renderXuatBanGiao();
