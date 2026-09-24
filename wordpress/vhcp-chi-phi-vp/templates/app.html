@@ -5460,12 +5460,18 @@
   }
   function _oTkNoDong(l){
     var ten=String(l.nhom||''), cur=String(l.tkNo||'');
+    /* 🔴 ĐƠN ĐÃ XUẤT MISA: mã đã đóng. Không phải Admin thì chỉ ĐỌC (bày ô chọn mà máy chủ chối là mời bấm
+       rồi ăn câu đỏ); Admin thấy ô chọn kèm lời nhắc — sửa là sửa sổ app sau khi tệp đã nộp. */
+    var _daXuat=!!(typeof CUR!=='undefined'&&CUR&&CUR.don&&CUR.don.trangThai==='Đã xuất MISA');
+    if(_daXuat && !_laAdmin()){
+      return '<div style="font-size:11px;margin-top:3px;font-family:Consolas,monospace;color:#6b21a8" title="Đơn đã xuất MISA — mã đã đóng theo tệp đã nộp. Chỉ Admin sửa được.">🔒 Nợ '+(cur?esc(cur):'(tự động)')+'</div>';
+    }
     var rieng=_tkNoCuaLoai(ten), da={}, khac0=[];
     rieng.forEach(function(m){ da[m]=1; });
     /* Mã kế toán vừa tự thêm trên một dòng khác của ĐƠN NÀY cũng bày ra — gõ một lần, dùng cho cả đơn. */
     ((typeof CUR!=='undefined'&&CUR&&CUR.lines)||[]).forEach(function(x){ var m=String((x&&x.tkNo)||'').trim(); if(m && !da[m] && _tkNoTatCa().indexOf(m)<0){ da[m]=1; khac0.push(m); } });
     var khac=_tkNoTatCa().filter(function(m){ return !da[m]; }).concat(khac0).sort();
-    var h='<select onchange="saveLineTkNo(\''+l.id+'\',this.value)" title="TK Nợ của riêng dòng này"'
+    var h='<select onchange="saveLineTkNo(\''+l.id+'\',this.value)" title="'+(_daXuat?'ĐÃ XUẤT MISA — mã đã đóng. Admin sửa ở đây thì phải sửa tay cả trong MISA.':'TK Nợ của riêng dòng này')+'"'
       +' style="font-size:11px;width:116px;margin-top:3px;font-family:Consolas,monospace">'
       +'<option value="">— tự động theo loại —</option>';
     if(rieng.length) h+='<optgroup label="Mã của loại này">'+rieng.map(function(m){return _tkOpt(m,cur);}).join('')+'</optgroup>';
@@ -5487,6 +5493,11 @@
   function saveLineTkNo(id, val){
     var lai=function(){ if(CUR&&CUR.don) openDon(CUR.don.maDon); };
     var them=0;
+    /* Đơn đã xuất MISA: hỏi lại trước — đây là sửa sổ app SAU khi tệp đã nộp (anh Thắng 24/09/2026:
+       *"sau admin sửa được không, ví dụ lần đầu gán mã sai"* → được, nhưng phải biết mình đang làm gì). */
+    if(CUR&&CUR.don&&CUR.don.trangThai==='Đã xuất MISA'){
+      if(!confirm('Đơn này ĐÃ XUẤT MISA — mã TK đã đóng theo tệp đã nộp.\nSửa ở đây chỉ đổi sổ trên app; tệp MISA đã nộp KHÔNG tự đổi, anh/chị phải sửa tay bên MISA.\nVẫn sửa?')){ lai(); return; }
+    }
     if(val===TK_THEM){
       var go=prompt('Mã TK Nợ mới cho dòng này (chỉ chữ số, VD 64211):','');
       if(go===null){ lai(); return; }
@@ -5498,7 +5509,7 @@
     google.script.run.withSuccessHandler(function(r){ loading(false);
       if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); lai(); return; }
       _log('Chỉnh TK Nợ của dòng',(CUR&&CUR.don&&CUR.don.maDon)||'', 'id '+id+' -> '+(r.tkNo||'(tự động)'));
-      toast('ok', r.tkNo ? ('Dòng này nay hạch toán Nợ '+r.tkNo+(them?' (mã kế toán tự thêm)':'')) : 'Đã trả về mã tự động theo loại');
+      toast(r.daXuat?'warn':'ok', (r.tkNo ? ('Dòng này nay hạch toán Nợ '+r.tkNo+(them?' (mã kế toán tự thêm)':'')) : 'Đã trả về mã tự động theo loại')+(r.daXuat?' — ĐƠN ĐÃ XUẤT MISA: nhớ sửa tay trong MISA':''));
       lai();
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);lai();})
       .setLineTkNo(id, val, them);
@@ -10076,6 +10087,10 @@
                   (el('xuatMau')&&el('xuatMau').value)||'soct',
                   (el('xuatTkNo')&&el('xuatTkNo').value)||'all');
   }
+  /** Chuỗi ở cột Số chứng từ có phải mã đơn trong kho không — chỉ mã đơn mới thành đường dẫn. */
+  function _laMaDon(m){
+    return ((typeof BOOT!=='undefined'&&BOOT&&BOOT.dons)||[]).some(function(d){ return d && String(d.maDon)===m; });
+  }
   function renderXuat(){
     el('xuatSoDon').textContent=XUAT.sodon||0; el('xuatSoDong').textContent=XUAT.count||0;
     el('xuatEmpty').style.display=(XUAT.rows&&XUAT.rows.length)?'none':'block';
@@ -10086,6 +10101,11 @@
          này canh phải ô tiền của mẫu kia. */
       var ten=(XUAT.cols||[])[i]||'';
       var num=(ten==='Số tiền'||ten.indexOf('Phát sinh')===0||ten.indexOf('Dư ')===0);
+      /* 🔗 SỐ CHỨNG TỪ = MÃ ĐƠN → bấm mở thẳng đơn. Anh Thắng 24/09/2026 đứng ở màn này hỏi *"muốn sửa ở
+         chỗ nào"*: chỗ sửa (TK Nợ từng dòng) nằm trong trang đơn, mà từ đây không có đường sang. */
+      if(ten.indexOf('Số chứng từ')===0 && v && _laMaDon(String(v))){
+        return '<td style="white-space:nowrap"><a href="#" onclick="viewDon(\''+esc(String(v))+'\');return false" title="Mở đơn này để xem / sửa từng dòng" style="color:#2545ff;font-weight:600">'+esc(v)+'</a></td>';
+      }
       return '<td'+(num?' class="money"':'')+' style="white-space:nowrap">'+(num?(v===''||v==null?'':money(v)):esc(v))+'</td>';}).join('')+'</tr>';}).join('');
     renderXuatWarn();
     renderXuatBanGiao();
@@ -10103,12 +10123,17 @@
   function _veOTkNo(){
     var o=el('xuatTkNo'); if(!o) return;
     var src=(el('xuatNguon')&&el('xuatNguon').value)||'vh';
-    var hien=(src==='vh' && (el('xuatMau')&&el('xuatMau').value)==='soct');
+    /* Ô lọc bày ở CẢ HAI mẫu (anh Thắng 24/09/2026: *"bổ sung thêm bộ lọc tk nợ"* trên mẫu 10 cột);
+       chỉ câu "thêm cột TK Nợ" là riêng của sổ chi tiết. */
+    var soct=((el('xuatMau')&&el('xuatMau').value)||'soct')==='soct';
+    var hien=(src==='vh');
     o.style.display=hien?'':'none';
     if(!hien) return;
-    var cu=o.value, ds=(XUAT&&XUAT.tkDs)||[];
-    o.innerHTML='<option value="all">— mọi TK Nợ (thêm cột TK Nợ) —</option>'
-      +ds.map(function(m){ return '<option value="'+esc(m)+'">'+esc(m)+'</option>'; }).join('');
+    /* 🔴 CÂY TÀI KHOẢN: 641 là cha của 6412, cháu 64122 — chọn cha là ra cả con cháu (máy chủ lọc theo
+       tiền tố). `tkCay` = mã có dòng thật + mọi mã cha; mã cha không có dòng riêng ghi rõ "cả con/cháu". */
+    var cu=o.value, cay=(XUAT&&XUAT.tkCay)||((XUAT&&XUAT.tkDs)||[]).map(function(m){ return {ma:m, thuc:true}; });
+    o.innerHTML='<option value="all">'+(soct?'— mọi TK Nợ (thêm cột TK Nợ) —':'— mọi TK Nợ —')+'</option>'
+      +cay.map(function(x){ return '<option value="'+esc(x.ma)+'">'+esc(x.ma)+(x.thuc?'':' — cả con/cháu')+'</option>'; }).join('');
     if(cu){ o.value=cu; if(!o.value) o.value='all'; }
   }
   /* ═════════════════════════════════════════════════════════════════════════════════

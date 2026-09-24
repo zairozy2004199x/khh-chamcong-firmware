@@ -2128,7 +2128,13 @@ class VHCPVP_Don {
 		global $wpdb;
 		$t = VHCPVP_DB::t( 'chiphi' );
 		$n = 0; $thieu = array();
+		/* 🔴 KHÔNG ĐỤNG ĐƠN ĐÃ XUẤT MISA — mã trên dòng của chúng là mã đã nộp cho kế toán. Nút "Gán mã cho
+		   dòng cũ" áp lại bảng mã hiện tại lên MỌI dòng là đúng cảnh anh Thắng gọi *"sáng bị lỗi 1 lần"*. */
+		$da_xuat = array();
+		foreach ( self::don_rows() as $dr ) { if ( 'Đã xuất MISA' === (string) $dr['trang_thai'] ) { $da_xuat[ (string) $dr['ma_don'] ] = 1; } }
+		$bo_qua = 0;
 		foreach ( self::cp_rows() as $r ) {
+			if ( isset( $da_xuat[ (string) $r['ma_don'] ] ) ) { $bo_qua++; continue; }
 			$thieu_ma = ( trim( (string) $r['tk_no'] ) === '' || trim( (string) $r['tk_co'] ) === '' );
 			if ( ! $all && ! $thieu_ma ) { continue; }
 			$tk = self::tk_of_line( $r['nhom'], $r['phan_loai_tt'], isset( $r['coso'] ) ? $r['coso'] : '' );
@@ -2137,7 +2143,7 @@ class VHCPVP_Don {
 			$wpdb->update( $t, array( 'tk_no' => $tk['tk_no'], 'tk_co' => $tk['tk_co'] ), array( 'id' => (string) $r['id'] ) );
 			$n++;
 		}
-		return VHCPVP_Util::ok( array( 'updated' => $n, 'thieuMa' => array_keys( $thieu ) ) );
+		return VHCPVP_Util::ok( array( 'updated' => $n, 'thieuMa' => array_keys( $thieu ), 'boQuaDaXuat' => $bo_qua ) );
 	}
 
 	/**
@@ -2587,6 +2593,14 @@ class VHCPVP_Don {
 				. 'không phải nội dung dòng.' );
 		}
 
+		/* 🔴 ĐƠN ĐÃ XUẤT MISA → mã đã đóng (anh Thắng 24/09/2026: *"sau khi bấm xuất misa thì nó sẽ khóa chi
+		   phí đó theo tk nợ được cài sẵn"*). Kế toán không sửa; CHỈ ADMIN sửa được — anh hỏi tiếp *"sau admin
+		   sửa được không, ví dụ lần đầu gán mã sai"*: được, nhưng là sửa sổ app sau khi tệp đã nộp, nên ghi
+		   nhật ký riêng và màn nhắc phải sửa tay bên MISA. Bảng mã đổi sau đó vẫn không đụng dòng này. */
+		$da_xuat = ( 'Đã xuất MISA' === self::state( (string) $cur['ma_don'] ) );
+		if ( $da_xuat && 'Admin' !== $vai ) {
+			return VHCPVP_Util::err( 'Đơn đã xuất MISA — mã TK của dòng đã đóng theo tệp đã nộp. Chỉ Admin sửa được, và phải sửa tay cả trong MISA.' );
+		}
 		$tk  = trim( (string) $tk );
 		$cu  = trim( (string) $cur['tk_no'] );
 		if ( '' === $tk ) {
@@ -2613,12 +2627,13 @@ class VHCPVP_Don {
 		VHCPVP_Log::log_action( array(
 			'actor'  => VHCPVP_Auth::nguoi(),
 			'role'   => $vai,
-			'action' => 'Chỉnh TK Nợ của dòng',
+			'action' => $da_xuat ? 'SỬA TK Nợ SAU KHI ĐÃ XUẤT MISA' : 'Chỉnh TK Nợ của dòng',
 			'target' => (string) $cur['ma_don'] . '#' . (string) $id,
 			'detail' => (string) $cur['nhom'] . ': Nợ ' . ( '' !== $cu ? $cu : '(trống)' )
-				. ' → ' . ( '' !== $tk ? $tk : '(trống)' ) . ( $them ? ' (kế toán tự thêm, chưa có ở ma trận)' : '' ),
+				. ' → ' . ( '' !== $tk ? $tk : '(trống)' ) . ( $them ? ' (kế toán tự thêm, chưa có ở ma trận)' : '' )
+				. ( $da_xuat ? ' — tệp MISA đã nộp KHÔNG tự đổi, phải sửa tay bên MISA' : '' ),
 		) );
-		return VHCPVP_Util::ok( array( 'tkNo' => $tk ) );
+		return VHCPVP_Util::ok( array( 'tkNo' => $tk, 'daXuat' => $da_xuat ? 1 : 0 ) );
 	}
 
 	/**

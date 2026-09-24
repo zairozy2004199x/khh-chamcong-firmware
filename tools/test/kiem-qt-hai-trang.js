@@ -131,8 +131,13 @@ teq('⚠️ gói khởi động cũ (không khoiBan) → bày như trước, kh�
 
 /* ── 4. Ô TK Nợ của dòng: "＋ Mã khác" + mã đã dùng trong đơn ───────────────────────────── */
 {
-  const oTk = (l, lines) => new Function('CUR', 'BOOT', 'esc', '_tenTk', 'TK_THEM', ham('_tkNoCuaLoai') + ham('_tkNoTatCa') + ham('_tkOpt') + ham('_oTkNoDong') + '\nreturn _oTkNoDong(l);'.replace('l)', JSON.stringify(l) + ')'))(
-    { lines: lines || [] }, { tkNoMx: { 'chi phí chung': { 'EVENT': ['64196'] }, 'chi phí cơ sở': { 'FARM': ['64166'] } } }, (s) => String(s), () => '', '__them__');
+  const oTk = (l, lines, don, admin) => new Function('CUR', 'BOOT', 'esc', '_tenTk', 'TK_THEM', '_laAdmin', ham('_tkNoCuaLoai') + ham('_tkNoTatCa') + ham('_tkOpt') + ham('_oTkNoDong') + '\nreturn _oTkNoDong(l);'.replace('l)', JSON.stringify(l) + ')'))(
+    { lines: lines || [], don: don || {} }, { tkNoMx: { 'chi phí chung': { 'EVENT': ['64196'] }, 'chi phí cơ sở': { 'FARM': ['64166'] } } }, (s) => String(s), () => '', '__them__', () => !!admin);
+  /* Đơn đã xuất MISA: kế toán chỉ đọc, Admin còn ô chọn kèm lời nhắc. */
+  const hx = oTk({ id: 'L1', nhom: 'Chi phí chung', tkNo: '64196' }, [], { trangThai: 'Đã xuất MISA' }, false);
+  t('🔴 đơn đã xuất, không phải Admin → chỉ đọc "🔒 Nợ 64196", không có <select>', /🔒 Nợ 64196/.test(hx) && !/<select/.test(hx), hx);
+  const ha = oTk({ id: 'L1', nhom: 'Chi phí chung', tkNo: '64196' }, [], { trangThai: 'Đã xuất MISA' }, true);
+  t('   Admin → vẫn có ô chọn, title nhắc ĐÃ XUẤT MISA', /<select/.test(ha) && /ĐÃ XUẤT MISA/.test(ha), ha);
   const h = oTk({ id: 'L1', nhom: 'Chi phí chung', tkNo: '' });
   t('🔴 có mục "＋ Mã khác — kế toán tự thêm…" mang giá trị TK_THEM', /<option value="__them__">＋ Mã khác — kế toán tự thêm…<\/option><\/select>$/.test(h), h);
   t('   mã của loại lên trước, mã khác đã khai sau', /Mã của loại này"><option value="64196"/.test(h) && /Mã khác đã khai"><option value="64166"/.test(h), h);
@@ -142,13 +147,15 @@ teq('⚠️ gói khởi động cũ (không khoiBan) → bày như trước, kh�
 }
 /* saveLineTkNo: hộp hỏi → soi số → gửi kèm cờ them */
 {
-  function luu(val, goi) {
+  function luu(val, goi, st, ok) {
     const goiDi = [], toasts = []; let lai = 0;
     const run = { withSuccessHandler() { return run; }, withFailureHandler() { return run; }, setLineTkNo(id, v, them) { goiDi.push([id, v, them]); } };
-    new Function('CUR', 'openDon', 'loading', 'google', 'toast', '_log', 'prompt', 'TK_THEM', ham('saveLineTkNo') + "\nsaveLineTkNo('L1', " + JSON.stringify(val) + ');')(
-      { don: { maDon: 'D1' } }, () => { lai++; }, () => {}, { script: { run } }, (k, m) => toasts.push(k + ':' + m), () => {}, () => goi, '__them__');
+    new Function('CUR', 'openDon', 'loading', 'google', 'toast', '_log', 'prompt', 'TK_THEM', 'confirm', ham('saveLineTkNo') + "\nsaveLineTkNo('L1', " + JSON.stringify(val) + ');')(
+      { don: { maDon: 'D1', trangThai: st || 'Chờ quyết toán' } }, () => { lai++; }, () => {}, { script: { run } }, (k, m) => toasts.push(k + ':' + m), () => {}, () => goi, '__them__', () => ok !== false);
     return { goiDi, toasts, lai };
   }
+  teq('🔴 đơn đã xuất MISA: hộp hỏi Huỷ → không gửi', 0, luu('64196', 'x', 'Đã xuất MISA', false).goiDi.length);
+  teq('   đơn đã xuất MISA: đồng ý → gửi như thường', [['L1', '64196', 0]], luu('64196', 'x', 'Đã xuất MISA', true).goiDi);
   teq('🔴 chọn ＋ Mã khác, gõ 64211 → gửi setLineTkNo(id, "64211", them=1)', [['L1', '64211', 1]], luu('__them__', ' 64211 ').goiDi);
   const xau = luu('__them__', '64a1');
   t('🔴 gõ không phải số → báo, KHÔNG gửi, vẽ lại dòng', xau.goiDi.length === 0 && /3–10 chữ số/.test(xau.toasts[0]) && xau.lai === 1, xau);

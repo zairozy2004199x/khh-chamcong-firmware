@@ -112,7 +112,7 @@ t('🔴 báo lại mã mới, và báo riêng khi trả về tự động',
    nghĩa `var lai=…` ở đầu hàm — nên xoá lời GỌI `lai()` ở nhánh thành công vẫn xanh. Đột biến
    đã sống sót đúng một lượt vì thế. Nay soi chính LỜI GỌI, ở cả ba nhánh. */
 t('🔴 nhánh THÀNH CÔNG nạp lại đơn (không thì màn nói một đằng, sổ một nẻo)',
-  /toast\('ok', r\.tkNo[^;]*\);\s*lai\(\);/.test(luu), luu);
+  /toast\(r\.daXuat\?'warn':'ok', \(r\.tkNo[^;]*\);\s*lai\(\);/.test(luu), luu);
 t('🔴 nhánh máy chủ CHỐI cũng nạp lại — ô chọn không được đứng ở giá trị chưa lưu được',
   /if\(!r\|\|!r\.success\)\{[^}]*lai\(\); return; \}/.test(luu), luu);
 t('   và `lai` thật sự mở lại đơn đang xem', /var lai=function\(\)\{[^}]*openDon\(CUR\.don\.maDon\)/.test(luu), luu);
