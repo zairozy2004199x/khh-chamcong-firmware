@@ -182,7 +182,7 @@ function dungBe(ban, khoiXem) {
     + '\n' + ['_khoiDvBang', '_khoiCuaDv', '_tenKhoi', '_boDauVai', '_khoiCuaVai', '_vaiOKhoi',
       '_vaiConCua', '_vaiSelNhieu', '_khoiCuaLoai', '_mxBodies', '_khoiMo', '_mienDs',
       '_khoiLuuTru', '_khoiBay', '_khoiDuoc', '_khoiSuaDuoc', '_mienSuaDuoc', '_khoiSelLoai', '_dvSelNhieu', '_loaiChoDv',
-      '_mangTong', '_mangTongDoan', '_mxMaGoc', '_mxSapCols', '_mxCols', '_mxNhomDv',
+      '_mangTong', '_mangTongDoan', '_mxMaGoc', '_mxSapCols', '_mxCols', '_mxNhomDv', '_dmCoSoCfg', '_mangBoPhan', '_mxCssGt', '_mxTkNoCoDinh',
       '_xemDuocDv', '_dauMucSel', '_mxRowHtml', 'renderTkNoMatrix', '_khoaDongKhoiLa',
       'addCfgLoai', 'saveCfgTkNoMx'].map(boc).join('\n')
     + '\nreturn { ve: renderTkNoMatrix, luu: saveCfgTkNoMx, khoa: _khoaDongKhoiLa, them: addCfgLoai }; }')(moi);

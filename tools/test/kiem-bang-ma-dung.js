@@ -138,6 +138,11 @@ function docOMa(html) {
   lay(/<input[^>]*data-loai="[^"]*"[^>]*>/g, false);
   /* Ô MÃ TỔNG của mảng (12/09/2026) — cùng nằm trong `.mxNoBody` nhưng là bộ chọn khác. */
   lay(/<input[^>]*data-mang-tong="[^"]*"[^>]*>/g, true);
+  /* Ô MÃ CỐ ĐỊNH của loại (24/09/2026 — bảng "không theo mảng" của đầu mục không có cơ sở). */
+  (html.match(/<input[^>]*data-loai-tkno="[^"]*"[^>]*>/g) || []).forEach((tag) => {
+    const at = (a) => { const x = tag.match(new RegExp(a + '="([^"]*)"')); return x ? x[1] : null; };
+    ra.push({ value: at('value') || '', getAttribute: at, __tong: false, __codinh: true });
+  });
   return ra;
 }
 function dungBe(loaiChiPhi, tkNoMatrix, coso, mangTk) {
@@ -205,9 +210,10 @@ function dungBe(loaiChiPhi, tkNoMatrix, coso, mangTk) {
          đúng như trước bản ba bảng, khi `el('cfgMxBody')` cũng là một ô giả không có hàng nào.
          Bài này canh BẢNG MÃ ở dưới; bảng trên có bài riêng (`kiem-loai-3-bang.js`). */
       if (/tbody\.cfgMxBody/.test(sel)) return NK.mxBodies || [];
+      if (/data-loai-tkno/.test(sel)) return (NK.oMa || []).filter(o => o.__codinh);
       if (!/\.mxNoBody\b/.test(sel)) return [];
       const het = NK.oMa || [];
-      return /data-mang-tong/.test(sel) ? het.filter(o => o.__tong) : het.filter(o => !o.__tong);
+      return /data-mang-tong/.test(sel) ? het.filter(o => o.__tong) : het.filter(o => !o.__tong && !o.__codinh);
     } },
     NK, KHO,
   };
@@ -231,7 +237,7 @@ function dungBe(loaiChiPhi, tkNoMatrix, coso, mangTk) {
     ${boc('_khoiDvBang')}\n${boc('_khoiCuaDv')}\n${boc('_tenKhoi')}
     ${boc('_boDauVai')}\n${boc('_khoiCuaVai')}\n${boc('_vaiOKhoi')}
     ${boc('_khoiCuaLoai')}\n${boc('_mxBodies')}\n${boc('_khoiMo')}\nvar MIEN_MA=['mb','mn'];\n${boc('_mienDs')}\n${boc('_khoiLuuTru')}\n${boc('_khoiBay')}\n${boc('_khoiDuoc')}\n${boc('_khoiSuaDuoc')}\n${boc('_mienSuaDuoc')}\n${boc('_vaiConCua')}\n${boc('_vaiSelNhieu')}\n${boc('_khoiSelLoai')}
-    ${boc('_dvSelNhieu')}\n${boc('_loaiChoDv')}\n${boc('_mangTong')}\n${boc('_mangTongDoan')}\n${boc('_mxMaGoc')}\n${boc('_mxSapCols')}\n${boc('_mxCols')}\n${boc('_mxNhomDv')}\n${boc('_xemDuocDv')}\n${boc('_dauMucSel')}\n${boc('_mxRowHtml')}\n${boc('renderTkNoMatrix')}\n${boc('_khoaDongKhoiLa')}\n${boc('saveCfgTkNoMx')}
+    ${boc('_dvSelNhieu')}\n${boc('_loaiChoDv')}\n${boc('_mangTong')}\n${boc('_mangTongDoan')}\n${boc('_mxMaGoc')}\n${boc('_mxSapCols')}\n${boc('_mxCols')}\n${boc('_mxNhomDv')}\n${boc('_dmCoSoCfg')}\n${boc('_mangBoPhan')}\n${boc('_mxCssGt')}\n${boc('_mxTkNoCoDinh')}\n${boc('_xemDuocDv')}\n${boc('_dauMucSel')}\n${boc('_mxRowHtml')}\n${boc('renderTkNoMatrix')}\n${boc('_khoaDongKhoiLa')}\n${boc('saveCfgTkNoMx')}
     return { ve: renderTkNoMatrix, luu: saveCfgTkNoMx }; }`)(moi);
   return { moi, NK, KHO, F };
 }
@@ -798,6 +804,88 @@ const ma = (r, pll) => (r.tkNoMatrix.filter(x => x.pll === pll).map(x => x.nhom 
 /* ── 3. LỜI CHÚ THÍCH NÓI ĐÚNG BỐ CỤC MỚI ──────────────────────────────────────────────── */
 t('🔴 chú thích dưới bảng nói rõ bảng dưới xếp theo mảng',
   HTML.indexOf('mỗi hàng là một mảng kinh doanh') >= 0);
+
+/* ══ MỖI PHÂN LOẠI LỚN MỘT BẢNG MÃ RIÊNG ════════════════════════════════════════════════
+ * Anh Thắng 24/09/2026 (ảnh bảng Miền Nam 12 mảng × 12 loại): *"Mỗi loại chi phí sẽ tách ra 1 bảng
+ * riêng, chi phí cơ sở bảng riêng, chi phí vận hành 1 bảng riêng và chi phí KVC, MTD 1 bảng riêng,
+ * để tránh đụng nhau"*. */
+const LOAI3 = [
+  { ten: 'Chi phí cơ sở',     khoi: 'kvc', dauMuc: 'Chi Phí Cơ Sở KVC' },
+  { ten: 'Chi phí marketing', khoi: 'kvc', dauMuc: 'Chi Phí Cơ Sở KVC' },
+  { ten: 'Chi Phí Chung KVC', khoi: 'kvc', dauMuc: 'Chi Phí Chung', tkNo: '64125' },
+  { ten: 'Chi phí lạ',        khoi: 'kvc' },
+];
+const MX3 = [
+  { nhom: 'Chi phí cơ sở', pll: 'Funzone', tkNo: '64126' },
+  { nhom: 'Chi phí cơ sở', pll: 'Farm',    tkNo: '64166' },
+  { nhom: 'Chi phí lạ',    pll: 'Máy',     tkNo: '6499' },
+];
+/* Ba mảng cùng khối kvc: Funzone · Farm là gian bộ phận KVC (suy từ khối cũ), Máy là gian bộ phận MTĐ (khai tay). */
+const COSO3 = [
+  { ten: 'AEON',    phanLoaiLon: 'Funzone', donVi: 'KVC' },
+  { ten: 'FARM NT', phanLoaiLon: 'Farm',    donVi: 'KVC' },
+  { ten: 'MÁY X',   phanLoaiLon: 'Máy',     donVi: 'KVC', boPhan: 'mtd' },
+];
+function veDm(sua) {
+  const b = dungBe(LOAI3, MX3, COSO3, MANG_TK);
+  b.moi.BOOT.dauMucDs = ['Chi Phí Cơ Sở KVC', 'Chi Phí Chung', 'Khác'];
+  b.moi.CFG.dauMucCoSo = { 'Chi Phí Cơ Sở KVC': 'kvc', 'Chi Phí Chung': '' };
+  b.F.ve();
+  const h = b.moi.el('cfgTkNoMx').innerHTML;
+  const tren = docHangTren(h.slice(h.indexOf('class="cfgMxBody"'), h.indexOf('mxNoBody')));
+  const oMa = docOMa(h.slice(h.indexOf('mxNoBody')));
+  if (sua) sua(tren, oMa);
+  b.NK.mxBodies = [{ getAttribute: n => (n === 'data-dau-muc' ? '' : null), getElementsByTagName: () => tren }];
+  b.NK.oMa = oMa;
+  return { h, luu: () => { b.F.luu(); return b.NK.luu; } };
+}
+{
+  const { h } = veDm();
+  const ids = (h.match(/data-mx-id="([^"]*)"/g) || []).map((x) => x.replace(/.*="([^"]*)"/, '$1'));
+  teq('🔴 miền KVC tách BA bảng theo phân loại lớn, đúng thứ tự máy chủ, ô hứng cuối',
+    ['kvc|Chi Phí Cơ Sở KVC', 'kvc|Chi Phí Chung', 'kvc|'], ids);
+  const bang = (id) => { const i = h.indexOf('data-mx-id="' + id + '"'); const j = h.indexOf('</tbody>', i); return h.slice(h.lastIndexOf('<table', i), j); };
+  const bCs = bang('kvc|Chi Phí Cơ Sở KVC');
+  t('🔴 bảng Chi Phí Cơ Sở KVC: cột = 2 loại của đầu mục ấy, KHÔNG có cột loại khác',
+    /<th style="width:128px">Chi phí cơ sở<\/th>/.test(bCs) && /<th style="width:128px">Chi phí marketing<\/th>/.test(bCs) && !/Chi Phí Chung KVC|Chi phí lạ/.test(bCs), bCs.slice(0, 400));
+  t('🔴 … hàng = mảng của gian bộ phận KVC (Funzone · Farm), KHÔNG có mảng Máy (gian bộ phận MTĐ)',
+    /data-pll="Funzone"/.test(bCs) && /data-pll="Farm"/.test(bCs) && !/data-pll="Máy"/.test(bCs), bCs.match(/data-pll="[^"]*"/g));
+  t('   mã đã lưu hiện đúng ô', /value="64126"[^>]*data-loai="Chi phí cơ sở"[^>]*data-pll="Funzone"/.test(bCs));
+  t('   tiêu đề bảng nói rõ đầu mục và bộ phận', /🧩 Chi Phí Cơ Sở KVC[^<]*<span[^>]*>— 2 loại · mảng của bộ phận Khu vui chơi<\/span>/.test(h), h.match(/🧩 [^<]*<span[^>]*>[^<]*/g));
+  const bCh = bang('kvc|Chi Phí Chung');
+  t('🔴 bảng Chi Phí Chung (không có cơ sở): KHÔNG theo mảng — một hàng mã cố định, ô mang data-loai-tkno',
+    /data-mx-codinh="1"/.test(bCh) && /Mã TK Nợ cố định/.test(bCh) && /data-loai-tkno="Chi Phí Chung KVC"/.test(bCh) && !/data-pll=/.test(bCh), bCh.slice(0, 500));
+  t('   ô ấy hiện mã cố định đang lưu của loại (64125)', /value="64125"[^>]*data-loai-tkno="Chi Phí Chung KVC"/.test(bCh));
+  const bChua = bang('kvc|');
+  t('🔴 loại chưa xếp đầu mục vẫn có bảng riêng, theo MỌI mảng của miền (kể cả Máy) — không mất mã 6499',
+    /data-loai="Chi phí lạ"[^>]*data-pll="Máy"/.test(bChua) && /value="6499"/.test(bChua) && /data-pll="Funzone"/.test(bChua), bChua.match(/data-pll="[^"]*"/g));
+  teq('🔴 ô MÃ TỔNG của mảng chỉ ở bảng ĐẦU của miền (mỗi mảng một ô, không lặp qua ba bảng)', 2,
+    (h.match(/data-mang-tong="/g) || []).length);
+  t('   dải Điền nhanh gắn theo MÃ BẢNG, không theo khối', /data-mx-nhanh="kvc\|Chi Phí Cơ Sở KVC"/.test(h) && /mxChepCot\("kvc\|Chi Phí Cơ Sở KVC"\)/.test(h.replace(/&quot;/g, '"')), (h.match(/data-mx-nhanh="[^"]*"/g) || []));
+  t('   bảng không theo mảng thì không có dải Điền nhanh (không có gì để chép)', !/data-mx-nhanh="kvc\|Chi Phí Chung"/.test(h));
+}
+/* Lưu: ô mã cố định ghi vào `tkNo` của loại; mã ma trận của các bảng khác còn nguyên. */
+{
+  const r = veDm((tren, oMa) => {
+    oMa.forEach((o) => { if (o.__codinh && o.getAttribute('data-loai-tkno') === 'Chi Phí Chung KVC') o.value = '6427'; });
+  }).luu();
+  teq('🔴 sửa ô mã cố định → Lưu ghi vào tkNo của loại', '6427', muc(r.loaiChiPhi, 'Chi Phí Chung KVC').tkNo);
+  teq('   loại khác không có ô cố định → tkNo giữ nguyên bản cũ', '', muc(r.loaiChiPhi, 'Chi phí cơ sở').tkNo || '');
+  teq('🔴 mã ma trận của ba bảng còn đủ, đúng cặp', [['Chi phí cơ sở', 'Farm', '64166'], ['Chi phí cơ sở', 'Funzone', '64126'], ['Chi phí lạ', 'Máy', '6499']],
+    r.tkNoMatrix.map((x) => [x.nhom, x.pll, x.tkNo]).sort((a, b) => a[0].localeCompare(b[0]) || a[1].localeCompare(b[1])));
+  const r2 = veDm((tren, oMa) => {
+    oMa.forEach((o) => { if (o.__codinh) o.value = ''; });
+  }).luu();
+  teq('   xoá trắng ô cố định = xoá mã thật (ô có mặt)', '', muc(r2.loaiChiPhi, 'Chi Phí Chung KVC').tkNo || '');
+}
+/* Một nhóm duy nhất (không loại nào xếp đầu mục) → bày y bản cũ: mã bảng = mã khối, không tiêu đề 🧩. */
+{
+  const b = dungBe(LOAI.map((x) => { const y = Object.assign({}, x); delete y.dauMuc; return y; }), MX, COSO, MANG_TK); b.F.ve();
+  const h = b.moi.el('cfgTkNoMx').innerHTML;
+  /* Soi phần BẢNG MÃ (từ mốc 🔢) — bảng thuộc tính phía trên cũng có tiêu đề "🧩 Chưa xếp đầu mục" của riêng nó. */
+  const hMa = h.slice(h.indexOf('🔢 TK Nợ'));
+  t('🔴 mọi loại chưa xếp → một bảng, data-mx-id = mã khối, không tiêu đề đầu mục', /data-mx-id="kvc"/.test(hMa) && !/🧩 Chưa xếp/.test(hMa) && !/data-mx-id="kvc\|/.test(hMa), hMa.match(/data-mx-id="[^"]*"|🧩[^<]*/g));
+}
 
 /* ═════════════════════════════════════════════════════════════════════════════════════════ */
 if (TRUOT.length) {

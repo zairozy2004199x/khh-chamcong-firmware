@@ -939,7 +939,7 @@ if _m_mx:
     #    input'); ô trong <details> đang đóng vẫn đếm, còn display:none / thôi không vẽ thì mã
     #    của cả nhà ấy bay sạch ngay lượt Lưu kế tiếp — im lặng, không một câu lỗi.
     la('⚠️ bảng của nhà bị gập VẪN ĐƯỢC DỰNG (ô còn trong DOM để lượt Lưu đọc được)',
-       'than=\'<div class="tw"><table' in _t_mx and 'class="mxNoBody"' in _t_mx)
+       'than+=\'<div class="tw"><table' in _t_mx and 'class="mxNoBody"' in _t_mx)
     # 🔴 Không gõ cứng tên nhà: kế toán POSH chỉ xem được mỗi nhà của họ, chốt cứng "POSH" là
     #    bảng duy nhất của họ cũng gập. Thứ tự quyết định, nên thêm nhà thứ ba tự chạy đúng.
     # ⚠️ SOI MÃ ĐÃ BỎ CHÚ THÍCH. Chú thích ngay trên có nhắc cả "POSH" lẫn "display:none" để

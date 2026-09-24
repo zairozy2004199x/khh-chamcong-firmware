@@ -21,7 +21,7 @@ function be(cells, sel, lock) {
     !!lock, (k, m) => toasts.push(k + ':' + m),
     { querySelector(q) {
         if (/data-mx-nhanh/.test(q)) { const m = q.match(/data-o="(\w+)"/); return { value: sel[m[1]] || '' }; }
-        if (/\.mxNoBody\[data-dv="mn"\]/.test(q)) return { querySelectorAll() { return o; } };
+        if (/\.mxNoBody\[data-mx-id="mn"\]/.test(q)) return { querySelectorAll() { return o; } };
         return null; } },
     (x) => picked.push(x.attrs['data-loai'] + '|' + x.attrs['data-pll']));
   const doc = () => { const r = {}; o.forEach((x) => { r[x.attrs['data-loai'] + '|' + x.attrs['data-pll']] = x.value; }); return r; };

@@ -2476,12 +2476,30 @@
     fillNoiDungList(el('f_nhom').value); showTkNhom();
   }
   // Hiện mã tài khoản của loại chi phí đang chọn ngay cạnh ô Nhóm — dò bằng mắt, khỏi đoán
+  /* Nhãn mã TK Nợ cạnh ô Loại chi phí.
+     🔴 TRA MA TRẬN THEO GIAN, KHÔNG CHỈ Ô MÃ CỐ ĐỊNH CỦA LOẠI. Anh Thắng 24/09/2026 (ảnh): chọn
+        "Chi phí cơ sở" mà nhãn đỏ "CHƯA GẮN MÃ TK", trong khi ma trận đã có 64196/64166/64126 cho
+        từng mảng — *"báo như này là đúng hay sai"*: SAI. Bản trước chỉ đọc `x.tkNo` (mã cố định),
+        mà loại theo mảng vốn để trống ô ấy. Nay đi qua `_tkNoCua(loại, gian)` — đúng nguồn máy
+        chủ dùng lúc lưu dòng — và nói rõ ba cảnh: có mã · chưa chọn gian (mã theo gian) · chưa
+        khai đâu cả. */
   function showTkNhom(){
     var lb=el('lblNhomTk'); if(!lb) return;
-    var ten=String((el('f_nhom')&&el('f_nhom').value)||'').trim().toLowerCase();
-    var hit=null; (BOOT.loaiChiPhi||[]).forEach(function(x){ if(String(x.ten||'').trim().toLowerCase()===ten) hit=x; });
-    lb.textContent = hit && hit.tkNo ? ('TK Nợ '+hit.tkNo) : (ten?'chưa gắn mã TK':'');
-    lb.style.color = (hit&&hit.tkNo)?'#2545ff':'#dc2626';
+    var ten=String((el('f_nhom')&&el('f_nhom').value)||'').trim();
+    if(!ten){ lb.textContent=''; return; }
+    var coso=String((el('f_coso')&&el('f_coso').value)||'').trim();
+    var ma=_tkNoCua(ten, coso);
+    if(ma){
+      var mang=_mangCua(coso);
+      lb.textContent='TK Nợ '+ma+(mang?(' · '+mang):''); lb.style.color='#2545ff'; return;
+    }
+    var ds=_tkNoList(ten, coso);
+    if(ds.length>1){ lb.textContent='Nợ '+ds.join(' | ')+' — kế toán chọn lúc quyết toán'; lb.style.color='#2545ff'; return; }
+    /* Không có gian → không tra được ma trận; loại có mã ở mảng nào đó thì nói "theo gian". */
+    if(!coso && _tkNoCuaLoai(ten).length){ lb.textContent='Nợ theo gian — chọn cơ sở'; lb.style.color='#8c8781'; return; }
+    /* Có gian nhưng gian chưa khai mảng kinh doanh → không tra được cột nào; nói đúng chỗ thiếu. */
+    if(coso && !_mangCua(coso) && _tkNoCuaLoai(ten).length){ lb.textContent='Gian "'+coso+'" chưa khai mảng kinh doanh — chưa tra được mã'; lb.style.color='#b45309'; return; }
+    lb.textContent='chưa gắn mã TK'; lb.style.color='#dc2626';
   }
   function onNoiDung(){
     var p=PRODMAP[el('f_nd').value.trim().toLowerCase()]; if(!p) return;
@@ -14097,92 +14115,97 @@
     if(!nhom.length){
       h+='<div style="color:#8c8781;font-size:12px;padding:10px 0">Chưa có mảng kinh doanh nào thuộc đơn vị bạn xem được — khai <b>Phân loại lớn</b> và <b>Đơn vị</b> ở bảng 🏢 Cơ sở phía trên rồi Lưu.</div>';
     }
+    /* ══════════════════════════════════════════════════════════════════════════════════════
+     * 🔴 MỖI PHÂN LOẠI LỚN (ĐẦU MỤC) MỘT BẢNG MÃ RIÊNG, TRONG TỪNG MIỀN.
+     * Anh Thắng 24/09/2026 (ảnh bảng Miền Nam 12 mảng × 12 loại): *"Mỗi loại chi phí sẽ tách ra 1
+     * bảng riêng, chi phí cơ sở bảng riêng, chi phí vận hành 1 bảng riêng và chi phí KVC, MTD 1
+     * bảng riêng, để tránh đụng nhau"*.
+     *   · đầu mục "Cơ sở của bộ phận KVC" → bảng chỉ có MẢNG của gian bộ phận KVC, cột = loại của
+     *     đầu mục ấy; MTĐ tương tự — hai bảng không còn chen cột của nhau.
+     *   · đầu mục "Không có cơ sở" (chi phí chung / vận hành) → KHÔNG theo mảng: một hàng "mã cố
+     *     định", mỗi loại một ô — ghi vào cột TK Nợ của chính loại (đường `tkno_loai` lùi về).
+     *   · đầu mục "như cũ" / chưa khai, và loại "Chưa xếp đầu mục" → bảng theo mọi mảng của miền.
+     * ⚠️ Chỉ một nhóm (mọi loại chưa xếp) thì bày y bản cũ — không thêm tiêu đề, không đổi mốc
+     *    (`data-mx-id` = mã khối) để bảng cũ và bài kiểm cũ không lệch.
+     * ⚠️ Ô MÃ TỔNG của mảng chỉ bày ở bảng ĐẦU của miền — nó là của mảng, không của đầu mục;
+     *    bày ở mọi bảng là một mảng có ba ô cùng một số.
+     * ══════════════════════════════════════════════════════════════════════════════════════ */
     nhom.forEach(function(g, i){
-      /* 🔴 MỖI NHÀ MỘT BỘ CỘT. Anh Thắng 12/09/2026: *"Đối với POSH sẽ có cột Chi Phí Khác,
-         Chi Phí Chung, Chi Phí Cơ Sở, Chi Phí Setup"*. Bảng 81 mảng của POSH trước nay bày cả
-         chín cột của KVC, toàn dấu "—" — kéo ngang mãi không hết mà chẳng có gì để điền.
-         ⚠️ Loại CHƯA khai đơn vị vẫn hiện ở mọi nhà (xem `_loaiChoDv`), nên bản này KHÔNG làm
-            mất cột nào của ai cho tới khi có người tích. */
-      /* 🔴 NHÀ THỨ HAI TRỞ ĐI THÌ GẬP LẠI, KHÔNG BỎ HẲN.
-         Anh Thắng 14/09/2026 chỉ vào bảng "🔢 TK Nợ · POSH": *"bỏ cái này vì chi phí này là
-         chi phí kvc"*, rồi chốt lại *"ẩn thôi đừng bỏ"*. Đúng: bỏ hẳn là mã tài khoản của nhà
-         ấy còn nằm trong sổ mà không ai sửa được nữa — và nhìn màn thì tưởng đã sạch.
-
-         ⚠️ KHÔNG GÕ CỨNG CHỮ "POSH" Ở ĐÂY. Khối đứng đầu là khối MỞ, còn lại gập — nên
-            kế toán POSH (chỉ xem được mỗi nhà của họ) vẫn thấy bảng của mình mở sẵn, và thêm
-            nhà thứ ba thì nó tự gập theo, khỏi phải nhớ sửa chỗ này.
-         ⚠️ GẬP CHỨ KHÔNG BỎ KHỎI DOM: lúc Lưu, `saveCfgTkNoMx()` đọc mã bằng
-            `querySelectorAll('.mxNoBody input')` — ô nằm trong <details> đang đóng vẫn đếm,
-            nên mã của nhà đang gập không mất. Dùng display:none hay thôi không vẽ thì mất. */
-      /* 🔴 CHỈ BÀY LOẠI CỦA KHỐI ĐANG CHỌN. Mã TK Nợ gắn vào từng loại, mà loại nay thuộc
-         đúng một khối — trộn cả ba khối vào một bảng mã là dựng lại đúng cái "dùng chung" vừa
-         bỏ đi ở bảng trên, chỉ là ở tầng dưới nên khó thấy hơn. Đổi khối trên thanh khối là
-         bảng này đổi theo. */
-      /* ⚠️ THÔI LỌC THEO Ô ĐƠN VỊ CỦA LOẠI. Ô ấy đã rời khỏi bảng (21/09/2026) nên không ai
-         sửa được nữa — lọc bằng nó là lọc bằng dữ liệu cũ, vô hình, đúng cái bẫy vừa gỡ ở ô
-         Bộ phận. Khối là trục duy nhất còn lại cho bảng mã. */
-      /* ═══════════════════════════════════════════════════════════════════════════
-         🔴 LỌC THEO KHỐI CỦA CHÍNH KHỐI BẢNG NÀY, KHÔNG THEO KHỐI ĐANG CHỌN Ở MÀN KHÁC.
-
-         Anh Thắng 21/09/2026: *"Chưa có TK nợ theo máy tự động"*. Bảng mã lọc bằng `KHOI_DANG`
-         — biến của THANH KHỐI bên màn Đơn chi phí. Trang Cấu hình không có thanh ấy, nên nó
-         đứng im ở khối nhớ từ lần trước (thường là kvc) và KHÔNG CÓ CÁCH NÀO đổi — tức là mã
-         TK Nợ của Máy tự động và Văn phòng không ai khai được.
-
-         Mà khối của bảng này ĐÃ CÓ SẮN: `g.dv` chính là đơn vị của nhóm cơ sở đang vẽ, mà từ
-         21/09/2026 cột ấy ở bảng Cơ sở chính là KHỐI. Đọc từ nó thì mỗi bảng tự khớp loại của
-         khối mình, không phụ thuộc người dùng đang đứng ở đâu.
-
-         ⚠️ NHÓM KHÔNG ÁNH XẠ ĐƯỢC KHỐI (VD "(chưa rõ đơn vị)" — mảng còn mã nhưng cơ sở đã
-            xoá) thì NGÃ VỀ khối đang chọn, không trả rỗng. Trả rỗng là mã trong sổ của mấy mảng
-            ấy không còn ai sửa được nữa — đúng cái bẫy đang gỡ. */
       var khoiB=g.khoi||String(KHOI_DANG).toLowerCase();
       var rws=rows.filter(function(x){ return _khoiCuaLoai(x)===khoiB; });
       var nhan='🔢 TK Nợ · <span style="color:#2545ff">'+esc(_tenKhoi(g.khoi)||g.dv)+'</span>', phu='', than='';
       if(!rws.length){
         than='<div style="color:#8c8781;font-size:12px;padding:2px 0 8px">Khối này chưa có loại chi phí nào — thêm ở bảng <b>Loại chi phí</b> bên trên (mục của đúng khối này) rồi Lưu.</div>';
       } else {
-      phu=' <span style="font-weight:400;color:#8c8781">— '+g.cols.length+' mảng · '+rws.length+' loại · xếp theo '
+      /* Chia loại theo ĐẦU MỤC, theo thứ tự máy chủ khai; loại chưa xếp về nhóm '' đứng cuối. */
+      var theoDm={}, thuTuDm=[];
+      rws.forEach(function(x){ var d=String(x.dauMuc||'').trim(); if(!theoDm[d]){ theoDm[d]=[]; thuTuDm.push(d); } theoDm[d].push(x); });
+      var dsDm=((typeof BOOT!=="undefined"&&BOOT&&BOOT.dauMucDs)||[]).filter(function(d){ return theoDm[d]; });
+      thuTuDm.forEach(function(d){ if(d && dsDm.indexOf(d)<0) dsDm.push(d); });
+      if(theoDm['']) dsDm.push('');
+      var mot=(dsDm.length===1);
+      var mangBp=_mangBoPhan();
+      phu=' <span style="font-weight:400;color:#8c8781">— '+g.cols.length+' mảng · '+rws.length+' loại · '+(mot?'':(dsDm.length+' bảng theo phân loại lớn · '))+'xếp theo '
         +(MX_SAP==='tk'?'số tài khoản':'tên mảng')+'</span>';
-      /* 🧰 ĐIỀN NHANH — chép CỘT (loại → loại) và chép HÀNG (mảng → mảng), CHỈ vào ô trống.
-         Anh Thắng 24/09/2026, ảnh ma trận Miền Nam: cột "Chi phí cơ sở" trống cả 12 mảng, hàng
-         EVENT FZ MN hụt sáu ô so với ba hàng EVENT kia — *"đang bị thiếu thật"*. Lấp lại bằng
-         tay là vài chục ô, mỗi ô một cơ hội gõ nhầm số. Chép chỉ đổi ô trên MÀN; vẫn phải soát
-         rồi 💾 Lưu — nên không cần hộp xác nhận. */
-      var oSel=function(o, ds, nhan){ return '<select data-o="'+o+'" data-khong-khoa="1" style="font-size:11.5px;max-width:200px"><option value="">— '+nhan+' —</option>'
-        +ds.map(function(x){ return '<option value="'+esc(x)+'">'+esc(x)+'</option>'; }).join('')+'</select>'; };
-      var tenLoai=rws.map(function(x){ return String(x.ten||''); });
-      than='<div class="tw"><table style="min-width:'+(220+rws.length*128)+'px"><thead><tr>'
-        +'<th style="text-align:left;min-width:220px;position:sticky;left:0;background:#f9f8f6;z-index:1">Mảng kinh doanh</th>'
-        +rws.map(function(x){ return '<th style="width:128px">'+esc(String(x.ten||''))+'</th>'; }).join('')
-        +'</tr></thead><tbody class="mxNoBody" data-dv="'+esc(g.dv)+'">'
-        +_mxSapCols(g.cols, rws, mx).map(function(c){
-            var _t=_mangTong(c), _d=_mangTongDoan(c, rws, mx);
-            return '<tr><td style="position:sticky;left:0;background:#fff;z-index:1">'
-              +'<div style="font-weight:600">'+esc(c)+(_t?(' <span style="color:#2545ff;font-family:Consolas,monospace">('+esc(_t)+')</span>'):'')+'</div>'
-              +'<input value="'+esc(_t)+'" data-mang-tong="'+esc(c)+'" list="tkChartList"'
-              +' placeholder="'+(_d?('mã tổng? VD '+esc(_d)):'mã tổng của mảng')+'"'
-              +' title="Số tổng của cả mảng — VD TUTU MN là 6410, các ô bên phải là 64106 · 64105…&#10;Để trống cũng không sao: nó chỉ dùng để bày trong ngoặc và để xếp theo số tài khoản."'
-              +' style="width:100%;margin-top:3px;font-size:11.5px;font-family:Consolas,monospace">'
-              +'</td>'
-              +rws.map(function(x){
-                  var ten=String(x.ten||'');
-                  /* `data-khoi` = khối của bảng mã này — lượt Lưu dùng để đổi tên đúng khối (xem
-                     `_tenMoiLoai` trong `saveCfgTkNoMx`). */
-                  return '<td><input list="tkChartList" value="'+esc(mx[ten+'|'+c]||'')+'" placeholder="—" style="width:100%"'
-                    +' data-loai="'+esc(ten)+'" data-pll="'+esc(c)+'" data-khoi-ma="'+esc(khoiB)+'" oninput="onPickTk(this)"></td>';
-                }).join('')
-              +'</tr>';
-          }).join('')
-        +'</tbody></table></div>';
-      than+='<div data-mx-nhanh="'+esc(g.dv)+'" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:6px 0 2px;font-size:11.5px;color:#8c8781">'
-        +'<b style="color:#171417">🧰 Điền nhanh (chỉ ô trống):</b>'
-        +'chép cột '+oSel('cotTu', tenLoai, 'từ loại')+' → '+oSel('cotSang', tenLoai, 'sang loại')
-        +'<button type="button" class="btn b-x" data-khong-khoa="1" onclick="mxChepCot('+esc(JSON.stringify(g.dv))+')" style="padding:2px 8px;font-size:11px">Chép cột</button>'
-        +'<span style="color:#e2d6c7">|</span>'
-        +'chép hàng '+oSel('hangTu', g.cols, 'từ mảng')+' → '+oSel('hangSang', g.cols, 'sang mảng')
-        +'<button type="button" class="btn b-x" data-khong-khoa="1" onclick="mxChepHang('+esc(JSON.stringify(g.dv))+')" style="padding:2px 8px;font-size:11px">Chép hàng</button>'
-        +'</div>';
+      dsDm.forEach(function(dm, iT){
+        var rwsDm=theoDm[dm], csDm=_dmCoSoCfg(dm), cols=g.cols, ghi='';
+        if(csDm==='kvc'||csDm==='mtd'||csDm==='vp'){
+          cols=g.cols.filter(function(c){ return !!(mangBp[String(c).toLowerCase()]||{})[csDm]; });
+          if(!cols.length) ghi='Chưa có mảng nào của gian thuộc bộ phận <b>'+esc(_tenKhoi(csDm)||csDm)+'</b> trong miền này — khai cột <b>Bộ phận</b> ở bảng 🏢 Cơ sở.';
+        }
+        var mxId=mot ? g.dv : (g.dv+'|'+dm);
+        var tieuDe=mot ? '' : ('<div style="font-weight:700;color:#7c3aed;margin:12px 0 2px;font-size:12.5px">🧩 '+esc(dm||'Chưa xếp đầu mục')
+          +' <span style="font-weight:400;color:#8c8781">— '+rwsDm.length+' loại'
+          +(csDm===''?' · không theo mảng (mã cố định)':((csDm==='kvc'||csDm==='mtd'||csDm==='vp')?(' · mảng của bộ phận '+esc(_tenKhoi(csDm)||csDm)):''))+'</span></div>');
+        var tenLoai=rwsDm.map(function(x){ return String(x.ten||''); });
+        if(csDm===''){
+          /* KHÔNG THEO MẢNG: một hàng mã cố định, ghi vào `tkNo` của loại (xem `saveCfgTkNoMx`). */
+          than+=tieuDe+'<div class="tw"><table style="min-width:'+(220+rwsDm.length*128)+'px"><thead><tr>'
+            +'<th style="text-align:left;min-width:220px;position:sticky;left:0;background:#f9f8f6;z-index:1">Mã TK Nợ cố định</th>'
+            +rwsDm.map(function(x){ return '<th style="width:128px">'+esc(String(x.ten||''))+'</th>'; }).join('')
+            +'</tr></thead><tbody class="mxNoBody" data-dv="'+esc(g.dv)+'" data-mx-id="'+esc(mxId)+'" data-mx-codinh="1">'
+            +'<tr><td style="position:sticky;left:0;background:#fff;z-index:1"><div style="font-weight:600">Mọi gian</div><div style="font-size:10.5px;color:#8c8781">chi phí không gắn cơ sở → một mã cho cả loại</div></td>'
+            +rwsDm.map(function(x){ var ten=String(x.ten||'');
+                return '<td><input list="tkChartList" value="'+esc(x.tkNo||'')+'" placeholder="—" style="width:100%" data-loai-tkno="'+esc(ten)+'" data-khoi-ma="'+esc(khoiB)+'" oninput="onPickTk(this)"></td>'; }).join('')
+            +'</tr></tbody></table></div>';
+          return;
+        }
+        than+=tieuDe;
+        if(ghi){ than+='<div style="color:#b45309;font-size:12px;padding:2px 0 8px">'+ghi+'</div>'; return; }
+        than+='<div class="tw"><table style="min-width:'+(220+rwsDm.length*128)+'px"><thead><tr>'
+          +'<th style="text-align:left;min-width:220px;position:sticky;left:0;background:#f9f8f6;z-index:1">Mảng kinh doanh</th>'
+          +rwsDm.map(function(x){ return '<th style="width:128px">'+esc(String(x.ten||''))+'</th>'; }).join('')
+          +'</tr></thead><tbody class="mxNoBody" data-dv="'+esc(g.dv)+'" data-mx-id="'+esc(mxId)+'">'
+          +_mxSapCols(cols, rwsDm, mx).map(function(c){
+              var _t=_mangTong(c), _d=_mangTongDoan(c, rws, mx);
+              return '<tr><td style="position:sticky;left:0;background:#fff;z-index:1">'
+                +'<div style="font-weight:600">'+esc(c)+(_t?(' <span style="color:#2545ff;font-family:Consolas,monospace">('+esc(_t)+')</span>'):'')+'</div>'
+                /* Ô mã tổng chỉ ở bảng ĐẦU của miền — xem 🔴 đầu khối. */
+                +(0===iT ? ('<input value="'+esc(_t)+'" data-mang-tong="'+esc(c)+'" list="tkChartList"'
+                  +' placeholder="'+(_d?('mã tổng? VD '+esc(_d)):'mã tổng của mảng')+'"'
+                  +' title="Số tổng của cả mảng — VD TUTU MN là 6410, các ô bên phải là 64106 · 64105…&#10;Để trống cũng không sao: nó chỉ dùng để bày trong ngoặc và để xếp theo số tài khoản."'
+                  +' style="width:100%;margin-top:3px;font-size:11.5px;font-family:Consolas,monospace">') : '')
+                +'</td>'
+                +rwsDm.map(function(x){
+                    var ten=String(x.ten||'');
+                    return '<td><input list="tkChartList" value="'+esc(mx[ten+'|'+c]||'')+'" placeholder="—" style="width:100%"'
+                      +' data-loai="'+esc(ten)+'" data-pll="'+esc(c)+'" data-khoi-ma="'+esc(khoiB)+'" oninput="onPickTk(this)"></td>';
+                  }).join('')
+                +'</tr>';
+            }).join('')
+          +'</tbody></table></div>';
+        /* 🧰 ĐIỀN NHANH — chép cột / chép hàng, chỉ ô trống (xem `_mxChep`). Mỗi bảng một dải. */
+        var oSel=function(o, ds, nhan){ return '<select data-o="'+o+'" data-khong-khoa="1" style="font-size:11.5px;max-width:200px"><option value="">— '+nhan+' —</option>'
+          +ds.map(function(x){ return '<option value="'+esc(x)+'">'+esc(x)+'</option>'; }).join('')+'</select>'; };
+        than+='<div data-mx-nhanh="'+esc(mxId)+'" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:6px 0 2px;font-size:11.5px;color:#8c8781">'
+          +'<b style="color:#171417">🧰 Điền nhanh (chỉ ô trống):</b>'
+          +'chép cột '+oSel('cotTu', tenLoai, 'từ loại')+' → '+oSel('cotSang', tenLoai, 'sang loại')
+          +'<button type="button" class="btn b-x" data-khong-khoa="1" onclick="mxChepCot('+esc(JSON.stringify(mxId))+')" style="padding:2px 8px;font-size:11px">Chép cột</button>'
+          +'<span style="color:#e2d6c7">|</span>'
+          +'chép hàng '+oSel('hangTu', cols, 'từ mảng')+' → '+oSel('hangSang', cols, 'sang mảng')
+          +'<button type="button" class="btn b-x" data-khong-khoa="1" onclick="mxChepHang('+esc(JSON.stringify(mxId))+')" style="padding:2px 8px;font-size:11px">Chép hàng</button>'
+          +'</div>';
+      });
       }
       /* Khối đầu mở sẵn; nhà thứ hai trở đi gập lại, bấm một cái là ra. Một nhà thì
          không bọc <details> — thêm một cú bấm cho thứ chẳng giấu được gì là vô ích. */
@@ -14197,13 +14220,42 @@
     _khoaDongKhoiLa();               // khoá TỪNG DÒNG của khối người này không sửa được
     MX_LOCK=false; toggleMxLock();   // vẽ xong thì khóa lại
   }
+  /* Khối cơ sở của một đầu mục theo CẤU HÌNH (không qua cờ 🧪): '*' · '' · kvc/mtd/vp. Dùng cho
+     bảng mã ở Cấu hình — ở đó bày theo dữ liệu thật, không theo cờ hiển thị của form nhập. */
+  function _dmCoSoCfg(dm){
+    var d=String(dm||'').trim(); if(!d) return '*';
+    var m=(CFG&&CFG.dauMucCoSo)||((typeof BOOT!=='undefined'&&BOOT&&BOOT.dauMucCoSo)||{});
+    if(!Object.prototype.hasOwnProperty.call(m,d)) return '*';
+    return String(m[d]==null?'':m[d]).trim().toLowerCase();
+  }
+  /* Mảng kinh doanh → { bộ phận: 1 } gom từ bảng Cơ sở (cột Bộ phận; chưa khai thì suy từ khối cũ). */
+  function _mangBoPhan(){
+    var ra={};
+    (CFG.coso||[]).forEach(function(x){
+      var m=String(x.phanLoaiLon||'').trim().toLowerCase(); if(!m) return;
+      var bp=String(x.boPhan||'').trim().toLowerCase();
+      if(!bp){ var k=_khoiCuaDv(x.donVi); if(k && MIEN_MA.indexOf(k)<0) bp=k; }
+      if(!bp) return;
+      (ra[m]=ra[m]||{})[bp]=1;
+    });
+    return ra;
+  }
   /* ── 🧰 Điền nhanh trên bảng mã — xem chú thích tại chỗ dựng dải trong `renderTkNoMatrix` ── */
+  function _mxTkNoCoDinh(ten, cu){
+    var k=String(ten||'').trim().toLowerCase(), o=null;
+    Array.prototype.forEach.call(document.querySelectorAll('input[data-loai-tkno]'), function(i){
+      if(String(i.getAttribute('data-loai-tkno')||'').trim().toLowerCase()===k) o=i;
+    });
+    return o ? String(o.value||'').trim() : cu;
+  }
   function _mxCssGt(v){ return String(v==null?'':v).replace(/\\/g,'\\\\').replace(/"/g,'\\"'); }
   function _mxNhanhO(dv, o){
     return document.querySelector('[data-mx-nhanh="'+_mxCssGt(dv)+'"] select[data-o="'+o+'"]');
   }
+  /* `dv` nay là MÃ BẢNG (`data-mx-id`): một miền có nhiều bảng (mỗi đầu mục một bảng) nên không
+     tra theo `data-dv` nữa — tra theo khối là bấm chép ở bảng này mà đổ vào bảng đầu. */
   function _mxOMa(dv){
-    var b=document.querySelector('.mxNoBody[data-dv="'+_mxCssGt(dv)+'"]');
+    var b=document.querySelector('.mxNoBody[data-mx-id="'+_mxCssGt(dv)+'"]');
     return b ? Array.prototype.slice.call(b.querySelectorAll('input[data-loai]')) : [];
   }
   /* Chép theo một trục: `truc`='data-loai' (chép cột: cùng mảng, khác loại) hay 'data-pll' (chép
@@ -15151,7 +15203,9 @@
       var chaR = oCha ? String(oCha.value||'').trim() : (goc.cha||'');
       dm.push({ ten:ten, loaiTt:String((oLoai&&oLoai.value)||''), vaiTro:vai, boPhan:(goc.boPhan||''), donVi:dvL, khoi:khoiR, dauMuc:dmR, cha:chaR,
                 tenMisa:String((oMisa&&oMisa.value)||'').trim(),
-                tkCo:tkCoR, tkNo:goc.tkNo||'',
+                /* Mã CỐ ĐỊNH: có ô ở bảng "không theo mảng" (đầu mục không có cơ sở) thì đọc màn; không có
+                   ô thì giữ bản cũ. Ô có mặt mà trống = xoá mã thật. */
+                tkCo:tkCoR, tkNo:_mxTkNoCoDinh(ten, goc.tkNo||''),
                 maDt:goc.maDt||'', note:goc.note||'' });
     });
     });
