@@ -68,6 +68,7 @@ t( '🔴 trùng TÊN THẬT của cơ sở khác (so bỏ dấu) → chối', em
 echo "── Sao Kê: tra bí danh ra TÊN ĐÍCH ─────────────────────────────\n";
 $sk = file_get_contents( __DIR__ . '/../../vhcp-saoke/vhcp-saoke.php' );
 $f = boc( $sk, 'private static function ghe_coso_chuan(' ); t( 'bốc ghe_coso_chuan', '' !== $f );
+$f2 = boc( $sk, 'public static function chuan_ch_long(' ); t( 'bốc chuan_ch_long (0.46.0: ghe_coso_chuan lùi theo khoá lỏng)', '' !== $f2 );
 eval( 'class SAOKE_App { public static $ds = array();
 	public static function kd( $s ) { return strtolower( preg_replace( "/[^A-Za-z0-9 ]/", "", (string) $s ) ); }
 	public static function chuan_ch( $s ) { return preg_replace( "/[^a-z0-9]/", "", self::kd( $s ) ); }
@@ -77,7 +78,7 @@ eval( 'class SAOKE_App { public static $ds = array();
 	private static function ds_coso_all() { return self::$ds; }
 	/* ghe_coso_chuan() là private — mở một cửa gọi thử, chỉ tồn tại trong lớp giả của bài này. */
 	public static function thu( $ten ) { return self::ghe_coso_chuan( $ten ); }
-	' . $f . ' }' );
+	' . $f . ' ' . $f2 . ' }' );
 SAOKE_App::$ds = array(
 	array( 'ten' => 'CGV LANDMARK 81', 'tinh' => '', 'maKh' => 'KH00245', 'biDanh' => "POSH MN CGV VINCOM LANDMARK\nLANDMARK CU" ),
 	array( 'ten' => 'POSH MN X', 'tinh' => '', 'maKh' => '', 'biDanh' => '' ),
@@ -89,6 +90,7 @@ t( 'tên thật vẫn ra chính nó', 'CGV LANDMARK 81' === SAOKE_App::thu( 'CGV
 t( '🔴 tên thật THẮNG bí danh khi trùng ("POSH MN X" là tên thật của một cơ sở)', 'POSH MN X' === SAOKE_App::thu( 'POSH MN X' ) );
 t( 'không phải cơ sở → rỗng', '' === SAOKE_App::thu( 'KHONG CO' ) );
 t( 'ghe_ds_coso() dùng SELECT * (Ghế cũ chưa có cột bi_danh vẫn chạy)', false !== strpos( $sk, "SELECT * FROM ' . self::ghe_tbl( 'coso' )" ) );
-t( 'ba chỗ lùi theo tenChuan đều đi qua ghe_coso_chuan', 3 <= substr_count( $sk, "self::ghe_coso_chuan( \$ax['tenChuan'] )" ) );
+t( '0.46.0: lùi theo tenChuan gom về MỘT chỗ (cong_coso_dong) và vẫn đi qua ghe_coso_chuan', 1 === substr_count( $sk, "self::ghe_coso_chuan( \$ax['tenChuan'] )" ) && 3 === substr_count( $sk, 'self::cong_coso_dong(' ) );
+t( '0.46.0: tên ánh xạ có đuôi tỉnh "GO BẾN TRE — Bến Tre" vẫn ra cơ sở (khoá lỏng)', 'CGV LANDMARK 81' === SAOKE_App::thu( 'CGV LANDMARK 81 — TP.HCM' ) && 'CGV LANDMARK 81' === SAOKE_App::thu( 'CGV LANDMARK 81 (Q. Bình Thạnh)' ) );
 
 echo "\n"; if ( $TRUOT ) { echo '🔴 TRƯỢT: ' . count( $TRUOT ) . "\n"; exit( 1 ); } echo "✓ SẠCH — $DAT phép\n";

@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.45.0
+ * Version:           0.46.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -25,7 +25,7 @@ class SAOKE_App {
 	   thêm file"* — câu đầu tiên phải trả lời là "bản đang chạy có khối ấy chưa", mà trang thì
 	   không in số bản ở đâu cả, nên không ai đáp được ngoài cách đi mở wp-admin. Ghi ở đây, hiện
 	   ở góc cột trái. ⚠️ PHẢI BẰNG số ở header `Version:` phía trên — hai chỗ, một giá trị. */
-	const VER = '0.45.0';
+	const VER = '0.46.0';
 
 	/* 3 cổng thanh toán + tên hiển thị. Việt QR về bank 1:1; MoMo/VNPAY gộp cục N:1. */
 	private static function cong_ds() { return array( 'vietqr', 'momo', 'vnpay' ); }
@@ -2081,7 +2081,48 @@ class SAOKE_App {
 			foreach ( $bd as $kb => $t ) { if ( ! isset( $map[ $kb ] ) ) { $map[ $kb ] = $t; } }   // tên thật thắng bí danh
 		}
 		$k = self::chuan_ch( $ten );
-		return isset( $map[ $k ] ) ? $map[ $k ] : '';
+		if ( isset( $map[ $k ] ) ) { return $map[ $k ]; }
+		/* Khoá LỎNG làm đường lui: tên ánh xạ hay mang đuôi tỉnh "GO BẾN TRE — Bến Tre" hoặc phần
+		   trong ngoặc; bỏ chúng rồi so lại. Khoá khít vẫn thắng — đây chỉ chạy khi khít đã hụt. */
+		$kl = self::chuan_ch_long( $ten );
+		return ( '' !== $kl && isset( $map[ $kl ] ) ) ? $map[ $kl ] : '';
+	}
+	/**
+	 * CƠ SỞ GHẾ CỦA MỘT DÒNG CỔNG — một chỗ quyết định, ba màn cùng gọi (hai báo cáo VietQR cho Ghế
+	 * và bảng Sao Kê cổng). Trả ['coso','nguon','xungDot','coSoKhac'].
+	 *
+	 * 🔴 ĐỐI CHIẾU HAI NHÂN CHỨNG — anh Thắng 24/09/2026: *"bóc sai địa điểm mã cửa hàng của anh rồi"*:
+	 *    dòng "GO AC 03" bị quy về GO TRƯỜNG CHINH, trong khi danh sách cửa hàng của cổng nói mã
+	 *    VCD7HWKFAM = "GO ÂU CƠ 03". Trước đây suy cơ sở chỉ đi từ TÊN MÁY TRONG NỘI DUNG (rồi ánh xạ
+	 *    tay), MÃ CỬA HÀNG không được hỏi lại lần nào. Nay hỏi cả hai:
+	 *      · nhân chứng 1 — nội dung: tên máy → ghế (ghe-may) → cơ sở; hụt thì ánh xạ tay (anh-xa).
+	 *      · nhân chứng 2 — mã cửa hàng: mã → tên cửa hàng bên cổng → ghế / tên cơ sở (ma-ch).
+	 *    Hai bên KHÁC NHAU thì không im: cờ `xungDot`, kể tên bên thua. Bên thắng theo độ chắc:
+	 *      ghe-may (tên máy khớp thẳng một ghế) > ma-ch (sổ đăng ký của cổng, khớp tên cơ sở) >
+	 *      anh-xa (một dòng người gõ tay, có thể đã sai từ đầu — đúng ca GO AC 03).
+	 *    Gán máy tay (`may_tay`) là quyết định của người, không bị mã cửa hàng đè.
+	 */
+	private static function cong_coso_dong( $ten_may, $ma_ch = '', $ax = null, $may_tay = '' ) {
+		$ra = array( 'coso' => '', 'nguon' => '', 'xungDot' => 0, 'coSoKhac' => '' );
+		$g = self::ghe_coso_cua_may( $ten_may );
+		if ( $g ) { $ra['coso'] = (string) $g['coso']; $ra['nguon'] = 'ghe-may'; }
+		elseif ( $ax && '' !== trim( (string) $ax['tenChuan'] ) ) {
+			$c = self::ghe_coso_chuan( $ax['tenChuan'] );
+			if ( '' !== $c ) { $ra['coso'] = $c; $ra['nguon'] = 'anh-xa'; }
+		}
+		if ( '' !== trim( (string) $may_tay ) ) { if ( '' !== $ra['coso'] ) { $ra['nguon'] = 'tay'; } return $ra; }
+		$csCH = '';
+		$tenCH = self::vqr_may_theo_ma( $ma_ch );
+		if ( '' !== $tenCH ) {
+			$g2 = self::ghe_coso_cua_may( $tenCH );
+			$csCH = $g2 ? (string) $g2['coso'] : self::ghe_coso_chuan( self::cong_coso( $tenCH ) );
+		}
+		if ( '' === $ra['coso'] ) { if ( '' !== $csCH ) { $ra['coso'] = $csCH; $ra['nguon'] = 'ma-ch'; } return $ra; }
+		if ( '' === $csCH || self::chuan_ch( $csCH ) === self::chuan_ch( $ra['coso'] ) ) { return $ra; }
+		$ra['xungDot'] = 1;
+		if ( 'anh-xa' === $ra['nguon'] ) { $ra['coSoKhac'] = $ra['coso']; $ra['coso'] = $csCH; $ra['nguon'] = 'ma-ch'; }
+		else { $ra['coSoKhac'] = $csCH; }
+		return $ra;
 	}
 	/* $ten có phải tên (hoặc bí danh) 1 địa điểm bên Ghế không. */
 	private static function ghe_la_coso( $ten ) { return '' !== self::ghe_coso_chuan( $ten ); }
@@ -2138,11 +2179,8 @@ class SAOKE_App {
 				isset( $anhXa[ self::chuan_ch( $tenMay ) ] ) ? $anhXa[ self::chuan_ch( $tenMay ) ]
 					: ( isset( $anhXa[ self::chuan_ch( self::cong_coso( $tenMay ) ) ] ) ? $anhXa[ self::chuan_ch( self::cong_coso( $tenMay ) ) ] : null ),
 				self::ymd2vn( $r['d'] ) );
-			$ghe = self::ghe_coso_cua_may( $tenMay );
-			if ( ! $ghe && $ax && '' !== trim( (string) $ax['tenChuan'] ) && '' !== self::ghe_coso_chuan( $ax['tenChuan'] ) ) {
-				$ghe = array( 'coso' => self::ghe_coso_chuan( $ax['tenChuan'] ) );   // bí danh → tên đích
-			}
-			$cs = $ghe ? (string) $ghe['coso'] : '';
+			$qd = self::cong_coso_dong( $tenMay, (string) $r['ma_ch'], $ax, (string) $r['may_tay'] );
+			$cs = (string) $qd['coso'];
 			if ( '' === $cs ) { $khong += $tien; continue; }
 			if ( ! isset( $vq[ $cs ] ) ) { $vq[ $cs ] = array(); }
 			$vq[ $cs ][ $ng ] = ( isset( $vq[ $cs ][ $ng ] ) ? $vq[ $cs ][ $ng ] : 0 ) + $tien;
@@ -2210,11 +2248,8 @@ class SAOKE_App {
 				isset( $anhXa[ self::chuan_ch( $tenMay ) ] ) ? $anhXa[ self::chuan_ch( $tenMay ) ]
 					: ( isset( $anhXa[ self::chuan_ch( self::cong_coso( $tenMay ) ) ] ) ? $anhXa[ self::chuan_ch( self::cong_coso( $tenMay ) ) ] : null ),
 				self::ymd2vn( $r['d'] ) );
-			$ghe = self::ghe_coso_cua_may( $tenMay );
-			if ( ! $ghe && $ax && '' !== trim( (string) $ax['tenChuan'] ) && '' !== self::ghe_coso_chuan( $ax['tenChuan'] ) ) {
-				$ghe = array( 'coso' => self::ghe_coso_chuan( $ax['tenChuan'] ) );   // bí danh → tên đích
-			}
-			$cs = $ghe ? (string) $ghe['coso'] : '';
+			$qd = self::cong_coso_dong( $tenMay, (string) $r['ma_ch'], $ax, (string) $r['may_tay'] );
+			$cs = (string) $qd['coso'];
 			if ( '' === $cs ) { $khong += $tien; continue; }
 			/* Máy: chỉ nhận khi tên máy trỏ ĐÚNG MỘT ghế của ĐÚNG cơ sở ấy. Trỏ ghế cơ sở khác là
 			   dấu hiệu trùng mã liên cơ sở — bỏ vào "chưa rõ máy" chứ không gán chéo. */
@@ -2235,6 +2270,17 @@ class SAOKE_App {
 	/* Địa điểm ghế của 1 tên máy VietQR ("AMTP 02"): khớp máy trước, rồi thử cơ sở (bỏ số). null nếu chưa có. */
 	private static function ghe_coso_cua_may( $ten_may ) {
 		if ( '' === trim( (string) $ten_may ) ) { return null; }
+		/* 🔴 KHOÁ MÁY THA SỐ 0 ĐỆM ĐI TRƯỚC — anh Thắng 24/09/2026, GO BẾN TRE: cổng ghi "GO BT 08",
+		   ghế khai "GO-BT-8". chuan_ch() ra `gobt08` ≠ `gobt8` → không ra ghế → lùi về tên ánh xạ
+		   "GO BẾN TRE — Bến Tre" (có đuôi tỉnh) → cũng không ra cơ sở → bên Ghế báo "VietQR –" trong
+		   khi bảng Sao Kê vẫn HIỆN tên nên trông như đã khớp. ghe_map_may_ma() (0.44.0) đã có khoá
+		   chuan_may() đúng cho việc này; dùng nó ở đây, không chỉ ở báo cáo theo máy. Khoá trùng
+		   hai ghế thì bỏ qua, rơi xuống các đường cũ — không đoán bừa. */
+		$km = self::chuan_may( $ten_may );
+		if ( '' !== $km ) {
+			$mm = self::ghe_map_may_ma();
+			if ( isset( $mm[ $km ] ) && empty( $mm[ $km ]['trung'] ) ) { return array( 'coso' => (string) $mm[ $km ]['coso'], 'ma' => (string) $mm[ $km ]['ma'], 'maKh' => '', 'tinh' => '' ); }
+		}
 		$map = self::ghe_map_may();
 		$k = self::chuan_ch( $ten_may );
 		if ( isset( $map[ $k ] ) ) { return $map[ $k ]; }
@@ -2875,9 +2921,16 @@ class SAOKE_App {
 			$ax = self::ax_theo_ngay( isset( $anhXa[ self::chuan_ch( $tenMay ) ] ) ? $anhXa[ self::chuan_ch( $tenMay ) ] : ( isset( $anhXa[ self::chuan_ch( $coSo ) ] ) ? $anhXa[ self::chuan_ch( $coSo ) ] : null ), $thoiDiem );
 			$suy = self::ax_ma_nop( $ax, $mapTen ); $soTien = (int) $r['so_tien'];
 			// POSH: tự lấy địa điểm từ trang Ghế theo tên máy; nếu trượt mà anh đã gán tay tới 1 địa điểm ghế thì dùng nó.
-			$ghe = self::ghe_coso_cua_may( $tenMay );
-			if ( ! $ghe && $ax && '' !== trim( (string) $ax['tenChuan'] ) && '' !== self::ghe_coso_chuan( $ax['tenChuan'] ) ) { $ghe = array( 'coso' => self::ghe_coso_chuan( $ax['tenChuan'] ), 'maKh' => '', 'tinh' => '' ); }
-			$cuaHang = $ghe ? $ghe['coso'] : ( $ax ? ( '' !== $ax['tenChuan'] ? $ax['tenChuan'] : $coSo ) : $coSo );
+			$qd = self::cong_coso_dong( $tenMay, isset( $r['ma_ch'] ) ? $r['ma_ch'] : '', $ax, isset( $r['may_tay'] ) ? $r['may_tay'] : '' );
+			$ghe = '' !== $qd['coso'] ? array( 'coso' => $qd['coso'], 'maKh' => '', 'tinh' => '' ) : null;
+			/* Hiện TÊN CƠ SỞ GHẾ khi quy được; chỉ khi không quy được mới hiện tên ánh xạ/tên cửa hàng — và
+			   khi ấy đánh dấu để không trông như đã khớp (ca GO BẾN TRE: bảng hiện tên mà Ghế báo "–"). */
+			$cuaHang = $ghe ? $ghe['coso'] : ( '⚠ ' . ( $ax ? ( '' !== $ax['tenChuan'] ? $ax['tenChuan'] : $coSo ) : $coSo ) . ' (chưa quy được cơ sở Ghế)' );
+			if ( ! empty( $qd['xungDot'] ) ) {
+				$cuaHang .= ( 'ma-ch' === $qd['nguon'] )
+					? ' ⚠ mâu thuẫn: ánh xạ tay nói "' . $qd['coSoKhac'] . '" — lấy theo MÃ CỬA HÀNG'
+					: ' ⚠ mâu thuẫn: mã cửa hàng nói "' . $qd['coSoKhac'] . '" — lấy theo máy trong nội dung';
+			}
 			$daAnhXa = $ghe ? true : ( '' !== $suy['ma'] );
 			if ( '' === $tenMay ) {
 				$chuaRoMay++; $chuaRoTien += $soTien;
@@ -2889,6 +2942,7 @@ class SAOKE_App {
 				'docDuoc' => true, 'nhanLuc' => self::ymd2vn( $r['nhan_luc'] ), 'tenMay' => $tenMay, 'coSo' => $coSo,
 				'mayTay' => isset( $r['may_tay'] ) ? (string) $r['may_tay'] : '',
 				'maCH' => isset( $r['ma_ch'] ) ? (string) $r['ma_ch'] : '',
+				'gheCoSo' => $qd['coso'], 'nguonCoSo' => $qd['nguon'], 'xungDot' => (int) $qd['xungDot'], 'coSoKhac' => $qd['coSoKhac'],
 				/* Dòng phát sinh SAU lần nạp file gần nhất thì "chưa rõ máy" là chuyện đương
 				   nhiên — file không thể chứa nó. Nói ra để khỏi tưởng bản vá hỏng. */
 				'moiHonNap' => ( '' !== $napDen && (string) $r['thoi_diem'] > $napDen ),

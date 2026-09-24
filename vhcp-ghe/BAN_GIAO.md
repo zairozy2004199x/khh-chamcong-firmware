@@ -12,6 +12,29 @@ từ đầu.
 
 ## 1. Việc đã làm gần đây
 
+### Sao Kê 0.46.0 — Quy cơ sở cho dòng cổng: tha số 0 đệm, tha đuôi tỉnh, đối chiếu MÃ CỬA HÀNG
+
+Anh Thắng 24/09/2026, hai ảnh: (1) *"bóc sai địa điểm mã cửa hàng của anh rồi"* — dòng **GO AC 03**
+bị quy về **GO TRƯỜNG CHINH** trong khi danh sách cửa hàng của cổng nói mã VCD7HWKFAM = "GO ÂU CƠ 03";
+(2) *"QR trên ghế đang báo không có"* — GO BẾN TRE: bảng Sao Kê hiện "GO BT 08 · GO BẾN TRE — Bến
+Tre", Báo cáo tổng bên Ghế hiện **VietQR –**.
+
+**Ba lỗ, một chỗ vá (`cong_coso_dong()`):**
+1. **Số 0 đệm**: cổng "GO BT 08", ghế "GO-BT-8" → `chuan_ch` không khớp. `ghe_coso_cua_may()` nay thử
+   khoá `chuan_may()` (0.44.0) trước — máy khớp thẳng ghế, ra cơ sở của ghế.
+2. **Đuôi tỉnh**: tên ánh xạ "GO BẾN TRE — Bến Tre" không khớp cơ sở "GO BẾN TRE". `ghe_coso_chuan()`
+   lùi khoá lỏng `chuan_ch_long()` (bỏ " — …", bỏ ngoặc); khoá khít vẫn thắng.
+3. **Mã cửa hàng chưa từng được hỏi lại**: suy cơ sở chỉ đi từ tên máy trong nội dung rồi ánh xạ tay.
+   Nay hỏi cả hai nhân chứng; khác nhau thì **cờ `xungDot`**, kể tên bên thua. Bên thắng theo độ
+   chắc: *tên máy khớp thẳng ghế* > *mã cửa hàng (sổ đăng ký của cổng, khớp tên cơ sở)* > *ánh xạ tay*
+   (một dòng người gõ, có thể sai từ đầu — đúng ca GO AC 03). Gán máy tay không bị đè.
+- Bảng Sao Kê cổng: chỉ hiện tên cơ sở khi **quy được cơ sở Ghế**; không quy được thì in "⚠ … (chưa
+  quy được cơ sở Ghế)" — hết cảnh bảng hiện tên mà Ghế báo "–". Mâu thuẫn in kèm bên thua.
+
+`kiem-saoke-quy-coso.php` (16 phép) chạy thật `ghe_coso_cua_may` / `ghe_coso_chuan` / `cong_coso_dong`
+với bản đồ giả: GO BT 08 → GO-BT-8 → GO BẾN TRE; đuôi tỉnh; GO AC 03 mâu thuẫn → theo mã cửa hàng;
+máy khớp ghế thắng mã cửa hàng; gán tay không bị đè.
+
 ### v2.137.0 (+ Sao Kê 0.45.0) — BÍ DANH cơ sở: gộp tên cũ vào điểm mới mà tiền VietQR không rơi
 
 Anh Thắng 24/09/2026, ảnh CSV Báo cáo tổng: **"POSH MN CGV VINCOM LANDMARK"** (không Mã KH, 0 ghế)

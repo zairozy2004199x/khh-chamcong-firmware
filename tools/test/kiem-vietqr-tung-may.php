@@ -42,6 +42,9 @@ eval( 'class SAOKE_App {
 	private static function cong_may_dong( $nd, $ma_ch = "", $db = "", $mt = "" ) { return trim( preg_replace( "/^VQR\\S*\\s+/i", "", $nd ) ); }
 	private static function ghe_coso_cua_may( $t ) { $k = self::chuan_ch( self::cong_coso( $t ) ); return isset( self::$coso[ $k ] ) ? array( "coso" => self::$coso[ $k ] ) : null; }
 	private static function ghe_map_may_ma() { return self::$mapMa; }
+	private static function vqr_may_theo_ma( $m ) { return ""; }
+	private static function ghe_coso_chuan( $t ) { $k = self::chuan_ch( $t ); return isset( self::$coso[ $k ] ) ? self::$coso[ $k ] : ""; }
+	' . boc( $sk, 'private static function cong_coso_dong(' ) . '
 	' . $f_cm . "\n" . $f_vq . '
 }' );
 t( '🔴 "LM-NSG 01" và "LM-NSG-1" ra CÙNG khoá', SAOKE_App::chuan_may( 'LM-NSG 01' ) === SAOKE_App::chuan_may( 'LM-NSG-1' ), array( SAOKE_App::chuan_may( 'LM-NSG 01' ), SAOKE_App::chuan_may( 'LM-NSG-1' ) ) );
