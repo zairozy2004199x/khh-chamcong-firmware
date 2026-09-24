@@ -1243,12 +1243,25 @@ JS;
 			self::tra( $r ); return;
 		}
 		if ( 'coso_gop' === $viec ) {
+			/* 🔴 CHỈ QUẢN TRỊ — gộp là xoá một cơ sở VÀ đổi nhãn cả sổ báo cáo (2.138.0), cùng bậc với
+			   xoá cưỡng chế. Anh Thắng 23/09/2026: *"chỉ áp dụng admin"* cho các thao tác chạm sổ. */
+			if ( ! VHG_Auth::la_quan_tri( $ai['role'] ) ) { self::tra( array( 'ok' => false, 'error' => 'Chỉ Quản trị mới gộp cơ sở (gộp là xoá một cơ sở và dời cả sổ báo cáo).' ) ); return; }
 			$r = VHG_May::gop_coso( isset( $d['nguon'] ) ? (int) $d['nguon'] : 0,
 			                        isset( $d['dich'] )  ? (int) $d['dich']  : 0 );
 			if ( ! empty( $r['ok'] ) ) {
 				VHG_Nhat_Ky::ghi( array( 'nguon' => 'he-thong', 'ghi_chu' =>
 					$ai['name'] . ' gộp cơ sở "' . (string) $r['ten_nguon'] . '" vào "' . (string) $r['ten_dich']
-					. '" (dời ' . (int) $r['doi'] . ' ghế)' ) );
+					. '" (dời ' . (int) $r['doi'] . ' ghế). ' . ( isset( $r['so']['tom_tat'] ) ? (string) $r['so']['tom_tat'] : '' ) ) );
+			}
+			self::tra( $r ); return;
+		}
+		/* 📒 GỘP SỔ THEO BÍ DANH — cơ sở đã gộp ở bản trước (tên cũ đã là bí danh) mà Báo cáo tổng
+		   vẫn ra hai dòng vì sổ còn mang tên cũ. Xem VHG_May::gop_so_coso(). */
+		if ( 'coso_gopso' === $viec ) {
+			if ( ! VHG_Auth::la_quan_tri( $ai['role'] ) ) { self::tra( array( 'ok' => false, 'error' => 'Chỉ Quản trị mới gộp sổ báo cáo giữa các tên cơ sở.' ) ); return; }
+			$r = VHG_May::gop_so_bi_danh( isset( $d['id'] ) ? (int) $d['id'] : 0 );
+			if ( ! empty( $r['ok'] ) ) {
+				VHG_Nhat_Ky::ghi( array( 'nguon' => 'he-thong', 'ghi_chu' => $ai['name'] . ' ' . (string) $r['tom_tat'] ) );
 			}
 			self::tra( $r ); return;
 		}
@@ -1844,7 +1857,13 @@ JS;
 			$ds_coso[] = array( 'id' => (int) $c['id'], 'ten' => (string) $c['ten'],
 				'tinh' => (string) ( isset( $c['tinh'] ) ? $c['tinh'] : '' ),
 				'ma_kh' => (string) ( isset( $c['ma_kh'] ) ? $c['ma_kh'] : '' ),
-				'reset_moi_lan' => (int) ( isset( $c['reset_moi_lan'] ) ? $c['reset_moi_lan'] : 0 ) );
+				'reset_moi_lan' => (int) ( isset( $c['reset_moi_lan'] ) ? $c['reset_moi_lan'] : 0 ),
+				/* 🔴 2.138.0: `dong_cua` CHƯA TỪNG được gửi — tab Địa điểm đọc c.dong_cua để xếp cơ sở đã
+				   đóng xuống khối riêng (2.134.0) và tô nút 🚪, nhưng payload này không có cột ấy nên
+				   đóng cửa xong hàng vẫn nằm giữa bảng, nút vẫn trông như đang mở. `bi_danh` gửi kèm để
+				   hàng hiện tên cũ và bật nút 📒 gộp sổ. */
+				'dong_cua' => (int) ( isset( $c['dong_cua'] ) ? $c['dong_cua'] : 0 ),
+				'bi_danh' => (string) ( isset( $c['bi_danh'] ) ? $c['bi_danh'] : '' ) );
 		}
 		/* NHẬT KÝ BẬT TỪ XA — gửi kèm trong chính lượt số liệu, không thêm lượt gọi. Mỗi lần bấm
 		   Bật là CHO KHÔNG một lượt: cuối tháng nhìn "ghế chạy 180 lượt, thu 140" thì 40 lượt kia
@@ -11062,8 +11081,8 @@ function veQuanLy(){
       + L('CƠ SỞ GẦN TRÙNG TÊN','Sites with near-identical names') + ' (' + _gt.length + ')</div>'
       + '<div style="font-size:12px;color:#7c2d12;margin-bottom:8px">'
       + L('Máy chỉ NGHI NGỜ, không tự gộp — "CGV Vincom 1" và "CGV Vincom 2" cũng lệch 1 ký tự mà là hai nơi thật. '
-        + 'Gộp sẽ DỜI HẾT GHẾ sang cơ sở anh chọn giữ lại rồi xoá cơ sở kia. Báo cáo đã nộp dưới tên cũ vẫn giữ nguyên.',
-          'Suspected only — merging moves every chair to the site you keep, then deletes the other. Past reports keep the old name.')
+        + 'Gộp sẽ DỜI HẾT GHẾ + SỔ BÁO CÁO sang cơ sở anh chọn giữ lại rồi xoá cơ sở kia. Báo cáo đã nộp dưới tên cũ chuyển sang tên giữ lại (không mất một đồng).',
+          'Suspected only — merging moves every chair and every report to the site you keep, then deletes the other.')
       + '</div>';
     _gt.forEach(function(p, i){
       function nut(giu, bo){
@@ -11110,6 +11129,10 @@ function veQuanLy(){
       + (c.tinh ? '<div class="mut">📍 ' + esc(c.tinh) + '</div>' : '')
       + (c.ma_kh ? '<div class="mut">🏷 ' + esc(c.ma_kh) + '</div>'
                  : '<div class="mut" style="opacity:.55">🏷 ' + L('chưa có mã KH','no customer code') + '</div>')
+      /* Tên cũ / tên cửa hàng bên cổng đã gộp vào đây (bí danh) — bày ra để admin biết vì sao tiền
+         mang tên khác lại về hàng này, và để nút 📒 có lý do xuất hiện. */
+      + (c.bi_danh ? '<div class="mut" title="' + L('Tên cũ đã gộp vào đây — tiền VietQR mang tên này quy về đây','Old names merged here') + '">🔁 '
+          + esc(String(c.bi_danh).split(/[\r\n;|]+/).filter(function(x){ return x.trim(); }).join(' · ')) + '</div>' : '')
       /* 🔴 CƠ SỞ RESET BỘ ĐẾM SAU MỖI LẦN THU — anh Thắng 08/09/2026: *"có 1 cơ sở cần reset
          định kì sau mỗi lần thu"*. Bày ngay trên hàng: đây là thứ đổi hẳn cách tính tiền của
          cả cơ sở, giấu trong một hộp thoại là không ai biết cơ sở nào đang bật. */
@@ -11139,6 +11162,16 @@ function veQuanLy(){
             ? L('Mở lại cơ sở này','Reopen this site')
             : L('Đánh dấu ĐÃ ĐÓNG CỬA — ẩn khỏi danh sách, không xoá gì','Mark as CLOSED — hide from the list, nothing is deleted')) + '"'
         + (Number(c.dong_cua) ? ' class="on"' : '') + '>🚪</button> '
+      /* ⇄ GỘP VÀO CƠ SỞ KHÁC (từng hàng, Quản trị) — anh Thắng 24/09/2026: *"Nhập 2 điểm này lại
+         thành 1"* (POSH MN CGV VINCOM LANDMARK ⇄ CGV LANDMARK 81). Khối "gần trùng tên" ở trên chỉ
+         bắt được cặp lệch một ký tự; hai tên khác hẳn nhau của cùng một chỗ thì phải chọn tay.
+         📒 chỉ hiện khi đã có bí danh: kéo sổ còn mang tên cũ về (ca đã gộp ở 2.137.0). */
+      + (QUAN_TRI() ? ('<button data-csgv="' + c.id + '" data-csgvten="' + esc(c.ten) + '"'
+          + ' title="' + L('GỘP cơ sở này vào một cơ sở khác: dời ghế + sổ báo cáo, tên này thành bí danh của đích, rồi xoá cơ sở này',
+                           'Merge this site into another: chairs + reports move, this name becomes an alias, then this site is deleted') + '">⇄</button> '
+          + (c.bi_danh ? ('<button data-csgs="' + c.id + '" data-csgsten="' + esc(c.ten) + '"'
+              + ' title="' + L('GỘP SỔ: kéo báo cáo còn mang TÊN CŨ (bí danh) về tên này — dùng khi Báo cáo tổng vẫn ra hai dòng',
+                               'Pull reports still filed under the old names into this site') + '">📒</button> ') : '')) : '')
       + '<button data-csxoa="' + c.id + '" data-csnhan="' + esc(c.ten) + '"'
         + ' title="' + L('XOÁ HẲN cơ sở (xem trước rồi mới hỏi). Ghế đã ẩn xoá theo; ghế đang chạy thì phải Đổi cơ sở trước. Báo cáo cũ giữ nguyên.',
                          'Permanently delete this site (preview first).') + '">🗑</button></td></tr>';
@@ -12751,8 +12784,8 @@ function noi(){
       if (!confirm(L('GỘP cơ sở\n\n  ✗ BỎ:  ','MERGE\n\n  ✗ REMOVE:  ') + bo
         + L('\n  ✓ GIỮ: ','\n  ✓ KEEP: ') + giu
         + L('\n\nToàn bộ ghế của "','\n\nEvery chair of "') + bo + L('" sẽ chuyển sang "','" moves to "') + giu
-        + L('", rồi cơ sở đó bị XOÁ HẲN.\n\nBáo cáo đã nộp dưới tên cũ vẫn giữ nguyên.',
-            '", then that site is DELETED.\n\nPast reports keep the old name.'))) return;
+        + L('", rồi cơ sở đó bị XOÁ HẲN.\n\nBáo cáo đã nộp dưới tên cũ chuyển sang tên giữ lại — không mất một đồng.',
+            '", then that site is DELETED.\n\nPast reports move to the kept name — no money is lost.'))) return;
       if (!confirm(L('Chắc chắn xoá hẳn cơ sở "','Really delete site "') + bo + L('"?','"?'))) return;
       lam('coso_gop', { nguon: b.getAttribute('data-bo'), dich: b.getAttribute('data-giu') });
     };
@@ -12807,6 +12840,48 @@ function noi(){
       lam('coso_luu', { id: b.getAttribute('data-csreset'), ten: ten,
         tinh: b.getAttribute('data-csrtinh') || '', ma_kh: b.getAttribute('data-csrmakh') || '',
         reset_moi_lan: dang ? 0 : 1 });
+    };
+  });
+  /* ⇄ GỘP VÀO CƠ SỞ KHÁC — từng hàng. Chọn đích trong ô xổ (tên · mã KH), hai lần xác nhận, câu
+     hỏi nói rõ cơ sở nào BIẾN MẤT và sổ đi đâu. Máy chủ (coso_gop) mới là nơi quyết; đây chỉ hỏi. */
+  [].forEach.call(document.querySelectorAll('[data-csgv]'), function(b){
+    b.onclick = function(){
+      var tr = b.closest('tr'); if (!tr) return;
+      var id = b.getAttribute('data-csgv'), ten = b.getAttribute('data-csgvten');
+      var ds = ((D && D.coso) || []).filter(function(c){ return String(c.id) !== String(id); })
+        .sort(function(x, y){ return String(x.ten).localeCompare(String(y.ten)); });
+      tr.innerHTML = '<td colspan="6" style="background:#fff7ed">'
+        + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:6px 2px">'
+        + '<b>⇄ ' + L('Gộp','Merge') + ' "' + esc(ten) + '" ' + L('vào:','into:') + '</b>'
+        + '<select id="csgv-dich" style="flex:2;min-width:220px"><option value="">' + L('— chọn cơ sở GIỮ LẠI —','— choose the site to KEEP —') + '</option>'
+        + ds.map(function(c){ return '<option value="' + c.id + '">' + esc(c.ten) + (c.ma_kh ? ' · ' + esc(c.ma_kh) : '') + '</option>'; }).join('')
+        + '</select>'
+        + '<button id="csgv-ok" class="on">' + L('Gộp','Merge') + '</button>'
+        + '<button id="csgv-huy">' + L('Huỷ','Cancel') + '</button>'
+        + '<div class="mut" style="flex-basis:100%">' + L('Ghế, báo cáo tiền mặt, khoá ngày, Unit MISA của "' + ten + '" chuyển hết sang cơ sở giữ lại; tên này thành BÍ DANH của nó (tiền VietQR mang tên cũ vẫn về đúng chỗ); rồi cơ sở này bị XOÁ. Không mất một đồng.',
+              'Chairs, cash reports, day locks and the MISA unit of "' + ten + '" move to the kept site; this name becomes its alias; then this site is deleted. No money is lost.') + '</div>'
+        + '</div></td>';
+      tr.querySelector('#csgv-huy').onclick = function(){ tai(); };
+      tr.querySelector('#csgv-ok').onclick = function(){
+        var sel = tr.querySelector('#csgv-dich'); var dich = sel.value;
+        if (!dich) { alert(L('Chưa chọn cơ sở giữ lại.','Pick the site to keep.')); return; }
+        var giu = sel.options[sel.selectedIndex].text;
+        if (!confirm(L('GỘP cơ sở\n\n  ✗ BỎ:  ','MERGE\n\n  ✗ REMOVE:  ') + ten
+          + L('\n  ✓ GIỮ: ','\n  ✓ KEEP: ') + giu
+          + L('\n\nGhế + báo cáo tiền mặt + khoá ngày + Unit MISA của "' + ten + '" chuyển sang "' + giu + '". Tên cũ thành bí danh. Rồi cơ sở cũ bị XOÁ HẲN.\n\nKhông có hoàn tác.',
+              '\n\nEverything of "' + ten + '" moves to "' + giu + '", then it is DELETED. No undo.'))) return;
+        if (!confirm(L('Chắc chắn xoá hẳn cơ sở "','Really delete site "') + ten + L('"?','"?'))) return;
+        lam('coso_gop', { nguon: id, dich: dich });
+      };
+    };
+  });
+  /* 📒 GỘP SỔ THEO BÍ DANH — chỉ đổi nhãn cơ sở trên dòng sổ, không xoá không sửa số. */
+  [].forEach.call(document.querySelectorAll('[data-csgs]'), function(b){
+    b.onclick = function(){
+      var ten = b.getAttribute('data-csgsten');
+      if (!confirm(L('GỘP SỔ về "' + ten + '"?\n\nMọi báo cáo tiền mặt, khoá ngày, Unit MISA… còn mang TÊN CŨ (bí danh) của cơ sở này sẽ đổi sang tên này. Không xoá, không sửa một con số — chỉ đổi nhãn cơ sở trên dòng.\n\nDùng khi đã gộp cơ sở ở bản trước mà Báo cáo tổng vẫn ra hai dòng.',
+            'Pull every report still filed under the old names of "' + ten + '" into this name? Nothing is deleted or recalculated.'))) return;
+      lam('coso_gopso', { id: b.getAttribute('data-csgs') });
     };
   });
   [].forEach.call(document.querySelectorAll('[data-csxoa]'), function(b){

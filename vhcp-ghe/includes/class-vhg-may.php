@@ -161,9 +161,12 @@ class VHG_May {
 	 *    bước xoá TỰ CHẶN, cơ sở nguồn còn nguyên để làm lại. Xoá thẳng là ghế sót mất cơ sở, rơi
 	 *    khỏi mọi phạm vi PIN — đúng cái đã gây "cả loạt VHM biến mất" (xem chú thích `xoa_coso`).
 	 *
-	 * ⚠️ KHÔNG SỬA BÁO CÁO CŨ. Bảng `bc` lưu tên cơ sở dạng chữ; báo cáo đã nộp dưới tên cũ VẪN
-	 *    nằm dưới tên cũ. Đó là chủ ý: sổ sách của tháng đã chốt không được đổi lại vì hôm nay ai
-	 *    đó dọn danh mục. Từ nay ghế báo cáo dưới tên cơ sở ĐÍCH.
+	 * 🔴 2.138.0 — GỘP CẢ SỔ, KHÔNG CHỈ GHẾ. Bản trước để báo cáo cũ nằm dưới tên cũ ("sổ tháng đã
+	 *    chốt không sửa lại"); anh Thắng 24/09/2026 chỉ vào Báo cáo tổng hai dòng POSH MN CGV VINCOM
+	 *    LANDMARK (1.040.000 tiền mặt) / CGV LANDMARK 81 (VietQR 870.000): *"Nhập 2 điểm này lại
+	 *    thành 1"*. Một điểm hai tên là một dòng thừa ở mọi màn (Báo cáo tổng, MISA, công nợ). Nay
+	 *    gộp xong thì gọi `gop_so_coso()` đổi NHÃN cơ sở trên mọi dòng sổ của tên cũ sang tên đích —
+	 *    không xoá, không sửa một con số nào. Xem chú thích hàm ấy về các ca trùng khoá.
 	 * ⚠️ Mã ghế TRÙNG NHAU giữa hai cơ sở thì gộp xong chúng nằm chung một chỗ — app sẽ hiện cảnh
 	 *    báo "mã ghế trùng" ngay trên hàng. Đó là việc phải xử tiếp (đổi mã), không phải lỗi gộp.
 	 */
@@ -193,13 +196,154 @@ class VHG_May {
 			return array( 'ok' => false, 'error' => 'Đã dời ' . $doi . ' ghế sang "' . $ten_d . '" nhưng CHƯA xoá được cơ sở cũ: '
 				. ( isset( $xoa['error'] ) ? $xoa['error'] : '' ) . ' Cơ sở cũ vẫn còn, anh xem lại rồi xoá tay.' );
 		}
-		$bd_moi = self::bi_danh_gop_( $bd_d, array_merge( array( (string) $ten_n ), self::bi_danh_tach_( $bd_n ) ), (string) $ten_d );
+		$ds_cu = array_merge( array( (string) $ten_n ), self::bi_danh_tach_( $bd_n ) );
+		$bd_moi = self::bi_danh_gop_( $bd_d, $ds_cu, (string) $ten_d );
 		$wpdb->update( $bang, array( 'bi_danh' => $bd_moi ), array( 'id' => $dich ) );
+		/* GỘP SỔ SAU KHI XOÁ NGUỒN XONG — xoá hụt thì chưa dời một dòng sổ nào (return ở trên). */
+		$so = self::gop_so_coso( (string) $ten_d, $ds_cu );
 		self::quen_dem_reset_();
 		self::bao_da_luu_( (string) $ten_d );
-		return array( 'ok' => true, 'doi' => $doi, 'ten_nguon' => (string) $ten_n, 'ten_dich' => (string) $ten_d, 'bi_danh' => $bd_moi,
+		return array( 'ok' => true, 'doi' => $doi, 'ten_nguon' => (string) $ten_n, 'ten_dich' => (string) $ten_d, 'bi_danh' => $bd_moi, 'so' => $so,
 			'thong_bao' => 'Đã gộp "' . $ten_n . '" vào "' . $ten_d . '": dời ' . $doi . ' ghế, xoá cơ sở cũ; "' . $ten_n . '" nay là BÍ DANH của "' . $ten_d
-				. '" (tiền VietQR mang tên cũ vẫn quy về đây). Báo cáo đã nộp dưới tên cũ vẫn giữ nguyên (sổ tháng đã chốt không sửa lại).' );
+				. '" (tiền VietQR mang tên cũ vẫn quy về đây). ' . ( isset( $so['tom_tat'] ) ? $so['tom_tat'] : '' ) );
+	}
+
+	/**
+	 * GỘP SỔ — dời mọi dòng sổ sách mang TÊN CŨ (so theo `coso_key`) sang TÊN ĐÍCH.
+	 *
+	 * Anh Thắng 24/09/2026, ảnh Báo cáo tổng: "POSH MN CGV VINCOM LANDMARK" (1.040.000 tiền mặt theo
+	 * báo cáo nhân viên, không QR) nằm cạnh "CGV LANDMARK 81 · KH00245" (VietQR 870.000, không báo
+	 * cáo) — *"Nhập 2 điểm này lại thành 1"*. Bí danh (2.137.0) chỉ kéo được TIỀN VIETQR về đích; báo
+	 * cáo tiền mặt vẫn nằm dưới tên cũ vì bảng `bc` lưu tên cơ sở dạng chữ. Muốn một dòng thì phải đổi
+	 * NHÃN cơ sở trên các dòng sổ — không xoá một đồng, không sửa một con số.
+	 *
+	 * 🔴 KHÔNG XOÁ DÒNG TIỀN. `bc` chỉ đổi coso/coso_key (`bc_dong` nối theo report_id, không có cột
+	 *    cơ sở, đi theo tự nhiên). Dòng "một tháng một cơ sở" (bc_thang_bs, bc_congno_dau) mà ĐÍCH đã
+	 *    có cùng tháng thì ĐỂ NGUYÊN dưới tên cũ và KỂ RA: cộng bừa là đếm đôi, xoá là mất tiền —
+	 *    người quyết. Dòng không phải tiền (khoá ngày, Unit MISA) trùng khoá thì bỏ dòng cũ, kể ra.
+	 * 🔴 UNIQUE (coso_key, ngay, lan) của `bc`: đích đã có báo cáo cùng ngày cùng lần thì dòng cũ nhận
+	 *    `lan` kế tiếp — hai báo cáo cùng ngày cùng tồn tại, Báo cáo tổng cộng cả hai.
+	 * 🔴 `bc_pin.coso` là DANH SÁCH tên (phạm vi phụ trách của nhân viên): thay tên cũ bằng tên đích,
+	 *    không thì nhân viên đang phụ trách điểm ấy mất điểm khỏi màn nhập sau khi gộp.
+	 *
+	 * Trả ['ok','ten_dich','ten_cu'=>[…],'bc','bc_lan','khoa','khoa_bo','misa','misa_bo'=>[…],
+	 *      'bs','bs_treo'=>[tháng…],'congno','congno_treo'=>[tháng…],'khac','pin','tom_tat'].
+	 */
+	public static function gop_so_coso( $ten_dich, $ds_ten_cu ) {
+		global $wpdb;
+		$ten_dich = trim( (string) $ten_dich );
+		$kd = VHG_BaoCao::squash( $ten_dich );
+		if ( '' === $kd ) { return array( 'ok' => false, 'error' => 'Thiếu tên cơ sở đích.' ); }
+		$ra = array( 'ok' => true, 'ten_dich' => $ten_dich, 'ten_cu' => array(), 'bc' => 0, 'bc_lan' => 0, 'khoa' => 0, 'khoa_bo' => 0,
+			'misa' => 0, 'misa_bo' => array(), 'bs' => 0, 'bs_treo' => array(), 'congno' => 0, 'congno_treo' => array(), 'khac' => 0, 'pin' => 0 );
+		$bc = VHG_DB::t( 'bc' );
+		foreach ( (array) $ds_ten_cu as $tc ) {
+			$tc = trim( (string) $tc ); $kc = VHG_BaoCao::squash( $tc );
+			if ( '' === $kc || $kc === $kd ) { continue; }   // chính tên đích (khác cách gõ) thì không phải tên cũ
+			$ra['ten_cu'][] = $tc;
+
+			/* bc — dòng tiền: chỉ đổi nhãn; trùng (ngày, lần) với đích thì sang lần kế tiếp. */
+			foreach ( (array) $wpdb->get_results( $wpdb->prepare( "SELECT id, ngay, lan FROM $bc WHERE coso_key=%s", $kc ), ARRAY_A ) as $r ) {
+				$lan = (int) $r['lan'];
+				if ( $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $bc WHERE coso_key=%s AND ngay=%s AND lan=%d", $kd, $r['ngay'], $lan ) ) ) {
+					$lan = 1 + (int) $wpdb->get_var( $wpdb->prepare( "SELECT MAX(lan) FROM $bc WHERE coso_key=%s AND ngay=%s", $kd, $r['ngay'] ) );
+					$ra['bc_lan']++;
+				}
+				$wpdb->update( $bc, array( 'coso' => $ten_dich, 'coso_key' => $kd, 'lan' => $lan ), array( 'id' => (int) $r['id'] ) );
+				$ra['bc']++;
+			}
+
+			/* bc_khoa — UNIQUE (coso_key, ngay): đích đã khoá ngày ấy thì bỏ khoá cũ (khoá không phải tiền). */
+			$tk = VHG_DB::t( 'bc_khoa' );
+			foreach ( (array) $wpdb->get_results( $wpdb->prepare( "SELECT id, ngay FROM $tk WHERE coso_key=%s", $kc ), ARRAY_A ) as $r ) {
+				if ( $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $tk WHERE coso_key=%s AND ngay=%s", $kd, $r['ngay'] ) ) ) {
+					$wpdb->delete( $tk, array( 'id' => (int) $r['id'] ) ); $ra['khoa_bo']++;
+				} else {
+					$wpdb->update( $tk, array( 'coso' => $ten_dich, 'coso_key' => $kd ), array( 'id' => (int) $r['id'] ) ); $ra['khoa']++;
+				}
+			}
+
+			/* bc_ma_misa — PK coso_key: đích chưa có Unit thì Unit của tên cũ đi theo; đã có thì bỏ dòng cũ, kể ra. */
+			$tm = VHG_DB::t( 'bc_ma_misa' );
+			$mc = $wpdb->get_row( $wpdb->prepare( "SELECT coso_key, unit_id, unit_name FROM $tm WHERE coso_key=%s", $kc ), ARRAY_A );
+			if ( $mc ) {
+				if ( $wpdb->get_var( $wpdb->prepare( "SELECT coso_key FROM $tm WHERE coso_key=%s", $kd ) ) ) {
+					$wpdb->delete( $tm, array( 'coso_key' => $kc ) ); $ra['misa_bo'][] = $tc . ' (Unit ' . $mc['unit_id'] . ')';
+				} else {
+					$wpdb->update( $tm, array( 'coso' => $ten_dich, 'coso_key' => $kd ), array( 'coso_key' => $kc ) ); $ra['misa']++;
+				}
+			}
+
+			/* bc_thang_bs, bc_congno_dau — UNIQUE (coso_key, thang): trùng tháng thì TREO lại dưới tên cũ, kể ra. */
+			foreach ( array( 'bc_thang_bs' => 'bs', 'bc_congno_dau' => 'congno' ) as $bang => $k ) {
+				$tb = VHG_DB::t( $bang );
+				if ( 'bc_thang_bs' === $bang && $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $tb ) ) !== $tb ) { continue; }
+				foreach ( (array) $wpdb->get_results( $wpdb->prepare( "SELECT id, thang FROM $tb WHERE coso_key=%s", $kc ), ARRAY_A ) as $r ) {
+					if ( $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $tb WHERE coso_key=%s AND thang=%s", $kd, $r['thang'] ) ) ) {
+						$ra[ $k . '_treo' ][] = (string) $r['thang'];
+					} else {
+						$wpdb->update( $tb, array( 'coso' => $ten_dich, 'coso_key' => $kd ), array( 'id' => (int) $r['id'] ) ); $ra[ $k ]++;
+					}
+				}
+			}
+
+			/* Bảng chỉ mang nhãn cơ sở, không có khoá duy nhất theo cơ sở: đổi thẳng. */
+			foreach ( array( 'bc_yeucau', 'bao_tri', 'bc_ma_nop' ) as $bang ) {
+				$ra['khac'] += (int) $wpdb->query( $wpdb->prepare( 'UPDATE ' . VHG_DB::t( $bang ) . ' SET coso=%s, coso_key=%s WHERE coso_key=%s', $ten_dich, $kd, $kc ) );
+			}
+			foreach ( array( 'bc_denghi', 'chot_tien', 'phien' ) as $bang ) {
+				$ra['khac'] += (int) $wpdb->query( $wpdb->prepare( 'UPDATE ' . VHG_DB::t( $bang ) . ' SET coso=%s WHERE coso=%s', $ten_dich, $tc ) );
+			}
+
+			/* bc_pin.coso — danh sách tên ngăn bằng , hoặc ; — thay tên cũ bằng tên đích, bỏ trùng. */
+			$tp = VHG_DB::t( 'bc_pin' );
+			foreach ( (array) $wpdb->get_results( "SELECT pin, coso FROM $tp WHERE coso<>''", ARRAY_A ) as $r ) {
+				$ds = array(); $doi = false;
+				foreach ( preg_split( '/[;,]/', (string) $r['coso'] ) as $x ) {
+					$x = trim( $x ); if ( '' === $x ) { continue; }
+					if ( VHG_BaoCao::squash( $x ) === $kc ) { $x = $ten_dich; $doi = true; }
+					if ( ! in_array( $x, $ds, true ) ) { $ds[] = $x; }
+				}
+				if ( $doi ) { $wpdb->update( $tp, array( 'coso' => implode( ', ', $ds ) ), array( 'pin' => $r['pin'] ) ); $ra['pin']++; }
+			}
+		}
+		$ra['tom_tat'] = self::gop_so_tom_tat_( $ra );
+		return $ra;
+	}
+
+	/* Một câu kể đủ những gì đã dời và những gì còn TREO — hộp thoại sau khi gộp và nhật ký cùng dùng. */
+	private static function gop_so_tom_tat_( $ra ) {
+		$p = array( $ra['bc'] . ' báo cáo tiền mặt' . ( $ra['bc_lan'] ? ' (' . $ra['bc_lan'] . ' dòng trùng ngày → thành lần thu kế tiếp)' : '' ) );
+		if ( $ra['khoa'] || $ra['khoa_bo'] ) { $p[] = $ra['khoa'] . ' khoá ngày' . ( $ra['khoa_bo'] ? ' (bỏ ' . $ra['khoa_bo'] . ' khoá trùng)' : '' ); }
+		if ( $ra['misa'] ) { $p[] = 'Unit MISA đi theo'; }
+		if ( $ra['misa_bo'] ) { $p[] = 'bỏ Unit MISA của tên cũ vì đích đã có: ' . implode( ', ', $ra['misa_bo'] ); }
+		if ( $ra['bs'] ) { $p[] = $ra['bs'] . ' tháng doanh thu bổ sung'; }
+		if ( $ra['congno'] ) { $p[] = $ra['congno'] . ' dư đầu kỳ công nợ'; }
+		if ( $ra['khac'] ) { $p[] = $ra['khac'] . ' dòng khác (yêu cầu / bảo trì / mã nộp / phiên)'; }
+		if ( $ra['pin'] ) { $p[] = $ra['pin'] . ' PIN đổi phạm vi phụ trách'; }
+		$s = 'GỘP SỔ về "' . $ra['ten_dich'] . '"' . ( $ra['ten_cu'] ? ' từ "' . implode( '", "', $ra['ten_cu'] ) . '"' : '' ) . ': ' . implode( '; ', $p ) . '. Không mất một đồng.';
+		if ( $ra['bs_treo'] ) { $s .= ' ⚠ CHƯA gộp doanh thu bổ sung tháng ' . implode( ', ', array_unique( $ra['bs_treo'] ) ) . ' — đích đã có số của tháng ấy, anh xem hai số rồi tự cộng / xoá (Lịch sử → bổ sung).'; }
+		if ( $ra['congno_treo'] ) { $s .= ' ⚠ CHƯA gộp dư đầu kỳ công nợ tháng ' . implode( ', ', array_unique( $ra['congno_treo'] ) ) . ' — đích đã có, anh xem tay.'; }
+		return $s;
+	}
+
+	/**
+	 * GỘP SỔ THEO BÍ DANH — cho cơ sở ĐÃ gộp ở bản 2.137.0 (tên cũ đã thành bí danh, nhưng sổ còn
+	 * nằm dưới tên cũ nên Báo cáo tổng vẫn ra hai dòng). Nút 📒 trên hàng cơ sở, chỉ Quản trị.
+	 */
+	public static function gop_so_bi_danh( $id ) {
+		global $wpdb;
+		$id = (int) $id; if ( $id <= 0 ) { return array( 'ok' => false, 'error' => 'Thiếu cơ sở.' ); }
+		$bang = VHG_DB::t( 'coso' );
+		$c = $wpdb->get_row( $wpdb->prepare( "SELECT ten, bi_danh FROM $bang WHERE id=%d", $id ), ARRAY_A );
+		if ( ! $c ) { return array( 'ok' => false, 'error' => 'Không thấy cơ sở.' ); }
+		$ds = self::bi_danh_tach_( isset( $c['bi_danh'] ) ? $c['bi_danh'] : '' );
+		if ( ! $ds ) { return array( 'ok' => false, 'error' => 'Cơ sở "' . $c['ten'] . '" chưa có bí danh (tên cũ) nào — không có sổ nào để kéo về. Dùng ⇄ để gộp một cơ sở khác vào đây.' ); }
+		$so = self::gop_so_coso( (string) $c['ten'], $ds );
+		if ( empty( $so['ok'] ) ) { return $so; }
+		self::quen_dem_reset_();
+		$so['thong_bao'] = $so['tom_tat'];
+		return $so;
 	}
 
 	/* Bí danh lưu một dòng một tên (ngăn bằng xuống dòng) — tên cửa hàng có thể chứa dấu phẩy. */

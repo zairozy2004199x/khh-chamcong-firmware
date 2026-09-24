@@ -35,6 +35,43 @@ Tre", Báo cáo tổng bên Ghế hiện **VietQR –**.
 với bản đồ giả: GO BT 08 → GO-BT-8 → GO BẾN TRE; đuôi tỉnh; GO AC 03 mâu thuẫn → theo mã cửa hàng;
 máy khớp ghế thắng mã cửa hàng; gán tay không bị đè.
 
+### v2.138.0 — GỘP SỔ: "Nhập 2 điểm này lại thành 1" (⇄ từng hàng + 📒 gộp sổ theo bí danh)
+
+Anh Thắng 24/09/2026, hai ảnh Báo cáo tổng: **POSH MN CGV VINCOM LANDMARK** — 1.040.000 tiền mặt
+(600.000 + 440.000 theo báo cáo nhân viên), VietQR trống; **CGV LANDMARK 81 · KH00245 · 2 ghế** —
+VietQR 870.000, tiền mặt trống. *"Nhập 2 điểm này lại thành 1."*
+
+**Vì sao 2.137.0 chưa đủ.** (1) Bí danh chỉ kéo được **tiền VietQR** về đích; báo cáo tiền mặt vẫn
+nằm dưới tên cũ vì `bc` lưu tên cơ sở dạng chữ (`coso`, `coso_key`) — Báo cáo tổng, MISA, công nợ
+vẫn ra hai dòng. (2) Nút **⇄** thực ra chỉ có trong khối "CƠ SỞ GẦN TRÙNG TÊN" (cặp lệch một ký tự);
+hai tên khác hẳn nhau như trên **không có nút nào để gộp** — BAN_GIAO 2.137.0 ghi "nút ⇄ trên từng
+hàng, nút 🔁 khai bí danh" là **chưa đúng với mã** (trang không đổi ở bản ấy). (3) Payload cơ sở
+gửi ra trang **chưa từng có `dong_cua`** → khối "cơ sở đã đóng cửa" (2.134.0) không bao giờ tách,
+nút 🚪 luôn trông như đang mở.
+
+**Làm gì.**
+- `VHG_May::gop_so_coso($ten_dich, $ds_ten_cu)`: đổi **NHÃN** cơ sở trên mọi dòng sổ của tên cũ
+  (theo `coso_key`) sang tên đích. **Không xoá dòng tiền, không sửa con số.** Trùng khoá:
+  `bc (coso_key, ngay, lan)` → dòng cũ sang `lan` kế tiếp; `bc_khoa`/`bc_ma_misa` (không phải tiền)
+  → bỏ dòng cũ, kể ra (hết "dính vào MISA"); `bc_thang_bs`/`bc_congno_dau` (tiền theo tháng) →
+  **TREO** dưới tên cũ, kể ra — người quyết, máy không cộng bừa. `bc_pin.coso` (danh sách phụ trách)
+  thay tên cũ bằng tên đích để nhân viên không mất điểm khỏi màn nhập. Trả `tom_tat` một câu.
+- `gop_coso()` gọi gộp sổ **sau khi xoá nguồn xong** (xoá hụt → chưa dời dòng sổ nào).
+- `gop_so_bi_danh($id)`: kéo sổ của mọi bí danh về — cho cơ sở đã gộp ở 2.137.0.
+- Trang: nút **⇄** trên **từng hàng** (chọn đích trong ô xổ "tên · mã KH", hai lần xác nhận); nút
+  **📒** khi hàng có bí danh; hàng hiện 🔁 tên cũ. Cả hai **chỉ Quản trị** (`coso_gop`, `coso_gopso`
+  chặn ở cổng). Payload gửi kèm `dong_cua`, `bi_danh`.
+
+**Việc anh làm:** Địa điểm → hàng "POSH MN CGV VINCOM LANDMARK" → **⇄** → chọn "CGV LANDMARK 81 ·
+KH00245" → xác nhận hai lần. Hộp thoại sau đó kể: N báo cáo tiền mặt đã dời, Unit MISA cũ bỏ (nếu
+đích đã có), tháng nào còn treo. Nếu đã ⇄ ở bản trước (hàng cũ đã mất) thì bấm **📒** trên hàng
+"CGV LANDMARK 81". Rồi mở Báo cáo tổng: một dòng, tiền mặt 1.040.000 + VietQR 870.000.
+
+`kiem-gop-so-coso.php` (43 phép) chạy thật `gop_so_coso`/`gop_coso`/`gop_so_bi_danh` trên CSDL giả
+có bảng: đổi nhãn, số không đổi, trùng ngày → lần 2, không DELETE bc/bc_dong, Unit đích thắng, tháng
+bổ sung trùng → treo + cảnh báo, PIN đổi phạm vi, gộp sổ chạy sau xoá nguồn, xoá hụt không dời, cổng
+chặn không phải admin, payload có dong_cua/bi_danh, câu "báo cáo cũ giữ nguyên" đã gỡ hết.
+
 ### v2.137.0 (+ Sao Kê 0.45.0) — BÍ DANH cơ sở: gộp tên cũ vào điểm mới mà tiền VietQR không rơi
 
 Anh Thắng 24/09/2026, ảnh CSV Báo cáo tổng: **"POSH MN CGV VINCOM LANDMARK"** (không Mã KH, 0 ghế)

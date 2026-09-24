@@ -26,7 +26,7 @@ class VHG_BaoCao { public static function squash( $s ) {
 /* ══════ 1. GHẾ ══════ */
 echo "── Ghế: gộp giữ tên cũ làm bí danh; khai bí danh không trùng hai nơi ──\n";
 $may = file_get_contents( __DIR__ . '/../../vhcp-ghe/includes/class-vhg-may.php' );
-$fs = ''; foreach ( array( 'public static function gop_coso(', 'public static function bi_danh_tach_(', 'public static function bi_danh_gop_(', 'public static function bi_danh_luu(' ) as $mo ) { $f = boc( $may, $mo ); t( 'bốc ' . trim( str_replace( array( 'public static function ', '(' ), '', $mo ) ), '' !== $f ); $fs .= "\n" . $f; }
+$fs = ''; foreach ( array( 'public static function gop_coso(', 'public static function gop_so_coso(', 'private static function gop_so_tom_tat_(', 'public static function bi_danh_tach_(', 'public static function bi_danh_gop_(', 'public static function bi_danh_luu(' ) as $mo ) { $f = boc( $may, $mo ); t( 'bốc ' . trim( str_replace( array( 'public static function ', '(' ), '', $mo ) ), '' !== $f ); $fs .= "\n" . $f; }
 class WpdbGia {
 	public $sql = array(); public $ten = array(); public $bd = array(); public $khac = array(); public $xoa_ok = true;
 	public function prepare( $q, ...$a ) { foreach ( $a as $v ) { $q = preg_replace( '/%s|%d/', is_int( $v ) ? (string) $v : "'" . $v . "'", $q, 1 ); } return $q; }
@@ -37,6 +37,8 @@ class WpdbGia {
 	public function get_results( $q, $o = null ) { $this->sql[] = $q; return $this->khac; }
 	public function query( $q ) { $this->sql[] = $q; return 3; }
 	public function update( $t, $d, $w ) { $this->sql[] = 'UPDATE ' . $t . ' ' . json_encode( $d, JSON_UNESCAPED_UNICODE ) . ' WHERE ' . json_encode( $w ); return 1; }
+	public function get_row( $q, $o = null ) { $this->sql[] = $q; return null; }
+	public function delete( $t, $w ) { $this->sql[] = 'DELETE ' . $t; return 1; }
 }
 eval( 'class VHG_May { private static function quen_dem_reset_() {} private static function bao_da_luu_( $t ) {}
 	public static $xoa_ok = true;
