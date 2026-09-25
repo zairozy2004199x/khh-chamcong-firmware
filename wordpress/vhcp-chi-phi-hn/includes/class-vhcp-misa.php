@@ -419,7 +419,15 @@ class VHCPHN_Misa {
 		   lọc, hoặc lọc theo mã CHA (641) mà bên dưới có 6412 · 64122. Lọc về một mã lá → đúng 13 cột. */
 		$gop_tk = ( self::MAU_SOCT === $mau ) && ( '' === $tk_f || count( $tk_trong_tep ) > 1 );
 		$rows = array();
+		/* MẢNG của TỪNG DÒNG, song song với `$rows` — anh Thắng 25/09/2026: *"Chỗ misa cũng tách
+		   bảng riêng, để lỡ xuất misa nó đi theo phân loại lớn riêng"*. Màn cần biết dòng nào
+		   thuộc mảng nào để tách tệp Excel thành NHIỀU SHEET, một sheet một mảng — không phải
+		   đoán lại từ chuỗi diễn giải. Đọc thẳng từ khoá nhóm `$g` (đã mang `$pll_k` ở phần
+		   giữa "hạng||mảng||loại") nên không tính lại, không lệch với thứ tự dòng thật. */
+		$row_mang = array();
 		foreach ( $nhom_order as $g ) {
+			$mang_cua_nhom = explode( '||', $g, 3 );
+			$mang_cua_nhom = isset( $mang_cua_nhom[1] ) ? $mang_cua_nhom[1] : '';
 			/* ⚠️ TRONG MỖI NHÓM, XẾP THEO NGÀY. Vòng gom ở trên chạy theo thứ tự CHÈN của bảng
 			   chi phí (số thứ tự dòng), không phải theo ngày — nên một đơn nhập muộn mà mang
 			   ngày cũ sẽ nằm sai chỗ. Kế toán đối chiếu MISA theo ngày, nên chỗ này phải xếp
@@ -435,6 +443,7 @@ class VHCPHN_Misa {
 				$r_ = $x['r'];
 				if ( $gop_tk ) { array_unshift( $r_, $x['tk'] ); }
 				$rows[] = $r_;
+				$row_mang[] = $mang_cua_nhom;
 			}
 		}
 
@@ -475,7 +484,7 @@ class VHCPHN_Misa {
 		return array( 'cols' => self::cols( $mau, $gop_tk ),
 			'mau' => $mau, 'tkLoc' => $tk_f, 'tkDs' => $tk_ds, 'tkCay' => self::cay_tk( $tk_ds ),
 			'mangLoc' => ( '' !== $mang_f ? $mang_f : 'all' ), 'mangDs' => $mang_ds,
-			'rows' => $rows, 'count' => count( $rows ), 'sodon' => $ndon,
+			'rows' => $rows, 'rowMang' => $row_mang, 'count' => count( $rows ), 'sodon' => $ndon,
 			'theoKhoi' => $theo_khoi,
 			'warn' => array_merge( array_keys( $warn ), VHCPHN_Misa::warn_ngay_xau( $ngay_xau ) ), 'maDons' => array_keys( $seen_don ) );
 	}

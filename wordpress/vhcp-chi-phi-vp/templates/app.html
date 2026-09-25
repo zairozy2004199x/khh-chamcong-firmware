@@ -10512,20 +10512,58 @@
     }
     w.innerHTML=dong;
   }
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * MỘT SHEET MỘT MẢNG — anh Thắng 25/09/2026 (ảnh màn Xuất MISA): *"Chỗ misa cũng tách bảng
+   * riêng, để lỡ xuất misa nó đi theo phân loại lớn riêng"*. `XUAT.rowMang[i]` (song song với
+   * `XUAT.rows[i]`) nói dòng đó thuộc mảng nào — máy chủ đã gán lúc gom nhóm, không đoán lại
+   * ở đây theo chuỗi diễn giải.
+   *
+   * ⚠️ CHỈ TÁCH KHI THẬT SỰ CÓ ≥ 2 MẢNH KHÁC NHAU TRONG TỆP. Đã lọc còn một mảng (ô chọn Mảng
+   *    kinh doanh) hoặc dữ liệu vốn chỉ một mảng thì tách ra vẫn là một sheet — không cần đổi
+   *    tên sheet khỏi 'MISA' để khỏi phá thói quen cũ.
+   * ⚠️ TÊN SHEET PHẢI HỢP LỆ VỚI EXCEL: tối đa 31 ký tự, không chứa : \ / ? * [ ]; hai mảng
+   *    trùng tên sau khi cắt/thay thì thêm số thứ tự, không được lặng lẽ đè sheet của nhau.
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  function _xlsxTenSheet(ten, daDung){
+    var s=String(ten||'(chưa khai mảng)').replace(/[:\\\/?*\[\]]/g,' ').trim().slice(0,31)||'Mang';
+    var goc=s, n=2;
+    while(daDung[s]){ var duoi=' ('+n+')'; s=goc.slice(0, 31-duoi.length)+duoi; n++; }
+    daDung[s]=1; return s;
+  }
+  function _xlsxWorkbook(){
+    var mang=XUAT.rowMang||[], co=(mang.length===XUAT.rows.length) ? mang.filter(function(v,i){return mang.indexOf(v)===i;}) : [];
+    var wb=XLSX.utils.book_new();
+    if(co.length<2){
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([XUAT.cols].concat(XUAT.rows)), 'MISA');
+      return wb;
+    }
+    var daDung={};
+    co.forEach(function(m){
+      var rows=XUAT.rows.filter(function(r,i){ return mang[i]===m; });
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([XUAT.cols].concat(rows)), _xlsxTenSheet(m, daDung));
+    });
+    return wb;
+  }
   function downloadCSV(){   // giờ TẢI EXCEL (.xlsx); fallback CSV nếu thư viện chưa nạp
     if(!XUAT.rows||!XUAT.rows.length){toast('warn','Không có dữ liệu để tải');return;}
     var okXlsx=false;
     try{
       if(typeof XLSX!=='undefined'){
-        var ws=XLSX.utils.aoa_to_sheet([XUAT.cols].concat(XUAT.rows));   // Số tiền là số -> ô số; còn lại text
-        var wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'MISA');
+        var wb=_xlsxWorkbook();
         XLSX.writeFile(wb, 'MISA_VanHanhChiPhi'+(XUAT.mau==='soct'?('_SoChiTiet'+(XUAT.tkLoc?('_'+XUAT.tkLoc):'')):'')+'.xlsx');
         okXlsx=true;
       }
     }catch(e){ okXlsx=false; }
-    if(!okXlsx){   // FALLBACK: máy chặn CDN -> tải CSV (có BOM) như cũ
+    if(!okXlsx){   // FALLBACK: máy chặn CDN -> tải CSV (có BOM). Không tách được nhiều sheet trong CSV,
+                   // nên chèn dải tiêu đề mảng + dòng trống giữa các khối để vẫn đọc riêng được từng mảng.
       var ce=function(v){v=(v==null?'':String(v)); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
-      var csv=XUAT.cols.map(ce).join(',')+'\n'+XUAT.rows.map(function(r){return r.map(ce).join(',');}).join('\n');
+      var mang=XUAT.rowMang||[], co=(mang.length===XUAT.rows.length) ? mang.filter(function(v,i){return mang.indexOf(v)===i;}) : [];
+      var head=XUAT.cols.map(ce).join(',');
+      var csv=(co.length<2) ? head+'\n'+XUAT.rows.map(function(r){return r.map(ce).join(',');}).join('\n')
+        : co.map(function(m){
+            var rows=XUAT.rows.filter(function(r,i){ return mang[i]===m; });
+            return '=== '+ce(m||'(chưa khai mảng)')+' ==='+'\n'+head+'\n'+rows.map(function(r){return r.map(ce).join(',');}).join('\n');
+          }).join('\n\n');
       var blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
       var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='MISA_VanHanhChiPhi'+(XUAT.mau==='soct'?('_SoChiTiet'+(XUAT.tkLoc?('_'+XUAT.tkLoc):'')):'')+'.csv'; document.body.appendChild(a); a.click();
       setTimeout(function(){a.remove();URL.revokeObjectURL(a.href);},150);
