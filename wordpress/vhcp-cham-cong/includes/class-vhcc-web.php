@@ -2026,21 +2026,112 @@ class VHCC_Web {
 			foreach ( $hang_b as $ma_b => $o_b ) {
 				$ma_b = sanitize_text_field( (string) $ma_b );
 				if ( '' === $ma_b || ! is_array( $o_b ) ) { continue; }
-				$ten_b = isset( $o_b['viec'] ) ? sanitize_text_field( (string) $o_b['viec'] ) : '';
-				$gio_b = isset( $o_b['gio'] ) ? sanitize_text_field( (string) $o_b['gio'] ) : '';
+				$ten_b = isset( $o_b['chinh'] ) ? sanitize_text_field( (string) $o_b['chinh'] ) : '';
 				$gc_b  = isset( $gio_cua[ $ma_b ] ) ? $gio_cua[ $ma_b ] : 0.0;
 
-				$r_b = VHCC_ChotLuong::dat( $toi, $cs_b, $th_b, $ma_b, array(), $gc_b, $ten_b );
+				/* ═══════════════════════════════════════════════════════════════════════════
+				 * 🔴 DỰNG LẠI ĐỦ MẤY DÒNG VIỆC PHỤ — 25/09/2026, VÁ LỖI PHÁ DỮ LIỆU.
+				 *
+				 * Bản 4.83.0 truyền `array()` vào đây. Chú thích của `VHCC_ChotLuong::dat()`
+				 * nói thẳng: *"Mảng rỗng = xoá hết"*. Tức mỗi lượt bấm "Lưu cả bảng" XOÁ SẠCH
+				 * giờ ăn đơn giá khác của MỌI người trong cơ sở — đúng dữ liệu của người làm
+				 * hai việc, và xoá không một câu báo.
+				 *
+				 * Nay bảng gửi lên đủ mấy dòng ấy (`b[mã][dong][i]`), nên truyền lại đúng thứ
+				 * người ta đang nhìn. Ai không gõ dòng nào thì gửi mảng rỗng — và lúc ấy "xoá
+				 * hết" mới đúng nghĩa: họ vừa xoá tay trên màn.
+				 * ⚠️ Bỏ dòng rỗng TRƯỚC khi truyền: ô trống là "không có việc phụ", không phải
+				 *    một dòng tên rỗng 0 giờ.
+				 * ═══════════════════════════════════════════════════════════════════════════ */
+				$dong_b = array();
+				if ( isset( $o_b['dong'] ) && is_array( $o_b['dong'] ) ) {
+					foreach ( $o_b['dong'] as $d_b ) {
+						if ( ! is_array( $d_b ) ) { continue; }
+						$v_d = isset( $d_b['viec'] ) ? sanitize_text_field( (string) $d_b['viec'] ) : '';
+						$g_d = isset( $d_b['gio'] ) ? sanitize_text_field( (string) $d_b['gio'] ) : '';
+						if ( '' === trim( $v_d ) && '' === trim( $g_d ) ) { continue; }
+						$dong_b[] = array( 'viec' => $v_d, 'gio' => $g_d );
+					}
+				}
+
+				$r_b = VHCC_ChotLuong::dat( $toi, $cs_b, $th_b, $ma_b, $dong_b, $gc_b, $ten_b );
 				if ( empty( $r_b['ok'] ) ) {
 					$hong[] = $ma_b . ': ' . ( isset( $r_b['error'] ) ? $r_b['error'] : 'không lưu được' );
 					continue;
 				}
+
+				/* 🔴 NHẬN DIỆN "ĐANG ĂN LƯƠNG THÁNG" BẰNG CÓ-BẢN-GHI-HAY-KHÔNG.
+				   Bản 4.83.0 hỏi khoá `bat`, mà `thang_cua()` KHÔNG trả khoá ấy bao giờ — nó
+				   trả `null` hoặc `array('lcb','congYc')`. Nên ô tích luôn hiện chưa tích, và
+				   mỗi lượt lưu TẮT LUÔN khai báo lương tháng của người đang ăn lương tháng. */
 				$r_t = VHCC_ChotLuong::dat_thang( $toi, $cs_b, $th_b, $ma_b, ! empty( $o_b['thang'] ),
 					isset( $o_b['lcb'] ) ? sanitize_text_field( (string) $o_b['lcb'] ) : '',
 					isset( $o_b['cong_yc'] ) ? sanitize_text_field( (string) $o_b['cong_yc'] ) : '' );
 				if ( empty( $r_t['ok'] ) ) {
 					$hong[] = $ma_b . ': ' . ( isset( $r_t['error'] ) ? $r_t['error'] : 'lương tháng không lưu được' );
 					continue;
+				}
+
+				/* ═══════════════════════════════════════════════════════════════════════════
+				 * ĐƠN GIÁ — ghi vào tầng GIÁ RIÊNG NGƯỜI.
+				 *
+				 * 🔴 Bản 4.83.0 vẽ ô này ra mà KHÔNG ĐỌC. Người ta gõ đơn giá, bấm Lưu, thấy
+				 *    báo "Đã lưu" — và không có gì đổi. Im lặng, nên tệ hơn một lời chối.
+				 * ⚠️ Sổ giá KHÔNG CÓ CHIỀU THÁNG (`GIA_GIO_COSO` khoá theo `cơ sở × chức vụ` và
+				 *    `mã NV × chức vụ`). Nên giá gõ ở đây áp XUYÊN SUỐT mọi tháng, đúng câu anh
+				 *    Thắng chốt 16/09 — nhưng màn phải nói ra, và có nói (xem `the_bang_nhap_luong`).
+				 * ⚠️ Ô TRỐNG = KHÔNG ĐỤNG, không phải xoá giá. Xoá giá là việc của màn Đơn giá
+				 *    giờ, nơi người ta thấy cả bảng giá chứ không phải một ô lẻ. */
+				if ( isset( $o_b['gia'] ) && '' !== trim( (string) $o_b['gia'] ) ) {
+					$g_moi = (float) preg_replace( '/[^0-9.]/', '', (string) $o_b['gia'] );
+					if ( $g_moi > 0 ) {
+						/* ═══════════════════════════════════════════════════════════════════
+						 * 🔴 GHI ĐÚNG MỘT VIỆC, VÀ KHÔNG ĐƯỢC XOÁ MẤY VIỆC KIA.
+						 *
+						 * Ô giá này nằm ở DÒNG CHÍNH, nên nó là giá của VIỆC CHÍNH — không
+						 * phải giá của mọi việc người ấy làm. Bản nháp ghi khoá `'*'` ("mọi
+						 * chức vụ của người ấy", `VHCC_GiaGio::tra():158`), nên kế toán sửa
+						 * giá Lái Tàu là giá Lơ Tàu của chính người ấy đổi theo — im lặng.
+						 * Đúng cảnh anh Thắng hỏi: *"nhân viên 2 việc thì sao"*.
+						 *
+						 * ⚠️ VÀ `dat_nguoi()` THAY SẠCH bảng của người ấy
+						 *    (`class-vhcc-gia-gio.php:344`), nên phải đọc bảng cũ rồi gộp vào,
+						 *    không thì một lượt lưu xoá hết giá riêng đã khai cho việc khác.
+						 *    Gộp bằng TÊN ĐỌC ĐƯỢC (`ten_cua()`), vì `dat_nguoi()` nhận tên
+						 *    chứ không nhận khoá — đưa khoá vào là tên gốc bị thay bằng khoá.
+						 *
+						 * ⚠️ CHƯA CHỌN VIỆC THÌ CHỐI, ĐỪNG ĐOÁN. Không có tên việc thì không
+						 *    có chỗ nào để ghi giá; ghi `'*'` cho xong là lại đúng cái lỗi
+						 *    trên. Nói ra để người ta chọn việc rồi lưu lại.
+						 * ═══════════════════════════════════════════════════════════════════ */
+						if ( '' === trim( $ten_b ) ) {
+							$hong[] = $ma_b . ': có gõ đơn giá nhưng chưa chọn việc chính — '
+								. 'giá ăn theo tên việc, nên chọn việc rồi lưu lại.';
+							continue;
+						}
+						$so_cu  = VHCC_GiaGio::so();
+						$kma_b  = VHCC_GiaGio::khoa_ma( $ma_b );
+						$bang_b = array();
+						if ( isset( $so_cu['nguoi'][ $kma_b ] ) && is_array( $so_cu['nguoi'][ $kma_b ] ) ) {
+							foreach ( $so_cu['nguoi'][ $kma_b ] as $k_c => $v_c ) {
+								$bang_b[ ( '*' === $k_c ) ? '*' : VHCC_GiaGio::ten_cua( $k_c, $so_cu ) ] = $v_c;
+							}
+						}
+						/* Bỏ mấy khoá cũ CÙNG TRỎ VỀ việc này — tên viết khác nhau mà cùng một
+						   khoá thì để cả hai là hai dòng đánh nhau, và `tra()` lấy dòng nào
+						   tuỳ thứ tự mảng. */
+						$k_moi = VHCC_GiaGio::khoa_cv( $ten_b );
+						foreach ( array_keys( $bang_b ) as $t_c ) {
+							if ( '*' !== $t_c && VHCC_GiaGio::khoa_cv( $t_c ) === $k_moi ) { unset( $bang_b[ $t_c ] ); }
+						}
+						$bang_b[ $ten_b ] = $g_moi;
+
+						$r_g = VHCC_GiaGio::dat_nguoi( $toi, $ma_b, $bang_b );
+						if ( empty( $r_g['ok'] ) ) {
+							$hong[] = $ma_b . ': ' . ( isset( $r_g['error'] ) ? $r_g['error'] : 'đơn giá không lưu được' );
+							continue;
+						}
+					}
 				}
 				$xong++;
 			}
@@ -10986,83 +11077,184 @@ class VHCC_Web {
 	private static function the_bang_nhap_luong( $ky, $toi, $cs, $th, $b ) {
 		if ( empty( $b['ok'] ) || empty( $b['dong'] ) ) { return; }
 
-		/* Gom về MỖI NGƯỜI MỘT DÒNG: bảng lương in cả dòng "giờ khác" của cùng một người, mà ở
-		   đây một người chỉ được một dòng nhập. Lấy dòng CHÍNH (dòng mang `gioTong`). */
+		/* ─── gom theo NGƯỜI, nhưng GIỮ ĐỦ MỌI DÒNG VIỆC ───────────────────────────────────
+		   🔴 Bản 4.83.0 lấy dòng ĐẦU của mỗi mã rồi bỏ phần còn lại — đúng cái làm người hai
+		      việc biến mất, và là câu anh Thắng hỏi: *"nhân viên 2 việc thì sao"*. Bảng lương
+		      ngay phía trên vốn đã bày họ thành HAI dòng; bảng nhập phải bày y như thế. */
 		$ng = array();
 		foreach ( $b['dong'] as $d ) {
 			$ma = isset( $d['ma'] ) ? (string) $d['ma'] : '';
-			if ( '' === $ma || isset( $ng[ $ma ] ) ) { continue; }
-			$ng[ $ma ] = $d;
+			if ( '' === $ma ) { continue; }
+			if ( ! isset( $ng[ $ma ] ) ) { $ng[ $ma ] = array( 'chinh' => null, 'phu' => array() ); }
+			if ( ! empty( $d['laChinh'] ) && null === $ng[ $ma ]['chinh'] ) { $ng[ $ma ]['chinh'] = $d; }
+			else { $ng[ $ma ]['phu'][] = $d; }
 		}
 		if ( ! $ng ) { return; }
 
+		/* ─── MỨC THẤP NHẤT CỦA CƠ SỞ, để điền sẵn cho người chưa có giá ───────────────────
+		   Anh Thắng 16/09/2026: *"sang tháng nếu chưa khai giờ, hệ thống cứ set mức thấp nhất
+		   mặc định cho nhân viên, xong cửa hàng trưởng hoặc kế toán sẽ phân số giờ lại sau"*.
+		   ⚠️ `ten_khai_cho()` chỉ trả TÊN, không có giá — không tính được mức thấp nhất từ nó.
+		      `VHCC_LoaiGio::ds_gia()` mới là bảng có số. */
+		$thap_nhat = 0.0;
+		if ( class_exists( 'VHCC_LoaiGio' ) && method_exists( 'VHCC_LoaiGio', 'ds_gia' ) ) {
+			foreach ( (array) VHCC_LoaiGio::ds_gia( $cs, '' ) as $g_x ) {
+				$v_x = isset( $g_x['gia'] ) ? (float) $g_x['gia'] : 0.0;
+				if ( $v_x > 0 && ( 0.0 === $thap_nhat || $v_x < $thap_nhat ) ) { $thap_nhat = $v_x; }
+			}
+		}
+
+		/* Danh sách việc để chọn — CÙNG NGUỒN với khối chốt lương từng người, không dựng riêng.
+		   🔴 Bản 4.83.0 chỉ nuôi bằng `ten_da_dung()` (lịch sử tên ĐÃ GÕ), nên cơ sở chưa ai
+		      chốt lương lần nào thì danh sách RỖNG — đúng cảnh VR TÂN AN của anh Thắng. */
+		$ds_ten = array();
+		if ( method_exists( 'VHCC_GiaGio', 'ten_khai_cho' ) ) {
+			$ds_ten = (array) VHCC_GiaGio::ten_khai_cho( $cs );
+		}
+		if ( method_exists( 'VHCC_ChotLuong', 'ten_da_dung' ) ) {
+			foreach ( (array) VHCC_ChotLuong::ten_da_dung( $cs ) as $t_x ) {
+				if ( ! in_array( $t_x, $ds_ten, true ) ) { $ds_ten[] = $t_x; }
+			}
+		}
+		/* 🔴 VÀ MẤY TÊN ĐANG HIỆN TRÊN CHÍNH BẢNG NÀY. `o_chon_viec()` chỉ vẽ mấy dòng nó được
+		   đưa — tên nào không có trong danh sách thì KHÔNG có `selected`, và ô hiện ra trống
+		   trơn trong khi bảng ngay bên cạnh ghi rõ tên việc. Đúng cảnh người mà chức vụ trong
+		   hồ sơ chưa ai khai giá: họ là người CẦN nhìn thấy tên mình nhất, vì họ là người sắp
+		   được khai giá. Mất tên ở đây là người gõ tưởng chưa chọn rồi chọn đại một cái khác —
+		   và đổi việc chính là đổi tiền. */
+		foreach ( $ng as $khoi_x ) {
+			$ds_x = $khoi_x['phu'];
+			if ( null !== $khoi_x['chinh'] ) { $ds_x[] = $khoi_x['chinh']; }
+			foreach ( $ds_x as $d_x ) {
+				$t_x = isset( $d_x['cv'] ) ? trim( (string) $d_x['cv'] ) : '';
+				if ( '' !== $t_x && ! in_array( $t_x, $ds_ten, true ) ) { $ds_ten[] = $t_x; }
+			}
+		}
+
 		echo '<div class="the" style="margin-top:14px"><h3>Nhập lương cả cơ sở</h3>';
-		echo '<p class="mo">Giờ và đơn giá đã điền sẵn theo từng người — sửa ô nào cần sửa rồi '
-			. '<b>Lưu cả bảng</b> một lượt. Mấy khoản ít dùng (ăn lương tháng, cộng, trừ) nằm '
-			. 'trong ô <b>Khác</b>, bấm mới mở.</p>';
+		echo '<p class="mo">Mỗi <b>việc</b> một dòng — người làm hai việc thì có hai dòng, ô tên '
+			. 'gộp lại. Giờ và đơn giá đã điền sẵn; sửa ô nào cần sửa rồi <b>Lưu cả bảng</b> một '
+			. 'lượt. Mấy khoản ít dùng (ăn lương tháng) nằm trong ô <b>Khác</b>.</p>';
+		echo '<p class="mo">⚠️ Ô <b>Giờ làm</b> của dòng chính <b>không gõ được</b>: nó là '
+			. '<b>giờ chấm công trừ đi giờ mấy việc phụ</b>, máy tự tính. Muốn dòng chính ít giờ '
+			. 'lại thì thêm giờ cho việc phụ.</p>';
+		echo '<p class="mo">⚠️ Đơn giá gõ ở đây <b>áp xuyên suốt mọi tháng</b> cho riêng người ấy, '
+			. 'không phải chỉ tháng đang xem — sổ giá không có chiều tháng.</p>';
 
 		echo '<form method="post" action="' . esc_url( add_query_arg(
-			array( 'man' => 'cham', 'ccs' => $cs, 'cth' => $th ), self::url() ) . '#bangnhap' ) . '">';
+			array( 'man' => 'luong', 'lcs' => $cs, 'lth' => $th ), self::url() ) . '#bangnhap' ) . '">';
 		echo '<a id="bangnhap"></a>';
 		echo '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">';
 		echo '<input type="hidden" name="viec" value="chot_luong_bang">';
 		echo '<input type="hidden" name="ccs" value="' . esc_attr( $cs ) . '">';
 		echo '<input type="hidden" name="cth" value="' . esc_attr( $th ) . '">';
 
-		echo '<div class="cuon"><table class="b stt"><thead><tr>';
-		foreach ( array( 'Nhân viên', 'Việc chính', 'Giờ làm', 'Đơn giá', 'Thành tiền', 'Khác' ) as $i_h => $h_t ) {
-			echo '<th' . ( $i_h >= 2 && $i_h <= 4 ? ' class="p"' : '' ) . '>' . esc_html( $h_t ) . '</th>';
-		}
-		echo '</tr></thead><tbody>';
+		echo '<div class="cuon"><table class="b"><thead><tr>'
+			. '<th>Nhân viên</th><th>Việc</th><th class="p">Giờ làm</th>'
+			. '<th class="p">Đơn giá</th><th class="p">Thành tiền</th><th>Khác</th>'
+			. '</tr></thead><tbody>';
 
-		$ten_khai = method_exists( 'VHCC_ChotLuong', 'ten_da_dung' ) ? VHCC_ChotLuong::ten_da_dung( $cs ) : array();
-		foreach ( $ng as $ma => $d ) {
-			$o   = 'b[' . esc_attr( $ma ) . ']';
-			$gio = isset( $d['gioTong'] ) ? (float) $d['gioTong'] : 0.0;
-			$vc  = method_exists( 'VHCC_ChotLuong', 'viec_chinh' ) ? (string) VHCC_ChotLuong::viec_chinh( $cs, $th, $ma ) : '';
-			$gia = isset( $d['gia'] ) ? (float) $d['gia'] : 0.0;
-			$th_ng = method_exists( 'VHCC_ChotLuong', 'thang_cua' ) ? VHCC_ChotLuong::thang_cua( $cs, $th, $ma ) : array();
-			$ti_ng = method_exists( 'VHCC_ChotLuong', 'tien_cua' ) ? VHCC_ChotLuong::tien_cua( $cs, $th, $ma ) : array();
+		foreach ( $ng as $ma => $khoi ) {
+			$dc = $khoi['chinh'];
+			if ( null === $dc ) { continue; }
+			$gk    = VHCC_ChotLuong::cua( $cs, $th, $ma );
+			$so_phu = max( count( $khoi['phu'] ), count( (array) $gk ) );
+			/* Luôn chừa MỘT dòng trống để thêm việc mới — không có nó thì người ta phải sang
+			   khối từng-người mới thêm được việc thứ hai, tức vẫn bấm qua bấm lại. */
+			$so_dong = $so_phu + 1;
+			$th_ng = VHCC_ChotLuong::thang_cua( $cs, $th, $ma );
+			$la_thang = ( null !== $th_ng );
+			$o = 'b[' . esc_attr( $ma ) . ']';
 
+			/* ---- dòng CHÍNH ---- */
 			echo '<tr>';
-			echo '<td>' . esc_html( isset( $d['ten'] ) ? $d['ten'] : $ma )
+			echo '<td rowspan="' . (int) ( 1 + $so_dong ) . '" class="o-nguoi">'
+				. esc_html( isset( $dc['ten'] ) ? $dc['ten'] : $ma )
 				. '<div class="mo" style="font-size:11px">' . esc_html( $ma ) . '</div></td>';
+			/* 🔴 TÊN VIỆC LẤY TỪ `$d['cv']`, KHÔNG PHẢI `viec_chinh()`.
+			   `viec_chinh()` trả RỖNG khi chưa ai chọn — cố ý ("đoán bừa một cái tên ở đây là
+			   đoán ra tiền"). Đường lùi về chức vụ trong hồ sơ nằm ở bộ dựng bảng lương, và
+			   `$d['cv']` là kết quả ĐÃ qua đường lùi ấy. Hỏi thẳng `viec_chinh()` là ô trống
+			   trơn trong khi bảng ngay bên cạnh đã có sẵn tên. */
+			$vc = isset( $dc['cv'] ) ? (string) $dc['cv'] : '';
+			echo '<td>';
+			if ( $ds_ten ) {
+				self::o_chon_viec( $o . '[chinh]', $ds_ten, $vc, $cs, $ma, '— chưa chọn —' );
+			} else {
+				echo '<input name="' . $o . '[chinh]" value="' . esc_attr( $vc )
+					. '" placeholder="tên việc" style="width:150px">';
+			}
+			echo '</td>';
+			$g_chinh = isset( $dc['gio'] ) ? (float) $dc['gio'] : 0.0;
+			echo '<td class="p"><input value="' . esc_attr( VHCC_ChotLuong::viet_gio( $g_chinh ) )
+				. '" readonly style="width:78px;text-align:right;background:var(--nen-2)" '
+				. 'title="Giờ chấm công trừ đi giờ mấy việc phụ — máy tự tính"></td>';
 
-			/* Việc chính: ô gõ có gợi ý từ tên đã khai — `<datalist>` của HTML, không script. */
-			echo '<td><input name="' . $o . '[viec]" value="' . esc_attr( $vc ) . '" list="dsviec-'
-				. esc_attr( substr( md5( $cs ), 0, 6 ) ) . '" placeholder="tên việc" style="width:130px"></td>';
-
-			echo '<td class="p"><input name="' . $o . '[gio]" value="'
-				. esc_attr( VHCC_ChotLuong::viet_gio( $gio ) ) . '" style="width:78px;text-align:right"></td>';
-			echo '<td class="p"><input name="' . $o . '[gia]" value="'
-				. esc_attr( $gia > 0 ? (string) (int) round( $gia ) : '' ) . '" inputmode="numeric" '
-				. 'placeholder="chưa khai" style="width:88px;text-align:right"></td>';
-			echo '<td class="p">' . ( $gia > 0
-				? esc_html( number_format( $gio * $gia, 0, ',', '.' ) )
+			/* ---- đơn giá: riêng người → theo chức vụ → MỨC THẤP NHẤT của cơ sở ---- */
+			$gia_r  = isset( $dc['gia'] ) ? (float) $dc['gia'] : 0.0;
+			$mac_dinh = ( $gia_r <= 0 && $thap_nhat > 0 && ! $la_thang );
+			$gia_o  = $mac_dinh ? $thap_nhat : $gia_r;
+			echo '<td class="p">';
+			if ( $la_thang ) {
+				echo '<span class="mo">lương tháng</span>';
+			} else {
+				echo '<input name="' . $o . '[gia]" value="'
+					. esc_attr( $gia_o > 0 ? (string) (int) round( $gia_o ) : '' )
+					. '" inputmode="numeric" placeholder="chưa khai" style="width:88px;text-align:right">';
+				/* 🔴 NÓI RA LÀ SỐ MẶC ĐỊNH. Một con số trông như đã khai mà thật ra là máy đoán
+				   chính là thứ người ta tin rồi chốt lương. */
+				if ( $mac_dinh ) {
+					echo '<div class="mo" style="font-size:10.5px">mặc định — mức thấp nhất</div>';
+				}
+			}
+			echo '</td>';
+			echo '<td class="p">' . ( $gia_o > 0 && ! $la_thang
+				? esc_html( number_format( $g_chinh * $gia_o, 0, ',', '.' ) )
 				: '<span class="mo">—</span>' ) . '</td>';
 
-			/* ---- ô Khác: phần hiếm, bấm mới mở ---- */
-			$co_khac = ! empty( $th_ng['bat'] ) || ! empty( $ti_ng['cong'] ) || ! empty( $ti_ng['tru'] );
-			echo '<td><details' . ( $co_khac ? ' open' : '' ) . '><summary class="mo">'
-				. ( $co_khac ? '⚙ đang có khai' : '⚙' ) . '</summary>';
+			echo '<td rowspan="' . (int) ( 1 + $so_dong ) . '"><details' . ( $la_thang ? ' open' : '' )
+				. '><summary class="mo">' . ( $la_thang ? '⚙ lương tháng' : '⚙' ) . '</summary>';
 			echo '<label style="margin-top:6px"><input type="checkbox" name="' . $o . '[thang]" value="1"'
-				. checked( ! empty( $th_ng['bat'] ), true, false ) . '> Ăn lương tháng</label>';
+				. checked( $la_thang, true, false ) . '> Ăn lương tháng</label>';
 			echo '<div class="hang" style="gap:6px">';
 			echo '<div><label>Lương cơ bản</label><input name="' . $o . '[lcb]" value="'
-				. esc_attr( isset( $th_ng['lcb'] ) && $th_ng['lcb'] > 0 ? (string) (int) $th_ng['lcb'] : '' )
+				. esc_attr( $la_thang && ! empty( $th_ng['lcb'] ) ? (string) (int) $th_ng['lcb'] : '' )
 				. '" inputmode="numeric" style="width:100px"></div>';
 			echo '<div><label>Công chuẩn</label><input name="' . $o . '[cong_yc]" value="'
-				. esc_attr( isset( $th_ng['congYc'] ) && $th_ng['congYc'] > 0 ? (string) $th_ng['congYc'] : '' )
+				. esc_attr( $la_thang && ! empty( $th_ng['congYc'] ) ? (string) $th_ng['congYc'] : '' )
 				. '" style="width:70px"></div>';
-			echo '</div>';
-			echo '</details></td>';
+			echo '</div></details></td>';
 			echo '</tr>';
+
+			/* ---- mấy dòng VIỆC PHỤ ---- */
+			for ( $i_d = 0; $i_d < $so_dong; $i_d++ ) {
+				$dp  = isset( $khoi['phu'][ $i_d ] ) ? $khoi['phu'][ $i_d ] : null;
+				$v_p = ( null !== $dp && isset( $dp['cv'] ) ) ? (string) $dp['cv'] : '';
+				$g_p = ( null !== $dp && isset( $dp['gio'] ) ) ? (float) $dp['gio'] : 0.0;
+				$gia_p = ( null !== $dp && isset( $dp['gia'] ) ) ? (float) $dp['gia'] : 0.0;
+				$od  = $o . '[dong][' . (int) $i_d . ']';
+				echo '<tr>';
+				echo '<td>';
+				if ( $ds_ten ) {
+					self::o_chon_viec( $od . '[viec]', $ds_ten, $v_p, $cs, $ma, '＋ thêm việc' );
+				} else {
+					echo '<input name="' . $od . '[viec]" value="' . esc_attr( $v_p )
+						. '" placeholder="＋ thêm việc" style="width:150px">';
+				}
+				echo '</td>';
+				echo '<td class="p"><input name="' . $od . '[gio]" value="'
+					. esc_attr( $g_p > 0 ? VHCC_ChotLuong::viet_gio( $g_p ) : '' )
+					. '" placeholder="63:30" style="width:78px;text-align:right"></td>';
+				echo '<td class="p">' . ( $gia_p > 0
+					? esc_html( number_format( $gia_p, 0, ',', '.' ) )
+					: '<span class="mo">·</span>' ) . '</td>';
+				echo '<td class="p">' . ( $gia_p > 0 && $g_p > 0
+					? esc_html( number_format( $g_p * $gia_p, 0, ',', '.' ) )
+					: '<span class="mo">—</span>' ) . '</td>';
+				echo '</tr>';
+			}
 		}
 		echo '</tbody></table></div>';
-
-		echo '<datalist id="dsviec-' . esc_attr( substr( md5( $cs ), 0, 6 ) ) . '">';
-		foreach ( (array) $ten_khai as $t_k ) { echo '<option value="' . esc_attr( $t_k ) . '">'; }
-		echo '</datalist>';
 
 		echo '<p style="margin:10px 0 0"><button type="submit" class="chinh">Lưu cả bảng</button> '
 			. '<span class="mo">Ô để <b>trống</b> nghĩa là không có khoản ấy — khác với gõ số 0.</span></p>';
