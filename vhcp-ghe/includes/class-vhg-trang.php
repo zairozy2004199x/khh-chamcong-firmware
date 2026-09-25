@@ -5730,6 +5730,8 @@ var QL_SUA = {};
 /* Câu báo "đã lưu" hiện ngay chỗ thanh Lưu vừa biến mất. Cố ý KHÔNG dùng alert(): người ta đang
    nhập liên tục, một hộp thoại phải bấm OK cho mỗi lượt lưu còn bực hơn cả cái lỗi đang chữa. */
 var QL_BAO = '';
+/* 2.147.0: mã ghế VỪA THÊM — qlGheRender() nhảy tới TRANG có ghế này (không cuộn, không vẽ lại trang) rồi xoá. */
+var QL_NHAY_MA = '';
 /* Giá trị để VẼ RA ô: bản đang gõ dở nếu có, không thì bản của máy chủ. Nhờ vậy đổi trang, đổi
    bộ lọc cơ sở, hay một lượt tự làm mới ập vào giữa chừng cũng không nuốt mất phần đang gõ. */
 function qlGiaTri_(m, khoa){
@@ -5854,7 +5856,7 @@ function csDongKhoi(){
 
 /* Mở khối ghế của một địa điểm. Trả false nếu hàng đó không có trên trang (đang ở tab khác, hay
    cơ sở vừa bị xoá/đổi tên) — chỗ gọi dựa vào đó để xoá CS_MO thay vì mở mãi một cơ sở đã mất. */
-function csMoKhoi(ten){
+function csMoKhoi(ten, cuon){
   csDongKhoi();
   var a = null;
   [].forEach.call(document.querySelectorAll('[data-csxem]'), function(x){
@@ -5862,6 +5864,10 @@ function csMoKhoi(ten){
   });
   if (!a || !a.closest) return false;
   var tr = a.closest('tr'); if (!tr || !tr.parentNode) return false;
+  /* 2.147.0: hàng nằm trong khối gập (📭 chưa có ghế / 🚪 đóng cửa / 🙈 chỉ còn ghế ẩn) thì mở khối gập ra
+     trước. Không thì khối ghế dựng xong nằm trong <details> đang đóng: anh Thắng 25/09/2026 bấm "Thêm địa
+     điểm" cho một cơ sở 0 ghế, máy báo "đã có", màn không hiện gì — khối đã mở, nhưng mở trong chỗ gập. */
+  var gap = tr.closest ? tr.closest('details') : null; if (gap && !gap.open) gap.open = true;
   var row = document.createElement('tr');
   row.setAttribute('data-csghe', ten);
   row.innerHTML = '<td colspan="6" style="padding:6px 8px 14px">'
@@ -5870,9 +5876,16 @@ function csMoKhoi(ten){
   tr.parentNode.insertBefore(row, tr.nextSibling);
   /* QL_LOC là thứ qlGheRender() đọc để biết lọc cơ sở nào; CS_MO là thứ ve() đọc để mở lại khối
      sau mỗi lượt tải lại. Hai biến một nghĩa nên phải đặt cùng lúc, cùng chỗ. */
-  QL_LOC = ten; CS_MO = ten; QL_PG = 0; QL_SEL = {};
+  /* 2.147.0: mở lại CÙNG cơ sở (sau lượt vẽ lại vì đổi cơ sở / xoá / điều chuyển ghế) thì GIỮ trang đang xem —
+     chỉ về trang 1 khi sang cơ sở khác; qlGheRender() tự kẹp nếu số trang đã ít đi. Ô tích thì vẫn xoá: ghế
+     vừa ẩn/xoá mà còn tích là lượt hàng loạt sau đụng vào ghế không còn trên bảng. */
+  if (QL_LOC !== ten) QL_PG = 0;
+  QL_LOC = ten; CS_MO = ten; QL_SEL = {};
   qlGheRender();
   qlKhoiWire();
+  /* 2.147.0: sau lượt vẽ lại cả trang (ve()) thì trang đang ở đầu — cuộn về đúng hàng địa điểm đang mở, người
+     ta khỏi cuộn tìm lại. Chỉ khi ve() gọi (cuon=true); bấm tay thì hàng đã ở trước mắt. */
+  if (cuon) { try { tr.scrollIntoView({ block: 'start' }); } catch (e) {} }
   return true;
 }
 
@@ -5887,8 +5900,18 @@ function qlKhoiWire(){
         'The code may contain letters and digits only — no accents, no spaces.')); return;
     }
     var tenEl = document.getElementById('ma-ten');
-    lam('may_them', { ma: m, coso_id: document.getElementById('ma-cs').value,
-      ten: tenEl ? (tenEl.value || '').trim() : '' });
+    var csId = document.getElementById('ma-cs').value, tenMoi = tenEl ? (tenEl.value || '').trim() : '';
+    /* 🔴 KHÔNG đi qua lam() — anh Thắng 25/09/2026: *"Bấm thêm ghế mới thì giữ nguyên trang đó chứ không phải
+       là nhảy trang và quay lại từ đầu"*. lam() kết thúc bằng tai() → ve(): vẽ lại CẢ TRANG, cuộn về đầu, khối
+       ghế mở lại ở trang 1 — thêm 6 ghế là 6 lần bị hất lên đầu rồi cuộn xuống tìm lại. Nay gọi thẳng goi(),
+       ghi ghế mới vào D.may, vẽ lại MỘT bảng ghế và sửa MỘT hàng địa điểm tại chỗ (qlThemTaiCho_). Cùng lối
+       với nút 💾 Lưu (qlLuuTen_). Lỗi (trùng mã…) vẫn alert như cũ — đó là thứ phải đọc. */
+    var nut = this; nut.disabled = true;
+    goi('may_them', { ma: m, coso_id: csId, ten: tenMoi }, function(r){
+      nut.disabled = false;
+      if (!r || r.ok === false) { alert((r && r.error) || L('Không thêm được — thử lại.','Could not add — try again.')); return; }
+      qlThemTaiCho_(r, m, csId, tenMoi);
+    });
   };
   if ((e = document.getElementById('ma-moi'))) e.onkeydown = function(ev){
     if (ev.key === 'Enter') { var b = document.getElementById('ma-them'); if (b) b.click(); }
@@ -5896,6 +5919,69 @@ function qlKhoiWire(){
   if ((e = document.getElementById('ql-timtrung'))) e.onclick = function(){ qlTimTrung(); };
 }
 
+/* Ghế vừa thêm: đưa vào D.may + vẽ lại bảng ghế trong khối đang mở + sửa hàng địa điểm tại chỗ.
+   Tách riêng để bài kiểm gọi thẳng được (kiem-them-ghe-giu-trang.js). KHÔNG gọi tai()/ve(). */
+function qlThemTaiCho_(r, ma, csId, ten){
+  var csTen = '';
+  ((D && D.coso) || []).forEach(function(c){ if (String(c.id) === String(csId)) csTen = c.ten; });
+  /* Lấy MÃ + TÊN máy chủ trả về (them_may chuẩn hoá tên bằng chuan_ten), không lấy bản thô — không thì lượt
+     tải lại thật sau đó thấy tên "khác" bản đang hiện. */
+  var maThat = (r && r.ma) ? String(r.ma) : ma;
+  var tenThat = (r && typeof r.ten === 'string') ? r.ten : (ten || '');
+  if (!D.may) D.may = [];
+  /* Đủ khoá như payload so_lieu ('may' => … trong VHG_Trang::so_lieu) để tab nào đọc D.may cũng không vấp. */
+  D.may.push({ chot: null, ma: maThat, ten: tenThat, ten_goi: '', hw: 0, coso: csTen, song: false, tt: '', con_lai: 0,
+    cho: 0, gia: 0, phut: 0, tm: '', tm_cu: '', tm_chu: '', tm_chu_en: '', khoa: 0, kt: 0, an: 0, anLuc: '', anAi: '' });
+  var i1 = document.getElementById('ma-moi'), i2 = document.getElementById('ma-ten');
+  if (i1) i1.value = '';
+  if (i2) i2.value = '';
+  QL_BAO = (r && r.thong_bao) ? String(r.thong_bao) : (L('Đã thêm ghế ','Added chair ') + maThat + '.');
+  QL_NHAY_MA = maThat;
+  qlGheRender();
+  csHangCapNhat_(csTen, maThat, tenThat);
+  /* Con trỏ về ô mã để gõ tiếp ghế kế — đang lắp một dãy ghế thì đây là việc lặp. */
+  if (i1) { try { i1.focus(); } catch (e) {} }
+}
+/* Hàng địa điểm ở bảng trên: cột Số ghế +1, cột Mã ghế thêm một ô mã — TẠI CHỖ, không vẽ lại bảng.
+   Hàng "(chưa gán)" (csTen rỗng) cùng bố cục ô nên đi chung. Hàng đang ở khối gập "chưa có ghế" thì cứ đứng
+   đó với số 1 cho tới lượt tải lại kế — dời hàng giữa hai bảng là vẽ lại, đúng thứ đang tránh. */
+function csHangCapNhat_(csTen, ma, ten){
+  var a = null, muon = csTen || '__none__';
+  [].forEach.call(document.querySelectorAll('[data-csxem]'), function(x){
+    if (!a && x.getAttribute('data-csxem') === muon) a = x;
+  });
+  var tr = (a && a.closest) ? a.closest('tr') : null; if (!tr || !tr.children) return;
+  var td = tr.children;
+  if (td[1]) {
+    var tn = td[1].firstChild;
+    if (tn && tn.nodeType === 3) tn.nodeValue = String(tn.nodeValue).replace(/\d+/, function(d){ return String((parseInt(d, 10) || 0) + 1); });
+    else td[1].textContent = String((parseInt(td[1].textContent, 10) || 0) + 1);
+  }
+  if (td[4]) {
+    var o = '<span style="display:inline-block;margin:2px 8px 2px 0;white-space:nowrap">'
+      + '<code style="font-size:11px;padding:1px 4px;border-radius:4px;background:#f1f5f9">' + esc(ma) + '</code>'
+      + (ten ? ' <span style="font-size:11px;color:#475569">' + esc(ten) + '</span>' : '') + '</span>';
+    if (/^\s*<span class="mut">—<\/span>\s*$/.test(td[4].innerHTML || '')) td[4].innerHTML = o;
+    else td[4].innerHTML = (td[4].innerHTML || '') + o;
+  }
+}
+
+/* 2.147.0: ô tìm ĐỊA ĐIỂM không dò theo mã ghế — anh Thắng 25/09/2026 gõ "80822" vào đây thấy 0/65 rồi kết
+   luận "không thấy cơ sở nào trùng", trong khi mã ấy là một ghế đã ẩn ở cơ sở khác. Không đổi luật lọc (ô này
+   lọc hàng địa điểm); chỉ NÓI THÊM ghế nào đang giữ mã/tên khớp (tối đa 3) và chỉ sang ô "Tìm ghế theo mã / tên". */
+function csGoiYMa_(q, con){
+  if (!q) return '';
+  var kq = [];
+  ((D && D.may) || []).forEach(function(m){
+    if (kq.length >= 3 || !m.ma || String(m.ma).charAt(0) === '?') return;
+    if (kdJS(m.ma).indexOf(q) >= 0 || kdJS(m.ten || '').indexOf(q) >= 0) kq.push(m);
+  });
+  if (!kq.length) return '';
+  return ' · ' + L('ghế khớp: ','chair match: ') + kq.map(function(m){
+    return m.ma + (m.ten ? ' (' + m.ten + ')' : '') + ' → ' + (m.coso || L('(chưa gán)','(unassigned)')) + (m.an ? L(' [đã ẩn]',' [hidden]') : '');
+  }).join('; ') + (con ? '' : ' — ' + L('ô này lọc ĐỊA ĐIỂM; muốn xem ghế thì dùng ô "Tìm ghế theo mã / tên" ở trên.',
+                                         'this box filters SITES; use "Find chair by code / name" above.'));
+}
 /* Bỏ dấu + thường hoá để TÌM cho dễ: gõ "binh duong" ra "Bình Dương", "da nang" ra "Đà Nẵng".
    Chỉ dùng cho ô tìm trên giao diện — so khớp dữ liệu vẫn đi bằng squash() bên máy chủ. */
 function kdJS(s){ return String(s==null?'':s).toLowerCase().normalize('NFD')
@@ -11783,6 +11869,12 @@ function qlGheRender(){
     return xepTen_(a.ten || a.ma, b.ten || b.ma) || xepTen_(a.ma, b.ma);
   }
   var list = may.filter(function(m){ return !m.an && thuocLoc(m); }).sort(xepMa);
+  /* 2.147.0: vừa thêm ghế thì nhảy tới TRANG có nó (bảng xếp theo tên, ghế mới thường rơi cuối) — chỉ đổi số
+     trang của bảng này, không cuộn, không vẽ lại trang. Xem qlThemTaiCho_(). */
+  if (QL_NHAY_MA) {
+    for (var _k = 0; _k < list.length; _k++) { if (String(list[_k].ma) === String(QL_NHAY_MA)) { QL_PG = Math.floor(_k / QL_PER); break; } }
+    QL_NHAY_MA = '';
+  }
   /* 🔴 GHE DA DIEU CHUYEN NAM O DUOI TRANG, KHONG BIEN MAT — anh Thang 05/09/2026: *"cho phan
      dieu chuyen tuc la an no di, nam o duoi trang, sau nay can lap lai ta mo no len la duoc"*.
      Ban truoc an han khoi bang, chi hien khi tich mot o "Hien ghe da dieu chuyen" o tren. Nghia
@@ -12935,21 +13027,31 @@ function noi(){
   /* Mở lại khối sau khi ve() dựng lại tab (mỗi lượt lưu tên ghế / thêm ghế / đổi cơ sở đều đi
      qua lam() -> tải lại -> ve()). Cơ sở đã bị xoá hay đổi tên thì csMoKhoi() trả false, xoá
      CS_MO cho khỏi cố mở mãi một cái không còn. */
-  if (CS_MO && !csMoKhoi(CS_MO)) CS_MO = '';
+  if (CS_MO && !csMoKhoi(CS_MO, true)) CS_MO = '';
 
   /* Ô tìm địa điểm: ẩn/hiện hàng tại chỗ, không vẽ lại bảng (giữ con trỏ trong ô). Đếm số hàng
      còn lại để người gõ biết ngay là "không có" chứ không phải bảng lỗi. */
   if ((_e = document.getElementById('cs-tim'))) {
     var loc = function(){
-      var q = kdJS(document.getElementById('cs-tim').value), con = 0;
+      var q = kdJS(document.getElementById('cs-tim').value), con = 0, tong = 0, gapCo = [];
       csDongKhoi();   // khối xổ ra không có khoá tìm; để lại là một hàng mồ côi giữa bảng đã lọc
-      [].forEach.call(document.querySelectorAll('#cs-bang tr[data-cstim]'), function(tr){
+      /* 🔴 2.147.0: DÒ CẢ BỐN BẢNG, không chỉ bảng chính — anh Thắng 25/09/2026 gõ "VINCOM QUANG TRUNG": máy
+         báo "Cơ sở này đã có" mà ô tìm nói 0 khớp, vì cơ sở ấy 0 ghế nằm trong khối gập "📭 Cơ sở chưa có
+         ghế" còn ô tìm chỉ soi #cs-bang. Khối gập nào có hàng khớp thì TỰ MỞ (đánh dấu data-tumo để xoá ô
+         tìm là gập lại như cũ; khối anh tự mở tay thì không đụng). Đếm trên cả bốn bảng cho khỏi nói dối. */
+      [].forEach.call(document.querySelectorAll('#cs-bang tr[data-cstim], #cs-bang-rong tr[data-cstim], #cs-bang-dong tr[data-cstim], #cs-bang-an tr[data-cstim]'), function(tr){
         var hien = !q || (tr.getAttribute('data-cstim') || '').indexOf(q) >= 0;
         tr.style.display = hien ? '' : 'none';
-        if (hien) con++;
+        tong++;
+        if (hien) { con++; var g = (q && tr.closest) ? tr.closest('details') : null; if (g && gapCo.indexOf(g) < 0) gapCo.push(g); }
+      });
+      [].forEach.call(document.querySelectorAll('details'), function(g){
+        if (!g.querySelector || !g.querySelector('#cs-bang-rong, #cs-bang-dong, #cs-bang-an')) return;
+        if (gapCo.indexOf(g) >= 0) { if (!g.open) { g.open = true; g.setAttribute('data-tumo', '1'); } }
+        else if (g.getAttribute('data-tumo')) { g.open = false; g.removeAttribute('data-tumo'); }
       });
       var d = document.getElementById('cs-dem');
-      if (d) d.textContent = q ? (con + ' / ' + document.querySelectorAll('#cs-bang tr[data-cstim]').length) : '';
+      if (d) d.textContent = q ? (con + ' / ' + tong + csGoiYMa_(q, con)) : '';
     };
     _e.oninput = loc;
     /* Escape = xoá ô tìm, khỏi phải bôi đen rồi xoá tay. */

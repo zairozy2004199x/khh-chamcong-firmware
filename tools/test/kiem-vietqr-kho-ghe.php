@@ -14,11 +14,13 @@
 $DAT = 0; $TRUOT = array();
 function t( $ten, $ok, $them = null ) { global $DAT, $TRUOT; if ( $ok ) { $DAT++; echo "  ✓ $ten\n"; return; } $TRUOT[] = $ten; echo "  ✗ $ten" . ( null !== $them ? ( ' → ' . var_export( $them, true ) ) : '' ) . "\n"; }
 define( 'ABSPATH', '/' ); define( 'ARRAY_A', 'ARRAY_A' );
-$GLOBALS['NOW'] = '2026-09-25 09:00:00'; $GLOBALS['DS_COSO'] = array( array( 'ten' => 'AEON MALL TÂN PHÚ' ), array( 'ten' => 'VẠN HẠNH MALL' ) );
+$GLOBALS['NOW'] = '2026-09-25 09:00:00'; $GLOBALS['DS_COSO'] = array( array( 'id' => 1, 'ten' => 'AEON MALL TÂN PHÚ' ), array( 'id' => 2, 'ten' => 'VẠN HẠNH MALL' ) );
+/* 2.147.0: cơ sở nào ĐÃ CÓ GHẾ (id => số mã) — kho chỉ nhận cơ sở trong bảng này, có tên trong DS_COSO thôi chưa đủ. */
+$GLOBALS['CO_GHE'] = array( 1 => 3, 2 => 2 );
 function current_time( $f ) { return 'mysql' === $f ? $GLOBALS['NOW'] : substr( $GLOBALS['NOW'], 0, 10 ); }
 class VHG_DB { public static function t( $n ) { return 'wp_vhg_' . $n; } }
 class VHG_BaoCao { public static function squash( $s ) { $s = strtr( mb_strtoupper( (string) $s, 'UTF-8' ), array( 'Â' => 'A', 'Ấ' => 'A', 'Ú' => 'U', 'Ạ' => 'A', 'Ạ' => 'A' ) ); return preg_replace( '/[^A-Z0-9]/', '', $s ); } }
-class VHG_May { public static function ds_coso() { return $GLOBALS['DS_COSO']; } }
+class VHG_May { public static function ds_coso() { return $GLOBALS['DS_COSO']; } public static function coso_co_ghe() { return $GLOBALS['CO_GHE']; } }
 class SAOKE_App {
 	public static $kq = array(); public static $goi = array();
 	public static function vietqr_theo_may_ngay( $tu, $den ) { self::$goi[] = $tu; return isset( self::$kq[ $tu ] ) ? self::$kq[ $tu ] : array( 'co' => true, 'vq' => array(), 'chuaMay' => array(), 'khongKhop' => 0 ); }
@@ -83,7 +85,7 @@ t( 'capLuc in dạng H:i d/m/Y từ giờ WP', '09:00 25/09/2026' === $cs['capLu
 t( 'thieuNgay của khoảng 1 ngày đã có = rỗng, co = true', array() === $cs['thieuNgay'] && $cs['co'] );
 $r2 = VHG_VietQR::nhan_ngay( '2026-09-01', $kq );
 t( 'ghi lại cùng ngày → ĐÈ, không nhân đôi (tổng vẫn 340.000, không nổ khoá duy nhất)', ! empty( $r2['ok'] ) && 340000 === $wpdb->tong() );
-$GLOBALS['DS_COSO'][] = array( 'ten' => 'AEON TAN PHU MOI' );
+$GLOBALS['DS_COSO'][] = array( 'id' => 3, 'ten' => 'AEON TAN PHU MOI' ); $GLOBALS['CO_GHE'][3] = 1;
 $wpdb->rows[0]['coso'] = 'ten cu'; $wpdb->rows[0]['coso_key'] = 'AEONTANPHUMOI';   // giả dòng cũ mang tên cũ, khoá = cơ sở đã đổi tên
 $cs2 = VHG_VietQR::theo_coso_ngay( '2026-09-01', '2026-09-01', false );
 t( 'dòng kho mang tên cũ → đọc ra dưới TÊN ĐANG DÙNG trong danh mục (theo coso_key)', isset( $cs2['vq']['AEON TAN PHU MOI'] ) && ! isset( $cs2['vq']['ten cu'] ), array_keys( $cs2['vq'] ) );
@@ -98,6 +100,18 @@ t( 'nhưng được kể ở ngoaiGhe (tên + tiền, tiền giảm dần) để
 $m3 = VHG_VietQR::theo_may_ngay( '2026-09-01', '2026-09-01', false );
 t( 'theo máy cũng vậy: CM VP|X1 không vào vq lẫn chuaMay, nằm ở ngoaiGhe', ! isset( $m3['vq']['CM VP'] ) && ! isset( $m3['chuaMay']['CM VP'] ) && 2 === count( $m3['ngoaiGhe'] ) );
 t( 'gom_coso không bật chi_ghe (mặc định) vẫn như cũ — nhãn theo tên lưu', isset( VHG_VietQR::gom_coso( $wpdb->rows )['vq']['CM VP'] ) );
+
+echo "── 2d. Có TÊN trong danh mục nhưng 0 GHẾ vẫn là 'ngoài' (2.147.0) ──\n";
+/* Anh Thắng 25/09/2026: "Anh thấy nó vẫn lấy điểm ngoài" — điểm phía Bắc đã được tạo tên bên Ghế (0 ghế). */
+$GLOBALS['DS_COSO'][] = array( 'id' => 9, 'ten' => 'JP AMLB' );
+$wpdb->rows[] = array( 'id' => 902, 'ngay' => '2026-09-01', 'coso' => 'JP AMLB', 'coso_key' => 'JPAMLB', 'ma_may' => '', 'so_tien' => 7350000, 'cap_luc' => '2026-09-25 09:00:00' );
+$cs4 = VHG_VietQR::theo_coso_ngay( '2026-09-01', '2026-09-01', false );
+t( '🔴 JP AMLB có tên trong danh mục Ghế nhưng 0 ghế → KHÔNG vào vq (không mọc dòng, không cộng)', ! isset( $cs4['vq']['JP AMLB'] ) && 180000 === $cs4['vq']['AEON MALL TÂN PHÚ']['2026-09-01'], array_keys( $cs4['vq'] ) );
+t( 'và nằm ở ngoaiGhe với đủ 7.350.000 (đứng đầu vì lớn nhất), ngoaiGhe = 3', 'JP AMLB' === $cs4['ngoaiGhe'][0]['ten'] && 7350000 === $cs4['ngoaiGhe'][0]['tien'] && 3 === count( $cs4['ngoaiGhe'] ), $cs4['ngoaiGhe'] );
+$GLOBALS['CO_GHE'][9] = 1;   // gán ghế đầu tiên cho nó
+$cs5 = VHG_VietQR::theo_coso_ngay( '2026-09-01', '2026-09-01', false );
+t( 'gán ghế đầu tiên xong thì vào vq như cơ sở thường, ngoaiGhe còn 2', 7350000 === $cs5['vq']['JP AMLB']['2026-09-01'] && 2 === count( $cs5['ngoaiGhe'] ), array_keys( $cs5['vq'] ) );
+unset( $GLOBALS['CO_GHE'][9] ); array_pop( $GLOBALS['DS_COSO'] ); array_pop( $wpdb->rows );
 array_pop( $wpdb->rows ); array_pop( $wpdb->rows );
 echo "── 3. Ngày thiếu & tự kéo lúc bấm Xem ──────────────────────────\n";
 t( 'ds_ngay 01→03 = 3 ngày, đảo ngược vẫn thế', array( '2026-09-01', '2026-09-02', '2026-09-03' ) === VHG_VietQR::ds_ngay( '2026-09-03', '2026-09-01' ) );

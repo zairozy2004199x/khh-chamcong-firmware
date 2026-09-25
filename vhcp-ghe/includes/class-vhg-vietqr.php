@@ -83,7 +83,7 @@ class VHG_VietQR {
 	/* 🔴 CHỈ CƠ SỞ CÓ TRONG HỆ THỐNG GHẾ — anh Thắng 25/09/2026: *"địa điểm này nó thuộc khu vực phía bắc… chỉ lấy cơ sở đã có trong
 	   hệ thống quản lý ghế bên anh"*. Sao Kê quy điểm bán của cổng về cả danh mục cơ sở của plugin Chi Phí (chuỗi JP…), kho mang
 	   tên ấy sang → Báo cáo tổng mọc dòng "1 JP SB Cam Ranh.new" không mã KH, không ghế. $chi_ghe = true: khoá không có trong
-	   danh mục Ghế ($ten) → gom riêng `ngoaiGhe` (kể tên + tiền để biết tiền đang ở đâu), KHÔNG vào vq, KHÔNG cộng TỔNG. */
+	   danh mục Ghế ($ten — từ 2.147.0 chỉ gồm cơ sở ĐÃ CÓ GHẾ) → gom riêng `ngoaiGhe` (kể tên + tiền để biết tiền đang ở đâu), KHÔNG vào vq, KHÔNG cộng TỔNG. */
 	public static function gom_coso( $rows, $ten = array(), $chi_ghe = false ) {
 		$vq = array(); $khong = 0; $ngayCo = array(); $ngoai = array();
 		foreach ( (array) $rows as $r ) {
@@ -152,9 +152,15 @@ class VHG_VietQR {
 		global $wpdb;
 		return (array) $wpdb->get_results( $wpdb->prepare( 'SELECT ngay, coso, coso_key, ma_may, so_tien, cap_luc FROM ' . self::t() . ' WHERE ngay BETWEEN %s AND %s', $tu, $den ), ARRAY_A );
 	}
+	/* 2.147.0: CHỈ cơ sở ĐÃ CÓ GHẾ (kể cả ghế ẩn) — anh Thắng 25/09/2026: *"Anh thấy nó vẫn lấy điểm ngoài"*.
+	   Các điểm phía Bắc đã được tạo TÊN trong danh mục Ghế (0 ghế, khối "📭 Cơ sở chưa có ghế") nên lọc theo
+	   danh mục là chưa đủ; "có trong hệ thống quản lý ghế" = có ghế. Xem VHG_May::coso_co_ghe(). */
 	private static function ten_theo_key_() {
-		$m = array();
-		foreach ( (array) VHG_May::ds_coso() as $c ) { $k = self::key_( $c['ten'] ); if ( '' !== $k && ! isset( $m[ $k ] ) ) { $m[ $k ] = (string) $c['ten']; } }
+		$m = array(); $co = (array) VHG_May::coso_co_ghe();
+		foreach ( (array) VHG_May::ds_coso() as $c ) {
+			if ( empty( $co[ (int) ( isset( $c['id'] ) ? $c['id'] : 0 ) ] ) ) { continue; }
+			$k = self::key_( $c['ten'] ); if ( '' !== $k && ! isset( $m[ $k ] ) ) { $m[ $k ] = (string) $c['ten']; }
+		}
 		return $m;
 	}
 	private static function cap_luc_theo_ngay_( $rows ) {

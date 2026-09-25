@@ -27,6 +27,24 @@ class VHG_May {
 	}
 
 	/**
+	 * CƠ SỞ NÀO ĐÃ CÓ GHẾ (kể cả ghế đã ẩn) — id cơ sở => số mã ghế. Một câu GROUP BY, không kéo nhịp.
+	 *
+	 * 🔴 2.147.0 — anh Thắng 25/09/2026: *"Anh thấy nó vẫn lấy điểm ngoài"*. 2.146.0 lọc kho VietQR theo
+	 *    "có trong danh mục cơ sở Ghế", nhưng các điểm phía Bắc (JP AEĐN, 1 JP SB Cam Ranh.new…) ĐÃ nằm
+	 *    trong danh mục ấy — 0 ghế, trong khối gập "📭 Cơ sở chưa có ghế" — nên vẫn lọt. "Có trong hệ
+	 *    thống quản lý ghế" nghĩa là ĐÃ CÓ GHẾ; danh mục chỉ là cái tên. Kho VietQR lọc theo bảng này.
+	 * ⚠️ Kể cả ghế ẩn: cơ sở từng có ghế là cơ sở thật của mình, tiền cũ của nó vẫn phải đọc được.
+	 */
+	public static function coso_co_ghe() {
+		global $wpdb;
+		$m = array();
+		foreach ( (array) $wpdb->get_results( 'SELECT coso_id, COUNT(*) AS n FROM ' . VHG_DB::t( 'may' ) . ' WHERE coso_id > 0 GROUP BY coso_id', ARRAY_A ) as $r ) {
+			$m[ (int) $r['coso_id'] ] = (int) $r['n'];
+		}
+		return $m;
+	}
+
+	/**
 	 * 🔴 BÁO RA NGOÀI BẰNG MÓC `vhg_coso_da_luu` (tên cơ sở). Plugin Vận Hành Chi Phí nghe móc
 	 * này để đưa cơ sở mới sang danh mục của nó — anh Thắng 08/09/2026: *"khi tạo cơ sở mới bên
 	 * ghế, hệ thống tự đẩy cơ sở sang luôn"*.
@@ -145,7 +163,15 @@ class VHG_May {
 			if ( $co_reset ) { $data_cu['reset_moi_lan'] = $reset; }
 			if ( $data_cu ) { $wpdb->update( $bang, $data_cu, array( 'id' => (int) $co ) ); self::quen_dem_reset_(); }
 			self::bao_da_luu_( $ten );
-			return array( 'ok' => true, 'id' => (int) $co, 'thong_bao' => 'Cơ sở này đã có.' );
+			/* 2.147.0 — anh Thắng 25/09/2026 gõ "VINCOM QUANG TRUNG", máy chỉ nói "đã có" mà ô tìm ra 0 khớp:
+			   cơ sở ấy 0 ghế nên nằm trong khối gập "📭 Cơ sở chưa có ghế", không ở bảng chính. Nói rõ nó ở
+			   đâu và vừa cập nhật gì, thay vì một câu cụt để người ta đi tìm vòng quanh rồi tạo lại. */
+			$n_ghe = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . VHG_DB::t( 'may' ) . ' WHERE coso_id=%d AND an=0', (int) $co ) );
+			$nhan  = array( 'tinh' => 'tỉnh/TP', 'ma_kh' => 'mã KH', 'reset_moi_lan' => 'cờ reset' );
+			$da    = array(); foreach ( array_keys( $data_cu ) as $k ) { $da[] = isset( $nhan[ $k ] ) ? $nhan[ $k ] : $k; }
+			return array( 'ok' => true, 'id' => (int) $co, 'so_ghe' => $n_ghe,
+				'thong_bao' => 'Cơ sở "' . $ten . '" đã có' . ( $n_ghe ? ' (' . $n_ghe . ' ghế).' : ' — nhưng CHƯA CÓ GHẾ nào, nên nó nằm trong khối gập "📭 Cơ sở chưa có ghế" ở cuối bảng chứ không ở bảng chính. Khối ghế của nó sẽ mở sẵn ngay bên dưới — thêm ghế vào là nó lên bảng chính.' )
+					. ( $da ? ' Đã cập nhật ' . implode( ', ', $da ) . ' theo ô vừa nhập.' : '' ) );
 		}
 		/* GỘP THEO TÊN CHUẨN HOÁ (bỏ dấu + hoa/thường + khoảng trắng): chặn tạo cơ sở GẦN TRÙNG để
 		   tránh "cơ sở tự tách" ('CGV Pear Plaza' vs 'CGV PEARL PLAZA', thừa/thiếu dấu cách...).
@@ -1449,8 +1475,21 @@ class VHG_May {
 			return array( 'ok' => false, 'error' => 'Không thấy ghế ' . $ma_cu . '.' );
 		}
 		if ( $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $bang WHERE ma=%s LIMIT 1", $ma_moi ) ) ) {
-			return array( 'ok' => false, 'error' => 'Mã ' . $ma_moi . ' đã có ghế khác dùng. '
-				. 'Hai ghế cùng mã là tiền của ghế này chạy ghế kia.' );
+			/* 2.147.0 — anh Thắng 25/09/2026: *"Mã cũ của nó tại sao lại trùng"* rồi *"Check thì không thấy cơ
+			   sở nào trùng"*: câu báo cũ không nói mã đang nằm ở ĐÂU, mà ô tìm địa điểm lại không dò theo mã
+			   ghế, nên một mã đã ẩn ở cơ sở khác là đi tìm không ra. Nói thẳng cơ sở + trạng thái ẩn, y như
+			   them_may(). Tra riêng một câu, KHÔNG đổi câu kiểm ở trên (bài kiểm giả CSDL bám vào nó). */
+			$noi = ''; $an = '';
+			$cu = $wpdb->get_row( $wpdb->prepare( "SELECT m.an, c.ten AS coso_ten FROM $bang m LEFT JOIN " . VHG_DB::t( 'coso' )
+				. ' c ON c.id = m.coso_id WHERE m.ma=%s LIMIT 1', $ma_moi ), ARRAY_A );
+			if ( is_array( $cu ) ) {
+				$noi = trim( (string) ( isset( $cu['coso_ten'] ) ? $cu['coso_ten'] : '' ) );
+				$noi = ( '' !== $noi ) ? ( ' — đang ở cơ sở "' . $noi . '"' ) : ' — đang ở trạng thái chưa gán cơ sở';
+				$an  = ! empty( $cu['an'] ) ? ' (đang ẩn — đã điều chuyển)' : '';
+			}
+			return array( 'ok' => false, 'trung' => 1, 'error' => 'Mã ' . $ma_moi . ' đã có ghế khác dùng' . $noi . $an . '. '
+				. 'Hai ghế cùng mã là tiền của ghế này chạy ghế kia. Muốn dùng lại mã ấy: gõ nó vào ô "Tìm ghế theo mã / tên" '
+				. 'ở đầu trang để thấy ghế đang giữ mã, rồi đổi mã ghế đó (✎) hoặc "Đưa về" nếu nó đang ẩn.' );
 		}
 		$dat = array( 'ma' => $ma_moi, 'cap_nhat' => current_time( 'mysql' ) );
 		/* Gán cơ sở CÙNG LÚC với gán mã. Người đi lắp ghế biết nó đang ở đâu ngay lúc đó; bắt
@@ -1610,7 +1649,9 @@ class VHG_May {
 		$ten_khai = VHG_Doc::chuan_ten( (string) $ten_khai );   // tên ghế (tuỳ chọn) — anh Thắng 12/09/2026
 		$wpdb->insert( $bang, array( 'ma' => $ma, 'coso_id' => (int) $coso_id,
 			'ten_khai' => $ten_khai, 'cap_nhat' => current_time( 'mysql' ) ) );
-		return array( 'ok' => true, 'thong_bao' => 'Đã thêm ghế ' . $ma
+		/* 2.147.0: trả lại mã + tên ĐÃ CHUẨN HOÁ + cơ sở để giao diện chèn ghế vào bảng TẠI CHỖ, không tải lại
+		   cả trang (xem qlThemTaiCho_ trong class-vhg-trang.php). */
+		return array( 'ok' => true, 'ma' => $ma, 'ten' => $ten_khai, 'coso_id' => (int) $coso_id, 'thong_bao' => 'Đã thêm ghế ' . $ma
 			. ( '' !== $ten_khai ? ( ' (' . $ten_khai . ')' ) : '' ) . '.' );
 	}
 

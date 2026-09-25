@@ -365,6 +365,20 @@ hệt nhau.
 chỉ số nhích → lần mới, hỗn hợp, bill/nộp → lỗi, QR > Actual → lỗi, nộp đủ theo số mới, ảnh nối, khai
 nộp lại header, thứ tự gọi trong luu(), trường mới của chi_tiet, selectLoc sau gửi, cờ NGHI TRÙNG.
 
+### v2.147.0 — Kho VietQR chỉ nhận cơ sở ĐÃ CÓ GHẾ · Thêm ghế giữ nguyên trang · ô tìm địa điểm dò cả khối gập · báo trùng mã nói rõ mã ở đâu
+
+Anh Thắng 25/09/2026, bốn lượt liền: *"Anh thấy nó vẫn lấy điểm ngoài"* · *"Bấm thêm ghế mới thì giữ nguyên trang đó chứ không phải là nhảy trang và quay lại từ đầu"* · *"check vấn đề nằm đâu"* (gõ VINCOM QUANG TRUNG, máy báo "Cơ sở này đã có", ô tìm 0/65) · *"Mã cũ của nó tại sao lại trùng… Check thì không thấy cơ sở nào trùng"* (mã 80822).
+
+**1. Kho VietQR: "có trong hệ thống Ghế" = ĐÃ CÓ GHẾ.** 2.146.0 lọc theo danh mục cơ sở, nhưng các điểm phía Bắc (JP AEĐN, JP AMLB, 1 JP SB Cam Ranh.new…) đã được tạo TÊN bên Ghế (0 ghế, nằm trong khối "📭 Cơ sở chưa có ghế (153)") nên vẫn lọt. Nay `VHG_VietQR::ten_theo_key_()` chỉ nhận cơ sở có ≥1 mã ghế, kể cả ghế ẩn (`VHG_May::coso_co_ghe()`, một câu GROUP BY). Cơ sở 0 ghế → `ngoaiGhe` (dòng mờ dưới khối tổng), không hiện, không cộng. Gán ghế đầu tiên cho một cơ sở là lượt Xem sau nó vào bảng.
+
+**2. Thêm ghế không vẽ lại trang.** Nút "＋ Thêm ghế vào …" gọi thẳng `goi('may_them')`, không qua `lam()` → `tai()` → `ve()`. Máy chủ trả thêm `ma / ten / coso_id`; giao diện ghi vào `D.may`, vẽ lại MỘT bảng ghế (nhảy tới trang có ghế mới — `QL_NHAY_MA`), sửa tại chỗ hàng địa điểm (Số ghế +1, thêm ô mã), trống ô mã + ô tên, con trỏ về ô mã. Câu "Đã thêm ghế…" hiện dải xanh trong bảng (`QL_BAO`) thay vì alert. Kèm theo: mở lại CÙNG cơ sở sau các lượt vẽ lại khác (đổi cơ sở, xoá, điều chuyển) thì GIỮ trang đang xem và cuộn về đúng hàng địa điểm (`csMoKhoi(ten, cuon)` — noi() gọi sau mỗi lượt ve()), thay vì về trang 1 ở đầu trang.
+
+**3. Ô tìm địa điểm.** Dò cả 4 bảng (chính + 📭 chưa có ghế + 🚪 đóng cửa + 🙈 chỉ còn ghế ẩn); khối gập có hàng khớp thì tự mở (đánh dấu `data-tumo`; xoá ô tìm là gập lại, khối anh tự mở tay thì không đụng). Đếm "n / tổng" trên cả bốn. Gõ mã/tên GHẾ vào đây (như 80822) thì nói thêm "ghế khớp: 80822 (VC-LVV-9) → VINCOM LÊ VĂN VIỆT [đã ẩn]" và chỉ sang ô "Tìm ghế theo mã / tên". `csMoKhoi` mở `<details>` bao quanh hàng nếu đang gập — trước đây "Thêm địa điểm" cho cơ sở 0 ghế thì khối mở… trong chỗ gập, màn không thấy gì.
+
+**4. Câu báo nói rõ chỗ.** `luu_coso` "Cơ sở này đã có" → kèm số ghế, hoặc "CHƯA CÓ GHẾ nào, nên nó nằm trong khối gập…", và "Đã cập nhật tỉnh/TP, mã KH theo ô vừa nhập". `gan_ma` (✎ đổi mã) trùng → "đang ở cơ sở X (đang ẩn — đã điều chuyển)" + cách xử lý, giống `them_may`.
+
+Bài kiểm: `kiem-vietqr-kho-ghe.php` +3 (có tên, 0 ghế → ngoaiGhe; gán ghế → vào vq); mới `kiem-them-ghe-giu-trang.js` (soi nguồn + chạy `qlThemTaiCho_` / `csHangCapNhat_` / `csGoiYMa_` với DOM giả). Bộ thử: HỎNG 11/68 (đúng nền cũ).
+
 ### v2.146.0 — Kho VietQR chỉ nhận cơ sở CÓ trong hệ thống Ghế ("chỉ lấy cơ sở đã có trong hệ thống quản lý ghế")
 
 **Anh Thắng 25/09/2026:** Báo cáo tổng mọc dòng "1 JP SB Cam Ranh.new", "1.JP Sân Bay Nội Bài New", "CM VP" không mã KH, không
