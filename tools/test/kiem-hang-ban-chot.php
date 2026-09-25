@@ -219,6 +219,9 @@ phep( 'lưu được kèm mon_thuc', ! is_wp_error( $r ) && ! empty( $r['ok'] ) 
 $g = khh_dt_rest_bc_lay( new WP_REST_Request( array( 'ngay' => '2026-09-22', 'cua_hang' => $CS ) ) );
 phep( 'đọc lại ra mảng [tên => SL]', array( 'VÉ LẺ.' => 9.0 ) === $g['bao_cao']['mon_thuc'] && 1 === (int) $g['bao_cao']['chot'] );
 phep( 'GET vẫn mang pos.mon cho màn vẽ bảng', 3 === count( $g['pos']['mon'] ) );
+/* Anh Thắng 25/09/2026: "Cho báo cáo hàng để nhân viên gửi báo cáo hằng ngày, qua bên này chỉ hiện không sửa" — GET mang
+   sổ kho của ngày (mảng; không có module kho thì rỗng), cùng hàm với tab Kho. */
+phep( 'GET mang `kho` = sổ kho của ngày (mảng)', isset( $g['kho'] ) && is_array( $g['kho'] ) && ( ! function_exists( 'khh_dt_kho_bang_ngay' ) || $g['kho'] === khh_dt_kho_bang_ngay( '2026-09-22', $CS ) ) );
 $r = khh_dt_rest_bc_luu( new WP_REST_Request( array( 'ngay' => '2026-09-22', 'cua_hang' => $CS, 'tien_mat_dem' => '2100000', 'chot' => '1' ) ) );
 phep( 'lưu lại KHÔNG gửi mon_thuc -> {} (khớp hết), và đổi mon_thuc vào lịch sử sửa', 1 === (int) $r['sua_lan'] && '{}' === $r['bao_cao']['mon_thuc'] );
 $g = khh_dt_rest_bc_lay( new WP_REST_Request( array( 'ngay' => '2026-09-22', 'cua_hang' => $CS ) ) );

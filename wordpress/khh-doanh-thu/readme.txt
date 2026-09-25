@@ -102,6 +102,13 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.67.2 =
+* **Báo cáo hàng (sổ kho) ngay trong tab Nhập báo cáo, chỉ xem** (anh Thắng 25/09/2026: *"Cho báo cáo hàng để nhân viên
+  gửi báo cáo hằng ngày, qua bên này chỉ hiện không sửa, sửa bên kho hàng"*). Dưới khối Hàng bán theo máy có khối "Báo cáo
+  hàng (sổ kho)": từng mặt hàng với Tồn đầu · Nhập · Máy bán (lẻ + combo) · Huỷ · Tồn tính · Đếm còn · Lệch · Ghi chú, cùng
+  số với tab Kho, không có ô nhập; tiêu đề đếm mấy mặt hàng lệch kho, mấy mặt hàng chưa đếm. Nút "tab Kho hàng hoá →" mở
+  đúng ngày và cơ sở đang nhập. **Ảnh báo cáo** (Tải ảnh / Chia sẻ Zalo) có thêm phần sổ kho này.
+
 = 1.67.1 =
 * **Xuất MISA thành tab riêng** (anh Thắng 25/09/2026: *"Tách TAB XUẤT MISA RA 1 TAB RIÊNG NHÉ"*) — tab "Xuất MISA" chỉ hiện
   cho người được nạp file. Bảng chứng từ và bảng từng dòng **phân trang 20 dòng** (*"giới hạn 20 dòng cho 1 trang"*), nút

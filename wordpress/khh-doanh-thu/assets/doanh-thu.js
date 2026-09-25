@@ -1086,6 +1086,7 @@
         '<div id="bcBuoc" class="bc-buoc"></div>' +
         '<div id="bcPos" class="bc-pos"></div>' +
         '<div id="bcHang"></div>' +
+        '<div id="bcKho"></div>' +
         '<div class="bc-luoi" id="bcNhap">' +
           o_nhap('tien_mat_dem', 'Tiền mặt đếm trong két', 'cuối ca, đếm thật') +
           o_nhap('tien_nop', 'Tiền thực nộp về quỹ', 'số tiền bàn giao') +
@@ -1313,7 +1314,7 @@
               : '')
           : '<div class="trong">Ngày này chưa có số liệu máy POS trong kho. Nạp file FABi cho ngày đó rồi quay lại.</div>';
         var b = r.bao_cao || {};
-        S.bcHienTai = { pos: p, bao_cao: b, ngay: ngay, ch: ch };
+        S.bcHienTai = { pos: p, bao_cao: b, ngay: ngay, ch: ch, kho: r.kho || [] };
         veBuoc(r.quy_trinh);
         /* Có báo cáo đã lưu (có người nhập) thì mới có gì để tải ảnh / chia sẻ. */
         var daLuu = !!(b && b.nguoi);
@@ -1321,6 +1322,7 @@
         q('#bcChiaSe').hidden = !daLuu;
         q('#bcChiaSe').textContent = b && b.chot ? 'Chia sẻ lên Zalo' : 'Chia sẻ (chưa chốt)';
         veHangBan(p, b);
+        veKhoXem(r.kho || [], ngay, ch);
         var sang = q('#bcSangCauHinh');
         if (sang) sang.addEventListener('click', function (ev) {
           ev.preventDefault();
@@ -1456,6 +1458,48 @@
     });
   }
 
+  /* ---- BÁO CÁO HÀNG (SỔ KHO) — CHỈ XEM ----
+     Anh Thắng 25/09/2026: *"Cho báo cáo hàng để nhân viên gửi báo cáo hằng ngày, qua bên này chỉ hiện không sửa,
+     sửa bên kho hàng"*. Cùng số với tab Kho (máy chủ trả `kho` của đúng ngày × cơ sở); muốn sửa thì bấm sang tab
+     Kho đúng ngày ấy. Bảng này cũng vào ảnh báo cáo để gửi Zalo. */
+  function veKhoXem(kho, ngay, ch) {
+    var o = q('#bcKho');
+    if (!o) return;
+    kho = kho || [];
+    if (!kho.length) { o.innerHTML = ''; return; }
+    var chuaDem = kho.filter(function (d) { return d.dem == null; }).length;
+    var lech = kho.filter(function (d) { return d.lech_kho != null && Math.round(d.lech_kho) !== 0; }).length;
+    var so = function (v) { return v == null ? '—' : nguyen(v); };
+    var h = '<details class="bc-hang" id="bcKhoChi" open>' +
+      '<summary><b>Báo cáo hàng (sổ kho)</b> — ' + kho.length + ' mặt hàng' +
+        '<span class="chu-them" style="display:inline;margin-left:8px">' +
+        (lech ? '<b style="color:var(--xau)">' + lech + ' lệch kho</b>' : '') + (lech && chuaDem ? ' · ' : '') +
+        (chuaDem ? '<b style="color:var(--canh)">' + chuaDem + ' chưa đếm</b>' : (lech ? '' : 'đã đếm đủ, khớp sổ')) + '</span></summary>' +
+      '<div class="chu-them" style="margin-top:6px">Chỉ xem — số lấy từ sổ kho của ngày này. Sửa tồn, nhập, huỷ, đếm ở ' +
+        '<button class="vien" type="button" id="bcSangKho" style="margin-left:4px">tab Kho hàng hoá →</button></div>' +
+      '<div class="bang-the bang-cuon the-ct" style="margin-top:8px"><table><thead><tr>' +
+        '<th>Mặt hàng</th><th>Tồn đầu</th><th>Nhập</th><th>Máy bán</th><th>Huỷ</th><th>Tồn tính</th><th>Đếm còn</th><th>Lệch</th><th>Ghi chú</th></tr></thead><tbody>' +
+      kho.map(function (d) {
+        var l = d.lech_kho == null ? null : Math.round(d.lech_kho);
+        return '<tr><td class="o-ten" data-nhan="Mặt hàng" style="text-align:left">' + esc(d.mat_hang) + '</td>' +
+          '<td class="s o-may" data-nhan="Tồn đầu">' + so(d.ton_dau) + '</td>' +
+          '<td class="s o-may" data-nhan="Nhập">' + so(d.nhap) + '</td>' +
+          '<td class="s o-may" data-nhan="Máy bán">' + so(d.ban_may) + (d.ban_combo ? '<span style="display:block;font-size:11px;color:var(--ink-3)">' + nguyen(d.ban_le || 0) + ' lẻ + ' + nguyen(d.ban_combo) + ' combo</span>' : '') + '</td>' +
+          '<td class="s o-may" data-nhan="Huỷ">' + so(d.huy) + '</td>' +
+          '<td class="s o-may" data-nhan="Tồn tính">' + so(d.ton_tinh) + '</td>' +
+          '<td class="s o-may" data-nhan="Đếm còn"' + (d.dem == null ? ' style="color:var(--canh)"' : '') + '>' + (d.dem == null ? 'chưa đếm' : nguyen(d.dem)) + '</td>' +
+          '<td class="s o-may" data-nhan="Lệch"' + (l ? ' style="color:var(--xau);font-weight:600"' : '') + '>' + (l == null ? '—' : (l > 0 ? '+' : '') + nguyen(l)) + '</td>' +
+          '<td class="o-ghi" data-nhan="Ghi chú" style="text-align:left;font-size:12px">' + esc(d.ghi_chu || '') + '</td></tr>';
+      }).join('') + '</tbody></table></div></details>';
+    o.innerHTML = h;
+    var b = o.querySelector('#bcSangKho');
+    if (b) b.addEventListener('click', function () {
+      /* Mở tab Kho ĐÚNG ngày và cơ sở đang nhập — không bắt chọn lại. */
+      S.kho = { ngay: ngay, cs: ch }; S.khoR = null;
+      doiTab('kho');
+    });
+  }
+
   /* Chỉ gửi dòng có gõ số VÀ khác máy: [ tên món => SL thực ]. Trống = đúng máy = không gửi. */
   function docMonThuc() {
     var b = {};
@@ -1487,7 +1531,7 @@
     if (dem && nop) lech.push(['Đếm được − đã nộp', dem - nop, 'tien']);
     if (khach && may) lech.push([p.khach_may != null ? 'Khách đếm − khách máy' : 'Khách đếm − vé bán', khach - may, 'so']);
     var lechMon = mon.filter(function (m) { return thuc[m.n] != null && Math.round(thuc[m.n]) !== Math.round(m.q); });
-    return { p: p, b: b, mon: mon, thuc: thuc, lech: lech, lechMon: lechMon, so: so, ngay: h.ngay || '', ch: h.ch || '' };
+    return { p: p, b: b, mon: mon, thuc: thuc, lech: lech, lechMon: lechMon, so: so, ngay: h.ngay || '', ch: h.ch || '', kho: h.kho || [] };
   }
 
   function tomTatBC() {
@@ -1513,7 +1557,8 @@
     var d = dongBC(), p = d.p, b = d.b;
     var W = 900, TL = 2, y = 0;
     var dongMon = d.mon.slice(0, 40);
-    var H = 470 + d.lech.length * 30 + dongMon.length * 30 + (b.ghi_chu ? 60 : 0) + 70;
+    var dongKho = d.kho.slice(0, 40);
+    var H = 470 + d.lech.length * 30 + dongMon.length * 30 + (dongKho.length ? 60 + dongKho.length * 28 : 0) + (b.ghi_chu ? 60 : 0) + 70;
     var c = document.createElement('canvas');
     c.width = W * TL; c.height = H * TL;
     var g = c.getContext('2d');
@@ -1583,6 +1628,29 @@
     });
     if (d.mon.length > dongMon.length) { y += 26; chu('… và ' + (d.mon.length - dongMon.length) + ' món nữa', 24, y, { co: 12, mau: '#6b7280' }); }
     y += 20;
+    /* Sổ kho — báo cáo hàng đi cùng báo cáo ngày (anh Thắng 25/09/2026). */
+    if (dongKho.length) {
+      ke(y); y += 26;
+      var lechKho = d.kho.filter(function (k) { return k.lech_kho != null && Math.round(k.lech_kho) !== 0; }).length;
+      var chuaDem = d.kho.filter(function (k) { return k.dem == null; }).length;
+      chu('BÁO CÁO HÀNG (SỔ KHO)' + (lechKho ? ' — ' + lechKho + ' mặt hàng lệch kho' : '') + (chuaDem ? ' — ' + chuaDem + ' chưa đếm' : ''), 24, y, { dam: true, co: 12, mau: '#6b7280' }); y += 22;
+      var cot = [['Mặt hàng', 24, false], ['Đầu', 430, true], ['Nhập', 500, true], ['Bán', 570, true], ['Huỷ', 640, true], ['Tính', 710, true], ['Đếm', 790, true], ['Lệch', W - 24, true]];
+      cot.forEach(function (c2) { chu(c2[0], c2[1], y, { co: 11, mau: '#6b7280', phai: c2[2] }); }); y += 6;
+      var so2 = function (v) { return v == null ? '—' : nguyen(v); };
+      dongKho.forEach(function (k) {
+        y += 28;
+        var l = k.lech_kho == null ? null : Math.round(k.lech_kho);
+        var ten = String(k.mat_hang); if (ten.length > 34) ten = ten.slice(0, 33) + '…';
+        chu(ten, 24, y, { co: 13 });
+        chu(so2(k.ton_dau), 430, y, { co: 13, phai: true }); chu(so2(k.nhap), 500, y, { co: 13, phai: true });
+        chu(so2(k.ban_may), 570, y, { co: 13, phai: true }); chu(so2(k.huy), 640, y, { co: 13, phai: true });
+        chu(so2(k.ton_tinh), 710, y, { co: 13, phai: true });
+        chu(k.dem == null ? 'chưa' : nguyen(k.dem), 790, y, { co: 13, phai: true, mau: k.dem == null ? '#b45309' : '#111827' });
+        chu(l == null ? '—' : (l > 0 ? '+' : '') + nguyen(l), W - 24, y, { co: 13, dam: !!l, mau: l ? '#b91c1c' : '#15803d', phai: true });
+      });
+      if (d.kho.length > dongKho.length) { y += 24; chu('… và ' + (d.kho.length - dongKho.length) + ' mặt hàng nữa', 24, y, { co: 12, mau: '#6b7280' }); }
+      y += 20;
+    }
     if (b.ghi_chu) { ke(y); y += 26; chu('Ghi chú: ' + String(b.ghi_chu).slice(0, 110), 24, y, { co: 13 }); y += 14; }
     ke(y + 6);
     chu('Doanh thu FABi · ' + (S.cf && S.cf.ten_toi ? 'in bởi ' + S.cf.ten_toi + ' · ' : '') + new Date().toLocaleString('vi-VN'), 24, H - 18, { co: 11, mau: '#9ca3af' });

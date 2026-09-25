@@ -821,6 +821,9 @@ function khh_dt_rest_bc_lay( $req ) {
 		'cua_toi_ds' => khh_dt_co_so_ds(),
 		/* Bốn bước của ngày này (số máy về / cơ sở khai / sổ kho / chốt) + hạn — màn vẽ thanh tiến độ. */
 		'quy_trinh' => function_exists( 'khh_dt_qt_tinh_trang' ) ? khh_dt_qt_tinh_trang( $ngay, $ch ) : null,
+		/* Sổ kho của ngày — bày CHỈ XEM ở tab Nhập để nhân viên gửi báo cáo hàng cùng báo cáo ngày (anh Thắng
+		   25/09/2026: "qua bên này chỉ hiện không sửa, sửa bên kho hàng"). Cùng số với tab Kho, không tính lại. */
+		'kho'      => function_exists( 'khh_dt_kho_bang_ngay' ) ? khh_dt_kho_bang_ngay( $ngay, $ch ) : array(),
 	);
 }
 

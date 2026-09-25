@@ -491,6 +491,9 @@ body.khh-dt-body{margin:0;background:#f3f5f9}
   .khh-dt .bang-the.the-ct tr{grid-template-columns:1fr 1fr}
   .khh-dt .bang-the.the-ct .o-ten{order:0}
   .khh-dt .bang-the.the-ct .o-may{order:2;text-align:left;min-width:0;overflow-wrap:anywhere;white-space:normal}
+  /* Bảng sổ kho CHỈ XEM ở tab Nhập dùng cùng nhãn cột với sổ kho -> phải đè luật xếp theo nhãn ở trên. */
+  .khh-dt .bang-the.the-ct .o-may[data-nhan]{order:2;grid-column:auto;font-size:14px;padding-bottom:6px}
+  .khh-dt .bang-the.the-ct .o-ghi[data-nhan]{order:3;grid-column:1 / -1}
   .khh-dt .bang-the.the-ct .o-ghi{order:3;grid-column:1 / -1;white-space:normal;font-size:12.5px;padding-bottom:6px}
   .khh-dt .bang-the.the-cf td[colspan]{grid-column:1 / -1}
 }

@@ -31,6 +31,14 @@ const nap = boc('napBaoCao');
 t('ba ô Sale vé / Sale bán lẻ / Sale phụ ở hàng số máy',
   /o_pos\('Sale vé \(POS\)'/.test(nap) && /o_pos\('Sale bán lẻ \(POS\)'/.test(nap) && /o_pos\('Sale phụ \(POS\)'/.test(nap));
 t('napBaoCao gọi veHangBan(p, b)', /veHangBan\(p, b\)/.test(nap));
+/* Anh Thắng 25/09/2026: "Cho báo cáo hàng … qua bên này chỉ hiện không sửa, sửa bên kho hàng". */
+t('🔴 napBaoCao vẽ sổ kho CHỈ XEM: veKhoXem(r.kho || [], ngay, ch), khung #bcKho, S.bcHienTai mang kho', /veKhoXem\(r\.kho \|\| \[\], ngay, ch\)/.test(nap) && /id="bcKho"/.test(js) && /kho: r\.kho \|\| \[\]/.test(nap));
+const kx = boc('veKhoXem');
+t('bảng sổ kho không có ô nhập, cột Tồn đầu/Nhập/Máy bán/Huỷ/Tồn tính/Đếm còn/Lệch, thẻ điện thoại', kx.length > 0 && !/<input/.test(kx) && /<th>Tồn đầu<\/th><th>Nhập<\/th><th>Máy bán<\/th><th>Huỷ<\/th><th>Tồn tính<\/th><th>Đếm còn<\/th><th>Lệch<\/th>/.test(kx) && /class="bang-the bang-cuon the-ct"/.test(kx));
+t('nói rõ "Chỉ xem" và nút #bcSangKho mở tab Kho ĐÚNG ngày + cơ sở đang nhập', /Chỉ xem — số lấy từ sổ kho/.test(kx) && /S\.kho = \{ ngay: ngay, cs: ch \}; S\.khoR = null;/.test(kx) && /doiTab\('kho'\)/.test(kx));
+t('chưa đếm bày "chưa đếm" (vàng), lệch tô đỏ; không có mặt hàng thì khung trống', /chưa đếm/.test(kx) && /color:var\(--xau\);font-weight:600/.test(kx) && /if \(!kho\.length\) \{ o\.innerHTML = ''; return; \}/.test(kx));
+const anh = boc('veAnhBC');
+t('ảnh báo cáo có phần BÁO CÁO HÀNG (SỔ KHO) từ d.kho, tính thêm chiều cao', /BÁO CÁO HÀNG \(SỔ KHO\)/.test(anh) && /dongKho\.length \* 28/.test(anh) && /kho: h\.kho \|\| \[\]/.test(boc('dongBC')));
 const hb = boc('veHangBan');
 t('có veHangBan', hb.length > 0);
 t('bảng có SL máy, Thành tiền, SL thực, Lệch', /<th>SL máy<\/th><th>Thành tiền<\/th><th>SL thực \(nếu lệch\)<\/th><th>Lệch<\/th>/.test(hb));
@@ -76,7 +84,7 @@ t('nói rõ bán lẻ = phần còn lại, phụ = số vé × tiền phụ mỗ
 
 /* ---- 24/09/2026 anh Thắng: "Lưu và chốt xong nó sẽ có thêm tải ảnh và chia sẻ báo cáo này lên Zalo" ---- */
 t('có hai nút Tải ảnh báo cáo / Chia sẻ lên Zalo, ẩn cho tới khi có báo cáo đã lưu', /id="bcTaiAnh" hidden/.test(js) && /id="bcChiaSe" hidden/.test(js) && /q\('#bcTaiAnh'\)\.hidden = !daLuu/.test(nap));
-t('🔴 ảnh dựng từ SỐ ĐÃ LƯU (S.bcHienTai) bằng canvas, không chụp màn', /S\.bcHienTai = \{ pos: p, bao_cao: b, ngay: ngay, ch: ch \}/.test(nap) && /document\.createElement\('canvas'\)/.test(boc('veAnhBC')));
+t('🔴 ảnh dựng từ SỐ ĐÃ LƯU (S.bcHienTai) bằng canvas, không chụp màn', /S\.bcHienTai = \{ pos: p, bao_cao: b, ngay: ngay, ch: ch, kho: r\.kho \|\| \[\] \}/.test(nap) && /document\.createElement\('canvas'\)/.test(boc('veAnhBC')));
 t('chia sẻ dùng khung chia sẻ của máy (navigator.share với tệp ảnh)', /navigator\.canShare\(\{ files: \[tep\] \}\)/.test(boc('chiaSeBC')) && /navigator\.share\(\{ files: \[tep\]/.test(boc('chiaSeBC')));
 t('không có khung chia sẻ thì tải ảnh + chép tóm tắt vào bộ nhớ tạm', /a\.download = tep\.name/.test(boc('chiaSeBC')) && /navigator\.clipboard\.writeText\(tom\)/.test(boc('chiaSeBC')));
 t('tải ảnh đặt tên theo ngày và cơ sở', /'bao-cao-' \+ d\.ngay \+ '-'/.test(boc('tenTepBC')));
