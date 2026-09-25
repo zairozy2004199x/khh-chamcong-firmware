@@ -242,11 +242,11 @@
       <div style="display:flex;gap:16px;flex-wrap:wrap;padding:0 14px 14px">
         <div style="flex:1;min-width:300px">
           <div style="font-weight:700;color:#3730a3;margin-bottom:6px">🆕 Gian đã / đang Setup</div>
-          <div class="tw"><table><thead><tr><th>Gian / dự án</th><th style="text-align:right">Dự toán</th><th style="text-align:right">Thực tế</th><th style="text-align:right">Chênh lệch</th><th style="text-align:center">TT</th></tr></thead><tbody id="tqKtSetupBody"></tbody></table></div>
+          <div class="tw"><table><thead><tr><th>Gian / dự án</th><th style="text-align:right">Dự toán</th><th style="text-align:right">Thực tế</th><th style="text-align:right">Chênh lệch</th><th style="text-align:right" title="Cộng dồn từ ngày Setup tới ngày Tháo dỡ (chưa tháo thì tới hôm nay) — khớp cùng khoảng với cột Thực tế">Doanh thu (đời gian)</th><th style="text-align:right">DT − CP</th><th style="text-align:center">TT</th></tr></thead><tbody id="tqKtSetupBody"></tbody></table></div>
         </div>
         <div style="flex:1;min-width:300px">
           <div style="font-weight:700;color:#9a3412;margin-bottom:6px">🧹 Gian đã / đang Tháo dỡ</div>
-          <div class="tw"><table><thead><tr><th>Gian / dự án</th><th style="text-align:right">Dự toán</th><th style="text-align:right">Thực tế</th><th style="text-align:right">Chênh lệch</th><th style="text-align:center">TT</th></tr></thead><tbody id="tqKtThaoBody"></tbody></table></div>
+          <div class="tw"><table><thead><tr><th>Gian / dự án</th><th style="text-align:right">Dự toán</th><th style="text-align:right">Thực tế</th><th style="text-align:right">Chênh lệch</th><th style="text-align:right" title="Cộng dồn từ ngày Setup tới ngày Tháo dỡ (chưa tháo thì tới hôm nay) — khớp cùng khoảng với cột Thực tế">Doanh thu (đời gian)</th><th style="text-align:right">DT − CP</th><th style="text-align:center">TT</th></tr></thead><tbody id="tqKtThaoBody"></tbody></table></div>
         </div>
       </div>
       </div>
@@ -1864,8 +1864,15 @@
     <!-- 📈 KẾT NỐI WEB DOANH THU — chỉ Admin thấy (xem `renderCfgDoanhThu`). Khoá chia sẻ là bí mật:
          ô nhập KHÔNG BAO GIỜ đổ khoá đang lưu ra; chỉ nói ĐÃ CÓ / CHƯA CÓ; để trống = giữ nguyên. -->
     <div class="card" id="doanhThuCard" style="display:none">
-      <div class="ch"><h2>📈 Kết nối web Doanh thu</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="kiemTraDoanhThu()">🔌 Kiểm tra kết nối</button><button class="btn b-g" onclick="saveCfgDoanhThu()">💾 Lưu</button></div></div>
-      <div style="padding:8px 14px 12px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+      <div class="ch"><h2>📈 Kết nối web Doanh thu</h2><div id="doanhThuNut" style="display:flex;gap:8px"><button class="btn b-x" onclick="kiemTraDoanhThu()">🔌 Kiểm tra kết nối</button><button class="btn b-g" onclick="saveCfgDoanhThu()">💾 Lưu</button></div></div>
+      <!-- 🔴 CÙNG WORDPRESS THÌ KHÔNG CÓ GÌ ĐỂ KHAI — anh Thắng 25/09/2026. Doanh thu và Chi phí
+           chạy chung một WordPress nên đọc thẳng bảng của nó, không qua địa chỉ/khoá gì cả. Ô
+           nhập vẫn còn TRONG MÃ (một site chạy vùng riêng vẫn cần), chỉ ẩn khi
+           `taiCho` để Admin khỏi loay hoay điền một thứ không dùng tới. Xem `renderCfgDoanhThu`. -->
+      <div id="doanhThuTaiCho" style="display:none;padding:10px 14px 12px;background:#ecfdf5;border-left:4px solid #10b981;color:#065f46;line-height:1.7">
+        ✓ Đang đọc thẳng từ web Doanh thu trên cùng WordPress — không cần địa chỉ, không cần khoá.
+      </div>
+      <div id="doanhThuOFf" style="padding:8px 14px 12px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
         <div class="fld" style="flex:1;min-width:260px"><label>Địa chỉ web Doanh thu</label><input id="cfgDtUrl" placeholder="https://khmatrix.com" autocomplete="off"></div>
         <div class="fld" style="flex:1;min-width:260px"><label>Khoá chia sẻ · <span id="cfgDtKhoaTt" style="font-weight:400"></span></label><input id="cfgDtKhoa" type="password" autocomplete="new-password" placeholder="Dán khoá mới — để trống là giữ khoá cũ"></div>
         <div style="flex-basis:100%;font-size:12px;color:#64748b;line-height:1.6">
@@ -7007,15 +7014,31 @@
     var sumTT=function(a){return a.reduce(function(s,x){return s+(Number(x.tongThucTe)||0);},0);};
     var sumDT=function(a){return a.reduce(function(s,x){return s+(Number(x.tongDuToan)||0);},0);};
     var cosoTT=sumTT(coso), totTT=sumTT(items), totDT=sumDT(items);
+    /* 🔴 DOANH THU ĐỜI GIAN (25/09/2026) — chỉ đếm được gian đã KHAI (`dtNoi==='khai'`, xem
+       `VHCPMTD_DoanhThu::doi_gian()`). Trên site chưa cùng WordPress với Doanh thu, không gian nào
+       có `dtNoi` — dòng phụ dưới thẻ tự biến mất, không bày một con số 0 giả. */
+    var dtDong=function(a){ var ds=a.filter(function(x){return x.dtNoi==='khai';});
+      return { n:ds.length, tong:ds.reduce(function(s,x){return s+(Number(x.doanhThu)||0);},0) }; };
+    var dtSub=function(a,mau){ var d=dtDong(a); return d.n?('<br>📈 Doanh thu '+d.n+' gian đã nối: <b style="color:'+mau+'">'+money(d.tong)+'đ</b>'):''; };
     el('tqKtCards').innerHTML=
-      _tqCard('#eef2ff','#c7d2fe','#3730a3','🆕 Số gian đã Setup', setup.length+' gian', 'Thực tế '+money(sumTT(setup))+'đ')+
-      _tqCard('#fff7ed','#fed7aa','#9a3412','🧹 Số gian đã Tháo dỡ', thao.length+' gian', 'Thực tế '+money(sumTT(thao))+'đ')+
+      _tqCard('#eef2ff','#c7d2fe','#3730a3','🆕 Số gian đã Setup', setup.length+' gian', 'Thực tế '+money(sumTT(setup))+'đ'+dtSub(setup,'#3730a3'))+
+      _tqCard('#fff7ed','#fed7aa','#9a3412','🧹 Số gian đã Tháo dỡ', thao.length+' gian', 'Thực tế '+money(sumTT(thao))+'đ'+dtSub(thao,'#9a3412'))+
       _tqCard('#ecfdf5','#b9c0e8','#065f46','🔧 Chi phí cơ sở (chung)', money(cosoTT)+'đ', 'Xuyên suốt')+
       _tqCard('#f4f1ec','#e2d6c7','#171417','Tổng Kỹ thuật (thực tế)', money(totTT)+'đ', 'Dự toán '+money(totDT)+'đ');
+    /* Ô "Doanh thu (đời gian)" của một dòng — ba trạng thái, KHÔNG BAO GIỜ đoán số. */
+    var dtCell=function(x){
+      if(x.dtNoi==='khai') return '<div>'+money(x.doanhThu||0)+'đ</div><div style="font-size:10px;color:#8c8781;white-space:nowrap">'+esc(x.dtTu||'')+' → '+esc(x.dtDen||'')+'</div>';
+      if(x.dtNoi==='chua_noi') return '<a href="javascript:void(0)" onclick="showPage(\'cauhinh\')" style="color:#b45309;font-size:11.5px" title="Khai cột &quot;Tên bên Doanh thu&quot; ở Cấu hình ▸ Cơ sở &amp; đơn vị">chưa nối</a>';
+      if(x.dtNoi==='khong_coso') return '<span style="color:#8c8781;font-size:11.5px" title="Tên gian không khớp cơ sở nào trong danh mục">— (?)</span>';
+      return '<span style="color:#8c8781">—</span>';
+    };
     var row=function(x){ var chenh=Number(x.chenh)||0, c=chenh>0?'#b91c1c':(chenh<0?'#15803d':'#171417'), chTxt=chenh>0?('⚠️ vượt '+money(chenh)):(chenh<0?('✓ dư '+money(-chenh)):'✓ khớp'), b=(x.trangThai==='Đã đóng')?'🔒':'⏳';
-      return '<tr><td><a href="javascript:void(0)" onclick="showPage(\'duan\');openDuAn(\''+esc(x.maDA)+'\')">'+esc(x.ten)+'</a></td><td class="money">'+money(x.tongDuToan)+'</td><td class="money">'+money(x.tongThucTe)+'</td><td class="money" style="color:'+c+';white-space:nowrap">'+chTxt+'</td><td style="text-align:center" title="'+esc(x.trangThai)+'">'+b+'</td></tr>'; };
-    el('tqKtSetupBody').innerHTML=setup.map(row).join('')||'<tr><td colspan="5" style="text-align:center;color:#8c8781;padding:10px">Chưa có</td></tr>';
-    el('tqKtThaoBody').innerHTML=thao.map(row).join('')||'<tr><td colspan="5" style="text-align:center;color:#8c8781;padding:10px">Chưa có</td></tr>';
+      var trung=x.trungTen?' <span style="font-size:10px;color:#b91c1c" title="Có gian khác cùng tên — sổ chi phí đang cộng dồn vào cả hai dòng">⚠ trùng tên</span>':'';
+      var hieu='<span style="color:#8c8781">—</span>';
+      if(x.dtNoi==='khai'){ var h=(Number(x.doanhThu)||0)-(Number(x.tongThucTe)||0); hieu='<b style="color:'+(h<0?'#b91c1c':'#15803d')+'">'+(h<0?'-':'')+money(Math.abs(h))+'</b>'; }
+      return '<tr><td><a href="javascript:void(0)" onclick="showPage(\'duan\');openDuAn(\''+esc(x.maDA)+'\')">'+esc(x.ten)+'</a>'+trung+'</td><td class="money">'+money(x.tongDuToan)+'</td><td class="money">'+money(x.tongThucTe)+'</td><td class="money" style="color:'+c+';white-space:nowrap">'+chTxt+'</td><td class="money">'+dtCell(x)+'</td><td class="money">'+hieu+'</td><td style="text-align:center" title="'+esc(x.trangThai)+'">'+b+'</td></tr>'; };
+    el('tqKtSetupBody').innerHTML=setup.map(row).join('')||'<tr><td colspan="7" style="text-align:center;color:#8c8781;padding:10px">Chưa có</td></tr>';
+    el('tqKtThaoBody').innerHTML=thao.map(row).join('')||'<tr><td colspan="7" style="text-align:center;color:#8c8781;padding:10px">Chưa có</td></tr>';
   }
   // ===================== CHI PHÍ KỸ THUẬT (Cơ sở / Setup / Tháo dỡ) =====================
   var DA_CUR=null, DA_ITEMS=[], DA_EDIT_ROW=null, _daPendingLog=null;
@@ -15795,6 +15818,10 @@
     var card=el('doanhThuCard'); if(!card) return;
     card.style.display=_laAdmin()?'':'none';
     var dt=(BOOT&&BOOT.doanhThu)||{};
+    var tc=!!dt.taiCho;
+    if(el('doanhThuTaiCho')) el('doanhThuTaiCho').style.display=tc?'':'none';
+    if(el('doanhThuOFf')) el('doanhThuOFf').style.display=tc?'none':'';
+    if(el('doanhThuNut')) el('doanhThuNut').style.display=tc?'none':'flex';
     if(el('cfgDtUrl')&&document.activeElement!==el('cfgDtUrl')) el('cfgDtUrl').value=dt.url||'';
     if(el('cfgDtKhoa')) el('cfgDtKhoa').value='';
     if(el('cfgDtKhoaTt')) el('cfgDtKhoaTt').innerHTML=dt.khoaCo?'<span style="color:#065f46">ĐÃ CÓ khoá</span>':'<span style="color:#b91c1c">CHƯA có khoá</span>';

@@ -240,7 +240,8 @@ function khh_dt_misa_ma_fabi() {
 	$long = function ( $t ) {
 		return function_exists( 'khh_dt_kho_long' ) ? khh_dt_kho_long( $t ) : mb_strtolower( trim( (string) $t ) );
 	};
-	$ra   = array();
+	/* Danh mục hàng hoá FABi nạp ở Quản trị (danh-muc.php) — mã của cả món CHƯA BÁN; dòng bán thật (dưới) đè lên nếu khác. */
+	$ra   = function_exists( 'khh_dt_dm_ma_bang' ) ? khh_dt_dm_ma_bang() : array();
 	$bang = khh_dt_bang();
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
 	$ds = (array) $wpdb->get_col( "SELECT mon FROM $bang ORDER BY ngay ASC" );

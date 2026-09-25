@@ -2217,6 +2217,7 @@
     var daThay = r.mon_da_thay || {};
     var chon = r.mat_hang || [];
     var maHang = r.ma_hang || {};
+    var long_ = function (t) { return String(t || '').replace(/[\s\u00a0]+/g, ' ').trim().toLowerCase(); };
     /* Danh sách bày = món FABi từng bán ∪ món đã có trong danh mục (kể cả món MỚI thêm tay, FABi chưa
        bán) — không thì món mới thêm không có ô để bỏ tích. */
     var ten = Object.keys(daThay);
@@ -2245,7 +2246,8 @@
                 (maHang[t] ? ' <code style="font-size:11px">' + esc(maHang[t]) + '</code>' : '') +
                 (moi ? ' <span class="chip" title="Thêm tay, FABi chưa có dòng bán nào. Khi FABi bán món mang đúng mã này, số bán tự rơi vào dòng kho này.">mới · FABi chưa bán</span>' +
                        /* Anh Thắng 24/09/2026: "cho admin xoá món nếu sai" — chỉ văn phòng (quyền nạp). */
-                       (S.cf && S.cf.duoc_nap ? ' <button class="chip" type="button" data-mh-xoa="' + esc(t) + '" title="Xoá món thêm tay này khỏi danh mục (bỏ cả mã đã gán)">✕ xoá</button>' : '')
+                       /* 25/09/2026: "cho phép xoá hàng sai trên kho hàng" — món FABi chưa bán thì người phụ trách quán xoá được (xoá cả dòng sổ, sổ động giữ vết). */
+                       (r.duoc_ghi ? ' <button class="chip" type="button" data-mh-xoa="' + esc(t) + '" title="Xoá món này khỏi danh mục và khỏi sổ kho của cơ sở (sổ ghi động vẫn giữ vết)">✕ xoá</button>' : '')
                      : ' <span class="chu-them">(' + nguyen(daThay[t]) + ')</span>') +
               '</span></label>';
           }).join('') +
@@ -2253,12 +2255,30 @@
         : '<div class="trong">Chưa có món nào — thêm mặt hàng mới ở dưới.</div>') +
       /* THÊM SẢN PHẨM MỚI (anh Thắng 24/09/2026: "lấy tên sản phẩm mà mã theo FABi, để sau đồng bộ nó
          chạy cùng"): hàng mới về chưa bán -> FABi chưa có dòng -> không tích được từ danh sách trên. */
-      '<div class="loc" style="margin-top:10px;gap:6px">' +
-        '<label class="o">Thêm mặt hàng mới<input type="text" id="mhThemTen" placeholder="Tên đúng như FABi sẽ ghi" style="width:230px"></label>' +
-        '<label class="o">Mã hàng FABi<input type="text" id="mhThemMa" placeholder="MNKVCDS017" style="width:130px"></label>' +
-        '<button class="nut" type="button" id="mhThem">Thêm vào danh mục</button>' +
-        '<span class="chu-them" style="margin:0">Khai đúng <b>mã hàng</b> là về sau FABi bán món này (dù tên gõ khác chút) số vẫn rơi vào đúng dòng.</span>' +
-      '</div>' +
+      /* CHỌN TỪ DANH MỤC FABi, KHÔNG GÕ (anh Thắng 25/09/2026: "tạo hàng mới trên FABi mà chưa bán… các bạn muốn set
+         trước nên tạo trước, dẫn tới dễ sai lệch"). Văn phòng nạp "Danh sách hàng hoá" ở Quản trị; ở đây bày món của
+         quán này chưa có trong danh mục kho, chọn là tên + mã đúng như FABi. "Khác — gõ tên" chỉ khi danh mục thiếu. */
+      (function () {
+        var dm = (r.danh_muc || []).filter(function (x) {
+          return ten.indexOf(x.ten) < 0 && !ten.some(function (t) { return long_(t) === long_(x.ten); });
+        });
+        var hang = dm.filter(function (x) { return !x.ve; }), veDs = dm.filter(function (x) { return x.ve; });
+        var op = function (x) { return '<option value="' + esc(x.ten) + '" data-ma="' + esc(x.ma || '') + '">' + esc(x.ten) + (x.ma ? ' · ' + esc(x.ma) : '') + '</option>'; };
+        return '<div class="loc" style="margin-top:10px;gap:6px">' +
+          (r.danh_muc && r.danh_muc.length
+            ? '<label class="o">Thêm mặt hàng mới<select id="mhThemChon" style="max-width:340px"><option value="">— chọn trong danh mục FABi (' + dm.length + ' món chưa có ở đây) —</option>' +
+              (hang.length ? '<optgroup label="Hàng hoá">' + hang.map(op).join('') + '</optgroup>' : '') +
+              (veDs.length ? '<optgroup label="Vé / combo">' + veDs.map(op).join('') + '</optgroup>' : '') +
+              '<option value="__khac__">Khác — gõ tên…</option></select></label>' +
+              '<label class="o" id="mhThemTenO" hidden>Tên<input type="text" id="mhThemTen" autocomplete="off" placeholder="Tên đúng như FABi sẽ ghi" style="width:230px"></label>'
+            : '<label class="o">Thêm mặt hàng mới<input type="text" id="mhThemTen" autocomplete="off" placeholder="Tên đúng như FABi sẽ ghi" style="width:230px"></label>') +
+          '<label class="o">Mã hàng FABi<input type="text" id="mhThemMa" autocomplete="off" placeholder="MNKVCDS017" style="width:130px"></label>' +
+          '<button class="nut" type="button" id="mhThem">Thêm vào danh mục</button>' +
+          '<span class="chu-them" style="margin:0">' + (r.danh_muc && r.danh_muc.length
+            ? 'Danh mục FABi nạp ' + esc(String(r.danh_muc_luc || '').slice(0, 16)) + ' — chọn là đúng tên và mã, FABi bán là số rơi vào đúng dòng.'
+            : 'Chưa nạp <b>Danh sách hàng hoá FABi</b> (Quản trị → Danh mục hàng hoá) nên phải gõ tay — gõ đúng <b>mã hàng</b> để FABi bán là số rơi vào đúng dòng.') + '</span>' +
+        '</div>';
+      })() +
       '<div style="margin-top:8px">' +
         '<button class="nut" type="button" id="mhLuu">Lưu danh mục</button> ' +
         '<button class="vien" type="button" id="mhHet">Bỏ tích hết</button>' +
@@ -2276,10 +2296,17 @@
     (r.combo_nghi || []).forEach(function (t) { if (ungVien.indexOf(t) < 0) ungVien.push(t); });
     Object.keys(daThay).forEach(function (t) { if (/combo/i.test(t) && ungVien.indexOf(t) < 0) ungVien.push(t); });
     ten.forEach(function (t) { if (ungVien.indexOf(t) < 0) ungVien.push(t); });
+    /* Combo trong danh mục FABi mà quán này CHƯA BÁN (25/09/2026) — khai công thức trước khi bán, đúng tên FABi. */
+    var longC = function (t) { return String(t || '').replace(/[\s\u00a0]+/g, ' ').trim().toLowerCase(); };
+    var dmCombo = (r.danh_muc || []).filter(function (x) { return x.combo; });
+    dmCombo.forEach(function (x) { if (!ungVien.some(function (t) { return longC(t) === longC(x.ten); })) ungVien.push(x.ten); });
     ungVien.sort(function (a, b) { return a.localeCompare(b, 'vi'); });
     /* THÀNH PHẦN ĐANG BÁN: tích từ danh mục kho (không có danh mục thì mọi món FABi từng bán), mỗi món
        một ô số lượng. */
     var mon = (r.mat_hang && r.mat_hang.length) ? r.mat_hang.slice() : Object.keys(daThay);
+    if (!(r.mat_hang && r.mat_hang.length)) {
+      (r.danh_muc || []).forEach(function (x) { if (!x.ve && !x.combo && !mon.some(function (t) { return longC(t) === longC(x.ten); })) mon.push(x.ten); });
+    }
     mon = mon.filter(function (t) { return !/combo/i.test(t); });
     mon.sort(function (a, b) { return a.localeCompare(b, 'vi'); });
     return '<details style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)"' +
@@ -2307,7 +2334,10 @@
       '<div class="loc" style="margin-top:10px;gap:6px">' +
         '<label class="o">Món combo<select id="cbChon" style="max-width:320px">' +
           '<option value="">— chọn combo đang bán —</option>' +
-          ungVien.map(function (t) { return '<option value="' + esc(t) + '">' + esc(t) + (cb[t] ? ' ✓' : '') + (daThay[t] ? ' (' + nguyen(daThay[t]) + ')' : '') + '</option>'; }).join('') +
+          ungVien.map(function (t) {
+            var chuaBan = !daThay[t] && !cb[t] && dmCombo.some(function (x) { return longC(x.ten) === longC(t); });
+            return '<option value="' + esc(t) + '">' + esc(t) + (cb[t] ? ' ✓' : '') + (daThay[t] ? ' (' + nguyen(daThay[t]) + ')' : (chuaBan ? ' (FABi chưa bán)' : '')) + '</option>';
+          }).join('') +
           '<option value="__khac__">Khác — gõ tên…</option></select></label>' +
         '<label class="o" id="cbTenO" hidden>Tên combo<input type="text" id="cbTen" placeholder="đúng như FABi ghi" style="width:190px"></label>' +
       '</div>' +
@@ -2488,7 +2518,7 @@
       bx.addEventListener('click', function (ev) {
         ev.preventDefault();
         var tenXoa = bx.getAttribute('data-mh-xoa');
-        if (!window.confirm('Xoá "' + tenXoa + '" khỏi danh mục kho của cơ sở này? Số đã khai (nếu có) vẫn nằm trong sổ ghi động.')) return;
+        if (!window.confirm('Xoá "' + tenXoa + '" khỏi danh mục VÀ khỏi sổ kho của cơ sở này (tồn, nhập, đếm của món ấy)? Sổ ghi động vẫn giữ vết.')) return;
         var ds = [];
         Array.prototype.forEach.call(k.querySelectorAll('[data-mh]'), function (x) { if (x.checked && x.getAttribute('data-mh') !== tenXoa) ds.push(x.getAttribute('data-mh')); });
         var fd = new FormData();
@@ -2502,10 +2532,19 @@
 
     var mhT = k.querySelector('#mhThem');
     if (mhT) {
+      /* Chọn trong danh mục FABi -> điền mã; "Khác" -> mở ô gõ tên. */
+      var mhSel = k.querySelector('#mhThemChon');
+      if (mhSel) mhSel.addEventListener('change', function () {
+        var o2 = k.querySelector('#mhThemTenO'), ma = k.querySelector('#mhThemMa');
+        if (o2) o2.hidden = mhSel.value !== '__khac__';
+        var opt = mhSel.options[mhSel.selectedIndex];
+        if (ma) ma.value = (mhSel.value && mhSel.value !== '__khac__' && opt) ? (opt.getAttribute('data-ma') || '') : '';
+      });
       mhT.addEventListener('click', function () {
-        var tenMoi = ((k.querySelector('#mhThemTen') || {}).value || '').trim();
+        var chonDm = mhSel ? mhSel.value : '';
+        var tenMoi = (chonDm && chonDm !== '__khac__') ? chonDm : ((k.querySelector('#mhThemTen') || {}).value || '').trim();
         var maMoi = ((k.querySelector('#mhThemMa') || {}).value || '').trim();
-        if (!tenMoi) { window.alert('Gõ tên mặt hàng đúng như FABi sẽ ghi.'); return; }
+        if (!tenMoi) { window.alert(mhSel ? 'Chọn món trong danh mục FABi (hoặc "Khác" rồi gõ đúng tên FABi).' : 'Gõ tên mặt hàng đúng như FABi sẽ ghi.'); return; }
         /* Giữ những món đang tích, cộng thêm món mới (tự tích). */
         var ds = [];
         Array.prototype.forEach.call(k.querySelectorAll('[data-mh]'), function (x) { if (x.checked) ds.push(x.getAttribute('data-mh')); });
@@ -3552,6 +3591,8 @@
       taiNhomVe(o);
       /* Quy trình báo cáo cơ sở hằng ngày: cấu hình + tổng hợp hôm qua + nhật ký (chỉ quản trị). */
       taiQuyTrinh(o);
+      /* Danh mục hàng hoá FABi (25/09/2026): nạp bản "Danh sách hàng hoá" để mọi chỗ chọn có cả món chưa bán. */
+      taiDanhMuc(o);
     }).catch(function (e) {
       o.innerHTML = '<div class="khung"><div class="trong">' + esc(e.message || e) + '</div></div>';
     });
@@ -3660,6 +3701,71 @@
         .then(function () { return api('quy-trinh-chay', { method: 'POST' }); })
         .then(function (r) { veQuyTrinh(o, r); })
         .catch(function (e) { chay.disabled = false; chay.textContent = 'Tổng hợp và gửi ngay'; window.alert(e.message || e); });
+    });
+  }
+
+  /* ---- DANH MỤC HÀNG HOÁ FABi ----
+     Anh Thắng 25/09/2026: *"Tạo hàng mới trên FABi mà chưa bán, thành ra doanh thu nó không có hàng đó để nhập kho.
+     Tạo thêm tải danh sách hàng hoá xuống."* Văn phòng nạp bản xuất "Danh sách hàng hoá" (update item in store) của
+     FABi; sổ kho, combo, bóc tách vé và MISA đều đọc từ đây để có tên + mã của cả món CHƯA BÁN. */
+  function taiDanhMuc(o) {
+    api('danh-muc').then(function (r) { veDanhMuc(o, r); })
+      .catch(function (e) { khoiLoi(o, 'dtDanhMuc', 'Danh mục hàng hoá FABi', e); });
+  }
+  function veDanhMuc(o, r) {
+    var ds = r.ds || [], nhom = r.nhom || {};
+    var h = '<div class="khung" id="dtDanhMuc"><header><h2>Danh mục hàng hoá FABi</h2>' +
+      '<span class="goi">' + (ds.length ? ds.length + ' món · ' + (r.so_ve || 0) + ' vé · ' + (r.so_combo || 0) + ' combo · nạp ' + esc(String(r.luc || '').slice(0, 16)) : 'chưa nạp') + '</span></header>' +
+      '<div class="chu-them">Hàng mới tạo trên FABi mà <b>chưa bán</b> thì báo cáo bán hàng chưa có, nên sổ kho / combo / bóc tách vé không có tên để chọn ' +
+      'và nhân viên phải gõ tay — gõ lệch một chữ là sai. Xuất bản <b>Danh sách hàng hoá</b> từ FABi (file "update item in store", cột Mã món · Cửa hàng · Tên · ' +
+      'Tên nhóm · Tên loại) rồi nạp ở đây; mỗi lần nạp là thay cả bản. Từ đó mọi ô chọn có đủ tên đúng FABi kèm mã, kể cả món chưa bán.</div>' +
+      '<div class="loc" style="margin-top:10px;gap:8px"><input type="file" id="dmFile" accept=".xlsx,.xlsm,.csv,.tsv,.txt">' +
+      '<button class="nut chinh" type="button" id="dmNap">Nạp danh sách hàng hoá</button>' +
+      (ds.length ? '<button class="vien" type="button" id="dmTai">Tải danh mục (CSV)</button><button class="vien" type="button" id="dmXoa">Xoá danh mục</button>' : '') +
+      '<span id="dmBao" class="chu-them" style="margin:0"></span></div>';
+    if (ds.length) {
+      h += '<details style="margin-top:10px"><summary>Xem ' + ds.length + ' món theo nhóm</summary>' +
+        '<div class="chu-them" style="margin-top:6px">' + Object.keys(nhom).map(function (n) { return esc(n) + ' <b>' + nhom[n] + '</b>'; }).join(' · ') + '</div>' +
+        '<div class="bang-cuon bang-the the-ct" style="margin-top:8px;max-height:60vh;overflow:auto"><table><thead><tr><th>Mã món</th><th style="text-align:left">Tên</th><th>Nhóm</th><th>Loại</th><th>ĐVT</th><th>Giá</th><th>Cửa hàng</th></tr></thead><tbody>' +
+        ds.map(function (x) {
+          return '<tr><td class="s o-may" data-nhan="Mã món">' + esc(x.ma || '—') + '</td><td class="o-ten" data-nhan="Tên" style="text-align:left">' + esc(x.ten) + '</td>' +
+            '<td class="o-may" data-nhan="Nhóm">' + esc(x.nhom || '') + '</td><td class="o-may" data-nhan="Loại">' + esc(x.loai || '') + '</td>' +
+            '<td class="o-may" data-nhan="ĐVT">' + esc(x.dvt || '') + '</td><td class="s o-may" data-nhan="Giá">' + (x.gia ? nguyen(x.gia) : '') + '</td>' +
+            '<td class="o-ghi" data-nhan="Cửa hàng" style="font-size:12px">' + esc((x.cs || []).join(' · ')) + '</td></tr>';
+        }).join('') + '</tbody></table></div></details>';
+    }
+    h += '</div>';
+    var cu = o.querySelector('#dtDanhMuc');
+    if (cu) { cu.outerHTML = h; } else { var moc = o.querySelector('#dtMisa') || o.querySelector('#dtQuyTrinh'); if (moc) moc.insertAdjacentHTML('afterend', h); else o.insertAdjacentHTML('beforeend', h); }
+    var k = o.querySelector('#dtDanhMuc');
+    var bao = function (t) { var b = k.querySelector('#dmBao'); if (b) b.textContent = t; };
+    var nap = k.querySelector('#dmNap');
+    nap.addEventListener('click', function () {
+      var f = k.querySelector('#dmFile').files[0];
+      if (!f) { bao('Chọn file "Danh sách hàng hoá" xuất từ FABi trước.'); return; }
+      var fd = new FormData(); fd.append('file', f, f.name);
+      nap.disabled = true; nap.textContent = 'Đang nạp…';
+      api('danh-muc', { method: 'POST', body: fd }).then(function (r2) {
+        veDanhMuc(o, r2);
+        var v = r2.vua_nap || {};
+        var b2 = o.querySelector('#dmBao'); if (b2) b2.textContent = 'Đã nạp ' + v.so + ' món' + (v.moi ? ' · ' + v.moi + ' món mới so với bản trước' : '') + (v.mat ? ' · ' + v.mat + ' món không còn' : '') + '.';
+      }).catch(function (e) { nap.disabled = false; nap.textContent = 'Nạp danh sách hàng hoá'; bao(e.message || e); });
+    });
+    var tai = k.querySelector('#dmTai');
+    if (tai) tai.addEventListener('click', function () {
+      var ce = function (v) { v = (v == null ? '' : String(v)); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+      var csv = ['Mã món', 'Tên', 'Nhóm', 'Loại', 'ĐVT', 'Giá', 'Cửa hàng'].join(',') + '\n' +
+        ds.map(function (x) { return [x.ma, x.ten, x.nhom, x.loai, x.dvt, x.gia, (x.cs || []).join(' | ')].map(ce).join(','); }).join('\n');
+      var blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+      var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'danh-muc-hang-hoa-fabi.csv';
+      document.body.appendChild(a); a.click();
+      setTimeout(function () { a.remove(); URL.revokeObjectURL(a.href); }, 150);
+    });
+    var xoa = k.querySelector('#dmXoa');
+    if (xoa) xoa.addEventListener('click', function () {
+      if (!window.confirm('Xoá danh mục hàng hoá FABi đã nạp? Các ô chọn quay về chỉ còn món đã bán.')) return;
+      var fd = new FormData(); fd.append('xoa', '1');
+      api('danh-muc', { method: 'POST', body: fd }).then(function (r2) { veDanhMuc(o, r2); }).catch(function (e) { bao(e.message || e); });
     });
   }
 
@@ -4989,7 +5095,8 @@
           '<td class="o-ten" data-nhan="Món / vé" style="text-align:left">' + esc(x.ten) + '<span style="display:block;color:var(--ink-3);font-size:12px">' + esc(x.nhom || '') +
             (x.rieng ? ' · <b style="color:var(--app)">quán này set riêng' + (x.khach_chung != null ? ' (chung: ' + esc(x.khach_chung) + ')' : '') + '</b>' : '') +
             (x.phu_rieng ? ' · <b style="color:var(--app)">phụ riêng' + (x.phu_chung != null ? ' (chung: ' + nguyen(x.phu_chung) + ')' : '') + '</b>' : '') +
-            (thieu ? ' · <b style="color:var(--xau)">chưa khai — điền sẵn gợi ý</b>' : '') + '</span></td>' +
+            (thieu ? ' · <b style="color:var(--xau)">chưa khai — điền sẵn gợi ý</b>' : '') +
+            (x.chua_ban ? ' · <span class="chip">FABi chưa bán — khai trước</span>' : '') + '</span></td>' +
           '<td class="s o-may" data-nhan="Đã bán 90 ngày">' + nguyen(x.so_luong) + '</td>' +
           /* Chưa khai thì ĐIỀN SẴN gợi ý (không chỉ placeholder) để một lần Lưu là xong quán này. */
           '<td class="o-go" data-nhan="Khách mỗi vé"><input type="number" min="0" step="1" inputmode="numeric" autocomplete="off" data-vk="' + esc(x.ten) + '" data-chung="' + (x.khach_chung != null ? esc(x.khach_chung) : '') + '" style="width:84px" value="' +

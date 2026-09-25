@@ -176,7 +176,8 @@ t("và các nhãn số máy khớp CSS", /oMay\('Tồn đầu'/.test(boCC) && /o
 t('🔴 khối danh mục có ô thêm mặt hàng mới (tên + mã FABi) và nút Thêm', /id="mhThemTen"/.test(boCC) && /id="mhThemMa"/.test(boCC) && /id="mhThem"/.test(boCC));
 t('món thêm tay mà FABi chưa bán được đánh dấu', /mới · FABi chưa bán/.test(boCC));
 t('danh sách bày = FABi từng bán ∪ danh mục (món mới không mất ô)', /chon\.forEach\(function \(t\) \{ if \(ten\.indexOf\(t\) < 0\) ten\.push\(t\); \}\);/.test(boCC));
-t('🔴 món thêm tay có nút ✕ xoá cho văn phòng (duoc_nap), gửi xoa_ten, có hỏi xác nhận', /data-mh-xoa=/.test(boCC) && /S\.cf\.duoc_nap \? ' <button class="chip" type="button" data-mh-xoa=/.test(boCC) && /fd\.append\('xoa_ten', tenXoa\)/.test(boCC) && /window\.confirm\('Xoá "/.test(boCC));
+/* 25/09/2026 anh Thắng: "cho phép xoá hàng sai trên kho hàng" — nút cho người được ghi (máy chủ gác: chỉ món FABi chưa bán). */
+t('🔴 món thêm tay có nút ✕ xoá cho người được ghi (r.duoc_ghi), gửi xoa_ten, hỏi xác nhận nói rõ xoá cả dòng sổ', /data-mh-xoa=/.test(boCC) && /r\.duoc_ghi \? ' <button class="chip" type="button" data-mh-xoa=/.test(boCC) && /fd\.append\('xoa_ten', tenXoa\)/.test(boCC) && /window\.confirm\('Xoá "' \+ tenXoa \+ '" khỏi danh mục VÀ khỏi sổ kho/.test(boCC));
 t('nút Thêm gửi them_ten / them_ma qua kho-mat-hang', /fd\.append\('them_ten', tenMoi\); fd\.append\('them_ma', maMoi\)/.test(boCC));
 t('🔴 combo CHỌN từ danh sách (#cbChon) gồm combo hệ nghi + món có chữ combo + đã khai', /id="cbChon"/.test(boCC) && /r\.combo_nghi \|\| \[\]\)\.forEach/.test(boCC) && /\/combo\/i\.test\(t\)/.test(boCC));
 t('🔴 thành phần là ô số lượng theo từng món danh mục (data-cb-mon), không gõ tên', /data-cb-mon=/.test(boCC));
