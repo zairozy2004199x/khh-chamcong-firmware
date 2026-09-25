@@ -123,6 +123,8 @@ class VHCPMTD_API {
 			'datKhoangKyDon',
 			/* Đổi con số tiền quản lý đã duyệt — việc của chính người duyệt, không phải người xin. */
 			'duyetLaiTamUng',
+			/* Đổi luồng đơn đang chạy (25/09/2026) — việc của người duyệt, cùng nhóm với duyệt lại tạm ứng. */
+			'doiLuongDon',
 			/* Doanh thu vs chi phí theo cơ sở: số doanh thu là của người duyệt — nhân viên không xem. */
 			'doanhThuChiPhi', 'kiemTraDoanhThu',
 		);
@@ -319,6 +321,7 @@ class VHCPMTD_API {
 			/* Tổng xin đổi sau khi duyệt (nhân viên sửa hạng mục, hoặc luật tính đổi) — cho
 			   quản lý chốt lại số, miễn là chưa cấp tiền. */
 			'duyetLaiTamUng'        => array( 'VHCPMTD_Don', 'duyet_lai_tam_ung' ),
+			'doiLuongDon'           => array( 'VHCPMTD_Don', 'doi_luong_don' ),
 			'donBuTruCu'            => array( 'VHCPMTD_Don', 'don_bu_tru_cu' ),
 			/* Lượt cấp tiền chỉ là bấm nhầm, tiền chưa ra khỏi két -> hạ tạm ứng về 0. Khác hẳn
 			   `khongDungTamUng` (tiền ĐÃ ra, giữ số, NV trả lại) — xem chú thích ở lõi. */

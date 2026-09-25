@@ -1739,6 +1739,12 @@ class VHCPVP_Don {
 		if ( ! $coso ) { return VHCPVP_Util::err( 'Thiếu cơ sở' ); }
 		$d = self::don_row( $ma_don );
 		if ( $d && (string) $d['trang_thai'] !== 'Nháp' ) { return VHCPVP_Util::err( 'Tạm ứng đã khóa (chỉ sửa khi đơn ở "Nháp")' ); }
+		/* 🔴 ĐƠN TRỰC TIẾP KHÔNG NHẬN TẠM ỨNG XIN (25/09/2026) — xem chốt ở `gui_quyet_toan()`. Cho
+		   nhập rồi chối lúc gửi là để người ta gõ xong 80 triệu mới biết. Xoá (so = 0) thì vẫn cho:
+		   đó là đường dọn số xin cũ để gửi được. */
+		if ( $d && self::la_truc_tiep( $d ) && VHCPVP_Util::num( $so ) > 0 ) {
+			return VHCPVP_Util::err( 'Đơn này đi luồng TRỰC TIẾP — tiền đã chi, không có bước tạm ứng nên không nhập số xin. Cần tạm ứng thì nhờ kế toán bấm "🔁 Đổi luồng" sang Qua tạm ứng.' );
+		}
 		/* 🔒 MỘT ĐƠN = MỘT CƠ SỞ. Đơn đã chốt cơ sở (do tạm ứng/dòng chi trước) thì không nhận
 		   tạm ứng cho cơ sở KHÁC — xin tạm ứng nơi này mà chi nơi khác là sai. Gác cả ở máy chủ,
 		   không tin mỗi khóa trên giao diện. */
@@ -3111,6 +3117,17 @@ class VHCPVP_Don {
 		if ( (string) $d['trang_thai'] !== $tu ) {
 			return VHCPVP_Util::err( 'Chỉ gửi khi đơn "' . self::ten_tt( $tu, isset( $d['khoi'] ) ? $d['khoi'] : '', self::luong_don( $d ) ) . '"' );
 		}
+		/* 🔴 ĐƠN TRỰC TIẾP MÀ CÓ TẠM ỨNG XIN → KHÔNG GỬI THẲNG (25/09/2026). Ảnh anh Thắng: đơn
+		   FUNFEST PHÚ QUỐC mang 80.000.000đ tạm ứng xin nhưng đi "Gửi quyết toán (trực tiếp)" —
+		   khoản xin ấy không bao giờ được duyệt hay cấp, rơi vào khoảng trống giữa hai luồng.
+		   Trực tiếp nghĩa là TIỀN ĐÃ CHI, không có gì để xin; có số xin là chọn nhầm luồng. */
+		if ( self::la_truc_tiep( $d ) ) {
+			$xin = self::tong_xin_hien_tai( $ma_don );
+			if ( null !== $xin && $xin > 0 ) {
+				return VHCPVP_Util::err( 'Đơn TRỰC TIẾP không có bước tạm ứng, mà đơn này đang xin tạm ứng ' . VHCPVP_Util::tien( $xin )
+					. '. Hoặc xoá số tạm ứng xin (mục Tạm ứng xin → 0), hoặc nhờ kế toán bấm "🔁 Đổi luồng" sang Qua tạm ứng.' );
+			}
+		}
 		self::clear_tra_marker( $ma_don );
 		/* 🔴 GHI MỐC GỬI. Anh Thắng 08/09/2026: *"cho anh sắp xếp đơn ai gửi quyết toán lên
 		   trước sẽ hiện phía trên"* — hàng đợi của kế toán phải theo thứ tự đến, ai nộp sớm
@@ -3357,6 +3374,69 @@ class VHCPVP_Don {
 	 *
 	 * @param string $so Rỗng = lấy đúng tổng xin hiện tại của đơn.
 	 */
+	/**
+	 * ĐỔI LUỒNG CHO ĐƠN ĐANG CHẠY — anh Thắng 25/09/2026 (ảnh đơn FUNFEST PHÚ QUỐC: luồng khoá
+	 * "Qua tạm ứng — theo vai trò, không chọn ở đây", nhưng đơn đã đi "Gửi quyết toán (trực tiếp)"
+	 * trong khi mang 80.000.000đ tạm ứng xin): *"Đơn này sai luôn, anh muốn chỉnh cho đơn đó lại
+	 * luồng khác được không"*.
+	 *
+	 * 🔴 CHỈ KHI TIỀN CHƯA RA KHỎI KÉT. Đổi luồng là đổi ĐƯỜNG DUYỆT; tiền đã cấp rồi thì đường
+	 *    duyệt đã đi qua, đổi lúc ấy là sổ quỹ nói một đằng đơn nói một nẻo — cùng luật với
+	 *    `duyet_lai_tam_ung()`. Với luồng TRỰC TIẾP, "Chờ quyết toán" là chưa có đồng nào cấp
+	 *    (đơn nhảy thẳng từ Nháp), nên vẫn đổi được — đó chính là ca của anh.
+	 * 🔴 ĐỔI XONG ĐƠN VỀ "NHÁP" và đi lại từ đầu luồng mới. Không đoán một bước giữa chừng: mỗi
+	 *    luồng có bước đầu khác nhau, và đơn về Nháp thì mọi cửa (gửi xin tạm ứng · gửi quyết toán)
+	 *    tự mở đúng theo luồng mới. Hạng mục và tạm ứng xin GIỮ NGUYÊN — đó là dữ liệu, không phải
+	 *    đường đi. Số đã duyệt (nếu có) gỡ như `tra_lai_don()`: về Nháp mà còn số duyệt cũ là con
+	 *    số ấy đè lên tổng xin ở khối Quyết toán.
+	 * ⚠️ Quyền: tuyến API xếp vào nhóm người duyệt; màn gác thêm khoá `doiLuong` (mặc định Quản lý
+	 *    + hai Kế toán) để Admin bật/tắt theo vai ở bảng Phân quyền.
+	 */
+	public static function doi_luong_don( $ma_don, $luong_moi, $ly_do = '' ) {
+		$_loi = self::loi_khong_phai_don_minh( $ma_don );
+		if ( '' !== $_loi ) { return VHCPVP_Util::err( $_loi ); }
+		$d = self::don_row( $ma_don );
+		if ( ! $d ) { return VHCPVP_Util::err( 'Không tìm thấy đơn' ); }
+		$moi = self::luong_don( array( 'luong' => $luong_moi ) );
+		if ( '' === $moi ) {
+			return VHCPVP_Util::err( 'Mã luồng "' . trim( (string) $luong_moi ) . '" không có — chỉ nhận: ' . implode( ' · ', array_keys( self::LUONG_MA ) ) . '.' );
+		}
+		$cu = self::luong_don( $d );
+		$khoi = isset( $d['khoi'] ) ? $d['khoi'] : '';
+		/* Luồng rỗng = "theo khối" — so bằng BẢNG luồng, không so mã: đơn cũ luồng rỗng ở khối kvc
+		   đang đi đúng luồng tạm ứng, chọn lại "gt" là không đổi gì. */
+		if ( self::luong_cua( $khoi, $cu ) === self::luong_cua( $khoi, $moi ) ) {
+			return VHCPVP_Util::err( 'Đơn đang đi đúng luồng "' . self::LUONG_MA[ $moi ] . '" rồi — không có gì để đổi.' );
+		}
+		$st = (string) $d['trang_thai'];
+		if ( '' === $st ) { $st = 'Nháp'; }
+		if ( self::da_chot( $st ) || 'Đã xuất MISA' === $st ) {
+			return VHCPVP_Util::err( 'Đơn đã "' . self::ten_tt( $st, $khoi, $cu ) . '" — sổ đã chốt, không đổi luồng được nữa.' );
+		}
+		/* Tiền đã ra két? Với luồng tạm ứng/duyệt chi: từ "Đã cấp tạm ứng" trở đi. Với luồng trực
+		   tiếp: KHÔNG có bước cấp tiền, "Chờ quyết toán" chỉ là "đã gửi kế toán" — chưa ra đồng nào. */
+		$tien_da_ra = self::da_cap_tien( $st ) && ! ( self::la_truc_tiep( $d ) && 'Chờ quyết toán' === $st );
+		if ( $tien_da_ra ) {
+			return VHCPVP_Util::err( 'Đơn đang "' . self::ten_tt( $st, $khoi, $cu ) . '" — tiền đã cấp, không đổi luồng được. Muốn đổi thì Trả lại đơn rồi đi lại từ đầu.' );
+		}
+		$data = array( 'luong' => $moi, 'trang_thai' => 'Nháp', 'ngay_gui' => null, 'ngay_gui_qt' => null );
+		$duyet_cu = VHCPVP_Util::num( $d['tam_ung_duyet'] );
+		if ( $duyet_cu > 0 ) {
+			$data['tam_ung_duyet'] = null;
+			$data['nguoi_duyet']   = '';
+			$data['ngay_duyet']    = null;
+		}
+		self::clear_tra_marker( $ma_don );
+		self::upd_don( $ma_don, $data );
+		$ten_cu = ( '' !== $cu ) ? self::LUONG_MA[ $cu ] : ( 'theo khối (' . ( in_array( mb_strtolower( trim( (string) $khoi ) ), self::KHOI_LUONG_CHI, true ) ? 'duyệt chi' : 'qua tạm ứng' ) . ')' );
+		self::ghi_vet( $ma_don, 'Đổi luồng đơn',
+			$ten_cu . '  →  ' . self::LUONG_MA[ $moi ] . ' · đang "' . $st . '" → về "Nháp"'
+			. ( $duyet_cu > 0 ? ' · gỡ số đã duyệt ' . VHCPVP_Util::tien( $duyet_cu ) : '' )
+			. ( '' !== trim( (string) $ly_do ) ? ' · lý do: ' . trim( (string) $ly_do ) : '' ) );
+		self::bao_noi_bo( $ma_don, 'được kế toán ĐỔI LUỒNG sang "' . self::LUONG_MA[ $moi ] . '" và đưa về Nháp — mở đơn gửi lại theo luồng mới nhé.' );
+		return VHCPVP_Util::ok( array( 'luongCu' => $cu, 'luongMoi' => $moi, 'trangThaiCu' => $st, 'trangThai' => 'Nháp', 'goDuyet' => $duyet_cu > 0 ) );
+	}
+
 	public static function duyet_lai_tam_ung( $ma_don, $nguoi = '', $so = '' ) {
 		$_loi = self::loi_khong_phai_don_minh( $ma_don );
 		if ( '' !== $_loi ) { return VHCPVP_Util::err( $_loi ); }
