@@ -309,7 +309,18 @@ function khh_dt_kho_them_mh( $co_so, $ten, $ma = '' ) {
 }
 
 /** Xoá một mặt hàng thêm tay khỏi danh mục và bỏ mã đã gán (anh Thắng 24/09/2026: "cho admin xoá món nếu sai"). */
-function khh_dt_kho_xoa_mh( $co_so, $ten ) {
+/**
+ * Xoá một mặt hàng khỏi danh mục của quán, và (mặc định) XOÁ CẢ DÒNG SỔ của nó ở quán ấy.
+ *
+ * Anh Thắng 25/09/2026: *"Cho phép xoá hàng sai trên kho hàng"* — nhân viên khai trước, gõ sai tên, rồi dòng ấy
+ * nằm mãi trong sổ với số tồn vô nghĩa. Bỏ khỏi danh mục mà để dòng sổ lại thì tab Nhập / Kho vẫn bày nó
+ * ("dòng đã khai thì không giấu", xem `khh_dt_kho_bang_ngay`). Nên xoá cả dòng tổng hợp; SỔ GHI ĐỘNG (kho_su)
+ * vẫn giữ nguyên mọi lượt khai cũ và thêm một dòng "xoá mặt hàng" — có vết, không mất dấu.
+ *
+ * @return array [ ok, so_dong (số dòng sổ đã xoá) ]
+ */
+function khh_dt_kho_xoa_mh( $co_so, $ten, $xoa_so = true ) {
+	global $wpdb;
 	$ten = trim( (string) $ten );
 	if ( '' === $ten ) {
 		return array( 'ok' => false, 'error' => 'Thiếu tên mặt hàng.' );
@@ -317,7 +328,29 @@ function khh_dt_kho_xoa_mh( $co_so, $ten ) {
 	$ds = array_values( array_filter( khh_dt_kho_mh_cua( $co_so ), function ( $x ) use ( $ten ) { return $x !== $ten; } ) );
 	khh_dt_kho_mh_dat( $co_so, $ds );
 	khh_dt_kho_ma_dat( $co_so, $ten, '' );
-	return array( 'ok' => true );
+	$so = 0;
+	if ( $xoa_so ) {
+		$bang = khh_dt_bang_kho();
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+		$so = (int) $wpdb->query( $wpdb->prepare( "DELETE FROM $bang WHERE co_so = %s AND mat_hang = %s", $co_so, $ten ) );
+		$su = khh_dt_bang_kho_su();
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+		if ( $so > 0 && $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $su ) ) ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery
+			$wpdb->query(
+				$wpdb->prepare(
+					"INSERT INTO $su (ngay,co_so,mat_hang,nhap,combo_tay,huy,ghi_chu,nguoi,luc) VALUES (%s,%s,%s,0,0,0,%s,%s,%s)",
+					current_time( 'Y-m-d' ),
+					$co_so,
+					$ten,
+					'xoá mặt hàng khỏi sổ (' . $so . ' dòng)',
+					function_exists( 'khh_dt_ten_ghi_so' ) ? khh_dt_ten_ghi_so() : '',
+					current_time( 'mysql' )
+				)
+			);
+		}
+	}
+	return array( 'ok' => true, 'so_dong' => $so );
 }
 
 /** [ mã hàng => tên trong danh mục ] — để đổi tên món FABi về tên kho khi mã khớp. */
@@ -1424,6 +1457,9 @@ function khh_dt_rest_kho_xem( $req ) {
 		/* Danh mục hàng hoá của cơ sở, và mọi món FABi từng ghi ở đây — để màn bày ra cho chọn. */
 		'mat_hang'   => khh_dt_kho_mh_cua( $co_so ),
 		'ma_hang'    => khh_dt_kho_ma_cua( $co_so ),
+		/* Danh mục hàng hoá FABi (danh-muc.php, 25/09/2026): để chọn tên ĐÚNG NHƯ FABi cho món chưa bán, không gõ tay. */
+		'danh_muc'   => function_exists( 'khh_dt_dm_cho_kho' ) ? khh_dt_dm_cho_kho( $co_so ) : array(),
+		'danh_muc_luc' => function_exists( 'khh_dt_dm_goi' ) ? khh_dt_dm_goi()['luc'] : '',
 		/* [ mặt hàng => [ số phiếu ] ] ngày này — ô Nhập khoá lại, ghi "theo phiếu" (phieu-nhap.php, 25/09/2026). */
 		'phieu_nhap' => function_exists( 'khh_dt_pn_cua_ngay' ) ? khh_dt_pn_cua_ngay( $ngay, $co_so ) : array(),
 		'mon_da_thay' => khh_dt_kho_mon_da_thay(
@@ -1533,10 +1569,19 @@ function khh_dt_rest_kho_mat_hang( $req ) {
 	   mã) vẫn trả lỗi, nhưng danh mục đã bị ghi đè — bài kiểm bắt được đúng chỗ này. */
 	$xoa = sanitize_text_field( (string) $req->get_param( 'xoa_ten' ) );
 	if ( '' !== $xoa ) {
-		/* Xoá món thêm tay — CHỈ văn phòng (quyền nạp file); cửa hàng không tự xoá dòng kho. */
+		/* Anh Thắng 25/09/2026: *"Cho phép xoá hàng sai trên kho hàng"*. Món FABi CHƯA BÁN (khai trước, gõ sai)
+		   thì người phụ trách quán ấy tự xoá được — sổ động vẫn giữ vết. Món FABi ĐÃ ghi bán thì xoá là xoá cả
+		   số máy đã đối chiếu, nên vẫn chỉ văn phòng (quyền nạp file). */
 		$vp = function_exists( 'khh_dt_duoc_nap' ) ? khh_dt_duoc_nap() : false;
 		if ( true !== $vp ) {
-			return new WP_Error( 'khh_dt_kho', 'Xoá mặt hàng cần tài khoản văn phòng (vai duyệt / biên tập).', array( 'status' => 403 ) );
+			$da_ban = khh_dt_kho_mon_da_thay( gmdate( 'Y-m-d', strtotime( '-90 days' ) ), current_time( 'Y-m-d' ), $co_so );
+			$phu_trach = function_exists( 'khh_dt_duoc_cua_hang' ) ? khh_dt_duoc_cua_hang( $co_so ) : false;
+			if ( null !== khh_dt_kho_khoa_long( $da_ban, $xoa ) ) {
+				return new WP_Error( 'khh_dt_kho', 'Món này FABi đã ghi bán — xoá cần tài khoản văn phòng (vai duyệt / biên tập). Không đếm nó nữa thì bỏ tích rồi Lưu danh mục.', array( 'status' => 403 ) );
+			}
+			if ( ! $phu_trach ) {
+				return new WP_Error( 'khh_dt_kho', 'Anh/chị không phụ trách cơ sở này.', array( 'status' => 403 ) );
+			}
 		}
 	}
 	$them_ten = sanitize_text_field( (string) $req->get_param( 'them_ten' ) );

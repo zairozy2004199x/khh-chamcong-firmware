@@ -430,6 +430,23 @@ function khh_dt_ve_khach_mon_cua( $cua_hang, $lui = 90 ) {
 			$gom[ $ten ]['q'] += isset( $m['q'] ) ? (float) $m['q'] : 0;
 		}
 	}
+	/* Vé trong danh mục FABi mà quán này CHƯA BÁN (anh Thắng 25/09/2026: "muốn set trước… thấy không có loại vé đó
+	   nên tạo trước, dẫn tới dễ sai lệch") — bày với số bán 0 để khai khách/vé trước khi bán, đúng tên FABi. */
+	$chua_ban = array();
+	if ( function_exists( 'khh_dt_dm_ve_ds' ) ) {
+		$long_ds = array();
+		foreach ( array_keys( $gom ) as $t ) {
+			$long_ds[ khh_dt_dm_long( $t ) ] = true;
+		}
+		foreach ( khh_dt_dm_ve_ds( $cua_hang ) as $v ) {
+			$t = trim( (string) $v['ten'] );
+			if ( '' !== $t && ! isset( $long_ds[ khh_dt_dm_long( $t ) ] ) ) {
+				$gom[ $t ] = array( 'q' => 0, 'g' => (string) $v['nhom'] );
+				$chua_ban[ $t ] = true;
+				$long_ds[ khh_dt_dm_long( $t ) ] = true;
+			}
+		}
+	}
 	$khai  = khh_dt_ve_khach_bang( $cua_hang );
 	$rieng = khh_dt_ve_khach_bang_rieng( $cua_hang );
 	$chung = khh_dt_ve_khach_bang();
@@ -458,6 +475,7 @@ function khh_dt_ve_khach_mon_cua( $cua_hang, $lui = 90 ) {
 			'phu_nhom' => is_array( $nhom_phu ) && isset( $nhom_phu[ trim( $x['g'] ) ] ) ? (float) $nhom_phu[ trim( $x['g'] ) ] : null,
 			'goi_y'    => khh_dt_ve_khach_goi_y( $ten, $x['g'] ),
 			'la_ve'    => khh_dt_ve_la_ve( $ten, $x['g'] ),
+			'chua_ban' => isset( $chua_ban[ $ten ] ),
 		);
 	}
 	usort(
