@@ -627,7 +627,16 @@
       <div class="ch"><h2>Các dòng đã nhập (<span id="lineCount">0</span>)</h2>
         <!-- Nút MỞ hộp nhập. Đặt ngay trên bảng dòng chi vì đó là chỗ người ta đang đứng khi
              nhận ra còn thiếu một hạng mục — không bắt họ cuộn đi đâu để tìm nút. -->
-        <button class="btn b-p" id="btnMoLineForm" onclick="moLineForm()" style="margin-left:auto">＋ Thêm hạng mục</button></div>
+        <!-- 📷 XUẤT ẢNH CHỨNG TỪ — anh Thắng 25/09/2026: *"nhiều lúc kế toán cần xuất các hình trong đính kèm,
+             bổ sung nút xuất ảnh chỗ gần thêm hạng mục, tất cả các ảnh (share ra zalo hoặc tải về)"*.
+             Gom mọi ảnh/PDF trên từng dòng + hai hoá đơn tổng: "Tải ảnh" đóng zip tại trình duyệt (JSZip nạp
+             lười từ cdnjs, cùng lối với pdf.js); "Chia sẻ" mở khay chia sẻ của máy (Zalo, Messenger…) — chỉ
+             hiện khi máy hỗ trợ chia sẻ tệp (điện thoại). Xem `xuatAnhDon()`. -->
+        <span id="xuatAnhBox" style="margin-left:auto;display:none;gap:6px;align-items:center">
+          <button class="btn b-x" id="btnTaiAnh" onclick="xuatAnhDon('tai')" title="Gom mọi ảnh / PDF chứng từ của đơn vào một tệp zip để tải về">⬇ Tải ảnh (<span id="xuatAnhSo">0</span>)</button>
+          <button class="btn b-x" id="btnChiaSeAnh" onclick="xuatAnhDon('chia')" style="display:none" title="Mở khay chia sẻ của điện thoại — gửi Zalo, Messenger…">↗ Chia sẻ</button>
+        </span>
+        <button class="btn b-p" id="btnMoLineForm" onclick="moLineForm()">＋ Thêm hạng mục</button></div>
       <div class="tw">
         <table id="lineTable">
           <thead><tr><th class="colCoso">Cơ sở</th><th>Ngày</th><th title="Lúc dòng này được nhập vào — máy ghi, không ai gõ được">Ngày nhập</th><th>Nội dung</th><th title="Loại chi phí quyết định mã tài khoản (TK Nợ). Kế toán gắn lại được nếu chọn sai.">Loại chi phí</th><th>ĐVT</th><th style="text-align:right">SL</th><th style="text-align:right">Đơn giá</th><th style="text-align:right">Thành tiền</th><th style="text-align:right" title="Số thực trả — để trống = bằng Thành tiền; nhập nếu khác (vd kèm ship/phụ phí)">Thực chi</th><th style="text-align:right">Thuế</th><th>TT</th><th style="text-align:center" title="Tích = kế toán cá nhân xử lý; bỏ tích = chuyển kế toán NCC">Cá nhân</th><th>Ảnh</th><th style="text-align:center">Sửa</th></tr></thead>
@@ -2523,6 +2532,89 @@
    *    — viết hai bản là sớm muộn một bên quên PDF.
    * ══════════════════════════════════════════════════════════════════════════════════════════ */
   function _laPdf(url){ return /\.pdf($|[?#])/i.test(String(url||'')); }
+  /* ═══════════════════════════════════════════════════════════════════════════
+   * 📷 XUẤT ẢNH CHỨNG TỪ CỦA ĐƠN — tải zip hoặc chia sẻ (Zalo…). Xem chốt ở `id="xuatAnhBox"`.
+   * ⚠️ Ảnh nằm trên máy chủ khác (đường dẫn Drive cũ) thì `fetch` bị chặn CORS → không đưa vào
+   *    zip được; ghi đường dẫn vào KHONG_TAI_DUOC.txt trong zip và báo số tệp hụt, không im lặng.
+   * ═══════════════════════════════════════════════════════════════════════════ */
+  var ZIP_JS_URL='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js', ZIP_LIB=null;
+  function _zipLib(){
+    if(window.JSZip) return Promise.resolve(window.JSZip);
+    if(ZIP_LIB) return ZIP_LIB;
+    ZIP_LIB=new Promise(function(ok, loi){
+      var s=document.createElement('script'); s.src=ZIP_JS_URL; s.async=true;
+      s.onload=function(){ if(window.JSZip) ok(window.JSZip); else { ZIP_LIB=null; loi(new Error('JSZip nạp xong nhưng không thấy')); } };
+      s.onerror=function(){ ZIP_LIB=null; loi(new Error('không tải được thư viện nén (JSZip)')); };
+      document.head.appendChild(s);
+    });
+    return ZIP_LIB;
+  }
+  /** Tên tệp trong zip: 01_Noi_dung.jpg · HoaDon1.pdf — bỏ dấu, giữ đuôi thật của đường dẫn. */
+  function _tenTepAnh(stt, nd, url){
+    var duoi=((String(url||'').match(/\.(jpe?g|png|gif|webp|pdf|heic|bmp)(?=($|[?#]))/i)||[])[1]||'jpg').toLowerCase();
+    var s=String(nd||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D')
+      .replace(/[^A-Za-z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,40)||'anh';
+    return (stt?(('0'+stt).slice(-2)+'_'):'')+s+'.'+duoi;
+  }
+  /** Mọi ảnh / PDF của đơn đang mở: từng dòng (theo thứ tự bảng) rồi hai hoá đơn tổng; trùng đường dẫn thì một. */
+  function _anhChungTuDon(){
+    var ds=[], da={};
+    var them=function(url, ten){ url=String(url||'').trim(); if(!url||da[url]) return; da[url]=1; ds.push({url:url, ten:ten}); };
+    ((typeof CUR!=='undefined'&&CUR&&CUR.lines)||[]).forEach(function(l,i){ them(l&&l.anh, _tenTepAnh(i+1, l&&l.noiDung, l&&l.anh)); });
+    var d=(typeof CUR!=='undefined'&&CUR&&CUR.don)||{};
+    them(d.anhHoaDon, _tenTepAnh(0,'HoaDon1', d.anhHoaDon));
+    them(d.anhHoaDon2, _tenTepAnh(0,'HoaDon2', d.anhHoaDon2));
+    return ds;
+  }
+  function veNutXuatAnh(){
+    var box=el('xuatAnhBox'); if(!box) return;
+    var n=_anhChungTuDon().length;
+    box.style.display=n?'inline-flex':'none';
+    if(el('xuatAnhSo')) el('xuatAnhSo').textContent=n;
+    var cs=el('btnChiaSeAnh');
+    if(cs) cs.style.display=(typeof navigator!=='undefined'&&navigator.share&&navigator.canShare)?'':'none';
+  }
+  function xuatAnhDon(cach){
+    var ds=_anhChungTuDon();
+    if(!ds.length){ toast('warn','Đơn chưa có ảnh / PDF chứng từ nào'); return; }
+    var ma=String((CUR&&CUR.don&&CUR.don.maDon)||'don'), loi=[];
+    loading(true);
+    Promise.all(ds.map(function(x){
+      return fetch(x.url,{credentials:'same-origin'})
+        .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.blob(); })
+        .then(function(b){ return {ten:x.ten, blob:b}; })
+        .catch(function(){ loi.push(x.url); return null; });
+    })).then(function(tep){
+      tep=tep.filter(Boolean);
+      if(!tep.length) throw new Error('Không tải được tệp nào — ảnh đang nằm ở máy chủ khác?');
+      if(cach==='chia'){
+        var files=tep.map(function(t){ return new File([t.blob], t.ten, {type:t.blob.type||'application/octet-stream'}); });
+        if(navigator.share && navigator.canShare && navigator.canShare({files:files})){
+          return navigator.share({files:files, title:'Chứng từ '+ma}).then(function(){ return {chia:true, n:files.length}; });
+        }
+        toast('warn','Máy này không chia sẻ tệp được — tải zip thay.');
+      }
+      return _zipLib().then(function(JSZip){
+        var z=new JSZip(), thu=z.folder('ChungTu_'+ma);
+        tep.forEach(function(t){ thu.file(t.ten, t.blob); });
+        if(loi.length) thu.file('KHONG_TAI_DUOC.txt', loi.join('\n'));
+        return z.generateAsync({type:'blob'});
+      }).then(function(blob){
+        var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='ChungTu_'+ma+'.zip';
+        document.body.appendChild(a); a.click();
+        setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+        return {chia:false, n:tep.length};
+      });
+    }).then(function(r){
+      loading(false);
+      toast(loi.length?'warn':'ok', (r.chia?'Đã mở khay chia sẻ ':'Đã đóng gói ')+r.n+' tệp'+(loi.length?(' · '+loi.length+' tệp không tải được, xem KHONG_TAI_DUOC.txt'):''));
+      _log('Xuất ảnh chứng từ', ma, r.n+' tệp'+(r.chia?' (chia sẻ)':' (zip)')+(loi.length?(' · hụt '+loi.length):''));
+    }).catch(function(e){
+      loading(false);
+      if(e && e.name==='AbortError') return;   /* người dùng đóng khay chia sẻ — không phải lỗi */
+      toast('err','Xuất ảnh: '+((e&&e.message)||e));
+    });
+  }
   function _chungTuHtml(url, cao){
     if(!url) return '';
     var u=esc(url);
@@ -4565,8 +4657,13 @@
      * ⚠️ CHỈ ĐIỀN KHI Ô ĐANG TRỐNG. Người ta gõ tên người khác rồi đổi qua đổi lại ô Phân
      *    loại là mất chữ vừa gõ — và mất một cách im lặng, ngay trước lúc bấm Thêm hạng mục.
      * ══════════════════════════════════════════════════════════════════════════════════════ */
+    /* 🔴 MẶC ĐỊNH LÀ NGƯỜI TẠO ĐƠN, không phải người đang gõ — anh Thắng 25/09/2026: *"Lấy tên theo người
+       tạo, 1 cơ sở 2 bạn quản lý, cứ ai tạo thì hiện tên người đó là được"*. Hai bạn cùng quản một gian:
+       Thảo tạo đơn, Trí vào thêm dòng — tiền tạm ứng vẫn về tay Thảo, nên dòng phải mang tên Thảo. Đơn
+       chưa mở (không có `CUR.don`) thì lui về người đang gõ như cũ. */
     var f=el('f_dt');
-    if(want==='NV' && f && CURUSER && CURUSER.name && !String(f.value||'').trim()) f.value=CURUSER.name;
+    var macDinh=String((typeof CUR!=='undefined'&&CUR&&CUR.don&&CUR.don.nguoiLap)||(CURUSER&&CURUSER.name)||'').trim();
+    if(want==='NV' && f && macDinh && !String(f.value||'').trim()) f.value=macDinh;
   }
   function _guardTU(){ if(CUR&&CUR.lockTU){toast('warn','Tạm ứng đã duyệt — không sửa được');return true;} return false; }
   function _guardChi(){ if(CUR&&CUR.lockChi){toast('warn','Trạng thái này không cho sửa dòng chi');return true;} return false; }
@@ -5711,6 +5808,7 @@
     if(role==='Kế toán cá nhân') L=L.filter(function(l){return l.phanLoaiTT!=='Nhà cung cấp';});   // KT cá nhân: MỌI dòng danh mục cá nhân (dòng đã bỏ tích vẫn hiện, mờ, để tự nhận lại)
     else if(role==='Kế toán NCC') L=L.filter(function(l){return (l.phanLoaiTT==='Nhà cung cấp'||l.cnXuLy===false);});   // KT NCC: dòng NCC + dòng cá nhân đã chuyển sang
     el('lineCount').textContent=L.length;
+    try{ veNutXuatAnh(); }catch(e){}
     el('lineEmpty').style.display=L.length?'none':'block';
     var stNhap=(CUR&&CUR.don&&CUR.don.trangThai==='Nháp');
     var stCap =(CUR&&CUR.don&&CUR.don.trangThai==='Đã cấp tạm ứng');

@@ -285,7 +285,10 @@ class VHCPMTD_Misa {
 
 			$co_key    = $eff_ncc ? 'Nhà cung cấp' : $pltt;
 			$pll       = isset( $m_pll[ $coso ] ) ? $m_pll[ $coso ] : '';
-			$duyet_key = mb_strtolower( trim( (string) $d['nguoiDuyet'] ) );
+			/* 🔴 TÊN VÀ MÃ ĐỐI TƯỢNG ĐI THEO NGƯỜI TẠO ĐƠN — anh Thắng 25/09/2026: *"Lấy tên theo người tạo, 1
+			   cơ sở 2 bạn quản lý, cứ ai tạo thì hiện tên người đó là được"*. Trước lấy theo NGƯỜI DUYỆT: cùng
+			   một quản lý duyệt cho cả chục đơn thì tệp MISA ghi một tên cho tiền của nhiều người khác nhau. */
+			$lap_key   = mb_strtolower( trim( (string) $d['nguoiLap'] ) );
 
 			/* Mã TK Nợ / TK Có của dòng — MỘT hàm cho cả lượt xuất lẫn lượt đóng mã (`mark_exported`).
 			   Đơn đã xuất MISA đọc mã đã đóng trên dòng, không tra lại bảng mã (xem `ma_cua_dong`). */
@@ -293,9 +296,15 @@ class VHCPMTD_Misa {
 			$tk_no  = $ma_['tk_no'];
 			$tk_co  = $ma_['tk_co'];
 			$ma_dv = isset( $m_unit[ $coso ] ) ? $m_unit[ $coso ] : '';
+			/* Dòng NCC → mã của nhà cung cấp ghi trên dòng (danh mục Đối tượng); dòng cá nhân → mã NV của
+			   NGƯỜI TẠO ĐƠN; không có thì mới lui về đối tượng ghi trên dòng. */
 			$ma_dt = '';
-			if ( ! empty( $m_dt_user[ $duyet_key ] ) )               { $ma_dt = $m_dt_user[ $duyet_key ]; }
-			elseif ( ! empty( $m_dt[ mb_strtolower( $dt ) ] ) )      { $ma_dt = $m_dt[ mb_strtolower( $dt ) ]; }
+			$dt_ma = ! empty( $m_dt[ mb_strtolower( $dt ) ] ) ? $m_dt[ mb_strtolower( $dt ) ] : '';
+			if ( $eff_ncc ) {
+				$ma_dt = '' !== $dt_ma ? $dt_ma : ( ! empty( $m_dt_user[ $lap_key ] ) ? $m_dt_user[ $lap_key ] : '' );
+			} else {
+				$ma_dt = ! empty( $m_dt_user[ $lap_key ] ) ? $m_dt_user[ $lap_key ] : $dt_ma;
+			}
 
 			/* Lọc theo TK Nợ — đứng SAU lượt chốt mã (phải biết mã rồi mới lọc được), và TRƯỚC
 			   mọi phép cộng, để con số "số đơn / số dòng" khớp đúng tệp bên dưới. */
@@ -322,7 +331,7 @@ class VHCPMTD_Misa {
 			$nhom_dg  = VHCPMTD_Cfg::ten_misa_loai( $nhom_c );
 			$ten_misa = ! empty( $m_tm[ $coso ] ) ? $m_tm[ $coso ] : $coso;
 			$ky_dg    = self::ky_dien_giai( $d['ky'] );
-			$ten1     = $d['nguoiDuyet'];
+			$ten1     = $d['nguoiLap'];   /* người TẠO đơn, xem chốt ở `$lap_key` */
 			/* Loại _ Mảng _ [Cơ sở] _ Kỳ, rồi "_" + phần riêng (người duyệt ở diễn giải chung, nội dung ở
 			   diễn giải hạch toán) — đúng cấu trúc anh Thắng chốt 24/09/2026. */
 			$dg1      = VHCPMTD_Util::j( array( $nhom_dg, $pll, $ky_dg ) ) . ( $ten1 !== '' ? '_' . $ten1 : '' );

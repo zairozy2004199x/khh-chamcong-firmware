@@ -752,8 +752,11 @@ _j_dt = src.index('\n  }', _i_dt) + 4
 _fn_dt = src[_i_dt:_j_dt]
 la('bốc được hàm fillDoiTuongList', len(_fn_dt) > 300, len(_fn_dt))
 la('đối chứng: hàm bốc ra khép kín', _fn_dt.rstrip().endswith('}'), _fn_dt[-40:])
-la('🔴 mọi vai đều được điền sẵn tên mình, không riêng Nhân viên',
-   "if(want==='NV' && f && CURUSER && CURUSER.name && !String(f.value||'').trim()) f.value=CURUSER.name;" in _fn_dt)
+# 25/09/2026 — anh Thắng: *"Lấy tên theo người tạo… cứ ai tạo thì hiện tên người đó"*: mặc định là NGƯỜI TẠO ĐƠN
+#    (CUR.don.nguoiLap), chưa mở đơn mới lui về người đang gõ. Chạy thật ở kiem-doi-tuong-theo-nguoi-tao.js.
+la('🔴 mọi vai đều được điền sẵn, ưu tiên người tạo đơn rồi mới tới người đang gõ',
+   "var macDinh=String((typeof CUR!=='undefined'&&CUR&&CUR.don&&CUR.don.nguoiLap)||(CURUSER&&CURUSER.name)||'').trim();" in _fn_dt
+   and "if(want==='NV' && f && macDinh && !String(f.value||'').trim()) f.value=macDinh;" in _fn_dt)
 # 🔴 CHỈ Ở LỐI "THANH TOÁN CÁ NHÂN". Ô này lúc chọn NCC là tên NHÀ CUNG CẤP — điền tên người
 #    nhập vào đó là dựng ra một nhà cung cấp mang tên nhân viên, và bút toán ấy đi thẳng sang MISA.
 la('🔴 không điền khi đang chọn Nhà cung cấp', "want==='NV' && f" in _fn_dt)
