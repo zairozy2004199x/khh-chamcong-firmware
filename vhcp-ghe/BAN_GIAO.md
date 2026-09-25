@@ -186,6 +186,34 @@ hệt nhau.
 chỉ số nhích → lần mới, hỗn hợp, bill/nộp → lỗi, QR > Actual → lỗi, nộp đủ theo số mới, ảnh nối, khai
 nộp lại header, thứ tự gọi trong luu(), trường mới của chi_tiet, selectLoc sau gửi, cờ NGHI TRÙNG.
 
+### v2.141.0 — Báo cáo tổng "không nối được tới máy chủ" khi chọn khoảng ngày rộng (thêm chỉ mục `bc_dong.ngay`)
+
+Anh Thắng 25/09/2026, ảnh khối lọc Báo cáo tổng: **12/09→24/09 chạy được, 01/09→24/09 thì lỗi**,
+trắng màn với thông báo *"Không nối được tới máy chủ (mất mạng giữa chừng, hoặc bị chặn)"*.
+
+**Không phải lỗi mạng.** Thông báo ấy hiện khi `readyState` lên 4 mà `status=0` — dấu hiệu chuẩn của
+việc **tiến trình PHP bị host cắt ngang** giữa chừng (quá thời gian cho phép một lượt chạy), không
+phải PHP trả lỗi có định dạng.
+
+**Nguyên nhân.** `bc_dong` — bảng lớn nhất hệ thống, mỗi ghế mỗi lần thu ghi một dòng, cộng dồn suốt
+vòng đời — chỉ có khoá ghép `may_ngay (ma_may,ngay)`. Báo cáo tổng (và Lịch sử, VietQR thực…) lọc
+**thẳng theo khoảng ngày**, không kèm điều kiện `ma_may=`. Khoá ghép mà cột đứng đầu không nằm trong
+điều kiện lọc thì vô dụng cho câu ấy — MySQL phải dò gần hết bảng thay vì nhảy thẳng tới khoảng ngày.
+Bảng càng phình theo tháng, khoảng ngày càng rộng thì càng dễ chạm ngưỡng thời gian máy chủ cho phép.
+`bc`, `bc_khoa`, `bc_yeucau`… đều có sẵn `KEY ngay (ngay)` — `bc_dong` là bảng **duy nhất thiếu**.
+
+**Sửa:** thêm `KEY ngay (ngay)` vào `bc_dong` — cả trong định nghĩa bảng (cài mới) lẫn migration tay
+(site đang chạy, dò `SHOW INDEX` rồi `ALTER TABLE … ADD INDEX`, idempotent). Không đụng khoá ghép cũ,
+không đụng công thức tính tiền nào — thuần tốc độ đọc.
+
+**Việc anh làm:** chỉ cần cài bản này (cài đè lên 2.140.0); chỉ mục tự thêm ngay khi kích hoạt plugin,
+không cần thao tác gì thêm trên CSDL. Sau đó khoảng 01/09→24/09 (và các khoảng rộng khác, tới 92 ngày)
+chạy bình thường.
+
+`kiem-bao-cao-tong-ngay-rong.php` (9 phép): định nghĩa bảng có khoá mới, migration dò đúng bảng/tên
+khoá, chạy thật trên CSDL giả — thêm khi thiếu, không đụng khi đã có — và đếm lại các câu lọc `bc_dong`
+theo khoảng ngày thuần đang tồn tại (lý do khoá này cần).
+
 ### v2.137.0 (+ Sao Kê 0.45.0) — BÍ DANH cơ sở: gộp tên cũ vào điểm mới mà tiền VietQR không rơi
 
 Anh Thắng 24/09/2026, ảnh CSV Báo cáo tổng: **"POSH MN CGV VINCOM LANDMARK"** (không Mã KH, 0 ghế)

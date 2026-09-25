@@ -145,6 +145,29 @@ class VHG_DB {
 				$wpdb->query( "ALTER TABLE $bcd MODIFY COLUMN $ct DECIMAL(14,2) NULL" );
 			}
 		}
+		/**
+		 * `bc_dong.ngay` — CHỈ MỤC RIÊNG THEO NGÀY (v2.141.0). Anh Thắng 25/09/2026: Báo cáo tổng
+		 * *"lấy 12-25 thì ok, mà chọn 01-25 là bị lỗi"* — trắng màn, trình duyệt báo "không nối được
+		 * tới máy chủ" (mất kết nối giữa chừng, không phải lỗi hiểu — đúng dấu hiệu PHP/MySQL chạy
+		 * quá lâu rồi tiến trình bị host cắt ngang trước khi kịp trả JSON).
+		 *
+		 * 🔴 NGUYÊN NHÂN: `bc_dong` — bảng LỚN NHẤT, mỗi ghế mỗi lần thu một dòng, cộng dồn suốt vòng
+		 *    đời hệ thống — chỉ có khoá `may_ngay (ma_may,ngay)`. Mọi báo cáo gộp nhiều ngày/nhiều cơ
+		 *    sở (Báo cáo tổng, Lịch sử, VietQR thực…) đều lọc THẲNG theo khoảng ngày, KHÔNG có điều
+		 *    kiện `ma_may=`. Với khoá ghép mà cột đứng đầu (`ma_may`) không nằm trong điều kiện, MySQL
+		 *    không dùng được nó để nhảy thẳng tới khoảng ngày — phải dò gần hết bảng. Bảng càng phình
+		 *    theo tháng, khoảng ngày càng rộng (24 ngày so với 13 ngày) thì càng chạm ngưỡng thời gian
+		 *    máy chủ/host cho phép một lượt PHP chạy, và bị cắt giữa chừng đúng như ảnh mô tả — quá 12
+		 *    ngày là lọt qua ngưỡng ấy trên máy hiện tại.
+		 * 🔴 Y HỆT BA BẢNG KHÁC (`bc`, `bc_khoa`, `bc_yeucau`…) đã có `KEY ngay (ngay)` sẵn — `bc_dong`
+		 *    là bảng DUY NHẤT lọc theo ngày mà thiếu chỉ mục ấy, không phải một luật mới bày ra.
+		 * 🔴 THÊM TAY (không chỉ trong chuỗi CREATE TABLE) vì đây là bảng ĐANG SỐNG, đông hàng thật —
+		 *    cùng lý do với mọi migration tay khác trong hàm này: dbDelta có thể thêm được KEY mới,
+		 *    nhưng "chắc chắn nó CÓ" quan trọng hơn "tin dbDelta đã làm xong" trên một bảng cỡ này.
+		 */
+		if ( ! $wpdb->get_var( "SHOW INDEX FROM $bcd WHERE Key_name='ngay'" ) ) {
+			$wpdb->query( "ALTER TABLE $bcd ADD INDEX ngay (ngay)" );
+		}
 	}
 
 	public static function bang() {
@@ -845,7 +868,8 @@ class VHG_DB {
 			kt_duyet_luc DATETIME NULL,
 			PRIMARY KEY  (id),
 			UNIQUE KEY dong (report_id,ma_may),
-			KEY may_ngay (ma_may,ngay)";
+			KEY may_ngay (ma_may,ngay),
+			KEY ngay (ngay)";
 
 		/* Đề nghị đổi/xoá chỉ số — nhân viên gửi, kế toán duyệt (trang kế toán làm sau). Duyệt xong
 		   ghi `moc_chiso`/`moc_chiso_ngay` vào bảng `may`; `chi_so_truoc()` tự áp từ ngày hiệu lực. */
