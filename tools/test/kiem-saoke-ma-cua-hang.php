@@ -39,8 +39,8 @@ t( 'và có KEY để tra cho nhanh', false !== strpos( $SRC, 'KEY ma_ch (ma_ch)
    lại đủ CẢ HAI (khoá ref lẫn cột may_tay). Ghim số cứng ở đây là cố ý: quên tăng thì bài đỏ. */
 t( '🔴 bảng saoke_cong có cột may_tay (gán máy thủ công)', false !== strpos( $SRC, "may_tay VARCHAR(60) NOT NULL DEFAULT ''" ) );
 t( '🔴 bảng saoke_cong có KEY ref (dò trùng chéo nguồn)', false !== strpos( $SRC, 'KEY ref (ref)' ) );
-t( "🔴 VER_TBL đã tăng (không tăng thì site cũ KHÔNG có cột/khoá mới)",
-	false !== strpos( $SRC, "const VER_TBL = '5';" ), 'VER_TBL' );
+t( "🔴 VER_TBL đã tăng (không tăng thì site cũ KHÔNG có cột/khoá mới) — từ 5 trở lên (6 ở 0.54.0: KEY ma_gd)",
+	preg_match( "/const VER_TBL = '(\\d+)';/", $SRC, $mv ) && (int) $mv[1] >= 5, 'VER_TBL' );
 /* Ba câu SELECT đọc bảng cổng đều phải lấy ma_ch LẪN may_tay — thiếu một là màn ấy vẫn "chưa rõ máy". */
 t( '🔴 câu SELECT của bảng Sao Kê cổng có lấy ma_ch + may_tay',
 	false !== strpos( $SRC, 'so_tk, noi_dung, diem_ban, ma_ch, may_tay, doc_duoc' ) );

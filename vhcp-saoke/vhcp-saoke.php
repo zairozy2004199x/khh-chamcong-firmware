@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.53.0
+ * Version:           0.54.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -20,12 +20,12 @@ if ( ! class_exists( 'SAOKE_App' ) ) :
 class SAOKE_App {
 
 	const NS      = 'saoke/v1';
-	const VER_TBL = '5';
+	const VER_TBL = '6';   // 0.54.0: thêm KEY ma_gd cho saoke_cong (dò trùng theo mã GD từng quét cả bảng)
 	/* 🔴 SỐ BẢN ĐỌC THẲNG TỪ MÃ, và trang IN NÓ RA. Anh Thắng 12/09/2026: *"Anh chưa thấy chỗ
 	   thêm file"* — câu đầu tiên phải trả lời là "bản đang chạy có khối ấy chưa", mà trang thì
 	   không in số bản ở đâu cả, nên không ai đáp được ngoài cách đi mở wp-admin. Ghi ở đây, hiện
 	   ở góc cột trái. ⚠️ PHẢI BẰNG số ở header `Version:` phía trên — hai chỗ, một giá trị. */
-	const VER = '0.53.0';
+	const VER = '0.54.0';
 
 	/* 🔴 BỘ NHỚ ĐỆM TRONG MỘT LƯỢT cho bản đồ cửa hàng VietQR (option `saoke_vqr_ch`) — anh Thắng
 	   25/09/2026: Báo cáo tổng bên Ghế "không nối được tới máy chủ" khi chọn 01→25/09, còn 12→25 thì
@@ -126,7 +126,7 @@ class SAOKE_App {
 			nhan_luc DATETIME NOT NULL,
 			PRIMARY KEY (id),
 			UNIQUE KEY khoa (khoa),
-			KEY nguon (nguon), KEY thoi_diem (thoi_diem), KEY ma_ch (ma_ch), KEY ref (ref)
+			KEY nguon (nguon), KEY thoi_diem (thoi_diem), KEY ma_ch (ma_ch), KEY ref (ref), KEY ma_gd (ma_gd)
 		) $col;" );
 
 		/* Đối soát MoMo/VNPAY bằng file kết xuất — gộp theo ngày × cửa hàng (1 dòng/ngày/CH). */
@@ -149,6 +149,10 @@ class SAOKE_App {
 			KEY nguon (nguon), KEY thang (thang)
 		) $col;" );
 
+		/* 🔴 THÊM TAY chỉ mục ma_gd (0.54.0) — anh Thắng 25/09/2026, nạp bù 24.261 dòng đổ HTTP 500 ở đợt toàn dòng MỚI: mỗi dòng
+		   mới dò trùng bằng `… AND ( ref=%s OR ma_gd=%s )`, cột ma_gd không có chỉ mục nên MySQL quét cả bảng, 800 dòng × 2 câu
+		   là quá giờ PHP. dbDelta thường tự thêm KEY mới, nhưng đây là bảng ĐANG SỐNG — "chắc chắn nó CÓ" hơn là tin. */
+		if ( ! $wpdb->get_var( "SHOW INDEX FROM $tc WHERE Key_name='ma_gd'" ) ) { $wpdb->query( "ALTER TABLE $tc ADD INDEX ma_gd (ma_gd)" ); }
 		update_option( 'saoke_tbl', self::VER_TBL );
 	}
 
@@ -687,10 +691,37 @@ class SAOKE_App {
 		}
 		return $n;
 	}
+	/* Dòng đã có theo MÃ THAM CHIẾU / MÃ GD, hỏi theo LÔ cho những dòng khoá chưa có (0.54.0). Cùng luật với cong_dong_trung():
+	   cùng nguồn, cùng số tiền, giá trị (ref trước, rồi maGD) khớp cột ref HOẶC ma_gd. Hai câu IN (…) cho cả đợt thay cho
+	   800 × 2 câu quét bảng. Trả [ khoa(120) => dòng đã có ]. */
+	private static function cong_cu_theo_ref_( $dsTx ) {
+		global $wpdb; $tbl = self::tbl_cong(); $ra = array(); $gia = array();
+		foreach ( (array) $dsTx as $d ) { foreach ( array( 'ref', 'maGD' ) as $f ) { $v = mb_substr( trim( (string) $d['tx'][ $f ] ), 0, 80 ); if ( '' !== $v ) { $gia[ $v ] = 1; } } }
+		if ( ! $gia ) { return $ra; }
+		$ung = array();
+		foreach ( array( 'ref', 'ma_gd' ) as $cot ) {
+			foreach ( array_chunk( array_keys( $gia ), 500 ) as $lo ) {
+				$ph = implode( ',', array_fill( 0, count( $lo ), '%s' ) );
+				foreach ( (array) $wpdb->get_results( $wpdb->prepare( "SELECT id, nguon, so_tien, ref, ma_gd, diem_ban, ma_ch FROM $tbl WHERE $cot IN ($ph)", ...$lo ), ARRAY_A ) as $r ) {
+					foreach ( array( (string) $r['ref'], (string) $r['ma_gd'] ) as $k ) { if ( '' !== $k ) { $ung[ $k ][ (int) $r['id'] ] = $r; } }
+				}
+			}
+		}
+		foreach ( (array) $dsTx as $d ) {
+			$tx = $d['tx']; $tien = (int) round( $tx['soTien'] ); if ( $tien <= 0 ) { continue; }
+			foreach ( array( 'ref', 'maGD' ) as $f ) {
+				$v = mb_substr( trim( (string) $tx[ $f ] ), 0, 80 ); if ( '' === $v || ! isset( $ung[ $v ] ) ) { continue; }
+				foreach ( $ung[ $v ] as $r ) {
+					if ( (string) $r['nguon'] === (string) $tx['nguon'] && (int) $r['so_tien'] === $tien ) { $ra[ mb_substr( $tx['khoa'], 0, 120 ) ] = $r; continue 3; }
+				}
+			}
+		}
+		return $ra;
+	}
 	/**
 	 * @param array  $row dòng giao dịch cổng.
 	 * @param string $kq  (ra) `moi` · `va` (đã có, vừa vá thêm ô trống) · `trung` (đã có, không đổi gì).
-	 * @param mixed  $cu_biet (0.52.0) dòng đã có do nạp bù dò theo lô; false = chưa có theo khoá; null = tự hỏi.
+	 * @param mixed  $cu_biet (0.52.0) dòng đã có do nạp bù dò theo lô; false = chưa có theo khoá (còn dò ref); 'moi' (0.54.0) = chắc chắn mới, chèn thẳng; null = tự hỏi.
 	 * @param array  $va_lo   (0.53.0) nếu là mảng: KHÔNG UPDATE ngay mà gom [id => ô cần vá] để nơi gọi vá MỘT câu cho cả lô (cong_va_lo_).
 	 * @return bool true CHỈ khi thêm dòng mới — nơi gọi đếm tiền dựa vào đúng điều đó.
 	 */
@@ -723,14 +754,14 @@ class SAOKE_App {
 		global $wpdb; $tbl = self::tbl_cong();
 		$kq = 'trung';
 		/* 0.52.0: nạp bù đã dò theo LÔ (cong_cu_theo_khoa_) — mảng = dòng đã có, false = chắc chắn chưa có theo khoá, null = tự hỏi. */
-		$cu = is_array( $cu_biet ) ? $cu_biet : ( false === $cu_biet ? null : $wpdb->get_row( $wpdb->prepare( "SELECT id, diem_ban, ma_ch FROM $tbl WHERE khoa=%s", $row['khoa'] ), ARRAY_A ) );
+		$cu = is_array( $cu_biet ) ? $cu_biet : ( ( false === $cu_biet || 'moi' === $cu_biet ) ? null : $wpdb->get_row( $wpdb->prepare( "SELECT id, diem_ban, ma_ch FROM $tbl WHERE khoa=%s", $row['khoa'] ), ARRAY_A ) );
 		/* 🔴 CÙNG MỘT GIAO DỊCH, HAI ĐƯỜNG VỀ, HAI CÁI KHOÁ KHÁC NHAU.
 		 *    Khoá dựng từ `maGD` (rồi mới tới `ref`). Webhook sống lấy `maGD` = mã giao dịch của
 		 *    ngân hàng; file kết xuất lấy từ cột "Mã đơn hàng". Hai giá trị ấy KHÔNG chắc bằng
 		 *    nhau — mà khoá khác nhau thì `luu_cong()` coi là hai giao dịch và cộng tiền HAI LẦN.
 		 *    Đếm thiếu thì ai cũng thấy; đếm gấp đôi thì không ai thấy. Nên trước khi chèn mới,
 		 *    dò thêm một vòng theo MÃ THAM CHIẾU của cùng nguồn, cùng số tiền. */
-		if ( ! $cu ) { $cu = self::cong_dong_trung( $row ); }
+		if ( ! $cu && 'moi' !== $cu_biet ) { $cu = self::cong_dong_trung( $row ); }   // 'moi' (0.54.0): nạp bù đã dò lô cả khoá lẫn ref/mã GD → chèn thẳng
 		if ( $cu ) {
 			/* Dòng đã có: nếu trước đây chưa vớt được tên máy mà nay parser có -> vá vào, khỏi xoá làm lại.
 			 *
@@ -3413,7 +3444,7 @@ class SAOKE_App {
 	 *    Nạp lại cùng file bao nhiêu lần cũng an toàn (khoá chống trùng): đợt lỗi giữa chừng thì bấm lại, không đếm hai lần.
 	 */
 	public static function rpc_napFileCongTx( $a ) {
-		self::can_pin( $a );
+		self::can_pin( $a ); @set_time_limit( 120 );
 		$nguon = strtolower( trim( isset( $a[1] ) ? (string) $a[1] : '' ) );
 		if ( ! in_array( $nguon, self::cong_ds(), true ) ) { return array( 'ok' => false, 'error' => 'Nguồn không hợp lệ: ' . $nguon ); }
 		$rows = isset( $a[2] ) && is_array( $a[2] ) ? $a[2] : array();
@@ -3423,7 +3454,7 @@ class SAOKE_App {
 		$moi = 0; $trung = 0; $boQua = 0; $khongNgay = 0; $khongTien = 0; $khongMa = 0; $tongMoi = 0; $chMoi = array(); $chuaRoMay = 0;
 		$vaMay = 0; $maChFile = array(); $khongThanhCong = 0; $denNhat = '';
 		/* VÒNG 1 — đọc cột, lọc dòng bỏ, dựng $tx + khoá. Chưa đụng DB. */
-		$dsTx = array();
+		$dsTx = array(); $thayKhoa = array();
 		foreach ( $rows as $rr ) { $r = (array) $rr;
 			$thoiDiem = self::cong_ngay( isset( $r[0] ) ? $r[0] : '' ); $soTien = self::num( isset( $r[1] ) ? $r[1] : 0 );
 			$maGD = trim( (string) ( isset( $r[2] ) ? $r[2] : '' ) ); $ref = trim( (string) ( isset( $r[3] ) ? $r[3] : '' ) ); $noiDung = trim( (string) ( isset( $r[4] ) ? $r[4] : '' ) );
@@ -3443,11 +3474,16 @@ class SAOKE_App {
 			if ( '' === $maGD && '' === $ref ) { $khongMa++; $boQua++; continue; }
 			$tx = array( 'nguon' => $nguon, 'maGD' => $maGD, 'ref' => $ref, 'thoiDiem' => $thoiDiem, 'soTien' => $soTien, 'huong' => 'Đến', 'trangThai' => mb_substr( $ttFile, 0, 30 ), 'soTK' => '', 'noiDung' => $noiDung, 'diemBan' => '', 'maCH' => $maCH, 'docDuoc' => true );
 			$tx['khoa'] = self::cong_khoa( $nguon, $tx, wp_json_encode( $r ) ); $tx['raw'] = 'FILE ' . $tenFile . ' · ' . mb_substr( (string) wp_json_encode( $r ), 0, 1500 );
+			/* Cùng khoá xuất hiện hai lần TRONG MỘT ĐỢT (file xuất trùng dòng): dòng sau là trùng — trước đây SELECT từng dòng bắt được, nay dò lô phải tự bắt. */
+			$k120 = mb_substr( $tx['khoa'], 0, 120 ); if ( isset( $thayKhoa[ $k120 ] ) ) { $trung++; continue; } $thayKhoa[ $k120 ] = 1;
 			$dsTx[] = array( 'tx' => $tx, 'maCH' => $maCH, 'noiDung' => $noiDung, 'thoiDiem' => $thoiDiem, 'soTien' => $soTien );
 		}
 		/* VÒNG 2 — dò trùng theo LÔ (một câu cho cả đợt), rồi ghi từng dòng. */
 		$khoas = array(); foreach ( $dsTx as $d ) { $khoas[] = $d['tx']['khoa']; }
 		$daCo = self::cong_cu_theo_khoa_( $khoas ); $vaLo = array();
+		/* 0.54.0: dòng khoá chưa có → dò tiếp theo ref / mã GD cũng theo LÔ (trước: 2 câu quét bảng MỖI dòng mới → HTTP 500 ở đợt toàn dòng mới). */
+		$chuaKhoa = array(); foreach ( $dsTx as $d ) { if ( ! isset( $daCo[ mb_substr( $d['tx']['khoa'], 0, 120 ) ] ) ) { $chuaKhoa[] = $d; } }
+		$daCoRef = $chuaKhoa ? self::cong_cu_theo_ref_( $chuaKhoa ) : array();
 		foreach ( $dsTx as $d ) {
 			$tx = $d['tx']; $maCH = $d['maCH']; $noiDung = $d['noiDung']; $thoiDiem = $d['thoiDiem']; $soTien = $d['soTien'];
 			if ( '' !== $maCH ) { $maChFile[ $maCH ] = ( isset( $maChFile[ $maCH ] ) ? $maChFile[ $maCH ] : 0 ) + 1; }
@@ -3470,7 +3506,8 @@ class SAOKE_App {
 			if ( $mysql && $mysql > $denNhat ) { $denNhat = $mysql; }
 			if ( 'vietqr' === $nguon ) { self::ghe_dau_ngay_( $mysql ); }   // nạp file có thể VÁ ma_ch vào dòng cũ → ngày ấy phải tính lại
 			$kqLuu = ''; $k120 = mb_substr( $tx['khoa'], 0, 120 );
-			if ( self::luu_cong( $tx, $kqLuu, isset( $daCo[ $k120 ] ) ? $daCo[ $k120 ] : false, $vaLo ) ) { $moi++; $tongMoi += $soTien; } else { $trung++; if ( 'va' === $kqLuu ) { $vaMay++; } }
+			$cuBiet = isset( $daCo[ $k120 ] ) ? $daCo[ $k120 ] : ( isset( $daCoRef[ $k120 ] ) ? $daCoRef[ $k120 ] : 'moi' );
+			if ( self::luu_cong( $tx, $kqLuu, $cuBiet, $vaLo ) ) { $moi++; $tongMoi += $soTien; } else { $trung++; if ( 'va' === $kqLuu ) { $vaMay++; } }
 		}
 		self::cong_va_lo_( $vaLo );
 		self::day_ghe_ngay_don_();

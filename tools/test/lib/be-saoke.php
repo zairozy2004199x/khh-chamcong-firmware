@@ -82,7 +82,7 @@ class FakeWpdb {
 	}
 	/* Hiểu ĐÚNG HAI câu mà `luu_cong()` hỏi — không hơn. Bệ đỡ hiểu quá rộng thì nó tự trả lời
 	   thay cho luật đang thử, và bài xanh trong khi thật thì hỏng. */
-	public $so_get_row_khoa = 0;   // 0.52.0: đếm câu hỏi TỪNG DÒNG theo khoá — nạp bù theo lô phải không tăng con số này cho dòng đã có
+	public $so_get_row_khoa = 0; public $so_get_row_ref = 0;   // 0.52.0: đếm câu hỏi TỪNG DÒNG theo khoá — nạp bù theo lô phải không tăng con số này cho dòng đã có
 	public function get_row( $sql, $out = null ) {
 		if ( preg_match( "/khoa='([^']*)'/", $sql, $m ) ) {
 			$this->so_get_row_khoa++;
@@ -90,6 +90,7 @@ class FakeWpdb {
 			return null;
 		}
 		if ( preg_match( "/nguon='([^']*)' AND so_tien=(\d+) AND \( ref='([^']*)' OR ma_gd='([^']*)' \)/", $sql, $m ) ) {
+			$this->so_get_row_ref++;
 			foreach ( $this->hang as $h ) {
 				if ( (string) $h['nguon'] !== $m[1] ) { continue; }
 				if ( (int) $h['so_tien'] !== (int) $m[2] ) { continue; }
@@ -101,13 +102,14 @@ class FakeWpdb {
 	}
 	public function get_var( $sql ) { return null; }
 	/* 0.52.0: nạp bù dò trùng theo LÔ — `WHERE khoa IN ('a','b',…)`. Vẫn CHỈ hiểu đúng câu ấy (xem chú thích get_row). */
-	public $so_select_lo = 0;
+	public $so_select_lo = 0; public $so_select_lo_khoa = 0;
 	public function get_results( $sql, $out = null ) {
-		if ( preg_match( "/WHERE khoa IN \((.*)\)/", $sql, $m ) ) {
-			$this->so_select_lo++;
-			preg_match_all( "/'((?:[^']|'')*)'/", $m[1], $mm );
+		/* 0.54.0: cả ba cột dò lô — khoa · ref · ma_gd. */
+		if ( preg_match( "/WHERE (khoa|ref|ma_gd) IN \((.*)\)/", $sql, $m ) ) {
+			$this->so_select_lo++; if ( 'khoa' === $m[1] ) { $this->so_select_lo_khoa++; }
+			preg_match_all( "/'((?:[^']|'')*)'/", $m[2], $mm );
 			$ds = array_map( function ( $x ) { return str_replace( "''", "'", $x ); }, $mm[1] );
-			$ra = array(); foreach ( $this->hang as $h ) { if ( in_array( (string) $h['khoa'], $ds, true ) ) { $ra[] = $h; } } return $ra;
+			$ra = array(); foreach ( $this->hang as $h ) { if ( in_array( (string) ( isset( $h[ $m[1] ] ) ? $h[ $m[1] ] : '' ), $ds, true ) ) { $ra[] = $h; } } return $ra;
 		}
 		return array();
 	}

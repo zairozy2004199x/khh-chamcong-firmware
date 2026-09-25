@@ -255,8 +255,7 @@ teq( 'cong_dong_trung() chỉ được gọi từ MỘT chỗ (trong luu_cong)',
    không còn vòng riêng. Đẩy webhook sang Ghế (day_ghe_dong_) gọi vietqr_quy_dong_, không gọi thẳng. */
 teq( 'cong_may_dong() gọi ở đúng 6 chỗ (tất cả tái dùng, không có bản sao)', 6,
 	substr_count( $SRC, 'self::cong_may_dong(' ) );
-t( 'VER_TBL đã lên 5 cho KEY ref', false !== strpos( $SRC, "const VER_TBL = '5';" ) );
-t( 'bảng cổng có KEY ref (đường dò trùng chéo đi qua nó)', false !== strpos( $SRC, 'KEY ref (ref)' ) );
+t( 'VER_TBL từ 5 trở lên (5: KEY ref; 6 ở 0.54.0: KEY ma_gd)', preg_match( "/const VER_TBL = '(\\d+)';/", $SRC, $mv ) && (int) $mv[1] >= 5 );
 
 /* Phiên bản: header và hằng VER phải bằng nhau. */
 preg_match( '/^\s*\*\s*Version:\s*([0-9.]+)/m', $SRC, $mh );

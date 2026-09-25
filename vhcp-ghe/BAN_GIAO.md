@@ -54,6 +54,28 @@ lại ba kịch bản (PIN + #cvietqr · vé không hash · vé + #cvietqr): kh�
 biến đều có. `kiem-saoke-ve-hoan-vao.js` (9 phép) canh nhánh vé phải hoãn và các bảng cổng vẫn khai sau
 khối tự đăng nhập.
 
+### Sao Kê 0.54.0 — Đợt toàn dòng MỚI đổ HTTP 500: thêm chỉ mục `ma_gd`, dò theo mã tham chiếu cũng theo lô
+
+**Anh Thắng 25/09/2026** (ảnh sau 0.53.0): *Không nạp được (đã nạp xong 1600/24261 — phần ấy đã lưu): Máy chủ trả về trang
+HTML thay vì dữ liệu (HTTP 500)*. Hai đợt đầu nhanh vì dòng đã có (webhook đã ghi); đợt 3 toàn dòng MỚI (kỳ cũ webhook
+chưa phủ): mỗi dòng mới `cong_dong_trung()` hỏi `… AND ( ref=%s OR ma_gd=%s )` — cột `ma_gd` KHÔNG có chỉ mục → MySQL quét
+cả bảng mỗi câu; 800 dòng × 2 câu → PHP hết giờ → fatal → 500.
+
+**Làm:**
+- `KEY ma_gd (ma_gd)` trong CREATE + thêm tay khi kích hoạt (`SHOW INDEX` rồi `ALTER TABLE ADD INDEX`), `VER_TBL` 5 → 6.
+  Webhook (một dòng, vẫn gọi `cong_dong_trung`) cũng nhanh theo.
+- `cong_cu_theo_ref_()`: dòng khoá chưa có → dò tiếp theo ref / mã GD **theo lô** (hai câu `IN (…)` cho cả đợt), cùng luật
+  với `cong_dong_trung()` (cùng nguồn, cùng tiền, ref trước rồi maGD, khớp cột ref HOẶC ma_gd). Dòng không thấy ở cả hai lô →
+  `luu_cong( …, 'moi' )` chèn thẳng, không hỏi gì nữa.
+- Cùng khoá xuất hiện hai lần TRONG MỘT ĐỢT → dòng sau là trùng (trước đây SELECT từng dòng bắt được, nay dò lô tự bắt).
+- `@set_time_limit( 120 )` đầu `rpc_napFileCongTx` (nơi hosting cho phép).
+
+**Kiểm:** `kiem-saoke-nap-bu-theo-dot.php` 31 phép (2 dòng mới → 1 câu khoá + 2 câu ref/mã GD, 0 câu rời; ref+tiền trùng
+bắt được bằng lô; cùng ref khác tiền → chèn; cùng khoá hai lần trong đợt → chèn 1). FakeWpdb hiểu `IN` theo khoa/ref/ma_gd.
+Hai bài cũ ghim `VER_TBL = '5'` nới thành ≥ 5.
+
+**Cài:** cài đè Sao Kê 0.54.0 (kích hoạt lại tự thêm chỉ mục — bảng lớn mất vài giây, một lần), Ctrl+F5, nạp lại file.
+
 ### Sao Kê 0.53.0 — Nạp bù nhẹ hẳn: không tính lại kho Ghế tại chỗ, vá mã theo lô, 800 dòng/đợt
 
 **Anh Thắng 25/09/2026** *"chậm quá"* — sau 0.52.0 (chia đợt) vẫn lê thê ở đợt 2/61. Hai thứ nặng còn lại trong MỖI đợt:
