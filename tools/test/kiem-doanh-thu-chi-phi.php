@@ -55,6 +55,8 @@ $JSON = json_encode( array( 'ok' => true, 'web' => 'Doanh thu FABi', 'cuaHang' =
 	array( 'ten' => 'TuTu Train Vincom Bà Triệu', 'doanhThu' => 30000000, 'thanhTien' => 30000000, 'soHd' => 300, 'soNgay' => 20 ),
 	array( 'ten' => 'NHÀ MA PHAN VĂN TRỊ', 'doanhThu' => 50000000, 'thanhTien' => 50000000, 'soHd' => 200, 'soNgay' => 25 ),
 	array( 'ten' => 'QUÁN LẠ CHƯA KHAI', 'doanhThu' => 1000000, 'thanhTien' => 1000000, 'soHd' => 5, 'soNgay' => 2 ),
+	array( 'ten' => 'Toàn hệ thống', 'doanhThu' => 0, 'thanhTien' => 0, 'soHd' => 0, 'soNgay' => 0 ),
+	array( 'ten' => 'QUÁN ĐÓNG KHÔNG SỐ', 'doanhThu' => 0, 'thanhTien' => 0, 'soHd' => 0, 'soNgay' => 0 ),
 ) ), JSON_UNESCAPED_UNICODE );
 $GLOBALS['VHCP_HTTP'] = array(
 	'https://khmatrix.com/doanh-thu-hcm/wp-json/khh-dt/v1/doanh-thu-co-so' => array( 'code' => 404, 'body' => '<!DOCTYPE html>' ),
@@ -62,7 +64,7 @@ $GLOBALS['VHCP_HTTP'] = array(
 );
 $GLOBALS['VHCP_DA_GET'] = array(); $GLOBALS['VHCP_DA_GET_ARGS'] = array();
 $kq = VHCP_DoanhThu::goi( '2026-09-01', '2026-09-30', true );
-t( '🔴 404 ở đường dẫn trang báo cáo → thử lại ở gốc web và được', ! empty( $kq['ok'] ) && 4 === count( $kq['cuaHang'] ), $kq );
+t( '🔴 404 ở đường dẫn trang báo cáo → thử lại ở gốc web và được', ! empty( $kq['ok'] ) && 6 === count( $kq['cuaHang'] ), $kq );
 teq( '   hai lượt GET', 2, count( $GLOBALS['VHCP_DA_GET'] ) );
 t( '🔴 khoá KHÔNG nằm trong địa chỉ', false === strpos( implode( ' ', $GLOBALS['VHCP_DA_GET'] ), 'KHOA-BI-MAT' ), $GLOBALS['VHCP_DA_GET'] );
 t( '🔴 khoá đi trong header X-KHH-Khoa', 'KHOA-BI-MAT-1234567890' === $GLOBALS['VHCP_DA_GET_ARGS'][0]['headers']['X-KHH-Khoa'], $GLOBALS['VHCP_DA_GET_ARGS'] );
@@ -75,20 +77,47 @@ $kq3 = VHCP_DoanhThu::goi( '2026-08-01', '2026-08-31', true );
 t( '   web chối khoá (401) → câu bảo kiểm lại khoá ở cả hai web', empty( $kq3['ok'] ) && false !== mb_strpos( $kq3['error'], 'khoá' ), $kq3 );
 $GLOBALS['VHCP_HTTP'] = array( 'khmatrix.com' => array( 'code' => 200, 'body' => $JSON ) );
 $kt = VHCP_DoanhThu::kiem_tra();
-t( '   Kiểm tra kết nối: trả số cửa hàng + tên web', ! empty( $kt['success'] ) && 4 === $kt['soCuaHang'] && 'Doanh thu FABi' === $kt['web'], $kt );
+t( '   Kiểm tra kết nối: trả số cửa hàng + tên web', ! empty( $kt['success'] ) && 6 === $kt['soCuaHang'] && 'Doanh thu FABi' === $kt['web'], $kt );
 
 /* ── 3. Khớp tên ─────────────────────────────────────────────────────────────────────────────── */
-teq( '   rút gọn: bỏ ngoặc, bỏ dấu, bỏ "TuTu Train"', 'vincom ba trieu', VHCP_DoanhThu::rut_gon( 'TuTu Train Vincom Bà Triệu' ) );
-teq( '   rút gọn: bỏ "( Dịch Vụ và Giải Trí K&H )"', 'funzone adventure go an lac', VHCP_DoanhThu::rut_gon( 'FUNZONE ADVENTURE GO AN LẠC ( Dịch Vụ và Giải Trí K&H )' ) );
+teq( '   rút gọn: bỏ dấu, "TuTu Train" → "tau"', 'tau vincom ba trieu', VHCP_DoanhThu::rut_gon( 'TuTu Train Vincom Bà Triệu' ) );
+teq( '   rút gọn: bỏ đuôi "( Dịch Vụ và Giải Trí K&H )", adventure → adv', 'funzone adv go an lac', VHCP_DoanhThu::rut_gon( 'FUNZONE ADVENTURE GO AN LẠC ( Dịch Vụ và Giải Trí K&H )' ) );
+teq( '   rút gọn: ngoặc mang TÊN GIAN thì giữ, ghost bride → nha ma', 'nha ma ba ria co dau am phu', VHCP_DoanhThu::rut_gon( '(GHOST BRIDE BÀ RỊA)Cô Dâu Âm Phủ ( Dịch Vụ và Giải Trí K&H )' ) );
+/* Ca thật từ ảnh 25/09/2026 — hai dòng tự khớp SAI ở bản đầu. */
+{
+	$cs_that = array_map( function ( $t ) { return array( 'ten' => $t ); }, array( 'NHÀ MA AEON TÂN PHÚ', 'AEON MALL TÂN PHÚ', 'TÀU TÂN PHÚ', 'SNOW NHÀ TUYẾT BÌNH DƯƠNG', 'NHÀ MA BÌNH DƯƠNG', 'TÀU BÌNH DƯƠNG',
+		'FUNZONE VŨNG TÀU', 'NHÀ MA BÀ RỊA', 'ESTELLA', 'TÀU ESTELLA', 'TÀU TÂN AN', 'VR TÂN AN', 'FUNZONE ADVENTURE', 'ADV GO! AN LẠC', 'TÀU GÒ VẤP', 'SC VIVO', 'FARM PHAN THIẾT' ) );
+	$m2 = VHCP_DoanhThu::anh_xa( array( 'TuTu Train - Aeon Tân Phú ( Dịch Vụ và Giải Trí K&H )', 'Tutu Train - Bình Dương ( Dịch Vụ và Giải Trí K&H )', 'FUNZONE CITY VŨNG TÀU ( Dịch Vụ và Giải Trí K&H )',
+		'(GHOST BRIDE BÀ RỊA)Cô Dâu Âm Phủ ( Dịch Vụ và Giải Trí K&H )', 'Ngôi Nhà Ma - Aeon Bình Dương ( Dịch Vụ và Giải Trí K&H )', 'SNOW FUN AEON BÌNH DƯƠNG ( Dịch Vụ và Giải Trí K&H )',
+		'Tutu Train - Estella ( Dịch vụ K&H )', 'Tutu Train - Aeon Tân An ( Dịch vụ K&H )', 'VR Fun Aeon Tân An ( Dịch Vụ K&H )', 'FUNZONE ADVENTURE GO AN LẠC ( Dịch Vụ và Giải Trí K&H )',
+		'TuTu Train - Lotte Gò Vấp ( Dịch vụ và Giải Trí K&H )', 'VR FUN - SC Vivo Q7 ( Dịch Vụ và Giải Trí K&H )', 'ECO FARM LOTTE PHAN THIẾT ( Dịch Vụ K&H )', 'Tutu Train - Aeon Bình Tân ( Dịch Vụ và Giải Trí K&H )', 'COFFE GO AN LẠC ( Dịch Vụ và Giải Trí K&H )' ), $cs_that );
+	$cs_ = function ( $k ) use ( $m2 ) { return isset( $m2[ $k ] ) ? $m2[ $k ]['coso'] : null; };
+	teq( '🔴 "TuTu Train - Aeon Tân Phú" → TÀU TÂN PHÚ (bản đầu gán nhầm NHÀ MA AEON TÂN PHÚ)', 'TÀU TÂN PHÚ', $cs_( 'TuTu Train - Aeon Tân Phú ( Dịch Vụ và Giải Trí K&H )' ) );
+	teq( '🔴 "Tutu Train - Bình Dương" → TÀU BÌNH DƯƠNG (bản đầu gán nhầm SNOW NHÀ TUYẾT)', 'TÀU BÌNH DƯƠNG', $cs_( 'Tutu Train - Bình Dương ( Dịch Vụ và Giải Trí K&H )' ) );
+	teq( '   FUNZONE CITY VŨNG TÀU → FUNZONE VŨNG TÀU', 'FUNZONE VŨNG TÀU', $cs_( 'FUNZONE CITY VŨNG TÀU ( Dịch Vụ và Giải Trí K&H )' ) );
+	teq( '   (GHOST BRIDE BÀ RỊA)Cô Dâu Âm Phủ → NHÀ MA BÀ RỊA', 'NHÀ MA BÀ RỊA', $cs_( '(GHOST BRIDE BÀ RỊA)Cô Dâu Âm Phủ ( Dịch Vụ và Giải Trí K&H )' ) );
+	teq( '   Ngôi Nhà Ma - Aeon Bình Dương → NHÀ MA BÌNH DƯƠNG', 'NHÀ MA BÌNH DƯƠNG', $cs_( 'Ngôi Nhà Ma - Aeon Bình Dương ( Dịch Vụ và Giải Trí K&H )' ) );
+	teq( '   SNOW FUN AEON BÌNH DƯƠNG → SNOW NHÀ TUYẾT BÌNH DƯƠNG', 'SNOW NHÀ TUYẾT BÌNH DƯƠNG', $cs_( 'SNOW FUN AEON BÌNH DƯƠNG ( Dịch Vụ và Giải Trí K&H )' ) );
+	teq( '   Tutu Train - Estella → TÀU ESTELLA (chặt hơn ESTELLA)', 'TÀU ESTELLA', $cs_( 'Tutu Train - Estella ( Dịch vụ K&H )' ) );
+	teq( '   Tutu Train - Aeon Tân An → TÀU TÂN AN', 'TÀU TÂN AN', $cs_( 'Tutu Train - Aeon Tân An ( Dịch vụ K&H )' ) );
+	teq( '   VR Fun Aeon Tân An → VR TÂN AN', 'VR TÂN AN', $cs_( 'VR Fun Aeon Tân An ( Dịch Vụ K&H )' ) );
+	teq( '   TuTu Train - Lotte Gò Vấp → TÀU GÒ VẤP', 'TÀU GÒ VẤP', $cs_( 'TuTu Train - Lotte Gò Vấp ( Dịch vụ và Giải Trí K&H )' ) );
+	teq( '   VR FUN - SC Vivo Q7 → SC VIVO', 'SC VIVO', $cs_( 'VR FUN - SC Vivo Q7 ( Dịch Vụ và Giải Trí K&H )' ) );
+	teq( '   ECO FARM LOTTE PHAN THIẾT → FARM PHAN THIẾT', 'FARM PHAN THIẾT', $cs_( 'ECO FARM LOTTE PHAN THIẾT ( Dịch Vụ K&H )' ) );
+	$fz2 = $m2['FUNZONE ADVENTURE GO AN LẠC ( Dịch Vụ và Giải Trí K&H )'];
+	t( '   FUNZONE ADVENTURE GO AN LẠC: hai cơ sở cùng khớp → lấy nhiều từ hơn, cơ sở kia vào `khac` cho kế toán chốt', 'ADV GO! AN LẠC' === $fz2['coso'] && array( 'FUNZONE ADVENTURE' ) === $fz2['khac'], $fz2 );
+	t( '   Aeon Bình Tân / COFFE GO AN LẠC: không có cơ sở → không gán bừa', ! isset( $m2['Tutu Train - Aeon Bình Tân ( Dịch Vụ và Giải Trí K&H )'] ) && ! isset( $m2['COFFE GO AN LẠC ( Dịch Vụ và Giải Trí K&H )'] ), $m2 );
+	t( '🔴 KHÔNG so chiều ngược: NHÀ MA AEON TÂN PHÚ / AEON MALL TÂN PHÚ không nuốt cửa hàng Tàu', ! in_array( 'NHÀ MA AEON TÂN PHÚ', array_column( $m2, 'coso' ), true ) && ! in_array( 'AEON MALL TÂN PHÚ', array_column( $m2, 'coso' ), true ), array_column( $m2, 'coso' ) );
+}
 $coso = array(
 	array( 'ten' => 'FUNZONE AN LẠC', 'tenMisa' => 'FZ AN LAC', 'tenDoanhThu' => 'FUNZONE ADVENTURE GO AN LẠC ( Dịch Vụ và Giải Trí K&H )' ),
 	array( 'ten' => 'Nhà Ma Phan Văn Trị', 'tenMisa' => '', 'tenDoanhThu' => '' ),
 	array( 'ten' => 'VINCOM BÀ TRIỆU', 'tenMisa' => 'TTT VINCOM BA TRIEU', 'tenDoanhThu' => '' ),
 );
 $mx = VHCP_DoanhThu::anh_xa( array( 'FUNZONE ADVENTURE GO AN LẠC ( Dịch Vụ và Giải Trí K&H )', 'NHÀ MA PHAN VĂN TRỊ', 'TuTu Train Vincom Bà Triệu', 'QUÁN LẠ CHƯA KHAI' ), $coso );
-teq( '🔴 khai "Tên bên Doanh thu" → khớp chắc (khai)', array( 'coso' => 'FUNZONE AN LẠC', 'khop' => 'khai' ), $mx['FUNZONE ADVENTURE GO AN LẠC ( Dịch Vụ và Giải Trí K&H )'] );
-teq( '   khác hoa/thường, khác dấu → tự khớp theo tên thường gọi', array( 'coso' => 'Nhà Ma Phan Văn Trị', 'khop' => 'tu' ), $mx['NHÀ MA PHAN VĂN TRỊ'] );
-teq( '   "TuTu Train Vincom Bà Triệu" → tự khớp VINCOM BÀ TRIỆU', array( 'coso' => 'VINCOM BÀ TRIỆU', 'khop' => 'tu' ), $mx['TuTu Train Vincom Bà Triệu'] );
+teq( '🔴 khai "Tên bên Doanh thu" → khớp chắc (khai)', array( 'coso' => 'FUNZONE AN LẠC', 'khop' => 'khai', 'khac' => array() ), $mx['FUNZONE ADVENTURE GO AN LẠC ( Dịch Vụ và Giải Trí K&H )'] );
+teq( '   khác hoa/thường, khác dấu → tự khớp theo tên thường gọi', array( 'coso' => 'Nhà Ma Phan Văn Trị', 'khop' => 'tu', 'khac' => array() ), $mx['NHÀ MA PHAN VĂN TRỊ'] );
+teq( '   "TuTu Train Vincom Bà Triệu" → tự khớp VINCOM BÀ TRIỆU', array( 'coso' => 'VINCOM BÀ TRIỆU', 'khop' => 'tu', 'khac' => array() ), $mx['TuTu Train Vincom Bà Triệu'] );
 t( '   quán lạ → không gán bừa', ! isset( $mx['QUÁN LẠ CHƯA KHAI'] ), $mx );
 
 /* ── 4. Cột "Tên bên Doanh thu" ở bảng Cơ sở: lưu, đọc, giữ cũ khi không gửi ô ───────────────── */
@@ -152,8 +181,10 @@ teq( '🔴 Nhà Ma: đơn Nháp chưa cấp tiền → chi phí 0', 0, (int) $nm
 teq( '   Nhà Ma tự khớp', 'tu', $nm['khop'] );
 t( '🔴 KHO TỔNG có chi phí mà không có doanh thu → VẪN BÀY (dt 0, cp 7tr)', isset( $hang['KHO TỔNG'] ) && 7000000.0 === (float) $hang['KHO TỔNG']['chiPhi'] && 0.0 === (float) $hang['KHO TỔNG']['doanhThu'], $kq['rows'] );
 teq( '   quán lạ vào danh sách chưa khớp', array( 'QUÁN LẠ CHƯA KHAI' ), $kq['cuaHangChuaKhop'] );
+t( '🔴 dòng gộp "Toàn hệ thống" và quán không có lấy một hoá đơn → KHÔNG bày', ! isset( $hang['Toàn hệ thống'] ) && ! isset( $hang['QUÁN ĐÓNG KHÔNG SỐ'] ), array_keys( $hang ) );
+t( '   mỗi hàng có `khac` (mảng)', is_array( $fz['khac'] ) && is_array( $hang['KHO TỔNG']['khac'] ), $fz );
 teq( '   tổng doanh thu / chi phí', array( 201000000.0, 47000000.0 ), array( (float) $kq['tongDoanhThu'], (float) $kq['tongChiPhi'] ) );
-t( '   danh sách cửa hàng đi kèm (cho ô gợi ý ở bảng Cơ sở)', 4 === count( $kq['cuaHangDs'] ), $kq['cuaHangDs'] );
+t( '   danh sách cửa hàng đi kèm (cho ô gợi ý ở bảng Cơ sở)', 6 === count( $kq['cuaHangDs'] ), $kq['cuaHangDs'] );
 $kq = VHCP_DoanhThu::so_sanh( array( 'thang' => 'rác' ) );
 teq( '   tháng sai dạng → tháng hiện tại', '2026-09', $kq['thang'] );
 

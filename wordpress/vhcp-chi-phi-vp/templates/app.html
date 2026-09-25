@@ -6967,8 +6967,9 @@
       _tqCard('#fff7ed','#fed7aa','#9a3412','🧾 Chi phí thực chi', money(r.tongChiPhi||0)+'đ', 'theo ngày hạng mục trong tháng')+
       _tqCard('#eef2ff','#c7d2fe','#3730a3','% Chi phí / Doanh thu', (r.tyLe===null||typeof r.tyLe==='undefined')?'—':(Number(r.tyLe).toFixed(1)+'%'), 'càng thấp càng tốt');
     if(el('tqDtBody')) el('tqDtBody').innerHTML=rows.length?rows.map(function(x){
+      var khac=(x.khac||[]).length?' <span style="font-size:10.5px;color:#b91c1c" title="Cơ sở khác cũng khớp tên này — khai cột Tên bên Doanh thu để chốt">hay: '+esc(x.khac.join(' / '))+'?</span>':'';
       var kh=x.khop==='khai'?'':(x.khop==='tu'
-        ?' <span title="Tự khớp theo tên — khai cột &quot;Tên bên Doanh thu&quot; ở Cấu hình ▸ Cơ sở cho chắc" style="font-size:10.5px;color:#b45309">≈ tự khớp</span>'
+        ?' <span title="Tự khớp theo tên — khai cột &quot;Tên bên Doanh thu&quot; ở Cấu hình ▸ Cơ sở cho chắc" style="font-size:10.5px;color:#b45309">≈ tự khớp</span>'+khac
         :' <span title="Chưa khớp được với cơ sở nào — khai cột &quot;Tên bên Doanh thu&quot; ở Cấu hình ▸ Cơ sở" style="font-size:10.5px;color:#b91c1c">? chưa khớp</span>');
       return '<tr><td>'+(x.coso?esc(x.coso):'<span style="color:#8c8781">—</span>')+'</td><td>'+(x.cuaHang?esc(x.cuaHang):'<span style="color:#8c8781">(không có doanh thu)</span>')+kh+'</td>'
         +'<td class="money">'+money(x.doanhThu||0)+'</td><td class="money">'+money(x.chiPhi||0)+'</td><td style="text-align:right">'+_dtTyLe(x.tyLe)+'</td></tr>';

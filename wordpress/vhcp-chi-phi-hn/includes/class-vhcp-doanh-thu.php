@@ -161,23 +161,61 @@ class VHCPHN_DoanhThu {
 
 	// ------------------------------------------------------------------ khớp tên
 
-	/** Tên rút gọn để so: bỏ dấu, bỏ phần trong ngoặc, bỏ vài chữ đệm, chỉ giữ chữ-số. */
+	/**
+	 * Từ đồng nghĩa hai bên (bên POS đặt tên thương hiệu, bên chi phí gọi tên gian). Áp SAU bỏ dấu.
+	 * Anh Thắng 25/09/2026 (ảnh bảng so sánh thật): "TuTu Train - Aeon Tân Phú" bị gán vào NHÀ MA AEON
+	 * TÂN PHÚ, "Tutu Train - Bình Dương" vào SNOW NHÀ TUYẾT BÌNH DƯƠNG — vì bản đầu XOÁ "tutu train" rồi
+	 * so "chứa nhau", còn lại mỗi tên chỗ. Nay đổi "tutu train" → "tau" và so theo TỪ.
+	 */
+	const DONG_NGHIA = array(
+		'tutu train'    => 'tau',
+		'tu tu train'   => 'tau',
+		'nha tuyet'     => 'snow',
+		'ghost bride'   => 'nha ma',
+		'haunted house' => 'nha ma',
+		'ngoi nha ma'   => 'nha ma',
+		'adventure'     => 'adv',
+		'coffee'        => 'coffe',
+	);
+	/** Chữ đệm không mang nghĩa nhận diện — bỏ ở CẢ hai bên trước khi so từ. */
+	const BO_TU = array( 'dich', 'vu', 'va', 'giai', 'tri', 'k', 'h', 'kh', 'posh', 'cong', 'ty', 'chi', 'nhanh', 'cn', 'the', 'and' );
+
+	/** Tên rút gọn để so: bỏ dấu, bỏ phần trong ngoặc là đuôi công ty, đổi từ đồng nghĩa, chỉ giữ chữ-số. */
 	public static function rut_gon( $s ) {
 		$s = (string) $s;
-		$s = preg_replace( '/\([^)]*\)/u', ' ', $s );
+		/* Chỉ bỏ ngoặc là ĐUÔI CÔNG TY "( Dịch Vụ và Giải Trí K&H )"; ngoặc mang tên gian
+		   "(GHOST BRIDE BÀ RỊA)Cô Dâu Âm Phủ" thì giữ — đó là phần dễ khớp nhất của cái tên. */
+		$s = preg_replace( '/\((?=[^)]*(?:d[iị]ch\s*v[uụ]|k\s*&\s*h|k&h|posh))[^)]*\)/iu', ' ', $s );
 		$s = VHCPHN_Cfg::bo_dau( $s );
-		$s = preg_replace( '/\b(tutu\s*train|dich\s*vu|giai\s*tri|va|and|cong\s*ty|k\s*&\s*h|k&h|posh|chi\s*nhanh|cn)\b/u', ' ', $s );
 		$s = preg_replace( '/[^a-z0-9]+/u', ' ', $s );
+		$s = ' ' . trim( preg_replace( '/\s+/', ' ', $s ) ) . ' ';
+		foreach ( self::DONG_NGHIA as $tu => $thanh ) { $s = str_replace( ' ' . $tu . ' ', ' ' . $thanh . ' ', $s ); }
+		$s = preg_replace( '/\s+(?:' . implode( '|', self::BO_TU ) . ')(?=\s)/u', ' ', $s );
 		return trim( preg_replace( '/\s+/', ' ', $s ) );
+	}
+
+	/** Tập từ của một tên rút gọn (khử trùng). */
+	private static function tu_cua( $rut_gon ) {
+		$ds = array_values( array_unique( array_filter( explode( ' ', (string) $rut_gon ), 'strlen' ) ) );
+		return $ds;
 	}
 
 	/**
 	 * Ánh xạ cửa hàng (doanh thu) → cơ sở (chi phí).
-	 * Trả [ ten_cua_hang => [ 'coso' => tên cơ sở, 'khop' => 'khai'|'tu' ] ].
-	 * Ưu tiên cột "Tên bên Doanh thu" khai tay; rồi mới khớp lỏng theo tên thường gọi / tên MISA.
+	 * Trả [ ten_cua_hang => [ 'coso' => tên cơ sở, 'khop' => 'khai'|'tu', 'khac' => [tên cơ sở khác cũng khớp] ] ].
+	 *
+	 * Thứ tự:
+	 *   1. Cột "Tên bên Doanh thu" khai tay (so nguyên chữ, không phân biệt hoa/thường) → 'khai'.
+	 *   2. Tên rút gọn trùng hẳn (tên thường gọi hoặc tên MISA) → 'tu'.
+	 *   3. MỌI TỪ của cơ sở nằm trong tên cửa hàng (cơ sở ⊂ cửa hàng) → 'tu'. Cơ sở phải có ≥ 2 từ,
+	 *      hoặc 1 từ dài ≥ 6 ký tự ("estella"). Nhiều cơ sở cùng đạt → lấy cơ sở NHIỀU TỪ NHẤT (khớp
+	 *      chặt nhất: "Tutu Train - Estella" → TÀU ESTELLA hơn ESTELLA), các cơ sở còn lại ghi vào `khac`
+	 *      để màn bày "hay là …?" cho kế toán quyết.
+	 * ⚠️ KHÔNG so chiều ngược (cửa hàng ⊂ cơ sở): "Tutu Train - Bình Dương" mà chui vào mọi gian Bình
+	 *    Dương là đúng cái sai đã cắn.
 	 */
 	public static function anh_xa( $cua_hang_ds, $coso_ds ) {
-		$khai = array(); $long = array();
+		$khai = array(); $rut = array(); $tu = array();
 		foreach ( (array) $coso_ds as $c ) {
 			$ten = trim( (string) ( isset( $c['ten'] ) ? $c['ten'] : '' ) );
 			if ( '' === $ten ) { continue; }
@@ -185,26 +223,31 @@ class VHCPHN_DoanhThu {
 			if ( '' !== $tdt ) { $khai[ mb_strtolower( preg_replace( '/\s+/u', ' ', $tdt ) ) ] = $ten; }
 			foreach ( array( $ten, isset( $c['tenMisa'] ) ? $c['tenMisa'] : '' ) as $t ) {
 				$g = self::rut_gon( $t );
-				if ( '' !== $g && ! isset( $long[ $g ] ) ) { $long[ $g ] = $ten; }
+				if ( '' === $g ) { continue; }
+				if ( ! isset( $rut[ $g ] ) ) { $rut[ $g ] = $ten; }
+				$ds = self::tu_cua( $g );
+				if ( count( $ds ) >= 2 || ( 1 === count( $ds ) && mb_strlen( $ds[0] ) >= 6 ) ) {
+					$tu[] = array( 'ten' => $ten, 'tu' => $ds );
+				}
 			}
 		}
 		$ra = array();
 		foreach ( (array) $cua_hang_ds as $ch ) {
 			$ch = trim( (string) $ch ); if ( '' === $ch ) { continue; }
 			$k = mb_strtolower( preg_replace( '/\s+/u', ' ', $ch ) );
-			if ( isset( $khai[ $k ] ) ) { $ra[ $ch ] = array( 'coso' => $khai[ $k ], 'khop' => 'khai' ); continue; }
+			if ( isset( $khai[ $k ] ) ) { $ra[ $ch ] = array( 'coso' => $khai[ $k ], 'khop' => 'khai', 'khac' => array() ); continue; }
 			$g = self::rut_gon( $ch );
 			if ( '' === $g ) { continue; }
-			if ( isset( $long[ $g ] ) ) { $ra[ $ch ] = array( 'coso' => $long[ $g ], 'khop' => 'tu' ); continue; }
-			/* Chứa nhau (≥ 5 ký tự): "funzone adventure go an lac" ⊃ "funzone an lac". Lấy tên dài nhất khớp. */
-			$tot = ''; $dai = 0;
-			foreach ( $long as $gc => $ten ) {
-				if ( mb_strlen( $gc ) < 5 ) { continue; }
-				if ( false !== strpos( ' ' . $g . ' ', ' ' . $gc . ' ' ) || false !== strpos( ' ' . $gc . ' ', ' ' . $g . ' ' ) ) {
-					if ( mb_strlen( $gc ) > $dai ) { $dai = mb_strlen( $gc ); $tot = $ten; }
-				}
+			if ( isset( $rut[ $g ] ) ) { $ra[ $ch ] = array( 'coso' => $rut[ $g ], 'khop' => 'tu', 'khac' => array() ); continue; }
+			$co = self::tu_cua( $g );
+			$dat = array();
+			foreach ( $tu as $x ) {
+				if ( ! array_diff( $x['tu'], $co ) ) { $dat[ $x['ten'] ] = max( isset( $dat[ $x['ten'] ] ) ? $dat[ $x['ten'] ] : 0, count( $x['tu'] ) ); }
 			}
-			if ( '' !== $tot ) { $ra[ $ch ] = array( 'coso' => $tot, 'khop' => 'tu' ); }
+			if ( ! $dat ) { continue; }
+			arsort( $dat );
+			$ten_ds = array_keys( $dat );
+			$ra[ $ch ] = array( 'coso' => $ten_ds[0], 'khop' => 'tu', 'khac' => array_slice( $ten_ds, 1 ) );
 		}
 		return $ra;
 	}
@@ -269,12 +312,17 @@ class VHCPHN_DoanhThu {
 		$t_dt = 0; $t_cp = 0;
 		foreach ( $kq['cuaHang'] as $ch ) {
 			$ten = $ch['ten']; $dt = $ch['doanhThu'];
+			/* Dòng gộp "Toàn hệ thống" hay cửa hàng không có lấy một hoá đơn trong tháng: không phải một
+			   gian để đặt cạnh chi phí — bày nó là thêm một dòng "chưa khớp" vô nghĩa (ảnh 25/09/2026). */
+			if ( preg_match( '/^to[aà]n\s+h[eệ]\s+th[oố]ng$/iu', trim( $ten ) ) ) { continue; }
+			if ( $dt <= 0 && (int) $ch['soHd'] <= 0 && (int) $ch['soNgay'] <= 0 ) { continue; }
 			$cs = isset( $map[ $ten ] ) ? $map[ $ten ]['coso'] : '';
 			$kh = isset( $map[ $ten ] ) ? $map[ $ten ]['khop'] : 'chua';
 			$cpt = ( '' !== $cs && isset( $cp['tien'][ $cs ] ) ) ? $cp['tien'][ $cs ] : 0;
 			if ( '' !== $cs ) { $da_cs[ $cs ] = 1; } else { $chua[] = $ten; }
 			$rows[] = array( 'coso' => $cs, 'cuaHang' => $ten, 'doanhThu' => $dt, 'chiPhi' => $cpt,
 				'tyLe' => $dt > 0 ? round( $cpt * 100 / $dt, 1 ) : null, 'khop' => $kh,
+				'khac' => isset( $map[ $ten ] ) ? $map[ $ten ]['khac'] : array(),
 				'soHd' => $ch['soHd'], 'soNgay' => $ch['soNgay'] );
 			$t_dt += $dt; $t_cp += $cpt;
 		}
@@ -282,7 +330,7 @@ class VHCPHN_DoanhThu {
 		   tiêu tiền mà không có doanh thu là điều anh cần thấy nhất. */
 		foreach ( $cp['tien'] as $cs => $tien ) {
 			if ( isset( $da_cs[ $cs ] ) ) { continue; }
-			$rows[] = array( 'coso' => $cs, 'cuaHang' => '', 'doanhThu' => 0, 'chiPhi' => $tien, 'tyLe' => null, 'khop' => 'chua', 'soHd' => 0, 'soNgay' => 0 );
+			$rows[] = array( 'coso' => $cs, 'cuaHang' => '', 'doanhThu' => 0, 'chiPhi' => $tien, 'tyLe' => null, 'khop' => 'chua', 'khac' => array(), 'soHd' => 0, 'soNgay' => 0 );
 			$t_cp += $tien;
 		}
 		usort( $rows, function ( $x, $y ) { return $y['doanhThu'] <=> $x['doanhThu'] ?: $y['chiPhi'] <=> $x['chiPhi']; } );

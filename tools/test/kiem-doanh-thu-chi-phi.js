@@ -80,7 +80,7 @@ t('   thẻ tqDtCard tồn tại, ẩn mặc định, đứng SAU tqKtCard', /id
   const R = { success: true, thang: '2026-09', web: 'Doanh thu FABi', nho: true, tongDoanhThu: 201000000, tongChiPhi: 47000000, tyLe: 23.4,
     rows: [
       { coso: 'FUNZONE AN LẠC', cuaHang: 'FUNZONE ADVENTURE GO AN LẠC ( Dịch Vụ và Giải Trí K&H )', doanhThu: 120000000, chiPhi: 40000000, tyLe: 33.3, khop: 'khai' },
-      { coso: 'Nhà Ma Phan Văn Trị', cuaHang: 'NHÀ MA PHAN VĂN TRỊ', doanhThu: 50000000, chiPhi: 0, tyLe: 0, khop: 'tu' },
+      { coso: 'Nhà Ma Phan Văn Trị', cuaHang: 'NHÀ MA PHAN VĂN TRỊ', doanhThu: 50000000, chiPhi: 0, tyLe: 0, khop: 'tu', khac: ['ADV GO! AN LẠC'] },
       { coso: '', cuaHang: 'QUÁN LẠ CHƯA KHAI', doanhThu: 1000000, chiPhi: 0, tyLe: 0, khop: 'chua' },
       { coso: 'KHO TỔNG', cuaHang: '', doanhThu: 0, chiPhi: 7000000, tyLe: null, khop: 'chua' },
     ], cuaHangChuaKhop: ['QUÁN LẠ CHƯA KHAI'] };
@@ -88,6 +88,7 @@ t('   thẻ tqDtCard tồn tại, ẩn mặc định, đứng SAU tqKtCard', /id
   t('   ba thẻ số: doanh thu · chi phí · % (tổng)', cards.length === 3 && /201000000đ/.test(cards[0]) && /47000000đ/.test(cards[1]) && /23\.4%/.test(cards[2]), cards);
   const b = o.tqDtBody.innerHTML;
   t('🔴 4 hàng, hàng khai không có nhãn, hàng "tu" có ≈ tự khớp, "chua" có ? chưa khớp', (b.match(/<tr>/g) || []).length === 4 && /NHÀ MA PHAN VĂN TRỊ <span[^>]*>≈ tự khớp/.test(b) && /QUÁN LẠ CHƯA KHAI <span[^>]*>\? chưa khớp/.test(b) && !/K&amp;H \)<span|K&H \) <span/.test(b), b);
+  t('   nhiều cơ sở cùng khớp → bày "hay: …?" đỏ cạnh ≈ tự khớp', /≈ tự khớp<\/span> <span[^>]*>hay: ADV GO! AN LẠC\?<\/span>/.test(b), b);
   t('   gian không doanh thu: ghi "(không có doanh thu)", tỷ lệ "—"', /KHO TỔNG<\/td><td><span[^>]*>\(không có doanh thu\)<\/span>/.test(b) && /—<\/span><\/td><\/tr>$/.test(b), b);
   t('   % ≥ 100 đỏ, ≥ 70 cam, còn lại xanh', /#065f46">33\.3%/.test(b), b);
   const n = o.tqDtNote.innerHTML;
