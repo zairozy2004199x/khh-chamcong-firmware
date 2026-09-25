@@ -987,8 +987,29 @@ VHCC_GiaGio::dat_coso( $U_KT, 'AEON_BT', array( 'Lái Tàu' => 23000, 'Nghỉ H�
 $b_rt_kiem = VHCC_BangLuong::dung( 'AEON_BT', '2026-08' );
 $h_sx = vhcc_man( 'KT_BL', 'Kế toán', '', $g_bl );
 t( 'có ô tick Xoá', false !== strpos( $h_sx, 'name="gg_cs_xoa[' ), $h_sx );
-t( 'có ba dòng trống để THÊM chức vụ mới',
-	substr_count( $h_sx, 'placeholder="+ chức vụ mới"' ) === 3, $h_sx );
+/* Anh Thắng 25/09/2026: *"dòng thừa không có thì bỏ, khi nào cần mới bấm ra"* — ba dòng vẫn
+   có (bộ xử lý đọc y hệt), nhưng GẬP trong `<details>`, bấm mới xổ. Và *"bỏ cái mặc định này"*:
+   không còn số mờ "vd 23000" trong ô giá. */
+t( 'ba dòng trống để THÊM chức vụ mới vẫn có, nhưng GẬP trong <details>',
+	substr_count( $h_sx, 'placeholder="+ chức vụ mới"' ) === 3
+	&& 1 === preg_match( '~<details[^>]*>\s*<summary class="mo">＋ thêm chức vụ mới</summary>~u', $h_sx ), $h_sx );
+t( '⚠️ sổ đã có dòng thì <details> GẬP, không mở sẵn',
+	0 === preg_match( '~<details open[^>]*>\s*<summary class="mo">＋ thêm chức vụ mới~u', $h_sx ), '' );
+t( '🔴 không còn số mờ "vd 23000 / vd 24000" trong ô giá',
+	false === strpos( $h_sx, 'placeholder="vd ' ), '' );
+/* Ba dòng trống phải nằm TRONG biểu mẫu — ngoài `</form>` là gõ xong bấm Lưu mà không gửi gì. */
+t( '🔴 ba dòng trống nằm TRONG biểu mẫu, trước nút Lưu',
+	1 === preg_match( '~<summary class="mo">＋ thêm chức vụ mới</summary>.*?<button class="chinh">Lưu đơn giá của.*?</form>~su', $h_sx ), '' );
+
+/* Tab Cấu hình, cơ sở CHƯA có giờ và CHƯA có sổ: bản trước in "gõ vào ba dòng trống ở bảng dưới"
+   mà không vẽ bảng nào, cũng không có nút Lưu — không có cửa nào để khai. Nay ba dòng MỞ SẴN. */
+/* Cơ sở phải CÓ TRONG `bo_phan_coso` thì ô chọn mới nhận (xem chú thích đầu tệp) — gieo một cơ sở
+   thật, nhưng chưa có giờ, chưa có sổ. */
+$wpdb->insert( VHCC_DB::t( 'bo_phan_coso' ), array( 'coso' => 'TRONG_XX', 'bo_phan' => 'Khu vui chơi' ) );
+$h_ch0 = vhcc_man( 'KT_BL', 'Kế toán', '', array( 'man' => 'cau_hinh', 'ccs' => 'TRONG_XX' ) );
+t( '🔴 sổ rỗng ở tab Cấu hình: ba dòng trống MỞ SẴN',
+	1 === preg_match( '~<details open[^>]*>\s*<summary class="mo">＋ thêm chức vụ mới~u', $h_ch0 ), substr( $h_ch0, 0, 400 ) );
+t( '🔴 và có nút Lưu để khai được', false !== strpos( $h_ch0, 'Lưu đơn giá của TRONG_XX' ), '' );
 
 /* 🔴 TÊN LẤY TỪ HỒ SƠ THÌ KHÔNG CHO GÕ ĐÈ.
    Dòng có giờ tháng này mang tên của HỒ SƠ. Gõ đè ở đây không đổi hồ sơ của ai — nó chỉ làm đơn
@@ -2802,5 +2823,310 @@ t( '🔴 cơ sở LẠ (có hồ sơ, chưa vào danh mục) cũng vẫn lên ô
 foreach ( VHCC_NhanSu::ds_coso() as $_c ) {
 	t( '   ô lọc màn Hồ sơ có « ' . $_c .' » y như màn Nhân sự', false !== strpos( $o_cs, $_c ), $o_cs );
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 BẢNG NHẬP LƯƠNG GỘP — MỖI VIỆC MỘT DÒNG, VÀ LƯU KHÔNG ĐƯỢC XOÁ GÌ
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 25/09/2026: *"Xổ sẵn ra nhập giờ được không, 1 bảng phía dưới"*, rồi khi nhìn bản
+ * đầu: *"Sao không chọn sẵn, nhân viên 2 việc thì sao"* — và chốt **mỗi việc một dòng**,
+ * *"giống cơ chế anh đang làm"* (file kế toán).
+ *
+ * 🔴 BẢN 4.83.0 CÓ HAI LỖI PHÁ DỮ LIỆU, và bài này sinh ra để chúng không quay lại:
+ *   · truyền `array()` vào `VHCC_ChotLuong::dat()` — mà chú thích hàm ấy ghi *"Mảng rỗng = xoá
+ *     hết"* — nên mỗi lượt Lưu XOÁ SẠCH giờ việc phụ của cả cơ sở;
+ *   · hỏi khoá `bat` mà `thang_cua()` không bao giờ trả, nên mỗi lượt Lưu TẮT khai báo ăn
+ *     lương tháng.
+ * Cả hai đều xoá LẶNG LẼ. Phép 1 và 2 dưới đây là hai cái gác ấy.
+ * ════════════════════════════════════════════════════════════════════════════════════════════ */
+VHCC_GiaGio::dat_coso( $U_KT, 'AEON_BT', array( 'Lái Tàu' => 23000, 'Lơ Tàu' => 21000 ) );
+
+/* Gieo một người làm HAI việc: 118h việc chính + 8h việc phụ. */
+$MA_2V = 'BT_MAN';
+VHCC_ChotLuong::dat( $U_KT, 'AEON_BT', '2026-08', $MA_2V,
+	array( array( 'viec' => 'Lơ Tàu', 'gio' => '8' ) ), 126.75, 'Lái Tàu' );
+$MA_LT = 'BT_NOGIA';
+VHCC_ChotLuong::dat_thang( $U_KT, 'AEON_BT', '2026-08', $MA_LT, true, '8000000', '26' );
+
+/* 🔴 NGƯỜI CHƯA AI CHỐT LƯƠNG BAO GIỜ — để soi đường lùi về hồ sơ.
+   `viec_chinh()` trả RỖNG cho người này (cố ý: *"đoán bừa một cái tên ở đây là đoán ra tiền"*).
+   Tên việc phải tới từ `$d['cv']`, thứ ĐÃ qua đường lùi `chuc_vu_chinh($hs)` ở bộ dựng bảng
+   lương. Gieo người này là cách duy nhất phân biệt hai nguồn ấy — mấy người kia đều đã được
+   chốt lương với đúng tên chức vụ, nên hỏi nguồn nào cũng ra một kết quả. */
+$MA_HS = 'BT_HOSO';
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => $MA_HS,
+	'ho_ten' => 'Người Chỉ Có Hồ Sơ', 'cccd' => '000000000777', 'cua_hang' => 'AEON_BT',
+	'chuc_vu' => 'Soát Vé', 'vai_tro' => 'Nhân viên' ) );
+$gieo( $MA_HS, 'AEON_BT', '2026-08-06', 8 * 3600, 480 );
+t( '🔴 (tiền đề) chưa ai chọn việc chính cho người này',
+	'' === (string) VHCC_ChotLuong::viec_chinh( 'AEON_BT', '2026-08', $MA_HS ),
+	VHCC_ChotLuong::viec_chinh( 'AEON_BT', '2026-08', $MA_HS ) );
+
+$g_luong = array( 'man' => 'luong', 'lcs' => 'AEON_BT', 'lth' => '2026-08' );
+$h_bn = vhcc_man( 'KT_BL', 'Kế toán', '', $g_luong );
+$kh_bn = '';
+if ( preg_match( '~<a id="bangnhap"></a>(.*?)</form>~s', $h_bn, $m_bn ) ) { $kh_bn = $m_bn[1]; }
+t( '🔴 bảng nhập gộp có mặt, xổ sẵn', '' !== $kh_bn, 'không thấy #bangnhap' );
+t( '🔴 là MỘT biểu mẫu cho cả bảng', false !== strpos( $kh_bn, 'chot_luong_bang' ), '' );
+t( '🔴 chỉ MỘT nút Lưu', 1 === substr_count( $kh_bn, '<button type="submit"' ), '' );
+
+/* ───── mỗi VIỆC một dòng, ô tên gộp ───── */
+t( '🔴 người hai việc: ô tên gộp bằng rowspan', 1 === preg_match( '~rowspan="\d+" class="o-nguoi"~', $kh_bn ),
+	substr( $kh_bn, 0, 300 ) );
+t( '🔴 có ô nhập cho DÒNG VIỆC PHỤ (b[mã][dong][i][gio])',
+	1 === preg_match( '~name="b\[[^\]]+\]\[dong\]\[\d+\]\[gio\]"~', $kh_bn ), substr( $kh_bn, 0, 300 ) );
+t( '🔴 việc phụ đã gieo hiện sẵn trên bảng', false !== mb_strpos( $kh_bn, 'Lơ Tàu' ), '' );
+/* 🔴 VÀ MANG ĐÚNG SỐ GIỜ. Chỉ hỏi chữ "Lơ Tàu" có trong bảng là hỏi hớ: tên ấy nằm sẵn trong
+   MỌI ô chọn (nó là một dòng của sổ giá), nên phép vẫn xanh kể cả khi dòng việc phụ bị bỏ
+   hẳn và chỉ còn một dòng trống. Phải soi đúng ô giờ của đúng người. */
+$o_phu = '';
+if ( preg_match( '~<tr><td>(?:(?!</tr>).)*?name="b\[' . preg_quote( $MA_2V, '~' )
+	. '\]\[dong\]\[0\]\[gio\]"[^>]*>~su', $kh_bn, $m_phu ) ) { $o_phu = $m_phu[0]; }
+t( '🔴 tìm thấy dòng việc phụ đầu của người hai việc', '' !== $o_phu, substr( $kh_bn, 0, 300 ) );
+t( '🔴 dòng việc phụ mang ĐÚNG 8 giờ đã gieo, không phải ô trống',
+	false !== strpos( $o_phu, 'value="' . VHCC_ChotLuong::viet_gio( 8.0 ) . '"' ), $o_phu );
+t( '🔴 và ô chọn của chính dòng ấy đang chọn sẵn Lơ Tàu',
+	1 === preg_match( '~<option value="Lơ Tàu" selected~u', $o_phu ), $o_phu );
+/* Giờ dòng chính là HIỆU SỐ, máy tự tính — gõ tay vào đó là gõ ra một con số không khớp gì. */
+t( '🔴 ô giờ dòng chính KHÔNG gõ được', false !== strpos( $kh_bn, 'readonly' ), '' );
+
+/* ───── chọn sẵn ───── */
+t( '🔴 ô việc là ô CHỌN, không phải ô gõ tay', false !== strpos( $kh_bn, '<select name="b[' ), '' );
+t( '🔴 ô chọn kèm luôn đơn giá mỗi dòng', false !== mb_strpos( $kh_bn, 'đ/h' ), '' );
+t( '🔴 việc chính điền sẵn (lấy từ dòng bảng lương, không hỏi viec_chinh())',
+	1 === preg_match( '~<option value="Lái Tàu" selected~u', $kh_bn ), '' );
+/* 🔴 VÀ ĐÚNG NGUỒN: người chưa ai chốt lương vẫn phải có sẵn tên việc, lấy từ hồ sơ.
+   ⚠️ NEO VÀO ĐÚNG Ô CHỌN CỦA NGƯỜI ẤY. Soi cả bảng thì dòng việc phụ của người khác cũng
+      mang `Lơ Tàu selected`, và phép sẽ xanh trong khi ô này trống trơn. */
+$o_hs = '';
+if ( preg_match( '~<select name="b\[' . preg_quote( $MA_HS, '~' ) . '\]\[chinh\]".*?</select>~su',
+	$kh_bn, $m_hs ) ) { $o_hs = $m_hs[0]; }
+t( '🔴 người chưa ai chốt lương: vẫn tìm thấy ô chọn việc chính', '' !== $o_hs, substr( $kh_bn, 0, 300 ) );
+/* ⚠️ VÀ TÊN ẤY CHƯA AI KHAI GIÁ — cố ý. Danh sách chọn dựng từ sổ giá, nên một cái tên ngoài
+   sổ chỉ lọt vào nếu bảng chủ động thêm mấy tên đang hiện trên chính nó. Chọn một tên CÓ
+   trong sổ thì phép này xanh mà không chứng minh được gì. */
+t( '🔴 việc chính lùi về CHỨC VỤ TRONG HỒ SƠ khi chưa ai chọn, kể cả tên ngoài sổ giá',
+	1 === preg_match( '~<option value="Soát Vé" selected~u', $o_hs ), $o_hs );
+t( '⚠️ và nói thẳng là tên ấy CHƯA KHAI GIÁ, không im lặng',
+	false !== mb_strpos( $o_hs, 'CHƯA KHAI GIÁ' ), $o_hs );
+
+/* ───── đơn giá: mức THẤP NHẤT của cơ sở làm mặc định ───── */
+t( '🔴 có nhãn nói rõ đây là số MẶC ĐỊNH, không phải số đã khai',
+	false !== mb_strpos( $kh_bn, 'mặc định — mức thấp nhất' ), '' );
+/* ⚠️ NEO VÀO ĐÚNG NGƯỜI CHƯA CÓ GIÁ RIÊNG. Soi cả bảng thì ô giá THẬT của người khác (cũng
+   21.000) làm phép xanh, và đổi `min()` thành `max()` vẫn xanh — tức phép không gác gì. */
+t( '🔴 và mặc định là mức THẤP NHẤT (21.000), không phải mức bất kỳ',
+	1 === preg_match( '~name="b\[' . preg_quote( $MA_HS, '~' ) . '\]\[gia\]" value="21000"~',
+		$kh_bn ), substr( $kh_bn, 0, 300 ) );
+t( '⚠️ người ăn lương tháng: ô giá nói "lương tháng", không nói "chưa khai"',
+	false !== mb_strpos( $kh_bn, 'lương tháng' ), '' );
+/* 🔴 Ô TÍCH PHẢI HIỆN ĐANG TÍCH. Đây là nửa đầu của lỗi A2 bản 4.83.0: màn hỏi khoá `bat` mà
+   `thang_cua()` không bao giờ trả, nên ô LUÔN hiện chưa tích — rồi trình duyệt không gửi
+   `thang` lên, và bộ xử lý tắt luôn khai báo. Ô vẽ sai là đủ mất dữ liệu, chưa cần ai gõ gì. */
+t( '🔴 ô tích "Ăn lương tháng" của người đang ăn lương tháng phải ĐANG TÍCH',
+	1 === preg_match( '~name="b\[' . preg_quote( $MA_LT, '~' ) . '\]\[thang\]" value="1"[^>]*checked~u',
+		$kh_bn ), substr( $kh_bn, 0, 300 ) );
+
+/* ───── 🔴 LƯU CẢ BẢNG KHÔNG ĐƯỢC XOÁ GÌ ───── */
+$U_KTB = array( 'name' => 'Chị Kế Toán', 'role' => 'Kế toán', 'coso' => '' );
+/* ⚠️ GỬI LÊN CẢ NGƯỜI ĂN LƯƠNG THÁNG, đúng như biểu mẫu thật gửi — bảng vẽ MỌI người, nên
+   lượt Lưu nào cũng đi qua từng người một. Bản trước của phép này chỉ gửi mỗi người hai việc,
+   nên `dat_thang()` không hề được gọi cho người ăn lương tháng và phép xanh miễn phí: nó gác
+   một lối mà lỗi A2 không đi qua. */
+$_POST = array( 'ccs' => 'AEON_BT', 'cth' => '2026-08',
+	'b' => array(
+		$MA_2V => array( 'chinh' => 'Lái Tàu',
+			'dong' => array( array( 'viec' => 'Lơ Tàu', 'gio' => '8' ) ) ),
+		$MA_LT => array( 'chinh' => '', 'thang' => '1', 'lcb' => '8000000', 'cong_yc' => '26' ),
+	) );
+$r_bl = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec', array( 'chot_luong_bang', $U_KTB ) );
+$_POST = array();
+t( 'lưu cả bảng: không bị chối', empty( $r_bl[0]['loi'] ), $r_bl );
+$gk_sau = VHCC_ChotLuong::cua( 'AEON_BT', '2026-08', $MA_2V );
+t( '🔴 Lưu cả bảng KHÔNG xoá giờ việc phụ', 1 === count( (array) $gk_sau ), $gk_sau );
+$th_sau = VHCC_ChotLuong::thang_cua( 'AEON_BT', '2026-08', $MA_LT );
+t( '🔴 Lưu cả bảng KHÔNG tắt khai báo ăn lương tháng', null !== $th_sau, $th_sau );
+
+/* ───── đơn giá gõ vào PHẢI có tác dụng (bản 4.83.0 vẽ ô mà không đọc) ───── */
+$_POST = array( 'ccs' => 'AEON_BT', 'cth' => '2026-08',
+	'b' => array( $MA_2V => array( 'chinh' => 'Lái Tàu', 'gia' => '27000',
+		'dong' => array( array( 'viec' => 'Lơ Tàu', 'gio' => '8' ) ) ) ) );
+vhcc_goi_rieng( 'VHCC_Web', 'lam_viec', array( 'chot_luong_bang', $U_KTB ) );
+$_POST = array();
+$g_sau = VHCC_GiaGio::tra( 'AEON_BT', 'Lái Tàu', $MA_2V, null );
+t( '🔴 đơn giá gõ trên bảng CÓ tác dụng', 27000.0 === (float) $g_sau['gia'], $g_sau );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 GIÁ GÕ Ở DÒNG CHÍNH KHÔNG ĐƯỢC LAN SANG VIỆC KHÁC CỦA CHÍNH NGƯỜI ẤY
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * Đúng câu anh Thắng hỏi khi nhìn bảng: *"nhân viên 2 việc thì sao"*.
+ * Bản nháp ghi khoá `'*'` — *"mọi chức vụ của người ấy"* — nên sửa giá Lái Tàu là giá Lơ Tàu
+ * của cùng người ấy đổi theo, không một câu báo. Người làm hai việc là người DUY NHẤT bị, và
+ * cũng là người khó phát hiện nhất: bảng lương vẫn ra số, chỉ là sai số.
+ * ═════════════════════════════════════════════════════════════════════════════════════════ */
+$g_phu = VHCC_GiaGio::tra( 'AEON_BT', 'Lơ Tàu', $MA_2V, null );
+t( '🔴 giá việc PHỤ không bị giá việc chính đè lên', 21000.0 === (float) $g_phu['gia'], $g_phu );
+
+/* Và giá riêng ĐÃ KHAI cho việc phụ phải SỐNG SÓT qua một lượt lưu bảng — `dat_nguoi()` thay
+   sạch bảng của người ấy, nên bộ xử lý phải đọc bảng cũ rồi gộp, không thì mỗi lượt lưu xoá
+   mất giá riêng của mọi việc khác. */
+VHCC_GiaGio::dat_nguoi( $U_KT, $MA_2V, array( 'Lái Tàu' => 27000, 'Lơ Tàu' => 25000 ) );
+$_POST = array( 'ccs' => 'AEON_BT', 'cth' => '2026-08',
+	'b' => array( $MA_2V => array( 'chinh' => 'Lái Tàu', 'gia' => '28000',
+		'dong' => array( array( 'viec' => 'Lơ Tàu', 'gio' => '8' ) ) ) ) );
+vhcc_goi_rieng( 'VHCC_Web', 'lam_viec', array( 'chot_luong_bang', $U_KTB ) );
+$_POST = array();
+teq( '🔴 giá việc chính đổi theo ô vừa gõ', 28000.0,
+	(float) VHCC_GiaGio::tra( 'AEON_BT', 'Lái Tàu', $MA_2V, null )['gia'] );
+teq( '🔴 giá riêng của việc PHỤ vẫn còn nguyên sau lượt lưu', 25000.0,
+	(float) VHCC_GiaGio::tra( 'AEON_BT', 'Lơ Tàu', $MA_2V, null )['gia'] );
+
+/* ⚠️ Gõ giá mà chưa chọn việc: CHỐI VÀ NÓI RA. Giá ăn theo tên việc, không có tên thì không có
+   chỗ ghi — ghi bừa vào `'*'` cho xong là quay lại đúng lỗi trên. */
+$_POST = array( 'ccs' => 'AEON_BT', 'cth' => '2026-08',
+	'b' => array( $MA_HS => array( 'chinh' => '', 'gia' => '30000' ) ) );
+$r_kv = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec', array( 'chot_luong_bang', $U_KTB ) );
+$_POST = array();
+$loi_kv = '';
+foreach ( (array) $r_kv as $x_kv ) { if ( ! empty( $x_kv['loi'] ) ) { $loi_kv = $x_kv['loi']; } }
+t( '⚠️ gõ giá mà chưa chọn việc thì bị chối', '' !== $loi_kv, $r_kv );
+t( '⚠️ và câu chối nói rõ phải chọn việc', false !== mb_strpos( $loi_kv, 'chưa chọn việc chính' ), $loi_kv );
+teq( '⚠️ và KHÔNG ghi bừa giá cho mọi việc của người ấy', 0.0,
+	(float) VHCC_GiaGio::tra( 'AEON_BT', 'Soát Vé', $MA_HS, null )['gia'] );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 HAI NGUỒN GIÁ LỆCH NHAU THÌ MÀN PHẢI KÊU, KHÔNG ĐƯỢC TỰ CHỌN MỘT BÊN
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 25/09/2026 gửi ảnh: cùng một dòng, ô chọn việc nói "Lái Tàu — 23.000đ/h", ô đơn giá
+ * điền 21.000 kèm nhãn "mặc định", cột tiền tính theo 21.000. Bản 4.84.0 tin bộ dựng bảng lương;
+ * nó bảo "chưa khai" là màn điền mức thấp nhất và tính tiền — lệch 137.000đ một người, im lặng.
+ *
+ * Hai lối tra trong mã là y hệt nhau, nên KHÔNG dựng được cảnh lệch qua cửa công khai — phải bẻ
+ * tay mảng bảng lương rồi gọi thẳng hàm vẽ. Đó chính là điểm: phép này gác HÀNH VI khi lệch,
+ * không gác nguyên nhân (chưa tìm ra; nằm trong dữ liệu thật, và câu kêu sẽ chỉ ra nó).
+ * ═════════════════════════════════════════════════════════════════════════════════════════ */
+$b_l = VHCC_BangLuong::dung( 'AEON_BT', '2026-08' );
+foreach ( $b_l['dong'] as &$d_l ) {
+	if ( $MA_2V === $d_l['ma'] ) { $d_l['gia'] = null; $d_l['giaTu'] = 'khong'; $d_l['luongChinh'] = null; }
+}
+unset( $d_l );
+ob_start();
+vhcc_goi_rieng( 'VHCC_Web', 'the_bang_nhap_luong', array( '', $U_KTB, 'AEON_BT', '2026-08', $b_l ) );
+$h_l = ob_get_clean();
+$bat_dong_chinh = function ( $h, $ma ) {
+	return preg_match( '~<tr><td rowspan="\d+" class="o-nguoi">(?:(?!</tr>).)*?' . preg_quote( $ma, '~' )
+		. '(?:(?!</tr>).)*?</tr>~su', $h, $m ) ? $m[0] : '';
+};
+$o_l = $bat_dong_chinh( $h_l, $MA_2V );
+t( '🔴 (tiền đề) tìm thấy dòng chính của người bị bẻ giá', '' !== $o_l, substr( $h_l, 0, 300 ) );
+t( '🔴 lệch thì KHÔNG điền mức thấp nhất vào ô giá',
+	0 === preg_match( '~name="b\[' . preg_quote( $MA_2V, '~' ) . '\]\[gia\]" value="\d~', $o_l ), $o_l );
+t( '🔴 lệch thì KHÔNG hiện nhãn "mặc định"', false === mb_strpos( $o_l, 'mặc định' ), $o_l );
+t( '🔴 lệch thì KÊU LÊN', false !== mb_strpos( $o_l, 'lệch nhau' ), $o_l );
+t( '🔴 câu kêu nói rõ SỔ GIÁ đang nói bao nhiêu (28.000)', false !== mb_strpos( $o_l, 'Sổ giá nói 28.000' ), $o_l );
+t( '🔴 và nói rõ TẦNG bộ dựng đã tra', false !== mb_strpos( $o_l, 'tầng: không tầng nào' ), $o_l );
+t( '🔴 và in TÊN VIỆC trong «» để khoảng trắng thừa nhìn thấy được', false !== mb_strpos( $o_l, '«Lái Tàu»' ), $o_l );
+/* Thành tiền: bỏ mấy ô chọn (chúng chứa "28.000đ/h") rồi tìm số dạng tiền x.xxx.xxx — không được có. */
+t( '🔴 lệch thì KHÔNG tính tiền',
+	0 === preg_match( '~\d{1,3}\.\d{3}\.\d{3}~', strip_tags( preg_replace( '~<select.*?</select>~su', '', $o_l ) ) ),
+	strip_tags( $o_l ) );
+$o_lp = '';
+if ( preg_match( '~<tr><td>(?:(?!</tr>).)*?name="b\[' . preg_quote( $MA_2V, '~' ) . '\]\[dong\]\[0\]\[gio\]"(?:(?!</tr>).)*?</tr>~su',
+	$h_l, $m_lp ) ) { $o_lp = $m_lp[0]; }
+t( '🔴 dòng việc PHỤ bị lệch cũng kêu (ảnh cho thấy dòng Lơ Tàu trống cả giá lẫn tiền)',
+	'' !== $o_lp && false !== mb_strpos( $o_lp, 'Sổ giá nói 25.000' ), $o_lp );
+
+/* 🔴 CẢNH NẶNG HƠN: hai bên ĐỀU CÓ SỐ nhưng KHÁC NHAU (bộ dựng 21.000, sổ giá 28.000). Ở cảnh trên
+   tiền đã bị chặn sẵn vì bộ dựng trả rỗng; ở cảnh này bộ dựng có một con số trông rất thật, và
+   nếu màn tính tiền theo nó là lại đúng cái lỗi 137.000đ trong ảnh — chỉ khác con số. */
+$b_l2 = VHCC_BangLuong::dung( 'AEON_BT', '2026-08' );
+foreach ( $b_l2['dong'] as &$d_l2 ) {
+	if ( $MA_2V === $d_l2['ma'] && ! empty( $d_l2['laChinh'] ) ) {
+		$d_l2['gia'] = 21000.0; $d_l2['giaTu'] = 'coso'; $d_l2['luongChinh'] = 21000.0 * (float) $d_l2['gio'];
+	}
+}
+unset( $d_l2 );
+ob_start();
+vhcc_goi_rieng( 'VHCC_Web', 'the_bang_nhap_luong', array( '', $U_KTB, 'AEON_BT', '2026-08', $b_l2 ) );
+$h_l2 = ob_get_clean();
+$o_l2 = $bat_dong_chinh( $h_l2, $MA_2V );
+t( '🔴 hai bên đều có số mà khác nhau: vẫn KÊU', false !== mb_strpos( $o_l2, 'Sổ giá nói 28.000' )
+	&& false !== mb_strpos( $o_l2, 'bảng lương đọc ra 21.000' ), $o_l2 );
+t( '🔴 và nói rõ tầng bộ dựng đã tra (cơ sở)', false !== mb_strpos( $o_l2, 'tầng: cơ sở' ), $o_l2 );
+t( '🔴 và KHÔNG điền 21.000 vào ô giá',
+	0 === preg_match( '~name="b\[' . preg_quote( $MA_2V, '~' ) . '\]\[gia\]" value="\d~', $o_l2 ), $o_l2 );
+t( '🔴 và KHÔNG tính tiền theo 21.000 (118,75 × 21.000 = 2.493.750 không được xuất hiện)',
+	0 === preg_match( '~\d{1,3}\.\d{3}\.\d{3}~', strip_tags( preg_replace( '~<select.*?</select>~su', '', $o_l2 ) ) ),
+	strip_tags( $o_l2 ) );
+
+/* Dữ liệu bình thường thì KHÔNG kêu oan — vẽ lại từ đầu, không bẻ gì. */
+$h_bt = vhcc_man( 'KT_BL', 'Kế toán', '', $g_luong );
+t( '⚠️ dữ liệu bình thường thì KHÔNG kêu oan', false === mb_strpos( $h_bt, 'lệch nhau' ), '' );
+
+/* ───── ⚠️ tên việc thừa khoảng trắng: vẫn chọn sẵn đúng, không đẻ dòng đôi, không kêu oan ─────
+   Mọi nguồn tên đều đã cắt ở gốc nên cảnh này không với tới được từ dữ liệu đã lưu — bẻ tay để
+   chốt cái gác ở phía vẽ. */
+$b_t = VHCC_BangLuong::dung( 'AEON_BT', '2026-08' );
+foreach ( $b_t['dong'] as &$d_t ) {
+	if ( $MA_HS === $d_t['ma'] && ! empty( $d_t['laChinh'] ) ) {
+		$d_t['cv'] = 'Lơ Tàu '; $d_t['gia'] = 21000.0; $d_t['giaTu'] = 'coso';
+	}
+}
+unset( $d_t );
+ob_start();
+vhcc_goi_rieng( 'VHCC_Web', 'the_bang_nhap_luong', array( '', $U_KTB, 'AEON_BT', '2026-08', $b_t ) );
+$h_t = ob_get_clean();
+$o_t = '';
+if ( preg_match( '~<select name="b\[' . preg_quote( $MA_HS, '~' ) . '\]\[chinh\]".*?</select>~su', $h_t, $m_t ) ) { $o_t = $m_t[0]; }
+t( '⚠️ (tiền đề) tìm thấy ô chọn của người ấy', '' !== $o_t, substr( $h_t, 0, 300 ) );
+t( '⚠️ tên thừa khoảng trắng vẫn chọn sẵn đúng "Lơ Tàu"', 1 === preg_match( '~<option value="Lơ Tàu" selected~u', $o_t ), $o_t );
+t( '⚠️ và chỉ MỘT dòng "Lơ Tàu" trong danh sách', 1 === substr_count( $o_t, 'value="Lơ Tàu' ), $o_t );
+t( '⚠️ và không kêu oan (khoá tên đã bỏ khoảng trắng)', false === mb_strpos( $bat_dong_chinh( $h_t, $MA_HS ), 'lệch nhau' ), '' );
+
+/* ───── 🔴 "Ăn lương tháng" theo HỒ SƠ (chưa ai tích ô nào) — hai bên phải nhìn cùng một mắt ─────
+   Bộ dựng bảng lương coi người có `luong_co_ban` trong hồ sơ là ăn lương tháng dù chưa có bản ghi
+   tháng. Bản 4.84.0 chỉ hỏi bản ghi, nên người ấy hiện 0 giờ, được điền giá mặc định, và bấm Lưu
+   là con số đoán ấy thành giá riêng thật. */
+$MA_LCB = 'BT_LCB';
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => $MA_LCB, 'ho_ten' => 'Người Lương Tháng Theo Hồ Sơ',
+	'cccd' => '000000000888', 'cua_hang' => 'AEON_BT', 'chuc_vu' => 'Lái Tàu', 'vai_tro' => 'Nhân viên',
+	'luong_co_ban' => 9000000 ) );
+$gieo( $MA_LCB, 'AEON_BT', '2026-08-07', 8 * 3600, 480 );
+t( '(tiền đề) chưa có bản ghi tháng cho người này',
+	null === VHCC_ChotLuong::thang_cua( 'AEON_BT', '2026-08', $MA_LCB ), '' );
+$h_lcb = vhcc_man( 'KT_BL', 'Kế toán', '', $g_luong );
+$o_lcb = $bat_dong_chinh( $h_lcb, $MA_LCB );
+t( '🔴 (tiền đề) tìm thấy dòng người lương tháng theo hồ sơ', '' !== $o_lcb, substr( $h_lcb, 0, 300 ) );
+t( '🔴 màn coi họ là ăn lương tháng — ô giá nói "lương tháng"', false !== mb_strpos( $o_lcb, 'lương tháng' ), $o_lcb );
+t( '🔴 KHÔNG có ô [gia] để bấm Lưu là ghi giá đoán cho họ', false === strpos( $o_lcb, '[gia]' ), $o_lcb );
+t( '🔴 không hiện nhãn "mặc định"', false === mb_strpos( $o_lcb, 'mặc định' ), $o_lcb );
+t( '🔴 ô tích "Ăn lương tháng" ĐANG TÍCH', 1 === preg_match( '~\[thang\]" value="1"[^>]*checked~', $o_lcb ), $o_lcb );
+t( '🔴 lương cơ bản điền sẵn từ hồ sơ (9.000.000)', 1 === preg_match( '~\[lcb\]" value="9000000"~', $o_lcb ), $o_lcb );
+t( '🔴 ô giờ không in "0" cho người lương tháng', 0 === preg_match( '~<input value="0"[^>]*readonly~', $o_lcb ), $o_lcb );
+
+/* ───── ⚠️ Lưu mà giá không đổi thì KHÔNG ghi; ghi giá nào thì KỂ RA giá ấy ─────
+   Ô giá nay luôn có sẵn số, nên thiếu gác này thì mỗi lượt Lưu ghi giá tầng-người cho MỌI người —
+   và người chỉ đang ăn giá cơ sở từ đó không đổi theo giá cơ sở nữa. */
+$gop_xong = function ( $r ) { $x = ''; foreach ( (array) $r as $y ) { if ( ! empty( $y['xong'] ) ) { $x .= $y['xong'] . ' | '; } } return $x; };
+$_POST = array( 'ccs' => 'AEON_BT', 'cth' => '2026-08',
+	'b' => array( $MA_2V => array( 'chinh' => 'Lái Tàu', 'gia' => '28000',
+		'dong' => array( array( 'viec' => 'Lơ Tàu', 'gio' => '8' ) ) ) ) );
+$r_kd = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec', array( 'chot_luong_bang', $U_KTB ) );
+$_POST = array();
+t( '⚠️ giá không đổi (28.000 = 28.000): KHÔNG báo "Đã ghi đơn giá"', false === mb_strpos( $gop_xong( $r_kd ), 'Đã ghi đơn giá' ), $r_kd );
+t( '⚠️ nhưng dòng vẫn được lưu bình thường', false !== mb_strpos( $gop_xong( $r_kd ), 'Đã lưu' ), $r_kd );
+
+$_POST = array( 'ccs' => 'AEON_BT', 'cth' => '2026-08',
+	'b' => array( $MA_HS => array( 'chinh' => 'Soát Vé', 'gia' => '21000' ) ) );
+$r_md = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec', array( 'chot_luong_bang', $U_KTB ) );
+$_POST = array();
+t( '🔴 ghi giá MẶC ĐỊNH thì phải KỂ RA — có mã người', false !== mb_strpos( $gop_xong( $r_md ), $MA_HS ), $r_md );
+t( '🔴 và nói rõ đó là giá mặc định', false !== mb_strpos( $gop_xong( $r_md ), '(mặc định)' ), $r_md );
+t( '🔴 và nói rõ giá riêng áp MỌI THÁNG', false !== mb_strpos( $gop_xong( $r_md ), 'mọi tháng' ), $r_md );
+teq( '🔴 và giá ấy đã vào sổ thật', 21000.0, (float) VHCC_GiaGio::tra( 'AEON_BT', 'Soát Vé', $MA_HS, null )['gia'] );
+
+/* ───── quyền ───── */
+$h_nv = vhcc_man( 'NV_BL', 'Nhân viên', 'AEON_BT', $g_luong );
+t( '🔴 Nhân viên KHÔNG thấy bảng nhập lương', false === strpos( $h_nv, 'id="bangnhap"' ), '' );
+t( '⚠️ không nhét script vào bảng nhập', false === stripos( $kh_bn, '<script' ), '' );
 
 ket_luan();

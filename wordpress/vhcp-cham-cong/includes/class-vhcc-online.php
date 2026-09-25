@@ -175,6 +175,78 @@ class VHCC_Online {
 		return null;
 	}
 
+	/**
+	 * ĐỊNH TUYẾN MỘT LƯỢT BẤM CHO ĐƯỜNG GHI TỰ ĐỘNG — máy chấm công, nạp .csv, Nạp về.
+	 *
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 VÌ SAO CÓ HÀM NÀY, 25/09/2026.
+	 *    Anh Thắng: *"cứ mặc định có vào là phải chờ giờ ra, chứ không phải qua ngày hôm sau là
+	 *    lại sinh ra ngày mới"* — kèm ảnh một ca setup `19:51 → 04:00` mà sổ ghi thành hai hàng
+	 *    hai ngày, mỗi hàng một đầu giờ, rồi cả tháng cơ sở ấy ra 0 công.
+	 *
+	 *    Luật ấy KHÔNG PHẢI viết mới: `dinh_tuyen()` và luật "Setup đợi ngày ra" ngay dưới nó đã
+	 *    làm đúng việc ấy từ trước. Chỗ hỏng là chúng CHỈ chạy trong `cham_cong()` — tức chỉ cho
+	 *    người bấm bằng điện thoại. Ba đường còn lại (`VHCC_May`, `VHCC_NapCong`, `VHCC_Keo`) gọi
+	 *    thẳng `VHCC_Nhan::ghi_gio()` với NGÀY THÔ, không qua một dòng định tuyến nào. Ai chấm
+	 *    bằng MÁY thì lượt 04:00 rơi xuống một ngày mới, đúng như anh mô tả.
+	 *
+	 *    Nên gom luật vào một hàm, rồi gọi từ `ghi_gio()` — cổng ghi chung mà chú thích của chính
+	 *    nó đã nói: *"Mọi đường ghi vào bảng chấm công đều qua đây, nên chốt ở đây là chốt cho cả
+	 *    những đường sẽ mọc ra sau."*
+	 *
+	 * ⚠️ TỰ TRA `chinh_chua_ra`, KHÔNG BẮT NƠI GỌI TRUYỀN. Ba đường kia không có sẵn con số ấy,
+	 *    mà quên truyền thì mặc định `false` — và `false` ở đây nghĩa là BỎ ân hạn tan làm: người
+	 *    bấm ra lúc 17:05 bị đẩy sang hàng 2, hàng 1 thiếu giờ ra, MẤT TRỌN MỘT CÔNG NGÀY. Một
+	 *    tham số mặc định sai lặng lẽ hơn một tham số thiếu.
+	 *
+	 * Trả `null` = cứ ghi vào hàng 1, ngày thô (không phải ca đêm).
+	 * Trả `array( 'ngay', 'duoi', 'giay' )` = ghi vào hàng ca đêm ấy.
+	 * Trả `array( 'loi' => … )` = giờ này không thuộc hàng 2, đừng ghi bừa.
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 */
+	public static function tuyen_cho_ghi( $coso, $ngay, $ma_nv, $giay ) {
+		if ( ! self::la_van_phong( $coso ) ) { return null; }
+		if ( null === $giay || '' === $ma_nv ) { return null; }
+		$cfg      = self::vp_cfg( $coso );
+		$ngay_den = VHCC_DB::giay( $cfg['ngayDen'] );
+		if ( null === $ngay_den ) { return null; }
+
+		/* Ân hạn tan làm — xem chú thích trong `dinh_tuyen()`. Chỉ tra sổ khi lượt rơi đúng vào
+		   khoảng ấy, để đường máy không phải hỏi bảng một câu thừa cho mỗi lượt chấm. */
+		$chinh_chua_ra = false;
+		if ( $giay >= $ngay_den && $giay <= $ngay_den + (int) $cfg['graceRaPhut'] * 60 ) {
+			$h = self::hang( $coso, $ngay, $ma_nv, '' );
+			$chinh_chua_ra = ( $h && null !== $h['gio_vao_giay'] && null === $h['gio_ra_giay'] );
+		}
+
+		/* "Setup đợi ngày ra" — cùng luật với `cham_cong()`, xem khối chú thích dài ở đó.
+		   Cơ sở PHỤ đã ghép, lượt bấm trong ngày, mà hôm trước còn một hàng ca đêm ĐANG MỞ thì
+		   lượt này là giờ RA của hàng đó, không phải giờ vào của ngày mới.
+		   ⚠️ CHỈ CƠ SỞ PHỤ. Ở cơ sở chính, người tăng ca tối qua quên bấm ra rồi sáng nay bấm
+		      vào ca ngày — đem lượt ấy đóng hàng đêm là ca ngày mất giờ vào và đêm qua thành 14
+		      tiếng. Ở cơ sở setup không có ca ngày để mà nhầm. */
+		$cs_luat = self::coso_luat( $coso );
+		if ( 0 !== strcasecmp( $cs_luat, $coso ) && $giay <= $ngay_den ) {
+			$hom_truoc = self::ngay_truoc( $ngay );
+			$mo = self::hang( $coso, $hom_truoc, $ma_nv, self::DUOI_CD );
+			if ( $mo && null !== $mo['gio_vao_giay'] && '' !== $mo['gio_vao_giay']
+				&& ( null === $mo['gio_ra_giay'] || '' === $mo['gio_ra_giay'] ) ) {
+				return array( 'ngay' => $hom_truoc, 'duoi' => self::DUOI_CD,
+					'giay' => $giay + VHCC_DB::NGAY_GIAY );
+			}
+		}
+
+		$t = self::dinh_tuyen( $coso, $ngay, $giay, $chinh_chua_ra );
+		if ( ! $t ) { return null; }
+		$giay_ghi = self::trai_phang( $giay, $cfg );
+		if ( null === $giay_ghi ) {
+			/* Giờ thuộc ca ngày mà lại định tuyến sang hàng 2 -> KHÔNG ghi bừa: ghi vào hàng 2
+			   là công ngày biến thành tăng ca. */
+			return array( 'loi' => 'Giờ này không thuộc hàng tăng ca / ca đêm.' );
+		}
+		return array( 'ngay' => $t['ngay'], 'duoi' => $t['duoi'], 'giay' => $giay_ghi );
+	}
+
 	public static function ngay_truoc( $ngay ) {
 		$t = strtotime( $ngay . ' -1 day' );
 		return false === $t ? $ngay : gmdate( 'Y-m-d', $t );

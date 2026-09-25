@@ -1062,6 +1062,7 @@ class VHCC_Luong {
 					   mà để lưới còn nói được VÌ SAO ô này ra con số đó. Một ô công 0.5 không có
 					   giờ đi kèm thì người soi chỉ biết là 0.5, không biết cãi vào đâu. */
 					'vao' => '', 'ra' => '', 'h2vao' => '', 'h2ra' => '', 'gioNgay' => 0.0,
+					'raHomSau' => false, 'h2raHomSau' => false,
 					/* Ảnh chấm công của ĐÚNG lượt bấm — anh Thắng 07/09/2026: *"hiện ảnh chấm
 					   công"*. Ở NGUYÊN ngày ghi giờ thô (h2vao/h2ra), không dồn theo congDem sang
 					   ngày hôm sau: ảnh là bằng chứng của LƯỢT BẤM, còn công đêm mới là thứ dồn
@@ -1094,6 +1095,9 @@ class VHCC_Luong {
 				? self::vp_phut_trong_khung( self::pm( $chinh[0] ), self::pm( $chinh[1] ), $tu, $den ) : 0;
 			$out[ $ngay ]['gioNgay'] = round( $out[ $ngay ]['phutNgay'] / 60, 2 );
 			if ( $chinh ) {
+				/* Hàng 1 cũng có thể trải phẳng (ca đêm ở cơ sở tính theo giờ) — xem chú thích
+				   ở khối hàng 2 ngay dưới. */
+				$out[ $ngay ]['raHomSau'] = ( null !== $chinh[1] && (int) $chinh[1] >= VHCC_DB::NGAY_GIAY );
 				$out[ $ngay ]['vao'] = VHCC_DB::hhmm( $chinh[0] );
 				$out[ $ngay ]['ra']  = VHCC_DB::hhmm( $chinh[1] );
 				$out[ $ngay ]['anhVao'] = isset( $chinh[2] ) ? (string) $chinh[2] : '';
@@ -1109,6 +1113,13 @@ class VHCC_Luong {
 			/* ----- HÀNG 2: tăng ca (cùng ngày) hoặc ca đêm (dồn sang NGÀY HÔM SAU) ----- */
 			$dem = isset( $h['dem'] ) ? $h['dem'] : null;
 			if ( $dem ) {
+				/* 🔴 NHỚ LUÔN "GIỜ RA THUỘC NGÀY HÔM SAU" — anh Thắng 25/09/2026: *"đối với set nó
+				   sẽ link ngày, nên cần giờ vào ngày nào, giờ ra ngày nào"*.
+				   `VHCC_DB::hhmm()` cắt phần quá 24 giờ (`% NGAY_GIAY`), nên giờ ra đã trải phẳng
+				   của ca đêm — ví dụ 28:00 — in ra thành `04:00`, và ô chú thích đọc ra
+				   `19:51 → 04:00` trông y như một ca chạy NGƯỢC trong cùng một ngày. Giữ lại cái
+				   cờ này là chỗ duy nhất còn biết sự thật, vì sau `hhmm()` thì không suy lại được. */
+				$out[ $ngay ]['h2raHomSau'] = ( null !== $dem[1] && (int) $dem[1] >= VHCC_DB::NGAY_GIAY );
 				$out[ $ngay ]['h2vao'] = VHCC_DB::hhmm( $dem[0] );
 				$out[ $ngay ]['h2ra']  = VHCC_DB::hhmm( $dem[1] );
 				$out[ $ngay ]['anhH2Vao'] = isset( $dem[2] ) ? (string) $dem[2] : '';
