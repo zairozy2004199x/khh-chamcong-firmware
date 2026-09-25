@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.54.0
+ * Version:           0.55.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -25,7 +25,7 @@ class SAOKE_App {
 	   thêm file"* — câu đầu tiên phải trả lời là "bản đang chạy có khối ấy chưa", mà trang thì
 	   không in số bản ở đâu cả, nên không ai đáp được ngoài cách đi mở wp-admin. Ghi ở đây, hiện
 	   ở góc cột trái. ⚠️ PHẢI BẰNG số ở header `Version:` phía trên — hai chỗ, một giá trị. */
-	const VER = '0.54.0';
+	const VER = '0.55.0';
 
 	/* 🔴 BỘ NHỚ ĐỆM TRONG MỘT LƯỢT cho bản đồ cửa hàng VietQR (option `saoke_vqr_ch`) — anh Thắng
 	   25/09/2026: Báo cáo tổng bên Ghế "không nối được tới máy chủ" khi chọn 01→25/09, còn 12→25 thì
@@ -2434,8 +2434,31 @@ class SAOKE_App {
 		if ( '' !== $cs ) {
 			$k = self::chuan_may( $tenMay );
 			$m = ( '' !== $k && isset( $mapMa[ $k ] ) && empty( $mapMa[ $k ]['trung'] ) && $mapMa[ $k ]['coso'] === $cs ) ? (string) $mapMa[ $k ]['ma'] : '';
+			if ( '' === $m ) { $m = self::ghe_may_theo_so_( $cs, $tenMay ); }   // 0.55.0: cùng cơ sở, cùng SỐ máy
 		}
 		return array( 'ng' => $ng, 'coso' => $cs, 'ma' => $m, 'tien' => $tien );
+	}
+	/* 🔴 CÙNG CƠ SỞ, CÙNG SỐ MÁY — anh Thắng 23/09/2026: *"trong VietQR cũng có đánh từng máy 1,2,3,4… trên ghế cũng đánh
+	   1,2,3,4… hai bên đối chiếu lại"* và 25/09/2026 *"nó đang có 1 mã không tên"*: cổng đặt "GLX QT 01", Ghế khai "GA QT-1" —
+	   chữ khác nhau nên khớp tên trượt, tiền rơi vào "(chưa rõ máy)" dù cơ sở đã đúng và số máy đã trùng. Khi cơ sở ĐÃ quy
+	   được mà tên máy không ra ghế: lấy cụm số CUỐI của tên máy, tìm ghế của chính cơ sở ấy có tên khai / mã kết thúc bằng
+	   đúng số ấy — đúng MỘT ghế thì nhận, hai ghế cùng số thì thôi (không đoán). Mã ghế thuần số (80814) không tính là số máy. */
+	private static function ghe_map_so_may_() {
+		static $map = null; if ( null !== $map ) { return $map; }
+		$map = array();
+		foreach ( self::ghe_map_may_ma() as $k => $v ) {
+			if ( ! empty( $v['trung'] ) || ctype_digit( (string) $k ) || ! preg_match( '/([0-9]+)$/', (string) $k, $m ) ) { continue; }
+			$cs = self::chuan_ch( $v['coso'] ); $so = (string) (int) $m[1]; $ma = (string) $v['ma'];
+			if ( ! isset( $map[ $cs ][ $so ] ) ) { $map[ $cs ][ $so ] = $ma; }
+			elseif ( $map[ $cs ][ $so ] !== $ma ) { $map[ $cs ][ $so ] = 'trung'; }
+		}
+		return $map;
+	}
+	private static function ghe_may_theo_so_( $coso, $ten_may ) {
+		$k = self::chuan_may( $ten_may );
+		if ( '' === $k || ctype_digit( $k ) || ! preg_match( '/([0-9]+)$/', $k, $m ) ) { return ''; }
+		$map = self::ghe_map_so_may_(); $cs = self::chuan_ch( $coso ); $so = (string) (int) $m[1];
+		return ( isset( $map[ $cs ][ $so ] ) && 'trung' !== $map[ $cs ][ $so ] ) ? $map[ $cs ][ $so ] : '';
 	}
 	/* Bỏ một dòng đã quy vào đúng MỘT trong ba rổ: vq[cs][ma][ng] · chuaMay[cs][ng] · khongKhop. */
 	private static function vietqr_gom_( &$vq, &$chua, &$khong, $q ) {
@@ -3183,12 +3206,18 @@ class SAOKE_App {
 
 	// ── Sao kê 1 cổng (getSaoKeCong) — 2 chiều (cổng ↔ bank) + đối soát, port đủ shape ──
 	public static function rpc_getSaoKeCong( $a ) {
-		self::can_pin( $a ); global $wpdb;
+		self::can_pin( $a ); global $wpdb; @set_time_limit( 120 );
 		$nguon = strtolower( trim( isset( $a[1] ) ? (string) $a[1] : '' ) );
 		if ( ! in_array( $nguon, self::cong_ds(), true ) ) { self::loi( 'Nguồn không hợp lệ: ' . $nguon ); }
 		$tu = self::vn2ymd( isset( $a[2] ) ? (string) $a[2] : '' ); $den = self::vn2ymd( isset( $a[3] ) ? (string) $a[3] : '' );
 		/* 0.49.0: lọc theo TÀI KHOẢN VietQR (số TK nhận) — anh Thắng 25/09/2026 thêm tài khoản thứ 2. Rỗng = tất cả. */
 		$locTk = preg_replace( '/\s+/', '', (string) ( isset( $a[4] ) ? $a[4] : '' ) );
+		/* 🔴 0.55.0: LỌC CƠ SỞ Ở MÁY CHỦ (tham số 6) — anh Thắng 25/09/2026: *"bên ghế và sao kê đang đọc khác nhau"*: màn này
+		   cắt 5.000 dòng mới nhất RỒI mới lọc ở trình duyệt; hai tài khoản ~1.200 giao dịch/ngày thì 5.000 dòng chỉ phủ vài
+		   ngày cuối — chọn GALAXY QUANG TRUNG cả tháng còn 5 dòng / 130.000đ trong khi Ghế (đọc kho đủ khoảng) 4.950.000đ.
+		   Nay đọc CẢ khoảng (không mang `raw` của dòng đọc được — nặng vô ích), quy cơ sở từng dòng, lọc, rồi mới giới hạn
+		   2.000 dòng hiện; tổng cả khoảng và tổng theo cơ sở tính trên mọi dòng, màn hình nói rõ khi bị cắt. */
+		$locCoSo = trim( (string) ( isset( $a[5] ) ? $a[5] : '' ) );
 		$theoTk = array();
 		foreach ( self::vqr_tk_ds() as $t ) { if ( '' !== $t['so_tk'] ) { $theoTk[ $t['so_tk'] ] = array( 'soTK' => $t['so_tk'], 'nhan' => $t['nhan'], 'nganHang' => $t['ngan_hang'], 'tien' => 0, 'dong' => 0 ); } }
 		$tuKhoa = self::cong_tukhoa( $nguon ); $anhXa = self::ds_anhxa( $nguon ); $mapTen = self::map_ten_diem();
@@ -3198,8 +3227,19 @@ class SAOKE_App {
 		$wc = array( 'nguon=%s' ); $ac = array( $nguon );
 		if ( $tu )  { $wc[] = 'thoi_diem>=%s'; $ac[] = self::moc_tu_( $tu ); }
 		if ( $den ) { $wc[] = 'thoi_diem<%s'; $ac[] = self::moc_den_( $den ); }
-		$rowsC = $wpdb->get_results( $wpdb->prepare( "SELECT khoa, ma_gd, ref, thoi_diem, so_tien, huong, trang_thai, so_tk, noi_dung, diem_ban, ma_ch, may_tay, doc_duoc, raw, nhan_luc FROM $tc WHERE " . implode( ' AND ', $wc ) . " ORDER BY thoi_diem DESC, id DESC LIMIT 5000", $ac ), ARRAY_A );
+		/* Cộng theo tài khoản TRƯỚC khi lọc — ô xổ phải kể đủ mọi tài khoản dù đang xem một cái. 0.55.0: một câu GROUP BY
+		   trên CẢ khoảng (trước cộng trên 5.000 dòng mới nhất → thiếu khi khoảng rộng). */
+		foreach ( (array) $wpdb->get_results( $wpdb->prepare( "SELECT so_tk, SUM(so_tien) AS so_tien, COUNT(*) AS dong FROM $tc WHERE " . implode( ' AND ', $wc ) . " AND huong<>%s AND doc_duoc=1 GROUP BY so_tk", array_merge( $ac, array( 'Đi' ) ) ), ARRAY_A ) as $r ) {
+			$stk = preg_replace( '/\s+/', '', (string) $r['so_tk'] ); if ( '' === $stk ) { $stk = '(không có số TK)'; }
+			if ( ! isset( $theoTk[ $stk ] ) ) { $theoTk[ $stk ] = array( 'soTK' => $stk, 'nhan' => '', 'nganHang' => '', 'tien' => 0, 'dong' => 0 ); }
+			$theoTk[ $stk ]['tien'] += (int) $r['so_tien']; $theoTk[ $stk ]['dong'] += (int) $r['dong'];
+		}
+		if ( '' !== $locTk ) { $wc[] = "REPLACE(so_tk,' ','')=%s"; $ac[] = $locTk; }   // lọc tài khoản trong SQL, không sau khi cắt
+		/* $wc[0] là 'nguon=%s' (dựng ở trên) — mọi câu trên bảng cổng đều khoá theo nguồn, kẻo gom tiền MoMo/VNPAY vào VietQR. */
+		$rowsC = $wpdb->get_results( $wpdb->prepare( "SELECT khoa, ma_gd, ref, thoi_diem, so_tien, huong, trang_thai, so_tk, noi_dung, diem_ban, ma_ch, may_tay, doc_duoc, IF(doc_duoc=1,'',raw) AS raw, nhan_luc FROM $tc WHERE " . implode( ' AND ', $wc ) . " ORDER BY thoi_diem DESC, id DESC LIMIT 60000", $ac ), ARRAY_A );
+		$quaNhieu = count( (array) $rowsC ) >= 60000;
 		$cong = array(); $congTien = 0; $congKho = 0; $khoRows = array(); $tongMoiNguon = 0; $payloadCuoi = '';
+		$theoCoSo = array(); $congDongKhoang = 0; $congTienKhoang = 0; $congTuNgay = '';
 		$chuaAnhXa = array(); $chuaRoMay = 0; $chuaRoTien = 0;
 		/* Mốc "lần nạp file gần nhất phủ tới thời điểm nào" — xem `rpc_napFileCongTx()`. */
 		$nap = get_option( 'saoke_cong_nap_' . $nguon ); $nap = is_array( $nap ) ? $nap : array();
@@ -3207,14 +3247,6 @@ class SAOKE_App {
 		$chuaRoMoi = 0;
 		foreach ( (array) $rowsC as $r ) {
 			$tongMoiNguon++;
-			/* Cộng theo tài khoản TRƯỚC khi lọc — ô xổ phải kể đủ mọi tài khoản dù đang xem một cái. */
-			if ( 'Đi' !== $r['huong'] && (int) $r['doc_duoc'] === 1 ) {
-				$stk = preg_replace( '/\s+/', '', (string) $r['so_tk'] ); if ( '' === $stk ) { $stk = '(không có số TK)'; }
-				if ( ! isset( $theoTk[ $stk ] ) ) { $theoTk[ $stk ] = array( 'soTK' => $stk, 'nhan' => '', 'nganHang' => '', 'tien' => 0, 'dong' => 0 ); }
-				$theoTk[ $stk ]['tien'] += (int) $r['so_tien']; $theoTk[ $stk ]['dong']++;
-			}
-			if ( '' !== $locTk && preg_replace( '/\s+/', '', (string) $r['so_tk'] ) !== $locTk ) { continue; }
-			if ( '' === $payloadCuoi ) { $payloadCuoi = (string) $r['raw']; }
 			$thoiDiem = self::ymd2vn( $r['thoi_diem'] );
 			if ( (int) $r['doc_duoc'] !== 1 ) { $congKho++; if ( count( $khoRows ) < 20 ) { $khoRows[] = array( 'khoa' => $r['khoa'], 'nhanLuc' => self::ymd2vn( $r['nhan_luc'] ), 'raw' => mb_substr( (string) $r['raw'], 0, 400 ) ); } continue; }
 			if ( 'Đi' === $r['huong'] ) { continue; }
@@ -3248,6 +3280,14 @@ class SAOKE_App {
 				if ( '' !== $napDen && (string) $r['thoi_diem'] > $napDen ) { $chuaRoMoi++; }
 			}
 			elseif ( ! $daAnhXa ) { $k = self::chuan_ch( $coSo ); if ( ! isset( $chuaAnhXa[ $k ] ) ) { $chuaAnhXa[ $k ] = array( 'ten' => $coSo, 'soTien' => 0, 'soLan' => 0, 'may' => array(), 'vi' => self::ghe_co() ? 'máy chưa có trong trang Ghế — thêm/gắn máy bên Ghế là tự nhận' : $suy['vi'] ); } $chuaAnhXa[ $k ]['soTien'] += $soTien; $chuaAnhXa[ $k ]['soLan']++; $chuaAnhXa[ $k ]['may'][ $tenMay ] = 1; }
+			/* 0.55.0: nhãn lọc cơ sở = cơ sở Ghế đã quy; chưa quy được → nhãn cảnh báo; không rõ máy → __chuaro__. Tổng theo cơ sở
+			   và tổng cả khoảng cộng TRƯỚC khi cắt 2.000 dòng hiện. */
+			$nhanLoc = '' !== $qd['coso'] ? $qd['coso'] : ( '' === $tenMay ? '__chuaro__' : $cuaHang );
+			if ( ! isset( $theoCoSo[ $nhanLoc ] ) ) { $theoCoSo[ $nhanLoc ] = array( 'ten' => $nhanLoc, 'tien' => 0, 'dong' => 0 ); }
+			$theoCoSo[ $nhanLoc ]['tien'] += $soTien; $theoCoSo[ $nhanLoc ]['dong']++;
+			if ( '' !== $locCoSo && $nhanLoc !== $locCoSo ) { continue; }
+			$congDongKhoang++; $congTienKhoang += $soTien;
+			if ( count( $cong ) >= 2000 ) { continue; }   // vẫn đếm tiếp cho tổng cả khoảng, chỉ thôi đưa vào bảng
 			$cong[] = array( 'khoa' => $r['khoa'], 'maGD' => $r['ma_gd'], 'ref' => $r['ref'], 'thoiDiem' => $thoiDiem, 'soTien' => $soTien,
 				'huong' => $r['huong'], 'trangThai' => $r['trang_thai'], 'soTK' => $r['so_tk'], 'noiDung' => $r['noi_dung'], 'diemBan' => $r['diem_ban'],
 				'docDuoc' => true, 'nhanLuc' => self::ymd2vn( $r['nhan_luc'] ), 'tenMay' => $tenMay, 'coSo' => $coSo,
@@ -3258,9 +3298,10 @@ class SAOKE_App {
 				   nhiên — file không thể chứa nó. Nói ra để khỏi tưởng bản vá hỏng. */
 				'moiHonNap' => ( '' !== $napDen && (string) $r['thoi_diem'] > $napDen ),
 				'cuaHangChuan' => $cuaHang, 'maBank' => $ghe ? ( '' !== self::coso_ma( $ghe['coso'] ) ? self::coso_ma( $ghe['coso'] ) : $ghe['maKh'] ) : $suy['ma'], 'daAnhXa' => $daAnhXa, 'tinh' => $ghe ? $ghe['tinh'] : '' );
-			$congTien += $soTien;
-			if ( count( $cong ) >= 2000 ) { break; }
+			$congTien += $soTien; $congTuNgay = $thoiDiem;
 		}
+		$payloadCuoi = (string) $wpdb->get_var( $wpdb->prepare( "SELECT raw FROM $tc WHERE nguon=%s ORDER BY id DESC LIMIT 1", $nguon ) );
+		$dsTheoCoSo = array_values( $theoCoSo ); usort( $dsTheoCoSo, function ( $x, $y ) { return $y['tien'] - $x['tien']; } );
 		$dsChuaAnhXa = array();
 		foreach ( $chuaAnhXa as $g ) { $may = array_keys( $g['may'] ); sort( $may ); $dsChuaAnhXa[] = array( 'ten' => $g['ten'], 'soTien' => $g['soTien'], 'soLan' => $g['soLan'], 'may' => $may, 'vi' => $g['vi'] ); }
 		usort( $dsChuaAnhXa, function ( $x, $y ) { return $y['soTien'] - $x['soTien']; } );
@@ -3285,6 +3326,8 @@ class SAOKE_App {
 			'chuaRoMay' => $chuaRoMay, 'chuaRoTien' => $chuaRoTien, 'chuaRoMoi' => $chuaRoMoi,
 			'napLan' => $nap,
 			'taiKhoan' => array_values( $theoTk ), 'locTk' => $locTk,
+			'theoCoSo' => $dsTheoCoSo, 'locCoSo' => $locCoSo, 'congDongKhoang' => $congDongKhoang, 'congTienKhoang' => $congTienKhoang,
+			'biCat' => $congDongKhoang > count( $cong ), 'congTuNgay' => $congTuNgay, 'quaNhieu' => $quaNhieu,
 			'log' => array(), 'bank' => $bank, 'bankTien' => $bankTien, 'bankDong' => count( $bank ),
 			'chenh' => $congTien - $bankTien, 'kieuDoiSoat' => 'vietqr' === $nguon ? '1:1' : 'N:1' );
 	}

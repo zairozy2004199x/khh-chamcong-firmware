@@ -54,6 +54,8 @@ eval( 'class SAOKE_App {
 	' . boc( $sk, 'private static function khoang_thoi_diem_(' ) . '
 	' . boc( $sk, 'private static function ax_cua_may_(' ) . '
 	' . boc( $sk, 'public static function bo_duoi_hieu_(' ) . '
+	' . boc( $sk, 'private static function ghe_map_so_may_(' ) . '
+	' . boc( $sk, 'private static function ghe_may_theo_so_(' ) . '
 	' . $f_cm . "\n" . $f_vq . '
 }' );
 t( '🔴 "LM-NSG 01" và "LM-NSG-1" ra CÙNG khoá', SAOKE_App::chuan_may( 'LM-NSG 01' ) === SAOKE_App::chuan_may( 'LM-NSG-1' ), array( SAOKE_App::chuan_may( 'LM-NSG 01' ), SAOKE_App::chuan_may( 'LM-NSG-1' ) ) );

@@ -80,7 +80,7 @@ teq( 'và SÁU nơi cần biết máy đều gọi đúng hàm chung ấy', 6,
 	substr_count( $SRC, 'self::cong_may_dong(' ) );
 /* Hàm màn hình THẬT SỰ gọi phải lấy cột `ma_ch` về — thiếu nó thì gọi hàm chung cũng vô ích. */
 t( '🔴 rpc_getSaoKeCong lấy cột ma_ch + may_tay trong câu SELECT',
-	false !== strpos( $SRC, 'noi_dung, diem_ban, ma_ch, may_tay, doc_duoc, raw, nhan_luc' ) );
+	false !== strpos( $SRC, "noi_dung, diem_ban, ma_ch, may_tay, doc_duoc, IF(doc_duoc=1,'',raw) AS raw, nhan_luc" ) );   // 0.55.0: raw chỉ mang cho dòng chưa đọc được
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
  * 2. CHUẨN HOÁ MÃ CỬA HÀNG — mã là chuỗi máy sinh, so phải khít

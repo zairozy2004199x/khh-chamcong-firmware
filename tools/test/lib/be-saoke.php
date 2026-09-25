@@ -100,7 +100,22 @@ class FakeWpdb {
 		}
 		return null;
 	}
-	public function get_var( $sql ) { return null; }
+	public function get_var( $sql ) {
+		if ( preg_match( "/SELECT raw FROM \S+ WHERE nguon='([^']*)' ORDER BY id DESC LIMIT 1/", $sql, $m ) ) { $c = null; foreach ( $this->hang as $h ) { if ( (string) $h['nguon'] === $m[1] ) { $c = $h; } } return $c ? (string) ( isset( $c['raw'] ) ? $c['raw'] : '' ) : null; }
+		return null;
+	}
+	/* 0.55.0: hai câu của rpc_getSaoKeCong — tổng theo tài khoản (GROUP BY) và bảng dòng cả khoảng (không LIMIT nhỏ). */
+	private function loc_nguon_( $sql ) {
+		if ( ! preg_match( "/WHERE nguon='([^']*)'/", $sql, $m ) ) { return null; }
+		$tk = preg_match( "/REPLACE\(so_tk,' ',''\)='([^']*)'/", $sql, $mt ) ? $mt[1] : '';
+		$ra = array();
+		foreach ( $this->hang as $h ) {
+			if ( (string) $h['nguon'] !== $m[1] ) { continue; }
+			if ( '' !== $tk && preg_replace( '/\s+/', '', (string) ( isset( $h['so_tk'] ) ? $h['so_tk'] : '' ) ) !== $tk ) { continue; }
+			$ra[] = $h;
+		}
+		return $ra;
+	}
 	/* 0.52.0: nạp bù dò trùng theo LÔ — `WHERE khoa IN ('a','b',…)`. Vẫn CHỈ hiểu đúng câu ấy (xem chú thích get_row). */
 	public $so_select_lo = 0; public $so_select_lo_khoa = 0;
 	public function get_results( $sql, $out = null ) {
@@ -110,6 +125,23 @@ class FakeWpdb {
 			preg_match_all( "/'((?:[^']|'')*)'/", $m[2], $mm );
 			$ds = array_map( function ( $x ) { return str_replace( "''", "'", $x ); }, $mm[1] );
 			$ra = array(); foreach ( $this->hang as $h ) { if ( in_array( (string) ( isset( $h[ $m[1] ] ) ? $h[ $m[1] ] : '' ), $ds, true ) ) { $ra[] = $h; } } return $ra;
+		}
+		if ( false !== strpos( $sql, 'SELECT so_tk, SUM(so_tien) AS so_tien, COUNT(*) AS dong FROM' ) ) {
+			$g = array();
+			foreach ( (array) $this->loc_nguon_( $sql ) as $h ) {
+				if ( 'Đi' === (string) $h['huong'] || (int) $h['doc_duoc'] !== 1 ) { continue; }
+				$k = (string) ( isset( $h['so_tk'] ) ? $h['so_tk'] : '' );
+				if ( ! isset( $g[ $k ] ) ) { $g[ $k ] = array( 'so_tk' => $k, 'so_tien' => 0, 'dong' => 0 ); }
+				$g[ $k ]['so_tien'] += (int) $h['so_tien']; $g[ $k ]['dong']++;
+			}
+			return array_values( $g );
+		}
+		if ( preg_match( "/FROM \S+ WHERE nguon='[^']*'.*ORDER BY thoi_diem DESC, id DESC LIMIT (\d+)/", $sql, $m ) ) {
+			$ra = $this->loc_nguon_( $sql );
+			usort( $ra, function ( $x, $y ) { $c = strcmp( (string) $y['thoi_diem'], (string) $x['thoi_diem'] ); return $c ?: ( (int) $y['id'] - (int) $x['id'] ); } );
+			$ra = array_slice( $ra, 0, (int) $m[1] );
+			foreach ( $ra as $i => $h ) { if ( (int) $h['doc_duoc'] === 1 ) { $ra[ $i ]['raw'] = ''; } }
+			return $ra;
 		}
 		return array();
 	}

@@ -54,6 +54,35 @@ lại ba kịch bản (PIN + #cvietqr · vé không hash · vé + #cvietqr): kh�
 biến đều có. `kiem-saoke-ve-hoan-vao.js` (9 phép) canh nhánh vé phải hoãn và các bảng cổng vẫn khai sau
 khối tự đăng nhập.
 
+### Sao Kê 0.55.0 — Bảng "Từ cổng" đọc CẢ khoảng (lọc cơ sở ở máy chủ) · luật "cùng cơ sở, cùng số máy"
+
+**Anh Thắng 25/09/2026** *"bên ghế và sao kê đang đọc khác nhau"*: Sao Kê → cổng VietQR, 01→25/09, lọc GALAXY QUANG TRUNG:
+**5 dòng / 130.000đ** ("5/2000 dòng"); Ghế Báo cáo tổng cùng cơ sở: **4.950.000đ**. Rồi *"nó đang có 1 mã không tên"*: Từng
+ghế của GALAXY QUANG TRUNG — GA QT-1 / GA QT-2 VietQR "–", tiền nằm hết ở dòng "(chưa rõ máy)".
+
+**Nguyên nhân:** (1) `rpc_getSaoKeCong` lấy **5.000 dòng mới nhất** rồi mới lọc cơ sở ở trình duyệt; hai tài khoản ~1.200 giao
+dịch/ngày thì 5.000 dòng chỉ phủ vài ngày cuối → mọi con số "theo cơ sở" của màn Sao Kê sai khi khoảng rộng; Ghế đọc kho
+đủ khoảng nên đúng. (2) Cổng đặt tên máy "GLX QT 01", Ghế khai "GA QT-1" — khoá `glxqt1` ≠ `gaqt1` nên không nối ghế, dù
+cơ sở đã đúng và số máy đã trùng.
+
+**Làm:**
+- `rpc_getSaoKeCong( …, tk, locCoSo )`: đọc **cả khoảng** (tới 60.000 dòng, không mang `raw` của dòng đọc được), quy cơ sở
+  từng dòng, **lọc cơ sở ở máy chủ**, rồi mới giới hạn 2.000 dòng hiện. Trả `theoCoSo` (tổng theo cơ sở trên mọi dòng — ô xổ
+  dựng từ đây, ghi "N GD · tiền"), `congDongKhoang` / `congTienKhoang` (tổng cả khoảng), `biCat` + `congTuNgay` (nói thật
+  khi bảng bị cắt), `quaNhieu`. Tổng theo tài khoản (`taiKhoan`) nay là **một câu GROUP BY trên cả khoảng**; lọc tài khoản
+  đưa vào SQL. `payloadCuoi` lấy bằng câu riêng. Thẻ "Từ cổng" hiện tổng cả khoảng.
+- app.html: đổi cơ sở → tải lại từ máy chủ (`CG_LOCCS`), đổi ngày → chỉ vẽ lại phần đang hiện; nhãn "⚠ đang hiện 2.000
+  dòng mới nhất (từ dd/mm) trong N dòng — tổng CẢ KHOẢNG …đ; chọn cơ sở hoặc thu hẹp ngày để xem đủ".
+- `ghe_may_theo_so_()` trong `vietqr_quy_dong_()`: cơ sở đã quy được mà tên máy không ra ghế → lấy **cụm số cuối** của tên
+  máy, tìm ghế của đúng cơ sở ấy có tên khai / mã kết thúc bằng số ấy; đúng MỘT ghế thì nhận, hai ghế cùng số thì thôi, mã
+  ghế thuần số không tính. Áp cho cả báo cáo lẫn đẩy kho (một luật, một chỗ). **Sau khi cài, bấm ↻ "kéo lại từ Sao Kê" ở Báo
+  cáo tổng** để kho tính lại theo luật mới.
+
+**Kiểm:** `kiem-saoke-cong-ca-khoang.php` 15 phép (theoCoSo / taiKhoan trên cả khoảng, lọc cơ sở ở máy chủ, lọc tài khoản,
+cắt 2.000 → biCat + tổng vẫn cả khoảng); `kiem-saoke-cung-so-may.php` 19 phép (GLX QT 01 → 80814, hai ghế cùng số → thôi,
+khớp thẳng vẫn thắng). FakeWpdb hiểu câu SELECT chính, GROUP BY so_tk, raw cuối. Bài `kiem-saoke-ma-cua-hang` /
+`kiem-saoke-vqr-hai-tai-khoan` cập nhật chuỗi SELECT / lời gọi.
+
 ### Sao Kê 0.54.0 — Đợt toàn dòng MỚI đổ HTTP 500: thêm chỉ mục `ma_gd`, dò theo mã tham chiếu cũng theo lô
 
 **Anh Thắng 25/09/2026** (ảnh sau 0.53.0): *Không nạp được (đã nạp xong 1600/24261 — phần ấy đã lưu): Máy chủ trả về trang

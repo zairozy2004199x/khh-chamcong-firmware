@@ -1860,6 +1860,7 @@ function cgTaoCoSo(nguon, i){
 // tự bỏ lọc, khỏi cảnh đổi sang tháng khác mà vẫn kẹt lọc ngày của tháng cũ -> bảng trống.
 var CG_NGAY = {};
 var CG_LOCCH = {};   // cửa hàng đang lọc ở mỗi cổng (rỗng = tất cả)
+var CG_LOCCS = {};   // 0.55.0: cơ sở đang lọc ở bảng "Từ cổng" — gửi lên máy chủ (lọc TRƯỚC khi cắt 2.000 dòng)
 function cgChonNgay(nguon, ngay){ CG_NGAY[nguon] = ngay || ''; taiDoiSoatFile(nguon); }
 // Sửa 1 dòng ánh xạ: gửi lại ĐÚNG khoảng ngày của dòng đó -> máy chủ sửa dòng đó, không thêm mới.
 function cgSuaAnhXa(nguon, i){
@@ -2585,7 +2586,7 @@ function taiSaoKeCong(nguon){
   google.script.run
     .withSuccessHandler(function(d){ if(!d||!d.ok){ cgBaoLoi(nguon, (d&&d.error)||'Máy chủ trả về rỗng'); return; } veSaoKeCong(nguon, d); })
     .withFailureHandler(function(e){ cgBaoLoi(nguon, e.message); })
-    .getSaoKeCong(PIN, nguon, tu, den, tk);
+    .getSaoKeCong(PIN, nguon, tu, den, tk, CG_LOCCS[nguon] || '');   // 0.55.0: tham số 6 = cơ sở, lọc ở máy chủ
   // Gợi ý cửa hàng chuẩn + mã nộp tiền (đọc tab Tendinhdanh). Lỗi ở đây KHÔNG kéo cả trang sập.
   google.script.run.withSuccessHandler(function(r){
     if(!r || !r.ok) return;
@@ -2639,7 +2640,7 @@ function cgDoiTrang(nguon, bang, buoc){
 
 function veSaoKeCong(nguon, d){
   cgEl(nguon,'capNhat').textContent = 'Cập nhật ' + new Date().toLocaleTimeString('vi-VN');
-  cgEl(nguon,'congTien').textContent = fmt(d.congTien);
+  cgEl(nguon,'congTien').textContent = fmt(d.congTienKhoang != null ? d.congTienKhoang : d.congTien);   // 0.55.0: tổng CẢ khoảng (đã lọc cơ sở nếu có)
   /* 0.49.0: ô xổ tài khoản — dựng lại từ d.taiKhoan nhưng GIỮ lựa chọn đang có; kể tổng từng tài khoản
      dưới thẻ "Từ cổng" để nhìn một lần biết mỗi tài khoản về bao nhiêu. */
   var oTk = cgEl(nguon,'tk'), dsTk = d.taiKhoan || [];
@@ -2751,7 +2752,19 @@ function cgNgaySort_(g){ var p = String(g).split('/'); return p.length===3 ? Num
 function cgNapLocCong(nguon){
   var d = CG_FILE[nguon]; if(!d) return;
   var sel = cgEl(nguon,'congLoc');
-  if(sel){
+  if(sel && d.theoCoSo){
+    /* 0.55.0: danh sách cơ sở + tổng lấy từ máy chủ trên CẢ khoảng (không phải từ 2.000 dòng đang hiện). Chọn → tải lại
+       với tham số cơ sở, máy chủ lọc trước khi cắt. Xem chú thích ở rpc_getSaoKeCong. */
+    var cuS = CG_LOCCS[nguon] || '', tongDong = 0;
+    d.theoCoSo.forEach(function(x){ tongDong += Number(x.dong) || 0; });
+    var hS = '<option value="">— Tất cả cơ sở ('+tongDong+' dòng cả khoảng) —</option>';
+    d.theoCoSo.forEach(function(x){
+      var nhan = x.ten === '__chuaro__' ? '(chưa rõ máy)' : x.ten;
+      hS += '<option value="'+esc(x.ten)+'"'+(x.ten===cuS?' selected':'')+'>'+esc(nhan)+' ('+x.dong+' GD · '+fmt(x.tien)+'đ)</option>';
+    });
+    sel.innerHTML = hS;
+    if(cuS && sel.value !== cuS){ sel.value = ''; CG_LOCCS[nguon] = ''; }   // cơ sở cũ không còn trong kỳ mới
+  } else if(sel){
     var cu = sel.value || '';
     var m = {}, coRong = false;
     (d.cong||[]).forEach(function(r){ var c = cgCoSoCua_(r); if(c) m[c]=(m[c]||0)+1; else coRong = true; });
@@ -2783,18 +2796,29 @@ function cgVeBangCong(nguon){
   var sel = cgEl(nguon,'congLoc'), loc = sel ? sel.value : '';
   var selN = cgEl(nguon,'congLocNgay'), locN = selN ? selN.value : '';
   var ds = (d.cong||[]);
-  if(loc === '__chuaro__') ds = ds.filter(function(r){ return !cgCoSoCua_(r); });
+  if(d.theoCoSo){ /* 0.55.0: cơ sở đã lọc ở máy chủ — ở đây chỉ còn lọc ngày trên phần đang hiện */ }
+  else if(loc === '__chuaro__') ds = ds.filter(function(r){ return !cgCoSoCua_(r); });
   else if(loc) ds = ds.filter(function(r){ return cgCoSoCua_(r) === loc; });
   if(locN) ds = ds.filter(function(r){ return cgNgayCua_(r) === locN; });
   var coLoc = !!(loc || locN);
   cgVeBang(nguon, 'cong', ds, cgDongCong(nguon), 8,
     'Không có giao dịch nào' + (coLoc ? ' khớp bộ lọc' : ' trong kỳ') + '.');
   var tong = ds.reduce(function(s,r){ return s + (Number(r.soTien)||0); }, 0);
-  cgEl(nguon,'congLbl').textContent = (d.cong||[]).length
-    ? ('· ' + ds.length + (coLoc ? ('/' + d.cong.length) : '') + ' dòng · ' + fmt(tong) + 'đ')
-    : '';
+  var lbl = (d.cong||[]).length ? ('· ' + ds.length + (coLoc ? ('/' + d.cong.length) : '') + ' dòng · ' + fmt(tong) + 'đ') : '';
+  /* 0.55.0: nói thật khi bảng bị cắt — tổng cả khoảng nằm ở máy chủ, không phải tổng của 2.000 dòng đang hiện. */
+  if(d.theoCoSo && d.congDongKhoang != null){
+    if(d.biCat) lbl += ' · ⚠ đang hiện ' + (d.cong||[]).length + ' dòng mới nhất (từ ' + esc(d.congTuNgay||'') + ') trong ' + d.congDongKhoang + ' dòng — tổng CẢ KHOẢNG ' + fmt(d.congTienKhoang) + 'đ; chọn cơ sở hoặc thu hẹp ngày để xem đủ';
+    else if(d.locCoSo) lbl += ' · cả khoảng ' + d.congDongKhoang + ' dòng · ' + fmt(d.congTienKhoang) + 'đ';
+    if(d.quaNhieu) lbl += ' · ⚠ khoảng quá rộng (trên 60.000 giao dịch), tổng có thể thiếu — thu hẹp ngày';
+  }
+  cgEl(nguon,'congLbl').textContent = lbl;
 }
-function cgLocCong(nguon){ cgVeBangCong(nguon); }
+function cgLocCong(nguon){
+  /* 0.55.0: đổi CƠ SỞ → tải lại từ máy chủ (lọc trước khi cắt); đổi NGÀY → chỉ vẽ lại phần đang hiện. */
+  var d = CG_FILE[nguon], sel = cgEl(nguon,'congLoc');
+  if(d && d.theoCoSo && sel && (sel.value || '') !== (CG_LOCCS[nguon] || '')){ CG_LOCCS[nguon] = sel.value || ''; taiSaoKeCong(nguon); return; }
+  cgVeBangCong(nguon);
+}
 
 /* Hàm vẽ MỘT dòng "Từ cổng" — tách ra để cả lượt vẽ đầu lẫn lượt lọc dùng chung. */
 function cgDongCong(nguon){
