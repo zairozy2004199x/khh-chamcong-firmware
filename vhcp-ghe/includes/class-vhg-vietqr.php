@@ -80,24 +80,30 @@ class VHG_VietQR {
 		return array_values( $gop );
 	}
 	/** Kho → theo CƠ SỞ × NGÀY (dạng vietqr_theo_coso_ngay). $ten = [ coso_key => tên đang dùng ] để dòng cũ mang tên mới. */
-	public static function gom_coso( $rows, $ten = array() ) {
-		$vq = array(); $khong = 0; $ngayCo = array();
+	/* 🔴 CHỈ CƠ SỞ CÓ TRONG HỆ THỐNG GHẾ — anh Thắng 25/09/2026: *"địa điểm này nó thuộc khu vực phía bắc… chỉ lấy cơ sở đã có trong
+	   hệ thống quản lý ghế bên anh"*. Sao Kê quy điểm bán của cổng về cả danh mục cơ sở của plugin Chi Phí (chuỗi JP…), kho mang
+	   tên ấy sang → Báo cáo tổng mọc dòng "1 JP SB Cam Ranh.new" không mã KH, không ghế. $chi_ghe = true: khoá không có trong
+	   danh mục Ghế ($ten) → gom riêng `ngoaiGhe` (kể tên + tiền để biết tiền đang ở đâu), KHÔNG vào vq, KHÔNG cộng TỔNG. */
+	public static function gom_coso( $rows, $ten = array(), $chi_ghe = false ) {
+		$vq = array(); $khong = 0; $ngayCo = array(); $ngoai = array();
 		foreach ( (array) $rows as $r ) {
 			$ng = (string) $r['ngay']; $key = (string) $r['coso_key']; $tien = (int) $r['so_tien'];
 			if ( '' === $key ) { if ( '' === (string) $r['ma_may'] ) { $ngayCo[ $ng ] = 1; } $khong += $tien; continue; }
+			if ( $chi_ghe && ! isset( $ten[ $key ] ) ) { if ( ! isset( $ngoai[ $key ] ) ) { $ngoai[ $key ] = array( 'ten' => (string) $r['coso'], 'tien' => 0 ); } $ngoai[ $key ]['tien'] += $tien; continue; }
 			$cs = isset( $ten[ $key ] ) ? $ten[ $key ] : (string) $r['coso'];
 			if ( ! isset( $vq[ $cs ] ) ) { $vq[ $cs ] = array(); }
 			$vq[ $cs ][ $ng ] = ( isset( $vq[ $cs ][ $ng ] ) ? $vq[ $cs ][ $ng ] : 0 ) + $tien;
 		}
-		ksort( $ngayCo );
-		return array( 'vq' => $vq, 'khongKhop' => $khong, 'ngayCo' => array_keys( $ngayCo ) );
+		ksort( $ngayCo ); $ng2 = array_values( $ngoai ); usort( $ng2, function ( $a, $b ) { return $b['tien'] - $a['tien']; } );
+		return array( 'vq' => $vq, 'khongKhop' => $khong, 'ngayCo' => array_keys( $ngayCo ), 'ngoaiGhe' => $ng2 );
 	}
 	/** Kho → theo CƠ SỞ × MÁY × NGÀY + "chưa rõ máy" (dạng vietqr_theo_may_ngay). */
-	public static function gom_may( $rows, $ten = array() ) {
-		$vq = array(); $chua = array(); $khong = 0; $ngayCo = array();
+	public static function gom_may( $rows, $ten = array(), $chi_ghe = false ) {
+		$vq = array(); $chua = array(); $khong = 0; $ngayCo = array(); $ngoai = array();
 		foreach ( (array) $rows as $r ) {
 			$ng = (string) $r['ngay']; $key = (string) $r['coso_key']; $ma = (string) $r['ma_may']; $tien = (int) $r['so_tien'];
 			if ( '' === $key ) { if ( '' === $ma ) { $ngayCo[ $ng ] = 1; } $khong += $tien; continue; }
+			if ( $chi_ghe && ! isset( $ten[ $key ] ) ) { if ( ! isset( $ngoai[ $key ] ) ) { $ngoai[ $key ] = array( 'ten' => (string) $r['coso'], 'tien' => 0 ); } $ngoai[ $key ]['tien'] += $tien; continue; }
 			$cs = isset( $ten[ $key ] ) ? $ten[ $key ] : (string) $r['coso'];
 			if ( '' === $ma ) {
 				if ( ! isset( $chua[ $cs ] ) ) { $chua[ $cs ] = array(); }
@@ -108,8 +114,8 @@ class VHG_VietQR {
 			if ( ! isset( $vq[ $cs ][ $ma ] ) ) { $vq[ $cs ][ $ma ] = array(); }
 			$vq[ $cs ][ $ma ][ $ng ] = ( isset( $vq[ $cs ][ $ma ][ $ng ] ) ? $vq[ $cs ][ $ma ][ $ng ] : 0 ) + $tien;
 		}
-		ksort( $ngayCo );
-		return array( 'vq' => $vq, 'chuaMay' => $chua, 'khongKhop' => $khong, 'ngayCo' => array_keys( $ngayCo ) );
+		ksort( $ngayCo ); $ng2 = array_values( $ngoai ); usort( $ng2, function ( $a, $b ) { return $b['tien'] - $a['tien']; } );
+		return array( 'vq' => $vq, 'chuaMay' => $chua, 'khongKhop' => $khong, 'ngayCo' => array_keys( $ngayCo ), 'ngoaiGhe' => $ng2 );
 	}
 	/** Ngày trong dãy mà kho chưa có dấu. */
 	public static function ngay_thieu_tu( $ds_ngay, $ngay_co ) {
@@ -179,9 +185,9 @@ class VHG_VietQR {
 		if ( $tu > $den ) { $x = $tu; $tu = $den; $den = $x; }
 		$thieu = $tu_dong ? self::tu_dong_bo_( $tu, $den ) : self::ngay_thieu( $tu, $den );
 		$rows = self::doc_( $tu, $den );
-		$g = self::gom_coso( $rows, self::ten_theo_key_() );
+		$g = self::gom_coso( $rows, self::ten_theo_key_(), true );   // 2.146.0: chỉ cơ sở trong hệ thống Ghế
 		return array( 'co' => count( $g['ngayCo'] ) > 0, 'vq' => $g['vq'], 'khongKhop' => $g['khongKhop'],
-			'thieuNgay' => $thieu, 'capLuc' => self::cap_luc_moi_nhat_( $rows ), 'saoKe' => $rong['saoKe'] );
+			'thieuNgay' => $thieu, 'capLuc' => self::cap_luc_moi_nhat_( $rows ), 'saoKe' => $rong['saoKe'], 'ngoaiGhe' => $g['ngoaiGhe'] );
 	}
 	/** VietQR thực theo CƠ SỞ × MÁY × NGÀY (đối chiếu từng ghế). */
 	public static function theo_may_ngay( $tu, $den, $tu_dong = true ) {
@@ -190,9 +196,9 @@ class VHG_VietQR {
 		if ( $tu > $den ) { $x = $tu; $tu = $den; $den = $x; }
 		$thieu = $tu_dong ? self::tu_dong_bo_( $tu, $den ) : self::ngay_thieu( $tu, $den );
 		$rows = self::doc_( $tu, $den );
-		$g = self::gom_may( $rows, self::ten_theo_key_() );
+		$g = self::gom_may( $rows, self::ten_theo_key_(), true );
 		return array( 'co' => count( $g['ngayCo'] ) > 0, 'vq' => $g['vq'], 'chuaMay' => $g['chuaMay'], 'khongKhop' => $g['khongKhop'],
-			'thieuNgay' => $thieu, 'capLuc' => self::cap_luc_moi_nhat_( $rows ), 'saoKe' => $rong['saoKe'] );
+			'thieuNgay' => $thieu, 'capLuc' => self::cap_luc_moi_nhat_( $rows ), 'saoKe' => $rong['saoKe'], 'ngoaiGhe' => $g['ngoaiGhe'] );
 	}
 
 	/* ══════════════ GHI KHO ══════════════ */

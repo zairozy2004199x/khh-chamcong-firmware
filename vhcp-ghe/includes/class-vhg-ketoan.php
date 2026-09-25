@@ -2501,7 +2501,9 @@ class VHG_KeToan {
 			   và Sao Kê có mặt không (không có thì màn hình nói thẳng, không quay vòng kéo). */
 			'vqThieuNgay' => isset( $vqd['thieuNgay'] ) ? array_values( (array) $vqd['thieuNgay'] ) : array(),
 			'vqCapLuc' => isset( $vqd['capLuc'] ) ? (string) $vqd['capLuc'] : '',
-			'vqSaoKe' => ( class_exists( 'VHG_VietQR' ) && VHG_VietQR::saoke_co() ) ? 1 : 0 );
+			'vqSaoKe' => ( class_exists( 'VHG_VietQR' ) && VHG_VietQR::saoke_co() ) ? 1 : 0,
+			/* 2.146.0: VietQR quy về cơ sở KHÔNG có trong hệ thống Ghế (chuỗi JP phía Bắc, cơ sở Chi Phí…) — không hiện, không cộng; kể ra để biết tiền ở đâu. */
+			'vqNgoaiGhe' => isset( $vqd['ngoaiGhe'] ) ? array_values( (array) $vqd['ngoaiGhe'] ) : array() );
 
 		/* Lớp VietQR THỰC (đối chiếu với NV nhập) — chỉ mức CƠ SỞ, gom theo ngày giao dịch. */
 		if ( 'coso' === $muc ) {
@@ -2533,7 +2535,7 @@ class VHG_KeToan {
 					$kq['hang'] = $g['hang']; $kq['vqCo'] = true; $kq['vqTongCot'] = $g['vqTongCot']; $kq['vqTong'] = $g['vqTong'];
 					$kq['vqKhongKhop'] = (int) $vqm['khongKhop']; $kq['vqTheoMay'] = 1;
 				}
-				$kq['vqThieuNgay'] = (array) $vqm['thieuNgay']; $kq['vqCapLuc'] = (string) $vqm['capLuc'];
+				$kq['vqThieuNgay'] = (array) $vqm['thieuNgay']; $kq['vqCapLuc'] = (string) $vqm['capLuc']; $kq['vqNgoaiGhe'] = isset( $vqm['ngoaiGhe'] ) ? array_values( (array) $vqm['ngoaiGhe'] ) : array();
 			}
 		}
 		return $kq;

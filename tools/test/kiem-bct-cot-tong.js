@@ -49,6 +49,7 @@ global.ktEl  = (t, c, x) => ({ tag:t, cls:c, txt:x, kids:[], innerHTML:'', style
 global.QUAN_TRI = () => false; global.CHOT_DS = () => false;
 eval(lay('bctThu'));
 eval(lay('bctVqDung'));   // 2.142.0: bctBang hỏi hàm này để biết có lớp VietQR (dòng "cập nhật lúc" + ↻)
+eval(lay('bctNgoaiGhe'));  // 2.146.0: bctBang gọi hàm này để in dòng "Ngoài hệ thống Ghế"
 eval(lay('bctBang'));
 
 /* Dữ liệu giả có BẬT lớp VietQR (cot='qr' + vqCo) — đó là ca sinh thêm dòng chú thích colspan,

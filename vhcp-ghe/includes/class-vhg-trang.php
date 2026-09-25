@@ -8680,6 +8680,14 @@ function bctKeoLai(tu, den, a){
     }, 60000);
   })(tu);
 }
+/* 2.146.0: VietQR quy về cơ sở NGOÀI hệ thống Ghế (chuỗi JP phía Bắc, cơ sở bên Chi Phí…) — anh Thắng: "chỉ lấy cơ sở đã có
+   trong hệ thống quản lý ghế". Không hiện dòng, không cộng TỔNG; chỉ một câu kể tên + tiền để biết tiền đang ở đâu. */
+function bctNgoaiGhe(r){
+  var ds = (r && r.vqNgoaiGhe) || []; if (!ds.length) return '';
+  var tong = 0; ds.forEach(function(x){ tong += Number(x.tien) || 0; });
+  return ' · <span class="mut">' + L('Ngoài hệ thống Ghế (không hiện, không cộng)','Outside the chair system (hidden)') + ': <b>' + ds.length + '</b> ' + L('cơ sở','sites') + ' · ' + ktVnd(tong) + 'đ — '
+    + ds.slice(0, 5).map(function(x){ return esc(x.ten) + ' ' + ktVnd(x.tien); }).join(' · ') + (ds.length > 5 ? ' … +' + (ds.length - 5) : '') + '</span>';
+}
 /* Thứ trong tuần cho tiêu đề cột — ảnh mẫu có THU/FRI/SAT… ngay dưới ngày, và đó không phải
    trang trí: kế toán soi cuối tuần với ngày thường khác nhau. Dựng từ chuỗi 'YYYY-MM-DD' bằng
    Date UTC để khỏi lệch múi giờ. */
@@ -8719,6 +8727,7 @@ function bctBang(r){
         'TOTAL = counted cash + actual bank VietQR') + '</b> — '
         + L('không lấy theo chỉ số máy, và không lấy số QR nhân viên khai (số ấy chỉ để đối chiếu ở nút QR).',
             'not derived from meters, and not the staff-entered QR (that is only for reconciliation).');
+      if (bctNgoaiGhe(r)) { var ng = ktEl('div','mut'); ng.innerHTML = bctNgoaiGhe(r).replace(/^ · /, ''); wrap.appendChild(ng); }
       wrap.appendChild(ghiChu);
       /* 🔴 KHÔNG BÁO "tiền chưa quy được cơ sở" — anh Thắng 19/09/2026: *"Dữ liệu QR từ nhiều
          nguồn mà, nếu không biết thì bỏ qua"*. Tài khoản nhận VietQR không chỉ có ghế: đo trên
@@ -8806,7 +8815,7 @@ function bctBang(r){
     + '</tr>';
   if (vqOn) {
     var note = '<b style="color:#dc2626">VietQR</b> = ' + L('tiền về THẬT từ ngân hàng (Sao Kê, theo ngày giao dịch) — số đỏ đậm là ĐANG LỆCH với số nhân viên nhập.',
-                 'actual bank money (Sao Kê, by transaction date) — bold red means it DIFFERS from staff-entered.');
+                 'actual bank money (Sao Kê, by transaction date) — bold red means it DIFFERS from staff-entered.') + bctNgoaiGhe(r);
 
     /* Khối trái nay là 5 cột (cơ sở · mã KH · ghế · số ghế · TỔNG) hoặc 4 khi gộp theo cơ sở;
        phần còn lại đúng bằng số cột ngày — Tổng đã dọn sang trái, không cộng thêm 1 nữa. */

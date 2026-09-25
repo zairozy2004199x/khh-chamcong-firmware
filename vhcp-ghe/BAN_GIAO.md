@@ -365,6 +365,18 @@ hệt nhau.
 chỉ số nhích → lần mới, hỗn hợp, bill/nộp → lỗi, QR > Actual → lỗi, nộp đủ theo số mới, ảnh nối, khai
 nộp lại header, thứ tự gọi trong luu(), trường mới của chi_tiet, selectLoc sau gửi, cờ NGHI TRÙNG.
 
+### v2.146.0 — Kho VietQR chỉ nhận cơ sở CÓ trong hệ thống Ghế ("chỉ lấy cơ sở đã có trong hệ thống quản lý ghế")
+
+**Anh Thắng 25/09/2026:** Báo cáo tổng mọc dòng "1 JP SB Cam Ranh.new", "1.JP Sân Bay Nội Bài New", "CM VP" không mã KH, không
+ghế — *"địa điểm này nó thuộc khu vực phía bắc, anh muốn tách ra bảng riêng hoặc chưa cần hiện, chỉ lấy cơ sở đã có trong hệ
+thống quản lý ghế bên anh"*. Nguồn: Sao Kê quy điểm bán của cổng về cả danh mục cơ sở của plugin **Chi Phí** (chuỗi JP…), kho
+mang tên ấy sang.
+
+**Làm:** `gom_coso` / `gom_may` nhận `$chi_ghe`: khoá không có trong danh mục Ghế (`VHG_May::ds_coso`) → gom riêng `ngoaiGhe`
+(tên + tiền), KHÔNG vào vq, KHÔNG cộng TỔNG; `theo_coso_ngay` / `theo_may_ngay` bật cờ này. Báo cáo tổng trả `vqNgoaiGhe`, màn hình
+chỉ một câu chú thích "Ngoài hệ thống Ghế (không hiện, không cộng): N cơ sở · X đ — tên…" ở cả chế độ QR và TỔNG thực. Kho vẫn
+giữ dòng ấy (Sao Kê / Chi Phí dùng), muốn "bảng riêng" sau thì đọc từ `ngoaiGhe`. `kiem-vietqr-kho-ghe.php` +4 phép.
+
 ### v2.145.0 — Báo cáo tổng · Từng ghế: nút "⚙ Gán máy" trên dòng "(chưa rõ máy)" (gán tên máy cổng → mã ghế, có đề xuất)
 
 **Anh Thắng 25/09/2026:** *"giờ muốn gán mã máy"* · *"nó đề xuất để gán theo mã để xác định từng máy"* (GALAXY QUANG TRUNG: GA

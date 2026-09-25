@@ -89,6 +89,16 @@ $cs2 = VHG_VietQR::theo_coso_ngay( '2026-09-01', '2026-09-01', false );
 t( 'dòng kho mang tên cũ → đọc ra dưới TÊN ĐANG DÙNG trong danh mục (theo coso_key)', isset( $cs2['vq']['AEON TAN PHU MOI'] ) && ! isset( $cs2['vq']['ten cu'] ), array_keys( $cs2['vq'] ) );
 $wpdb->rows[0]['coso'] = 'AEON MALL TÂN PHÚ'; $wpdb->rows[0]['coso_key'] = 'AEONMALLTANPHU'; array_pop( $GLOBALS['DS_COSO'] );
 
+echo "── 2c. Chỉ cơ sở trong hệ thống Ghế (2.146.0) ───────────────────\n";
+$wpdb->rows[] = array( 'id' => 900, 'ngay' => '2026-09-01', 'coso' => '1 JP SB Cam Ranh.new', 'coso_key' => '1JPSBCAMRANHNEW', 'ma_may' => '', 'so_tien' => 777000, 'cap_luc' => '2026-09-25 09:00:00' );
+$wpdb->rows[] = array( 'id' => 901, 'ngay' => '2026-09-01', 'coso' => 'CM VP', 'coso_key' => 'CMVP', 'ma_may' => 'X1', 'so_tien' => 1000, 'cap_luc' => '2026-09-25 09:00:00' );
+$cs3 = VHG_VietQR::theo_coso_ngay( '2026-09-01', '2026-09-01', false );
+t( '🔴 cơ sở KHÔNG có trong danh mục Ghế (JP, CM VP) không vào vq — không mọc dòng, không cộng TỔNG', ! isset( $cs3['vq']['1 JP SB Cam Ranh.new'] ) && ! isset( $cs3['vq']['CM VP'] ) && 180000 === $cs3['vq']['AEON MALL TÂN PHÚ']['2026-09-01'], array_keys( $cs3['vq'] ) );
+t( 'nhưng được kể ở ngoaiGhe (tên + tiền, tiền giảm dần) để biết tiền đang ở đâu; khongKhop giữ nguyên 90.000', 2 === count( $cs3['ngoaiGhe'] ) && '1 JP SB Cam Ranh.new' === $cs3['ngoaiGhe'][0]['ten'] && 777000 === $cs3['ngoaiGhe'][0]['tien'] && 90000 === $cs3['khongKhop'], $cs3['ngoaiGhe'] );
+$m3 = VHG_VietQR::theo_may_ngay( '2026-09-01', '2026-09-01', false );
+t( 'theo máy cũng vậy: CM VP|X1 không vào vq lẫn chuaMay, nằm ở ngoaiGhe', ! isset( $m3['vq']['CM VP'] ) && ! isset( $m3['chuaMay']['CM VP'] ) && 2 === count( $m3['ngoaiGhe'] ) );
+t( 'gom_coso không bật chi_ghe (mặc định) vẫn như cũ — nhãn theo tên lưu', isset( VHG_VietQR::gom_coso( $wpdb->rows )['vq']['CM VP'] ) );
+array_pop( $wpdb->rows ); array_pop( $wpdb->rows );
 echo "── 3. Ngày thiếu & tự kéo lúc bấm Xem ──────────────────────────\n";
 t( 'ds_ngay 01→03 = 3 ngày, đảo ngược vẫn thế', array( '2026-09-01', '2026-09-02', '2026-09-03' ) === VHG_VietQR::ds_ngay( '2026-09-03', '2026-09-01' ) );
 t( 'ngay_thieu 01→03: thiếu 02, 03', array( '2026-09-02', '2026-09-03' ) === VHG_VietQR::ngay_thieu( '2026-09-01', '2026-09-03' ) );
@@ -153,7 +163,7 @@ $my = file_get_contents( __DIR__ . '/../../vhcp-ghe/includes/class-vhg-may.php' 
 $vq = file_get_contents( __DIR__ . '/../../vhcp-ghe/includes/class-vhg-vietqr.php' );
 t( '🔴 Báo cáo tổng / MISA không còn gọi sang Sao Kê lúc Xem', 0 === substr_count( $kt, 'SAOKE_App::vietqr_theo_coso_ngay( $tu, $den )' ) && 0 === substr_count( $kt, 'SAOKE_App::vietqr_theo_may_ngay( $tu, $den )' ) && 0 === substr_count( $kt, "class_exists( 'SAOKE_App' )" ) );
 t( 'mà đọc kho: theo_coso_ngay (vietqr_thuc_) + theo_may_ngay (nhánh từng ghế)', 1 === substr_count( $kt, 'VHG_VietQR::theo_coso_ngay( $tu, $den )' ) && 1 === substr_count( $kt, 'VHG_VietQR::theo_may_ngay( $tu, $den )' ) );
-t( 'kt_bctong trả vqThieuNgay / vqCapLuc / vqSaoKe cho màn hình', false !== strpos( $kt, "'vqThieuNgay' =>" ) && false !== strpos( $kt, "'vqCapLuc' =>" ) && false !== strpos( $kt, "'vqSaoKe' =>" ) );
+t( 'kt_bctong trả vqThieuNgay / vqCapLuc / vqSaoKe / vqNgoaiGhe cho màn hình; JS kể "Ngoài hệ thống Ghế"', false !== strpos( $kt, "'vqThieuNgay' =>" ) && false !== strpos( $kt, "'vqCapLuc' =>" ) && false !== strpos( $kt, "'vqSaoKe' =>" ) && 2 === substr_count( $kt, "'vqNgoaiGhe'" ) && false !== strpos( $tr, 'function bctNgoaiGhe(' ) );
 t( 'router kt_vqr_dongbo (sau cửa kt_ → chỉ Chốt / Quản lý / Admin) gọi VHG_VietQR::dong_bo', false !== strpos( $tr, 'if ( \'kt_vqr_dongbo\' === $viec ) {' ) && false !== strpos( $tr, 'VHG_VietQR::dong_bo(' ) && strpos( $tr, 'if ( \'kt_vqr_dongbo\' === $viec ) {' ) > strpos( $tr, 'if ( 0 === strpos( $viec, \'kt_\' ) ) {' ) );
 t( '🔴 JS: bấm Xem → bctNapVq kéo từng đợt tới khi tiep rỗng rồi bctLoad() lại; có ↻ kéo lại', false !== strpos( $tr, 'bctNapVq(r, box);' ) && false !== strpos( $tr, 'if (k.tiep) { dot(k.tiep); return; }' ) && false !== strpos( $tr, 'function bctKeoLai(' ) );
 t( 'JS không quay vòng vô hạn: không có Sao Kê thì nói thẳng, kéo 2 lượt vẫn thiếu thì dừng và kể ngày', false !== strpos( $tr, 'if (!r.vqSaoKe) {' ) && false !== strpos( $tr, 'if (BCT_NAP_LAN >= 2) {' ) );
