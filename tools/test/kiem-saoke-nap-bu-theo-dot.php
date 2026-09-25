@@ -20,7 +20,7 @@ function dongFile( $i, $maCH = 'M4QMOQLG7Y' ) { return array( '22-09-2026 23:' .
 $db->hang = array();
 foreach ( array( 1, 2, 3 ) as $i ) { $db->hang[] = array( 'id' => $i, 'nguon' => 'vietqr', 'khoa' => 'vietqr|VPB' . $i, 'ma_gd' => 'VPB' . $i, 'ref' => 'REF' . $i, 'so_tien' => 20000, 'diem_ban' => '', 'ma_ch' => '', 'noi_dung' => 'PaymentForOrder' ); }
 $rows = array( dongFile( 1 ), dongFile( 2 ), dongFile( 3 ), dongFile( 4 ), dongFile( 5 ) );
-$db->so_insert = 0; $db->so_update = 0; $db->so_get_row_khoa = 0; $db->so_select_lo = 0;
+$db->so_insert = 0; $db->so_update = 0; $db->so_get_row_khoa = 0; $db->so_select_lo = 0; $db->so_update_lo = 0;
 
 echo "── 1. Một đợt: dò trùng theo LÔ ───────────────────────────────\n";
 $r = SAOKE_App::rpc_napFileCongTx( array( '1234', 'vietqr', $rows, 'transactions.xlsx' ) );
@@ -33,6 +33,8 @@ teq( '🔴 dò trùng theo lô: đúng 1 câu khoa IN (…) cho cả đợt', 1,
 teq( '🔴 KHÔNG hỏi từng dòng theo khoá nữa (bản cũ: 5 câu, một câu mỗi dòng)', 0, $db->so_get_row_khoa );
 teq( 'ghi đúng 2 dòng', 2, $db->so_insert );
 t( 'dòng cũ đã mang mã cửa hàng', 'M4QMOQLG7Y' === $db->hang[0]['ma_ch'] && 'M4QMOQLG7Y' === $db->hang[2]['ma_ch'], array( $db->hang[0]['ma_ch'], $db->hang[2]['ma_ch'] ) );
+teq( '🔴 0.53.0: vá theo LÔ — 1 câu UPDATE … CASE cho cả 3 dòng, 0 câu UPDATE rời', 1, $db->so_update_lo + $db->so_update * 100 );
+t( '0.53.0: nạp file không tính lại kho Ghế tại chỗ — chỉ đánh dấu ngày cũ (quen_ngay), Ghế cũ thì lùi về tính lại', false !== strpos( $SRC, "method_exists( 'VHG_VietQR', 'quen_ngay' )" ) && false !== strpos( $SRC, 'self::day_ghe_danh_dau_( $ds )' ) && 1 === substr_count( $SRC, 'self::cong_va_lo_( $vaLo );' ) );
 t( 'trả dsMaCH (màn hình hợp các đợt để đếm mã) và thieuBanDo đủ', array( 'M4QMOQLG7Y' ) === $r['dsMaCH'] && array() === $r['thieuBanDo'] && 1 === $r['soMaCH'] );
 
 echo "── 2. Nạp lại y hệt: không đếm thêm đồng nào ──────────────────\n";
@@ -58,12 +60,12 @@ teq( 'soThieuBanDo khớp', 35, $r5['soThieuBanDo'] );
 
 echo "── 5. Dây nối màn hình & cầu gọi ──────────────────────────────\n";
 $ap = file_get_contents( $GOC . '/vhcp-saoke/app.html' );
-t( 'màn hình chia đợt 400 dòng: cgNapTxDot + cgGopKqTx', false !== strpos( $ap, 'var CG_DOT = 400;' ) && false !== strpos( $ap, 'function cgNapTxDot(' ) && false !== strpos( $ap, 'function cgGopKqTx(' ) );
+t( 'màn hình chia đợt 800 dòng (0.53.0): cgNapTxDot + cgGopKqTx', false !== strpos( $ap, 'var CG_DOT = 800;' ) && false !== strpos( $ap, 'function cgNapTxDot(' ) && false !== strpos( $ap, 'function cgGopKqTx(' ) );
 teq( '🔴 chỉ MỘT chỗ gọi napFileCongTx (trong cgNapTxDot) — hai luồng nạp bù / giao dịch lẻ đều qua đó', 1, substr_count( $ap, '.napFileCongTx(PIN, nguon, phan, tenFile)' ) + substr_count( $ap, '.napFileCongTx(PIN, nguon, k.goi' ) + substr_count( $ap, '.napFileCongTx(PIN, nguon, goi' ) );
 t( 'đợt lỗi nói rõ đã nạp tới đâu và nạp lại an toàn', false !== strpos( $ap, 'đã nạp xong \'+daNap+\'/\'+tong+\' dòng — phần ấy đã lưu' ) );
 t( 'giao dịch lẻ đọc đúng khoá themMoi/trungBoQua (trước đọc r2.moi luôn 0)', false !== strpos( $ap, "(r2.themMoi||0)" ) && false === strpos( $ap, "(r2.moi||0)" ) );
 t( 'cầu gọi: máy chủ trả trang HTML thì nói thẳng kèm mã HTTP, không còn "Unexpected token"', false !== strpos( $SRC, 'r.text().then(function(t){try{return JSON.parse(t);}catch(e){throw new Error("Máy chủ trả về trang HTML' ) );
-t( 'luu_cong nhận dòng đã dò sẵn (mảng / false / null)', false !== strpos( $SRC, 'private static function luu_cong( $row, &$kq = null, $cu_biet = null )' ) && false !== strpos( $SRC, "isset( \$daCo[ \$k120 ] ) ? \$daCo[ \$k120 ] : false" ) );
+t( 'luu_cong nhận dòng đã dò sẵn (mảng / false / null)', false !== strpos( $SRC, 'private static function luu_cong( $row, &$kq = null, $cu_biet = null, &$va_lo = null )' ) && false !== strpos( $SRC, "isset( \$daCo[ \$k120 ] ) ? \$daCo[ \$k120 ] : false" ) );
 preg_match( '/^ \* Version:\s+([0-9.]+)/m', $SRC, $m1 ); preg_match( "/const VER = '([0-9.]+)';/", $SRC, $m2 );
-t( 'vân tay 0.52.0', isset( $m1[1], $m2[1] ) && '0.52.0' === $m1[1] && $m1[1] === $m2[1] );
+t( 'vân tay từ 0.52.0 trở lên', isset( $m1[1], $m2[1] ) && version_compare( $m1[1], '0.52.0', '>=' ) && $m1[1] === $m2[1] );
 ket_luan( 'nạp bù theo đợt: mỗi đợt một câu dò lô, nạp lại không đếm hai lần.' );

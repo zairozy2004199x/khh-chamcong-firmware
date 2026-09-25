@@ -54,6 +54,25 @@ lại ba kịch bản (PIN + #cvietqr · vé không hash · vé + #cvietqr): kh�
 biến đều có. `kiem-saoke-ve-hoan-vao.js` (9 phép) canh nhánh vé phải hoãn và các bảng cổng vẫn khai sau
 khối tự đăng nhập.
 
+### Sao Kê 0.53.0 — Nạp bù nhẹ hẳn: không tính lại kho Ghế tại chỗ, vá mã theo lô, 800 dòng/đợt
+
+**Anh Thắng 25/09/2026** *"chậm quá"* — sau 0.52.0 (chia đợt) vẫn lê thê ở đợt 2/61. Hai thứ nặng còn lại trong MỖI đợt:
+(1) `day_ghe_ngay_don_()` tính lại trọn từng ngày đụng tới và ghi đè kho Ghế (hàng trăm câu ghi/ngày), lặp ở đợt sau cùng
+ngày; (2) lượt nạp đầu của một file, dòng nào cũng được vá mã cửa hàng (webhook không gửi) bằng một câu UPDATE riêng —
+400 câu/đợt.
+
+**Làm:**
+- `day_ghe_danh_dau_()`: nạp file / đổi bản đồ cửa hàng / đổi ánh xạ chỉ gọi `VHG_VietQR::quen_ngay()` (một câu xoá/ngày)
+  — Ghế tự kéo lại khi có người bấm Xem. Ghế < 2.143.0 thì lùi về tính lại như cũ. Gán máy tay vẫn tính lại ngay (một ngày).
+- `cong_va_lo_()`: mỗi ô (ma_ch / diem_ban) một câu `UPDATE … SET ô = CASE id WHEN … END WHERE id IN (…)` cho cả đợt
+  (≤400 id/câu); `luu_cong()` nhận `&$va_lo` để gom thay vì UPDATE rời. Webhook (không truyền) không đổi.
+- `CG_DOT` 400 → 800: 24.261 dòng ≈ 31 đợt.
+
+**Kiểm:** `kiem-saoke-nap-bu-theo-dot.php` 26 phép (thêm: 1 câu CASE cho 3 dòng, 0 UPDATE rời; đánh dấu thay vì tính lại);
+`lib/be-saoke.php` FakeWpdb hiểu `UPDATE … CASE id`, đếm `so_update_lo`. Cả bộ HỎNG 11 / 64.
+
+**Cài:** cài đè Sao Kê 0.53.0 + Ghế 2.143.0, Ctrl+F5 trang Sao Kê rồi nạp lại file (nạp lại không đếm hai lần).
+
 ### Sao Kê 0.52.0 — Nạp bù theo ĐỢT: dò trùng theo lô, không còn "Unexpected token '<'" / "File quá lớn"
 
 **Anh Thắng 25/09/2026:** *"nạp file bù rất lâu và hay lỗi"* — ảnh 1: 7.816 dòng → *Unexpected token '<', "<html><hea"… is not
@@ -267,6 +286,17 @@ hệt nhau.
 `kiem-gui-lai-may-khong-chay.php` (30 phép): đè đúng dòng, giữ chỉ số/Actual, undo, ghi chú không phình,
 chỉ số nhích → lần mới, hỗn hợp, bill/nộp → lỗi, QR > Actual → lỗi, nộp đủ theo số mới, ảnh nối, khai
 nộp lại header, thứ tự gọi trong luu(), trường mới của chi_tiet, selectLoc sau gửi, cờ NGHI TRÙNG.
+
+### v2.143.0 — `VHG_VietQR::quen_ngay()`: Sao Kê chỉ ĐÁNH DẤU ngày cũ, Ghế tự kéo khi Xem (nạp bù hết lê thê)
+
+**Anh Thắng 25/09/2026** *"chậm quá"* (nạp bù 24.261 dòng, đợt 2/61). Một phần lớn thời gian mỗi đợt là Sao Kê tính lại
+trọn từng ngày đụng tới rồi ghi đè kho Ghế (`nhan_ngay`: một ngày ~1.000 giao dịch → hàng trăm câu INSERT), và đợt sau
+cùng ngày ấy lại tính lần nữa. Nạp file không cần số ngay — chỉ cần kho BIẾT ngày ấy đã cũ.
+
+**Làm:** `quen_ngay( $ds_ngay )` xoá trọn dòng của các ngày (kể cả dấu) → ngày thành "thiếu" → lượt Xem kế tiếp tự kéo
+(≤3 ngày ngay trong lượt, nhiều hơn màn hình kéo từng đợt có tiến độ — cơ chế 2.142.0). Webhook về ngày đã quên →
+`cong_gd()` thấy chưa có dấu → kéo trọn ngày, vẫn đúng. Sao Kê 0.53.0 gọi hàm này sau nạp file / đổi bản đồ / đổi ánh xạ;
+Ghế cũ chưa có thì Sao Kê lùi về tính lại như trước. `kiem-vietqr-kho-ghe.php` thêm phép cho `quen_ngay` (48 phép).
 
 ### v2.142.0 — Kho số VietQR của Ghế: Sao Kê ĐẨY sang, bấm Xem là tự nạp (hết "không nối được tới máy chủ" lần hai)
 

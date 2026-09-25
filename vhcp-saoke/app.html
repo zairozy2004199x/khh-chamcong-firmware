@@ -2050,9 +2050,9 @@ function cgXemTruocTx(nguon){
 }
 /* ══ 0.52.0: NẠP BÙ THEO ĐỢT — anh Thắng 25/09/2026: *"nạp file bù rất lâu và hay lỗi"* (7.816 dòng → hosting trả trang
    HTML "Unexpected token '<'"; 24.261 dòng → "File quá lớn"). Một yêu cầu ôm cả file là quá giờ máy chủ. Nay gửi từng đợt
-   CG_DOT dòng, có tiến độ, kết quả cộng dồn (cgGopKqTx); đợt nào lỗi thì nói rõ đã nạp tới đâu — bấm nạp lại từ đầu vẫn
+   CG_DOT dòng (400 ở 0.52.0, 800 từ 0.53.0), có tiến độ, kết quả cộng dồn (cgGopKqTx); đợt nào lỗi thì nói rõ đã nạp tới đâu — bấm nạp lại từ đầu vẫn
    an toàn vì máy chủ chống trùng theo khoá giao dịch. Cả hai luồng (nạp bù VietQR · giao dịch lẻ MoMo/VNPAY) cùng đi qua đây. */
-var CG_DOT = 400;
+var CG_DOT = 800;   // 0.53.0: máy chủ đã nhẹ (dò lô + vá lô + không tính lại kho tại chỗ) → 800 dòng/đợt, 24.261 dòng ≈ 31 đợt
 function cgNapTxDot(nguon, goi, tenFile, tienDo, xong, loi){
   var tong = goi.length, i = 0, gop = null, soDot = Math.ceil(tong / CG_DOT);
   (function dot(){

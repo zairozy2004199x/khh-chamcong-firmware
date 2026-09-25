@@ -100,7 +100,7 @@ $nf = boc( $sk, 'public static function rpc_napFileCongTx(' );
 t( 'rpc_napFileCongTx: ghi dấu từng ngày đụng tới (kể cả dòng trùng được VÁ ma_ch) rồi đẩy một lần cuối lượt', false !== strpos( $nf, 'self::ghe_dau_ngay_( $mysql )' ) && false !== strpos( $nf, 'self::day_ghe_ngay_don_();' ) );
 t( 'nạp từ Google Sheet (2 vòng) cũng ghi dấu + đẩy cuối lượt', 2 === substr_count( $sk, "self::ghe_dau_ngay_( self::cong_ngay_mysql( \$tx['thoiDiem'] ) );" ) && 3 === substr_count( $sk, 'self::day_ghe_ngay_don_();' ) );
 t( 'đổi bản đồ cửa hàng (nạp / xoá) + đổi ánh xạ (3 chỗ) → tính lại 7 ngày gần', 5 === substr_count( $sk, 'self::day_ghe_gan_day_( 7 )' ) );
-t( 'không có lớp VHG_VietQR (Ghế cũ) thì mọi đường đẩy im (ghe_kho_co_)', 3 === substr_count( $sk, 'if ( ! self::ghe_kho_co_() )' ) );   // day_ghe_dong_ · day_ghe_ngay_ · day_ghe_gan_day_ (don_ đi qua ngay_)
+t( 'không có lớp VHG_VietQR (Ghế cũ) thì mọi đường đẩy im (ghe_kho_co_)', 4 === substr_count( $sk, 'if ( ! self::ghe_kho_co_() )' ) );   // day_ghe_dong_ · day_ghe_ngay_ · day_ghe_gan_day_ · day_ghe_danh_dau_ (0.53.0)
 
 echo "── 6. Vân tay bản ───────────────────────────────────────────────\n";
 preg_match( '/^ \* Version:\s+([0-9.]+)/m', $sk, $m1 ); preg_match( "/const VER = '([0-9.]+)';/", $sk, $m2 );

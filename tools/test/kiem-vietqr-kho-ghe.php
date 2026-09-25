@@ -1,6 +1,6 @@
 <?php
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
- * GHẾ 2.142.0 — KHO SỐ VIETQR THỰC (vhg_bc_vqr, lớp VHG_VietQR): KHÔNG ĐỒNG NÀO RƠI, BẤM XEM LÀ TỰ NẠP
+ * GHẾ 2.143.0 — KHO SỐ VIETQR THỰC (vhg_bc_vqr, lớp VHG_VietQR): KHÔNG ĐỒNG NÀO RƠI, BẤM XEM LÀ TỰ NẠP
  *
  * Anh Thắng 25/09/2026: *"khi có dữ liệu thêm thì ghi vào máy, để cần đọc ngay, chứ sao kê nó đang quá tải
  * mà cứ gọi qua là lúc được lúc không"* · *"lúc bấm xem, là nó tự đẩy đọc và nạp vào trang ghế luôn"*.
@@ -141,6 +141,8 @@ t( '🔴 quên VHM → bỏ CẢ các ngày có VHM (02, 24) kể cả dấu ng�
 	4 === $n && array( '2026-09-02' ) === VHG_VietQR::ngay_thieu( '2026-09-01', '2026-09-03' ) && array( '2026-09-24' ) === VHG_VietQR::ngay_thieu( '2026-09-24', '2026-09-24' ), array( $n, VHG_VietQR::ngay_thieu( '2026-09-01', '2026-09-03' ) ) );
 t( 'ngày không dính VHM (01, 03, 04, 05) còn nguyên dấu', array() === VHG_VietQR::ngay_thieu( '2026-09-03', '2026-09-05' ) && array() === VHG_VietQR::ngay_thieu( '2026-09-01', '2026-09-01' ) );
 t( 'khoá rỗng / không có → không xoá gì', 0 === VHG_VietQR::quen_coso( '' ) && 0 === VHG_VietQR::quen_coso( 'KHONGCO' ) );
+$n = VHG_VietQR::quen_ngay( array( '2026-09-03', '2026-09-03', 'hom nay', '2026-09-05' ) );
+t( '🔴 2.143.0 quen_ngay: xoá trọn dòng các ngày (bỏ trùng, bỏ ngày sai) → ngày ấy thành "thiếu", lượt Xem kế tự kéo', $n >= 2 && array( '2026-09-03', '2026-09-05' ) === VHG_VietQR::ngay_thieu( '2026-09-03', '2026-09-05' ) && array() === VHG_VietQR::ngay_thieu( '2026-09-04', '2026-09-04' ), array( $n, VHG_VietQR::ngay_thieu( '2026-09-03', '2026-09-05' ) ) );
 
 echo "── 7. Dây nối trong mã nguồn ───────────────────────────────────\n";
 $kt = file_get_contents( __DIR__ . '/../../vhcp-ghe/includes/class-vhg-ketoan.php' );
@@ -159,6 +161,6 @@ t( 'bảng bc_vqr: UNIQUE (ngay,coso_key,ma_may) + KEY ngay', false !== strpos( 
 t( 'vhcp-ghe.php nạp lớp trước ketoan', strpos( $mn, "includes/class-vhg-vietqr.php" ) < strpos( $mn, "includes/class-vhg-ketoan.php" ) );
 t( 'gộp sổ cơ sở → quên kho theo khoá cũ (không đổi nhãn dòng suy ra)', false !== strpos( $my, 'VHG_VietQR::quen_coso( $kc )' ) );
 t( 'không có Sao Kê → dong_bo nói thẳng, không kéo', false !== strpos( $vq, "'Chưa cài plugin Sao Kê" ) );
-t( 'vân tay bản 2.142.0 ở 3 chỗ', 1 === substr_count( $mn, "Version:           2.142.0" ) && 1 === substr_count( $mn, "define( 'VHG_VERSION', '2.142.0' )" ) && 1 === substr_count( file_get_contents( __DIR__ . '/../../vhcp-ghe/includes/class-vhg-baocao.php' ), "const BAN = '2.142.0';" ) );
+t( 'vân tay bản 2.143.0 ở 3 chỗ', 1 === substr_count( $mn, "Version:           2.143.0" ) && 1 === substr_count( $mn, "define( 'VHG_VERSION', '2.143.0' )" ) && 1 === substr_count( file_get_contents( __DIR__ . '/../../vhcp-ghe/includes/class-vhg-baocao.php' ), "const BAN = '2.143.0';" ) );
 
 echo "\n"; if ( $TRUOT ) { echo '🔴 TRƯỢT: ' . count( $TRUOT ) . "\n"; exit( 1 ); } echo "✓ SẠCH — $DAT phép\n";

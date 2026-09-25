@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.52.0
+ * Version:           0.53.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -25,7 +25,7 @@ class SAOKE_App {
 	   thêm file"* — câu đầu tiên phải trả lời là "bản đang chạy có khối ấy chưa", mà trang thì
 	   không in số bản ở đâu cả, nên không ai đáp được ngoài cách đi mở wp-admin. Ghi ở đây, hiện
 	   ở góc cột trái. ⚠️ PHẢI BẰNG số ở header `Version:` phía trên — hai chỗ, một giá trị. */
-	const VER = '0.52.0';
+	const VER = '0.53.0';
 
 	/* 🔴 BỘ NHỚ ĐỆM TRONG MỘT LƯỢT cho bản đồ cửa hàng VietQR (option `saoke_vqr_ch`) — anh Thắng
 	   25/09/2026: Báo cáo tổng bên Ghế "không nối được tới máy chủ" khi chọn 01→25/09, còn 12→25 thì
@@ -671,10 +671,27 @@ class SAOKE_App {
 		}
 		return $ra;
 	}
+	/* Vá theo LÔ (0.53.0): mỗi ô (ma_ch / diem_ban) MỘT câu `UPDATE … SET ô = CASE id WHEN … END WHERE id IN (…)` cho cả đợt —
+	   thay cho 400 câu UPDATE rời ở lượt nạp bù đầu tiên (webhook không gửi mã cửa hàng nên dòng nào cũng phải vá). ≤ 400 id/câu. */
+	private static function cong_va_lo_( $va_lo ) {
+		global $wpdb; $tbl = self::tbl_cong(); $n = 0;
+		foreach ( array( 'ma_ch', 'diem_ban' ) as $cot ) {
+			$cap = array();
+			foreach ( (array) $va_lo as $id => $va ) { if ( isset( $va[ $cot ] ) && '' !== (string) $va[ $cot ] ) { $cap[ (int) $id ] = (string) $va[ $cot ]; } }
+			foreach ( array_chunk( $cap, 400, true ) as $lo ) {
+				$sql = "UPDATE $tbl SET $cot = CASE id"; $args = array();
+				foreach ( $lo as $id => $v ) { $sql .= ' WHEN %d THEN %s'; $args[] = (int) $id; $args[] = $v; }
+				$sql .= " ELSE $cot END WHERE id IN (" . implode( ',', array_map( 'intval', array_keys( $lo ) ) ) . ')';
+				$n += (int) $wpdb->query( $wpdb->prepare( $sql, ...$args ) );
+			}
+		}
+		return $n;
+	}
 	/**
 	 * @param array  $row dòng giao dịch cổng.
 	 * @param string $kq  (ra) `moi` · `va` (đã có, vừa vá thêm ô trống) · `trung` (đã có, không đổi gì).
 	 * @param mixed  $cu_biet (0.52.0) dòng đã có do nạp bù dò theo lô; false = chưa có theo khoá; null = tự hỏi.
+	 * @param array  $va_lo   (0.53.0) nếu là mảng: KHÔNG UPDATE ngay mà gom [id => ô cần vá] để nơi gọi vá MỘT câu cho cả lô (cong_va_lo_).
 	 * @return bool true CHỈ khi thêm dòng mới — nơi gọi đếm tiền dựa vào đúng điều đó.
 	 */
 	/**
@@ -702,7 +719,7 @@ class SAOKE_App {
 		}
 		return null;
 	}
-	private static function luu_cong( $row, &$kq = null, $cu_biet = null ) {
+	private static function luu_cong( $row, &$kq = null, $cu_biet = null, &$va_lo = null ) {
 		global $wpdb; $tbl = self::tbl_cong();
 		$kq = 'trung';
 		/* 0.52.0: nạp bù đã dò theo LÔ (cong_cu_theo_khoa_) — mảng = dòng đã có, false = chắc chắn chưa có theo khoá, null = tự hỏi. */
@@ -734,7 +751,7 @@ class SAOKE_App {
 			if ( '' === trim( (string) $cu['ma_ch'] ) && '' !== $ma_ch_moi ) {
 				$va['ma_ch'] = mb_substr( $ma_ch_moi, 0, 40 );
 			}
-			if ( $va ) { $wpdb->update( $tbl, $va, array( 'id' => (int) $cu['id'] ) ); $kq = 'va'; }
+			if ( $va ) { if ( is_array( $va_lo ) ) { $va_lo[ (int) $cu['id'] ] = $va; } else { $wpdb->update( $tbl, $va, array( 'id' => (int) $cu['id'] ) ); } $kq = 'va'; }
 			return false;
 		}
 		$kq = 'moi';
@@ -2437,11 +2454,25 @@ class SAOKE_App {
 	/* Các lượt NẠP FILE đi qua nhiều ngày: ghi dấu từng ngày đụng tới rồi đẩy MỘT lần cuối lượt. */
 	private static $ngay_dung_ = array();
 	private static function ghe_dau_ngay_( $mysql ) { if ( $mysql && strlen( (string) $mysql ) >= 10 ) { self::$ngay_dung_[ substr( (string) $mysql, 0, 10 ) ] = 1; } }
-	private static function day_ghe_ngay_don_() { $ds = array_keys( self::$ngay_dung_ ); self::$ngay_dung_ = array(); foreach ( $ds as $n ) { self::day_ghe_ngay_( $n ); } }
+	/* 0.53.0 — anh Thắng *"chậm quá"*: nạp file / đổi bản đồ / đổi ánh xạ KHÔNG tính lại ngay nữa mà ĐÁNH DẤU ngày cũ bên
+	   kho Ghế (VHG_VietQR::quen_ngay — một câu xoá/ngày); Ghế tự kéo lại khi có người bấm Xem. Tính lại tại chỗ từng
+	   ngày (~1.000 giao dịch, hàng trăm câu ghi) sau MỖI ĐỢT 400 dòng chính là thứ làm nạp bù 24.261 dòng lê thê.
+	   Ghế cũ chưa có quen_ngay → lùi về tính lại như trước. */
+	private static function day_ghe_danh_dau_( $ds ) {
+		if ( ! self::ghe_kho_co_() ) { return; }
+		$ds = array_values( array_unique( array_filter( (array) $ds ) ) ); if ( ! $ds ) { return; }
+		if ( method_exists( 'VHG_VietQR', 'quen_ngay' ) ) {
+			try { VHG_VietQR::quen_ngay( $ds ); } catch ( \Throwable $e ) { error_log( 'saoke→ghe quen_ngay: ' . $e->getMessage() ); }
+			return;
+		}
+		foreach ( $ds as $n ) { self::day_ghe_ngay_( $n ); }
+	}
+	private static function day_ghe_ngay_don_() { $ds = array_keys( self::$ngay_dung_ ); self::$ngay_dung_ = array(); self::day_ghe_danh_dau_( $ds ); }
 	private static function day_ghe_gan_day_( $so_ngay ) {
 		if ( ! self::ghe_kho_co_() ) { return; }
-		$t = strtotime( current_time( 'Y-m-d' ) );
-		for ( $i = 0; $i < (int) $so_ngay; $i++ ) { self::day_ghe_ngay_( gmdate( 'Y-m-d', $t - $i * 86400 ) ); }
+		$t = strtotime( current_time( 'Y-m-d' ) ); $ds = array();
+		for ( $i = 0; $i < (int) $so_ngay; $i++ ) { $ds[] = gmdate( 'Y-m-d', $t - $i * 86400 ); }
+		self::day_ghe_danh_dau_( $ds );
 	}
 
 	/* Địa điểm ghế của 1 tên máy VietQR ("AMTP 02"): khớp máy trước, rồi thử cơ sở (bỏ số). null nếu chưa có. */
@@ -3375,7 +3406,8 @@ class SAOKE_App {
 	 * 🔴 VÌ SAO CHIA ĐỢT — anh Thắng 25/09/2026: *"nạp file bù rất lâu và hay lỗi"* (7.816 dòng → hosting trả trang HTML
 	 *    "Unexpected token '<'"; 24.261 dòng → "File quá lớn"). Một yêu cầu ôm cả file: mỗi dòng 2–3 câu SQL dò trùng
 	 *    (khoá, rồi mã tham chiếu) → ~20.000 câu, quá giờ máy chủ. Nay:
-	 *      (1) mỗi đợt ≤ 2.000 dòng (màn hình gửi 400), kết quả từng đợt cộng dồn ở màn hình (cgGopKqTx);
+	 *      (1) mỗi đợt ≤ 2.000 dòng (màn hình gửi 800), kết quả từng đợt cộng dồn ở màn hình (cgGopKqTx);
+	 *      (0.53.0) vá mã cửa hàng theo lô một câu (cong_va_lo_) và KHÔNG tính lại kho Ghế tại chỗ — chỉ đánh dấu ngày cũ.
 	 *      (2) dò trùng theo LÔ: một câu `SELECT … WHERE khoa IN (…)` cho cả đợt — dòng đã có (đa số: webhook đã ghi)
 	 *          không hỏi lại từng dòng; chỉ dòng thật sự mới đi đường luu_cong() đầy đủ (có dò theo mã tham chiếu).
 	 *    Nạp lại cùng file bao nhiêu lần cũng an toàn (khoá chống trùng): đợt lỗi giữa chừng thì bấm lại, không đếm hai lần.
@@ -3415,7 +3447,7 @@ class SAOKE_App {
 		}
 		/* VÒNG 2 — dò trùng theo LÔ (một câu cho cả đợt), rồi ghi từng dòng. */
 		$khoas = array(); foreach ( $dsTx as $d ) { $khoas[] = $d['tx']['khoa']; }
-		$daCo = self::cong_cu_theo_khoa_( $khoas );
+		$daCo = self::cong_cu_theo_khoa_( $khoas ); $vaLo = array();
 		foreach ( $dsTx as $d ) {
 			$tx = $d['tx']; $maCH = $d['maCH']; $noiDung = $d['noiDung']; $thoiDiem = $d['thoiDiem']; $soTien = $d['soTien'];
 			if ( '' !== $maCH ) { $maChFile[ $maCH ] = ( isset( $maChFile[ $maCH ] ) ? $maChFile[ $maCH ] : 0 ) + 1; }
@@ -3438,8 +3470,9 @@ class SAOKE_App {
 			if ( $mysql && $mysql > $denNhat ) { $denNhat = $mysql; }
 			if ( 'vietqr' === $nguon ) { self::ghe_dau_ngay_( $mysql ); }   // nạp file có thể VÁ ma_ch vào dòng cũ → ngày ấy phải tính lại
 			$kqLuu = ''; $k120 = mb_substr( $tx['khoa'], 0, 120 );
-			if ( self::luu_cong( $tx, $kqLuu, isset( $daCo[ $k120 ] ) ? $daCo[ $k120 ] : false ) ) { $moi++; $tongMoi += $soTien; } else { $trung++; if ( 'va' === $kqLuu ) { $vaMay++; } }
+			if ( self::luu_cong( $tx, $kqLuu, isset( $daCo[ $k120 ] ) ? $daCo[ $k120 ] : false, $vaLo ) ) { $moi++; $tongMoi += $soTien; } else { $trung++; if ( 'va' === $kqLuu ) { $vaMay++; } }
 		}
+		self::cong_va_lo_( $vaLo );
 		self::day_ghe_ngay_don_();
 		/* 🔴 GHI LẠI LẦN NẠP NÀY PHỦ TỚI ĐÂU. Anh Thắng 12/09/2026: *"vẫn chưa lọc hết"* — chỉ vào
 		   hai dòng 15:28 và 15:29, trong khi file anh xuất lúc 15:26 dừng ở 15:26:09. File không

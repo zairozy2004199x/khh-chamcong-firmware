@@ -14,7 +14,7 @@ function bocHam(ten) {
 	for (let k = j; k < src.length; k++) { if (src[k] === '{') { dem++; } else if (src[k] === '}') { dem--; if (dem === 0) { sau = k + 1; break; } } }
 	return src.slice(i, sau);
 }
-const m = /var CG_DOT = (\d+);/.exec(src); t('CG_DOT khai trong app.html = 400', m && m[1] === '400', m && m[1]);
+const m = /var CG_DOT = (\d+);/.exec(src); t('CG_DOT khai trong app.html = 800 (0.53.0; 400 ở 0.52.0)', m && m[1] === '800', m && m[1]);
 
 /* google.script.run giả: mỗi lượt gọi trả kết quả theo hàm `traLoi(phan)`; gọi lại bất đồng bộ như thật. */
 const GOI = [];
@@ -31,7 +31,7 @@ const google = { script: { get run() {
 	};
 	return p;
 } } };
-const M = new Function('google', 'PIN', 'var CG_DOT = ' + m[1] + ';\n' + bocHam('cgGopKqTx') + '\n' + bocHam('cgNapTxDot') + '\nreturn { cgGopKqTx: cgGopKqTx, cgNapTxDot: cgNapTxDot };')(google, '1234');
+const M = new Function('google', 'PIN', 'var CG_DOT = 400;\n' + bocHam('cgGopKqTx') + '\n' + bocHam('cgNapTxDot') + '\nreturn { cgGopKqTx: cgGopKqTx, cgNapTxDot: cgNapTxDot };')(google, '1234');
 
 function kq(themMoi, extra) { return Object.assign({ ok: true, nguon: 'vietqr', tenFile: 'f.xlsx', soDongFile: 400, themMoi, trungBoQua: 400 - themMoi, tongTienThem: themMoi * 1000, boQuaDong: 0, khongNgay: 0, khongTien: 0, khongMa: 0, chuaRoMay: 1, vaMay: 2, khongThanhCong: 0, cuaHangMoi: [], dsMaCH: [], thieuBanDo: [], chuaGan: [], soChuaGan: 0 }, extra || {}); }
 
@@ -44,7 +44,7 @@ t('🔴 "chưa quy được" gộp theo nhãn: POSH Huế 6 GD / 120.000đ, JP P
 t('máy chủ cũ (không có dsMaCH/chuaGan) vẫn gộp được, không nổ', (function () { const x = M.cgGopKqTx(null, { ok: true, themMoi: 1, trungBoQua: 0, tongTienThem: 5, soMaCH: 7 }); return x.themMoi === 1 && x.chuaGan.length === 0 && x.soMaCH === 7; })());
 
 (async function () {
-	console.log('── 2. Chia đợt 1.000 dòng ────────────────────────────────');
+	console.log('── 2. Chia đợt 1.000 dòng (thử với CG_DOT=400 để ra 3 đợt) ──');
 	const goi = []; for (let i = 0; i < 1000; i++) { goi.push(['22-09-2026 10:00:00', '20000', 'VPB' + i, '', 'PaymentForOrder', 'A', '', 'Thành công']); }
 	const tienDo = []; GOI.length = 0;
 	traLoi = function (phan) { return kq(phan.length === 200 ? 7 : 1, { dsMaCH: ['A'] }); };

@@ -264,6 +264,19 @@ class VHG_VietQR {
 		}
 		return array( 'ok' => true, 'tu' => $tu, 'den' => $den, 'xong' => $xong, 'tiep' => '', 'conLai' => 0 );
 	}
+	/**
+	 * ĐÁNH DẤU NGÀY CẦN TÍNH LẠI — xoá trọn dòng của các ngày ấy (kể cả dấu) để lượt Xem kế tiếp tự kéo lại từ Sao Kê.
+	 * 2.143.0, anh Thắng 25/09/2026 *"chậm quá"*: nạp bù 24.261 dòng, mỗi đợt Sao Kê tính lại trọn từng ngày đụng tới
+	 * (một ngày ~1.000 giao dịch → hàng trăm câu ghi), rồi đợt sau cùng ngày ấy lại tính lần nữa. Nạp file không cần số
+	 * ngay — chỉ cần kho BIẾT ngày ấy cũ; kéo lại khi có người xem (≤3 ngày ngay trong lượt, nhiều hơn màn hình kéo từng đợt).
+	 * Webhook về ngày đã quên → cong_gd() thấy chưa có dấu → kéo trọn ngày (có cả giao dịch ấy) — vẫn đúng.
+	 */
+	public static function quen_ngay( $ds_ngay ) {
+		global $wpdb; $t = self::t(); $n = 0; $ds = array();
+		foreach ( (array) $ds_ngay as $ng ) { $ng = self::ngay_( $ng ); if ( '' !== $ng ) { $ds[ $ng ] = 1; } }
+		foreach ( array_keys( $ds ) as $ng ) { $n += (int) $wpdb->query( $wpdb->prepare( "DELETE FROM $t WHERE ngay=%s", $ng ) ); }
+		return $n;
+	}
 	/** Gộp sổ / đổi tên cơ sở: quên các NGÀY có dòng mang khoá cũ — lượt Xem kế tiếp kéo lại dưới tên đích. Trả số dòng bỏ. */
 	public static function quen_coso( $coso_key ) {
 		global $wpdb; $t = self::t(); $coso_key = (string) $coso_key;

@@ -123,7 +123,16 @@ class FakeWpdb {
 		}
 		return 0;
 	}
-	public function query( $sql ) { return 0; }
+	public $so_update_lo = 0;   // 0.53.0: vá theo lô — một câu CASE cho cả đợt
+	public function query( $sql ) {
+		if ( preg_match( "/UPDATE \S+ SET (\w+) = CASE id((?: WHEN \d+ THEN '(?:[^']|'')*')+) ELSE \w+ END WHERE id IN \(([\d,]+)\)/", $sql, $m ) ) {
+			$this->so_update_lo++; $n = 0;
+			preg_match_all( "/WHEN (\d+) THEN '((?:[^']|'')*)'/", $m[2], $mm, PREG_SET_ORDER );
+			foreach ( $mm as $c ) { foreach ( $this->hang as $i => $h ) { if ( (int) $h['id'] === (int) $c[1] ) { $this->hang[ $i ][ $m[1] ] = str_replace( "''", "'", $c[2] ); $n++; } } }
+			return $n;
+		}
+		return 0;
+	}
 	public function esc_like( $s ) { return $s; }
 }
 $GLOBALS['wpdb'] = new FakeWpdb();
