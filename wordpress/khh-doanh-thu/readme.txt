@@ -102,6 +102,11 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.67.3 =
+* Tab Xuất MISA: bảng chứng từ gọn lại (anh Thắng 25/09/2026: *"chỉnh tên cơ sở hiện 2 hàng cho nó gọn lại"*) — tên cơ sở
+  gói trong 2 dòng (rê chuột thấy đủ tên); cột Lưu ý tóm theo loại ("chưa Mã đơn vị · 18 món chưa mã hàng · tổng lệch POS")
+  thay vì liệt kê từng món, danh sách đủ nằm ở chú thích khi rê chuột và ở "Xem đủ danh sách" phía trên.
+
 = 1.67.2 =
 * **Báo cáo hàng (sổ kho) ngay trong tab Nhập báo cáo, chỉ xem** (anh Thắng 25/09/2026: *"Cho báo cáo hàng để nhân viên
   gửi báo cáo hằng ngày, qua bên này chỉ hiện không sửa, sửa bên kho hàng"*). Dưới khối Hàng bán theo máy có khối "Báo cáo

@@ -38,7 +38,16 @@ const vm = boc('veMisa');
 t('khối #dtMisa có ô #misaTu/#misaDen/#misaCS/#misaTT và nút #misaXem', /id="dtMisa"/.test(vm) && /id="misaTu"/.test(vm) && /id="misaDen"/.test(vm) && /id="misaCS"/.test(vm) && /id="misaTT"/.test(vm) && /id="misaXem"/.test(vm));
 t('ba trạng thái chua / da / tatca', /\['chua', 'Chưa xuất'\], \['da', 'Đã xuất'\], \['tatca', 'Tất cả'\]/.test(vm));
 t('cảnh báo máy chủ (r.warn) bày trong .canh-ghep', /r\.warn\.map\(esc\)\.join/.test(vm) && /class="canh-ghep"/.test(vm));
-t('bảng chứng từ: Ngày / Cơ sở / Số chứng từ / Dòng / Tổng dòng / Doanh thu POS / Chốt / Đã xuất / Lưu ý, thẻ điện thoại', /<th>Số chứng từ<\/th><th>Dòng<\/th>/.test(vm) && /<th>Chốt<\/th><th>Đã xuất<\/th>/.test(vm) && /class="bang-cuon bang-the the-ct"/.test(vm) && /class="o-ghi" data-nhan="Lưu ý"/.test(vm));
+/* Anh Thắng 25/09/2026: "chỉnh tên cơ sở hiện 2 hàng cho nó gọn lại" — và cột Lưu ý tóm theo loại, đủ ở title. */
+t('🔴 tên cơ sở gói 2 dòng (td.ten-2h, title đủ tên); Lưu ý tóm theo loại qua misaLuuYGon, đủ ở title', /class="o-ten ten-2h" data-nhan="Cơ sở"[^>]*title="' \+ esc\(x\.cua_hang\)/.test(vm) && /esc\(misaLuuYGon\(x\.canh\)\)/.test(vm) && /title="' \+ esc\(\(x\.canh \|\| \[\]\)\.join\('\\n'\)\)/.test(vm) && /-webkit-line-clamp:2/.test(css) && /\.khh-dt td\.ten-2h\{max-width:230px;white-space:normal\}/.test(css));
+const lyg = boc('misaLuuYGon');
+let gon = null;
+try { gon = new Function(lyg + '\n  return misaLuuYGon;')(); } catch (e) { hong.push('không nạp được misaLuuYGon: ' + e.message); }
+if (gon) {
+  t('misaLuuYGon: 3 món thiếu mã + mã đơn vị + combo + lệch -> một dòng ngắn', gon(['Cơ sở "X" chưa khai Mã đơn vị MISA.', 'Chưa có Mã hàng cho "A" — khai…', 'Chưa có Mã hàng cho "B"', 'Chưa có Mã hàng cho "C"', 'Combo "K" chưa khai sale phụ', 'Tổng dòng 1 ≠ doanh thu POS 2']) === 'chưa Mã đơn vị · 3 món chưa mã hàng · 1 combo chưa tách · tổng lệch POS');
+  t('misaLuuYGon: không cảnh báo -> rỗng; câu lạ giữ nguyên', gon([]) === '' && gon(['Câu lạ']) === 'Câu lạ');
+}
+t('bảng chứng từ: Ngày / Cơ sở / Số chứng từ / Dòng / Tổng dòng / Doanh thu POS / Chốt / Đã xuất / Lưu ý, thẻ điện thoại', /<th>Số chứng từ<\/th><th>Dòng<\/th>/.test(vm) && /<th>Chốt<\/th><th>Đã xuất<\/th>/.test(vm) && /class="bang-cuon bang-the the-ct"/.test(vm) && /class="o-ghi luu-y" data-nhan="Lưu ý"/.test(vm));
 t('nút Tải Excel #misaXlsx, Tải CSV #misaCsv, Đánh dấu #misaDau (hay Bỏ dấu #misaBoDau khi xem "đã xuất"), bật tắt từng dòng #misaDongMo', /id="misaXlsx"/.test(vm) && /id="misaCsv"/.test(vm) && /id="misaDau"/.test(vm) && /id="misaBoDau"/.test(vm) && /id="misaDongMo"/.test(vm));
 /* Anh Thắng 25/09/2026: "giới hạn 20 dòng cho 1 trang". */
 t('🔴 phân trang 20 dòng: misaTrang cắt theo MISA_MOI_TRANG = 20, nút ‹ Trước / Sau › mang data-misa-trang', /var MISA_MOI_TRANG = 20;/.test(js) && /ds\.slice\(dau, dau \+ MISA_MOI_TRANG\)/.test(boc('misaTrang')) && /data-misa-trang="' \+ khoa \+ '\|' \+ \(trang - 1\)/.test(boc('misaTrang')));
@@ -65,7 +74,7 @@ t('gom cơ sở / mặt hàng thành { tên => { ô => giá trị } }', /d\[c\]\
 t('POST đi cùng kỳ đang xem (misaDuong) để máy chủ trả bản xem đúng kỳ', (nm.match(/api\(misaDuong\(\), \{ method: 'POST'/g) || []).length >= 2);
 
 /* ---- chạy thật veMisa trên DOM giả ---- */
-const than = boc('veMisa') + boc('misaTrang') + '\n  var MISA_MOI_TRANG = 20;\n  var MISA = { tu: "2026-09-01", den: "2026-09-30", ch: "*", tt: "chua", moDong: false, moCf: false, trang: 1, trangDong: 1 };' +
+const than = boc('veMisa') + boc('misaTrang') + boc('misaLuuYGon') + '\n  var MISA_MOI_TRANG = 20;\n  var MISA = { tu: "2026-09-01", den: "2026-09-30", ch: "*", tt: "chua", moDong: false, moCf: false, trang: 1, trangDong: 1 };' +
   '\n  var S = { cf: { cua_hang: ["Tutu Train -  Aeon Tân An", "TuTu Train - Lotte Gò Vấp"] } };' +
   '\n  function noiMisa() {}\n  return veMisa;';
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));

@@ -3693,6 +3693,26 @@
       .catch(function (e) { o.innerHTML = ''; khoiLoi(o, 'dtMisa', 'Xuất MISA — chứng từ bán hàng', e); });
   }
 
+  /* Lưu ý của MỘT chứng từ, tóm theo loại: "12 món chưa mã hàng · chưa Mã đơn vị · 1 combo chưa tách · tổng lệch".
+     Anh Thắng 25/09/2026: một quán 30 dòng mà cột Lưu ý liệt kê 20 món -> hàng cao gấp mười. Đủ chi tiết ở title. */
+  function misaLuuYGon(canh) {
+    canh = canh || [];
+    var mh = 0, dv = 0, cb = 0, lech = 0, khac = [];
+    canh.forEach(function (c) {
+      if (/^Chưa có Mã hàng cho/.test(c)) mh++;
+      else if (/chưa khai Mã đơn vị/.test(c)) dv++;
+      else if (/^Combo "/.test(c)) cb++;
+      else if (/≠ doanh thu POS/.test(c)) lech++;
+      else khac.push(c);
+    });
+    var p = [];
+    if (dv) p.push('chưa Mã đơn vị');
+    if (mh) p.push(mh + ' món chưa mã hàng');
+    if (cb) p.push(cb + ' combo chưa tách');
+    if (lech) p.push('tổng lệch POS');
+    return p.concat(khac).join(' · ');
+  }
+
   function veMisa(o, r) {
     var ct = r.chung_tu || [], rows = r.rows || [], cols = r.cols || [], cf = r.cf || {}, ds = (S.cf && S.cf.cua_hang) || [];
     var h = '<div class="khung" id="dtMisa"><header><h2>Xuất MISA — chứng từ bán hàng</h2>' +
@@ -3728,13 +3748,13 @@
         tr1.ds.map(function (x) {
           var lech = Math.abs((x.tong || 0) - (x.doanh_thu || 0)) > 1;
           return '<tr' + ((x.canh || []).length ? ' class="qua-han"' : '') + '><td class="o-may" data-nhan="Ngày">' + esc(ngayVN(x.ngay)) + '</td>' +
-            '<td class="o-ten" data-nhan="Cơ sở" style="text-align:left">' + esc(x.cua_hang) + '</td>' +
+            '<td class="o-ten ten-2h" data-nhan="Cơ sở" style="text-align:left" title="' + esc(x.cua_hang) + '"><span>' + esc(x.cua_hang) + '</span></td>' +
             '<td class="s o-may" data-nhan="Số chứng từ">' + esc(x.so_ct) + '</td><td class="s o-may" data-nhan="Dòng">' + nguyen(x.so_dong) + '</td>' +
             '<td class="s o-may" data-nhan="Tổng dòng"' + (lech ? ' style="color:var(--xau);font-weight:600"' : '') + '>' + tien(x.tong) + '</td>' +
             '<td class="s o-may" data-nhan="Doanh thu POS">' + tien(x.doanh_thu) + '</td>' +
             '<td class="o-may" data-nhan="Chốt">' + (x.chot ? '✓' : '<span class="chu-them" style="margin:0">chưa</span>') + '</td>' +
             '<td class="o-may" data-nhan="Đã xuất">' + (x.da_xuat ? esc(String(x.da_xuat.luc || '').slice(0, 16)) : '—') + '</td>' +
-            '<td class="o-ghi" data-nhan="Lưu ý" style="text-align:left;font-size:12px">' + (x.canh || []).map(esc).join('<br>') + '</td></tr>';
+            '<td class="o-ghi luu-y" data-nhan="Lưu ý" style="text-align:left;font-size:12px" title="' + esc((x.canh || []).join('\n')) + '">' + esc(misaLuuYGon(x.canh)) + '</td></tr>';
         }).join('') + '</tbody></table></div>' + tr1.nav +
         '<div class="bc-nut" style="margin-top:12px"><button class="nut chinh" type="button" id="misaXlsx">Tải Excel cho MISA</button> ' +
         '<button class="nut" type="button" id="misaCsv">Tải CSV</button> ' +
