@@ -140,10 +140,12 @@ const DAI = (function () {
 })();
 t('⚠️ bốc được đoạn dựng dải trạng thái trong `openDon()`', /_thanhBuoc\(/.test(DAI), DAI.length);
 function daiVoi(st, don, khoiDang) {
-  return new Function('st', 'CUR', 'esc', 'KHOI_DANG', '_ct', '_nhanDang', '_lamDuocGi',
+  /* 25/09/2026: đoạn dựng dải nay gọi thêm `_oDoiLuong` (nút Đổi luồng) — tiêm stub rỗng, bài này không kiểm nút ấy
+     (xem kiem-doi-luong-don.js). */
+  return new Function('st', 'CUR', 'esc', 'KHOI_DANG', '_ct', '_nhanDang', '_lamDuocGi', '_oDoiLuong',
     NEN + '\n' + ham('_thanhBuoc') + '\n' + DAI + '\nreturn _dai;')(
     st, { don: don, khoi: khoiDang }, function (x) { return String(x == null ? '' : x); }, khoiDang,
-    { nen: '#fff', vien: '#eee', mau: '#000', chu: '' }, '', function () { return ''; });
+    { nen: '#fff', vien: '#eee', mau: '#000', chu: '' }, '', function () { return ''; }, function () { return ''; });
 }
 /* 🔴 ĐỨNG Ở KHỐI MTĐ, MỞ ĐƠN TRỰC TIẾP CỦA KHỐI KVC — thanh phải là thanh của ĐƠN. */
 const D_TT = daiVoi('Chờ quyết toán', { khoi: 'kvc', luong: 'tt' }, 'mtd');

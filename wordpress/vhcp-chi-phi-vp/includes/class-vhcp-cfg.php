@@ -479,6 +479,9 @@ class VHCPVP_Cfg {
 				'def' => array( 'Kế toán cá nhân' => 1, 'Kế toán NCC' => 1 ) ),
 			array( 'key' => 'duyetNCC',  'ten' => 'Duyệt NCC',                    'def' => array( 'Kế toán NCC' => 1 ) ),
 			array( 'key' => 'traDon',    'ten' => 'Trả lại đơn',                  'def' => array( 'Quản lý' => 1, 'Kế toán cá nhân' => 1, 'Kế toán NCC' => 1 ) ),
+			/* 25/09/2026 — anh Thắng: "Đơn này sai luôn, anh muốn chỉnh cho đơn đó lại luồng khác". Mặc định
+			   y như Trả lại đơn: cùng là việc "kế toán chỉnh đơn của người khác", chưa cấp tiền. */
+			array( 'key' => 'doiLuong',  'ten' => 'Đổi luồng đơn đang chạy (chưa cấp tiền)', 'def' => array( 'Quản lý' => 1, 'Kế toán cá nhân' => 1, 'Kế toán NCC' => 1 ) ),
 			array( 'key' => 'xuatMISA',  'ten' => 'Xuất / chốt MISA',             'def' => array( 'Kế toán cá nhân' => 1, 'Kế toán NCC' => 1 ) ),
 			array( 'key' => 'khongDung', 'ten' => 'Đánh dấu "Không dùng"',        'def' => array( 'Quản lý' => 1, 'Nhân viên' => 1 ) ),
 			array( 'key' => 'tichCN',    'ten' => 'Tích / bỏ tích Cá nhân↔NCC',   'def' => array( 'Quản lý' => 1, 'Kế toán cá nhân' => 1, 'Kế toán NCC' => 1 ) ),
