@@ -1861,6 +1861,7 @@ function cgTaoCoSo(nguon, i){
 var CG_NGAY = {};
 var CG_LOCCH = {};   // cửa hàng đang lọc ở mỗi cổng (rỗng = tất cả)
 var CG_LOCCS = {};   // 0.55.0: cơ sở đang lọc ở bảng "Từ cổng" — gửi lên máy chủ (lọc TRƯỚC khi cắt 2.000 dòng)
+var CG_LOCNGAY = {}; // 0.56.0: ngày đang lọc (dd/mm/yyyy) — cũng ở máy chủ
 function cgChonNgay(nguon, ngay){ CG_NGAY[nguon] = ngay || ''; taiDoiSoatFile(nguon); }
 // Sửa 1 dòng ánh xạ: gửi lại ĐÚNG khoảng ngày của dòng đó -> máy chủ sửa dòng đó, không thêm mới.
 function cgSuaAnhXa(nguon, i){
@@ -2586,7 +2587,7 @@ function taiSaoKeCong(nguon){
   google.script.run
     .withSuccessHandler(function(d){ if(!d||!d.ok){ cgBaoLoi(nguon, (d&&d.error)||'Máy chủ trả về rỗng'); return; } veSaoKeCong(nguon, d); })
     .withFailureHandler(function(e){ cgBaoLoi(nguon, e.message); })
-    .getSaoKeCong(PIN, nguon, tu, den, tk, CG_LOCCS[nguon] || '');   // 0.55.0: tham số 6 = cơ sở, lọc ở máy chủ
+    .getSaoKeCong(PIN, nguon, tu, den, tk, CG_LOCCS[nguon] || '', CG_LOCNGAY[nguon] || '');   // 0.55.0: tham số 6 = cơ sở; 0.56.0: tham số 7 = ngày — lọc ở máy chủ
   // Gợi ý cửa hàng chuẩn + mã nộp tiền (đọc tab Tendinhdanh). Lỗi ở đây KHÔNG kéo cả trang sập.
   google.script.run.withSuccessHandler(function(r){
     if(!r || !r.ok) return;
@@ -2777,7 +2778,15 @@ function cgNapLocCong(nguon){
     if(sel.value !== cu) sel.value = ''; // cơ sở cũ không còn trong kỳ mới -> về Tất cả
   }
   var selN = cgEl(nguon,'congLocNgay');
-  if(selN){
+  if(selN && d.theoNgay){
+    /* 0.56.0: đủ mọi ngày trong khoảng (máy chủ đếm sau lọc cơ sở), không phải ngày của 2.000 dòng đang hiện. */
+    var cuNg = CG_LOCNGAY[nguon] || '', tongN = 0;
+    d.theoNgay.forEach(function(x){ tongN += Number(x.dong) || 0; });
+    var hN = '<option value="">— Tất cả ngày ('+d.theoNgay.length+' ngày · '+tongN+' dòng) —</option>';
+    d.theoNgay.forEach(function(x){ hN += '<option value="'+esc(x.ngay)+'"'+(x.ngay===cuNg?' selected':'')+'>'+esc(x.ngay)+' ('+x.dong+' GD · '+fmt(x.tien)+'đ)</option>'; });
+    selN.innerHTML = hN;
+    if(cuNg && selN.value !== cuNg){ selN.value = ''; CG_LOCNGAY[nguon] = ''; }
+  } else if(selN){
     var cuN = selN.value || '';
     var dm = {};
     (d.cong||[]).forEach(function(r){ var g = cgNgayCua_(r); if(g) dm[g]=(dm[g]||0)+1; });
@@ -2799,7 +2808,7 @@ function cgVeBangCong(nguon){
   if(d.theoCoSo){ /* 0.55.0: cơ sở đã lọc ở máy chủ — ở đây chỉ còn lọc ngày trên phần đang hiện */ }
   else if(loc === '__chuaro__') ds = ds.filter(function(r){ return !cgCoSoCua_(r); });
   else if(loc) ds = ds.filter(function(r){ return cgCoSoCua_(r) === loc; });
-  if(locN) ds = ds.filter(function(r){ return cgNgayCua_(r) === locN; });
+  if(locN && !d.theoNgay) ds = ds.filter(function(r){ return cgNgayCua_(r) === locN; });   // 0.56.0: có theoNgay thì ngày đã lọc ở máy chủ
   var coLoc = !!(loc || locN);
   cgVeBang(nguon, 'cong', ds, cgDongCong(nguon), 8,
     'Không có giao dịch nào' + (coLoc ? ' khớp bộ lọc' : ' trong kỳ') + '.');
@@ -2808,15 +2817,16 @@ function cgVeBangCong(nguon){
   /* 0.55.0: nói thật khi bảng bị cắt — tổng cả khoảng nằm ở máy chủ, không phải tổng của 2.000 dòng đang hiện. */
   if(d.theoCoSo && d.congDongKhoang != null){
     if(d.biCat) lbl += ' · ⚠ đang hiện ' + (d.cong||[]).length + ' dòng mới nhất (từ ' + esc(d.congTuNgay||'') + ') trong ' + d.congDongKhoang + ' dòng — tổng CẢ KHOẢNG ' + fmt(d.congTienKhoang) + 'đ; chọn cơ sở hoặc thu hẹp ngày để xem đủ';
-    else if(d.locCoSo) lbl += ' · cả khoảng ' + d.congDongKhoang + ' dòng · ' + fmt(d.congTienKhoang) + 'đ';
+    else if(d.locCoSo || d.locNgay) lbl += ' · ' + (d.locNgay ? ('ngày ' + esc(d.locNgay) + ': ') : 'cả khoảng ') + d.congDongKhoang + ' dòng · ' + fmt(d.congTienKhoang) + 'đ';
     if(d.quaNhieu) lbl += ' · ⚠ khoảng quá rộng (trên 60.000 giao dịch), tổng có thể thiếu — thu hẹp ngày';
   }
   cgEl(nguon,'congLbl').textContent = lbl;
 }
 function cgLocCong(nguon){
   /* 0.55.0: đổi CƠ SỞ → tải lại từ máy chủ (lọc trước khi cắt); đổi NGÀY → chỉ vẽ lại phần đang hiện. */
-  var d = CG_FILE[nguon], sel = cgEl(nguon,'congLoc');
+  var d = CG_FILE[nguon], sel = cgEl(nguon,'congLoc'), selN = cgEl(nguon,'congLocNgay');
   if(d && d.theoCoSo && sel && (sel.value || '') !== (CG_LOCCS[nguon] || '')){ CG_LOCCS[nguon] = sel.value || ''; taiSaoKeCong(nguon); return; }
+  if(d && d.theoNgay && selN && (selN.value || '') !== (CG_LOCNGAY[nguon] || '')){ CG_LOCNGAY[nguon] = selN.value || ''; taiSaoKeCong(nguon); return; }
   cgVeBangCong(nguon);
 }
 

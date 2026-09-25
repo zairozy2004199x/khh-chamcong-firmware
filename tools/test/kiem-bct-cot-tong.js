@@ -44,7 +44,9 @@ function lay(ten) {
 global.esc   = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
 global.L     = vi => vi;
 global.ktVnd = n => String(n || 0);
-global.ktEl  = (t, c, x) => ({ tag:t, cls:c, txt:x, kids:[], innerHTML:'', style:{}, appendChild(e){ this.kids.push(e); } });
+global.ktEl  = (t, c, x) => ({ tag:t, cls:c, txt:x, kids:[], innerHTML:'', style:{}, appendChild(e){ this.kids.push(e); }, querySelectorAll(){ return []; } });
+/* 2.145.0: bctBang hỏi quyền để hiện nút ⚙ Gán máy và gắn handler qua querySelectorAll — bệ đỡ trả "không quyền" / rỗng. */
+global.QUAN_TRI = () => false; global.CHOT_DS = () => false;
 eval(lay('bctThu'));
 eval(lay('bctVqDung'));   // 2.142.0: bctBang hỏi hàm này để biết có lớp VietQR (dòng "cập nhật lúc" + ↻)
 eval(lay('bctBang'));

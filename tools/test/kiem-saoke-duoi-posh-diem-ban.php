@@ -107,7 +107,7 @@ $r = SAOKE_App::rpc_taoCoSoGhe( array( '1234', 'vietqr', 'GO ĐL', 'GO DA LAT' )
 t( '🔴 Ghế từ chối (gần trùng) → trả đúng câu của Ghế, KHÔNG ghi ánh xạ', empty( $r['ok'] ) && false !== strpos( $r['error'], 'gần giống' ) && 0 === count( SAOKE_App::$axGoi ), $r );
 t( 'tên rỗng cả hai → lỗi; nguồn lạ → lỗi', empty( SAOKE_App::rpc_taoCoSoGhe( array( '1', 'vietqr', '', '' ) )['ok'] ) && empty( SAOKE_App::rpc_taoCoSoGhe( array( '1', 'zalo', 'A', 'A' ) )['ok'] ) );
 t( 'r_anhxa_luu nhận cờ gheMoi (cơ sở vừa tạo trong cùng lượt)', false !== strpos( boc( $sk, 'public static function r_anhxa_luu(' ), "'1' === (string) \$req->get_param( 'gheMoi' )" ) );
-t( 'taoCoSoGhe khai trong $map; can_pin 36 chỗ (35 + 1 hàm mới)', false !== strpos( $sk, "'xoaAnhXaCuaHang', 'taoCoSoGhe'," ) && 36 === substr_count( $sk, 'self::can_pin(' ) );
+t( 'taoCoSoGhe khai trong $map; can_pin ≥ 36 chỗ (35 + taoCoSoGhe; 0.57.0 thêm ganMayGhe)', false !== strpos( $sk, "'xoaAnhXaCuaHang', 'taoCoSoGhe'," ) && substr_count( $sk, 'self::can_pin(' ) >= 36 );
 
 echo "── 5. Màn hình ──────────────────────────────────────────────────\n";
 t( 'khối kết quả nạp bù vẽ bảng chuaGan với hai nút (Gán / Tạo cơ sở mới bên Ghế), máy chủ cũ vẫn in cuaHangMoi', false !== strpos( $ap, 'ph.push(cgChuaGanHtml(nguon, r.chuaGan' ) && false !== strpos( $ap, 'else if(r.cuaHangMoi.length)' ) );

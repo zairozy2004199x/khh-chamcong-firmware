@@ -54,6 +54,33 @@ lại ba kịch bản (PIN + #cvietqr · vé không hash · vé + #cvietqr): kh�
 biến đều có. `kiem-saoke-ve-hoan-vao.js` (9 phép) canh nhánh vé phải hoãn và các bảng cổng vẫn khai sau
 khối tự đăng nhập.
 
+### Sao Kê 0.57.0 — Sổ gán tay máy cổng → ghế · duyệt bảng cổng theo trang (bỏ trần 60.000) · lên bản mới tự đánh dấu kho cũ
+
+**Anh Thắng 25/09/2026:** *"giờ muốn gán mã máy… nó đề xuất để gán theo mã"*; màn cổng báo *"⚠ khoảng quá rộng (trên 60.000)"*
+ngay với một tháng hai tài khoản → GALAXY 4.170.000đ (thiếu vài ngày đầu) trong khi Ghế 4.950.000đ; Ghế vẫn "(chưa rõ máy)"
+vì kho kéo lúc 20:09, trước 0.55.0.
+
+**Làm:**
+- **Sổ gán tay** `saoke_may_ghe`: [`chuan_ch(cơ sở)|chuan_may(tên máy)` → mã ghế]. `vietqr_quy_dong_()` thứ tự: **gán tay** →
+  khớp tên → số máy; trả thêm `tenMay`, `maNguon` (tay/ten/so). API cho Ghế: `gan_may_ghe()`, `vietqr_may_chua_ro( cơ sở, từ,
+  đến )` (chưa rõ + đã nối, đề xuất theo số máy); RPC `ganMayGhe` cho app (can_pin 37).
+- **`cong_duyet_()`** (generator, keyset `(thoi_diem, id)` DESC, 20.000 dòng/trang, trần cứng 500.000): `rpc_getSaoKeCong` và
+  `vietqr_may_chua_ro` duyệt qua nó — bộ nhớ không nở theo khoảng, tổng luôn đủ. `$trang_cong` public để bài thử ép 500.
+- **Lên bản mới** (`saoke_kho_ghe_ver` ≠ VER) → `day_ghe_gan_day_(45)`: kho Ghế 45 ngày gần thành cũ, Ghế tự kéo lại theo luật mới
+  khi có người bấm Xem — khỏi nhớ ↻.
+
+**Kiểm:** `kiem-saoke-cung-so-may.php` 33 phép (gán tay thắng số máy, bỏ gán về tự động, danh sách chưa rõ / đã nối kèm nguồn);
+`kiem-saoke-cong-ca-khoang.php` 20 phép (thêm: 2.055 dòng qua 5 trang 500 y như một trang). FakeWpdb hiểu keyset + lọc
+doc_duoc / huong. Ba bài ghim `can_pin` → 37.
+
+### Sao Kê 0.56.0 — Lọc NGÀY của bảng "Từ cổng" cũng ở máy chủ ("sao nó chỉ lọc có 1 ngày")
+
+**Anh Thắng 25/09/2026:** ô "Lọc theo ngày" chỉ có 25/09 — vì ô xổ dựng từ 2.000 dòng đang hiện (toàn ngày mới nhất). Nay
+máy chủ trả `theoNgay` (đủ mọi ngày trong khoảng, đếm SAU lọc cơ sở, kèm GD · tiền, mới nhất trước); chọn ngày → gửi tham số
+7 (dd/mm/yyyy), máy chủ lọc trước khi cắt; nhãn ghi "ngày dd/mm: N dòng · tiền". Ngày không còn trong kỳ mới → về "Tất cả".
+`kiem-saoke-cong-ca-khoang.php` +3 phép. ⚠️ Cài xong phải **Ctrl+F5** — ảnh anh gửi vẫn là giao diện cũ (ô xổ ghi "(3)" thay
+vì "N GD · tiền").
+
 ### Sao Kê 0.55.0 — Bảng "Từ cổng" đọc CẢ khoảng (lọc cơ sở ở máy chủ) · luật "cùng cơ sở, cùng số máy"
 
 **Anh Thắng 25/09/2026** *"bên ghế và sao kê đang đọc khác nhau"*: Sao Kê → cổng VietQR, 01→25/09, lọc GALAXY QUANG TRUNG:
@@ -337,6 +364,17 @@ hệt nhau.
 `kiem-gui-lai-may-khong-chay.php` (30 phép): đè đúng dòng, giữ chỉ số/Actual, undo, ghi chú không phình,
 chỉ số nhích → lần mới, hỗn hợp, bill/nộp → lỗi, QR > Actual → lỗi, nộp đủ theo số mới, ảnh nối, khai
 nộp lại header, thứ tự gọi trong luu(), trường mới của chi_tiet, selectLoc sau gửi, cờ NGHI TRÙNG.
+
+### v2.145.0 — Báo cáo tổng · Từng ghế: nút "⚙ Gán máy" trên dòng "(chưa rõ máy)" (gán tên máy cổng → mã ghế, có đề xuất)
+
+**Anh Thắng 25/09/2026:** *"giờ muốn gán mã máy"* · *"nó đề xuất để gán theo mã để xác định từng máy"* (GALAXY QUANG TRUNG: GA
+QT-1 / GA QT-2 VietQR "–", tiền nằm ở "(chưa rõ máy)").
+
+**Làm:** dòng "(chưa rõ máy)" (Quản trị / Chốt) có nút **⚙ Gán máy** → hỏi Sao Kê (`kt_vqr_may_chua_ro` → `SAOKE_App::
+vietqr_may_chua_ro`) tên máy cổng của cơ sở trong khoảng: nhóm **chưa rõ** (GD · tiền · đề xuất theo số máy) và nhóm **đã nối**
+(→ mã ghế, nguồn: gán tay / theo số máy / khớp tên — sửa được nếu nối sai). Mỗi dòng một ô chọn ghế của đúng cơ sở ấy (danh
+mục từ `VHG_May::ds_may`), Lưu từng dòng hoặc **"Lưu mọi dòng đã chọn rồi kéo lại kho"** → `kt_vqr_gan_may` → `SAOKE_App::
+gan_may_ghe` (ghi nhật ký) → `bctKeoLai` kéo lại khoảng đang xem. Cần Sao Kê ≥ 0.57.0 (không có thì nói thẳng).
 
 ### v2.144.0 — Báo cáo tổng: ô "🔍 Lọc cơ sở" ngay trên thanh điều khiển ("Cho lọc theo cơ sở")
 

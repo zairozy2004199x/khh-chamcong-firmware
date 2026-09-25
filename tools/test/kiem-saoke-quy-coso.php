@@ -59,5 +59,5 @@ t( 'không quy được cơ sở Ghế thì in "⚠ … (chưa quy được cơ 
    còn vòng lặp riêng — bớt một chỗ gọi là bớt một bản chép của luật, đúng hướng §6. */
 t( 'ba chỗ gọi cong_coso_dong: vietqr_quy_dong_ (báo cáo + đẩy webhook), bảng cổng, nạp bù (0.51.0: "chưa gán" = không quy được) — một chỗ quyết định', 3 === substr_count( $sk, 'self::cong_coso_dong(' ) );
 t( '0.50.0: cả hai báo cáo VietQR của Ghế đi qua vietqr_quy_dong_ (theo máy gọi, theo cơ sở suy từ theo máy)',
-	1 === substr_count( $sk, 'self::vietqr_quy_dong_( $r, $anhXa, $mapMa )' ) && 1 === substr_count( $sk, '$m = self::vietqr_theo_may_ngay( $tu, $den );' ) );
+	2 === substr_count( $sk, 'self::vietqr_quy_dong_( $r, $anhXa, $mapMa )' ) && 1 === substr_count( $sk, '$m = self::vietqr_theo_may_ngay( $tu, $den );' ) );   // 0.57.0: thêm vietqr_may_chua_ro cũng đi qua
 echo "\n"; if ( $TRUOT ) { echo '🔴 TRƯỢT: ' . count( $TRUOT ) . "\n"; exit( 1 ); } echo "✓ SẠCH — $DAT phép\n";

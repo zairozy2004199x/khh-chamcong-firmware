@@ -1109,6 +1109,26 @@ JS;
 				}
 				self::tra( $r ); return;
 			}
+			if ( 'kt_vqr_may_chua_ro' === $viec ) {
+				/* 2.145.0: bảng "⚙ Gán máy" — anh Thắng 25/09/2026: *"giờ muốn gán mã máy… nó đề xuất để gán theo mã để xác định từng máy"*.
+				   Tên máy cổng của một cơ sở trong khoảng (Sao Kê duyệt theo trang) + danh mục ghế của cơ sở ấy để chọn. */
+				if ( ! class_exists( 'SAOKE_App' ) || ! method_exists( 'SAOKE_App', 'vietqr_may_chua_ro' ) ) { self::tra( array( 'ok' => false, 'error' => 'Cần plugin Sao Kê 0.57.0 trở lên.' ) ); return; }
+				$coso = trim( (string) ( isset( $d['coso'] ) ? $d['coso'] : '' ) );
+				$r = SAOKE_App::vietqr_may_chua_ro( $coso, isset( $d['tu'] ) ? $d['tu'] : '', isset( $d['den'] ) ? $d['den'] : '' );
+				if ( is_array( $r ) && ! empty( $r['ok'] ) ) {
+					$ghe = array();
+					foreach ( (array) VHG_May::ds_may() as $m ) { if ( empty( $m['an'] ) && (string) $m['coso_ten'] === $coso ) { $ghe[] = array( 'ma' => (string) $m['ma'], 'ten' => (string) ( '' !== (string) $m['ten_khai'] ? $m['ten_khai'] : $m['ma'] ) ); } }
+					$r['ghe'] = $ghe;
+				}
+				self::tra( $r ); return;
+			}
+			if ( 'kt_vqr_gan_may' === $viec ) {
+				if ( ! class_exists( 'SAOKE_App' ) || ! method_exists( 'SAOKE_App', 'gan_may_ghe' ) ) { self::tra( array( 'ok' => false, 'error' => 'Cần plugin Sao Kê 0.57.0 trở lên.' ) ); return; }
+				$coso = trim( (string) ( isset( $d['coso'] ) ? $d['coso'] : '' ) ); $tenMay = trim( (string) ( isset( $d['tenMay'] ) ? $d['tenMay'] : '' ) ); $ma = trim( (string) ( isset( $d['ma'] ) ? $d['ma'] : '' ) );
+				$r = SAOKE_App::gan_may_ghe( $coso, $tenMay, $ma );
+				if ( ! empty( $r['ok'] ) ) { VHG_Nhat_Ky::ghi( array( 'nguon' => 'he-thong', 'ghi_chu' => $ai['name'] . ( '' === $ma ? ' bỏ gán' : ' gán' ) . ' máy cổng "' . $tenMay . '" → ghế ' . ( '' === $ma ? '(trống)' : $ma ) . ' · ' . $coso ) ); }
+				self::tra( $r ); return;
+			}
 			if ( 'kt_import' === $viec ) {
 				/* Nhập doanh thu cũ GHI ĐÈ được cả tháng — chỉ Quản trị, không mở cho vai trò chốt. */
 				if ( empty( $q['quan_tri'] ) ) {
@@ -8600,6 +8620,56 @@ function bctNapVq(r, box){
     }, 60000);
   })(thieu[0]);
 }
+/* ══ 2.145.0: ⚙ GÁN MÁY — anh Thắng 25/09/2026: *"giờ muốn gán mã máy"*, *"nó đề xuất để gán theo mã để xác định từng máy"*.
+   Dòng "(chưa rõ máy)" của một cơ sở → hỏi Sao Kê tên máy cổng trong khoảng (chưa ra ghế + đã nối), mỗi tên một ô chọn ghế
+   của cơ sở ấy, đề xuất sẵn theo số máy. Lưu → Sao Kê ghi sổ gán tay (thắng mọi suy đoán) → kéo lại kho cho khoảng này. */
+function bctGanMay(r, coso, wrap){
+  var cu = document.getElementById('bct-gan-may'); if (cu) cu.remove();
+  var box = ktEl('div', 'card'); box.id = 'bct-gan-may'; box.style.marginTop = '10px';
+  box.appendChild(ktEl('p', 'mut', '⏳ ' + L('Đang hỏi Sao Kê tên máy cổng của','Asking bank plugin for gateway machines of') + ' ' + coso + '…'));
+  wrap.appendChild(box);
+  goi('kt_vqr_may_chua_ro', { coso: coso, tu: r.tu, den: r.den }, function(k){
+    box.textContent = '';
+    if (!k || !k.ok) { box.appendChild(ktEl('p', 'mut', (k && k.error) || L('Lỗi.','Error.'))); return; }
+    var h = document.createElement('h3'); h.textContent = '⚙ ' + L('Gán tên máy cổng → ghế','Map gateway machine → chair') + ' · ' + coso + ' · ' + r.tu + ' → ' + r.den; box.appendChild(h);
+    var gt = ktEl('div', 'mut', L('Tên máy cổng là chữ VietQR ghi trên giao dịch (vd "GLX QT 01"); ghế là máy đang khai bên Ghế. Đề xuất = ghế cùng SỐ máy trong cơ sở. Gán tay thắng mọi suy đoán; chọn "(bỏ gán)" để trả về tự động.',
+      'Gateway machine = name on the VietQR transaction; chair = machine declared here. Suggestion = same machine number. Manual mapping wins.')); box.appendChild(gt);
+    var opt = '<option value="">— ' + L('chọn ghế','choose chair') + ' —</option>' + (k.ghe || []).map(function(g){ return '<option value="' + esc(g.ma) + '">' + esc(g.ten) + (g.ten !== g.ma ? ' (' + esc(g.ma) + ')' : '') + '</option>'; }).join('');
+    function hang(x, daGan){
+      var chon = daGan ? x.ma : (x.deXuat || '');
+      return '<tr data-tenmay="' + esc(x.tenMay) + '"><td><b>' + esc(x.tenMay) + '</b>' + (daGan ? '<br><span class="mut">' + L('đang nối','linked') + ' → ' + esc(x.ma) + ' (' + (x.nguon === 'tay' ? L('gán tay','manual') : x.nguon === 'so' ? L('theo số máy','by number') : L('khớp tên','by name')) + ')</span>' : (x.deXuat ? '<br><span class="mut" style="color:#15803d">' + L('đề xuất','suggested') + ' → ' + esc(x.deXuat) + '</span>' : '')) + '</td>'
+        + '<td class="r">' + x.soGd + '</td><td class="r">' + ktVnd(x.tien) + '</td>'
+        + '<td><select data-ma>' + opt.replace('value="' + esc(chon) + '"', 'value="' + esc(chon) + '" selected') + (daGan && x.nguon === 'tay' ? '<option value="__bo__">(' + L('bỏ gán tay','clear manual') + ')</option>' : '') + '</select></td>'
+        + '<td><button class="ghost" data-luu style="font-size:11px;padding:2px 8px">' + L('Lưu','Save') + '</button></td></tr>';
+    }
+    var t = document.createElement('table'); t.className = 'full';
+    t.innerHTML = '<thead><tr><th>' + L('Tên máy cổng','Gateway machine') + '</th><th class="r">GD</th><th class="r">VietQR</th><th>' + L('Ghế','Chair') + '</th><th></th></tr></thead><tbody>'
+      + ((k.chuaRo || []).length ? '<tr><td colspan="5" class="mut"><b style="color:#b45309">' + L('Chưa rõ máy','Unresolved') + ' (' + k.chuaRo.length + ')</b></td></tr>' + k.chuaRo.map(function(x){ return hang(x, false); }).join('') : '<tr><td colspan="5" class="mut">' + L('Không còn tên máy nào chưa rõ trong khoảng này.','No unresolved machines in this range.') + '</td></tr>')
+      + ((k.daGan || []).length ? '<tr><td colspan="5" class="mut"><b>' + L('Đã nối','Linked') + ' (' + k.daGan.length + ') — ' + L('sửa nếu nối sai','fix if wrong') + '</b></td></tr>' + k.daGan.map(function(x){ return hang(x, true); }).join('') : '')
+      + '</tbody>';
+    box.appendChild(t);
+    var act = ktEl('div', 'act'); act.style.marginTop = '8px';
+    var bAll = document.createElement('button'); bAll.className = 'on'; bAll.textContent = '💾 ' + L('Lưu mọi dòng đã chọn rồi kéo lại kho','Save all chosen, then re-pull'); act.appendChild(bAll);
+    var tb = ktEl('span', 'mut', ''); act.appendChild(tb); box.appendChild(act);
+    function luuMot(tr, xong){
+      var ma = tr.querySelector('select[data-ma]').value; if (!ma) { xong(false); return; }
+      goi('kt_vqr_gan_may', { coso: coso, tenMay: tr.getAttribute('data-tenmay'), ma: ma === '__bo__' ? '' : ma }, function(kq){
+        if (!kq || !kq.ok) { alert((kq && kq.error) || L('Lỗi lưu.','Save failed.')); xong(false); return; }
+        tr.style.background = 'rgba(21,128,61,.08)'; xong(true);
+      });
+    }
+    [].forEach.call(t.querySelectorAll('button[data-luu]'), function(b){ b.onclick = function(){ luuMot(b.closest('tr'), function(ok){ if (ok) tb.textContent = L('Đã lưu 1 dòng — bấm "Lưu mọi dòng…" hoặc ↻ để kho tính lại.','Saved. Re-pull to apply.'); }); }; });
+    bAll.onclick = function(){
+      var trs = [].filter.call(t.querySelectorAll('tr[data-tenmay]'), function(tr){ var sel = tr.querySelector('select[data-ma]'); return sel && sel.value; });
+      if (!trs.length) { alert(L('Chưa chọn ghế cho dòng nào.','Nothing chosen.')); return; }
+      bAll.disabled = true; var i = 0, soLuu = 0;
+      (function tiep(){
+        if (i >= trs.length) { tb.textContent = '⏳ ' + L('Đã lưu','Saved') + ' ' + soLuu + ' — ' + L('đang kéo lại kho…','re-pulling…'); bctKeoLai(r.tu, r.den, null); return; }
+        luuMot(trs[i++], function(ok){ if (ok) soLuu++; tiep(); });
+      })();
+    };
+  });
+}
 /* ↻ kéo lại CẢ khoảng (kể cả ngày đã có) — dùng sau khi đổi bản đồ cửa hàng / ánh xạ / gộp cơ sở bên Sao Kê. */
 function bctKeoLai(tu, den, a){
   (function dot(t){
@@ -8700,6 +8770,7 @@ function bctBang(r){
       + '<td class="mut">' + esc(g.maKH || '—') + '</td>'
       + (cotGhe ? ('<td' + (g.vqLe ? ' class="mut" style="font-style:italic"' : '') + '>' + esc(g.tenGhe || g.maGhe || '—')
           + (g.maGhe && g.tenGhe && g.maGhe !== g.tenGhe ? '<br><span class="mut">' + esc(g.maGhe) + '</span>' : '')
+          + ((!g.maGhe && g.vqLe && (QUAN_TRI() || CHOT_DS())) ? '<br><button class="ghost" data-bctgan="' + esc(g.coso) + '" style="font-size:11px;padding:2px 8px">⚙ ' + L('Gán máy','Map machines') + '</button>' : '')
           + '</td>') : '')
       + '<td class="r mut">' + (g.soGhe || '') + '</td>'
       + '<td class="r"><b>' + (g.tong ? ktVnd(g.tong) : '<span class="mut">–</span>') + '</b>'
@@ -8743,6 +8814,7 @@ function bctBang(r){
   }
   t.innerHTML = h + body + chan;
   sc.appendChild(t); wrap.appendChild(sc);
+  [].forEach.call(wrap.querySelectorAll('button[data-bctgan]'), function(b){ b.onclick = function(){ bctGanMay(r, b.getAttribute('data-bctgan'), wrap); }; });   // 2.145.0
   return wrap;
 }
 /* Xuất .csv — kế toán vẫn phải dán sang Excel để ghép với sổ ngoài. Dựng từ CHÍNH dữ liệu đang

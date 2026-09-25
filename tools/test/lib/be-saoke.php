@@ -107,11 +107,17 @@ class FakeWpdb {
 	/* 0.55.0: hai câu của rpc_getSaoKeCong — tổng theo tài khoản (GROUP BY) và bảng dòng cả khoảng (không LIMIT nhỏ). */
 	private function loc_nguon_( $sql ) {
 		if ( ! preg_match( "/WHERE nguon='([^']*)'/", $sql, $m ) ) { return null; }
-		$tk = preg_match( "/REPLACE\(so_tk,' ',''\)='([^']*)'/", $sql, $mt ) ? $mt[1] : '';
+		$tk = preg_match( "/REPLACE\\(so_tk,' ',''\\)='([^']*)'/", $sql, $mt ) ? $mt[1] : '';
+		/* 0.57.0: keyset theo trang `(thoi_diem < 'a' OR (thoi_diem = 'a' AND id < n))` + lọc doc_duoc=1 / huong<>'Đi' khi câu có. */
+		$ks = preg_match( "/\\(thoi_diem < '([^']*)' OR \\(thoi_diem = '[^']*' AND id < (\\d+)\\)\\)/", $sql, $mk ) ? array( $mk[1], (int) $mk[2] ) : null;
+		$chiDoc = false !== strpos( $sql, 'doc_duoc=1' ); $boDi = false !== strpos( $sql, "huong<>'Đi'" );
 		$ra = array();
 		foreach ( $this->hang as $h ) {
 			if ( (string) $h['nguon'] !== $m[1] ) { continue; }
-			if ( '' !== $tk && preg_replace( '/\s+/', '', (string) ( isset( $h['so_tk'] ) ? $h['so_tk'] : '' ) ) !== $tk ) { continue; }
+			if ( '' !== $tk && preg_replace( '/\\s+/', '', (string) ( isset( $h['so_tk'] ) ? $h['so_tk'] : '' ) ) !== $tk ) { continue; }
+			if ( $chiDoc && (int) $h['doc_duoc'] !== 1 ) { continue; }
+			if ( $boDi && 'Đi' === (string) $h['huong'] ) { continue; }
+			if ( $ks ) { $td = (string) $h['thoi_diem']; if ( ! ( $td < $ks[0] || ( $td === $ks[0] && (int) $h['id'] < $ks[1] ) ) ) { continue; } }
 			$ra[] = $h;
 		}
 		return $ra;

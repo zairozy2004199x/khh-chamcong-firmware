@@ -50,7 +50,7 @@ t( '🔴 Khoá lại → xoá transient phiên; sau đó PIN rỗng bị chối'
 echo "── Nối dây ─────────────────────────────────────────────────────────\n";
 t( 'getConfig cũng dùng pin_hop_le_ (trả cấu hình đầy đủ khi vào bằng vé)', false !== strpos( boc( $src, 'public static function rpc_getConfig(' ), 'self::pin_hop_le_( $pin )' ) );
 t( "'khoaPhien' có trong danh sách hàm RPC", (bool) preg_match( "/'khoaPhien',/", boc( $src, 'public static function r_rpc(' ) ) );
-t( '36 hàm RPC vẫn qua can_pin (0.51.0 thêm taoCoSoGhe; không hàm nào tự so PIN riêng)', 36 === substr_count( $src, 'self::can_pin(' ) && 1 === substr_count( $src, "hash_equals( \$luu, (string) \$pin )" ) );
+t( '37 hàm RPC vẫn qua can_pin (0.51.0 taoCoSoGhe, 0.57.0 ganMayGhe; không hàm nào tự so PIN riêng)', 37 === substr_count( $src, 'self::can_pin(' ) && 1 === substr_count( $src, "hash_equals( \$luu, (string) \$pin )" ) );
 $app = file_get_contents( __DIR__ . '/../../vhcp-saoke/app.html' );
 t( 'app: "Khoá lại" gọi khoaPhien rồi mới tải lại', (bool) preg_match( '/function khoaLai\(\)\{[\s\S]*?khoaPhien\(\)/', $app ) );
 

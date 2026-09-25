@@ -56,6 +56,7 @@ eval( 'class SAOKE_App {
 	' . boc( $sk, 'public static function bo_duoi_hieu_(' ) . '
 	' . boc( $sk, 'private static function ghe_map_so_may_(' ) . '
 	' . boc( $sk, 'private static function ghe_may_theo_so_(' ) . '
+	private static function may_ghe_tay_( $c, $t ) { return ""; }   // 0.57.0: bài này không có sổ gán tay
 	' . $f_cm . "\n" . $f_vq . '
 }' );
 t( '🔴 "LM-NSG 01" và "LM-NSG-1" ra CÙNG khoá', SAOKE_App::chuan_may( 'LM-NSG 01' ) === SAOKE_App::chuan_may( 'LM-NSG-1' ), array( SAOKE_App::chuan_may( 'LM-NSG 01' ), SAOKE_App::chuan_may( 'LM-NSG-1' ) ) );

@@ -75,7 +75,7 @@ t( 'không phải Y-m-d thì trả nguyên (không phá lọc cũ)', 'abc' === S
 t( 'khoang_thoi_diem_ trả cặp [từ, đến+1)', array( '2026-09-01 00:00:00', '2026-09-26 00:00:00' ) === SAOKE_App::khoang( '2026-09-01', '2026-09-25' ) );
 t( '🔴 không còn câu SQL nào bọc DATE() lên cột để lọc', 0 === substr_count( $sk, "'DATE(thoi_diem)>=%s'" ) && 0 === substr_count( $sk, "'DATE(thoi_diem)<=%s'" ) && 0 === substr_count( $sk, 'DATE(thoi_diem) BETWEEN' ) );
 t( 'bốn màn lọc theo khoảng dùng thoi_diem>=%s / thoi_diem<%s', 4 === substr_count( $sk, "'thoi_diem>=%s'" ) && 4 === substr_count( $sk, "'thoi_diem<%s'" ) );
-t( 'báo cáo theo máy lọc thoi_diem >= %s AND thoi_diem < %s', 1 === substr_count( $sk, 'thoi_diem >= %s AND thoi_diem < %s' ) );
+t( 'báo cáo theo máy (và 0.57.0: danh sách máy cho bảng gán) lọc thoi_diem >= %s AND thoi_diem < %s', 2 === substr_count( $sk, 'thoi_diem >= %s AND thoi_diem < %s' ) );
 
 echo "── 4. Webhook về → cộng thẳng vào kho Ghế ─────────────────────\n";
 $tx = array( 'nguon' => 'vietqr', 'docDuoc' => true, 'huong' => 'Đến', 'thoiDiem' => '2026-09-25 10:00:00', 'soTien' => 150000, 'noiDung' => 'VQR1 AMTP 01', 'diemBan' => '', 'maCH' => 'AMTP01' );
@@ -105,6 +105,6 @@ t( 'không có lớp VHG_VietQR (Ghế cũ) thì mọi đường đẩy im (ghe_
 echo "── 6. Vân tay bản ───────────────────────────────────────────────\n";
 preg_match( '/^ \* Version:\s+([0-9.]+)/m', $sk, $m1 ); preg_match( "/const VER = '([0-9.]+)';/", $sk, $m2 );
 t( 'header Version == const VER, từ 0.50.0 trở lên', isset( $m1[1], $m2[1] ) && $m1[1] === $m2[1] && version_compare( $m1[1], '0.50.0', '>=' ), array( $m1[1] ?? null, $m2[1] ?? null ) );
-t( 'can_pin 36 chỗ (0.51.0 thêm taoCoSoGhe; không mở cửa RPC nào không PIN)', 36 === substr_count( $sk, 'self::can_pin(' ) );
+t( 'can_pin 37 chỗ (0.51.0 taoCoSoGhe, 0.57.0 ganMayGhe; không mở cửa RPC nào không PIN)', 37 === substr_count( $sk, 'self::can_pin(' ) );
 
 echo "\n"; if ( $TRUOT ) { echo '🔴 TRƯỢT: ' . count( $TRUOT ) . "\n"; exit( 1 ); } echo "✓ SẠCH — $DAT phép\n";

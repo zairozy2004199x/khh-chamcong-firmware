@@ -37,6 +37,12 @@ $r2 = SAOKE_App::rpc_getSaoKeCong( array( '1234', 'vietqr', '01/09/2026', '25/09
 t( '🔴 chọn GLX → bảng chỉ 3 dòng GLX, tổng 350.000 (không phải 5 dòng rồi lọc ở trình duyệt)', 3 === count( $r2['cong'] ) && 350000 === $r2['congTien'] && 3 === $r2['congDongKhoang'] && $nGlx === $r2['locCoSo'], array( count( $r2['cong'] ), $r2['congTien'] ) );
 t( 'theoCoSo vẫn kể ĐỦ mọi cơ sở (ô xổ không co lại theo lựa chọn)', 2 === count( $r2['theoCoSo'] ) );
 t( 'taiKhoan vẫn kể đủ hai tài khoản', 2 === count( $r2['taiKhoan'] ) );
+echo "── 2b. Lọc NGÀY ở máy chủ (0.56.0) ─────────────────────────────\n";
+$ng = array(); foreach ( $r2['theoNgay'] as $x ) { $ng[ $x['ngay'] ] = $x; }
+t( '🔴 theoNgay kể đủ mọi ngày có GLX trong khoảng (01, 02, 25/09), mới nhất trước, kèm GD · tiền', 3 === count( $r2['theoNgay'] ) && '25/09/2026' === $r2['theoNgay'][0]['ngay'] && 1 === $ng['01/09/2026']['dong'] && 100000 === $ng['01/09/2026']['tien'], $r2['theoNgay'] );
+$r2b = SAOKE_App::rpc_getSaoKeCong( array( '1234', 'vietqr', '01/09/2026', '25/09/2026', '', $nGlx, '02/09/2026' ) );
+t( '🔴 chọn ngày 02/09 → chỉ dòng GLX của ngày ấy (1 dòng / 200.000), theoNgay vẫn đủ 3 ngày, locNgay trả về', 1 === count( $r2b['cong'] ) && 200000 === $r2b['congTien'] && 1 === $r2b['congDongKhoang'] && 3 === count( $r2b['theoNgay'] ) && '02/09/2026' === $r2b['locNgay'], array( count( $r2b['cong'] ), $r2b['congTien'] ) );
+t( 'ngày sai định dạng → bỏ qua lọc ngày', 3 === count( SAOKE_App::rpc_getSaoKeCong( array( '1234', 'vietqr', '01/09/2026', '25/09/2026', '', $nGlx, '2026-09-02' ) )['cong'] ) );
 echo "── 3. Lọc tài khoản trong SQL, tổng tài khoản vẫn đủ ──────────\n";
 $r3 = SAOKE_App::rpc_getSaoKeCong( array( '1234', 'vietqr', '01/09/2026', '25/09/2026', '222' ) );
 t( '🔴 chỉ dòng của 222: 2 dòng / 80.000; ô xổ vẫn có cả 111', 2 === count( $r3['cong'] ) && 80000 === $r3['congTien'] && isset( $tk['111'] ) && 2 === count( $r3['taiKhoan'] ), array( count( $r3['cong'] ), $r3['congTien'] ) );
@@ -47,8 +53,14 @@ t( '🔴 hiện đúng 2.000 dòng, congDongKhoang 2.055, biCat true, congTienKh
 t( 'congTuNgay = thời điểm dòng cũ nhất ĐANG HIỆN (dd/mm/yyyy …)', preg_match( '#^\d{2}/\d{2}/2026#', (string) $r4['congTuNgay'] ) === 1, $r4['congTuNgay'] );
 $cs4 = array(); foreach ( $r4['theoCoSo'] as $x ) { $cs4[ $x['ten'] ] = $x; }
 t( 'theoCoSo AMTP cộng đủ 2.052 GD dù bảng cắt', 2052 === $cs4[ $nAm ]['dong'] && 2150000 === $cs4[ $nAm ]['tien'], $cs4[ $nAm ] );
+echo "── 4b. Duyệt theo TRANG (0.57.0) — trang 500 dòng, kết quả y như một trang ───\n";
+SAOKE_App::$trang_cong = 500;
+$r5 = SAOKE_App::rpc_getSaoKeCong( array( '1234', 'vietqr', '01/09/2026', '25/09/2026', '' ) );
+t( '🔴 2.055 dòng qua 5 trang (keyset thoi_diem,id): hiện 2.000, congDongKhoang 2.055, tổng 2.500.000 — không còn trần 60.000', 2000 === count( $r5['cong'] ) && 2055 === $r5['congDongKhoang'] && 2500000 === $r5['congTienKhoang'] && empty( $r5['quaNhieu'] ), array( count( $r5['cong'] ), $r5['congDongKhoang'], $r5['congTienKhoang'] ) );
+t( 'theoCoSo / taiKhoan y như một trang', 2052 === (function ( $r ) { foreach ( $r['theoCoSo'] as $x ) { if ( false !== stripos( $x['ten'], 'AMTP' ) ) { return $x['dong']; } } return 0; })( $r5 ) && 2 === count( $r5['taiKhoan'] ) );
+SAOKE_App::$trang_cong = 20000;
 echo "── 5. Màn hình ─────────────────────────────────────────────────\n";
 $ap = file_get_contents( $GOC . '/vhcp-saoke/app.html' );
-t( 'gửi cơ sở làm tham số 6; ô xổ dựng từ d.theoCoSo; đổi cơ sở → tải lại từ máy chủ', false !== strpos( $ap, ".getSaoKeCong(PIN, nguon, tu, den, tk, CG_LOCCS[nguon] || '')" ) && false !== strpos( $ap, 'if(sel && d.theoCoSo){' ) && false !== strpos( $ap, "CG_LOCCS[nguon] = sel.value || ''; taiSaoKeCong(nguon); return;" ) );
+t( 'gửi cơ sở làm tham số 6, ngày tham số 7; ô xổ dựng từ d.theoCoSo / d.theoNgay; đổi cơ sở hay ngày → tải lại từ máy chủ', false !== strpos( $ap, ".getSaoKeCong(PIN, nguon, tu, den, tk, CG_LOCCS[nguon] || '', CG_LOCNGAY[nguon] || '')" ) && false !== strpos( $ap, 'if(selN && d.theoNgay){' ) && false !== strpos( $ap, "CG_LOCNGAY[nguon] = selN.value || ''; taiSaoKeCong(nguon); return;" ) && false !== strpos( $ap, 'if(sel && d.theoCoSo){' ) && false !== strpos( $ap, "CG_LOCCS[nguon] = sel.value || ''; taiSaoKeCong(nguon); return;" ) );
 t( 'nhãn nói thật khi bị cắt + tổng cả khoảng; thẻ "Từ cổng" lấy congTienKhoang', false !== strpos( $ap, 'đang hiện \' + (d.cong||[]).length + \' dòng mới nhất (từ' ) && false !== strpos( $ap, 'fmt(d.congTienKhoang != null ? d.congTienKhoang : d.congTien)' ) );
 ket_luan( 'bảng Từ cổng đọc cả khoảng: lọc cơ sở ở máy chủ, tổng không còn là tổng của 2.000 dòng đang hiện.' );
