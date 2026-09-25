@@ -102,6 +102,12 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.65.2 =
+* **Form phiếu nhập hàng thành hộp nổi giữa trang** (anh Thắng 25/09/2026: *"hiện form nhập dạng nổi này, trắng tràn
+  trang"* — như form Thêm hạng mục bên Chi phí). Bấm **＋ Lập phiếu nhập hàng** là nền mờ phủ trang, hộp trắng ở giữa
+  với form và danh sách phiếu; ✕, Esc hay bấm ra nền là đóng; điện thoại tràn cả màn. Hộp treo ngoài tab nên sổ kho
+  vẽ lại phía sau (sau khi lưu) mà hộp vẫn đứng, danh sách trong hộp tự cập nhật. `kiem-phieu-nhap-man.js` 16 phép.
+
 = 1.65.1 =
 * **Phiếu nhập hàng lên đầu tab Kho, dạng nút bấm mới hiện form.** Anh Thắng 25/09/2026: *"cho phiếu lên đầu, với dạng
   form bấm hiện ra"*. Ngay dưới ô chọn ngày / cơ sở là nút **＋ Lập phiếu nhập hàng** kèm dòng tóm tắt (mấy phiếu ngày

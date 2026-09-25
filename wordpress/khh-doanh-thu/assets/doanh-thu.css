@@ -223,6 +223,20 @@ body.khh-dt-body{margin:0;background:#f2f1ee}
 .khh-dt .bc-o input:disabled,.khh-dt .bc-o textarea:disabled{background:var(--card-2);color:var(--ink-3)}
 
 .khh-dt .bc-lech{display:flex;flex-direction:column;gap:6px;margin-top:16px}
+/* HỘP NỔI (phiếu nhập hàng, 25/09/2026): nền mờ phủ trang, hộp trắng ở giữa; điện thoại tràn cả màn. */
+.khh-dt-modal{position:fixed;inset:0;z-index:99999;background:rgba(17,24,39,.5);display:flex;align-items:flex-start;justify-content:center;
+  padding:28px 12px;overflow:auto;-webkit-overflow-scrolling:touch}
+.khh-dt-modal[hidden]{display:none}
+.khh-dt-modal .hop{background:var(--card);color:var(--ink);border-radius:12px;width:100%;max-width:1120px;padding:16px 18px 18px;
+  box-shadow:0 20px 60px rgba(0,0,0,.35);border:1px solid var(--line)}
+.khh-dt-modal .hop>header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;
+  padding-bottom:10px;border-bottom:1px solid var(--line)}
+.khh-dt-modal .hop>header h2{margin:0;font-size:16px}
+.khh-dt-modal .hop>header .goi{font-weight:400;color:var(--ink-3);font-size:12.5px;margin-left:8px}
+@media (max-width:560px){
+  .khh-dt-modal{padding:0}
+  .khh-dt-modal .hop{min-height:100%;border-radius:0;border:0;padding:12px 14px 24px}
+}
 /* Ô Nhập theo phiếu nhập hàng (25/09/2026). */
 .khh-dt .chi-phieu{display:inline-block;margin-left:4px;padding:0 6px;border-radius:9px;font-size:11px;line-height:18px;background:var(--app-mem);color:var(--app);font-weight:600;vertical-align:middle}
 /* Nhãn số trên tab Cảnh báo. */
