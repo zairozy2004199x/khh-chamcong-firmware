@@ -365,6 +365,20 @@ hệt nhau.
 chỉ số nhích → lần mới, hỗn hợp, bill/nộp → lỗi, QR > Actual → lỗi, nộp đủ theo số mới, ảnh nối, khai
 nộp lại header, thứ tự gọi trong luu(), trường mới của chi_tiet, selectLoc sau gửi, cờ NGHI TRÙNG.
 
+### v2.148.0 — Báo cáo tổng không in dòng 0đ cho cơ sở KHÔNG CÓ GHẾ ("cho nó biến mất")
+
+Anh Thắng 25/09/2026, sau 2.147.0: *"Cho nó biến mất được không, như đã nói nó thuộc khu vực khác, HCM không có điểm đó trong dữ liệu, nó tự lấy sao kê nên tự gọi vào thôi"* — ảnh chụp "1 JP SB Cam Ranh.new", "1.JP Sân Bay Nội Bài New" vẫn mỗi điểm một dòng toàn gạch (Mã KH —, Số ghế —, tiền –).
+
+Vì sao còn: 2.147.0 mới bỏ các điểm ấy khỏi **tiền VietQR** (dòng "Ngoài hệ thống Ghế: 138 cơ sở · 689.620.000đ"), nhưng bảng vẫn in **mỗi cơ sở trong danh mục một dòng** ("cơ sở không thu được đồng nào vẫn nằm nguyên một dòng"). 138 điểm phía Bắc đã được tạo TÊN bên Ghế từ màn "chưa gán mã" của Sao Kê (0.51.0) — 0 ghế, 0 tiền — nên mỗi điểm một dòng rỗng.
+
+Sửa: tách `VHG_KeToan::bct_ds_cs_( $ma_kh, $dong, $dem_ghe, $o, $muc )` — danh sách cơ sở sẽ in dòng, một luật một chỗ:
+- cơ sở đang mở và CÓ GHẾ đang chạy → luôn một dòng, kể cả 0đ (giữ luật cũ: chỗ không ra tiền là thứ đáng thấy);
+- cơ sở ĐÓNG CỬA (2.144.0) **hoặc KHÔNG CÓ GHẾ đang chạy** (mới) → chỉ hiện khi kỳ này có tiền — tiền thật không giấu;
+- tên có tiền mà không còn trong danh mục vẫn hiện.
+Gán ghế đầu tiên cho một điểm là nó hiện lại ngay lượt Xem sau. Dòng mờ "Ngoài hệ thống Ghế" vẫn giữ để biết tiền phía Bắc đang ở đâu.
+
+Bài kiểm mới `kiem-bct-coso-khong-ghe.php` (10 phép, chạy thẳng `bct_ds_cs_` bằng mảng; cả Gộp theo cơ sở lẫn Từng ghế). Bộ thử: HỎNG 11/69 (đúng nền cũ).
+
 ### v2.147.0 — Kho VietQR chỉ nhận cơ sở ĐÃ CÓ GHẾ · Thêm ghế giữ nguyên trang · ô tìm địa điểm dò cả khối gập · báo trùng mã nói rõ mã ở đâu
 
 Anh Thắng 25/09/2026, bốn lượt liền: *"Anh thấy nó vẫn lấy điểm ngoài"* · *"Bấm thêm ghế mới thì giữ nguyên trang đó chứ không phải là nhảy trang và quay lại từ đầu"* · *"check vấn đề nằm đâu"* (gõ VINCOM QUANG TRUNG, máy báo "Cơ sở này đã có", ô tìm 0/65) · *"Mã cũ của nó tại sao lại trùng… Check thì không thấy cơ sở nào trùng"* (mã 80822).

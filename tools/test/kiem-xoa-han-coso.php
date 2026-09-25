@@ -120,11 +120,14 @@ t( '🔴 cổng coso_xoa chỉ cho cưỡng chế khi la_quan_tri()', (bool) pre
 
 echo "── Báo cáo tổng: cơ sở ĐÓNG CỬA hết dòng 0đ, có tiền thì vẫn hiện \n";
 $kt = file_get_contents( __DIR__ . '/../../vhcp-ghe/includes/class-vhg-ketoan.php' );
-$i = strpos( $kt, "\t\t\$ds_cs = array();\n\t\tforeach ( array_keys( \$ma_kh ) as \$cs ) {" );
-$j = strpos( $kt, "\t\tsort( \$ds_cs );", $i );
-t( 'bốc được khối dựng danh sách cơ sở của Báo cáo tổng', false !== $i && $j > $i );
-$khoi = substr( $kt, $i, $j - $i );
-$loc = eval( 'return function ( $ma_kh, $dong, $o, $muc ) { ' . $khoi . ' sort( $ds_cs ); return $ds_cs; };' );
+/* 2.148.0: khối dựng danh sách cơ sở đã thành hàm riêng VHG_KeToan::bct_ds_cs_( $ma_kh, $dong, $dem_ghe, $o, $muc )
+   (thêm luật "không có ghế đang chạy thì cũng chỉ hiện khi có tiền" — bài riêng kiem-bct-coso-khong-ghe.php).
+   Bốc hàm ấy ra chạy; cơ sở "A MỞ" cho 1 ghế để giữ đúng nghĩa các phép bên dưới. */
+$i = strpos( $kt, 'public static function bct_ds_cs_(' ); $j = false;
+if ( false !== $i ) { $d = 0; for ( $k = strpos( $kt, '{', $i ); $k < strlen( $kt ); $k++ ) { if ( '{' === $kt[ $k ] ) { $d++; } elseif ( '}' === $kt[ $k ] && 0 === --$d ) { $j = $k + 1; break; } } }
+t( 'bốc được khối dựng danh sách cơ sở của Báo cáo tổng (bct_ds_cs_)', false !== $i && $j > $i );
+eval( 'class KT_DS { ' . substr( $kt, $i, $j - $i ) . ' }' );
+$loc = function ( $ma_kh, $dong, $o, $muc ) { return KT_DS::bct_ds_cs_( $ma_kh, $dong, array( 'A MỞ' => 1 ), $o, $muc ); };
 $ma_kh = array( 'A MỞ' => '', 'B ĐÓNG KHÔNG TIỀN' => '', 'C ĐÓNG CÓ TIỀN' => '' );
 $dong  = array( 'B ĐÓNG KHÔNG TIỀN' => true, 'C ĐÓNG CÓ TIỀN' => true );
 $o     = array( 'C ĐÓNG CÓ TIỀN' => array( '2026-09-01' => 5000 ), 'D CHỈ CÓ TRONG SỔ' => array( '2026-09-01' => 1 ) );

@@ -78,7 +78,9 @@ t('them_may trả ma + ten (đã chuẩn hoá) + coso_id để chèn tại chỗ
 t('gan_ma: báo trùng nói rõ mã đang ở cơ sở nào / đang ẩn, và KHÔNG đổi câu kiểm cũ', may.indexOf("đã có ghế khác dùng' . $noi . $an") >= 0 && may.indexOf('"SELECT id FROM $bang WHERE ma=%s LIMIT 1", $ma_moi') >= 0);
 t('coso_co_ghe() có (GROUP BY coso_id, kể cả ghế ẩn) và kho VietQR lọc theo nó', /public static function coso_co_ghe\(\)/.test(may) && /WHERE coso_id > 0 GROUP BY coso_id/.test(may) && vqr.indexOf('VHG_May::coso_co_ghe()') >= 0);
 t('luu_coso "đã có": nói rõ 0 ghế nằm trong khối gập + đã cập nhật gì', may.indexOf('CHƯA CÓ GHẾ nào, nên nó nằm trong khối gập') >= 0 && may.indexOf("' Đã cập nhật ' . implode( ', ', $da )") >= 0);
-t('phiên bản 2.147.0 ở cả ba chỗ', fs.readFileSync('vhcp-ghe/vhcp-ghe.php', 'utf8').split('2.147.0').length === 3 && fs.readFileSync('vhcp-ghe/includes/class-vhg-baocao.php', 'utf8').indexOf("const BAN = '2.147.0'") >= 0);
+const vh = fs.readFileSync('vhcp-ghe/vhcp-ghe.php', 'utf8'); const ver = (vh.match(/define\( 'VHG_VERSION', '([\d.]+)' \)/) || [])[1] || '';
+const ge = (a, b) => { const x = a.split('.').map(Number), y = b.split('.').map(Number); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return true; };
+t('phiên bản ≥ 2.147.0 và header = VHG_VERSION = BAN (không neo cứng — bản sau vẫn phải qua)', ge(ver, '2.147.0') && vh.indexOf(' * Version:           ' + ver) >= 0 && fs.readFileSync('vhcp-ghe/includes/class-vhg-baocao.php', 'utf8').indexOf("const BAN = '" + ver + "'") >= 0, ver);
 
 console.log('── 4. Chạy qlThemTaiCho_ + csHangCapNhat_ với DOM giả ──────────');
 global.L = vi => vi;

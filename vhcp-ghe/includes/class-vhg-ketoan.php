@@ -2455,23 +2455,9 @@ class VHG_KeToan {
 		   ⚠️ Đóng cửa mà kỳ này CÓ tiền (thu nốt trước khi dọn, hay đóng giữa kỳ) thì VẪN HIỆN —
 		      đó là tiền thật, không bảng nào được giấu. Chốt là "có tiền trong khoảng" ($o), không
 		      phải cờ đóng cửa. */
-		$ds_cs = array();
-		foreach ( array_keys( $ma_kh ) as $cs ) {
-			if ( isset( $dong[ $cs ] ) ) {
-				$co_tien = false;
-				foreach ( $o as $k => $_ ) {
-					$kcs = ( 'coso' === $muc ) ? $k : substr( $k, 0, strpos( $k . '|', '|' ) );
-					if ( $kcs === $cs ) { $co_tien = true; break; }
-				}
-				if ( ! $co_tien ) { continue; }
-			}
-			$ds_cs[] = $cs;
-		}
-		foreach ( $o as $k => $_ ) {
-			$cs = ( 'coso' === $muc ) ? $k : substr( $k, 0, strpos( $k . '|', '|' ) );
-			if ( ! in_array( $cs, $ds_cs, true ) ) { $ds_cs[] = $cs; }
-		}
-		sort( $ds_cs );
+		/* 2.148.0: cùng luật cho cơ sở KHÔNG CÓ GHẾ đang chạy — xem bct_ds_cs_() (một luật, một chỗ, bài kiểm
+		   chạy thẳng bằng mảng: kiem-bct-coso-khong-ghe.php). */
+		$ds_cs = self::bct_ds_cs_( $ma_kh, $dong, $dem_ghe, $o, $muc );
 
 		$hang = array();
 		$tong_cot = array_fill_keys( $ds_ngay, 0 );
@@ -2596,6 +2582,40 @@ class VHG_KeToan {
 		return array( 'hang' => $out, 'vqTongCot' => $tongCot, 'vqTong' => $tongAll );
 	}
 
+
+	/**
+	 * DANH SÁCH CƠ SỞ SẼ IN DÒNG trong Báo cáo tổng. Tách riêng để bài kiểm chạy thẳng bằng mảng.
+	 *
+	 * Luật: cơ sở ĐANG MỞ và CÓ GHẾ đang chạy thì luôn một dòng, kể cả 0đ (chỗ không ra tiền là thứ đáng thấy
+	 * nhất). Cơ sở đã ĐÓNG CỬA, hoặc KHÔNG CÓ GHẾ nào đang chạy, chỉ hiện khi kỳ này CÓ TIỀN ($o) — tiền thật
+	 * thì không bảng nào được giấu. Tên có tiền mà không còn trong danh mục (đã xoá / đổi tên) vẫn hiện.
+	 *
+	 * 🔴 2.148.0 — anh Thắng 25/09/2026: *"Cho nó biến mất được không, như đã nói nó thuộc khu vực khác, HCM
+	 *    không có điểm đó trong dữ liệu, nó tự lấy sao kê nên tự gọi vào thôi"*. 138 điểm phía Bắc (1 JP SB Cam
+	 *    Ranh.new, JP AMLB…) được tạo TÊN bên Ghế từ màn "chưa gán mã" của Sao Kê: 0 ghế, 0 tiền (kho VietQR đã
+	 *    bỏ chúng từ 2.147.0) — nhưng mỗi điểm vẫn chiếm một dòng toàn gạch. Cùng luật với cơ sở đóng cửa
+	 *    (2.144.0): không ghế = không vận hành = không in dòng 0đ. Gán ghế đầu tiên vào là nó hiện lại.
+	 * ⚠️ $dem_ghe đếm ghế ĐANG CHẠY (bỏ ghế ẩn) — cơ sở chỉ còn ghế ẩn cũng coi như không vận hành.
+	 */
+	public static function bct_ds_cs_( $ma_kh, $dong, $dem_ghe, $o, $muc ) {
+		$co_tien = array();
+		foreach ( (array) $o as $k => $_ ) {
+			$kcs = ( 'coso' === $muc ) ? (string) $k : substr( (string) $k, 0, strpos( $k . '|', '|' ) );
+			$co_tien[ $kcs ] = true;
+		}
+		$ds_cs = array();
+		foreach ( array_keys( (array) $ma_kh ) as $cs ) {
+			$cs = (string) $cs;
+			if ( ( isset( $dong[ $cs ] ) || empty( $dem_ghe[ $cs ] ) ) && ! isset( $co_tien[ $cs ] ) ) { continue; }
+			$ds_cs[] = $cs;
+		}
+		foreach ( array_keys( $co_tien ) as $cs ) {
+			$cs = (string) $cs;
+			if ( ! in_array( $cs, $ds_cs, true ) ) { $ds_cs[] = $cs; }
+		}
+		sort( $ds_cs );
+		return $ds_cs;
+	}
 
 	/** Một hàng của báo cáo tổng. Tách ra để hai nhánh (cơ sở / ghế) dùng CHUNG phép cộng. */
 	private static function bct_hang_( $cs, $ma_kh, $tinh, $dem_ghe, $key, $ma_ghe, $o, $ds_ngay, &$tong_cot, &$tong_all, $ten_ghe = '' ) {
