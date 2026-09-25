@@ -54,6 +54,25 @@ lại ba kịch bản (PIN + #cvietqr · vé không hash · vé + #cvietqr): kh�
 biến đều có. `kiem-saoke-ve-hoan-vao.js` (9 phép) canh nhánh vé phải hoãn và các bảng cổng vẫn khai sau
 khối tự đăng nhập.
 
+### Sao Kê 0.50.0 — Bản đồ cửa hàng đọc một lần · lọc ngày dùng chỉ mục · ĐẨY số VietQR sang kho Ghế
+
+Cùng lượt với Ghế 2.142.0 (xem mục ấy về nguyên nhân đo được). Làm:
+- `vqr_ds_ch()` / `vqr_ma_tat_ca()` cache trong lượt, `vqr_may_theo_ma()` nhớ kết quả theo mã; `vqr_ch_quen_()`
+  sau hai chỗ `update_option('saoke_vqr_ch')`. 40.000 lượt hỏi mã: `get_option` gọi 1 lần, 0,01s (bản cũ 2,2–9,4s
+  cho 20.000). Màn Sao Kê cổng, đối soát, báo cáo VietQR cho Ghế đều hưởng.
+- Lọc ngày so thẳng cột: `thoi_diem>=%s` / `thoi_diem<%s` (mốc ĐẾN = 00:00 ngày sau) thay `DATE(thoi_diem)>=…`
+  ở 4 màn + `thoi_diem >= %s AND thoi_diem < %s` ở báo cáo theo máy — chỉ mục `thoi_diem` (có từ đầu) nay dùng được.
+- Một luật quy dòng: `vietqr_quy_dong_()` (+ `vietqr_gom_()` ba rổ). `vietqr_theo_may_ngay()` lặp qua nó;
+  `vietqr_theo_coso_ngay()` SUY từ bản theo máy (bỏ vòng lặp chép luật). `cong_may_dong()` còn 6 chỗ gọi,
+  `cong_coso_dong()` còn 2 — ba bài đếm đã cập nhật kèm lý do.
+- Đẩy sang Ghế (khi có lớp `VHG_VietQR`): `day_ghe_dong_()` sau `luu_cong()` = dòng mới trong webhook;
+  `day_ghe_ngay_()` sau gán máy tay (đọc ngày giao dịch); nạp file kết xuất / nạp Google Sheet ghi dấu từng ngày
+  đụng tới (kể cả dòng trùng được VÁ `ma_ch`) rồi `day_ghe_ngay_don_()` một lần cuối lượt; nạp / xoá bản đồ cửa
+  hàng và ba chỗ ghi ánh xạ → `day_ghe_gan_day_(7)`. Mọi lỗi bên Ghế nuốt + `error_log` — webhook luôn được trả lời.
+
+**Kiểm:** `kiem-saoke-vqr-cache-nhanh.php` 44 phép; `kiem-saoke-webhook-may.php` thêm `goi('vqr_ch_quen_')` sau
+mỗi lần bài sửa option tay (bài đo luật đọc mã, không đo cache). `can_pin` vẫn 35.
+
 ### Sao Kê 0.49.0 — Nhiều tài khoản VietQR chính thức ("thêm tài khoản thứ 2 của VietQR")
 
 Anh Thắng 25/09/2026, đang ở khối "Cài đặt & công cụ" tab Việt QR: *"anh muốn thêm tài khoản thứ 2 của
@@ -185,6 +204,48 @@ hệt nhau.
 `kiem-gui-lai-may-khong-chay.php` (30 phép): đè đúng dòng, giữ chỉ số/Actual, undo, ghi chú không phình,
 chỉ số nhích → lần mới, hỗn hợp, bill/nộp → lỗi, QR > Actual → lỗi, nộp đủ theo số mới, ảnh nối, khai
 nộp lại header, thứ tự gọi trong luu(), trường mới của chi_tiet, selectLoc sau gửi, cờ NGHI TRÙNG.
+
+### v2.142.0 — Kho số VietQR của Ghế: Sao Kê ĐẨY sang, bấm Xem là tự nạp (hết "không nối được tới máy chủ" lần hai)
+
+**Anh Thắng 25/09/2026**, sau khi cài 2.141.0 vẫn thấy Báo cáo tổng 01→25/09 báo *"Không nối được tới máy chủ"*:
+*"khả năng đọc dữ liệu sao kê bị lỗi"* → rồi đổi hướng: *"Thay vậy chúng ta đẩy sao kê qua là trang ghế tự lưu
+luôn"* · *"khi có dữ liệu thêm thì ghi vào máy, để cần đọc ngay, chứ sao kê nó đang quá tải mà cứ gọi qua là lúc
+được lúc không"* · *"nên lúc bấm xem, là nó tự đẩy đọc và nạp vào trang ghế luôn"*.
+
+**Nguyên nhân thật (đo được):** chỉ mục `bc_dong.ngay` (2.141.0) đúng nhưng không phải nút thắt. Mỗi lần bấm Xem,
+`bao_cao_tong()` gọi sang `SAOKE_App::vietqr_theo_coso_ngay()` quy lại TỪNG dòng VietQR trong khoảng; mỗi dòng
+gọi `vqr_may_theo_ma()` hai lần, mỗi lần `get_option('saoke_vqr_ch')` giải tuần tự cả bản đồ 74KB, trượt khoá thì
+duyệt lại 400 cửa hàng bằng regex. Đo: 20.000 dòng = 2,2s (trúng) … 9,4s (trượt). 25 ngày × hai lần là quá 30s
+PHP → PHP bị ngắt → status 0 → câu "không nối được". Sửa bên Sao Kê 0.50.0 (cache) đưa 40.000 lượt hỏi mã về
+0,01s — nhưng anh Thắng muốn Ghế KHÔNG gọi sang nữa, và anh đúng: tính lại mỗi lần Xem là để một màn hình phụ
+thuộc sức khoẻ của plugin khác.
+
+**Làm:**
+- Bảng mới `vhg_bc_vqr` (ngày × `coso_key` × `ma_may` → `so_tien`, `cap_luc`; UNIQUE ba cột + KEY ngày). Lớp
+  `VHG_VietQR` (`includes/class-vhg-vietqr.php`). Ba rổ khớp y nguyên `vietqr_theo_may_ngay()`: máy · "chưa rõ
+  máy" (`ma_may=''`) · "không khớp cơ sở" (`coso_key=''`, `ma_may=''`) — dòng cuối LUÔN có khi ngày đã đồng bộ,
+  là DẤU "ngày này đã có trong kho" và mang `cap_luc`.
+- **Sao Kê đẩy sang** (0.50.0): webhook về → `VHG_VietQR::cong_gd()` một câu UPSERT; gán máy tay / nạp file / đổi
+  bản đồ cửa hàng / đổi ánh xạ → `nhan_ngay()` ghi đè trọn ngày bị đụng. Ghế cũ không có lớp thì Sao Kê im.
+- **Bấm Xem là tự nạp**: `theo_coso_ngay()` / `theo_may_ngay()` kéo ngay trong lượt hôm nay + hôm qua nếu kho cũ
+  hơn 10 phút (kẻo một webhook lỡ) và ngày thiếu nếu ≤ 3; thiếu nhiều hơn → trả `vqThieuNgay`, JS `bctNapVq()`
+  kéo từng đợt qua `kt_vqr_dongbo` (~8s máy chủ/đợt, trả `tiep`), có dòng tiến độ, xong tự vẽ lại. Không có Sao
+  Kê → nói thẳng, không quay vòng; kéo 2 lượt vẫn thiếu → dừng, kể tên ngày.
+- Dòng "VietQR trong kho Ghế cập nhật lúc … · ↻ kéo lại từ Sao Kê cho khoảng này" (ép kéo cả ngày đã có — dùng
+  sau khi đổi bản đồ / ánh xạ bên Sao Kê). Ghi nhật ký khi kéo lại xong.
+- `vietqr_thuc_()` (Báo cáo tổng, MISA) và nhánh Từng ghế/QR đọc kho; bỏ hẳn hai đường gọi sang `SAOKE_App` lúc Xem.
+- Gộp sổ / đổi tên cơ sở → `VHG_VietQR::quen_coso()` bỏ các ngày mang khoá cũ, lượt Xem kế tiếp kéo lại dưới tên
+  đích (Sao Kê tra bí danh → tên đích). Kho là số SUY RA — xoá không mất tiền; luật "không xoá dòng tiền" không
+  áp cho bảng này.
+
+**Kiểm:** `kiem-vietqr-kho-ghe.php` 47 phép (bảng giả trong bộ nhớ, chạy lớp thật): ghi một ngày rồi đọc lại bằng
+y ba rổ; theo cơ sở = mọi máy + chưa rõ máy; cộng lẻ webhook = kho cũ + tiền, không đẻ dòng trùng; webhook về ngày
+chưa có → kéo trọn ngày thay vì cộng lẻ; chọn ngày kéo lúc Xem; kéo từng đợt chỉ ngày thiếu / ép cả khoảng; quên
+cơ sở. `kiem-xuat-misa-tinh.php` chuyển stub sang `VHG_VietQR`. Cả bộ HỎNG 11 / 61 (11 lỗi cũ có sẵn).
+
+**Cài:** cài đè 2.142.0 (bảng tự tạo khi kích hoạt) VÀ Sao Kê 0.50.0. Mở Báo cáo tổng 01→25/09 → lần đầu thấy
+dòng "⏳ Đang nạp VietQR từ Sao Kê vào kho Ghế — còn N/25 ngày", vài đợt là xong và bảng tự vẽ lại; từ đó về sau
+mở là có ngay.
 
 ### v2.141.0 — Báo cáo tổng "không nối được tới máy chủ" khi chọn khoảng ngày rộng (thêm chỉ mục `bc_dong.ngay`)
 

@@ -45,6 +45,12 @@ eval( 'class SAOKE_App {
 	private static function vqr_may_theo_ma( $m ) { return ""; }
 	private static function ghe_coso_chuan( $t ) { $k = self::chuan_ch( $t ); return isset( self::$coso[ $k ] ) ? self::$coso[ $k ] : ""; }
 	' . boc( $sk, 'private static function cong_coso_dong(' ) . '
+	/* 0.50.0: vòng lặp tách thành vietqr_quy_dong_ + vietqr_gom_; lọc ngày qua khoang_thoi_diem_ (moc_tu_/moc_den_). */
+	' . boc( $sk, 'public static function vietqr_quy_dong_(' ) . '
+	' . boc( $sk, 'private static function vietqr_gom_(' ) . '
+	' . boc( $sk, 'private static function moc_tu_(' ) . '
+	' . boc( $sk, 'private static function moc_den_(' ) . '
+	' . boc( $sk, 'private static function khoang_thoi_diem_(' ) . '
 	' . $f_cm . "\n" . $f_vq . '
 }' );
 t( '🔴 "LM-NSG 01" và "LM-NSG-1" ra CÙNG khoá', SAOKE_App::chuan_may( 'LM-NSG 01' ) === SAOKE_App::chuan_may( 'LM-NSG-1' ), array( SAOKE_App::chuan_may( 'LM-NSG 01' ), SAOKE_App::chuan_may( 'LM-NSG-1' ) ) );

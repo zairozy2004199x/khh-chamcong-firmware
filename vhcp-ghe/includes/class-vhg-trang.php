@@ -1099,6 +1099,16 @@ JS;
 					isset( $d['muc'] ) ? $d['muc'] : 'coso', isset( $d['cot'] ) ? $d['cot'] : 'tong' ) );
 				return;
 			}
+			if ( 'kt_vqr_dongbo' === $viec ) {
+				/* 2.142.0: kéo số VietQR từ Sao Kê vào kho Ghế theo ĐỢT (~8s máy chủ/đợt, trả 'tiep' để màn hình gọi
+				   tiếp). Mặc định chỉ ngày chưa có; ep=1 = kéo lại cả ngày đã có (sau khi đổi bản đồ / ánh xạ). */
+				$ep = ! empty( $d['ep'] );
+				$r = VHG_VietQR::dong_bo( isset( $d['tu'] ) ? $d['tu'] : '', isset( $d['den'] ) ? $d['den'] : '', ! $ep );
+				if ( $ep && ! empty( $r['ok'] ) && '' === $r['tiep'] ) {
+					VHG_Nhat_Ky::ghi( array( 'nguon' => 'he-thong', 'ghi_chu' => $ai['name'] . ' kéo lại VietQR từ Sao Kê ' . $r['tu'] . ' → ' . $r['den'] . ' (' . count( $r['xong'] ) . ' ngày)' ) );
+				}
+				self::tra( $r ); return;
+			}
 			if ( 'kt_import' === $viec ) {
 				/* Nhập doanh thu cũ GHI ĐÈ được cả tháng — chỉ Quản trị, không mở cho vai trò chốt. */
 				if ( empty( $q['quan_tri'] ) ) {
@@ -8510,6 +8520,7 @@ function bctLoad(){
     BCT_DATA = (r && r.ok) ? r : null;
     if (!r || !r.ok) { box.appendChild(ktEl('p','mut',(r && r.error) || 'Lỗi.')); return; }
     box.appendChild(bctBang(r));
+    bctNapVq(r, box);
     /* Nói trước tệp sắp tải về là tiền gì. Hai lớp số chồng nhau trên màn hình, mà tệp thì phẳng
        — không nói ra thì bấm Xuất là một canh bạc. */
     var xu = document.getElementById('bct-xuat');
@@ -8521,6 +8532,51 @@ function bctLoad(){
                     : L('Tệp lấy đúng các số đang hiện trên bảng.','Exports exactly what the table shows.');
     }
   });
+}
+/* 🔴 BẤM XEM LÀ TỰ NẠP — anh Thắng 25/09/2026: *"lúc bấm xem, là nó tự đẩy đọc và nạp vào trang ghế luôn"*.
+   Máy chủ đã kéo hôm nay / hôm qua và ≤ 3 ngày thiếu ngay trong lượt kt_bctong; còn thiếu NHIỀU (lần đầu cài,
+   hay chọn khoảng cũ) thì kéo từng đợt ở đây — mỗi đợt ~8s máy chủ, có dòng tiến độ — rồi vẽ lại bảng.
+   Không có Sao Kê thì nói thẳng, không quay vòng; kéo xong mà vẫn thiếu cũng nói, kèm tên ngày. */
+var BCT_NAP_LAN = 0;
+function bctVqDung(r){ return !!r && ((r.cot === 'tong' && r.muc === 'coso') || r.cot === 'qr'); }   // hai chế độ có lớp VietQR
+function bctNapVq(r, box){
+  var thieu = (r && r.vqThieuNgay) || [];
+  if (!bctVqDung(r) || !thieu.length) { BCT_NAP_LAN = 0; return; }
+  var ghi = ktEl('div','mut'); box.insertBefore(ghi, box.firstChild);
+  function noi(mau, dam, con){ ghi.textContent = ''; var b = document.createElement('b'); b.style.color = mau; b.textContent = dam; ghi.appendChild(b); ghi.appendChild(document.createTextNode(' — ' + con)); }
+  if (!r.vqSaoKe) {
+    noi('#b45309', L('VietQR: chưa có số cho ' + thieu.length + ' ngày trong khoảng', 'VietQR missing for ' + thieu.length + ' days'),
+        L('chưa cài plugin Sao Kê (hoặc bản cũ chưa có vietqr_theo_may_ngay) nên Ghế không tự kéo được.', 'bank plugin missing or outdated.'));
+    return;
+  }
+  if (BCT_NAP_LAN >= 2) {
+    noi('#b45309', L('VietQR: vẫn thiếu ' + thieu.length + ' ngày sau khi nạp', 'VietQR still missing ' + thieu.length + ' days'),
+        thieu.slice(0, 8).join(', ') + (thieu.length > 8 ? '…' : '') + '. ' + L('Kiểm plugin Sao Kê rồi bấm ↻ kéo lại.', 'Check the bank plugin, then ↻.'));
+    return;
+  }
+  BCT_NAP_LAN++;
+  var tong = thieu.length, xong = 0;
+  function tienDo(){ noi('#1d4ed8', '⏳ ' + L('Đang nạp VietQR từ Sao Kê vào kho Ghế', 'Loading VietQR into the chair ledger'),
+    L('còn', 'remaining') + ' ' + Math.max(0, tong - xong) + '/' + tong + ' ' + L('ngày — xong sẽ tự vẽ lại bảng.', 'days — the table redraws when done.')); }
+  tienDo();
+  (function dot(tu){
+    goi('kt_vqr_dongbo', { tu: tu, den: thieu[thieu.length - 1] }, function(k){
+      if (!k || !k.ok) { noi('#b91c1c', L('Nạp VietQR lỗi', 'VietQR load failed'), (k && k.error) || L('không rõ.', 'unknown.')); return; }
+      xong += (k.xong || []).length; tienDo();
+      if (k.tiep) { dot(k.tiep); return; }
+      bctLoad();
+    }, 60000);
+  })(thieu[0]);
+}
+/* ↻ kéo lại CẢ khoảng (kể cả ngày đã có) — dùng sau khi đổi bản đồ cửa hàng / ánh xạ / gộp cơ sở bên Sao Kê. */
+function bctKeoLai(tu, den, a){
+  (function dot(t){
+    goi('kt_vqr_dongbo', { tu: t, den: den, ep: 1 }, function(k){
+      if (!k || !k.ok) { alert((k && k.error) || L('Kéo lại lỗi.', 'Re-pull failed.')); if (a) a.textContent = '↻'; return; }
+      if (k.tiep) { if (a) a.textContent = '⏳ ' + L('đang kéo… còn', 'pulling… remaining') + ' ' + (k.conLai || 0); dot(k.tiep); return; }
+      BCT_NAP_LAN = 0; bctLoad();
+    }, 60000);
+  })(tu);
 }
 /* Thứ trong tuần cho tiêu đề cột — ảnh mẫu có THU/FRI/SAT… ngay dưới ngày, và đó không phải
    trang trí: kế toán soi cuối tuần với ngày thường khác nhau. Dựng từ chuỗi 'YYYY-MM-DD' bằng
@@ -8536,6 +8592,14 @@ function bctBang(r){
     L('Từ','From') + ' ' + r.tu + ' ' + L('đến','to') + ' ' + r.den
     + ' · ' + r.ngay.length + ' ' + L('ngày','days')
     + ' · ' + L('tổng','total') + ' ' + ktVnd(r.tong) + 'đ'));
+  /* 2.142.0: kho VietQR đổi lần cuối lúc nào + ↻ kéo lại từ Sao Kê cho khoảng này. */
+  if (bctVqDung(r) && r.vqCapLuc) {
+    var cl = ktEl('div','mut', L('VietQR trong kho Ghế cập nhật lúc ', 'VietQR ledger updated at ') + r.vqCapLuc + ' · ');
+    var a = document.createElement('a'); a.href = '#'; a.textContent = '↻ ' + L('kéo lại từ Sao Kê cho khoảng này', 're-pull this range from the bank plugin');
+    a.title = L('Dùng sau khi đổi bản đồ cửa hàng / ánh xạ / gộp cơ sở bên Sao Kê. Kho là số suy ra, kéo lại không mất gì.', 'Use after changing store maps or mappings in the bank plugin.');
+    a.onclick = function(e){ e.preventDefault(); a.textContent = '⏳ ' + L('đang kéo…', 'pulling…'); bctKeoLai(r.tu, r.den, a); };
+    cl.appendChild(a); wrap.appendChild(cl);
+  }
   /* 🔴 NÓI RÕ CỘT TỔNG ĐANG LÀ TIỀN GÌ — anh Thắng 18/09/2026 đổi TỔNG sang tiền thật. Một cột
      tiền đổi cách tính mà màn hình im lặng thì người đọc so với bản in hôm qua, thấy lệch, và
      không biết bên nào sai. Nói ra một dòng là hết chuyện. */

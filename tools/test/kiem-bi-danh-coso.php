@@ -92,7 +92,7 @@ t( 'tên thật vẫn ra chính nó', 'CGV LANDMARK 81' === SAOKE_App::thu( 'CGV
 t( '🔴 tên thật THẮNG bí danh khi trùng ("POSH MN X" là tên thật của một cơ sở)', 'POSH MN X' === SAOKE_App::thu( 'POSH MN X' ) );
 t( 'không phải cơ sở → rỗng', '' === SAOKE_App::thu( 'KHONG CO' ) );
 t( 'ghe_ds_coso() dùng SELECT * (Ghế cũ chưa có cột bi_danh vẫn chạy)', false !== strpos( $sk, "SELECT * FROM ' . self::ghe_tbl( 'coso' )" ) );
-t( '0.46.0: lùi theo tenChuan gom về MỘT chỗ (cong_coso_dong) và vẫn đi qua ghe_coso_chuan', 1 === substr_count( $sk, "self::ghe_coso_chuan( \$ax['tenChuan'] )" ) && 3 === substr_count( $sk, 'self::cong_coso_dong(' ) );
+t( '0.46.0: lùi theo tenChuan gom về MỘT chỗ (cong_coso_dong) và vẫn đi qua ghe_coso_chuan', 1 === substr_count( $sk, "self::ghe_coso_chuan( \$ax['tenChuan'] )" ) && 2 === substr_count( $sk, 'self::cong_coso_dong(' ) );   // 0.50.0: còn 2 chỗ gọi (vietqr_quy_dong_ + bảng cổng) — theo cơ sở suy từ theo máy
 t( '0.46.0: tên ánh xạ có đuôi tỉnh "GO BẾN TRE — Bến Tre" vẫn ra cơ sở (khoá lỏng)', 'CGV LANDMARK 81' === SAOKE_App::thu( 'CGV LANDMARK 81 — TP.HCM' ) && 'CGV LANDMARK 81' === SAOKE_App::thu( 'CGV LANDMARK 81 (Q. Bình Thạnh)' ) );
 
 echo "\n"; if ( $TRUOT ) { echo '🔴 TRƯỢT: ' . count( $TRUOT ) . "\n"; exit( 1 ); } echo "✓ SẠCH — $DAT phép\n";

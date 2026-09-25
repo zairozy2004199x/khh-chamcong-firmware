@@ -46,6 +46,7 @@ global.L     = vi => vi;
 global.ktVnd = n => String(n || 0);
 global.ktEl  = (t, c, x) => ({ tag:t, cls:c, txt:x, kids:[], innerHTML:'', style:{}, appendChild(e){ this.kids.push(e); } });
 eval(lay('bctThu'));
+eval(lay('bctVqDung'));   // 2.142.0: bctBang hỏi hàm này để biết có lớp VietQR (dòng "cập nhật lúc" + ↻)
 eval(lay('bctBang'));
 
 /* Dữ liệu giả có BẬT lớp VietQR (cot='qr' + vqCo) — đó là ca sinh thêm dòng chú thích colspan,

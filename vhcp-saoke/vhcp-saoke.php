@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.49.0
+ * Version:           0.50.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -25,7 +25,17 @@ class SAOKE_App {
 	   thêm file"* — câu đầu tiên phải trả lời là "bản đang chạy có khối ấy chưa", mà trang thì
 	   không in số bản ở đâu cả, nên không ai đáp được ngoài cách đi mở wp-admin. Ghi ở đây, hiện
 	   ở góc cột trái. ⚠️ PHẢI BẰNG số ở header `Version:` phía trên — hai chỗ, một giá trị. */
-	const VER = '0.49.0';
+	const VER = '0.50.0';
+
+	/* 🔴 BỘ NHỚ ĐỆM TRONG MỘT LƯỢT cho bản đồ cửa hàng VietQR (option `saoke_vqr_ch`) — anh Thắng
+	   25/09/2026: Báo cáo tổng bên Ghế "không nối được tới máy chủ" khi chọn 01→25/09, còn 12→25 thì
+	   được. Đo thật: mỗi dòng cổng gọi vqr_may_theo_ma() HAI lần (cong_may_dong + cong_coso_dong), mỗi
+	   lần get_option() giải tuần tự cả bản đồ (74KB / 400 cửa hàng), trượt khoá chính thì còn duyệt lại
+	   toàn bộ bằng regex (vqr_ma_tat_ca) — 20.000 dòng mất 2,2s (trúng) tới 9,4s (trượt); nhân đôi, nhân
+	   25 ngày là quá 30s PHP cho phép, PHP bị ngắt → trình duyệt thấy status 0. Nay đọc MỘT lần, nhớ theo
+	   mã; ghi option thì quên (vqr_ch_quen_) để cùng lượt vẫn thấy bản mới. */
+	private static $vqr_ch_cache = null, $vqr_ma_tat_ca_cache = null, $vqr_may_memo = array();
+	private static function vqr_ch_quen_() { self::$vqr_ch_cache = null; self::$vqr_ma_tat_ca_cache = null; self::$vqr_may_memo = array(); }
 
 	/* 3 cổng thanh toán + tên hiển thị. Việt QR về bank 1:1; MoMo/VNPAY gộp cục N:1. */
 	private static function cong_ds() { return array( 'vietqr', 'momo', 'vnpay' ); }
@@ -519,6 +529,7 @@ class SAOKE_App {
 	 * nạp từ `store_export` có cả hai cột nên nhận được cả hai, khỏi phải đoán cổng gửi cái nào.
 	 */
 	private static function vqr_ma_tat_ca() {
+		if ( null !== self::$vqr_ma_tat_ca_cache ) { return self::$vqr_ma_tat_ca_cache; }
 		$ban = array();
 		foreach ( self::vqr_ds_ch() as $ma => $v ) {
 			$ten = isset( $v['ten'] ) ? trim( (string) $v['ten'] ) : '';
@@ -529,6 +540,7 @@ class SAOKE_App {
 			/* Mã cửa hàng thắng mã điểm khi trùng: nó là khoá chính của bản đồ. */
 			if ( '' !== $kd && ! isset( $ban[ $kd ] ) ) { $ban[ $kd ] = $ten; }
 		}
+		self::$vqr_ma_tat_ca_cache = $ban;
 		return $ban;
 	}
 
@@ -736,7 +748,7 @@ class SAOKE_App {
 			/* 0.49.0: payload không mang số TK → gắn số TK của tài khoản VietQR mà token thuộc về (tách hai tài khoản). */
 			if ( '' === trim( (string) ( isset( $tx['soTK'] ) ? $tx['soTK'] : '' ) ) && ! empty( $macDinh['soTK'] ) ) { $tx['soTK'] = (string) $macDinh['soTK']; }
 			if ( empty( $tx['docDuoc'] ) ) { $kho++; }
-			if ( self::luu_cong( $tx ) ) { $moi++; } else { $trung++; }
+			if ( self::luu_cong( $tx ) ) { $moi++; self::day_ghe_dong_( $tx ); } else { $trung++; }
 		}
 		return array( 'moi' => $moi, 'trung' => $trung, 'chuaDoc' => $kho );
 	}
@@ -1280,7 +1292,9 @@ class SAOKE_App {
 					'docDuoc' => ( $col['docDuoc'] >= 0 ? ( 'x' === strtolower( $g( 'docDuoc' ) ) ) : true ) );
 				$tx['khoa'] = self::cong_khoa( $nguon, $tx, $maGD . '|' . $ref ); $tx['raw'] = $g( 'noiDung' );
 				if ( self::luu_cong( $tx ) ) { $moi++; } else { $trung++; }
+				self::ghe_dau_ngay_( self::cong_ngay_mysql( $tx['thoiDiem'] ) );
 			}
+			self::day_ghe_ngay_don_();
 			update_option( 'saoke_cong_log_last', array( 'luc' => current_time( 'mysql' ), 'kq' => 'CongThanhToan: mới ' . $moi . ', trùng ' . $trung ) );
 			return array( 'moi' => $moi, 'trung' => $trung, 'kho' => 0 );
 		}
@@ -1297,8 +1311,10 @@ class SAOKE_App {
 			foreach ( $list as $tx ) {
 				$tx['nguon'] = $nguon; $tx['khoa'] = self::cong_khoa( $nguon, $tx, $raw ); $tx['raw'] = $raw;
 				if ( self::luu_cong( $tx ) ) { $moi++; } else { $trung++; }
+				self::ghe_dau_ngay_( self::cong_ngay_mysql( $tx['thoiDiem'] ) );
 			}
 		}
+		self::day_ghe_ngay_don_();
 		update_option( 'saoke_cong_log_last', array( 'luc' => current_time( 'mysql' ), 'kq' => 'WebhookLog: mới ' . $moi . ', trùng ' . $trung . ( $kho ? ', không đọc ' . $kho : '' ) ) );
 		return array( 'moi' => $moi, 'trung' => $trung, 'kho' => $kho );
 	}
@@ -1430,8 +1446,8 @@ class SAOKE_App {
 		// (A) Từ cổng — chi tiết từng giao dịch
 		$tc = self::tbl_cong();
 		$wa = array( 'nguon=%s' ); $aa = array( $nguon );
-		if ( $tu )  { $wa[] = 'DATE(thoi_diem)>=%s'; $aa[] = $tu; }
-		if ( $den ) { $wa[] = 'DATE(thoi_diem)<=%s'; $aa[] = $den; }
+		if ( $tu )  { $wa[] = 'thoi_diem>=%s'; $aa[] = self::moc_tu_( $tu ); }
+		if ( $den ) { $wa[] = 'thoi_diem<%s'; $aa[] = self::moc_den_( $den ); }
 		$rowsC = $wpdb->get_results( $wpdb->prepare( "SELECT thoi_diem, so_tien, ma_gd, ref, huong, trang_thai, so_tk, noi_dung, diem_ban, ma_ch, may_tay, doc_duoc FROM $tc WHERE " . implode( ' AND ', $wa ) . " ORDER BY thoi_diem DESC, id DESC LIMIT 3000", $aa ), ARRAY_A );
 		$cong = array(); $congTien = 0; $congKho = 0;
 		foreach ( (array) $rowsC as $r ) {
@@ -1514,7 +1530,7 @@ class SAOKE_App {
 		}
 		unset( $r );
 		if ( ! $thay ) { $all[] = array( 'nguon' => $nguon, 'tenFile' => $tf, 'tenChuan' => $tc, 'maBank' => $mb, 'tuNgay' => $tuVN, 'denNgay' => $denVN ); }
-		update_option( 'saoke_anhxa', array_values( $all ) );
+		update_option( 'saoke_anhxa', array_values( $all ) ); self::day_ghe_gan_day_( 7 );
 		// Vá dòng file đã nạp của cửa hàng này trong khoảng ngày.
 		global $wpdb; $tf_tbl = self::tbl_congfile();
 		$va = 0; $frows = $wpdb->get_results( $wpdb->prepare( "SELECT id, ngay, ch_file FROM $tf_tbl WHERE nguon=%s", $nguon ), ARRAY_A );
@@ -1540,7 +1556,7 @@ class SAOKE_App {
 			if ( $match && ! $xoa ) { $xoa++; continue; }
 			$ra[] = $r;
 		}
-		update_option( 'saoke_anhxa', array_values( $ra ) );
+		update_option( 'saoke_anhxa', array_values( $ra ) ); self::day_ghe_gan_day_( 7 );
 		return array( 'ok' => true, 'daXoa' => $xoa );
 	}
 
@@ -1666,8 +1682,8 @@ class SAOKE_App {
 		// (a) CongThanhToan
 		$tc = self::tbl_cong();
 		$wa = array( 'nguon=%s', 'doc_duoc=1', "huong<>'Đi'" ); $aa = array( $nguon );
-		if ( $tu )  { $wa[] = 'DATE(thoi_diem)>=%s'; $aa[] = $tu; }
-		if ( $den ) { $wa[] = 'DATE(thoi_diem)<=%s'; $aa[] = $den; }
+		if ( $tu )  { $wa[] = 'thoi_diem>=%s'; $aa[] = self::moc_tu_( $tu ); }
+		if ( $den ) { $wa[] = 'thoi_diem<%s'; $aa[] = self::moc_den_( $den ); }
 		$rc = $wpdb->get_results( $wpdb->prepare( "SELECT thoi_diem, so_tien, noi_dung, diem_ban, ma_ch, may_tay FROM $tc WHERE " . implode( ' AND ', $wa ), $aa ), ARRAY_A );
 		foreach ( (array) $rc as $r ) {
 			$tien = (int) $r['so_tien']; if ( $tien <= 0 ) { continue; } $tong += $tien;
@@ -1709,6 +1725,15 @@ class SAOKE_App {
 		return '';
 	}
 	private static function vn2ymd( $s ) { $s = trim( $s ); if ( ! preg_match( '#^(\d{2})/(\d{2})/(\d{4})$#', $s, $m ) ) { return ''; } return $m[3] . '-' . $m[2] . '-' . $m[1]; }
+	/* Mốc so THẲNG vào cột thoi_diem (DATETIME) thay cho DATE(thoi_diem)>=… / <=…: bọc hàm lên cột là
+	   MySQL bỏ chỉ mục `thoi_diem`, quét cả bảng saoke_cong mỗi lượt. 'Y-m-d' → 'Y-m-d 00:00:00'; mốc ĐẾN là
+	   00:00:00 của NGÀY SAU, dùng với `<` để lấy trọn ngày cuối. Không phải Y-m-d thì trả nguyên (0.50.0). */
+	private static function moc_tu_( $ymd ) { return preg_match( '/^\d{4}-\d{2}-\d{2}$/', (string) $ymd ) ? $ymd . ' 00:00:00' : (string) $ymd; }
+	private static function moc_den_( $ymd ) {
+		if ( ! preg_match( '/^(\d{4})-(\d{2})-(\d{2})$/', (string) $ymd, $m ) ) { return (string) $ymd; }
+		return gmdate( 'Y-m-d 00:00:00', gmmktime( 0, 0, 0, (int) $m[2], (int) $m[3], (int) $m[1] ) + 86400 );
+	}
+	private static function khoang_thoi_diem_( $tu, $den ) { return array( self::moc_tu_( $tu ), self::moc_den_( $den ) ); }
 	private static function ymd2vn( $s ) { $s = trim( (string) $s ); if ( '' === $s ) { return ''; } $t = strtotime( $s ); return $t ? gmdate( 'd/m/Y H:i:s', $t ) : $s; }
 
 	// ───────────────────────────── Helpers đối soát ─────────────────────────────
@@ -1829,7 +1854,10 @@ class SAOKE_App {
 	 *    gần như không bao giờ đổi — cùng hình dạng với `saoke_anhxa` / `saoke_diem` đang có. Dựng
 	 *    thêm một bảng là thêm một thứ phải nâng cấp, phải sao lưu, phải nhớ.
 	 */
-	private static function vqr_ds_ch() { $v = get_option( 'saoke_vqr_ch' ); return is_array( $v ) ? $v : array(); }
+	private static function vqr_ds_ch() {
+		if ( null === self::$vqr_ch_cache ) { $v = get_option( 'saoke_vqr_ch' ); self::$vqr_ch_cache = is_array( $v ) ? $v : array(); }
+		return self::$vqr_ch_cache;
+	}
 
 	/** Chuẩn hoá mã cửa hàng của cổng: hoa, bỏ khoảng trắng. Mã là chuỗi máy sinh, so phải khít. */
 	private static function vqr_ma_ch( $s ) {
@@ -1862,15 +1890,16 @@ class SAOKE_App {
 	private static function vqr_may_theo_ma( $ma_ch ) {
 		$k = self::vqr_ma_ch( $ma_ch );
 		if ( '' === $k ) { return ''; }
+		if ( isset( self::$vqr_may_memo[ $k ] ) ) { return self::$vqr_may_memo[ $k ]; }
 		$ds = self::vqr_ds_ch();
-		if ( isset( $ds[ $k ]['ten'] ) ) { return (string) $ds[ $k ]['ten']; }
+		if ( isset( $ds[ $k ]['ten'] ) ) { return self::$vqr_may_memo[ $k ] = (string) $ds[ $k ]['ten']; }
 		/* 🔴 CỔNG KHÔNG PHẢI LÚC NÀO CŨNG GỬI MÃ CỬA HÀNG. Bản kết xuất giao dịch có HAI cột mã —
 		   `Mã cửa hàng` (vd `RJFSHCSXE9`) và `Mã điểm bán` (vd `VVB851980`) — và tuỳ giao dịch,
 		   cái có mặt là cái nào thì không đoán trước được. Bản đồ `store_export` có cả hai cột,
 		   nên tra hụt ở khoá chính thì còn một đường nữa; không có đường này thì dò ra mã điểm
 		   rồi vẫn trả về "chưa rõ máy" — công cốc. */
 		$ban = self::vqr_ma_tat_ca();
-		return isset( $ban[ $k ] ) ? (string) $ban[ $k ] : '';
+		return self::$vqr_may_memo[ $k ] = ( isset( $ban[ $k ] ) ? (string) $ban[ $k ] : '' );
 	}
 
 	/**
@@ -2213,32 +2242,26 @@ class SAOKE_App {
 	 * @return array [ 'co'=>bool, 'vq'=>[ tênCơSởGhế => [ 'Y-m-d' => tiền ] ], 'khongKhop'=>int ]
 	 */
 	public static function vietqr_theo_coso_ngay( $tu, $den ) {
-		global $wpdb;
-		$tc = self::tbl_cong();
-		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $tc ) ) !== $tc ) {
-			return array( 'co' => false, 'vq' => array(), 'khongKhop' => 0 );
+		/* 0.50.0: SUY từ bản theo máy — trước đây là một vòng lặp thứ hai chép cùng luật gán; hai bản của
+		   một luật thì sớm muộn lệch nhau (§6). vq[cs][ngày] = mọi máy của cs + phần "chưa rõ máy" của cs. */
+		$m = self::vietqr_theo_may_ngay( $tu, $den );
+		if ( empty( $m['co'] ) ) { return array( 'co' => false, 'vq' => array(), 'khongKhop' => 0 ); }
+		$vq = array();
+		foreach ( (array) $m['vq'] as $cs => $theoMay ) {
+			foreach ( (array) $theoMay as $ma => $theoNgay ) {
+				foreach ( (array) $theoNgay as $ng => $tien ) {
+					if ( ! isset( $vq[ $cs ] ) ) { $vq[ $cs ] = array(); }
+					$vq[ $cs ][ $ng ] = ( isset( $vq[ $cs ][ $ng ] ) ? $vq[ $cs ][ $ng ] : 0 ) + (int) $tien;
+				}
+			}
 		}
-		$anhXa = self::ds_anhxa( 'vietqr' );
-		$rows = $wpdb->get_results( $wpdb->prepare(
-			"SELECT so_tien, DATE(thoi_diem) d, noi_dung, diem_ban, ma_ch, may_tay FROM $tc"
-			. " WHERE nguon='vietqr' AND doc_duoc=1 AND huong<>%s AND DATE(thoi_diem) BETWEEN %s AND %s",
-			'Đi', (string) $tu, (string) $den ), ARRAY_A );
-		$vq = array(); $khong = 0;
-		foreach ( (array) $rows as $r ) {
-			$tien = (int) $r['so_tien']; if ( $tien <= 0 ) { continue; }
-			$ng = (string) $r['d'];
-			$tenMay = self::cong_may_dong( (string) $r['noi_dung'], (string) $r['ma_ch'], (string) $r['diem_ban'], (string) $r['may_tay'] );
-			$ax = self::ax_theo_ngay(
-				isset( $anhXa[ self::chuan_ch( $tenMay ) ] ) ? $anhXa[ self::chuan_ch( $tenMay ) ]
-					: ( isset( $anhXa[ self::chuan_ch( self::cong_coso( $tenMay ) ) ] ) ? $anhXa[ self::chuan_ch( self::cong_coso( $tenMay ) ) ] : null ),
-				self::ymd2vn( $r['d'] ) );
-			$qd = self::cong_coso_dong( $tenMay, (string) $r['ma_ch'], $ax, (string) $r['may_tay'] );
-			$cs = (string) $qd['coso'];
-			if ( '' === $cs ) { $khong += $tien; continue; }
-			if ( ! isset( $vq[ $cs ] ) ) { $vq[ $cs ] = array(); }
-			$vq[ $cs ][ $ng ] = ( isset( $vq[ $cs ][ $ng ] ) ? $vq[ $cs ][ $ng ] : 0 ) + $tien;
+		foreach ( (array) $m['chuaMay'] as $cs => $theoNgay ) {
+			foreach ( (array) $theoNgay as $ng => $tien ) {
+				if ( ! isset( $vq[ $cs ] ) ) { $vq[ $cs ] = array(); }
+				$vq[ $cs ][ $ng ] = ( isset( $vq[ $cs ][ $ng ] ) ? $vq[ $cs ][ $ng ] : 0 ) + (int) $tien;
+			}
 		}
-		return array( 'co' => true, 'vq' => $vq, 'khongKhop' => $khong );
+		return array( 'co' => true, 'vq' => $vq, 'khongKhop' => (int) $m['khongKhop'] );
 	}
 
 	/* Khoá so TÊN MÁY với TÊN GHẾ: chuan_ch() rồi bỏ số 0 dẫn đầu của cụm số CUỐI — cổng đánh
@@ -2287,37 +2310,91 @@ class SAOKE_App {
 		}
 		$anhXa = self::ds_anhxa( 'vietqr' );
 		$mapMa = self::ghe_map_may_ma();
+		$kt = self::khoang_thoi_diem_( $tu, $den );
 		$rows = $wpdb->get_results( $wpdb->prepare(
 			"SELECT so_tien, DATE(thoi_diem) d, noi_dung, diem_ban, ma_ch, may_tay FROM $tc"
-			. " WHERE nguon='vietqr' AND doc_duoc=1 AND huong<>%s AND DATE(thoi_diem) BETWEEN %s AND %s",
-			'Đi', (string) $tu, (string) $den ), ARRAY_A );
+			. " WHERE nguon='vietqr' AND doc_duoc=1 AND huong<>%s AND thoi_diem >= %s AND thoi_diem < %s",
+			'Đi', $kt[0], $kt[1] ), ARRAY_A );
 		$vq = array(); $chua = array(); $khong = 0;
 		foreach ( (array) $rows as $r ) {
-			$tien = (int) $r['so_tien']; if ( $tien <= 0 ) { continue; }
-			$ng = (string) $r['d'];
-			$tenMay = self::cong_may_dong( (string) $r['noi_dung'], (string) $r['ma_ch'], (string) $r['diem_ban'], (string) $r['may_tay'] );
-			/* Cơ sở: y hệt đường của vietqr_theo_coso_ngay(). */
-			$ax = self::ax_theo_ngay(
-				isset( $anhXa[ self::chuan_ch( $tenMay ) ] ) ? $anhXa[ self::chuan_ch( $tenMay ) ]
-					: ( isset( $anhXa[ self::chuan_ch( self::cong_coso( $tenMay ) ) ] ) ? $anhXa[ self::chuan_ch( self::cong_coso( $tenMay ) ) ] : null ),
-				self::ymd2vn( $r['d'] ) );
-			$qd = self::cong_coso_dong( $tenMay, (string) $r['ma_ch'], $ax, (string) $r['may_tay'] );
-			$cs = (string) $qd['coso'];
-			if ( '' === $cs ) { $khong += $tien; continue; }
-			/* Máy: chỉ nhận khi tên máy trỏ ĐÚNG MỘT ghế của ĐÚNG cơ sở ấy. Trỏ ghế cơ sở khác là
-			   dấu hiệu trùng mã liên cơ sở — bỏ vào "chưa rõ máy" chứ không gán chéo. */
-			$k = self::chuan_may( $tenMay );
-			$m = ( '' !== $k && isset( $mapMa[ $k ] ) && empty( $mapMa[ $k ]['trung'] ) && $mapMa[ $k ]['coso'] === $cs ) ? $mapMa[ $k ]['ma'] : '';
-			if ( '' === $m ) {
-				if ( ! isset( $chua[ $cs ] ) ) { $chua[ $cs ] = array(); }
-				$chua[ $cs ][ $ng ] = ( isset( $chua[ $cs ][ $ng ] ) ? $chua[ $cs ][ $ng ] : 0 ) + $tien;
-				continue;
-			}
-			if ( ! isset( $vq[ $cs ] ) ) { $vq[ $cs ] = array(); }
-			if ( ! isset( $vq[ $cs ][ $m ] ) ) { $vq[ $cs ][ $m ] = array(); }
-			$vq[ $cs ][ $m ][ $ng ] = ( isset( $vq[ $cs ][ $m ][ $ng ] ) ? $vq[ $cs ][ $m ][ $ng ] : 0 ) + $tien;
+			$q = self::vietqr_quy_dong_( $r, $anhXa, $mapMa );
+			if ( $q ) { self::vietqr_gom_( $vq, $chua, $khong, $q ); }
 		}
 		return array( 'co' => true, 'vq' => $vq, 'chuaMay' => $chua, 'khongKhop' => $khong );
+	}
+	/* Quy MỘT dòng cổng ra [ngày, cơ sở Ghế, mã ghế, tiền] — LUẬT DUY NHẤT, dùng cho báo cáo theo khoảng
+	   lẫn đẩy từng giao dịch sang kho Ghế lúc webhook về (0.50.0). null = tiền ≤ 0 (bỏ).
+	   Máy: chỉ nhận khi tên máy trỏ ĐÚNG MỘT ghế của ĐÚNG cơ sở ấy — trỏ ghế cơ sở khác là dấu trùng mã
+	   liên cơ sở → 'ma' rỗng (chưa rõ máy), không gán chéo. */
+	public static function vietqr_quy_dong_( $r, $anhXa, $mapMa ) {
+		$tien = (int) $r['so_tien']; if ( $tien <= 0 ) { return null; }
+		$ng = (string) $r['d'];
+		$tenMay = self::cong_may_dong( (string) $r['noi_dung'], (string) $r['ma_ch'], (string) $r['diem_ban'], (string) $r['may_tay'] );
+		$ax = self::ax_theo_ngay(
+			isset( $anhXa[ self::chuan_ch( $tenMay ) ] ) ? $anhXa[ self::chuan_ch( $tenMay ) ]
+				: ( isset( $anhXa[ self::chuan_ch( self::cong_coso( $tenMay ) ) ] ) ? $anhXa[ self::chuan_ch( self::cong_coso( $tenMay ) ) ] : null ),
+			self::ymd2vn( $ng ) );
+		$qd = self::cong_coso_dong( $tenMay, (string) $r['ma_ch'], $ax, (string) $r['may_tay'] );
+		$cs = (string) $qd['coso']; $m = '';
+		if ( '' !== $cs ) {
+			$k = self::chuan_may( $tenMay );
+			$m = ( '' !== $k && isset( $mapMa[ $k ] ) && empty( $mapMa[ $k ]['trung'] ) && $mapMa[ $k ]['coso'] === $cs ) ? (string) $mapMa[ $k ]['ma'] : '';
+		}
+		return array( 'ng' => $ng, 'coso' => $cs, 'ma' => $m, 'tien' => $tien );
+	}
+	/* Bỏ một dòng đã quy vào đúng MỘT trong ba rổ: vq[cs][ma][ng] · chuaMay[cs][ng] · khongKhop. */
+	private static function vietqr_gom_( &$vq, &$chua, &$khong, $q ) {
+		$cs = (string) $q['coso']; $ng = (string) $q['ng']; $tien = (int) $q['tien'];
+		if ( '' === $cs ) { $khong += $tien; return; }
+		if ( '' === (string) $q['ma'] ) {
+			if ( ! isset( $chua[ $cs ] ) ) { $chua[ $cs ] = array(); }
+			$chua[ $cs ][ $ng ] = ( isset( $chua[ $cs ][ $ng ] ) ? $chua[ $cs ][ $ng ] : 0 ) + $tien;
+			return;
+		}
+		$m = (string) $q['ma'];
+		if ( ! isset( $vq[ $cs ] ) ) { $vq[ $cs ] = array(); }
+		if ( ! isset( $vq[ $cs ][ $m ] ) ) { $vq[ $cs ][ $m ] = array(); }
+		$vq[ $cs ][ $m ][ $ng ] = ( isset( $vq[ $cs ][ $m ][ $ng ] ) ? $vq[ $cs ][ $m ][ $ng ] : 0 ) + $tien;
+	}
+
+	/* ═══════════════ 0.50.0: ĐẨY SỐ VIETQR SANG KHO CỦA GHẾ (bảng vhg_bc_vqr) ═══════════════
+	 * Anh Thắng 25/09/2026: *"khi có dữ liệu thêm thì ghi vào máy, để cần đọc ngay, chứ sao kê nó đang quá
+	 * tải mà cứ gọi qua là lúc được lúc không"*. Trước đây Báo cáo tổng bên Ghế gọi sang vietqr_theo_coso_ngay()
+	 * tính lại từ đầu MỖI LẦN bấm Xem — 25 ngày × hàng chục nghìn dòng là quá 30s. Nay:
+	 *   · webhook về → cộng ngay giao dịch ấy vào kho Ghế (VHG_VietQR::cong_gd — một câu UPSERT);
+	 *   · gán máy tay / nạp file / đổi bản đồ cửa hàng / đổi ánh xạ → tính lại NGÀY bị đụng, ghi đè (nhan_ngay).
+	 * Ghế đọc kho, không gọi sang. Kho là số SUY RA từ saoke_cong (nguồn thật vẫn ở đây) — ghi đè kho không
+	 * mất tiền. Mọi lỗi bên Ghế nuốt tại chỗ + error_log: webhook của cổng phải luôn được trả lời. */
+	private static function ghe_kho_co_() { return class_exists( 'VHG_VietQR' ) && method_exists( 'VHG_VietQR', 'nhan_ngay' ); }
+	/* Một giao dịch MỚI vừa ghi (webhook) → cộng thẳng vào kho Ghế. */
+	private static function day_ghe_dong_( $tx ) {
+		if ( ! self::ghe_kho_co_() ) { return; }
+		try {
+			if ( 'vietqr' !== (string) $tx['nguon'] || empty( $tx['docDuoc'] ) || 'Đi' === (string) $tx['huong'] ) { return; }
+			$ngay = substr( (string) self::cong_ngay_mysql( $tx['thoiDiem'] ), 0, 10 );
+			if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $ngay ) ) { return; }
+			$r = array( 'so_tien' => (int) round( $tx['soTien'] ), 'd' => $ngay, 'noi_dung' => (string) $tx['noiDung'],
+				'diem_ban' => (string) ( isset( $tx['diemBan'] ) ? $tx['diemBan'] : '' ), 'ma_ch' => (string) ( isset( $tx['maCH'] ) ? $tx['maCH'] : '' ), 'may_tay' => '' );
+			$q = self::vietqr_quy_dong_( $r, self::ds_anhxa( 'vietqr' ), self::ghe_map_may_ma() );
+			if ( $q ) { VHG_VietQR::cong_gd( $q['ng'], $q['coso'], $q['ma'], $q['tien'] ); }
+		} catch ( \Throwable $e ) { error_log( 'saoke→ghe day_ghe_dong_: ' . $e->getMessage() ); }
+	}
+	/* Tính lại trọn MỘT ngày rồi ghi đè kho Ghế (gán tay, nạp file, đổi bản đồ / ánh xạ). */
+	public static function day_ghe_ngay_( $ngay ) {
+		if ( ! self::ghe_kho_co_() ) { return false; }
+		$ngay = substr( (string) $ngay, 0, 10 );
+		if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $ngay ) ) { return false; }
+		try { VHG_VietQR::nhan_ngay( $ngay, self::vietqr_theo_may_ngay( $ngay, $ngay ) ); return true; }
+		catch ( \Throwable $e ) { error_log( 'saoke→ghe day_ghe_ngay_: ' . $e->getMessage() ); return false; }
+	}
+	/* Các lượt NẠP FILE đi qua nhiều ngày: ghi dấu từng ngày đụng tới rồi đẩy MỘT lần cuối lượt. */
+	private static $ngay_dung_ = array();
+	private static function ghe_dau_ngay_( $mysql ) { if ( $mysql && strlen( (string) $mysql ) >= 10 ) { self::$ngay_dung_[ substr( (string) $mysql, 0, 10 ) ] = 1; } }
+	private static function day_ghe_ngay_don_() { $ds = array_keys( self::$ngay_dung_ ); self::$ngay_dung_ = array(); foreach ( $ds as $n ) { self::day_ghe_ngay_( $n ); } }
+	private static function day_ghe_gan_day_( $so_ngay ) {
+		if ( ! self::ghe_kho_co_() ) { return; }
+		$t = strtotime( current_time( 'Y-m-d' ) );
+		for ( $i = 0; $i < (int) $so_ngay; $i++ ) { self::day_ghe_ngay_( gmdate( 'Y-m-d', $t - $i * 86400 ) ); }
 	}
 
 	/* Địa điểm ghế của 1 tên máy VietQR ("AMTP 02"): khớp máy trước, rồi thử cơ sở (bỏ số). null nếu chưa có. */
@@ -2804,9 +2881,10 @@ class SAOKE_App {
 		if ( '' === $khoa ) { self::loi( 'Thiếu khoá giao dịch.' ); }
 		$ten = mb_substr( preg_replace( '/\s+/', ' ', $ten ), 0, 60 );
 		$tc  = self::tbl_cong();
-		$row = $wpdb->get_row( $wpdb->prepare( "SELECT id FROM $tc WHERE khoa=%s", $khoa ), ARRAY_A );
+		$row = $wpdb->get_row( $wpdb->prepare( "SELECT id, DATE(thoi_diem) d FROM $tc WHERE khoa=%s", $khoa ), ARRAY_A );
 		if ( ! $row ) { self::loi( 'Không thấy giao dịch (khoá không khớp).' ); }
 		$wpdb->update( $tc, array( 'may_tay' => $ten ), array( 'id' => (int) $row['id'] ) );
+		self::day_ghe_ngay_( (string) $row['d'] );   // gán tay đổi cơ sở/máy của giao dịch → kho Ghế ngày ấy tính lại
 		return array( 'ok' => true, 'mayTay' => $ten );
 	}
 	// ── Nộp tiền mặt theo cơ sở: dò mã của cơ sở trong nội dung sao kê ngân hàng ──
@@ -3008,8 +3086,8 @@ class SAOKE_App {
 		// Lọc NGÀY bằng SQL trên thoi_diem (đã là Y-m-d H:i:s) — KHÔNG đổi qua dd/mm rồi strtotime
 		// (dd/mm bị đọc nhầm thành mm/dd, làm lệch ngày -> "ngày cũ không có").
 		$wc = array( 'nguon=%s' ); $ac = array( $nguon );
-		if ( $tu )  { $wc[] = 'DATE(thoi_diem)>=%s'; $ac[] = $tu; }
-		if ( $den ) { $wc[] = 'DATE(thoi_diem)<=%s'; $ac[] = $den; }
+		if ( $tu )  { $wc[] = 'thoi_diem>=%s'; $ac[] = self::moc_tu_( $tu ); }
+		if ( $den ) { $wc[] = 'thoi_diem<%s'; $ac[] = self::moc_den_( $den ); }
 		$rowsC = $wpdb->get_results( $wpdb->prepare( "SELECT khoa, ma_gd, ref, thoi_diem, so_tien, huong, trang_thai, so_tk, noi_dung, diem_ban, ma_ch, may_tay, doc_duoc, raw, nhan_luc FROM $tc WHERE " . implode( ' AND ', $wc ) . " ORDER BY thoi_diem DESC, id DESC LIMIT 5000", $ac ), ARRAY_A );
 		$cong = array(); $congTien = 0; $congKho = 0; $khoRows = array(); $tongMoiNguon = 0; $payloadCuoi = '';
 		$chuaAnhXa = array(); $chuaRoMay = 0; $chuaRoTien = 0;
@@ -3215,8 +3293,8 @@ class SAOKE_App {
 		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $tc ) ) !== $tc ) { return array(); }
 		$gioi_han = max( 1, min( 20000, (int) $gioi_han ) );
 		$w = array( 'nguon=%s', 'doc_duoc=1' ); $ar = array( $nguon );
-		if ( '' !== $tu )  { $w[] = 'DATE(thoi_diem)>=%s'; $ar[] = (string) $tu; }
-		if ( '' !== $den ) { $w[] = 'DATE(thoi_diem)<=%s'; $ar[] = (string) $den; }
+		if ( '' !== $tu )  { $w[] = 'thoi_diem>=%s'; $ar[] = self::moc_tu_( $tu ); }
+		if ( '' !== $den ) { $w[] = 'thoi_diem<%s'; $ar[] = self::moc_den_( $den ); }
 		$rows = $wpdb->get_results( $wpdb->prepare(
 			"SELECT ma_gd, ref, thoi_diem, so_tien, noi_dung, ma_ch, diem_ban, trang_thai, may_tay"
 			. " FROM $tc WHERE " . implode( ' AND ', $w ) . " ORDER BY thoi_diem ASC, id ASC LIMIT " . $gioi_han,
@@ -3278,9 +3356,11 @@ class SAOKE_App {
 			elseif ( ! self::ax_theo_ngay( isset( $anhXa[ self::chuan_ch( $tenMay ) ] ) ? $anhXa[ self::chuan_ch( $tenMay ) ] : ( isset( $anhXa[ self::chuan_ch( self::cong_coso( $tenMay ) ) ] ) ? $anhXa[ self::chuan_ch( self::cong_coso( $tenMay ) ) ] : null ), $thoiDiem ) ) { $chMoi[ self::cong_coso( $tenMay ) ] = 1; }
 			$mysql = self::cong_ngay_mysql( $thoiDiem );
 			if ( $mysql && $mysql > $denNhat ) { $denNhat = $mysql; }
+			if ( 'vietqr' === $nguon ) { self::ghe_dau_ngay_( $mysql ); }   // nạp file có thể VÁ ma_ch vào dòng cũ → ngày ấy phải tính lại
 			$kqLuu = '';
 			if ( self::luu_cong( $tx, $kqLuu ) ) { $moi++; $tongMoi += $soTien; } else { $trung++; if ( 'va' === $kqLuu ) { $vaMay++; } }
 		}
+		self::day_ghe_ngay_don_();
 		/* 🔴 GHI LẠI LẦN NẠP NÀY PHỦ TỚI ĐÂU. Anh Thắng 12/09/2026: *"vẫn chưa lọc hết"* — chỉ vào
 		   hai dòng 15:28 và 15:29, trong khi file anh xuất lúc 15:26 dừng ở 15:26:09. File không
 		   thể chứa chúng, nên không có gì để vá; nhưng màn hình thì không nói điều đó ra, và
@@ -3346,6 +3426,8 @@ class SAOKE_App {
 			$ds[ $ma ] = $moiDong; $sua++;
 		}
 		update_option( 'saoke_vqr_ch', $ds, false );
+		self::vqr_ch_quen_();
+		self::day_ghe_gan_day_( 7 );   // bản đồ đổi → số gán lại → kho Ghế 7 ngày gần phải tính lại
 		return array( 'ok' => true, 'tenFile' => $tenFile, 'soDongFile' => count( $rows ),
 			'themMoi' => $moi, 'daSua' => $sua, 'yNguyen' => $yNguyen, 'boQua' => $boQua, 'tong' => count( $ds ) );
 	}
@@ -3369,6 +3451,8 @@ class SAOKE_App {
 		self::can_pin( $a );
 		$n = count( self::vqr_ds_ch() );
 		update_option( 'saoke_vqr_ch', array(), false );
+		self::vqr_ch_quen_();
+		self::day_ghe_gan_day_( 7 );
 		return array( 'ok' => true, 'daXoa' => $n );
 	}
 
@@ -3410,7 +3494,7 @@ class SAOKE_App {
 			if ( strtolower( (string) ( isset( $r['nguon'] ) ? $r['nguon'] : '' ) ) === $nguon && self::chuan_ch( isset( $r['tenFile'] ) ? $r['tenFile'] : '' ) === $k
 				&& (string) ( isset( $r['tuNgay'] ) ? $r['tuNgay'] : '' ) === $truoc['tuNgay'] && (string) ( isset( $r['denNgay'] ) ? $r['denNgay'] : '' ) === $truoc['denNgay'] ) { $r['denNgay'] = $nc; break; }
 		}
-		unset( $r ); update_option( 'saoke_anhxa', array_values( $all ) );
+		unset( $r ); update_option( 'saoke_anhxa', array_values( $all ) ); self::day_ghe_gan_day_( 7 );
 		$tuMoi = gmdate( 'd/m/Y', self::moc( $nc ) + 86400 );
 		$r2 = self::soft_err( self::r_anhxa_luu( self::req( array( 'pin' => $a[0], 'nguon' => $nguon, 'tenFile' => $tf, 'tenChuan' => $tcMoi, 'maBank' => $suyMoi['ma'], 'tuNgay' => $tuMoi, 'denNgay' => $truoc['denNgay'] ) ) ) );
 		if ( empty( $r2['ok'] ) ) { return $r2; }

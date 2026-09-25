@@ -53,5 +53,10 @@ $r = SAOKE_App::thu( 'GO AC 03', 'VCD7HWKFAM', $axSai, 'GO AC 03' );
 t( '🔴 gán máy TAY không bị mã cửa hàng đè (quyết định của người)', 'GO TRƯỜNG CHINH' === $r['coso'] && 'tay' === $r['nguon'] && 0 === $r['xungDot'], $r );
 echo "── Bảng cổng nói thật ──────────────────────────────────────────\n";
 t( 'không quy được cơ sở Ghế thì in "⚠ … (chưa quy được cơ sở Ghế)", không hiện tên ánh xạ trần', false !== strpos( $sk, "(chưa quy được cơ sở Ghế)" ) );
-t( 'ba màn cùng gọi cong_coso_dong (một chỗ quyết định)', 3 === substr_count( $sk, 'self::cong_coso_dong(' ) );
+/* 0.50.0: còn HAI chỗ gọi — vietqr_quy_dong_() (luật quy một dòng, dùng chung cho hai báo cáo VietQR của Ghế
+   LẪN đẩy webhook sang kho Ghế) và bảng Sao Kê cổng. vietqr_theo_coso_ngay() nay SUY từ bản theo máy, không
+   còn vòng lặp riêng — bớt một chỗ gọi là bớt một bản chép của luật, đúng hướng §6. */
+t( 'hai chỗ gọi cong_coso_dong: vietqr_quy_dong_ (báo cáo + đẩy webhook) và bảng cổng (một chỗ quyết định)', 2 === substr_count( $sk, 'self::cong_coso_dong(' ) );
+t( '0.50.0: cả hai báo cáo VietQR của Ghế đi qua vietqr_quy_dong_ (theo máy gọi, theo cơ sở suy từ theo máy)',
+	1 === substr_count( $sk, 'self::vietqr_quy_dong_( $r, $anhXa, $mapMa )' ) && 1 === substr_count( $sk, '$m = self::vietqr_theo_may_ngay( $tu, $den );' ) );
 echo "\n"; if ( $TRUOT ) { echo '🔴 TRƯỢT: ' . count( $TRUOT ) . "\n"; exit( 1 ); } echo "✓ SẠCH — $DAT phép\n";

@@ -25,7 +25,10 @@ require_once __DIR__ . '/lib/be-saoke.php';
 require_once $GOC . '/vhcp-saoke/vhcp-saoke.php';
 t( 'nạp được lớp SAOKE_App', class_exists( 'SAOKE_App' ) );
 
-/* Bản đồ cửa hàng như anh Thắng nạp từ `store_export_…xlsx`: mã CH -> tên máy, kèm mã điểm bán. */
+/* Bản đồ cửa hàng như anh Thắng nạp từ `store_export_…xlsx`: mã CH -> tên máy, kèm mã điểm bán.
+   ⚠️ 0.50.0: SAOKE_App đọc option này MỘT LẦN mỗi lượt (vqr_ds_ch cache) và nhớ kết quả theo mã (vqr_may_theo_ma
+   memo); ghi qua update_option thì mã nguồn tự gọi vqr_ch_quen_(). Bài này sửa $GLOBALS['OPT'] thẳng tay nên sau
+   MỌI lần sửa phải gọi goi('vqr_ch_quen_') — không thì bài đo cache chứ không đo luật đọc mã. */
 $GLOBALS['OPT']['saoke_vqr_ch'] = array(
 	'AMTP24'         => array( 'ten' => 'AMTP 24', 'maDiem' => 'KH705MTDMN0002', 'tenDiem' => 'AEON MALL TÂN PHÚ' ),
 	'GLXQT02'        => array( 'ten' => 'GLX QT 02', 'maDiem' => 'KH705MTDMN0011', 'tenDiem' => 'Galaxy Quang Trung' ),
@@ -90,6 +93,7 @@ teq( 'và trỏ về đúng máy', 'AMTP 24', goi( 'cong_may_dong', array( '', $
 echo "── 2b. Chốt chống nhận bừa ─────────────────────────────\n";
 $GLOBALS['OPT']['saoke_vqr_ch']['150000'] = array( 'ten' => 'MÁY MA', 'maDiem' => '', 'tenDiem' => '' );
 $GLOBALS['OPT']['saoke_vqr_ch']['AM']     = array( 'ten' => 'MÁY NGẮN', 'maDiem' => '', 'tenDiem' => '' );
+goi( 'vqr_ch_quen_' );   // 0.50.0: bản đồ đọc một lần / lượt — sửa option tay thì quên cache như update_option làm
 $tx = doc1( json_encode( array( 'transactionId' => 'X6', 'amount' => 150000,
 	'transactionDate' => '12/09/2026 10:00:00', 'content' => 'PaymentForOrder' ) ) );
 teq( '🔴 SỐ TIỀN toàn số KHÔNG được nhận làm mã (phải có chữ cái)', '', $tx['maCH'] );
@@ -97,6 +101,7 @@ $tx = doc1( json_encode( array( 'transactionId' => 'X7', 'amount' => 7000,
 	'transactionDate' => '12/09/2026 10:00:00', 'x' => 'AM' ) ) );
 teq( '🔴 mã ngắn dưới 4 ký tự KHÔNG được nhận', '', $tx['maCH'] );
 unset( $GLOBALS['OPT']['saoke_vqr_ch']['150000'], $GLOBALS['OPT']['saoke_vqr_ch']['AM'] );
+goi( 'vqr_ch_quen_' );   // 0.50.0: bản đồ đọc một lần / lượt — sửa option tay thì quên cache như update_option làm
 
 /* Giá trị không có trong bản đồ thì nói KHÔNG BIẾT, đừng bịa. */
 $tx = doc1( json_encode( array( 'transactionId' => 'X8', 'amount' => 7000,
@@ -106,10 +111,12 @@ teq( 'nhưng không suy ra máy nào cả', '', goi( 'cong_may_dong', array( '',
 
 /* Bản đồ rỗng thì cửa cuối phải im, không được quét bừa. */
 $luu = $GLOBALS['OPT']['saoke_vqr_ch']; $GLOBALS['OPT']['saoke_vqr_ch'] = array();
+goi( 'vqr_ch_quen_' );   // 0.50.0: bản đồ đọc một lần / lượt — sửa option tay thì quên cache như update_option làm
 $tx = doc1( json_encode( array( 'transactionId' => 'X9', 'amount' => 7000,
 	'transactionDate' => '12/09/2026 10:00:00', 'x' => 'AMTP 24' ) ) );
 teq( 'bản đồ rỗng -> không đoán gì', '', $tx['maCH'] );
 $GLOBALS['OPT']['saoke_vqr_ch'] = $luu;
+goi( 'vqr_ch_quen_' );   // 0.50.0: bản đồ đọc một lần / lượt — sửa option tay thì quên cache như update_option làm
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
  * 2c. DÒNG THẬT CỦA ANH THẮNG — Ô MÃ CỬA HÀNG TOÀN CHỮ BỊ VỨT IM LẶNG
@@ -126,6 +133,7 @@ $GLOBALS['OPT']['saoke_vqr_ch'] = $luu;
 echo "── 2c. Dòng Tingo thật: ô mã toàn chữ ──────────────────\n";
 
 $GLOBALS['OPT']['saoke_vqr_ch']['RJFSHCSXE9'] = array( 'ten' => 'SCVV 09', 'maDiem' => 'VVB851980', 'tenDiem' => 'Sense City Vũng Vằn' );
+goi( 'vqr_ch_quen_' );   // 0.50.0: bản đồ đọc một lần / lượt — sửa option tay thì quên cache như update_option làm
 
 /* Dựng lại đúng thứ tự ô như tab CongThanhToan cho thấy, kèm hai ô mã của bản kết xuất. */
 $hang = array( 'VPBBxq5Qo0CZn', '0832sSyu-8C3vVYGCE', '12/09/2026 15:55:07', '20000', 'Đến',
@@ -147,6 +155,7 @@ teq( 'và vẫn trỏ đúng máy', 'SCVV 09', goi( 'cong_may_dong', array( $tx2
 /* ⚠️ MỘT GÓI, HAI CỬA HÀNG — mỗi dòng phải giữ mã CỦA NÓ. Dò trên cả gói là tiền máy này chui
    sang máy kia, mà bảng nhìn vẫn "đầy đủ" nên không ai nghi. */
 $GLOBALS['OPT']['saoke_vqr_ch']['QWERTYUIOP'] = array( 'ten' => 'AMBT 19', 'maDiem' => '', 'tenDiem' => '' );
+goi( 'vqr_ch_quen_' );   // 0.50.0: bản đồ đọc một lần / lượt — sửa option tay thì quên cache như update_option làm
 $hangB = array( 'VPByyy', '0832sSyu-3', '12/09/2026 15:57:00', '70000', 'Đến', 'Thành công',
 	'8640107702 - BIDV', 'VQR26377774YYYYY PaymentForOrder', 'QWERTYUIOP' );
 $hai = goi( 'cong_doc_payload', array( json_encode( array( 'values' => array( $hang, $hangB ) ) ) ) );
@@ -242,7 +251,9 @@ teq( 'cong_dong_trung() chỉ được gọi từ MỘT chỗ (trong luu_cong)',
 /* 0.43.0 thêm chỗ thứ sáu: gd_cong_ds(), cửa đọc giao dịch lẻ cho plugin khác cùng site. Tái
    dùng đúng hàm chung nên hợp lệ — xem chú thích dài ở kiem-saoke-ma-cua-hang.php. */
 /* 0.44.0: nơi thứ 7 là vietqr_theo_may_ngay() — tái dùng cong_may_dong(), xem kiem-saoke-ma-cua-hang.php. */
-teq( 'cong_may_dong() gọi ở đúng 7 chỗ (tất cả tái dùng, không có bản sao)', 7,
+/* 0.50.0: về 6 — vietqr_theo_coso_ngay() suy từ vietqr_theo_may_ngay() (một vòng lặp, trong vietqr_quy_dong_),
+   không còn vòng riêng. Đẩy webhook sang Ghế (day_ghe_dong_) gọi vietqr_quy_dong_, không gọi thẳng. */
+teq( 'cong_may_dong() gọi ở đúng 6 chỗ (tất cả tái dùng, không có bản sao)', 6,
 	substr_count( $SRC, 'self::cong_may_dong(' ) );
 t( 'VER_TBL đã lên 5 cho KEY ref', false !== strpos( $SRC, "const VER_TBL = '5';" ) );
 t( 'bảng cổng có KEY ref (đường dò trùng chéo đi qua nó)', false !== strpos( $SRC, 'KEY ref (ref)' ) );

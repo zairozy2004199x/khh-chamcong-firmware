@@ -275,11 +275,14 @@ $le = VHG_KeToan::chia_ty_le_( 7, array( 'A' => 1, 'B' => 1, 'C' => 1 ) );
 t( 'số lẻ chia ba vẫn đủ tổng', 7 === array_sum( $le ), $le );
 
 /* -- 3b. Chạy thật: có sao kê → dòng QR mang số THỰC, chia theo tỉ lệ số nhân viên nhập -- */
-class SAOKE_App {
+/* 2.142.0: vietqr_thuc_() đọc KHO của Ghế (VHG_VietQR::theo_coso_ngay), không gọi sang Sao Kê nữa — giả kho trả
+   đúng dạng cũ (co/vq/khongKhop) cộng ba khoá mới (thieuNgay/capLuc/saoKe). Luật chia tỉ lệ bên dưới không đổi. */
+class VHG_VietQR {
 	public static $vq = array();
-	public static function vietqr_theo_coso_ngay( $tu, $den ) { return array( 'co' => true, 'vq' => self::$vq, 'khongKhop' => 0 ); }
+	public static function saoke_co() { return true; }
+	public static function theo_coso_ngay( $tu, $den, $tu_dong = true ) { return array( 'co' => true, 'vq' => self::$vq, 'khongKhop' => 0, 'thieuNgay' => array(), 'capLuc' => '', 'saoKe' => 1 ); }
 }
-SAOKE_App::$vq = array( 'Gò Cần Thơ' => array( '2026-09-01' => 900000 ) );   // thực 900k
+VHG_VietQR::$vq = array( 'Gò Cần Thơ' => array( '2026-09-01' => 900000 ) );   // thực 900k
 $wpdb->ctRows = array(
 	/* Nhân viên nhập 100k + 200k = 300k; ngân hàng về 900k. Tỉ lệ 1:2 → 300k / 600k. */
 	array( 'ngay' => '2026-09-01', 'ma_may' => 'A1', 'ten' => 'GO-CT-1', 'tien_mat' => 10000, 'qr' => 100000,
@@ -322,7 +325,7 @@ t( 'tắt cờ QR-thực → về đúng số nhân viên nhập',
 	array( 'A1' => 100000, 'A2' => 200000, 'B1' => 55000 ) === $qr2, $qr2 );
 
 /* -- 3d. Ngân hàng về 0 cho một ghế → BỎ dòng, không viết dòng 0đ vào sổ -- */
-SAOKE_App::$vq = array( 'Gò Cần Thơ' => array( '2026-09-01' => 1 ) );   // 1đ, chia ra A1=0 A2=1
+VHG_VietQR::$vq = array( 'Gò Cần Thơ' => array( '2026-09-01' => 1 ) );   // 1đ, chia ra A1=0 A2=1
 $q3 = VHG_KeToan::misa_chungtu( '', '', '2026-09', 0, '' );
 $so0 = 0;
 foreach ( $q3['aoa'] as $k => $row ) { if ( $k && 'QR ngân hàng' === $row[ $iGc ] && 0 === (int) $row[ $iTien ] ) { $so0++; } }

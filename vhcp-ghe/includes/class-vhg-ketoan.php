@@ -2332,50 +2332,15 @@ class VHG_KeToan {
 			'nhanVien' => $nhanVien, 'tongDoanhThu' => $tongDT, 'tongTienMat' => $tongTM, 'tongDaNop' => $tongNop, 'tongConLai' => $tongConLai );
 	}
 
-	/* VietQR THỰC NHẬN — lấy từ plugin Sao Kê (bảng wp_saoke_cong, giao dịch cổng VietQR) gom theo
-	   CƠ SỞ × NGÀY GIAO DỊCH, để đối chiếu với số nhân viên tự nhập. Quy máy -> cơ sở bằng chính bản
-	   đồ máy của Ghế (khớp mã máy / tên khai). Máy Ghế chưa có -> gộp vào 'khongKhop', không đoán bừa. */
+	/* VietQR THỰC NHẬN theo CƠ SỞ × NGÀY — 2.142.0: đọc KHO của Ghế (vhg_bc_vqr, lớp VHG_VietQR), không gọi
+	   sang Sao Kê tính lại từng dòng nữa. Anh Thắng 25/09/2026: *"sao kê nó đang quá tải mà cứ gọi qua là lúc
+	   được lúc không"* — Báo cáo tổng 01→25/09 "không nối được tới máy chủ" vì mỗi lần Xem là Sao Kê quy lại
+	   hàng chục nghìn dòng. Nay Sao Kê ĐẨY sang kho lúc webhook về; bấm Xem thì ngày thiếu tự kéo (≤ 3 ngày
+	   ngay trong lượt, nhiều hơn màn hình kéo từng đợt qua kt_vqr_dongbo). Trả thêm 'thieuNgay' (ngày chưa có
+	   trong kho), 'capLuc', 'saoKe' để màn hình nói thật số đang thiếu đâu. */
 	private static function vietqr_thuc_( $tu, $den ) {
-		global $wpdb;
-		/* 🔴 DÙNG LẠI LUẬT GÁN CỦA SAO KÊ — không tự dò lại. Sao Kê gán cơ sở bằng cong_may_dong()
-		   có cả MÃ CỬA HÀNG (ma_ch) + bản đồ cửa hàng + gán máy tay; bản tự dò cũ ở đây chỉ đọc
-		   noi_dung/diem_ban nên bỏ sót dòng "PaymentForOrder" (gán được nhờ ma_ch) → số VietQR trên
-		   báo cáo Ghế thiếu so với màn Sao Kê (anh Thắng 14/09/2026). Bài học §6: một luật, một chỗ.
-		   Chưa cài Sao Kê bản có hàm này thì rơi xuống cách cũ bên dưới. */
-		if ( class_exists( 'SAOKE_App' ) && method_exists( 'SAOKE_App', 'vietqr_theo_coso_ngay' ) ) {
-			$r = SAOKE_App::vietqr_theo_coso_ngay( $tu, $den );
-			if ( is_array( $r ) && ! empty( $r['co'] ) ) { return $r; }
-		}
-		$tbl = $wpdb->prefix . 'saoke_cong';
-		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $tbl ) ) !== $tbl ) { return array( 'co' => false, 'vq' => array(), 'khongKhop' => 0 ); }
-		$map = array();
-		foreach ( (array) VHG_May::ds_may() as $m ) {
-			if ( ! empty( $m['an'] ) ) { continue; }
-			$cs = (string) ( isset( $m['coso_ten'] ) ? $m['coso_ten'] : '' ); if ( '' === $cs ) { continue; }
-			foreach ( array( (string) $m['ma'], (string) ( isset( $m['ten_khai'] ) ? $m['ten_khai'] : '' ) ) as $nm ) {
-				$k = self::squash( $nm ); if ( '' !== $k && ! isset( $map[ $k ] ) ) { $map[ $k ] = $cs; }
-			}
-		}
-		$rows = $wpdb->get_results( $wpdb->prepare(
-			"SELECT so_tien, DATE(thoi_diem) d, noi_dung, diem_ban FROM $tbl"
-			. " WHERE nguon='vietqr' AND doc_duoc=1 AND huong<>%s AND DATE(thoi_diem) BETWEEN %s AND %s", 'Đi', $tu, $den ), ARRAY_A );
-		$vq = array(); $khong = 0;
-		foreach ( (array) $rows as $r ) {
-			$tien = (int) $r['so_tien']; if ( $tien <= 0 ) { continue; }
-			$ng = (string) $r['d'];
-			$ten = trim( (string) $r['diem_ban'] );
-			if ( '' === $ten ) { $ten = trim( preg_replace( '/^VQR\S*\s+/i', '', (string) $r['noi_dung'] ) ); if ( preg_match( '/^payment\s*for\s*order$/i', $ten ) ) { $ten = ''; } }
-			$cs = '';
-			if ( '' !== $ten ) {
-				$k = self::squash( $ten );
-				if ( isset( $map[ $k ] ) ) { $cs = $map[ $k ]; }
-				else { $kp = self::squash( preg_replace( '/\s*[0-9]+$/', '', $ten ) ); if ( isset( $map[ $kp ] ) ) { $cs = $map[ $kp ]; } }
-			}
-			if ( '' === $cs ) { $khong += $tien; continue; }
-			if ( ! isset( $vq[ $cs ] ) ) { $vq[ $cs ] = array(); }
-			$vq[ $cs ][ $ng ] = ( isset( $vq[ $cs ][ $ng ] ) ? $vq[ $cs ][ $ng ] : 0 ) + $tien;
-		}
-		return array( 'co' => true, 'vq' => $vq, 'khongKhop' => $khong );
+		if ( class_exists( 'VHG_VietQR' ) ) { return VHG_VietQR::theo_coso_ngay( $tu, $den ); }
+		return array( 'co' => false, 'vq' => array(), 'khongKhop' => 0, 'thieuNgay' => array(), 'capLuc' => '', 'saoKe' => 0 );
 	}
 
 	public static function bao_cao_tong( $tu, $den, $muc = 'coso', $cot = 'tong' ) {
@@ -2531,7 +2496,12 @@ class VHG_KeToan {
 			'ngay' => $ds_ngay, 'hang' => $hang,
 			'tongCot' => array_values( $tong_cot ), 'tong' => $tong_all,
 			'tongThuc' => $tong_thuc ? 1 : 0,
-			'soGhe' => array_sum( $dem_ghe ) );
+			'soGhe' => array_sum( $dem_ghe ),
+			/* 2.142.0 — kho VietQR: ngày trong khoảng chưa có số (màn hình tự kéo rồi vẽ lại), lúc kho đổi lần cuối,
+			   và Sao Kê có mặt không (không có thì màn hình nói thẳng, không quay vòng kéo). */
+			'vqThieuNgay' => isset( $vqd['thieuNgay'] ) ? array_values( (array) $vqd['thieuNgay'] ) : array(),
+			'vqCapLuc' => isset( $vqd['capLuc'] ) ? (string) $vqd['capLuc'] : '',
+			'vqSaoKe' => ( class_exists( 'VHG_VietQR' ) && VHG_VietQR::saoke_co() ) ? 1 : 0 );
 
 		/* Lớp VietQR THỰC (đối chiếu với NV nhập) — chỉ mức CƠ SỞ, gom theo ngày giao dịch. */
 		if ( 'coso' === $muc ) {
@@ -2552,15 +2522,18 @@ class VHG_KeToan {
 			   từng máy 1,2,3,4… trên ghế cũng đánh 1,2,3,4… hai bên đối chiếu lại máy nào lệch
 			   không"*. Hôm 22/09 em nói "sao kê chỉ quy được tiền về cơ sở" — sai: Sao Kê gán mỗi
 			   giao dịch ra TÊN MÁY ("AMTP 12") rồi mới gộp lên cơ sở, số máy vẫn còn đó. Chỉ là
-			   chưa ai nối "AMTP 12" với ghế "AMTP-12". Nay SAOKE_App::vietqr_theo_may_ngay() nối.
+			   chưa ai nối "AMTP 12" với ghế "AMTP-12". Nay Sao Kê nối (vietqr_quy_dong_) rồi ĐẨY sang kho Ghế;
+			   ở đây đọc kho qua VHG_VietQR::theo_may_ngay() (2.142.0), không gọi sang Sao Kê lúc Xem.
 			   Chỉ ở chế độ QR: TỔNG theo ghế vẫn là tiền mặt + QR NHÂN VIÊN KHAI như cũ. */
-			if ( class_exists( 'SAOKE_App' ) && method_exists( 'SAOKE_App', 'vietqr_theo_may_ngay' ) ) {
-				$vqm = SAOKE_App::vietqr_theo_may_ngay( $tu, $den );
+			/* 2.142.0: đọc KHO của Ghế (VHG_VietQR::theo_may_ngay), không gọi sang Sao Kê — xem vietqr_thuc_(). */
+			if ( class_exists( 'VHG_VietQR' ) ) {
+				$vqm = VHG_VietQR::theo_may_ngay( $tu, $den );
 				if ( is_array( $vqm ) && ! empty( $vqm['co'] ) ) {
 					$g = self::bct_gan_vq_may_( $kq['hang'], $vqm, $ds_ngay );
 					$kq['hang'] = $g['hang']; $kq['vqCo'] = true; $kq['vqTongCot'] = $g['vqTongCot']; $kq['vqTong'] = $g['vqTong'];
 					$kq['vqKhongKhop'] = (int) $vqm['khongKhop']; $kq['vqTheoMay'] = 1;
 				}
+				$kq['vqThieuNgay'] = (array) $vqm['thieuNgay']; $kq['vqCapLuc'] = (string) $vqm['capLuc'];
 			}
 		}
 		return $kq;

@@ -324,6 +324,9 @@ class VHG_May {
 			foreach ( array( 'bc_denghi', 'chot_tien', 'phien' ) as $bang ) {
 				$ra['khac'] += (int) $wpdb->query( $wpdb->prepare( 'UPDATE ' . VHG_DB::t( $bang ) . ' SET coso=%s WHERE coso=%s', $ten_dich, $tc ) );
 			}
+			/* bc_vqr — kho VietQR SUY RA từ Sao Kê (2.142.0): không đổi nhãn, mà QUÊN các ngày mang khoá cũ; lượt Xem
+			   kế tiếp kéo lại từ Sao Kê dưới tên đích (Sao Kê tra bí danh → tên đích). Không phải dòng tiền gốc. */
+			if ( class_exists( 'VHG_VietQR' ) ) { $ra['khac'] += (int) VHG_VietQR::quen_coso( $kc ); }
 
 			/* bc_pin.coso — danh sách tên ngăn bằng , hoặc ; — thay tên cũ bằng tên đích, bỏ trùng. */
 			$tp = VHG_DB::t( 'bc_pin' );

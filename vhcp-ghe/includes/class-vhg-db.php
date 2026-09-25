@@ -1093,6 +1093,21 @@ class VHG_DB {
 			UNIQUE KEY coso_ngay (coso_key,ngay),
 			KEY ngay (ngay)";
 
+		/* KHO SỐ VIETQR THỰC (2.142.0) — Sao Kê đẩy sang lúc webhook về; Báo cáo tổng đọc tại đây thay vì gọi sang
+		   tính lại từng dòng mỗi lần Xem. Số SUY RA từ wp_saoke_cong: ghi đè / xoá không mất tiền. Dòng coso_key=''
+		   & ma_may='' là DẤU "ngày đã đồng bộ" (kèm tiền không quy được cơ sở). Xem đầu class-vhg-vietqr.php. */
+		$b['bc_vqr'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			ngay DATE NOT NULL,
+			coso VARCHAR(190) NOT NULL DEFAULT '',
+			coso_key VARCHAR(150) NOT NULL DEFAULT '',
+			ma_may VARCHAR(40) NOT NULL DEFAULT '',
+			so_tien BIGINT(20) NOT NULL DEFAULT 0,
+			cap_luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY ngay_cs_may (ngay,coso_key,ma_may),
+			KEY ngay (ngay)";
+
 		return $b;
 	}
 
