@@ -46,7 +46,7 @@ class VHCPMTD_Cfg {
 			/* Cột 6 `Tỉnh / Thành` (11/09/2026) còn dữ liệu nhưng thôi bày; cột 7 `Bộ phận` (24/09/2026):
 			   KVC · MTĐ · VP — anh Thắng: *"Chỗ Tỉnh, Bỏ thay vào đó là Bộ Phận (MTD, KVC, VP)"*, dùng để
 			   đầu mục "có cơ sở" xổ đúng gian của bộ phận ấy (cột Khối nay là MIỀN, không dùng được). */
-			self::COSO  => array( 'Cơ sở', 'Mã đơn vị', 'Phân loại lớn', 'Tên MISA', 'Đóng cửa', 'Đơn vị', 'Tỉnh / Thành', 'Bộ phận' ),
+			self::COSO  => array( 'Cơ sở', 'Mã đơn vị', 'Phân loại lớn', 'Tên MISA', 'Đóng cửa', 'Đơn vị', 'Tỉnh / Thành', 'Bộ phận', 'Tên bên Doanh thu' ),
 			self::NHOM  => array( 'Nhóm mặt hàng', 'Loại', 'TK Nợ', 'Bộ phận' ),
 			self::PL    => array( 'Phân loại TT', 'TK Có' ),
 			/* Bộ phận — trước bản này gõ cứng ở hai nơi (hằng dưới + `BOPHAN_LIST` trong
@@ -1132,7 +1132,10 @@ class VHCPMTD_Cfg {
 				      "về tỉnh mặc định" — gán bừa một tỉnh là báo cáo theo vùng sai ngay. */
 				'tinh' => trim( (string) ( isset( $r[6] ) ? $r[6] : '' ) ),
 				/* BỘ PHẬN của gian (kvc · mtd · vp) — chuẩn về mã khối qua bảng tên; lạ → '' (chưa khai). */
-				'boPhan' => VHCPMTD_DonVi::khoi_cua( isset( $r[7] ) ? $r[7] : '' ) );
+				'boPhan' => VHCPMTD_DonVi::khoi_cua( isset( $r[7] ) ? $r[7] : '' ),
+				/* TÊN BÊN DOANH THU (25/09/2026): tên cửa hàng y như trên web Doanh thu (POS/FABi) để bảng
+				   "Doanh thu vs Chi phí" khớp chắc, khỏi đoán theo tên. Rỗng = khớp lỏng. Xem `VHCPMTD_DoanhThu::anh_xa`. */
+				'tenDoanhThu' => trim( (string) ( isset( $r[8] ) ? $r[8] : '' ) ) );
 		}
 		foreach ( self::rows_of( $all, self::NHOM ) as $r ) {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
@@ -1426,7 +1429,7 @@ class VHCPMTD_Cfg {
 			   đang phải tách. Không có ô thì giữ nguyên ô đang lưu. */
 			/* Cột TỈNH cũng vậy — thêm sau, nên mọi bản giao diện cũ và mọi tệp .csv cũ đều
 			   không có ô ấy. Ghi đè bằng rỗng là xoá sạch phân loại vùng vừa khai cả buổi. */
-			$dv_cu = array(); $tinh_cu = array(); $bp_cu = array();
+			$dv_cu = array(); $tinh_cu = array(); $bp_cu = array(); $dt_cu = array();
 			foreach ( self::read( self::COSO ) as $r0 ) {
 				$r0 = array_values( (array) $r0 );
 				$t0 = isset( $r0[0] ) ? mb_strtolower( trim( (string) $r0[0] ) ) : '';
@@ -1435,6 +1438,7 @@ class VHCPMTD_Cfg {
 				if ( isset( $r0[5] ) && trim( (string) $r0[5] ) !== '' ) { $dv_cu[ $t0 ] = (string) $r0[5]; }
 				if ( isset( $r0[6] ) && trim( (string) $r0[6] ) !== '' ) { $tinh_cu[ $t0 ] = (string) $r0[6]; }
 				if ( isset( $r0[7] ) && trim( (string) $r0[7] ) !== '' ) { $bp_cu[ $t0 ] = (string) $r0[7]; }
+				if ( isset( $r0[8] ) && trim( (string) $r0[8] ) !== '' ) { $dt_cu[ $t0 ] = (string) $r0[8]; }
 			}
 			foreach ( $cfg['coso'] as $x ) {
 				$x  = (array) $x;
@@ -1462,7 +1466,13 @@ class VHCPMTD_Cfg {
 					if ( isset( $bp_cu[ $k3 ] ) ) { $bp = $bp_cu[ $k3 ]; }
 				}
 				$bp = VHCPMTD_DonVi::khoi_cua( $bp );
-				$rows[] = array( $tn, VHCPMTD_Util::ma_so( $g( $x, 'maDonVi' ) ), $g( $x, 'phanLoaiLon' ), $g( $x, 'tenMisa' ), $dc, $dv, $tinh, $bp );
+				/* Cột TÊN BÊN DOANH THU (25/09/2026): cùng luật — không gửi ô → giữ cũ; gửi rỗng có chủ ý → xoá. */
+				$tdt = trim( $g( $x, 'tenDoanhThu' ) );
+				if ( $tdt === '' && ! array_key_exists( 'tenDoanhThu', $x ) ) {
+					$k4 = mb_strtolower( trim( $tn ) );
+					if ( isset( $dt_cu[ $k4 ] ) ) { $tdt = $dt_cu[ $k4 ]; }
+				}
+				$rows[] = array( $tn, VHCPMTD_Util::ma_so( $g( $x, 'maDonVi' ) ), $g( $x, 'phanLoaiLon' ), $g( $x, 'tenMisa' ), $dc, $dv, $tinh, $bp, $tdt );
 			}
 
 			/* ══════════════════════════════════════════════════════════════════════════════
@@ -1674,6 +1684,14 @@ class VHCPMTD_Cfg {
 			}
 			self::write( self::BP, $rows );
 			self::$bp_memo = null;
+		}
+		if ( isset( $cfg['doanhThu'] ) && is_array( $cfg['doanhThu'] ) ) {
+			/* 🔴 CHỈ ADMIN — địa chỉ + khoá chia sẻ sang web Doanh thu. Khoá rỗng = giữ nguyên (xem `VHCPMTD_DoanhThu::luu`). */
+			if ( 'Admin' !== VHCPMTD_Auth::vai_tro() ) {
+				return VHCPMTD_Util::err( 'Chỉ Admin mới đổi kết nối web Doanh thu được.' );
+			}
+			$kq_dt = VHCPMTD_DoanhThu::luu( $cfg['doanhThu'] );
+			if ( empty( $kq_dt['success'] ) ) { return $kq_dt; }
 		}
 		if ( isset( $cfg['tinhNang'] ) && is_array( $cfg['tinhNang'] ) ) {
 			/* 🔴 CHỈ ADMIN. Bật một tính năng cho mọi người là đổi cách cả hệ thao tác. */

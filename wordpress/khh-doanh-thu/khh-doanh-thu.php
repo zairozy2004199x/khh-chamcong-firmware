@@ -54,6 +54,7 @@ require_once KHH_DT_DIR . 'quy-trinh.php';
 require_once KHH_DT_DIR . 'phieu-nhap.php';
 require_once KHH_DT_DIR . 'misa.php';
 require_once KHH_DT_DIR . 'danh-muc.php';
+require_once KHH_DT_DIR . 'chia-se-chi-phi.php';
 
 /** Đường dẫn ngoài của báo cáo, ví dụ khmatrix.com/doanh-thu-hcm */
 function khh_dt_slug() {

@@ -234,7 +234,10 @@
       <!-- ⚠️ Nút "➜ Vào tab Kỹ thuật" đã gỡ cùng lượt tắt tab ấy (22/09/2026) — để lại là một
            cái nút dẫn vào trang không còn mở. Khối tổng quan này thì GIỮ: nó chỉ ĐỌC và tổng
            hợp, và số liệu Setup/Tháo dỡ vẫn là số liệu thật cần nhìn. -->
-      <div class="ch"><h2>🔧 Chi phí Kỹ thuật — cơ sở đã Setup / Tháo dỡ</h2></div>
+      <!-- Anh Thắng 25/09/2026 (ảnh khối này): *"chỗ này ẩn định"* → GẬP MẶC ĐỊNH: chỉ còn dòng tiêu đề,
+           bấm "▸ Hiện" mới xổ; trình duyệt nhớ lựa chọn (`vhcphn_tq_kt_mo`). Số liệu vẫn tải như cũ. -->
+      <div class="ch"><h2>🔧 Chi phí Kỹ thuật — cơ sở đã Setup / Tháo dỡ</h2><div style="display:flex;gap:8px"><button class="btn b-x" id="tqKtNut" onclick="tqKtGap()">▸ Hiện</button></div></div>
+      <div id="tqKtThan" style="display:none">
       <div id="tqKtCards" style="display:flex;gap:12px;flex-wrap:wrap;padding:12px 14px"></div>
       <div style="display:flex;gap:16px;flex-wrap:wrap;padding:0 14px 14px">
         <div style="flex:1;min-width:300px">
@@ -246,6 +249,23 @@
           <div class="tw"><table><thead><tr><th>Gian / dự án</th><th style="text-align:right">Dự toán</th><th style="text-align:right">Thực tế</th><th style="text-align:right">Chênh lệch</th><th style="text-align:center">TT</th></tr></thead><tbody id="tqKtThaoBody"></tbody></table></div>
         </div>
       </div>
+      </div>
+    </div>
+
+    <!-- 📈 DOANH THU VS CHI PHÍ THEO CƠ SỞ — anh Thắng 25/09/2026: *"Em có thể lấy doanh thu cơ sở trên wed
+         doanh-thu-hcm không."* · *"Để anh đánh giá doanh thu dựa trên chi phí"*. Doanh thu kéo từ web Doanh thu
+         (Cấu hình ▸ Kết nối web Doanh thu), chi phí = thực chi theo ngày dòng trong tháng. Chỉ hiện khi đã
+         kết nối và người xem là vai duyệt (máy chủ gác `doanhThuChiPhi`). -->
+    <div class="card" id="tqDtCard" style="display:none">
+      <div class="ch"><h2>📈 Doanh thu vs Chi phí theo cơ sở</h2>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input type="month" id="tqDtThang" onchange="loadDoanhThuChiPhi()" style="padding:6px 8px;border:1px solid #d6d3cd;border-radius:8px">
+          <button class="btn b-x" onclick="loadDoanhThuChiPhi(true)" title="Bỏ số đã nhớ 10 phút, hỏi lại web Doanh thu">↻ Tải lại</button>
+        </div>
+      </div>
+      <div id="tqDtCards" style="display:flex;gap:12px;flex-wrap:wrap;padding:12px 14px"></div>
+      <div class="tw"><table style="min-width:720px"><thead><tr><th>Cơ sở (bên Chi phí)</th><th>Cửa hàng (bên Doanh thu)</th><th style="text-align:right">Doanh thu</th><th style="text-align:right">Chi phí thực chi</th><th style="text-align:right">% CP / DT</th></tr></thead><tbody id="tqDtBody"></tbody></table></div>
+      <div id="tqDtNote" style="padding:8px 14px 12px;font-size:12px;color:#64748b"></div>
     </div>
 
     <div class="card">
@@ -269,13 +289,8 @@
       </table></div>
     </div>
 
-    <div class="card">
-      <div class="ch"><h2>📅 Dòng tiền theo tuần / kỳ (mới nhất trước)</h2></div>
-      <div class="tw"><table>
-        <thead><tr><th>Kỳ / tuần</th><th style="text-align:right">Xin</th><th style="text-align:right">Thực tế</th><th style="text-align:right">Chênh lệch</th></tr></thead>
-        <tbody id="tqKyBody"></tbody>
-      </table></div>
-    </div>
+    <!-- 📅 "Dòng tiền theo tuần / kỳ" ĐÃ GỠ — anh Thắng 25/09/2026 (ảnh bảng ấy): *"bỏ này đi"*. Số theo kỳ vẫn
+         về trong `r.byKy` của getFinanceReport (Quyết toán ▸ Theo tuần dùng), chỉ thôi bày ở Tổng quan. -->
 
     <div class="card">
       <div class="ch"><h2>🏬 Chi phí theo cơ sở</h2></div>
@@ -1840,6 +1855,20 @@
       </div>
       <div style="padding:8px 14px;font-size:11.5px;color:#64748b">Tích ✓ = vai trò đó <b>được phép</b> làm hành động. Bỏ tích = chặn. <b>Admin luôn toàn quyền</b> (không nằm trong bảng). Các bước vẫn theo trạng thái đơn (vd "Duyệt tạm ứng" chỉ hiện khi đơn ở "Chờ duyệt tạm ứng"). Lưu xong áp dụng ngay cho mọi người (khi họ tải lại).</div>
     </div>
+    <!-- 📈 KẾT NỐI WEB DOANH THU — chỉ Admin thấy (xem `renderCfgDoanhThu`). Khoá chia sẻ là bí mật:
+         ô nhập KHÔNG BAO GIỜ đổ khoá đang lưu ra; chỉ nói ĐÃ CÓ / CHƯA CÓ; để trống = giữ nguyên. -->
+    <div class="card" id="doanhThuCard" style="display:none">
+      <div class="ch"><h2>📈 Kết nối web Doanh thu</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="kiemTraDoanhThu()">🔌 Kiểm tra kết nối</button><button class="btn b-g" onclick="saveCfgDoanhThu()">💾 Lưu</button></div></div>
+      <div style="padding:8px 14px 12px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+        <div class="fld" style="flex:1;min-width:260px"><label>Địa chỉ web Doanh thu</label><input id="cfgDtUrl" placeholder="https://khmatrix.com" autocomplete="off"></div>
+        <div class="fld" style="flex:1;min-width:260px"><label>Khoá chia sẻ · <span id="cfgDtKhoaTt" style="font-weight:400"></span></label><input id="cfgDtKhoa" type="password" autocomplete="new-password" placeholder="Dán khoá mới — để trống là giữ khoá cũ"></div>
+        <div style="flex-basis:100%;font-size:12px;color:#64748b;line-height:1.6">
+          Bên web Doanh thu: menu <b>Doanh thu FABi ▸ Chia sẻ cho Chi phí</b> → bấm <b>Tạo khoá ngẫu nhiên</b>, chép khoá (chỉ hiện một lần) rồi dán vào ô trên và bấm Lưu.
+          Khoá đã lưu không bao giờ hiện lại ở đây. Doanh thu lấy về chỉ là <b>tổng theo cửa hàng</b> trong tháng, xem ở Tổng quan ▸ 📈 Doanh thu vs Chi phí.
+          Tên cửa hàng khớp với cơ sở qua cột <b>Tên bên Doanh thu</b> ở bảng Cơ sở.
+        </div>
+      </div>
+    </div>
     <div class="card" id="tinhNangCard">
       <div class="ch"><h2>🧪 Tính năng mới trong bản này</h2><div style="display:flex;gap:8px"><button class="btn b-g" onclick="saveCfgTinhNang()">💾 Áp dụng</button></div></div>
       <div style="padding:8px 14px 0;font-size:12px;color:#64748b">
@@ -1855,8 +1884,8 @@
     <div class="card" id="cosoCard">
       <div class="ch"><h2>🏢 Mã đơn vị theo Cơ sở</h2><div style="display:flex;gap:8px"><button class="btn b-x" id="csLockBtn" onclick="toggleCsLock()">🔒 Đang khóa — bấm để mở</button><button class="btn b-x" onclick="addCfgCoso()">＋ Thêm cơ sở</button><button class="btn b-x" id="btnHutGhe" onclick="hutCoSoGhe()" title="Kéo các địa điểm bên trang Ghế massage sang đây. Chỉ THÊM — không sửa, không xoá dòng nào đang có.">🪑 Hút cơ sở từ Ghế</button><button class="btn b-g" onclick="saveCfgCoso()">💾 Lưu</button></div></div>
       <div id="cosoLaBox" style="display:none"></div>
-      <div class="tw"><table style="min-width:820px"><thead><tr><th>Tên thường gọi (hiển thị)</th><th>Tên theo MISA</th><th>Mã đơn vị (MISA)</th><th>Phân loại lớn</th><th style="width:150px" title="Khối của gian này — quyết định chi phí của nó rơi vào sổ nào. Một gian thuộc ĐÚNG MỘT khối, nên đây là ô chọn. Giá trị đơn vị cũ đã khai được giữ nguyên văn.">Khối</th><th style="width:170px" title="Bộ phận của gian: Khu vui chơi · Máy tự động · Văn phòng. Đầu mục (phân loại lớn) nào &quot;có cơ sở&quot; thì form nhập chỉ xổ gian của bộ phận ấy. Để trống = chưa khai.">Bộ phận</th><th style="width:190px">Đóng cửa gian hàng</th><th style="width:44px"></th></tr></thead><tbody id="cfgCosoBody"></tbody></table></div>
-      <datalist id="dl_pll"></datalist>
+      <div class="tw"><table style="min-width:820px"><thead><tr><th>Tên thường gọi (hiển thị)</th><th>Tên theo MISA</th><th>Mã đơn vị (MISA)</th><th>Phân loại lớn</th><th style="width:150px" title="Khối của gian này — quyết định chi phí của nó rơi vào sổ nào. Một gian thuộc ĐÚNG MỘT khối, nên đây là ô chọn. Giá trị đơn vị cũ đã khai được giữ nguyên văn.">Khối</th><th style="width:170px" title="Bộ phận của gian: Khu vui chơi · Máy tự động · Văn phòng. Đầu mục (phân loại lớn) nào &quot;có cơ sở&quot; thì form nhập chỉ xổ gian của bộ phận ấy. Để trống = chưa khai.">Bộ phận</th><th style="width:200px" title="Tên cửa hàng Y HỆT trên web Doanh thu (POS/FABi) để bảng Doanh thu vs Chi phí ở Tổng quan khớp chắc. Để trống = tự khớp theo tên (có thể sai).">Tên bên Doanh thu</th><th style="width:190px">Đóng cửa gian hàng</th><th style="width:44px"></th></tr></thead><tbody id="cfgCosoBody"></tbody></table></div>
+      <datalist id="dl_dtch"></datalist><datalist id="dl_pll"></datalist>
       <datalist id="dl_donvi"></datalist>
       <datalist id="dl_tinh"></datalist>
     </div>
@@ -2572,12 +2601,38 @@
     box.style.display=n?'inline-flex':'none';
     if(el('xuatAnhSo')) el('xuatAnhSo').textContent=n;
     var cs=el('btnChiaSeAnh');
-    if(cs) cs.style.display=(typeof navigator!=='undefined'&&navigator.share&&navigator.canShare)?'':'none';
+    if(cs){
+      cs.style.display=(typeof navigator!=='undefined'&&navigator.share&&navigator.canShare)?'':'none';
+      var ma=String((typeof CUR!=='undefined'&&CUR&&CUR.don&&CUR.don.maDon)||'');
+      var san=!!(ANH_SAN.files && ANH_SAN.ma===ma && ma);
+      cs.textContent=san?('↗ Gửi ngay ('+ANH_SAN.files.length+')'):'↗ Chia sẻ';
+      cs.className='btn '+(san?'b-g':'b-x');
+    }
+  }
+  /* 🔴 KHAY CHIA SẺ CHỈ MỞ ĐƯỢC NGAY TRONG CÚ BẤM. Anh Thắng 25/09/2026 gửi ảnh: *"Xuất ảnh: Failed to
+     execute 'share' on 'Navigator': Permission denied"* — bản đầu tải ảnh xong mới gọi `share`, lúc ấy
+     "quyền bấm" đã hết hạn nên trình duyệt chối. Nên chia làm HAI NHỊP: bấm lần một → tải ảnh về bộ nhớ
+     (`ANH_SAN`), nút đổi thành "Gửi ngay"; bấm lần hai → gọi `share` NGAY, không đợi gì. Máy vẫn chối
+     (máy tính, trình duyệt cũ) → tự tải zip, người dùng gửi tệp zip qua Zalo. */
+  var ANH_SAN={ma:'', files:null};
+  function _chiaSeNgay(ma){
+    var files=ANH_SAN.files;
+    if(!(navigator.share && navigator.canShare && navigator.canShare({files:files}))){ toast('warn','Máy này không chia sẻ tệp được — tải zip thay.'); ANH_SAN={ma:'',files:null}; xuatAnhDon('tai'); return; }
+    navigator.share({files:files, title:'Chứng từ '+ma}).then(function(){
+      toast('ok','Đã mở khay chia sẻ '+files.length+' tệp'); _log('Xuất ảnh chứng từ', ma, files.length+' tệp (chia sẻ)');
+      ANH_SAN={ma:'',files:null}; veNutXuatAnh();
+    }).catch(function(e){
+      if(e && e.name==='AbortError'){ return; }   /* người dùng đóng khay — giữ ảnh sẵn để bấm lại */
+      toast('warn','Trình duyệt không cho chia sẻ trực tiếp ('+((e&&e.name)||'lỗi')+') — đã chuyển sang tải zip, anh/chị gửi tệp zip qua Zalo.');
+      ANH_SAN={ma:'',files:null}; veNutXuatAnh(); xuatAnhDon('tai');
+    });
   }
   function xuatAnhDon(cach){
     var ds=_anhChungTuDon();
     if(!ds.length){ toast('warn','Đơn chưa có ảnh / PDF chứng từ nào'); return; }
     var ma=String((CUR&&CUR.don&&CUR.don.maDon)||'don'), loi=[];
+    /* Nhịp hai của Chia sẻ: ảnh đã sẵn cho đúng đơn này → mở khay ngay trong cú bấm. */
+    if(cach==='chia' && ANH_SAN.files && ANH_SAN.ma===ma){ _chiaSeNgay(ma); return; }
     loading(true);
     Promise.all(ds.map(function(x){
       return fetch(x.url,{credentials:'same-origin'})
@@ -2590,7 +2645,8 @@
       if(cach==='chia'){
         var files=tep.map(function(t){ return new File([t.blob], t.ten, {type:t.blob.type||'application/octet-stream'}); });
         if(navigator.share && navigator.canShare && navigator.canShare({files:files})){
-          return navigator.share({files:files, title:'Chứng từ '+ma}).then(function(){ return {chia:true, n:files.length}; });
+          ANH_SAN={ma:ma, files:files};
+          return {san:true, n:files.length};
         }
         toast('warn','Máy này không chia sẻ tệp được — tải zip thay.');
       }
@@ -2607,8 +2663,13 @@
       });
     }).then(function(r){
       loading(false);
-      toast(loi.length?'warn':'ok', (r.chia?'Đã mở khay chia sẻ ':'Đã đóng gói ')+r.n+' tệp'+(loi.length?(' · '+loi.length+' tệp không tải được, xem KHONG_TAI_DUOC.txt'):''));
-      _log('Xuất ảnh chứng từ', ma, r.n+' tệp'+(r.chia?' (chia sẻ)':' (zip)')+(loi.length?(' · hụt '+loi.length):''));
+      if(r.san){
+        veNutXuatAnh();
+        toast('ok','Đã sẵn '+r.n+' tệp'+(loi.length?(' ('+loi.length+' tệp không tải được)'):'')+' — bấm "↗ Gửi ngay" để mở khay chia sẻ (Zalo…)');
+        return;
+      }
+      toast(loi.length?'warn':'ok', 'Đã đóng gói '+r.n+' tệp'+(loi.length?(' · '+loi.length+' tệp không tải được, xem KHONG_TAI_DUOC.txt'):''));
+      _log('Xuất ảnh chứng từ', ma, r.n+' tệp (zip)'+(loi.length?(' · hụt '+loi.length):''));
     }).catch(function(e){
       loading(false);
       if(e && e.name==='AbortError') return;   /* người dùng đóng khay chia sẻ — không phải lỗi */
@@ -6821,6 +6882,8 @@
     // Khối Kỹ thuật (Setup/Tháo dỡ): hiện cho quản lý/admin/kế toán + NV bộ phận Kỹ thuật
     var showKT=(role!=='Nhân viên')||(_bpCuaToi()==='Kỹ thuật');
     if(el('tqKtCard')) el('tqKtCard').style.display=showKT?'':'none';
+    tqKtGap(null);
+    veTheDoanhThu();
     if(showKT) google.script.run.withSuccessHandler(function(kr){ if(kr&&kr.success) renderKyThuatTongQuan(kr.items||[]); }).withFailureHandler(function(){}).listDuAn();   // lọc khối nằm trong `renderKyThuatTongQuan`
     google.script.run.withSuccessHandler(function(r){
       if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi tải tổng quan'); return; }
@@ -6839,6 +6902,82 @@
       if(r&&r.success){ BOOT.soDuDauKy=r.value; _log('Đặt số dư đầu kỳ', '', money(r.value)+'đ'); toast('ok','Đã lưu số dư đầu kỳ'); loadTongQuan(); }
       else toast('err',(r&&r.error)||'Lỗi');
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).setSoDuDauKy(v);
+  }
+  /* Gập / xổ khối Kỹ thuật trên Tổng quan. `mo`: true/false = đặt; null = vẽ theo lựa chọn đã nhớ;
+     không truyền = đảo. Mặc định GẬP (anh Thắng 25/09/2026: "chỗ này ẩn định"). */
+  function tqKtGap(mo){
+    var than=el('tqKtThan'), nut=el('tqKtNut'); if(!than) return;
+    var bam=(arguments.length===0);
+    if(bam){ mo=(than.style.display==='none'); }                                                        // bấm nút: đảo
+    else if(mo===null){ mo=false; try{ mo=(localStorage.getItem('vhcphn_tq_kt_mo')==='1'); }catch(e){} }  // vẽ lại: theo đã nhớ, mặc định gập
+    than.style.display=mo?'':'none';
+    if(nut) nut.textContent=mo?'▾ Ẩn':'▸ Hiện';
+    if(bam){ try{ localStorage.setItem('vhcphn_tq_kt_mo', mo?'1':'0'); }catch(e){} }
+  }
+  /* ── 📈 Doanh thu vs Chi phí theo cơ sở ─────────────────────────────────────────────────── */
+  function _dtDuocXem(){
+    var v=_vaiLuat();
+    return v==='Admin'||v==='Quản lý'||v==='Kế toán cá nhân'||v==='Kế toán NCC';
+  }
+  function veTheDoanhThu(){
+    var card=el('tqDtCard'); if(!card) return;
+    var san=!!(BOOT&&BOOT.doanhThu&&BOOT.doanhThu.san);
+    /* Anh Thắng 25/09/2026 (cài 1.326 xong): *"anh vẫn chưa thấy doanh thu theo cơ sở qua"* — thẻ giấu kín
+       khi chưa khai kết nối nên Admin không biết phải làm gì. Nay: Admin thấy thẻ ngay, chưa kết nối thì
+       bày ba bước + nút sang Cấu hình. Vai duyệt khác chỉ thấy khi đã kết nối; nhân viên không thấy. */
+    var hien=_dtDuocXem()&&(san||_laAdmin());
+    card.style.display=hien?'':'none';
+    if(!hien) return;
+    if(!san){
+      if(el('tqDtCards')) el('tqDtCards').innerHTML='';
+      if(el('tqDtBody')) el('tqDtBody').innerHTML='';
+      if(el('tqDtNote')) el('tqDtNote').innerHTML='<div style="padding:10px 12px;background:#fffbeb;border-left:4px solid #f59e0b;color:#92400e;line-height:1.7">'
+        +'<b>Chưa kết nối web Doanh thu.</b> Ba bước:<br>'
+        +'1. Web Doanh thu cài bản plugin mới (có menu <b>Doanh thu FABi ▸ Chia sẻ cho Chi phí</b>) → bấm <b>Tạo khoá ngẫu nhiên</b>, chép khoá.<br>'
+        +'2. Bên này: <b>Cấu hình ▸ Kết nối web Doanh thu</b> → điền địa chỉ web + dán khoá → Lưu → Kiểm tra kết nối.<br>'
+        +'3. Quay lại Tổng quan, thẻ này tự đổ số. '
+        +'<button class="btn b-p" style="padding:4px 10px;font-size:12px;margin-left:6px" onclick="showPage(\'cauhinh\')">⚙️ Sang Cấu hình</button></div>';
+      return;
+    }
+    var o=el('tqDtThang');
+    if(o&&!o.value){ var d=new Date(); o.value=d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2); }
+    loadDoanhThuChiPhi();
+  }
+  var DT_CUA_HANG=[];
+  function loadDoanhThuChiPhi(tuoi){
+    var thang=(el('tqDtThang')&&el('tqDtThang').value)||'';
+    if(el('tqDtNote')) el('tqDtNote').textContent='Đang hỏi web Doanh thu…';
+    google.script.run.withSuccessHandler(function(r){
+      if(!r||!r.success){ if(el('tqDtBody')) el('tqDtBody').innerHTML=''; if(el('tqDtCards')) el('tqDtCards').innerHTML='';
+        if(el('tqDtNote')) el('tqDtNote').innerHTML='⚠️ '+esc((r&&r.error)||'Không lấy được doanh thu'); return; }
+      DT_CUA_HANG=r.cuaHangDs||[];
+      renderDoanhThuChiPhi(r);
+    }).withFailureHandler(function(e){ if(el('tqDtNote')) el('tqDtNote').textContent='⚠️ '+e.message; })
+      .doanhThuChiPhi({ thang:thang, khoi:KHOI_DANG, tuoi:!!tuoi });
+  }
+  function _dtTyLe(t){
+    if(t===null||typeof t==='undefined') return '<span style="color:#8c8781">—</span>';
+    var n=Number(t)||0, mau=n>=100?'#b91c1c':(n>=70?'#b45309':'#065f46');
+    return '<b style="color:'+mau+'">'+n.toFixed(1)+'%</b>';
+  }
+  function renderDoanhThuChiPhi(r){
+    var rows=r.rows||[];
+    if(el('tqDtCards')) el('tqDtCards').innerHTML=
+      _tqCard('#ecfdf5','#a7f3d0','#065f46','📈 Doanh thu '+esc(r.thang||''), money(r.tongDoanhThu||0)+'đ', (r.web?esc(r.web)+' · ':'')+rows.filter(function(x){return x.cuaHang;}).length+' cửa hàng')+
+      _tqCard('#fff7ed','#fed7aa','#9a3412','🧾 Chi phí thực chi', money(r.tongChiPhi||0)+'đ', 'theo ngày hạng mục trong tháng')+
+      _tqCard('#eef2ff','#c7d2fe','#3730a3','% Chi phí / Doanh thu', (r.tyLe===null||typeof r.tyLe==='undefined')?'—':(Number(r.tyLe).toFixed(1)+'%'), 'càng thấp càng tốt');
+    if(el('tqDtBody')) el('tqDtBody').innerHTML=rows.length?rows.map(function(x){
+      var khac=(x.khac||[]).length?' <span style="font-size:10.5px;color:#b91c1c" title="Cơ sở khác cũng khớp tên này — khai cột Tên bên Doanh thu để chốt">hay: '+esc(x.khac.join(' / '))+'?</span>':'';
+      var kh=x.khop==='khai'?'':(x.khop==='tu'
+        ?' <span title="Tự khớp theo tên — khai cột &quot;Tên bên Doanh thu&quot; ở Cấu hình ▸ Cơ sở cho chắc" style="font-size:10.5px;color:#b45309">≈ tự khớp</span>'+khac
+        :' <span title="Chưa khớp được với cơ sở nào — khai cột &quot;Tên bên Doanh thu&quot; ở Cấu hình ▸ Cơ sở" style="font-size:10.5px;color:#b91c1c">? chưa khớp</span>');
+      return '<tr><td>'+(x.coso?esc(x.coso):'<span style="color:#8c8781">—</span>')+'</td><td>'+(x.cuaHang?esc(x.cuaHang):'<span style="color:#8c8781">(không có doanh thu)</span>')+kh+'</td>'
+        +'<td class="money">'+money(x.doanhThu||0)+'</td><td class="money">'+money(x.chiPhi||0)+'</td><td style="text-align:right">'+_dtTyLe(x.tyLe)+'</td></tr>';
+    }).join(''):'<tr><td colspan="5" style="color:#8c8781;padding:12px">Tháng này chưa có doanh thu lẫn chi phí.</td></tr>';
+    var chua=r.cuaHangChuaKhop||[];
+    if(el('tqDtNote')) el('tqDtNote').innerHTML=(r.nho?'Số đã nhớ 10 phút — bấm ↻ Tải lại để hỏi mới. ':'')
+      +(chua.length?'⚠️ '+chua.length+' cửa hàng chưa khớp cơ sở nào: <b>'+esc(chua.join(' · '))+'</b> — vào Cấu hình ▸ Cơ sở & đơn vị, điền cột "Tên bên Doanh thu".':'')
+      +' Chi phí = thực chi (đơn đã cấp tiền), tính theo ngày của hạng mục; doanh thu = tổng bán theo cửa hàng bên web Doanh thu.';
   }
   // Khối Kỹ thuật trên Tổng quan: cơ sở/gian đã Setup & Tháo dỡ + chi phí cơ sở chung
   function renderKyThuatTongQuan(items){
@@ -10090,11 +10229,7 @@
         '<td class="money" style="color:'+c+'">'+money(x.cl)+'</td><td class="money">'+pct+'%</td></tr>';
     }).join('')||'<tr><td colspan="5" style="text-align:center;color:#8c8781;padding:14px">Chưa có dữ liệu</td></tr>';
     el('tqHMFoot').innerHTML='<tr style="font-weight:800;background:#f9f8f6"><td>TỔNG</td><td class="money">'+money(t.xin)+'</td><td class="money">'+money(t.thucTe)+'</td><td class="money" style="color:'+(t.cl>=0?'#15803d':'#b91c1c')+'">'+money(t.cl)+'</td><td class="money">100%</td></tr>';
-    // theo tuần (mới nhất trước)
-    el('tqKyBody').innerHTML=(r.byKy||[]).slice().reverse().map(function(x){
-      var c=x.cl>=0?'#15803d':'#b91c1c';
-      return '<tr><td>'+esc(x.ky)+'</td><td class="money">'+money(x.xin)+'</td><td class="money">'+money(x.thucTe)+'</td><td class="money" style="color:'+c+'">'+money(x.cl)+'</td></tr>';
-    }).join('')||'<tr><td colspan="4" style="text-align:center;color:#8c8781;padding:14px">Chưa có dữ liệu</td></tr>';
+    // bảng "theo tuần (mới nhất trước)" đã gỡ 25/09/2026 — xem bia mộ ở chỗ `tqKyBody` cũ trong markup.
     // theo cơ sở
     el('tqCSBody').innerHTML=(r.byCoso||[]).map(function(x){
       var c=x.cl>=0?'#15803d':'#b91c1c';
@@ -13245,6 +13380,8 @@
     /* ⚠️ `qrCard` đã gộp vào `heTkCard` — nhóm này giờ chỉ còn mốc tuần. */
     { ten:'💵 Kỳ & mốc tuần',             id:['kyCard'],
       mo:'Mốc tuần của đơn: tuần này chạy từ ngày nào đến ngày nào.' },
+    { ten:'📈 Kết nối web Doanh thu',     id:['doanhThuCard'],
+      mo:'Kéo doanh thu theo cửa hàng từ web Doanh thu để đặt cạnh chi phí ở Tổng quan. Chỉ Admin sửa.' },
     /* 🧩 Gộp ba khối · 📦 Nhân bản cấu hình · 🗂️ Bảo trì ảnh ĐÃ GỠ — 24/09/2026, anh Thắng: ba bản cài
        plugin riêng. Xem bia mộ ở chỗ `id="gopCard"` / `id="nhanBanCard"` / `id="imgMaintCard"` cũ. */
     { ten:'🛠 Bảo trì — đụng vào là đụng dữ liệu thật', id:['ngayHongCard'],
@@ -13945,6 +14082,7 @@
     renderLuongBp();
     renderDauMuc();
     renderTinhNang();
+    renderCfgDoanhThu();   // 📈 thẻ Kết nối web Doanh thu — chỉ Admin
     el('cfgTkInfo').innerHTML = _tkChartHtml() + (TKCHART.length ? ('✅ Đã nạp <b>'+TKCHART.length+'</b> tài khoản — mọi ô mã tài khoản trong trang này đã có gợi ý theo số hiệu + tên.') : '<span style="color:#dc2626">Chưa nạp hệ thống tài khoản — mã phải gõ tay, dễ sai số.</span>');
     /* ⚠️ Bảng khai tay `mangTk` đã gỡ khỏi màn 14/09/2026 — gác `null` ở đây, không thì
        `renderCfg()` ném lỗi ngay dòng này và CẢ tab Cấu hình trắng trơn. */
@@ -14714,6 +14852,8 @@
     /* Gợi ý đơn vị lấy từ CHÍNH danh sách máy chủ gửi xuống (`BOOT.donVi`), không gõ cứng
        "K&H, POSH" ở đây: thêm đơn vị thứ ba thì ô này tự có, khỏi phải nhớ sửa hai nơi. */
     if(el('dl_donvi')) el('dl_donvi').innerHTML=(BOOT.donVi||[]).map(function(v){return '<option value="'+esc(v)+'">';}).join('');
+    /* Gợi ý cột "Tên bên Doanh thu" = danh sách cửa hàng web Doanh thu đã trả về (sau khi Tổng quan tải). */
+    if(el('dl_dtch')) el('dl_dtch').innerHTML=((typeof DT_CUA_HANG!=='undefined'&&DT_CUA_HANG)||[]).map(function(v){return '<option value="'+esc(v)+'">';}).join('');
     /* Cột TỈNH / THÀNH thôi bày (24/09/2026, anh Thắng: *"Chỗ Tỉnh, Bỏ thay vào đó là Bộ Phận"*).
        Dữ liệu tỉnh đã khai vẫn nằm trong sổ, lượt Lưu không đụng (không gửi ô là giữ nguyên). */
     // Cột ĐÓNG CỬA: đóng gian là kế toán đã tất toán hết bằng tiền -> thôi luân chuyển bù
@@ -14728,7 +14868,7 @@
          tệp xuất; còn ô này quyết định BÊN NÀO NHÌN THẤY chi phí của gian. Khai nhầm chỗ là
          số của POSH nằm trong sổ K&H. Nên ô này có gợi ý sẵn từ danh sách đơn vị đang có,
          không phải gõ chay. */
-      return '<tr'+(dc?' style="background:#fef2f2"':'')+'><td>'+_inp(x.ten,'Tên thường gọi')+'</td><td>'+_inp(x.tenMisa,'Tên trong MISA')+'</td><td>'+_inp(x.maDonVi,'VD: FLMPT')+'</td><td><input value="'+esc(x.phanLoaiLon||'')+'" list="dl_pll" placeholder="Chọn/nhập (VD: FARM MN)" style="width:100%"></td><td>'+_khoiSelCoso(x.donVi)+'</td><td>'+_bpSelCoso(x.boPhan, x.donVi)+'</td><td style="white-space:nowrap">'+oDong+'</td>'+_delBtn()+'</tr>'; };
+      return '<tr'+(dc?' style="background:#fef2f2"':'')+'><td>'+_inp(x.ten,'Tên thường gọi')+'</td><td>'+_inp(x.tenMisa,'Tên trong MISA')+'</td><td>'+_inp(x.maDonVi,'VD: FLMPT')+'</td><td><input value="'+esc(x.phanLoaiLon||'')+'" list="dl_pll" placeholder="Chọn/nhập (VD: FARM MN)" style="width:100%"></td><td>'+_khoiSelCoso(x.donVi)+'</td><td>'+_bpSelCoso(x.boPhan, x.donVi)+'</td><td><input value="'+esc(x.tenDoanhThu||'')+'" list="dl_dtch" placeholder="Tên cửa hàng bên web Doanh thu" style="width:100%"></td><td style="white-space:nowrap">'+oDong+'</td>'+_delBtn()+'</tr>'; };
     /* 🔴 GOM THEO ĐƠN VỊ TRƯỚC, RỒI MỚI THEO PHÂN LOẠI LỚN.
        Anh Thắng 08/09/2026: *"Mỗi đơn vị tách 1 bảng riêng, để kế toán bộ phận đó tự nhìn thấy
        cơ sở của mình và tự thêm sửa mã misa"*. Trước đây bảng chỉ gom theo Phân loại lớn, nên
@@ -14788,7 +14928,7 @@
        nào phân biệt. Nói thẳng nghĩa thứ hai ra. */
     if(!dvOrd.length){
       var _bo=(BOOT.xemDonVi&&BOOT.xemDonVi.length)?BOOT.xemDonVi.join(', '):'';
-      el('cfgCosoBody').innerHTML='<tr><td colspan="8" style="padding:14px 12px;background:#fffbeb;border-left:4px solid #f59e0b;color:#92400e;line-height:1.6">'
+      el('cfgCosoBody').innerHTML='<tr><td colspan="9" style="padding:14px 12px;background:#fffbeb;border-left:4px solid #f59e0b;color:#92400e;line-height:1.6">'
         +(_bo
           ? '⚠️ <b>Không phải mất dữ liệu.</b> Tài khoản này chỉ xem được đơn vị <b>'+esc(_bo)+'</b>, mà chưa cơ sở nào trong danh mục khai đơn vị ấy — nên bảng rỗng. Cơ sở của đơn vị khác vẫn còn nguyên, chỉ là không hiện ở đây. Sửa ô <b>Đơn vị</b> của người này ở khối 👤 Người dùng &amp; Phân quyền bên dưới, hoặc khai đúng ô Đơn vị cho từng cơ sở.'
           : '📭 Chưa khai cơ sở nào. Bấm <b>+ Thêm cơ sở</b> hoặc <b>🚛 Hút cơ sở từ Ghế</b> để bắt đầu.')
@@ -14808,12 +14948,12 @@
          khối ấy, khỏi phải nhớ chọn lại trong hộp. Một nút chung ở đầu thẻ không trả lời được
          câu "thêm vào khối nào?", và câu trả lời thầm lặng là chỗ để người ta khai nhầm. */
       var _maK=_khoiCuaDv(d)||String(d).toLowerCase();
-      var _nut='<tr><td colspan="8" style="padding:6px 10px;background:#fafaf8">'
+      var _nut='<tr><td colspan="9" style="padding:6px 10px;background:#fafaf8">'
         +'<button type="button" class="btn b-x" data-khong-khoa="1" onclick="addCfgCoso('+JSON.stringify(_maK).replace(/"/g,'&quot;')+')" '
         +'style="padding:3px 10px;font-size:11.5px">＋ Thêm cơ sở cho '+esc(_nk||d)+'</button></td></tr>';
-      return '<tr><td colspan="8" style="background:#1e3a8a;color:#fff;font-weight:800;letter-spacing:.3px;padding:9px 10px">🧩 KHỐI '+esc(_nk||d)+' <span style="font-weight:500;opacity:.85">· '+dvGr[d].length+' cơ sở</span></td></tr>'
+      return '<tr><td colspan="9" style="background:#1e3a8a;color:#fff;font-weight:800;letter-spacing:.3px;padding:9px 10px">🧩 KHỐI '+esc(_nk||d)+' <span style="font-weight:500;opacity:.85">· '+dvGr[d].length+' cơ sở</span></td></tr>'
         + (dvGr[d].length ? '' :
-            '<tr><td colspan="8" style="padding:10px 12px;background:#fffbeb;border-left:4px solid #f59e0b;color:#92400e;font-size:12.5px">'
+            '<tr><td colspan="9" style="padding:10px 12px;background:#fffbeb;border-left:4px solid #f59e0b;color:#92400e;font-size:12.5px">'
             + 'Khối này chưa có cơ sở nào — bấm nút bên dưới để thêm.'
             /* Chỉ Văn phòng mới cần câu này: hai khối kia có gian thật, nhắc họ "tạo cơ sở đại
                diện" là mời khai một gian không tồn tại. */
@@ -14822,7 +14962,7 @@
                 : '')
             + '</td></tr>')
         +ord.map(function(g){
-          return '<tr><td colspan="8" style="background:#f0fdfa;font-weight:700;color:#0f766e;border-left:3px solid #0f766e">▸ '+esc(g)+' <span style="font-weight:400;color:#64748b">· '+gr[g].length+' cơ sở</span></td></tr>'+gr[g].map(rowCoso).join('');
+          return '<tr><td colspan="9" style="background:#f0fdfa;font-weight:700;color:#0f766e;border-left:3px solid #0f766e">▸ '+esc(g)+' <span style="font-weight:400;color:#64748b">· '+gr[g].length+' cơ sở</span></td></tr>'+gr[g].map(rowCoso).join('');
         }).join('')
         +_nut;
     }).join('');
@@ -14898,8 +15038,9 @@
   function _dongCoso(r){
     /* r[5] nay là Ô CHỌN BỘ PHẬN (kvc/mtd/vp/''), không còn ô Tỉnh. Không gửi `tinh` → máy chủ
        giữ nguyên tỉnh đã khai. */
+    /* r[6] = TÊN BÊN DOANH THU (25/09/2026) — ô đứng SAU Bộ phận, TRƯỚC cột Đóng cửa (cột ấy không phải ô nhập). */
     return { ten:(r[0]||'').trim(), tenMisa:r[1]||'', maDonVi:r[2]||'', phanLoaiLon:r[3]||'',
-      donVi:(r[4]||'').trim(), boPhan:(r[5]||'').trim() };
+      donVi:(r[4]||'').trim(), boPhan:(r[5]||'').trim(), tenDoanhThu:(r[6]||'').trim() };
   }
   /* Nhà mặc định = đơn vị đầu danh sách máy chủ gửi xuống. Ô để trống nghĩa là nhà này. */
   function _dvMacDinh(){ return (BOOT.donVi&&BOOT.donVi[0])||'K&H'; }
@@ -15624,6 +15765,30 @@
         +'<td><select style="width:100%">'+TN_TRANG_THAI.map(function(o){ return '<option value="'+o[0]+'"'+(o[0]===x.trangThai?' selected':'')+'>'+o[1]+'</option>'; }).join('')+'</select>'
         +(x.trangThai!=='bat'?'<div style="font-size:10.5px;color:#b45309;margin-top:2px">Nhân viên đang thấy đường cũ.</div>':'')+'</td></tr>';
     }).join('');
+  }
+  /* 📈 Kết nối web Doanh thu — chỉ Admin. KHÔNG BAO GIỜ gán khoá vào ô: gói máy chủ cũng không có khoá. */
+  function renderCfgDoanhThu(){
+    var card=el('doanhThuCard'); if(!card) return;
+    card.style.display=_laAdmin()?'':'none';
+    var dt=(BOOT&&BOOT.doanhThu)||{};
+    if(el('cfgDtUrl')&&document.activeElement!==el('cfgDtUrl')) el('cfgDtUrl').value=dt.url||'';
+    if(el('cfgDtKhoa')) el('cfgDtKhoa').value='';
+    if(el('cfgDtKhoaTt')) el('cfgDtKhoaTt').innerHTML=dt.khoaCo?'<span style="color:#065f46">ĐÃ CÓ khoá</span>':'<span style="color:#b91c1c">CHƯA có khoá</span>';
+  }
+  function saveCfgDoanhThu(){
+    if(!_laAdmin()){ toast('err','Chỉ Admin mới đổi kết nối web Doanh thu.'); return; }
+    var url=String(el('cfgDtUrl').value||'').trim(), khoa=String(el('cfgDtKhoa').value||'').trim();
+    if(url && !/^https?:\/\/[^\s\/]+/i.test(url)){ toast('err','Địa chỉ phải bắt đầu bằng http:// hoặc https://'); return; }
+    /* khoa rỗng = GIỮ NGUYÊN (máy chủ cùng luật). */
+    _saveCfg({doanhThu:{url:url, khoa:khoa}}, khoa?'Đã lưu địa chỉ + khoá mới':'Đã lưu địa chỉ (giữ khoá cũ)');
+    el('cfgDtKhoa').value='';
+  }
+  function kiemTraDoanhThu(){
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(r&&r.success) toast('ok','Kết nối được '+(r.web||'web Doanh thu')+': '+r.soCuaHang+' cửa hàng có số trong 7 ngày ('+r.tu+' → '+r.den+').');
+      else toast('err',(r&&r.error)||'Không kết nối được');
+    }).withFailureHandler(function(e){ loading(false); toast('err',e.message); }).kiemTraDoanhThu();
   }
   function saveCfgTinhNang(){
     var body=el('cfgTinhNangBody'); if(!body) return;
