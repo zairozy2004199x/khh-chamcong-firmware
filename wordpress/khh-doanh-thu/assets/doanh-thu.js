@@ -1906,6 +1906,12 @@
           /* Tên mặt hàng bấm được -> mở THẺ KHO: từng ngày tồn đầu / nhập / bán / đếm / tồn cuối.
              Anh Thắng: "tồn kho ngày đó bao nhiêu, bán bao nhiêu, tồn bao nhiêu" — màn này chỉ
              cho một ngày, muốn thấy hàng chạy thì phải có thẻ kho. */
+          var longK = function (t) { return String(t || '').replace(/[\s\u00a0]+/g, ' ').trim().toLowerCase(); };
+          var moCoi = function (t) {
+            var k2 = longK(t);
+            return !(r.mat_hang || []).some(function (x) { return longK(x) === k2; }) &&
+              !Object.keys(r.mon_da_thay || {}).some(function (x) { return longK(x) === k2; });
+          };
           return '<tr data-dong="' + i + '"><td class="o-ten" data-nhan="Mặt hàng">' +
             '<a href="#" data-kho-the="' + esc(d.mat_hang) + '" title="Mở thẻ kho: xem mặt hàng này chạy từng ngày" ' +
             'style="color:inherit;text-decoration:underline dotted">' + esc(d.mat_hang) + '</a>' +
@@ -1919,6 +1925,13 @@
                 '" style="cursor:pointer;border-color:var(--xau);color:var(--xau)" ' +
                 'title="Dòng này đã được khai lại nhiều lượt. Bấm để xem đủ các lượt, kèm người và giờ.">' +
                 'đã sửa ' + (so_lan[d.mat_hang] - 1) + ' lần</button>'
+              : '') +
+            /* 25/09/2026 anh Thắng: "tạo ra nên phía dưới nó không có" — dòng do tạo tay, đã bị bỏ khỏi danh mục nhưng
+               dòng sổ còn nên vẫn bày ở đây, mà danh mục phía dưới không có nó để xoá. Cho xoá ngay tại dòng: món KHÔNG
+               trong danh mục và FABi CHƯA BÁN (máy chủ gác đúng luật ấy). */
+            (r.duoc_ghi && moCoi(d.mat_hang)
+              ? ' <button class="chip" type="button" data-mh-xoa="' + esc(d.mat_hang) + '" style="cursor:pointer;border-color:var(--xau);color:var(--xau)" ' +
+                'title="Món này không còn trong danh mục kho và FABi chưa bán — thường là tạo tay sai. Bấm để xoá dòng sổ của nó ở cơ sở này (sổ ghi động giữ vết).">✕ xoá dòng</button>'
               : '') +
             '</td>' +
             /* Tồn đầu GÕ ĐƯỢC (anh Thắng 24/09/2026: "cho set lại tồn đầu"): trống = theo tồn cuối
@@ -2222,6 +2235,13 @@
        bán) — không thì món mới thêm không có ô để bỏ tích. */
     var ten = Object.keys(daThay);
     chon.forEach(function (t) { if (ten.indexOf(t) < 0) ten.push(t); });
+    /* Món CÓ DÒNG SỔ nhưng không trong danh mục, FABi chưa bán (tạo tay rồi bỏ tích / xoá lối cũ chỉ bỏ danh mục) — phải
+       bày ra để có nút xoá, không thì bảng kho bày mãi mà "phía dưới nó không có" (anh Thắng 25/09/2026). */
+    var moCoi = {};
+    (r.dong || []).forEach(function (d) {
+      var t = d.mat_hang;
+      if (!ten.some(function (x) { return long_(x) === long_(t); })) { ten.push(t); moCoi[t] = true; }
+    });
     ten.sort(function (a, b) { return a.localeCompare(b, 'vi'); });
     return '<details style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)"' +
       (chon.length ? '' : ' open') + '>' +
@@ -2244,7 +2264,9 @@
               (chon.indexOf(t) >= 0 ? ' checked' : '') + '>' +
               '<span>' + esc(t) +
                 (maHang[t] ? ' <code style="font-size:11px">' + esc(maHang[t]) + '</code>' : '') +
-                (moi ? ' <span class="chip" title="Thêm tay, FABi chưa có dòng bán nào. Khi FABi bán món mang đúng mã này, số bán tự rơi vào dòng kho này.">mới · FABi chưa bán</span>' +
+                (moi ? (moCoi[t]
+                         ? ' <span class="chip" style="border-color:var(--xau);color:var(--xau)" title="Không trong danh mục kho, FABi chưa bán, nhưng còn dòng sổ (tồn / đếm cũ). Tích lại nếu là hàng thật, hoặc xoá.">có dòng sổ · không trong danh mục</span>'
+                         : ' <span class="chip" title="Thêm tay, FABi chưa có dòng bán nào. Khi FABi bán món mang đúng mã này, số bán tự rơi vào dòng kho này.">mới · FABi chưa bán</span>') +
                        /* Anh Thắng 24/09/2026: "cho admin xoá món nếu sai" — chỉ văn phòng (quyền nạp). */
                        /* 25/09/2026: "cho phép xoá hàng sai trên kho hàng" — món FABi chưa bán thì người phụ trách quán xoá được (xoá cả dòng sổ, sổ động giữ vết). */
                        (r.duoc_ghi ? ' <button class="chip" type="button" data-mh-xoa="' + esc(t) + '" title="Xoá món này khỏi danh mục và khỏi sổ kho của cơ sở (sổ ghi động vẫn giữ vết)">✕ xoá</button>' : '')
