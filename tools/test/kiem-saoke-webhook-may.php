@@ -256,6 +256,7 @@ teq( 'cong_dong_trung() chỉ được gọi từ MỘT chỗ (trong luu_cong)',
 teq( 'cong_may_dong() gọi ở đúng 6 chỗ (tất cả tái dùng, không có bản sao)', 6,
 	substr_count( $SRC, 'self::cong_may_dong(' ) );
 t( 'VER_TBL từ 5 trở lên (5: KEY ref; 6 ở 0.54.0: KEY ma_gd)', preg_match( "/const VER_TBL = '(\\d+)';/", $SRC, $mv ) && (int) $mv[1] >= 5 );
+t( 'bảng cổng có KEY ref (đường dò trùng chéo đi qua nó) — và KEY ma_gd từ 0.54.0', false !== strpos( $SRC, 'KEY ref (ref)' ) && false !== strpos( $SRC, 'KEY ma_gd (ma_gd)' ) );
 
 /* Phiên bản: header và hằng VER phải bằng nhau. */
 preg_match( '/^\s*\*\s*Version:\s*([0-9.]+)/m', $SRC, $mh );
