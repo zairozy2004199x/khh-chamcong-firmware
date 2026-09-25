@@ -176,6 +176,10 @@ t("và các nhãn số máy khớp CSS", /oMay\('Tồn đầu'/.test(boCC) && /o
 t('🔴 khối danh mục có ô thêm mặt hàng mới (tên + mã FABi) và nút Thêm', /id="mhThemTen"/.test(boCC) && /id="mhThemMa"/.test(boCC) && /id="mhThem"/.test(boCC));
 t('món thêm tay mà FABi chưa bán được đánh dấu', /mới · FABi chưa bán/.test(boCC));
 t('danh sách bày = FABi từng bán ∪ danh mục (món mới không mất ô)', /chon\.forEach\(function \(t\) \{ if \(ten\.indexOf\(t\) < 0\) ten\.push\(t\); \}\);/.test(boCC));
+/* 25/09/2026 anh Thắng: "tạo ra nên phía dưới nó không có" — dòng sổ mồ côi (không trong danh mục, FABi chưa bán) xoá được ngay tại dòng,
+   và danh mục liệt kê nó với chip đỏ để còn chỗ bấm. */
+t('🔴 bảng kho: dòng KHÔNG trong danh mục và FABi chưa bán (moCoi) có nút "✕ xoá dòng" data-mh-xoa (chỉ khi r.duoc_ghi)', /r\.duoc_ghi && moCoi\(d\.mat_hang\)/.test(boc('veKho')) && /data-mh-xoa="' \+ esc\(d\.mat_hang\) \+ '"[^>]*>✕ xoá dòng<\/button>/.test(boc('veKho')) && /!\(r\.mat_hang \|\| \[\]\)\.some\(function \(x\) \{ return longK\(x\) === k2; \}\)/.test(boc('veKho')));
+t('danh mục liệt kê cả món có dòng sổ mà không trong danh mục (từ r.dong), chip đỏ "có dòng sổ · không trong danh mục"', /\(r\.dong \|\| \[\]\)\.forEach\(function \(d\) \{/.test(boCC) && /moCoi\[t\] = true/.test(boCC) && /có dòng sổ · không trong danh mục<\/span>/.test(boCC));
 /* 25/09/2026 anh Thắng: "cho phép xoá hàng sai trên kho hàng" — nút cho người được ghi (máy chủ gác: chỉ món FABi chưa bán). */
 t('🔴 món thêm tay có nút ✕ xoá cho người được ghi (r.duoc_ghi), gửi xoa_ten, hỏi xác nhận nói rõ xoá cả dòng sổ', /data-mh-xoa=/.test(boCC) && /r\.duoc_ghi \? ' <button class="chip" type="button" data-mh-xoa=/.test(boCC) && /fd\.append\('xoa_ten', tenXoa\)/.test(boCC) && /window\.confirm\('Xoá "' \+ tenXoa \+ '" khỏi danh mục VÀ khỏi sổ kho/.test(boCC));
 t('nút Thêm gửi them_ten / them_ma qua kho-mat-hang', /fd\.append\('them_ten', tenMoi\); fd\.append\('them_ma', maMoi\)/.test(boCC));

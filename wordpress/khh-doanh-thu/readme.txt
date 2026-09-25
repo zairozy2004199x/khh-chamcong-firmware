@@ -102,6 +102,11 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.68.1 =
+* Sổ kho: dòng do tạo tay đã bị bỏ khỏi danh mục nhưng còn dòng sổ (anh Thắng 25/09/2026: *"tạo ra nên phía dưới nó
+  không có"*) — giờ có nút **✕ xoá dòng** ngay tại dòng trong bảng kho (món không trong danh mục và FABi chưa bán), và
+  danh mục phía dưới liệt kê cả những món ấy với chip đỏ "có dòng sổ · không trong danh mục" để tích lại hay xoá.
+
 = 1.68.0 =
 * **Danh mục hàng hoá FABi** (anh Thắng 25/09/2026: *"Tạo hàng mới trên FABi mà chưa bán, thành ra doanh thu nó không có
   hàng đó để nhập kho… các bạn muốn set trước, thấy không có loại vé đó nên tạo trước, dẫn tới dễ sai lệch"*). Quản trị có
