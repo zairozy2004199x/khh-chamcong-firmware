@@ -168,10 +168,16 @@ class VHCPHN_Misa {
 	}
 
 	/** exportMisa(): đơn vận hành. mode = chuaxuat|daxuat ; plF = all|cn|ncc. */
-	public static function export_misa( $ky = 'all', $mode = 'chuaxuat', $pl_f = 'all', $mau = self::MAU_CHUAN, $tk_f = 'all' ) {
+	public static function export_misa( $ky = 'all', $mode = 'chuaxuat', $pl_f = 'all', $mau = self::MAU_CHUAN, $tk_f = 'all', $mang_f = 'all' ) {
 		$mau  = ( self::MAU_SOCT === $mau ) ? self::MAU_SOCT : self::MAU_CHUAN;
 		$tk_f = VHCPHN_Util::ma_so( trim( (string) $tk_f ) );
 		if ( 'ALL' === mb_strtoupper( (string) $tk_f ) ) { $tk_f = ''; }
+		/* 🔴 MẢNG KINH DOANH — anh Thắng 25/09/2026 (ảnh bảng 🧮 Loại chi phí × Mảng kinh doanh cạnh
+		   màn Xuất MISA): *"Mỗi chi phí sẽ xuất ra 1 bảng misa riêng"*. Chọn một mảng ("Chi Phí Vận
+		   Hành" · "Chi Phí Cơ Sở KVC"…) thì tệp CHỈ còn dòng của mảng đó — kế toán xuất mỗi mảng một
+		   lượt, mỗi lượt một tệp riêng, thay vì một tệp trộn hết rồi tự lọc lại bằng Excel. */
+		$mang_f = trim( (string) $mang_f );
+		if ( '' === $mang_f || 'all' === mb_strtolower( $mang_f ) ) { $mang_f = ''; }
 		$mode = $mode ? $mode : 'chuaxuat';
 		$pl_f = $pl_f ? $pl_f : 'all';
 		$cp   = VHCPHN_Don::cp_rows();              // đọc 1 lần, dùng cho cả cấu hình đối tượng lẫn vòng lặp dưới
@@ -262,6 +268,7 @@ class VHCPHN_Misa {
 
 		$rows_by_nhom = array(); $nhom_order = array(); $warn = array(); $ndon = 0; $seen_don = array(); $ngay_xau = array();
 		$tk_co_mat = array();   // những TK Nợ CÓ MẶT trong kỳ — để màn đổ ô lọc, khỏi đoán
+		$mang_mat  = array();   // những MẢNG CÓ MẶT trong kỳ — để màn đổ ô lọc, khỏi đoán
 		$tk_trong_tep = array();   // mã thật sự ra tệp SAU lọc — quyết định có thêm cột TK Nợ ở mẫu sổ chi tiết
 		$stt_chen = 0;
 		foreach ( $cp as $r ) {
@@ -269,6 +276,18 @@ class VHCPHN_Misa {
 			if ( ! isset( $by_don[ $m ] ) ) { continue; }
 			$d       = $by_don[ $m ];
 			$coso    = (string) $r['coso'];
+			/* 🔴 LỌC THEO MẢNG PHẢI ĐỨNG TRƯỚC $ndon++ — anh Thắng 25/09/2026: *"Mỗi chi phí sẽ xuất
+			   ra 1 bảng misa riêng"*. `$seen_don`/`$ndon` là con số "Số đơn" bày trên màn; đứng SAU
+			   sẽ đếm cả đơn của MẢNG KHÁC vào ô "Số đơn" của một tệp đã lọc còn đúng mảng mình chọn —
+			   kế toán nhìn "Số đơn: 4" mà tệp bên dưới chỉ có 1 dòng, tưởng máy đếm sai.
+			   Đếm `$mang_mat` TRƯỚC khi lọc (ô chọn không rớt mất lựa chọn khác), lọc NGAY sau đó —
+			   cùng nguyên tắc với lọc TK Nợ, chỉ khác là TK Nợ phải tính SAU khi chốt mã (ma_cua_dong)
+			   nên đứng muộn hơn trong vòng lặp; mảng thì biết ngay từ cơ sở, không cần chờ. */
+			$pll     = isset( $m_pll[ $coso ] ) ? $m_pll[ $coso ] : '';
+			$mang_k  = trim( (string) $pll );
+			$mang_mat[ '' !== $mang_k ? $mang_k : '(chưa khai mảng)' ] = 1;
+			if ( '' !== $mang_f && mb_strtolower( $mang_k ) !== mb_strtolower( $mang_f )
+				&& ! ( '(chưa khai mảng)' === $mang_f && '' === $mang_k ) ) { continue; }
 			$pltt    = (string) $r['phan_loai_tt'];
 			$dt      = (string) $r['doi_tuong'];
 			$nhom    = (string) $r['nhom'];
@@ -284,7 +303,6 @@ class VHCPHN_Misa {
 			if ( ! $sotien ) { continue; }
 
 			$co_key    = $eff_ncc ? 'Nhà cung cấp' : $pltt;
-			$pll       = isset( $m_pll[ $coso ] ) ? $m_pll[ $coso ] : '';
 			/* 🔴 TÊN VÀ MÃ ĐỐI TƯỢNG ĐI THEO NGƯỜI TẠO ĐƠN — anh Thắng 25/09/2026: *"Lấy tên theo người tạo, 1
 			   cơ sở 2 bạn quản lý, cứ ai tạo thì hiện tên người đó là được"*. Trước lấy theo NGƯỜI DUYỆT: cùng
 			   một quản lý duyệt cho cả chục đơn thì tệp MISA ghi một tên cho tiền của nhiều người khác nhau. */
@@ -447,8 +465,16 @@ class VHCPHN_Misa {
 		   Ép ở đây, một chỗ, thay vì bắt mọi người đọc phải nhớ. */
 		$tk_ds = array_map( 'strval', array_keys( $tk_co_mat ) );
 		sort( $tk_ds, SORT_NATURAL );
+		/* '(chưa khai mảng)' luôn cuối danh sách — mảng có tên đứng trước, cùng luật hiển thị với
+		   nhóm dòng ở trên (`$hang`). */
+		$mang_ds = array_keys( $mang_mat );
+		usort( $mang_ds, function ( $a, $b ) {
+			if ( ( '(chưa khai mảng)' === $a ) !== ( '(chưa khai mảng)' === $b ) ) { return '(chưa khai mảng)' === $a ? 1 : -1; }
+			return strnatcasecmp( $a, $b );
+		} );
 		return array( 'cols' => self::cols( $mau, $gop_tk ),
 			'mau' => $mau, 'tkLoc' => $tk_f, 'tkDs' => $tk_ds, 'tkCay' => self::cay_tk( $tk_ds ),
+			'mangLoc' => ( '' !== $mang_f ? $mang_f : 'all' ), 'mangDs' => $mang_ds,
 			'rows' => $rows, 'count' => count( $rows ), 'sodon' => $ndon,
 			'theoKhoi' => $theo_khoi,
 			'warn' => array_merge( array_keys( $warn ), VHCPHN_Misa::warn_ngay_xau( $ngay_xau ) ), 'maDons' => array_keys( $seen_don ) );

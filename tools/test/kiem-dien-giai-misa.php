@@ -110,7 +110,8 @@ t( '   mẫu 13 cột (có cột TK Nợ đầu) cũng mang diễn giải mới'
 /* ═══ 4. Màn Xuất MISA KHÔNG còn ô chọn kiểu kỳ (máy chủ tự tách) ═══ */
 $app = (string) file_get_contents( $goc . '/wordpress/vhcp-chi-phi/templates/app.html' );
 t( '🔴 không còn ô `xuatKyKieu`', false === strpos( $app, 'id="xuatKyKieu"' ) );
-t( '   callExport gọi exportMisa với 5 tham số, mẫu lùi về soct', 1 === preg_match( "/\.exportMisa\(el\('xuatKy'\)\.value, el\('xuatTT'\)\.value, plF,\s*\(el\('xuatMau'\)&&el\('xuatMau'\)\.value\)\|\|'soct',\s*\(el\('xuatTkNo'\)&&el\('xuatTkNo'\)\.value\)\|\|'all'\);/", $app ) );
+/* 25/09/2026: thêm tham số thứ 6 — Mảng kinh doanh (anh Thắng: "Mỗi chi phí sẽ xuất ra 1 bảng misa riêng"), lùi 'all'. */
+t( '   callExport gọi exportMisa với 6 tham số (mẫu lùi soct, TK Nợ lùi all, mảng lùi all)', 1 === preg_match( "/\.exportMisa\(el\('xuatKy'\)\.value, el\('xuatTT'\)\.value, plF,\s*\(el\('xuatMau'\)&&el\('xuatMau'\)\.value\)\|\|'soct',\s*\(el\('xuatTkNo'\)&&el\('xuatTkNo'\)\.value\)\|\|'all',\s*\(el\('xuatMang'\)&&el\('xuatMang'\)\.value\)\|\|'all'\);/", $app ) );
 /* ═══ 5. Mẫu 13 cột là MẶC ĐỊNH, nhãn không còn "MTĐ · VP" ═══ */
 t( '🔴 option soct đứng trước và selected', 1 === preg_match( '/<select id="xuatMau"[^>]*>\s*(<!--[\s\S]*?-->\s*)?<option value="soct" selected>/', $app ) );
 t( '🔴 nhãn không còn gắn riêng MTĐ · VP', false === strpos( $app, 'Sổ chi tiết — MTĐ · VP' ) && false !== strpos( $app, 'Sổ chi tiết tài khoản (13 cột)' ) );

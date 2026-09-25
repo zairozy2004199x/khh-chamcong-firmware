@@ -12,8 +12,15 @@ $goc = dirname( dirname( __DIR__ ) );
 require __DIR__ . '/wp-stub.php';
 vhcp_test_boot( $goc . '/wordpress/vhcp-chi-phi' );
 vhcp_test_dat_gio( '2026-09-25 09:00:00' );
-VHCP_Auth::dat_vai_tro( 'Admin', 'Anh Thắng' );
 
+/* ⚠️ `$DAT`/`$TRUOT` PHẢI KHỞI ĐỘNG TRƯỚC PHÉP THỬ ĐẦU TIÊN. Hàm `t()`/`teq()` là khai báo hàm
+   toàn cục nên PHP NÂNG nó lên đầu tệp lúc biên dịch — gọi được từ bất cứ đâu trong tệp này,
+   kể cả trước dòng khai báo. Nhưng `$DAT = 0; $TRUOT = array();` là CÂU LỆNH GÁN, chạy tuần
+   tự — đặt nó SAU vài phép thử là các phép ấy ghi vào biến toàn cục chưa tồn tại (PHP coi là
+   null rồi tự tăng), để rồi bị chính dòng gán này XOÁ SẠCH ngay sau đó. Kết quả: phép thử vẫn
+   "chạy" nhưng không bao giờ được ĐẾM — bài kiểm luôn báo sạch dù mã có hỏng. Cắn thật khi vá
+   `doi_gian()`: bỏ gác `tai_cho()` mà bài kiểm vẫn xanh, chỉ vì phép gác cảnh ấy nằm trước dòng
+   khởi tạo này. */
 $DAT = 0; $TRUOT = array();
 function t( $ten, $ok, $them = null ) {
 	global $DAT, $TRUOT;
@@ -21,6 +28,24 @@ function t( $ten, $ok, $them = null ) {
 	$TRUOT[] = $ten . ( null !== $them ? ( "\n      → " . ( is_scalar( $them ) ? $them : json_encode( $them, JSON_UNESCAPED_UNICODE ) ) ) : '' );
 }
 function teq( $ten, $mong, $thuc ) { t( $ten . ' (mong ' . json_encode( $mong, JSON_UNESCAPED_UNICODE ) . ')', $mong === $thuc, $thuc ); }
+
+VHCP_Auth::dat_vai_tro( 'Admin', 'Anh Thắng' );
+
+/* 🔴 CHƯA `tai_cho()` (đúng cảnh site chạy riêng như `vhcp-chi-phi-hn`) → `doi_gian()` KHÔNG được
+   đụng gì tới DB doanh thu, và `list_du_an()` phải chạy y như trước khi tính năng này tồn tại.
+   Phải gác NGAY ĐÂY — `khh_dt_bang()` chỉ được định nghĩa ở mục 6 bên dưới; PHP không có cách
+   "undefine" một hàm toàn cục giữa bài kiểm để giả lập lại cảnh này sau đó. */
+t( '🔴 (tiền đề) chưa có khh_dt_bang() → tai_cho() = false', ! VHCP_DoanhThu::tai_cho() );
+global $wpdb;
+delete_transient( 'vhcp_cfgstatic' );
+$q_truoc = $wpdb->q_count;
+VHCP_DoanhThu::doi_gian( array( array( 'maDA' => 'X', 'ten' => 'GIAN THỬ Q_COUNT', 'loai' => 'Setup lắp đặt' ) ) );
+t( '🔴 chưa tai_cho(): doi_gian() thoát NGAY — không tốn một lệnh DB nào (không dò cơ sở, không đọc gì)',
+	$wpdb->q_count === $q_truoc, 'lệch ' . ( $wpdb->q_count - $q_truoc ) . ' lệnh' );
+$d_som = VHCP_DuAn::create_du_an( 'Setup lắp đặt', 'GIAN THỬ TRƯỚC KHI CÓ DOANH THU', 'KT' );
+$lda_som = VHCP_DuAn::list_du_an();
+$x_som = null; foreach ( $lda_som['items'] as $y ) { if ( $y['maDA'] === $d_som['maDA'] ) { $x_som = $y; } }
+t( '🔴 chưa tai_cho(): list_du_an() vẫn chạy, KHÔNG có trường dtNoi nào bị thêm', $x_som && ! isset( $x_som['dtNoi'] ) && ! isset( $x_som['doanhThu'] ), $x_som );
 
 /* ── 1. Cấu hình: chưa khai → chối rõ, gói màn không mang khoá ─────────────────────────────── */
 $kq = VHCP_DoanhThu::so_sanh( array( 'thang' => '2026-09' ) );
@@ -38,7 +63,8 @@ t( '   địa chỉ không phải http(s) → chối', empty( $kq['success'] ), 
 $kq = VHCP_Cfg::save_config( array( 'doanhThu' => array( 'url' => 'https://khmatrix.com/doanh-thu-hcm/', 'khoa' => 'KHOA-BI-MAT-1234567890' ) ) );
 t( '   Admin lưu địa chỉ + khoá', ! empty( $kq['success'] ), $kq );
 $ch = VHCP_DoanhThu::cau_hinh();
-teq( '   san=true, khoaCo=true, url (Admin) bỏ dấu / cuối', array( 'san' => true, 'url' => 'https://khmatrix.com/doanh-thu-hcm', 'khoaCo' => true ), $ch );
+teq( '   san=true, khoaCo=true, url (Admin) bỏ dấu / cuối, chưa đọc thẳng (test không có Doanh thu)',
+	array( 'san' => true, 'url' => 'https://khmatrix.com/doanh-thu-hcm', 'khoaCo' => true, 'taiCho' => false ), $ch );
 VHCP_Auth::dat_vai_tro( 'Quản lý', 'Quản Lý B' );
 teq( '   Quản lý: không thấy địa chỉ, chỉ biết đã sẵn', '', VHCP_DoanhThu::cau_hinh()['url'] );
 VHCP_Auth::dat_vai_tro( 'Admin', 'Anh Thắng' );
@@ -188,5 +214,134 @@ t( '   danh sách cửa hàng đi kèm (cho ô gợi ý ở bảng Cơ sở)', 6
 $kq = VHCP_DoanhThu::so_sanh( array( 'thang' => 'rác' ) );
 teq( '   tháng sai dạng → tháng hiện tại', '2026-09', $kq['thang'] );
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 6. ĐỌC THẲNG CÙNG WORDPRESS (`tai_cho()`) — Chấm công/Doanh thu/Chi phí chạy chung một site.
+ * Anh Thắng 25/09/2026, sau khi 1.326.0 cài xong: *"anh vẫn chưa thấy doanh thu theo cơ sở qua"*.
+ * Lý do: đường HTTP cần cài thêm bản Doanh thu (chưa từng đóng gói). Cùng WordPress thì đọc
+ * thẳng bảng `khh_dt_ngay`, không cần địa chỉ, không cần khoá, không gọi mạng.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+if ( ! function_exists( 'khh_dt_bang' ) ) { function khh_dt_bang() { global $wpdb; return $wpdb->prefix . 'khh_dt_ngay'; } }
+if ( ! function_exists( 'khh_dt_slug' ) ) { function khh_dt_slug() { return 'doanh-thu-hcm'; } }
+global $wpdb;
+$wpdb->query( "CREATE TABLE {$wpdb->prefix}khh_dt_ngay (id INTEGER PRIMARY KEY AUTOINCREMENT, ngay TEXT, cua_hang TEXT, doanh_thu REAL DEFAULT 0, thanh_tien REAL DEFAULT 0, so_hd INTEGER DEFAULT 0)" );
+$them_dt = function ( $ngay, $ch, $dt ) use ( $wpdb ) {
+	$wpdb->query( $wpdb->prepare( "INSERT INTO {$wpdb->prefix}khh_dt_ngay (ngay,cua_hang,doanh_thu,thanh_tien,so_hd) VALUES (%s,%s,%f,%f,%d)", $ngay, $ch, $dt, $dt, 1 ) );
+};
+$them_dt( '2026-06-01', 'FUNZONE ADVENTURE GO AN LẠC ( Dịch Vụ và Giải Trí K&H )', 10000000 );
+$them_dt( '2026-07-01', 'FUNZONE ADVENTURE GO AN LẠC ( Dịch Vụ và Giải Trí K&H )', 12000000 );
+$them_dt( '2026-09-01', 'FUNZONE ADVENTURE GO AN LẠC ( Dịch Vụ và Giải Trí K&H )', 8000000 );
+$them_dt( '2026-05-10', 'TAU ESTELLA', 5000000 );
+$them_dt( '2026-08-01', 'TAU ESTELLA', 20000000 );        // SAU ngày đóng 15/07 — phải bị loại
+$them_dt( '2026-06-15', 'FUNZONE VUNG TAU POS', 3000000 );
+/* 🔴 MỘT DÒNG "CỬA HÀNG RỖNG" THẬT trong sổ — mô phỏng dữ liệu POS lỗi. Cơ sở chưa khai "Tên
+   bên Doanh thu" (`tenDoanhThu` rỗng) TUYỆT ĐỐI không được vô tình gộp vào dòng rỗng này. */
+$them_dt( '2026-01-01', '', 999999999 );
+
+t( '🔴 tai_cho() = true khi có khh_dt_bang() (cùng WordPress với Doanh thu)', VHCP_DoanhThu::tai_cho() );
+$ch_tc = VHCP_DoanhThu::cau_hinh();
+t( '🔴 cau_hinh(): taiCho=true và san=true — dù url/khoá đã khai hay chưa', $ch_tc['taiCho'] && $ch_tc['san'], $ch_tc );
+
+$luot_get_truoc = count( $GLOBALS['VHCP_DA_GET'] );
+$kq_tc = VHCP_DoanhThu::goi( '2026-01-01', '2026-12-31' );
+t( '🔴 goi() đọc thẳng: ok=true và KHÔNG gọi ra mạng (đếm GET không đổi)',
+	! empty( $kq_tc['ok'] ) && count( $GLOBALS['VHCP_DA_GET'] ) === $luot_get_truoc, $kq_tc );
+teq( '   nguồn = tai_cho', 'tai_cho', $kq_tc['nguon'] );
+/* 🔴 `san` KHÔNG ĐƯỢC PHỤ THUỘC url/khoá khi đã tai_cho — xoá địa chỉ đi, san vẫn phải true. */
+VHCP_Cfg::save_config( array( 'doanhThu' => array( 'url' => '', 'khoa' => '' ) ) );
+$ch_khong_url = VHCP_DoanhThu::cau_hinh();
+t( '🔴 tai_cho(): san=true dù KHÔNG có địa chỉ/khoá nào', ! empty( $ch_khong_url['san'] ) && $ch_khong_url['taiCho'], $ch_khong_url );
+VHCP_Cfg::save_config( array( 'doanhThu' => array( 'url' => 'https://khmatrix.com/doanh-thu-hcm', 'khoa' => 'KHOA-BI-MAT-1234567890' ) ) );
+$fz_kq = null; foreach ( $kq_tc['cuaHang'] as $x ) { if ( 'FUNZONE ADVENTURE GO AN LẠC ( Dịch Vụ và Giải Trí K&H )' === $x['ten'] ) { $fz_kq = $x; } }
+teq( '   tổng doanh thu FUNZONE trong khoảng gọi', 30000000.0, $fz_kq ? $fz_kq['doanhThu'] : null );
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 7. DOANH THU ĐỜI GIAN CHO KHỐI KỸ THUẬT (`VHCP_DoanhThu::doi_gian()`, gọi từ `list_du_an()`).
+ * Anh Thắng: *"Từ ngày Setup đến Tháo dỡ (Khuyến nghị)"* · *"Anh/kế toán chọn một lần"* (cột
+ * "Tên bên Doanh thu" đã có, dùng lại — không dựng ô chọn mới).
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+VHCP_Cfg::save_config( array( 'coso' => array(
+	array( 'ten' => 'FUNZONE AN LẠC', 'maDonVi' => 'FZAL', 'phanLoaiLon' => 'KVC MN', 'tenMisa' => 'FZ AN LAC', 'tenDoanhThu' => 'FUNZONE ADVENTURE GO AN LẠC ( Dịch Vụ và Giải Trí K&H )' ),
+	array( 'ten' => 'Nhà Ma Phan Văn Trị', 'maDonVi' => 'NMPVT', 'phanLoaiLon' => 'KVC MN', 'tenMisa' => 'NHA MA PVT' ),
+	array( 'ten' => 'KHO TỔNG', 'maDonVi' => 'KHO', 'phanLoaiLon' => 'KVC MN', 'tenMisa' => 'KHO' ),
+	array( 'ten' => 'VINCOM BÀ TRIỆU', 'maDonVi' => 'VBT', 'phanLoaiLon' => 'MTĐ MB', 'tenMisa' => 'TTT VINCOM BA TRIEU' ),
+	/* 🔴 CƠ SỞ TRÙNG RÚT GỌN, ĐỨNG TRƯỚC — "TÀU-ESTELLA" (gạch nối) rút gọn cũng ra "tau estella"
+	   y hệt "TÀU ESTELLA" bên dưới, nhưng KHÔNG PHẢI cùng một gian (tên khai khác chữ). Khớp
+	   ĐÚNG TÊN phải thắng khớp rút gọn — không thì dự án "TÀU ESTELLA" (khớp đúng, có sẵn) lại
+	   bị gán nhầm sang cơ sở đứng trước chỉ vì rút gọn trùng, và tenDoanhThu của nó chưa seed
+	   doanh thu nên sẽ lộ ra ngay bằng "chua_noi" sai. */
+	array( 'ten' => 'TÀU-ESTELLA', 'maDonVi' => 'TEX', 'phanLoaiLon' => 'KVC MN', 'tenMisa' => 'TAU-ESTELLA', 'tenDoanhThu' => 'POS_TAU_ESTELLA_SAI' ),
+	/* 🔴 GIAN ĐÃ ĐÓNG — doanh thu SAU ngày đóng KHÔNG được tính vào "cả đời gian". */
+	array( 'ten' => 'TÀU ESTELLA', 'maDonVi' => 'TE', 'phanLoaiLon' => 'KVC MN', 'tenMisa' => 'TAU ESTELLA', 'tenDoanhThu' => 'TAU ESTELLA', 'dongCua' => '15/07/2026' ),
+	/* Cơ sở CHƯA khai "Tên bên Doanh thu" — dự án khớp tên nhưng doanh thu phải nói "chưa nối". */
+	array( 'ten' => 'NHÀ MA CHƯA NỐI', 'maDonVi' => 'NMCN', 'phanLoaiLon' => 'KVC MN', 'tenMisa' => 'NHA MA CHUA NOI' ),
+	/* Tên khác DẤU / HOA-THƯỜNG với dự án — phải khớp qua `rut_gon()`, không khớp ĐÚNG chữ. */
+	array( 'ten' => 'FUNZONE VŨNG TÀU', 'maDonVi' => 'FVT', 'phanLoaiLon' => 'KVC MN', 'tenMisa' => 'FZ VT', 'tenDoanhThu' => 'FUNZONE VUNG TAU POS' ),
+) ) );
+VHCP_Cfg::clear_cache();
+
+$d_setup_khai   = VHCP_DuAn::create_du_an( 'Setup lắp đặt', 'FUNZONE AN LẠC', 'KT' );
+$d_thao_dong    = VHCP_DuAn::create_du_an( 'Tháo dỡ', 'TÀU ESTELLA', 'KT' );
+$d_chua_noi     = VHCP_DuAn::create_du_an( 'Setup lắp đặt', 'NHÀ MA CHƯA NỐI', 'KT' );
+$d_khong_coso   = VHCP_DuAn::create_du_an( 'Setup lắp đặt', 'GIAN LẠ KHÔNG CÓ TRONG SỔ', 'KT' );
+$d_rut_gon      = VHCP_DuAn::create_du_an( 'Setup lắp đặt', 'Funzone Vung Tau', 'KT' );   // không dấu — rut_gon() mới khớp
+$d_trung_1      = VHCP_DuAn::create_du_an( 'Tháo dỡ', 'DUP GIAN', 'KT' );
+$d_trung_2      = VHCP_DuAn::create_du_an( 'Tháo dỡ', 'DUP GIAN', 'KT' );
+
+$lda = VHCP_DuAn::list_du_an();
+t( '   list_du_an() vẫn chạy', ! empty( $lda['success'] ), $lda );
+$theo_ma = array(); foreach ( $lda['items'] as $x ) { $theo_ma[ $x['maDA'] ] = $x; }
+
+$x = $theo_ma[ $d_setup_khai['maDA'] ];
+teq( '🔴 gian còn mở: doanh thu = cả đời tới hôm nay (10tr+12tr+8tr)', 30000000.0, $x['doanhThu'] );
+teq( '   dtTu = ngày đầu có doanh thu', '2026-06-01', $x['dtTu'] );
+teq( '   dtNoi = khai', 'khai', $x['dtNoi'] );
+teq( '   dtCuaHang = đúng tên bên POS', 'FUNZONE ADVENTURE GO AN LẠC ( Dịch Vụ và Giải Trí K&H )', $x['dtCuaHang'] );
+
+$x = $theo_ma[ $d_thao_dong['maDA'] ];
+teq( '🔴 gian đã đóng: doanh thu CẮT ở ngày đóng — chỉ tính 5tr trước 15/07, bỏ 20tr sau đó', 5000000.0, $x['doanhThu'] );
+teq( '   dtDen = đúng ngày đóng', '2026-07-15', $x['dtDen'] );
+
+$x = $theo_ma[ $d_chua_noi['maDA'] ];
+teq( '🔴 cơ sở chưa khai "Tên bên Doanh thu" → dtNoi = chua_noi, KHÔNG đoán số', 'chua_noi', $x['dtNoi'] );
+t( '   và không có trường doanhThu nào bị bịa ra', ! isset( $x['doanhThu'] ), $x );
+t( '🔴 và chắc chắn KHÔNG lấy nhầm dòng "cửa hàng rỗng" (999.999.999) ở sổ',
+	! isset( $x['doanhThu'] ) || 999999999.0 !== (float) $x['doanhThu'], $x );
+
+$x = $theo_ma[ $d_khong_coso['maDA'] ];
+teq( '🔴 tên gian không khớp cơ sở nào → dtNoi = khong_coso', 'khong_coso', $x['dtNoi'] );
+
+$x = $theo_ma[ $d_rut_gon['maDA'] ];
+teq( '🔴 tên khác dấu/hoa-thường khớp qua rut_gon() — không phải đoán mò', 'khai', $x['dtNoi'] );
+teq( '   và lấy đúng doanh thu của FUNZONE VUNG TAU POS', 3000000.0, $x['doanhThu'] );
+
+teq( '🔴 hai dự án trùng tên đều được đánh dấu trungTen', array( true, true ),
+	array( $theo_ma[ $d_trung_1['maDA'] ]['trungTen'], $theo_ma[ $d_trung_2['maDA'] ]['trungTen'] ) );
+t( '   dự án tên riêng không bị đánh dấu trùng', empty( $theo_ma[ $d_setup_khai['maDA'] ]['trungTen'] ), $theo_ma[ $d_setup_khai['maDA'] ] );
+
+/* 🔴 MỘT DÒNG DỮ LIỆU HỎNG KHÔNG ĐƯỢC LÀM SẬP list_du_an() — `doi_gian()` phải NUỐT lỗi.
+   Ép một `stdClass` vào `ten` (không có __toString()): ép kiểu `(string)` trong vòng lặp sẽ
+   ném `\Error`. Không có `try/catch` thì cả `list_du_an()` — thứ nhiều màn khác đang dùng —
+   sẽ trắng trang chỉ vì MỘT dòng doanh thu hỏng. */
+$hong = array( array( 'maDA' => 'DA_HONG', 'ten' => new stdClass(), 'loai' => 'Setup lắp đặt' ) );
+$ra_hong = null; $nem_ra = false;
+try { $ra_hong = VHCP_DoanhThu::doi_gian( $hong ); } catch ( \Throwable $e ) { $nem_ra = true; }
+t( '🔴 doi_gian() với dữ liệu hỏng: KHÔNG ném lỗi ra ngoài', ! $nem_ra, $nem_ra );
+t( '   và vẫn trả về một mảng (không vỡ list_du_an() đang gọi nó)', is_array( $ra_hong ), $ra_hong );
+
+/* ⚠️ Chi phí cơ sở KHÔNG phải một "gian" để so doanh thu — đi qua nguyên vẹn, không có dtNoi. */
+$cpcs = VHCP_DuAn::ensure_co_so_chung( 'KT' );
+$lda2 = VHCP_DuAn::list_du_an();
+$cpcs_item = null; foreach ( $lda2['items'] as $x ) { if ( 'Chi phí cơ sở' === $x['loai'] ) { $cpcs_item = $x; } }
+t( '⚠️ dòng Chi phí cơ sở không có dtNoi (không phải một gian)', $cpcs_item && ! isset( $cpcs_item['dtNoi'] ), $cpcs_item );
+
+/* ⚠️ SITE CHẠY RIÊNG (vd `vhcp-chi-phi-hn`, không cùng WordPress với Doanh thu): `tai_cho()`
+   trả `false` NGAY TỪ ĐẦU tệp này (trước khi `khh_dt_bang()` được định nghĩa ở mục 6) — phép
+   `teq('   san=true, khoaCo=true, url (Admin) bỏ dấu / cuối, chưa đọc thẳng…', …, 'taiCho'=>false)`
+   ở mục 1 CHÍNH LÀ phép gác cảnh đó: `doi_gian()` phải trả nguyên `$items`, không đổ `list_du_an()`,
+   và không bịa `dtNoi` cho ai — PHP không cho "undefine" một hàm toàn cục giữa bài kiểm (không có
+   runkit ở PHP 8), nên cảnh ấy được gác ở ĐẦU tệp, lúc hàm còn chưa tồn tại, chứ không giả lập lại
+   ở đây. */
+
+
 if ( $TRUOT ) { echo "\n✗ TRƯỢT " . count( $TRUOT ) . " phép (đạt $DAT):\n"; foreach ( $TRUOT as $x ) { echo "  · $x\n"; } exit( 1 ); }
-echo "\n✓ SẠCH — $DAT phép: kết nối web Doanh thu, khớp tên, so sánh doanh thu vs chi phí theo cơ sở.\n";
+echo "\n✓ SẠCH — $DAT phép: kết nối web Doanh thu, khớp tên, so sánh doanh thu vs chi phí theo cơ sở, đọc thẳng cùng WordPress, doanh thu đời gian cho khối Kỹ thuật.\n";

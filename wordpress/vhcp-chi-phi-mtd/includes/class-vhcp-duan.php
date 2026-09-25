@@ -381,6 +381,28 @@ class VHCPMTD_DuAn {
 			$coso = array();
 			foreach ( VHCPMTD_Cfg::cfg_static()['coso'] as $x ) { $coso[] = $x['ten']; }
 		}
+
+		/* 🔴 TRÙNG TÊN GIAN — anh Thắng nhìn khối Kỹ thuật thấy "FUNFEST SC VIVO" và "NHÀ MA BÀ
+		   RỊA" đứng hai lần. Không phải lỗi gộp bảng: `create_du_an()` không chặn trùng tên, nên
+		   hai BẢN GHI `da_index` cùng `ten` là hai dự án THẬT đứng cạnh nhau — và `sc_cua()` khớp
+		   sổ chi phí THEO TÊN, nên cả hai dòng cùng nhận một khoản sổ chi, cộng đôi vào "Tổng Kỹ
+		   thuật". Gộp hay xoá là việc của người, không phải việc đoán ở đây — chỉ đánh dấu để
+		   không ai đọc nhầm hai dòng là hai gian khác nhau. */
+		$dem_ten = array();
+		foreach ( $out as $x ) {
+			$k = mb_strtolower( trim( (string) $x['ten'] ) );
+			if ( '' === $k ) { continue; }
+			$dem_ten[ $k ] = ( isset( $dem_ten[ $k ] ) ? $dem_ten[ $k ] : 0 ) + 1;
+		}
+		foreach ( $out as $i => $x ) {
+			$k = mb_strtolower( trim( (string) $x['ten'] ) );
+			$out[ $i ]['trungTen'] = ( '' !== $k && $dem_ten[ $k ] > 1 );
+		}
+
+		/* 🔴 DOANH THU ĐỜI GIAN — anh Thắng 25/09/2026, xem mục `doi_gian()`. Gọi SAU CÙNG, sau
+		   khi mọi trường khác đã ổn định; lỗi ở đây không được làm đổ cả bảng dự án. */
+		if ( class_exists( 'VHCPMTD_DoanhThu' ) ) { $out = VHCPMTD_DoanhThu::doi_gian( $out ); }
+
 		return VHCPMTD_Util::ok( array( 'items' => array_reverse( $out ), 'coso' => $coso ) );
 	}
 

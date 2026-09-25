@@ -43,9 +43,11 @@ class VHCPHN_DoanhThu {
 	 * Địa chỉ chỉ trả cho Admin (người sửa được nó); khoá KHÔNG BAO GIỜ trả.
 	 */
 	public static function cau_hinh() {
+		$tai_cho = self::tai_cho();
 		$url = self::url(); $co = '' !== self::khoa();
 		$admin = class_exists( 'VHCPHN_Auth' ) && 'Admin' === VHCPHN_Auth::vai_tro();
-		return array( 'san' => ( '' !== $url && $co ), 'url' => $admin ? $url : '', 'khoaCo' => $co );
+		/* Cùng WordPress thì `san` LUÔN true — không cần url/khoá gì cả. */
+		return array( 'san' => ( $tai_cho || ( '' !== $url && $co ) ), 'url' => $admin ? $url : '', 'khoaCo' => $co, 'taiCho' => $tai_cho );
 	}
 
 	/**
@@ -84,11 +86,71 @@ class VHCPHN_DoanhThu {
 	}
 
 	/**
+	 * ĐANG CHẠY CHUNG MỘT WORDPRESS VỚI PLUGIN DOANH THU?
+	 *
+	 * Anh Thắng 25/09/2026: *"Em có thể lấy doanh thu cơ sở trên web doanh-thu-hcm không."*, rồi
+	 * sau khi 1.326.0 cài xong: *"anh vẫn chưa thấy doanh thu theo cơ sở qua"*. Lý do: đường HTTP
+	 * cần BA BƯỚC TAY (cài bản Doanh thu mới có "Chia sẻ cho Chi phí" → Tạo khoá → dán khoá), mà
+	 * phần bên Doanh thu CHƯA TỪNG được đóng gói (không có `dist/khh-doanh-thu.zip`) — trên host
+	 * cửa `doanh-thu-co-so` không tồn tại, nên có dán khoá đúng cũng chỉ ra 404.
+	 *
+	 * Trong khi đó Chấm công đã gọi thẳng `khh_dt_day_vao()` trong PHP
+	 * (`class-vhcc-day-bao-cao.php:65-67, :182`) — nghĩa là Chấm công, Doanh thu và bộ này CÙNG
+	 * MỘT WORDPRESS, CÙNG MỘT CSDL. Cùng CSDL thì đọc thẳng bảng `{prefix}khh_dt_ngay`
+	 * (`khh_dt_bang()`, `khh-doanh-thu.php:84-86`) — không cần địa chỉ web, không cần khoá, không
+	 * độ trễ mạng, và Admin thấy ngay khi mở Tổng quan.
+	 *
+	 * Đường HTTP (`goi_mot()` ở trên) vẫn giữ nguyên cho site chạy RIÊNG (một bản vùng dựng bằng `tach-ban-vung.sh`), nơi
+	 * Doanh thu nằm ở một WordPress khác thật.
+	 *
+	 * ⚠️ GÁC ĐÚNG HÀM, NGAY TRONG HÀM GỌI NÓ — luật `kiem-goi-cheo.php`. `tai_cho()` là điểm gác
+	 *    DUY NHẤT; `goi_tai_cho()` chỉ được gọi SAU khi hàm này đã trả `true`.
+	 */
+	public static function tai_cho() {
+		return function_exists( 'khh_dt_bang' );
+	}
+
+	/**
+	 * Đọc thẳng bảng của Doanh thu — CÙNG SQL với `chia-se-chi-phi.php:92-93` bên đó (đường HTTP
+	 * 1.326.0), chỉ khác là chạy ngay trong tiến trình này. Trả cùng khuôn với `goi_mot()`.
+	 */
+	private static function goi_tai_cho( $tu, $den ) {
+		if ( ! self::tai_cho() ) { return array( 'ok' => false, 'ma' => 0, 'error' => 'Không đọc thẳng được ở đây.' ); }
+		global $wpdb;
+		$bang = khh_dt_bang();
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			"SELECT cua_hang, SUM(doanh_thu) dt, SUM(thanh_tien) tt, SUM(so_hd) hd, COUNT(DISTINCT ngay) n
+			   FROM $bang WHERE ngay >= %s AND ngay <= %s GROUP BY cua_hang ORDER BY dt DESC",
+			$tu, $den ), ARRAY_A );
+		$ds = array();
+		foreach ( (array) $rows as $r ) {
+			$ten = trim( (string) $r['cua_hang'] );
+			if ( '' === $ten ) { continue; }
+			$ds[] = array( 'ten' => $ten, 'doanhThu' => (float) $r['dt'], 'thanhTien' => (float) $r['tt'],
+				'soHd' => (int) $r['hd'], 'soNgay' => (int) $r['n'] );
+		}
+		/* `khh_dt_slug()` là hàm CÙNG plugin với `khh_dt_bang()` — đã gác `tai_cho()` ở trên rồi. */
+		$web = function_exists( 'khh_dt_slug' ) ? home_url( '/' . ltrim( (string) khh_dt_slug(), '/' ) ) : home_url( '/' );
+		return array( 'ok' => true, 'ma' => 200, 'cuaHang' => $ds, 'web' => $web, 'goc' => home_url( '/' ), 'nguon' => 'tai_cho' );
+	}
+
+	/**
 	 * GET sang web Doanh thu. Trả { ok, cuaHang:[{ten,doanhThu,thanhTien,soHd,soNgay}], web } hoặc { ok:false, error }.
 	 * Người đưa địa chỉ trang báo cáo (…/doanh-thu-hcm) thay vì gốc web thì lượt đầu 404 → thử lại
 	 * ở gốc (scheme://host) một lần.
 	 */
 	public static function goi( $tu, $den, $tuoi = false ) {
+		/* 🔴 CÙNG WORDPRESS THÌ ĐỌC THẲNG, KHÔNG HỎI ĐỊA CHỈ / KHOÁ. Xem `tai_cho()`. */
+		if ( self::tai_cho() ) {
+			$k = 'vhcphn_dt_tc_' . md5( $tu . '|' . $den );
+			if ( ! $tuoi ) {
+				$nho = get_transient( $k );
+				if ( is_array( $nho ) && ! empty( $nho['ok'] ) ) { $nho['nho'] = true; return $nho; }
+			}
+			$kq = self::goi_tai_cho( $tu, $den );
+			if ( $kq['ok'] ) { set_transient( $k, $kq, self::NHO ); }
+			return $kq;
+		}
 		$url = self::url(); $khoa = self::khoa();
 		if ( '' === $url || '' === $khoa ) {
 			return array( 'ok' => false, 'error' => 'Chưa khai địa chỉ web Doanh thu hoặc khoá chia sẻ (Cấu hình ▸ Kết nối web Doanh thu).' );
@@ -342,4 +404,107 @@ class VHCPHN_DoanhThu {
 			'cuaHangDs' => array_map( function ( $x ) { return $x['ten']; }, $kq['cuaHang'] ),
 		) );
 	}
+
+	// ------------------------------------------------------------------ doanh thu ĐỜI GIAN (Kỹ thuật)
+
+	/**
+	 * DOANH THU TỪ NGÀY SETUP ĐẾN NGÀY THÁO DỠ — cho khối "Chi phí Kỹ thuật" ở Tổng quan.
+	 *
+	 * Anh Thắng 25/09/2026, sau khi xem ảnh khối Kỹ thuật, chọn so *"Từ ngày Setup đến Tháo dỡ
+	 * (Khuyến nghị)"*: *"Cả đời gian: cộng doanh thu từ ngày mở tới ngày tháo (chưa tháo thì tới
+	 * hôm nay). Khớp đúng với cột Thực tế — cũng là cả đời gian — nên so được thẳng."* Và với câu
+	 * hỏi tên hai bên không giống nhau ("TuTu Train – Aeon Tân Phú" ≠ "ADV SỰ KIỆN TÂN PHÚ"), anh
+	 * chọn *"Anh/kế toán chọn một lần"* — dùng lại đúng cột **"Tên bên Doanh thu"** ở bảng Cơ sở
+	 * (đã có sẵn từ 1.326.0), KHÔNG dựng thêm một ô chọn nào mới.
+	 *
+	 * Vào: `$items` = mảng của `VHCPHN_DuAn::list_du_an()` (mỗi phần tử có `ten`, `loai`). Ra: CÙNG
+	 * mảng ấy; mỗi phần tử `loai` Setup/Tháo dỡ được thêm `doanhThu` · `dtTu` · `dtDen` (Y-m-d) ·
+	 * `dtCuaHang` (tên bên POS) · `dtNoi` ('khai'|'chua_noi'|'khong_coso'). `Chi phí cơ sở` đi
+	 * qua nguyên vẹn — nó không phải một gian để so doanh thu.
+	 *
+	 * ⚠️ CHỈ CHẠY KHI `tai_cho()`. Đường HTTP (site chạy riêng, xem `tools/tach-ban-vung.sh`) không lộ
+	 *    `MIN(ngay)` — `chia-se-chi-phi.php` chỉ trả tổng trong [tu,den] CHO SẴN — nên không tự
+	 *    dò được "ngày đầu có doanh thu" mà không hỏi nhiều lượt cho MỖI cửa hàng MỖI lần mở
+	 *    Tổng quan. Bỏ qua đúng trường hợp ấy còn hơn gọi HTTP hàng chục lượt một lần tải trang.
+	 * ⚠️ LỖI THÌ TRẢ NGUYÊN `$items`, KHÔNG NÉM RA — hàm này nuôi `list_du_an()`, thứ nhiều màn
+	 *    khác đang dùng; một lỗi ở doanh thu không được phép làm sập cả bảng dự án.
+	 * ⚠️ GẦN NHƯ MỘT LỆNH SQL CHO MỌI CỬA HÀNG: nhóm theo TÊN CỬA HÀNG (nhiều gian có thể dùng
+	 *    chung một cửa hàng), một lệnh gộp lấy `MIN(ngay)` + tổng CẢ ĐỜI cho tất cả; cửa hàng ĐÃ
+	 *    ĐÓNG (`dongCua` có ngày) mới hỏi thêm MỘT lệnh riêng để trừ phần doanh thu sau ngày đóng.
+	 *    Số lệnh phụ thuộc số CỬA HÀNG ĐÃ ĐÓNG (thường vài cái), không phụ thuộc số DỰ ÁN —
+	 *    `bench-queries.php` đo đúng chỗ này khi seed dự án tăng dần.
+	 */
+	public static function doi_gian( array $items ) {
+		try {
+			if ( ! self::tai_cho() ) { return $items; }
+			$coso_ds = class_exists( 'VHCPHN_Cfg' ) ? (array) VHCPHN_Cfg::cfg_static()['coso'] : array();
+			if ( ! $coso_ds ) { return $items; }
+
+			/* gian (dự án) → cơ sở: khớp ĐÚNG tên trước (Tháo dỡ vốn CHỌN tên từ chính danh sách
+			   cơ sở, nên khớp chắc), rồi mới rút gọn cho tên Setup gõ tay. Cùng một nguồn vựng
+			   nội bộ nên không cần khớp theo TỪ như `anh_xa()` (cái đó dành riêng cho tên bên
+			   POS, vốn mang đuôi công ty và tên thương hiệu khác hẳn quy ước đặt tên ở đây). */
+			$theo_ten = array(); $theo_rg = array();
+			foreach ( $coso_ds as $c ) {
+				$c   = (array) $c;
+				$ten = trim( (string) ( isset( $c['ten'] ) ? $c['ten'] : '' ) );
+				if ( '' === $ten ) { continue; }
+				$theo_ten[ mb_strtolower( $ten ) ] = $c;
+				$g = self::rut_gon( $ten );
+				if ( '' !== $g && ! isset( $theo_rg[ $g ] ) ) { $theo_rg[ $g ] = $c; }
+			}
+
+			$can = array(); $hom_nay = VHCPHN_Util::now()->format( 'Y-m-d' );
+			foreach ( $items as $i => $x ) {
+				if ( ! in_array( isset( $x['loai'] ) ? $x['loai'] : '', array( 'Setup lắp đặt', 'Tháo dỡ' ), true ) ) { continue; }
+				$ten_gian = trim( (string) ( isset( $x['ten'] ) ? $x['ten'] : '' ) );
+				$k = mb_strtolower( $ten_gian );
+				$c = isset( $theo_ten[ $k ] ) ? $theo_ten[ $k ] : null;
+				if ( null === $c ) {
+					$g = self::rut_gon( $ten_gian );
+					$c = ( '' !== $g && isset( $theo_rg[ $g ] ) ) ? $theo_rg[ $g ] : null;
+				}
+				if ( null === $c ) { $items[ $i ]['dtNoi'] = 'khong_coso'; continue; }
+				$tdt = trim( (string) ( isset( $c['tenDoanhThu'] ) ? $c['tenDoanhThu'] : '' ) );
+				if ( '' === $tdt ) { $items[ $i ]['dtNoi'] = 'chua_noi'; continue; }
+				$dong_ngay = VHCPHN_Util::parse_date( isset( $c['dongCua'] ) ? $c['dongCua'] : '' );
+				$can[ $i ] = array( 'cuaHang' => $tdt, 'den' => $dong_ngay ? $dong_ngay : $hom_nay, 'moc' => $dong_ngay );
+			}
+			if ( ! $can ) { return $items; }
+
+			global $wpdb;
+			$bang   = khh_dt_bang();
+			$ten_ds = array_values( array_unique( array_column( $can, 'cuaHang' ) ) );
+			$hold   = implode( ',', array_fill( 0, count( $ten_ds ), '%s' ) );
+			$rows   = $wpdb->get_results( $wpdb->prepare(
+				"SELECT cua_hang, MIN(ngay) tu, SUM(doanh_thu) dt FROM $bang WHERE cua_hang IN ($hold) GROUP BY cua_hang",
+				$ten_ds ), ARRAY_A );
+			$so = array();
+			foreach ( (array) $rows as $r ) { $so[ (string) $r['cua_hang'] ] = array( 'tu' => (string) $r['tu'], 'dt' => (float) $r['dt'] ); }
+
+			/* Cửa hàng ĐÃ ĐÓNG: trừ phần doanh thu phát sinh SAU ngày đóng — một lệnh cho MỖI
+			   TÊN CỬA HÀNG đã đóng (không phải mỗi dự án); nhiều gian trùng tên chỉ tốn một lệnh. */
+			$moc_cua = array();
+			foreach ( $can as $x ) { if ( $x['moc'] ) { $moc_cua[ $x['cuaHang'] ] = isset( $moc_cua[ $x['cuaHang'] ] ) ? min( $moc_cua[ $x['cuaHang'] ], $x['moc'] ) : $x['moc']; } }
+			foreach ( $moc_cua as $ten => $moc ) {
+				if ( ! isset( $so[ $ten ] ) ) { continue; }
+				$sau = (float) $wpdb->get_var( $wpdb->prepare( "SELECT SUM(doanh_thu) FROM $bang WHERE cua_hang = %s AND ngay > %s", $ten, $moc ) );
+				$so[ $ten ]['dt'] -= $sau;
+			}
+
+			foreach ( $can as $i => $x ) {
+				$ten = $x['cuaHang'];
+				if ( ! isset( $so[ $ten ] ) ) { $items[ $i ]['dtNoi'] = 'chua_noi'; continue; }
+				$items[ $i ]['doanhThu']  = (float) $so[ $ten ]['dt'];
+				$items[ $i ]['dtTu']      = $so[ $ten ]['tu'];
+				$items[ $i ]['dtDen']     = isset( $moc_cua[ $ten ] ) ? $moc_cua[ $ten ] : $hom_nay;
+				$items[ $i ]['dtCuaHang'] = $ten;
+				$items[ $i ]['dtNoi']     = 'khai';
+			}
+			return $items;
+		} catch ( \Throwable $e ) {
+			return $items;   // doanh thu lỗi KHÔNG được làm đổ list_du_an() — nhiều màn khác dùng nó.
+		}
+	}
+
 }
