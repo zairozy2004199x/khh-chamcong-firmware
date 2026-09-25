@@ -3740,11 +3740,17 @@
       '<span class="goi">' + (ds.length ? ds.length + ' món · ' + (r.so_ve || 0) + ' vé · ' + (r.so_combo || 0) + ' combo · nạp ' + esc(String(r.luc || '').slice(0, 16)) : 'chưa nạp') + '</span></header>' +
       '<div class="chu-them">Hàng mới tạo trên FABi mà <b>chưa bán</b> thì báo cáo bán hàng chưa có, nên sổ kho / combo / bóc tách vé không có tên để chọn ' +
       'và nhân viên phải gõ tay — gõ lệch một chữ là sai. Xuất bản <b>Danh sách hàng hoá</b> từ FABi (file "update item in store", cột Mã món · Cửa hàng · Tên · ' +
-      'Tên nhóm · Tên loại) rồi nạp ở đây; mỗi lần nạp là thay cả bản. Từ đó mọi ô chọn có đủ tên đúng FABi kèm mã, kể cả món chưa bán.</div>' +
+      'Tên nhóm · Tên loại) rồi nạp ở đây. <b>FABi xuất mỗi quán một file — nạp từng file, quán nào trong file thì thay phần quán ấy, ' +
+      'quán khác giữ nguyên.</b> File có cột Cửa hàng thì không cần chọn cơ sở; file không có cột ấy mới chọn ở ô bên. Từ đó mọi ô chọn có đủ tên đúng FABi kèm mã, kể cả món chưa bán.</div>' +
       '<div class="loc" style="margin-top:10px;gap:8px"><input type="file" id="dmFile" accept=".xlsx,.xlsm,.csv,.tsv,.txt">' +
+      '<label class="o">Cơ sở<select id="dmCS"><option value="">— theo cột Cửa hàng trong file —</option>' +
+        ((S.cf && S.cf.cua_hang) || []).map(function (t) { return '<option value="' + esc(t) + '">' + esc(t) + '</option>'; }).join('') + '</select></label>' +
       '<button class="nut chinh" type="button" id="dmNap">Nạp danh sách hàng hoá</button>' +
       (ds.length ? '<button class="vien" type="button" id="dmTai">Tải danh mục (CSV)</button><button class="vien" type="button" id="dmXoa">Xoá danh mục</button>' : '') +
-      '<span id="dmBao" class="chu-them" style="margin:0"></span></div>';
+      '<span id="dmBao" class="chu-them" style="margin:0"></span></div>' +
+      ((r.theo_quan || []).length
+        ? '<div class="chu-them" style="margin-top:8px"><b>Đã có:</b> ' + r.theo_quan.map(function (x) { return esc(x.cua_hang) + ' <b>' + x.so + '</b>' + (x.luc ? ' <span style="opacity:.7">(' + esc(String(x.luc).slice(0, 16)) + ')</span>' : ''); }).join(' · ') + '</div>'
+        : '');
     if (ds.length) {
       h += '<details style="margin-top:10px"><summary>Xem ' + ds.length + ' món theo nhóm</summary>' +
         '<div class="chu-them" style="margin-top:6px">' + Object.keys(nhom).map(function (n) { return esc(n) + ' <b>' + nhom[n] + '</b>'; }).join(' · ') + '</div>' +
@@ -3766,11 +3772,13 @@
       var f = k.querySelector('#dmFile').files[0];
       if (!f) { bao('Chọn file "Danh sách hàng hoá" xuất từ FABi trước.'); return; }
       var fd = new FormData(); fd.append('file', f, f.name);
+      var cs = k.querySelector('#dmCS').value; if (cs) fd.append('cua_hang', cs);
       nap.disabled = true; nap.textContent = 'Đang nạp…';
       api('danh-muc', { method: 'POST', body: fd }).then(function (r2) {
         veDanhMuc(o, r2);
         var v = r2.vua_nap || {};
-        var b2 = o.querySelector('#dmBao'); if (b2) b2.textContent = 'Đã nạp ' + v.so + ' món' + (v.moi ? ' · ' + v.moi + ' món mới so với bản trước' : '') + (v.mat ? ' · ' + v.mat + ' món không còn' : '') + '.';
+        var b2 = o.querySelector('#dmBao'); if (b2) b2.textContent = 'Đã nạp ' + v.so + ' món' + ((v.quan || []).length ? ' cho ' + v.quan.join(', ') : ' (chung mọi quán)') +
+          (v.moi ? ' · ' + v.moi + ' món mới' : '') + (v.mat ? ' · ' + v.mat + ' món không còn' : '') + ' · cả bảng ' + v.tong + ' món.';
       }).catch(function (e) { nap.disabled = false; nap.textContent = 'Nạp danh sách hàng hoá'; bao(e.message || e); });
     });
     var tai = k.querySelector('#dmTai');
@@ -3785,8 +3793,9 @@
     });
     var xoa = k.querySelector('#dmXoa');
     if (xoa) xoa.addEventListener('click', function () {
-      if (!window.confirm('Xoá danh mục hàng hoá FABi đã nạp? Các ô chọn quay về chỉ còn món đã bán.')) return;
-      var fd = new FormData(); fd.append('xoa', '1');
+      var cs = k.querySelector('#dmCS').value;
+      if (!window.confirm(cs ? 'Xoá phần danh mục của "' + cs + '"? Quán khác giữ nguyên.' : 'Xoá CẢ danh mục hàng hoá FABi đã nạp (mọi quán)? Muốn xoá một quán thì chọn quán ở ô Cơ sở trước.')) return;
+      var fd = new FormData(); fd.append('xoa', '1'); if (cs) fd.append('cua_hang', cs);
       api('danh-muc', { method: 'POST', body: fd }).then(function (r2) { veDanhMuc(o, r2); }).catch(function (e) { bao(e.message || e); });
     });
   }
@@ -4079,7 +4088,10 @@
     ['bes', 'Báo cáo Bes']
   ];
 
+  /* Nhật ký hộp thư: 5 lượt một trang (anh Thắng 25/09/2026: "Hiện 5 lệnh 1 trang thôi"). */
+  var HT_TRANG = 1, HT_MOI_TRANG = 5;
   function veHopThu(o, r) {
+    S.hopThuR = r;
     var c = (r && r.cf) || {};
     var h = '<div class="khung" id="dtHopThu"><header><h2>Nhận báo cáo qua hộp thư</h2>' +
       '<span class="goi">' + (c.bat
@@ -4201,23 +4213,41 @@
       la.map(function (a) {
         return '<button class="vien" type="button" data-thu-them="' + esc(a) + '" style="margin:6px 6px 0 0">＋ Thêm ' + esc(a) + '</button>';
       }).join('') + '</div>';
-    return nutThem + '<h3 class="tieu-nho" style="margin-top:14px">Nhật ký 50 lượt gần nhất</h3>' +
+    var tat = nk.slice(0, 50);
+    var tongTrang = Math.max(1, Math.ceil(tat.length / HT_MOI_TRANG));
+    HT_TRANG = Math.min(Math.max(1, HT_TRANG), tongTrang);
+    var dau = (HT_TRANG - 1) * HT_MOI_TRANG;
+    var trang = tat.slice(dau, dau + HT_MOI_TRANG);
+    return nutThem + '<h3 class="tieu-nho" style="margin-top:14px">Nhật ký ' + tat.length + ' lượt gần nhất</h3>' +
       '<div class="bang-cuon"><table><thead><tr><th style="text-align:left">Lúc</th>' +
       '<th>Thư xem</th><th>Nạp được</th><th style="text-align:left">Chi tiết</th>' +
       '</tr></thead><tbody>' +
-      nk.slice(0, 50).map(function (x) {
+      trang.map(function (x) {
+        /* Cùng một lý do bỏ qua lặp cho nhiều thư (4 thư "không có tệp đính kèm") -> một dòng "×4", khỏi kéo ngang. */
+        var gom = {}, thuTu = [];
+        (x.bo || []).forEach(function (b) {
+          var kb = (b.ten || b.tu || '') + '|' + (b.vi || '');
+          if (!gom[kb]) { gom[kb] = { b: b, n: 0 }; thuTu.push(kb); }
+          gom[kb].n++;
+        });
         var ct = x.loi
           ? '<span style="color:var(--xau)">' + esc(x.loi) + '</span>'
           : (x.nap || []).map(function (n) {
               return esc(n.ten) + ' (' + nguyen(n.da_ghi || 0) + ' dòng)';
-            }).concat((x.bo || []).map(function (b) {
-              return '<span class="chu-them">bỏ qua: ' + esc(b.ten || b.tu || '') + ' — ' + esc(b.vi) +
+            }).concat(thuTu.map(function (kb) {
+              var b = gom[kb].b;
+              return '<span class="chu-them">bỏ qua: ' + esc(b.ten || b.tu || '') + ' — ' + esc(b.vi) + (gom[kb].n > 1 ? ' <b>×' + gom[kb].n + '</b>' : '') +
                 (b.link ? ' <span style="word-break:break-all">[' + esc(b.link) + ']</span>' : '') + '</span>';
             })).join(' · ') || '<span class="chu-them">không có gì mới</span>';
         return '<tr><td style="text-align:left" class="s">' + esc(x.luc) + '</td>' +
           '<td>' + nguyen(x.xem || 0) + '</td><td>' + nguyen(x.so_nap || 0) + '</td>' +
-          '<td style="text-align:left">' + ct + '</td></tr>';
-      }).join('') + '</tbody></table></div>';
+          '<td style="text-align:left;white-space:normal;max-width:640px">' + ct + '</td></tr>';
+      }).join('') + '</tbody></table></div>' +
+      (tat.length > HT_MOI_TRANG
+        ? '<div class="trang-nav"><button class="vien" type="button" data-thu-trang="' + (HT_TRANG - 1) + '"' + (HT_TRANG <= 1 ? ' disabled' : '') + '>‹ Trước</button>' +
+          '<span>Trang ' + HT_TRANG + '/' + tongTrang + ' · ' + (dau + 1) + '–' + Math.min(tat.length, dau + HT_MOI_TRANG) + ' của ' + tat.length + '</span>' +
+          '<button class="vien" type="button" data-thu-trang="' + (HT_TRANG + 1) + '"' + (HT_TRANG >= tongTrang ? ' disabled' : '') + '>Sau ›</button></div>'
+        : '');
   }
 
   function noiHopThu(o) {
@@ -4235,6 +4265,13 @@
       });
       return fd;
     };
+    /* Chuyển trang nhật ký: vẽ lại khối từ bản máy chủ đã có, không gọi lại. */
+    Array.prototype.forEach.call(k.querySelectorAll('[data-thu-trang]'), function (bt) {
+      bt.addEventListener('click', function () {
+        HT_TRANG = parseInt(bt.getAttribute('data-thu-trang'), 10) || 1;
+        if (S.hopThuR) veHopThu(o, S.hopThuR);
+      });
+    });
     /* Nút "＋ Thêm <địa chỉ>": ghép vào ô danh sách (không trùng) rồi bấm Lưu thay người ta. */
     k.addEventListener('click', function (e) {
       var b = e.target.closest ? e.target.closest('[data-thu-them]') : null;

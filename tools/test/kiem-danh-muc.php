@@ -97,7 +97,33 @@ phep( 'không có dòng tên cột -> WP_Error khh_dt_cot', is_wp_error( $l ) &&
 $kq = khh_dt_dm_nap( $tep, 'update-item-in-store.csv' );
 phep( 'nạp lần đầu: 5 món, 5 mới, 0 mất; option có luc/nguon', 5 === $kq['so'] && 5 === $kq['moi'] && 0 === $kq['mat'] && 5 === khh_dt_dm_goi()['so'] && 'update-item-in-store.csv' === khh_dt_dm_goi()['nguon'] );
 $kq = khh_dt_dm_nap( $tep2, 'x.csv' );
-phep( 'nạp lại bản khác: 1 món, 1 mới, 5 mất — thay cả bản', 1 === $kq['so'] && 1 === $kq['moi'] && 5 === $kq['mat'] && 1 === khh_dt_dm_goi()['so'] );
+phep( 'file KHÔNG có cột Cửa hàng, không chọn quán -> thay cả bản: 1 món, 1 mới, 5 mất', 1 === $kq['so'] && 1 === $kq['moi'] && 5 === $kq['mat'] && 1 === khh_dt_dm_goi()['so'] && array() === $kq['quan'] );
+khh_dt_dm_xoa();
+khh_dt_dm_nap( $tep, 'update-item-in-store.csv' );
+/* ── 🔴 NẠP THEO QUÁN (anh Thắng 25/09/2026: "Nạp danh mục hàng hoá có cần chọn cơ sở không") ── */
+$tep4 = tempnam( sys_get_temp_dir(), 'dm' ) . '.csv';
+$f = fopen( $tep4, 'w' ); fwrite( $f, "\xEF\xBB\xBF" );
+fputcsv( $f, $dong[0], ',', '"', '\\' );
+fputcsv( $f, array( 'id8', 'MNKVCDS007', 'HCM', 'Tutu Train - Aeon Tân An ( Dịch vụ K&H )', 'BIM BIM NHỎ', '20000', '1', '', '0', 'MON', 'MNKVCDS', 'ĐÓNG SẴN', 'ITEM_CLASS-DA', 'Đồ ăn', '' ), ',', '"', '\\' );
+fputcsv( $f, array( 'id9', 'MNKVCDS123', 'HCM', 'Tutu Train - Aeon Tân An ( Dịch vụ K&H )', 'THẠCH TRÁI CÂY', '10000', '1', '', '0', 'MON', 'MNKVCDS', 'ĐÓNG SẴN', 'ITEM_CLASS-DA', 'Đồ ăn', '' ), ',', '"', '\\' );
+fclose( $f );
+$kq = khh_dt_dm_nap( $tep4, 'tan-an.csv' );
+$ck_bd = khh_dt_dm_cho_kho( $BD );
+$ck_ta = khh_dt_dm_cho_kho( $TA );
+phep( '🔴 nạp file chỉ có Tân An: Bình Dương GIỮ NGUYÊN (2 món), Tân An thay bằng 2 món của file (mất ĐÙI GÀ, 2 vé cũ; thêm THẠCH)', 2 === count( $ck_bd ) && 2 === count( $ck_ta ) && array( 'Tutu Train - Aeon Tân An ( Dịch vụ K&H )' ) === $kq['quan'] && 1 === $kq['moi'] && 3 === $kq['mat'] && 3 === $kq['tong'] );
+$b2 = khh_dt_dm_tra( 'BIM BIM NHỎ' );
+phep( 'cùng mã ở hai quán: vẫn một dòng, cs gộp cả Bình Dương lẫn Tân An', $b2 && 2 === count( $b2['cs'] ) );
+/* file không có cột quán + CHỌN quán ở ô -> gán cho quán ấy, quán khác giữ */
+$kq = khh_dt_dm_nap( $tep2, 'x.csv', 'TuTu Train - Lotte Gò Vấp' );
+phep( '🔴 chọn quán cho file không có cột Cửa hàng: NƯỚC SUỐI thuộc Gò Vấp; Bình Dương, Tân An giữ nguyên; cả bảng 4 dòng (BIM BIM dùng chung hai quán)', array( 'TuTu Train - Lotte Gò Vấp' ) === $kq['quan'] && 1 === count( khh_dt_dm_cho_kho( 'TuTu Train - Lotte Gò Vấp' ) ) && 2 === count( khh_dt_dm_cho_kho( $BD ) ) && 4 === $kq['tong'] );
+$tq = array(); foreach ( khh_dt_dm_theo_quan() as $x ) { $tq[ $x['cua_hang'] ] = $x; }
+phep( 'theo_quan: ba quán, số món và lúc nạp từng quán', 3 === count( $tq ) && 2 === $tq[ $BD ]['so'] && 1 === $tq['TuTu Train - Lotte Gò Vấp']['so'] && '' !== $tq[ $BD ]['luc'] );
+khh_dt_dm_xoa( 'tutu train - lotte gò vấp' );
+phep( 'xoá riêng một quán (tên gõ thường): Gò Vấp hết, hai quán kia còn, còn 3 dòng', 0 === count( khh_dt_dm_cho_kho( 'TuTu Train - Lotte Gò Vấp' ) ) && 3 === khh_dt_dm_goi()['so'] && ! isset( khh_dt_dm_goi()['cs_luc']['TuTu Train - Lotte Gò Vấp'] ) );
+khh_dt_dm_xoa( $TA );
+phep( 'xoá Tân An: BIM BIM NHỎ (còn ở Bình Dương) chỉ bớt quán, THẠCH (chỉ Tân An) bỏ hẳn', 2 === khh_dt_dm_goi()['so'] && null === khh_dt_dm_tra( 'THẠCH TRÁI CÂY' ) && array( $BD ) === khh_dt_dm_tra( 'BIM BIM NHỎ' )['cs'] );
+@unlink( $tep4 ); // phpcs:ignore
+khh_dt_dm_xoa();
 khh_dt_dm_nap( $tep, 'update-item-in-store.csv' );
 phep( 'ma bảng: tên lỏng -> mã; tra lỏng (thừa dấu cách, hoa thường) ra dòng', 'MNKVCDS099' === khh_dt_dm_ma_bang()['đùi gà phô mai'] && 'MNKVCDS007' === khh_dt_dm_tra( 'bim bim  nhỏ' )['ma'] && null === khh_dt_dm_tra( 'không có' ) );
 phep( 'vé của quán Tân An: 2 (VÉ MỚI + Combo 2 Người); của Bình Dương: 1', 2 === count( khh_dt_dm_ve_ds( $TA ) ) && 1 === count( khh_dt_dm_ve_ds( $BD ) ) && 3 === count( khh_dt_dm_ve_ds() ) );
@@ -141,7 +167,9 @@ phep( 'văn phòng xoá được cả món đã bán', ! is_wp_error( $r ) && ! 
 
 /* ── 5. REST danh mục ── */
 $r = khh_dt_rest_dm_xem();
-phep( 'GET danh-muc: ds 5, nhóm đếm (ĐÓNG SẴN 2), so_ve 3, so_combo 2', 5 === count( $r['ds'] ) && 2 === $r['nhom']['ĐÓNG SẴN'] && 3 === $r['so_ve'] && 2 === $r['so_combo'] );
+phep( 'GET danh-muc: ds 5, nhóm đếm (ĐÓNG SẴN 2), so_ve 3, so_combo 2, theo_quan 2 quán', 5 === count( $r['ds'] ) && 2 === $r['nhom']['ĐÓNG SẴN'] && 3 === $r['so_ve'] && 2 === $r['so_combo'] && 2 === count( $r['theo_quan'] ) );
+$r = khh_dt_rest_dm_nap( new WP_REST_Request( array( 'xoa' => '1', 'cua_hang' => $BD ) ) );
+phep( 'POST xoa=1 + cua_hang -> chỉ dọn quán ấy (còn 4 món của Tân An, kể cả BIM BIM giờ chỉ còn Tân An)', 4 === count( $r['ds'] ) && array( 'Tutu Train - Aeon Tân An ( Dịch vụ K&H )' ) === khh_dt_dm_tra( 'BIM BIM NHỎ' )['cs'] );
 $r = khh_dt_rest_dm_nap( new WP_REST_Request( array( 'xoa' => '1' ) ) );
 phep( 'POST xoa=1 -> dọn sạch, trả bản xem rỗng', 0 === count( $r['ds'] ) && array() === khh_dt_dm_ds() );
 $r = khh_dt_rest_dm_nap( new WP_REST_Request( array() ) );
