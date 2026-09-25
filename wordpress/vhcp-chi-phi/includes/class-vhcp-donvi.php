@@ -328,6 +328,8 @@ class VHCP_DonVi {
 		'kvc' => array( 'KVC' ),
 		'mtd' => array( 'MTĐ', 'MTD', 'POSH' ),
 		'vp'  => array( 'VP', 'VĂN PHÒNG', 'VAN PHONG' ),
+		/* 'vending' (25/09/2026): chi phí máy bán hàng kéo từ web Vending HCMC — đơn vị VENDING, xem `VHCP_Vending`. */
+		'vending' => array( 'VENDING', 'VENDING HCMC' ),
 	);
 
 	/**

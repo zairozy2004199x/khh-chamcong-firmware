@@ -127,6 +127,8 @@ class VHCPHN_API {
 			'doiLuongDon',
 			/* Doanh thu vs chi phí theo cơ sở: số doanh thu là của người duyệt — nhân viên không xem. */
 			'doanhThuChiPhi', 'kiemTraDoanhThu',
+			/* Kéo chi phí Vending về thành đơn — việc của người duyệt (lập đơn thật vào sổ). */
+			'dongBoVending', 'kiemTraVending',
 		);
 		if ( in_array( $fn, $nguoi_duyet, true ) ) {
 			return array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC' );
@@ -434,6 +436,8 @@ class VHCPHN_API {
 			'getFinanceReport'      => array( 'VHCPHN_Report', 'finance' ),
 			'doanhThuChiPhi'        => array( 'VHCPHN_DoanhThu', 'so_sanh' ),
 			'kiemTraDoanhThu'       => array( 'VHCPHN_DoanhThu', 'kiem_tra' ),
+			'dongBoVending'         => array( 'VHCPHN_Vending', 'dong_bo' ),
+			'kiemTraVending'        => array( 'VHCPHN_Vending', 'kiem_tra' ),
 			'getPendingModules'     => array( 'VHCPHN_Report', 'pending_modules' ),
 			'getGianReport'         => array( 'VHCPHN_Report', 'gian_report' ),
 			'getVanHanhTuan'        => array( 'VHCPHN_Report', 'van_hanh_tuan' ),

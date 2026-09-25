@@ -1696,6 +1696,12 @@ class VHCPVP_Cfg {
 			$kq_dt = VHCPVP_DoanhThu::luu( $cfg['doanhThu'] );
 			if ( empty( $kq_dt['success'] ) ) { return $kq_dt; }
 		}
+		if ( isset( $cfg['vending'] ) && is_array( $cfg['vending'] ) ) {
+			/* 🔴 CHỈ ADMIN — địa chỉ + khoá chia sẻ sang web Vending HCMC. Khoá rỗng = giữ (xem `VHCPVP_Vending::luu`). */
+			if ( 'Admin' !== VHCPVP_Auth::vai_tro() ) { return VHCPVP_Util::err( 'Chỉ Admin mới đổi kết nối web Vending được.' ); }
+			$kq_vd = VHCPVP_Vending::luu( $cfg['vending'] );
+			if ( empty( $kq_vd['success'] ) ) { return $kq_vd; }
+		}
 		if ( isset( $cfg['tinhNang'] ) && is_array( $cfg['tinhNang'] ) ) {
 			/* 🔴 CHỈ ADMIN. Bật một tính năng cho mọi người là đổi cách cả hệ thao tác. */
 			if ( 'Admin' !== VHCPVP_Auth::vai_tro() ) {
@@ -2493,7 +2499,7 @@ class VHCPVP_Cfg {
 		/* ⚠️ BẢNG NHÃN PHẢI NẰM TRÊN ĐÚNG MỘT DÒNG. `tools/tach-ban-vung.sh` chèn nhãn của mã
 		   vùng bằng một phép thay trên chính dòng này, và `kiem-khoi-ban-vung.php` đọc nó cũng
 		   theo dòng. Xuống dòng cho đẹp là bản vùng mất nhãn khối — tab hiện trơ mã. */
-		$m = array( 'mb' => 'Miền Bắc', 'mn' => 'Miền Nam', 'kvc' => 'Khu vui chơi', 'mtd' => 'Máy tự động', 'vp' => 'Văn phòng' );
+		$m = array( 'mb' => 'Miền Bắc', 'mn' => 'Miền Nam', 'kvc' => 'Khu vui chơi', 'mtd' => 'Máy tự động', 'vp' => 'Văn phòng', 'vending' => 'Vending' );
 		$k = mb_strtolower( trim( (string) $ma ) );
 		return isset( $m[ $k ] ) ? $m[ $k ] : $ma;
 	}
