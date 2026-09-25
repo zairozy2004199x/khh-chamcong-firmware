@@ -67,14 +67,16 @@ $dong = array(
 	array( 'id5', 'MNKVCTT050', 'HCM', 'Tutu Train - Aeon Tân An ( Dịch vụ K&H )', 'Combo 2 Người (1 NLớn 1 Trẻ Em)', '150000', '1', '', '0', 'VE', 'MNKVCVE', 'VÉ LẺ.', 'ITEM_CLASS-CB', 'Combo', '' ),
 	array( 'id6', 'MNKVCTT060', 'HCM', 'Tutu Train - Aeon Tân An ( Dịch vụ K&H )', 'VÉ TUTU TRAIN: VÉ MỚI 2026', '50000', '1', '', '0', 'VE', 'MNKVCVE', 'VÉ LẺ.', 'ITEM_CLASS-VE', 'Vé', '' ),
 	array( 'id7', '', 'HCM', 'Tutu Train - Aeon Tân An ( Dịch vụ K&H )', '', '0', '1', '', '0', 'MON', '', '', '', '', '' ),
+	/* món ĐÃ ĐÓNG (Trạng thái 0) — anh Thắng 25/09/2026 lỡ nạp cả loại này */
+	array( 'id10', 'ITEM-CU01', 'HCM', 'Tutu Train - Aeon Tân An ( Dịch vụ K&H )', 'Vé Free 0đ', '0', '0', '', '0', 'MON', 'X', 'Uncategory', 'Y', 'Vé', '' ),
 );
 $tep = tempnam( sys_get_temp_dir(), 'dm' ) . '.csv';
 $f = fopen( $tep, 'w' ); fwrite( $f, "\xEF\xBB\xBF" ); foreach ( $dong as $d ) { fputcsv( $f, $d, ',', '"', '\\' ); } fclose( $f );
 
 /* ── 1. đọc ── */
-$ds = khh_dt_dm_phan_tich( $tep, 'update-item-in-store.csv' );
-phep( 'đọc được, bỏ dòng không tên, gộp cùng mã: 5 dòng', is_array( $ds ) && 5 === count( $ds ) );
 $tim = function ( $ds, $ma ) { foreach ( $ds as $m ) { if ( $m['ma'] === $ma ) { return $m; } } return null; };
+$ds = khh_dt_dm_phan_tich( $tep, 'update-item-in-store.csv' );
+phep( 'đọc được, bỏ dòng không tên, gộp cùng mã: 6 dòng (kể cả món đã đóng — trình đọc chưa lọc)', is_array( $ds ) && 6 === count( $ds ) && khh_dt_dm_la_dong( $tim( $ds, 'ITEM-CU01' ) ) && ! khh_dt_dm_la_dong( $tim( $ds, 'MNKVCDS007' ) ) );
 $b = $tim( $ds, 'MNKVCDS007' );
 phep( '🔴 nhóm lấy "Tên nhóm" (ĐÓNG SẴN) chứ không phải mã MNKVCDS; loại lấy "Tên loại" (Đồ ăn); giá số', $b && 'ĐÓNG SẴN' === $b['nhom'] && 'Đồ ăn' === $b['loai'] && 20000.0 === $b['gia'] && 'MON' === $b['dvt'] );
 phep( '🔴 cùng mã ở hai quán -> một dòng, cs = [Bình Dương, Tân An] (tên nguyên văn từng quán)', $b && 2 === count( $b['cs'] ) && $BD === $b['cs'][0] );
@@ -95,7 +97,11 @@ phep( 'không có dòng tên cột -> WP_Error khh_dt_cot', is_wp_error( $l ) &&
 
 /* ── 2. nạp / nạp lại / xoá ── */
 $kq = khh_dt_dm_nap( $tep, 'update-item-in-store.csv' );
-phep( 'nạp lần đầu: 5 món, 5 mới, 0 mất; option có luc/nguon', 5 === $kq['so'] && 5 === $kq['moi'] && 0 === $kq['mat'] && 5 === khh_dt_dm_goi()['so'] && 'update-item-in-store.csv' === khh_dt_dm_goi()['nguon'] );
+phep( '🔴 nạp lần đầu: BỎ 1 món đã đóng -> 5 món, 5 mới, 0 mất; option có luc/nguon', 5 === $kq['so'] && 1 === $kq['dong'] && 5 === $kq['moi'] && 0 === $kq['mat'] && 5 === khh_dt_dm_goi()['so'] && null === khh_dt_dm_tra( 'Vé Free 0đ' ) && 'update-item-in-store.csv' === khh_dt_dm_goi()['nguon'] );
+/* Bản nạp bằng 1.68.0–1.68.2 còn chứa món đóng -> lúc đọc cũng lọc, khỏi nạp lại. */
+$goi_tho = get_option( KHH_DT_DM_OPT ); $goi_tho['ds'][] = array( 'ma' => 'ITEM-CU02', 'ten' => 'VÉ CŨ ĐÃ ĐÓNG', 'nhom' => '', 'loai' => 'Vé', 'dvt' => '', 'gia' => 0, 'tt' => '0', 'cs' => array( $TA ) );
+update_option( KHH_DT_DM_OPT, $goi_tho, false );
+phep( '🔴 món đóng lỡ nằm trong bản đã nạp cũng bị ẩn khi đọc (không cần nạp lại)', 5 === khh_dt_dm_goi()['so'] && null === khh_dt_dm_tra( 'VÉ CŨ ĐÃ ĐÓNG' ) && ! array_filter( khh_dt_dm_ve_ds( $TA ), function ( $v ) { return 'VÉ CŨ ĐÃ ĐÓNG' === $v['ten']; } ) );
 $kq = khh_dt_dm_nap( $tep2, 'x.csv' );
 phep( 'file KHÔNG có cột Cửa hàng, không chọn quán -> thay cả bản: 1 món, 1 mới, 5 mất', 1 === $kq['so'] && 1 === $kq['moi'] && 5 === $kq['mat'] && 1 === khh_dt_dm_goi()['so'] && array() === $kq['quan'] );
 khh_dt_dm_xoa();

@@ -3741,7 +3741,7 @@
       '<div class="chu-them">Hàng mới tạo trên FABi mà <b>chưa bán</b> thì báo cáo bán hàng chưa có, nên sổ kho / combo / bóc tách vé không có tên để chọn ' +
       'và nhân viên phải gõ tay — gõ lệch một chữ là sai. Xuất bản <b>Danh sách hàng hoá</b> từ FABi (file "update item in store", cột Mã món · Cửa hàng · Tên · ' +
       'Tên nhóm · Tên loại) rồi nạp ở đây. <b>FABi xuất mỗi quán một file — nạp từng file, quán nào trong file thì thay phần quán ấy, ' +
-      'quán khác giữ nguyên.</b> File có cột Cửa hàng thì không cần chọn cơ sở; file không có cột ấy mới chọn ở ô bên. Từ đó mọi ô chọn có đủ tên đúng FABi kèm mã, kể cả món chưa bán.</div>' +
+      'quán khác giữ nguyên.</b> File có cột Cửa hàng thì không cần chọn cơ sở; file không có cột ấy mới chọn ở ô bên. Món <b>đã đóng</b> trên FABi (Trạng thái 0) tự bị bỏ. Từ đó mọi ô chọn có đủ tên đúng FABi kèm mã, kể cả món chưa bán.</div>' +
       '<div class="loc" style="margin-top:10px;gap:8px"><input type="file" id="dmFile" accept=".xlsx,.xlsm,.csv,.tsv,.txt">' +
       '<label class="o">Cơ sở<select id="dmCS"><option value="">— theo cột Cửa hàng trong file —</option>' +
         ((S.cf && S.cf.cua_hang) || []).map(function (t) { return '<option value="' + esc(t) + '">' + esc(t) + '</option>'; }).join('') + '</select></label>' +
@@ -3778,7 +3778,7 @@
         veDanhMuc(o, r2);
         var v = r2.vua_nap || {};
         var b2 = o.querySelector('#dmBao'); if (b2) b2.textContent = 'Đã nạp ' + v.so + ' món' + ((v.quan || []).length ? ' cho ' + v.quan.join(', ') : ' (chung mọi quán)') +
-          (v.moi ? ' · ' + v.moi + ' món mới' : '') + (v.mat ? ' · ' + v.mat + ' món không còn' : '') + ' · cả bảng ' + v.tong + ' món.';
+          (v.moi ? ' · ' + v.moi + ' món mới' : '') + (v.mat ? ' · ' + v.mat + ' món không còn' : '') + (v.dong ? ' · bỏ ' + v.dong + ' món đã đóng (Trạng thái 0)' : '') + ' · cả bảng ' + v.tong + ' món.';
       }).catch(function (e) { nap.disabled = false; nap.textContent = 'Nạp danh sách hàng hoá'; bao(e.message || e); });
     });
     var tai = k.querySelector('#dmTai');
