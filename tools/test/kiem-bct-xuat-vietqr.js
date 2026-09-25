@@ -50,7 +50,8 @@ function chay(data) {
   const the = { style: {}, click() {}, remove() {}, href: '', download: '' };
   const document = { createElement: () => the, body: { appendChild() {} } };
   const f = new Function('BCT_DATA', 'Blob', 'URL', 'document', 'L', 'alert', 'setTimeout',
-    ma + '\nreturn bctXuat;')(data, Blob, URL, document, (a) => a, () => {}, () => {});
+    /* 2.144.0: bctXuat đi qua bctApDungLoc(BCT_DATA, BCT_LOC) — ô lọc rỗng thì trả nguyên bảng. */
+    'var BCT_LOC = "";\n' + than('bctKd') + '\n' + than('bctApDungLoc') + '\n' + ma + '\nreturn bctXuat;')(data, Blob, URL, document, (a) => a, () => {}, () => {});
   f();
   return { csv: String(noiDung || '').replace(/^﻿/, ''), ten: the.download };
 }

@@ -161,6 +161,7 @@ t( 'bảng bc_vqr: UNIQUE (ngay,coso_key,ma_may) + KEY ngay', false !== strpos( 
 t( 'vhcp-ghe.php nạp lớp trước ketoan', strpos( $mn, "includes/class-vhg-vietqr.php" ) < strpos( $mn, "includes/class-vhg-ketoan.php" ) );
 t( 'gộp sổ cơ sở → quên kho theo khoá cũ (không đổi nhãn dòng suy ra)', false !== strpos( $my, 'VHG_VietQR::quen_coso( $kc )' ) );
 t( 'không có Sao Kê → dong_bo nói thẳng, không kéo', false !== strpos( $vq, "'Chưa cài plugin Sao Kê" ) );
-t( 'vân tay bản 2.143.0 ở 3 chỗ', 1 === substr_count( $mn, "Version:           2.143.0" ) && 1 === substr_count( $mn, "define( 'VHG_VERSION', '2.143.0' )" ) && 1 === substr_count( file_get_contents( __DIR__ . '/../../vhcp-ghe/includes/class-vhg-baocao.php' ), "const BAN = '2.143.0';" ) );
+preg_match( '/Version:\s+([0-9.]+)/', $mn, $v1 ); preg_match( "/define\( 'VHG_VERSION', '([0-9.]+)' \)/", $mn, $v2 ); preg_match( "/const BAN = '([0-9.]+)';/", file_get_contents( __DIR__ . '/../../vhcp-ghe/includes/class-vhg-baocao.php' ), $v3 );
+t( 'vân tay bản: header = VHG_VERSION = BAN, từ 2.143.0 trở lên', isset( $v1[1], $v2[1], $v3[1] ) && $v1[1] === $v2[1] && $v2[1] === $v3[1] && version_compare( $v1[1], '2.143.0', '>=' ), array( $v1[1] ?? null, $v2[1] ?? null, $v3[1] ?? null ) );
 
 echo "\n"; if ( $TRUOT ) { echo '🔴 TRƯỢT: ' . count( $TRUOT ) . "\n"; exit( 1 ); } echo "✓ SẠCH — $DAT phép\n";

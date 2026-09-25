@@ -8486,6 +8486,7 @@ function veKtBcTong(){
     + nut('bctcot', 'tong', BCT_COT, L('Tổng','Total'))
     + nut('bctcot', 'qr', BCT_COT, 'QR')
     + nut('bctcot', 'tien_mat', BCT_COT, L('Tiền mặt','Cash'))
+    + '<label class="ngay-o" style="margin-left:12px"><span>🔍 ' + L('Lọc cơ sở','Filter site') + '</span><input id="bct-loc" value="' + esc(BCT_LOC) + '" placeholder="' + L('tên / mã KH, nhiều tên cách dấu phẩy','name / code, comma-separated') + '" style="min-width:220px"></label>'
     + (BCT_COT === 'qr' ? '<span style="margin-left:12px;color:#dc2626;font-weight:800">◆ VIETQR</span><span style="margin-left:6px;color:#dc2626">= ' + L('tiền THỰC về ngân hàng','actual money in bank') + '</span>' : '')
     + '</div>'
     + '<div id="bct-wrap" style="margin-top:12px"></div></div>';
@@ -8496,6 +8497,8 @@ function bctInit(){
     var t = document.getElementById('bct-tu'), d = document.getElementById('bct-den');
     BCT_TU = t ? t.value : BCT_TU; BCT_DEN = d ? d.value : BCT_DEN; bctLoad();
   };
+  var lo = document.getElementById('bct-loc');
+  if (lo) lo.oninput = function(){ BCT_LOC = lo.value; bctVeLai(); };
   /* Hai dải nút đổi kiểu bảng — tải lại ngay, khỏi bấm Xem lần nữa: đổi "Tổng" sang "QR" là
      cùng một khoảng ngày, người ta không đổi ý về ngày. */
   /* ⚠️ Hàm vẽ lại cả màn tên là `ve()`. Bản đầu em gọi một cái tên khác không hề tồn tại, và
@@ -8512,6 +8515,35 @@ function bctInit(){
   if (xu) xu.onclick = bctXuat;
   bctLoad();
 }
+/* 🔴 LỌC CƠ SỞ NGAY TRÊN BẢNG — anh Thắng 25/09/2026: *"Cho lọc theo cơ sở"*. Lọc ở màn hình, không gọi lại máy chủ:
+   bỏ dấu, không phân biệt hoa thường, nhiều tên cách nhau dấu phẩy, khớp cả Mã KH / tên ghế / mã ghế. Dòng TỔNG và
+   file .csv tính theo phần ĐANG LỌC — tổng của một bảng đã lọc mà vẫn là tổng cả chuỗi thì người đọc cộng tay ra khác
+   và không biết tin bên nào. Hàm thuần, bốc ra thử được (kiem-bct-loc-coso.js). */
+var BCT_LOC = '';
+function bctKd(s){ return String(s == null ? '' : s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/\s+/g, ' ').trim(); }
+function bctApDungLoc(r, loc){
+  var tu = bctKd(loc).split(',').map(function(x){ return x.trim(); }).filter(function(x){ return x; });
+  if (!r || !tu.length) return r;
+  var hang = (r.hang || []).filter(function(g){
+    var k = bctKd((g.coso || '') + ' | ' + (g.maKH || '') + ' | ' + (g.tenGhe || '') + ' | ' + (g.maGhe || ''));
+    return tu.some(function(t){ return k.indexOf(t) >= 0; });
+  });
+  var n = (r.ngay || []).length, tongCot = [], vqTongCot = [], tong = 0, vqTong = 0, soGhe = 0, thay = {}, i;
+  for (i = 0; i < n; i++) { tongCot.push(0); vqTongCot.push(0); }
+  hang.forEach(function(g){
+    tong += Number(g.tong) || 0; vqTong += Number(g.vqTong) || 0;
+    if (!thay[g.coso]) { thay[g.coso] = 1; soGhe += Number(g.soGhe) || 0; }   // theo ghế: nhiều dòng một cơ sở, số ghế đếm một lần
+    for (i = 0; i < n; i++) { tongCot[i] += Number((g.so || [])[i]) || 0; vqTongCot[i] += Number((g.vq || [])[i]) || 0; }
+  });
+  var r2 = {}; for (var k in r) { if (Object.prototype.hasOwnProperty.call(r, k)) r2[k] = r[k]; }
+  r2.hang = hang; r2.tongCot = tongCot; r2.tong = tong; r2.soGhe = soGhe; r2.vqTongCot = vqTongCot; r2.vqTong = vqTong;
+  r2.locCoSo = String(loc || '').trim(); r2.locSo = hang.length; r2.locTong = (r.hang || []).length;
+  return r2;
+}
+function bctVeLai(){
+  var box = document.getElementById('bct-wrap'); if (!box || !BCT_DATA) return;
+  box.textContent = ''; box.appendChild(bctBang(bctApDungLoc(BCT_DATA, BCT_LOC)));
+}
 function bctLoad(){
   var box = document.getElementById('bct-wrap'); if (!box) return;
   box.textContent = ''; box.appendChild(ktEl('p','mut',L('Đang tải…','Loading…')));
@@ -8519,7 +8551,7 @@ function bctLoad(){
     box.textContent = '';
     BCT_DATA = (r && r.ok) ? r : null;
     if (!r || !r.ok) { box.appendChild(ktEl('p','mut',(r && r.error) || 'Lỗi.')); return; }
-    box.appendChild(bctBang(r));
+    box.appendChild(bctBang(bctApDungLoc(r, BCT_LOC)));
     bctNapVq(r, box);
     /* Nói trước tệp sắp tải về là tiền gì. Hai lớp số chồng nhau trên màn hình, mà tệp thì phẳng
        — không nói ra thì bấm Xuất là một canh bạc. */
@@ -8592,6 +8624,12 @@ function bctBang(r){
     L('Từ','From') + ' ' + r.tu + ' ' + L('đến','to') + ' ' + r.den
     + ' · ' + r.ngay.length + ' ' + L('ngày','days')
     + ' · ' + L('tổng','total') + ' ' + ktVnd(r.tong) + 'đ'));
+  if (r.locCoSo) {
+    var lc = ktEl('div','mut'); var b = document.createElement('b'); b.style.color = '#1d4ed8';
+    b.textContent = '🔍 ' + L('Đang lọc','Filtering') + ' «' + r.locCoSo + '»: ' + r.locSo + '/' + r.locTong + ' ' + (r.muc === 'ghe' ? L('dòng ghế','chair rows') : L('cơ sở','sites'));
+    lc.appendChild(b); lc.appendChild(document.createTextNode(' — ' + L('dòng TỔNG và file .csv tính theo phần đang lọc; xoá ô lọc để xem cả chuỗi.', 'TOTAL row and .csv follow the filter; clear the box for the whole chain.')));
+    wrap.appendChild(lc);
+  }
   /* 2.142.0: kho VietQR đổi lần cuối lúc nào + ↻ kéo lại từ Sao Kê cho khoảng này. */
   if (bctVqDung(r) && r.vqCapLuc) {
     var cl = ktEl('div','mut', L('VietQR trong kho Ghế cập nhật lúc ', 'VietQR ledger updated at ') + r.vqCapLuc + ' · ');
@@ -8724,7 +8762,7 @@ function bctBang(r){
    ⚠️ MỖI KHỐI CÓ MỘT DÒNG NÓI RÕ NÓ LÀ TIỀN GÌ. Hai bảng số giống hệt nhau nằm cạnh nhau mà
       không dán nhãn thì sớm muộn có người cộng nhầm khối. */
 function bctXuat(){
-  var r = BCT_DATA;
+  var r = bctApDungLoc(BCT_DATA, BCT_LOC);   // 2.144.0: .csv theo phần đang lọc
   if (!r) { alert(L('Chưa có dữ liệu — bấm Xem trước.','No data — click Load first.')); return; }
   var cotGhe = (r.muc === 'ghe');
   var vqOn = !!(r.vqCo && r.cot === 'qr');

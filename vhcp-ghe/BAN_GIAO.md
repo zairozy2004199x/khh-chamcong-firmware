@@ -309,6 +309,18 @@ hệt nhau.
 chỉ số nhích → lần mới, hỗn hợp, bill/nộp → lỗi, QR > Actual → lỗi, nộp đủ theo số mới, ảnh nối, khai
 nộp lại header, thứ tự gọi trong luu(), trường mới của chi_tiet, selectLoc sau gửi, cờ NGHI TRÙNG.
 
+### v2.144.0 — Báo cáo tổng: ô "🔍 Lọc cơ sở" ngay trên thanh điều khiển ("Cho lọc theo cơ sở")
+
+**Anh Thắng 25/09/2026** (sau khi kho VietQR chạy ổn): *"Cho lọc theo cơ sở"*.
+
+**Làm:** ô nhập `bct-loc` cạnh nút Số liệu; gõ là lọc ngay ở màn hình (không gọi lại máy chủ): bỏ dấu, không phân biệt hoa
+thường, nhiều tên cách nhau dấu phẩy, khớp cả Mã KH và (chế độ Từng ghế) tên/mã ghế. Hàm thuần `bctApDungLoc(r, loc)` trả
+bản sao đã lọc với **TỔNG, tổng cột, VietQR thực, số ghế tính lại theo phần đang lọc** (số ghế đếm một lần mỗi cơ sở ở chế
+độ Từng ghế); `bctLoad`, `bctVeLai` (gõ ô lọc) và `bctXuat` (.csv) đều đi qua nó. Bảng in dòng "🔍 Đang lọc «…»: N/M cơ sở —
+TỔNG và .csv theo phần đang lọc". Ô lọc giữ giá trị khi đổi Gộp theo / Số liệu (vẽ lại thanh từ `BCT_LOC`).
+
+**Kiểm:** `kiem-bct-loc-coso.js` 16 phép (không dấu, mã KH, nhiều tên, tổng theo phần lọc, biên rỗng/không khớp, từng ghế).
+
 ### v2.143.0 — `VHG_VietQR::quen_ngay()`: Sao Kê chỉ ĐÁNH DẤU ngày cũ, Ghế tự kéo khi Xem (nạp bù hết lê thê)
 
 **Anh Thắng 25/09/2026** *"chậm quá"* (nạp bù 24.261 dòng, đợt 2/61). Một phần lớn thời gian mỗi đợt là Sao Kê tính lại
