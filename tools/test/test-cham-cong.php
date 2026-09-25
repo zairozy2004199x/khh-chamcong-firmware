@@ -8744,8 +8744,15 @@ t( 'ngày dưới mức tối thiểu ăn công theo tỷ lệ (0.06), không b�
 	strpos( $h_vp, '>0.06<' ) !== false, $h_vp );
 
 /* Chú thích rê chuột phải nói được VÌ SAO ô ra con số đó. */
-t( 'ô có chú thích kèm giờ vào → giờ ra',
-	strpos( $h_vp, '08:30 → 17:00' ) !== false, $h_vp );
+/* ⚠️ 25/09/2026 chú thích nay KÈM NGÀY ở cả hai đầu — anh Thắng: *"đối với set nó sẽ link
+   ngày, nên cần giờ vào ngày nào, giờ ra ngày nào"*. Ca trong cùng một ngày thì hai đầu mang
+   CÙNG một ngày; ca vắt qua nửa đêm thì đầu sau là ngày hôm sau (phép ngay dưới). */
+t( 'ô có chú thích kèm giờ vào → giờ ra, có ngày ở cả hai đầu',
+	1 === preg_match( '~\d{2}/\d{2}/\d{4} 08:30 → \d{2}/\d{2}/\d{4} 17:00~u', $h_vp ),
+	substr( $h_vp, 0, 200 ) );
+t( '   ca trong ngày thì hai đầu CÙNG một ngày',
+	1 === preg_match( '~(\d{2}/\d{2}/\d{4}) 08:30 → \1 17:00~u', $h_vp ),
+	substr( $h_vp, 0, 200 ) );
 t( 'và nói rõ mấy giờ nằm trong khung', strpos( $h_vp, 'h trong khung' ) !== false, $h_vp );
 
 /* 🔴 CA ĐÊM NẰM TRONG CHÍNH Ô ẤY, không phải một hàng thứ hai bên dưới.

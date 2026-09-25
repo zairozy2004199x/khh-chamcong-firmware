@@ -2803,4 +2803,46 @@ foreach ( VHCC_NhanSu::ds_coso() as $_c ) {
 	t( '   ô lọc màn Hồ sơ có « ' . $_c .' » y như màn Nhân sự', false !== strpos( $o_cs, $_c ), $o_cs );
 }
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 BẢNG NHẬP LƯƠNG GỘP — XỔ SẴN, MỖI NGƯỜI MỘT DÒNG, GIỜ VÀ GIÁ ĐIỀN SẴN
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 25/09/2026: *"Xổ sẵn ra nhập giờ được không, 1 bảng phía dưới, mấy cái đặc biệt như
+ * ăn lương tháng thì bấm hiện ra, nhưng giờ làm và giá số sẵn từng nhân viên đi"*.
+ * ════════════════════════════════════════════════════════════════════════════════════════════ */
+/* Gieo một mức giá RIÊNG NGƯỜI để phép "đơn giá điền sẵn" canh được thật. Cảnh AEON_BT ở
+   trên cố ý dựng người CHƯA khai giá (để thử dòng "thiếu giá"), nên nếu không gieo thì ô
+   trống là ĐÚNG và phép kia xanh/đỏ đều không nói lên điều gì. */
+VHCC_GiaGio::dat_nguoi( $U_KT, 'BT_MAN', array( '*' => 25000 ) );
+$h_bn = vhcc_man( 'KT_BL', 'Kế toán', '', array( 'man' => 'luong', 'lcs' => 'AEON_BT', 'lth' => '2026-08' ) );
+$kh_bn = '';
+if ( preg_match( '~<a id="bangnhap"></a>(.*?)</form>~s', $h_bn, $m_bn ) ) { $kh_bn = $m_bn[1]; }
+t( '🔴 bảng nhập gộp có mặt, xổ sẵn (không phải bấm mới hiện)', '' !== $kh_bn, 'không thấy #bangnhap' );
+t( '🔴 là MỘT biểu mẫu cho cả bảng, gửi việc `chot_luong_bang`',
+	false !== strpos( $kh_bn, 'name="viec" value="chot_luong_bang"' ), substr( $kh_bn, 0, 300 ) );
+/* 🔴 Đúng MỘT nút Lưu. Chín nút là chín biểu mẫu, và bấm một cái là tám dòng kia mất trắng. */
+t( '🔴 chỉ có MỘT nút Lưu cho cả bảng', 1 === substr_count( $kh_bn, '<button type="submit"' ), substr( $kh_bn, 0, 300 ) );
+
+/* ---- giờ và đơn giá phải ĐIỀN SẴN, không để trống ---- */
+$so_o_gio = preg_match_all( '~name="b\[[^\]]+\]\[gio\]" value="([^"]*)"~', $kh_bn, $m_gio );
+t( '🔴 mỗi người một ô giờ', $so_o_gio >= 2, 'đếm được ' . $so_o_gio );
+$trong = 0;
+foreach ( (array) $m_gio[1] as $v_g ) { if ( '' === trim( $v_g ) ) { $trong++; } }
+t( '🔴 ô giờ ĐIỀN SẴN — không ô nào trống', 0 === $trong, $m_gio[1] );
+$so_o_gia = preg_match_all( '~name="b\[[^\]]+\]\[gia\]" value="([^"]*)"~', $kh_bn, $m_gia );
+t( '🔴 mỗi người một ô đơn giá', $so_o_gia === $so_o_gio, $so_o_gia . ' vs ' . $so_o_gio );
+$co_gia = 0;
+foreach ( (array) $m_gia[1] as $v_x ) { if ( '' !== trim( $v_x ) ) { $co_gia++; } }
+t( '🔴 người đã khai giá thì ô đơn giá điền sẵn', $co_gia > 0, $m_gia[1] );
+
+/* ---- phần hiếm nằm trong <details>, bấm mới mở ---- */
+t( '🔴 ăn lương tháng nằm trong khối bấm-mới-mở', false !== strpos( $kh_bn, '<details' ), substr( $kh_bn, 0, 300 ) );
+t( '   và ô tích ăn lương tháng có thật', 1 === preg_match( '~name="b\[[^\]]+\]\[thang\]"~', $kh_bn ), substr( $kh_bn, 0, 300 ) );
+/* ⚠️ KHÔNG một dòng script — cùng luật với cả màn quản trị. Gợi ý tên việc bằng `<datalist>`. */
+t( '⚠️ không nhét script vào bảng nhập', false === stripos( $kh_bn, '<script' ), substr( $kh_bn, 0, 300 ) );
+t( '   gợi ý tên việc bằng <datalist> của HTML', false !== strpos( $h_bn, '<datalist' ), substr( $h_bn, 0, 300 ) );
+
+/* ---- người KHÔNG có quyền chốt lương thì không thấy bảng này ---- */
+$h_nv = vhcc_man( 'NV_BL', 'Nhân viên', 'AEON_BT', array( 'man' => 'luong', 'lcs' => 'AEON_BT', 'lth' => '2026-08' ) );
+t( '🔴 Nhân viên KHÔNG thấy bảng nhập lương', false === strpos( $h_nv, 'id="bangnhap"' ), '' );
+
 ket_luan();
