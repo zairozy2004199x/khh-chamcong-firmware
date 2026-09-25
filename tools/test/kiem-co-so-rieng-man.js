@@ -25,7 +25,10 @@ t('🔴 bảng PIN có cột "Cơ sở riêng — tích để đè bảng ghép"
 t('mỗi người một khối ghep-chon data-cs-rieng, ô tích data-cs-rieng-o mang mã NV, tích sẵn theo coso_rieng (so lỏng)', /data-cs-rieng="' \+ esc\(x\.ma_nv\)/.test(vq) && /data-cs-rieng-o="' \+ esc\(x\.ma_nv\) \+ '" value="' \+ esc\(t\)/.test(vq) && /rieng\.indexOf\(t\) >= 0 \|\| rieng\.some/.test(vq));
 t('nhắc: đang gán riêng N quán / chưa gán riêng — đang theo mã', /Đang gán riêng ' \+ rieng\.length \+ ' quán/.test(vq) && /Chưa gán riêng — đang theo mã/.test(vq));
 t('vai duyệt thì khối mờ (mo-nhat) vì xem tổng', /x\.vai === 'duyet' \? ' mo-nhat' : ''\) \+ '" data-cs-rieng/.test(vq));
+/* Anh Thắng 25/09/2026: "đang bị dãn" — gập lại thành <details>, dòng tóm tắt "Riêng N quán: …" hay "theo mã (n quán)". */
+t('🔴 ô Cơ sở riêng gập trong <details> (td.cs-rieng), summary tóm "Riêng N quán: tên…" hay "theo mã (n quán)"; CSS giới hạn bề ngang', /<td class="cs-rieng"><details><summary>/.test(vq) && /<b>Riêng ' \+ rieng\.length \+ ' quán:<\/b> /.test(vq) && /'theo mã' \+ \(ten\.length \? ' \(' \+ ten\.length \+ ' quán\)' : ''\)/.test(vq) && /\.khh-dt td\.cs-rieng\{max-width:320px;white-space:normal/.test(fs.readFileSync('wordpress/khh-doanh-thu/assets/doanh-thu.css', 'utf8')));
 t('🔴 Lưu gửi vai + co_so = JSON các ô đã tích của ĐÚNG dòng ấy', /tr\.querySelectorAll\('input\[data-cs-rieng-o\]'\)/.test(vq) && /fd\.append\('co_so', JSON\.stringify\(csRieng\)\)/.test(vq) && /api\('nguoi-vai', \{ method: 'POST', body: fd \}\)/.test(vq));
+t('cột Cơ sở (từ sổ nhân sự) xuống dòng được (td.cs-ma, max-width) — bảng không tràn ngang', /<td class="cs-ma" style="text-align:left">/.test(vq) && /\.khh-dt td\.cs-ma\{max-width:380px;white-space:normal/.test(fs.readFileSync('wordpress/khh-doanh-thu/assets/doanh-thu.css', 'utf8')));
 t('chú thích giải thích cơ sở riêng đè bảng ghép', /<b>Cơ sở riêng<\/b>: người cùng mã nhân sự vốn dùng chung bảng ghép/.test(vq));
 const vg = boc('veGhep');
 t('bảng Ghép cơ sở ghi "gán riêng N quán — không theo bảng này" cạnh tên người', /gán riêng ' \+ x\.coso_rieng\.length \+ ' quán — không theo bảng này/.test(vg));
@@ -44,6 +47,7 @@ if (ve) {
   const h = o.innerHTML;
   t('🔴 Thảo: ô Estella tích sẵn (tên gõ một dấu cách vẫn khớp), ô Funzone không; nhắc "Đang gán riêng 1 quán"', /data-cs-rieng-o="NV173" value="Tutu Train -  Estella" checked/.test(h) && !/data-cs-rieng-o="NV173" value="FUNZONE ADVENTURE GO AN LẠC" checked/.test(h) && /Đang gán riêng 1 quán/.test(h));
   t('Trí: không ô nào tích, nhắc "theo mã (2 quán)"', !/data-cs-rieng-o="NV171"[^>]*checked/.test(h) && /Chưa gán riêng — đang theo mã \(2 quán\)/.test(h));
+  t('summary: Thảo "Riêng 1 quán: Tutu Train - Estella" (bỏ phần trong ngoặc), Trí "theo mã (2 quán)"; details KHÔNG mở sẵn', /<summary><b>Riêng 1 quán:<\/b> Tutu Train - Estella<\/summary>/.test(h) && /<summary>theo mã \(2 quán\)<\/summary>/.test(h) && !/<details open/.test(h));
 }
 
 console.log(hong.length ? '✗ HỎNG ' + hong.length + ' / ' + (dat + hong.length) + ' phép:\n  · ' + hong.join('\n  · ')

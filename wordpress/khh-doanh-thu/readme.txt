@@ -102,6 +102,11 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.67.4 =
+* Bảng Phân quyền PIN gọn lại (anh Thắng 25/09/2026: *"đang bị dãn"*): cột "Cơ sở riêng" gập thành một dòng tóm tắt
+  ("Riêng 1 quán: Estella" / "theo mã (5 quán)"), bấm mới xổ danh sách tích; cột "Cơ sở (từ sổ nhân sự)" xuống dòng thay
+  vì kéo bảng tràn ngang.
+
 = 1.67.3 =
 * Tab Xuất MISA: bảng chứng từ gọn lại (anh Thắng 25/09/2026: *"chỉnh tên cơ sở hiện 2 hàng cho nó gọn lại"*) — tên cơ sở
   gói trong 2 dòng (rê chuột thấy đủ tên); cột Lưu ý tóm theo loại ("chưa Mã đơn vị · 18 món chưa mã hàng · tổng lệch POS")

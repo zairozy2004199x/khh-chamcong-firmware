@@ -5206,19 +5206,24 @@
             '<td>' + esc(x.ho_ten) + '<span style="display:block;color:var(--ink-3);font-size:12px">' +
               esc(x.ma_nv) + (x.co_pin ? '' : ' · <b style="color:var(--xau)">mất PIN (trùng người khác)</b>') +
               (x.tu_dong ? ' · <b style="color:var(--xau)">vai cấp tự động lối cũ — kiểm rồi Lưu</b>' : '') + '</span></td>' +
-            '<td style="text-align:left">' + (cs.length ? cs.map(esc).join(', ') : '<span style="color:var(--ink-3)">—</span>') +
+            '<td class="cs-ma" style="text-align:left">' + (cs.length ? cs.map(esc).join(', ') : '<span style="color:var(--ink-3)">—</span>') +
               '<span style="display:block;color:var(--ink-3);font-size:12px">' +
               (x.vai === 'duyet'
                 ? 'duyệt — xem tổng MỌI cơ sở' + (ten.length ? ' (mã này là quán ' + esc(ten.join(' · ')) + ' — nếu là cửa hàng trưởng thì chọn Nhập báo cáo)' : '')
                 : (ten.length ? esc(ten.join(' · ')) : (cs.length ? 'chưa ghép tên POS — khai ở bảng Ghép cơ sở' : ''))) +
               '</span></td>' +
-            '<td><div class="ghep-chon' + (x.vai === 'duyet' ? ' mo-nhat' : '') + '" data-cs-rieng="' + esc(x.ma_nv) + '">' +
+            /* Gập lại: một dòng tóm tắt, bấm mới xổ danh sách tích — anh Thắng 25/09/2026: "đang bị dãn" (15 quán ×
+               19 người mở sẵn là mỗi hàng cao gần một màn). */
+            '<td class="cs-rieng"><details><summary>' + (rieng.length
+                ? '<b>Riêng ' + rieng.length + ' quán:</b> ' + esc(rieng.map(function (t) { return String(t).replace(/\s*\(.*$/, ''); }).join(' · '))
+                : (x.vai === 'duyet' ? 'duyệt — xem tổng' : 'theo mã' + (ten.length ? ' (' + ten.length + ' quán)' : ''))) + '</summary>' +
+              '<div class="ghep-chon' + (x.vai === 'duyet' ? ' mo-nhat' : '') + '" data-cs-rieng="' + esc(x.ma_nv) + '">' +
               (rieng.length ? '<div class="ghep-nhac">Đang gán riêng ' + rieng.length + ' quán — bỏ tích hết là về theo mã.</div>'
                 : '<div class="ghep-nhac">Chưa gán riêng — đang theo mã' + (ten.length ? ' (' + ten.length + ' quán)' : '') + '.</div>') +
               ch.map(function (t) {
                 var daTich = rieng.indexOf(t) >= 0 || rieng.some(function (c2) { return long_(c2) === long_(t); });
                 return '<label><input type="checkbox" data-cs-rieng-o="' + esc(x.ma_nv) + '" value="' + esc(t) + '"' + (daTich ? ' checked' : '') + '><span>' + esc(t) + '</span></label>';
-              }).join('') + '</div></td>' +
+              }).join('') + '</div></details></td>' +
             '<td>' + chon('vai', x.vai || '', quyens, '— chưa cấp (chỉ xem) —') + '</td>' +
             '<td><button class="nut" type="button" data-luu-pin="' + esc(x.ma_nv) + '">Lưu</button></td>' +
           '</tr>';
