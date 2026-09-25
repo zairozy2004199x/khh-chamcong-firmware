@@ -1551,13 +1551,18 @@
         </div>
       </div>
       <div style="font-size:12px;color:#8c8781;padding:0 14px 6px" id="qtSumXong"></div>
-      <div class="tw">
+      <div class="tw" id="qtTableXong">
         <table>
           <thead><tr><th>Kỳ / tuần</th><th>Người lập</th><th>Cơ sở</th><th style="text-align:right">Tạm ứng</th><th style="text-align:right">Thực chi</th><th style="text-align:right">Thừa/thiếu</th><th>Hình thức</th><th>Trạng thái</th><th style="text-align:center">Thao tác</th></tr></thead>
           <tbody id="qtBodyXong"></tbody>
         </table>
-        <div class="empty" id="qtEmptyXong">Chưa có đơn nào đã quyết toán.</div>
       </div>
+      <!-- 🧮 Anh Thắng 25/09/2026 (ảnh 107 đơn dồn một bảng): "Chỗ đã quyết toán vẫn đang chung 1
+           bảng, tách luôn". Một khối một mảng kinh doanh (Phân loại lớn của cơ sở), khi trang đang
+           xem có ≥ 2 mảng khác nhau — chỉ đổi CÁCH VẼ, số đếm/tổng/phân trang của cả danh sách vẫn
+           tính như cũ bên dưới. Xem `_qtVeBang('xong', …)`. -->
+      <div id="qtXongMangWrap" style="display:none"></div>
+      <div class="empty" id="qtEmptyXong">Chưa có đơn nào đã quyết toán.</div>
       <div id="qtPagerXong"></div>
     </div>
 
@@ -1701,6 +1706,11 @@
       <div id="xuatBanGiao" style="display:none;margin:0 14px 10px;padding:8px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;font-size:12px;color:#1e40af"></div>
       <div class="tw" style="max-height:62vh;overflow:auto">
         <table id="xuatTable" style="min-width:1150px"><thead id="xuatHead"></thead><tbody id="xuatBody"></tbody></table>
+        <!-- 🧮 Anh Thắng 25/09/2026 (ảnh màn này, 275 dòng dồn một bảng): "mảng nào, bảng xuất riêng,
+             vẫn đang chung 1 bảng" — MỘT SHEET trong tệp tải về (1.336.0) chưa đủ, còn phải tách NGAY
+             TRÊN MÀN. `xuatTablesMang` bày N khối bảng, một khối một mảng, khi dữ liệu có ≥ 2 mảng
+             khác nhau; còn một mảng thì vẫn dùng đúng bảng cũ ở trên (`xuatTable`), không đổi gì. -->
+        <div id="xuatTablesMang" style="display:none"></div>
         <div class="empty" id="xuatEmpty">Chưa có đơn "Đã quyết toán" để xuất.</div>
       </div>
     </div>
@@ -10381,22 +10391,48 @@
   function _laMaDon(m){
     return ((typeof BOOT!=='undefined'&&BOOT&&BOOT.dons)||[]).some(function(d){ return d && String(d.maDon)===m; });
   }
-  function renderXuat(){
-    el('xuatSoDon').textContent=XUAT.sodon||0; el('xuatSoDong').textContent=XUAT.count||0;
-    el('xuatEmpty').style.display=(XUAT.rows&&XUAT.rows.length)?'none':'block';
-    el('xuatHead').innerHTML='<tr>'+(XUAT.cols||[]).map(function(c){return '<th style="white-space:nowrap">'+esc(c)+'</th>';}).join('')+'</tr>';
-    el('xuatBody').innerHTML=(XUAT.rows||[]).map(function(r){return '<tr>'+r.map(function(v,i){
+  /* Tiêu đề cột + một dòng dữ liệu của bảng Xuất MISA — TÁCH RIÊNG để dùng chung cho cả bảng gộp
+     (một mảng) lẫn từng khối bảng theo mảng (≥ 2 mảng), không chép hai lần cùng luật render. */
+  function _xuatColsHead(cols){
+    return '<tr>'+(cols||[]).map(function(c){return '<th style="white-space:nowrap">'+esc(c)+'</th>';}).join('')+'</tr>';
+  }
+  function _xuatRowHtml(cols, r){
+    return '<tr>'+r.map(function(v,i){
       /* Mẫu sổ chi tiết có BỐN cột tiền (Phát sinh Nợ/Có · Dư Nợ/Có), mẫu cũ có một ("Số tiền").
          Dò theo TÊN CỘT chứ không theo chỉ số: hai mẫu lệch nhau ba cột, gõ cứng chỉ số là mẫu
          này canh phải ô tiền của mẫu kia. */
-      var ten=(XUAT.cols||[])[i]||'';
+      var ten=(cols||[])[i]||'';
       var num=(ten==='Số tiền'||ten.indexOf('Phát sinh')===0||ten.indexOf('Dư ')===0);
       /* 🔗 SỐ CHỨNG TỪ = MÃ ĐƠN → bấm mở thẳng đơn. Anh Thắng 24/09/2026 đứng ở màn này hỏi *"muốn sửa ở
          chỗ nào"*: chỗ sửa (TK Nợ từng dòng) nằm trong trang đơn, mà từ đây không có đường sang. */
       if(ten.indexOf('Số chứng từ')===0 && v && _laMaDon(String(v))){
         return '<td style="white-space:nowrap"><a href="#" onclick="viewDon(\''+esc(String(v))+'\');return false" title="Mở đơn này để xem / sửa từng dòng" style="color:#2545ff;font-weight:600">'+esc(v)+'</a></td>';
       }
-      return '<td'+(num?' class="money"':'')+' style="white-space:nowrap">'+(num?(v===''||v==null?'':money(v)):esc(v))+'</td>';}).join('')+'</tr>';}).join('');
+      return '<td'+(num?' class="money"':'')+' style="white-space:nowrap">'+(num?(v===''||v==null?'':money(v)):esc(v))+'</td>';}).join('')+'</tr>';
+  }
+  function renderXuat(){
+    el('xuatSoDon').textContent=XUAT.sodon||0; el('xuatSoDong').textContent=XUAT.count||0;
+    el('xuatEmpty').style.display=(XUAT.rows&&XUAT.rows.length)?'none':'block';
+    /* 🧮 MẢNG NÀO, BẢNG XUẤT RIÊNG — anh Thắng 25/09/2026: *"mảng nào, bảng xuất riêng, vẫn đang
+       chung 1 bảng"*. Cùng cách đếm với `_xlsxWorkbook()` (1.336.0): `XUAT.rowMang[i]` song song
+       với `XUAT.rows[i]`; ≥ 2 mảng khác nhau mới tách — một mảng thì giữ nguyên bảng cũ, không ai
+       thấy gì đổi. */
+    var mang=XUAT.rowMang||[], co=(XUAT.rows&&mang.length===XUAT.rows.length) ? mang.filter(function(v,i){return mang.indexOf(v)===i;}) : [];
+    var mot=(co.length<2);
+    if(el('xuatTable')) el('xuatTable').style.display=mot?'':'none';
+    if(el('xuatTablesMang')) el('xuatTablesMang').style.display=mot?'none':'';
+    el('xuatHead').innerHTML=_xuatColsHead(XUAT.cols);
+    el('xuatBody').innerHTML=mot?(XUAT.rows||[]).map(function(r){return _xuatRowHtml(XUAT.cols, r);}).join(''):'';
+    if(!mot && el('xuatTablesMang')){
+      el('xuatTablesMang').innerHTML=co.map(function(m){
+        var rows=XUAT.rows.filter(function(r,i){ return mang[i]===m; });
+        return '<div style="margin:0 0 18px">'
+          +'<div style="font-weight:800;color:#1e3a8a;background:#eef2ff;padding:8px 12px;border-radius:8px 8px 0 0;border:1px solid #c7d2fe;border-bottom:none">🧮 '
+          +esc(m||'(chưa khai mảng)')+' <span style="font-weight:500;color:#64748b">· '+rows.length+' dòng</span></div>'
+          +'<div class="tw" style="border:1px solid #c7d2fe;border-radius:0 0 8px 8px;overflow:auto;max-height:62vh"><table style="min-width:1150px"><thead>'
+          +_xuatColsHead(XUAT.cols)+'</thead><tbody>'+rows.map(function(r){return _xuatRowHtml(XUAT.cols, r);}).join('')+'</tbody></table></div></div>';
+      }).join('');
+    }
     renderXuatWarn();
     renderXuatBanGiao();
     _veOTkNo();
@@ -12420,6 +12456,28 @@
       return /văn\s*phòng|van\s*phong|^vp\b|\bvp\s/i.test(g);
     });
   }
+  /* Mảng kinh doanh (Phân loại lớn) của MỘT cơ sở — đọc từ danh mục Cơ sở đã nạp. */
+  function _mangCuaCoSo(ten){
+    var t=String(ten||'').trim().toLowerCase(); if(!t) return '';
+    var f=(CFG.coso||[]).filter(function(x){ return String(x.ten||'').trim().toLowerCase()===t; })[0];
+    return f?String(f.phanLoaiLon||'').trim():'';
+  }
+  /* Mảng của MỘT ĐƠN — đơn thường một cơ sở, nhưng đơn vị nhiều cơ sở (POSH) có thể ghi nhiều
+     tên cách nhau dấu phẩy (xem `coso` ở `get_don`). Cả dải cùng một mảng thì lấy mảng đó; lẫn
+     nhiều mảng khác nhau thì về giỏ riêng "(nhiều mảng)" — không đoán bừa vào một trong số đó. */
+  function _mangCuaDon(d){
+    var ds=String((d&&d.coso)||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
+    if(!ds.length) return '';
+    var mg=ds.map(_mangCuaCoSo), uniq=mg.filter(function(v,i){return mg.indexOf(v)===i;});
+    return (uniq.length>1)?'(nhiều mảng)':(uniq[0]||'');
+  }
+  /* Thứ tự khối mảng: có tên trước (theo bảng chữ cái), rồi "(nhiều mảng)", rồi "(chưa khai mảng)"
+     (mã rỗng) — cùng luật "mảng rỗng xuống cuối" với `VHCPVP_Misa::export_misa()`. */
+  function _mangSapXep(a,b){
+    var hang=function(x){ return x===''?2:(x==='(nhiều mảng)'?1:0); };
+    var ha=hang(a), hb=hang(b);
+    return (ha!==hb) ? (ha-hb) : (ha===0 ? String(a).localeCompare(String(b),'vi') : 0);
+  }
   function _qtVeBang(khoa, rows, canBatch){
     var hoa=khoa==='cho'?'Cho':(khoa==='choVp'?'ChoVp':'Xong');
     var COLS=canBatch?10:9;
@@ -12431,7 +12489,34 @@
        Bảng Văn phòng CỘNG VÀO chứ không thay: thanh tích duyệt là chung cho cả hai bảng. */
     if(khoa==='cho') QT_ROWS_CHO=rows;
     if(khoa==='choVp') QT_ROWS_CHO=QT_ROWS_CHO.concat(rows);
-    el('qtBody'+hoa).innerHTML=_tachDonVi(lat, function(d){ return _qtRowHtml(d, canBatch, COLS); });
+    /* 🧮 "ĐÃ QUYẾT TOÁN" TÁCH BẢNG THEO MẢNG KINH DOANH — anh Thắng 25/09/2026 (ảnh 107 đơn dồn
+       một bảng): *"Chỗ đã quyết toán vẫn đang chung 1 bảng, tách luôn"*. CHỈ ĐỔI CÁCH VẼ trang
+       đang xem (`lat`) — số đếm/tổng/phân trang bên dưới vẫn tính trên CẢ danh sách như cũ, không
+       theo từng mảng, nên không có gì lệch với thanh tổng hợp phía trên. Chỉ áp cho bảng 'xong':
+       'cho'/'choVp' đã tách theo Văn phòng từ trước, không đụng thêm ở đây. */
+    if(khoa==='xong'){
+      var nhom={}, thu=[];
+      lat.forEach(function(d){ var m=_mangCuaDon(d); if(!nhom[m]){ nhom[m]=[]; thu.push(m); } nhom[m].push(d); });
+      thu.sort(_mangSapXep);
+      var mot=(thu.length<2);
+      if(el('qtTableXong')) el('qtTableXong').style.display=mot?'':'none';
+      if(el('qtBodyXong')) el('qtBodyXong').innerHTML=mot?_tachDonVi(lat, function(d){ return _qtRowHtml(d, canBatch, COLS); }):'';
+      if(el('qtXongMangWrap')){
+        el('qtXongMangWrap').style.display=mot?'none':'';
+        el('qtXongMangWrap').innerHTML=mot?'':thu.map(function(m){
+          var ds=nhom[m];
+          return '<div style="margin:0 0 16px">'
+            +'<div style="font-weight:800;color:#1e3a8a;background:#eef2ff;padding:8px 12px;border-radius:8px 8px 0 0;border:1px solid #c7d2fe;border-bottom:none">🧮 '
+            +esc(m||'(chưa khai mảng)')+' <span style="font-weight:500;color:#64748b">· '+ds.length+' đơn</span></div>'
+            +'<div style="font-size:11.5px;color:#8c8781;padding:5px 12px;border:1px solid #c7d2fe;border-top:none;border-bottom:none;background:#fff">'+_qtSumHtml(ds)+'</div>'
+            +'<div class="tw" style="border:1px solid #c7d2fe;border-radius:0 0 8px 8px;overflow:auto"><table style="width:100%"><thead><tr><th>Kỳ / tuần</th><th>Người lập</th><th>Cơ sở</th>'
+            +'<th style="text-align:right">Tạm ứng</th><th style="text-align:right">Thực chi</th><th style="text-align:right">Thừa/thiếu</th><th>Hình thức</th><th>Trạng thái</th><th style="text-align:center">Thao tác</th></tr></thead><tbody>'
+            +_tachDonVi(ds, function(d){ return _qtRowHtml(d, canBatch, COLS); })+'</tbody></table></div></div>';
+        }).join('');
+      }
+    } else {
+      el('qtBody'+hoa).innerHTML=_tachDonVi(lat, function(d){ return _qtRowHtml(d, canBatch, COLS); });
+    }
     el('qtEmpty'+hoa).style.display=rows.length?'none':'block';
     /* Badge đếm RIÊNG: đơn chờ quyết toán là việc phải làm, đơn chìm là việc phải NHẮC — gộp
        một số là kế toán tưởng còn nhiều việc hơn thực tế. */
