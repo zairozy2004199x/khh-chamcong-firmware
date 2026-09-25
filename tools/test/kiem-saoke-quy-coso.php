@@ -14,7 +14,7 @@ $DAT = 0; $TRUOT = array();
 function t( $ten, $ok, $them = null ) { global $DAT, $TRUOT; if ( $ok ) { $DAT++; echo "  ✓ $ten\n"; return; } $TRUOT[] = $ten; echo "  ✗ $ten" . ( null !== $them ? ( ' → ' . var_export( $them, true ) ) : '' ) . "\n"; }
 function boc( $src, $mo ) { $i = strpos( $src, $mo ); if ( false === $i ) { return ''; } $d = 0; $n = strlen( $src ); for ( $k = strpos( $src, '{', $i ); $k < $n; $k++ ) { if ( '{' === $src[ $k ] ) { $d++; } elseif ( '}' === $src[ $k ] && 0 === --$d ) { return substr( $src, $i, $k - $i + 1 ); } } return ''; }
 $sk = file_get_contents( __DIR__ . '/../../vhcp-saoke/vhcp-saoke.php' );
-$fs = ''; foreach ( array( 'private static function ghe_coso_cua_may(', 'private static function ghe_coso_chuan(', 'private static function cong_coso_dong(', 'public static function chuan_may(', 'public static function chuan_ch_long(', 'private static function cong_coso(' ) as $mo ) { $f = boc( $sk, $mo ); t( 'bốc ' . preg_replace( '/.*function /', '', $mo ), '' !== $f ); $fs .= "\n" . $f; }
+$fs = ''; foreach ( array( 'private static function ghe_coso_cua_may(', 'private static function ghe_coso_chuan(', 'private static function cong_coso_dong(', 'public static function chuan_may(', 'public static function chuan_ch_long(', 'private static function cong_coso(', 'public static function bo_duoi_hieu_(', 'public static function bo_hieu_(' ) as $mo ) { $f = boc( $sk, $mo ); t( 'bốc ' . preg_replace( '/.*function /', '', $mo ), '' !== $f ); $fs .= "\n" . $f; }
 eval( 'class SAOKE_App { public static $mapMa = array(), $map = array(), $ds = array(), $ch = array();
 	public static function kd( $s ) { $s = mb_strtolower( (string) $s, "UTF-8" ); $s = str_replace( array( "ế","ề","ể","ễ","ệ","ê","é","è","ẻ","ẽ","ẹ","ơ","ớ","ờ","ở","ỡ","ợ","ô","ố","ồ","ổ","ỗ","ộ","ó","ò","ỏ","õ","ọ","â","ấ","ầ","ẩ","ẫ","ậ","ă","ắ","ằ","ẳ","ẵ","ặ","á","à","ả","ã","ạ","ư","ứ","ừ","ử","ữ","ự","ú","ù","ủ","ũ","ụ","í","ì","ỉ","ĩ","ị","ý","ỳ","ỷ","ỹ","ỵ","đ" ), array( "e","e","e","e","e","e","e","e","e","e","e","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","u","u","u","u","u","u","u","u","u","u","u","i","i","i","i","i","y","y","y","y","y","d" ), $s ); return preg_replace( "/[^a-z0-9 ]/", "", $s ); }
 	public static function chuan_ch( $s ) { return preg_replace( "/[^a-z0-9]/", "", self::kd( $s ) ); }
@@ -24,6 +24,7 @@ eval( 'class SAOKE_App { public static $mapMa = array(), $map = array(), $ds = a
 	private static function ghe_ds_coso() { return self::$ds; }
 	private static function ds_coso_all() { return self::$ds; }
 	private static function vqr_may_theo_ma( $m ) { $k = strtoupper( trim( (string) $m ) ); return isset( self::$ch[ $k ] ) ? self::$ch[ $k ] : ""; }
+	private static function vqr_diem_theo_ma_( $m ) { return ""; }   // 0.51.0: bài này không có điểm bán
 	public static function thu( $t, $m = "", $ax = null, $tay = "" ) { return self::cong_coso_dong( $t, $m, $ax, $tay ); }
 	public static function thu_chuan( $t ) { return self::ghe_coso_chuan( $t ); }
 	' . $fs . ' }' );
@@ -56,7 +57,7 @@ t( 'không quy được cơ sở Ghế thì in "⚠ … (chưa quy được cơ 
 /* 0.50.0: còn HAI chỗ gọi — vietqr_quy_dong_() (luật quy một dòng, dùng chung cho hai báo cáo VietQR của Ghế
    LẪN đẩy webhook sang kho Ghế) và bảng Sao Kê cổng. vietqr_theo_coso_ngay() nay SUY từ bản theo máy, không
    còn vòng lặp riêng — bớt một chỗ gọi là bớt một bản chép của luật, đúng hướng §6. */
-t( 'hai chỗ gọi cong_coso_dong: vietqr_quy_dong_ (báo cáo + đẩy webhook) và bảng cổng (một chỗ quyết định)', 2 === substr_count( $sk, 'self::cong_coso_dong(' ) );
+t( 'ba chỗ gọi cong_coso_dong: vietqr_quy_dong_ (báo cáo + đẩy webhook), bảng cổng, nạp bù (0.51.0: "chưa gán" = không quy được) — một chỗ quyết định', 3 === substr_count( $sk, 'self::cong_coso_dong(' ) );
 t( '0.50.0: cả hai báo cáo VietQR của Ghế đi qua vietqr_quy_dong_ (theo máy gọi, theo cơ sở suy từ theo máy)',
 	1 === substr_count( $sk, 'self::vietqr_quy_dong_( $r, $anhXa, $mapMa )' ) && 1 === substr_count( $sk, '$m = self::vietqr_theo_may_ngay( $tu, $den );' ) );
 echo "\n"; if ( $TRUOT ) { echo '🔴 TRƯỢT: ' . count( $TRUOT ) . "\n"; exit( 1 ); } echo "✓ SẠCH — $DAT phép\n";

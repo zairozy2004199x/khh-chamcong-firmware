@@ -54,6 +54,40 @@ lại ba kịch bản (PIN + #cvietqr · vé không hash · vé + #cvietqr): kh�
 biến đều có. `kiem-saoke-ve-hoan-vao.js` (9 phép) canh nhánh vé phải hoãn và các bảng cổng vẫn khai sau
 khối tự đăng nhập.
 
+### Sao Kê 0.51.0 — Chữ hiệu "Posh" không phải tên máy · tên điểm bán là cấp cơ sở · hai nút Gán / Tạo cơ sở mới bên Ghế
+
+**Anh Thắng 25/09/2026** gửi `store_export` + `transactions` của **tài khoản VietQR thứ hai** (AEON Hải Phòng / Huế / Long
+Biên, Sân bay Cam Ranh… + chuỗi JP) và ảnh màn nạp bù: *"Cơ sở chưa gán mã (473)"* toàn tên máy. Hỏi *"Nếu chưa gán anh
+tạo cửa hàng mới được không"* → *"Làm luôn 2 nút đó đi em"*.
+
+**Đọc file thật:** 989/1666 cửa hàng đặt tên đuôi "Posh" ("AE Huế 04 Posh", "AEHP 01 Posh"); 3781/3817 giao dịch là
+`PaymentForOrder` (không mang tên máy trong nội dung → chỉ quy được qua MÃ CỬA HÀNG); cột **Tên điểm bán** (182 giá trị,
+"POSH Aeon Mall Huế") mới là cấp cơ sở. Hậu quả của đuôi "Posh": `cong_coso()` không cắt được số máy → mỗi máy thành một
+"cơ sở" (473 dòng); `chuan_may()` ra `aehp01posh` ≠ `aehp1` của ghế "AEHP-1" → tiền rơi "không khớp".
+
+**Làm:**
+- `bo_duoi_hieu_()` / `bo_hieu_()`: bỏ chữ hiệu POSH ở đuôi / hai đầu trước khi so. `cong_coso()`, `chuan_may()`,
+  `ghe_coso_cua_may()` dùng đuôi; `ghe_coso_chuan()` lùi thêm khoá bỏ chữ hiệu hai đầu ("POSH Aeon Mall Huế" ↔ "AEON MALL
+  HUẾ"). Giữa tên thì giữ ("OCP POSH 01").
+- Nhân chứng 2b trong `cong_coso_dong()`: **tên điểm bán** của mã cửa hàng (`vqr_diem_theo_ma_`, cache trong lượt, quên
+  cùng `vqr_ch_quen_`) khi tên cửa hàng không ra ghế/cơ sở.
+- `ax_cua_may_()`: MỘT chỗ tra ánh xạ cho bốn màn (tên máy · cơ sở suy từ tên máy · tên điểm bán) — trước là bốn bản chép
+  cùng biểu thức; ánh xạ ghi theo nhãn điểm bán (nút Gán) nhờ vậy mới tra ra.
+- Nạp bù: "chưa gán" nay = **không quy được về cơ sở Ghế bằng bất kỳ nhân chứng nào** (hỏi `cong_coso_dong()`), nhãn gom
+  theo tên điểm bán; trả `chuaGan[{ten,soGd,tien,maCH,tenMay}]` (≤80, theo tiền giảm dần) + `soChuaGan`.
+- Màn hình: bảng "Cửa hàng cổng CHƯA QUY ĐƯỢC về cơ sở Ghế" với mỗi dòng **[chọn cơ sở Ghế] Gán** (→ `luuAnhXaCuaHang`,
+  đường cũ) và **＋ Tạo cơ sở mới bên Ghế** (hỏi tên, mặc định = nhãn → RPC mới `taoCoSoGhe` → `VHG_May::luu_coso(0, tên)`
+  của Ghế — chặn gần trùng, báo móc Chi Phí — rồi ghi ánh xạ nhãn → tên với cờ `gheMoi=1` vì bộ đệm tên cơ sở trong lượt
+  chưa biết cơ sở vừa tạo; ghi nhật ký Ghế). Xong dòng nào đánh dấu tại dòng. Ánh xạ ghi xong → kho Ghế 7 ngày gần tự
+  tính lại (0.50.0); xa hơn bấm ↻ ở Báo cáo tổng. `can_pin` 36.
+
+**Kiểm:** `kiem-saoke-duoi-posh-diem-ban.php` 47 phép (bốc hàm thật, VHG_May giả); cập nhật đếm ở `kiem-saoke-quy-coso`,
+`kiem-bi-danh-coso` (3 chỗ gọi `cong_coso_dong`), `kiem-saoke-rpc-nhan-phien-ve`, `kiem-saoke-vqr-hai-tai-khoan`,
+`kiem-saoke-vqr-cache-nhanh` (`can_pin` 36); `kiem-vietqr-tung-may` bốc thêm `ax_cua_may_`/`bo_duoi_hieu_`.
+
+**Cài:** cài đè Sao Kê 0.51.0, nạp lại **Danh sách cửa hàng** (file `store_export` mới nhất — màn báo 5 mã chưa có), rồi
+nạp lại file giao dịch: bảng "chưa quy được" chỉ còn những điểm thật sự chưa có bên Ghế, gán/tạo ngay tại chỗ.
+
 ### Sao Kê 0.50.0 — Bản đồ cửa hàng đọc một lần · lọc ngày dùng chỉ mục · ĐẨY số VietQR sang kho Ghế
 
 Cùng lượt với Ghế 2.142.0 (xem mục ấy về nguyên nhân đo được). Làm:

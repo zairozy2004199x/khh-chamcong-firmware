@@ -1807,6 +1807,55 @@ function cgLuuAnhXa(nguon, i){
   }).withFailureHandler(function(e){ toast(e.message, true); })
     .luuAnhXaCuaHang(PIN, nguon, x.ten, ten, ma, '', '');
 }
+/* ══ 0.51.0: CỬA HÀNG CỔNG CHƯA QUY ĐƯỢC VỀ CƠ SỞ GHẾ — hai nút ngay tại chỗ ══
+   Anh Thắng 25/09/2026: *"Nếu chưa gán anh tạo cửa hàng mới được không"* → *"Làm luôn 2 nút đó đi em"*.
+   · "Gán vào cơ sở có sẵn" → ghi ánh xạ nhãn cổng → cơ sở Ghế (luuAnhXaCuaHang, đường cũ).
+   · "Tạo cơ sở mới bên Ghế" → hỏi tên (mặc định = nhãn), tạo bằng VHG_May::luu_coso rồi ghi ánh xạ (taoCoSoGhe).
+   Nhãn = TÊN ĐIỂM BÁN của cổng (cấp cơ sở), hụt mới là cơ sở suy từ tên máy. Xong một dòng thì đánh dấu ngay tại
+   dòng, không vẽ lại cả khối (đang có kết quả nạp ở trên). */
+var CG_CHUAGAN = {};
+function cgChuaGanHtml(nguon, ds, tong){
+  CG_CHUAGAN[nguon] = ds;
+  var opt = '<option value="">— chọn cơ sở Ghế —</option>' + (CG_DSCH[nguon]||[]).map(function(x){ return '<option value="'+esc(x.ma)+'">'+esc(x.ten)+'</option>'; }).join('');
+  var h = '<b style="color:var(--vang)">Cửa hàng cổng CHƯA QUY ĐƯỢC về cơ sở Ghế ('+tong+(tong>ds.length?(', hiện '+ds.length):'')+'):</b>'
+    + '<table style="margin-top:4px"><thead><tr><th>Nhãn cổng (điểm bán / cơ sở)</th><th>GD</th><th>Tiền</th><th>Gán vào cơ sở có sẵn</th><th>Hoặc</th></tr></thead><tbody>';
+  ds.forEach(function(x, i){
+    h += '<tr id="'+cgId(nguon,'cgRow-'+i)+'"><td><b>'+esc(x.ten)+'</b>'+(x.tenMay && x.tenMay!==x.ten ? '<div class="muted">vd máy '+esc(x.tenMay)+(x.maCH?' · mã '+esc(x.maCH):'')+'</div>' : '')+'</td>'
+      + '<td>'+x.soGd+'</td><td>'+fmt(x.tien)+'đ</td>'
+      + '<td><select id="'+cgId(nguon,'cgSel-'+i)+'" style="max-width:260px">'+opt+'</select> <button type="button" onclick="cgGanChuaGan(\''+esc(nguon)+'\','+i+')">Gán</button></td>'
+      + '<td><button type="button" onclick="cgTaoCoSo(\''+esc(nguon)+'\','+i+')">＋ Tạo cơ sở mới bên Ghế</button></td></tr>';
+  });
+  return h + '</tbody></table>';
+}
+function cgDanhDauXong(nguon, i, chu){
+  var tr = document.getElementById(cgId(nguon,'cgRow-'+i)); if(!tr) return;
+  tr.innerHTML = '<td colspan="5" style="color:var(--xanhLa,#15803d)">✓ '+chu+'</td>';
+}
+function cgGanChuaGan(nguon, i){
+  var x = (CG_CHUAGAN[nguon]||[])[i]; if(!x) return;
+  var sel = document.getElementById(cgId(nguon,'cgSel-'+i)); var ten = sel ? sel.value : '';
+  if(!ten){ toast('Chọn cơ sở Ghế trước đã.', true); return; }
+  google.script.run.withSuccessHandler(function(r){
+    if(!r||!r.ok){ toast((r&&r.error)||'Lỗi', true); return; }
+    toast('Đã gán "'+r.tenFile+'" → "'+r.tenChuan+'"');
+    cgDanhDauXong(nguon, i, esc(x.ten)+' → đã gán vào <b>'+esc(r.tenChuan)+'</b> (kho Ghế 7 ngày gần tự tính lại; xa hơn bấm ↻ ở Báo cáo tổng)');
+    cgTaiLai(nguon);
+  }).withFailureHandler(function(e){ toast(e.message, true); })
+    .luuAnhXaCuaHang(PIN, nguon, x.ten, ten, '', '', '');
+}
+function cgTaoCoSo(nguon, i){
+  var x = (CG_CHUAGAN[nguon]||[])[i]; if(!x) return;
+  var ten = prompt('Tên cơ sở MỚI bên Ghế (sửa nếu muốn — giữ đúng tên cổng thì tự khớp, không cần ánh xạ):', x.ten);
+  if(ten === null) return; ten = String(ten).trim(); if(!ten){ toast('Thiếu tên cơ sở.', true); return; }
+  google.script.run.withSuccessHandler(function(r){
+    if(!r||!r.ok){ toast((r&&r.error)||'Lỗi', true); return; }
+    toast((r.daCo ? 'Cơ sở đã có sẵn: ' : 'Đã tạo cơ sở Ghế: ')+r.ten+(r.anhXa ? ' · đã ghi ánh xạ' : ''));
+    (CG_DSCH[nguon] = CG_DSCH[nguon] || []).push({ ma: r.ten, ten: r.ten });
+    cgDanhDauXong(nguon, i, esc(x.ten)+' → '+(r.daCo?'gán vào cơ sở có sẵn':'đã TẠO cơ sở Ghế')+' <b>'+esc(r.ten)+'</b>'+(r.anhXa?' · ánh xạ đã ghi':''));
+    cgTaiLai(nguon);
+  }).withFailureHandler(function(e){ toast(e.message, true); })
+    .taoCoSoGhe(PIN, nguon, x.ten, ten);
+}
 // Ngày đang xem của từng cổng. Giữ ở đây (không nhét vào ô input) để nút Làm mới / đổi tháng
 // tự bỏ lọc, khỏi cảnh đổi sang tháng khác mà vẫn kẹt lọc ngày của tháng cũ -> bảng trống.
 var CG_NGAY = {};
@@ -2016,7 +2065,11 @@ function cgNapTx(nguon){
       + ' · thiếu số tiền: '+r.khongTien+' · thiếu mã giao dịch: '+r.khongMa
       + (r.khongThanhCong ? (' · <b>không thành công: '+r.khongThanhCong+'</b>') : '')+')');
     if(r.chuaRoMay) ph.push(r.chuaRoMay+' giao dịch nội dung không mang tên máy');
-    if(r.cuaHangMoi.length) ph.push('<b style="color:var(--vang)">Cơ sở chưa gán mã ('+r.cuaHangMoi.length+'):</b> '+r.cuaHangMoi.map(esc).join(' · '));
+    /* 0.51.0: chỉ liệt kê cơ sở KHÔNG quy được về Ghế bằng bất kỳ nhân chứng nào, kèm hai nút (gán / tạo). Máy chủ cũ
+       chỉ trả cuaHangMoi (mọi tên chưa có ánh xạ) thì in như trước. */
+    if(r.chuaGan && r.chuaGan.length) ph.push(cgChuaGanHtml(nguon, r.chuaGan, r.soChuaGan||r.chuaGan.length));
+    else if(r.chuaGan) ph.push('<b style="color:var(--xanhLa,#15803d)">Mọi cửa hàng trong file đều quy được về cơ sở Ghế.</b>');
+    else if(r.cuaHangMoi.length) ph.push('<b style="color:var(--vang)">Cơ sở chưa gán mã ('+r.cuaHangMoi.length+'):</b> '+r.cuaHangMoi.map(esc).join(' · '));
     kq.innerHTML = '<div class="hint">• '+ph.join('<br>• ')+'</div>';
     google.script.run.withSuccessHandler(function(){}).withFailureHandler(function(){})
       .luuCotTxCong(PIN, nguon, { thoiDiem: k.cot.td, soTien: k.cot.ti, maGD: k.cot.ma,

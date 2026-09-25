@@ -32,7 +32,7 @@ class VHG_VietQR {
 	public static function cong_gd( $ng, $cs, $ma, $tien ) { if ( self::$nem ) { self::$nem = false; throw new RuntimeException( 'kho hỏng' ); } self::$goi[] = array( $ng, $cs, $ma, $tien ); return true; }
 }
 eval( 'class SAOKE_App {
-	private static $vqr_ch_cache = null, $vqr_ma_tat_ca_cache = null, $vqr_may_memo = array();
+	private static $vqr_ch_cache = null, $vqr_ma_tat_ca_cache = null, $vqr_may_memo = array(), $vqr_diem_cache = null;
 	public static $quy = array();
 	private static function cong_ngay_mysql( $s ) { return $s; }
 	private static function ds_anhxa( $n ) { return array(); }
@@ -104,7 +104,7 @@ t( 'không có lớp VHG_VietQR (Ghế cũ) thì mọi đường đẩy im (ghe_
 
 echo "── 6. Vân tay bản ───────────────────────────────────────────────\n";
 preg_match( '/^ \* Version:\s+([0-9.]+)/m', $sk, $m1 ); preg_match( "/const VER = '([0-9.]+)';/", $sk, $m2 );
-t( 'header Version == const VER == 0.50.0', isset( $m1[1], $m2[1] ) && $m1[1] === $m2[1] && '0.50.0' === $m1[1], array( $m1[1] ?? null, $m2[1] ?? null ) );
-t( 'can_pin vẫn 35 chỗ (không mở cửa RPC nào không PIN)', 35 === substr_count( $sk, 'self::can_pin(' ) );
+t( 'header Version == const VER, từ 0.50.0 trở lên', isset( $m1[1], $m2[1] ) && $m1[1] === $m2[1] && version_compare( $m1[1], '0.50.0', '>=' ), array( $m1[1] ?? null, $m2[1] ?? null ) );
+t( 'can_pin 36 chỗ (0.51.0 thêm taoCoSoGhe; không mở cửa RPC nào không PIN)', 36 === substr_count( $sk, 'self::can_pin(' ) );
 
 echo "\n"; if ( $TRUOT ) { echo '🔴 TRƯỢT: ' . count( $TRUOT ) . "\n"; exit( 1 ); } echo "✓ SẠCH — $DAT phép\n";

@@ -43,6 +43,7 @@ eval( 'class SAOKE_App {
 	private static function ghe_coso_cua_may( $t ) { $k = self::chuan_ch( self::cong_coso( $t ) ); return isset( self::$coso[ $k ] ) ? array( "coso" => self::$coso[ $k ] ) : null; }
 	private static function ghe_map_may_ma() { return self::$mapMa; }
 	private static function vqr_may_theo_ma( $m ) { return ""; }
+	private static function vqr_diem_theo_ma_( $m ) { return ""; }   // 0.51.0
 	private static function ghe_coso_chuan( $t ) { $k = self::chuan_ch( $t ); return isset( self::$coso[ $k ] ) ? self::$coso[ $k ] : ""; }
 	' . boc( $sk, 'private static function cong_coso_dong(' ) . '
 	/* 0.50.0: vòng lặp tách thành vietqr_quy_dong_ + vietqr_gom_; lọc ngày qua khoang_thoi_diem_ (moc_tu_/moc_den_). */
@@ -51,6 +52,8 @@ eval( 'class SAOKE_App {
 	' . boc( $sk, 'private static function moc_tu_(' ) . '
 	' . boc( $sk, 'private static function moc_den_(' ) . '
 	' . boc( $sk, 'private static function khoang_thoi_diem_(' ) . '
+	' . boc( $sk, 'private static function ax_cua_may_(' ) . '
+	' . boc( $sk, 'public static function bo_duoi_hieu_(' ) . '
 	' . $f_cm . "\n" . $f_vq . '
 }' );
 t( '🔴 "LM-NSG 01" và "LM-NSG-1" ra CÙNG khoá', SAOKE_App::chuan_may( 'LM-NSG 01' ) === SAOKE_App::chuan_may( 'LM-NSG-1' ), array( SAOKE_App::chuan_may( 'LM-NSG 01' ), SAOKE_App::chuan_may( 'LM-NSG-1' ) ) );
