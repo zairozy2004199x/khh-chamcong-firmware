@@ -1,0 +1,4 @@
+fw=ghe-massage 2026-09-01c (man chon goi: font dep neu co, chu dam neu khong)
+commit=2d254504bf87a7b4aeec29ed309a879b15cb2b3d
+nhanh=claude/cc-khoi-ke-toan
+size=494128
