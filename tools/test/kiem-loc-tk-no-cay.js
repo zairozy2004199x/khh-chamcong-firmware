@@ -30,8 +30,9 @@ teq('   giữ lựa chọn cũ khi vẽ lại', '641', d.value);
   const O = { xuatSoDon: {}, xuatSoDong: {}, xuatEmpty: { style: {} }, xuatHead: {}, xuatBody: {} };
   const X2 = { sodon: 1, count: 2, cols: ['TK Nợ', 'Ngày hạch toán', 'Ngày chứng từ', 'Số chứng từ', 'Diễn giải chung', 'Phát sinh Nợ'],
     rows: [['64196', '07/09/2026', '07/09/2026', 'D_abc', 'x', 277000], ['64196', '07/09/2026', '07/09/2026', 'NVK-la', 'y', 5000]] };
-  new Function('el', 'XUAT', 'BOOT', 'esc', 'money', 'renderXuatWarn', 'renderXuatBanGiao', '_veOTkNo', ham('_laMaDon') + ham('renderXuat') + '\nrenderXuat();')(
-    (id) => O[id], X2, { dons: [{ maDon: 'D_abc' }] }, (s) => String(s), (n) => String(n), () => {}, () => {}, () => {});
+  /* 25/09/2026: renderXuat gọi thêm _veOMang (ô lọc Mảng kinh doanh) — tiêm stub cùng chỗ với _veOTkNo. */
+  new Function('el', 'XUAT', 'BOOT', 'esc', 'money', 'renderXuatWarn', 'renderXuatBanGiao', '_veOTkNo', '_veOMang', ham('_laMaDon') + ham('renderXuat') + '\nrenderXuat();')(
+    (id) => O[id], X2, { dons: [{ maDon: 'D_abc' }] }, (s) => String(s), (n) => String(n), () => {}, () => {}, () => {}, () => {});
   t('🔴 Số chứng từ là mã đơn trong kho → thành liên kết mở đơn', /onclick="viewDon\('D_abc'\);return false"/.test(O.xuatBody.innerHTML), O.xuatBody.innerHTML);
   t('   chuỗi không phải mã đơn → chữ thường, không liên kết', !/viewDon\('NVK-la'/.test(O.xuatBody.innerHTML) && /NVK-la/.test(O.xuatBody.innerHTML), O.xuatBody.innerHTML);
   t('   cột tiền vẫn canh phải', /class="money"[^>]*>277000</.test(O.xuatBody.innerHTML), O.xuatBody.innerHTML);

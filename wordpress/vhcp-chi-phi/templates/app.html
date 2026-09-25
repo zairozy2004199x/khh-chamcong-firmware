@@ -1683,6 +1683,12 @@
           <select id="xuatTkNo" onchange="callExport()" style="display:none" title="Sổ chi tiết là sổ của MỘT tài khoản. Chọn một mã → tệp đúng 13 cột như mẫu MISA. Để 'mọi TK Nợ' → app thêm cột TK Nợ ở đầu để tệp không lẫn.">
             <option value="all">— mọi TK Nợ (thêm cột TK Nợ) —</option>
           </select>
+          <!-- 🧮 LỌC MẢNG KINH DOANH — anh Thắng 25/09/2026 (ảnh bảng 🧮 Loại chi phí × Mảng kinh doanh):
+               "Mỗi chi phí sẽ xuất ra 1 bảng misa riêng". Chọn một mảng → tệp chỉ còn dòng của mảng đó,
+               xuất mỗi mảng một lượt thay vì một tệp trộn hết rồi lọc lại bằng Excel. -->
+          <select id="xuatMang" onchange="callExport()" style="display:none" title="Mảng kinh doanh (Phân loại lớn của cơ sở). Chọn một mảng → tệp CHỈ còn dòng của mảng đó, thành một bảng MISA riêng cho mảng ấy.">
+            <option value="all">— mọi mảng —</option>
+          </select>
           <button class="btn b-x" onclick="loadXuat()">↻ Tải lại</button>
           <button class="btn b-x" id="xuatWarnBtn" style="display:none" onclick="xuatWarnBat()" title="Bật lại ô cảnh báo cấu hình">🔔 Hiện cảnh báo</button>
           <button class="btn b-g" onclick="downloadCSV()">⬇ Tải Excel & chốt đã xuất</button>
@@ -10289,6 +10295,7 @@
        chọn một thứ không có tác dụng — im lặng, nên tệp ra vẫn mẫu cũ mà họ tưởng đã đổi. */
     if(el('xuatMau')) el('xuatMau').style.display=(src==='vh')?'':'none';
     _veOTkNo();
+    _veOMang();
     callExport();
   }
   function callExport(){ loading(true);
@@ -10318,7 +10325,8 @@
       .withFailureHandler(function(e){loading(false);toast('err',e.message);})
       .exportMisa(el('xuatKy').value, el('xuatTT').value, plF,
                   (el('xuatMau')&&el('xuatMau').value)||'soct',
-                  (el('xuatTkNo')&&el('xuatTkNo').value)||'all');
+                  (el('xuatTkNo')&&el('xuatTkNo').value)||'all',
+                  (el('xuatMang')&&el('xuatMang').value)||'all');
   }
   /** Chuỗi ở cột Số chứng từ có phải mã đơn trong kho không — chỉ mã đơn mới thành đường dẫn. */
   function _laMaDon(m){
@@ -10343,6 +10351,7 @@
     renderXuatWarn();
     renderXuatBanGiao();
     _veOTkNo();
+    _veOMang();
   }
   /* ═════════════════════════════════════════════════════════════════════════════════
    * Ô LỌC TK NỢ — chỉ có nghĩa với mẫu sổ chi tiết, và chỉ đổ mã CÓ MẶT trong kỳ.
@@ -10367,6 +10376,21 @@
     var cu=o.value, cay=(XUAT&&XUAT.tkCay)||((XUAT&&XUAT.tkDs)||[]).map(function(m){ return {ma:m, thuc:true}; });
     o.innerHTML='<option value="all">'+(soct?'— mọi TK Nợ (thêm cột TK Nợ) —':'— mọi TK Nợ —')+'</option>'
       +cay.map(function(x){ return '<option value="'+esc(x.ma)+'">'+esc(x.ma)+(x.thuc?'':' — cả con/cháu')+'</option>'; }).join('');
+    if(cu){ o.value=cu; if(!o.value) o.value='all'; }
+  }
+  /* ── Ô LỌC MẢNG KINH DOANH trên Xuất MISA — anh Thắng 25/09/2026: *"Mỗi chi phí sẽ xuất ra 1
+     bảng misa riêng"*. Cùng khuôn với `_veOTkNo()`: chỉ có nghĩa với nguồn 'vh' (đơn vận hành),
+     đổ từ DỮ LIỆU (`XUAT.mangDs` — mảng THẬT SỰ có dòng trong kỳ đang xem), giữ lựa chọn cũ khi
+     vẽ lại. */
+  function _veOMang(){
+    var o=el('xuatMang'); if(!o) return;
+    var src=(el('xuatNguon')&&el('xuatNguon').value)||'vh';
+    var hien=(src==='vh');
+    o.style.display=hien?'':'none';
+    if(!hien) return;
+    var cu=o.value, ds=(XUAT&&XUAT.mangDs)||[];
+    o.innerHTML='<option value="all">— mọi mảng —</option>'
+      +ds.map(function(x){ return '<option value="'+esc(x)+'">'+esc(x)+'</option>'; }).join('');
     if(cu){ o.value=cu; if(!o.value) o.value='all'; }
   }
   /* ═════════════════════════════════════════════════════════════════════════════════
