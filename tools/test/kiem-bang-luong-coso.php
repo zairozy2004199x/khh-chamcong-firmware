@@ -2769,4 +2769,38 @@ t( '🔴 tiêu đề nhóm có nét dọc hai bên, như khung trong tệp Excel
 t( '⚠️ KHÔNG nhét tiêu đề 80px vào màn quản trị', false === strpos( $css, 'font-size:80px' ), $css );
 t( '⚠️ và KHÔNG bo thẻ 40px', false === strpos( $css, 'border-radius:40px' ), $css );
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 HAI MÀN PHẢI BÀY CÙNG MỘT DANH SÁCH CƠ SỞ
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 25/09/2026, hai ảnh chụp hai màn cạnh nhau: *"Không đồng nhất cơ sở giữa 2 bên, bên
+ * có, bên không"* — `PART_TIME (POSHJP)` có ở ô lọc của màn Quản lý nhân sự, không có ở ô lọc
+ * của màn Hồ sơ bên Chấm công.
+ *
+ * Nguyên do: hai màn hỏi HAI NGUỒN. Màn Nhân sự hỏi `VHCC_NhanSu::ds_coso()` — danh mục thật,
+ * đọc `bo_phan_coso` + `may`, có chuẩn hoá tên. Màn Hồ sơ thì `SELECT DISTINCT cua_hang` trên
+ * bảng nhân viên, tức chỉ thấy cơ sở ĐÃ CÓ NGƯỜI, và thấy tên thô.
+ *
+ * Bài này canh cả HAI CHIỀU, vì sửa một chiều rất dễ làm hỏng chiều kia:
+ *   · cơ sở có trong danh mục mà CHƯA có ai  -> vẫn phải lên ô lọc (đúng lúc cần thêm người);
+ *   · cơ sở LẠ (đang mang hồ sơ thật mà chưa vào danh mục) -> cũng phải lên, không thì mấy hồ
+ *     sơ ấy thành không lọc tới được — đổi một chỗ lệch lấy một chỗ mất.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+$wpdb->insert( VHCC_DB::t( 'bo_phan_coso' ), array( 'coso' => 'PART_TIME_TEST', 'bo_phan' => 'Khu vui chơi' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array(
+	'ma_nv' => '0000000777', 'ho_ten' => 'Người Cơ Sở Lạ', 'cua_hang' => 'COSO_LA_TEST' ) );
+
+$h_hs = vhcc_man( 'KT_BL', 'Kế toán', '', array( 'man' => 'ho_so' ) );
+$o_cs = '';
+if ( preg_match( '~<select id="fcs" name="cs">(.*?)</select>~s', $h_hs, $m_cs ) ) { $o_cs = $m_cs[1]; }
+t( '🔴 bóc được ô chọn cơ sở của màn Hồ sơ', '' !== $o_cs, 'không thấy <select id="fcs">' );
+t( '🔴 cơ sở có trong DANH MỤC mà chưa có ai vẫn lên ô lọc',
+	false !== strpos( $o_cs, 'PART_TIME_TEST' ), $o_cs );
+t( '🔴 cơ sở LẠ (có hồ sơ, chưa vào danh mục) cũng vẫn lên ô lọc',
+	false !== strpos( $o_cs, 'COSO_LA_TEST' ), $o_cs );
+/* Và đúng bằng những gì màn Nhân sự bày ra — đây mới là chốt "đồng nhất". Màn kia có thể có
+   THÊM cơ sở lạ của riêng nó, nên chốt theo chiều bao hàm: mọi thứ trong danh mục đều phải có. */
+foreach ( VHCC_NhanSu::ds_coso() as $_c ) {
+	t( '   ô lọc màn Hồ sơ có « ' . $_c .' » y như màn Nhân sự', false !== strpos( $o_cs, $_c ), $o_cs );
+}
+
 ket_luan();

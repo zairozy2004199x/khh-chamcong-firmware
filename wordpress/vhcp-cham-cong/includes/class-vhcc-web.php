@@ -12959,10 +12959,34 @@ class VHCC_Web {
 		   `man_mac_dinh()` trả về 'nha', và người ta rơi vào Trang chính đúng lúc vừa gõ xong một
 		   câu tìm. Ba biểu mẫu GET khác trên màn này đều đã chở `man`; đây là cái duy nhất sót. */
 		echo '<input type="hidden" name="man" value="ho_so">';
+		/* ══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 DANH MỤC CƠ SỞ ∪ CƠ SỞ ĐANG CÓ NGƯỜI — KHÔNG CHỈ MỘT TRONG HAI.
+		 *
+		 * Anh Thắng 25/09/2026, hai ảnh chụp hai màn cạnh nhau: *"Không đồng nhất cơ sở giữa 2
+		 * bên, bên có, bên không"* — `PART_TIME (POSHJP)` có ở màn Quản lý nhân sự mà không có
+		 * ở đây.
+		 *
+		 * Nguyên do: hai màn dựng danh sách từ HAI NGUỒN. Màn kia hỏi `VHCC_NhanSu::ds_coso()`
+		 * — danh mục thật (bảng bộ phận + bảng máy), có chuẩn hoá tên. Màn này thì
+		 * `SELECT DISTINCT cua_hang` trên bảng nhân viên, tức chỉ thấy cơ sở ĐÃ CÓ NGƯỜI, và
+		 * thấy tên THÔ. Một cơ sở vừa mở, chưa kịp xếp ai vào, thì ở đây không tồn tại — mà đó
+		 * đúng là lúc người ta cần lọc tới nó nhất để thêm người.
+		 *
+		 * ⚠️ LẤY HỢP CỦA HAI, KHÔNG THAY HẲN SANG DANH MỤC. Đổi hẳn sang `ds_coso()` thì cơ sở
+		 *    LẠ — tên đang mang hồ sơ thật mà chưa có trong danh mục, xem `VHCC_NhanSu::coso_la()`
+		 *    — rơi khỏi ô lọc, và mấy hồ sơ ấy thành không lọc tới được. Sửa một chỗ lệch bằng
+		 *    cách tạo ra một chỗ mất là đổi lỗi này lấy lỗi khác, lần này lại im lặng hơn.
+		 * ══════════════════════════════════════════════════════════════════════════════════ */
+		$ds_cs = VHCC_NhanSu::ds_coso();
+		foreach ( VHCC_DB::rows( "SELECT DISTINCT cua_hang FROM $bang WHERE cua_hang<>''" ) as $x ) {
+			$t = VHCC_NhanSu::chuan_coso( $x['cua_hang'] );
+			if ( '' !== $t && ! in_array( $t, $ds_cs, true ) ) { $ds_cs[] = $t; }
+		}
+		sort( $ds_cs );
 		echo '<div><label for="fcs">Cơ sở</label><select id="fcs" name="cs"><option value="">— mọi cơ sở —</option>';
-		foreach ( VHCC_DB::rows( "SELECT DISTINCT cua_hang FROM $bang WHERE cua_hang<>'' ORDER BY cua_hang" ) as $x ) {
-			echo '<option value="' . esc_attr( $x['cua_hang'] ) . '"' . selected( $x['cua_hang'], $cs, false )
-				. '>' . esc_html( $x['cua_hang'] ) . '</option>';
+		foreach ( $ds_cs as $t ) {
+			echo '<option value="' . esc_attr( $t ) . '"' . selected( $t, $cs, false )
+				. '>' . esc_html( $t ) . '</option>';
 		}
 		echo '</select></div>';
 		echo '<div><label for="fq">Tìm</label><input id="fq" name="q" value="' . esc_attr( $tim )
