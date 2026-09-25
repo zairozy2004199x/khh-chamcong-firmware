@@ -144,7 +144,7 @@ function khh_dt_rest_dat_quyen( $req ) {
 		return new WP_Error( 'khh_dt_qt', 'Không thấy người dùng này.', array( 'status' => 400 ) );
 	}
 	$quyen = sanitize_text_field( (string) $req->get_param( 'quyen' ) );
-	$co_so = sanitize_text_field( (string) $req->get_param( 'co_so' ) );
+	$co_so = ( function_exists( 'khh_dt_bc_ten_cua' ) ? khh_dt_bc_ten_cua( $req->get_param( 'co_so' ) ) : sanitize_text_field( (string) $req->get_param( 'co_so' ) ) );
 	if ( ! in_array( $quyen, array( '', 'nhap', 'duyet' ), true ) ) {
 		$quyen = '';
 	}
@@ -180,7 +180,7 @@ function khh_dt_rest_nhan_day( $req ) {
 	$email     = sanitize_email( (string) $req->get_param( 'email' ) );
 	$tai_khoan = sanitize_user( (string) $req->get_param( 'tai_khoan' ), true );
 	$ho_ten    = sanitize_text_field( (string) $req->get_param( 'ho_ten' ) );
-	$co_so     = sanitize_text_field( (string) $req->get_param( 'co_so' ) );
+	$co_so     = ( function_exists( 'khh_dt_bc_ten_cua' ) ? khh_dt_bc_ten_cua( $req->get_param( 'co_so' ) ) : sanitize_text_field( (string) $req->get_param( 'co_so' ) ) );
 	$quyen     = sanitize_text_field( (string) $req->get_param( 'quyen' ) );
 	$bo        = (bool) $req->get_param( 'bo' );
 

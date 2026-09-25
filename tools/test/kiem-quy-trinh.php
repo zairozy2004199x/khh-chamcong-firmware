@@ -128,6 +128,10 @@ $khoa = array_map( function ( $x ) { return $x['ngay'] . '|' . $x['cua_hang'] . 
 phep( '🔴 việc: không có dòng đã chốt', ! in_array( '2026-09-23|' . $TP . '|da_chot', $khoa, true ) && ! in_array( '2026-09-22|' . $TP . '|da_chot', $khoa, true ) );
 phep( 'GV 23/09 đã lưu chưa chốt -> có', in_array( '2026-09-23|' . $GV . '|da_luu', $khoa, true ) );
 phep( 'GV 22/09 chưa nộp -> có; VT 22/09 đã lưu -> có', in_array( '2026-09-22|' . $GV . '|chua_nop', $khoa, true ) && in_array( '2026-09-22|' . $VT . '|da_luu', $khoa, true ) );
+/* Anh Thắng 25/09/2026: "Ngày nào bấm nộp sẽ hiện xanh, chứ không phải ẩn" — lịch đủ kể cả ngày đã chốt. */
+$l = khh_dt_qt_viec( array(), $BAY, 7, true );
+$khoa_l = array_map( function ( $x ) { return $x['ngay'] . '|' . $x['cua_hang'] . '|' . $x['trang_thai']; }, $l );
+phep( '🔴 ke_ca_chot: lịch có cả TP 23/09 và 22/09 đã chốt, và vẫn có mọi việc treo', in_array( '2026-09-23|' . $TP . '|da_chot', $khoa_l, true ) && in_array( '2026-09-22|' . $TP . '|da_chot', $khoa_l, true ) && ! array_diff( $khoa, $khoa_l ) && count( $l ) === count( $v ) + 2 );
 phep( '🔴 hôm qua (23/09) VT chưa có số máy VẪN kể — việc của văn phòng', in_array( '2026-09-23|' . $VT . '|chua_fabi', $khoa, true ) );
 phep( '🔴 ngày cũ (21/09) không số máy, không ai nhập -> KHÔNG kể', ! in_array( '2026-09-21|' . $TP . '|chua_fabi', $khoa, true ) && ! in_array( '2026-09-21|' . $VT . '|chua_fabi', $khoa, true ) );
 phep( 'VT 20/09 đã lưu chưa chốt (trong 7 ngày) -> có', in_array( '2026-09-20|' . $VT . '|da_luu', $khoa, true ) );
@@ -179,6 +183,10 @@ $GLOBALS['VHCP_META'] = array( 'khh_dt_co_so' => $GV );
 $r = khh_dt_rest_qt_xem();
 phep( '🔴 cửa hàng trưởng: chỉ việc của quán mình, KHÔNG có cấu hình/nhật ký/tổng hợp', ! isset( $r['cf'] ) && ! isset( $r['nhat_ky'] ) && ! isset( $r['tong_hop'] ) && count( $r['viec'] ) > 0 && ! array_filter( $r['viec'], function ( $x ) use ( $GV ) { return $x['cua_hang'] !== $GV; } ) );
 phep( 'kèm giờ hạn để màn nói "chốt trước 10:00"', '10:00' === $r['han'] );
+$GLOBALS['VHCP_META'] = array( 'khh_dt_co_so' => $TP );
+$r = khh_dt_rest_qt_xem();
+phep( '🔴 REST trả `lich` (có ngày đã chốt) và `viec` (không có) — cùng quán', (bool) array_filter( $r['lich'], function ( $x ) { return 'da_chot' === $x['trang_thai']; } ) && ! array_filter( $r['viec'], function ( $x ) { return 'da_chot' === $x['trang_thai']; } ) && count( $r['lich'] ) > count( $r['viec'] ) );
+$GLOBALS['VHCP_META'] = array( 'khh_dt_co_so' => $GV );
 $GLOBALS['VHCP_CO_QUYEN'] = true;
 $GLOBALS['VHCP_META'] = array();
 $r = khh_dt_rest_qt_luu( new WP_REST_Request( array( 'bat' => '1', 'han' => '09:30', 'email' => 'ketoan@example.test', 'lui' => '5' ) ) );
@@ -195,6 +203,42 @@ phep( 'REST chạy ngay trả về dòng vừa chạy', isset( $r['vua_chay']['n
 $GLOBALS['VHCP_DANG_NHAP_WP'] = true;
 $r = khh_dt_rest_bc_lay( new WP_REST_Request( array( 'ngay' => '2026-09-23', 'cua_hang' => $GV ) ) );
 phep( 'GET bao-cao-ngay kèm quy_trinh với bốn bước', ! is_wp_error( $r ) && isset( $r['quy_trinh']['buoc']['kho'] ) && 'da_luu' === $r['quy_trinh']['trang_thai'] );
+
+/* ── Cửa hàng trưởng Estella bấm Lưu báo cáo bị "không phụ trách cơ sở này" (anh Thắng 24/09/2026): tên POS có hai
+      dấu cách, đường ghi gộp còn một rồi so chặt với hồ sơ. Nay tra tên nguyên văn + so lỏng. ── */
+$CS_E2 = 'Tutu Train - Estella ( Dịch vụ  và Giải trí )';
+pos_ngay( '2026-09-23', $CS_E2 );
+$GLOBALS['VHCP_CO_QUYEN'] = false;
+$GLOBALS['VHCP_META'] = array( 'khh_dt_co_so' => 'Tutu Train - Estella ( Dịch vụ và Giải trí )' );   // hồ sơ lưu bản một dấu cách
+$r = khh_dt_rest_bc_luu( new WP_REST_Request( array( 'ngay' => '2026-09-23', 'cua_hang' => $CS_E2, 'tien_mat_dem' => '500000' ) ) );
+phep( '🔴 Lưu báo cáo với tên quán nguyên văn (hai dấu cách) trong khi hồ sơ ghi một dấu cách -> KHÔNG bị chối', ! is_wp_error( $r ) && $CS_E2 === $r['bao_cao']['cua_hang'] );
+$r = khh_dt_rest_bc_luu( new WP_REST_Request( array( 'ngay' => '2026-09-23', 'cua_hang' => 'Tutu Train - Estella ( Dịch vụ và Giải trí )', 'tien_mat_dem' => '600000' ) ) );
+phep( 'gửi bản một dấu cách cũng ghi vào đúng dòng tên nguyên văn (không sinh dòng thứ hai)', ! is_wp_error( $r ) && $CS_E2 === $r['bao_cao']['cua_hang'] && 1 === (int) $wpdb->get_var( "SELECT COUNT(*) FROM " . khh_dt_bang_bc() . " WHERE ngay = '2026-09-23' AND cua_hang LIKE '%Estella%'" ) );
+$r = khh_dt_rest_bc_luu( new WP_REST_Request( array( 'ngay' => '2026-09-23', 'cua_hang' => $GV, 'tien_mat_dem' => '1' ) ) );
+phep( 'quán KHÁC thì vẫn chối 403', is_wp_error( $r ) && 403 === (int) $r->get_error_data()['status'] );
+$GLOBALS['VHCP_META'] = array();
+$GLOBALS['VHCP_CO_QUYEN'] = true;
+
+/* ── Tab Nhập: món là thành phần combo phải thấy "lẻ 2 + 6 theo combo → rời kho 8" (anh Thắng 24/09/2026). ── */
+$CS_K = 'Quán thử theo combo';
+khh_dt_kho_mh_dat( $CS_K, array( 'Nước suối Danasi', 'Thạch trái cây' ) );
+delete_option( 'khh_dt_kho_combo_ls' );
+khh_dt_kho_combo_dat( 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + NƯỚC SUỐI', array( 'Nước suối Danasi' => 1 ), '2026-09-01' );
+khh_dt_kho_combo_dat( 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + THẠCH', array( 'Thạch trái cây' => 1 ), '2026-09-01' );
+$wpdb->query( $wpdb->prepare( 'INSERT OR REPLACE INTO ' . khh_dt_bang() . ' (ngay,cua_hang,doanh_thu,so_hd,so_ve,pttt,mon) VALUES (%s,%s,%f,%d,%f,%s,%s)',
+	'2026-09-24', $CS_K, 1820000, 20, 20, '[]', wp_json_encode( array(
+		array( 'n' => 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + NƯỚC SUỐI ', 'g' => 'VÉ COMBO.', 'q' => 6,  'r' => 540000 ),
+		array( 'n' => 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + THẠCH',      'g' => 'VÉ COMBO.', 'q' => 14, 'r' => 1260000 ),
+		array( 'n' => 'NƯỚC SUỐI DANASI',                                  'g' => 'ĐÓNG SẴN',  'q' => 2,  'r' => 20000 ),
+	) ) ) );
+$pos = khh_dt_so_pos( '2026-09-24', $CS_K );
+$ns  = array_values( array_filter( $pos['mon'], function ( $m ) { return 'NƯỚC SUỐI DANASI' === $m['n']; } ) );
+phep( '🔴 dòng Nước suối: q = 2 (lẻ), kho_combo = 6, kho_tong = 8', 1 === count( $ns ) && 2.0 === $ns[0]['q'] && 6.0 === $ns[0]['kho_combo'] && 8.0 === $ns[0]['kho_tong'] );
+phep( 'dòng combo không mang kho_combo', ! isset( array_values( array_filter( $pos['mon'], function ( $m ) { return false !== strpos( $m['n'], 'THẠCH' ); } ) )[0]['kho_combo'] ) );
+$tc = array(); foreach ( $pos['theo_combo'] as $x ) { $tc[ $x['n'] ] = $x; }
+phep( '🔴 theo_combo kể cả thành phần không có dòng FABi: Thạch trái cây 14 (lẻ 0), Nước suối Danasi 6 (lẻ 2)', 14.0 === $tc['Thạch trái cây']['combo'] && 0.0 === $tc['Thạch trái cây']['le'] && 6.0 === $tc['Nước suối Danasi']['combo'] && 2.0 === $tc['Nước suối Danasi']['le'] );
+delete_option( 'khh_dt_kho_combo_ls' );
+delete_option( 'khh_dt_kho_mat_hang' );
 
 /* Mã nguồn: plugin nạp module, đặt lịch lúc nâng cấp, gỡ lúc tắt. */
 $src = preg_replace( '~/\*.*?\*/~s', '', file_get_contents( $goc . '/khh-doanh-thu.php' ) );

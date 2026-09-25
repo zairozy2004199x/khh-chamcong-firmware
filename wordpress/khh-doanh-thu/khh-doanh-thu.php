@@ -3,7 +3,7 @@
  * Plugin Name:       K&H — Báo cáo doanh thu FABi
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Nạp file "Báo cáo bán hàng" xuất từ máy POS FABi (iPOS) và dựng báo cáo doanh thu theo ngày, cửa hàng, khung giờ, hình thức thanh toán, tại chỗ/mang về và món bán chạy. Có sẵn đường nối API FABi để bật khi iPOS cấp khoá.
- * Version:           1.64.3
+ * Version:           1.67.3
  * Requires at least: 5.8
  * Requires PHP:      7.2
  * Author:            K&H
@@ -26,7 +26,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'KHH_DT_VERSION', '1.64.3' );
+define( 'KHH_DT_VERSION', '1.67.3' );
 define( 'KHH_DT_FILE', __FILE__ );
 define( 'KHH_DT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KHH_DT_URL', plugin_dir_url( __FILE__ ) );
@@ -51,6 +51,8 @@ require_once KHH_DT_DIR . 'hop-thu.php';
 require_once KHH_DT_DIR . 'kho.php';
 require_once KHH_DT_DIR . 've-khach.php';
 require_once KHH_DT_DIR . 'quy-trinh.php';
+require_once KHH_DT_DIR . 'phieu-nhap.php';
+require_once KHH_DT_DIR . 'misa.php';
 
 /** Đường dẫn ngoài của báo cáo, ví dụ khmatrix.com/doanh-thu-hcm */
 function khh_dt_slug() {
@@ -131,9 +133,16 @@ function khh_dt_kich_hoat() {
 	khh_dt_tao_bang_momo_phi();
 	khh_dt_tao_bang_kho();
 	khh_dt_tao_bang_kho_su();
+	if ( function_exists( 'khh_dt_tao_bang_pn' ) ) {
+		khh_dt_tao_bang_pn();
+	}
 	/* Một lần: gỡ cặp 0/0 do lỗi ép ô trống thành 0 trước 1.61.3 (tồn đầu hôm sau về 0). */
 	if ( function_exists( 'khh_dt_kho_sua_so_0' ) ) {
 		khh_dt_kho_sua_so_0();
+	}
+	/* Một lần: gộp khai bóc tách vé theo quán (1.60–1.64.3) về bảng chung theo tên vé. */
+	if ( function_exists( 'khh_dt_ve_gop_mot_lan' ) ) {
+		khh_dt_ve_gop_mot_lan();
 	}
 	/* Quy trình báo cáo cơ sở hằng ngày: đặt (lại) lịch tổng hợp lúc giờ hạn. */
 	if ( function_exists( 'khh_dt_qt_dat_lich' ) ) {
@@ -875,6 +884,7 @@ function khh_dt_cau_hinh_js() {
 	return array(
 		'rest'  => esc_url_raw( rest_url( 'khh-dt/v1/' ) ),
 		'nonce' => wp_create_nonce( 'wp_rest' ),
+		'ver'   => KHH_DT_VERSION,
 		'ghi'   => khh_dt_duoc_ghi(),
 	);
 }

@@ -195,6 +195,65 @@ function khh_dt_ten_pos_chuan( $t, $ds_pos = null ) {
 	return sanitize_text_field( $t_raw );
 }
 
+/* ================================================================== *
+ * Cơ sở gán RIÊNG cho từng người — đè lên bảng ghép theo mã
+ * ================================================================== */
+
+/**
+ * Anh Thắng 25/09/2026, ảnh bảng Ghép cơ sở của `FZ_ADV_TP` với hai người (Trí 3 cơ sở, Thảo) và ảnh ô chọn cơ sở
+ * của một cửa hàng trưởng đang thấy 5 quán: *"tách riêng nhân viên, nó gộp dẫn đến nhân viên chung cơ sở"*.
+ * Bảng ghép đi theo MÃ cơ sở nhân sự, nên ai cùng mã là cùng cụm quán — không có chỗ nào nói "Thảo chỉ coi
+ * Estella". Đây là chỗ ấy: [ MÃ NV => [ tên quán POS, … ] ]. Có khai riêng thì người ấy thấy ĐÚNG những quán
+ * đã tích, bỏ qua bảng ghép; để trống thì như cũ (theo mã). Vai duyệt vẫn xem tổng mọi cơ sở.
+ * Lưu ở option, không ở hàng người: bên Nhân sự đẩy lại (đổi PIN, đổi mã) không xoá mất phần đã gán.
+ */
+function khh_dt_nguoi_coso_bang() {
+	$b = get_option( 'khh_dt_nguoi_coso', array() );
+	return is_array( $b ) ? $b : array();
+}
+
+/** Những quán gán riêng cho một người — mảng rỗng khi chưa gán (thì theo bảng ghép của mã). */
+function khh_dt_nguoi_coso_rieng( $ma_nv ) {
+	$ma = strtoupper( trim( (string) $ma_nv ) );
+	$b  = khh_dt_nguoi_coso_bang();
+	if ( '' === $ma || ! isset( $b[ $ma ] ) || ! is_array( $b[ $ma ] ) ) {
+		return array();
+	}
+	$ra = array();
+	foreach ( $b[ $ma ] as $t ) {
+		$t = (string) $t;
+		if ( '' !== trim( $t ) && ! in_array( $t, $ra, true ) ) {
+			$ra[] = $t;
+		}
+	}
+	return $ra;
+}
+
+/** Gán riêng. Danh sách rỗng = bỏ gán riêng (về theo mã). Tên lưu NGUYÊN VĂN tên POS. */
+function khh_dt_nguoi_coso_dat( $ma_nv, $ds ) {
+	$ma = strtoupper( trim( (string) $ma_nv ) );
+	if ( '' === $ma ) {
+		return array();
+	}
+	$pos  = function_exists( 'khh_dt_ds_cua_hang' ) ? (array) khh_dt_ds_cua_hang() : array();
+	$sach = array();
+	foreach ( (array) $ds as $t ) {
+		$t = khh_dt_ten_pos_chuan( (string) $t, $pos );
+		if ( '' !== trim( $t ) && ! in_array( $t, $sach, true ) ) {
+			$sach[] = $t;
+		}
+	}
+	$b = khh_dt_nguoi_coso_bang();
+	if ( $sach ) {
+		$b[ $ma ] = $sach;
+	} else {
+		unset( $b[ $ma ] );
+	}
+	update_option( 'khh_dt_nguoi_coso', $b, false );
+	khh_dt_phien_quen();
+	return $sach;
+}
+
 /** Khai lại cả bảng ghép. Danh sách rỗng = bỏ khai mã đó. Tên POS lưu NGUYÊN VĂN (xem `khh_dt_ten_pos_chuan`). */
 function khh_dt_dat_ghep( $bang ) {
 	$sach   = array();
@@ -469,6 +528,9 @@ function khh_dt_ds_nguoi_pin() {
 			'ho_ten'   => (string) $n['ho_ten'],
 			'coso_ds'  => $ma_ds,
 			'coso_ten' => $ten_ds,
+			/* Quán gán riêng cho người này (đè bảng ghép) và quán đang có hiệu lực thật. */
+			'coso_rieng'    => khh_dt_nguoi_coso_rieng( (string) $n['ma_nv'] ),
+			'coso_hieu_luc' => 'duyet' === $vai ? array() : ( khh_dt_nguoi_coso_rieng( (string) $n['ma_nv'] ) ?: $ten_ds ),
 			'vai'      => in_array( $vai, khh_dt_vai_ds(), true ) ? $vai : '',
 			/* Vai do lối cũ cấp tự động, quản trị chưa nhìn — xem `khh_dt_vai_tu_dong_ds()`. */
 			'tu_dong'  => '' !== $vai && in_array( (string) $n['ma_nv'], $tu_dong, true ),
@@ -489,6 +551,7 @@ function khh_dt_day_ra( $ma_nv ) {
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery
 	$wpdb->delete( khh_dt_bang_nguoi(), array( 'ma_nv' => $ma ) );
 	khh_dt_vai_tu_dong_bo( $ma );
+	khh_dt_nguoi_coso_dat( $ma, array() );
 	khh_dt_dong_phien( $ma );
 	return array( 'ok' => true );
 }
@@ -638,6 +701,11 @@ function khh_dt_phien_co_so_ds() {
 	if ( 'duyet' === (string) $n['vai'] ) {
 		return array();
 	}
+	/* Gán riêng cho người này (anh Thắng 25/09/2026: "tách riêng nhân viên") đè lên bảng ghép theo mã. */
+	$rieng = khh_dt_nguoi_coso_rieng( (string) $n['ma_nv'] );
+	if ( $rieng ) {
+		return $rieng;
+	}
 	$ma_ds = khh_dt_tach_ma( (string) $n['coso_ma'] );
 	if ( ! $ma_ds ) {
 		return array();
@@ -709,10 +777,19 @@ function khh_dt_rest_nguoi() {
 }
 
 /** POST ma_nv · vai — cấp / thu vai của một người vào bằng PIN. */
+/** POST ma_nv · vai [· co_so = JSON danh sách quán gán riêng; [] = về theo mã; không gửi = giữ nguyên]. */
 function khh_dt_rest_dat_vai( $req ) {
 	$kq = khh_dt_dat_vai( (string) $req->get_param( 'ma_nv' ), (string) $req->get_param( 'vai' ) );
 	if ( empty( $kq['ok'] ) ) {
 		return new WP_Error( 'khh_dt_vai', $kq['error'], array( 'status' => 400 ) );
+	}
+	$cs = $req->get_param( 'co_so' );
+	if ( null !== $cs ) {
+		$ds = is_array( $cs ) ? $cs : json_decode( (string) $cs, true );
+		if ( ! is_array( $ds ) ) {
+			return new WP_Error( 'khh_dt_vai', 'Danh sách cơ sở gán riêng không đọc được.', array( 'status' => 400 ) );
+		}
+		$kq['coso_rieng'] = khh_dt_nguoi_coso_dat( $kq['ma_nv'], $ds );
 	}
 	return $kq;
 }
@@ -756,7 +833,8 @@ function khh_dt_rest_ghep() {
 	$nguoi = (array) $wpdb->get_results( "SELECT ma_nv, ho_ten, coso_ma, vai, cap_nhat FROM $ng ORDER BY coso_ma, ho_ten", ARRAY_A );
 	$ma_ds = array();
 	foreach ( $nguoi as $i => $n ) {
-		$nguoi[ $i ]['coso_ds'] = khh_dt_tach_ma( (string) $n['coso_ma'] );
+		$nguoi[ $i ]['coso_ds']    = khh_dt_tach_ma( (string) $n['coso_ma'] );
+		$nguoi[ $i ]['coso_rieng'] = khh_dt_nguoi_coso_rieng( (string) $n['ma_nv'] );
 		foreach ( $nguoi[ $i ]['coso_ds'] as $m ) {
 			$ma_ds[ $m ] = true;
 		}

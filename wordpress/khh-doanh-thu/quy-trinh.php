@@ -218,7 +218,11 @@ function khh_dt_qt_tinh_trang( $ngay, $cua_hang, $bay_gio = null ) {
  * nghỉ, hay chưa có file — Đối soát lo); riêng HÔM QUA chưa có số máy thì vẫn kể, vì đó là việc
  * của văn phòng: FABi chưa về / hộp thư chưa chạy. Xếp ngày cũ trước — nợ cũ trả trước.
  */
-function khh_dt_qt_viec( $cua_ds = array(), $bay_gio = null, $lui = null ) {
+/**
+ * @param bool $ke_ca_chot true = trả CẢ ngày đã chốt (tab Cảnh báo bày viên xanh — anh Thắng 25/09/2026: *"Ngày nào
+ *                         bấm nộp sẽ hiện xanh, chứ không phải ẩn"*); false = chỉ việc còn treo (nhãn tab, tab Nhập).
+ */
+function khh_dt_qt_viec( $cua_ds = array(), $bay_gio = null, $lui = null, $ke_ca_chot = false ) {
 	$bay_gio = null === $bay_gio ? time() : (int) $bay_gio;
 	$lui     = null === $lui ? khh_dt_qt_cf()['lui'] : max( 1, (int) $lui );
 	$tat_ca  = khh_dt_ds_cua_hang();
@@ -237,7 +241,7 @@ function khh_dt_qt_viec( $cua_ds = array(), $bay_gio = null, $lui = null ) {
 		$ngay = khh_dt_qt_cong_ngay( $hom_qua, -$i );
 		foreach ( $ds as $c ) {
 			$t = khh_dt_qt_tinh_trang( $ngay, $c, $bay_gio );
-			if ( 'da_chot' === $t['trang_thai'] ) {
+			if ( 'da_chot' === $t['trang_thai'] && ! $ke_ca_chot ) {
 				continue;
 			}
 			if ( 'chua_fabi' === $t['trang_thai'] && $ngay !== $hom_qua ) {
@@ -444,9 +448,12 @@ function khh_dt_qt_route() {
 function khh_dt_rest_qt_xem( $req = null ) {
 	$c       = khh_dt_qt_cf();
 	$cua_ds  = khh_dt_co_so_ds();
+	/* Tính một lượt cả ngày đã chốt; `viec` (còn treo) lọc ra từ đó — khỏi tính trạng thái hai lần. */
+	$lich    = khh_dt_qt_viec( $cua_ds, null, null, true );
 	$ra      = array(
 		'han'     => $c['han'],
-		'viec'    => khh_dt_qt_viec( $cua_ds ),
+		'viec'    => array_values( array_filter( $lich, function ( $x ) { return 'da_chot' !== $x['trang_thai']; } ) ),
+		'lich'    => $lich,
 		'hom_qua' => khh_dt_qt_cong_ngay( khh_dt_qt_hom_nay(), -1 ),
 	);
 	if ( khh_dt_duoc_quan_tri() ) {

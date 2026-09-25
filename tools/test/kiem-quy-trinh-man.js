@@ -91,8 +91,17 @@ if (m) {
   t('🔴 tab Cảnh báo gom theo cơ sở: Gò Vấp một dòng 2 ngày · 1 quá hạn, Tân Phú một dòng 1 ngày', /<b>Gò Vấp<\/b>/.test(cb) && /<b>Tân Phú<\/b>/.test(cb) && (cb.match(/<tr[ >]/g) || []).length === 3 && /data-nhan="Chưa chốt">2</.test(cb) && /data-nhan="Chưa chốt">1</.test(cb));
   t('quán có quá hạn xếp trước, dòng tô đỏ', cb.indexOf('Gò Vấp') < cb.indexOf('Tân Phú') && /<tr class="qua-han">/.test(cb));
   t('mỗi ngày một thẻ mang ngày + cơ sở, ngày quá hạn lớp qua-han, nhãn tiếng Việt', /class="vien qua-han" type="button" data-viec-ngay="2026-09-22" data-viec-ch="Gò Vấp"/.test(cb) && /22\/09<span>chưa nộp<\/span>/.test(cb) && /23\/09<span>chưa có số máy POS<\/span>/.test(cb));
+  /* Anh Thắng 25/09/2026: "Ngày nào bấm nộp sẽ hiện xanh, chứ không phải ẩn" — `lich` có cả ngày đã chốt. */
+  const LICH = VIEC.concat([{ ngay: '2026-09-21', cua_hang: 'Gò Vấp', trang_thai: 'da_chot', qua_han: false }, { ngay: '2026-09-21', cua_hang: 'Tân Phú', trang_thai: 'da_luu', qua_han: true }]);
+  m.veCanhBao(o2, { han: '10:00', viec: VIEC, lich: LICH });
+  const cb2 = o2.innerHTML;
+  t('🔴 có lich -> bày cả ngày đã chốt thành viên XANH (lớp xong), vẫn bấm mở được ngày ấy', /class="vien xong" type="button" data-viec-ngay="2026-09-21" data-viec-ch="Gò Vấp"/.test(cb2) && /21\/09<span>đã chốt<\/span>/.test(cb2));
+  t('đã lưu chưa chốt -> viên vàng (luu), quá hạn thêm qua-han', /class="vien luu qua-han" type="button" data-viec-ngay="2026-09-21" data-viec-ch="Tân Phú"/.test(cb2));
+  t('cột Chưa chốt chỉ đếm ngày chưa chốt (Gò Vấp 2 dù có 3 viên; Tân Phú 2 vì đã lưu vẫn là chưa chốt); tiêu đề đếm 4 việc treo', (cb2.match(/data-nhan="Chưa chốt">2</g) || []).length === 2 && /4 ngày×cơ sở chưa chốt/.test(cb2));
+  m.veCanhBao(o2, { han: '10:00', viec: [], lich: [{ ngay: '2026-09-23', cua_hang: 'Gò Vấp', trang_thai: 'da_chot', qua_han: false }] });
+  t('tab Cảnh báo, hết việc treo nhưng có ngày đã chốt -> vẫn bày bảng với viên xanh và ✓ ở cột Chưa chốt', /class="vien xong"/.test(o2.innerHTML) && /data-nhan="Chưa chốt" style="color:var\(--tot\)">✓</.test(o2.innerHTML) && !/Mọi cơ sở đã chốt/.test(o2.innerHTML));
   m.veCanhBao(o2, { han: '10:00', viec: [] });
-  t('tab Cảnh báo, không việc -> "Mọi cơ sở đã chốt"', /Mọi cơ sở đã chốt/.test(o2.innerHTML));
+  t('máy chủ cũ không có lich, không việc -> câu trống', /Chưa có ngày nào/.test(o2.innerHTML));
 
   G._o['#bcBuoc'] = taoO();
   m.veBuoc({ buoc: { fabi: true, khai: true, kho: null, chot: false }, qua_han: false, han: '2026-09-24 10:00' });
