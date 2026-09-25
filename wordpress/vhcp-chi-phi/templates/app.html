@@ -289,13 +289,8 @@
       </table></div>
     </div>
 
-    <div class="card">
-      <div class="ch"><h2>📅 Dòng tiền theo tuần / kỳ (mới nhất trước)</h2></div>
-      <div class="tw"><table>
-        <thead><tr><th>Kỳ / tuần</th><th style="text-align:right">Xin</th><th style="text-align:right">Thực tế</th><th style="text-align:right">Chênh lệch</th></tr></thead>
-        <tbody id="tqKyBody"></tbody>
-      </table></div>
-    </div>
+    <!-- 📅 "Dòng tiền theo tuần / kỳ" ĐÃ GỠ — anh Thắng 25/09/2026 (ảnh bảng ấy): *"bỏ này đi"*. Số theo kỳ vẫn
+         về trong `r.byKy` của getFinanceReport (Quyết toán ▸ Theo tuần dùng), chỉ thôi bày ở Tổng quan. -->
 
     <div class="card">
       <div class="ch"><h2>🏬 Chi phí theo cơ sở</h2></div>
@@ -6927,9 +6922,23 @@
   function veTheDoanhThu(){
     var card=el('tqDtCard'); if(!card) return;
     var san=!!(BOOT&&BOOT.doanhThu&&BOOT.doanhThu.san);
-    var hien=san&&_dtDuocXem();
+    /* Anh Thắng 25/09/2026 (cài 1.326 xong): *"anh vẫn chưa thấy doanh thu theo cơ sở qua"* — thẻ giấu kín
+       khi chưa khai kết nối nên Admin không biết phải làm gì. Nay: Admin thấy thẻ ngay, chưa kết nối thì
+       bày ba bước + nút sang Cấu hình. Vai duyệt khác chỉ thấy khi đã kết nối; nhân viên không thấy. */
+    var hien=_dtDuocXem()&&(san||_laAdmin());
     card.style.display=hien?'':'none';
     if(!hien) return;
+    if(!san){
+      if(el('tqDtCards')) el('tqDtCards').innerHTML='';
+      if(el('tqDtBody')) el('tqDtBody').innerHTML='';
+      if(el('tqDtNote')) el('tqDtNote').innerHTML='<div style="padding:10px 12px;background:#fffbeb;border-left:4px solid #f59e0b;color:#92400e;line-height:1.7">'
+        +'<b>Chưa kết nối web Doanh thu.</b> Ba bước:<br>'
+        +'1. Web Doanh thu cài bản plugin mới (có menu <b>Doanh thu FABi ▸ Chia sẻ cho Chi phí</b>) → bấm <b>Tạo khoá ngẫu nhiên</b>, chép khoá.<br>'
+        +'2. Bên này: <b>Cấu hình ▸ Kết nối web Doanh thu</b> → điền địa chỉ web + dán khoá → Lưu → Kiểm tra kết nối.<br>'
+        +'3. Quay lại Tổng quan, thẻ này tự đổ số. '
+        +'<button class="btn b-p" style="padding:4px 10px;font-size:12px;margin-left:6px" onclick="showPage(\'cauhinh\')">⚙️ Sang Cấu hình</button></div>';
+      return;
+    }
     var o=el('tqDtThang');
     if(o&&!o.value){ var d=new Date(); o.value=d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2); }
     loadDoanhThuChiPhi();
@@ -10219,11 +10228,7 @@
         '<td class="money" style="color:'+c+'">'+money(x.cl)+'</td><td class="money">'+pct+'%</td></tr>';
     }).join('')||'<tr><td colspan="5" style="text-align:center;color:#8c8781;padding:14px">Chưa có dữ liệu</td></tr>';
     el('tqHMFoot').innerHTML='<tr style="font-weight:800;background:#f9f8f6"><td>TỔNG</td><td class="money">'+money(t.xin)+'</td><td class="money">'+money(t.thucTe)+'</td><td class="money" style="color:'+(t.cl>=0?'#15803d':'#b91c1c')+'">'+money(t.cl)+'</td><td class="money">100%</td></tr>';
-    // theo tuần (mới nhất trước)
-    el('tqKyBody').innerHTML=(r.byKy||[]).slice().reverse().map(function(x){
-      var c=x.cl>=0?'#15803d':'#b91c1c';
-      return '<tr><td>'+esc(x.ky)+'</td><td class="money">'+money(x.xin)+'</td><td class="money">'+money(x.thucTe)+'</td><td class="money" style="color:'+c+'">'+money(x.cl)+'</td></tr>';
-    }).join('')||'<tr><td colspan="4" style="text-align:center;color:#8c8781;padding:14px">Chưa có dữ liệu</td></tr>';
+    // bảng "theo tuần (mới nhất trước)" đã gỡ 25/09/2026 — xem bia mộ ở chỗ `tqKyBody` cũ trong markup.
     // theo cơ sở
     el('tqCSBody').innerHTML=(r.byCoso||[]).map(function(x){
       var c=x.cl>=0?'#15803d':'#b91c1c';

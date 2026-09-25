@@ -58,14 +58,18 @@ t('   thẻ doanhThuCard: ô khoá type=password, autocomplete=new-password', /<
 }
 
 /* ── 3. Thẻ Tổng quan ─────────────────────────────────────────────────────────────────────── */
+t('🔴 bảng "Dòng tiền theo tuần / kỳ" đã gỡ khỏi Tổng quan ("bỏ này đi")', !/<h2>📅 Dòng tiền theo tuần/.test(HTML) && !/el\('tqKyBody'\)/.test(HTML));
 t('   thẻ tqDtCard tồn tại, ẩn mặc định, đứng SAU tqKtCard', /id="tqKtCard"[\s\S]*id="tqDtCard" style="display:none"/.test(HTML));
 {
   const src = ham('_dtDuocXem') + ham('veTheDoanhThu');
   const chay = (vai, san) => { const { el, o } = nut(); let tai = 0;
-    new Function('el', 'BOOT', '_vaiLuat', 'loadDoanhThuChiPhi', src + '\nveTheDoanhThu();')(el, { doanhThu: { san } }, () => vai, () => { tai++; });
-    return { d: o.tqDtCard.style.display, tai, thang: (o.tqDtThang || {}).value }; };
+    new Function('el', 'BOOT', '_vaiLuat', '_laAdmin', 'loadDoanhThuChiPhi', src + '\nveTheDoanhThu();')(el, { doanhThu: { san } }, () => vai, () => vai === 'Admin', () => { tai++; });
+    return { d: o.tqDtCard.style.display, tai, thang: (o.tqDtThang || {}).value, note: (o.tqDtNote || {}).innerHTML || '' }; };
   teq('🔴 Nhân viên → không thấy thẻ, không gọi', { d: 'none', tai: 0 }, (({ d, tai }) => ({ d, tai }))(chay('Nhân viên', true)));
-  teq('🔴 chưa kết nối (san=false) → Admin cũng không thấy', { d: 'none', tai: 0 }, (({ d, tai }) => ({ d, tai }))(chay('Admin', false)));
+  teq('   chưa kết nối (san=false) → Quản lý không thấy', { d: 'none', tai: 0 }, (({ d, tai }) => ({ d, tai }))(chay('Quản lý', false)));
+  { const a = chay('Admin', false);
+    t('🔴 chưa kết nối → ADMIN vẫn thấy thẻ, KHÔNG gọi máy chủ, bày ba bước + nút sang Cấu hình ("anh vẫn chưa thấy doanh thu theo cơ sở qua")',
+      a.d === '' && a.tai === 0 && /Chưa kết nối web Doanh thu/.test(a.note) && /Chia sẻ cho Chi phí/.test(a.note) && /onclick="showPage\('cauhinh'\)"/.test(a.note), a); }
   const a = chay('Quản lý', true);
   t('   Quản lý + đã kết nối → hiện, mồi tháng hiện tại YYYY-MM, gọi tải', a.d === '' && a.tai === 1 && /^\d{4}-\d{2}$/.test(a.thang), a);
   t('   Kế toán NCC cũng xem được', chay('Kế toán NCC', true).d === '');
