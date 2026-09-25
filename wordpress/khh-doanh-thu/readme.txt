@@ -102,6 +102,11 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.65.1 =
+* **Phiếu nhập hàng lên đầu tab Kho, dạng nút bấm mới hiện form.** Anh Thắng 25/09/2026: *"cho phiếu lên đầu, với dạng
+  form bấm hiện ra"*. Ngay dưới ô chọn ngày / cơ sở là nút **＋ Lập phiếu nhập hàng** kèm dòng tóm tắt (mấy phiếu ngày
+  này, mấy phiếu 90 ngày); bấm mới xổ form và danh sách phiếu, lưu xong giữ mở để thấy phiếu vừa lập. Khối ở cuối tab bỏ.
+
 = 1.65.0 =
 * **Phiếu nhập hàng.** Anh Thắng 25/09/2026: *"Tạo phiếu nhập hàng, khi có phiếu nhập hàng nhập vào hoặc đẩy lên nó sẽ
   đẩy vào dữ liệu kho hàng"*. Tab Kho có khối **Phiếu nhập hàng**: số phiếu (tự đánh NH<ngày>-NN, gõ tay được),

@@ -16,8 +16,11 @@ function boc(ten) {
   const j = js.indexOf('\n  }\n', i);
   return js.slice(i, j + 4);
 }
-t('veKho chèn khối veKhoPhieu(r) trước danh mục mặt hàng', /h \+= veKhoPhieu\(r\); h \+= veKhoMatHang\(r\);/.test(boc('veKho')));
-t('khối #khoPhieu có chỗ lập (#pnLap) và danh sách (#pnDs), mở sẵn khi ngày có phiếu', /id="khoPhieu"/.test(boc('veKhoPhieu')) && /id="pnLap"/.test(boc('veKhoPhieu')) && /id="pnDs"/.test(boc('veKhoPhieu')) && /Object\.keys\(r\.phieu_nhap \|\| \{\}\)\.length \? ' open'/.test(boc('veKhoPhieu')));
+/* 25/09/2026 anh Thắng: "cho phiếu lên đầu, với dạng form bấm hiện ra" */
+const vk0 = boc('veKho');
+t('🔴 khối phiếu nằm ĐẦU tab: ngay sau hàng chọn ngày/cơ sở, trước bảng kho, không còn ở cuối', /if \(ghi\) h \+= veKhoPhieu\(r\);/.test(vk0) && vk0.indexOf('veKhoPhieu(r)') < vk0.indexOf('<table><thead>') && !/h \+= veKhoPhieu\(r\); h \+= veKhoMatHang/.test(vk0));
+t('🔴 dạng nút bấm: #pnMo, khung #pnKhung ẩn mặc định (hidden khi chưa S.pnMo), có #pnLap và #pnDs', /id="pnMo"/.test(boc('veKhoPhieu')) && /id="pnKhung"[^>]*' \+ \(S\.pnMo \? '' : ' hidden'\)/.test(boc('veKhoPhieu')) && /id="pnLap"/.test(boc('veKhoPhieu')) && /id="pnDs"/.test(boc('veKhoPhieu')));
+t('bấm nút là mở/đóng khung và nhớ S.pnMo; lưu xong giữ mở', /S\.pnMo = kh\.hidden;/.test(boc('noiKho')) && /kh\.hidden = !S\.pnMo;/.test(boc('noiKho')) && /S\.pnMo = true;/.test(boc('vePhieuLap')));
 t('noiKho gọi taiPhieu(o); taiPhieu GET phieu-nhap theo co_so + ngay', /taiPhieu\(o\);/.test(boc('noiKho')) && /api\('phieu-nhap\?co_so=' \+ encodeURIComponent\(S\.kho\.cs\) \+ '&ngay='/.test(boc('taiPhieu')));
 const lap = boc('vePhieuLap');
 t('form: số phiếu (placeholder = số mới), ngày nhập mặc định ngày đang xem, nhà cung cấp, datalist mặt hàng', /id="pnSo"[^>]*placeholder="' \+ esc\(r\.so_moi/.test(lap) && /id="pnNgay" value="' \+ esc\(S\.kho\.ngay\)/.test(lap) && /id="pnNcc"/.test(lap) && /<datalist id="pnDsMH">/.test(lap));

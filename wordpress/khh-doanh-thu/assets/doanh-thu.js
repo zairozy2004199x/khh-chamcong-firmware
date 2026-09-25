@@ -1734,6 +1734,9 @@
            nhưng màn không nói ra thì người dùng không có cách nào biết, và đó cũng là lỗi. */
         : '<span class="o" id="khoCSMot"><label>Cơ sở</label><b>' + esc(r.co_so) + '</b></span>') +
       '</div>';
+    /* Phiếu nhập hàng lên ĐẦU tab, dạng nút bấm mới xổ form (anh Thắng 25/09/2026: "cho phiếu lên đầu, với dạng form
+       bấm hiện ra"). Người được ghi mới lập được phiếu. */
+    if (ghi) h += veKhoPhieu(r);
 
     /* 🔴 CẢNH BÁO ĐẮT NHẤT CỦA CẢ SỔ: đang trừ kho HAI LẦN.
        FABi đã tách sẵn thành phần combo (dòng có số lượng mà doanh thu 0đ), mà bảng combo lại
@@ -1891,7 +1894,7 @@
     }
 
     h += '<div id="khoThe"></div>';
-    if (ghi) { h += veKhoPhieu(r); h += veKhoMatHang(r); h += veKhoCombo(r.combo || {}, r); }
+    if (ghi) { h += veKhoMatHang(r); h += veKhoCombo(r.combo || {}, r); }
     h += '</div>';
     o.innerHTML = h;
     noiKho(o);
@@ -1902,15 +1905,21 @@
      kho hàng"*. Lập phiếu ở đây (hay hệ khác POST JSON vào cổng phieu-nhap) là ô Nhập của sổ kho ngày ấy = tổng các
      phiếu. Khối tự tải danh sách phiếu gần đây sau khi bảng kho vẽ xong. */
   function veKhoPhieu(r) {
-    return '<details id="khoPhieu" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)"' + (Object.keys(r.phieu_nhap || {}).length ? ' open' : '') + '>' +
-      '<summary style="cursor:pointer"><b>Phiếu nhập hàng</b> — <span id="pnTom" class="chu-them" style="display:inline;margin:0">đang tải…</span></summary>' +
-      '<div class="chu-them" style="margin-top:6px">Mỗi lần nhận hàng lập một phiếu: ngày, nhà cung cấp, từng mặt hàng và số lượng. Lưu xong ' +
-      '<b>ô Nhập của sổ kho ngày ấy tự bằng tổng các phiếu</b> (ô khoá lại, ghi "phiếu"). Số đếm, hàng huỷ, tồn đầu không bị đụng. ' +
-      'Hệ khác có thể <b>đẩy phiếu lên</b> bằng JSON vào cùng cổng <code>phieu-nhap</code>.</div>' +
-      '<div id="pnLap" style="margin-top:10px"></div>' +
-      '<div id="pnDs" style="margin-top:10px"></div>' +
-      '</details>';
+    var soHomNay = Object.keys(r.phieu_nhap || {}).length;
+    return '<div id="khoPhieu" style="margin:6px 0 10px">' +
+      '<div class="loc" style="margin:0;gap:10px">' +
+        '<button class="nut" type="button" id="pnMo" aria-expanded="' + (S.pnMo ? 'true' : 'false') + '">＋ Lập phiếu nhập hàng</button>' +
+        '<span id="pnTom" class="chu-them" style="margin:0">' + (soHomNay ? soHomNay + ' mặt hàng ngày này nhập theo phiếu' : 'đang tải…') + '</span>' +
+      '</div>' +
+      '<div id="pnKhung" class="khung" style="margin-top:8px;padding:12px 14px"' + (S.pnMo ? '' : ' hidden') + '>' +
+        '<div class="chu-them" style="margin-top:0">Mỗi lần nhận hàng lập một phiếu: ngày, nhà cung cấp, từng mặt hàng và số lượng. Lưu xong ' +
+        '<b>ô Nhập của sổ kho ngày ấy tự bằng tổng các phiếu</b> (ô khoá lại, ghi "phiếu"). Số đếm, hàng huỷ, tồn đầu không bị đụng. ' +
+        'Hệ khác có thể <b>đẩy phiếu lên</b> bằng JSON vào cùng cổng <code>phieu-nhap</code>.</div>' +
+        '<div id="pnLap" style="margin-top:10px"></div>' +
+        '<div id="pnDs" style="margin-top:10px"></div>' +
+      '</div></div>';
   }
+
 
   function taiPhieu(o) {
     var k = o.querySelector('#khoPhieu');
@@ -1982,6 +1991,7 @@
       api('phieu-nhap', { method: 'POST', body: fd }).then(function (r2) {
         S.pnR = r2;
         /* Sổ kho vừa đổi ô Nhập -> vẽ lại cả tab (giữ ngày/cơ sở), rồi khối phiếu tự tải lại. */
+        S.pnMo = true;   // lưu xong giữ khung mở để thấy phiếu vừa lập trong danh sách
         if ((k.querySelector('#pnNgay').value || S.kho.ngay) === S.kho.ngay) { S.khoR = null; taiKho(); }
         else { vePhieuLap(o, r2); vePhieuDs(o, r2); }
         S.pnBaoSau = 'Đã lưu phiếu ' + (r2.phieu ? r2.phieu.so_phieu : '') + ' — ô Nhập của sổ kho ngày ' + ngayVN(r2.phieu ? r2.phieu.ngay : '') + ' đã theo phiếu.';
@@ -1997,7 +2007,8 @@
     var k = o.querySelector('#pnDs'), t = o.querySelector('#pnTom');
     if (!k) return;
     var ds = r.ds || [];
-    if (t) t.textContent = ds.length ? ds.length + ' phiếu 90 ngày gần đây' : 'chưa có phiếu nào';
+    var homNay = ds.filter(function (p) { return p.ngay === S.kho.ngay; }).length;
+    if (t) t.textContent = (homNay ? homNay + ' phiếu ngày này · ' : '') + (ds.length ? ds.length + ' phiếu 90 ngày gần đây' : 'chưa có phiếu nào');
     if (!ds.length) { k.innerHTML = '<div class="chu-them">Chưa có phiếu nhập nào cho cơ sở này.</div>'; return; }
     k.innerHTML = '<h3 class="tieu-nho" style="margin-top:8px">Phiếu gần đây</h3>' +
       '<div class="bang-the the-cf bang-cuon"><table><thead><tr><th style="text-align:left">Số phiếu</th><th>Ngày</th><th style="text-align:left">Nhà cung cấp</th><th style="text-align:left">Mặt hàng</th><th>Tổng SL</th><th>Người</th><th></th></tr></thead><tbody>' +
@@ -2256,6 +2267,15 @@
 
   function noiKho(o) {
     taiPhieu(o);
+    var mo = o.querySelector('#pnMo');
+    if (mo) mo.addEventListener('click', function () {
+      var kh = o.querySelector('#pnKhung');
+      if (!kh) return;
+      S.pnMo = kh.hidden;            // đang ẩn -> mở, và nhớ để vẽ lại sổ kho vẫn mở
+      kh.hidden = !S.pnMo;
+      mo.setAttribute('aria-expanded', S.pnMo ? 'true' : 'false');
+      if (S.pnMo) { var d = kh.querySelector('[data-pn="mh"]'); if (d) d.focus(); }
+    });
     var k = o.querySelector('#dtKho');
     if (!k) return;
     /* Gõ ô nào trong dòng là tồn tính / lệch kho của dòng ấy đổi ngay. */
