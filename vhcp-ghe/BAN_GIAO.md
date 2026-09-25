@@ -35,6 +35,25 @@ Tre", Báo cáo tổng bên Ghế hiện **VietQR –**.
 với bản đồ giả: GO BT 08 → GO-BT-8 → GO BẾN TRE; đuôi tỉnh; GO AC 03 mâu thuẫn → theo mã cửa hàng;
 máy khớp ghế thắng mã cửa hàng; gán tay không bị đè.
 
+### Sao Kê 0.47.0 — Vào bằng vé từ Ghế bị trắng màn "reading 'vietqr'" (hoãn tự vào tới khi tệp JS đọc xong)
+
+Anh Thắng 25/09/2026, ảnh `/sao-ke/#cvietqr`: nội dung trống, toast đỏ *"Cannot read properties of
+undefined (reading 'vietqr')"*; *"chạy từ này là nó lỗi, khả năng từ đăng nhập pin"* — đúng: chỉ đường
+**vé từ Ghế** dính, đường gõ PIN không.
+
+**Nguyên nhân (tái hiện bằng trình duyệt ẩn, `scratchpad/ui/sk-check.js`).** Khối tự đăng nhập trong
+`app.html` nằm GIỮA tệp JS và chạy ngay lúc trình duyệt đọc tới. Có vé (`SAOKE_VE_OK`) thì gọi thẳng
+`vaoApp('')` → `nav(#hash)` / `dungOKyTinh()`… đụng các biến `var` khai ở PHÍA DƯỚI (`CONG_TEN`,
+`VIEW_CONG`, `CONG_DUNG`, `CG_*`) khi chúng còn `undefined` → ném lỗi (`reading 'map'`, rồi
+`reading 'cvietqr'`), **script gãy giữa chừng**, các dòng `var X = {}` phía dưới không bao giờ chạy.
+Bấm tab Việt QR sau đó là `CONG_DUNG[nguon]` trên `undefined` → toast `reading 'vietqr'`, view trống.
+Đường PIN: `vaoApp(pin)` chạy khi người ta gõ PIN, tệp đã đọc xong, nên không dính.
+
+**Sửa:** nhánh vé bọc `setTimeout(function(){ vaoApp(''); }, 0)` — chạy sau khi tệp đọc hết. Tái hiện
+lại ba kịch bản (PIN + #cvietqr · vé không hash · vé + #cvietqr): không còn lỗi, tab dựng đúng, các
+biến đều có. `kiem-saoke-ve-hoan-vao.js` (9 phép) canh nhánh vé phải hoãn và các bảng cổng vẫn khai sau
+khối tự đăng nhập.
+
 ### v2.138.0 — GỘP SỔ: "Nhập 2 điểm này lại thành 1" (⇄ từng hàng + 📒 gộp sổ theo bí danh)
 
 Anh Thắng 24/09/2026, hai ảnh Báo cáo tổng: **POSH MN CGV VINCOM LANDMARK** — 1.040.000 tiền mặt

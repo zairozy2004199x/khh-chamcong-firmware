@@ -742,7 +742,15 @@ document.getElementById('pinInput').addEventListener('keydown', function(e){ if(
   /* Vào bằng VÉ từ trang Ghế: máy chủ đã đặt phiên (cookie httponly), mọi lượt gọi sau được chấp
      nhận không cần PIN — nên vào thẳng, khỏi hiện màn hỏi PIN. PIN để rỗng là đúng: nó không còn
      là thứ xác thực trong phiên này. Xem SAOKE_App::pin_ok()/nhan_ve_(). */
-  if (window.SAOKE_VE_OK) { vaoApp(''); return; }
+  /* 🔴 HOÃN ĐẾN KHI CẢ TỆP JS ĐỌC XONG — anh Thắng 25/09/2026: vào bằng vé từ Ghế, bấm "Sao Kê Việt QR"
+     là trắng màn + toast "Cannot read properties of undefined (reading 'vietqr')"; vào bằng PIN thì
+     không sao. Khối này chạy NGAY lúc trình duyệt đọc tới đây — giữa tệp — nên vaoApp('') gọi tới
+     những hàm dùng biến `var` khai ở PHÍA DƯỚI (CONG_TEN, VIEW_CONG, CONG_DUNG, CG_*…) khi chúng còn
+     undefined: ném lỗi, script gãy giữa chừng, các dòng `var X = {}` phía dưới không bao giờ chạy, và
+     mọi tab đọc chúng lỗi mãi. Đường PIN không dính vì lúc người ta gõ PIN thì tệp đã đọc xong.
+     setTimeout 0 = chạy sau khi tệp đọc hết, mọi biến đã có. Đường PIN đã nhớ vốn qua mạng nên tự
+     hoãn sẵn. */
+  if (window.SAOKE_VE_OK) { setTimeout(function(){ vaoApp(''); }, 0); return; }
   var pin = pinDaNho();
   if (!pin) return;
   google.script.run.withSuccessHandler(function(r){
