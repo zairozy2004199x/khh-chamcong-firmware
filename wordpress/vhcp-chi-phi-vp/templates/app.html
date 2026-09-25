@@ -10441,8 +10441,12 @@
       el('xuatTablesDauMuc').innerHTML=thu.map(function(m){
         var rows=XUAT.rows.filter(function(r,i){ return dm[i]===m; });
         return '<div style="margin:0 0 18px">'
-          +'<div style="font-weight:800;color:#1e3a8a;background:#eef2ff;padding:8px 12px;border-radius:8px 8px 0 0;border:1px solid #c7d2fe;border-bottom:none">🧩 '
-          +esc(m||'Chưa xếp đầu mục')+' <span style="font-weight:500;color:#64748b">· '+rows.length+' dòng</span></div>'
+          +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-weight:800;color:#1e3a8a;background:#eef2ff;padding:6px 12px;border-radius:8px 8px 0 0;border:1px solid #c7d2fe;border-bottom:none"><span>🧩 '
+          +esc(m||'Chưa xếp đầu mục')+' <span style="font-weight:500;color:#64748b">· '+rows.length+' dòng</span></span>'
+          /* ⬇ Tải riêng khối này — anh Thắng 25/09/2026 (ảnh hai khối): *"muốn xuất cái phía dưới thì như nào"*.
+             Chỉ TẢI, không chốt: chốt "đã xuất" đi theo cả ĐƠN (xem `markExported`), mà một đơn có thể có
+             dòng ở hai đầu mục — chốt theo khối là khoá luôn dòng chưa xuất của khối kia. */
+          +'<button type="button" class="btn b-x" style="margin-left:auto;font-weight:600" onclick="taiExcelDauMuc('+esc(JSON.stringify(m))+')" title="Tải Excel riêng khối này (một sheet). Không chốt đã xuất — chốt bằng nút Tải Excel &amp; chốt ở trên khi tải cả kỳ.">⬇ Tải Excel khối này</button></div>'
           +'<div class="tw" style="border:1px solid #c7d2fe;border-radius:0 0 8px 8px;overflow:auto;max-height:62vh"><table style="min-width:1150px"><thead>'
           +_xuatColsHead(XUAT.cols)+'</thead><tbody>'+rows.map(function(r){return _xuatRowHtml(XUAT.cols, r);}).join('')+'</tbody></table></div></div>';
       }).join('');
@@ -10593,6 +10597,34 @@
       XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([XUAT.cols].concat(rows)), _xlsxTenSheet(m, daDung));
     });
     return wb;
+  }
+  /* ⬇ TẢI RIÊNG MỘT KHỐI ĐẦU MỤC — anh Thắng 25/09/2026: *"muốn xuất cái phía dưới thì như nào"*.
+     Một sheet, đúng các dòng của đầu mục ấy, tên tệp mang tên đầu mục. KHÔNG chốt "đã xuất" (xem
+     chú thích ở nút trong `renderXuat`). Máy chặn thư viện → CSV như nút lớn. */
+  function taiExcelDauMuc(m){
+    var k=_xuatKhoiDauMuc(), dm=k.dm;
+    var rows=(XUAT.rows||[]).filter(function(r,i){ return dm[i]===m; });
+    if(!rows.length){ toast('warn','Khối này không có dòng nào để tải'); return; }
+    var nhan=m||'Chưa xếp đầu mục';
+    var tep='MISA_VanHanhChiPhi'+(XUAT.mau==='soct'?('_SoChiTiet'+(XUAT.tkLoc?('_'+XUAT.tkLoc):'')):'')
+      +'_'+nhan.normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').replace(/[^A-Za-z0-9]+/g,'');
+    var ok=false;
+    try{
+      if(typeof XLSX!=='undefined'){
+        var wb=XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([XUAT.cols].concat(rows)), _xlsxTenSheet(nhan, {}));
+        XLSX.writeFile(wb, tep+'.xlsx');
+        ok=true;
+      }
+    }catch(e){ ok=false; }
+    if(!ok){
+      var ce=function(v){v=(v==null?'':String(v)); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
+      var csv=XUAT.cols.map(ce).join(',')+'\n'+rows.map(function(r){return r.map(ce).join(',');}).join('\n');
+      var blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
+      var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=tep+'.csv'; document.body.appendChild(a); a.click();
+      setTimeout(function(){a.remove();URL.revokeObjectURL(a.href);},150);
+    }
+    toast('ok','Đã tải khối "'+nhan+'" ('+rows.length+' dòng) — chưa chốt đã xuất; chốt bằng nút ⬇ Tải Excel & chốt khi tải cả kỳ.');
   }
   function downloadCSV(){   // giờ TẢI EXCEL (.xlsx); fallback CSV nếu thư viện chưa nạp
     if(!XUAT.rows||!XUAT.rows.length){toast('warn','Không có dữ liệu để tải');return;}

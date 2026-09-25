@@ -119,5 +119,40 @@ t('   markup: bảng gộp có id qtTableXong, khối qtXongDauMucWrap ẩn mặ
   t('🔴 bảng "cho" (Chờ quyết toán) KHÔNG bị đụng — vẫn vẽ thẳng vào qtBodyCho, không tách', /D1/.test(oCho.qtBodyCho.innerHTML) && /D2/.test(oCho.qtBodyCho.innerHTML) && /D3/.test(oCho.qtBodyCho.innerHTML), oCho.qtBodyCho.innerHTML);
 }
 
+/* ── C. Tải riêng một khối — anh Thắng 25/09/2026 (ảnh hai khối): "muốn xuất cái phía dưới thì như nào" ── */
+{
+  const SRC = ham('_xuatKhoiDauMuc') + ham('_xuatColsHead') + ham('_xuatRowHtml') + ham('_laMaDon') + ham('renderXuat');
+  const { el, o } = nut();
+  const X = { sodon: 3, count: 4, cols: ['TK Nợ', 'Diễn giải'], rows: [['64196', 'A'], ['64191', 'B'], ['64196', 'C'], ['64199', 'D']],
+    rowDauMuc: ['Chi Phí Cơ Sở KVC', 'Chi Phí Vận Hành', 'Chi Phí Cơ Sở KVC', ''], dauMucThu: ['Chi Phí Vận Hành', 'Chi Phí Cơ Sở KVC', ''] };
+  new Function('el', 'XUAT', 'esc', 'money', '_laMaDon', 'renderXuatWarn', 'renderXuatBanGiao', '_veOTkNo', '_veOMang', SRC + '\nrenderXuat();')(
+    el, X, (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;'), (n) => String(n), () => false, () => {}, () => {}, () => {}, () => {});
+  const h = o.xuatTablesDauMuc.innerHTML;
+  teq('🔴 mỗi khối có nút "Tải Excel khối này" mang đúng tên đầu mục của khối', 3, (h.match(/onclick="taiExcelDauMuc\(/g) || []).length);
+  t('   nút khối KVC gọi đúng đầu mục KVC; khối rỗng gọi với chuỗi rỗng', /taiExcelDauMuc\(&quot;Chi Phí Cơ Sở KVC&quot;\)/.test(h) && /taiExcelDauMuc\(&quot;&quot;\)/.test(h), h);
+
+  t('⚠️ bốc được taiExcelDauMuc', ham('taiExcelDauMuc').length > 100);
+  t('🔴 tải riêng khối KHÔNG chốt đã xuất (không gọi markExported / loadXuat)', !/markExported|loadXuat|confirm\(/.test(ham('taiExcelDauMuc')), ham('taiExcelDauMuc'));
+  function taiKhoi(m, coXlsx) {
+    const sheets = []; let tenTep = ''; const toasts = [];
+    const XLSX = coXlsx ? { utils: { book_new: () => ({}), aoa_to_sheet: (aoa) => ({ __aoa: aoa }), book_append_sheet: (wb, ws, ten) => sheets.push({ ten, dong: ws.__aoa.slice(1) }) }, writeFile: (wb, ten) => { tenTep = ten; } } : undefined;
+    const docGia = { body: { appendChild() {} }, createElement: () => ({ click() { tenTep = this.download; }, remove() {} }) };
+    new Function('XUAT', 'XLSX', 'toast', 'Blob', 'URL', 'document', 'setTimeout',
+      ham('_xuatKhoiDauMuc') + ham('_xlsxTenSheet') + ham('taiExcelDauMuc') + '\ntaiExcelDauMuc(' + JSON.stringify(m) + ');')(
+      X, XLSX, (k, s) => toasts.push(k + ':' + s), function () {}, { createObjectURL: () => 'blob:', revokeObjectURL() {} }, docGia, () => {});
+    return { sheets, tenTep, toasts };
+  }
+  const kvc = taiKhoi('Chi Phí Cơ Sở KVC', true);
+  teq('🔴 tải khối KVC → MỘT sheet, đúng 2 dòng A và C (không lẫn B, D)', [['Chi Phí Cơ Sở KVC'], ['A', 'C']], [kvc.sheets.map((s) => s.ten), kvc.sheets[0].dong.map((r) => r[1])]);
+  t('   tên tệp mang tên đầu mục, không dấu', /^MISA_VanHanhChiPhi_ChiPhiCoSoKVC\.xlsx$/.test(kvc.tenTep), kvc.tenTep);
+  t('   báo rõ là CHƯA chốt', kvc.toasts.some((s) => /chưa chốt/.test(s)), kvc.toasts);
+  const rong = taiKhoi('', true);
+  teq('   khối "Chưa xếp đầu mục" tải được, sheet tên ấy, đúng dòng D', [['Chưa xếp đầu mục'], ['D']], [rong.sheets.map((s) => s.ten), rong.sheets[0].dong.map((r) => r[1])]);
+  const csv = taiKhoi('Chi Phí Vận Hành', false);
+  t('🔴 máy chặn thư viện → CSV, tên tệp mang tên đầu mục', /^MISA_VanHanhChiPhi_ChiPhiVanHanh\.csv$/.test(csv.tenTep) && csv.sheets.length === 0, csv.tenTep);
+  const la = taiKhoi('Không Có', true);
+  t('   đầu mục không có dòng → chỉ báo, không tải', la.sheets.length === 0 && la.tenTep === '' && la.toasts.some((s) => /^warn:/.test(s)), la);
+}
+
 if (TRUOT.length) { console.log('\n✗ TRƯỢT ' + TRUOT.length + ' phép (đạt ' + DAT + '):'); TRUOT.forEach((x) => console.log('  · ' + x)); process.exit(1); }
 console.log('\n✓ SẠCH — ' + DAT + ' phép: tách bảng theo đầu mục loại chi phí ở Xuất MISA và bảng Đã quyết toán.');
