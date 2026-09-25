@@ -102,6 +102,11 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.68.3 =
+* Danh mục hàng hoá FABi: **bỏ món đã đóng** (cột Trạng thái = 0) lúc nạp và cả lúc đọc bản đã nạp (anh Thắng 25/09/2026:
+  *"anh lỡ nạp cả món đã đóng, có ảnh hưởng gì không"*) — nên bản đang có trên site tự sạch sau khi cập nhật, không phải
+  nạp lại; lúc nạp báo "bỏ N món đã đóng".
+
 = 1.68.2 =
 * **Nạp danh mục hàng hoá theo từng quán** (anh Thắng 25/09/2026: *"Nạp danh mục hàng hoá có cần chọn cơ sở không"*):
   FABi xuất mỗi quán một file, trước đó mỗi lần nạp là thay cả bản nên nạp quán sau xoá mất quán trước. Nay quán nào có

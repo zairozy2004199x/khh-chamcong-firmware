@@ -23,9 +23,21 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 const KHH_DT_DM_OPT = 'khh_dt_dm_hang';
 
-/** [ 'ds' => [ {ma, ten, nhom, loai, dvt, gia} ], 'luc', 'nguoi', 'nguon', 'so' ] — rỗng khi chưa nạp. */
+/**
+ * Món ĐÃ ĐÓNG trên FABi: cột Trạng thái = 0 (anh Thắng 25/09/2026: *"anh lỡ nạp cả món đã đóng… món đóng để cột trạng
+ * thái là 0"*). Không có cột thì coi như đang bán.
+ */
+function khh_dt_dm_la_dong( $m ) {
+	return isset( $m['tt'] ) && '0' === trim( (string) $m['tt'] );
+}
+
+/** [ 'ds' => [ {ma, ten, nhom, loai, dvt, gia} ], 'luc', 'nguoi', 'nguon', 'so' ] — rỗng khi chưa nạp. Món đã đóng bị lọc ở đây,
+ *  nên bản đã nạp trước khi có luật này cũng tự sạch, không phải nạp lại. */
 function khh_dt_dm_goi() {
 	$x = get_option( KHH_DT_DM_OPT, array() );
+	if ( is_array( $x ) && ! empty( $x['ds'] ) && is_array( $x['ds'] ) ) {
+		$x['ds'] = array_values( array_filter( $x['ds'], function ( $m ) { return is_array( $m ) && ! khh_dt_dm_la_dong( $m ); } ) );
+	}
 	if ( ! is_array( $x ) || empty( $x['ds'] ) || ! is_array( $x['ds'] ) ) {
 		return array( 'ds' => array(), 'luc' => '', 'nguoi' => '', 'nguon' => '', 'so' => 0, 'cs_luc' => array() );
 	}
@@ -227,6 +239,9 @@ function khh_dt_dm_nap( $duong_dan, $ten_file = '', $cua_hang = '' ) {
 	if ( is_wp_error( $ds ) ) {
 		return $ds;
 	}
+	/* Bỏ món đã đóng (Trạng thái 0) — để nó vào là các ô chọn đầy vé cũ không còn bán. */
+	$dong = count( array_filter( $ds, 'khh_dt_dm_la_dong' ) );
+	$ds   = array_values( array_filter( $ds, function ( $m ) { return ! khh_dt_dm_la_dong( $m ); } ) );
 	$cua_hang = trim( (string) $cua_hang );
 	if ( '' !== $cua_hang ) {
 		$cua_hang = function_exists( 'khh_dt_bc_ten_cua' ) ? khh_dt_bc_ten_cua( $cua_hang ) : $cua_hang;
@@ -315,7 +330,7 @@ function khh_dt_dm_nap( $duong_dan, $ten_file = '', $cua_hang = '' ) {
 		),
 		false
 	);
-	return array( 'so' => count( $ds ), 'moi' => $moi, 'mat' => $mat, 'tong' => count( $ra ), 'quan' => array_values( $quan ), 'luc' => $luc );
+	return array( 'so' => count( $ds ), 'moi' => $moi, 'mat' => $mat, 'tong' => count( $ra ), 'quan' => array_values( $quan ), 'luc' => $luc, 'dong' => $dong );
 }
 
 /** Xoá cả danh mục, hay chỉ phần của MỘT quán (món chỉ còn ở quán ấy thì bỏ; món ở quán khác nữa thì bớt quán). */
