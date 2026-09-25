@@ -5,7 +5,7 @@ Mã `khh-doanh-thu` **không** được nuôi ở kho này. Kho này nuôi đún
 `1c781a5` (Chấm Công 4.16.0), và **đứng im từ đó** — trong khi bản chạy thật
 ngoài host đã đi xa hơn nhiều chục phiên bản.
 
-Số bản trong thư mục này: **1.29.0**. Đừng tin nó là bản mới nhất.
+Số bản trong thư mục này: **1.64.6**. Đừng tin nó là bản mới nhất.
 
 ## Chuyện đã xảy ra, 19/09/2026
 

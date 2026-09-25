@@ -135,14 +135,6 @@ unset( $_cu );
 
 define( 'ABSPATH', $GLOBALS['VHCP_TMP'] . '/' );
 define( 'ARRAY_A', 'ARRAY_A' );
-/* Hằng thời gian của lõi WordPress. Luôn có trên máy thật, nên mã plugin dùng thoải mái — mà
-   thiếu ở đây thì bài kiểm chết bằng "Undefined constant", một câu lỗi chẳng liên quan gì tới
-   thứ đang thử. */
-define( 'MINUTE_IN_SECONDS', 60 );
-define( 'HOUR_IN_SECONDS', 3600 );
-define( 'DAY_IN_SECONDS', 86400 );
-define( 'WEEK_IN_SECONDS', 604800 );
-
 /* Hằng thời gian của WordPress. Mã trong kho dùng chúng như thứ luôn có (vì trong WordPress
    thật thì có), nên thiếu ở đây là bài thử nổ ngay dòng đầu — mà nổ vì BỆ ĐỠ thiếu, không phải
    vì mã sai. */
@@ -222,26 +214,46 @@ $GLOBALS['VHCP_MOC']   = array();   // hook => danh sách callback
 $GLOBALS['VHCP_LUAT']  = array();   // luật đường dẫn đã gài
 $GLOBALS['VHCP_QVAR']  = array();
 $GLOBALS['VHCP_MA_HTTP'] = 0;
-$GLOBALS['VHCP_CRON'] = array();
+$GLOBALS['VHCP_LICH'] = array();
 function add_action( $h, $cb, $uu = 10, $n = 1 ) { $GLOBALS['VHCP_MOC'][ $h ][] = array( $cb, $uu ); return true; }
 function add_filter( $h, $cb, $uu = 10, $n = 1 ) { $GLOBALS['VHCP_MOC'][ $h ][] = array( $cb, $uu ); return true; }
 function remove_action( $h, $cb, $uu = 10 ) { $GLOBALS['VHCP_MOC'][ '-' . $h ][] = array( $cb, $uu ); return true; }
 function remove_filter( $h, $cb, $uu = 10 ) { $GLOBALS['VHCP_MOC'][ '-' . $h ][] = array( $cb, $uu ); return true; }
 function apply_filters( $h, $v ) { return $v; }
-/* Lịch cron. Giữ trong một mảng thật chứ không trả bừa `false`/`true`: `init()` của mấy lớp
-   gọi `wp_next_scheduled()` rồi mới `wp_schedule_event()`, và bài kiểm nào nạp `init()` hai
-   lần mà stub luôn nói "chưa xếp" thì xếp chồng hai lượt — đúng cái lỗi ngoài đời. */
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * LỊCH CRON — MỘT SỔ DUY NHẤT `VHCP_LICH`, GIỮ ĐỦ CẢ HAI THỨ HAI NHÁNH TỪNG LO.
+ *
+ * 25/09/2026, lúc gộp hai nhánh: mỗi bên có một bệ đỡ cron riêng, và Git giữ CẢ HAI mà không
+ * báo đụng độ — bản này chạy, bản kia chết vì bọc trong `if ( ! function_exists(
+ * 'wp_next_scheduled' ) )`. Bỏ bản nào cũng mất một thứ đã chữa xong, nên gộp:
+ *
+ *   · GIỮ TRONG MỘT MẢNG THẬT, và `wp_schedule_event()` CHỐI khi hook đã có lịch. `init()` của
+ *     mấy lớp gọi `wp_next_scheduled()` rồi mới `wp_schedule_event()`; bài kiểm nào nạp
+ *     `init()` hai lần mà stub luôn nói "chưa xếp" thì xếp chồng hai lượt — đúng cái lỗi ngoài
+ *     đời, và đúng cách WordPress thật cư xử.
+ *   · NHỚ CẢ MỐC LẪN NHỊP, không chỉ mỗi mốc. Có thế bài thử mới chốt được "đặt lịch ĐÚNG MỐC,
+ *     ĐÚNG NHỊP" chứ không chỉ "không nổ". Bài hộp thư đã vấp đúng chỗ này: lịch hằng ngày đặt
+ *     sai múi giờ là chạy trễ 7 tiếng mà mọi phép vẫn xanh.
+ *
+ * ⚠️ THÊM HÀM CRON MỚI THÌ THÊM Ở ĐÂY. Đừng mở một khối thứ hai có `function_exists` — cái gác
+ *    ấy hỏi MỘT tên rồi che cho CẢ nhóm, nên hàm thứ năm thêm vào nhóm bị che là biến mất không
+ *    một tiếng động. Đúng chuyện vừa xảy ra với `wp_unschedule_event`.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
 function wp_next_scheduled( $h, $args = array() ) {
-	return isset( $GLOBALS['VHCP_CRON'][ $h ] ) ? $GLOBALS['VHCP_CRON'][ $h ] : false;
+	return isset( $GLOBALS['VHCP_LICH'][ $h ] ) ? (int) $GLOBALS['VHCP_LICH'][ $h ]['ts'] : false;
 }
 function wp_schedule_event( $khi, $nhip, $h, $args = array() ) {
-	if ( isset( $GLOBALS['VHCP_CRON'][ $h ] ) ) { return false; }
-	$GLOBALS['VHCP_CRON'][ $h ] = (int) $khi;
+	if ( isset( $GLOBALS['VHCP_LICH'][ $h ] ) ) { return false; }
+	$GLOBALS['VHCP_LICH'][ $h ] = array( 'ts' => (int) $khi, 'nhip' => (string) $nhip, 'args' => $args );
 	return true;
 }
 function wp_clear_scheduled_hook( $h, $args = array() ) {
-	unset( $GLOBALS['VHCP_CRON'][ $h ] );
+	unset( $GLOBALS['VHCP_LICH'][ $h ] );
 	return 1;
+}
+function wp_unschedule_event( $khi, $h, $args = array() ) {
+	unset( $GLOBALS['VHCP_LICH'][ $h ] );
+	return true;
 }
 /* 🔴 `do_action` PHẢI GỌI THẬT CÁC TAI NGHE. Trước đây nó trả `null` và không làm gì — nên mọi
    đường đi qua móc (plugin này bắn, plugin kia nghe) đều XANH OAN: bỏ hẳn `add_action` đi bài
@@ -1082,23 +1094,6 @@ function vhd_dung_bang() {
    $GLOBALS['VHCP_LICH'] = [ hook => [ 'ts' => mốc, 'nhip' => tên nhịp, 'args' => … ] ].
    Có seam thì bài thử chốt được "đặt lịch ĐÚNG MỐC, ĐÚNG NHỊP" — chứ không chỉ "không nổ".
    Bài hộp thư đã vấp: lịch hằng ngày đặt sai múi giờ là chạy trễ 7 tiếng mà mọi phép vẫn xanh. */
-if ( ! function_exists( 'wp_next_scheduled' ) ) {
-	function wp_next_scheduled( $hook, $args = array() ) {
-		return isset( $GLOBALS['VHCP_LICH'][ $hook ] ) ? (int) $GLOBALS['VHCP_LICH'][ $hook ]['ts'] : false;
-	}
-	function wp_schedule_event( $ts, $nhip, $hook, $args = array() ) {
-		$GLOBALS['VHCP_LICH'][ $hook ] = array( 'ts' => (int) $ts, 'nhip' => (string) $nhip, 'args' => $args );
-		return true;
-	}
-	function wp_unschedule_event( $ts, $hook, $args = array() ) {
-		unset( $GLOBALS['VHCP_LICH'][ $hook ] );
-		return true;
-	}
-	function wp_clear_scheduled_hook( $hook, $args = array() ) {
-		unset( $GLOBALS['VHCP_LICH'][ $hook ] );
-		return 1;
-	}
-}
 
 /* ---- Gửi thư: chỉ GHI LẠI, không gửi. $GLOBALS['VHCP_MAIL'] = [ [to, subject, message], … ].
    Bài quy trình chốt được "gửi đúng người, đúng tiêu đề" thay vì chỉ "không nổ". */

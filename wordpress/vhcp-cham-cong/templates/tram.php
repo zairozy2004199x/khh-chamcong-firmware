@@ -445,6 +445,29 @@ button.o-ung{border:0;background:transparent;font:inherit;color:var(--chu);curso
 .mn{position:fixed;inset:0;background:rgba(2,6,23,.94);z-index:9;overflow:auto;
 	padding:14px 14px calc(20px + env(safe-area-inset-bottom));color:#eef2f8}
 .mn .bao{padding-top:8px}
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * MÀN CHỤP MANG BẢNG MÀU TỐI RIÊNG — làm nốt phần đã hứa ở khối chú thích đầu tệp, 25/09/2026.
+ *
+ * Anh Thắng chốt SÁNG TOÀN BỘ ngày 17/09 để trạm đồng nhất với bảy trang còn lại, và chốt ấy
+ * giữ nguyên. Nhưng cái giá của nó là có thật: màn hình sáng hắt vào mặt người đang đứng tự
+ * chụp, ảnh bệt — mà đúng tấm ảnh đó là thứ quản lý mở ra khi có tranh cãi công ca đêm.
+ *
+ * Phần bù đã được VIẾT RA trong chú thích từ hôm ấy nhưng CHƯA AI LÀM: cho riêng `#mChup` nền
+ * tối. Chỉ năm giây đứng chụp mới có chuyện hắt sáng, nên tối đúng năm giây ấy là đủ — không
+ * phải đánh đổi gì với sự đồng nhất của cả trang.
+ *
+ * ⚠️ ĐÈ TOKEN, KHÔNG ĐÈ TỪNG LUẬT. Khai lại bộ biến ngay trên `#mChup` thì mọi thứ bên trong
+ *    (thẻ, nút, ô nhập, nhãn) tự đi theo, kể cả luật viết về sau. Đi sửa tay từng luật là bỏ
+ *    sót, và bỏ sót ở đây nghĩa là một mảng trắng loé giữa màn tối.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+#mChup{--nen:#101828;--the:#1b2436;--nen-2:#243049;
+	--vien:#31405e;--vien-dam:#455873;
+	--chu:#e7ecf5;--chu-dam:#ffffff;--chu-mo:#93a3bd;
+	--nhan:#38bdf8;--nhan-dam:#0ea5e9;--nhan-nhat:#12314a;--do:#f87171;
+	background:var(--nen);color:var(--chu)}
+#mChup .the{background:var(--the);border-color:var(--vien)}
+#mChup label,#mChup .mo,#mChup .ct{color:var(--chu-mo)}
+#mChup input,#mChup select{background:var(--nen-2);border-color:var(--vien-dam);color:var(--chu)}
 .mn>.bao>.mo,.mn>.bao>.ct{color:#b9c4d4}
 .mn>.bao>.phu{color:#dbe3ee;border-color:rgba(255,255,255,.34)}
 .mn .the,.mn .the .mo,.mn .the .ct{color:var(--chu)}

@@ -42,7 +42,19 @@ $goc = dirname( dirname( __DIR__ ) );
  * Nên khai NGƯỢC: kể tên thứ được nuôi, còn lại đều phải có mốc. Thêm một bản chụp mới vào kho
  * mà quên đánh dấu là bài này đỏ ngay — chứ không phải chờ tới lúc có người gói nhầm rồi gửi đi.
  * ═════════════════════════════════════════════════════════════════════════════════════════════ */
-$NUOI_O_DAY = array( 'vhcp-cham-cong' );
+/* ⚠️ `vhcp-jp` VÀO DANH SÁCH NÀY 25/09/2026, lúc gộp hai nhánh — và vào vì BẰNG CHỨNG, không
+   vì cho bài thử xanh. Lượt việc đầu tiên của nó là `JP Capsule 1.0.0 — tầng bảng: 23 tab
+   Google Sheets sang MySQL`: dựng từ số 0 ngay tại kho này, 26 lượt việc, và
+   `tools/build-plugin-zip.sh` có nhánh `jp)` đóng gói nó thật. Dán mốc "bản chụp cũ, đừng đóng
+   gói" lên một plugin sinh ra ở đây là nói sai, và là chặn đúng đường gói hợp lệ của nó.
+
+   🔴 CÒN MỘT CHỖ CHƯA NGÃ NGŨ, ĐỂ ĐÂY CHO NGƯỜI SAU: khối chú thích dưới nói "mười ba thư mục
+      còn lại đều 1–5 commit". Nay KHÔNG CÒN ĐÚNG — `vhcp-chi-phi` có 245 lượt, `khh-doanh-thu`
+      có 87. Tức hoặc mấy thư mục ấy đã thành nguồn thật và mốc của chúng nói sai, hoặc người ta
+      đang sửa hằng ngày lên một bản chụp chết và công ấy không bao giờ ra tới host. Hai khả
+      năng lệch nhau rất xa, và không lần nào trong hai mà bài thử này bắt được. Phải hỏi anh
+      Thắng, đừng tự đoán rồi sửa danh sách. */
+$NUOI_O_DAY = array( 'vhcp-cham-cong', 'vhcp-jp' );
 const MOC = 'KHONG-PHAI-NGUON-THAT.md';
 
 $BAN_CHUP = array();
