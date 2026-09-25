@@ -102,6 +102,18 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.68.0 =
+* **Danh mục hàng hoá FABi** (anh Thắng 25/09/2026: *"Tạo hàng mới trên FABi mà chưa bán, thành ra doanh thu nó không có
+  hàng đó để nhập kho… các bạn muốn set trước, thấy không có loại vé đó nên tạo trước, dẫn tới dễ sai lệch"*). Quản trị có
+  khối mới: nạp bản xuất "Danh sách hàng hoá" của FABi (file "update item in store": Mã món · Cửa hàng · Tên · Tên nhóm ·
+  Tên loại · Đơn vị · Giá), tải lại thành CSV, xoá. Từ đó mọi ô chọn có đủ tên đúng FABi kèm mã, kể cả món **chưa bán**:
+  tab Kho "Thêm mặt hàng mới" chọn trong danh mục của đúng quán (tự điền mã) thay vì gõ tay; ô "chọn combo đang bán" có
+  cả combo chưa bán (ghi "FABi chưa bán"); Bóc tách vé bày vé chưa bán để khai khách/vé trước; Xuất MISA lấy mã hàng từ
+  danh mục cho món chưa bán.
+* **Xoá hàng sai trên sổ kho** (*"Cho phép xoá hàng sai trên kho hàng"*): người phụ trách quán xoá được món FABi chưa bán
+  (khai trước, gõ sai) — xoá khỏi danh mục và xoá cả dòng sổ của quán ấy, sổ ghi động giữ nguyên vết cũ và thêm một dòng
+  "xoá mặt hàng". Món FABi đã ghi bán vẫn chỉ văn phòng xoá được (không đếm nữa thì bỏ tích).
+
 = 1.67.4 =
 * Bảng Phân quyền PIN gọn lại (anh Thắng 25/09/2026: *"đang bị dãn"*): cột "Cơ sở riêng" gập thành một dòng tóm tắt
   ("Riêng 1 quán: Estella" / "theo mã (5 quán)"), bấm mới xổ danh sách tích; cột "Cơ sở (từ sổ nhân sự)" xuống dòng thay
