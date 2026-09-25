@@ -59,6 +59,22 @@
   var THE_TAM = '';
   function theHienCo() { return THE_TAM || the(); }
 
+  /* ═══════════════════════════════════════════════════════════════════════════════════════════
+   * 🔴 VÉ TỪ TRẠM THÌ THẺ MỚI PHẢI ĐÈ THẺ CŨ, NGAY TRƯỚC LỆNH GỌI ĐẦU TIÊN
+   * ═══════════════════════════════════════════════════════════════════════════════════════════
+   * Anh Thắng 19/09/2026: trạm Chấm công đang là một người, bấm sang app khác thì hiện tên
+   * người khác. *"Phải tự link chung 1 tk chứ"*.
+   *
+   * Thẻ trong `localStorage` sống rất lâu, nên máy nào từng có người gõ PIN là thẻ của người ấy
+   * nằm lại đó. Trạm nay gắn một vé vào đường dẫn; máy chủ đổi vé lấy thẻ mới và gửi xuống
+   * `CF.ve`. Ghi đè ở đây, trước khi bất cứ lệnh gọi nào chạy.
+   *
+   * ⚠️ GHI ĐÈ, KHÔNG PHẢI "ghi nếu chưa có". Cả cái lỗi nằm ở chỗ ĐÃ CÓ một thẻ cũ.
+   * ⚠️ Thẻ mới sống tiếp trong máy, nên lần mở sau — lúc vé đã chết — vẫn là đúng người, không
+   *    lùi về thẻ của người lạ nữa.
+   * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+  if (CF.ve) datThe(CF.ve);
+
   function api(duong, tuyChon) {
     tuyChon = tuyChon || {};
     tuyChon.credentials = 'same-origin';

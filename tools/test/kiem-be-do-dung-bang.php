@@ -89,10 +89,22 @@ t( 'bỏ độ dài tiền tố kiểu MySQL khỏi cột chỉ mục',
 // ============================================================ 2. Dựng thật, và khoá phải CẮN
 global $wpdb;
 define( 'VHG_TEST', 1 );
+/* 🔴 PLUGIN GHẾ KHÔNG CÒN Ở NHÁNH NÀY — 18/09/2026. Nhà của nó là nhánh
+   `claude/posh-qr-kh1urz`, thư mục `vhcp-ghe/` ngay gốc kho (xem
+   wordpress/DOC-TRUOC-KHI-DONG-GOI.md: bản 1.48.0 lạc ở đây suýt được đóng gói đè lên bản
+   2.111.0 đang chạy).
+   ⚠️ NÊN KHÚC NÀY BỎ QUA KHI KHÔNG CÓ TỆP, VÀ PHẢI KÊU TO. Bỏ qua im lặng là mất một mảng
+      kiểm mà bảng kết quả vẫn xanh — đúng kiểu hỏng mà cả bộ thử này sinh ra để chặn. */
 define( 'VHG_VERSION', 'test' );
 define( 'VHG_DIR', $goc . '/wordpress/vhcp-ghe/' );
-require_once VHG_DIR . 'includes/class-vhg-db.php';
-
+if ( ! vhcc_nap_ghe( 'class-vhg-db.php' ) ) {
+	/* Ra sớm: mọi phép còn lại đều hỏi `VHG_DB`. Chạy tiếp là Fatal, và một bài chết giữa
+	   đường thì con số "ĐẠT" phía trên cũng thành vô nghĩa. */
+	echo "  ⏭ BỎ QUA phần plugin Ghế — chưa fetch nhánh claude/posh-qr-kh1urz.\n";
+	echo "\n" . ( $truot ? '🔴 HỎNG ' . count( $truot ) : "✓ ĐẠT: $dat" )
+		. " (đã bỏ qua khúc cần plugin Ghế)\n";
+	exit( $truot ? 1 : 0 );
+}
 vhcp_stub_dung_bang( VHG_DB::bang(), $wpdb->prefix . 'vhg_' );
 
 /* 🔴 KHÔNG CÂU DDL NÀO ĐƯỢC TRƯỢT. Phép này phải đứng TRƯỚC mọi phép khác trong mục: bảng
@@ -169,21 +181,16 @@ function bd_tuoc_chu_thich( $ma ) {
 	return preg_replace( '#(?<!:)//[^\n]*#', ' ', $ma );
 }
 
-$thieu = array();
-foreach ( array( 'test-ghe.php', 'kiem-ghi-khoan-thu.php', 'kiem-sao-ke-ngan-hang.php',
-	'kiem-va-ten-tu-sao-ke.php', 'kiem-day-coso-tu-ghe.php' ) as $f ) {
-	$ma = bd_tuoc_chu_thich( file_get_contents( __DIR__ . '/' . $f ) );
-	if ( strpos( $ma, 'vhcp_stub_dung_bang(' ) === false ) { $thieu[] = $f; }
-}
-/* Và tự canh chính bộ tước: nó phải thật sự ăn được chú thích, không thì phép trên là bộ soi
-   mù. Cùng loại bẫy đã làm `kiem-khoa-khong-vao-dia-chi.php` xanh 40/40 trong khi lỗi còn nguyên. */
-t( 'bộ tước chú thích ăn được khối /* */',
-	strpos( bd_tuoc_chu_thich( "a /* vhcp_stub_dung_bang( x ) */ b" ), 'vhcp_stub_dung_bang' ) === false );
-t( 'và ăn được dòng //',
-	strpos( bd_tuoc_chu_thich( "a\n// vhcp_stub_dung_bang( x )\nb" ), 'vhcp_stub_dung_bang' ) === false );
-t( '🔴 nhưng KHÔNG ăn nhầm hai gạch trong https://',
-	strpos( bd_tuoc_chu_thich( "\$u = 'https://a.test/x'; giu_lai();" ), 'giu_lai' ) !== false );
-t( '🔴 mọi bài phía Ghế dùng chung một lối dựng bảng', count( $thieu ) === 0, implode( ', ', $thieu ) );
+/* 🔴 PHÉP "MỌI BÀI GHẾ ĐỀU DỰNG LƯỢC ĐỒ QUA BỘ STUB CHUNG" ĐÃ CHUYỂN NHÀ — 18/09/2026.
+   Năm bài nó soi (test-ghe · kiem-ghi-khoan-thu · kiem-sao-ke-ngan-hang · kiem-va-ten-tu-sao-ke
+   · kiem-day-coso-tu-ghe) thuộc dòng Ghế 1.x, đã gỡ khỏi nhánh này cùng bản chép plugin —
+   xem wordpress/DOC-TRUOC-KHI-DONG-GOI.md. Nhà của chúng là nhánh `claude/posh-qr-kh1urz`.
+
+   ⚠️ GỠ HẲN, KHÔNG ĐỂ VÒNG LẶP 0 LƯỢT. Giữ lại thì `foreach` chạy qua một danh sách rỗng và
+      phép thử báo xanh mà không soi tệp nào — đúng kiểu "bộ soi mù" mà chính bài này cảnh báo
+      ở khối ngay dưới. Thà thiếu một phép còn hơn một phép nói dối.
+   → Ai chuyển bài ghế về đây thì chép lại khối này kèm danh sách tệp thật. */
+
 
 // ============================================================ kết
 if ( $truot ) {

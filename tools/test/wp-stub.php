@@ -70,7 +70,23 @@ register_shutdown_function( function () {
  *    shutdown đăng ký sau nó. Nên lượt chạy nào có cảnh báo PHP sẽ không dọn được — chính vì
  *    thế mới cần thêm lượt quét thư mục cũ ở dưới, chứ không trông cả vào hàm dọn.
  */
-$GLOBALS['VHCP_TMP'] = sys_get_temp_dir() . '/vhcp-test-' . getmypid() . '-' . bin2hex( random_bytes( 5 ) );
+
+/* ═══ GỘP HAI BẢN VÁ, 25/09/2026 — bỏ vế nào cũng mất một cái đã chữa xong. ═══
+ * · Phần ĐUÔI NGẪU NHIÊN + DỌN là của khối chú thích ngay trên: `pid_max` quay vòng nên tên
+ *   theo số hiệu tiến trình bị trùng, và một lượt chạy mới thừa hưởng tệp của lượt cũ.
+ * · Phần LỐI THOÁT `VHCC_STUB_TMP` là của nhánh kia, cho MÁY CHỦ XEM TRƯỚC: nó phục vụ nhiều
+ *   lượt gọi bằng nhiều TIẾN TRÌNH, luồng này ghi tệp đính kèm vào thư mục riêng của nó thì
+ *   luồng kia đi tìm không thấy và trả 404 — ảnh trong chat hiện ra một ô vỡ, mà curl thẳng
+ *   vào cùng đường dẫn lại ra đúng tấm ảnh.
+ * Hai chuyện không đá nhau: khai biến môi trường thì mọi tiến trình dùng CHUNG một thư mục
+ * (đúng cho máy xem trước); không khai thì mỗi lượt chạy một thư mục riêng rồi tự dọn (đúng
+ * cho bộ thử). ⚠️ Khai biến ấy thì KHÔNG dọn — thư mục dùng chung, dọn là giật tệp của tiến
+ * trình khác đang chạy.
+ * ═══════════════════════════════════════════════════════════════════════════════════════ */
+$GLOBALS['VHCP_TMP'] = getenv( 'VHCC_STUB_TMP' )
+	? getenv( 'VHCC_STUB_TMP' )
+	: ( sys_get_temp_dir() . '/vhcp-test-' . getmypid() . '-' . bin2hex( random_bytes( 5 ) ) );
+
 @mkdir( $GLOBALS['VHCP_TMP'] . '/wp-admin/includes', 0777, true );
 @mkdir( $GLOBALS['VHCP_TMP'] . '/uploads', 0777, true );
 file_put_contents( $GLOBALS['VHCP_TMP'] . '/wp-admin/includes/upgrade.php', "<?php\n" );
@@ -99,13 +115,19 @@ function vhcp_don_thu_muc_tam( $d ) {
 }
 
 register_shutdown_function( function () {
+	/* 🔴 KHAI `VHCC_STUB_TMP` THÌ KHÔNG DỌN. Biến ấy là lối thoát cho máy chủ xem trước, nơi
+	   NHIỀU tiến trình cùng trỏ vào MỘT thư mục. Dọn ở đó là tiến trình này thoát rồi xoá mất
+	   tệp đính kèm mà tiến trình kia đang phục vụ — đúng triệu chứng 404 đã phải tìm hai lượt
+	   chụp mới ra. Thư mục tự sinh (không khai biến) thì vẫn dọn như cũ. */
+	if ( getenv( 'VHCC_STUB_TMP' ) ) { return; }
 	vhcp_don_thu_muc_tam( $GLOBALS['VHCP_TMP'] );
 } );
 
 /* Quét thư mục của những lượt chạy cũ đã bỏ lại (bị giết ngang, hoặc thoát sớm vì cảnh báo
    PHP nên không chạy tới hàm dọn). Quá một giờ thì chắc chắn không còn ai dùng. */
 foreach ( (array) @glob( sys_get_temp_dir() . '/vhcp-test-*' ) as $_cu ) {
-	if ( is_dir( $_cu ) && $_cu !== $GLOBALS['VHCP_TMP'] && @filemtime( $_cu ) < time() - 3600 ) {
+	if ( is_dir( $_cu ) && $_cu !== $GLOBALS['VHCP_TMP'] && ! getenv( 'VHCC_STUB_TMP' )
+		&& @filemtime( $_cu ) < time() - 3600 ) {
 		vhcp_don_thu_muc_tam( $_cu );
 	}
 }
@@ -113,6 +135,13 @@ unset( $_cu );
 
 define( 'ABSPATH', $GLOBALS['VHCP_TMP'] . '/' );
 define( 'ARRAY_A', 'ARRAY_A' );
+/* Hằng thời gian của lõi WordPress. Luôn có trên máy thật, nên mã plugin dùng thoải mái — mà
+   thiếu ở đây thì bài kiểm chết bằng "Undefined constant", một câu lỗi chẳng liên quan gì tới
+   thứ đang thử. */
+define( 'MINUTE_IN_SECONDS', 60 );
+define( 'HOUR_IN_SECONDS', 3600 );
+define( 'DAY_IN_SECONDS', 86400 );
+define( 'WEEK_IN_SECONDS', 604800 );
 
 /* Hằng thời gian của WordPress. Mã trong kho dùng chúng như thứ luôn có (vì trong WordPress
    thật thì có), nên thiếu ở đây là bài thử nổ ngay dòng đầu — mà nổ vì BỆ ĐỠ thiếu, không phải
@@ -186,11 +215,27 @@ $GLOBALS['VHCP_MOC']   = array();   // hook => danh sách callback
 $GLOBALS['VHCP_LUAT']  = array();   // luật đường dẫn đã gài
 $GLOBALS['VHCP_QVAR']  = array();
 $GLOBALS['VHCP_MA_HTTP'] = 0;
+$GLOBALS['VHCP_CRON'] = array();
 function add_action( $h, $cb, $uu = 10, $n = 1 ) { $GLOBALS['VHCP_MOC'][ $h ][] = array( $cb, $uu ); return true; }
 function add_filter( $h, $cb, $uu = 10, $n = 1 ) { $GLOBALS['VHCP_MOC'][ $h ][] = array( $cb, $uu ); return true; }
 function remove_action( $h, $cb, $uu = 10 ) { $GLOBALS['VHCP_MOC'][ '-' . $h ][] = array( $cb, $uu ); return true; }
 function remove_filter( $h, $cb, $uu = 10 ) { $GLOBALS['VHCP_MOC'][ '-' . $h ][] = array( $cb, $uu ); return true; }
 function apply_filters( $h, $v ) { return $v; }
+/* Lịch cron. Giữ trong một mảng thật chứ không trả bừa `false`/`true`: `init()` của mấy lớp
+   gọi `wp_next_scheduled()` rồi mới `wp_schedule_event()`, và bài kiểm nào nạp `init()` hai
+   lần mà stub luôn nói "chưa xếp" thì xếp chồng hai lượt — đúng cái lỗi ngoài đời. */
+function wp_next_scheduled( $h, $args = array() ) {
+	return isset( $GLOBALS['VHCP_CRON'][ $h ] ) ? $GLOBALS['VHCP_CRON'][ $h ] : false;
+}
+function wp_schedule_event( $khi, $nhip, $h, $args = array() ) {
+	if ( isset( $GLOBALS['VHCP_CRON'][ $h ] ) ) { return false; }
+	$GLOBALS['VHCP_CRON'][ $h ] = (int) $khi;
+	return true;
+}
+function wp_clear_scheduled_hook( $h, $args = array() ) {
+	unset( $GLOBALS['VHCP_CRON'][ $h ] );
+	return 1;
+}
 /* 🔴 `do_action` PHẢI GỌI THẬT CÁC TAI NGHE. Trước đây nó trả `null` và không làm gì — nên mọi
    đường đi qua móc (plugin này bắn, plugin kia nghe) đều XANH OAN: bỏ hẳn `add_action` đi bài
    kiểm vẫn không đỏ. Bắt được lúc dựng đường đẩy cơ sở từ plugin Ghế sang (08/09/2026).
@@ -455,7 +500,14 @@ function wp_parse_url( $u, $c = -1 ) { return parse_url( $u, $c ); }
    khai vào đây, đừng đợi nó ngã. */
 function wp_parse_str( $s, &$a ) { parse_str( (string) $s, $a ); return $a; }
 function rest_url( $p = '' ) { return 'http://example.test/wp-json/' . ltrim( $p, '/' ); }
-function home_url( $p = '/' ) { return 'http://example.test' . $p; }
+/* ⚠️ Biến môi trường chỉ cho bộ xem trước. Trang trạm dựng địa chỉ cổng bằng chính hàm này rồi
+   nhét vào JavaScript, nên để nguyên `example.test` thì trình duyệt gọi ra một tên miền không
+   tồn tại — màn hình hiện "Không gửi được lên máy chủ" và không chụp nổi màn nào sau màn gõ
+   PIN. Bộ thử không đặt biến này, nên nó vẫn thấy đúng `example.test` như trước. */
+function home_url( $p = '/' ) {
+	$goc = getenv( 'VHCC_STUB_HOME' );
+	return ( $goc ? rtrim( $goc, '/' ) : 'http://example.test' ) . $p;
+}
 /* Bản giả CŨ trả '' — vô hại cho tới lúc có màn hình in ra địa chỉ dựng bằng hàm này, rồi phép
    thử báo "không hiện địa chỉ" mà mã nguồn thì đúng. Một hàm giả trả rỗng là một phép thử tự
    nói dối, nên dựng cho đúng: add_query_arg( $mang, $url ) và add_query_arg( $k, $v, $url ). */
@@ -515,7 +567,15 @@ class VHCP_Test_WPDB {
 	private $pdo;
 
 	public function __construct() {
-		$this->pdo = new PDO( 'sqlite::memory:' );
+		/* Mặc định là CSDL trong bộ nhớ — mỗi bài kiểm một sổ sạch, không bài nào dây sang bài
+		   nào. Đó là điều đúng cho bộ thử và không được đổi.
+
+		   ⚠️ Lối thoát bằng biến môi trường CHỈ cho bộ xem trước (`tools/xem/`): máy chủ xem
+		      trước phục vụ NHIỀU lượt gọi, mà thẻ phiên thì nằm trong bảng `session` — sổ trong
+		      bộ nhớ chết theo từng lượt, nên đăng nhập xong lượt sau đã quên. Không có lối này
+		      thì không chụp nổi bất kỳ màn nào sau màn gõ PIN. */
+		$tep = getenv( 'VHCC_STUB_DB' );
+		$this->pdo = new PDO( $tep ? ( 'sqlite:' . $tep ) : 'sqlite::memory:' );
 		$this->pdo->setAttribute( PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION );
 	}
 
@@ -523,7 +583,17 @@ class VHCP_Test_WPDB {
 
 	public function esc_like( $t ) { return addcslashes( (string) $t, '_%\\' ); }
 
-	public function exec_raw( $sql ) { return $this->pdo->exec( $sql ); }
+	public function exec_raw( $sql ) {
+		/* ⚠️ `CREATE TABLE` -> `CREATE TABLE IF NOT EXISTS`.
+		   Với sổ trong bộ nhớ thì thừa (sổ nào cũng trống). Nhưng máy chủ xem trước
+		   (`tools/xem/may-chu-tram.php`) dùng sổ nằm trong TỆP và khởi động lại bệ đỡ ở MỖI
+		   lượt gọi — lượt thứ hai đâm vào "table already exists" và chết, nên chụp được đúng
+		   một màn rồi thôi. Sửa ở đây là sửa cho cả hai bộ bảng, không phải đi thêm `IF NOT
+		   EXISTS` vào hai chục câu khai. */
+		$sql = preg_replace( '/^(\s*)CREATE\s+TABLE\s+(?!IF\s+NOT\s+EXISTS)/i',
+			'$1CREATE TABLE IF NOT EXISTS ', (string) $sql );
+		return $this->pdo->exec( $sql );
+	}
 
 	private function tr( $sql ) {
 		// SQLite không có SHOW TABLES — plugin dùng câu đó để hỏi "bảng của plugin kia có không".
@@ -873,6 +943,60 @@ function vhcc_dung_bang() {
 		$wpdb->exec_raw( 'DROP TABLE IF EXISTS ' . VHCC_DB::t( $ten ) );
 	}
 	vhcc_test_create_tables();
+}
+
+/**
+ * NẠP MỘT LỚP CỦA PLUGIN GHẾ — plugin ấy KHÔNG nằm ở nhánh này.
+ *
+ * =================================================================================================
+ * 🔴 VÌ SAO PHẢI CÓ HÀM NÀY
+ * =================================================================================================
+ * Nhà của plugin Ghế là nhánh `claude/posh-qr-kh1urz` (thư mục `vhcp-ghe/` ngay gốc kho). Nhánh
+ * chấm công từng giữ một bản chép 1.48.0 trong khi host chạy 2.111.0, và bản chép ấy suýt được
+ * đóng gói đè lên bản thật — xem `wordpress/DOC-TRUOC-KHI-DONG-GOI.md`. Nên bản chép đã gỡ.
+ *
+ * Nhưng vài bài kiểm của NHÁNH NÀY có việc thật với plugin ấy: `VHCC_DayGhe` đẩy người sang sổ
+ * người dùng bên ghế, `VHCC_Cty` đọc thông tin công ty từ `VHG_Chan`. Bỏ luôn mấy phép ấy là mất
+ * đúng phần kiểm chỗ HAI PLUGIN GẶP NHAU — chỗ hay hỏng nhất.
+ *
+ * 🔴 NÊN: ĐỌC THẲNG TỪ NHÁNH KIA BẰNG `git show`, KHÔNG CHÉP LẠI MỘT BẢN THỨ HAI.
+ *    Một bản chép là một bản sẽ cũ đi, và lần này ta đã biết cái giá của nó.
+ *
+ * ⚠️ THIẾU THÌ BÁO FALSE, ĐỪNG GIẢ LỚP. Máy nào chưa `git fetch` nhánh kia (bản sao nông của CI)
+ *    thì trả false để nơi gọi BỎ QUA VÀ KÊU TO. Dựng một lớp giả ở đây thì phép thử vẫn xanh mà
+ *    nó đang kiểm một thứ do chính nó bịa ra — tệ hơn hẳn việc thiếu một mảng kiểm.
+ *
+ * @param string $ten Tên tệp, ví dụ 'class-vhg-db.php'.
+ * @return bool Nạp được hay không.
+ */
+function vhcc_nap_ghe( $ten ) {
+	static $thu = null;
+	$goc = dirname( __DIR__, 2 );
+
+	/* 1. Có sẵn trong cây (nhánh khác, hoặc ai đó đã chép về) thì dùng luôn. */
+	$tai_cho = $goc . '/wordpress/vhcp-ghe/includes/' . $ten;
+	if ( is_file( $tai_cho ) ) { require_once $tai_cho; return true; }
+
+	/* 2. Lấy từ nhánh gốc của plugin ghế. Chỉ đọc, không đụng cây làm việc. */
+	if ( null === $thu ) {
+		$thu = sys_get_temp_dir() . '/vhcc-ghe-' . getmypid();
+		if ( ! is_dir( $thu ) ) { @mkdir( $thu, 0777, true ); }
+	}
+	$dich = $thu . '/' . $ten;
+	if ( ! is_file( $dich ) ) {
+		$ma = null;
+		foreach ( array( 'origin/claude/posh-qr-kh1urz', 'claude/posh-qr-kh1urz' ) as $nhanh ) {
+			$ra = array();
+			$mã = 0;
+			exec( 'git -C ' . escapeshellarg( $goc ) . ' show '
+				. escapeshellarg( $nhanh . ':vhcp-ghe/includes/' . $ten ) . ' 2>/dev/null', $ra, $mã );
+			if ( 0 === $mã && $ra ) { $ma = implode( "\n", $ra ); break; }
+		}
+		if ( null === $ma ) { return false; }
+		file_put_contents( $dich, $ma );
+	}
+	require_once $dich;
+	return true;
 }
 
 function vhcc_test_boot( $dir ) {

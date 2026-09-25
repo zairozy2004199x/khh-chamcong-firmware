@@ -289,6 +289,33 @@ class VHCC_Tram {
 			$dm = VHCC_Mat::dem();
 			echo 'mau khuon mat : ' . (int) $dm['tong'] . ' (cho duyet ' . (int) $dm['cho'] . ")\n";
 
+			/* ĐỊA CHỈ: trả lời thẳng câu *"Do định vị hay do app. Chưa lấy được"* (20/09/2026).
+			   Truyền `?lat=&lng=` để chẩn đoán đúng chỗ đang đứng; không truyền thì chỉ báo
+			   trạng thái chung. Chỗ này CÓ ra mạng — người mở trang này là mở có chủ đích. */
+			echo "\n-- dia chi (toa do -> ten duong) --\n";
+			echo 'bang dia_chi  : '
+				. ( VHCC_DB::co_bang( VHCC_DB::t( 'dia_chi' ) ) ? 'co' : 'CHUA CO (chua nang cap bang)' ) . "\n";
+			$lich_dc = wp_next_scheduled( 'vhcc_dia_chi_dien' );
+			/* 🔴 DÒNG NÀY LÀ THỨ BẮT ĐƯỢC LỖI XẾP LỊCH IM LẶNG. `wp_schedule_event()` trả WP_Error
+			   khi nhịp chưa được khai, rồi thôi — không báo gì, plugin chạy bình thường, chỉ có
+			   tên đường là không bao giờ hiện. Không in con số này ra thì không ai biết. */
+			echo 'lich dien dan : ' . ( $lich_dc
+				? gmdate( 'Y-m-d H:i:s', (int) $lich_dc + (int) ( (float) get_option( 'gmt_offset' ) * 3600 ) )
+				: 'CHUA XEP DUOC LICH -- cron khong chay, dia chi se khong bao gio tu dien' ) . "\n";
+			$so_dc = VHCC_DB::co_bang( VHCC_DB::t( 'dia_chi' ) )
+				? (int) $GLOBALS['wpdb']->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'dia_chi' ) ) : 0;
+			echo 'da nho        : ' . $so_dc . " o luoi\n";
+			$la_cd = isset( $_GET['lat'] ) ? sanitize_text_field( wp_unslash( $_GET['lat'] ) ) : '';
+			$ln_cd = isset( $_GET['lng'] ) ? sanitize_text_field( wp_unslash( $_GET['lng'] ) ) : '';
+			if ( '' !== $la_cd && '' !== $ln_cd ) {
+				$cd = VHCC_DiaChi::chan_doan( $la_cd, $ln_cd );
+				echo 'thu toa do    : ' . $la_cd . ',' . $ln_cd . "\n";
+				echo 'ket qua       : ' . $cd['ket'] . "\n";
+				echo 'giai thich    : ' . $cd['chu'] . "\n";
+			} else {
+				echo "thu mot cho   : them &lat=9.9191&lng=106.3427 vao duong dan nay\n";
+			}
+
 			echo "\n-- duong dan --\n";
 			echo 'tram          : ' . self::url() . "\n";
 			echo 'quan tri      : ' . VHCC_Web::url() . "\n";
@@ -311,6 +338,31 @@ class VHCC_Tram {
 		}
 
 		if ( 'anhmau' === $viec ) { self::ra( VHCC_Online::anh_mau_the() ); }
+
+		/* TÊN ĐƯỜNG CỦA CHỖ ĐANG ĐỨNG — anh Thắng 20/09/2026: *"Không thấy địa chỉ"*.
+		   Lưới công của quản lý đọc tên đường từ sổ nhớ, nhưng người đang đứng chấm công thì
+		   không mở lưới ấy bao giờ. Họ cần thấy ngay trên máy: cặp số 10.7755,106.7021 không nói
+		   được cho ai điều gì, còn "12 Nguyễn Huệ, Bến Nghé" thì họ tự biết mình có đứng đúng chỗ.
+
+		   🔴 ĐÒI THẺ PHIÊN. Không có thì đây là cổng tra địa chỉ miễn phí cho bất kỳ ai gõ được
+		      một cặp số — đúng cái mà `VHCC_BanDo` đã phải khoá ba lớp để tránh.
+		   ⚠️ `tra_nhanh()` chứ KHÔNG PHẢI `tra()`: hàm kia giữ nhịp bằng cách NGỦ, và ngủ trong
+		      một lượt gọi của trình duyệt là giữ luôn một tiến trình PHP. Tám giờ sáng cả chuỗi
+		      mở màn chấm công cùng lúc thì hosting hết tiến trình, và đứng cả trang — chứ không
+		      riêng ô địa chỉ. Chưa có tên thì trả rỗng, cron điền sau.
+		   ⚠️ CHƯA TRA ĐƯỢC KHÔNG PHẢI LỖI. Trả `ok` kèm chuỗi rỗng, để bên kia im lặng bỏ qua
+		      chứ không hiện một dòng đỏ cho chuyện chẳng ảnh hưởng gì tới việc chấm công. */
+		if ( 'diachi' === $viec ) {
+			$tk_d = isset( $b['token'] ) ? (string) $b['token'] : '';
+			if ( '' === $tk_d || ! self::nguoi( $tk_d ) ) {
+				self::ra( array( 'ok' => false, 'error' => 'Phiên đã hết hạn.' ) );
+			}
+			$la_d = isset( $b['lat'] ) ? $b['lat'] : '';
+			$ln_d = isset( $b['lng'] ) ? $b['lng'] : '';
+			$dc_d = ( class_exists( 'VHCC_DiaChi' ) && method_exists( 'VHCC_DiaChi', 'tra_nhanh' ) )
+				? VHCC_DiaChi::tra_nhanh( $la_d, $ln_d ) : '';
+			self::ra( array( 'ok' => true, 'diaChi' => (string) $dc_d ) );
+		}
 
 		if ( 'vao' === $viec ) {
 			$kq = self::dang_nhap( isset( $b['pin'] ) ? $b['pin'] : '' );
@@ -341,6 +393,36 @@ class VHCC_Tram {
 			/* Bộ đếm chống dò nằm TRONG VHCC_Quyen::tra_pin_theo_cccd — không nhân bản ở đây.
 			   Hai bộ đếm cho cùng một cửa là hai con số khác nhau và không con nào đúng. */
 			self::ra( VHCC_Quyen::tra_pin_theo_cccd( isset( $b['cccd'] ) ? $b['cccd'] : '' ) );
+		}
+
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		   XEM TỆP ĐÍNH KÈM CỦA CHAT — cửa DUY NHẤT nhận thẻ phiên qua `?token=`.
+		   ═══════════════════════════════════════════════════════════════════════════════════
+		   🔴 PHẢI NẰM TRÊN DÒNG GIẢI THẺ Ở DƯỚI, và phải tự giải thẻ lấy.
+		      `than()` chỉ đọc thân yêu cầu, mà `<img src>` và link tải KHÔNG gửi được thân —
+		      nên nếu để nhánh này ở dưới thì `$u` luôn rỗng, cổng chối trước khi tới nó, và mọi
+		      tấm ảnh trong chat hiện ra một ô vỡ. (Đã viết sai đúng như vậy một lần.)
+
+		   🔴 VÀ CHỈ CỬA NÀY. Nới `$_GET['token']` cho cả cổng là đưa thẻ phiên vào thanh địa chỉ
+		      của MỌI lượt gọi — nó rơi vào nhật ký máy chủ, vào lịch sử trình duyệt, vào tiêu đề
+		      Referer khi người ta bấm một link ra ngoài. Một cửa CHỈ ĐỌC thì đổi lấy được; cả
+		      cổng thì không.
+
+		   ⚠️ Thẻ vẫn nằm trong đường dẫn của riêng cửa này, nên nó CÓ vào nhật ký máy chủ của
+		      mình. Chấp nhận được (cùng tên miền, cùng máy chủ đã giữ thẻ ấy), nhưng đừng dán
+		      đường dẫn tệp chat ra ngoài — nó mang theo thẻ phiên của người dán.
+		   ═══════════════════════════════════════════════════════════════════════════════════ */
+		if ( 'chat_tep' === $viec ) {
+			$tk_t = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '';
+			if ( '' === $tk_t && isset( $b['token'] ) ) { $tk_t = (string) $b['token']; }
+			$u_t = self::nguoi( $tk_t );
+			if ( ! $u_t ) {
+				status_header( 403 );
+				header( 'Content-Type: text/plain; charset=utf-8' );
+				echo 'het phien';
+				exit;
+			}
+			VHCC_Chat::xem_tep( $u_t, isset( $_GET['id'] ) ? (int) $_GET['id'] : 0 );
 		}
 
 		/* --- từ đây phải có thẻ phiên của TRẠM --- */
@@ -562,9 +644,126 @@ class VHCC_Tram {
 			self::ra( VHCC_Chuong::ds( $u ) );
 		}
 
+		/* App Android hỏi "tôi có lời nhắc nào không" — nó không nhận được Web Push.
+		   🔴 LUẬT NẰM Ở `VHCC_Push::nhac_cua()`, KHÔNG chép sang Kotlin. Xem khối chú thích ở
+		      đó: đổi ngưỡng một chỗ mà app vẫn giữ ngưỡng cũ là kiểu lệch không ai đi tìm.
+		   ⚠️ Trả kèm số đếm chuông luôn, để app hỏi MỘT lượt thay vì hai — mỗi 15 phút, nhân
+		      với số máy, thì một lượt gọi thừa là một lượt gọi thừa thật. */
+		if ( 'nhac' === $viec ) {
+			$kq_n = ( class_exists( 'VHCC_Push' ) && method_exists( 'VHCC_Push', 'nhac_cua' ) )
+				? VHCC_Push::nhac_cua( $u['ma_nv'] ) : array( 'ok' => true, 'nhac' => array() );
+			$kq_n['demChuong'] = ( class_exists( 'VHCC_Chuong' ) && method_exists( 'VHCC_Chuong', 'dem' ) )
+				? (string) VHCC_Chuong::dem( $u ) : '';
+			/* Tin chat chưa đọc đi CHUNG cửa này, không mở cửa thứ hai: app hỏi mỗi 15 phút,
+			   nhân với số máy — mỗi lượt gọi thừa là một lượt gọi thừa thật. */
+			$kq_n['chatChuaDoc'] = ( class_exists( 'VHCC_Chat' ) && method_exists( 'VHCC_Chat', 'chua_doc' ) )
+				? VHCC_Chat::chua_doc( $u ) : array();
+			self::ra( $kq_n );
+		}
+
 		if ( 'chuongdoc' === $viec ) {
 			$b = self::than();
 			self::ra( VHCC_Chuong::doc( $u, isset( $b['id'] ) ? (int) $b['id'] : 0 ) );
+		}
+
+		/* ───────────────────────────── DANH BẠ + CHAT NHÓM (anh Thắng 20/09/2026) ─────────
+		   🔴 CẢ BA CỬA ĐỀU ĐI QUA GÁC CỦA LỚP, KHÔNG GÁC Ở ĐÂY. Viết một phép kiểm "cơ sở này có
+		      phải của người ta không" ngay tại cổng là dựng bản thứ hai của một luật đã có, và
+		      hai bản ấy sẽ lệch. `VHCC_Chat::duoc_vao()` và `VHCC_NhanSu::danh_ba()` tự gác. */
+		if ( 'danhba' === $viec ) {
+			$b = self::than();
+			$cs_d = isset( $b['coSo'] ) ? (string) $b['coSo'] : '';
+			/* Không khai cơ sở -> lấy cơ sở chính trong thẻ phiên. */
+			if ( '' === $cs_d ) { $cs_d = VHCC_NhanSu::chuan_coso( (string) $u['coso'] ); }
+			self::ra( array( 'ok' => true, 'coSo' => $cs_d,
+				'ds' => VHCC_NhanSu::danh_ba( $u, $cs_d,
+					isset( $b['tim'] ) ? (string) $b['tim'] : '' ) ) );
+		}
+
+		if ( 'chat_phong' === $viec ) {
+			self::ra( array( 'ok' => true, 'phong' => VHCC_Chat::phong_cua( $u ),
+				'chuaDoc' => VHCC_Chat::chua_doc( $u ),
+				'rieng' => VHCC_Chat::rieng_cua( $u ) ) );
+		}
+
+		/* Mở chat riêng với một người: client gửi MÃ người kia, máy chủ tự dựng khoá phòng.
+		   🔴 KHÔNG cho client gửi thẳng khoá phòng lên. Khoá dựng ở máy chủ thì nó luôn đúng
+		      khuôn và luôn đi qua `phong_rieng()` — nơi sắp xếp hai mã và chối ký tự lạ. */
+		if ( 'chat_mo' === $viec ) {
+			$b = self::than();
+			$cs_m = isset( $b['coSo'] ) ? (string) $b['coSo'] : VHCC_NhanSu::chuan_coso( (string) $u['coso'] );
+			$p_m  = VHCC_Chat::phong_rieng( $cs_m, (string) $u['ma_nv'],
+				isset( $b['maKia'] ) ? (string) $b['maKia'] : '' );
+			if ( '' === $p_m || ! VHCC_Chat::duoc_vao( $u, $p_m ) ) {
+				self::ra( array( 'ok' => false,
+					'error' => 'Không mở được chat riêng với người này. Hai người phải cùng một cơ sở.' ) );
+			}
+			self::ra( array( 'ok' => true, 'phong' => $p_m ) );
+		}
+
+		if ( 'chat_ds' === $viec ) {
+			$b = self::than();
+			self::ra( VHCC_Chat::ds( $u, isset( $b['coSo'] ) ? $b['coSo'] : '',
+				isset( $b['tuId'] ) ? (int) $b['tuId'] : 0 ) );
+		}
+
+		if ( 'chat_gui' === $viec ) {
+			$b = self::than();
+			self::ra( VHCC_Chat::gui( $u, isset( $b['coSo'] ) ? $b['coSo'] : '',
+				isset( $b['chu'] ) ? $b['chu'] : '',
+				isset( $b['tep'] ) ? (string) $b['tep'] : '',
+				isset( $b['tepTen'] ) ? (string) $b['tepTen'] : '' ) );
+		}
+
+		if ( 'chat_xoa' === $viec ) {
+			$b = self::than();
+			self::ra( VHCC_Chat::xoa( $u, isset( $b['id'] ) ? (int) $b['id'] : 0 ) );
+		}
+
+		/* ───────────────────────────── GỌI THOẠI (anh Thắng 20/09/2026) ───────────────────
+		   🔴 MỌI CỬA ĐỀU UỶ CHO `VHCC_Goi`, nơi có hàm `cua_toi()` gác "người này có dính vào
+		      cuộc gọi ấy không". Gác ở cổng là dựng bản thứ hai của luật ấy — và mai mối lọt ra
+		      ngoài thì đủ để người thứ ba nối vào cuộc gọi. */
+		if ( 'goi_ve' === $viec ) { self::ra( VHCC_Goi::ve( $u ) ); }
+
+		if ( 'goi_moi' === $viec ) {
+			$b = self::than();
+			self::ra( VHCC_Goi::goi( $u, isset( $b['maKia'] ) ? $b['maKia'] : '',
+				isset( $b['coSo'] ) ? (string) $b['coSo'] : '' ) );
+		}
+
+		if ( 'goi_cho' === $viec ) {
+			self::ra( array( 'ok' => true, 'cuoc' => VHCC_Goi::cho( $u ) ) );
+		}
+
+		if ( 'goi_tt' === $viec ) {
+			$b = self::than();
+			self::ra( VHCC_Goi::trang_thai( $u, isset( $b['id'] ) ? (int) $b['id'] : 0 ) );
+		}
+
+		if ( 'goi_tra_loi' === $viec ) {
+			$b = self::than();
+			self::ra( VHCC_Goi::tra_loi( $u, isset( $b['id'] ) ? (int) $b['id'] : 0,
+				! empty( $b['dongY'] ) ) );
+		}
+
+		if ( 'goi_ket' === $viec ) {
+			$b = self::than();
+			self::ra( VHCC_Goi::ket( $u, isset( $b['id'] ) ? (int) $b['id'] : 0,
+				isset( $b['lyDo'] ) ? (string) $b['lyDo'] : 'cup' ) );
+		}
+
+		if ( 'goi_gui' === $viec ) {
+			$b = self::than();
+			self::ra( VHCC_Goi::gui_tin( $u, isset( $b['id'] ) ? (int) $b['id'] : 0,
+				isset( $b['loai'] ) ? (string) $b['loai'] : '',
+				isset( $b['noiDung'] ) ? (string) $b['noiDung'] : '' ) );
+		}
+
+		if ( 'goi_doc' === $viec ) {
+			$b = self::than();
+			self::ra( VHCC_Goi::doc_tin( $u, isset( $b['id'] ) ? (int) $b['id'] : 0,
+				isset( $b['tuId'] ) ? (int) $b['tuId'] : 0 ) );
 		}
 
 		if ( 'hoso' === $viec ) {

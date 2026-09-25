@@ -57,6 +57,14 @@ class VHCC_Push {
 	const HONG_TOI_DA = 3;
 
 	public static function init() {
+		/* 🔴 KHAI NHỊP TRƯỚC KHI XẾP LỊCH. `wp_schedule_event()` tra tên nhịp trong danh sách do
+		   bộ lọc `cron_schedules` dựng ra; gọi nó trước khi `add_filter` chạy thì `vhcc_5phut`
+		   chưa có trong danh sách và WordPress trả WP_Error rồi thôi — lịch KHÔNG được xếp, lượt
+		   tải trang sau cũng vậy, mãi mãi. Trước 20/09/2026 dòng `add_filter` nằm ở CUỐI hàm
+		   này, nên lượt quét "ai vào rồi mà chưa ra" chưa từng chạy trên máy thật — không có gì
+		   báo, vì thiếu một lời nhắc thì trông y hệt như không ai quên chấm ra. Đúng cái bẫy đã
+		   ghi ở đầu tệp plugin, lần này nằm sâu hơn một tầng. */
+		add_filter( 'cron_schedules', array( __CLASS__, 'nhip' ) );
 		add_action( 'vhcc_push_nhac', array( __CLASS__, 'chay_nhac' ) );
 		/* Nghe chuông của trang Nội bộ. Xem khối cảnh báo ở `nghe_bao()` trước khi sửa. */
 		add_action( 'vhnb_bao_moi', array( __CLASS__, 'nghe_bao' ), 10, 5 );
@@ -66,7 +74,6 @@ class VHCC_Push {
 			   nhận lúc trễ 29 phút. Lượt quét chỉ là một câu đếm trên bảng chấm công. */
 			wp_schedule_event( time() + 300, 'vhcc_5phut', 'vhcc_push_nhac' );
 		}
-		add_filter( 'cron_schedules', array( __CLASS__, 'nhip' ) );
 	}
 
 	public static function nhip( $ds ) {
@@ -443,6 +450,75 @@ class VHCC_Push {
 	 * ⚠️ MUỐN THÊM NHẮC CHẤM VÀO thì phải thêm giờ cho từng ca trước (một cột `bat_dau` trong
 	 *    `LICH_CA`), không phải thêm một mốc đoán ở đây.
 	 */
+	/**
+	 * MỘT NGƯỜI CÓ ĐANG BỊ NHẮC KHÔNG — cho app Android hỏi.
+	 *
+	 * =============================================================================================
+	 * 🔴 CÙNG MỘT LUẬT, MỘT CHỖ. ĐỪNG CHÉP NÓ SANG KOTLIN.
+	 * =============================================================================================
+	 * App Android không nhận được Web Push (WebView không hỗ trợ), nên nó phải tự hỏi rồi tự
+	 * hiện thông báo. Cách dễ nhất là để app tự tính: "có giờ vào, chưa có giờ ra, quá N giờ" —
+	 * ba dòng Kotlin, chạy ngay.
+	 *
+	 * Nhưng đó là dựng BẢN THỨ HAI của một luật đã có, trên một ngôn ngữ khác. Ngày nào anh Thắng
+	 * đổi ngưỡng từ 10 giờ xuống 8, người mở bằng Chrome được nhắc lúc 8 giờ còn người cài app
+	 * vẫn 10 — và không ai nghĩ tới việc đi sửa cái app. Đúng cái bẫy mà cả app này sinh ra để
+	 * tránh (xem khối đầu `MainActivity.kt`).
+	 *
+	 * Nên luật ở đây, app chỉ hiện ra.
+	 *
+	 * ⚠️ KHÔNG ĐỤNG VÀO SỔ `vhcc_push_da_nhac`. Sổ ấy là của đường Web Push — nó nhớ "đã đẩy cho
+	 *    người này hôm nay rồi" để khỏi đẩy hai lần. App hỏi bao nhiêu lần cũng được và phải ra
+	 *    cùng một câu trả lời; ghi vào sổ ấy là một lượt app hỏi làm tắt mất lời nhắc đẩy của
+	 *    chính người đó. Việc "đã hiện rồi thì thôi" do app tự nhớ trên máy nó.
+	 *
+	 * @return array array('ok'=>true,'nhac'=>array(array('khoa','tieuDe','chu')))
+	 */
+	public static function nhac_cua( $ma_nv ) {
+		global $wpdb;
+		$ra = array( 'ok' => true, 'nhac' => array() );
+
+		$ma = trim( (string) $ma_nv );
+		if ( '' === $ma ) { return $ra; }
+		if ( '1' !== (string) get_option( 'vhcc_push_nhac', '1' ) ) { return $ra; }
+
+		$gio_toi_da = (int) get_option( 'vhcc_push_gio_ra', 10 );
+		if ( $gio_toi_da < 1 ) { return $ra; }
+
+		$ngay    = current_time( 'Y-m-d' );
+		$bay_gio = VHCC_DB::giay( current_time( 'H:i:s' ) );
+		if ( null === $bay_gio ) { return $ra; }
+
+		/* Hỏi theo MÃ GỐC, không theo mã có hậu tố: một người có thể có hàng `-CD` (ca đêm) hay
+		   `-TT` (thu tiền) trong cùng ngày, và quên chấm ra ở hàng nào cũng đáng nhắc. */
+		$hang = $wpdb->get_results( $wpdb->prepare(
+			'SELECT coso, hau_to, gio_vao_giay FROM ' . VHCC_DB::t( 'cham_cong' )
+			. ' WHERE ngay = %s AND ma_nv = %s AND gio_vao_giay IS NOT NULL AND gio_ra_giay IS NULL',
+			$ngay, $ma
+		) );
+		if ( ! $hang ) { return $ra; }
+
+		$nguong = $gio_toi_da * 3600;
+		foreach ( $hang as $h ) {
+			$vao = (int) $h->gio_vao_giay;
+			$da_lam = $bay_gio - $vao;
+			/* Ca đêm: vào 21:00, bây giờ 02:00 -> hiệu âm. Cùng phép cộng một ngày như
+			   `chay_nhac()`; thiếu nó thì người trực đêm không bao giờ được nhắc. */
+			if ( $da_lam < 0 ) { $da_lam += VHCC_DB::NGAY_GIAY; }
+			if ( $da_lam < $nguong ) { continue; }
+
+			$ra['nhac'][] = array(
+				/* Khoá để app biết "cái này hiện rồi" — theo ngày + cơ sở + hàng, không theo giờ,
+				   nếu không thì mỗi lượt hỏi lại ra một khoá mới và nó nhắc mỗi 15 phút. */
+				'khoa'   => $ngay . '|' . (string) $h->coso . '|' . (string) $h->hau_to,
+				'tieuDe' => 'Chưa chấm công ra',
+				'chu'    => 'Bạn chấm vào lúc ' . substr( VHCC_DB::hhmmss( $vao ), 0, 5 )
+					. ' — đã ' . intdiv( $da_lam, 3600 ) . ' giờ. Nhớ chấm ra trước khi về.',
+			);
+		}
+		return $ra;
+	}
+
 	public static function chay_nhac() {
 		global $wpdb;
 

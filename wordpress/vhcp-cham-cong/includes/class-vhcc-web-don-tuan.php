@@ -482,6 +482,17 @@ class VHCC_WebDonTuan {
 		echo '<p class="mo" style="margin:10px 0">Tải bảng công một kỳ ra <b>.xlsx</b>, sửa giờ '
 			. 'trong đó rồi nạp lại. Nạp lên <b>chưa đổi gì</b> cả — nó thành một đơn chờ '
 			. '<b>kế toán duyệt</b>. Kế toán duyệt là giờ lên bảng công và <b>kỳ ấy khoá lại</b>.</p>';
+		/* 🔴 CHỈ ĐƯỜNG SANG MÀN KIA. Anh Thắng 21/09/2026 cầm bảng công CŨ của cửa hàng tới đúng
+		   khối này rồi hỏi *"giờ anh nạp vào chỗ nào"* — và hiểu nhầm ấy rất hợp lý: cả hai khối
+		   đều là "nạp một tệp .xlsx bảng công lên". Khác nhau ở chỗ khối này chỉ nhận đúng tệp
+		   do CHÍNH NÓ tải ra (mỗi người một dòng, có cột KHOÁ), còn bảng tự làm trên Excel thì
+		   khuôn ngược hẳn (mỗi NGÀY một dòng). Không chỉ đường thì người ta nạp vào đây, bị chối
+		   vì "sai khuôn", rồi kết luận là bộ nạp hỏng. */
+		echo '<p class="mo" style="margin:0 0 10px;font-size:12px">⚠️ Đây <b>không phải</b> chỗ nạp '
+			. '<b>bảng công cũ tự làm trên Excel</b> (kiểu mỗi <b>ngày</b> một dòng, mỗi người ba '
+			. 'cột <i>Check in · Check out · Số giờ làm</i>). Khối này chỉ nhận đúng tệp do chính '
+			. 'nó tải ra ở nút bên dưới. Bảng tự làm thì sang '
+			. '<b>Dữ liệu đầu vào → Nạp bảng công cũ</b>.</p>';
 		/* Nói ra cách chia kỳ NGAY TRÊN Ô CHỌN. Không nói thì người ta chọn "Cả tháng" giữa
 		   tháng, duyệt, và khoá mất nửa sau chưa ai chấm. */
 		echo '<p class="mo" style="margin:0 0 10px;font-size:12px">Giữa tháng thì chọn '

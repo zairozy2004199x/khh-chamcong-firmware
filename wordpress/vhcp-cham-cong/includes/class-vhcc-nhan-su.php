@@ -4608,6 +4608,31 @@ class VHCC_NhanSu {
 		if ( null !== $theo_gio ) { $ghi['theo_gio'] = $theo_gio ? 1 : 0; }
 		if ( $cu ) { $wpdb->update( VHCC_DB::t( 'bo_phan_coso' ), $ghi, array( 'id' => (int) $cu['id'] ) ); }
 		else       { $wpdb->insert( VHCC_DB::t( 'bo_phan_coso' ), $ghi ); }
+
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 BÁO RA NGOÀI: VỪA CÓ MỘT CƠ SỞ MỚI
+		 * ═══════════════════════════════════════════════════════════════════════════════════
+		 * Anh Thắng 19/09/2026: *"Hiện tại bên Chấm công cơ sở mới, làm sao nó đẩy cho bên chi
+		 * phí biết là có cơ sở mới"*.
+		 *
+		 * Câu trả lời thật trước bản này: KHÔNG ĐẨY GÌ CẢ. Bên chi phí chỉ biết cơ sở mới qua
+		 * hai đường — móc từ plugin Ghế, hoặc kế toán gõ tay ở bảng Cơ sở. Nên mở một gian mới
+		 * ở đây xong, bên ấy vẫn không có nó trong ô chọn, và mọi khoản chi của gian ấy không
+		 * biết bỏ vào đâu cho tới lúc có người nhớ ra phải đi khai tay.
+		 *
+		 * Đây là ĐÚNG lối mà plugin Ghế đã dùng và đã chạy: bắn một `do_action`, bên nào quan
+		 * tâm thì tự nghe. Bắn một tiếng chuông rẻ hơn hẳn việc lớp này phải biết tên từng
+		 * plugin ở đầu kia — thêm một mảng chi phí nữa là lại phải sửa chỗ này.
+		 *
+		 * ⚠️ CHỈ BẮN KHI THẬT SỰ MỚI. Sửa bộ phận của một cơ sở đã có không phải là "cơ sở
+		 *    mới"; bắn cả lượt sửa là bên kia nhận một tiếng chuông mỗi lần ai đó đổi bộ phận.
+		 * ⚠️ BẮN SAU KHI ĐÃ GHI XONG. Bắn trước thì bên nghe đi đọc lại sổ và chưa thấy gì.
+		 * ⚠️ TÊN MÓC KHÔNG ĐƯỢC ĐỔI. Nó là giao kèo với plugin khác — đổi tên ở đây là bên kia
+		 *    im lặng thôi nhận, không báo lỗi. Xem `tools/test/kiem-bao-coso-moi.php`.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		if ( ! $cu ) {
+			do_action( 'vhcc_coso_da_luu', $coso, $bp );
+		}
 		return array( 'ok' => true );
 	}
 

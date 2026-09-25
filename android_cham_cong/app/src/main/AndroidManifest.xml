@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 🔴 CHỈ XIN ĐÚNG NHỮNG QUYỀN TRANG TRẠM THẬT SỰ DÙNG.
+         App này nằm trong tay nhân viên và biết chỗ họ đứng. Mỗi quyền thừa là một câu hỏi
+         không trả lời được khi có chuyện — và là một lý do chính đáng để người ta ngại cài.
+
+         · CAMERA      — ảnh chấm công, đóng dấu giờ máy chủ.
+         · FINE/COARSE — đối chiếu vị trí với mốc cơ sở lúc chấm công.
+
+         ⚠️ KHÔNG xin `ACCESS_BACKGROUND_LOCATION`, và sẽ không bao giờ xin.
+            Hệ này CỐ Ý không theo dõi định vị: nó chỉ đọc toạ độ đúng lúc người ta bấm nút, khi
+            trang đang mở. Xin quyền nền là mở đường cho một tính năng chưa ai quyết định làm,
+            và là thứ đầu tiên nhân viên nhìn thấy khi họ xem app xin những gì. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- 🔴 GỌI THOẠI TRONG APP (21/09/2026) — WebRTC không mở được micro nếu thiếu quyền này.
+         Trước bản này app CỐ Ý không xin micro, và có phép thử canh đúng điều đó: một app chấm
+         công thì không có việc gì với micro, và quyền thừa là lý do chính đáng để người ta ngại
+         cài. Nay có tính năng gọi thật nên nó thôi là quyền thừa — phép thử đã đổi luật, kèm
+         lý do, chứ không nới ra cho im. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Nhắc chấm công ra và lệnh mới trong chuông. Từ Android 13 phải XIN LÚC CHẠY, không chỉ
+         khai ở đây — xem `MainActivity`. Máy cũ hơn thì cho sẵn. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Máy không có camera trước, hoặc không có GPS, vẫn cài được: trạm vẫn chấm công được
+         (thiếu ảnh / thiếu toạ độ thì nó nói ra, chứ không chối). -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:usesCleartextTraffic="false"
+        android:theme="@style/Theme.KHChamCong">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize|uiMode"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.KHChamCong">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

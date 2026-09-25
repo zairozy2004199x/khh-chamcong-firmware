@@ -47,7 +47,39 @@ class VHCC_Online {
 	 * Cấu hình công Văn phòng. Đọc từ bảng `cai_dat`, trộn với mặc định.
 	 * Giữ đúng tên khoá của Code.gs để hai bên đọc cùng một bộ số.
 	 */
+	/**
+	 * CƠ SỞ MÀ LUẬT CA ĐÊM / KHUNG GIỜ ÁP VÀO — cơ sở CHÍNH nếu cơ sở này là PHỤ đã ghép.
+	 *
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 Anh Thắng 23/09/2026: *"hệ thống nó không hiểu công setup"* — cả tháng 9 của VP_KH-HCM
+	 *    đầy ô `0 ?`. Dựng lại được đúng ca: nhân viên bấm VÀO lúc 19:51 chọn `SETUP_VP`, sáng
+	 *    hôm sau bấm RA lúc 04:02 vẫn chọn `SETUP_VP` (*"vì qua ngày hôm sau các bạn về chấm công
+	 *    vẫn chọn setup mà"*). Luật ca đêm hỏi `la_van_phong( 'SETUP_VP' )` — mã ấy không khai bộ
+	 *    phận Văn phòng, nên trả `false`, không định tuyến gì: lượt 19:51 thành hàng THƯỜNG của
+	 *    ngày 06, lượt 04:02 thành giờ VÀO của ngày 07. Hai hàng, mỗi hàng một đầu giờ, không
+	 *    hàng nào ra công. Đúng y hai ô `0 ?` cạnh nhau trên màn anh chụp.
+	 *
+	 *    Mà `SETUP_VP` không phải một nơi làm việc khác — nó là ca đêm của VP_KH-HCM, đã khai GHÉP
+	 *    (xem `VHCC_Luong::GHEP_O`). Phép tính công đã đọc nó bằng cấu hình của cơ sở CHÍNH; chỗ
+	 *    ĐỊNH TUYẾN lượt bấm cũng phải hỏi đúng cơ sở ấy. Hai chỗ hỏi hai cơ sở khác nhau thì
+	 *    lượt bấm rơi nhầm hàng, và rơi im lặng.
+	 *
+	 * ⚠️ CHỈ ĐỔI CƠ SỞ ĐỂ TRA LUẬT, KHÔNG ĐỔI CƠ SỞ GHI XUỐNG BẢNG. Hàng vẫn nằm ở `SETUP_VP` —
+	 *    nhờ vậy lưới còn dán được nhãn "ngày này chấm ở SETUP_VP", và người ta soi lại được ca
+	 *    đêm nằm ở đâu. Đổi luôn chỗ ghi là mất dấu vết ấy.
+	 * ⚠️ Cơ sở KHÔNG ghép thì trả lại chính nó — mọi cơ sở đứng một mình không đổi gì.
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 */
+	public static function coso_luat( $coso ) {
+		$coso = VHCC_NhanSu::chuan_coso( $coso );
+		if ( '' === $coso || ! method_exists( 'VHCC_Luong', 'ghep_vao' ) ) { return $coso; }
+		$chinh = VHCC_Luong::ghep_vao( $coso );
+		return ( '' !== $chinh ) ? $chinh : $coso;
+	}
+
 	public static function vp_cfg( $coso = '' ) {
+		/* Cơ sở PHỤ đã ghép đọc bộ số của cơ sở CHÍNH — xem `coso_luat()`. */
+		$coso = ( '' !== trim( (string) $coso ) ) ? self::coso_luat( $coso ) : $coso;
 		/* 🔴 HỎI `VHCC_Luong` TRƯỚC — nó là nơi DUY NHẤT biết đủ ba lớp cấu hình (mặc định ·
 		   bản chung · bản riêng của khối). Bản rút gọn ở dưới chỉ đọc bản CHUNG, nên từ lúc có
 		   cấu hình riêng cho khối Văn phòng (26/08/2026) mà vẫn dùng nó thì chỗ ĐỊNH TUYẾN lượt
@@ -90,7 +122,8 @@ class VHCC_Online {
 	 *    ra công thức cho một cơ sở chưa được xếp là tự sinh ra tiền.
 	 */
 	public static function la_van_phong( $coso ) {
-		return VHCC_Luong::la_van_phong( $coso );
+		/* Cơ sở PHỤ đã ghép mang bộ phận của cơ sở CHÍNH — xem `coso_luat()`. */
+		return VHCC_Luong::la_van_phong( self::coso_luat( $coso ) );
 	}
 
 	/**
@@ -398,14 +431,48 @@ class VHCC_Online {
 			$h = self::hang( $coso, $ngay, $ma_nv, '' );
 			$chinh_chua_ra = ( $h && null !== $h['gio_vao_giay'] && null === $h['gio_ra_giay'] );
 		}
-		$tuyen = self::dinh_tuyen( $coso, $ngay, $giay, $chinh_chua_ra );
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 "SETUP ĐỢI NGÀY RA" — cơ sở PHỤ đã ghép: lượt bấm HÔM SAU đóng ca đêm HÔM TRƯỚC.
+		 *
+		 * Anh Thắng 23/09/2026: *"công ngày thì ngày nào ra ngày đó, không liên quan; còn setup
+		 * nó sẽ đợi ngày ra, tức đợi đến ngày hôm sau (sau 1 ngày)"* — và trên màn sửa anh gõ
+		 * giờ ra `11:18` cho ca vào `19:51`: setup có thể về lúc gần trưa.
+		 *
+		 * `dinh_tuyen()` chỉ lùi ngày cho lượt TRƯỚC `demDen` (06:00). Lượt 11:18 rơi qua khe ấy:
+		 * không trước 06:00, không sau 17:00 -> hàng 1, giờ VÀO của ngày mới — ca đêm hôm trước
+		 * lại thiếu giờ ra, y như lỗi vừa sửa, chỉ muộn hơn vài tiếng.
+		 *
+		 * Luật: bấm vào cơ sở PHỤ, trong ngày (tới hết `ngayDen`), mà HÔM TRƯỚC người này có
+		 * hàng ca đêm ĐANG MỞ (có vào, chưa ra) ở đúng cơ sở ấy -> lượt này là giờ RA của hàng đó.
+		 *
+		 * ⚠️ CHỈ CHO CƠ SỞ PHỤ, KHÔNG CHO CƠ SỞ CHÍNH. Nhân viên văn phòng tăng ca tối qua quên
+		 *    bấm ra, sáng nay bấm 08:30 vào ca ngày — đem lượt ấy đóng hàng đêm là ca ngày mất giờ
+		 *    vào (mất trọn công ngày) và đêm qua thành 14 tiếng. Đúng lời anh: *"công ngày thì
+		 *    ngày nào ra ngày đó"*. Ở cơ sở phụ (setup) không có ca ngày để mà nhầm.
+		 * ⚠️ CHẶN Ở `ngayDen`: sau 17:00 hôm sau mà bấm thì đó là MỞ ca đêm mới (luật cũ), không
+		 *    phải đóng ca cũ — ca cũ vẫn đỏ để người ta đi bù, không tự nối hai đêm làm một.
+		 * ⚠️ Giờ ghi trải phẳng thẳng (+24h), không qua `trai_phang()`: hàm ấy trả null cho 11:18
+		 *    (giờ ca ngày) và lượt sẽ bị chối "không thuộc hàng ca đêm".
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$tuyen = null;
+		$cs_luat = self::coso_luat( $coso );
+		if ( 0 !== strcasecmp( $cs_luat, $coso ) && self::la_van_phong( $coso )
+			&& null !== $giay && null !== $ngay_den && $giay <= $ngay_den ) {
+			$hom_truoc = self::ngay_truoc( $ngay );
+			$mo = self::hang( $coso, $hom_truoc, $ma_nv, self::DUOI_CD );
+			if ( $mo && null !== $mo['gio_vao_giay'] && '' !== $mo['gio_vao_giay']
+				&& ( null === $mo['gio_ra_giay'] || '' === $mo['gio_ra_giay'] ) ) {
+				$tuyen = array( 'ngay' => $hom_truoc, 'duoi' => self::DUOI_CD, 'dem' => true, 'doi_ra' => true );
+			}
+		}
+		if ( null === $tuyen ) { $tuyen = self::dinh_tuyen( $coso, $ngay, $giay, $chinh_chua_ra ); }
 
 		$ma_ghi = $ma_nv;
 		$giay_ghi = $giay;
 		if ( $tuyen ) {
 			$ngay     = $tuyen['ngay'];
 			$ma_ghi   = $ma_nv . '-' . $tuyen['duoi'];
-			$giay_ghi = self::trai_phang( $giay, $cfg );
+			$giay_ghi = ! empty( $tuyen['doi_ra'] ) ? $giay + VHCC_DB::NGAY_GIAY : self::trai_phang( $giay, $cfg );
 			if ( null === $giay_ghi ) {
 				/* Giờ thuộc ca ngày mà lại định tuyến sang hàng 2 -> KHÔNG ghi bừa. Bên Code.gs
 				   chỗ này trả 'bo'; ghi bừa vào hàng 2 là công ngày biến thành tăng ca. */
@@ -443,6 +510,8 @@ class VHCC_Online {
 		      chốt là so với mốc của cơ sở khác.
 		   🔴 CHỐI TRƯỚC KHI GHI. Đặt phép chối sau `ghi_gio()` thì hàng đã nằm trong bảng, và
 		      "lượt bị chặn" hoá ra vẫn là công. */
+		$vet = null;
+		$dong_vt = '';
 		if ( class_exists( 'VHCC_ViTri' ) ) {
 			$xv = VHCC_ViTri::xet( $coso, $gps );
 			if ( ! empty( $xv['chan'] ) ) {
@@ -452,14 +521,34 @@ class VHCC_Online {
 			if ( ! empty( $xv['gac'] ) && '' !== (string) $xv['chu'] ) {
 				$ghi_chu = ( '' !== $ghi_chu ) ? $ghi_chu . ' · ' . $xv['chu'] : $xv['chu'];
 			}
+
+			/* Gác 6: TRUY VẾT — toạ độ này rơi vào vùng của cơ sở NÀO KHÁC.
+			   🔴 CHẠY DÙ GÁC ĐANG TẮT, và chạy SAU khi `$coso` đã chốt. Đây là câu trả lời cho
+			      anh Thắng 20/09/2026: *"khi nhân viên đi qua cơ sở khác, chấm báo cáo cơ sở"* —
+			      lượt chấm tự nói ra nó được bấm ở đâu, chứ không đợi ai đi hỏi.
+			   ⚠️ CHỈ GHI CHÚ, KHÔNG CHẶN và KHÔNG TỰ ĐỔI `$coso`. Tự chuyển cơ sở theo GPS là để
+			      một phép đo sai 300m dời công của người ta sang cửa hàng khác — mà lương thì
+			      tính theo cơ sở. Người quyết định vẫn là người. */
+			if ( method_exists( 'VHCC_ViTri', 'gan_nhat' ) ) {
+				$vet = VHCC_ViTri::gan_nhat( $gps, $coso );
+				if ( $vet && ! empty( $vet['trong'] ) ) {
+					$c_vet = 'TRUY VẾT: toạ độ nằm TRONG vùng cơ sở "' . $vet['coSo'] . '" (cách '
+						. VHCC_ViTri::met( $vet['met'] ) . '), trong khi lượt chấm ghi về "' . $coso . '".';
+					$ghi_chu = ( '' !== $ghi_chu ) ? $ghi_chu . ' · ' . $c_vet : $c_vet;
+				}
+			}
+			if ( method_exists( 'VHCC_ViTri', 'dong' ) ) {
+				$dong_vt = VHCC_ViTri::dong( $gps, $xv, $vet );
+			}
 		}
 
-		$kq = VHCC_Nhan::ghi_gio( $coso, $ngay, $ma_ghi, (string) $u['ho_ten'], $giay_ghi, $b64, 'online', $ghi_chu );
+		$kq = VHCC_Nhan::ghi_gio( $coso, $ngay, $ma_ghi, (string) $u['ho_ten'], $giay_ghi, $b64, 'online', $ghi_chu,
+			$dong_vt );
 		if ( isset( $kq['loi'] ) ) { return array( 'ok' => false, 'error' => $kq['loi'] ); }
 
 		return array( 'ok' => true, 'loai' => $kq['loai'], 'coSo' => $coso, 'ngay' => $ngay,
 			'gio' => VHCC_DB::hhmmss( $giay ), 'ma' => $ma_ghi, 'img' => $kq['anh'],
-			'viTri' => ( isset( $xv ) ? $xv : null ),
+			'viTri' => ( isset( $xv ) ? $xv : null ), 'vet' => $vet,
 			'guiLai' => ( (int) $tre_gui >= self::TRE_DANG_KE ), 'treGiay' => (int) $tre_gui );
 	}
 

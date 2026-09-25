@@ -278,7 +278,7 @@ t( 'cửa trạm có danh sách tháng', false !== strpos( $tram, "'phieuluong' 
 $tpl = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/templates/tram.php' );
 $than = strstr( $tpl, '<style' ) ? substr( $tpl, 0, strpos( $tpl, '<style' ) )
 	. substr( $tpl, strpos( $tpl, '</style>' ) ) : $tpl;
-foreach ( array( 'oKhoiPhieu', 'plThang', 'bangPhieu' ) as $o ) {
+foreach ( array( 'mPhieu', 'plThang', 'bangPhieu' ) as $o ) {
 	t( 'màn trạm có ô ' . $o, false !== strpos( $than, $o ), $o );
 }
 /* 🔴 CHƯA CÔNG BỐ THÌ KHỐI VẪN HIỆN, CHỈ ẨN Ô XỔ — sửa 17/09/2026.
@@ -287,8 +287,11 @@ foreach ( array( 'oKhoiPhieu', 'plThang', 'bangPhieu' ) as $o ) {
    cách nào đoán ra rằng mình đang chờ kế toán bấm một cái nút bên trang quản trị. */
 t( '🔴 KHÔNG còn ẩn cả khối khi chưa có tháng nào',
 	false === strpos( $tpl, "classList.toggle('an', !ds.length)" ), $tpl );
-t( '🔴 mọi lối ra đều bỏ lớp ẩn khỏi khối', 1 === substr_count( $tpl, "function phieuHien(" )
-	&& false !== strpos( $tpl, "el('oKhoiPhieu').classList.remove('an')" ), $tpl );
+/* 🔴 SỬA 17/09/2026 — KHỐI ĐÃ THÀNH MÀN RIÊNG, mở từ ô trong lưới. Nỗi lo cũ ("khối vô hình
+   không phân biệt được với khối hỏng") nay hết, vì ô trong lưới LUÔN hiện. Nhưng nỗi lo còn
+   lại thì y nguyên: mở màn ra mà gặp lỗi thì phải NÓI, không để một ô câm. Ba lối ra — chưa
+   công bố · cửa trả lỗi · mạng hỏng — vẫn phải cùng đi qua một chỗ. */
+t( 'có đúng một chỗ dọn màn trước khi nói', 1 === substr_count( $tpl, "function phieuHien(" ), $tpl );
 t( 'và nói ra đang chờ ai làm gì, không để một ô câm',
 	false !== strpos( $tpl, 'chưa được công bố' )
 	&& false !== strpos( $tpl, 'anh/chị không phải làm gì cả' ), $tpl );
@@ -314,6 +317,88 @@ foreach ( array( 'phieu_cb', 'phieu_thu' ) as $v ) {
 }
 t( 'nút công bố nằm trong khối bảng lương cơ sở',
 	strpos( $web, 'VHCC_PhieuLuong::da_cong_bo' ) > strpos( $web, 'function the_bang_luong_cs' ), $web );
+
+/* =============================================================== 11. CẢ CƠ SỞ (cửa hàng trưởng) */
+
+/* Anh Thắng 17/09/2026: *"nhân viên thì 1 phiếu của chính mình. Cửa hàng trưởng thì có chính
+   mình và cả cửa hàng"*. */
+
+$r = VHCC_PhieuLuong::ca_coso( $A, $CS, $TH );
+t( '🔴 nhân viên thường KHÔNG xem được lương cả cơ sở', empty( $r['ok'] ), $r );
+t( 'và câu chối không mang theo lương của ai',
+	false === strpos( wp_json_encode( $r ), '400000' ), $r );
+
+$r = VHCC_PhieuLuong::ca_coso( $CHT, $CS2, $TH );
+t( '🔴 trưởng cơ sở này KHÔNG xem được cơ sở khác', empty( $r['ok'] ), $r );
+
+$cs_all = VHCC_PhieuLuong::ca_coso( $CHT, $CS, $TH );
+t( 'cửa hàng trưởng xem được cả cơ sở mình', ! empty( $cs_all['ok'] ), $cs_all );
+t( 'đúng hai người của cơ sở ấy', 2 === (int) $cs_all['soNguoi'], $cs_all );
+t( '🔴 KHÔNG lẫn người cơ sở khác',
+	false === strpos( wp_json_encode( $cs_all ), 'Bùi Thị Xa' ), $cs_all );
+
+/* ⚠️ GỠ SỐ CĂN CƯỚC. `dung()` trả kèm nó cho tệp xuất kế toán; một màn điện thoại mở giữa quầy
+   thì không có lý do gì bày căn cước của hai mươi người. */
+t( '⚠️ không mang số căn cước của ai',
+	false === strpos( wp_json_encode( $cs_all ), '000000000000' ), $cs_all );
+
+/* 🔴 MỖI NGƯỜI MỘT DÒNG. `dung()` trả mỗi người nhiều dòng (dòng chính + giờ ăn giá khác);
+   bày cả ra thì một người hiện ba lần và người đọc phải tự cộng. */
+$ma_thay = array();
+foreach ( $cs_all['dong'] as $d ) { $ma_thay[] = strtolower( $d['maNV'] ); }
+t( '🔴 mỗi người đúng MỘT dòng', count( $ma_thay ) === count( array_unique( $ma_thay ) ), $ma_thay );
+
+/* Khoản cộng/trừ của B phải vào đúng tổng của B, không rải sang người khác. */
+$b_dong = null; $a_dong = null;
+foreach ( $cs_all['dong'] as $d ) {
+	if ( 'PL002' === $d['maNV'] ) { $b_dong = $d; }
+	if ( 'PL001' === $d['maNV'] ) { $a_dong = $d; }
+}
+t( 'tổng của B = chính + cộng − trừ',
+	$b_dong && ( 400000.0 + 777777.0 - 111111.0 ) === (float) $b_dong['tong'], $b_dong );
+t( 'và khoản của B KHÔNG rải sang A', $a_dong && 200000.0 === (float) $a_dong['tong'], $a_dong );
+t( 'tổng cả cơ sở cộng đúng hai người',
+	( 200000.0 + 400000.0 + 777777.0 - 111111.0 ) === (float) $cs_all['tong'], $cs_all );
+
+/* 🔴 KHÔNG BỊ CHẶN BỞI "ĐÃ CÔNG BỐ", NHƯNG PHẢI NÓI RA. Cờ công bố sinh ra để NHÂN VIÊN khỏi
+   thấy số nửa vời; người quản lý thì cần thấy đúng cái nửa vời ấy — đó là việc của họ. Nhưng
+   họ phải biết nhân viên bên dưới đang thấy gì. */
+t( 'tháng đã công bố thì nói là đã công bố', ! empty( $cs_all['daCongBo'] ), $cs_all );
+VHCC_PhieuLuong::cong_bo( $KT, $CS, $TH, false );
+$cs_chua = VHCC_PhieuLuong::ca_coso( $CHT, $CS, $TH );
+t( '🔴 chưa công bố thì quản lý VẪN xem được', ! empty( $cs_chua['ok'] ), $cs_chua );
+t( '🔴 nhưng nói rõ là CHƯA công bố', empty( $cs_chua['daCongBo'] ), $cs_chua );
+t( 'và lúc ấy nhân viên thì vẫn bị chối',
+	empty( VHCC_PhieuLuong::phieu( $A, $CS, $TH )['ok'] ) );
+VHCC_PhieuLuong::cong_bo( $KT, $CS, $TH, true );
+
+/* Quyền gác đúng bậc Cửa hàng trưởng — cùng cửa với bảng lương ở trang quản trị, không thấp hơn. */
+t( 'xem cả cơ sở gác ở bậc Cửa hàng trưởng',
+	VHCC_Vai::CHT === VHCC_Vai::QUYEN[ VHCC_PhieuLuong::QUYEN_CS ] );
+
+/* ── MÀN HÌNH ─────────────────────────────────────────────────────────────────────────────
+   🔴 KHỐI PHIẾU LƯƠNG ĐÃ RA KHỎI TAB CÔNG — anh Thắng gạch chéo nó và chỉ sang lưới. */
+$i_tc = strpos( $than, 'id="tCong"' );
+$i_tc_het = strpos( $than, '/tCong' );
+$than_tc = substr( $than, $i_tc, $i_tc_het - $i_tc );
+t( '🔴 khối phiếu lương KHÔNG còn trong tab Công', false === strpos( $than_tc, 'bangPhieu' ), $than_tc );
+t( 'nó là màn riêng', false !== strpos( $than, '<div id="mPhieu" class="mn an">' ), $than );
+t( 'màn có phần "Của tôi" và phần "Cả cửa hàng"',
+	false !== strpos( $than, 'id="plPhanToi"' ) && false !== strpos( $than, 'id="plPhanCs"' ), $than );
+/* 🔴 NÚT "CẢ CỬA HÀNG" ẨN SẴN, MÁY CHỦ MỞ — nhân viên thường nhận `dsCoSoQl` rỗng nên nó không
+   bao giờ lộ ra, và cửa `phieucs` vẫn gác lại lần nữa. */
+t( '🔴 nút "Cả cửa hàng" ẩn sẵn trong HTML',
+	false !== strpos( $than, 'id="btPlCs" class="phu an"' ), $than );
+t( 'và chỉ mở khi máy chủ gửi danh sách cơ sở',
+	false !== strpos( $tpl, "el('btPlCs').classList.remove('an')" )
+	&& false !== strpos( $tpl, 'j.dsCoSoQl' ), $tpl );
+t( 'trạm có cửa phieucs', false !== strpos(
+	file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-tram.php' ),
+	"'phieucs' === \$viec" ) );
+/* ⚠️ Người quản lý phải biết nhân viên bên dưới đang thấy gì. */
+t( '⚠️ màn nói rõ tháng đã công bố hay chưa',
+	false !== strpos( $tpl, 'nhân viên xem được phiếu của chính họ' )
+	&& false !== strpos( $tpl, 'Anh/chị xem được, nhưng nhân viên thì chưa' ), $tpl );
 
 /* =============================================================== dọn */
 

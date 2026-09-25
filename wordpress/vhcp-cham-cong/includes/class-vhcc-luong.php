@@ -486,7 +486,7 @@ class VHCC_Luong {
 			   cách nào biết ngày ấy có nghỉ giữa ca, và trả dư tiền cho mấy giờ người ta về
 			   nhà — không ai kêu, vì bảng vẫn đầy số. */
 			'SELECT ngay, ma_nv, hau_to, ho_ten, gio_vao_giay, gio_ra_giay,'
-			. ' nghi_tu_giay, nghi_den_giay, coso, anh_vao, anh_ra FROM '
+			. ' nghi_tu_giay, nghi_den_giay, coso, anh_vao, anh_ra, vt_vao, vt_ra FROM '
 			. VHCC_DB::t( 'cham_cong' )
 			. ' WHERE coso IN (' . $cho . ') AND ngay LIKE %s ORDER BY ngay, ma_nv, hau_to',
 			$tham ) );
@@ -1016,6 +1016,19 @@ class VHCC_Luong {
 		foreach ( $gio as $m ) {
 			if ( $m >= $dem_tu || $m < $dem_den ) { return array( 'loai' => 'dem', 'gio' => $gio ); }
 		}
+		/* 🔴 CA TRÙM QUA CẢ KHUNG ĐÊM CŨNG LÀ CA ĐÊM — dù hai đầu đều nằm ngoài khung.
+		   Anh Thắng 23/09/2026: setup vào 19:51, về 11:18 hôm sau. Hai đầu: 19:51 chưa tới demTu,
+		   11:18 đã qua demDen — soi từng đầu thì không đầu nào "đêm", rồi 11:18 < ngayDen nên rơi
+		   xuống 'la' (ca lạ) và KHÔNG TÍNH. Người ta thức trắng đêm mà bảng ghi "ca lạ, xem lại".
+		   Ca bắt đầu TRƯỚC khung đêm và kết thúc SAU lúc khung ấy mở là ca đã đi xuyên qua nó.
+		   ⚠️ So trên trục PHẲNG: giờ ra đã trải (+24h) hoặc nhỏ hơn giờ vào thì cộng một ngày —
+		      không thì 11:18 < 19:51 và phép so nói ca kết thúc trước khi bắt đầu. */
+		if ( null !== $vao_giay && '' !== $vao_giay && null !== $ra_giay && '' !== $ra_giay ) {
+			$v_m = intdiv( ( (int) $vao_giay ) % VHCC_DB::NGAY_GIAY, 60 );
+			$r_m = intdiv( (int) $ra_giay, 60 );
+			if ( $r_m <= $v_m ) { $r_m += 1440; }
+			if ( $v_m < $dem_tu && $r_m > $dem_tu ) { return array( 'loai' => 'dem', 'gio' => $gio ); }
+		}
 		foreach ( $gio as $m ) {
 			if ( $m < $ngay_den ) { return array( 'loai' => 'la', 'gio' => $gio ); }
 		}
@@ -1053,7 +1066,10 @@ class VHCC_Luong {
 					   công"*. Ở NGUYÊN ngày ghi giờ thô (h2vao/h2ra), không dồn theo congDem sang
 					   ngày hôm sau: ảnh là bằng chứng của LƯỢT BẤM, còn công đêm mới là thứ dồn
 					   ngày — hai chuyện khác nhau. */
-					'anhVao' => '', 'anhRa' => '', 'anhH2Vao' => '', 'anhH2Ra' => '' );
+					'anhVao' => '', 'anhRa' => '', 'anhH2Vao' => '', 'anhH2Ra' => '',
+					/* Chỗ đứng lúc bấm, một dòng `VHCC_ViTri::dong()` cho mỗi đầu giờ. Cùng luật
+					   với ảnh: ở NGUYÊN ngày ghi giờ thô, không dồn theo công đêm. */
+					'vtVao' => '', 'vtRa' => '', 'vtH2Vao' => '', 'vtH2Ra' => '' );
 			}
 			return $ngay;
 		};
@@ -1082,6 +1098,8 @@ class VHCC_Luong {
 				$out[ $ngay ]['ra']  = VHCC_DB::hhmm( $chinh[1] );
 				$out[ $ngay ]['anhVao'] = isset( $chinh[2] ) ? (string) $chinh[2] : '';
 				$out[ $ngay ]['anhRa']  = isset( $chinh[3] ) ? (string) $chinh[3] : '';
+				$out[ $ngay ]['vtVao']  = isset( $chinh[4] ) ? (string) $chinh[4] : '';
+				$out[ $ngay ]['vtRa']   = isset( $chinh[5] ) ? (string) $chinh[5] : '';
 			}
 			/* Kế toán CHỦ NHẬT: lịch nghỉ -> 0 công ngày. Vẫn GIỮ số phút để giao diện hiện được
 			   "đi làm chủ nhật nhưng chủ nhật là ngày nghỉ", không xoá dấu vết. */
@@ -1095,6 +1113,8 @@ class VHCC_Luong {
 				$out[ $ngay ]['h2ra']  = VHCC_DB::hhmm( $dem[1] );
 				$out[ $ngay ]['anhH2Vao'] = isset( $dem[2] ) ? (string) $dem[2] : '';
 				$out[ $ngay ]['anhH2Ra']  = isset( $dem[3] ) ? (string) $dem[3] : '';
+				$out[ $ngay ]['vtH2Vao']  = isset( $dem[4] ) ? (string) $dem[4] : '';
+				$out[ $ngay ]['vtH2Ra']   = isset( $dem[5] ) ? (string) $dem[5] : '';
 			}
 			$ca  = self::vp_ca_hang2( $cfg, $dem ? $dem[0] : null, $dem ? $dem[1] : null );
 			if ( 'tangca' === $ca['loai'] ) {
@@ -1313,8 +1333,12 @@ class VHCC_Luong {
 			   `VHCC_Nhan::luu_anh()`) — anh Thắng 07/09/2026: *"hiện ảnh chấm công"*, thêm vào
 			   CUỐI mảng để không đụng chỗ nào đang đọc `$chinh[0]`/`$chinh[1]`/`$dem[0]`/`$dem[1]`
 			   bằng số. */
+			/* [4]/[5] = VỊ TRÍ của đúng lượt bấm ấy, đi cặp với ảnh [2]/[3] — anh Thắng
+			   20/09/2026: *"Như chấm vào. Chấm ra"*. Cũng thêm vào CUỐI mảng, cùng lý do. */
 			$nguoi[ $ma ][ $r['ngay'] ][ $khe ] = array( $r['gio_vao_giay'], $r['gio_ra_giay'],
-				(string) $r['anh_vao'], (string) $r['anh_ra'] );
+				(string) $r['anh_vao'], (string) $r['anh_ra'],
+				isset( $r['vt_vao'] ) ? (string) $r['vt_vao'] : '',
+				isset( $r['vt_ra'] ) ? (string) $r['vt_ra'] : '' );
 			/* Nhớ ngày này đến từ MÃ CƠ SỞ nào. Bảng ghép cộng công của nhiều mã lại; không giữ
 			   dấu vết thì con số đúng mà không ai soi lại được ca đêm nằm ở đâu. */
 			if ( isset( $r['coso'] ) && 0 !== strcasecmp( (string) $r['coso'], (string) $coso ) ) {
