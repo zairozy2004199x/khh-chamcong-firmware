@@ -73,6 +73,35 @@ teq( '🔴 cùng một tệp: đơn tuần → "T9/2026", đơn khoảng tự ch
 	array( 'Chi phí khác POSH MN AEON MALL BÌNH DƯƠNG T9/2026_Phí gửi da ghế', 'Chi Phí Thuê Mặt Bằng POSH MN AEON MALL BÌNH DƯƠNG ngày 26/8-25/9/2026_Kỳ 26/8-25/9' ),
 	array( $vh2[4], $mb2[4] ) );
 teq( '   diễn giải chung của đơn khoảng tự chọn cũng kiểu ngày', 'Chi Phí Thuê Mặt Bằng POSH MN ngày 26/8-25/9/2026_Nguyễn Mai Anh', $mb2[3] );
+/* ═══ Tên + mã đối tượng theo NGƯỜI TẠO ĐƠN, không theo người duyệt (anh Thắng 25/09/2026) ═══ */
+VHCP_Cfg::save_config( array(
+	'coso' => array( array( 'ten' => 'AEON MALL BÌNH DƯƠNG', 'maDonVi' => '51AMBD', 'phanLoaiLon' => 'POSH MN', 'tenMisa' => 'POSH MN AEON MALL BÌNH DƯƠNG' ) ),
+	'loaiChiPhi' => array( array( 'ten' => 'Chi Phí Vận Hành', 'tkNo' => '', 'tkCo' => '', 'maDt' => '', 'boPhan' => '', 'note' => '', 'tenMisa' => 'Chi phí khác', 'khoi' => 'mn' ) ),
+	'tkNoMatrix' => array( array( 'nhom' => 'Chi Phí Vận Hành', 'pll' => 'POSH MN', 'tkNo' => '6418' ) ),
+	'phanloai' => array( array( 'ten' => 'Thanh toán cá nhân', 'tkCo' => '141' ), array( 'ten' => 'Nhà cung cấp', 'tkCo' => '331' ) ),
+	'doiTuong' => array( array( 'ten' => 'Công ty Vận Chuyển X', 'ma' => 'NCC_X', 'loai' => 'NCC' ) ),
+	'users' => array(
+		array( 'ten' => 'Admin', 'pin' => '1111', 'vaiTro' => 'Admin' ),
+		array( 'ten' => 'Thu Thảo', 'pin' => '2222', 'vaiTro' => 'Nhân viên', 'maDt' => 'NV_THAO' ),
+		array( 'ten' => 'Công Trí', 'pin' => '3333', 'vaiTro' => 'Nhân viên', 'maDt' => 'NV_TRI' ),
+		array( 'ten' => 'Quản Lý B', 'pin' => '4444', 'vaiTro' => 'Quản lý', 'maDt' => 'NV_QLB' ),
+	),
+) );
+VHCP_Cfg::clear_cache();
+$d3 = VHCP_Don::create_don( 'T9/2026 (14/9-20/9/2026)', 'Thu Thảo' ); $m3 = $d3['maDon'];
+/* Trí thêm dòng vào đơn của Thảo (đối tượng ghi tên Trí), và một dòng NCC. */
+VHCP_Don::add_line( $m3, array( 'coso' => 'AEON MALL BÌNH DƯƠNG', 'ngay' => '2026-09-15', 'phanLoaiTT' => 'Thanh toán cá nhân', 'doiTuong' => 'Công Trí', 'nhom' => 'Chi Phí Vận Hành', 'noiDung' => 'băng keo', 'soLuong' => 1, 'donGia' => 10000, 'thanhTien' => 10000 ) );
+VHCP_Don::add_line( $m3, array( 'coso' => 'AEON MALL BÌNH DƯƠNG', 'ngay' => '2026-09-15', 'phanLoaiTT' => 'Nhà cung cấp', 'doiTuong' => 'Công ty Vận Chuyển X', 'nhom' => 'Chi Phí Vận Hành', 'noiDung' => 'cước xe', 'soLuong' => 1, 'donGia' => 20000, 'thanhTien' => 20000 ) );
+VHCP_Don::set_tam_ung( $m3, 'AEON MALL BÌNH DƯƠNG', 10000 ); VHCP_Don::gui_duyet_tam_ung( $m3 ); VHCP_Don::duyet_tam_ung( $m3, 'Quản Lý B', '' );
+VHCP_Don::cap_tam_ung( $m3, 'Quản Lý B', 'Tiền mặt' ); VHCP_Don::gui_quyet_toan( $m3 ); VHCP_Don::xac_nhan_qt_cn_nhieu( array( $m3 ), 'Quản Lý B' ); VHCP_Don::xac_nhan_quyet_toan_ncc( $m3, 'Quản Lý B' );
+$ex4 = VHCP_Misa::export_misa( 'all', 'chuaxuat', 'all' );
+$cn = null; $ncc = null; foreach ( $ex4['rows'] as $r ) { if ( false !== mb_strpos( $r[4], 'băng keo' ) ) { $cn = $r; } if ( false !== mb_strpos( $r[4], 'cước xe' ) ) { $ncc = $r; } }
+t( '⚠️ có cả hai dòng', $cn && $ncc, $ex4['rows'] );
+teq( '🔴 Diễn giải chung đuôi = NGƯỜI TẠO ĐƠN (Thu Thảo), không phải người duyệt (Quản Lý B)', 'Chi phí khác POSH MN T9/2026_Thu Thảo', $cn[3] );
+teq( '🔴 Mã đối tượng dòng cá nhân = mã NV của người tạo đơn (dù Trí gõ tên mình ở ô đối tượng)', 'NV_THAO', $cn[8] );
+teq( '🔴 Mã đối tượng dòng NCC = mã nhà cung cấp ghi trên dòng', 'NCC_X', $ncc[8] );
+teq( '   không còn dấu vết mã người duyệt', 0, substr_count( json_encode( $ex4['rows'] ), 'NV_QLB' ) );
+
 /* Mẫu sổ chi tiết cũng đi qua cùng diễn giải */
 $ex3 = VHCP_Misa::export_misa( 'all', 'chuaxuat', 'all', 'soct', 'all' );
 $vh3 = null; foreach ( $ex3['rows'] as $r ) { if ( false !== mb_strpos( $r[5], 'da ghế' ) ) { $vh3 = $r; } }

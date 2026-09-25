@@ -1169,8 +1169,10 @@ $r0 = $ex['rows'][0];
    — 141 khi cá nhân ứng tiền, 331 khi trả thẳng NCC — tức theo đồng tiền chứ không theo người
    ký. Dòng này là chi cá nhân nên phải ra 141, dù người duyệt vẫn khai `tkCo = 3341`. */
 teq( '🔴 MISA: TK Có theo HÌNH THỨC CHI, không theo người duyệt', '141', $r0[6] );
-teq( 'MISA: mã đối tượng theo người duyệt', 'NV_QL', $r0[8] );
-t( 'MISA: diễn giải có kỳ + tên người duyệt', strpos( $r0[3], 'Trần Quản Lý' ) !== false, $r0[3] );
+/* 25/09/2026 — anh Thắng: *"Lấy tên theo người tạo… cứ ai tạo thì hiện tên người đó"*: tên và mã đối tượng
+   đi theo NGƯỜI LẬP ĐƠN (Nguyễn Văn A), không theo người duyệt (Trần Quản Lý, NV_QL). */
+t( 'MISA: mã đối tượng KHÔNG còn theo người duyệt', 'NV_QL' !== (string) $r0[8], $r0[8] );
+t( 'MISA: diễn giải có kỳ + tên NGƯỜI LẬP ĐƠN', strpos( $r0[3], 'Nguyễn Văn A' ) !== false && strpos( $r0[3], 'Trần Quản Lý' ) === false, $r0[3] );
 $tk_no = array();
 foreach ( $ex['rows'] as $rw ) { $tk_no[ $rw[5] ] = 1; }
 t( 'MISA: TK Nợ lấy từ ma trận nhóm × phân loại lớn', isset( $tk_no['6421'] ) && isset( $tk_no['1561'] ), array_keys( $tk_no ) );

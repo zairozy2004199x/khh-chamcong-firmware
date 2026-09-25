@@ -4565,8 +4565,13 @@
      * ⚠️ CHỈ ĐIỀN KHI Ô ĐANG TRỐNG. Người ta gõ tên người khác rồi đổi qua đổi lại ô Phân
      *    loại là mất chữ vừa gõ — và mất một cách im lặng, ngay trước lúc bấm Thêm hạng mục.
      * ══════════════════════════════════════════════════════════════════════════════════════ */
+    /* 🔴 MẶC ĐỊNH LÀ NGƯỜI TẠO ĐƠN, không phải người đang gõ — anh Thắng 25/09/2026: *"Lấy tên theo người
+       tạo, 1 cơ sở 2 bạn quản lý, cứ ai tạo thì hiện tên người đó là được"*. Hai bạn cùng quản một gian:
+       Thảo tạo đơn, Trí vào thêm dòng — tiền tạm ứng vẫn về tay Thảo, nên dòng phải mang tên Thảo. Đơn
+       chưa mở (không có `CUR.don`) thì lui về người đang gõ như cũ. */
     var f=el('f_dt');
-    if(want==='NV' && f && CURUSER && CURUSER.name && !String(f.value||'').trim()) f.value=CURUSER.name;
+    var macDinh=String((typeof CUR!=='undefined'&&CUR&&CUR.don&&CUR.don.nguoiLap)||(CURUSER&&CURUSER.name)||'').trim();
+    if(want==='NV' && f && macDinh && !String(f.value||'').trim()) f.value=macDinh;
   }
   function _guardTU(){ if(CUR&&CUR.lockTU){toast('warn','Tạm ứng đã duyệt — không sửa được');return true;} return false; }
   function _guardChi(){ if(CUR&&CUR.lockChi){toast('warn','Trạng thái này không cho sửa dòng chi');return true;} return false; }
