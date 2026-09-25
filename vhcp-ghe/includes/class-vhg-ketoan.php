@@ -242,7 +242,7 @@ class VHG_KeToan {
 		global $wpdb;
 		$ck = self::squash( $coso ); $d = self::ngay_( $ngay );
 		$rows = $wpdb->get_results( $wpdb->prepare(
-			'SELECT d.* FROM ' . VHG_DB::t( 'bc_dong' ) . ' d JOIN ' . VHG_DB::t( 'bc' ) . ' h ON h.report_id=d.report_id'
+			'SELECT d.*, h.lan AS h_lan, h.tao_luc AS h_luc, h.nhan_vien AS h_nv FROM ' . VHG_DB::t( 'bc_dong' ) . ' d JOIN ' . VHG_DB::t( 'bc' ) . ' h ON h.report_id=d.report_id'
 			. ' WHERE h.coso_key=%s AND d.ngay=%s', $ck, $d ), ARRAY_A );
 		/* Sắp theo THỨ TỰ TỰ NHIÊN (strnatcmp), không phải ORDER BY chuỗi của SQL — anh Thắng:
 		   "Lưu thì vẫn nguyên thứ tự máy, không nhảy lộn xộn". `ORDER BY d.ten ASC` so chuỗi nên
@@ -250,12 +250,25 @@ class VHG_KeToan {
 		   xong tải lại là bảng trông như xáo trộn dù dữ liệu không đổi gì, vì nó vốn đã sắp kiểu
 		   đó từ đầu. strnatcmp coi cụm số là số nên ra đúng 1,2,3…9,10,11,12, và vì sắp lại xong
 		   mới trả về nên thứ tự luôn giống nhau ở mọi lượt tải — không "nhảy" giữa các lần Lưu. */
-		usort( $rows, function ( $a, $b ) { return strnatcmp( (string) $a['ten'], (string) $b['ten'] ); } );
+		usort( $rows, function ( $a, $b ) { $c = strnatcmp( (string) $a['ten'], (string) $b['ten'] ); return 0 !== $c ? $c : ( (int) $a['h_lan'] - (int) $b['h_lan'] ); } );
 		$ghe = array(); $sum = array( 'actual' => 0, 'cash' => 0, 'qr' => 0, 'adjust' => 0, 'total' => 0, 'paid' => 0 );
 		$rid = '';
+		/* 2.140.0 — số lần thu trong ngày và số dòng mỗi ghế, để cờ "nghi trùng": ghế có ≥2 dòng, dòng này
+		   chỉ số ĐỨNG (sau = trước) mà vẫn có tiền mặt hoặc QR = gửi lại cộng đôi (anh Thắng 25/09/2026,
+		   ba dòng CGV-CT-01 y hệt nhau). Xem VHG_BaoCao::gui_lai_de_() — bản mới không sinh dòng như thế nữa,
+		   cờ này để dọn dữ liệu cũ và bắt ca lọt. */
+		$lan_ds = array(); $dem_ghe = array();
+		foreach ( (array) $rows as $r ) {
+			if ( null === $r['chi_so_sau'] && 0 === (int) $r['tong'] && 0 === (int) $r['actual'] ) { continue; }
+			$lan_ds[ (int) $r['h_lan'] ] = 1;
+			$dem_ghe[ (string) $r['ma_may'] ] = ( isset( $dem_ghe[ (string) $r['ma_may'] ] ) ? $dem_ghe[ (string) $r['ma_may'] ] : 0 ) + 1;
+		}
+		$so_lan = count( $lan_ds );
 		foreach ( (array) $rows as $r ) {
 			if ( null === $r['chi_so_sau'] && 0 === (int) $r['tong'] && 0 === (int) $r['actual'] ) { continue; }
 			$rid = (string) $r['report_id'];
+			$dung = ( null !== $r['chi_so_truoc'] && null !== $r['chi_so_sau'] && abs( (float) $r['chi_so_sau'] - (float) $r['chi_so_truoc'] ) < 0.005 );
+			$trung_nghi = ( $dem_ghe[ (string) $r['ma_may'] ] > 1 && $dung && ( (int) $r['tien_mat'] > 0 || (int) $r['qr'] > 0 ) ) ? 1 : 0;
 			$anh = trim( (string) $r['anh'] );
 			$ghe[] = array( 'reportId' => $r['report_id'], 'chairCode' => $r['ma_may'], 'chairName' => $r['ten'],
 				'meterBefore' => VHG_BaoCao::so_chiso_( $r['chi_so_truoc'] ), 'meterAfter' => VHG_BaoCao::so_chiso_( $r['chi_so_sau'] ),
@@ -264,6 +277,8 @@ class VHG_KeToan {
 				'paid' => (int) $r['nop_so_tien'], 'payStatus' => (string) $r['nop_trang_thai'],
 				'payMethod' => (string) $r['nop_hinhthuc'],
 				'confirmed' => (int) $r['kt_duyet'] ? 1 : 0,
+				'lan' => (int) $r['h_lan'], 'soLan' => $so_lan, 'guiLuc' => (string) $r['h_luc'], 'nhanVien' => (string) $r['h_nv'],
+				'trungNghi' => $trung_nghi,
 				'mocTay' => (int) $r['moc_tay'] ? 1 : 0,   // chỉ số trước đã sửa tay (khóa auto-nối)
 				/* Lịch sử sửa số của chính ghế này — hiện nhỏ ngay cạnh nút Sửa (anh Thắng
 				   01/09/2026). Đọc từ `bc_undo`, xem `lich_su_sua()`. */
@@ -272,7 +287,7 @@ class VHG_KeToan {
 			$sum['actual'] += (int) $r['actual']; $sum['cash'] += (int) $r['tien_mat']; $sum['qr'] += (int) $r['qr'];
 			$sum['adjust'] += (int) $r['dieu_chinh']; $sum['total'] += (int) $r['tong']; $sum['paid'] += (int) $r['nop_so_tien'];
 		}
-		return array( 'ok' => true, 'coso' => (string) $coso, 'ngay' => $d, 'reportId' => $rid,
+		return array( 'ok' => true, 'coso' => (string) $coso, 'ngay' => $d, 'reportId' => $rid, 'soLan' => $so_lan,
 			'rows' => $ghe, 'sum' => $sum, 'locked' => self::dang_khoa( $coso, $d ) );
 	}
 

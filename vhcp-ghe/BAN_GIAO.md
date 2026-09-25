@@ -103,6 +103,41 @@ cáo tổng và MISA, mà danh mục không còn chỗ nào để bấm.
 không còn báo cáo), gộp tên cũ vào đích + bí danh, chối khi tên cũ thuộc cơ sở khác, đổi tên kéo sổ /
 chối trùng / cùng khoá chỉ đổi nhãn / không đổi tên không chạm sổ, cổng và khối trang.
 
+### v2.140.0 — Gửi lại mà máy không chạy = SỬA lần trước, không phải thu lần nữa (hết cộng đôi Thực thu)
+
+Anh Thắng 25/09/2026, ảnh màn Duyệt: **CGV-CT-01** ba dòng cùng ngày (215→234 · 234→234 · 234→234),
+**CGV-CT-02** cũng ba (245→299 · 299→299 · 299→299). Hai dòng sau **Actual 0** nhưng "Thực thu ghi đè"
+160.000 / 300.000 vẫn ghi → tổng ngày **920.000đ** trong khi tiền thật là 460.000đ. *"Check giúp anh lỗi
+này."*
+
+**Nguyên nhân.** Nhân viên gửi lại để sửa tiền (lần đầu gõ Thực thu 0). Luật 29/08 "mỗi lượt Gửi = một
+lần thu mới" chèn lần mới; chỉ số trước tự nối bằng chỉ số sau lần trước nên Actual = 0 — nhưng **Thực thu
+và QR là số gõ tay, không tự triệt tiêu**, nên mỗi lần gửi lại là cộng thêm một lần. Chốt 120 giây
+(12/09) không bắt được vì số đã đổi và cách xa hơn. Màn nhân viên sau khi gửi vẫn giữ nguyên bộ số đã
+gõ nên bấm Gửi lần nữa là đi lên y nguyên. Màn Duyệt không hiện lần mấy / giờ gửi nên ba dòng trông y
+hệt nhau.
+
+**Sửa ba lớp.**
+- Máy chủ `VHG_BaoCao::gui_lai_de_()` (gọi đầu `luu()`): ghế gửi lại với **chỉ số sau đúng bằng chỉ số
+  sau đã lưu gần nhất trong ngày** → máy không chạy thêm → **đè** tiền mặt / QR / ghi chú / ảnh lên dòng
+  đã lưu (giữ chỉ số + Actual), ghi `bc_undo` như Sửa 24h, ghi chú có dấu "↩ Gửi lại HH:MM (đè lần n)".
+  Ghế có chỉ số mới vẫn thành lần mới. Cả lượt là gửi lại → khai nộp tiền mới thay khai cũ
+  (`nop_lai_header_`), trả `updated=true` với câu báo nói rõ. Dòng đã nộp tiền / đính bill → **lỗi chỉ
+  đường**, không lặng lẽ tạo lần mới. QR > Actual mà không Thực thu → lỗi (tiền mặt âm).
+- Màn Duyệt (`chi_tiet()` + `ktdRow`): ngày có ≥2 lần thì mỗi dòng ghi **lần N · gửi HH:MM · ai**; dòng
+  chỉ số đứng mà còn tiền mặt / QR và ghế có ≥2 dòng → cờ đỏ **⚠ NGHI TRÙNG** để kế toán Xoá dòng thừa
+  (dữ liệu cũ trước bản này).
+- Màn nhân viên: gửi xong **nạp lại bảng** (`selectLoc`) — chỉ số trước = chỉ số sau vừa gửi, ô nhập
+  trống; bấm Gửi nhầm thì không có gì để gửi.
+
+**Dọn ngày trong ảnh:** vào Duyệt → cơ sở đó → hai dòng CGV-CT-01 và CGV-CT-02 mang cờ NGHI TRÙNG
+(lần 2, Actual 0): **Xoá** dòng lần 2 (vào thùng rác, hoàn tác được), giữ lần 1 (chỉ số) và lần 3 (tiền
++ ghi chú "hoàn khách"). Tổng ngày về 460.000đ tiền mặt · 240.000đ QR.
+
+`kiem-gui-lai-may-khong-chay.php` (30 phép): đè đúng dòng, giữ chỉ số/Actual, undo, ghi chú không phình,
+chỉ số nhích → lần mới, hỗn hợp, bill/nộp → lỗi, QR > Actual → lỗi, nộp đủ theo số mới, ảnh nối, khai
+nộp lại header, thứ tự gọi trong luu(), trường mới của chi_tiet, selectLoc sau gửi, cờ NGHI TRÙNG.
+
 ### v2.137.0 (+ Sao Kê 0.45.0) — BÍ DANH cơ sở: gộp tên cũ vào điểm mới mà tiền VietQR không rơi
 
 Anh Thắng 24/09/2026, ảnh CSV Báo cáo tổng: **"POSH MN CGV VINCOM LANDMARK"** (không Mã KH, 0 ghế)

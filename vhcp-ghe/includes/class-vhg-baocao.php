@@ -60,7 +60,7 @@ class VHG_BaoCao {
 	   boot() trả nó kèm mọi phản hồi (`banBc`) — số ở góc nói tệp chính là bản nào, số này nói
 	   TỆP BÁO CÁO là bản nào. Hai số lệch nhau là bằng chứng tệp cũ còn sống. Phải tăng cùng
 	   VHG_VERSION mỗi lần sửa tệp này. */
-	const BAN = '2.139.0';
+	const BAN = '2.140.0';
 
 	/** Ghế từng thu tiền trong bao nhiêu ngày gần đây thì vẫn phải hiện ở màn nhập — xem ds_ghe(). */
 	const GHE_LS_NGAY = 45;
@@ -1363,6 +1363,34 @@ class VHG_BaoCao {
 			return array( 'ok' => false, 'message' => 'Cơ sở ' . $coso . ' ngày ' . $ngay . ' đang KHOÁ — nhờ kế toán mở lại.' );
 		}
 
+		/* 🔴 GỬI LẠI MÀ MÁY KHÔNG CHẠY = SỬA LẦN GẦN NHẤT, KHÔNG PHẢI THU LẦN NỮA — anh Thắng 25/09/2026,
+		   ảnh màn Duyệt: CGV-CT-01 ba dòng trong một ngày (215→234 · 234→234 · 234→234), CGV-CT-02 cũng ba
+		   dòng (245→299 · 299→299 · 299→299). Hai dòng sau Actual 0 nhưng "Thực thu ghi đè" 160.000 /
+		   300.000 vẫn ghi, tổng ngày ra 920.000đ thay vì 460.000đ. Nhân viên gửi lại để SỬA tiền (lần đầu
+		   gõ Thực thu 0), nhưng luật "mỗi lượt Gửi = một lần thu mới" (29/08) cứ chèn lần mới; chỉ số
+		   trước tự nối bằng chỉ số sau lần trước nên Actual = 0 — riêng Thực thu và QR là số gõ tay, KHÔNG
+		   tự triệt tiêu, nên cộng đôi. Chốt 120 giây (12/09) không bắt được: số đã đổi và cách xa hơn.
+		   Nay: ghế nào gửi lại với CHỈ SỐ SAU ĐÚNG BẰNG chỉ số sau đã lưu gần nhất trong ngày (máy không
+		   chạy thêm) thì KHÔNG có lần thu mới cho ghế ấy — tiền mặt / QR / ghi chú / ảnh mới ĐÈ lên dòng đã
+		   lưu, có nhật ký bc_undo như Sửa 24h. Ghế có chỉ số mới vẫn thành lần mới như cũ. Không đụng luật
+		   29/08 ("gửi lại không được đè lần thu THẬT"): lần thu thật thì chỉ số phải nhích. */
+		$de = self::gui_lai_de_( $rows_in, $q, $coso, $ngay );
+		if ( '' !== $de['loi'] ) { return array( 'ok' => false, 'message' => $de['loi'] ); }
+		if ( count( $de['da_de'] ) ) {
+			$rows_in = $de['con_lai'];
+			if ( ! count( $rows_in ) ) {
+				/* Cả lượt là gửi lại → khai nộp tiền mới thay cho khai cũ của (các) lần bị đè. */
+				self::nop_lai_header_( $de['rids'], isset( $p['payment'] ) ? $p['payment'] : array() );
+				foreach ( $de['da_de'] as $ma_nt ) { self::noi_tiep( $ma_nt, $ngay, $coso ); }
+				$dong_yc = self::dong_yeucau_( $coso, $ngay, $q['ten'] . ' · gửi lại đè · ' . implode( ',', $de['rids'] ) );
+				$phien = self::phien_upsert_( $pin, $ngay );
+				return array( 'ok' => true, 'reportId' => (string) reset( $de['rids'] ), 'rows' => count( $de['da_de'] ), 'updated' => true,
+					'deLan' => $de['lan'], 'boGhe' => array(), 'dongYeuCau' => $dong_yc, 'phien' => $phien,
+					'message' => 'Máy chưa chạy thêm từ lần gửi trước (lần ' . $de['lan'] . ' lúc ' . $de['luc'] . ') → đã CẬP NHẬT lần đó cho '
+						. count( $de['da_de'] ) . ' ghế (' . implode( ', ', $de['da_de'] ) . '), KHÔNG tạo lần thu mới: tiền mặt / QR / ghi chú mới thay số cũ. '
+						. 'Muốn ghi một lần thu nữa thì chỉ số sau phải khác lần trước.' );
+			}
+		}
 		$rows = array();
 		foreach ( $rows_in as $r0 ) {
 			$ma = trim( (string) ( isset( $r0['chairCode'] ) ? $r0['chairCode'] : ( isset( $r0['ma'] ) ? $r0['ma'] : '' ) ) );
@@ -1587,6 +1615,8 @@ class VHG_BaoCao {
 		return array( 'ok' => true, 'reportId' => $rid, 'rows' => count( $rows ), 'updated' => false,
 			'boGhe' => array(), 'dongYeuCau' => $dong_yc, 'phien' => $phien,
 			'message' => 'Đã gửi báo cáo ' . $coso . ' ngày ' . $ngay . ( $lan > 1 ? ( ' (lần ' . $lan . ')' ) : '' ) . '.'
+				. ( count( $de['da_de'] ) ? ( ' Riêng ' . count( $de['da_de'] ) . ' ghế máy chưa chạy thêm (' . implode( ', ', $de['da_de'] )
+					. ') đã CẬP NHẬT vào lần trước, không tạo lần mới.' ) : '' )
 				. ( $dong_yc ? ( ' Hoàn thành ' . $dong_yc . ' yêu cầu kế toán.' ) : '' )
 				. ( ( $phien && ! empty( $phien['du'] ) )
 					? ( ' ✓ ĐỦ BÁO CÁO cả ' . $phien['so_coso'] . ' cơ sở hôm nay — đã gộp gửi kế toán (tổng '
@@ -2143,6 +2173,107 @@ class VHG_BaoCao {
 		return array( 'ok' => true, 'thong_bao' => 'Đã mở khoá báo cáo ' . $rid
 			. ( ! empty( $go['da_go'] ) ? ' và gỡ lượt nộp đang chờ.' : '.' )
 			. ' Nhân viên sửa lại được nếu còn trong ' . self::GIO_SUA . ' giờ.' );
+	}
+
+	/**
+	 * GỬI LẠI MÀ MÁY KHÔNG CHẠY → ĐÈ LÊN DÒNG ĐÃ LƯU (xem khối 🔴 trong luu()).
+	 *
+	 * Với từng ghế trong lượt gửi: tìm dòng GẦN NHẤT của ghế ấy trong ngày (lần lớn nhất — đúng mốc mà
+	 * chi_so_truoc(..., toi=true) sẽ nối). Chỉ số sau gửi lên BẰNG chỉ số sau của dòng ấy → máy không
+	 * chạy thêm → đây là gửi lại để sửa: ghi tiền mặt / QR / ghi chú / ảnh mới vào dòng ấy, giữ nguyên
+	 * chỉ số trước, chỉ số sau và Actual đã lưu. Chỉ số khác → ghế ấy về `con_lai` để thành lần mới.
+	 *
+	 * 🔴 Dòng đã nộp tiền (nop_id) hoặc đã đính bill thì KHÔNG đè — trả lỗi chỉ đường (kế toán mở khoá),
+	 *    không lặng lẽ tạo lần mới cộng đôi. QR lớn hơn Actual mà không có Thực thu → tiền mặt âm → lỗi.
+	 * 🔴 Mỗi lần đè ghi bc_undo (viec='sua', khoá <report_id>·<ma_may>) — "Lịch sử sửa" bên kế toán kể được.
+	 *
+	 * Trả ['loi','da_de'=>[ma…],'con_lai'=>[rows_in chưa đè],'rids'=>[report_id…],'lan','luc'].
+	 */
+	private static function gui_lai_de_( $rows_in, $q, $coso, $ngay ) {
+		global $wpdb;
+		$ra = array( 'loi' => '', 'da_de' => array(), 'con_lai' => array(), 'rids' => array(), 'lan' => 0, 'luc' => '' );
+		$ck = self::squash( $coso );
+		$tb = VHG_DB::t( 'bc' ); $td = VHG_DB::t( 'bc_dong' );
+		foreach ( (array) $rows_in as $r0 ) {
+			$ma = trim( (string) ( isset( $r0['chairCode'] ) ? $r0['chairCode'] : ( isset( $r0['ma'] ) ? $r0['ma'] : '' ) ) );
+			$after = isset( $r0['meterAfter'] ) ? $r0['meterAfter'] : ( isset( $r0['chi_so_sau'] ) ? $r0['chi_so_sau'] : '' );
+			if ( '' === $ma || '' === (string) $after || null === $after || ! self::trong_pham_vi( $q, $coso, $ma ) ) { $ra['con_lai'][] = $r0; continue; }
+			$d = $wpdb->get_row( $wpdb->prepare(
+				"SELECT d.*, h.lan AS h_lan, h.tao_luc AS h_tao_luc, h.bill_luc AS h_bill_luc, h.nop_id AS h_nop_id FROM $td d JOIN $tb h ON h.report_id=d.report_id"
+				. ' WHERE h.coso_key=%s AND d.ngay=%s AND d.ma_may=%s AND d.chi_so_sau IS NOT NULL ORDER BY d.lan DESC, d.id DESC LIMIT 1',
+				$ck, $ngay, $ma ), ARRAY_A );
+			$sau_moi = self::so_chiso_( $after );
+			if ( ! $d || null === $sau_moi || abs( (float) $d['chi_so_sau'] - (float) $sau_moi ) >= 0.005 ) { $ra['con_lai'][] = $r0; continue; }
+			if ( '' !== trim( (string) $d['h_bill_luc'] ) || (int) $d['h_nop_id'] > 0 ) {
+				$ra['loi'] = 'Ghế ' . $ma . ': chỉ số sau (' . self::cs_hien_( $sau_moi ) . ') vẫn như lần gửi trước (lần ' . (int) $d['h_lan']
+					. ') nên đây là GỬI LẠI ĐỂ SỬA — nhưng báo cáo lần đó đã nộp tiền / đính bill nên khoá. Nhờ kế toán mở lại rồi sửa ở '
+					. '"Báo cáo trong 24h". Muốn ghi một lần thu mới thì chỉ số sau phải khác.';
+				return $ra;
+			}
+			$qr = (int) ( isset( $r0['qr'] ) ? $r0['qr'] : 0 );
+			$thuc_thu = isset( $r0['actualOverride'] ) ? self::songuyen_( $r0['actualOverride'] ) : null;
+			$actual = (int) $d['actual'];
+			$tien_mat = ( null !== $thuc_thu ) ? $thuc_thu : ( $actual - $qr );
+			if ( $tien_mat < 0 ) {
+				$ra['loi'] = 'Ghế ' . $ma . ': gửi lại với QR ' . number_format( $qr, 0, ',', '.' ) . 'đ lớn hơn Actual '
+					. number_format( $actual, 0, ',', '.' ) . 'đ đã lưu → tiền mặt ÂM. Nhập đúng Thực thu tiền mặt (số nộp thật) rồi gửi lại.';
+				return $ra;
+			}
+			/* Ghi chú: lấy câu mới của nhân viên, bỏ dấu ghi đè cũ và dấu "gửi lại" cũ (gửi đi gửi lại không phình). */
+			$ghi_chu = trim( (string) ( isset( $r0['note'] ) ? $r0['note'] : '' ) );
+			$ghi_chu = trim( preg_replace( '/\s*·?\s*Thực thu ghi đè:[^·]*/u', '', $ghi_chu ) );
+			$ghi_chu = trim( preg_replace( '/^↩ Gửi lại[^·]*·?\s*/u', '', $ghi_chu ) );
+			if ( null !== $thuc_thu ) {
+				$ghi_chu = trim( $ghi_chu . ( '' !== $ghi_chu ? ' · ' : '' ) . 'Thực thu ghi đè: ' . number_format( $thuc_thu, 0, ',', '.' ) . 'đ' );
+			}
+			$ghi_chu = mb_substr( trim( '↩ Gửi lại ' . current_time( 'H:i' ) . ' (máy không chạy thêm, đè lần ' . (int) $d['h_lan'] . ')'
+				. ( '' !== $ghi_chu ? ' · ' . $ghi_chu : '' ) ), 0, 250 );
+			/* Ảnh mới (nếu có) nối vào ảnh cũ — gửi lại để bổ sung ảnh là ca thường gặp. */
+			$anh_hien = array(); $anh_raw = (string) ( isset( $d['anh'] ) ? $d['anh'] : '' );
+			if ( '' !== $anh_raw ) { $tmp = json_decode( $anh_raw, true ); if ( is_array( $tmp ) ) { $anh_hien = array_values( array_filter( $tmp ) ); } }
+			$anh_moi = array(); $imgs = ( isset( $r0['images'] ) && is_array( $r0['images'] ) ) ? $r0['images'] : array();
+			if ( ! empty( $imgs['chiso'] ) )  { $u = self::luu_anh_( array( 'dataUrl' => $imgs['chiso'],  'name' => 'chiso.jpg' ),  $d['report_id'], $ma . '-guilai-chiso-' . time() );  if ( '' !== $u ) { $anh_moi[] = $u; } }
+			if ( ! empty( $imgs['vesinh'] ) ) { $u = self::luu_anh_( array( 'dataUrl' => $imgs['vesinh'], 'name' => 'vesinh.jpg' ), $d['report_id'], $ma . '-guilai-vesinh-' . time() ); if ( '' !== $u ) { $anh_moi[] = $u; } }
+			$wpdb->insert( VHG_DB::t( 'bc_undo' ), array(
+				'viec' => 'sua', 'ly_do' => mb_substr( $d['report_id'] . '·' . $ma, 0, 250 ),
+				'chi_tiet' => wp_json_encode( array( array(
+					'report_id' => $d['report_id'], 'ma_may' => $ma,
+					'chi_so_truoc' => $d['chi_so_truoc'], 'chi_so_sau' => $d['chi_so_sau'], 'actual' => $d['actual'],
+					'tien_mat' => $d['tien_mat'], 'qr' => $d['qr'], 'dieu_chinh' => $d['dieu_chinh'], 'tong' => $d['tong'],
+					'ghi_chu' => $d['ghi_chu'], 'nop_so_tien' => $d['nop_so_tien'] ) ) ),
+				'da_hoan_tac' => 0, 'boi' => (string) $q['ten'] . ' · gửi lại (máy không chạy thêm)',
+				'tao_luc' => current_time( 'mysql' ) ) );
+			$up = array( 'qr' => $qr, 'tien_mat' => $tien_mat, 'tong' => $tien_mat + $qr,
+				'dieu_chinh' => null !== $thuc_thu ? $thuc_thu : 0, 'ghi_chu' => $ghi_chu );
+			/* Cùng luật với sua_dong(): dòng đã "nộp đủ" đúng số cũ thì số nộp đi theo số mới. */
+			if ( (int) $d['tien_mat'] !== $tien_mat && 'unpaid' !== (string) $d['nop_trang_thai'] && (int) $d['nop_so_tien'] === (int) $d['tien_mat'] ) {
+				$up['nop_so_tien'] = $tien_mat;
+			}
+			if ( count( $anh_moi ) ) { $up['anh'] = wp_json_encode( array_merge( $anh_hien, $anh_moi ) ); }
+			$wpdb->update( $td, $up, array( 'id' => (int) $d['id'] ) );
+			$wpdb->update( $tb, array( 'sua_luc' => current_time( 'mysql' ) ), array( 'report_id' => (string) $d['report_id'] ) );
+			$ra['da_de'][] = $ma;
+			if ( ! in_array( (string) $d['report_id'], $ra['rids'], true ) ) { $ra['rids'][] = (string) $d['report_id']; }
+			$ra['lan'] = (int) $d['h_lan']; $ra['luc'] = substr( (string) $d['h_tao_luc'], 11, 5 );
+		}
+		return $ra;
+	}
+
+	/* Cả lượt gửi là gửi lại → khai nộp tiền của lượt này thay cho khai của (các) lần bị đè (chưa nộp, chưa bill). */
+	private static function nop_lai_header_( $rids, $pm ) {
+		global $wpdb;
+		foreach ( (array) $rids as $rid ) {
+			$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . VHG_DB::t( 'bc_dong' ) . ' WHERE report_id=%s', (string) $rid ), ARRAY_A );
+			if ( ! $rows ) { continue; }
+			$pay = self::doc_payment_( is_array( $pm ) ? $pm : array(), $rows );
+			$wpdb->update( VHG_DB::t( 'bc' ), array( 'nop_hinhthuc' => $pay['hinhthuc'], 'nop_trang_thai' => $pay['trang_thai'],
+				'nop_so_tien' => $pay['so_tien'], 'nop_ngay' => $pay['ngay'], 'nop_ghichu' => $pay['ghichu'] ), array( 'report_id' => (string) $rid ) );
+			$chia = self::chia_nop_( $rows, $pay );
+			foreach ( $rows as $r ) {
+				if ( ! isset( $chia[ $r['ma_may'] ] ) ) { continue; }
+				$wpdb->update( VHG_DB::t( 'bc_dong' ), $chia[ $r['ma_may'] ], array( 'id' => (int) $r['id'] ) );
+			}
+		}
 	}
 
 	public static function sua_dong( $rid, $ma, $patch, $pin ) {

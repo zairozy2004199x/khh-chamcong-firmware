@@ -1,6 +1,6 @@
 # QUY TRÌNH BÁO CÁO DOANH THU GHẾ & NỘP TIỀN
 
-Áp dụng cho trang **/ghe** (plugin Ghế 2.139.0) và plugin Sao Kê 0.46.0. Soạn 24/09/2026 theo đúng
+Áp dụng cho trang **/ghe** (plugin Ghế 2.140.0) và plugin Sao Kê 0.46.0. Soạn 24/09/2026 theo đúng
 hành vi hệ thống đang chạy. Dùng cho: nhân viên thu tiền, cửa hàng trưởng, kế toán, quản trị.
 
 > **Ảnh mẫu** trong tài liệu chụp từ giao diện thật của bản 2.139.0, chạy với **dữ liệu giả**
@@ -11,7 +11,8 @@ hành vi hệ thống đang chạy. Dùng cho: nhân viên thu tiền, cửa hà
 
 ## 0. Bốn nguyên tắc
 
-1. **Mỗi ngày, mỗi cơ sở một phiếu báo cáo** (thu hai lần trong ngày thì hai lần gửi, máy giữ cả hai).
+1. **Mỗi ngày, mỗi cơ sở một phiếu báo cáo** (thu hai lần trong ngày thì hai lần gửi, máy giữ cả hai;
+   gửi lại mà chỉ số không đổi là sửa phiếu cũ, không phải lần thu mới).
    Tiền mặt rút khỏi ghế là tiền **đang cầm** của nhân viên cho đến khi kế toán bấm **Đã nhận**.
 2. **Tổng doanh thu cơ sở = Thực thu tiền mặt (người đếm) + VietQR thực về ngân hàng (sao kê).**
    Chỉ số trên máy và số QR nhân viên đọc chỉ để đối chiếu, không phải doanh thu.
@@ -59,7 +60,9 @@ hành vi hệ thống đang chạy. Dùng cho: nhân viên thu tiền, cửa hà
    ![Khối tổng dưới bảng: Actual, Tiền mặt phải nộp, QR, Doanh thu ngày](img/nop-tien/01b-tong-phai-nop.png)
 
 6. Cuối phiếu, khai **nộp tiền**: **Tiền mặt** / **Chuyển khoản** / **Chưa nộp**; số tiền nộp (để trống = nộp đủ phần tiền mặt).
-7. Bấm **Gửi**. Mỗi lần gửi là một **lần thu** riêng trong ngày; mốc chỉ số tự nối cho lần sau.
+7. Bấm **Gửi**. Chỉ số sau **nhích lên** so với lần gửi trước thì đó là một **lần thu** mới trong ngày;
+   mốc chỉ số tự nối cho lần sau. **Gửi lại mà chỉ số sau không đổi** (máy chưa chạy thêm) thì máy hiểu
+   là **sửa lần trước**: tiền mặt, QR, ghi chú, ảnh mới thay số cũ, không sinh lần mới, không cộng đôi.
    Thanh **Tiến độ** đếm x/y cơ sở đã gửi. Hôm nào không thu hết thì bấm **Chốt sớm** và ghi lý do.
 
    ![Sau khi gửi: câu báo đã gửi + ảnh báo cáo POSH để tải hoặc gửi Zalo](img/nop-tien/06-gui-xong.png)
@@ -75,6 +78,7 @@ hành vi hệ thống đang chạy. Dùng cho: nhân viên thu tiền, cửa hà
 | Chỉ số sau vượt chỉ số của ngày kế tiếp đã nộp | **Cảnh báo**, không chặn |
 | Thiếu ảnh ghế | Hỏi xác nhận, không chặn |
 | Gửi lại y nguyên trong 120 giây | Bỏ qua (chống gửi trùng) |
+| Gửi lại, chỉ số sau không đổi | Đè tiền mặt / QR / ghi chú lên lần trước, không tạo lần mới; phiếu đã nộp tiền hoặc đính bill thì báo lỗi, nhờ kế toán mở |
 | Ngày đã khoá | Chặn gửi, chặn sửa, chặn nộp bổ sung |
 
 ### 2.3 Sửa sau khi gửi

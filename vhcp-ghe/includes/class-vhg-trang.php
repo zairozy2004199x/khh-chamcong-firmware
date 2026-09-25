@@ -4055,6 +4055,11 @@ JS;
           var iL=$('bc-anh-loat'); if(iL) iL.value=''; var kL=$('bc-anh-loat-kq'); if(kL) kL.textContent='';
           if(r.phien) veProg(r.phien);
           else refreshPhien();
+          /* 🔴 NẠP LẠI BẢNG SAU KHI GỬI — anh Thắng 25/09/2026: ba lần gửi cùng số cho CGV-CT-01. Bảng
+             trước đây giữ nguyên ô đã gõ (chỉ số sau, QR, Thực thu) sau khi gửi thành công; bấm Gửi lần
+             nữa là cả bộ số ấy đi lên lần hai. Nạp lại: chỉ số trước = chỉ số sau vừa gửi, ô nhập trống —
+             nhìn là biết đã gửi, và có bấm nhầm thì không có gì để gửi. */
+          selectLoc(LOC);
         },90000);
       });
     });
@@ -7966,6 +7971,20 @@ function ktdRow(o,c,m,reload,locked){
      thực thu (báo đỏ lên cho kế toán biết)" — thêm dấu "Thực thu ghi đè" vào cùng điều kiện tô đỏ
      (trước chỉ tô đỏ dòng bắt đầu bằng ⚠, không bắt được câu ghi đè đứng một mình không có ⚠). */
   var coGhiDe=/Thực thu ghi đè/.test(c.note||'');
+  /* 2.140.0 — ngày có ≥2 lần thu thì mỗi dòng nói rõ LẦN MẤY · GIỜ GỬI · AI, và dòng gửi lại mà máy
+     không chạy (chỉ số đứng) vẫn có tiền thì cờ đỏ "nghi trùng" — anh Thắng 25/09/2026: ba dòng
+     CGV-CT-01 y hệt nhau, kế toán không có gì để phân biệt, tổng ngày cộng đôi mà không ai thấy. */
+  if(c.soLan>1 && c.lan){
+    var lanB=ktEl('div','mut','lần '+c.lan+(c.guiLuc?(' · gửi '+String(c.guiLuc).slice(11,16)):'')+(c.nhanVien?(' · '+c.nhanVien):''));
+    lanB.style.cssText='margin-top:2px;font-size:11px';
+    tdN.appendChild(lanB);
+  }
+  if(c.trungNghi){
+    var tnB=ktEl('div','mut err',L('⚠ NGHI TRÙNG: gửi lại mà máy không chạy (chỉ số đứng) vẫn có tiền — xem lần trước của ghế này rồi Xoá dòng thừa.',
+      '⚠ Possible duplicate: re-sent with no meter movement but still carries money — check the earlier round and delete the extra row.'));
+    tnB.style.cssText='margin-top:4px;max-width:220px;white-space:normal;font-weight:700';
+    tdN.appendChild(tnB);
+  }
   if(c.note){
     var noB=ktEl('div', (/^⚠/.test(c.note)||coGhiDe)?'mut err':'mut', c.note);
     noB.style.cssText='margin-top:4px;max-width:220px;white-space:normal';
