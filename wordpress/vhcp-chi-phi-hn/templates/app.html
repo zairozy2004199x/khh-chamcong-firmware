@@ -1557,11 +1557,12 @@
           <tbody id="qtBodyXong"></tbody>
         </table>
       </div>
-      <!-- 🧮 Anh Thắng 25/09/2026 (ảnh 107 đơn dồn một bảng): "Chỗ đã quyết toán vẫn đang chung 1
-           bảng, tách luôn". Một khối một mảng kinh doanh (Phân loại lớn của cơ sở), khi trang đang
-           xem có ≥ 2 mảng khác nhau — chỉ đổi CÁCH VẼ, số đếm/tổng/phân trang của cả danh sách vẫn
-           tính như cũ bên dưới. Xem `_qtVeBang('xong', …)`. -->
-      <div id="qtXongMangWrap" style="display:none"></div>
+      <!-- 🧩 Anh Thắng 25/09/2026 (ảnh 107 đơn dồn một bảng): "Chỗ đã quyết toán vẫn đang chung 1
+           bảng, tách luôn" · "4 chi phí, 4 bảng riêng biệt cho anh". Một khối một ĐẦU MỤC của loại
+           chi phí (Chi Phí Vận Hành · Cơ Sở KVC · Cơ Sở MTD · Khác — máy chủ tính `d.dauMuc`), khi
+           trang đang xem có ≥ 2 đầu mục khác nhau — chỉ đổi CÁCH VẼ, số đếm/tổng/phân trang của cả
+           danh sách vẫn tính như cũ bên dưới. Xem `_qtVeBang('xong', …)`. -->
+      <div id="qtXongDauMucWrap" style="display:none"></div>
       <div class="empty" id="qtEmptyXong">Chưa có đơn nào đã quyết toán.</div>
       <div id="qtPagerXong"></div>
     </div>
@@ -1706,11 +1707,11 @@
       <div id="xuatBanGiao" style="display:none;margin:0 14px 10px;padding:8px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;font-size:12px;color:#1e40af"></div>
       <div class="tw" style="max-height:62vh;overflow:auto">
         <table id="xuatTable" style="min-width:1150px"><thead id="xuatHead"></thead><tbody id="xuatBody"></tbody></table>
-        <!-- 🧮 Anh Thắng 25/09/2026 (ảnh màn này, 275 dòng dồn một bảng): "mảng nào, bảng xuất riêng,
-             vẫn đang chung 1 bảng" — MỘT SHEET trong tệp tải về (1.336.0) chưa đủ, còn phải tách NGAY
-             TRÊN MÀN. `xuatTablesMang` bày N khối bảng, một khối một mảng, khi dữ liệu có ≥ 2 mảng
-             khác nhau; còn một mảng thì vẫn dùng đúng bảng cũ ở trên (`xuatTable`), không đổi gì. -->
-        <div id="xuatTablesMang" style="display:none"></div>
+        <!-- 🧩 Anh Thắng 25/09/2026 (ảnh màn này, 275 dòng dồn một bảng): "mảng nào, bảng xuất riêng,
+             vẫn đang chung 1 bảng", rồi "4 chi phí, 4 bảng riêng biệt cho anh" — tách theo ĐẦU MỤC của
+             loại chi phí, không theo mảng của cơ sở. `xuatTablesDauMuc` bày N khối bảng, một khối một
+             đầu mục, khi dữ liệu có ≥ 2 đầu mục; còn một thì vẫn dùng đúng bảng cũ ở trên (`xuatTable`). -->
+        <div id="xuatTablesDauMuc" style="display:none"></div>
         <div class="empty" id="xuatEmpty">Chưa có đơn "Đã quyết toán" để xuất.</div>
       </div>
     </div>
@@ -10410,25 +10411,38 @@
       }
       return '<td'+(num?' class="money"':'')+' style="white-space:nowrap">'+(num?(v===''||v==null?'':money(v)):esc(v))+'</td>';}).join('')+'</tr>';
   }
+  /* 🧩 KHỐI BẢNG THEO ĐẦU MỤC — dùng chung cho bảng trên màn, sheet Excel và CSV dự phòng.
+     Anh Thắng 25/09/2026, nhìn bảng tách theo MẢNG cơ sở ("EVENT FZ MN · 43 dòng"): *"đã bảo tách
+     2 bảng riêng biệt, còn bảng POSH MN thuộc loại chi phí. 4 chi phí, 4 bảng riêng biệt cho anh"*
+     — phân loại lớn anh nói là ĐẦU MỤC của loại chi phí (Chi Phí Vận Hành · Cơ Sở KVC · Cơ Sở MTD ·
+     Khác), không phải mảng của cơ sở. `XUAT.rowDauMuc[i]` song song `XUAT.rows[i]` (máy chủ tra
+     từ loại trên dòng); `XUAT.dauMucThu` là thứ tự bày. Máy chủ cũ không trả / lệch độ dài → không
+     tách (một bảng như cũ), không đoán. */
+  function _xuatKhoiDauMuc(){
+    var dm=XUAT.rowDauMuc||[];
+    if(!XUAT.rows||!XUAT.rows.length||dm.length!==XUAT.rows.length) return {dm:[], thu:[]};
+    var co=dm.filter(function(v,i){return dm.indexOf(v)===i;});
+    var thu=(XUAT.dauMucThu||[]).filter(function(m){ return co.indexOf(m)>=0; });
+    co.forEach(function(m){ if(thu.indexOf(m)<0) thu.push(m); });
+    return {dm:dm, thu:thu};
+  }
   function renderXuat(){
     el('xuatSoDon').textContent=XUAT.sodon||0; el('xuatSoDong').textContent=XUAT.count||0;
     el('xuatEmpty').style.display=(XUAT.rows&&XUAT.rows.length)?'none':'block';
-    /* 🧮 MẢNG NÀO, BẢNG XUẤT RIÊNG — anh Thắng 25/09/2026: *"mảng nào, bảng xuất riêng, vẫn đang
-       chung 1 bảng"*. Cùng cách đếm với `_xlsxWorkbook()` (1.336.0): `XUAT.rowMang[i]` song song
-       với `XUAT.rows[i]`; ≥ 2 mảng khác nhau mới tách — một mảng thì giữ nguyên bảng cũ, không ai
-       thấy gì đổi. */
-    var mang=XUAT.rowMang||[], co=(XUAT.rows&&mang.length===XUAT.rows.length) ? mang.filter(function(v,i){return mang.indexOf(v)===i;}) : [];
-    var mot=(co.length<2);
+    /* 🧩 ĐẦU MỤC NÀO, BẢNG RIÊNG — xem `_xuatKhoiDauMuc()`. ≥ 2 đầu mục mới tách; một đầu mục thì
+       giữ nguyên bảng cũ, không ai thấy gì đổi. */
+    var k=_xuatKhoiDauMuc(), dm=k.dm, thu=k.thu;
+    var mot=(thu.length<2);
     if(el('xuatTable')) el('xuatTable').style.display=mot?'':'none';
-    if(el('xuatTablesMang')) el('xuatTablesMang').style.display=mot?'none':'';
+    if(el('xuatTablesDauMuc')) el('xuatTablesDauMuc').style.display=mot?'none':'';
     el('xuatHead').innerHTML=_xuatColsHead(XUAT.cols);
     el('xuatBody').innerHTML=mot?(XUAT.rows||[]).map(function(r){return _xuatRowHtml(XUAT.cols, r);}).join(''):'';
-    if(!mot && el('xuatTablesMang')){
-      el('xuatTablesMang').innerHTML=co.map(function(m){
-        var rows=XUAT.rows.filter(function(r,i){ return mang[i]===m; });
+    if(!mot && el('xuatTablesDauMuc')){
+      el('xuatTablesDauMuc').innerHTML=thu.map(function(m){
+        var rows=XUAT.rows.filter(function(r,i){ return dm[i]===m; });
         return '<div style="margin:0 0 18px">'
-          +'<div style="font-weight:800;color:#1e3a8a;background:#eef2ff;padding:8px 12px;border-radius:8px 8px 0 0;border:1px solid #c7d2fe;border-bottom:none">🧮 '
-          +esc(m||'(chưa khai mảng)')+' <span style="font-weight:500;color:#64748b">· '+rows.length+' dòng</span></div>'
+          +'<div style="font-weight:800;color:#1e3a8a;background:#eef2ff;padding:8px 12px;border-radius:8px 8px 0 0;border:1px solid #c7d2fe;border-bottom:none">🧩 '
+          +esc(m||'Chưa xếp đầu mục')+' <span style="font-weight:500;color:#64748b">· '+rows.length+' dòng</span></div>'
           +'<div class="tw" style="border:1px solid #c7d2fe;border-radius:0 0 8px 8px;overflow:auto;max-height:62vh"><table style="min-width:1150px"><thead>'
           +_xuatColsHead(XUAT.cols)+'</thead><tbody>'+rows.map(function(r){return _xuatRowHtml(XUAT.cols, r);}).join('')+'</tbody></table></div></div>';
       }).join('');
@@ -10549,33 +10563,33 @@
     w.innerHTML=dong;
   }
   /* ══════════════════════════════════════════════════════════════════════════════════════════
-   * MỘT SHEET MỘT MẢNG — anh Thắng 25/09/2026 (ảnh màn Xuất MISA): *"Chỗ misa cũng tách bảng
-   * riêng, để lỡ xuất misa nó đi theo phân loại lớn riêng"*. `XUAT.rowMang[i]` (song song với
-   * `XUAT.rows[i]`) nói dòng đó thuộc mảng nào — máy chủ đã gán lúc gom nhóm, không đoán lại
-   * ở đây theo chuỗi diễn giải.
+   * MỘT SHEET MỘT ĐẦU MỤC — anh Thắng 25/09/2026 (ảnh màn Xuất MISA): *"Chỗ misa cũng tách bảng
+   * riêng, để lỡ xuất misa nó đi theo phân loại lớn riêng"* · *"4 chi phí, 4 bảng riêng biệt cho
+   * anh"*. `XUAT.rowDauMuc[i]` (song song với `XUAT.rows[i]`) nói dòng đó thuộc đầu mục nào —
+   * máy chủ tra từ loại chi phí trên dòng, không đoán lại ở đây theo chuỗi diễn giải.
    *
-   * ⚠️ CHỈ TÁCH KHI THẬT SỰ CÓ ≥ 2 MẢNH KHÁC NHAU TRONG TỆP. Đã lọc còn một mảng (ô chọn Mảng
-   *    kinh doanh) hoặc dữ liệu vốn chỉ một mảng thì tách ra vẫn là một sheet — không cần đổi
-   *    tên sheet khỏi 'MISA' để khỏi phá thói quen cũ.
-   * ⚠️ TÊN SHEET PHẢI HỢP LỆ VỚI EXCEL: tối đa 31 ký tự, không chứa : \ / ? * [ ]; hai mảng
+   * ⚠️ CHỈ TÁCH KHI THẬT SỰ CÓ ≥ 2 ĐẦU MỤC KHÁC NHAU TRONG TỆP. Dữ liệu chỉ một đầu mục thì tách
+   *    ra vẫn là một sheet — không cần đổi tên sheet khỏi 'MISA' để khỏi phá thói quen cũ.
+   * ⚠️ TÊN SHEET PHẢI HỢP LỆ VỚI EXCEL: tối đa 31 ký tự, không chứa : \ / ? * [ ]; hai đầu mục
    *    trùng tên sau khi cắt/thay thì thêm số thứ tự, không được lặng lẽ đè sheet của nhau.
    * ══════════════════════════════════════════════════════════════════════════════════════════ */
   function _xlsxTenSheet(ten, daDung){
-    var s=String(ten||'(chưa khai mảng)').replace(/[:\\\/?*\[\]]/g,' ').trim().slice(0,31)||'Mang';
+    var s=String(ten||'Chưa xếp đầu mục').replace(/[:\\\/?*\[\]]/g,' ').trim().slice(0,31)||'DauMuc';
     var goc=s, n=2;
     while(daDung[s]){ var duoi=' ('+n+')'; s=goc.slice(0, 31-duoi.length)+duoi; n++; }
     daDung[s]=1; return s;
   }
+  /* Mỗi ĐẦU MỤC một sheet — cùng trục với bảng trên màn (`_xuatKhoiDauMuc`). */
   function _xlsxWorkbook(){
-    var mang=XUAT.rowMang||[], co=(mang.length===XUAT.rows.length) ? mang.filter(function(v,i){return mang.indexOf(v)===i;}) : [];
+    var k=_xuatKhoiDauMuc(), dm=k.dm, thu=k.thu;
     var wb=XLSX.utils.book_new();
-    if(co.length<2){
+    if(thu.length<2){
       XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([XUAT.cols].concat(XUAT.rows)), 'MISA');
       return wb;
     }
     var daDung={};
-    co.forEach(function(m){
-      var rows=XUAT.rows.filter(function(r,i){ return mang[i]===m; });
+    thu.forEach(function(m){
+      var rows=XUAT.rows.filter(function(r,i){ return dm[i]===m; });
       XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([XUAT.cols].concat(rows)), _xlsxTenSheet(m, daDung));
     });
     return wb;
@@ -10591,14 +10605,14 @@
       }
     }catch(e){ okXlsx=false; }
     if(!okXlsx){   // FALLBACK: máy chặn CDN -> tải CSV (có BOM). Không tách được nhiều sheet trong CSV,
-                   // nên chèn dải tiêu đề mảng + dòng trống giữa các khối để vẫn đọc riêng được từng mảng.
+                   // nên chèn dải tiêu đề đầu mục + dòng trống giữa các khối để vẫn đọc riêng được từng đầu mục.
       var ce=function(v){v=(v==null?'':String(v)); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
-      var mang=XUAT.rowMang||[], co=(mang.length===XUAT.rows.length) ? mang.filter(function(v,i){return mang.indexOf(v)===i;}) : [];
+      var kk=_xuatKhoiDauMuc(), dmk=kk.dm, thuk=kk.thu;
       var head=XUAT.cols.map(ce).join(',');
-      var csv=(co.length<2) ? head+'\n'+XUAT.rows.map(function(r){return r.map(ce).join(',');}).join('\n')
-        : co.map(function(m){
-            var rows=XUAT.rows.filter(function(r,i){ return mang[i]===m; });
-            return '=== '+ce(m||'(chưa khai mảng)')+' ==='+'\n'+head+'\n'+rows.map(function(r){return r.map(ce).join(',');}).join('\n');
+      var csv=(thuk.length<2) ? head+'\n'+XUAT.rows.map(function(r){return r.map(ce).join(',');}).join('\n')
+        : thuk.map(function(m){
+            var rows=XUAT.rows.filter(function(r,i){ return dmk[i]===m; });
+            return '=== '+ce(m||'Chưa xếp đầu mục')+' ==='+'\n'+head+'\n'+rows.map(function(r){return r.map(ce).join(',');}).join('\n');
           }).join('\n\n');
       var blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
       var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='MISA_VanHanhChiPhi'+(XUAT.mau==='soct'?('_SoChiTiet'+(XUAT.tkLoc?('_'+XUAT.tkLoc):'')):'')+'.csv'; document.body.appendChild(a); a.click();
@@ -12456,27 +12470,25 @@
       return /văn\s*phòng|van\s*phong|^vp\b|\bvp\s/i.test(g);
     });
   }
-  /* Mảng kinh doanh (Phân loại lớn) của MỘT cơ sở — đọc từ danh mục Cơ sở đã nạp. */
-  function _mangCuaCoSo(ten){
-    var t=String(ten||'').trim().toLowerCase(); if(!t) return '';
-    var f=(CFG.coso||[]).filter(function(x){ return String(x.ten||'').trim().toLowerCase()===t; })[0];
-    return f?String(f.phanLoaiLon||'').trim():'';
-  }
-  /* Mảng của MỘT ĐƠN — đơn thường một cơ sở, nhưng đơn vị nhiều cơ sở (POSH) có thể ghi nhiều
-     tên cách nhau dấu phẩy (xem `coso` ở `get_don`). Cả dải cùng một mảng thì lấy mảng đó; lẫn
-     nhiều mảng khác nhau thì về giỏ riêng "(nhiều mảng)" — không đoán bừa vào một trong số đó. */
-  function _mangCuaDon(d){
-    var ds=String((d&&d.coso)||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
-    if(!ds.length) return '';
-    var mg=ds.map(_mangCuaCoSo), uniq=mg.filter(function(v,i){return mg.indexOf(v)===i;});
-    return (uniq.length>1)?'(nhiều mảng)':(uniq[0]||'');
-  }
-  /* Thứ tự khối mảng: có tên trước (theo bảng chữ cái), rồi "(nhiều mảng)", rồi "(chưa khai mảng)"
-     (mã rỗng) — cùng luật "mảng rỗng xuống cuối" với `VHCPHN_Misa::export_misa()`. */
-  function _mangSapXep(a,b){
-    var hang=function(x){ return x===''?2:(x==='(nhiều mảng)'?1:0); };
+  /* 🧩 Đầu mục của MỘT ĐƠN — máy chủ tính sẵn `d.dauMuc` từ loại chi phí trên từng dòng
+     (`VHCPHN_Don::dau_muc_don_`): mọi dòng cùng đầu mục → đầu mục ấy; lẫn ≥ 2 đầu mục có tên →
+     "(nhiều đầu mục)"; không dòng nào có tên → '' (bày "Chưa xếp đầu mục"). Màn không tự đoán
+     lại vì bảng danh sách không chở từng dòng chi. Máy chủ cũ không trả → '' → một bảng như cũ. */
+  function _dauMucCuaDon(d){ return String((d&&d.dauMuc)||'').trim(); }
+  /* Thứ tự khối: theo bảng Đầu mục đã khai (`BOOT.dauMucDs`) trước, tên lạ sau theo bảng chữ cái,
+     rồi "(nhiều đầu mục)", rồi "Chưa xếp đầu mục" (rỗng) cuối — cùng luật với `VHCPHN_Cfg::xep_dau_muc()`. */
+  function _dauMucSapXep(a,b){
+    var ds=((typeof BOOT!=='undefined'&&BOOT&&BOOT.dauMucDs)||[]).map(function(t){ return String(t).toLowerCase(); });
+    var hang=function(x){
+      if(x==='') return [3,0,''];
+      if(x==='(nhiều đầu mục)') return [2,0,''];
+      var i=ds.indexOf(String(x).toLowerCase());
+      return i>=0 ? [0,i,''] : [1,0,String(x)];
+    };
     var ha=hang(a), hb=hang(b);
-    return (ha!==hb) ? (ha-hb) : (ha===0 ? String(a).localeCompare(String(b),'vi') : 0);
+    if(ha[0]!==hb[0]) return ha[0]-hb[0];
+    if(ha[1]!==hb[1]) return ha[1]-hb[1];
+    return ha[2].localeCompare(hb[2],'vi');
   }
   function _qtVeBang(khoa, rows, canBatch){
     var hoa=khoa==='cho'?'Cho':(khoa==='choVp'?'ChoVp':'Xong');
@@ -12489,25 +12501,26 @@
        Bảng Văn phòng CỘNG VÀO chứ không thay: thanh tích duyệt là chung cho cả hai bảng. */
     if(khoa==='cho') QT_ROWS_CHO=rows;
     if(khoa==='choVp') QT_ROWS_CHO=QT_ROWS_CHO.concat(rows);
-    /* 🧮 "ĐÃ QUYẾT TOÁN" TÁCH BẢNG THEO MẢNG KINH DOANH — anh Thắng 25/09/2026 (ảnh 107 đơn dồn
-       một bảng): *"Chỗ đã quyết toán vẫn đang chung 1 bảng, tách luôn"*. CHỈ ĐỔI CÁCH VẼ trang
+    /* 🧩 "ĐÃ QUYẾT TOÁN" TÁCH BẢNG THEO ĐẦU MỤC — anh Thắng 25/09/2026 (ảnh 107 đơn dồn một
+       bảng): *"Chỗ đã quyết toán vẫn đang chung 1 bảng, tách luôn"* · *"4 chi phí, 4 bảng riêng
+       biệt cho anh"* (đầu mục của loại chi phí, không phải mảng của cơ sở). CHỈ ĐỔI CÁCH VẼ trang
        đang xem (`lat`) — số đếm/tổng/phân trang bên dưới vẫn tính trên CẢ danh sách như cũ, không
-       theo từng mảng, nên không có gì lệch với thanh tổng hợp phía trên. Chỉ áp cho bảng 'xong':
+       theo từng đầu mục, nên không có gì lệch với thanh tổng hợp phía trên. Chỉ áp cho bảng 'xong':
        'cho'/'choVp' đã tách theo Văn phòng từ trước, không đụng thêm ở đây. */
     if(khoa==='xong'){
       var nhom={}, thu=[];
-      lat.forEach(function(d){ var m=_mangCuaDon(d); if(!nhom[m]){ nhom[m]=[]; thu.push(m); } nhom[m].push(d); });
-      thu.sort(_mangSapXep);
+      lat.forEach(function(d){ var m=_dauMucCuaDon(d); if(!nhom[m]){ nhom[m]=[]; thu.push(m); } nhom[m].push(d); });
+      thu.sort(_dauMucSapXep);
       var mot=(thu.length<2);
       if(el('qtTableXong')) el('qtTableXong').style.display=mot?'':'none';
       if(el('qtBodyXong')) el('qtBodyXong').innerHTML=mot?_tachDonVi(lat, function(d){ return _qtRowHtml(d, canBatch, COLS); }):'';
-      if(el('qtXongMangWrap')){
-        el('qtXongMangWrap').style.display=mot?'none':'';
-        el('qtXongMangWrap').innerHTML=mot?'':thu.map(function(m){
+      if(el('qtXongDauMucWrap')){
+        el('qtXongDauMucWrap').style.display=mot?'none':'';
+        el('qtXongDauMucWrap').innerHTML=mot?'':thu.map(function(m){
           var ds=nhom[m];
           return '<div style="margin:0 0 16px">'
-            +'<div style="font-weight:800;color:#1e3a8a;background:#eef2ff;padding:8px 12px;border-radius:8px 8px 0 0;border:1px solid #c7d2fe;border-bottom:none">🧮 '
-            +esc(m||'(chưa khai mảng)')+' <span style="font-weight:500;color:#64748b">· '+ds.length+' đơn</span></div>'
+            +'<div style="font-weight:800;color:#1e3a8a;background:#eef2ff;padding:8px 12px;border-radius:8px 8px 0 0;border:1px solid #c7d2fe;border-bottom:none">🧩 '
+            +esc(m||'Chưa xếp đầu mục')+' <span style="font-weight:500;color:#64748b">· '+ds.length+' đơn</span></div>'
             +'<div style="font-size:11.5px;color:#8c8781;padding:5px 12px;border:1px solid #c7d2fe;border-top:none;border-bottom:none;background:#fff">'+_qtSumHtml(ds)+'</div>'
             +'<div class="tw" style="border:1px solid #c7d2fe;border-radius:0 0 8px 8px;overflow:auto"><table style="width:100%"><thead><tr><th>Kỳ / tuần</th><th>Người lập</th><th>Cơ sở</th>'
             +'<th style="text-align:right">Tạm ứng</th><th style="text-align:right">Thực chi</th><th style="text-align:right">Thừa/thiếu</th><th>Hình thức</th><th>Trạng thái</th><th style="text-align:center">Thao tác</th></tr></thead><tbody>'

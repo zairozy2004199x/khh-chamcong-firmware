@@ -966,6 +966,20 @@ class VHCP_Don {
 	}
 
 	/** listDons(): danh sách đơn + số liệu đối chiếu (mới nhất trước). */
+	/**
+	 * Đầu mục của MỘT ĐƠN từ tập đầu mục của các dòng chi ({ tên => 1 }, '' = dòng chưa xếp).
+	 * Mọi dòng cùng một đầu mục → đầu mục ấy; lẫn ≥ 2 đầu mục CÓ TÊN → "(nhiều đầu mục)" — không
+	 * đoán bừa vào một trong số đó. Dòng chưa xếp KHÔNG kéo cả đơn ra khỏi đầu mục đã có tên
+	 * (danh mục dựng từ sổ cũ còn nhiều loại bỏ trống ô Đầu mục); chỉ khi KHÔNG dòng nào có tên
+	 * thì đơn về '' (màn bày "Chưa xếp đầu mục").
+	 */
+	public static function dau_muc_don_( $set ) {
+		$co_ten = array();
+		foreach ( array_keys( (array) $set ) as $t ) { if ( '' !== (string) $t ) { $co_ten[] = (string) $t; } }
+		if ( count( $co_ten ) > 1 ) { return '(nhiều đầu mục)'; }
+		return $co_ten ? $co_ten[0] : '';
+	}
+
 	public static function list_dons( $cp = null ) {
 		if ( $cp === null ) { $cp = self::cp_rows(); }
 		$dons = self::don_rows();
@@ -994,8 +1008,11 @@ class VHCP_Don {
 
 		/* Trạng thái của ĐƠN, tra được từ mã dòng — `thuc_chi()` cần biết đơn đã cấp tiền chưa,
 		   mà vòng dưới chỉ cầm dòng hạng mục. Dựng map một lượt, không hỏi lại từng dòng. */
-		$tt_don = array();
-		foreach ( $dons as $d ) { $tt_don[ (string) $d['ma_don'] ] = (string) $d['trang_thai']; }
+		$tt_don = array(); $khoi_don = array();
+		foreach ( $dons as $d ) {
+			$tt_don[ (string) $d['ma_don'] ]   = (string) $d['trang_thai'];
+			$khoi_don[ (string) $d['ma_don'] ] = trim( (string) ( isset( $d['khoi'] ) ? $d['khoi'] : '' ) );
+		}
 
 		/* 🔴 ĐƠN NÀO CHẠM TỚI BỘ PHẬN CỦA MÌNH — dựng một lượt, không hỏi lại từng đơn.
 		   Anh Thắng 08/09/2026: vai "Kế toán máy tự động" *"chỉ thực hiện công việc bên bộ
@@ -1016,10 +1033,15 @@ class VHCP_Don {
 		   như thế mà vẫn lọt là lọt nhờ mấy nhánh "cho qua" — xem chốt 🔴 ở chỗ gán `$bp_mo`. */
 		$don_ro     = array();
 
-		$xin = array(); $tt_cn = array(); $tt_ncc = array(); $coso_by = array();
+		$xin = array(); $tt_cn = array(); $tt_ncc = array(); $coso_by = array(); $dm_by = array();
 		foreach ( $cp as $r ) {
 			$m = (string) $r['ma_don'];
 			if ( $m === '' ) { continue; }
+			/* Đầu mục của từng dòng → đầu mục của ĐƠN (xem `dau_muc_don_`), để bảng Đã quyết toán
+			   tách theo đầu mục — anh Thắng 25/09/2026: *"4 chi phí, 4 bảng riêng biệt cho anh"*. */
+			$_dm = VHCP_Cfg::dau_muc_cua_loai( isset( $r['nhom'] ) ? $r['nhom'] : '', isset( $khoi_don[ $m ] ) ? $khoi_don[ $m ] : '' );
+			if ( ! isset( $dm_by[ $m ] ) ) { $dm_by[ $m ] = array(); }
+			$dm_by[ $m ][ $_dm ] = 1;
 			if ( '' !== $bo_phan_bo ) {
 				if ( ! isset( $don_cham[ $m ] ) ) { $don_cham[ $m ] = false; }
 				if ( VHCP_Auth::xem_duoc_loai( isset( $r['nhom'] ) ? $r['nhom'] : '' ) ) { $don_cham[ $m ] = true; }
@@ -1195,6 +1217,7 @@ class VHCP_Don {
 				'guiQTAt'     => self::xep_gui_qt_( $r ),
 				/* Đơn chưa xác định được bộ phận — màn bày mờ, và ẩn hẳn nếu người dùng tích. */
 				'bpMo'        => $bp_mo,
+				'dauMuc'      => self::dau_muc_don_( isset( $dm_by[ $m ] ) ? $dm_by[ $m ] : array() ),
 				'htCap'       => (string) $r['ht_cap'],
 				'anhCap'      => (string) $r['anh_cap'],
 				'tatToan'     => ( trim( (string) $r['tat_toan'] ) !== '' ),

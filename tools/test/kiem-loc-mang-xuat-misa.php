@@ -103,16 +103,12 @@ teq( '   TK Nợ 64196 (của mảng khác) + mảng Vận Hành: 0 dòng — ha
 $cu = VHCP_Misa::export_misa( 'all', 'chuaxuat', 'all', 'soct', 'all' );
 teq( '🔴 lời gọi CŨ (thiếu tham số mảng) vẫn ra đủ 4 dòng như trước khi thêm tính năng', 4, $cu['count'] );
 
-/* ── 6. rowMang song song với rows — anh Thắng 25/09/2026: "Chỗ misa cũng tách bảng riêng, để
-   lỡ xuất misa nó đi theo phân loại lớn riêng" — màn cần biết dòng nào thuộc mảng nào để tách
-   sheet, không đoán lại theo chuỗi diễn giải. ─────────────────────────────────────────────── */
-teq( '🔴 rowMang dài đúng bằng rows', 4, count( $all['rowMang'] ) );
-$theo_dong = array();
-foreach ( $all['rows'] as $i => $r ) { $theo_dong[ $all['rowMang'][ $i ] ] = isset( $theo_dong[ $all['rowMang'][ $i ] ] ) ? $theo_dong[ $all['rowMang'][ $i ] ] + 1 : 1; }
-teq( '🔴 đếm đúng theo mảng: 2 dòng Vận Hành · 1 dòng KVC · 1 "(chưa khai mảng)"', array( 'Chi Phí Cơ Sở KVC' => 1, 'Chi Phí Vận Hành' => 2, '(chưa khai mảng)' => 1 ), $theo_dong );
-/* Lọc còn một mảng thì mọi rowMang phải CÙNG giá trị đã lọc — không rơi mảng khác vào tệp. */
-$vh_mang = array_unique( $vh['rowMang'] );
-teq( '   lọc "Chi Phí Vận Hành": rowMang chỉ còn đúng một giá trị đó', array( 'Chi Phí Vận Hành' ), $vh_mang );
+/* ── 6. rowDauMuc song song với rows — trục tách bảng/sheet là ĐẦU MỤC của loại chi phí (xem
+   kiem-tach-bang-theo-dau-muc.php), KHÔNG phải mảng: bài này không khai loaiChiPhi nên mọi dòng
+   "chưa xếp" (''), và không có rowMang nữa. ──────────────────────────────────────────────── */
+teq( '🔴 rowDauMuc dài đúng bằng rows', 4, count( $all['rowDauMuc'] ) );
+teq( '   chưa khai danh mục loại → mọi dòng chưa xếp đầu mục, dauMucThu = [""]', array( array( '' ), array( '' ) ), array( array_values( array_unique( $all['rowDauMuc'] ) ), $all['dauMucThu'] ) );
+t( '   không còn khoá rowMang (mảng không phải trục tách)', ! isset( $all['rowMang'] ) );
 
 if ( $truot ) { echo "\n✗ TRƯỢT " . count( $truot ) . " phép (đạt $dat):\n"; foreach ( $truot as $x ) { echo "  · $x\n"; } exit( 1 ); }
-echo "\n✓ SẠCH — $dat phép: lọc Mảng kinh doanh trên Xuất MISA, mỗi mảng xuất thành một bảng riêng, rowMang cho tách sheet Excel.\n";
+echo "\n✓ SẠCH — $dat phép: lọc Mảng kinh doanh trên Xuất MISA; rowDauMuc song song rows cho tách bảng theo đầu mục.\n";

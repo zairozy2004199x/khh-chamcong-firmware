@@ -404,6 +404,8 @@ class VHCPVP_Misa {
 				'i'  => $stt_chen++,
 				'r'  => $r_out,
 				'tk' => $tk_no_ms,
+				/* Đầu mục của LOẠI trên dòng — trục tách bảng/sheet, xem `rowDauMuc` ở dưới. */
+				'dm' => VHCPVP_Cfg::dau_muc_cua_loai( $nhom, isset( $d['khoi'] ) ? $d['khoi'] : '' ),
 			);
 		}
 
@@ -419,15 +421,14 @@ class VHCPVP_Misa {
 		   lọc, hoặc lọc theo mã CHA (641) mà bên dưới có 6412 · 64122. Lọc về một mã lá → đúng 13 cột. */
 		$gop_tk = ( self::MAU_SOCT === $mau ) && ( '' === $tk_f || count( $tk_trong_tep ) > 1 );
 		$rows = array();
-		/* MẢNG của TỪNG DÒNG, song song với `$rows` — anh Thắng 25/09/2026: *"Chỗ misa cũng tách
-		   bảng riêng, để lỡ xuất misa nó đi theo phân loại lớn riêng"*. Màn cần biết dòng nào
-		   thuộc mảng nào để tách tệp Excel thành NHIỀU SHEET, một sheet một mảng — không phải
-		   đoán lại từ chuỗi diễn giải. Đọc thẳng từ khoá nhóm `$g` (đã mang `$pll_k` ở phần
-		   giữa "hạng||mảng||loại") nên không tính lại, không lệch với thứ tự dòng thật. */
-		$row_mang = array();
+		/* ĐẦU MỤC của TỪNG DÒNG, song song với `$rows` — anh Thắng 25/09/2026: *"Chỗ misa cũng tách
+		   bảng riêng, để lỡ xuất misa nó đi theo phân loại lớn riêng"*, rồi khi thấy bảng tách theo
+		   MẢNG cơ sở (EVENT FZ MN…): *"4 chi phí, 4 bảng riêng biệt cho anh"* — phân loại lớn anh
+		   nói là ĐẦU MỤC của loại chi phí (Chi Phí Vận Hành · Cơ Sở KVC · Cơ Sở MTD · Khác), không
+		   phải mảng của cơ sở. Màn dùng `rowDauMuc[i]` để tách bảng trên màn và tách sheet Excel;
+		   `dauMucThu` là thứ tự bày các bảng (theo bảng Đầu mục đã khai, "Chưa xếp" cuối). */
+		$row_dau_muc = array(); $dau_muc_mat = array();
 		foreach ( $nhom_order as $g ) {
-			$mang_cua_nhom = explode( '||', $g, 3 );
-			$mang_cua_nhom = isset( $mang_cua_nhom[1] ) ? $mang_cua_nhom[1] : '';
 			/* ⚠️ TRONG MỖI NHÓM, XẾP THEO NGÀY. Vòng gom ở trên chạy theo thứ tự CHÈN của bảng
 			   chi phí (số thứ tự dòng), không phải theo ngày — nên một đơn nhập muộn mà mang
 			   ngày cũ sẽ nằm sai chỗ. Kế toán đối chiếu MISA theo ngày, nên chỗ này phải xếp
@@ -443,9 +444,11 @@ class VHCPVP_Misa {
 				$r_ = $x['r'];
 				if ( $gop_tk ) { array_unshift( $r_, $x['tk'] ); }
 				$rows[] = $r_;
-				$row_mang[] = $mang_cua_nhom;
+				$row_dau_muc[] = $x['dm'];
+				$dau_muc_mat[ $x['dm'] ] = 1;
 			}
 		}
+		$dau_muc_thu = VHCPVP_Cfg::xep_dau_muc( array_keys( $dau_muc_mat ) );
 
 		/* ═══════════════════════════════════════════════════════════════════════════════════
 		   ĐẾM ĐƠN THEO MẢNG — để kế toán KVC biết tệp mình sắp xuất có bao nhiêu đơn của Máy
@@ -484,7 +487,7 @@ class VHCPVP_Misa {
 		return array( 'cols' => self::cols( $mau, $gop_tk ),
 			'mau' => $mau, 'tkLoc' => $tk_f, 'tkDs' => $tk_ds, 'tkCay' => self::cay_tk( $tk_ds ),
 			'mangLoc' => ( '' !== $mang_f ? $mang_f : 'all' ), 'mangDs' => $mang_ds,
-			'rows' => $rows, 'rowMang' => $row_mang, 'count' => count( $rows ), 'sodon' => $ndon,
+			'rows' => $rows, 'rowDauMuc' => $row_dau_muc, 'dauMucThu' => $dau_muc_thu, 'count' => count( $rows ), 'sodon' => $ndon,
 			'theoKhoi' => $theo_khoi,
 			'warn' => array_merge( array_keys( $warn ), VHCPVP_Misa::warn_ngay_xau( $ngay_xau ) ), 'maDons' => array_keys( $seen_don ) );
 	}

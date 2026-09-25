@@ -872,10 +872,13 @@ class VHCP_Cfg {
 
 	/** Cấu hình tĩnh của lượt request hiện tại (xóa cùng lúc với cache). */
 	private static $memo = null;
+	/** (tên loại|khối) => đầu mục — xem `dau_muc_cua_loai()`; xóa cùng lúc với `$memo`. */
+	private static $dm_memo = array();
 
 	public static function clear_cache() {
 		self::$bp_memo = null;
 		self::$memo = null;
+		self::$dm_memo = array();
 		wp_cache_delete( 'vhcp_cfgstatic', 'vhcp' );
 		wp_cache_delete( 'vhcp_quyen', 'vhcp' );
 		wp_cache_delete( 'vhcp_ssomap', 'vhcp' );
@@ -2070,6 +2073,50 @@ class VHCP_Cfg {
 			$out[ mb_strtolower( trim( (string) $x['ten'] ) ) ] = $x;
 		}
 		return $out;
+	}
+
+	/**
+	 * ĐẦU MỤC (phân loại lớn) của một loại chi phí — '' nếu chưa xếp hoặc loại không có trong danh mục.
+	 *
+	 * Anh Thắng 25/09/2026, ảnh bốn đầu mục "Chi Phí Vận Hành · Chi Phí Cơ Sở KVC · Chi Phí Cơ Sở
+	 * MTD · Chi Phí Khác": *"4 chi phí, 4 bảng riêng biệt cho anh"* — bảng MISA và bảng Đã quyết
+	 * toán tách theo trục NÀY, không theo mảng của cơ sở (EVENT FZ MN, POSH MN… là mảng, và
+	 * *"bảng POSH MN thuộc loại chi phí"*).
+	 *
+	 * ⚠️ Hỏi đúng khối trước (`loai_row( $ten, $khoi )`); khối ấy không có dòng thì hỏi lại KHÔNG
+	 *    khối. Đây là trục BÀY BẢNG, không phải trục hạch toán: một dòng của khối lệch mà rơi vào
+	 *    "Chưa xếp đầu mục" thì kế toán tưởng danh mục thiếu, trong khi loại ấy có khai đầu mục.
+	 * Nhớ theo (tên|khối) trong một lượt chạy — tệp MISA vài trăm dòng hỏi cùng dăm loại.
+	 */
+	public static function dau_muc_cua_loai( $ten, $khoi = '' ) {
+		$k = mb_strtolower( trim( (string) $ten ) ) . '|' . mb_strtolower( trim( (string) $khoi ) );
+		if ( isset( self::$dm_memo[ $k ] ) ) { return self::$dm_memo[ $k ]; }
+		$x = self::loai_row( $ten, $khoi );
+		if ( ! $x && '' !== trim( (string) $khoi ) ) { $x = self::loai_row( $ten, '' ); }
+		self::$dm_memo[ $k ] = $x && isset( $x['dauMuc'] ) ? trim( (string) $x['dauMuc'] ) : '';
+		return self::$dm_memo[ $k ];
+	}
+
+	/**
+	 * Xếp thứ tự danh sách đầu mục để bày bảng: theo thứ tự khai ở bảng Đầu mục trước, tên lạ
+	 * (còn trong sổ mà bảng đã bỏ) xếp sau theo bảng chữ cái, rồi "(nhiều đầu mục)", rỗng CUỐI.
+	 */
+	public static function xep_dau_muc( $ds ) {
+		$thu = array();
+		foreach ( self::dau_muc_ds() as $i => $t ) { $thu[ mb_strtolower( $t ) ] = $i; }
+		$hang = function ( $t ) use ( $thu ) {
+			if ( '' === $t ) { return array( 3, 0, '' ); }
+			if ( '(nhiều đầu mục)' === $t ) { return array( 2, 0, '' ); }
+			$k = mb_strtolower( $t );
+			return isset( $thu[ $k ] ) ? array( 0, $thu[ $k ], '' ) : array( 1, 0, $k );
+		};
+		usort( $ds, function ( $a, $b ) use ( $hang ) {
+			$ha = $hang( $a ); $hb = $hang( $b );
+			if ( $ha[0] !== $hb[0] ) { return $ha[0] - $hb[0]; }
+			if ( $ha[1] !== $hb[1] ) { return $ha[1] - $hb[1]; }
+			return strnatcasecmp( $ha[2], $hb[2] );
+		} );
+		return array_values( $ds );
 	}
 
 	/**
