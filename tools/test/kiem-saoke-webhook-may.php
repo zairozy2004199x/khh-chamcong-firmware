@@ -163,7 +163,7 @@ echo "── 3. Webhook sống ghi vào bảng cổng ────────�
 t( '🔴 cong_nhan_webhook() đã có nơi gọi (trước 0.20.0 là mã chết)',
 	substr_count( $SRC, 'self::cong_nhan_webhook(' ) >= 2,
 	substr_count( $SRC, 'self::cong_nhan_webhook(' ) . ' chỗ gọi' );
-t( 'VietQR chính thức gọi nó', false !== strpos( $SRC, "self::cong_nhan_webhook( 'vietqr', \$req )" ) );
+t( 'VietQR chính thức gọi nó', false !== strpos( $SRC, "self::cong_nhan_webhook( 'vietqr', \$req, array( 'soTK' => (string) \$tkVqr['so_tk'] ) )" ) );
 t( 'webhook chung cũng gọi khi src là một cổng',
 	false !== strpos( $SRC, 'if ( in_array( $nguon, self::cong_ds(), true ) ) {' ) );
 

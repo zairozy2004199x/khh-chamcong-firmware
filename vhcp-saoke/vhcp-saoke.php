@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.48.0
+ * Version:           0.49.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -25,7 +25,7 @@ class SAOKE_App {
 	   thêm file"* — câu đầu tiên phải trả lời là "bản đang chạy có khối ấy chưa", mà trang thì
 	   không in số bản ở đâu cả, nên không ai đáp được ngoài cách đi mở wp-admin. Ghi ở đây, hiện
 	   ở góc cột trái. ⚠️ PHẢI BẰNG số ở header `Version:` phía trên — hai chỗ, một giá trị. */
-	const VER = '0.48.0';
+	const VER = '0.49.0';
 
 	/* 3 cổng thanh toán + tên hiển thị. Việt QR về bank 1:1; MoMo/VNPAY gộp cục N:1. */
 	private static function cong_ds() { return array( 'vietqr', 'momo', 'vnpay' ); }
@@ -726,13 +726,15 @@ class SAOKE_App {
 		) );
 		return true;
 	}
-	private static function cong_nhan_webhook( $nguon, $req ) {
+	private static function cong_nhan_webhook( $nguon, $req, $macDinh = array() ) {
 		$raw = $req->get_body(); if ( '' === trim( (string) $raw ) ) { $raw = wp_json_encode( $req->get_json_params() ); }
 		$list = self::cong_doc_payload( $raw );
 		if ( ! count( $list ) ) { return array( 'moi' => 0, 'trung' => 0, 'chuaDoc' => 0, 'message' => 'không đọc được giao dịch từ payload' ); }
 		$moi = 0; $trung = 0; $kho = 0;
 		foreach ( $list as $tx ) {
 			$tx['nguon'] = $nguon; $tx['khoa'] = self::cong_khoa( $nguon, $tx, $raw ); $tx['raw'] = $raw;
+			/* 0.49.0: payload không mang số TK → gắn số TK của tài khoản VietQR mà token thuộc về (tách hai tài khoản). */
+			if ( '' === trim( (string) ( isset( $tx['soTK'] ) ? $tx['soTK'] : '' ) ) && ! empty( $macDinh['soTK'] ) ) { $tx['soTK'] = (string) $macDinh['soTK']; }
 			if ( empty( $tx['docDuoc'] ) ) { $kho++; }
 			if ( self::luu_cong( $tx ) ) { $moi++; } else { $trung++; }
 		}
@@ -740,15 +742,53 @@ class SAOKE_App {
 	}
 
 	// ═══════════════ VietQR CHÍNH THỨC (token_generate + transaction-callback) ═══════════════
-	private static function vqr_secret() { $p = (string) get_option( 'saoke_vqr_pass', '' ); return '' !== $p ? ( $p . '|' . wp_salt( 'auth' ) ) : wp_salt( 'auth' ); }
-	private static function vqr_make_token( $exp ) { $p = 'exp=' . $exp; return rtrim( strtr( base64_encode( $p ), '+/', '-_' ), '=' ) . '.' . hash_hmac( 'sha256', $p, self::vqr_secret() ); }
+	/**
+	 * DANH SÁCH TÀI KHOẢN VIETQR CHÍNH THỨC (0.49.0) — anh Thắng 25/09/2026: *"anh muốn thêm tài khoản
+	 * thứ 2 của VietQR"*. Mỗi tài khoản = một cặp username/password mà cổng dùng gọi Token URL + số TK
+	 * ngân hàng nhận tiền của tài khoản ấy. Lưu option `saoke_vqr_tk` (mảng). Cặp cũ
+	 * `saoke_vqr_user/pass` được coi là tài khoản #1 khi danh sách trống — cài đè không phải khai lại.
+	 * Token cấp cho tài khoản nào thì ghi `tk=<id>` trong payload và ký bằng mật khẩu của chính tài
+	 * khoản ấy: giao dịch về theo token nào là biết của tài khoản nào, dù payload cổng thiếu số TK.
+	 */
+	private static function vqr_tk_ds() {
+		$ds = get_option( 'saoke_vqr_tk' ); $ds = is_array( $ds ) ? array_values( $ds ) : array();
+		$ra = array();
+		foreach ( $ds as $t ) {
+			if ( ! is_array( $t ) ) { continue; }
+			$u = trim( (string) ( isset( $t['user'] ) ? $t['user'] : '' ) ); if ( '' === $u ) { continue; }
+			$ra[] = array( 'id' => (string) ( isset( $t['id'] ) ? $t['id'] : '' ), 'nhan' => trim( (string) ( isset( $t['nhan'] ) ? $t['nhan'] : '' ) ),
+				'user' => $u, 'pass' => (string) ( isset( $t['pass'] ) ? $t['pass'] : '' ),
+				'so_tk' => preg_replace( '/\s+/', '', (string) ( isset( $t['so_tk'] ) ? $t['so_tk'] : '' ) ),
+				'ngan_hang' => trim( (string) ( isset( $t['ngan_hang'] ) ? $t['ngan_hang'] : '' ) ) );
+		}
+		if ( ! $ra ) {
+			$u = (string) get_option( 'saoke_vqr_user', '' ); $p = (string) get_option( 'saoke_vqr_pass', '' );
+			if ( '' !== $u && '' !== $p ) { $ra[] = array( 'id' => 'tk1', 'nhan' => 'Tài khoản 1', 'user' => $u, 'pass' => $p, 'so_tk' => '', 'ngan_hang' => '' ); }
+		}
+		return $ra;
+	}
+	private static function vqr_tk_theo_id_( $id ) { foreach ( self::vqr_tk_ds() as $t ) { if ( (string) $t['id'] === (string) $id ) { return $t; } } return null; }
+	/* Bí mật ký token. Có tài khoản → ký bằng mật khẩu của tài khoản đó; không → bí mật cũ (token cấp trước 0.49.0). */
+	private static function vqr_secret( $tk = null ) {
+		if ( is_array( $tk ) && '' !== (string) $tk['pass'] ) { return (string) $tk['pass'] . '|' . wp_salt( 'auth' ); }
+		$p = (string) get_option( 'saoke_vqr_pass', '' ); return '' !== $p ? ( $p . '|' . wp_salt( 'auth' ) ) : wp_salt( 'auth' );
+	}
+	private static function vqr_make_token( $exp, $tk = null ) {
+		$p = 'exp=' . $exp . ( is_array( $tk ) && '' !== (string) $tk['id'] ? ( ';tk=' . $tk['id'] ) : '' );
+		return rtrim( strtr( base64_encode( $p ), '+/', '-_' ), '=' ) . '.' . hash_hmac( 'sha256', $p, self::vqr_secret( $tk ) );
+	}
+	/** Trả TÀI KHOẢN (mảng) mà token thuộc về, hoặc false. Token cũ không có `tk=` → tài khoản #1 (bí mật cũ). */
 	private static function vqr_check_token( $tok ) {
 		$tok = trim( (string) $tok ); $parts = explode( '.', $tok );
 		if ( count( $parts ) !== 2 ) { return false; }
 		$p = base64_decode( strtr( $parts[0], '-_', '+/' ) );
-		if ( ! hash_equals( hash_hmac( 'sha256', $p, self::vqr_secret() ), $parts[1] ) ) { return false; }
 		if ( ! preg_match( '/exp=(\d+)/', (string) $p, $m ) ) { return false; }
-		return time() <= (int) $m[1];
+		$tk = null;
+		if ( preg_match( '/tk=([A-Za-z0-9_-]+)/', (string) $p, $k ) ) { $tk = self::vqr_tk_theo_id_( $k[1] ); if ( ! $tk ) { return false; } }
+		if ( ! hash_equals( hash_hmac( 'sha256', $p, self::vqr_secret( $tk ) ), $parts[1] ) ) { return false; }
+		if ( time() > (int) $m[1] ) { return false; }
+		if ( ! $tk ) { $ds = self::vqr_tk_ds(); $tk = $ds ? $ds[0] : array( 'id' => '', 'nhan' => '', 'user' => '', 'pass' => '', 'so_tk' => '', 'ngan_hang' => '' ); }
+		return $tk;
 	}
 	/* Lấy header Authorization dù server strip mất (một số host cần PHP_AUTH_* / REDIRECT_). */
 	private static function auth_header( $req ) {
@@ -759,24 +799,28 @@ class SAOKE_App {
 	}
 	/* VietQR gọi để lấy token — Basic Auth bằng user/pass mình khai. Trả JWT-like access_token. */
 	public static function r_vqr_token( $req ) {
-		$user = (string) get_option( 'saoke_vqr_user', '' ); $pass = (string) get_option( 'saoke_vqr_pass', '' );
-		if ( '' === $user || '' === $pass ) { return new WP_REST_Response( array( 'error' => true, 'errorReason' => 'chưa khai user/pass VietQR' ), 401 ); }
+		$ds = self::vqr_tk_ds();
+		if ( ! $ds ) { return new WP_REST_Response( array( 'error' => true, 'errorReason' => 'chưa khai tài khoản VietQR (user/pass)' ), 401 ); }
 		$u = ''; $p = '';
 		$h = self::auth_header( $req );
 		if ( 0 === stripos( $h, 'basic ' ) ) { $dec = base64_decode( trim( substr( $h, 6 ) ) ); if ( false !== strpos( $dec, ':' ) ) { list( $u, $p ) = explode( ':', $dec, 2 ); } }
 		if ( '' === $u && isset( $_SERVER['PHP_AUTH_USER'] ) ) { $u = (string) $_SERVER['PHP_AUTH_USER']; $p = isset( $_SERVER['PHP_AUTH_PW'] ) ? (string) $_SERVER['PHP_AUTH_PW'] : ''; }
 		// Cũng nhận user/pass trong body (một số cấu hình VietQR gửi kèm).
 		if ( '' === $u ) { $b = $req->get_json_params(); if ( is_array( $b ) ) { $u = (string) ( isset( $b['username'] ) ? $b['username'] : '' ); $p = (string) ( isset( $b['password'] ) ? $b['password'] : '' ); } }
-		if ( ! hash_equals( $user, $u ) || ! hash_equals( $pass, $p ) ) { return new WP_REST_Response( array( 'error' => true, 'errorReason' => 'sai username/password' ), 401 ); }
+		$tk = null;
+		foreach ( $ds as $t ) { if ( '' !== $t['pass'] && hash_equals( $t['user'], $u ) && hash_equals( $t['pass'], $p ) ) { $tk = $t; break; } }
+		if ( ! $tk ) { return new WP_REST_Response( array( 'error' => true, 'errorReason' => 'sai username/password' ), 401 ); }
 		$exp = time() + 12 * 3600;
-		return new WP_REST_Response( array( 'access_token' => self::vqr_make_token( $exp ), 'token_type' => 'Bearer', 'expires_in' => 12 * 3600 ), 200 );
+		self::ghi_log( 'vietqr-official', '🔑 cấp token cho tài khoản "' . ( '' !== $tk['nhan'] ? $tk['nhan'] : $tk['user'] ) . '"', '' );
+		return new WP_REST_Response( array( 'access_token' => self::vqr_make_token( $exp, $tk ), 'token_type' => 'Bearer', 'expires_in' => 12 * 3600 ), 200 );
 	}
 	/* VietQR gọi mỗi khi có biến động. VietQR ở TÀI KHOẢN KHÁC với SePay → đây là tiền THẬT
 	   trên tài khoản đó, SePay không thấy → lưu thẳng vào SAO KÊ NGÂN HÀNG (saoke_gd), gộp chung.
 	   Không sợ trùng: khác tài khoản + mã GD riêng (chống trùng theo sepay_id 'vqr-<mã>'). */
 	public static function r_vqr_callback( $req ) {
 		$h = self::auth_header( $req ); $bearer = 0 === stripos( $h, 'bearer ' ) ? trim( substr( $h, 7 ) ) : '';
-		if ( '' === $bearer || ! self::vqr_check_token( $bearer ) ) {
+		$tkVqr = '' !== $bearer ? self::vqr_check_token( $bearer ) : false;
+		if ( ! $tkVqr ) {
 			self::ghi_log( 'vietqr-official', '✖ token không hợp lệ/hết hạn', (string) $req->get_body() );
 			return new WP_REST_Response( array( 'error' => true, 'errorReason' => 'token không hợp lệ hoặc hết hạn' ), 401 );
 		}
@@ -793,8 +837,9 @@ class SAOKE_App {
 		$moi = self::luu_gd( array(
 			'sepay_id'  => $sid,
 			'ngay_gd'   => self::cong_ngay_mysql( $thoiDiem ),
-			'so_tk'     => (string) $g( array( 'bankaccount', 'bankAccount', 'accountNumber', 'account_number' ) ),
-			'ngan_hang' => (string) $g( array( 'bankName', 'bank_name', 'bankCode' ), 'VietQR' ),
+			/* 0.49.0: payload thiếu số TK / ngân hàng thì lấy của TÀI KHOẢN mà token thuộc về — đây là chỗ hai tài khoản tách nhau ra. */
+			'so_tk'     => (string) $g( array( 'bankaccount', 'bankAccount', 'accountNumber', 'account_number' ), (string) $tkVqr['so_tk'] ),
+			'ngan_hang' => (string) $g( array( 'bankName', 'bank_name', 'bankCode' ), '' !== (string) $tkVqr['ngan_hang'] ? (string) $tkVqr['ngan_hang'] : 'VietQR' ),
 			'loai'      => $loai,
 			'tien'      => (int) round( self::num( $g( array( 'amount', 'transferAmount', 'amountIn', 'creditAmount' ), 0 ) ) ),
 			'luy_ke'    => null,
@@ -810,10 +855,11 @@ class SAOKE_App {
 		 *
 		 * ⚠️ Chèn đúp là không thể: `luu_cong()` dò trùng theo khoá, và từ 0.20.0 dò thêm theo mã
 		 *    tham chiếu + số tiền, nên nạp lại file kết xuất của cùng kỳ vẫn ra "0 dòng mới". */
-		$kqCong = self::cong_nhan_webhook( 'vietqr', $req );
+		$kqCong = self::cong_nhan_webhook( 'vietqr', $req, array( 'soTK' => (string) $tkVqr['so_tk'] ) );
 		$ghiCong = ( isset( $kqCong['moi'] ) && $kqCong['moi'] > 0 )
 			? ( ' · bảng cổng +' . (int) $kqCong['moi'] ) : ' · bảng cổng: đã có';
-		self::ghi_log( 'vietqr-official', ( $moi ? ( '✔ đã lưu vào Sao kê NH ' . ( '' !== $maGD ? $maGD : $ref ) ) : 'trùng, bỏ qua' ) . $ghiCong, $raw );
+		self::ghi_log( 'vietqr-official', ( $moi ? ( '✔ đã lưu vào Sao kê NH ' . ( '' !== $maGD ? $maGD : $ref ) ) : 'trùng, bỏ qua' ) . $ghiCong
+			. ( '' !== (string) $tkVqr['nhan'] ? ( ' · TK "' . $tkVqr['nhan'] . '"' ) : '' ), $raw );
 		// VietQR chờ đúng envelope này để coi là nhận thành công.
 		return new WP_REST_Response( array( 'error' => false, 'errorReason' => '', 'toControllerCode' => '',
 			'object' => array( 'reftransactionid' => '' !== $maGD ? $maGD : $ref ) ), 200 );
@@ -825,6 +871,12 @@ class SAOKE_App {
 		$c = self::cong_ngay( $v ); if ( '' !== $c ) { return $c; }
 		$c = self::cong_ngay_iso( $v ); if ( '' !== $c ) { return $c; }
 		$t = strtotime( $v ); return $t ? gmdate( 'd/m/Y H:i:s', $t + 7 * 3600 ) : '';
+	}
+	/* Danh sách tài khoản VietQR để hiện ra màn — KHÔNG kèm mật khẩu (§4). */
+	private static function vqr_tk_cong_khai_() {
+		$ra = array();
+		foreach ( self::vqr_tk_ds() as $t ) { $ra[] = array( 'id' => $t['id'], 'nhan' => $t['nhan'], 'user' => $t['user'], 'soTK' => $t['so_tk'], 'nganHang' => $t['ngan_hang'], 'coPass' => '' !== $t['pass'] ); }
+		return $ra;
 	}
 	public static function r_vqr_cfg( $req ) {
 		if ( ! self::pin_ok( $req ) ) { return self::loi_pin(); }
@@ -864,6 +916,7 @@ class SAOKE_App {
 			// VietQR chính thức
 			'vqrUser' => (string) get_option( 'saoke_vqr_user', '' ),
 			'hasVqrPass' => '' !== (string) get_option( 'saoke_vqr_pass', '' ),
+			'vqrTk' => self::vqr_tk_cong_khai_(),
 			'vqrTokenUrl' => esc_url_raw( rest_url( self::NS . '/vqr/api/token_generate' ) ),
 			'vqrCallbackUrl' => esc_url_raw( rest_url( self::NS . '/vqr/bank/api/transaction-callback' ) ),
 			'vqrBaseUrl' => esc_url_raw( rest_url( self::NS ) ),
@@ -2396,12 +2449,29 @@ class SAOKE_App {
 			echo '<div class="notice notice-success"><p>Đã lưu mã nộp theo cơ sở (' . count( $map ) . ' cơ sở có mã).</p></div>';
 		}
 		if ( isset( $_POST['saoke_luu_vqr'] ) && check_admin_referer( 'saoke_cfg' ) ) {
-			$u = trim( sanitize_text_field( wp_unslash( $_POST['vqr_user'] ) ) );
-			update_option( 'saoke_vqr_user', $u );
-			// Mật khẩu: chỉ ghi đè khi nhập mới (bỏ trống = giữ nguyên, không hiện ra màn cho an toàn).
-			$p = (string) wp_unslash( $_POST['vqr_pass'] );
-			if ( '' !== trim( $p ) ) { update_option( 'saoke_vqr_pass', $p ); }
-			echo '<div class="notice notice-success"><p>Đã lưu thông tin VietQR chính thức.</p></div>';
+			/* 0.49.0: NHIỀU tài khoản VietQR — mỗi dòng một cặp user/pass + số TK. Mật khẩu chỉ ghi đè khi
+			   nhập mới (trống = giữ mật khẩu cũ của dòng đó); dòng tích Xoá thì bỏ. Dòng đầu tiên đồng thời
+			   chép sang cặp cũ `saoke_vqr_user/pass` để chỗ nào còn đọc cặp cũ vẫn đúng. */
+			$cu = array(); foreach ( self::vqr_tk_ds() as $t ) { $cu[ $t['id'] ] = $t; }
+			$vao = isset( $_POST['vqr_tk'] ) && is_array( $_POST['vqr_tk'] ) ? wp_unslash( $_POST['vqr_tk'] ) : array();
+			$moi = array(); $n = 0;
+			foreach ( $vao as $r ) {
+				if ( ! is_array( $r ) ) { continue; }
+				$u = trim( sanitize_text_field( isset( $r['user'] ) ? $r['user'] : '' ) );
+				if ( '' === $u || ! empty( $r['xoa'] ) ) { continue; }
+				$id = preg_replace( '/[^A-Za-z0-9_-]/', '', (string) ( isset( $r['id'] ) ? $r['id'] : '' ) );
+				if ( '' === $id ) { $id = 'tk' . substr( md5( $u . microtime( true ) . ++$n ), 0, 8 ); }
+				$p = (string) ( isset( $r['pass'] ) ? $r['pass'] : '' );
+				if ( '' === trim( $p ) ) { $p = isset( $cu[ $id ] ) ? (string) $cu[ $id ]['pass'] : ''; }
+				$moi[] = array( 'id' => $id, 'nhan' => trim( sanitize_text_field( isset( $r['nhan'] ) ? $r['nhan'] : '' ) ), 'user' => $u, 'pass' => $p,
+					'so_tk' => preg_replace( '/\s+/', '', sanitize_text_field( isset( $r['so_tk'] ) ? $r['so_tk'] : '' ) ),
+					'ngan_hang' => trim( sanitize_text_field( isset( $r['ngan_hang'] ) ? $r['ngan_hang'] : '' ) ) );
+			}
+			update_option( 'saoke_vqr_tk', $moi, false );
+			if ( $moi ) { update_option( 'saoke_vqr_user', $moi[0]['user'] ); if ( '' !== $moi[0]['pass'] ) { update_option( 'saoke_vqr_pass', $moi[0]['pass'] ); } }
+			else { update_option( 'saoke_vqr_user', '' ); update_option( 'saoke_vqr_pass', '' ); }
+			$thieuPass = 0; foreach ( $moi as $t ) { if ( '' === $t['pass'] ) { $thieuPass++; } }
+			echo '<div class="notice notice-success"><p>Đã lưu ' . count( $moi ) . ' tài khoản VietQR chính thức.' . ( $thieuPass ? ( ' ⚠ ' . $thieuPass . ' tài khoản CHƯA có mật khẩu — cổng sẽ không lấy được token cho tài khoản ấy.' ) : '' ) . '</p></div>';
 		}
 		$key = (string) get_option( 'saoke_webhook_key', '' );
 		$url = esc_url_raw( rest_url( self::NS . '/webhook' ) ) . ( $key ? ( '?key=' . rawurlencode( $key ) ) : '' );
@@ -2442,13 +2512,28 @@ class SAOKE_App {
 		$tokUrl  = esc_url_raw( rest_url( self::NS . '/vqr/api/token_generate' ) );
 		$cbUrl   = esc_url_raw( rest_url( self::NS . '/vqr/bank/api/transaction-callback' ) );
 		$cbTest  = esc_url_raw( rest_url( self::NS . '/vqr/bank/api/test/transaction-callback' ) );
-		$vqrUser = (string) get_option( 'saoke_vqr_user', '' );
-		$hasPass = '' !== (string) get_option( 'saoke_vqr_pass', '' );
-		echo '<hr><h2>VietQR chính thức (API Service)</h2>';
+		$dsTk = self::vqr_tk_ds();
+		echo '<hr><h2>VietQR chính thức (API Service) — ' . count( $dsTk ) . ' tài khoản</h2>';
 		echo '<p class="description">Cổng gọi <b>VÀO</b> server mình: trước tiên lấy token qua <b>Token URL</b> (Basic Auth bằng username/password dưới đây), sau đó bắn giao dịch về <b>Callback URL</b> kèm <code>Authorization: Bearer &lt;token&gt;</code>. Giao dịch nhận được lưu thẳng vào Sao kê ngân hàng (nguồn <code>vietqr</code>), chống trùng theo mã GD. Dùng cho môi trường UAT lẫn thật.</p>';
-		echo '<form method="post"><table class="form-table">'; wp_nonce_field( 'saoke_cfg' );
-		echo '<tr><th>Username (khai với cổng)</th><td><input name="vqr_user" class="regular-text code" value="' . esc_attr( $vqrUser ) . '" placeholder="username cấp cho cổng gọi token"></td></tr>';
-		echo '<tr><th>Password</th><td><input type="password" name="vqr_pass" class="regular-text code" autocomplete="new-password" placeholder="' . ( $hasPass ? 'đã đặt — nhập để đổi' : 'chưa đặt' ) . '"> <span class="description">Bỏ trống = giữ nguyên. Không hiện lại ra màn hình.</span></td></tr>';
+		echo '<form method="post">'; wp_nonce_field( 'saoke_cfg' );
+		/* 0.49.0: mỗi dòng một tài khoản; dòng cuối để trống là dòng THÊM MỚI. Cổng gọi Token URL bằng
+		   user/pass của tài khoản nào thì giao dịch về được gắn số TK của tài khoản ấy. */
+		echo '<p class="description">Mỗi tài khoản VietQR (mỗi pháp nhân / mỗi tài khoản ngân hàng nhận tiền) một dòng. Khai <b>cùng Token URL và Callback URL</b> bên dưới cho mọi tài khoản ở cổng, chỉ khác <b>username/password</b>. Số TK nhận tiền dùng để tách giao dịch theo tài khoản khi payload cổng không kèm số TK.</p>';
+		echo '<table class="widefat striped" style="max-width:1100px"><thead><tr><th style="width:16%">Nhãn</th><th style="width:20%">Username (khai với cổng)</th><th style="width:20%">Password</th><th style="width:18%">Số TK nhận tiền</th><th style="width:16%">Ngân hàng</th><th>Xoá</th></tr></thead><tbody>';
+		$i = 0;
+		foreach ( array_merge( $dsTk, array( array( 'id' => '', 'nhan' => '', 'user' => '', 'pass' => '', 'so_tk' => '', 'ngan_hang' => '' ) ) ) as $t ) {
+			$la_moi = ( '' === (string) $t['id'] );
+			echo '<tr' . ( $la_moi ? ' style="background:#f6fff6"' : '' ) . '>'
+				. '<td><input type="hidden" name="vqr_tk[' . $i . '][id]" value="' . esc_attr( $t['id'] ) . '"><input name="vqr_tk[' . $i . '][nhan]" value="' . esc_attr( $t['nhan'] ) . '" placeholder="' . ( $la_moi ? '+ tài khoản mới' : 'vd K&H 705' ) . '" style="width:100%"></td>'
+				. '<td><input name="vqr_tk[' . $i . '][user]" class="code" value="' . esc_attr( $t['user'] ) . '" placeholder="username" style="width:100%"></td>'
+				. '<td><input type="password" name="vqr_tk[' . $i . '][pass]" class="code" autocomplete="new-password" placeholder="' . ( '' !== $t['pass'] ? 'đã đặt — nhập để đổi' : 'chưa đặt' ) . '" style="width:100%"></td>'
+				. '<td><input name="vqr_tk[' . $i . '][so_tk]" class="code" value="' . esc_attr( $t['so_tk'] ) . '" placeholder="số TK nhận" style="width:100%"></td>'
+				. '<td><input name="vqr_tk[' . $i . '][ngan_hang]" value="' . esc_attr( $t['ngan_hang'] ) . '" placeholder="vd Vietcombank" style="width:100%"></td>'
+				. '<td style="text-align:center">' . ( $la_moi ? '' : '<input type="checkbox" name="vqr_tk[' . $i . '][xoa]" value="1">' ) . '</td></tr>';
+			$i++;
+		}
+		echo '</tbody></table><table class="form-table">';
+		echo '<tr><th>Mật khẩu</th><td><span class="description">Bỏ trống = giữ nguyên. Không hiện lại ra màn hình.</span></td></tr>';
 		echo '<tr><th>Token URL</th><td><code>' . esc_html( $tokUrl ) . '</code><br><span class="description">POST · Basic Auth = username/password ở trên · trả <code>access_token</code> (Bearer, hạn 12h).</span></td></tr>';
 		echo '<tr><th>Callback URL (thật)</th><td><code>' . esc_html( $cbUrl ) . '</code></td></tr>';
 		echo '<tr><th>Callback URL (test/UAT)</th><td><code>' . esc_html( $cbTest ) . '</code><br><span class="description">Dán URL này (hoặc URL thật) vào cổng rồi bấm <b>Test Callback</b>. Cùng một trình xử lý.</span></td></tr>';
@@ -2914,6 +2999,10 @@ class SAOKE_App {
 		$nguon = strtolower( trim( isset( $a[1] ) ? (string) $a[1] : '' ) );
 		if ( ! in_array( $nguon, self::cong_ds(), true ) ) { self::loi( 'Nguồn không hợp lệ: ' . $nguon ); }
 		$tu = self::vn2ymd( isset( $a[2] ) ? (string) $a[2] : '' ); $den = self::vn2ymd( isset( $a[3] ) ? (string) $a[3] : '' );
+		/* 0.49.0: lọc theo TÀI KHOẢN VietQR (số TK nhận) — anh Thắng 25/09/2026 thêm tài khoản thứ 2. Rỗng = tất cả. */
+		$locTk = preg_replace( '/\s+/', '', (string) ( isset( $a[4] ) ? $a[4] : '' ) );
+		$theoTk = array();
+		foreach ( self::vqr_tk_ds() as $t ) { if ( '' !== $t['so_tk'] ) { $theoTk[ $t['so_tk'] ] = array( 'soTK' => $t['so_tk'], 'nhan' => $t['nhan'], 'nganHang' => $t['ngan_hang'], 'tien' => 0, 'dong' => 0 ); } }
 		$tuKhoa = self::cong_tukhoa( $nguon ); $anhXa = self::ds_anhxa( $nguon ); $mapTen = self::map_ten_diem();
 		$tc = self::tbl_cong();
 		// Lọc NGÀY bằng SQL trên thoi_diem (đã là Y-m-d H:i:s) — KHÔNG đổi qua dd/mm rồi strtotime
@@ -2930,6 +3019,13 @@ class SAOKE_App {
 		$chuaRoMoi = 0;
 		foreach ( (array) $rowsC as $r ) {
 			$tongMoiNguon++;
+			/* Cộng theo tài khoản TRƯỚC khi lọc — ô xổ phải kể đủ mọi tài khoản dù đang xem một cái. */
+			if ( 'Đi' !== $r['huong'] && (int) $r['doc_duoc'] === 1 ) {
+				$stk = preg_replace( '/\s+/', '', (string) $r['so_tk'] ); if ( '' === $stk ) { $stk = '(không có số TK)'; }
+				if ( ! isset( $theoTk[ $stk ] ) ) { $theoTk[ $stk ] = array( 'soTK' => $stk, 'nhan' => '', 'nganHang' => '', 'tien' => 0, 'dong' => 0 ); }
+				$theoTk[ $stk ]['tien'] += (int) $r['so_tien']; $theoTk[ $stk ]['dong']++;
+			}
+			if ( '' !== $locTk && preg_replace( '/\s+/', '', (string) $r['so_tk'] ) !== $locTk ) { continue; }
 			if ( '' === $payloadCuoi ) { $payloadCuoi = (string) $r['raw']; }
 			$thoiDiem = self::ymd2vn( $r['thoi_diem'] );
 			if ( (int) $r['doc_duoc'] !== 1 ) { $congKho++; if ( count( $khoRows ) < 20 ) { $khoRows[] = array( 'khoa' => $r['khoa'], 'nhanLuc' => self::ymd2vn( $r['nhan_luc'] ), 'raw' => mb_substr( (string) $r['raw'], 0, 400 ) ); } continue; }
@@ -2985,6 +3081,7 @@ class SAOKE_App {
 		if ( $tu )  { $wb[] = 'DATE(ngay_gd)>=%s'; $ab[] = $tu; }
 		if ( $den ) { $wb[] = 'DATE(ngay_gd)<=%s'; $ab[] = $den; }
 		if ( '' !== $tuKhoa ) { $wb[] = 'noi_dung LIKE %s'; $ab[] = '%' . $wpdb->esc_like( $tuKhoa ) . '%'; }
+		if ( '' !== $locTk ) { $wb[] = 'so_tk=%s'; $ab[] = $locTk; }   // 0.49.0: bên bank cũng lọc theo cùng tài khoản
 		$sqlB = "SELECT ngay_gd, ngan_hang, so_tk, tien, noi_dung, ma_gd FROM $tbl WHERE " . implode( ' AND ', $wb ) . " ORDER BY ngay_gd DESC, id DESC LIMIT 3000";
 		$rowsB = $ab ? $wpdb->get_results( $wpdb->prepare( $sqlB, $ab ), ARRAY_A ) : $wpdb->get_results( $sqlB, ARRAY_A );
 		$pn = self::pn_by_tk(); $bank = array(); $bankTien = 0;
@@ -2999,6 +3096,7 @@ class SAOKE_App {
 			'congKho' => $congKho, 'khoRows' => $khoRows, 'payloadCuoi' => $payloadCuoi, 'chuaAnhXa' => $dsChuaAnhXa, 'soAnhXa' => count( $anhXa ),
 			'chuaRoMay' => $chuaRoMay, 'chuaRoTien' => $chuaRoTien, 'chuaRoMoi' => $chuaRoMoi,
 			'napLan' => $nap,
+			'taiKhoan' => array_values( $theoTk ), 'locTk' => $locTk,
 			'log' => array(), 'bank' => $bank, 'bankTien' => $bankTien, 'bankDong' => count( $bank ),
 			'chenh' => $congTien - $bankTien, 'kieuDoiSoat' => 'vietqr' === $nguon ? '1:1' : 'N:1' );
 	}

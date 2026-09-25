@@ -54,6 +54,35 @@ lại ba kịch bản (PIN + #cvietqr · vé không hash · vé + #cvietqr): kh�
 biến đều có. `kiem-saoke-ve-hoan-vao.js` (9 phép) canh nhánh vé phải hoãn và các bảng cổng vẫn khai sau
 khối tự đăng nhập.
 
+### Sao Kê 0.49.0 — Nhiều tài khoản VietQR chính thức ("thêm tài khoản thứ 2 của VietQR")
+
+Anh Thắng 25/09/2026, đang ở khối "Cài đặt & công cụ" tab Việt QR: *"anh muốn thêm tài khoản thứ 2 của
+VietQR"*. Bản cũ chỉ có MỘT cặp username/password (`saoke_vqr_user/pass`) cho cổng gọi Token URL, và
+callback không phân biệt tài khoản.
+
+**Làm gì.**
+- Option `saoke_vqr_tk` = danh sách tài khoản: nhãn · username · password · số TK nhận · ngân hàng.
+  Cặp cũ tự thành tài khoản #1 khi danh sách trống (cài đè không phải khai lại).
+- Token: payload `exp=…;tk=<id>`, ký bằng mật khẩu của CHÍNH tài khoản → đổi `tk=` là chữ ký sai. Token
+  cấp trước 0.49.0 (không có `tk=`) vẫn hợp lệ, gán tài khoản #1.
+- Callback: biết tài khoản từ token; payload thiếu số TK / ngân hàng thì lấy của tài khoản ấy — cho cả
+  Sao kê ngân hàng (`saoke_gd.so_tk`) lẫn bảng cổng (`saoke_cong.so_tk`). Log ghi tên tài khoản.
+- `getSaoKeCong(..., tk)`: tham số thứ 5 = số TK để lọc; cộng theo tài khoản TRƯỚC khi lọc (ô xổ kể đủ);
+  bên bank lọc cùng tài khoản; trả `taiKhoan[]` + `locTk`.
+- App tab Việt QR: ô **🏦 Tài khoản VietQR** (nhãn · số TK · ngân hàng · tổng trong kỳ); dòng phụ dưới thẻ
+  "Từ cổng" kể tổng từng tài khoản khi có ≥2.
+- WP Admin → Sao Kê: bảng tài khoản (mỗi dòng một tài khoản, dòng trống cuối = thêm mới, ô Xoá). Mật khẩu
+  trống = giữ cũ. Dòng đầu chép sang cặp cũ cho chỗ nào còn đọc cặp cũ.
+
+**Việc anh làm:** WP Admin → Sao Kê SePay → "VietQR chính thức" → điền dòng mới (nhãn, username,
+password, số TK nhận, ngân hàng) → Lưu. Bên cổng VietQR (tài khoản 2): khai **cùng Token URL và
+Callback URL** như tài khoản 1, chỉ khác username/password. Nạp *Danh sách cửa hàng* của tài khoản 2
+vào cùng bản đồ (mã cửa hàng khác nhau thì không đè nhau).
+
+`kiem-saoke-vqr-hai-tai-khoan.php` (30 phép): cặp cũ → tk1, token cũ còn dùng, hai tài khoản cấp token
+riêng, lẫn user/pass → 401, đổi tk= trong token → chối, hết hạn / tài khoản lạ → chối, danh sách công
+khai không kèm mật khẩu, callback/cong_nhan_webhook/getSaoKeCong/admin/app nối đúng.
+
 ### v2.138.0 — GỘP SỔ: "Nhập 2 điểm này lại thành 1" (⇄ từng hàng + 📒 gộp sổ theo bí danh)
 
 Anh Thắng 24/09/2026, hai ảnh Báo cáo tổng: **POSH MN CGV VINCOM LANDMARK** — 1.040.000 tiền mặt

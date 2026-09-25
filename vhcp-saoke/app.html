@@ -1354,6 +1354,11 @@ function dungViewCong(nguon){
   +     '<div class="fld"><label>Từ ngày</label><input type="date" id="'+id('tu')+'" onchange="cgBoKy(\''+nguon+'\')"></div>'
   +     '<div class="fld"><label>Đến ngày</label><input type="date" id="'+id('den')+'" onchange="cgBoKy(\''+nguon+'\')"></div>'
   +     oKy(id('ky'), 'cgDatKy(\''+nguon+'\')')
+  /* 0.49.0 — anh Thắng 25/09/2026: "thêm tài khoản thứ 2 của VietQR". Ô xổ liệt kê từng tài khoản (số TK
+     nhận) kèm tổng trong kỳ; chọn một là cả bảng cổng lẫn bảng bank cùng lọc theo tài khoản ấy. */
+  +     (nguon === 'vietqr'
+          ? '<div class="fld"><label>🏦 Tài khoản VietQR</label><select id="'+id('tk')+'" onchange="taiSaoKeCong(\''+nguon+'\')"><option value="">— Tất cả tài khoản —</option></select></div>'
+          : '')
   +     '<div class="fld" style="align-self:flex-end"><button onclick="taiSaoKeCong(\''+nguon+'\')">🔍 Lọc</button></div>'
   +     '<div class="fld" style="align-self:flex-end"><button class="gray" id="'+id('lamMoi')+'" onclick="cgLamMoi(\''+nguon+'\')" '
   +       'title="Đặt lại về 7 ngày gần nhất rồi đọc lại số liệu mới nhất">🔄 Làm mới</button></div>'
@@ -2482,11 +2487,12 @@ function cgBaoLoi(nguon, msg){
 }
 function taiSaoKeCong(nguon){
   var tu = toVN(cgEl(nguon,'tu').value), den = toVN(cgEl(nguon,'den').value);
+  var oTk = cgEl(nguon,'tk'), tk = oTk ? (oTk.value || '') : '';   // 0.49.0: tài khoản VietQR đang chọn (rỗng = tất cả)
   cgEl(nguon,'congBody').innerHTML = '<tr><td colspan="7" class="muted">Đang tải…</td></tr>';
   google.script.run
     .withSuccessHandler(function(d){ if(!d||!d.ok){ cgBaoLoi(nguon, (d&&d.error)||'Máy chủ trả về rỗng'); return; } veSaoKeCong(nguon, d); })
     .withFailureHandler(function(e){ cgBaoLoi(nguon, e.message); })
-    .getSaoKeCong(PIN, nguon, tu, den);
+    .getSaoKeCong(PIN, nguon, tu, den, tk);
   // Gợi ý cửa hàng chuẩn + mã nộp tiền (đọc tab Tendinhdanh). Lỗi ở đây KHÔNG kéo cả trang sập.
   google.script.run.withSuccessHandler(function(r){
     if(!r || !r.ok) return;
@@ -2541,7 +2547,17 @@ function cgDoiTrang(nguon, bang, buoc){
 function veSaoKeCong(nguon, d){
   cgEl(nguon,'capNhat').textContent = 'Cập nhật ' + new Date().toLocaleTimeString('vi-VN');
   cgEl(nguon,'congTien').textContent = fmt(d.congTien);
-  cgEl(nguon,'congDong').textContent = d.congDong + ' giao dịch trong kỳ / ' + d.congTongMoiNguon + ' đã nhận';
+  /* 0.49.0: ô xổ tài khoản — dựng lại từ d.taiKhoan nhưng GIỮ lựa chọn đang có; kể tổng từng tài khoản
+     dưới thẻ "Từ cổng" để nhìn một lần biết mỗi tài khoản về bao nhiêu. */
+  var oTk = cgEl(nguon,'tk'), dsTk = d.taiKhoan || [];
+  if (oTk) {
+    var dang = d.locTk || oTk.value || '';
+    oTk.innerHTML = '<option value="">— Tất cả tài khoản' + (dsTk.length ? ' (' + dsTk.length + ')' : '') + ' —</option>'
+      + dsTk.map(function(t){ var nhan = t.nhan ? (t.nhan + ' · ') : ''; return '<option value="' + esc(t.soTK) + '">' + esc(nhan + t.soTK) + (t.nganHang ? (' · ' + esc(t.nganHang)) : '') + ' · ' + fmt(t.tien) + '</option>'; }).join('');
+    oTk.value = dang; if (oTk.value !== dang) oTk.value = '';
+  }
+  var theoTk = (dsTk.length > 1) ? (' · ' + dsTk.map(function(t){ return (t.nhan || t.soTK) + ' ' + fmt(t.tien); }).join(' · ')) : '';
+  cgEl(nguon,'congDong').textContent = d.congDong + ' giao dịch trong kỳ / ' + d.congTongMoiNguon + ' đã nhận' + (d.locTk ? (' · đang xem TK ' + d.locTk) : theoTk);
   cgEl(nguon,'bankTien').textContent = fmt(d.bankTien);
   cgEl(nguon,'bankDong').textContent = d.bankDong + ' dòng khớp từ khoá "' + d.tuKhoa + '"';
   var ch = cgEl(nguon,'chenh');
