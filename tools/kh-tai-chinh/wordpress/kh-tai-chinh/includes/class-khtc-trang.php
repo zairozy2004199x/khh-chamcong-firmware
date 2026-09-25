@@ -1023,6 +1023,14 @@ class KHTC_Trang {
 	// -------------------------------------------------------------- sao lưu
 
 	public static function sao_luu() {
+		if ( '' !== KHTC_Cty::chi_duoc() ) {
+			// Sao lưu, nhập, hoán đổi đều chạm cả hai pháp nhân — người chỉ được
+			// xem một bên thì không vào đây.
+			echo '<div class="wrap khtc">';
+			KHTC_UI::dau_trang( 'Sao lưu' );
+			echo '<p class="khtc-canh-bao">Tài khoản này chỉ được vào sổ ' . esc_html( KHTC_Cty::ten() ) . '. Sao lưu và nhập dữ liệu chạm cả hai pháp nhân nên chỉ người xem được cả hai mới dùng.</p></div>';
+			return;
+		}
 		KHTC_UI::nhan_doi_cty();
 		$bao_ok = '';
 		$bao_loi = '';
@@ -2008,6 +2016,12 @@ class KHTC_Trang {
 			if ( is_wp_error( $kq ) ) { $bao_loi = $kq->get_error_message(); } else { $bao_ok = 'Đã gỡ quyền vào sổ.'; }
 		}
 
+		if ( isset( $_POST['khtc_chi_cty'] ) && check_admin_referer( 'khtc_nd' ) ) {
+			$id = (int) $_POST['khtc_chi_cty'];
+			$kq = KHTC_NguoiDung::dat_chi_cty( $id, sanitize_text_field( wp_unslash( $_POST[ 'cty_' . $id ] ?? '' ) ) );
+			if ( is_wp_error( $kq ) ) { $bao_loi = $kq->get_error_message(); } else { $bao_ok = 'Đã đổi phạm vi xem. Người đó tải lại trang là thấy.'; }
+		}
+
 		if ( isset( $_POST['khtc_doi_mk'] ) && check_admin_referer( 'khtc_nd' ) ) {
 			$id = (int) $_POST['khtc_doi_mk'];
 			$kq = KHTC_NguoiDung::doi_mat_khau( $id, wp_unslash( $_POST[ 'mk_' . $id ] ?? '' ) );
@@ -2024,7 +2038,7 @@ class KHTC_Trang {
 		KHTC_UI::dau_trang( 'Người dùng' );
 		// Đầu trang nào cũng kèm tên pháp nhân đang chọn, nhưng tài khoản thì
 		// KHÔNG chia theo pháp nhân — nói rõ, kẻo tưởng phải tạo hai lần.
-		echo '<p class="khtc-sub">Tài khoản dùng chung cho cả hai pháp nhân — ai vào được sổ là xem được cả KH Cũ lẫn KH Mới. Bản này chưa giới hạn được từng người xem riêng một pháp nhân.</p>';
+		echo '<p class="khtc-sub">Mỗi người một tài khoản, mật khẩu riêng, đăng nhập ngay tại trang Tài Chính K&amp;H (không cần vào wp-admin). Cột “Được xem” giới hạn một người chỉ vào sổ KH Cũ hoặc KH Mới; để “cả hai” thì có nút đổi ở góc phải.</p>';
 		if ( $bao_loi ) { printf( '<p class="khtc-canh-bao">%s</p>', esc_html( $bao_loi ) ); }
 		if ( $bao_ok )  { printf( '<div class="notice notice-success"><p>%s</p></div>', esc_html( $bao_ok ) ); }
 
@@ -2040,12 +2054,25 @@ class KHTC_Trang {
 
 		$ds = KHTC_NguoiDung::ds();
 		echo '<div class="khtc-panel"><h2>Đang vào được sổ</h2>';
-		echo '<table><thead><tr><th>Tên đăng nhập</th><th>Tên hiển thị</th><th>Thư</th><th>Vai trò</th><th>Đổi mật khẩu</th><th></th></tr></thead><tbody>';
+		echo '<table><thead><tr><th>Tên đăng nhập</th><th>Tên hiển thị</th><th>Thư</th><th>Vai trò</th><th>Được xem</th><th>Đổi mật khẩu</th><th></th></tr></thead><tbody>';
 		foreach ( $ds as $u ) {
 			echo '<tr><td><code>' . esc_html( $u['ten'] ) . '</code>' . ( $u['toi'] ? ' <span class="khtc-sub">(bạn)</span>' : '' ) . '</td>';
 			echo '<td>' . esc_html( $u['hien_thi'] ) . '</td>';
 			echo '<td>' . esc_html( $u['email'] ) . '</td>';
 			echo '<td>' . esc_html( $u['vai_tro'] ) . '</td>';
+			echo '<td>';
+			if ( $u['toi'] ) {
+				echo '<span class="khtc-sub">cả hai</span>';
+			} else {
+				echo '<form method="post" class="khtc-loc">';
+				wp_nonce_field( 'khtc_nd' );
+				printf( '<select name="cty_%d"><option value=""%s>cả hai pháp nhân</option>', (int) $u['id'], '' === $u['chi_cty'] ? ' selected' : '' );
+				foreach ( KHTC_Cty::ds() as $k => $v ) { printf( '<option value="%s"%s>chỉ %s</option>', esc_attr( $k ), $u['chi_cty'] === $k ? ' selected' : '', esc_html( $v['ten'] ) ); }
+				echo '</select>';
+				printf( '<button type="submit" name="khtc_chi_cty" value="%d" class="button">Lưu</button>', (int) $u['id'] );
+				echo '</form>';
+			}
+			echo '</td>';
 			echo '<td><form method="post" class="khtc-loc">';
 			wp_nonce_field( 'khtc_nd' );
 			printf( '<input type="text" name="mk_%d" placeholder="để trống = máy tự sinh" autocomplete="off">', (int) $u['id'] );
@@ -2067,7 +2094,7 @@ class KHTC_Trang {
 			}
 			echo '</td></tr>';
 		}
-		if ( ! $ds ) { echo '<tr><td colspan="6" class="khtc-trong">Chưa có ai.</td></tr>'; }
+		if ( ! $ds ) { echo '<tr><td colspan="7" class="khtc-trong">Chưa có ai.</td></tr>'; }
 		echo '</tbody></table>';
 		echo '<p class="khtc-sub">Gỡ quyền <strong>không xoá tài khoản</strong> — người đó vẫn đăng nhập được vào website, chỉ không mở được sổ. Muốn xoá hẳn thì vào wp-admin → Người dùng.</p>';
 		echo '</div>';

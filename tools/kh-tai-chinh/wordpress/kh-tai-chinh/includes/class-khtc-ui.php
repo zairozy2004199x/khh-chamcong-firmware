@@ -37,6 +37,11 @@ class KHTC_UI {
 		echo '<div class="khtc-head">';
 		echo '<div><h1>' . esc_html( $tieu_de ) . ' — ' . esc_html( KHTC_Cty::ten() ) . '</h1>';
 		echo '<p class="khtc-sub">' . esc_html( KHTC_Cty::ten_day_du() ) . '</p></div>';
+		if ( '' !== KHTC_Cty::chi_duoc() ) {
+			// Chỉ được một bên: không có gì để chọn, nói rõ thay vì hiện nút bấm không ăn.
+			echo '<span class="khtc-sub khtc-chi-cty">Tài khoản này chỉ vào sổ ' . esc_html( KHTC_Cty::ten() ) . '</span></div>';
+			return;
+		}
 		echo '<form method="post" class="khtc-cty">';
 		wp_nonce_field( 'khtc_cty' );
 		foreach ( KHTC_Cty::ds() as $k => $v ) {

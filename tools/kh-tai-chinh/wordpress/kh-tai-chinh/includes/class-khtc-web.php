@@ -145,7 +145,12 @@ class KHTC_Web {
 		if ( ! array_key_exists( $man, self::man_hinh() ) ) { return; }
 
 		if ( ! is_user_logged_in() ) {
-			auth_redirect();
+			// Trang đăng nhập RIÊNG của Tài Chính K&H, không đẩy sang wp-login:
+			// kế toán không cần biết WordPress là gì, chỉ cần tên và mật khẩu
+			// quản trị cấp ở màn hình Người dùng.
+			status_header( 200 );
+			nocache_headers();
+			self::dang_nhap( $man );
 			exit;
 		}
 
@@ -153,6 +158,95 @@ class KHTC_Web {
 		nocache_headers();
 		self::khung( $man );
 		exit;
+	}
+
+	// ------------------------------------------------------------ đăng nhập
+
+	/** Khoá tạm theo IP: 5 lần sai → khoá 15 phút. Nhớ bằng transient, hết hạn tự mở. */
+	const SAI_TOI_DA = 5;
+	const KHOA_GIAY  = 900;
+
+	/**
+	 * Khoá theo cặp (IP, tên đăng nhập). Cả văn phòng thường ra Internet qua
+	 * MỘT IP: khoá theo IP thì một người gõ sai năm lần là cả phòng bị khoá.
+	 * Theo cặp thì dò mật khẩu một tài khoản vẫn bị chặn, người khác vẫn vào.
+	 */
+	private static function khoa_ip_khoa( $ten = '' ) {
+		$ip = isset( $_SERVER['REMOTE_ADDR'] ) ? (string) $_SERVER['REMOTE_ADDR'] : '';
+		return 'khtc_khoa_' . md5( $ip . '|' . strtolower( (string) $ten ) );
+	}
+	public static function dang_bi_khoa( $ten = '' ) {
+		$t = get_transient( self::khoa_ip_khoa( $ten ) );
+		return is_array( $t ) && (int) ( $t['sai'] ?? 0 ) >= self::SAI_TOI_DA;
+	}
+	public static function ghi_sai( $ten = '' ) {
+		$k = self::khoa_ip_khoa( $ten );
+		$t = get_transient( $k );
+		$sai = is_array( $t ) ? (int) ( $t['sai'] ?? 0 ) + 1 : 1;
+		set_transient( $k, array( 'sai' => $sai ), self::KHOA_GIAY );
+		return $sai;
+	}
+	public static function xoa_sai( $ten = '' ) { delete_transient( self::khoa_ip_khoa( $ten ) ); }
+
+	/**
+	 * Nhận form đăng nhập rồi in trang. Sai thì chỉ nói "sai tên hoặc mật
+	 * khẩu" — không nói cái nào sai, không nói tên có tồn tại không.
+	 */
+	public static function dang_nhap( $man = '' ) {
+		$loi = '';
+		if ( isset( $_POST['khtc_dang_nhap'] ) ) {
+			$ten = sanitize_user( wp_unslash( (string) ( $_POST['ten'] ?? '' ) ), true );
+			$mk  = (string) wp_unslash( $_POST['mk'] ?? '' );
+			if ( ! wp_verify_nonce( (string) ( $_POST['_wpnonce'] ?? '' ), 'khtc_dang_nhap' ) ) {
+				$loi = 'Phiên đã hết hạn, gửi lại.';
+			} elseif ( self::dang_bi_khoa( $ten ) ) {
+				$loi = 'Sai quá ' . self::SAI_TOI_DA . ' lần. Chờ 15 phút rồi thử lại, hoặc nhờ quản trị đặt lại mật khẩu.';
+			} else {
+				$u   = ( '' === $ten || '' === $mk ) ? new WP_Error( 'trong', 'trống' ) : wp_signon( array( 'user_login' => $ten, 'user_password' => $mk, 'remember' => ! empty( $_POST['nho'] ) ), is_ssl() );
+				if ( is_wp_error( $u ) ) {
+					$con = self::SAI_TOI_DA - self::ghi_sai( $ten );
+					$loi = 'Sai tên đăng nhập hoặc mật khẩu.' . ( $con > 0 && $con <= 2 ? ' Còn ' . $con . ' lần trước khi khoá tạm.' : '' );
+				} elseif ( ! user_can( $u, KHTC_CAP ) ) {
+					wp_logout();
+					$loi = 'Tài khoản ' . $ten . ' chưa được cấp quyền vào sổ. Nhờ quản trị thêm ở màn hình Người dùng.';
+				} else {
+					self::xoa_sai( $ten );
+					wp_safe_redirect( self::duong_dan( $man ) );
+					exit;
+				}
+			}
+		}
+		self::trang_dang_nhap( $loi );
+	}
+
+	/** Chỉ in trang đăng nhập — tách riêng để kiểm được mà không cần phiên thật. */
+	public static function trang_dang_nhap( $loi = '' ) {
+		?><!DOCTYPE html>
+<html <?php language_attributes(); ?>>
+<head>
+<meta charset="<?php bloginfo( 'charset' ); ?>">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Đăng nhập — Tài Chính K&H</title>
+<link rel="stylesheet" href="<?php echo esc_url( KHTC_URL . 'assets/khtc.css?v=' . KHTC_VERSION ); ?>">
+</head>
+<body class="khtc-web khtc-trang-dn">
+<main class="khtc-dang-nhap">
+	<div class="khtc-hieu"><span>K&amp;H</span> Tài Chính</div>
+	<h1>Đăng nhập</h1>
+	<?php if ( $loi ) : ?><p class="khtc-canh-bao"><?php echo esc_html( $loi ); ?></p><?php endif; ?>
+	<form method="post" autocomplete="on">
+		<?php wp_nonce_field( 'khtc_dang_nhap' ); ?>
+		<label>Tên đăng nhập<input type="text" name="ten" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus></label>
+		<label>Mật khẩu<input type="password" name="mk" autocomplete="current-password" required></label>
+		<label class="khtc-tick-nho"><input type="checkbox" name="nho" value="1"> Ghi nhớ trên máy này</label>
+		<button type="submit" name="khtc_dang_nhap" value="1" class="button button-primary">Vào sổ</button>
+	</form>
+	<p class="khtc-sub">Chưa có tài khoản hay quên mật khẩu: nhờ quản trị vào <strong>Hệ thống → Người dùng</strong> tạo hoặc đặt lại. Mật khẩu chỉ hiện một lần lúc đặt.</p>
+</main>
+</body>
+</html>
+<?php
 	}
 
 	private static function khung( $man ) {

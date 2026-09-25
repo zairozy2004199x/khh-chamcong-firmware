@@ -17,10 +17,16 @@ class KHTC_NganHang {
 		);
 	}
 
+	/**
+	 * Một tài khoản — CHỈ trong pháp nhân đang xem. Id đến từ form; không lọc
+	 * thì người chỉ được xem KH Cũ gửi id tài khoản KH Mới là xoá được, nạp
+	 * được vào đó. Muốn tìm ở cả hai bên (nạp lô theo số tài khoản) thì dùng
+	 * KHTC_NapLo::tim_tai_khoan, nó biết mình đang làm gì.
+	 */
 	public static function mot( $id ) {
 		global $wpdb;
 		return $wpdb->get_row(
-			$wpdb->prepare( 'SELECT * FROM ' . KHTC_DB::bang( 'ngan_hang' ) . ' WHERE id = %d', $id )
+			$wpdb->prepare( 'SELECT * FROM ' . KHTC_DB::bang( 'ngan_hang' ) . ' WHERE id = %d AND cty = %s', (int) $id, KHTC_Cty::dang_chon() )
 		);
 	}
 

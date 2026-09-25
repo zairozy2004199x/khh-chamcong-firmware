@@ -18,6 +18,7 @@ function kiem( $ten, $that, $mong ) {
 	if ( $that === $mong ) { $dat++; return; }
 	$hong[] = sprintf( '%s: nhận %s, mong %s', $ten, var_export( $that, true ), var_export( $mong, true ) );
 }
+function co( $ten, $html, $chuoi ) { kiem( $ten, strpos( (string) $html, $chuoi ) !== false, true ); }
 function dung( $ham ) { ob_start(); try { $ham(); } catch ( Throwable $e ) { ob_end_clean(); throw $e; } return ob_get_clean(); }
 
 KHTC_NguoiDung::dung_vai_tro();
@@ -109,6 +110,90 @@ kiem( 'có ô thêm người', false !== strpos( $h, 'khtc_them_nd' ), true );
 kiem( 'người đã gỡ không còn trong bảng', false !== strpos( $h, '<code>ketoan.lan</code>' ), false );
 kiem( 'nhưng admin thì có trong bảng', false !== strpos( $h, '<code>admin</code>' ), true );
 kiem( 'nguoi-dung là đường dẫn hợp lệ', isset( KHTC_Web::man_hinh()['nguoi-dung'] ), true );
+
+
+// ---------------------------------------------------------------- giới hạn một người một pháp nhân
+$GLOBALS['khtc_user_meta'] = array();
+KHTC_Cty::chon( 'kh_moi' );
+kiem( 'không giới hạn: chọn KH Mới thì ra KH Mới', KHTC_Cty::dang_chon(), 'kh_moi' );
+update_user_meta( 1, 'khtc_chi_cty', 'kh_cu' );
+kiem( 'bị giới hạn KH Cũ: luôn ra KH Cũ', KHTC_Cty::dang_chon(), 'kh_cu' );
+KHTC_Cty::chon( 'kh_moi' );
+kiem( 'bấm đổi không ăn', KHTC_Cty::dang_chon(), 'kh_cu' );
+KHTC_Cty::chon( 'kh_moi', true );
+kiem( 'máy ép tạm (nạp lô) vẫn chuyển được', KHTC_Cty::dang_chon(), 'kh_moi' );
+KHTC_Cty::thoi_ep();
+kiem( 'tắt ép về lại giới hạn', KHTC_Cty::dang_chon(), 'kh_cu' );
+$h_dau = dung( fn() => KHTC_UI::dau_trang( 'Thử' ) );
+kiem( 'đầu trang không có nút đổi khi bị giới hạn', strpos( $h_dau, 'name="khtc_cty"' ), false );
+kiem( 'mà nói rõ chỉ vào sổ KH Cũ', false !== strpos( $h_dau, 'chỉ vào sổ KH Cũ' ), true );
+// nạp lô: tệp của bên kia bị bỏ, không ghi
+$nh_kia = null;
+KHTC_Cty::chon( 'kh_moi', true );
+$nh_kia = KHTC_NganHang::them( array( 'ten' => 'MB bên Mới', 'so_tk' => '02865168', 'so_du_dau' => 0, 'ngay_dau' => '2026-08-01' ) );
+KHTC_Cty::thoi_ep();
+$qr_kia = "STT\tThời gian TT\tSố tiền đến (VND)\tSố tiền đi (VND)\tLoại\tTrạng thái\tMã tham chiếu\tMã đơn hàng\tMã điểm bán\tMã cửa hàng\tTài khoản nhận\tThời gian tạo\tNội dung TT\n1\t10-09-2026 09:00:00\t120000\t0\tGiao dịch đến\tThành công\tFTGH1\tX\tVVB\tQRA\t02865168 - MB\t10-09-2026\tQR\n";
+$lo = KHTC_NapLo::nap( array( array( 'ten' => 'qr-kia.xlsx', 'trang' => array( array( 'ten' => 'S', 'van_ban' => $qr_kia, 'so_dong' => 2 ) ) ) ) );
+kiem( 'nạp lô: tệp của bên bị cấm → bỏ', $lo['ket_qua'][0]['bo'], true );
+co( 'và nói vì sao', $lo['ket_qua'][0]['ghi_chu'], 'chỉ được vào sổ KH Cũ' );
+kiem( 'không ghi dòng nào sang bên kia', (int) $GLOBALS['wpdb']->get_var( 'SELECT COUNT(*) FROM ' . KHTC_DB::bang( 'giao_dich' ) . ' WHERE ngan_hang_id=' . (int) $nh_kia ), 0 );
+// id của bên kia gửi thẳng từ form → không đụng được
+KHTC_Cty::chon( 'kh_moi', true );
+$diem_kia = KHTC_Diem::them( array( 'ma_cua_hang' => 'KIA1', 'ten_diem' => 'Điểm bên Mới' ) );
+KHTC_Cty::thoi_ep();
+kiem( 'không thấy tài khoản bên kia theo id', KHTC_NganHang::mot( $nh_kia ), null );
+kiem( 'không xoá được điểm bên kia theo id', is_wp_error( KHTC_Diem::xoa( $diem_kia ) ), true );
+kiem( 'không ghi được giao dịch vào tài khoản bên kia', is_wp_error( KHTC_GiaoDich::them( array( 'ngan_hang_id' => $nh_kia, 'ngay' => '10/09/2026', 'so_tien' => 1000, 'dien_giai' => 'x' ) ) ), true );
+$h_sl = dung( fn() => KHTC_Trang::sao_luu() );
+co( 'bị giới hạn thì không vào Sao lưu', $h_sl, 'chỉ người xem được cả hai mới dùng' );
+kiem( 'và không thấy nút hoán đổi', strpos( $h_sl, 'khtc_hoan_doi' ), false );
+delete_user_meta( 1, 'khtc_chi_cty' );
+KHTC_Cty::chon( 'kh_moi' );
+kiem( 'bỏ giới hạn: điểm bên kia vẫn còn nguyên', null !== KHTC_Diem::mot( $diem_kia ), true );
+KHTC_Cty::chon( 'kh_cu' );
+kiem( 'bỏ giới hạn thì lại chọn được', ( KHTC_Cty::chon( 'kh_moi' ) || true ) && KHTC_Cty::dang_chon() === 'kh_moi', true );
+KHTC_Cty::chon( 'kh_cu' );
+// đặt giới hạn cho người khác qua API + màn hình
+kiem( 'không tự giới hạn mình', is_wp_error( KHTC_NguoiDung::dat_chi_cty( 1, 'kh_cu' ) ), true );
+kiem( 'pháp nhân lạ bị chặn', is_wp_error( KHTC_NguoiDung::dat_chi_cty( 2, 'kh_xxx' ) ), true );
+$GLOBALS['khtc_cam'] = array();   // khtc_cam là danh sách quyền BỊ CẤM; rỗng = quản trị đủ quyền
+$tao_hoa = KHTC_NguoiDung::them( array( 'ten' => 'ketoan.hoa', 'hien_thi' => 'Hoà' ) );   // người còn quyền (lan đã bị gỡ ở trên)
+$id_lan = (int) get_user_by( 'login', 'ketoan.hoa' )->ID;
+$_POST = array( 'khtc_chi_cty' => $id_lan, 'cty_' . $id_lan => 'kh_moi' );
+$h = dung( fn() => KHTC_Trang::nguoi_dung() );
+$_POST = array();
+co( 'màn hình: báo đã đổi phạm vi', $h, 'Đã đổi phạm vi xem' );
+co( 'màn hình: có cột Được xem', $h, '<th>Được xem</th>' );
+co( 'màn hình: chọn sẵn chỉ KH Mới cho người đó', $h, 'value="kh_moi" selected' );
+kiem( 'giới hạn được lưu cho đúng người', KHTC_Cty::chi_duoc( $id_lan ), 'kh_moi' );
+
+// ---------------------------------------------------------------- trang đăng nhập riêng
+$h = dung( fn() => KHTC_Web::trang_dang_nhap( '' ) );
+co( 'trang đăng nhập có ô tên', $h, 'name="ten"' );
+co( 'và ô mật khẩu', $h, 'type="password"' );
+co( 'và nút vào sổ', $h, 'name="khtc_dang_nhap"' );
+co( 'không lộ đường wp-login', $h, 'Người dùng' );
+kiem( 'không có link wp-login', strpos( $h, 'wp-login' ), false );
+$GLOBALS['khtc_transient'] = array(); $_SERVER['REMOTE_ADDR'] = '10.0.0.9';
+kiem( 'chưa khoá', KHTC_Web::dang_bi_khoa(), false );
+for ( $i = 0; $i < 5; $i++ ) { KHTC_Web::ghi_sai( 'ketoan.hoa' ); }
+kiem( '5 lần sai → khoá tên đó', KHTC_Web::dang_bi_khoa( 'ketoan.hoa' ), true );
+kiem( 'người khác cùng IP (cùng văn phòng) vẫn vào được', KHTC_Web::dang_bi_khoa( 'ketoan.lan' ), false );
+KHTC_Web::xoa_sai( 'ketoan.hoa' );
+kiem( 'đăng nhập đúng thì mở khoá', KHTC_Web::dang_bi_khoa( 'ketoan.hoa' ), false );
+// gửi form sai → câu chung chung, không nói tên có tồn tại
+$_POST = array( 'khtc_dang_nhap' => 1, '_wpnonce' => 'x', 'ten' => 'khongco', 'mk' => 'sai' );
+$h = dung( fn() => KHTC_Web::dang_nhap( '' ) );
+co( 'sai → câu chung chung', $h, 'Sai tên đăng nhập hoặc mật khẩu' );
+kiem( 'không tiết lộ tên không tồn tại', strpos( $h, 'không tồn tại' ), false );
+// đúng nhưng chưa có quyền → thoát và báo
+wp_insert_user( array( 'user_login' => 'thuong', 'user_pass' => 'x1234567', 'user_email' => 'thuong@vi.du', 'role' => 'subscriber' ) );
+$_POST = array( 'khtc_dang_nhap' => 1, '_wpnonce' => 'x', 'ten' => 'thuong', 'mk' => 'dung' );
+$GLOBALS['khtc_logged_out'] = false;
+$h = dung( fn() => KHTC_Web::dang_nhap( '' ) );
+co( 'đúng mật khẩu nhưng không có quyền → báo chưa cấp', $h, 'chưa được cấp quyền' );
+kiem( 'và bị đăng xuất ngay', $GLOBALS['khtc_logged_out'], true );
+$_POST = array();
 
 printf( "%d kiểm tra đạt, %d lỗi\n", $dat, count( $hong ) );
 foreach ( $hong as $x ) { echo "  ✗ $x\n"; }

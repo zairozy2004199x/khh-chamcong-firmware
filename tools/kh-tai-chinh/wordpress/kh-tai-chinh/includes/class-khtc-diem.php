@@ -69,7 +69,8 @@ class KHTC_Diem {
 
 	public static function mot( $id ) {
 		global $wpdb;
-		return $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . KHTC_DB::bang( 'diem' ) . ' WHERE id = %d', (int) $id ) );
+		// Chỉ trong pháp nhân đang xem — sửa / xoá / bỏ qua đều đi qua đây.
+		return $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . KHTC_DB::bang( 'diem' ) . ' WHERE id = %d AND cty = %s', (int) $id, KHTC_Cty::dang_chon() ) );
 	}
 
 	public static function them( $d, $ghi_nhat_ky = true ) {

@@ -422,3 +422,13 @@ body.khtc-web form { margin: 0; }
 .khtc .khtc-tick-nho { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; white-space: nowrap; }
 .khtc table.khtc-ma-la td { vertical-align: middle; }
 .khtc .khtc-canh-bao-chu { color: #b42318; font-weight: 600; }
+/* Trang đăng nhập riêng */
+body.khtc-trang-dn { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+.khtc-dang-nhap { box-sizing: border-box; width: min(400px, calc(100vw - 32px)); padding: 28px 28px 22px; background: var(--nen-the, #fff); border: 1px solid var(--vien, #e3e8ef); border-radius: 12px; box-shadow: var(--bong-1, 0 4px 16px rgba(0,0,0,.06)); }
+.khtc-dang-nhap .khtc-hieu { margin: 0 0 14px; padding: 0; color: var(--chu, #0f172a); border: 0; background: none; }
+.khtc-dang-nhap h1 { font-size: 20px; margin: 0 0 12px; }
+.khtc-dang-nhap label { display: block; margin: 10px 0; font-weight: 600; }
+.khtc-dang-nhap label input[type="text"], .khtc-dang-nhap label input[type="password"] { box-sizing: border-box; display: block; width: 100%; border: 1px solid var(--vien, #cbd5e1); border-radius: 8px; margin-top: 4px; padding: 9px 10px; font-size: 15px; font-weight: 400; }
+.khtc-dang-nhap .khtc-tick-nho { font-weight: 500; }
+.khtc-dang-nhap button { box-sizing: border-box; width: 100%; margin-top: 8px; padding: 10px; font-size: 15px; }
+.khtc .khtc-chi-cty { padding: 6px 10px; border: 1px solid var(--vien); border-radius: 8px; }

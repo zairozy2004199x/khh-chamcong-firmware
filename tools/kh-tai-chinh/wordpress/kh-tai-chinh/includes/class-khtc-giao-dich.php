@@ -70,6 +70,9 @@ class KHTC_GiaoDich {
 		if ( empty( $d['ngan_hang_id'] ) ) {
 			return new WP_Error( 'nh', 'Chưa chọn tài khoản ngân hàng.' );
 		}
+		if ( ! KHTC_NganHang::mot( (int) $d['ngan_hang_id'] ) ) {
+			return new WP_Error( 'nh', 'Tài khoản này không thuộc pháp nhân đang xem.' );
+		}
 		$chan = KHTC_Khoa::chan( $ngay, 'thêm' );
 		if ( $chan ) { return $chan; }
 		$so_tien = self::doc_so( $d['so_tien'] ?? '' );

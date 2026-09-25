@@ -159,6 +159,22 @@ SST trải qua CONTINUE đi từng byte. Đối chiếu với xlrd trên file đ
 2.471 dòng × 26 cột: không lệch ô nào. Không đọc BIFF5 (Excel 95) và file
 HTML/CSV đổi đuôi .xls — báo rõ thay vì đoán.
 
+### Đăng nhập riêng của trang, mỗi người một pháp nhân
+
+Vào `/tai-chinh/` chưa đăng nhập thì gặp trang đăng nhập của chính Tài Chính
+K&H (`KHTC_Web::dang_nhap`), không đẩy sang wp-login. Xác thực vẫn là tài
+khoản WordPress (`wp_signon`) — không có kho mật khẩu thứ hai. Sai 5 lần từ
+một IP thì khoá 15 phút (transient); câu báo sai không nói tên có tồn tại
+hay không; đúng mật khẩu mà chưa có quyền `khtc_xem` thì đăng xuất ngay và
+bảo nhờ quản trị cấp.
+
+Màn hình Người dùng có cột **Được xem**: cả hai / chỉ KH Cũ / chỉ KH Mới
+(user meta `khtc_chi_cty`). Người bị giới hạn không có nút đổi pháp nhân,
+mọi màn hình chỉ ra bên đó; nạp lô gặp tệp của bên kia thì bỏ tệp và nói
+lý do. Việc máy tự chuyển bên (nạp lô) đi qua `KHTC_Cty::chon($c, true)`,
+không đụng lựa chọn của người và không bị giới hạn chặn. Không tự giới hạn
+tài khoản của chính mình.
+
 ### Nạp một lượt cả bộ file trong ngày
 
 Ô Nạp tệp ở Dán thô nhận nhiều tệp. Chọn cả 12–14 tệp của một sáng (6 sao kê

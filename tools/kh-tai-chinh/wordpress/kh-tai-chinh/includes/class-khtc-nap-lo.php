@@ -25,6 +25,7 @@ class KHTC_NapLo {
 	 */
 	public static function nap( $ds_tep ) {
 		$cty_goc  = KHTC_Cty::dang_chon();
+		$chi      = KHTC_Cty::chi_duoc();   // người nạp chỉ được một bên → tệp bên kia bỏ, không ghi
 		$ket_qua  = array();
 		$theo_cty = array();
 		$ghi = function ( $cty, $rows, $nh = 0, $dot = 0 ) use ( &$theo_cty ) {
@@ -61,7 +62,7 @@ class KHTC_NapLo {
 				if ( 'don_app' === $k['dich'] ) {
 					$rows = array_map( function ( $x ) { $x['ngay'] = KHTC_GiaoDich::doc_ngay( $x['ngay'] ); return $x; }, $k['rows'] );
 					$moi = 0;
-					foreach ( array_keys( KHTC_Cty::ds() ) as $c ) { KHTC_Cty::chon( $c ); $r = KHTC_DonApp::nap( $rows ); $moi = max( $moi, $r['them'] ); }
+					foreach ( array_keys( KHTC_Cty::ds() ) as $c ) { KHTC_Cty::chon( $c, true ); $r = KHTC_DonApp::nap( $rows ); $moi = max( $moi, $r['them'] ); }
 					$kq['cty']     = 'cả hai';
 					$kq['them']    = $moi;
 					$kq['trung']   = count( $rows ) - $moi;
@@ -81,7 +82,8 @@ class KHTC_NapLo {
 							: 'Không thấy cột "Tài khoản nhận" để biết tệp của tài khoản nào.';
 						continue;
 					}
-					KHTC_Cty::chon( $nh->cty );
+					if ( '' !== $chi && $chi !== $nh->cty ) { $kq['bo'] = true; $kq['ghi_chu'] = 'Tệp của ' . KHTC_Cty::ten( $nh->cty ) . ' (tài khoản ' . $nh->ten . '), bạn chỉ được vào sổ ' . KHTC_Cty::ten( $chi ) . '.'; continue; }
+					KHTC_Cty::chon( $nh->cty, true );
 					$r = KHTC_GiaoDich::dan_hang_loat( (int) $nh->id, KHTC_DanTho::ra_sao_ke( $k['rows'] ) );
 					$kq['cty']   = $nh->cty;
 					$kq['them']  = $r['them'];
@@ -99,7 +101,8 @@ class KHTC_NapLo {
 					$kq['ghi_chu'] = 'Không mã cửa hàng nào có trong danh mục của bên nào — không biết tệp của pháp nhân nào. Thêm mã vào danh mục (hoặc nạp riêng tệp này ở đúng bên) rồi nạp lại.';
 					continue;
 				}
-				KHTC_Cty::chon( $phan['cty'] );
+				if ( '' !== $chi && $chi !== $phan['cty'] ) { $kq['bo'] = true; $kq['ghi_chu'] = 'Tệp của ' . KHTC_Cty::ten( $phan['cty'] ) . ' (theo mã cửa hàng), bạn chỉ được vào sổ ' . KHTC_Cty::ten( $chi ) . '.'; continue; }
+				KHTC_Cty::chon( $phan['cty'], true );
 				$nh_dot = self::tai_khoan_mac_dinh( $phan['cty'] );
 				if ( ! $nh_dot ) { $kq['bo'] = true; $kq['ghi_chu'] = 'Pháp nhân ' . KHTC_Cty::ten( $phan['cty'] ) . ' chưa có tài khoản ngân hàng nào để gắn đợt.'; continue; }
 				$theo_thang = array();
@@ -123,7 +126,7 @@ class KHTC_NapLo {
 			}
 			$ket_qua[] = $kq;
 		}
-		KHTC_Cty::chon( $cty_goc );
+		KHTC_Cty::thoi_ep();
 		foreach ( $theo_cty as $c => &$t ) { $t['nh'] = array_keys( $t['nh'] ?? array() ); $t['dot'] = array_keys( $t['dot'] ?? array() ); }
 		unset( $t );
 		KHTC_NhatKy::ghi( 'nap', 'sao_luu', 0, sprintf( 'Nạp một lượt %d tệp: %s', count( $ds_tep ), implode( '; ', array_map( function ( $x ) { return $x['ten'] . ( $x['bo'] ? ' (bỏ)' : ' +' . $x['them'] ); }, $ket_qua ) ) ) );

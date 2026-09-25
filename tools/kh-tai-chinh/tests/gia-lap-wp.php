@@ -140,7 +140,20 @@ function wp_get_current_user() { return (object) array( 'display_name' => 'Kế 
 function get_user_meta( $u, $k, $single = false ) { return $GLOBALS['khtc_user_meta'][ $k ] ?? ''; }
 function update_user_meta( $u, $k, $v ) { $GLOBALS['khtc_user_meta'][ $k ] = $v; return true; }
 function auth_redirect() {}
-function wp_safe_redirect( $u ) {}
+function wp_safe_redirect( $u ) { $GLOBALS['khtc_redirect'] = $u; }
+function is_ssl() { return false; }
+function wp_logout() { $GLOBALS['khtc_logged_out'] = true; }
+function wp_lostpassword_url() { return 'https://vi.du/wp-login.php?action=lostpassword'; }
+function get_transient( $k ) { return $GLOBALS['khtc_transient'][ $k ] ?? false; }
+function set_transient( $k, $v, $t = 0 ) { $GLOBALS['khtc_transient'][ $k ] = $v; return true; }
+function delete_transient( $k ) { unset( $GLOBALS['khtc_transient'][ $k ] ); return true; }
+function delete_user_meta( $u, $k ) { unset( $GLOBALS['khtc_user_meta'][ $k ] ); return true; }
+function wp_signon( $d, $ssl = false ) {
+	// Giả: đúng khi mật khẩu là 'dung' và tên có trong danh sách người dùng giả.
+	if ( 'dung' !== ( $d['user_password'] ?? '' ) ) { return new WP_Error( 'sai', 'sai' ); }
+	$u = get_user_by( 'login', $d['user_login'] );
+	return $u ? $u : new WP_Error( 'sai', 'sai' );
+}
 function status_header( $c ) {}
 function nocache_headers() {}
 function language_attributes() { echo 'lang="vi"'; }

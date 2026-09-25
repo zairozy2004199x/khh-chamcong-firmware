@@ -74,6 +74,7 @@ class KHTC_NguoiDung {
 				'rieng'    => in_array( self::VAI_TRO, (array) $u->roles, true ),
 				'quan_tri' => user_can( $u, 'manage_options' ),
 				'toi'      => get_current_user_id() === (int) $u->ID,
+				'chi_cty'  => KHTC_Cty::chi_duoc( (int) $u->ID ),
 			);
 		}
 		return $ra;
@@ -175,6 +176,25 @@ class KHTC_NguoiDung {
 			$u->add_cap( self::QUYEN, false );
 		}
 		KHTC_NhatKy::ghi( 'quyen', '', $id, 'Gỡ quyền vào sổ của ' . $u->user_login );
+		return true;
+	}
+
+	/**
+	 * Giới hạn người này chỉ xem một pháp nhân ('' = cả hai). Không tự giới hạn
+	 * mình — tự khoá cửa rồi không ai mở lại được nếu chỉ có một quản trị.
+	 */
+	public static function dat_chi_cty( $id, $c ) {
+		$id = (int) $id;
+		if ( $id === get_current_user_id() ) {
+			return new WP_Error( 'toi', 'Không tự giới hạn tài khoản của chính mình.' );
+		}
+		if ( '' !== $c && ! isset( KHTC_Cty::ds()[ $c ] ) ) {
+			return new WP_Error( 'cty', 'Pháp nhân không hợp lệ.' );
+		}
+		$u = get_user_by( 'id', $id );
+		if ( ! $u ) { return new WP_Error( 'khong_co', 'Không thấy người dùng.' ); }
+		if ( '' === $c ) { delete_user_meta( $id, 'khtc_chi_cty' ); } else { update_user_meta( $id, 'khtc_chi_cty', $c ); }
+		KHTC_NhatKy::ghi( 'sua', '', $id, sprintf( '%s: %s', $u->user_login, '' === $c ? 'được xem cả hai pháp nhân' : 'chỉ xem ' . KHTC_Cty::ten( $c ) ) );
 		return true;
 	}
 
