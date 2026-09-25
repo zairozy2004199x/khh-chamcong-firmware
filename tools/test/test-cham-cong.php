@@ -14117,6 +14117,115 @@ teq( 'cơ sở chính biết ai ghép vào mình', array( $G_SU ), VHCC_Luong::p
 teq( '🔴 chùm của bảng chính gồm CẢ HAI mã', array( $G_VP, $G_SU ), VHCC_Luong::chum_cua( $G_VP ) );
 teq( 'cơ sở đứng riêng thì chùm chỉ có chính nó', array( 'TUTU_BT' ), VHCC_Luong::chum_cua( 'TUTU_BT' ) );
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 MÁY CHẤM CÔNG CŨNG PHẢI ĐỊNH TUYẾN CA ĐÊM — "CÓ VÀO LÀ CHỜ GIỜ RA"
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 25/09/2026: *"cứ mặc định có vào là phải chờ giờ ra, chứ không phải qua ngày hôm sau
+ * là lại sinh ra ngày mới"* — kèm ảnh ca setup `19:51 → 04:00` nằm trong sổ thành HAI hàng hai
+ * ngày, mỗi hàng một đầu giờ, và cả tháng cơ sở ấy ra 0 công.
+ *
+ * Luật đã có sẵn và viết đúng, nhưng CHỈ chạy trong `VHCC_Online::cham_cong()` — tức chỉ cho
+ * người bấm bằng điện thoại. Ba đường tự động (`VHCC_May`, `VHCC_NapCong`, `VHCC_Keo`) gọi thẳng
+ * `ghi_gio()` với NGÀY THÔ. Bài này canh đúng chỗ ấy: ghi bằng nguồn `may`, không qua một dòng
+ * mã nào của trạm online.
+ * ════════════════════════════════════════════════════════════════════════════════════════════ */
+$MA_D = '0000000888';
+$ng1  = '2026-09-06';
+$ng2  = '2026-09-07';
+
+/* Lượt 1: 19:51 hôm trước, ở cơ sở PHỤ. Sau `ngayDen` (17:00) -> mở hàng ca đêm của ngày ấy. */
+VHCC_Nhan::ghi_gio( $G_SU, $ng1, $MA_D, 'Người Ca Đêm', VHCC_DB::giay( '19:51' ), '', 'may' );
+$h_cd = VHCC_Online::hang( $G_SU, $ng1, $MA_D, VHCC_Online::DUOI_CD );
+t( '🔴 máy bấm 19:51 -> mở HÀNG CA ĐÊM của ngày hôm đó, không phải hàng thường',
+	$h_cd && (int) $h_cd['gio_vao_giay'] === VHCC_DB::giay( '19:51' ), $h_cd );
+$h_th = VHCC_Online::hang( $G_SU, $ng1, $MA_D, '' );
+t( '   và hàng THƯỜNG của ngày ấy vẫn trống', ! $h_th || null === $h_th['gio_vao_giay'], $h_th );
+
+/* Lượt 2: 04:00 sáng hôm sau. ĐÂY là chỗ trước nay đẻ ra một ngày mới. */
+VHCC_Nhan::ghi_gio( $G_SU, $ng2, $MA_D, 'Người Ca Đêm', VHCC_DB::giay( '04:00' ), '', 'may' );
+$h_cd2 = VHCC_Online::hang( $G_SU, $ng1, $MA_D, VHCC_Online::DUOI_CD );
+t( '🔴 lượt 04:00 hôm sau ĐÓNG ca đêm hôm trước, không đẻ ngày mới',
+	$h_cd2 && null !== $h_cd2['gio_ra_giay']
+	&& (int) $h_cd2['gio_ra_giay'] === VHCC_DB::giay( '04:00' ) + VHCC_DB::NGAY_GIAY, $h_cd2 );
+/* 🔴 Và phải khẳng định THẲNG chuyện cũ không còn xảy ra — không thì phép trên vẫn xanh kể cả
+   khi lượt 04:00 vừa đóng ca đêm VỪA đẻ thêm một hàng ở ngày hôm sau. */
+$h_moi = VHCC_Online::hang( $G_SU, $ng2, $MA_D, '' );
+t( '🔴 KHÔNG sinh ra hàng mới nào ở ngày hôm sau',
+	! $h_moi || null === $h_moi['gio_vao_giay'], $h_moi );
+
+/* Giờ ra ghi trên TRỤC PHẲNG (+24h) — nếu ghi 04:00 trần thì nó nhỏ hơn giờ vào 19:51 và mọi
+   phép tính giờ đều ra số âm hoặc null. */
+t( '   giờ ra nằm trên trục phẳng, lớn hơn giờ vào',
+	$h_cd2 && (int) $h_cd2['gio_ra_giay'] > (int) $h_cd2['gio_vao_giay'], $h_cd2 );
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 VÀ LƯỢT VỀ MUỘN HƠN 06:00 — ĐÂY MỚI LÀ CA "SETUP ĐỢI NGÀY RA"
+ *
+ * Lượt 04:00 ở trên đi qua nhánh `dinh_tuyen()` (trước `demDen` 06:00), nên nó KHÔNG chạm tới
+ * luật "Setup đợi ngày ra". Kiểm đột biến bắt được đúng chỗ đó: tắt hẳn luật ấy mà bài vẫn
+ * xanh — tức phép thử chưa canh gì cho nó.
+ *
+ * Mà đó lại là ca anh Thắng nêu: ca setup về tới 11:18 trưa hôm sau. Lượt ấy rơi vào KHE giữa
+ * 06:00 và 17:00 — không trước `demDen`, không sau `ngayDen` — nên `dinh_tuyen()` trả null và
+ * nó thành giờ VÀO của một ngày mới. Luật "Setup đợi ngày ra" là thứ duy nhất đỡ được khe ấy,
+ * và nó đỡ bằng một điều kiện chặt: hôm trước phải còn một hàng ca đêm ĐANG MỞ.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+$MA_T = '0000000891';
+$ngT1 = '2026-09-10';
+$ngT2 = '2026-09-11';
+VHCC_Nhan::ghi_gio( $G_SU, $ngT1, $MA_T, 'Người Về Trưa', VHCC_DB::giay( '19:51' ), '', 'may' );
+VHCC_Nhan::ghi_gio( $G_SU, $ngT2, $MA_T, 'Người Về Trưa', VHCC_DB::giay( '11:18' ), '', 'may' );
+$h_t = VHCC_Online::hang( $G_SU, $ngT1, $MA_T, VHCC_Online::DUOI_CD );
+t( '🔴 lượt 11:18 TRƯA hôm sau vẫn đóng ca đêm hôm trước',
+	$h_t && null !== $h_t['gio_ra_giay']
+	&& (int) $h_t['gio_ra_giay'] === VHCC_DB::giay( '11:18' ) + VHCC_DB::NGAY_GIAY, $h_t );
+$h_t2 = VHCC_Online::hang( $G_SU, $ngT2, $MA_T, '' );
+t( '🔴 và KHÔNG đẻ ra hàng mới ở ngày hôm sau', ! $h_t2 || null === $h_t2['gio_vao_giay'], $h_t2 );
+
+/* ⚠️ MẶT KIA CỦA CÙNG MỘT LUẬT: hôm trước KHÔNG có ca đêm đang mở thì lượt 11:18 là một ngày
+   mới thật. Thiếu phép này thì đổi luật thành "mọi lượt trưa đều lùi về hôm trước" vẫn xanh —
+   mà luật ấy sẽ nuốt mất giờ vào của người đi làm ca ngày. */
+$MA_T3 = '0000000892';
+VHCC_Nhan::ghi_gio( $G_SU, $ngT2, $MA_T3, 'Người Ngày Mới', VHCC_DB::giay( '11:18' ), '', 'may' );
+$h_t3 = VHCC_Online::hang( $G_SU, $ngT2, $MA_T3, '' );
+t( '🔴 hôm trước KHÔNG có ca đêm mở -> lượt trưa là NGÀY MỚI, ghi đúng ngày của nó',
+	$h_t3 && (int) $h_t3['gio_vao_giay'] === VHCC_DB::giay( '11:18' ), $h_t3 );
+$h_t3c = VHCC_Online::hang( $G_SU, $ngT1, $MA_T3, VHCC_Online::DUOI_CD );
+t( '   và không đụng gì tới ngày hôm trước', ! $h_t3c || null === $h_t3c['gio_vao_giay'], $h_t3c );
+
+/* 🔴 MẶT THỨ BA: hôm trước có ca đêm nhưng ĐÃ ĐÓNG rồi. Lượt trưa hôm sau là NGÀY MỚI.
+   Thiếu phép này thì bỏ hẳn điều kiện "đang mở" đi bài vẫn xanh — mà bỏ nó nghĩa là lượt trưa
+   hôm sau ĐÈ LÊN giờ ra của một ca đêm đã chốt xong, và ca hôm trước dài thêm mấy tiếng không
+   ai làm. Đây là phép đắt nhất của cả khối, vì nó canh chiều GHI ĐÈ chứ không phải chiều thiếu. */
+$MA_T4 = '0000000893';
+$ngF1  = '2026-09-13';
+$ngF2  = '2026-09-14';
+VHCC_Nhan::ghi_gio( $G_SU, $ngF1, $MA_T4, 'Người Đã Đóng Ca', VHCC_DB::giay( '19:51' ), '', 'may' );
+VHCC_Nhan::ghi_gio( $G_SU, $ngF2, $MA_T4, 'Người Đã Đóng Ca', VHCC_DB::giay( '03:30' ), '', 'may' );
+$h_f = VHCC_Online::hang( $G_SU, $ngF1, $MA_T4, VHCC_Online::DUOI_CD );
+t( 'dựng cảnh: ca đêm hôm trước đã có đủ vào và ra',
+	$h_f && null !== $h_f['gio_vao_giay'] && null !== $h_f['gio_ra_giay'], $h_f );
+$ra_cu = (int) $h_f['gio_ra_giay'];
+/* Giờ mới bấm một lượt lúc 11:18 trưa — ca đêm kia đã đóng, nên đây là người đi làm ngày mới. */
+VHCC_Nhan::ghi_gio( $G_SU, $ngF2, $MA_T4, 'Người Đã Đóng Ca', VHCC_DB::giay( '11:18' ), '', 'may' );
+$h_f2 = VHCC_Online::hang( $G_SU, $ngF1, $MA_T4, VHCC_Online::DUOI_CD );
+t( '🔴 ca đêm ĐÃ ĐÓNG không bị lượt trưa hôm sau nới giờ ra',
+	$h_f2 && (int) $h_f2['gio_ra_giay'] === $ra_cu, $h_f2 );
+
+/* ---- Chấm BÙ không bị dời: người ta tự chọn ngày, chọn ô rồi gõ tay ---- */
+$MA_D2 = '0000000889';
+VHCC_Nhan::ghi_gio( $G_SU, $ng2, $MA_D2, 'Người Bù Tay', VHCC_DB::giay( '04:00' ), '', 'bu' );
+$h_bu = VHCC_Online::hang( $G_SU, $ng2, $MA_D2, '' );
+t( '🔴 nguồn `bu` KHÔNG bị định tuyến — ghi đúng ngày, đúng ô người ta chọn',
+	$h_bu && (int) $h_bu['gio_vao_giay'] === VHCC_DB::giay( '04:00' ), $h_bu );
+
+/* ---- Cơ sở KHÔNG phải Văn phòng thì không đụng tới ---- */
+$MA_D3 = '0000000890';
+VHCC_Nhan::ghi_gio( 'TUTU_BT', $ng1, $MA_D3, 'Người Cửa Hàng', VHCC_DB::giay( '19:51' ), '', 'may' );
+$h_ch = VHCC_Online::hang( 'TUTU_BT', $ng1, $MA_D3, '' );
+t( '⚠️ cơ sở tính theo GIỜ không bị định tuyến sang hàng ca đêm',
+	$h_ch && (int) $h_ch['gio_vao_giay'] === VHCC_DB::giay( '19:51' ), $h_ch );
+
 /* 🔴 MỘT CẤP, KHÔNG DÂY CHUYỀN. A→B rồi B→C thì công của A rơi vào bảng nào là câu không ai
    trả lời chắc; khai vòng (A→B, B→A) thì bảng chạy vô hạn. */
 $r_day = VHCC_Luong::dat_ghep( $u_gh, array( $G_VP => 'TUTU_BT' ) );

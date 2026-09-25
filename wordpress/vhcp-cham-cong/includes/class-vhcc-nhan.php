@@ -599,6 +599,39 @@ class VHCC_Nhan {
 
 		list( $ma_goc, $hau_to ) = self::tach_hau_to( $ma_nv );
 
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 ĐỊNH TUYẾN CA ĐÊM CHO BA ĐƯỜNG GHI TỰ ĐỘNG — máy chấm công, nạp .csv, Nạp về.
+		 *
+		 * Anh Thắng 25/09/2026: *"cứ mặc định có vào là phải chờ giờ ra, chứ không phải qua ngày
+		 * hôm sau là lại sinh ra ngày mới"* — kèm ảnh một ca setup `19:51 → 04:00` nằm trong sổ
+		 * thành HAI hàng hai ngày, mỗi hàng một đầu giờ, rồi cả tháng cơ sở ấy ra 0 công.
+		 *
+		 * Luật ấy đã có sẵn và viết đúng (`VHCC_Online::dinh_tuyen()` + "Setup đợi ngày ra"),
+		 * nhưng nó CHỈ chạy trong `VHCC_Online::cham_cong()` — tức chỉ cho người bấm bằng điện
+		 * thoại. `VHCC_May`, `VHCC_NapCong`, `VHCC_Keo` gọi thẳng vào đây với NGÀY THÔ, không
+		 * một dòng định tuyến nào. Ai chấm bằng MÁY thì lượt 04:00 rơi xuống một ngày mới.
+		 *
+		 * ⚠️ CHỈ BA NGUỒN TỰ ĐỘNG. `bu` là người ta TỰ CHỌN đúng ngày, đúng ô rồi gõ tay — tự ý
+		 *    dời hàng họ vừa chọn là sửa lưng người dùng, và họ không có cách nào bắt máy ghi
+		 *    vào đúng chỗ mình muốn nữa. `online` thì `cham_cong()` đã định tuyến trước khi vào
+		 *    đây rồi; chạy lần hai là trải phẳng chồng lên một giờ đã trải phẳng.
+		 * ⚠️ VÀ CHỈ KHI MÃ CHƯA CÓ HẬU TỐ. Mã mang sẵn `-CD` nghĩa là nơi gọi đã quyết hàng nào
+		 *    (`VHCC_DonDem` dọn ca đêm lẻ ghi thẳng vào hàng `-CD`). Định tuyến đè lên đó là
+		 *    lượt dọn vừa ghép xong lại bị đẩy đi chỗ khác.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		if ( '' === $hau_to && in_array( $nguon, array( 'may', 'sheet' ), true )
+			&& class_exists( 'VHCC_Online' ) && method_exists( 'VHCC_Online', 'tuyen_cho_ghi' ) ) {
+			$tuyen = VHCC_Online::tuyen_cho_ghi( $coso, $ngay, $ma_goc, $giay );
+			if ( is_array( $tuyen ) && isset( $tuyen['loi'] ) ) {
+				return array( 'loi' => $tuyen['loi'] );
+			}
+			if ( is_array( $tuyen ) ) {
+				$ngay   = $tuyen['ngay'];
+				$hau_to = $tuyen['duoi'];
+				$giay   = $tuyen['giay'];
+			}
+		}
+
 		$cu = $wpdb->get_row( $wpdb->prepare(
 			"SELECT * FROM $bang WHERE coso=%s AND ngay=%s AND ma_nv=%s AND hau_to=%s",
 			$coso, $ngay, $ma_goc, $hau_to ), ARRAY_A );
