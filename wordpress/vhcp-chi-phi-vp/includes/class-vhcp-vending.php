@@ -7,22 +7,27 @@
  *   1. Nhập thành ĐƠN CHI PHÍ THẬT — có TK Nợ, vào sổ, ra tệp MISA.
  *   2. Khối mới "Vending"; mỗi Bộ phận bên Vending (POSH · JP · Pinball · Vận hành chung · Thị trường)
  *      là một CƠ SỞ, mảng "Chi Phí Vending" — xuất MISA thành bảng riêng (cùng ý "mỗi chi phí 1 bảng").
- *   3. Trạng thái THEO BÊN VENDING: "Đã thanh toán" / "Đã quyết toán" → đơn về đúng bước ấy (tiền đã
- *      chi, tính thực chi ngay); "Chờ duyệt" / "Đã duyệt" / "Từ chối" → KHÔNG kéo về.
+ *   3. (đổi cùng ngày) *"Đẩy là đẩy từ vending về web chi phí của anh để quyết toán"* · *"web đó nằm bên
+ *      server khác"* → CHIỀU ĐI LÀ ĐẨY: web Vending (máy chủ khác) POST sang đây ngay khi lưu kho, khoản
+ *      "Đã duyệt / Đã thanh toán / Đã quyết toán" bên Vending thành đơn "CHỜ QUYẾT TOÁN" — quyết toán
+ *      làm Ở ĐÂY, kế toán bên này chốt rồi thanh toán, xuất MISA. "Chờ duyệt" / "Từ chối" không sang.
  *
- * Đơn kéo về đi luồng TRỰC TIẾP ('tt'): tiền đã chi bên Vending, không có gì để tạm ứng — đúng nghĩa
- * "gửi đơn đầy đủ cho kế toán". 10 loại chi phí bên Vending được gieo vào danh mục Loại chi phí với
+ * Đơn đi luồng TRỰC TIẾP ('tt'): tiền đã chi bên Vending, không có gì để tạm ứng — đúng nghĩa "gửi đơn
+ * đầy đủ cho kế toán quyết toán". 10 loại chi phí bên Vending được gieo vào danh mục Loại chi phí với
  * TK Nợ TRỐNG — kế toán gán ở Cấu hình; chưa gán thì tệp MISA cảnh báo thiếu TK Nợ như mọi loại khác.
  *
- * 🔴 KHÔNG NHẬP HAI LẦN. Bản đồ id bên Vending → mã đơn giữ ở `VHCPVP_Meta` (`vending_map`). Kéo lại
- *    thì khoản đã có được CẬP NHẬT (số tiền, trạng thái, hoá đơn) — trừ đơn đã "Đã xuất MISA": sổ đã
- *    nộp, không đụng (đếm vào `daXuat` để kế toán biết).
+ * 🔴 KHÔNG NHẬP HAI LẦN. Bản đồ id bên Vending → mã đơn giữ ở `VHCPVP_Meta` (`vending_map`). Đẩy lại
+ *    thì khoản đã có được CẬP NHẬT (số tiền, nội dung, hoá đơn) khi đơn còn "Chờ quyết toán"; đơn kế
+ *    toán ĐÃ CHỐT (Đã quyết toán trở đi) không đụng — đếm vào `daChot` để hai bên biết lệch.
+ * ⚠️ Đường KÉO (`dong_bo`) giữ làm dự phòng: khi web Vending không đẩy được (mạng, cài trễ), kế toán
+ *    bấm kéo tháng — cùng một hàm nhận `nhan_khoan()`, cùng luật.
  * 🔴 KHOÁ LÀ BÍ MẬT — cùng luật `VHCPVP_DoanhThu`: không trả xuống màn, ô trống = giữ, đi trong header.
  * ⚠️ Đơn vị 'VENDING' — kế toán bị bó đơn vị khác không thấy các đơn này; Admin / nhà mẹ thấy đủ.
  */
 class VHCPVP_Vending {
 
 	const O_URL   = 'vhcpvp_vd_url';
+	const DUONG_NHAN = '/vhcpvp/v1/vending-nhan';
 	const O_KHOA  = 'vhcpvp_vd_khoa';
 	const DUONG   = '/wp-json/vending-hcmc/v1/chi-phi';
 	const DON_VI  = 'VENDING';
@@ -32,8 +37,9 @@ class VHCPVP_Vending {
 	const META_LAN = 'vending_lan_cuoi';
 	const BO_PHAN = array( 'POSH', 'JP', 'Pinball', 'Vận hành chung', 'Thị trường' );
 	const LOAI    = array( 'Nhân sự', 'Xăng xe', 'Taxi / di chuyển', 'Vật tư', 'Bảo trì', 'Hàng hóa', 'Tiếp khách', 'Tạm ứng', 'Hoàn ứng', 'Khác' );
-	/** Trạng thái bên Vending → trạng thái đơn bên này. Không có trong bảng = không kéo. */
-	const TT_LAY  = array( 'Đã thanh toán' => 'Đã thanh toán', 'Đã quyết toán' => 'Đã quyết toán' );
+	/** Trạng thái bên Vending được nhận (đã qua khâu duyệt bên đó). Đơn bên này LUÔN về "Chờ quyết toán". */
+	const TT_NHAN = array( 'Đã duyệt', 'Đã thanh toán', 'Đã quyết toán' );
+	const TT_DON  = 'Chờ quyết toán';
 
 	public static function url() { return rtrim( trim( (string) get_option( self::O_URL, '' ) ), '/' ); }
 	private static function khoa() { return trim( (string) get_option( self::O_KHOA, '' ) ); }
@@ -42,7 +48,9 @@ class VHCPVP_Vending {
 		$url = self::url(); $co = '' !== self::khoa();
 		$admin = class_exists( 'VHCPVP_Auth' ) && 'Admin' === VHCPVP_Auth::vai_tro();
 		$map = VHCPVP_Meta::get_json( self::META_MAP, array() );
-		return array( 'san' => ( '' !== $url && $co ), 'url' => $admin ? $url : '', 'khoaCo' => $co,
+		/* `san` = có khoá là nhận được đẩy; địa chỉ chỉ cần cho đường kéo dự phòng. */
+		return array( 'san' => $co, 'url' => $admin ? $url : '', 'khoaCo' => $co,
+			'diaChiNhan' => function_exists( 'rest_url' ) ? rest_url( ltrim( self::DUONG_NHAN, '/' ) ) : self::DUONG_NHAN,
 			'soDaNhap' => count( (array) $map ), 'lanCuoi' => (string) VHCPVP_Meta::get( self::META_LAN, '' ),
 			'boPhan' => self::BO_PHAN, 'khoi' => self::KHOI, 'donVi' => self::DON_VI );
 	}
@@ -142,24 +150,75 @@ class VHCPVP_Vending {
 
 	// ------------------------------------------------------------------ đồng bộ
 
+	// ------------------------------------------------------------------ NHẬN đẩy từ web Vending (REST)
+
+	public static function routes() {
+		register_rest_route( 'vhcpvp/v1', '/vending-nhan', array(
+			'methods'             => 'POST',
+			'callback'            => array( __CLASS__, 'rest_nhan' ),
+			'permission_callback' => array( __CLASS__, 'duoc_nhan' ),
+		) );
+	}
+
+	/** Cửa duy nhất của điểm nhận: header X-KHH-Khoa khớp khoá đang lưu (hash_equals). Chưa đặt khoá = đóng. */
+	public static function duoc_nhan( $req ) {
+		$luu = self::khoa();
+		$gui = trim( (string) $req->get_header( 'X-KHH-Khoa' ) );
+		if ( '' === $gui ) { $gui = trim( (string) $req->get_header( 'x_khh_khoa' ) ); }
+		if ( '' === $luu || '' === $gui || ! hash_equals( $luu, $gui ) ) {
+			return new WP_Error( 'vhcpvp_vd_khoa', 'Chưa có khoá chia sẻ hoặc khoá không khớp.', array( 'status' => 401 ) );
+		}
+		return true;
+	}
+
+	/** POST { web, khoan:[…] } → lập/cập nhật đơn. Chạy với vai hệ thống (khoá đã gác cửa), không cần phiên PIN. */
+	public static function rest_nhan( $req ) {
+		$body = method_exists( $req, 'get_json_params' ) ? $req->get_json_params() : null;
+		if ( ! is_array( $body ) ) { $body = json_decode( (string) $req->get_body(), true ); }
+		$ds = ( is_array( $body ) && isset( $body['khoan'] ) ) ? (array) $body['khoan'] : array();
+		if ( ! $ds ) { return new WP_Error( 'vhcpvp_vd_rong', 'Không có khoản nào trong gói gửi.', array( 'status' => 400 ) ); }
+		$web = ( is_array( $body ) && isset( $body['web'] ) ) ? (string) $body['web'] : 'Vending HCMC';
+		VHCPVP_Auth::dat_vai_tro( 'Admin', 'Vending HCMC (đẩy tự động)' );
+		$chuan = array();
+		foreach ( $ds as $x ) {
+			$x = (array) $x; $g = function ( $k ) use ( $x ) { return isset( $x[ $k ] ) ? trim( (string) $x[ $k ] ) : ''; };
+			if ( '' === $g( 'id' ) ) { continue; }
+			$chuan[] = array( 'id' => $g( 'id' ), 'code' => $g( 'code' ), 'date' => $g( 'date' ), 'department' => $g( 'department' ), 'type' => $g( 'type' ),
+				'content' => $g( 'content' ), 'amount' => (float) ( isset( $x['amount'] ) ? $x['amount'] : 0 ), 'requester' => $g( 'requester' ), 'approver' => $g( 'approver' ),
+				'status' => $g( 'status' ), 'receiptCode' => $g( 'receiptCode' ), 'receiptLink' => $g( 'receiptLink' ), 'note' => $g( 'note' ) );
+		}
+		return self::nhan_khoan( $chuan, 'đẩy từ ' . $web );
+	}
+
 	/**
-	 * Kéo chi phí một tháng về thành đơn. @param array $a { thang:'YYYY-MM' }
-	 * Trả { moi, capNhat, boQua (trạng thái chưa trả tiền), boQuaBoPhan, daXuat, loi[], gieo }.
+	 * Kéo chi phí một tháng về (ĐƯỜNG DỰ PHÒNG — chiều chính là web Vending đẩy sang). @param array $a { thang:'YYYY-MM' }
 	 */
 	public static function dong_bo( $a = array() ) {
 		$a = (array) $a;
 		list( $thang, $tu, $den ) = VHCPVP_DoanhThu::khoang_thang( isset( $a['thang'] ) ? $a['thang'] : '' );
 		$kq = self::goi( $tu, $den );
 		if ( ! $kq['ok'] ) { return VHCPVP_Util::err( $kq['error'] ); }
+		$r = self::nhan_khoan( $kq['chiPhi'], 'kéo tháng ' . $thang );
+		if ( empty( $r['success'] ) ) { return $r; }
+		$r['thang'] = $thang; $r['tu'] = $tu; $r['den'] = $den; $r['web'] = $kq['web'];
+		return $r;
+	}
+
+	/**
+	 * LÕI NHẬN — dùng chung cho REST (đẩy) và kéo tay. Mỗi khoản "Đã duyệt / Đã thanh toán / Đã quyết toán"
+	 * → một đơn "Chờ quyết toán" luồng tt; khoản đã có → cập nhật nếu đơn chưa chốt.
+	 * Trả { tong, moi, capNhat, boQua (chưa duyệt / từ chối), boQuaBoPhan, daChot, loi[], gieo }.
+	 */
+	public static function nhan_khoan( $ds, $nguon = '' ) {
 		$gieo = self::gieo_danh_muc();
 		$map  = (array) VHCPVP_Meta::get_json( self::META_MAP, array() );
 		global $wpdb;
 		$t_don = VHCPVP_DB::t( 'don' ); $t_cp = VHCPVP_DB::t( 'chiphi' );
-		$moi = 0; $cap = 0; $bo_qua = 0; $bo_bp = 0; $da_xuat = 0; $loi = array();
-		foreach ( $kq['chiPhi'] as $x ) {
-			if ( ! isset( self::TT_LAY[ $x['status'] ] ) ) { $bo_qua++; continue; }
+		$moi = 0; $cap = 0; $bo_qua = 0; $bo_bp = 0; $da_chot = 0; $loi = array();
+		foreach ( (array) $ds as $x ) {
+			if ( ! in_array( $x['status'], self::TT_NHAN, true ) ) { $bo_qua++; continue; }
 			if ( ! in_array( $x['department'], self::BO_PHAN, true ) ) { $bo_bp++; $loi[] = ( $x['code'] ?: $x['id'] ) . ': bộ phận "' . $x['department'] . '" không có trong 5 bộ phận Vending'; continue; }
-			$tt_moi = self::TT_LAY[ $x['status'] ];
+			$tt_moi = self::TT_DON;
 			$ngay   = VHCPVP_Util::parse_date( $x['date'] );
 			if ( ! $ngay ) { $loi[] = ( $x['code'] ?: $x['id'] ) . ': ngày "' . $x['date'] . '" không đọc được'; continue; }
 			$ghi = '[Vending ' . ( $x['code'] ?: $x['id'] ) . ']' . ( '' !== $x['receiptCode'] ? ' HĐ ' . $x['receiptCode'] : '' ) . ( '' !== $x['note'] ? ' · ' . $x['note'] : '' );
@@ -170,11 +229,12 @@ class VHCPVP_Vending {
 				$d = VHCPVP_Don::don_row( $m );
 				if ( ! $d ) { unset( $map[ $x['id'] ] ); }   // đơn đã bị xoá bên này → lập lại như mới
 				else {
-					if ( 'Đã xuất MISA' === (string) $d['trang_thai'] ) { $da_xuat++; continue; }
+					/* 🔴 KẾ TOÁN ĐÃ CHỐT (Đã quyết toán trở đi) → không đụng: số đã vào sổ. Bên Vending sửa sau đó thì hai bên lệch — đếm để biết. */
+					if ( VHCPVP_Don::da_chot( (string) $d['trang_thai'] ) ) { $da_chot++; continue; }
 					$wpdb->update( $t_cp, array( 'coso' => $x['department'], 'ngay' => $ngay, 'nhom' => $x['type'], 'noi_dung' => $nd,
 						'don_gia' => $x['amount'], 'thanh_tien' => $x['amount'], 'thuc_mua' => $x['amount'], 'anh' => $x['receiptLink'] ), array( 'ma_don' => $m ) );
-					$wpdb->update( $t_don, array( 'trang_thai' => $tt_moi, 'ngay_qt' => $ngay, 'nguoi_qt' => $x['approver'], 'so_tien_thuc_mua' => $x['amount'],
-						'hoa_don_qt' => $x['receiptLink'], 'ghi_chu' => $ghi, 'nguoi_lap' => ( $x['requester'] ?: 'Vending HCMC' ) ), array( 'ma_don' => $m ) );
+					$wpdb->update( $t_don, array( 'trang_thai' => $tt_moi, 'so_tien_thuc_mua' => $x['amount'], 'hoa_don_qt' => $x['receiptLink'], 'ghi_chu' => $ghi,
+						'nguoi_lap' => ( $x['requester'] ?: 'Vending HCMC' ), 'nguoi_duyet' => $x['approver'] ), array( 'ma_don' => $m ) );
 					$cap++; continue;
 				}
 			}
@@ -189,16 +249,17 @@ class VHCPVP_Vending {
 				$loi[] = ( $x['code'] ?: $x['id'] ) . ': ' . ( isset( $l['error'] ) ? $l['error'] : 'không thêm được dòng' );
 				$wpdb->delete( $t_don, array( 'ma_don' => $m ) ); continue;
 			}
-			$wpdb->update( $t_don, array( 'trang_thai' => $tt_moi, 'ngay_qt' => $ngay, 'nguoi_qt' => $x['approver'], 'ngay_gui_qt' => VHCPVP_Util::now_sql(),
+			/* Về "Chờ quyết toán": người duyệt bên Vending ghi vào cột người duyệt; người QUYẾT TOÁN để trống — đó là kế toán bên này, lát nữa. */
+			$wpdb->update( $t_don, array( 'trang_thai' => $tt_moi, 'nguoi_duyet' => $x['approver'], 'ngay_duyet' => $ngay, 'ngay_gui_qt' => VHCPVP_Util::now_sql(),
 				'so_tien_thuc_mua' => $x['amount'], 'hinh_thuc_tt' => 'Vending', 'hoa_don_qt' => $x['receiptLink'], 'ghi_chu' => $ghi ), array( 'ma_don' => $m ) );
 			$map[ $x['id'] ] = $m; $moi++;
 		}
 		VHCPVP_Meta::set_json( self::META_MAP, $map );
-		VHCPVP_Meta::set( self::META_LAN, VHCPVP_Util::now_sql() . ' · ' . $thang . ' · mới ' . $moi . ' · cập nhật ' . $cap );
-		VHCPVP_Log::log_action( array( 'actor' => VHCPVP_Auth::nguoi(), 'role' => VHCPVP_Auth::vai_tro(), 'action' => 'Kéo chi phí Vending về',
-			'target' => $thang, 'detail' => 'mới ' . $moi . ' · cập nhật ' . $cap . ' · chưa trả tiền bỏ qua ' . $bo_qua . ' · bộ phận lạ ' . $bo_bp . ' · đã xuất MISA giữ ' . $da_xuat . ' · lỗi ' . count( $loi )
+		VHCPVP_Meta::set( self::META_LAN, VHCPVP_Util::now_sql() . ' · ' . $nguon . ' · mới ' . $moi . ' · cập nhật ' . $cap );
+		VHCPVP_Log::log_action( array( 'actor' => VHCPVP_Auth::nguoi(), 'role' => VHCPVP_Auth::vai_tro(), 'action' => 'Nhận chi phí Vending',
+			'target' => $nguon, 'detail' => 'mới ' . $moi . ' · cập nhật ' . $cap . ' · chưa duyệt/từ chối bỏ qua ' . $bo_qua . ' · bộ phận lạ ' . $bo_bp . ' · đã chốt giữ ' . $da_chot . ' · lỗi ' . count( $loi )
 				. ( $gieo['coso'] || $gieo['loai'] ? ' · gieo ' . $gieo['coso'] . ' cơ sở, ' . $gieo['loai'] . ' loại' : '' ) ) );
-		return VHCPVP_Util::ok( array( 'thang' => $thang, 'tu' => $tu, 'den' => $den, 'web' => $kq['web'], 'tong' => count( $kq['chiPhi'] ),
-			'moi' => $moi, 'capNhat' => $cap, 'boQua' => $bo_qua, 'boQuaBoPhan' => $bo_bp, 'daXuat' => $da_xuat, 'loi' => $loi, 'gieo' => $gieo ) );
+		return VHCPVP_Util::ok( array( 'nguon' => $nguon, 'tong' => count( (array) $ds ),
+			'moi' => $moi, 'capNhat' => $cap, 'boQua' => $bo_qua, 'boQuaBoPhan' => $bo_bp, 'daChot' => $da_chot, 'loi' => $loi, 'gieo' => $gieo ) );
 	}
 }

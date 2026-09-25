@@ -2,7 +2,8 @@
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
  * KÉO CHI PHÍ VENDING HCMC VỀ THÀNH ĐƠN THẬT — `VHCP_Vending`.
  * Anh Thắng 25/09/2026: "nối chi phí từ web khác qua chi phí của web anh" → nhập thành đơn thật ·
- * khối "Vending", mỗi Bộ phận = một cơ sở · trạng thái theo bên Vending.
+ * khối "Vending", mỗi Bộ phận = một cơ sở · rồi chốt chiều: "Đẩy là đẩy từ vending về web chi phí của anh
+ * để quyết toán" · "web đó nằm bên server khác" → web Vending POST sang, đơn về "Chờ quyết toán".
  * Chạy: php tools/test/kiem-vending-chi-phi.php
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
 $goc = dirname( dirname( __DIR__ ) );
@@ -27,7 +28,7 @@ t( '   khoi_ds() liệt kê vending', in_array( 'vending', array_column( VHCP_Do
 
 /* ── 1. Cấu hình ───────────────────────────────────────────────────────────────────────────── */
 $ch = VHCP_Vending::cau_hinh();
-t( '🔴 gói màn không có khoá; san=false khi chưa khai', ! array_key_exists( 'khoa', $ch ) && false === $ch['san'] && 0 === $ch['soDaNhap'], $ch );
+t( '🔴 gói màn không có khoá; san=false khi chưa khai; có địa chỉ nhận', ! array_key_exists( 'khoa', $ch ) && false === $ch['san'] && 0 === $ch['soDaNhap'] && false !== strpos( $ch['diaChiNhan'], '/wp-json/vhcp/v1/vending-nhan' ), $ch );
 VHCP_Auth::dat_vai_tro( 'Kế toán cá nhân', 'Kế Toán A' );
 $r = VHCP_Cfg::save_config( array( 'vending' => array( 'url' => 'https://vending.kh.vn', 'khoa' => 'KHOA-VENDING-1234567890' ) ) );
 t( '🔴 Kế toán không đổi được kết nối', empty( $r['success'] ), $r );
@@ -36,7 +37,7 @@ $r = VHCP_Cfg::save_config( array( 'vending' => array( 'url' => 'https://vending
 t( '   Admin lưu được', ! empty( $r['success'] ), $r );
 VHCP_Cfg::save_config( array( 'vending' => array( 'url' => 'https://vending.kh.vn', 'khoa' => '' ) ) );
 teq( '🔴 khoá rỗng = GIỮ', 'KHOA-VENDING-1234567890', get_option( 'vhcp_vd_khoa' ) );
-teq( '   san=true', true, VHCP_Vending::cau_hinh()['san'] );
+teq( '   san=true (có khoá là nhận đẩy được)', true, VHCP_Vending::cau_hinh()['san'] );
 
 /* ── 2. Gọi sang web: khoá trong header, không nằm trong địa chỉ ──────────────────────────── */
 $KHO = array(
@@ -57,23 +58,24 @@ t( '🔴 khoá đi trong header, KHÔNG trong địa chỉ', 'KHOA-VENDING-12345
 /* ── 3. Đồng bộ tháng 9 ────────────────────────────────────────────────────────────────────── */
 $r = VHCP_Vending::dong_bo( array( 'thang' => '2026-09' ) );
 t( '   dong_bo chạy', ! empty( $r['success'] ), $r );
-teq( '🔴 mới 2 (Đã thanh toán + Đã quyết toán) · bỏ qua 3 (Chờ duyệt, Đã duyệt, Từ chối) · bộ phận lạ 1', array( 2, 0, 3, 1, 0 ), array( $r['moi'], $r['capNhat'], $r['boQua'], $r['boQuaBoPhan'], $r['daXuat'] ) );
+teq( '🔴 mới 3 (Đã thanh toán · Đã quyết toán · Đã duyệt) · bỏ qua 2 (Chờ duyệt, Từ chối) · bộ phận lạ 1', array( 3, 0, 2, 1, 0 ), array( $r['moi'], $r['capNhat'], $r['boQua'], $r['boQuaBoPhan'], $r['daChot'] ) );
 teq( '🔴 gieo 5 cơ sở + 10 loại lần đầu', array( 'coso' => 5, 'loai' => 10 ), $r['gieo'] );
 t( '   lỗi chỉ ghi khoản bộ phận lạ, nêu mã', 1 === count( $r['loi'] ) && false !== mb_strpos( $r['loi'][0], 'CP-2026-0005' ) && false !== mb_strpos( $r['loi'][0], 'Kho lạ' ), $r['loi'] );
 $map = VHCP_Meta::get_json( 'vending_map', array() );
-teq( '   bản đồ id → mã đơn có 2 khoá', array( '1001', '1002' ), array_map( 'strval', array_keys( $map ) ) );
+teq( '   bản đồ id → mã đơn có 3 khoá', array( '1001', '1002', '1004' ), array_map( 'strval', array_keys( $map ) ) );
 $m1 = $map['1001']; $d1 = VHCP_Don::don_row( $m1 ); $g1 = VHCP_Don::get_don( $m1, false );
-teq( '🔴 đơn 1001: đơn vị VENDING · khối vending · luồng tt · trạng thái Đã thanh toán', array( 'VENDING', 'vending', 'tt', 'Đã thanh toán' ), array( (string) $d1['don_vi'], (string) $d1['khoi'], VHCP_Don::luong_don( $d1 ), (string) $d1['trang_thai'] ) );
+teq( '🔴 đơn 1001: đơn vị VENDING · khối vending · luồng tt · về "Chờ quyết toán" (quyết toán làm bên này)', array( 'VENDING', 'vending', 'tt', 'Chờ quyết toán' ), array( (string) $d1['don_vi'], (string) $d1['khoi'], VHCP_Don::luong_don( $d1 ), (string) $d1['trang_thai'] ) );
 teq( '   kỳ = tuần chứa ngày 3/9 (T9/2026 (31/8-6/9/2026))', 'T9/2026 (31/8-6/9/2026)', VHCP_Util::fmt( $d1['ky'] ) );
-teq( '   người lập = người đề xuất bên Vending, người QT = người duyệt', array( 'Nguyễn Văn Kỹ', 'Trần Quản Lý' ), array( (string) $d1['nguoi_lap'], (string) $d1['nguoi_qt'] ) );
+teq( '   người lập = người đề xuất bên Vending, người DUYỆT = người duyệt bên Vending, người QT còn trống (kế toán bên này)', array( 'Nguyễn Văn Kỹ', 'Trần Quản Lý', '' ), array( (string) $d1['nguoi_lap'], (string) $d1['nguoi_duyet'], (string) $d1['nguoi_qt'] ) );
 t( '   ghi chú mang mã Vending + số HĐ + note', false !== strpos( (string) $d1['ghi_chu'], '[Vending CP-2026-0001]' ) && false !== strpos( (string) $d1['ghi_chu'], 'HD001' ), $d1['ghi_chu'] );
 teq( '   hoá đơn tổng = link ảnh bên Vending', 'https://vending.kh.vn/wp-content/uploads/hd001.jpg', (string) $d1['hoa_don_qt'] );
 $ln = $g1['lines'][0];
 teq( '🔴 dòng: cơ sở = Bộ phận POSH · loại = Xăng xe · thành tiền = thực mua = 350.000 · ngày 03/09', array( 'POSH', 'Xăng xe', 350000.0, 350000.0 ), array( $ln['coso'], $ln['nhom'], (float) $ln['thanhTien'], (float) $ln['thucMua'] ) );
 t( '   ngày dòng 03/09/2026', false !== strpos( (string) $ln['ngay'], '03/09/2026' ) || '2026-09-03' === (string) $ln['ngay'], $ln['ngay'] );
-teq( '🔴 thực chi tính ngay (đã cấp tiền theo luồng)', 350000.0, (float) VHCP_Don::thuc_chi( $ln['thanhTien'], $ln['thucMua'], $d1['trang_thai'] ) );
+teq( '🔴 thực chi tính ngay ("Chờ quyết toán" đứng sau mốc cấp tiền — tiền đã chi bên Vending)', 350000.0, (float) VHCP_Don::thuc_chi( $ln['thanhTien'], $ln['thucMua'], $d1['trang_thai'] ) );
 $d2 = VHCP_Don::don_row( $map['1002'] );
-teq( '   đơn 1002: Đã quyết toán, cơ sở JP', array( 'Đã quyết toán', 'JP' ), array( (string) $d2['trang_thai'], VHCP_Don::get_don( $map['1002'], false )['lines'][0]['coso'] ) );
+teq( '   đơn 1002 (Vending "Đã quyết toán") cũng về Chờ quyết toán, cơ sở JP', array( 'Chờ quyết toán', 'JP' ), array( (string) $d2['trang_thai'], VHCP_Don::get_don( $map['1002'], false )['lines'][0]['coso'] ) );
+teq( '   đơn 1004 (Vending "Đã duyệt") sang được, cơ sở Thị trường', 'Thị trường', VHCP_Don::get_don( $map['1004'], false )['lines'][0]['coso'] );
 
 /* danh mục đã gieo */
 VHCP_Cfg::clear_cache(); $cfg = VHCP_Cfg::get_config();
@@ -84,25 +86,46 @@ $loai_vd = array_values( array_filter( $cfg['loaiChiPhi'], function ( $x ) { ret
 teq( '🔴 10 loại khối vending, TK Nợ trống, đầu mục Chi Phí Vending', array( 10, '', 'Chi Phí Vending' ), array( count( $loai_vd ), $loai_vd[0]['tkNo'], $loai_vd[0]['dauMuc'] ) );
 teq( '   gieo lại không nhân đôi', array( 'coso' => 0, 'loai' => 0 ), VHCP_Vending::gieo_danh_muc() );
 
-/* ── 4. Kéo lại: cập nhật, không nhập đôi; đơn đã xuất MISA giữ nguyên ─────────────────────── */
-$KHO[0]['amount'] = 400000; $KHO[0]['content'] = 'Đổ xăng (sửa)'; $KHO[3]['status'] = 'Đã thanh toán';   // 1001 sửa tiền · 1004 nay đã trả
+/* ── 4. Đẩy/kéo lại: cập nhật đơn còn Chờ quyết toán, không nhập đôi; đơn kế toán ĐÃ CHỐT giữ nguyên ── */
+$KHO[0]['amount'] = 400000; $KHO[0]['content'] = 'Đổ xăng (sửa)'; $KHO[2]['status'] = 'Đã duyệt';   // 1001 sửa tiền · 1003 nay đã duyệt
 $GLOBALS['VHCP_HTTP'] = array( 'vending.kh.vn/wp-json/vending-hcmc/v1/chi-phi' => array( 'code' => 200, 'body' => $json( $KHO ) ) );
 global $wpdb; $t_don = VHCP_DB::t( 'don' );
-$wpdb->query( $wpdb->prepare( "UPDATE $t_don SET trang_thai=%s WHERE ma_don=%s", 'Đã xuất MISA', $map['1002'] ) );
+/* Kế toán bên này đã quyết toán đơn 1002 */
+$wpdb->query( $wpdb->prepare( "UPDATE $t_don SET trang_thai=%s, nguoi_qt=%s WHERE ma_don=%s", 'Đã quyết toán', 'Kế Toán A', $map['1002'] ) );
 $r = VHCP_Vending::dong_bo( array( 'thang' => '2026-09' ) );
-teq( '🔴 lần 2: mới 1 (1004 vừa trả) · cập nhật 1 (1001) · đã xuất MISA giữ 1 (1002) · bỏ qua 2', array( 1, 1, 1, 2 ), array( $r['moi'], $r['capNhat'], $r['daXuat'], $r['boQua'] ) );
+teq( '🔴 lần 2: mới 1 (1003 vừa duyệt) · cập nhật 2 (1001, 1004 còn Chờ QT) · đã chốt giữ 1 (1002) · bỏ qua 1 (Từ chối)', array( 1, 2, 1, 1 ), array( $r['moi'], $r['capNhat'], $r['daChot'], $r['boQua'] ) );
 teq( '   không gieo thêm', array( 'coso' => 0, 'loai' => 0 ), $r['gieo'] );
 $g1 = VHCP_Don::get_don( $m1, false );
-teq( '🔴 1001 cập nhật tiền 400.000 và nội dung, vẫn cùng mã đơn', array( 400000.0, 'Đổ xăng (sửa)', 1 ), array( (float) $g1['lines'][0]['thucMua'], $g1['lines'][0]['noiDung'], count( $g1['lines'] ) ) );
-teq( '   1002 đã xuất MISA → trạng thái không bị kéo lùi', 'Đã xuất MISA', (string) VHCP_Don::don_row( $map['1002'] )['trang_thai'] );
+teq( '🔴 1001 cập nhật tiền 400.000 và nội dung, vẫn cùng mã đơn, vẫn Chờ quyết toán', array( 400000.0, 'Đổ xăng (sửa)', 1, 'Chờ quyết toán' ), array( (float) $g1['lines'][0]['thucMua'], $g1['lines'][0]['noiDung'], count( $g1['lines'] ), $g1['don']['trangThai'] ) );
+teq( '🔴 1002 kế toán đã chốt → không bị kéo lùi, người QT giữ', array( 'Đã quyết toán', 'Kế Toán A' ), array( (string) VHCP_Don::don_row( $map['1002'] )['trang_thai'], (string) VHCP_Don::don_row( $map['1002'] )['nguoi_qt'] ) );
 $map = VHCP_Meta::get_json( 'vending_map', array() );
-teq( '   bản đồ giờ 3 khoá', 3, count( $map ) );
-teq( '   tổng đơn VENDING trong sổ = 3 (không nhân đôi)', 3, (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $t_don WHERE don_vi=%s", 'VENDING' ) ) );
+teq( '   bản đồ giờ 4 khoá', 4, count( $map ) );
+teq( '   tổng đơn VENDING trong sổ = 4 (không nhân đôi)', 4, (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $t_don WHERE don_vi=%s", 'VENDING' ) ) );
 
-/* ── 5. Ra tệp MISA: đơn tt "Đã thanh toán" là sẵn xuất; mảng Chi Phí Vending lọc riêng được ── */
+/* ── 5. Ra tệp MISA: luồng tt sẵn xuất là SAU "Đã thanh toán" — kế toán quyết toán + thanh toán xong mới ra ── */
 $x = VHCP_Misa::export_misa( 'all', 'chuaxuat', 'all', 'soct', 'all', 'Chi Phí Vending' );
-t( '🔴 lọc mảng "Chi Phí Vending": ra 2 dòng (1001 · 1004), 1002 đã xuất không vào "chưa xuất"', 2 === $x['count'] && in_array( 'Chi Phí Vending', $x['mangDs'], true ), array( $x['count'], $x['mangDs'] ) );
-t( '   cảnh báo thiếu TK Nợ cho loại Xăng xe (kế toán chưa gán) — đúng ý "để trống TK Nợ"', (bool) count( array_filter( $x['warn'], function ( $w ) { return false !== mb_strpos( $w, 'Xăng xe' ); } ) ), $x['warn'] );
+teq( '🔴 chưa ai thanh toán → mảng Chi Phí Vending chưa có dòng "chưa xuất" (đúng: quyết toán làm bên này trước)', 0, $x['count'] );
+$wpdb->query( $wpdb->prepare( "UPDATE $t_don SET trang_thai=%s WHERE ma_don=%s", 'Đã thanh toán', $map['1002'] ) );
+$x = VHCP_Misa::export_misa( 'all', 'chuaxuat', 'all', 'soct', 'all', 'Chi Phí Vending' );
+t( '🔴 kế toán thanh toán 1002 xong → 1 dòng ra tệp, mảng "Chi Phí Vending" có trong ô lọc', 1 === $x['count'] && in_array( 'Chi Phí Vending', $x['mangDs'], true ), array( $x['count'], $x['mangDs'] ) );
+t( '   cảnh báo thiếu TK Nợ cho loại Bảo trì (kế toán chưa gán) — đúng ý "để trống TK Nợ"', (bool) count( array_filter( $x['warn'], function ( $w ) { return false !== mb_strpos( $w, 'Bảo trì' ); } ) ), $x['warn'] );
+
+/* ── 5b. ĐIỂM NHẬN ĐẨY (REST) — chiều chính ─────────────────────────────────────────────────── */
+$rq = function ( $body, $khoa = null ) { $r = new WP_REST_Request( 'POST', null === $khoa ? array() : array( 'X-KHH-Khoa' => $khoa ) ); $r->set_body( json_encode( $body, JSON_UNESCAPED_UNICODE ) ); return $r; };
+$e = VHCP_Vending::duoc_nhan( $rq( array(), 'sai' ) );
+t( '🔴 điểm nhận: khoá sai → 401', is_wp_error( $e ) && 401 === $e->get_error_data()['status'], $e );
+$e = VHCP_Vending::duoc_nhan( $rq( array() ) );
+t( '   không header → 401', is_wp_error( $e ) && 401 === $e->get_error_data()['status'] );
+t( '   đúng khoá → mở', true === VHCP_Vending::duoc_nhan( $rq( array(), 'KHOA-VENDING-1234567890' ) ) );
+$rn = VHCP_Vending::rest_nhan( $rq( array( 'web' => 'VENDING HCMC', 'khoan' => array(
+	array( 'id' => 2001, 'code' => 'CP-2026-0101', 'date' => '2026-09-26', 'department' => 'POSH', 'type' => 'Vật tư', 'content' => 'Đẩy tự động', 'amount' => 75000, 'requester' => 'Nguyễn Văn Kỹ', 'approver' => 'Trần Quản Lý', 'status' => 'Đã duyệt' ),
+	array( 'id' => 2002, 'code' => 'CP-2026-0102', 'date' => '2026-09-26', 'department' => 'JP', 'type' => 'Vật tư', 'content' => 'chờ', 'amount' => 1, 'status' => 'Chờ duyệt' ),
+) ), 'KHOA-VENDING-1234567890' ) );
+t( '🔴 rest_nhan: 1 mới (Đã duyệt) · 1 bỏ qua (Chờ duyệt), nguồn ghi "đẩy từ VENDING HCMC"', ! empty( $rn['success'] ) && 1 === $rn['moi'] && 1 === $rn['boQua'] && 'đẩy từ VENDING HCMC' === $rn['nguon'], $rn );
+$map = VHCP_Meta::get_json( 'vending_map', array() );
+t( '   đơn đẩy sang ở Chờ quyết toán, cơ sở POSH', isset( $map['2001'] ) && 'Chờ quyết toán' === (string) VHCP_Don::don_row( $map['2001'] )['trang_thai'], $map );
+$e = VHCP_Vending::rest_nhan( $rq( array( 'web' => 'x', 'khoan' => array() ), 'KHOA-VENDING-1234567890' ) );
+t( '   gói rỗng → 400', is_wp_error( $e ) && 400 === $e->get_error_data()['status'] );
 
 /* ── 6. Chối khi chưa khai / khoá sai ─────────────────────────────────────────────────────── */
 $GLOBALS['VHCP_HTTP'] = array( 'vending.kh.vn' => array( 'code' => 401, 'body' => '{"code":"vhcm_khoa","message":"x"}' ) );
@@ -113,4 +136,4 @@ $r = VHCP_Vending::dong_bo( array( 'thang' => '2026-09' ) );
 t( '   404 → nhắc cài plugin Vending 1.81.0', empty( $r['success'] ) && false !== mb_strpos( $r['error'], '1.81.0' ), $r );
 
 if ( $TRUOT ) { echo "\n✗ TRƯỢT " . count( $TRUOT ) . " phép (đạt $DAT):\n"; foreach ( $TRUOT as $x ) { echo "  · $x\n"; } exit( 1 ); }
-echo "\n✓ SẠCH — $DAT phép: kéo chi phí Vending về thành đơn thật, khối Vending, không nhập đôi, ra MISA riêng mảng.\n";
+echo "\n✓ SẠCH — $DAT phép: web Vending đẩy sang thành đơn Chờ quyết toán (khối Vending), kéo dự phòng cùng luật, không nhập đôi, kế toán chốt thì giữ.\n";

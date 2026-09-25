@@ -9,14 +9,14 @@ const ham = (n) => { const i = HTML.indexOf('  function ' + n + '('); return i <
 const nut = () => { const o = {}; return { el: (id) => (o[id] = o[id] || { style: {}, value: '', innerHTML: '', textContent: '' }), o }; };
 
 t('   CH_NHOM có nhóm Kết nối web Vending → vendingCard', /id:\['vendingCard'\]/.test(HTML));
-t('   thẻ: ô khoá type=password autocomplete=new-password; có ô tháng + nút kéo', /<input id="cfgVdKhoa" type="password" autocomplete="new-password"/.test(HTML) && /<input type="month" id="cfgVdThang"/.test(HTML) && /onclick="dongBoVending\(\)"/.test(HTML));
+t('   thẻ: ô khoá type=password autocomplete=new-password; có ô tháng + nút kéo dự phòng + ô địa chỉ nhận', /id="cfgVdDiaChi"/.test(HTML) && /<input id="cfgVdKhoa" type="password" autocomplete="new-password"/.test(HTML) && /<input type="month" id="cfgVdThang"/.test(HTML) && /onclick="dongBoVending\(\)"/.test(HTML));
 t('   renderCfgVending() gọi ngay sau renderCfgDoanhThu()', /renderCfgDoanhThu\(\);[^\n]*\n\s*renderCfgVending\(\);/.test(HTML));
 {
   const src = ham('renderCfgVending');
   t('🔴 renderCfgVending chỉ gán cfgVdKhoa = "" — không bao giờ từ BOOT', /el\('cfgVdKhoa'\)\.value='';/.test(src) && !/cfgVdKhoa'\)\.value=vd/.test(src) && !/\.khoa\b/.test(src), src);
   const { el, o } = nut();
-  new Function('el', 'BOOT', '_laAdmin', 'document', src + '\nrenderCfgVending();')(el, { vending: { url: 'https://vending.kh.vn', khoaCo: true, soDaNhap: 12, lanCuoi: '25/09 16:00 · 2026-09 · mới 2 · cập nhật 1' } }, () => true, { activeElement: null });
-  teq('   Admin: bày địa chỉ, ô khoá trống, nhãn ĐÃ CÓ, tháng mồi YYYY-MM', ['https://vending.kh.vn', '', true, true], [o.cfgVdUrl.value, o.cfgVdKhoa.value, /ĐÃ CÓ khoá/.test(o.cfgVdKhoaTt.innerHTML), /^\d{4}-\d{2}$/.test(o.cfgVdThang.value)]);
+  new Function('el', 'BOOT', '_laAdmin', 'document', src + '\nrenderCfgVending();')(el, { vending: { url: 'https://vending.kh.vn', khoaCo: true, diaChiNhan: 'https://khmatrix.com/wp-json/vhcp/v1/vending-nhan', soDaNhap: 12, lanCuoi: '25/09 16:00 · 2026-09 · mới 2 · cập nhật 1' } }, () => true, { activeElement: null });
+  teq('   Admin: bày địa chỉ, ô khoá trống, nhãn ĐÃ CÓ, tháng mồi YYYY-MM, địa chỉ nhận bày ra', ['https://vending.kh.vn', '', true, true, 'https://khmatrix.com/wp-json/vhcp/v1/vending-nhan'], [o.cfgVdUrl.value, o.cfgVdKhoa.value, /ĐÃ CÓ khoá/.test(o.cfgVdKhoaTt.innerHTML), /^\d{4}-\d{2}$/.test(o.cfgVdThang.value), o.cfgVdDiaChi.textContent]);
   t('   ghi chú: số đã nhập + lần cuối', /Đã nhập 12 khoản/.test(o.cfgVdNote.textContent) && /Lần cuối/.test(o.cfgVdNote.textContent), o.cfgVdNote.textContent);
   const b = nut();
   new Function('el', 'BOOT', '_laAdmin', 'document', src + '\nrenderCfgVending();')(b.el, { vending: {} }, () => false, { activeElement: null });
@@ -39,7 +39,7 @@ t('   renderCfgVending() gọi ngay sau renderCfgDoanhThu()', /renderCfgDoanhThu
 {
   const src = ham('dongBoVending'); let goi = null, booted = 0; const toasts = [], logs = [];
   const { el, o } = nut(); o.cfgVdThang = { value: '2026-09' }; o.cfgVdKq = { style: { display: 'none' }, innerHTML: '' };
-  const R = { success: true, thang: '2026-09', tu: '2026-09-01', den: '2026-09-30', web: 'VENDING HCMC', tong: 6, moi: 2, capNhat: 1, boQua: 3, boQuaBoPhan: 1, daXuat: 1, gieo: { coso: 5, loai: 10 }, loi: ['CP-2026-0005: bộ phận "Kho lạ" không có'] };
+  const R = { success: true, thang: '2026-09', tu: '2026-09-01', den: '2026-09-30', web: 'VENDING HCMC', tong: 6, moi: 2, capNhat: 1, boQua: 3, boQuaBoPhan: 1, daChot: 1, gieo: { coso: 5, loai: 10 }, loi: ['CP-2026-0005: bộ phận "Kho lạ" không có'] };
   const run = { withSuccessHandler(f) { this._ok = f; return this; }, withFailureHandler() { return this; }, dongBoVending(a) { goi = a; this._ok(R); } };
   new Function('el', 'confirm', 'loading', 'google', 'toast', '_log', 'boot', 'esc', src + '\ndongBoVending();')(el, () => false, () => {}, { script: { run } }, () => {}, () => {}, () => {}, (s) => s);
   t('   bấm Huỷ ở confirm → không gọi', goi === null);
@@ -47,7 +47,7 @@ t('   renderCfgVending() gọi ngay sau renderCfgDoanhThu()', /renderCfgDoanhThu
   teq('🔴 gọi dongBoVending({thang})', { thang: '2026-09' }, goi);
   t('   toast ok tóm số, ghi _log, nạp lại BOOT', /ok:Tháng 2026-09: mới 2 đơn · cập nhật 1/.test(toasts[0]) && logs[0] === 'Kéo chi phí Vending' && booted === 1, [toasts, logs, booted]);
   const h = o.cfgVdKq.innerHTML;
-  t('   bảng kết quả: mới/cập nhật/bỏ qua/đã xuất/bộ phận lạ/gieo/lỗi đều hiện', o.cfgVdKq.style.display === '' && /Mới: <b>2<\/b>/.test(h) && /Cập nhật: <b>1<\/b>/.test(h) && /bỏ qua\): 3/.test(h) && /giữ\): 1/.test(h) && /Bộ phận lạ: 1/.test(h) && /5 cơ sở, 10 loại/.test(h) && /1 khoản lỗi/.test(h) && /Kho lạ/.test(h), h);
+  t('   bảng kết quả: mới/cập nhật/bỏ qua/đã xuất/bộ phận lạ/gieo/lỗi đều hiện', o.cfgVdKq.style.display === '' && /Mới: <b>2<\/b>/.test(h) && /Cập nhật: <b>1<\/b>/.test(h) && /bỏ qua\): 3/.test(h) && /chốt \(giữ\): 1/.test(h) && /Bộ phận lạ: 1/.test(h) && /5 cơ sở, 10 loại/.test(h) && /1 khoản lỗi/.test(h) && /Kho lạ/.test(h), h);
 }
 if (TRUOT.length) { console.log('\n✗ TRƯỢT ' + TRUOT.length + ' phép (đạt ' + DAT + '):'); TRUOT.forEach((x) => console.log('  · ' + x)); process.exit(1); }
 console.log('\n✓ SẠCH — ' + DAT + ' phép: thẻ Kết nối web Vending, khoá không lộ, kéo về theo tháng và bày kết quả.');

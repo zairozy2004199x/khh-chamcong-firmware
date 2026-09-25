@@ -1891,14 +1891,17 @@
         <div class="fld" style="flex:1;min-width:260px"><label>Địa chỉ web Vending</label><input id="cfgVdUrl" placeholder="https://vending.example.com" autocomplete="off"></div>
         <div class="fld" style="flex:1;min-width:260px"><label>Khoá chia sẻ · <span id="cfgVdKhoaTt" style="font-weight:400"></span></label><input id="cfgVdKhoa" type="password" autocomplete="new-password" placeholder="Dán khoá mới — để trống là giữ khoá cũ"></div>
         <div style="flex-basis:100%;font-size:12px;color:#64748b;line-height:1.6">
-          Bên web Vending: wp-admin ▸ <b>VENDING HCMC ▸ Chia sẻ cho Chi phí</b> → Tạo khoá ngẫu nhiên → dán vào đây → Lưu → Kiểm tra kết nối.
-          Kéo về: mỗi khoản "Chi phí quản lý" bên Vending ở trạng thái <b>Đã thanh toán</b> / <b>Đã quyết toán</b> thành một <b>đơn thật</b> luồng Trực tiếp,
-          đơn vị VENDING, khối Vending, cơ sở = Bộ phận (POSH · JP · Pinball · Vận hành chung · Thị trường), mảng "Chi Phí Vending" — xuất MISA thành bảng riêng.
-          Chờ duyệt / Đã duyệt / Từ chối KHÔNG kéo. Kéo lại thì cập nhật, không nhập đôi; đơn đã xuất MISA giữ nguyên. 10 loại chi phí Vending tự vào danh mục với TK Nợ trống — kế toán gán ở 🧮 Loại chi phí.
+          <!-- Anh Thắng 25/09/2026: "Đẩy là đẩy từ vending về web chi phí của anh để quyết toán" · "web đó nằm bên server khác". -->
+          <b>Chiều đi: web Vending ĐẨY sang đây.</b> Bên web Vending (máy chủ khác): wp-admin ▸ <b>VENDING HCMC ▸ Chia sẻ cho Chi phí</b> → điền địa chỉ nhận
+          <code id="cfgVdDiaChi" style="user-select:all"></code> → Tạo khoá ngẫu nhiên → dán khoá ấy vào ô trên → Lưu. Từ đó mỗi khoản "Chi phí quản lý"
+          <b>Đã duyệt</b> / Đã thanh toán / Đã quyết toán bên Vending tự sang đây thành một <b>đơn "Chờ quyết toán"</b> luồng Trực tiếp — kế toán bên này quyết toán,
+          thanh toán, xuất MISA. Đơn vị VENDING, khối Vending, cơ sở = Bộ phận (POSH · JP · Pinball · Vận hành chung · Thị trường), mảng "Chi Phí Vending" (xuất MISA bảng riêng).
+          Chờ duyệt / Từ chối không sang. Đẩy lại thì cập nhật đơn còn Chờ quyết toán, không nhập đôi; đơn kế toán đã chốt giữ nguyên. 10 loại chi phí Vending tự vào danh mục với TK Nợ trống — gán ở 🧮 Loại chi phí.
         </div>
         <div style="flex-basis:100%;display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding-top:6px;border-top:1px dashed #e5e1da">
+          <span style="font-size:12px;color:#8c8781">Dự phòng — web Vending không đẩy được thì tự kéo:</span>
           <label style="font-size:12px;color:#64748b">Tháng</label><input type="month" id="cfgVdThang" style="padding:6px 8px;border:1px solid #d6d3cd;border-radius:8px">
-          <button class="btn b-p" onclick="dongBoVending()">⬇ Kéo chi phí tháng này về</button>
+          <button class="btn b-x" onclick="dongBoVending()">⬇ Kéo chi phí tháng này về</button>
           <span id="cfgVdNote" style="font-size:12px;color:#64748b"></span>
         </div>
         <div id="cfgVdKq" style="flex-basis:100%;font-size:12px;line-height:1.6;display:none"></div>
@@ -15893,7 +15896,8 @@
     var vd=(BOOT&&BOOT.vending)||{};
     if(el('cfgVdUrl')&&document.activeElement!==el('cfgVdUrl')) el('cfgVdUrl').value=vd.url||'';
     if(el('cfgVdKhoa')) el('cfgVdKhoa').value='';
-    if(el('cfgVdKhoaTt')) el('cfgVdKhoaTt').innerHTML=vd.khoaCo?'<span style="color:#065f46">ĐÃ CÓ khoá</span>':'<span style="color:#b91c1c">CHƯA có khoá</span>';
+    if(el('cfgVdKhoaTt')) el('cfgVdKhoaTt').innerHTML=vd.khoaCo?'<span style="color:#065f46">ĐÃ CÓ khoá — đang nhận đẩy</span>':'<span style="color:#b91c1c">CHƯA có khoá — cửa nhận đóng</span>';
+    if(el('cfgVdDiaChi')) el('cfgVdDiaChi').textContent=vd.diaChiNhan||'';
     var o=el('cfgVdThang'); if(o&&!o.value){ var d=new Date(); o.value=d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2); }
     if(el('cfgVdNote')) el('cfgVdNote').textContent=(vd.soDaNhap?('Đã nhập '+vd.soDaNhap+' khoản. '):'')+(vd.lanCuoi?('Lần cuối: '+vd.lanCuoi):'Chưa kéo lần nào.');
   }
@@ -15919,10 +15923,10 @@
     google.script.run.withSuccessHandler(function(r){ loading(false);
       if(!(r&&r.success)){ toast('err',(r&&r.error)||'Lỗi'); return; }
       _log('Kéo chi phí Vending', r.thang, 'mới '+r.moi+' · cập nhật '+r.capNhat);
-      toast('ok','Tháng '+r.thang+': mới '+r.moi+' đơn · cập nhật '+r.capNhat+(r.boQua?' · chưa trả tiền bỏ qua '+r.boQua:'')+(r.daXuat?' · đã xuất MISA giữ '+r.daXuat:''));
+      toast('ok','Tháng '+r.thang+': mới '+r.moi+' đơn · cập nhật '+r.capNhat+(r.boQua?' · chưa duyệt bỏ qua '+r.boQua:'')+(r.daChot?' · đã chốt giữ '+r.daChot:''));
       if(kq){ kq.style.display='';
         kq.innerHTML='<b>Tháng '+esc(r.thang)+'</b> ('+esc(r.tu)+' → '+esc(r.den)+') · web: '+esc(r.web||'')+' · nhận '+r.tong+' khoản<br>'
-          +'✅ Mới: <b>'+r.moi+'</b> · 🔁 Cập nhật: <b>'+r.capNhat+'</b> · ⏳ Chưa trả tiền (bỏ qua): '+r.boQua+' · 🔒 Đã xuất MISA (giữ): '+r.daXuat
+          +'✅ Mới: <b>'+r.moi+'</b> · 🔁 Cập nhật: <b>'+r.capNhat+'</b> · ⏳ Chưa duyệt / từ chối (bỏ qua): '+r.boQua+' · 🔒 Kế toán đã chốt (giữ): '+r.daChot
           +(r.boQuaBoPhan?' · ⚠️ Bộ phận lạ: '+r.boQuaBoPhan:'')
           +((r.gieo&&(r.gieo.coso||r.gieo.loai))?'<br>🌱 Gieo danh mục: '+r.gieo.coso+' cơ sở, '+r.gieo.loai+' loại chi phí (TK Nợ trống — gán ở 🧮 Loại chi phí).':'')
           +((r.loi||[]).length?'<br><span style="color:#b91c1c">✗ '+r.loi.length+' khoản lỗi:</span><br>'+r.loi.map(function(x){ return '· '+esc(x); }).join('<br>'):''); }

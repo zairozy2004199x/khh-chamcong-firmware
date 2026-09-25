@@ -3,7 +3,7 @@
  * Plugin Name:       Vận Hành Chi Phí (HN)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       App Chi Phí Cơ Sở / Vận Hành Chi Phí dựng lại trên WordPress — đơn tạm ứng theo tuần, chi phí kỹ thuật, marketing, công tác/setup, quyết toán thừa/thiếu và xuất MISA. Dữ liệu nằm trong bảng MySQL riêng (không phụ thuộc Google Sheet).
- * Version:           1.332.0
+ * Version:           1.333.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -21,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
  * này còn đứng ở 1.31.0 — nghĩa là suốt từ đó tới giờ, cài đè KHÔNG chạy bước nâng cấp nào và
  * trình duyệt vẫn dùng CSS/JS cũ. Có phép thử chốt hai số bằng nhau: tools/test/kiem-phien-ban.py
  */
-define( 'VHCPHN_VERSION', '1.332.0' );
+define( 'VHCPHN_VERSION', '1.333.0' );
 define( 'VHCPHN_FILE', __FILE__ );
 define( 'VHCPHN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHCPHN_URL', plugin_dir_url( __FILE__ ) );
@@ -147,6 +147,8 @@ function vhcphn_flush_rewrite() {
 }
 
 add_action( 'rest_api_init', array( 'VHCPHN_API', 'register_routes' ) );
+// Điểm nhận chi phí web Vending HCMC đẩy sang (máy chủ khác, gác bằng khoá chung) — xem VHCPHN_Vending::routes()
+add_action( 'rest_api_init', array( 'VHCPHN_Vending', 'routes' ) );
 // Cổng dự phòng: hosting nào chặn /wp-json/ thì giao diện tự chuyển sang admin-ajax.php
 add_action( 'wp_ajax_vhcphn_call', array( 'VHCPHN_API', 'ajax' ) );
 add_action( 'wp_ajax_nopriv_vhcphn_call', array( 'VHCPHN_API', 'ajax' ) );
