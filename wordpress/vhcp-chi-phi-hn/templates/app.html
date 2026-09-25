@@ -2572,12 +2572,38 @@
     box.style.display=n?'inline-flex':'none';
     if(el('xuatAnhSo')) el('xuatAnhSo').textContent=n;
     var cs=el('btnChiaSeAnh');
-    if(cs) cs.style.display=(typeof navigator!=='undefined'&&navigator.share&&navigator.canShare)?'':'none';
+    if(cs){
+      cs.style.display=(typeof navigator!=='undefined'&&navigator.share&&navigator.canShare)?'':'none';
+      var ma=String((typeof CUR!=='undefined'&&CUR&&CUR.don&&CUR.don.maDon)||'');
+      var san=!!(ANH_SAN.files && ANH_SAN.ma===ma && ma);
+      cs.textContent=san?('↗ Gửi ngay ('+ANH_SAN.files.length+')'):'↗ Chia sẻ';
+      cs.className='btn '+(san?'b-g':'b-x');
+    }
+  }
+  /* 🔴 KHAY CHIA SẺ CHỈ MỞ ĐƯỢC NGAY TRONG CÚ BẤM. Anh Thắng 25/09/2026 gửi ảnh: *"Xuất ảnh: Failed to
+     execute 'share' on 'Navigator': Permission denied"* — bản đầu tải ảnh xong mới gọi `share`, lúc ấy
+     "quyền bấm" đã hết hạn nên trình duyệt chối. Nên chia làm HAI NHỊP: bấm lần một → tải ảnh về bộ nhớ
+     (`ANH_SAN`), nút đổi thành "Gửi ngay"; bấm lần hai → gọi `share` NGAY, không đợi gì. Máy vẫn chối
+     (máy tính, trình duyệt cũ) → tự tải zip, người dùng gửi tệp zip qua Zalo. */
+  var ANH_SAN={ma:'', files:null};
+  function _chiaSeNgay(ma){
+    var files=ANH_SAN.files;
+    if(!(navigator.share && navigator.canShare && navigator.canShare({files:files}))){ toast('warn','Máy này không chia sẻ tệp được — tải zip thay.'); ANH_SAN={ma:'',files:null}; xuatAnhDon('tai'); return; }
+    navigator.share({files:files, title:'Chứng từ '+ma}).then(function(){
+      toast('ok','Đã mở khay chia sẻ '+files.length+' tệp'); _log('Xuất ảnh chứng từ', ma, files.length+' tệp (chia sẻ)');
+      ANH_SAN={ma:'',files:null}; veNutXuatAnh();
+    }).catch(function(e){
+      if(e && e.name==='AbortError'){ return; }   /* người dùng đóng khay — giữ ảnh sẵn để bấm lại */
+      toast('warn','Trình duyệt không cho chia sẻ trực tiếp ('+((e&&e.name)||'lỗi')+') — đã chuyển sang tải zip, anh/chị gửi tệp zip qua Zalo.');
+      ANH_SAN={ma:'',files:null}; veNutXuatAnh(); xuatAnhDon('tai');
+    });
   }
   function xuatAnhDon(cach){
     var ds=_anhChungTuDon();
     if(!ds.length){ toast('warn','Đơn chưa có ảnh / PDF chứng từ nào'); return; }
     var ma=String((CUR&&CUR.don&&CUR.don.maDon)||'don'), loi=[];
+    /* Nhịp hai của Chia sẻ: ảnh đã sẵn cho đúng đơn này → mở khay ngay trong cú bấm. */
+    if(cach==='chia' && ANH_SAN.files && ANH_SAN.ma===ma){ _chiaSeNgay(ma); return; }
     loading(true);
     Promise.all(ds.map(function(x){
       return fetch(x.url,{credentials:'same-origin'})
@@ -2590,7 +2616,8 @@
       if(cach==='chia'){
         var files=tep.map(function(t){ return new File([t.blob], t.ten, {type:t.blob.type||'application/octet-stream'}); });
         if(navigator.share && navigator.canShare && navigator.canShare({files:files})){
-          return navigator.share({files:files, title:'Chứng từ '+ma}).then(function(){ return {chia:true, n:files.length}; });
+          ANH_SAN={ma:ma, files:files};
+          return {san:true, n:files.length};
         }
         toast('warn','Máy này không chia sẻ tệp được — tải zip thay.');
       }
@@ -2607,8 +2634,13 @@
       });
     }).then(function(r){
       loading(false);
-      toast(loi.length?'warn':'ok', (r.chia?'Đã mở khay chia sẻ ':'Đã đóng gói ')+r.n+' tệp'+(loi.length?(' · '+loi.length+' tệp không tải được, xem KHONG_TAI_DUOC.txt'):''));
-      _log('Xuất ảnh chứng từ', ma, r.n+' tệp'+(r.chia?' (chia sẻ)':' (zip)')+(loi.length?(' · hụt '+loi.length):''));
+      if(r.san){
+        veNutXuatAnh();
+        toast('ok','Đã sẵn '+r.n+' tệp'+(loi.length?(' ('+loi.length+' tệp không tải được)'):'')+' — bấm "↗ Gửi ngay" để mở khay chia sẻ (Zalo…)');
+        return;
+      }
+      toast(loi.length?'warn':'ok', 'Đã đóng gói '+r.n+' tệp'+(loi.length?(' · '+loi.length+' tệp không tải được, xem KHONG_TAI_DUOC.txt'):''));
+      _log('Xuất ảnh chứng từ', ma, r.n+' tệp (zip)'+(loi.length?(' · hụt '+loi.length):''));
     }).catch(function(e){
       loading(false);
       if(e && e.name==='AbortError') return;   /* người dùng đóng khay chia sẻ — không phải lỗi */
