@@ -516,7 +516,12 @@ function nhoPin(pin){ try{ localStorage.setItem(PIN_KHOA, pin); }catch(e){}
   try{ sessionStorage.removeItem(PIN_KHOA); }catch(e){} }   // dọn chỗ cũ (bản trước dùng session)
 function quenPin(){ try{ localStorage.removeItem(PIN_KHOA); }catch(e){} try{ sessionStorage.removeItem(PIN_KHOA); }catch(e){} }
 function pinDaNho(){ try{ return localStorage.getItem(PIN_KHOA) || sessionStorage.getItem(PIN_KHOA) || ''; }catch(e){ return ''; } }
-function khoaLai(){ quenPin(); location.reload(); }
+function khoaLai(){
+  quenPin();
+  /* 0.48.0: huỷ cả phiên vé từ Ghế ở máy chủ — không thì tải lại trang là tự vào lại bằng vé, "Khoá lại" thành vô nghĩa. */
+  try { google.script.run.withSuccessHandler(function(){ location.reload(); }).withFailureHandler(function(){ location.reload(); }).khoaPhien(); }
+  catch(e){ location.reload(); }
+}
 
 /* ===== NỀN SÁNG / NỀN TỐI =====
    Nhớ bằng localStorage (không phải sessionStorage như PIN): đây là sở thích hiển thị, không

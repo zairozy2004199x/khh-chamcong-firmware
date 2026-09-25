@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.47.0
+ * Version:           0.48.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -25,7 +25,7 @@ class SAOKE_App {
 	   thêm file"* — câu đầu tiên phải trả lời là "bản đang chạy có khối ấy chưa", mà trang thì
 	   không in số bản ở đâu cả, nên không ai đáp được ngoài cách đi mở wp-admin. Ghi ở đây, hiện
 	   ở góc cột trái. ⚠️ PHẢI BẰNG số ở header `Version:` phía trên — hai chỗ, một giá trị. */
-	const VER = '0.47.0';
+	const VER = '0.48.0';
 
 	/* 3 cổng thanh toán + tên hiển thị. Việt QR về bank 1:1; MoMo/VNPAY gộp cục N:1. */
 	private static function cong_ds() { return array( 'vietqr', 'momo', 'vnpay' ); }
@@ -2463,7 +2463,33 @@ class SAOKE_App {
 	// ═══════════════════════════════════════════════════════════════════════
 	private static function pn_opts() { return array( 'K&H cũ (989)', 'K&H mới (705)', 'Smarttrade' ); }
 	private static function loi( $msg ) { throw new Exception( $msg ); }
-	private static function can_pin( $args ) { $pin = isset( $args[0] ) ? (string) $args[0] : ''; if ( ! hash_equals( (string) get_option( 'saoke_pin', '' ), $pin ) || '' === (string) get_option( 'saoke_pin', '' ) ) { self::loi( 'Sai mã PIN' ); } }
+	/**
+	 * 🔴 PIN HỢP LỆ = CÓ PHIÊN VÉ TỪ GHẾ *HOẶC* PIN GÕ ĐÚNG — một luật cho cả cầu RPC lẫn REST.
+	 *
+	 * Anh Thắng 25/09/2026, ảnh Tổng quan: *"Không tải được tổng quan: Sai mã PIN"* ngay sau khi vào
+	 * bằng vé từ Ghế; *"khả năng sao kê chưa phân quyền"*. Đúng: `pin_ok()` (REST) đã nhận phiên vé từ
+	 * 0.3x, nhưng `can_pin()` — cửa của CẢ 35 hàm RPC mà app.html thật sự gọi — chỉ so PIN trong
+	 * args, mà đường vé thì PIN = '' (app không hề biết PIN). Trước 0.47.0 lỗi này bị che vì đường vé
+	 * gãy script sớm hơn; sửa xong chỗ ấy thì chỗ này lộ ra. Nay ba cửa (can_pin, checkPin, getConfig)
+	 * cùng hỏi một hàm này. Cookie phiên là httponly, JS không đọc được, nên "có phiên" không thể giả từ
+	 * trình duyệt; PIN vẫn nguyên cho người gõ thẳng địa chỉ.
+	 */
+	private static function pin_hop_le_( $pin ) {
+		if ( self::phien_ok_() ) { return true; }
+		$luu = (string) get_option( 'saoke_pin', '' );
+		return '' !== $luu && hash_equals( $luu, (string) $pin );
+	}
+	private static function can_pin( $args ) { $pin = isset( $args[0] ) ? (string) $args[0] : ''; if ( ! self::pin_hop_le_( $pin ) ) { self::loi( 'Sai mã PIN' ); } }
+	/* "🔒 Khoá lại" trên app: huỷ luôn phiên vé (không thì tải lại trang là tự vào lại bằng vé). */
+	public static function rpc_khoaPhien( $a ) {
+		$sid = isset( $_COOKIE['saoke_ses'] ) ? preg_replace( '/[^a-f0-9]/', '', (string) $_COOKIE['saoke_ses'] ) : '';
+		if ( 32 === strlen( $sid ) ) { delete_transient( 'saoke_ses_' . hash( 'sha256', $sid ) ); }
+		if ( ! headers_sent() ) {
+			if ( PHP_VERSION_ID >= 70300 ) { setcookie( 'saoke_ses', '', array( 'expires' => time() - 3600, 'path' => '/', 'secure' => is_ssl(), 'httponly' => true, 'samesite' => 'Lax' ) ); }
+			else { setcookie( 'saoke_ses', '', time() - 3600, '/; samesite=Lax', '', is_ssl(), true ); }
+		}
+		return array( 'ok' => true );
+	}
 
 	public static function r_rpc( $req ) {
 		$fn   = (string) $req->get_param( 'fn' );
@@ -2480,6 +2506,7 @@ class SAOKE_App {
 			'getCosoMaKvc', 'saveCosoMaKvc',
 			'napDsCuaHangVqr', 'getDsCuaHangVqr', 'xoaDsCuaHangVqr',
 			'getNopTienMat', 'ganMayTay',
+			'khoaPhien',
 		);
 		if ( ! in_array( $fn, $map, true ) ) { return array( '__err' => 'Hàm không hợp lệ: ' . $fn ); }
 		try {
@@ -2514,10 +2541,10 @@ class SAOKE_App {
 	private static function pn_by_tk() { $o = array(); foreach ( self::ds_tk() as $t ) { $o[ $t['soTK'] ] = isset( $t['phapNhan'] ) ? $t['phapNhan'] : ''; } return $o; }
 
 	// ── checkPin / getConfig / saveCauHinh / doiPin ──
-	public static function rpc_checkPin( $a ) { $pin = isset( $a[0] ) ? (string) $a[0] : ''; return array( 'ok' => '' !== (string) get_option( 'saoke_pin', '' ) && hash_equals( (string) get_option( 'saoke_pin', '' ), $pin ) ); }
+	public static function rpc_checkPin( $a ) { $pin = isset( $a[0] ) ? (string) $a[0] : ''; return array( 'ok' => self::pin_hop_le_( $pin ) ); }
 	public static function rpc_getConfig( $a ) {
 		$pin = isset( $a[0] ) ? (string) $a[0] : '';
-		$authed = '' !== (string) get_option( 'saoke_pin', '' ) && hash_equals( (string) get_option( 'saoke_pin', '' ), $pin );
+		$authed = self::pin_hop_le_( $pin );   // 0.48.0: nhận cả phiên vé từ Ghế — xem pin_hop_le_()
 		$cfg = array( 'ok' => true, 'authed' => $authed, 'today' => gmdate( 'd/m/Y', current_time( 'timestamp' ) ) );
 		if ( ! $authed ) { return $cfg; }
 		$key = (string) get_option( 'saoke_webhook_key', '' );
