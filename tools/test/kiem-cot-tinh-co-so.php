@@ -127,11 +127,12 @@ t( '   form "Thêm cơ sở" hỏi bộ phận, không hỏi tỉnh', false !== 
 t( '   tiêu đề cột là Bộ phận', false !== mb_strpos( $app, '>Bộ phận</th>' ) && false === mb_strpos( $app, '>Tỉnh / Thành</th>' ) );
 /* Hai dải gom nhóm trải hết bề ngang bảng — thêm cột mà quên nới `colspan` là dải ngắn hơn
    bảng một ô, nhìn như bảng vỡ. */
-t( '🔴 dải gom nhóm nới theo số cột mới (colspan 8)',
-	false === mb_strpos( $app, 'colspan="7" style="background:#1e3a8a' )
-	&& false !== mb_strpos( $app, 'colspan="8" style="background:#1e3a8a' ) );
+/* 25/09/2026: thêm cột "Tên bên Doanh thu" → 9 cột. */
+t( '🔴 dải gom nhóm nới theo số cột mới (colspan 9)',
+	false === mb_strpos( $app, 'colspan="8" style="background:#1e3a8a' )
+	&& false !== mb_strpos( $app, 'colspan="9" style="background:#1e3a8a' ) );
 t( '   dải phân loại lớn cũng vậy',
-	false !== mb_strpos( $app, 'colspan="8" style="background:#f0fdfa' ) );
+	false !== mb_strpos( $app, 'colspan="9" style="background:#f0fdfa' ) );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════ */
 echo "\n";

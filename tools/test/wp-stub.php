@@ -396,11 +396,14 @@ class VHCP_Test_WP_Error {
 	public function get_error_message() { return $this->msg; }
 }
 $GLOBALS['VHCP_DA_GET'] = array();
+$GLOBALS['VHCP_DA_GET_ARGS'] = array();
 function wp_remote_get( $url, $args = array() ) {
 	/* Ghi lại lượt GET: có nó thì phép thử đếm được SỐ LƯỢT gọi, nhờ vậy "trần vòng chuyển
 	   hướng" mới kiểm được. Bản đầu chỉ đòi "có dừng" — mà 100.000 vòng thì cũng dừng, nên
 	   phép phá bỏ trần không bị bắt. */
 	$GLOBALS['VHCP_DA_GET'][] = $url;
+	/* Ghi cả tham số (header, timeout): bài kiểm kết nối Doanh thu soi khoá đi trong HEADER, không nằm trong địa chỉ. */
+	$GLOBALS['VHCP_DA_GET_ARGS'][] = $args;
 	foreach ( $GLOBALS['VHCP_HTTP'] as $k => $v ) {
 		if ( strpos( $url, $k ) !== false ) {
 			return is_array( $v ) ? $v : array( 'code' => 200, 'body' => (string) $v );
