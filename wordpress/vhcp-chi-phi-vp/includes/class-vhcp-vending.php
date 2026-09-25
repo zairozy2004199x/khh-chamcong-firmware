@@ -51,6 +51,9 @@ class VHCPVP_Vending {
 		/* `san` = có khoá là nhận được đẩy; địa chỉ chỉ cần cho đường kéo dự phòng. */
 		return array( 'san' => $co, 'url' => $admin ? $url : '', 'khoaCo' => $co,
 			'diaChiNhan' => function_exists( 'rest_url' ) ? rest_url( ltrim( self::DUONG_NHAN, '/' ) ) : self::DUONG_NHAN,
+			/* Cửa dự phòng qua admin-ajax.php — hosting chặn /wp-json/ (LiteSpeed/ModSecurity/plugin bảo mật) thì
+			   web Vending tự chuyển sang đây; cùng bộ xử lý. Xem `ajax_nhan()`. */
+			'diaChiNhanAjax' => function_exists( 'admin_url' ) ? admin_url( 'admin-ajax.php?action=vhcpvp_vending_nhan' ) : 'admin-ajax.php?action=vhcpvp_vending_nhan',
 			'soDaNhap' => count( (array) $map ), 'lanCuoi' => (string) VHCPVP_Meta::get( self::META_LAN, '' ),
 			'boPhan' => self::BO_PHAN, 'khoi' => self::KHOI, 'donVi' => self::DON_VI );
 	}
@@ -103,11 +106,20 @@ class VHCPVP_Vending {
 			$goc = self::goc_web( $url );
 			if ( '' !== $goc && $goc !== $url ) { $kq2 = self::goi_mot( $goc, $q, $khoa ); if ( $kq2['ok'] || 404 !== $kq2['ma'] ) { $kq = $kq2; } }
 		}
+		/* /wp-json/ bị hosting chặn (403/404/HTML) → cửa dự phòng admin-ajax.php của plugin Vending (cùng bộ xử lý). */
+		if ( ! $kq['ok'] && ( in_array( $kq['ma'], array( 403, 404, 405 ), true ) || ! empty( $kq['khongJson'] ) ) ) {
+			$goc = self::goc_web( $url ); if ( '' === $goc ) { $goc = $url; }
+			$kq3 = self::goi_mot( $goc, $q, $khoa, true );
+			if ( $kq3['ok'] ) { $kq = $kq3; $kq['duong'] = 'admin-ajax'; }
+			else { $kq['error'] .= ' (đã thử cả cửa dự phòng admin-ajax.php: ' . ( isset( $kq3['ma'] ) ? 'HTTP ' . $kq3['ma'] : 'lỗi' ) . ')'; }
+		}
 		return $kq;
 	}
 
-	private static function goi_mot( $goc, $q, $khoa ) {
-		$dia = rtrim( $goc, '/' ) . self::DUONG . '?' . http_build_query( $q );
+	private static function goi_mot( $goc, $q, $khoa, $ajax = false ) {
+		$dia = $ajax
+			? rtrim( $goc, '/' ) . '/wp-admin/admin-ajax.php?' . http_build_query( array_merge( array( 'action' => 'vhcm_chi_phi' ), $q ) )
+			: rtrim( $goc, '/' ) . self::DUONG . '?' . http_build_query( $q );
 		$r   = wp_remote_get( $dia, array( 'timeout' => 20, 'headers' => array( 'X-KHH-Khoa' => $khoa, 'Accept' => 'application/json' ) ) );
 		if ( is_wp_error( $r ) ) { return array( 'ok' => false, 'ma' => 0, 'error' => 'Không gọi được web Vending: ' . $r->get_error_message() ); }
 		$ma = (int) wp_remote_retrieve_response_code( $r );
@@ -195,10 +207,13 @@ class VHCPVP_Vending {
 		return true;
 	}
 
-	/** POST { web, khoan:[…] } → lập/cập nhật đơn. Chạy với vai hệ thống (khoá đã gác cửa), không cần phiên PIN. */
+	/** POST { web, khoan:[…] } → lập/cập nhật đơn. { ping:1 } → chỉ trả tên web (nút Kiểm tra kết nối bên Vending). Chạy với vai hệ thống (khoá đã gác cửa). */
 	public static function rest_nhan( $req ) {
 		$body = method_exists( $req, 'get_json_params' ) ? $req->get_json_params() : null;
 		if ( ! is_array( $body ) ) { $body = json_decode( (string) $req->get_body(), true ); }
+		if ( is_array( $body ) && ! empty( $body['ping'] ) ) {
+			return VHCPVP_Util::ok( array( 'ping' => true, 'web' => function_exists( 'get_bloginfo' ) ? (string) get_bloginfo( 'name' ) : '', 'banChiPhi' => defined( 'VHCPVP_VERSION' ) ? VHCPVP_VERSION : '' ) );
+		}
 		$ds = ( is_array( $body ) && isset( $body['khoan'] ) ) ? (array) $body['khoan'] : array();
 		if ( ! $ds ) { return new WP_Error( 'vhcpvp_vd_rong', 'Không có khoản nào trong gói gửi.', array( 'status' => 400 ) ); }
 		$web = ( is_array( $body ) && isset( $body['web'] ) ) ? (string) $body['web'] : 'Vending HCMC';
@@ -212,6 +227,24 @@ class VHCPVP_Vending {
 				'status' => $g( 'status' ), 'receiptCode' => $g( 'receiptCode' ), 'receiptLink' => $g( 'receiptLink' ), 'note' => $g( 'note' ) );
 		}
 		return self::nhan_khoan( $chuan, 'đẩy từ ' . $web );
+	}
+
+	/**
+	 * CỬA DỰ PHÒNG qua admin-ajax.php: hosting chặn /wp-json/ (403 kèm trang HTML) thì web Vending tự sang đây.
+	 * Đọc khoá từ header, thân từ php://input, chạy đúng `duoc_nhan` + `rest_nhan`, trả JSON. Không cần đăng nhập
+	 * (nopriv) — khoá là cửa.
+	 */
+	public static function ajax_nhan() {
+		$req = new WP_REST_Request( 'POST' );
+		$khoa = isset( $_SERVER['HTTP_X_KHH_KHOA'] ) ? (string) $_SERVER['HTTP_X_KHH_KHOA'] : '';
+		if ( '' === $khoa && isset( $_POST['khoa'] ) ) { $khoa = (string) wp_unslash( $_POST['khoa'] ); } // phpcs:ignore
+		$req->set_header( 'X-KHH-Khoa', $khoa );
+		$req->set_body( (string) file_get_contents( 'php://input' ) );
+		$ok = self::duoc_nhan( $req );
+		if ( is_wp_error( $ok ) ) { wp_send_json( array( 'success' => false, 'error' => $ok->get_error_message() ), 401 ); }
+		$r = self::rest_nhan( $req );
+		if ( is_wp_error( $r ) ) { wp_send_json( array( 'success' => false, 'error' => $r->get_error_message() ), 400 ); }
+		wp_send_json( $r );
 	}
 
 	/**

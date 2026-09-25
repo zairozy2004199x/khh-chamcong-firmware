@@ -1893,7 +1893,7 @@
         <div style="flex-basis:100%;font-size:12px;color:#64748b;line-height:1.6">
           <!-- Anh Thắng 25/09/2026: "Đẩy là đẩy từ vending về web chi phí của anh để quyết toán" · "web đó nằm bên server khác". -->
           <b>Chiều đi: web Vending ĐẨY sang đây.</b> Bên web Vending (máy chủ khác): wp-admin ▸ <b>VENDING HCMC ▸ Chia sẻ cho Chi phí</b> → điền địa chỉ nhận
-          <code id="cfgVdDiaChi" style="user-select:all"></code> → Tạo khoá ngẫu nhiên → dán khoá ấy vào ô trên → Lưu. Từ đó mỗi khoản "Chi phí quản lý"
+          <code id="cfgVdDiaChi" style="user-select:all"></code> (bên Vending chỉ cần điền GỐC web, VD https://khmatrix.com — máy tự tìm cả cửa dự phòng <code id="cfgVdDiaChiAjax" style="user-select:all"></code> khi hosting chặn /wp-json/) → Tạo khoá ngẫu nhiên → dán khoá ấy vào ô trên → Lưu. Từ đó mỗi khoản "Chi phí quản lý"
           <b>Đã duyệt</b> / Đã thanh toán / Đã quyết toán bên Vending tự sang đây thành một <b>đơn "Chờ quyết toán"</b> luồng Trực tiếp — kế toán bên này quyết toán,
           thanh toán, xuất MISA. Đơn vị VENDING, khối Vending, cơ sở = Bộ phận (POSH · JP · Pinball · Vận hành chung · Thị trường), mảng "Chi Phí Vending" (xuất MISA bảng riêng).
           Chờ duyệt / Từ chối không sang. Đẩy lại thì cập nhật đơn còn Chờ quyết toán, không nhập đôi; đơn kế toán đã chốt giữ nguyên. 10 loại chi phí Vending tự vào danh mục với TK Nợ trống — gán ở 🧮 Loại chi phí.
@@ -15898,6 +15898,7 @@
     if(el('cfgVdKhoa')) el('cfgVdKhoa').value='';
     if(el('cfgVdKhoaTt')) el('cfgVdKhoaTt').innerHTML=vd.khoaCo?'<span style="color:#065f46">ĐÃ CÓ khoá — đang nhận đẩy</span>':'<span style="color:#b91c1c">CHƯA có khoá — cửa nhận đóng</span>';
     if(el('cfgVdDiaChi')) el('cfgVdDiaChi').textContent=vd.diaChiNhan||'';
+    if(el('cfgVdDiaChiAjax')) el('cfgVdDiaChiAjax').textContent=vd.diaChiNhanAjax||'';
     var o=el('cfgVdThang'); if(o&&!o.value){ var d=new Date(); o.value=d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2); }
     if(el('cfgVdNote')) el('cfgVdNote').textContent=(vd.soDaNhap?('Đã nhập '+vd.soDaNhap+' khoản. '):'')+(vd.lanCuoi?('Lần cuối: '+vd.lanCuoi):'Chưa kéo lần nào.');
   }

@@ -144,6 +144,31 @@ $kq = VHCP_Vending::goi( '2026-09-01', '2026-09-30' );
 t( '   gốc cũng trả HTML → câu báo nói rõ "TRANG HTML", nhắc điền gốc web / cache chặn wp-json', empty( $kq['ok'] ) && false !== mb_strpos( $kq['error'], 'TRANG HTML' ) && false !== mb_strpos( $kq['error'], 'wp-json' ), $kq );
 update_option( 'vhcp_vd_url', 'https://vending.kh.vn', false );
 
+/* ── 5d. Hosting chặn /wp-json/ (403 kèm trang HTML) → tự sang cửa dự phòng admin-ajax.php của Vending ── */
+$GLOBALS['VHCP_HTTP'] = array(
+	'/wp-json/vending-hcmc/v1/chi-phi' => array( 'code' => 403, 'body' => '<!DOCTYPE html><html>403 Forbidden</html>' ),
+	'/wp-admin/admin-ajax.php?action=vhcm_chi_phi' => array( 'code' => 200, 'body' => $json( array( $KHO[0] ) ) ),
+);
+$GLOBALS['VHCP_DA_GET'] = array();
+$kq = VHCP_Vending::goi( '2026-09-01', '2026-09-30' );
+t( '🔴 /wp-json/ bị chặn 403 HTML → sang admin-ajax.php và được, đánh dấu đường', ! empty( $kq['ok'] ) && 'admin-ajax' === $kq['duong'] && 1 === count( $kq['chiPhi'] ), $kq );
+t( '   địa chỉ dự phòng đúng: …/wp-admin/admin-ajax.php?action=vhcm_chi_phi&tu=…', (bool) preg_grep( '#/wp-admin/admin-ajax\.php\?action=vhcm_chi_phi&tu=2026-09-01#', $GLOBALS['VHCP_DA_GET'] ), $GLOBALS['VHCP_DA_GET'] );
+$GLOBALS['VHCP_HTTP'] = array( 'vending.kh.vn' => array( 'code' => 403, 'body' => '<html>403</html>' ) );
+$kq = VHCP_Vending::goi( '2026-09-01', '2026-09-30' );
+t( '   cả hai cửa đều chặn → câu báo nhắc đã thử cửa dự phòng', empty( $kq['ok'] ) && false !== mb_strpos( $kq['error'], 'admin-ajax' ), $kq );
+
+/* ── 5e. Ping từ Vending + cửa dự phòng nhận ajax_nhan ─────────────────────────────────────── */
+$pg = VHCP_Vending::rest_nhan( $rq( array( 'ping' => 1 ), 'KHOA-VENDING-1234567890' ) );
+$so_truoc = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $t_don WHERE don_vi=%s", 'VENDING' ) );
+t( '   ping → success, kèm tên web + bản Chi phí, không lập đơn', ! empty( $pg['success'] ) && ! empty( $pg['ping'] ) && isset( $pg['banChiPhi'] ) && $so_truoc === (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $t_don WHERE don_vi=%s", 'VENDING' ) ), $pg );
+if ( ! function_exists( 'wp_send_json' ) ) { function wp_send_json( $d, $ma = null ) { throw new RuntimeException( 'JSON:' . ( null === $ma ? 200 : $ma ) . ':' . json_encode( $d, JSON_UNESCAPED_UNICODE ) ); } }
+$bat = function ( $khoa ) { $_POST['khoa'] = $khoa; try { VHCP_Vending::ajax_nhan(); } catch ( RuntimeException $e ) { return $e->getMessage(); } return ''; };
+t( '🔴 ajax_nhan: khoá sai → JSON 401', 0 === strpos( $bat( 'sai' ), 'JSON:401:' ), $bat( 'sai' ) );
+t( '   ajax_nhan: khoá đúng, thân rỗng (CLI) → JSON 400 "gói rỗng" — chứng tỏ đã qua cửa khoá vào bộ xử lý', 0 === strpos( $bat( 'KHOA-VENDING-1234567890' ), 'JSON:400:' ), $bat( 'KHOA-VENDING-1234567890' ) );
+unset( $_POST['khoa'] );
+$ch = VHCP_Vending::cau_hinh();
+t( '   cau_hinh bày cả địa chỉ dự phòng admin-ajax', false !== strpos( $ch['diaChiNhanAjax'], 'admin-ajax.php?action=vhcp_vending_nhan' ), $ch );
+
 /* ── 6. Chối khi chưa khai / khoá sai ─────────────────────────────────────────────────────── */
 $GLOBALS['VHCP_HTTP'] = array( 'vending.kh.vn' => array( 'code' => 401, 'body' => '{"code":"vhcm_khoa","message":"x"}' ) );
 $r = VHCP_Vending::dong_bo( array( 'thang' => '2026-09' ) );

@@ -87,6 +87,33 @@ $tat = VHCM_ChiaSeChiPhi::khoan_can_day( $kho, true );
 phep( '   "đẩy lại toàn bộ" lấy mọi khoản đủ điều kiện kể cả đã đẩy', 2 === count( $tat ) );
 delete_option( VHCM_ChiaSeChiPhi::O_URL );
 phep( '   chưa khai địa chỉ → móc im lặng, không gọi mạng', null === VHCM_ChiaSeChiPhi::khi_ghi_kho( 'managerExpenses', $kho ) );
+/* ── Cửa dự phòng admin-ajax.php khi /wp-json/ bên Chi phí bị hosting chặn ────────────────── */
+VHCM_ChiaSeChiPhi::ap_dung( array( 'url' => 'https://khmatrix.com', 'khoa' => 'KHOA-VENDING-1234567890' ) );
+$GLOBALS['VHD_DA_GUI'] = array();
+$GLOBALS['VHD_POST'] = array(
+	'/wp-json/vhcp/v1/vending-nhan'                 => array( 'code' => 403, 'body' => '<!DOCTYPE html><html>403 Forbidden ModSecurity</html>' ),
+	'/wp-admin/admin-ajax.php?action=vhcp_vending_nhan' => array( 'code' => 200, 'body' => '{"success":true,"moi":1,"capNhat":0,"daChot":0,"loi":[]}' ),
+);
+$g = VHCM_ChiaSeChiPhi::goi_chi_phi( array( 'web' => 'V', 'khoan' => array( VHCM_ChiaSeChiPhi::chuan( $kho[0] ) ) ) );
+phep( '🔴 /wp-json/ bị chặn 403 HTML → tự POST lại qua admin-ajax.php và được, ghi đường', ! empty( $g['ok'] ) && 'admin-ajax' === $g['duong'] && 2 === count( $GLOBALS['VHD_DA_GUI'] )
+	&& false !== strpos( $GLOBALS['VHD_DA_GUI'][1]['url'], '/wp-admin/admin-ajax.php?action=vhcp_vending_nhan' ), array( $g, array_column( $GLOBALS['VHD_DA_GUI'], 'url' ) ) );
+$GLOBALS['VHD_DA_GUI'] = array();
+$GLOBALS['VHD_POST'] = array( 'khmatrix.com' => array( 'code' => 401, 'body' => '{"success":false,"error":"khoá không khớp"}' ) );
+$g = VHCM_ChiaSeChiPhi::goi_chi_phi( array( 'ping' => 1 ) );
+phep( '   401 kèm JSON = khoá sai thật → KHÔNG thử cửa dự phòng (1 lượt), câu nhắc kiểm khoá', empty( $g['ok'] ) && 1 === count( $GLOBALS['VHD_DA_GUI'] ) && false !== strpos( $g['loi'], 'khoá' ), $g );
+$GLOBALS['VHD_POST'] = array( 'khmatrix.com' => array( 'code' => 200, 'body' => '{"success":true,"ping":true,"web":"Chi phí K&H","banChiPhi":"1.335.0"}' ) );
+$k = VHCM_ChiaSeChiPhi::kiem_tra();
+phep( '   Kiểm tra kết nối (ping) → tên web + bản Chi phí + cửa', ! empty( $k['ok'] ) && 'Chi phí K&H' === $k['web'] && '1.335.0' === $k['ban'] && 'rest' === $k['duong'], $k );
+$GLOBALS['VHD_POST'] = array( 'khmatrix.com' => array( 'code' => 403, 'body' => '<html>chặn</html>' ) );
+$k = VHCM_ChiaSeChiPhi::kiem_tra();
+phep( '   cả hai cửa bị chặn → báo rõ TRANG HTML, kể cả cửa /wp-json/ trước đó', empty( $k['ok'] ) && false !== strpos( $k['loi'], 'TRANG HTML' ) && false !== strpos( $k['loi'], 'wp-json' ), $k );
+/* ajax_lay: cửa dự phòng của đường kéo */
+if ( ! function_exists( 'wp_send_json' ) ) { function wp_send_json( $d, $ma = null ) { throw new RuntimeException( 'JSON:' . ( null === $ma ? 200 : $ma ) . ':' . json_encode( $d, JSON_UNESCAPED_UNICODE ) ); } }
+$goi_ajax = function ( $khoa, $get ) { $_SERVER['HTTP_X_KHH_KHOA'] = $khoa; $_GET = $get; try { VHCM_ChiaSeChiPhi::ajax_lay(); } catch ( RuntimeException $e ) { return $e->getMessage(); } return ''; };
+phep( '🔴 ajax_lay: khoá sai → JSON 401', 0 === strpos( $goi_ajax( 'sai', array() ), 'JSON:401:' ) );
+$ra = $goi_ajax( 'KHOA-VENDING-1234567890', array( 'tu' => '2026-09-01', 'den' => '2026-09-30' ) );
+phep( '   ajax_lay: khoá đúng → JSON 200, cùng bộ lọc ngày (1 khoản)', 0 === strpos( $ra, 'JSON:200:' ) && false !== strpos( $ra, '"soKhoan":1' ), $ra );
+unset( $_SERVER['HTTP_X_KHH_KHOA'] ); $_GET = array();
 $db = file_get_contents( $dir . '/includes/class-vhcm-db.php' );
 phep( '🔴 VHCM_DB::put phát móc vhcm_store_put SAU khi ghi, bọc try để không hỏng lượt lưu', false !== strpos( $db, "do_action('vhcm_store_put', \$key, \$data)" ) && false !== strpos( $db, 'try { do_action' ) );
 $src = file_get_contents( $dir . '/includes/class-vhcm-chia-se-chi-phi.php' );
