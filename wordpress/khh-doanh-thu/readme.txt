@@ -102,6 +102,14 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.66.0 =
+* **Lớp áo mới cho cả trang** (anh Thắng 25/09/2026: *"design lại giao diện nhé"*), cùng tông với trang Chi phí:
+  thanh đầu xanh đậm có nhãn phiên bản, tab dạng viên (tab đang mở nền xanh, nhãn số Cảnh báo), thẻ số bo tròn có
+  vạch màu, thẻ tổng nền xanh; khung có vạch tiêu đề; bảng tiêu đề nền nhạt dính đầu, dòng so le, sáng lên khi rê;
+  nút và ô nhập bo tròn, viền sáng khi bấm; cảnh báo / thông báo có vạch màu bên trái; nền tối theo hệ. Điện thoại:
+  thanh đầu gọn, tab một hàng cuộn ngang, hàng "Từ … đến" xuống dòng được (hết tràn ngang). Mọi tên lớp, luật 16px /
+  44px và thẻ dọc sổ kho giữ nguyên — toàn bộ bài thử màn vẫn xanh. Đã chụp thử máy tính, điện thoại và nền tối.
+
 = 1.65.2 =
 * **Form phiếu nhập hàng thành hộp nổi giữa trang** (anh Thắng 25/09/2026: *"hiện form nhập dạng nổi này, trắng tràn
   trang"* — như form Thêm hạng mục bên Chi phí). Bấm **＋ Lập phiếu nhập hàng** là nền mờ phủ trang, hộp trắng ở giữa

@@ -677,7 +677,7 @@
   function khung() {
     return '' +
       '<div class="top">' +
-        '<h1>Doanh thu FABi</h1><span class="nguon" id="dtNguonTop"></span>' +
+        '<h1>Doanh thu FABi' + (CF.ver ? '<span class="phien" title="Phiên bản plugin">v' + esc(CF.ver) + '</span>' : '') + '</h1><span class="nguon" id="dtNguonTop"></span>' +
         '<span class="ai" id="dtAi" hidden></span>' +
         '<button class="nut" type="button" id="dtIn">In / Lưu PDF</button>' +
         '<button class="nut chinh" type="button" id="dtNap">Nạp báo cáo</button>' +
