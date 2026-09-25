@@ -1,0 +1,1149 @@
+<script>
+/*═══════════════════════════════════════════════════════════
+ * JP CAPSULE v2 — KtJs02_Duyet (web kế toán)
+ * Danh sách chờ duyệt · chi tiết báo cáo · duyệt / trả về / mở lại.
+ *
+ * Mỗi kế toán chỉ ký ĐÚNG PHẦN CỦA MÌNH (doanh thu hoặc kho), nhưng
+ * XEM ĐƯỢC TOÀN BỘ. Nút duyệt do server quyết định qua cờ canSign —
+ * giao diện chỉ hiển thị lại, không tự suy ra quyền.
+ *═══════════════════════════════════════════════════════════*/
+
+/*──────────────── ① DANH SÁCH ────────────────*/
+
+function ktLoadList() {
+  var f = {
+    onlyMine: $k('fOnlyMine').checked,
+    /* Lọc "ký một phần" — báo cáo KẸT. Nhìn danh sách không phân biệt được vì nó
+       vẫn mang `CHO_DUYET` y như báo cáo chưa ai đụng tới. */
+    motPhan: $k('fMotPhan').checked,
+    status: $k('fStatus').value,
+    fromDate: $k('fFrom').value,
+    toDate: $k('fTo').value
+  };
+
+  kbusy(true, 'Đang tải danh sách…');
+  ksrv('jpKtListReports', KT.token, f).then(function (list) {
+    kbusy(false);
+    KT.list = list || [];
+    ktRenderList();
+  }).catch(function (e) { kbusy(false); ktoast(e.message); });
+}
+
+function ktRenderList() {
+  var box = $k('ktList');
+  if (!KT.list.length) {
+    box.innerHTML = '<div class="empty">Không có báo cáo nào khớp bộ lọc.</div>';
+    $k('ktDetail').className = 'empty';
+    $k('ktDetail').innerHTML = 'Chọn một báo cáo bên trái để xem chi tiết.';
+    return;
+  }
+
+  box.innerHTML = KT.list.map(function (r) {
+    return '<div class="item' + (KT.current === r.id ? ' sel' : '') + '"' +
+             ' onclick="ktOpen(\'' + r.id + '\')">' +
+             '<div class="itemTop">' +
+               '<div><b>' + kesc(r.locationName) + '</b>' +
+                 ' <span class="badge">' + (r.machineType === 'XU' ? 'Máy xu' : 'Máy tiền') + '</span>' +
+                 '<div class="sub">' + kdmy(r.fromDate) + ' – ' + kdmy(r.toDate) +
+                 ' · ' + kesc(r.userName) + '</div>' +
+               '</div>' +
+               '<span class="badge ' + kbadgeCls(r.status) + '">' +
+                 kstatusText(r.status) + '</span>' +
+             /* Báo cáo KẸT một chữ ký vẫn mang `CHO_DUYET` y như báo cáo chưa ai
+                đụng — không có dấu này thì nhìn danh sách KHÔNG phân biệt được, và
+                bộ lọc bên trên cũng không ai biết là cần bật. */
+             (r.ketKy && r.ketKy.motPhan
+               ? ' <span class="badge lech">KẸT 1 chữ ký</span>' : '') +
+             '</div>' +
+             '<div class="sumRow"><span class="sub">Tổng phải nộp</span>' +
+               '<b>' + kmoney(r.totalSubmit) + 'đ</b></div>' +
+             ktSignLine(r) +
+             (r.warnCount ? '<div class="signs"><span class="sign wait">⚠ ' +
+                 r.warnCount + ' cảnh báo</span></div>' : '') +
+           '</div>';
+  }).join('');
+}
+
+/** Hai chữ ký hiện ngay trên thẻ danh sách — thấy còn thiếu phần nào. */
+function ktSignLine(r) {
+  var k = r.chuKy || { rev: {}, stock: {} };
+  return '<div class="signs">' + ktSignChip('Doanh thu', k.rev) +
+                                 ktSignChip('Hàng hoá', k.stock) + '</div>';
+}
+
+function ktSignChip(ten, s) {
+  var ky = s && s.by;
+  return '<span class="sign ' + (ky ? 'ok' : 'wait') + '">' +
+    (ky ? '✔ ' : '○ ') + ten + (ky ? ' · ' + kesc(s.by) : '') + '</span>';
+}
+
+/*──────────────── ② CHI TIẾT ────────────────*/
+
+function ktOpen(reportId) {
+  KT.current = reportId;
+  ktRenderList();
+
+  kbusy(true, 'Đang mở báo cáo…');
+  ksrv('jpKtGetReport', KT.token, reportId).then(function (d) {
+    kbusy(false);
+    KT.detail = d;
+    ktRenderDetail(d);
+  }).catch(function (e) { kbusy(false); ktoast(e.message); });
+}
+
+function ktRenderDetail(d) {
+  var h = d.head, box = $k('ktDetail');
+  box.className = '';
+  /* Đang mở khung xem ảnh mà chuyển sang báo cáo khác thì phải ĐÓNG — khung nằm
+     ngoài `#ktDetail` nên nó không tự mất, và để lại là kế toán soi ảnh của báo
+     cáo TRƯỚC trong khi màn bên dưới đã là báo cáo khác. */
+  if (typeof ktAnhDong === 'function') ktAnhDong();
+
+  box.innerHTML =
+    ktDetHead(d, h) +
+    '<div class="detBody">' +
+      ktRejectAlert(h) +
+      ktKetKyAlert(d.ketKy) +
+      ktSumBox(h) +
+      ktWarnBox(d.warnings, d.warnGoc) +
+      ktRowsTable(d) +
+      ktPhotos(d.photos) +
+    '</div>' +
+    ktActionBar(d, h);
+}
+
+/**
+ * DẢI BĂNG "KÝ MỘT PHẦN" — cố định trên màn, KHÔNG phải toast.
+ *
+ * Kế toán ký phần hàng hoá cho VICOM 3/2 rồi báo *"duyệt kho mà không thấy trừ tồn"*
+ * (11/08/2026). Máy chủ làm đúng luật — chỉ HOÀN TẤT mới trừ kho — nhưng app chỉ nói
+ * bằng một toast rồi toast biến mất, nên không còn chỗ nào cho biết báo cáo đang KẸT.
+ *
+ * ⚠️ Câu chữ lấy nguyên từ máy chủ (`jpKetKy_`), client KHÔNG tự ghép — ba chỗ dùng
+ * chung một câu, ghép lại ở đây là sửa một chỗ quên hai chỗ kia.
+ *
+ * ⚠️ Đặt NGAY ĐẦU `detBody`, trên cả khối số. Để cuối màn là phải cuộn mới thấy, mà
+ * cuộn thì đúng người đang vội sẽ bỏ qua — chính là người cần nó nhất.
+ */
+function ktKetKyAlert(k) {
+  if (!k || !k.motPhan) return '';
+  return '<div class="alert danger"><b>BÁO CÁO CHƯA HOÀN TẤT — đang kẹt ở một chữ ký.</b>' +
+    '<div class="alert-sub">' + kesc(k.msg) + '</div>' +
+    'Bấm nút <b>Duyệt phần ' + (k.thieu === 'REV' ? 'DOANH THU' : 'HÀNG HOÁ') +
+    '</b> bên dưới là kho trừ ngay lúc đó và doanh thu vào sổ công nợ.</div>';
+}
+
+function ktDetHead(d, h) {
+  var s = d.signState;
+  return '<div class="detHead">' +
+      '<div>' +
+        '<b>' + kesc(h.locationName) + '</b> ' +
+        '<span class="badge">' + (h.machineType === 'XU' ? 'Máy xu' : 'Máy tiền') + '</span>' +
+        '<div class="sub">' + kdmy(h.fromDate) + ' – ' + kdmy(h.toDate) +
+          ' · ' + kesc(h.userName) +
+          (h.maKH ? ' · Mã KH ' + kesc(h.maKH) : '') + '</div>' +
+        '<div class="signs">' + ktSignChip('Doanh thu', s.rev) +
+                                ktSignChip('Hàng hoá', s.stock) + '</div>' +
+      '</div>' +
+      '<div style="text-align:right">' +
+        '<span class="badge ' + kbadgeCls(h.status) + '">' + kstatusText(h.status) + '</span>' +
+        '<div class="locked">' + kesc(h.id) + '</div>' +
+      '</div>' +
+    '</div>';
+}
+
+function ktRejectAlert(h) {
+  if (!h.rejectReason) return '';
+  return '<div class="alert danger"><b>Đã trả về (' +
+    (h.rejectPart === 'REV' ? 'doanh thu' : h.rejectPart === 'STOCK' ? 'kho' : 'toàn bộ') +
+    '):</b> ' + kesc(h.rejectReason) + '</div>';
+}
+
+function ktSumBox(h) {
+  var conLai = h.totalSubmit - h.paid;
+  return '<div class="sumBox">' +
+    /* ⚠️ Mẫu TÁCH (SBPQ) không còn đồng hồ từ 12/08/2026 — tiền là số nhân viên đọc
+       từ APP của máy. In "theo đồng hồ" là nói sai nguồn cho chính người sắp gõ nó
+       sang MISA. Cùng bệnh màn Tổng quan kho dạy `Nợ 641` sau khi đổi đầu tài khoản. */
+    row(ktLaTach(h) ? 'Doanh thu theo APP của máy' : 'Doanh thu theo đồng hồ', h.revMeter) +
+    row('Trong đó chuyển khoản / QR', h.revBank, 'sub2') +
+    row(ktLaTach(h) ? 'Tiền mặt APP báo' : 'Tiền mặt theo đồng hồ', h.revCashMeter, 'sub2') +
+    row((ktLaTach(h) ? 'Lệch tiền mặt (Σ cột Lệch của bảng ①)' : 'Lệch máy') +
+        (h.adjMachineNote ? ' — ' + kesc(h.adjMachineNote) : ''), h.adjMachine) +
+    row('Hoàn khách' + (h.refundNote ? ' — ' + kesc(h.refundNote) : ''), -h.refundCustomer) +
+    row('Tiền mặt thực nộp', h.cashActual) +
+    row('TỔNG PHẢI NỘP', h.totalSubmit, 'big') +
+    row('Kế toán đã xác nhận nhận', h.paid, 'sub2') +
+    row('Còn thiếu', conLai, 'sub2') +
+    '<div class="sumRow sub2"><span>Trạng thái nộp</span>' +
+      '<span class="badge ' + (h.payStatus === 'DA_NOP' ? 'done' :
+        h.payStatus === 'NOP_MOT_PHAN' ? 'pending' : '') + '">' +
+      kpayText(h.payStatus) + '</span></div>' +
+    (h.remark ? '<div class="sumRow sub2"><span>Ghi chú nhân viên</span><span>' +
+      kesc(h.remark) + '</span></div>' : '') +
+  '</div>';
+
+  function row(label, v, cls) {
+    return '<div class="sumRow ' + (cls || '') + '"><span>' + label + '</span>' +
+           '<span>' + kmoney(v) + 'đ</span></div>';
+  }
+}
+
+function ktWarnBox(list, goc) {
+  if (!list || !list.length) return '';
+  /* ⚠️ Nút TÍNH LẠI đặt NGAY TRONG ô cảnh báo, không nhét xuống thanh hành động cuối
+     màn: người đang nhìn một đống cảnh báo mới là người cần nó, và để cuối thì phải
+     cuộn qua hết đống đó mới thấy. Cùng luật với dải băng `ketKy`.
+     Cảnh báo được LƯU chứ không tính lại khi mở, nên sau mỗi lần sửa luật cảnh báo ở
+     máy chủ, báo cáo đã nộp vẫn hiện câu CŨ — đây là đường duy nhất chữa được. */
+  /* ⚠️ NÓI RA đã gộp bao nhiêu. Chỉ in con số sau khi gộp là kế toán so với thẻ ngoài
+     danh sách (`warnCount`, vẫn đếm thô) thấy hai số khác nhau rồi tưởng mất cảnh báo. */
+  var n = list.length;
+  var dem = (goc && goc > n) ? n + ' · gộp từ ' + goc : String(n);
+  return '<div class="warnBox"><h3>Cảnh báo (' + dem + ')' +
+    '<button class="btn ghost sm" style="margin-left:10px;font-weight:600"' +
+    ' onclick="ktTinhLaiCanhBao()">Tính lại cảnh báo</button></h3>' +
+    list.map(function (w) {
+      return '<div class="warnItem"><b>' + kesc(w.code) + '</b> ' + kesc(w.msg) +
+        (w.detail ? ' — ' + kesc(w.detail) : '') +
+        '<span class="sub"> · ' + kesc(w.machineCode || w.itemCode || '') + '</span></div>';
+    }).join('') +
+  '</div>';
+}
+
+/**
+ * Tính lại cảnh báo của báo cáo đang mở.
+ *
+ * ⚠️ Máy chủ **chỉ ghi cột `warnJson`** — mọi số tiền, số hàng, chữ ký, trạng thái giữ
+ * nguyên. Nói rõ điều đó ngay trong câu hỏi xác nhận: kế toán thấy chữ "tính lại" trên
+ * một báo cáo ĐÃ DUYỆT thì phản xạ đầu tiên là sợ nó tính lại tiền.
+ */
+function ktTinhLaiCanhBao() {
+  var id = KT.current;
+  /* ⚠️ NÓI RA, đừng `return` im lặng. Bấm mà không có gì xảy ra và không có câu nào
+     hiện lên thì không phân biệt được "chưa mở báo cáo" với "nút hỏng" — người dùng sẽ
+     bấm thêm mấy lần rồi báo là hỏng. Đúng cái bệnh im lặng repo này vẫn chê. */
+  if (!id) {
+    ktoast('Chưa mở báo cáo nào. Vào Duyệt báo cáo, bấm vào một báo cáo trong danh ' +
+           'sách để mở ra, rồi bấm lại nút này.');
+    return;
+  }
+  if (!confirm('Tính lại cảnh báo cho báo cáo ' + id + '?\n\n' +
+               'Chỉ cập nhật danh sách cảnh báo. KHÔNG đụng số tiền, số hàng, ' +
+               'chữ ký hay trạng thái duyệt.')) return;
+  kbusy(true, 'Đang tính lại…');
+  ksrv('jpTinhLaiCanhBao', KT.token, id).then(function (r) {
+    kbusy(false); ktoast(r.msg);
+    /* Nạp lại màn để thấy danh sách mới — không nạp lại là bấm xong vẫn y nguyên,
+       và kế toán tưởng nút hỏng rồi bấm mấy lần nữa. */
+    ktOpen(id);
+  }).catch(function (e) { kbusy(false); ktoast(e.message); });
+}
+
+/*──────────────── ③ BẢNG DÒNG CHI TIẾT ────────────────*/
+
+function ktRowsTable(d) {
+  if (!d.rows.length) return '<div class="empty">Báo cáo chưa có dòng nào.</div>';
+
+  var zName = {};
+  (d.zones || []).forEach(function (z) { zName[z.id] = z.name; });
+
+
+  var money = d.rows.filter(function (r) { return r.rowKind === 'MONEY'; });
+  var coin  = d.rows.filter(function (r) { return r.rowKind === 'COIN'; });
+  var stock = d.rows.filter(function (r) { return r.rowKind === 'STOCK'; });
+  var ngoai = d.rows.filter(function (r) { return r.rowKind === 'NGOAI'; });
+  /* Mẫu TÁCH (JP Sân bay Phú Quốc) — hai bảng riêng + bảng tổng có chênh lệch */
+  var may  = d.rows.filter(function (r) { return r.rowKind === 'MAY'; });
+  var hang = d.rows.filter(function (r) { return r.rowKind === 'HANG'; });
+
+  /* Kho ngoài phải HIỆN khi duyệt. Nhân viên kiểm kê chỗ hàng ngoài máy mà kế toán
+     không thấy thì ký xong vẫn không biết cơ sở đang giữ bao nhiêu ngoài máy.
+     ⚠️ Cả hai lần ký đều xem BỐ CỤC ĐẦY ĐỦ — `part` chỉ để nhóm cảnh báo cho dễ
+     nhìn, KHÔNG dùng để cắt bớt bảng nào (Andy nhấn 04/08/2026). */
+  /* Khối LỆCH đứng TRƯỚC các bảng dòng — đó là câu trả lời của cả màn, còn bảng
+     dòng là chỗ soi vào khi thấy lệch. Mẫu TÁCH đã có bảng tổng riêng ở dưới
+     `ktTblHang` nên không in lại (một việc, một chỗ). */
+  var khoiLech = (d.tienVsHang && d.tienVsHang.mau !== 'TACH')
+    ? ktLechMayVsNhap(d.tienVsHang) : '';
+
+  return khoiLech +
+         (money.length ? ktTblMoney(money, zName, d.coDhTrung) : '') +
+         (may.length   ? ktTblMayTien(may, zName)  : '') +
+         (coin.length  ? ktTblCoin(coin, zName)    : '') +
+         /* `goTay` đi từ chính các dòng ① đang vẽ — xem chú thích ở `ktBangTongTach` */
+         (hang.length  ? ktTblHang(hang, d.head,
+                           may.some(function (r) { return ktMayGoTay(r); })) : '') +
+         (stock.length ? ktTblStock(stock)         : '') +
+         (ngoai.length ? ktTblNgoai(ngoai)         : '');
+}
+
+/**
+ * LỆCH doanh thu theo CHỈ SỐ MÁY vs phần NHÂN VIÊN TỰ NHẬP (Andy 07/08/2026).
+ *
+ * Số do MÁY CHỦ tính (`jpTienVsHang_`) — kể cả câu chữ ý nghĩa. Client ghép lại
+ * là hai chỗ ghép hai câu cho cùng một việc, sửa một chỗ quên chỗ kia (đúng bài
+ * học `jpCanhBaoHead_`).
+ *
+ * ⚠️ In ra ĐÚNG MỨC của phép kiểm. Máy xu là hai đường độc lập thật; máy tiền
+ * mẫu chung chỉ so được những ô CÓ đồng hồ đếm trứng, và hàm nói rõ bỏ mấy ô.
+ * Nói quá sức một phép kiểm còn tệ hơn không kiểm — nó mời người ta tin.
+ */
+function ktLechMayVsNhap(t) {
+  var lech = knum(t.lech);
+  var canh = t.lyDo
+    ? '<div class="alert warn"><b>Chỉ so được một phần:</b> ' + kesc(t.lyDo) + '</div>' : '';
+
+  return '<h3>Lệch doanh thu — chỉ số máy vs phần nhân viên tự nhập</h3>' + canh +
+    '<div class="tableWrap"><table id="tblKtLechMay">' +
+    '<tr><th>Phần</th><th>Cách ra số</th><th class="num">Số tiền</th></tr>' +
+    '<tr><td><b>① MÁY</b> — theo chỉ số</td><td>' + kesc(t.nhanMay) + '</td>' +
+      n(t.tienMay) + '</tr>' +
+    /* Dòng hoàn khách KHÔNG được ẩn khi bằng 0 — ẩn là người đọc không cộng ra
+       được ① − ② = ③. Chỉ tô nhạt, y như bảng tổng của mẫu TÁCH.
+       ⚠️ Máy xu KHÔNG trừ hoàn (xem `jpTienVsHang_`), nên phải NÓI RA là không
+       trừ — in một dấu trừ rồi ③ vẫn bằng ① là bảng tự mâu thuẫn. */
+    '<tr' + (knum(t.hoan) ? ' class="lech"' : '') + '>' +
+      '<td><b>② HOÀN KHÁCH</b></td>' +
+      '<td>' + (t.truHoan
+        ? 'Tiền đồng hồ đã thu mà không có hàng đi ra'
+        : '<b>KHÔNG trừ</b> — vế hàng của máy xu cũng đi từ chính những con xu đó, '
+          + 'trừ một bên là tự tạo ra lệch giả') + '</td>' +
+      n(t.truHoan ? -Math.abs(knum(t.hoan)) : 0) + '</tr>' +
+    '<tr><td><b>③ MÁY RÒNG</b> = ① − ②</td><td>Phần tiền thật sự ứng với hàng</td>' +
+      n(t.tienMayRong) + '</tr>' +
+    '<tr><td><b>④ NHÂN VIÊN TỰ NHẬP</b></td><td>' + kesc(t.nhanHang) + '</td>' +
+      n(t.tienHang) + '</tr>' +
+    '<tr class="totRow' + (lech ? ' lech' : '') + '">' +
+      '<td><b>LỆCH</b> ③ − ④</td><td>' + kesc(t.yNghia) + '</td>' + n(lech) + '</tr>' +
+    '</table></div>' +
+    '<p class="hint">' + (t.mau === 'XU'
+      ? '<b>Hai đường ĐỘC LẬP</b>: ① đi từ <b>đồng hồ xu của máy</b>, ④ đi từ ' +
+        '<b>số xu kiểm nhân viên ghi tay từng ngày</b> ở bảng hàng tồn. Nhân viên ' +
+        'đếm sót một ngày là lệch hiện ra ngay ở đây.'
+      : '① đi từ <b>đồng hồ tiền</b>, ④ đi từ <b>đồng hồ đếm trứng</b> — hai đồng hồ ' +
+        'khác nhau trên cùng một máy. Ô nào chưa nhập đồng hồ trứng thì <b>không đem ' +
+        'so được</b> và đã bị loại khỏi cả hai vế.') +
+    '</p>';
+}
+
+/** MẪU TÁCH · bảng TIỀN — chỉ đồng hồ, không cột hàng nào. */
+function ktTblMayTien(rows, zName) {
+  var tong = { amount: 0, bank: 0, cash: 0, cashReal: 0, lechTM: 0 };
+  var h = '<h3>① Tiền theo APP của máy — ' + rows.length + ' dòng</h3>' +
+    '<div class="tableWrap"><table id="tblKtMay">' +
+    '<tr><th>Khu vực</th><th>Tên hàng</th><th>Mã Misa</th>' +
+    '<th class="num">Thành tiền</th><th class="num">Tiền mặt app</th>' +
+    '<th class="num">QR</th><th class="num">Tiền mặt THỰC TẾ</th>' +
+    '<th class="num">Lệch</th><th>Ghi chú</th></tr>';
+
+  var chuaDemSo = 0;
+  rows.forEach(function (r) {
+    /* Lệch lấy đúng luật `jpLechTM_`: ô THỰC TẾ (hoặc ô app) trống là **CHƯA ĐẾM**,
+       không phải đếm được 0. Coi là 0 thì mọi dòng chưa đếm hiện thiếu tiền đúng
+       bằng cả tiền mặt của nó — đúng lỗi `'' − 30` đã phải đi sửa ở ba bảng hàng. */
+    var chuaDem = ktTrongO(r.cashReal) || ktTrongO(r.cash);
+    if (chuaDem) chuaDemSo++;
+    var lech = chuaDem ? null : (knum(r.cashReal) - knum(r.cash));
+    tong.amount += knum(r.amount); tong.bank += knum(r.bank);
+    tong.cash += knum(r.cash); tong.cashReal += knum(r.cashReal);
+    tong.lechTM += (lech || 0);
+    h += '<tr' + (r.warns.length ? ' class="lech"' : '') + '>' +
+      td(zName[r.zoneId]) + td(r.itemName || r.itemCode) + td(r.itemMisa) +
+      n(r.amount) + n(r.cash) + n(r.bank) +
+      (ktTrongO(r.cashReal) ? '<td class="num">—</td>' : n(r.cashReal)) +
+      (chuaDem ? '<td class="num">—</td>' : n(lech)) + td(r.note) + '</tr>';
+  });
+
+  return h + '<tr class="totRow"><td colspan="3"><b>TỔNG</b></td>' +
+    n(tong.amount) + n(tong.cash) + n(tong.bank) + n(tong.cashReal) + n(tong.lechTM) +
+    '<td></td></tr></table></div>' +
+    (chuaDemSo ? '<div class="alert warn"><b>' + chuaDemSo + ' dòng chưa đếm tiền mặt ' +
+      'thực tế</b> — cột Lệch của mấy dòng đó để <b>—</b> và KHÔNG cộng vào dòng TỔNG, ' +
+      'nên tổng lệch đang thiếu đúng phần chưa đếm.</div>' : '') +
+    '<p class="hint">Số ở bảng này do <b>nhân viên đọc từ APP của máy</b> — SBPQ không ' +
+    'có đồng hồ để suy ra (Andy chốt 12/08/2026). Hai phép soát tại chỗ: ' +
+    '<b>Thành tiền = Tiền mặt app + QR</b> (app tự cộng khớp) và ' +
+    '<b>Lệch = thực tế − app</b>, âm là cơ sở nộp thiếu. ' +
+    '<b>Tiền mặt THỰC TẾ mới là tiền phải thu</b> — Σ Lệch chính là ô "Lệch máy" ở ' +
+    'khối tổng. Hàng nằm ở bảng ② bên dưới; dòng tiền <b>không sinh giá vốn</b>.</p>';
+}
+
+/** Ô TRỐNG = chưa nhập. Một chỗ hỏi, dùng cho mọi bảng — xem bài học `'' − 30`. */
+function ktTrongO(v) { return v === '' || v === null || v === undefined; }
+
+/**
+ * Bản sao `jpMayGoTay_` (00_Config) — dòng tiền loại GÕ TAY, không có đồng hồ nào.
+ *
+ * ⚠️⚠️ **`mBefore = 0` KHÔNG phải "có đồng hồ" — so `> 0`, ĐỪNG dùng `ktTrongO`.**
+ * Đây là bản sao **THỨ BA** của cùng một luật (máy chủ · web nhân viên · web kế toán),
+ * và là bản bị bỏ sót tới 20/08/2026 — sau khi đã vá hai bản kia. Hậu quả ở màn duyệt:
+ * `ktBangTongTach` nhận `goTay` sai ⇒ bảng tổng của mẫu TÁCH nói tiền đi từ **đồng hồ**
+ * trong khi thực tế nhân viên **gõ tay từ APP**, tức kế toán soát bằng một câu chú thích
+ * sai về nguồn số.
+ *
+ * ⚠️ Hai phép soát 10 · 11 ở `soat-tinh.py` **cũng bỏ sót bản này** lượt đầu: phép 10 chỉ
+ * biết `jpBlank_`/`jpTrongO` nên không thấy `ktTrongO`, phép 11 chỉ so hai bản. Đã nới cả
+ * hai — bài học: hàng rào dựng theo đúng chỗ vừa cháy thì vẫn hở đúng chỗ chưa cháy.
+ */
+function ktMayGoTay(r) {
+  return !!r && knum(r.mBefore) <= 0 && ktTrongO(r.mAfter);
+}
+
+/** Báo cáo mẫu TÁCH (tiền / hàng hai bảng) — MỘT chỗ hỏi cho cả web kế toán. */
+function ktLaTach(h) {
+  return String((h || {}).bcMau || '').trim().toUpperCase() === 'TACH';
+}
+
+/**
+ * MẪU TÁCH · bảng HÀNG + BẢNG TỔNG có chênh lệch.
+ *
+ * ⚠️ Số ở bảng tổng lấy từ **HEAD** (`revMeter` / `revHang` / `lechTienHang`) do máy
+ * chủ tính, không cộng lại ở client. Cộng lại là hai công thức cho một con số, và
+ * lúc lệch nhau thì nhân viên thấy một số mà kế toán thấy số khác.
+ */
+function ktTblHang(rows, h0, goTay) {
+  var tong = { stockOpen: 0, addQty1: 0, returnQty: 0, defectQty: 0,
+               stockActual: 0, soldQty: 0, tien: 0 };
+  var chuaDem = 0;
+
+  var h = '<h3>② Hàng hoá theo mã — ' + rows.length + ' mã</h3>' +
+    '<div class="tableWrap"><table id="tblKtHang">' +
+    '<tr><th>Mã hàng</th><th>Mã Misa</th><th>Tên</th><th class="num">Giá</th>' +
+    '<th class="num">Tồn đầu</th><th class="num">Nhập thêm</th>' +
+    '<th class="num">Trả kho</th><th class="num">Lỗi / mẫu</th>' +
+    '<th class="num">Tồn cuối đếm</th><th class="num">Đã bán</th>' +
+    '<th class="num">Tiền theo hàng</th><th>Ghi chú</th></tr>';
+
+  rows.forEach(function (r) {
+    var tien = knum(r.soldQty) * knum(r.price);
+    var trong = r.stockActual === '' || r.stockActual === null;
+    if (trong) chuaDem++;
+    ['stockOpen', 'addQty1', 'returnQty', 'defectQty', 'stockActual', 'soldQty']
+      .forEach(function (c) { tong[c] += knum(r[c]); });
+    tong.tien += tien;
+    h += '<tr' + (r.warns.length ? ' class="lech"' : '') + '>' +
+      td(r.itemCode) + td(r.itemMisa) + td(r.itemName) + n(r.price) +
+      n(r.stockOpen) + n(r.addQty1) + n(r.returnQty) + n(r.defectQty) +
+      (trong ? '<td class="num"><b>chưa đếm</b></td>' : n(r.stockActual)) +
+      n(r.soldQty) + n(tien) + td(r.note) + '</tr>';
+  });
+
+  h += '<tr class="totRow"><td colspan="4"><b>TỔNG</b></td>' +
+    n(tong.stockOpen) + n(tong.addQty1) + n(tong.returnQty) + n(tong.defectQty) +
+    n(tong.stockActual) + n(tong.soldQty) + n(tong.tien) + '<td></td></tr>' +
+    '</table></div>' +
+    '<p class="hint"><b>Đã bán = Tồn đầu + Nhập thêm − Trả kho − Lỗi − Tồn cuối đếm được.</b> ' +
+    'Nhân viên không gõ số bán, nên con số này đi từ <b>kiểm đếm thực tế</b>. ' +
+    'Đây là bảng ra <b>giá vốn 6321</b>.' +
+    (chuaDem ? ' <b>' + chuaDem + ' mã chưa đếm tồn cuối</b> — không nộp được, ' +
+               'nếu vẫn thấy thì có ai sửa tay trên Sheet.' : '') + '</p>' +
+    ktBangTongTach(h0, tong.tien, goTay);
+  return h;
+}
+
+/**
+ * BẢNG TỔNG — chỗ so tiền với tiền theo hàng đếm được.
+ *
+ * `goTay` = bảng ① là loại NHÂN VIÊN GÕ (đọc từ APP, không có đồng hồ). Truyền vào chứ
+ * KHÔNG tự suy từ `h0`: cờ này phải đi từ chính những dòng đang vẽ ở bảng ①, không thì
+ * hai bảng trên một màn nói hai nguồn khác nhau.
+ */
+function ktBangTongTach(h0, tienHangTinhLai, goTay) {
+  var tien = knum(h0.revMeter), hang = knum(h0.revHang), lech = knum(h0.lechTienHang);
+
+  /* Máy chủ và bảng trên phải ra CÙNG một số. Lệch nhau là dữ liệu sửa tay trên
+     Sheet hoặc báo cáo lưu bằng bản code cũ — nói ra, đừng im lặng in số nào đó. */
+  var vach = (tienHangTinhLai !== hang)
+    ? '<div class="alert danger"><b>Số không khớp:</b> cộng lại bảng ② ra ' +
+      kmoney(tienHangTinhLai) + 'đ nhưng báo cáo lưu ' + kmoney(hang) + 'đ. ' +
+      'Bấm <b>Mở lại</b> rồi lưu lại báo cáo để tính lại, hoặc soát xem có ai sửa tay ' +
+      'trên Google Sheet.</div>'
+    : '';
+
+  return '<h3>Bảng tổng — so tiền với hàng</h3>' + vach +
+    '<div class="tableWrap"><table id="tblKtBangTong">' +
+    '<tr><th>Phần</th><th>Cách ra số</th><th class="num">Số tiền</th></tr>' +
+    /* ⚠️ CÁCH RA SỐ phải nói đúng phép tính đang dùng. Với mẫu TÁCH sau 12/08/2026 thì
+       `Σ (Chênh đồng hồ × 5.000đ)` là một công thức KHÔNG CÒN TỒN TẠI — in nó ra ngay
+       cạnh con số là dạy kế toán tự kiểm bằng phép tính sai, nặng hơn một nhãn sai. */
+    '<tr><td><b>① TIỀN</b> — ' + (goTay ? 'theo APP của máy' : 'theo đồng hồ') +
+      '</td><td>' + (goTay ? 'Σ Thành tiền nhân viên đọc từ APP'
+                                      : 'Σ (Chênh đồng hồ × 5.000đ)') + '</td>' +
+      n(tien) + '</tr>' +
+    '<tr><td><b>② HÀNG</b> — theo số đếm được</td>' +
+      '<td>Σ (Đã bán × Giá)</td>' + n(hang) + '</tr>' +
+    '<tr class="totRow' + (lech ? ' lech' : '') + '">' +
+      '<td><b>CHÊNH LỆCH</b> ① − ②</td><td>' +
+      (lech === 0 ? (goTay ? 'Khớp — tiền APP đúng bằng hàng đếm được'
+                                      : 'Khớp — tiền đồng hồ đúng bằng hàng đếm được')
+       : lech > 0 ? '<b>THIẾU HÀNG</b> — tiền thu nhiều hơn hàng ra'
+                  : '<b>THIẾU TIỀN</b> — hàng ra nhiều hơn tiền thu') +
+      '</td>' + n(lech) + '</tr>' +
+    '</table></div>' +
+    '<p class="hint"><b>Hai đường ĐỘC LẬP</b>: tiền đi từ ' +
+    (goTay ? '<b>APP của máy</b>' : '<b>đồng hồ máy</b>') +
+    ', hàng đi từ kiểm đếm thực tế — nên số lệch ở đây là số lệch <b>thật</b>, không ' +
+    'phải lỗi cộng trừ. Lấy theo ' +
+    (goTay ? '<b>tiền APP</b>' : '<b>tiền đồng hồ</b>') +
+    ', chưa trừ hoàn khách và chưa cộng lệch: hai khoản đó không liên quan tới hàng, ' +
+    'trộn vào là không lần ra được cái nào gây ra cái nào.</p>';
+}
+
+/** Bảng KHO NGOÀI — kiểm kê hàng cơ sở giữ ngoài máy. Không có tiền, không giá vốn. */
+function ktTblNgoai(rows) {
+  var tong = { stockOpen: 0, addQty1: 0, stockOut: 0, returnQty: 0,
+               stockLeftCalc: 0, stockActual: 0 };
+  var soLech = 0;
+
+  var h = '<h3>Kho ngoài — ' + rows.length + ' mã hàng giữ ngoài máy</h3>' +
+    '<div class="tableWrap"><table>' +
+    '<tr><th>Mã hàng</th><th>Tên</th><th class="num">Tồn đầu</th>' +
+    '<th class="num">Nhập thêm</th><th class="num">Cấp ra máy</th>' +
+    '<th class="num">Trả kho tổng</th><th class="num">Còn tính</th>' +
+    '<th class="num">Đếm thật</th><th class="num">Lệch</th><th>Ghi chú</th></tr>';
+
+  /* ⚠️ Cùng bệnh với bảng hàng tồn: ô ĐẾM THẬT trống là CHƯA ĐẾM, không phải 0.
+     `knum('')` ra 0 nên `0 − còn tính` cho ra một khoản thiếu KHÔNG CÓ THẬT, rồi
+     dòng bị tô đỏ và câu cuối đếm nó vào "N mã lệch". */
+  var chuaDem = 0, tongLech = 0;
+  rows.forEach(function (r) {
+    var coDem = !(r.stockActual === '' || r.stockActual === null ||
+                  r.stockActual === undefined);
+    var lech = coDem ? (knum(r.stockActual) - knum(r.stockLeftCalc)) : null;
+    if (!coDem) chuaDem++;
+    if (lech) { soLech++; tongLech += lech; }
+    Object.keys(tong).forEach(function (c) { tong[c] += knum(r[c]); });
+    h += '<tr' + (lech ? ' class="lech"' : '') + '>' +
+      td(r.itemCode) + td(r.itemName) +
+      n(r.stockOpen) + n(r.addQty1) + n(r.stockOut) + n(r.returnQty) +
+      n(r.stockLeftCalc) + n(r.stockActual) +
+      '<td class="num">' + (lech === null ? '<span class="sub">—</span>'
+        : '<b>' + (lech > 0 ? '+' + lech : lech) + '</b>') + '</td>' +
+      td(r.note) + '</tr>';
+  });
+
+  /* Tổng lệch cộng từ những dòng ĐÃ ĐẾM, không lấy `tong.stockActual − tong.stockLeftCalc`
+     — cách đó tính mã chưa đếm thành 0 rồi trừ ra một khoản thiếu tưởng tượng. */
+  h += '<tr class="totRow"><td colspan="2"><b>TỔNG</b></td>' +
+    n(tong.stockOpen) + n(tong.addQty1) + n(tong.stockOut) + n(tong.returnQty) +
+    n(tong.stockLeftCalc) + n(tong.stockActual) +
+    '<td class="num"><b>' + (tongLech > 0 ? '+' + tongLech : tongLech) + '</b></td>' +
+    '<td></td></tr></table></div>' +
+    '<p class="hint">Bảng này <b>không sinh giá vốn</b>: hàng bán ra đã đếm ở bảng máy. ' +
+    '"Cấp ra máy" chỉ là chuyển chỗ trong cùng cơ sở.' +
+    (soLech ? ' <b>' + soLech + ' mã lệch</b> — soát trước khi ký hàng hoá.' : '') +
+    (chuaDem ? ' <b>' + chuaDem + ' mã chưa đếm thật</b> — cột Lệch để "—".' : '') + '</p>';
+  return h;
+}
+
+/*
+ * ⚠️ `coDh` đến từ CƠ SỞ (`jpCoDhTrung_`), không phải từ báo cáo — kế toán phải thấy
+ * ĐÚNG bố cục nhân viên vừa nhập, không thì soát một bảng khác bảng người ta điền.
+ * Cùng luật `jpHienDhTrung` bên web nhân viên: cờ tắt là ẩn, **kể cả khi còn số**.
+ *
+ * ⚠️ Còn số mà ẩn cột thì `soldQty` của mấy dòng đó vẫn suy từ đồng hồ — kế toán sắp KÝ
+ * một con số mà không thấy nguồn. Nên phải NÓI RA (`nhac` bên dưới), không được ẩn im
+ * lặng. Giữ lại cột cho "an toàn" thì cột không bao giờ ẩn được, đã thử và sai.
+ */
+/**
+ * Nhãn loại máy của MỘT DÒNG — chỉ hiện khi khác giá mặc định.
+ *
+ * ⚠️ Con số này nhân thẳng vào doanh thu nên người sắp KÝ phải thấy nó **ngay trên
+ * dòng**; giấu trong cấu hình là kế toán ký một bảng tính theo giá mình không biết.
+ * ⚠️ CHỈ hiện khi khác mặc định: đính vào mọi dòng là 13 cơ sở còn lại đọc thêm một mẩu
+ * chữ vô nghĩa ở mọi dòng, mà mẩu chữ vô nghĩa thì mắt tự bỏ qua — lúc cần nó nói thật
+ * thì cũng bị bỏ qua nốt.
+ *
+ * ⚠️ Phải đứng ở TOP LEVEL. Lượt đầu tôi để nó lồng trong hàm dựng `zName`, mà
+ * `ktTblMoney` là hàm KHÁC ⇒ `ReferenceError` ⇒ **cả màn chi tiết không vẽ ra gì**, chỉ
+ * còn dòng "Chọn một báo cáo bên trái". `duyet.js` bắt được ngay.
+ */
+function xungNhan(r) {
+  return Number(r.giaXung) === 10000
+    ? ' <b style="color:#B45309">·10.000đ/xung</b>' : '';
+}
+
+function ktTblMoney(rows, zName, coDh) {
+  var dh = coDh !== false;
+  /*⚠️⚠️ `hBefore = 0` KHÔNG phải "còn số đồng hồ cũ" — bám ĐÚNG dạng của
+     `coDhTrungThat` ở `jpCalcMoneyRow_` (`04_TinhToan`): `> 0` cho ô TRƯỚC, còn ô SAU
+     thì xét trống-hay-không. Đếm cả dòng mang số 0 là **báo động oan**: `soldQty` của
+     chúng vốn KHÔNG suy từ đồng hồ (`jpMeterDelta_` trả 0), mà câu nhắc lại bảo kế toán
+     soát kỹ trước khi ký. Báo sai vài lần là không ai đọc nữa — đúng bệnh `canBang` cũ.
+     Tìm ra 20/08/2026 nhờ nới phép soát 10, sau khi vá bản sao thứ ba. */
+  var conSo = rows.filter(function (r) {
+    return knum(r.hBefore) > 0 || !ktTrongO(r.hAfter);
+  }).length;
+  var nhac = (!dh && conSo)
+    ? '<p class="hint"><b>' + conSo + ' dòng còn số đồng hồ đếm trứng cũ.</b> Cơ sở này ' +
+      'đã khai máy không có đồng hồ nên hai cột Trứng trước / Trứng sau đã ẩn, nhưng ' +
+      '<b>“Đã bán” của các dòng đó vẫn suy từ số cũ</b>, không phải từ tiền. Soát kỹ ' +
+      'trước khi ký phần hàng hoá.</p>'
+    : '';
+  var h = '<h3>Máy tiền — ' + rows.length + ' ô</h3><div class="tableWrap"><table>' +
+    '<tr><th>Khu vực</th><th>Ô / máy</th><th>Mã hàng</th>' +
+    '<th class="num">Giá</th><th class="num">ĐH trước</th><th class="num">ĐH sau</th>' +
+    '<th class="num">Chênh</th><th class="num">Collection</th><th class="num">Tiền</th>' +
+    '<th class="num">CK</th><th class="num">Tiền mặt</th>' +
+    (dh ? '<th class="num">Trứng trước</th><th class="num">Trứng sau</th>' : '') +
+    '<th class="num">Đã bán</th>' +
+    '<th class="num">Tồn đầu</th><th class="num">Còn tính</th><th class="num">Đếm thật</th>' +
+    '<th>Ghi chú</th></tr>';
+
+  rows.forEach(function (r) {
+    h += '<tr' + (r.warns.length ? ' class="lech"' : '') + '>' +
+      td(zName[r.zoneId]) + td(r.machineCode) + td(r.itemCode + ' ' + (r.itemName || '')) +
+      /* ⚠️ Nhãn loại máy đứng ngay cạnh cột GIÁ — xem `xungNhan`. Không có nó thì kế
+         toán nhìn `Chênh 200` và `Tiền 2.000.000` mà không hiểu vì sao không phải
+         1.000.000, rồi chấm là sai và trả về oan. */
+      '<td class="num">' + kmoney(r.price) + xungNhan(r) + '</td>' +
+      n(r.mBefore) + n(r.mAfter) + n(r.mActual) + n(r.collection) + n(r.amount) +
+      n(r.bank) + n(r.cash) +
+      (dh ? n(r.hBefore) + n(r.hAfter) : '') + n(r.soldQty) +
+      n(r.hOpen) + n(r.hLeft) + n(r.stockActual) +
+      td(r.note) + '</tr>';
+  });
+  return h + '</table></div>' + nhac;
+}
+
+function ktTblCoin(rows, zName) {
+  var h = '<h3>Máy xu — ' + rows.length + ' vị trí</h3><div class="tableWrap"><table>' +
+    '<tr><th>Khu vực</th><th>Vị trí</th>' +
+    '<th class="num">Xu trước</th><th class="num">Xu sau</th><th class="num">Chênh xu</th>' +
+    '<th class="num">ĐH trước</th><th class="num">ĐH sau</th>' +
+    '<th class="num">Tiền theo xu</th><th class="num">Tiền mặt</th><th class="num">CK</th>' +
+    '<th class="num">Giá xu</th><th class="num">Tổng xu</th><th class="num">Đã bán</th>' +
+    '<th class="num">Còn tính</th><th class="num">Đếm thật</th><th>Ghi chú</th></tr>';
+
+  rows.forEach(function (r) {
+    h += '<tr' + (r.warns.length ? ' class="lech"' : '') + '>' +
+      td(zName[r.zoneId]) + td(r.machineCode || r.itemCode) +
+      n(r.cBefore) + n(r.cAfter) + n(r.cActual) +
+      n(r.mBefore) + n(r.mAfter) +
+      n(r.amount) + n(r.cash) + n(r.bank) +
+      n(r.giaXu) + n(r.xuTong) + n(r.soldQty) +
+      n(r.stockLeftCalc) + n(r.stockActual) + td(r.note) + '</tr>';
+  });
+  return h + '</table></div>';
+}
+
+/**
+ * Máy xu — bảng hàng tồn.
+ *
+ * Thứ tự cột đi theo DÒNG CHẢY CỦA HÀNG (Andy 07/08/2026: *"sắp xếp cột hàng lại
+ * dễ nhìn là tồn đầu - bổ sung - bán - xxx"*):
+ *
+ *   Tồn đầu + Bổ sung − Xu lạ − Đã bán − Lỗi/mẫu − Trả kho = Còn tính
+ *
+ * Trước đây `Đã bán` đứng TRƯỚC `Tồn đầu` nên đọc bảng là nhảy cóc. `Giá xu` và
+ * `Tổng xu` giữ nguyên chỗ cũ ngay sau tên — chúng là thuộc tính của mã hàng và
+ * là cách suy ra `Đã bán` (tổng xu ÷ giá xu), không phải một bước của dòng chảy.
+ */
+function ktTblStock(rows) {
+  var h = '<h3>Máy xu — bảng hàng tồn (' + rows.length + ' mã)</h3>' +
+    '<div class="tableWrap"><table id="tblKtStock">' +
+    '<tr><th>Mã hàng</th><th>Tên</th><th class="num">Giá xu</th><th class="num">Tổng xu</th>' +
+    '<th class="num">Tồn đầu</th><th class="num">Bổ sung</th><th class="num">Đã bán</th>' +
+    '<th class="num">Xu lạ</th><th class="num">Lỗi/mẫu</th><th class="num">Trả kho</th>' +
+    '<th class="num">Còn tính</th><th class="num">Đếm thật</th><th class="num">Lệch</th></tr>';
+
+  var chuaDem = 0;
+  rows.forEach(function (r) {
+    /* ⚠️ Ô ĐẾM THẬT để trống là CHƯA ĐẾM, không phải đếm được 0.
+       Bản cũ viết `r.stockActual - r.stockLeftCalc`, mà `'' − 30` trong JS ra
+       **−30** ⇒ mọi mã chưa đếm đều hiện thiếu hàng cả chục quả, và dòng nào
+       cũng bị tô `lech` nên cả bảng đỏ. Kế toán đọc ra "mất hàng" trong khi
+       nhân viên chỉ là chưa đếm. Cột bên cạnh in đúng "—" nhờ `n()`, chỉ mỗi
+       cột Lệch tự suy ra số. */
+    var coDem = !(r.stockActual === '' || r.stockActual === null ||
+                  r.stockActual === undefined);
+    if (!coDem) chuaDem++;
+    var lech = coDem ? (knum(r.stockActual) - knum(r.stockLeftCalc)) : null;
+    h += '<tr' + (lech ? ' class="lech"' : '') + '>' +
+      td(r.itemCode) + td(r.itemName) + n(r.giaXu) + n(r.xuTong) +
+      n(r.stockOpen) + n(r.addQty1 + r.addQty2) + n(r.soldQty) + n(r.xuLa) +
+      n(r.defectQty) + n(r.returnQty) + n(r.stockLeftCalc) + n(r.stockActual) +
+      '<td class="num">' + (lech === null ? '<span class="sub">—</span>'
+        : '<b>' + (lech > 0 ? '+' + lech : lech) + '</b>') + '</td></tr>';
+  });
+  return h + '</table></div>' +
+    '<p class="hint"><b>Tồn đầu + Bổ sung − Xu lạ − Đã bán − Lỗi/mẫu − Trả kho = Còn tính.</b> ' +
+    '<b>Đã bán</b> = Tổng xu ÷ Giá xu.' +
+    (chuaDem ? ' <b>' + chuaDem + ' mã chưa đếm thật</b> — cột Lệch để "—", ' +
+               'chưa đếm thì không kết luận thiếu hay đủ được.' : '') + '</p>';
+}
+
+function td(v) { return '<td>' + kesc(v == null ? '' : v) + '</td>'; }
+
+/** Ô trống hiện "—", không hiện 0 — kế toán phải thấy được chỗ nhân viên chưa nhập. */
+function n(v) {
+  var trong = (v === '' || v === null || v === undefined);
+  return '<td class="num">' + (trong ? '—' : kmoney(v)) + '</td>';
+}
+
+/*──────────────── ④ ẢNH ────────────────*/
+
+function ktPhotos(photos) {
+  KT.anh = photos || [];                 // để khung xem ảnh tra lại theo chỉ số
+  if (!photos || !photos.length) {
+    return '<div class="alert warn">Báo cáo không có ảnh nào.</div>';
+  }
+  return '<h3>Ảnh (' + photos.length + ')</h3><div class="photoStrip">' +
+    photos.map(function (p, i) {
+      return '<div class="thumb"><img src="' + kesc(p.url) + '" loading="lazy"' +
+             ' title="' + kesc(p.kind + ' · ' + p.refId) + '"' +
+             ' onerror="ktAnhNhoVo(this)"' +
+             ' onclick="ktAnhMo(' + i + ')"></div>';
+    }).join('') + '</div>' +
+    '<p class="hint">Bấm vào ảnh để xem <b>ngay tại đây</b> — không rời màn duyệt. ' +
+    'Dùng phím <b>←</b> <b>→</b> để lật ảnh, <b>Esc</b> để đóng.<br>' +
+    'Ô nào chỉ hiện <b>chữ</b> là ảnh nhỏ không tải được (file ảnh chưa chia sẻ ' +
+    'ngoài chủ sở hữu) — <b>bấm vào vẫn xem được bản lớn</b>.</p>';
+}
+
+/*──────────────── ④b XEM ẢNH TẠI CHỖ ────────────────
+ *
+ * Andy 07/08/2026: *"ảnh trong phần duyệt báo cáo em làm theo dạng bấm vào xem
+ * tại chỗ đi đừng chuyển em"*.
+ *
+ * Trước bản này bấm ảnh là `window.open(...drive.google.com...)` — kế toán bị đẩy
+ * sang tab Drive, xem xong phải quay lại và **cuộn tìm lại chỗ đang duyệt**. Soi
+ * 8 ảnh chỉ số của một báo cáo là 8 lần rời màn.
+ *
+ * ⚠️ **Ảnh trong danh sách và khung xem là HAI CỠ khác nhau, cả hai do MÁY CHỦ cấp**
+ * (`p.url` = `JP_ANH_SZ_NHO`, `p.urlTo` = `JP_ANH_SZ_TO`). Ô nhỏ chỉ 74px nên tải
+ * bản to vào đó là nặng vô ích — báo cáo 138 ảnh tải 14,4MB chỉ để vẽ mấy ô 74px
+ * (đo 11/08/2026: `w200` 19,7KB vs `w600` 104KB). Nhưng mở tấm ô-nhỏ lên xem thì
+ * nhoè, mà đây đúng là chỗ đọc CHỈ SỐ ĐỒNG HỒ. **Client không tự ghép cỡ** — hai
+ * chỗ ghép là có ngày một chỗ đổi mà chỗ kia không.
+ *
+ * ⚠️ Vẫn GIỮ đường "Mở trong Drive". Ảnh chụp bằng điện thoại có thể lớn hơn mức
+ * Drive chịu render, hoặc quyền chưa kịp lan — lúc đó phải còn một đường xem được.
+ * Bỏ nó đi cho gọn là lấy mất lối thoát duy nhất.
+ */
+function ktAnhMo(i) {
+  if (!KT.anh || !KT.anh.length) return;
+  KT.anhVt = Math.max(0, Math.min(i, KT.anh.length - 1));
+  $k('ktLb').classList.remove('hidden');
+  ktAnhVe();
+}
+
+function ktAnhDong() {
+  $k('ktLb').classList.add('hidden');
+  /* Bỏ `src` khi đóng: không bỏ thì lần mở sau ảnh CŨ hiện trước rồi mới đổi —
+     kế toán đang soi chỉ số dễ đọc nhầm sang ảnh của ô máy khác. */
+  $k('ktLbAnh').removeAttribute('src');
+  /* ⚠️ Bỏ luôn bộ nhớ ảnh: mỗi data URI là cả tấm ảnh nằm trong RAM của tab, soi
+     138 ảnh của SB Phú Quốc là hàng chục MB không bao giờ được thu hồi. Mở lại
+     một ảnh thì gọi máy chủ lần nữa — một lượt, đổi lấy chỗ không phình mãi. */
+  KT.anhData = {};
+}
+
+function ktAnhDi(n) {
+  if (!KT.anh || !KT.anh.length) return;
+  var v = KT.anhVt + n;
+  if (v < 0 || v >= KT.anh.length) return;      // KHÔNG chạy vòng — xem hết là hết
+  KT.anhVt = v;
+  ktAnhVe();
+}
+
+/** Bấm vào NỀN thì đóng, bấm vào ảnh / nút thì không. */
+function ktAnhNen(e) {
+  if (e.target && e.target.id === 'ktLb') ktAnhDong();
+}
+
+/**
+ * Vẽ ảnh đang xem — HAI ĐƯỜNG, thứ tự có chủ ý.
+ *
+ * ① **Bản Drive đã nén** (`p.urlTo`, cỡ `JP_ANH_SZ_TO`): trình duyệt tải thẳng từ
+ *    CDN của Google, **không tốn lượt gọi máy chủ nào** và Drive nén sẵn. Chạy được
+ *    vì thư mục ảnh nay đã chia sẻ (Andy bấm 11/08/2026).
+ * ② **Hỏng thì rơi về `jpAnhXem`** — đọc bytes qua web app, chạy bằng quyền chủ sở
+ *    hữu nên KHÔNG cần quyền Drive nào.
+ *
+ * ⚠️ **Đừng bỏ đường ②.** Nó là thứ duy nhất còn sống nếu quyền chia sẻ bị thu lại
+ * (hoặc trình duyệt chặn cookie bên thứ ba tới `drive.google.com`) — đúng cảnh Andy
+ * gặp sáng 11/08 khi thư mục chỉ có quyền chủ sở hữu.
+ *
+ * ⚠️ **Và đừng đảo thứ tự thành đi máy chủ trước.** Đi máy chủ là một lượt
+ * `google.script.run` ≈ 0,45s + đọc Drive, mỗi lần lật một ảnh — trong khi đường ①
+ * gần như tức thì và được CDN cache.
+ *
+ * ⚠️ Vẫn GIỮ đường "Mở trong Drive" — cả hai đường trên hỏng thì phải còn một lối.
+ */
+function ktAnhVe() {
+  var p = KT.anh[KT.anhVt] || {};
+
+  $k('ktLbTen').textContent = (p.kind || 'Ảnh') + (p.refId ? ' · ' + p.refId : '');
+  $k('ktLbDem').textContent = 'Ảnh ' + (KT.anhVt + 1) + ' / ' + KT.anh.length;
+  $k('ktLbTruoc').disabled = (KT.anhVt === 0);
+  $k('ktLbSau').disabled = (KT.anhVt === KT.anh.length - 1);
+  $k('ktLbDrive').href = p.fileId
+    ? 'https://drive.google.com/file/d/' + encodeURIComponent(p.fileId) + '/view' : '#';
+
+  $k('ktLbDai').innerHTML = KT.anh.map(function (x, i) {
+    return '<img src="' + kesc(x.url) + '" loading="lazy"' +
+           (i === KT.anhVt ? ' class="on"' : '') +
+           ' title="' + kesc((x.kind || '') + ' · ' + (x.refId || '')) + '"' +
+           ' onerror="ktAnhNhoVo(this)"' +
+           ' onclick="ktAnhMo(' + i + ')">';
+  }).join('');
+
+  if (!p.fileId) { ktAnhLoi_('Ảnh này không có mã file trên Drive để đọc.'); return; }
+
+  /* Đã phải đọc qua máy chủ lần trước thì dùng lại, đừng gọi lần nữa. */
+  KT.anhData = KT.anhData || {};
+  if (KT.anhData[p.fileId]) { ktAnhHien_(KT.anhData[p.fileId]); return; }
+
+  /* ĐƯỜNG ① — bản Drive đã nén, không tốn lượt gọi máy chủ */
+  ktAnhHien_(p.urlTo || jpAnhUrlTo_(p.fileId));
+}
+
+/** ĐƯỜNG ② — Drive tải không được thì đọc bytes qua web app. */
+function ktAnhQuaMayChu_(fileId) {
+  ktAnhCho_('Đang tải ảnh…', true);
+  /* ⚠️ Lật nhanh là NHIỀU lượt gọi cùng chạy, và lượt về sau cùng có thể không
+     phải ảnh đang xem nữa. Ghim theo `fileId` chứ đừng tin thứ tự trả về — không
+     thì kế toán đang soi chỉ số ô máy này lại thấy ảnh của ô máy khác. */
+  var can = fileId;
+  ksrv('jpAnhXem', KT.token, can).then(function (d) {
+    KT.anhData = KT.anhData || {};
+    KT.anhData[can] = d.dataUrl;
+    if (ktAnhCan_() !== can) return;
+    ktAnhHien_(d.dataUrl);
+  }).catch(function (e) {
+    if (ktAnhCan_() !== can) return;
+    ktAnhLoi_(e.message);
+  });
+}
+
+/* Đường lùi khi dòng ảnh cũ chưa có `urlTo` (máy chủ cấp trường này từ 11/08/2026).
+   ⚠️ Cỡ ảnh do MÁY CHỦ quyết (`JP_ANH_SZ_TO`); ghép cứng ở đây là hai chỗ ghép cùng
+   một thứ, sửa một chỗ quên chỗ kia. Nên chỗ này KHÔNG gắn `sz` — để Drive tự chọn
+   bản lớn nhất nó có. */
+function jpAnhUrlTo_(fileId) {
+  return 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(fileId);
+}
+
+/** fileId của ảnh ĐANG xem — dùng để bỏ lượt trả về đã lỗi thời. */
+function ktAnhCan_() {
+  var p = KT.anh && KT.anh[KT.anhVt];
+  return p ? p.fileId : '';
+}
+
+function ktAnhHien_(src) {
+  var img = $k('ktLbAnh');
+  $k('ktLbLoi').classList.add('hidden');
+  img.classList.remove('hidden');
+  /* ⚠️ Data URI ĐÃ LÀ đường ② — gắn lại `onerror` cho nó là vòng lặp vô tận. */
+  img.onerror = /^data:/.test(src) ? null : function () {
+    var can = ktAnhCan_();
+    if (can) ktAnhQuaMayChu_(can);
+    else ktAnhLoi_('Drive không trả ảnh và không có mã file để đọc lại.');
+  };
+  img.src = src;
+}
+
+/** `dangTai` = đang chờ (chữ xám); bỏ cờ đó là lỗi thật (chữ đỏ). */
+function ktAnhCho_(msg, dangTai) {
+  var img = $k('ktLbAnh'), loi = $k('ktLbLoi');
+  img.classList.add('hidden');
+  img.removeAttribute('src');
+  loi.classList.remove('hidden');
+  loi.classList[dangTai ? 'add' : 'remove']('dangTai');
+  loi.textContent = msg;
+}
+
+/* Hỏng thì NÓI RA kèm lối đi tiếp, đừng để một ô vỡ không giải thích gì. */
+function ktAnhLoi_(msg) {
+  ktAnhCho_('Không đọc được ảnh này: ' + msg +
+            '  ·  Bấm "Mở trong Drive" ở trên để xem bản gốc.', false);
+}
+
+/**
+ * Ảnh NHỎ ở dải và ở danh sách vẫn trỏ thẳng sang Drive — 138 ảnh của SB Phú Quốc
+ * thì không thể mỗi ảnh một lượt gọi máy chủ (Apps Script cắt ở 6 phút).
+ * Nên khi nó vỡ thì thay bằng ô có CHỮ, vẫn bấm được để xem bản lớn qua máy chủ.
+ * Ô xám không chữ là kế toán không biết ảnh nào là ảnh nào.
+ */
+function ktAnhNhoVo(img) {
+  if (!img || img.dataset.vo) return;         // chặn vòng lặp onerror
+  img.dataset.vo = '1';
+  var t = img.getAttribute('title') || 'Ảnh';
+  var o = document.createElement('div');
+  o.className = 'thumbVo';
+  o.textContent = t.split('·').pop().trim() || 'Ảnh';
+  o.title = t + ' — bấm để xem';
+  o.setAttribute('onclick', img.getAttribute('onclick') || '');
+  img.parentNode.replaceChild(o, img);
+}
+
+/*──────────────── ④c ẢNH THEO CƠ SỞ — nhiều kỳ một lượt ────────────────
+ *
+ * Andy 11/08/2026: *"làm màn xem hết ảnh của một cơ sở đi em"*.
+ *
+ * ⚠️ **DÙNG LẠI đúng khung xem ảnh của màn duyệt** — gán `KT.anh` rồi gọi `ktAnhMo(i)`
+ * là xong. Viết khung thứ hai là hai chỗ lo cùng một việc (lật ảnh, phím tắt, đường
+ * lùi qua máy chủ, ghim `fileId` khi lật nhanh), rồi sửa một chỗ quên chỗ kia.
+ *
+ * ⚠️ Nhờ vậy `KT.anh` **bị GHI ĐÈ** khi mở màn này. Đúng — cùng một khung xem thì chỉ
+ * có một danh sách đang xem. Nhưng nghĩa là mở lại một báo cáo ở màn duyệt phải nạp
+ * lại `KT.anh`, và `ktRenderDetail` vẫn làm việc đó (`ktPhotos` gán mỗi lần vẽ).
+ */
+function ktAnhCsInit() {
+  var s = $k('acLoc');
+  if (s && !s.options.length) {
+    /* Dựng từ `KT.locations` chứ KHÔNG dùng `ktFillLocSelect` — hàm đó đọc `KHO.locs`,
+       chỉ có sau khi vào module Kho. Vào thẳng màn này là ô chọn rỗng. */
+    s.innerHTML = '<option value="">— Mọi cơ sở —</option>' +
+      (KT.locations || []).map(function (l) {
+        return '<option value="' + kesc(l.id) + '">' + kesc(l.name || l.code) + '</option>';
+      }).join('');
+  }
+  var t = ktoday();
+  if (!$k('acTu').value)  $k('acTu').value  = t.slice(0, 5) + '01-01';
+  if (!$k('acDen').value) $k('acDen').value = t;
+  ktAnhCs();
+}
+
+function ktAnhCs() {
+  kbusy(true, 'Đang tải ảnh…');
+  ksrv('jpAnhTheoCoSo', KT.token, {
+    locationId: $k('acLoc').value, kind: $k('acKind').value,
+    tuNgay: $k('acTu').value, denNgay: $k('acDen').value
+  }).then(function (d) {
+    kbusy(false);
+    KT.anhCs = d;
+    /* Gộp phẳng theo ĐÚNG thứ tự vẽ ra màn — chỉ số của khung xem phải khớp thứ tự
+       mắt nhìn, lệch một là bấm tấm này ra tấm khác. */
+    KT.anh = [];
+    d.nhom.forEach(function (n) { n.anh.forEach(function (a) { KT.anh.push(a); }); });
+
+    kmsg('acMsg', (d.tenCoSo || 'Mọi cơ sở') + ' — ' + d.soAnh + ' ảnh · ' +
+      d.nhom.length + '/' + d.soBaoCao + ' kỳ có ảnh', 'ok');
+    ktAnhCsWarn(d);
+    ktAnhCsVe(d);
+  }).catch(function (e) { kbusy(false); kmsg('acMsg', e.message, 'err'); });
+}
+
+function ktAnhCsWarn(d) {
+  var h = '';
+  /* ⚠️ Cắt bớt thì phải NÓI RA. Im lặng cắt là màn trông như "cơ sở chỉ gửi có thế". */
+  if (d.boQua) {
+    h += '<div class="alert warn"><b>Đã cắt ' + d.boQua + ' ảnh</b> vì một lượt chỉ ' +
+      'hiện tối đa ' + d.tran + ' ảnh — trình duyệt không vẽ nổi vài nghìn ảnh cùng lúc. ' +
+      'Thu hẹp khoảng ngày hoặc lọc theo loại ảnh để xem hết.</div>';
+  }
+  /* ⚠️ Kỳ KHÔNG CÓ ẢNH là thứ quan trọng nhất màn này nói được — một màn chỉ in ảnh
+     CÓ thì không bao giờ cho biết kỳ nào cơ sở không gửi gì. */
+  if (d.khongCoAnh.length) {
+    h += '<div class="alert danger"><b>' + d.khongCoAnh.length + ' kỳ KHÔNG có ảnh nào' +
+      (d.kind ? ' thuộc loại đang lọc' : '') + ':</b><ul>' +
+      d.khongCoAnh.slice(0, 10).map(function (x) {
+        return '<li>' + kdmy(x.fromDate) + ' – ' + kdmy(x.toDate) +
+          (d.locationId ? '' : ' · ' + kesc(x.locationName)) +
+          ' · ' + kesc(x.userName) + ' <span class="badge ' + kbadgeCls(x.status) + '">' +
+          kstatusText(x.status) + '</span></li>';
+      }).join('') + '</ul>' +
+      (d.khongCoAnh.length > 10 ? '<div class="alert-sub">…và ' +
+        (d.khongCoAnh.length - 10) + ' kỳ nữa.</div>' : '') + '</div>';
+  }
+  $k('acWarn').innerHTML = h;
+}
+
+function ktAnhCsVe(d) {
+  if (!d.nhom.length) {
+    $k('acBody').innerHTML = '<div class="empty">Không có ảnh nào trong khoảng ngày này.</div>';
+    return;
+  }
+  var i = 0;
+  $k('acBody').innerHTML = d.nhom.map(function (n) {
+    var dai = n.anh.map(function (a) {
+      /* ⚠️ Ảnh nhỏ dùng `a.url` (bản nhẹ máy chủ cấp), KHÔNG `a.urlTo` — ô chỉ 74px.
+         Và `onerror` vẫn phải có: thư mục bị thu quyền lại thì ô còn CHỮ để bấm. */
+      return '<div class="thumb"><img src="' + kesc(a.url) + '" loading="lazy"' +
+             ' title="' + kesc(a.kind + ' · ' + a.refId +
+                               (a.takenAt ? ' · ' + a.takenAt : '')) + '"' +
+             ' onerror="ktAnhNhoVo(this)"' +
+             ' onclick="ktAnhMo(' + (i++) + ')"></div>';
+    }).join('');
+    return '<div class="acKy"><div class="acKyTop">' +
+        '<b>' + kdmy(n.fromDate) + ' – ' + kdmy(n.toDate) + '</b>' +
+        ' <span class="badge">' + (n.machineType === 'XU' ? 'Máy xu' : 'Máy tiền') + '</span>' +
+        ' <span class="badge ' + kbadgeCls(n.status) + '">' + kstatusText(n.status) + '</span>' +
+        '<span class="sub"> · ' + kesc(n.userName) +
+        (d.locationId ? '' : ' · ' + kesc(n.locationName)) +
+        ' · ' + n.soAnh + ' ảnh' +
+        (n.anh.length < n.soAnh ? ' (hiện ' + n.anh.length + ')' : '') +
+        '</span>' +
+        '<span class="lbSpace"></span>' +
+        '<button class="btn ghost sm" onclick="ktGo(\'duyet\',\'dyDs\',\'\');' +
+          'ktOpen(\'' + kesc(n.reportId) + '\')">Mở báo cáo</button>' +
+      '</div><div class="photoStrip">' + dai + '</div></div>';
+  }).join('');
+}
+
+/* Phím tắt — gắn MỘT LẦN lúc nạp trang, không gắn trong `ktAnhMo`: gắn ở đó là
+   mở ảnh 8 lần thì có 8 listener, bấm ← một cái nhảy 8 tấm. */
+document.addEventListener('keydown', function (e) {
+  var box = document.getElementById('ktLb');
+  if (!box || box.classList.contains('hidden')) return;
+  if (e.key === 'Escape')     { ktAnhDong(); e.preventDefault(); }
+  else if (e.key === 'ArrowLeft')  { ktAnhDi(-1); e.preventDefault(); }
+  else if (e.key === 'ArrowRight') { ktAnhDi(1);  e.preventDefault(); }
+});
+
+/*──────────────── ⑤ HÀNH ĐỘNG ────────────────*/
+
+function ktActionBar(d, h) {
+  var out = '<div class="actionBar">';
+
+  if (d.canSignRev || d.canSignStock) {
+    /*
+     * Hai nút ký RIÊNG nhưng cùng nằm dưới BỐ CỤC ĐẦY ĐỦ của báo cáo (Andy chốt
+     * 04/08/2026): ký phần nào cũng đã xem hết bảng tiền và bảng hàng ở trên,
+     * không cắt màn hình theo phần.
+     */
+    out += '<input type="text" id="ktNote" placeholder="Ghi chú / lý do (bắt buộc khi trả về)"' +
+           ' style="flex:1;min-width:200px">';
+
+    out += d.canSignRev
+      ? '<button class="btn ok" onclick="ktApprove(\'REV\')">Duyệt doanh thu</button>'
+      : '<span class="locked">✔ doanh thu: ' + kesc(d.signState.rev.by) + '</span>';
+
+    out += d.canSignStock
+      ? '<button class="btn ok" onclick="ktApprove(\'STOCK\')">Duyệt hàng hoá</button>'
+      : '<span class="locked">✔ hàng hoá: ' + kesc(d.signState.stock.by) + '</span>';
+
+    out += '<button class="btn danger" onclick="ktReject()">Trả về sửa</button>';
+  } else if (h.status === 'HOAN_TAT') {
+    out += '<input type="text" id="ktNote" placeholder="Lý do mở lại (bắt buộc)"' +
+           ' style="flex:1;min-width:220px">' +
+           '<button class="btn danger" onclick="ktReopen()">Mở lại báo cáo</button>';
+  } else if (h.status === 'CAN_SUA') {
+    out += '<span class="locked">Đang chờ nhân viên sửa và nộp lại.</span>';
+  } else {
+    out += '<span class="locked">Báo cáo chưa nộp — chưa duyệt được.</span>';
+  }
+
+  return out + '</div>';
+}
+
+function ktApprove(part) {
+  var note = $k('ktNote') ? $k('ktNote').value : '';
+  var ten = part === 'STOCK' ? 'HÀNG HOÁ' : 'DOANH THU';
+  if (!confirm('Duyệt phần ' + ten + ' của báo cáo này?\n' +
+               'Đủ cả hai phần thì báo cáo mới HOÀN TẤT.')) return;
+
+  kbusy(true, 'Đang duyệt…');
+  ksrv('jpKtApprove', KT.token, KT.current, part, note).then(function (r) {
+    kbusy(false);
+    ktoast(r.msg);
+    ktLoadList();
+    ktOpen(KT.current);
+  }).catch(function (e) { kbusy(false); ktoast(e.message); });
+}
+
+function ktReject() {
+  var note = $k('ktNote') ? $k('ktNote').value.trim() : '';
+  if (!note) { ktoast('Nhập lý do trả về'); return; }
+  if (!confirm('Trả báo cáo về cho nhân viên sửa?')) return;
+
+  kbusy(true, 'Đang trả về…');
+  ksrv('jpKtReject', KT.token, KT.current, note).then(function (r) {
+    kbusy(false);
+    ktoast(r.msg);
+    ktLoadList();
+    ktOpen(KT.current);
+  }).catch(function (e) { kbusy(false); ktoast(e.message); });
+}
+
+function ktReopen() {
+  var note = $k('ktNote') ? $k('ktNote').value.trim() : '';
+  if (!note) { ktoast('Nhập lý do mở lại'); return; }
+  if (!confirm('Mở lại báo cáo đã hoàn tất?\nHai chữ ký sẽ bị huỷ và kỳ sau có thể đã chốt dựa trên số này.')) return;
+
+  kbusy(true, 'Đang mở lại…');
+  ksrv('jpKtReopen', KT.token, KT.current, note).then(function (r) {
+    kbusy(false);
+    ktoast(r.msg);
+    if (r.warnLater) {
+      alert('Có ' + r.warnLater + ' báo cáo kỳ sau đã chốt dựa trên số của kỳ này — soát lại số đầu kỳ.');
+    }
+    ktLoadList();
+    ktOpen(KT.current);
+  }).catch(function (e) { kbusy(false); ktoast(e.message); });
+}
+</script>
+
+<script>
+/*──────── ĐỀ NGHỊ SỬA TỒN ĐẦU (Andy chốt 05/08/2026) ────────
+ *
+ * ⚠️ Bảng phải in **CẢ số cũ lẫn số mới**, không chỉ in số mới. Duyệt xong mà chỉ còn
+ * số mới thì sáu tháng sau không ai dựng lại được căn cứ — cùng lý do biên bản kiểm kê
+ * giữ cả `tonSo` và `tonThuc`.
+ */
+function ktDeNghiLoad() {
+  var chiCho = $k('dnChiCho').checked;
+  $k('dnMsg').textContent = 'Đang tải…';
+  ksrv('jpKtDanhSachDeNghi', KT.token, chiCho).then(function (d) {
+    $k('dnSoCho').textContent = d.soCho ? d.soCho + ' chờ' : '✓';
+    $k('dnMsg').textContent = d.rows.length ? '' :
+      (chiCho ? 'Không có đề nghị nào đang chờ.' : 'Chưa có đề nghị nào.');
+
+    var h = '<tr><th>Lúc gửi</th><th>Nhân viên</th><th>Cơ sở</th><th>Hàng</th>' +
+      '<th class="num">Số CŨ</th><th class="num">Số MỚI</th><th class="num">Lệch</th>' +
+      '<th>Lý do</th><th>Trạng thái</th><th></th></tr>';
+    d.rows.forEach(function (r) {
+      var lech = r.soMoi - r.soCu;
+      var cho = r.trangThai === 'CHO';
+      h += '<tr' + (cho ? ' class="lech"' : '') + '>' +
+        '<td>' + kesc(String(r.guiLuc || '').slice(0, 16).replace('T', ' ')) + '</td>' +
+        '<td>' + kesc(r.userName) + '</td>' +
+        '<td style="white-space:normal">' + kesc(r.locationName) + '</td>' +
+        '<td style="white-space:normal"><b>' + kesc(r.itemMisa || r.itemCode) + '</b>' +
+          (r.itemName ? '<br><span class="sub">' + kesc(r.itemName) + '</span>' : '') + '</td>' +
+        '<td class="num">' + r.soCu + '</td>' +
+        '<td class="num"><b>' + r.soMoi + '</b></td>' +
+        '<td class="num">' + (lech > 0 ? '+' + lech : lech) + '</td>' +
+        '<td style="white-space:normal">' + kesc(r.lyDo) + '</td>' +
+        '<td>' + (cho ? '<span class="badge pending">Chờ</span>'
+                 : r.trangThai === 'DUYET'
+                   ? '<span class="badge ok">Đã duyệt</span><br><span class="sub">' +
+                     kesc(r.ktBy) + '</span>'
+                   : '<span class="badge">Từ chối</span><br><span class="sub">' +
+                     kesc(r.ktBy) + '</span>') +
+          (r.ktGhiChu ? '<br><span class="sub">' + kesc(r.ktGhiChu) + '</span>' : '') + '</td>' +
+        '<td>' + (cho
+          ? '<button class="btn primary sm" onclick="ktDeNghiXuLy(\'' + r.id + '\',true)">Duyệt</button> ' +
+            '<button class="btn ghost sm" onclick="ktDeNghiXuLy(\'' + r.id + '\',false)">Từ chối</button>'
+          : '') + '</td>' +
+      '</tr>';
+    });
+    $k('tblDeNghi').innerHTML = h;
+  }).catch(function (e) {
+    $k('dnMsg').textContent = 'Không đọc được danh sách đề nghị: ' + e.message;
+    $k('tblDeNghi').innerHTML = '';
+  });
+}
+
+function ktDeNghiXuLy(id, duyet) {
+  var ghiChu = prompt(duyet
+    ? 'Duyệt đề nghị này? Máy chủ sẽ tự ghi số mới vào ô tồn đầu và TÍNH LẠI cả báo cáo.\n\n' +
+      'Ghi chú (không bắt buộc):'
+    : 'Từ chối đề nghị. Vì sao? (nhân viên sẽ thấy)');
+  if (ghiChu === null) return;
+  if (!duyet && !String(ghiChu).trim()) { ktoast('Từ chối thì phải ghi lý do'); return; }
+
+  kbusy(true, 'Đang xử lý…');
+  ksrv('jpKtXuLyDeNghi', KT.token, {
+    id: id, trangThai: duyet ? 'DUYET' : 'TU_CHOI', ghiChu: String(ghiChu).trim()
+  }).then(function (d) {
+    kbusy(false);
+    ktoast(d.msg);
+    ktDeNghiLoad();
+  }).catch(function (e) { kbusy(false); ktoast(e.message); });
+}
+</script>
+

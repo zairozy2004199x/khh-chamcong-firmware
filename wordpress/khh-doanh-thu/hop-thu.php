@@ -57,8 +57,18 @@ function khh_dt_thu_mac_dinh() {
 		'mat_khau'  => '',            // để rỗng nếu đã đặt hằng KHH_DT_MAIL_PASS
 		'thu_muc'   => 'INBOX',
 		'nguoi_gui' => '',            // danh sách người gửi được phép, cách nhau bằng dấu phẩy
+		/* Tên miền được phép TẢI theo link trong thân thư, ngoài tên miền của chính người gửi.
+		   23/09/2026: FABi không đính kèm tệp — báo cáo nằm ở link tải. Link của FABi có thể trỏ
+		   sang kho tệp ở tên miền khác (S3, Google Storage…), lúc ấy nhật ký sẽ nêu tên miền để
+		   người ta thêm vào đây. */
+		'link_mien' => '',
 		'mau_ten'   => '*.xlsx, *.csv',
 		'loai'      => 'pos',
+		/* 23/09/2026 anh Thắng xem hộp thư: FABi gửi ĐÚNG 08:00 mỗi sáng, không hơn. Kéo mỗi 2
+		   giờ là 11 lượt nối IMAP vô ích một ngày — *"vậy tự lấy lúc 8h02 đi, 1 lần thôi"*.
+		   'ngay' = hằng ngày lúc `luc`; 'gio' = mỗi N giờ (giữ lại cho nguồn gửi bất chợt). */
+		'che_do'    => 'ngay',
+		'luc'       => '08:02',
 		'gio'       => 2,
 		'co_so'     => '',            // chỉ dùng khi loại = bes
 		'tai_khoan' => '',            // chỉ dùng khi loại = momo_sk
@@ -101,9 +111,34 @@ function khh_dt_thu_nhip( $ds ) {
 	$gio = max( 1, min( 24, (int) $c['gio'] ) );
 	$ds[ KHH_DT_THU_NHIP ] = array(
 		'interval' => $gio * HOUR_IN_SECONDS,
-		'display'  => sprintf( 'K&H — mỗi %d giờ (lấy báo cáo từ hộp thư)', $gio ),
+		'display'  => sprintf( 'K&H — mỗi %d giờ (lấy báo cáo từ hộp thư, chế độ theo giờ)', $gio ),
 	);
 	return $ds;
+}
+
+/**
+ * Mốc chạy KẾ TIẾP cho chế độ hằng ngày: lần `HH:MM` gần nhất còn ở tương lai, theo MÚI GIỜ CỦA
+ * SITE — không phải UTC của máy chủ. Đặt 08:02 mà tính theo UTC là chạy lúc 15:02 Việt Nam,
+ * trễ 7 tiếng, mà màn hình vẫn ghi "lượt sau 08:02". Hàm thuần để bài thử ép được "bây giờ".
+ *
+ * @param string   $luc     'HH:MM'.
+ * @param int      $bay_gio Unix time hiện tại.
+ * @param DateTimeZone $tz  Múi giờ site (`wp_timezone()`).
+ * @return int Unix time của lượt sau.
+ */
+function khh_dt_thu_lan_sau( $luc, $bay_gio, $tz ) {
+	if ( ! preg_match( '~^(\d{1,2}):(\d{2})$~', (string) $luc, $m ) ) {
+		$m = array( '', '8', '02' );
+	}
+	$h  = max( 0, min( 23, (int) $m[1] ) );
+	$mi = max( 0, min( 59, (int) $m[2] ) );
+	$d  = new DateTime( '@' . (int) $bay_gio );
+	$d->setTimezone( $tz );
+	$d->setTime( $h, $mi, 0 );
+	if ( $d->getTimestamp() <= (int) $bay_gio ) {
+		$d->modify( '+1 day' );   // giờ ấy hôm nay đã qua -> mai
+	}
+	return $d->getTimestamp();
 }
 
 function khh_dt_thu_dat_lich() {
@@ -112,9 +147,17 @@ function khh_dt_thu_dat_lich() {
 		wp_unschedule_event( $cu, KHH_DT_THU_MOC );
 	}
 	$c = khh_dt_thu_cf();
-	if ( ! empty( $c['bat'] ) ) {
-		wp_schedule_event( time() + 120, KHH_DT_THU_NHIP, KHH_DT_THU_MOC );
+	if ( empty( $c['bat'] ) ) {
+		return;
 	}
+	if ( 'ngay' === $c['che_do'] ) {
+		/* 'daily' của WordPress = đúng 86400 giây từ mốc đầu. Việt Nam không đổi giờ mùa nên
+		   không trôi; site ở múi có DST thì mỗi năm lệch một giờ hai lần — chấp nhận, vì nguồn
+		   gửi của mình ở Việt Nam. */
+		wp_schedule_event( khh_dt_thu_lan_sau( $c['luc'], time(), wp_timezone() ), 'daily', KHH_DT_THU_MOC );
+		return;
+	}
+	wp_schedule_event( time() + 120, KHH_DT_THU_NHIP, KHH_DT_THU_MOC );
 }
 
 /**
@@ -132,9 +175,15 @@ function khh_dt_thu_qua_han() {
 	if ( ! $nk ) {
 		return false;   // chưa chạy lần nào thì chưa kết luận được gì
 	}
-	$gio  = max( 1, min( 24, (int) $c['gio'] ) );
-	$lan  = strtotime( (string) $nk[0]['luc'] );
-	return $lan && ( time() - $lan ) > 2 * $gio * HOUR_IN_SECONDS;
+	$lan = strtotime( (string) $nk[0]['luc'] );
+	if ( ! $lan ) {
+		return false;
+	}
+	/* Hằng ngày: cho trượt 2 giờ sau mốc (26h kể từ lần trước) rồi mới kêu. Mỗi N giờ: hai nhịp. */
+	$muc = ( 'ngay' === $c['che_do'] )
+		? 26 * HOUR_IN_SECONDS
+		: 2 * max( 1, min( 24, (int) $c['gio'] ) ) * HOUR_IN_SECONDS;
+	return ( time() - $lan ) > $muc;
 }
 
 add_action( KHH_DT_THU_MOC, 'khh_dt_thu_cron' );
@@ -209,6 +258,28 @@ function khh_dt_thu_nguoi_gui_hop_le( $from, $cho_phep ) {
 		}
 	}
 	return false;
+}
+
+/**
+ * Ô "Chỉ nhận thư từ" có mục nào KHÔNG PHẢI địa chỉ không — trả về câu cảnh báo, rỗng nếu ổn.
+ *
+ * Hợp lệ: `ai@dau.vn` hoặc cả tên miền `@dau.vn`. "Fabi" — tên hiển thị — không bao giờ khớp
+ * được ai, nên hệ chối hết mà không ai hiểu vì sao. Cảnh báo chứ KHÔNG tự sửa: hệ không biết
+ * người ta định gõ địa chỉ nào.
+ */
+function khh_dt_thu_nguoi_gui_canh_bao( $cho_phep ) {
+	$sai = array();
+	foreach ( array_filter( array_map( 'trim', explode( ',', (string) $cho_phep ) ) ) as $x ) {
+		if ( false === strpos( $x, '@' ) ) {
+			$sai[] = $x;
+		}
+	}
+	if ( ! $sai ) {
+		return '';
+	}
+	return '"' . implode( '", "', $sai ) . '" không phải địa chỉ email (thiếu @) — đây là TÊN HIỂN THỊ, '
+		. 'hệ không khớp tên hiển thị vì tên ấy ai cũng giả được. Gõ địa chỉ thật (ví dụ noreply@ipos.vn) '
+		. 'hoặc cả tên miền (@ipos.vn). Bấm "Lấy thư ngay" rồi nhìn nhật ký: địa chỉ thật hiện ở dòng bỏ qua.';
 }
 
 /** Tên tệp có khớp mẫu không — mẫu kiểu `*.xlsx, bao-cao-*.csv`. */
@@ -381,6 +452,149 @@ function khh_dt_thu_dinh_kem( $tho, $sau = 0 ) {
 		return array();
 	}
 	return array( array( 'ten' => $ten, 'noi' => $noi ) );
+}
+
+/* ================================================================== *
+ * Link tải trong thân thư — khi thư KHÔNG đính kèm tệp
+ * ================================================================== */
+
+/**
+ * Toàn bộ phần CHỮ của một lá thư (text/plain + text/html), đã giải mã và gỡ thực thể HTML.
+ *
+ * 23/09/2026 anh Thắng chạy thử: *"Xem 4 thư, nạp được 0 tệp — thư không có tệp đính kèm (4
+ * thư)"*. Đúng như ảnh hộp thư đã lộ (không có biểu tượng kẹp giấy): FABi không đính kèm, báo
+ * cáo nằm ở LINK TẢI trong thân thư. Nên phải đọc được thân thư để tìm link.
+ */
+function khh_dt_thu_than_chu( $tho, $sau = 0 ) {
+	if ( $sau > 8 ) {
+		return '';
+	}
+	list( $dau_tho, $than ) = khh_dt_thu_cat( $tho );
+	$dau = khh_dt_thu_doc_dau( $dau_tho );
+	$ct  = isset( $dau['content-type'] ) ? $dau['content-type'] : 'text/plain';
+	$cte = isset( $dau['content-transfer-encoding'] ) ? $dau['content-transfer-encoding'] : '';
+	if ( 0 === stripos( trim( $ct ), 'multipart/' ) ) {
+		$bien = khh_dt_thu_tham_so( $ct, 'boundary' );
+		if ( '' === $bien ) {
+			return '';
+		}
+		$ra   = '';
+		$manh = preg_split( '~\r?\n--' . preg_quote( $bien, '~' ) . '(--)?[^\n]*\r?\n?~', "\r\n" . $than );
+		foreach ( array_slice( (array) $manh, 1 ) as $m ) {
+			if ( '' !== trim( $m ) ) {
+				$ra .= "\n" . khh_dt_thu_than_chu( $m, $sau + 1 );
+			}
+		}
+		return $ra;
+	}
+	if ( 0 !== stripos( trim( $ct ), 'text/' ) ) {
+		return '';   // ảnh, tệp… không phải chữ
+	}
+	$chu = khh_dt_thu_giai( $than, $cte );
+	/* HTML: link trong href="…" thường có &amp; thay cho & — gỡ thực thể trước khi dò. */
+	return html_entity_decode( $chu, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+}
+
+/** Mọi link http(s) trong thân thư, không trùng, đã cắt dấu câu bám đuôi. */
+function khh_dt_thu_link( $tho ) {
+	$chu = khh_dt_thu_than_chu( $tho );
+	if ( ! preg_match_all( '~https?://[^\s"\'<>()\[\]]+~i', $chu, $m ) ) {
+		return array();
+	}
+	$ra = array();
+	foreach ( $m[0] as $u ) {
+		$u = rtrim( $u, '.,;:!?' );
+		if ( '' !== $u && ! in_array( $u, $ra, true ) ) {
+			$ra[] = $u;
+		}
+	}
+	return $ra;
+}
+
+/**
+ * Link này có được TẢI không — chỉ https, và tên miền phải là của người gửi hoặc nằm trong
+ * `link_mien`. Trả về '' nếu được, ngược lại là câu nói vì sao (kèm tên miền để người ta thêm).
+ *
+ * 🔴 Thư đã qua phép gác người gửi, nhưng người gửi hợp lệ vẫn có thể bị chèn link lạ (thư bị
+ *    chuyển tiếp, chữ ký có quảng cáo…). Tải mọi link trong thư là đem máy chủ đi gõ cửa bất kỳ
+ *    đâu người ta dán vào. Nên gác thêm một lớp theo tên miền.
+ */
+function khh_dt_thu_link_hop_le( $url, $dia_chi_gui, $mien_them ) {
+	$p = wp_parse_url( $url );
+	if ( ! $p || empty( $p['host'] ) ) {
+		return 'link không đọc được';
+	}
+	if ( 'https' !== strtolower( (string) ( isset( $p['scheme'] ) ? $p['scheme'] : '' ) ) ) {
+		return 'link không phải https (' . $p['host'] . ')';
+	}
+	$host = strtolower( $p['host'] );
+	$ok   = array();
+	$mg   = strtolower( (string) substr( strrchr( (string) $dia_chi_gui, '@' ), 1 ) );
+	if ( '' !== $mg ) {
+		$ok[] = $mg;
+	}
+	foreach ( array_filter( array_map( 'trim', explode( ',', strtolower( (string) $mien_them ) ) ) ) as $x ) {
+		$ok[] = ltrim( $x, '@' );
+	}
+	foreach ( $ok as $m ) {
+		if ( $host === $m || substr( $host, -strlen( '.' . $m ) ) === '.' . $m ) {
+			return '';
+		}
+	}
+	return 'tên miền của link (' . $host . ') không phải của người gửi và chưa có trong ô "Tên miền link được tải"';
+}
+
+/**
+ * Tải một link về. Trả về [ 'ten' => …, 'noi' => … ] hoặc [ 'loi' => câu nói vì sao ].
+ *
+ * 🔴 PHÂN BIỆT "FILE THẬT" VỚI "TRANG WEB". Link đòi đăng nhập trả về mã 200 hẳn hoi — nhưng
+ *    thân là trang HTML đăng nhập, không phải bảng tính. Không kiểm là đem trang HTML ấy đi đọc
+ *    như .xlsx, hỏng ở tận bộ đọc với câu báo không ai hiểu. Nhận diện bằng cả Content-Type lẫn
+ *    mấy byte đầu: .xlsx là tệp zip nên bắt đầu bằng "PK".
+ */
+function khh_dt_thu_tai_link( $url ) {
+	$r = wp_remote_get(
+		$url,
+		array(
+			'timeout'     => 60,
+			'redirection' => 3,
+			'user-agent'  => 'KHH-DoanhThu/' . ( defined( 'KHH_DT_VERSION' ) ? KHH_DT_VERSION : '0' ),
+		)
+	);
+	if ( is_wp_error( $r ) ) {
+		return array( 'loi' => 'tải link không được: ' . $r->get_error_message() );
+	}
+	$ma = (int) wp_remote_retrieve_response_code( $r );
+	if ( 200 !== $ma ) {
+		return array( 'loi' => 'link trả về mã ' . $ma );
+	}
+	$noi = (string) wp_remote_retrieve_body( $r );
+	$ct  = strtolower( (string) wp_remote_retrieve_header( $r, 'content-type' ) );
+	if ( '' === $noi ) {
+		return array( 'loi' => 'link trả về nội dung rỗng' );
+	}
+	if ( strlen( $noi ) > KHH_DT_THU_CO_MAX ) {
+		return array( 'loi' => 'tệp tải về quá ' . round( KHH_DT_THU_CO_MAX / 1048576 ) . ' MB' );
+	}
+	$la_zip = 'PK' === substr( $noi, 0, 2 );
+	if ( false !== strpos( $ct, 'text/html' ) || ( ! $la_zip && preg_match( '~^\s*<(!doctype|html)~i', substr( $noi, 0, 200 ) ) ) ) {
+		return array( 'loi' => 'link trả về TRANG WEB, không phải tệp — nhiều khả năng link đòi đăng nhập vào FABi trước' );
+	}
+
+	/* Tên tệp: Content-Disposition -> đuôi đường dẫn -> đặt theo kiểu nội dung. */
+	$ten = khh_dt_thu_tham_so( (string) wp_remote_retrieve_header( $r, 'content-disposition' ), 'filename' );
+	if ( '' === $ten ) {
+		$p   = wp_parse_url( $url );
+		$ten = isset( $p['path'] ) ? rawurldecode( basename( $p['path'] ) ) : '';
+	}
+	if ( '' === $ten || ! khh_dt_thu_duoi_hop_le( $ten ) ) {
+		$duoi = $la_zip ? 'xlsx' : ( ( false !== strpos( $ct, 'csv' ) || false !== strpos( $ct, 'text/plain' ) ) ? 'csv' : '' );
+		if ( '' === $duoi ) {
+			return array( 'loi' => 'không nhận ra kiểu tệp tải về (Content-Type: ' . ( $ct ? $ct : 'trống' ) . ')' );
+		}
+		$ten = 'bao-cao-' . gmdate( 'Ymd-His' ) . '.' . $duoi;
+	}
+	return array( 'ten' => $ten, 'noi' => $noi );
 }
 
 /* ================================================================== *
@@ -623,31 +837,71 @@ class KHHDT_Imap {
  * ================================================================== */
 
 /**
+ * Nạp MỘT nội dung tệp (từ đính kèm hay từ link) vào kho — dùng chung để hai đường không lệch.
+ *
+ * @return bool Nạp được hay không. Lý do bỏ qua được ghi vào `$bo`.
+ */
+function khh_dt_thu_nap_noi( $ten_goc, $noi, $c, $tu, &$nap, &$bo, $link = '' ) {
+	$ten = sanitize_file_name( $ten_goc );
+	if ( ! khh_dt_thu_duoi_hop_le( $ten ) || ! khh_dt_thu_ten_hop_le( $ten, $c['mau_ten'] ) ) {
+		$bo[] = array( 'vi' => 'tên tệp không khớp mẫu hoặc đuôi không nhận', 'ten' => $ten );
+		return false;
+	}
+	$tam = trailingslashit( get_temp_dir() ) . 'khh-dt-thu-' . wp_generate_password( 12, false ) . '-' . $ten;
+	if ( false === file_put_contents( $tam, $noi ) ) {   // phpcs:ignore WordPress.WP.AlternativeFunctions
+		$bo[] = array( 'vi' => 'không ghi được file tạm', 'ten' => $ten );
+		return false;
+	}
+	/* Đi qua ĐÚNG hàm mà đường tải lên bằng tay dùng — và chính nó xoá file tạm. */
+	$r = khh_dt_nap_tep( $tam, $ten, $c['loai'], array( 'co_so' => $c['co_so'], 'tai_khoan' => $c['tai_khoan'] ) );
+	if ( file_exists( $tam ) ) {
+		wp_delete_file( $tam );
+	}
+	if ( is_wp_error( $r ) ) {
+		$bo[] = array( 'vi' => $r->get_error_message(), 'ten' => $ten, 'link' => $link );
+		return false;
+	}
+	$nap[] = array(
+		'ten'    => $ten,
+		'tu'     => khh_dt_thu_dia_chi( $tu ),
+		'da_ghi' => isset( $r['da_ghi'] ) ? (int) $r['da_ghi'] : 0,
+		'link'   => $link,
+	);
+	return true;
+}
+
+/**
  * Vào hộp thư, lấy tệp đính kèm hợp lệ, nạp vào kho.
  *
  * @return array Tóm tắt lượt chạy, và cũng là dòng ghi vào nhật ký.
  */
-function khh_dt_thu_lay() {
+function khh_dt_thu_lay( $im = null ) {
 	$c = khh_dt_thu_cf();
-	if ( ! khh_dt_thu_du_cau_hinh() ) {
+	/* `$im` truyền sẵn = seam cho bài thử: cắm một KHHDT_Imap giả có sẵn thư, để chạy THẬT vòng
+	   lọc người gửi / nạp / đánh dấu mà không cần máy chủ thư. Mã thật gọi không truyền gì. */
+	$tu_ngoai = ( $im instanceof KHHDT_Imap );
+	if ( ! $tu_ngoai && ! khh_dt_thu_du_cau_hinh() ) {
 		$kq = array( 'xong' => false, 'loi' => 'Chưa đủ cấu hình hộp thư (máy chủ, địa chỉ, mật khẩu).' );
 		khh_dt_thu_ghi_nhat_ky( $kq );
 		return $kq;
 	}
 
-	$im = new KHHDT_Imap();
-	if ( ! $im->noi( $c['may'], $c['cong'], $c['bao_mat'] )
+	if ( ! $tu_ngoai ) {
+		$im = new KHHDT_Imap();
+	}
+	if ( ! $tu_ngoai && ( ! $im->noi( $c['may'], $c['cong'], $c['bao_mat'] )
 		|| ! $im->dang_nhap( $c['nguoi'], khh_dt_thu_mat_khau() )
-		|| ! $im->chon( $c['thu_muc'] ) ) {
+		|| ! $im->chon( $c['thu_muc'] ) ) ) {
 		$kq = array( 'xong' => false, 'loi' => $im->loi() );
 		$im->dong();
 		khh_dt_thu_ghi_nhat_ky( $kq );
 		return $kq;
 	}
 
-	$uids = array_slice( $im->chua_doc(), 0, KHH_DT_THU_MOI_LUOT );
-	$nap  = array();
-	$bo   = array();
+	$uids   = array_slice( $im->chua_doc(), 0, KHH_DT_THU_MOI_LUOT );
+	$nap    = array();
+	$bo     = array();
+	$la_mat = array();   // địa chỉ gửi bị chối vì không nằm trong danh sách
 	$da   = khh_dt_thu_da_nap();
 
 	foreach ( $uids as $uid ) {
@@ -658,7 +912,16 @@ function khh_dt_thu_lay() {
 		if ( ! khh_dt_thu_nguoi_gui_hop_le( $tu, $c['nguoi_gui'] ) ) {
 			/* 🔴 KHÔNG đánh dấu đã đọc. Thư của người lạ là việc của người, không phải của hệ —
 			   đánh dấu đã đọc là hệ lặng lẽ giấu thư trong hộp thư của anh Thắng. */
-			$bo[] = array( 'vi' => 'người gửi không nằm trong danh sách', 'tu' => khh_dt_thu_dia_chi( $tu ) );
+			$dc_la = khh_dt_thu_dia_chi( $tu );
+			$bo[]  = array( 'vi' => 'người gửi không nằm trong danh sách', 'tu' => $dc_la );
+			/* 🔴 GOM ĐỊA CHỈ BỊ CHỐI RA NGOÀI, ĐỂ MÀN ĐƯA LÊN NÚT "THÊM". 23/09/2026 anh Thắng gõ
+			   "Fabi" (tên hiển thị) vào ô địa chỉ, chạy thử: "Xem 4 thư, nạp được 0 tệp" — và
+			   không hiểu vì sao. Địa chỉ thật nằm trong nhật ký nhưng phải cuộn xuống tìm rồi gõ
+			   lại tay. Đưa thẳng lên nút thì chối vẫn chối (không nới phép gác), chỉ là hết
+			   phải đoán. */
+			if ( '' !== $dc_la && ! in_array( $dc_la, $la_mat, true ) ) {
+				$la_mat[] = $dc_la;
+			}
 			continue;
 		}
 		if ( '' !== $mid && in_array( $mid, $da, true ) ) {
@@ -671,35 +934,33 @@ function khh_dt_thu_lay() {
 		$tep  = khh_dt_thu_dinh_kem( $tho );
 		$xong = 0;
 		foreach ( $tep as $t ) {
-			$ten = sanitize_file_name( $t['ten'] );
-			if ( ! khh_dt_thu_duoi_hop_le( $ten ) || ! khh_dt_thu_ten_hop_le( $ten, $c['mau_ten'] ) ) {
-				continue;
+			$xong += khh_dt_thu_nap_noi( $t['ten'], $t['noi'], $c, $tu, $nap, $bo ) ? 1 : 0;
+		}
+
+		/* KHÔNG có tệp đính kèm -> tìm LINK trong thân thư. FABi gửi kiểu này. */
+		if ( ! $tep ) {
+			$links = khh_dt_thu_link( $tho );
+			if ( ! $links ) {
+				$bo[] = array( 'vi' => 'thư không có tệp đính kèm, cũng không có link nào', 'tu' => khh_dt_thu_dia_chi( $tu ) );
 			}
-			$tam = trailingslashit( get_temp_dir() ) . 'khh-dt-thu-' . wp_generate_password( 12, false ) . '-' . $ten;
-			if ( false === file_put_contents( $tam, $t['noi'] ) ) {   // phpcs:ignore WordPress.WP.AlternativeFunctions
-				$bo[] = array( 'vi' => 'không ghi được file tạm', 'ten' => $ten );
-				continue;
+			$thu_link = 0;
+			foreach ( $links as $url ) {
+				if ( $thu_link >= 3 ) {
+					break;   // ba link là đủ cho một thư báo cáo; hơn thế là chữ ký, quảng cáo
+				}
+				$vi = khh_dt_thu_link_hop_le( $url, khh_dt_thu_dia_chi( $tu ), $c['link_mien'] );
+				if ( '' !== $vi ) {
+					$bo[] = array( 'vi' => $vi, 'tu' => khh_dt_thu_dia_chi( $tu ), 'link' => $url );
+					continue;
+				}
+				$thu_link++;
+				$tai = khh_dt_thu_tai_link( $url );
+				if ( isset( $tai['loi'] ) ) {
+					$bo[] = array( 'vi' => $tai['loi'], 'tu' => khh_dt_thu_dia_chi( $tu ), 'link' => $url );
+					continue;
+				}
+				$xong += khh_dt_thu_nap_noi( $tai['ten'], $tai['noi'], $c, $tu, $nap, $bo, $url ) ? 1 : 0;
 			}
-			/* Đi qua ĐÚNG hàm mà đường tải lên bằng tay dùng — và chính nó xoá file tạm. */
-			$r = khh_dt_nap_tep(
-				$tam,
-				$ten,
-				$c['loai'],
-				array( 'co_so' => $c['co_so'], 'tai_khoan' => $c['tai_khoan'] )
-			);
-			if ( file_exists( $tam ) ) {
-				wp_delete_file( $tam );
-			}
-			if ( is_wp_error( $r ) ) {
-				$bo[] = array( 'vi' => $r->get_error_message(), 'ten' => $ten );
-				continue;
-			}
-			$nap[] = array(
-				'ten'    => $ten,
-				'tu'     => khh_dt_thu_dia_chi( $tu ),
-				'da_ghi' => isset( $r['da_ghi'] ) ? (int) $r['da_ghi'] : 0,
-			);
-			$xong++;
 		}
 
 		if ( $xong ) {
@@ -707,8 +968,6 @@ function khh_dt_thu_lay() {
 			if ( '' !== $mid ) {
 				khh_dt_thu_danh_dau( $mid );
 			}
-		} elseif ( ! $tep ) {
-			$bo[] = array( 'vi' => 'thư không có tệp đính kèm', 'tu' => khh_dt_thu_dia_chi( $tu ) );
 		}
 	}
 
@@ -719,6 +978,7 @@ function khh_dt_thu_lay() {
 		'nap'    => $nap,
 		'bo'     => $bo,
 		'so_nap' => count( $nap ),
+		'nguoi_gui_la' => $la_mat,
 	);
 	khh_dt_thu_ghi_nhat_ky( $kq );
 	return $kq;
@@ -775,6 +1035,7 @@ function khh_dt_rest_thu_xem() {
 		   site cài trong thư mục con, hay chạy sau proxy, là ghép ra đường sai — mà người ta
 		   dán thẳng vào Cron Jobs bên hosting rồi tưởng đã xong. */
 		'cron_url' => site_url( 'wp-cron.php' ),
+		'canh_bao_nguoi_gui' => khh_dt_thu_nguoi_gui_canh_bao( $c['nguoi_gui'] ),
 		'lan_sau'  => $sau ? gmdate( 'c', $sau ) : '',
 		'qua_han'  => khh_dt_thu_qua_han(),
 		'nhat_ky'  => khh_dt_thu_nhat_ky(),
@@ -784,7 +1045,7 @@ function khh_dt_rest_thu_xem() {
 function khh_dt_rest_thu_luu( $req ) {
 	$cu  = khh_dt_thu_cf();
 	$moi = $cu;
-	foreach ( array( 'may', 'nguoi', 'thu_muc', 'nguoi_gui', 'mau_ten', 'co_so', 'tai_khoan' ) as $k ) {
+	foreach ( array( 'may', 'nguoi', 'thu_muc', 'nguoi_gui', 'link_mien', 'mau_ten', 'co_so', 'tai_khoan' ) as $k ) {
 		if ( null !== $req->get_param( $k ) ) {
 			$moi[ $k ] = sanitize_text_field( (string) $req->get_param( $k ) );
 		}
@@ -804,6 +1065,18 @@ function khh_dt_rest_thu_luu( $req ) {
 		/* Kẹp trong 1–24. Không kẹp thì gõ nhầm số 0 là lịch chạy liên tục, mỗi lượt lại nối
 		   IMAP — máy chủ thư khoá địa chỉ vì nghi dò mật khẩu, rồi cả hệ tắc mà không rõ vì sao. */
 		$moi['gio'] = max( 1, min( 24, (int) $req->get_param( 'gio' ) ) );
+	}
+	if ( null !== $req->get_param( 'che_do' ) ) {
+		$cd            = (string) $req->get_param( 'che_do' );
+		$moi['che_do'] = in_array( $cd, array( 'ngay', 'gio' ), true ) ? $cd : 'ngay';
+	}
+	if ( null !== $req->get_param( 'luc' ) ) {
+		$l = trim( (string) $req->get_param( 'luc' ) );
+		/* Chỉ nhận HH:MM hợp lệ; gõ bừa thì giữ nguyên giá trị cũ chứ không lưu rác rồi lịch
+		   lặng lẽ rơi về 08:02 mà màn vẫn hiện thứ người ta gõ. */
+		if ( preg_match( '~^([01]?\d|2[0-3]):[0-5]\d$~', $l ) ) {
+			$moi['luc'] = strlen( $l ) === 4 ? '0' . $l : $l;
+		}
 	}
 	if ( null !== $req->get_param( 'bat' ) ) {
 		$moi['bat'] = (bool) $req->get_param( 'bat' );

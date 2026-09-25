@@ -35,6 +35,22 @@ function bocHam(ten) {
   return (j > i) ? HTML.slice(i, j) : '';
 }
 
+/* ⚠️ NỀN TRẠNG THÁI — hai hàm mới của 21/09/2026 mà thân hàm bốc ra gọi tới: `_daChot` (ranh
+   giới "đã chốt sổ", gom về một chỗ khi thêm bước `Đã thanh toán` cho MTĐ/VP) và `_tenTT`
+   (chữ hiện trên màn, đổi theo khối của đơn), kèm `_nutThanhToan`.
+   🔴 MƯỢN HÀM THẬT, KHÔNG BỊA — bịa là bệ đỡ xanh cả khi luật thật hỏng. */
+const NEN_TT = (function () {
+  const dong = (t) => { const i = HTML.indexOf('  var ' + t + '='); return i < 0 ? '' : HTML.slice(i, HTML.indexOf('\n', i)); };
+  const khoi = (t) => { const i = HTML.indexOf('  var ' + t + '='); return i < 0 ? '' : HTML.slice(i, HTML.indexOf('};', i) + 2); };
+  const ham  = (t) => { const i = HTML.indexOf('  function ' + t + '('); return i < 0 ? '' : HTML.slice(i, HTML.indexOf('\n  }', i) + 4); };
+  /* `LUONG_TT` + `_luongDon` thêm ở 1.287.0 — luồng nay là thuộc tính của TỪNG ĐƠN. */
+  let n = [dong('TT_CHOT'), dong('KHOI_LUONG_CHI'), khoi('LUONG_KVC'), khoi('LUONG_CHI'), khoi('LUONG_TT'),
+    ham('_daChot'), ham('_luongKhoi'), ham('_luongDon'), ham('_tenTT'), ham('_ttTrongLuong'), ham('_nutThanhToan'),
+    "var KHOI_DANG='kvc';"].join('\n');
+  if (n.replace(/\s/g, '').length < 200) { throw new Error('không bốc được nền trạng thái — bệ đỡ sẽ xanh giả'); }
+  return n;
+})();
+
 /* Bệ đỡ DOM giả: mỗi id một ô nhớ `textContent` / `style.display`. Mồi `display` bằng một giá
    trị KHÔNG phải đáp án nào, để phép nào không được hàm đụng tới thì đỏ chứ không xanh oan. */
 function dungDom(ids) {
@@ -292,7 +308,7 @@ const fnRow = bocHam('_qtRowHtml');
 t('bốc được _qtRowHtml()', fnRow.length > 500, fnRow.length);
 function veHang(d) {
   return new Function('d', 'canBatch', 'COLS', 'gcls', 'collapsed', 'esc', 'money', 'canDo', 'stCls',
-    fnLaChim + '\n' + fnRow + '\nreturn _qtRowHtml(d, canBatch, COLS, gcls, collapsed);')(
+    NEN_TT + '\n' + fnLaChim + '\n' + fnRow + '\nreturn _qtRowHtml(d, canBatch, COLS, gcls, collapsed);')(
     d, true, 10, '', false,
     function (v) { return String(v == null ? '' : v); },
     function (n) { return String(n); },
@@ -464,9 +480,10 @@ t('🔴 ô tuần riêng nạp thẳng từ BOOT.dons, không dùng ké danh sá
   /_napKyRieng\('qtKyXong',\s*\(BOOT\.dons\|\|\[\]\)/.test(HTML_MA2), 'napKyRieng');
 /* 🔴 VÀ BẢNG "ĐÃ QUYẾT TOÁN" PHẢI DỰNG LẠI TỪ ĐẦU, không lọc tiếp từ danh sách đã bị ô chung
    cắt — lọc tiếp thì tuần riêng không bao giờ với tới được mấy tuần ô chung đã loại. */
+/* ⚠️ 23/09/2026: dòng dựng nay tên `daQtHet` (rồi tách ra `choTT` / `xong`), vẫn từ BOOT.dons. */
 t('🔴 bảng đã quyết toán dựng lại từ BOOT.dons, không lọc tiếp từ `all`',
-  /var xong=\(BOOT\.dons\|\|\[\]\)\.filter\([^;]*_qtLocXong\(d\)/.test(HTML_MA2),
-  'xong=');
+  /var daQtHet=\(BOOT\.dons\|\|\[\]\)\.filter\([^;]*_qtLocXong\(d\)/.test(HTML_MA2),
+  'daQtHet=');
 t('nút bỏ lọc riêng có thật', HTML_MA2.indexOf('qtXoaLocXong()') > 0);
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════

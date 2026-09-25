@@ -15,11 +15,13 @@ bằng tài khoản không có đường nào thoát khỏi trang.
    được đúng những gì người trước xem, gồm doanh thu mọi cơ sở nếu người trước là quản lý. Nó
    không báo lỗi, không ai thấy gì bất thường, nên sẽ không ai đi tìm.
 
-⚠️ HAI LỐI THOÁT KHÁC NHAU, KHÔNG DÙNG CHUNG MỘT ĐƯỜNG:
-     vào bằng PIN      -> REST `dang-xuat` (đóng phiên PIN, KHÔNG đụng đăng nhập WordPress)
-     vào bằng tài khoản -> `wp_logout_url()` (thoát hẳn khỏi WordPress)
-   Và lối thứ hai phải là <a> cho người BẤM: `wp_logout_url()` mang nonce, gọi bằng fetch là
-   WordPress chối — chối im lặng, nên người dùng chỉ thấy một nút bấm không phản hồi.
+🔴 23/09/2026 — MỘT NÚT, MÁY CHỦ TỰ THOÁT. Anh Thắng: *"đăng xuất ra nó nhảy ra trang wordpress"*.
+   Lối cũ cho tài khoản là <a href=wp_logout_url>: trình duyệt bị đưa sang wp-login.php và (tuỳ
+   nonce còn hạn, tuỳ plugin móc `logout_redirect`, tuỳ link đẹp đã flush) không quay về. Nay:
+     cả hai lối -> nút #dtThoat -> REST `dang-xuat`; máy chủ đóng phiên PIN VÀ gọi `wp_logout()`
+     khi đang là tài khoản WordPress; trả `wp: true` thì màn TẢI LẠI TRANG (nonce REST cũ đã chết
+     cùng phiên, gọi tiếp là 403) — tải lại đúng địa chỉ đang đứng, không đi qua wp-login.php.
+   `link_ra` (wp_logout_url) chỉ còn là đường LÙI khi REST hỏng, và chỉ cho lối tài khoản.
 
 Chạy: python3 tools/test/kiem-thoat-dang-nhap.py
 """
@@ -62,23 +64,36 @@ if m:
     #    chạy, và một phép thử soi cả chú thích là phép thử tự lừa mình.
     than = re.sub(r'/\*[\s\S]*?\*/', ' ', m.group(1))
     than = re.sub(r'(?<!:)//[^\n]*', ' ', than)
-    t('lối PIN có nút Thoát', 'dtThoat' in than)
-    t('lối PIN gọi thoatPin', 'thoatPin' in than)
-    # 🔴 Chính chỗ đã hỏng: nhánh KHÔNG phải bang_pin cũng phải có đường ra.
-    t('🔴 lối TÀI KHOẢN cũng có đường Thoát (dùng link_ra)', 'link_ra' in than)
-    t('🔴 đường ấy là <a> cho người bấm, không phải fetch (wp_logout_url mang nonce)',
-      re.search(r"<a[^>]*href=[^>]*link_ra", than) is not None)
-    t('link_ra đi qua esc() trước khi ghép vào HTML', re.search(r'esc\(\s*cf\.link_ra\s*\)', than) is not None)
-    # Chốt ngược: đừng biến nút PIN thành link WordPress — hai lối khác nhau.
-    t('lối PIN KHÔNG bị đổi thành link_ra',
-      re.search(r'bang_pin\s*\?[^:]*dtThoat', than) is not None)
+    t('có nút Thoát #dtThoat', 'dtThoat' in than)
+    t('nút gọi thoatPin', 'thoatPin' in than)
+    # 🔴 Nút Thoát KHÔNG tuỳ lối vào: người tài khoản cũng phải có nút (18/09 từng thiếu).
+    t('🔴 nút Thoát không bị gác sau bang_pin', re.search(r'bang_pin\s*\?', than) is None)
+    # 🔴 Không còn <a href=wp_logout_url> — chính cái đưa người ta sang trang WordPress (23/09).
+    t('🔴 không còn <a> trỏ link_ra trong veNguoiXem', re.search(r"<a[^>]*link_ra", than) is None)
+
+# ---- 2b. Máy chủ tự thoát WordPress trong REST dang-xuat ----
+NG = GOC / 'nguoi.php'
+ng = re.sub(r'/\*[\s\S]*?\*/', ' ', NG.read_text(encoding='utf-8'))
+m4 = re.search(r'\nfunction khh_dt_rest_dang_xuat\(\) \{(.*?)\n\}', ng, re.S)
+t('tìm thấy khh_dt_rest_dang_xuat', m4 is not None)
+if m4:
+    t('🔴 dang-xuat gọi wp_logout() khi đang là tài khoản WordPress',
+      re.search(r'is_user_logged_in\(\)[\s\S]{0,80}wp_logout\(\)', m4.group(1)) is not None)
+    t('và vẫn đóng phiên PIN (khh_dt_phien_dong)', 'khh_dt_phien_dong' in m4.group(1))
+    t("trả cờ 'wp' cho màn biết phải tải lại", "'wp'" in m4.group(1))
 
 # ---- 3. thoatPin vẫn phải đóng phiên PIN ở máy chủ, không chỉ xoá thẻ ở máy ----
 m2 = re.search(r'\n  function thoatPin\(\) \{(.*?)\n  \}', js, re.S)
 t('tìm thấy thoatPin', m2 is not None)
 if m2:
-    t('thoatPin gọi REST dang-xuat (đóng phiên ở máy chủ)', "'dang-xuat'" in m2.group(1))
-    t('và vẫn xoá thẻ ở máy dù máy chủ có lỗi', 'datThe' in m2.group(1))
+    than2 = re.sub(r'/\*[\s\S]*?\*/', ' ', m2.group(1))
+    t('thoatPin gọi REST dang-xuat (đóng phiên ở máy chủ)', "'dang-xuat'" in than2)
+    t('và vẫn xoá thẻ ở máy dù máy chủ có lỗi', 'datThe' in than2)
+    # 🔴 Huỷ phiên WordPress rồi thì nonce REST đang cầm đã chết -> phải tải lại trang, không khoiDong().
+    t('🔴 r.wp -> tải lại trang (location.reload)', re.search(r'r\.wp\)[\s\S]{0,40}location\.reload\(\)', than2) is not None)
+    # Đường lùi: REST hỏng mà là tài khoản WordPress -> mới dùng link_ra.
+    t('link_ra chỉ dùng ở nhánh catch (đường lùi)', re.search(r'catch\([\s\S]*link_ra', than2) is not None)
+    t('và chỉ cho lối tài khoản (!bang_pin)', re.search(r'!cf\.bang_pin\s*&&\s*cf\.link_ra', than2) is not None)
 
 # ---- 4. Lớp .vien dùng cho cả <button> lẫn <a> ----
 m3 = re.search(r'\.khh-dt \.vien\{(.*?)\}', css, re.S)

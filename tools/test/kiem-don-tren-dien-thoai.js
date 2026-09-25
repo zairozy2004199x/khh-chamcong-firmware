@@ -311,7 +311,10 @@ t('bốc được ba chip "làm được gì"', dongChip.length > 60, dongChip.s
 teq('🔴 chip: 11.5px -> 10.5px', 10.5, cỡ(dongChip, "font-size:(\\d+(?:\\.\\d+)?)px;font-weight:800"));
 teq('🔴 lề chip cũng nhỏ theo', 2, cỡ(dongChip, "padding:(\\d+)px \\d+px"));
 /* Thanh bước — nhóm thứ tư, cũng ở hàm khác. */
-const iBuoc = HTML.indexOf('function _thanhBuoc(st){');
+/* ⚠️ `_thanhBuoc` nhận thêm KHỐI CỦA ĐƠN từ 21/09/2026 (luồng riêng của MTĐ/VP), nên mốc bốc
+   phải bám tên hàm chứ không bám nguyên chữ ký. Bám chữ ký là mỗi lần thêm tham số lại đỏ
+   oan ở một bài chỉ nói chuyện cỡ chữ. */
+const iBuoc = HTML.indexOf('function _thanhBuoc(');
 const khoiBuoc = iBuoc > 0 ? HTML.slice(iBuoc, HTML.indexOf('\n  }', iBuoc)) : '';
 t('bốc được thanh bước', khoiBuoc.length > 200);
 teq('🔴 ô thanh bước: 10.5px -> 9.5px', 9.5, cỡ(khoiBuoc, "font-size:(\\d+(?:\\.\\d+)?)px;font-weight:'"));

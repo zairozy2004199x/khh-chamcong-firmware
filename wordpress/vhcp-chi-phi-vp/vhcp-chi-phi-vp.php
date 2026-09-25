@@ -3,7 +3,7 @@
  * Plugin Name:       Vận Hành Chi Phí (VP)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       App Chi Phí Cơ Sở / Vận Hành Chi Phí dựng lại trên WordPress — đơn tạm ứng theo tuần, chi phí kỹ thuật, marketing, công tác/setup, quyết toán thừa/thiếu và xuất MISA. Dữ liệu nằm trong bảng MySQL riêng (không phụ thuộc Google Sheet).
- * Version:           1.222.0
+ * Version:           1.322.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -21,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
  * này còn đứng ở 1.31.0 — nghĩa là suốt từ đó tới giờ, cài đè KHÔNG chạy bước nâng cấp nào và
  * trình duyệt vẫn dùng CSS/JS cũ. Có phép thử chốt hai số bằng nhau: tools/test/kiem-phien-ban.py
  */
-define( 'VHCPVP_VERSION', '1.222.0' );
+define( 'VHCPVP_VERSION', '1.322.0' );
 define( 'VHCPVP_FILE', __FILE__ );
 define( 'VHCPVP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHCPVP_URL', plugin_dir_url( __FILE__ ) );
@@ -33,7 +33,10 @@ require_once VHCPVP_DIR . 'includes/class-vhcp-cfg.php';
 require_once VHCPVP_DIR . 'includes/class-vhcp-auth.php';
 require_once VHCPVP_DIR . 'includes/class-vhcp-log.php';
 require_once VHCPVP_DIR . 'includes/class-vhcp-donvi.php';
+/* Khung TRỤC PHÂN TÍCH — nạp TRƯỚC `class-vhcp-don.php` không được: bảng khai trục đọc hai
+   hằng `GIAI_DOAN_*` của lớp ấy. Nạp SAU, và chỉ đọc lúc chạy hàm nên thứ tự này là đủ. */
 require_once VHCPVP_DIR . 'includes/class-vhcp-don.php';
+require_once VHCPVP_DIR . 'includes/class-vhcp-truc.php';
 require_once VHCPVP_DIR . 'includes/class-vhcp-sochi.php';
 require_once VHCPVP_DIR . 'includes/class-vhcp-duan.php';
 require_once VHCPVP_DIR . 'includes/class-vhcp-mk.php';
@@ -45,8 +48,12 @@ require_once VHCPVP_DIR . 'includes/class-vhcp-upload.php';
 require_once VHCPVP_DIR . 'includes/class-vhcp-nap.php';
 require_once VHCPVP_DIR . 'includes/class-vhcp-sheet.php';
 require_once VHCPVP_DIR . 'includes/class-vhcp-import.php';
+require_once VHCPVP_DIR . 'includes/class-vhcp-gop.php';
 require_once VHCPVP_DIR . 'includes/class-vhcp-api.php';
 require_once VHCPVP_DIR . 'includes/class-vhcp-app.php';
+/* Lớp vỏ app điện thoại (PWA) — gắn vào chính đường của trang, không đẻ đường thứ hai.
+   Nạp SAU `class-vhcp-app.php`: nó dựng địa chỉ từ `VHCPVP_App::cac_slug()`. */
+require_once VHCPVP_DIR . 'includes/class-vhcp-pwa.php';
 require_once VHCPVP_DIR . 'includes/class-vhcp-admin.php';
 require_once VHCPVP_DIR . 'includes/class-vhcp-tu-cap-nhat.php';
 
@@ -99,13 +106,22 @@ function vhcpvp_maybe_upgrade() {
 	   một lượt thì mọi đồng chi cho mấy gian ấy rơi về nhà mặc định — số của POSH nằm trong sổ
 	   K&H, không ai thấy để sửa.
 
-	   ⚠️ CHẠY MỘT LẦN CHO MỖI PHIÊN BẢN, không phải mỗi lượt tải trang: hàm hút quét cả danh
-	      mục cơ sở cho từng dòng bên ghế, làm ở mọi lượt tải là một khoản phí vô ích trên
-	      trang nào cũng phải trả. Cờ theo phiên bản để bản sau còn hút lại được nếu cần.
+	   🔴 CHẠY ĐÚNG MỘT LẦN CHO CẢ ĐờI SITE, KHÔNG PHẢI MỖI PHIÊN BẢN — đổi 21/09/2026.
+
+	      Bản cũ so cờ với `VHCPVP_VERSION`, tức mỗi lần cài bản mới là hút LẠI cả danh mục bên Ghế.
+	      Đó chính là câu *"tại sao xóa không được"* của anh Thắng 14/09/2026: xóa 67 gian xong, cài
+	      bản sau là chúng về nguyên, không một câu báo nào. Hôm ấy chữa bằng cách TẮT hẳn đường
+	      hút; nay anh xin bật lại (*"đẩy cơ sở bên ghế sang nhé"*) nên phải chữa đúng chỗ gốc:
+	      hút một lần để mồi, sau đó XÓA LÀ Ở YÊN.
+
+	      ⚠️ Muốn hút lại thì bấm nút 🚛 Hút cơ sở từ Ghế ở màn Cấu hình — một cú bấm có chủ,
+	         thay cho một lượt chạy ngầm không ai biết. Đó cũng là lý do cái nút ấy có mặt.
+	   ⚠️ VẪN không chạy ở mọi lượt tải trang: hàm hút quét cả danh mục cơ sở cho từng dòng bên
+	      ghế, làm ở mọi lượt tải là một khoản phí vô ích trên trang nào cũng phải trả.
 	   ⚠️ ĐẶT SAU `plugins_loaded` của bên ghế bằng cách gọi ở ưu tiên muộn — lúc này lớp
 	      `VHG_May` mới chắc chắn đã nạp. Chưa cài plugin ghế thì hàm tự trả 0. */
-	if ( get_option( 'vhcpvp_hut_coso_ghe' ) !== VHCPVP_VERSION ) {
-		update_option( 'vhcpvp_hut_coso_ghe', VHCPVP_VERSION );
+	if ( ! get_option( 'vhcpvp_hut_coso_ghe' ) ) {
+		update_option( 'vhcpvp_hut_coso_ghe', '1' );
 		VHCPVP_Cfg::hut_coso_ghe();
 	}
 }
@@ -131,6 +147,10 @@ add_action( 'rest_api_init', array( 'VHCPVP_API', 'register_routes' ) );
 add_action( 'wp_ajax_vhcpvp_call', array( 'VHCPVP_API', 'ajax' ) );
 add_action( 'wp_ajax_nopriv_vhcpvp_call', array( 'VHCPVP_API', 'ajax' ) );
 add_action( 'init', array( 'VHCPVP_App', 'init' ), 5 );
+/* ⚠️ CÙNG ƯU TIÊN 5, VÀ ĐẶT NGAY SAU. Hai bên cùng khai luật đường dẫn, mà lượt nạp lại bảng
+   luật (`vhcpvp_flush_rewrite`, ưu tiên 99) phải thấy ĐỦ cả hai — khai muộn hơn 99 là luật của
+   manifest/sw không vào bảng, và app báo "manifest không đọc được" mà không nói vì sao. */
+add_action( 'init', array( 'VHCPVP_Pwa', 'init' ), 5 );
 add_action( 'init', 'vhcpvp_flush_rewrite', 99 );
 add_action( 'admin_menu', array( 'VHCPVP_Admin', 'menu' ) );
 add_action( 'admin_init', array( 'VHCPVP_Admin', 'handle_post' ) );

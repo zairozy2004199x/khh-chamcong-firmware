@@ -138,8 +138,12 @@ t('ô không có thì im lặng bỏ qua, không nổ', !no);
 const boCC = src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^\s*\/\/.*$/gm, ' ');
 t('🔴 khong con o ngay nao noi thang vao change',
   !/#(dtTu|dtDen|dsTu|dsDen)'\)\.addEventListener\('change'/.test(boCC));
-t('tab Doanh thu dung noiONgay', /noiONgay\(q\('#dtTu'\)/.test(boCC));
-t('tab Doi soat dung noiONgay', /noiONgay\(t,/.test(boCC) && /noiONgay\(d,/.test(boCC));
+/* 24/09/2026 anh Thắng: "cứ bấm nào nó lại mất bảng" — tab có nút Lọc thì hai ô ngày KHÔNG tự chạy nữa
+   (tự chạy = vẽ lại cả thanh lọc = bảng lịch đang mở biến mất). Chỉ Lọc / Enter mới chạy. */
+t('🔴 tab Doanh thu KHÔNG nối noiONgay vào #dtTu/#dtDen (chỉ chạy khi Lọc)', !/noiONgay\(q\('#dtTu'\)/.test(boCC) && !/noiONgay\(q\('#dtDen'\)/.test(boCC));
+t('🔴 tab Đối soát KHÔNG nối noiONgay vào hai ô ngày', !/noiONgay\(t,/.test(boCC) && !/noiONgay\(d,/.test(boCC));
+t('ô ngày lẻ (sổ kho, thẻ kho) vẫn dùng noiONgay', /noiONgay\(k\.querySelector\('#khoNgay'\)/.test(boCC) && /noiONgay\(noi\.querySelector\('#theTu'\)/.test(boCC));
+t('Đối soát: nút Lọc gọi locTay và Enter cũng chạy Lọc', /locTay\(t, d, function \(tu, den\)/.test(boCC) && /locKhiEnter\(t, nl\); locKhiEnter\(d, nl\);/.test(boCC));
 
 /* ── 10. taiDoiSoat: giữ số cũ trên màn, và bỏ lượt trả về trễ ────────────────────── */
 const td = boc('taiDoiSoat').replace(/\/\*[\s\S]*?\*\//g, ' ');
@@ -148,6 +152,32 @@ t('con so cu thi chi danh dau dang ban', /aria-busy/.test(td));
 t('🔴 danh so luot goi', /\+\+dsLuot/.test(td));
 t('luot tra ve tre thi BO, khong de len luot moi',
   (td.match(/luot !== dsLuot/g) || []).length >= 2);
+
+/* ── 11. nút Lọc và tab Doanh thu không bỏ rơi lượt gọi (anh Thắng 23/09/2026: "chọn ngày nó ko
+      tự ra, thêm nút tìm kiếm để nó chạy ngày lọc") ───────────────────────────────────────── */
+t('tab Doanh thu có nút #dtLoc', /id="dtLoc"/.test(boCC));
+t('tab Doi soat có nút #dsLoc', /id="dsLoc"/.test(boCC));
+t('nút dtLoc gọi locTay với hai ô ngày', /#dtLoc'\)\.addEventListener\('click'[\s\S]{0,120}locTay\(q\('#dtTu'\), q\('#dtDen'\)/.test(boCC));
+t('nút dsLoc gọi locTay', /#dsLoc'\)[\s\S]{0,160}locTay\(t, d,/.test(boCC));
+t('Enter trong ô ngày cũng chạy Lọc', /locKhiEnter\(q\('#dtTu'\), q\('#dtLoc'\)\)/.test(boCC));
+const taiSrc = boc('tai').replace(/\/\*[\s\S]*?\*\//g, ' ');
+t('🔴 tai() KHÔNG còn bỏ rơi lượt gọi khi đang tải', !/if \(S\.dangTai\) return;/.test(taiSrc));
+t('🔴 tai() đánh số lượt (++dtLuot)', /\+\+dtLuot/.test(taiSrc));
+t('lượt trả về trễ thì bỏ (cả then và catch)', (taiSrc.match(/luot !== dtLuot/g) || []).length >= 2);
+/* locTay chạy thật: thiếu một ngày -> không chạy; đủ hai ngày -> chạy đúng thứ tự. */
+{
+  const m = src.match(/  function locTay\([\s\S]*?\n  \}\n/);
+  t('tìm thấy locTay', !!m);
+  if (m) {
+    let baoGoi = 0;
+    const f = new Function('NGAY_DU', 'bao', m[0] + '\nreturn locTay;')(new RegExp(mRe[0].match(/\/(.*)\//)[1]), () => { baoGoi++; });
+    const goi = [];
+    t('thiếu ngày đến -> không chạy, có báo', f({ value: '2026-09-16' }, { value: '' }, (a, b) => goi.push([a, b])) === false && goi.length === 0 && baoGoi === 1);
+    t('đủ hai ngày -> chạy một lượt', f({ value: '2026-09-16' }, { value: '2026-09-23' }, (a, b) => goi.push([a, b])) === true && goi.length === 1 && goi[0][0] === '2026-09-16' && goi[0][1] === '2026-09-23');
+    f({ value: '2026-09-23' }, { value: '2026-09-16' }, (a, b) => goi.push([a, b]));
+    t('Từ sau đến thì đảo lại, không hỏi khoảng ngược', goi[1][0] === '2026-09-16' && goi[1][1] === '2026-09-23');
+  }
+}
 
 if (hong.length) {
   console.log('\n✗ HỎNG ' + hong.length + ' phép (đạt ' + dat + '):');

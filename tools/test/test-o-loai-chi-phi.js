@@ -42,6 +42,12 @@ const BOOT = {
     { ten: 'Chi phí điện nước',  tkNo: '', boPhan: 'Cơ sở' },
     { ten: 'Chi phí tháo dỡ',    tkNo: '2413', boPhan: 'Kỹ thuật' },
     { ten: 'Chi phí chưa khai mã', tkNo: '', boPhan: 'Cơ sở' },
+    /* 🔴 DÒNG RÁC THẬT — không mã, không bộ phận, không vai trò. Đây là hình dạng của vài trăm
+       tên hạng mục nạp từ sổ cũ ("Nguyễn Hữu Thọ, Nguyễn Bá Tuấn", "Cấp Mạng VNPT"). Từ
+       22/09/2026 cửa "mảng này chưa có mã" đã gỡ, nên chốt chống rác chỉ còn MỘT cửa duy nhất
+       là cửa "chưa khai gì". Không có dòng rác trong bệ đỡ thì cửa ấy không ai canh, và lượt
+       refactor sau gỡ nốt nó mà mọi bài kiểm vẫn xanh. */
+    { ten: 'Nguyễn Hữu Thọ, Nguyễn Bá Tuấn', tkNo: '', boPhan: '' },
   ],
 };
 
@@ -51,19 +57,51 @@ const NHOM_CP_CS = '(cơ sở)';
    `ReferenceError` — trông y như mã hỏng chứ không phải bệ đỡ thiếu. Bốc đủ họ hàng, đừng vá
    bằng cách khai một hàm giả ở đây: hàm giả là bài kiểm chạy trên bản dựng lại, không phải mã
    thật. */
-const nguon = ['_mangCua', '_donNhieuCoSo', '_mangPham', '_tkNoList', '_tapTkCo', '_tkNoCua', '_khoaNhom', '_bpTach', '_loaiCpList', '_loaiCpVi'].map(layHam).join('\n')
-  + '\n  return { list:_loaiCpList, vi:_loaiCpVi, dat:function(n,u){ NHOM_CP=n; CURUSER=u; } };';
+/* ⚠️ `_khoiCuaLoai` + `KHOI_DANG` thêm 21/09/2026: loại chi phí nay thuộc đúng một khối (anh Thắng: *"chia ra 3 bảng của 3 khối, để tránh dùng chung"*), và `_loaiCpList()` bỏ loại của khối khác. Không khai vào bệ đỡ là bài kiểm nổ `ReferenceError` — xem chốt "THÊM HÀM PHỤ THUỘC THÌ PHẢI KHAI VÀO ĐÂY". */
+/* ⚠️ `_vaiDungDuocLoai` thêm 21/09/2026 — anh Thắng: *"bỏ tích bộ phận đi, mà tích theo
+     vai trò"*. `_loaiCpList()` gọi nó; không khai vào bệ đỡ là nổ `ReferenceError`. */
+/* 🔴 BỐC MÃ THẬT, ĐỪNG BỊA LẠI LUẬT Ở ĐÂY. Từ 21/09/2026 cột Bộ phận đã rời bảng Người
+   dùng, nên luật nào cần bộ phận thì đọc lại từ TÊN VAI CON. Bịa một bản ở bài kiểm là nó
+   canh luật của chính nó, xanh vĩnh viễn dù bản thật đi đường khác. */
+const BP_THAT = `  var BP_THEO_TEN_VAI=[
+    {bp:'Kỹ thuật', tu:['ky thuat']},
+    {bp:'Cơ sở',    tu:['co so']},
+    {bp:'Marketing', tu:['marketing']},
+    {bp:'Văn phòng', tu:['van phong']}
+  ];
+  function _boDauVai(s){
+    return String(s==null?'':s).toLowerCase().replace(/\\u0111/g,'d')
+      .normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/\\s+/g,' ').trim();
+  }
+  function _bpCuaVai(ten){
+    var t=' '+_boDauVai(ten)+' ';
+    if(t===' ') return '';
+    for(var i=0;i<BP_THEO_TEN_VAI.length;i++){
+      var x=BP_THEO_TEN_VAI[i];
+      for(var j=0;j<x.tu.length;j++){ if(t.indexOf(' '+x.tu[j]+' ')>=0) return x.bp; }
+    }
+    return '';
+  }
+  function _bpCuaToi(){
+    var b=String((CURUSER&&CURUSER.boPhan)||'').trim();
+    if(b) return b;
+    return _bpCuaVai((CURUSER&&CURUSER.role)||'');
+  }`;
+const nguon = BP_THAT + "\nvar MIEN_MA=['mb','mn'];\n" + ['_khoiCuaLoai', '_locLoaiTheoKhoi', '_loaiHopKhoi', '_vaiDungDuocLoai', '_vaiTachLoai', '_mangCua', '_donNhieuCoSo', '_mangPham', '_tkNoList', '_tapTkCo', '_tkNoCua', '_khoaNhom', '_bpTach', '_loaiCpList', '_loaiCpVi'].map(layHam).join('\n')
+  + '\n  return { list:_loaiCpList, vi:_loaiCpVi, tkNoCua:_tkNoCua, dat:function(n,u){ NHOM_CP=n; CURUSER=u; } };';
 function moi(nhomCp, user, cur) {
   /* ⚠️ `_donNhieuCoSo` nay hỏi thêm `CUR_PAGE` / `DA_CUR` — xem chốt ở app.html. Bài này kiểm
      ô loại chi phí của ĐƠN TUẦN, nên dựng đúng bối cảnh: đang ở tab đơn, chưa mở dự án nào. */
-  const M = new Function('BOOT', 'NHOM_CP', 'NHOM_CP_CS', 'CURUSER', 'CUR', 'CUR_PAGE', 'DA_CUR', 'esc', nguon)(
-    BOOT, nhomCp, NHOM_CP_CS, user, cur || { don: { nhieuCoSo: false } }, 'don', null, v => String(v == null ? '' : v));
+  const M = new Function('BOOT', 'NHOM_CP', 'NHOM_CP_CS', 'CURUSER', 'CUR', 'CUR_PAGE', 'DA_CUR', 'KHOI_DANG', 'esc', nguon)(
+    BOOT, nhomCp, NHOM_CP_CS, user, cur || { don: { nhieuCoSo: false } }, 'don', null, 'kvc', v => String(v == null ? '' : v));
   return M;
 }
 const NV_CS = { boPhan: 'Cơ sở' };
 /* Mã của một mục trong danh sách: `list()` trả về dòng danh mục, mã lấy qua chính hàm tra mã
-   của mã nguồn — không tự đoán lại. */
-const _tkCua = (M, x) => M.tkNoCua ? M.tkNoCua(x.ten, '') : '';
+   của mã nguồn — không tự đoán lại.
+   🔴 `M.tkNoCua` TRƯỚC NAY LUÔN `undefined`, nên hàm này trả '' cho mọi thứ và mọi phép thử đi
+      qua nó đều xanh vô điều kiện. Bệ đỡ nay xuất `_tkNoCua` ra thật. */
+const _tkCua = (M, x, cs) => M.tkNoCua(typeof x === 'string' ? x : x.ten, cs || '');
 
 // ---------------------------------------------------------------- 1. (a) chưa chọn cơ sở
 let M = moi(NHOM_CP_CS, NV_CS);
@@ -78,18 +116,39 @@ t('…nhưng PHẢI nói vì sao, không im lặng', /Chọn CƠ SỞ trước/.
 t('và tô màu cảnh báo chứ không xám nhạt', vi0.mau === '#b45309', vi0);
 
 // ---------------------------------------------------------------- 2. (b) khai 1 mảng
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 CỬA "MẢNG NÀY CHƯA CÓ MÃ → ẨN LOẠI" ĐÃ GỠ — 22/09/2026.
+ *
+ * Anh Thắng: *"Sau khi quyết toán, thì kế toán có quyền điều chỉnh tk nợ theo nhu cầu, vì Cùng
+ * tên gọi nhưng nội dung khác, Nên lúc tạo đơn nhân viên không cần quan tâm"*.
+ *
+ * Ba phép ở mục này TRƯỚC ĐÒI NGƯỢC LẠI ("TUTU KHÔNG thấy loại chỉ khai cho FARM"). Chúng canh
+ * đúng cái luật vừa bị bãi, nên phải viết lại theo luật mới — không phải xoá đi. Luật mới có
+ * hai vế, và cả hai đều phải có người canh:
+ *   · loại khai cố ý thì cơ sở nào cũng THẤY, kể cả mảng chưa có mã;
+ *   · nhưng KHÔNG mượn mã của mảng khác — mã để trống, kế toán gắn ở bước quyết toán.
+ * Bỏ vế thứ hai là app tự bịa mã tài khoản, và cái sai ấy chỉ lộ ra ở MISA.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
 const cs_tutu = M.list('TÀU ESTELLA', '', '').map(x => x.ten);
 t('cơ sở TUTU thấy loại đã khai cho mảng TUTU', cs_tutu.indexOf('Chi phí cơ sở') >= 0, cs_tutu);
-t('cơ sở TUTU KHÔNG thấy loại chỉ khai cho FARM', cs_tutu.indexOf('Chi phí nuôi thú') < 0, cs_tutu);
+t('🔴 TUTU NAY CŨNG thấy loại chỉ khai mã cho FARM', cs_tutu.indexOf('Chi phí nuôi thú') >= 0, cs_tutu);
+t('   …nhưng KHÔNG mượn mã của FARM — để trống cho kế toán gắn',
+  _tkCua(M, 'Chi phí nuôi thú', 'TÀU ESTELLA') === '', _tkCua(M, 'Chi phí nuôi thú', 'TÀU ESTELLA'));
+t('   …còn mảng ĐÃ khai mã thì vẫn ra đúng mã của nó',
+  _tkCua(M, 'Chi phí nuôi thú', 'FARM PHAN THIẾT') === '64168', _tkCua(M, 'Chi phí nuôi thú', 'FARM PHAN THIẾT'));
 const cs_farm = M.list('FARM PHAN THIẾT', '', '').map(x => x.ten);
-t('cơ sở FARM KHÔNG thấy loại chỉ khai cho TUTU', cs_farm.indexOf('Chi phí cơ sở') < 0, cs_farm);
+t('🔴 và FARM cũng thấy loại chỉ khai cho TUTU', cs_farm.indexOf('Chi phí cơ sở') >= 0, cs_farm);
 t('loại khai CẢ HAI mảng thì cơ sở nào cũng thấy',
   cs_tutu.indexOf('Chi phí điện nước') >= 0 && cs_farm.indexOf('Chi phí điện nước') >= 0, [cs_tutu, cs_farm]);
-// Đây là chỗ anh Thắng kêu "thêm rồi mà tk nhân viên khác không có" — phải giải thích được.
+/* 🔴 CHỐT CHỐNG RÁC LÀ CỬA DUY NHẤT CÒN LẠI — nó phải giữ. */
+t('🔴 dòng rác (không mã, không bộ phận, không vai) VẪN bị ẩn',
+  cs_tutu.indexOf('Nguyễn Hữu Thọ, Nguyễn Bá Tuấn') < 0 && cs_farm.indexOf('Nguyễn Hữu Thọ, Nguyễn Bá Tuấn') < 0,
+  [cs_tutu, cs_farm]);
 const viF = M.vi('FARM PHAN THIẾT', '', '');
-t('nói rõ ẩn bao nhiêu và VÌ SAO', /ẩn:/.test(viF.chu) && /chưa khai mã cho mảng/.test(viF.chu), viF);
-t('gọi đúng tên mảng đang thiếu', /FARM MN/.test(viF.chu), viF);
-t('đang hiện bao nhiêu trên tổng bao nhiêu', /Đang hiện \d+\/5 loại/.test(viF.chu), viF);
+t('🔴 và thôi đổ cho "chưa khai mã cho mảng" — cửa ấy không còn',
+  !/chưa khai mã cho mảng/.test(viF.chu), viF);
+t('gọi đúng tên cửa đang cắt: chốt chống rác', /chưa khai gì/.test(viF.chu), viF);
+t('đang hiện bao nhiêu trên tổng bao nhiêu', /Đang hiện \d+\/6 loại/.test(viF.chu), viF);
 
 // ------------------------------------------------- 3. bộ phận KHÔNG còn là lý do ẩn (20/09/2026)
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
@@ -107,15 +166,15 @@ t('🔴 bộ phận khác VẪN chọn được — không còn ô trống trơn
 const vi2 = M2.vi('TÀU ESTELLA', '', '');
 t('🔴 và "thuộc bộ phận khác" thôi là lý do ẩn', !/thuộc bộ phận khác/.test(vi2.chu), vi2);
 /* ⚠️ Hai lý do CÒN LẠI vẫn phải kể ra — chúng là thứ cắt thật, và đều nhìn thấy được. */
-t('   nhưng thiếu mã theo mảng thì vẫn nói rõ', /chưa khai mã cho mảng/.test(vi2.chu), vi2);
+t('   nhưng "thuộc nút khác" thì vẫn nói rõ', /thuộc nút khác/.test(vi2.chu), vi2);
 
 // ---------------------------------------------------------------- 4. đủ dùng thì đừng làm ồn
 const M3 = moi('', NV_CS);
 const vi3 = M3.vi('TÀU ESTELLA', '', '');
 t('còn loại bị ẩn thì vẫn ghi chú nhẹ (xám)', vi3.chu === '' || vi3.mau === '#8c8781', vi3);
 t('danh mục trống thì nói thẳng',
-  /Danh mục loại chi phí đang trống/.test(new Function('BOOT','NHOM_CP','NHOM_CP_CS','CURUSER','esc',nguon)(
-    { cosoPll:{}, tkNoMx:{}, loaiChiPhi:[] }, '', NHOM_CP_CS, NV_CS, v=>String(v||'')).vi('X','','').chu));
+  /Danh mục loại chi phí đang trống/.test(new Function('BOOT','NHOM_CP','NHOM_CP_CS','CURUSER','KHOI_DANG','esc',nguon)(
+    { cosoPll:{}, tkNoMx:{}, loaiChiPhi:[] }, '', NHOM_CP_CS, NV_CS, 'kvc', v=>String(v||'')).vi('X','','').chu));
 
 // ---------------------------------------------------------------- 5. thứ tự khởi động
 // renderNhomCp() chốt NHOM_CP; fillNhom() lọc theo đúng biến đó. Chạy ngược thì lần dựng
@@ -123,8 +182,13 @@ t('danh mục trống thì nói thẳng',
 const mBoot = HTML.match(/el\('f_pltt'\)\.innerHTML=opts\(BOOT\.phanloai,'—'\);[\s\S]{0,400}?fillNhom\(''\);/);
 t('lúc khởi động có gọi renderNhomCp()', !!mBoot && /renderNhomCp\(\)/.test(mBoot[0]), mBoot && mBoot[0]);
 t('và gọi TRƯỚC fillNhom()', !!mBoot && mBoot[0].indexOf('renderNhomCp()') < mBoot[0].indexOf("fillNhom('')"), mBoot && mBoot[0]);
+/* ⚠️ Phép chọn-sẵn ĐÃ DỜI vào `_veLaiOCoSo()` (22/09/2026), khi hai ô Cơ sở bắt đầu phải lọc
+   theo khối và vì thế cần dựng lại ở HAI nơi (`boot()` và `doiKhoi()`). Cùng một hành vi, một
+   chỗ khai — chứ để ở chỗ gọi thì đổi khối xong mất phép chọn sẵn.
+   Bản chạy thật nằm ở `kiem-o-coso-theo-khoi.js`; ở đây chỉ canh nó CÒN TỒN TẠI. */
 t('chỉ có 1 cơ sở thì chọn sẵn (khỏi phải bấm mới thấy loại chi phí)',
-  /else if\(\(cosoOpts\|\|\[\]\)\.length===1\) el\('f_coso'\)\.value=cosoOpts\[0\];/.test(HTML));
+  /else if\(ds\.length===1\) f\.value=ds\[0\];/.test(HTML));
+t('   và chọn sẵn ấy chỉ nhìn cơ sở HỢP KHỐI', /uuTien && ds\.indexOf\(uuTien\)>=0/.test(HTML));
 t('ô Loại chi phí có chỗ hiện lời giải thích', /id="f_nhomVi"/.test(HTML));
 t('fillNhom có vẽ lời giải thích đó', /_veLoaiCpVi\('f_nhomVi'/.test(HTML));
 
@@ -160,8 +224,11 @@ t('đính ảnh được ngay khi đơn còn Nháp (không đợi cấp tạm �
 /* 🔴 ĐƠN ĐÃ CHỐT SỔ VẪN PHẢI BỔ SUNG ĐƯỢC HÓA ĐƠN — nhưng chỉ KẾ TOÁN. Hóa đơn giấy về sau
    ngày chốt, hoặc hóa đơn sai phải thay, là chuyện thường; khóa luôn cả ảnh là bộ chứng từ
    vĩnh viễn thiếu trong khi số tiền đã đúng rồi. */
+/* ⚠️ CANH ĐI QUA `_daChot`, KHÔNG GHIM CHUỖI. Ranh giới "đã chốt" nay là một hàm (bản song
+   sinh của `VHCP_Don::TT_CHOT`) — từ 21/09/2026 nó có thêm `Đã thanh toán` của MTĐ/VP. Ghim
+   chuỗi là mỗi lần thêm bước lại phải sửa bài, mà hành vi cần canh thì không đổi. */
 t('đơn đã chốt sổ: kế toán vẫn thấy nút đính hóa đơn',
-  /_kt&&_chot/.test(HTML) && /Đã quyết toán'\|\|CUR\.don\.trangThai==='Đã xuất MISA'/.test(HTML));
+  /_kt&&_chot/.test(HTML) && /_chot\s*=\s*\(CUR&&CUR\.don&&_daChot\(CUR\.don\.trangThai\)\)/.test(HTML));
 t('và nút đó nói rõ là KHÔNG đụng số tiền',
   /bổ sung\/đổi hóa đơn, KHÔNG đụng số tiền/.test(HTML));
 /* Máy chủ mới là nơi gác thật — giao diện chỉ bày nút. Nếu chỉ giấu nút mà máy chủ vẫn nhận
@@ -176,7 +243,10 @@ t('máy chủ mới là nơi gác, không phải giao diện',
    mà gãy vì BÀI KIỂM chứ không phải vì mã hỏng. Đã gãy đúng như thế khi thêm `data-bill`
    cho tính năng rê chuột phóng to (07/09/2026). Điều cần canh là: dòng có ảnh thì DỰNG THẺ
    ẢNH NHỎ từ chính `l.anh`, và cỡ vẫn là cỡ ảnh nhỏ trong bảng. */
-const _the_anh = /<img src="'\+esc\(l\.anh\)\+'"[^>]*height:28px/.test(HTML);
+/* 24/09/2026: thẻ ảnh nhỏ nay dựng trong hàm chung `_chungTuHtml(url, cao)` (ảnh → <img data-bill>, PDF → 📄);
+   `renderLines` gọi nó với cỡ 28. Canh ý cũ qua hai mảnh ấy. */
+const _ham_ct = (HTML.match(/  function _chungTuHtml\([\s\S]*?\n  \}/) || [''])[0];
+const _the_anh = /_chungTuHtml\(l\.anh, 28\)/.test(HTML) && /<img src="'\+u\+'" data-bill="'\+u\+'"[^>]*height:'\+\(cao\|\|28\)\+'px/.test(_ham_ct);
 t('hiện ảnh nhỏ để nhìn ra dòng nào đã có chứng từ', _the_anh);
 
 // ---------------------------------------------------------------- 7. ngày & tiền ở bảng dòng

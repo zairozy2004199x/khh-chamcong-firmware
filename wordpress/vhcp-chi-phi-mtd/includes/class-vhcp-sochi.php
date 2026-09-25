@@ -133,7 +133,13 @@ class VHCPMTD_SoChi {
 		      tới lúc dữ liệu MTĐ / VP về chung kho, một dòng VP ghi ra mà dựa vào mặc định thì
 		      nó đóng dấu 'kvc' — tiền của mảng này chạy sang sổ mảng kia, im lặng. */
 		$data['khoi']       = VHCPMTD_DB::khoi();
-		$wpdb->insert( VHCPMTD_DB::t( 'so_chi' ), $data );
+		/* 🔴 SOI KẾT QUẢ — xem `kiem-ghi-so-phai-soi-ket-qua.php`. Không soi thì một lượt ghi
+		   hỏng vẫn ra màn xanh, và người ta chỉ biết mất gì khi đối chiếu sổ. */
+		$ok = $wpdb->insert( VHCPMTD_DB::t( 'so_chi' ), $data );
+		if ( ! $ok ) {
+			$ct = trim( (string) $wpdb->last_error );
+			return VHCPMTD_Util::err( 'Không ghi được dòng sổ chi' . ( '' !== $ct ? ' — ' . $ct : '.' ) );
+		}
 		return VHCPMTD_Util::ok( array( 'id' => $data['id'], 'tkNo' => $data['tk_no'], 'tkCo' => $data['tk_co'], 'soTien' => VHCPMTD_Util::num( $data['so_tien'] ) ) );
 	}
 

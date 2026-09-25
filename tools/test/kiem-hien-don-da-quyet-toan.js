@@ -34,6 +34,26 @@ function bocHam(ten) {
   const j = HTML.indexOf('\n  }', i) + 4;
   return (j > i) ? HTML.slice(i, j) : '';
 }
+/* ⚠️ Hai hàm MỚI của 21/09/2026 mà mấy hàm dưới đây gọi tới: `_daChot` (ranh giới "đã chốt
+   sổ", gom về một chỗ khi thêm bước `Đã thanh toán` cho MTĐ/VP) và `_tenTT` (chữ hiện trên
+   màn, đổi theo khối của đơn).
+   🔴 MƯỢN HÀM THẬT TRONG TRANG, KHÔNG BỊA. Bịa một cái luôn trả `false` là bệ đỡ vẫn xanh cả
+      khi luật thật hỏng — mà mấy bài này lại là nơi duy nhất CHẠY mấy hàm kia. */
+function bocNenTT() {
+  /* `_luongDon` thêm ở 1.287.0: luồng nay là thuộc tính của TỪNG ĐƠN, và mấy hàng bảng
+     Quyết toán hỏi nó để gọi đúng tên trạng thái / bày đúng nút Đã thanh toán. */
+  const ds = ['_daChot', '_tenTT', '_luongKhoi', '_luongDon', '_ttTrongLuong', '_nutThanhToan'];
+  const dong = (t) => { const i = HTML.indexOf('  var ' + t + '='); return i < 0 ? '' : HTML.slice(i, HTML.indexOf('\n', i)); };
+  let n = ['TT_CHOT', 'KHOI_LUONG_CHI'].map(dong).join('\n');
+  n += '\n' + ['LUONG_KVC', 'LUONG_CHI', 'LUONG_TT'].map((t) => {
+    const i = HTML.indexOf('  var ' + t + '='); return i < 0 ? '' : HTML.slice(i, HTML.indexOf('};', i) + 2);
+  }).join('\n');
+  n += '\n' + ds.map(bocHam).join('\n');
+  n += "\nvar KHOI_DANG='kvc';";
+  if (n.replace(/\s/g, '').length < 200) { throw new Error('không bốc được nền trạng thái — bệ đỡ sẽ xanh giả'); }
+  return n;
+}
+const NEN_TT = bocNenTT();
 
 /* Bảy trạng thái của luồng, bốc từ CHÍNH app.html — thêm bớt trạng thái là danh sách này theo. */
 const TT = (function () {
@@ -41,18 +61,24 @@ const TT = (function () {
   if (!m) { console.error('HỎNG: không thấy TT_LUONG trong app.html'); process.exit(1); }
   return m[1].split(',').map(function (s) { return s.trim().replace(/^'|'$/g, ''); });
 })();
-teq('bốc đủ 7 trạng thái của luồng', 7, TT.length);
+/* Tám từ 21/09/2026: thêm `Đã thanh toán`, bước riêng của MTĐ/VP giữa quyết toán và xuất
+   MISA — xem `kiem-luong-theo-khoi.php`. */
+teq('bốc đủ 8 trạng thái của luồng', 8, TT.length);
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
  * 1. CHỐT `_daQT()` — CHẠY THẬT TRÊN CẢ BẢY TRẠNG THÁI
  * ═════════════════════════════════════════════════════════════════════════════════════════════ */
 const fnDaQT = bocDong('_daQT');
 t('bốc được chốt _daQT()', fnDaQT.length > 20, fnDaQT);
-const daQT = new Function(fnDaQT + '\nreturn _daQT;')();
+const daQT = new Function(NEN_TT + '\n' + fnDaQT + '\nreturn _daQT;')();
 
 teq('"Đã quyết toán" → là đơn đã quyết toán xong', true, daQT({ trangThai: 'Đã quyết toán' }));
 teq('🔴 "Đã xuất MISA" → CŨNG là đơn đã quyết toán xong', true, daQT({ trangThai: 'Đã xuất MISA' }));
-TT.filter(function (s) { return s !== 'Đã quyết toán' && s !== 'Đã xuất MISA'; })
+/* 🔴 `Đã thanh toán` CŨNG PHẢI TÍNH. Nó đứng SAU `Đã quyết toán` trong luồng MTĐ/VP — thiếu nó
+   thì đơn vừa bấm "Đã thanh toán" xong là BIẾN MẤT khỏi cả hai bảng của màn Quyết toán: không
+   còn ở "Chờ", cũng không vào "Đã". Tiền có thật mà không màn nào thấy. */
+teq('🔴 "Đã thanh toán" → CŨNG là đơn đã quyết toán xong', true, daQT({ trangThai: 'Đã thanh toán' }));
+TT.filter(function (s) { return ['Đã quyết toán', 'Đã thanh toán', 'Đã xuất MISA'].indexOf(s) < 0; })
   .forEach(function (s) { teq('"' + s + '" → CHƯA quyết toán xong', false, daQT({ trangThai: s })); });
 teq('không có đơn → false, không nổ', false, !!daQT(null));
 teq('đơn thiếu trạng thái → false', false, !!daQT({}));
@@ -64,7 +90,7 @@ const ttChot = (function () {
   const m = /const TT_CHOT = array\(([^)]*)\)/.exec(DON);
   return m ? m[1].split(',').map(function (s) { return s.trim().replace(/^'|'$/g, ''); }).filter(Boolean) : [];
 })();
-teq('máy chủ chốt đúng hai trạng thái', ['Đã quyết toán', 'Đã xuất MISA'], ttChot);
+teq('máy chủ chốt đúng ba trạng thái', ['Đã quyết toán', 'Đã thanh toán', 'Đã xuất MISA'], ttChot);
 t('🔴 màn hình và máy chủ khớp nhau từng trạng thái',
   TT.every(function (s) { return daQT({ trangThai: s }) === (ttChot.indexOf(s) >= 0); }),
   TT.filter(function (s) { return daQT({ trangThai: s }) !== (ttChot.indexOf(s) >= 0); }));
@@ -76,14 +102,18 @@ const fnRender = bocHam('renderQTList');
 t('bốc được renderQTList()', fnRender.length > 1000, fnRender.length);
 
 /* Bốc NGUYÊN dòng dựng biến `xong` rồi chạy nó — không viết lại điều kiện ở đây. */
+/* ⚠️ Từ 23/09/2026 bảng "Đã quyết toán" dựng qua HAI dòng: `daQtHet` (mọi đơn đã chốt, qua bộ
+   lọc riêng) rồi `xong` = phần KHÔNG còn chờ thanh toán. Bài này canh bộ lọc riêng, nên bốc
+   dòng `daQtHet` và đặt tên lại là `xong` cho mấy phép dưới — còn phép tách chờ-thanh-toán có
+   bài riêng (`kiem-qt-cho-thanh-toan.js`). */
 const dongXong = (function () {
-  const m = /\n\s*var xong=\(BOOT\.dons\|\|\[\]\)\.filter\([^\n]*\);/.exec(fnRender);
-  return m ? m[0].trim() : '';
+  const m = /\n\s*var daQtHet=\(BOOT\.dons\|\|\[\]\)\.filter\([^\n]*\);/.exec(fnRender);
+  return m ? m[0].trim().replace('var daQtHet=', 'var xong=') : '';
 })();
 t('bốc được dòng dựng bảng "Đã quyết toán"', dongXong.length > 40, dongXong);
 
 function locXong(dons, locRieng) {
-  return new Function('BOOT', '_daQT', '_qtLocXong', dongXong + '\nreturn xong;')(
+  return new Function('BOOT', '_daQT', '_qtLocXong', NEN_TT + '\n' + dongXong + '\nreturn xong;')(
     { dons: dons }, daQT, locRieng || function () { return true; });
 }
 const KHO = [
@@ -117,7 +147,7 @@ const dongAll = (function () {
   return m ? m[0].trim() : '';
 })();
 t('bốc được dòng dựng danh sách chung của màn', dongAll.length > 40, dongAll);
-const dsAll = new Function('BOOT', '_daQT', '_qtLoc', dongAll + '\nreturn all;')(
+const dsAll = new Function('BOOT', '_daQT', '_qtLoc', NEN_TT + '\n' + dongAll + '\nreturn all;')(
   { dons: KHO }, daQT, function () { return true; }).map(function (d) { return d.maDon; });
 teq('🔴 xem theo tuần cũng đếm đơn đã xuất MISA (không thì quỹ tuần cũ sai)',
   ['D1', 'D2', 'D3', 'D5'], dsAll);
@@ -148,7 +178,7 @@ function chayEmpty(soHien, dons, oLoc) {
   /* Từ 1.92.0 câu này còn kể cả ô tích "Ẩn hẳn đơn chưa rõ bộ phận" (xem
      `kiem-an-don-chua-ro-bo-phan.js`). Ở đây ô tích luôn TẮT, nên phần ấy đứng yên và mấy phép
      dưới vẫn soi đúng thứ chúng sinh ra để soi. */
-  new Function('el', 'BOOT', '_daQT', '_anVaoMo', 'soHien', fnEmpty + '\n_qtEmptyXongText(soHien);')(
+  new Function('el', 'BOOT', '_daQT', '_anVaoMo', 'soHien', NEN_TT + '\n' + fnEmpty + '\n_qtEmptyXongText(soHien);')(
     function (id) { return o[id] || null; }, { dons: dons }, daQT, function () { return false; }, soHien);
   return o.qtEmptyXong.textContent;
 }
@@ -182,7 +212,7 @@ const fnRow = bocHam('_qtRowHtml');
 t('bốc được _qtRowHtml()', fnRow.length > 500, fnRow.length);
 function veHang(d) {
   return new Function('el', 'esc', 'money', 'canDo', '_laChim', 'stCls', 'd',
-    fnRow + '\nreturn _qtRowHtml(d, false, 9);')(
+    NEN_TT + '\n' + fnRow + '\nreturn _qtRowHtml(d, false, 9);')(
     function () { return null; },
     function (x) { return String(x == null ? '' : x); },
     function (x) { return String(Number(x) || 0); },

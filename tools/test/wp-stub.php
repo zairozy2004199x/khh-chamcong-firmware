@@ -156,7 +156,14 @@ define( 'YEAR_IN_SECONDS', 31536000 );
 $GLOBALS['VHCP_OPT'] = array();
 $GLOBALS['VHCP_TR']  = array();
 
-function dbDelta( $sql ) { return array(); }
+/* GHI LẠI câu lệnh dựng bảng thay vì vứt đi. Bài kiểm cần đo "bật plugin có dựng bảng không";
+   để rỗng thì chỉ soi được chữ trong tệp, mà soi chữ thì lượt đục bỏ đúng chỗ vẫn lọt.
+   ⚠️ Cố ý KHÔNG tự chạy câu lệnh: cú pháp là của MySQL, SQLite không hiểu. Bài nào cần bảng
+      thật thì dùng `vhcp_stub_dung_bang()` — nó dịch sang SQLite và giữ cả khoá. */
+function dbDelta( $sql ) {
+	$GLOBALS['VHCP_DBDELTA'][] = (string) $sql;
+	return array();
+}
 function get_option( $k, $d = false ) { return array_key_exists( $k, $GLOBALS['VHCP_OPT'] ) ? $GLOBALS['VHCP_OPT'][ $k ] : $d; }
 function update_option( $k, $v ) { $GLOBALS['VHCP_OPT'][ $k ] = $v; return true; }
 function delete_option( $k ) { unset( $GLOBALS['VHCP_OPT'][ $k ] ); return true; }
@@ -254,7 +261,12 @@ function do_action( $h ) {
 }
 function add_rewrite_rule( $mau, $dich, $vt = 'bottom' ) { $GLOBALS['VHCP_LUAT'][ $mau ] = array( $dich, $vt ); }
 function add_shortcode( $t, $cb ) { return true; }
-function flush_rewrite_rules( $x = true ) { return true; }
+/* ĐẾM số lượt mở lại, đừng chỉ trả true: bài kiểm cần biết móc kích hoạt CÓ gọi hay không.
+   Thiếu nó thì chỉ soi được chữ trong tệp, mà soi chữ thì lượt đục bỏ đúng chỗ vẫn lọt. */
+function flush_rewrite_rules( $x = true ) {
+	$GLOBALS['VHCP_MO_LAI_DUONG'] = 1 + ( isset( $GLOBALS['VHCP_MO_LAI_DUONG'] ) ? $GLOBALS['VHCP_MO_LAI_DUONG'] : 0 );
+	return true;
+}
 function get_query_var( $k, $d = '' ) { return array_key_exists( $k, $GLOBALS['VHCP_QVAR'] ) ? $GLOBALS['VHCP_QVAR'][ $k ] : $d; }
 function __return_false() { return false; }
 function __return_true() { return true; }
@@ -526,6 +538,11 @@ function add_query_arg( $a = null, $b = null, $c = null ) {
 	return $q[0] . ( '' !== $chuoi ? '?' . $chuoi : '' ) . $frag;
 }
 function plugin_dir_path( $f ) { return dirname( $f ) . '/'; }
+/* Móc vòng đời plugin. Bản giả GHI LẠI hàm được khai thay vì bỏ đi, để bài kiểm GỌI THẬT được
+   — soi bằng cách tìm chuỗi trong tệp thì một lượt đục bỏ đúng chỗ vẫn lọt, vì cùng chuỗi ấy
+   còn xuất hiện ở dòng khác. */
+function register_activation_hook( $f, $ham ) { $GLOBALS['VHCP_MOC_BAT'][] = $ham; }
+function register_deactivation_hook( $f, $ham ) { $GLOBALS['VHCP_MOC_TAT'][] = $ham; }
 function plugin_dir_url( $f ) { return 'http://example.test/wp-content/plugins/vhcp-chi-phi/'; }
 
 class WP_REST_Request {
@@ -596,8 +613,16 @@ class VHCP_Test_WPDB {
 	}
 
 	private function tr( $sql ) {
-		// SQLite không có SHOW TABLES — plugin dùng câu đó để hỏi "bảng của plugin kia có không".
+		/* SQLite không có SHOW TABLES — plugin dùng câu đó để hỏi "bảng của plugin kia có không".
+		 *
+		 * 🔴 PHẢI GIỮ CẢ DẠNG CÓ `%`. Bản đầu dịch mọi câu thành `name='…'`, tức so BẰNG. Câu
+		 *    hỏi "có đúng bảng này không" thì đúng, nhưng câu DÒ `wp_vhcp%_don` — cách
+		 *    `VHCP_Gop` tìm xem trên site đang có những kho nào — thì so bằng luôn trả rỗng:
+		 *    bảng đối chiếu báo "chỉ có một kho" trong khi có ba, và không phép nào đỏ. */
 		if ( preg_match( "/^\s*SHOW\s+TABLES\s+LIKE\s+'([^']*)'/i", $sql, $m ) ) {
+			if ( false !== strpos( $m[1], '%' ) ) {
+				return "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '" . $m[1] . "' ESCAPE '\\' ORDER BY name";
+			}
 			return "SELECT name FROM sqlite_master WHERE type='table' AND name='" . $m[1] . "'";
 		}
 		/* ══════════════════════════════════════════════════════════════════════════════
@@ -637,7 +662,11 @@ class VHCP_Test_WPDB {
 			$i++;
 			if ( $m[0] === '%d' ) { return (string) (int) $v; }
 			if ( $m[0] === '%f' ) { return (string) (float) $v; }
-			return $this->quote( $v );
+			/* 🔴 `%s` VỚI null LÀ CHUỖI RỖNG, KHÔNG PHẢI NULL — y như `$wpdb->prepare()` thật. Bệ đỡ từng
+			   trả NULL ở đây, nên bài kiểm sổ kho xanh trong khi trên hosting MySQL ép '' vào cột số thành
+			   0: 24/09/2026 anh Thắng mở kho thấy "Hàng tồn còn" toàn 0 và lệch kho = −tồn tính dù chưa ai
+			   đếm. Bệ đỡ dễ dãi hơn thật là bài kiểm dối. Muốn NULL thì mã phải viết NULL vào câu SQL. */
+			return $this->quote( null === $v ? '' : $v );
 		}, $sql );
 	}
 
@@ -765,13 +794,17 @@ class VHCP_Test_WPDB {
 $GLOBALS['wpdb'] = new VHCP_Test_WPDB();
 
 /** Bảng SQLite tương ứng schema MySQL (khóa chính đổi sang stt để có AUTOINCREMENT). */
-function vhcp_test_create_tables() {
+function vhcp_test_create_tables( $p = 'wp_vhcp_' ) {
 	global $wpdb;
-	$p = 'wp_vhcp_';
+	/* 🔴 TIỀN TỐ NHẬN THAM SỐ — để dựng được KHO CỦA BẢN VÙNG (`wp_vhcpmtd_` · `wp_vhcpvp_`).
+	   Ba bản plugin là ba bản sao cùng sơ đồ, khác mỗi tiền tố; `VHCP_Gop` đọc xuyên cả ba.
+	   Gõ lại sơ đồ lần thứ hai trong bài kiểm là đúng cái bẫy khai-hai-nơi đã sập mấy lượt ở
+	   ngay tệp này — thêm một cột vào plugin thì kho vùng trong bài kiểm thiếu cột ấy, và bài
+	   kiểm đỏ vì lỗi của CHÍNH NÓ, trông y như lỗi của plugin. Nên: một sơ đồ, hai lượt gọi. */
 	$q = array(
-		"CREATE TABLE {$p}don (stt INTEGER PRIMARY KEY AUTOINCREMENT, ma_don TEXT UNIQUE, ky TEXT DEFAULT '', nguoi_lap TEXT DEFAULT '', don_vi TEXT DEFAULT '', ngay_tao TEXT, trang_thai TEXT DEFAULT 'Nháp', ghi_chu TEXT DEFAULT '', nguoi_duyet TEXT DEFAULT '', ngay_duyet TEXT, nguoi_qt TEXT DEFAULT '', ngay_qt TEXT, ngay_gui_qt TEXT, chenh_lech_qt REAL DEFAULT 0, xu_ly TEXT DEFAULT '', so_tien_thuc_mua REAL, hinh_thuc_tt TEXT DEFAULT '', hoa_don_qt TEXT DEFAULT '', hoa_don_qt2 TEXT DEFAULT '', ngay_xuat_cn TEXT, nguoi_qt_ncc TEXT DEFAULT '', ngay_qt_ncc TEXT, ngay_xuat_ncc TEXT, tam_ung_duyet REAL, nguoi_cap TEXT DEFAULT '', ngay_cap TEXT, ht_cap TEXT DEFAULT '', anh_cap TEXT DEFAULT '', tat_toan TEXT DEFAULT '', ngay_tat_toan TEXT, du_phong REAL, bu_tru REAL, khoi TEXT DEFAULT 'kvc')",
+		"CREATE TABLE {$p}don (stt INTEGER PRIMARY KEY AUTOINCREMENT, ma_don TEXT UNIQUE, ky TEXT DEFAULT '', nguoi_lap TEXT DEFAULT '', don_vi TEXT DEFAULT '', ngay_tao TEXT, trang_thai TEXT DEFAULT 'Nháp', ghi_chu TEXT DEFAULT '', nguoi_duyet TEXT DEFAULT '', ngay_duyet TEXT, nguoi_qt TEXT DEFAULT '', ngay_qt TEXT, ngay_gui_qt TEXT, ngay_gui TEXT, chenh_lech_qt REAL DEFAULT 0, xu_ly TEXT DEFAULT '', so_tien_thuc_mua REAL, hinh_thuc_tt TEXT DEFAULT '', hoa_don_qt TEXT DEFAULT '', hoa_don_qt2 TEXT DEFAULT '', ngay_xuat_cn TEXT, nguoi_qt_ncc TEXT DEFAULT '', ngay_qt_ncc TEXT, ngay_xuat_ncc TEXT, tam_ung_duyet REAL, nguoi_cap TEXT DEFAULT '', ngay_cap TEXT, ht_cap TEXT DEFAULT '', anh_cap TEXT DEFAULT '', tat_toan TEXT DEFAULT '', ngay_tat_toan TEXT, du_phong REAL, bu_tru REAL, khoi TEXT DEFAULT 'kvc', luong TEXT DEFAULT '')",
 		"CREATE TABLE {$p}tamung (id INTEGER PRIMARY KEY AUTOINCREMENT, ma_don TEXT, coso TEXT DEFAULT '', so REAL DEFAULT 0, UNIQUE(ma_don,coso))",
-		"CREATE TABLE {$p}chiphi (stt INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT UNIQUE, ma_don TEXT, coso TEXT DEFAULT '', ngay TEXT, phan_loai_tt TEXT DEFAULT '', doi_tuong TEXT DEFAULT '', nhom TEXT DEFAULT '', noi_dung TEXT DEFAULT '', dvt TEXT DEFAULT '', so_luong REAL, don_gia REAL, thanh_tien REAL DEFAULT 0, ghi_chu TEXT DEFAULT '', anh TEXT DEFAULT '', tao_luc TEXT, thue_suat REAL, tien_thue REAL, thuc_mua REAL, cn_xu_ly INTEGER DEFAULT 1, phat_sinh INTEGER DEFAULT 0, tk_no TEXT DEFAULT '', tk_co TEXT DEFAULT '')",
+		"CREATE TABLE {$p}chiphi (stt INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT UNIQUE, ma_don TEXT, coso TEXT DEFAULT '', ngay TEXT, phan_loai_tt TEXT DEFAULT '', doi_tuong TEXT DEFAULT '', nhom TEXT DEFAULT '', noi_dung TEXT DEFAULT '', dvt TEXT DEFAULT '', so_luong REAL, don_gia REAL, thanh_tien REAL DEFAULT 0, ghi_chu TEXT DEFAULT '', anh TEXT DEFAULT '', tao_luc TEXT, thue_suat REAL, tien_thue REAL, thuc_mua REAL, cn_xu_ly INTEGER DEFAULT 1, phat_sinh INTEGER DEFAULT 0, tk_no TEXT DEFAULT '', tk_co TEXT DEFAULT '', giai_doan TEXT DEFAULT '')",
 		"CREATE TABLE {$p}so_chi (stt INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT UNIQUE, ngay TEXT, ky TEXT DEFAULT '', coso TEXT DEFAULT '', loai TEXT DEFAULT '', tk_no TEXT DEFAULT '', tk_co TEXT DEFAULT '', ma_dt TEXT DEFAULT '', doi_tuong TEXT DEFAULT '', noi_dung TEXT DEFAULT '', dvt TEXT DEFAULT '', so_luong REAL, don_gia REAL, so_tien REAL DEFAULT 0, hinh_thuc TEXT DEFAULT '', vat TEXT DEFAULT '', thue_suat REAL, tien_thue REAL, ghi_chu TEXT DEFAULT '', anh TEXT DEFAULT '', ma_du_an TEXT DEFAULT '', hang_muc TEXT DEFAULT '', du_toan REAL, ho_so TEXT DEFAULT '', nguoi_nhap TEXT DEFAULT '', tao_luc TEXT, ngay_xuat TEXT, khoi TEXT DEFAULT 'kvc')",
 		"CREATE TABLE {$p}da_index (stt INTEGER PRIMARY KEY AUTOINCREMENT, ma_da TEXT UNIQUE, ten TEXT DEFAULT '', loai TEXT DEFAULT '', trang_thai TEXT DEFAULT 'Đang làm', ngay_tao TEXT, nguoi_tao TEXT DEFAULT '', khoi TEXT DEFAULT 'kvc')",
 		"CREATE TABLE {$p}da_line (id INTEGER PRIMARY KEY AUTOINCREMENT, ma_da TEXT, row_no INTEGER DEFAULT 5, noi_dung TEXT DEFAULT '', du_toan REAL DEFAULT 0, thuc_te REAL DEFAULT 0, so_luong REAL DEFAULT 0, don_gia REAL DEFAULT 0, thanh_tien REAL DEFAULT 0, vat TEXT DEFAULT '', anh TEXT DEFAULT '', gian TEXT DEFAULT '', note TEXT DEFAULT '', cap_cha TEXT DEFAULT '', hinh_thuc TEXT DEFAULT '', ho_so TEXT DEFAULT '', loai_cp TEXT DEFAULT '', tk_no TEXT DEFAULT '', tk_co TEXT DEFAULT '', ma_dt TEXT DEFAULT '', tao_luc TEXT DEFAULT NULL, UNIQUE(ma_da,row_no))",
@@ -1045,6 +1078,47 @@ function vhd_dung_bang() {
 
 /* Múi giờ của website. WordPress thật đọc `timezone_string` rồi tới `gmt_offset`. Bản giả này
    để phép thử dựng được cả hai ca: đúng giờ Việt Nam, và ca UTC mà máy chủ mới cài hay dính. */
+/* ---- WP-Cron tối giản, có seam ------------------------------------------------------------
+   $GLOBALS['VHCP_LICH'] = [ hook => [ 'ts' => mốc, 'nhip' => tên nhịp, 'args' => … ] ].
+   Có seam thì bài thử chốt được "đặt lịch ĐÚNG MỐC, ĐÚNG NHỊP" — chứ không chỉ "không nổ".
+   Bài hộp thư đã vấp: lịch hằng ngày đặt sai múi giờ là chạy trễ 7 tiếng mà mọi phép vẫn xanh. */
+if ( ! function_exists( 'wp_next_scheduled' ) ) {
+	function wp_next_scheduled( $hook, $args = array() ) {
+		return isset( $GLOBALS['VHCP_LICH'][ $hook ] ) ? (int) $GLOBALS['VHCP_LICH'][ $hook ]['ts'] : false;
+	}
+	function wp_schedule_event( $ts, $nhip, $hook, $args = array() ) {
+		$GLOBALS['VHCP_LICH'][ $hook ] = array( 'ts' => (int) $ts, 'nhip' => (string) $nhip, 'args' => $args );
+		return true;
+	}
+	function wp_unschedule_event( $ts, $hook, $args = array() ) {
+		unset( $GLOBALS['VHCP_LICH'][ $hook ] );
+		return true;
+	}
+	function wp_clear_scheduled_hook( $hook, $args = array() ) {
+		unset( $GLOBALS['VHCP_LICH'][ $hook ] );
+		return 1;
+	}
+}
+
+/* ---- Gửi thư: chỉ GHI LẠI, không gửi. $GLOBALS['VHCP_MAIL'] = [ [to, subject, message], … ].
+   Bài quy trình chốt được "gửi đúng người, đúng tiêu đề" thay vì chỉ "không nổ". */
+if ( ! function_exists( 'wp_mail' ) ) {
+	function wp_mail( $to, $subject, $message, $headers = '', $attachments = array() ) {
+		if ( ! empty( $GLOBALS['VHCP_MAIL_HONG'] ) ) { return false; }
+		$GLOBALS['VHCP_MAIL'][] = array( 'to' => $to, 'subject' => $subject, 'message' => $message );
+		return true;
+	}
+}
+if ( ! function_exists( 'is_email' ) ) {
+	function is_email( $e ) { return filter_var( (string) $e, FILTER_VALIDATE_EMAIL ) ? (string) $e : false; }
+}
+if ( ! function_exists( 'site_url' ) ) {
+	function site_url( $duong = '', $scheme = null ) { return 'https://example.test/' . ltrim( (string) $duong, '/' ); }
+}
+if ( ! function_exists( 'home_url' ) ) {
+	function home_url( $duong = '', $scheme = null ) { return 'https://example.test/' . ltrim( (string) $duong, '/' ); }
+}
+
 function wp_timezone() {
 	$s = get_option( 'timezone_string' );
 	if ( is_string( $s ) && '' !== $s ) { return new DateTimeZone( $s ); }

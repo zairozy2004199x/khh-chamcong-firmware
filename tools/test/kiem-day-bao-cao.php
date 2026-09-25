@@ -13,6 +13,10 @@
  *                  RỖNG, chứ tuyệt đối không phải thấy CẢ 15 QUÁN (ô cơ sở trống nghĩa là "xem
  *                  được hết").
  *   · gỡ người   — gỡ ở trang Nhân sự mà phiên đang mở vẫn vào được thì cái gỡ ấy không có thật.
+ *   · 🔴 vai     — (1.58.0, anh Thắng 23/09/2026: *"chỉ đẩy nhân sự qua, chứ không phân quyền
+ *                  nhiệm vụ trong đó, mà do trang tự phân quyền"*) đẩy sang KHÔNG mang vai: người
+ *                  mới là CHƯA CẤP, không nhập được; vai gửi kèm bị bỏ qua; đẩy lại (bên kia
+ *                  `dong_bo()` mỗi lần sửa hồ sơ) KHÔNG xoá vai tab Quản trị đã cấp.
  *
  * Chạy: php tools/test/kiem-day-bao-cao.php
  */
@@ -82,6 +86,12 @@ $kq = khh_dt_day_vao( array(
 phep( 'đẩy người mới vào được', ! empty( $kq['ok'] ) && 'them' === $kq['viec'] );
 phep( 'mã NV ghi hoa', khh_dt_da_day( 'NV001' ) && khh_dt_da_day( 'nv001' ) );
 phep( 'báo là chưa ghép cơ sở', ! empty( $kq['chua_ghep'] ) );
+/* 🔴 Gửi kèm vai 'nhap' mà người mới vẫn phải là CHƯA CẤP. */
+phep( '🔴 đẩy sang không mang vai: người mới là chưa cấp', '' === (string) khh_dt_nguoi( 'NV001' )['vai'] );
+phep( 'và kết quả đẩy nói rõ chưa cấp', ! empty( $kq['chua_cap'] ) && '' === $kq['vai'] );
+$kq = khh_dt_day_vao( array( 'ma_nv' => 'NV009', 'ho_ten' => 'Thử Duyệt', 'pin' => '90909', 'vai' => 'duyet', 'coso' => 'FZ_ADV_TP' ) );
+phep( '🔴 gửi kèm vai "duyet" cũng bị bỏ qua', ! empty( $kq['ok'] ) && '' === (string) khh_dt_nguoi( 'NV009' )['vai'] );
+khh_dt_day_ra( 'NV009' );
 
 /* --- PIN phải là 4–8 số --- */
 $kq = khh_dt_day_vao( array( 'ma_nv' => 'NV002', 'ho_ten' => 'C', 'pin' => '12', 'coso' => 'FZ_ADV_TP' ) );
@@ -96,6 +106,26 @@ khh_dt_test_dat_the( $dn['token'] );
 $ai = khh_dt_phien_nguoi();
 phep( 'phiên nhận ra đúng người', $ai && 'NV001' === $ai['ma_nv'] );
 phep( 'gõ sai PIN thì không vào', empty( khh_dt_pin_dang_nhap( '9999' )['ok'] ) );
+
+/* --- 🔴 vai do TAB QUẢN TRỊ cấp (`khh_dt_dat_vai`), không phải trang nhân sự --- */
+$kq = khh_dt_dat_vai( 'NV001', 'quan_tri' );
+phep( 'vai lạ bị chối, không quy về "nhap"', empty( $kq['ok'] ) && '' === (string) khh_dt_nguoi( 'NV001' )['vai'] );
+$kq = khh_dt_dat_vai( 'NV404', 'nhap' );
+phep( 'cấp cho mã chưa đẩy sang thì chối', empty( $kq['ok'] ) );
+$kq = khh_dt_dat_vai( 'nv001', 'nhap' );
+phep( 'cấp vai "nhap" được (mã thường cũng nhận)', ! empty( $kq['ok'] ) && 'nhap' === (string) khh_dt_nguoi( 'NV001' )['vai'] );
+khh_dt_test_quen_phien();
+phep( 'phiên đang mở thấy vai mới ngay', 'nhap' === (string) khh_dt_phien_nguoi()['vai'] );
+/* 🔴 Bên chấm công `dong_bo()` đẩy lại sau mỗi lần sửa hồ sơ — vai vừa cấp KHÔNG được bay. */
+$kq = khh_dt_day_vao( array( 'ma_nv' => 'NV001', 'ho_ten' => 'Trần Thị B', 'pin' => '4321', 'vai' => 'duyet', 'coso' => 'FZ_ADV_TP' ) );
+phep( '🔴 đẩy lại (kèm vai khác) không đổi vai đã cấp', ! empty( $kq['ok'] ) && 'sua' === $kq['viec'] && 'nhap' === (string) khh_dt_nguoi( 'NV001' )['vai'] );
+phep( 'và kết quả đẩy lại báo không còn chưa cấp', empty( $kq['chua_cap'] ) && 'nhap' === $kq['vai'] );
+$kq = khh_dt_dat_vai( 'NV001', '' );
+phep( 'thu vai về "" được', ! empty( $kq['ok'] ) && '' === (string) khh_dt_nguoi( 'NV001' )['vai'] );
+khh_dt_day_vao( array( 'ma_nv' => 'NV001', 'ho_ten' => 'Trần Thị B', 'pin' => '4321', 'coso' => 'FZ_ADV_TP' ) );
+phep( 'đẩy lại người chưa cấp vẫn là chưa cấp', '' === (string) khh_dt_nguoi( 'NV001' )['vai'] );
+khh_dt_dat_vai( 'NV001', 'nhap' );
+khh_dt_test_quen_phien();
 
 /* 🔴 CHƯA GHÉP THÌ KHÔNG THẤY GÌ — không được trả mảng rỗng (nghĩa là "mọi cơ sở"). */
 phep( 'chưa ghép cơ sở -> không thấy cơ sở nào', array( KHH_DT_CHUA_GHEP ) === khh_dt_phien_co_so_ds() );
@@ -146,20 +176,31 @@ khh_dt_day_vao( array(
 	'ma_nv'  => 'KT01',
 	'ho_ten' => 'Lý Tiểu Phương',
 	'pin'    => '778899',
-	'vai'    => 'duyet',
 	'coso'   => 'VP_KH-HCM',
 ) );
 $dn_kt = khh_dt_pin_dang_nhap( '778899' );
 khh_dt_test_dat_the( $dn_kt['token'] );
+/* Chưa cấp vai thì kế toán CHƯA xem tổng: mã VP không ghép được nên thấy rỗng — và mã ấy còn bị
+   nhắc ghép, vì lúc này chưa ai biết đó là người duyệt. */
+phep( 'chưa cấp vai -> kế toán chưa xem tổng (thấy rỗng)', array( KHH_DT_CHUA_GHEP ) === khh_dt_phien_co_so_ds() );
+khh_dt_dat_vai( 'KT01', 'duyet' );
+khh_dt_test_quen_phien();
 phep( 'kế toán vai duyệt xem được tổng mọi cơ sở', array() === khh_dt_phien_co_so_ds() );
 phep( 'và mã văn phòng không bị đòi ghép', ! in_array( 'VP_KH-HCM', khh_dt_ma_chua_ghep(), true ) );
+/* Sổ cho tab Quản trị: có đủ người, có vai, KHÔNG lộ PIN. */
+$so = khh_dt_ds_nguoi_pin();
+$kt = array_values( array_filter( $so, function ( $x ) { return 'KT01' === $x['ma_nv']; } ) );
+phep( 'sổ PIN cho tab Quản trị có kế toán với vai duyệt', $kt && 'duyet' === $kt[0]['vai'] && array( 'VP_KH-HCM' ) === $kt[0]['coso_ds'] );
+phep( 'và không lộ PIN', $kt && ! isset( $kt[0]['pin'] ) && true === $kt[0]['co_pin'] );
+$b = array_values( array_filter( $so, function ( $x ) { return 'NV001' === $x['ma_nv']; } ) );
+phep( 'sổ kèm tên POS đã ghép của từng người', $b && in_array( 'TuTu Train - Aeon Tân Phú', $b[0]['coso_ten'], true ) );
 
 /* Về lại phiên của cửa hàng trưởng cho các phép sau. */
 $dn = khh_dt_pin_dang_nhap( '4321' );
 khh_dt_test_dat_the( $dn['token'] );
 
 /* --- vai đọc lại từ bảng, không tin thẻ phiên --- */
-khh_dt_day_vao( array( 'ma_nv' => 'NV001', 'ho_ten' => 'Trần Thị B', 'pin' => '4321', 'vai' => 'duyet', 'coso' => 'FZ_ADV_TP' ) );
+khh_dt_dat_vai( 'NV001', 'duyet' );
 khh_dt_test_quen_phien();
 $ai = khh_dt_phien_nguoi();
 phep( 'đổi vai là phiên đang mở thấy ngay', $ai && 'duyet' === $ai['vai'] );
@@ -177,8 +218,59 @@ khh_dt_test_dat_the( $dn['token'] );
 khh_dt_test_quen_phien();
 phep( 'đúng người mới', khh_dt_phien_nguoi()['ma_nv'] === 'NV003' );
 
+/* ---- 🔴 VAI CẤP TỰ ĐỘNG LỐI CŨ PHẢI ĐƯỢC ĐÁNH DẤU ĐỂ KIỂM (anh Thắng 23/09/2026: chị Thảo cửa hàng
+   trưởng thấy doanh thu cả 15 quán vì bên Chấm công từng tự suy vai duyệt) ---- */
+delete_option( 'khh_dt_vai_tu_dong' );
+/* Giả một site cũ: hai người đang có vai (NV001 duyet, NV003 nhap qua lối cũ), một người chưa cấp. */
+$GLOBALS['wpdb']->update( khh_dt_bang_nguoi(), array( 'vai' => 'nhap' ), array( 'ma_nv' => 'NV003' ) );
+khh_dt_day_vao( array( 'ma_nv' => 'NV010', 'ho_ten' => 'Chưa Cấp', 'pin' => '101010', 'coso' => 'FZ_ADV_TP' ) );
+phep( 'lần đầu nâng cấp: đánh dấu được', true === khh_dt_danh_dau_vai_cu() );
+$td = khh_dt_vai_tu_dong_ds();
+sort( $td );
+phep( '🔴 mọi người ĐANG có vai đều bị đánh dấu, người chưa cấp thì không', array( 'KT01', 'NV001', 'NV003' ) === $td );
+phep( 'chạy lại không đánh dấu lại (đã có danh sách)', false === khh_dt_danh_dau_vai_cu() );
+$so = khh_dt_ds_nguoi_pin();
+$co = array();
+foreach ( $so as $x ) { $co[ $x['ma_nv'] ] = $x['tu_dong']; }
+phep( 'sổ PIN cắm cờ tu_dong đúng người', true === $co['NV001'] && true === $co['NV003'] && false === $co['NV010'] );
+/* Quản trị nhìn và Lưu -> hết cờ, kể cả khi giữ nguyên vai. */
+khh_dt_dat_vai( 'NV001', 'duyet' );
+phep( '🔴 quản trị bấm Lưu (giữ vai) là hết cờ', ! in_array( 'NV001', khh_dt_vai_tu_dong_ds(), true ) );
+phep( 'người khác vẫn còn cờ', in_array( 'NV003', khh_dt_vai_tu_dong_ds(), true ) );
+/* Đẩy lại từ Nhân sự KHÔNG xoá cờ — đẩy lại không phải quản trị đã nhìn. */
+khh_dt_day_vao( array( 'ma_nv' => 'NV003', 'ho_ten' => 'Lê Văn D', 'pin' => '4321', 'coso' => 'FZ_ADV_TP' ) );
+phep( 'đẩy lại từ Nhân sự không xoá cờ', in_array( 'NV003', khh_dt_vai_tu_dong_ds(), true ) );
+khh_dt_day_ra( 'NV010' );
+
+/* ---- 🔴 TÊN CƠ SỞ LƯU NGUYÊN VĂN NHƯ POS (anh Thắng 24/09/2026: "tại sao có cơ sở không thêm được") ----
+   Tên FABi hay có khoảng trắng thừa; bảng ghép rửa tên -> không còn bằng từng ký tự với cua_hang -> ô tích
+   mở lại như chưa tích, và người ở mã ấy thấy rỗng. */
+$GLOBALS['KHH_DT_TEST_CH'] = array( 'Tutu Train - Estella ( Dịch vụ K&H ) ', 'TuTu Train -  Aeon Tân Phú' );   // đuôi trống, hai dấu cách
+khh_dt_dat_ghep( array( 'TUTU_TP' => array( 'Tutu Train - Estella ( Dịch vụ K&H )', 'tutu train - aeon tân phú' ) ) );
+phep( '🔴 tên gửi lên đã bị cắt khoảng trắng / khác hoa thường vẫn lưu ĐÚNG NGUYÊN VĂN tên POS',
+	array( 'Tutu Train - Estella ( Dịch vụ K&H ) ', 'TuTu Train -  Aeon Tân Phú' ) === khh_dt_ghep_ten_ds( 'TUTU_TP' ) );
+khh_dt_day_vao( array( 'ma_nv' => 'NV020', 'ho_ten' => 'Trần Ngọc Minh Truyền', 'pin' => '202020', 'coso' => 'TUTU_TP' ) );
+khh_dt_dat_vai( 'NV020', 'nhap' );
+$dn20 = khh_dt_pin_dang_nhap( '202020' );
+khh_dt_test_dat_the( $dn20['token'] );
+phep( 'người ở mã ấy thấy đúng hai quán, tên nguyên văn (khớp được cua_hang IN)', array( 'Tutu Train - Estella ( Dịch vụ K&H ) ', 'TuTu Train -  Aeon Tân Phú' ) === khh_dt_phien_co_so_ds() );
+phep( 'tên chưa có trong số liệu POS thì vẫn lưu (đã rửa), không mất', array( 'Quán Mới' ) === khh_dt_dat_ghep( array( 'X1' => array( ' Quán Mới ' ) ) )['X1'] );
+/* Bảng đã lưu kiểu cũ (tên đã rửa) -> REST kể ra tên lệch kèm gợi ý tên đúng. */
+update_option( 'khh_dt_ghep_coso', array( 'TUTU_TP' => array( 'Tutu Train - Estella ( Dịch vụ K&H )' ) ) );
+$rg = khh_dt_rest_ghep();
+phep( '🔴 REST ghep kể tên đã lưu không khớp POS, kèm gợi ý tên nguyên văn',
+	1 === count( $rg['ten_lech'] ) && 'TUTU_TP' === $rg['ten_lech'][0]['ma'] && 'Tutu Train - Estella ( Dịch vụ K&H ) ' === $rg['ten_lech'][0]['goi_y'] );
+khh_dt_rest_dat_ghep( new WP_REST_Request( array( 'ghep' => wp_json_encode( array( 'TUTU_TP' => array( 'Tutu Train - Estella ( Dịch vụ K&H )' ) ) ) ) ) );
+phep( 'Lưu lại một lần là hết lệch', array() === khh_dt_rest_ghep()['ten_lech'] );
+khh_dt_day_ra( 'NV020' );
+unset( $GLOBALS['KHH_DT_TEST_CH'] );
+khh_dt_dat_ghep( array( 'FZ_ADV_TP' => array( 'TuTu Train - Aeon Tân Phú', 'COFFE GO AN LẠC' ), 'TUTU_TP' => 'TuTu Train - Tân Phú' ) );
+$dn = khh_dt_pin_dang_nhap( '4321' );
+khh_dt_test_dat_the( $dn['token'] );
+
 /* --- gỡ người: hàng mất, phiên đang mở chết theo --- */
 khh_dt_day_ra( 'NV003' );
+phep( 'gỡ người thì cờ cũng mất', ! in_array( 'NV003', khh_dt_vai_tu_dong_ds(), true ) );
 khh_dt_test_quen_phien();
 phep( 'gỡ xong thì không còn trong sổ', ! khh_dt_da_day( 'NV003' ) );
 phep( 'và phiên đang mở hết hiệu lực ngay', null === khh_dt_phien_nguoi() );

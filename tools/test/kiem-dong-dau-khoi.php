@@ -69,8 +69,12 @@ foreach ( $TEP as $ten_tep => $src ) {
 			$dem++;
 			/* Cửa sổ đủ rộng để ôm hết mảng dữ liệu của lệnh ghi. `so_chi` truyền một biến
 			   `$data` dựng phía trên, nên phải soi cả đoạn TRƯỚC lệnh ghi. */
-			$tu  = max( 0, $i - 1200 );
-			$vung = mb_substr( $src, $tu, ( $i - $tu ) + 1200 );
+			/* ⚠️ 2400, không phải 1200 (23/09/2026). Mảng dữ liệu của `create_don` mọc thêm mấy
+			   khối chú thích (luồng · khối theo người lập) và dòng `'khoi' =>` trượt ra ngoài
+			   cửa sổ cũ — phép báo "thiếu đóng dấu" cho một lệnh ghi CÓ đóng dấu. Chú thích bị
+			   gỡ SAU khi cắt cửa sổ, nên nó vẫn chiếm chỗ trong cửa sổ. */
+			$tu  = max( 0, $i - 2400 );
+			$vung = mb_substr( $src, $tu, ( $i - $tu ) + 2400 );
 			/* ⚠️ GỠ CHÚ THÍCH TRƯỚC KHI TÌM. Bản đầu tìm chữ `khoi` trong nguyên khối mã, và hai
 			   đột biến "bỏ hẳn dòng đóng dấu" vẫn XANH — vì ngay cạnh mỗi lệnh ghi có một khối
 			   chú thích dài nói về khối, và phép đi bắt đúng mấy chữ ấy. Phép xanh nhờ lời văn
@@ -103,11 +107,17 @@ foreach ( $vung_ghi as $v ) {
 	if ( preg_match_all( "/'khoi'\s*=>\s*([^,\n]+)/u", $v['src'], $m ) ) {
 		foreach ( $m[1] as $x ) {
 			$x = trim( $x );
-			if ( false === mb_strpos( $x, 'VHCP_DB::khoi()' ) ) { $xau[] = $v['ten'] . ': ' . $x; }
+			/* 23/09/2026: sổ `don` đóng dấu qua `khoi_cho_don()` (theo NGƯỜI LẬP, lui về
+			   `VHCP_DB::khoi()`) — anh Thắng chốt Bắc–Nam dùng chung một bản. Chỗ ấy hợp lệ
+			   miễn là hàm ấy vẫn lui về đúng hằng; phép ngay dưới soi điều đó. */
+			if ( false === mb_strpos( $x, 'VHCP_DB::khoi()' ) && false === mb_strpos( $x, 'self::khoi_cho_don(' ) ) { $xau[] = $v['ten'] . ': ' . $x; }
 		}
 	}
 }
-teq( '🔴 chỗ nào đóng dấu cũng gọi `VHCP_DB::khoi()`, không gõ cứng tên khối', array(), $xau );
+teq( '🔴 chỗ nào đóng dấu cũng gọi `VHCP_DB::khoi()` (hoặc `khoi_cho_don()`), không gõ cứng tên khối', array(), $xau );
+$DON_SRC = (string) @file_get_contents( $goc . '/wordpress/vhcp-chi-phi/includes/class-vhcp-don.php' );
+t( '🔴 và `khoi_cho_don()` LUI VỀ `VHCP_DB::khoi()`, không gõ cứng',
+	1 === preg_match( '/function khoi_cho_don\([\s\S]{0,900}?return VHCP_DB::khoi\(\);/u', $DON_SRC ) );
 
 /* ═══ 4. HẰNG MẢNG CỦA BẢN GỐC, VÀ SCRIPT TÁCH PHẢI ĐỔI ĐƯỢC NÓ ════════════════════ */
 teq( 'bản gốc là khối kvc', 'kvc', VHCP_DB::KHOI );

@@ -207,6 +207,51 @@ if ! grep -q "const KHOI = '$MA';" "$DICH/includes/class-vhcp-db.php"; then
   exit 6
 fi
 
+# ── KHỐI CỦA BẢN NÀY PHẢI CÓ MẶT TRONG BỘ TAB ─────────────────────────────────────────────
+#
+# 🔴 CẮN THẬT 22/09/2026 — ANH THẮNG: *"Cứ F5 đơn là trang nó mất không lưu"*. Không phải lỗi
+#    lưu. Đơn ghi xuống sổ đủ cả, nhưng `create_don()` đóng dấu `khoi = VHCP_DB::khoi()` = mã
+#    vùng ('hn'), trong khi bộ khối của bản ấy chép y bản gốc nên chỉ có kvc · mtd · vp. Đơn
+#    mang một mã khối KHÔNG TAB NÀO BÀY -> mở app ra thấy "Chưa có đơn nào", cả hai badge 0.
+#    Đúng y câu cảnh báo nằm sẵn trong `create_don()`: *"Đơn không mang dấu mảng là đơn KHÔNG
+#    TAB NÀO THẤY — tiền có thật mà mở app ra như chưa từng tồn tại."*
+#
+#    Bản MTĐ và VP thoát nạn do TRÙNG HỢP: mã vùng của chúng ('mtd', 'vp') tình cờ đã nằm sẵn
+#    trong bộ khối của bản gốc. Mọi vùng có mã mới — hn, dn, hcm… — đều dính.
+#
+# ⚠️ KHÔNG ĐỔI `KHOI` VỀ 'kvc' CHO DỄ. Cột ấy cố ý mang mã vùng: tới bước dời dữ liệu về một
+#    kho, nó là thứ duy nhất tách được đơn của bên nào. Sửa đúng là cho mã vùng một cái TAB.
+#
+# ⚠️ CHỈ CHÈN KHI CHƯA CÓ — 'mtd' và 'vp' đã nằm sẵn, chèn nữa là khai hai lần một mã.
+KHOI_NHAN="$(printf '%s' "$MA" | tr '[:lower:]' '[:upper:]')"
+if ! grep -q "'$MA' *=> *array(" "$DICH/includes/class-vhcp-donvi.php"; then
+  MA="$MA" KHOI_NHAN="$KHOI_NHAN" perl -0pi -e '
+    s{(const KHOI_THEO_DON_VI = array\(\n)}{$1\t\t\x27$ENV{MA}\x27 => array( \x27$ENV{KHOI_NHAN}\x27 ),\n};
+  ' "$DICH/includes/class-vhcp-donvi.php"
+  if ! grep -q "'$MA' *=> *array(" "$DICH/includes/class-vhcp-donvi.php"; then
+    echo "✗ Không chèn được khối '$MA' vào KHOI_THEO_DON_VI — đơn của bản này sẽ không tab nào thấy."
+    exit 7
+  fi
+fi
+# ⚠️ SOI TRÊN CHÍNH DÒNG BẢNG NHÃN, không soi cả tệp và không soi theo NHÃN. Soi theo nhãn thì
+#    'mtd' đã có sẵn nhãn "Máy tự động" vẫn bị chèn thêm 'mtd' => 'MTD' -> một mảng PHP khai
+#    TRÙNG KHOÁ. PHP lấy cái sau nên nhãn vẫn ra đúng, tức hỏng mà không kêu — thứ chỉ lộ ra
+#    khi ai đó đổi thứ tự chèn. Hỏi đúng câu cần hỏi: mã này đã có mặt trong bảng chưa.
+if ! grep -q "\$m = array(.*'$MA' *=>" "$DICH/includes/class-vhcp-cfg.php"; then
+  # 🔴 NEO VÀO TÊN HÀM, KHÔNG NEO VÀO KHOÁ ĐẦU BẢNG. Bản trước neo vào `'kvc' =>`; ngày
+  #    22/09/2026 bảng nhãn dẫn đầu bằng 'mb' (khối thành MIỀN) là phép thay trượt sạch — và
+  #    cả ba bản vùng sinh ra HỎNG TỪ BƯỚC ĐẦU, kéo theo mười mấy bài kiểm đỏ ở những chỗ
+  #    chẳng liên quan gì tới nhãn khối. Tên hàm thì không đổi theo danh mục.
+  MA="$MA" KHOI_NHAN="$KHOI_NHAN" perl -0777 -pi -e '
+    s{(function ten_khoi\( \$ma \) \{.*?\$m = array\( )}{$1\x27$ENV{MA}\x27 => \x27$ENV{KHOI_NHAN}\x27, }s;
+  ' "$DICH/includes/class-vhcp-cfg.php"
+  if ! grep -q "'$MA' => '$KHOI_NHAN'" "$DICH/includes/class-vhcp-cfg.php"; then
+    echo "✗ Không đặt được nhãn cho khối '$MA' — tab của bản này sẽ hiện trơ mã."
+    exit 8
+  fi
+fi
+
+
 # ── Danh mục gieo sẵn: BẢN MẢNG RIÊNG KHÔNG ĐẺ DANH MỤC CỦA KHU VUI CHƠI ──────────────────
 #
 # 🔴 ANH THẮNG 14/09/2026: *"rõ ràng các trang chi phí là không dùng dữ liệu của nhau, nhỉ là
@@ -248,8 +293,9 @@ php -l "$DICH/includes/class-vhcp-cfg.php" >/dev/null || { echo "✗ Dọn danh 
 #    người ta tiêu tiền túi hoặc trả thẳng nhà cung cấp rồi gom một đợt: một đợt rải qua nhiều
 #    gian, mỗi dòng một gian. Khoá cả đơn theo dòng đầu là ép họ lập năm đơn cho một đợt chi.
 #
-# ⚠️ BẢN GỐC KHU VUI CHƠI GIỮ NGUYÊN `false` — luật một-đơn-một-gian bên ấy có lý do riêng, và
-#    anh Thắng đã dặn đừng can thiệp phần chi phí khu vui chơi.
+# ⚠️ 24/09/2026: bản gốc cũng đã bật `true` (anh Thắng chốt luật "không tạm ứng thì mỗi dòng một
+#    gian" là mặc định), nên lệnh thay dưới thường không đổi gì — GIỮ chốt kiểm ngay sau: bản
+#    vùng mà hằng này về `false` là cả bộ phận Văn phòng bị khoá gian.
 perl -0777 -pi -e '
   s/(const MO_KHI_KHONG_TAM_UNG = )false;/${1}true;/;
 ' "$DICH/includes/class-vhcp-donvi.php"
@@ -299,21 +345,100 @@ case "$MA" in
   mtd) GHE=true  ;;
   *)   GHE=false ;;
 esac
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+# LỌC LOẠI CHI PHÍ THEO VAI TRÒ — BẬT/TẮT THEO VÙNG
+#
+# Anh Thắng 22/09/2026: *"phân loại để lên chi phí dễ nhất, các bộ phận nhập được"* và *"phân
+# theo đầu mục chi phí lớn"*, chốt *"làm luôn cho wed hà nội"*.
+#
+# 🔴 BẬT (mặc định) = hành vi cũ của Khu vui chơi, KHÔNG ĐỔI MỘT LY. Anh Thắng đã dặn đừng đụng
+#    vào bên ấy, và một bản đang chạy thật thì không đổi luật nhập đơn giữa chừng.
+# 🔴 TẮT (hn) = mọi vai thấy đủ loại; ĐẦU MỤC LỚN dẫn đường thay cho bộ lọc.
+#
+# ⚠️ VÌ SAO Ở ĐÂY CHỨ KHÔNG SỬA THẲNG BẢN HN: bản vùng được SINH LẠI từ bản gốc mỗi lần bản
+#    gốc lên bản mới. Sửa riêng bản HN là lượt sinh kế tiếp xoá sạch, và lần ấy không ai đi soi
+#    lại. Đúng cùng lý do `LAY_COSO_GHE` nằm ở đây.
+#
+# ⚠️ ĐÂY KHÔNG PHẢI CỔNG QUYỀN, chỉ là ô chọn bày bao nhiêu dòng. Ai xem được ĐƠN nào vẫn do
+#    đơn vị và cơ sở gác ở máy chủ — cờ này không chạm tới.
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+case "$MA" in
+  hn) LOC_VAI=false ;;
+  *)  LOC_VAI=true  ;;
+esac
+# 🔴 KHỐI CÓ LỌC LOẠI CHI PHÍ KHÔNG — anh Thắng 22/09/2026: *"Khối là dùng chung, vì đã phân
+#    theo vai trò rồi, Khối là liên quan Miền Bắc và Miền Nam thôi"*.
+#    Ở BẢN GỐC khối là MẢNG KINH DOANH (KVC · MTĐ · VP) và ba bảng danh mục tách nhau là cố ý,
+#    nên giữ `true`. Ở bản VÙNG, khối thật sự là miền — tắt, không thì kế toán phải khai lại cả
+#    danh mục cho từng miền trong khi "Chi phí điện nước" ở đâu cũng là chi phí điện nước.
+case "$MA" in
+  hn) LOC_KHOI=false ;;
+  *)  LOC_KHOI=true  ;;
+esac
+# 🔴 BẢN GỐC NAY ĐÃ BẬT SẮN (21/09/2026, anh Thắng: *"đẩy cơ sở bên ghế sang nhé"* — ba khối
+#    nay chung một bản cài, gian ghế rơi vào đúng khối Máy tự động của nó). Nên chiều lật đảo lại:
+#    trước là "bật cho mtd", nay là "TẮT cho bản nào không dùng ghế" — tức vp.
+#    ⚠️ Quên tắt cho vp là danh mục Văn phòng dài thêm mỗi lần bên Ghế mở một điểm đặt máy, rồi
+#       người nhập chọn nhầm và tiền văn phòng rơi vào một gian ghế.
 if [ "$GHE" = "true" ]; then
-  perl -0777 -pi -e "s/const LAY_COSO_GHE = false;/const LAY_COSO_GHE = true;/" "$DICH/includes/class-vhcp-cfg.php"
   if ! grep -q "const LAY_COSO_GHE = true;" "$DICH/includes/class-vhcp-cfg.php"; then
-    echo "✗ Chưa bật được đường lấy cơ sở từ Ghế cho bản '$MA'."
+    echo "✗ Bản '$MA' phải lấy cơ sở từ Ghế mà hằng LAY_COSO_GHE đang tắt."
     grep -n "LAY_COSO_GHE" "$DICH/includes/class-vhcp-cfg.php" | head -3
     exit 9
   fi
 else
-  # Bản gốc đã tắt sẵn; chốt lại để một ngày ai đó bật lại bản gốc thì lỗi nổ ở đây,
-  # chứ không nổ ở danh mục cơ sở của khách hàng sau vài tuần.
+  perl -0777 -pi -e "s/const LAY_COSO_GHE = true;/const LAY_COSO_GHE = false;/" "$DICH/includes/class-vhcp-cfg.php"
   if ! grep -q "const LAY_COSO_GHE = false;" "$DICH/includes/class-vhcp-cfg.php"; then
-    echo "✗ Bản '$MA' không dùng cơ sở Ghế mà hằng LAY_COSO_GHE vẫn đang bật."
+    echo "✗ Chưa tắt được đường lấy cơ sở từ Ghế cho bản '$MA'."
     grep -n "LAY_COSO_GHE" "$DICH/includes/class-vhcp-cfg.php" | head -3
     exit 9
   fi
+fi
+
+# ── LỌC LOẠI THEO VAI TRÒ ─────────────────────────────────────────────────────────────────────
+# Soát lại sau khi thay, y hệt khối trên: thay mà không soát là bản sinh ra mang cờ sai, và
+# không có gì trên màn nói lên điều đó cho tới lúc người dùng mở ô chọn.
+if [ "$LOC_VAI" = "true" ]; then
+  if ! grep -q "const LOC_LOAI_THEO_VAI = true;" "$DICH/includes/class-vhcp-cfg.php"; then
+    echo "✗ Bản '$MA' phải lọc loại theo vai mà hằng LOC_LOAI_THEO_VAI đang tắt."
+    grep -n "LOC_LOAI_THEO_VAI" "$DICH/includes/class-vhcp-cfg.php" | head -3
+    exit 9
+  fi
+else
+  perl -0777 -pi -e "s/const LOC_LOAI_THEO_VAI = true;/const LOC_LOAI_THEO_VAI = false;/" "$DICH/includes/class-vhcp-cfg.php"
+  if ! grep -q "const LOC_LOAI_THEO_VAI = false;" "$DICH/includes/class-vhcp-cfg.php"; then
+    echo "✗ Chưa tắt được phép lọc loại theo vai cho bản '$MA'."
+    grep -n "LOC_LOAI_THEO_VAI" "$DICH/includes/class-vhcp-cfg.php" | head -3
+    exit 9
+  fi
+fi
+
+# ── LỌC LOẠI THEO KHỐI ────────────────────────────────────────────────────────────────────────
+# Cùng khuôn với khối ngay trên: thay xong SOÁT LẠI, dừng hẳn nếu trượt. Bản sinh ra mang cờ
+# sai thì không có gì trên màn nói lên điều đó — cho tới lúc người dùng mở ô Loại chi phí và
+# thấy nó rỗng trơn, đúng cảnh anh Thắng gặp ở bản Hà Nội.
+if [ "$LOC_KHOI" = "true" ]; then
+  if ! grep -q "const LOC_LOAI_THEO_KHOI = true;" "$DICH/includes/class-vhcp-cfg.php"; then
+    echo "✗ Bản '$MA' phải lọc loại theo khối mà hằng LOC_LOAI_THEO_KHOI đang tắt."
+    grep -n "LOC_LOAI_THEO_KHOI" "$DICH/includes/class-vhcp-cfg.php" | head -3
+    exit 10
+  fi
+else
+  perl -0777 -pi -e "s/const LOC_LOAI_THEO_KHOI = true;/const LOC_LOAI_THEO_KHOI = false;/" "$DICH/includes/class-vhcp-cfg.php"
+  if ! grep -q "const LOC_LOAI_THEO_KHOI = false;" "$DICH/includes/class-vhcp-cfg.php"; then
+    echo "✗ Chưa tắt được phép lọc loại theo khối cho bản '$MA'."
+    grep -n "LOC_LOAI_THEO_KHOI" "$DICH/includes/class-vhcp-cfg.php" | head -3
+    exit 10
+  fi
+fi
+# ⚠️ ĐẦU PHÁT NGƯỢC (chi phí → ghế) TẮT Ở MỌI BẢN — anh Thắng chỉ xin *"1 chiều từ ghế sang"*.
+#    Chốt lại ở đây để ai bật thì lỗi nổ ngay lúc dựng bản, không phải sau vài tuần ở dữ liệu
+#    của một hệ khác.
+if ! grep -q "const BAO_COSO_GHE = false;" "$DICH/includes/class-vhcp-cfg.php"; then
+  echo "✗ Bản '$MA' đang bật đầu phát ngược sang Ghế (BAO_COSO_GHE)."
+  grep -n "BAO_COSO_GHE" "$DICH/includes/class-vhcp-cfg.php" | head -3
+  exit 9
 fi
 
 # ── Tên plugin ─────────────────────────────────────────────────────────────────────────────
@@ -335,6 +460,8 @@ echo "  · menu      wp-admin ?page=vhcp${MA}"
 echo "  · tên trang $TEN_TRANG   (đổi được ở wp-admin -> Cài đặt, khỏi sửa mã)"
 echo "  · cơ sở     không tạm ứng -> mỗi dòng chi một cơ sở; có tạm ứng -> khoá theo gian ấy"
 echo "  · lấy từ Ghế $GHE"
+echo "  · lọc loại theo vai $LOC_VAI   (false = mọi bộ phận nhập được, đầu mục lớn dẫn đường)"
+echo "  · lọc loại theo khối $LOC_KHOI  (false = danh mục dùng chung mọi miền)"
 echo
 echo "Bước tiếp:"
 echo "  1. bash tools/build-plugin-zip.sh chi-phi-$MA"

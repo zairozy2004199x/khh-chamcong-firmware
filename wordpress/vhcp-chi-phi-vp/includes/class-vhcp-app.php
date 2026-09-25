@@ -256,6 +256,22 @@ class VHCPVP_App {
 		}
 		$out .= '</script>' . "\n";
 		$out .= '<script src="' . esc_url( VHCPVP_URL . 'assets/js/gas-shim.js' ) . '?ver=' . rawurlencode( VHCPVP_VERSION ) . '"></script>' . "\n";
+
+		/* ══════════════════════════════════════════════════════════════════════════════════
+		 * LỚP VỎ APP ĐIỆN THOẠI — anh Thắng 22/09/2026: *"Xong chuyển vào app điện thoại để
+		 * chạy giao diện điện thoại nhé"*.
+		 *
+		 * 🔴 CHÈN Ở ĐÂY, KHÔNG DỰNG MỘT ĐƯỜNG DẪN RIÊNG. Trang chi phí là của chính bộ này,
+		 *    nên địa chỉ đang chạy TRỞ THÀNH app — không đẻ thêm một trang trùng nội dung.
+		 *
+		 * ⚠️ DÒ CẢ LỚP LẪN HÀM. Shortcode `[vhcpvp_app]` gọi `head_block()` từ ngữ cảnh khác, và
+		 *    bản cũ của bộ này chưa có lớp ấy; gọi hụt một hàm tĩnh là trắng nguyên trang —
+		 *    mà đây đúng là trang kế toán mở hằng ngày. Cùng luật với `VHG_Chan` ở
+		 *    `chan_block()`, và `tools/test/kiem-goi-cheo.php` canh nó cho cả kho.
+		 * ══════════════════════════════════════════════════════════════════════════════════ */
+		if ( class_exists( 'VHCPVP_Pwa' ) && method_exists( 'VHCPVP_Pwa', 'khoi_head' ) ) {
+			$out .= VHCPVP_Pwa::khoi_head();
+		}
 		return $out;
 	}
 

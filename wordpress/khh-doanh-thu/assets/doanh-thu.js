@@ -157,19 +157,46 @@
     o.addEventListener('blur', chay);              // luật 3
   }
 
+  var dtLuot = 0;   // đếm lượt gọi của tab Doanh thu, cùng lối với `dsLuot` ở Đối soát
   function tai() {
-    if (S.dangTai) return;
+    /* 🔴 KHÔNG BỎ RƠI LƯỢT GỌI SAU. Trước 1.58.3 chỗ này `if (S.dangTai) return;` — đổi ngày Từ
+       rồi đổi tiếp ngày đến trong lúc lượt đầu chưa về là lượt hai bị nuốt im lặng: thanh ngày
+       ghi khoảng mới, số vẫn của khoảng cũ. Anh Thắng 23/09/2026: *"chọn ngày nó ko tự ra"*.
+       Nay đánh số lượt: lượt nào về trễ thì bỏ, lượt mới nhất luôn được vẽ. */
+    var luot = ++dtLuot;
     var k = tinhKy();
     var dai = cach(k.tu, k.den) + 1;
     var truoc = doi(k.tu, -dai);
     S.dangTai = true;
     api('bao-cao?tu=' + truoc + '&den=' + k.den).then(function (r) {
+      if (luot !== dtLuot) return;
       S.dangTai = false;
       S.ngay = (r && r.ngay) || [];
       ve();
     }).catch(function (e) {
+      if (luot !== dtLuot) return;
       S.dangTai = false;
       bao(esc(String(e.message || e)), 'loi');
+    });
+  }
+
+  /* Nút Lọc: đọc CẢ HAI ô ngày một lượt rồi chạy. Anh Thắng 23/09/2026: *"chọn ngày nó ko tự
+     ra, thêm nút tìm kiếm để nó chạy ngày lọc"*. Ô ngày vẫn tự chạy khi chọn xong (noiONgay),
+     nhưng nút là đường chắc chắn: bấm là chạy, kể cả khi giá trị không đổi. */
+  function locTay(oTu, oDen, dat) {
+    var tu = oTu ? oTu.value : '', den = oDen ? oDen.value : '';
+    if (!NGAY_DU.test(tu) || !NGAY_DU.test(den)) {
+      bao('Chọn đủ ngày <b>Từ</b> và <b>đến</b> rồi bấm Lọc.', 'loi');
+      return false;
+    }
+    if (tu > den) { var t = tu; tu = den; den = t; }
+    dat(tu, den);
+    return true;
+  }
+  function locKhiEnter(o, nut) {
+    if (!o || !nut) return;
+    o.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter') { ev.preventDefault(); nut.click(); }
     });
   }
 
@@ -677,9 +704,13 @@
           '<button class="tab" type="button" data-tab="nhap">Nhập báo cáo ngày</button>' +
           '<button class="tab" type="button" data-tab="kho">Kho hàng hoá</button>' +
           '<button class="tab" type="button" data-tab="doisoat">Đối soát</button>' +
+          /* Anh Thắng 24/09/2026: *"cho nó sang tab cảnh báo đi, đây tab báo cáo mà"* — 91 thẻ ngày chưa chốt
+             chèn đầu tab Nhập là quá ồn cho người văn phòng. Việc treo ở đây, gom theo cơ sở. */
+          '<button class="tab" type="button" data-tab="canhbao" id="dtTabCB">Cảnh báo</button>' +
           '<button class="tab" type="button" data-tab="quantri" id="dtTabQT" hidden>Quản trị</button>' +
         '</div>' +
         '<div id="dtTabNhap" hidden></div>' +
+        '<div id="dtTabCanhBao" hidden></div>' +
         '<div id="dtTabKho" hidden></div>' +
         '<div id="dtTabDoiSoat" hidden></div>' +
         '<div id="dtTabQuanTri" hidden></div>' +
@@ -694,7 +725,8 @@
           '<span class="o" id="dtOCH"><label for="dtChonCH">Cửa hàng</label>' +
             '<select id="dtChonCH"><option value="*">Tất cả cửa hàng</option></select></span>' +
           '<span class="o"><label for="dtTu">Từ</label><input type="date" id="dtTu">' +
-            '<label for="dtDen">đến</label><input type="date" id="dtDen"></span>' +
+            '<label for="dtDen">đến</label><input type="date" id="dtDen">' +
+            '<button class="nut" type="button" id="dtLoc" title="Chạy theo hai ngày đã chọn">Lọc</button></span>' +
         '</div>' +
         '<div id="dtTrong" class="khung" hidden><div class="trong">' +
           '<b>Kho chưa có số liệu.</b><br>Bấm <b>Nạp báo cáo</b> ở trên rồi thả file xuất từ FABi vào.' +
@@ -733,8 +765,16 @@
     Array.prototype.forEach.call(G.querySelectorAll('.loc .vien'), function (c) {
       c.addEventListener('click', function () { S.ky = c.dataset.k; tai(); });
     });
-    noiONgay(q('#dtTu'), function (v) { S.ky = 'tay'; S.tu = v; tai(); });
-    noiONgay(q('#dtDen'), function (v) { S.ky = 'tay'; S.den = v; tai(); });
+    /* 🔴 KHÔNG tự chạy khi đổi ngày ở tab có nút Lọc. Anh Thắng 24/09/2026: *"cứ bấm nào nó lại mất
+       bảng"* — chọn ngày Từ xong, nửa giây sau tab tự tải và vẽ lại cả thanh lọc, bảng lịch đang mở
+       của ô "đến" biến mất, chưa kịp chọn ngày thứ hai. Hai ô ngày chỉ là nơi gõ; chạy khi bấm Lọc
+       hoặc Enter (`locTay` kiểm đủ hai ngày, tự đảo nếu ngược). Ô ngày lẻ (sổ kho, thẻ kho) không
+       có nút nên vẫn dùng `noiONgay`. */
+    q('#dtLoc').addEventListener('click', function () {
+      locTay(q('#dtTu'), q('#dtDen'), function (tu, den) { S.ky = 'tay'; S.tu = tu; S.den = den; tai(); });
+    });
+    locKhiEnter(q('#dtTu'), q('#dtLoc'));
+    locKhiEnter(q('#dtDen'), q('#dtLoc'));
     q('#dtChonCH').addEventListener('change', function () { S.ch = q('#dtChonCH').value; ve(); });
     q('#dtXepR').addEventListener('click', function () { S.xepMon = 'r'; ve(); });
     q('#dtXepQ').addEventListener('click', function () { S.xepMon = 'q'; ve(); });
@@ -895,6 +935,7 @@
       q('#dtNap').hidden = !cf.duoc_nap;
       q('#dtXoa').hidden = rong || !cf.duoc_nap;
       q('#dtTabQT').hidden = !cf.quan_tri;
+      demCanhBao();
       veNguoiXem(cf);
       if (cf.chua_ghep_co_so) {
         /* Đã đẩy sang nhưng mã cơ sở chưa khai trong bảng ghép -> người này không thấy gì. Nói
@@ -952,8 +993,23 @@
   }
 
   function thoatPin() {
-    api('dang-xuat', { method: 'POST' }).catch(function () { /* thẻ hỏng thì thôi, vẫn xoá ở máy */ })
-      .then(function () { datThe(''); S.cf = null; khoiDong(); });
+    var cf = S.cf || {};
+    var t = q('#dtThoat');
+    if (t) { t.disabled = true; t.textContent = 'Đang thoát…'; }
+    api('dang-xuat', { method: 'POST' }).then(function (r) {
+      datThe(''); S.cf = null;
+      /* Vừa huỷ phiên WordPress thì nonce REST đang cầm là của phiên đã chết: gọi tiếp
+         `cau-hinh` sẽ bị chối 403. Tải lại trang để nhận nonce mới — và tải lại ĐÚNG địa chỉ đang
+         đứng, không phụ thuộc link đẹp đã flush hay chưa. */
+      if (r && r.wp) { window.location.reload(); return; }
+      khoiDong();
+    }).catch(function () {
+      datThe(''); S.cf = null;
+      /* REST hỏng (plugin bảo mật chặn) mà đang là tài khoản WordPress thì lùi về đường thoát
+         cũ của WordPress — còn hơn kẹt lại là người trước trên máy dùng chung. */
+      if (!cf.bang_pin && cf.link_ra) { window.location.href = cf.link_ra; return; }
+      khoiDong();
+    });
   }
 
   function veNguoiXem(cf) {
@@ -972,12 +1028,12 @@
          · vào bằng tài khoản -> `cf.link_ra` (wp_logout_url): thoát hẳn khỏi WordPress.
        ⚠️ Lối thứ hai phải là <a> cho người BẤM, vì wp_logout_url mang nonce — gọi bằng fetch là
           WordPress chối, và chối im lặng nên người dùng chỉ thấy nút bấm không phản hồi. */
+    /* 23/09/2026 anh Thắng: "đăng xuất ra nó nhảy ra trang wordpress". Lối <a> wp_logout_url đưa
+       người ta sang wp-login.php và không quay lại. Nay CẢ HAI lối bấm cùng một nút: REST
+       `dang-xuat` huỷ phiên WordPress lẫn phiên PIN ngay ở máy chủ, rồi màn tải lại đúng địa chỉ
+       đang đứng -> gặp ô PIN. `link_ra` chỉ còn là đường LÙI khi REST hỏng (plugin bảo mật chặn). */
     o.innerHTML = '<span class="ten">' + esc(cf.ten_toi) + '</span>' +
-      (cf.bang_pin
-        ? '<button class="vien" type="button" id="dtThoat">Thoát</button>'
-        : (cf.link_ra
-            ? '<a class="vien" href="' + esc(cf.link_ra) + '">Thoát</a>'
-            : ''));
+      '<button class="vien" type="button" id="dtThoat">Thoát</button>';
     var t = q('#dtThoat');
     if (t) t.addEventListener('click', thoatPin);
   }
@@ -1002,7 +1058,9 @@
     q('#dtTabKho').hidden = t !== 'kho';
     q('#dtTabDoiSoat').hidden = t !== 'doisoat';
     q('#dtTabQuanTri').hidden = t !== 'quantri';
+    q('#dtTabCanhBao').hidden = t !== 'canhbao';
     if (t === 'nhap') dungNhap();
+    if (t === 'canhbao') taiCanhBao();
     if (t === 'kho') taiKho();
     if (t === 'doisoat') taiDoiSoat();
     if (t === 'quantri') taiQuanTri();
@@ -1013,6 +1071,10 @@
     var d = new Date(); d.setDate(d.getDate() - 1); return ymd(d);
   }
 
+  /* Ngày hôm nay, lấy theo múi giờ của MÁY NGƯỜI DÙNG qua `ymd()` — không dùng
+     `toISOString()`, hàm ấy đổi sang UTC nên buổi tối ở Việt Nam sẽ ra ngày hôm trước. */
+  function homNay() { return ymd(new Date()); }
+
   function dungNhap() {
     var o = q('#dtTabNhap');
     if (o.dataset.xong) { napBaoCao(); return; }
@@ -1021,13 +1083,19 @@
     o.innerHTML =
       '<div class="khung"><header><h2>Nhập báo cáo ngày</h2>' +
         '<span class="goi">Máy POS tự điền phần của nó — cơ sở chỉ nhập phần máy không biết.</span></header>' +
+        /* Quy trình hằng ngày (anh Thắng 24/09/2026: "làm quy trình báo cáo hằng ngày tự động — báo cáo cơ
+           sở thôi"): trên cùng là VIỆC CÒN TREO của đúng cơ sở mình, bấm là nhảy tới ngày ấy; dưới ô chọn
+           ngày là BỐN BƯỚC của ngày đang mở. Hệ theo dõi và nhắc — không tự điền số thay cơ sở. */
+        '<div id="bcViec" class="bc-viec"></div>' +
         '<div class="loc" style="margin:14px 0 4px">' +
           '<span class="o"><label for="bcNgay">Ngày</label><input type="date" id="bcNgay"></span>' +
           '<span class="o" id="bcOCH"><label for="bcCH">Cơ sở</label><select id="bcCH">' +
             ds.map(function (c) { return '<option value="' + esc(c) + '">' + esc(c) + '</option>'; }).join('') +
           '</select></span>' +
         '</div>' +
+        '<div id="bcBuoc" class="bc-buoc"></div>' +
         '<div id="bcPos" class="bc-pos"></div>' +
+        '<div id="bcHang"></div>' +
         '<div class="bc-luoi" id="bcNhap">' +
           o_nhap('tien_mat_dem', 'Tiền mặt đếm trong két', 'cuối ca, đếm thật') +
           o_nhap('tien_nop', 'Tiền thực nộp về quỹ', 'số tiền bàn giao') +
@@ -1038,11 +1106,15 @@
           o_nhap('ve_giay', 'Vé giấy đã soát', 'nếu có soát vé') +
         '</div>' +
         '<label class="bc-o" style="margin-top:12px"><b>Ghi chú</b>' +
-          '<textarea id="bc_ghi_chu" rows="2" placeholder="Sự cố, lý do huỷ bill, khách đoàn…"></textarea></label>' +
+          '<textarea id="bc_ghi_chu" autocomplete="off" rows="2" placeholder="Sự cố, lý do huỷ bill, khách đoàn…"></textarea></label>' +
         '<div id="bcLech" class="bc-lech"></div>' +
         '<div class="bc-nut">' +
           '<button class="nut chinh" type="button" id="bcLuu">Lưu báo cáo</button>' +
           '<button class="nut" type="button" id="bcChot">Lưu và chốt ngày</button>' +
+          /* Anh Thắng 24/09/2026: "Lưu và chốt xong nó sẽ có thêm tải ảnh và chia sẻ báo cáo này lên Zalo".
+             Hai nút chỉ hiện khi ngày này ĐÃ có báo cáo lưu (ảnh dựng từ số đã lưu, không từ ô đang gõ). */
+          '<button class="vien" type="button" id="bcTaiAnh" hidden>Tải ảnh báo cáo</button>' +
+          '<button class="vien" type="button" id="bcChiaSe" hidden>Chia sẻ lên Zalo</button>' +
           '<span class="day"></span><span id="bcTrangThai"></span>' +
         '</div>' +
         '<div class="khh-dt-bao" id="bcBao" hidden></div>' +
@@ -1058,12 +1130,141 @@
     });
     q('#bcLuu').addEventListener('click', function () { luuBaoCao(0); });
     q('#bcChot').addEventListener('click', function () { luuBaoCao(1); });
+    q('#bcTaiAnh').addEventListener('click', taiAnhBC);
+    q('#bcChiaSe').addEventListener('click', chiaSeBC);
+    q('#bcViec').addEventListener('click', function (ev) {
+      var b = ev.target.closest ? ev.target.closest('[data-sang-cb]') : null;
+      if (!b) return;
+      ev.preventDefault();
+      doiTab('canhbao');
+    });
+    taiViec();
     napBaoCao();
+  }
+
+  /* ---- VIỆC CÒN TREO của cơ sở mình (máy chủ lọc theo người xem) ---- */
+  function taiViec() {
+    var o = q('#bcViec');
+    if (!o) return;
+    api('quy-trinh').then(function (r) { S.viecR = r; veViec(o, r); nhanCanhBao(r); }).catch(function () { o.innerHTML = ''; });
+  }
+
+  /* Nhãn tab "Cảnh báo (N)" — N = số ngày chưa chốt của cơ sở mình. Gọi lúc mở trang và sau mỗi lần lưu. */
+  function nhanCanhBao(r) {
+    var b = q('#dtTabCB');
+    if (!b) return;
+    var n = ((r && r.viec) || []).length, qh = ((r && r.viec) || []).filter(function (x) { return x.qua_han; }).length;
+    b.innerHTML = 'Cảnh báo' + (n ? ' <span class="dem' + (qh ? ' xau' : '') + '">' + n + '</span>' : '');
+  }
+  function demCanhBao() {
+    api('quy-trinh').then(function (r) { S.viecR = r; nhanCanhBao(r); }).catch(function () {});
+  }
+
+  var QT_NHAN = { chua_fabi: 'chưa có số máy POS', chua_nop: 'chưa nộp', da_luu: 'đã lưu, chưa chốt', da_chot: 'đã chốt' };
+
+  function veViec(o, r) {
+    /* Trên tab Nhập chỉ MỘT DÒNG: bao nhiêu ngày chưa chốt, mấy ngày quá hạn, bấm sang tab Cảnh báo để mở
+       từng ngày. Danh sách đầy đủ nằm bên tab Cảnh báo (anh Thắng 24/09/2026: "đây tab báo cáo mà"). */
+    var ds = (r && r.viec) || [], han = (r && r.han) || '10:00';
+    if (!ds.length) {
+      o.innerHTML = '<div class="bc-viec-o xong">✓ <b>Đã chốt hết</b> tới hôm qua. Ngày mới chốt trước <b>' + esc(han) + '</b> sáng hôm sau.</div>';
+      return;
+    }
+    var quaHan = ds.filter(function (x) { return x.qua_han; }).length;
+    o.innerHTML = '<div class="bc-viec-o' + (quaHan ? ' xau' : '') + '"><b>' + ds.length + ' ngày chưa chốt</b>' +
+      (quaHan ? ' · <b>' + quaHan + ' quá hạn</b>' : '') + ' — chốt trước ' + esc(han) + ' sáng hôm sau. ' +
+      '<button class="vien" type="button" data-sang-cb="1" style="margin-left:6px">Xem ở tab Cảnh báo →</button></div>';
+  }
+
+  /* ================= tab CẢNH BÁO =================
+     Việc còn treo của (những) cơ sở mình, GOM THEO CƠ SỞ: người văn phòng thấy 15 quán × 7 ngày thành 15 dòng,
+     mỗi dòng mấy thẻ ngày; cửa hàng trưởng thấy đúng quán mình. Bấm thẻ ngày là sang tab Nhập đúng ngày ấy. */
+  function taiCanhBao() {
+    var o = q('#dtTabCanhBao');
+    if (!o) return;
+    if (!S.viecR) o.innerHTML = '<div class="khung"><div class="trong">Đang tải…</div></div>';
+    api('quy-trinh').then(function (r) { S.viecR = r; nhanCanhBao(r); veCanhBao(o, r); })
+      .catch(function (e) { o.innerHTML = '<div class="khung"><div class="trong">' + esc(e.message || e) + '</div></div>'; });
+  }
+
+  function veCanhBao(o, r) {
+    var ds = (r && r.viec) || [], han = (r && r.han) || '10:00';
+    var quaHan = ds.filter(function (x) { return x.qua_han; }).length;
+    var h = '<div class="khung" id="cbViec"><header><h2>Báo cáo cơ sở chưa chốt</h2>' +
+      '<span class="goi">' + (ds.length ? ds.length + ' ngày×cơ sở' + (quaHan ? ' · ' + quaHan + ' quá hạn' : '') : 'không còn gì treo') +
+      ' · hạn ' + esc(han) + ' sáng hôm sau</span></header>';
+    if (!ds.length) {
+      h += '<div class="trong">✓ Mọi cơ sở đã chốt tới hôm qua.</div></div>';
+      o.innerHTML = h; noiCanhBao(o); return;
+    }
+    /* Gom theo cơ sở, giữ thứ tự ngày cũ trước trong từng quán. */
+    var nhom = {}, thuTu = [];
+    ds.forEach(function (x) {
+      if (!nhom[x.cua_hang]) { nhom[x.cua_hang] = []; thuTu.push(x.cua_hang); }
+      nhom[x.cua_hang].push(x);
+    });
+    thuTu.sort(function (a, b) {
+      var qa = nhom[a].filter(function (x) { return x.qua_han; }).length, qb = nhom[b].filter(function (x) { return x.qua_han; }).length;
+      return (qb - qa) || (nhom[b].length - nhom[a].length) || a.localeCompare(b);
+    });
+    var the = function (x) {
+      return '<button class="vien' + (x.qua_han ? ' qua-han' : '') + '" type="button" data-viec-ngay="' + esc(x.ngay) + '" data-viec-ch="' + esc(x.cua_hang) + '" title="' + esc(QT_NHAN[x.trang_thai] || x.trang_thai) + '">' +
+        esc(ngayVN(x.ngay).slice(0, 5)) + '<span>' + esc(QT_NHAN[x.trang_thai] || x.trang_thai) + '</span></button>';
+    };
+    h += '<div class="chu-them">Bấm một ngày để mở đúng ngày ấy ở tab Nhập báo cáo. Ngày đỏ là đã quá hạn.</div>' +
+      '<div class="bang-the bang-cuon" style="margin-top:8px"><table><thead><tr>' +
+      '<th style="text-align:left">Cơ sở</th><th>Chưa chốt</th><th>Quá hạn</th><th style="text-align:left">Ngày</th></tr></thead><tbody>' +
+      thuTu.map(function (c) {
+        var d = nhom[c], qh = d.filter(function (x) { return x.qua_han; }).length;
+        return '<tr' + (qh ? ' class="qua-han"' : '') + '><td data-nhan="Cơ sở" style="text-align:left"><b>' + esc(c) + '</b></td>' +
+          '<td class="s" data-nhan="Chưa chốt">' + d.length + '</td>' +
+          '<td class="s" data-nhan="Quá hạn"' + (qh ? ' style="color:var(--xau);font-weight:600"' : '') + '>' + (qh || '—') + '</td>' +
+          '<td data-nhan="Ngày" style="text-align:left"><div class="viec" style="margin-top:0">' + d.map(the).join('') + '</div></td></tr>';
+      }).join('') + '</tbody></table></div></div>';
+    o.innerHTML = h;
+    noiCanhBao(o);
+  }
+
+  function noiCanhBao(o) {
+    o.addEventListener('click', function (ev) {
+      var b = ev.target.closest ? ev.target.closest('[data-viec-ngay]') : null;
+      if (!b) return;
+      ev.preventDefault();
+      S.nhapNgay = b.getAttribute('data-viec-ngay');
+      S.nhapCH = b.getAttribute('data-viec-ch');
+      doiTab('nhap');
+      /* Tab Nhập đã dựng từ trước thì đổi ô và tải lại; chưa dựng thì `dungNhap` tự đọc S.nhapNgay/S.nhapCH. */
+      var n = q('#bcNgay'), c = q('#bcCH');
+      if (n) { n.value = S.nhapNgay; if (c && S.nhapCH) c.value = S.nhapCH; napBaoCao(); }
+    });
+  }
+
+
+  /* ---- BỐN BƯỚC của ngày đang mở: số máy về → cơ sở khai → sổ kho → chốt ---- */
+  function veBuoc(t) {
+    var o = q('#bcBuoc');
+    if (!o) return;
+    if (!t || !t.buoc) { o.innerHTML = ''; return; }
+    var b = t.buoc;
+    var buoc = [
+      ['Số máy POS về', b.fabi, b.fabi ? '' : 'FABi chưa gửi / hộp thư chưa lấy — nhờ văn phòng nạp'],
+      ['Cơ sở khai', b.khai, b.khai ? '' : 'soát hàng bán, đếm két, khách vào rồi Lưu'],
+      ['Sổ kho', b.kho, b.kho === null ? '' : (b.kho ? '' : 'nhập / huỷ / tồn còn ở tab Kho hàng hoá')],
+      ['Chốt ngày', b.chot, b.chot ? '' : 'bấm Lưu và chốt ngày trước ' + String(t.han || '').slice(11)],
+    ];
+    o.innerHTML = '<div class="buoc' + (t.qua_han ? ' xau' : '') + '">' + buoc.map(function (x, i) {
+      var lop = x[1] === true ? 'xong' : (x[1] === null ? 'khong' : 'chua');
+      return '<span class="' + lop + '" title="' + esc(x[2]) + '"><i>' + (x[1] === true ? '✓' : (i + 1)) + '</i>' + esc(x[0]) + '</span>';
+    }).join('') +
+      (t.qua_han ? '<b class="han">quá hạn ' + esc(String(t.han || '').slice(11)) + '</b>' : (b.chot ? '' : '<b class="han">hạn ' + esc(String(t.han || '').slice(11)) + ' ' + esc(ngayVN(String(t.han || '').slice(0, 10))) + '</b>')) +
+      '</div>';
   }
 
   function o_nhap(id, nhan, goi) {
     return '<label class="bc-o"><b>' + esc(nhan) + '</b>' +
-      '<input type="text" inputmode="numeric" id="bc_' + id + '" placeholder="0">' +
+      /* autocomplete=off: Chrome từng tự điền chữ "admin" vào ô "Vé giấy đã soát" (ảnh anh Thắng 24/09/2026)
+         vì đoán ô chữ cuối cùng trước nút bấm là ô tên đăng nhập. */
+      '<input type="text" inputmode="numeric" autocomplete="off" id="bc_' + id + '" name="khh_dt_' + id + '" placeholder="0">' +
       (goi ? '<span class="goi">' + esc(goi) + '</span>' : '') + '</label>';
   }
 
@@ -1084,13 +1285,52 @@
         q('#bcPos').innerHTML = p
           ? '<div class="bc-pos-hang">' +
               o_pos('Doanh thu máy POS', tien(p.doanh_thu)) +
+              /* Hai ô sổ kế toán: sale vé / bán lẻ (anh Thắng 23/09/2026). */
+              o_pos('Sale vé (POS)', tien(p.tien_ve || 0)) +
+              o_pos('Sale bán lẻ (POS)', tien(p.tien_le || 0)) +
+              o_pos('Sale phụ (POS)', tien(p.tien_phu || 0)) +
+              (S.cf && S.cf.quan_tri
+                ? '<div class="bc-pos-o"><span class="lb">Cách tách</span><b><a href="#" id="bcSangCauHinh" style="font-weight:600">Quản trị → Sale vé / Bán lẻ / Sale phụ</a></b></div>'
+                : '') +
               o_pos('Số hoá đơn', nguyen(p.so_hd)) +
               o_pos('Số vé bán', p.so_ve ? nguyen(p.so_ve) : '—') +
+              /* Khách theo máy = vé × số khách mỗi vé (combo Trẻ em + Người lớn = 2). Anh Thắng
+                 23/09/2026. null = cơ sở này chưa bóc tách vé -> bày "—", không bày 0. */
+              o_pos('Khách vào (POS)' + (p.khach_tam ? ' · tạm tính' : ''), p.khach_may != null ? nguyen(p.khach_may) : '—') +
               o_pos('Tiền mặt (POS)', tien(p.tien_mat)) +
               o_pos('Chuyển khoản (POS)', tien(p.ck)) +
-            '</div>'
+            '</div>' +
+            ((p.ve_chua_tach || []).length
+              ? '<div class="chu-them" id="bcVeChuaTach">Vé <b>chưa bóc tách</b>, đang <b>tạm tính 1 khách mỗi vé</b> (' + nguyen(p.khach_tam || 0) + ' khách): ' +
+                p.ve_chua_tach.map(esc).join(', ') + ' — combo 2 người thì phải khai 2, ' +
+                (S.cf && S.cf.duoc_nap ? 'khai ở <b>Quản trị → Bóc tách vé → khách</b>.' : 'nhờ văn phòng khai ở tab Quản trị.') + '</div>'
+              : '') +
+            /* "Set xong lại sao nó không áp dụng" (24/09/2026): bày từng vé × khách/vé để thấy ngay vé nào đang tính mấy. */
+            ((p.khach_chi_tiet || []).length
+              ? '<details class="chu-them" id="bcKhachCach"><summary style="cursor:pointer">Cách tính khách vào (POS): ' + nguyen(p.khach_may) + ' = ' +
+                p.khach_chi_tiet.map(function (c) { return nguyen(c.q) + '×' + c.k; }).join(' + ') + '</summary>' +
+                '<div style="margin-top:4px">' + p.khach_chi_tiet.map(function (c) {
+                  return esc(c.n) + ': <b>' + nguyen(c.q) + ' vé × ' + c.k + '</b>' + (c.tam ? ' <span style="color:var(--xau)">(chưa khai, tạm 1)</span>' : '');
+                }).join('<br>') + '</div></details>'
+              : '')
           : '<div class="trong">Ngày này chưa có số liệu máy POS trong kho. Nạp file FABi cho ngày đó rồi quay lại.</div>';
         var b = r.bao_cao || {};
+        S.bcHienTai = { pos: p, bao_cao: b, ngay: ngay, ch: ch };
+        veBuoc(r.quy_trinh);
+        /* Có báo cáo đã lưu (có người nhập) thì mới có gì để tải ảnh / chia sẻ. */
+        var daLuu = !!(b && b.nguoi);
+        q('#bcTaiAnh').hidden = !daLuu;
+        q('#bcChiaSe').hidden = !daLuu;
+        q('#bcChiaSe').textContent = b && b.chot ? 'Chia sẻ lên Zalo' : 'Chia sẻ (chưa chốt)';
+        veHangBan(p, b);
+        var sang = q('#bcSangCauHinh');
+        if (sang) sang.addEventListener('click', function (ev) {
+          ev.preventDefault();
+          /* Cấu hình theo cửa hàng: mở Quản trị đúng quán đang nhập, cuộn tới khối. */
+          S.cauHinhCS = ch;
+          doiTab('quantri');
+          setTimeout(function () { var k = q('#dtNhomVe'); if (k) k.scrollIntoView({ behavior: 'smooth' }); }, 900);
+        });
         ['tien_mat_dem', 'tien_nop', 'so_bill_huy', 'tien_bill_huy', 'tong_chuyen', 'tong_khach', 've_giay']
           .forEach(function (k) {
             var v = b[k] != null ? Math.round(b[k]) : '';
@@ -1111,7 +1351,13 @@
         q('#bcOCH').hidden = !!r.cua_toi;
         q('#bcTrangThai').textContent = b.nguoi
           ? (b.chot ? 'đã chốt' : 'đã lưu') + ' bởi ' + b.nguoi + (b.sua_luc ? ' · ' + String(b.sua_luc).slice(0, 16) : '')
-          : (khoa ? 'chỉ xem' : 'chưa nhập');
+          : (khoa
+              /* Người PIN đẩy sang mà chưa được cấp vai: nói rõ VÌ SAO khoá và AI mở được, chứ
+                 không để họ ngồi trước một bảng ô mờ rồi gọi điện hỏi. */
+              ? (S.cf && S.cf.bang_pin && !S.cf.vai
+                  ? 'chỉ xem — chưa được cấp quyền nhập, nhờ quản trị cấp ở tab Quản trị'
+                  : 'chỉ xem')
+              : 'chưa nhập');
         tinhLech();
       }).catch(function (e) {
         q('#bcTrangThai').textContent = '';
@@ -1128,6 +1374,9 @@
     if (!p) { o.innerHTML = ''; return; }
     var dem = soNhap('tien_mat_dem'), nop = soNhap('tien_nop');
     var khach = soNhap('tong_khach'), ve = Math.round(p.so_ve || 0);
+    /* Có bóc tách vé thì so với KHÁCH theo máy; chưa có thì lùi về số vé như trước. */
+    var may = p.khach_may != null ? Math.round(p.khach_may) : ve;
+    var nhanMay = p.khach_may != null ? 'Khách đếm ở cửa so với máy (đã bóc tách vé)' : 'Khách vào so với vé bán';
     var h = '';
     function dong(nhan, v, dv, xau) {
       var lop = v === 0 ? 'khop' : (xau ? 'xau' : 'thuong');
@@ -1136,13 +1385,249 @@
     }
     if (dem) dong('Đếm két so với tiền mặt POS', dem - Math.round(p.tien_mat), 'tien', Math.abs(dem - p.tien_mat) > 0);
     if (dem && nop) dong('Đếm được nhưng chưa nộp', dem - nop, 'tien', dem - nop > 0);
-    if (khach && ve) dong('Khách vào so với vé bán', khach - ve, 'so', khach - ve > 0);
+    if (khach && may) dong(nhanMay, khach - may, 'so', khach - may > 0);
     o.innerHTML = h || '<div class="bc-lech-o khop"><span>Nhập số vào để hệ thống tính lệch ngay</span><b></b></div>';
   }
 
   function baoBC(t, loai) {
     var m = q('#bcBao'); m.hidden = false;
     m.className = 'khh-dt-bao' + (loai ? ' ' + loai : ''); m.textContent = t;
+  }
+
+  /* ---- HÀNG BÁN THEO MÁY — NHÂN VIÊN SOÁT, LỆCH MỚI NHẬP ----
+     Anh Thắng 23/09/2026: *"hiện số lượng hàng bán và thành tiền để nhân viên kiểm kho bán được và
+     chốt bán thực tế đúng máy POS không, nếu lệch nhân viên mới nhập, đúng rồi thì để nguyên, chốt
+     đúng xong thì bấm lưu và chốt, để kế toán xác nhận bạn tại cửa hàng chốt bán đúng như vậy"*.
+     Ô "SL thực" để TRỐNG nghĩa là đúng như máy. Chỉ dòng có gõ số khác máy mới được gửi lên. */
+  function veHangBan(p, b) {
+    var o = q('#bcHang');
+    if (!o) return;
+    var mon = (p && p.mon) || [];
+    if (!mon.length) { o.innerHTML = ''; return; }
+    var thuc = (b && b.mon_thuc) || {};
+    var tq = 0, tr = 0, lech = 0;
+    mon.forEach(function (m) { tq += m.q || 0; tr += m.r || 0; if (thuc[m.n] != null && Math.round(thuc[m.n]) !== Math.round(m.q)) lech++; });
+    var h = '<details class="bc-hang" id="bcHangChi"' + (lech || !b || !b.nguoi ? ' open' : '') + '>' +
+      '<summary><b>Hàng bán theo máy POS</b> — ' + mon.length + ' món · ' + nguyen(tq) + ' cái · ' + tien(tr) +
+        '<span id="bcHangTom" class="chu-them" style="display:inline;margin-left:8px">' +
+        (lech ? '<b style="color:var(--xau)">' + lech + ' món cơ sở chốt khác máy</b>' : (b && b.nguoi ? 'cơ sở chốt khớp máy' : '')) + '</span></summary>' +
+      '<div class="chu-them" style="margin-top:6px">Soát từng dòng với hàng bán thật. <b>Đúng máy thì để trống</b>; ' +
+        'lệch mới gõ <b>số lượng thực bán</b> vào ô. Soát xong bấm <b>Lưu và chốt ngày</b> — kế toán thấy ở tab Đối soát ' +
+        'là cơ sở đã xác nhận bán đúng như máy (hay lệch món nào).</div>' +
+      '<div class="bang-the bang-cuon" style="margin-top:8px"><table><thead><tr>' +
+        '<th>Món</th><th>SL máy</th><th>Thành tiền</th><th>SL thực (nếu lệch)</th><th>Lệch</th></tr></thead><tbody>' +
+      mon.map(function (m) {
+        var v = thuc[m.n] != null ? Math.round(thuc[m.n]) : '';
+        var d = v === '' ? 0 : v - Math.round(m.q);
+        return '<tr data-mon="' + esc(m.n) + '" data-may="' + Math.round(m.q) + '">' +
+          '<td data-nhan="Món" style="text-align:left">' + esc(m.n) + (m.g || m.l ? '<span style="display:block;color:var(--ink-3);font-size:12px">' + esc(m.g) + (m.l ? ' · ' + esc(m.l) : (m.ve ? ' · vé' : '')) + '</span>' : '') +
+            /* Món là thành phần combo: FABi chỉ ghi phần bán lẻ; ghi thêm phần đi theo combo và tổng rời kho (anh Thắng
+               24/09/2026: "theo combo là 6, vé lẻ là 2, tổng là 8"). Cùng số với sổ kho. */
+            (m.kho_combo ? '<span style="display:block;font-size:12px;color:var(--app)">lẻ ' + nguyen(m.q) + ' + <b>' + nguyen(m.kho_combo) + ' theo combo</b> → rời kho <b>' + nguyen(m.kho_tong) + '</b></span>' : '') + '</td>' +
+          '<td class="s" data-nhan="SL máy">' + nguyen(m.q) + '</td>' +
+          '<td class="s" data-nhan="Thành tiền">' + tien(m.r) + '</td>' +
+          '<td data-nhan="SL thực"><input type="number" min="0" step="1" inputmode="numeric" autocomplete="off" data-thuc="' + esc(m.n) + '" value="' + v + '" placeholder="' + nguyen(m.q) + '" style="width:92px"></td>' +
+          '<td class="s o-lech-mon" data-nhan="Lệch"' + (d ? ' style="color:var(--xau);font-weight:600"' : '') + '>' + (d ? (d > 0 ? '+' : '') + nguyen(d) : '') + '</td>' +
+        '</tr>';
+      }).join('') + '</tbody></table></div>' +
+      /* Thành phần chỉ rời kho theo combo (thạch, bim bim…) không có dòng FABi — kể ra dưới bảng, cùng số với sổ kho. */
+      (function () {
+        var tc = (p && p.theo_combo) || [];
+        var chiCombo = tc.filter(function (x) { return !mon.some(function (m) { return String(m.n).replace(/\s+/g, ' ').trim().toLowerCase() === String(x.n).replace(/\s+/g, ' ').trim().toLowerCase(); }); });
+        if (!tc.length) return '';
+        return '<div class="chu-them" id="bcTheoCombo" style="margin-top:8px"><b>Rời kho theo combo hôm nay:</b> ' +
+          tc.map(function (x) { return esc(x.n) + ' <b>' + nguyen(x.combo) + '</b>' + (x.le ? ' (+' + nguyen(x.le) + ' lẻ = ' + nguyen(x.le + x.combo) + ')' : ''); }).join(' · ') +
+          (chiCombo.length ? '' : '') + '. Sổ kho trừ đúng các số này.</div>';
+      })() + '</details>';
+    o.innerHTML = h;
+    Array.prototype.forEach.call(o.querySelectorAll('input[data-thuc]'), function (i) {
+      i.addEventListener('input', function () {
+        var tr_ = i.closest('tr'), may = parseInt(tr_.dataset.may, 10) || 0;
+        var v = i.value.trim() === '' ? null : parseInt(i.value, 10);
+        var d = v === null || isNaN(v) ? 0 : v - may;
+        var c = tr_.querySelector('.o-lech-mon');
+        c.textContent = d ? (d > 0 ? '+' : '') + nguyen(d) : '';
+        c.style.color = d ? 'var(--xau)' : ''; c.style.fontWeight = d ? '600' : '';
+        var n = 0;
+        Array.prototype.forEach.call(o.querySelectorAll('input[data-thuc]'), function (j) {
+          var m2 = parseInt(j.closest('tr').dataset.may, 10) || 0, w = j.value.trim();
+          if (w !== '' && parseInt(w, 10) !== m2) n++;
+        });
+        q('#bcHangTom').innerHTML = n ? '<b style="color:var(--xau)">' + n + ' món chốt khác máy</b>' : 'đang khớp máy';
+      });
+    });
+  }
+
+  /* Chỉ gửi dòng có gõ số VÀ khác máy: [ tên món => SL thực ]. Trống = đúng máy = không gửi. */
+  function docMonThuc() {
+    var b = {};
+    Array.prototype.forEach.call(document.querySelectorAll('#bcHang input[data-thuc]'), function (i) {
+      var w = i.value.trim();
+      if (w === '') return;
+      var v = parseInt(w, 10), may = parseInt(i.closest('tr').dataset.may, 10) || 0;
+      if (isNaN(v) || v < 0 || v === may) return;
+      b[i.dataset.thuc] = v;
+    });
+    return b;
+  }
+
+  /* ================= ẢNH BÁO CÁO NGÀY & CHIA SẺ ZALO =================
+     Anh Thắng 24/09/2026: *"bổ sung tính năng Lưu và chốt xong nó sẽ có thêm tải ảnh và chia sẻ báo cáo
+     này lên Zalo"*. Ảnh vẽ bằng <canvas> từ CHÍNH SỐ ĐÃ LƯU (S.bcHienTai), không chụp màn: chụp màn kéo
+     theo nút bấm, ô nhập, cuộn dở; còn Zalo cần một tấm ảnh đọc được trên điện thoại. Không dùng thư
+     viện ngoài. Chia sẻ dùng khung chia sẻ của hệ điều hành (Web Share API, có Zalo trong đó); máy tính
+     không có khung ấy thì tải ảnh về và chép tóm tắt vào bộ nhớ tạm để dán vào Zalo web. */
+  function dongBC() {
+    var h = S.bcHienTai || {};
+    var p = h.pos || {}, b = h.bao_cao || {};
+    var mon = p.mon || [], thuc = b.mon_thuc || {};
+    var so = function (v) { return v == null || v === '' ? 0 : Math.round(Number(v)); };
+    var khach = so(b.tong_khach), dem = so(b.tien_mat_dem), nop = so(b.tien_nop);
+    var may = p.khach_may != null ? Math.round(p.khach_may) : Math.round(p.so_ve || 0);
+    var lech = [];
+    if (dem) lech.push(['Đếm két − tiền mặt POS', (dem - Math.round(p.tien_mat || 0)), 'tien']);
+    if (dem && nop) lech.push(['Đếm được − đã nộp', dem - nop, 'tien']);
+    if (khach && may) lech.push([p.khach_may != null ? 'Khách đếm − khách máy' : 'Khách đếm − vé bán', khach - may, 'so']);
+    var lechMon = mon.filter(function (m) { return thuc[m.n] != null && Math.round(thuc[m.n]) !== Math.round(m.q); });
+    return { p: p, b: b, mon: mon, thuc: thuc, lech: lech, lechMon: lechMon, so: so, ngay: h.ngay || '', ch: h.ch || '' };
+  }
+
+  function tomTatBC() {
+    var d = dongBC(), p = d.p, b = d.b;
+    var dong = [
+      'BÁO CÁO NGÀY ' + ngayVN(d.ngay) + ' — ' + d.ch,
+      'Doanh thu máy POS: ' + tien(p.doanh_thu) + ' · ' + nguyen(p.so_hd) + ' hoá đơn',
+      'Sale vé ' + tien(p.tien_ve || 0) + ' · Bán lẻ ' + tien(p.tien_le || 0) + ' · Sale phụ ' + tien(p.tien_phu || 0),
+      'Tiền mặt POS ' + tien(p.tien_mat) + ' · Chuyển khoản ' + tien(p.ck),
+      'Đếm két ' + tien(d.so(b.tien_mat_dem)) + ' · Nộp quỹ ' + tien(d.so(b.tien_nop)),
+      'Khách vào đếm ' + nguyen(d.so(b.tong_khach)) + (p.khach_may != null ? ' · máy ' + nguyen(p.khach_may) : ''),
+      'Bill huỷ ' + nguyen(d.so(b.so_bill_huy)) + ' · ' + tien(d.so(b.tien_bill_huy)),
+      'Hàng bán: ' + (d.lechMon.length ? d.lechMon.length + ' món lệch máy' : 'khớp máy'),
+    ];
+    d.lech.forEach(function (l) { dong.push(l[0] + ': ' + (l[1] > 0 ? '+' : '') + (l[2] === 'tien' ? tien(l[1]) : nguyen(l[1]))); });
+    if (b.ghi_chu) dong.push('Ghi chú: ' + b.ghi_chu);
+    dong.push((b.chot ? 'ĐÃ CHỐT' : 'đã lưu, chưa chốt') + (b.nguoi ? ' · ' + b.nguoi : '') + (b.sua_luc ? ' · ' + String(b.sua_luc).slice(0, 16) : ''));
+    return dong.join('\n');
+  }
+
+  /* Vẽ ảnh. Trả về <canvas>. Bề ngang 900px, tỉ lệ 2 cho nét trên điện thoại. */
+  function veAnhBC() {
+    var d = dongBC(), p = d.p, b = d.b;
+    var W = 900, TL = 2, y = 0;
+    var dongMon = d.mon.slice(0, 40);
+    var H = 470 + d.lech.length * 30 + dongMon.length * 30 + (b.ghi_chu ? 60 : 0) + 70;
+    var c = document.createElement('canvas');
+    c.width = W * TL; c.height = H * TL;
+    var g = c.getContext('2d');
+    g.scale(TL, TL);
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, H);
+    var chu = function (t, x, yy, opt) {
+      opt = opt || {};
+      g.font = (opt.dam ? '700 ' : '400 ') + (opt.co || 15) + 'px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+      g.fillStyle = opt.mau || '#111827';
+      g.textAlign = opt.phai ? 'right' : 'left';
+      g.fillText(String(t), x, yy);
+    };
+    var ke = function (yy) { g.strokeStyle = '#e5e7eb'; g.lineWidth = 1; g.beginPath(); g.moveTo(24, yy); g.lineTo(W - 24, yy); g.stroke(); };
+    /* Đầu */
+    g.fillStyle = '#1e3a8a'; g.fillRect(0, 0, W, 78);
+    chu('BÁO CÁO NGÀY ' + ngayVN(d.ngay), 24, 34, { dam: true, co: 22, mau: '#fff' });
+    chu(d.ch, 24, 60, { co: 14, mau: '#dbeafe' });
+    chu(b.chot ? 'ĐÃ CHỐT' : 'CHƯA CHỐT', W - 24, 34, { dam: true, co: 16, mau: b.chot ? '#86efac' : '#fde68a', phai: true });
+    chu((b.nguoi ? b.nguoi : '') + (b.sua_luc ? ' · ' + String(b.sua_luc).slice(0, 16) : ''), W - 24, 60, { co: 13, mau: '#dbeafe', phai: true });
+    y = 110;
+    /* Ô máy POS: 4 cột × 2 hàng */
+    var oMay = [
+      ['Doanh thu máy POS', tien(p.doanh_thu)], ['Sale vé', tien(p.tien_ve || 0)], ['Sale bán lẻ', tien(p.tien_le || 0)], ['Sale phụ', tien(p.tien_phu || 0)],
+      ['Số hoá đơn', nguyen(p.so_hd)], ['Khách vào (POS)' + (p.khach_tam ? ' · tạm' : ''), p.khach_may != null ? nguyen(p.khach_may) : '—'], ['Tiền mặt (POS)', tien(p.tien_mat)], ['Chuyển khoản (POS)', tien(p.ck)],
+    ];
+    chu('MÁY POS', 24, y, { dam: true, co: 12, mau: '#6b7280' }); y += 10;
+    oMay.forEach(function (o, i) {
+      var cx = 24 + (i % 4) * ((W - 48) / 4), cy = y + Math.floor(i / 4) * 56;
+      chu(o[0], cx, cy + 16, { co: 11, mau: '#6b7280' });
+      chu(o[1], cx, cy + 40, { dam: true, co: 17 });
+    });
+    y += 2 * 56 + 8; ke(y); y += 26;
+    /* Cơ sở khai */
+    var oKhai = [
+      ['Tiền mặt đếm két', tien(d.so(b.tien_mat_dem))], ['Thực nộp về quỹ', tien(d.so(b.tien_nop))], ['Bill huỷ', nguyen(d.so(b.so_bill_huy)) + ' · ' + tien(d.so(b.tien_bill_huy))], ['Lượt chạy', nguyen(d.so(b.tong_chuyen))],
+      ['Khách vào (đếm ở cửa)', nguyen(d.so(b.tong_khach))], ['Vé giấy đã soát', nguyen(d.so(b.ve_giay))],
+    ];
+    chu('CƠ SỞ KHAI', 24, y, { dam: true, co: 12, mau: '#6b7280' }); y += 10;
+    oKhai.forEach(function (o, i) {
+      var cx = 24 + (i % 4) * ((W - 48) / 4), cy = y + Math.floor(i / 4) * 56;
+      chu(o[0], cx, cy + 16, { co: 11, mau: '#6b7280' });
+      chu(o[1], cx, cy + 40, { dam: true, co: 17 });
+    });
+    y += 2 * 56 + 8; ke(y); y += 26;
+    /* Lệch */
+    chu('LỆCH', 24, y, { dam: true, co: 12, mau: '#6b7280' }); y += 22;
+    if (!d.lech.length) { chu('Chưa có số để so.', 24, y, { co: 14, mau: '#6b7280' }); y += 30; }
+    d.lech.forEach(function (l) {
+      var v = l[1], txt = (v > 0 ? '+' : '') + (l[2] === 'tien' ? tien(v) : nguyen(v));
+      chu(l[0], 24, y, { co: 14 });
+      chu(txt, W - 24, y, { dam: true, co: 15, mau: v === 0 ? '#15803d' : '#b91c1c', phai: true });
+      y += 30;
+    });
+    ke(y); y += 26;
+    /* Hàng bán */
+    chu('HÀNG BÁN THEO MÁY' + (d.lechMon.length ? ' — ' + d.lechMon.length + ' món cơ sở chốt khác máy' : ' — cơ sở chốt khớp máy'), 24, y, { dam: true, co: 12, mau: '#6b7280' }); y += 22;
+    chu('Món', 24, y, { co: 11, mau: '#6b7280' }); chu('SL máy', 560, y, { co: 11, mau: '#6b7280', phai: true });
+    chu('SL thực', 680, y, { co: 11, mau: '#6b7280', phai: true }); chu('Thành tiền', W - 24, y, { co: 11, mau: '#6b7280', phai: true }); y += 8;
+    dongMon.forEach(function (m) {
+      y += 30;
+      var t = d.thuc[m.n], lechM = t != null && Math.round(t) !== Math.round(m.q);
+      var ten = String(m.n); if (ten.length > 46) ten = ten.slice(0, 45) + '…';
+      chu(ten, 24, y, { co: 14 });
+      chu(nguyen(m.q), 560, y, { co: 14, phai: true });
+      chu(t != null ? nguyen(t) : '=', 680, y, { co: 14, dam: lechM, mau: lechM ? '#b91c1c' : '#6b7280', phai: true });
+      chu(tien(m.r), W - 24, y, { co: 14, phai: true });
+    });
+    if (d.mon.length > dongMon.length) { y += 26; chu('… và ' + (d.mon.length - dongMon.length) + ' món nữa', 24, y, { co: 12, mau: '#6b7280' }); }
+    y += 20;
+    if (b.ghi_chu) { ke(y); y += 26; chu('Ghi chú: ' + String(b.ghi_chu).slice(0, 110), 24, y, { co: 13 }); y += 14; }
+    ke(y + 6);
+    chu('Doanh thu FABi · ' + (S.cf && S.cf.ten_toi ? 'in bởi ' + S.cf.ten_toi + ' · ' : '') + new Date().toLocaleString('vi-VN'), 24, H - 18, { co: 11, mau: '#9ca3af' });
+    return c;
+  }
+
+  function tenTepBC() {
+    var d = dongBC();
+    return 'bao-cao-' + d.ngay + '-' + String(d.ch).replace(/[^\w\u00C0-\u1EF9]+/g, '-').slice(0, 40) + '.png';
+  }
+
+  function taiAnhBC() {
+    var c = veAnhBC();
+    c.toBlob(function (blob) {
+      if (!blob) { window.alert('Không dựng được ảnh trên trình duyệt này.'); return; }
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = tenTepBC();
+      document.body.appendChild(a); a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+      baoBC('Đã tải ảnh ' + a.download + '.', 'xong');
+    }, 'image/png');
+  }
+
+  function chiaSeBC() {
+    var c = veAnhBC(), tom = tomTatBC();
+    c.toBlob(function (blob) {
+      if (!blob) { window.alert('Không dựng được ảnh trên trình duyệt này.'); return; }
+      var tep = new File([blob], tenTepBC(), { type: 'image/png' });
+      /* Điện thoại: khung chia sẻ của máy, có Zalo trong đó. */
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [tep] })) {
+        navigator.share({ files: [tep], title: 'Báo cáo ngày', text: tom }).catch(function () { /* người dùng đóng khung */ });
+        return;
+      }
+      /* Máy tính: tải ảnh + chép tóm tắt, rồi dán vào Zalo. */
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = tep.name;
+      document.body.appendChild(a); a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+      var xong = function () {
+        baoBC('Trình duyệt này không có khung chia sẻ. Đã tải ảnh về và chép tóm tắt vào bộ nhớ tạm — mở Zalo, dán (Ctrl+V) rồi kéo ảnh vừa tải vào.', 'xong');
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(tom).then(xong, xong); else xong();
+    }, 'image/png');
   }
 
   function luuBaoCao(chot) {
@@ -1152,6 +1637,7 @@
     ['tien_mat_dem', 'tien_nop', 'so_bill_huy', 'tien_bill_huy', 'tong_chuyen', 'tong_khach', 've_giay']
       .forEach(function (k) { fd.append(k, String(soNhap(k))); });
     fd.append('ghi_chu', q('#bc_ghi_chu').value);
+    fd.append('mon_thuc', JSON.stringify(docMonThuc()));
     if (chot) fd.append('chot', '1');
     q('#bcLuu').disabled = true; q('#bcChot').disabled = true;
     api('bao-cao-ngay', { method: 'POST', body: fd }).then(function (r) {
@@ -1159,6 +1645,7 @@
       baoBC(chot ? 'Đã lưu và chốt ngày.' : 'Đã lưu báo cáo.' +
         (r.sua_lan ? ' (bản trước được giữ lại trong lịch sử sửa)' : ''), 'xong');
       napBaoCao();
+      taiViec();
     }).catch(function (e) {
       q('#bcLuu').disabled = false; q('#bcChot').disabled = false;
       baoBC(String(e.message || e), 'loi');
@@ -1172,8 +1659,15 @@
   function taiKho() {
     var o = q('#dtTabKho');
     var ds = (S.cf && S.cf.cua_hang) || [];
-    if (!S.kho) S.kho = { ngay: homQua(), cs: ds.length ? ds[0] : '' };
-    if (!S.kho.cs && ds.length) S.kho.cs = ds[0];
+    /* Mặc định HÔM NAY, khác tab Nhập báo cáo (hôm qua). Sổ kho là việc CUỐI NGÀY: nhân viên
+       đếm kệ lúc đóng cửa rồi khai ngay. Mặc định hôm qua là mỗi tối phải tự đổi ngày, và ai
+       quên đổi là số đếm hôm nay đè lên hôm qua — anh Thắng đã vấp: "khi tải lên cứ ghi nhận
+       theo ngày trước". */
+    /* Cơ sở mặc định: quán MÌNH phụ trách trước, rồi mới tới quán đầu danh sách. Danh sách đã cắt
+       theo người xem, nhưng `cua_toi` là câu trả lời thẳng, không lệ thuộc thứ tự doanh thu. */
+    var csMac = (S.cf && S.cf.cua_toi) || (ds.length ? ds[0] : '');
+    if (!S.kho) S.kho = { ngay: homNay(), cs: csMac };
+    if (!S.kho.cs) S.kho.cs = csMac;
     if (!S.kho.cs) {
       o.innerHTML = '<div class="khung"><div class="trong">Chưa có cơ sở nào để mở sổ kho.</div></div>';
       return;
@@ -1196,6 +1690,24 @@
       .catch(function (e) {
         if (luot !== khoLuot) return;
         o.removeAttribute('aria-busy');
+        /* 🔴 "Anh/chị không phụ trách cơ sở này" mà phải F5 mới hết (chị Truyền 24/09/2026): trang mở
+           từ trước khi văn phòng ghép cơ sở / cấp vai, nên `S.cf` còn danh sách cũ và sổ kho gọi
+           nhầm quán. Máy chủ đã biết đúng rồi — hỏi lại cấu hình một lượt, đổi sang quán mình rồi
+           tải lại, thay vì bắt người ta đoán ra chữ F5. Chỉ thử một lần, khỏi xoay vòng. */
+        if (/không phụ trách/i.test(String(e.message || e)) && !S.khoDaHoiLai) {
+          S.khoDaHoiLai = true;
+          api('cau-hinh').then(function (cf) {
+            S.cf = cf;
+            var ds2 = cf.cua_hang || [];
+            var moi = cf.cua_toi || (ds2.indexOf(S.kho.cs) >= 0 ? S.kho.cs : (ds2[0] || ''));
+            if (moi && moi !== S.kho.cs) { S.kho.cs = moi; S.khoR = null; taiKho(); return; }
+            o.innerHTML = '<div class="khung"><div class="trong">' + esc(e.message || e) +
+              '<br><span class="chu-them">Nếu văn phòng vừa ghép cơ sở hoặc cấp quyền cho anh/chị, hãy tải lại trang (F5).</span></div></div>';
+          }).catch(function () {
+            o.innerHTML = '<div class="khung"><div class="trong">' + esc(e.message || e) + '</div></div>';
+          });
+          return;
+        }
         o.innerHTML = '<div class="khung"><div class="trong">' + esc(e.message || e) + '</div></div>';
       });
   }
@@ -1249,6 +1761,18 @@
        món được cộng gộp theo tên, nên mặt hàng vừa bán lẻ vừa nằm trong combo thì tổng doanh
        thu > 0 và không bao giờ lọt vào danh sách này). Ảnh màn hình anh Thắng gửi chứng minh:
        danh sách toàn "… MIỄN PHÍ" và "VÉ ONLINE", không cái nào là thành phần combo. */
+    /* 🔴 CHƯA NẠP BÁO CÁO FABi CHO NGÀY NÀY THÌ NÓI THẲNG, ĐẶT TRÊN CÙNG.
+       Không nói thì người trực nhìn cột Máy bán toàn "—" (hoặc toàn 0 như bản trước) rồi tự
+       đoán — mà đoán sai theo hướng "hôm nay không bán gì" là đếm xong thấy lệch kho bằng đúng
+       số đã bán, rồi tưởng mất hàng. Số đếm vẫn lưu được; nạp báo cáo xong hệ tự tính lại. */
+    if (r.co_fabi === false) {
+      h += '<div class="canh-ghep" style="margin-top:6px;border-color:var(--xau)">🔴 <b>Chưa nạp ' +
+        'báo cáo FABi cho ngày ' + esc(ngayVN(r.ngay)) + '.</b> Cột <b>Máy bán</b> đang trống là vì ' +
+        '<b>chưa có số</b>, không phải bán 0. Anh/chị vẫn <b>đếm và Lưu</b> được ngay — số đếm nằm ' +
+        'trong sổ; nạp báo cáo FABi xong (thẻ Nạp báo cáo, hoặc hộp thư tự lấy) hệ tự tính tồn ' +
+        'và lệch cho ngày này.</div>';
+    }
+
     var kTien = Object.keys(r.mon_khong_tien || {});
     if (kTien.length) {
       h += '<div class="canh-ghep" style="margin-top:6px">ℹ️ <b>' + kTien.length +
@@ -1274,6 +1798,7 @@
     }
 
     var dong = r.dong || [];
+    var so_lan = r.so_lan || {};
     if (!dong.length) {
       h += '<div class="trong" style="margin-top:12px">Ngày này chưa có món nào của FABi, và kho cũng chưa có tồn.</div>';
     } else {
@@ -1287,15 +1812,15 @@
         '<th style="text-align:left">Mặt hàng</th>' +
         '<th>Tồn đầu</th><th>Nhập</th>' +
         '<th>Máy bán lẻ</th><th>Theo combo</th><th>Máy bán tổng</th>' +
-        '<th>NV khai bán</th><th>Lệch khai</th>' +
-        '<th>Tồn tính</th><th>NV đếm còn</th><th>Lệch kho</th>' +
+        '<th>Hàng huỷ</th>' +
+        '<th>Tồn tính</th><th>Hàng tồn còn</th><th>Lệch kho</th>' +
         '<th style="text-align:left">Ghi chú</th>' +
         '</tr></thead><tbody>' +
         dong.map(function (d, i) {
           /* Ba ô PHẢI gõ — trên điện thoại chúng nổi lên thành hàng ô to, chiếm hết bề ngang. */
           var oNhap = function (ten, nhan, gt) {
             return '<td class="o-go" data-nhan="' + esc(nhan) + '">' + (ghi
-              ? '<input type="text" inputmode="numeric" data-kho="' + ten + '" data-i="' + i +
+              ? '<input type="text" inputmode="numeric" autocomplete="off" data-kho="' + ten + '" data-i="' + i +
                 '" value="' + esc(gt === null || gt === undefined ? '' : gt) + '">'
               : '<span class="s">' + soKho(gt) + '</span>') + '</td>';
           };
@@ -1309,18 +1834,42 @@
               : (dam ? '<b>' + nguyen(gt) + '</b>' : nguyen(gt));
             return '<td class="s o-may" data-nhan="' + esc(nhan) + '">' + t + '</td>';
           };
-          return '<tr><td class="o-ten" data-nhan="Mặt hàng">' + esc(d.mat_hang) +
-            (d.co_moc ? '' : ' <span class="chip" title="Chưa ai đếm mặt hàng này bao giờ, nên hệ chưa biết trên kệ có bao nhiêu. Gõ số đếm được vào ô &quot;NV đếm còn&quot; một lần là xong — từ hôm sau hệ tự tính.">đếm 1 lần để đặt mốc</span>') +
+          /* Tên mặt hàng bấm được -> mở THẺ KHO: từng ngày tồn đầu / nhập / bán / đếm / tồn cuối.
+             Anh Thắng: "tồn kho ngày đó bao nhiêu, bán bao nhiêu, tồn bao nhiêu" — màn này chỉ
+             cho một ngày, muốn thấy hàng chạy thì phải có thẻ kho. */
+          return '<tr data-dong="' + i + '"><td class="o-ten" data-nhan="Mặt hàng">' +
+            '<a href="#" data-kho-the="' + esc(d.mat_hang) + '" title="Mở thẻ kho: xem mặt hàng này chạy từng ngày" ' +
+            'style="color:inherit;text-decoration:underline dotted">' + esc(d.mat_hang) + '</a>' +
+            (d.co_moc ? '' : ' <span class="chip" title="Chưa ai đếm mặt hàng này bao giờ, nên hệ chưa biết trên kệ có bao nhiêu. Gõ số đếm được vào ô &quot;Hàng tồn còn&quot; một lần là xong — từ hôm sau hệ tự tính.">đếm 1 lần để đặt mốc</span>') +
+            /* 🔴 GIỮ VẾT MÀ KHÔNG BÀY RA THÌ CHẲNG AI BIẾT LÀ CÓ VẾT.
+               Sổ ghi động giữ đủ mọi lượt khai, nhưng nếu màn không nói thì người trực vẫn
+               tưởng sửa là xoá dấu — và người soát cũng không nghĩ tới chuyện đi xem lịch sử.
+               Nhãn này chính là phần răn: nó hiện ngay cạnh tên mặt hàng. */
+            ((so_lan[d.mat_hang] || 0) > 1
+              ? ' <button class="chip" type="button" data-kho-su="' + esc(d.mat_hang) +
+                '" style="cursor:pointer;border-color:var(--xau);color:var(--xau)" ' +
+                'title="Dòng này đã được khai lại nhiều lượt. Bấm để xem đủ các lượt, kèm người và giờ.">' +
+                'đã sửa ' + (so_lan[d.mat_hang] - 1) + ' lần</button>'
+              : '') +
             '</td>' +
-            oMay('Tồn đầu', d.ton_dau) +
+            /* Tồn đầu GÕ ĐƯỢC (anh Thắng 24/09/2026: "cho set lại tồn đầu"): trống = theo tồn cuối
+               hôm trước (số hiện mờ trong ô); gõ số = đặt mốc mới cho ngày này, kể cả 0. */
+            (ghi
+              ? '<td class="o-go o-dau" data-nhan="Tồn đầu"><input type="text" inputmode="numeric" autocomplete="off" data-kho="dat_dau" data-i="' + i +
+                '" value="' + esc(d.dat_dau === null || d.dat_dau === undefined ? '' : d.dat_dau) + '" placeholder="' + esc(soKho(d.ton_dau)) +
+                '" title="Để trống = theo tồn cuối hôm trước. Gõ số để đặt lại tồn đầu ngày này."></td>'
+              : oMay('Tồn đầu', d.ton_dau)) +
             oNhap('nhap', 'Nhập', d.nhap) +
             oMay('Máy bán lẻ', d.ban_le) +
             oMay('Theo combo', d.ban_combo) +
-            oMay('Máy bán tổng', d.ban_may, true) +
-            oNhap('ban_khai', 'NV khai bán', d.ban_khai) +
-            oLech(d.lech_khai, 'Lệch khai') +
+            (d.ban_chot
+              ? '<td class="s o-may" data-nhan="Máy bán tổng" title="Lấy SL thực cơ sở đã chốt ở tab Nhập báo cáo (khác máy)"><b>' + soKho(d.ban_may) + '*</b></td>'
+              : oMay('Máy bán tổng', d.ban_may, true)) +
+            /* Hàng huỷ (anh Thắng 24/09/2026): hỏng/đổ/vỡ bỏ đi, trừ khỏi tồn. Cột "SL hàng bán / Lệch khai"
+               cũ bỏ: soát bán so máy đã làm ở tab Nhập báo cáo, sổ kho lấy đúng SL thực đã chốt bên ấy. */
+            oNhap('huy', 'Hàng huỷ', d.huy ? d.huy : null) +
             oMay('Tồn tính', d.ton_tinh) +
-            oNhap('dem', 'NV đếm còn', d.dem) +
+            oNhap('dem', 'Hàng tồn còn', d.dem) +
             oLech(d.lech_kho, 'Lệch kho') +
             '<td class="o-ghi" data-nhan="Ghi chú">' + (ghi
               ? '<input type="text" data-kho="ghi_chu" data-i="' + i + '" value="' + esc(d.ghi_chu || '') + '">'
@@ -1329,17 +1878,30 @@
       if (ghi) {
         h += '<div style="margin-top:10px"><button class="nut chinh" type="button" id="khoLuu">Lưu sổ kho</button></div>';
       }
+      /* 🔴 Ô "Hàng tồn còn" ghi 0 trong khi tồn tính > 0: hoặc quán mất sạch hàng, hoặc — hay gặp hơn —
+         số 0 là vết bản cũ ép ô trống thành 0 rồi mỗi lần Lưu lại giữ nguyên (Gò Vấp 23/09/2026, sáu dòng
+         "đã sửa 5 lần"). 0 là MỐC ĐẾM nên hôm sau tồn đầu = 0. Phải nói ra ngay tại đây và chỉ cách thoát. */
+      var demKhong = dong.filter(function (d) { return d.dem !== null && d.dem !== undefined && Number(d.dem) === 0 && d.ton_tinh !== null && d.ton_tinh !== undefined && Number(d.ton_tinh) > 0; });
+      if (demKhong.length && ghi) {
+        h += '<div class="canh-ghep" id="khoDemKhong" style="margin-top:8px;border-color:var(--xau)">⚠️ <b>' + demKhong.length +
+          ' dòng ghi Hàng tồn còn = 0</b> trong khi tồn tính còn hàng: ' + demKhong.slice(0, 8).map(function (d) { return esc(d.mat_hang); }).join(' · ') + (demKhong.length > 8 ? ' …' : '') +
+          '. Số 0 là <b>đếm được 0 món</b>, nên <b>ngày mai tồn đầu = 0</b>. Nếu thật ra <b>chưa đếm</b>, ' +
+          '<b>xoá trống ô Hàng tồn còn</b> rồi bấm Lưu sổ kho — tồn đầu hôm sau sẽ kéo đúng từ tồn tính.</div>';
+      }
       h += '<div class="chu-them" style="margin-top:8px">' +
-        '<b>Lệch khai</b> = nhân viên khai bán − máy POS ghi bán. Âm là khai thiếu.<br>' +
-        '<b>Tồn tính</b> = tồn đầu + nhập − máy POS ghi bán − combo nhập tay. ' +
-        '<b>Lệch kho</b> = đếm còn − tồn tính. Âm là thiếu hàng.<br>' +
+        '<b>Tồn đầu</b>: số mờ là tồn cuối hôm trước kéo sang; thấy sai (âm, lệch) thì <b>gõ số thật vào ô</b> để đặt lại mốc cho ngày này — từ đó hệ tính tiếp. Để trống là giữ số kéo.<br>' +
+        '<b>Hàng huỷ</b> = hàng hỏng, đổ, vỡ bỏ đi — rời kho không qua máy, trừ thẳng khỏi tồn.<br>' +
+        '<b>Máy bán</b>: nếu cơ sở đã chốt <b>SL thực</b> khác máy ở tab Nhập báo cáo thì sổ kho lấy số chốt ấy (ô đánh dấu *).<br>' +
+        '<b>Tồn tính</b> = tồn đầu + nhập − máy POS ghi bán − combo nhập tay − hàng huỷ. ' +
+        '<b>Lệch kho</b> = hàng tồn còn (đếm được) − tồn tính. Âm là thiếu hàng.<br>' +
         '🔴 Tồn tính lấy <b>số máy</b>, không lấy số nhân viên khai — lấy số khai thì người khai ' +
         'thiếu bao nhiêu tồn tính cũng thừa bấy nhiêu, hai vế triệt tiêu và cột lệch luôn bằng 0.<br>' +
         'Ngày mai <b>tồn đầu lấy số đã đếm</b> chứ không lấy số tính, nên một ngày lệch không kéo ' +
         'theo mọi ngày sau.</div>';
     }
 
-    if (ghi) { h += veKhoMatHang(r); h += veKhoCombo(r.combo || {}); }
+    h += '<div id="khoThe"></div>';
+    if (ghi) { h += veKhoMatHang(r); h += veKhoCombo(r.combo || {}, r); }
     h += '</div>';
     o.innerHTML = h;
     noiKho(o);
@@ -1350,11 +1912,74 @@
      BẠC XỈU, CACAO LATTE, COMBO TRÀ CHANH GIÃ TAY — đồ pha tại chỗ, không có kho để đếm. Đổ
      hết vào sổ thì nhân viên cuộn qua vài chục dòng vô nghĩa mới tới chai nước, và mấy dòng
      ấy mãi mãi đỏ vì chẳng ai đếm chúng bao giờ. Sổ đỏ vì lý do vớ vẩn là sổ bị bỏ. */
+  /* ---- THẺ KHO: một mặt hàng chạy từng ngày ---- */
+  function veKhoThe(o, r) {
+    var noi = o.querySelector('#khoThe');
+    if (!noi) return;
+    var ds = r.dong || [];
+    var h = '<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">' +
+      '<h3 class="tieu-nho">Thẻ kho: ' + esc(r.mat_hang) + '</h3>' +
+      '<div class="loc" style="gap:6px;margin:6px 0">' +
+        '<label class="o">Từ<input type="date" id="theTu" value="' + esc(r.tu) + '"></label>' +
+        '<label class="o">Đến<input type="date" id="theDen" value="' + esc(r.den) + '"></label>' +
+        '<button class="vien" type="button" id="theDong">Đóng</button>' +
+      '</div>';
+    if (!ds.length) {
+      h += '<div class="trong">Khoảng này không có ngày nào có biến động (không bán, không nhập, không đếm).</div>';
+    } else {
+      /* Cột "Tồn cuối" = số hệ CHỐT cho ngày ấy: có đếm thì là số đếm (mốc mới), không thì là
+         số tính. Bày cả "Tồn tính" bên cạnh để thấy ngay ngày nào đếm khác tính. */
+      h += '<div class="bang-cuon bang-the"><table><thead><tr>' +
+        '<th style="text-align:left">Ngày</th><th>Tồn đầu</th><th>Nhập</th><th>Máy bán</th>' +
+        '<th>Combo tay</th><th>Tồn tính</th><th>Đếm</th><th>Lệch</th><th>Tồn cuối</th>' +
+        '</tr></thead><tbody>' +
+        ds.map(function (x) {
+          var c = function (nhan, v, dam) {
+            var t = (v === null || v === undefined) ? '<span class="chu-them">—</span>'
+              : (dam ? '<b>' + nguyen(v) + '</b>' : nguyen(v));
+            return '<td class="s o-may" data-nhan="' + nhan + '">' + t + '</td>';
+          };
+          return '<tr' + (x.co_fabi ? '' : ' title="Ngày này chưa nạp báo cáo FABi — máy bán coi là 0 để còn kéo tồn sang ngày sau"') + '>' +
+            '<td class="o-ten" data-nhan="Ngày">' + esc(ngayVN(x.ngay)) +
+              (x.co_fabi ? '' : ' <span class="chip" style="border-color:var(--xau);color:var(--xau)">chưa nạp FABi</span>') +
+            '</td>' +
+            c('Tồn đầu', x.ton_dau) + c('Nhập', x.nhap) + c('Máy bán', x.ban_may) +
+            c('Combo tay', x.combo_tay) + c('Tồn tính', x.ton_tinh) + c('Đếm', x.dem) +
+            oLech(x.lech_kho, 'Lệch') + c('Tồn cuối', x.ton_cuoi, true) +
+            '</tr>';
+        }).join('') + '</tbody></table></div>';
+    }
+    h += '</div>';
+    noi.innerHTML = h;
+    var tai = function () {
+      taiKhoThe(o, r.mat_hang, (noi.querySelector('#theTu') || {}).value, (noi.querySelector('#theDen') || {}).value);
+    };
+    noiONgay(noi.querySelector('#theTu'), tai);
+    noiONgay(noi.querySelector('#theDen'), tai);
+    var d = noi.querySelector('#theDong');
+    if (d) d.addEventListener('click', function () { noi.innerHTML = ''; S.khoTheMH = ''; });
+    if (noi.scrollIntoView) noi.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
+
+  function taiKhoThe(o, mh, tu, den) {
+    S.khoTheMH = mh;
+    var den2 = den || S.kho.ngay;
+    var tu2 = tu || doi(den2, -30);
+    api('kho-the?co_so=' + encodeURIComponent(S.kho.cs) + '&mat_hang=' + encodeURIComponent(mh) +
+        '&tu=' + encodeURIComponent(tu2) + '&den=' + encodeURIComponent(den2))
+      .then(function (r) { veKhoThe(o, r); })
+      .catch(function (e) { window.alert(e.message || e); });
+  }
+
   function veKhoMatHang(r) {
     var daThay = r.mon_da_thay || {};
     var chon = r.mat_hang || [];
+    var maHang = r.ma_hang || {};
+    /* Danh sách bày = món FABi từng bán ∪ món đã có trong danh mục (kể cả món MỚI thêm tay, FABi chưa
+       bán) — không thì món mới thêm không có ô để bỏ tích. */
     var ten = Object.keys(daThay);
-    if (!ten.length) return '';
+    chon.forEach(function (t) { if (ten.indexOf(t) < 0) ten.push(t); });
+    ten.sort(function (a, b) { return a.localeCompare(b, 'vi'); });
     return '<details style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)"' +
       (chon.length ? '' : ' open') + '>' +
       '<summary style="cursor:pointer"><b>Mặt hàng có kho của cơ sở này</b> — ' +
@@ -1366,14 +1991,31 @@
       'đếm được, mà để trong sổ thì ngày nào cũng đỏ vì chẳng ai đếm chúng.' +
       '<br>Số trong ngoặc là <b>số lượng bán 90 ngày qua</b>, để biết món nào đáng theo dõi. ' +
       'Bỏ tích hết rồi Lưu là thôi lọc, bày lại tất cả.</div>' +
-      '<div style="margin-top:8px;max-height:320px;overflow-y:auto;display:grid;' +
-        'grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:4px 12px">' +
-      ten.map(function (t) {
-        return '<label class="o" style="justify-content:flex-start;gap:7px;padding:6px 8px">' +
-          '<input type="checkbox" data-mh="' + esc(t) + '"' +
-          (chon.indexOf(t) >= 0 ? ' checked' : '') + '>' +
-          '<span>' + esc(t) + ' <span class="chu-them">(' + nguyen(daThay[t]) + ')</span></span></label>';
-      }).join('') +
+      (ten.length
+        ? '<div style="margin-top:8px;max-height:320px;overflow-y:auto;display:grid;' +
+          'grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:4px 12px">' +
+          ten.map(function (t) {
+            var moi = !(t in daThay);
+            return '<label class="o" style="justify-content:flex-start;gap:7px;padding:6px 8px">' +
+              '<input type="checkbox" data-mh="' + esc(t) + '"' +
+              (chon.indexOf(t) >= 0 ? ' checked' : '') + '>' +
+              '<span>' + esc(t) +
+                (maHang[t] ? ' <code style="font-size:11px">' + esc(maHang[t]) + '</code>' : '') +
+                (moi ? ' <span class="chip" title="Thêm tay, FABi chưa có dòng bán nào. Khi FABi bán món mang đúng mã này, số bán tự rơi vào dòng kho này.">mới · FABi chưa bán</span>' +
+                       /* Anh Thắng 24/09/2026: "cho admin xoá món nếu sai" — chỉ văn phòng (quyền nạp). */
+                       (S.cf && S.cf.duoc_nap ? ' <button class="chip" type="button" data-mh-xoa="' + esc(t) + '" title="Xoá món thêm tay này khỏi danh mục (bỏ cả mã đã gán)">✕ xoá</button>' : '')
+                     : ' <span class="chu-them">(' + nguyen(daThay[t]) + ')</span>') +
+              '</span></label>';
+          }).join('') +
+          '</div>'
+        : '<div class="trong">Chưa có món nào — thêm mặt hàng mới ở dưới.</div>') +
+      /* THÊM SẢN PHẨM MỚI (anh Thắng 24/09/2026: "lấy tên sản phẩm mà mã theo FABi, để sau đồng bộ nó
+         chạy cùng"): hàng mới về chưa bán -> FABi chưa có dòng -> không tích được từ danh sách trên. */
+      '<div class="loc" style="margin-top:10px;gap:6px">' +
+        '<label class="o">Thêm mặt hàng mới<input type="text" id="mhThemTen" placeholder="Tên đúng như FABi sẽ ghi" style="width:230px"></label>' +
+        '<label class="o">Mã hàng FABi<input type="text" id="mhThemMa" placeholder="MNKVCDS017" style="width:130px"></label>' +
+        '<button class="nut" type="button" id="mhThem">Thêm vào danh mục</button>' +
+        '<span class="chu-them" style="margin:0">Khai đúng <b>mã hàng</b> là về sau FABi bán món này (dù tên gõ khác chút) số vẫn rơi vào đúng dòng.</span>' +
       '</div>' +
       '<div style="margin-top:8px">' +
         '<button class="nut" type="button" id="mhLuu">Lưu danh mục</button> ' +
@@ -1381,29 +2023,64 @@
       '</div></details>';
   }
 
-  function veKhoCombo(cb) {
+  function veKhoCombo(cb, r) {
+    r = r || {};
     var ten = Object.keys(cb).sort();
+    /* COMBO ĐANG BÁN: chọn từ danh sách, không gõ. Anh Thắng 24/09/2026: *"hiện combo đang chạy và
+       thành phần đang bán, mới hiểu được combo đó có hàng bán gì để trừ, chứ nhập hay ghi sai tên sản
+       phẩm"*. Ứng viên = combo hệ nghi (đang bán mà chưa khai) ∪ món FABi có chữ "combo" ∪ combo đã khai. */
+    var daThay = r.mon_da_thay || {};
+    var ungVien = [];
+    (r.combo_nghi || []).forEach(function (t) { if (ungVien.indexOf(t) < 0) ungVien.push(t); });
+    Object.keys(daThay).forEach(function (t) { if (/combo/i.test(t) && ungVien.indexOf(t) < 0) ungVien.push(t); });
+    ten.forEach(function (t) { if (ungVien.indexOf(t) < 0) ungVien.push(t); });
+    ungVien.sort(function (a, b) { return a.localeCompare(b, 'vi'); });
+    /* THÀNH PHẦN ĐANG BÁN: tích từ danh mục kho (không có danh mục thì mọi món FABi từng bán), mỗi món
+       một ô số lượng. */
+    var mon = (r.mat_hang && r.mat_hang.length) ? r.mat_hang.slice() : Object.keys(daThay);
+    mon = mon.filter(function (t) { return !/combo/i.test(t); });
+    mon.sort(function (a, b) { return a.localeCompare(b, 'vi'); });
     return '<details style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)"' +
       (ten.length ? '' : ' open') + '>' +
       '<summary style="cursor:pointer"><b>Thành phần combo</b> — ' +
       (ten.length ? ten.length + ' combo đã khai' : '<b>chưa khai combo nào</b>') + '</summary>' +
-      '<div class="chu-them" style="margin-top:6px">Một combo bán ra là mấy món rời kho. Gõ đúng ' +
-      '<b>tên món combo như FABi ghi</b>, rồi liệt kê thành phần kiểu ' +
-      '<code>Nước suối x2, Kẹo cầu vồng x1</code>. Để trống ô thành phần rồi Lưu là xoá combo ấy.' +
+      '<div class="chu-them" style="margin-top:6px">Một combo bán ra là mấy món rời kho. <b>Chọn combo</b> đang bán ' +
+      'trong danh sách (hệ lấy từ FABi, không phải gõ tên), rồi <b>gõ số lượng</b> vào ô của từng món thành phần ' +
+      'đang có trong danh mục kho. Bỏ trống hết rồi Lưu là xoá công thức combo ấy.' +
       '<br>🔴 Hệ <b>không tự đoán</b> công thức: đoán sai là trừ nhầm kho hàng loạt mà không dòng nào sai.</div>' +
       (ten.length
         ? '<div class="bang-cuon" style="margin-top:8px"><table><thead><tr>' +
           '<th style="text-align:left">Món combo</th><th style="text-align:left">Thành phần</th>' +
           '</tr></thead><tbody>' + ten.map(function (t) {
+            /* Thành phần không trùng tên món nào trong kho (gõ tay sai tên: "bimbim", "nước suối") thì
+               combo bán ra KHÔNG trừ vào dòng nào — phải đỏ lên để khai lại bằng chọn. */
+            var coKho = mon.concat(Object.keys(daThay));
             return '<tr><td style="text-align:left">' + esc(t) + '</td>' +
-              '<td style="text-align:left" class="s">' + esc(Object.keys(cb[t]).map(function (m) {
-                return m + ' x' + cb[t][m];
-              }).join(', ')) + '</td></tr>';
+              '<td style="text-align:left" class="s">' + Object.keys(cb[t]).map(function (m) {
+                var khop = coKho.indexOf(m) >= 0;
+                return (khop ? esc(m) : '<b style="color:var(--xau)" title="Không trùng tên món nào trong kho hay FABi — combo này bán ra không trừ được dòng nào. Chọn lại combo ở dưới, tích đúng món rồi Lưu.">' + esc(m) + ' ⚠ không khớp món nào</b>') + ' x' + cb[t][m];
+              }).join(', ') + '</td></tr>';
           }).join('') + '</tbody></table></div>'
         : '') +
       '<div class="loc" style="margin-top:10px;gap:6px">' +
-        '<label class="o">Món combo<input type="text" id="cbTen" placeholder="Combo 2 người" style="width:190px"></label>' +
-        '<label class="o">Thành phần<input type="text" id="cbTP" placeholder="Nước suối x2, Kẹo cầu vồng x1" style="width:300px"></label>' +
+        '<label class="o">Món combo<select id="cbChon" style="max-width:320px">' +
+          '<option value="">— chọn combo đang bán —</option>' +
+          ungVien.map(function (t) { return '<option value="' + esc(t) + '">' + esc(t) + (cb[t] ? ' ✓' : '') + (daThay[t] ? ' (' + nguyen(daThay[t]) + ')' : '') + '</option>'; }).join('') +
+          '<option value="__khac__">Khác — gõ tên…</option></select></label>' +
+        '<label class="o" id="cbTenO" hidden>Tên combo<input type="text" id="cbTen" placeholder="đúng như FABi ghi" style="width:190px"></label>' +
+      '</div>' +
+      '<div id="cbTP_bang" style="margin-top:6px;max-height:260px;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:4px 12px">' +
+        mon.map(function (t) {
+          return '<label class="o" style="justify-content:space-between;gap:7px;padding:4px 8px"><span>' + esc(t) + '</span>' +
+            '<input type="number" min="0" step="1" inputmode="numeric" data-cb-mon="' + esc(t) + '" placeholder="0" style="width:64px"></label>';
+        }).join('') +
+      '</div>' +
+      '<div class="loc" style="margin-top:6px;gap:6px">' +
+        '<label class="o">Thêm nhanh<input type="text" id="cbTP" placeholder="tuỳ chọn: Món lẻ x2, Món khác x1" style="width:260px" title="Món chưa có trong danh mục — gõ đúng tên FABi"></label>' +
+        /* 🔴 NGÀY HIỆU LỰC, MẶC ĐỊNH HÔM NAY. Công thức đóng băng theo ngày nên sửa hôm nay
+           KHÔNG viết lại số tồn của những ngày trước — muốn áp lùi thì phải tự gõ ngày, vì
+           áp lùi là cố ý sửa lại quá khứ. */
+        '<label class="o">Áp từ ngày<input type="date" id="cbTu" value="' + esc(homNay()) + '"></label>' +
         '<button class="nut" type="button" id="cbLuu">Lưu combo</button>' +
       '</div></details>';
   }
@@ -1422,9 +2099,59 @@
     return ra;
   }
 
+  /* TÍNH LẠI MỘT DÒNG KHO NGAY KHI GÕ — anh Thắng 24/09/2026: *"nhập tồn mà sao nó không tính realtime
+     trước và sau của ngày đó"*. Cùng công thức với máy chủ (`khh_dt_kho_bang_ngay`): tồn đầu (ô đặt lại
+     nếu có, không thì số kéo) + nhập − máy bán − combo nhập tay − huỷ = tồn tính; hàng tồn còn − tồn
+     tính = lệch kho, chỉ khi có gõ hàng tồn còn. `d` là dòng máy chủ trả, `o` là các ô đang gõ. Máy
+     chủ vẫn là nơi quyết định khi Lưu — chỗ này chỉ để mắt thấy ngay. */
+  function tinhKhoDong(d, o) {
+    var so = function (v) {
+      if (v === null || v === undefined) return null;
+      var t = String(v).replace(/[^\d\-.,]/g, '');
+      // "1.000" / "1,000" là ngăn nghìn (đúng 3 chữ số sau dấu) -> bỏ dấu; còn lại dấu phẩy là thập phân.
+      t = t.replace(/[.,](?=\d{3}(?:[.,]|$))/g, '').replace(',', '.');
+      if (t === '' || t === '-') return null;
+      var n = parseFloat(t); return isNaN(n) ? null : n;
+    };
+    var datDau = so(o.dat_dau);
+    var tonDau = datDau !== null ? datDau : (d.ton_dau === null || d.ton_dau === undefined ? null : Number(d.ton_dau));
+    var nhap = so(o.nhap) || 0, huy = so(o.huy) || 0;
+    var goc = tonDau === null && nhap > 0 ? 0 : tonDau;
+    var may = d.ban_may === null || d.ban_may === undefined ? null : Number(d.ban_may);
+    var tonTinh = (goc === null || may === null) ? null : goc + nhap - may - Number(d.combo_tay || 0) - huy;
+    var dem = so(o.dem);
+    var lech = (dem === null || tonTinh === null) ? null : dem - tonTinh;
+    return { ton_tinh: tonTinh, lech_kho: lech };
+  }
+
+  function veLaiDongKho(tr) {
+    if (!tr || !S.khoR || !S.khoR.dong) return;
+    var d = S.khoR.dong[parseInt(tr.getAttribute('data-dong'), 10)];
+    if (!d) return;
+    var o = {};
+    Array.prototype.forEach.call(tr.querySelectorAll('[data-kho]'), function (x) { o[x.getAttribute('data-kho')] = x.value; });
+    var kq = tinhKhoDong(d, o);
+    var oTinh = tr.querySelector('.o-may[data-nhan="Tồn tính"]');
+    if (oTinh) oTinh.innerHTML = kq.ton_tinh === null ? '<span class="chu-them">—</span>' : nguyen(kq.ton_tinh);
+    var oLechKho = tr.querySelector('.o-lech[data-nhan="Lệch kho"]');
+    if (oLechKho) {
+      var tmp = document.createElement('tbody');
+      tmp.innerHTML = '<tr>' + oLech(kq.lech_kho, 'Lệch kho') + '</tr>';
+      oLechKho.replaceWith(tmp.querySelector('td'));
+    }
+  }
+
   function noiKho(o) {
     var k = o.querySelector('#dtKho');
     if (!k) return;
+    /* Gõ ô nào trong dòng là tồn tính / lệch kho của dòng ấy đổi ngay. */
+    k.addEventListener('input', function (e) {
+      var x = e.target;
+      if (!x || !x.getAttribute || !x.getAttribute('data-kho')) return;
+      var kho = x.getAttribute('data-kho');
+      if (kho !== 'dat_dau' && kho !== 'nhap' && kho !== 'huy' && kho !== 'dem') return;
+      veLaiDongKho(x.closest('tr'));
+    });
     noiONgay(k.querySelector('#khoNgay'), function (v) { S.kho.ngay = v; taiKho(); });
     var cs = k.querySelector('#khoCS');
     if (cs) cs.addEventListener('change', function () { S.kho.cs = cs.value; taiKho(); });
@@ -1451,6 +2178,38 @@
         });
       });
     }
+
+    /* Bấm tên mặt hàng -> thẻ kho. */
+    k.addEventListener('click', function (e) {
+      var a = e.target.closest ? e.target.closest('[data-kho-the]') : null;
+      if (!a) return;
+      e.preventDefault();
+      taiKhoThe(o, a.getAttribute('data-kho-the'));
+    });
+
+    /* Xem đủ các lượt khai của một dòng — kèm người và giờ, để còn đối chất được. */
+    k.addEventListener('click', function (e) {
+      var b = e.target.closest ? e.target.closest('[data-kho-su]') : null;
+      if (!b) return;
+      e.preventDefault();
+      var mh = b.getAttribute('data-kho-su');
+      api('kho-su?ngay=' + encodeURIComponent(S.kho.ngay) +
+          '&co_so=' + encodeURIComponent(S.kho.cs) +
+          '&mat_hang=' + encodeURIComponent(mh))
+        .then(function (rr) {
+          var ds = (rr && rr.su) || [];
+          if (!ds.length) { window.alert('Không có lượt khai nào.'); return; }
+          window.alert(mh + ' — ' + ds.length + ' lượt khai, mới nhất trước:\n\n' +
+            ds.map(function (x, i) {
+              return (i + 1) + '. ' + (x.luc || '') + (x.nguoi ? ' · ' + x.nguoi : '') +
+                '\n   nhập ' + soKho(x.nhap) +
+                ' · huỷ ' + (soKho(x.huy) || '—') +
+                ' · đếm còn ' + (soKho(x.dem) || '—') +
+                (x.ghi_chu ? '\n   ghi chú: ' + x.ghi_chu : '');
+            }).join('\n'));
+        })
+        .catch(function (err) { window.alert(err.message || err); });
+    });
 
     var mhH = k.querySelector('#mhHet');
     if (mhH) {
@@ -1480,14 +2239,70 @@
       });
     }
 
+    Array.prototype.forEach.call(k.querySelectorAll('[data-mh-xoa]'), function (bx) {
+      bx.addEventListener('click', function (ev) {
+        ev.preventDefault();
+        var tenXoa = bx.getAttribute('data-mh-xoa');
+        if (!window.confirm('Xoá "' + tenXoa + '" khỏi danh mục kho của cơ sở này? Số đã khai (nếu có) vẫn nằm trong sổ ghi động.')) return;
+        var ds = [];
+        Array.prototype.forEach.call(k.querySelectorAll('[data-mh]'), function (x) { if (x.checked && x.getAttribute('data-mh') !== tenXoa) ds.push(x.getAttribute('data-mh')); });
+        var fd = new FormData();
+        fd.append('co_so', S.kho.cs); fd.append('ngay', S.kho.ngay);
+        fd.append('ds', JSON.stringify(ds)); fd.append('xoa_ten', tenXoa);
+        api('kho-mat-hang', { method: 'POST', body: fd }).then(function (rr) {
+          S.khoR = rr; veKho(o, rr);
+        }).catch(function (e) { window.alert(e.message || e); });
+      });
+    });
+
+    var mhT = k.querySelector('#mhThem');
+    if (mhT) {
+      mhT.addEventListener('click', function () {
+        var tenMoi = ((k.querySelector('#mhThemTen') || {}).value || '').trim();
+        var maMoi = ((k.querySelector('#mhThemMa') || {}).value || '').trim();
+        if (!tenMoi) { window.alert('Gõ tên mặt hàng đúng như FABi sẽ ghi.'); return; }
+        /* Giữ những món đang tích, cộng thêm món mới (tự tích). */
+        var ds = [];
+        Array.prototype.forEach.call(k.querySelectorAll('[data-mh]'), function (x) { if (x.checked) ds.push(x.getAttribute('data-mh')); });
+        if (ds.indexOf(tenMoi) < 0) ds.push(tenMoi);
+        var fd = new FormData();
+        fd.append('co_so', S.kho.cs); fd.append('ngay', S.kho.ngay);
+        fd.append('ds', JSON.stringify(ds)); fd.append('them_ten', tenMoi); fd.append('them_ma', maMoi);
+        mhT.disabled = true; mhT.textContent = 'Đang thêm…';
+        api('kho-mat-hang', { method: 'POST', body: fd }).then(function (rr) {
+          S.khoR = rr; veKho(o, rr);
+        }).catch(function (e) {
+          mhT.disabled = false; mhT.textContent = 'Thêm vào danh mục'; window.alert(e.message || e);
+        });
+      });
+    }
+
     var cbL = k.querySelector('#cbLuu');
     if (cbL) {
+      /* Chọn combo -> điền sẵn công thức đã khai (nếu có) vào các ô số lượng; "Khác" -> mở ô gõ tên. */
+      var cbSel = k.querySelector('#cbChon');
+      if (cbSel) cbSel.addEventListener('change', function () {
+        var v = cbSel.value, oTen = k.querySelector('#cbTenO');
+        if (oTen) oTen.hidden = v !== '__khac__';
+        var ct = (S.khoR && S.khoR.combo && S.khoR.combo[v]) || {};
+        Array.prototype.forEach.call(k.querySelectorAll('[data-cb-mon]'), function (i) {
+          var m = i.getAttribute('data-cb-mon');
+          i.value = ct[m] != null ? ct[m] : '';
+        });
+      });
       cbL.addEventListener('click', function () {
-        var ten = (k.querySelector('#cbTen') || {}).value || '';
-        if (!ten.trim()) { window.alert('Gõ tên món combo đúng như FABi ghi.'); return; }
+        var chon = (k.querySelector('#cbChon') || {}).value || '';
+        var ten = chon === '__khac__' || !chon ? ((k.querySelector('#cbTen') || {}).value || '') : chon;
+        if (!ten.trim()) { window.alert('Chọn combo đang bán trong danh sách (hoặc chọn "Khác" rồi gõ đúng tên FABi).'); return; }
+        var tp = docThanhPhan((k.querySelector('#cbTP') || {}).value);
+        Array.prototype.forEach.call(k.querySelectorAll('[data-cb-mon]'), function (i) {
+          var v = parseFloat(String(i.value).replace(',', '.'));
+          if (v > 0) tp[i.getAttribute('data-cb-mon')] = v;
+        });
         var fd = new FormData();
         fd.append('ten', ten.trim());
-        fd.append('thanh_phan', JSON.stringify(docThanhPhan((k.querySelector('#cbTP') || {}).value)));
+        fd.append('thanh_phan', JSON.stringify(tp));
+        fd.append('tu_ngay', (k.querySelector('#cbTu') || {}).value || '');
         cbL.disabled = true; cbL.textContent = 'Đang lưu…';
         /* 🔴 Đổi thành phần combo là đổi cách trừ kho của MỌI ngày, nên phải nạp LẠI cả sổ —
            không thì màn vẫn bày số tính theo công thức cũ. */
@@ -1546,7 +2361,8 @@
           }).join('') + '</select></span>'
         : '') +
       '<span class="o"><label for="dsTu">Từ</label><input type="date" id="dsTu" value="' + esc(d.tu || '') + '">' +
-        '<label for="dsDen">đến</label><input type="date" id="dsDen" value="' + esc(d.den || '') + '"></span>' +
+        '<label for="dsDen">đến</label><input type="date" id="dsDen" value="' + esc(d.den || '') + '">' +
+        '<button class="nut" type="button" id="dsLoc" title="Chạy theo hai ngày đã chọn">Lọc</button></span>' +
       '<span class="o"><label for="dsCanh"><input type="checkbox" id="dsCanh"' + (d.chiCanh ? ' checked' : '') +
         '> chỉ dòng cần xem</label></span>' +
     '</div>';
@@ -1558,8 +2374,13 @@
     });
     var t = o.querySelector('#dsTu'), d = o.querySelector('#dsDen'),
         c = o.querySelector('#dsCH'), k = o.querySelector('#dsCanh');
-    noiONgay(t, function (v) { S.ds.ky = 'tay'; S.ds.tu = v; taiDoiSoat(); });
-    noiONgay(d, function (v) { S.ds.ky = 'tay'; S.ds.den = v; taiDoiSoat(); });
+    /* Hai ô ngày KHÔNG tự chạy — xem chú thích ở `noiSuKien` (tab Doanh thu): tự chạy là vẽ lại cả
+       thanh lọc, bảng lịch đang mở biến mất ("cứ bấm nào nó lại mất bảng"). Chạy khi bấm Lọc / Enter. */
+    var nl = o.querySelector('#dsLoc');
+    if (nl) nl.addEventListener('click', function () {
+      locTay(t, d, function (tu, den) { S.ds.ky = 'tay'; S.ds.tu = tu; S.ds.den = den; taiDoiSoat(); });
+    });
+    locKhiEnter(t, nl); locKhiEnter(d, nl);
     if (c) c.addEventListener('change', function () { S.ds.ch = c.value; taiDoiSoat(); });
     /* Lọc "chỉ dòng cần xem" vẽ lại tại chỗ, không hỏi lại máy chủ — cùng một bộ số. */
     if (k) k.addEventListener('change', function () { S.ds.chiCanh = k.checked; veDoiSoat(q('#dtTabDoiSoat'), S.dsR, S.dsK); });
@@ -1686,9 +2507,9 @@
           '</div>'
         : '') +
       '<div class="bang-cuon"><table><thead><tr>' +
-        '<th>Ngày</th><th>Cơ sở</th><th>POS</th><th>Tiền mặt POS</th>' +
+        '<th>Ngày</th><th>Cơ sở</th><th>POS</th><th>Sale vé</th><th>Bán lẻ</th><th>Sale phụ</th><th>Tiền mặt POS</th>' +
         '<th>Ngân hàng nhận</th><th>Đang treo</th>' +
-        '<th>Đếm két</th><th>Lệch</th><th>Bill huỷ</th><th>Khách − vé</th><th>Người nhập</th>' +
+        '<th>Đếm két</th><th>Lệch</th><th>Bill huỷ</th><th>Hàng bán</th><th>Khách − máy</th><th>Người nhập</th>' +
       '</tr></thead><tbody>';
     var ptDS = catTrang('doi_soat', hien);
     ptDS.dong.forEach(function (x) {
@@ -1697,6 +2518,9 @@
         '<td>' + esc(ngayVN(x.ngay)) + '</td>' +
         '<td>' + esc(String(x.cua_hang).slice(0, 34)) + '</td>' +
         '<td class="s">' + tien(x.doanh_thu) + '</td>' +
+        '<td class="s">' + tien(x.tien_ve || 0) + '</td>' +
+        '<td class="s">' + tien(x.tien_le || 0) + '</td>' +
+        '<td class="s">' + tien(x.tien_phu || 0) + '</td>' +
         '<td class="s">' + tien(x.pos_tm) + '</td>' +
         /* Hai cột tiền nộp luôn hiện — không nấp sau việc cơ sở đã nhập báo cáo hay chưa. */
         '<td class="s">' + (x.co_bank
@@ -1712,9 +2536,16 @@
           ? '<td class="s">' + tien(x.dem) + '</td>' +
             '<td class="s">' + (x.lech_tm ? (x.lech_tm > 0 ? '+' : '') + tien(x.lech_tm) : '0') + '</td>' +
             '<td class="s">' + (x.bill_huy ? nguyen(x.bill_huy) + ' · ' + tien(x.tien_huy) : '—') + '</td>' +
-            '<td class="s">' + (x.khach && x.so_ve ? nguyen(x.khach - Math.round(x.so_ve)) : '—') + '</td>' +
+            /* Cơ sở chốt hàng bán: khớp máy, hay lệch món nào (kế toán xác nhận ở đây). */
+            '<td class="s">' + (x.mon_lech
+              ? (x.mon_lech.n
+                  ? '<b style="color:var(--xau)" title="' + esc((x.mon_lech.ds || []).map(function (d) { return d.n + ': máy ' + nguyen(d.may) + ' / thực ' + nguyen(d.thuc); }).join('\n')) + '">' + x.mon_lech.n + ' món lệch</b>'
+                  : (x.mon_lech.da_chot ? 'khớp máy' : '<span class="khai">chưa soát</span>'))
+              : '—') + '</td>' +
+            '<td class="s">' + (x.khach && (x.khach_may != null ? x.khach_may : x.so_ve)
+              ? nguyen(x.khach - Math.round(x.khach_may != null ? x.khach_may : x.so_ve)) : '—') + '</td>' +
             '<td>' + esc(x.nguoi || '') + (x.chot ? ' ✓' : '') + '</td>'
-          : '<td colspan="5" class="chua">chưa nhập báo cáo ngày</td>') +
+          : '<td colspan="6" class="chua">chưa nhập báo cáo ngày</td>') +
         '</tr>';
     });
     if (!hien.length) {
@@ -2470,8 +3301,120 @@
          trị viên mới đọc được, nên người dùng thường sẽ nhận 403 ở đây. Gộp vào `Promise.all`
          ở trên là một cái 403 làm trắng cả tab Quản trị của họ. */
       api('hop-thu').then(function (r) { veHopThu(o, r); }).catch(function () {});
+      /* Bóc tách vé → khách: cũng xin riêng, chỉ người được nạp file (văn phòng) mới đọc được. */
+      taiVeKhach(o);
+      /* Nhóm món nào là sale vé, nhóm nào bán lẻ — cũng xin riêng, cùng cửa quyền, cùng cửa hàng đang chọn. */
+      taiNhomVe(o);
+      /* Quy trình báo cáo cơ sở hằng ngày: cấu hình + tổng hợp hôm qua + nhật ký (chỉ quản trị). */
+      taiQuyTrinh(o);
     }).catch(function (e) {
       o.innerHTML = '<div class="khung"><div class="trong">' + esc(e.message || e) + '</div></div>';
+    });
+  }
+
+  /* ---- QUY TRÌNH BÁO CÁO CƠ SỞ HẰNG NGÀY ----
+     Anh Thắng 24/09/2026: *"Làm quy trình báo cáo hằng ngày tự động"* — *"Báo cáo cơ sở thôi"*.
+     Máy chủ theo dõi bốn bước từng ngày × cơ sở, đến giờ hạn thì tổng hợp + gửi thư cho văn phòng. */
+  function taiQuyTrinh(o) {
+    api('quy-trinh').then(function (r) { if (r && r.cf) veQuyTrinh(o, r); })
+      .catch(function () {});
+  }
+
+  function veQuyTrinh(o, r) {
+    var c = r.cf || {}, th = r.tong_hop || { dem: {}, dong: [], tong: 0 }, d = th.dem || {};
+    var chuaXong = (d.chua_nop || 0) + (d.chua_fabi || 0) + (d.da_luu || 0);
+    var h = '<div class="khung" id="dtQuyTrinh"><header><h2>Quy trình báo cáo cơ sở hằng ngày</h2>' +
+      '<span class="goi">' + (c.bat ? 'đang bật · hạn chốt ' + esc(c.han || '10:00') + ' sáng hôm sau' : 'đang tắt') + '</span></header>' +
+      '<div class="chu-them">Mỗi ngày bán hàng đi qua bốn bước: <b>số máy POS về</b> (hộp thư 08:02) → <b>cơ sở khai</b> ' +
+      '(soát hàng bán, đếm két, khách vào) → <b>sổ kho</b> → <b>Lưu và chốt</b>. Cửa hàng trưởng mở tab Nhập báo cáo ' +
+      'thấy ngay ngày nào còn treo; đến giờ hạn hệ tổng hợp mọi cơ sở, ghi nhật ký và gửi <b>một thư</b> cho văn phòng. ' +
+      '<b>Hệ không tự điền số</b> thay cơ sở — két, khách là số người đếm.</div>';
+
+    var o1 = function (nhan, ten, gt, kieu, rong) {
+      return '<label class="o" style="margin:0 8px 8px 0">' + esc(nhan) +
+        '<input type="' + (kieu || 'text') + '" data-qt="' + ten + '" value="' + esc(gt == null ? '' : gt) + '" style="width:' + (rong || 160) + 'px"></label>';
+    };
+    h += '<div style="margin-top:12px">' +
+      '<label class="o" style="margin:0 8px 8px 0"><input type="checkbox" data-qt="bat"' + (c.bat ? ' checked' : '') + '> Bật theo dõi và tổng hợp hằng ngày</label>' +
+      o1('Hạn chốt (giờ sáng hôm sau)', 'han', c.han || '10:00', 'time', 110) +
+      o1('Nhìn lùi (ngày)', 'lui', c.lui || 7, 'number', 70) +
+      '</div><div>' +
+      o1('Thư tổng hợp gửi tới (nhiều địa chỉ, cách nhau dấu phẩy)', 'email', c.email, 'text', 340) +
+      '</div>' +
+      '<div class="chu-them">Trống ô thư thì hệ chỉ ghi nhật ký. Thư gửi bằng bộ gửi thư của WordPress — hosting phải cho gửi thư.</div>' +
+      '<div style="margin-top:10px">' +
+      '<button class="nut chinh" type="button" id="dtQtLuu">Lưu</button> ' +
+      '<button class="nut" type="button" id="dtQtChay">Tổng hợp và gửi ngay</button>' +
+      (r.lan_sau ? '<span class="chu-them" style="margin-left:10px">Lượt sau: ' + esc(new Date(r.lan_sau).toLocaleString('vi-VN')) + '</span>' : '') +
+      '</div>';
+    if (r.vua_chay) {
+      h += '<div class="canh-ghep" style="margin-top:10px">' + (r.vua_chay.gui
+        ? '✓ Đã gửi <b>' + esc(r.vua_chay.tieu_de) + '</b> tới ' + esc((r.vua_chay.toi || []).join(', '))
+        : (r.vua_chay.loi ? '⚠️ ' + esc(r.vua_chay.loi) : 'Đã tổng hợp, ghi nhật ký. Chưa gửi thư vì chưa có địa chỉ.')) + '</div>';
+    }
+
+    /* Hôm qua: từng cơ sở một dòng. */
+    h += '<h3 class="tieu-nho" style="margin-top:14px">Hôm qua ' + esc(ngayVN(r.hom_qua || '')) + ': <b>' + (d.da_chot || 0) + '/' + (th.tong || 0) + ' đã chốt</b>' +
+      (chuaXong ? ' · <b style="color:var(--xau)">' + chuaXong + ' chưa xong</b>' : '') + '</h3>';
+    if (!(th.dong || []).length) {
+      h += '<div class="trong">Chưa có cơ sở nào trong kho POS.</div>';
+    } else {
+      h += '<div class="bang-the bang-cuon"><table><thead><tr><th style="text-align:left">Cơ sở</th><th>Máy POS</th><th>Trạng thái</th><th>Két lệch</th><th>Món lệch</th><th>Người</th></tr></thead><tbody>' +
+        th.dong.map(function (x) {
+          return '<tr' + (x.qua_han ? ' class="qua-han"' : '') + '><td data-nhan="Cơ sở" style="text-align:left">' + esc(x.cua_hang) + '</td>' +
+            '<td class="s" data-nhan="Máy POS">' + (x.doanh_thu != null ? tien(x.doanh_thu) : '—') + '</td>' +
+            '<td data-nhan="Trạng thái"><b' + ('da_chot' === x.trang_thai ? ' style="color:var(--tot)"' : (x.qua_han ? ' style="color:var(--xau)"' : '')) + '>' + esc(QT_NHAN[x.trang_thai] || x.trang_thai) + (x.qua_han ? ' · quá hạn' : '') + '</b></td>' +
+            '<td class="s" data-nhan="Két lệch">' + (x.lech_ket != null ? (x.lech_ket > 0 ? '+' : '') + tien(x.lech_ket) : '—') + '</td>' +
+            '<td class="s" data-nhan="Món lệch">' + (x.mon_lech ? '<b style="color:var(--xau)">' + nguyen(x.mon_lech) + '</b>' : (x.buoc && x.buoc.khai ? 'khớp' : '—')) + '</td>' +
+            '<td data-nhan="Người">' + esc(x.nguoi || '') + '</td></tr>';
+        }).join('') + '</tbody></table></div>';
+    }
+
+    var nk = r.nhat_ky || [];
+    h += '<h3 class="tieu-nho" style="margin-top:14px">Nhật ký 30 lượt gần nhất</h3>';
+    if (!nk.length) {
+      h += '<div class="chu-them">Chưa chạy lượt nào — đến giờ hạn hệ tự chạy, hoặc bấm "Tổng hợp và gửi ngay".</div>';
+    } else {
+      h += '<div class="bang-cuon"><table><thead><tr><th style="text-align:left">Lúc</th><th>Ngày</th><th>Chốt</th><th>Chưa xong</th><th style="text-align:left">Thư</th></tr></thead><tbody>' +
+        nk.slice(0, 30).map(function (x) {
+          var dd = x.dem || {};
+          return '<tr><td style="text-align:left" class="s">' + esc(x.luc) + '</td><td>' + esc(ngayVN(x.ngay)) + '</td>' +
+            '<td>' + nguyen(dd.da_chot || 0) + '/' + nguyen(x.tong || 0) + '</td>' +
+            '<td>' + nguyen((dd.da_luu || 0) + (dd.chua_nop || 0) + (dd.chua_fabi || 0)) + '</td>' +
+            '<td style="text-align:left">' + (x.gui ? 'đã gửi ' + esc((x.toi || []).join(', ')) : (x.loi ? '<span style="color:var(--xau)">' + esc(x.loi) + '</span>' : '<span class="chu-them">không gửi (chưa có địa chỉ)</span>')) + '</td></tr>';
+        }).join('') + '</tbody></table></div>';
+    }
+    h += '</div>';
+    var cu = o.querySelector('#dtQuyTrinh');
+    if (cu) { cu.outerHTML = h; } else { o.insertAdjacentHTML('beforeend', h); }
+    noiQuyTrinh(o);
+  }
+
+  function noiQuyTrinh(o) {
+    var k = o.querySelector('#dtQuyTrinh');
+    if (!k) return;
+    var thu = function () {
+      var fd = new FormData();
+      Array.prototype.forEach.call(k.querySelectorAll('[data-qt]'), function (x) {
+        var n = x.getAttribute('data-qt');
+        if ('checkbox' === x.type) { fd.append(n, x.checked ? '1' : ''); return; }
+        fd.append(n, x.value);
+      });
+      return fd;
+    };
+    var luu = k.querySelector('#dtQtLuu'), chay = k.querySelector('#dtQtChay');
+    luu.addEventListener('click', function () {
+      luu.disabled = true; luu.textContent = 'Đang lưu…';
+      api('quy-trinh', { method: 'POST', body: thu() }).then(function (r) { veQuyTrinh(o, r); })
+        .catch(function (e) { luu.disabled = false; luu.textContent = 'Lưu'; window.alert(e.message || e); });
+    });
+    chay.addEventListener('click', function () {
+      chay.disabled = true; chay.textContent = 'Đang chạy…';
+      /* Lưu trước rồi chạy — bấm chạy sau khi vừa sửa ô thư mà chưa Lưu thì phải gửi tới địa chỉ mới. */
+      api('quy-trinh', { method: 'POST', body: thu() })
+        .then(function () { return api('quy-trinh-chay', { method: 'POST' }); })
+        .then(function (r) { veQuyTrinh(o, r); })
+        .catch(function (e) { chay.disabled = false; chay.textContent = 'Tổng hợp và gửi ngay'; window.alert(e.message || e); });
     });
   }
 
@@ -2490,7 +3433,7 @@
     var c = (r && r.cf) || {};
     var h = '<div class="khung" id="dtHopThu"><header><h2>Nhận báo cáo qua hộp thư</h2>' +
       '<span class="goi">' + (c.bat
-        ? 'đang bật · mỗi ' + (c.gio || 2) + ' giờ'
+        ? 'đang bật · ' + ('gio' === c.che_do ? 'mỗi ' + (c.gio || 2) + ' giờ' : 'hằng ngày lúc ' + (c.luc || '08:02'))
         : 'đang tắt') + '</span></header>' +
       '<div class="chu-them">FABi gửi báo cáo về một hộp thư riêng, hệ tự vào lấy tệp đính kèm ' +
       'theo giờ rồi nạp vào kho — <b>y như anh bấm nạp tay</b>, cùng một bộ đọc.</div>';
@@ -2518,6 +3461,13 @@
     h += '<div style="margin-top:12px">' +
       '<label class="o" style="margin:0 8px 8px 0"><input type="checkbox" data-thu="bat"' +
         (c.bat ? ' checked' : '') + '> Bật tự lấy</label>' +
+      /* FABi gửi đúng 08:00 mỗi sáng -> mặc định "hằng ngày lúc 08:02", một lượt. Kéo mỗi 2
+         giờ là 11 lượt nối IMAP vô ích một ngày. Chế độ theo giờ giữ lại cho nguồn gửi bất chợt. */
+      '<label class="o" style="margin:0 8px 8px 0">Chạy<select data-thu="che_do">' +
+        '<option value="ngay"' + ('gio' !== c.che_do ? ' selected' : '') + '>hằng ngày, một lượt lúc…</option>' +
+        '<option value="gio"' + ('gio' === c.che_do ? ' selected' : '') + '>mỗi N giờ</option>' +
+      '</select></label>' +
+      o1('Giờ lấy (HH:MM)', 'luc', c.luc || '08:02', 'time', 110) +
       o1('Nhịp (giờ)', 'gio', c.gio, 'number', 70) +
       '<label class="o" style="margin:0 8px 8px 0">Loại báo cáo<select data-thu="loai">' +
         THU_LOAI.map(function (x) {
@@ -2550,12 +3500,21 @@
     h += '<div style="margin-top:10px">' +
       o1('Chỉ nhận thư từ', 'nguoi_gui', c.nguoi_gui, 'text', 280) +
       o1('Tên tệp khớp', 'mau_ten', c.mau_ten, 'text', 200) +
+      o1('Tên miền link được tải', 'link_mien', c.link_mien, 'text', 220) +
       '</div>' +
+      '<div class="chu-them">Thư <b>không đính kèm tệp</b> (FABi gửi kiểu này) thì hệ tìm <b>link tải</b> ' +
+      'trong thân thư. Chỉ tải link <b>https</b> ở tên miền của người gửi hoặc tên miền gõ ở ô trên ' +
+      '(cách nhau dấu phẩy, ví dụ <code>ipos.vn, s3.amazonaws.com</code>). Link trỏ tên miền lạ thì ' +
+      'nhật ký nêu tên miền ấy để anh thêm. Link <b>đòi đăng nhập</b> trả về trang web thay vì tệp — ' +
+      'hệ nhận ra và nói thẳng.</div>' +
       '<div class="chu-them">🔴 <b>Bỏ trống ô "Chỉ nhận thư từ" là hệ chối hết</b> — cố ý. Hộp thư ' +
       'nào cũng nhận được thư rác, mà một tệp .csv của người lạ đi thẳng vào kho doanh thu thì ' +
       'không ai nhìn ra ngay. Gõ đúng địa chỉ FABi gửi, hoặc cả tên miền kiểu <code>@fabi.vn</code>. ' +
       'Nhiều địa chỉ thì cách nhau dấu phẩy.</div>';
 
+    if (r && r.canh_bao_nguoi_gui) {
+      h += '<div class="canh-ghep" style="border-color:var(--xau)">🔴 ' + esc(r.canh_bao_nguoi_gui) + '</div>';
+    }
     if ('bes' === c.loai) {
       h += '<div>' + o1('Tên cơ sở (Bes)', 'co_so', c.co_so, 'text', 250) + '</div>';
     }
@@ -2582,7 +3541,17 @@
     if (!nk.length) {
       return '<div class="chu-them" style="margin-top:12px">Chưa chạy lượt nào.</div>';
     }
-    return '<h3 class="tieu-nho" style="margin-top:14px">Nhật ký 50 lượt gần nhất</h3>' +
+    /* Lượt mới nhất có địa chỉ gửi bị chối -> mỗi địa chỉ một nút "Thêm". Bấm là ghép vào ô
+       "Chỉ nhận thư từ" rồi Lưu luôn — hết phải cuộn tìm, chép, gõ lại. Phép gác không nới:
+       vẫn là người quyết định địa chỉ nào được vào. */
+    var la = (nk[0] && nk[0].nguoi_gui_la) || [];
+    var nutThem = !la.length ? '' :
+      '<div class="canh-ghep" style="margin-top:12px">Lượt vừa rồi chối thư từ <b>' + la.length +
+      ' địa chỉ</b> chưa nằm trong danh sách. Nếu đúng là FABi gửi, bấm để thêm và lưu:<br>' +
+      la.map(function (a) {
+        return '<button class="vien" type="button" data-thu-them="' + esc(a) + '" style="margin:6px 6px 0 0">＋ Thêm ' + esc(a) + '</button>';
+      }).join('') + '</div>';
+    return nutThem + '<h3 class="tieu-nho" style="margin-top:14px">Nhật ký 50 lượt gần nhất</h3>' +
       '<div class="bang-cuon"><table><thead><tr><th style="text-align:left">Lúc</th>' +
       '<th>Thư xem</th><th>Nạp được</th><th style="text-align:left">Chi tiết</th>' +
       '</tr></thead><tbody>' +
@@ -2592,7 +3561,8 @@
           : (x.nap || []).map(function (n) {
               return esc(n.ten) + ' (' + nguyen(n.da_ghi || 0) + ' dòng)';
             }).concat((x.bo || []).map(function (b) {
-              return '<span class="chu-them">bỏ qua: ' + esc(b.ten || b.tu || '') + ' — ' + esc(b.vi) + '</span>';
+              return '<span class="chu-them">bỏ qua: ' + esc(b.ten || b.tu || '') + ' — ' + esc(b.vi) +
+                (b.link ? ' <span style="word-break:break-all">[' + esc(b.link) + ']</span>' : '') + '</span>';
             })).join(' · ') || '<span class="chu-them">không có gì mới</span>';
         return '<tr><td style="text-align:left" class="s">' + esc(x.luc) + '</td>' +
           '<td>' + nguyen(x.xem || 0) + '</td><td>' + nguyen(x.so_nap || 0) + '</td>' +
@@ -2615,6 +3585,21 @@
       });
       return fd;
     };
+    /* Nút "＋ Thêm <địa chỉ>": ghép vào ô danh sách (không trùng) rồi bấm Lưu thay người ta. */
+    k.addEventListener('click', function (e) {
+      var b = e.target.closest ? e.target.closest('[data-thu-them]') : null;
+      if (!b) return;
+      e.preventDefault();
+      var o = k.querySelector('[data-thu="nguoi_gui"]');
+      if (!o) return;
+      var dc = b.getAttribute('data-thu-them');
+      var ds = o.value.split(',').map(function (x) { return x.trim(); }).filter(Boolean);
+      if (ds.indexOf(dc) < 0) ds.push(dc);
+      o.value = ds.join(', ');
+      var l = k.querySelector('#dtThuLuu');
+      if (l) l.click();
+    });
+
     var luu = k.querySelector('#dtThuLuu');
     if (luu) {
       luu.addEventListener('click', function () {
@@ -2638,8 +3623,18 @@
           .then(function (r) {
             veHopThu(o, r.xem);
             var c = r.chay || {};
+            /* "Xem 4 thư, nạp được 0 tệp" mà không nói VÌ SAO là bắt người ta cuộn xuống nhật ký
+               rồi tự đoán. Gom lý do bỏ qua theo nhóm, kèm địa chỉ gửi bị chối. */
+            var ly = {};
+            (c.bo || []).forEach(function (b) { ly[b.vi] = (ly[b.vi] || 0) + 1; });
+            var lyDo = Object.keys(ly).map(function (k) { return '· ' + k + ' (' + ly[k] + ' thư)'; }).join('\n');
             window.alert(c.loi ? c.loi
-              : 'Xem ' + (c.xem || 0) + ' thư, nạp được ' + (c.so_nap || 0) + ' tệp.');
+              : 'Xem ' + (c.xem || 0) + ' thư, nạp được ' + (c.so_nap || 0) + ' tệp.' +
+                (lyDo ? '\n\nBỏ qua vì:\n' + lyDo : '') +
+                ((c.nguoi_gui_la || []).length
+                  ? '\n\nĐịa chỉ gửi bị chối: ' + c.nguoi_gui_la.join(', ') +
+                    '\nNếu đúng là FABi, bấm nút "Thêm …" ngay dưới nhật ký.'
+                  : ''));
           })
           .catch(function (e) {
             chay.disabled = false; chay.textContent = 'Lấy thư ngay';
@@ -3288,7 +4283,10 @@
      Hai hệ gọi cùng một cái quán bằng hai cái tên: nhân sự ghi "FZ_SC_VIVO_T4", máy POS ghi
      "FUNZONE - Vivo City (...)". Không ai đoán hộ được, nên khai một lần ở đây. */
   function veGhep(o, r) {
-    var ghep = r.ghep || [], ch = r.cua_hang || [], ng = r.nguoi || [], thieu = r.chua_ghep || [];
+    var ghep = r.ghep || [], ch = r.cua_hang || [], ng = r.nguoi || [], thieu = r.chua_ghep || [], lech = r.ten_lech || [];
+    /* So tên LỎNG (bỏ khoảng trắng thừa, không phân biệt hoa thường) chỉ để BÀY ô tích; lưu lại là máy
+       chủ đổi về đúng nguyên văn tên POS. 24/09/2026 anh Thắng: "tại sao có cơ sở không thêm được". */
+    var long_ = function (t) { return String(t || '').replace(/[\s\u00a0]+/g, ' ').trim().toLowerCase(); };
     var h = '<div class="khung" id="dtGhep"><header><h2>Ghép cơ sở</h2>' +
       '<span class="goi">' + ghep.length + ' mã</span></header>';
     h += '<div class="chu-them" style="margin-top:6px">Mã bên trái là cơ sở trong sổ nhân sự; ' +
@@ -3301,6 +4299,13 @@
     if (thieu.length) {
       h += '<div class="canh-ghep">Đang có người ở ' + thieu.length + ' mã chưa ghép: <b>' +
         thieu.map(esc).join(', ') + '</b></div>';
+    }
+    if (lech.length) {
+      h += '<div class="canh-ghep"><b>' + lech.length + ' tên đã lưu không khớp nguyên văn tên trên máy POS</b> ' +
+        '(thường do khoảng trắng thừa trong tên FABi) — người ở mã ấy sẽ không thấy quán. Bấm <b>Lưu bảng ghép</b> một lần là ' +
+        'hệ tự đổi về đúng tên POS: ' + lech.map(function (x) {
+          return '<code>' + esc(x.ma) + '</code> "' + esc(x.ten) + '"' + (x.goi_y !== x.ten ? ' → "' + esc(x.goi_y) + '"' : ' (chưa có quán này trong số liệu)');
+        }).join('; ') + '</div>';
     }
     if (!ghep.length) {
       h += '<div class="trong">Chưa có ai được đẩy sang. Vào trang Nhân sự, cột ' +
@@ -3320,15 +4325,17 @@
             '<td><div class="ghep-chon' + (chiDuyet ? ' mo-nhat' : '') + '" data-o-ghep="' + esc(g.ma) + '">' +
               (chiDuyet ? '<div class="ghep-nhac">Ai cũng vai duyệt — xem tổng mọi cơ sở, không cần tích.</div>' : '') +
               ch.map(function (t) {
+                var daTich = chon.indexOf(t) >= 0 || chon.some(function (c) { return long_(c) === long_(t); });
                 return '<label><input type="checkbox" data-ghep="' + esc(g.ma) + '" value="' + esc(t) + '"' +
-                  (chon.indexOf(t) >= 0 ? ' checked' : '') + '><span>' + esc(t) + '</span></label>';
+                  (daTich ? ' checked' : '') + '><span>' + esc(t) + '</span></label>';
               }).join('') +
             '</div></td>' +
             '<td style="text-align:left">' + (nguoi.length
               ? nguoi.map(function (x) {
                   return esc(x.ho_ten) + ' <span style="color:var(--ink-3)">(' + esc(x.ma_nv) +
                     (x.vai === 'duyet' ? ', duyệt — xem tổng mọi cơ sở'
-                      : ((x.coso_ds || []).length > 1 ? ', ' + x.coso_ds.length + ' cơ sở' : '')) + ')</span>';
+                      : (!x.vai ? ', chưa cấp quyền'
+                        : ((x.coso_ds || []).length > 1 ? ', ' + x.coso_ds.length + ' cơ sở' : ''))) + ')</span>';
                 }).join('<br>')
               : '<span style="color:var(--ink-3)">—</span>') + '</td></tr>';
         }).join('') + '</tbody></table></div>' +
@@ -3336,7 +4343,13 @@
         '<span id="dtGhepBao" class="chu-them"></span></div>';
     }
     h += '</div>';
-    o.insertAdjacentHTML('afterbegin', h);
+    /* Bảng Ghép cơ sở đứng NGAY SAU bảng phân quyền, không chiếm đầu tab. Anh Thắng 23/09/2026 mở
+       tab Quản trị, thấy Ghép cơ sở choán cả màn và hỏi "Tab Phân Quyền bên Fabi chưa có" — bảng
+       cấp vai nằm dưới, phải cuộn mới thấy. Việc làm thường (cấp vai) phải ở trên việc làm một
+       lần (ghép mã). */
+    var pq = o.querySelector('#dtNguoiPin');
+    if (pq) pq.insertAdjacentHTML('afterend', h);
+    else o.insertAdjacentHTML('afterbegin', h);
 
     var nut = o.querySelector('#dtLuuGhep');
     if (!nut) return;
@@ -3359,6 +4372,264 @@
     });
   }
 
+  /* ---- CẤU HÌNH THEO TỪNG CỬA HÀNG: bóc tách vé → khách, và nhóm Sale vé / Sale phụ ----
+     Anh Thắng 23/09/2026: *"Mỗi cửa hàng 1 cấu hình đi. Để cho dễ"* — *"trong tài khoản admin… cứ
+     chọn cửa hàng để cấu hình tránh lẫn lộn"*. MỘT ô chọn cửa hàng (S.cauHinhCS) dùng chung cho cả
+     hai khối; đổi quán là cả hai tải lại. Bảng chung cũ (bản 1.59.0) chỉ còn là mặc định cho quán
+     chưa khai riêng. */
+  function cauHinhCS() {
+    var ds = (S.cf && S.cf.cua_hang) || [];
+    if (!S.cauHinhCS || ds.indexOf(S.cauHinhCS) < 0) {
+      /* Mặc định gian Tàu đầu tiên — "áp dụng cho gian Tàu trước". */
+      var tau = ds.filter(function (t) { return /t[àa]u|train/i.test(t); });
+      S.cauHinhCS = tau.length ? tau[0] : (ds[0] || '');
+    }
+    return S.cauHinhCS;
+  }
+  function oChonCS(id, r) {
+    var ds = (S.cf && S.cf.cua_hang) || [];
+    /* Tên máy chủ trả về không có trong danh sách (khác vài dấu cách) thì chọn theo quán đang chọn, đừng để
+       ô chọn rơi về quán đầu trong khi tiêu đề ghi quán khác. */
+    var chon = ds.indexOf(r.cua_hang) >= 0 ? r.cua_hang : cauHinhCS();
+    return '<div class="loc" style="margin:12px 0 4px"><label class="o">Cửa hàng<select id="' + id + '" data-chon-cs>' +
+      ds.map(function (t) { return '<option value="' + esc(t) + '"' + (t === chon ? ' selected' : '') + '>' + esc(t) + '</option>'; }).join('') +
+      '</select></label><span class="chu-them" style="margin:0">Đổi ô chọn là đổi cả hai khối bên dưới. Cả hai khối: <b>bảng chung cho mọi quán</b>, quán nào khác thì set riêng đè lên.</span></div>';
+  }
+  function noiChonCS(o) {
+    Array.prototype.forEach.call(o.querySelectorAll('select[data-chon-cs]'), function (sel) {
+      if (sel.dataset.noi) return;
+      sel.dataset.noi = '1';
+      sel.addEventListener('change', function () { S.cauHinhCS = sel.value; taiVeKhach(o); taiNhomVe(o); });
+    });
+  }
+
+  /* Lỗi tải hai khối cấu hình PHẢI HIỆN RA. 24/09/2026 anh Thắng: "chỗ set Sale Phụ anh không thấy" —
+     bản trước nuốt lỗi bằng catch rỗng, hỏng là khối biến mất không dấu vết. Người không có quyền nạp
+     (403) thì đúng là không thấy, nhưng phải nói vì sao. */
+  function khoiLoi(o, id, ten, e) {
+    var cu = o.querySelector('#' + id); if (cu) cu.remove();
+    var h = '<div class="khung" id="' + id + '"><header><h2>' + esc(ten) + '</h2></header>' +
+      '<div class="trong">Không tải được: ' + esc(e && e.message ? e.message : String(e)) +
+      '. Khối này chỉ mở cho người được nạp file (vai duyệt / tài khoản biên tập).</div></div>';
+    var moc = o.querySelector('#dtGhep');
+    if (moc) moc.insertAdjacentHTML('beforebegin', h); else o.insertAdjacentHTML('beforeend', h);
+  }
+  function taiVeKhach(o) {
+    var cs = cauHinhCS();
+    api('ve-khach?cua_hang=' + encodeURIComponent(cs)).then(function (r) {
+      var cu = o.querySelector('#dtVeKhach');
+      if (cu) cu.remove();
+      veVeKhach(o, r);
+    }).catch(function (e) { khoiLoi(o, 'dtVeKhach', 'Bóc tách vé → khách vào', e); });
+  }
+  function taiNhomVe(o) {
+    var cs = cauHinhCS();
+    api('nhom-ve?cua_hang=' + encodeURIComponent(cs)).then(function (r) { veNhomVe(o, r); })
+      .catch(function (e) { khoiLoi(o, 'dtNhomVe', 'Sale vé / Bán lẻ / Sale phụ', e); });
+  }
+
+  function veVeKhach(o, r) {
+    var mon = r.mon || [], bang = r.bang || {}, chung = r.bang_chung || {}, rieng = r.bang_rieng || {}, phuRieng = r.phu_rieng || {}, conThieu = r.con_thieu || {};
+    var ve = mon.filter(function (x) { return x.la_ve || x.khach != null; });
+    var khac = mon.filter(function (x) { return !x.la_ve && x.khach == null; });
+    var chua = ve.filter(function (x) { return x.khach == null; }).length;
+    var soRieng = Object.keys(rieng).length + Object.keys(phuRieng).length;
+    var quanThieu = Object.keys(conThieu).filter(function (c) { return c !== r.cua_hang; });
+    /* 24/09/2026 anh Thắng: *"vé đã có sẵn lấy theo và anh đã set vé đó là tính 2 người mà"* rồi *"để nhỡ vé đó riêng thì
+       cơ sở đó chủ động tự set"* — MẶC ĐỊNH một bảng theo TÊN VÉ cho cả chuỗi (nút chính); quán nào vé ấy khác thì
+       "Lưu riêng cho quán này": chỉ những vé gõ KHÁC số chung mới ghi riêng, và số riêng đè số chung ở quán ấy. */
+    var h = '<div class="khung" id="dtVeKhach"><header><h2>Bóc tách vé → khách vào</h2>' +
+      '<span class="goi">' + Object.keys(chung).length + ' vé khai chung' + (soRieng ? ' · ' + soRieng + ' số quán này set riêng' : '') +
+      (chua ? ' · <b style="color:var(--xau)">' + chua + ' chưa khai</b>' : '') + '</span></header>' +
+      '<div class="chu-them" style="margin-top:6px">Mỗi loại vé trên máy POS tính <b>bao nhiêu khách</b>: vé ghép ' +
+      '<i>Trẻ em + Người lớn</i> là <b>2</b>, vé lẻ là <b>1</b>. <b>Khai theo tên vé, một lần cho mọi cửa hàng</b> (nút "Lưu cho tất cả"). ' +
+      'Quán nào vé ấy tính khác thì chọn quán, sửa số rồi bấm <b>"Lưu riêng cho quán này"</b> — chỉ vé gõ khác số chung mới thành riêng, ' +
+      'và số riêng đè số chung ở quán ấy. Máy tự ra <b>Khách vào (POS)</b> ở tab Nhập báo cáo để so với số nhân viên đếm ở cửa. ' +
+      'Vé <b>chưa khai</b> đang tạm tính 1 khách/vé và đã được <b>điền sẵn gợi ý</b> — sửa nếu cần rồi bấm Lưu. Ô để trống = không tính; ' +
+      '<b>0</b> = vé không ứng với người (vé online đã gộp, vé bù…). Cột <b>Sale phụ mỗi vé</b>: tiền phụ của <b>riêng loại vé này</b> ' +
+      '(combo này 20.000, combo kia 15.000) — để trống là theo số của nhóm món khai ở khối dưới; gõ 0 là vé này không có phụ.</div>' +
+      oChonCS('vkCS', r);
+    if (quanThieu.length) {
+      h += '<div class="canh-ghep">Còn vé chưa khai ở ' + quanThieu.length + ' cửa hàng khác: ' +
+        quanThieu.map(function (c) {
+          return '<button class="vien" type="button" data-sang-cs="' + esc(c) + '" style="margin:2px">' + esc(String(c).slice(0, 30)) + ' (' + conThieu[c] + ')</button>';
+        }).join(' ') + '</div>';
+    }
+    if (!mon.length) {
+      h += '<div class="trong">Cửa hàng này chưa có món nào trong kho số FABi 90 ngày gần đây.</div>';
+    } else {
+      var hang = function (x) {
+        var thieu = x.la_ve && x.khach == null;
+        /* Ô mang lớp o-ten / o-may / o-go + data-nhan: trên điện thoại bảng đổ thành THẺ (anh Thắng 24/09/2026 gửi
+           ảnh bảng bị cắt cột "Khách mỗi vé", cột "Sale phụ" rơi hẳn ngoài màn). Máy tính vẫn là bảng. */
+        return '<tr data-ten="' + esc(x.ten) + '"' + (thieu ? ' style="background:var(--app-mem)"' : '') + '>' +
+          '<td class="o-ten" data-nhan="Món / vé" style="text-align:left">' + esc(x.ten) + '<span style="display:block;color:var(--ink-3);font-size:12px">' + esc(x.nhom || '') +
+            (x.rieng ? ' · <b style="color:var(--app)">quán này set riêng' + (x.khach_chung != null ? ' (chung: ' + esc(x.khach_chung) + ')' : '') + '</b>' : '') +
+            (x.phu_rieng ? ' · <b style="color:var(--app)">phụ riêng' + (x.phu_chung != null ? ' (chung: ' + nguyen(x.phu_chung) + ')' : '') + '</b>' : '') +
+            (thieu ? ' · <b style="color:var(--xau)">chưa khai — điền sẵn gợi ý</b>' : '') + '</span></td>' +
+          '<td class="s o-may" data-nhan="Đã bán 90 ngày">' + nguyen(x.so_luong) + '</td>' +
+          /* Chưa khai thì ĐIỀN SẴN gợi ý (không chỉ placeholder) để một lần Lưu là xong quán này. */
+          '<td class="o-go" data-nhan="Khách mỗi vé"><input type="number" min="0" step="1" inputmode="numeric" autocomplete="off" data-vk="' + esc(x.ten) + '" data-chung="' + (x.khach_chung != null ? esc(x.khach_chung) : '') + '" style="width:84px" value="' +
+            (x.khach != null ? x.khach : (thieu && x.goi_y != null ? x.goi_y : '')) + '" placeholder="' + (x.goi_y != null ? 'gợi ý ' + x.goi_y : '—') + '"></td>' +
+          /* Sale phụ theo TÊN vé: trống = theo nhóm (placeholder cho biết nhóm đang áp bao nhiêu); gõ 0 = vé này không phụ. */
+          '<td class="o-go" data-nhan="Sale phụ mỗi vé (đ)"><input type="number" min="0" step="1000" inputmode="numeric" autocomplete="off" data-vp="' + esc(x.ten) + '" data-chung="' + (x.phu_chung != null ? esc(x.phu_chung) : '') + '" style="width:96px" value="' +
+            (x.phu != null ? x.phu : '') + '" placeholder="' + (x.phu_nhom != null ? 'nhóm: ' + nguyen(x.phu_nhom) : '—') + '"></td>' +
+          '</tr>';
+      };
+      h += '<div class="bang-the the-cf bang-cuon"><table><thead><tr><th>Món / vé</th><th>Đã bán 90 ngày</th><th>Khách mỗi vé</th><th>Sale phụ mỗi vé (đ)</th></tr></thead><tbody>' +
+        ve.map(hang).join('') +
+        (khac.length
+          ? '<tr><td colspan="4" style="text-align:left;color:var(--ink-3)"><details><summary style="cursor:pointer">' +
+            khac.length + ' món khác không phải vé (đồ ăn, nước…) — mở nếu cần tính khách hay sale phụ cho món nào</summary>' +
+            '<table><tbody>' + khac.map(hang).join('') + '</tbody></table></details></td></tr>'
+          : '') +
+        '</tbody></table></div>' +
+        /* Anh Thắng 24/09/2026: *"có là đều hết chứ"*, rồi Bình Tân vẫn tạm tính 1 vì combo chỉ khai ở quán khác —
+           combo 2 người là 2 người ở MỌI quán, nên nút chính lưu BẢNG CHUNG; lưu riêng chỉ khi quán ấy khác. */
+        '<div style="margin-top:12px"><button class="nut chinh" type="button" id="vkLuuChung" data-vk-luu="*">Lưu cho tất cả cửa hàng</button> ' +
+        '<button class="nut" type="button" id="vkLuu" data-vk-luu="rieng">Lưu riêng cho quán này</button> ' +
+        (soRieng ? '<button class="vien" type="button" id="vkBoRieng">Bỏ set riêng, dùng số chung</button> ' : '') +
+        '<span id="vkBao" class="chu-them" style="margin:0"></span></div>' +
+        '<div class="chu-them">Combo 2 người là 2 người ở mọi quán — <b>Lưu cho tất cả cửa hàng</b> một lần là xong. ' +
+        '<b>Lưu riêng cho quán này</b> chỉ ghi những vé gõ khác số chung; số riêng đè số chung ở quán ấy.</div>';
+    }
+    h += '</div>';
+    var moc = o.querySelector('#dtGhep');
+    if (moc) moc.insertAdjacentHTML('beforebegin', h);
+    else o.insertAdjacentHTML('beforeend', h);
+    noiChonCS(o);
+    Array.prototype.forEach.call(o.querySelectorAll('[data-sang-cs]'), function (b) {
+      b.addEventListener('click', function () { S.cauHinhCS = b.dataset.sangCs; taiVeKhach(o); taiNhomVe(o); });
+    });
+    Array.prototype.forEach.call(o.querySelectorAll('#dtVeKhach [data-vk-luu]'), function (nut) {
+      nut.addEventListener('click', function () {
+        var chungK = nut.getAttribute('data-vk-luu') === '*';
+        var b = {}, bp = {};
+        /* Lưu chung: mọi ô. Lưu riêng: CHỈ ô gõ khác số chung (ô bằng số chung -> gửi trống = bỏ set riêng nếu có). */
+        var lay = function (sel, ra) {
+          Array.prototype.forEach.call(o.querySelectorAll('#dtVeKhach ' + sel), function (i) {
+            var v = i.value.trim(), c = i.getAttribute('data-chung') || '';
+            if (chungK) { ra[i.dataset.vk || i.dataset.vp] = v; return; }
+            ra[i.dataset.vk || i.dataset.vp] = (v !== '' && v !== c) ? v : '';
+          });
+        };
+        lay('input[data-vk]', b); lay('input[data-vp]', bp);
+        var chu = nut.textContent;
+        nut.disabled = true; nut.textContent = 'Đang lưu…';
+        var fd = new FormData(); fd.append('bang', JSON.stringify(b)); fd.append('phu', JSON.stringify(bp));
+        fd.append('cua_hang', chungK ? '*' : (r.cua_hang || cauHinhCS()));
+        fd.append('xem_cua_hang', r.cua_hang || cauHinhCS());
+        api('ve-khach', { method: 'POST', body: fd }).then(function (r2) {
+          var cu = o.querySelector('#dtVeKhach'); if (cu) cu.remove();
+          veVeKhach(o, r2);
+          var bao = o.querySelector('#vkBao'); if (bao) bao.textContent = chungK
+            ? 'Đã lưu cho mọi cửa hàng — vé khai ở đây tính như nhau ở mọi quán (trừ vé quán nào đã set riêng).'
+            : 'Đã lưu riêng cho ' + String(r2.cua_hang || '').slice(0, 30) + ' — chỉ vé gõ khác số chung; các quán khác giữ số chung.';
+        }).catch(function (e) {
+          nut.disabled = false; nut.textContent = chu;
+          var bao = o.querySelector('#vkBao'); if (bao) bao.textContent = e.message || e;
+        });
+      });
+    });
+    var bo = o.querySelector('#vkBoRieng');
+    if (bo) bo.addEventListener('click', function () {
+      bo.disabled = true; bo.textContent = 'Đang bỏ…';
+      var fd = new FormData(); fd.append('xoa_rieng', '1'); fd.append('cua_hang', r.cua_hang || cauHinhCS());
+      api('ve-khach', { method: 'POST', body: fd }).then(function (r2) {
+        var cu = o.querySelector('#dtVeKhach'); if (cu) cu.remove();
+        veVeKhach(o, r2);
+        var bao = o.querySelector('#vkBao'); if (bao) bao.textContent = 'Đã bỏ set riêng — quán này dùng số chung.';
+      }).catch(function (e) { bo.disabled = false; bo.textContent = 'Bỏ set riêng, dùng số chung'; window.alert(e.message || e); });
+    });
+  }
+
+  /* ---- SALE VÉ / BÁN LẺ / SALE PHỤ: TÍCH NHÓM MÓN, THEO TỪNG CỬA HÀNG ----
+     Anh Thắng 23/09/2026: *"tách giúp anh 2 ô là tiền sale vé và tiền sale bán lẻ"*, *"Tiền Sale
+     Phụ"*, *"thêm cấu hình tích trong cấu hình để tính loại nào sale vé, loại nào sale bán lẻ"*.
+     Nhóm đã tích = sale vé, còn lại = bán lẻ; cột phụ riêng. Chưa tích gì thì máy tạm theo cột Loại
+     món của FABi. */
+  function veNhomVe(o, r) {
+    var nhom = r.nhom || [], chon = r.nhom_ve || [], chonPhu = r.nhom_phu || {};
+    var soPhu = Object.keys(chonPhu).length;
+    var cu = o.querySelector('#dtNhomVe'); if (cu) cu.remove();
+    var h = '<div class="khung" id="dtNhomVe"><header><h2>Sale vé / Bán lẻ / Sale phụ — theo nhóm món</h2>' +
+      '<span class="goi">' + esc(String(r.cua_hang || '').slice(0, 34)) + ' · ' +
+      (r.da_cau_hinh
+        ? (r.rieng ? 'khai riêng' : '<b style="color:var(--xau)">đang thừa bảng chung</b>') + ' · ' + chon.length + ' nhóm sale vé · ' + soPhu + ' nhóm có phụ'
+        : 'chưa cấu hình — đang tạm theo cột Loại món') + '</span></header>' +
+      /* 23/09/2026 anh Thắng chỉnh lần cuối: sale phụ là "chiết khấu 20k cho 1 đơn vé combo 80k" —
+         số vé × tiền phụ mỗi vé, không phải cộng tiền cả nhóm. */
+      '<div class="chu-them" style="margin-top:6px">Ba ô ở tab Nhập báo cáo (và ba cột ở Đối soát) tính theo <b>nhóm món</b> của FABi. ' +
+      '<b>Sale vé</b> = các nhóm tích cột "Sale vé" (ví dụ <i>VÉ COMBO.</i> và <i>VÉ LẺ.</i>); <b>Bán lẻ</b> = phần còn lại ' +
+      '(<i>ĐÓNG SẴN</i>: đồ ăn, đồ uống); <b>Sale phụ</b> = <b>số vé × tiền phụ mỗi vé</b> gõ ở cột cuối — ví dụ vé combo 80.000đ ' +
+      'có 20.000đ phụ (chiết khấu / quà kèm) thì gõ <b>20000</b> ở hàng <i>VÉ COMBO.</i>; nhóm để trống = không có phụ. ' +
+      'Nhóm liệt kê từ số liệu 90 ngày gần nhất của cửa hàng đang chọn.</div>' +
+      oChonCS('nvCS', r);
+    if (!nhom.length) {
+      h += '<div class="trong">Cửa hàng này chưa có nhóm món nào trong kho số FABi 90 ngày gần đây.</div>';
+    } else {
+      h += '<div class="bang-the the-cf bang-cuon" style="margin-top:8px"><table><thead><tr><th>Sale vé?</th><th>Nhóm món</th><th>Loại món (FABi)</th><th>Đã bán</th><th>Tiền 90 ngày</th><th>Sale phụ mỗi vé (đ)</th></tr></thead><tbody>' +
+        nhom.map(function (x) {
+          return '<tr><td class="o-tick" data-nhan="Sale vé?"><label><input type="checkbox" data-nhom-ve="' + esc(x.nhom) + '"' + (x.ve ? ' checked' : '') + (x.nhom ? '' : ' disabled') + '><span class="chi-the"> tính là Sale vé</span></label></td>' +
+            '<td class="o-ten" data-nhan="Nhóm món" style="text-align:left">' + (x.nhom ? esc(x.nhom) : '<i>(không có nhóm)</i>') +
+              '<span class="chi-the" style="display:block;color:var(--ink-3);font-size:12px">' + esc((x.loai || []).join(', ')) + '</span></td>' +
+            '<td class="chi-ban" style="text-align:left;color:var(--ink-3)">' + esc((x.loai || []).join(', ')) + '</td>' +
+            '<td class="s o-may" data-nhan="Đã bán">' + nguyen(x.so_luong) + '</td><td class="s o-may" data-nhan="Tiền 90 ngày">' + tien(x.tien) + '</td>' +
+            '<td class="o-go" data-nhan="Sale phụ mỗi vé (đ)"><input type="number" min="0" step="1000" inputmode="numeric" autocomplete="off" data-nhom-phu="' + esc(x.nhom) + '" style="width:96px" value="' +
+              (x.phu != null ? Math.round(x.phu) : '') + '" placeholder="0"' + (x.nhom ? '' : ' disabled') + '></td></tr>';
+        }).join('') + '</tbody></table></div>' +
+        /* Anh Thắng 24/09/2026: *"có là đều hết chứ"* — nhóm món FABi (VÉ COMBO., VÉ LẺ., ĐÓNG SẴN…) giống nhau
+           mọi quán, nên phải có nút lưu MỘT LẦN CHO TẤT CẢ (bảng chung). "Cho cửa hàng này" chỉ khi quán ấy khác. */
+        '<div style="margin-top:12px"><button class="nut chinh" type="button" id="nvLuuChung" data-nv-luu="*">Lưu cho tất cả cửa hàng</button> ' +
+        '<button class="nut" type="button" id="nvLuu" data-nv-luu="rieng">Lưu riêng cho cửa hàng này</button> ' +
+        (r.rieng && r.chung ? '<button class="vien" type="button" id="nvBoRieng">Bỏ khai riêng, dùng bảng chung</button> ' : '') +
+        '<span id="nvBao" class="chu-them" style="margin:0"></span></div>' +
+        '<div class="chu-them">Quán nào <b>khai riêng</b> thì dùng bảng riêng của nó; quán còn lại <b>thừa bảng chung</b>. ' +
+        'Gò Vấp đang "khai riêng" vì bấm lưu cho cửa hàng này — nếu không cần khác biệt, bấm "Bỏ khai riêng".</div>';
+    }
+    h += '</div>';
+    var moc = o.querySelector('#dtVeKhach') || o.querySelector('#dtGhep');
+    if (moc) moc.insertAdjacentHTML('beforebegin', h); else o.insertAdjacentHTML('beforeend', h);
+    noiChonCS(o);
+    Array.prototype.forEach.call(o.querySelectorAll('#dtNhomVe [data-nv-luu]'), function (nut) {
+      nut.addEventListener('click', function () {
+        var chung = nut.getAttribute('data-nv-luu') === '*';
+        var ds = [], dsPhu = {};
+        Array.prototype.forEach.call(o.querySelectorAll('input[data-nhom-ve]'), function (c) { if (c.checked) ds.push(c.dataset.nhomVe); });
+        /* Sale phụ: [ nhóm => đ/vé ], chỉ gửi ô có số > 0. */
+        Array.prototype.forEach.call(o.querySelectorAll('input[data-nhom-phu]'), function (c) {
+          var v = parseInt(String(c.value).replace(/[^\d]/g, ''), 10);
+          if (v > 0) dsPhu[c.dataset.nhomPhu] = v;
+        });
+        var chu = nut.textContent;
+        nut.disabled = true; nut.textContent = 'Đang lưu…';
+        var fd = new FormData(); fd.append('nhom_ve', JSON.stringify(ds)); fd.append('nhom_phu', JSON.stringify(dsPhu));
+        /* '*' = bảng chung cho mọi quán; còn lại là khai riêng đúng quán đang chọn. */
+        fd.append('cua_hang', chung ? '*' : (r.cua_hang || cauHinhCS()));
+        api('nhom-ve', { method: 'POST', body: fd })
+          .then(function () { return api('nhom-ve?cua_hang=' + encodeURIComponent(cauHinhCS())); })
+          .then(function (r2) {
+            veNhomVe(o, r2);
+            var b = o.querySelector('#nvBao'); if (b) b.textContent = chung
+              ? 'Đã lưu bảng chung — mọi cửa hàng chưa khai riêng đều tách theo cách này.'
+              : 'Đã lưu riêng cho ' + String(r2.cua_hang || '').slice(0, 30) + ' — tab Nhập báo cáo và Đối soát tách theo cách mới.';
+          }).catch(function (e) {
+            nut.disabled = false; nut.textContent = chu;
+            var b = o.querySelector('#nvBao'); if (b) b.textContent = e.message || e;
+          });
+      });
+    });
+    var bo = o.querySelector('#nvBoRieng');
+    if (bo) bo.addEventListener('click', function () {
+      bo.disabled = true; bo.textContent = 'Đang bỏ…';
+      var fd = new FormData(); fd.append('xoa_rieng', '1'); fd.append('cua_hang', r.cua_hang || cauHinhCS());
+      api('nhom-ve', { method: 'POST', body: fd }).then(function (r2) {
+        veNhomVe(o, r2);
+        var b = o.querySelector('#nvBao'); if (b) b.textContent = 'Đã bỏ khai riêng — quán này thừa lại bảng chung.';
+      }).catch(function (e) { bo.disabled = false; bo.textContent = 'Bỏ khai riêng, dùng bảng chung'; window.alert(e.message || e); });
+    });
+  }
+
   function veQuanTri(o, r) {
     var ds = r.ds || [], ch = r.cua_hang || [];
     var chon = function (ten, gt, ds2, rong) {
@@ -3371,11 +4642,63 @@
     };
     var quyens = [{ v: 'nhap', n: 'Nhập báo cáo' }, { v: 'duyet', n: 'Nhập và duyệt' }];
 
-    var h = '<div class="khung"><header><h2>Ai được nhập báo cáo cơ sở</h2>' +
+    /* ---- NGƯỜI ĐẨY TỪ TRANG NHÂN SỰ (vào bằng PIN) — CẤP VAI Ở ĐÂY ----
+       Anh Thắng 23/09/2026: *"chỉ đẩy nhân sự qua, chứ không phân quyền nhiệm vụ trong đó, mà do
+       trang tự phân quyền"*. Bên Nhân sự bấm Đẩy là người ấy có mặt ở bảng này với vai TRỐNG —
+       vào xem được cơ sở mình, chưa nhập được gì. Chọn vai rồi Lưu là họ nhập được ngay (phiên
+       đang mở cũng thấy, vai đọc lại từ bảng mỗi lượt). Đẩy lại bên Nhân sự KHÔNG xoá vai. */
+    var pin = r.pin || [];
+    var chuaCap = pin.filter(function (x) { return !x.vai; }).length;
+    var tuDong = pin.filter(function (x) { return x.tu_dong; });
+    var h = '<div class="khung" id="dtNguoiPin"><header><h2>Phân quyền nộp báo cáo — người đẩy từ trang Nhân sự</h2>' +
+      '<span class="goi">' + pin.length + ' người' + (chuaCap ? ' · ' + chuaCap + ' chưa cấp' : '') +
+      (tuDong.length ? ' · ' + tuDong.length + ' cần kiểm' : '') + '</span></header>';
+    if (tuDong.length) {
+      /* 23/09/2026: chị Thảo (cửa hàng trưởng) thấy doanh thu cả 15 quán vì bên Chấm công từng tự
+         suy vai duyệt cho chị. Những vai ấy 1.58.0 cố ý không đụng — nên phải NÓI RA ở đây, và
+         nói rõ vai duyệt nghĩa là xem hết. */
+      h += '<div class="canh-ghep"><b>' + tuDong.length + ' người đang mang vai do lối cũ cấp tự động</b> ' +
+        '(bên Chấm công suy từ vai chấm công, trước bản 1.58.0) — anh kiểm lại từng người rồi bấm Lưu. ' +
+        'Cửa hàng trưởng phải là <b>Nhập báo cáo</b>: vai <b>Nhập và duyệt</b> xem doanh thu <b>mọi</b> ' +
+        'cơ sở và nạp được file POS. Đang cần kiểm: ' +
+        tuDong.map(function (x) { return esc(x.ho_ten) + (x.vai === 'duyet' ? ' <b style="color:var(--xau)">(duyệt — đang xem mọi cơ sở)</b>' : ''); }).join(', ') +
+        '.</div>';
+    }
+    if (!pin.length) {
+      h += '<div class="trong">Chưa có ai được đẩy sang. Vào trang Nhân sự, cột ' +
+        '<b>Quản trị báo cáo cơ sở</b>, bấm Đẩy cho cửa hàng trưởng — rồi quay lại đây chọn vai.</div>';
+    } else {
+      h += '<div class="bang-cuon"><table><thead><tr>' +
+        '<th>Người</th><th>Cơ sở (từ sổ nhân sự)</th><th>Quyền</th><th></th>' +
+        '</tr></thead><tbody>' +
+        pin.map(function (x) {
+          var cs = (x.coso_ds || []);
+          var ten = (x.coso_ten || []);
+          return '<tr data-ma-nv="' + esc(x.ma_nv) + '">' +
+            '<td>' + esc(x.ho_ten) + '<span style="display:block;color:var(--ink-3);font-size:12px">' +
+              esc(x.ma_nv) + (x.co_pin ? '' : ' · <b style="color:var(--xau)">mất PIN (trùng người khác)</b>') +
+              (x.tu_dong ? ' · <b style="color:var(--xau)">vai cấp tự động lối cũ — kiểm rồi Lưu</b>' : '') + '</span></td>' +
+            '<td style="text-align:left">' + (cs.length ? cs.map(esc).join(', ') : '<span style="color:var(--ink-3)">—</span>') +
+              '<span style="display:block;color:var(--ink-3);font-size:12px">' +
+              (x.vai === 'duyet'
+                ? 'duyệt — xem tổng MỌI cơ sở' + (ten.length ? ' (mã này là quán ' + esc(ten.join(' · ')) + ' — nếu là cửa hàng trưởng thì chọn Nhập báo cáo)' : '')
+                : (ten.length ? esc(ten.join(' · ')) : (cs.length ? 'chưa ghép tên POS — khai ở bảng Ghép cơ sở' : ''))) +
+              '</span></td>' +
+            '<td>' + chon('vai', x.vai || '', quyens, '— chưa cấp (chỉ xem) —') + '</td>' +
+            '<td><button class="nut" type="button" data-luu-pin="' + esc(x.ma_nv) + '">Lưu</button></td>' +
+          '</tr>';
+        }).join('') + '</tbody></table></div>';
+    }
+    h += '<div class="chu-them"><b>Nhập báo cáo</b>: nhập báo cáo ngày và kho của đúng cơ sở mình. ' +
+      '<b>Nhập và duyệt</b>: nhập, xem đối soát mọi cơ sở và nạp được file POS — dành cho kế toán, ' +
+      'quản lý. <b>Chưa cấp</b>: đăng nhập được, chỉ xem. Trang Nhân sự chỉ đẩy người sang; vai cấp ở đây.</div></div>';
+
+    h += '<div class="khung"><header><h2>Tài khoản WordPress được nhập báo cáo</h2>' +
       '<span class="goi">' + ds.length + ' người</span></header>';
     if (!ds.length) {
-      h += '<div class="trong">Chưa cấp quyền cho ai. Đẩy cửa hàng trưởng từ trang nhân sự sang, ' +
-        'hoặc vào Người dùng → sửa tài khoản → mục Doanh thu FABi.</div>';
+      h += '<div class="trong">Chưa cấp quyền cho tài khoản WordPress nào. Cửa hàng trưởng không cần ' +
+        'tài khoản — đẩy từ trang Nhân sự sang rồi cấp vai ở bảng trên. Người văn phòng có tài khoản thì ' +
+        'vào Người dùng → sửa tài khoản → mục Doanh thu FABi.</div>';
     } else {
       h += '<div class="bang-cuon"><table><thead><tr>' +
         '<th>Người</th><th>Tài khoản</th><th>Cơ sở phụ trách</th><th>Quyền</th><th></th>' +
@@ -3415,6 +4738,23 @@
           return '<tr><td><code>' + esc(p[0]) + '</code></td><td style="text-align:left">' + esc(p[1]) + '</td></tr>';
         }).join('') + '</tbody></table></div></div>';
     o.innerHTML = h;
+
+    Array.prototype.forEach.call(o.querySelectorAll('[data-luu-pin]'), function (b) {
+      b.addEventListener('click', function () {
+        var tr = b.closest('tr');
+        var fd = new FormData();
+        fd.append('ma_nv', tr.dataset.maNv);
+        fd.append('vai', tr.querySelector('[data-o="vai"]').value);
+        b.disabled = true; b.textContent = 'Đang lưu…';
+        api('nguoi-vai', { method: 'POST', body: fd }).then(function () {
+          b.textContent = 'Đã lưu';
+          /* Vẽ lại cả tab: cột Người ở bảng Ghép cơ sở và số "chưa cấp" ở tiêu đề đều đổi theo. */
+          setTimeout(taiQuanTri, 600);
+        }).catch(function (e) {
+          b.disabled = false; b.textContent = 'Lưu'; window.alert(e.message || e);
+        });
+      });
+    });
 
     Array.prototype.forEach.call(o.querySelectorAll('[data-luu]'), function (b) {
       b.addEventListener('click', function () {

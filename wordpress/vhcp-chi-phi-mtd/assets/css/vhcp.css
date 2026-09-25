@@ -133,8 +133,75 @@
   @media(max-width:1200px){.grid{grid-template-columns:repeat(3,1fr)}}
   @media(max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}}
   @media(max-width:560px){.grid{grid-template-columns:1fr}}
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+     🔴 FORM NHẬP HẠNG MỤC — anh Thắng 22/09/2026: *"Chỗ này tạo Form Nhập cho nó gọn trang"*.
+     ══════════════════════════════════════════════════════════════════════════════════════════
+     `.grid` dùng chung là SÁU cột và giãn hết bề ngang cửa sổ. Trên màn 1900px, một form 14 ô
+     trải suốt gang tay: mắt phải quét từ mép này sang mép kia cho MỘT hạng mục, và hai ô có
+     liên quan ("Số lượng" với "Đơn giá") thì nằm cách nhau nửa màn.
+
+     ⚠️ CHẶN BỀ NGANG, KHÔNG PHẢI GIẢM SỐ CỘT. Giảm cột mà vẫn giãn hết màn thì mỗi ô rộng ra,
+        form dài đúng như cũ — chỉ đổi kiểu dài. Cái cần chặn là bề ngang của cả khối.
+     ⚠️ ĐÈ RIÊNG, KHÔNG SỬA `.grid`. Lớp chung dựng cả chục bảng khác trong app; đổi ở đó là
+        sửa một màn, hỏng chín màn — và chín màn ấy không ai đi soi lại.
+     ⚠️ Dưới 1200px thì NHƯỜNG lại cho `.grid`: ở đó màn vốn đã hẹp, chặn thêm nữa là ô bị bóp.
+
+     🔴 VÀ PHẢI TỰ KHAI ĐỦ CÁC MỐC HẸP — "nhường cho `.grid`" KHÔNG TỰ XẢY RA. Anh Thắng
+        22/09/2026 gửi ảnh màn iPhone: *"Hơi lệch ô nhập"*. Ba cột chen nhau trên màn 390px,
+        nhãn dài xuống hai dòng còn nhãn ngắn một dòng, nên ô nhập trong cùng một hàng cao thấp
+        so le.
+
+        Nguyên do là một luật CSS im lặng: `.grid` và `.grid-nhap` CÙNG một mức riêng (mỗi bên
+        một lớp), nên khi hai luật cùng khớp thì luật VIẾT SAU thắng. `.grid` hạ xuống 2 cột ở
+        900px và 1 cột ở 560px; `.grid-nhap` chỉ có một mốc 1200px, mà nó viết sau — nên ở
+        390px cái thắng vẫn là `repeat(3,1fr)`. Lời chú thích nói "nhường", còn trình duyệt thì
+        không nhường gì cả.
+
+        Không sửa bằng cách gỡ mốc 1200px: mốc ấy có việc của nó (4 cột -> 3). Khai đủ ba mốc,
+        đi đúng theo `.grid` để hai bên không bao giờ nói ngược nhau nữa. */
+  .grid-nhap{grid-template-columns:repeat(4,minmax(0,1fr));max-width:1120px}
+  @media(max-width:1200px){.grid-nhap{grid-template-columns:repeat(3,1fr);max-width:none}}
+  @media(max-width:900px){.grid-nhap{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:560px){.grid-nhap{grid-template-columns:1fr}}
   .fld{display:flex;flex-direction:column;gap:3px}
   .fld label{font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.4px}
+  /* 🔴 NHÃN CHIẾM CHỖ ĐỀU NHAU -> Ô NHẬP TRONG CÙNG MỘT HÀNG THẲNG NHAU.
+     Mỗi ô là một ô lưới riêng, cao bao nhiêu tuỳ nội dung; nhãn "NGÀY" một dòng còn "PHÂN LOẠI
+     (CÁ NHÂN / NCC) *" hai dòng, nên hai ô nhập cạnh nhau lệch đúng một dòng chữ. Chừa sẵn hai
+     dòng cho MỌI nhãn rồi dán chữ xuống đáy khung ấy thì nhãn dài hay ngắn cũng kết thúc ở
+     cùng một độ cao.
+     ⚠️ ĐÈ TRONG `.grid-nhap`, không đè `.fld` dùng chung: lớp ấy dựng cả chục form khác, và
+        cộng 11px cho mỗi ô ở mọi nơi là sửa một màn, đổi chín màn. */
+  .grid-nhap>.fld>label{min-height:24px;display:flex;align-items:flex-end}
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+     🔴 DẢI LUỒNG LÀM VIỆC — TRÊN ĐIỆN THOẠI LÀ MỘT HÀNG CUỘN NGANG.
+     ══════════════════════════════════════════════════════════════════════════════════════════
+     Anh Thắng 22/09/2026 gửi ảnh màn iPhone: *"Với luồng duyệt"*, ngay sau lượt vá form nhập.
+
+     Tám bước ×  `flex-wrap:wrap` trên màn 390px = BỐN HÀNG, chiếm gần nửa màn trước khi thấy
+     đơn nào. Và mũi tên `→` giữa hai thẻ rơi xuống ĐẦU hàng sau mỗi lần xuống dòng — một mũi
+     tên mồ côi trỏ vào khoảng không, đúng ba lần trong ảnh.
+
+     Một hàng cuộn ngang thì đúng hình dạng của một LUỒNG (trái sang phải), mũi tên luôn nằm
+     giữa hai bước, và cả dải chỉ chiếm một hàng.
+
+     ⚠️ KHÔNG BỎ BƯỚC NÀO cho gọn. Dải này là BẢN ĐỒ: nhân viên phải biết đơn của mình sẽ đi
+        đâu tiếp. Bỏ mấy bước đang rỗng là luồng trông như chỉ có hai bước. Cuộn thì vẫn còn
+        đủ; `veThanhLuong()` tự kéo tới bước đang có đơn để chỗ tắc nằm sẵn trong tầm mắt.
+
+     🔴 VÌ SAO LUẬT NẰM Ở ĐÂY CHỨ KHÔNG PHẢI `style=` TRÊN THẺ: một thuộc tính viết thẳng trên
+        thẻ có mức riêng cao hơn MỌI luật trong tệp này, kể cả luật trong `@media`. Để
+        `flex-wrap:wrap` ở đó thì media query dưới đây không với tới, và màn hẹp vẫn xuống bốn
+        hàng — CÙNG MỘT HỌ LỖI với vụ `.grid-nhap` vừa vá cùng ngày, chỉ khác đường thắng. */
+  .luongBar{display:flex;gap:6px;align-items:stretch;flex-wrap:wrap}
+  .luongThe{flex:1 1 120px;min-width:112px;padding:9px 8px;display:flex;flex-direction:column;
+    align-items:center;gap:3px;border-radius:10px;text-align:center}
+  .luongMuiTen{align-self:center;color:#c9c2b8;font-size:13px}
+  @media(max-width:560px){
+    .luongBar{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}
+    .luongThe{flex:0 0 auto;min-width:96px;padding:7px 6px}
+    .luongMuiTen{font-size:11px}
+  }
   .fld input,.fld select,.fld textarea{width:100%}
   table{width:100%;border-collapse:collapse;min-width:920px}
   thead th{background:#f9f8f6;color:#64748b;font-size:11px;font-weight:700;text-transform:uppercase;text-align:left;padding:9px 10px;border-bottom:1px solid #f0e9e1;white-space:nowrap}
@@ -290,3 +357,50 @@ tr.qt-chim > td .badge{opacity:.8}
    biết bấm vào được; nhưng cũng không được viền sẵn như ô nhập, kẻo bảng đọc thành một tờ khai. */
 .o-sua{ cursor:text; border-radius:4px; }
 .o-sua:hover{ background:#eef2ff; box-shadow:inset 0 0 0 1px #c7d2fe; }
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   MENU XỔ KHỐI TRÊN TAB DUYỆT — anh Thắng 21/09/2026: *"chỗ duyệt tạm ứng, rê chuột vào nó xổ
+   ra bộ phận được không"*, và trước đó 20/09: *"để xem từng trang đơn vị, tránh duyệt lộn đơn
+   vị"*.
+
+   🔴 RÊ CHUỘT LÀ THỨ KHÔNG CÓ TRÊN iPHONE. Anh Thắng duyệt đơn bằng điện thoại — đã một lần ba
+      hộp thoại nối nhau chết câm trên iOS (xem `#datKyBox`). Nên menu này mở bằng HAI đường:
+      rê chuột (chỉ ở máy có chuột thật, `hover:hover`) và BẤM vào mũi ▾ (ở đâu cũng được).
+      Chỉ có `:hover` thì trên điện thoại cái mũi ▾ là một nút bấm vào không ra gì.
+
+   ⚠️ Vùng đệm `::before` phía trên hộp là CỐ Ý. Không có nó thì chuột đi từ nút xuống hộp phải
+      băng qua một khe hở vài pixel, menu tắt giữa đường, và người ta tưởng nó giật. */
+.tabMenu{ position:relative; display:inline-flex; align-items:stretch; gap:0 }
+.tabMenu > .btn{ border-top-right-radius:0; border-bottom-right-radius:0 }
+.tabMenuNut{
+  border:0; cursor:pointer; padding:0 8px; margin-left:1px; font-size:11px; line-height:1;
+  background:#e7e2da; color:#57534e; border-radius:0 8px 8px 0;
+}
+.tabMenuNut:hover{ background:#d6d0c6 }
+/* 🔴 `position:fixed`, KHÔNG PHẢI `absolute` — VÀ CHỖ ĐẶT DO JS TÍNH (`_tmDatCho`).
+   Trên màn hẹp `#tabbar` mang `overflow-x:auto` để cuộn ngang hàng tab. Mà `overflow-x:auto`
+   với `overflow-y:visible` thì trình duyệt tính ra `overflow-y:auto` — tức nó CẮT theo chiều
+   dọc luôn. Hộp `absolute` treo trong đó bị xén còn một vạch trắng: trên iPhone menu xổ ra
+   mà không đọc được chữ nào. Đã chụp màn hình thấy tận mắt 21/09/2026.
+
+   ⚠️ Kho mã ĐÃ ghi sẵn đúng bài học này hai lần cho lớp phủ trong bảng ("LỚP PHỦ NẰM Ở
+      <body>, KHÔNG NẰM TRONG Ô BẢNG… bảng có `overflow-x:auto`"). Lần này đến lượt hàng tab. */
+.tabMenuBox{
+  display:none; position:fixed; top:0; left:0; z-index:60; min-width:236px;
+  padding:6px; background:#fff; border:1px solid #e5e1d8; border-radius:10px;
+  box-shadow:0 10px 28px rgba(0,0,0,.14);
+}
+/* Cầu nối vô hình giữa nút và hộp: chuột đi xuống không rơi qua khe 6px làm menu tắt giữa chừng. */
+.tabMenuBox::before{ content:''; position:absolute; left:0; right:0; top:-8px; height:8px }
+@media (hover:hover){ .tabMenu:hover .tabMenuBox{ display:block } }
+.tabMenu.mo .tabMenuBox{ display:block }
+.tabMenuBox .mk{
+  display:flex; align-items:center; gap:8px; width:100%; padding:8px 10px; border:0;
+  background:transparent; border-radius:8px; cursor:pointer; text-align:left; font-size:13px;
+  color:#171417;
+}
+.tabMenuBox .mk:hover{ background:#f1efe9 }
+.tabMenuBox .mk[disabled]{ opacity:.45; cursor:not-allowed }
+.tabMenuBox .mk[disabled]:hover{ background:transparent }
+.tabMenuBox .mk.dang{ background:#eef2ff; font-weight:700 }
+.tabMenuBox .mk .so{ margin-left:auto; font-size:11px; opacity:.7; font-variant-numeric:tabular-nums }

@@ -42,13 +42,40 @@ function oNut() {
   o.querySelector = function (q) { return q === 'b' ? o._b : o._s; };
   return o;
 }
+/* 🔴 BỐC MÃ THẬT, ĐỪNG BỊA LẠI LUẬT Ở ĐÂY. Từ 21/09/2026 cột Bộ phận đã rời bảng Người
+   dùng, nên luật nào cần bộ phận thì đọc lại từ TÊN VAI CON. Bịa một bản ở bài kiểm là nó
+   canh luật của chính nó, xanh vĩnh viễn dù bản thật đi đường khác. */
+const BP_THAT = `  var BP_THEO_TEN_VAI=[
+    {bp:'Kỹ thuật', tu:['ky thuat']},
+    {bp:'Cơ sở',    tu:['co so']},
+    {bp:'Marketing', tu:['marketing']},
+    {bp:'Văn phòng', tu:['van phong']}
+  ];
+  function _boDauVai(s){
+    return String(s==null?'':s).toLowerCase().replace(/\\u0111/g,'d')
+      .normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/\\s+/g,' ').trim();
+  }
+  function _bpCuaVai(ten){
+    var t=' '+_boDauVai(ten)+' ';
+    if(t===' ') return '';
+    for(var i=0;i<BP_THEO_TEN_VAI.length;i++){
+      var x=BP_THEO_TEN_VAI[i];
+      for(var j=0;j<x.tu.length;j++){ if(t.indexOf(' '+x.tu[j]+' ')>=0) return x.bp; }
+    }
+    return '';
+  }
+  function _bpCuaToi(){
+    var b=String((CURUSER&&CURUSER.boPhan)||'').trim();
+    if(b) return b;
+    return _bpCuaVai((CURUSER&&CURUSER.role)||'');
+  }`;
 function moi(boPhan) {
   ['daNhomCs', 'daNhomDa', 'daNhomTuan', 'ndLoaiDaCoSo', 'ndLoaiDuAn'].forEach(function (id) { KHO[id] = oNut(); });
   ['daTaoChiTiet', 'daLoaiBox', 'daTenBox', 'daTuanBox', 'daDangLapTen', 'daLoai'].forEach(function (id) {
     KHO[id] = { style: {}, textContent: '', value: 'Setup lắp đặt' };
   });
   return new Function('CURUSER', 'el', 'daNapTuan', 'daOnLoai', 'DA_NHOM',
-    MOI + '\nreturn { ap:_apTenNhom, ten:_tenNhom, tenBp:_tenNhomBp, chon:daChonNhom, loai:_daLoaiChon,'
+    BP_THAT + '\n' + MOI + '\nreturn { ap:_apTenNhom, ten:_tenNhom, tenBp:_tenNhomBp, chon:daChonNhom, loai:_daLoaiChon,'
     + ' dangLap:function(){ return el("daDangLapTen").textContent; } };')(
     { boPhan: boPhan, name: 'Ai Đó' }, function (id) { return KHO[id]; }, function () {}, function () {}, '');
 }
@@ -66,8 +93,11 @@ t('🔴 KHÔNG còn chữ "Chi phí dự án" với Marketing',
   KHO['daNhomDa']._b.textContent.indexOf('Chi phí dự án') < 0, KHO['daNhomDa']._b.textContent);
 t('   phụ đề nút dự án thôi nói Setup / Tháo dỡ',
   KHO['daNhomDa']._s.textContent.indexOf('Setup') < 0, KHO['daNhomDa']._s.textContent);
-t('   phụ đề nút cơ sở vẫn nói gom nhiều gian theo tuần',
-  KHO['daNhomCs']._s.textContent.indexOf('TUẦN') >= 0, KHO['daNhomCs']._s.textContent);
+/* Marketing có TÊN riêng cho hai lối, nhưng PHỤ ĐỀ thì dùng chung một thứ chữ với cả hệ —
+   anh Thắng 21/09/2026 chia theo MỘT hay NHIỀU cơ sở trên một đơn, đó là điểm khác thật sự
+   giữa hai loại, không phụ thuộc bộ phận nào đang xem. */
+t('   phụ đề nút cơ sở nói rõ NHIỀU cơ sở cho 1 đơn',
+  KHO['daNhomCs']._s.textContent.indexOf('Nhiều cơ sở cho 1 đơn') >= 0, KHO['daNhomCs']._s.textContent);
 
 /* 🔴 KHÔNG DÁN THỪA TÊN BỘ PHẬN. "Chi Phí Marketing Cơ Sở · Marketing" là thừa một lần, đúng
    chỗ màn hẹp nhất. */
@@ -81,15 +111,15 @@ t('   còn tên chưa có thì vẫn dán',
  * ═════════════════════════════════════════════════════════════════════════════════════════════ */
 const K = moi('Kỹ thuật');
 K.ap();
-teq('Kỹ thuật: nút cơ sở giữ tên cũ', '🏢 Chi phí cơ sở', KHO['daNhomCs']._b.textContent);
+teq('Kỹ thuật: nút ấy tên là Chi phí tuần', '🗓 Chi phí tuần', KHO['daNhomCs']._b.textContent);
 teq('Kỹ thuật: nút dự án giữ tên cũ', '🏗 Chi phí dự án', KHO['daNhomDa']._b.textContent);
-teq('   và phụ đề cũ',                'Setup / Tháo dỡ một GIAN', KHO['daNhomDa']._s.textContent);
-teq('🔴 hộp Tạo đơn mới vẫn ghi "· Kỹ thuật"', '🏢 Chi phí cơ sở · Kỹ thuật', KHO['ndLoaiDaCoSo']._b.textContent);
+teq('   và phụ đề nói 1 cơ sở 1 đơn', '1 cơ sở 1 đơn · Setup / Tháo dỡ', KHO['daNhomDa']._s.textContent);
+teq('🔴 hộp Tạo đơn mới vẫn ghi "· Kỹ thuật"', '🗓 Chi phí tuần · Kỹ thuật', KHO['ndLoaiDaCoSo']._b.textContent);
 
 const R = moi('');   // chưa khai bộ phận
 R.ap();
-teq('chưa khai bộ phận: giữ tên mặc định', '🏢 Chi phí cơ sở', KHO['daNhomCs']._b.textContent);
-teq('   và KHÔNG dán đuôi rỗng',           '🏢 Chi phí cơ sở', KHO['ndLoaiDaCoSo']._b.textContent);
+teq('chưa khai bộ phận: giữ tên mặc định', '🗓 Chi phí tuần', KHO['daNhomCs']._b.textContent);
+teq('   và KHÔNG dán đuôi rỗng',           '🗓 Chi phí tuần', KHO['ndLoaiDaCoSo']._b.textContent);
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
  * 3. 🔴 LOẠI LƯU XUỐNG SỔ KHÔNG ĐỔI — chỗ đổi nhầm là đổi hạch toán cả sổ
@@ -125,7 +155,7 @@ t('🔴 daMoTao() áp tên lại',    /function daMoTao\(nhomSan\)\{\s*\n\s*_apT
 t('🔴 hộp ＋Tạo đơn mới áp tên lại', /_apTenNhom\(\);\s*\n\s*el\('ndLoaiBox'\)/.test(HTML));
 t('🔴 bảng tên khai ở MỘT chỗ', (HTML.match(/var TEN_LOAI_BP=/g) || []).length === 1);
 t('   không còn chữ "Chi phí cơ sở · Kỹ thuật" gõ cứng trong mã JS',
-  !/tenLoai=cs\?'🏢 Chi phí cơ sở · Kỹ thuật'/.test(HTML));
+  !/tenLoai=cs\?'🗓 Chi phí tuần · Kỹ thuật'/.test(HTML));
 
 /* ─────────────────────────────────────────────────────────────────────────────────────────── */
 if (TRUOT.length) {

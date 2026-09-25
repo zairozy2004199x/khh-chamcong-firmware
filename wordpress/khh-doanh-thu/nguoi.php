@@ -7,8 +7,25 @@
  * nhân sự để cấp quyền đẩy sang"*.
  *
  * Bên chấm công có `VHCC_DayBaoCao` đẩy sang đây, mỗi người một hàng: mã NV · họ tên · PIN · mã cơ
- * sở · vai. Ba hàm dưới đây là cả cái cổng ấy — `khh_dt_day_vao()`, `khh_dt_day_ra()`,
+ * sở. Ba hàm dưới đây là cả cái cổng ấy — `khh_dt_day_vao()`, `khh_dt_day_ra()`,
  * `khh_dt_da_day()`. Bên kia dò đúng ba tên này trước khi gọi, nên ĐỔI TÊN LÀ TẮT CỘT.
+ *
+ * ==================================================================================================
+ * 🔴 ĐẨY SANG CHỈ LÀ ĐẨY NGƯỜI — VAI (NHẬP / DUYỆT) DO TAB QUẢN TRỊ BÊN NÀY CẤP.
+ * ==================================================================================================
+ * Anh Thắng 23/09/2026: *"đẩy dữ liệu nhân sự là cửa hàng trưởng từ danh sách nhân sự qua để anh
+ * phân quyền nộp báo cáo, vẫn như chi phí, chỉ đẩy nhân sự qua, chứ không phân quyền nhiệm vụ
+ * trong đó, mà do trang tự phân quyền"*.
+ *
+ * Trước 1.58.0 bên chấm công tự suy vai từ vai chấm công (Admin/Quản lý/Kế toán -> 'duyet', còn
+ * lại -> 'nhap') và mỗi lần đẩy lại là GHI ĐÈ vai bên này. Hai cái sai chồng nhau: ai đẩy sang là
+ * nhập được ngay chưa ai cấp; và cấp ở đây rồi bên kia sửa hồ sơ một cái (đổi PIN, thêm cơ sở) là
+ * `dong_bo()` đẩy lại, vai vừa cấp bay mất. Từ 1.58.0:
+ *   · trường `vai` bên kia gửi sang BỊ BỎ QUA (bên kia bản cũ vẫn gửi, vô hại);
+ *   · người mới đẩy sang mang vai '' — CHƯA CẤP: đăng nhập được, thấy cơ sở mình, nhưng KHÔNG
+ *     nhập được gì cho tới khi quản trị cấp ở tab Quản trị (`khh_dt_dat_vai()`);
+ *   · đẩy lại người đã có thì GIỮ NGUYÊN vai đang có — đẩy lại chỉ cập nhật tên, PIN, cơ sở.
+ * Hàng đã có trên hosting (vai 'nhap'/'duyet' cấp theo lối cũ) không bị đụng.
  *
  * ==================================================================================================
  * 🔴 KHÔNG TẠO TÀI KHOẢN WORDPRESS CHO HỌ.
@@ -64,7 +81,7 @@ function khh_dt_tao_bang_nguoi() {
 			ho_ten varchar(190) NOT NULL DEFAULT '',
 			pin varchar(16) NOT NULL DEFAULT '',
 			coso_ma varchar(80) NOT NULL DEFAULT '',
-			vai varchar(10) NOT NULL DEFAULT 'nhap',
+			vai varchar(10) NOT NULL DEFAULT '',
 			cap_nhat datetime NULL,
 			PRIMARY KEY  (id),
 			UNIQUE KEY ma_nv (ma_nv),
@@ -136,17 +153,52 @@ function khh_dt_ghep_ten_ds( $ma ) {
 	$v  = $ds[ $ma ];
 	$ra = array();
 	foreach ( is_array( $v ) ? $v : array( $v ) as $x ) {
-		$t = trim( (string) $x );
-		if ( '' !== $t && ! in_array( $t, $ra, true ) ) {
+		/* GIỮ NGUYÊN VĂN, kể cả khoảng trắng đuôi — tên POS có thể có đuôi ấy và mọi phép so là so
+		   từng ký tự (xem `khh_dt_ten_pos_chuan`). trim chỉ để loại tên rỗng. */
+		$t = (string) $x;
+		if ( '' !== trim( $t ) && ! in_array( $t, $ra, true ) ) {
 			$ra[] = $t;
 		}
 	}
 	return $ra;
 }
 
-/** Khai lại cả bảng ghép. Danh sách rỗng = bỏ khai mã đó. */
+/** Dạng so khớp lỏng của một tên cơ sở: bỏ khoảng trắng đầu/cuối, gộp khoảng trắng, không phân biệt hoa thường. */
+function khh_dt_ten_long( $t ) {
+	$t = preg_replace( '/[\s\x{00A0}]+/u', ' ', (string) $t );
+	return function_exists( 'mb_strtolower' ) ? mb_strtolower( trim( $t ), 'UTF-8' ) : strtolower( trim( $t ) );
+}
+
+/**
+ * Tên cơ sở đúng NGUYÊN VĂN như trong số liệu POS, cho một tên người/máy gửi lên.
+ *
+ * 🔴 24/09/2026 anh Thắng: *"tại sao có cơ sở không thêm được"*. Bảng ghép lưu tên qua
+ *    `sanitize_text_field()` — cắt khoảng trắng đầu/cuối, gộp khoảng trắng đôi. Tên quán FABi xuất ra
+ *    hay có khoảng trắng thừa ("… K&H ) "), nên tên đã lưu KHÔNG còn bằng từng ký tự với `cua_hang`
+ *    trong bảng số liệu: ô tích mở lại thì như chưa tích, và `cua_hang IN (...)` không khớp — người ở
+ *    mã ấy mở màn thấy rỗng. Mọi phép so tên cơ sở trong hệ đều là so nguyên văn, nên chỗ này phải LƯU
+ *    NGUYÊN VĂN tên POS: khớp lỏng với danh sách cơ sở đang có rồi trả về đúng chuỗi trong danh sách.
+ *    Không khớp được ai (quán chưa có số liệu) thì giữ tên đã rửa như cũ.
+ */
+function khh_dt_ten_pos_chuan( $t, $ds_pos = null ) {
+	$ds_pos = null === $ds_pos ? ( function_exists( 'khh_dt_ds_cua_hang' ) ? (array) khh_dt_ds_cua_hang() : array() ) : (array) $ds_pos;
+	$t_raw  = (string) $t;
+	if ( in_array( $t_raw, $ds_pos, true ) ) {
+		return $t_raw;
+	}
+	$k = khh_dt_ten_long( $t_raw );
+	foreach ( $ds_pos as $p ) {
+		if ( khh_dt_ten_long( $p ) === $k ) {
+			return (string) $p;
+		}
+	}
+	return sanitize_text_field( $t_raw );
+}
+
+/** Khai lại cả bảng ghép. Danh sách rỗng = bỏ khai mã đó. Tên POS lưu NGUYÊN VĂN (xem `khh_dt_ten_pos_chuan`). */
 function khh_dt_dat_ghep( $bang ) {
-	$sach = array();
+	$sach   = array();
+	$ds_pos = function_exists( 'khh_dt_ds_cua_hang' ) ? (array) khh_dt_ds_cua_hang() : array();
 	foreach ( (array) $bang as $ma => $ten ) {
 		$ma  = strtoupper( sanitize_text_field( (string) $ma ) );
 		if ( '' === $ma ) {
@@ -154,7 +206,7 @@ function khh_dt_dat_ghep( $bang ) {
 		}
 		$ds = array();
 		foreach ( is_array( $ten ) ? $ten : array( $ten ) as $t ) {
-			$t = sanitize_text_field( (string) $t );
+			$t = khh_dt_ten_pos_chuan( (string) $t, $ds_pos );
 			if ( '' !== $t && ! in_array( $t, $ds, true ) ) {
 				$ds[] = $t;
 			}
@@ -215,12 +267,21 @@ function khh_dt_da_day( $ma_nv ) {
 	return (bool) khh_dt_nguoi( $ma_nv );
 }
 
+/** Các vai cấp được cho người vào bằng PIN. '' = chưa cấp (vào xem được, không nhập). */
+function khh_dt_vai_ds() {
+	return array( '', 'nhap', 'duyet' );
+}
+
 /**
  * Nhận một người từ trang nhân sự.
  *
- * $hs = [ ma_nv, ho_ten, pin, vai ('nhap'|'duyet'), coso (MÃ cơ sở bên nhân sự) ]
+ * $hs = [ ma_nv, ho_ten, pin, coso (MÃ cơ sở bên nhân sự) ]
  *
- * Trả về [ ok, viec ('them'|'sua'), mat_pin (tên những người vừa bị xoá PIN vì trùng),
+ * 🔴 KHÔNG ĐỌC `$hs['vai']`. Vai do tab Quản trị bên này cấp (`khh_dt_dat_vai()`), xem đầu tệp.
+ *    Người mới mang vai '' (chưa cấp); người đã có giữ nguyên vai đang có.
+ *
+ * Trả về [ ok, viec ('them'|'sua'), vai (vai hiện có sau khi đẩy), chua_cap (true nếu vai ''),
+ *          mat_pin (tên những người vừa bị xoá PIN vì trùng),
  *          chua_ghep (true nếu mã cơ sở chưa khai trong bảng ghép) ].
  */
 function khh_dt_day_vao( $hs ) {
@@ -229,7 +290,6 @@ function khh_dt_day_vao( $hs ) {
 	$ma = strtoupper( trim( (string) ( isset( $hs['ma_nv'] ) ? $hs['ma_nv'] : '' ) ) );
 	$ten = trim( (string) ( isset( $hs['ho_ten'] ) ? $hs['ho_ten'] : '' ) );
 	$pin = trim( (string) ( isset( $hs['pin'] ) ? $hs['pin'] : '' ) );
-	$vai = (string) ( isset( $hs['vai'] ) ? $hs['vai'] : 'nhap' );
 	$cs  = implode( ',', khh_dt_tach_ma( isset( $hs['coso'] ) ? $hs['coso'] : '' ) );
 
 	if ( '' === $ma ) {
@@ -241,12 +301,12 @@ function khh_dt_day_vao( $hs ) {
 	if ( ! preg_match( '/^\d{4,8}$/', $pin ) ) {
 		return array( 'ok' => false, 'error' => 'PIN phải gồm 4–8 chữ số.' );
 	}
-	if ( ! in_array( $vai, array( 'nhap', 'duyet' ), true ) ) {
-		$vai = 'nhap';
-	}
 
 	$ng  = khh_dt_bang_nguoi();
 	$cu  = khh_dt_nguoi( $ma );
+	/* Vai: người đã có thì GIỮ (tab Quản trị đã cấp, đẩy lại không được xoá); người mới thì
+	   CHƯA CẤP. Hàng cũ lỡ mang một giá trị lạ thì coi như chưa cấp — hỏng theo hướng THIẾU quyền. */
+	$vai = $cu && in_array( (string) $cu['vai'], khh_dt_vai_ds(), true ) ? (string) $cu['vai'] : '';
 
 	/* 🔴 PIN TRÙNG THÌ NGƯỜI CŨ MẤT PIN, VÀ PHẢI KỂ LẠI.
 	   Đăng nhập ở đây chỉ hỏi PIN chứ không hỏi tên, nên hai người cùng PIN là hai người cùng
@@ -269,11 +329,11 @@ function khh_dt_day_vao( $hs ) {
 		'ho_ten'   => $ten,
 		'pin'      => $pin,
 		'coso_ma'  => $cs,
-		'vai'      => $vai,
 		'cap_nhat' => current_time( 'mysql' ),
 	);
 
 	if ( $cu ) {
+		/* ⚠️ KHÔNG có 'vai' trong $hang: đẩy lại không đụng vai đang có. */
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery
 		$wpdb->update( $ng, $hang, array( 'ma_nv' => $ma ) );
 		$viec = 'sua';
@@ -286,6 +346,7 @@ function khh_dt_day_vao( $hs ) {
 		}
 	} else {
 		$hang['ma_nv'] = $ma;
+		$hang['vai']   = $vai;
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery
 		$wpdb->insert( $ng, $hang );
 		$viec = 'them';
@@ -295,6 +356,8 @@ function khh_dt_day_vao( $hs ) {
 	return array(
 		'ok'        => true,
 		'viec'      => $viec,
+		'vai'       => $vai,
+		'chua_cap'  => '' === $vai,
 		'mat_pin'   => $mat_pin,
 		/* Hai cơ sở mà mới ghép được một thì VẪN là chưa xong — người ấy nhập được quán này,
 		   quán kia không thấy đâu, và đó là loại hỏng người ta không báo vì tưởng mình nhớ nhầm. */
@@ -307,6 +370,115 @@ function khh_dt_day_vao( $hs ) {
 	);
 }
 
+/**
+ * Cấp vai cho một người vào bằng PIN — việc của TAB QUẢN TRỊ bên này, không phải của trang nhân sự.
+ *
+ * $vai: '' (thu quyền — còn vào xem, không nhập) | 'nhap' | 'duyet'.
+ *
+ * ⚠️ Vai lạ thì CHỐI, không lặng lẽ quy về 'nhap' như cổng đẩy trước 1.58.0 — một chữ gõ sai mà
+ *    thành "được nhập" là nới quyền bằng lỗi chính tả.
+ * ⚠️ Không cần đóng phiên: vai đọc lại từ bảng mỗi lượt (`khh_dt_phien_nguoi()`), thu quyền là
+ *    thấy ngay ở lượt gọi kế tiếp.
+ */
+function khh_dt_dat_vai( $ma_nv, $vai ) {
+	global $wpdb;
+	$ma  = strtoupper( trim( (string) $ma_nv ) );
+	$vai = trim( (string) $vai );
+	if ( '' === $ma ) {
+		return array( 'ok' => false, 'error' => 'Thiếu Mã NV.' );
+	}
+	if ( ! in_array( $vai, khh_dt_vai_ds(), true ) ) {
+		return array( 'ok' => false, 'error' => 'Vai phải là "nhap", "duyet" hoặc để trống (chưa cấp).' );
+	}
+	if ( ! khh_dt_nguoi( $ma ) ) {
+		return array( 'ok' => false, 'error' => 'Mã ' . $ma . ' chưa được đẩy từ trang Nhân sự sang.' );
+	}
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery
+	$wpdb->update(
+		khh_dt_bang_nguoi(),
+		array( 'vai' => $vai, 'cap_nhat' => current_time( 'mysql' ) ),
+		array( 'ma_nv' => $ma )
+	);
+	khh_dt_vai_tu_dong_bo( $ma );
+	khh_dt_phien_quen();
+	return array( 'ok' => true, 'ma_nv' => $ma, 'vai' => $vai );
+}
+
+/**
+ * Những người đang mang vai do LỐI CŨ cấp tự động (bên chấm công suy từ vai chấm công, trước 1.58.0).
+ *
+ * 23/09/2026 anh Thắng gửi ảnh chị Thảo — cửa hàng trưởng vào bằng PIN — thấy doanh thu cả 15 quán
+ * và có cả nút Nạp báo cáo: *"nhân viên quản lý cửa hàng nào thì hiện doanh thu cửa hàng của mình
+ * thôi"*. Chị mang vai 'duyet' vì vai chấm công của chị quy về Quản lý, mà 'duyet' nghĩa là xem
+ * tổng. 1.58.0 cố ý không đụng hàng cũ, nên những vai suy sai ấy vẫn nằm đó im lặng.
+ *
+ * Cách làm: lần đầu chạy bản này, mọi hàng đang có vai đều là do lối cũ cấp (trước 1.58.0 không có
+ * chỗ nào khác cấp vai) — ghi mã họ vào một danh sách. Tab Quản trị bày cảnh báo ở từng người cho
+ * tới khi quản trị bấm Lưu (tức đã nhìn và quyết). KHÔNG tự hạ vai ai: kế toán ở mã văn phòng cũng
+ * nằm trong danh sách này, hạ nhầm là người duy nhất cần xem tổng lại thấy rỗng.
+ */
+function khh_dt_vai_tu_dong_ds() {
+	$ds = get_option( 'khh_dt_vai_tu_dong', false );
+	return is_array( $ds ) ? array_values( array_map( 'strval', $ds ) ) : array();
+}
+
+/** Đánh dấu một lần — gọi lúc kích hoạt / nâng cấp. Đã có danh sách (kể cả rỗng) thì không làm lại. */
+function khh_dt_danh_dau_vai_cu() {
+	global $wpdb;
+	if ( false !== get_option( 'khh_dt_vai_tu_dong', false ) ) {
+		return false;
+	}
+	$ng = khh_dt_bang_nguoi();
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$ma = (array) $wpdb->get_col( "SELECT ma_nv FROM $ng WHERE vai<>''" );
+	update_option( 'khh_dt_vai_tu_dong', array_values( array_map( 'strval', $ma ) ), false );
+	return true;
+}
+
+/** Quản trị đã nhìn và quyết vai người này — bỏ dấu. */
+function khh_dt_vai_tu_dong_bo( $ma_nv ) {
+	$ma = strtoupper( trim( (string) $ma_nv ) );
+	$ds = khh_dt_vai_tu_dong_ds();
+	$moi = array_values( array_filter( $ds, function ( $x ) use ( $ma ) { return $x !== $ma; } ) );
+	if ( count( $moi ) !== count( $ds ) ) {
+		update_option( 'khh_dt_vai_tu_dong', $moi, false );
+	}
+}
+
+/** Sổ người vào bằng PIN cho tab Quản trị: mã · tên · cơ sở (mã + tên POS đã ghép) · vai. Không có PIN. */
+function khh_dt_ds_nguoi_pin() {
+	global $wpdb;
+	$ng = khh_dt_bang_nguoi();
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$ds = (array) $wpdb->get_results( "SELECT ma_nv, ho_ten, coso_ma, vai, cap_nhat, pin FROM $ng ORDER BY coso_ma, ho_ten", ARRAY_A );
+	$tu_dong = khh_dt_vai_tu_dong_ds();
+	$ra = array();
+	foreach ( $ds as $n ) {
+		$ma_ds  = khh_dt_tach_ma( (string) $n['coso_ma'] );
+		$ten_ds = array();
+		foreach ( $ma_ds as $m ) {
+			foreach ( khh_dt_ghep_ten_ds( $m ) as $t ) {
+				if ( ! in_array( $t, $ten_ds, true ) ) {
+					$ten_ds[] = $t;
+				}
+			}
+		}
+		$vai  = (string) $n['vai'];
+		$ra[] = array(
+			'ma_nv'    => (string) $n['ma_nv'],
+			'ho_ten'   => (string) $n['ho_ten'],
+			'coso_ds'  => $ma_ds,
+			'coso_ten' => $ten_ds,
+			'vai'      => in_array( $vai, khh_dt_vai_ds(), true ) ? $vai : '',
+			/* Vai do lối cũ cấp tự động, quản trị chưa nhìn — xem `khh_dt_vai_tu_dong_ds()`. */
+			'tu_dong'  => '' !== $vai && in_array( (string) $n['ma_nv'], $tu_dong, true ),
+			'co_pin'   => '' !== (string) $n['pin'],
+			'cap_nhat' => (string) $n['cap_nhat'],
+		);
+	}
+	return $ra;
+}
+
 /** Gỡ một người khỏi sổ, và đóng luôn phiên đang mở của họ. */
 function khh_dt_day_ra( $ma_nv ) {
 	global $wpdb;
@@ -316,6 +488,7 @@ function khh_dt_day_ra( $ma_nv ) {
 	}
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery
 	$wpdb->delete( khh_dt_bang_nguoi(), array( 'ma_nv' => $ma ) );
+	khh_dt_vai_tu_dong_bo( $ma );
 	khh_dt_dong_phien( $ma );
 	return array( 'ok' => true );
 }
@@ -524,6 +697,24 @@ function khh_dt_rest_nguoi() {
 			'permission_callback' => 'khh_dt_duoc_quan_tri',
 		)
 	);
+	register_rest_route(
+		'khh-dt/v1',
+		'/nguoi-vai',
+		array(
+			'methods'             => 'POST',
+			'callback'            => 'khh_dt_rest_dat_vai',
+			'permission_callback' => 'khh_dt_duoc_quan_tri',
+		)
+	);
+}
+
+/** POST ma_nv · vai — cấp / thu vai của một người vào bằng PIN. */
+function khh_dt_rest_dat_vai( $req ) {
+	$kq = khh_dt_dat_vai( (string) $req->get_param( 'ma_nv' ), (string) $req->get_param( 'vai' ) );
+	if ( empty( $kq['ok'] ) ) {
+		return new WP_Error( 'khh_dt_vai', $kq['error'], array( 'status' => 400 ) );
+	}
+	return $kq;
 }
 
 function khh_dt_rest_dang_nhap( $req ) {
@@ -534,8 +725,27 @@ function khh_dt_rest_dang_nhap( $req ) {
 	return $kq;
 }
 
+/**
+ * Thoát — MỘT cửa cho cả hai lối vào.
+ *
+ * Anh Thắng 23/09/2026: *"đăng xuất ra nó nhảy ra trang wordpress"*. Trước đó người vào bằng tài
+ * khoản thoát qua `wp_logout_url()`: trình duyệt bị đưa sang wp-login.php, và trang ấy — tuỳ nonce
+ * còn hạn không, tuỳ plugin nào móc `logout_redirect`, tuỳ link đẹp đã flush chưa — trả về một
+ * trang WordPress chứ không quay lại màn báo cáo. Nay máy chủ tự thoát ngay trong lượt REST này:
+ * phiên WordPress bị huỷ bằng `wp_logout()` (xoá cookie đăng nhập), phiên PIN bị đóng như cũ; màn
+ * chỉ cần tải lại đúng địa chỉ đang đứng là gặp ô gõ PIN.
+ *
+ * ⚠️ Không lo bị gọi chéo từ trang lạ: người WordPress chỉ "đang đăng nhập" trong REST khi kèm
+ *    X-WP-Nonce hợp lệ; thiếu nonce là khách vãng lai, `is_user_logged_in()` sai, không thoát ai.
+ */
 function khh_dt_rest_dang_xuat() {
-	return khh_dt_phien_dong();
+	$kq       = khh_dt_phien_dong();
+	$kq['wp'] = false;
+	if ( is_user_logged_in() ) {
+		wp_logout();
+		$kq['wp'] = true;
+	}
+	return $kq;
 }
 
 /** Bảng ghép + những mã đang có người mà chưa khai. */
@@ -557,17 +767,27 @@ function khh_dt_rest_ghep() {
 	ksort( $ma_ds );
 
 	$ghep = array();
+	$pos     = (array) khh_dt_ds_cua_hang();
+	$lech    = array();   // tên đã lưu mà không có trong số liệu POS (khoảng trắng thừa, quán đổi tên…)
 	foreach ( array_keys( $ma_ds ) as $m ) {
+		$ten_ds = khh_dt_ghep_ten_ds( $m );
+		foreach ( $ten_ds as $t ) {
+			if ( ! in_array( $t, $pos, true ) ) {
+				$lech[] = array( 'ma' => $m, 'ten' => $t, 'goi_y' => khh_dt_ten_pos_chuan( $t, $pos ) );
+			}
+		}
 		$ghep[] = array(
 			'ma'     => $m,
-			'ten_ds' => khh_dt_ghep_ten_ds( $m ),
+			'ten_ds' => $ten_ds,
 		);
 	}
 	return array(
 		'ghep'      => $ghep,
-		'cua_hang'  => khh_dt_ds_cua_hang(),
+		'cua_hang'  => $pos,
 		'nguoi'     => $nguoi,
 		'chua_ghep' => khh_dt_ma_chua_ghep(),
+		/* Tên đã lưu KHÔNG khớp nguyên văn tên POS — chính là "tích rồi mà không thêm được". */
+		'ten_lech'  => $lech,
 	);
 }
 

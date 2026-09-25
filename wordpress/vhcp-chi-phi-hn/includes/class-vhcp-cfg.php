@@ -18,6 +18,9 @@ class VHCPHN_Cfg {
 	const USER  = 'CH_NguoiDung';
 	const TKNO  = 'CH_TKNo';
 	const SSO   = 'CH_SSO';
+	const BP    = 'CH_BoPhan';       // BỘ PHẬN — khai được, xem `bo_phan_ds()`
+	const DM    = 'CH_DauMuc';       // ĐẦU MỤC (phân loại lớn) + khối cơ sở — xem `dau_muc_rows()`
+	const TN    = 'CH_TinhNang';     // CỜ TÍNH NĂNG — xem `TINH_NANG` / `tinh_nang_bat()`
 	const QUYEN = 'CH_Quyen';
 	const LOAI  = 'CH_LoaiChiPhi';   // DANH MỤC LOẠI CHI PHÍ — mỗi loại gắn sẵn mã tài khoản
 	const TK    = 'CH_TaiKhoan';     // HỆ THỐNG TÀI KHOẢN của kế toán (nạp từ file Excel/CSV)
@@ -40,19 +43,54 @@ class VHCPHN_Cfg {
 
 			   ⚠️ Ô để trống = K&H (nhà mặc định). Mọi cơ sở khai trước bản này đều rỗng, mà
 			      trước khi có POSH thì cơ sở nào cũng là cơ sở K&H. */
-			self::COSO  => array( 'Cơ sở', 'Mã đơn vị', 'Phân loại lớn', 'Tên MISA', 'Đóng cửa', 'Đơn vị' ),
+			/* Cột 6 `Tỉnh / Thành` (11/09/2026) còn dữ liệu nhưng thôi bày; cột 7 `Bộ phận` (24/09/2026):
+			   KVC · MTĐ · VP — anh Thắng: *"Chỗ Tỉnh, Bỏ thay vào đó là Bộ Phận (MTD, KVC, VP)"*, dùng để
+			   đầu mục "có cơ sở" xổ đúng gian của bộ phận ấy (cột Khối nay là MIỀN, không dùng được). */
+			self::COSO  => array( 'Cơ sở', 'Mã đơn vị', 'Phân loại lớn', 'Tên MISA', 'Đóng cửa', 'Đơn vị', 'Tỉnh / Thành', 'Bộ phận' ),
 			self::NHOM  => array( 'Nhóm mặt hàng', 'Loại', 'TK Nợ', 'Bộ phận' ),
 			self::PL    => array( 'Phân loại TT', 'TK Có' ),
+			/* Bộ phận — trước bản này gõ cứng ở hai nơi (hằng dưới + `BOPHAN_LIST` trong
+			   app.html), nên thêm một mảng là phải sửa mã. Nay khai được ở Cấu hình. */
+			/* Cột 2 `Luồng duyệt` thêm 22/09/2026 — anh Thắng: *"Hoặc bộ phận sẽ chọn phương
+			   án duyệt chi"*. Đây là luồng MẶC ĐỊNH cho đơn người của bộ phận ấy lập; người
+			   lập vẫn đổi được trên từng đơn (anh chốt "đơn vẫn sửa được").
+			   ⚠️ Ô để trống = KHÔNG ÉP GÌ, đơn rơi về đường lui theo khối như trước bản này.
+			      Trống là mặc định, và phải thế: bảy bộ phận đang khai đều trống, lấp một mã
+			      vào là đổi luồng cho cả một bộ phận mà không ai yêu cầu. */
+			self::BP    => array( 'Bộ phận', 'Luồng duyệt' ),
+			/* ĐẦU MỤC = PHÂN LOẠI LỚN của form nhập (anh Thắng 24/09/2026). Cột 2 `Khối cơ sở`:
+			   '*' = như cũ (ô Cơ sở theo khối đang đứng) · '' = chi phí KHÔNG có cơ sở (ẩn ô) ·
+			   'kvc'/'mtd'/'vp' = chỉ xổ cơ sở của khối ấy. */
+			self::DM    => array( 'Đầu mục', 'Khối cơ sở' ),
+			/* CỜ TÍNH NĂNG: 'tat' · 'admin' (chỉ Admin xem trước) · 'bat' (mọi người). Xem `TINH_NANG`. */
+			self::TN    => array( 'Mã tính năng', 'Trạng thái' ),
 			self::DT    => array( 'Đối tượng', 'Mã đối tượng', 'Loại (NV/NCC)' ),
 			self::QR    => array( 'Khóa', 'Giá trị' ),
 			/* Hai cột cuối là ĐƠN VỊ (K&H · POSH) — xem `VHCPHN_DonVi`. "Đơn vị" là NHÀ (đơn
 			   người ấy lập rơi về đâu); "Xem đơn vị" là những đơn vị người ấy ĐƯỢC ĐỌC, cách
 			   nhau dấu phẩy, để trống = theo mặc định của vai. Hai việc khác nhau nên hai cột:
 			   nhà thì phải là một, còn tầm nhìn thì có thể là nhiều. */
-			self::USER  => array( 'Tên', 'PIN', 'Vai trò', 'Cơ sở', 'TK Có', 'Mã đối tượng', 'Bộ phận', 'Đơn vị', 'Xem đơn vị' ),
+			/* ⚠️ 'Mã NV' và 'Khối' là hai ô CUỐI. 'Mã NV' đã được ghi xuống ô 10 từ lâu mà
+			   thiếu tên ở đây; bổ sung luôn cho bảng nhãn khớp đúng số ô thật. */
+			self::USER  => array( 'Tên', 'PIN', 'Vai trò', 'Cơ sở', 'TK Có', 'Mã đối tượng', 'Bộ phận', 'Đơn vị', 'Xem đơn vị', 'Mã NV', 'Khối' ),
 			self::TKNO  => array( 'Nhóm mặt hàng', 'Phân loại lớn', 'TK Nợ' ),
 			self::SSO   => array( 'Email', 'Vai trò Chi Phí', 'Cơ sở' ),
-			self::LOAI  => array( 'Loại chi phí', 'TK Nợ', 'TK Có', 'Mã đối tượng', 'Bộ phận', 'Ghi chú', 'Tên MISA', 'Loại' ),
+			/* 🔴 CỘT 9 `Đơn vị` VÀ CỘT 10 `Khối` PHẢI CÓ MẶT Ở ĐÂY.
+			   `Đơn vị` thêm 12/09/2026 mà QUÊN khai vào hàng này — `read()` đệm theo
+			   `count(headers())` nên mọi dòng cũ chỉ được đệm tới 8 ô, và cột thứ 9 sống sót
+			   chỉ nhờ `isset($r[8])` rải khắp nơi. Khai đủ thì hết phải rào.
+
+			   `Khối` thêm 21/09/2026 — anh Thắng: *"chỗ loại chi phí, chia ra 3 bảng của 3
+			   khối, để tránh dùng chung"*, và *"đơn vị nào sẽ dùng khối của đơn vị đó"*.
+			   Một loại chi phí thuộc ĐÚNG MỘT khối. Hai khối cùng cần "Chi phí khác" thì mỗi
+			   bên một dòng riêng — đó chính là ý "tránh dùng chung": sửa mã bên KVC không được
+			   đụng tới sổ của Văn phòng. */
+			/* Cột 11 `Vai trò` thêm 21/09/2026 — anh Thắng: *"bỏ tích bộ phận đi, mà tích theo
+			   vai trò"*. Ai ĐƯỢC DÙNG loại chi phí này, khai bằng TÊN VAI (ngăn bằng dấu phẩy).
+			   Trống = mọi vai, giữ đúng nghĩa ô trống của cột Bộ phận nó thay thế.
+			   ⚠️ Cột `Bộ phận` (thứ 5) GIỮ NGUYÊN trong sổ, chỉ thôi dùng: dữ liệu đã khai của
+			      anh Thắng còn đó, và xoá một cột là không lấy lại được. */
+			self::LOAI  => array( 'Loại chi phí', 'TK Nợ', 'TK Có', 'Mã đối tượng', 'Bộ phận', 'Ghi chú', 'Tên MISA', 'Loại', 'Đơn vị', 'Khối', 'Vai trò' ),
 			self::TK    => array( 'Số hiệu', 'Tên tài khoản', 'Tính chất' ),
 			self::MANG  => array( 'Phân loại lớn', 'Nhóm TK', 'Từ khóa trong tên TK', 'Ghi chú' ),
 		);
@@ -128,24 +166,12 @@ class VHCPHN_Cfg {
 
 	/** Danh sách cơ sở mặc định (COSO_LIST của app cũ). */
 	public static function default_coso() {
-		return array( 'FUNZONE ADVENTURE', 'FUNZONE VŨNG TÀU', 'FARM PHAN THIẾT', 'EVENT FARM NHA TRANG', 'TÀU TÂN PHÚ', 'TÀU BÌNH TÂN', 'TÀU BÌNH DƯƠNG', 'TÀU GÒ VẤP', 'TÀU ESTELLA', 'VR SORA', 'VR BÌNH DƯƠNG', 'FUNFEST SC VIVO', 'TUTU TẤN AN', 'ADV TÂN PHÚ' );
+		return array();   // bản mảng riêng: danh mục trắng, khai theo mảng của mình
 	}
 
 	/** NHOM_LIST của app cũ. */
 	public static function default_nhom() {
-		return array(
-			array( 'SP Đồ uống - NCC', 'ncc' ),
-			array( 'SP Đồ ăn - NCC', 'ncc' ),
-			array( 'Vật dụng - NCC - Kho', 'ncc' ),
-			array( 'NVL đồ uống - NCC', 'ncc' ),
-			array( 'NVL đồ ăn - NCC', 'ncc' ),
-			array( 'NVL đồ ăn - Mua lẻ', 'canhan' ),
-			array( 'NVL đồ uống - Mua lẻ', 'canhan' ),
-			array( 'Chi phí cơ sở', 'canhan' ),
-			array( 'MKT - Hoạt náo', 'canhan' ),
-			array( 'Nuôi thú', 'canhan' ),
-			array( 'Phát sinh', 'canhan' ),
-		);
+		return array();   // nt — bảng Loại chi phí dựng từ đây nên cũng trắng theo
 	}
 
 	/**
@@ -154,7 +180,27 @@ class VHCPHN_Cfg {
 	 * 🔴 'Admin' KHÔNG có trong danh sách kế thừa. Cho kế thừa Admin là ai vào được Cấu hình
 	 *    cũng tự đúc cho mình một vai Admin trá hình — thành cái cửa sau mở sẵn.
 	 */
-	const VAI_GOC = array( 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC', 'Nhân viên' );
+	/* ══════════════════════════════════════════════════════════════════════════════════════
+	 * CHỨC DANH — DANH SÁCH ĐÓNG, KHÔNG AI ĐẺ THÊM ĐƯỢC.
+	 *
+	 * Anh Thắng 13/09/2026: *"anh sẽ tạo ban bệ phòng ban sẵn, ai thuộc bộ phận nào thì thêm
+	 * vào, tránh sai vai hay tự tạo vai lạ"*, kèm thang quyền:
+	 *   · Nhân viên (cơ sở · kỹ thuật) — chỉ xem cơ sở mình quản lý trở xuống
+	 *   · Quản lý                      — xem bộ phận mình trở xuống
+	 *   · Kế toán bộ phận              — xem bộ phận mình quản lý
+	 *   · Giám đốc                     — toàn quyền xem
+	 *   · Admin                        — toàn quyền
+	 *
+	 * 🔴 'Giám đốc' THÊM 13/09/2026, đứng TRÊN Quản lý. Trước nay ai cần nhìn toàn cục phải
+	 *    mang vai Admin — tức trao luôn quyền sửa cấu hình, đổi PIN, xoá đơn. Giám đốc tách hẳn
+	 *    hai thứ ấy: nhìn cả hệ, nhưng không phải người quản trị.
+	 *
+	 * 🔴 HAI VAI KẾ TOÁN GIỮ NGUYÊN. Anh Thắng gọi chung là "kế toán bộ phận", nhưng 'Kế toán
+	 *    cá nhân' và 'Kế toán NCC' chia VIỆC (ai chốt dòng 141, ai chốt dòng 331) chứ không
+	 *    chia PHẠM VI — hai chuyện vuông góc nhau. Gộp lại là đụng thẳng luồng duyệt NCC đang
+	 *    chạy. Phạm vi "chỉ xem bộ phận mình" cộng thêm, không thay.
+	 * ══════════════════════════════════════════════════════════════════════════════════════ */
+	const VAI_GOC = array( 'Giám đốc', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC', 'Nhân viên' );
 
 	/**
 	 * CÁC BỘ PHẬN CHI PHÍ — chốt DUY NHẤT, phía máy chủ.
@@ -173,7 +219,46 @@ class VHCPHN_Cfg {
 	 */
 	const BO_PHAN_DS = array( 'Cơ sở', 'Văn phòng', 'Kỹ thuật', 'Marketing', 'Công tác', 'Setup', 'Máy tự động' );
 
-	/** Tên bộ phận đã chuẩn hoá về đúng chữ trong `BO_PHAN_DS`; không khớp -> '' (= mọi bộ phận). */
+	/**
+	 * BỘ PHẬN ĐANG CÓ — đọc từ bảng cấu hình, KHÔNG còn gõ cứng.
+	 *
+	 * Anh Thắng 10/09/2026 muốn thêm mảng cho trang chi phí. Danh sách trước đây gõ cứng ở HAI
+	 * nơi (hằng trên và `BOPHAN_LIST` trong app.html) nên mảng thứ tám nào cũng phải chờ sửa mã
+	 * — mà hai nơi gõ cứng là hai nơi có thể lệch nhau.
+	 *
+	 * 🔴 ĐỌC THẲNG BẢNG, KHÔNG QUA `cfg_static()`. Hàm ấy gọi `vai_tuy_bien()`, mà hàm ấy gọi
+	 *    `bo_phan_chuan()`, mà hàm ấy gọi hàm này — vòng gọi không đáy, trang trắng ngay lượt
+	 *    tải đầu. Đọc `read()` thì cắt hẳn vòng.
+	 *
+	 * 🔴 RỖNG THÌ NGÃ VỀ DANH SÁCH MẶC ĐỊNH, không trả mảng rỗng. Danh sách rỗng nghĩa là
+	 *    `bo_phan_chuan()` chối MỌI tên -> mọi ô Bộ phận thành trống -> trống nghĩa là "không
+	 *    bó gì", tức mọi kế toán bỗng nhìn thấy sổ của mọi mảng. Hỏng theo hướng NỚI QUYỀN, và
+	 *    im lặng. Bảng chưa gieo (site vừa nâng cấp, lượt tải trước khi `seed_from()` chạy) là
+	 *    ca thật, không phải giả định.
+	 *
+	 * ⚠️ Nhớ trong một lượt chạy: `bo_phan_chuan()` bị gọi trong vòng lặp qua từng vai, từng
+	 *    loại chi phí — mỗi lượt một câu đọc bảng là phí không cần thiết.
+	 */
+	private static $bp_memo = null;
+	public static function bo_phan_ds() {
+		if ( null !== self::$bp_memo ) { return self::$bp_memo; }
+		$ra = array();
+		foreach ( self::read( self::BP ) as $r ) {
+			$t = trim( (string) ( isset( $r[0] ) ? $r[0] : '' ) );
+			if ( '' !== $t && ! in_array( $t, $ra, true ) ) { $ra[] = $t; }
+		}
+		/* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG trên đường gói khởi động — ghi lại để lần sau khỏi đuổi theo.
+		   Gỡ dòng này mà `kiem-goi-khoi-dong-bo-phan.php` vẫn XANH, vì `seed()` GIEO LẠI danh
+		   mục bộ phận mỗi khi nó rỗng: tới lúc `bo_phan_ds()` chạy thì bảng không bao giờ trống.
+		   Giữ dòng này vì nó đỡ cho những lượt gọi xảy ra TRƯỚC khi gieo (lượt kích hoạt plugin,
+		   lượt nạp dữ liệu, lượt gọi thẳng API) — ở đó trả mảng rỗng là mọi ô chọn bộ phận trắng
+		   trơn trong khi máy chủ vẫn nhận bảy tên ấy. */
+		if ( ! $ra ) { $ra = self::BO_PHAN_DS; }
+		self::$bp_memo = $ra;
+		return $ra;
+	}
+
+	/** Tên bộ phận đã chuẩn hoá về đúng chữ đang khai; không khớp -> '' (= mọi bộ phận). */
 	public static function bo_phan_chuan( $x ) {
 		$x = trim( (string) $x );
 		if ( '' === $x ) { return ''; }
@@ -184,8 +269,110 @@ class VHCPHN_Cfg {
 		   Ở đây hậu quả nhẹ hơn nhưng cùng kiểu: khai hoa một chữ là ô ấy coi như để trống,
 		   tức vai không bó gì và người mang nó nhìn thấy sổ của mọi mảng. */
 		$k = mb_strtolower( $x );
-		foreach ( self::BO_PHAN_DS as $b ) {
+		foreach ( self::bo_phan_ds() as $b ) {
 			if ( mb_strtolower( $b ) === $k ) { return $b; }
+		}
+		return '';
+	}
+
+	/**
+	 * LUỒNG DUYỆT MẶC ĐỊNH CỦA MỘT BỘ PHẬN — cột 2 của danh mục Bộ phận.
+	 *
+	 * Anh Thắng 22/09/2026: *"Hoặc bộ phận sẽ chọn phương án duyệt chi"*, và anh chốt bộ phận
+	 * khai một lần còn người lập vẫn đổi được trên từng đơn.
+	 *
+	 * 🔴 CHỈ LÀ GIÁ TRỊ MỒI, KHÔNG PHẢI LUẬT ÁP LÊN ĐƠN ĐÃ LẬP. `create_don()` đọc hàm này MỘT
+	 *    LẦN rồi đóng dấu mã vào cột `don.luong`. Nếu để đơn tra lại bảng này mỗi lượt đọc thì
+	 *    một lượt sửa danh mục là hàng trăm đơn đang chạy dở đổi luồng giữa chừng — đơn đã
+	 *    duyệt chi một nửa bỗng hiện ra ở một luồng không có bước ấy. Đóng dấu lúc lập là cách
+	 *    duy nhất giữ đúng luật "đơn đang chạy dở không bị đổi đường".
+	 *
+	 * ⚠️ TRẢ RỖNG KHI KHÔNG KHAI, và rỗng nghĩa là "theo khối như cũ" chứ không phải một mã.
+	 *    Mã lạ cũng về rỗng: `VHCPHN_Don::luong_don()` là nơi duy nhất quyết định mã nào có thật,
+	 *    nên hỏi lại nó thay vì gõ danh sách mã lần thứ hai ở đây.
+	 */
+	public static function luong_cua_bo_phan( $bp ) {
+		/* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG — ghi ra để lần sau khỏi đuổi theo. Thay `bo_phan_chuan()`
+		   bằng `trim()` thì MỌI bài kiểm vẫn xanh, và đúng là vậy: vòng lặp ngay dưới đã tự so
+		   không phân biệt hoa thường, còn tên lạ thì không khớp dòng nào nên cũng ra rỗng.
+		   Giữ `bo_phan_chuan()` vì nó là NƠI DUY NHẤT chuẩn hoá tên bộ phận trong cả app — ngày
+		   nó mọc thêm luật (bí danh, tên viết tắt) thì chỗ này hưởng luôn mà không ai phải nhớ.
+		   Đừng gỡ nó chỉ vì phá thử báo "không bắt được". */
+		$ten = self::bo_phan_chuan( $bp );
+		if ( '' === $ten ) { return ''; }
+		$k = mb_strtolower( $ten );
+		foreach ( self::read( self::BP ) as $r ) {
+			if ( mb_strtolower( trim( (string) ( isset( $r[0] ) ? $r[0] : '' ) ) ) !== $k ) { continue; }
+			return VHCPHN_Don::luong_don( array( 'luong' => isset( $r[1] ) ? $r[1] : '' ) );
+		}
+		return '';
+	}
+
+	/**
+	 * BỘ PHẬN CỦA MỘT NGƯỜI — đọc cột `Bộ phận` Ở HÀNG NGƯỜI DÙNG.
+	 *
+	 * 🔴 TÊN HÀM NÓI RA NGUỒN DỮ LIỆU, VÀ ĐÓ LÀ CHỦ Ý. Có một hàm CŨ tên
+	 *    `bo_phan_cua_nguoi()` đã bị bỏ hẳn ngày 21/09/2026 — nó lấy bộ phận từ VAI TRÒ, tức
+	 *    trục thứ hai, đúng cái anh Thắng gọi là *"xung đột giữa vai trò và bộ phận, set cái
+	 *    này thì mất cái kia"*. `kiem-vai-bo-bo-phan.php` nay CHỐT rằng cái tên ấy không được
+	 *    sống lại. Hàm này đọc ngược hẳn: HÀNG NGƯỜI DÙNG, trục duy nhất còn lại — nên nó phải
+	 *    mang một cái tên khác, không thì người đọc sáu tháng sau tưởng trục cũ đã quay về.
+	 *    ⚠️ ĐỪNG ĐỔI TÊN HÀM NÀY VỀ `bo_phan_cua_nguoi`. Bài kiểm sẽ đỏ, và nó đỏ đúng.
+	 *
+	 * ⚠️ HỎI THEO TÊN NGƯỜI LẬP, KHÔNG PHẢI NGƯỜI ĐANG ĐĂNG NHẬP. Quản lý lập hộ đơn cho nhân
+	 *    viên thì ô "Người lập" mang tên nhân viên, và luồng phải theo bộ phận của NGƯỜI ẤY —
+	 *    đó là bộ phận sẽ đi duyệt đơn này. `VHCPHN_Auth::bo_phan_bo()` trả bộ phận của phiên
+	 *    đang mở, dùng nhầm nó ở đây là đơn lập hộ đi sai đường.
+	 */
+	public static function bo_phan_hang_nguoi( $ten ) {
+		$k = mb_strtolower( trim( (string) $ten ) );
+		if ( '' === $k ) { return ''; }
+		foreach ( self::get_users() as $u ) {
+			if ( mb_strtolower( trim( (string) $u['ten'] ) ) === $k ) {
+				$bp = self::bo_phan_chuan( isset( $u['boPhan'] ) ? $u['boPhan'] : '' );
+				if ( '' !== $bp ) { return $bp; }
+				/* 🔴 TÊN VAI CHÍNH LÀ TÊN BỘ PHẬN (23/09/2026). Anh Thắng: *"tên vai trò tức là bộ
+				   phận"*, *"Đổi tên bộ phận sang tên vai trò cho cùng tên"*. Bảng Luồng duyệt nay
+				   mỗi vai tự tạo một dòng, nên tra THẲNG tên vai của người trong danh mục bộ phận
+				   trước; chỉ khi không có dòng ấy mới lui về đọc chữ trong tên vai (bảng còn tên cũ). */
+				$theo_vai = self::bo_phan_chuan( isset( $u['vaiTro'] ) ? $u['vaiTro'] : '' );
+				if ( '' !== $theo_vai ) { return $theo_vai; }
+				/* 🔴 Ô TRỐNG → SUY TỪ TÊN VAI, Y NHƯ MÀN. Anh Thắng 23/09/2026: *"đã phân luồng sao
+				   vẫn hỏi"* — chị Thảo mang vai "Nhân Viên Cơ Sở Khu Vui Chơi", cột Bộ phận để
+				   trống. Màn (`_bpCuaToi()`) đọc ra "Cơ sở" từ tên vai nên bày đúng màn của bộ
+				   phận ấy, còn máy chủ chỉ đọc cột → `luongBo` rỗng → hộp Tạo đơn vẫn bày ba nút
+				   dù bảng Luồng đã khai Cơ sở → Qua tạm ứng. Hai bên cùng một câu hỏi phải cùng
+				   một câu trả lời.
+				   ⚠️ ĐÂY KHÔNG PHẢI trục "bộ phận của VAI" đã bỏ 21/09 (cột khai riêng trên bảng
+				      Vai, xung đột với ô người dùng). Đây là đọc CHỮ trong tên vai, chỉ khi ô người
+				      dùng trống — ô ấy vẫn thắng khi có. */
+				return self::bo_phan_tu_ten_vai( isset( $u['vaiTro'] ) ? $u['vaiTro'] : '' );
+			}
+		}
+		return '';
+	}
+
+	/** Từ khoá (đã bỏ dấu) trong TÊN VAI nói lên bộ phận — song sinh `BP_THEO_TEN_VAI` bên màn. */
+	const BP_THEO_TEN_VAI = array(
+		'Kỹ thuật'  => array( 'ky thuat' ),
+		'Cơ sở'     => array( 'co so' ),
+		'Marketing' => array( 'marketing' ),
+		'Văn phòng' => array( 'van phong' ),
+	);
+
+	/**
+	 * Bộ phận đọc ra từ TÊN MỘT VAI — song sinh `_bpCuaVai()` bên màn. '' nếu tên không nói rõ
+	 * mảng nào ("Kế toán cá nhân", "Quản lý VP Chung" → "Văn phòng" chỉ khi có đủ chữ "van phong").
+	 * Đi qua `bo_phan_chuan()` để chỉ trả tên có trong danh mục Bộ phận.
+	 */
+	public static function bo_phan_tu_ten_vai( $ten_vai ) {
+		$t = trim( (string) preg_replace( '/\s+/u', ' ', self::bo_dau( $ten_vai ) ) );
+		if ( '' === $t ) { return ''; }
+		$t = ' ' . $t . ' ';
+		foreach ( self::BP_THEO_TEN_VAI as $bp => $tu ) {
+			foreach ( $tu as $x ) {
+				if ( false !== mb_strpos( $t, ' ' . $x . ' ' ) ) { return self::bo_phan_chuan( $bp ); }
+			}
 		}
 		return '';
 	}
@@ -205,13 +392,25 @@ class VHCPHN_Cfg {
 			   mà tự động thành Quản lý là mất quyền kiểm soát; thành Nhân viên thì cùng lắm là
 			   bị chặn rồi có người kêu. */
 			if ( ! in_array( $g, self::VAI_GOC, true ) ) { $g = 'Nhân viên'; }
-			/* Cột thứ ba: BỘ PHẬN mà vai này bị bó vào. Để trống = không bó (như mọi vai cũ).
-			   Gắn vào VAI chứ không chỉ vào từng tài khoản, vì đó là điều anh Thắng nói: vai
-			   ấy sinh ra để *"chỉ thực hiện công việc bên bộ phận máy tự động"* — bó ở tài
-			   khoản thì mỗi lần thêm người lại phải nhớ khai lại, và lần quên nào cũng là một
-			   kế toán nhìn thấy cả sổ của mảng khác. */
-			$bp = self::bo_phan_chuan( isset( $r[2] ) ? $r[2] : '' );
-			$out[] = array( 'ten' => $t, 'goc' => $g, 'boPhan' => $bp );
+			/* ══════════════════════════════════════════════════════════════════════════════
+			 * 🔴 VAI TRÒ KHÔNG CÒN MANG BỘ PHẬN — anh Thắng 21/09/2026: *"đang có sự xung đột
+			 *    giữa vai trò và bộ phận, dẫn đến set cái này thì mất cái kia"*, rồi chốt:
+			 *    *"bỏ vai trò đi, cho bộ phận dùng chung"*.
+			 * ══════════════════════════════════════════════════════════════════════════════
+			 * Cột thứ ba từng là BỘ PHẬN mà vai này bị bó vào (08/09/2026, cho vai "Kế toán
+			 * máy tự động"). Nhưng bộ phận CÒN ĐƯỢC KHAI Ở HÀNG NGƯỜI DÙNG nữa — hai nơi khai
+			 * cùng một sự thật, và người ta phải đoán nơi nào thắng. Ảnh anh Thắng gửi cho
+			 * thấy hậu quả: một dãy vai tự tạo mang tên đúng bằng tên bộ phận ("Nhân Viên Kỹ
+			 * Thuật", "Nhân Viên Marketing"…) đứng cạnh một cột Bộ phận nói y hệt.
+			 *
+			 * 🔴 CHỈ CÒN MỘT TRỤC: bộ phận của một người lấy từ HÀNG NGƯỜI DÙNG, và chỉ từ đó
+			 *    (`VHCPHN_Auth::dat_vai_tro()` vốn đã đọc đúng chỗ ấy — cột của vai chưa từng
+			 *    được mã chạy dùng tới, nó chỉ sống trong bài kiểm). Vai trò từ nay trả lời
+			 *    đúng một câu: LÀM ĐƯỢC GÌ. Bộ phận trả lời câu kia: LÀM Ở MẢNG NÀO.
+			 *
+			 * ⚠️ Ô cũ trong sổ KHÔNG bị xoá, chỉ thôi đọc. Ai đã khai thì dữ liệu còn đó; lượt
+			 *    Lưu bảng Vai trò kế tiếp sẽ dọn nó đi một cách tự nhiên. */
+			$out[] = array( 'ten' => $t, 'goc' => $g );
 		}
 		return $out;
 	}
@@ -241,30 +440,12 @@ class VHCPHN_Cfg {
 		return 'Nhân viên';
 	}
 
-	/**
-	 * BỘ PHẬN MÀ MỘT NGƯỜI BỊ BÓ VÀO — '' nghĩa là không bó (thấy mọi bộ phận).
-	 *
-	 * 🔴 CHỈ ĐỌC TỪ VAI TRÒ, KHÔNG ĐỌC Ô "BỘ PHẬN / LOẠI NV" TRÊN TÀI KHOẢN.
-	 *
-	 *    Bản nháp đầu có đọc, coi ô ấy là nguồn lui. Sai, và bài kiểm bắt được: ô đó xưa nay
-	 *    chỉ dùng để LỌC DANH MỤC lúc nhập và phân quyền TAB cho Nhân viên — nó chưa bao giờ
-	 *    cắt dữ liệu của kế toán. Biến nó thành lát cắt là mọi tài khoản đã lỡ khai ô đó (ảnh
-	 *    anh Thắng gửi 08/09/2026 có sẵn một dòng "Bộ phận: Kỹ thuật") sẽ mất đơn ngay lúc cài
-	 *    đè, mà không ai đoán được vì sao.
-	 *
-	 *    Anh Thắng cùng ngày: *"nhớ đừng can thiệp gì bên phần chi phí khu vui chơi"*. Bó theo
-	 *    VAI thì chỉ vai mới sinh ra để bó mới bị bó, và mọi thứ đang chạy không đổi một li.
-	 *
-	 * ⚠️ Vai gốc và Admin không bao giờ bó: `vai_tuy_bien()` đã loại chúng khỏi danh sách.
-	 */
-	public static function bo_phan_cua_nguoi( $ten_vai ) {
-		$ten_vai = trim( (string) $ten_vai );
-		if ( '' === $ten_vai ) { return ''; }
-		foreach ( self::vai_tuy_bien() as $v ) {
-			if ( $v['ten'] === $ten_vai ) { return (string) $v['boPhan']; }
-		}
-		return '';
-	}
+	/* ⚠️ `bo_phan_cua_nguoi( $ten_vai )` ĐÃ BỎ — anh Thắng 21/09/2026: *"bỏ vai trò đi, cho
+	   bộ phận dùng chung"*. Nó tra bộ phận theo TÊN VAI, tức trục thứ hai đã gây xung đột.
+	   Và nó chưa từng được mã chạy gọi tới: chỉ bài kiểm gọi, nên suốt thời gian tồn tại nó
+	   canh một luật mà sản phẩm không hề thi hành. Bộ phận nay đọc thẳng từ hàng người dùng
+	   (`VHCPHN_Auth::dat_vai_tro()`), một nơi duy nhất. */
+
 
 	/** QUYEN_ACTIONS của app cũ (giữ nguyên thứ tự + mặc định). */
 	public static function actions() {
@@ -352,10 +533,35 @@ class VHCPHN_Cfg {
 			VHCPHN_Meta::set_json( 'cfg_undo', array( 'name' => $bang, 'data' => self::read( $bang ) ) );
 		}
 		$wpdb->delete( $t, array( 'bang' => $bang ) );
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 DANH MỤC CƠ SỞ KHÔNG ĐƯỢC CÓ HAI DÒNG CÙNG TÊN — gác ngay ở cửa ghi.
+		 * ══════════════════════════════════════════════════════════════════════════════════════
+		 * Anh Thắng 14/09/2026, bản Văn phòng vừa cài: *"Chi phí văn phòng, bấm lưu thì nó lưu
+		 * tại tính sinh ra tiếp"* — 14 cơ sở bấm Lưu một cái thành 25, tên lặp lại.
+		 *
+		 * `nhan_coso_ngoai()` có chốt chống trùng, nhưng đó là cửa ĐẨY TỪ GHẾ SANG. Cửa LƯU TAY
+		 * thì trước nay không ai gác: danh sách gửi lên sao thì ghi xuống vậy. Bất kể dòng trùng
+		 * sinh ra từ đâu — bấm Lưu hai lượt, một lượt hút từ Ghế chồng lên hạt giống, hay trình
+		 * duyệt gửi lại biểu mẫu — cửa này phải chối nó.
+		 *
+		 * 🔴 VÌ SAO TRÙNG TÊN LÀ HỎNG THẬT, KHÔNG PHẢI XẤU MẮT: cơ sở ở đây được nhận ra bằng
+		 *    CHUỖI TÊN, không bằng mã (xem khối dài ở `coso_la()`). Hai dòng cùng tên là tiền của
+		 *    một gian hàng tách làm đôi ở mọi bảng gom, và hai ô "Mã đơn vị MISA" khác nhau cho
+		 *    cùng một chỗ — xuất MISA ra thì không ai biết dòng nào đúng.
+		 *
+		 * ⚠️ GIỮ DÒNG ĐẦU, BỎ DÒNG SAU. Dòng đầu là dòng người ta đã khai mấy ô MISA; dòng sau
+		 *    gần như luôn là dòng vừa sinh thêm, còn trắng. Giữ dòng sau là xoá công khai tay.
+		 * ══════════════════════════════════════════════════════════════════════════════════════ */
+		$da_co = array();
 		$i = 0;
 		foreach ( (array) $rows as $r ) {
 			$r = array_values( (array) $r );
 			if ( ! isset( $r[0] ) || trim( (string) $r[0] ) === '' ) { continue; }
+			if ( self::COSO === $bang ) {
+				$k_ten = mb_strtolower( trim( (string) $r[0] ) );
+				if ( isset( $da_co[ $k_ten ] ) ) { continue; }
+				$da_co[ $k_ten ] = 1;
+			}
 			$i++;
 			$wpdb->insert( $t, array( 'bang' => $bang, 'stt' => $i, 'cols' => wp_json_encode( $r ) ) );
 		}
@@ -423,17 +629,139 @@ class VHCPHN_Cfg {
 	 * @return int số dòng THÊM MỚI.
 	 */
 	public static function hut_coso_ghe() {
+		if ( ! self::lay_coso_ghe() ) { return 0; }   // bản không dùng ghế — xem hằng ấy
 		if ( ! class_exists( 'VHG_May' ) || ! method_exists( 'VHG_May', 'ds_coso' ) ) { return 0; }
 		$n = 0;
 		foreach ( (array) VHG_May::ds_coso() as $c ) {
 			$ten = isset( $c['ten'] ) ? $c['ten'] : '';
-			if ( self::nhan_coso_ngoai( $ten, self::DON_VI_GHE ) ) { $n++; }
+			if ( self::nhan_coso_ngoai( $ten, self::don_vi_ghe() ) ) { $n++; }
 		}
 		return $n;
 	}
 
-	/** Cơ sở bên ghế thuộc đơn vị nào. Một chỗ, để đổi thì đổi đúng một dòng. */
-	const DON_VI_GHE = 'POSH';
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * CƠ SỞ HÚT TỪ BÊN GHẾ THUỘC ĐƠN VỊ NÀO
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 14/09/2026: *"chi phí [máy] tự động lấy cơ sở từ ghế, còn chi phí văn phòng lấy
+	 * từ đó, chỉnh lại"*.
+	 *
+	 * 🔴 GẮN CỨNG 'POSH' LÀ ĐÚNG CHO BẢN KHU VUI CHƠI VÀ SAI CHO MỌI BẢN KHÁC. Bên KVC, gian
+	 *    ghế là của nhà POSH nên cơ sở hút về phải mang tên nhà ấy. Nhưng bản Máy tự động và bản
+	 *    Văn phòng có nhà riêng của mình; cơ sở hút về mà mang 'POSH' thì:
+	 *      · người dùng nhà mặc định của bản ấy KHÔNG NHÌN THẤY nó (lọc theo đơn vị), nên họ mở
+	 *        hộp chọn cơ sở ra thấy trống trơn dù danh mục đầy;
+	 *      · và mọi báo cáo theo nhà của bản ấy hụt đúng phần tiền của những gian này.
+	 *    Hỏng im lặng cả hai đường.
+	 *
+	 * ⚠️ MẶC ĐỊNH RỖNG NGHĨA LÀ "NHÀ MẶC ĐỊNH CỦA CHÍNH BẢN NÀY" (`VHCPHN_DonVi::chuan()` lo phần
+	 *    ấy), chứ không phải "không có nhà". Bản gốc giữ 'POSH'; script tách đặt rỗng cho bản
+	 *    vùng. Khai lại được bằng khoá `vhcphn_dv_ghe` nếu ngày nào cần khác.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	const DON_VI_GHE = '';
+
+	/**
+	 * BẢN NÀY CÓ LẤY CƠ SỞ TỪ BÊN GHẾ KHÔNG.
+	 *
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 14/09/2026: *"VP không dùng cơ sở ghế, ghế chỉ mỗi MTD thôi"*.
+	 *
+	 * 🔴 KHÔNG PHẢI MẢNG NÀO CŨNG CÓ GHẾ. Máy tự động chính là mảng ghế massage nên danh mục gian
+	 *    của nó đúng bằng danh mục bên Ghế. Văn phòng thì không: gian ở đó là chỗ làm việc, không
+	 *    liên quan. Hút sang là mỗi lần bên Ghế mở thêm một điểm đặt máy, danh mục Văn phòng lại
+	 *    dài thêm một dòng lạ — rồi người nhập chọn nhầm, và tiền văn phòng rơi vào một gian ghế.
+	 *
+	 * ⚠️ TẮT LÀ TẮT CẢ BA LỐI: lượt hút tự động, tai nghe móc từ bên Ghế, và nút bấm tay. Tắt
+	 *    hai để sót một thì cơ sở vẫn chảy sang, chỉ là chậm hơn và khó truy hơn.
+	 *
+	 * 🔴 BẢN KHU VUI CHƠI (bản gốc này) ĐÃ TẮT, TỪ 14/09/2026.
+	 *    Anh Thắng gửi ảnh khối "🏢 ĐƠN VỊ POSH · 67 cơ sở" — AEON MALL, CGV, Bệnh viện 175…
+	 *    tức điểm đặt ghế massage — rồi hỏi *"tại sao xóa không được"*, *"nó thuộc bộ phận
+	 *    khác"*, *"bỏ vào đây là người khác khai sai"*.
+	 *
+	 *    Xóa KHÔNG ĐƯỢC là vì bật hằng này thì `vhcphn_maybe_upgrade()` hút lại đủ 67 gian
+	 *    ẤY MỖI LẦN ĐỔI PHIÊN BẢN PLUGIN — xóa xong, cài bản sau là chúng về nguyên, không
+	 *    một câu báo nào. Cộng thêm hai đường nữa: móc `vhg_coso_da_luu` và nút bấm tay.
+	 *
+	 *    Mà gian ghế là của nhà POSH, không phải của khu vui chơi: để chúng trong danh mục ở
+	 *    đây chỉ tổ làm hộp chọn cơ sở dài thêm 67 dòng để người nhập chọn nhầm — đúng câu
+	 *    *"người khác khai sai"*. Anh đã chốt hướng này ngay hôm ấy: *"ghế chỉ mỗi MTD thôi"*.
+	 *
+	 * ⚠️ TẮT Ở ĐÂY KHÔNG XÓA DÒNG NÀO ĐANG CÓ. Nó chỉ thôi kéo thêm. 67 gian đã nằm trong sổ
+	 *    vẫn ở đó cho tới khi có người xóa tay ở màn Cấu hình — và từ bản này, xóa là ở yên.
+	 *
+	 * ⚠️ TẮT cũng tắt luôn đầu PHÁT `vhcphn_coso_posh_da_luu` (xem `bao_coso_posh_`). Hiện
+	 *    KHÔNG CÓ AI NGHE hành động ấy trong cả bộ mã, nên không mất gì; ngày nào bên Ghế cần
+	 *    nghe thì phải tách đầu phát ra khỏi hằng này, đừng bật lại cả ba đường hút.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 */
+	/* ═══════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 BẬT LẠI Ở BẢN GỐC TỪ 21/09/2026 — VÀ CHỈ CHIỀU HÚT.
+	 *
+	 * Anh Thắng 21/09/2026: *"đẩy cơ sở bên ghế sang nhé"*, *"cơ sở bên ghế thuộc MTĐ"*, và khi
+	 * em hỏi hai chiều hay một: *"bật 1 chiều từ ghế sang"*.
+	 *
+	 * ⚠️ ĐIỀU GÌ ĐÃ ĐỔI SO VỚI 14/09. Hôm ấy tắt vì 67 gian ghế là của NHÀ KHÁC, lạc vào danh
+	 *    mục của khu vui chơi: *"nó thuộc bộ phận khác"*, *"bỏ vào đây là người khác khai sai"*. Nay
+	 *    ba khối nằm chung MỘT bản cài, mỗi gian mang cột **Khối** của riêng nó, và gian ghế rơi vào
+	 *    khối Máy tự động (đơn vị POSH → `mtd`). Nó không còn là dòng lạ trong danh mục người
+	 *    khác nữa — nó ở đúng bảng của nó.
+	 *
+	 * 🔴 VÀ CÁI ĐÃ LÀM ANH KHỔ HÔM ẤY ĐÃ ĐƯỢC GỠ RIÊNG, KHÔNG ĐỂ NÓ QUAY LẠI. *"Tại sao xóa
+	 *    không được"* là vì lượt hút tự động chạy LẠI MỖI PHIÊN BẢN plugin: xóa xong, cài bản sau
+	 *    là 67 gian về nguyên, không một câu báo. Từ bản này lượt ấy chỉ chạy ĐÚNG MỘT LẦN cho cả
+	 *    đời site (xem cờ `vhcphn_hut_coso_ghe` ở `vhcp-chi-phi-hn.php`). Xóa là ở yên; muốn hút lại thì
+	 *    bấm nút 🚛 Hút cơ sở từ Ghế ở màn Cấu hình.
+	 *
+	 * ⚠️ HẰNG NÀY CHỈ CÒN GÁC CHIỀU HÚT (ghế → chi phí): lượt hút đầu, tai nghe móc
+	 *    `vhg_coso_da_luu`, và nút bấm tay. ĐẦU PHÁT ngược lại (chi phí → ghế) nay có hằng riêng
+	 *    `BAO_COSO_GHE`, và bản gốc để TẮT — anh chỉ xin một chiều. Chính chốt ⚠ cũ ở khối này đã
+	 *    dặn: ngày nào cần thì TÁCH ĐẦU PHÁT ra, đừng bật chung một hằng.
+	 * ════════════════════════════════════════════════════════════════════════════════════ */
+	const LAY_COSO_GHE = false;
+
+	/**
+	 * BẢN NÀY CÓ BÁO NGƯỢC CƠ SỞ SANG BÊN GHẾ KHÔNG — chiều PHÁT, tách hẳn khỏi chiều hút.
+	 *
+	 * Anh Thắng 21/09/2026: *"bật 1 chiều từ ghế sang"* — nên bản gốc để TẮT.
+	 *
+	 * 🔴 TÁCH RA LÀM HAI HẰNG CHÍNH VÌ CÂU ẤY. Trước 21/09 một hằng gác cả hai chiều, nên bật
+	 *    hút là bật luôn phát: mỗi lượt Lưu cấu hình sẽ bắn danh sách gian MTĐ sang plugin Ghế.
+	 *    Đó là chạm vào dữ liệu của một hệ khác đang chạy thật — không được làm kèm.
+	 */
+	const BAO_COSO_GHE = false;
+
+	/** Bản này có báo ngược sang Ghế không — đọc lúc chạy, cùng nếp với `lay_coso_ghe()`. */
+	public static function bao_coso_ghe() {
+		$v = get_option( 'vhcphn_bao_coso_ghe', null );
+		if ( null === $v || '' === $v ) { return self::BAO_COSO_GHE; }
+		return (bool) (int) $v;
+	}
+
+	/**
+	 * BẢN NÀY CÓ LẤY CƠ SỞ TỪ GHẾ KHÔNG — đọc lúc chạy, không đọc hằng thẳng.
+	 *
+	 * Cùng một nếp với `don_vi_ghe()` ngay dưới: hằng là NẾP CỦA BẢN, khoá cấu hình là lối
+	 * đổi cho một site cụ thể mà không phải dựng bản mới.
+	 *
+	 * 🔴 MỌI CHỐT PHẢI GỌI HÀM NÀY, đừng đọc `self::LAY_COSO_GHE` thẳng. Đọc hằng thẳng thì
+	 *    khoá cấu hình chỉ ăn ở nửa số lối, và "tắt rồi mà cơ sở vẫn chảy sang" là một câu
+	 *    không ai dò ra nổi.
+	 *
+	 * ⚠️ CHỈ NHẬN GIÁ TRỊ ĐÃ KHAI. `get_option` trả `null` khi chưa ai đặt — lúc ấy phải theo
+	 *    hằng, chứ ép `(bool) null` là mọi site đều tắt, kể cả bản Máy tự động vốn sống nhờ
+	 *    đường này.
+	 */
+	public static function lay_coso_ghe() {
+		$v = get_option( 'vhcphn_lay_coso_ghe', null );
+		if ( null === $v || '' === $v ) { return self::LAY_COSO_GHE; }
+		return (bool) (int) $v;
+	}
+
+	/** Đơn vị gắn cho cơ sở hút từ Ghế — khai được, mặc định lấy hằng trên. */
+	public static function don_vi_ghe() {
+		$v = get_option( 'vhcphn_dv_ghe', null );
+		return is_string( $v ) ? trim( $v ) : self::DON_VI_GHE;
+	}
 
 	/**
 	 * Tai nghe cho móc `vhg_coso_da_luu` của plugin Ghế — xem chỗ đăng ký ở `vhcp-chi-phi-hn.php`.
@@ -443,7 +771,8 @@ class VHCPHN_Cfg {
 	 *    nghe không ai biết còn đúng hay không.
 	 */
 	public static function moc_coso_ghe( $ten ) {
-		self::nhan_coso_ngoai( $ten, self::DON_VI_GHE );
+		if ( ! self::lay_coso_ghe() ) { return; }   // bản không dùng ghế — xem hằng ấy
+		self::nhan_coso_ngoai( $ten, self::don_vi_ghe() );
 	}
 
 	/**
@@ -454,12 +783,16 @@ class VHCPHN_Cfg {
 	 * cả tháng — nút này là đường ấy.
 	 */
 	public static function hut_coso_ghe_api() {
+		if ( ! self::lay_coso_ghe() ) {
+			return array( 'ok' => false, 'error' => 'Mảng này không lấy cơ sở từ bên Ghế. '
+				. 'Gian của mảng khai thẳng ở bảng Cơ sở bên dưới.' );
+		}
 		if ( ! class_exists( 'VHG_May' ) ) {
 			return array( 'ok' => false, 'error' => 'Chưa cài plugin Ghế massage trên site này.' );
 		}
 		$n = self::hut_coso_ghe();
 		return array( 'ok' => true, 'them' => $n, 'thongBao' => $n
-			? ( 'Đã thêm ' . $n . ' cơ sở từ bên Ghế, gắn đơn vị ' . self::DON_VI_GHE . '.' )
+			? ( 'Đã thêm ' . $n . ' cơ sở từ bên Ghế, gắn đơn vị ' . VHCPHN_DonVi::chuan( self::don_vi_ghe() ) . '.' )
 			: 'Danh mục đã đủ — không có cơ sở nào bên Ghế còn thiếu.' );
 	}
 
@@ -485,11 +818,19 @@ class VHCPHN_Cfg {
 	 *    trên đúng đường người ta bấm Lưu.
 	 */
 	private static function bao_coso_posh_( $rows ) {
+		/* 🔴 GÁC BẰNG `bao_coso_ghe()`, KHÔNG BẰNG `lay_coso_ghe()`. Từ 21/09/2026 hai chiều có
+		   hai hằng riêng — anh Thắng: *"bật 1 chiều từ ghế sang"*. Gác chung một hằng thì ngày
+		   bật chiều hút là mỗi lượt Lưu cấu hình lại bắn danh sách gian sang plugin Ghế — chạm
+		   vào dữ liệu của một hệ khác đang chạy thật, mà không ai xin điều đó. */
+		if ( ! self::bao_coso_ghe() ) { return; }
 		foreach ( (array) $rows as $r ) {
 			$r  = array_values( (array) $r );
 			$tn = trim( (string) ( isset( $r[0] ) ? $r[0] : '' ) );
 			$dv = VHCPHN_DonVi::chuan( isset( $r[5] ) ? $r[5] : '' );
-			if ( '' === $tn || self::DON_VI_GHE !== $dv ) { continue; }
+			/* ⚠️ SO VỚI ĐƠN VỊ ĐANG DÙNG, không so với hằng. Bản vùng đặt đơn vị ghế là nhà mặc
+			   định của nó; so với hằng 'POSH' thì đầu phát này im hẳn, và bên Ghế không bao giờ
+			   biết cơ sở vừa được khai. */
+			if ( '' === $tn || VHCPHN_DonVi::chuan( self::don_vi_ghe() ) !== $dv ) { continue; }
 			do_action( 'vhcphn_coso_posh_da_luu', $tn );
 		}
 	}
@@ -518,6 +859,7 @@ class VHCPHN_Cfg {
 	private static $memo = null;
 
 	public static function clear_cache() {
+		self::$bp_memo = null;
 		self::$memo = null;
 		wp_cache_delete( 'vhcphn_cfgstatic', 'vhcphn' );
 		wp_cache_delete( 'vhcphn_quyen', 'vhcphn' );
@@ -538,21 +880,83 @@ class VHCPHN_Cfg {
 	 * Như _seedConfig() nhưng dùng dữ liệu ĐÃ ĐỌC SẴN (khỏi 4 lệnh đếm dòng).
 	 * Trả về true nếu có thêm/ sửa gì -> nơi gọi biết là phải đọc lại.
 	 */
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 "BẢNG RỖNG" KHÔNG CÓ NGHĨA LÀ "CHƯA GIEO BAO GIỜ".
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 14/09/2026, bản Văn phòng: *"trang chi phí văn phòng không xóa được cơ sở chi phí
+	 * kvc"*. Bản VP gieo sẵn 14 cơ sở của K&H; anh xoá hết rồi bấm Lưu — và chúng quay lại ngay
+	 * lượt tải sau.
+	 *
+	 * Vì gác của hàm này chỉ hỏi "bảng có rỗng không". Rỗng thì gieo. Mà người ta vừa CỐ Ý dọn
+	 * sạch cũng cho ra một bảng rỗng — không phân biệt được hai chuyện ấy thì mọi lượt dọn sạch
+	 * đều bị hoàn tác, và người dọn không có cách nào thắng.
+	 *
+	 * ⚠️ HẠT GIỐNG LÀ MỒI CHO LƯỢT ĐẦU, KHÔNG PHẢI LUẬT VĨNH VIỄN. Nay mỗi danh mục có một dấu
+	 *    "đã gieo rồi": gieo đúng một lần, sau đó bảng rỗng là ý của người dùng và phải được tôn
+	 *    trọng — kể cả khi rỗng là do họ xoá nhầm, vì còn có nút Khôi phục cho chuyện ấy.
+	 *
+	 * 🔴 BẢNG NGƯỜI DÙNG CỐ Ý KHÔNG THEO LUẬT NÀY — xem chỗ gieo `USER` bên dưới.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	/**
+	 * GIEO ĐÚNG MỘT LẦN, CẢ ĐỜI PLUGIN.
+	 *
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 VÌ SAO BẢN VÁ NGÀY 14/09 CHƯA CỨU ĐƯỢC ANH THẮNG — *"Tiếp tục không xóa được"*.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Bản trước đã có dấu "đã gieo rồi", nhưng đặt dấu Ở TRONG thân nhánh gieo:
+	 *
+	 *     if ( bảng rỗng && chưa có dấu ) { gieo...; đặt dấu; }
+	 *
+	 * Đọc thì thấy đúng. Nhưng trên MỘT SITE ĐÃ CÀI TỪ TRƯỚC thì bảng KHÔNG rỗng — nhánh không
+	 * chạy — nên dấu KHÔNG BAO GIỜ ĐƯỢC ĐẶT. Rồi anh Thắng dọn sạch bảng:
+	 *
+	 *     bảng rỗng ✓  ·  chưa có dấu ✓   ->  gieo lại nguyên danh mục.
+	 *
+	 * Tức bản vá chỉ cứu được máy cài MỚI TINH; còn đúng những site đang đau thì lượt dọn sạch
+	 * ĐẦU TIÊN vẫn bị hoàn tác y như cũ. (Lượt thứ hai mới ăn — vì lần hoàn tác ấy có đặt dấu.
+	 * Nghĩa là người dùng phải xoá hai lần mới thắng, mà không ai đoán ra luật đó.)
+	 *
+	 * ⚠️ NAY: THẤY BẢNG CÓ DỮ LIỆU LÀ ĐÓNG DẤU NGAY, không đợi tới lượt gieo. Bảng đang có dữ
+	 *    liệu nghĩa là hạt giống đã làm xong việc của nó — dù do lượt gieo cũ hay do người dùng
+	 *    tự khai. Từ đó trở đi bảng rỗng là Ý CỦA NGƯỜI DÙNG và phải được tôn trọng.
+	 *
+	 * @param array    $all  dữ liệu đã đọc sẵn
+	 * @param string   $bang tên bảng cấu hình
+	 * @param string   $dau  khoá meta làm dấu "đã gieo rồi"
+	 * @param callable $lam  việc gieo, chỉ chạy khi thật sự cần
+	 * @return bool   true nếu có gieo (nơi gọi phải đọc lại)
+	 */
+	private static function gieo_mot_lan( $all, $bang, $dau, $lam ) {
+		if ( VHCPHN_Meta::get( $dau ) ) { return false; }          // đã gieo (hoặc đã đóng dấu) rồi
+		VHCPHN_Meta::set( $dau, '1' );                             // đóng dấu TRƯỚC, cả hai lối đi
+		if ( count( self::rows_of( $all, $bang ) ) ) { return false; }   // site cũ: coi như đã gieo
+		call_user_func( $lam );
+		return true;
+	}
+
 	private static function seed_from( $all ) {
 		$did = false;
-		if ( ! count( self::rows_of( $all, self::COSO ) ) ) {
-			foreach ( self::default_coso() as $c ) { self::append( self::COSO, array( $c, '', '', '', '', '' ) ); }
-			$did = true;
-		}
-		if ( ! count( self::rows_of( $all, self::NHOM ) ) ) {
-			foreach ( self::default_nhom() as $n ) { self::append( self::NHOM, array( $n[0], $n[1], '', '' ) ); }
-			$did = true;
-		}
+		if ( self::gieo_mot_lan( $all, self::COSO, 'seeded_coso_v1', function () {
+			foreach ( VHCPHN_Cfg::default_coso() as $c ) { VHCPHN_Cfg::append( VHCPHN_Cfg::COSO, array( $c, '', '', '', '', '' ) ); }
+		} ) ) { $did = true; }
+		if ( self::gieo_mot_lan( $all, self::NHOM, 'seeded_nhom_v1', function () {
+			foreach ( VHCPHN_Cfg::default_nhom() as $n ) { VHCPHN_Cfg::append( VHCPHN_Cfg::NHOM, array( $n[0], $n[1], '', '' ) ); }
+		} ) ) { $did = true; }
 		if ( ! count( self::rows_of( $all, self::PL ) ) ) {
 			self::append( self::PL, array( 'Thanh toán cá nhân', '141' ) );
 			self::append( self::PL, array( 'Nhà cung cấp', '331' ) );
 			$did = true;
 		}
+		/* Gieo BỘ PHẬN từ danh sách mặc định. Không gieo thì `bo_phan_ds()` ngã về hằng —
+		   vẫn chạy đúng, nhưng màn Cấu hình bày bảng rỗng và người dùng tưởng chưa có gì. */
+		if ( ! count( self::rows_of( $all, self::BP ) ) ) {
+			foreach ( self::BO_PHAN_DS as $b ) { self::append( self::BP, array( $b ) ); }
+			$did = true;
+		}
+		/* 🔴 BẢNG NGƯỜI DÙNG GIEO LẠI MỖI KHI RỖNG, CỐ Ý KHÔNG CÓ DẤU "đã gieo rồi".
+		   Xoá sạch người dùng là tự khoá mình ngoài cửa VĨNH VIỄN — không còn PIN nào vào được
+		   để mà sửa. Dòng Admin gieo lại là đường cứu duy nhất, và nó phải luôn có mặt.
+		   ⚠️ Đổi lại: PIN mặc định nằm công khai trong mã. Đổi PIN Admin ngay sau khi cài. */
 		if ( ! count( self::rows_of( $all, self::USER ) ) ) {
 			self::append( self::USER, array( 'Admin', '1111', 'Admin', '', '', '', '' ) );
 			$did = true;
@@ -576,36 +980,130 @@ class VHCPHN_Cfg {
 			VHCPHN_Meta::set( 'seeded_thaodo_setup_v2', '1' );
 		}
 
-		/* VAI "KẾ TOÁN MÁY TỰ ĐỘNG" — dựng sẵn một lần (anh Thắng 08/09/2026).
-		   Dựng sẵn chứ không bắt khai tay: vai này chỉ đúng khi cột Bộ phận của nó mang đúng
-		   chữ "Máy tự động"; khai tay mà gõ "máy tự động " thừa dấu cách, hay "MTD", là vai ấy
-		   KHÔNG bó gì cả và người mang nó nhìn thấy sổ của mọi mảng — hỏng đúng theo kiểu
-		   không ai nhận ra.
+		/* LOẠI "Chi phí cơ sở" MỞ THÊM CHO BỘ PHẬN KỸ THUẬT — anh Thắng 11/09/2026:
+		   *"bổ sung loại chi phí ( chi phí cơ sở )"*, sau khi ô Loại chi phí của đơn Kỹ thuật
+		   chỉ xổ ra đúng hai loại tháo dỡ / setup.
 
-		   ⚠️ Đánh dấu đã seed để anh còn XOÁ hoặc ĐỔI được. Không đánh dấu thì mỗi lượt nâng
-		      cấp lại dựng lại một vai anh vừa cố ý bỏ đi. */
-		if ( ! VHCPHN_Meta::get( 'seeded_vai_mtd_v1' ) ) {
-			$did = true;
-			$co  = false;
-			foreach ( self::read( self::VAI ) as $r ) {
+		   Kỹ thuật nay lên được ĐƠN CHI PHÍ CƠ SỞ (một đơn nhiều gian), mà loại chi phí đúng
+		   cho nó lại đang khai riêng cho bộ phận khác, nên ô chọn của họ không có dòng nào
+		   dùng được — và không có gì trên màn nói vì sao.
+
+		   🔴 CỘNG THÊM BỘ PHẬN, KHÔNG THAY. Ghi đè cột ấy thành "Kỹ thuật" là cắt loại này khỏi
+		      chính những người đang dùng nó hằng tuần.
+		   ⚠️ LOẠI CHƯA KHAI BỘ PHẬN NÀO THÌ ĐỂ YÊN: bỏ trống nghĩa là DÙNG CHUNG cho mọi bộ
+		      phận (xem `loai_thuoc_bo_phan()`), nên điền "Kỹ thuật" vào là BÓ nó lại — đúng
+		      ngược điều đang cần. */
+		if ( ! VHCPHN_Meta::get( 'seeded_coso_kythuat_v1' ) ) {
+			$did  = true;
+			$rows = self::read( self::LOAI );
+			foreach ( $rows as $i => $r ) {
 				$r = array_values( (array) $r );
-				if ( mb_strtolower( trim( (string) ( isset( $r[0] ) ? $r[0] : '' ) ) ) === mb_strtolower( 'Kế toán máy tự động' ) ) { $co = true; }
+				if ( mb_strtolower( trim( (string) ( isset( $r[0] ) ? $r[0] : '' ) ) ) !== mb_strtolower( 'Chi phí cơ sở' ) ) { continue; }
+				$bp = self::bo_phan_tach( isset( $r[4] ) ? $r[4] : '' );
+				if ( count( $bp ) && ! in_array( 'Kỹ thuật', $bp, true ) ) {
+					$bp[] = 'Kỹ thuật';
+					self::set_cell( self::LOAI, $i, 4, implode( ', ', $bp ) );
+				}
+				break;
 			}
-			if ( ! $co ) { self::append( self::VAI, array( 'Kế toán máy tự động', 'Kế toán cá nhân', 'Máy tự động' ) ); }
-			VHCPHN_Meta::set( 'seeded_vai_mtd_v1', '1' );
+			VHCPHN_Meta::set( 'seeded_coso_kythuat_v1', '1' );
 		}
 
-		// Danh mục LOẠI CHI PHÍ: lần đầu dựng từ nhóm mặt hàng đang có (giữ luôn TK Nợ + Bộ phận)
-		// để anh không phải khai lại; sau đó sửa độc lập trong tab ⚙️ Cấu hình.
-		if ( ! count( self::rows_of( $all, self::LOAI ) ) ) {
-			$nhom = self::rows_of( $all, self::NHOM );
-			if ( ! count( $nhom ) ) { $nhom = self::read( self::NHOM ); }   // vừa seed trong lượt này -> đọc lại
-			foreach ( $nhom as $r ) {
-				if ( trim( (string) $r[0] ) === '' ) { continue; }
-				self::append( self::LOAI, array( $r[0], isset( $r[2] ) ? $r[2] : '', '', '', isset( $r[3] ) ? $r[3] : '', '' ) );
-			}
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * LẤP KHỐI CHO MỌI LOẠI CHI PHÍ CÓ TỪ TRƯỚC — chạy MỌI LƯỢT, không phải một lần.
+		 * ══════════════════════════════════════════════════════════════════════════════════════
+		 * Anh Thắng 21/09/2026: *"chỗ loại chi phí, chia ra 3 bảng của 3 khối, để tránh dùng
+		 * chung"*. Từ bản này mỗi loại thuộc đúng một khối.
+		 *
+		 * 🔴 Ô KHỐI RỖNG LÀ LOẠI KHÔNG BẢNG NÀO CHỨA — nó biến mất khỏi cả ba bảng, khỏi ô chọn
+		 *    lúc nhập đơn, và khỏi mọi cột mã ở bảng dưới. Tiền vẫn nằm trong sổ mang tên loại
+		 *    ấy, mà màn hình thì như chưa từng có nó. Đúng cái bẫy `lap_khoi()` của bảng đơn.
+		 *
+		 * ⚠️ VÌ SAO KHÔNG DÙNG `gieo_mot_lan()`: dấu "đã gieo" chỉ nói lượt trước đã chạy, không
+		 *    nói HÔM NAY còn ô rỗng nào không. Một dòng thêm tay qua đường nạp dữ liệu, hay một
+		 *    lượt khôi phục bảng cũ, là lại có ô rỗng — mà dấu thì đã đóng. Quét lại mỗi lượt
+		 *    rẻ hơn nhiều so với một loại chi phí tàng hình.
+		 *
+		 * Khối mặc định là khối của CHÍNH BẢN ĐANG CHẠY (`VHCPHN_DB::khoi()`): dữ liệu đang có ở
+		 * kho nào thì thuộc khối ấy — bản gốc là `kvc`, bản vùng là mã vùng của nó.
+		 * ══════════════════════════════════════════════════════════════════════════════════════ */
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 KHÔNG CÓ LƯỢT TỰ XOÁ VAI TRÒ Ở ĐÂY. ĐỪNG THÊM LẠI.
+		 * ══════════════════════════════════════════════════════════════════════════════════════
+		 * Bản 1.229.0 từng có: nạp plugin lên là nó tự dời người về vai gốc rồi dọn sạch bảng
+		 * vai tự tạo. Anh Thắng chối ngay: *"như xóa vai trò là đang sai"* — sau khi chính anh
+		 * bảo *"xóa luôn mấy vai trò đó đi"*. Hai câu ấy không mâu thuẫn: anh muốn mấy vai KIA
+		 * biến khỏi ô chọn, chứ không muốn MÁY tự ý đụng vào bảng phân quyền.
+		 *
+		 * 🔴 VÌ SAO MỘT LƯỢT DỌN TỰ ĐỘNG LÀ SAI, kể cả khi nó "đúng ý":
+		 *   · Nó chạy lúc NẠP PLUGIN, không phải lúc người ta bấm nút. Không ai kịp xem trước,
+		 *     không ai bấm đồng ý, và không có nút hoàn tác.
+		 *   · Nó đụng vào hai bảng cùng lúc — vai trò VÀ vai của từng tài khoản. Sai một nước
+		 *     là quyền của cả công ty lệch đi, mà cái lệch ấy im lặng.
+		 *   · Bảng phân quyền `CH_Quyen` lưu theo CHỈ SỐ CỘT, mỗi vai một cột. Xoá vai là cột
+		 *     ấy mồ côi — thứ chỉ lộ ra nhiều ngày sau, ở một màn khác.
+		 *
+		 * ⚠️ MUỐN DỌN THÌ DỌN BẰNG TAY, ở bảng 🎭 Vai trò: xoá dòng rồi bấm Lưu. Đường ấy đã có
+		 *    sẵn chốt đếm-trước-rồi-hỏi (liệt kê ai đang mang vai sắp xoá). Người bấm là người
+		 *    quyết, và họ nhìn thấy cái giá trước khi trả.
+		 * ══════════════════════════════════════════════════════════════════════════════════════ */
+
+		$rows_l = self::read( self::LOAI );
+		$khoi_n = VHCPHN_DB::khoi();
+		foreach ( $rows_l as $i => $r ) {
+			$r = array_values( (array) $r );
+			if ( '' === trim( (string) ( isset( $r[0] ) ? $r[0] : '' ) ) ) { continue; }
+			if ( '' !== trim( (string) ( isset( $r[9] ) ? $r[9] : '' ) ) ) { continue; }
 			$did = true;
+			self::set_cell( self::LOAI, $i, 9, $khoi_n );
 		}
+
+		/* VAI "KẾ TOÁN MÁY TỰ ĐỘNG" — ĐÃ BỎ (anh Thắng 14/09/2026: *"bỏ cái này, vì
+		   phân quyền trang nên không cần nữa"*).
+
+		   Vai này sinh ra ngày 08/09 để bó một kế toán vào riêng bộ phận "Máy tự động", hồi
+		   ba mảng còn chung MỘT trang chi phí. Nay mỗi mảng đã có TRANG RIÊNG — mỗi trang một
+		   bộ bảng và một sổ người dùng riêng — vào đúng trang là đã chỉ thấy mảng ấy, nên vai bó
+		   bộ phận không còn việc gì.
+
+		   (Không viết thẳng đường dẫn của các mảng ra đây: bài kiểm `kiem-tach-ban-vung.php` chốt
+		    bản GỐC không được dính một chữ nào của bản vùng, kể cả trong chú thích — dính là dấu
+		    hiệu script tách đã lây ngược, nên phép ấy cố ý không nể chú thích.)
+
+		   ⚠️ Chỉ bỏ việc TỰ DỰNG SẴN, không tự đi xoá: trên bản đang chạy có thể đang có tài khoản
+		      mang vai này, xoá ngầm là họ mất quyền giữa chừng mà không ai biết vì sao. Anh bấm ✕
+		      rồi Lưu là nó đi hẳn — cờ đã seed ('seeded_vai_...') đã đóng nên không có gì dựng lại.
+		      Cơ chế vai tự tạo có bó bộ phận VẪN GIỮ (`bo_phan_cua_nguoi()`); chỉ mỗi vai dựng sẵn
+		      này là thôi. */
+
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * Danh mục LOẠI CHI PHÍ: lần đầu dựng từ nhóm mặt hàng đang có (giữ luôn TK Nợ + Bộ
+		 * phận) để khỏi phải khai lại; sau đó sửa độc lập trong tab ⚙️ Cấu hình.
+		 *
+		 * 🔴 CHỈ DỰNG MỘT LẦN — anh Thắng 14/09/2026: *"bấm dọn mã thì được, chứ bấm x thì lại
+		 *    không được"*. Chi tiết ấy chính là manh mối, và nó chỉ thẳng vào đây:
+		 *
+		 *      · "🧹 Dọn loại chưa khai mã" GIỮ LẠI loại đã khai mã -> bảng KHÔNG rỗng -> nhánh
+		 *        này không chạy -> xoá ăn.
+		 *      · Bấm ✕ từng dòng cho tới hết rồi Lưu -> bảng RỖNG -> nhánh này dựng lại nguyên
+		 *        danh mục từ NHOM -> "không xoá được".
+		 *
+		 *    Hai nút, hai kết quả, cùng một nguyên nhân: gác chỉ hỏi "bảng có rỗng không", mà
+		 *    người vừa CỐ Ý dọn sạch cũng cho ra một bảng rỗng.
+		 *
+		 * ⚠️ Đây là bảng THỨ BA mắc cùng một bệnh (sau COSO và NHOM, vá cùng ngày). Lần trước
+		 *    vá hai chỗ mà bỏ sót chỗ này — nên nay mỗi nhánh "rỗng thì dựng lại" đều phải có
+		 *    dấu riêng, và bài kiểm canh cả ba.
+		 * ══════════════════════════════════════════════════════════════════════════════════════ */
+		if ( self::gieo_mot_lan( $all, self::LOAI, 'seeded_loai_v1', function () {
+			// Đọc THẲNG từ bảng, không dùng bản đã nạp sẵn: bảng Nhóm có thể vừa được gieo
+			// ngay trong lượt này, lúc ấy bản nạp sẵn còn rỗng.
+			foreach ( VHCPHN_Cfg::read( VHCPHN_Cfg::NHOM ) as $r ) {
+				$r = array_values( (array) $r );
+				if ( trim( (string) $r[0] ) === '' ) { continue; }
+				VHCPHN_Cfg::append( VHCPHN_Cfg::LOAI, array( $r[0], isset( $r[2] ) ? $r[2] : '', '', '', isset( $r[3] ) ? $r[3] : '', '' ) );
+			}
+		} ) ) { $did = true; }
 		return $did;
 	}
 
@@ -628,7 +1126,13 @@ class VHCPHN_Cfg {
 			// thống tài khoản và xuất MISA ra sai. Rửa ngay lúc ĐỌC nên dòng đã nạp lệch tự
 			// về đúng, khỏi phải sửa tay từng ô.
 			$out['coso'][] = array( 'ten' => $r[0], 'maDonVi' => VHCPHN_Util::ma_so( $r[1] ), 'phanLoaiLon' => $r[2], 'tenMisa' => $r[3], 'dongCua' => isset( $r[4] ) ? (string) $r[4] : '',
-				'donVi' => VHCPHN_DonVi::chuan( isset( $r[5] ) ? $r[5] : '' ) );
+				'donVi' => VHCPHN_DonVi::chuan( isset( $r[5] ) ? $r[5] : '' ),
+				/* TỈNH / THÀNH — anh Thắng 11/09/2026: *"thêm cột phân loại theo tỉnh"*.
+				   ⚠️ KHÔNG qua `chuan()` như cột Đơn vị: để trống là CHƯA KHAI, không phải
+				      "về tỉnh mặc định" — gán bừa một tỉnh là báo cáo theo vùng sai ngay. */
+				'tinh' => trim( (string) ( isset( $r[6] ) ? $r[6] : '' ) ),
+				/* BỘ PHẬN của gian (kvc · mtd · vp) — chuẩn về mã khối qua bảng tên; lạ → '' (chưa khai). */
+				'boPhan' => VHCPHN_DonVi::khoi_cua( isset( $r[7] ) ? $r[7] : '' ) );
 		}
 		foreach ( self::rows_of( $all, self::NHOM ) as $r ) {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
@@ -636,7 +1140,15 @@ class VHCPHN_Cfg {
 		}
 		foreach ( self::rows_of( $all, self::LOAI ) as $r ) {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
-			$out['loaiChiPhi'][] = array( 'ten' => $r[0], 'tkNo' => VHCPHN_Util::ma_so( $r[1] ), 'tkCo' => VHCPHN_Util::ma_so( $r[2] ), 'maDt' => VHCPHN_Util::ma_so( $r[3] ), 'boPhan' => $r[4], 'note' => $r[5], 'tenMisa' => isset( $r[6] ) ? $r[6] : '', 'loaiTt' => isset( $r[7] ) ? $r[7] : '' );
+			/* Cột 9 `donVi` thêm 12/09/2026 — anh Thắng: *"Đối với POSH sẽ có cột Chi Phí Khác,
+			   Chi Phí Chung, Chi Phí Cơ Sở, Chi Phí Setup"*. Mỗi nhà một bộ loại chi phí riêng;
+			   bảng 81 mảng của POSH trước nay phải bày cả chín cột của KVC, toàn dấu "—".
+			   ⚠️ `isset()` cho cột mới: mọi dòng cũ chỉ có 8 cột, đọc thẳng `$r[8]` là cảnh báo
+			      PHP ở MỌI lượt nạp cấu hình. Rỗng = mọi đơn vị, giữ đúng hành vi cũ. */
+			/* `khoi` rỗng = loại có từ trước lượt chia ba bảng; `lap_khoi_loai()` lấp nốt ngay
+			   lúc nạp cấu hình, nên ô rỗng chỉ tồn tại đúng một khoảnh khắc. Vẫn phải rào
+			   `isset()`: dòng vừa thêm tay có thể chưa đủ ô. */
+			$out['loaiChiPhi'][] = array( 'ten' => $r[0], 'tkNo' => VHCPHN_Util::ma_so( $r[1] ), 'tkCo' => VHCPHN_Util::ma_so( $r[2] ), 'maDt' => VHCPHN_Util::ma_so( $r[3] ), 'boPhan' => $r[4], 'note' => $r[5], 'tenMisa' => isset( $r[6] ) ? $r[6] : '', 'loaiTt' => isset( $r[7] ) ? $r[7] : '', 'donVi' => isset( $r[8] ) ? $r[8] : '', 'khoi' => isset( $r[9] ) ? $r[9] : '', 'vaiTro' => isset( $r[10] ) ? $r[10] : '', 'dauMuc' => isset( $r[11] ) ? $r[11] : '', 'cha' => isset( $r[12] ) ? $r[12] : '' );
 		}
 		foreach ( self::rows_of( $all, self::TKNO ) as $r ) {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
@@ -660,6 +1172,29 @@ class VHCPHN_Cfg {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
 			$out['sso'][] = array( 'email' => $r[0], 'role' => $r[1], 'coso' => $r[2] );
 		}
+		/* 🔴 LẤY TỪ `bo_phan_ds()`, KHÔNG đọc thẳng `rows_of($all, BP)`. Hàm ấy mới có nhánh
+		   "rỗng thì ngã về mặc định" — đọc thẳng là site chưa gieo sẽ gửi xuống màn một danh
+		   sách rỗng, ô chọn Bộ phận trắng trơn, mà máy chủ thì vẫn nhận 7 tên cũ. Hai bên lệch
+		   nhau đúng kiểu bản này sinh ra để bỏ. */
+		$out['boPhanDs'] = self::bo_phan_ds();
+		/* Đầu mục (phân loại lớn) khai được — xem `dau_muc_rows()`. */
+		$out['dauMucDs']   = self::dau_muc_ds();
+		$out['dauMucCoSo'] = self::dau_muc_coso();
+		/* Cờ tính năng cho thẻ 🧪 — xem `TINH_NANG`. */
+		$out['tinhNangDs'] = self::tinh_nang_ds();
+		/* Luồng duyệt mặc định của từng bộ phận: { 'Văn phòng' => 'dc', … }. Bảng RIÊNG chứ
+		   không nhét vào `boPhanDs` — ô ấy là mảng CHUỖI và đang được đọc ở cả chục chỗ (ô chọn
+		   bộ phận, phân quyền vai, bảng loại chi phí); đổi kiểu của nó là mỗi chỗ ấy hiện ra
+		   "[object Object]" hoặc rỗng, mà hỏng theo kiểu im lặng.
+		   ⚠️ Chỉ chở bộ phận CÓ khai luồng — bảy dòng rỗng gửi xuống cũng chỉ để màn tra ra
+		      rỗng, đúng thứ nó vốn mặc định. */
+		$out['boPhanLuong'] = array();
+		foreach ( self::rows_of( $all, self::BP ) as $r ) {
+			$t = trim( (string) ( isset( $r[0] ) ? $r[0] : '' ) );
+			if ( '' === $t ) { continue; }
+			$lg = VHCPHN_Don::luong_don( array( 'luong' => isset( $r[1] ) ? $r[1] : '' ) );
+			if ( '' !== $lg ) { $out['boPhanLuong'][ $t ] = $lg; }
+		}
 		$out['users'] = array();
 		foreach ( self::rows_of( $all, self::USER ) as $r ) {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
@@ -670,7 +1205,15 @@ class VHCPHN_Cfg {
 			   site bật WP_DEBUG — cho một cột vừa mới thêm mà chưa ai kịp khai. */
 			$out['users'][] = array( 'ten' => $r[0], 'pin' => VHCPHN_Util::pin_sach( $r[1] ), 'vaiTro' => ( $r[2] !== '' ? $r[2] : 'Nhân viên' ), 'coso' => $r[3], 'tkCo' => VHCPHN_Util::ma_so( $r[4] ), 'maDt' => VHCPHN_Util::ma_so( $r[5] ), 'boPhan' => $r[6],
 				'donVi' => isset( $r[7] ) ? trim( (string) $r[7] ) : '',
-				'xemDonVi' => isset( $r[8] ) ? trim( (string) $r[8] ) : '' );
+				'xemDonVi' => isset( $r[8] ) ? trim( (string) $r[8] ) : '',
+				/* MÃ NV — khoá thứ hai, xem khối dài ở `VHCPHN_Auth::login()`. Ô cuối cùng nên
+				   dòng cũ chín ô không có nó; `isset` lo phần ấy. */
+				'maNv' => isset( $r[9] ) ? VHCPHN_Util::ma_so( $r[9] ) : '',
+				/* KHỐI — anh Thắng 21/09/2026: *"chỗ đơn vị thay bằng khối, tích nếu 1 người làm 2
+				   khối thì chọn 2, vì có thể nv chung sẽ làm việc với 2 khối"*. Chuỗi ngăn phẩy,
+				   VÀ Ô TRỐNG LÀ NGHĨA CHUNG: chưa khai thì ngã về ánh xạ cũ từ đơn vị, không phải
+				   "không thuộc khối nào" — xem `VHCPHN_DonVi::khoi_xem_duoc()`. */
+				'khoi' => isset( $r[10] ) ? trim( (string) $r[10] ) : '' );
 		}
 
 		// Bảng tra nhanh cho việc chốt TK Nợ: cơ sở -> phân loại lớn, và
@@ -679,11 +1222,21 @@ class VHCPHN_Cfg {
 		/* Cơ sở -> ĐƠN VỊ. Tra nhanh, khoá đã hạ chữ thường — mọi màn hỏi "dòng chi này của
 		   bên nào" đều đi qua bảng này, xem `VHCPHN_DonVi::cua_coso()`. */
 		$out['cosoDonVi'] = array();
+		/* Cơ sở -> BỘ PHẬN (kvc · mtd · vp). Chưa khai cột Bộ phận mà cột Khối còn mang khối CŨ
+		   (kvc/mtd/vp, trước khi khối thành miền) thì lấy khối ấy — dữ liệu cũ tự đúng, không
+		   phải khai lại 94 gian. Khối là miền (mb/mn) thì không suy được → ''. */
+		$out['cosoBoPhan'] = array();
 		foreach ( $out['coso'] as $x ) {
 			$k = mb_strtolower( trim( (string) $x['ten'] ) );
 			if ( $k !== '' ) {
 				$out['cosoPll'][ $k ]   = trim( (string) $x['phanLoaiLon'] );
 				$out['cosoDonVi'][ $k ] = VHCPHN_DonVi::chuan( isset( $x['donVi'] ) ? $x['donVi'] : '' );
+				$bp = isset( $x['boPhan'] ) ? (string) $x['boPhan'] : '';
+				if ( '' === $bp ) {
+					$kh = VHCPHN_DonVi::khoi_cua( isset( $x['donVi'] ) ? $x['donVi'] : '' );
+					if ( in_array( $kh, array( 'kvc', 'mtd', 'vp' ), true ) ) { $bp = $kh; }
+				}
+				$out['cosoBoPhan'][ $k ] = $bp;
 			}
 		}
 		// Một ô có thể khai NHIỀU mã (cách nhau bởi "|") khi cùng một tên gọi chi phí ở
@@ -733,6 +1286,18 @@ class VHCPHN_Cfg {
 		return array(
 			'vaiGoc'     => self::VAI_GOC,
 			'vaiTro'     => self::vai_tuy_bien(),
+			/* Danh sách BỘ PHẬN — giao diện dựng ô chọn từ đây, không gõ cứng lại. Gõ cứng ở
+			   hai nơi là hai nơi lệch nhau: máy chủ chối một tên mà ô chọn vẫn bày ra nó. */
+			'boPhanDs'   => isset( $s['boPhanDs'] ) ? $s['boPhanDs'] : self::BO_PHAN_DS,
+			'dauMucDs'   => isset( $s['dauMucDs'] ) ? $s['dauMucDs'] : self::DAU_MUC_MAC_DINH,
+			'dauMucCoSo' => isset( $s['dauMucCoSo'] ) && is_array( $s['dauMucCoSo'] ) ? $s['dauMucCoSo'] : array(),
+			'tinhNangDs' => isset( $s['tinhNangDs'] ) && is_array( $s['tinhNangDs'] ) ? $s['tinhNangDs'] : self::tinh_nang_ds(),
+			/* 🔴 KHOÁ NÀY PHẢI ĐI QUA ĐÂY — cắn thật 23/09/2026. `boPhanLuong` được dựng đủ ở
+			   `cfg_static()`, nhưng `get_config()` LỌC KHOÁ theo danh sách này, nên nó rơi ra
+			   trước khi tới màn. Hậu quả: bấm Lưu báo xanh, sổ có đủ, mà mở lại bảng thì mọi ô
+			   về "theo khối như cũ" — anh Thắng: *"Nó vẫn chưa lưu được luồng"*. Bài kiểm hồi
+			   ấy chỉ soi hàm đọc sổ, không soi gói màn nhận, nên xanh oan. */
+			'boPhanLuong' => isset( $s['boPhanLuong'] ) && is_array( $s['boPhanLuong'] ) ? $s['boPhanLuong'] : array(),
 			/* 🔴 DANH MỤC CƠ SỞ GỬI XUỐNG ĐÃ LỌC THEO ĐƠN VỊ.
 			   Anh Thắng 08/09/2026: *"Mỗi đơn vị tách 1 bảng riêng, để kế toán bộ phận đó tự
 			   nhìn thấy cơ sở của mình và tự thêm sửa mã misa"*. Kế toán POSH mở màn Cấu hình
@@ -802,6 +1367,49 @@ class VHCPHN_Cfg {
 					. 'dữ liệu cũ vẫn còn nguyên.'
 				);
 			}
+			/* ══════════════════════════════════════════════════════════════════════════════
+			 * HAI DÒNG CÙNG MỘT TÊN, HOẶC CÙNG MỘT MÃ NV — CHỐI THẲNG.
+			 *
+			 * 🔴 TÊN: `user_by_token()` duyệt bảng người dùng và lấy dòng ĐẦU TIÊN khớp tên,
+			 *    rồi `break`. Hai dòng cùng tên nghĩa là dòng thứ hai không bao giờ tới lượt:
+			 *    khai cho người ấy vai gì, cơ sở nào cũng vô nghĩa, mà màn hình thì vẫn bày ra
+			 *    đủ hai dòng như thể cả hai đều đang chạy. Và vì TÊN là khoá nối mọi đơn cũ,
+			 *    hai người trùng tên thật sẽ dùng chung sổ đơn của nhau.
+			 *
+			 * 🔴 MÃ NV: đó là thứ `login()` dùng để nối một hàng bên Nhân sự vào đúng dòng bên
+			 *    Chi phí. Hai dòng cùng mã là câu hỏi "PIN này của ai" có hai đáp án — và một
+			 *    câu hỏi đăng nhập có hai đáp án thì phải chối, không được đoán.
+			 *
+			 * ⚠️ Ô RỖNG KHÔNG TÍNH LÀ TRÙNG. Phần lớn tài khoản chưa khai mã NV; gom chúng lại
+			 *    thành "mười người trùng mã rỗng" là chặn luôn mọi lượt Lưu.
+			 * ══════════════════════════════════════════════════════════════════════════════ */
+			$da_ten = array(); $da_mnv = array();
+			foreach ( $cfg['users'] as $x0 ) {
+				$x0 = (array) $x0;
+				$t0 = mb_strtolower( trim( (string) ( isset( $x0['ten'] ) ? $x0['ten'] : '' ) ) );
+				if ( '' !== $t0 ) {
+					if ( isset( $da_ten[ $t0 ] ) ) {
+						return VHCPHN_Util::err( 'Không lưu: có HAI dòng cùng tên "'
+							. trim( (string) $x0['ten'] ) . '". Tên là thứ nối người này với đơn '
+							. 'họ đã lập, nên hai dòng cùng tên sẽ dùng chung sổ đơn của nhau — '
+							. 'và chỉ dòng trên cùng có tác dụng. Xoá dòng thừa, hoặc nếu đúng là '
+							. 'hai người khác nhau thì phải đổi tên một người cho khác đi.' );
+					}
+					$da_ten[ $t0 ] = 1;
+				}
+				$m0 = trim( (string) ( isset( $x0['maNv'] ) ? $x0['maNv'] : '' ) );
+				if ( '' !== $m0 ) {
+					$mk = mb_strtolower( $m0 );
+					if ( isset( $da_mnv[ $mk ] ) ) {
+						return VHCPHN_Util::err( 'Không lưu: mã NV "' . $m0 . '" đang khai cho HAI '
+							. 'người (' . $da_mnv[ $mk ] . ' và ' . trim( (string) $x0['ten'] ) . '). '
+							. 'Mã NV là thứ dùng để nối PIN bên Nhân sự sang đây, nên mỗi mã chỉ '
+							. 'được thuộc về một người.' );
+					}
+					$da_mnv[ $mk ] = trim( (string) ( isset( $x0['ten'] ) ? $x0['ten'] : '?' ) );
+				}
+			}
+
 			/* Còn dữ liệu thì cất một bản trước khi đè. Bản lưu của `cfg_undo` chỉ có MỘT ô và
 			   bị bảng ghi sau giành mất, nên không tin được cho việc này. */
 			if ( $dang_co > 0 ) { self::sao_luu_users(); }
@@ -816,13 +1424,17 @@ class VHCPHN_Cfg {
 			   cột) gửi lên bảng cơ sở không có ô ấy, mà ghi đè bằng rỗng là MỌI cơ sở POSH
 			   lặng lẽ về K&H — tức kế toán K&H nhìn thấy toàn bộ chi phí của POSH, đúng thứ
 			   đang phải tách. Không có ô thì giữ nguyên ô đang lưu. */
-			$dv_cu = array();
+			/* Cột TỈNH cũng vậy — thêm sau, nên mọi bản giao diện cũ và mọi tệp .csv cũ đều
+			   không có ô ấy. Ghi đè bằng rỗng là xoá sạch phân loại vùng vừa khai cả buổi. */
+			$dv_cu = array(); $tinh_cu = array(); $bp_cu = array();
 			foreach ( self::read( self::COSO ) as $r0 ) {
 				$r0 = array_values( (array) $r0 );
 				$t0 = isset( $r0[0] ) ? mb_strtolower( trim( (string) $r0[0] ) ) : '';
 				if ( $t0 === '' ) { continue; }
 				if ( isset( $r0[4] ) && trim( (string) $r0[4] ) !== '' ) { $dong_cu[ $t0 ] = (string) $r0[4]; }
 				if ( isset( $r0[5] ) && trim( (string) $r0[5] ) !== '' ) { $dv_cu[ $t0 ] = (string) $r0[5]; }
+				if ( isset( $r0[6] ) && trim( (string) $r0[6] ) !== '' ) { $tinh_cu[ $t0 ] = (string) $r0[6]; }
+				if ( isset( $r0[7] ) && trim( (string) $r0[7] ) !== '' ) { $bp_cu[ $t0 ] = (string) $r0[7]; }
 			}
 			foreach ( $cfg['coso'] as $x ) {
 				$x  = (array) $x;
@@ -837,7 +1449,20 @@ class VHCPHN_Cfg {
 					$k1 = mb_strtolower( trim( $tn ) );
 					if ( isset( $dv_cu[ $k1 ] ) ) { $dv = $dv_cu[ $k1 ]; }
 				}
-				$rows[] = array( $tn, VHCPHN_Util::ma_so( $g( $x, 'maDonVi' ) ), $g( $x, 'phanLoaiLon' ), $g( $x, 'tenMisa' ), $dc, $dv );
+				$tinh = $g( $x, 'tinh' );
+				if ( $tinh === '' && ! array_key_exists( 'tinh', $x ) ) {
+					$k2 = mb_strtolower( trim( $tn ) );
+					if ( isset( $tinh_cu[ $k2 ] ) ) { $tinh = $tinh_cu[ $k2 ]; }
+				}
+				/* Cột BỘ PHẬN (24/09/2026): không gửi ô → giữ cũ; gửi rỗng có chủ ý → xoá; giá trị
+				   lạ → '' (không đoán). Lưu MÃ khối (kvc/mtd/vp), không lưu chữ người gõ. */
+				$bp = $g( $x, 'boPhan' );
+				if ( $bp === '' && ! array_key_exists( 'boPhan', $x ) ) {
+					$k3 = mb_strtolower( trim( $tn ) );
+					if ( isset( $bp_cu[ $k3 ] ) ) { $bp = $bp_cu[ $k3 ]; }
+				}
+				$bp = VHCPHN_DonVi::khoi_cua( $bp );
+				$rows[] = array( $tn, VHCPHN_Util::ma_so( $g( $x, 'maDonVi' ) ), $g( $x, 'phanLoaiLon' ), $g( $x, 'tenMisa' ), $dc, $dv, $tinh, $bp );
 			}
 
 			/* ══════════════════════════════════════════════════════════════════════════════
@@ -897,7 +1522,14 @@ class VHCPHN_Cfg {
 					$k0 = mb_strtolower( trim( $tn ) );
 					if ( isset( $note_cu[ $k0 ] ) ) { $nt = $note_cu[ $k0 ]; }
 				}
-				$rows[] = array( $tn, VHCPHN_Util::ma_so( $g( $x, 'tkNo' ) ), VHCPHN_Util::ma_so( $g( $x, 'tkCo' ) ), VHCPHN_Util::ma_so( $g( $x, 'maDt' ) ), $g( $x, 'boPhan' ), $nt, $g( $x, 'tenMisa' ), $g( $x, 'loaiTt' ) );
+				/* 🔴 KHỐI RỖNG THÌ LẤP BẰNG KHỐI CỦA BẢN ĐANG CHẠY, ĐỪNG GHI RỖNG XUỐNG.
+				   Giao diện luôn gửi khối lên (mỗi bảng một khối), nhưng cửa này còn nhận cả
+				   lượt nạp từ tệp và lượt gọi thẳng API. Một dòng khối rỗng là một loại chi
+				   phí KHÔNG BẢNG NÀO CHỨA: nó rơi khỏi cả ba bảng và khỏi ô chọn lúc nhập
+				   đơn, trong khi tiền mang tên nó vẫn nằm trong sổ. */
+				$kh = trim( (string) $g( $x, 'khoi' ) );
+				if ( '' === $kh ) { $kh = VHCPHN_DB::khoi(); }
+				$rows[] = array( $tn, VHCPHN_Util::ma_so( $g( $x, 'tkNo' ) ), VHCPHN_Util::ma_so( $g( $x, 'tkCo' ) ), VHCPHN_Util::ma_so( $g( $x, 'maDt' ) ), $g( $x, 'boPhan' ), $nt, $g( $x, 'tenMisa' ), $g( $x, 'loaiTt' ), $g( $x, 'donVi' ), $kh, $g( $x, 'vaiTro' ), $g( $x, 'dauMuc' ), $g( $x, 'cha' ) );
 			}
 			self::write( self::LOAI, $rows );
 		}
@@ -976,7 +1608,9 @@ class VHCPHN_Cfg {
 					VHCPHN_Util::ma_so( $g( $x, 'maDt' ) ),
 					$g( $x, 'boPhan' ),
 					$g( $x, 'donVi' ),
-					$g( $x, 'xemDonVi' )
+					$g( $x, 'xemDonVi' ),
+					VHCPHN_Util::ma_so( $g( $x, 'maNv' ) ),
+					$g( $x, 'khoi' )
 				);
 			}
 			self::write( self::USER, $rows );
@@ -993,9 +1627,103 @@ class VHCPHN_Cfg {
 				$b = trim( $g( $x, 'goc' ) );
 				if ( '' === $t || 'Admin' === $t || in_array( $t, self::VAI_GOC, true ) ) { continue; }
 				if ( ! in_array( $b, self::VAI_GOC, true ) ) { $b = 'Nhân viên'; }
-				$rows[] = array( $t, $b, self::bo_phan_chuan( $g( $x, 'boPhan' ) ) );
+				/* Hai ô, không còn ô bộ phận — xem chốt ở `vai_tuy_bien()`. Ghi hai ô là lượt
+				   Lưu này cũng dọn luôn ô thứ ba của dòng cũ. */
+				$rows[] = array( $t, $b );
 			}
 			self::write( self::VAI, $rows );
+		}
+		if ( isset( $cfg['boPhanDs'] ) && is_array( $cfg['boPhanDs'] ) ) {
+			/* 🔴 CHỈ ADMIN. Bộ phận là thứ bó tầm nhìn của kế toán (xem `vai_tuy_bien()`), nên
+			   ai sửa được bảng này là tự nới hoặc siết quyền người khác. */
+			if ( 'Admin' !== VHCPHN_Auth::vai_tro() ) {
+				return VHCPHN_Util::err( 'Chỉ Admin mới thêm/sửa bộ phận được.' );
+			}
+			$rows = array(); $da = array();
+			foreach ( $cfg['boPhanDs'] as $x ) {
+				/* ⚠️ Ép đối tượng về mảng như mọi nhánh khác ở đây (`$x = (array) $x`). API giải mã
+				   JSON bằng `json_decode(…, true)` nên thường là mảng sẵn, nhưng một lối gọi khác
+				   đưa `stdClass` vào là `(string) $x` NỔ — và nổ thành trang trắng, không phải một
+				   câu lỗi. */
+				if ( is_object( $x ) ) { $x = (array) $x; }
+				$t = trim( (string) ( is_array( $x ) ? ( isset( $x['ten'] ) ? $x['ten'] : '' ) : $x ) );
+				if ( '' === $t ) { continue; }
+				/* Trùng tên (bỏ qua hoa thường) thì bỏ dòng sau: `bo_phan_chuan()` trả về tên
+				   ĐẦU TIÊN khớp, nên hai dòng "Setup" và "setup" chỉ có một cái được dùng —
+				   giữ cả hai là bày ra một lựa chọn không bao giờ tới lượt. */
+				$k = mb_strtolower( $t );
+				if ( isset( $da[ $k ] ) ) { continue; }
+				$da[ $k ] = 1;
+				/* 🔴 CỘT LUỒNG PHẢI ĐI THEO, và phải chịu được CẢ HAI dạng gửi lên. Màn cũ (và
+				   mọi lượt nhập từ CSV) gửi `boPhanDs` là mảng CHUỖI — lúc ấy không có luồng
+				   nào để giữ, nên tra lại bảng đang lưu thay vì ghi đè bằng rỗng. Bỏ bước tra
+				   ấy là một lượt bấm Lưu ở màn cũ xoá sạch luồng của cả bảy bộ phận, và nó xoá
+				   im lặng: danh sách tên vẫn đủ, chỉ luồng biến mất.
+				   ⚠️ Chuẩn hoá qua `VHCPHN_Don::luong_don()` — một nơi duy nhất biết mã nào có
+				      thật, và mã lạ về rỗng = "theo khối như cũ". */
+				$lg = is_array( $x ) && isset( $x['luong'] )
+					? VHCPHN_Don::luong_don( array( 'luong' => $x['luong'] ) )
+					: self::luong_cua_bo_phan( $t );
+				$rows[]   = array( $t, $lg );
+			}
+			/* 🔴 KHÔNG CHO LƯU BẢNG RỖNG. Rỗng thì `bo_phan_ds()` ngã về mặc định, nên hệ vẫn
+			   chạy — nhưng người vừa xoá sạch tưởng mình đã bỏ hết bộ phận, trong khi màn vẫn
+			   bày đủ bảy cái. Chối thẳng còn hơn để họ tin vào một thứ không xảy ra. */
+			if ( ! $rows ) {
+				return VHCPHN_Util::err( 'Phải còn ít nhất một bộ phận. Xoá hết thì hệ tự dùng lại danh sách mặc định, không phải "không có bộ phận nào".' );
+			}
+			self::write( self::BP, $rows );
+			self::$bp_memo = null;
+		}
+		if ( isset( $cfg['tinhNang'] ) && is_array( $cfg['tinhNang'] ) ) {
+			/* 🔴 CHỈ ADMIN. Bật một tính năng cho mọi người là đổi cách cả hệ thao tác. */
+			if ( 'Admin' !== VHCPHN_Auth::vai_tro() ) {
+				return VHCPHN_Util::err( 'Chỉ Admin mới bật/tắt tính năng được.' );
+			}
+			$luu = self::tinh_nang_luu();
+			foreach ( $cfg['tinhNang'] as $ma => $tt ) {
+				$ma = (string) $ma; $tt = mb_strtolower( trim( (string) $tt ) );
+				if ( ! isset( self::TINH_NANG[ $ma ] ) ) { return VHCPHN_Util::err( 'Không có tính năng mã "' . $ma . '" trong bản này.' ); }
+				if ( ! in_array( $tt, self::TN_TRANG_THAI, true ) ) { return VHCPHN_Util::err( 'Trạng thái "' . $tt . '" không hợp lệ — chỉ tat · admin · bat.' ); }
+				$luu[ $ma ] = $tt;
+			}
+			$rows = array();
+			foreach ( $luu as $ma => $tt ) { $rows[] = array( $ma, $tt ); }
+			self::write( self::TN, $rows );
+			VHCPHN_Log::log_action( array( 'actor' => VHCPHN_Auth::nguoi(), 'role' => VHCPHN_Auth::vai_tro(), 'action' => 'Đổi cờ tính năng',
+				'target' => implode( ', ', array_keys( $cfg['tinhNang'] ) ), 'detail' => json_encode( $cfg['tinhNang'], JSON_UNESCAPED_UNICODE ) ) );
+		}
+		if ( isset( $cfg['dauMucDs'] ) && is_array( $cfg['dauMucDs'] ) ) {
+			/* Đầu mục = phân loại lớn của form nhập (xem `dau_muc_rows()`). Nhận cả mảng chuỗi
+			   (tên thôi → giữ khối cơ sở đang lưu, chưa có thì '*') lẫn mảng {ten, coso}. */
+			$cu_map = self::dau_muc_coso();
+			$rows = array(); $da = array(); $doi_ten = array();
+			foreach ( $cfg['dauMucDs'] as $x ) {
+				if ( is_object( $x ) ) { $x = (array) $x; }
+				$t = trim( (string) ( is_array( $x ) ? ( isset( $x['ten'] ) ? $x['ten'] : '' ) : $x ) );
+				if ( '' === $t ) { continue; }
+				$k = mb_strtolower( $t );
+				if ( isset( $da[ $k ] ) ) { continue; }
+				$da[ $k ] = 1;
+				/* Đổi tên đầu mục (`goc` = tên lúc vẽ) → loại đang gắn tên cũ ĐI THEO, không rơi về
+				   "Chưa xếp đầu mục". Anh Thắng 24/09/2026: *"Muốn sửa phân loại chi phí này"*. Nếu
+				   `goc` không gửi (màn cũ) thì không đổi gì — không đoán. */
+				$goc = is_array( $x ) ? trim( (string) ( isset( $x['goc'] ) ? $x['goc'] : '' ) ) : '';
+				/* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG, ghi lại: bỏ vế `'' !== $goc` KHÔNG đổi kết quả — `doi_ten_dau_muc_o_loai`
+				   tự gạt khoá rỗng. Giữ vế này vì nó nói thẳng ý "dòng mới không phải một lượt đổi tên". */
+				if ( '' !== $goc && $goc !== $t ) { $doi_ten[ $goc ] = $t; }
+				/* Khối cơ sở: gửi kèm thì lấy; không gửi thì giữ theo tên MỚI, rồi tên CŨ (vừa đổi tên). */
+				$cs = ( is_array( $x ) && array_key_exists( 'coso', $x ) ) ? $x['coso']
+					: ( isset( $cu_map[ $t ] ) ? $cu_map[ $t ] : ( ( '' !== $goc && isset( $cu_map[ $goc ] ) ) ? $cu_map[ $goc ] : '*' ) );
+				$rows[] = array( $t, self::khoi_coso_chuan( $cs ) );
+			}
+			/* Bảng rỗng → chối, cùng lẽ với bộ phận: xoá hết thì hệ dùng lại bốn tên mặc định,
+			   không phải "không có đầu mục nào" — người xoá tưởng một đằng, màn bày một nẻo. */
+			if ( ! $rows ) {
+				return VHCPHN_Util::err( 'Phải còn ít nhất một đầu mục. Xoá hết thì hệ tự dùng lại danh sách mặc định.' );
+			}
+			self::write( self::DM, $rows );
+			if ( $doi_ten ) { self::doi_ten_dau_muc_o_loai( $doi_ten ); }
 		}
 		if ( isset( $cfg['sso'] ) && is_array( $cfg['sso'] ) ) {
 			$rows = array();
@@ -1019,6 +1747,130 @@ class VHCPHN_Cfg {
 	// ---------------------------------------------------------------- phân quyền
 
 	/** getQuyen(). */
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════
+	 *  BẢNG PHÂN QUYỀN ĐỌC THEO VỊ TRÍ — THÊM MỘT VAI LÀ MỌI CỘT TRƯỢT
+	 *
+	 *  Anh Thắng 13/09/2026 gửi ảnh màn Duyệt tạm ứng của một tài khoản vai **Quản lý**: hai
+	 *  đơn "Chờ duyệt tạm ứng" chỉ còn nút 👁 Xem và ↩ Trả lại, **mất hẳn nút ✔ Duyệt tạm ứng**.
+	 *
+	 *  🔴 VÌ SAO. Một hàng của `CH_Quyen` là [ mã, tên, <ô vai 1>, <ô vai 2>, … ] — thứ tự lấy
+	 *     từ `roles()`, và KHÔNG có gì trong hàng nói ô nào thuộc vai nào. Bản 1.154.0 chèn
+	 *     'Giám đốc' vào ĐẦU `VAI_GOC`, nên mọi ô của bảng đã lưu trượt sang phải một vai:
+	 *
+	 *         ô của Quản lý          -> đọc thành Giám đốc
+	 *         ô của Kế toán cá nhân  -> đọc thành Quản lý
+	 *         ô của Kế toán NCC      -> đọc thành Kế toán cá nhân
+	 *         ô của Nhân viên        -> đọc thành Kế toán NCC
+	 *
+	 *     `duyetTU` lưu Quản lý=1, Kế toán cá nhân=0 -> Quản lý nhận số 0: mất nút Duyệt.
+	 *     `traDon`  lưu cả hai =1                    -> Quản lý nhận số 1: nút Trả lại còn.
+	 *     Đúng hai nút trên ảnh, không sai cái nào. Và cùng phép trượt ấy làm Kế toán cá nhân
+	 *     mất "Cấp tạm ứng", Kế toán NCC mất "Xác nhận quyết toán" — cả dây chuyền tiền đứng
+	 *     lại mà màn hình không báo gì.
+	 *
+	 *  🔴 KHÔNG PHẢI CHUYỆN RIÊNG CỦA 'GIÁM ĐỐC'. Xoá một vai tự tạo ở GIỮA danh sách cũng gây
+	 *     đúng phép trượt ấy. Nên bản vá này không đi chữa một ca, nó dựng lại hàng theo TÊN
+	 *     VAI — và từ nay mỗi lượt ghi bảng đều cất kèm danh sách vai ứng với các cột, để lượt
+	 *     đọc sau biết cột nào vốn của ai.
+	 *
+	 *  ⚠️ PHẢI ĐỌC THÔ, KHÔNG QUA `read()`. Hàm ấy tự đệm hàng cho đủ số cột hiện tại, nên hàng
+	 *     lưu theo danh sách vai cũ đọc ra vẫn "đủ ô" — chỉ là lệch. Đệm xong thì không còn dấu
+	 *     vết nào để nhận ra.
+	 * ══════════════════════════════════════════════════════════════════════════════════════ */
+
+	/** Meta cất danh sách vai ứng với các cột của bảng quyền ĐANG LƯU. */
+	const QUYEN_COT_O = 'quyen_cot_vai';
+
+	/**
+	 * Vai gốc TRƯỚC khi 'Giám đốc' được chèn (bản 1.154.0, 13/09/2026).
+	 *
+	 * ⚠️ ĐỪNG SỬA MẢNG NÀY KHI THÊM VAI MỚI. Nó không phải "danh sách vai" — nó là ẢNH CHỤP
+	 *    thứ tự cột của những site đã lưu bảng quyền từ trước bản ấy và chưa có mốc `QUYEN_COT_O`.
+	 *    Sửa nó là đọc sai chính những bảng mà nó sinh ra để đọc đúng.
+	 */
+	const VAI_GOC_TRUOC_GD = array( 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC', 'Nhân viên' );
+
+	/**
+	 * Vai gốc MỚI thì thừa hưởng ô của vai nào.
+	 *
+	 * Anh Thắng 13/09/2026: *"Giám Đốc: Toàn Quyền Xem"* — nên cho theo Quản lý, chứ để trắng
+	 * tay thì vai vừa dựng ra không bấm được gì và người ta tưởng nó hỏng.
+	 */
+	const VAI_MOI_THEO = array( 'Giám đốc' => 'Quản lý' );
+
+	/** Danh sách vai ứng với các cột của bảng quyền đang lưu — suy ra nếu chưa có mốc. */
+	private static function quyen_cot_dang_luu() {
+		$m = VHCPHN_Meta::get_json( self::QUYEN_COT_O, array() );
+		if ( is_array( $m ) && $m ) { return array_values( $m ); }
+		/* Chưa có mốc = bảng lưu từ trước bản 1.154.0. Vai tự tạo vẫn nối vào sau như cũ. */
+		$ra = self::VAI_GOC_TRUOC_GD;
+		foreach ( self::vai_tuy_bien() as $v ) { $ra[] = $v['ten']; }
+		return $ra;
+	}
+
+	/**
+	 * DỜI CỘT BẢNG QUYỀN VỀ ĐÚNG VAI. Chạy ở `plugins_loaded`, mọi lượt tải trang.
+	 *
+	 * 🔴 CHẠY LẠI PHẢI KHÔNG ĐỔI GÌ. Dời hai lần là cột trượt tiếp một nhịp nữa, và lần ấy thì
+	 *    không ai lần ra nguyên nhân. Chốt nằm ở chính cái mốc: dời xong thì mốc bằng `roles()`,
+	 *    và lượt sau thấy bằng nhau là trả về ngay.
+	 *
+	 * @return int số hàng đã dời (0 = không phải làm gì).
+	 */
+	public static function va_cot_quyen_them_vai() {
+		global $wpdb;
+		$roles = self::roles();
+		$cu    = self::quyen_cot_dang_luu();
+		if ( $cu === $roles ) { return 0; }
+
+		$t    = VHCPHN_DB::t( 'cfg' );
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			"SELECT id, cols FROM $t WHERE bang=%s", self::QUYEN ), ARRAY_A );
+		/* Bảng chưa có hàng nào (site mới) — chỉ cần đặt mốc, `get_quyen()` tự lấy mặc định. */
+		if ( ! $rows ) {
+			VHCPHN_Meta::set_json( self::QUYEN_COT_O, $roles );
+			return 0;
+		}
+
+		/* Vai tự tạo thừa hưởng vai gốc của nó; vai gốc mới thì theo bảng `VAI_MOI_THEO`. */
+		$theo = self::VAI_MOI_THEO;
+		foreach ( self::vai_tuy_bien() as $v ) { $theo[ $v['ten'] ] = $v['goc']; }
+
+		$doi = 0;
+		foreach ( $rows as $r ) {
+			$a = json_decode( $r['cols'], true );
+			if ( ! is_array( $a ) ) { continue; }
+			$a = array_values( $a );
+			/* Đọc ô cũ theo TÊN vai, từ đúng vị trí nó từng nằm. */
+			$o = array();
+			foreach ( $cu as $i => $vai ) {
+				$o[ $vai ] = array_key_exists( 2 + $i, $a ) ? $a[ 2 + $i ] : null;
+			}
+			$moi = array(
+				isset( $a[0] ) ? $a[0] : '',
+				isset( $a[1] ) ? $a[1] : '',
+			);
+			foreach ( $roles as $vai ) {
+				if ( array_key_exists( $vai, $o ) && null !== $o[ $vai ] ) {
+					$moi[] = $o[ $vai ];
+					continue;
+				}
+				/* Vai MỚI: thừa hưởng ô của vai nó theo, chứ không để trắng tay. */
+				$g = isset( $theo[ $vai ] ) ? $theo[ $vai ] : '';
+				$moi[] = ( '' !== $g && isset( $o[ $g ] ) && null !== $o[ $g ] ) ? $o[ $g ] : '';
+			}
+			if ( wp_json_encode( $moi ) === wp_json_encode( $a ) ) { continue; }
+			$wpdb->update( $t, array( 'cols' => wp_json_encode( $moi ) ), array( 'id' => $r['id'] ) );
+			$doi++;
+		}
+
+		VHCPHN_Meta::set_json( self::QUYEN_COT_O, $roles );
+		self::clear_cache();
+		delete_transient( 'vhcphn_quyen' );
+		return $doi;
+	}
+
 	public static function get_quyen() {
 		$hit = get_transient( 'vhcphn_quyen' );
 		if ( is_array( $hit ) ) { return $hit; }
@@ -1134,6 +1986,10 @@ class VHCPHN_Cfg {
 			$rows[] = $row;
 		}
 		self::write( self::QUYEN, $rows, false );
+		/* Cất kèm danh sách vai ứng với các cột vừa ghi — xem khối dài ở
+		   `va_cot_quyen_them_vai()`. Không có mốc này thì lượt thêm/xoá vai kế tiếp lại làm
+		   mọi ô trượt chỗ, y như ca 'Giám đốc' ngày 13/09/2026. */
+		VHCPHN_Meta::set_json( self::QUYEN_COT_O, $roles );
 		self::clear_cache();
 		return VHCPHN_Util::ok();
 	}
@@ -1156,6 +2012,7 @@ class VHCPHN_Cfg {
 			$rows[] = $row;
 		}
 		self::write( self::QUYEN, $rows, false );
+		VHCPHN_Meta::set_json( self::QUYEN_COT_O, $roles );   // xem `va_cot_quyen_them_vai()`
 		self::clear_cache();
 		return VHCPHN_Util::ok( array( 'soHanhDong' => count( $rows ) ) );
 	}
@@ -1189,16 +2046,513 @@ class VHCPHN_Cfg {
 	 *    dưới xử đúng như thế.
 	 */
 	public static function bo_phan_cua_loai( $ten_loai ) {
-		$x = self::loai_tk( $ten_loai );
-		return self::bo_phan_chuan( isset( $x['boPhan'] ) ? $x['boPhan'] : '' );
+		$ds = self::bo_phan_ds_cua_loai( $ten_loai );
+		return $ds ? $ds[0] : '';
 	}
 
-	/** Mã tài khoản của 1 loại chi phí (rỗng nếu chưa khai). */
-	public static function loai_tk( $ten ) {
-		$m = self::loai_map();
-		$k = mb_strtolower( trim( (string) $ten ) );
-		if ( ! isset( $m[ $k ] ) ) { return array( 'tkNo' => '', 'tkCo' => '', 'maDt' => '', 'boPhan' => '', 'tenMisa' => '', 'loaiTt' => '' ); }
-		$x = $m[ $k ];
+	/**
+	 * MỘT LOẠI CHI PHÍ THUỘC ĐƯỢC NHIỀU BỘ PHẬN.
+	 *
+	 * Anh Thắng 10/09/2026: *"Cho phép loại chi phí chọn theo bộ phận, nhiều bộ phận sẽ chọn
+	 * loại chi phí đó cùng tên, chỉ là mỗi cơ sở khác mã thôi"*. Ô Bộ phận giữ nhiều tên,
+	 * ngăn bằng dấu phẩy; dữ liệu cũ chỉ có một tên nên vẫn đọc ra đúng như trước.
+	 *
+	 * 🔴 KHÔNG ĐƯỢC ĐEM CẢ Ô ĐI `bo_phan_chuan()`. Hàm ấy so nguyên chuỗi với danh sách bộ
+	 *    phận, nên "Kỹ thuật, Setup" không khớp tên nào và nó trả về '' — mà '' ở đây nghĩa
+	 *    là "loại này không bó bộ phận nào", tức HIỆN CHO MỌI KẾ TOÁN. Khai thêm một bộ phận
+	 *    thứ hai lại thành nới quyền cho tất cả, và hỏng im lặng: nhìn màn thì thấy nhiều số
+	 *    hơn chứ không thấy lỗi. Phải tách trước, chuẩn hoá TỪNG tên.
+	 *
+	 * ⚠️ Mảng rỗng vẫn giữ nguyên nghĩa cũ: "chưa khai bộ phận" — và loại như thế hiện cho
+	 *    mọi người, vì danh mục dựng từ sổ cũ còn rất nhiều dòng bỏ trống ô này.
+	 */
+	public static function bo_phan_ds_cua_loai( $ten_loai ) {
+		$x = self::loai_tk( $ten_loai );
+		return self::bo_phan_tach( isset( $x['boPhan'] ) ? $x['boPhan'] : '' );
+	}
+
+	/** Tách ô Bộ phận (nhiều tên, ngăn bằng dấu phẩy) thành danh sách tên đã chuẩn hoá. */
+	public static function bo_phan_tach( $x ) {
+		$ra = array();
+		foreach ( preg_split( '/\s*,\s*/u', (string) $x ) as $t ) {
+			$c = self::bo_phan_chuan( $t );
+			if ( '' !== $c && ! in_array( $c, $ra, true ) ) { $ra[] = $c; }
+		}
+		return $ra;
+	}
+
+	/**
+	 * LOẠI CHI PHÍ NÀY VAI ẤY CÓ ĐƯỢC DÙNG KHÔNG.
+	 *
+	 * Anh Thắng 21/09/2026: *"bỏ tích bộ phận đi, mà tích theo vai trò"*. Từ bản này ô tích ở
+	 * bảng Loại chi phí là TÊN VAI, không còn là tên bộ phận.
+	 *
+	 * 🔴 CHƯA TÍCH VAI NÀO = MỌI VAI ĐỀU DÙNG ĐƯỢC. Giữ đúng nghĩa ô trống của cột Bộ phận nó
+	 *    thay thế, và vì đúng lý do cũ: danh mục của anh Thắng dựng từ sổ cũ, gần như mọi dòng
+	 *    còn bỏ trống. Hiểu ngược lại là ngày bản này lên, mở màn ra thấy gần như trắng — và
+	 *    người ta kết luận là mất dữ liệu chứ không đoán ra là do một ô chưa khai.
+	 */
+	public static function loai_thuoc_vai( $ten_loai, $vai ) {
+		$k = mb_strtolower( trim( (string) $vai ) );
+		if ( '' === $k ) { return true; }
+		$x  = self::loai_tk( $ten_loai );
+		$ds = isset( $x['vaiTro'] ) ? (string) $x['vaiTro'] : '';
+		if ( '' === trim( $ds ) ) { return true; }
+		foreach ( preg_split( '/\s*,\s*/u', $ds ) as $t ) {
+			if ( mb_strtolower( trim( (string) $t ) ) === $k ) { return true; }
+		}
+		return false;
+	}
+
+	/* ═══════════════════════════════════════════════════════════════════════════════════════
+	 * ĐẦU MỤC CHI PHÍ — GOM, KHÔNG LỌC.
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 22/09/2026: *"phân loại để lên chi phí dễ nhất, các bộ phận nhập được"*, và
+	 * *"phân theo đầu mục chi phí lớn"*.
+	 *
+	 * 🔴 HAI HỆ LỚN NHẤT ĐỀU KHÔNG LỌC DANH MỤC THEO NGƯỜI — đo trên chính mã nguồn của họ:
+	 *      · ERPNext: `Expense Claim Type` có ĐÚNG BỐN trường (tên · mô tả · bảng tài khoản ·
+	 *        cờ trả trước). Không một trường nào hạn chế vai trò hay bộ phận. Phân quyền nằm ở
+	 *        cấp "ai được tạo đơn", không ở từng loại.
+	 *      · Odoo: app Chi phí ship ĐÚNG SÁU danh mục, phẳng, mọi người thấy hết.
+	 *    Thay vào đó họ để trục "ai/ở đâu" thành TRƯỜNG RIÊNG trên đơn (Bộ phận · Trung tâm
+	 *    chi phí · Dự án), và Bộ phận thì TỰ ĐIỀN từ hồ sơ nhân viên.
+	 *
+	 * 🔴 CHỖ HỎNG CỦA BẢN CŨ: một dòng Loại chi phí mang BỐN cột lọc (Bộ phận đã chết · Đơn vị ·
+	 *    Khối · Vai trò) và KHÔNG MỘT CỘT NÀO ĐỂ GOM. Người nhập sai vai là không thấy ô của
+	 *    mình — đúng câu *"chọn nhân viên sẽ ra chi phí đó"*. Ngược hẳn hai hệ kia: họ không
+	 *    lọc, chỉ gom; mình lọc bốn tầng, không gom.
+	 *
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 ĐẦU MỤC LÀ DANH MỤC CHA. MỘT LOẠI CHI PHÍ NẰM DƯỚI ĐÚNG MỘT ĐẦU MỤC.
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 22/09/2026: *"Sai cơ bản với nhau rồi. Loại chi phí là chi phí chi tiết, còn
+	 * đầu mục là Danh mục chính của chi phí"*, và cho hai ví dụ chốt lại:
+	 *
+	 *      Chi phí NVL đồ ăn  ->  Chi phí cơ sở
+	 *      Chi phí cơ sở      ->  Chi phí cơ sở
+	 *
+	 * 🔴 HAI VÍ DỤ ẤY LOẠI BỎ HẲN MỘT CÁCH HIỂU. Bản 1.259–1.260 để bảng này là MƯỜI HAI mục —
+	 *    em lấy cả ba gốc LẪN các nhánh con của sơ đồ rồi trải phẳng vào một danh sách. Nếu
+	 *    thế thì "NVL đồ ăn" phải rơi vào "Cơ sở · Nguyên vật liệu" còn "Chi phí cơ sở" rơi
+	 *    vào "Cơ sở · Cơ sở tự mua" — HAI đầu mục khác nhau. Anh nói cả hai CÙNG một. Vậy đầu
+	 *    mục chính là BA GỐC, còn mọi thứ dưới gốc đều là loại chi phí chi tiết.
+	 *
+	 * ⚠️ VÀ VÌ LÀ QUAN HỆ CHA–CON nên mỗi loại chỉ mang MỘT đầu mục. Bản 1.260 từng cho tích
+	 *    nhiều; anh gạt đi. Cây thì mỗi con một cha — cho nhiều cha là thứ khác hẳn (gắn thẻ),
+	 *    và nó làm mờ đúng cái tầng mà bảng này sinh ra để dựng.
+	 *
+	 * ⚠️ KHÔNG CÒN LUẬT "8–12 ĐẦU MỤC" Ở ĐÂY. Con số ấy em lấy từ thực hành chung, đúng cho
+	 *    một danh sách PHẲNG mà người ta phải chọn một. Ở đây danh mục cha chỉ có ba gốc, và
+	 *    ba là đúng — ép cho đủ tám là dựng thêm tầng giả. Số lượng phải theo sơ đồ của anh,
+	 *    không theo sách.
+	 *
+	 * ⚠️ ĐÂY LÀ ĐƯỜNG LUI, KHÔNG PHẢI BẢN CHỐT. Kế toán khai danh sách thật ở Cấu hình; bảng
+	 *    này chỉ để site chưa khai gì vẫn có cái mà chọn. Cùng lối với `bo_phan_ds()`.
+	 */
+	const DAU_MUC_MAC_DINH = array(
+		'Chi phí chung',       // CPC VP (bổ 50/50) · CPC vận hành & cơ sở
+		'Chi phí cơ sở',       // MKT/VH/KT mua cho cơ sở · cơ sở tự mua · NVL · hàng hoá nhập kho
+		'Chi phí tiền thuê',   // thuê mall · trả tiền mall · điện, nước, phụ phí
+		'Khác',                // ô hứng — thiếu nó là người ta nhét bừa vào ô gần giống
+	);
+
+	/**
+	 * Danh sách đầu mục. Chưa khai thì rơi về bảng mặc định.
+	 *
+	 * ⚠️ RƠI VỀ, KHÔNG TRẢ RỖNG. Danh sách rỗng thì ô chọn trống trơn và người nhập kẹt cứng —
+	 *    mà họ không có cách nào tự chữa, vì khai danh mục là việc của kế toán.
+	 */
+	public static function dau_muc_ds() {
+		$rows = self::dau_muc_rows();
+		if ( $rows ) { return array_map( function ( $r ) { return $r['ten']; }, $rows ); }
+		$ds = get_option( 'vhcphn_dau_muc_ds', null );
+		if ( is_string( $ds ) ) { $ds = array_map( 'trim', explode( "\n", str_replace( "\r", '', $ds ) ) ); }
+		$ra = array();
+		foreach ( (array) $ds as $x ) {
+			$t = trim( (string) $x );
+			if ( '' !== $t && ! in_array( $t, $ra, true ) ) { $ra[] = $t; }
+		}
+		return $ra ? $ra : self::DAU_MUC_MAC_DINH;
+	}
+
+	/**
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 * CỜ TÍNH NĂNG — BẢN MỚI CÀI LÊN, ADMIN XEM TRƯỚC RỒI MỚI ÁP CHO MỌI NGƯỜI.
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 24/09/2026: *"trước khi xác thay đổi, thì giao diện đó admin sẽ xem trước, rồi
+	 * admin cấu hình xong bấm thay đổi thì nó áp dụng luôn, chứ nạp lên, nó thay đổi danh mục,
+	 * các nhân viên đang đăng nhập nó mất và chưa kịp set"*.
+	 *
+	 * 🔴 BA MỨC, KHÔNG PHẢI HAI:
+	 *      'tat'   — chạy như bản cũ với mọi người
+	 *      'admin' — CHỈ Admin thấy đường mới (để khai danh mục, thử), nhân viên vẫn đường cũ
+	 *      'bat'   — mọi người thấy đường mới
+	 *    Bản mới cài lên: cờ chưa có trong bảng → lấy `mac_dinh` của tính năng (thường 'admin').
+	 *    Admin vào Cấu hình › 🧪 Tính năng mới, khai xong, đổi sang 'bat' → cả hệ đổi khi tải lại.
+	 *
+	 * 🔴 CỜ CHỈ CHO THAY ĐỔI GIAO DIỆN / CÁCH THAO TÁC. Vá lỗi nền (TK Nợ 141, số dư theo thực
+	 *    tế…) áp thẳng, không qua cờ — chúng không đổi cách ai bấm gì, và giữ hai đường cho một
+	 *    phép tính là giữ luôn lỗi cũ trong một nhánh.
+	 * ⚠️ TÍNH NĂNG KHÔNG CÓ TRONG BẢNG NÀY = LUÔN BẬT. Màn hỏi một mã lạ thì trả true — cờ là
+	 *    thứ thêm vào để giữ đường cũ, không phải cổng chặn mọi thứ chưa khai.
+	 * ⚠️ Khi anh đã 'bat' một thời gian, đường cũ của tính năng ấy được gỡ ở bản sau và mã cờ
+	 *    xoá khỏi bảng này — cờ sống mãi là hai đường sống mãi.
+	 */
+	const TINH_NANG = array(
+		'phanLoaiHaiBac' => array(
+			'ten'      => 'Form nhập hạng mục chọn Phân loại lớn → Phân loại nhỏ → Cơ sở theo đầu mục',
+			'mo'       => 'Ô "Phân loại lớn" (đầu mục) đứng trước ô loại chi phí; đầu mục có cơ sở thì ô Cơ sở chỉ xổ gian của khối ấy, đầu mục không có cơ sở thì ẩn ô. Cần khai trước ở 🗂 Đầu mục và cột Đầu mục của bảng Loại chi phí. Tắt = dải nút "Chọn chi phí nào" theo bộ phận như cũ.',
+			'ban'      => '1.306.0',
+			'mac_dinh' => 'admin',
+		),
+	);
+	const TN_TRANG_THAI = array( 'tat', 'admin', 'bat' );
+
+	/** Trạng thái đã lưu của từng cờ (chỉ những mã còn trong `TINH_NANG`). */
+	public static function tinh_nang_luu() {
+		$m = array();
+		foreach ( self::read( self::TN ) as $r ) {
+			$ma = trim( (string) ( isset( $r[0] ) ? $r[0] : '' ) );
+			$tt = mb_strtolower( trim( (string) ( isset( $r[1] ) ? $r[1] : '' ) ) );
+			if ( '' === $ma || ! isset( self::TINH_NANG[ $ma ] ) || ! in_array( $tt, self::TN_TRANG_THAI, true ) ) { continue; }
+			$m[ $ma ] = $tt;
+		}
+		return $m;
+	}
+	/** Trạng thái hiệu lực của một cờ: đã lưu → mặc định của tính năng → 'bat' (mã lạ). */
+	public static function tinh_nang_trang_thai( $ma ) {
+		$ma = (string) $ma;
+		$luu = self::tinh_nang_luu();
+		if ( isset( $luu[ $ma ] ) ) { return $luu[ $ma ]; }
+		if ( isset( self::TINH_NANG[ $ma ] ) ) { return self::TINH_NANG[ $ma ]['mac_dinh']; }
+		return 'bat';
+	}
+	/** Người ĐANG đăng nhập có thấy đường mới của tính năng này không. */
+	public static function tinh_nang_bat( $ma, $vai = null ) {
+		$tt = self::tinh_nang_trang_thai( $ma );
+		if ( 'bat' === $tt ) { return true; }
+		if ( 'tat' === $tt ) { return false; }
+		$vai = null === $vai ? VHCPHN_Auth::vai_tro() : (string) $vai;
+		return 'Admin' === $vai;
+	}
+	/** Bản đồ { mã => bật/tắt } cho người đang đăng nhập — gói khởi động chở xuống màn. */
+	public static function tinh_nang_map( $vai = null ) {
+		$m = array();
+		foreach ( array_keys( self::TINH_NANG ) as $ma ) { $m[ $ma ] = self::tinh_nang_bat( $ma, $vai ); }
+		return $m;
+	}
+	/** Danh sách cho thẻ Cấu hình: [{ma, ten, mo, ban, macDinh, trangThai}]. */
+	public static function tinh_nang_ds() {
+		$ra = array();
+		foreach ( self::TINH_NANG as $ma => $x ) {
+			$ra[] = array( 'ma' => $ma, 'ten' => $x['ten'], 'mo' => $x['mo'], 'ban' => $x['ban'],
+				'macDinh' => $x['mac_dinh'], 'trangThai' => self::tinh_nang_trang_thai( $ma ) );
+		}
+		return $ra;
+	}
+
+	/**
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 * ĐẦU MỤC KHAI ĐƯỢC, VÀ MỖI ĐẦU MỤC NÓI NÓ CÓ CƠ SỞ HAY KHÔNG.
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 24/09/2026: *"chọn chi phí theo phân loại, Chọn Phân Loại Lớn trước, Đến Phân
+	 * Loại con (Nếu chọn chi phí cơ sở thì sẽ có chọn thêm Cơ Sở) còn không thì nó là chi phí
+	 * không có cơ sở"*, kèm cây ví dụ:
+	 *     Chi Phí Cơ Sở KVC  ->  Chi Phí Cơ Sở (các cơ sở KVC hiện thôi) · Chi Phí Marketing
+	 *     Chi Phí Cơ Sở MTĐ  ->  Chi Phí Cơ Sở (các cơ sở MTĐ hiện ra)
+	 *     Chi Phí Chung      ->  Chi Phí Chung MTĐ · KVC · VP-MTĐ · VP-KVC
+	 *
+	 * 🔴 ĐẦU MỤC TRƯỚC NAY KHÔNG KHAI ĐƯỢC. `dau_muc_ds()` đọc `get_option('vhcphn_dau_muc_ds')`
+	 *    mà không nơi nào ghi ô ấy — tức danh sách luôn là bốn tên mặc định. Anh cần "Chi Phí Cơ
+	 *    Sở KVC" / "… MTĐ" là hai đầu mục riêng, nên phải có bảng.
+	 * 🔴 CỘT `Khối cơ sở` LÀ THỨ QUYẾT ĐỊNH Ô CƠ SỞ TRÊN FORM:
+	 *      '*'   như cũ — ô Cơ sở hiện, lọc theo khối đang đứng (đường lui cho đầu mục chưa khai)
+	 *      ''    chi phí KHÔNG có cơ sở — ô Cơ sở ẩn, dòng ghi cơ sở trống
+	 *      'kvc' / 'mtd' / 'vp' — ô Cơ sở chỉ xổ cơ sở của khối ấy
+	 *    Bảng rỗng → `dau_muc_ds()` ngã về bốn tên mặc định và mọi đầu mục coi là '*' — không đổi
+	 *    hành vi của site chưa khai.
+	 * ⚠️ TÊN ĐẦU MỤC là khoá nối với cột `dauMuc` của từng loại chi phí — đổi tên ở đây mà không
+	 *    đổi ở loại là loại rơi về "Chưa xếp đầu mục". Màn cảnh báo chỗ ấy, máy chủ không tự đoán.
+	 */
+	public static function dau_muc_rows() {
+		$ra = array(); $da = array();
+		foreach ( self::read( self::DM ) as $r ) {
+			$t = trim( (string) ( isset( $r[0] ) ? $r[0] : '' ) );
+			if ( '' === $t ) { continue; }
+			$k = mb_strtolower( $t );
+			if ( isset( $da[ $k ] ) ) { continue; }
+			$da[ $k ] = 1;
+			$ra[] = array( 'ten' => $t, 'coso' => self::khoi_coso_chuan( isset( $r[1] ) ? $r[1] : '*' ) );
+		}
+		return $ra;
+	}
+	/** Chuẩn hoá ô `Khối cơ sở`: '*' · '' · mã khối chữ thường. Giá trị lạ → '*' (như cũ). */
+	public static function khoi_coso_chuan( $v ) {
+		$v = mb_strtolower( trim( (string) $v ) );
+		if ( '' === $v || '*' === $v ) { return $v; }
+		return in_array( $v, array_keys( VHCPHN_DonVi::KHOI_THEO_DON_VI ), true ) ? $v : '*';
+	}
+	/** { tên đầu mục => khối cơ sở }. Đầu mục không có trong bảng → không có khoá → màn hiểu là '*'. */
+	public static function dau_muc_coso() {
+		$m = array();
+		foreach ( self::dau_muc_rows() as $r ) { $m[ $r['ten'] ] = $r['coso']; }
+		return $m;
+	}
+	/**
+	 * Đổi tên đầu mục trên CỘT `Đầu mục` (ô 11) của danh mục loại chi phí: { tên cũ => tên mới }.
+	 * So không phân biệt hoa/thường; ô không khớp giữ nguyên. Trả số dòng đã đổi.
+	 */
+	public static function doi_ten_dau_muc_o_loai( $map ) {
+		$tra = array();
+		foreach ( (array) $map as $cu => $moi ) {
+			$cu = mb_strtolower( trim( (string) $cu ) ); $moi = trim( (string) $moi );
+			if ( '' !== $cu && '' !== $moi ) { $tra[ $cu ] = $moi; }
+		}
+		if ( ! $tra ) { return 0; }
+		$rows = self::read( self::LOAI ); $n = 0;
+		foreach ( $rows as $i => $r ) {
+			$dm = mb_strtolower( trim( (string) ( isset( $r[11] ) ? $r[11] : '' ) ) );
+			if ( '' !== $dm && isset( $tra[ $dm ] ) ) {
+				for ( $j = count( $rows[ $i ] ); $j < 12; $j++ ) { $rows[ $i ][ $j ] = ''; }
+				$rows[ $i ][11] = $tra[ $dm ]; $n++;
+			}
+		}
+		if ( $n ) { self::write( self::LOAI, $rows ); self::clear_cache(); }
+		return $n;
+	}
+
+	/* ═══════════════════════════════════════════════════════════════════════════════════════
+	 * LỌC LOẠI CHI PHÍ THEO VAI TRÒ — BẬT/TẮT THEO VÙNG.
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 BẬT (mặc định) = hành vi cũ của Khu vui chơi, KHÔNG ĐỔI MỘT LY.
+	 * 🔴 TẮT = mọi vai thấy đủ loại, và đầu mục là thứ dẫn đường thay cho bộ lọc. Bản Hà Nội
+	 *    chạy ở chế độ này (anh Thắng 22/09/2026: *"các bộ phận nhập được"*).
+	 *
+	 * ⚠️ VÌ SAO LÀ CỜ CHỨ KHÔNG PHẢI ĐỔI THẲNG: bản vùng được SINH LẠI từ bản gốc, nên sửa
+	 *    riêng một bản là lượt sinh sau mất sạch. Đặt ở bản gốc kèm cờ thì trình sinh giữ
+	 *    được — đúng nếp đã dùng cho `LAY_COSO_GHE`.
+	 *
+	 * ⚠️ CỜ NÀY KHÔNG PHẢI CỔNG QUYỀN. Nó chỉ quyết định ô chọn bày bao nhiêu dòng. Ai xem
+	 *    được đơn nào vẫn do ĐƠN VỊ và CƠ SỞ gác, ở máy chủ, không đụng tới.
+	 */
+	/* ══════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 CÓ LỌC LOẠI CHI PHÍ THEO KHỐI KHÔNG.
+	 * ══════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 22/09/2026: *"Khối là dùng chung, vì đã phân theo vai trò rồi, Khối là liên
+	 * quan Miền Bắc và Miền Nam thôi"*.
+	 *
+	 * Cắn thật ngay sau đó: bản Hà Nội mở ra, ô Loại chi phí RỖNG, kèm câu "Khối HN chưa có
+	 * loại chi phí nào (danh mục đang có 27 loại, nhưng của khối khác)". Hai bảy loại nằm đó
+	 * mà không dùng được cái nào — vì chúng khai ở khối 'kvc', còn bản này đứng ở khối 'hn'.
+	 *
+	 * 🔴 KHỐI VÀ VAI TRÒ TRẢ LỜI HAI CÂU KHÁC NHAU, và chỉ một câu là chuyện phân quyền:
+	 *      · VAI TRÒ — AI được dùng loại này. Đó là cổng thật, đã có `loc_loai_theo_vai()`.
+	 *      · KHỐI    — dữ liệu này thuộc MIỀN nào. Đó là chuyện gom sổ, không phải chuyện cấm.
+	 *    Lấy khối làm cổng thứ hai là bắt kế toán khai lại cả danh mục cho từng miền, trong
+	 *    khi "Chi phí điện nước" ở đâu cũng là chi phí điện nước.
+	 *
+	 * ⚠️ BẬT (mặc định) = HÀNH VI CŨ CỦA KHU VUI CHƠI, KHÔNG ĐỔI MỘT LY. Ở bản gốc, khối là
+	 *    MẢNG KINH DOANH (KVC · MTĐ · VP) chứ không phải miền, và ba bảng danh mục tách nhau
+	 *    là cố ý. Chỉ bản vùng — nơi khối thật sự là miền — mới tắt.
+	 * ══════════════════════════════════════════════════════════════════════════════════════ */
+	const LOC_LOAI_THEO_KHOI = false;
+	public static function loc_loai_theo_khoi() {
+		$v = get_option( 'vhcphn_loc_loai_theo_khoi', null );
+		if ( null === $v || '' === $v ) { return self::LOC_LOAI_THEO_KHOI; }
+		return (bool) (int) $v;
+	}
+
+	const LOC_LOAI_THEO_VAI = false;
+
+	/** Vùng này có lọc loại chi phí theo vai trò không. Ô cấu hình thắng hằng. */
+	public static function loc_loai_theo_vai() {
+		$v = get_option( 'vhcphn_loc_loai_theo_vai', null );
+		if ( null === $v || '' === $v ) { return self::LOC_LOAI_THEO_VAI; }
+		return (bool) (int) $v;
+	}
+
+	/* ═══════════════════════════════════════════════════════════════════════════════════════
+	 * KHỐI CỦA MỘT VAI TRÒ — ĐỌC RA TỪ CHÍNH CÁI TÊN, KHÔNG KHAI THÊM CỘT NÀO.
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 21/09/2026: *"Loại chi phí theo Khối, Ai có ở khối nào mới hiện ra"*. Bảng loại chi phí
+	 * của Khu vui chơi đang bày cả "Quản Lý Máy Tự Động", "Kế Toán VP Chung"… — mười lăm ô tích,
+	 * quá nửa không bao giờ dùng tới, và tích nhầm một cái là mở sổ cho cả một khối khác.
+	 *
+	 * 🔴 KHÔNG ĐẺ THÊM MỘT CỘT "KHỐI" TRÊN BẢNG VAI TRÒ. Chính 21/09 vừa gỡ cột Bộ phận khỏi
+	 *    bảng vai trò và khỏi bảng người dùng, vì *"dùng hết trên vai trò cha, con rồi"*. Thêm một ô
+	 *    khai khối là dựng lại y hệt cái trục thừa ấy, chỉ đổi tên — và hai nơi khai thì có ngày lệch:
+	 *    vai tên "Máy Tự Động" mà ô khối để "Khu vui chơi", không ai biết bên nào đúng.
+	 *    Tên vai CHÍNH LÀ nơi anh Thắng đã khai mảng; đọc lại từ đó thì không có gì để lệch.
+	 *
+	 * ⚠️ KHÔNG ĐOÁN ĐƯỢC = THUỘC MỌI KHỐI, không phải "không thuộc khối nào". "Nhân Viên
+	 *    Marketing", "Kế toán NCC", "Quản lý" — những vai chạy ngang cả công ty — không mang tên khối
+	 *    nào. Hiểu ngược là chúng biến khỏi cả ba bảng, và không còn ô nào để tích cho họ nữa.
+	 *    Hỏng theo hướng bày thừa một ô, không phải hướng giấu mất người.
+	 *
+	 * ⚠️ XÉT "vp" SAU CÙNG và xét theo TỪ, không theo chuỗi con. "Quản Lý VP Chung" có "vp" thật,
+	 *    nhưng một ngày nào đó có vai tên kèm chữ "TVP" hay "VPC" thì chứa chuỗi con mà không
+	 *    phải văn phòng. Và "kvc"/"mtd" phải đi trước vì chúng cụ thể hơn.
+	 * ═══════════════════════════════════════════════════════════════════════════════════════ */
+	const KHOI_THEO_TEN_VAI = array(
+		'kvc' => array( 'khu vui choi', 'kvc' ),
+		'mtd' => array( 'may tu dong', 'mtd', 'posh', 'ghe massage' ),
+		'vp'  => array( 'van phong', 'vp' ),
+	);
+
+	/** Mã khối đọc ra từ tên một vai trò — '' = vai chạy ngang, thuộc MỌI khối. */
+	public static function khoi_cua_vai( $ten ) {
+		$t = ' ' . preg_replace( '/\s+/u', ' ', trim( self::bo_dau( $ten ) ) ) . ' ';
+		if ( ' ' === $t ) { return ''; }
+		foreach ( self::KHOI_THEO_TEN_VAI as $ma => $ds ) {
+			foreach ( $ds as $x ) {
+				if ( false !== mb_strpos( $t, ' ' . $x . ' ' ) ) { return $ma; }
+			}
+		}
+		return '';
+	}
+
+	/**
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 * KHỐI NÀO KHÔNG TỰ XUẤT MISA — ĐƠN BÀN GIAO CHO KẾ TOÁN KVC TỔNG KẾT.
+	 *
+	 * Anh Thắng 21/09/2026: *"Chỗ phần kế toán máy tự động duyệt xong sẽ đẩy qua kế toán KVC
+	 * tổng kết (vì kế toán máy tự động chỉ check chứ ko đẩy misa)"*.
+	 *
+	 * 🔴 KHÔNG CÓ CỘT "ĐÃ BÀN GIAO" NÀO CẢ, VÀ CỐ Ý. Bàn giao xảy ra TỰ ĐỘNG lúc kế toán MTĐ
+	 *    duyệt quyết toán, nên nó đã được nói trọn vẹn bởi hai thứ CÓ SẴN: đơn mang khối 'mtd',
+	 *    và trạng thái đã sang 'Đã quyết toán'. Đẻ thêm một cột cờ thì phải: nới bảng, lấp cho
+	 *    mấy chục đơn đã ở 'Đã quyết toán' từ trước, và đóng dấu ở CẢ HAI hàm quyết toán
+	 *    (`xac_nhan_quyet_toan_cn` và `..._ncc`) — quên một chỗ là đơn duyệt xong mà nằm im,
+	 *    không ai bên KVC biết mà xuất. Suy ra thì không có gì để quên, và cũng không có gì
+	 *    lệch được.
+	 *    Ai bàn giao, lúc nào: `nguoi_qt` / `ngay_qt` đã ghi sẵn, không mất mát gì.
+	 *
+	 * 🔴 CHỈ MÁY TỰ ĐỘNG. Anh Thắng chốt 21/09/2026 khi em hỏi lại: *"Chỉ MTĐ, Văn phòng tự
+	 *    xuất MISA"*. Nên đây là DANH SÁCH, không phải phép "khác kvc thì chặn" — viết kiểu
+	 *    kia là ngày mai thêm một khối thứ tư nó bị chặn oan mà không ai khai gì.
+	 *
+	 * ⚠️ ĐỌC TÊN VAI ĐANG MANG, KHÔNG PHẢI VAI GỐC. "Kế Toán Máy Tự Động" kế thừa "Kế toán cá
+	 *    nhân" — quy về vai gốc là cả nhánh kế toán mất quyền xuất MISA, kể cả kế toán KVC.
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 */
+	/* ══════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 DANH SÁCH NÀY NAY RỖNG — TẮT TỪ 22/09/2026.
+	 * ══════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng: *"Hiện tại chi phí máy tự động áp dụng web riêng nên không dùng chung nữa"*.
+	 * Cả luật "kế toán MTĐ chỉ soát, đơn bàn giao sang kế toán KVC xuất MISA" (1.245.0) sinh ra
+	 * CHỈ VÌ hai khối chung một app. MTĐ ra riêng thì bên ấy tự xuất MISA của mình, và bên này
+	 * không còn ai mang vai MTĐ để mà chặn.
+	 *
+	 * 🔴 ĐỂ RỖNG CHỨ KHÔNG XOÁ CẢ CƠ CHẾ, và đây là lựa chọn có cân nhắc:
+	 *      · Rỗng là TẮT THẬT — `xuat_misa_duoc()` trả `true` cho mọi vai, cổng API thôi chặn,
+	 *        dải bàn giao trên màn thôi hiện. Không còn hành vi nào sót lại.
+	 *      · Còn đơn MTĐ CŨ nằm lại kho này thì kế toán KVC xuất nốt được — nếu xoá cơ chế
+	 *        bằng cách chặn kiểu khác thì đám đơn ấy kẹt.
+	 *      · Khối VP thì anh Thắng bảo *"Chưa chốt"* (22/09). Ngày nào cần bật lại cho một
+	 *        khối nào đó thì thêm đúng một mã vào đây, không phải dựng lại sáu chỗ.
+	 *
+	 * ⚠️ RỖNG LÀ "MỌI KHỐI ĐỀU XUẤT ĐƯỢC", không phải "chặn hết". Viết `! in_array(...)` nên
+	 *    danh sách rỗng cho qua tất — đọc nhầm chiều là sửa thành chặn cả nhà.
+	 * ══════════════════════════════════════════════════════════════════════════════════════ */
+	const KHOI_KHONG_XUAT_MISA = array();
+
+	/** Người đang gọi có được xuất / chốt MISA không. Admin không bao giờ bị chặn. */
+	public static function xuat_misa_duoc() {
+		if ( 'Admin' === VHCPHN_Auth::vai_tro() ) { return true; }
+		$k = self::khoi_cua_vai( VHCPHN_Auth::vai_hien() );
+		return ! in_array( $k, self::KHOI_KHONG_XUAT_MISA, true );
+	}
+
+	/** Tên khối cho câu báo lỗi / nhãn trên màn.
+	 *  🔴 MB/MN thêm 22/09/2026 — anh Thắng: *"Chuyển nó sang là MB hay MN tương đương với
+	 *     Miền Bắc, Miền Nam"*. Ba tên cũ ở lại để sổ cũ còn đọc ra chữ, xem chốt dài ở
+	 *     `VHCPHN_DonVi::KHOI_THEO_DON_VI`. */
+	public static function ten_khoi( $ma ) {
+		/* ⚠️ BẢNG NHÃN PHẢI NẰM TRÊN ĐÚNG MỘT DÒNG. `tools/tach-ban-vung.sh` chèn nhãn của mã
+		   vùng bằng một phép thay trên chính dòng này, và `kiem-khoi-ban-vung.php` đọc nó cũng
+		   theo dòng. Xuống dòng cho đẹp là bản vùng mất nhãn khối — tab hiện trơ mã. */
+		$m = array( 'hn' => 'HN', 'mb' => 'Miền Bắc', 'mn' => 'Miền Nam', 'kvc' => 'Khu vui chơi', 'mtd' => 'Máy tự động', 'vp' => 'Văn phòng' );
+		$k = mb_strtolower( trim( (string) $ma ) );
+		return isset( $m[ $k ] ) ? $m[ $k ] : $ma;
+	}
+
+	/**
+	 * Vai trò này có được bày ở bảng loại chi phí của khối $khoi không.
+	 *
+	 * Bản song sinh ở màn là `_vaiOKhoi()`. Hai bên PHẢI cùng luật: lệch một vế là bài kiểm
+	 * xanh mà người khai nhìn thấy một danh sách khác hẳn.
+	 */
+	public static function vai_o_khoi( $ten, $khoi ) {
+		$k = self::khoi_cua_vai( $ten );
+		if ( '' === $k ) { return true; }                       // vai chạy ngang — mọi khối
+		return $k === mb_strtolower( trim( (string) $khoi ) );
+	}
+
+	/** Loại chi phí này có thuộc bộ phận $bp không. Loại chưa khai bộ phận -> thuộc MỌI bộ phận. */
+	public static function loai_thuoc_bo_phan( $ten_loai, $bp ) {
+		$k = mb_strtolower( trim( (string) $bp ) );
+		if ( '' === $k ) { return true; }
+		$ds = self::bo_phan_ds_cua_loai( $ten_loai );
+		if ( ! $ds ) { return true; }
+		foreach ( $ds as $b ) { if ( mb_strtolower( $b ) === $k ) { return true; } }
+		return false;
+	}
+
+	/**
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 * DÒNG DANH MỤC ĐÚNG CHO MỘT LOẠI CHI PHÍ, CÓ PHÂN BIỆT KHỐI.
+	 *
+	 * 🔴 `loai_map()` KHOÁ THEO TÊN, NÊN DÒNG SAU ĐÈ DÒNG TRƯỚC. Từ 1.239.0 mỗi khối có bảng mã
+	 *    riêng, nên hai khối hoàn toàn có thể cùng có một loại tên "Chi phí cơ sở" — và bảng tra
+	 *    ấy chỉ giữ lại MỘT dòng. Không khai khối thì mọi phép tra mã (TK Nợ, TK Có, mã đối
+	 *    tượng, tên MISA) của cả hai khối cùng đọc ra mã của khối nào tình cờ đứng sau.
+	 *
+	 * 🔴 KHÔNG ĐỔI HÀNH VI CỦA NGƯỜI GỌI CŨ. `$khoi` rỗng thì hàm này trả về đúng dòng mà
+	 *    `loai_map()` giữ lại, y như trước — thêm một tham số mà làm đổi câu trả lời của mọi
+	 *    người gọi cũ là hỏng ngầm trên toàn bộ sổ.
+	 *
+	 * ⚠️ DÒNG KHÔNG KHAI KHỐI LÀ DÒNG DÙNG CHUNG, và nó đứng SAU dòng khai đúng khối chứ không
+	 *    thay thế. Danh mục dựng từ sổ cũ còn nhiều dòng bỏ trống ô Khối; bỏ chúng đi là loại có
+	 *    thật mà tra ra rỗng, rồi báo "thiếu TK" cho một thứ đã khai từ lâu.
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 */
+	public static function loai_row( $ten, $khoi = '' ) {
+		$k  = mb_strtolower( trim( (string) $ten ) );
+		if ( '' === $k ) { return null; }
+		$kh = mb_strtolower( trim( (string) $khoi ) );
+		if ( '' === $kh ) {
+			$m = self::loai_map();
+			return isset( $m[ $k ] ) ? $m[ $k ] : null;
+		}
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		   KHỚP ĐÚNG KHỐI, HOẶC KHÔNG CÓ. Không ngã về dòng của khối khác, và KHÔNG có nhánh
+		   "dòng dùng chung".
+
+		   🔴 VÌ Ô KHỐI CỦA BẢNG NÀY KHÔNG BAO GIỜ RỖNG. `VHCPHN_Cfg::write()` lấp ô trống thành
+		      'kvc' (chốt ở `kiem-loai-theo-khoi.php`: *"rỗng = loại KHÔNG BẢNG NÀO CHỨA"*), nên
+		      mỗi loại thuộc ĐÚNG MỘT khối. Lượt đầu em có viết thêm một nhánh `$chung` cho
+		      "dòng chưa khai khối" — nghe chắc ăn, nhưng phá thử chỉ ra ngay là KHÔNG lượt chạy
+		      nào tới được nó. Nhánh không ai đi tới thì không ai biết nó còn đúng, và nó cũng
+		      chẳng bảo vệ được gì; cùng lý do `xem_duoc_bo_phan()` đã bị gỡ.
+
+		   🔴 HỎI "LOẠI X CỦA VP" MÀ CHỈ CÓ DÒNG X CỦA MTĐ THÌ CÂU TRẢ LỜI LÀ KHÔNG CÓ, chứ không
+		      phải mã của MTĐ — trả bừa chính là cái "đè lên nhau" mà hàm này sinh ra để chặn,
+		      chỉ khác là lặng lẽ hơn. Người gọi (`tkco_xuat`) hiểu `null` là "chưa khai" và rơi
+		      xuống bậc sau, tức về đúng hành vi cũ — hướng hỏng an toàn.
+		   ═══════════════════════════════════════════════════════════════════════════════════ */
+		$s = self::cfg_static();
+		foreach ( (array) ( isset( $s['loaiChiPhi'] ) ? $s['loaiChiPhi'] : array() ) as $x ) {
+			if ( mb_strtolower( trim( (string) $x['ten'] ) ) !== $k ) { continue; }
+			if ( mb_strtolower( trim( (string) ( isset( $x['khoi'] ) ? $x['khoi'] : '' ) ) ) === $kh ) { return $x; }
+		}
+		return null;
+	}
+
+	/** Mã tài khoản của 1 loại chi phí (rỗng nếu chưa khai). `$khoi` = '' giữ nguyên luật cũ. */
+	public static function loai_tk( $ten, $khoi = '' ) {
+		$x = self::loai_row( $ten, $khoi );
+		if ( ! $x ) { return array( 'tkNo' => '', 'tkCo' => '', 'maDt' => '', 'boPhan' => '', 'tenMisa' => '', 'loaiTt' => '', 'vaiTro' => '', 'dauMuc' => '', 'cha' => '' ); }
 		return array(
 			'loaiTt'  => isset( $x['loaiTt'] ) ? (string) $x['loaiTt'] : '',
 			'tkNo'    => (string) $x['tkNo'],
@@ -1206,6 +2560,13 @@ class VHCPHN_Cfg {
 			'maDt'    => (string) $x['maDt'],
 			'boPhan'  => isset( $x['boPhan'] ) ? (string) $x['boPhan'] : '',
 			'tenMisa' => isset( $x['tenMisa'] ) ? (string) $x['tenMisa'] : '',
+			/* Ai được dùng loại này — xem `loai_thuoc_vai()`. Trống = mọi vai. */
+			'vaiTro'  => isset( $x['vaiTro'] ) ? (string) $x['vaiTro'] : '',
+			/* Đầu mục lớn — chỉ để GOM ô chọn, không gác ai cả. Xem `dau_muc_ds()`. */
+			'dauMuc'  => isset( $x['dauMuc'] ) ? (string) $x['dauMuc'] : '',
+			/* Tên loại CHA — dòng này là chi phí con của nó. Rỗng = dòng ở tầng trên cùng.
+			   Xem chốt ở `VHCPHN_Cfg::DAU_MUC_MAC_DINH` về ba tầng của cây. */
+			'cha'     => isset( $x['cha'] ) ? (string) $x['cha'] : '',
 		);
 	}
 
@@ -1232,12 +2593,93 @@ class VHCPHN_Cfg {
 		$row = $s['tkNoMx'][ $k ];
 
 		$c = mb_strtolower( trim( (string) $coso ) );
-		if ( $c !== '' && isset( $row[ $c ] ) ) { return (array) $row[ $c ]; }
+		if ( $c !== '' && isset( $row[ $c ] ) ) { return self::bo_ma_ben_tra_( (array) $row[ $c ] ); }
 
 		$pll = self::pll_of( $coso );
 		if ( $pll === '' ) { return array(); }
 		$p = mb_strtolower( $pll );
-		return isset( $row[ $p ] ) ? (array) $row[ $p ] : array();
+		return isset( $row[ $p ] ) ? self::bo_ma_ben_tra_( (array) $row[ $p ] ) : array();
+	}
+
+	/**
+	 * 🔴 CỘT TK NỢ KHÔNG BAO GIỜ NHẬN MÃ BÊN TRẢ TIỀN (141 / 331) — DÙ NÓ ĐẾN TỪ ĐÂU.
+	 *
+	 * Anh Thắng 24/09/2026, ảnh bảng xuất MISA đơn Chi phí cơ sở EVENT FZ MN: *"Sao lại đổi tk
+	 * nợ"* — mọi dòng ra "Nợ 141 · Có 141". Bảng ma trận Miền Nam lúc ấy TRỐNG cột "Chi phí cơ
+	 * sở" (mã 64196/64166/64126/64106 nằm dưới cột "Chi phí chung VP"), nên `tkno_loai()` rơi
+	 * xuống bậc sau: cột TK Nợ của DANH MỤC loại chi phí — mà cột ấy được gieo từ bảng Nhóm
+	 * mặt hàng cũ, nơi "TK Nợ" hầu hết là 141 (thời mọi thứ hạch toán qua tạm ứng).
+	 *
+	 * Lúc xuất, `tkno_xuat()` đã gạt 141 nếu nó nằm TRÊN DÒNG, nhưng không gạt nếu nó nằm trong
+	 * DANH MỤC hay MA TRẬN — hai nguồn được coi là "sạch". Chúng không sạch. Nên gạt ở tận
+	 * nguồn: ma trận và danh mục trả rỗng thay cho 141, để bản xuất BÁO THIẾU đúng loại, đúng
+	 * mảng — anh Thắng thấy ngay ô nào trống — thay vì lặng lẽ hạch toán sai.
+	 * Anh Thắng cùng ngày: *"tk nợ là theo bảng ma trận chứ"* — đúng, và khi ma trận trống thì
+	 * câu trả lời phải là "trống", không phải "141".
+	 */
+	private static function bo_ma_ben_tra_( $ds ) {
+		$ra = array();
+		foreach ( (array) $ds as $m ) {
+			if ( ! self::la_tk_ben_tra( $m ) ) { $ra[] = $m; }
+		}
+		return $ra;
+	}
+
+	/**
+	 * MỌI TK NỢ ĐÃ KHAI trong hệ — gom từ ma trận [loại × mảng] và cột `tkNo` của danh mục.
+	 *
+	 * Dùng để gác ô "kế toán chỉnh TK Nợ của một dòng" (`VHCPHN_Don::set_line_tk_no`): kế toán
+	 * chọn trong "các số lập sẵn", không gõ tự do.
+	 *
+	 * ⚠️ MÃ MA CHỈ LỘ RA Ở MISA. Nhận bừa một chuỗi số là dòng chi mang mã không có trong hệ
+	 *    thống tài khoản, và chỗ phát hiện ra là lúc kế toán nhập tệp vào MISA — sau khi kỳ đã
+	 *    chốt, và không còn ai nhớ dòng ấy là khoản gì.
+	 */
+	public static function tkno_da_khai() {
+		$s  = self::cfg_static();
+		$ra = array();
+		foreach ( (array) $s['tkNoMx'] as $row ) {
+			foreach ( (array) $row as $ds ) {
+				foreach ( (array) $ds as $m ) {
+					$m = trim( (string) $m );
+					if ( '' !== $m ) { $ra[ $m ] = 1; }
+				}
+			}
+		}
+		foreach ( (array) $s['loaiChiPhi'] as $x ) {
+			$m = trim( (string) $x['tkNo'] );
+			if ( '' !== $m ) { $ra[ $m ] = 1; }
+		}
+		/* 🔴 ÉP VỀ CHUỖI. Khoá mảng PHP nuốt mọi chuỗi số chính tắc thành SỐ NGUYÊN: gán
+		   `$ra['64166']` thì `array_keys()` trả về `64166` (int), và bên gọi so bằng
+		   `in_array( $tk, …, true )` — so ngặt — nên KHÔNG BAO GIỜ khớp. Kết quả: mọi mã hợp lệ
+		   đều bị từ chối, và câu từ chối lại bảo kế toán "đi khai mã ở Cấu hình" cho một mã
+		   đang nằm sờ sờ ở đó. Bẫy này `export_misa()` đã dính một lần rồi. */
+		return array_map( 'strval', array_keys( $ra ) );
+	}
+
+	/**
+	 * Mã này là một TK CÓ đã biết? — 141 (tạm ứng NV) · 331 (phải trả NCC) · mọi TK Có khai ở
+	 * ⚙️ Cấu hình → 💳 TK Có theo Phân loại thanh toán và cột TK Có của danh mục loại chi phí.
+	 *
+	 * 🔴 CÙNG MỘT TẬP VỚI `_tapTkCo()` BÊN GIAO DIỆN. Anh Thắng 10/09/2026: *"loại chi phí nó là
+	 *    tài khoản nợ chứ"* — ô chọn hôm ấy bày "TK 331" làm TK Nợ. Hai bên đo khác nhau thì giao
+	 *    diện chặn một đằng, máy chủ nhận một nẻo.
+	 */
+	public static function la_tk_co( $ma ) {
+		$ma = trim( (string) $ma );
+		if ( '' === $ma ) { return false; }
+		$s = self::cfg_static();
+		$t = array( '141' => 1, '331' => 1 );
+		foreach ( (array) $s['phanloai'] as $x ) {
+			$m = trim( (string) $x['tkCo'] );
+			if ( '' !== $m ) { $t[ $m ] = 1; }
+		}
+		foreach ( (array) $s['loaiChiPhi'] as $x ) {
+			$m = trim( (string) $x['tkCo'] );
+			if ( '' !== $m ) { $t[ $m ] = 1; }
+		}
+		return isset( $t[ $ma ] );
 	}
 
 	/**
@@ -1291,6 +2733,40 @@ class VHCPHN_Cfg {
 	 * rồi mới tới mã cố định khai ở danh mục. Không có thì trả '' để chỗ gọi BÁO THIẾU
 	 * — không đoán, để không âm thầm hạch toán sai.
 	 */
+	/* ══════════════════════════════════════════════════════════════════════════════════════
+	 * LOẠI CHI PHÍ NÀY CÓ DÙNG CHO ĐƠN VỊ ẤY KHÔNG.
+	 *
+	 * Anh Thắng 12/09/2026: *"Đối với POSH sẽ có cột Chi Phí Khác, Chi Phí Chung, Chi Phí Cơ
+	 * Sở, Chi Phí Setup"*. Mỗi nhà một bộ loại chi phí riêng — bảng 81 mảng của POSH trước nay
+	 * phải bày cả chín cột của KVC, toàn dấu "—", kéo ngang mãi không hết.
+	 *
+	 * 🔴 CHƯA KHAI ĐƠN VỊ THÌ CHO QUA, y như luật của cột Bộ phận. Danh mục dựng từ sổ cũ nên
+	 *    gần như mọi dòng còn bỏ trống ô này; hiểu ngược lại là ngày bản này lên, MỌI bảng mã
+	 *    trắng trơn và không ai đoán ra vì sao.
+	 *
+	 * ⚠️ MỘT LOẠI DÙNG CHO NHIỀU NHÀ được — ngăn nhau bằng dấu phẩy, y như cột Bộ phận. "Chi
+	 *    phí Setup" là loại chung, POSH lẫn KVC đều xài.
+	 * ══════════════════════════════════════════════════════════════════════════════════════ */
+	public static function loai_thuoc_don_vi( $ten_loai, $don_vi ) {
+		$k = mb_strtolower( trim( (string) $ten_loai ) );
+		if ( '' === $k ) { return true; }
+		foreach ( self::cfg_static_raw_loai() as $x ) {
+			if ( mb_strtolower( trim( (string) $x['ten'] ) ) !== $k ) { continue; }
+			$dv = trim( (string) ( isset( $x['donVi'] ) ? $x['donVi'] : '' ) );
+			if ( '' === $dv ) { return true; }               // chưa khai -> mọi nhà
+			foreach ( explode( ',', $dv ) as $d ) {
+				if ( '' !== trim( $d ) && VHCPHN_DonVi::bang( $d, $don_vi ) ) { return true; }
+			}
+			return false;
+		}
+		return true;                                        // loại lạ -> không chặn
+	}
+	/** Danh mục loại chi phí, dạng thô — tách riêng cho `loai_thuoc_don_vi()` khỏi vòng vo. */
+	private static function cfg_static_raw_loai() {
+		$c = self::get_config();
+		return (array) ( isset( $c['loaiChiPhi'] ) ? $c['loaiChiPhi'] : array() );
+	}
+
 	public static function tkno_loai( $nhom, $coso = '' ) {
 		$ds = self::ten_nhom_thu( $nhom );
 		foreach ( $ds as $ten ) {
@@ -1298,8 +2774,9 @@ class VHCPHN_Cfg {
 			if ( $tk !== '' ) { return $tk; }
 		}
 		foreach ( $ds as $ten ) {
-			$tk = self::loai_tk( $ten )['tkNo'];
-			if ( trim( (string) $tk ) !== '' ) { return trim( (string) $tk ); }
+			$tk = trim( (string) self::loai_tk( $ten )['tkNo'] );
+			/* Mã cố định của danh mục mà là 141/331 thì coi như CHƯA KHAI — xem `bo_ma_ben_tra_`. */
+			if ( $tk !== '' && ! self::la_tk_ben_tra( $tk ) ) { return $tk; }
 		}
 		return '';
 	}
@@ -1309,6 +2786,81 @@ class VHCPHN_Cfg {
 	 * Loại mã đó chỉ được nằm ở cột TK Có. Rơi vào cột TK Nợ là hạch toán sai
 	 * (bút toán ra "Nợ 141 · Có 141" — đúng thứ anh Thắng thấy trên bảng xuất).
 	 */
+	/* ══════════════════════════════════════════════════════════════════════════════════════
+	 * MÃ TÀI KHOẢN LÀ MỘT CÂY — LỌC CHA PHẢI ĂN CẢ CON.
+	 *
+	 * Anh Thắng 12/09/2026: *"cần tìm mã 641 bao nhiêu, thì hệ thống sẽ cộng 6411, 6412,
+	 * 6413. Cơ chế nó vậy"*.
+	 *
+	 * 🔴 KHÔNG CẦN BẢNG CHA–CON. Hệ tài khoản Việt Nam đã mã hoá sẵn quan hệ ấy vào chính con
+	 *    số: 641 › 6415 › 64151. Nên "thuộc cây 641" chỉ là "bắt đầu bằng 641". Dựng thêm một
+	 *    bảng khai cha–con là thêm một nơi phải khai đúng, và khai lệch thì tiền cộng sai mà
+	 *    không ai nhìn ra.
+	 *
+	 * 🔴 DỌN ĐUÔI `.0` TRƯỚC KHI SO. Bảng tính trả "141.0" cho mã 141; so thẳng thì `'141.0'`
+	 *    không bắt đầu bằng `'1411'` mà lại bắt đầu bằng `'141'` — nửa đúng nửa sai tuỳ mã,
+	 *    đúng kiểu lỗi không ai truy ra. `VHCPHN_Util::ma_so()` là chỗ dọn duy nhất.
+	 *
+	 * ⚠️ CHỈ ĂN THEO ĐỐT, KHÔNG ĂN GIỮA CHỪNG. "64" KHÔNG được coi là cha của "6415" ở đây —
+	 *    nghe thì hợp lý, nhưng hệ thống tài khoản không có tài khoản "64", nên cho nó khớp là
+	 *    mở đường cho những mã nửa vời do gõ thiếu số. Cha phải là một mã CÓ THẬT: người dùng
+	 *    chọn từ ô xổ, và ô ấy chỉ bày mã dựng từ sổ (xem `tk_cha_ds()`).
+	 *
+	 * @param string $tk  Mã trên dòng chi.
+	 * @param string $loc Mã người dùng đang lọc.
+	 * @return bool
+	 */
+	public static function tk_thuoc_cay( $tk, $loc ) {
+		/* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG, ghi lại để lần sau khỏi đuổi theo: bỏ `ma_so()` ở VẾ TRÁI
+		   KHÔNG đổi kết quả ca nào — đuôi ".0" nằm ở CUỐI chuỗi, mà phép so tiền tố chỉ nhìn
+		   phần ĐẦU, nên "6411.0" vẫn khớp cây "641" y như "6411". Giữ nó vì hai lẽ: nó nói
+		   thẳng ra luật "dọn rồi mới so", và nó cứu vế `$a === $b` cùng những đuôi khác ".0"
+		   mà bảng tính có thể đẻ ra sau này. VẾ PHẢI thì KHÔNG tương đương — bỏ là lọc
+		   "141.0" mất sạch dòng 1411, và bài kiểm đỏ ngay. */
+		$a = VHCPHN_Util::ma_so( $tk );
+		$b = VHCPHN_Util::ma_so( $loc );
+		if ( '' === $a || '' === $b ) { return false; }
+		if ( $a === $b ) { return true; }
+		return 0 === strpos( $a, $b );
+	}
+
+	/**
+	 * MỌI MÃ CHA suy ra được từ một rổ mã có thật — để ô lọc bày cả `641` chứ không chỉ `6415`.
+	 *
+	 * 🔴 CHỈ SINH CHA TỪ 3 CHỮ SỐ TRỞ LÊN. Tài khoản cấp 1 của hệ Việt Nam là 3 chữ số; cắt
+	 *    ngắn hơn ra "64" hay "6" là bịa ra những mã không tồn tại, và chúng sẽ nằm trong ô xổ
+	 *    như thể có thật.
+	 *
+	 * ⚠️ KHÔNG trả lại chính những mã đã có trong rổ — nơi gọi tự gộp hai danh sách. Trộn sẵn ở
+	 *    đây là nơi gọi không còn phân biệt được đâu là mã thật, đâu là mã cha suy ra, mà màn
+	 *    cần biết điều đó để ghi chú "gồm cả cây con".
+	 *
+	 * @param array $ds Danh sách mã có thật.
+	 * @return array Mã cha, đã sắp, không trùng, không lẫn mã đã có trong $ds.
+	 */
+	public static function tk_cha_ds( $ds ) {
+		$co  = array();
+		foreach ( (array) $ds as $x ) {
+			$x = VHCPHN_Util::ma_so( $x );
+			if ( '' !== $x ) { $co[ $x ] = 1; }
+		}
+		/* 🔴 ÉP LẠI CHUỖI Ở MỌI LƯỢT `array_keys()`. PHP tự đổi khoá mảng toàn số thành int,
+		   nên "641" chui ra thành 641 — `ctype_digit(641)` cảnh báo, và `in_array('641', $ds,
+		   true)` ở nơi gọi trả false vì lệch kiểu. Đã cắn đúng lượt viết đầu, bài kiểm đỏ. */
+		$ra = array();
+		foreach ( array_keys( $co ) as $ma ) {
+			$ma = (string) $ma;
+			if ( ! ctype_digit( $ma ) ) { continue; }   // mã có chữ thì không phải cây số
+			for ( $n = 3; $n < strlen( $ma ); $n++ ) {
+				$cha = substr( $ma, 0, $n );
+				if ( ! isset( $co[ $cha ] ) ) { $ra[ $cha ] = 1; }
+			}
+		}
+		$out = array_map( 'strval', array_keys( $ra ) );
+		sort( $out, SORT_NATURAL );
+		return $out;
+	}
+
 	public static function la_tk_ben_tra( $tk ) {
 		$s = trim( (string) $tk );
 		return ( $s !== '' && ( strpos( $s, '141' ) === 0 || strpos( $s, '331' ) === 0 ) );
@@ -1337,6 +2889,45 @@ class VHCPHN_Cfg {
 		$tk = self::tkno_loai( $loai, $coso );
 		if ( $tk !== '' ) { return $tk; }
 		return $tay;
+	}
+
+	/**
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 * TK ĐỐI ỨNG (TK CÓ) LÚC XUẤT MISA — ĐỐI XỨNG VỚI `tkno_xuat()` NGAY TRÊN.
+	 *
+	 * Anh Thắng 21/09/2026: *"MTĐ tùy loại sẽ có TK đối ứng khác"*, kèm ảnh bản MISA mẫu ghi
+	 * Nợ 64136 / Có **331** — không phải 141 như đường tạm ứng bên Khu vui chơi.
+	 *
+	 * 🔴 LỖI NẰM Ở CHỖ HAI CỘT ĐI HAI LUẬT NGƯỢC NHAU. Lúc xuất, TK **Nợ** đọc lại từ DANH MỤC
+	 *    và coi mã gắn trên dòng chỉ là bản sao chụp (xem `tkno_xuat()`), còn TK **Có** thì
+	 *    ngược hẳn: bản sao trên dòng thắng, danh mục không được hỏi lấy một câu. Nên kế toán
+	 *    khai TK đối ứng cho một loại xong, mọi dòng ĐÃ NHẬP TRƯỚC ĐÓ vẫn xuất ra mã cũ — mà
+	 *    đúng mấy dòng ấy mới là thứ cần sửa (67 cơ sở MTĐ nạp từ sổ cũ).
+	 *
+	 * 🔴 KHAI TK ĐỐI ỨNG CHO MỘT LOẠI LÀ MỘT LỜI TUYÊN BỐ, nên nó thắng. Nghĩa của ô ấy là
+	 *    "loại này luôn đối ứng vào tài khoản này, bất kể chi bằng hình thức gì" — bỏ trống mới
+	 *    là "cứ theo hình thức chi". Đó là lý do nó đứng TRƯỚC bản sao trên dòng.
+	 *
+	 * ⚠️ BỎ TRỐNG THÌ KHÔNG ĐỔI GÌ CẢ. Loại chưa khai ô này (gần như toàn bộ bên Khu vui chơi)
+	 *    rơi xuống đúng hai bậc cũ: bản sao trên dòng, rồi bảng Phân loại thanh toán. Thêm một
+	 *    bậc mà làm đổi mã của sổ đang chạy là sai hàng loạt bút toán đã đối chiếu xong.
+	 * ⚠️ HỎI DANH MỤC THEO KHỐI CỦA ĐƠN — xem chốt ở `loai_row()`. Hai khối cùng có một loại
+	 *    trùng tên là chuyện có thật từ 1.239.0, và tra không phân biệt khối thì TK đối ứng của
+	 *    Máy tự động đè lên dòng của Khu vui chơi.
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 */
+	public static function tkco_xuat( $loai, $khoi, $tk_dong, $tk_phan_loai = '' ) {
+		$cat = self::loai_row( $loai, $khoi );
+		/* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG, ghi lại để lần sau khỏi đuổi theo: bỏ `trim()` ở dòng dưới
+		   KHÔNG đổi kết quả — `VHCPHN_Cfg::write()` đã cho ô này qua `VHCPHN_Util::ma_so()`, nên giá
+		   trị đọc lên từ kho không bao giờ còn khoảng trắng thừa. Giữ `trim()` vì nó rẻ và vì
+		   hàm này là hàm công khai: người gọi sau có thể đưa vào một dòng danh mục dựng tay,
+		   chưa qua đường ghi. `kiem-tk-doi-ung-theo-loai.php` có ghi lại phép đột biến ấy. */
+		$khai = $cat ? trim( (string) ( isset( $cat['tkCo'] ) ? $cat['tkCo'] : '' ) ) : '';
+		if ( '' !== $khai ) { return $khai; }
+		$tay = trim( (string) $tk_dong );
+		if ( '' !== $tay ) { return $tay; }
+		return trim( (string) $tk_phan_loai );
 	}
 
 	/** Các cơ sở cùng mảng với cơ sở đã chọn (dùng để báo "mã này áp cho những cơ sở nào"). */
@@ -2112,7 +3703,29 @@ class VHCPHN_Cfg {
 	 *  Bốn bảng có cột cơ sở: tạm ứng · chi phí · sổ chi · đơn mua. Quét đủ cả bốn, vì tên lệch
 	 *  chỉ ở một bảng cũng đủ làm số liệu không khớp.
 	 * ========================================================================================== */
-	const COSO_BANG = array( 'tamung', 'chiphi', 'so_chi', 'mk_don' );
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * MỌI CHỖ CÓ TÊN CƠ SỞ NẰM TRONG DỮ LIỆU — bảng => TÊN CỘT.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 CỘT CỦA DỰ ÁN TÊN LÀ `gian`, KHÔNG PHẢI `coso` — VÀ NÓ TỪNG BỊ BỎ SÓT. Hằng này trước
+	 *    đây chỉ là danh sách TÊN BẢNG, ngầm hiểu cột nào cũng tên `coso`. Bảng `da_line` giữ
+	 *    đúng loại giá trị ấy (tên gian hàng, chọn từ cùng một danh mục) nhưng dưới tên cột
+	 *    khác, nên nó rơi ra ngoài cả hai đường:
+	 *      · `coso_la()` không bao giờ thấy một cơ sở lạ chỉ dùng ở dự án -> không ai biết nó có;
+	 *      · `doi_ten_coso()` đổi xong vẫn để nguyên dòng dự án -> tiền của một gian tách làm
+	 *        đôi, nửa mang tên mới nửa mang tên cũ, mà màn nào cũng trông như đã đổi xong.
+	 *    Hỏng im lặng theo hướng tệ nhất: người ta TIN là đã dọn sạch.
+	 *
+	 * ⚠️ `bp_index.dia_diem` CỐ Ý KHÔNG CÓ TRONG ĐÂY. Nó là chỗ người ta ĐI TỚI (một tỉnh, một
+	 *    hội chợ), gõ tự do, không lấy từ danh mục cơ sở — xem chốt ở `VHCPHN_BP::don_vi_cua()`.
+	 *    Gộp nó vào là một lượt đổi tên cơ sở đi sửa cả địa điểm công tác.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	const COSO_BANG = array(
+		'tamung'  => 'coso',
+		'chiphi'  => 'coso',
+		'so_chi'  => 'coso',
+		'mk_don'  => 'coso',
+		'da_line' => 'gian',
+	);
 
 	/** cosoLa(): [ ['ten'=>…, 'dong'=>['chiphi'=>12,…], 'tong'=>12], … ] */
 	public static function coso_la() {
@@ -2123,9 +3736,9 @@ class VHCPHN_Cfg {
 			if ( '' !== $k ) { $khai[ $k ] = 1; }
 		}
 		$gom = array();
-		foreach ( self::COSO_BANG as $b ) {
+		foreach ( self::COSO_BANG as $b => $cot ) {
 			$t = VHCPHN_DB::t( $b );
-			foreach ( VHCPHN_DB::rows( "SELECT coso, COUNT(*) AS n FROM $t WHERE coso<>'' GROUP BY coso" ) as $r ) {
+			foreach ( VHCPHN_DB::rows( "SELECT $cot AS coso, COUNT(*) AS n FROM $t WHERE $cot<>'' GROUP BY $cot" ) as $r ) {
 				$ten = trim( (string) $r['coso'] );
 				$k   = mb_strtolower( $ten );
 				if ( '' === $k || isset( $khai[ $k ] ) ) { continue; }
@@ -2146,6 +3759,10 @@ class VHCPHN_Cfg {
 	 *   · đổi tên một cơ sở đã khai  -> đổi cả dòng trong bảng Cấu hình
 	 *   · gộp một cơ sở lạ về cơ sở đã khai -> chỉ đổi dữ liệu, không thêm dòng nào
 	 *
+	 * Anh Thắng 19/09/2026: *"nhân viên lỡ tạo cơ sở ảo, giờ làm sao chuyển qua cơ sở, vì đã
+	 * nhập dữ liệu"* — đúng việc thứ hai. Cơ sở ảo ở đây sinh ra từ lượt đẩy nhân sự cũ, mang
+	 * MÃ cửa hàng (`FZ_SC_VIVO_T4`) thay vì TÊN gian hàng.
+	 *
 	 * 🔴 KHÔNG để người ta sửa ô tên trong bảng rồi tự đi sửa dữ liệu sau. Sửa ô tên là việc
 	 *    một giây, còn dữ liệu cũ thì nằm ở bốn bảng cộng danh sách cơ sở của từng nhân viên —
 	 *    làm tay kiểu gì cũng sót một chỗ, và chỗ sót đó im lặng cho tới lúc đối chiếu tiền.
@@ -2158,8 +3775,8 @@ class VHCPHN_Cfg {
 		if ( mb_strtolower( $cu ) === mb_strtolower( $moi ) ) { return VHCPHN_Util::err( 'Hai tên giống nhau' ); }
 
 		$dem = array();
-		foreach ( self::COSO_BANG as $b ) {
-			$n = $wpdb->update( VHCPHN_DB::t( $b ), array( 'coso' => $moi ), array( 'coso' => $cu ) );
+		foreach ( self::COSO_BANG as $b => $cot ) {
+			$n = $wpdb->update( VHCPHN_DB::t( $b ), array( $cot => $moi ), array( $cot => $cu ) );
 			$dem[ $b ] = (int) $n;
 		}
 
@@ -2280,5 +3897,496 @@ class VHCPHN_Cfg {
 		self::write( self::USER, $hien );
 		self::clear_cache();
 		return VHCPHN_Util::ok( array( 'them' => $them, 'tong' => count( $hien ) ) );
+	}
+
+	/* ==========================================================================================
+	 *  SOÁT TRÙNG NHÂN SỰ ↔ CHI PHÍ
+	 *
+	 *  Anh Thắng 13/09/2026: *"nếu đẩy từ nhân sự sang, mà nhân viên này trùng với nhân viên
+	 *  tạo trực tiếp trên trang chi phí thì sao, làm sao để gộp lại"*.
+	 *
+	 *  🔴 HAI HỆ KHOÁ NGƯỜI KHÁC NHAU, VÀ ĐÓ LÀ CẢ CÂU CHUYỆN:
+	 *      · bên Nhân sự  khoá là MÃ NV (`UNIQUE KEY ma_nv`) — hai người trùng tên vẫn là hai hàng
+	 *      · bên Chi phí  khoá là TÊN   — trùng tên là MỘT người, dùng chung sổ đơn
+	 *
+	 *  Nên đẩy sổ nhân sự sang đây có ba ngả, và chỉ một ngả là lành:
+	 *      · trùng tên ĐÚNG TỪNG CHỮ  -> tự gộp, không phải làm gì
+	 *      · lệch một dấu / một dấu cách -> thành HAI người, người mới vào thấy trống trơn còn
+	 *        đơn cũ mồ côi, mà KHÔNG có câu lỗi nào
+	 *      · hai người trùng tên THẬT -> gộp nhầm làm một, chung đơn chung tiền
+	 *
+	 *  Màn này bày cả ba ra TRƯỚC khi đẩy. Nó chỉ ĐỌC và ĐẾM, không tự sửa gì: đổi tên một người
+	 *  là đụng khoá nối của mọi đơn họ đã lập, nên việc ấy phải do người bấm nút quyết, từng
+	 *  trường hợp một.
+	 * ========================================================================================== */
+
+	/* ═════════════════════════════════════════════════════════════════════════════════════════
+	 * 📦 NHÂN BẢN CẤU HÌNH SANG BẢN KHÁC — anh Thắng 23/09/2026: *"nhân bản cho chi phí hà nội"*.
+	 *
+	 * Bản Hà Nội là một site WordPress riêng (bảng mang tiền tố của bản ấy), sinh ra từ `tach-ban-vung.sh` với
+	 * danh mục TRẮNG. Khai lại tay mấy chục loại chi phí, mã TK Nợ, luồng bộ phận ở bản kia là
+	 * mời hai bản lệch nhau từng chữ. Nên: bản có danh mục sẵn TẢI một gói .json, bản kia NHẬP.
+	 *
+	 * 🔴 GÓI CHỈ CHỞ DANH MỤC. Không người dùng (hàng ấy có PIN), không quyền, không SSO, không QR
+	 *    — đó là chuyện riêng của từng site. `goi_bang_ds()` là DANH SÁCH TRẮNG và là cổng duy
+	 *    nhất: bảng không có tên ở đó thì không xuất, và cũng không nhập kể cả khi gói gửi lên có.
+	 * 🔴 NHẬP LÀ GHI ĐÈ CẢ BẢNG → chỉ Admin, có nhật ký, và `write()` vẫn chụp `cfg_undo` cho
+	 *    bảng ghi cuối (↩ Hoàn tác như mọi lượt Lưu khác).
+	 * ⚠️ Cơ sở NẰM TRONG danh sách nhưng màn để mặc định KHÔNG tích: cơ sở là của từng miền,
+	 *    chép cơ sở Khu vui chơi sang Hà Nội là sai; vẫn cho chọn vì có lúc cần (dựng site thử).
+	 * ═════════════════════════════════════════════════════════════════════════════════════════ */
+	public static function goi_bang_ds() {
+		return array(
+			self::LOAI => 'Loại chi phí (đầu mục · vai · khối · TK)',
+			self::TKNO => 'Mã TK Nợ theo cơ sở / mảng',
+			self::BP   => 'Bộ phận & luồng duyệt',
+			self::DM   => 'Đầu mục (phân loại lớn) & khối cơ sở',
+			self::NHOM => 'Nhóm chi phí',
+			self::MANG => 'Mảng kinh doanh → nhóm TK',
+			self::TK   => 'Hệ thống tài khoản',
+			self::PL   => 'Phân loại',
+			self::DT   => 'Đối tượng',
+			self::VAI  => 'Vai trò tự tạo',
+			self::COSO => 'Cơ sở & đơn vị',
+		);
+	}
+
+	/** Tải gói: mọi bảng trong danh sách trắng (hoặc đúng những bảng xin, nếu có tên trong danh sách). */
+	public static function xuat_goi_cau_hinh( $bangs = null ) {
+		$ds   = self::goi_bang_ds();
+		$chon = array_keys( $ds );
+		if ( is_array( $bangs ) && $bangs ) {
+			$xin  = array_map( 'strval', array_values( $bangs ) );
+			$chon = array_values( array_filter( $chon, function ( $b ) use ( $xin ) { return in_array( $b, $xin, true ); } ) );
+		}
+		$out = array();
+		foreach ( $chon as $b ) { $out[ $b ] = self::read( $b ); }
+		return array(
+			'success'  => true,
+			/* 🔴 DẤU NHẬN DẠNG KHÔNG ĐƯỢC BẮT ĐẦU BẰNG `vhcphn`. `tach-ban-vung.sh` đổi mọi `vhcphn` sang
+			   tiền tố riêng của từng bản vùng (thêm mã hn / mtd / vp vào sau); bản đầu đặt
+			   'vhcphn-goi-cau-hinh' và bản Hà Nội hoá thành một chuỗi khác — gói tải từ Khu vui chơi
+			   bị chính bản Hà Nội chối là "không phải gói". Đúng cái tính năng sinh ra để làm thì
+			   hỏng. Cắn thật 23/09/2026; `kiem-nhan-ban-cau-hinh.php` canh dấu này ở cả bốn bản. */
+			'loai'     => 'goi-cau-hinh-van-hanh-chi-phi',
+			'phienBan' => defined( 'VHCPHN_VERSION' ) ? (string) VHCPHN_VERSION : '',
+			'khoi'     => VHCPHN_DB::KHOI,
+			'luc'      => VHCPHN_Util::now_sql(),
+			'nhan'     => $ds,
+			'bang'     => $out,
+		);
+	}
+
+	/**
+	 * Nhập gói: ghi đè ĐÚNG những bảng được tích (`$bangs`) và có trong gói và có trong danh sách trắng.
+	 * Trả về {bang: {tên: {truoc, sau}}} để màn nói rõ mỗi bảng đổi từ bao nhiêu dòng sang bao nhiêu.
+	 */
+	public static function nhap_goi_cau_hinh( $goi, $bangs ) {
+		if ( 'Admin' !== VHCPHN_Auth::vai_tro() ) {
+			return VHCPHN_Util::err( 'Chỉ Admin nhập được gói cấu hình — nhập là ghi đè cả bảng.' );
+		}
+		$goi = is_object( $goi ) ? (array) $goi : (array) $goi;
+		if ( ! isset( $goi['loai'] ) || 'goi-cau-hinh-van-hanh-chi-phi' !== (string) $goi['loai'] ) {
+			return VHCPHN_Util::err( 'Tệp không phải gói cấu hình của Vận Hành Chi Phí.' );
+		}
+		$bang = isset( $goi['bang'] ) ? ( is_object( $goi['bang'] ) ? (array) $goi['bang'] : $goi['bang'] ) : null;
+		if ( ! is_array( $bang ) || ! $bang ) { return VHCPHN_Util::err( 'Gói rỗng — không có bảng nào.' ); }
+		$ds   = self::goi_bang_ds();
+		$xin  = array_map( 'strval', array_values( (array) $bangs ) );
+		$chon = array();
+		foreach ( array_keys( $ds ) as $b ) {
+			if ( in_array( $b, $xin, true ) && array_key_exists( $b, $bang ) ) { $chon[] = $b; }
+		}
+		if ( ! $chon ) { return VHCPHN_Util::err( 'Chưa tích bảng nào có trong gói (hoặc bảng ấy không được phép nhân bản).' ); }
+		$kq = array();
+		foreach ( $chon as $b ) {
+			$rows = array();
+			foreach ( (array) $bang[ $b ] as $r ) {
+				/* Mỗi dòng là một mảng giá trị theo thứ tự cột — gói do `xuat_goi_cau_hinh()` sinh
+				   ra nên đúng dạng; dòng lạ (chuỗi, số) bỏ, không ném lỗi giữa chừng để bảng nửa
+				   cũ nửa mới. */
+				if ( is_object( $r ) ) { $r = (array) $r; }
+				if ( ! is_array( $r ) ) { continue; }
+				$rows[] = array_map( function ( $v ) { return is_scalar( $v ) || null === $v ? (string) $v : json_encode( $v, JSON_UNESCAPED_UNICODE ); }, array_values( $r ) );
+			}
+			$truoc = count( self::read( $b ) );
+			self::write( $b, $rows );
+			$kq[ $b ] = array( 'truoc' => $truoc, 'sau' => count( $rows ) );
+		}
+		self::clear_cache();
+		VHCPHN_Log::log_action( array(
+			'actor'  => (string) VHCPHN_Auth::nguoi(),
+			'action' => 'Nhập gói cấu hình',
+			'target' => implode( ', ', $chon ),
+			'detail' => 'từ bản ' . ( isset( $goi['khoi'] ) ? (string) $goi['khoi'] : '?' ) . ' ' . ( isset( $goi['phienBan'] ) ? (string) $goi['phienBan'] : '' )
+				. ' · ' . implode( ' · ', array_map( function ( $b ) use ( $kq ) { return $b . ' ' . $kq[ $b ]['truoc'] . '→' . $kq[ $b ]['sau']; }, $chon ) ),
+		) );
+		return VHCPHN_Util::ok( array( 'bang' => $kq ) );
+	}
+
+	/** Bỏ dấu tiếng Việt — CHỈ để so sánh, không bao giờ để lưu hay bày ra. */
+	public static function bo_dau( $s ) {
+		$n = array(
+			'a' => 'àáạảãâầấậẩẫăằắặẳẵ', 'e' => 'èéẹẻẽêềếệểễ', 'i' => 'ìíịỉĩ',
+			'o' => 'òóọỏõôồốộổỗơờớợởỡ', 'u' => 'ùúụủũưừứựửữ', 'y' => 'ỳýỵỷỹ', 'd' => 'đ',
+		);
+		$s = mb_strtolower( (string) $s, 'UTF-8' );
+		foreach ( $n as $thay => $bo ) {
+			foreach ( preg_split( '//u', $bo, -1, PREG_SPLIT_NO_EMPTY ) as $c ) {
+				$s = str_replace( $c, $thay, $s );
+			}
+		}
+		return $s;
+	}
+
+	/**
+	 * Khoá so LỎNG của một cái tên: bỏ dấu, hạ chữ thường, gộp mọi khoảng trắng làm một.
+	 *
+	 * ⚠️ ĐÂY KHÔNG PHẢI KHOÁ NỐI DỮ LIỆU. Khoá nối vẫn là tên nguyên văn (đã `trim` + hạ chữ
+	 *    thường) như `user_by_token()` dùng. Khoá lỏng chỉ để NGỜ: "hai cái tên này có khi là
+	 *    một người". Dùng nó để nối thật là "Lê Văn Tuấn" và "Lê Văn Tuân" thành một.
+	 */
+	public static function khoa_long( $s ) {
+		return trim( preg_replace( '/\s+/u', ' ', self::bo_dau( $s ) ) );
+	}
+
+	/** Khoá CHẶT — đúng thứ `user_by_token()` và mọi đơn đang dùng để nhận nhau. */
+	private static function khoa_chat( $s ) {
+		return mb_strtolower( trim( (string) $s ) );
+	}
+
+	/**
+	 * ĐẾM ĐƠN CŨ THEO TÊN — mỗi cái tên đang gánh bao nhiêu dòng dữ liệu.
+	 *
+	 * 🔴 CON SỐ NÀY LÀ THỨ QUYẾT ĐỊNH ĐƯỢC PHÉP ĐỔI TÊN HAY KHÔNG. Đổi tên một người chưa lập
+	 *    đơn nào là việc vô hại; đổi tên người đang gánh 300 dòng là dời 300 dòng ấy sang một
+	 *    cái tên khác. Bày số ra cạnh mỗi nút, để không ai bấm mà không biết mình đang bấm gì.
+	 *
+	 * Quét đủ MỌI cột mang tên người, không chỉ `nguoi_lap`: một người có thể chưa lập đơn nào
+	 * mà đã duyệt hàng trăm cái.
+	 */
+	const NGUOI_COT = array(
+		'don'      => array( 'nguoi_lap', 'nguoi_duyet', 'nguoi_qt', 'nguoi_qt_ncc', 'nguoi_cap' ),
+		'so_chi'   => array( 'nguoi_nhap' ),
+		'da_index' => array( 'nguoi_tao' ),
+		'mk_don'   => array( 'nguoi_tao' ),
+		'bp_index' => array( 'nguoi_tao' ),
+		'log'      => array( 'nguoi' ),
+		'thungrac' => array( 'nguoi' ),
+		'lenh_tu'  => array( 'nguoi' ),
+	);
+
+	/**
+	 * @return array khoá chặt của tên => tổng số dòng đang mang tên ấy.
+	 *
+	 * ⚠️ GOM THEO KHOÁ CHẶT chứ không theo chuỗi thô: sổ cũ có cả " Nguyễn Văn A" lẫn "nguyễn
+	 *    văn a", mà `user_by_token()` coi chúng là một người — đếm tách ra là bày sai.
+	 */
+	private static function dem_don_theo_ten() {
+		global $wpdb;
+		$dem = array();
+		foreach ( self::NGUOI_COT as $bang => $cot ) {
+			$t = VHCPHN_DB::t( $bang );
+			foreach ( $cot as $c ) {
+				/* Tên bảng và tên cột đến từ hằng ngay trên, không từ dữ liệu — không có gì để
+				   `prepare()` ở đây, và `prepare()` cũng không nhận tên cột làm tham số. */
+				$rows = $wpdb->get_results( "SELECT `$c` AS ten, COUNT(*) AS n FROM $t WHERE `$c` <> '' GROUP BY `$c`", ARRAY_A );
+				foreach ( (array) $rows as $r ) {
+					$k = self::khoa_chat( $r['ten'] );
+					if ( '' === $k ) { continue; }
+					$dem[ $k ] = ( isset( $dem[ $k ] ) ? $dem[ $k ] : 0 ) + (int) $r['n'];
+				}
+			}
+		}
+		return $dem;
+	}
+
+	/** Sổ nhân sự bên trang Chấm công — mảng rỗng nếu trang ấy chưa cài. */
+	private static function ho_so_nhan_su() {
+		global $wpdb;
+		/* ⚠️ `method_exists` chứ không `class_exists` — xem `da_nghi_ns()` ngay dưới. */
+		if ( ! method_exists( 'VHCC_DB', 't' ) ) { return null; }
+		$t = VHCC_DB::t( 'nhan_vien' );
+		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $t ) ) !== $t ) { return null; }
+		/* ══════════════════════════════════════════════════════════════════════════════════
+		 * CỘT PHÒNG BAN BÊN NHÂN SỰ TÊN LÀ `bo_phan` — sơ đồ tổ chức, khai ở màn nhân sự.
+		 *
+		 * ⚠️ HỎI SƠ ĐỒ TRƯỚC KHI SELECT. Bốn plugin cài độc lập nên bản có thể lệch nhau bất cứ
+		 *    lúc nào (13/09/2026: chấm công trên host là 3.73.0 trong khi nhánh này mới 3.43.0).
+		 *    Hỏi thẳng một cột bản kia chưa có là câu lỗi SQL ở MỌI lượt soát.
+		 *
+		 * ⚠️ VÀ NÓ KHÔNG CÙNG VỐN TỪ VỚI `BO_PHAN_DS` BÊN NÀY. Bên nhân sự là *Phòng Kỹ Thuật ·
+		 *    Phòng Marketing · Khối Nhân Viên Cơ Sở…*; bên này là *Kỹ thuật · Marketing · Cơ sở ·
+		 *    Setup…*. Màn soát chỉ ĐỐI CHIẾU hai chuỗi và bày chỗ lệch ra — nó không tự dịch,
+		 *    vì dịch sai một phòng là cắt mất đúng mảng chi phí người ta cần.
+		 * ══════════════════════════════════════════════════════════════════════════════════ */
+		$co_pb = false;
+		foreach ( (array) $wpdb->get_col( "SHOW COLUMNS FROM $t" ) as $c ) {
+			if ( 'bo_phan' === $c ) { $co_pb = true; break; }
+		}
+		$cot = 'ma_nv, ho_ten, cua_hang, chuc_vu, trang_thai_lam_viec, pin_dang_nhap'
+			. ( $co_pb ? ', bo_phan AS phong_ban' : ", '' AS phong_ban" );
+		return (array) $wpdb->get_results( "SELECT $cot FROM $t ORDER BY ho_ten", ARRAY_A );
+	}
+
+	/**
+	 * soatNhanSu(): đối chiếu sổ nhân sự với bảng người dùng của trang Chi phí.
+	 *
+	 * Năm nhóm, xếp theo mức cần xử lý giảm dần:
+	 *   trungTen  — HAI hồ sơ nhân sự cùng một tên. Nguy nhất: đẩy sang là chúng chập làm một.
+	 *   lech      — tên "gần giống" nhau (khớp sau khi bỏ dấu / gộp khoảng trắng) nhưng KHÔNG
+	 *               khớp từng chữ. Đây là chỗ đơn cũ mồ côi.
+	 *   thieuCp   — có bên Nhân sự, chưa có tài khoản bên Chi phí.
+	 *   thieuNs   — có bên Chi phí, không thấy bên Nhân sự (người cũ đã nghỉ, hoặc gõ sai tên).
+	 *   khop      — khớp đúng từng chữ. Không phải làm gì; bày ra để biết đã soát tới.
+	 *
+	 * ⚠️ NGƯỜI ĐÃ NGHỈ VẪN ĐƯỢC BÀY, có nhãn riêng. Họ vẫn gánh đơn cũ, và tên họ vẫn phải giữ
+	 *    nguyên — lọc họ ra khỏi màn là mất dấu vì sao một cái tên bên Chi phí không có cặp.
+	 */
+	public static function soat_nhan_su() {
+		$hs = self::ho_so_nhan_su();
+		if ( null === $hs ) {
+			return VHCPHN_Util::ok( array( 'coNhanSu' => false, 'nhom' => array(), 'tong' => array() ) );
+		}
+		$dem = self::dem_don_theo_ten();
+		$don = function ( $ten ) use ( $dem ) {
+			$k = self::khoa_chat( $ten );
+			return isset( $dem[ $k ] ) ? (int) $dem[ $k ] : 0;
+		};
+
+		/* Bảng người dùng, tra được bằng cả hai khoá. */
+		$cp_chat = array(); $cp_long = array();
+		foreach ( self::get_users() as $u ) {
+			$ten = trim( (string) $u['ten'] );
+			if ( '' === $ten ) { continue; }
+			$cp_chat[ self::khoa_chat( $ten ) ] = $u;
+			$l = self::khoa_long( $ten );
+			if ( '' !== $l ) {
+				if ( ! isset( $cp_long[ $l ] ) ) { $cp_long[ $l ] = array(); }
+				$cp_long[ $l ][] = $u;
+			}
+		}
+
+		/* Hồ sơ nhân sự trùng tên nhau — gom trước, vì một hồ sơ có thể vừa trùng tên đồng
+		   nghiệp vừa khớp một dòng bên Chi phí, và khi đó nhóm "trùng tên" mới là nhóm đúng. */
+		$ns_chat = array();
+		foreach ( $hs as $r ) {
+			$k = self::khoa_chat( $r['ho_ten'] );
+			if ( '' === $k ) { continue; }
+			if ( ! isset( $ns_chat[ $k ] ) ) { $ns_chat[ $k ] = array(); }
+			$ns_chat[ $k ][] = $r;
+		}
+
+		$nhom = array( 'trungTen' => array(), 'lech' => array(), 'lechPb' => array(),
+			'thieuCp' => array(), 'thieuNs' => array(), 'khop' => array() );
+		$da_dung_cp = array();   // dòng Chi phí nào đã tìm được cặp
+
+		foreach ( $ns_chat as $k => $ds ) {
+			$ten   = trim( (string) $ds[0]['ho_ten'] );
+			$so_don = $don( $ten );
+
+			if ( count( $ds ) > 1 ) {
+				$nhom['trungTen'][] = array(
+					'ten'  => $ten,
+					'don'  => $so_don,
+					'coCp' => isset( $cp_chat[ $k ] ),
+					'hoSo' => array_map( function ( $r ) {
+						return array( 'maNv' => (string) $r['ma_nv'], 'coso' => (string) $r['cua_hang'],
+							'chucVu' => (string) $r['chuc_vu'], 'nghi' => self::da_nghi_ns( $r['trang_thai_lam_viec'] ) );
+					}, $ds ),
+				);
+				if ( isset( $cp_chat[ $k ] ) ) { $da_dung_cp[ $k ] = 1; }
+				continue;
+			}
+
+			$r = $ds[0];
+			if ( isset( $cp_chat[ $k ] ) ) {
+				$da_dung_cp[ $k ] = 1;
+				$u = $cp_chat[ $k ];
+				$pb_ns = trim( (string) ( isset( $r['phong_ban'] ) ? $r['phong_ban'] : '' ) );
+				$pb_cp = trim( (string) $u['boPhan'] );
+				$nhom['khop'][] = array(
+					'ten' => $ten, 'maNv' => (string) $r['ma_nv'], 'don' => $so_don,
+					'vaiTro' => (string) $u['vaiTro'],
+					'maNvCp' => isset( $u['maNv'] ) ? (string) $u['maNv'] : '',
+					'pbNs' => $pb_ns, 'pbCp' => $pb_cp,
+					'nghi' => self::da_nghi_ns( $r['trang_thai_lam_viec'] ),
+				);
+				/* ══════════════════════════════════════════════════════════════════════════
+				 * LỆCH PHÒNG BAN — anh Thắng 13/09/2026: *"quyết định bộ phận do nhân sự quyết
+				 * định, bên chi phí chỉ biết bộ phận đó có được quyền không thôi"*.
+				 *
+				 * Từ nay sổ nhân sự là NGUỒN THẬT. Nhưng anh chốt cùng ngày là CHƯA KHOÁ ô bên
+				 * này vội — hai bên chạy song song một thời gian để đối chiếu, khi nào khớp hết
+				 * mới khoá. Nhóm này chính là cái bảng đối chiếu ấy.
+				 *
+				 * ⚠️ CHỈ TÍNH LỆCH KHI CẢ HAI BÊN ĐỀU CÓ. Một bên trống là "chưa khai", không
+				 *    phải "khai khác" — gom chung vào là bảng đầy những dòng không có gì để sửa,
+				 *    và chỗ lệch thật lẫn mất trong đó. Bên nào trống thì đếm riêng.
+				 * ══════════════════════════════════════════════════════════════════════════ */
+				if ( '' !== $pb_ns && '' !== $pb_cp && mb_strtolower( $pb_ns ) !== mb_strtolower( $pb_cp ) ) {
+					$nhom['lechPb'][] = array(
+						'ten' => $ten, 'maNv' => (string) $r['ma_nv'],
+						'pbNs' => $pb_ns, 'pbCp' => $pb_cp, 'don' => $so_don,
+					);
+				}
+				continue;
+			}
+
+			/* Chưa khớp chặt — thử khoá lỏng. Khớp lỏng nghĩa là gần như chắc chắn cùng một
+			   người mà tên gõ lệch, và đó đúng là ca anh Thắng hỏi. */
+			$l = self::khoa_long( $ten );
+			if ( '' !== $l && isset( $cp_long[ $l ] ) ) {
+				foreach ( $cp_long[ $l ] as $u ) {
+					$kc = self::khoa_chat( $u['ten'] );
+					if ( isset( $da_dung_cp[ $kc ] ) ) { continue; }
+					$da_dung_cp[ $kc ] = 1;
+					$nhom['lech'][] = array(
+						'tenNs' => $ten, 'maNv' => (string) $r['ma_nv'],
+						'tenCp' => trim( (string) $u['ten'] ),
+						'donNs' => $so_don, 'donCp' => $don( $u['ten'] ),
+						'vaiTro' => (string) $u['vaiTro'],
+						'nghi' => self::da_nghi_ns( $r['trang_thai_lam_viec'] ),
+					);
+					continue 2;
+				}
+			}
+
+			$nhom['thieuCp'][] = array(
+				'ten' => $ten, 'maNv' => (string) $r['ma_nv'], 'coso' => (string) $r['cua_hang'],
+				'chucVu' => (string) $r['chuc_vu'], 'don' => $so_don,
+				'coPin' => trim( (string) $r['pin_dang_nhap'] ) !== '',
+				'nghi' => self::da_nghi_ns( $r['trang_thai_lam_viec'] ),
+			);
+		}
+
+		foreach ( $cp_chat as $k => $u ) {
+			if ( isset( $da_dung_cp[ $k ] ) ) { continue; }
+			$nhom['thieuNs'][] = array(
+				'ten' => trim( (string) $u['ten'] ), 'vaiTro' => (string) $u['vaiTro'],
+				'coso' => (string) $u['coso'], 'don' => $don( $u['ten'] ),
+				'maNvCp' => isset( $u['maNv'] ) ? (string) $u['maNv'] : '',
+			);
+		}
+
+		$tong = array();
+		foreach ( $nhom as $ten_nhom => $ds ) { $tong[ $ten_nhom ] = count( $ds ); }
+		/* Hai con số cho biết còn bao nhiêu việc phải khai, tách khỏi con số "khai khác nhau". */
+		$chua_ns = 0; $chua_cp = 0;
+		foreach ( $nhom['khop'] as $x ) {
+			if ( '' === $x['pbNs'] ) { $chua_ns++; }
+			if ( '' === $x['pbCp'] ) { $chua_cp++; }
+		}
+		return VHCPHN_Util::ok( array(
+			'coNhanSu' => true, 'nhom' => $nhom, 'tong' => $tong,
+			'soHoSo' => count( $hs ), 'soTaiKhoan' => count( $cp_chat ),
+			'pbChuaNs' => $chua_ns, 'pbChuaCp' => $chua_cp,
+		) );
+	}
+
+	/**
+	 * Hỏi bên Nhân sự "đã nghỉ chưa" — có trang ấy thì hỏi nó, không có thì tự đọc theo cùng luật.
+	 *
+	 * ⚠️ GÁC BẰNG `method_exists`, KHÔNG CHỈ `class_exists`. Bốn plugin cài độc lập nên bản có
+	 *    thể lệch nhau: lớp có mặt mà hàm chưa có là gọi hụt, và gọi hụt một hàm tĩnh thì
+	 *    trắng cả trang WordPress. Bản dự phòng ngay dưới đọc theo ĐÚNG luật của `da_nghi()`
+	 *    (có chữ "nghỉ" là nghỉ; ô trống là đang làm) nên hai đường cho cùng một kết quả.
+	 */
+	private static function da_nghi_ns( $tt ) {
+		if ( method_exists( 'VHCC_NhanSu', 'da_nghi' ) ) { return (bool) VHCC_NhanSu::da_nghi( $tt ); }
+		$t = trim( (string) $tt );
+		return '' !== $t && false !== strpos( mb_strtolower( $t ), 'nghỉ' );
+	}
+
+	/* ==========================================================================================
+	 *  ĐỔI TÊN MỘT NGƯỜI TRÊN MỌI CHỖ CÙNG LÚC — anh em sinh đôi của `doi_ten_coso()`.
+	 *
+	 *  🔴 KHÔNG ĐỂ NGƯỜI TA SỬA Ô TÊN TRONG BẢNG RỒI ĐI SỬA DỮ LIỆU SAU. Sửa ô tên là việc một
+	 *     giây; còn tên cũ thì nằm rải ở tám bảng, mười ba cột. Làm tay kiểu gì cũng sót, và chỗ
+	 *     sót im lặng cho tới lúc người ấy mở trang lên thấy sổ đơn của mình trống trơn.
+	 *
+	 *  🔴 ĐỔI TÊN LÀ GỘP, KHÔNG PHẢI ĐỔI NHÃN. Đổi "Nguyen Van A" thành "Nguyễn Văn A" trong khi
+	 *     đã có một dòng mang tên "Nguyễn Văn A" nghĩa là hai sổ đơn nhập làm một — và không có
+	 *     đường về. Nên khi đích đã tồn tại thì phải nói thẳng con số của cả hai bên ra trước,
+	 *     và chỉ đi tiếp khi người bấm khai rõ là muốn gộp (`gop`).
+	 * ========================================================================================== */
+	public static function doi_ten_nguoi( $cu, $moi, $gop = false ) {
+		global $wpdb;
+		$cu  = trim( (string) $cu );
+		$moi = trim( (string) $moi );
+		if ( '' === $cu || '' === $moi ) { return VHCPHN_Util::err( 'Thiếu tên cũ hoặc tên mới' ); }
+		if ( $cu === $moi ) { return VHCPHN_Util::err( 'Hai tên giống hệt nhau — không có gì để đổi' ); }
+
+		$k_cu  = self::khoa_chat( $cu );
+		$k_moi = self::khoa_chat( $moi );
+
+		/* Dòng đích đã có sẵn trong bảng người dùng -> đây là một cú GỘP. */
+		$co_dich = false;
+		foreach ( self::get_users() as $u ) {
+			if ( self::khoa_chat( $u['ten'] ) === $k_moi ) { $co_dich = true; break; }
+		}
+		if ( $co_dich && $k_cu !== $k_moi && ! $gop ) {
+			$dem = self::dem_don_theo_ten();
+			return VHCPHN_Util::err( 'Tên "' . $moi . '" đã có tài khoản. Đổi "' . $cu . '" thành tên đó '
+				. 'là GỘP hai sổ đơn làm một: '
+				. ( isset( $dem[ $k_cu ] ) ? (int) $dem[ $k_cu ] : 0 ) . ' dòng của "' . $cu . '" sẽ nhập vào '
+				. ( isset( $dem[ $k_moi ] ) ? (int) $dem[ $k_moi ] : 0 ) . ' dòng của "' . $moi . '", và không có đường về. '
+				. 'Nếu đúng ý thì bấm lại và xác nhận gộp.' );
+		}
+
+		/* ══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 ĐỔI THEO KHOÁ CHẶT, KHÔNG `WHERE cot = $cu`. Sổ cũ có cả " Nguyễn Văn A" lẫn
+		 *    "NGUYỄN VĂN A" — `user_by_token()` coi chúng là MỘT người, nên đổi tên mà bỏ sót
+		 *    chúng là để lại đúng những dòng mồ côi mà việc này sinh ra để dọn.
+		 *
+		 * 🔴 VÌ SAO LIỆT KÊ BIẾN THỂ RỒI MỚI ĐỔI, thay vì một câu `WHERE LOWER(TRIM(cot)) = …`:
+		 *      · `LOWER()` của cả MySQL lẫn SQLite chỉ hạ chữ ASCII — "NGUYỄN" ra "nguyỄn",
+		 *        nên câu ấy trượt đúng những cái tên tiếng Việt mà nó cần bắt;
+		 *      · còn `WHERE TRIM(cot) = 'tên'` trần thì dựa vào COLLATION của cột để bỏ qua
+		 *        hoa thường. Đúng trên host thật, sai trên bệ đỡ thử — nghĩa là phép kiểm xanh
+		 *        mà thứ nó kiểm thì không phải thứ đang chạy, đúng loại lỗi tệ nhất.
+		 *    Liệt kê các chuỗi CÓ THẬT trong cột rồi lọc bằng `khoa_chat()` thì hai nơi cùng
+		 *    một luật, và luật ấy chính là luật `user_by_token()` đang dùng để nhận người.
+		 * ══════════════════════════════════════════════════════════════════════════════════ */
+		$dem = array();
+		$doi_cot = function ( $t, $c ) use ( $wpdb, $k_cu, $moi ) {
+			$n = 0;
+			foreach ( (array) $wpdb->get_col( "SELECT DISTINCT `$c` FROM $t WHERE `$c` <> ''" ) as $v ) {
+				if ( self::khoa_chat( $v ) !== $k_cu || (string) $v === $moi ) { continue; }
+				$n += (int) $wpdb->query( $wpdb->prepare( "UPDATE $t SET `$c` = %s WHERE `$c` = %s", $moi, $v ) );
+			}
+			return $n;
+		};
+		foreach ( self::NGUOI_COT as $bang => $cot ) {
+			$t = VHCPHN_DB::t( $bang );
+			foreach ( $cot as $c ) {
+				$n = $doi_cot( $t, $c );
+				if ( $n ) { $dem[ $bang . '.' . $c ] = $n; }
+			}
+		}
+
+		/* Thẻ phiên đang mở cũng mang tên — bỏ qua là người ấy vẫn đăng nhập được bằng tên CŨ
+		   suốt 30 ngày, và `user_by_token()` không tìm ra dòng nào khớp nên rơi về vai trong
+		   thẻ, tức là vai đông cứng từ lúc đăng nhập. */
+		$doi_cot( VHCPHN_DB::t( 'session' ), 'ten' );
+
+		/* Bảng người dùng: đổi tên dòng cũ; nếu là cú gộp thì XOÁ dòng cũ, giữ dòng đích. */
+		$rows  = self::read( self::USER );
+		$giu   = array();
+		$u_doi = 0; $u_bo = 0;
+		foreach ( $rows as $r ) {
+			$r = array_values( (array) $r );
+			$k = self::khoa_chat( isset( $r[0] ) ? $r[0] : '' );
+			if ( $k !== $k_cu ) { $giu[] = $r; continue; }
+			if ( $co_dich ) { $u_bo++; continue; }   // gộp -> dòng đích đã có, bỏ dòng này
+			$r[0] = $moi;
+			$giu[] = $r;
+			$u_doi++;
+		}
+		if ( $u_doi || $u_bo ) { self::sao_luu_users(); self::write( self::USER, $giu ); }
+
+		self::clear_cache();
+		return VHCPHN_Util::ok( array( 'dong' => $dem, 'doiDong' => array_sum( $dem ),
+			'sua' => $u_doi, 'goBo' => $u_bo, 'gop' => $co_dich ) );
 	}
 }

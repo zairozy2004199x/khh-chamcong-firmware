@@ -106,14 +106,30 @@ teq( 'tiền thuế dòng NCC = 24.000', 24000, $g_ncc['lines'][0]['tienThue'] )
 teq( 'ngày dòng hiện dd/MM/yyyy', $today, $g['lines'][0]['ngay'] );
 t( 'thực mua để trống', $g['lines'][0]['thucMua'] === '' );
 
-// MỘT ĐƠN = MỘT CƠ SỞ. Đơn trên đã có dòng của FARM PHAN THIẾT và TÀU TÂN PHÚ do dữ liệu
-// thử dựng từ trước; kiểm luật khóa trên một đơn mới cho sạch.
+// MỘT ĐƠN = MỘT CƠ SỞ — KHI ĐƠN CÓ TẠM ỨNG. 24/09/2026 anh Thắng chốt luật mặc định: "chọn tạm ứng
+// xin thì khoá gian trong thêm hạng mục; không chọn thì mỗi chi phí một gian, đơn đi nhiều gian".
+// (a) đơn KHÔNG tạm ứng: dòng đầu KHÔNG chốt gian, dòng gian khác được nhận.
+$dcs0 = VHCP_Don::create_don( 'T8/2026 (17/8-23/8/2026)', 'NV Nhiều Gian' );
+$mcs0 = $dcs0['maDon'];
+teq( 'đơn mới chưa chốt cơ sở nào', '', VHCP_Don::coso_cua_don( $mcs0 ) );
+$l0 = VHCP_Don::add_line( $mcs0, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today, 'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Sửa đèn', 'soLuong' => 1, 'donGia' => 100000, 'thanhTien' => 100000 ) );
+t( 'dòng đầu vào được', ! empty( $l0['success'] ) );
+teq( '🔴 KHÔNG tạm ứng → dòng đầu KHÔNG chốt gian (24/09/2026)', '', VHCP_Don::coso_cua_don( $mcs0 ) );
+$l0b = VHCP_Don::add_line( $mcs0, array( 'coso' => 'TÀU TÂN PHÚ', 'ngay' => $today, 'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Sửa quạt', 'soLuong' => 1, 'donGia' => 100000, 'thanhTien' => 100000 ) );
+t( '🔴 → dòng gian khác ĐƯỢC NHẬN (đơn đi nhiều gian)', ! empty( $l0b['success'] ), $l0b );
+teq( '   đơn đụng hai gian', 2, count( VHCP_Don::cac_coso_cua_don( $mcs0 ) ) );
+t( '   get_don: cosoDon rỗng, nhieuCoSo bật', '' === VHCP_Don::get_don( $mcs0 )['don']['cosoDon'] && ! empty( VHCP_Don::get_don( $mcs0 )['don']['nhieuCoSo'] ) );
+$tu0 = VHCP_Don::set_tam_ung( $mcs0, 'FARM PHAN THIẾT', 100000 );
+t( '🔴 đã rải hai gian rồi mới lưu tạm ứng một gian → CHỐI, không tự dời dòng', empty( $tu0['success'] ), $tu0 );
+VHCP_Don::delete_don_admin( $mcs0 );
+// (b) đơn CÓ tạm ứng trước: luật một-đơn-một-gian giữ nguyên.
 $dcs = VHCP_Don::create_don( 'T8/2026 (17/8-23/8/2026)', 'NV Một Cơ Sở' );
 $mcs = $dcs['maDon'];
 teq( 'đơn mới chưa chốt cơ sở nào', '', VHCP_Don::coso_cua_don( $mcs ) );
+t( 'lưu tạm ứng FARM trước', ! empty( VHCP_Don::set_tam_ung( $mcs, 'FARM PHAN THIẾT', 100000 )['success'] ) );
+teq( '🔴 có tạm ứng → đơn chốt gian của tạm ứng', 'FARM PHAN THIẾT', VHCP_Don::coso_cua_don( $mcs ) );
 $lcs = VHCP_Don::add_line( $mcs, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today, 'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Sửa đèn', 'soLuong' => 1, 'donGia' => 100000, 'thanhTien' => 100000 ) );
-t( 'dòng đầu vào được', ! empty( $lcs['success'] ) );
-teq( 'đơn chốt cơ sở theo dòng đầu', 'FARM PHAN THIẾT', VHCP_Don::coso_cua_don( $mcs ) );
+t( 'dòng cùng gian vào được', ! empty( $lcs['success'] ) );
 $lcs2 = VHCP_Don::add_line( $mcs, array( 'coso' => 'TÀU TÂN PHÚ', 'ngay' => $today, 'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Sửa quạt', 'soLuong' => 1, 'donGia' => 100000, 'thanhTien' => 100000 ) );
 t( 'cơ sở khác bị chặn', empty( $lcs2['success'] ) );
 t( 'và nói rõ phải tạo đơn mới', strpos( (string) $lcs2['error'], 'tạo đơn mới' ) !== false, $lcs2 );
@@ -552,10 +568,21 @@ $ma_do3 = array();
 foreach ( (array) $do3['items'] as $x ) { $ma_do3[] = (string) $x['maDon']; }
 t( '🔴 đơn ĐÃ CẤP TIỀN không nằm trong danh sách dọn', ! in_array( $mbc3, $ma_do3, true ), $ma_do3 );
 
-/* ⚠️ Sửa TIỀN hàng loạt thì chỉ Admin — soi thẳng danh sách trắng ở API. */
+/* ⚠️ Sửa TIỀN hàng loạt thì chỉ Admin — soi thẳng danh sách trắng ở API.
+ *
+ * 🔴 CẮT ĐÚNG KHỐI `$admin_only` RỒI MỚI TÌM, ĐỪNG ĐẾM KÝ TỰ. Bản trước dò trong cửa sổ 400 ký
+ *    tự sau `$admin_only = array(`. Nó đỏ ngày 21/09/2026 vì một lệnh mới được thêm vào ĐẦU
+ *    danh sách kèm khối chú thích, đẩy `donBuTruCu` ra ngoài cửa sổ — `donBuTruCu` vẫn nằm
+ *    nguyên trong nhóm chỉ-Admin, phép vẫn đỏ. Một phép đỏ oan thì lượt sau người ta nới con
+ *    số cho nó xanh, mà nới rộng quá là nó với sang cả `$nguoi_duyet` bên dưới và xanh oan
+ *    thật. Cắt theo ranh giới của chính khối thì không phải đoán con số nào cả. */
 $_api3 = file_get_contents( dirname( __DIR__, 2 ) . '/wordpress/vhcp-chi-phi/includes/class-vhcp-api.php' );
+$_i0   = strpos( $_api3, '$admin_only = array(' );
+$_i1   = false === $_i0 ? false : strpos( $_api3, '$nguoi_duyet = array(', $_i0 );
+$_khoi_admin = ( false === $_i0 || false === $_i1 ) ? '' : substr( $_api3, $_i0, $_i1 - $_i0 );
+t( '   cắt được khối $admin_only để soi', '' !== $_khoi_admin );
 t( '🔴 donBuTruCu nằm trong nhóm CHỈ ADMIN',
-	1 === preg_match( '/\$admin_only = array\([\s\S]{0,400}?\x27donBuTruCu\x27/', $_api3 ), null );
+	false !== strpos( $_khoi_admin, "'donBuTruCu'" ), null );
 
 VHCP_Don::delete_don_admin( $mbc1 );
 VHCP_Don::delete_don_admin( $mbc2 );
@@ -3948,7 +3975,9 @@ teq( 'và ra cùng con số với đơn kia của quản lý', VHCP_Util::num( $
    toán mới không được sửa, còn lại nhân viên đều được sửa và bổ sung đơn."*                    */
 
 /* ---- ranh giới: chỉ hai trạng thái là chốt ---- */
-teq( 'chốt sổ đúng hai trạng thái', array( 'Đã quyết toán', 'Đã xuất MISA' ), VHCP_Don::TT_CHOT );
+/* Ba, không phải hai, từ 21/09/2026: `Đã thanh toán` là bước riêng của MTĐ/VP, đứng SAU
+   `Đã quyết toán` nên đương nhiên đã chốt sổ — xem `kiem-luong-theo-khoi.php`. */
+teq( 'chốt sổ đúng ba trạng thái', array( 'Đã quyết toán', 'Đã thanh toán', 'Đã xuất MISA' ), VHCP_Don::TT_CHOT );
 foreach ( array( 'Nháp', 'Chờ duyệt tạm ứng', 'Chờ cấp tạm ứng', 'Đã cấp tạm ứng', 'Chờ quyết toán' ) as $_st_mo ) {
 	t( 'trạng thái "' . $_st_mo . '" KHÔNG phải chốt sổ', ! VHCP_Don::da_chot( $_st_mo ) );
 }
@@ -4525,8 +4554,10 @@ teq( '🔴 cac_coso_cua_don() lấy ĐỦ hai cơ sở, không chỉ dòng đầ
    phạm vi. KHÔNG khẳng định nó trả đúng cái nào: thứ tự id là chuyện của kho, không phải luật;
    phép thử buộc vào đó là phép thử vỡ mỗi khi ai đổi thứ tự chèn, mà chẳng canh thêm được gì. */
 $_cs_mot = VHCP_Don::coso_cua_don( $cs_ghep['maDon'] );
-t( '(coso_cua_don() cũ chỉ trả MỘT cơ sở — nên đừng dùng nó để gác phạm vi)',
-	'' !== $_cs_mot && false === strpos( $_cs_mot, ',' ), $_cs_mot );
+/* 24/09/2026: đơn này KHÔNG có tạm ứng → theo luật mặc định mới nó là đơn nhiều gian và
+   `coso_cua_don()` trả RỖNG (không gian nào được chốt). Càng đúng ý phép này: đừng dùng nó gác phạm vi. */
+t( '(coso_cua_don() không dùng để gác phạm vi — đơn không tạm ứng trả rỗng)',
+	'' === $_cs_mot, $_cs_mot );
 t( 'và nó bỏ sót cơ sở còn lại của đơn',
 	count( VHCP_Don::cac_coso_cua_don( $cs_ghep['maDon'] ) ) > 1, $_cs_mot );
 

@@ -28,6 +28,23 @@ class VHCPVP_Report {
 		$f_ky = isset( $opts['ky'] ) && $opts['ky'] !== '' ? $opts['ky'] : 'all';
 		$f_tt = isset( $opts['tt'] ) && $opts['tt'] !== '' ? $opts['tt'] : 'all';
 
+		/* ═══════════════════════════════════════════════════════════════════════════════
+		   MẢNG CŨNG LÀ MỘT BỘ LỌC CỦA BÁO CÁO NÀY.
+
+		   Anh Thắng 21/09/2026: *"Bộ Phận MTD đang nhìn thấy dữ liệu cơ sở KVC"*. Mọi màn khác
+		   lọc khối ở MÀN (`_hopKhoi()`), nhưng ở đây không lọc được: hai con số to nhất —
+		   "Chi phí xin" và "Chi phí thực tế" — đã cộng xong ở máy chủ, xuống tới màn thì chỉ
+		   còn tổng, không còn dòng nào để bỏ ra.
+
+		   🔴 RỖNG = MỌI KHỐI, cố ý. Bản gọi cũ (và mọi bản gọi khác nếu sau này có) không gửi
+		      `khoi` thì báo cáo giữ nguyên nghĩa cũ là gộp cả hệ — thêm tham số mà làm đổi câu
+		      trả lời của người gọi cũ là hỏng ngầm.
+		   ⚠️ ĐƠN CHƯA ĐÓNG DẤU KHỐI VẪN TÍNH — cùng luật với `_hopKhoi()` ở màn: sổ cũ nạp vào
+		      có đơn cột `khoi` rỗng, bỏ chúng ra là tổng chi phí tụt xuống mà không ai hiểu vì
+		      sao, và đó là kiểu sai tệ nhất với một con số tiền.
+		   ═══════════════════════════════════════════════════════════════════════════════ */
+		$f_khoi = isset( $opts['khoi'] ) ? mb_strtolower( trim( (string) $opts['khoi'] ) ) : '';
+
 		$coso_f = null;
 		if ( ! empty( $opts['coso'] ) ) {
 			$arr = is_array( $opts['coso'] ) ? $opts['coso'] : explode( ',', (string) $opts['coso'] );
@@ -37,6 +54,10 @@ class VHCPVP_Report {
 
 		$don_info = array(); $ky_set = array();
 		foreach ( VHCPVP_Don::don_rows() as $r ) {
+			if ( '' !== $f_khoi ) {
+				$kd = mb_strtolower( trim( (string) ( isset( $r['khoi'] ) ? $r['khoi'] : '' ) ) );
+				if ( '' !== $kd && $kd !== $f_khoi ) { continue; }
+			}
 			$ky = VHCPVP_Util::fmt( $r['ky'] );
 			$don_info[ (string) $r['ma_don'] ] = array(
 				'ky' => $ky,
@@ -130,6 +151,12 @@ class VHCPVP_Report {
 		   mà mảng ở đây chính là bộ phận — nên lọc thẳng bằng chính nó, khỏi tra vòng qua loại
 		   chi phí. Kế toán bó "Máy tự động" thì không mảng nào trong bốn cái này thuộc về họ,
 		   và khối ấy chỉ còn phần Đơn vận hành (do giao diện ghép vào, đã lọc ở `list_dons()`). */
+		/* ⚠️ MỖI MỤC MANG THEO DẤU KHỐI CỦA CHÍNH BẢN GHI GỐC. Màn lọc bằng `_hopKhoi()` y như
+		   mọi chỗ khác — nhưng nó chỉ lọc được nếu mục có cột `khoi` để mà đọc; thiếu nó thì
+		   `_hopKhoi()` coi như "chưa đóng dấu" và bày ra ở cả ba khối. Ba bảng nguồn (`da_index`,
+		   `mk_don`, `bp_index`) đều nằm trong `VHCPVP_DB::BANG_CO_KHOI` nên cột luôn có sẵn. */
+		$kh = function ( $r ) { return trim( (string) ( isset( $r['khoi'] ) ? $r['khoi'] : '' ) ); };
+
 		$bo = VHCPVP_Auth::bo_phan_bo();
 		$loc = function ( $mang ) use ( $bo ) {
 			if ( '' === $bo ) { return true; }
@@ -144,6 +171,7 @@ class VHCPVP_Report {
 			foreach ( $r['lines'] as $x ) { $sum += VHCPVP_Util::num( $x['thuc_te'] ); }
 			$out[] = array(
 				'module'    => 'Kỹ thuật',
+				'khoi'      => $kh( $r ),
 				'icon'      => '🔧',
 				'tab'       => 'duan',
 				'ma'        => $r['ma_da'],
@@ -167,6 +195,7 @@ class VHCPVP_Report {
 			if ( ! $loc( 'Marketing' ) ) { continue; }
 			$out[] = array(
 				'module'    => 'Marketing',
+				'khoi'      => $kh( $r ),
 				'icon'      => '📣',
 				'tab'       => 'mkt',
 				'ma'        => $r['ma'],
@@ -188,6 +217,7 @@ class VHCPVP_Report {
 			foreach ( $r['lines'] as $x ) { $sum += VHCPVP_Util::num( $x['thuc_te'] ); }
 			$out[] = array(
 				'module'    => $lo,
+				'khoi'      => $kh( $r ),
 				'icon'      => ( $lo === 'Công tác' ) ? '✈️' : '🛠️',
 				'tab'       => ( $lo === 'Công tác' ) ? 'congtac' : 'setup',
 				'ma'        => $r['ma'],

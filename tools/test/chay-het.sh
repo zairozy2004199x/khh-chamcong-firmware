@@ -103,6 +103,10 @@ echo "── Bộ thử JavaScript ───────────────
 #    hay. Đúng cái đã xảy ra với `bam-thu-trang-ghe.js`.
 for f in tools/test/*.js; do
   [ -e "$f" ] || continue
+  # ⚠️ CẦU NỐI, KHÔNG PHẢI BÀI THỬ. `jp-doc-goc.js` được `kiem-jp-doc.php` gọi kèm tham số để
+  #    chạy mấy hàm trong mã gốc JP; gọi trần nó thì thiếu tham số, thoát mã 2 và bị đếm là
+  #    một bài HỎNG. Cùng lối đã dùng cho `wp-stub.php` ở vòng PHP phía trên.
+  case "$(basename "$f")" in jp-doc-goc.js) continue;; esac
   chay "node '$f'" "$(basename "$f")"
 done
 

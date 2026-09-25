@@ -118,13 +118,31 @@ class VHCPMTD_Auth {
 	 *    đoán ra là do một ô chưa khai ở màn Cấu hình.
 	 */
 	public static function xem_duoc_loai( $ten_loai ) {
-		$bo = self::bo_phan_bo();
-		if ( '' === $bo ) { return true; }
-		/* Một loại chi phí có thể thuộc NHIỀU bộ phận (anh Thắng 10/09/2026). So bằng chuỗi
-		   thì loại khai "Kỹ thuật, Setup" không khớp bộ phận nào và biến mất khỏi cả hai màn —
-		   tiền có thật mà không ai nhìn thấy, tệ hơn hẳn việc nó hiện ở cả hai. */
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 LỌC THEO VAI TRÒ, KHÔNG CÒN THEO BỘ PHẬN.
+		 * ══════════════════════════════════════════════════════════════════════════════════════
+		 * Anh Thắng 21/09/2026: *"bỏ tích bộ phận đi, mà tích theo vai trò"*, sau khi cột Bộ
+		 * phận đã rời khỏi bảng Người dùng. Trước bản này hàm đọc `bo_phan_bo()` — mà ô ấy nay
+		 * không ai sửa được nữa, nên nó sẽ lọc bằng một giá trị cũ không ai thấy và không ai
+		 * đổi được. Đó là kiểu hỏng tệ nhất: có thật, im lặng, và không có đường vào để sửa.
+		 *
+		 * ⚠️ SO BẰNG VAI ĐANG MANG, KHÔNG PHẢI VAI GỐC. Anh Thắng khai vai con rất cụ thể
+		 *    ("Kế Toán Máy Tự Động", "Nhân Viên Kỹ Thuật Khu Vui Chơi") — chính mấy cái tên ấy
+		 *    là thứ được tích ở bảng Loại chi phí. Quy về vai gốc là mọi vai con cùng nhánh
+		 *    hoá một, và cả nhánh nhìn thấy sổ của nhau.
+		 *
+		 * 🔴 ADMIN KHÔNG BAO GIỜ BỊ LỌC — giữ đúng luật cũ của `bo_phan_bo()`.
+		 * ══════════════════════════════════════════════════════════════════════════════════════ */
+		$vai = trim( (string) self::$vai_hien );
+		if ( '' === $vai ) { $vai = trim( (string) self::$vai_tro ); }
+		if ( '' === $vai || 'Admin' === $vai || 'Giám đốc' === $vai ) { return true; }
 		if ( ! class_exists( 'VHCPMTD_Cfg' ) ) { return true; }
-		return VHCPMTD_Cfg::loai_thuoc_bo_phan( $ten_loai, $bo );
+		/* 🔴 VÙNG TẮT LỌC THEO VAI thì MỌI VAI thấy đủ loại — xem `VHCPMTD_Cfg::loc_loai_theo_vai()`.
+		   Bản Hà Nội chạy ở chế độ này: đầu mục lớn dẫn đường thay cho bộ lọc, nên bộ phận nào
+		   cũng nhập được. Chốt ai xem được ĐƠN nào vẫn nguyên — nó nằm ở đơn vị và cơ sở, chỗ
+		   khác hẳn, và cờ này không đụng tới. */
+		if ( ! VHCPMTD_Cfg::loc_loai_theo_vai() ) { return true; }
+		return VHCPMTD_Cfg::loai_thuoc_vai( $ten_loai, $vai );
 	}
 
 	public static function vai_tro() { return self::$vai_tro; }

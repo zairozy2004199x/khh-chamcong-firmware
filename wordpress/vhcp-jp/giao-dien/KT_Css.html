@@ -1,0 +1,529 @@
+<style>
+/*═══════════════════════════════════════════════════════════
+ * JP CAPSULE v2 — KT_Css (web ke toan)
+ *
+ * BO CUC LAY THEO WEB `KVC GD1 - Ke toan Kho` (Andy chot 04/08/2026):
+ * menu doc ben trai + tabs ngang + subtabs vien bo tron, mau chu xanh
+ * #22C55E tren nen trang, tieu de navy #0F2233.
+ *
+ * ⚠ MOI TEN CLASP CU CUA JP DEU GIU LAI, chi doi cach ve. KtJs02..05 sinh
+ * HTML bang tay voi cac ten `statCard` `tableWrap` `alert` `badge pending`
+ * `lech` `subBody` `form` `num`… — doi ten la phai sua ca 2.000 dong JS do.
+ *═══════════════════════════════════════════════════════════*/
+
+:root{
+  --navy:#0F2233; --text:#25303B; --muted:#66788A;
+  --brand:#22C55E; --brand-d:#15A34A; --brand-soft:rgba(34,197,94,.14);
+  --ok:#15A34A; --okBg:#ECFDF5; --warn:#B45309; --warnBg:#FFFBEB;
+  --danger:#DC2626; --dangerBg:#FEF2F2; --info:#0369A1; --infoBg:#E0F2FE;
+  --bg:#FFFFFF; --bg2:#F4F7FA;
+  --panel:#FFFFFF; --panel2:#F5F8FB; --panel3:#EAF0F5;
+  --line:#E3E9EF; --line2:#CDD8E3;
+  --radius:14px; --radius-sm:10px;
+  --sh1:0 1px 2px rgba(15,34,51,.06);
+  --sh2:0 6px 18px rgba(15,34,51,.10);
+  --sh3:0 14px 44px rgba(15,34,51,.16);
+  /* Ten cu con duoc dung rai rac trong JS — tro sang bang mau moi */
+  --primary:var(--brand-d); --ink:var(--text); --sub:var(--muted);
+  --card:var(--panel); --r:var(--radius);
+}
+*{box-sizing:border-box;font-family:'Inter',system-ui,'Segoe UI',Roboto,Arial,sans-serif}
+html,body{height:100%}
+body{margin:0;color:var(--text);background:var(--bg);font-size:14px;line-height:1.45;
+  background-image:radial-gradient(1100px 600px at 78% -10%,rgba(34,197,94,.07),transparent 60%),
+                   radial-gradient(900px 500px at 0% 0%,rgba(56,189,248,.05),transparent 55%);
+  background-attachment:fixed;-webkit-font-smoothing:antialiased}
+h1{font-size:20px;margin:0;color:var(--navy)}
+h2{font-size:15px;margin:0 0 10px;color:var(--navy)}
+h3{font-size:12px;margin:14px 0 6px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:99px;border:2px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:#94A3B8;background-clip:content-box}
+
+.screen{display:none}
+.screen.active{display:block}
+.hidden{display:none !important}
+.sub{color:var(--muted);font-size:12px}
+.hint{color:var(--muted);font-size:12px;margin:6px 0 0}
+.muted{color:var(--muted)}
+.empty{color:var(--muted);padding:40px 16px;text-align:center}
+.grow{flex:1}
+
+/*──────── KHUNG: menu doc + noi dung ────────*/
+.layout{display:flex;min-height:100vh}
+.side{width:250px;flex:none;display:flex;flex-direction:column;
+  background:linear-gradient(180deg,#FFFFFF,#F4F7FA);border-right:1px solid var(--line)}
+.side .brand{padding:18px 16px;border-bottom:1px solid var(--line);
+  display:flex;flex-direction:column;gap:2px;position:relative}
+.side .brand:before{content:"";position:absolute;left:16px;top:20px;width:6px;height:6px;
+  border-radius:50%;background:var(--brand);box-shadow:0 0 10px var(--brand)}
+.side .brand b{font-size:15px;letter-spacing:.2px;padding-left:14px;color:var(--navy)}
+.side .brand small{opacity:.65;display:block;font-size:11.5px;padding-left:14px}
+.menu{flex:1;overflow-y:auto;padding:10px 8px}
+.side .foot{padding:12px 14px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
+.side .foot button{width:100%;background:rgba(15,34,51,.03);border:1px solid var(--line);
+  color:var(--text);border-radius:var(--radius-sm);padding:9px;font-weight:600;cursor:pointer;transition:.15s}
+.side .foot button:hover{background:var(--brand-soft);border-color:var(--brand);color:var(--brand-d)}
+.side .foot button.out:hover{background:rgba(239,68,68,.10);border-color:rgba(239,68,68,.4);color:#DC2626}
+
+.modbtn{display:flex;align-items:center;gap:11px;width:100%;text-align:left;padding:11px 14px;
+  margin:2px 0;border:0;background:none;color:var(--text);font-size:14px;cursor:pointer;
+  border-radius:var(--radius-sm);position:relative;transition:.14s}
+.modico{width:20px;flex:none;opacity:.7;text-align:center}
+.modbtn:hover .modico,.modbtn.on .modico{opacity:1}
+.modlbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.modbtn:hover{background:rgba(15,34,51,.05);color:var(--navy)}
+.modbtn.on{background:linear-gradient(90deg,var(--brand-soft),rgba(34,197,94,.03));
+  color:var(--brand-d);font-weight:700}
+.modbtn.on:before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:3px;
+  border-radius:0 3px 3px 0;background:var(--brand);box-shadow:0 0 10px rgba(34,197,94,.7)}
+
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.topbar{background:var(--panel);border-bottom:1px solid var(--line);padding:13px 20px;
+  display:flex;align-items:center;gap:12px;box-shadow:var(--sh1)}
+.topbar .ham{display:none;border:1px solid var(--line);background:var(--panel2);
+  border-radius:8px;padding:6px 10px;font-size:16px;color:var(--text);cursor:pointer}
+.topbar h1,.topbar h2{margin:0;font-size:17px;color:var(--navy);font-weight:700;letter-spacing:.2px}
+.me{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13px;white-space:nowrap}
+
+.tabs{display:flex;flex-wrap:wrap;gap:2px;background:var(--panel);
+  border-bottom:1px solid var(--line);padding:2px 12px 0}
+.tabbtn{border:0;background:none;padding:11px 14px;font-size:13px;color:var(--muted);
+  cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;transition:.13s;
+  border-radius:8px 8px 0 0}
+.tabbtn:hover{color:var(--navy);background:rgba(15,34,51,.04)}
+.tabbtn.on{color:var(--navy);font-weight:700;border-bottom-color:var(--brand)}
+
+/* Nav phu trong mot man — vien bo tron nhu KVC */
+.subtabs{display:flex;flex-wrap:wrap;gap:6px;background:var(--panel2);
+  border-bottom:1px solid var(--line);padding:8px 12px}
+.subtabbtn,.subtab{border:1px solid var(--line2);background:var(--panel);border-radius:99px;
+  padding:5px 14px;font-size:12.5px;color:var(--muted);cursor:pointer;transition:.13s}
+.subtabbtn:hover,.subtab:hover{background:var(--panel3);color:var(--navy)}
+.subtabbtn.on,.subtab.active{background:var(--brand);border-color:var(--brand);
+  color:#06210F;font-weight:700}
+
+/* KVC dùng max-width 1040 nhưng JP có bảng 31 cột ngày và sổ 632 nhiều cột,
+   nên rộng hơn. Bảng vẫn tự cuộn ngang trong `.tableWrap`. */
+.page{display:none;padding:18px 20px;max-width:1560px}
+.page.on{display:block;animation:fadeUp .28s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+/* subBody van con o mot vai cho JS sinh ra — cho hien binh thuong */
+.subBody{display:none}
+.subBody.active{display:block}
+
+/*──────── THE / KHOI ────────*/
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  padding:16px;margin-bottom:14px;box-shadow:var(--sh1)}
+.item{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-sm);
+  padding:13px;margin-bottom:9px;box-shadow:var(--sh1);transition:.14s}
+.item:hover{border-color:var(--line2)}
+
+/*──────── DANG NHAP ────────*/
+.loginWrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px}
+.loginCard{width:100%;max-width:380px;border-radius:18px;padding:32px 28px;box-shadow:var(--sh3)}
+.brand{display:flex;gap:12px;align-items:center;margin-bottom:16px}
+.logo{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;
+  background:linear-gradient(135deg,#2ED06A,#15A34A);color:#06210F;font-weight:800;
+  box-shadow:0 8px 22px rgba(34,197,94,.30)}
+.logo.sm{width:28px;height:28px;font-size:12px;border-radius:8px}
+
+/*──────── O NHAP ────────*/
+label{display:block}
+.fld{display:block;margin-bottom:10px}
+.fld>span{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:4px}
+input,select,textarea{padding:9px 11px;border:1px solid var(--line);border-radius:var(--radius-sm);
+  font-size:14px;background:#FFFFFF;color:var(--text);font-family:inherit;
+  transition:border-color .13s,box-shadow .13s;outline:none}
+.fld input,.fld select,.fld textarea{width:100%}
+input:focus,select:focus,textarea:focus{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft)}
+input::placeholder,textarea::placeholder{color:#9AA9B7}
+input[readonly],input[disabled],select[disabled]{background:#EFF3F7 !important;color:var(--muted) !important;cursor:not-allowed}
+select{appearance:none;-webkit-appearance:none;background-repeat:no-repeat;
+  background-position:right 10px center;padding-right:28px;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2 4l4 4 4-4' stroke='%2366788A' stroke-width='1.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>")}
+
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.inline{display:inline-flex;align-items:center;gap:6px;font-size:13px}
+.inline input{width:auto}
+
+/*──────── NUT ────────*/
+.btn{padding:9px 15px;border:1px solid var(--line);border-radius:var(--radius-sm);
+  background:#fff;color:var(--text);font-weight:700;font-size:14px;margin:0;cursor:pointer;
+  box-shadow:var(--sh1);transition:transform .1s,box-shadow .14s,filter .14s}
+.btn:hover{transform:translateY(-1px);box-shadow:var(--sh2)}
+.btn:active:not(:disabled){transform:translateY(0);filter:brightness(.96)}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.btn.primary,.btn.ok,.b-ok,.b-blue{background:linear-gradient(180deg,#2ED06A,#17A34A);
+  color:#06210F;border-color:transparent}
+.btn.warn,.b-warn{background:linear-gradient(180deg,#FBBF24,#D97706);color:#3A2400;border-color:transparent}
+.btn.danger,.b-bad{background:#fff;color:var(--danger);border-color:#FECACA}
+.btn.ghost{background:rgba(15,34,51,.03)}
+.btn.ghost:hover{background:var(--brand-soft);border-color:var(--brand);color:var(--brand-d)}
+.btn.sm{padding:6px 11px;font-size:13px}
+.btn.block{width:100%}
+.miniBtn{border:1px solid var(--line);background:#fff;border-radius:6px;
+  padding:3px 8px;font-size:13px;cursor:pointer;font-weight:600}
+.miniBtn:hover{border-color:var(--brand);color:var(--brand-d)}
+.miniBtn.danger{color:var(--danger);border-color:#FECACA}
+
+/*──────── HAI COT: danh sach + chi tiet ────────*/
+.split{display:grid;grid-template-columns:340px 1fr;gap:12px;align-items:start}
+.pane.left{max-height:calc(100vh - 220px);overflow:auto}
+.pane.right{background:var(--panel);border:1px solid var(--line);
+  border-radius:var(--radius);min-height:400px;box-shadow:var(--sh1)}
+@media(max-width:980px){.split{grid-template-columns:1fr}}
+
+.list .item{cursor:pointer}
+.list .item:hover{border-color:var(--brand)}
+.list .item.sel{border-color:var(--brand);box-shadow:0 0 0 2px var(--brand-soft)}
+.itemTop{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.signs{font-size:11px;color:var(--muted);margin-top:5px;display:flex;gap:10px}
+.sign.ok{color:var(--ok);font-weight:600}
+.sign.wait{color:var(--warn)}
+
+/*──────── NHAN TRANG THAI ────────*/
+.badge{display:inline-block;font-size:11px;padding:2px 9px;border-radius:999px;
+  background:var(--panel3);color:var(--muted);font-weight:600;white-space:nowrap}
+.badge.pending{background:var(--infoBg);color:var(--info)}
+.badge.fixing{background:var(--dangerBg);color:var(--danger)}
+.badge.done{background:rgba(34,197,94,.16);color:var(--brand-d)}
+.badge.warn{background:#FEF3C7;color:var(--warn)}
+
+.detHead{padding:14px;border-bottom:1px solid var(--line);display:flex;
+  justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.detBody{padding:14px}
+
+.sumBox{background:var(--panel2);border:1px solid var(--line);border-radius:var(--radius-sm);
+  padding:12px;margin:12px 0}
+.sumRow{display:flex;justify-content:space-between;padding:4px 0}
+.sumRow.sub2{color:var(--muted);font-size:13px;padding-left:10px}
+.sumRow.big{border-top:1px solid var(--line);margin-top:6px;padding-top:8px;font-weight:700;font-size:15px}
+.locked{color:var(--muted);font-size:11px}
+
+/*──────── BANG ────────*/
+.tableWrap{overflow:auto;background:var(--panel);border:1px solid var(--line);
+  border-radius:var(--radius-sm);box-shadow:var(--sh1)}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{border-bottom:1px solid var(--line);padding:7px 9px;text-align:left;white-space:nowrap}
+th{background:var(--panel2);position:sticky;top:0;font-size:11.5px;color:var(--navy);
+  font-weight:700;letter-spacing:.3px;text-transform:uppercase;z-index:1}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+
+/* SO CONG NO — 13 cot, sat khung o man 1700px. Them cot `Nguon du dau ky`
+   (05/08/2026) la bang tran ra 132px ⇒ cot cuoi `Chua duyet` BIEN MAT khoi man,
+   ma `.tableWrap` cuon ngang thi khong ai biet la con cot phia sau. Bop padding
+   rieng bang nay de du 13 cot cung nam trong khung.
+   ⚠️ Bop bang `#id`, DUNG doi `th,td` chung — ~40 bang khac dang dua vao padding do.
+   ⚠️ Cot `Nguon du dau ky` la CHU giai thich, cho xuong dong; moi cot con lai giu
+   `nowrap` de con so khong bi be doi. */
+#tblCongNo th,#tblCongNo td{padding:7px 6px}
+#tblCongNo td.sub{white-space:normal;max-width:170px;font-size:11.5px;line-height:1.35}
+/* Tieu de va ten co so cho xuong dong — hai cho nay chiem 375px chi vi `nowrap`
+   ("PHÁT SINH PHẢI THU", "JP MN VINWONDER PHÚ QUỐC"). Xuong dong lam bang cao them
+   mot dong, doi lai du 13 cot NAM TRONG KHUNG. So tien thi VAN `nowrap` — be doi
+   mot con so la doc nham ngay. */
+#tblCongNo th{white-space:normal;line-height:1.25}
+#tblCongNo td:first-child{white-space:normal;max-width:170px}
+/* N-X-T 18 cot — CUNG BENH `#tblCongNo`, va lan nay te hon vi cot bi nuot la
+   `Tồn cuối`, tuc la CAU TRA LOI cua ca bao cao.
+   Do duoc 06/08/2026 o man 1700px: bang tran **92px**. `.tableWrap` cuon duoc,
+   nhung tran chin muoi pixel thi khong ai biet la con cot phia sau — tieu de ket
+   thuc gon gang o `TỔNG XUẤT` va bang trong nhu da het.
+   ⚠️ Chu thich cu trong `CLAUDE.md` ghi bang nay "ai cung thay la phai cuon" —
+   SAI, do la phong doan chu khong phai so do. Dem 18 cot van XANH, chi
+   `scrollWidth > clientWidth` moi bat duoc, va chi ANH moi cho thay no vo hai
+   hay khong. Day la lan thu BAY bay chi-anh-moi-bat-duoc.
+   ⚠️ Bop bang `#id` y nhu `#tblCongNo` — DUNG doi `th,td` chung.
+   ⚠️ So tien / so luong VAN `nowrap`; chi TIEU DE duoc xuong dong (hai chu nhu
+   "Nhận ĐC", "Xuất cơ sở", "Tổng xuất" dang ep cot rong ra chi vi `nowrap`). */
+#tblNXT th,#tblNXT td{padding:7px 5px}
+#tblNXT th{white-space:normal;line-height:1.25}
+
+/* BANG "Doanh thu theo bao cao" — 13 cot, cot cuoi la `Trang thai`.
+   ⚠️ Voi padding chung (9px) bang rong 1462px, ma `.page` toi da 1560px nen o man
+   1700px vung cuon chi con 1376px ⇒ tran ngang dung **88px**: cot `Trang thai` bi
+   cat gan het, va tran do nam GON trong dai NGUY `0 < x < 220px` — du nuot mot cot,
+   khong du de ai biet con cot phia sau. Ke toan nhin bang thay day du, trong khi cot
+   noi "da nop / nop mot phan / chua nop" thi khong thay.
+   ⚠️ Bop bang `#id` y nhu `#tblCongNo` va `#tblNXT` — DUNG doi `th,td` chung.
+   ⚠️ Chi TIEU DE duoc xuong dong; so tien VAN `nowrap` de khong bi be doi. */
+#tblRevenue{font-size:12.5px}
+#tblRevenue th,#tblRevenue td{padding:7px 4px}
+#tblRevenue th{white-space:normal;line-height:1.25}
+/* ⚠️ Bop padding MOT MINH la KHONG DU, va con lam hong them: tran o man 1700px ve 0
+   nhung man 1500px tu 288px (dai AN TOAN — cat nhieu nen ai cung thay) tut xuong
+   139px, tuc ROI VAO dai NGUY. Doi mot bay lay mot bay o dung be rong laptop pho
+   bien nhat. Nen phai cho HAI cot chu dai xuong dong de bang THAT SU vua:
+     · `Co so`  — ten dai nhat: "JP MN AEON MALL BÌNH DƯƠNG"
+     · `Ky`     — "01/08/2026 – 07/08/2026", xuong dong o dau gach
+   Con so tien thi VAN `nowrap` (khong doi), be doi con so la doc sai tien. */
+#tblRevenue td:nth-child(2){white-space:normal;max-width:150px;line-height:1.3}
+#tblRevenue td:nth-child(3){white-space:normal;max-width:96px;line-height:1.3}
+/* Man HEP hon 1350px thi 13 cot khong the vua duoc nua (san bang toi thieu ~1032px,
+   ma vung cuon o man 1280px chi con 956px). Bop tiep la con so nho khong doc duoc.
+   ⇒ Doi cach: GHIM cot cuoi (`Trang thai`) vao mep phai. Hai cai duoc:
+     · cot noi "da nop / nop mot phan / chua nop" KHONG BAO GIO la cot bi cat
+     · bong do ben trai o ghim CHINH LA dau hieu con noi dung phia sau — tra loi dung
+       cai ma dai NGUY `0 < tran < 220px` canh bao: nguoi dung khong biet con cot nua
+   ⚠️ `position:sticky` da la thu web nay dua vao san (`th` ghim `top:0`), nen khong
+   them phu thuoc moi. May cu khong chay sticky thi ro ve y NHU BAY GIO, khong te hon.
+   ⚠️ Phai co `background` dac: o ghim trong suot thi chu cot sau troi qua duoi no. */
+@media (max-width:1350px){
+  #tblRevenue th:last-child,#tblRevenue td:last-child{
+    position:sticky;right:0;background:var(--panel);
+    box-shadow:-7px 0 9px -7px rgba(15,34,51,.30)}
+  #tblRevenue th:last-child{background:var(--panel2);z-index:2}
+}
+tr.lech td{background:var(--warnBg)}
+tr:hover td{background:rgba(15,34,51,.03)}
+tr.lech:hover td{background:#FEF3C7}
+tr.totRow td{background:var(--panel3);border-top:2px solid var(--line2);font-weight:700}
+tr.totRow:hover td{background:var(--panel3)}
+
+/* Dong TIEU DE KHOI trong bang N-X-T: moi kho mot khoi, doc duoc tung co so mot
+   ma khong phai tach thanh 14 bang roi (tach bang la mat nut Xuat CSV). */
+tr.grpRow td,tr.grpRow:hover td{background:var(--ink);color:#fff;
+  padding:7px 9px;font-size:13px;letter-spacing:.2px;border-top:2px solid var(--ink)}
+tr.grpRow .grpNote{opacity:.72;font-weight:400;font-size:12px}
+tr.grandRow td,tr.grandRow:hover td{background:var(--brand);color:#fff;font-weight:800;
+  border-top:2px solid var(--brand)}
+
+/* Bang NHAP LIEU (phieu nhap / phieu xuat / luoi ngay) */
+table.form th,table.form td{padding:4px 5px}
+table.form th{text-transform:none;letter-spacing:0;font-size:11px}
+table.form input{width:100%;border:1px solid var(--line);border-radius:6px;
+  padding:6px 7px;font-size:12.5px;text-align:right;background:#fff;box-shadow:none}
+table.form input:focus{border-color:var(--brand);box-shadow:0 0 0 2px var(--brand-soft)}
+table.form td.lbl input,table.form input[type=text]{text-align:left}
+table.form td.calc{background:var(--panel2);text-align:right;font-variant-numeric:tabular-nums}
+/* Cột nút xoá dòng phải HẸP. Không kẹp thì bảng ít cột (phiếu tồn đầu kỳ có 6 cột)
+   dồn hết chỗ trống vào cột này, nút × trôi ra giữa màn hình. */
+table.form td.act{text-align:center;width:44px}
+table.form th:last-child{width:44px}
+.w70{width:70px}.w90{width:90px}.w110{width:110px}.w140{width:140px}.w170{width:170px}
+
+/* ⚠️ LƯỚI NGÀY 1–31: ô nhập PHẢI hẹp padding, không thì SỐ GÕ VÀO KHÔNG HIỆN.
+   34 cột trong một bảng nên `.w70` không giữ được 70px — trình duyệt bóp ô xuống
+   ~25px. Với `padding:6px 7px` thì vùng chữ còn ~9px, mà `text-align:right` đẩy
+   chữ số ra khỏi khung ⇒ ô trông TRỐNG dù `input.value` có số.
+   Đo được: cellW 35 · inW 25 · clientW 23 · scrollW 31 — cần 31 mà chỉ có 23.
+   Phép đo tự viết đọc `.value` nên báo XANH; chỉ ẢNH mới thấy ô trống. Đây là
+   lần thứ tư bẫy hiển thị chỉ ảnh bắt được — xem CLAUDE.md.
+   Căn GIỮA thay vì phải: một hai chữ số ở giữa thì lệch bao nhiêu cũng còn thấy. */
+#tblLuoi input{padding:5px 1px;text-align:center;
+  /* Bỏ mũi tên tăng/giảm của input[type=number] — nó ăn ~15px, đúng chỗ cần cho
+     chữ số. Ở lưới 31 cột thì mũi tên vô dụng: không ai bấm tăng từng cái. */
+  -moz-appearance:textfield}
+#tblLuoi input::-webkit-outer-spin-button,
+#tblLuoi input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+#tblLuoi th,#tblLuoi td{padding:4px 2px}
+
+
+
+/*──────── DAU PHIEU KIEU MISA (giong KVC) ────────*/
+.msform label{margin:7px 0 3px;font-size:11.5px}
+.msform input,.msform select{padding:8px 9px;font-size:13.5px}
+.msgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 16px;margin-top:8px}
+@media(max-width:880px){.msgrid{grid-template-columns:1fr 1fr}}
+.mshead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.msbig{text-align:right}
+.msbig .l{font-size:11px;color:var(--muted)}
+.msbig .v{font-size:23px;font-weight:800;color:var(--navy);font-variant-numeric:tabular-nums}
+.msradios{margin-top:8px;display:flex;gap:16px;flex-wrap:wrap;align-items:center}
+.msradios label{display:flex;gap:6px;align-items:center;font-weight:500;margin:0;font-size:13px;color:var(--text)}
+.msradios select{width:auto}
+.mssec{margin:14px 0 5px;font-weight:800;color:var(--navy);font-size:13px}
+.mstotals{margin-top:12px;display:flex;flex-direction:column;align-items:flex-end;gap:4px;font-size:13.5px}
+.mstotals b{color:var(--navy);min-width:140px;display:inline-block;text-align:right;
+  font-variant-numeric:tabular-nums}
+
+/*──────── HOP CANH BAO ────────*/
+.warnBox{background:var(--warnBg);border:1px solid #FCD34D;border-radius:var(--radius-sm);
+  padding:11px;margin:12px 0}
+.warnBox h3{margin-top:0;color:var(--warn)}
+.warnItem{font-size:13px;padding:5px 0;border-top:1px dashed #FCD34D}
+.warnItem:first-of-type{border-top:0}
+.warnItem b{color:var(--warn)}
+.warnBox.other{background:var(--panel2);border-color:var(--line)}
+.warnBox.other h3,.warnBox.other .warnItem b{color:var(--muted)}
+
+.alert{border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:12px;font-size:13px}
+.alert.warn{background:var(--warnBg);border:1px solid #FCD34D;color:var(--warn)}
+.alert.danger{background:var(--dangerBg);border:1px solid #FECACA;color:var(--danger)}
+.alert.ok{background:var(--okBg);border:1px solid #A7F3D0;color:var(--ok)}
+/* Dong phu trong alert: in ra phep cong de nguoi doc tu doi chieu duoc, nhung
+   nhat mau hon cau chinh de khong tranh cho no. */
+.alert-sub{margin-top:6px;font-size:12px;opacity:.8}
+
+.photoStrip{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.thumb{width:74px;height:74px;border-radius:8px;overflow:hidden;border:1px solid var(--line)}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block;cursor:zoom-in}
+/*──── Anh theo co so: moi ky mot khoi ────*/
+.acKy{border:1px solid var(--line);border-radius:var(--radius);padding:9px 11px 11px;
+  margin-bottom:10px;background:var(--panel)}
+.acKyTop{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:7px}
+.acKyTop .sub{color:var(--muted);font-size:12px}
+/* O thay cho anh nho KHONG tai duoc (file anh chua chia se ngoai chu so huu).
+   Phai co CHU: o xam khong chu thi ke toan khong biet anh nao la anh nao. Van bam
+   duoc — ban lon lay qua may chu nen luon xem duoc. */
+.thumb .thumbVo,.lbFoot .thumbVo{width:100%;height:100%;display:flex;
+  align-items:center;justify-content:center;text-align:center;cursor:zoom-in;
+  background:var(--panel3);color:var(--muted);font-size:10px;line-height:1.25;
+  padding:3px;word-break:break-all;box-sizing:border-box}
+.lbFoot .thumbVo{width:54px;height:54px;border-radius:6px;border:2px solid transparent;
+  background:rgba(255,255,255,.12);color:#e2e8f0;flex:0 0 auto}
+
+/*──────── THE SO ────────*/
+.cards,.kpi{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+/* ⚠️ `min-width` PHAI du cho mot so tien 11 ky tu ("17.700.000đ") o co chu 21px/800:
+   can ~148px chu, cong padding hai ben. Ban truoc dat 150px + padding 16px ⇒ chi con
+   128px chu, ma `.statCard` co `overflow:hidden` nen con so bi CAT KHONG DAU HIEU GI:
+   "17.700.000đ" in ra thanh "17.700.000" hoac cat ca chu so cuoi. Do so tien bi cat
+   am tham, dung loai loi chi ANH CHUP moi thay — do duoc bang
+   `v.scrollWidth > v.clientWidth`, khong doc duoc bang `textContent`.
+   Da bat duoc o HAI man: `dsSo` (So cong no, ca 8 the, man 1700px va 1500px) va
+   `dtBang` (Doanh thu theo bao cao, 5/7 the o man 1500px).
+   ⚠️ The rong hon thi hang 7–8 the tu xuong DONG THU HAI — dung y muon: `.cards` von
+   da `flex-wrap:wrap`, va man So cong no von da co the DU CUOI KY o hang rieng. Doc
+   duoc so tien quan trong hon xep du tren mot hang.
+   ⚠️ DUNG chua bang cach bo `overflow:hidden` — vach mau ben trai (`:before`) va goc
+   bo tron dua vao no; bo la con so tran ra ngoai vien the. */
+.statCard,.kpi div{flex:1;min-width:178px;padding:15px 14px;border:1px solid var(--line);
+  border-radius:var(--radius);box-shadow:var(--sh1);position:relative;overflow:hidden;
+  background:linear-gradient(180deg,var(--panel2),var(--panel));transition:.15s}
+.statCard:hover,.kpi div:hover{border-color:var(--line2);transform:translateY(-2px);box-shadow:var(--sh2)}
+.statCard:before,.kpi div:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;
+  background:var(--brand);opacity:.85}
+.statCard .sub,.kpi small{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.4px}
+.statCard .v,.kpi b{font-size:21px;font-weight:800;color:var(--navy);margin-top:3px;
+  display:block;font-variant-numeric:tabular-nums}
+/* Tho so co MAU — hoc tu web ke toan POSH (Andy 15/08/2026: "lam nhu nay ne de xem").
+   Mau o CA vach ben trai VA con so: nhin luot qua dai the la biet cho nao co viec.
+   Chi to mau khi so KHAC 0 — to do mot con so 0 la bao dong gia, va bao dong gia vai
+   lan thi khong ai doc dai the nua. Viec to hay khong do JS quyet, khong phai CSS. */
+.kpi div.ok:before{background:var(--ok)}
+.kpi div.ok b{color:var(--ok)}
+.kpi div.bad:before{background:var(--danger)}
+.kpi div.bad b{color:var(--danger)}
+.kpi div.warn:before{background:var(--warn)}
+.kpi div.warn b{color:var(--warn)}
+/* O CHU DAI trong bang — `th,td{white-space:nowrap}` la quy tac CHUNG, nen mot cot
+   mang cau van (cot "Trang thai" cua bang cong no ngan hang) day bang tran ngang.
+   Tran 0 < x < 220px la muc NGUY: du nuot mot cot, khong du de ai biet con cot phia
+   sau. Chinh la bay #4 da ghi o CLAUDE.md — o cuoi bang `nowrap` lam bang rong them. */
+td.wrapCell{white-space:normal;min-width:150px;max-width:210px}
+/* Bang cong no ngan hang co 9 cot, trong do 6 cot tien. Voi padding chung 7px 9px no
+   tran ngang ~80px — muc NGUY. Bop padding + co chu cho RIENG bang nay; cot tien van
+   `nowrap` (be doi mot con so tien la doc nham ngay). */
+table.bankTbl th,table.bankTbl td{padding:6px 6px;font-size:13px}
+
+/*──────── SO DO QUY TRINH (man Tong quan) ────────*/
+.ovflow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ovstep{cursor:pointer;background:var(--panel2);border:1px solid var(--line);border-radius:12px;
+  padding:12px 14px;text-align:center;min-width:118px;transition:.14s;font-size:13px;
+  color:var(--text);font-weight:600}
+.ovstep:hover{background:var(--panel3);border-color:var(--brand);transform:translateY(-2px);box-shadow:var(--sh2)}
+.ovic{font-size:22px;display:block}
+.ovarr{color:#94A3B8;font-weight:700}
+.ovsub{margin:16px 0 6px;font-size:11px;font-weight:800;letter-spacing:.6px;
+  color:var(--muted);text-transform:uppercase}
+
+.actionBar{display:flex;gap:8px;flex-wrap:wrap;padding:12px 14px;border-top:1px solid var(--line);
+  background:var(--panel2);position:sticky;bottom:0}
+
+/*──────── HOP THOAI ────────*/
+.modalBg{position:fixed;inset:0;background:rgba(15,34,51,.32);backdrop-filter:blur(3px);
+  z-index:70;display:flex;align-items:center;justify-content:center;padding:16px}
+.modalBox{background:var(--panel);border:1px solid var(--line2);border-radius:var(--radius);
+  padding:20px;width:100%;max-width:360px;box-shadow:var(--sh3);animation:fadeUp .22s ease}
+.modalBox h2{margin:0 0 4px;font-size:17px}
+.modalBox .sub{font-size:12px;color:var(--muted);margin:0 0 12px}
+.pinIn{width:100%;font-size:24px;text-align:center;letter-spacing:10px;
+  padding:10px;border:1px solid var(--line);border-radius:var(--radius-sm)}
+.modalAct{display:flex;gap:8px;margin-top:14px}
+.modalAct .btn{flex:1}
+
+/*──────── XEM ANH TAI CHO (Andy 07/08/2026: "bam vao xem tai cho, dung chuyen") ────────
+   ⚠️ z-index PHAI duoi `.busy` (90) va duoi `.toast` (80): dang xem anh ma bam
+   duyet thi man cho va toast van phai thay duoc. Tren `.modalBg` (70) thi khong
+   can — hai cai khong bao gio mo cung luc. */
+/* Nen phai DAC: de .86 thi ca bang so va nut Duyet phia sau van doc duoc xuyen
+   qua, mat tap trung dung luc ke toan dang co doc CHI SO tren anh. (Da do:
+   khong bam nhap duoc vao nut phia sau — `elementFromPoint` tra ve `.lbFoot` —
+   nen day thuan tuy la chuyen nhin.) */
+.lbBg{position:fixed;inset:0;background:rgba(11,22,32,.965);z-index:75;
+  display:flex;flex-direction:column;padding:10px 12px 12px;gap:8px}
+.lbBg.hidden{display:none}
+.lbTop{display:flex;align-items:center;gap:10px;color:#fff;font-size:13px;flex:0 0 auto}
+.lbTop b{font-size:14px}
+.lbTop .sub{color:#cbd5e1}
+.lbSpace{flex:1}
+/* Nut tren nen toi — khong dung `.btn` vi bang mau cua no la nen sang */
+.lbBtn{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.28);
+  border-radius:8px;padding:6px 12px;font-size:14px;cursor:pointer;line-height:1.4}
+.lbBtn:hover{background:rgba(255,255,255,.26)}
+.lbBtn[disabled]{opacity:.35;cursor:default}
+.lbBtn.x{font-size:18px;padding:2px 12px}
+.lbMid{flex:1;display:flex;align-items:center;justify-content:center;gap:10px;min-height:0}
+/* `min-height:0` o tren + `max-height:100%` o day moi cho anh CO LAI vua khung.
+   Thieu mot trong hai la anh cao hon man va nut dong bi day ra ngoai. */
+.lbMid img{max-width:100%;max-height:100%;object-fit:contain;border-radius:6px;
+  background:#0b1620}
+.lbErr{color:#fecaca;font-size:14px;text-align:center;max-width:420px;line-height:1.6}
+/* Dang tai KHONG duoc mau do — do la mau cua loi, in cau "dang tai" bang mau do
+   la noi rang co chuyen gi hong trong khi khong hong gi. */
+.lbErr.dangTai{color:#cbd5e1}
+.lbFoot{flex:0 0 auto;display:flex;gap:6px;justify-content:center;flex-wrap:wrap;
+  max-height:88px;overflow:auto}
+.lbFoot img{width:54px;height:54px;object-fit:cover;border-radius:6px;cursor:pointer;
+  border:2px solid transparent;opacity:.55}
+.lbFoot img.on{border-color:var(--brand);opacity:1}
+
+.msg{font-size:13px;margin:8px 0 0;min-height:17px}
+.msg.err{color:var(--danger)}
+.msg.ok{color:var(--ok)}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:80;
+  background:var(--navy);color:#fff;padding:10px 16px;border-radius:999px;font-size:14px;max-width:80%}
+.busy{position:fixed;inset:0;background:rgba(255,255,255,.72);z-index:90;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}
+.spin{width:30px;height:30px;border:3px solid var(--line);border-top-color:var(--brand);
+  border-radius:50%;animation:sp .8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/*──────── IN GIAY ────────*/
+/* Nut "In" o man cap ma PIN co so: chi in bang PIN, khong in ca sidebar + moi the
+   khac. Danh sach PIN chi hien mot lan nen to giay nay la duong duy nhat de phat ra
+   tung co so — in ra ma kem menu voi form thi khong dung duoc. */
+@media print{
+  .side,.topbar,.tabs,.subtabs,.toolbar,.busy,.toast{display:none !important}
+  .main{display:block !important;padding:0;max-width:none}
+  /* ⚠️ CHI in man DANG MO. Ban dau viet `.page{display:block !important}` la bo an
+     TAT CA cac trang cung luc — to giay dai 10.628px, in ca Tong quan lan Kho lan
+     Doi soat. Cho nay phai giu dung co che `.page` an / `.page.on` hien. */
+  .page{display:none !important}
+  .page.on{display:block !important;padding:0;max-width:none}
+  .card{box-shadow:none;border:none;padding:0;margin:0 0 10px}
+  /* An moi thu trong man Tai khoan tru the chua bang PIN. KHONG dung `:not(:has())`
+     — `:has()` khong chac co tren may cu o mall, ma sai la in ca form + PIN cu. */
+  #cfUsers > .card{display:none !important}
+  #cfUsers > #cfPinCard{display:block !important}
+  #cfUsers > .tableWrap{display:none !important}
+  .alert{border:1px solid #999;background:#fff !important;color:#000 !important}
+  .hint{font-size:11px;color:#333}
+  table{width:100%;border-collapse:collapse}
+  th,td{border:1px solid #999 !important;padding:5px 7px}
+  tr:hover td{background:#fff !important}
+}
+
+/*──────── MAN HINH HEP ────────*/
+@media(max-width:800px){
+  .side{position:fixed;left:-270px;top:0;bottom:0;z-index:50;transition:left .2s;box-shadow:var(--sh3)}
+  .side.open{left:0}
+  .topbar .ham{display:block}
+  .page{padding:14px}
+  .me span:not(.badge){display:none}
+}
+</style>
+

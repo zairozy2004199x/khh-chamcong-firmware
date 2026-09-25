@@ -197,9 +197,15 @@ class VHCPVP_DonVi {
 	 *      để thanh toán. Văn phòng và Máy tự động chi kiểu ấy: một đợt rải qua nhiều gian, mỗi
 	 *      dòng một gian. Khoá cả đơn theo dòng đầu là ép họ lập năm đơn cho một đợt chi.
 	 *
-	 * 🔴 KVC KHÔNG ĐỔI. Hằng này để `false` ở bản gốc; script `tools/tach-ban-vung.sh` bật `true`
-	 *    cho bản mảng riêng. Anh Thắng đã dặn *"đừng can thiệp gì bên phần chi phí khu vui chơi"*,
-	 *    và luật một-đơn-một-gian bên ấy là có lý do riêng của nó (xem khối trên).
+	 * 🔴 ĐỔI 24/09/2026 — BẬT Ở CẢ BẢN GỐC. Trước đó hằng để `false` ở bản gốc (giữ chốt *"đừng can
+	 *    thiệp gì bên phần chi phí khu vui chơi"*), chỉ bản vùng mới bật. Nhưng từ khi Bắc–Nam và
+	 *    Văn phòng dùng chung một site với Khu vui chơi, người Văn phòng lập đơn không tạm ứng
+	 *    trên bản gốc bị khoá gian ngay dòng đầu (ảnh anh Thắng: đơn "không xin tạm ứng (= 0)",
+	 *    11 dòng Chi Phí Chung VP, ô Cơ sở khoá "Văn Phòng Hồ Chí Minh"). Anh chốt lại luật là
+	 *    MẶC ĐỊNH: *"nếu chọn tạm ứng xin thì nó sẽ khóa gian trong thêm hạng mục, còn nếu không
+	 *    chọn thì mỗi chi phí được chọn theo gian để đơn đi nhiều gian"*.
+	 *    Với Khu vui chơi không đổi gì trong thực tế: đơn tuần của cơ sở luôn có dòng tạm ứng
+	 *    (kể cả 0đ) nên vẫn khoá như cũ. Script tách bản vùng giữ chốt kiểm hằng = true.
 	 * ══════════════════════════════════════════════════════════════════════════════════════════
 	 */
 	const MO_KHI_KHONG_TAM_UNG = true;
@@ -302,11 +308,47 @@ class VHCPVP_DonVi {
 	 *    trả `null` (bày đủ nút) — không lộ gì cả, vì sau mỗi nút vẫn là dữ liệu đã bị chốt đơn
 	 *    vị cắt. Hỏng theo hướng bày thừa một cái nút rỗng, không phải hướng mở cửa.
 	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	/* ══════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 KHỐI NAY LÀ MIỀN — MB / MN. Anh Thắng 22/09/2026: *"Khối là liên quan Miền Bắc và
+	 *    Miền Nam ôi"*, rồi *"Chuyển nó sang là MB hay MN tương đương với Miền Bắc, Miền Nam"*.
+	 *
+	 * ⚠️ BA MÃ CŨ (kvc · mtd · vp) Ở LẠI TRONG TỪ ĐIỂN, VÀ CỐ Ý. Danh mục loại chi phí và bảng
+	 *    mã TK Nợ đang mang chúng; bỏ khỏi từ điển là mấy dòng ấy hiện ra với cái mã trần thay
+	 *    vì tên, hoặc rơi hẳn khỏi bảng mã — mã tài khoản còn trong sổ mà không ai sửa được.
+	 *    Thứ ĐỔI là danh sách khối còn NHẬN VIỆC MỚI (`KHOI_MO` bên màn): từ nay chỉ MB/MN.
+	 *    Kế toán tự đổi từng dòng bằng ô chọn Khối — máy không ép đổi khối của ai.
+	 *
+	 * ⚠️ MIỀN KHÔNG ÁNH XẠ TỪ ĐƠN VỊ. Ba mã cũ suy ra được từ cột Đơn vị ('POSH' → mtd), còn
+	 *    miền thì không: một đơn vị có cơ sở ở cả hai miền. Nên hai khoá mới nhận đúng tên
+	 *    viết tắt của chính nó, để `khoi_cua()` không gán bừa cơ sở vào một miền.
+	 * ══════════════════════════════════════════════════════════════════════════════════════ */
 	const KHOI_THEO_DON_VI = array(
+		'mb'  => array( 'MB', 'MIỀN BẮC', 'MIEN BAC' ),
+		'mn'  => array( 'MN', 'MIỀN NAM', 'MIEN NAM' ),
 		'kvc' => array( 'KVC' ),
 		'mtd' => array( 'MTĐ', 'MTD', 'POSH' ),
 		'vp'  => array( 'VP', 'VĂN PHÒNG', 'VAN PHONG' ),
 	);
+
+	/**
+	 * DANH SÁCH KHỐI của bản này — mã + tên, để MÀN khỏi gõ cứng.
+	 *
+	 * 🔴 CẮN THẬT 22/09/2026, LẦN THỨ HAI CÙNG MỘT BỆNH. Anh Thắng: *"Vẫn mất đơn khi tạo hoặc
+	 *    F5"*. Bản 1.264.0 đã vá đúng bệnh ấy — nhưng chỉ vá NỬA ĐƯỜNG: chèn mã vùng vào
+	 *    `KHOI_THEO_DON_VI` và `ten_khoi()` ở MÁY CHỦ, rồi quên mất rằng MÀN có một danh sách
+	 *    RIÊNG gõ cứng (`var KHOI_DS=[kvc, mtd, vp]`). Máy chủ biết khối 'hn', màn thì không —
+	 *    nên đơn vẫn không tab nào bày ra, y như trước khi vá.
+	 *
+	 * ⚠️ HAI DANH SÁCH CHO MỘT SỰ THẬT LÀ CÁI BẪY. Nay chỉ còn MỘT nguồn: hàm này. Màn đọc
+	 *    `BOOT.khoiDs` và thôi tự khai.
+	 */
+	public static function khoi_ds() {
+		$ra = array();
+		foreach ( array_keys( self::KHOI_THEO_DON_VI ) as $ma ) {
+			$ra[] = array( 'ma' => $ma, 'ten' => VHCPVP_Cfg::ten_khoi( $ma ) );
+		}
+		return $ra;
+	}
 
 	/** Mã khối của một đơn vị — '' nếu không ánh xạ được. */
 	public static function khoi_cua( $don_vi ) {
@@ -325,6 +367,32 @@ class VHCPVP_DonVi {
 	 * nhà con chỉ thấy nút của mình.
 	 */
 	public static function khoi_xem_duoc() {
+		/* ═══════════════════════════════════════════════════════════════════════════
+		   Ô KHỐI KHAI TAY ĐỨNG TRƯỚC ÁNH XẠ TỪ ĐƠN VỊ.
+
+		   Anh Thắng 21/09/2026: *"chỗ đơn vị thay bằng khối — tích nếu 1 người làm 2 khối thì
+		   chọn 2, vì có thể nv chung sẽ làm việc với 2 khối"*.
+
+		   🔴 ÁNH XẠ MỘT-MỘT TỪ ĐƠN VỊ KHÔNG DIỄN ĐẠT ĐƯỢC ĐIỀU NÀY. Một người có ĐÚNG MỘT
+		      nhà (nơi đơn họ lập rơi về), nên `khoi_cua()` luôn trả đúng một khối — còn người
+		      làm việc với hai bên thì cần hai nút. Đó là hai câu hỏi khác nhau, nên nay có hai ô.
+
+		   ⚠️ VÀ ĐÂY VẪN KHÔNG PHẢI TRỤC PHÂN QUYỀN THỨ HAI — giữ nguyên chốt ⚠ ở trên: khối
+		      chỉ quyết định BÀY NÚT NÀO. Dữ liệu sau mỗi nút vẫn bị đơn vị cắt ở máy chủ. Tích
+		      thêm một khối KHÔNG mở thêm được dòng dữ liệu nào.
+
+		   🔴 ADMIN KHÔNG BAO GIỜ BỊ CẮT. Anh Thắng là người ngồi khai bảng này; tích nhầm một ô
+		      cho chính mình mà mất hai nút kia là không còn đường vào để sửa lại. Cùng luật với
+		      `VHCPVP_Auth::xem_duoc_loai()`.
+
+		   ⚠️ Ô TRỐNG = NGÃ VỀ ÁNH XẠ CŨ, không phải "không thuộc khối nào". Ngày bản này lên
+		      chưa ai kịp tích ô nào; hiểu ngược là cả công ty mở màn ra không thấy nút khối nào.
+		   ══════════════════════════════════════════════════════════════════════════ */
+		$vai = trim( (string) VHCPVP_Auth::vai_hien() );
+		if ( 'Admin' !== $vai ) {
+			$tay = self::khoi_khai_tay( VHCPVP_Auth::nguoi() );
+			if ( $tay ) { return $tay; }
+		}
 		$ds = self::xem_duoc();
 		if ( null === $ds ) { return null; }          // nhà mẹ — cả hệ
 		$ra = array();
@@ -335,6 +403,26 @@ class VHCPVP_DonVi {
 		/* Không ánh xạ được nhà nào -> đừng giấu hết nút rồi để người ta ngồi trước một màn
 		   không bấm được gì. Xem chốt ⚠️ ở trên: giấu nút không phải là gác quyền. */
 		return $ra ? $ra : null;
+	}
+
+	/**
+	 * Những khối một người ĐÃ TÍCH TAY ở bảng Người dùng — mảng rỗng = chưa khai.
+	 *
+	 * ⚠️ CHỈ NHẬN MÃ CÓ THẬT. Ô này là chuỗi ngăn phẩy ghi thẳng xuống sổ, nên một lượt nhập
+	 *    từ bảng tính cũ có thể đưa vào đây bất cứ thứ gì. Mã lạ lọt qua là màn đi tìm một nút
+	 *    không tồn tại rồi không bày nút nào cả.
+	 */
+	public static function khoi_khai_tay( $ten ) {
+		$u = self::dong_nguoi( $ten );
+		$s = ( $u && isset( $u['khoi'] ) ) ? (string) $u['khoi'] : '';
+		$ra = array();
+		foreach ( preg_split( '/\s*,\s*/u', $s ) as $x ) {
+			$x = mb_strtolower( trim( (string) $x ) );
+			if ( '' === $x || in_array( $x, $ra, true ) ) { continue; }
+			if ( ! isset( self::KHOI_THEO_DON_VI[ $x ] ) ) { continue; }
+			$ra[] = $x;
+		}
+		return $ra;
 	}
 
 	public static function xem_duoc() {

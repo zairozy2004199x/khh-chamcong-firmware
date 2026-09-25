@@ -47,8 +47,12 @@ t('🔴 bảng đơn có cột ngay_gui_qt', /ngay_gui_qt DATETIME NULL/.test(DB
 })();
 
 (function () {
+  /* 🔴 CẮT TỚI DẤU ĐÓNG CỦA CHÍNH HÀM, ĐỪNG CẮT THEO SỐ KÝ TỰ — xem chốt cùng nội dung ở
+     `test-quyet-toan.js`. Một khối chú thích thêm vào là phần cần soi bị đẩy ra ngoài cửa sổ,
+     và phép đỏ vì một thay đổi đúng. */
   const i = DON.indexOf('function gui_quyet_toan');
-  const than = i < 0 ? '' : DON.slice(i, i + 2000);
+  const j = i < 0 ? -1 : DON.indexOf('\n\t}', i);
+  const than = i < 0 || j < 0 ? '' : DON.slice(i, j + 3);
   t('bốc được gui_quyet_toan', than.length > 200, than.length);
   t('🔴 lượt GỬI có ghi mốc ngay_gui_qt', /'ngay_gui_qt'\s*=>/.test(than), null);
   t('và vẫn đổi trạng thái sang Chờ quyết toán', /'trang_thai'\s*=>\s*'Chờ quyết toán'/.test(than), null);

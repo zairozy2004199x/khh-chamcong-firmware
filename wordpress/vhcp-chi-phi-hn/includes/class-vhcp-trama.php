@@ -206,6 +206,17 @@ class VHCPHN_TraMa {
 		$f_ky   = $o( 'ky' );
 		$f_cs   = $o( 'coso' );
 		$f_mang = $o( 'mang' );
+		/* LỌC THEO LOẠI CHI PHÍ — anh Thắng 14/09/2026: *"chọn cửa hàng, chọn loại chi phí là
+		   biết được ngay"*.
+
+		   🔴 HỘP CHỌN CHỨ KHÔNG PHẢI Ô GÕ. Trước bản này muốn bó theo loại thì phải gõ tên vào ô
+		      tìm, mà ô tìm dò trong CẢ nội dung dòng chi: gõ "Chi phí cơ sở" thì dính luôn mọi
+		      dòng có mấy chữ ấy trong phần mô tả. Tệ hơn: gõ thiếu dấu hay sai một chữ là ra
+		      thiếu tiền, và thiếu bao nhiêu thì không ai biết — con số nhỏ đi trông vẫn "hợp lý".
+
+		   ⚠️ So bằng TÊN, không phân biệt hoa/thường: danh mục loại của bốn bản gõ tay nên
+		      "Chi phí cơ sở" và "CHI PHÍ CƠ SỞ" là một. */
+		$f_loai = mb_strtolower( trim( (string) $o( 'loai' ) ) );
 		$q      = mb_strtolower( trim( (string) $o( 'q', '' ) ) );
 
 		$scope = null;
@@ -232,7 +243,7 @@ class VHCPHN_TraMa {
 			$all = $loc;
 		}
 
-		$ma_set = array(); $ky_set = array(); $cs_set = array();
+		$ma_set = array(); $ky_set = array(); $cs_set = array(); $loai_set = array();
 		$items = array(); $tong = 0;
 		$by_ma = array(); $by_mang = array(); $by_ky = array(); $by_cs = array();
 		$thieu_ma = array(); $ma_cu = array();
@@ -241,6 +252,7 @@ class VHCPHN_TraMa {
 			if ( $r['tkNo'] !== '' ) { $ma_set[ $r['tkNo'] ] = 1; }
 			if ( $r['ky'] !== '' ) { $ky_set[ $r['ky'] ] = 1; }
 			if ( $r['coso'] !== '' ) { $cs_set[ $r['coso'] ] = 1; }
+			if ( $r['loai'] !== '' ) { $loai_set[ $r['loai'] ] = 1; }
 
 			// đếm việc còn phải khai, tính trên TOÀN BỘ dữ liệu (không theo bộ lọc)
 			if ( $r['tkNo'] === '' ) {
@@ -259,6 +271,7 @@ class VHCPHN_TraMa {
 			if ( $f_ky !== 'all' && $r['ky'] !== $f_ky ) { continue; }
 			if ( $f_cs !== 'all' && $r['coso'] !== $f_cs ) { continue; }
 			if ( $f_mang !== 'all' && $r['mang'] !== $f_mang ) { continue; }
+			if ( 'all' !== $f_loai && mb_strtolower( trim( (string) $r['loai'] ) ) !== $f_loai ) { continue; }
 			if ( $q !== '' ) {
 				$hay = mb_strtolower( $r['noiDung'] . ' ' . $r['loai'] . ' ' . $r['coso'] . ' ' . $r['thuoc'] . ' ' . $r['tkNo'] . ' ' . $r['tkCo'] );
 				if ( mb_strpos( $hay, $q ) === false ) { continue; }
@@ -307,6 +320,10 @@ class VHCPHN_TraMa {
 		usort( $ky_list, function ( $a, $b ) { return VHCPHN_Util::ky_num( $b ) <=> VHCPHN_Util::ky_num( $a ); } );
 		$cs_list = array_keys( $cs_set );
 		sort( $cs_list );
+		/* ⚠️ Gom từ DỮ LIỆU THẬT, không lấy từ danh mục: loại đã dùng rồi mà sau đó bị xoá khỏi
+		   danh mục vẫn còn tiền nằm đó — bỏ nó khỏi hộp chọn là mất đường tra tới khoản ấy. */
+		$loai_list = array_keys( $loai_set );
+		sort( $loai_list );
 
 		return VHCPHN_Util::ok( array(
 			'items'    => $items,
@@ -319,6 +336,7 @@ class VHCPHN_TraMa {
 			'maList'   => array_values( $ma_list ),
 			'kyList'   => array_values( $ky_list ),
 			'cosoList' => array_values( $cs_list ),
+			'loaiList' => array_values( $loai_list ),
 			'mangs'    => self::mangs(),
 			'thieuMa'  => $desc( $thieu_ma ),
 			'maCu'     => $desc( $ma_cu ),
