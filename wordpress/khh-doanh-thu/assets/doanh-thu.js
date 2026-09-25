@@ -691,12 +691,15 @@
           /* Anh Thắng 24/09/2026: *"cho nó sang tab cảnh báo đi, đây tab báo cáo mà"* — 91 thẻ ngày chưa chốt
              chèn đầu tab Nhập là quá ồn cho người văn phòng. Việc treo ở đây, gom theo cơ sở. */
           '<button class="tab" type="button" data-tab="canhbao" id="dtTabCB">Cảnh báo</button>' +
+          /* Anh Thắng 25/09/2026: *"Tách TAB XUẤT MISA RA 1 TAB RIÊNG NHÉ"* — chỉ người được nạp file thấy. */
+          '<button class="tab" type="button" data-tab="misa" id="dtTabMS" hidden>Xuất MISA</button>' +
           '<button class="tab" type="button" data-tab="quantri" id="dtTabQT" hidden>Quản trị</button>' +
         '</div>' +
         '<div id="dtTabNhap" hidden></div>' +
         '<div id="dtTabCanhBao" hidden></div>' +
         '<div id="dtTabKho" hidden></div>' +
         '<div id="dtTabDoiSoat" hidden></div>' +
+        '<div id="dtTabMisa" hidden></div>' +
         '<div id="dtTabQuanTri" hidden></div>' +
         '<div id="dtTabDoanhThu">' +
         '<div class="loc">' +
@@ -919,6 +922,7 @@
       q('#dtNap').hidden = !cf.duoc_nap;
       q('#dtXoa').hidden = rong || !cf.duoc_nap;
       q('#dtTabQT').hidden = !cf.quan_tri;
+      q('#dtTabMS').hidden = !cf.duoc_nap;
       demCanhBao();
       veNguoiXem(cf);
       if (cf.chua_ghep_co_so) {
@@ -1043,7 +1047,9 @@
     q('#dtTabDoiSoat').hidden = t !== 'doisoat';
     q('#dtTabQuanTri').hidden = t !== 'quantri';
     q('#dtTabCanhBao').hidden = t !== 'canhbao';
+    q('#dtTabMisa').hidden = t !== 'misa';
     if (t === 'nhap') dungNhap();
+    if (t === 'misa') taiMisa();
     if (t === 'canhbao') taiCanhBao();
     if (t === 'kho') taiKho();
     if (t === 'doisoat') taiDoiSoat();
@@ -1172,13 +1178,17 @@
   }
 
   function veCanhBao(o, r) {
-    var ds = (r && r.viec) || [], han = (r && r.han) || '10:00';
-    var quaHan = ds.filter(function (x) { return x.qua_han; }).length;
-    var h = '<div class="khung" id="cbViec"><header><h2>Báo cáo cơ sở chưa chốt</h2>' +
-      '<span class="goi">' + (ds.length ? ds.length + ' ngày×cơ sở' + (quaHan ? ' · ' + quaHan + ' quá hạn' : '') : 'không còn gì treo') +
+    /* Bày ĐỦ ngày trong cửa sổ, kể cả đã chốt (viên xanh) — anh Thắng 25/09/2026: *"Ngày nào bấm nộp sẽ hiện xanh,
+       chứ không phải ẩn"*. `lich` = mọi ngày; `viec` = phần còn treo (đếm ở nhãn tab). Máy chủ cũ không có `lich`
+       thì lùi về `viec`. */
+    var ds = (r && (r.lich || r.viec)) || [], han = (r && r.han) || '10:00';
+    var treo = ds.filter(function (x) { return x.trang_thai !== 'da_chot'; });
+    var quaHan = treo.filter(function (x) { return x.qua_han; }).length;
+    var h = '<div class="khung" id="cbViec"><header><h2>Báo cáo cơ sở theo ngày</h2>' +
+      '<span class="goi">' + (treo.length ? treo.length + ' ngày×cơ sở chưa chốt' + (quaHan ? ' · ' + quaHan + ' quá hạn' : '') : 'không còn gì treo') +
       ' · hạn ' + esc(han) + ' sáng hôm sau</span></header>';
     if (!ds.length) {
-      h += '<div class="trong">✓ Mọi cơ sở đã chốt tới hôm qua.</div></div>';
+      h += '<div class="trong">Chưa có ngày nào trong cửa sổ theo dõi.</div></div>';
       o.innerHTML = h; noiCanhBao(o); return;
     }
     /* Gom theo cơ sở, giữ thứ tự ngày cũ trước trong từng quán. */
@@ -1187,21 +1197,25 @@
       if (!nhom[x.cua_hang]) { nhom[x.cua_hang] = []; thuTu.push(x.cua_hang); }
       nhom[x.cua_hang].push(x);
     });
+    var chuaChot = function (c) { return nhom[c].filter(function (x) { return x.trang_thai !== 'da_chot'; }).length; };
     thuTu.sort(function (a, b) {
       var qa = nhom[a].filter(function (x) { return x.qua_han; }).length, qb = nhom[b].filter(function (x) { return x.qua_han; }).length;
-      return (qb - qa) || (nhom[b].length - nhom[a].length) || a.localeCompare(b);
+      return (qb - qa) || (chuaChot(b) - chuaChot(a)) || a.localeCompare(b);
     });
+    /* Màu viên theo trạng thái: đã chốt xanh · đã lưu (chưa chốt) vàng · chưa nộp quá hạn đỏ · còn lại xám. */
     var the = function (x) {
-      return '<button class="vien' + (x.qua_han ? ' qua-han' : '') + '" type="button" data-viec-ngay="' + esc(x.ngay) + '" data-viec-ch="' + esc(x.cua_hang) + '" title="' + esc(QT_NHAN[x.trang_thai] || x.trang_thai) + '">' +
+      var lop = x.trang_thai === 'da_chot' ? ' xong' : (x.trang_thai === 'da_luu' ? ' luu' : '') + (x.qua_han ? ' qua-han' : '');
+      return '<button class="vien' + lop + '" type="button" data-viec-ngay="' + esc(x.ngay) + '" data-viec-ch="' + esc(x.cua_hang) + '" title="' + esc(QT_NHAN[x.trang_thai] || x.trang_thai) + '">' +
         esc(ngayVN(x.ngay).slice(0, 5)) + '<span>' + esc(QT_NHAN[x.trang_thai] || x.trang_thai) + '</span></button>';
     };
-    h += '<div class="chu-them">Bấm một ngày để mở đúng ngày ấy ở tab Nhập báo cáo. Ngày đỏ là đã quá hạn.</div>' +
+    h += '<div class="chu-them">Bấm một ngày để mở đúng ngày ấy ở tab Nhập báo cáo. <b style="color:var(--tot)">Xanh</b> đã chốt · ' +
+      '<b style="color:var(--canh)">vàng</b> đã lưu chưa chốt · <b style="color:var(--xau)">đỏ</b> chưa nộp, quá hạn.</div>' +
       '<div class="bang-the bang-cuon" style="margin-top:8px"><table><thead><tr>' +
       '<th style="text-align:left">Cơ sở</th><th>Chưa chốt</th><th>Quá hạn</th><th style="text-align:left">Ngày</th></tr></thead><tbody>' +
       thuTu.map(function (c) {
-        var d = nhom[c], qh = d.filter(function (x) { return x.qua_han; }).length;
+        var d = nhom[c], qh = d.filter(function (x) { return x.qua_han; }).length, cc = chuaChot(c);
         return '<tr' + (qh ? ' class="qua-han"' : '') + '><td data-nhan="Cơ sở" style="text-align:left"><b>' + esc(c) + '</b></td>' +
-          '<td class="s" data-nhan="Chưa chốt">' + d.length + '</td>' +
+          '<td class="s" data-nhan="Chưa chốt"' + (cc ? '' : ' style="color:var(--tot)"') + '>' + (cc || '✓') + '</td>' +
           '<td class="s" data-nhan="Quá hạn"' + (qh ? ' style="color:var(--xau);font-weight:600"' : '') + '>' + (qh || '—') + '</td>' +
           '<td data-nhan="Ngày" style="text-align:left"><div class="viec" style="margin-top:0">' + d.map(the).join('') + '</div></td></tr>';
       }).join('') + '</tbody></table></div></div>';
@@ -3470,8 +3484,6 @@
       taiNhomVe(o);
       /* Quy trình báo cáo cơ sở hằng ngày: cấu hình + tổng hợp hôm qua + nhật ký (chỉ quản trị). */
       taiQuyTrinh(o);
-      /* Xuất MISA: chứng từ bán hàng từng ngày × cơ sở, combo bóc tách — chỉ người được nạp file. */
-      taiMisa(o);
     }).catch(function (e) {
       o.innerHTML = '<div class="khung"><div class="trong">' + esc(e.message || e) + '</div></div>';
     });
@@ -3587,14 +3599,30 @@
      Anh Thắng 25/09/2026: *"Giờ bắt đầu bóc tách và xuất dữ liệu ra misa"* — kèm ảnh màn MISA của kế toán: một
      chứng từ bán hàng mỗi ngày × cơ sở, từng mặt hàng theo Mã hàng FABi, combo tách làm hai dòng (vé + hàng có
      giá vốn). Máy chủ bóc tách (`misa.php`); màn này chỉ chọn kỳ, xem trước, tải tệp và khai mã. */
-  var MISA = { tu: '', den: '', ch: '*', tt: 'chua', r: null, moDong: false, moCf: false };
+  var MISA = { tu: '', den: '', ch: '*', tt: 'chua', r: null, moDong: false, moCf: false, trang: 1, trangDong: 1 };
+  var MISA_MOI_TRANG = 20;   // anh Thắng 25/09/2026: "giới hạn 20 dòng cho 1 trang"
+  /* Cắt một danh sách theo trang; trả về phần bày + thanh chuyển trang (nút mang data-misa-trang="<khoá>|<số>"). */
+  function misaTrang(ds, trang, khoa) {
+    var tong = Math.max(1, Math.ceil(ds.length / MISA_MOI_TRANG));
+    trang = Math.min(Math.max(1, trang || 1), tong);
+    var dau = (trang - 1) * MISA_MOI_TRANG;
+    var nav = ds.length > MISA_MOI_TRANG
+      ? '<div class="trang-nav"><button class="vien" type="button" data-misa-trang="' + khoa + '|' + (trang - 1) + '"' + (trang <= 1 ? ' disabled' : '') + '>‹ Trước</button>' +
+        '<span>Trang ' + trang + '/' + tong + ' · ' + (dau + 1) + '–' + Math.min(ds.length, dau + MISA_MOI_TRANG) + ' của ' + ds.length + '</span>' +
+        '<button class="vien" type="button" data-misa-trang="' + khoa + '|' + (trang + 1) + '"' + (trang >= tong ? ' disabled' : '') + '>Sau ›</button></div>'
+      : '';
+    return { ds: ds.slice(dau, dau + MISA_MOI_TRANG), nav: nav, trang: trang };
+  }
   function misaDuong() {
     return 'misa?tu=' + MISA.tu + '&den=' + MISA.den + '&cua_hang=' + encodeURIComponent(MISA.ch) + '&tt=' + MISA.tt;
   }
   function taiMisa(o) {
+    o = o || q('#dtTabMisa');
+    if (!o) return;
     if (!MISA.den) { var h = ymd(new Date()); MISA.den = h; MISA.tu = h.slice(0, 8) + '01'; }
-    api(misaDuong()).then(function (r) { MISA.r = r; veMisa(o, r); })
-      .catch(function (e) { khoiLoi(o, 'dtMisa', 'Xuất MISA — chứng từ bán hàng', e); });
+    if (!o.querySelector('#dtMisa')) o.innerHTML = '<div class="khung"><div class="trong">Đang tính chứng từ…</div></div>';
+    api(misaDuong()).then(function (r) { MISA.r = r; MISA.trang = 1; MISA.trangDong = 1; veMisa(o, r); })
+      .catch(function (e) { o.innerHTML = ''; khoiLoi(o, 'dtMisa', 'Xuất MISA — chứng từ bán hàng', e); });
   }
 
   function veMisa(o, r) {
@@ -3613,14 +3641,23 @@
       [['chua', 'Chưa xuất'], ['da', 'Đã xuất'], ['tatca', 'Tất cả']].map(function (x) { return '<option value="' + x[0] + '"' + (x[0] === MISA.tt ? ' selected' : '') + '>' + x[1] + '</option>'; }).join('') +
       '</select></span><button class="nut" type="button" id="misaXem">Xem</button></div>';
     if ((r.warn || []).length) {
-      h += '<div class="canh-ghep"><b>Cần xem trước khi nộp:</b><br>• ' + r.warn.map(esc).join('<br>• ') + '</div>';
+      /* Gọn: mỗi loại một câu. Danh sách đủ (từng món, từng quán, số ngày) nằm trong <details> — anh Thắng 25/09/2026
+         mở cả chuỗi 25 ngày thấy hơn 40 dòng "Chưa có Mã hàng cho …" choán màn. */
+      var nh = r.warn_nhom || [];
+      h += '<div class="canh-ghep"><b>Cần xem trước khi nộp:</b><br>• ' + r.warn.map(esc).join('<br>• ') +
+        (nh.length ? '<details style="margin-top:6px"><summary>Xem đủ danh sách</summary>' + nh.map(function (n) {
+          return '<div style="margin-top:6px"><b>' + n.ds.length + ' ' + esc(n.tieu_de) + '</b><br>' +
+            n.ds.map(function (x) { return esc(x.ten) + (x.so > 1 ? ' <span class="chu-them" style="margin:0">(' + x.so + ' ngày)</span>' : ''); }).join('<br>') + '</div>';
+        }).join('') + '</details>' : '') + '</div>';
     }
     if (!ct.length) {
       h += '<div class="trong">Không có ngày nào trong kỳ' + (MISA.tt === 'chua' ? ' chưa xuất' : MISA.tt === 'da' ? ' đã xuất' : '') + '.</div>';
     } else {
+      var tr1 = misaTrang(ct, MISA.trang, 'ct');
+      MISA.trang = tr1.trang;
       h += '<div class="bang-cuon bang-the the-ct"><table><thead><tr><th>Ngày</th><th style="text-align:left">Cơ sở</th><th>Số chứng từ</th><th>Dòng</th>' +
         '<th>Tổng dòng</th><th>Doanh thu POS</th><th>Chốt</th><th>Đã xuất</th><th style="text-align:left">Lưu ý</th></tr></thead><tbody>' +
-        ct.map(function (x) {
+        tr1.ds.map(function (x) {
           var lech = Math.abs((x.tong || 0) - (x.doanh_thu || 0)) > 1;
           return '<tr' + ((x.canh || []).length ? ' class="qua-han"' : '') + '><td class="o-may" data-nhan="Ngày">' + esc(ngayVN(x.ngay)) + '</td>' +
             '<td class="o-ten" data-nhan="Cơ sở" style="text-align:left">' + esc(x.cua_hang) + '</td>' +
@@ -3630,7 +3667,7 @@
             '<td class="o-may" data-nhan="Chốt">' + (x.chot ? '✓' : '<span class="chu-them" style="margin:0">chưa</span>') + '</td>' +
             '<td class="o-may" data-nhan="Đã xuất">' + (x.da_xuat ? esc(String(x.da_xuat.luc || '').slice(0, 16)) : '—') + '</td>' +
             '<td class="o-ghi" data-nhan="Lưu ý" style="text-align:left;font-size:12px">' + (x.canh || []).map(esc).join('<br>') + '</td></tr>';
-        }).join('') + '</tbody></table></div>' +
+        }).join('') + '</tbody></table></div>' + tr1.nav +
         '<div class="bc-nut" style="margin-top:12px"><button class="nut chinh" type="button" id="misaXlsx">Tải Excel cho MISA</button> ' +
         '<button class="nut" type="button" id="misaCsv">Tải CSV</button> ' +
         (MISA.tt === 'da'
@@ -3640,16 +3677,18 @@
         '<span id="misaBao" class="chu-them" style="margin:0"></span></div>';
       if (MISA.moDong) {
         var chiCot = [0, 2, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15];
-        h += '<div class="bang-cuon" style="max-height:60vh;overflow:auto"><table><thead><tr>' +
+        var tr2 = misaTrang(rows, MISA.trangDong, 'dong');
+        MISA.trangDong = tr2.trang;
+        h += '<div class="bang-cuon"><table><thead><tr>' +
           chiCot.map(function (i) { return '<th' + (i === 6 ? ' style="text-align:left"' : '') + '>' + esc(cols[i]) + '</th>'; }).join('') + '</tr></thead><tbody>' +
-          rows.slice(0, 400).map(function (d) {
+          tr2.ds.map(function (d) {
             return '<tr>' + chiCot.map(function (i) {
               var v = d[i];
               if (i === 12) return '<td class="s">' + nguyen(v) + '</td>';
               if (i === 13 || i === 14) return '<td class="s">' + nguyen(v) + '</td>';
               return '<td' + (i === 6 ? ' style="text-align:left"' : '') + '>' + esc(v) + '</td>';
             }).join('') + '</tr>';
-          }).join('') + '</tbody></table></div>' + (rows.length > 400 ? '<div class="chu-them">Chỉ bày 400 dòng đầu — tệp tải về đủ ' + rows.length + ' dòng.</div>' : '');
+          }).join('') + '</tbody></table></div>' + tr2.nav;
       }
     }
 
@@ -3691,10 +3730,7 @@
       '</details></div>';
 
     var cu = o.querySelector('#dtMisa');
-    if (cu) { cu.outerHTML = h; } else {
-      var moc = o.querySelector('#dtQuyTrinh');
-      if (moc) moc.insertAdjacentHTML('afterend', h); else o.insertAdjacentHTML('beforeend', h);
-    }
+    if (cu) { cu.outerHTML = h; } else { o.innerHTML = h; }
     noiMisa(o, r);
   }
 
@@ -3742,6 +3778,13 @@
     if (detail) detail.addEventListener('toggle', function () { MISA.moCf = detail.open; });
     var mo = k.querySelector('#misaDongMo');
     if (mo) mo.addEventListener('click', function () { MISA.moDong = !MISA.moDong; veMisa(o, r); });
+    Array.prototype.forEach.call(k.querySelectorAll('[data-misa-trang]'), function (b) {
+      b.addEventListener('click', function () {
+        var p = b.getAttribute('data-misa-trang').split('|');
+        if (p[0] === 'ct') MISA.trang = parseInt(p[1], 10); else MISA.trangDong = parseInt(p[1], 10);
+        veMisa(o, r);
+      });
+    });
 
     var dau = function (viec, khoa, chu) {
       var fd = new FormData(); fd.append('viec', viec); fd.append('khoa', JSON.stringify(khoa));
@@ -4726,7 +4769,8 @@
                   return esc(x.ho_ten) + ' <span style="color:var(--ink-3)">(' + esc(x.ma_nv) +
                     (x.vai === 'duyet' ? ', duyệt — xem tổng mọi cơ sở'
                       : (!x.vai ? ', chưa cấp quyền'
-                        : ((x.coso_ds || []).length > 1 ? ', ' + x.coso_ds.length + ' cơ sở' : ''))) + ')</span>';
+                        : ((x.coso_ds || []).length > 1 ? ', ' + x.coso_ds.length + ' cơ sở' : ''))) +
+                    ((x.coso_rieng || []).length ? ', <b>gán riêng ' + x.coso_rieng.length + ' quán — không theo bảng này</b>' : '') + ')</span>';
                 }).join('<br>')
               : '<span style="color:var(--ink-3)">—</span>') + '</td></tr>';
         }).join('') + '</tbody></table></div>' +
@@ -5059,12 +5103,17 @@
       h += '<div class="trong">Chưa có ai được đẩy sang. Vào trang Nhân sự, cột ' +
         '<b>Quản trị báo cáo cơ sở</b>, bấm Đẩy cho cửa hàng trưởng — rồi quay lại đây chọn vai.</div>';
     } else {
+      /* Anh Thắng 25/09/2026: *"tách riêng nhân viên, nó gộp dẫn đến nhân viên chung cơ sở"* — bảng ghép đi theo MÃ nhân
+         sự nên ai cùng mã là cùng cụm quán. Cột "Cơ sở riêng" gán đúng quán cho TỪNG NGƯỜI, đè bảng ghép; để trống thì
+         theo mã như cũ. */
+      var long_ = function (t) { return String(t || '').replace(/[\s\u00a0]+/g, ' ').trim().toLowerCase(); };
       h += '<div class="bang-cuon"><table><thead><tr>' +
-        '<th>Người</th><th>Cơ sở (từ sổ nhân sự)</th><th>Quyền</th><th></th>' +
+        '<th>Người</th><th>Cơ sở (từ sổ nhân sự)</th><th>Cơ sở riêng — tích để đè bảng ghép</th><th>Quyền</th><th></th>' +
         '</tr></thead><tbody>' +
         pin.map(function (x) {
           var cs = (x.coso_ds || []);
           var ten = (x.coso_ten || []);
+          var rieng = x.coso_rieng || [];
           return '<tr data-ma-nv="' + esc(x.ma_nv) + '">' +
             '<td>' + esc(x.ho_ten) + '<span style="display:block;color:var(--ink-3);font-size:12px">' +
               esc(x.ma_nv) + (x.co_pin ? '' : ' · <b style="color:var(--xau)">mất PIN (trùng người khác)</b>') +
@@ -5075,6 +5124,13 @@
                 ? 'duyệt — xem tổng MỌI cơ sở' + (ten.length ? ' (mã này là quán ' + esc(ten.join(' · ')) + ' — nếu là cửa hàng trưởng thì chọn Nhập báo cáo)' : '')
                 : (ten.length ? esc(ten.join(' · ')) : (cs.length ? 'chưa ghép tên POS — khai ở bảng Ghép cơ sở' : ''))) +
               '</span></td>' +
+            '<td><div class="ghep-chon' + (x.vai === 'duyet' ? ' mo-nhat' : '') + '" data-cs-rieng="' + esc(x.ma_nv) + '">' +
+              (rieng.length ? '<div class="ghep-nhac">Đang gán riêng ' + rieng.length + ' quán — bỏ tích hết là về theo mã.</div>'
+                : '<div class="ghep-nhac">Chưa gán riêng — đang theo mã' + (ten.length ? ' (' + ten.length + ' quán)' : '') + '.</div>') +
+              ch.map(function (t) {
+                var daTich = rieng.indexOf(t) >= 0 || rieng.some(function (c2) { return long_(c2) === long_(t); });
+                return '<label><input type="checkbox" data-cs-rieng-o="' + esc(x.ma_nv) + '" value="' + esc(t) + '"' + (daTich ? ' checked' : '') + '><span>' + esc(t) + '</span></label>';
+              }).join('') + '</div></td>' +
             '<td>' + chon('vai', x.vai || '', quyens, '— chưa cấp (chỉ xem) —') + '</td>' +
             '<td><button class="nut" type="button" data-luu-pin="' + esc(x.ma_nv) + '">Lưu</button></td>' +
           '</tr>';
@@ -5082,7 +5138,8 @@
     }
     h += '<div class="chu-them"><b>Nhập báo cáo</b>: nhập báo cáo ngày và kho của đúng cơ sở mình. ' +
       '<b>Nhập và duyệt</b>: nhập, xem đối soát mọi cơ sở và nạp được file POS — dành cho kế toán, ' +
-      'quản lý. <b>Chưa cấp</b>: đăng nhập được, chỉ xem. Trang Nhân sự chỉ đẩy người sang; vai cấp ở đây.</div></div>';
+      'quản lý. <b>Chưa cấp</b>: đăng nhập được, chỉ xem. Trang Nhân sự chỉ đẩy người sang; vai cấp ở đây. ' +
+      '<b>Cơ sở riêng</b>: người cùng mã nhân sự vốn dùng chung bảng ghép — muốn ai chỉ coi đúng quán nào thì tích ở cột ấy rồi Lưu.</div></div>';
 
     h += '<div class="khung"><header><h2>Tài khoản WordPress được nhập báo cáo</h2>' +
       '<span class="goi">' + ds.length + ' người</span></header>';
@@ -5136,6 +5193,10 @@
         var fd = new FormData();
         fd.append('ma_nv', tr.dataset.maNv);
         fd.append('vai', tr.querySelector('[data-o="vai"]').value);
+        /* Cơ sở gán riêng: gửi đúng những ô đã tích; [] = bỏ gán riêng, về theo mã. */
+        var csRieng = [];
+        Array.prototype.forEach.call(tr.querySelectorAll('input[data-cs-rieng-o]'), function (c) { if (c.checked) csRieng.push(c.value); });
+        fd.append('co_so', JSON.stringify(csRieng));
         b.disabled = true; b.textContent = 'Đang lưu…';
         api('nguoi-vai', { method: 'POST', body: fd }).then(function () {
           b.textContent = 'Đã lưu';

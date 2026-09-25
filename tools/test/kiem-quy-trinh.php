@@ -128,6 +128,10 @@ $khoa = array_map( function ( $x ) { return $x['ngay'] . '|' . $x['cua_hang'] . 
 phep( '🔴 việc: không có dòng đã chốt', ! in_array( '2026-09-23|' . $TP . '|da_chot', $khoa, true ) && ! in_array( '2026-09-22|' . $TP . '|da_chot', $khoa, true ) );
 phep( 'GV 23/09 đã lưu chưa chốt -> có', in_array( '2026-09-23|' . $GV . '|da_luu', $khoa, true ) );
 phep( 'GV 22/09 chưa nộp -> có; VT 22/09 đã lưu -> có', in_array( '2026-09-22|' . $GV . '|chua_nop', $khoa, true ) && in_array( '2026-09-22|' . $VT . '|da_luu', $khoa, true ) );
+/* Anh Thắng 25/09/2026: "Ngày nào bấm nộp sẽ hiện xanh, chứ không phải ẩn" — lịch đủ kể cả ngày đã chốt. */
+$l = khh_dt_qt_viec( array(), $BAY, 7, true );
+$khoa_l = array_map( function ( $x ) { return $x['ngay'] . '|' . $x['cua_hang'] . '|' . $x['trang_thai']; }, $l );
+phep( '🔴 ke_ca_chot: lịch có cả TP 23/09 và 22/09 đã chốt, và vẫn có mọi việc treo', in_array( '2026-09-23|' . $TP . '|da_chot', $khoa_l, true ) && in_array( '2026-09-22|' . $TP . '|da_chot', $khoa_l, true ) && ! array_diff( $khoa, $khoa_l ) && count( $l ) === count( $v ) + 2 );
 phep( '🔴 hôm qua (23/09) VT chưa có số máy VẪN kể — việc của văn phòng', in_array( '2026-09-23|' . $VT . '|chua_fabi', $khoa, true ) );
 phep( '🔴 ngày cũ (21/09) không số máy, không ai nhập -> KHÔNG kể', ! in_array( '2026-09-21|' . $TP . '|chua_fabi', $khoa, true ) && ! in_array( '2026-09-21|' . $VT . '|chua_fabi', $khoa, true ) );
 phep( 'VT 20/09 đã lưu chưa chốt (trong 7 ngày) -> có', in_array( '2026-09-20|' . $VT . '|da_luu', $khoa, true ) );
@@ -179,6 +183,10 @@ $GLOBALS['VHCP_META'] = array( 'khh_dt_co_so' => $GV );
 $r = khh_dt_rest_qt_xem();
 phep( '🔴 cửa hàng trưởng: chỉ việc của quán mình, KHÔNG có cấu hình/nhật ký/tổng hợp', ! isset( $r['cf'] ) && ! isset( $r['nhat_ky'] ) && ! isset( $r['tong_hop'] ) && count( $r['viec'] ) > 0 && ! array_filter( $r['viec'], function ( $x ) use ( $GV ) { return $x['cua_hang'] !== $GV; } ) );
 phep( 'kèm giờ hạn để màn nói "chốt trước 10:00"', '10:00' === $r['han'] );
+$GLOBALS['VHCP_META'] = array( 'khh_dt_co_so' => $TP );
+$r = khh_dt_rest_qt_xem();
+phep( '🔴 REST trả `lich` (có ngày đã chốt) và `viec` (không có) — cùng quán', (bool) array_filter( $r['lich'], function ( $x ) { return 'da_chot' === $x['trang_thai']; } ) && ! array_filter( $r['viec'], function ( $x ) { return 'da_chot' === $x['trang_thai']; } ) && count( $r['lich'] ) > count( $r['viec'] ) );
+$GLOBALS['VHCP_META'] = array( 'khh_dt_co_so' => $GV );
 $GLOBALS['VHCP_CO_QUYEN'] = true;
 $GLOBALS['VHCP_META'] = array();
 $r = khh_dt_rest_qt_luu( new WP_REST_Request( array( 'bat' => '1', 'han' => '09:30', 'email' => 'ketoan@example.test', 'lui' => '5' ) ) );

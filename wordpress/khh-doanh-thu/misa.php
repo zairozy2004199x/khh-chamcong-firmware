@@ -512,6 +512,9 @@ function khh_dt_misa_xuat( $tu, $den, $cua_hang = '', $tt = 'chua' ) {
 		$sql   .= ' AND cua_hang IN (' . implode( ',', array_fill( 0, count( $cua_ds ), '%s' ) ) . ')';
 		$args   = array_merge( $args, $cua_ds );
 	}
+	/* "Toàn hệ thống" là dòng FABi gộp cả chuỗi khi file không có cột cửa hàng — không phải quán, không có chứng từ. */
+	$sql   .= ' AND cua_hang <> %s';
+	$args[] = 'Toàn hệ thống';
 	$sql .= ' ORDER BY ngay ASC, cua_hang ASC LIMIT 3000';
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
 	$ds  = (array) $wpdb->get_results( $wpdb->prepare( $sql, $args ), ARRAY_A );
@@ -555,21 +558,81 @@ function khh_dt_misa_xuat( $tu, $den, $cua_hang = '', $tt = 'chua' ) {
 			'da_xuat'   => $n['da_xuat'],
 		);
 	}
-	$canh_ds = array();
-	foreach ( $canh as $c => $so ) {
-		$canh_ds[] = $so > 1 ? $c . ' (' . $so . ' ngày)' : $c;
-	}
-	if ( $chua_chot ) {
-		array_unshift( $canh_ds, $chua_chot . ' ngày cơ sở chưa "Lưu và chốt" báo cáo — số máy POS vẫn xuất được, nhưng hàng bán thực có thể còn đổi.' );
-	}
+	$nhom = khh_dt_misa_gom_canh( $canh, $chua_chot );
 	return array(
 		'cols'     => khh_dt_misa_cot(),
 		'rows'     => $rows,
 		'chung_tu' => $ct,
-		'warn'     => $canh_ds,
+		'warn'     => $nhom['gon'],
+		'warn_nhom' => $nhom['nhom'],
 		'tong'     => array_sum( array_map( function ( $c ) { return $c['tong']; }, $ct ) ),
 		'ten_tep'  => 'MISA_BanHang_' . str_replace( '-', '', $tu ) . '-' . str_replace( '-', '', $den ),
 	);
+}
+
+/**
+ * GOM CẢNH BÁO THEO LOẠI. Anh Thắng 25/09/2026 mở kỳ 1–25/09 cả chuỗi: hơn 40 dòng "Chưa có Mã hàng cho …" choán cả
+ * màn, không đọc nổi. Mỗi loại một câu ngắn kể vài tên đầu + "và N nữa"; danh sách đủ nằm ở `nhom` cho màn mở ra khi cần.
+ *
+ * @param array $canh [ câu => số ngày ]  @return [ 'gon' => [câu…], 'nhom' => [ {loai, tieu_de, ds:[{ten, so}]} ] ]
+ */
+function khh_dt_misa_gom_canh( $canh, $chua_chot = 0 ) {
+	$loai = array(
+		'ma_mh'   => array( 'mau' => '/^Chưa có Mã hàng cho "(.+?)"/u', 'tieu_de' => 'món chưa có Mã hàng — khai ở bảng Mặt hàng MISA, hoặc nạp lại file FABi có cột Mã hàng' ),
+		'ma_dv'   => array( 'mau' => '/^Cơ sở "(.+?)" chưa khai Mã đơn vị/u', 'tieu_de' => 'cơ sở chưa khai Mã đơn vị MISA — khai ở bảng Cơ sở' ),
+		'combo'   => array( 'mau' => '/^Combo "(.+?)"/u', 'tieu_de' => 'combo chưa bóc tách được (chưa khai sale phụ / công thức, hay phụ vượt giá) — xuất một dòng vé nguyên giá' ),
+		'lech'    => array( 'mau' => '/^Tổng dòng .* ≠ doanh thu POS/u', 'tieu_de' => 'ngày có tổng dòng lệch doanh thu POS (chiết khấu hoá đơn hay món ngoài bảng)' ),
+	);
+	$nhom = array();
+	foreach ( $loai as $k => $l ) {
+		$nhom[ $k ] = array( 'loai' => $k, 'tieu_de' => $l['tieu_de'], 'ds' => array() );
+	}
+	$khac = array();
+	foreach ( $canh as $cau => $so ) {
+		$trung = false;
+		foreach ( $loai as $k => $l ) {
+			if ( preg_match( $l['mau'], (string) $cau, $m ) ) {
+				$ten = isset( $m[1] ) ? $m[1] : (string) $cau;
+				if ( 'lech' === $k ) {
+					$ten = (string) $cau;
+				}
+				if ( isset( $nhom[ $k ]['ds'][ $ten ] ) ) {
+					$nhom[ $k ]['ds'][ $ten ] += (int) $so;
+				} else {
+					$nhom[ $k ]['ds'][ $ten ] = (int) $so;
+				}
+				$trung = true;
+				break;
+			}
+		}
+		if ( ! $trung ) {
+			$khac[] = $so > 1 ? $cau . ' (' . $so . ' ngày)' : (string) $cau;
+		}
+	}
+	$gon = array();
+	if ( $chua_chot ) {
+		$gon[] = $chua_chot . ' ngày cơ sở chưa "Lưu và chốt" báo cáo — số máy POS vẫn xuất được, nhưng hàng bán thực có thể còn đổi.';
+	}
+	$ra_nhom = array();
+	foreach ( $nhom as $k => $n ) {
+		if ( ! $n['ds'] ) {
+			continue;
+		}
+		arsort( $n['ds'] );
+		$ten_ds = array_keys( $n['ds'] );
+		$dau    = array_slice( $ten_ds, 0, 'lech' === $k ? 2 : 6 );
+		$con    = count( $ten_ds ) - count( $dau );
+		$gon[]  = count( $ten_ds ) . ' ' . $n['tieu_de'] . ': ' . implode( '; ', $dau ) . ( $con > 0 ? ' … và ' . $con . ' nữa' : '' ) . '.';
+		$ds     = array();
+		foreach ( $n['ds'] as $ten => $so ) {
+			$ds[] = array( 'ten' => (string) $ten, 'so' => (int) $so );
+		}
+		$ra_nhom[] = array( 'loai' => $k, 'tieu_de' => $n['tieu_de'], 'ds' => $ds );
+	}
+	foreach ( $khac as $c ) {
+		$gon[] = $c;
+	}
+	return array( 'gon' => $gon, 'nhom' => $ra_nhom );
 }
 
 /**

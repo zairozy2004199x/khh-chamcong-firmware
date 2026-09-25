@@ -286,6 +286,11 @@ body.khh-dt-body{margin:0;background:#f3f5f9}
 .khh-dt .viec .vien span{display:block;font-size:11px;color:var(--ink-3);font-weight:400}
 .khh-dt .viec .vien.qua-han{border-color:var(--xau);color:var(--xau)}
 .khh-dt .viec .vien.qua-han span{color:var(--xau)}
+.khh-dt .viec .vien.xong{border-color:var(--tot);color:var(--tot);background:rgba(15,138,95,.08)}
+.khh-dt .viec .vien.xong span{color:var(--tot)}
+.khh-dt .viec .vien.luu{border-color:var(--canh);color:var(--canh)}
+.khh-dt .viec .vien.luu span{color:var(--canh)}
+.khh-dt .trang-nav{display:flex;align-items:center;gap:10px;margin-top:8px;font-size:13px;color:var(--ink-3)}
 .khh-dt .bc-buoc{margin:4px 0 10px}
 .khh-dt .buoc{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;font-size:12.5px;color:var(--ink-3)}
 .khh-dt .buoc span{display:inline-flex;align-items:center;gap:6px}

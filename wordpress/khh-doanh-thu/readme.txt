@@ -102,6 +102,19 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.67.1 =
+* **Xuất MISA thành tab riêng** (anh Thắng 25/09/2026: *"Tách TAB XUẤT MISA RA 1 TAB RIÊNG NHÉ"*) — tab "Xuất MISA" chỉ hiện
+  cho người được nạp file. Bảng chứng từ và bảng từng dòng **phân trang 20 dòng** (*"giới hạn 20 dòng cho 1 trang"*), nút
+  Đánh dấu vẫn tính cả kỳ. Cảnh báo **gom theo loại** (N món chưa có Mã hàng, N cơ sở chưa khai Mã đơn vị, N combo chưa tách…)
+  kể vài tên đầu, bấm "Xem đủ danh sách" mới xổ hết — trước đó 40 dòng "Chưa có Mã hàng" choán màn. Dòng FABi "Toàn hệ
+  thống" (file không có cột cửa hàng) không còn thành chứng từ.
+* **Cơ sở gán riêng cho từng người** (*"tách riêng nhân viên, nó gộp dẫn đến nhân viên chung cơ sở"*): bảng Phân quyền PIN
+  thêm cột "Cơ sở riêng" — tích quán cho đúng người ấy rồi Lưu là họ chỉ thấy/nhập những quán đã tích, đè bảng Ghép cơ sở
+  theo mã nhân sự; bỏ tích hết là về theo mã. Vai duyệt vẫn xem tổng; đẩy lại từ Nhân sự không xoá phần đã gán. Bảng Ghép
+  cơ sở ghi rõ ai đang gán riêng.
+* **Tab Cảnh báo bày đủ ngày**, kể cả đã chốt (*"Ngày nào bấm nộp sẽ hiện xanh, chứ không phải ẩn"*): viên xanh = đã chốt,
+  vàng = đã lưu chưa chốt, đỏ = chưa nộp quá hạn. Cột Chưa chốt và nhãn tab vẫn chỉ đếm việc treo.
+
 = 1.67.0 =
 * **Xuất MISA — chứng từ bán hàng** (anh Thắng 25/09/2026: *"Giờ bắt đầu bóc tách và xuất dữ liệu ra misa"*, kèm ảnh
   chứng từ kế toán gõ tay). Tab Quản trị có khối mới: chọn kỳ / cửa hàng / chưa-đã xuất, xem trước từng chứng từ

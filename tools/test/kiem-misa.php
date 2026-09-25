@@ -202,7 +202,21 @@ phep( '🔴 17 cột đúng thứ tự lưới MISA', array( 'Ngày hạch toán
 $r0 = $x['rows'][0];
 phep( 'dòng đầu: ngày dd/mm/yyyy ở cả hai cột ngày, số chứng từ, mã, số là số', '23/09/2026' === $r0[0] && '23/09/2026' === $r0[1] && 'BH20260923-TTAMTA' === $r0[2] && 'MNKVCTT004' === $r0[5] && 16.0 === (float) $r0[12] && 800000.0 === (float) $r0[14] && 'TTAMTA' === $r0[15] );
 phep( 'ngày 24 TA đã chốt, 23 TA và GV chưa -> cảnh báo đầu tiên "2 ngày cơ sở chưa Lưu và chốt"', $x['chung_tu'][2]['chot'] && ! $x['chung_tu'][0]['chot'] && 0 === strpos( $x['warn'][0], '2 ngày cơ sở chưa' ) );
-phep( 'cảnh báo trùng nhiều ngày gom một dòng kèm số ngày (GV chưa khai mã đơn vị chỉ 1 ngày)', (bool) preg_grep( '/Lotte Gò Vấp" chưa khai Mã đơn vị MISA\.$/u', $x['warn'] ) );
+phep( '🔴 cảnh báo GOM THEO LOẠI: một câu "1 cơ sở chưa khai Mã đơn vị MISA … : TuTu Train - Lotte Gò Vấp."', (bool) preg_grep( '/^1 cơ sở chưa khai Mã đơn vị MISA[^:]*: TuTu Train - Lotte Gò Vấp\.$/u', $x['warn'] ) && count( $x['warn'] ) <= 3 );
+$nh = array();
+foreach ( $x['warn_nhom'] as $n ) { $nh[ $n['loai'] ] = $n; }
+phep( 'warn_nhom có nhóm ma_dv với đúng tên quán và số ngày', isset( $nh['ma_dv'] ) && 1 === count( $nh['ma_dv']['ds'] ) && $GV === $nh['ma_dv']['ds'][0]['ten'] && 1 === $nh['ma_dv']['ds'][0]['so'] );
+/* nhiều món thiếu mã -> một câu kể 6 tên đầu + "và N nữa"; danh sách đủ ở warn_nhom */
+$canh_nhieu = array();
+for ( $i = 1; $i <= 9; $i++ ) { $canh_nhieu[ 'Chưa có Mã hàng cho "Món ' . $i . '" — khai ở bảng Mặt hàng MISA.' ] = $i; }
+$g = khh_dt_misa_gom_canh( $canh_nhieu, 2 );
+phep( '🔴 9 món thiếu mã -> 2 câu (chưa chốt + gom), câu gom kể 6 tên nhiều ngày nhất rồi "… và 3 nữa"; nhóm đủ 9', 2 === count( $g['gon'] ) && 0 === strpos( $g['gon'][0], '2 ngày cơ sở chưa' ) && (bool) preg_match( '/^9 món chưa có Mã hàng[^:]*: Món 9; Món 8; Món 7; Món 6; Món 5; Món 4 … và 3 nữa\.$/u', $g['gon'][1] ) && 9 === count( $g['nhom'][0]['ds'] ) && 'Món 9' === $g['nhom'][0]['ds'][0]['ten'] );
+$g = khh_dt_misa_gom_canh( array( 'Câu lạ' => 3 ) );
+phep( 'câu không thuộc loại nào giữ nguyên kèm số ngày', array( 'Câu lạ (3 ngày)' ) === $g['gon'] && array() === $g['nhom'] );
+/* "Toàn hệ thống" (dòng FABi gộp cả chuỗi) không thành chứng từ */
+pos_ngay( '2026-09-24', 'Toàn hệ thống', array(), 999 );
+phep( '🔴 "Toàn hệ thống" không phải quán -> không có chứng từ', ! array_filter( khh_dt_misa_xuat( '2026-09-01', '2026-09-30', '', 'tatca' )['chung_tu'], function ( $c ) { return 'Toàn hệ thống' === $c['cua_hang']; } ) );
+$wpdb->query( "DELETE FROM " . khh_dt_bang() . " WHERE cua_hang = 'Toàn hệ thống'" );
 phep( 'tên tệp theo kỳ', 'MISA_BanHang_20260901-20260930' === $x['ten_tep'] );
 phep( 'lọc một quán', 1 === count( khh_dt_misa_xuat( '2026-09-01', '2026-09-30', $GV )['chung_tu'] ) );
 
