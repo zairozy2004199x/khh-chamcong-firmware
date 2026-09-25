@@ -1882,6 +1882,28 @@
         </div>
       </div>
     </div>
+    <!-- 🤖 KẾT NỐI WEB VENDING HCMC — anh Thắng 25/09/2026: "nối chi phí từ web khác qua chi phí của web anh".
+         Chốt: nhập thành ĐƠN THẬT · khối "Vending", mỗi Bộ phận = một cơ sở · trạng thái theo bên Vending.
+         Chỉ Admin thấy (xem `renderCfgVending`). Khoá là bí mật: ô không đổ khoá ra, trống = giữ. -->
+    <div class="card" id="vendingCard" style="display:none">
+      <div class="ch"><h2>🤖 Kết nối web Vending HCMC</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="kiemTraVending()">🔌 Kiểm tra kết nối</button><button class="btn b-g" onclick="saveCfgVending()">💾 Lưu</button></div></div>
+      <div style="padding:8px 14px 12px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+        <div class="fld" style="flex:1;min-width:260px"><label>Địa chỉ web Vending</label><input id="cfgVdUrl" placeholder="https://vending.example.com" autocomplete="off"></div>
+        <div class="fld" style="flex:1;min-width:260px"><label>Khoá chia sẻ · <span id="cfgVdKhoaTt" style="font-weight:400"></span></label><input id="cfgVdKhoa" type="password" autocomplete="new-password" placeholder="Dán khoá mới — để trống là giữ khoá cũ"></div>
+        <div style="flex-basis:100%;font-size:12px;color:#64748b;line-height:1.6">
+          Bên web Vending: wp-admin ▸ <b>VENDING HCMC ▸ Chia sẻ cho Chi phí</b> → Tạo khoá ngẫu nhiên → dán vào đây → Lưu → Kiểm tra kết nối.
+          Kéo về: mỗi khoản "Chi phí quản lý" bên Vending ở trạng thái <b>Đã thanh toán</b> / <b>Đã quyết toán</b> thành một <b>đơn thật</b> luồng Trực tiếp,
+          đơn vị VENDING, khối Vending, cơ sở = Bộ phận (POSH · JP · Pinball · Vận hành chung · Thị trường), mảng "Chi Phí Vending" — xuất MISA thành bảng riêng.
+          Chờ duyệt / Đã duyệt / Từ chối KHÔNG kéo. Kéo lại thì cập nhật, không nhập đôi; đơn đã xuất MISA giữ nguyên. 10 loại chi phí Vending tự vào danh mục với TK Nợ trống — kế toán gán ở 🧮 Loại chi phí.
+        </div>
+        <div style="flex-basis:100%;display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding-top:6px;border-top:1px dashed #e5e1da">
+          <label style="font-size:12px;color:#64748b">Tháng</label><input type="month" id="cfgVdThang" style="padding:6px 8px;border:1px solid #d6d3cd;border-radius:8px">
+          <button class="btn b-p" onclick="dongBoVending()">⬇ Kéo chi phí tháng này về</button>
+          <span id="cfgVdNote" style="font-size:12px;color:#64748b"></span>
+        </div>
+        <div id="cfgVdKq" style="flex-basis:100%;font-size:12px;line-height:1.6;display:none"></div>
+      </div>
+    </div>
     <div class="card" id="tinhNangCard">
       <div class="ch"><h2>🧪 Tính năng mới trong bản này</h2><div style="display:flex;gap:8px"><button class="btn b-g" onclick="saveCfgTinhNang()">💾 Áp dụng</button></div></div>
       <div style="padding:8px 14px 0;font-size:12px;color:#64748b">
@@ -3519,7 +3541,7 @@
      đúng mẫu `var KHOI_DS=[{ma:...` ra chạy riêng; đổi nó thành một tham chiếu tới hằng khai
      ở dòng khác là mười mấy bài chết đứng bằng ReferenceError — đã xảy ra đúng thế. Đường lui
      là BẢN SAO của nó, không phải ngược lại. */
-  var KHOI_DS=[{ma:'mb',ten:'Miền Bắc'},{ma:'mn',ten:'Miền Nam'},{ma:'kvc',ten:'Khu vui chơi'},{ma:'mtd',ten:'Máy tự động'},{ma:'vp',ten:'Văn phòng'}];
+  var KHOI_DS=[{ma:'mb',ten:'Miền Bắc'},{ma:'mn',ten:'Miền Nam'},{ma:'kvc',ten:'Khu vui chơi'},{ma:'mtd',ten:'Máy tự động'},{ma:'vp',ten:'Văn phòng'},{ma:'vending',ten:'Vending'}];
   var KHOI_DS_LUI=KHOI_DS.slice();
   function _napKhoiDs(){
     var ds=(typeof BOOT!=="undefined"&&BOOT&&BOOT.khoiDs)||null;
@@ -3592,7 +3614,7 @@
    *    lệch — màn xếp cơ sở vào khối này trong khi máy chủ đọc ra khối khác, không một câu
    *    lỗi nào. Bản dự phòng dưới đây chỉ để trang còn chạy được với gói khởi động bản cũ.
    * ═════════════════════════════════════════════════════════════════════════════════ */
-  var KHOI_DV_DUP={mb:['MB','MIỀN BẮC','MIEN BAC'],mn:['MN','MIỀN NAM','MIEN NAM'],kvc:['KVC'],mtd:['MTĐ','MTD','POSH'],vp:['VP','VĂN PHÒNG','VAN PHONG']};
+  var KHOI_DV_DUP={mb:['MB','MIỀN BẮC','MIEN BAC'],mn:['MN','MIỀN NAM','MIEN NAM'],kvc:['KVC'],mtd:['MTĐ','MTD','POSH'],vp:['VP','VĂN PHÒNG','VAN PHONG'],vending:['VENDING','VENDING HCMC']};
   function _khoiDvBang(){
     var b=(typeof BOOT!=='undefined' && BOOT) ? BOOT.khoiTheoDv : null;
     /* ⚠️ DÒ MỘT KHOÁ BẤT KỲ, ĐỪNG DÒ ĐÚNG 'kvc'. Từ 22/09/2026 bộ khối dẫn đầu bằng MB/MN, và
@@ -13477,6 +13499,8 @@
       mo:'Mốc tuần của đơn: tuần này chạy từ ngày nào đến ngày nào.' },
     { ten:'📈 Kết nối web Doanh thu',     id:['doanhThuCard'],
       mo:'Kéo doanh thu theo cửa hàng từ web Doanh thu để đặt cạnh chi phí ở Tổng quan. Chỉ Admin sửa.' },
+    { ten:'🤖 Kết nối web Vending',       id:['vendingCard'],
+      mo:'Kéo chi phí máy bán hàng từ web Vending HCMC về thành đơn thật (khối Vending). Chỉ Admin sửa kết nối.' },
     /* 🧩 Gộp ba khối · 📦 Nhân bản cấu hình · 🗂️ Bảo trì ảnh ĐÃ GỠ — 24/09/2026, anh Thắng: ba bản cài
        plugin riêng. Xem bia mộ ở chỗ `id="gopCard"` / `id="nhanBanCard"` / `id="imgMaintCard"` cũ. */
     { ten:'🛠 Bảo trì — đụng vào là đụng dữ liệu thật', id:['ngayHongCard'],
@@ -14178,6 +14202,7 @@
     renderDauMuc();
     renderTinhNang();
     renderCfgDoanhThu();   // 📈 thẻ Kết nối web Doanh thu — chỉ Admin
+    renderCfgVending();    // 🤖 thẻ Kết nối web Vending — chỉ Admin
     el('cfgTkInfo').innerHTML = _tkChartHtml() + (TKCHART.length ? ('✅ Đã nạp <b>'+TKCHART.length+'</b> tài khoản — mọi ô mã tài khoản trong trang này đã có gợi ý theo số hiệu + tên.') : '<span style="color:#dc2626">Chưa nạp hệ thống tài khoản — mã phải gõ tay, dễ sai số.</span>');
     /* ⚠️ Bảng khai tay `mangTk` đã gỡ khỏi màn 14/09/2026 — gác `null` ở đây, không thì
        `renderCfg()` ném lỗi ngay dòng này và CẢ tab Cấu hình trắng trơn. */
@@ -15860,6 +15885,49 @@
         +'<td><select style="width:100%">'+TN_TRANG_THAI.map(function(o){ return '<option value="'+o[0]+'"'+(o[0]===x.trangThai?' selected':'')+'>'+o[1]+'</option>'; }).join('')+'</select>'
         +(x.trangThai!=='bat'?'<div style="font-size:10.5px;color:#b45309;margin-top:2px">Nhân viên đang thấy đường cũ.</div>':'')+'</td></tr>';
     }).join('');
+  }
+  /* 🤖 Kết nối web Vending HCMC — chỉ Admin. Cùng luật khoá với thẻ Doanh thu: ô khoá luôn để trống. */
+  function renderCfgVending(){
+    var card=el('vendingCard'); if(!card) return;
+    card.style.display=_laAdmin()?'':'none';
+    var vd=(BOOT&&BOOT.vending)||{};
+    if(el('cfgVdUrl')&&document.activeElement!==el('cfgVdUrl')) el('cfgVdUrl').value=vd.url||'';
+    if(el('cfgVdKhoa')) el('cfgVdKhoa').value='';
+    if(el('cfgVdKhoaTt')) el('cfgVdKhoaTt').innerHTML=vd.khoaCo?'<span style="color:#065f46">ĐÃ CÓ khoá</span>':'<span style="color:#b91c1c">CHƯA có khoá</span>';
+    var o=el('cfgVdThang'); if(o&&!o.value){ var d=new Date(); o.value=d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2); }
+    if(el('cfgVdNote')) el('cfgVdNote').textContent=(vd.soDaNhap?('Đã nhập '+vd.soDaNhap+' khoản. '):'')+(vd.lanCuoi?('Lần cuối: '+vd.lanCuoi):'Chưa kéo lần nào.');
+  }
+  function saveCfgVending(){
+    if(!_laAdmin()){ toast('err','Chỉ Admin mới đổi kết nối web Vending.'); return; }
+    var url=String(el('cfgVdUrl').value||'').trim(), khoa=String(el('cfgVdKhoa').value||'').trim();
+    if(url && !/^https?:\/\/[^\s\/]+/i.test(url)){ toast('err','Địa chỉ phải bắt đầu bằng http:// hoặc https://'); return; }
+    _saveCfg({vending:{url:url, khoa:khoa}}, khoa?'Đã lưu địa chỉ + khoá mới':'Đã lưu địa chỉ (giữ khoá cũ)');
+    el('cfgVdKhoa').value='';
+  }
+  function kiemTraVending(){
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(r&&r.success){ var tt=Object.keys(r.theoTrangThai||{}).map(function(k){ return k+' '+r.theoTrangThai[k]; }).join(' · ');
+        toast('ok','Kết nối được '+(r.web||'web Vending')+': '+r.soKhoan+' khoản trong 30 ngày'+(tt?' ('+tt+')':'')+'.'); }
+      else toast('err',(r&&r.error)||'Không kết nối được');
+    }).withFailureHandler(function(e){ loading(false); toast('err',e.message); }).kiemTraVending();
+  }
+  function dongBoVending(){
+    var thang=(el('cfgVdThang')&&el('cfgVdThang').value)||'';
+    if(!confirm('Kéo chi phí Vending tháng '+(thang||'hiện tại')+' về?\n\nMỗi khoản Đã thanh toán / Đã quyết toán bên Vending thành MỘT ĐƠN THẬT ở đây (khối Vending). Khoản đã kéo rồi chỉ cập nhật, không nhập đôi.')) return;
+    loading(true); var kq=el('cfgVdKq');
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(!(r&&r.success)){ toast('err',(r&&r.error)||'Lỗi'); return; }
+      _log('Kéo chi phí Vending', r.thang, 'mới '+r.moi+' · cập nhật '+r.capNhat);
+      toast('ok','Tháng '+r.thang+': mới '+r.moi+' đơn · cập nhật '+r.capNhat+(r.boQua?' · chưa trả tiền bỏ qua '+r.boQua:'')+(r.daXuat?' · đã xuất MISA giữ '+r.daXuat:''));
+      if(kq){ kq.style.display='';
+        kq.innerHTML='<b>Tháng '+esc(r.thang)+'</b> ('+esc(r.tu)+' → '+esc(r.den)+') · web: '+esc(r.web||'')+' · nhận '+r.tong+' khoản<br>'
+          +'✅ Mới: <b>'+r.moi+'</b> · 🔁 Cập nhật: <b>'+r.capNhat+'</b> · ⏳ Chưa trả tiền (bỏ qua): '+r.boQua+' · 🔒 Đã xuất MISA (giữ): '+r.daXuat
+          +(r.boQuaBoPhan?' · ⚠️ Bộ phận lạ: '+r.boQuaBoPhan:'')
+          +((r.gieo&&(r.gieo.coso||r.gieo.loai))?'<br>🌱 Gieo danh mục: '+r.gieo.coso+' cơ sở, '+r.gieo.loai+' loại chi phí (TK Nợ trống — gán ở 🧮 Loại chi phí).':'')
+          +((r.loi||[]).length?'<br><span style="color:#b91c1c">✗ '+r.loi.length+' khoản lỗi:</span><br>'+r.loi.map(function(x){ return '· '+esc(x); }).join('<br>'):''); }
+      boot();
+    }).withFailureHandler(function(e){ loading(false); toast('err',e.message); }).dongBoVending({thang:thang});
   }
   /* 📈 Kết nối web Doanh thu — chỉ Admin. KHÔNG BAO GIỜ gán khoá vào ô: gói máy chủ cũng không có khoá. */
   function renderCfgDoanhThu(){

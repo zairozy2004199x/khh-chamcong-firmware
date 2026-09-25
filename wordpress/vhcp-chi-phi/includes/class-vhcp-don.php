@@ -810,6 +810,8 @@ class VHCP_Don {
 			'tinhNang'   => VHCP_Cfg::tinh_nang_map(),
 			/* Kết nối web Doanh thu: { san, url (chỉ Admin), khoaCo } — KHÔNG BAO GIỜ có khoá. */
 			'doanhThu'   => VHCP_DoanhThu::cau_hinh(),
+			/* Kết nối web Vending: { san, url (chỉ Admin), khoaCo, soDaNhap, lanCuoi } — không có khoá. */
+			'vending'    => VHCP_Vending::cau_hinh(),
 			/* Vùng này có lọc loại theo vai không. Giao diện đọc CỜ, không tự suy: hai nơi tự
 			   suy là có ngày ô chọn bày một đằng, máy chủ gác một nẻo. */
 			'locLoaiTheoVai' => VHCP_Cfg::loc_loai_theo_vai(),

@@ -128,8 +128,9 @@ $hop = array_keys( VHCP_DonVi::KHOI_THEO_DON_VI );
  * ⚠️ BA MÃ CŨ Ở LẠI, VÀ CỐ Ý: danh mục + bảng mã TK Nợ đang mang chúng. Bỏ khỏi từ điển là
  *    mấy dòng ấy hiện ra với mã trần thay vì tên, hoặc rơi hẳn khỏi bảng mã — mã tài khoản
  *    còn trong sổ mà không ai sửa được. Thứ ĐỔI là danh sách bày ra để chọn (`_mienDs()`). */
-t( '🔴 mã khối của giao diện khớp `VHCP_DonVi` — hai miền trước, ba mã cũ giữ lại để đọc sổ',
-	array( 'mb', 'mn', 'kvc', 'mtd', 'vp' ) === $hop, $hop );
+/* 25/09/2026: thêm 'vending' — chi phí máy bán hàng kéo từ web Vending HCMC (anh Thắng chốt khối mới "Vending"). */
+t( '🔴 mã khối của giao diện khớp `VHCP_DonVi` — hai miền trước, ba mã cũ giữ lại để đọc sổ, rồi vending',
+	array( 'mb', 'mn', 'kvc', 'mtd', 'vp', 'vending' ) === $hop, $hop );
 $app = (string) @file_get_contents( $goc . '/wordpress/vhcp-chi-phi/templates/app.html' );
 if ( preg_match( "/var KHOI_DS=\[(.*?)\];/u", $app, $m ) ) {
 	preg_match_all( "/ma:'([a-z]+)'/u", $m[1], $m2 );
