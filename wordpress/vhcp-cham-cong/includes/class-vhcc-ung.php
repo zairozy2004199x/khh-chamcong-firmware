@@ -305,6 +305,27 @@ class VHCC_Ung {
 			) );
 		}
 
+		/* ---- 9c. Nhắn tin ------------------------------------------------------------------
+		   Anh Thắng 20/09/2026: *"Tạo tính năng mini chat trong app. Chọn thành viên cùng cửa
+		   hàng và chat"*.
+
+		   🔴 Ô NÀY KHÔNG GÁC GÌ, CỐ Ý. Ai đi làm cũng nhắn được cho người cùng chỗ mình làm —
+		      đó là việc bình thường nhất trong một cửa hàng, và gác nó là bắt người ta quay về
+		      Zalo, nơi công ty không thấy gì và người nghỉ việc vẫn còn trong nhóm.
+		      Gác thật nằm ở `VHCC_Chat::duoc_vao()`: phòng nào cũng phải là chỗ mình đang làm. */
+		/* ⚠️ NHÓM "THÔNG TIN CHUNG", KHÔNG PHẢI "CỦA TÔI" — anh Thắng 21/09/2026: *"Cho phần
+		   nhắn tin xuống thông tin chung"*. Đúng: mấy ô trong "Của tôi" đều là ĐƠN TỪ của
+		   riêng mình (xin bù giờ, xin nghỉ, đi trễ) — việc mình làm rồi chờ người khác duyệt.
+		   Nhắn tin thì ngược lại, nó là chỗ nói chuyện với người khác, cùng loại với Nội bộ. */
+		$o[] = self::o( true, array(
+			'ten'  => 'Nhắn tin',
+			'nhom' => 'Thông tin chung',
+			'mo'   => 'Nhắn cho cả cửa hàng, hoặc riêng một người',
+			'man'  => 'mChat',
+			'icon' => '💬',
+			'mau'  => 'lam',
+		) );
+
 		/* ---- 10. Xin bù giờ ---------------------------------------------------------------
 		   Anh Thắng 18/09/2026: *"lệnh bù giờ từ nhân viên gửi lên, CHT sẽ nhận và duyệt và đẩy
 		   tiếp lên cho kế toán"*. Nhân viên nào cũng gửi được — không gác gì thêm. */

@@ -61,6 +61,8 @@ function esc(x) { return String(x == null ? '' : x); }
 
 function moiTruong(extra) {
   return new Function('CFG', 'BOOT', 'esc', '_csLabel', '_csPhu', '_csNhan', '_bd',
+    /* 23/09/2026: hộp chọn hai cột — `_cosoSel` tra nhóm cha qua `_csNhomCua` (hàm THẬT, bốc từ app.html). */
+    "var CS_NHOM_LA='(Ngoài danh mục)';\n" + bocHam('_csNhomCua') + '\n' +
     fnDvMe + '\n' + fnLaDvMe + '\n' + fnDvChuan + '\n' + fnTheoDv + '\n' + fnSel + '\n' + (extra || '') +
     '\nreturn { chuan:_dvChuan, theo:_cosoTheoDv, sel:_cosoSel };')(
     CFG, BOOT, esc,
@@ -151,45 +153,24 @@ t('gian K&H KHÔNG chọn thì không bày', ds.indexOf('NHÀ MA BÌNH DƯƠNG')
 teq('và cả hai đều đang được tích', 2, (h.match(/ selected/g) || []).length);
 teq('số ô tích trong danh sách khớp số dòng', ds.length, (h.match(/type="checkbox"/g) || []).length);
 
-/* ══════════════════════════════════════════════════════════════════════════════════════════════
- * 5. ĐỔI Ô ĐƠN VỊ -> HỘP CƠ SỞ CÙNG HÀNG ĐỔI THEO NGAY
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+ * 5. Ô ĐƠN VỊ ĐÃ THÀNH Ô ẨN — KHÔNG CÒN LƯỢT "ĐỔI RỒI VẼ LẠI HỘP CƠ SỞ"
  *
- * 🔴 Đợi tới lượt vẽ lại cả bảng thì người ta gõ "POSH" xong mở hộp ra vẫn thấy nguyên danh
- *    sách khu vui chơi, và kết luận là lọc không chạy.
- * ═════════════════════════════════════════════════════════════════════════════════════════════ */
-const fnDvInp = bocHam('_dvInp');
-const fnDvDoi = bocHam('_dvDoi');
-t('bốc được _dvInp()', fnDvInp.length > 100);
-t('bốc được _dvDoi()', fnDvDoi.length > 100);
-t('🔴 ô Đơn vị có gắn tay nghe đổi', /oninput="_dvDoi\(this\)"/.test(fnDvInp), fnDvInp);
-t('bảng người dùng truyền đơn vị vào hộp cơ sở',
+ * 🔴 MỤC NÀY TỪ 21/09/2026 CANH ĐIỀU NGƯỢC BẢN CŨ. Trước đây nó chạy thật `_dvDoi()` để
+ *    chứng minh gõ "POSH" là hộp cơ sở cùng hàng đổi theo ngay. Nay cột Đơn vị đã nhường chỗ
+ *    cho cột Khối (anh Thắng 21/09/2026: *"chỗ đơn vị thay bằng khối"*), giá trị đơn vị nằm
+ *    trong một ô ẩn và không ai gõ vào nó nữa — nên `_dvDoi()` bỏ hẳn. Giữ lại phép cũ là
+ *    canh một hàm không còn lý do tồn tại, và ép người sau dựng lại nó chỉ để bài kiểm xanh.
+ *
+ * ⚠️ HỘP CƠ SỞ VẪN PHẢI ĐƯỢC LỌC THEO ĐƠN VỊ — đó mới là chốt thật, và nó không đổi:
+ *    `_uHang()` vẫn truyền `u.donVi` vào `_cosoSel()`. Bỏ cái đó là mọi hàng bày cả gian của
+ *    nhà khác, mà phân cơ sở nhầm là phân quyền nhầm.
+ * ═══════════════════════════════════════════════════════════════════════════════════════ */
+t('🔴 `_dvDoi()` đã bỏ hẳn — không còn ô Đơn vị để gõ', bocHam('_dvDoi').length === 0);
+t('   và hàm dựng ô Đơn vị cũ cũng vậy', bocHam('_dvInp').length === 0);
+t('🔴 nhưng bảng người dùng VẪN truyền đơn vị vào hộp cơ sở',
   /_cosoSel\(u\.coso,\s*u\.donVi\)/.test(HTML));
-
-/* Chạy thật `_dvDoi` trên một hàng giả: gõ POSH -> hộp phải đổi, và giữ nguyên gian đang tích. */
-function hangGia(selText, dvMoi) {
-  const td = { innerHTML: '' };
-  const opts = ['ADV GO! AN LẠC', 'NHÀ MA BÌNH DƯƠNG', 'VR SC VIVO Q7', 'Cali Thảo Điền', 'BỆNH VIỆN 175']
-    .map(function (c) { return { value: c, selected: selText.split(',').map(function (s) { return s.trim(); }).indexOf(c) >= 0 }; });
-  const w = { parentNode: td, querySelectorAll: function (q) { return q === 'select option' ? opts : []; } };
-  const tr = { tagName: 'TR', querySelector: function (q) { return q === '.csw' ? w : null; } };
-  const o = { value: dvMoi, parentNode: tr, tagName: 'INPUT' };
-  new Function('CFG', 'BOOT', 'esc', '_csLabel', '_csPhu', '_csNhan', '_bd', 'o',
-    fnDvMe + '\n' + fnLaDvMe + '\n' + fnDvChuan + '\n' + fnTheoDv + '\n' + fnSel + '\n' + fnDvDoi + '\n_dvDoi(o);')(
-    CFG, BOOT, esc,
-    function (s) { return s.length ? s.join(', ') : 'Tất cả cơ sở'; },
-    function () { return ''; }, function (x) { return String(x); }, function (x) { return String(x); }, o);
-  return td.innerHTML;
-}
-const sau = hangGia('ADV GO! AN LẠC', 'POSH');
-const dsSau = dsTrongHop(sau);
-t('🔴 gõ POSH → hộp bày gian POSH', dsSau.indexOf('Cali Thảo Điền') >= 0, dsSau);
-t('🔴 và GIỮ NGUYÊN gian đang tích dù nó là của K&H', dsSau.indexOf('ADV GO! AN LẠC') >= 0, dsSau);
-t('gian K&H không tích thì bỏ khỏi hộp', dsSau.indexOf('NHÀ MA BÌNH DƯƠNG') < 0, dsSau);
-teq('vẫn đúng một ô đang tích', 1, (sau.match(/ selected/g) || []).length);
-
-const sau2 = hangGia('', 'K&H');
-teq('gõ ngược lại K&H (nhà mẹ) → về cả hệ',
-  HET, dsTrongHop(sau2));
+t('🔴 và giá trị đơn vị vẫn đi theo hàng trong một ô ẩn', HTML.indexOf('data-dv-cu') >= 0);
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
  * 6. NÚT HÚT CƠ SỞ TỪ GHẾ

@@ -143,7 +143,11 @@ class VHCC_WebLichSu {
 	}
 
 	private static function ten_viec( $v ) {
-		$b = array( 'bu' => 'Bù vào ô trống', 'sua' => 'Sửa đè', 'xoa' => 'Xoá dòng' );
+		$b = array( 'bu' => 'Bù vào ô trống', 'sua' => 'Sửa đè', 'xoa' => 'Xoá dòng',
+			/* Nạp bảng công cũ, chế độ "chốt theo bảng" — xem `VHCC_Bu::nhat_ky_nap()`. */
+			'nap' => 'Chốt theo bảng cũ',
+			/* Dọn ca đêm lẻ — xem `VHCC_DonDem`. */
+			'don' => 'Dọn ca đêm lẻ' );
 		return isset( $b[ $v ] ) ? $b[ $v ] : ( '' !== $v ? $v : '—' );
 	}
 

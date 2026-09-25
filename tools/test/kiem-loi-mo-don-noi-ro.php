@@ -145,6 +145,17 @@ $k = strpos( $DON, 'public static function create_don(' );
 $l = strpos( $DON, "\n\t}", $k );
 t( 'bốc được create_don()', false !== $k && $l > $k );
 eval( 'class TD { ' . substr( $DON, $i, $j - $i + 3 ) . ' ' . substr( $DON, $k, $l - $k + 3 )
+	/* ⚠️ `luong_don()` — `create_don()` gọi nó để chuẩn hoá mã luồng (22/09/2026). Bài này chỉ
+	   canh đường BÁO LỖI lúc ghi hỏng, nên bản giả trả rỗng ("theo khối như cũ") là đủ; bốc cả
+	   hàm thật vào đây là kéo theo hằng `LUONG_MA` và cả họ hàng của nó. */
+	. ' public static function luong_don( $d ) { return \'\'; }'
+	/* ⚠️ `luong_mac_dinh()` — `create_don()` hỏi nó khi màn không gửi mã luồng nào (1.288.0:
+	   *"bộ phận sẽ chọn phương án duyệt chi"*). Bài này không đụng tới bộ phận, nên trả rỗng =
+	   "theo khối như cũ", đúng hành vi của một site chưa khai luồng cho bộ phận nào. */
+	. ' public static function luong_mac_dinh( $n ) { return \'\'; }'
+	/* ⚠️ `khoi_cho_don()` — 23/09/2026 đơn đóng dấu khối theo NGƯỜI LẬP (Bắc–Nam dùng chung một
+	   bản). Bài này không đụng tới khối, nên trả đúng hằng của bản gốc như `VHCP_DB::khoi()`. */
+	. ' public static function khoi_cho_don( $n, $k = \'\' ) { return \'kvc\'; }'
 	. ' private static function chuan_ky_moi( $k ) { return $k; } }' );
 class VHCP_DonVi {
 	public static function cua_nguoi( $t ) { return NHA::$cua; }

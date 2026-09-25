@@ -77,7 +77,7 @@ class VHCC_DB {
 		return $t ? $t : '';
 	}
 
-	const SCHEMA_VERSION = '2.16.0';
+	const SCHEMA_VERSION = '2.19.0';
 
 	public static function t( $name ) {
 		global $wpdb;
@@ -428,6 +428,14 @@ class VHCC_DB {
 		 *    ra màn thành `laitau`; tên thì đọc được. Tra giá vẫn qua `VHCC_GiaGio::khoa_cv()`
 		 *    như mọi nơi khác trong hệ.
 		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		/* 🔴 VỊ TRÍ PHẢI CÓ HAI CỘT, ĐÚNG NHƯ ẢNH CÓ HAI CỘT (`vt_vao` / `vt_ra`).
+		   Trước bản này toạ độ đi chung vào `ghi_chu` — MỘT ô cho cả ngày. Chấm vào ghi cặp số,
+		   chấm ra ghi đè lên, và chỗ đứng lúc vào biến mất. Anh Thắng 20/09/2026: *'Như chấm vào.
+		   Chấm ra'* — hai lượt là hai chỗ đứng khác nhau, và đúng cái khoảng giữa hai chỗ ấy mới
+		   nói được người ta có ở lại cửa hàng hay không.
+		   Khuôn một dòng: `lat|lng|acc|met|ket|cơ sở toạ độ rơi vào` — xem `VHCC_ViTri::dong()`.
+		   ⚠️ Chú thích để NGOÀI chuỗi khai bảng: khối `$b[...] = "…"` là chuỗi nháy kép, một dấu
+		      nháy kép trong chú thích là đóng chuỗi giữa chừng và cả tệp không dịch được. */
 		$b['cham_cong'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
 			coso VARCHAR(120) NOT NULL,
@@ -441,6 +449,8 @@ class VHCC_DB {
 			nghi_den_giay INT NULL,
 			anh_vao VARCHAR(190) NOT NULL DEFAULT '',
 			anh_ra VARCHAR(190) NOT NULL DEFAULT '',
+			vt_vao VARCHAR(160) NOT NULL DEFAULT '',
+			vt_ra VARCHAR(160) NOT NULL DEFAULT '',
 			chuan VARCHAR(190) NOT NULL DEFAULT '',
 			nguon VARCHAR(20) NOT NULL DEFAULT '',
 			ghi_chu VARCHAR(255) NOT NULL DEFAULT '',
@@ -1124,6 +1134,118 @@ class VHCC_DB {
 			PRIMARY KEY  (id),
 			KEY cho (coso,trang_thai),
 			KEY nguoi (ma_nv,ngay)";
+
+		/* ===== SỔ NHỚ ĐỊA CHỈ =============================================================
+		   Toạ độ -> tên đường, nhớ theo Ô LƯỚI ~11m chứ không theo từng cặp số. Xem khối chú
+		   thích đầu `VHCC_DiaChi` cho lý do: hai người đứng cạnh nhau trước cùng một cửa hàng
+		   không cho ra cùng một cặp số, nên nhớ theo cặp số thì gần như không bao giờ trúng lại
+		   — mà không trúng lại nghĩa là mỗi lượt chấm một lần đi hỏi máy chủ của người khác.
+
+		   ⚠️ HÀNG CÓ `dia_chi` RỖNG LÀ CÓ NGHĨA, không phải rác: nó nhớ rằng "đã hỏi ô này rồi,
+		      chỗ đó không có tên đường". Dọn mấy hàng ấy đi là lượt cron sau hỏi lại đúng ô ấy,
+		      mãi mãi. */
+		$b['dia_chi'] = "
+			o VARCHAR(32) NOT NULL,
+			dia_chi VARCHAR(200) NOT NULL DEFAULT '',
+			tra_luc DATETIME NULL,
+			PRIMARY KEY  (o)";
+
+		/* ===== CHAT NHÓM THEO CƠ SỞ ========================================================
+		   Xem khối chú thích đầu `VHCC_Chat`. Phòng LÀ cơ sở — không có bảng "nhóm" và không có
+		   bảng "thành viên", vì danh sách thành viên đã nằm sẵn trong hồ sơ: nghỉ việc là ra
+		   khỏi phòng, chuyển cơ sở là đổi phòng, không ai phải đi mời hay đi đuổi ai.
+
+		   ⚠️ `ho_ten` CHÉP VÀO HÀNG, không tra lại lúc hiện. Người đổi tên hay nghỉ việc thì mấy
+		      câu họ đã nhắn vẫn phải mang đúng cái tên lúc nhắn — đó là thứ làm nó thành một
+		      cuốn sổ đọc lại được, chứ không phải một danh sách trỏ vào hồ sơ hiện tại.
+		   ⚠️ `da_xoa` = xoá MỀM. Chỗ trống có ghi chú giữ được mạch hội thoại; xoá hẳn thì câu
+		      trả lời phía dưới treo lơ lửng. */
+		/* ĐÍNH KÈM (21/09/2026) — `tep` là đường TƯƠNG ĐỐI trong uploads; tên trên đĩa là chuỗi
+		   ngẫu nhiên, còn `tep_ten` giữ tên người dùng đặt CHỈ để hiện ra.
+		   ⚠️ Tệp KHÔNG phục vụ thẳng từ uploads — đi qua `VHCC_Chat::xem_tep()`, nơi hỏi đúng
+		      phép gác của phòng. Xem khối chú thích ở đó.
+		   🔴 CHÚ THÍCH ĐỂ NGOÀI KHỐI KHAI BẢNG. Bản đầu nhét nó vào giữa hai dòng cột, và bộ dịch
+		      MySQL -> SQLite của bệ đỡ thử NUỐT LUÔN cột ngay sau chú thích: bảng dựng ra thiếu
+		      cột `tep`, và mọi lượt gửi tệp chết với "no column named tep". Trên MySQL thật thì
+		      không sao — tức là một lỗi chỉ hiện ở bộ thử, và cũng chỉ vì chú thích. Cùng lý do
+		      với khối `cham_cong` ở trên (ở đó là dấu nháy kép). */
+		$b['chat_tin'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			phong VARCHAR(190) NOT NULL,
+			ma_nv VARCHAR(40) NOT NULL,
+			ho_ten VARCHAR(190) NOT NULL DEFAULT '',
+			chu VARCHAR(1000) NOT NULL DEFAULT '',
+			tep VARCHAR(190) NOT NULL DEFAULT '',
+			tep_ten VARCHAR(190) NOT NULL DEFAULT '',
+			tep_loai VARCHAR(10) NOT NULL DEFAULT '',
+			tep_co INT NOT NULL DEFAULT 0,
+			da_xoa TINYINT(1) NOT NULL DEFAULT 0,
+			tao_luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			KEY p (phong,id)";
+
+		/* ===== SỔ CUỘC NÓI CHUYỆN RIÊNG ====================================================
+		   🔴 CÓ BẢNG NÀY ĐỂ KHÔNG PHẢI DÒ BẰNG `LIKE` TRÊN KHOÁ PHÒNG.
+		      Bản đầu không có nó: khoá phòng riêng là `@CƠSỞ|MÃ_A|MÃ_B`, và muốn biết một người
+		      có những cuộc nào thì `WHERE phong LIKE '%|MÃ%'`. Hai chỗ hỏng cùng lúc:
+		        · `LIKE '%|CH_A1%'` khớp luôn `|CH_A12` — mở phòng của người khác cho người này.
+		          Phải lọc lại bằng so sánh thật ở PHP, tức là `LIKE` chỉ còn là một phép lọc thô
+		          mà vẫn kéo về cả đống hàng.
+		        · Mã NV có dấu gạch dưới (`CH_A1`), mà `_` là ký tự đại diện của `LIKE`. Thoát nó
+		          bằng `esc_like()` thì MySQL hiểu, SQLite (bệ đỡ thử) KHÔNG — cùng một câu, hai
+		          kết quả. Phép thử bắt được đúng chỗ này.
+		      Hai người trong hai CỘT RIÊNG, có khoá chỉ mục: tra bằng `=`, hết cả hai chuyện.
+
+		   ⚠️ Ghi lúc gửi tin ĐẦU TIÊN của phòng, không ghi lúc mở màn — mở ra rồi không nhắn gì
+		      thì không nên đẻ ra một dòng trong danh sách cuộc nói chuyện của người kia. */
+		$b['chat_rieng'] = "
+			phong VARCHAR(190) NOT NULL,
+			coso VARCHAR(120) NOT NULL,
+			ma_a VARCHAR(40) NOT NULL,
+			ma_b VARCHAR(40) NOT NULL,
+			PRIMARY KEY  (phong),
+			KEY a (ma_a),
+			KEY b (ma_b)";
+
+		/* Mốc "đã đọc tới đâu" của từng người trong từng phòng. Một hàng cho một cặp. */
+		$b['chat_doc'] = "
+			ma_nv VARCHAR(40) NOT NULL,
+			phong VARCHAR(190) NOT NULL,
+			id_cuoi BIGINT(20) NOT NULL DEFAULT 0,
+			PRIMARY KEY  (ma_nv,phong)";
+
+		/* ===== GỌI THOẠI TRONG APP =========================================================
+		   Xem khối chú thích đầu `VHCC_Goi`. Máy chủ KHÔNG truyền tiếng nói — âm thanh đi thẳng
+		   giữa hai máy bằng WebRTC. Hai bảng này chỉ giữ phần "mai mối".
+
+		   ⚠️ `goi_tin` LÀ BẢNG PHÌNH NHANH NHẤT TRONG HỆ nếu không dọn: mỗi cuộc gọi sinh ra vài
+		      chục hàng ICE, và không hàng nào còn dùng được sau khi cúp máy.
+		      `VHCC_Goi::het_han()` dọn chúng — đừng bỏ lời gọi ấy đi. */
+		$b['cuoc_goi'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			phong VARCHAR(190) NOT NULL DEFAULT '',
+			ma_goi VARCHAR(40) NOT NULL,
+			ten_goi VARCHAR(190) NOT NULL DEFAULT '',
+			ma_nhan VARCHAR(40) NOT NULL,
+			ten_nhan VARCHAR(190) NOT NULL DEFAULT '',
+			trang_thai VARCHAR(10) NOT NULL DEFAULT 'moi',
+			ly_do_ket VARCHAR(20) NOT NULL DEFAULT '',
+			tao_luc DATETIME NULL,
+			tra_loi_luc DATETIME NULL,
+			ket_luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			KEY nhan (ma_nhan,trang_thai),
+			KEY goi (ma_goi,trang_thai)";
+
+		$b['goi_tin'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			cuoc_id BIGINT(20) NOT NULL,
+			tu_ma VARCHAR(40) NOT NULL,
+			loai VARCHAR(10) NOT NULL DEFAULT '',
+			noi_dung LONGTEXT NULL,
+			tao_luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			KEY c (cuoc_id,id)";
 
 		return $b;
 	}

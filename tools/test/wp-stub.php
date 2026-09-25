@@ -70,7 +70,23 @@ register_shutdown_function( function () {
  *    shutdown đăng ký sau nó. Nên lượt chạy nào có cảnh báo PHP sẽ không dọn được — chính vì
  *    thế mới cần thêm lượt quét thư mục cũ ở dưới, chứ không trông cả vào hàm dọn.
  */
-$GLOBALS['VHCP_TMP'] = sys_get_temp_dir() . '/vhcp-test-' . getmypid() . '-' . bin2hex( random_bytes( 5 ) );
+
+/* ═══ GỘP HAI BẢN VÁ, 25/09/2026 — bỏ vế nào cũng mất một cái đã chữa xong. ═══
+ * · Phần ĐUÔI NGẪU NHIÊN + DỌN là của khối chú thích ngay trên: `pid_max` quay vòng nên tên
+ *   theo số hiệu tiến trình bị trùng, và một lượt chạy mới thừa hưởng tệp của lượt cũ.
+ * · Phần LỐI THOÁT `VHCC_STUB_TMP` là của nhánh kia, cho MÁY CHỦ XEM TRƯỚC: nó phục vụ nhiều
+ *   lượt gọi bằng nhiều TIẾN TRÌNH, luồng này ghi tệp đính kèm vào thư mục riêng của nó thì
+ *   luồng kia đi tìm không thấy và trả 404 — ảnh trong chat hiện ra một ô vỡ, mà curl thẳng
+ *   vào cùng đường dẫn lại ra đúng tấm ảnh.
+ * Hai chuyện không đá nhau: khai biến môi trường thì mọi tiến trình dùng CHUNG một thư mục
+ * (đúng cho máy xem trước); không khai thì mỗi lượt chạy một thư mục riêng rồi tự dọn (đúng
+ * cho bộ thử). ⚠️ Khai biến ấy thì KHÔNG dọn — thư mục dùng chung, dọn là giật tệp của tiến
+ * trình khác đang chạy.
+ * ═══════════════════════════════════════════════════════════════════════════════════════ */
+$GLOBALS['VHCP_TMP'] = getenv( 'VHCC_STUB_TMP' )
+	? getenv( 'VHCC_STUB_TMP' )
+	: ( sys_get_temp_dir() . '/vhcp-test-' . getmypid() . '-' . bin2hex( random_bytes( 5 ) ) );
+
 @mkdir( $GLOBALS['VHCP_TMP'] . '/wp-admin/includes', 0777, true );
 @mkdir( $GLOBALS['VHCP_TMP'] . '/uploads', 0777, true );
 file_put_contents( $GLOBALS['VHCP_TMP'] . '/wp-admin/includes/upgrade.php', "<?php\n" );
@@ -99,13 +115,19 @@ function vhcp_don_thu_muc_tam( $d ) {
 }
 
 register_shutdown_function( function () {
+	/* 🔴 KHAI `VHCC_STUB_TMP` THÌ KHÔNG DỌN. Biến ấy là lối thoát cho máy chủ xem trước, nơi
+	   NHIỀU tiến trình cùng trỏ vào MỘT thư mục. Dọn ở đó là tiến trình này thoát rồi xoá mất
+	   tệp đính kèm mà tiến trình kia đang phục vụ — đúng triệu chứng 404 đã phải tìm hai lượt
+	   chụp mới ra. Thư mục tự sinh (không khai biến) thì vẫn dọn như cũ. */
+	if ( getenv( 'VHCC_STUB_TMP' ) ) { return; }
 	vhcp_don_thu_muc_tam( $GLOBALS['VHCP_TMP'] );
 } );
 
 /* Quét thư mục của những lượt chạy cũ đã bỏ lại (bị giết ngang, hoặc thoát sớm vì cảnh báo
    PHP nên không chạy tới hàm dọn). Quá một giờ thì chắc chắn không còn ai dùng. */
 foreach ( (array) @glob( sys_get_temp_dir() . '/vhcp-test-*' ) as $_cu ) {
-	if ( is_dir( $_cu ) && $_cu !== $GLOBALS['VHCP_TMP'] && @filemtime( $_cu ) < time() - 3600 ) {
+	if ( is_dir( $_cu ) && $_cu !== $GLOBALS['VHCP_TMP'] && ! getenv( 'VHCC_STUB_TMP' )
+		&& @filemtime( $_cu ) < time() - 3600 ) {
 		vhcp_don_thu_muc_tam( $_cu );
 	}
 }
@@ -113,7 +135,6 @@ unset( $_cu );
 
 define( 'ABSPATH', $GLOBALS['VHCP_TMP'] . '/' );
 define( 'ARRAY_A', 'ARRAY_A' );
-
 /* Hằng thời gian của WordPress. Mã trong kho dùng chúng như thứ luôn có (vì trong WordPress
    thật thì có), nên thiếu ở đây là bài thử nổ ngay dòng đầu — mà nổ vì BỆ ĐỠ thiếu, không phải
    vì mã sai. */
@@ -127,7 +148,14 @@ define( 'YEAR_IN_SECONDS', 31536000 );
 $GLOBALS['VHCP_OPT'] = array();
 $GLOBALS['VHCP_TR']  = array();
 
-function dbDelta( $sql ) { return array(); }
+/* GHI LẠI câu lệnh dựng bảng thay vì vứt đi. Bài kiểm cần đo "bật plugin có dựng bảng không";
+   để rỗng thì chỉ soi được chữ trong tệp, mà soi chữ thì lượt đục bỏ đúng chỗ vẫn lọt.
+   ⚠️ Cố ý KHÔNG tự chạy câu lệnh: cú pháp là của MySQL, SQLite không hiểu. Bài nào cần bảng
+      thật thì dùng `vhcp_stub_dung_bang()` — nó dịch sang SQLite và giữ cả khoá. */
+function dbDelta( $sql ) {
+	$GLOBALS['VHCP_DBDELTA'][] = (string) $sql;
+	return array();
+}
 function get_option( $k, $d = false ) { return array_key_exists( $k, $GLOBALS['VHCP_OPT'] ) ? $GLOBALS['VHCP_OPT'][ $k ] : $d; }
 function update_option( $k, $v ) { $GLOBALS['VHCP_OPT'][ $k ] = $v; return true; }
 function delete_option( $k ) { unset( $GLOBALS['VHCP_OPT'][ $k ] ); return true; }
@@ -186,11 +214,47 @@ $GLOBALS['VHCP_MOC']   = array();   // hook => danh sách callback
 $GLOBALS['VHCP_LUAT']  = array();   // luật đường dẫn đã gài
 $GLOBALS['VHCP_QVAR']  = array();
 $GLOBALS['VHCP_MA_HTTP'] = 0;
+$GLOBALS['VHCP_LICH'] = array();
 function add_action( $h, $cb, $uu = 10, $n = 1 ) { $GLOBALS['VHCP_MOC'][ $h ][] = array( $cb, $uu ); return true; }
 function add_filter( $h, $cb, $uu = 10, $n = 1 ) { $GLOBALS['VHCP_MOC'][ $h ][] = array( $cb, $uu ); return true; }
 function remove_action( $h, $cb, $uu = 10 ) { $GLOBALS['VHCP_MOC'][ '-' . $h ][] = array( $cb, $uu ); return true; }
 function remove_filter( $h, $cb, $uu = 10 ) { $GLOBALS['VHCP_MOC'][ '-' . $h ][] = array( $cb, $uu ); return true; }
 function apply_filters( $h, $v ) { return $v; }
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * LỊCH CRON — MỘT SỔ DUY NHẤT `VHCP_LICH`, GIỮ ĐỦ CẢ HAI THỨ HAI NHÁNH TỪNG LO.
+ *
+ * 25/09/2026, lúc gộp hai nhánh: mỗi bên có một bệ đỡ cron riêng, và Git giữ CẢ HAI mà không
+ * báo đụng độ — bản này chạy, bản kia chết vì bọc trong `if ( ! function_exists(
+ * 'wp_next_scheduled' ) )`. Bỏ bản nào cũng mất một thứ đã chữa xong, nên gộp:
+ *
+ *   · GIỮ TRONG MỘT MẢNG THẬT, và `wp_schedule_event()` CHỐI khi hook đã có lịch. `init()` của
+ *     mấy lớp gọi `wp_next_scheduled()` rồi mới `wp_schedule_event()`; bài kiểm nào nạp
+ *     `init()` hai lần mà stub luôn nói "chưa xếp" thì xếp chồng hai lượt — đúng cái lỗi ngoài
+ *     đời, và đúng cách WordPress thật cư xử.
+ *   · NHỚ CẢ MỐC LẪN NHỊP, không chỉ mỗi mốc. Có thế bài thử mới chốt được "đặt lịch ĐÚNG MỐC,
+ *     ĐÚNG NHỊP" chứ không chỉ "không nổ". Bài hộp thư đã vấp đúng chỗ này: lịch hằng ngày đặt
+ *     sai múi giờ là chạy trễ 7 tiếng mà mọi phép vẫn xanh.
+ *
+ * ⚠️ THÊM HÀM CRON MỚI THÌ THÊM Ở ĐÂY. Đừng mở một khối thứ hai có `function_exists` — cái gác
+ *    ấy hỏi MỘT tên rồi che cho CẢ nhóm, nên hàm thứ năm thêm vào nhóm bị che là biến mất không
+ *    một tiếng động. Đúng chuyện vừa xảy ra với `wp_unschedule_event`.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+function wp_next_scheduled( $h, $args = array() ) {
+	return isset( $GLOBALS['VHCP_LICH'][ $h ] ) ? (int) $GLOBALS['VHCP_LICH'][ $h ]['ts'] : false;
+}
+function wp_schedule_event( $khi, $nhip, $h, $args = array() ) {
+	if ( isset( $GLOBALS['VHCP_LICH'][ $h ] ) ) { return false; }
+	$GLOBALS['VHCP_LICH'][ $h ] = array( 'ts' => (int) $khi, 'nhip' => (string) $nhip, 'args' => $args );
+	return true;
+}
+function wp_clear_scheduled_hook( $h, $args = array() ) {
+	unset( $GLOBALS['VHCP_LICH'][ $h ] );
+	return 1;
+}
+function wp_unschedule_event( $khi, $h, $args = array() ) {
+	unset( $GLOBALS['VHCP_LICH'][ $h ] );
+	return true;
+}
 /* 🔴 `do_action` PHẢI GỌI THẬT CÁC TAI NGHE. Trước đây nó trả `null` và không làm gì — nên mọi
    đường đi qua móc (plugin này bắn, plugin kia nghe) đều XANH OAN: bỏ hẳn `add_action` đi bài
    kiểm vẫn không đỏ. Bắt được lúc dựng đường đẩy cơ sở từ plugin Ghế sang (08/09/2026).
@@ -209,7 +273,12 @@ function do_action( $h ) {
 }
 function add_rewrite_rule( $mau, $dich, $vt = 'bottom' ) { $GLOBALS['VHCP_LUAT'][ $mau ] = array( $dich, $vt ); }
 function add_shortcode( $t, $cb ) { return true; }
-function flush_rewrite_rules( $x = true ) { return true; }
+/* ĐẾM số lượt mở lại, đừng chỉ trả true: bài kiểm cần biết móc kích hoạt CÓ gọi hay không.
+   Thiếu nó thì chỉ soi được chữ trong tệp, mà soi chữ thì lượt đục bỏ đúng chỗ vẫn lọt. */
+function flush_rewrite_rules( $x = true ) {
+	$GLOBALS['VHCP_MO_LAI_DUONG'] = 1 + ( isset( $GLOBALS['VHCP_MO_LAI_DUONG'] ) ? $GLOBALS['VHCP_MO_LAI_DUONG'] : 0 );
+	return true;
+}
 function get_query_var( $k, $d = '' ) { return array_key_exists( $k, $GLOBALS['VHCP_QVAR'] ) ? $GLOBALS['VHCP_QVAR'][ $k ] : $d; }
 function __return_false() { return false; }
 function __return_true() { return true; }
@@ -455,7 +524,14 @@ function wp_parse_url( $u, $c = -1 ) { return parse_url( $u, $c ); }
    khai vào đây, đừng đợi nó ngã. */
 function wp_parse_str( $s, &$a ) { parse_str( (string) $s, $a ); return $a; }
 function rest_url( $p = '' ) { return 'http://example.test/wp-json/' . ltrim( $p, '/' ); }
-function home_url( $p = '/' ) { return 'http://example.test' . $p; }
+/* ⚠️ Biến môi trường chỉ cho bộ xem trước. Trang trạm dựng địa chỉ cổng bằng chính hàm này rồi
+   nhét vào JavaScript, nên để nguyên `example.test` thì trình duyệt gọi ra một tên miền không
+   tồn tại — màn hình hiện "Không gửi được lên máy chủ" và không chụp nổi màn nào sau màn gõ
+   PIN. Bộ thử không đặt biến này, nên nó vẫn thấy đúng `example.test` như trước. */
+function home_url( $p = '/' ) {
+	$goc = getenv( 'VHCC_STUB_HOME' );
+	return ( $goc ? rtrim( $goc, '/' ) : 'http://example.test' ) . $p;
+}
 /* Bản giả CŨ trả '' — vô hại cho tới lúc có màn hình in ra địa chỉ dựng bằng hàm này, rồi phép
    thử báo "không hiện địa chỉ" mà mã nguồn thì đúng. Một hàm giả trả rỗng là một phép thử tự
    nói dối, nên dựng cho đúng: add_query_arg( $mang, $url ) và add_query_arg( $k, $v, $url ). */
@@ -474,6 +550,11 @@ function add_query_arg( $a = null, $b = null, $c = null ) {
 	return $q[0] . ( '' !== $chuoi ? '?' . $chuoi : '' ) . $frag;
 }
 function plugin_dir_path( $f ) { return dirname( $f ) . '/'; }
+/* Móc vòng đời plugin. Bản giả GHI LẠI hàm được khai thay vì bỏ đi, để bài kiểm GỌI THẬT được
+   — soi bằng cách tìm chuỗi trong tệp thì một lượt đục bỏ đúng chỗ vẫn lọt, vì cùng chuỗi ấy
+   còn xuất hiện ở dòng khác. */
+function register_activation_hook( $f, $ham ) { $GLOBALS['VHCP_MOC_BAT'][] = $ham; }
+function register_deactivation_hook( $f, $ham ) { $GLOBALS['VHCP_MOC_TAT'][] = $ham; }
 function plugin_dir_url( $f ) { return 'http://example.test/wp-content/plugins/vhcp-chi-phi/'; }
 
 class WP_REST_Request {
@@ -515,7 +596,15 @@ class VHCP_Test_WPDB {
 	private $pdo;
 
 	public function __construct() {
-		$this->pdo = new PDO( 'sqlite::memory:' );
+		/* Mặc định là CSDL trong bộ nhớ — mỗi bài kiểm một sổ sạch, không bài nào dây sang bài
+		   nào. Đó là điều đúng cho bộ thử và không được đổi.
+
+		   ⚠️ Lối thoát bằng biến môi trường CHỈ cho bộ xem trước (`tools/xem/`): máy chủ xem
+		      trước phục vụ NHIỀU lượt gọi, mà thẻ phiên thì nằm trong bảng `session` — sổ trong
+		      bộ nhớ chết theo từng lượt, nên đăng nhập xong lượt sau đã quên. Không có lối này
+		      thì không chụp nổi bất kỳ màn nào sau màn gõ PIN. */
+		$tep = getenv( 'VHCC_STUB_DB' );
+		$this->pdo = new PDO( $tep ? ( 'sqlite:' . $tep ) : 'sqlite::memory:' );
 		$this->pdo->setAttribute( PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION );
 	}
 
@@ -523,11 +612,29 @@ class VHCP_Test_WPDB {
 
 	public function esc_like( $t ) { return addcslashes( (string) $t, '_%\\' ); }
 
-	public function exec_raw( $sql ) { return $this->pdo->exec( $sql ); }
+	public function exec_raw( $sql ) {
+		/* ⚠️ `CREATE TABLE` -> `CREATE TABLE IF NOT EXISTS`.
+		   Với sổ trong bộ nhớ thì thừa (sổ nào cũng trống). Nhưng máy chủ xem trước
+		   (`tools/xem/may-chu-tram.php`) dùng sổ nằm trong TỆP và khởi động lại bệ đỡ ở MỖI
+		   lượt gọi — lượt thứ hai đâm vào "table already exists" và chết, nên chụp được đúng
+		   một màn rồi thôi. Sửa ở đây là sửa cho cả hai bộ bảng, không phải đi thêm `IF NOT
+		   EXISTS` vào hai chục câu khai. */
+		$sql = preg_replace( '/^(\s*)CREATE\s+TABLE\s+(?!IF\s+NOT\s+EXISTS)/i',
+			'$1CREATE TABLE IF NOT EXISTS ', (string) $sql );
+		return $this->pdo->exec( $sql );
+	}
 
 	private function tr( $sql ) {
-		// SQLite không có SHOW TABLES — plugin dùng câu đó để hỏi "bảng của plugin kia có không".
+		/* SQLite không có SHOW TABLES — plugin dùng câu đó để hỏi "bảng của plugin kia có không".
+		 *
+		 * 🔴 PHẢI GIỮ CẢ DẠNG CÓ `%`. Bản đầu dịch mọi câu thành `name='…'`, tức so BẰNG. Câu
+		 *    hỏi "có đúng bảng này không" thì đúng, nhưng câu DÒ `wp_vhcp%_don` — cách
+		 *    `VHCP_Gop` tìm xem trên site đang có những kho nào — thì so bằng luôn trả rỗng:
+		 *    bảng đối chiếu báo "chỉ có một kho" trong khi có ba, và không phép nào đỏ. */
 		if ( preg_match( "/^\s*SHOW\s+TABLES\s+LIKE\s+'([^']*)'/i", $sql, $m ) ) {
+			if ( false !== strpos( $m[1], '%' ) ) {
+				return "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '" . $m[1] . "' ESCAPE '\\' ORDER BY name";
+			}
 			return "SELECT name FROM sqlite_master WHERE type='table' AND name='" . $m[1] . "'";
 		}
 		/* ══════════════════════════════════════════════════════════════════════════════
@@ -567,7 +674,11 @@ class VHCP_Test_WPDB {
 			$i++;
 			if ( $m[0] === '%d' ) { return (string) (int) $v; }
 			if ( $m[0] === '%f' ) { return (string) (float) $v; }
-			return $this->quote( $v );
+			/* 🔴 `%s` VỚI null LÀ CHUỖI RỖNG, KHÔNG PHẢI NULL — y như `$wpdb->prepare()` thật. Bệ đỡ từng
+			   trả NULL ở đây, nên bài kiểm sổ kho xanh trong khi trên hosting MySQL ép '' vào cột số thành
+			   0: 24/09/2026 anh Thắng mở kho thấy "Hàng tồn còn" toàn 0 và lệch kho = −tồn tính dù chưa ai
+			   đếm. Bệ đỡ dễ dãi hơn thật là bài kiểm dối. Muốn NULL thì mã phải viết NULL vào câu SQL. */
+			return $this->quote( null === $v ? '' : $v );
 		}, $sql );
 	}
 
@@ -695,13 +806,17 @@ class VHCP_Test_WPDB {
 $GLOBALS['wpdb'] = new VHCP_Test_WPDB();
 
 /** Bảng SQLite tương ứng schema MySQL (khóa chính đổi sang stt để có AUTOINCREMENT). */
-function vhcp_test_create_tables() {
+function vhcp_test_create_tables( $p = 'wp_vhcp_' ) {
 	global $wpdb;
-	$p = 'wp_vhcp_';
+	/* 🔴 TIỀN TỐ NHẬN THAM SỐ — để dựng được KHO CỦA BẢN VÙNG (`wp_vhcpmtd_` · `wp_vhcpvp_`).
+	   Ba bản plugin là ba bản sao cùng sơ đồ, khác mỗi tiền tố; `VHCP_Gop` đọc xuyên cả ba.
+	   Gõ lại sơ đồ lần thứ hai trong bài kiểm là đúng cái bẫy khai-hai-nơi đã sập mấy lượt ở
+	   ngay tệp này — thêm một cột vào plugin thì kho vùng trong bài kiểm thiếu cột ấy, và bài
+	   kiểm đỏ vì lỗi của CHÍNH NÓ, trông y như lỗi của plugin. Nên: một sơ đồ, hai lượt gọi. */
 	$q = array(
-		"CREATE TABLE {$p}don (stt INTEGER PRIMARY KEY AUTOINCREMENT, ma_don TEXT UNIQUE, ky TEXT DEFAULT '', nguoi_lap TEXT DEFAULT '', don_vi TEXT DEFAULT '', ngay_tao TEXT, trang_thai TEXT DEFAULT 'Nháp', ghi_chu TEXT DEFAULT '', nguoi_duyet TEXT DEFAULT '', ngay_duyet TEXT, nguoi_qt TEXT DEFAULT '', ngay_qt TEXT, ngay_gui_qt TEXT, chenh_lech_qt REAL DEFAULT 0, xu_ly TEXT DEFAULT '', so_tien_thuc_mua REAL, hinh_thuc_tt TEXT DEFAULT '', hoa_don_qt TEXT DEFAULT '', hoa_don_qt2 TEXT DEFAULT '', ngay_xuat_cn TEXT, nguoi_qt_ncc TEXT DEFAULT '', ngay_qt_ncc TEXT, ngay_xuat_ncc TEXT, tam_ung_duyet REAL, nguoi_cap TEXT DEFAULT '', ngay_cap TEXT, ht_cap TEXT DEFAULT '', anh_cap TEXT DEFAULT '', tat_toan TEXT DEFAULT '', ngay_tat_toan TEXT, du_phong REAL, bu_tru REAL, khoi TEXT DEFAULT 'kvc')",
+		"CREATE TABLE {$p}don (stt INTEGER PRIMARY KEY AUTOINCREMENT, ma_don TEXT UNIQUE, ky TEXT DEFAULT '', nguoi_lap TEXT DEFAULT '', don_vi TEXT DEFAULT '', ngay_tao TEXT, trang_thai TEXT DEFAULT 'Nháp', ghi_chu TEXT DEFAULT '', nguoi_duyet TEXT DEFAULT '', ngay_duyet TEXT, nguoi_qt TEXT DEFAULT '', ngay_qt TEXT, ngay_gui_qt TEXT, ngay_gui TEXT, chenh_lech_qt REAL DEFAULT 0, xu_ly TEXT DEFAULT '', so_tien_thuc_mua REAL, hinh_thuc_tt TEXT DEFAULT '', hoa_don_qt TEXT DEFAULT '', hoa_don_qt2 TEXT DEFAULT '', ngay_xuat_cn TEXT, nguoi_qt_ncc TEXT DEFAULT '', ngay_qt_ncc TEXT, ngay_xuat_ncc TEXT, tam_ung_duyet REAL, nguoi_cap TEXT DEFAULT '', ngay_cap TEXT, ht_cap TEXT DEFAULT '', anh_cap TEXT DEFAULT '', tat_toan TEXT DEFAULT '', ngay_tat_toan TEXT, du_phong REAL, bu_tru REAL, khoi TEXT DEFAULT 'kvc', luong TEXT DEFAULT '')",
 		"CREATE TABLE {$p}tamung (id INTEGER PRIMARY KEY AUTOINCREMENT, ma_don TEXT, coso TEXT DEFAULT '', so REAL DEFAULT 0, UNIQUE(ma_don,coso))",
-		"CREATE TABLE {$p}chiphi (stt INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT UNIQUE, ma_don TEXT, coso TEXT DEFAULT '', ngay TEXT, phan_loai_tt TEXT DEFAULT '', doi_tuong TEXT DEFAULT '', nhom TEXT DEFAULT '', noi_dung TEXT DEFAULT '', dvt TEXT DEFAULT '', so_luong REAL, don_gia REAL, thanh_tien REAL DEFAULT 0, ghi_chu TEXT DEFAULT '', anh TEXT DEFAULT '', tao_luc TEXT, thue_suat REAL, tien_thue REAL, thuc_mua REAL, cn_xu_ly INTEGER DEFAULT 1, phat_sinh INTEGER DEFAULT 0, tk_no TEXT DEFAULT '', tk_co TEXT DEFAULT '')",
+		"CREATE TABLE {$p}chiphi (stt INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT UNIQUE, ma_don TEXT, coso TEXT DEFAULT '', ngay TEXT, phan_loai_tt TEXT DEFAULT '', doi_tuong TEXT DEFAULT '', nhom TEXT DEFAULT '', noi_dung TEXT DEFAULT '', dvt TEXT DEFAULT '', so_luong REAL, don_gia REAL, thanh_tien REAL DEFAULT 0, ghi_chu TEXT DEFAULT '', anh TEXT DEFAULT '', tao_luc TEXT, thue_suat REAL, tien_thue REAL, thuc_mua REAL, cn_xu_ly INTEGER DEFAULT 1, phat_sinh INTEGER DEFAULT 0, tk_no TEXT DEFAULT '', tk_co TEXT DEFAULT '', giai_doan TEXT DEFAULT '')",
 		"CREATE TABLE {$p}so_chi (stt INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT UNIQUE, ngay TEXT, ky TEXT DEFAULT '', coso TEXT DEFAULT '', loai TEXT DEFAULT '', tk_no TEXT DEFAULT '', tk_co TEXT DEFAULT '', ma_dt TEXT DEFAULT '', doi_tuong TEXT DEFAULT '', noi_dung TEXT DEFAULT '', dvt TEXT DEFAULT '', so_luong REAL, don_gia REAL, so_tien REAL DEFAULT 0, hinh_thuc TEXT DEFAULT '', vat TEXT DEFAULT '', thue_suat REAL, tien_thue REAL, ghi_chu TEXT DEFAULT '', anh TEXT DEFAULT '', ma_du_an TEXT DEFAULT '', hang_muc TEXT DEFAULT '', du_toan REAL, ho_so TEXT DEFAULT '', nguoi_nhap TEXT DEFAULT '', tao_luc TEXT, ngay_xuat TEXT, khoi TEXT DEFAULT 'kvc')",
 		"CREATE TABLE {$p}da_index (stt INTEGER PRIMARY KEY AUTOINCREMENT, ma_da TEXT UNIQUE, ten TEXT DEFAULT '', loai TEXT DEFAULT '', trang_thai TEXT DEFAULT 'Đang làm', ngay_tao TEXT, nguoi_tao TEXT DEFAULT '', khoi TEXT DEFAULT 'kvc')",
 		"CREATE TABLE {$p}da_line (id INTEGER PRIMARY KEY AUTOINCREMENT, ma_da TEXT, row_no INTEGER DEFAULT 5, noi_dung TEXT DEFAULT '', du_toan REAL DEFAULT 0, thuc_te REAL DEFAULT 0, so_luong REAL DEFAULT 0, don_gia REAL DEFAULT 0, thanh_tien REAL DEFAULT 0, vat TEXT DEFAULT '', anh TEXT DEFAULT '', gian TEXT DEFAULT '', note TEXT DEFAULT '', cap_cha TEXT DEFAULT '', hinh_thuc TEXT DEFAULT '', ho_so TEXT DEFAULT '', loai_cp TEXT DEFAULT '', tk_no TEXT DEFAULT '', tk_co TEXT DEFAULT '', ma_dt TEXT DEFAULT '', tao_luc TEXT DEFAULT NULL, UNIQUE(ma_da,row_no))",
@@ -875,6 +990,60 @@ function vhcc_dung_bang() {
 	vhcc_test_create_tables();
 }
 
+/**
+ * NẠP MỘT LỚP CỦA PLUGIN GHẾ — plugin ấy KHÔNG nằm ở nhánh này.
+ *
+ * =================================================================================================
+ * 🔴 VÌ SAO PHẢI CÓ HÀM NÀY
+ * =================================================================================================
+ * Nhà của plugin Ghế là nhánh `claude/posh-qr-kh1urz` (thư mục `vhcp-ghe/` ngay gốc kho). Nhánh
+ * chấm công từng giữ một bản chép 1.48.0 trong khi host chạy 2.111.0, và bản chép ấy suýt được
+ * đóng gói đè lên bản thật — xem `wordpress/DOC-TRUOC-KHI-DONG-GOI.md`. Nên bản chép đã gỡ.
+ *
+ * Nhưng vài bài kiểm của NHÁNH NÀY có việc thật với plugin ấy: `VHCC_DayGhe` đẩy người sang sổ
+ * người dùng bên ghế, `VHCC_Cty` đọc thông tin công ty từ `VHG_Chan`. Bỏ luôn mấy phép ấy là mất
+ * đúng phần kiểm chỗ HAI PLUGIN GẶP NHAU — chỗ hay hỏng nhất.
+ *
+ * 🔴 NÊN: ĐỌC THẲNG TỪ NHÁNH KIA BẰNG `git show`, KHÔNG CHÉP LẠI MỘT BẢN THỨ HAI.
+ *    Một bản chép là một bản sẽ cũ đi, và lần này ta đã biết cái giá của nó.
+ *
+ * ⚠️ THIẾU THÌ BÁO FALSE, ĐỪNG GIẢ LỚP. Máy nào chưa `git fetch` nhánh kia (bản sao nông của CI)
+ *    thì trả false để nơi gọi BỎ QUA VÀ KÊU TO. Dựng một lớp giả ở đây thì phép thử vẫn xanh mà
+ *    nó đang kiểm một thứ do chính nó bịa ra — tệ hơn hẳn việc thiếu một mảng kiểm.
+ *
+ * @param string $ten Tên tệp, ví dụ 'class-vhg-db.php'.
+ * @return bool Nạp được hay không.
+ */
+function vhcc_nap_ghe( $ten ) {
+	static $thu = null;
+	$goc = dirname( __DIR__, 2 );
+
+	/* 1. Có sẵn trong cây (nhánh khác, hoặc ai đó đã chép về) thì dùng luôn. */
+	$tai_cho = $goc . '/wordpress/vhcp-ghe/includes/' . $ten;
+	if ( is_file( $tai_cho ) ) { require_once $tai_cho; return true; }
+
+	/* 2. Lấy từ nhánh gốc của plugin ghế. Chỉ đọc, không đụng cây làm việc. */
+	if ( null === $thu ) {
+		$thu = sys_get_temp_dir() . '/vhcc-ghe-' . getmypid();
+		if ( ! is_dir( $thu ) ) { @mkdir( $thu, 0777, true ); }
+	}
+	$dich = $thu . '/' . $ten;
+	if ( ! is_file( $dich ) ) {
+		$ma = null;
+		foreach ( array( 'origin/claude/posh-qr-kh1urz', 'claude/posh-qr-kh1urz' ) as $nhanh ) {
+			$ra = array();
+			$mã = 0;
+			exec( 'git -C ' . escapeshellarg( $goc ) . ' show '
+				. escapeshellarg( $nhanh . ':vhcp-ghe/includes/' . $ten ) . ' 2>/dev/null', $ra, $mã );
+			if ( 0 === $mã && $ra ) { $ma = implode( "\n", $ra ); break; }
+		}
+		if ( null === $ma ) { return false; }
+		file_put_contents( $dich, $ma );
+	}
+	require_once $dich;
+	return true;
+}
+
 function vhcc_test_boot( $dir ) {
 	define( 'VHCC_VERSION', 'test' );
 	define( 'VHCC_DIR', $dir . '/' );
@@ -921,6 +1090,30 @@ function vhd_dung_bang() {
 
 /* Múi giờ của website. WordPress thật đọc `timezone_string` rồi tới `gmt_offset`. Bản giả này
    để phép thử dựng được cả hai ca: đúng giờ Việt Nam, và ca UTC mà máy chủ mới cài hay dính. */
+/* ---- WP-Cron tối giản, có seam ------------------------------------------------------------
+   $GLOBALS['VHCP_LICH'] = [ hook => [ 'ts' => mốc, 'nhip' => tên nhịp, 'args' => … ] ].
+   Có seam thì bài thử chốt được "đặt lịch ĐÚNG MỐC, ĐÚNG NHỊP" — chứ không chỉ "không nổ".
+   Bài hộp thư đã vấp: lịch hằng ngày đặt sai múi giờ là chạy trễ 7 tiếng mà mọi phép vẫn xanh. */
+
+/* ---- Gửi thư: chỉ GHI LẠI, không gửi. $GLOBALS['VHCP_MAIL'] = [ [to, subject, message], … ].
+   Bài quy trình chốt được "gửi đúng người, đúng tiêu đề" thay vì chỉ "không nổ". */
+if ( ! function_exists( 'wp_mail' ) ) {
+	function wp_mail( $to, $subject, $message, $headers = '', $attachments = array() ) {
+		if ( ! empty( $GLOBALS['VHCP_MAIL_HONG'] ) ) { return false; }
+		$GLOBALS['VHCP_MAIL'][] = array( 'to' => $to, 'subject' => $subject, 'message' => $message );
+		return true;
+	}
+}
+if ( ! function_exists( 'is_email' ) ) {
+	function is_email( $e ) { return filter_var( (string) $e, FILTER_VALIDATE_EMAIL ) ? (string) $e : false; }
+}
+if ( ! function_exists( 'site_url' ) ) {
+	function site_url( $duong = '', $scheme = null ) { return 'https://example.test/' . ltrim( (string) $duong, '/' ); }
+}
+if ( ! function_exists( 'home_url' ) ) {
+	function home_url( $duong = '', $scheme = null ) { return 'https://example.test/' . ltrim( (string) $duong, '/' ); }
+}
+
 function wp_timezone() {
 	$s = get_option( 'timezone_string' );
 	if ( is_string( $s ) && '' !== $s ) { return new DateTimeZone( $s ); }

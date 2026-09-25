@@ -295,6 +295,159 @@ class VHCC_ViTri {
 		return ( $m < 10000 ? number_format( $m / 1000, 1 ) : (string) (int) round( $m / 1000 ) ) . 'km';
 	}
 
+	/* ======================================================================= truy vết
+
+	   Anh Thắng 20/09/2026: *"khi nhân viên đi qua cơ sở khác, chấm báo cáo cơ sở. Hệ thống tự
+	   truy vết định vị"*.
+
+	   =============================================================================================
+	   🔴 TRUY VẾT KHÔNG PHẢI LÀ GÁC, VÀ PHẢI CHẠY RIÊNG KHỎI `xet()`
+	   =============================================================================================
+	   `xet()` thoát ngay ở dòng đầu khi cơ sở đang chấm CHƯA khai mốc hoặc để chế độ Tắt — đúng
+	   với việc của nó (không gác thì không nói gì). Nhưng đó lại đúng là lúc truy vết có giá trị
+	   nhất: người của POSH_HCM (chưa khai mốc) đứng ở POSH_BD mà chấm về POSH_HCM. Nhét truy vết
+	   vào trong `xet()` thì trường hợp ấy im lặng — tức là mất đúng cái ca cần thấy.
+
+	   ⚠️ TRUY VẾT KHÔNG BAO GIỜ CHẶN, KỂ CẢ KHI TRÚNG VÙNG CƠ SỞ KHÁC. Người đi hỗ trợ cơ sở
+	      bạn là chuyện có thật và được phép; hai cơ sở cách nhau 80m trong cùng trung tâm thương
+	      mại cũng là chuyện có thật. Việc của nó là GHI LẠI để người đọc bảng tự hỏi, chứ không
+	      phải thay người quyết định.
+
+	   ⚠️ SO VỚI MỌI MỐC ĐÃ KHAI, KHÔNG LỌC THEO `cheDo`. Một cơ sở tắt gác vẫn là một toạ độ đã
+	      biết. Lọc theo chế độ thì bật gác ở đâu mới truy vết được ở đó, và chuỗi nào cũng bắt
+	      đầu bằng vài cơ sở khai mốc mà chưa dám bật.
+	*/
+
+	/**
+	 * TOẠ ĐỘ NÀY RƠI VÀO VÙNG CỦA CƠ SỞ NÀO — trừ cơ sở lượt chấm đang ghi vào.
+	 *
+	 * @param array|null $gps  {lat,lng,acc}.
+	 * @param string     $tru  cơ sở đang chấm, bỏ ra khỏi phép so (so không phân biệt hoa thường).
+	 * @return array|null array('coSo','met','trong') — `trong` = nằm trong bán kính của nơi ấy.
+	 *                    null khi không có toạ độ dùng được, hoặc không mốc nào gần.
+	 */
+	public static function gan_nhat( $gps, $tru = '' ) {
+		$lat = ( is_array( $gps ) && isset( $gps['lat'] ) && is_numeric( $gps['lat'] ) ) ? (float) $gps['lat'] : null;
+		$lng = ( is_array( $gps ) && isset( $gps['lng'] ) && is_numeric( $gps['lng'] ) ) ? (float) $gps['lng'] : null;
+		if ( null === $lat || null === $lng || ! self::toa_do_hop_le( $lat, $lng ) ) { return null; }
+
+		/* Luật 2 vẫn áp ở đây: sai số thô hơn ngưỡng bản đồ thì cặp số chỉ nói được "quận nào",
+		   mà hai cơ sở cùng quận là chuyện thường — kết luận "đang ở cơ sở kia" từ con số ấy là
+		   vu cho người đứng đúng chỗ. */
+		$acc = ( is_array( $gps ) && isset( $gps['acc'] ) && is_numeric( $gps['acc'] ) )
+			? max( 0.0, (float) $gps['acc'] ) : null;
+		if ( null !== $acc && $acc >= VHCC_Online::GPS_THO ) { return null; }
+
+		$t  = trim( (string) $tru );
+		$ra = null;
+		foreach ( self::ds() as $ten => $m ) {
+			if ( '' !== $t && 0 === strcasecmp( (string) $ten, $t ) ) { continue; }
+			$met = self::khoang_cach( $lat, $lng, $m['lat'], $m['lng'] );
+			if ( null !== $ra && $met >= $ra['met'] ) { continue; }
+			$ra = array(
+				'coSo'  => (string) $ten,
+				'met'   => $met,
+				/* Cùng luật 1: sai số cộng về phía nhân viên. Chỉ nói "đang ở cơ sở kia" khi kể
+				   cả đo lệch theo hướng bất lợi nhất thì vẫn nằm trong vùng của nơi ấy. */
+				'trong' => ( $met + ( null !== $acc ? (int) round( $acc ) : 0 ) ) <= (int) $m['bk'],
+			);
+		}
+		return $ra;
+	}
+
+	/**
+	 * MỘT DÒNG ĐỂ CẤT VÀO CỘT `vt_vao` / `vt_ra` của bảng chấm công.
+	 *
+	 * Khuôn: `lat|lng|acc|met|ket|cơSoKhac` — sáu ô, ngăn bằng `|`, ô nào không có thì để trống.
+	 *
+	 * 🔴 VÌ SAO KHÔNG PHẢI JSON. Cột chỉ có 160 ký tự (xem `VHCC_DB`), và một hàng chấm công thì
+	 *    có hàng trăm nghìn. JSON cho cùng bấy nhiêu số tốn gấp đôi chỗ mà không đọc ra thêm gì —
+	 *    còn `explode('|')` thì không bao giờ ném. Mà quan trọng hơn: dòng này CÒN PHẢI ĐỌC ĐƯỢC
+	 *    BẰNG MẮT khi có người soi thẳng bảng lúc tranh cãi về giờ công.
+	 *
+	 * ⚠️ TÊN CƠ SỞ CẮT NGẮN VÀ BỎ DẤU `|`. Tên do người gõ tay; một dấu gạch đứng lọt vào là
+	 *    dòng có bảy ô và `doc_dong()` đọc lệch từ ô thứ sáu trở đi.
+	 */
+	public static function dong( $gps, $xet = null, $vet = null ) {
+		$lat = ( is_array( $gps ) && isset( $gps['lat'] ) && is_numeric( $gps['lat'] ) ) ? (float) $gps['lat'] : null;
+		$lng = ( is_array( $gps ) && isset( $gps['lng'] ) && is_numeric( $gps['lng'] ) ) ? (float) $gps['lng'] : null;
+		if ( null === $lat || null === $lng || ! self::toa_do_hop_le( $lat, $lng ) ) { return ''; }
+		$acc = ( is_array( $gps ) && isset( $gps['acc'] ) && is_numeric( $gps['acc'] ) )
+			? (string) (int) round( max( 0.0, (float) $gps['acc'] ) ) : '';
+
+		$met = ( is_array( $xet ) && isset( $xet['met'] ) && null !== $xet['met'] ) ? (string) (int) $xet['met'] : '';
+		$ket = ( is_array( $xet ) && ! empty( $xet['gac'] ) && isset( $xet['ket'] ) ) ? (string) $xet['ket'] : '';
+
+		/* 🔴 KHÔNG CẤT "CƠ SỞ GẦN NHẤT" KHI NÓ KHÔNG NÓI LÊN ĐIỀU GÌ.
+		   `gan_nhat()` luôn trả về một cái tên — nó là phép hỏi, không phải phép kết luận. Cất
+		   thẳng cái tên ấy xuống cột thì mọi lượt chấm đúng chỗ cũng mang theo tên một cửa hàng
+		   cách đó 50km, và cột `vt_*` biến thành danh bạ chuỗi cửa hàng chứ không còn là bằng
+		   chứng. Tệ hơn: người soi bảng đọc thấy tên lạ trong ô của một lượt chấm hoàn toàn bình
+		   thường, rồi đi hỏi nhân viên một câu không có gì để hỏi.
+
+		   Chỉ cất khi cái tên ấy THẬT SỰ là một câu hỏi:
+		     · toạ độ nằm TRONG vùng của nơi ấy — gần như chắc người ta đang đứng ở đó; hoặc
+		     · nơi ấy GẦN HƠN chính cơ sở lượt chấm ghi về — chưa chắc, nhưng đáng nhìn. */
+		$khac = '';
+		if ( is_array( $vet ) && ! empty( $vet['coSo'] ) ) {
+			$gan_hon = ( '' !== $met && isset( $vet['met'] ) && (int) $vet['met'] < (int) $met );
+			if ( ! empty( $vet['trong'] ) || $gan_hon ) {
+				$khac = str_replace( '|', ' ', (string) $vet['coSo'] );
+				$khac = mb_substr( $khac, 0, 40 ) . ( empty( $vet['trong'] ) ? '' : '*' );
+			}
+		}
+
+		return implode( '|', array( (string) round( $lat, 6 ), (string) round( $lng, 6 ),
+			$acc, $met, $ket, $khac ) );
+	}
+
+	/**
+	 * Đọc lại một dòng `dong()`. Không bao giờ ném — dòng hỏng thì trả null.
+	 *
+	 * @return array|null array('lat','lng','acc','met','ket','coSoKhac','trongCoSoKhac')
+	 */
+	public static function doc_dong( $s ) {
+		$s = trim( (string) $s );
+		if ( '' === $s ) { return null; }
+		$o = explode( '|', $s );
+		if ( count( $o ) < 2 ) { return null; }
+		$lat = is_numeric( $o[0] ) ? (float) $o[0] : null;
+		$lng = is_numeric( $o[1] ) ? (float) $o[1] : null;
+		if ( null === $lat || null === $lng || ! self::toa_do_hop_le( $lat, $lng ) ) { return null; }
+		$g = function ( $i ) use ( $o ) { return isset( $o[ $i ] ) ? trim( (string) $o[ $i ] ) : ''; };
+		$khac  = $g( 5 );
+		$trong = ( '' !== $khac && '*' === mb_substr( $khac, -1 ) );
+		if ( $trong ) { $khac = mb_substr( $khac, 0, -1 ); }
+		return array(
+			'lat'           => $lat,
+			'lng'           => $lng,
+			'acc'           => is_numeric( $g( 2 ) ) ? (int) $g( 2 ) : null,
+			'met'           => is_numeric( $g( 3 ) ) ? (int) $g( 3 ) : null,
+			'ket'           => $g( 4 ),
+			'coSoKhac'      => $khac,
+			'trongCoSoKhac' => $trong,
+		);
+	}
+
+	/** Một dòng `dong()` -> câu tiếng Việt để hiện trên bảng. Rỗng khi không có gì để nói. */
+	public static function chu_dong( $s ) {
+		$d = self::doc_dong( $s );
+		if ( null === $d ) { return ''; }
+		$c = 'Toạ độ ' . $d['lat'] . ',' . $d['lng'];
+		if ( null !== $d['acc'] ) { $c .= ' (±' . self::met( $d['acc'] ) . ')'; }
+		if ( null !== $d['met'] ) {
+			$ten = array( 'trong' => 'trong vùng cơ sở', 'ngoai' => 'NGOÀI vùng cơ sở',
+				'khong_ro' => 'chưa đủ chắc trong hay ngoài' );
+			$c .= ' · cách cơ sở ' . self::met( $d['met'] )
+				. ( isset( $ten[ $d['ket'] ] ) ? ' — ' . $ten[ $d['ket'] ] : '' );
+		}
+		if ( '' !== $d['coSoKhac'] ) {
+			$c .= ' · ' . ( $d['trongCoSoKhac'] ? 'ĐANG Ở TRONG VÙNG cơ sở "' : 'gần nhất là cơ sở "' )
+				. $d['coSoKhac'] . '"';
+		}
+		return $c;
+	}
+
 	/** Câu chối khi `chan` — nói rõ ai sửa được, vì người bị chối không tự sửa được mốc. */
 	public static function loi_chan( $coso, $xet ) {
 		return 'Cơ sở "' . $coso . '" đang bật gác vị trí, mà chỗ anh/chị đứng cách cơ sở '

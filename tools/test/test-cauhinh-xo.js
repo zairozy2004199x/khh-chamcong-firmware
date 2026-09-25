@@ -226,12 +226,22 @@ function thanHam(ten) {
 }
 /* Bao nhiêu ô mà `_readRows` sẽ ĐẾM trong đoạn HTML do hàm này sinh ra. Luật loại trừ đọc
    THẲNG từ chuỗi selector trong `_readRows`, không chép lại ở đây. */
-const SELECTOR = (HTML.match(/tr\.querySelectorAll\('([^']+)'\)/) || [])[1] || '';
+/* 🔴 BỐC TRONG THÂN `_readRows()`, ĐỪNG QUÉT CẢ TỆP. Bản trước lấy `tr.querySelectorAll('…')`
+   ĐẦU TIÊN gặp trong app.html — tức bám vào thứ tự các hàm trong tệp, chứ không bám vào hàm
+   cần soi. Cắn thật 22/09/2026: thêm `_khoaDongKhoiLa()` (đứng trước `_readRows` trong tệp) là
+   bài này đỏ bốn phép, mà `_readRows()` không hề đụng tới. */
+const SELECTOR = (thanHam('_readRows').match(/tr\.querySelectorAll\('([^']+)'\)/) || [])[1] || '';
 t('đọc được chuỗi selector của _readRows', SELECTOR.indexOf('input') >= 0, SELECTOR);
 const BO_CHECKBOX = SELECTOR.indexOf(':not([type=checkbox])') >= 0;
 const BO_CSTIM    = SELECTOR.indexOf(':not(.cs-tim)') >= 0;
+/* 🔴 Ô LÁI `.vai-cha` (21/09/2026) — anh Thắng: *"chọn cha thì chỉ ra con của cha"*. Ô VAI TRÒ
+   nay là HAI ô chồng nhau: ô trên chọn nhóm, ô dưới mang giá trị. Ô trên không được đếm, y như
+   ô gõ-để-lọc `.cs-tim`. Suy từ chính bộ chọn của `_readRows()` chứ không gõ tay: hai bên lệch
+   nhau là phép này canh một thế giới khác với thế giới app đang chạy. */
+const BO_VAICHA   = SELECTOR.indexOf(':not(.vai-cha)') >= 0;
 t('🔴 _readRows loại ô gõ-để-lọc của hộp chọn cơ sở (.cs-tim)', BO_CSTIM, SELECTOR);
 t('và vẫn loại checkbox như trước', BO_CHECKBOX, SELECTOR);
+t('🔴 _readRows loại ô lái nhóm vai trò (.vai-cha)', BO_VAICHA, SELECTOR);
 
 function demO(than) {
   let n = 0;
@@ -239,6 +249,7 @@ function demO(than) {
     const the = m[1], thuoc = m[2];
     if (the === 'input' && BO_CHECKBOX && /type="checkbox"/.test(thuoc)) continue;
     if (BO_CSTIM && /class="[^"]*\bcs-tim\b/.test(thuoc)) continue;
+    if (the === 'select' && BO_VAICHA && /class="[^"]*\bvai-cha\b/.test(thuoc)) continue;
     n++;
   }
   return n;
@@ -264,7 +275,7 @@ t('cắt được dòng dựng hàng người dùng', HANG.length > 50, HANG.sli
    "số ô dựng ra bằng đúng số cột dữ liệu", mà `_readRows()` đọc theo CHỈ SỐ nên lệch một ô là
    mọi cột sau đó đọc trượt sang cột bên cạnh. Sửa bằng cách dạy nó tên hàm mới, KHÔNG phải
    bằng cách nới con số cho qua. */
-const GOI = [...HANG.matchAll(/(_inp|_roleSel|_bpSel|_cosoSel|_dvInp)\(|<(input|select)\b([^>]*)>/g)]
+const GOI = [...HANG.matchAll(/(_inp|_roleSel|_bpSel|_cosoSel|_khoiTichNguoi)\(|<(input|select)\b([^>]*)>/g)]
   .filter(m => {
     if (m[1]) return true;
     if (BO_CHECKBOX && /type="checkbox"/.test(m[3] || '')) return false;
@@ -282,16 +293,25 @@ t('hàng người dùng dựng đủ ô cho mọi cột (≥8)', GOI.length >= 8
 /* Cột "Mã NV" thêm 13/09/2026 — anh Thắng: *"nếu đẩy từ nhân sự sang, mà nhân viên này trùng
    với nhân viên tạo trực tiếp trên trang chi phí thì sao"*. Nó nằm NGAY SAU Tên, nên mọi cột
    phía sau dịch đúng một nhịp — và đó chính là loại thay đổi phép này sinh ra để canh. */
-const COT = ['ten', 'maNv', 'pin', 'vaiTro', 'boPhan', 'coso', 'maDt', 'donVi'];
-teq('số hàm dựng ô bằng đúng số cột dữ liệu', COT.length, GOI.length);
+/* Cột "Đơn vị" đổi thành "Khối" 21/09/2026 — anh Thắng: *"chỗ đơn vị thay bằng khối —
+   tích nếu 1 người làm 2 khối thì chọn 2"*. 🔴 Ô ẤY SINH RA HAI Ô ẨN chứ không phải một:
+   khối trước, rồi đơn vị cũ đi theo — đơn vị vẫn là cổng quyền "đọc được sổ nhà nào",
+   gửi rỗng lên là cả công ty về nhà mẹ. Nên danh sách cột dài thêm đúng một tên, và chính
+   phép đếm dưới đây là thứ canh cho hai ô ấy không bao giờ đảo chỗ cho nhau. */
+const COT = ['ten', 'maNv', 'pin', 'vaiTro', 'boPhan', 'coso', 'maDt', 'khoi', 'donVi'];
+/* 🔴 MỘT HÀM DỰNG Ô KHÔNG CÒN BẮT BUỘC LÀ MỘT CỘT. `_khoiTichNguoi()` sinh HAI ô đọc được
+   (khối, rồi đơn vị cũ đi kèm), nên phép cũ "số HÀM bằng số cột" đếm hụt đúng một nhịp.
+   Nay đếm số Ô THẬT và phát tên cột theo đúng số ô từng hàm sinh ra — chặt hơn bản cũ,
+   vì nó còn bắt được cả trường hợp một hàm lặng lẽ thêm bớt ô bên trong thân nó. */
 const CHI_SO = {};
-let dem = 0;
-GOI.forEach((ten, i) => {
-  if (!COT[i]) return;
-  CHI_SO[COT[i]] = dem;
+let dem = 0, iCot = 0;
+GOI.forEach((ten) => {
   /* Ô viết thẳng trong hàng thì đúng một ô; ô dựng bằng hàm thì đếm trong thân hàm ấy. */
-  dem += (ten[0] === '<') ? 1 : demO(thanHam(ten));
+  const soO = (ten[0] === '<') ? 1 : demO(thanHam(ten));
+  for (let k = 0; k < soO; k++) { if (COT[iCot]) { CHI_SO[COT[iCot]] = dem + k; } iCot++; }
+  dem += soO;
 });
+teq('số ô hàng dựng ra bằng đúng số cột dữ liệu', COT.length, dem);
 /* Chỉ số mà `saveCfgUsers` ĐANG dùng — đọc từ chính mã, không chép lại. */
 const SAVE = thanHam('saveCfgUsers');
 const DUNG = {};
@@ -333,7 +353,9 @@ const O_TEN = (HANG.match(/<input value="'\+esc\(u\.ten[^>]*>/) || [])[0] || '';
    (`1000`, `1122`, `2233`…). Trang này chạy ngoài internet: ai đứng sau lưng, ai xem một ảnh
    chụp màn, ai mở "xem mã nguồn trang" đều đọc được. Mẫu dò phải theo, nếu không phép kiểm
    canh một ô không còn tồn tại và trượt cả bốn phép dưới. */
-const O_PIN = (HANG.match(/<input type="password" value="'\+esc\(u\.pin[^>]*>/) || [])[0] || '';
+/* 🔴 TỪ 1.271.0 Ô PIN HIỆN THẲNG VỚI ADMIN THẬT — anh Thắng yêu cầu lần thứ hai: *"làm hiện
+   pin luôn đi em"*. Nên kiểu ô nay là một biểu thức, không còn là chuỗi `type="password"`. */
+const O_PIN = (HANG.match(/<input type="'\+\(_laAdminThat\(\)\?'text':'password'\)\+'" value="'\+esc\(u\.pin[^>]*>/) || [])[0] || '';
 t('🔴 ô Tên khoá lại (readonly)', /\breadonly\b/.test(O_TEN), O_TEN);
 t('🔴 ô PIN cũng khoá lại',      /\breadonly\b/.test(O_PIN), O_PIN);
 t('🔴 KHÔNG dùng disabled — disabled thì trình duyệt bỏ qua ô, lưu một cái là mất sạch tên/PIN',
@@ -347,9 +369,79 @@ t('   và vẫn mang giá trị thật lên (readonly giữ nguyên .value)',
  *    MỌI ô trên hàng, nên thay giá trị là lượt Lưu kế tiếp ghi đè PIN thật bằng chuỗi che —
  *    khoá tài khoản của cả bảng cùng lúc.
  * ══════════════════════════════════════════════════════════════════════════════════════════ */
-t('🔴 ô PIN che đi, không bày mã ra màn', /type="password"/.test(O_PIN), O_PIN);
-t('⚠️ nhưng KHÔNG thay giá trị bằng dấu chấm (lưu một cái là mất sạch PIN)',
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 LUẬT "KHÔNG IN PIN RA MÀN" ĐÃ ĐỔI — ANH THẮNG CHỐT 22/09/2026: *"làm hiện pin luôn đi em"*.
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * Ghi lại đây để sau này không ai "sửa lại cho an toàn" mà không biết mình đang lật một quyết
+ * định của người chủ hệ.
+ *
+ * ⚠️ VÀ PHẢI NÓI RÕ VÌ SAO NÓ KHÔNG NỚI THÊM GÌ: `getUsers()` VỐN ĐÃ gửi PIN thật xuống trình
+ *    duyệt, và hàng người dùng đặt nó vào `value`. Ai mở F12 là đọc được PIN cả bảng, từ
+ *    trước tới giờ. Lớp `type="password"` cũ chưa bao giờ giấu được gì — nó chỉ khiến người
+ *    nhìn TƯỞNG là có giấu, và cái tưởng ấy mới là thứ nguy.
+ *
+ * 🔴 CHỖ HỎNG THẬT VẪN NGUYÊN, và bài này KHÔNG canh được nó vì nó nằm ở máy chủ:
+ *      · `getUsers()` gửi PIN xuống màn — lẽ ra chỉ nên gửi CÓ/KHÔNG;
+ *      · PIN lưu dạng CHỮ THƯỜNG, không băm.
+ *    Cả hai đổi đường đăng nhập của mọi người nên phải anh Thắng chốt riêng.
+ *
+ * ⚠️ NHƯNG VẪN CÒN HAI CHỐT, và bài này canh đúng hai cái đó:
+ *      · chỉ ADMIN THẬT mới thấy — vai đang giả lập thì không;
+ *      · vẫn che lại được, và che HẾT trong một nhịp trước khi chia sẻ màn hình.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+t('🔴 ô PIN hiện thẳng CHỈ khi là Admin THẬT, còn lại vẫn che',
+  /_laAdminThat\(\)\?'text':'password'/.test(O_PIN), O_PIN);
+t('⚠️ và KHÔNG thay giá trị bằng dấu chấm (lưu một cái là mất sạch PIN)',
   /value="'\+esc\(u\.pin\|\|''\)\+'"/.test(O_PIN), O_PIN);
+/* 🔴 CHE LẠI ĐƯỢC, VÀ CHE HẾT TRONG MỘT NHỊP. Bảng bày PIN của toàn công ty; sắp chia sẻ màn
+   hình mà phải bấm che từng dòng thì không ai bấm. */
+t('🔴 có nút che HẾT PIN trong một nhịp', /onclick="pinCheHet\(\)"/.test(HTML), '');
+const F_CHE = (HTML.match(/function pinCheHet\(\)\{[\s\S]*?\n  \}/) || [])[0] || '';
+/* Bảng người dùng chia NHIỀU `<tbody>`, mỗi vai một cái. Bộ chọn theo một id là trúng đúng
+   một nhóm vai, mấy nhóm còn lại vẫn phơi PIN — mà nút vẫn báo "đã che" kèm một con số nghe
+   có vẻ hợp lý. */
+t('🔴 che hết quét MỌI nhóm vai, không chỉ một `<tbody>`',
+  /\[data-user-body\]/.test(F_CHE) && !/#cfgUserBody['"\s]/.test(F_CHE), F_CHE.slice(0, 300));
+t('   và nút ấy chỉ bày cho Admin thật', /_laAdminThat\(\)/.test(HTML.slice(HTML.indexOf('function _veNutCheHetPin'), HTML.indexOf('function _veNutCheHetPin') + 250)), '');
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 NÚT 👁 HIỆN PIN — anh Thắng 22/09/2026: *"Cho hiện Pin"*.
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * Luật "không in PIN ra màn" ở trên VẪN NGUYÊN: ô mặc định vẫn `type="password"`. Nút này chỉ
+ * mở ra theo từng lượt bấm, và phải giữ đủ ba chốt giảm hại — bảng này bày PIN của TOÀN CÔNG
+ * TY trên một màn.
+ *
+ * ⚠️ VÀ PHẢI NÓI RA ĐIỀU NÀY, vì nó đổi hẳn cách đọc mấy phép ở trên: lớp che `type="password"`
+ *    CHƯA BAO GIỜ giấu được gì. `getUsers()` gửi PIN thật xuống trình duyệt và hàng này đặt nó
+ *    vào `value`; ai mở F12 là đọc được PIN cả bảng, không cần nút nào. Nút 👁 không mở thêm
+ *    cửa — nó chỉ thôi giả vờ rằng cửa đang đóng. Chỗ hỏng thật là máy chủ GỬI PIN xuống, và
+ *    PIN lưu dạng chữ thường. Hai cái ấy phải anh Thắng chốt vì chúng đổi đường đăng nhập của
+ *    mọi người.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+t('🎯 có nút hiện PIN', /onclick="pinHien\(this\)"/.test(HTML), '');
+const F_PIN = (HTML.match(/function pinHien\(btn\)\{[\s\S]*?\n  \}/) || [])[0] || '';
+/* ⚠️ SOI CHÍNH CÁI CỔNG TRƯỚC NÚT, không soi mỗi "có chữ `_laAdminThat` ở đâu đó". Hàm
+   `pinHien()` vẫn hỏi nó, nên phép lỏng vẫn xanh trong khi CÁI NÚT đã bày cho mọi vai —
+   bày ra một cái nút bấm vào thì bị chối là vừa vô duyên vừa mời người ta thử. */
+t('🔴 chỉ ADMIN THẬT xem được — đang giả lập vai khác thì không thấy nút',
+  /_laAdminThat\(\)\s*\n?\s*\?\s*'<button/.test(HTML) && /_laAdminThat\(\)/.test(F_PIN),
+  F_PIN.slice(0, 200));
+/* ⚠️ KHÔNG CÒN "tự ẩn sau 10 giây": ô nay HIỆN SẴN với Admin thật, nên một cái hẹn giờ che
+   lại sau mười giây là nó chống lại chính điều anh Thắng vừa yêu cầu. Đường che nay là bấm
+   tay — nút từng dòng, hoặc nút che hết. */
+t('🔴 nút từng dòng đổi được CẢ HAI CHIỀU (che rồi hiện lại)',
+  /o\.type=dangHien\?'password':'text'/.test(F_PIN), F_PIN.slice(0, 300));
+t('   và dọn hẹn giờ cũ của bản trước, kẻo nó nổ muộn và che lại đúng lúc vừa bấm hiện',
+  /clearTimeout\(o\._pinHen\)/.test(F_PIN), F_PIN.slice(0, 300));
+/* Hẹn giờ phải gắn vào CHÍNH Ô ẤY. Một biến chung thì bấm 👁 ba dòng liền nhau là lượt đếm sau
+   xoá lượt trước — hai dòng đầu phơi PIN mãi, mà người bấm tưởng đã tự ẩn hết vì thấy dòng
+   cuối ẩn đi. */
+t('   nút đọc đúng trạng thái đang hiện của chính ô ấy', /o\.type==='text'/.test(F_PIN), F_PIN.slice(0, 300));
+/* 🔴 KHÔNG CÓ "HIỆN TẤT CẢ". Một lần chụp màn không được lộ cả bảng PIN của công ty. */
+t('🔴 KHÔNG có nút hiện tất cả PIN cùng lúc',
+  !/pinHienTatCa|hienTatCaPin|pinHienHet/.test(HTML), '');
+t('   và người KHÔNG phải Admin thật thì vẫn che',
+  /'password'/.test(O_PIN), O_PIN);
+
 /* Hàng THÊM MỚI cũng phải che: người khai gõ PIN cho người khác, ngay giữa văn phòng. */
 t('🔴 ô PIN của hàng thêm mới cũng che',
   /<input type="password" maxlength="8"/.test(HTML), '');
@@ -359,8 +451,8 @@ t('   nhìn cũng biết là khoá, không phải ô gõ được', /background:
 t('   tiêu đề cột nói rõ nguồn', HTML.indexOf('>Tên <span style="font-weight:400;color:#8c8781">(từ nhân sự)</span></th>') >= 0);
 t('   và có câu giải thích dưới bảng', HTML.indexOf('lấy từ <b>hệ thống nhân sự</b> nên khoá ở đây') >= 0);
 /* Các cột KHÁC vẫn phải sửa được — khoá quá tay thì bảng thành chỉ để ngắm. */
-t('🔴 vai trò · bộ phận · cơ sở · đơn vị vẫn sửa được',
-  !/readonly/.test(thanHam('_roleSel')) && !/readonly/.test(thanHam('_dvInp')), null);
+t('🔴 vai trò · bộ phận · cơ sở · khối vẫn sửa được',
+  !/readonly/.test(thanHam('_roleSel')) && !/readonly|disabled/.test(thanHam('_khoiTichNguoi')), null);
 
 if (hong.length) {
   console.error('\nĐẠT: ' + dat + ' phép thử');

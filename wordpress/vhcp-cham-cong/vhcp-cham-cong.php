@@ -3,7 +3,7 @@
  * Plugin Name:       Chấm Công (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Hệ thống chấm công chạy THẲNG trên host: máy chấm công, hàng đợi lệnh, cập nhật firmware và toàn bộ nghiệp vụ đều nằm trên MySQL của chính website. Không Firebase, không Google Sheet.
- * Version:           4.68.0
+ * Version:           4.81.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -34,7 +34,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHCC_VERSION', '4.68.0' );
+define( 'VHCC_VERSION', '4.81.0' );
 define( 'VHCC_FILE', __FILE__ );
 define( 'VHCC_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHCC_URL', plugin_dir_url( __FILE__ ) );
@@ -93,6 +93,11 @@ require_once VHCC_DIR . 'includes/class-vhcc-online.php';
 require_once VHCC_DIR . 'includes/class-vhcc-mat.php';
 require_once VHCC_DIR . 'includes/class-vhcc-bao-cao-ca.php';
 require_once VHCC_DIR . 'includes/class-vhcc-bando.php';
+require_once VHCC_DIR . 'includes/class-vhcc-dia-chi.php';
+require_once VHCC_DIR . 'includes/class-vhcc-chat.php';
+require_once VHCC_DIR . 'includes/class-vhcc-goi.php';
+require_once VHCC_DIR . 'includes/class-vhcc-nap-doc.php';
+require_once VHCC_DIR . 'includes/class-vhcc-don-dem.php';
 require_once VHCC_DIR . 'includes/class-vhcc-keo.php';
 require_once VHCC_DIR . 'includes/class-vhcc-nguoi-dung.php';
 require_once VHCC_DIR . 'includes/class-vhcc-nap-csv.php';
@@ -155,6 +160,10 @@ VHCC_TuCapNhat::init();
    ⚠️ ĐỂ Ở ĐÂY, KHÔNG BỌC TRONG `plugins_loaded`. `init()` chỉ khai mấy cái móc; gọi muộn hơn
       thì `vhnb_bao_moi` có thể bắn trước khi người nghe kịp ngồi vào chỗ. */
 VHCC_Push::init();
+/* Cùng lý do với dòng trên: `init()` chỉ khai móc và xếp lịch cron, phải chạy sớm. Lớp này
+   điền dần tên đường cho mấy cặp toạ độ đã ghi — không khởi động thì cột địa chỉ trống mãi,
+   mà bảng vẫn có cặp số nên không ai thấy là thiếu. */
+VHCC_DiaChi::init();
 
 add_action( 'plugins_loaded', 'vhcc_maybe_upgrade' );
 function vhcc_maybe_upgrade() {

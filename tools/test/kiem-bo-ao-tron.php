@@ -61,7 +61,11 @@ $TRANG = array(
 	'Chi phí (gốc)'   => $GOC . '/wordpress/vhcp-chi-phi/assets/css/vhcp.css',
 	'Chi phí «mtd»'   => $GOC . '/wordpress/vhcp-chi-phi-mtd/assets/css/vhcp.css',
 	'Chi phí «vp»'    => $GOC . '/wordpress/vhcp-chi-phi-vp/assets/css/vhcp.css',
-	'trang Ghế (tối)' => $GOC . '/wordpress/vhcp-ghe/includes/class-vhg-trang.php',
+	/* ⚠️ `trang Ghế` GỠ KHỎI DANH SÁCH 25/09/2026 — không phải vì thôi cần canh, mà vì thư mục
+	   `wordpress/vhcp-ghe/` đã RỜI nhánh này (bản 1.48.0 là mã chết, bản thật 2.111.0 sống ở
+	   nhánh `claude/posh-qr-kh1urz`; xem `wordpress/DOC-TRUOC-KHI-DONG-GOI.md`). Soi một đường
+	   dẫn không còn tồn tại thì bài này đỏ mãi mà chẳng canh gì. Muốn canh bộ áo của Ghế thì
+	   canh Ở NHÁNH CỦA NÓ. */
 	/* ══════════════════════════════════════════════════════════════════════════════════════
 	 * HAI TRANG VÀO THÊM 16/09/2026 — anh Thắng: *"chỉnh lại toàn trang thống nhất"*.
 	 *
@@ -149,10 +153,6 @@ foreach ( $MAU_SANG as $bien => $gt ) {
  *    kia quầy. Đổ nền kem lên đó thì hoặc che mất ảnh, hoặc chữ tối rơi vào vùng sáng của ảnh —
  *    mà ảnh nào cũng có một vùng sáng ở đâu đó. Ai đó "cho đồng bộ" bằng cách dán bảng màu
  *    sáng vào đây thì phép này phải đỏ. */
-$g = $css['trang Ghế (tối)'];
-t( '🔴 trang Ghế giữ nền TỐI, không nhận nền kem của bản sáng',
-	false === strpos( $g, '--nen:#f9f8f6' ) && (bool) preg_match( '#--nen:\s*\#1[0-9a-f]{5}#i', $g ), '' );
-t( '🔴 và giữ VÀNG làm dấu nhận mặt', (bool) preg_match( '#--nhan:\s*\#f0b429#i', $g ), '' );
 /* Ảnh nền và lớp phủ tối là cặp không tách rời: bỏ lớp phủ thì chữ trắng nằm trên vùng sáng
    của ảnh là không đọc nổi. */
 /* Trạm bấm: MÀN CHỤP phải tối, và vì một lý do làm được chứ không phải vì đẹp — nó mở camera
@@ -174,9 +174,6 @@ t( '🔴 màn chụp của Trạm có bảng màu riêng', '' !== $m_chup, '' );
 t( '🔴 màn chụp giữ nền TỐI, không nhận nền kem của bản sáng',
 	false === strpos( $m_chup, '--nen:#f9f8f6' ) && (bool) preg_match( '#--nen:\s*\#1[0-9a-f]{5}#i', $m_chup ), '' );
 
-$ghe_php = file_get_contents( $GOC . '/wordpress/vhcp-ghe/includes/class-vhg-trang.php' );
-t( '⚠️ ảnh nền còn nguyên', false !== strpos( $ghe_php, 'body.co-anh::before' ), '' );
-t( '⚠️ và lớp phủ tối đi kèm cũng còn', false !== strpos( $ghe_php, 'body::after' ), '' );
 
 /* ═══ 6. KHÔNG TRANG NÀO TẢI FONT NGOÀI ════════════════════════════════════════
  *
@@ -324,4 +321,4 @@ if ( $truot ) {
 	foreach ( $truot as $x ) { echo "  · $x\n"; }
 	exit( 1 );
 }
-echo "\n✓ SẠCH — $dat phép: bảy trang cùng một bộ áo, sáng và tối chỉ khác màu.\n";
+echo "\n✓ SẠCH — $dat phép: sáu trang cùng một bộ áo, sáng và tối chỉ khác màu.\n";

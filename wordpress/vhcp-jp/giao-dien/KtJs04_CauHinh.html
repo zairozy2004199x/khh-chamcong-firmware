@@ -1,0 +1,818 @@
+<script>
+/*═══════════════════════════════════════════════════════════
+ * JP CAPSULE v2 — KtJs04_CauHinh
+ * Kế toán quản lý: tài khoản · cơ sở · cụm máy · ô/máy · danh mục hàng.
+ * Khu vực do nhân viên tự thêm khi làm báo cáo, KHÔNG cấu hình ở đây.
+ *═══════════════════════════════════════════════════════════*/
+
+var CFG = { users: [], locs: [], clusters: [], machines: [], items: [] };
+
+/*
+ * ⚠️ MỘT ĐỢT CHỜ DUY NHẤT — đừng xếp lại thành chuỗi `.then` nối tiếp.
+ *
+ * Andy 10/08/2026: *"bấm cái nào cũng thấy load lâu quá"*. Đo ra (bộ
+ * `test/browser/toc-do-man.js`): trên Apps Script mỗi lượt `google.script.run` tốn
+ * **~0,45s độ trễ** rồi mới tính tới số lượt Sheets. Nên cái quyết định cảm giác
+ * "lâu" KHÔNG phải hàm máy chủ chạy chậm — máy chủ chỉ 1–4 lượt Sheets ở màn này —
+ * mà là **bao nhiêu lần phải CHỜ nối tiếp nhau**.
+ *
+ * Bản trước xếp thành chuỗi: (cơ sở + tài khoản) → cụm → ô máy. Ba đợt = **~1,35s**
+ * chỉ để mở màn Ô/máy, trong khi **không lượt nào phụ thuộc lượt nào** —
+ * `jpCfgListClusters` và `jpCfgListMachines` đều nhận `''` (mọi cơ sở), không cần
+ * biết cụm nào có trước. Gộp lại còn **một đợt ~0,45s**.
+ *
+ * ⚠️ `jpPinTheoCoSo` là BẢNG PHỤ nên phải có `catch` RIÊNG. `Promise.all` đổ cả rổ
+ * khi một lượt lỗi — để nó chung mà không bọc là bảng PIN đọc lỗi thì **mất luôn cả
+ * màn Tài khoản**, đúng cái `ktPinBang` cố ý tránh từ đầu.
+ */
+function ktCfgLoad(which) {
+  var man = which || 'cfUsers';
+  kbusy(true, 'Đang tải…');
+
+  var goi = [ksrv('jpCfgListLocations', KT.token), ksrv('jpCfgListUsers', KT.token)];
+  var them = [];
+  var xin = function (khoa, pr) { them.push(khoa); goi.push(pr); };
+
+  if (man === 'cfClusters' || man === 'cfMachines')
+    xin('clusters', ksrv('jpCfgListClusters', KT.token, ''));
+  if (man === 'cfMachines')
+    xin('machines', ksrv('jpCfgListMachines', KT.token, ''));
+  if (man === 'cfItems')
+    xin('items', ksrv('jpCfgListItems', KT.token));
+  if (man === 'cfUsers')
+    xin('pinCs', ksrv('jpPinTheoCoSo', KT.token)
+                   .catch(function (e) { return { __loi: e.message || String(e) }; }));
+
+  Promise.all(goi).then(function (r) {
+    CFG.locs = r[0]; CFG.users = r[1];
+    KT.locations = r[0];
+    them.forEach(function (khoa, i) { CFG[khoa] = r[i + 2]; });
+    kbusy(false);
+    /* `renderUsers` tự vẽ bảng PIN bằng `CFG.pinCs` vừa lấy ở đợt trên — không gọi
+       thêm ở đây, gọi hai lần là vẽ đôi. */
+    renderCfg(man);
+  }).catch(function (e) { kbusy(false); ktoast(e.message); });
+}
+
+function renderCfg(which) {
+  if (which === 'cfUsers') return renderUsers();
+  if (which === 'cfLocs') return renderLocs();
+  if (which === 'cfClusters') return renderClusters();
+  if (which === 'cfMachines') return renderMachines();
+  if (which === 'cfItems') return renderItems();
+}
+
+function locName(id) {
+  var l = CFG.locs.filter(function (x) { return String(x.id) === String(id); })[0];
+  return l ? l.name : '—';
+}
+
+/*──────── ① TÀI KHOẢN ────────*/
+function renderUsers() {
+  var h = '<div class="card"><h2>Thêm / sửa tài khoản</h2>' +
+    '<div class="toolbar">' +
+      '<input id="uId" type="hidden">' +
+      '<input id="uUser" placeholder="Tên đăng nhập">' +
+      '<input id="uName" placeholder="Họ tên">' +
+      '<input id="uPin" inputmode="numeric" maxlength="3" style="width:110px" ' +
+        'placeholder="PIN 3 số">' +
+      '<select id="uRole">' +
+        '<option value="NHANVIEN">Nhân viên</option>' +
+        '<option value="KETOAN">Kế toán</option>' +
+      '</select>' +
+      '<select id="uType">' +
+        '<option value="">— loại máy —</option>' +
+        '<option value="TIEN">Máy tiền</option>' +
+        '<option value="XU">Máy xu</option>' +
+      '</select>' +
+      '<label class="inline"><input id="uActive" type="checkbox" checked> Đang dùng</label>' +
+      '<button class="btn primary sm" onclick="saveUser()">Lưu</button>' +
+      '<button class="btn ghost sm" onclick="clearUser()">Mới</button>' +
+    '</div>' +
+    '<div><span class="sub">Cơ sở được gán (chọn nhiều):</span><br>' +
+      CFG.locs.map(function (l) {
+        return '<label class="inline" style="margin-right:12px">' +
+          '<input type="checkbox" class="uLoc" value="' + l.id + '"> ' + kesc(l.name) + '</label>';
+      }).join('') + '</div>' +
+    '<p class="hint">Nhân viên đăng nhập <b>chỉ bằng PIN</b>, nên PIN phải khác nhau ' +
+      'giữa mọi người — trùng thì hệ thống báo ngay tên người đang dùng. Sửa tài khoản ' +
+      'mà để trống PIN thì giữ PIN cũ. PIN đã cấp không xem lại được, chỉ đặt lại được.<br>' +
+      '<b>Cơ sở được gán chính là phân quyền.</b> Không tick cơ sở nào thì người đó ' +
+      'đăng nhập được nhưng không mở được báo cáo nào — máy chủ chặn theo danh sách này, ' +
+      'không phải chỉ ẩn trên màn hình.<br>' +
+      'Bỏ tick <b>Đang dùng</b> là <b>khoá đăng nhập</b> tài khoản đó; ' +
+      'báo cáo cũ của họ vẫn còn nguyên.</p></div>';
+
+  /* Cấp một lượt: mỗi cơ sở một tài khoản + một PIN. Bản rõ chỉ hiện MỘT LẦN. */
+  /* `id="cfPinCard"` để CSS in được: bản in chỉ giữ đúng thẻ này, ẩn hết phần còn lại
+     của màn Tài khoản. Đổi id thì phải sửa cả `@media print` trong `KT_Css`. */
+  h += '<div class="card" id="cfPinCard"><h2>Cấp mã PIN theo cơ sở</h2>' +
+    '<div class="toolbar">' +
+      '<button class="btn primary sm" onclick="ktCapPinCoSo(false)">Cấp PIN cho cơ sở ' +
+        'chưa có tài khoản</button>' +
+      '<button class="btn ghost sm" onclick="ktCapPinCoSo(true)">Cấp LẠI PIN cho tất cả ' +
+        'cơ sở</button>' +
+    '</div>' +
+    '<p class="hint">Tạo <b>một hồ sơ cho mỗi cơ sở</b>, gán đúng cơ sở đó và <b>loại ' +
+      'máy của cơ sở</b> — nên cơ sở máy tiền chỉ mở được mẫu tiền, cơ sở máy xu chỉ mở ' +
+      'được mẫu xu.<br>' +
+      '<b>Cơ sở đăng nhập CHỈ BẰNG MÃ PIN</b> — không có tên đăng nhập, không có mật ' +
+      'khẩu. Đưa cho cơ sở đúng 3 chữ số là xong.<br>' +
+      '⚠️ <b>PIN chỉ hiện đúng một lần</b> ngay sau khi cấp: sheet chỉ lưu bản băm, ' +
+      'không tra lại được. Ghi lại hoặc tải CSV trước khi rời màn hình.<br>' +
+      'Nút <b>Cấp LẠI</b> đổi PIN của cả cơ sở đang chạy — người đang trực sẽ không ' +
+      'đăng nhập được bằng PIN cũ nữa. Chỉ một cơ sở quên PIN thì <b>đừng bấm nút đó</b>: ' +
+      'dùng nút <b>Cấp lại</b> ở đúng dòng cơ sở trong bảng bên dưới.</p>' +
+    '<div id="cfPinKq"></div>' +
+    '<div id="cfPinBang"></div></div>';
+
+  h += '<div class="tableWrap"><table><tr><th>Tài khoản</th><th>Họ tên</th><th>Vai trò</th>' +
+    '<th>PIN</th><th>Loại máy</th><th>Cơ sở</th><th>Trạng thái</th><th></th></tr>';
+  CFG.users.forEach(function (u) {
+    h += '<tr><td>' + kesc(u.username) + '</td><td>' + kesc(u.hoTen) + '</td>' +
+      '<td>' + roleText(u.role) + '</td>' +
+      '<td>' + (u.coPin ? 'đã cấp' : '<b>chưa có</b>') + '</td>' +
+      '<td>' + (u.machineType === 'XU' ? 'Máy xu' : u.machineType === 'TIEN' ? 'Máy tiền' : '—') + '</td>' +
+      '<td style="white-space:normal">' + u.locationIds.map(locName).join(', ') + '</td>' +
+      '<td>' + (u.active ? 'Đang dùng' : 'Khoá') + '</td>' +
+      '<td><button class="btn ghost sm" onclick="editUser(\'' + u.id + '\')">Sửa</button></td></tr>';
+  });
+  $k('cfUsers').innerHTML = h + '</table></div>';
+  /* Bảng trạng thái PIN theo cơ sở — vẽ SAU khi đã gắn HTML, vì nó ghi vào
+     `#cfPinBang` nằm trong chuỗi vừa gắn.
+     ⚠️ Truyền `CFG.pinCs` (đã lấy cùng đợt ở `ktCfgLoad`) chứ ĐỪNG gọi rỗng —
+     gọi rỗng là thêm một lượt chờ ~0,45s nữa cho mỗi lần mở màn Tài khoản. */
+  ktPinBang(CFG.pinCs);
+}
+
+function roleText(r) {
+  return { NHANVIEN: 'Nhân viên', KETOAN: 'Kế toán',
+           KT_DOANHTHU: 'Kế toán (vai trò cũ)', KT_KHO: 'Kế toán (vai trò cũ)' }[r] || r;
+}
+
+/*──────── ①b CẤP MÃ PIN THEO CƠ SỞ — bản rõ hiện ĐÚNG MỘT LẦN ────────*/
+
+/* Giữ trong biến chứ không đọc lại DOM khi tải CSV: `ktCfgLoad` vẽ lại màn là bảng
+   PIN mất, mà lúc đó không có cách nào lấy lại bản rõ. */
+var KT_PIN_VUA_CAP = [];
+
+/**
+ * BẢNG CẤU HÌNH PIN THEO CƠ SỞ — một dòng một cơ sở.
+ *
+ * Andy hỏi 06/08/2026: *"Với kế toán có bảng cấu hình pin mã cơ sở chưa em"*. Lúc đó
+ * chỉ có card CẤP và bảng TÀI KHOẢN — mà bảng tài khoản liệt kê cả kế toán, nên nhìn
+ * vào **không trả lời được câu "cơ sở nào chưa có PIN"**.
+ *
+ * ⚠️ Danh sách do MÁY CHỦ dựng (`jpPinTheoCoSo`), client KHÔNG tự ghép tên đăng nhập
+ * từ mã cơ sở — quy ước `cs<mã>` chỉ được có một bản (`jpUserCoSo_`). Ghép lại ở đây
+ * là có ngày lệch với lúc cấp, rồi bảng báo "chưa có PIN" cho cơ sở đang chạy ngon và
+ * kế toán bấm Cấp, tạo ra tài khoản thứ hai cho cùng một cơ sở.
+ */
+/**
+ * `d` có sẵn (lấy cùng đợt ở `ktCfgLoad`) thì vẽ ngay, KHÔNG gọi lại máy chủ.
+ * Gọi rỗng — như nút "Thử lại" và sau khi cấp PIN — thì tự lấy: lúc đó dữ liệu
+ * vừa đổi nên PHẢI đọc lại, không được dùng bản cũ trong `CFG`.
+ */
+function ktPinBang(d) {
+  if (d) { ktPinBangVe(d); return; }
+  ksrv('jpPinTheoCoSo', KT.token).then(ktPinBangVe)
+    .catch(function (e) { ktPinBangLoi(e.message || String(e)); });
+}
+
+function ktPinBangLoi(msg) {
+  /* Lỗi ở bảng này KHÔNG được làm chết cả màn Tài khoản — hai nút cấp PIN và bảng
+     tài khoản bên dưới phải còn dùng được. */
+  $k('cfPinBang').innerHTML = '<div class="alert danger">Không đọc được trạng thái PIN ' +
+    'theo cơ sở: ' + kesc(msg) + '. Hai nút cấp PIN ở trên vẫn dùng được. ' +
+    '<button class="btn ghost sm" onclick="ktPinBang()">Thử lại</button></div>';
+}
+
+function ktPinBangVe(d) {
+  /* Lượt gọi gộp trong `ktCfgLoad` bọc lỗi thành `{__loi}` để `Promise.all` không đổ
+     cả rổ — nên phải mở gói ở đây. */
+  if (d && d.__loi) { ktPinBangLoi(d.__loi); return; }
+  {
+    var h = '';
+    if (d.thieuPin.length) {
+      h += '<div class="alert warn"><b>' + d.thieuPin.length + ' cơ sở đang chạy chưa ' +
+        'dùng được PIN:</b> ' + kesc(d.thieuPin.join(', ')) + '. Bấm <b>Cấp PIN cho cơ ' +
+        'sở chưa có tài khoản</b> ở trên.</div>';
+    }
+    /* Cơ sở đã dẹp mà tài khoản còn mở = một PIN vẫn đăng nhập được vào điểm không
+       còn bán. Không chặn được gì nhưng phải NÓI RA. */
+    if (d.ngungConMo.length) {
+      h += '<div class="alert danger"><b>' + d.ngungConMo.length + ' cơ sở ĐÃ NGƯNG mà ' +
+        'tài khoản còn mở:</b> ' + kesc(d.ngungConMo.join(', ')) + '. PIN của họ vẫn đăng ' +
+        'nhập được — bỏ tick <b>Đang dùng</b> ở bảng tài khoản bên dưới.</div>';
+    }
+    /* Trùng tên đăng nhập = hai điểm bán dùng CHUNG một PIN, và một trong hai mất
+       quyền mở báo cáo. Hỏng im lặng nhất trong cả màn này nên để cảnh báo ĐỎ. */
+    /* Nói bằng thứ kế toán SỬA ĐƯỢC là **Mã cơ sở**, không nói "tên đăng nhập" —
+       cơ sở không có tên đăng nhập (chỉ PIN), nhắc tới nó là bịa ra một khái niệm
+       người dùng không có. Tên nội bộ suy từ Mã, nên sửa Mã là hết trùng. */
+    (d.trungTen || []).forEach(function (t) {
+      h += '<div class="alert danger"><b>Trùng mã cơ sở: ' + kesc(t.codes.join(' và ')) +
+        '</b> — hai cơ sở này ra cùng một hồ sơ. Chúng sẽ <b>dùng chung một mã PIN</b>, ' +
+        'và cơ sở cấp sau <b>ghi đè quyền</b> của cơ sở trước — một trong hai đăng nhập ' +
+        'được nhưng không mở được báo cáo nào. ' +
+        'Sửa <b>Mã</b> cho khác nhau ở tab <b>Cơ sở</b> rồi cấp lại PIN.</div>';
+    });
+    h += '<div class="tableWrap" style="margin-top:10px"><table id="tblPinCs">' +
+      '<tr><th>Mã</th><th>Cơ sở</th><th>Loại máy</th>' +
+      '<th>Mã PIN</th><th>Trạng thái</th><th></th></tr>';
+    d.rows.forEach(function (r) {
+      var xau = r.coSoActive && (!r.coPin || !r.taiKhoanActive);
+      h += '<tr' + (xau ? ' class="lech"' : '') + '>' +
+        '<td><b>' + kesc(r.code) + '</b></td>' +
+        '<td style="white-space:normal">' + kesc(r.tenCoSo) + '</td>' +
+        '<td>' + (r.loaiMay === 'TIEN' ? 'Máy tiền' : r.loaiMay === 'XU' ? 'Máy xu'
+                  : '<span class="locked">kiêm cả hai</span>') + '</td>' +
+        /* KHÔNG in PIN — sheet chỉ có bản băm, và bản rõ chỉ hiện đúng một lần lúc cấp */
+        '<td>' + (!r.coTaiKhoan ? '<b>chưa có tài khoản</b>'
+                : !r.coPin      ? '<b>chưa cấp PIN</b>'
+                : r.pinMacDinh  ? '<b>còn PIN mặc định</b>'
+                                : 'đã cấp') + '</td>' +
+        /* ⚠️ Chưa có tài khoản thì KHÔNG được in "tài khoản bị khoá" — `taiKhoanActive`
+           cũng false trong trường hợp đó, viết gộp là một dòng tự mâu thuẫn với chính
+           cột bên cạnh. Ba trạng thái khác nhau, in ba câu khác nhau. */
+        '<td>' + (!r.coSoActive ? '<span class="locked">cơ sở đã ngưng</span>'
+                : !r.coTaiKhoan ? '<span class="locked">—</span>'
+                : r.taiKhoanActive ? 'Đang dùng' : '<b>tài khoản bị khoá</b>') + '</td>' +
+        '<td>' + (r.coTaiKhoan
+          ? '<button class="btn ghost sm" onclick="ktCapPinMot(\'' + kesc(r.locationId) +
+            '\',\'' + kesc(String(r.tenCoSo).replace(/'/g, '')) + '\')">Cấp lại</button>'
+          : '') + '</td></tr>';
+    });
+    h += '</table></div>' +
+      '<p class="hint">Bảng đi từ <b>danh mục cơ sở</b>, nên cơ sở <b>chưa có tài khoản ' +
+      'nào</b> vẫn có một dòng — đó đúng là dòng cần thấy nhất. Cơ sở đã ngưng vẫn liệt ' +
+      'kê nhưng không tính là thiếu PIN.<br>' +
+      'Cột <b>Mã PIN</b> chỉ nói đã cấp hay chưa: sheet chỉ lưu bản băm nên ' +
+      '<b>không tra lại số được</b>, quên thì phải cấp lại.</p>';
+    $k('cfPinBang').innerHTML = h;
+  }
+}
+
+/**
+ * CẤP LẠI PIN CHO ĐÚNG MỘT CƠ SỞ.
+ *
+ * Trước bản này chỉ có nút "Cấp LẠI PIN cho TẤT CẢ" — nên một cơ sở quên PIN là kế
+ * toán buộc phải đổi PIN của **cả 13 cơ sở giữa giờ bán**. Máy chủ đã nhận
+ * `locationIds` từ đầu, chỉ là chưa có chỗ nào truyền vào.
+ */
+function ktCapPinMot(locationId, ten) {
+  if (!confirm('Cấp lại PIN cho ' + ten + '?\n\n' +
+      'CHỈ cơ sở này đổi PIN, các cơ sở khác giữ nguyên.\n' +
+      'PIN cũ của cơ sở này hết hiệu lực ngay — người đang trực phải dùng PIN mới.')) return;
+  ktCapPinCoSo(true, [locationId]);
+}
+
+function ktCapPinCoSo(capLai, locationIds) {
+  /* Hỏi xác nhận cho nút "TẤT CẢ" thôi. Cấp lẻ đã hỏi ở `ktCapPinMot` rồi — hỏi hai
+     lần là người dùng bấm cho qua mà không đọc. */
+  if (capLai && !locationIds && !confirm('Cấp LẠI PIN cho TẤT CẢ cơ sở?\n\n' +
+      'PIN cũ hết hiệu lực ngay — người đang trực sẽ bị đăng xuất khỏi lần đăng nhập ' +
+      'sau. Chỉ làm khi thật cần.')) return;
+
+  kbusy(true, 'Đang cấp mã PIN…');
+  ksrv('jpTaoPinCoSo', KT.token,
+       { capLai: capLai === true, locationIds: locationIds || [] })
+    .then(function (d) {
+      kbusy(false);
+      KT_PIN_VUA_CAP = d.rows || [];
+      ktoast(d.msg);
+
+      var h = '<div class="alert warn"><b>⚠️ ' + kesc(d.canhBao) + '</b></div>';
+      if (!KT_PIN_VUA_CAP.length) {
+        h += '<div class="empty">Không cấp PIN mới cho cơ sở nào. ' +
+             'Cơ sở đã có tài khoản thì phải bấm <b>Cấp LẠI</b>.</div>';
+      } else {
+        h += '<div class="toolbar"><button class="btn ghost sm" ' +
+             'onclick="ktTaiPinCsv()">Tải CSV danh sách PIN</button>' +
+             '<button class="btn ghost sm" onclick="window.print()">In</button></div>' +
+             /* ⚠️ KHÔNG in `username` ở đây. Đăng nhập CHỈ BẰNG PIN (`jpLoginPin`
+                nhận đúng một tham số, màn nhân viên chỉ có bàn phím số) — mà bảng
+                này là tờ ĐEM IN phát cho cơ sở. In thêm một chuỗi `csambt` là nhân
+                viên đi tìm chỗ gõ nó. `username` chỉ là khoá nội bộ nối tài khoản
+                với cơ sở, người dùng không bao giờ chạm tới. */
+             '<div class="tableWrap"><table id="tblPinCoSo">' +
+             '<tr><th>Mã</th><th>Cơ sở</th><th>Loại máy</th>' +
+             '<th class="num">MÃ PIN</th></tr>';
+        KT_PIN_VUA_CAP.forEach(function (r) {
+          h += '<tr><td>' + kesc(r.code) + '</td>' +
+            '<td style="white-space:normal">' + kesc(r.tenCoSo) + '</td>' +
+            '<td>' + (r.loaiMay === 'TIEN' ? 'Máy tiền'
+                    : r.loaiMay === 'XU' ? 'Máy xu' : kesc(r.loaiMay)) + '</td>' +
+            '<td class="num"><b style="font-size:18px;letter-spacing:3px">' +
+              kesc(r.pin) + '</b></td></tr>';
+        });
+        h += '</table></div>' +
+          '<p class="hint">Danh sách tài khoản bên dưới vẫn là trạng thái <b>trước</b> khi ' +
+          'cấp — cố ý không vẽ lại màn, vì vẽ lại là <b>xoá mất bảng PIN</b> ở trên mà ' +
+          'không tra lại được. Ghi xong PIN thì bấm sang tab khác rồi quay lại để thấy ' +
+          KT_PIN_VUA_CAP.length + ' tài khoản mới.</p>';
+      }
+      if (d.hetSo && d.hetSo.length) {
+        h += '<div class="alert danger">Hết số PIN cho: <b>' + kesc(d.hetSo.join(', ')) +
+             '</b>. PIN chỉ có 3 chữ số nên tối đa 1000 tài khoản — ngưng tài khoản ' +
+             'không dùng nữa rồi cấp lại.</div>';
+      }
+      $k('cfPinKq').innerHTML = h;
+      /* CỐ Ý không gọi `ktCfgLoad('cfUsers')`: vẽ lại màn là xoá mất bảng PIN bản rõ,
+         mà không tra lại được. Kế toán tự bấm sang tab khác khi đã ghi xong.
+         Nhưng bảng trạng thái thì PHẢI nạp lại — nó nằm ở `#cfPinBang` RIÊNG nên
+         không đụng tới bảng bản rõ ở `#cfPinKq`. Không nạp lại thì cơ sở vừa cấp vẫn
+         in "chưa cấp PIN", kế toán tưởng hỏng và bấm Cấp lần nữa ⇒ đổi PIN hai lần,
+         mà bản rõ lần đầu đã ghi ra giấy rồi. */
+      ktPinBang();
+    })
+    .catch(function (e) { kbusy(false); ktoast(e.message); });
+}
+
+function ktTaiPinCsv() {
+  if (!KT_PIN_VUA_CAP.length) { ktoast('Chưa cấp PIN nào'); return; }
+  /* Không có cột tên đăng nhập — cùng lý do với bảng trên màn: đăng nhập chỉ bằng
+     PIN, và file này là thứ đem gửi cho cơ sở. */
+  var out = [['Ma co so', 'Ten co so', 'Loai may', 'Ma PIN']];
+  KT_PIN_VUA_CAP.forEach(function (r) {
+    out.push([r.code, r.tenCoSo, r.loaiMay, r.pin]);
+  });
+  var csv = out.map(function (d) {
+    return d.map(function (v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(',');
+  }).join('\n');
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = 'ma-pin-co-so-' + ktoday() + '.csv';
+  a.click();
+}
+
+function editUser(id) {
+  var u = CFG.users.filter(function (x) { return String(x.id) === String(id); })[0];
+  if (!u) return;
+  $k('uId').value = u.id; $k('uUser').value = u.username; $k('uName').value = u.hoTen;
+  $k('uPin').value = '';        // để trống = giữ PIN cũ
+  $k('uRole').value = u.role; $k('uType').value = u.machineType || '';
+  document.querySelectorAll('.uLoc').forEach(function (c) {
+    c.checked = u.locationIds.indexOf(c.value) >= 0;
+  });
+  $k('uActive').checked = u.active !== false;
+  window.scrollTo(0, 0);
+}
+
+function clearUser() {
+  ['uId', 'uUser', 'uName', 'uPin'].forEach(function (i) { $k(i).value = ''; });
+  $k('uRole').value = 'NHANVIEN'; $k('uType').value = '';
+  $k('uActive').checked = true;
+  document.querySelectorAll('.uLoc').forEach(function (c) { c.checked = false; });
+}
+
+function saveUser() {
+  var locs = [];
+  document.querySelectorAll('.uLoc:checked').forEach(function (c) { locs.push(c.value); });
+
+  kbusy(true, 'Đang lưu…');
+  ksrv('jpCfgSaveUser', KT.token, {
+    id: $k('uId').value, username: $k('uUser').value, hoTen: $k('uName').value,
+    pin: $k('uPin').value, role: $k('uRole').value,
+    machineType: $k('uType').value, locationIds: locs, active: $k('uActive').checked
+  }).then(function () {
+    kbusy(false); ktoast('Đã lưu tài khoản'); clearUser(); ktCfgLoad('cfUsers');
+  }).catch(function (e) { kbusy(false); ktoast(e.message); });
+}
+
+/*──────── ② CƠ SỞ ────────*/
+function renderLocs() {
+  var h = '<div class="card"><h2>Thêm / sửa cơ sở</h2>' +
+    '<div class="toolbar">' +
+      '<input id="lId" type="hidden">' +
+      '<input id="lCode" placeholder="Mã cơ sở (AMTP)">' +
+      '<input id="lName" placeholder="Tên cơ sở">' +
+      '<input id="lKH" placeholder="Mã KH (để đối soát)">' +
+      /* Phải có lựa chọn TRỐNG. Cơ sở để trống loại máy = kiêm cả hai; không có ô này
+         thì mở một cơ sở như vậy ra sửa là nó âm thầm thành máy tiền, và
+         `jpNeedMayType_` khoá luôn nhân viên máy xu ở đó. */
+      '<select id="lType"><option value="">— kiêm cả hai —</option>' +
+        '<option value="TIEN">Máy tiền</option><option value="XU">Máy xu</option></select>' +
+      '<input id="lPhoto" type="number" placeholder="Số ảnh" value="1" style="width:110px">' +
+      /* MẪU BÁO CÁO (Andy chốt 04/08/2026, riêng JP Sân bay Phú Quốc). Chọn theo CƠ SỞ
+         chứ không gán cứng mã cơ sở trong code: mở điểm mới cần mẫu này thì tự bật. */
+      '<select id="lBcMau"><option value="">Mẫu chung (tiền + hàng cùng dòng)</option>' +
+        '<option value="TACH">Mẫu tách tiền / hàng + bảng tổng</option></select>' +
+      /* MÃ ĐỊNH DANH NỘP TIỀN — thứ nhân viên gõ vào nội dung chuyển khoản
+         (`KH705MTDMN0041`). Khai ở đây thì kế toán JP tự điền được, khỏi chờ ai sửa tab
+         `JP_TenDinhDanh` dùng chung của cả công ty. */
+      '<input id="lDinhDanh" type="text" placeholder="Mã định danh nộp tiền" ' +
+        'style="width:190px">' +
+      /* ĐỒNG HỒ ĐẾM TRỨNG (Andy chốt 15/08/2026, riêng VinWonders Phú Quốc). Cũng đi
+         theo CƠ SỞ, không gán cứng mã trong code — mai mốt mở điểm không có đồng hồ
+         thì tự tắt được, khỏi sửa code. */
+      '<label class="inline"><input id="lDhTrung" type="checkbox" checked> ' +
+        'Máy có đồng hồ đếm trứng</label>' +
+      /* HAI LOẠI MÁY TIỀN lẫn nhau (Andy chốt 29/08/2026, riêng SUNWORLD PQ). Mặc định
+         TẮT — ngược chiều ô trên: 12 cơ sở còn lại thấy ô chọn mà không cần dùng là có
+         ngày ai đó chọn nhầm 10.000đ và doanh thu cơ sở đó GẤP ĐÔI, mà sổ vẫn cân. */
+      '<label class="inline"><input id="lChonXung" type="checkbox"> ' +
+        'Có HAI loại máy tiền (cho chọn giá 1 xung từng dòng)</label>' +
+      '<label class="inline"><input id="lActive" type="checkbox" checked> Đang dùng</label>' +
+      '<button class="btn primary sm" onclick="saveLoc()">Lưu</button>' +
+      '<button class="btn ghost sm" onclick="clearLoc()">Mới</button>' +
+    '</div>' +
+    '<p class="hint">Mã KH gán ở cấp cơ sở — khoá để đối soát QR/TM/CK nhận ra tiền thuộc ' +
+      'cơ sở nào.<br><b>Loại máy để trống = kiêm cả hai.</b> Gán sai loại là khoá nhân viên ' +
+      'khỏi mẫu họ cần nhập — máy chủ chặn theo ô này, không phải chỉ ẩn trên màn hình.<br>' +
+      '<b>Mẫu tách tiền / hàng</b>: bảng tiền theo ô máy và bảng hàng theo mã hàng đứng ' +
+      'riêng, cộng một <b>bảng tổng</b> in chênh lệch giữa hai bên. Dùng cho cơ sở có nhiều ' +
+      'mã hàng hơn số ô máy nên không gắn hàng vào từng ô được (JP Sân bay Phú Quốc).<br>' +
+      '<b>Mã định danh nộp tiền</b> (`KH705MTDMN0041`): mã nhân viên gõ vào nội dung ' +
+      'chuyển khoản. <b>Nguồn giao dịch ngân hàng dùng chung cho nhiều thương hiệu</b> ' +
+      '(POSH, JP…), nên đối soát tự động <b>chỉ khớp theo mã này</b> — dò theo tên cơ sở ' +
+      'là có ngày ghi tiền của thương hiệu khác vào sổ JP mà sổ vẫn cân. Chưa khai thì ' +
+      'tiền của cơ sở đó luôn nằm ở <b>hàng chờ</b>, không tự áp.<br>' +
+      '<b>Máy có đồng hồ đếm trứng</b>: bỏ tick thì bảng máy tiền <b>ẩn hai ô Before / ' +
+      'After bên hàng hoá</b> (VinWonders Phú Quốc). Khác ô mẫu ở trên: cờ này <b>ăn ngay ' +
+      'vào cả báo cáo đang nhập dở</b>, vì nó chỉ ẩn ô chứ không xáo lại bố cục. Bỏ tick ' +
+      'là mất đường soi thứ hai — số đã bán quay về suy từ chính tiền thu được, nên khối ' +
+      '“Tiền vs Hàng” ở màn duyệt sẽ bỏ qua cơ sở đó thay vì báo khớp giả.<br>' +
+      '⚠️ Đổi mẫu <b>chỉ ăn vào báo cáo tạo SAU đó</b> — báo cáo đang nhập dở giữ đúng bố ' +
+      'cục lúc tạo, không thì số đã gõ rơi vào cột khác. Mẫu tách <b>chỉ có ở máy tiền</b>: ' +
+      'máy xu vốn đã tách hai bảng.</p></div>';
+
+  h += '<div class="card"><h2>Nạp 13 cơ sở JP</h2>' +
+    '<div class="toolbar">' +
+      '<button class="btn primary sm" onclick="ktNapCoSo()">Nạp / cập nhật 13 cơ sở</button>' +
+    '</div>' +
+    '<p class="hint">Nạp danh sách cơ sở chốt từ <b>DAILY SALES tháng 7/2026</b>, kèm ' +
+      '<b>loại máy</b> lấy từ file <b>Tồn kho JP đến 31.7</b> (5 máy tiền · 3 máy xu) và ' +
+      'đánh <b>ngưng</b> 5 cơ sở đã dẹp.<br>' +
+      'Khớp theo mã đơn vị rồi mã cơ sở nên <b>chạy lại không tạo trùng</b> — bấm nhiều lần ' +
+      'vô hại. Cơ sở nào chưa rõ loại máy thì <b>không đụng</b> giá trị anh đã đặt tay.<br>' +
+      '⚠️ Làm bước này <b>trước</b> khi cấp mã PIN cơ sở: PIN lấy loại máy theo cơ sở, nạp sau ' +
+      'thì PIN gán sai loại.</p>' +
+    '<div id="cfNapKq">' +
+      (KT_NAP_CO_SO_KQ
+        ? '<div class="alert ok" style="white-space:pre-line">' + kesc(KT_NAP_CO_SO_KQ) + '</div>'
+        : '') +
+    '</div></div>';
+
+  /**
+   * Ô "Mã định danh" — BA nguồn, không phải hai, và một cảnh báo lệch.
+   *
+   * ⚠️ Chỉ tô ĐỎ "chưa khai" khi cơ sở đang chạy mà KHÔNG có mã ở nguồn nào. Mã nằm ở
+   * bảng chung `JP_TenDinhDanh` là ĐỦ để đối soát chạy — in "chưa khai" cho nó là đẩy
+   * kế toán đi khai lại bằng tay, thành hai nguồn cho cùng một mã.
+   *
+   * ⚠️⚠️ Và khai tay **THẮNG** bảng chung. Nên hai bên ghi khác nhau là chỗ hỏng im lặng
+   * nhất của cả màn: tiền của cơ sở này về công nợ cơ sở kia, mà sổ vẫn CÂN vì nó chỉ
+   * thấy một khoản thu hợp lệ. Không phép kiểm nào bắt được — phải NÓI RA ở đây.
+   */
+  function ddCell(l) {
+    var chung = l.ddChung || [];
+    if (l.maDinhDanh) {
+      var lech = chung.filter(function (x) {
+        return x.toUpperCase() !== String(l.maDinhDanh).toUpperCase();
+      });
+      return kesc(l.maDinhDanh) +
+        (lech.length
+          ? '<br><b class="lech">⚠️ bảng chung ghi ' + kesc(lech.join(', ')) +
+            '</b> <span class="sub">— mã khai ở đây thắng</span>'
+          : '');
+    }
+    if (chung.length) {
+      return kesc(chung.join(', ')) + ' <span class="sub">(bảng chung)</span>';
+    }
+    return l.active ? '<b class="lech">chưa khai</b>' : '<span class="sub">—</span>';
+  }
+
+  h += '<div class="tableWrap"><table><tr><th>Mã</th><th>Tên cơ sở</th><th>Mã KH</th>' +
+    '<th>Loại máy</th><th class="num">Ảnh mặc định</th><th>Mẫu báo cáo</th>' +
+    '<th>Mã định danh</th><th>ĐH trứng</th><th>Loại máy tiền</th>' +
+    '<th>Trạng thái</th><th></th></tr>';
+  CFG.locs.forEach(function (l) {
+    h += '<tr><td>' + kesc(l.code) + '</td><td>' + kesc(l.name) + '</td>' +
+      '<td>' + kesc(l.maKH) + '</td>' +
+      /* Ba trạng thái, không phải hai: trống = kiêm cả hai. Hiện "Máy tiền" cho ô
+         trống là nói sai đúng cái cột người ta mở ra để soát. */
+      '<td>' + (l.machineType === 'XU' ? 'Máy xu'
+              : l.machineType === 'TIEN' ? 'Máy tiền'
+              : '<span class="sub">kiêm cả hai</span>') + '</td>' +
+      '<td class="num">' + l.photoDefault + '</td>' +
+      '<td>' + (l.bcMau === 'TACH' ? '<b>Tách tiền / hàng</b>'
+                                   : '<span class="sub">chung</span>') + '</td>' +
+      /* BA nguồn, không phải hai. Chỉ tô ĐỎ khi cơ sở đang chạy mà KHÔNG có mã ở
+         nguồn nào — lúc đó tiền CK của họ luôn rơi vào hàng chờ, không tự áp được.
+         ⚠️ Mã ở bảng chung `JP_TenDinhDanh` là ĐỦ để đối soát chạy. In "chưa khai" cho
+         nó là đẩy kế toán đi khai lại bằng tay, mà bản khai tay THẮNG bảng chung nên gõ
+         sai một ký tự là tiền về cơ sở khác — im lặng. */
+      '<td>' + ddCell(l) + '</td>' +
+      /* Chỉ tô đậm khi KHÔNG có — đó mới là cái khác thường cần nhìn ra. */
+      '<td>' + (l.coDhTrung === false ? '<b>không có</b>'
+                                      : '<span class="sub">có</span>') + '</td>' +
+      /* Chỉ tô đậm khi CÓ hai loại — ngược ô bên cạnh, vì ở đây "có" mới là khác thường. */
+      '<td>' + (l.chonGiaXung === true ? '<b>2 loại</b>'
+                                      : '<span class="sub">1 loại</span>') + '</td>' +
+      '<td>' + (l.active ? 'Đang dùng' : 'Ngưng') + '</td>' +
+      '<td><button class="btn ghost sm" onclick="editLoc(\'' + l.id + '\')">Sửa</button></td></tr>';
+  });
+  $k('cfLocs').innerHTML = h + '</table></div>';
+}
+
+/* Nạp 13 cơ sở — gọi hàm bọc có token, không phải mở trình chỉnh sửa chạy tay nữa. */
+/* Giữ kết quả nạp trong biến, KHÔNG ghi thẳng vào DOM rồi mới gọi `ktCfgLoad`:
+   `renderLocs` vẽ lại cả `#cfLocs`, mà `#cfNapKq` nằm TRONG đó ⇒ ô kết quả bị xoá
+   ngay lập tức. Mà đó đúng là chỗ nói cơ sở nào thành máy xu, cơ sở nào bị ngưng —
+   thứ kế toán cần đọc để soát. Đây là cùng cái bẫy đã gặp ở màn cấp PIN. */
+var KT_NAP_CO_SO_KQ = '';
+
+function ktNapCoSo() {
+  kbusy(true, 'Đang nạp danh mục cơ sở…');
+  ksrv('jpNapCoSo', KT.token).then(function (r) {
+    kbusy(false);
+    ktoast('Đã nạp danh mục cơ sở');
+    KT_NAP_CO_SO_KQ = r.msg || '';
+    ktCfgLoad('cfLocs');          // vẽ lại, `renderLocs` in lại kết quả từ biến trên
+  }).catch(function (e) { kbusy(false); ktoast(e.message); });
+}
+
+function editLoc(id) {
+  var l = CFG.locs.filter(function (x) { return String(x.id) === String(id); })[0];
+  if (!l) return;
+  $k('lId').value = l.id; $k('lCode').value = l.code; $k('lName').value = l.name;
+  $k('lKH').value = l.maKH; $k('lType').value = l.machineType; $k('lPhoto').value = l.photoDefault;
+  $k('lBcMau').value = l.bcMau || '';
+  $k('lDinhDanh').value = l.maDinhDanh || '';
+  $k('lDhTrung').checked = l.coDhTrung !== false;
+  $k('lChonXung').checked = l.chonGiaXung === true;
+  $k('lActive').checked = l.active !== false;
+  window.scrollTo(0, 0);
+}
+function clearLoc() {
+  ['lId', 'lCode', 'lName', 'lKH'].forEach(function (i) { $k(i).value = ''; });
+  $k('lType').value = ''; $k('lPhoto').value = 1; $k('lBcMau').value = '';
+  /* Mặc định CÓ đồng hồ — y hệt `jpCoDhTrung_`. Hai bên lệch mặc định là cơ sở mới
+     tạo trên màn này khác cơ sở nạp bằng nút, mà không ai bấm gì khác nhau. */
+  $k('lDinhDanh').value = '';
+  $k('lDhTrung').checked = true;
+  $k('lChonXung').checked = false;
+  $k('lActive').checked = true;
+}
+function saveLoc() {
+  kbusy(true, 'Đang lưu…');
+  ksrv('jpCfgSaveLocation', KT.token, {
+    id: $k('lId').value, code: $k('lCode').value, name: $k('lName').value,
+    maKH: $k('lKH').value, machineType: $k('lType').value,
+    photoDefault: knum($k('lPhoto').value), bcMau: $k('lBcMau').value,
+    maDinhDanh: $k('lDinhDanh').value,
+    coDhTrung: $k('lDhTrung').checked,
+    chonGiaXung: $k('lChonXung').checked,
+    active: $k('lActive').checked
+  }).then(function () {
+    kbusy(false); ktoast('Đã lưu cơ sở'); clearLoc(); ktCfgLoad('cfLocs');
+  }).catch(function (e) { kbusy(false); ktoast(e.message); });
+}
+
+/*──────── ③ CỤM MÁY ────────*/
+function renderClusters() {
+  var h = '<div class="card"><h2>Thêm / sửa cụm máy</h2>' +
+    '<div class="toolbar">' +
+      '<input id="cId" type="hidden">' +
+      '<select id="cLoc">' + CFG.locs.map(function (l) {
+        return '<option value="' + l.id + '">' + kesc(l.name) + '</option>';
+      }).join('') + '</select>' +
+      '<input id="cName" placeholder="Tên cụm (Trái / Thủy Cung…)">' +
+      '<input id="cSerial" placeholder="Serial Pay Box (VVB…)">' +
+      '<label class="inline"><input id="cQR" type="checkbox"> Có QR</label>' +
+      '<input id="cPhoto" type="number" placeholder="Số ảnh" value="1" style="width:110px">' +
+      '<label class="inline"><input id="cActive" type="checkbox" checked> Đang dùng</label>' +
+      '<button class="btn primary sm" onclick="saveCluster()">Lưu</button>' +
+      '<button class="btn ghost sm" onclick="clearCluster()">Mới</button>' +
+    '</div>' +
+    '<p class="hint">Ảnh Pay Box gán theo CỤM — 1 Pay Box phục vụ cả cụm. ' +
+      'Cụm chưa lắp QR thì để số ảnh = 0.</p></div>';
+
+  h += '<div class="tableWrap"><table><tr><th>Cơ sở</th><th>Tên cụm</th><th>Serial Pay Box</th>' +
+    '<th>Có QR</th><th class="num">Số ảnh</th><th>Trạng thái</th><th></th></tr>';
+  CFG.clusters.forEach(function (c) {
+    h += '<tr><td>' + kesc(locName(c.locationId)) + '</td><td>' + kesc(c.name) + '</td>' +
+      '<td>' + kesc(c.payboxSerial) + '</td><td>' + (c.hasQR ? 'Có' : '—') + '</td>' +
+      '<td class="num">' + c.photoCount + '</td>' +
+      '<td>' + (c.active ? 'Đang dùng' : 'Ngưng') + '</td>' +
+      '<td><button class="btn ghost sm" onclick="editCluster(\'' + c.id + '\')">Sửa</button></td></tr>';
+  });
+  $k('cfClusters').innerHTML = h + '</table></div>';
+}
+
+function editCluster(id) {
+  var c = CFG.clusters.filter(function (x) { return String(x.id) === String(id); })[0];
+  if (!c) return;
+  $k('cId').value = c.id; $k('cLoc').value = c.locationId; $k('cName').value = c.name;
+  $k('cSerial').value = c.payboxSerial; $k('cQR').checked = c.hasQR; $k('cPhoto').value = c.photoCount;
+  $k('cActive').checked = c.active !== false;
+  window.scrollTo(0, 0);
+}
+function clearCluster() {
+  ['cId', 'cName', 'cSerial'].forEach(function (i) { $k(i).value = ''; });
+  $k('cQR').checked = false; $k('cPhoto').value = 1;
+  $k('cActive').checked = true;
+}
+function saveCluster() {
+  kbusy(true, 'Đang lưu…');
+  ksrv('jpCfgSaveCluster', KT.token, {
+    id: $k('cId').value, locationId: $k('cLoc').value, name: $k('cName').value,
+    payboxSerial: $k('cSerial').value, hasQR: $k('cQR').checked,
+    photoCount: knum($k('cPhoto').value), active: $k('cActive').checked
+  }).then(function () {
+    kbusy(false); ktoast('Đã lưu cụm'); clearCluster(); ktCfgLoad('cfClusters');
+  }).catch(function (e) { kbusy(false); ktoast(e.message); });
+}
+
+/*──────── ④ Ô / MÁY ────────*/
+function renderMachines() {
+  var h = '<div class="card"><h2>Thêm / sửa ô máy</h2>' +
+    '<div class="toolbar">' +
+      '<input id="mId" type="hidden">' +
+      '<select id="mLoc" onchange="fillClusterPicker()">' + CFG.locs.map(function (l) {
+        return '<option value="' + l.id + '">' + kesc(l.name) + '</option>';
+      }).join('') + '</select>' +
+      '<select id="mCluster"></select>' +
+      '<input id="mCode" placeholder="Tên ô / máy">' +
+      '<input id="mItem" placeholder="Mã hàng mặc định">' +
+      '<input id="mPhoto" type="number" value="1" style="width:110px">' +
+      '<label class="inline"><input id="mActive" type="checkbox" checked> Đang dùng</label>' +
+      '<button class="btn primary sm" onclick="saveMachine()">Lưu</button>' +
+      '<button class="btn ghost sm" onclick="clearMachine()">Mới</button>' +
+    '</div>' +
+    '<p class="hint">Ảnh chỉ số máy gán theo từng ô (mặc định 1 ảnh).</p></div>';
+
+  h += '<div class="tableWrap"><table><tr><th>Cơ sở</th><th>Cụm</th><th>Ô / máy</th>' +
+    '<th>Mã hàng</th><th class="num">Số ảnh</th><th>Trạng thái</th><th></th></tr>';
+  CFG.machines.forEach(function (m) {
+    var c = CFG.clusters.filter(function (x) { return String(x.id) === String(m.clusterId); })[0];
+    h += '<tr><td>' + kesc(locName(m.locationId)) + '</td>' +
+      '<td>' + kesc(c ? c.name : '—') + '</td><td>' + kesc(m.code) + '</td>' +
+      '<td>' + kesc(m.itemCode) + '</td><td class="num">' + m.photoCount + '</td>' +
+      '<td>' + (m.active ? 'Đang dùng' : 'Ngưng') + '</td>' +
+      '<td><button class="btn ghost sm" onclick="editMachine(\'' + m.id + '\')">Sửa</button></td></tr>';
+  });
+  $k('cfMachines').innerHTML = h + '</table></div>';
+  fillClusterPicker();
+}
+
+function fillClusterPicker() {
+  var loc = $k('mLoc') ? $k('mLoc').value : '';
+  if (!$k('mCluster')) return;
+  $k('mCluster').innerHTML = '<option value="">— chọn cụm —</option>' +
+    CFG.clusters.filter(function (c) { return String(c.locationId) === String(loc); })
+      .map(function (c) { return '<option value="' + c.id + '">' + kesc(c.name) + '</option>'; })
+      .join('');
+}
+
+function editMachine(id) {
+  var m = CFG.machines.filter(function (x) { return String(x.id) === String(id); })[0];
+  if (!m) return;
+  $k('mId').value = m.id; $k('mLoc').value = m.locationId;
+  fillClusterPicker();
+  $k('mCluster').value = m.clusterId; $k('mCode').value = m.code;
+  $k('mItem').value = m.itemCode; $k('mPhoto').value = m.photoCount;
+  $k('mActive').checked = m.active !== false;
+  window.scrollTo(0, 0);
+}
+function clearMachine() {
+  ['mId', 'mCode', 'mItem'].forEach(function (i) { $k(i).value = ''; });
+  $k('mPhoto').value = 1;
+  $k('mActive').checked = true;
+}
+function saveMachine() {
+  kbusy(true, 'Đang lưu…');
+  ksrv('jpCfgSaveMachine', KT.token, {
+    id: $k('mId').value, locationId: $k('mLoc').value, clusterId: $k('mCluster').value,
+    code: $k('mCode').value, itemCode: $k('mItem').value,
+    photoCount: knum($k('mPhoto').value), active: $k('mActive').checked
+  }).then(function () {
+    kbusy(false); ktoast('Đã lưu ô máy'); clearMachine(); ktCfgLoad('cfMachines');
+  }).catch(function (e) { kbusy(false); ktoast(e.message); });
+}
+
+/*──────── ⑤ DANH MỤC HÀNG ────────*/
+function renderItems() {
+  var h = '<div class="card"><h2>Thêm / sửa mã hàng</h2>' +
+    '<div class="toolbar">' +
+      '<input id="iCode" placeholder="Mã hàng (100JP023)">' +
+      '<input id="iMisa" placeholder="Mã MISA">' +
+      '<input id="iName" placeholder="Tên hàng">' +
+      '<input id="iPrice" type="number" placeholder="Giá (trống = tự suy)">' +
+      '<label class="inline"><input id="iActive" type="checkbox" checked> Đang dùng</label>' +
+      '<button class="btn primary sm" onclick="saveItem()">Lưu</button>' +
+    '</div>' +
+    '<div class="toolbar">' +
+      '<button class="btn primary sm" onclick="ktNapHangJP()">Nạp 102 mã hàng từ file ' +
+        'Tồn kho 31/7</button>' +
+      '<span class="hint">Danh mục đã có sẵn trong hệ thống — không phải chọn file</span>' +
+    '</div>' +
+    '<div class="toolbar">' +
+      '<input type="file" id="iFile" accept=".xlsx,.xls,.csv">' +
+      '<button class="btn ghost sm" onclick="importItems()">Nhập hàng loạt từ file</button>' +
+      '<span class="hint">File cần cột: Mã hàng · Mã MISA · Tên · Giá (tuỳ chọn)</span>' +
+    '</div>' +
+    '<p class="hint">Giá tự suy từ tiền tố mã: 50JP = 50.000đ · 100JP = 100.000đ · ' +
+      '150JP = 150.000đ · 200JP = 200.000đ.</p>' +
+    '<p id="iMsg" class="msg"></p>' +
+    (KT_NAP_HANG_KQ
+      ? '<div class="alert ok" style="white-space:pre-line">' + kesc(KT_NAP_HANG_KQ) + '</div>'
+      : '') +
+    '</div>';
+
+  h += '<div class="tableWrap"><table><tr><th>Mã hàng</th><th>Mã MISA</th><th>Tên</th>' +
+    '<th class="num">Giá</th><th class="num">Giá tự suy</th><th>Trạng thái</th><th></th></tr>';
+  CFG.items.forEach(function (i) {
+    var lech = i.priceAuto && i.price !== i.priceAuto;
+    h += '<tr' + (lech ? ' class="lech"' : '') + '><td>' + kesc(i.code) + '</td>' +
+      '<td>' + kesc(i.misa) + '</td><td>' + kesc(i.name) + '</td>' +
+      '<td class="num">' + kmoney(i.price) + '</td>' +
+      '<td class="num">' + (i.priceAuto ? kmoney(i.priceAuto) : '—') + '</td>' +
+      '<td>' + (i.active ? 'Đang dùng' : 'Ngưng') + '</td>' +
+      '<td><button class="btn ghost sm" onclick="editItem(\'' + kesc(i.code) + '\')">Sửa</button></td></tr>';
+  });
+  $k('cfItems').innerHTML = h + '</table></div>';
+}
+
+/* Mã hàng khoá theo `code` — sửa là nạp lại vào form rồi lưu đè, không cần id.
+   Không có nút này thì muốn NGƯNG một mã phải gõ lại cả bốn ô. */
+function editItem(code) {
+  var i = CFG.items.filter(function (x) { return String(x.code) === String(code); })[0];
+  if (!i) return;
+  $k('iCode').value = i.code; $k('iMisa').value = i.misa;
+  $k('iName').value = i.name; $k('iPrice').value = i.price;
+  $k('iActive').checked = i.active !== false;
+  window.scrollTo(0, 0);
+}
+
+function saveItem() {
+  kbusy(true, 'Đang lưu…');
+  ksrv('jpCfgSaveItem', KT.token, {
+    code: $k('iCode').value, misa: $k('iMisa').value,
+    name: $k('iName').value, price: knum($k('iPrice').value), active: $k('iActive').checked
+  }).then(function () {
+    kbusy(false); ktoast('Đã lưu mã hàng');
+    ['iCode', 'iMisa', 'iName', 'iPrice'].forEach(function (x) { $k(x).value = ''; });
+    $k('iActive').checked = true;
+    ktCfgLoad('cfItems');
+  }).catch(function (e) { kbusy(false); ktoast(e.message); });
+}
+
+/* Nạp danh mục hàng có sẵn trong code — bỏ được bước chọn file.
+   Giữ kết quả trong biến vì `ktCfgLoad` vẽ lại cả màn (cùng bẫy đã gặp 2 lần). */
+var KT_NAP_HANG_KQ = '';
+
+function ktNapHangJP() {
+  kbusy(true, 'Đang nạp danh mục hàng…');
+  ksrv('jpNapDanhMucHangJP', KT.token).then(function (r) {
+    kbusy(false);
+    KT_NAP_HANG_KQ = r.msg || '';
+    ktoast(r.msg);
+    ktCfgLoad('cfItems');
+  }).catch(function (e) { kbusy(false); ktoast(e.message); });
+}
+
+function importItems() {
+  var f = $k('iFile').files[0];
+  if (!f) { kmsg('iMsg', 'Chọn file', 'err'); return; }
+
+  var fr = new FileReader();
+  fr.onload = function (e) {
+    try {
+      var wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+      var raw = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });
+
+      var rows = raw.map(function (r) {
+        var o = {};
+        Object.keys(r).forEach(function (k) {
+          var n = k.toLowerCase();
+          if (/ma hang|mã hàng|code|^ma$/.test(n)) o.code = String(r[k]).trim();
+          else if (/misa/.test(n)) o.misa = String(r[k]).trim();
+          else if (/ten|tên|name/.test(n)) o.name = String(r[k]).trim();
+          else if (/gia|giá|price/.test(n)) o.price = knum(r[k]);
+        });
+        return o;
+      }).filter(function (o) { return o.code; });
+
+      if (!rows.length) { kmsg('iMsg', 'Không tìm thấy cột mã hàng', 'err'); return; }
+
+      kbusy(true, 'Đang nhập ' + rows.length + ' mã…');
+      ksrv('jpCfgImportItems', KT.token, rows).then(function (r) {
+        kbusy(false);
+        /* Phải nói ra `khongDoi`. Nhập lại đúng file cũ thì added = updated = 0, không
+           in gì thêm là kế toán tưởng import không chạy rồi bấm lại vài lần. */
+        kmsg('iMsg', 'Thêm mới ' + r.added + ' · cập nhật ' + r.updated +
+          (r.khongDoi ? ' · ' + r.khongDoi + ' mã đã đúng, không ghi lại' : '') +
+          (r.failed.length ? ' · lỗi ' + r.failed.length + ' (' + r.failed.slice(0, 5).join(', ') + ')' : ''),
+          r.failed.length ? 'err' : 'ok');
+        ktCfgLoad('cfItems');
+      }).catch(function (er) { kbusy(false); kmsg('iMsg', er.message, 'err'); });
+
+    } catch (err) { kmsg('iMsg', 'File không hợp lệ: ' + err.message, 'err'); }
+  };
+  fr.readAsArrayBuffer(f);
+}
+</script>
+
+

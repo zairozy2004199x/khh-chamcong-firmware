@@ -28,13 +28,18 @@ function khh_dt_token_day() {
  * Quyền nhập của người đang xem: '' | 'nhap' | 'duyet'.
  *
  * Người vào bằng PIN chấm công không có tài khoản WordPress nên không có meta — vai của họ nằm ở
- * hàng trong bảng người (đẩy từ trang nhân sự sang). Xem `nguoi.php`.
+ * hàng trong bảng người (đẩy từ trang nhân sự sang, cấp vai ở tab Quản trị). Xem `nguoi.php`.
+ *
+ * 🔴 VAI LẠ HAY TRỐNG -> '' (CHƯA CẤP), KHÔNG PHẢI 'nhap'. Trước 1.58.0 chỗ này lùi về 'nhap',
+ *    tức người vừa đẩy sang là nhập được ngay dù chưa ai cấp. Anh Thắng 23/09/2026: *"chỉ đẩy
+ *    nhân sự qua, chứ không phân quyền nhiệm vụ trong đó, mà do trang tự phân quyền"* — nên
+ *    chưa cấp là chưa có, hỏng theo hướng THIẾU quyền.
  */
 function khh_dt_quyen_cua( $uid = 0 ) {
 	if ( ! $uid && ! is_user_logged_in() && function_exists( 'khh_dt_phien_nguoi' ) ) {
 		$n = khh_dt_phien_nguoi();
 		if ( $n ) {
-			return in_array( (string) $n['vai'], array( 'nhap', 'duyet' ), true ) ? (string) $n['vai'] : 'nhap';
+			return in_array( (string) $n['vai'], array( 'nhap', 'duyet' ), true ) ? (string) $n['vai'] : '';
 		}
 	}
 	$uid = $uid ? $uid : get_current_user_id();
@@ -123,6 +128,8 @@ function khh_dt_rest_ds_nhan_su() {
 	);
 	return array(
 		'ds'       => $ds,
+		/* Người vào bằng PIN (đẩy từ trang Nhân sự) — cấp vai cho họ ở đây, xem `nguoi.php`. */
+		'pin'      => function_exists( 'khh_dt_ds_nguoi_pin' ) ? khh_dt_ds_nguoi_pin() : array(),
 		'cua_hang' => khh_dt_ds_cua_hang(),
 		'cong'     => array(
 			'url'   => esc_url_raw( rest_url( 'khh-dt/v1/day-nhan-vien' ) ),
@@ -137,7 +144,7 @@ function khh_dt_rest_dat_quyen( $req ) {
 		return new WP_Error( 'khh_dt_qt', 'Không thấy người dùng này.', array( 'status' => 400 ) );
 	}
 	$quyen = sanitize_text_field( (string) $req->get_param( 'quyen' ) );
-	$co_so = sanitize_text_field( (string) $req->get_param( 'co_so' ) );
+	$co_so = ( function_exists( 'khh_dt_bc_ten_cua' ) ? khh_dt_bc_ten_cua( $req->get_param( 'co_so' ) ) : sanitize_text_field( (string) $req->get_param( 'co_so' ) ) );
 	if ( ! in_array( $quyen, array( '', 'nhap', 'duyet' ), true ) ) {
 		$quyen = '';
 	}
@@ -173,7 +180,7 @@ function khh_dt_rest_nhan_day( $req ) {
 	$email     = sanitize_email( (string) $req->get_param( 'email' ) );
 	$tai_khoan = sanitize_user( (string) $req->get_param( 'tai_khoan' ), true );
 	$ho_ten    = sanitize_text_field( (string) $req->get_param( 'ho_ten' ) );
-	$co_so     = sanitize_text_field( (string) $req->get_param( 'co_so' ) );
+	$co_so     = ( function_exists( 'khh_dt_bc_ten_cua' ) ? khh_dt_bc_ten_cua( $req->get_param( 'co_so' ) ) : sanitize_text_field( (string) $req->get_param( 'co_so' ) ) );
 	$quyen     = sanitize_text_field( (string) $req->get_param( 'quyen' ) );
 	$bo        = (bool) $req->get_param( 'bo' );
 

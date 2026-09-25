@@ -1,0 +1,1218 @@
+<script>
+/*═══════════════════════════════════════════════════════════
+ * JP CAPSULE v2 — KtJs03_DoiSoat
+ * Đối soát 3 luồng QR · TM · CK theo đúng cách POSH v3.
+ * File đọc NGAY TRÊN TRÌNH DUYỆT bằng SheetJS rồi gửi JSON.
+ * Luôn XEM TRƯỚC (không ghi) rồi mới ÁP.
+ *═══════════════════════════════════════════════════════════*/
+
+function ktParseFile(file) {
+  return new Promise(function (res, rej) {
+    var fr = new FileReader();
+    fr.onerror = function () { rej(new Error('Không đọc được file')); };
+    fr.onload = function (e) {
+      try {
+        var wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
+        var sh = wb.Sheets[wb.SheetNames[0]];
+        var raw = XLSX.utils.sheet_to_json(sh, { header: 1, defval: '' });
+        res(mapRows(raw));
+      } catch (err) { rej(new Error('File không hợp lệ: ' + err.message)); }
+    };
+    fr.readAsArrayBuffer(file);
+  });
+}
+
+/*
+ * Tự dò cột ngày · số tiền · diễn giải (mỗi ngân hàng đặt tên khác nhau).
+ *
+ * CỘT SỐ TIỀN dò hai tầng. Sao kê thường có CẢ ghi nợ và ghi có; trước đây chỉ
+ * một mẫu chung "so tien|ghi co|..." và lấy cột khớp ĐẦU TIÊN, nên "Số tiền ghi
+ * nợ" đứng trước là thắng ⇒ áp đối soát bằng số tiền rút ra.
+ *   · tầng 1 (chắc chắn): ghi có / tiền vào / credit — tiền CHẢY VÀO
+ *   · tầng 2 (dự phòng) : "số tiền" chung chung, chỉ dùng khi không có tầng 1
+ *   · loại thẳng        : bất cứ cột nào mang nghĩa ghi nợ / tiền ra
+ */
+function mapRows(raw) {
+  var headRow = -1, col = {};
+  var pat = {
+    date: /ngay|ngày|date|thoi gian|thời gian/i,
+    desc: /dien giai|diễn giải|noi dung|nội dung|mo ta|mô tả|description|remark/i,
+    code: /ma |mã |code|so ct|số ct|so chung tu|số chứng từ/i
+  };
+  var AMT_STRONG = /ghi co|ghi có|phat sinh co|phát sinh có|tien vao|tiền vào|credit|thu/i;
+  var AMT_WEAK   = /so tien|số tiền|amount|thanh tien|thành tiền/i;
+  var AMT_REJECT = /ghi no|ghi nợ|phat sinh no|phát sinh nợ|tien ra|tiền ra|debit|rut|rút|chi/i;
+
+  for (var i = 0; i < Math.min(raw.length, 20); i++) {
+    var r = raw[i], found = {}, weak;
+    r.forEach(function (c, j) {
+      var s = String(c || '');
+      Object.keys(pat).forEach(function (k) {
+        if (found[k] === undefined && pat[k].test(s)) found[k] = j;
+      });
+      if (AMT_REJECT.test(s)) return;                       // cột tiền ra: bỏ hẳn
+      if (found.amount === undefined && AMT_STRONG.test(s)) found.amount = j;
+      else if (weak === undefined && AMT_WEAK.test(s)) weak = j;
+    });
+    if (found.amount === undefined) found.amount = weak;    // không có cột chắc thì mới dùng
+    if (found.amount !== undefined && (found.desc !== undefined || found.date !== undefined)) {
+      headRow = i; col = found; break;
+    }
+  }
+
+  if (headRow < 0) throw new Error('Không tìm thấy dòng tiêu đề (cần cột Ngày / Số tiền / Diễn giải)');
+
+  var out = [];
+  for (var k = headRow + 1; k < raw.length; k++) {
+    var row = raw[k];
+    if (!row || !row.length) continue;
+    var amt = parseAmount(row[col.amount]);
+    if (!amt) continue;
+    out.push({
+      date: normDate(row[col.date]),
+      amount: amt,
+      desc: String(row[col.desc] == null ? '' : row[col.desc]),
+      code: col.code !== undefined ? String(row[col.code] || '') : ''
+    });
+  }
+  if (!out.length) throw new Error('Không có dòng nào có số tiền');
+  return out;
+}
+
+function parseAmount(v) {
+  if (typeof v === 'number') return v;
+  var s = String(v || '').replace(/[^\d,.\-]/g, '');
+  if (!s) return 0;
+  s = s.replace(/\.(?=\d{3}\b)/g, '').replace(/,(?=\d{3}\b)/g, '').replace(',', '.');
+  var n = Number(s);
+  return isNaN(n) ? 0 : n;
+}
+
+function normDate(v) {
+  if (!v) return '';
+  if (v instanceof Date) {
+    var p = function (x) { return ('0' + x).slice(-2); };
+    return v.getFullYear() + '-' + p(v.getMonth() + 1) + '-' + p(v.getDate());
+  }
+  var s = String(v).trim();
+  var m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/);
+  if (m) return m[3] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[1]).slice(-2);
+  m = s.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})/);
+  if (m) return m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[3]).slice(-2);
+  return s;
+}
+
+function ktReconPreview() {
+  var f = $k('dsFileInput').files[0];
+  if (!f) { kmsg('dsMsg', 'Chọn file sao kê / phiếu thu', 'err'); return; }
+
+  kmsg('dsMsg', 'Đang đọc file…');
+  kbusy(true, 'Đang đọc file…');
+
+  ktParseFile(f).then(function (rows) {
+    kbusy(true, 'Đang đối chiếu ' + rows.length + ' dòng…');
+    KT.reconRows = rows;
+    return ksrv('jpReconPreview', KT.token, $k('dsKind').value, rows);
+  }).then(function (r) {
+    kbusy(false);
+    KT.recon = r;
+    renderRecon(r);
+    $k('btnApply').disabled = r.alreadyApplied;
+    kmsg('dsMsg', r.alreadyApplied
+      ? 'Lô này đã áp trước đó — không áp lại được.'
+      : 'Đọc xong. Soát kỹ rồi bấm Áp đối soát.', r.alreadyApplied ? 'err' : 'ok');
+  }).catch(function (e) {
+    kbusy(false); $k('btnApply').disabled = true;
+    kmsg('dsMsg', e.message, 'err');
+  });
+}
+
+function renderRecon(r) {
+  var h = '';
+
+  if (r.alreadyApplied) {
+    h += '<div class="alert danger"><b>Lô đã áp rồi</b> (' + kesc(r.batchId) + ')' +
+         (r.appliedAt ? ' lúc ' + kesc(String(r.appliedAt)) : '') +
+         '. Áp lại sẽ làm sai số — hệ thống đã chặn.<br>' +
+         'Nếu lần áp trước là nhầm: ' +
+         '<button class="btn danger sm" onclick="ktReconUndo(\'' + kesc(r.batchId) + '\')">' +
+         'Huỷ lô đó</button> rồi áp lại.</div>';
+  }
+
+  h += '<div class="cards">' +
+    stat2('Tổng dòng', r.stat.rows) +
+    stat2('Nhận dạng được', r.stat.matched) +
+    stat2('Mơ hồ (≥2 cơ sở)', r.stat.ambiguous) +
+    stat2('Không nhận ra', r.stat.unmatched) +
+  '</div>';
+
+  /*
+   * BẢNG THEO CƠ SỞ — khuôn POSH (Andy chốt 05/08/2026: *"Làm đối soát công nợ y
+   * hệt posh đi e"*).
+   *
+   * ⚠️ Đây là bảng ĐẦU TIÊN, đứng trước mọi bảng dòng — vì nó ở đúng mức kế toán
+   * đối chiếu: **một dòng một cơ sở**, so thẳng được với sổ công nợ. Ba bảng dòng
+   * bên dưới ở mức từng giao dịch, hữu ích khi đã biết cơ sở nào lệch rồi mới soi
+   * vào. Xếp ngược lại là bắt người đọc tự cộng 40 dòng file mới ra số của một cơ sở.
+   *
+   * ⚠️ Cột `Lệch` in SỐ kèm dấu, không in chữ "đủ / còn thiếu". Chữ thì đọc hiểu
+   * nhưng KHÔNG CỘNG RA ĐƯỢC — mà cộng ra được chính là điều kiện để đối chiếu với
+   * sổ công nợ. Dòng TỔNG cũng vì vậy mới có nghĩa.
+   */
+  if (r.theoCoSo && r.theoCoSo.length) {
+    h += '<div class="card"><h2>Đối soát theo cơ sở (' + r.theoCoSo.length + ')</h2>' +
+      '<p class="hint">Một dòng một cơ sở — mức đối chiếu thẳng với <b>sổ công nợ</b>. ' +
+      '<b>Lệch = Tiền file − Phải nộp</b>: dương là cơ sở nộp vượt phần đang thiếu, ' +
+      'âm là còn thiếu. Cột <b>Còn dư</b> là tiền của cơ sở đó mà không báo cáo nào ' +
+      'nhận hết được — xem chi tiết ở bảng “Dự kiến sẽ ghi” bên dưới.</p>' +
+      '<div class="tableWrap"><table id="tblDsCoSo"><tr>' +
+      '<th>Cơ sở</th><th>Khớp bằng</th><th class="num">Số dòng</th>' +
+      '<th class="num">Phải nộp</th><th class="num">Tiền file</th>' +
+      '<th class="num">Đã ghi nhận</th><th class="num">Lệch</th>' +
+      '<th class="num">Sẽ ghi</th><th class="num">Còn dư</th></tr>';
+    r.theoCoSo.forEach(function (c) {
+      h += '<tr' + (knum(c.con) > 0 ? ' class="lech"' : '') + '>' +
+        '<td><b>' + kesc(c.locationName) + '</b></td>' +
+        '<td style="white-space:normal;max-width:260px">' + kesc(c.khopBang) + '</td>' +
+        '<td class="num">' + c.soDong + '</td>' +
+        '<td class="num">' + kmoney(c.phaiNop) + '</td>' +
+        '<td class="num">' + kmoney(c.tienFile) + '</td>' +
+        '<td class="num">' + kmoney(c.daGhiNhan) + '</td>' +
+        '<td class="num">' + kmoney(c.lech) + '</td>' +
+        '<td class="num"><b>' + kmoney(c.seGhi) + '</b></td>' +
+        '<td class="num">' + (knum(c.con) > 0
+            ? '<b>' + kmoney(c.con) + '</b>' : kmoney(0)) + '</td></tr>';
+    });
+    var tc = r.tongCoSo || {};
+    h += '<tr class="totRow"><td colspan="3">TỔNG</td>' +
+      '<td class="num"><b>' + kmoney(tc.phaiNop) + '</b></td>' +
+      '<td class="num"><b>' + kmoney(tc.tienFile) + '</b></td>' +
+      '<td class="num"><b>' + kmoney(tc.daGhiNhan) + '</b></td>' +
+      '<td class="num"><b>' + kmoney(tc.lech) + '</b></td>' +
+      '<td class="num"><b>' + kmoney(tc.seGhi) + '</b></td>' +
+      '<td class="num"><b>' + kmoney(tc.con) + '</b></td></tr>';
+    h += '</table></div>';
+    if (knum(tc.con) > 0) {
+      h += '<div class="alert warn">Còn <b>' + kmoney(tc.con) + '</b> chưa ghi được vào ' +
+        'báo cáo nào. Xem bảng “Dự kiến sẽ ghi” bên dưới — mỗi dòng <b>(dư)</b> có nút ' +
+        '<b>Xử lý tay</b>.</div>';
+    }
+    h += '</div>';
+  }
+
+  /*
+   * BẢNG DÒNG KHỚP — thêm 04/08/2026 (Andy: *"phải hiện đủ số cột và đủ ở các
+   * bảng ở các mục đối soát thì xem mới rõ và tiện"*).
+   *
+   * Trước bản này chỉ có THẺ SỐ "Nhận dạng được: 3" — không có bảng nào. Kế toán
+   * không biết 3 dòng nào và vào cơ sở nào, tức là **phần nhiều nhất của lô lại
+   * là phần không xem được**. Hai nhóm kia (mơ hồ / không nhận ra) có bảng chỉ vì
+   * chúng cần ô chọn cơ sở.
+   *
+   * `Mã tham chiếu` cũng mới: nó đọc từ file từ đầu nhưng chưa bảng nào in ra —
+   * mà đó chính là số kế toán dùng để tra lại trên sao kê ngân hàng.
+   */
+  if (r.matched.length) {
+    h += '<div class="card"><h2>Nhận dạng được (' + r.matched.length + ')</h2>' +
+      '<p class="hint">Những dòng này khớp <b>đúng một cơ sở</b> nên hệ thống tự nhận. ' +
+      'Soát lại cột <b>Cơ sở</b> trước khi áp — nhận dạng theo tên cơ sở hoặc mã KH ' +
+      'trong diễn giải.</p>' +
+      '<div class="tableWrap"><table><tr><th>#</th><th>Ngày</th>' +
+      '<th>Mã tham chiếu</th><th class="num">Số tiền</th>' +
+      '<th>Diễn giải</th><th>Cơ sở nhận dạng được</th></tr>';
+    var tongKhop = 0;
+    r.matched.forEach(function (a) {
+      tongKhop += knum(a.amount);
+      h += '<tr><td>' + a.seq + '</td><td>' + kdmy(a.date) + '</td>' +
+        '<td>' + kesc(a.code) + '</td>' +
+        '<td class="num">' + kmoney(a.amount) + '</td>' +
+        '<td style="white-space:normal;max-width:380px">' + kesc(a.desc) + '</td>' +
+        '<td><b>' + kesc(ktTenCoSo(a.locationId)) + '</b></td></tr>';
+    });
+    h += '<tr class="totRow"><td colspan="3">TỔNG NHẬN DẠNG ĐƯỢC</td>' +
+      '<td class="num"><b>' + kmoney(tongKhop) + '</b></td>' +
+      '<td colspan="2"></td></tr>';
+    h += '</table></div></div>';
+  }
+
+  if (r.ambiguous.length) {
+    h += '<div class="card"><h2>Cần kế toán quyết (' + r.ambiguous.length + ')</h2>' +
+      '<p class="hint">Các dòng này khớp từ 2 cơ sở trở lên. Hệ thống không tự chọn — ' +
+      'anh/chị chỉ định cơ sở, bỏ trống thì dòng đó bị bỏ qua.</p>' +
+      '<div class="tableWrap"><table><tr><th>#</th><th>Ngày</th>' +
+      '<th>Mã tham chiếu</th><th class="num">Số tiền</th>' +
+      '<th>Diễn giải</th><th>Chọn cơ sở</th></tr>';
+    r.ambiguous.forEach(function (a) {
+      h += '<tr><td>' + a.seq + '</td><td>' + kdmy(a.date) + '</td>' +
+        '<td>' + kesc(a.code) + '</td>' +
+        '<td class="num">' + kmoney(a.amount) + '</td>' +
+        '<td style="white-space:normal;max-width:420px">' + kesc(a.desc) + '</td>' +
+        '<td>' + locPicker(a.seq, a.candidates) +
+          ' <button class="btn ghost sm" onclick="ktXuLyTay(' + knum(a.amount) +
+          ',\'' + kesc(r.kind) + '\',\'Dòng ' + a.seq + ' lô ' + kesc(r.batchId) +
+          ' · ' + kesc(String(a.code || '').replace(/'/g, '')) +
+          '\',\'\',\'' + kesc(a.date) + '\')">Xử lý tay</button></td></tr>';
+    });
+    h += '</table></div></div>';
+  }
+
+  if (r.unmatched.length) {
+    h += '<div class="card"><h2>Không nhận ra cơ sở (' + r.unmatched.length + ')</h2>' +
+      '<p class="hint">Thường do diễn giải không chứa tên cơ sở hoặc mã KH. ' +
+      'Bổ sung mã KH trong tab Cấu hình → Cơ sở rồi đọc lại file.</p>' +
+      '<div class="tableWrap"><table><tr><th>#</th><th>Ngày</th>' +
+      '<th>Mã tham chiếu</th><th class="num">Số tiền</th>' +
+      '<th>Diễn giải</th><th>Chọn cơ sở</th></tr>';
+    r.unmatched.forEach(function (a) {
+      h += '<tr><td>' + a.seq + '</td><td>' + kdmy(a.date) + '</td>' +
+        '<td>' + kesc(a.code) + '</td>' +
+        '<td class="num">' + kmoney(a.amount) + '</td>' +
+        '<td style="white-space:normal;max-width:420px">' + kesc(a.desc) + '</td>' +
+        '<td>' + locPicker(a.seq, null) +
+          ' <button class="btn ghost sm" onclick="ktXuLyTay(' + knum(a.amount) +
+          ',\'' + kesc(r.kind) + '\',\'Dòng ' + a.seq + ' lô ' + kesc(r.batchId) +
+          ' · ' + kesc(String(a.code || '').replace(/'/g, '')) +
+          '\',\'\',\'' + kesc(a.date) + '\')">Xử lý tay</button></td></tr>';
+    });
+    h += '</table></div></div>';
+  }
+
+  h += '<div class="card"><h2>Dự kiến sẽ ghi (' + r.plan.length + ' dòng)</h2>' +
+    '<p class="hint">Chỉ ghi 3 ô: đã nộp · ngày nộp · trạng thái nộp. ' +
+    'Không đụng bất kỳ số doanh thu nào.</p>' +
+    '<div class="tableWrap"><table><tr><th>Mã báo cáo</th><th>Cơ sở</th><th>Kỳ</th>' +
+    '<th class="num">Phải nộp</th><th class="num">Đã nộp</th>' +
+    '<th class="num">Ghi thêm</th><th class="num">Sau khi ghi</th>' +
+    '<th>Sau khi ghi thì</th></tr>';
+  /* ⚠️ TỔNG chỉ cộng dòng CÓ báo cáo. Dòng `(dư)` mang `add` nhưng chính nó in
+     "chưa ghi được" — cộng vào là con số mang tên "sẽ ghi thêm" lại to hơn số thực
+     sự ghi, và **lệch với bảng theo cơ sở bên trên** (cột `Sẽ ghi` của bảng đó loại
+     dòng dư ra). Hai số cùng tên mà khác nhau trên cùng một màn là kế toán mất tin
+     vào cả hai. Phần dư in RIÊNG ở dòng dưới, để vẫn cộng ra được tổng tiền file. */
+  var tongGhi = 0, tongDu = 0;
+  r.plan.forEach(function (p) {
+    if (p.reportId) tongGhi += knum(p.add); else tongDu += knum(p.add);
+    var con = knum(p.total) - knum(p.paidAfter);
+    h += '<tr' + (p.reportId ? '' : ' class="lech"') + '>' +
+      '<td>' + kesc(p.reportId || '(dư — không báo cáo nào nhận)') + '</td>' +
+      '<td>' + kesc(p.locationName) + '</td><td>' + kesc(p.period) + '</td>' +
+      '<td class="num">' + kmoney(p.total) + '</td>' +
+      '<td class="num">' + kmoney(p.paidBefore) + '</td>' +
+      '<td class="num"><b>' + kmoney(p.add) + '</b></td>' +
+      '<td class="num">' + kmoney(p.paidAfter) + '</td>' +
+      /* ⚠️ `white-space:normal` — ô này chứa CHỮ + NÚT trên cùng một dòng. Để
+         `nowrap` (mặc định của bảng) thì nó đẩy bảng rộng hơn khung 15px và nút
+         "Xử lý tay" bị CẮT ĐÔI ở mép phải. Đếm nút vẫn ra đủ, `scrollWidth` của
+         bảng vẫn hợp lệ — chỉ ẢNH mới thấy nút đứt. Nay nút tự xuống dòng. */
+      '<td style="white-space:normal">' + (!p.reportId
+               /* Dòng (dư): tiền khớp cơ sở nhưng KHÔNG báo cáo nào nhận hết được.
+                  Đây đúng là chỗ "có lỗi vấn đề" — phải có đường xử lý tay ngay
+                  tại chỗ, không thì kế toán phải nhớ số rồi gõ lại ở màn khác. */
+               ? '<b>chưa ghi được</b> <button class="btn primary sm" onclick="ktXuLyTay(' +
+                 knum(p.add) + ',\'' + kesc(r.kind) + '\',\'Xử lý dư lô ' +
+                 kesc(r.batchId) + '\',\'' + kesc(p.locationId) + '\')">Xử lý tay</button>'
+               : con > 0 ? 'còn thiếu ' + kmoney(con)
+               : con < 0 ? '<b>nhận vượt ' + kmoney(-con) + '</b>' : 'đủ') + '</td></tr>';
+  });
+  h += '<tr class="totRow"><td colspan="5">TỔNG SẼ GHI THÊM</td>' +
+    '<td class="num"><b>' + kmoney(tongGhi) + '</b></td><td colspan="2"></td></tr>';
+  if (tongDu > 0) {
+    h += '<tr class="lech"><td colspan="5">Chưa ghi được (dư)</td>' +
+      '<td class="num"><b>' + kmoney(tongDu) + '</b></td>' +
+      '<td colspan="2">phải xử lý tay</td></tr>' +
+      '<tr class="totRow"><td colspan="5">CỘNG LẠI = tiền đã nhận dạng trong file</td>' +
+      '<td class="num"><b>' + kmoney(tongGhi + tongDu) + '</b></td>' +
+      '<td colspan="2"></td></tr>';
+  }
+  h += '</table></div></div>';
+
+  $k('dsResult').innerHTML = h;
+}
+
+function stat2(label, v) {
+  return '<div class="statCard"><div class="sub">' + label + '</div><div class="v">' + v + '</div></div>';
+}
+
+/** Tên cơ sở từ id — `KT.locations` nạp một lần lúc đăng nhập. Không thấy thì in
+    chính id, đừng in rỗng: ô trống làm người đọc tưởng chưa nhận dạng được. */
+function ktTenCoSo(id) {
+  var l = (KT.locations || []).filter(function (x) { return String(x.id) === String(id); })[0];
+  return l ? (l.name || l.code || id) : String(id || '—');
+}
+
+function locPicker(seq, candidates) {
+  var locs = (KT.locations || []);
+  var o = '<option value="">— bỏ qua —</option>';
+  locs.forEach(function (l) {
+    var mark = (candidates && candidates.indexOf(String(l.id)) >= 0) ? ' ★' : '';
+    o += '<option value="' + l.id + '">' + kesc(l.name) + mark + '</option>';
+  });
+  return '<select class="ovr" data-seq="' + seq + '">' + o + '</select>';
+}
+
+function ktReconApply() {
+  if (!KT.recon || !KT.reconRows) { ktoast('Xem trước đã'); return; }
+  if (KT.recon.alreadyApplied) { ktoast('Lô này đã áp rồi'); return; }
+
+  var ovr = {};
+  document.querySelectorAll('#dsResult select.ovr').forEach(function (s) {
+    if (s.value) ovr[s.dataset.seq] = s.value;
+  });
+
+  var n = KT.recon.plan.filter(function (p) { return p.reportId; }).length;
+  if (!confirm('Áp đối soát cho ' + n + ' báo cáo?\n' +
+               'Thao tác này chỉ ghi 3 ô nộp tiền và không thể áp lại lô này.')) return;
+
+  kbusy(true, 'Đang áp…');
+  ksrv('jpReconApply', KT.token, $k('dsKind').value, KT.reconRows, ovr).then(function (r) {
+    kbusy(false);
+    if (!r.ok) { kmsg('dsMsg', r.msg, 'err'); return; }
+    kmsg('dsMsg', r.msg, 'ok');
+    ktoast(r.msg);
+    $k('btnApply').disabled = true;
+    KT.recon.alreadyApplied = true;
+  }).catch(function (e) { kbusy(false); kmsg('dsMsg', e.message, 'err'); });
+}
+
+function ktFillReportPicker() {
+  ksrv('jpKtListReports', KT.token, { status: 'HOAN_TAT' }).then(function (list) {
+    var sel = $k('mReport');
+    /* Chỉ báo cáo CÒN THIẾU — báo cáo đã đủ thì không có gì để xác nhận thêm */
+    var con = list.filter(function (r) { return r.paid < r.totalSubmit; });
+
+    /* Đang xử lý một dòng đối soát cụ thể thì lọc về đúng cơ sở đó, và nói rõ đã
+       lọc — không nói thì kế toán tưởng cơ sở khác biến mất. */
+    var xl = KT.xuLyTay;
+    var locId = xl && xl.locationId ? String(xl.locationId) : '';
+    var loc = locId ? con.filter(function (r) { return String(r.locationId) === locId; }) : con;
+
+    /* Nhớ lại để `ktManualXem` tính được "sau khi ghi thì còn bao nhiêu" mà không
+       phải gọi máy chủ mỗi lần gõ một chữ số. */
+    KT.mReports = loc;
+
+    sel.innerHTML = '<option value="">— chọn báo cáo —</option>' +
+      loc.map(function (r) {
+        return '<option value="' + r.id + '">' + kesc(r.locationName) + ' · ' +
+          kdmy(r.fromDate) + '–' + kdmy(r.toDate) +
+          ' · còn ' + kmoney(r.totalSubmit - r.paid) + 'đ</option>';
+      }).join('');
+
+    /* Nạp lại danh sách là số cũ đã đổi ⇒ phải vẽ lại bảng "sẽ thành ra sao".
+       Không vẽ lại thì sau khi Xác nhận xong bảng đứng im ở số CŨ — kế toán đọc
+       tưởng chưa ghi được, bấm lần nữa là ghi hai lần. */
+    if (!xl) { kmsg('mMsg', ''); ktManualXem(); return; }
+
+    /* Điền sẵn số tiền · cách thu · lý do từ dòng đối soát. Điền sẵn chứ KHÔNG tự
+       bấm: kế toán vẫn phải chọn báo cáo và soát lại — đây là đường xử lý tay. */
+    $k('mAmount').value = xl.soTien || '';
+    if (xl.cachThu) $k('mMethod').value = xl.cachThu;
+    $k('mNote').value = xl.ghiChu || '';
+    if (xl.ngay) $k('mDate').value = xl.ngay;
+
+    /* Ba trường hợp, ba câu khác nhau. Dùng một câu chung rồi đổi màu thì kế toán
+       thấy chữ đỏ mà không biết vì sao đỏ. */
+    if (loc.length) {
+      kmsg('mMsg', 'Đã điền sẵn từ dòng đối soát' +
+        (locId ? ' · danh sách lọc theo ' + kesc(ktTenCoSo(locId)) +
+                 ' (' + loc.length + ' báo cáo còn thiếu)' : '') +
+        '. Chọn báo cáo rồi bấm Xác nhận.', 'ok');
+    } else if (locId) {
+      kmsg('mMsg', 'Đã điền sẵn, nhưng cơ sở ' + ktTenCoSo(locId) + ' KHÔNG còn báo cáo ' +
+        'nào thiếu tiền. Tiền này có thể là nộp thừa, hoặc thuộc kỳ chưa duyệt xong — ' +
+        'kiểm lại dòng sao kê, hoặc duyệt báo cáo của kỳ đó trước.', 'err');
+    } else {
+      /* `kmsg` dùng textContent nên KHÔNG chèn thẻ HTML vào đây — nó sẽ hiện ra chữ */
+      kmsg('mMsg', 'Đã điền sẵn, nhưng không có báo cáo nào còn thiếu tiền để ghi vào. ' +
+        'Mọi báo cáo đã duyệt đều nhận đủ — dòng này có thể là tiền nộp thừa hoặc thuộc ' +
+        'kỳ chưa duyệt xong.', 'err');
+    }
+    KT.xuLyTay = null;             // dùng một lần rồi thôi
+    ktManualXem();                 // số điền sẵn thì bảng phải in ra ngay
+  }).catch(function () {});
+
+  ksrv('jpCfgListLocations', KT.token).then(function (l) { KT.locations = l; }).catch(function () {});
+}
+
+/**
+ * SẼ THÀNH RA SAO — bảng bốn số in ra TRƯỚC lúc bấm Xác nhận (khuôn POSH,
+ * Andy chốt 05/08/2026: *"Làm đối soát công nợ y hệt posh đi e"*).
+ *
+ * `Phải nộp · Đã ghi trước đó · Xác nhận tay · Còn lại`.
+ *
+ * ⚠️ Trước bản này màn ③ chỉ có ô nhập trống: kế toán gõ số, bấm, RỒI mới biết
+ * mình vừa ghi vượt qua dòng chữ "Chú ý: đã nhận vượt". Ghi vượt sửa được nhưng
+ * phải "Đặt lại tổng" — mà đặt lại là **ghi đè cả phần đối soát đã áp**. Thấy
+ * trước một dòng là không phải đi đường đó.
+ *
+ * ⚠️ Tính THUẦN TRÊN CLIENT từ danh sách đã nạp, không gọi máy chủ mỗi lần gõ —
+ * gõ một số tiền là 7 chữ số, tức 7 lượt gọi. Máy chủ vẫn là chốt cuối
+ * (`jpConfirmPaidManual` kiểm lại và trả cờ `vuot`); đây chỉ để NHÌN.
+ */
+function ktManualXem() {
+  var box = $k('mTruoc');
+  if (!box) return;
+  var id = $k('mReport').value;
+  var r = (KT.mReports || []).filter(function (x) { return String(x.id) === String(id); })[0];
+  if (!r) { box.innerHTML = ''; return; }
+
+  var phai   = knum(r.totalSubmit);
+  var truoc  = knum(r.paid);
+  var go     = knum($k('mAmount').value);
+  /* "Đặt lại tổng" GHI ĐÈ, không cộng — hai chế độ ra hai con số khác hẳn nhau,
+     in nhầm là kế toán yên tâm bấm rồi mất phần đối soát đã áp. */
+  var dat    = $k('mMode').value === 'SET';
+  var sau    = dat ? go : truoc + go;
+  var con    = phai - sau;
+
+  box.innerHTML = '<div class="tableWrap" style="margin-top:10px">' +
+    '<table><tr><th>Phải nộp</th><th>Đã ghi trước đó</th>' +
+    '<th>' + (dat ? 'Đặt lại tổng thành' : 'Xác nhận tay lần này') + '</th>' +
+    '<th>Tổng sau khi ghi</th><th>Còn lại</th></tr>' +
+    '<tr><td class="num">' + kmoney(phai) + '</td>' +
+    '<td class="num">' + kmoney(truoc) + '</td>' +
+    '<td class="num"><b>' + (dat ? '' : '+') + kmoney(go) + '</b></td>' +
+    '<td class="num">' + kmoney(sau) + '</td>' +
+    '<td class="num"' + (con < 0 ? ' style="color:var(--danger)"' : '') + '><b>' +
+      (con > 0 ? 'còn thiếu ' + kmoney(con)
+       : con < 0 ? 'NHẬN VƯỢT ' + kmoney(-con) : 'đủ') + '</b></td></tr></table></div>' +
+    (dat && truoc > 0
+      ? '<div class="alert danger">Đặt lại tổng sẽ <b>xoá</b> ' + kmoney(truoc) +
+        'đ đang có, kể cả phần đối soát đã áp. Muốn cộng thêm thì chọn ' +
+        '<b>Cộng thêm vào số đã nhận</b>.</div>'
+      : con < 0
+      ? '<div class="alert warn">Ghi số này là <b>nhận vượt ' + kmoney(-con) +
+        'đ</b> so với phải nộp. Vẫn ghi được, nhưng soát lại đã chọn đúng báo cáo chưa.</div>'
+      : '');
+}
+
+/**
+ * XỬ LÝ TAY một dòng đối soát không tự khớp được.
+ *
+ * Andy chốt 04/08/2026: *"chuyển khoản thì đối chiếu file nhưng cũng có thêm phần
+ * xác nhận tay để khi có lỗi vấn đề thì tự xử lý được"*.
+ *
+ * Trước bản này kế toán phải NHỚ số tiền, rời màn đối soát, sang ③, tìm lại báo
+ * cáo rồi gõ tay — nhớ sai một chữ số là ghi sai tiền. Nay nhảy sang ③ với số
+ * tiền · cách thu · lý do điền sẵn, và danh sách báo cáo lọc theo đúng cơ sở.
+ */
+function ktXuLyTay(soTien, cachThu, ghiChu, locationId, ngay) {
+  KT.xuLyTay = { soTien: soTien, cachThu: cachThu, ghiChu: ghiChu,
+                 locationId: locationId || '', ngay: ngay || '' };
+  ktGo('ds', 'dsSoXn', 'dsTay');
+}
+
+function ktManualPaid() {
+  var id = $k('mReport').value;
+  if (!id) { kmsg('mMsg', 'Chọn báo cáo', 'err'); return; }
+  var amt = knum($k('mAmount').value);
+  if (!amt) { kmsg('mMsg', 'Nhập số tiền', 'err'); return; }
+  /* Lý do BẮT BUỘC — giống POSH v3. Một con số ghi tay không có lý do thì tháng
+     sau không ai giải thích được nó ở đâu ra. Máy chủ cũng chặn, không chỉ ở đây. */
+  var ly = ($k('mNote').value || '').trim();
+  if (ly.length < 3) { kmsg('mMsg', 'Nhập lý do xác nhận tay (ai nộp, nộp ở đâu)', 'err'); return; }
+  var mode = $k('mMode').value;
+  /* Cách thu BẮT BUỘC (Andy chốt 04/08/2026: *"Bắt buộc chọn cách thu chứ làm sao
+     mà chưa rõ cách thu"*). Ô để trống có chủ ý — mặc định TM là nói sai đã nhận
+     tiền mặt. Máy chủ cũng chặn bằng `jpCachThu_`. */
+  var cach = $k('mMethod').value;
+  if (!cach) { kmsg('mMsg', 'Chọn cách thu: tiền mặt · chuyển khoản · QR', 'err'); return; }
+
+  /* "Đặt lại tổng" ghi đè số cũ — bắt xác nhận để không mất số đối soát đã áp */
+  if (mode === 'SET' &&
+      !confirm('Đặt lại TỔNG đã nhận thành ' + kmoney(amt) + 'đ?\n' +
+               'Số đang có sẽ bị thay, kể cả phần đối soát đã áp trước đó.')) return;
+
+  kbusy(true, 'Đang ghi nhận…');
+  ksrv('jpConfirmPaidManual', KT.token, id, amt, $k('mDate').value, ly, mode, cach)
+    .then(function (r) {
+      kbusy(false);
+      kmsg('mMsg', r.msg + ' · ghi là ' + (r.cachThu === 'TM' ? 'tiền mặt'
+           : r.cachThu === 'CK' ? 'chuyển khoản' : 'QR'), r.vuot ? 'err' : 'ok');
+      if (r.vuot) ktoast('Chú ý: đã nhận vượt số phải nộp');
+      $k('mAmount').value = ''; $k('mNote').value = '';
+      ktFillReportPicker();
+    }).catch(function (e) { kbusy(false); kmsg('mMsg', e.message, 'err'); });
+}
+
+/*──────── Khai lại cách thu cho khoản cũ ────────
+ * Chỉ còn là dữ liệu trước 04/08/2026. Khai lại KHÔNG đụng số đã nhận — chỉ ghi
+ * tiền đó vào bằng cách nào, nên cột "Chưa rõ" ở sổ công nợ về 0 và sổ nhật ký
+ * chung có đủ bút toán 1111 / 1121. */
+
+function ktChuaKhai() {
+  kbusy(true, 'Đang tìm khoản chưa khai…');
+  ksrv('jpChuaKhaiCachThu', KT.token).then(function (d) {
+    kbusy(false);
+    if (!d.rows.length) {
+      $k('mKhaiKq').innerHTML = '<div class="alert ok"><b>Không còn khoản nào.</b> ' +
+        'Mọi tiền đã nhận đều biết vào bằng cách nào.</div>';
+      kmsg('mKhaiMsg', '');
+      return;
+    }
+    kmsg('mKhaiMsg', d.soBaoCao + ' báo cáo · tổng ' + kmoney(d.tong) + 'đ chưa khai', 'err');
+    var h = '<div class="alert warn"><b>' + d.soBaoCao + ' báo cáo · ' +
+      kmoney(d.tong) + 'đ</b> đã nhận nhưng chưa biết vào bằng cách nào. Chọn cách thu ' +
+      'rồi bấm <b>Khai</b> từng dòng.</div>' +
+      '<div class="tableWrap"><table><tr><th>Báo cáo</th><th>Cơ sở</th><th>Kỳ</th>' +
+      '<th>Ngày nộp</th><th class="num">Đã nhận</th><th class="num">Chưa khai</th>' +
+      '<th>Cách thu</th><th></th></tr>';
+    d.rows.forEach(function (r) {
+      h += '<tr class="lech"><td>' + kesc(r.id) + '</td>' +
+        '<td>' + kesc(r.coSo) + '</td>' +
+        '<td>' + kdmy(r.kyTu) + ' → ' + kdmy(r.kyDen) + '</td>' +
+        '<td>' + kdmy(r.ngayNop) + '</td>' +
+        '<td class="num">' + kmoney(r.daNhan) + '</td>' +
+        '<td class="num"><b>' + kmoney(r.chuaKhai) + '</b></td>' +
+        '<td><select id="kt_' + kesc(r.id) + '">' +
+          '<option value="">— chọn —</option><option value="TM">Tiền mặt</option>' +
+          '<option value="CK">Chuyển khoản</option><option value="QR">QR</option>' +
+        '</select></td>' +
+        '<td><button class="btn primary sm" onclick="ktKhaiMot(\'' + kesc(r.id) +
+          '\')">Khai</button></td></tr>';
+    });
+    h += '</table></div>';
+    $k('mKhaiKq').innerHTML = h;
+  }).catch(function (e) { kbusy(false); kmsg('mKhaiMsg', e.message, 'err'); });
+}
+
+function ktKhaiMot(reportId) {
+  var s = $k('kt_' + reportId);
+  var cach = s ? s.value : '';
+  if (!cach) { kmsg('mKhaiMsg', 'Chọn cách thu cho báo cáo ' + reportId, 'err'); return; }
+  kbusy(true, 'Đang khai…');
+  ksrv('jpKhaiCachThu', KT.token, reportId, cach, 'khai bù dữ liệu cũ').then(function (r) {
+    kbusy(false);
+    ktoast(r.msg);
+    ktChuaKhai();          // vẽ lại để dòng vừa khai biến khỏi danh sách
+  }).catch(function (e) { kbusy(false); kmsg('mKhaiMsg', e.message, 'err'); });
+}
+
+/*──────── Lịch sử lô đối soát · huỷ lô áp nhầm ────────*/
+
+function ktReconHistory() {
+  kbusy(true, 'Đang tải lịch sử…');
+  ksrv('jpReconHistory', KT.token, 30).then(function (list) {
+    kbusy(false);
+    var box = $k('dsHistory');
+    if (!list.length) {
+      box.innerHTML = '<p class="hint">Chưa áp lô nào.</p>';
+      return;
+    }
+    var h = '<div class="tableWrap"><table><tr><th>Lúc</th><th>Người áp</th>' +
+      '<th>Loại</th><th>Mã lô</th><th class="num">Dòng</th><th class="num">Số tiền</th>' +
+      '<th>Ghi chú</th><th>Trạng thái</th><th></th></tr>';
+    list.forEach(function (r) {
+      h += '<tr' + (r.undone ? ' class="lech"' : '') + '>' +
+        '<td>' + kesc(String(r.at).slice(0, 19).replace('T', ' ')) + '</td>' +
+        '<td>' + kesc(r.who) + '</td><td>' + kesc(r.kind) + '</td>' +
+        '<td>' + kesc(r.batchId) + '</td>' +
+        '<td class="num">' + r.rows + '</td>' +
+        '<td class="num">' + kmoney(r.amount) + '</td>' +
+        '<td style="white-space:normal;max-width:360px">' + kesc(r.note) + '</td>' +
+        '<td>' + (r.undone
+          ? 'Đã huỷ · ' + kesc(r.undoneBy) + '<div class="sub">' + kesc(r.undoneReason) + '</div>'
+          : 'Đang có hiệu lực') + '</td>' +
+        '<td>' + (r.coTheHuy
+          ? '<button class="btn danger sm" onclick="ktReconUndo(\'' + r.batchId + '\')">Huỷ lô</button>'
+          : (r.undone ? '' : '<span class="locked">áp trước khi lưu phân bổ</span>')) +
+        '</td></tr>';
+    });
+    box.innerHTML = h + '</table></div>';
+  }).catch(function (e) { kbusy(false); ktoast(e.message); });
+}
+
+function ktReconUndo(batchId) {
+  var ly = prompt('Lý do huỷ lô ' + batchId + '?');
+  if (ly === null) return;
+  if (!ly.trim()) { ktoast('Phải ghi lý do'); return; }
+  if (!confirm('Huỷ lô ' + batchId + ' và trừ lại số đã ghi?\n' +
+               'Chỉ đụng 3 ô nộp tiền, không đụng doanh thu.')) return;
+
+  kbusy(true, 'Đang huỷ lô…');
+  ksrv('jpReconUndo', KT.token, batchId, ly.trim()).then(function (r) {
+    kbusy(false);
+    ktoast(r.msg);
+    kmsg('dsMsg', r.msg, 'ok');
+    if (r.thieu && r.thieu.length) {
+      alert('Không tìm thấy ' + r.thieu.length + ' báo cáo trong lô này: ' +
+            r.thieu.join(', ') + '\nSố của những báo cáo đó chưa được trừ lại.');
+    }
+    ktReconHistory();
+    ktFillReportPicker();
+    $k('btnApply').disabled = true;
+  }).catch(function (e) { kbusy(false); ktoast(e.message); });
+}
+
+/*════════════════════ BẢNG NỘP TIỀN (REVIEW #23) ════════════════════
+ * `jpKtPaymentBoard` đã có ở server từ lúc đưa module nộp tiền vào, nhưng không
+ * màn nào gọi — nhân viên báo nộp mà kế toán không có cửa nào xem. Đây là cửa đó.
+ *
+ * Hai cột `nvPaid` và `ktPaid` CỐ Ý tách bạch (nguyên tắc #2 của POSH v3): nhân
+ * viên tự khai một số, kế toán xác nhận một số. Lệch mới là thông tin.            */
+
+function ktPayBoard() {
+  kbusy(true, 'Đang tải bảng nộp tiền…');
+  ksrv('jpKtPaymentBoard', KT.token, {
+    fromDate: $k('pbFrom').value, toDate: $k('pbTo').value,
+    onlyLech: $k('pbOnlyLech').checked
+  }).then(function (d) {
+    kbusy(false);
+    var t = { phaiNop: 0, nvPaid: 0, ktPaid: 0, lech: 0 };
+    d.rows.forEach(function (r) {
+      t.phaiNop += r.phaiNop; t.nvPaid += r.nvPaid; t.ktPaid += r.ktPaid;
+      if (r.lech) t.lech++;
+    });
+    $k('pbSum').innerHTML =
+      stat('Phải nộp', t.phaiNop) +
+      stat('NV báo nộp', t.nvPaid) +
+      stat('KT xác nhận', t.ktPaid) +
+      statTxt('Dòng lệch', t.lech + ' / ' + d.rows.length);
+
+    var h = '<tr><th>Cơ sở</th><th>Kỳ</th><th>Nhân viên</th><th>Loại</th>' +
+      '<th>Trạng thái</th><th class="num">Phải nộp</th>' +
+      '<th class="num">NV báo nộp</th><th>Cách nộp</th><th>NV báo ngày</th>' +
+      '<th class="num">KT xác nhận</th><th class="num">Lệch</th>' +
+      '<th class="num">Số lần nộp</th><th>Ghi chú của NV</th></tr>';
+    d.rows.forEach(function (r) {
+      h += '<tr' + (r.lech ? ' class="lech"' : '') + '>' +
+        '<td>' + kesc(r.locationName) + '</td>' +
+        '<td>' + kesc(r.period) + '</td>' +
+        '<td>' + kesc(r.userName) + '</td>' +
+        '<td>' + (r.machineType === 'XU' ? 'Máy xu' : 'Máy tiền') + '</td>' +
+        '<td><span class="badge ' + kbadgeCls(r.status) + '">' + kstatusText(r.status) + '</span></td>' +
+        tdnum(r.phaiNop) + tdnum(r.nvPaid) +
+        /* ⚠️ Từ 16/08/2026 nhân viên chọn được Tiền mặt hoặc Chuyển khoản. Bảng này
+           là cửa DUY NHẤT kế toán xem nhân viên báo nộp (jpPaymentHistory phải mở
+           từng báo cáo mới thấy), nên thiếu cột này là đi tìm tiền mặt của một khoản
+           đã chuyển khoản — hoặc xác nhận đã nhận tiền mặt mà trong két không có. */
+        '<td style="white-space:normal">' + kesc(r.nvCachThu || '—') + '</td>' +
+        '<td>' + (r.nvPaidDate ? kdmy(r.nvPaidDate) : '—') + '</td>' +
+        tdnum(r.ktPaid) +
+        '<td class="num"><b>' + (r.lech > 0 ? '+' : '') + kmoney(r.lech) + '</b></td>' +
+        '<td class="num">' + r.soLanNop + (r.coBoSung ? ' (' + r.coBoSung + ' bổ sung)' : '') + '</td>' +
+        '<td style="white-space:normal">' + kesc(r.nvPayNote) + '</td></tr>';
+    });
+    if (!d.rows.length) {
+      h += '<tr><td colspan="13" style="padding:14px;color:#6b7280">Không có dòng nào ' +
+           'trong khoảng đã chọn.</td></tr>';
+    }
+    $k('tblPayBoard').innerHTML = h;
+  }).catch(function (e) { kbusy(false); ktoast(e.message); });
+}
+
+
+/*════════════════════ ① SỔ CÔNG NỢ THEO CƠ SỞ ════════════════════
+ * Hạng mục ① của POSH v3. Dư cuối kỳ = Dư đầu kỳ + Phát sinh − Đã nhận.        */
+
+function ktKyCongNo() {
+  var t = $k('cnThang'), n = $k('cnNam');
+  if (t.options.length) return;
+  var now = new Date();
+  for (var m = 1; m <= 12; m++) {
+    t.innerHTML += '<option value="' + m + '"' +
+      (m === now.getMonth() + 1 ? ' selected' : '') + '>Tháng ' + m + '</option>';
+  }
+  for (var y = now.getFullYear() - 1; y <= now.getFullYear() + 1; y++) {
+    n.innerHTML += '<option value="' + y + '"' +
+      (y === now.getFullYear() ? ' selected' : '') + '>' + y + '</option>';
+  }
+}
+
+function ktSoCongNo() {
+  ktKyCongNo();
+  kbusy(true, 'Đang dựng sổ công nợ…');
+  ksrv('jpSoCongNo', KT.token, $k('cnThang').value, $k('cnNam').value).then(function (d) {
+    kbusy(false);
+    /* Hàng thẻ phải CỘNG RA ĐƯỢC: bốn cột phương thức phải bằng Đã nhận. Bỏ thẻ
+       nào cho gọn là người đọc thấy sai số dù số đúng — bệnh đã mắc hai lần
+       (cột Kiểm kê và cột Nhập ở báo cáo N-X-T). */
+    $k('cnSum').innerHTML =
+      stat('Dư đầu kỳ', d.tong.duDauKy) +
+      stat('Phát sinh phải thu', d.tong.phatSinh) +
+      stat('Tiền mặt', d.tong.daNhanTM) +
+      stat('Chuyển khoản', d.tong.daNhanCK) +
+      stat('QR', d.tong.daNhanQR) +
+      stat('Chưa rõ cách thu', d.tong.daNhanKhac) +
+      stat('Đã nhận (tổng)', d.tong.daNhan) +
+      stat('Dư cuối kỳ', d.tong.duCuoiKy);
+
+    var w = '';
+    if (d.tong.phaiThuChuaDuyet) {
+      w += '<div class="alert warn">Còn <b>' + kmoney(d.tong.phaiThuChuaDuyet) + 'đ</b> ' +
+        'nằm ở báo cáo <b>chưa duyệt xong</b> — chưa vào sổ này. Duyệt xong mới thành ' +
+        'phải thu.</div>';
+    }
+    w += '<div class="alert ok"><b>Đã nhận ' + kmoney(d.tong.daNhan) + 'đ</b> = tiền mặt ' +
+      kmoney(d.tong.daNhanTM) + ' + chuyển khoản ' + kmoney(d.tong.daNhanCK) +
+      ' + QR ' + kmoney(d.tong.daNhanQR) + ' + chưa rõ ' + kmoney(d.tong.daNhanKhac) +
+      '<div class="alert-sub">Phương thức lấy từ <b>từng lần nộp tiền</b>. ' +
+      '<b>QR về tài khoản</b> nên hạch toán như chuyển khoản (TK 1121), tiền mặt vào ' +
+      '1111.</div></div>';
+    if (d.tong.daNhanKhac) {
+      /* Cột này là DỮ LIỆU CŨ, sửa được — nên phải chỉ đường sang chỗ sửa, đừng chỉ
+         giải thích rồi bỏ đó. Từ 04/08/2026 mọi đường thu đều bắt buộc chọn cách
+         thu (chặn ở máy chủ bằng `jpCachThu_`) nên nó không sinh thêm được nữa. */
+      w += '<div class="alert danger"><b>' + kmoney(d.tong.daNhanKhac) + 'đ chưa rõ cách thu ' +
+        '— cần khai lại.</b> Đó là tiền đối soát hoặc xác nhận tay <b>trước 04/08/2026</b>, ' +
+        'lúc đó hệ thống chỉ ghi tổng đã nhận. Cố ý để riêng: gộp vào tiền mặt là nói sai.<br>' +
+        'Từ nay <b>mọi đường thu đều bắt buộc chọn cách thu</b> nên cột này không sinh thêm ' +
+        'được nữa. Sửa ở <b>③ Xác nhận nộp tay → Khoản đã nhận chưa khai cách thu</b> ' +
+        '<button class="btn primary sm" onclick="ktGo(\'ds\',\'dsSoXn\',\'dsTay\')">' +
+        'Đi tới</button></div>';
+    }
+    $k('cnWarn').innerHTML = w;
+
+    /* Khuôn POSH v3 (Andy chốt 05/08/2026: *"làm đối soát công nợ y hệt posh"*):
+       thêm cột **Nguồn dư đầu kỳ**. JP SUY dư đầu kỳ từ các báo cáo tháng trước chứ
+       không lưu, nên phải nói ra suy từ đâu — không thì kế toán thấy một con số
+       không giải thích được và không biết tra ở đâu. */
+    var h = '<tr><th>Cơ sở</th><th class="num">Dư đầu kỳ</th>' +
+      '<th>Nguồn dư đầu kỳ</th>' +
+      '<th class="num">Phát sinh phải thu</th>' +
+      '<th class="num">Tiền mặt</th><th class="num">Chuyển khoản</th>' +
+      '<th class="num">QR</th><th class="num">Chưa rõ</th>' +
+      '<th class="num">Đã nhận</th>' +
+      '<th class="num">Dư cuối kỳ</th><th>Tình trạng</th>' +
+      '<th class="num">Số BC</th><th>Chưa duyệt</th></tr>';
+    d.rows.forEach(function (r) {
+      h += '<tr' + (r.conThieu ? ' class="lech"' : '') + '>' +
+        '<td>' + kesc(r.locationName) + '</td>' +
+        tdnum(r.duDauKy) +
+        '<td style="white-space:normal" class="sub">' + kesc(r.nguonDuDauKy || '—') + '</td>' +
+        tdnum(r.phatSinh) +
+        tdnum(r.daNhanTM) + tdnum(r.daNhanCK) + tdnum(r.daNhanQR) + tdnum(r.daNhanKhac) +
+        '<td class="num"><b>' + kmoney(r.daNhan) + '</b></td>' +
+        '<td class="num"><b>' + kmoney(r.duCuoiKy) + '</b></td>' +
+        /* Chữ do MÁY CHỦ dựng (`tinhTrang`) — ghép lại ở client là hai câu cho cùng
+           một việc, sửa một chỗ quên chỗ kia. Còn giữ nhánh cũ cho dữ liệu đời trước. */
+        '<td>' + (r.tinhTrang
+          ? (r.duCuoiKy > 0 ? '<b>' + kesc(r.tinhTrang) + '</b>' : kesc(r.tinhTrang))
+          : (r.duCuoiKy > 0 ? '<b>Còn thiếu</b>'
+             : r.duCuoiKy < 0 ? 'Nhận vượt' : 'Đã đủ')) + '</td>' +
+        '<td class="num">' + r.soBaoCao + '</td>' +
+        '<td>' + (r.soBaoCaoChuaDuyet
+          ? r.soBaoCaoChuaDuyet + ' BC · ' + kmoney(r.phaiThuChuaDuyet) + 'đ' : '—') + '</td>' +
+        '</tr>';
+    });
+    if (!d.rows.length) {
+      h += '<tr><td colspan="13" style="padding:14px;color:#6b7280">Tháng này chưa có ' +
+           'báo cáo nào ở cơ sở nào.</td></tr>';
+    } else {
+      h += '<tr class="totRow"><td><b>TỔNG</b></td>' +
+        tdnum(d.tong.duDauKy) + '<td></td>' + tdnum(d.tong.phatSinh) +
+        tdnum(d.tong.daNhanTM) + tdnum(d.tong.daNhanCK) +
+        tdnum(d.tong.daNhanQR) + tdnum(d.tong.daNhanKhac) +
+        '<td class="num"><b>' + kmoney(d.tong.daNhan) + '</b></td>' +
+        '<td class="num"><b>' + kmoney(d.tong.duCuoiKy) + '</b></td>' +
+        '<td colspan="3"></td></tr>';
+    }
+    $k('tblCongNo').innerHTML = h;
+  }).catch(function (e) { kbusy(false); ktoast(e.message); });
+}
+
+/*════════════════════ ④ CÔNG NỢ THEO NHÂN VIÊN ════════════════════*/
+
+function ktCongNoNV() {
+  kbusy(true, 'Đang tính công nợ nhân viên…');
+  ksrv('jpCongNoNhanVien', KT.token, {
+    fromDate: $k('cnnvFrom').value, toDate: $k('cnnvTo').value
+  }).then(function (d) {
+    kbusy(false);
+    $k('cnnvSum').innerHTML =
+      stat('Phải nộp', d.tong.phaiNop) +
+      stat('NV báo nộp', d.tong.nvBaoNop) +
+      stat('KT xác nhận', d.tong.ktXacNhan) +
+      stat('Còn nợ', d.tong.conNo);
+
+    var h = '<tr><th>Nhân viên</th><th>Cơ sở</th><th class="num">Số BC</th>' +
+      '<th class="num">Phải nộp</th><th class="num">NV báo nộp</th>' +
+      '<th class="num">KT xác nhận</th><th class="num">Còn nợ</th>' +
+      '<th class="num">Lệch tự báo</th></tr>';
+    d.rows.forEach(function (r) {
+      h += '<tr' + (r.lechTuBao ? ' class="lech"' : '') + '>' +
+        '<td><b>' + kesc(r.userName) + '</b></td>' +
+        '<td style="white-space:normal">' + kesc(r.coSo) + '</td>' +
+        '<td class="num">' + r.soBaoCao + '</td>' +
+        tdnum(r.phaiNop) + tdnum(r.nvBaoNop) + tdnum(r.ktXacNhan) +
+        '<td class="num"><b>' + kmoney(r.conNo) + '</b></td>' +
+        '<td class="num">' + (r.lechTuBao ? (r.lechTuBao > 0 ? '+' : '') + kmoney(r.lechTuBao) : '—') +
+        '</td></tr>';
+    });
+    if (!d.rows.length) {
+      h += '<tr><td colspan="8" style="padding:14px;color:#6b7280">Không có báo cáo ' +
+           'hoàn tất nào trong khoảng đã chọn.</td></tr>';
+    }
+    $k('tblCongNoNV').innerHTML = h;
+  }).catch(function (e) { kbusy(false); ktoast(e.message); });
+}
+
+/*════════════════════ ⑤ KIỂM TRA NHANH ════════════════════
+ * `jpKiemTraNhanh` chạy lại toàn bộ công thức tiền bằng số thật từ form giấy.
+ * Trước đây chỉ gọi được từ trình chỉnh sửa Apps Script — kế toán không có cửa nào
+ * tự kiểm sau mỗi lần deploy.                                                   */
+
+function ktSelfTest() {
+  kbusy(true, 'Đang chạy kiểm tra…');
+  ksrv('jpKiemTraNhanh', KT.token).then(function (out) {
+    kbusy(false);
+    $k('stOut').textContent = out;
+    ktoast(/SAI|LỆCH|LOI/i.test(out) ? 'Có phép kiểm KHÔNG đạt — đọc kết quả'
+                                     : 'Công thức tiền vẫn đúng');
+  }).catch(function (e) { kbusy(false); $k('stOut').textContent = 'Lỗi: ' + e.message; });
+}
+
+
+/** Nạp dữ liệu cho màn đang mở của module Đối soát. Gọi từ bảng KT_NAV ở KtJs01. */
+/*════════════ GIAO DỊCH NGÂN HÀNG — API realtime (Andy chốt 15/08/2026) ════════════*/
+
+/**
+ * ĐỌC THỬ — in 14 cột kèm nhãn app đang hiểu, ba dòng thô, và ba dòng app đọc ra.
+ *
+ * ⚠️ Đây là bản web của `jpXemGiaoDichMau_` (chạy tay trong trình chỉnh sửa). Có cả hai
+ * là CỐ Ý: hàm chạy tay dùng được cả khi web hỏng hoặc chưa đăng nhập được, còn nút này
+ * để kế toán khỏi phải vào trình chỉnh sửa — nơi mà một cú gõ nhầm là sửa code thật.
+ */
+function ktBankDocThu() {
+  kbusy(true, 'Đang đọc sheet giao dịch…');
+  ksrv('jpDocGiaoDichNganHang', KT.token, 5).then(function (d) {
+    kbusy(false);
+    /* ⚠️ Bốn số này phải KHỚP `JP_BANK_COT` ở `00_Config`. Client không đọc được hằng
+       số máy chủ nên đành chép — lệch nhau là bảng dạy sai chính cái nó đi kiểm. */
+    var C = { ma: 1, ngay: 2, tienVao: 5, noiDung: 8 };
+    var vai = function (i) {
+      var v = [];
+      if (i === C.ma)      v.push('MÃ THAM CHIẾU');
+      if (i === C.ngay)    v.push('NGÀY');
+      if (i === C.tienVao) v.push('TIỀN VÀO');
+      if (i === C.noiDung) v.push('NỘI DUNG (lọc MTDMN ở đây)');
+      return v.join(' · ');
+    };
+    /* NÓI RA đang đọc từ nguồn nào — hai đường cho ra cùng một bảng, không in thì
+       kế toán sửa công thức mà app vẫn đang đọc sheet ngoài cũng không biết. */
+    var h = '<div class="alert ok">Nguồn: <b>' + kesc(d.nguon || '?') + '</b></div>' +
+      (d.canhBao ? '<div class="alert danger"><b>' + kesc(d.canhBao) + '</b></div>' : '') +
+      '<div class="alert warn"><b>Soi kỹ bảng dưới trước khi xác nhận.</b> ' +
+      'Bản đồ cột hiện suy từ câu lệnh QUERY, <b>chưa ai đối chiếu hàng tiêu đề thật</b>. ' +
+      'Sai cột tiền là ghi nhận nộp tiền sai số, mà sổ vẫn cân.</div>' +
+      '<div class="tableWrap"><table><tr><th>Cột</th><th>Tiêu đề thật</th>' +
+      '<th>App đang hiểu là</th></tr>' +
+      (d.tieuDe || []).map(function (t, i) {
+        var v = vai(i + 1);
+        return '<tr' + (v ? ' class="lech"' : '') + '><td>Col' + (i + 1) + '</td>' +
+          '<td>' + kesc(t) + '</td><td>' + (v ? '<b>' + v + '</b>' : '') + '</td></tr>';
+      }).join('') + '</table></div>';
+
+    h += '<h3>Ba dòng thô</h3><div class="tableWrap"><table>' +
+      (d.mau || []).map(function (r) {
+        return '<tr>' + r.map(function (o) {
+          return '<td>' + kesc(String(o === null || o === undefined ? '' : o)).slice(0, 30) + '</td>';
+        }).join('') + '</tr>';
+      }).join('') + '</table></div>';
+
+    h += '<h3>App đọc ra — lọc còn ' + (d.soDong || 0) + ' dòng</h3>' +
+      '<div class="tableWrap"><table><tr><th>Mã tham chiếu</th><th>Ngày</th>' +
+      '<th class="num">Số tiền</th><th>Nội dung (ghép mọi ô chữ)</th></tr>' +
+      (d.rows || []).map(function (r) {
+        return '<tr><td>' + kesc(r.refId) + '</td><td>' + kesc(r.date) + '</td>' +
+          '<td class="num">' + kmoney(r.amount) + 'đ</td>' +
+          '<td>' + kesc(r.desc).slice(0, 140) + '</td></tr>';
+      }).join('') + '</table></div>' +
+      '<div style="margin-top:10px;display:flex;gap:8px">' +
+        '<button class="btn primary sm" onclick="ktBankXacNhan(true)">Xác nhận cột đọc ĐÚNG</button>' +
+        '<button class="btn ghost sm" onclick="ktBankXacNhan(false)">Tắt tự áp</button>' +
+      '</div>';
+    $k('dsBank').innerHTML = h;
+  }).catch(function (e) {
+    kbusy(false);
+    $k('dsBank').innerHTML = '<div class="alert danger"><b>Không đọc được.</b><br>' +
+      kesc(e.message) + '</div>';
+  });
+}
+
+/**
+ * LỊCH CHẠY TỰ ĐỘNG — đặt ngay trên web, không phải mở trình chỉnh sửa Apps Script.
+ *
+ * ⚠️ Ô chọn hàm của trình chỉnh sửa **không liệt kê hàm có dấu `_` cuối tên**, nên
+ * `jpLapLich5Phut_` là thứ không bấm được. Đây là đường duy nhất kế toán tự làm được.
+ *
+ * ⚠️ **Luôn hiện, kể cả khi CHƯA có lịch** — ẩn đi thì không phân biệt được "chưa bật"
+ * với "màn hình hỏng", đúng bệnh ô `dbSetup` đã mắc.
+ */
+function ktBankLichHtml(t) {
+  t = t || {};
+  /* Ô CHỌN NHỊP + hai nút, một hàng — khuôn của web kế toán POSH. Ba nút rời như bản
+     trước thì thêm một mốc phút là thêm một nút, và không nói ra nhịp nào đang chạy. */
+  var opt = [1, 5, 10, 15, 30].map(function (p) {
+    return '<option value="' + p + '"' + (t.phut === p ? ' selected' : '') + '>' +
+      p + ' phút</option>';
+  }).join('');
+  /* ⚠️ MOT HANG, khong boc card. No nam TRONG card "Doi soat chuyen khoan" roi — boc
+     them mot card nua la card long card, va tinh trang lich bi day xuong duoi bang. */
+  return '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;' +
+      'margin:4px 0 10px">' +
+      '<b>Chạy nền mỗi</b><select id="dsLichPhut">' + opt + '</select>' +
+      '<button class="btn primary sm" onclick="ktBankDatLich()">Bật chạy nền</button>' +
+      '<button class="btn ghost sm" onclick="ktBankDatLich(0)">Tắt chạy nền</button>' +
+      '<button class="btn ghost sm" onclick="ktBankXemLich()">Xem lại</button>' +
+      '<span class="badge ' + (!t.co ? 'pending' : (t.xacNhanCot ? 'done' : 'fixing')) +
+      '" style="white-space:pre-line;text-align:left">' + kesc(t.msg || '') + '</span>' +
+    '</div>' +
+    '<p class="hint">Chạy dày hơn <b>chưa chắc thấy tiền sớm hơn</b>: ô ' +
+      '<code>JP_BankFeed</code> là công thức <code>IMPORTRANGE</code>, nó tự tính lại theo ' +
+      'nhịp của bảng tính — app đọc tab <b>không ép nó tính lại được</b>. Chạy trùng thì vô ' +
+      'hại vì giao dịch đã đọc rồi sẽ bị bỏ qua theo mã tham chiếu.<br>' +
+      'Mỗi lượt chạy nền còn <b>tự tính lại cảnh báo</b> cho mọi báo cáo, nên sau khi sửa ' +
+      'một luật cảnh báo thì <b>không phải đi bấm tay từng báo cáo</b> nữa.</p>';
+}
+
+function ktBankXemLich() {
+  kbusy(true);
+  ksrv('jpLichDoiSoatNH', KT.token).then(function (t) {
+    kbusy(false); $k('dsBankLich').innerHTML = ktBankLichHtml(t);
+  }).catch(function (e) {
+    kbusy(false);
+    /* Lỗi thì NÓI RA ngay trong ô, đừng để ô trống — trống trông y hệt "chưa bật". */
+    $k('dsBankLich').innerHTML =
+      '<div class="alert danger">Không đọc được tình trạng lịch.<br>' + kesc(e.message) +
+      ' <button class="btn ghost sm" onclick="ktBankXemLich()">Thử lại</button></div>';
+  });
+}
+
+function ktBankDatLich(phut) {
+  /* Không truyền gì = đọc ô chọn nhịp. Truyền 0 = tắt. */
+  if (phut === undefined) phut = Number(($k('dsLichPhut') || {}).value) || 5;
+  if (!phut && !confirm('Tắt hẳn lịch tự động? Từ giờ đối soát chỉ chạy khi tự bấm.')) return;
+  if (phut && !confirm('Đặt lịch chạy đối soát mỗi ' + phut + ' phút?\n\n' +
+                       'Lịch chỉ GHI TIỀN khi cổng "xác nhận cột" đang bật.')) return;
+  kbusy(true);
+  ksrv('jpDatLichDoiSoatNH', KT.token, phut).then(function (t) {
+    kbusy(false); ktoast(t.msg); $k('dsBankLich').innerHTML = ktBankLichHtml(t);
+  }).catch(function (e) { kbusy(false); ktoast(e.message); });
+}
+
+function ktBankXacNhan(dong) {
+  if (dong && !confirm('Xác nhận app đang đọc ĐÚNG cột ngày / tiền / mã tham chiếu?\n\n' +
+                       'Sau bước này luồng tự động được phép ghi tiền vào sổ công nợ.')) return;
+  kbusy(true);
+  ksrv('jpXacNhanCotNganHang', KT.token, dong).then(function (r) {
+    kbusy(false); ktoast(r.msg);
+    /* Cổng này đổi thì câu trên card lịch đổi theo ("chạy nhưng KHÔNG áp gì" ⇄ "có tự áp").
+       Không nạp lại là card nói tình trạng CŨ, đúng lúc kế toán vừa đổi nó. */
+    ktBankXemLich();
+  }).catch(function (e) { kbusy(false); ktoast(e.message); });
+}
+
+/**
+ * DẢI THẺ SỐ — học từ web kế toán POSH (Andy 15/08/2026: *"làm như này nè dễ xem"*).
+ *
+ * ⚠️ **Chỉ tô màu khi số KHÁC 0.** Tô đỏ một con số `0` là báo động giả, và báo động giả
+ * vài lần thì không ai đọc dải thẻ nữa — đúng bệnh `canhBao` cũ. Việc tô hay không do
+ * JS quyết theo giá trị thật, không phải gán cứng class trong CSS.
+ *
+ * ⚠️ Thẻ **"của thương hiệu khác"** là thẻ JP phải có mà POSH không cần: nguồn giao dịch
+ * dùng chung nhiều thương hiệu, và số này khác 0 là **bình thường**, không phải lỗi — nên
+ * nó tô VÀNG (cần biết) chứ không tô ĐỎ (phải sửa).
+ */
+function ktTheSoNH(d) {
+  var ds = d.theoCoSo || [], cho = d.cho || [];
+  var khop = 0, lech = 0, vao = 0, truoc = 0;
+  ds.forEach(function (r) {
+    vao += Number(r.tienVaoNH) || 0;
+    truoc += Number(r.nhanTruoc) || 0;
+    if (r.lech) lech++; else if (r.tienVaoNH) khop++;
+  });
+  var dem = function (re) {
+    return cho.filter(function (x) { return re.test(x.lyDo || ''); }).length;
+  };
+  var khongMa = dem(/KHÔNG có mã định danh|chưa có trong bảng|chưa nối/);
+  var hieuKhac = dem(/KHÔNG phải JP/);
+  var nhieuMa = dem(/nhiều mã định danh/);
+
+  var the = [
+    ['Dòng ngân hàng lấy được', d.soDocDuoc, ''],
+    ['Tổng tiền vào', kmoney(vao) + 'đ', ''],
+    ['Cơ sở khớp đúng', khop, khop ? 'ok' : ''],
+    ['Cơ sở lệch', lech, lech ? 'bad' : ''],
+    ['Không nhận ra mã', khongMa, khongMa ? 'bad' : ''],
+    ['Của thương hiệu khác', hieuKhac, hieuKhac ? 'warn' : ''],
+    ['Khớp nhiều mã', nhieuMa, nhieuMa ? 'bad' : ''],
+    ['Nhận trước', kmoney(truoc) + 'đ', truoc ? 'warn' : ''],
+    ['Sẽ ghi', kmoney(d.tienTuAp) + 'đ', d.tienTuAp ? 'ok' : '']
+  ];
+  return '<div class="kpi">' + the.map(function (x) {
+    return '<div' + (x[2] ? ' class="' + x[2] + '"' : '') + '>' +
+      '<small>' + kesc(x[0]) + '</small><b>' + kesc(String(x[1])) + '</b></div>';
+  }).join('') + '</div>';
+}
+
+/** Thanh tóm tắt một dòng — đọc lướt là biết lượt này làm được gì, còn kẹt gì. */
+function ktTomTatNH(d) {
+  var ds = d.theoCoSo || [];
+  var phai = 0, daGhi = 0, coTien = 0;
+  ds.forEach(function (r) {
+    phai += Number(r.phaiNop) || 0;
+    daGhi += Number(r.daGhiNhan) || 0;
+    if (r.tienVaoNH) coTien++;
+  });
+  var kt = d.khopTruoc || {};
+  return '<div class="alert ' + (d.soCho ? 'warn' : 'ok') + '">' +
+    '<b>' + coTien + '</b> cơ sở có tiền về · phải nộp <b>' + kmoney(phai) + 'đ</b> · ' +
+    'đã ghi nhận <b>' + kmoney(daGhi) + 'đ</b> · ' +
+    (d.soCho ? '⚠️ <b>' + d.soCho + '</b> giao dịch (' + kmoney(d.tienCho) +
+               'đ) chưa vào sổ được — lý do ở bảng ② bên dưới'
+             : 'không giao dịch nào kẹt') +
+    (kt.gan ? '<br>Vừa khớp <b>' + kt.gan + '</b> khoản nhận trước (' +
+              kmoney(kt.tien) + 'đ) vào báo cáo mới duyệt.' : '') +
+    '</div>';
+}
+
+/**
+ * ① CÔNG NỢ ĐỐI CHIẾU NGÂN HÀNG — một dòng một cơ sở (khuôn bảng ① của web kế toán POSH).
+ *
+ * ⚠️ Đây mới là bảng trả lời câu kế toán hỏi. Danh sách giao dịch chỉ nói từng dòng tiền,
+ * **không nói cơ sở nào đang hụt** — mà đó là việc phải xử.
+ *
+ * ⚠️ Cột **Lệch** = tiền về − đã ghi − sẽ ghi, tức **tiền đã về mà sẽ KHÔNG vào sổ**.
+ * Không phải "phải nộp − tiền về": nộp thiếu / nộp dư là chuyện công nợ, còn cột này đo
+ * chỗ **app không ghi được**. Hai việc khác nhau, gộp lại là không biết đi sửa cái gì.
+ */
+function ktBangCongNoNH(ds) {
+  ds = ds || [];
+  if (!ds.length) {
+    /* ⚠️ Rỗng thì NÓI RA, đừng in bảng trống — bảng trống trông y hệt "mọi thứ khớp". */
+    return '<h3>① Công nợ đối chiếu ngân hàng</h3>' +
+      '<div class="alert warn">Chưa dựng được dòng nào. Thường là do chưa đọc được ' +
+      'giao dịch, hoặc chưa cơ sở nào có báo cáo hoàn tất.</div>';
+  }
+  var t = { phaiNop: 0, tienVaoNH: 0, daGhiNhan: 0, seGhi: 0, nhanTruoc: 0, lech: 0 };
+  var body = ds.map(function (r) {
+    ['phaiNop', 'tienVaoNH', 'daGhiNhan', 'seGhi', 'nhanTruoc', 'lech'].forEach(function (k) {
+      t[k] += Number(r[k]) || 0;
+    });
+    return '<tr' + (r.lech ? ' class="lech"' : '') + '>' +
+      '<td class="wrapCell">' + kesc(r.code) +
+        (r.active ? '' : ' <span class="sub">(ngưng)</span>') +
+        '<br><span class="sub">' + kesc(r.name) + '</span></td>' +
+      '<td class="wrapCell">' + (r.dinhDanh ? kesc(r.dinhDanh)
+                           : '<b class="lech">chưa khai</b>') + '</td>' +
+      '<td class="num">' + kmoney(r.phaiNop) + 'đ</td>' +
+      '<td class="num">' + kmoney(r.tienVaoNH) + 'đ' +
+        (r.soGD ? '<br><span class="sub">' + r.soGD + ' GD</span>' : '') + '</td>' +
+      '<td class="num">' + kmoney(r.daGhiNhan) + 'đ</td>' +
+      '<td class="num">' + (r.seGhi ? '<b>' + kmoney(r.seGhi) + 'đ</b>' : '—') + '</td>' +
+      '<td class="num">' + (r.nhanTruoc ? '<b>' + kmoney(r.nhanTruoc) + 'đ</b>' : '—') + '</td>' +
+      '<td class="num">' + (r.lech ? '<b>' + kmoney(r.lech) + 'đ</b>' : '0') + '</td>' +
+      '<td class="wrapCell">' + kesc(r.trangThai) + '</td></tr>';
+  }).join('');
+
+  return '<h3>① Công nợ đối chiếu ngân hàng — theo cơ sở</h3>' +
+    '<div class="tableWrap"><table class="bankTbl"><tr><th>Cơ sở</th><th>Mã định danh</th>' +
+    '<th class="num">Phải nộp</th><th class="num">Tiền vào NH</th>' +
+    '<th class="num">Đã ghi nhận</th><th class="num">Sẽ ghi</th>' +
+    '<th class="num">Nhận trước</th><th class="num">Lệch</th><th>Trạng thái</th></tr>' + body +
+    '<tr><td colspan="2"><b>TỔNG</b></td>' +
+    '<td class="num"><b>' + kmoney(t.phaiNop) + 'đ</b></td>' +
+    '<td class="num"><b>' + kmoney(t.tienVaoNH) + 'đ</b></td>' +
+    '<td class="num"><b>' + kmoney(t.daGhiNhan) + 'đ</b></td>' +
+    '<td class="num"><b>' + kmoney(t.seGhi) + 'đ</b></td>' +
+    '<td class="num"><b>' + kmoney(t.nhanTruoc) + 'đ</b></td>' +
+    '<td class="num"><b>' + kmoney(t.lech) + 'đ</b></td><td></td></tr>' +
+    '</table></div>' +
+    '<p class="hint"><b>Lệch</b> = tiền vào NH − đã ghi nhận − sẽ ghi, tức <b>tiền đã về ' +
+    'mà sẽ KHÔNG vào sổ</b>. Lý do từng dòng ở bảng ② bên dưới.<br>' +
+    '<b>Nhận trước</b> = tiền đã về mà cơ sở <b>chưa có báo cáo hoàn tất</b> để gắn vào. ' +
+    'Nó <b>đã được ghi nhận</b>, đang giữ riêng, và <b>tự khớp vào báo cáo</b> ngay lượt ' +
+    'chạy nền kế tiếp sau khi nhân viên nộp và kế toán duyệt xong.<br>' +
+    '<b>Tiền vào NH</b> đếm cả giao dịch đã áp lượt trước, nên nó là tiền THẬT đã về, ' +
+    'không phải phần còn lại của lượt này.</p>';
+}
+
+/** Đối soát: xem trước (không ghi) hoặc áp thật. */
+function ktBankDoiSoat(ghi) {
+  if (ghi && !confirm('Áp thật các giao dịch khớp chắc chắn vào sổ công nợ?')) return;
+  kbusy(true, ghi ? 'Đang áp…' : 'Đang xem trước…');
+  ksrv('jpDoiSoatNganHang', KT.token, !!ghi).then(function (d) {
+    kbusy(false);
+    var h = '<div class="alert ' + (d.daXacNhan ? (ghi ? 'ok' : 'warn') : 'danger') + '">' +
+      kesc(d.msg) + '</div>' + ktTheSoNH(d) + ktTomTatNH(d) +
+      ktBangCongNoNH(d.theoCoSo);
+
+    /* ⚠️ Hàng CHỜ phải in RA LÝ DO từng dòng. In mỗi con số "12 giao dịch chờ" là kế
+       toán không biết phải làm gì với chúng, và hàng chờ cứ dài ra mãi. */
+    if (d.cho && d.cho.length) {
+      h += '<h3>② Giao dịch CHƯA vào sổ được — ' + d.soCho + ' giao dịch</h3>' +
+        '<div class="tableWrap"><table><tr><th>Mã GD</th><th>Ngày</th>' +
+        '<th class="num">Số tiền</th><th>Nội dung</th><th>Vì sao chưa tự áp</th></tr>' +
+        d.cho.map(function (x) {
+          return '<tr class="lech"><td>' + kesc(x.refId) + '</td>' +
+            '<td>' + kesc(x.ngay) + '</td>' +
+            '<td class="num">' + kmoney(x.soTien) + 'đ</td>' +
+            '<td class="wrapCell">' + kesc(x.noiDung) + '</td>' +
+            '<td class="wrapCell"><b>' + kesc(x.lyDo) + '</b></td></tr>';
+        }).join('') + '</table></div>' +
+        '<p class="hint">Mấy dòng này xử bằng <b>Xác nhận nộp tay</b> ở tab bên cạnh, ' +
+        'hoặc sửa nội dung chuyển khoản cho lần sau dò được cơ sở.</p>';
+    }
+    $k('dsBank').innerHTML = h;
+    /* Tình trạng lịch đi KÈM cùng một lượt gọi — vẽ luôn, khỏi tốn đợt chờ thứ hai. */
+    if (d.lich) $k('dsBankLich').innerHTML = ktBankLichHtml(d.lich);
+  }).catch(function (e) {
+    kbusy(false);
+    $k('dsBank').innerHTML = '<div class="alert danger">' + kesc(e.message) + '</div>';
+    /* ⚠️ Đọc feed hỏng KHÔNG được làm mất card lịch. Lịch vẫn đang chạy và vẫn ghi tiền
+       — ẩn nó đi đúng lúc đang hỏng là giấu mất thứ kế toán cần tắt gấp nhất. */
+    if (!$k('dsBankLich').innerHTML) ktBankXemLich();
+  });
+}
+
+/**
+ * KHỐI "CÔNG NỢ — MỘT KHỐI, 6 HẠNG MỤC LIÊN KẾT" — khuôn của web kế toán POSH.
+ *
+ * Andy chốt 15/08/2026: *"đối chiếu công nợ phải như này em nhé"*.
+ *
+ * ⚠️ Khối này KHÔNG phải trang trí. Sáu màn kia trông như sáu việc rời nhau, nên kế toán
+ * hay đi nhập tay ở màn ④ một khoản mà màn ② hoặc ③ **đã ghi rồi** ⇒ **cộng đôi tiền
+ * nộp**, mà sổ vẫn CÂN vì cả hai lần đều là bút toán đủ hai vế. Câu *"② ③ ④ đi thẳng vào
+ * cột Đã nhận của sổ ①"* là chỗ duy nhất trên cả web nói ra chuyện đó.
+ *
+ * ⚠️ Hàng nút đi bằng `ktGo` theo ĐÚNG đường dẫn trong `KT_NAV` — `ktTimTab_`/`ktTimLa_`
+ * **rơi về phần tử đầu tiên** khi không thấy id, nên gõ sai một chữ là nút im lặng mở
+ * NHẦM màn. Phép ⑨ của `soat-tinh.py` quét đúng mấy lời gọi này.
+ */
+function ktKhoiCongNo() {
+  /* ⚠️ CHỈ CHỮ, KHÔNG có hàng nút. Hàng nút đã có sẵn ở dải subtab ngay trên đầu màn —
+     thêm một hàng nữa là HAI hàng chồng nhau, hàng trên bốn mục hàng dưới sáu mục, nhìn
+     vào không biết bấm hàng nào. POSH chỉ có ĐÚNG một hàng. Đã mắc đúng lỗi này một lần
+     (Andy 15/08/2026: *"sao làm lộn xộn quá"*).
+     Viền cam bên trái là của POSH — nó tách khối GIẢI THÍCH khỏi khối LÀM VIỆC. */
+  return '<div class="card" style="border-left:4px solid var(--warn)">' +
+    '<h2>Công nợ — một khối, 6 hạng mục liên kết</h2>' +
+    '<p class="hint"><b>①</b> Sổ công nợ theo cơ sở (dư đầu kỳ → dư cuối kỳ, cơ sở nào ' +
+    '<b>còn thiếu thì chuyển sang tháng sau</b>) · <b>②</b> đối soát tiền mặt bằng phiếu ' +
+    'thu MISA · <b>③</b> đối soát nộp tiền qua chuyển khoản, chạy nền tự động · ' +
+    '<b>④</b> xác nhận nộp tay · <b>⑤</b> công nợ theo nhân viên · <b>⑥</b> nhật ký lô.<br>' +
+    'Ghi nhận ở <b>② ③ ④</b> đều đi thẳng vào cột <b>Đã nhận</b> của sổ <b>①</b> — ' +
+    '<b>không cơ sở nào phải nhập tay hai lần.</b></p></div>';
+}
+
+function ktDsLoad(sub) {
+  /* Vẽ khối vào MỌI màn ds — mỗi lúc chỉ một màn hiện nên không tốn gì, và khỏi phải
+     nhớ "thêm màn mới thì thêm chỗ gọi". */
+  var kh = ktKhoiCongNo();
+  Array.prototype.forEach.call(document.querySelectorAll('.dsKhoi'),
+                               function (el) { el.innerHTML = kh; });
+
+  if (sub === 'dsSo')     { ktSoCongNo(); return; }
+  if (sub === 'dsTay')    { ktFillReportPicker(); return; }
+  if (sub === 'dsNV')     { ktCongNoNV(); ktPayBoard(); return; }
+  if (sub === 'dsNhatKy') { ktReconHistory(); return; }
+  /* MỘT lượt gọi lấy cả bảng công nợ, hàng chờ VÀ tình trạng lịch — mở tab là tự tải,
+     không phải bấm (học từ web kế toán POSH). `false` = xem trước, KHÔNG ghi: mở màn ra
+     mà tự ghi tiền vào sổ là chuyện không ai cho phép. */
+  if (sub === 'dsCK')     { ktBankDoiSoat(false); return; }
+  /* dsFile: không nạp gì thêm — kế toán phải tự chọn file trước. */
+}
+
+</script>
+
+

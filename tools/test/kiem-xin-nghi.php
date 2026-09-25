@@ -332,6 +332,22 @@ $than = strstr( $tpl, '<style' ) ? substr( $tpl, 0, strpos( $tpl, '<style' ) )
 foreach ( array( 'xnTu', 'xnDen', 'xnLoai', 'xnLyDo', 'btGuiNghi', 'oQuyPhep', 'loiNghi' ) as $o ) {
 	t( 'màn trạm có ô ' . $o, false !== strpos( $than, $o ), $o );
 }
+
+/* 🔴 SỬA 17/09/2026 — BIỂU MẪU RA KHỎI TAB "TÔI". Anh Thắng khoanh đúng khối này: *"Chuyển này
+   thành 1 tính năng"*. Nay nó là màn riêng mở từ ô trong lưới Ứng dụng. */
+t( '🔴 biểu mẫu xin nghỉ là màn riêng',
+	false !== strpos( $than, '<div id="mXinNghi" class="mn an">' ), $than );
+$i_toi_het = strpos( $than, '<!-- /tToi -->' );
+t( 'và KHÔNG còn nằm trong tab "Tôi"',
+	strpos( $than, 'id="mXinNghi"' ) > $i_toi_het,
+	array( strpos( $than, 'id="mXinNghi"' ), $i_toi_het ) );
+/* ⚠️ Ô QUỸ PHÉP ĐỨNG TRÊN BIỂU MẪU. Người mở màn này ra là để quyết "xin mấy ngày" — con số
+   còn lại phải đọc được TRƯỚC khi họ gõ, không phải sau. */
+t( '⚠️ ô quỹ phép đứng TRÊN ô nhập ngày',
+	strpos( $than, 'id="oQuyPhep"' ) < strpos( $than, 'id="xnTu"' ), $than );
+/* Người nộp xong phải biết đi đâu xem kết quả — không thì họ nộp lại vì tưởng hụt. */
+t( 'màn chỉ đường sang tab Tôi để xem kết quả',
+	false !== strpos( $than, 'Đơn đã nộp và kết quả duyệt xem ở' ), $than );
 t( 'nút gửi đơn nghỉ gọi đúng cửa xinnghi', false !== strpos( $tpl, "guiDon('xinnghi'" ) );
 
 /* 🔴 NGÀY MẶC ĐỊNH LẤY TỪ MÁY CHỦ. Lấy `new Date()` của điện thoại thì máy lệch múi giờ là đơn
@@ -359,8 +375,14 @@ t( 'JS không bày "còn lại" khi công ty chưa đặt trần',
 
 $web = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-web.php' );
 t( 'trang quản trị có khối duyệt đơn nghỉ', false !== strpos( $web, 'the_don_nghi' ) );
-t( 'khối duyệt nằm cạnh khối lệnh đi trễ',
-	strpos( $web, 'self::the_don_nghi(' ) > strpos( $web, 'self::the_lenh_tre(' ) );
+/* 🔴 HAI KHỐI ĐÃ DỜI SANG MÀN "ĐƠN TỪ" — anh Thắng 18/09/2026: *"Chuyển cái này ra 1 tab riêng
+   ( Đơn từ )"*. Nên hỏi ở `class-vhcc-web.php` là hỏi sai tệp từ bản 4.54.0.
+   ⚠️ Ý phép thử giữ NGUYÊN: hai khối phải đứng CẠNH NHAU và đúng thứ tự (đi trễ trước, xin
+      nghỉ sau) — chúng trả lời cùng một câu hỏi, tách nhau ra là người trực phải tìm hai chỗ. */
+$don_tu = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-web-don-tu.php' );
+t( 'khối duyệt nằm cạnh khối lệnh đi trễ, trong màn Đơn từ',
+	strpos( $don_tu, 'VHCC_Web::the_don_nghi(' ) > strpos( $don_tu, 'VHCC_Web::the_lenh_tre(' )
+	&& false !== strpos( $don_tu, 'VHCC_Web::the_lenh_tre(' ), $don_tu );
 foreach ( array( 'duyet_nghi', 'choi_nghi', 'phep_nam' ) as $v ) {
 	t( 'có cửa xử lý ' . $v, false !== strpos( $web, "'" . $v . "'" ), $v );
 }

@@ -128,10 +128,16 @@ label.tich input{flex:0 0 auto;width:19px;height:19px;margin:0}
 /* Lưới khoản tiền: hai cột, nhãn nhỏ trên ô. Chín khoản xếp một cột là cuộn mãi không hết. */
 .luoi-khoan{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .luoi-khoan .fldx{margin:0}
-input,select{width:100%;padding:12px 13px;font-size:16px;border-radius:var(--bo-o);
+/* 🔴 `textarea` PHẢI NẰM TRONG LUẬT NÀY. Bỏ sót nó thì trình duyệt dùng kiểu mặc định: phông
+   monospace, cỡ chữ nhỏ, và KHÔNG rộng hết thẻ — một ô con con nép bên trái giữa một tấm thẻ
+   trắng. Anh Thắng 21/09/2026, ảnh chụp khung chat: *"giao diện bị xấu"*. Trước đó cả trang
+   không có `textarea` nào nên chỗ sót này chưa bao giờ lộ ra. */
+input,select,textarea{width:100%;padding:12px 13px;font-size:16px;border-radius:var(--bo-o);
 	border:1px solid var(--vien-dam);background:var(--nen);color:var(--chu);font-family:inherit}
-input:focus,select:focus{outline:none;border-color:var(--nhan);
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--nhan);
 	box-shadow:0 0 0 3px rgba(56,189,248,.22)}
+/* Kéo cao được, KHÔNG kéo ngang: kéo ngang thì ô thò ra khỏi thẻ và cả bố cục vỡ. */
+textarea{resize:vertical;min-height:52px;line-height:1.45}
 /* ══════════════════════════════════════════════════════════════════════════════════════════
  * 🔴 Ô NGÀY / GIỜ TRÊN iOS TRÀN RA NGOÀI THẺ.
  *
@@ -360,23 +366,38 @@ button.o-ung{border:0;background:transparent;font:inherit;color:var(--chu);curso
 	display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800}
 .thanh button{flex:1;padding:11px 8px;font-size:14px}
 /* Chừa chỗ cho thanh dính, không thì nó che mất đầu khối vừa nhảy tới. */
-.khung{position:relative}
 /* ══════════════════════════════════════════════════════════════════════════════════════════
- * 🔴 KHUNG XEM CAMERA PHẢI THẤP LẠI, KHÔNG THÌ NÚT CHỤP RƠI KHỎI MÀN.
+ * 🔴 KHUNG XEM PHẢI LÀ MỘT CÁI HỘP CÓ SẴN KÍCH THƯỚC, KHÔNG PHẢI CÁI HỘP DO ẢNH QUYẾT ĐỊNH.
  *
- * Anh Thắng 18/09/2026, hai ảnh chụp iPhone: *"Đẩy màn chụp nhỏ lại 1/2 để cho nút chụp lên
- * cao. Gọn lại"*. Camera trước của điện thoại cho khung DỌC; `width:100%` thì chiều cao tự
- * kéo theo tỷ lệ, và trên máy màn hẹp nó đẩy nút "Chụp ngay" xuống tận mép dưới — người đang
- * đứng chấm công phải cuộn mới bấm được, giữa lúc một tay cầm máy tự chụp mặt mình.
+ * Anh Thắng 20/09/2026, hai ảnh chụp iPhone: *"bấm chụp nó gom ảnh là sao vậy"* — hình trực
+ * tiếp thì nhỏ, hẹp, có lề trắng hai bên; bấm Chụp ngay xong thì tấm ảnh nhảy ra to hết chiều
+ * ngang và cắt mất trên dưới. Hai khung khác hẳn nhau, nên cái người ta canh KHÔNG PHẢI cái
+ * người ta nhận.
  *
- * `max-height` theo `vh` chứ không theo pixel: màn nào cũng chừa đúng nửa trên cho khung xem,
- * nửa dưới cho nút — không phụ thuộc máy.
+ * Nguyên do: bản trước đặt `max-height` thẳng lên `<video>` và `<canvas>` mà không cho chúng
+ * một chiều cao. Với thẻ có kích thước gốc (video, canvas, img), khi `max-height` bị chạm thì
+ * trình duyệt co luôn CHIỀU NGANG để giữ tỷ lệ gốc — nên hình trực tiếp teo lại thành một dải
+ * hẹp giữa hai lề trắng. Còn `<canvas>` thì `width`/`height` đã khai bằng thuộc tính HTML nên
+ * nó đi theo nhánh khác của cùng luật ấy: giữ nguyên chiều ngang, để `object-fit:cover` cắt
+ * trên dưới. Cùng một dòng CSS, hai kết quả khác nhau — và không ai đoán được điều đó khi đọc.
  *
- * ⚠️ `object-fit:cover` chỉ CẮT PHẦN NHÌN, không đụng tới ảnh lưu. Ảnh chấm công vẽ từ
- *    `video.videoWidth/videoHeight` sang một canvas riêng (xem `chup()`), nên vẫn đủ khung như
- *    cũ. Nếu ngày nào đó đổi sang lưu chính canvas đang bày thì phải đọc lại chỗ này.
+ * Nay `.khung` tự giữ chiều cao, hai thẻ con phủ kín nó bằng `height:100%`. Không còn chỗ nào
+ * cho luật co-theo-tỷ-lệ chen vào, nên hình trực tiếp và ảnh vừa chụp CHẮC CHẮN cùng khung.
+ *
+ * ⚠️ `contain` CHỨ KHÔNG PHẢI `cover`, và đây là chỗ đáng cân nhắc nhất.
+ *    `cover` nhìn đã mắt hơn (đầy khung, không lề đen) nhưng nó CẮT — mà khung xem lại là thứ
+ *    người ta dùng để canh mặt mình vào giữa. Cắt phần nhìn trong khi ảnh lưu giữ nguyên cả
+ *    khung nghĩa là người ta canh theo một tấm ảnh không tồn tại; ngược lại, cắt cả ảnh lưu
+ *    cho khớp thì có ngày cắt mất nửa cái mặt của một phiếu chấm công đang bị tranh cãi.
+ *    `contain` chịu hai dải đen hai bên để đổi lấy: cái thấy trên màn ĐÚNG BẰNG cái lưu xuống.
+ *
+ * ⚠️ 46vh giữ nguyên — anh Thắng 18/09/2026: *"Đẩy màn chụp nhỏ lại 1/2 để cho nút chụp lên
+ *    cao. Gọn lại"*. Khung cao hơn là nút "Chụp ngay" rơi khỏi màn trên máy hẹp, và người ta
+ *    phải cuộn giữa lúc một tay đang cầm máy tự chụp mặt mình.
  * ══════════════════════════════════════════════════════════════════════════════════════════ */
-.khung video,.khung canvas.xem{max-height:46vh;object-fit:cover}
+.khung{position:relative;height:46vh;background:#000;border-radius:var(--bo-the);overflow:hidden}
+/* Phủ kín cái hộp ở trên. `height:100%` là thứ chặn luật co-theo-tỷ-lệ — xem khối `.khung`. */
+.khung video,.khung canvas.xem{width:100%;height:100%;object-fit:contain;background:#000}
 .dem{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
 	pointer-events:none;border-radius:var(--bo-the)}
 .dem span{font-size:96px;font-weight:800;color:#fff;line-height:1;
@@ -424,6 +445,29 @@ button.o-ung{border:0;background:transparent;font:inherit;color:var(--chu);curso
 .mn{position:fixed;inset:0;background:rgba(2,6,23,.94);z-index:9;overflow:auto;
 	padding:14px 14px calc(20px + env(safe-area-inset-bottom));color:#eef2f8}
 .mn .bao{padding-top:8px}
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * MÀN CHỤP MANG BẢNG MÀU TỐI RIÊNG — làm nốt phần đã hứa ở khối chú thích đầu tệp, 25/09/2026.
+ *
+ * Anh Thắng chốt SÁNG TOÀN BỘ ngày 17/09 để trạm đồng nhất với bảy trang còn lại, và chốt ấy
+ * giữ nguyên. Nhưng cái giá của nó là có thật: màn hình sáng hắt vào mặt người đang đứng tự
+ * chụp, ảnh bệt — mà đúng tấm ảnh đó là thứ quản lý mở ra khi có tranh cãi công ca đêm.
+ *
+ * Phần bù đã được VIẾT RA trong chú thích từ hôm ấy nhưng CHƯA AI LÀM: cho riêng `#mChup` nền
+ * tối. Chỉ năm giây đứng chụp mới có chuyện hắt sáng, nên tối đúng năm giây ấy là đủ — không
+ * phải đánh đổi gì với sự đồng nhất của cả trang.
+ *
+ * ⚠️ ĐÈ TOKEN, KHÔNG ĐÈ TỪNG LUẬT. Khai lại bộ biến ngay trên `#mChup` thì mọi thứ bên trong
+ *    (thẻ, nút, ô nhập, nhãn) tự đi theo, kể cả luật viết về sau. Đi sửa tay từng luật là bỏ
+ *    sót, và bỏ sót ở đây nghĩa là một mảng trắng loé giữa màn tối.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+#mChup{--nen:#101828;--the:#1b2436;--nen-2:#243049;
+	--vien:#31405e;--vien-dam:#455873;
+	--chu:#e7ecf5;--chu-dam:#ffffff;--chu-mo:#93a3bd;
+	--nhan:#38bdf8;--nhan-dam:#0ea5e9;--nhan-nhat:#12314a;--do:#f87171;
+	background:var(--nen);color:var(--chu)}
+#mChup .the{background:var(--the);border-color:var(--vien)}
+#mChup label,#mChup .mo,#mChup .ct{color:var(--chu-mo)}
+#mChup input,#mChup select{background:var(--nen-2);border-color:var(--vien-dam);color:var(--chu)}
 .mn>.bao>.mo,.mn>.bao>.ct{color:#b9c4d4}
 .mn>.bao>.phu{color:#dbe3ee;border-color:rgba(255,255,255,.34)}
 .mn .the,.mn .the .mo,.mn .the .ct{color:var(--chu)}
@@ -477,6 +521,99 @@ a{color:var(--nhan)}
 </div>
 
 <!-- ============ MÀN DANH SÁCH THÔNG BÁO ============ -->
+<!-- ============ MÀN NHẮN TIN ============
+     Anh Thắng 20/09/2026: *"Tạo tính năng mini chat trong app. Chọn thành viên cùng cửa hàng
+     và chat"*.
+
+     🔴 MỘT MÀN, HAI LỚP — danh sách cuộc nói chuyện, rồi mới tới khung chat. Nhét cả hai vào
+        một lớp (danh sách bên trái, tin nhắn bên phải như máy tính) là thứ không dùng được
+        trên màn 390px: mỗi bên còn 195px.
+     ⚠️ Phòng CẢ CỬA HÀNG và phòng RIÊNG dùng CHUNG khung chat ở dưới. Tách hai khung là hai
+        chỗ phải sửa mỗi lần đổi cách hiện một bong bóng tin. -->
+<div id="mChat" class="mn an"><div class="bao">
+	<h1>Nhắn tin</h1>
+
+	<div id="chatLop1">
+		<p class="mo">Nhắn cho cả cửa hàng, hoặc chọn một người để nhắn riêng.</p>
+		<div class="the">
+			<label style="margin:0 0 8px">Phòng cửa hàng</label>
+			<div id="chatDsPhong"><p class="trong">Đang tải…</p></div>
+		</div>
+		<div class="the">
+			<label style="margin:0 0 8px">Nhắn riêng</label>
+			<div id="chatDsRieng"><p class="trong">Chưa có cuộc nào.</p></div>
+			<p></p>
+			<button id="btChatNguoi" class="phu">+ Chọn người để nhắn</button>
+		</div>
+		<div class="the an" id="chatOChon">
+			<label style="margin:0 0 8px">Người cùng cửa hàng</label>
+			<input id="chatTim" type="text" placeholder="Gõ tên để lọc" autocomplete="off">
+			<div id="chatDsNguoi"><p class="trong">Đang tải…</p></div>
+		</div>
+		<button id="btDongChat" class="phu">Đóng</button>
+	</div>
+
+	<div id="chatLop2" class="an">
+		<div class="the">
+			<!-- ⚠️ `.hang` cho mọi nút `flex:1`, nên nút Quay lại nuốt nửa hàng và tên phòng bị
+			     ép xuống dòng. Ghim nút lại, nhường chỗ cho tên — tên phòng mới là thứ người ta
+			     cần đọc để biết mình đang nhắn vào đâu. -->
+			<div class="hang" style="margin:0 0 10px;align-items:center">
+				<button id="btChatVe" class="phu" style="flex:0 0 auto;padding:9px 12px">←</button>
+				<b id="chatTen" style="flex:1;min-width:0;overflow:hidden;
+					text-overflow:ellipsis;white-space:nowrap;font-size:16px">—</b>
+			</div>
+			<!-- ⚠️ Khung tin phải có CHIỀU CAO CỐ ĐỊNH và tự cuộn. Để nó cao theo nội dung thì
+			     ô gõ trôi xuống dưới màn sau vài chục tin, và người ta phải cuộn lên mới gõ
+			     được — trên điện thoại thì đó là bỏ cuộc. -->
+			<!-- Khung cuộn cao cố định. Để cao theo nội dung thì ô gõ trôi xuống dưới màn sau
+			     vài chục tin. `display:flex` + `justify-content:flex-end` dồn tin xuống ĐÁY,
+			     nên phòng mới mở (ít tin) không còn một khoảng trắng mênh mông phía trên. -->
+			<div id="chatKhung" style="height:46vh;overflow-y:auto;padding:4px 2px;
+				display:flex;flex-direction:column;justify-content:flex-end">
+				<p class="trong" style="text-align:center">Đang tải…</p>
+			</div>
+			<div id="chatLoi"></div>
+			<div id="chatTepChon" class="an" style="margin:6px 0"></div>
+			<p></p>
+			<textarea id="chatO" rows="2" placeholder="Gõ tin nhắn…" maxlength="1000"></textarea>
+			<!-- ⚠️ Ô chọn tệp ẩn, bấm qua nút 📎. Để `<input type=file>` trần thì mỗi trình
+			     duyệt vẽ một kiểu, và trên iPhone nó là một nút xám không ai nhận ra là bấm
+			     được. `accept` liệt kê đúng danh sách máy chủ nhận — khai rộng hơn là để người
+			     ta chọn xong mới bị chối. -->
+			<input id="chatTep" type="file" class="an"
+				accept="image/jpeg,image/png,image/gif,image/webp,image/heic,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip">
+			<p></p>
+			<div class="hang">
+				<button id="btChatDinhKem" class="phu" title="Đính kèm ảnh hoặc tệp"
+					style="flex:0 0 68px;font-size:20px;line-height:1">📎</button>
+				<button id="btChatGui" class="chinh">Gửi</button>
+			</div>
+		</div>
+	</div>
+</div></div>
+
+<!-- ============ MÀN GỌI THOẠI ============
+     Anh Thắng 20/09/2026: *"Gọi trong app đi em — tự dựng"*.
+     Một màn cho CẢ BA cảnh (đang gọi đi · có người gọi tới · đang nói chuyện): ba màn rời là ba
+     chỗ phải nhớ tắt micro, và quên một chỗ là micro mở tiếp sau khi cúp máy. -->
+<div id="mGoi" class="mn an"><div class="bao">
+	<h1 id="goiTieuDe">Cuộc gọi</h1>
+	<div class="the" style="text-align:center">
+		<p style="font-size:22px;font-weight:800;margin:6px 0" id="goiTen">—</p>
+		<p class="mo" id="goiTrangThai">—</p>
+		<!-- Thẻ audio ẩn: chỗ tiếng bên kia phát ra. `playsinline` để iPhone không mở
+		     trình phát toàn màn hình. -->
+		<audio id="goiTieng" autoplay playsinline></audio>
+		<div id="goiLoi"></div>
+		<p></p>
+		<div class="hang">
+			<button id="btGoiNghe" class="chinh an">Nghe</button>
+			<button id="btGoiCup" class="phu">Cúp máy</button>
+		</div>
+	</div>
+</div></div>
+
 <div id="mChuong" class="mn an"><div class="bao">
 	<h1>Thông báo</h1>
 	<p class="mo">Hộp thư chung với trang Nội bộ — đọc ở đây thì bên kia cũng hết đỏ.</p>
@@ -1570,12 +1707,14 @@ function veViTri(){
 		   do mình đặt, mai có người sửa thành giá trị lấy từ máy chủ thì chốt ấy phải còn. */
 		e.innerHTML = '<div class="' + ( 'tot' === m ? 'xanh' : 'vang' ) + '" style="margin:0">📍 <b>'
 			+ esc(q) + '</b>'
-			+ ' <span style="opacity:.75">(±' + dai(GPS.acc) + ')</span>' + them + '</div>'
+			+ ' <span style="opacity:.75">(±' + dai(GPS.acc) + ')</span>'
+			+ '<div id="oDiaChi" style="margin-top:4px;opacity:.9"></div>' + them + '</div>'
 			+ veBanDo(GPS.lat, GPS.lng, GPS.acc)
 			/* Vẫn giữ link ra Google Maps: bản đồ ở đây đủ để thấy "mình đang ở đâu", còn khi
 			   cần chỉ đường hay xem ảnh phố thì mở ứng dụng bản đồ thật vẫn hơn. */
 			+ lk;
 		nghenBanDo();   /* phải gọi SAU khi đã chèn HTML — trước đó chưa có thẻ nào để nghe */
+		xinDiaChi();
 		return;
 	}
 
@@ -1685,6 +1824,41 @@ function urlO(z, x, y){
  * ⚠️ Ẩn khi có BẤT KỲ ô nào hỏng, không đợi hỏng hết. Một bản đồ thủng lỗ chỗ còn khó hiểu
  *    hơn là không có bản đồ.
  */
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * TÊN ĐƯỜNG CỦA CHỖ ĐANG ĐỨNG — anh Thắng 20/09/2026: *"Không thấy địa chỉ"*.
+ *
+ * Cặp số `10.7755,106.7021` không nói được cho ai điều gì. "12 Nguyễn Huệ, Bến Nghé" thì người
+ * đang đứng tự biết mình có ở đúng chỗ hay không, và quản lý đọc bảng cũng vậy.
+ *
+ * 🔴 HỎI RỒI QUÊN ĐI. Không `await`, không chặn gì, không báo lỗi. Tên đường là thứ ĐỌC CHO
+ *    SƯỚNG MẮT, còn cặp số mới là cái đi vào phiếu công. Cho nó chặn được bất cứ thứ gì —
+ *    nút chấm công, ô bản đồ, dòng toạ độ — là đánh đổi một tính năng phụ lấy chính việc
+ *    người ta cần làm. Máy chủ chưa tra ra thì ô này trống, thế thôi.
+ *
+ * ⚠️ MỘT LƯỢT HỎI CHO MỖI Ô LƯỚI, nhớ ngay trong trang. `veViTri()` chạy lại mỗi lần GPS nhích
+ *    một chút — mà GPS thì nhích liên tục — nên không nhớ là mỗi vài giây một lượt gọi máy chủ
+ *    cho cùng một chỗ đứng. Làm tròn 4 chữ số ở đây cho khớp với ô lưới bên máy chủ.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+var DIA_CHI_NHO = {};
+function xinDiaChi(){
+	if(!GPS || !GPS.lat || !GPS.lng) return;
+	var o = GPS.lat.toFixed(4) + ',' + GPS.lng.toFixed(4);
+	var e = el('oDiaChi');
+	if(!e) return;
+	if(DIA_CHI_NHO[o]){ e.textContent = '↳ ' + DIA_CHI_NHO[o]; return; }
+	if(DIA_CHI_NHO[o] === ''){ return; }            /* đã hỏi, chưa có — đừng hỏi lại */
+	goi('diachi', { token: token(), lat: GPS.lat, lng: GPS.lng }).then(function(j){
+		DIA_CHI_NHO[o] = (j && j.ok && j.diaChi) ? j.diaChi : '';
+		if(!DIA_CHI_NHO[o]) return;
+		/* Phải kiểm lại: người dùng có thể đã đi sang màn khác, hoặc GPS đã nhảy sang ô khác,
+		   trong lúc chờ máy chủ. Dán tên đường của chỗ cũ lên toạ độ mới là nói sai. */
+		var e2 = el('oDiaChi');
+		if(e2 && GPS && (GPS.lat.toFixed(4) + ',' + GPS.lng.toFixed(4)) === o){
+			e2.textContent = '↳ ' + DIA_CHI_NHO[o];
+		}
+	}).catch(function(){ /* im lặng: xem khối chú thích trên */ });
+}
+
 function nghenBanDo(){
 	var ds = document.querySelectorAll('.bando img.o');
 	for(var i = 0; i < ds.length; i++){
@@ -1839,6 +2013,9 @@ function moManChinh(){
 	   ra. Lượt hỏi này KHÔNG nằm trong `Promise.all` dưới: hỏng nó thì chỉ thiếu một nút, còn
 	   `Promise.all` hỏng là màn hình đứng ở "đang gọi máy chủ". */
 	doCuaHang();
+	/* ⚠️ BẬT SAU KHI ĐĂNG NHẬP, không bật lúc nạp trang. Bật sớm là mỗi 4 giây một lượt gọi bị
+	   chối vì chưa có thẻ phiên — và màn đăng nhập thì có người để mở cả buổi. */
+	batChuongGoi();
 	/* Hỏi cơ sở này có bật khai loại giờ không — cùng lý do với `doCuaHang()` ở trên: hỏng nó
 	   thì chỉ thiếu một câu hỏi lúc kết ca, không được kéo cả màn hình đứng lại. */
 	napLoaiGio();
@@ -2563,6 +2740,473 @@ function veDemChuong(dem){
 	hien('demChuong', '' !== chu);
 }
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * NHẮN TIN — anh Thắng 20/09/2026: *"mini chat trong app. Chọn thành viên cùng cửa hàng"*.
+ *
+ * 🔴 KHOÁ PHÒNG RIÊNG DO MÁY CHỦ DỰNG, KHÔNG DỰNG Ở ĐÂY. Ghép `'@'+coSo+'|'+maToi+'|'+maKia`
+ *    ngay trong trình duyệt thì nhanh hơn một lượt gọi — nhưng hai người ghép theo hai thứ tự
+ *    khác nhau là hai cái phòng khác nhau, mỗi người thấy một nửa cuộc nói chuyện và cả hai
+ *    đều tưởng người kia không trả lời. Máy chủ sắp xếp hai mã rồi mới ghép (`chat_mo`).
+ *
+ * ⚠️ HỎI TIN MỚI BẰNG `tuId`, KHÔNG TẢI LẠI CẢ PHÒNG. Mỗi 6 giây tải lại tám mươi tin là tốn
+ *    băng thông của nhân viên và làm khung tin nhảy về đầu giữa lúc người ta đang đọc.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+var CHAT_PHONG = '';      /* phòng đang mở: tên cơ sở, hoặc khoá phòng riêng */
+var CHAT_TEN = '';
+var CHAT_CUOI = 0;        /* id tin cuối đã vẽ */
+var CHAT_NHIP = null;
+
+function moChat(){
+	hien('mChat', true);
+	chatVeLop1();
+	napChatPhong();
+}
+
+function chatVeLop1(){
+	dungNhipChat();
+	CHAT_PHONG = '';
+	el('chatLop1').classList.remove('an');
+	el('chatLop2').classList.add('an');
+	el('chatOChon').classList.add('an');
+}
+
+function dungNhipChat(){
+	if(CHAT_NHIP){ clearInterval(CHAT_NHIP); CHAT_NHIP = null; }
+}
+
+function napChatPhong(){
+	goi('chat_phong', { token: token() }).then(function(j){
+		if(!j || !j.ok) return;
+		var h = '';
+		for(var i=0;i<(j.phong||[]).length;i++){
+			var cs = j.phong[i];
+			var n = (j.chuaDoc && j.chuaDoc[cs]) ? j.chuaDoc[cs] : 0;
+			h += '<button type="button" class="phu chat-vao" data-phong="' + esc(cs) + '"'
+				+ ' data-ten="' + esc('Cả cửa hàng ' + cs) + '" style="width:100%;margin:0 0 6px">'
+				+ '🏪 ' + esc(cs) + (n ? ' <b>(' + esc(n) + ' mới)</b>' : '') + '</button>';
+		}
+		el('chatDsPhong').innerHTML = h || '<p class="trong">Chưa gắn cơ sở nào.</p>';
+
+		var r = '';
+		for(var k=0;k<(j.rieng||[]).length;k++){
+			var x = j.rieng[k];
+			r += '<button type="button" class="phu chat-vao" data-phong="' + esc(x.phong) + '"'
+				+ ' data-ten="' + esc(x.tenKia) + '" style="width:100%;margin:0 0 6px;text-align:left">'
+				+ '👤 ' + esc(x.tenKia)
+				+ (x.chuaDoc ? ' <b>(' + esc(x.chuaDoc) + ' mới)</b>' : '')
+				+ '<br><span class="trong">' + esc((x.cuoi || '').slice(0, 60)) + '</span></button>';
+		}
+		el('chatDsRieng').innerHTML = r || '<p class="trong">Chưa có cuộc nào.</p>';
+		nghenChatVao();
+	}).catch(function(){});
+}
+
+function nghenChatVao(){
+	var ds = document.querySelectorAll('.chat-vao');
+	for(var i=0;i<ds.length;i++){
+		ds[i].onclick = function(){ vaoPhongChat(this.getAttribute('data-phong'), this.getAttribute('data-ten')); };
+	}
+}
+
+function vaoPhongChat(phong, ten){
+	CHAT_PHONG = phong;
+	CHAT_TEN = ten || phong;
+	CHAT_CUOI = 0;
+	el('chatTen').textContent = CHAT_TEN;
+	el('chatKhung').innerHTML = '<p class="trong">Đang tải…</p>';
+	bao('chatLoi','',null);
+	el('chatLop1').classList.add('an');
+	el('chatLop2').classList.remove('an');
+	napChatTin(true);
+	dungNhipChat();
+	/* 6 giây một lượt, và CHỈ khi màn chat đang mở — `dungNhipChat()` gọi ở mọi đường thoát. */
+	CHAT_NHIP = setInterval(function(){ napChatTin(false); }, 6000);
+}
+
+function napChatTin(dau){
+	if(!CHAT_PHONG) return;
+	goi('chat_ds', { token: token(), coSo: CHAT_PHONG, tuId: CHAT_CUOI }).then(function(j){
+		if(!j || !j.ok){ if(dau){ bao('chatLoi','dong',(j&&j.error)||'Không mở được phòng.'); } return; }
+		veChatTin(j.ds || [], dau);
+	}).catch(function(){ /* mất mạng một nhịp: nhịp sau tự tới, đừng kêu */ });
+}
+
+function veChatTin(ds, dau){
+	var k = el('chatKhung');
+	if(dau){ k.innerHTML = ''; }
+	if(dau && !ds.length){
+		k.innerHTML = '<p class="trong" id="chatRong" style="text-align:center;margin:auto 0">'
+			+ 'Chưa có tin nào. Gõ câu đầu tiên đi.</p>';
+	}
+	/* 🔴 DỌN CÂU "CHƯA CÓ TIN NÀO" KHI TIN ĐẦU TIÊN TỚI.
+	   Bản đầu chỉ đặt câu ấy lúc mở phòng rỗng rồi thôi — tin mới nối vào PHÍA DƯỚI nó, nên
+	   màn hình vừa nói "chưa có tin nào" vừa bày một tin ngay bên dưới. Phép thử không bắt
+	   được (HTML có đủ cả hai), chỉ lộ ra khi CHỤP MÀN RA NHÌN. */
+	if(ds.length){
+		var r = el('chatRong');
+		if(r && r.parentNode){ r.parentNode.removeChild(r); }
+	}
+	/* Người đang cuộn lên đọc tin cũ thì ĐỪNG kéo họ xuống đáy — chỉ tự cuộn khi họ vốn đã ở
+	   đáy. Kéo bừa là mất chỗ đang đọc mỗi khi có tin mới. */
+	var oDay = (k.scrollTop + k.clientHeight >= k.scrollHeight - 40);
+	for(var i=0;i<ds.length;i++){
+		var x = ds[i];
+		if(x.id > CHAT_CUOI){ CHAT_CUOI = x.id; }
+		var ben = x.cuaToi ? 'right' : 'left';
+		var nen = x.cuaToi ? 'var(--nen-2)' : 'var(--the)';
+		var d = document.createElement('div');
+		d.style.cssText = 'text-align:' + ben + ';margin:0 0 8px';
+		var chu = x.daXoa
+			? '<i class="trong">(đã xoá)</i>'
+			: esc(x.chu).replace(/\n/g, '<br>');
+		if(x.tep){
+			/* Đường xem tệp đi qua cổng có gác, KHÔNG trỏ thẳng vào uploads — xem
+			   `VHCC_Chat::xem_tep()`. Thẻ phiên đi kèm trong đường dẫn vì <img> không gửi
+			   được thân yêu cầu. */
+			var dt = CFG.cong + (CFG.cong.indexOf('?')>=0?'&':'?')
+				+ 'viec=chat_tep&id=' + encodeURIComponent(x.id)
+				+ '&token=' + encodeURIComponent(token());
+			chu += (chu ? '<div style="height:6px"></div>' : '')
+				+ (x.tep.anh
+					? '<a href="' + dt + '" target="_blank" rel="noopener">'
+						+ '<img src="' + dt + '" alt="' + esc(x.tep.ten) + '"'
+						+ ' style="max-width:100%;border-radius:8px;display:block"></a>'
+					: '<a href="' + dt + '" target="_blank" rel="noopener">📎 '
+						+ esc(x.tep.ten) + '</a>'
+						+ '<div class="trong" style="font-size:11px">'
+						+ esc(Math.round(x.tep.co/1024) + ' KB') + '</div>');
+		}
+		d.innerHTML = '<div style="display:inline-block;max-width:84%;text-align:left;'
+			+ 'padding:7px 10px;border-radius:12px;border:1px solid var(--vien);background:' + nen + '">'
+			+ (x.cuaToi ? '' : '<b style="font-size:12px">' + esc(x.hoTen) + '</b><br>')
+			+ chu
+			+ '<div class="trong" style="font-size:11px;margin-top:2px">' + esc((x.luc||'').slice(11,16))
+			+ (x.cuaToi && !x.daXoa ? ' · <a href="#" data-xoa="' + esc(x.id) + '">xoá</a>' : '')
+			+ '</div></div>';
+		k.appendChild(d);
+	}
+	if(ds.length){ nghenXoaChat(); }
+	if(oDay || dau){ k.scrollTop = k.scrollHeight; }
+}
+
+function nghenXoaChat(){
+	var ds = el('chatKhung').querySelectorAll('[data-xoa]');
+	for(var i=0;i<ds.length;i++){
+		ds[i].onclick = function(e){
+			e.preventDefault();
+			var id = this.getAttribute('data-xoa');
+			goi('chat_xoa', { token: token(), id: id }).then(function(j){
+				if(!j || !j.ok){ bao('chatLoi','dong',(j&&j.error)||'Không xoá được.'); return; }
+				/* Vẽ lại cả phòng: tin xoá đổi thành "(đã xoá)" tại chỗ, và tải lại từ đầu là
+				   cách duy nhất chắc chắn không lệch với máy chủ. */
+				CHAT_CUOI = 0; napChatTin(true);
+			}).catch(function(){});
+		};
+	}
+}
+
+/* Tệp đang chờ gửi: { ten, b64 }. Chỉ một tệp một lần — gửi nhiều tệp thì gửi nhiều tin, và
+   như thế mỗi tệp có một dòng riêng để xoá, để trả lời. */
+var CHAT_TEP = null;
+
+function chonTepChat(){
+	var f = el('chatTep').files && el('chatTep').files[0];
+	if(!f){ return; }
+	/* ⚠️ CHẶN CỠ NGAY Ở ĐÂY, đừng để người ta chờ tải xong 20 MB rồi mới bị chối. Máy chủ vẫn
+	   chặn lần nữa — đây chỉ là phép lịch sự, không phải phép gác. */
+	if(f.size > 8 * 1024 * 1024){
+		bao('chatLoi','dong','Tệp lớn quá 8 MB. Nén lại hoặc gửi qua đơn từ.');
+		el('chatTep').value = '';
+		return;
+	}
+	var d = new FileReader();
+	d.onload = function(){
+		CHAT_TEP = { ten: f.name, b64: String(d.result) };
+		el('chatTepChon').classList.remove('an');
+		el('chatTepChon').innerHTML = '📎 ' + esc(f.name) + ' <a href="#" id="chatBoTep">bỏ</a>';
+		el('chatBoTep').onclick = function(e){ e.preventDefault(); boTepChat(); };
+		bao('chatLoi','',null);
+	};
+	d.onerror = function(){ bao('chatLoi','dong','Không đọc được tệp này.'); };
+	d.readAsDataURL(f);
+}
+
+function boTepChat(){
+	CHAT_TEP = null;
+	el('chatTep').value = '';
+	el('chatTepChon').classList.add('an');
+	el('chatTepChon').innerHTML = '';
+}
+
+function guiChat(){
+	var chu = el('chatO').value;
+	/* Gửi mỗi tệp không kèm chữ là chuyện thường — chỉ chối khi KHÔNG có cả hai. */
+	if(!chu.trim() && !CHAT_TEP){ return; }
+	var b = el('btChatGui');
+	b.disabled = true;
+	var goiTin = { token: token(), coSo: CHAT_PHONG, chu: chu };
+	if(CHAT_TEP){ goiTin.tep = CHAT_TEP.b64; goiTin.tepTen = CHAT_TEP.ten; }
+	goi('chat_gui', goiTin).then(function(j){
+		b.disabled = false;
+		if(!j || !j.ok){ bao('chatLoi','dong',(j&&j.error)||'Không gửi được.'); return; }
+		el('chatO').value = '';
+		boTepChat();
+		bao('chatLoi','',null);
+		napChatTin(false);
+	}).catch(function(e){
+		b.disabled = false;
+		bao('chatLoi','dong','Mất mạng — chưa gửi được. Bấm Gửi lại.');
+	});
+}
+
+function napChatNguoi(){
+	el('chatOChon').classList.remove('an');
+	goi('danhba', { token: token(), tim: el('chatTim').value }).then(function(j){
+		if(!j || !j.ok){ el('chatDsNguoi').innerHTML = '<p class="trong">Không tải được danh bạ.</p>'; return; }
+		var h = '';
+		for(var i=0;i<(j.ds||[]).length;i++){
+			var x = j.ds[i];
+			if(TOI && x.ma_nv === TOI.maNV) continue;   /* không nhắn cho chính mình */
+			h += '<div class="hang" style="margin:0 0 6px">'
+				+ '<button type="button" class="phu chat-nguoi" data-ma="' + esc(x.ma_nv) + '"'
+				+ ' data-ten="' + esc(x.ho_ten) + '" style="text-align:left">'
+				+ esc(x.ho_ten) + '<br><span class="trong">' + esc(x.chuc_vu || '') + '</span></button>'
+				+ '<button type="button" class="phu chat-goi" data-ma="' + esc(x.ma_nv) + '"'
+				+ ' data-ten="' + esc(x.ho_ten) + '" style="flex:0 0 64px">📞</button></div>';
+		}
+		el('chatDsNguoi').innerHTML = h || '<p class="trong">Không có ai khác ở cơ sở này.</p>';
+		var ds = document.querySelectorAll('.chat-nguoi');
+		for(var k=0;k<ds.length;k++){
+			ds[k].onclick = function(){ moChatRieng(this.getAttribute('data-ma'), this.getAttribute('data-ten')); };
+		}
+		var dg = document.querySelectorAll('.chat-goi');
+		for(var q=0;q<dg.length;q++){
+			dg[q].onclick = function(){ batDauGoi(this.getAttribute('data-ma'), this.getAttribute('data-ten')); };
+		}
+	}).catch(function(){});
+}
+
+function moChatRieng(ma, ten){
+	/* 🔴 HỎI MÁY CHỦ KHOÁ PHÒNG — xem khối chú thích đầu phần này. */
+	goi('chat_mo', { token: token(), maKia: ma }).then(function(j){
+		if(!j || !j.ok){ bao('chatLoi','dong',(j&&j.error)||'Không mở được.'); return; }
+		vaoPhongChat(j.phong, ten);
+	}).catch(function(){});
+}
+
+el('btDongChat').addEventListener('click', function(){ dungNhipChat(); hien('mChat', false); });
+el('btChatVe').addEventListener('click', function(){ chatVeLop1(); napChatPhong(); });
+el('btChatGui').addEventListener('click', guiChat);
+el('btChatNguoi').addEventListener('click', napChatNguoi);
+el('btChatDinhKem').addEventListener('click', function(){ el('chatTep').click(); });
+el('chatTep').addEventListener('change', chonTepChat);
+el('chatTim').addEventListener('input', napChatNguoi);
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * GỌI THOẠI — anh Thắng 20/09/2026: *"Gọi trong app đi em — tự dựng"*.
+ *
+ * 🔴 MÁY CHỦ KHÔNG TRUYỀN TIẾNG NÓI. Âm thanh đi thẳng giữa hai máy (WebRTC); máy chủ chỉ chuyển
+ *    giúp mấy mẩu mai mối. Xem khối chú thích đầu `VHCC_Goi`.
+ *
+ * ⚠️ BA CHỖ PHẢI TẮT MICRO, VÀ QUÊN MỘT CHỖ LÀ MICRO MỞ TIẾP SAU KHI CÚP MÁY:
+ *      · mình bấm cúp · bên kia cúp (biết qua lượt hỏi trạng thái) · kết nối đứt giữa chừng.
+ *    Cả ba đều đi qua đúng một hàm `dongGoi()`. Đừng viết đường tắt nào khác.
+ *
+ * ⚠️ HỎI CHUÔNG CHỈ KHI ĐÃ ĐĂNG NHẬP VÀ KHÔNG ĐANG GỌI. Hỏi lúc chưa đăng nhập là mỗi 4 giây
+ *    một lượt gọi bị chối; hỏi lúc đang gọi là tự phát hiện chính cuộc của mình.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+var GOI_ID = 0;           /* cuộc đang mở */
+var GOI_PC = null;        /* RTCPeerConnection */
+var GOI_LUONG = null;     /* luồng micro của mình */
+var GOI_CUOI = 0;         /* id mẩu mai mối cuối đã xử lý */
+var GOI_NHIP = null;      /* nhịp hỏi mai mối + trạng thái */
+var GOI_CHUONG = null;    /* nhịp hỏi "ai gọi tôi" */
+var GOI_LA_NGUOI_GOI = false;
+var GOI_VE = null;        /* vé TURN, xin một lần mỗi cuộc */
+
+function batChuongGoi(){
+	if(GOI_CHUONG) return;
+	GOI_CHUONG = setInterval(function(){
+		if(GOI_ID || !token()) return;
+		goi('goi_cho', { token: token() }).then(function(j){
+			if(!j || !j.ok || !j.cuoc || GOI_ID) return;
+			nhanCuocGoi(j.cuoc);
+		}).catch(function(){});
+	}, 4000);
+}
+
+function nhanCuocGoi(c){
+	GOI_ID = c.id;
+	GOI_LA_NGUOI_GOI = false;
+	GOI_CUOI = 0;
+	el('goiTieuDe').textContent = 'Có cuộc gọi';
+	el('goiTen').textContent = c.tenGoi || c.maGoi;
+	el('goiTrangThai').textContent = 'Đang đổ chuông…';
+	el('btGoiNghe').classList.remove('an');
+	bao('goiLoi','',null);
+	hien('mGoi', true);
+	nhipGoi();
+}
+
+/* Bấm gọi một người — từ danh bạ hoặc từ khung chat riêng. */
+function batDauGoi(maKia, tenKia){
+	goi('goi_moi', { token: token(), maKia: maKia }).then(function(j){
+		if(!j || !j.ok){ bao('chatLoi','dong',(j&&j.error)||'Không gọi được.'); return; }
+		GOI_ID = j.id;
+		GOI_LA_NGUOI_GOI = true;
+		GOI_CUOI = 0;
+		el('goiTieuDe').textContent = 'Đang gọi';
+		el('goiTen').textContent = tenKia || j.tenKia || maKia;
+		el('goiTrangThai').textContent = 'Đang đổ chuông bên kia…';
+		el('btGoiNghe').classList.add('an');
+		bao('goiLoi','',null);
+		hien('mGoi', true);
+		nhipGoi();
+	}).catch(function(){ bao('chatLoi','dong','Mất mạng — chưa gọi được.'); });
+}
+
+function nhipGoi(){
+	if(GOI_NHIP) clearInterval(GOI_NHIP);
+	/* 1,5 giây: mai mối phải tới nhanh thì cuộc gọi mới nối trong vài giây. Chỉ chạy trong lúc
+	   có cuộc — `dongGoi()` tắt nó. */
+	GOI_NHIP = setInterval(hoiGoi, 1500);
+	hoiGoi();
+}
+
+function hoiGoi(){
+	if(!GOI_ID) return;
+	goi('goi_doc', { token: token(), id: GOI_ID, tuId: GOI_CUOI }).then(function(j){
+		if(!j || !j.ok){ dongGoi('Cuộc gọi đã kết thúc.'); return; }
+		if('xong' === j.trangThai){ dongGoi('Đã kết thúc.'); return; }
+		if('nghe' === j.trangThai && GOI_LA_NGUOI_GOI && !GOI_PC){
+			/* Bên kia vừa bấm Nghe -> mình là bên mời, dựng kết nối và gửi offer. */
+			el('goiTrangThai').textContent = 'Đang nối…';
+			moKetNoi(true);
+		}
+		for(var i=0;i<(j.ds||[]).length;i++){
+			var x = j.ds[i];
+			if(x.id > GOI_CUOI){ GOI_CUOI = x.id; }
+			nhanMaiMoi(x);
+		}
+	}).catch(function(){ /* một nhịp mất mạng: nhịp sau tự tới */ });
+}
+
+function xinVeGoi(){
+	if(GOI_VE) return Promise.resolve(GOI_VE);
+	return goi('goi_ve', { token: token() }).then(function(j){
+		if(!j || !j.ok) throw new Error((j && j.error) || 'Chưa có máy TURN.');
+		GOI_VE = j.may;
+		return GOI_VE;
+	});
+}
+
+function moKetNoi(laBenMoi){
+	if(GOI_PC) return Promise.resolve();
+	return xinVeGoi().then(function(may){
+		return navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+			.then(function(luong){
+				GOI_LUONG = luong;
+				GOI_PC = new RTCPeerConnection({ iceServers: may });
+				for(var i=0;i<luong.getTracks().length;i++){
+					GOI_PC.addTrack(luong.getTracks()[i], luong);
+				}
+				GOI_PC.ontrack = function(e){
+					el('goiTieng').srcObject = e.streams[0];
+					el('goiTrangThai').textContent = 'Đang nói chuyện';
+				};
+				GOI_PC.onicecandidate = function(e){
+					if(e.candidate){ guiMaiMoi('ice', JSON.stringify(e.candidate)); }
+				};
+				GOI_PC.onconnectionstatechange = function(){
+					var t = GOI_PC ? GOI_PC.connectionState : '';
+					if('failed' === t){
+						/* ⚠️ NÓI ĐÚNG NGUYÊN NHÂN. "Không kết nối được" thì người ta đổ cho sóng
+						   yếu; chín phần mười lần này là máy TURN chưa chạy hoặc chặn cổng. */
+						dongGoi('Không nối được tiếng. Thường là máy TURN chưa chạy hoặc bị chặn cổng.');
+					}
+					if('disconnected' === t || 'closed' === t){ dongGoi('Mất kết nối.'); }
+				};
+				if(laBenMoi){
+					return GOI_PC.createOffer().then(function(o){
+						return GOI_PC.setLocalDescription(o);
+					}).then(function(){
+						guiMaiMoi('offer', JSON.stringify(GOI_PC.localDescription));
+					});
+				}
+			});
+	}).catch(function(e){
+		dongGoi((e && e.message) || 'Không mở được micro.');
+	});
+}
+
+function nhanMaiMoi(x){
+	if('offer' === x.loai){
+		/* Bên nhận: có lời mời -> dựng kết nối rồi trả lời. */
+		moKetNoi(false).then(function(){
+			if(!GOI_PC) return;
+			return GOI_PC.setRemoteDescription(JSON.parse(x.noiDung))
+				.then(function(){ return GOI_PC.createAnswer(); })
+				.then(function(a){ return GOI_PC.setLocalDescription(a); })
+				.then(function(){ guiMaiMoi('answer', JSON.stringify(GOI_PC.localDescription)); });
+		}).catch(function(){});
+		return;
+	}
+	if(!GOI_PC) return;
+	if('answer' === x.loai){
+		GOI_PC.setRemoteDescription(JSON.parse(x.noiDung)).catch(function(){});
+		return;
+	}
+	if('ice' === x.loai){
+		/* ⚠️ NUỐT LỖI Ở ĐÂY LÀ ĐÚNG. Một ứng viên ICE tới trước khi có mô tả từ xa thì trình
+		   duyệt ném lỗi, nhưng mấy ứng viên sau vẫn dùng được — để nó nổ ra ngoài là cả cuộc
+		   gọi chết vì một mẩu đến sớm. */
+		try { GOI_PC.addIceCandidate(JSON.parse(x.noiDung)).catch(function(){}); } catch(e){}
+	}
+}
+
+function guiMaiMoi(loai, noiDung){
+	if(!GOI_ID) return;
+	goi('goi_gui', { token: token(), id: GOI_ID, loai: loai, noiDung: noiDung }).catch(function(){});
+}
+
+/* 🔴 ĐƯỜNG DUY NHẤT ĐỂ KẾT THÚC. Mọi nhánh (mình cúp · bên kia cúp · đứt kết nối · lỗi) đều
+   phải đi qua đây, vì đây là chỗ TẮT MICRO. Viết một đường tắt nào khác là dựng sẵn cái ngày
+   micro còn mở sau khi màn hình đã đóng. */
+function dongGoi(chu){
+	if(GOI_NHIP){ clearInterval(GOI_NHIP); GOI_NHIP = null; }
+	if(GOI_LUONG){
+		var tr = GOI_LUONG.getTracks();
+		for(var i=0;i<tr.length;i++){ tr[i].stop(); }
+		GOI_LUONG = null;
+	}
+	if(GOI_PC){ try { GOI_PC.close(); } catch(e){} GOI_PC = null; }
+	el('goiTieng').srcObject = null;
+	GOI_VE = null;
+	if(GOI_ID){
+		goi('goi_ket', { token: token(), id: GOI_ID }).catch(function(){});
+		GOI_ID = 0;
+	}
+	if(chu){ el('goiTrangThai').textContent = chu; }
+	setTimeout(function(){ hien('mGoi', false); }, chu ? 1200 : 0);
+}
+
+el('btGoiNghe').addEventListener('click', function(){
+	el('btGoiNghe').classList.add('an');
+	el('goiTrangThai').textContent = 'Đang nối…';
+	goi('goi_tra_loi', { token: token(), id: GOI_ID, dongY: true }).then(function(j){
+		if(!j || !j.ok){ dongGoi((j && j.error) || 'Không nghe máy được.'); }
+		/* Không dựng kết nối ở đây: bên mời sẽ gửi offer, và `nhanMaiMoi()` lo phần còn lại. */
+	}).catch(function(){ dongGoi('Mất mạng.'); });
+});
+
+el('btGoiCup').addEventListener('click', function(){ dongGoi(null); });
+
+/* ⚠️ APP XUỐNG NỀN THÌ CÚP. Trình duyệt trong app có thể bị hệ điều hành dừng, và lúc ấy cuộc
+   gọi treo ở đầu bên kia mà không ai biết. Thà cúp rõ ràng. */
+document.addEventListener('visibilitychange', function(){
+	if(document.hidden && GOI_ID && !GOI_PC){ dongGoi(null); }
+});
+
 function moChuong(){
 	hien('mChuong', true);
 	napChuong();
@@ -2661,6 +3305,10 @@ function moMan(ten){
 	if('mKhaiGio' === ten){ moKhaiGio(); }
 	if('mXinBu' === ten){ moXinBu(); }
 	if('mGioLuong' === ten){ moGioLuong(); }
+	/* ⚠️ THÊM Ô Ở `VHCC_Ung` THÔI LÀ CHƯA ĐỦ — phải thêm một dòng ở đây nữa. Thiếu nó thì ô
+	   hiện ra, bấm vào, và KHÔNG CÓ GÌ XẢY RA: `moMan()` không khớp tên nào nên im lặng thoát.
+	   Không lỗi, không cảnh báo — đúng kiểu người ta bảo "app hỏng". */
+	if('mChat' === ten){ moChat(); }
 }
 
 /* ── LOẠI GIỜ LƯƠNG ─────────────────────────────────────────────────────────────────────────
@@ -4267,6 +4915,61 @@ function chupNgay(){
 	g.fillText(chuVT, W - rongVT - 10, H - 9);
 
 	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	   HÌNH DÁNG Ô BẢN ĐỒ TÍNH TRƯỚC — vì dấu ĐỊA CHỈ ở dưới phải biết chừa chỗ cho nó.
+	   Tính ở đây, dùng ở hai nơi; tính hai lần là dựng sẵn cái ngày hai chỗ lệch nhau một vài
+	   pixel rồi chữ đè lên bản đồ.
+	   ══════════════════════════════════════════════════════════════════════════════════════════ */
+	var veMap = !!(BANDO && BANDO.im && BANDO.im.complete && BANDO.im.naturalWidth > 0);
+	var oB = Math.max(72, Math.round(W / 4));
+	var oX = W - oB - 10;
+	var oY = H - coVT - 14 - oB - 8;
+	/* Ảnh quá thấp (máy ảnh lạ, tỉ lệ dẹt) thì ô tràn lên khỏi mép trên — bỏ ô, giữ dòng toạ độ. */
+	if(oY < 8){ veMap = false; }
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	   DẤU ĐỊA CHỈ — anh Thắng 21/09/2026: *"Chèn địa chỉ vào ảnh"*.
+
+	   🔴 ĐỊA CHỈ LÀ THỨ NGƯỜI ĐỌC ĐƯỢC; TOẠ ĐỘ THÌ KHÔNG. Tấm ảnh này là bằng chứng đem ra đối
+	      chiếu khi có tranh cãi, mà `10.798747,106.597064` thì phải mở bản đồ ra mới biết là
+	      đâu. "Lê Đức Anh, Phường Bình Tân" thì nhìn phát biết ngay. Giữ CẢ HAI: toạ độ để máy
+	      tra, địa chỉ để người đọc.
+
+	   ⚠️ CHỪA CHỖ CHO Ô BẢN ĐỒ. Góc dưới phải đã có toạ độ và ô bản đồ chồng lên nhau theo chiều
+	      dọc; địa chỉ mà kéo hết chiều ngang là nó chui thẳng vào dưới ô bản đồ. Nên bề ngang
+	      tối đa cắt tại mép trái ô ấy.
+
+	   ⚠️ KHÔNG CÓ ĐỊA CHỈ THÌ THÔI, đừng để trống một vệt đen. Máy chủ tra tên đường qua mạng và
+	      tra sau khi màn đã vẽ (xem `xinDiaChi()`), nên lúc bấm chụp có thể chưa có. Dòng này
+	      là thứ ĐỌC CHO SƯỚNG MẮT — cho nó chặn hay làm hỏng tấm ảnh là đánh đổi sai.
+	   ══════════════════════════════════════════════════════════════════════════════════════════ */
+	try {
+		var dcO = (GPS && GPS.lat && GPS.lng) ? (GPS.lat.toFixed(4) + ',' + GPS.lng.toFixed(4)) : '';
+		var dc  = (dcO && DIA_CHI_NHO[dcO]) ? String(DIA_CHI_NHO[dcO]) : '';
+		if(dc){
+			var coDC   = Math.max(10, Math.round(W / 46));
+			var rongTD = (veMap ? oX - 18 : W - 20);
+			g.font = '700 ' + coDC + 'px sans-serif';
+			var dongDC = catDong(g, dc, rongTD, 2);
+			var buocDC = coDC + 4;
+			var caoDC  = dongDC.length * buocDC + 8;
+			/* Nằm NGAY TRÊN dấu giờ. Dấu giờ bắt đầu ở `H - co - 16`; chừa 6px cho khỏi dính. */
+			var yDC = H - co - 16 - caoDC - 6;
+			if(yDC >= 4){
+				var rongDC = 0;
+				for(var i2 = 0; i2 < dongDC.length; i2++){
+					rongDC = Math.max(rongDC, g.measureText(dongDC[i2]).width);
+				}
+				g.fillStyle = 'rgba(0,0,0,.62)';
+				g.fillRect(0, yDC, rongDC + 20, caoDC);
+				g.fillStyle = '#fff';
+				for(var i3 = 0; i3 < dongDC.length; i3++){
+					g.fillText(dongDC[i3], 10, yDC + 4 + buocDC * (i3 + 1) - 4);
+				}
+			}
+		}
+	} catch(e){ /* Mất dòng địa chỉ còn hơn mất tấm ảnh — cùng lý do với ô bản đồ ở dưới. */ }
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
 	   Ô BẢN ĐỒ — ngay TRÊN dòng toạ độ, cùng góc phải.
 
 	   🔴 BỌC `try`. Dù đã đặt `crossOrigin` đúng cách, một bản trình duyệt lạ vẫn có thể làm
@@ -4274,16 +4977,9 @@ function chupNgay(){
 	      Thà mất ô bản đồ còn hơn mất lượt chấm công. Đây không phải `try` cho có: nó là chốt
 	      giữa "thiếu một ô trang trí" và "không ghi được công".
 	   ══════════════════════════════════════════════════════════════════════════════════════════ */
-	if(BANDO && BANDO.im && BANDO.im.complete && BANDO.im.naturalWidth > 0){
+	if(veMap){
 		try {
-			var oB = Math.max(72, Math.round(W / 4));          /* cạnh ô vuông */
-			var oX = W - oB - 10;
-			var oY = H - coVT - 14 - oB - 8;                   /* nằm trên dòng toạ độ, chừa 8px */
-
-			/* ⚠️ Ảnh quá thấp (máy ảnh lạ, tỉ lệ dẹt) thì ô tràn lên khỏi mép trên — bỏ ô, giữ
-			   dòng toạ độ. Một ô bản đồ cụt đầu còn khó đọc hơn không có. */
-			if(oY < 8){ throw new Error('anh qua thap'); }
-
+			/* `oB` · `oX` · `oY` tính ở khối trên — dấu địa chỉ cần biết trước để chừa chỗ. */
 			g.save();
 			/* Cắt tròn góc cho ô — và quan trọng hơn: chặn ảnh bản đồ tràn ra ngoài khung. */
 			g.beginPath();
@@ -4342,6 +5038,46 @@ function chupNgay(){
 			+ '— hoặc cứ dùng ảnh này nếu anh/chị thấy rõ mặt mình.');
 	}
 	return true;
+}
+
+/**
+ * CẮT MỘT CHUỖI DÀI THÀNH TỐI ĐA `nToiDa` DÒNG VỪA BỀ NGANG `rong`.
+ *
+ * 🔴 CẮT THEO TỪ, KHÔNG CẮT THEO KÝ TỰ. Địa chỉ tiếng Việt toàn từ ngắn ngăn bởi dấu phẩy;
+ *    cắt giữa từ ra "Thành ph / ố Hồ Chí Minh" thì đọc còn khó hơn không có.
+ *
+ * ⚠️ DÒNG CUỐI TRÀN THÌ CẮT BỚT VÀ THÊM "…", đừng để nó chạy ra khỏi hộp đen. Hộp vẽ theo bề
+ *    ngang ĐO ĐƯỢC của chữ, nên chữ tràn không phải là chữ thò ra ngoài hộp — nó là hộp phình
+ *    to đè lên nửa tấm ảnh.
+ *
+ * ⚠️ MỘT TỪ DUY NHẤT DÀI HƠN CẢ DÒNG vẫn phải ra được cái gì đó. Vòng `while` cắt dần từng ký
+ *    tự có chốt `length > 1` để không quay vô tận trên một ô hẹp bất thường.
+ */
+function catDong(g, chu, rong, nToiDa){
+	var tu = String(chu).split(/\s+/), ds = [], d = '';
+	for(var i = 0; i < tu.length; i++){
+		var thu = d ? (d + ' ' + tu[i]) : tu[i];
+		if(g.measureText(thu).width <= rong || !d){
+			d = thu;
+		} else {
+			ds.push(d);
+			d = tu[i];
+			if(ds.length === nToiDa - 1) {
+				/* Dòng cuối: gom hết phần còn lại rồi cắt cho vừa. */
+				d = tu.slice(i).join(' ');
+				break;
+			}
+		}
+	}
+	if(d) ds.push(d);
+	if(ds.length > nToiDa) ds = ds.slice(0, nToiDa);
+	var c = ds.length - 1;
+	if(c >= 0 && g.measureText(ds[c]).width > rong){
+		var t = ds[c];
+		while(t.length > 1 && g.measureText(t + '…').width > rong){ t = t.slice(0, -1); }
+		ds[c] = t + '…';
+	}
+	return ds;
 }
 
 /** Độ sáng trung bình 0–255. Lấy mẫu thưa: quét đủ 720×540 điểm trên máy cũ là khựng một nhịp. */
@@ -4436,6 +5172,21 @@ el('btLuu').addEventListener('click', function(){
 			el('baoCham').innerHTML += '<div class="vang">⚠ Lượt vừa ghi bị đánh dấu <b>NGOÀI '
 				+ 'vùng cơ sở</b>. ' + esc(j.viTri.chu||'') + ' Lượt công vẫn được ghi, nhưng quản '
 				+ 'lý sẽ thấy dấu này. Chọn nhầm cơ sở thì báo quản lý sửa ngay hôm nay.</div>';
+		}
+		/* 🔴 TRUY VẾT: TOẠ ĐỘ RƠI VÀO VÙNG MỘT CƠ SỞ KHÁC -> NÓI NGAY VỚI CHÍNH NGƯỜI VỪA BẤM.
+		   Anh Thắng 20/09/2026: *"khi nhân viên đi qua cơ sở khác, chấm báo cáo cơ sở"*.
+
+		   ⚠️ CÂU NÀY KHÔNG PHẢI LỜI BUỘC TỘI, và phải viết cho đúng như vậy. Đi hỗ trợ cơ sở bạn
+		      là chuyện được phép; hai cửa hàng trong cùng trung tâm thương mại cách nhau 80m
+		      cũng là chuyện thường. Thứ duy nhất máy biết chắc là toạ độ, nên nó chỉ được nói
+		      đúng bấy nhiêu — và nói NGAY LÚC NÀY, khi người ta còn đứng đó và còn sửa được nếu
+		      chỉ là chọn nhầm ô cơ sở. Để tới cuối tháng thì không ai nhớ nổi hôm ấy mình ở đâu. */
+		if(j.vet && j.vet.trong && j.vet.coSo){
+			el('baoCham').innerHTML += '<div class="vang">📍 Toạ độ lúc bấm nằm trong vùng cơ sở '
+				+ '<b>' + esc(j.vet.coSo) + '</b>, còn lượt này ghi về <b>' + esc(j.coSo) + '</b>. '
+				+ 'Nếu anh/chị đang làm ở ' + esc(j.vet.coSo) + ' thì chọn lại đúng cơ sở rồi bấm '
+				+ 'lại; nếu đang đi hỗ trợ hoặc đứng gần đó thì cứ để nguyên — lượt đã ghi rồi, '
+				+ 'chỉ là bảng công có ghi dấu này.</div>';
 		}
 		/* 🔴 HỎI LOẠI GIỜ CHỈ Ở LƯỢT GIỜ RA, và chỉ SAU khi giờ đã ghi xong. Hỏi lúc vào thì ca
 		   còn chưa làm, chưa biết mình sẽ làm gì; hỏi trước khi ghi thì một cái hộp đứng chắn

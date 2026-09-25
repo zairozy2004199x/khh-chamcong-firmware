@@ -552,7 +552,8 @@ class VHCC_Nhan {
 	 * `$giay` phải là giờ ĐÃ trải phẳng nếu đây là hàng ca đêm — nơi gọi lo việc đó, xem
 	 * VHCC_Online::trai_phang(). `$ma_nv` nhận cả mã có hậu tố ('NV001-CD').
 	 */
-	public static function ghi_gio( $coso, $ngay, $ma_nv, $ho_ten, $giay, $anh_b64, $nguon = 'may', $ghi_chu = null ) {
+	public static function ghi_gio( $coso, $ngay, $ma_nv, $ho_ten, $giay, $anh_b64, $nguon = 'may', $ghi_chu = null,
+		$vi_tri = '' ) {
 		global $wpdb;
 		/* 🔴 LƯỚI CUỐI: tên cơ sở KHÔNG ĐƯỢC mang dấu phẩy.
 		   Mọi đường ghi vào bảng chấm công đều qua đây, nên chốt ở đây là chốt cho cả những
@@ -684,6 +685,23 @@ class VHCC_Nhan {
 		if ( $ghi_anh && ! empty( $qd['anh_ra'] ) ) { $dat['anh_ra'] = $anh_moi; }
 		if ( ! empty( $qd['chuyen_anh_vao_sang_ra'] ) ) { $dat['anh_ra'] = $cu ? (string) $cu['anh_vao'] : ''; }
 
+		/* VỊ TRÍ ĐI ĐÚNG ĐƯỜNG CỦA ẢNH — cùng cặp cờ `anh_vao` / `anh_ra`, cùng phép chuyển.
+		   Chỗ đứng và tấm ảnh là hai bằng chứng của CÙNG một lượt bấm; tách chúng ra hai luật
+		   định tuyến là dựng sẵn cái ngày mà ảnh nằm ở ô ra còn toạ độ nằm ở ô vào.
+
+		   🔴 `chuyen_anh_vao_sang_ra` KHÔNG ĐƯỢC QUÊN Ở ĐÂY. Nhánh `daoThuTu` đẩy giờ vào cũ
+		      xuống làm giờ ra; toạ độ của lượt cũ phải đi theo con số của nó. Bỏ dòng ấy thì ô
+		      `vt_ra` mang toạ độ TRỐNG cho một giờ ra có thật, còn chỗ đứng của lượt cũ mất hẳn —
+		      và mất im lặng, vì bảng vẫn đủ cặp giờ.
+
+		   ⚠️ `$vi_tri` RỖNG THÌ KHÔNG GHI GÌ, không ghi chuỗi rỗng đè lên. Máy chấm vân tay và
+		      tệp .csv nạp về không có toạ độ; để chúng đè thì một lượt online buổi sáng có vị
+		      trí, lô đồng bộ buổi tối xoá mất. */
+		$co_vt = ( '' !== trim( (string) $vi_tri ) );
+		if ( $co_vt && ! empty( $qd['anh_vao'] ) ) { $dat['vt_vao'] = (string) $vi_tri; }
+		if ( $co_vt && ! empty( $qd['anh_ra'] ) ) { $dat['vt_ra'] = (string) $vi_tri; }
+		if ( ! empty( $qd['chuyen_anh_vao_sang_ra'] ) ) { $dat['vt_ra'] = $cu ? (string) $cu['vt_vao'] : ''; }
+
 		/* Ô "Thời gian trong ngày" của sheet: 'HH:mm' hoặc 'HH:mm HH:mm'. Tính lại từ cặp SAU khi
 		   đã đặt, chứ không chắp từ nhánh — chắp từ nhánh là chỗ dễ lệch nhất với bản gốc. */
 		$vao_moi = array_key_exists( 'gio_vao_giay', $dat ) ? $dat['gio_vao_giay'] : $vao;
@@ -715,6 +733,53 @@ class VHCC_Nhan {
 		if ( false === $ok ) { return array( 'loi' => 'MySQL: ' . $wpdb->last_error ); }
 
 		return array( 'loai' => $loai, 'anh' => $ghi_anh ? ( 'ok:' . $anh_moi ) : ( strlen( $anh_b64 ) > 100 ? 'ERR' : 'no-img' ) );
+	}
+
+	/**
+	 * CHỈ ĐẶT KHOẢNG NGHỈ GIỮA CA — không chạm một giây nào của giờ vào / giờ ra.
+	 *
+	 * 🔴 VÌ SAO KHÔNG DÙNG `dat_gio()` CHO VIỆC NÀY. Hàm ấy ĐẶT THẲNG mọi thứ, tức là xoá được
+	 *    giờ máy đã ghi — và chú thích của nó nói rõ nó chỉ có đúng MỘT nơi gọi (`VHCC_Bu::sua`,
+	 *    nơi gác quyền Admin, đòi lý do, ghi nhật ký cũ→mới). Mở nó ra cho bộ nạp là mở lại
+	 *    đúng cái cửa ấy cho một việc chỉ cần hai cột.
+	 *
+	 * 🔴 VÌ SAO CẦN. Bảng công cũ có người làm HAI CA CÁCH QUÃNG trong một ngày (08:30–13:00 rồi
+	 *    17:05–22:00). `ghi_gio()` chỉ nới khung nên nó cho ra 08:30–22:00 = 13 giờ 30, trong
+	 *    khi thực là 9 giờ 25. Khoảng giữa phải được ghi ra, nếu không là trả dư bốn tiếng cho
+	 *    một người trong một ngày. Xem `VHCC_NapDoc`.
+	 *
+	 * ⚠️ HÀNG PHẢI CÓ SẴN. Hàm này không tạo hàng mới: khoảng nghỉ của một ngày không có giờ
+	 *    công là một con số không nói lên điều gì.
+	 */
+	public static function dat_nghi_giua( $coso, $ngay, $ma_nv, $tu_giay, $den_giay ) {
+		global $wpdb;
+		$coso = VHCC_NhanSu::chuan_coso( $coso );
+		list( $ma_goc, $hau_to ) = self::tach_hau_to( $ma_nv );
+		$bang = VHCC_DB::t( 'cham_cong' );
+		$cu = $wpdb->get_row( $wpdb->prepare(
+			"SELECT id, gio_vao_giay, gio_ra_giay FROM $bang WHERE coso=%s AND ngay=%s AND ma_nv=%s AND hau_to=%s",
+			$coso, $ngay, $ma_goc, $hau_to ), ARRAY_A );
+		if ( ! $cu ) { return false; }
+		$tu  = ( null === $tu_giay || '' === $tu_giay ) ? null : (int) $tu_giay;
+		$den = ( null === $den_giay || '' === $den_giay ) ? null : (int) $den_giay;
+		/* Khoảng rỗng hay ngược đầu thì XOÁ, không ghi. Một khoảng nghỉ 13:00–13:00 là rác, và
+		   một khoảng 17:00–13:00 thì mọi phép trừ ở nơi khác ra số âm. */
+		if ( null === $tu || null === $den || $den <= $tu ) { $tu = null; $den = null; }
+
+		/* 🔴 KHOẢNG NGHỈ PHẢI NẰM GỌN TRONG KHUNG GIỜ CỦA CHÍNH HÀNG ẤY — chối nếu không.
+		   Bộ nạp tính khoảng nghỉ từ TỆP, còn giờ trong sổ có thể đã khác: Admin sửa tay, hoặc
+		   máy chấm công đã ghi một khung khác. Đặt bừa khoảng của tệp vào khung của sổ là TRỪ
+		   mất mấy tiếng công của một người — trừ im lặng, vì bảng vẫn có đủ cặp giờ và ô nghỉ
+		   thì không ai soi. Trả `false` để nơi gọi kể ra và người ta sửa tay.
+		   ⚠️ Hàng thiếu một đầu giờ cũng chối: không biết khung thì không kiểm được. */
+		if ( null !== $tu ) {
+			$v = ( null === $cu['gio_vao_giay'] || '' === $cu['gio_vao_giay'] ) ? null : (int) $cu['gio_vao_giay'];
+			$r = ( null === $cu['gio_ra_giay'] || '' === $cu['gio_ra_giay'] ) ? null : (int) $cu['gio_ra_giay'];
+			if ( null === $v || null === $r || $tu < $v || $den > $r ) { return false; }
+		}
+		$wpdb->update( $bang, array( 'nghi_tu_giay' => $tu, 'nghi_den_giay' => $den ),
+			array( 'id' => (int) $cu['id'] ) );
+		return true;
 	}
 
 	/**

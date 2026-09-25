@@ -37,15 +37,23 @@ t('🔴 có bước chọn loại đơn', HTML.indexOf('id="ndLoaiBox"') >= 0);
    nhân viên cơ sở · chi phí cơ sở của Kỹ thuật) — đúng chỗ anh Thắng 11/09/2026 bị lộn, nên
    mỗi dòng phải nói rõ AI LÊN và GOM THEO GÌ. */
 t('   lối Đơn tuần của cơ sở', HTML.indexOf("ndChonLoai('coso')") >= 0 && HTML.indexOf('📅 Đơn tuần của cơ sở') >= 0);
-t('   lối Chi phí cơ sở · Kỹ thuật', HTML.indexOf("ndChonLoai('dacoso')") >= 0 && HTML.indexOf('🏢 Chi phí cơ sở · Kỹ thuật') >= 0);
+/* 🔴 ĐỔI TÊN 21/09/2026 — anh Thắng: *"Chi Phí Cơ Sở chỉ dành cho nhân viên cơ sở"*. Chữ
+   "Chi phí cơ sở" nay thuộc về đơn của nhân viên cơ sở; lối cùng tên bên Kỹ thuật đổi thành
+   "Chi phí tuần". Anh chia đúng hai loại: *"Chi Phí Dự Án (1 cơ sở 1 đơn)"* và *"Chi Phí
+   Tuần (Nhiều Cơ Sở cho 1 Đơn)"*.
+   ⚠️ MÃ `dacoso` GIỮ NGUYÊN: đổi mã là đụng máy chủ và mọi đơn cũ, mà anh chỉ bảo đổi CHỮ. */
+t('   lối Chi phí tuần · Kỹ thuật', HTML.indexOf("ndChonLoai('dacoso')") >= 0 && HTML.indexOf('🗓 Chi phí tuần · Kỹ thuật') >= 0);
+t('🔴 chữ "Chi phí cơ sở" không còn đứng tên một lối của Kỹ thuật', HTML.indexOf('Chi phí cơ sở · Kỹ thuật') < 0);
 t('   lối Chi phí dự án · Kỹ thuật', HTML.indexOf("ndChonLoai('duan')") >= 0 && HTML.indexOf('🏗 Chi phí dự án · Kỹ thuật') >= 0);
 t('🔴 ba tên khác hẳn nhau, không cái nào là tiền tố của cái kia',
-  ['📅 Đơn tuần của cơ sở', '🏢 Chi phí cơ sở · Kỹ thuật', '🏗 Chi phí dự án · Kỹ thuật']
+  ['📅 Đơn tuần của cơ sở', '🗓 Chi phí tuần · Kỹ thuật', '🏗 Chi phí dự án · Kỹ thuật']
     .every((a, i, ds) => ds.every((b, j) => i === j || (a.indexOf(b) < 0 && b.indexOf(a) < 0))));
 /* Hai nhãn phải nói ra ĐIỂM KHÁC, không chỉ tên. Ai chưa quen thì tên đơn không giúp gì. */
-t('🔴 nhãn nói rõ đơn cơ sở gom theo TUẦN', HTML.indexOf('gom theo tuần') >= 0);
-t('🔴 nhãn nói rõ đơn dự án theo THỜI GIAN BẤT KỲ và ứng nhiều lần',
-  HTML.indexOf('thời gian bất kỳ, tạm ứng nhiều lần') >= 0);
+/* 🔴 ĐIỂM KHÁC PHẢI NÓI BẰNG CHÍNH LờI ANH ĐẶT RA, không diễn đạt lại: MỘT hay NHIỀU
+   cơ sở trên một đơn — đó mới là thứ người dùng cần phân biệt. */
+t('🔴 nhãn đơn tuần nói rõ NHIỀU cơ sở cho 1 đơn', HTML.indexOf('Nhiều cơ sở cho 1 đơn') >= 0);
+t('🔴 nhãn đơn dự án nói rõ 1 cơ sở 1 đơn', HTML.indexOf('1 cơ sở 1 đơn') >= 0);
+t('   và vẫn giữ ý "tạm ứng nhiều lần" của đơn dự án', HTML.indexOf('tạm ứng nhiều lần') >= 0);
 
 /* ── 2. CHỈ HỎI KHI VÀO ĐƯỢC CẢ HAI ────────────────────────────────────────────────────── */
 const boc = ten => {
@@ -86,6 +94,11 @@ t("🔴 và đúng là Kỹ thuật — chỉ mình nó", JSON.stringify(BP_HOI)
 /* ⚠️ `_vaoDuocDuAn()` nay TRA BẢNG QUYỀN chứ không dò nút trong thanh "LOẠI ĐƠN" — thanh ấy đã
    bỏ (anh Thắng 11/09/2026: *"gộp nó lại thành 1"*), và dò một nút không còn tồn tại thì hàm
    luôn trả false: hộp "Đơn này là loại nào?" tắt hẳn mà không báo gì. Bệ đỡ đổi theo. */
+/* ═══ BỘ PHẬN ĐỌC TỪ TÊN VAI CON (21/09/2026) ══════════════════════════════════════
+   Cột Bộ phận đã rời bảng Người dùng, nên luật nào cần nó thì đọc lại từ tên vai.
+   🔴 BỐC MÃ THẬT, ĐỪNG BỊA MỘT BẢN Ở ĐÂY — bịa là bài kiểm canh luật của chính nó,
+      xanh vĩnh viễn dù bản thật đi đường khác. */
+const BP_THAT = "  var BP_THEO_TEN_VAI=[\n    {bp:'Kỹ thuật', tu:['ky thuat']},\n    {bp:'Cơ sở',    tu:['co so']},\n    {bp:'Marketing', tu:['marketing']},\n    {bp:'Văn phòng', tu:['van phong']}\n  ];\n  function _boDauVai(s){\n    return String(s==null?'':s).toLowerCase().replace(/\\u0111/g,'d')\n      .normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/\\s+/g,' ').trim();\n  }\n  function _bpCuaVai(ten){\n    var t=' '+_boDauVai(ten)+' ';\n    if(t===' ') return '';\n    for(var i=0;i<BP_THEO_TEN_VAI.length;i++){\n      var x=BP_THEO_TEN_VAI[i];\n      for(var j=0;j<x.tu.length;j++){ if(t.indexOf(' '+x.tu[j]+' ')>=0) return x.bp; }\n    }\n    return '';\n  }\n  function _bpCuaToi(){\n    var b=String((CURUSER&&CURUSER.boPhan)||'').trim();\n    if(b) return b;\n    return _bpCuaVai((CURUSER&&CURUSER.role)||'');\n  }";
 const moiTruong = {
   BP_HOI_LOAI_DON: BP_HOI,
   QUYEN_TAB: null,
@@ -93,6 +106,7 @@ const moiTruong = {
 };
 const chay = new Function('moiTruong', `
   with (moiTruong) {
+    ${BP_THAT}
     ${boc('_tabDuoc')}
     ${boc('_vaoDuocDuAn')}
     ${boc('_hoiLoaiDon')}

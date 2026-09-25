@@ -87,7 +87,11 @@ t('🔴 ô ngày của màn kho đi qua noiONgay, không nối thẳng vào chan
 t('đổi thành phần combo thì NẠP LẠI cả sổ', /api\('kho-combo'[\s\S]{0,120}then\(taiKho\)/.test(boCC));
 t('bày cả hai cột máy: bán lẻ và theo combo',
   /Máy bán lẻ/.test(boCC) && /Theo combo/.test(boCC));
-t('bày cả hai cột lệch', /Lệch khai/.test(boCC) && /Lệch kho/.test(boCC));
+/* 24/09/2026 anh Thắng: cột "SL hàng bán / Lệch khai" thành "Hàng huỷ" — soát bán so máy đã ở tab Nhập báo cáo. */
+t('🔴 cột Hàng huỷ thay SL hàng bán, không còn Lệch khai', /<th>Hàng huỷ<\/th>/.test(boCC) && /oNhap\('huy', 'Hàng huỷ'/.test(boCC) && !/Lệch khai/.test(boCC) && !/SL hàng bán/.test(boCC));
+t('vẫn có cột Lệch kho', /Lệch kho/.test(boCC));
+t('máy bán lấy SL thực đã chốt thì đánh dấu * kèm giải thích', /d\.ban_chot/.test(boCC) && /soKho\(d\.ban_may\) \+ '\*/.test(boCC));
+t('chú giải nói hàng huỷ trừ thẳng khỏi tồn', /Hàng huỷ<\/b> = hàng hỏng/.test(boCC) && /− hàng huỷ/.test(boCC));
 t('🔴 nhắc combo chưa khai thành phần', /combo_nghi/.test(boCC));
 /* Cảnh báo trừ hai lần vẫn còn, nhưng nay nói đúng mức chắc chắn của nó: "xem lại kẻo",
    không phải "ĐANG trừ hai lần" — vì dòng 0đ có thể chỉ là hàng cho. */
@@ -153,6 +157,75 @@ t('🔴 mỗi ô tự in nhãn của nó ra bằng data-nhan',
   (dt.match(/content:attr\(data-nhan\)/g) || []).length >= 3);
 t('ô phải gõ cao 44px và chữ 16px trên điện thoại',
   /\.o-go input\{[^}]*min-height:44px/.test(dt) && /\.o-go input\{[^}]*font-size:16px/.test(dt));
+/* 23/09/2026 anh Thắng (điện thoại): "cho ô nhỏ lại cho thành 1 hàng" · "cho số theo máy đếm phía sau ô
+   nhập, nếu lệch ở giữa" — mỗi ô gõ một dòng: ô gõ · lệch · số máy tương ứng, xếp bằng order theo data-nhan. */
+/* 23/09/2026 anh Thắng (ảnh 23:51): hai số lẻ/combo chen vào giữa làm dòng "Hàng tồn còn" lệch phải — "chiều
+   dài ô bằng chữ để sắp lại cho gọn" -> LƯỚI 3 cột cố định, cột ô gõ rộng bằng chữ nhãn. */
+t('🔴 thẻ là LƯỚI 3 cột: cột ô gõ cố định (~124px), lệch, số máy', /\.bang-the tr\{display:grid;grid-template-columns:1[0-4]\dpx 1fr 1fr/.test(dt));
+t('🔴 Hàng huỷ · (trống) · Máy bán tổng đúng cột 1·3', /"Hàng huỷ"\]\{order:20;grid-column:1\}/.test(dt) && /"Máy bán tổng"\]\{order:22;grid-column:3\}/.test(dt) && !/"Lệch khai"/.test(dt));
+t('🔴 Hàng tồn còn · Lệch kho · Tồn tính đúng cột 1·2·3', /"Hàng tồn còn"\]\{order:30;grid-column:1\}/.test(dt) && /"Lệch kho"\]\{order:31;grid-column:2\}/.test(dt) && /"Tồn tính"\]\{order:32;grid-column:3\}/.test(dt));
+t('Nhập cột 1, Tồn đầu cột 3 (cột lệch trống); ghi chú trải hết', /"Nhập"\]\{order:10;grid-column:1\}/.test(dt) && /"Tồn đầu"\]\{order:12;grid-column:3\}/.test(dt) && /\.o-ghi\{order:40;grid-column:1 \/ -1\}/.test(dt));
+t('🔴 máy bán lẻ / theo combo có chỗ riêng, không chen vào lưới', /"Máy bán lẻ"\]\{order:23;grid-column:1/.test(dt) && /"Theo combo"\]\{order:24;grid-column:2 \/ -1/.test(dt));
+t('số máy canh phải, lệch canh giữa', /\.o-may\{text-align:right\}/.test(dt) && /\.o-lech\{text-align:center\}/.test(dt));
+/* Nhãn cột đổi theo lời anh: "NV khai bán" -> "SL hàng bán", "NV đếm còn" -> "Hàng tồn còn" — CSS order bám
+   theo data-nhan nên đổi nhãn ở JS mà quên CSS là bố cục điện thoại vỡ im lặng. */
+t("🔴 JS dùng đúng nhãn 'Hàng huỷ' và 'Hàng tồn còn' mà CSS order bám theo", /oNhap\('huy', 'Hàng huỷ'/.test(boCC) && /oNhap\('dem', 'Hàng tồn còn'/.test(boCC) && !/NV khai bán|NV đếm còn/.test(boCC));
+t("và các nhãn số máy khớp CSS", /oMay\('Tồn đầu'/.test(boCC) && /oMay\('Máy bán tổng'/.test(boCC) && /oMay\('Tồn tính'/.test(boCC));
+
+/* 24/09/2026 anh Thắng: thêm sản phẩm mới theo tên + mã FABi; combo CHỌN thay gõ ("nhập hay ghi sai tên sản phẩm"). */
+t('🔴 khối danh mục có ô thêm mặt hàng mới (tên + mã FABi) và nút Thêm', /id="mhThemTen"/.test(boCC) && /id="mhThemMa"/.test(boCC) && /id="mhThem"/.test(boCC));
+t('món thêm tay mà FABi chưa bán được đánh dấu', /mới · FABi chưa bán/.test(boCC));
+t('danh sách bày = FABi từng bán ∪ danh mục (món mới không mất ô)', /chon\.forEach\(function \(t\) \{ if \(ten\.indexOf\(t\) < 0\) ten\.push\(t\); \}\);/.test(boCC));
+t('🔴 món thêm tay có nút ✕ xoá cho văn phòng (duoc_nap), gửi xoa_ten, có hỏi xác nhận', /data-mh-xoa=/.test(boCC) && /S\.cf\.duoc_nap \? ' <button class="chip" type="button" data-mh-xoa=/.test(boCC) && /fd\.append\('xoa_ten', tenXoa\)/.test(boCC) && /window\.confirm\('Xoá "/.test(boCC));
+t('nút Thêm gửi them_ten / them_ma qua kho-mat-hang', /fd\.append\('them_ten', tenMoi\); fd\.append\('them_ma', maMoi\)/.test(boCC));
+t('🔴 combo CHỌN từ danh sách (#cbChon) gồm combo hệ nghi + món có chữ combo + đã khai', /id="cbChon"/.test(boCC) && /r\.combo_nghi \|\| \[\]\)\.forEach/.test(boCC) && /\/combo\/i\.test\(t\)/.test(boCC));
+t('🔴 thành phần là ô số lượng theo từng món danh mục (data-cb-mon), không gõ tên', /data-cb-mon=/.test(boCC));
+t('chọn combo đã khai thì điền sẵn công thức vào các ô', /S\.khoR\.combo\[v\]/.test(boCC) && /i\.value = ct\[m\] != null \? ct\[m\] : '';/.test(boCC));
+t('"Khác — gõ tên…" mới mở ô gõ tên', /value="__khac__"/.test(boCC) && /oTen\.hidden = v !== '__khac__'/.test(boCC));
+t('Lưu gộp ô số lượng với ô thêm nhanh', /if \(v > 0\) tp\[i\.getAttribute\('data-cb-mon'\)\] = v;/.test(boCC));
+t('🔴 thành phần đã khai không trùng món nào trong kho thì đỏ "không khớp món nào"', /không khớp món nào<\/b>/.test(boCC) && /coKho\.indexOf\(m\) >= 0/.test(boCC));
+
+/* 24/09/2026 anh Thắng: "nhập tồn mà sao nó không tính realtime" — tinhKhoDong chạy thật, cùng công thức máy chủ. */
+{
+  const T = new Function(boc('tinhKhoDong') + '\nreturn tinhKhoDong;')();
+  const d = { ton_dau: -2, ban_may: 5, combo_tay: 0 };
+  let k = T(d, { dat_dau: '148', nhap: '0', huy: '3', dem: '' });
+  t('🔴 gõ tồn đầu 148, huỷ 3, máy 5 -> tồn tính 140 ngay; chưa đếm -> lệch trống', k.ton_tinh === 140 && k.lech_kho === null);
+  k = T(d, { dat_dau: '148', nhap: '10', huy: '', dem: '150' });
+  t('gõ nhập 10, đếm 150 -> tồn tính 153, lệch −3', k.ton_tinh === 153 && k.lech_kho === -3);
+  k = T(d, { dat_dau: '', nhap: '', huy: '', dem: '' });
+  t('ô tồn đầu trống -> dùng số kéo (−2 − 5 = −7)', k.ton_tinh === -7);
+  k = T({ ton_dau: null, ban_may: 5, combo_tay: 0 }, { dat_dau: '', nhap: '', huy: '', dem: '' });
+  t('chưa biết tồn đầu và không nhập -> tồn tính trống (null)', k.ton_tinh === null && k.lech_kho === null);
+  k = T({ ton_dau: null, ban_may: 5, combo_tay: 0 }, { dat_dau: '', nhap: '20', huy: '', dem: '' });
+  t('lượt nhập đầu vào kho rỗng là mốc 0: 0 + 20 − 5 = 15', k.ton_tinh === 15);
+  k = T({ ton_dau: 10, ban_may: null, combo_tay: 0 }, { dat_dau: '', nhap: '5', huy: '', dem: '9' });
+  t('chưa nạp FABi (máy bán null) -> không bịa tồn tính', k.ton_tinh === null && k.lech_kho === null);
+  k = T({ ton_dau: 10, ban_may: 2, combo_tay: 1 }, { dat_dau: '', nhap: '1.000', huy: '', dem: '0' });
+  t('số có dấu chấm ngăn nghìn đọc đúng; đếm 0 khác trống -> lệch = 0 − 1007', k.ton_tinh === 1007 && k.lech_kho === -1007);
+}
+t('hàng kho mang data-dong và sự kiện input gọi veLaiDongKho', /<tr data-dong="' \+ i \+ '">/.test(boCC) && /veLaiDongKho\(x\.closest\('tr'\)\)/.test(boCC));
+t('chỉ bốn ô gõ số mới kích tính lại (không phải ghi chú)', /kho !== 'dat_dau' && kho !== 'nhap' && kho !== 'huy' && kho !== 'dem'/.test(boCC));
+
+/* 24/09/2026 anh Thắng: "cho set lại tồn đầu" — ô Tồn đầu gõ được khi có quyền ghi, trống = số kéo (placeholder). */
+t('🔴 Tồn đầu là ô gõ data-kho="dat_dau" khi được ghi', /data-kho="dat_dau"/.test(boCC) && /class="o-go o-dau" data-nhan="Tồn đầu"/.test(boCC));
+t('ô ấy hiện số kéo mờ (placeholder = soKho(d.ton_dau))', /placeholder="' \+ esc\(soKho\(d\.ton_dau\)\)/.test(boCC));
+t('không có quyền ghi thì vẫn là số đọc (oMay Tồn đầu)', /: oMay\('Tồn đầu', d\.ton_dau\)/.test(boCC));
+t('điện thoại: ô Tồn đầu gõ được vẫn đứng cột 3 dòng Nhập', /\.o-go\[data-nhan="Tồn đầu"\]\{order:12;grid-column:3\}/.test(dt));
+t('chú giải nói gõ số để đặt lại mốc', /gõ số thật vào ô<\/b> để đặt lại mốc/.test(boCC));
+
+/* 23/09/2026 anh Thắng: "cho các ô này nhỏ lại, để tránh lệch cột" — trên máy tính ô gõ số phải hẹp,
+   không để trình duyệt tự cho ~150px. Luật này nằm NGOÀI @media (luật điện thoại đè lại thành 100%). */
+{
+  const cssGoc = css;
+  /* Cắt TRƯỚC khối điện thoại (đầu tệp còn một @media prefers-color-scheme, không phải mốc). */
+  const iDT = cssGoc.search(/@media\s*\(max-width:\s*560px\)/);
+  const truocMedia = cssGoc.slice(0, iDT < 0 ? cssGoc.length : iDT);
+  const m = truocMedia.match(/\.khh-dt \.o-go input\{([^}]*)\}/);
+  t('🔴 ô gõ số trong bảng kho có bề rộng cố định hẹp trên máy tính', !!m && /width:(\d+)px/.test(m[1]) && parseInt(/width:(\d+)px/.exec(m[1])[1], 10) <= 80);
+  t('và canh phải kiểu số', !!m && /text-align:right/.test(m[1]));
+  t('ô ghi chú rộng hơn và canh trái', /\.o-go input\[data-kho="ghi_chu"\]\{[^}]*width:1\d\dpx[^}]*text-align:left/.test(truocMedia));
+}
 t('thôi cuộn ngang khi đã thành thẻ', /\.bang-the\{overflow-x:visible\}/.test(dt));
 
 /* 🔴 MỌI ô trong bảng kho phải mang data-nhan. Thiếu một ô là trên điện thoại nó hiện ra một
@@ -172,6 +245,73 @@ if (mBang) {
 const mLech = boCC.match(/function oLech\([\s\S]*?\n  \}/);
 t('ô lệch cũng mang data-nhan và lớp o-lech',
   mLech !== null && /data-nhan/.test(mLech[0]) && /o-lech/.test(mLech[0]));
+
+/* ── 7. sổ ghi động và ngày hiệu lực combo — vế MÀN HÌNH ──────────────────────────── */
+/* 🔴 Giữ vết mà không bày ra thì chẳng ai biết là có vết: người trực vẫn tưởng sửa là xoá dấu,
+   và người soát cũng không nghĩ tới chuyện đi xem lịch sử. Nhãn "đã sửa N lần" chính là phần
+   răn, nên nó phải nằm ngay cạnh tên mặt hàng. */
+t('màn đọc số lượt khai từ máy chủ', /r\.so_lan/.test(boCC));
+t('🔴 hiện nhãn "đã sửa N lần" ngay trên dòng', /đã sửa '/.test(boCC));
+t('nhãn ấy bấm được để xem lịch sử', /data-kho-su=/.test(boCC));
+t('🔴 và chỉ hiện khi CÓ sửa (> 1 lượt), không hiện với dòng khai một lần',
+  /so_lan\[d\.mat_hang\] \|\| 0\) > 1/.test(boCC));
+t('trừ đi một lượt khi đếm số lần sửa (3 lượt khai = 2 lần sửa)',
+  /so_lan\[d\.mat_hang\] - 1/.test(boCC));
+const mSu = boCC.match(/closest\('\[data-kho-su\]'\)([\s\S]*?)\n    \}\);/);
+t('có bộ xử lý xem lịch sử', mSu !== null);
+if (mSu) {
+  t('gọi đúng đường kho-su', /kho-su\?ngay=/.test(mSu[0]));
+  t('🔴 bày kèm NGƯỜI và GIỜ — không có hai thứ ấy thì vết vô dụng',
+    /x\.luc/.test(mSu[0]) && /x\.nguoi/.test(mSu[0]));
+  t('bày cả ghi chú của từng lượt', /x\.ghi_chu/.test(mSu[0]));
+}
+
+/* 🔴 Ngày hiệu lực của combo: mặc định HÔM NAY, không mặc định lùi. Mặc định lùi là mọi lượt
+   khai đều lặng lẽ viết lại số tồn của những ngày đã chốt. */
+t('🔴 khối combo có ô ngày hiệu lực', /id="cbTu"/.test(boCC));
+/* So chuỗi thẳng, không dùng regex: mẫu cần tìm có cả ' + ( ) nên viết regex là ba lớp
+   thoát ký tự, và lần đầu em viết sai đúng chỗ ấy — phép thử đỏ vì CHÍNH NÓ sai, không
+   phải vì mã sai. Phép thử tự sai thì tệ hơn không có phép thử. */
+t('mặc định là HÔM NAY, không phải để trống hay lùi',
+  boCC.indexOf('id="cbTu" value="' + String.fromCharCode(39) + ' + esc(homNay())') >= 0);
+t('và gửi tu_ngay lên máy chủ', /fd\.append\('tu_ngay'/.test(boCC));
+t('homNay() lấy theo múi giờ máy người dùng, không qua toISOString',
+  /function homNay\(\) \{ return ymd\(new Date\(\)\); \}/.test(boCC));
+
+/* ── 8. chưa nạp báo cáo FABi thì nói thẳng, đặt trên cùng ─────────────────────────── */
+/* 🔴 Không nói thì người trực nhìn cột Máy bán toàn "—" rồi tự đoán — mà đoán theo hướng "hôm
+   nay không bán gì" là đếm xong thấy lệch kho bằng đúng số đã bán, rồi tưởng mất hàng. */
+t('màn đọc cờ co_fabi', /r\.co_fabi === false/.test(boCC));
+t('🔴 có câu báo "Chưa nạp báo cáo FABi cho ngày"', /Chưa nạp[\s\S]{0,40}báo cáo FABi cho ngày/.test(boCC));
+t('câu báo nói rõ trống là CHƯA CÓ SỐ, không phải bán 0', /chưa có số/.test(boCC) && /không phải bán 0/.test(boCC));
+t('và nói vẫn đếm & Lưu được ngay', /đếm và Lưu/.test(boCC));
+
+/* ── 9. thẻ kho ───────────────────────────────────────────────────────────────────── */
+t('🔴 tên mặt hàng bấm được để mở thẻ kho', /data-kho-the=/.test(boCC));
+t('có bộ xử lý mở thẻ kho', /closest\('\[data-kho-the\]'\)/.test(boCC));
+t('gọi đúng đường kho-the', /api\('kho-the\?co_so=/.test(boCC));
+t('có khung #khoThe dưới bảng', /id="khoThe"/.test(boCC));
+const mThe = boCC.match(/function veKhoThe\([\s\S]*?\n  \}/);
+t('có hàm vẽ thẻ kho', mThe !== null);
+if (mThe) {
+  t('thẻ kho bày đủ tồn đầu / nhập / máy bán / đếm / tồn cuối',
+    /Tồn đầu/.test(mThe[0]) && /Máy bán/.test(mThe[0]) && /Đếm/.test(mThe[0]) && /Tồn cuối/.test(mThe[0]));
+  t('🔴 ngày chưa nạp FABi được đánh dấu trên thẻ', /chưa nạp FABi/.test(mThe[0]));
+  t('thẻ kho dùng bang-the để xuống thẻ dọc trên điện thoại', /bang-the/.test(mThe[0]));
+  t('ô ngày của thẻ kho đi qua noiONgay', /noiONgay\(noi\.querySelector\('#theTu'\)/.test(mThe[0]));
+}
+/* 🔴 Sổ kho là việc CUỐI NGÀY -> mặc định HÔM NAY. Mặc định hôm qua là mỗi tối phải tự đổi
+   ngày, ai quên là số đếm hôm nay đè lên hôm qua. */
+t('🔴 tab kho mặc định HÔM NAY, không phải hôm qua', /S\.kho = \{ ngay: homNay\(\)/.test(boCC));
+
+/* ---- "không phụ trách cơ sở này" mà phải F5 (chị Truyền 24/09/2026) ---- */
+{
+  const tk = boc('taiKho');
+  t('có taiKho', tk.length > 0);
+  t('🔴 cơ sở mặc định lấy cua_toi trước, rồi mới tới quán đầu danh sách', /var csMac = \(S\.cf && S\.cf\.cua_toi\) \|\| \(ds\.length \? ds\[0\] : ''\);/.test(tk));
+  t('🔴 gặp "không phụ trách" thì hỏi lại cau-hinh, đổi sang quán mình và tải lại — chỉ một lần', /không phụ trách\/i\.test/.test(tk) && /!S\.khoDaHoiLai/.test(tk) && /api\('cau-hinh'\)\.then/.test(tk) && /S\.kho\.cs = moi; S\.khoR = null; taiKho\(\); return;/.test(tk));
+  t('không đổi được quán thì nói rõ cách thoát (F5) thay vì chỉ câu lỗi trơ', /tải lại trang \(F5\)/.test(tk));
+}
 
 if (hong.length) {
   console.log('\n✗ HỎNG ' + hong.length + ' phép (đạt ' + dat + '):');

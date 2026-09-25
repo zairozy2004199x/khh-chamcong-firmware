@@ -1,32 +1,66 @@
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * BỘ ÁO TRỘN — anh Thắng 14/09/2026 gửi hai tệp DESIGN.md, chọn *"Trộn hai bản"*, xem thử trên
+ * trang tổng rồi bảo *"thay cho trang ghế và chi phí văn phòng và mtd đi em"*.
+ *
+ * 🔴 SỬA Ở ĐÂY LÀ SỬA CHO CẢ BỐN BẢN CHI PHÍ. Bản «vp» và «mtd» KHÔNG có bộ áo riêng — chúng
+ *    sinh ra từ chính thư mục này bằng `tools/tach-ban-vung.sh`. Muốn hai bản ấy đổi áo thì
+ *    phải đổi ở đây, và bản khu vui chơi đổi theo. Không có đường nào khác trừ khi dựng ba
+ *    bộ áo rời — mà ba bộ rời là ba chỗ phải nhớ sửa mỗi lần, tức sớm muộn chúng lệch nhau.
+ *
+ * Lấy gì của ai (hai tệp ấy mâu thuẫn nhau, nên phải nói rõ):
+ *   · Officevibe cho MÀU  — nền kem ấm, viền KEM (nó cấm hẳn viền xám), chữ navy, nhấn cobalt.
+ *   · shadcn     cho NHỊP — compact, đơn vị 4px, bóng gần như không thấy, và đỏ CHỈ cho xoá.
+ *
+ * ⚠️ BỐN TÔNG TRẠNG THÁI KHÔNG ĐỔI: cam = đang chờ · xanh dương = tiền đã ra khỏi két ·
+ *    xanh lá = xong. Chúng mang nghĩa, không phải trang trí.
+ * ⚠️ KHÔNG TẢI FONT NGOÀI — trang chạy ngoài internet; mạng chậm thì chữ nhảy một nhịp giữa
+ *    lúc người ta đang gõ số tiền. Dùng chồng font hệ thống.
+ * ⚠️ Cùng đúng bộ tên biến với trang tổng (`vhcp-chi-phi-tong`), để hai trang kế toán mở cạnh
+ *    nhau không lệch tông.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+:root{
+  --nen:#f9f8f6; --the:#ffffff; --nen-2:#f4f1ec;
+  --vien:#f0e9e1; --vien-dam:#e2d6c7;
+  --chu:#171417; --chu-dam:#0c1754; --chu-mo:#8c8781;
+  --nhan:#2545ff; --nhan-dam:#1a34c9; --nhan-nhat:#eaebf8;
+  --do:#e7000b;
+  --d1:4px; --d2:8px; --d3:12px; --d4:16px; --d5:20px; --d6:24px;
+  --bo-the:16px; --bo-nut:18px; --bo-o:10px; --bo-o-bang:6px; --bo-nho:8px; --bo-badge:16px;
+  --bong:0 0 0 1px rgba(12,23,84,.03), 0 1px 3px rgba(12,23,84,.06), 0 1px 2px -1px rgba(12,23,84,.06);
+}
 /* GIAO DIỆN DÙNG CHUNG cho các trang của plugin (app chi phí và thư viện hợp đồng).
    Tách khỏi templates/*.html để hai trang luôn cùng một bộ style, sửa 1 chỗ ăn cả hai. */
   /* Bản WordPress: không còn Google Sheet nên ẩn 2 nút mở sheet */
   #daOpenSheet,#bpOpenSheet{display:none !important}
-  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',Roboto,Arial,sans-serif}
-  body{background:#f1f5f9;color:#0f172a;font-size:13px}
+  *{box-sizing:border-box;margin:0;padding:0;
+    font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif}
+  body{background:var(--nen);color:var(--chu);font-size:14px;line-height:1.5}
   /* CANH THẲNG HÀNG VỚI NỘI DUNG.
      Thanh xanh trên cùng và các thanh trắng chạy hết bề rộng màn hình, còn thẻ nội dung
      thì canh giữa trong 1600px — nên trên màn rộng, chữ ở thanh nằm sát lề trái mà thẻ
      bên dưới lại thụt vào giữa, nhìn như lệch trang. Đệm hai bên của thanh được tính cho
      bằng đúng lề của khối nội dung. */
-  .top{background:#0f766e;color:#fff;padding:14px max(22px, calc((100% - 1600px) / 2));display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+  .top{background:var(--chu-dam);color:#fff;padding:14px max(22px, calc((100% - 1600px) / 2));display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
   .top h1{font-size:18px;display:flex;align-items:center;gap:8px}
-  .top .sub{font-size:11px;color:#a7f3d0;margin-top:2px}
-  .bar{background:#fff;border-bottom:1px solid #e2e8f0;padding:10px max(22px, calc((100% - 1600px) / 2));display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-  select,input,textarea{padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;font-family:inherit}
-  select:focus,input:focus,textarea:focus{outline:none;border-color:#0f766e;box-shadow:0 0 0 3px rgba(15,118,110,.12)}
-  .btn{padding:8px 14px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+  .top .sub{font-size:11px;color:#b9c0e8;margin-top:2px}
+  .bar{background:#fff;border-bottom:1px solid #f0e9e1;padding:10px max(22px, calc((100% - 1600px) / 2));display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  select,input,textarea{padding:8px 10px;border:1px solid var(--vien-dam);border-radius:var(--bo-o);
+    font-size:14px;font-family:inherit;background:var(--the);color:var(--chu)}
+  /* Ô nhập TRONG bảng bo nhỏ: chín ô bo tròn sát nhau ăn mất bề ngang và tạo một hàng sóng. */
+  td input,td select,td textarea{border-radius:var(--bo-o-bang)}
+  select:focus,input:focus,textarea:focus{outline:none;border-color:#2545ff;box-shadow:0 0 0 3px rgba(37,69,255,.12)}
+  .btn{padding:8px 16px;border:none;border-radius:var(--bo-nut);font-size:13.5px;font-weight:500;cursor:pointer;white-space:nowrap}
   .btn:disabled{opacity:.5;cursor:not-allowed}
-  .b-p{background:#0f766e;color:#fff}.b-p:hover{background:#0d5c56}
-  .b-g{background:#16a34a;color:#fff}.b-x{background:#f1f5f9;color:#334155}.b-d{background:#fee2e2;color:#dc2626}
-  .b-s{background:#e0f2fe;color:#0369a1}
+  .b-p{background:#2545ff;color:#fff}.b-p:hover{background:#1a34c9}
+  .b-g{background:var(--chu-dam);color:#fff}.b-x{background:#f4f1ec;color:#171417}.b-d{background:#fdeaea;color:var(--do)}
+  .b-s{background:var(--nhan-nhat);color:var(--chu-dam)}
   /* BỀ RỘNG TRANG THEO MÁY.
      Trước đây chốt 1250px: màn 24" thì bỏ trống hai bên gần 600px, còn điện thoại thì
      lề 22px ăn mất chỗ của bảng. Nay giãn tới 1600px trên màn rộng và bóp lề lại trên
      máy nhỏ. Các mốc dùng chung một hệ: 1200 · 900 · 820 · 560 · 420. */
   .wrap{padding:16px 22px;width:100%;max-width:1600px;margin:0 auto}
-  .card{background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.07);margin-bottom:16px;overflow:hidden}
-  .ch{padding:12px 16px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+  .card{background:var(--the);border:1px solid var(--vien);border-radius:var(--bo-the);box-shadow:var(--bong);margin-bottom:16px;overflow:hidden}
+  .ch{padding:12px 16px;border-bottom:1px solid #f4f1ec;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
   .ch h2{font-size:14px;font-weight:700}
   .cb{padding:14px 16px}
 
@@ -72,7 +106,7 @@
     #btnMoreDon{display:inline-block}
     .db-phu{display:none}
     .db-hang1.mo .db-phu{display:flex;flex-wrap:wrap;gap:8px;width:100%;
-      margin-top:8px;padding-top:10px;border-top:1px dashed #cbd5e1}
+      margin-top:8px;padding-top:10px;border-top:1px dashed #e2d6c7}
     /* Hai nút một hàng: ngón tay cần bề rộng, và một cột nút dọc dài ngoằng thì cuộn lại y như
        cái đang muốn chữa. */
     .db-hang1.mo .db-phu .btn{flex:1 1 46%}
@@ -94,34 +128,101 @@
     background:#fffdf5;border:1px dashed #fcd34d;border-radius:10px;padding:12px 14px}
   @media(max-width:560px){.qt-cum{padding:10px}}
   .badge{padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700}
-  .st-nhap{background:#f1f5f9;color:#475569}.st-cho{background:#fef9c3;color:#854d0e}.st-cap{background:#dbeafe;color:#1e40af}.st-duyet{background:#dcfce7;color:#166534}
+  .st-nhap{background:#f4f1ec;color:#8c8781}.st-cho{background:#fef9c3;color:#854d0e}.st-cap{background:#dbeafe;color:#1e40af}.st-duyet{background:#dcfce7;color:#166534}
   .grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
   @media(max-width:1200px){.grid{grid-template-columns:repeat(3,1fr)}}
   @media(max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}}
   @media(max-width:560px){.grid{grid-template-columns:1fr}}
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+     🔴 FORM NHẬP HẠNG MỤC — anh Thắng 22/09/2026: *"Chỗ này tạo Form Nhập cho nó gọn trang"*.
+     ══════════════════════════════════════════════════════════════════════════════════════════
+     `.grid` dùng chung là SÁU cột và giãn hết bề ngang cửa sổ. Trên màn 1900px, một form 14 ô
+     trải suốt gang tay: mắt phải quét từ mép này sang mép kia cho MỘT hạng mục, và hai ô có
+     liên quan ("Số lượng" với "Đơn giá") thì nằm cách nhau nửa màn.
+
+     ⚠️ CHẶN BỀ NGANG, KHÔNG PHẢI GIẢM SỐ CỘT. Giảm cột mà vẫn giãn hết màn thì mỗi ô rộng ra,
+        form dài đúng như cũ — chỉ đổi kiểu dài. Cái cần chặn là bề ngang của cả khối.
+     ⚠️ ĐÈ RIÊNG, KHÔNG SỬA `.grid`. Lớp chung dựng cả chục bảng khác trong app; đổi ở đó là
+        sửa một màn, hỏng chín màn — và chín màn ấy không ai đi soi lại.
+     ⚠️ Dưới 1200px thì NHƯỜNG lại cho `.grid`: ở đó màn vốn đã hẹp, chặn thêm nữa là ô bị bóp.
+
+     🔴 VÀ PHẢI TỰ KHAI ĐỦ CÁC MỐC HẸP — "nhường cho `.grid`" KHÔNG TỰ XẢY RA. Anh Thắng
+        22/09/2026 gửi ảnh màn iPhone: *"Hơi lệch ô nhập"*. Ba cột chen nhau trên màn 390px,
+        nhãn dài xuống hai dòng còn nhãn ngắn một dòng, nên ô nhập trong cùng một hàng cao thấp
+        so le.
+
+        Nguyên do là một luật CSS im lặng: `.grid` và `.grid-nhap` CÙNG một mức riêng (mỗi bên
+        một lớp), nên khi hai luật cùng khớp thì luật VIẾT SAU thắng. `.grid` hạ xuống 2 cột ở
+        900px và 1 cột ở 560px; `.grid-nhap` chỉ có một mốc 1200px, mà nó viết sau — nên ở
+        390px cái thắng vẫn là `repeat(3,1fr)`. Lời chú thích nói "nhường", còn trình duyệt thì
+        không nhường gì cả.
+
+        Không sửa bằng cách gỡ mốc 1200px: mốc ấy có việc của nó (4 cột -> 3). Khai đủ ba mốc,
+        đi đúng theo `.grid` để hai bên không bao giờ nói ngược nhau nữa. */
+  .grid-nhap{grid-template-columns:repeat(4,minmax(0,1fr));max-width:1120px}
+  @media(max-width:1200px){.grid-nhap{grid-template-columns:repeat(3,1fr);max-width:none}}
+  @media(max-width:900px){.grid-nhap{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:560px){.grid-nhap{grid-template-columns:1fr}}
   .fld{display:flex;flex-direction:column;gap:3px}
   .fld label{font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.4px}
+  /* 🔴 NHÃN CHIẾM CHỖ ĐỀU NHAU -> Ô NHẬP TRONG CÙNG MỘT HÀNG THẲNG NHAU.
+     Mỗi ô là một ô lưới riêng, cao bao nhiêu tuỳ nội dung; nhãn "NGÀY" một dòng còn "PHÂN LOẠI
+     (CÁ NHÂN / NCC) *" hai dòng, nên hai ô nhập cạnh nhau lệch đúng một dòng chữ. Chừa sẵn hai
+     dòng cho MỌI nhãn rồi dán chữ xuống đáy khung ấy thì nhãn dài hay ngắn cũng kết thúc ở
+     cùng một độ cao.
+     ⚠️ ĐÈ TRONG `.grid-nhap`, không đè `.fld` dùng chung: lớp ấy dựng cả chục form khác, và
+        cộng 11px cho mỗi ô ở mọi nơi là sửa một màn, đổi chín màn. */
+  .grid-nhap>.fld>label{min-height:24px;display:flex;align-items:flex-end}
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+     🔴 DẢI LUỒNG LÀM VIỆC — TRÊN ĐIỆN THOẠI LÀ MỘT HÀNG CUỘN NGANG.
+     ══════════════════════════════════════════════════════════════════════════════════════════
+     Anh Thắng 22/09/2026 gửi ảnh màn iPhone: *"Với luồng duyệt"*, ngay sau lượt vá form nhập.
+
+     Tám bước ×  `flex-wrap:wrap` trên màn 390px = BỐN HÀNG, chiếm gần nửa màn trước khi thấy
+     đơn nào. Và mũi tên `→` giữa hai thẻ rơi xuống ĐẦU hàng sau mỗi lần xuống dòng — một mũi
+     tên mồ côi trỏ vào khoảng không, đúng ba lần trong ảnh.
+
+     Một hàng cuộn ngang thì đúng hình dạng của một LUỒNG (trái sang phải), mũi tên luôn nằm
+     giữa hai bước, và cả dải chỉ chiếm một hàng.
+
+     ⚠️ KHÔNG BỎ BƯỚC NÀO cho gọn. Dải này là BẢN ĐỒ: nhân viên phải biết đơn của mình sẽ đi
+        đâu tiếp. Bỏ mấy bước đang rỗng là luồng trông như chỉ có hai bước. Cuộn thì vẫn còn
+        đủ; `veThanhLuong()` tự kéo tới bước đang có đơn để chỗ tắc nằm sẵn trong tầm mắt.
+
+     🔴 VÌ SAO LUẬT NẰM Ở ĐÂY CHỨ KHÔNG PHẢI `style=` TRÊN THẺ: một thuộc tính viết thẳng trên
+        thẻ có mức riêng cao hơn MỌI luật trong tệp này, kể cả luật trong `@media`. Để
+        `flex-wrap:wrap` ở đó thì media query dưới đây không với tới, và màn hẹp vẫn xuống bốn
+        hàng — CÙNG MỘT HỌ LỖI với vụ `.grid-nhap` vừa vá cùng ngày, chỉ khác đường thắng. */
+  .luongBar{display:flex;gap:6px;align-items:stretch;flex-wrap:wrap}
+  .luongThe{flex:1 1 120px;min-width:112px;padding:9px 8px;display:flex;flex-direction:column;
+    align-items:center;gap:3px;border-radius:10px;text-align:center}
+  .luongMuiTen{align-self:center;color:#c9c2b8;font-size:13px}
+  @media(max-width:560px){
+    .luongBar{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}
+    .luongThe{flex:0 0 auto;min-width:96px;padding:7px 6px}
+    .luongMuiTen{font-size:11px}
+  }
   .fld input,.fld select,.fld textarea{width:100%}
   table{width:100%;border-collapse:collapse;min-width:920px}
-  thead th{background:#f8fafc;color:#64748b;font-size:11px;font-weight:700;text-transform:uppercase;text-align:left;padding:9px 10px;border-bottom:1px solid #e2e8f0;white-space:nowrap}
-  tbody td{padding:8px 10px;border-bottom:1px solid #f1f5f9;font-size:12.5px;vertical-align:middle}
-  tbody tr:hover{background:#f8fafc}
+  thead th{background:#f9f8f6;color:#64748b;font-size:11px;font-weight:700;text-transform:uppercase;text-align:left;padding:9px 10px;border-bottom:1px solid #f0e9e1;white-space:nowrap}
+  tbody td{padding:8px 10px;border-bottom:1px solid #f4f1ec;font-size:12.5px;vertical-align:middle}
+  tbody tr:hover{background:#f9f8f6}
   .tw{overflow-x:auto}
   .money{text-align:right;font-family:Consolas,monospace;white-space:nowrap}
   .pos{color:#166534;font-weight:700}.neg{color:#dc2626;font-weight:700}
-  .chip{display:inline-flex;align-items:center;gap:6px;background:#f0fdfa;border:1px solid #99f6e4;color:#0f766e;border-radius:20px;padding:4px 10px;font-size:12px;font-weight:600;margin:3px}
-  .chip b{color:#0f172a}.chip span{cursor:pointer;color:#94a3b8;font-weight:700}
-  .empty{text-align:center;color:#94a3b8;padding:26px;font-size:13px}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:#f0fdfa;border:1px solid #99f6e4;color:#2545ff;border-radius:20px;padding:4px 10px;font-size:12px;font-weight:600;margin:3px}
+  .chip b{color:#0c1754}.chip span{cursor:pointer;color:#8c8781;font-weight:700}
+  .empty{text-align:center;color:#8c8781;padding:26px;font-size:13px}
   #toast{position:fixed;top:14px;right:14px;z-index:2000;display:flex;flex-direction:column;gap:8px}
-  .t{background:#fff;border-left:4px solid #0f766e;border-radius:8px;padding:10px 15px;box-shadow:0 6px 20px rgba(0,0,0,.15);font-size:13px;min-width:220px}
+  .t{background:#fff;border-left:4px solid #2545ff;border-radius:8px;padding:10px 15px;box-shadow:0 6px 20px rgba(0,0,0,.15);font-size:13px;min-width:220px}
   .t.err{border-left-color:#ef4444}.t.warn{border-left-color:#f59e0b}
   #lo{display:none;position:fixed;inset:0;background:rgba(15,23,42,.35);z-index:1500;align-items:center;justify-content:center}
   #lo.show{display:flex}.spin{width:40px;height:40px;border:4px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:sp .8s linear infinite}
   @keyframes sp{to{transform:rotate(360deg)}}
   .hide{display:none}
 .csw{position:relative}
-.cs-pop{position:absolute;z-index:60;left:0;top:100%;margin-top:2px;width:260px;max-height:240px;overflow:auto;background:#fff;border:1px solid #cbd5e1;border-radius:8px;box-shadow:0 12px 30px rgba(15,23,42,.18)}
-.cs-list label:hover{background:#f1f5f9}
+.cs-pop{position:absolute;z-index:60;left:0;top:100%;margin-top:2px;width:260px;max-height:240px;overflow:auto;background:#fff;border:1px solid #e2d6c7;border-radius:8px;box-shadow:0 12px 30px rgba(15,23,42,.18)}
+.cs-list label:hover{background:#f4f1ec}
 
   /* ---------- MÁY TÍNH BẢNG & ĐIỆN THOẠI ---------- */
   @media(max-width:820px){
@@ -170,7 +271,7 @@
      Bấm vào tiêu đề để gập/mở — các nút Lưu, Thêm… trong tiêu đề vẫn bấm
      bình thường (JS bỏ qua click rơi vào nút/ô nhập). */
   .card.xo > .ch{cursor:pointer;user-select:none}
-  .card.xo > .ch h2::before{content:'▾';display:inline-block;width:14px;color:#94a3b8;font-size:12px;transition:transform .12s}
+  .card.xo > .ch h2::before{content:'▾';display:inline-block;width:14px;color:#8c8781;font-size:12px;transition:transform .12s}
   .card.xo.dong > .ch h2::before{transform:rotate(-90deg)}
   .card.xo.dong > .ch{border-bottom:none}
   .card.xo.dong > .ch ~ *{display:none !important}
@@ -207,12 +308,39 @@
       "rê chuột", nên đường bấm ấy vẫn là đường chính. */
 #billZoom{
   display:none;position:fixed;z-index:9999;pointer-events:none;
-  background:#fff;border:1px solid #cbd5e1;border-radius:10px;padding:4px;
+  background:#fff;border:1px solid #e2d6c7;border-radius:10px;padding:4px;
   box-shadow:0 12px 34px rgba(15,23,42,.28)
 }
 #billZoom img{display:block;max-width:none;border-radius:7px}
 /* Ảnh nhỏ trong bảng: cho biết nó rê được. */
 [data-bill]{cursor:zoom-in}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+   BẤM ẢNH BILL TRÊN MÁY CẢM ỨNG -> LỚP PHỦ NGAY TẠI TRANG (anh Thắng 17/09/2026)
+
+   🔴 Trước đây bấm ảnh là đi tới `<a target="_blank">`. Máy tính mở tab mới nên không sao,
+      nhưng app điện thoại KHÔNG CÓ TAB: đó là một lượt rời trang, và quay lại thì đơn đang mở
+      biến mất vì nó không nằm trong địa chỉ. Xem `_billTapInit()` trong app.html.
+
+   ⚠️ `position:fixed` + `inset:0` — KHÔNG đặt trong ô bảng. Bảng có `overflow-x:auto`, một
+      lớp phủ bên trong nó sẽ bị chính khung cuộn ấy CẮT, đúng lỗi mà `#billZoom` đã ghi.
+   ⚠️ z-index 3000 — trên cả cổng PIN (`#gate` 3000) thì thôi, nhưng phải trên `#lo` (1500) và
+      toast (2000): mở ảnh mà một cái toast nằm đè lên là bấm đóng trúng toast.
+   ══════════════════════════════════════════════════════════════════════════════════════════ */
+#billTap{display:none;position:fixed;inset:0;z-index:2900;
+  background:rgba(12,23,84,.92);
+  align-items:center;justify-content:center;padding:10px;
+  -webkit-tap-highlight-color:transparent}
+#billTap.hien{display:flex}
+/* Ảnh vừa khung, KHÔNG phóng quá cỡ thật: bill chụp bằng điện thoại vốn đã 3000px, kéo to hơn
+   chỉ làm nó nhoè. `object-fit:contain` giữ đúng tỉ lệ cho bill dọc. */
+#billTap img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;
+  background:#fff}
+/* Nút ✕ chỉ là dấu hiệu — cả tấm màn đều bấm đóng được (xem chú thích ở `dung()`), vì ngón cái
+   một tay khó với tới góc trên phải. */
+#billTap button{position:absolute;top:calc(10px + env(safe-area-inset-top));right:12px;
+  width:40px;height:40px;border:0;border-radius:50%;
+  background:rgba(255,255,255,.18);color:#fff;font-size:17px;line-height:1;cursor:pointer}
 
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════
@@ -223,3 +351,56 @@
    đọc — đây là mấy đơn đang treo tiền, thứ cần nhắc chứ không phải thứ cần giấu. */
 tr.qt-chim > td{background:#fafafa;color:#64748b}
 tr.qt-chim > td .badge{opacity:.8}
+
+/* Ô GÕ THẲNG TRONG BẢNG DỰ ÁN — anh Thắng 18/09/2026: *"thay vì bấm sửa, thì cho sửa thẳng
+   trong từng dòng đơn"*. Ô sửa được phải TRÔNG khác ô chỉ để đọc, không thì người ta không
+   biết bấm vào được; nhưng cũng không được viền sẵn như ô nhập, kẻo bảng đọc thành một tờ khai. */
+.o-sua{ cursor:text; border-radius:4px; }
+.o-sua:hover{ background:#eef2ff; box-shadow:inset 0 0 0 1px #c7d2fe; }
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   MENU XỔ KHỐI TRÊN TAB DUYỆT — anh Thắng 21/09/2026: *"chỗ duyệt tạm ứng, rê chuột vào nó xổ
+   ra bộ phận được không"*, và trước đó 20/09: *"để xem từng trang đơn vị, tránh duyệt lộn đơn
+   vị"*.
+
+   🔴 RÊ CHUỘT LÀ THỨ KHÔNG CÓ TRÊN iPHONE. Anh Thắng duyệt đơn bằng điện thoại — đã một lần ba
+      hộp thoại nối nhau chết câm trên iOS (xem `#datKyBox`). Nên menu này mở bằng HAI đường:
+      rê chuột (chỉ ở máy có chuột thật, `hover:hover`) và BẤM vào mũi ▾ (ở đâu cũng được).
+      Chỉ có `:hover` thì trên điện thoại cái mũi ▾ là một nút bấm vào không ra gì.
+
+   ⚠️ Vùng đệm `::before` phía trên hộp là CỐ Ý. Không có nó thì chuột đi từ nút xuống hộp phải
+      băng qua một khe hở vài pixel, menu tắt giữa đường, và người ta tưởng nó giật. */
+.tabMenu{ position:relative; display:inline-flex; align-items:stretch; gap:0 }
+.tabMenu > .btn{ border-top-right-radius:0; border-bottom-right-radius:0 }
+.tabMenuNut{
+  border:0; cursor:pointer; padding:0 8px; margin-left:1px; font-size:11px; line-height:1;
+  background:#e7e2da; color:#57534e; border-radius:0 8px 8px 0;
+}
+.tabMenuNut:hover{ background:#d6d0c6 }
+/* 🔴 `position:fixed`, KHÔNG PHẢI `absolute` — VÀ CHỖ ĐẶT DO JS TÍNH (`_tmDatCho`).
+   Trên màn hẹp `#tabbar` mang `overflow-x:auto` để cuộn ngang hàng tab. Mà `overflow-x:auto`
+   với `overflow-y:visible` thì trình duyệt tính ra `overflow-y:auto` — tức nó CẮT theo chiều
+   dọc luôn. Hộp `absolute` treo trong đó bị xén còn một vạch trắng: trên iPhone menu xổ ra
+   mà không đọc được chữ nào. Đã chụp màn hình thấy tận mắt 21/09/2026.
+
+   ⚠️ Kho mã ĐÃ ghi sẵn đúng bài học này hai lần cho lớp phủ trong bảng ("LỚP PHỦ NẰM Ở
+      <body>, KHÔNG NẰM TRONG Ô BẢNG… bảng có `overflow-x:auto`"). Lần này đến lượt hàng tab. */
+.tabMenuBox{
+  display:none; position:fixed; top:0; left:0; z-index:60; min-width:236px;
+  padding:6px; background:#fff; border:1px solid #e5e1d8; border-radius:10px;
+  box-shadow:0 10px 28px rgba(0,0,0,.14);
+}
+/* Cầu nối vô hình giữa nút và hộp: chuột đi xuống không rơi qua khe 6px làm menu tắt giữa chừng. */
+.tabMenuBox::before{ content:''; position:absolute; left:0; right:0; top:-8px; height:8px }
+@media (hover:hover){ .tabMenu:hover .tabMenuBox{ display:block } }
+.tabMenu.mo .tabMenuBox{ display:block }
+.tabMenuBox .mk{
+  display:flex; align-items:center; gap:8px; width:100%; padding:8px 10px; border:0;
+  background:transparent; border-radius:8px; cursor:pointer; text-align:left; font-size:13px;
+  color:#171417;
+}
+.tabMenuBox .mk:hover{ background:#f1efe9 }
+.tabMenuBox .mk[disabled]{ opacity:.45; cursor:not-allowed }
+.tabMenuBox .mk[disabled]:hover{ background:transparent }
+.tabMenuBox .mk.dang{ background:#eef2ff; font-weight:700 }
+.tabMenuBox .mk .so{ margin-left:auto; font-size:11px; opacity:.7; font-variant-numeric:tabular-nums }

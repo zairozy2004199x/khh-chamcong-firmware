@@ -188,12 +188,27 @@ $tpl = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/templates/tram.php' 
    một màn riêng bật ra. Phép thử đi theo chỗ ở mới, và canh thêm hai thứ mà chỗ ở mới đòi:
    khối phải nằm trong đúng tab ấy, và phải được NẠP khi tab ấy mở — để trong một tab mà
    không ai gọi nạp thì nó hiện "Đang tải…" vĩnh viễn, đúng kiểu hỏng im lặng. */
+/* 🔴 SỬA 17/09/2026 — BIỂU MẪU ĐI TRỄ ĐÃ RA KHỎI TAB "TÔI". Anh Thắng: *"Gửi đơn đi trễ là 1
+   tính năng"*, khoanh đúng khối ấy. Nay nó là một màn riêng mở từ ô trong lưới Ứng dụng.
+   Điều phép thử này canh KHÔNG đổi, chỉ đổi chỗ: chỗ NỘP phải đứng ở một nơi có thật, và
+   DANH SÁCH ĐƠN vẫn phải nằm trong tab "Tôi" — vì nó gom cả ba loại đơn, tách ra theo loại
+   là ba chỗ phải nhớ mở. */
 $i_toi = strpos( $tpl, 'id="tToi"' );
-$i_xin = strpos( $tpl, 'Xin phép đi trễ' );
+$i_ds  = strpos( $tpl, 'id="bangDon"' );
 $i_het = strpos( $tpl, '<!-- /tToi -->' );
-t( 'khối xin phép nằm TRONG tab "Tôi"',
-	false !== $i_toi && false !== $i_xin && false !== $i_het && $i_toi < $i_xin && $i_xin < $i_het,
-	array( $i_toi, $i_xin, $i_het ) );
+t( '🔴 DANH SÁCH đơn vẫn nằm trong tab "Tôi"',
+	false !== $i_toi && false !== $i_ds && false !== $i_het && $i_toi < $i_ds && $i_ds < $i_het,
+	array( $i_toi, $i_ds, $i_het ) );
+t( '🔴 biểu mẫu NỘP đơn đi trễ nay là màn riêng',
+	false !== strpos( $tpl, '<div id="mXinTre" class="mn an">' ), $tpl );
+t( 'và nó KHÔNG còn nằm trong tab "Tôi"',
+	strpos( $tpl, 'id="mXinTre"' ) > $i_het, array( strpos( $tpl, 'id="mXinTre"' ), $i_het ) );
+t( 'màn ấy vẫn có đủ ba ô nộp đơn',
+	false !== strpos( $tpl, 'id="xtNgay"' ) && false !== strpos( $tpl, 'id="xtPhut"' )
+	&& false !== strpos( $tpl, 'id="xtLyDo"' ), $tpl );
+/* ⚠️ Người nộp xong phải biết đi đâu xem kết quả — không thì họ nộp lại vì tưởng hụt. */
+t( '⚠️ màn nộp chỉ đường sang tab Tôi để xem kết quả',
+	false !== strpos( $tpl, 'Đơn đã nộp và kết quả duyệt xem ở' ), $tpl );
 t( '🔴 mở tab "Tôi" thì nạp luôn danh sách đơn',
 	false !== strpos( $tpl, "if(ten === 'tToi'){ napHoSo(); moManXin(); }" ) );
 t( 'không còn màn riêng bật ra nữa', false === strpos( $tpl, 'id="mXin"' ) );

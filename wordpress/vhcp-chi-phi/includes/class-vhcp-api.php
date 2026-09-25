@@ -30,6 +30,11 @@ class VHCP_API {
 	 *  của mọi người. Danh sách dưới khớp đúng những tab mà giao diện vốn chỉ cho
 	 *  Admin/Quản lý thấy, nên người dùng không thấy khác gì.)
 	 */
+	/* Sáu cửa MISA — mọi lối làm ra tệp MISA hoặc đóng dấu "đã xuất". Thêm hàm MISA mới thì
+	   khai vào đây, không thì nó là cái lỗ duy nhất trong luật trên. */
+	private static $misa_fns = array( 'exportMisa', 'exportMisaKyThuat', 'exportMisaMarketing',
+		'exportMisaBP', 'exportMisaSoChi', 'markExported' );
+
 	private static function required_roles( $fn ) {
 		// Sửa hàng loạt NGÀY của dòng chi là đụng thẳng vào số liệu kế toán (ngày quyết định
 		// kỳ hạch toán). Chốt ở máy chủ, không tin mỗi giao diện.
@@ -37,6 +42,14 @@ class VHCP_API {
 		   khoản đang giữ mã ấy nhìn thấy sổ tiền của gian ấy — nên chỉ Admin, ngang hàng với
 		   mấy việc đụng thẳng vào số liệu bên dưới. */
 		$admin_only = array( 'luuMaTatCoso',
+			/* Nhập gói cấu hình = GHI ĐÈ cả bảng danh mục — chỉ Admin (23/09/2026). Xuất thì kế toán được. */
+			'nhapGoiCauHinh',
+			/* 🔴 BẢNG ĐỐI CHIẾU BA KHO — chỉ Admin, dù nó CHỈ ĐỌC.
+			   Nó đọc xuyên qua kho bảng của CẢ BA bản (gốc + hai bản vùng), tức là bày ra số tiền và
+			   danh sách người dùng của hai mảng KHÁC — đúng cái ranh giới mà thanh khối dựng
+			   lên để *"tránh râu ông này cắm bà kia"*. Kế toán KVC không có việc gì phải nhìn
+			   sổ Văn phòng, kể cả nhìn suông. */
+			'soatGop',
 			'deleteDonAdmin', 'unmarkExportedSoChi', 'suaNamVoLy', 'suaNgayHong', 'suaKyHong', 'setDonNgay',
 			/* Sửa TIỀN hàng loạt trên đơn đã duyệt — chỉ Admin, và chỉ sau khi xem trước. */
 			'donBuTruCu',
@@ -70,6 +83,9 @@ class VHCP_API {
 			'dungLenhBu',
 			'traLaiDon', 'traLaiDonNhieu', 'xacNhanQuyetToanCN', 'xacNhanQuyetToanNCC',
 			'xacNhanQtCnNhieu', 'setTatToanTuan', 'setSoDuDauKy', 'dongCuaCoSo',
+			/* Đánh dấu ĐÃ THANH TOÁN (bước riêng của MTĐ/VP) là khai rằng tiền đã ra khỏi két —
+			   việc của kế toán, không phải của người lập đơn. */
+			'danhDauThanhToan', 'danhDauThanhToanNhieu', 'xoaLenhTraDuAn',
 			/* 🔴 `setLineThucMua` ĐÃ RỜI KHỎI ĐÂY — anh Thắng 01/09/2026, ảnh đơn FUNZONE VŨNG TÀU:
 			   *"nhân viên được phép nhập và sửa lại đơn chính xác trước khi quyết toán, nhưng
 			   nhập vào ô thực mua lại báo lỗi nhân viên không được chỉnh sửa"*.
@@ -87,7 +103,11 @@ class VHCP_API {
 			   [sửa] loại chi phí nếu nó sai"*. Loại chi phí suy ra TK Nợ, nên người nhập đổi được
 			   là con số nhảy tài khoản sau lưng kế toán — và cái sai chỉ lộ ra lúc xuất MISA.
 			   Lõi `set_line_nhom()` cũng gác, đây là lớp thứ hai ở cổng. */
-			'setLineNhom', 'datLoaiCpDuAnLine',
+			/* 🔴 VÀ CHỈNH THẲNG TK NỢ CỦA MỘT DÒNG — anh Thắng 22/09/2026: *"Sau khi quyết toán,
+			   thì kế toán có quyền điều chỉnh tk nợ theo nhu cầu"*. Cùng hạng với `setLineNhom`:
+			   nó đụng đúng con số đi vào sổ, chỉ khác là đổi thẳng mã thay vì đổi loại rồi suy
+			   ra mã. Lõi `set_line_tk_no()` cũng gác vai, đây là lớp thứ hai ở cổng. */
+			'setLineNhom', 'setLineTkNo', 'datLoaiCpDuAnLine',
 			/* Đẩy tiền sang sổ của đơn vị khác — không phải việc của nhân viên. */
 			'chuyenDonVi',
 			/* 🔴 NHẢY ĐƠN SANG TUẦN KHÁC — anh Thắng 31/08/2026: *"kế toán sẽ gửi lệnh nhảy đơn
@@ -107,7 +127,7 @@ class VHCP_API {
 		if ( in_array( $fn, $nguoi_duyet, true ) ) {
 			return array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC' );
 		}
-		$cau_hinh   = array( 'getUsers', 'cosoLa', 'dsKyDangCo', 'saveConfig', 'undoConfig', 'setQuyen', 'resetQuyen', 'getQuyenConfig', 'migrateOldImages', 'ganMaTaiKhoanSoChi', 'ganMaTaiKhoanDon', 'ganMaTaiKhoanTatCa', 'dongBoTkLoai', 'xoaLoaiTuTao', 'getTaiKhoan', 'ghepHeThongTk', 'doMangTuTaiKhoan', 'khaiChiPhiChoCoSo', 'loaiCuaCoSo', 'datLoaiChoCoSo', 'hutCoSoGhe' );
+		$cau_hinh   = array( 'getUsers', 'cosoLa', 'dsKyDangCo', 'saveConfig', 'undoConfig', 'setQuyen', 'resetQuyen', 'getQuyenConfig', 'migrateOldImages', 'ganMaTaiKhoanSoChi', 'ganMaTaiKhoanDon', 'ganMaTaiKhoanTatCa', 'dongBoTkLoai', 'xoaLoaiTuTao', 'getTaiKhoan', 'ghepHeThongTk', 'doMangTuTaiKhoan', 'khaiChiPhiChoCoSo', 'loaiCuaCoSo', 'datLoaiChoCoSo', 'hutCoSoGhe', 'xuatGoiCauHinh' );
 		if ( in_array( $fn, $admin_only, true ) ) { return array( 'Admin' ); }
 		// Kế toán cũng phải vào được Cấu hình (khai mã tài khoản, tên MISA, mã đơn vị là
 		// việc của kế toán). Riêng tài khoản Admin thì chỉ Admin sửa — chặn trong
@@ -226,6 +246,8 @@ class VHCP_API {
 			'getBootstrap'          => array( 'VHCP_Don', 'get_bootstrap' ),
 			'getConfig'             => array( 'VHCP_Cfg', 'get_config' ),
 			'saveConfig'            => array( 'VHCP_Cfg', 'save_config' ),
+			'xuatGoiCauHinh'        => array( 'VHCP_Cfg', 'xuat_goi_cau_hinh' ),
+			'nhapGoiCauHinh'        => array( 'VHCP_Cfg', 'nhap_goi_cau_hinh' ),
 			'doiMocKy'              => array( 'VHCP_Don', 'doi_moc_ky' ),
 			'dsKyDangCo'            => array( 'VHCP_Don', 'ds_ky_dang_co' ),
 			'undoConfig'            => array( 'VHCP_Cfg', 'undo_config' ),
@@ -236,6 +258,7 @@ class VHCP_API {
 			'luuMaTatCoso'          => array( 'VHCP_Auth', 'luu_ma_tat_api' ),
 			'listUserBak'           => array( 'VHCP_Cfg', 'list_user_bak' ),
 			'khoiPhucUsers'         => array( 'VHCP_Cfg', 'khoi_phuc_users' ),
+			'soatGop'               => array( 'VHCP_Gop', 'soat' ),
 			'cosoLa'                => array( 'VHCP_Cfg', 'coso_la' ),
 			'doiTenCoSo'            => array( 'VHCP_Cfg', 'doi_ten_coso' ),
 			'soatNhanSu'            => array( 'VHCP_Cfg', 'soat_nhan_su' ),
@@ -262,6 +285,7 @@ class VHCP_API {
 			'setLineAnh'            => array( 'VHCP_Don', 'set_line_anh' ),
 			'setLineNgay'           => array( 'VHCP_Don', 'set_line_ngay' ),
 			'setLineNhom'           => array( 'VHCP_Don', 'set_line_nhom' ),
+			'setLineTkNo'           => array( 'VHCP_Don', 'set_line_tk_no' ),
 			'setDonNgay'            => array( 'VHCP_Don', 'set_don_ngay' ),
 			'suaNamVoLy'            => array( 'VHCP_Don', 'sua_nam_vo_ly' ),
 			'suaNgayHong'           => array( 'VHCP_Don', 'sua_ngay_hong' ),
@@ -343,6 +367,8 @@ class VHCP_API {
 			'xinTamUngDuAn'         => array( 'VHCP_DuAn', 'xin_tam_ung_dot' ),
 			'datTrangThaiLenhDuAn'  => array( 'VHCP_DuAn', 'dat_tt_dot' ),
 			'capTienPhanDuAn'       => array( 'VHCP_DuAn', 'cap_tien_phan' ),
+			/* Admin dọn lệnh đã bị trả — xem `VHCP_DuAn::xoa_dot_tra()`, chốt Admin nằm trong hàm. */
+			'xoaLenhTraDuAn'        => array( 'VHCP_DuAn', 'xoa_dot_tra' ),
 			'listLenhDuAn'          => array( 'VHCP_DuAn', 'list_lenh_da' ),
 			'xinQuyetToanDuAn'      => array( 'VHCP_DuAn', 'xin_quyet_toan_dot' ),
 			'datTrangThaiQTDuAn'    => array( 'VHCP_DuAn', 'dat_tt_qt' ),
@@ -411,6 +437,9 @@ class VHCP_API {
 			'exportMisaMarketing'   => array( 'VHCP_Misa', 'export_marketing' ),
 			'exportMisaBP'          => array( 'VHCP_Misa', 'export_bp' ),
 			'markExported'          => array( 'VHCP_Misa', 'mark_exported' ),
+			/* Bước thanh toán riêng của MTĐ/VP — xem `VHCP_Don::danh_dau_thanh_toan()`. */
+			'danhDauThanhToan'      => array( 'VHCP_Don', 'danh_dau_thanh_toan' ),
+			'danhDauThanhToanNhieu' => array( 'VHCP_Don', 'danh_dau_thanh_toan_nhieu' ),
 
 			// tệp
 			'uploadImage'           => array( 'VHCP_Upload', 'upload_image' ),
@@ -474,6 +503,28 @@ class VHCP_API {
 					), 403 );
 				}
 			}
+		}
+
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		   KẾ TOÁN MÁY TỰ ĐỘNG KHÔNG ĐẨY MISA — CHỐT Ở MÁY CHỦ, KHÔNG CHỈ GIẤU TAB.
+
+		   Anh Thắng 21/09/2026: *"kế toán máy tự động chỉ check chứ ko đẩy misa"*. Giấu tab là
+		   đủ cho người dùng bình thường, nhưng `markExported` ghi thẳng 'Đã xuất MISA' vào sổ —
+		   một lượt gọi tay là đơn của cả tháng bị đánh dấu đã xuất trong khi chưa tệp nào đi ra.
+		   Chốt ở đây thì hàm MISA viết sau này cũng tự được gác.
+
+		   ⚠️ KHÔNG GỘP VÀO `required_roles()`: hàm ấy so bằng VAI GỐC (cố ý, để vai con thừa
+		      hưởng quyền của vai cha). Luật này thì ngược lại — nó phân biệt ĐÚNG hai vai con
+		      cùng cha: "Kế Toán Máy Tự Động" và "Kế Toán Khu Vui Chơi" đều kế thừa "Kế toán cá
+		      nhân". Nhét vào đó là hoặc chặn cả hai, hoặc chặn không ai.
+		   ═══════════════════════════════════════════════════════════════════════════════════ */
+		if ( in_array( $fn, self::$misa_fns, true ) && ! VHCP_Cfg::xuat_misa_duoc() ) {
+			return new WP_REST_Response( array(
+				'ok'    => false,
+				'error' => 'Vai trò "' . ( VHCP_Auth::vai_hien() !== '' ? VHCP_Auth::vai_hien() : 'không rõ' )
+					. '" chỉ soát và duyệt quyết toán. Đơn duyệt xong tự chuyển sang kế toán Khu vui chơi để xuất MISA.',
+				'code'  => 'forbidden',
+			), 403 );
 		}
 
 		/* 🔴 CHỐT ĐƠN VỊ (K&H · POSH) — MỘT LƯỢT CHO MỌI HÀM CÓ MÃ ĐƠN.

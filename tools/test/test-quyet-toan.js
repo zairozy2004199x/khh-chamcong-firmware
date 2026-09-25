@@ -16,7 +16,27 @@ const DON  = fs.readFileSync(path.join(GOC, 'wordpress/vhcp-chi-phi/includes/cla
 const API  = fs.readFileSync(path.join(GOC, 'wordpress/vhcp-chi-phi/includes/class-vhcp-api.php'), 'utf8');
 const DB   = fs.readFileSync(path.join(GOC, 'wordpress/vhcp-chi-phi/includes/class-vhcp-db.php'), 'utf8');
 const APP  = fs.readFileSync(path.join(GOC, 'wordpress/vhcp-chi-phi/includes/class-vhcp-app.php'), 'utf8');
-const CHAN = fs.readFileSync(path.join(GOC, 'wordpress/vhcp-ghe/includes/class-vhg-chan.php'), 'utf8');
+/* 🔴 Plugin Ghế sống ở nhánh `claude/posh-qr-kh1urz` (xem wordpress/DOC-TRUOC-KHI-DONG-GOI.md).
+   Đọc THẲNG từ nhánh ấy bằng `git show` — không chép một bản thứ hai vào cây này, vì một bản
+   chép là một bản sẽ cũ đi, và lần này ta đã biết cái giá của nó.
+   ⚠️ Chưa fetch nhánh kia thì BỎ QUA VÀ KÊU TO, đừng dựng dữ liệu giả cho xanh. */
+function docGhe(ten) {
+  const tai_cho = path.join(GOC, 'wordpress/vhcp-ghe/includes/', ten);
+  if (fs.existsSync(tai_cho)) { return fs.readFileSync(tai_cho, 'utf8'); }
+  for (const nhanh of ['origin/claude/posh-qr-kh1urz', 'claude/posh-qr-kh1urz']) {
+    try {
+      return require('child_process').execSync(
+        `git -C ${JSON.stringify(GOC)} show ${JSON.stringify(nhanh + ':vhcp-ghe/includes/' + ten)}`,
+        { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    } catch (e) { /* thử nhánh sau */ }
+  }
+  return null;
+}
+const CHAN = docGhe('class-vhg-chan.php');
+if (CHAN === null) {
+  console.log('  ⏭ BỎ QUA — chưa fetch nhánh claude/posh-qr-kh1urz.');
+  process.exit(0);
+}
 
 let dat = 0; const hong = [];
 function t(ten, dieu, nhan) { if (dieu) { dat++; return; } hong.push(ten + (nhan === undefined ? '' : ' → nhận được: ' + JSON.stringify(nhan))); }
@@ -41,8 +61,14 @@ t('không còn chỗ nào dựng trạng thái "Chờ quản lý gom"',
    08/09/2026 hàm ấy đổi sang `upd_don()` nhiều dòng (thêm mốc `ngay_gui_qt`) là phép này đỏ,
    đỏ vì một thay đổi ĐÚNG. */
 (function(){
+  /* 🔴 CẮT TỚI DẤU ĐÓNG CỦA CHÍNH HÀM, ĐỪNG CẮT THEO SỐ KÝ TỰ. Bản trước lấy 1600 ký tự đầu;
+     ngày 22/09/2026 hàm này thêm một khối chú thích dài (hai luồng, hai chỗ xuất phát) là phần
+     đặt trạng thái bị đẩy ra ngoài cửa sổ — phép đỏ vì một thay đổi ĐÚNG, y hệt lần đỏ oan
+     08/09/2026 mà chính chú thích trên vừa kể. Cắt theo `\n\t}` là cắt đúng thân hàm, dài bao
+     nhiêu cũng vừa. */
   var i = DON.indexOf('function gui_quyet_toan');
-  var than = i < 0 ? '' : DON.slice(i, i + 1600);
+  var j = i < 0 ? -1 : DON.indexOf('\n\t}', i);
+  var than = i < 0 || j < 0 ? '' : DON.slice(i, j + 3);
   t('bốc được thân hàm gui_quyet_toan', than.length > 200, than.length);
   t('gửi quyết toán đi THẲNG sang "Chờ quyết toán"',
     /'trang_thai'\s*=>\s*'Chờ quyết toán'/.test(than), than.slice(0, 400));
@@ -132,8 +158,13 @@ t('đơn rỗng thì báo tử tế', LBC({ lines: [] }).indexOf('Chưa có hạ
 const mNut = HTML.match(/var bn=el\('btnNewDon'\); if\(bn\) bn\.style\.display=\(([^)]*)\)/);
 t('tìm được chỗ gác nút Tạo đơn mới', !!mNut);
 const dk = mNut ? mNut[1] : '';
-t('Admin lên đơn được (để chạy thử luồng)', dk.indexOf("role==='Admin'") >= 0, dk);
-t('Nhân viên và Quản lý vẫn lên đơn được', dk.indexOf("role==='Nhân viên'") >= 0 && dk.indexOf("role==='Quản lý'") >= 0, dk);
+/* 🔴 SO BẰNG VAI LUẬT (`vl`), KHÔNG BẰNG TÊN VAI — 21/09/2026. Anh Thắng gửi ảnh màn của
+   chị Mai Anh (vai con "Nhân Viên Cơ Sở Khu Vui Chơi"): *"mất chỗ tạo đơn"*. Nút ẩn vì dòng
+   gác so `role==='Nhân viên'`, mà tên vai con không trùng một chữ nào. Luật không đổi —
+   vẫn đúng ba vai ấy — chỉ là quy về vai gốc trước khi so. */
+t('🔴 gác bằng vai LUẬT, không bằng tên vai khai', dk.indexOf('vl===') >= 0 && dk.indexOf('role===') < 0, dk);
+t('Admin lên đơn được (để chạy thử luồng)', dk.indexOf("vl==='Admin'") >= 0, dk);
+t('Nhân viên và Quản lý vẫn lên đơn được', dk.indexOf("vl==='Nhân viên'") >= 0 && dk.indexOf("vl==='Quản lý'") >= 0, dk);
 t('Kế toán vẫn KHÔNG lên đơn', dk.indexOf('Kế toán') < 0, dk);
 
 // ---------------------------------------------------------------- 6. khai nhanh loại chi phí
@@ -216,7 +247,11 @@ t('không xóa dữ liệu sổ chi phí', /id="page-sochi"/.test(HTML));
 
 // ---------------------------------------------------------------- 8. số lượng bắt buộc
 t('ô Số lượng đánh dấu bắt buộc', /<label>Số lượng \*<\/label>/.test(HTML));
-t('giao diện chặn khi thiếu số lượng', /Nhập SỐ LƯỢNG \(lớn hơn 0\)/.test(HTML));
+/* ⚠️ ĐỪNG GHIM NGUYÊN VĂN CÂU BÁO. Bản 1.269.0 đổi lời cho rõ hơn ("Chưa nhập SỐ LƯỢNG (phải
+   lớn hơn 0)…") và phép cũ đỏ vì LỜI VĂN đổi, không phải vì cửa chặn mất. Canh cái cần canh:
+   còn một cửa nhắc SỐ LƯỢNG, và nó còn đòi lớn hơn 0. */
+t('giao diện chặn khi thiếu số lượng',
+  /SỐ LƯỢNG/.test(HTML) && /lớn hơn 0/.test(HTML));
 t('máy chủ chặn lại lần nữa (app trên máy nào cũng gọi được cổng)',
   /function loi_thieu_so_luong/.test(DON) && (DON.match(/loi_thieu_so_luong\( \$rec \)/g) || []).length >= 2);
 
@@ -254,20 +289,24 @@ t('chân trang luôn nằm dưới đáy trang',
 // ---------------------------------------------------------------- 10. mỗi khâu một tab
 // "Chờ quyết toán" / "Đã quyết toán" thuộc tab 🧾 Quyết toán. Để chúng ở tab Duyệt tạm ứng
 // thì cùng một đơn nằm hai chỗ, mà chỗ đó lại không làm được gì với nó.
-const mLoc = HTML.match(/<select id="duyetFilter"[\s\S]*?<\/select>/);
-t('tìm được ô lọc của tab Duyệt tạm ứng', !!mLoc);
-const LOC = mLoc ? mLoc[0] : '';
-t('bỏ "Chờ quyết toán" khỏi tab Duyệt tạm ứng', LOC.indexOf('Chờ quyết toán') < 0, LOC);
-t('bỏ "Đã quyết toán" khỏi tab Duyệt tạm ứng', LOC.indexOf('Đã quyết toán') < 0, LOC);
-t('vẫn còn đủ 3 khâu tạm ứng',
-  LOC.indexOf('Chờ duyệt tạm ứng') >= 0 && LOC.indexOf('Chờ cấp tạm ứng') >= 0 && LOC.indexOf('Đã cấp tạm ứng') >= 0, LOC);
-t('nhãn "Cần xử lý" thôi nhắc quyết toán', /Cần xử lý \(chờ duyệt \/ chờ gửi tiền\)/.test(LOC), LOC);
-// Bỏ khỏi ô chọn mà "Tất cả" vẫn kéo về là bỏ hụt.
-t('"Tất cả" cũng chỉ trong khâu tạm ứng',
+/* ⚠️ 23/09/2026 — Ô LỌC TRẠNG THÁI ĐÃ BỎ, ba khâu nay là BA BẢNG (anh Thắng: *"tách 2 bảng
+   riêng để dễ theo dõi đơn"*). Luật của mục này KHÔNG đổi — tab Duyệt chỉ lo khâu tạm ứng —
+   chỉ đổi chỗ canh: từ ô chọn sang danh sách `KHAU_TU` và ba tbody. */
+t('ô lọc trạng thái đã BỎ khỏi tab Duyệt (ba bảng thay nó)', !/id="duyetFilter"/.test(HTML));
+const fnRD = (function () { const i = HTML.indexOf('  function renderDuyet('); return HTML.slice(i, HTML.indexOf('\n  }', i) + 4); })();
+t('tìm được `renderDuyet`', fnRD.length > 300);
+t('bỏ "Chờ quyết toán" khỏi tab Duyệt tạm ứng', fnRD.indexOf("'Chờ quyết toán'") < 0);
+t('bỏ "Đã quyết toán" khỏi khâu lọc của tab Duyệt', !/KHAU_TU=\[[^\]]*Đã quyết toán/.test(fnRD));
+t('vẫn còn đủ 3 khâu tạm ứng — mỗi khâu một bảng',
+  /id="duyetBody"/.test(HTML) && /id="duyetBodyChi"/.test(HTML) && /id="duyetBodyMua"/.test(HTML));
+// Không còn "Tất cả" để kéo về nhầm — nhưng danh sách khâu vẫn phải là chốt duy nhất.
+t('chỉ khâu tạm ứng mới vào màn này (`KHAU_TU`)',
   /var KHAU_TU=\['Chờ duyệt tạm ứng','Chờ cấp tạm ứng','Đã cấp tạm ứng'\];/.test(HTML)
-  && /if\(KHAU_TU\.indexOf\(d\.trangThai\)<0\) return false;/.test(HTML));
-t('"Cần xử lý" = chờ duyệt + chờ gửi tiền, không còn quyết toán',
-  /if\(f==='cho'\) return \['Chờ duyệt tạm ứng','Chờ cấp tạm ứng'\]\.indexOf/.test(HTML));
+  /* 23/09/2026: bộ lọc tháng/tuần/cơ sở tách ra `quaLoc()` dùng chung với đơn nháp — câu lọc có thêm vế ấy. */
+  && /return (quaLoc\(d\) && )?KHAU_TU\.indexOf\(d\.trangThai\)>=0;/.test(HTML));
+t('ba bảng chia đúng ba trạng thái',
+  /trangThai==='Chờ duyệt tạm ứng'; \}\);/.test(fnRD) && /trangThai==='Chờ cấp tạm ứng'; \}\);/.test(fnRD)
+  && /trangThai==='Đã cấp tạm ứng'; \}\);/.test(fnRD));
 // Cắt tab mà quên đường dẫn tới là tạo liên kết chết — đúng bẫy đã gặp ở khâu gom.
 t('Tổng quan đưa đơn "Chờ quyết toán" sang tab Quyết toán, không phải Duyệt',
   /tab:\(d\.trangThai==='Chờ quyết toán'\?'qt':'duyet'\)/.test(HTML));

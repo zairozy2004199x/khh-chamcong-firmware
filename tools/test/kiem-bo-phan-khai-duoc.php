@@ -128,16 +128,28 @@ t( '🔴 _bpDs() rỗng thì ngã về đường lui, không trả mảng rỗng
 	false !== strpos( $HTML, '(ds&&ds.length)?ds:BOPHAN_MAC_DINH' ), '' );
 teq( '   và đường lui đủ bảy bộ phận đang chạy', 7,
 	preg_match( "/var BOPHAN_MAC_DINH=\[(.*?)\];/", $HTML, $m_ml ) ? count( explode( ',', $m_ml[1] ) ) : 0 );
-t( '   có khối Cấu hình để khai',  false !== strpos( $HTML, 'id="cfgBpBody"' )
-	&& false !== strpos( $HTML, 'function saveCfgBp()' ), '' );
-t( '   khối ấy chỉ Admin thấy',    false !== strpos( $HTML, "el('bpCard').style.display=_laAdmin()?'':'none'" ), '' );
-/* 🔴 Xoá một bộ phận là mọi dòng khai nó tụt về "mọi bộ phận" — tức NỚI quyền. Phải hỏi trước. */
-/* Cùng lý do như chốt bảng rỗng ở trên: canh CẢ `if(!confirm(` lẫn câu hỏi. Dò mỗi câu thì
-   vô hiệu hoá chốt đi vẫn xanh — câu vẫn nằm đó, chỉ là không bao giờ hiện ra. */
-t( '🔴 xoá bộ phận thì đếm và HỎI trước khi lưu',
-	1 === preg_match( '/if\(!confirm\(\x27Bỏ bộ phận: \x27\+mat\.join/u', $HTML ), '' );
-t( '   và câu hỏi nói rõ hậu quả là NỚI quyền',
-	false !== mb_strpos( $HTML, 'sẽ thành "mọi bộ phận"' ), '' );
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 KHỐI CẤU HÌNH ĐỂ KHAI BỘ PHẬN ĐÃ GỠ — 22/09/2026. Anh Thắng: *"bỏ bộ phận đi"*.
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * Bốn phép ở đây trước kia đòi khối ấy CÓ, và đòi nó hỏi trước khi xoá một bộ phận. Cột Bộ
+ * phận rời bảng Loại chi phí hôm 21/09, nên từ đó khối này khai một danh mục mà không còn
+ * bảng nào đọc tới. Gỡ khối thì bốn phép ấy hết đối tượng.
+ *
+ * ⚠️ ĐẢO CHIỀU CHỨ KHÔNG XOÁ ĐI. Xoá phép là lần sau ai đó dựng lại khối cũng không ai hay.
+ *    Nay đòi NGƯỢC LẠI: khối phải VẮNG. Hành vi đầy đủ — cộng chiều "dữ liệu boPhan không
+ *    được mất theo" — do `kiem-go-khoi-bo-phan.js` canh trên cả bốn bản.
+ *
+ * ⚠️ PHẦN CÒN LẠI CỦA BÀI VẪN ĐÚNG VÀ VẪN CHẠY: danh mục bộ phận vẫn gieo, `bo_phan_tach()`
+ *    vẫn tách, ô Bộ phận ở bảng 🔐 Người dùng vẫn dựng từ `_bpDs()`. Bộ phận còn bó tầm nhìn
+ *    kế toán ở đúng một chỗ ấy; chỉ cái CHỖ KHAI DANH MỤC là đi.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+t( '🔴 khối Cấu hình khai bộ phận đã GỠ — không còn bảng, không còn hàm lưu',
+	false === strpos( $HTML, 'id="cfgBpBody"' )
+	&& false === strpos( $HTML, 'function saveCfgBp()' ), '' );
+/* ⚠️ KHÔNG soi "còn chỗ nào GỌI `saveCfgBp()` không" ở đây: bài này đọc THẲNG cả tệp, mà bia
+   mộ của chính lượt gỡ có nhắc tên hàm ấy — phép soi bắt phải chú thích rồi kết luận ngược.
+   Đã mắc đúng lỗi này bốn lần trong phiên 22/09. Chiều ấy để `kiem-go-khoi-bo-phan.js` lo,
+   vì nó tước chú thích trước khi soi. */
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════ */
 if ( $TRUOT ) {

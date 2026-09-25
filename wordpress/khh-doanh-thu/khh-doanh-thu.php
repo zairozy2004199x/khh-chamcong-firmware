@@ -3,7 +3,7 @@
  * Plugin Name:       K&H — Báo cáo doanh thu FABi
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Nạp file "Báo cáo bán hàng" xuất từ máy POS FABi (iPOS) và dựng báo cáo doanh thu theo ngày, cửa hàng, khung giờ, hình thức thanh toán, tại chỗ/mang về và món bán chạy. Có sẵn đường nối API FABi để bật khi iPOS cấp khoá.
- * Version:           1.51.0
+ * Version:           1.64.6
  * Requires at least: 5.8
  * Requires PHP:      7.2
  * Author:            K&H
@@ -26,7 +26,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'KHH_DT_VERSION', '1.51.0' );
+define( 'KHH_DT_VERSION', '1.64.6' );
 define( 'KHH_DT_FILE', __FILE__ );
 define( 'KHH_DT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KHH_DT_URL', plugin_dir_url( __FILE__ ) );
@@ -49,6 +49,8 @@ require_once KHH_DT_DIR . 'momo-ipn.php';
 require_once KHH_DT_DIR . 'momo-phi.php';
 require_once KHH_DT_DIR . 'hop-thu.php';
 require_once KHH_DT_DIR . 'kho.php';
+require_once KHH_DT_DIR . 've-khach.php';
+require_once KHH_DT_DIR . 'quy-trinh.php';
 
 /** Đường dẫn ngoài của báo cáo, ví dụ khmatrix.com/doanh-thu-hcm */
 function khh_dt_slug() {
@@ -119,11 +121,28 @@ function khh_dt_kich_hoat() {
 	);
 	khh_dt_tao_bang_bc();
 	khh_dt_tao_bang_nguoi();
+	/* Một lần: đánh dấu những vai do lối cũ (trước 1.58.0) cấp tự động, để tab Quản trị nhắc kiểm. */
+	if ( function_exists( 'khh_dt_danh_dau_vai_cu' ) ) {
+		khh_dt_danh_dau_vai_cu();
+	}
 	khh_dt_tao_bang_sk();
 	khh_dt_tao_bang_momo();
 	khh_dt_tao_bang_momo_ipn();
 	khh_dt_tao_bang_momo_phi();
 	khh_dt_tao_bang_kho();
+	khh_dt_tao_bang_kho_su();
+	/* Một lần: gỡ cặp 0/0 do lỗi ép ô trống thành 0 trước 1.61.3 (tồn đầu hôm sau về 0). */
+	if ( function_exists( 'khh_dt_kho_sua_so_0' ) ) {
+		khh_dt_kho_sua_so_0();
+	}
+	/* Một lần: gộp khai bóc tách vé theo quán (1.60–1.64.3) về bảng chung theo tên vé. */
+	if ( function_exists( 'khh_dt_ve_gop_mot_lan' ) ) {
+		khh_dt_ve_gop_mot_lan();
+	}
+	/* Quy trình báo cáo cơ sở hằng ngày: đặt (lại) lịch tổng hợp lúc giờ hạn. */
+	if ( function_exists( 'khh_dt_qt_dat_lich' ) ) {
+		khh_dt_qt_dat_lich();
+	}
 	khh_dt_tao_bang_momo_sk();
 	update_option( 'khh_dt_version', KHH_DT_VERSION );
 	khh_dt_rewrite();
@@ -139,9 +158,43 @@ function khh_dt_nang_cap() {
 	khh_dt_kich_hoat();
 }
 
-/** Ai được nạp file POS và xoá kho — chỉ người của văn phòng. */
+/**
+ * Ai được nạp file POS / sao kê / MoMo và xoá kho — người của văn phòng.
+ *
+ * 🔴 PHẢI NHẬN CẢ VAI PIN `duyet`, KHÔNG CHỈ QUYỀN WORDPRESS.
+ *    23/09/2026 anh Thắng thả file sao kê MoMo và nhận "Xin lỗi, bạn không được phép làm điều
+ *    đó" — câu chung chung của WordPress khi permission_callback trả `false`. Anh đang vào bằng
+ *    trang đăng nhập PIN của plugin (nút Thoát là của plugin), nên `is_user_logged_in()` sai và
+ *    `current_user_can('edit_posts')` sai theo — trong khi `khh_dt_duoc_ghi()` ngay dưới đã
+ *    nhận vai PIN từ lâu. Hai hàm cạnh nhau, một hàm biết PIN, một hàm không: đó là lỗi.
+ *
+ *    Chỉ mở cho `duyet` (người duyệt, tức văn phòng). `nhap` là nhân viên cửa hàng — không được
+ *    nạp báo cáo của cả công ty.
+ *
+ * 🔴 TRẢ `WP_Error` CÓ LÝ DO, KHÔNG TRẢ `false`. `false` là WordPress in câu chung chung, người
+ *    dùng không biết mình bị chối vì đâu và phải làm gì. permission_callback được phép trả
+ *    WP_Error, và câu ấy sẽ hiện thẳng lên màn.
+ */
 function khh_dt_duoc_nap() {
-	return current_user_can( 'edit_posts' );
+	if ( current_user_can( 'edit_posts' ) ) {
+		return true;
+	}
+	$vai = function_exists( 'khh_dt_quyen_cua' ) ? khh_dt_quyen_cua() : '';
+	if ( 'duyet' === $vai ) {
+		return true;
+	}
+	$u    = wp_get_current_user();
+	$ten  = ! empty( $u->user_login ) ? $u->user_login : ( ! empty( $u->display_name ) ? $u->display_name : '?' );
+	$thay = is_user_logged_in()
+		? 'tài khoản WordPress "' . $ten . '" (không có quyền biên tập, vai: ' . ( $vai ? $vai : 'chưa cấp' ) . ')'
+		: ( $vai ? 'phiên PIN vai "' . $vai . '"' : 'chưa đăng nhập' );
+	return new WP_Error(
+		'khh_dt_khong_duoc_nap',
+		'Nạp file cần tài khoản văn phòng — WordPress có quyền biên tập, hoặc PIN vai "duyệt". ' .
+		'Hiện máy chủ thấy anh/chị là: ' . $thay . '. Đăng nhập lại bằng tài khoản văn phòng, hoặc ' .
+		'nhờ quản trị cấp vai "duyệt" ở tab Quản trị.',
+		array( 'status' => 403 )
+	);
 }
 
 /**
@@ -332,7 +385,9 @@ function khh_dt_rest_cau_hinh() {
 		'nap_luc'   => isset( $meta['nap_luc'] ) ? $meta['nap_luc'] : '',
 		'ky'        => isset( $meta['ky'] ) ? $meta['ky'] : '',
 		'duoc_ghi'  => khh_dt_duoc_ghi(),
-		'duoc_nap'  => khh_dt_duoc_nap(),
+		/* '' | 'nhap' | 'duyet' — để màn nói được "chưa được cấp quyền nhập" thay vì chỉ khoá ô. */
+		'vai'       => khh_dt_quyen_cua(),
+		'duoc_nap'  => true === khh_dt_duoc_nap(),
 		'quan_tri'  => khh_dt_duoc_quan_tri(),
 		'cua_toi'   => khh_dt_co_so_mac_dinh(),
 		'cua_toi_ds' => $cua_ds,
@@ -342,7 +397,9 @@ function khh_dt_rest_cau_hinh() {
 		   REST `dang-xuat` (đóng phiên PIN, không đụng tới đăng nhập WordPress) — hai lối khác
 		   nhau, nên phải có cả hai chứ không dùng chung một đường.
 		   ⚠️ `wp_logout_url()` mang theo nonce, nên nó phải là LINK người bấm; gọi bằng fetch là
-		   WordPress chối. Và nonce gắn với phiên hiện tại nên không cache lại được ở máy. */
+		   WordPress chối. Và nonce gắn với phiên hiện tại nên không cache lại được ở máy.
+		   Từ 1.58.2 đây chỉ là đường LÙI: nút Thoát đi qua REST `dang-xuat` (máy chủ gọi
+		   `wp_logout()`), chỉ khi REST hỏng màn mới nhảy sang link này. */
 		'link_ra'   => esc_url_raw( wp_logout_url( khh_dt_link() ) ),
 		'chua_ghep_co_so' => in_array( KHH_DT_CHUA_GHEP, $cua_ds, true ),
 		'co_api'    => (bool) get_option( 'khh_dt_api_token' ),
@@ -815,6 +872,59 @@ function khh_dt_rest_xoa() {
  * Giao diện
  * ------------------------------------------------------------------ */
 
+/**
+ * VÉ DANH TÍNH MANG SANG TỪ TRẠM CHẤM CÔNG.
+ *
+ * =================================================================================================
+ * 🔴 LỖI NÀY LÀ LỖI ĐỔI NGƯỜI, KHÔNG PHẢI LỖI HIỂN THỊ
+ * =================================================================================================
+ * Anh Thắng 19/09/2026: trạm Chấm công đang là một người, bấm ô Ứng dụng sang app khác thì hiện
+ * TÊN NGƯỜI KHÁC. *"Phải tự link chung 1 tk chứ"*.
+ *
+ * Mỗi app giữ phiên ở một chỗ rời nhau. Ô Ứng dụng bên trạm chỉ là một đường dẫn TRƠN, nên sang
+ * tới đây app lấy thẻ cũ còn sót trong máy — thẻ của người gần nhất gõ PIN trên chiếc điện thoại
+ * ấy. Hậu quả thật: người này ghi sổ doanh thu dưới danh nghĩa người kia.
+ *
+ * Trạm nay phát một VÉ một lần (sống 15 phút) gắn vào đường dẫn; ở đây đổi vé lấy mã nhân viên
+ * rồi mở phiên cho đúng người ấy.
+ *
+ * ⚠️ KHỚP THEO **MÃ NHÂN VIÊN**, không theo tên. Tên người Việt trùng rất nhiều — khớp theo tên
+ *    là mở phiên nhầm người, mà chỗ này ghi sổ tiền.
+ * ⚠️ CHƯA ĐƯỢC ĐẨY SANG SỔ NGƯỜI CỦA FABi THÌ THÔI. Mở phiên cho một mã không có trong sổ là
+ *    dựng ra một người không ai cấp quyền. Không có thì rơi về cổng PIN như cũ — đúng câu trả
+ *    lời thật thà.
+ * ⚠️ Gác `function_exists`/`class_exists` cùng chỗ với lời gọi: plugin chấm công có thể chưa cài,
+ *    hoặc cài bản cũ chưa có lớp vé.
+ *
+ * 🔴 ĐỔI ĐÚNG MỘT LẦN CHO CẢ LƯỢT DỰNG TRANG. `khh_dt_cau_hinh_js()` được gọi ba chỗ (một lượt
+ *    `wp_localize_script` và hai chỗ nhúng thẳng). Vé thì DÙNG MỘT LẦN RỒI CHẾT — không nhớ lại
+ *    thì chỗ gọi đầu tiên nuốt mất vé và hai chỗ sau nhận rỗng, mà chính hai chỗ sau mới là thứ
+ *    in ra trang. Nhớ trong `$GLOBALS` để ba chỗ cùng nhận một thẻ.
+ */
+function khh_dt_the_tu_ve() {
+	if ( array_key_exists( 'khh_dt_the_ve', $GLOBALS ) ) {
+		return $GLOBALS['khh_dt_the_ve'];
+	}
+	$GLOBALS['khh_dt_the_ve'] = '';
+
+	if ( empty( $_GET['ccve'] ) ) {
+		return '';
+	}
+	if ( ! class_exists( 'VHCC_Ve' ) || ! method_exists( 'VHCC_Ve', 'doi' ) ) {
+		return '';
+	}
+	$d = VHCC_Ve::doi( sanitize_text_field( wp_unslash( $_GET['ccve'] ) ) );
+	if ( ! is_array( $d ) || empty( $d['ma_nv'] ) ) {
+		return '';
+	}
+	$ma = strtoupper( trim( (string) $d['ma_nv'] ) );
+	if ( '' === $ma || ! khh_dt_nguoi( $ma ) ) {
+		return '';
+	}
+	$GLOBALS['khh_dt_the_ve'] = (string) khh_dt_mo_phien( $ma );
+	return $GLOBALS['khh_dt_the_ve'];
+}
+
 function khh_dt_cau_hinh_js() {
 	/* ⚠️ KHÔNG hỏi phiên PIN ở đây. Hàm này chạy lúc DỰNG TRANG, mà thẻ phiên PIN đi kèm từng lượt
 	   gọi REST (header) chứ không nằm trong trang — nên ở đây luôn thấy "chưa đăng nhập" kể cả khi
@@ -823,6 +933,8 @@ function khh_dt_cau_hinh_js() {
 		'rest'  => esc_url_raw( rest_url( 'khh-dt/v1/' ) ),
 		'nonce' => wp_create_nonce( 'wp_rest' ),
 		'ghi'   => khh_dt_duoc_ghi(),
+		/* Thẻ đổi từ vé của trạm. Rỗng = không có vé, giao diện giữ nguyên thẻ đang có. */
+		've'    => khh_dt_the_tu_ve(),
 	);
 }
 
@@ -1091,6 +1203,9 @@ function khh_dt_tat_dong_bo() {
 	$ts = wp_next_scheduled( 'khh_dt_cron_dong_bo' );
 	if ( $ts ) {
 		wp_unschedule_event( $ts, 'khh_dt_cron_dong_bo' );
+	}
+	if ( function_exists( 'khh_dt_qt_go_lich' ) ) {
+		khh_dt_qt_go_lich();
 	}
 	return true;
 }

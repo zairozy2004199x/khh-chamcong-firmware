@@ -46,6 +46,9 @@ function dungBe() {
   const moi = {
     DA_CUR: null, DA_ITEMS: [], DA_CHO_KEO: false, TEN_TOI_DA: 60,
     CURUSER: { name: 'KT', role: 'Nhân viên', boPhan: 'Kỹ thuật' },
+    /* `renderDuAnList()` so luật qua `_vaiLuat()` từ 21/09/2026 (vai con làm được việc của
+       vai cha) — thiếu nó là hàm thật nổ ReferenceError. */
+    _vaiLuat: () => 'Nhân viên',
     el: id => (KHO[id] = KHO[id] || O(id)),
     loading: () => {},
     toast: (k, m) => NK.toast.push([k, m]),

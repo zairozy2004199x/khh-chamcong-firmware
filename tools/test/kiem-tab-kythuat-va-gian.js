@@ -33,11 +33,19 @@ const boc = ten => {
   t('bốc được ' + ten + '()', i >= 0);
   return i < 0 ? '' : HTML.slice(i, HTML.indexOf('\n  }', i) + 4);
 };
+/* ⚠️ CẮT THEO HÌNH DẠNG GIÁ TRỊ, KHÔNG CẮT TỚI DẤU `;` ĐẦU TIÊN.
+   Cắn thật 22/09/2026: `ND_LUONG_DS` mọc thêm một chú thích tiếng Việt có dấu chấm phẩy giữa
+   câu ("…khoá cứng theo khối; nay bộ phận nào cũng chọn được"), thế là mảng bị cắt làm đôi và
+   bài kiểm VĂNG `SyntaxError` chứ không đỏ một phép — đọc ra không biết hỏng ở đâu.
+   Đây đúng là họ lỗi "cắt theo dấu mốc thô" đã cắn hai bài khác hôm 21/09 (cắt theo SỐ KÝ TỰ).
+   Nay: giá trị mở bằng `[` thì cắt tới `];`, mở bằng `{` thì tới `};`, còn lại mới tới `;`. */
 const bocVar = ten => {
   const i = HTML.indexOf('var ' + ten + '=');
   t('bốc được var ' + ten, i >= 0);
   if (i < 0) return '';
-  return HTML.slice(i, HTML.indexOf(';', i) + 1);
+  const dau = HTML.charAt(HTML.indexOf('=', i) + 1);
+  const het = dau === '[' ? '];' : (dau === '{' ? '};' : ';');
+  return HTML.slice(i, HTML.indexOf(het, i) + het.length);
 };
 
 /* ── 1. AI LÊN ĐƠN TUẦN CỦA CƠ SỞ ──────────────────────────────────────────────────────── */
@@ -85,13 +93,48 @@ t('🔴 chưa có bảng quyền (gọi trước applyPerms) thì coi như đư�
   CHUA.tabDuoc('don') === true && CHUA.macDinh('Nhân viên') === 'don', CHUA.macDinh('Nhân viên'));
 
 /* ── 3. Ô GIAN XỔ RA DANH SÁCH CƠ SỞ ──────────────────────────────────────────────────── */
+/* 🔴 TỪ 21/09/2026 hộp Gian LỌC THEO KHỐI — anh Thắng: *"Đã phân quyền nhân viên, nhưng vẫn
+   thấy cơ sở bên KVC"*. Bốc cả họ hàm lọc vào bệ đỡ, không bịa lại luật ở bài kiểm.
+   ⚠️ Bệ đỡ này không khai `BOOT`, nên `_khoiCuaGian()` trả '' cho mọi gian — tức "chưa rõ khối",
+      tức bày ĐỦ. Đúng điều mục này cần: nó canh chuyện đổ danh sách và rào ký tự, không canh
+      chuyện lọc khối (đã có `kiem-gian-theo-khoi.js` lo). */
+const GIAN_KHOI = `  var KHOI_DS=[{ma:'kvc',ten:'Khu vui chơi'},{ma:'mtd',ten:'Máy tự động'},{ma:'vp',ten:'Văn phòng'}];
+  var KHOI_DV_DUP={kvc:['KVC'],mtd:['MTĐ','MTD','POSH'],vp:['VP','VĂN PHÒNG','VAN PHONG']};
+  function _khoiDvBang(){
+    var b=(typeof BOOT!=='undefined' && BOOT) ? BOOT.khoiTheoDv : null;
+    return (b && b.kvc) ? b : KHOI_DV_DUP;
+  }
+  function _khoiCuaDv(dv){
+    var k=String(dv==null?'':dv).trim().toUpperCase();
+    if(!k) return '';
+    var b=_khoiDvBang();
+    for(var i=0;i<KHOI_DS.length;i++){
+      var ma=KHOI_DS[i].ma, ds=b[ma]||[];
+      for(var j=0;j<ds.length;j++){ if(String(ds[j]).toUpperCase()===k) return ma; }
+    }
+    return '';
+  }
+  function _khoiCuaGian(ten){
+    var m=(typeof BOOT!=='undefined' && BOOT && BOOT.cosoDv) ? BOOT.cosoDv : null;
+    /* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG, ghi lại để lần sau khỏi đuổi theo: đổi \`null\` thành \`{}\` rồi bỏ
+       dòng này KHÔNG đổi kết quả — tra một bảng rỗng ra \`undefined\`, \`|| ''\` đưa về chuỗi rỗng, và
+       \`_khoiCuaDv('')\` cũng trả ''. Giữ vì nó nói thẳng ra ý "gói khởi động bản CŨ chưa có bảng
+       tra thì KHÔNG LỌC GÌ CẢ" — và đó mới là hướng hỏng đúng: bày thừa còn hơn hộp Gian trắng
+       trơn với mọi người. Phép canh ý ấy ở \`kiem-gian-theo-khoi.js\`. */
+    if(!m) return '';
+    return _khoiCuaDv(m[String(ten==null?'':ten).trim().toLowerCase()] || '');
+  }
+  function _gianHopKhoi(ten){
+    var k=_khoiCuaGian(ten);
+    return k==='' || k===String(KHOI_DANG).toLowerCase();
+  }`;
 function beGian() {
   const KHO = {};
   const moi = {
     el: id => (KHO[id] = KHO[id] || { _id: id, innerHTML: '' }),
     esc: s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'),
   };
-  const R = new Function('moi', `with(moi){ ${boc('_daNapCoSoDs')}\n return _daNapCoSoDs; }`)(moi);
+  const R = new Function('moi', `with(moi){ ${GIAN_KHOI}\n${boc('_daLocLaiGian')}\n${boc('_daNapCoSoDs')}\n return _daNapCoSoDs; }`)(moi);
   return { nap: R, el: moi.el };
 }
 const G = beGian();
@@ -129,6 +172,34 @@ t('   đúng ô mà _daNapCoSoDs() đổ dữ liệu vào',
    "chưa chọn gian thì gom mã của MỌI mảng" lại gác sau cờ `_donNhieuCoSo()`. Đơn chi phí cơ sở
    của Kỹ thuật cũng là MỘT đơn nhiều gian nhưng không bật cờ ấy, nên mọi loại khai mã theo ma
    trận (chính là "Chi phí cơ sở") bị coi là chưa có mã và bị ẩn. */
+/* 🔴 BỐC MÃ THẬT, ĐỪNG BỊA LẠI LUẬT. Từ 21/09/2026 cột Bộ phận đã rời bảng Người dùng, nên
+   luật nào cần bộ phận thì đọc lại từ TÊN VAI CON — anh Thắng: *"dùng hết trên vai trò cha,
+   con rồi"*. Bịa một bản ở bài kiểm là nó canh luật của chính nó, xanh vĩnh viễn dù bản thật
+   đi đường khác. */
+const BP_THAT = `  var BP_THEO_TEN_VAI=[
+    {bp:'Kỹ thuật', tu:['ky thuat']},
+    {bp:'Cơ sở',    tu:['co so']},
+    {bp:'Marketing', tu:['marketing']},
+    {bp:'Văn phòng', tu:['van phong']}
+  ];
+  function _boDauVai(s){
+    return String(s==null?'':s).toLowerCase().replace(/\\u0111/g,'d')
+      .normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/\\s+/g,' ').trim();
+  }
+  function _bpCuaVai(ten){
+    var t=' '+_boDauVai(ten)+' ';
+    if(t===' ') return '';
+    for(var i=0;i<BP_THEO_TEN_VAI.length;i++){
+      var x=BP_THEO_TEN_VAI[i];
+      for(var j=0;j<x.tu.length;j++){ if(t.indexOf(' '+x.tu[j]+' ')>=0) return x.bp; }
+    }
+    return '';
+  }
+  function _bpCuaToi(){
+    var b=String((CURUSER&&CURUSER.boPhan)||'').trim();
+    if(b) return b;
+    return _bpCuaVai((CURUSER&&CURUSER.role)||'');
+  }`;
 function beLoai(opt) {
   opt = opt || {};
   const moi = {
@@ -148,9 +219,15 @@ function beLoai(opt) {
       tkNoMx: { 'chi phí cơ sở': { farm: ['64166'], fz: ['64126'] } },
       coso: ['Gian A', 'Gian B'],
       cosoPll: { 'gian a': 'FARM', 'gian b': 'FZ' },
+      khoiBan: 'kvc',
     },
+    KHOI_DANG: 'kvc',
+    CURUSER: { role: 'Admin' },
   };
-  const src = `${boc('_mangCua')}\n${boc('_donNhieuCoSo')}\n${boc('_mangPham')}
+/* ⚠️ `_khoiCuaLoai` + `KHOI_DANG` thêm 21/09/2026 — loại chi phí nay thuộc đúng một khối
+     (anh Thắng: *"chia ra 3 bảng của 3 khối, để tránh dùng chung"*) và `_loaiCpList()` bỏ
+     loại của khối khác. Thiếu trong bệ đỡ là bài kiểm nổ `ReferenceError`. */
+  const src = `${BP_THAT}\n${bocVar('MIEN_MA')}\n${boc('_khoiCuaLoai')}\n${boc('_vaiTachLoai')}\n${boc('_locLoaiTheoKhoi')}\n${boc('_loaiHopKhoi')}\n${boc('_vaiDungDuocLoai')}\n${boc('_mangCua')}\n${boc('_donNhieuCoSo')}\n${boc('_mangPham')}
     ${boc('_tkNoList')}\n${boc('_tkNoCua')}\n${boc('_bpTach')}\n${boc('_khoaNhom')}
     ${boc('_loaiCpList')}
     return { nhieu: _donNhieuCoSo, ds: _loaiCpList, tkList: _tkNoList };`;
@@ -260,12 +337,21 @@ function beNewDon(daChonTuan, bp) {
   const KHO = {};
   const moi = {
     CURUSER: { boPhan: bp === undefined ? 'Kỹ thuật' : bp, name: 'KT', role: 'Nhân viên' },
+    /* `newDon()` so luật qua `_vaiLuat()`; bộ phận thì bốc mã THẬT ở `BP_THAT` ngay dưới. */
+    _vaiLuat: () => 'Nhân viên',
     QUYEN_TAB: { don: 1, duan: 1 },
     BP_HOI_LOAI_DON: ['Kỹ thuật'],
     el: id => (KHO[id] = KHO[id] || { _id: id, style: { display: '' }, value: '', innerHTML: '',
       readOnly: false, focus() {}, querySelector: () => null }),
     esc: x => String(x == null ? '' : x),
     _kyTuDo: () => false,
+    /* `_luongMoi()` (1.288.0) hỏi luồng mặc định của bộ phận trước, rồi mới ngã về khối.
+       🔴 ĐỂ 'dc' CHỨ KHÔNG ĐỂ RỖNG. Rỗng + khối 'kvc' cũng ra 'gt' — đúng bằng giá trị gõ cứng
+          của bản 1.287.0, nên bệ đỡ ấy KHÔNG phân biệt được "có mồi theo bộ phận" với "quên mồi
+          hẳn". Lọt lưới thật lúc phá thử 22/09/2026 (lượt B11). */
+    BOOT: { luongBo: 'dc' },
+    KHOI_DANG: 'kvc',
+    KHOI_LUONG_CHI: ['mtd', 'vp'],
     genKyOptions: () => [{ val: 'T9/2026', label: 'T9/2026', cur: true }],
     _ngayISO: () => '2026-09-11',
     ndKyDoi: () => {},
@@ -274,11 +360,16 @@ function beNewDon(daChonTuan, bp) {
   /* `newDon()` gọi `_apTenNhom()` (đặt chữ cho ba nút chọn loại theo bộ phận) — bốc cả chuỗi
      hàm thật vào, đừng khai hàm rỗng: khai rỗng là bỏ dòng gọi ấy ra khỏi tầm kiểm. */
   const bangTen = (/var TEN_LOAI_BP=\{[\s\S]*?\n  \};/.exec(HTML) || [''])[0];
-  const src = `${bangTen}\n${boc('_tenNhom')}\n${boc('_tenNhomBp')}\n${boc('_apTenNhom')}
+  /* `newDon()` cũng đặt lại ô chọn LUỒNG về mặc định (1.287.0) — bốc cả `veNdLuong()` thật
+     vào, vì đó chính là dòng phải chạy được: bỏ nó ra là đơn sau lặng lẽ mang luồng của lần
+     lập trước. */
+  const src = `${BP_THAT}\n${bangTen}\n${boc('_tenNhom')}\n${boc('_tenNhomBp')}\n${boc('_apTenNhom')}
+    ${bocVar('ND_LUONG')}\n${bocVar('ND_LUONG_DS')}\n${boc('_luongKhoa')}\n${boc('veNdLuong')}\n${boc('_luongMoi')}
     ${boc('_tabDuoc')}\n${boc('_vaoDuocDuAn')}\n${boc('_hoiLoaiDon')}\n${boc('newDon')}
-    newDon(C); return null;`;
-  new Function('moi', 'C', `with(moi){ ${src} }`)(moi, daChonTuan);
-  return { hoi: KHO['ndLoaiBox'].style.display, coso: KHO['ndCoSoBox'].style.display };
+    newDon(C); return {hoi:null, luong:ND_LUONG};`;
+  const ra = new Function('moi', 'C', `with(moi){ ${src} }`)(moi, daChonTuan);
+  return { hoi: KHO['ndLoaiBox'].style.display, coso: KHO['ndCoSoBox'].style.display,
+    luong: ra && ra.luong, luongHtml: (KHO['ndLuongBox'] || {}).innerHTML };
 }
 const ND1 = beNewDon(undefined);
 t('bấm "＋ Tạo đơn mới" thẳng: CÓ hỏi loại (Kỹ thuật lên được hai loại)',
@@ -288,35 +379,35 @@ t('🔴 tới đây vì đã chọn "Đơn tuần của cơ sở": KHÔNG hỏi 
   ND2.hoi === 'none' && ND2.coso === '', ND2);
 const ND3 = beNewDon(undefined, 'Cơ sở');
 t('   nhân viên cơ sở vốn chỉ có một loại: cũng không hỏi', ND3.hoi === 'none' && ND3.coso === '', ND3);
+/* 🔴 Ô CHỌN LUỒNG ĐẶT LẠI MỖI LƯỢT MỞ (1.287.0). Giữ lựa chọn của lần trước là đơn sau lặng lẽ
+   mang luồng cũ — người lập không nhìn lại ô này vì họ nhớ mình đã chọn rồi. */
+/* 🔴 MỒI THEO BỘ PHẬN (1.288.0), không gõ cứng. Bệ đỡ khai bộ phận đi "dc" (duyệt chi), nên
+   hộp Tạo đơn mới phải mở ra ở đúng luồng ấy — gõ cứng 'gt' là phép này đỏ. */
+t('🔴 mở "Tạo đơn mới" → luồng mồi theo BỘ PHẬN của người lập, không gõ cứng',
+  ND1.luong === 'dc', ND1.luong);
+/* 23/09/2026: bộ phận ĐÃ CHỐT luồng ('dc') thì hộp KHÔNG bày ba nút nữa — anh Thắng *"Đã chọn
+   luồng duyệt thì ẩn đi, để tránh nhân viên nhầm"*. Chỉ nói đơn đi Duyệt chi. Xem
+   kiem-luong-khoa-theo-bo-phan.js. */
+t('   ô luồng được VẼ RA thật: nói đơn đi "Duyệt chi", KHÔNG bày nút chọn (bộ phận đã chốt)',
+  /Duyệt chi/.test(ND1.luongHtml || '') && !/<button/.test(ND1.luongHtml || '') && !/Trực tiếp/.test(ND1.luongHtml || ''), ND1.luongHtml);
 
-/* Nút chuyển một chiều: chạy THẬT hàm vẽ nó, với một trang giả có đủ hai nút.
-   ⚠️ Từ 12/09/2026 hàm ấy gác HAI lớp — lớp hai xét vai + bộ phận (anh Thắng: *"Đối với nhân
-      viên cơ sở ẩn nút này đi"*). Bệ đỡ mặc định ở đây là ADMIN, để mấy phép cũ dưới chỉ đo
-      đúng lớp `vis` như ý ban đầu của chúng; ca nhân viên có bài riêng
-      `kiem-xem-nhu-va-nut-chuyen.js`. */
-function beNutChuyen(vis, ai) {
-  ai = ai || { role: 'Admin', roleGoc: 'Admin', boPhan: '' };
-  const nut = [{ di: 'don', style: { display: 'x' } }, { di: 'duan', style: { display: 'x' } }];
-  const moi = {
-    document: { querySelectorAll: sel => (sel === '[data-dcsw-di]' ? nut : []) },
-    Array: Array,
-    CURUSER: ai,
-    BP_VAO_DUAN: ['Văn phòng', 'Kỹ thuật'],
-    _vaiGoc: () => String(ai.roleGoc || ai.role || ''),
-    _vaoDonCoSo: bp => !(bp && ['Kỹ thuật'].indexOf(bp) >= 0),
-  };
-  new Function('moi', 'V', `with(moi){ ${boc('_veNutChuyenDon')}
-    nut.forEach(function(b){ b.getAttribute=function(){ return b.di; }; });
-    _veNutChuyenDon(V); }`).call(null, Object.assign(moi, { nut }), vis);
-  return { don: nut[0].style.display, duan: nut[1].style.display };
-}
-const NC = beNutChuyen({ don: 1, duan: 0 });
-t('🔴 chỉ vào được đơn tuần: hiện nút sang đơn tuần, ẨN nút sang Kỹ thuật',
-  NC.don === '' && NC.duan === 'none', NC);
-const NC2 = beNutChuyen({ don: 0, duan: 1 });
-t('   ngược lại cũng vậy', NC2.don === 'none' && NC2.duan === '', NC2);
-const NC3 = beNutChuyen(null);
-t('   chưa có bảng quyền thì ẩn cả hai, không nổ', NC3.don === 'none' && NC3.duan === 'none', NC3);
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 CẶP NÚT CHUYỂN ĐƠN ĐÃ GỠ — 22/09/2026, anh Thắng: *"Bỏ cái chi phí kỹ thuật đi"*.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Khối này trước kia chạy THẬT `_veNutChuyenDon()` trên một trang giả có đủ hai nút, để đo luật
+ * ẩn/hiện hai lớp của chúng. Hàm ấy nay không còn, nên khối chạy thật cũng đi theo.
+ *
+ * ⚠️ KHÔNG XOÁ TRẮNG. Đổi sang canh chiều ngược lại — đã gỡ sạch, và KHÔNG gỡ lạm hai chốt
+ *    TAB nằm sát ngay cạnh (`BP_VAO_DUAN`, `_vaoDonCoSo`). Chúng mới là chốt quyền thật; cái
+ *    nút chỉ mượn chúng để bày một lối tắt. Quét sạch cả cụm là nhân viên cơ sở mất tab đơn
+ *    tuần — hỏng nặng hơn hẳn cái nút vừa gỡ.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+t('🔴 cặp nút chuyển loại đơn đã gỡ sạch', HTML.indexOf('[data-dcsw-di]') < 0);
+t('   và hàm vẽ nó cũng gỡ theo', HTML.indexOf('function _veNutChuyenDon') < 0);
+t('🔴 nhưng `BP_VAO_DUAN` VẪN còn — nó gác TAB, không phải cái nút vừa gỡ',
+  HTML.indexOf('BP_VAO_DUAN') >= 0);
+t('🔴 và `_vaoDonCoSo()` VẪN còn — mất là nhân viên cơ sở hết tab đơn tuần',
+  HTML.indexOf('function _vaoDonCoSo') >= 0);
 
 /* ── 6. MÀU NỔI CHO HAI LOẠI CHI PHÍ + NÚT QUAY LẠI + BỎ NÚT SỔ CHUNG ──────────────────
    Anh Thắng 11/09/2026: *"Kỹ thuật sẽ tập trung vào 2 chi phí này, nên cần cho hiện màu nổi
@@ -334,7 +425,7 @@ t('   chưa có bảng quyền thì ẩn cả hai, không nổ', NC3.don === 'no
   };
   /* `daChonNhom()` đặt dòng "Đang lập" bằng `_tenNhomBp()` — bốc cả hàm thật, đừng khai rỗng. */
   const bangTen2 = (/var TEN_LOAI_BP=\{[\s\S]*?\n  \};/.exec(HTML) || [''])[0];
-  const chon = new Function('moi', 'N', `with(moi){ ${bangTen2}
+  const chon = new Function('moi', 'N', `with(moi){ ${BP_THAT}\n${bangTen2}
     ${boc('_tenNhom')}\n${boc('_tenNhomBp')}\n${boc('daChonNhom')}\n daChonNhom(N);
     return { cs: el('daNhomCs').style, da: el('daNhomDa').style,
              csC: el('daNhomCs').className, daC: el('daNhomDa').className }; }`);
@@ -378,8 +469,9 @@ t('   nhưng danh sách vẫn đánh dấu dòng sổ chung', HTML.indexOf('· s
 
 /* Cặp nút LOẠI ĐƠN cũ phải biến mất khỏi trang — còn sót là còn chỗ để lộn. */
 t('🔴 không còn cặp nút bật/tắt "LOẠI ĐƠN" trong trang', HTML.indexOf('data-dcsw=') < 0);
-t('   thay bằng nút chuyển một chiều, mặc định ẩn',
-  (HTML.match(/data-dcsw-di="/g) || []).length === 2, (HTML.match(/data-dcsw-di="/g) || []).length);
+/* Cặp nút chuyển một chiều thay cho nó cũng đã gỡ nốt 22/09/2026 — xem khối 🔴 ở trên. */
+t('   và cặp nút chuyển một chiều thay nó cũng gỡ nốt',
+  (HTML.match(/data-dcsw-di="/g) || []).length === 0, (HTML.match(/data-dcsw-di="/g) || []).length);
 /* 🔴 CANH CẢ DẤU NHÁY ĐÓNG. Dò `indexOf('ndLoaiDaCoSo')` thì một id dài hơn ("ndLoaiDaCoSoXyz")
    vẫn khớp vì nó là TIỀN TỐ — đục id đi mà phép vẫn xanh. */
 t('   và hộp "Đơn này là loại nào?" có đủ ba lối',
