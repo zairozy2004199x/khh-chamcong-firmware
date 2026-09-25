@@ -102,6 +102,19 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.65.0 =
+* **Phiếu nhập hàng.** Anh Thắng 25/09/2026: *"Tạo phiếu nhập hàng, khi có phiếu nhập hàng nhập vào hoặc đẩy lên nó sẽ
+  đẩy vào dữ liệu kho hàng"*. Tab Kho có khối **Phiếu nhập hàng**: số phiếu (tự đánh NH<ngày>-NN, gõ tay được),
+  ngày nhập, nhà cung cấp, từng mặt hàng (chọn từ danh mục / món FABi từng bán, hay gõ tên mới) + số lượng + đơn giá,
+  ghi chú. Lưu xong **ô Nhập của sổ kho ngày ấy = tổng các phiếu** — ô khoá lại, ghi "phiếu"; số đếm, hàng huỷ, tồn
+  đầu đặt lại, ghi chú của dòng kho không bị đụng; mặt hàng mới vào danh mục kho. Danh sách phiếu 90 ngày; xoá phiếu
+  (chỉ văn phòng) là ô Nhập tính lại theo các phiếu còn lại. Ghi qua sổ ghi động nên có vết người / giờ.
+* **Đẩy phiếu lên từ hệ khác**: cùng cổng `POST /khh-dt/v1/phieu-nhap`, thân JSON `{ ngay, co_so, ncc, ghi_chu,
+  so_phieu, dong: [{ mh, sl, gia }] }` (nhận cả `mat_hang` / `so_luong`), cùng phép gác quyền như người lập tay: đúng
+  quán mình mới lập được; tên quán / tên mặt hàng lệch dấu cách vẫn về đúng tên.
+* Bảng mới `khh_dt_phieu_nhap`, tạo lúc cài đè. `kiem-phieu-nhap.php` 28 phép chạy thật (cộng dồn hai phiếu, xoá tính
+  lại, không đụng số đếm, 403 quán khác, xoá chỉ văn phòng, JSON đẩy lên), `kiem-phieu-nhap-man.js` 12 phép.
+
 = 1.64.6 =
 * **Tab Nhập báo cáo: món là thành phần combo ghi rõ "lẻ 2 + 6 theo combo → rời kho 8".** Anh Thắng 24/09/2026:
   *"ghi nhận 8 là đúng, nhưng chỗ theo combo là 6, vé lẻ là 2, tổng là 8"*. FABi chỉ ghi phần bán lẻ (2), phần đi

@@ -1843,7 +1843,13 @@
                 '" value="' + esc(d.dat_dau === null || d.dat_dau === undefined ? '' : d.dat_dau) + '" placeholder="' + esc(soKho(d.ton_dau)) +
                 '" title="Để trống = theo tồn cuối hôm trước. Gõ số để đặt lại tồn đầu ngày này."></td>'
               : oMay('Tồn đầu', d.ton_dau)) +
-            oNhap('nhap', 'Nhập', d.nhap) +
+            /* Ngày có PHIẾU NHẬP cho món này thì ô Nhập khoá lại, ghi "theo phiếu NH…" — sửa số nhập là sửa ở phiếu
+               (phieu-nhap.php, anh Thắng 25/09/2026: "có phiếu nhập hàng… nó sẽ đẩy vào dữ liệu kho hàng"). */
+            ((r.phieu_nhap || {})[d.mat_hang] && ghi
+              ? '<td class="o-go" data-nhan="Nhập"><input type="text" inputmode="numeric" autocomplete="off" readonly data-kho="nhap" data-i="' + i +
+                '" value="' + esc(d.nhap === null || d.nhap === undefined ? '' : d.nhap) + '" title="Theo phiếu ' + esc(r.phieu_nhap[d.mat_hang].join(', ')) + ' — sửa ở khối Phiếu nhập hàng" style="background:var(--app-mem)">' +
+                '<span class="chi-phieu" title="' + esc(r.phieu_nhap[d.mat_hang].join(', ')) + '">phiếu</span></td>'
+              : oNhap('nhap', 'Nhập', d.nhap)) +
             oMay('Máy bán lẻ', d.ban_le) +
             oMay('Theo combo', d.ban_combo) +
             (d.ban_chot
@@ -1885,10 +1891,133 @@
     }
 
     h += '<div id="khoThe"></div>';
-    if (ghi) { h += veKhoMatHang(r); h += veKhoCombo(r.combo || {}, r); }
+    if (ghi) { h += veKhoPhieu(r); h += veKhoMatHang(r); h += veKhoCombo(r.combo || {}, r); }
     h += '</div>';
     o.innerHTML = h;
     noiKho(o);
+  }
+
+  /* ---- PHIẾU NHẬP HÀNG ----
+     Anh Thắng 25/09/2026: *"Tạo phiếu nhập hàng, khi có phiếu nhập hàng nhập vào hoặc đẩy lên nó sẽ đẩy vào dữ liệu
+     kho hàng"*. Lập phiếu ở đây (hay hệ khác POST JSON vào cổng phieu-nhap) là ô Nhập của sổ kho ngày ấy = tổng các
+     phiếu. Khối tự tải danh sách phiếu gần đây sau khi bảng kho vẽ xong. */
+  function veKhoPhieu(r) {
+    return '<details id="khoPhieu" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)"' + (Object.keys(r.phieu_nhap || {}).length ? ' open' : '') + '>' +
+      '<summary style="cursor:pointer"><b>Phiếu nhập hàng</b> — <span id="pnTom" class="chu-them" style="display:inline;margin:0">đang tải…</span></summary>' +
+      '<div class="chu-them" style="margin-top:6px">Mỗi lần nhận hàng lập một phiếu: ngày, nhà cung cấp, từng mặt hàng và số lượng. Lưu xong ' +
+      '<b>ô Nhập của sổ kho ngày ấy tự bằng tổng các phiếu</b> (ô khoá lại, ghi "phiếu"). Số đếm, hàng huỷ, tồn đầu không bị đụng. ' +
+      'Hệ khác có thể <b>đẩy phiếu lên</b> bằng JSON vào cùng cổng <code>phieu-nhap</code>.</div>' +
+      '<div id="pnLap" style="margin-top:10px"></div>' +
+      '<div id="pnDs" style="margin-top:10px"></div>' +
+      '</details>';
+  }
+
+  function taiPhieu(o) {
+    var k = o.querySelector('#khoPhieu');
+    if (!k) return;
+    api('phieu-nhap?co_so=' + encodeURIComponent(S.kho.cs) + '&ngay=' + encodeURIComponent(S.kho.ngay)).then(function (r) {
+      S.pnR = r;
+      vePhieuLap(o, r);
+      vePhieuDs(o, r);
+    }).catch(function (e) {
+      var t = o.querySelector('#pnTom'); if (t) t.textContent = e.message || e;
+    });
+  }
+
+  /* Danh sách mặt hàng để chọn: danh mục kho ∪ món FABi từng bán ở quán. */
+  function pnMatHang() {
+    var r = S.khoR || {}, ds = (r.mat_hang || []).slice();
+    Object.keys(r.mon_da_thay || {}).forEach(function (t) { if (ds.indexOf(t) < 0) ds.push(t); });
+    ds.sort(function (a, b) { return a.localeCompare(b, 'vi'); });
+    return ds;
+  }
+
+  function pnDongHtml(mh, sl, gia) {
+    var ds = pnMatHang();
+    return '<tr class="pn-dong">' +
+      '<td class="o-ten" data-nhan="Mặt hàng" style="text-align:left"><input type="text" list="pnDsMH" autocomplete="off" data-pn="mh" value="' + esc(mh || '') + '" placeholder="tên đúng như FABi ghi" style="width:100%;max-width:320px"></td>' +
+      '<td class="o-go" data-nhan="Số lượng"><input type="text" inputmode="numeric" autocomplete="off" data-pn="sl" value="' + esc(sl || '') + '" placeholder="0" style="width:84px"></td>' +
+      '<td class="o-go" data-nhan="Đơn giá (đ)"><input type="text" inputmode="numeric" autocomplete="off" data-pn="gia" value="' + esc(gia || '') + '" placeholder="tuỳ chọn" style="width:110px"></td>' +
+      '<td class="o-may" data-nhan=""><button class="vien" type="button" data-pn-bo title="Bỏ dòng">✕</button></td>' +
+      '</tr>';
+  }
+
+  function vePhieuLap(o, r) {
+    var k = o.querySelector('#pnLap');
+    if (!k) return;
+    var ds = pnMatHang();
+    k.innerHTML = '<datalist id="pnDsMH">' + ds.map(function (t) { return '<option value="' + esc(t) + '">'; }).join('') + '</datalist>' +
+      '<div class="loc" style="margin:0 0 8px">' +
+        '<label class="o">Số phiếu<input type="text" id="pnSo" autocomplete="off" placeholder="' + esc(r.so_moi || '') + '" title="Để trống là tự đánh ' + esc(r.so_moi || '') + '" style="width:150px"></label>' +
+        '<label class="o">Ngày nhập<input type="date" id="pnNgay" value="' + esc(S.kho.ngay) + '"></label>' +
+        '<label class="o">Nhà cung cấp<input type="text" id="pnNcc" autocomplete="off" style="width:200px"></label>' +
+      '</div>' +
+      '<div class="bang-the the-cf bang-cuon"><table><thead><tr><th style="text-align:left">Mặt hàng</th><th>Số lượng</th><th>Đơn giá (đ)</th><th></th></tr></thead>' +
+      '<tbody id="pnDong">' + pnDongHtml('', '', '') + pnDongHtml('', '', '') + '</tbody></table></div>' +
+      '<div style="margin-top:8px"><button class="vien" type="button" id="pnThem">+ Thêm dòng</button> ' +
+        '<label class="o" style="display:inline-flex;margin-left:10px">Ghi chú<input type="text" id="pnGhi" autocomplete="off" style="width:240px"></label></div>' +
+      '<div style="margin-top:10px"><button class="nut chinh" type="button" id="pnLuu">Lưu phiếu nhập</button> ' +
+        '<span id="pnBao" class="chu-them" style="margin:0"></span></div>';
+    k.querySelector('#pnThem').addEventListener('click', function () {
+      k.querySelector('#pnDong').insertAdjacentHTML('beforeend', pnDongHtml('', '', ''));
+    });
+    k.addEventListener('click', function (ev) {
+      var b = ev.target.closest ? ev.target.closest('[data-pn-bo]') : null;
+      if (!b) return;
+      var tr = b.closest('tr'); if (tr && k.querySelectorAll('.pn-dong').length > 1) tr.remove();
+    });
+    k.querySelector('#pnLuu').addEventListener('click', function () {
+      var dong = [];
+      Array.prototype.forEach.call(k.querySelectorAll('.pn-dong'), function (tr) {
+        var mh = tr.querySelector('[data-pn="mh"]').value.trim(), sl = tr.querySelector('[data-pn="sl"]').value.trim(), gia = tr.querySelector('[data-pn="gia"]').value.trim();
+        if (mh && sl) dong.push({ mh: mh, sl: sl, gia: gia });
+      });
+      var bao = k.querySelector('#pnBao');
+      if (!dong.length) { bao.textContent = 'Gõ ít nhất một dòng: tên mặt hàng và số lượng.'; return; }
+      var nut = k.querySelector('#pnLuu'); nut.disabled = true; nut.textContent = 'Đang lưu…';
+      var fd = new FormData();
+      fd.append('co_so', S.kho.cs); fd.append('ngay', k.querySelector('#pnNgay').value || S.kho.ngay);
+      fd.append('so_phieu', k.querySelector('#pnSo').value.trim()); fd.append('ncc', k.querySelector('#pnNcc').value.trim());
+      fd.append('ghi_chu', k.querySelector('#pnGhi').value.trim()); fd.append('dong', JSON.stringify(dong));
+      api('phieu-nhap', { method: 'POST', body: fd }).then(function (r2) {
+        S.pnR = r2;
+        /* Sổ kho vừa đổi ô Nhập -> vẽ lại cả tab (giữ ngày/cơ sở), rồi khối phiếu tự tải lại. */
+        if ((k.querySelector('#pnNgay').value || S.kho.ngay) === S.kho.ngay) { S.khoR = null; taiKho(); }
+        else { vePhieuLap(o, r2); vePhieuDs(o, r2); }
+        S.pnBaoSau = 'Đã lưu phiếu ' + (r2.phieu ? r2.phieu.so_phieu : '') + ' — ô Nhập của sổ kho ngày ' + ngayVN(r2.phieu ? r2.phieu.ngay : '') + ' đã theo phiếu.';
+      }).catch(function (e) {
+        nut.disabled = false; nut.textContent = 'Lưu phiếu nhập';
+        bao.textContent = e.message || e;
+      });
+    });
+    if (S.pnBaoSau) { var b0 = k.querySelector('#pnBao'); if (b0) b0.textContent = S.pnBaoSau; S.pnBaoSau = ''; }
+  }
+
+  function vePhieuDs(o, r) {
+    var k = o.querySelector('#pnDs'), t = o.querySelector('#pnTom');
+    if (!k) return;
+    var ds = r.ds || [];
+    if (t) t.textContent = ds.length ? ds.length + ' phiếu 90 ngày gần đây' : 'chưa có phiếu nào';
+    if (!ds.length) { k.innerHTML = '<div class="chu-them">Chưa có phiếu nhập nào cho cơ sở này.</div>'; return; }
+    k.innerHTML = '<h3 class="tieu-nho" style="margin-top:8px">Phiếu gần đây</h3>' +
+      '<div class="bang-the the-cf bang-cuon"><table><thead><tr><th style="text-align:left">Số phiếu</th><th>Ngày</th><th style="text-align:left">Nhà cung cấp</th><th style="text-align:left">Mặt hàng</th><th>Tổng SL</th><th>Người</th><th></th></tr></thead><tbody>' +
+      ds.map(function (p) {
+        return '<tr' + (p.ngay === S.kho.ngay ? ' style="background:var(--app-mem)"' : '') + '><td class="o-ten" data-nhan="Số phiếu" style="text-align:left"><b>' + esc(p.so_phieu) + '</b>' + (p.ghi_chu ? '<span style="display:block;color:var(--ink-3);font-size:12px">' + esc(p.ghi_chu) + '</span>' : '') + '</td>' +
+          '<td class="o-may" data-nhan="Ngày">' + esc(ngayVN(p.ngay)) + '</td>' +
+          '<td class="o-may" data-nhan="Nhà cung cấp" style="text-align:left">' + esc(p.ncc || '—') + '</td>' +
+          '<td class="o-may" data-nhan="Mặt hàng" style="text-align:left;font-family:inherit">' + (p.dong || []).map(function (d) { return esc(d.mh) + ' <b>' + nguyen(d.sl) + '</b>'; }).join(' · ') + '</td>' +
+          '<td class="s o-may" data-nhan="Tổng SL">' + nguyen(p.tong_sl) + '</td>' +
+          '<td class="o-may" data-nhan="Người" style="font-family:inherit">' + esc(p.nguoi || '') + '</td>' +
+          '<td class="o-may" data-nhan="">' + (r.xoa_duoc ? '<button class="vien" type="button" data-pn-xoa="' + p.id + '" data-pn-so="' + esc(p.so_phieu) + '">Xoá</button>' : '') + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+    k.addEventListener('click', function (ev) {
+      var b = ev.target.closest ? ev.target.closest('[data-pn-xoa]') : null;
+      if (!b) return;
+      if (!window.confirm('Xoá phiếu ' + b.getAttribute('data-pn-so') + '? Ô Nhập của sổ kho ngày ấy sẽ tính lại theo các phiếu còn lại.')) return;
+      var fd = new FormData(); fd.append('xoa', b.getAttribute('data-pn-xoa'));
+      api('phieu-nhap', { method: 'POST', body: fd }).then(function () { S.khoR = null; taiKho(); })
+        .catch(function (e) { window.alert(e.message || e); });
+    });
   }
 
   /* ---- CHỌN MẶT HÀNG CÓ KHO CỦA CƠ SỞ ----
@@ -2126,6 +2255,7 @@
   }
 
   function noiKho(o) {
+    taiPhieu(o);
     var k = o.querySelector('#dtKho');
     if (!k) return;
     /* Gõ ô nào trong dòng là tồn tính / lệch kho của dòng ấy đổi ngay. */

@@ -223,6 +223,8 @@ body.khh-dt-body{margin:0;background:#f2f1ee}
 .khh-dt .bc-o input:disabled,.khh-dt .bc-o textarea:disabled{background:var(--card-2);color:var(--ink-3)}
 
 .khh-dt .bc-lech{display:flex;flex-direction:column;gap:6px;margin-top:16px}
+/* Ô Nhập theo phiếu nhập hàng (25/09/2026). */
+.khh-dt .chi-phieu{display:inline-block;margin-left:4px;padding:0 6px;border-radius:9px;font-size:11px;line-height:18px;background:var(--app-mem);color:var(--app);font-weight:600;vertical-align:middle}
 /* Nhãn số trên tab Cảnh báo. */
 .khh-dt .tab .dem{display:inline-block;min-width:18px;padding:0 5px;margin-left:4px;border-radius:9px;font-size:11px;line-height:18px;
   background:var(--app-mem);color:var(--app);font-weight:700;text-align:center}

@@ -1424,6 +1424,8 @@ function khh_dt_rest_kho_xem( $req ) {
 		/* Danh mục hàng hoá của cơ sở, và mọi món FABi từng ghi ở đây — để màn bày ra cho chọn. */
 		'mat_hang'   => khh_dt_kho_mh_cua( $co_so ),
 		'ma_hang'    => khh_dt_kho_ma_cua( $co_so ),
+		/* [ mặt hàng => [ số phiếu ] ] ngày này — ô Nhập khoá lại, ghi "theo phiếu" (phieu-nhap.php, 25/09/2026). */
+		'phieu_nhap' => function_exists( 'khh_dt_pn_cua_ngay' ) ? khh_dt_pn_cua_ngay( $ngay, $co_so ) : array(),
 		'mon_da_thay' => khh_dt_kho_mon_da_thay(
 			gmdate( 'Y-m-d', strtotime( $ngay ) - 90 * DAY_IN_SECONDS ),
 			$ngay,
