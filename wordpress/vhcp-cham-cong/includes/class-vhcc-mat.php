@@ -64,8 +64,35 @@ class VHCC_Mat {
 	/** Gộp tối đa bấy nhiêu lần rồi thôi — mẫu đủ chín thì đừng động vào nữa. */
 	const GOP_TOI_DA = 20;
 
+	/**
+	 * 🔴 MẶC ĐỊNH TẮT — 25/09/2026, vá khẩn.
+	 *
+	 * Anh Thắng: bấm CHẤM RA xong, máy chủ ghi giờ thành công (banner xanh hiện đúng), nhưng
+	 * TOÀN MÀN HÌNH ĐƠ ngay sau đó — không bấm được nút hay tab nào, phải tắt hẳn app rồi mở
+	 * lại. Mở từ màn hình chính (PWA), lần nào cũng đơ.
+	 *
+	 * Nguyên nhân: `tram.php` gọi `soiMat()` NGAY SAU KHI GHI GIỜ XONG (đúng ý định — "không ai
+	 * phải chờ nó"), nhưng hàm ấy tải `face-api.js` (đóng gói TensorFlow.js) cùng ba model nhận
+	 * diện khuôn mặt rồi chạy suy luận THẲNG TRÊN LUỒNG CHÍNH của trang — bọc trong `Promise`
+	 * chỉ hoãn lúc BẮT ĐẦU chạy, không hề làm khối tính toán bên trong nhường lại luồng cho
+	 * người dùng bấm màn hình. Trên PWA "Thêm vào Màn hình chính" của iOS, WKWebView bị giới
+	 * hạn bộ nhớ/ngữ cảnh WebGL chặt hơn hẳn tab Safari thường — tải ba model khuôn mặt cùng lúc
+	 * là đúng loại việc dễ làm nó treo cứng tới mức phải khởi động lại tiến trình.
+	 *
+	 * Tính năng này TỰ BẬT cho mọi cơ sở ngay khi tệp thư viện được đưa lên host — không ai phải
+	 * bấm gì để "bật" nó, nên không ai biết để tắt khi nó làm hỏng đúng cái việc quan trọng nhất
+	 * của cả hệ thống: chấm công.
+	 *
+	 * ⚠️ TẮT HẲN, KHÔNG "VÁ CHO NHẸ HƠN". Không có iPhone thật để đo lại hành vi WebGL/
+	 *    TensorFlow.js trong WKWebView — một bản vá "nhẹ hơn" mà không kiểm được trên thiết bị
+	 *    thật là đoán. Tắt mặc định là hành động DUY NHẤT chắc chắn hết đơ ngay cho mọi cơ sở,
+	 *    không mất một dòng mã nào — bật lại được bất cứ lúc nào ở Cài đặt (ô tích đọc đúng hàm
+	 *    này, `class-vhcc-admin.php:2557`) khi có bản chạy nền an toàn hơn.
+	 * ⚠️ Không đụng gì khác trong lớp này: `soi()`, ngưỡng, chế độ gắn cờ, màn duyệt khuôn mặt —
+	 *    mọi thứ chạy y nguyên một khi ai đó chủ động bật tay.
+	 */
 	public static function bat() {
-		return '1' === (string) get_option( 'vhcc_mat_bat', '1' );
+		return '1' === (string) get_option( 'vhcc_mat_bat', '0' );
 	}
 
 	/**

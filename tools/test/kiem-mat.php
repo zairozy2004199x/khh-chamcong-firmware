@@ -46,6 +46,23 @@ function vec_cach( $goc_so, $d ) {
 	return vec( $goc_so, $d / sqrt( 128 ) );
 }
 
+/* ============================================================ 0. MẶC ĐỊNH TẮT (25/09/2026)
+ *
+ * 🔴 VÁ KHẨN: bấm CHẤM RA xong, máy chủ ghi giờ thành công nhưng TOÀN MÀN HÌNH ĐƠ ngay sau đó
+ * — `soiMat()` (tram.php) tải face-api.js + ba model rồi suy luận THẲNG TRÊN LUỒNG CHÍNH, và
+ * tính năng này TỰ BẬT ngay khi tệp thư viện lên host, không ai phải bấm gì để bật nó nên
+ * không ai biết để tắt. Phải kiểm ĐÚNG CÁI CHƯA AI ĐẶT GÌ — không phải sau khi bài kiểm này
+ * (hay chính hosting) đã lỡ ghi option, nên hỏi RAW `get_option` trước khi mọi phép khác trong
+ * tệp này kịp đặt lại tuỳ ý.
+ */
+t( '(tiền đề) chưa ai từng đặt option này — đang đo đúng MẶC ĐỊNH, không phải trạng thái sót lại',
+	false === get_option( 'vhcc_mat_bat', false ) );
+t( 'mặc định TẮT khi chưa ai đặt gì ở Cài đặt', ! VHCC_Mat::bat() );
+/* Từ đây, các phép ở mục 1-9 kiểm HÀNH VI của bộ máy đối chiếu khi tính năng ĐANG bật — bật
+   tay lên, đúng như một cơ sở đã chủ động bấm ở Cài đặt. */
+update_option( 'vhcc_mat_bat', '1' );
+t( 'bật tay thì bat() trả true', VHCC_Mat::bat() );
+
 $U = array( 'ma_nv' => 'NV001', 'ho_ten' => 'Trần Văn A', 'coso' => 'VIVO' );
 
 /* ============================================================ 1. ĐỌC DÃY ĐẶC TRƯNG */
