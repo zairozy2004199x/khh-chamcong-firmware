@@ -54,6 +54,35 @@ lại ba kịch bản (PIN + #cvietqr · vé không hash · vé + #cvietqr): kh�
 biến đều có. `kiem-saoke-ve-hoan-vao.js` (9 phép) canh nhánh vé phải hoãn và các bảng cổng vẫn khai sau
 khối tự đăng nhập.
 
+### Sao Kê 0.52.0 — Nạp bù theo ĐỢT: dò trùng theo lô, không còn "Unexpected token '<'" / "File quá lớn"
+
+**Anh Thắng 25/09/2026:** *"nạp file bù rất lâu và hay lỗi"* — ảnh 1: 7.816 dòng → *Unexpected token '<', "<html><hea"… is not
+valid JSON* (hosting trả trang HTML lỗi thay JSON); ảnh 2: 24.261 dòng → *File quá lớn, tách nhỏ giúp em* (trần 20.000/yêu cầu).
+
+**Nguyên nhân:** một yêu cầu HTTP ôm cả file; mỗi dòng `luu_cong()` hỏi 2–3 câu SQL (dò theo khoá, rồi theo mã tham chiếu +
+số tiền) → ~20.000 câu cho 7.816 dòng → quá giờ PHP/hosting → trang HTML.
+
+**Làm:**
+- **Màn hình chia đợt** (`cgNapTxDot`, `CG_DOT = 400`): gửi từng đợt, dòng tiến độ "đang nạp 800/7816 — đợt 2/20", kết quả
+  cộng dồn (`cgGopKqTx`: số đếm cộng, danh sách hợp bỏ trùng, "chưa quy được" gộp theo nhãn). Đợt lỗi → nói rõ *đã nạp
+  xong N/M dòng, phần ấy đã lưu — bấm Nạp bù lại* (máy chủ chống trùng theo khoá nên nạp lại không đếm hai lần). Cả hai
+  luồng (nạp bù VietQR · giao dịch lẻ MoMo/VNPAY) cùng đi qua; luồng giao dịch lẻ trước đọc `r2.moi` (máy chủ trả
+  `themMoi`) nên luôn hiện 0 — sửa luôn.
+- **Máy chủ dò trùng theo LÔ** (`cong_cu_theo_khoa_`): một câu `SELECT … WHERE khoa IN (…)` cho cả đợt (≤500 khoá/câu);
+  `luu_cong( $row, &$kq, $cu_biet )` nhận dòng đã dò sẵn (mảng = đã có → đi thẳng đường VÁ; `false` = chưa có theo khoá →
+  vẫn qua `cong_dong_trung()` dò theo mã tham chiếu rồi chèn; `null` = tự hỏi như cũ — webhook không đổi). Trần mỗi đợt
+  2.000 dòng (bản app cũ gửi cả file thì máy chủ chỉ đường tải lại trang). Trả thêm `dsMaCH`, `thieuBanDo` không cắt 30
+  (để hợp các đợt không hụt).
+- **Cầu gọi** (`shim google.script.run`): máy chủ trả trang HTML thì báo *"Máy chủ trả về trang HTML thay vì dữ liệu (HTTP
+  504) — thường là quá giờ xử lý hoặc tường lửa hosting chặn"* thay vì lỗi JSON khó hiểu.
+- Bệ đỡ thử `lib/be-saoke.php`: FakeWpdb hiểu thêm câu `khoa IN (…)`, đếm `so_select_lo` / `so_get_row_khoa`.
+
+**Kiểm:** `kiem-saoke-nap-bu-theo-dot.php` (5 dòng: 3 đã có + 2 mới → 1 câu dò lô, 0 câu theo dòng, vá 3 mã cửa hàng, nạp
+lại 0 thêm; khoá lạ nhưng ref+tiền trùng vẫn bị chặn; trần 2.000; 35 mã lạ trả đủ) + `kiem-saoke-nap-bu-gop.js` 11 phép
+(chia 1.000 dòng = 400·400·200, tiến độ, gộp, đợt 2 lỗi → `loi(msg, 400, 1000)` và dừng, 0 dòng không gọi máy chủ).
+
+**Cài:** cài đè 0.52.0 rồi **tải lại trang Sao Kê (Ctrl+F5)** để lấy app.html mới; nạp file 24.261 dòng ≈ 61 đợt, có tiến độ.
+
 ### Sao Kê 0.51.0 — Chữ hiệu "Posh" không phải tên máy · tên điểm bán là cấp cơ sở · hai nút Gán / Tạo cơ sở mới bên Ghế
 
 **Anh Thắng 25/09/2026** gửi `store_export` + `transactions` của **tài khoản VietQR thứ hai** (AEON Hải Phòng / Huế / Long

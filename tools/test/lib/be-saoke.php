@@ -82,8 +82,10 @@ class FakeWpdb {
 	}
 	/* Hiểu ĐÚNG HAI câu mà `luu_cong()` hỏi — không hơn. Bệ đỡ hiểu quá rộng thì nó tự trả lời
 	   thay cho luật đang thử, và bài xanh trong khi thật thì hỏng. */
+	public $so_get_row_khoa = 0;   // 0.52.0: đếm câu hỏi TỪNG DÒNG theo khoá — nạp bù theo lô phải không tăng con số này cho dòng đã có
 	public function get_row( $sql, $out = null ) {
 		if ( preg_match( "/khoa='([^']*)'/", $sql, $m ) ) {
+			$this->so_get_row_khoa++;
 			foreach ( $this->hang as $h ) { if ( (string) $h['khoa'] === $m[1] ) { return $h; } }
 			return null;
 		}
@@ -98,7 +100,17 @@ class FakeWpdb {
 		return null;
 	}
 	public function get_var( $sql ) { return null; }
-	public function get_results( $sql, $out = null ) { return array(); }
+	/* 0.52.0: nạp bù dò trùng theo LÔ — `WHERE khoa IN ('a','b',…)`. Vẫn CHỈ hiểu đúng câu ấy (xem chú thích get_row). */
+	public $so_select_lo = 0;
+	public function get_results( $sql, $out = null ) {
+		if ( preg_match( "/WHERE khoa IN \((.*)\)/", $sql, $m ) ) {
+			$this->so_select_lo++;
+			preg_match_all( "/'((?:[^']|'')*)'/", $m[1], $mm );
+			$ds = array_map( function ( $x ) { return str_replace( "''", "'", $x ); }, $mm[1] );
+			$ra = array(); foreach ( $this->hang as $h ) { if ( in_array( (string) $h['khoa'], $ds, true ) ) { $ra[] = $h; } } return $ra;
+		}
+		return array();
+	}
 	public function insert( $tbl, $data ) {
 		$data['id'] = count( $this->hang ) + 1;
 		$this->hang[] = $data; $this->so_insert++; return 1;

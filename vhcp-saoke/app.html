@@ -2048,19 +2048,61 @@ function cgXemTruocTx(nguon){
     : '<b style="color:var(--doNhat)">Với các cột đang chọn không đọc được dòng nào</b> — dòng phải có đủ '
       + 'Thời điểm, Số tiền, và Mã giao dịch (hoặc Mã tham chiếu) để chống trùng được với webhook.';
 }
+/* ══ 0.52.0: NẠP BÙ THEO ĐỢT — anh Thắng 25/09/2026: *"nạp file bù rất lâu và hay lỗi"* (7.816 dòng → hosting trả trang
+   HTML "Unexpected token '<'"; 24.261 dòng → "File quá lớn"). Một yêu cầu ôm cả file là quá giờ máy chủ. Nay gửi từng đợt
+   CG_DOT dòng, có tiến độ, kết quả cộng dồn (cgGopKqTx); đợt nào lỗi thì nói rõ đã nạp tới đâu — bấm nạp lại từ đầu vẫn
+   an toàn vì máy chủ chống trùng theo khoá giao dịch. Cả hai luồng (nạp bù VietQR · giao dịch lẻ MoMo/VNPAY) cùng đi qua đây. */
+var CG_DOT = 400;
+function cgNapTxDot(nguon, goi, tenFile, tienDo, xong, loi){
+  var tong = goi.length, i = 0, gop = null, soDot = Math.ceil(tong / CG_DOT);
+  (function dot(){
+    if(i >= tong){ xong(gop || cgGopKqTx(null, { ok:true, nguon:nguon, tenFile:tenFile, soDongFile:0, themMoi:0, trungBoQua:0, tongTienThem:0, boQuaDong:0 })); return; }
+    var phan = goi.slice(i, i + CG_DOT), dotNay = Math.floor(i / CG_DOT) + 1, daNap = i; i += phan.length;
+    tienDo(i, tong, dotNay, soDot);
+    google.script.run.withSuccessHandler(function(r){
+      if(!r || !r.ok){ loi((r && r.error) || 'Lỗi', daNap, tong); return; }
+      gop = cgGopKqTx(gop, r); dot();
+    }).withFailureHandler(function(e){ loi(e && e.message ? e.message : String(e), daNap, tong); })
+      .napFileCongTx(PIN, nguon, phan, tenFile);
+  })();
+}
+/* Cộng dồn kết quả các đợt: số đếm cộng, danh sách hợp (bỏ trùng), "chưa quy được" gộp theo nhãn (cộng GD + tiền). */
+function cgGopKqTx(gop, r){
+  var SO = ['themMoi','trungBoQua','tongTienThem','boQuaDong','khongNgay','khongTien','khongMa','chuaRoMay','vaMay','khongThanhCong','soDongFile'];
+  function hop(a, b){ var s = {}; (a||[]).concat(b||[]).forEach(function(x){ s[x] = 1; }); return Object.keys(s).sort(); }
+  if(!gop){ gop = { ok:true, nguon:r.nguon, tenFile:r.tenFile }; SO.forEach(function(k){ gop[k] = 0; }); gop.cuaHangMoi = []; gop.dsMaCH = []; gop.thieuBanDo = []; gop.chuaGan = []; }
+  SO.forEach(function(k){ gop[k] += Number(r[k]) || 0; });
+  gop.cuaHangMoi = hop(gop.cuaHangMoi, r.cuaHangMoi); gop.dsMaCH = hop(gop.dsMaCH, r.dsMaCH); gop.thieuBanDo = hop(gop.thieuBanDo, r.thieuBanDo);
+  gop.soMaCH = gop.dsMaCH.length ? gop.dsMaCH.length : Math.max(gop.soMaCH || 0, Number(r.soMaCH) || 0);   // máy chủ cũ không trả dsMaCH → lấy số lớn nhất
+  gop.soThieuBanDo = gop.thieuBanDo.length;
+  var theoTen = {};
+  (gop.chuaGan || []).concat(r.chuaGan || []).forEach(function(x){
+    var c = theoTen[x.ten]; if(!c){ c = theoTen[x.ten] = { ten:x.ten, soGd:0, tien:0, maCH:x.maCH, tenMay:x.tenMay }; }
+    c.soGd += Number(x.soGd) || 0; c.tien += Number(x.tien) || 0;
+  });
+  gop.chuaGan = Object.keys(theoTen).map(function(k){ return theoTen[k]; }).sort(function(a, b){ return b.tien - a.tien; });
+  gop.soChuaGan = gop.chuaGan.length;
+  return gop;
+}
 function cgNapTx(nguon){
   var k = cgLayTx(nguon), kq = cgEl(nguon,'txKq');
   if(!k){ kq.innerHTML = '<b style="color:var(--doNhat)">Chưa chọn file</b>'; return; }
   if(!k.goi.length){ kq.innerHTML = '<b style="color:var(--doNhat)">Không có dòng nào đọc được</b> — chọn lại cột.'; return; }
-  kq.innerHTML = '<span class="muted">Đang nạp '+k.goi.length+' giao dịch…</span>';
-  google.script.run.withSuccessHandler(function(r){
-    if(!r||!r.ok){ kq.innerHTML = '<b style="color:var(--doNhat)">Không nạp được:</b> <span class="hint">'+esc((r&&r.error)||'Lỗi')+'</span>'; return; }
+  cgNapTxDot(nguon, k.goi, k.tenFile,
+    function(daGui, tong, dotNay, soDot){ kq.innerHTML = '<span class="muted">⏳ Đang nạp <b>'+daGui+'/'+tong+'</b> giao dịch — đợt '+dotNay+'/'+soDot+' (mỗi đợt '+CG_DOT+' dòng)…</span>'; },
+    function(r){ cgHienKqNapTx(nguon, k, kq, r); },
+    function(msg, daNap, tong){
+      kq.innerHTML = '<b style="color:var(--doNhat)">Không nạp được</b> (đã nạp xong '+daNap+'/'+tong+' dòng — phần ấy đã lưu): <span class="hint">'+esc(msg)+'</span>'
+        + '<div class="hint">Bấm <b>Nạp bù</b> lại là được — máy chủ chống trùng theo mã giao dịch cổng, không đếm hai lần.</div>';
+    });
+}
+function cgHienKqNapTx(nguon, k, kq, r){
     var ph = ['Nạp bù <b>'+r.themMoi+'</b> giao dịch, tổng <b>'+fmt(r.tongTienThem)+'đ</b>'];
     if(r.trungBoQua) ph.push('<b>'+r.trungBoQua+'</b> giao dịch ĐÃ CÓ (webhook đã ghi) nên bỏ qua — không đếm hai lần'
       + (r.vaMay ? (', trong đó <b style="color:var(--xanhLa,#15803d)">'+r.vaMay+'</b> dòng vừa được ĐIỀN MÃ CỬA HÀNG') : ''));
     if(r.soThieuBanDo) ph.push('<b style="color:var(--vang)">'+r.soThieuBanDo+' mã cửa hàng chưa có trong bản đồ</b> — '
       + 'nạp bảng <b>Danh sách cửa hàng</b> ở khối dưới rồi nạp lại file này: '
-      + r.thieuBanDo.map(esc).join(' · ') + (r.soThieuBanDo > r.thieuBanDo.length ? ' …' : ''));
+      + r.thieuBanDo.slice(0, 40).map(esc).join(' · ') + (r.thieuBanDo.length > 40 ? ' … (+'+(r.thieuBanDo.length-40)+')' : ''));
     if(r.boQuaDong) ph.push(r.boQuaDong+' dòng bị bỏ (thiếu thời điểm: '+r.khongNgay
       + ' · thiếu số tiền: '+r.khongTien+' · thiếu mã giao dịch: '+r.khongMa
       + (r.khongThanhCong ? (' · <b>không thành công: '+r.khongThanhCong+'</b>') : '')+')');
@@ -2075,9 +2117,6 @@ function cgNapTx(nguon){
       .luuCotTxCong(PIN, nguon, { thoiDiem: k.cot.td, soTien: k.cot.ti, maGD: k.cot.ma,
                                   ref: k.cot.rf, noiDung: k.cot.nd, maCH: k.cot.mch, maDiem: k.cot.mdi });
     cgTaiLai(nguon);
-  }).withFailureHandler(function(e){
-    kq.innerHTML = '<b style="color:var(--doNhat)">Không nạp được:</b> <span class="hint">'+esc(e.message)+'</span>';
-  }).napFileCongTx(PIN, nguon, k.goi, k.tenFile);
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════
@@ -2373,15 +2412,16 @@ function cgNapGiaoDichLe(nguon, kq){
     return;
   }
   kq.innerHTML += '<div class="hint" id="'+cgId(nguon,'gdKq')+'" style="margin-top:6px">• Đang nạp '+goi.length+' giao dịch lẻ…</div>';
-  google.script.run.withSuccessHandler(function(r2){
-    var e = cgEl(nguon,'gdKq'); if(!e) return;
-    if(!r2 || !r2.ok){ e.innerHTML = '• <b style="color:var(--doNhat)">Giao dịch lẻ không nạp được:</b> '+esc((r2&&r2.error)||'Lỗi'); return; }
-    e.innerHTML = '• <b>Giao dịch lẻ:</b> thêm <b>'+(r2.moi||0)+'</b>, trùng bỏ qua <b>'+(r2.trung||0)+'</b>'
-      + ((r2.boQua) ? (', bỏ '+r2.boQua+' dòng không đọc được') : '')
-      + ' — plugin khác lấy qua <code>SAOKE_App::gd_cong_ds()</code>.';
-  }).withFailureHandler(function(e2){
-    var e = cgEl(nguon,'gdKq'); if(e) e.innerHTML = '• <b style="color:var(--doNhat)">Giao dịch lẻ lỗi:</b> '+esc(e2.message);
-  }).napFileCongTx(PIN, nguon, goi, (d.tenFile||''));
+  cgNapTxDot(nguon, goi, (d.tenFile||''),
+    function(daGui, tong, dotNay, soDot){ var e = cgEl(nguon,'gdKq'); if(e) e.innerHTML = '• ⏳ Giao dịch lẻ: đang nạp '+daGui+'/'+tong+' (đợt '+dotNay+'/'+soDot+')…'; },
+    function(r2){
+      var e = cgEl(nguon,'gdKq'); if(!e) return;
+      /* 0.52.0: trước đây đọc r2.moi / r2.trung — máy chủ trả themMoi / trungBoQua nên luôn hiện 0. */
+      e.innerHTML = '• <b>Giao dịch lẻ:</b> thêm <b>'+(r2.themMoi||0)+'</b>, trùng bỏ qua <b>'+(r2.trungBoQua||0)+'</b>'
+        + ((r2.boQuaDong) ? (', bỏ '+r2.boQuaDong+' dòng không đọc được') : '')
+        + ' — plugin khác lấy qua <code>SAOKE_App::gd_cong_ds()</code>.';
+    },
+    function(msg, daNap, tong){ var e = cgEl(nguon,'gdKq'); if(e) e.innerHTML = '• <b style="color:var(--doNhat)">Giao dịch lẻ không nạp được</b> (đã nạp '+daNap+'/'+tong+'): '+esc(msg); });
 }
 
 function cgNapFile(nguon){

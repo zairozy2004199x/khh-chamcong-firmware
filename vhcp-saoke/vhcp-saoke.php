@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.51.0
+ * Version:           0.52.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -25,7 +25,7 @@ class SAOKE_App {
 	   thêm file"* — câu đầu tiên phải trả lời là "bản đang chạy có khối ấy chưa", mà trang thì
 	   không in số bản ở đâu cả, nên không ai đáp được ngoài cách đi mở wp-admin. Ghi ở đây, hiện
 	   ở góc cột trái. ⚠️ PHẢI BẰNG số ở header `Version:` phía trên — hai chỗ, một giá trị. */
-	const VER = '0.51.0';
+	const VER = '0.52.0';
 
 	/* 🔴 BỘ NHỚ ĐỆM TRONG MỘT LƯỢT cho bản đồ cửa hàng VietQR (option `saoke_vqr_ch`) — anh Thắng
 	   25/09/2026: Báo cáo tổng bên Ghế "không nối được tới máy chủ" khi chọn 01→25/09, còn 12→25 thì
@@ -660,9 +660,21 @@ class SAOKE_App {
 		$ma = '' !== $tx['maGD'] ? $tx['maGD'] : $tx['ref'];
 		return $nguon . '|' . ( '' !== $ma ? $ma : ( 'RAW-' . substr( md5( (string) $raw ), 0, 16 ) ) );
 	}
+	/* Dòng đã có theo KHOÁ, hỏi MỘT câu cho cả lô (≤ 500 khoá/câu) — 0.52.0, nạp bù theo đợt. Trả [ khoa => [id, diem_ban, ma_ch] ].
+	   Khoá cắt 120 ký tự như lúc ghi (luu_cong), nếu không thì khoá dài không bao giờ khớp và bị chèn lại. */
+	private static function cong_cu_theo_khoa_( $khoas ) {
+		global $wpdb; $tbl = self::tbl_cong(); $ra = array(); $ds = array();
+		foreach ( (array) $khoas as $k ) { $k = mb_substr( (string) $k, 0, 120 ); if ( '' !== $k ) { $ds[ $k ] = 1; } }
+		foreach ( array_chunk( array_keys( $ds ), 500 ) as $lo ) {
+			$ph = implode( ',', array_fill( 0, count( $lo ), '%s' ) );
+			foreach ( (array) $wpdb->get_results( $wpdb->prepare( "SELECT id, khoa, diem_ban, ma_ch FROM $tbl WHERE khoa IN ($ph)", ...$lo ), ARRAY_A ) as $r ) { $ra[ (string) $r['khoa'] ] = $r; }
+		}
+		return $ra;
+	}
 	/**
 	 * @param array  $row dòng giao dịch cổng.
 	 * @param string $kq  (ra) `moi` · `va` (đã có, vừa vá thêm ô trống) · `trung` (đã có, không đổi gì).
+	 * @param mixed  $cu_biet (0.52.0) dòng đã có do nạp bù dò theo lô; false = chưa có theo khoá; null = tự hỏi.
 	 * @return bool true CHỈ khi thêm dòng mới — nơi gọi đếm tiền dựa vào đúng điều đó.
 	 */
 	/**
@@ -690,10 +702,11 @@ class SAOKE_App {
 		}
 		return null;
 	}
-	private static function luu_cong( $row, &$kq = null ) {
+	private static function luu_cong( $row, &$kq = null, $cu_biet = null ) {
 		global $wpdb; $tbl = self::tbl_cong();
 		$kq = 'trung';
-		$cu = $wpdb->get_row( $wpdb->prepare( "SELECT id, diem_ban, ma_ch FROM $tbl WHERE khoa=%s", $row['khoa'] ), ARRAY_A );
+		/* 0.52.0: nạp bù đã dò theo LÔ (cong_cu_theo_khoa_) — mảng = dòng đã có, false = chắc chắn chưa có theo khoá, null = tự hỏi. */
+		$cu = is_array( $cu_biet ) ? $cu_biet : ( false === $cu_biet ? null : $wpdb->get_row( $wpdb->prepare( "SELECT id, diem_ban, ma_ch FROM $tbl WHERE khoa=%s", $row['khoa'] ), ARRAY_A ) );
 		/* 🔴 CÙNG MỘT GIAO DỊCH, HAI ĐƯỜNG VỀ, HAI CÁI KHOÁ KHÁC NHAU.
 		 *    Khoá dựng từ `maGD` (rồi mới tới `ref`). Webhook sống lấy `maGD` = mã giao dịch của
 		 *    ngân hàng; file kết xuất lấy từ cột "Mã đơn hàng". Hai giá trị ấy KHÔNG chắc bằng
@@ -3356,16 +3369,29 @@ class SAOKE_App {
 		return self::gd_cong_ds( $nguon, $tu, $den );
 	}
 
+	/**
+	 * NẠP BÙ GIAO DỊCH TỪ FILE KẾT XUẤT — MỘT ĐỢT. Màn hình chia file thành các đợt ~400 dòng rồi gộp kết quả (0.52.0).
+	 *
+	 * 🔴 VÌ SAO CHIA ĐỢT — anh Thắng 25/09/2026: *"nạp file bù rất lâu và hay lỗi"* (7.816 dòng → hosting trả trang HTML
+	 *    "Unexpected token '<'"; 24.261 dòng → "File quá lớn"). Một yêu cầu ôm cả file: mỗi dòng 2–3 câu SQL dò trùng
+	 *    (khoá, rồi mã tham chiếu) → ~20.000 câu, quá giờ máy chủ. Nay:
+	 *      (1) mỗi đợt ≤ 2.000 dòng (màn hình gửi 400), kết quả từng đợt cộng dồn ở màn hình (cgGopKqTx);
+	 *      (2) dò trùng theo LÔ: một câu `SELECT … WHERE khoa IN (…)` cho cả đợt — dòng đã có (đa số: webhook đã ghi)
+	 *          không hỏi lại từng dòng; chỉ dòng thật sự mới đi đường luu_cong() đầy đủ (có dò theo mã tham chiếu).
+	 *    Nạp lại cùng file bao nhiêu lần cũng an toàn (khoá chống trùng): đợt lỗi giữa chừng thì bấm lại, không đếm hai lần.
+	 */
 	public static function rpc_napFileCongTx( $a ) {
 		self::can_pin( $a );
 		$nguon = strtolower( trim( isset( $a[1] ) ? (string) $a[1] : '' ) );
 		if ( ! in_array( $nguon, self::cong_ds(), true ) ) { return array( 'ok' => false, 'error' => 'Nguồn không hợp lệ: ' . $nguon ); }
 		$rows = isset( $a[2] ) && is_array( $a[2] ) ? $a[2] : array();
 		if ( ! count( $rows ) ) { return array( 'ok' => false, 'error' => 'File không có dòng dữ liệu nào' ); }
-		if ( count( $rows ) > 20000 ) { return array( 'ok' => false, 'error' => 'File quá lớn (' . count( $rows ) . ' dòng), tách nhỏ giúp em' ); }
+		if ( count( $rows ) > 2000 ) { return array( 'ok' => false, 'error' => 'Mỗi đợt tối đa 2.000 dòng (đang gửi ' . count( $rows ) . ') — màn hình bản mới tự chia đợt: tải lại trang (Ctrl+F5) rồi nạp lại.' ); }
 		$tenFile = sanitize_text_field( isset( $a[3] ) ? (string) $a[3] : '' ); $anhXa = self::ds_anhxa( $nguon );
 		$moi = 0; $trung = 0; $boQua = 0; $khongNgay = 0; $khongTien = 0; $khongMa = 0; $tongMoi = 0; $chMoi = array(); $chuaRoMay = 0;
 		$vaMay = 0; $maChFile = array(); $khongThanhCong = 0; $denNhat = '';
+		/* VÒNG 1 — đọc cột, lọc dòng bỏ, dựng $tx + khoá. Chưa đụng DB. */
+		$dsTx = array();
 		foreach ( $rows as $rr ) { $r = (array) $rr;
 			$thoiDiem = self::cong_ngay( isset( $r[0] ) ? $r[0] : '' ); $soTien = self::num( isset( $r[1] ) ? $r[1] : 0 );
 			$maGD = trim( (string) ( isset( $r[2] ) ? $r[2] : '' ) ); $ref = trim( (string) ( isset( $r[3] ) ? $r[3] : '' ) ); $noiDung = trim( (string) ( isset( $r[4] ) ? $r[4] : '' ) );
@@ -3385,6 +3411,13 @@ class SAOKE_App {
 			if ( '' === $maGD && '' === $ref ) { $khongMa++; $boQua++; continue; }
 			$tx = array( 'nguon' => $nguon, 'maGD' => $maGD, 'ref' => $ref, 'thoiDiem' => $thoiDiem, 'soTien' => $soTien, 'huong' => 'Đến', 'trangThai' => mb_substr( $ttFile, 0, 30 ), 'soTK' => '', 'noiDung' => $noiDung, 'diemBan' => '', 'maCH' => $maCH, 'docDuoc' => true );
 			$tx['khoa'] = self::cong_khoa( $nguon, $tx, wp_json_encode( $r ) ); $tx['raw'] = 'FILE ' . $tenFile . ' · ' . mb_substr( (string) wp_json_encode( $r ), 0, 1500 );
+			$dsTx[] = array( 'tx' => $tx, 'maCH' => $maCH, 'noiDung' => $noiDung, 'thoiDiem' => $thoiDiem, 'soTien' => $soTien );
+		}
+		/* VÒNG 2 — dò trùng theo LÔ (một câu cho cả đợt), rồi ghi từng dòng. */
+		$khoas = array(); foreach ( $dsTx as $d ) { $khoas[] = $d['tx']['khoa']; }
+		$daCo = self::cong_cu_theo_khoa_( $khoas );
+		foreach ( $dsTx as $d ) {
+			$tx = $d['tx']; $maCH = $d['maCH']; $noiDung = $d['noiDung']; $thoiDiem = $d['thoiDiem']; $soTien = $d['soTien'];
 			if ( '' !== $maCH ) { $maChFile[ $maCH ] = ( isset( $maChFile[ $maCH ] ) ? $maChFile[ $maCH ] : 0 ) + 1; }
 			$tenMay = self::cong_may_dong( $noiDung, $maCH, '' );
 			if ( '' === $tenMay ) { $chuaRoMay++; }
@@ -3404,8 +3437,8 @@ class SAOKE_App {
 			$mysql = self::cong_ngay_mysql( $thoiDiem );
 			if ( $mysql && $mysql > $denNhat ) { $denNhat = $mysql; }
 			if ( 'vietqr' === $nguon ) { self::ghe_dau_ngay_( $mysql ); }   // nạp file có thể VÁ ma_ch vào dòng cũ → ngày ấy phải tính lại
-			$kqLuu = '';
-			if ( self::luu_cong( $tx, $kqLuu ) ) { $moi++; $tongMoi += $soTien; } else { $trung++; if ( 'va' === $kqLuu ) { $vaMay++; } }
+			$kqLuu = ''; $k120 = mb_substr( $tx['khoa'], 0, 120 );
+			if ( self::luu_cong( $tx, $kqLuu, isset( $daCo[ $k120 ] ) ? $daCo[ $k120 ] : false ) ) { $moi++; $tongMoi += $soTien; } else { $trung++; if ( 'va' === $kqLuu ) { $vaMay++; } }
 		}
 		self::day_ghe_ngay_don_();
 		/* 🔴 GHI LẠI LẦN NẠP NÀY PHỦ TỚI ĐÂU. Anh Thắng 12/09/2026: *"vẫn chưa lọc hết"* — chỉ vào
@@ -3435,7 +3468,7 @@ class SAOKE_App {
 		sort( $thieuBD );
 		return array( 'ok' => true, 'nguon' => $nguon, 'tenFile' => $tenFile, 'soDongFile' => count( $rows ), 'themMoi' => $moi, 'trungBoQua' => $trung,
 			'tongTienThem' => $tongMoi, 'boQuaDong' => $boQua, 'khongNgay' => $khongNgay, 'khongTien' => $khongTien, 'khongMa' => $khongMa, 'chuaRoMay' => $chuaRoMay, 'cuaHangMoi' => $cm, 'chuaGan' => $chuaGan, 'soChuaGan' => count( $chMoi ),
-			'vaMay' => $vaMay, 'soMaCH' => count( $maChFile ), 'thieuBanDo' => array_slice( $thieuBD, 0, 30 ), 'soThieuBanDo' => count( $thieuBD ),
+			'vaMay' => $vaMay, 'soMaCH' => count( $maChFile ), 'dsMaCH' => array_keys( $maChFile ), 'thieuBanDo' => $thieuBD, 'soThieuBanDo' => count( $thieuBD ),
 			'khongThanhCong' => $khongThanhCong );
 	}
 
@@ -3615,7 +3648,10 @@ class SAOKE_App {
 		$shim = '<script>window.SAOKE_VE_OK=' . ( self::phien_ok_() ? 'true' : 'false' ) . ';</script>'
 			. '<script>(function(){var REST=' . wp_json_encode( $rest ) . ';'
 			. 'function post(fn,args,s,f,u){fetch(REST+"/rpc",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({fn:fn,args:args})})'
-			. '.then(function(r){return r.json();}).then(function(d){if(d&&typeof d==="object"&&d.__err!==undefined){if(f)f(new Error(d.__err),u);return;}if(s)s(d,u);})'
+			/* 0.52.0: máy chủ trả trang HTML (quá giờ, 5xx, tường lửa hosting) thì nói thẳng kèm mã HTTP — anh Thắng 25/09/2026
+			   chỉ thấy "Unexpected token '<', \"<html><hea\"… is not valid JSON" và không biết là do đâu. */
+			. '.then(function(r){return r.text().then(function(t){try{return JSON.parse(t);}catch(e){throw new Error("Máy chủ trả về trang HTML thay vì dữ liệu (HTTP "+r.status+") — thường là quá giờ xử lý hoặc tường lửa hosting chặn. Thử lại; nếu đang nạp bù thì bản này đã chia đợt nhỏ.");}});})'
+			. '.then(function(d){if(d&&typeof d==="object"&&d.__err!==undefined){if(f)f(new Error(d.__err),u);return;}if(s)s(d,u);})'
 			. '.catch(function(e){if(f)f(e,u);});}'
 			. 'function mk(){var st={s:null,f:null,u:undefined};var p=new Proxy({},{get:function(t,k){'
 			. 'if(k==="withSuccessHandler")return function(fn){st.s=fn;return p;};'
