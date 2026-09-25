@@ -102,6 +102,23 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.67.0 =
+* **Xuất MISA — chứng từ bán hàng** (anh Thắng 25/09/2026: *"Giờ bắt đầu bóc tách và xuất dữ liệu ra misa"*, kèm ảnh
+  chứng từ kế toán gõ tay). Tab Quản trị có khối mới: chọn kỳ / cửa hàng / chưa-đã xuất, xem trước từng chứng từ
+  (mỗi ngày × cơ sở một số chứng từ, mỗi mặt hàng một dòng theo **Mã hàng FABi**), tải Excel (hay CSV) đúng 17 cột
+  lưới MISA: Ngày hạch toán, Ngày chứng từ, Số chứng từ, Mã khách hàng, Diễn giải, Mã hàng, Tên hàng, TK doanh thu,
+  TK công nợ, TK giá vốn, TK kho, ĐVT, Số lượng, Đơn giá, Thành tiền, Đơn vị, Chi nhánh.
+* **Combo bóc tách như kế toán đang làm**: dòng vé = (đơn giá − sale phụ) × số vé, không giá vốn; dòng hàng (thạch,
+  bim bim, nước…) = sale phụ × số vé chia theo công thức combo của sổ kho (2 thạch/combo → 10.000 một cái), có TK giá
+  vốn 6320 + TK kho 1567, đứng ngay sau dòng vé. Combo chưa khai sale phụ hay chưa có công thức thì giữ một dòng vé
+  nguyên giá và cảnh báo — máy không tự bịa giá. Có thể khai "đơn giá trong combo" riêng cho một món.
+* **Ba bảng khai** ngay dưới: tài khoản & chi nhánh (5110 / 131 / 6320 / 1567 / Khu vui chơi, ĐVT, tiền tố số chứng
+  từ), cơ sở (Mã đơn vị như TTAMTA, tên MISA, mã khách), mặt hàng (mã hàng — bỏ trống thì lấy mã FABi, tên MISA, ĐVT,
+  đơn giá trong combo). Thiếu mã đơn vị / mã hàng, ngày chưa chốt, tổng dòng lệch doanh thu POS đều được kể ra trước
+  khi tải.
+* Tải xong hỏi **đánh dấu đã xuất** để lần sau không xuất trùng; xem lại "Đã xuất" và bỏ dấu được. Chỉ người được
+  nạp file (văn phòng) thấy khối này. Thư viện Excel chỉ nạp lúc bấm tải; máy chặn thì lùi về CSV.
+
 = 1.66.0 =
 * **Lớp áo mới cho cả trang** (anh Thắng 25/09/2026: *"design lại giao diện nhé"*), cùng tông với trang Chi phí:
   thanh đầu xanh đậm có nhãn phiên bản, tab dạng viên (tab đang mở nền xanh, nhãn số Cảnh báo), thẻ số bo tròn có

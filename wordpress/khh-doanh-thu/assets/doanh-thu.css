@@ -356,6 +356,7 @@ body.khh-dt-body{margin:0;background:#f3f5f9}
 .khh-dt .chip.thieu{border-color:var(--xau);color:#fff;background:var(--xau)}
 .khh-dt .chip.muon{border-color:var(--s4);color:var(--s4);background:transparent}
 .khh-dt .chip.cho{border-style:dashed;color:var(--ink-3)}
+.khh-dt .chip.xau{border-color:var(--xau);color:var(--xau);background:transparent}
 
 /* ---- Lịch nộp tiền: cơ sở × ngày trong tháng ----
    Màu LUÔN đi kèm ký hiệu (✓ ▲ ✕ ·) — cặp đỏ/xanh ở đây mang nghĩa "mất tiền" với "xong",
@@ -481,6 +482,11 @@ body.khh-dt-body{margin:0;background:#f3f5f9}
   .khh-dt .bang-the.the-cf .o-go{order:3}
   .khh-dt .bang-the.the-cf .o-go input{width:100% !important}
   .khh-dt .bang-the.the-cf .chi-ban{display:none}
+  /* Thẻ CHỨNG TỪ (Xuất MISA, 1.67.0): hai cột cho vừa số chứng từ dài, chữ Lưu ý xuống dòng được. */
+  .khh-dt .bang-the.the-ct tr{grid-template-columns:1fr 1fr}
+  .khh-dt .bang-the.the-ct .o-ten{order:0}
+  .khh-dt .bang-the.the-ct .o-may{order:2;text-align:left;min-width:0;overflow-wrap:anywhere;white-space:normal}
+  .khh-dt .bang-the.the-ct .o-ghi{order:3;grid-column:1 / -1;white-space:normal;font-size:12.5px;padding-bottom:6px}
   .khh-dt .bang-the.the-cf td[colspan]{grid-column:1 / -1}
 }
 /* Chữ chỉ hiện trên thẻ điện thoại (nhãn cạnh ô tích, loại món dưới tên nhóm). */

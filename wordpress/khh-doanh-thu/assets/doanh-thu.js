@@ -3470,6 +3470,8 @@
       taiNhomVe(o);
       /* Quy trình báo cáo cơ sở hằng ngày: cấu hình + tổng hợp hôm qua + nhật ký (chỉ quản trị). */
       taiQuyTrinh(o);
+      /* Xuất MISA: chứng từ bán hàng từng ngày × cơ sở, combo bóc tách — chỉ người được nạp file. */
+      taiMisa(o);
     }).catch(function (e) {
       o.innerHTML = '<div class="khung"><div class="trong">' + esc(e.message || e) + '</div></div>';
     });
@@ -3578,6 +3580,232 @@
         .then(function () { return api('quy-trinh-chay', { method: 'POST' }); })
         .then(function (r) { veQuyTrinh(o, r); })
         .catch(function (e) { chay.disabled = false; chay.textContent = 'Tổng hợp và gửi ngay'; window.alert(e.message || e); });
+    });
+  }
+
+  /* ---- XUẤT MISA — CHỨNG TỪ BÁN HÀNG ----
+     Anh Thắng 25/09/2026: *"Giờ bắt đầu bóc tách và xuất dữ liệu ra misa"* — kèm ảnh màn MISA của kế toán: một
+     chứng từ bán hàng mỗi ngày × cơ sở, từng mặt hàng theo Mã hàng FABi, combo tách làm hai dòng (vé + hàng có
+     giá vốn). Máy chủ bóc tách (`misa.php`); màn này chỉ chọn kỳ, xem trước, tải tệp và khai mã. */
+  var MISA = { tu: '', den: '', ch: '*', tt: 'chua', r: null, moDong: false, moCf: false };
+  function misaDuong() {
+    return 'misa?tu=' + MISA.tu + '&den=' + MISA.den + '&cua_hang=' + encodeURIComponent(MISA.ch) + '&tt=' + MISA.tt;
+  }
+  function taiMisa(o) {
+    if (!MISA.den) { var h = ymd(new Date()); MISA.den = h; MISA.tu = h.slice(0, 8) + '01'; }
+    api(misaDuong()).then(function (r) { MISA.r = r; veMisa(o, r); })
+      .catch(function (e) { khoiLoi(o, 'dtMisa', 'Xuất MISA — chứng từ bán hàng', e); });
+  }
+
+  function veMisa(o, r) {
+    var ct = r.chung_tu || [], rows = r.rows || [], cols = r.cols || [], cf = r.cf || {}, ds = (S.cf && S.cf.cua_hang) || [];
+    var h = '<div class="khung" id="dtMisa"><header><h2>Xuất MISA — chứng từ bán hàng</h2>' +
+      '<span class="goi">' + ct.length + ' chứng từ · ' + rows.length + ' dòng · ' + tien(r.tong || 0) + '</span></header>' +
+      '<div class="chu-them">Mỗi ngày × cơ sở là <b>một chứng từ</b>, mỗi mặt hàng một dòng theo <b>Mã hàng FABi</b>. ' +
+      '<b>Combo được bóc tách</b>: phần vé (đơn giá − sale phụ, không giá vốn) và phần hàng (thạch, bim bim, nước… theo công thức ' +
+      'combo của sổ kho, có TK giá vốn / TK kho). Sale phụ lấy ở khối "Nhóm món" và "Bóc tách vé"; công thức combo lấy ở tab Kho. ' +
+      'MISA khi nhập khẩu có bước ghép cột — tên cột ở đây đúng như lưới kế toán đang gõ.</div>' +
+      '<div class="loc" style="margin:12px 0 0"><span class="o"><label>Từ</label><input type="date" id="misaTu" value="' + esc(MISA.tu) + '">' +
+      '<label>đến</label><input type="date" id="misaDen" value="' + esc(MISA.den) + '"></span>' +
+      '<span class="o"><label>Cửa hàng</label><select id="misaCS"><option value="*">Tất cả cửa hàng</option>' +
+      ds.map(function (t) { return '<option value="' + esc(t) + '"' + (t === MISA.ch ? ' selected' : '') + '>' + esc(t) + '</option>'; }).join('') + '</select></span>' +
+      '<span class="o"><label>Trạng thái</label><select id="misaTT">' +
+      [['chua', 'Chưa xuất'], ['da', 'Đã xuất'], ['tatca', 'Tất cả']].map(function (x) { return '<option value="' + x[0] + '"' + (x[0] === MISA.tt ? ' selected' : '') + '>' + x[1] + '</option>'; }).join('') +
+      '</select></span><button class="nut" type="button" id="misaXem">Xem</button></div>';
+    if ((r.warn || []).length) {
+      h += '<div class="canh-ghep"><b>Cần xem trước khi nộp:</b><br>• ' + r.warn.map(esc).join('<br>• ') + '</div>';
+    }
+    if (!ct.length) {
+      h += '<div class="trong">Không có ngày nào trong kỳ' + (MISA.tt === 'chua' ? ' chưa xuất' : MISA.tt === 'da' ? ' đã xuất' : '') + '.</div>';
+    } else {
+      h += '<div class="bang-cuon bang-the the-ct"><table><thead><tr><th>Ngày</th><th style="text-align:left">Cơ sở</th><th>Số chứng từ</th><th>Dòng</th>' +
+        '<th>Tổng dòng</th><th>Doanh thu POS</th><th>Chốt</th><th>Đã xuất</th><th style="text-align:left">Lưu ý</th></tr></thead><tbody>' +
+        ct.map(function (x) {
+          var lech = Math.abs((x.tong || 0) - (x.doanh_thu || 0)) > 1;
+          return '<tr' + ((x.canh || []).length ? ' class="qua-han"' : '') + '><td class="o-may" data-nhan="Ngày">' + esc(ngayVN(x.ngay)) + '</td>' +
+            '<td class="o-ten" data-nhan="Cơ sở" style="text-align:left">' + esc(x.cua_hang) + '</td>' +
+            '<td class="s o-may" data-nhan="Số chứng từ">' + esc(x.so_ct) + '</td><td class="s o-may" data-nhan="Dòng">' + nguyen(x.so_dong) + '</td>' +
+            '<td class="s o-may" data-nhan="Tổng dòng"' + (lech ? ' style="color:var(--xau);font-weight:600"' : '') + '>' + tien(x.tong) + '</td>' +
+            '<td class="s o-may" data-nhan="Doanh thu POS">' + tien(x.doanh_thu) + '</td>' +
+            '<td class="o-may" data-nhan="Chốt">' + (x.chot ? '✓' : '<span class="chu-them" style="margin:0">chưa</span>') + '</td>' +
+            '<td class="o-may" data-nhan="Đã xuất">' + (x.da_xuat ? esc(String(x.da_xuat.luc || '').slice(0, 16)) : '—') + '</td>' +
+            '<td class="o-ghi" data-nhan="Lưu ý" style="text-align:left;font-size:12px">' + (x.canh || []).map(esc).join('<br>') + '</td></tr>';
+        }).join('') + '</tbody></table></div>' +
+        '<div class="bc-nut" style="margin-top:12px"><button class="nut chinh" type="button" id="misaXlsx">Tải Excel cho MISA</button> ' +
+        '<button class="nut" type="button" id="misaCsv">Tải CSV</button> ' +
+        (MISA.tt === 'da'
+          ? '<button class="vien" type="button" id="misaBoDau">Bỏ dấu đã xuất</button> '
+          : '<button class="vien" type="button" id="misaDau">Đánh dấu ' + ct.length + ' ngày đã xuất</button> ') +
+        '<button class="vien" type="button" id="misaDongMo" aria-pressed="' + (MISA.moDong ? 'true' : 'false') + '">' + (MISA.moDong ? 'Ẩn từng dòng' : 'Xem từng dòng (' + rows.length + ')') + '</button>' +
+        '<span id="misaBao" class="chu-them" style="margin:0"></span></div>';
+      if (MISA.moDong) {
+        var chiCot = [0, 2, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15];
+        h += '<div class="bang-cuon" style="max-height:60vh;overflow:auto"><table><thead><tr>' +
+          chiCot.map(function (i) { return '<th' + (i === 6 ? ' style="text-align:left"' : '') + '>' + esc(cols[i]) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+          rows.slice(0, 400).map(function (d) {
+            return '<tr>' + chiCot.map(function (i) {
+              var v = d[i];
+              if (i === 12) return '<td class="s">' + nguyen(v) + '</td>';
+              if (i === 13 || i === 14) return '<td class="s">' + nguyen(v) + '</td>';
+              return '<td' + (i === 6 ? ' style="text-align:left"' : '') + '>' + esc(v) + '</td>';
+            }).join('') + '</tr>';
+          }).join('') + '</tbody></table></div>' + (rows.length > 400 ? '<div class="chu-them">Chỉ bày 400 dòng đầu — tệp tải về đủ ' + rows.length + ' dòng.</div>' : '');
+      }
+    }
+
+    /* ---- cấu hình: tài khoản, cơ sở, mặt hàng ---- */
+    var oc = function (nhan, ten, gt, rong) {
+      return '<label class="o" style="margin:0 8px 8px 0">' + esc(nhan) + '<input type="text" autocomplete="off" data-misa-cf="' + ten + '" value="' + esc(gt == null ? '' : gt) + '" style="width:' + (rong || 90) + 'px"></label>';
+    };
+    h += '<details id="misaCf"' + (MISA.moCf ? ' open' : '') + ' style="margin-top:16px"><summary style="cursor:pointer;font-weight:600">Khai cho MISA: tài khoản, mã đơn vị từng cơ sở, mã hàng</summary>' +
+      '<div style="margin-top:10px"><b>Tài khoản & chi nhánh</b> (chung mọi dòng)<div style="display:flex;flex-wrap:wrap;gap:4px 8px;margin-top:6px">' +
+      oc('TK doanh thu', 'tk_dt', cf.tk_dt) + oc('TK công nợ', 'tk_no', cf.tk_no) + oc('TK giá vốn (hàng)', 'tk_gv', cf.tk_gv) + oc('TK kho (hàng)', 'tk_kho', cf.tk_kho) +
+      oc('Chi nhánh lập chứng từ', 'chi_nhanh', cf.chi_nhanh, 160) + oc('ĐVT vé', 'dvt_ve', cf.dvt_ve, 70) + oc('ĐVT hàng', 'dvt_hang', cf.dvt_hang, 70) +
+      oc('Tiền tố số chứng từ', 'tien_to', cf.tien_to, 70) + oc('Mã khách hàng chung', 'ma_kh', cf.ma_kh, 120) +
+      '</div><button class="nut" type="button" id="misaLuuCf">Lưu tài khoản</button></div>';
+
+    var cs = r.cs || [];
+    h += '<div style="margin-top:14px"><b>Cơ sở</b> — Mã đơn vị là cột "Đơn vị" trên MISA (TTAMTA…), Tên MISA dùng trong diễn giải.' +
+      '<div class="bang-cuon bang-the the-cf" style="margin-top:6px"><table><thead><tr><th style="text-align:left">Cơ sở (FABi)</th><th>Mã đơn vị</th><th>Tên MISA</th><th>Mã khách hàng</th></tr></thead><tbody>' +
+      cs.map(function (x) {
+        var i = function (k, rong) { return '<input type="text" autocomplete="off" data-misa-cs="' + k + '" data-cs="' + esc(x.cua_hang) + '" value="' + esc(x[k] || '') + '" style="width:' + rong + 'px' + (k === 'ten' ? ';text-align:left;font-family:inherit' : '') + '">'; };
+        return '<tr><td class="o-ten" data-nhan="Cơ sở">' + esc(x.cua_hang) + (x.ma_dv ? '' : ' <span class="chip xau">chưa có mã</span>') + '</td>' +
+          '<td class="o-go" data-nhan="Mã đơn vị">' + i('ma_dv', 96) + '</td><td class="o-go" data-nhan="Tên MISA">' + i('ten', 200) + '</td>' +
+          '<td class="o-go" data-nhan="Mã khách hàng">' + i('ma_kh', 110) + '</td></tr>';
+      }).join('') + '</tbody></table></div><button class="nut" type="button" id="misaLuuCs">Lưu cơ sở</button></div>';
+
+    var mh = r.mh || [];
+    h += '<div style="margin-top:14px"><b>Mặt hàng</b> (' + mh.length + ' món thấy trong kỳ, kể cả thành phần combo) — Mã hàng bỏ trống thì lấy mã FABi; ' +
+      '"Đơn giá trong combo" chỉ cần khi không muốn chia đều sale phụ theo số cái.' +
+      '<div class="bang-cuon bang-the the-cf" style="margin-top:6px"><table><thead><tr><th style="text-align:left">Tên FABi</th><th>Loại</th><th>Mã FABi thấy</th>' +
+      '<th>Mã hàng MISA</th><th>Tên MISA</th><th>ĐVT</th><th>Đơn giá trong combo</th></tr></thead><tbody>' +
+      mh.map(function (x) {
+        var c = x.cf || {};
+        var i = function (k, rong, ph) { return '<input type="text" autocomplete="off" data-misa-mh="' + k + '" data-mh="' + esc(x.ten) + '" value="' + esc(c[k] && c[k] !== 0 ? c[k] : '') + '" placeholder="' + esc(ph || '') + '" style="width:' + rong + 'px' + (k === 'ten' ? ';text-align:left;font-family:inherit' : '') + '">'; };
+        return '<tr><td class="o-ten" data-nhan="Tên FABi">' + esc(x.ten) + (x.combo ? ' <span class="chip">combo</span>' : '') + (!x.ma_fabi && !c.ma ? ' <span class="chip xau">chưa có mã</span>' : '') + '</td>' +
+          '<td class="o-may" data-nhan="Loại">' + (x.la_ve ? 'vé' : 'hàng') + '</td><td class="s o-may" data-nhan="Mã FABi">' + esc(x.ma_fabi || '—') + '</td>' +
+          '<td class="o-go" data-nhan="Mã hàng MISA">' + i('ma', 110, x.ma_fabi) + '</td><td class="o-go" data-nhan="Tên MISA">' + i('ten', 200) + '</td>' +
+          '<td class="o-go" data-nhan="ĐVT">' + i('dvt', 60, x.la_ve ? cf.dvt_ve : cf.dvt_hang) + '</td>' +
+          '<td class="o-go" data-nhan="Đơn giá trong combo">' + (x.la_ve ? '<span class="chu-them" style="margin:0">—</span>' : i('gia', 90, 'chia đều')) + '</td></tr>';
+      }).join('') + '</tbody></table></div><button class="nut" type="button" id="misaLuuMh">Lưu mặt hàng</button> <span id="misaBaoCf" class="chu-them" style="margin:0"></span></div>' +
+      '</details></div>';
+
+    var cu = o.querySelector('#dtMisa');
+    if (cu) { cu.outerHTML = h; } else {
+      var moc = o.querySelector('#dtQuyTrinh');
+      if (moc) moc.insertAdjacentHTML('afterend', h); else o.insertAdjacentHTML('beforeend', h);
+    }
+    noiMisa(o, r);
+  }
+
+  /* Thư viện xlsx chỉ nạp khi bấm tải — trang thường không cần; máy chặn CDN thì lùi về CSV. */
+  function napXlsx() {
+    if (typeof window.XLSX !== 'undefined') return Promise.resolve(window.XLSX);
+    return new Promise(function (xong, hong) {
+      var s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      /* Gọi qua .call để bài soi hàm (kiem-ham-js.py) không nhầm tham số với hàm thiếu định nghĩa. */
+      s.onload = function () { typeof window.XLSX !== 'undefined' ? xong.call(null, window.XLSX) : hong.call(null, new Error('xlsx')); };
+      s.onerror = function () { hong.call(null, new Error('xlsx')); };
+      document.head.appendChild(s);
+    });
+  }
+  function misaTaiCsv(r) {
+    var ce = function (v) { v = (v == null ? '' : String(v)); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+    var csv = r.cols.map(ce).join(',') + '\n' + r.rows.map(function (d) { return d.map(ce).join(','); }).join('\n');
+    var blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = (r.ten_tep || 'MISA_BanHang') + '.csv';
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { a.remove(); URL.revokeObjectURL(a.href); }, 150);
+  }
+  function misaTaiXlsx(r) {
+    return napXlsx().then(function (X) {
+      var ws = X.utils.aoa_to_sheet([r.cols].concat(r.rows));
+      var wb = X.utils.book_new(); X.utils.book_append_sheet(wb, ws, 'BanHang');
+      X.writeFile(wb, (r.ten_tep || 'MISA_BanHang') + '.xlsx');
+    });
+  }
+
+  function noiMisa(o, r) {
+    var k = o.querySelector('#dtMisa');
+    if (!k) return;
+    var bao = function (id, chu) { var b = k.querySelector('#' + id); if (b) b.textContent = chu; };
+    var xem = k.querySelector('#misaXem');
+    var docLoc = function () {
+      MISA.tu = k.querySelector('#misaTu').value || MISA.tu;
+      MISA.den = k.querySelector('#misaDen').value || MISA.den;
+      MISA.ch = k.querySelector('#misaCS').value || '*';
+      MISA.tt = k.querySelector('#misaTT').value || 'chua';
+    };
+    xem.addEventListener('click', function () { docLoc(); xem.disabled = true; xem.textContent = 'Đang lấy…'; taiMisa(o); });
+    var detail = k.querySelector('#misaCf');
+    if (detail) detail.addEventListener('toggle', function () { MISA.moCf = detail.open; });
+    var mo = k.querySelector('#misaDongMo');
+    if (mo) mo.addEventListener('click', function () { MISA.moDong = !MISA.moDong; veMisa(o, r); });
+
+    var dau = function (viec, khoa, chu) {
+      var fd = new FormData(); fd.append('viec', viec); fd.append('khoa', JSON.stringify(khoa));
+      return api(misaDuong(), { method: 'POST', body: fd }).then(function (r2) { MISA.r = r2; veMisa(o, r2); bao('misaBao', chu); });
+    };
+    var khoaDs = (r.chung_tu || []).map(function (x) { return x.khoa; });
+    var sauTai = function () {
+      if (MISA.tt !== 'chua' || !khoaDs.length) return;
+      setTimeout(function () {
+        if (!window.confirm('Đã tải tệp MISA (' + khoaDs.length + ' chứng từ).\nĐánh dấu các ngày này là "đã xuất" để lần sau không xuất trùng?')) return;
+        dau('da_xuat', khoaDs, 'Đã đánh dấu ' + khoaDs.length + ' ngày là đã xuất.').catch(function (e) { window.alert(e.message || e); });
+      }, 300);
+    };
+    var bx = k.querySelector('#misaXlsx');
+    if (bx) bx.addEventListener('click', function () {
+      bx.disabled = true; bx.textContent = 'Đang tạo tệp…';
+      misaTaiXlsx(r).then(function () { bx.disabled = false; bx.textContent = 'Tải Excel cho MISA'; sauTai(); })
+        .catch(function () { misaTaiCsv(r); bx.disabled = false; bx.textContent = 'Tải Excel cho MISA'; bao('misaBao', 'Máy chặn thư viện Excel — đã tải CSV thay thế.'); sauTai(); });
+    });
+    var bc = k.querySelector('#misaCsv');
+    if (bc) bc.addEventListener('click', function () { misaTaiCsv(r); sauTai(); });
+    var bd = k.querySelector('#misaDau');
+    if (bd) bd.addEventListener('click', function () {
+      if (!window.confirm('Đánh dấu ' + khoaDs.length + ' ngày là đã xuất MISA?')) return;
+      bd.disabled = true;
+      dau('da_xuat', khoaDs, 'Đã đánh dấu ' + khoaDs.length + ' ngày là đã xuất.').catch(function (e) { bd.disabled = false; window.alert(e.message || e); });
+    });
+    var bb = k.querySelector('#misaBoDau');
+    if (bb) bb.addEventListener('click', function () {
+      bb.disabled = true;
+      dau('bo_xuat', khoaDs, 'Đã bỏ dấu ' + khoaDs.length + ' ngày — chúng lại nằm ở "Chưa xuất".').catch(function (e) { bb.disabled = false; window.alert(e.message || e); });
+    });
+
+    /* ba nút lưu cấu hình: gom ô -> JSON -> POST viec=… ; máy chủ trả bản xem mới của cùng kỳ */
+    var luu = function (nut, viec, gom) {
+      if (!nut) return;
+      nut.addEventListener('click', function () {
+        var chu = nut.textContent;
+        nut.disabled = true; nut.textContent = 'Đang lưu…';
+        var fd = new FormData(); fd.append('viec', viec); fd.append(viec, JSON.stringify(gom.call(null)));
+        api(misaDuong(), { method: 'POST', body: fd }).then(function (r2) {
+          MISA.r = r2; MISA.moCf = true; veMisa(o, r2);
+          var b = o.querySelector('#misaBaoCf'); if (b) b.textContent = 'Đã lưu — bảng xem trước ở trên đã tính lại.';
+        }).catch(function (e) { nut.disabled = false; nut.textContent = chu; window.alert(e.message || e); });
+      });
+    };
+    luu(k.querySelector('#misaLuuCf'), 'cf', function () {
+      var d = {};
+      Array.prototype.forEach.call(k.querySelectorAll('[data-misa-cf]'), function (i) { d[i.getAttribute('data-misa-cf')] = i.value; });
+      return d;
+    });
+    luu(k.querySelector('#misaLuuCs'), 'cs', function () {
+      var d = {};
+      Array.prototype.forEach.call(k.querySelectorAll('[data-misa-cs]'), function (i) {
+        var c = i.getAttribute('data-cs'); d[c] = d[c] || {}; d[c][i.getAttribute('data-misa-cs')] = i.value;
+      });
+      return d;
+    });
+    luu(k.querySelector('#misaLuuMh'), 'mh', function () {
+      var d = {};
+      Array.prototype.forEach.call(k.querySelectorAll('[data-misa-mh]'), function (i) {
+        var c = i.getAttribute('data-mh'); d[c] = d[c] || {}; d[c][i.getAttribute('data-misa-mh')] = i.value;
+      });
+      return d;
     });
   }
 
