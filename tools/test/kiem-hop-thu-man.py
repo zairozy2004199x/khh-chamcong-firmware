@@ -28,6 +28,12 @@ m = re.search(r'function veHopThu\(o, r\) \{(.*?)\n  \}', s, re.S)
 t('tim thay veHopThu', m is not None)
 v = m.group(1) if m else ''
 t('🔴 co o chon che do (data-thu="che_do")', 'data-thu="che_do"' in v)
+# 25/09/2026 anh Thang: "Hien 5 lenh 1 trang thoi" — nhat ky 5 luot/trang, nut Truoc/Sau, cung ly do bo qua gom "xN".
+nk = re.search(r'function veThuNhatKy\(nk\) \{(.*?)\n  \}', s, re.S)
+nkv = nk.group(1) if nk else ''
+t('🔴 nhat ky 5 luot mot trang (HT_MOI_TRANG = 5), cat theo HT_TRANG, thanh Truoc/Sau data-thu-trang', 'HT_MOI_TRANG = 5' in s and 'tat.slice(dau, dau + HT_MOI_TRANG)' in nkv and 'data-thu-trang="\' + (HT_TRANG - 1)' in nkv and 'data-thu-trang="\' + (HT_TRANG + 1)' in nkv)
+t('chuyen trang ve lai tu S.hopThuR, khong goi lai may chu', 'S.hopThuR = r' in s and "HT_TRANG = parseInt(bt.getAttribute('data-thu-trang'), 10)" in s and 'veHopThu(o, S.hopThuR)' in s)
+t('cung ly do bo qua lap nhieu thu -> mot dong xN', "' <b>×' + gom[kb].n + '</b>'" in nkv)
 t('che do co hai lua chon ngay/gio', 'value="ngay"' in v and 'value="gio"' in v)
 t('🔴 co o gio lay (data-thu="luc") kieu time', re.search(r"'luc', c\.luc \|\| '08:02', 'time'", v) is not None)
 t('mac dinh hien 08:02 khi chua dat', "c.luc || '08:02'" in v)

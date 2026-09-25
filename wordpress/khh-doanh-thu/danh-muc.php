@@ -27,7 +27,7 @@ const KHH_DT_DM_OPT = 'khh_dt_dm_hang';
 function khh_dt_dm_goi() {
 	$x = get_option( KHH_DT_DM_OPT, array() );
 	if ( ! is_array( $x ) || empty( $x['ds'] ) || ! is_array( $x['ds'] ) ) {
-		return array( 'ds' => array(), 'luc' => '', 'nguoi' => '', 'nguon' => '', 'so' => 0 );
+		return array( 'ds' => array(), 'luc' => '', 'nguoi' => '', 'nguon' => '', 'so' => 0, 'cs_luc' => array() );
 	}
 	return array(
 		'ds'    => $x['ds'],
@@ -35,6 +35,7 @@ function khh_dt_dm_goi() {
 		'nguoi' => isset( $x['nguoi'] ) ? (string) $x['nguoi'] : '',
 		'nguon' => isset( $x['nguon'] ) ? (string) $x['nguon'] : '',
 		'so'    => count( $x['ds'] ),
+		'cs_luc' => isset( $x['cs_luc'] ) && is_array( $x['cs_luc'] ) ? $x['cs_luc'] : array(),
 	);
 }
 
@@ -209,47 +210,172 @@ function khh_dt_dm_phan_tich( $duong_dan, $ten_file = '' ) {
 	return $ds;
 }
 
-/** Nạp file vào option. Trả về tóm tắt { so, moi, mat, luc } hay WP_Error. */
-function khh_dt_dm_nap( $duong_dan, $ten_file = '' ) {
+/**
+ * Nạp file vào option — THEO QUÁN, KHÔNG THAY CẢ BẢN.
+ *
+ * Anh Thắng 25/09/2026 hỏi *"Nạp danh mục hàng hoá có cần chọn cơ sở không"* sau khi nạp bản Bình Dương (68 món).
+ * FABi xuất MỖI QUÁN MỘT FILE, mà bản đầu "mỗi lần nạp là thay cả bản" — nạp Tân An xong là 68 món Bình Dương bay.
+ * Nay: file có quán nào (cột Cửa hàng, hay quán chọn ở ô) thì chỉ thay phần của quán ấy, quán khác giữ nguyên. Cùng
+ * một mã ở nhiều quán thì gộp một dòng, cột `cs` là danh sách quán. File KHÔNG có cột Cửa hàng và không chọn quán ->
+ * món chung mọi quán, và thay toàn bộ như cũ (không biết nó của ai để mà giữ ai).
+ *
+ * @param string $cua_hang Quán gán cho mọi dòng của file (khi file không có cột Cửa hàng); rỗng = theo file.
+ * @return array|WP_Error { so (dòng trong file), moi, mat, tong (cả bảng), quan:[…], luc }
+ */
+function khh_dt_dm_nap( $duong_dan, $ten_file = '', $cua_hang = '' ) {
 	$ds = khh_dt_dm_phan_tich( $duong_dan, $ten_file );
 	if ( is_wp_error( $ds ) ) {
 		return $ds;
 	}
-	$cu    = khh_dt_dm_ds();
-	$khoa  = function ( $m ) {
+	$cua_hang = trim( (string) $cua_hang );
+	if ( '' !== $cua_hang ) {
+		$cua_hang = function_exists( 'khh_dt_bc_ten_cua' ) ? khh_dt_bc_ten_cua( $cua_hang ) : $cua_hang;
+		foreach ( $ds as $i => $m ) {
+			$ds[ $i ]['cs'] = array( $cua_hang );
+		}
+	}
+	$khoa = function ( $m ) {
 		return '' !== $m['ma'] ? 'm:' . strtoupper( $m['ma'] ) : 't:' . khh_dt_dm_long( $m['ten'] );
 	};
-	$cu_k  = array();
-	foreach ( $cu as $m ) {
-		$cu_k[ $khoa( $m ) ] = true;
+	/* Quán có mặt trong file (khoá lỏng => tên nguyên văn). */
+	$quan = array();
+	foreach ( $ds as $m ) {
+		foreach ( $m['cs'] as $c ) {
+			$quan[ khh_dt_dm_long( $c ) ] = (string) $c;
+		}
 	}
+	$goi_cu = khh_dt_dm_goi();
+	$cu     = $goi_cu['ds'];
+	$cu_k   = array();   // món ĐÃ CÓ ở các quán bị thay (hay cả bảng khi thay toàn bộ)
+	$giu    = array();
+	foreach ( $cu as $m ) {
+		$cs = isset( $m['cs'] ) && is_array( $m['cs'] ) ? $m['cs'] : array();
+		if ( ! $quan ) {
+			$cu_k[ $khoa( $m ) ] = true;   // thay cả bản
+			continue;
+		}
+		if ( ! $cs ) {
+			$giu[] = $m;                   // món chung mọi quán: không thuộc riêng ai, giữ
+			continue;
+		}
+		$con = array();
+		$dinh = false;
+		foreach ( $cs as $c ) {
+			if ( isset( $quan[ khh_dt_dm_long( $c ) ] ) ) {
+				$dinh = true;
+			} else {
+				$con[] = $c;
+			}
+		}
+		if ( $dinh ) {
+			$cu_k[ $khoa( $m ) ] = true;
+		}
+		if ( $con ) {
+			$m['cs'] = $con;
+			$giu[] = $m;
+		}
+	}
+	$vi = array();
+	foreach ( $giu as $i => $m ) {
+		$vi[ $khoa( $m ) ] = $i;
+	}
+	$ra    = $giu;
 	$moi_k = array();
-	$moi   = 0;
 	foreach ( $ds as $m ) {
 		$k = $khoa( $m );
 		$moi_k[ $k ] = true;
-		if ( ! isset( $cu_k[ $k ] ) ) {
-			$moi++;
+		if ( isset( $vi[ $k ] ) ) {
+			$cs_cu   = $ra[ $vi[ $k ] ]['cs'];
+			$m['cs'] = array_values( array_unique( array_merge( $cs_cu, $m['cs'] ) ) );
+			$ra[ $vi[ $k ] ] = $m;
+		} else {
+			$vi[ $k ] = count( $ra );
+			$ra[]     = $m;
 		}
 	}
-	$mat = 0;
-	foreach ( array_keys( $cu_k ) as $k ) {
-		if ( ! isset( $moi_k[ $k ] ) ) {
-			$mat++;
+	$moi = count( array_diff_key( $moi_k, $cu_k ) );
+	$mat = count( array_diff_key( $cu_k, $moi_k ) );
+	$luc = current_time( 'mysql' );
+	$cs_luc = isset( $goi_cu['cs_luc'] ) && is_array( $goi_cu['cs_luc'] ) ? $goi_cu['cs_luc'] : array();
+	if ( $quan ) {
+		foreach ( $quan as $c ) {
+			$cs_luc[ $c ] = $luc;
 		}
+	} else {
+		$cs_luc = array( '*' => $luc );
 	}
-	$goi = array(
-		'ds'    => $ds,
-		'luc'   => current_time( 'mysql' ),
-		'nguoi' => function_exists( 'khh_dt_ten_ghi_so' ) ? khh_dt_ten_ghi_so() : '',
-		'nguon' => sanitize_file_name( (string) $ten_file ),
+	update_option(
+		KHH_DT_DM_OPT,
+		array(
+			'ds'     => $ra,
+			'luc'    => $luc,
+			'nguoi'  => function_exists( 'khh_dt_ten_ghi_so' ) ? khh_dt_ten_ghi_so() : '',
+			'nguon'  => sanitize_file_name( (string) $ten_file ),
+			'cs_luc' => $cs_luc,
+		),
+		false
 	);
-	update_option( KHH_DT_DM_OPT, $goi, false );
-	return array( 'so' => count( $ds ), 'moi' => $moi, 'mat' => $mat, 'luc' => $goi['luc'] );
+	return array( 'so' => count( $ds ), 'moi' => $moi, 'mat' => $mat, 'tong' => count( $ra ), 'quan' => array_values( $quan ), 'luc' => $luc );
 }
 
-function khh_dt_dm_xoa() {
-	delete_option( KHH_DT_DM_OPT );
+/** Xoá cả danh mục, hay chỉ phần của MỘT quán (món chỉ còn ở quán ấy thì bỏ; món ở quán khác nữa thì bớt quán). */
+function khh_dt_dm_xoa( $cua_hang = '' ) {
+	$cua_hang = trim( (string) $cua_hang );
+	if ( '' === $cua_hang ) {
+		delete_option( KHH_DT_DM_OPT );
+		return;
+	}
+	$k   = khh_dt_dm_long( $cua_hang );
+	$goi = khh_dt_dm_goi();
+	$ra  = array();
+	foreach ( $goi['ds'] as $m ) {
+		$cs = isset( $m['cs'] ) && is_array( $m['cs'] ) ? $m['cs'] : array();
+		if ( ! $cs ) {
+			$ra[] = $m;
+			continue;
+		}
+		$con = array_values( array_filter( $cs, function ( $c ) use ( $k ) { return khh_dt_dm_long( $c ) !== $k; } ) );
+		if ( $con ) {
+			$m['cs'] = $con;
+			$ra[] = $m;
+		}
+	}
+	$cs_luc = isset( $goi['cs_luc'] ) && is_array( $goi['cs_luc'] ) ? $goi['cs_luc'] : array();
+	foreach ( array_keys( $cs_luc ) as $c ) {
+		if ( khh_dt_dm_long( $c ) === $k ) {
+			unset( $cs_luc[ $c ] );
+		}
+	}
+	if ( ! $ra ) {
+		delete_option( KHH_DT_DM_OPT );
+		return;
+	}
+	update_option( KHH_DT_DM_OPT, array( 'ds' => $ra, 'luc' => $goi['luc'], 'nguoi' => $goi['nguoi'], 'nguon' => $goi['nguon'], 'cs_luc' => $cs_luc ), false );
+}
+
+/** Từng quán trong danh mục: [ {cua_hang, so, luc} ]; món không gắn quán đếm vào "(mọi quán)". */
+function khh_dt_dm_theo_quan() {
+	$goi = khh_dt_dm_goi();
+	$dem = array();
+	foreach ( $goi['ds'] as $m ) {
+		$cs = isset( $m['cs'] ) && is_array( $m['cs'] ) && $m['cs'] ? $m['cs'] : array( '(mọi quán)' );
+		foreach ( $cs as $c ) {
+			$dem[ (string) $c ] = isset( $dem[ (string) $c ] ) ? $dem[ (string) $c ] + 1 : 1;
+		}
+	}
+	$cs_luc = isset( $goi['cs_luc'] ) && is_array( $goi['cs_luc'] ) ? $goi['cs_luc'] : array();
+	$ra = array();
+	foreach ( $dem as $c => $so ) {
+		$luc = '';
+		foreach ( $cs_luc as $c2 => $l ) {
+			if ( '*' === $c2 || khh_dt_dm_long( $c2 ) === khh_dt_dm_long( $c ) ) {
+				$luc = (string) $l;
+			}
+		}
+		$ra[] = array( 'cua_hang' => (string) $c, 'so' => $so, 'luc' => $luc );
+	}
+	usort( $ra, function ( $a, $b ) { return strcmp( $a['cua_hang'], $b['cua_hang'] ); } );
+	return $ra;
 }
 
 /** [ tên lỏng => mã FABi ] — cho MISA và sổ kho nhận mã của món chưa bán. */
@@ -376,12 +502,15 @@ function khh_dt_rest_dm_xem() {
 	$g['nhom']  = $nhom;
 	$g['so_ve'] = $ve;
 	$g['so_combo'] = $combo;
+	$g['theo_quan'] = khh_dt_dm_theo_quan();
+	unset( $g['cs_luc'] );
 	return $g;
 }
 
 function khh_dt_rest_dm_nap( $req ) {
+	$cua_hang = (string) $req->get_param( 'cua_hang' );
 	if ( (string) $req->get_param( 'xoa' ) ) {
-		khh_dt_dm_xoa();
+		khh_dt_dm_xoa( $cua_hang );
 		return khh_dt_rest_dm_xem();
 	}
 	if ( empty( $_FILES['file']['tmp_name'] ) ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
@@ -400,7 +529,7 @@ function khh_dt_rest_dm_nap( $req ) {
 	if ( ! is_uploaded_file( $tam ) ) {
 		return new WP_Error( 'khh_dt_file', 'File tải lên không hợp lệ.', array( 'status' => 400 ) );
 	}
-	$kq = khh_dt_dm_nap( $tam, $ten );
+	$kq = khh_dt_dm_nap( $tam, $ten, $cua_hang );
 	if ( is_wp_error( $kq ) ) {
 		$kq->add_data( array( 'status' => 400 ) );
 		return $kq;

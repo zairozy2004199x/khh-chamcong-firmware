@@ -102,6 +102,15 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.68.2 =
+* **Nạp danh mục hàng hoá theo từng quán** (anh Thắng 25/09/2026: *"Nạp danh mục hàng hoá có cần chọn cơ sở không"*):
+  FABi xuất mỗi quán một file, trước đó mỗi lần nạp là thay cả bản nên nạp quán sau xoá mất quán trước. Nay quán nào có
+  trong file (cột Cửa hàng) thì chỉ thay phần quán ấy, quán khác giữ nguyên; cùng mã ở nhiều quán gộp một dòng. File không
+  có cột Cửa hàng thì chọn cơ sở ở ô bên (không chọn = món chung mọi quán, thay cả bản như cũ). Khối bày "Đã có: quán N
+  món (lúc nạp)", xoá được riêng một quán.
+* Hộp thư: nhật ký 5 lượt một trang có Trước/Sau (*"Hiện 5 lệnh 1 trang thôi"*); cùng lý do bỏ qua lặp cho nhiều thư gom
+  thành một dòng "×N", cột Chi tiết xuống dòng thay vì kéo ngang.
+
 = 1.68.1 =
 * Sổ kho: dòng do tạo tay đã bị bỏ khỏi danh mục nhưng còn dòng sổ (anh Thắng 25/09/2026: *"tạo ra nên phía dưới nó
   không có"*) — giờ có nút **✕ xoá dòng** ngay tại dòng trong bảng kho (món không trong danh mục và FABi chưa bán), và

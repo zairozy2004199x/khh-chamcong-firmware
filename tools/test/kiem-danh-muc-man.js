@@ -25,9 +25,11 @@ function boc(ten) {
 t('taiQuanTri gọi taiDanhMuc(o); hỏng thì khoiLoi', /taiDanhMuc\(o\);/.test(boc('taiQuanTri')) && /api\('danh-muc'\)/.test(boc('taiDanhMuc')) && /khoiLoi\(o, 'dtDanhMuc'/.test(boc('taiDanhMuc')));
 const vd = boc('veDanhMuc');
 t('🔴 khối #dtDanhMuc: ô file #dmFile (.xlsx/.csv), nút Nạp #dmNap, Tải CSV #dmTai, Xoá #dmXoa (chỉ khi đã có)', /id="dtDanhMuc"/.test(vd) && /id="dmFile" accept="\.xlsx,\.xlsm,\.csv,\.tsv,\.txt"/.test(vd) && /id="dmNap"/.test(vd) && /ds\.length \? '<button class="vien" type="button" id="dmTai">/.test(vd) && /id="dmXoa"/.test(vd));
-t('nạp: FormData file -> POST danh-muc, vẽ lại, báo số món mới / không còn', /fd\.append\('file', f, f\.name\)/.test(vd) && /api\('danh-muc', \{ method: 'POST', body: fd \}\)/.test(vd) && /món mới so với bản trước/.test(vd) && /món không còn/.test(vd));
+/* 25/09/2026: "Nạp danh mục hàng hoá có cần chọn cơ sở không" — ô chọn cơ sở (mặc định theo cột Cửa hàng), nạp từng quán. */
+t('🔴 ô chọn cơ sở #dmCS (mặc định theo cột Cửa hàng trong file), nạp gửi cua_hang khi chọn; xoá theo quán đã chọn; bày "Đã có: quán N"', /id="dmCS"><option value="">— theo cột Cửa hàng trong file —<\/option>/.test(vd) && /if \(cs\) fd\.append\('cua_hang', cs\)/.test(vd) && /Xoá phần danh mục của "' \+ cs \+ '"/.test(vd) && /r\.theo_quan\.map/.test(vd) && /quán nào trong file thì thay phần quán ấy/.test(vd));
+t('nạp: FormData file -> POST danh-muc, vẽ lại, báo số món mới / không còn', /fd\.append\('file', f, f\.name\)/.test(vd) && /api\('danh-muc', \{ method: 'POST', body: fd \}\)/.test(vd) && /' món mới'/.test(vd) && /món không còn/.test(vd) && /cả bảng ' \+ v\.tong \+ ' món/.test(vd));
 t('tải CSV có BOM, 7 cột Mã món · Tên · Nhóm · Loại · ĐVT · Giá · Cửa hàng', /\\ufeff/.test(vd) && /\['Mã món', 'Tên', 'Nhóm', 'Loại', 'ĐVT', 'Giá', 'Cửa hàng'\]/.test(vd) && /danh-muc-hang-hoa-fabi\.csv/.test(vd));
-t('xoá: hỏi xác nhận rồi POST xoa=1', /window\.confirm\('Xoá danh mục hàng hoá FABi/.test(vd) && /fd\.append\('xoa', '1'\)/.test(vd));
+t('xoá: hỏi xác nhận rồi POST xoa=1', /Xoá CẢ danh mục hàng hoá FABi/.test(vd) && /fd\.append\('xoa', '1'\); if \(cs\) fd\.append\('cua_hang', cs\)/.test(vd));
 t('bảng món theo nhóm trong <details>, thẻ điện thoại .the-ct', /Xem ' \+ ds\.length \+ ' món theo nhóm/.test(vd) && /class="bang-cuon bang-the the-ct"/.test(vd));
 t('chú thích nói đúng tên file FABi và cột', /update item in store/.test(vd) && /Tên nhóm · Tên loại/.test(vd));
 
