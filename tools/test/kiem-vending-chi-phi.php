@@ -35,6 +35,9 @@ t( '🔴 Kế toán không đổi được kết nối', empty( $r['success'] ),
 VHCP_Auth::dat_vai_tro( 'Admin', 'Anh Thắng' );
 $r = VHCP_Cfg::save_config( array( 'vending' => array( 'url' => 'https://vending.kh.vn/?vending_hcmc=1', 'khoa' => 'KHOA-VENDING-1234567890' ) ) );
 t( '   Admin lưu được', ! empty( $r['success'] ), $r );
+teq( '🔴 dán địa chỉ mở app (?vending_hcmc=1) → lưu về GỐC web (ảnh toast "trả lời không hiểu được: HTTP 200")', 'https://vending.kh.vn', get_option( 'vhcp_vd_url' ) );
+teq( '   dán cả /wp-admin/admin.php?page=… → cũng về gốc', 'https://vending.kh.vn', VHCP_Vending::goc_dia_chi( 'https://vending.kh.vn/wp-admin/admin.php?page=vhcm' ) );
+teq( '   web đặt trong thư mục con thì GIỮ thư mục', 'https://kh.vn/vending', VHCP_Vending::goc_dia_chi( 'https://kh.vn/vending/?vending_hcmc=1' ) );
 VHCP_Cfg::save_config( array( 'vending' => array( 'url' => 'https://vending.kh.vn', 'khoa' => '' ) ) );
 teq( '🔴 khoá rỗng = GIỮ', 'KHOA-VENDING-1234567890', get_option( 'vhcp_vd_khoa' ) );
 teq( '   san=true (có khoá là nhận đẩy được)', true, VHCP_Vending::cau_hinh()['san'] );
@@ -126,6 +129,20 @@ $map = VHCP_Meta::get_json( 'vending_map', array() );
 t( '   đơn đẩy sang ở Chờ quyết toán, cơ sở POSH', isset( $map['2001'] ) && 'Chờ quyết toán' === (string) VHCP_Don::don_row( $map['2001'] )['trang_thai'], $map );
 $e = VHCP_Vending::rest_nhan( $rq( array( 'web' => 'x', 'khoan' => array() ), 'KHOA-VENDING-1234567890' ) );
 t( '   gói rỗng → 400', is_wp_error( $e ) && 400 === $e->get_error_data()['status'] );
+
+/* ── 5c. Địa chỉ cũ còn dính ?query, hoặc trang con trả HTML 200 → tự lùi về gốc web ─────────── */
+update_option( 'vhcp_vd_url', 'https://vending.kh.vn/app', false );
+$GLOBALS['VHCP_HTTP'] = array(
+	'https://vending.kh.vn/app/wp-json/vending-hcmc/v1/chi-phi' => array( 'code' => 200, 'body' => '<!DOCTYPE html><html><body>VENDING app</body></html>' ),
+	'https://vending.kh.vn/wp-json/vending-hcmc/v1/chi-phi'     => array( 'code' => 200, 'body' => $json( array() ) ),
+);
+$GLOBALS['VHCP_DA_GET'] = array();
+$kq = VHCP_Vending::goi( '2026-09-01', '2026-09-30' );
+t( '🔴 trang con trả HTML 200 → thử lại ở gốc web và được (hai lượt GET)', ! empty( $kq['ok'] ) && 2 === count( $GLOBALS['VHCP_DA_GET'] ), array( $kq, $GLOBALS['VHCP_DA_GET'] ) );
+$GLOBALS['VHCP_HTTP'] = array( 'vending.kh.vn' => array( 'code' => 200, 'body' => '<!DOCTYPE html><html>app</html>' ) );
+$kq = VHCP_Vending::goi( '2026-09-01', '2026-09-30' );
+t( '   gốc cũng trả HTML → câu báo nói rõ "TRANG HTML", nhắc điền gốc web / cache chặn wp-json', empty( $kq['ok'] ) && false !== mb_strpos( $kq['error'], 'TRANG HTML' ) && false !== mb_strpos( $kq['error'], 'wp-json' ), $kq );
+update_option( 'vhcp_vd_url', 'https://vending.kh.vn', false );
 
 /* ── 6. Chối khi chưa khai / khoá sai ─────────────────────────────────────────────────────── */
 $GLOBALS['VHCP_HTTP'] = array( 'vending.kh.vn' => array( 'code' => 401, 'body' => '{"code":"vhcm_khoa","message":"x"}' ) );

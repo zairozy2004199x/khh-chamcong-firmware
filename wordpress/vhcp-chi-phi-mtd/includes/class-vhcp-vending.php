@@ -61,13 +61,29 @@ class VHCPMTD_Vending {
 		$url = isset( $d['url'] ) ? trim( (string) $d['url'] ) : null;
 		if ( null !== $url ) {
 			if ( '' !== $url && ! preg_match( '#^https?://[^\s/]+#i', $url ) ) { return VHCPMTD_Util::err( 'Địa chỉ web Vending phải bắt đầu bằng http:// hoặc https://' ); }
-			update_option( self::O_URL, rtrim( $url, '/' ), false );
+			update_option( self::O_URL, self::goc_dia_chi( $url ), false );
 		}
 		$khoa = isset( $d['khoa'] ) ? trim( (string) $d['khoa'] ) : '';
 		if ( '' !== $khoa ) { update_option( self::O_KHOA, $khoa, false ); }
 		VHCPMTD_Log::log_action( array( 'actor' => VHCPMTD_Auth::nguoi(), 'role' => VHCPMTD_Auth::vai_tro(), 'action' => 'Sửa kết nối web Vending',
 			'target' => (string) $url, 'detail' => '' !== $khoa ? 'đổi khoá chia sẻ' : 'giữ khoá cũ' ) );
 		return VHCPMTD_Util::ok( self::cau_hinh() );
+	}
+
+	/**
+	 * Địa chỉ đã RỬA: bỏ ?query và #fragment, bỏ / cuối. Anh Thắng 25/09/2026 dán địa chỉ mở app
+	 * `https://…/?vending_hcmc=1` (đúng như hướng dẫn của plugin Vending) → nối `/wp-json/…` vào sau
+	 * là WordPress trả trang app (HTTP 200, HTML) — màn báo "trả lời không hiểu được: HTTP 200".
+	 */
+	public static function goc_dia_chi( $url ) {
+		$u = trim( (string) $url );
+		if ( '' === $u ) { return ''; }
+		$p = wp_parse_url( $u );
+		if ( empty( $p['host'] ) ) { return rtrim( $u, '/' ); }
+		$path = isset( $p['path'] ) ? rtrim( (string) $p['path'], '/' ) : '';
+		/* Dán cả đường /wp-admin… hay /wp-json… thì cũng chỉ lấy phần trước đó. */
+		$path = preg_replace( '#/(wp-admin|wp-json|wp-login\.php|index\.php)(/.*)?$#i', '', $path );
+		return ( isset( $p['scheme'] ) ? $p['scheme'] : 'https' ) . '://' . $p['host'] . ( isset( $p['port'] ) ? ':' . $p['port'] : '' ) . $path;
 	}
 
 	public static function goc_web( $url ) {
@@ -82,9 +98,10 @@ class VHCPMTD_Vending {
 		if ( '' === $url || '' === $khoa ) { return array( 'ok' => false, 'error' => 'Chưa khai địa chỉ web Vending hoặc khoá chia sẻ (Cấu hình ▸ Kết nối web Vending).' ); }
 		$q  = array( 'tu' => $tu, 'den' => $den );
 		$kq = self::goi_mot( $url, $q, $khoa );
-		if ( ! $kq['ok'] && 404 === $kq['ma'] ) {
+		/* 404, hoặc 200 mà trả HTML (địa chỉ là trang con / trang app) → thử lại ở GỐC web một lần. */
+		if ( ! $kq['ok'] && ( 404 === $kq['ma'] || ! empty( $kq['khongJson'] ) ) ) {
 			$goc = self::goc_web( $url );
-			if ( '' !== $goc && $goc !== $url ) { $kq = self::goi_mot( $goc, $q, $khoa ); }
+			if ( '' !== $goc && $goc !== $url ) { $kq2 = self::goi_mot( $goc, $q, $khoa ); if ( $kq2['ok'] || 404 !== $kq2['ma'] ) { $kq = $kq2; } }
 		}
 		return $kq;
 	}
@@ -97,8 +114,15 @@ class VHCPMTD_Vending {
 		$j  = json_decode( (string) wp_remote_retrieve_body( $r ), true );
 		if ( 401 === $ma || 403 === $ma ) { return array( 'ok' => false, 'ma' => $ma, 'error' => 'Web Vending chối khoá chia sẻ (HTTP ' . $ma . '). Kiểm lại khoá ở cả hai web.' ); }
 		if ( 404 === $ma ) { return array( 'ok' => false, 'ma' => 404, 'error' => 'Web Vending chưa có điểm chia sẻ (HTTP 404) — cần cài bản plugin Vending 1.81.0 có "Chia sẻ cho Chi phí", hoặc địa chỉ sai.' ); }
-		if ( ! is_array( $j ) || empty( $j['ok'] ) ) {
-			return array( 'ok' => false, 'ma' => $ma, 'error' => 'Web Vending trả lời không hiểu được: ' . ( is_array( $j ) && isset( $j['message'] ) ? (string) $j['message'] : 'HTTP ' . $ma ) );
+		if ( ! is_array( $j ) ) {
+			$body = (string) wp_remote_retrieve_body( $r );
+			$la_html = ( false !== stripos( $body, '<html' ) || false !== stripos( $body, '<!doctype' ) );
+			return array( 'ok' => false, 'ma' => $ma, 'khongJson' => true,
+				'error' => 'Web Vending trả về ' . ( $la_html ? 'một TRANG HTML' : 'thứ không phải JSON' ) . ' (HTTP ' . $ma . ') thay vì số liệu — '
+					. 'địa chỉ có thể là trang app (?vending_hcmc=1) hay trang con, hoặc /wp-json/ đang bị plugin cache/bảo mật chặn. Điền đúng gốc web (VD https://ten-mien) rồi thử lại.' );
+		}
+		if ( empty( $j['ok'] ) ) {
+			return array( 'ok' => false, 'ma' => $ma, 'error' => 'Web Vending trả lời không hiểu được: ' . ( isset( $j['message'] ) ? (string) $j['message'] : ( isset( $j['error'] ) ? (string) $j['error'] : 'HTTP ' . $ma ) ) );
 		}
 		$ds = array();
 		foreach ( (array) ( isset( $j['chiPhi'] ) ? $j['chiPhi'] : array() ) as $x ) {
