@@ -231,6 +231,39 @@ class VHCC_BangLuong {
 		   ⚠️ Gác `class_exists` cùng hàm với lời gọi — luật của `kiem-goi-cheo.php`. */
 		$bac_cong = ( class_exists( 'VHCC_QuyCong' ) && method_exists( 'VHCC_QuyCong', 'bac' )
 			&& method_exists( 'VHCC_QuyCong', 'cong_cua_thang' ) ) ? VHCC_QuyCong::bac() : null;
+		/* ═══════════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 26/09/2026 — "CÔNG BÙ" (khối Văn phòng) CỘNG THẲNG VÀO CÔNG THỰC NGƯỜI ĂN LƯƠNG THÁNG.
+		 * ═══════════════════════════════════════════════════════════════════════════════════════
+		 * Anh Thắng: *"công bù là tự cộng vào khhcm"*. Bảng lương này đọc thẳng giờ chấm THÔ (vòng
+		 * `foreach` ở trên, không phân biệt hậu tố — xem chú thích "GOM VỀ MỘT TỔNG MỖI NGƯỜI"), nên
+		 * chưa từng biết tới "công bù": khoản cộng thêm cho NGÀY HÔM SAU của một ca đêm đạt chuẩn
+		 * (`VHCC_Luong::vp_tinh_nguoi()`, cấu hình `demCongBu`) — khoản này KHÔNG có giờ chấm thật
+		 * nào đứng sau nó, nên từ trước tới giờ nó chỉ hiện trên màn Bảng công, chưa từng vào bảng
+		 * lương thật xuất ra cho kế toán.
+		 *
+		 * ⚠️ CHỈ "CÔNG BÙ", TUYỆT ĐỐI KHÔNG ĐỤNG "CÔNG ĐÊM". Giờ của chính ca đêm đã tự ra công qua
+		 *    giờ chấm thô ở trên (`$bac_cong`/`cong_cua_thang()` quy đổi bậc giờ, không phân biệt
+		 *    ngày hay đêm) — cộng thêm nguyên 1 "công đêm" nữa từ `vp_tinh_nguoi()` là tính TRÙNG
+		 *    đúng ca ấy hai lần. "Công bù" thì an toàn tuyệt đối vì không có giờ thật nào đứng sau
+		 *    để mà trùng — đã hỏi thẳng anh Thắng và chốt chỉ cộng đúng khoản này.
+		 * ⚠️ CHỈ KHỐI VĂN PHÒNG (`cach_tinh()==='cong'`) — anh Thắng: *"áp dụng cho setup và khhcm
+		 *    chứ có nói ngoài cơ sở khác đâu"*. Cơ sở tính theo giờ không chạm nhánh này.
+		 * ⚠️ CHỈ NGƯỜI ĂN LƯƠNG THÁNG (`$lcb > 0`, xem chỗ dùng bên dưới) — "công" là đơn vị của
+		 *    công thức lương THÁNG; người tính theo giờ không có khái niệm "công" ở đâu trong công
+		 *    thức của họ (`giờ × đơn giá`) — cộng "công bù" vào đó không quy được ra tiền theo luật
+		 *    nào đã chốt, nên KHÔNG đụng tới, để dành cho lần sau nếu cần.
+		 * ⚠️ Gác `class_exists`/`method_exists` cùng hàm với lời gọi — luật của `kiem-goi-cheo.php`
+		 *    (dù cùng plugin, giữ đồng nhất với các lời gọi chéo khác trong tệp này). */
+		$bu_map = array();
+		if ( 'cong' === VHCC_Luong::cach_tinh( $coso )
+			&& method_exists( 'VHCC_Luong', 'vp_bang_cong_va_luong' ) ) {
+			$vp_ket = VHCC_Luong::vp_bang_cong_va_luong( $coso, $tt );
+			foreach ( ( isset( $vp_ket['rows'] ) ? (array) $vp_ket['rows'] : array() ) as $r_vp ) {
+				$k_vp = strtolower( trim( (string) ( isset( $r_vp['ma'] ) ? $r_vp['ma'] : '' ) ) );
+				if ( '' === $k_vp ) { continue; }
+				$bu_map[ $k_vp ] = (float) ( isset( $r_vp['congBu'] ) ? $r_vp['congBu'] : 0 );
+			}
+		}
 		$dong = array();
 		$vuot  = 0;
 		foreach ( $gom as $g ) {
@@ -268,6 +301,11 @@ class VHCC_BangLuong {
 			$cong_thuc = ( null !== $bac_cong )
 				? VHCC_QuyCong::cong_cua_thang( $gio_ngay, $bac_cong )
 				: $so_ngay;
+			/* "Công bù" — xem khối chú thích dài ở chỗ dựng `$bu_map`. Chỉ người ăn lương tháng
+			   ($lcb > 0), và chỉ khối Văn phòng (đã lọc sẵn khi dựng `$bu_map` ở trên). */
+			if ( $lcb > 0 && isset( $bu_map[ $kma ] ) && $bu_map[ $kma ] > 0 ) {
+				$cong_thuc = round( $cong_thuc + $bu_map[ $kma ], 2 );
+			}
 
 			/* 🔴 GIỜ TỔNG LÀ GIỜ CHÍNH, TRỪ ĐI MẤY DÒNG ĂN GIÁ KHÁC.
 			   Luật của anh Thắng 16/09/2026: kế toán chỉ gõ NGOẠI LỆ (MC 2h, Hỗ Trợ 6h…), phần
