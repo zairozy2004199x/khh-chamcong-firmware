@@ -44,6 +44,7 @@ class VHCC_WebTiepNhan {
 		self::the_da_nhan( $ky );
 		self::the_mau( $ky, $ds_mau );
 		self::the_cty( $ky );
+		self::the_thu( $ky, $toi );
 	}
 
 	private static function the_nhan( $ky, $toi, $ds_mau ) {
@@ -252,6 +253,35 @@ class VHCC_WebTiepNhan {
 		echo '</div><p style="margin:8px 0 0"><button class="chinh">Lưu</button></p></form></details></div>';
 	}
 
+	/**
+	 * ✉️ CẤU HÌNH GỬI EMAIL (SMTP) — anh Thắng 26/09/2026: *"chỉ là chưa nhận được mail"*.
+	 * Xem `VHCC_Thu`. Chỉ Admin.
+	 */
+	private static function the_thu( $ky, $toi ) {
+		if ( ! VHCC_Vai::duoc( $toi, VHCC_Thu::QUYEN ) ) { return; }
+		$c = VHCC_Thu::cfg(); $l = VHCC_Thu::loi_gan_nhat();
+		echo '<div class="the"><details' . ( VHCC_Thu::co() ? '' : ' open' ) . '><summary><b>✉️ Cấu hình gửi email (SMTP)</b> <span class="mo">— '
+			. ( VHCC_Thu::co() ? 'đang gửi qua ' . esc_html( $c['host'] ) : 'CHƯA KHAI — đang gửi bằng hàm mail() của hosting, thư hay không tới hoặc vào Spam' )
+			. '</span></summary>';
+		if ( $l ) { echo '<div class="bao loi" style="margin:8px 0">Lỗi gửi gần nhất (' . esc_html( $l['luc'] ) . '): ' . esc_html( $l['loi'] ) . '</div>'; }
+		echo '<p class="mo">Gmail / Google Workspace: máy chủ <b>smtp.gmail.com</b>, cổng <b>587</b>, bảo mật <b>TLS</b>, tài khoản là địa chỉ Gmail, '
+			. 'mật khẩu là <b>Mật khẩu ứng dụng</b> 16 ký tự (Tài khoản Google → Bảo mật → Xác minh 2 bước → Mật khẩu ứng dụng) — không phải mật khẩu đăng nhập Gmail.</p>';
+		echo '<form method="post" action="' . self::act() . '">' . self::an( $ky, 'tn_smtp' ) . '<div class="hang" style="gap:8px;flex-wrap:wrap">'
+			. '<div><label>Máy chủ SMTP</label><input name="s[host]" value="' . esc_attr( $c['host'] ) . '" placeholder="smtp.gmail.com" style="width:180px"></div>'
+			. '<div><label>Cổng</label><input name="s[port]" value="' . esc_attr( (string) $c['port'] ) . '" style="width:70px"></div>'
+			. '<div><label>Bảo mật</label><select name="s[bao_mat]"><option value="tls"' . selected( $c['bao_mat'], 'tls', false ) . '>TLS (587)</option>'
+			. '<option value="ssl"' . selected( $c['bao_mat'], 'ssl', false ) . '>SSL (465)</option><option value="khong"' . selected( $c['bao_mat'], 'khong', false ) . '>Không</option></select></div>'
+			. '<div><label>Tài khoản</label><input name="s[tk]" value="' . esc_attr( $c['tk'] ) . '" autocomplete="off" style="width:210px"></div>'
+			. '<div><label>Mật khẩu</label><input name="s[mk]" type="password" autocomplete="new-password" placeholder="' . ( '' !== $c['mk'] ? 'đã lưu — để trống giữ nguyên' : 'mật khẩu ứng dụng' ) . '" style="width:200px"></div>'
+			. '<div><label>Email gửi đi</label><input name="s[tu_email]" value="' . esc_attr( $c['tu_email'] ) . '" placeholder="= tài khoản" style="width:200px"></div>'
+			. '<div><label>Tên người gửi</label><input name="s[tu_ten]" value="' . esc_attr( $c['tu_ten'] ) . '" placeholder="' . esc_attr( VHCC_Pdf::ten_cong_ty() ) . '" style="width:220px"></div>'
+			. '</div><p style="margin:8px 0 0"><button class="chinh">Lưu</button> <span class="mo">Để trống máy chủ = không dùng SMTP của màn này (nhường cho plugin SMTP khác nếu có).</span></p></form>';
+		echo '<form method="post" action="' . self::act() . '" class="hang" style="gap:8px;margin-top:10px">' . self::an( $ky, 'tn_thu' )
+			. '<div><label>Gửi thư thử tới</label><input name="thu_to" type="email" value="' . esc_attr( isset( $toi['email'] ) ? (string) $toi['email'] : '' ) . '" style="width:240px" required></div>'
+			. '<div style="align-self:flex-end"><button class="nut">✉ Gửi thư thử</button></div></form>';
+		echo '</details></div>';
+	}
+
 	/** Việc POST của màn. Trả mảng báo như mọi việc khác của `VHCC_Web`. */
 	public static function xu_ly( $viec, $toi ) {
 		if ( 'tn_tao' === $viec ) {
@@ -285,6 +315,17 @@ class VHCC_WebTiepNhan {
 		if ( 'tn_cty' === $viec ) {
 			$r = VHCC_TiepNhan::dat_cty( $toi, isset( $_POST['c'] ) ? array_map( 'sanitize_text_field', (array) wp_unslash( $_POST['c'] ) ) : array() );
 			return array( empty( $r['ok'] ) ? array( 'loi' => $r['error'] ) : array( 'xong' => 'Đã lưu thông tin công ty.' ) );
+		}
+		if ( 'tn_smtp' === $viec ) {
+			$r = VHCC_Thu::dat( $toi, isset( $_POST['s'] ) ? array_map( 'sanitize_text_field', (array) wp_unslash( $_POST['s'] ) ) : array() );
+			return array( empty( $r['ok'] ) ? array( 'loi' => $r['error'] ) : array( 'xong' => 'Đã lưu cấu hình gửi email. Bấm "Gửi thư thử" để kiểm.' ) );
+		}
+		if ( 'tn_thu' === $viec ) {
+			$to = isset( $_POST['thu_to'] ) ? sanitize_text_field( wp_unslash( $_POST['thu_to'] ) ) : '';
+			$r = VHCC_Thu::thu( $toi, $to );
+			return array( empty( $r['ok'] ) ? array( 'loi' => $r['error'] )
+				: array( 'xong' => 'Đã gửi thư thử tới ' . $to . ( $r['smtp'] ? ' qua SMTP' : ' bằng hàm mail() của hosting' )
+					. '. Không thấy trong vài phút thì xem hộp Spam' . ( $r['smtp'] ? '.' : ', hoặc khai SMTP ở trên.' ) ) );
 		}
 		if ( 'tn_moi' === $viec ) {
 			$d = isset( $_POST['mv'] ) ? array_map( 'sanitize_text_field', (array) wp_unslash( $_POST['mv'] ) ) : array();
