@@ -1046,7 +1046,19 @@ function khh_dt_rest_doi_soat( $req ) {
 		   tiền đã về hay chưa.
 		   Cơ sở có đếm két thì lấy số đếm được (nó có thể nhiều hơn tiền mặt POS); chưa đếm thì
 		   lấy tiền mặt POS. */
-		$phai_nop = $co ? $dem : $tm;
+		/* 🔴 26/09/2026: anh Thắng — ca Aeon Bình Tân 25/09: đếm két để trống (0) nhưng đã khai
+		   Tiền thực nộp về quỹ = 4.540.000 kèm ghi chú lý do lệch. "Phải nộp"/"Lệch" vẫn lấy 0
+		   làm đếm két, ra Lệch −4.780.000 (bằng cả tiền mặt POS) — kế toán tưởng mất cả cục tiền,
+		   trong khi cơ sở ĐÃ xác nhận qua ô Nộp quỹ, chỉ chưa gõ vào đúng ô Đếm két.
+		   ⚠️ CHỈ THIẾU "ĐẾM KÉT", CÒN "NỘP QUỸ" LÀ MỘT LỜI XÁC NHẬN THẬT — cơ sở tự gõ số > 0 vào
+		   đó không phải ngẫu nhiên. Đếm két = 0 mà Nộp quỹ > 0 thì lấy Nộp quỹ làm số đã xác nhận,
+		   thay vì mặc định 0 rồi bắt kế toán tự suy hay tự sửa tay ô Đếm két.
+		   `dem` (ô hiện ở cột "Đếm két") GIỮ NGUYÊN — đúng số cơ sở đã gõ, không bịa; chỉ riêng
+		   `phai_nop`/`lech_tm`/`chua_nop` (những chỗ QUYẾT ĐỊNH treo bao nhiêu) mới dùng số đã bù,
+		   kèm cờ `dem_tu_nop` để màn biết mà chú thích, tránh Lệch không khớp phép trừ hiện ra. */
+		$dem_xn = ( $co && 0.0 === $dem && $nop > 0 ) ? $nop : $dem;
+		$tu_nop = ( $co && 0.0 === $dem && $nop > 0 );
+		$phai_nop = $co ? $dem_xn : $tm;
 		$thieu    = $phai_nop - $nop_bk;
 		$ra[] = array(
 			'ngay'       => $r['ngay'],
@@ -1063,6 +1075,7 @@ function khh_dt_rest_doi_soat( $req ) {
 			'pos_momo'   => $momo_pos,
 			'co_bao_cao' => $co,
 			'dem'        => $dem,
+			'dem_tu_nop' => $tu_nop,   // Lệch/Phải nộp đang lấy theo Nộp quỹ, vì Đếm két để trống
 			'ck_tt'      => $ck_tt,
 			'nop'        => $nop,
 			'nop_bank'   => $nop_bk,
@@ -1080,13 +1093,13 @@ function khh_dt_rest_doi_soat( $req ) {
 			'co_ma'      => isset( $co_ma[ (string) $r['cua_hang'] ] ),
 			/* Cơ sở khai một đằng, ngân hàng nhận một nẻo — chỉ tính khi CÓ CẢ HAI số. */
 			'lech_nop'   => ( $co_bank && $co && $nop > 0 ) ? $nop - $nop_bk : null,
-			'lech_tm'    => $co ? $dem - $tm : null,      // đếm được − POS ghi nhận
+			'lech_tm'    => $co ? $dem_xn - $tm : null,   // đếm được (hoặc nộp quỹ, xem dem_tu_nop) − POS ghi nhận
 			/* 🔴 Anh Thắng 26/09/2026: "lệch ngược giữa chuyển khoản và tiền mặt" — nhân viên bấm nhầm
 			   nút PTTT lúc bán, nên `pos_tm`/`pos_ck` sai NGƯỢC CHIỀU nhau. Phải là cột RIÊNG, không
 			   được cộng chung với `lech_tm`: một bên +X một bên −X cộng lại ra 0, che mất đúng chỗ
 			   đang sai. */
 			'lech_ck'    => $co ? $ck_tt - $ck : null,    // chuyển khoản thực thu − POS ghi nhận
-			'chua_nop'   => $co ? $dem - $nop_that : null, // đếm được − tiền ngân hàng thật sự nhận
+			'chua_nop'   => $co ? $dem_xn - $nop_that : null, // đếm được − tiền ngân hàng thật sự nhận
 			'bill_huy'   => (int) $r['so_bill_huy'],
 			'tien_huy'   => (float) $r['tien_bill_huy'],
 			'khach'      => (int) $r['tong_khach'],

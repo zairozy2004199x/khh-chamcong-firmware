@@ -102,6 +102,15 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.69.1 =
+* Đối soát: đếm két để trống mà đã khai **Tiền thực nộp về quỹ** thì lấy số nộp quỹ làm số đã xác
+  nhận cho "Phải nộp"/"Lệch" (anh Thắng 26/09/2026, ca Aeon Bình Tân 25/09: đếm két=0, nộp quỹ
+  4.540.000, ghi chú lệch 240.000 do chốt visa — trước bản này "Lệch" hiện −4.780.000, bằng nguyên
+  tiền mặt POS, trong khi cơ sở đã giải trình một khoản lệch nhỏ hơn nhiều). Cột "Đếm két" trên
+  bảng vẫn hiện đúng số cơ sở đã gõ (không bịa), kèm chú thích nhỏ khi đang lấy theo nộp quỹ để kế
+  toán biết vì sao Lệch không phải phép trừ với 0. Đếm két đã khai một số thật thì số đó vẫn thắng,
+  không bị nộp quỹ đè lên.
+
 = 1.69.0 =
 * **Chuyển khoản thực thu** — ô mới ở Nhập báo cáo ngày, bản sao của "Tiền mặt đếm trong két" nhưng
   cho phía chuyển khoản (anh Thắng 26/09/2026: *"nhiều khi lệch ngược giữa chuyển khoản và tiền

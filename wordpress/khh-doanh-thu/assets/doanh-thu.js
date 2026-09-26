@@ -2886,7 +2886,12 @@
           : '<span class="khai">—</span>') + '</td>' +
         '<td>' + theTreo(x, r.co_bank, ng, r.ngay_nhac || 10) + '</td>' +
         (x.co_bao_cao
-          ? '<td class="s">' + tien(x.dem) + '</td>' +
+          /* 🔴 Anh Thắng 26/09/2026, ca Aeon Bình Tân: đếm két để trống (0) nhưng đã khai Nộp quỹ >
+             0 kèm ghi chú — máy chủ lấy Nộp quỹ làm số đã xác nhận cho "Lệch"/"Phải nộp" (cờ
+             `dem_tu_nop`), CHỨ KHÔNG bịa lại số hiện ở cột Đếm két. Không chú thích thì kế toán
+             nhìn "Đếm két 0đ" mà "Lệch" lại không phải "0 − tiền mặt POS" — tưởng máy tính sai. */
+          ? '<td class="s">' + tien(x.dem) +
+              (x.dem_tu_nop ? '<span class="nho" title="Đếm két để trống — Lệch/Phải nộp đang lấy theo Tiền thực nộp về quỹ (' + esc(tien(x.nop)) + ')">·nộp</span>' : '') + '</td>' +
             '<td class="s">' + (x.lech_tm ? (x.lech_tm > 0 ? '+' : '') + tien(x.lech_tm) : '0') + '</td>' +
             /* 🔴 CỘT RIÊNG, KHÔNG GỘP VÀO "Lệch" — anh Thắng 26/09/2026: nhân viên bấm nhầm nút PTTT
                lúc bán làm tiền mặt/chuyển khoản lệch NGƯỢC CHIỀU nhau; cộng chung một cột là +X và
