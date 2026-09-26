@@ -14,6 +14,8 @@
 require_once __DIR__ . '/wp-stub.php';
 $goc = dirname( dirname( __DIR__ ) );
 vhcc_test_boot( $goc . '/wordpress/vhcp-cham-cong' );
+/* Bắt buộc trước lượt gọi `VHCC_Web::phuc_vu()` ở cuối bài — không có là `exit` thật. */
+define( 'VHCC_TEST', 1 );
 
 $dat = 0; $truot = array();
 function t( $ten, $dk, $them = null ) {
@@ -186,6 +188,34 @@ t( 'ca 19:51 → 11:18 (trùm khung) = đêm', 'dem' === VHCC_Luong::vp_ca_hang2
 t( 'ca 20:00 → 07:00 (hai đầu đều ngoài khung) = đêm', 'dem' === VHCC_Luong::vp_ca_hang2( $cfg, $g( '20:00:00' ), 86400 + $g( '07:00:00' ) )['loai'] );
 t( 'tăng ca 17:30 → 20:30 vẫn là tăng ca', 'tangca' === VHCC_Luong::vp_ca_hang2( $cfg, $g( '17:30:00' ), $g( '20:30:00' ) )['loai'] );
 t( 'giờ ca ngày lọt hàng 2 (09:00 → 12:00) vẫn là ca lạ', 'la' === VHCC_Luong::vp_ca_hang2( $cfg, $g( '09:00:00' ), $g( '12:00:00' ) )['loai'] );
+
+/* ═══════════ MÀN HÌNH: kết quả xuống CUỐI trang, 5 hàng một trang ═══════════
+   Anh Thắng 26/09/2026: *"cho này xuống cuối và hiện 5 hàng 1 trang thôi"*. */
+for ( $i = 1; $i <= 7; $i++ ) {
+	$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $CHINH, 'ngay' => sprintf( '2026-08-%02d', $i ),
+		'ma_nv' => 'DD2', 'hau_to' => '', 'ho_ten' => 'Lê Minh Thiện', 'gio_vao_giay' => $g( '08:30:00' ),
+		'gio_ra_giay' => null, 'nguon' => 'online' ) );
+}
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'pin_dang_nhap' => '771199' ), array( 'ma_nv' => 'DDA' ) );
+update_option( 'vhcc_nguon_nguoidung', 'ho_so' );
+VHCC_Auth::mo_khoa();
+$kq_dn = VHCC_Auth::login( '771199' );
+t( 'dựng cảnh: Admin đăng nhập được', ! empty( $kq_dn['ok'] ), $kq_dn );
+$_COOKIE = array( VHCC_Web::COOKIE => $kq_dn['token'] );
+$_GET  = array( 'man' => 'cham', 'ccs' => $CHINH, 'cth' => '2026-08' );
+$_POST = array( 'viec' => 'don_dem_xem', 'ky' => VHCC_Web::chu_ky( $kq_dn['token'] ), 'ccs' => $CHINH, 'cth' => '2026-08' );
+ob_start(); VHCC_Web::phuc_vu(); $h_dd = ob_get_clean();
+$_GET = array(); $_POST = array(); $_COOKIE = array();
+$v_link = strpos( $h_dd, 'kết quả ở cuối trang' );
+$v_kq   = strpos( $h_dd, 'id="dondem_kq"' );
+$v_luoi = strpos( $h_dd, 'id="luoithang"' );
+t( '🔴 đầu trang chỉ còn một dòng chỉ xuống cuối trang', false !== $v_link, substr( $h_dd, 0, 300 ) );
+t( '🔴 bảng kết quả nằm SAU lưới cả tháng', false !== $v_kq && false !== $v_luoi && $v_kq > $v_luoi,
+	array( $v_kq, $v_luoi ) );
+t( '🔴 7 lượt lẻ -> 2 trang: 5 hàng trang 1, 2 hàng trang 2',
+	5 === substr_count( $h_dd, '<tr class="p1">' ) && 2 === substr_count( $h_dd, '<tr class="p2">' ), $v_kq );
+t( '   có nút chọn trang 2', false !== strpos( $h_dd, '<label for="ddle-p2">2</label>' ) );
+t( '   không dùng script (màn quản trị không có <script>)', false === stripos( $h_dd, '<script' ) );
 
 echo "\n";
 if ( $truot ) {

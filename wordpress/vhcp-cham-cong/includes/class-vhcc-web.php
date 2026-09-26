@@ -1112,7 +1112,14 @@ class VHCC_Web {
 	 *
 	 * @param int $so_div Số thẻ <div> còn phải đóng (màn báo lỗi xuất tệp lồng sâu hơn một tầng).
 	 */
+	/** Khối kết quả dời xuống CUỐI trang (xem nhánh `don_dem` trong `ve_bao()`). */
+	private static $cuoi_trang = '';
+
 	private static function dong_trang( $so_div = 1 ) {
+		if ( '' !== self::$cuoi_trang ) {
+			echo self::$cuoi_trang;   // đã thoát sẵn ở `ve_bao_don_dem()`
+			self::$cuoi_trang = '';
+		}
 		echo str_repeat( '</div>', max( 0, (int) $so_div ) );
 		/* 🔴 ĐÓNG KHUNG CỘT DỌC — và chỉ khi nó ĐÃ ĐƯỢC MỞ.
 		   Màn đăng nhập, tờ in, trang xuất tệp đều gọi `dau()` mà KHÔNG có cột dọc (chưa biết
@@ -12876,7 +12883,15 @@ class VHCC_Web {
 			return;
 		}
 		if ( isset( $b['viec'] ) && ( 'don_dem' === $b['viec'] || 'don_dem_xem' === $b['viec'] ) ) {
+			/* Anh Thắng 26/09/2026: *"cho này xuống cuối và hiện 5 hàng 1 trang thôi"* — bảng kết
+			   quả dài (68 lượt lẻ) đẩy cả lưới công xuống dưới. Ở đầu trang chỉ còn một dòng chỉ
+			   đường; bảng thật vẽ ở CUỐI trang (`dong_trang()`), mỗi trang 5 hàng. */
+			ob_start();
 			self::ve_bao_don_dem( $b );
+			self::$cuoi_trang .= '<div id="dondem_kq" style="margin-top:16px">' . ob_get_clean() . '</div>';
+			echo '<div class="bao ' . ( ! empty( $b['chi_xem'] ) ? 'canh' : 'ok' ) . '">'
+				. ( ! empty( $b['chi_xem'] ) ? 'Đã xem trước Dọn ca đêm lẻ' : 'Đã dọn ca đêm lẻ' )
+				. ' — <a href="#dondem_kq">kết quả ở cuối trang ↓</a></div>';
 			return;
 		}
 		if ( isset( $b['viec'] ) && 'doi_chieu_app' === $b['viec'] ) {
@@ -13122,27 +13137,67 @@ class VHCC_Web {
 			echo '</ul></div>';
 		}
 		if ( $cap ) {
-			echo '<div class="the"><h2>' . ( $xem ? 'Sẽ ghép' : 'Đã ghép' ) . '</h2><div class="cuon"><table class="b"><thead><tr>'
-				. '<th>Người</th><th>Đêm</th><th>Vào</th><th>Ra (hôm sau)</th></tr></thead><tbody>';
+			$hang = array();
 			foreach ( $cap as $c ) {
-				echo '<tr><td>' . esc_html( $c['ten'] ) . ' <span class="mo">' . esc_html( $c['ma'] ) . '</span></td>'
+				$hang[] = '<td>' . esc_html( $c['ten'] ) . ' <span class="mo">' . esc_html( $c['ma'] ) . '</span></td>'
 					. '<td>' . esc_html( $c['ngay'] ) . '</td><td>' . esc_html( $c['vao'] ) . '</td>'
-					. '<td>' . esc_html( $c['ra'] ) . ' <span class="mo">(' . esc_html( $c['ngaySau'] ) . ')</span></td></tr>';
+					. '<td>' . esc_html( $c['ra'] ) . ' <span class="mo">(' . esc_html( $c['ngaySau'] ) . ')</span></td>';
 			}
-			echo '</tbody></table></div></div>';
+			echo '<div class="the"><h2>' . ( $xem ? 'Sẽ ghép' : 'Đã ghép' ) . ' (' . count( $cap ) . ')</h2>'
+				. self::bang_5_hang( 'ddcap', '<th>Người</th><th>Đêm</th><th>Vào</th><th>Ra (hôm sau)</th>', $hang )
+				. '</div>';
 		}
 		if ( $le ) {
-			echo '<div class="the"><h2>Để nguyên, cần xem tay</h2><div class="cuon"><table class="b"><thead><tr>'
-				. '<th>Người</th><th>Ngày</th><th>Vào</th><th>Vì sao không ghép</th></tr></thead><tbody>';
-			foreach ( array_slice( $le, 0, 60 ) as $c ) {
-				echo '<tr><td>' . esc_html( $c['ten'] ) . ' <span class="mo">' . esc_html( $c['ma'] ) . '</span></td>'
+			$hang = array();
+			foreach ( $le as $c ) {
+				$hang[] = '<td>' . esc_html( $c['ten'] ) . ' <span class="mo">' . esc_html( $c['ma'] ) . '</span></td>'
 					. '<td>' . esc_html( $c['ngay'] ) . '</td><td>' . esc_html( $c['vao'] ) . '</td>'
-					. '<td class="mo">' . esc_html( $c['lyDo'] ) . '</td></tr>';
+					. '<td class="mo">' . esc_html( $c['lyDo'] ) . '</td>';
 			}
-			echo '</tbody></table></div>';
-			if ( count( $le ) > 60 ) { echo '<p class="mo">…và ' . ( count( $le ) - 60 ) . ' lượt nữa.</p>'; }
-			echo '</div>';
+			echo '<div class="the"><h2>Để nguyên, cần xem tay (' . count( $le ) . ')</h2>'
+				. self::bang_5_hang( 'ddle', '<th>Người</th><th>Ngày</th><th>Vào</th><th>Vì sao không ghép</th>', $hang )
+				. '</div>';
 		}
+	}
+
+	/**
+	 * Bảng chia trang 5 HÀNG MỘT TRANG, thuần CSS (màn này không có script): mỗi trang một nút
+	 * radio ẩn, nhãn số trang bấm vào thì `:checked` bật đúng 5 hàng của trang ấy.
+	 *
+	 * @param string   $id    tiền tố id duy nhất trong trang (chữ thường, không dấu).
+	 * @param string   $thead các `<th>` đã thoát sẵn.
+	 * @param string[] $hang  nội dung các `<td>` của từng hàng, đã thoát sẵn.
+	 */
+	private static function bang_5_hang( $id, $thead, $hang ) {
+		$moi = 5;
+		$so_trang = max( 1, (int) ceil( count( $hang ) / $moi ) );
+		$css = '.' . $id . ' .pg-r{display:none}.' . $id . ' tbody tr{display:none}'
+			. '.' . $id . ' .pg-nut{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}'
+			. '.' . $id . ' .pg-nut label{cursor:pointer;min-width:28px;text-align:center;padding:2px 8px;'
+			. 'border:1px solid var(--vien-dam);border-radius:var(--bo-nho);font-size:12.5px}';
+		for ( $p = 1; $p <= $so_trang; $p++ ) {
+			$css .= '#' . $id . '-p' . $p . ':checked~.cuon tr.p' . $p . '{display:table-row}'
+				. '#' . $id . '-p' . $p . ':checked~.pg-nut label[for=' . $id . '-p' . $p . ']'
+				. '{background:var(--nhan);color:#fff;border-color:var(--nhan)}';
+		}
+		$h = '<style>' . $css . '</style><div class="' . $id . '">';
+		for ( $p = 1; $p <= $so_trang; $p++ ) {
+			$h .= '<input class="pg-r" type="radio" name="' . $id . '" id="' . $id . '-p' . $p . '"'
+				. ( 1 === $p ? ' checked' : '' ) . '>';
+		}
+		$h .= '<div class="cuon"><table class="b"><thead><tr>' . $thead . '</tr></thead><tbody>';
+		foreach ( array_values( $hang ) as $i => $td ) {
+			$h .= '<tr class="p' . ( intdiv( $i, $moi ) + 1 ) . '">' . $td . '</tr>';
+		}
+		$h .= '</tbody></table></div>';
+		if ( $so_trang > 1 ) {
+			$h .= '<div class="pg-nut">';
+			for ( $p = 1; $p <= $so_trang; $p++ ) {
+				$h .= '<label for="' . $id . '-p' . $p . '">' . $p . '</label>';
+			}
+			$h .= '</div>';
+		}
+		return $h . '</div>';
 	}
 
 	/**
