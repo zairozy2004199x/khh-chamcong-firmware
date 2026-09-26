@@ -2034,6 +2034,9 @@ class VHCC_Web {
 		 * ⚠️ GIỜ CHẤM ĐỌC LẠI TỪ MÁY CHỦ cho TỪNG người — cùng lý do với khối từng-người: ô trên
 		 *    màn chỉ để nhìn, tin nó là ai sửa HTML cũng gõ được 900 giờ.
 		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		/* 🧑‍💼 Tiếp nhận nhân sự — gác thật ở `VHCC_TiepNhan` (bậc Kế toán + xem lương hồ sơ). */
+		if ( 0 === strpos( (string) $viec, 'tn_' ) ) { return VHCC_WebTiepNhan::xu_ly( $viec, $toi ); }
+
 		/* 💰 Khoản giữ lại — gác thật ở `VHCC_GiuLuong` (bậc `luong` + đúng phạm vi cơ sở). */
 		if ( in_array( $viec, array( 'giu_khoan', 'giu_tra', 'giu_huy' ), true ) ) {
 			$cs_h = isset( $_POST['ccs'] ) ? VHCC_NhanSu::chuan_coso( wp_unslash( $_POST['ccs'] ) ) : '';
@@ -4475,6 +4478,13 @@ class VHCC_Web {
 			return;
 		}
 
+		/* 26/09/2026 — TIẾP NHẬN NHÂN SỰ TỰ ĐỘNG (xem `VHCC_TiepNhan`). */
+		if ( 'tiep_nhan' === $man ) {
+			VHCC_WebTiepNhan::man( $ky, $toi );
+			self::dong_trang();
+			return;
+		}
+
 		/* 🔴 26/09/2026 — ĐƠN TỪ + LỊCH LÀM VIỆC LÀ MỘT TAB. Anh Thắng: *"Ghép lại, cái này thừa
 		   thì bỏ thành 1 tab thôi"*, chốt gộp đúng hai mục này. Trên là đơn chờ duyệt, dưới là
 		   xếp lịch / xin đổi lịch. Mỗi nửa tự gác bằng đúng cửa cũ của nó: người chỉ có
@@ -4596,7 +4606,7 @@ class VHCC_Web {
 	   màn khai được đều có mặt, kẻo người chỉ có màn này lại rơi vào nhánh đoán mò ở cuối hàm. */
 	const MAN_UU_TIEN = array( 'nha', 'ho_so', 'cham', 'luong', 'bhxh', 'don_tu', 'don_tuan',
 		'cong_toi', 'coso', 'cau_hinh', 'du_lieu', 'lich_su',
-		'ns_coso', 'lich', 'may', 'mat' );
+		'ns_coso', 'lich', 'may', 'mat', 'tiep_nhan' );
 
 	public static function man_mac_dinh( $ds_man ) {
 		foreach ( self::MAN_UU_TIEN as $k ) {
@@ -4759,6 +4769,8 @@ class VHCC_Web {
 		   người một dòng và chỉ dài thêm — nhét một danh sách đang lớn vào giữa mấy công tắc là
 		   đẩy hết phần dưới xuống ngoài tầm mắt. */
 		if ( VHCC_Vai::duoc( $toi, VHCC_Bhxh::QUYEN ) ) { $ds['bhxh'] = 'BHXH'; }
+		/* 26/09/2026 — anh Thắng: *"tạo ra 1 trình, chạy tự động từ a đến z"* khi nhận người mới. */
+		if ( VHCC_WebTiepNhan::duoc_vao( $toi ) ) { $ds['tiep_nhan'] = 'Tiếp nhận nhân sự'; }
 		if ( VHCC_Vai::duoc( $toi, 'may' ) )        { $ds['may']      = 'Máy & Firmware'; }
 		/* 🔴 KHUÔN MẶT LÀ BẬC QUẢN LÝ / ADMIN (`ngoai_coso`) — anh Thắng 08/09/2026, khi em hỏi
 		   ai được duyệt: *"QUản lý và admin duyệt"*.
@@ -4794,7 +4806,7 @@ class VHCC_Web {
 		'nha'      => '🏠', 'cong_toi' => '🕐', 'cham'    => '📋', 'ho_so' => '👤',
 		'cau_hinh' => '⚙️', 'du_lieu'  => '🗂️', 'lich'    => '📅', 'may'   => '🖥️',
 		'ns_coso'  => '🏪', 'coso'     => '🏬', 'mat'   => '🙂', 'don_tuan' => '📥', 'lich_su' => '🕘',
-		'luong'    => '💵', 'don_tu'   => '📨', 'bhxh'     => '🛡️',
+		'luong'    => '💵', 'don_tu'   => '📨', 'bhxh'     => '🛡️', 'tiep_nhan' => '🧑‍💼',
 	);
 
 	/** Một câu nói màn ấy để làm gì — hiện trên thẻ Truy cập nhanh và dưới tiêu đề màn. */
@@ -4816,6 +4828,7 @@ class VHCC_Web {
 						. ' — xuất .xlsx ngay tại màn',
 		'don_tu'   => 'Đi trễ · xin nghỉ · xin bù giờ · sửa bảng công tháng · xếp ca, xin đổi lịch',
 		'bhxh'     => 'Ai đóng bảo hiểm, mỗi tháng trừ bao nhiêu — bảng lương tự trừ',
+		'tiep_nhan' => 'Nhận người mới một lần bấm: mã NV, PIN, quyền, máy chấm công, lương, BHXH, hợp đồng, email',
 	);
 
 	public static function bieu_man( $k )  {

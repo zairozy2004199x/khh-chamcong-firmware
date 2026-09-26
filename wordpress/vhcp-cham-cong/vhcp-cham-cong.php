@@ -3,7 +3,7 @@
  * Plugin Name:       Chấm Công (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Hệ thống chấm công chạy THẲNG trên host: máy chấm công, hàng đợi lệnh, cập nhật firmware và toàn bộ nghiệp vụ đều nằm trên MySQL của chính website. Không Firebase, không Google Sheet.
- * Version:           5.13.0
+ * Version:           5.14.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -34,7 +34,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHCC_VERSION', '5.13.0' );
+define( 'VHCC_VERSION', '5.14.0' );
 define( 'VHCC_FILE', __FILE__ );
 define( 'VHCC_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHCC_URL', plugin_dir_url( __FILE__ ) );
@@ -68,6 +68,7 @@ require_once VHCC_DIR . 'includes/class-vhcc-xin-tre.php';
 require_once VHCC_DIR . 'includes/class-vhcc-xin-nghi.php';
 require_once VHCC_DIR . 'includes/class-vhcc-phieu-luong.php';
 require_once VHCC_DIR . 'includes/class-vhcc-gui-phieu.php';
+require_once VHCC_DIR . 'includes/class-vhcc-tiep-nhan.php';
 require_once VHCC_DIR . 'includes/class-vhcc-cua-hang.php';
 require_once VHCC_DIR . 'includes/class-vhcc-tra-ve.php';
 require_once VHCC_DIR . 'includes/class-vhcc-tre.php';
@@ -121,6 +122,7 @@ require_once VHCC_DIR . 'includes/class-vhcc-web.php';
 require_once VHCC_DIR . 'includes/class-vhcc-web-may.php';
 require_once VHCC_DIR . 'includes/class-vhcc-web-lich.php';
 require_once VHCC_DIR . 'includes/class-vhcc-web-ns.php';
+require_once VHCC_DIR . 'includes/class-vhcc-web-tiep-nhan.php';
 /* Màn Khuôn mặt của trang web (08/09/2026). Nạp SAU `class-vhcc-mat.php` là đủ — nó chỉ gọi
    `VHCC_Mat` và `VHCC_Vai`, không đụng gì tới `VHCC_Web` lúc nạp. */
 require_once VHCC_DIR . 'includes/class-vhcc-web-mat.php';
@@ -202,6 +204,8 @@ add_action( 'init', array( 'VHCC_TrangNS', 'init' ), 5 );
 add_action( 'init', array( 'VHCC_Tram', 'init' ), 5 );
 /* Trang in phiếu lương (link có chữ ký gửi qua chuông + email khi công bố) — `VHCC_PhieuLuong`. */
 add_action( 'init', array( 'VHCC_PhieuLuong', 'init' ), 5 );
+/* Bộ hồ sơ nhận việc (link có chữ ký gửi khi tiếp nhận) — `VHCC_TiepNhan`. */
+add_action( 'init', array( 'VHCC_TiepNhan', 'init' ), 5 );
 /* Ba đường phụ của trạm (manifest, worker, biểu tượng) — để nhân viên cài được lên màn
    hình chính. Cùng ưu tiên 5 và khai NGAY SAU trạm: luật của nó dựng trên `VHCC_Tram::slug()`,
    nên trạm đổi slug thì ba đường này đi theo, không lệch. */
