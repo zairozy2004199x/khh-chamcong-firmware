@@ -10948,10 +10948,20 @@ class VHCC_Web {
 	 * @param string $ma_nv Có mã thì tra cả tầng "khai riêng người" — giá hiện ra đúng cái người
 	 *                      ấy sẽ ăn, chứ không phải giá chung của cửa hàng.
 	 */
-	private static function o_chon_viec( $ten_o, $ds_ten, $dang_chon, $cs, $ma_nv = '', $trong = '— chọn việc —' ) {
+	private static function o_chon_viec( $ten_o, $ds_ten, $dang_chon, $cs, $ma_nv = '', $trong = '— chọn việc —', $khong_gia = null ) {
+		/* 🔴 26/09/2026 — anh Thắng: *"Chưa khai giá là chưa khai giá gì vậy"*. Đuôi "— CHƯA KHAI
+		   GIÁ" nói về ĐƠN GIÁ GIỜ. Cơ sở tính theo công (và người ăn lương tháng) không dùng đơn
+		   giá giờ, nên đuôi ấy chỉ làm người ta tưởng thiếu gì — không bày nó ở đó. Dòng "Ca đêm"
+		   cũng không phải một việc để chọn (tính riêng theo giá 1 công đêm) — bỏ khỏi danh sách. */
+		if ( null === $khong_gia ) { $khong_gia = ( 'cong' === VHCC_Luong::cach_tinh( $cs ) ); }
 		echo '<select name="' . esc_attr( $ten_o ) . '" style="width:210px">';
 		echo '<option value="">' . esc_html( $trong ) . '</option>';
 		foreach ( $ds_ten as $t_x ) {
+			if ( $khong_gia && 'Ca đêm' === trim( (string) $t_x ) && trim( (string) $t_x ) !== trim( (string) $dang_chon ) ) { continue; }
+			if ( $khong_gia ) {
+				echo '<option value="' . esc_attr( $t_x ) . '"' . selected( $t_x, $dang_chon, false ) . '>' . esc_html( $t_x ) . '</option>';
+				continue;
+			}
 			$gia = VHCC_GiaGio::tra( $cs, $t_x, $ma_nv, null );
 			echo '<option value="' . esc_attr( $t_x ) . '"'
 				. selected( $t_x, $dang_chon, false ) . '>' . esc_html( $t_x )
@@ -11058,7 +11068,8 @@ class VHCC_Web {
 		}
 		echo '<div class="hang" style="margin:0 0 10px;gap:8px"><div>';
 		if ( $ds_ten ) {
-			self::o_chon_viec( 'cl_chinh', $ds_ten, $vc_hien, $cs, $ma, '— chưa chọn —' );
+			self::o_chon_viec( 'cl_chinh', $ds_ten, $vc_hien, $cs, $ma, '— chưa chọn —',
+				( isset( $d['cheDo'] ) && 'thang' === $d['cheDo'] ) ? true : null );
 		} else {
 			echo '<input name="cl_chinh" placeholder="tên việc chính" style="width:210px" '
 				. 'value="' . esc_attr( $vc_hien ) . '">';
@@ -11723,7 +11734,7 @@ class VHCC_Web {
 			$vc = isset( $dc['cv'] ) ? trim( (string) $dc['cv'] ) : '';
 			echo '<td>';
 			if ( $ds_ten ) {
-				self::o_chon_viec( $o . '[chinh]', $ds_ten, $vc, $cs, $ma, '— chưa chọn —' );
+				self::o_chon_viec( $o . '[chinh]', $ds_ten, $vc, $cs, $ma, '— chưa chọn —', $la_thang ? true : null );
 			} else {
 				echo '<input name="' . $o . '[chinh]" value="' . esc_attr( $vc )
 					. '" placeholder="tên việc" style="width:150px">';

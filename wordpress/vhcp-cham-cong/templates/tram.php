@@ -67,6 +67,8 @@ VHCC_PWA::the_head();
 	   `--vang-dam` ngay trên: bốn mã này lấy từ `VHCC_Web::css()`, nên đổi bảng màu ở đó là
 	   đổi được cả đây. Dán tay bốn hex là bốn chỗ phải nhớ sửa, và sẽ quên. */
 	--luc-nhat:#f0fdf4; --vang-nhat:#fffbeb; --tim-nhat:#f5f3ff; --cam-nhat:#fff7ed;
+	/* Xanh "đúng" của màn đăng nhập (dấu ✔ khi PIN đúng) — cùng mã `--luc` của `VHCC_Web::css()`. */
+	--luc:#16a34a;
 	/* --- hình: SÁU con số phải khớp từng chữ số với sáu trang kia --- */
 	--d1:4px; --d2:8px; --d3:12px; --d4:16px; --d5:20px; --d6:24px;
 	--bo-the:16px; --bo-nut:18px; --bo-o:10px; --bo-o-bang:6px; --bo-nho:8px; --bo-badge:16px;
@@ -475,6 +477,42 @@ button.o-ung{border:0;background:transparent;font:inherit;color:var(--chu);curso
 .mmau{width:96px;border-radius:var(--bo-nho);border:1px solid var(--vien-dam);float:right;margin:0 0 var(--d2) 10px}
 a{color:var(--nhan)}
 .ct{text-align:center;color:var(--chu-mo);font-size:11.5px;margin:var(--d4) 0 0}
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔐 MÀN ĐĂNG NHẬP KIỂU Ô SỐ — anh Thắng 26/09/2026 gửi mẫu (artifact "Verify your number"):
+ *    *"tạo mẫu đăng nhập"*. Mỗi chữ số một ô; gửi đi thì hàng ô cuộn thành vòng tròn và quay
+ *    trong lúc máy chủ kiểm; sai thì lắc đỏ rồi xoá; đúng thì dấu ✔ xanh rồi vào.
+ * ⚠️ Ô `#oPin` THẬT vẫn nằm đó (trong suốt, phủ lên hàng ô) — gõ, dán, bàn phím số của điện
+ *    thoại, Enter đều qua nó; mọi đoạn JS cũ đọc `el('oPin').value` vẫn đúng.
+ * ⚠️ Chỉ hiện CHẤM, không hiện chữ số — đây là PIN (đứng ở quầy, người sau lưng nhìn thấy),
+ *    không phải mã OTP dùng một lần như mẫu.
+ * ⚠️ Màu theo bộ áo (`--nhan`, `--do`, `--luc`), không dán hex; không tải font ngoài.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+.vao-san{position:relative;height:70px;margin:var(--d2) 0 0;touch-action:manipulation;--vo:46px;transition:height .32s cubic-bezier(.2,.8,.2,1)}
+.vao-vong{position:absolute;left:50%;top:50%;border-radius:50%;border:1px solid var(--vien-dam);opacity:0;pointer-events:none}
+.vao-o{position:absolute;inset:0}
+.vao-hop{position:absolute;left:50%;top:50%;width:var(--vo);height:var(--vo);margin:calc(var(--vo) / -2) 0 0 calc(var(--vo) / -2);
+	display:grid;place-items:center;border-radius:var(--bo-o);background:var(--nen-2);border:1px solid var(--vien-dam);
+	will-change:transform;transition:border-color .2s,background-color .2s,box-shadow .2s}
+.vao-hop i{width:12px;height:12px;border-radius:50%;background:var(--chu);transform:scale(0);transition:transform .18s}
+.vao-hop.co i{transform:scale(1)}
+.vao-hop.lan i{animation:vaoLan .26s cubic-bezier(.2,.8,.2,1)}
+@keyframes vaoLan{from{transform:translateY(70%) scale(.3);opacity:0}to{transform:scale(1);opacity:1}}
+.vao-hop.dang{border-color:var(--nhan);box-shadow:0 0 0 3px var(--nhan-nhat)}
+.vao-o.sai .vao-hop{border-color:var(--do)}
+.vao-o.sai .vao-hop i{background:var(--do)}
+.vao-o.dung .vao-hop{border-color:var(--luc);background:var(--luc-nhat)}
+.vao-o.dung .vao-hop i{background:var(--luc)}
+.vao-o.lac{animation:vaoLac .46s cubic-bezier(.36,.07,.19,.97)}
+@keyframes vaoLac{15%{transform:translateX(-9px)}30%{transform:translateX(8px)}45%{transform:translateX(-6px)}60%{transform:translateX(5px)}75%{transform:translateX(-2px)}100%{transform:none}}
+.vao-o.xoa .vao-hop i{transform:scale(0)}
+#oPin.vao-nhap{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:320px;max-width:100%;height:var(--vo);
+	z-index:3;opacity:0;border:0;background:transparent;color:transparent;caret-color:transparent;font-size:16px;padding:0;margin:0}
+.vao-dau{position:absolute;left:50%;top:50%;width:62px;height:62px;margin:-31px 0 0 -31px;display:grid;place-items:center;
+	border-radius:18px;border:1.5px solid var(--luc);background:var(--luc-nhat);opacity:0;transform:scale(.4);pointer-events:none;z-index:2}
+.vao-dau.hien{opacity:1;transform:scale(1);transition:opacity .25s,transform .5s cubic-bezier(.34,1.56,.64,1)}
+.vao-dau path{fill:none;stroke:var(--luc);stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:20;stroke-dashoffset:20}
+.vao-dau.hien path{stroke-dashoffset:0;transition:stroke-dashoffset .4s cubic-bezier(.65,0,.35,1) .2s}
+@media (prefers-reduced-motion: reduce){.vao-hop,.vao-hop i,.vao-dau,.vao-dau path,.vao-o{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
@@ -485,8 +523,13 @@ a{color:var(--nhan)}
 	<p class="mo">Gõ mã PIN của anh/chị để vào.</p>
 	<div class="the">
 		<label for="oPin">Mã PIN</label>
-		<input id="oPin" type="tel" inputmode="numeric" autocomplete="off" maxlength="8"
-			placeholder="••••••" enterkeyhint="go">
+		<div id="vaoSan" class="vao-san">
+			<div id="vaoVong" class="vao-vong" aria-hidden="true"></div>
+			<div id="vaoO" class="vao-o" aria-hidden="true"></div>
+			<input id="oPin" class="vao-nhap" type="tel" inputmode="numeric" autocomplete="off" maxlength="8"
+				placeholder="••••••" enterkeyhint="go" aria-label="Mã PIN">
+			<div id="vaoDau" class="vao-dau" aria-hidden="true"><svg viewBox="0 0 24 24" width="28" height="28"><path d="M6 12.5l4 4 8-9"/></svg></div>
+		</div>
 		<div id="loiVao"></div>
 		<p></p>
 		<button id="btVao" class="chinh to">VÀO</button>
@@ -1933,17 +1976,135 @@ var TOI = null;   /* thông tin từ viec=toi */
 el('btVao').addEventListener('click', vaoHe);
 el('oPin').addEventListener('keydown', function(e){ if(e.key==='Enter'){ vaoHe(); } });
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔐 HÀNG Ô PIN — vẽ và hoạt cảnh (xem khối CSS `.vao-*`). Chỉ là LỚP VẼ: giá trị thật luôn
+ * nằm ở `#oPin`, và `vaoHe()` vẫn là đường gửi duy nhất.
+ *   · 6 ô mặc định; gõ tới 7–8 số thì tự thêm ô (PIN cũ 4–8 số vẫn vào được).
+ *   · Gõ ĐỦ 6 số rồi dừng tay một nhịp là tự gửi; PIN 4–5 số thì bấm VÀO / Enter.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+var VAO = (function(){
+	var san = el('vaoSan'), oEl = el('vaoO'), inp = el('oPin'), vong = el('vaoVong'), dau = el('vaoDau');
+	var RM = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+	var o = [], n = 0, B = 46, P = [], R = 60, A = {c:0,a:0,s:0,rm:1,v:0}, quay = false, ban = false, no = false, hen = 0;
+	function doiSo(k){
+		while(o.length < k){ var h = document.createElement('div'); h.className = 'vao-hop'; h.innerHTML = '<i></i>'; oEl.appendChild(h); o.push(h); }
+		while(o.length > k){ oEl.removeChild(o.pop()); }
+		n = k; bo();
+	}
+	function bo(){
+		var w = san.clientWidth || 300;
+		B = Math.min(48, Math.floor(w / (n + (n - 1) * .25)));
+		var st = B + Math.round(B * .25);
+		R = Math.max(st, st / (2 * Math.sin(Math.PI / n)));
+		P = o.map(function(_, i){ var x = (i - (n - 1) / 2) * st; return {r0:Math.abs(x), t0:x < 0 ? 180 : 360, t1:180 + (360 / n) * i}; });
+		san.style.setProperty('--vo', B + 'px');
+		/* Khung chỉ cao bằng hàng ô lúc gõ; NỞ ra đủ chỗ cho vòng tròn khi đang gửi (`no`). */
+		san.style.height = Math.round(no ? R * 2 + B + 24 : B + 24) + 'px';
+		inp.style.width = (st * n - Math.round(B * .25)) + 'px';
+		vong.style.width = vong.style.height = (R * 2) + 'px';
+		vong.style.margin = (-R) + 'px 0 0 ' + (-R) + 'px';
+		ve();
+	}
+	function ve(){
+		var rad = Math.PI / 180;
+		for(var i = 0; i < n; i++){
+			var p = P[i], r = (p.r0 + (R - p.r0) * A.c) * A.rm, th = (p.t0 + (p.t1 - p.t0) * A.c + A.a) * rad;
+			o[i].style.transform = 'translate(' + (Math.cos(th) * r).toFixed(1) + 'px,' + (Math.sin(th) * r).toFixed(1) + 'px) rotate(' + A.s.toFixed(1) + 'deg)';
+			o[i].style.opacity = A.rm < .3 ? (A.rm / .3).toFixed(2) : '1';
+		}
+		vong.style.opacity = (A.v * A.rm).toFixed(2);
+	}
+	function tw(den, ms){
+		var tu = {}, k; for(k in den){ tu[k] = A[k]; }
+		return new Promise(function(xong){
+			if(RM){ for(k in den){ A[k] = den[k]; } ve(); xong(); return; }
+			var t0 = performance.now();
+			(function buoc(t){
+				var q = Math.min(1, (t - t0) / ms), e = q < .5 ? 4 * q * q * q : 1 - Math.pow(-2 * q + 2, 3) / 2;
+				for(var kk in den){ A[kk] = tu[kk] + (den[kk] - tu[kk]) * e; }
+				ve();
+				if(q < 1){ requestAnimationFrame(buoc); } else { xong(); }
+			})(t0);
+		});
+	}
+	function gan(){
+		var v = inp.value.replace(/\D/g, '').slice(0, 8);
+		if(v !== inp.value){ inp.value = v; }
+		var k = Math.max(6, v.length);
+		if(k !== n){ doiSo(k); }
+		for(var i = 0; i < n; i++){
+			var co = i < v.length, cu = o[i].classList.contains('co');
+			o[i].classList.toggle('co', co);
+			if(co && !cu){ o[i].classList.remove('lan'); void o[i].offsetWidth; o[i].classList.add('lan'); }
+			o[i].classList.toggle('dang', !ban && i === v.length && document.activeElement === inp);
+		}
+		clearTimeout(hen);
+		if(!ban && v.length === 6){ hen = setTimeout(function(){ if(!ban && inp.value.length === 6){ vaoHe(); } }, 450); }
+	}
+	function ngu(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+	inp.addEventListener('input', gan);
+	inp.addEventListener('focus', function(){ bo(); gan(); });
+	inp.addEventListener('blur', gan);
+	window.addEventListener('resize', bo);
+	san.addEventListener('pointerdown', function(e){ if(!ban && e.target !== inp){ e.preventDefault(); inp.focus(); } });
+	doiSo(6);
+	return {
+		gan: gan, bo: bo,
+		/* Bắt đầu gửi: cuộn thành vòng rồi quay tới khi có kết quả. */
+		quay: function(){
+			ban = true; no = true; clearTimeout(hen); gan(); inp.blur(); bo();
+			if(RM){ return; }
+			quay = true;
+			ngu(RM ? 0 : 200).then(function(){ return tw({c:1, v:1}, 640); })
+				.then(function lap(){ if(quay){ return tw({a:A.a + 360, s:A.s + 360}, 900).then(lap); } });
+		},
+		sai: function(){
+			quay = false;
+			oEl.classList.add('sai');
+			var aT = Math.ceil(A.a / 360) * 360, sT = Math.round((A.s + (aT - A.a)) / 360) * 360;
+			return tw({c:0, v:0, a:aT, s:sT}, RM ? 1 : 560).then(function(){
+				A.a = 0; A.s = 0; ve();
+				oEl.classList.add('lac'); return ngu(480);
+			}).then(function(){
+				oEl.classList.remove('lac'); oEl.classList.add('xoa'); return ngu(220);
+			}).then(function(){
+				oEl.classList.remove('xoa', 'sai'); inp.value = ''; ban = false; no = false; bo(); gan();
+				try { inp.focus({preventScroll:true}); } catch(e){ inp.focus(); }
+			});
+		},
+		dung: function(){
+			quay = false;
+			oEl.classList.add('dung');
+			return ngu(RM ? 60 : 320).then(function(){
+				return tw({rm:0, a:A.a + 240, s:A.s + 160}, RM ? 1 : 620);
+			}).then(function(){ dau.classList.add('hien'); return ngu(RM ? 60 : 650); });
+		},
+		/* Về trạng thái ban đầu (sau khi vào xong, hoặc đăng xuất). */
+		lai: function(){
+			quay = false; ban = false; no = false;
+			A.c = 0; A.a = 0; A.s = 0; A.rm = 1; A.v = 0;
+			oEl.classList.remove('sai', 'dung', 'lac', 'xoa'); dau.classList.remove('hien');
+			inp.value = ''; gan(); bo();
+		}
+	};
+})();
+
 function vaoHe(){
 	var pin = el('oPin').value.trim();
 	bao('loiVao','',null);
 	var b = el('btVao');
+	if(pin === ''){ el('oPin').focus(); return; }
 	b.disabled = true; b.textContent = 'Đang vào…';
+	VAO.quay();
 	goi('vao',{pin:pin}).then(function(j){
-		if(!j || !j.ok){ bao('loiVao','dong', (j&&j.error)||'Không vào được.'); return; }
+		if(!j || !j.ok){ bao('loiVao','dong', (j&&j.error)||'Không vào được.'); return VAO.sai(); }
 		datToken(j.token);
-		el('oPin').value='';
-		moManChinh();
-	}).catch(function(e){ bao('loiVao','dong', e.message||'Lỗi mạng.'); })
+		return VAO.dung().then(function(){
+			el('oPin').value='';
+			VAO.lai();
+			moManChinh();
+		});
+	}).catch(function(e){ bao('loiVao','dong', e.message||'Lỗi mạng.'); return VAO.sai(); })
 	.then(function(){ b.disabled=false; b.textContent='VÀO'; });
 }
 
@@ -1972,6 +2133,7 @@ function dangXuat(imLang){
 	hien('mChinh',false); hien('mChup',false); hien('mChon',false); hien('thanhTab',false);
 	hien('mChuong',false); hien('oChuong',false);
 	hien('mVao',true);
+	VAO.lai();
 	if(!imLang){ bao('loiVao','',null); }
 	else { bao('loiVao','vang','Phiên đã hết. Đăng nhập lại bằng PIN.'); }
 }

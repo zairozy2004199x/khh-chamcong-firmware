@@ -85,6 +85,9 @@ $nhap = (string) substr( $h, (int) $i, (int) strpos( $h, '</form>', (int) $i ) -
 t( '🔴 bảng nhập KHÔNG có ô giờ việc phụ (b[..][dong])', false === strpos( $nhap, '[dong]' ), $nhap );
 t( '🔴 bảng nhập KHÔNG có dòng "＋ thêm việc"', false === strpos( $nhap, 'thêm việc' ) );
 t( '   Ca đêm hiện dạng chỉ đọc "X công đêm"', false !== strpos( $nhap, '↳ Ca đêm' ) && false !== strpos( $nhap, 'công đêm</span>' ), $nhap );
+t( '🔴 ô chọn việc KHÔNG có đuôi "CHƯA KHAI GIÁ" (cơ sở theo công không dùng đơn giá giờ)',
+	false === strpos( $nhap, 'CHƯA KHAI GIÁ' ), $nhap );
+t( '   và không có "Ca đêm" để chọn làm việc', false === strpos( $nhap, 'value="Ca đêm"' ) );
 t( '   cột ghi "Công", không "Giờ làm"', false !== strpos( $nhap, '>Công</th>' ) && false === strpos( $nhap, 'Giờ làm</th>' ) );
 
 /* Lưu cả bảng -> dọn luôn dòng giờ rác, kể cả khi biểu mẫu cũ (tab mở từ trước) còn gửi dòng. */
