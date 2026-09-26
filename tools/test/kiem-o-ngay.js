@@ -26,6 +26,8 @@ const path = require('path');
 
 const TEP = path.join(__dirname, '..', '..', 'wordpress', 'khh-doanh-thu', 'assets', 'doanh-thu.js');
 const src = fs.readFileSync(TEP, 'utf8');
+const CSS_TEP = path.join(__dirname, '..', '..', 'wordpress', 'khh-doanh-thu', 'assets', 'doanh-thu.css');
+const cssGoc = fs.readFileSync(CSS_TEP, 'utf8').replace(/\/\*[\s\S]*?\*\//g, ' ');
 
 let dat = 0;
 const hong = [];
@@ -178,6 +180,18 @@ t('lượt trả về trễ thì bỏ (cả then và catch)', (taiSrc.match(/luo
     t('Từ sau đến thì đảo lại, không hỏi khoảng ngược', goi[1][0] === '2026-09-16' && goi[1][1] === '2026-09-23');
   }
 }
+
+/* ── 12. đang tải KHÔNG được khoá luôn thanh lọc ──────────────────────────────────
+ * Anh Thắng 26/09/2026, ảnh tab Đối soát: *"Không chỉnh được ngày"*. Trong lúc `taiDoiSoat()`
+ * đang chờ máy chủ (`aria-busy="true"`), CSS khoá `pointer-events:none` cho CẢ TAB để không ai
+ * bấm vào bảng số sắp bị thay — đúng ý, nhưng khoá luôn CẢ ô Từ/đến, ô Cơ sở và nút Lọc theo,
+ * nên mạng chậm hay một lượt tải bị treo là không còn cách nào tự sửa ngày để thử lại. `opacity`
+ * mờ cả cây thì không gỡ được cho riêng con (CSS không có đường thoát), nhưng `pointer-events`
+ * gỡ được — nên phải có luật MỞ LẠI đường bấm/gõ cho riêng `.loc` (thanh lọc), còn phần còn lại
+ * (bảng) vẫn khoá như cũ. */
+t('🔴 CSS: aria-busy khoá pointer-events cho cả tab Đối soát', /#dtTabDoiSoat\[aria-busy="true"\]\s*\{[^}]*pointer-events:\s*none/.test(cssGoc));
+t('🔴 … NHƯNG mở lại pointer-events:auto cho .loc và mọi con của nó (ô ngày, ô cơ sở, nút Lọc vẫn bấm/gõ được khi đang tải)',
+  /#dtTabDoiSoat\[aria-busy="true"\]\s*\.loc\s*,\s*#dtTabDoiSoat\[aria-busy="true"\]\s*\.loc\s*\*\s*\{[^}]*pointer-events:\s*auto/.test(cssGoc));
 
 if (hong.length) {
   console.log('\n✗ HỎNG ' + hong.length + ' phép (đạt ' + dat + '):');

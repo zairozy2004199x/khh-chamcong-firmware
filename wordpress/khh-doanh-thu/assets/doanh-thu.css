@@ -410,6 +410,16 @@ body.khh-dt-body{margin:0;background:#f3f5f9}
   pointer-events: none;
   transition: opacity .15s ease;
 }
+/* 🔴 THANH LỌC KHÔNG ĐƯỢC KHOÁ THEO. Luật ở trên khoá CẢ TAB kể cả đang tải xong lại lâu (mạng
+   chậm, một lượt bị treo) — anh Thắng 26/09/2026: *"Không chỉnh được ngày"*: đúng lúc đang tải,
+   ô Từ/đến, ô Cơ sở và nút Lọc cũng bị khoá theo, không bấm được để sửa hay thử lại. `opacity`
+   thì không gỡ được cho riêng con (cha mờ là cả cây mờ theo, CSS không có đường thoát), nhưng
+   `pointer-events` GỠ ĐƯỢC cho riêng con — nên chỉ mở lại đường bấm/gõ, còn mờ vẫn mờ (đúng ý
+   "đang chạy"), không phải mở cả khối. */
+#dtTabDoiSoat[aria-busy="true"] .loc,
+#dtTabDoiSoat[aria-busy="true"] .loc * {
+  pointer-events: auto;
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
  * BẢNG DÀI TRÊN ĐIỆN THOẠI: MỖI DÒNG THÀNH MỘT THẺ DỌC

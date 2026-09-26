@@ -102,6 +102,12 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.68.4 =
+* Tab Đối soát: sửa **"Không chỉnh được ngày"** (anh Thắng 26/09/2026). Trong lúc màn đang tải lại (mạng chậm, hay một
+  lượt tải bị treo), thanh lọc (ô Từ/đến, ô Cơ sở, nút Lọc) bị khoá `pointer-events:none` chung với bảng — không còn
+  cách nào tự sửa ngày để thử lại. Giờ chỉ khoá phần bảng số sắp bị thay; thanh lọc luôn bấm/gõ được, kể cả khi đang
+  tải hay lượt tải bị treo lâu.
+
 = 1.68.3 =
 * Danh mục hàng hoá FABi: **bỏ món đã đóng** (cột Trạng thái = 0) lúc nạp và cả lúc đọc bản đã nạp (anh Thắng 25/09/2026:
   *"anh lỡ nạp cả món đã đóng, có ảnh hưởng gì không"*) — nên bản đang có trên site tự sạch sau khi cập nhật, không phải
