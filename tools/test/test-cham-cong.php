@@ -14495,13 +14495,18 @@ vhcc_cham( $G_SU, '2026-07-02', 'GN1', '', '08:30:00', '17:00:00' );   // ca "SE
 $b_gh = VHCC_Luong::vp_bang_cong_va_luong( $G_VP, '2026-07' );
 $h_gh = array();
 foreach ( $b_gh['rows'] as $r_g ) { $h_gh[ $r_g['ma'] ] = $r_g; }
-teq( '🔴 bảng của cơ sở CHÍNH gồm luôn công của cơ sở phụ (1 + 1 = 2)',
-	2.0, (float) $h_gh['GN1']['tong'] );
+/* 26/09/2026 — anh Thắng: *"chấm bảng công setup thì quy nó setup là được"* / *"đi sớm bạn chấm
+   nó dính giờ công ngày thì kệ nó, chỉ lấy giờ ra làm mốc"*. Lượt chấm ở cơ sở phụ 08:30→17:00
+   nay là CA ĐÊM của cơ sở phụ (1 công đêm), công bù hôm sau theo giờ ra 17:00 (chưa qua nửa
+   đêm -> trước mốc 1 -> 0.5). Tổng: 1 ngày (07-01) + 1 đêm (07-02) + 0.5 bù (07-03) = 2.5. */
+teq( '🔴 bảng của cơ sở CHÍNH gồm luôn công của cơ sở phụ (1 ngày + 1 đêm + 0.5 bù)',
+	2.5, (float) $h_gh['GN1']['tong'] );
+teq( '   🔴 lượt chấm ở cơ sở phụ là CÔNG ĐÊM, không phải công ngày', 1.0, (float) $h_gh['GN1']['congNgay'] );
 /* Và ngày ấy phải còn dấu vết đến từ đâu — cộng đúng mà không soi lại được là con số không
-   kiểm được. */
+   kiểm được. Nhãn nằm ở HÀNG ĐÊM (`tuCoSoDem`). */
 $tu_gh = '';
 foreach ( $b_gh['detail'] as $d_g ) {
-	if ( '2026-07-02' === $d_g['ngay'] && 'GN1' === $d_g['ma'] ) { $tu_gh = (string) $d_g['tuCoSo']; }
+	if ( '2026-07-02' === $d_g['ngay'] && 'GN1' === $d_g['ma'] ) { $tu_gh = (string) $d_g['tuCoSoDem']; }
 }
 teq( '🔴 ngày đến từ cơ sở phụ còn giữ dấu vết mã cơ sở ấy', $G_SU, $tu_gh );
 

@@ -1155,6 +1155,13 @@ class VHCC_Luong {
 				$out[ $ngay ]['vtH2Ra']   = isset( $dem[5] ) ? (string) $dem[5] : '';
 			}
 			$ca  = self::vp_ca_hang2( $cfg, $dem ? $dem[0] : null, $dem ? $dem[1] : null );
+			/* 🔴 26/09/2026 — HÀNG CHẤM Ở CƠ SỞ PHỤ ĐÃ GHÉP (SETUP_VP) LUÔN LÀ CA ĐÊM, KHÔNG SOI GIỜ VÀO.
+			   Anh Thắng: *"chấm bảng công setup thì quy nó setup là được"* / *"nhiều lúc đi sớm bạn
+			   chấm nó dính giờ công ngày thì kệ nó, chỉ lấy giờ ra làm mốc là dk, với chấm có chọn
+			   bảng công rõ ràng"*. Người chấm đã CHỌN bảng SETUP — đó là bằng chứng, không phải giờ
+			   vào. Nên không phân loại lại thành tăng ca / ca lạ theo khung giờ nữa. */
+			$dem_phu = $dem && ! empty( $h['demPhu'] );
+			if ( $dem_phu ) { $ca['loai'] = 'dem'; }
 			if ( 'tangca' === $ca['loai'] ) {
 				$out[ $ngay ]['congTangCa'] += (float) $cfg['tangCaCong'];
 			} elseif ( 'la' === $ca['loai'] ) {
@@ -1162,9 +1169,12 @@ class VHCC_Luong {
 			} elseif ( 'dem' === $ca['loai'] ) {
 				$toi_thieu = (float) $cfg['demToiThieuGio'];
 				$du_cap = $dem && null !== $dem[0] && null !== $dem[1];
-				$out[ $ngay ]['gioDemThuc'] = $du_cap
-					? round( self::vp_phut_trong_khung( self::pm( $dem[0] ), self::pm( $dem[1] ),
-						$cfg['demTu'], $cfg['demDen'] ) / 60, 2 ) : 0.0;
+				/* Cơ sở phụ: vào sớm "dính giờ công ngày" thì kệ — tính trọn từ giờ vào tới giờ ra,
+				   không cắt theo khung đêm (xem khối 🔴 ngay trên). */
+				$out[ $ngay ]['gioDemThuc'] = ! $du_cap ? 0.0 : ( $dem_phu
+					? round( max( 0, (int) $dem[1] - (int) $dem[0] ) / 3600, 2 )
+					: round( self::vp_phut_trong_khung( self::pm( $dem[0] ), self::pm( $dem[1] ),
+						$cfg['demTu'], $cfg['demDen'] ) / 60, 2 ) );
 				/* 🔴 CHỈ CÓ MỘT GIỜ THÌ **KHÔNG CỘNG CÔNG ĐÊM**.
 				   Anh Thắng 27/08/2026, chỉ vào ô ca đêm `05:51 → —`: *"thiếu có thể do bấm nhầm,
 				   không được cộng vào nhé, trừ khi có thêm giờ ra"*.
@@ -1215,7 +1225,10 @@ class VHCC_Luong {
 				   một ca đêm luôn ở dạng đó (xem `h2raHomSau` ngay trên).
 				   ⚠️ KHÔNG đụng nhánh `'tangca'`/`'la'` ở trên — khối này chỉ chạy THÊM khi
 				   `'dem' === $ca['loai']`, không đổi cách `vp_ca_hang2()` phân loại ban đầu. */
-				if ( $du_cap && ! $out[ $ngay ]['demThieuGio'] ) {
+				/* Hàng cơ sở phụ ra CÙNG NGÀY (chưa qua nửa đêm) thì chưa hề "về muộn qua ca ngày
+				   hôm sau" — đừng trải phẳng giả rồi cộng tăng ca oan. */
+				if ( $du_cap && ! $out[ $ngay ]['demThieuGio']
+					&& ! ( $dem_phu && (int) $dem[1] < VHCC_DB::NGAY_GIAY ) ) {
 					$ra_flat = ( (int) $dem[1] >= VHCC_DB::NGAY_GIAY )
 						? (int) $dem[1] : (int) $dem[1] + VHCC_DB::NGAY_GIAY;
 					$ngay_tu_flat = VHCC_DB::giay( $cfg['ngayTu'] ) + VHCC_DB::NGAY_GIAY;
@@ -1257,7 +1270,7 @@ class VHCC_Luong {
 			$o( $bu );
 			$da_lam = ( $out[ $bu ]['congNgay'] > 0 || $out[ $bu ]['congTangCa'] > 0 );
 			if ( ! $da_lam || (int) $cfg['demBuKhiDaLam'] ) {
-				$out[ $bu ]['congBu'] += self::vp_muc_bu( $cfg, $out[ $ngay ]['h2ra'] );
+				$out[ $bu ]['congBu'] += self::vp_muc_bu( $cfg, $out[ $ngay ]['h2ra'], ! empty( $out[ $ngay ]['h2raHomSau'] ) );
 				/* GIỮ dấu vết bù từ đâu — cùng lối với `demTuNgay`. Một ngày tự nhiên có thêm
 				   công mà không nói từ đâu ra là con số không kiểm được. */
 				$out[ $bu ]['buTuNgay'] = $ngay;
@@ -1303,15 +1316,18 @@ class VHCC_Luong {
 	 * @param string $h2ra giờ RA của ca đêm, dạng 'HH:MM' (đã trải phẳng về giờ tường thuật —
 	 *                     xem `$out[$ngay]['h2ra']` ở `vp_tinh_nguoi()`).
 	 */
-	private static function vp_muc_bu( $cfg, $h2ra ) {
+	private static function vp_muc_bu( $cfg, $h2ra, $ra_hom_sau = true ) {
+		/* So trên TRỤC HÔM SAU: mốc là giờ sáng hôm sau (+24h); giờ ra chưa qua nửa đêm (VD
+		   23:30, hay 17:00 của một lượt chấm SETUP vào sớm) thì đứng TRƯỚC mọi mốc -> mức 1. */
 		$giay_ra = VHCC_DB::giay( (string) $h2ra );
+		if ( null !== $giay_ra && $ra_hom_sau ) { $giay_ra += VHCC_DB::NGAY_GIAY; }
 		$moc = array(
 			array( VHCC_DB::giay( $cfg['demBuMoc1'] ), (float) $cfg['demBuSo1'] ),
 			array( VHCC_DB::giay( $cfg['demBuMoc2'] ), (float) $cfg['demBuSo2'] ),
 		);
 		if ( null !== $giay_ra ) {
 			foreach ( $moc as $m ) {
-				if ( null !== $m[0] && $giay_ra <= $m[0] ) { return $m[1]; }
+				if ( null !== $m[0] && $giay_ra <= $m[0] + VHCC_DB::NGAY_GIAY ) { return $m[1]; }
 			}
 		}
 		/* Không đọc được giờ ra, hoặc ra trễ hơn cả hai mốc đầu (kể cả trễ hơn mốc 3) -> MỨC 3,
@@ -1432,6 +1448,18 @@ class VHCC_Luong {
 			   `vp_ca_hang2()` và nó phân theo GIỜ, nên `-TC` lúc 21:30–04:00 tự vào ca đêm. */
 			$khe = ( 'CD' === $hau_to || 'CT' === $hau_to || 'TC' === $hau_to )
 				? 'dem' : ( '' === $hau_to ? 'chinh' : null );
+			/* 🔴 26/09/2026 — HÀNG CỦA CƠ SỞ PHỤ ĐÃ GHÉP LUÔN LÀ HÀNG CỦA CƠ SỞ PHỤ.
+			   Anh Thắng: *"2 bảng công khác nhau, chấm bảng công nào tính bảng công đấy, cho dù giờ
+			   đó thuộc công ngày, nhưng chấm bảng công setup thì quy nó setup là được"*. Hàng "ca
+			   chính" (hậu tố rỗng) CŨ của SETUP_VP — ghi từ trước 4.91.0 — trước đây rơi vào khe
+			   'chinh', ĐÈ LÊN lượt chấm ngày thật ở VP_KH-HCM cùng ngày (hai hàng chung một khe,
+			   hàng đọc sau thắng). Nay mọi hàng của cơ sở phụ vào khe 'dem', bất kể hậu tố. */
+			$la_phu_hang = ( 'chinh' === $khe && isset( $r['coso'] ) && '' !== self::ghep_vao( (string) $r['coso'] ) );
+			if ( $la_phu_hang ) {
+				$khe = 'dem';
+				/* Đã có hàng -CD thật ngày ấy thì hàng ca chính cũ chỉ là bản chép thừa — giữ -CD. */
+				if ( isset( $nguoi[ $ma ][ $r['ngay'] ]['dem'] ) ) { continue; }
+			}
 			if ( null === $khe ) {
 				/* 🔴 BỎ THÌ PHẢI ĐẾM. Im lặng bỏ đúng là cái đã làm cả sổ `SETUP_VP` biến mất mà
 				   không có một dòng nào nói ra. Đếm rồi trả lên để lưới còn kêu được. */
@@ -1451,6 +1479,16 @@ class VHCC_Luong {
 				(string) $r['anh_vao'], (string) $r['anh_ra'],
 				isset( $r['vt_vao'] ) ? (string) $r['vt_vao'] : '',
 				isset( $r['vt_ra'] ) ? (string) $r['vt_ra'] : '' );
+			/* Hàng 2 chấm ở cơ sở phụ đã ghép -> `vp_tinh_nguoi()` coi là ca đêm, không soi giờ vào. */
+			if ( 'dem' === $khe ) {
+				$nguoi[ $ma ][ $r['ngay'] ]['demPhu'] = isset( $r['coso'] ) && '' !== self::ghep_vao( (string) $r['coso'] );
+			}
+			/* Hàng ca chính cũ của cơ sở phụ không được trải phẳng lúc ghi — trải ở đây để giờ ra
+			   sau nửa đêm đứng SAU giờ vào như mọi hàng ca đêm. */
+			if ( $la_phu_hang && null !== $r['gio_vao_giay'] && null !== $r['gio_ra_giay']
+				&& (int) $r['gio_ra_giay'] <= (int) $r['gio_vao_giay'] ) {
+				$nguoi[ $ma ][ $r['ngay'] ][ $khe ][1] = (int) $r['gio_ra_giay'] + VHCC_DB::NGAY_GIAY;
+			}
 			/* Nhớ ngày này đến từ MÃ CƠ SỞ nào — ĐÚNG HÀNG đang đọc ('chinh' hay 'dem'), không
 			   gộp chung. Bảng ghép cộng công của nhiều mã lại; không giữ dấu vết thì con số đúng
 			   mà không ai soi lại được ca đêm nằm ở đâu — nhưng giữ NHẦM HÀNG thì lại thành gắn

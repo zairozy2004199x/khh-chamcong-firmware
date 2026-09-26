@@ -59,11 +59,27 @@ $wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $PHU, 'ngay' => '2026
 	'ho_ten' => 'Lê Minh Thiện', 'gio_vao_giay' => $g( '05:00:00' ), 'gio_ra_giay' => null, 'nguon' => 'online', 'chuan' => '05:00' ) );
 
 /* ── form sửa phải chỉ đúng đường ── */
-$r_sua = VHCC_Bu::sua( $AD, array( 'coso' => $PHU, 'ngay' => '2026-09-06', 'ma_nv' => 'DD1',
+/* 26/09/2026 — anh Thắng gõ 19:51 → 04:00 vào hàng "ca chính" cũ của SETUP rồi bấm Lưu: *"không
+   lưu được"*. Hàng của cơ sở PHỤ đã ghép nay được trải phẳng như hàng ca đêm. Thử trên một hàng
+   RIÊNG (DD2, 25/09) để không đụng dữ liệu dọn bên dưới. */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $PHU, 'ngay' => '2026-09-25', 'ma_nv' => 'DD2', 'hau_to' => '',
+	'ho_ten' => 'Lê Minh Thiện', 'gio_vao_giay' => $g( '19:51:00' ), 'gio_ra_giay' => null, 'nguon' => 'online' ) );
+$r_sua_phu = VHCC_Bu::sua( $AD, array( 'coso' => $PHU, 'ngay' => '2026-09-25', 'ma_nv' => 'DD2',
+	'vao' => '19:51', 'ra' => '04:00', 'ly_do' => 'bù giờ ra ca setup' ) );
+t( '🔴 hàng cũ của cơ sở phụ: lưu được giờ ra sau nửa đêm', ! empty( $r_sua_phu['ok'] ), $r_sua_phu );
+$h25 = $hang( '2026-09-25', 'DD2' );
+t( '   giờ ra nằm trên trục phẳng (04:00 hôm sau)', $h25
+	&& VHCC_DB::giay( '04:00:00' ) + VHCC_DB::NGAY_GIAY === (int) $h25['gio_ra_giay'], $h25 );
+$wpdb->delete( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $PHU, 'ngay' => '2026-09-25', 'ma_nv' => 'DD2' ) );
+/* Cơ sở CHÍNH thì hàng ca chính vẫn chối giờ ra sớm hơn giờ vào, và chỉ tới nút Dọn ca đêm lẻ. */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $CHINH, 'ngay' => '2026-09-25', 'ma_nv' => 'DD2', 'hau_to' => '',
+	'ho_ten' => 'Lê Minh Thiện', 'gio_vao_giay' => $g( '19:51:00' ), 'gio_ra_giay' => null, 'nguon' => 'online' ) );
+$r_sua = VHCC_Bu::sua( $AD, array( 'coso' => $CHINH, 'ngay' => '2026-09-25', 'ma_nv' => 'DD2',
 	'vao' => '19:51', 'ra' => '11:18', 'ly_do' => 'thử chỉ đường' ) );
-t( 'form sửa vẫn chối giờ ra sớm hơn giờ vào trên hàng thường', empty( $r_sua['ok'] ), $r_sua );
+t( 'form sửa vẫn chối giờ ra sớm hơn giờ vào trên hàng thường (cơ sở chính)', empty( $r_sua['ok'] ), $r_sua );
 t( '🔴 và câu báo chỉ tới nút Dọn ca đêm lẻ',
 	isset( $r_sua['error'] ) && false !== mb_strpos( $r_sua['error'], 'Dọn ca đêm lẻ' ), $r_sua );
+$wpdb->delete( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $CHINH, 'ngay' => '2026-09-25', 'ma_nv' => 'DD2' ) );
 
 /* ── quyền & phạm vi ── */
 $r_nv = VHCC_DonDem::chay( $NV, $PHU, '2026-09', true );

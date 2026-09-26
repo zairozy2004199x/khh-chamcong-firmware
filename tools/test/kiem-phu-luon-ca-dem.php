@@ -319,6 +319,54 @@ foreach ( $vp_chinh['rows'] as $r ) { if ( 'PLD1' === $r['ma'] ) { $e_chinh_1 = 
 teq( '🔴 xem bảng của KH-HCM: công bù KHỚP đúng con số bên SETUP_VP, không lệch nhau',
 	$e_phu_1 ? (float) $e_phu_1['congBu'] : null, $e_chinh_1 ? (float) $e_chinh_1['congBu'] : null );
 
+/* ═══════════ PHẦN E — CHẤM BẢNG CÔNG NÀO TÍNH BẢNG CÔNG ĐẤY (26/09/2026) ═══════════
+   Anh Thắng, ảnh ngày 06/09: hàng "ca chính" CŨ ở SETUP_VP (19:51 → —) cùng ngày với lượt chấm
+   thật ở VP_KH-HCM (08:48 → 17:25) — ô ca ngày hiện "0 ? SETUP_VP", công ngày thật bị đè mất.
+   *"chấm bảng công nào tính bảng công đấy, cho dù giờ đó thuộc công ngày, nhưng chấm bảng công
+   setup thì quy nó setup là được"*. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'PLE1', 'ho_ten' => 'Người Hai Bảng',
+	'vai_tro' => 'Nhân viên', 'trang_thai_lam_viec' => 'Đang làm' ) );
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $CHINH, 'ngay' => '2026-09-06', 'ma_nv' => 'PLE1',
+	'hau_to' => '', 'ho_ten' => 'Người Hai Bảng', 'gio_vao_giay' => VHCC_DB::giay( '08:48:00' ),
+	'gio_ra_giay' => VHCC_DB::giay( '17:25:00' ), 'nguon' => 'may' ) );
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $PHU, 'ngay' => '2026-09-06', 'ma_nv' => 'PLE1',
+	'hau_to' => '', 'ho_ten' => 'Người Hai Bảng', 'gio_vao_giay' => VHCC_DB::giay( '19:51:00' ),
+	'gio_ra_giay' => null, 'nguon' => 'may', 'chuan' => 'dữ liệu cũ trước bản vá' ) );
+$ngay_e = function ( $ngay ) use ( $CHINH ) {
+	foreach ( VHCC_Luong::vp_bang_cong_va_luong( $CHINH, '2026-09' )['detail'] as $d ) {
+		if ( 'PLE1' === $d['ma'] && $ngay === $d['ngay'] ) { return $d; }
+	}
+	return null;
+};
+$d_e = $ngay_e( '2026-09-06' );
+teq( '🔴 lượt chấm thật ở cơ sở CHÍNH KHÔNG bị hàng cũ của cơ sở phụ đè: 1 công ngày',
+	1.0, $d_e ? (float) $d_e['congNgay'] : -1.0, $d_e );
+teq( '   giờ ca ngày là đúng giờ chấm ở cơ sở chính', '08:48-17:25', $d_e ? $d_e['vao'] . '-' . $d_e['ra'] : '' );
+teq( '   hàng cũ của cơ sở phụ rơi vào HÀNG ĐÊM', '19:51', $d_e ? $d_e['h2vao'] : '' );
+teq( '   ô ca ngày KHÔNG mang nhãn cơ sở phụ', '', $d_e ? (string) $d_e['tuCoSo'] : 'x' );
+teq( '   ô ca đêm mang nhãn cơ sở phụ', $PHU, $d_e ? (string) $d_e['tuCoSoDem'] : '' );
+
+/* Sửa giờ ra 04:00 cho chính hàng cũ ấy -> lưu được ("không lưu được"), và ra 1 công đêm. */
+$r_e = VHCC_Bu::sua( $u_ad, array( 'coso' => $PHU, 'ngay' => '2026-09-06', 'ma_nv' => 'PLE1',
+	'vao' => '19:51', 'ra' => '04:00', 'ly_do' => 'bù giờ ra ca setup' ) );
+t( '🔴 hàng cũ của cơ sở phụ: sửa giờ ra 04:00 LƯU ĐƯỢC', ! empty( $r_e['ok'] ), $r_e );
+$d_e = $ngay_e( '2026-09-06' );
+teq( '   và ra 1 công đêm', 1.0, $d_e ? (float) $d_e['congDem'] : -1.0, $d_e );
+teq( '   công ngày ở cơ sở chính vẫn nguyên 1', 1.0, $d_e ? (float) $d_e['congNgay'] : -1.0 );
+
+/* *"nhiều lúc đi sớm bạn chấm nó dính giờ công ngày thì kệ nó, chỉ lấy giờ ra làm mốc"* — vào
+   SETUP 14:00 (giờ ca ngày), ra 20:30 cùng ngày (chưa chạm khung đêm — trước đây ra "ca lạ"): vẫn là CA ĐÊM của SETUP, không thành tăng ca /
+   ca lạ, không cộng công ngày nào. */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $PHU, 'ngay' => '2026-09-10', 'ma_nv' => 'PLE1',
+	'hau_to' => 'CD', 'ho_ten' => 'Người Hai Bảng', 'gio_vao_giay' => VHCC_DB::giay( '14:00:00' ),
+	'gio_ra_giay' => VHCC_DB::giay( '20:30:00' ), 'nguon' => 'may' ) );
+$d_s = $ngay_e( '2026-09-10' );
+teq( '🔴 vào SETUP sớm (14:00) vẫn ra 1 công ĐÊM', 1.0, $d_s ? (float) $d_s['congDem'] : -1.0, $d_s );
+t( '   không bị coi là ca lạ, không tăng ca, không công ngày',
+	$d_s && empty( $d_s['caLa'] ) && 0.0 === (float) $d_s['congTangCa'] && 0.0 === (float) $d_s['congNgay'], $d_s );
+teq( '   công bù hôm sau theo GIỜ RA 20:30 (chưa qua nửa đêm, trước mốc 1) -> 0.5',
+	0.5, ( $n11 = $ngay_e( '2026-09-11' ) ) ? (float) $n11['congBu'] : -1.0 );
+
 echo "\n";
 if ( $truot ) {
 	echo 'TRƯỢT ' . count( $truot ) . ":\n";

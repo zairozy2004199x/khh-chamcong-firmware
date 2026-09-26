@@ -7509,6 +7509,10 @@ class VHCC_Web {
 	private static function ten_dong_sua( $coso, $hau_to ) {
 		$ten = array( 'TT' => 'thu tiền', 'TG' => 'trực ghế', 'CD' => 'ca đêm / tăng ca',
 			'CT' => 'công tối', 'TC' => 'tăng cường / ca đêm' );
+		/* Hàng hậu tố rỗng CŨ của cơ sở phụ đã ghép (SETUP_VP) được tính là ca đêm — gọi đúng tên. */
+		if ( '' === $hau_to && '' !== $coso && '' !== VHCC_Luong::ghep_vao( $coso ) ) {
+			return $coso . ' · ca đêm';
+		}
 		return $coso . ( '' === $hau_to ? ' · ca chính'
 			: ' · ' . ( isset( $ten[ $hau_to ] ) ? $ten[ $hau_to ] : $hau_to ) . ' (-' . $hau_to . ')' );
 	}

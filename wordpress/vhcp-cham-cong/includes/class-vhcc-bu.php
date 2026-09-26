@@ -485,8 +485,12 @@ class VHCC_Bu {
 		   ⚠️ Chỉ trải phẳng ĐÚNG MỘT NGÀY. Ca dài hơn 24 tiếng không phải ca đêm, nó là dấu hiệu
 		      gõ nhầm — và cộng bừa thêm ngày nữa là bịa ra giờ làm. */
 		list( , $ht_sua ) = VHCC_Nhan::tach_hau_to( $ma_nv );
+		/* 26/09/2026 — hàng "ca chính" CŨ của cơ sở phụ đã ghép (SETUP_VP) cũng là ca đêm: anh
+		   Thắng gõ 19:51 → 04:00 vào đó và bấm Lưu thì bị chối. Cơ sở phụ không có ca ngày, nên
+		   trải phẳng như hàng -CD. */
+		$la_phu_sua = method_exists( 'VHCC_Luong', 'ghep_vao' ) && '' !== VHCC_Luong::ghep_vao( $coso );
 		if ( null !== $vao_moi && null !== $ra_moi && $ra_moi <= $vao_moi
-			&& in_array( $ht_sua, array( 'CD', 'CT', 'TC' ), true ) ) {
+			&& ( $la_phu_sua || in_array( $ht_sua, array( 'CD', 'CT', 'TC' ), true ) ) ) {
 			$ra_moi += VHCC_DB::NGAY_GIAY;
 		}
 		if ( null !== $vao_moi && null !== $ra_moi && $ra_moi <= $vao_moi ) {
