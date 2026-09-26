@@ -254,16 +254,34 @@ class VHCC_BangLuong {
 		 *    nào đã chốt, nên KHÔNG đụng tới, để dành cho lần sau nếu cần.
 		 * ⚠️ Gác `class_exists`/`method_exists` cùng hàm với lời gọi — luật của `kiem-goi-cheo.php`
 		 *    (dù cùng plugin, giữ đồng nhất với các lời gọi chéo khác trong tệp này). */
-		$bu_map = array();
-		if ( 'cong' === VHCC_Luong::cach_tinh( $coso )
-			&& method_exists( 'VHCC_Luong', 'vp_bang_cong_va_luong' ) ) {
+		/* ═══════════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 26/09/2026 — CƠ SỞ TÍNH THEO CÔNG THÌ BẢNG LƯƠNG CŨNG TÍNH THEO CÔNG.
+		 * ═══════════════════════════════════════════════════════════════════════════════════════
+		 * Anh Thắng: *"Nếu bảng công là ngày công. Thì bảng lương cũng là ngày công"* — kèm ảnh
+		 * cột "Số công thực" của VP_KH-HCM đang ghi 156:44 (GIỜ). Chốt qua AskUserQuestion:
+		 *   · mọi người ở cơ sở theo công ăn LƯƠNG THÁNG: lương cb × công ngày ÷ công chuẩn
+		 *     (chưa khai lương cơ bản thì dòng chưa ra tiền, và nói ra);
+		 *   · CÔNG ĐÊM GIÁ RIÊNG: một dòng "Ca đêm" riêng, tiền = số công đêm × `demGiaCong`
+		 *     (anh Thắng: *"lương ca ngày riêng, ca đêm riêng, nên không cộng chung"*).
+		 * Số công lấy THẲNG từ `vp_bang_cong_va_luong()` — đúng con số lưới bảng công đang hiện
+		 * (hàng ☀: công ngày + tăng ca + bù; hàng 🌙: công đêm), không quy đổi lại từ giờ thô.
+		 * Hai bảng nói hai con số cho cùng một người là thứ kế toán không thể đối chiếu.
+		 * ⚠️ Gác `method_exists` cùng hàm với lời gọi — luật của `kiem-goi-cheo.php`. */
+		$la_cs_cong = ( 'cong' === VHCC_Luong::cach_tinh( $coso ) );
+		$vp_map = array();
+		if ( $la_cs_cong && method_exists( 'VHCC_Luong', 'vp_bang_cong_va_luong' ) ) {
 			$vp_ket = VHCC_Luong::vp_bang_cong_va_luong( $coso, $tt );
 			foreach ( ( isset( $vp_ket['rows'] ) ? (array) $vp_ket['rows'] : array() ) as $r_vp ) {
 				$k_vp = strtolower( trim( (string) ( isset( $r_vp['ma'] ) ? $r_vp['ma'] : '' ) ) );
 				if ( '' === $k_vp ) { continue; }
-				$bu_map[ $k_vp ] = (float) ( isset( $r_vp['congBu'] ) ? $r_vp['congBu'] : 0 );
+				$vp_map[ $k_vp ] = array(
+					'ngay' => round( (float) $r_vp['congNgay'] + (float) $r_vp['congTangCa']
+						+ (float) $r_vp['congBu'], 2 ),
+					'dem'  => round( (float) $r_vp['congDem'], 2 ),
+				);
 			}
 		}
+		$gia_dem = ( $la_cs_cong && isset( $cfg['demGiaCong'] ) ) ? (float) $cfg['demGiaCong'] : 0.0;
 		$dong = array();
 		$vuot  = 0;
 		foreach ( $gom as $g ) {
@@ -301,10 +319,12 @@ class VHCC_BangLuong {
 			$cong_thuc = ( null !== $bac_cong )
 				? VHCC_QuyCong::cong_cua_thang( $gio_ngay, $bac_cong )
 				: $so_ngay;
-			/* "Công bù" — xem khối chú thích dài ở chỗ dựng `$bu_map`. Chỉ người ăn lương tháng
-			   ($lcb > 0), và chỉ khối Văn phòng (đã lọc sẵn khi dựng `$bu_map` ở trên). */
-			if ( $lcb > 0 && isset( $bu_map[ $kma ] ) && $bu_map[ $kma ] > 0 ) {
-				$cong_thuc = round( $cong_thuc + $bu_map[ $kma ], 2 );
+			/* Cơ sở theo công: số công là CÔNG NGÀY của lưới bảng công (đã gồm tăng ca và công
+			   bù) — xem khối chú thích ở chỗ dựng `$vp_map`. Công đêm tách dòng riêng dưới. */
+			$cong_dem = 0.0;
+			if ( $la_cs_cong ) {
+				$cong_thuc = isset( $vp_map[ $kma ] ) ? $vp_map[ $kma ]['ngay'] : 0.0;
+				$cong_dem  = isset( $vp_map[ $kma ] ) ? $vp_map[ $kma ]['dem'] : 0.0;
 			}
 
 			/* 🔴 GIỜ TỔNG LÀ GIỜ CHÍNH, TRỪ ĐI MẤY DÒNG ĂN GIÁ KHÁC.
@@ -377,14 +397,17 @@ class VHCC_BangLuong {
 				if ( null !== $lt['congYc'] ) { $cong_yc_ng = (float) $lt['congYc']; }
 			}
 
-			$theo_thang = ( $lcb > 0 );
+			/* Cơ sở theo công: ai cũng ăn lương tháng, kể cả người CHƯA khai lương cơ bản — dòng
+			   của họ đứng ở chế độ tháng với ô tiền trống (và ghi chú nói ra), không lùi về giờ ×
+			   đơn giá. Lùi về giờ là bảng lương lại ra GIỜ, đúng cái anh Thắng vừa chê. */
+			$theo_thang = ( $lcb > 0 ) || $la_cs_cong;
 			$mot = function ( $cv, $gio, $la_chinh ) use ( $coso, $g, $so_gia, $ten, $cccd,
 				$theo_thang, $lcb, $cong_yc_ng, $cong_thuc, $so_ngay, $gio_tong, $gio_khac ) {
 				$cong_yc = $cong_yc_ng;
 				$gia = VHCC_GiaGio::tra( $coso, $cv, $g['ma'], $so_gia );
 				$luong = null;
 				if ( $la_chinh && $theo_thang ) {
-					if ( $cong_yc > 0 ) { $luong = round( $lcb * $cong_thuc / $cong_yc, 2 ); }
+					if ( $cong_yc > 0 && $lcb > 0 ) { $luong = round( $lcb * $cong_thuc / $cong_yc, 2 ); }
 				} elseif ( $gia['gia'] > 0 ) {
 					$luong = round( $gio * $gia['gia'], 2 );
 				}
@@ -395,7 +418,7 @@ class VHCC_BangLuong {
 					'cv'    => $cv,
 					'laChinh' => $la_chinh,
 					'cheDo' => ( $la_chinh && $theo_thang ) ? 'thang' : 'gio',
-					'luongCb'  => ( $la_chinh && $theo_thang ) ? $lcb : null,
+					'luongCb'  => ( $la_chinh && $theo_thang && $lcb > 0 ) ? $lcb : null,
 					'congYc'   => ( $la_chinh && $theo_thang ) ? ( $cong_yc > 0 ? $cong_yc : null ) : null,
 					'congThuc' => ( $la_chinh && $theo_thang ) ? $cong_thuc : null,
 					'gio'   => ( $la_chinh && $theo_thang ) ? null : $gio,
@@ -493,6 +516,26 @@ class VHCC_BangLuong {
 			$d_chinh['tongCong'] = $tt_tien['cong'];
 			$d_chinh['tongTru']  = $tt_tien['tru'];
 			$dong[] = $d_chinh;
+			/* 🌙 DÒNG CA ĐÊM — cơ sở theo công, người có công đêm trong tháng. Giá riêng
+			   (`demGiaCong`), tiền riêng, tổng riêng; không cộng vào công của dòng ngày. Khoản
+			   cộng/trừ và BHXH đã gắn trọn vào dòng chính, dòng này không mang lại lần nữa. */
+			if ( $la_cs_cong && $cong_dem > 0 ) {
+				$dong[] = array(
+					'ma' => $g['ma'], 'ten' => $ten, 'cccd' => $cccd,
+					'cv' => 'Ca đêm', 'laChinh' => false, 'laDem' => true,
+					'cheDo' => 'cong', 'luongCb' => null, 'congYc' => null,
+					'congThuc' => $cong_dem,
+					/* `gio` mang SỐ CÔNG ĐÊM để tệp .xlsx (cột G × cột H) tự nhân ra tiền. */
+					'gio' => $cong_dem,
+					'gia' => $gia_dem > 0 ? $gia_dem : null,
+					'giaTu' => $gia_dem > 0 ? 'coso' : 'khong',
+					'luongChinh' => $gia_dem > 0 ? round( $cong_dem * $gia_dem, 2 ) : null,
+					'soNgay' => $so_ngay, 'gioTong' => $gio_tong, 'gioKhac' => 0.0,
+					'cong' => array(), 'tru' => array(), 'tongCong' => 0.0, 'tongTru' => 0.0,
+					'thieuGio' => 0, 'gioLe' => 0.0, 'phuTroiLe' => 0.0, 'leTheo' => array(),
+					'bhxh' => 0.0,
+				);
+			}
 			foreach ( $khac as $k ) {
 				$d_k = $mot( (string) $k['viec'], round( (float) $k['gio'], 2 ), false );
 				$d_k['thieuGio'] = 0;
@@ -512,6 +555,9 @@ class VHCC_BangLuong {
 			if ( 0 !== $c ) { return $c; }
 			/* Dòng chính đứng trước các dòng giờ khác của cùng người — đúng như file kế toán. */
 			if ( $a['laChinh'] !== $b['laChinh'] ) { return $a['laChinh'] ? -1 : 1; }
+			/* Dòng Ca đêm đứng ngay sau dòng chính, trước mấy dòng giờ khác. */
+			$a_d = ! empty( $a['laDem'] ); $b_d = ! empty( $b['laDem'] );
+			if ( $a_d !== $b_d ) { return $a_d ? -1 : 1; }
 			return strcmp( $a['cv'], $b['cv'] );
 		} );
 		$i = 0;
@@ -525,7 +571,7 @@ class VHCC_BangLuong {
 		foreach ( $dong as $d ) {
 			if ( null === $d['luongChinh'] ) { $thieu_gia++; }
 			else { $tong_chinh += $d['luongChinh']; }
-			if ( null !== $d['gio'] ) { $tong_gio += $d['gio']; }
+			if ( null !== $d['gio'] && 'cong' !== $d['cheDo'] ) { $tong_gio += $d['gio']; }
 			$thieu_gio += $d['thieuGio'];
 		}
 
@@ -681,8 +727,15 @@ class VHCC_BangLuong {
 		foreach ( $b_k['dong'] as $x ) {
 			$co_gia = ( null !== $x['luongChinh'] );
 			$ghi = array();
-			if ( 'khong' === $x['giaTu'] && 'thang' !== $x['cheDo'] ) {
+			if ( 'cong' === $x['cheDo'] ) {
+				$ghi[] = ( null === $x['gia'] )
+					? 'CHƯA KHAI GIÁ 1 CÔNG ĐÊM (Công thức tính công) — chưa ra được tiền'
+					: 'công đêm × giá 1 công đêm';
+			} elseif ( 'khong' === $x['giaTu'] && 'thang' !== $x['cheDo'] ) {
 				$ghi[] = 'CHƯA KHAI ĐƠN GIÁ GIỜ cho "' . $x['cv'] . '" — chưa ra được tiền';
+			}
+			if ( 'thang' === $x['cheDo'] && null === $x['luongCb'] ) {
+				$ghi[] = 'CHƯA KHAI LƯƠNG CƠ BẢN — chưa ra được tiền';
 			}
 			if ( 'thang' === $x['cheDo'] && null === $x['congYc'] ) {
 				$ghi[] = 'CHƯA KHAI SỐ CÔNG CHUẨN CỦA THÁNG — chưa ra được tiền';

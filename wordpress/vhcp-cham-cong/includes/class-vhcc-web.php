@@ -8784,7 +8784,7 @@ class VHCC_Web {
 				      khác nhau. Tự tính lại là dựng bộ luật THỨ HAI cho cùng một câu hỏi — mà
 				      màn này đã có ba bộ luật cho "mấy giờ" rồi. Và nó không tốn thêm lượt quét
 				      nào: vòng lặp này vốn đã chạy để dựng cột LƯƠNG. */
-				if ( 'thang' === $d_bl['cheDo'] || null === $d_bl['gio'] ) { continue; }
+				if ( in_array( $d_bl['cheDo'], array( 'thang', 'cong' ), true ) || null === $d_bl['gio'] ) { continue; }
 				if ( ! isset( $viec_ds[ $k_v ] ) ) { $viec_ds[ $k_v ] = array(); }
 				$viec_ds[ $k_v ][] = array(
 					'cv'  => (string) $d_bl['cv'],
@@ -10720,7 +10720,7 @@ class VHCC_Web {
 				$b_x = VHCC_BangLuong::dung( $cs, $m_x );
 				if ( empty( $b_x['ok'] ) ) { continue; }
 				foreach ( $b_x['dong'] as $d ) {
-					if ( '' === $d['cv'] || 'thang' === $d['cheDo'] ) { continue; }
+					if ( '' === $d['cv'] || in_array( $d['cheDo'], array( 'thang', 'cong' ), true ) ) { continue; }
 					if ( ! isset( $dang[ $d['cv'] ] ) ) { $dang[ $d['cv'] ] = 0; }
 					$dang[ $d['cv'] ]++;
 				}
@@ -11186,7 +11186,7 @@ class VHCC_Web {
 		   theo giờ nên một ô đơn giá ở đây chỉ làm người ta tưởng đã khai. */
 		$dang = array();
 		foreach ( $b['dong'] as $d ) {
-			if ( '' === $d['cv'] || 'thang' === $d['cheDo'] ) { continue; }
+			if ( '' === $d['cv'] || in_array( $d['cheDo'], array( 'thang', 'cong' ), true ) ) { continue; }
 			$k = VHCC_GiaGio::khoa_cv( $d['cv'] );
 			if ( '' === $k ) { continue; }
 			if ( ! isset( $dang[ $k ] ) ) { $dang[ $k ] = array( 'ten' => $d['cv'], 'n' => 0 ); }
@@ -11641,7 +11641,7 @@ class VHCC_Web {
 	 */
 	private static function gia_lech( $cs, $cv, $ma, $d, $so ) {
 		if ( '' === trim( (string) $cv ) ) { return null; }
-		if ( isset( $d['cheDo'] ) && 'thang' === $d['cheDo'] ) { return null; }
+		if ( isset( $d['cheDo'] ) && in_array( $d['cheDo'], array( 'thang', 'cong' ), true ) ) { return null; }
 		$g_bl = isset( $d['gia'] ) ? (float) $d['gia'] : 0.0;
 		$t_so = VHCC_GiaGio::tra( $cs, $cv, $ma, $so );
 		$g_so = (float) $t_so['gia'];
@@ -11759,7 +11759,9 @@ class VHCC_Web {
 			array( 'k' => 'lcb',  'ten' => 'Lương cb', 'nhom' => '', 'luon' => false, 'so' => true ),
 			array( 'k' => 'cyc',  'ten' => 'Số công YC', 'nhom' => '', 'luon' => false, 'so' => true ),
 			array( 'k' => 'gio',  'ten' => 'Số công thực', 'nhom' => '', 'luon' => true, 'so' => true ),
-			array( 'k' => 'gia',  'ten' => 'Tiền/h',   'nhom' => '', 'luon' => true, 'so' => true ),
+			/* Cơ sở theo công: không ai ăn giờ, nên cột này chỉ còn giá 1 công đêm của dòng Ca đêm. */
+			array( 'k' => 'gia',  'ten' => ( 'cong' === VHCC_Luong::cach_tinh( $cs ) ) ? 'Giá công đêm' : 'Tiền/h',
+				'nhom' => '', 'luon' => true, 'so' => true ),
 			array( 'k' => 'lc',   'ten' => 'Lương chính', 'nhom' => '', 'luon' => true, 'so' => true, 'dam' => true ),
 			array( 'k' => 'bhxh', 'ten' => 'BHXH',     'nhom' => '', 'luon' => false, 'so' => true ),
 		);
@@ -11980,7 +11982,12 @@ class VHCC_Web {
 				$v = $o_gt( $d, $c['k'] );
 				if ( 'gc' === $c['k'] ) {
 					$gc = array();
-					if ( 'thang' === $d['cheDo'] ) { $gc[] = 'lương tháng'; }
+					if ( 'thang' === $d['cheDo'] ) {
+						$gc[] = ( null === $d['luongCb'] ) ? 'lương tháng — CHƯA KHAI LƯƠNG CƠ BẢN' : 'lương tháng';
+					}
+					if ( 'cong' === $d['cheDo'] ) {
+						$gc[] = ( null === $d['gia'] ) ? 'ca đêm — CHƯA KHAI GIÁ 1 CÔNG ĐÊM' : 'ca đêm · giá riêng';
+					}
 					/* 🔴 KHÔNG LẶP "CHƯA KHAI ĐƠN GIÁ" Ở TỪNG DÒNG — anh Thắng: *"Chỗ này không
 					   cần khai"*. Chính dòng ấy đã nhuộm đỏ và ô Tiền/h để gạch ngang. */
 					if ( 'nguoi' === $d['giaTu'] ) { $gc[] = 'giá khai riêng'; }
@@ -12025,6 +12032,13 @@ class VHCC_Web {
 					} elseif ( 'thang' === $d['cheDo'] ) {
 						echo '<td class="p">' . esc_html( self::so_vp( $v ) )
 							. ' <span class="mo">công</span></td>';
+					} elseif ( 'cong' === $d['cheDo'] ) {
+						/* 🌙 Dòng Ca đêm của cơ sở theo công — số CÔNG đêm, không phải giờ. */
+						$chu_d = self::so_vp( $v ) . ' công đêm'
+							. ( null !== $d['gia'] ? ' × ' . number_format( (float) $d['gia'], 0, ',', '.' )
+								. ( null !== $d['luongChinh'] ? ' = ' . number_format( (float) $d['luongChinh'], 0, ',', '.' ) . 'đ' : '' ) : '' );
+						echo '<td class="p" title="' . esc_attr( $chu_d ) . '">' . esc_html( self::so_vp( $v ) )
+							. ' <span class="mo">công đêm</span></td>';
 					} else {
 						$g_f  = (float) $v;
 						$chu_g = number_format( $g_f, 2, ',', '.' ) . ' giờ';
@@ -12096,13 +12110,17 @@ class VHCC_Web {
 			if ( 'gio' === $c['k'] ) {
 				$p_t = 0;
 				$c_t = 0.0;
+				$c_d = 0.0;
 				foreach ( $b['dong'] as $d_t ) {
 					if ( 'thang' === $d_t['cheDo'] ) { $c_t += (float) $d_t['congThuc']; }
+					elseif ( 'cong' === $d_t['cheDo'] ) { $c_d += (float) $d_t['congThuc']; }
 					else { $p_t += (int) round( (float) $d_t['gio'] * 60 ); }
 				}
 				$phan_t = array();
 				if ( $p_t > 0 ) { $phan_t[] = VHCC_Cham::gio_tp( $p_t ) . ' giờ'; }
 				if ( $c_t > 0 ) { $phan_t[] = self::so_vp( $c_t ) . ' công'; }
+				/* Tổng công đêm RIÊNG — anh Thắng: *"tổng riêng"*, không cộng chung công ngày. */
+				if ( $c_d > 0 ) { $phan_t[] = self::so_vp( $c_d ) . ' công đêm'; }
 				echo '<td class="p" title="'
 					. esc_attr( number_format( $p_t / 60, 2, ',', '.' ) . ' giờ' )
 					. '"><b>' . esc_html( $phan_t ? implode( ' · ', $phan_t ) : '—' ) . '</b></td>';

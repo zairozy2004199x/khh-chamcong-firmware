@@ -945,7 +945,7 @@ class VHCC_Man {
 				$cfg = array();
 				foreach ( array( 'ngayTu', 'ngayDen', 'ngayMin', 'duoiMin', 'gioChuan', 'bacNua',
 					'bacMot', 'bacRuoi', 'demToiThieuGio', 'nuaTuGio', 'graceRaPhut', 'ktThu7Tu',
-					'ktThu7Den', 'ktThu7Min', 'demTu', 'demDen', 'demCong',
+					'ktThu7Den', 'ktThu7Min', 'demTu', 'demDen', 'demCong', 'demGiaCong',
 					'demBuMoc1', 'demBuSo1', 'demBuMoc2', 'demBuSo2', 'demBuMoc3', 'demBuSo3',
 					'tangCaCong' ) as $k ) {
 					if ( isset( $_POST[ $k ] ) && '' !== trim( (string) $_POST[ $k ] ) ) {
@@ -1073,7 +1073,8 @@ class VHCC_Man {
 			. VHCC_Admin::o( 'demToiThieuGio', 'Ca đêm tối thiểu (giờ, 0 = không xét)', (string) $c['demToiThieuGio'] );
 		echo '<tr><th></th><td><em>Ngưỡng này KHÔNG áp cho ca thiếu cặp giờ: quên chấm ra thì không '
 			. 'cách nào biết ca dài bao lâu, cắt ngầm là trừ tiền một người vì cái máy lỗi.</em></td></tr>'
-			. VHCC_Admin::o( 'demCong', 'Công của một ca đêm', (string) $c['demCong'] );
+			. VHCC_Admin::o( 'demCong', 'Công của một ca đêm', (string) $c['demCong'] )
+			. VHCC_Admin::o( 'demGiaCong', 'Giá 1 công đêm (đồng) — bảng lương cơ sở theo công', (string) $c['demGiaCong'] );
 		echo '<tr><th></th><td><em>Công nghỉ bù sau ca đêm nay tính theo BẬC THANG giờ ra: ra '
 			. 'trước/đúng mốc 1 thì lấy mức 1; qua mốc 1 nhưng còn trước/đúng mốc 2 thì lấy mức 2; '
 			. 'còn lại (kể cả trễ hơn mốc 3) thì lấy mức 3 — ra trễ hơn mốc cuối vẫn được mức CAO '

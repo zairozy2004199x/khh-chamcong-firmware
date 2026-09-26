@@ -761,6 +761,11 @@ class VHCC_Luong {
 		'demToiThieuGio' => array( 'Ca đêm tối thiểu (giờ, 0 = không xét)', 'so',
 			'Ngưỡng này KHÔNG áp cho ca thiếu cặp giờ: quên chấm ra thì không cách nào biết ca dài bao lâu, cắt ngầm là trừ tiền một người vì cái máy lỗi.' ),
 		'demCong'    => array( 'Công của một ca đêm', 'so', '' ),
+		/* 🔴 26/09/2026 — Anh Thắng: *"lương ca ngày riêng, ca đêm riêng"*, chốt "Giá công đêm
+		   riêng": bảng lương cơ sở theo công tách công đêm thành một dòng, tiền = số công đêm ×
+		   giá này (xem `VHCC_BangLuong::dung()`). 0 = chưa khai -> dòng đêm chưa ra tiền. */
+		'demGiaCong' => array( 'Giá 1 công đêm (đồng)', 'so',
+			'Bảng lương cơ sở tính theo công: công đêm là một dòng riêng, tiền = số công đêm × giá này. Để 0 là chưa khai — dòng đêm chưa ra tiền.' ),
 		/* 🔴 26/09/2026 — CÔNG BÙ THEO BẬC THANG GIỜ RA, KHÔNG CÒN MỘT SỐ CỐ ĐỊNH.
 		   Anh Thắng: *"chỉnh cho phép set công bù, ví dụ giờ ra trước 2h là + 0,5 công bù, trước
 		   4h là 1 công bù, trước 8h sáng là 1,5 công bù"* — ca đêm về càng muộn (càng gần sáng)
@@ -817,7 +822,7 @@ class VHCC_Luong {
 			'ktThu7Tu' => '08:30', 'ktThu7Den' => '12:00', 'ktThu7Min' => 3,
 			'ktVaiTro' => array(), 'ktMaNV' => array(), 'ktChuNhatNghi' => true,
 			'demTu' => '21:00', 'demDen' => '06:00',
-			'demCong' => 1, 'demBuKhiDaLam' => 1, 'tangCaCong' => 0.5,
+			'demCong' => 1, 'demBuKhiDaLam' => 1, 'tangCaCong' => 0.5, 'demGiaCong' => 0,
 			/* Mặc định GIỮ NGUYÊN kết quả cho ca đêm điển hình 20:00→04:00 (mốc 2, đúng bằng
 			   `demCongBu=1` cũ trước bản 26/09/2026) — chỉ ca về SỚM hơn hoặc TRỄ hơn mới đổi số. */
 			'demBuMoc1' => '02:00', 'demBuSo1' => 0.5,
@@ -1767,7 +1772,7 @@ class VHCC_Luong {
 		$cho_phep = array( 'ngayTu', 'ngayDen', 'ngayMin', 'ngayMax', 'duoiMin', 'gioChuan',
 			'bacNua', 'bacMot', 'bacRuoi', 'demToiThieuGio', 'nuaTuGio', 'graceRaPhut',
 			'ktThu7Tu', 'ktThu7Den', 'ktThu7Min', 'ktVaiTro', 'ktMaNV', 'ktChuNhatNghi',
-			'demTu', 'demDen', 'demCong', 'demBuMoc1', 'demBuSo1', 'demBuMoc2', 'demBuSo2',
+			'demTu', 'demDen', 'demCong', 'demGiaCong', 'demBuMoc1', 'demBuSo1', 'demBuMoc2', 'demBuSo2',
 			'demBuMoc3', 'demBuSo3', 'demBuKhiDaLam', 'tangCaCong', 'tuDongRa' );
 		$o = self::vp_cfg();
 		foreach ( $cho_phep as $k ) {
@@ -1791,7 +1796,7 @@ class VHCC_Luong {
 			|| VHCC_DB::giay( $o['demBuMoc2'] ) > VHCC_DB::giay( $o['demBuMoc3'] ) ) {
 			return array( 'ok' => false, 'error' => 'Ba mốc công bù phải xếp TĂNG DẦN: mốc 1 ≤ mốc 2 ≤ mốc 3.' );
 		}
-		foreach ( array( 'demBuSo1', 'demBuSo2', 'demBuSo3' ) as $k ) {
+		foreach ( array( 'demBuSo1', 'demBuSo2', 'demBuSo3', 'demGiaCong' ) as $k ) {
 			if ( ! is_numeric( $o[ $k ] ) || (float) $o[ $k ] < 0 ) {
 				return array( 'ok' => false, 'error' => 'Công bù "' . $k . '" phải là số không âm.' );
 			}

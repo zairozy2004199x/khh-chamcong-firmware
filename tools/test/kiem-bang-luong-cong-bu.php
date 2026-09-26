@@ -75,33 +75,53 @@ foreach ( $vp_xem['rows'] as $r ) { if ( 'BLT1' === $r['ma'] ) { $e_blt1 = $r; }
 t( '🔴 dựng cảnh: màn Bảng công đã thấy công đêm', $e_blt1 && $e_blt1['congDem'] > 0, $e_blt1 );
 teq( '   và đúng 1 công bù', 1.0, $e_blt1 ? (float) $e_blt1['congBu'] : null, $e_blt1 );
 
-/* ═══════════════════════════════════ BẢNG LƯƠNG THẬT ═══════════════════════════════════ */
-
-/* 1. Người ăn LƯƠNG THÁNG: công bù (1) phải cộng thẳng vào công thực, không đụng công đêm. */
+/* ═══════════════════════════════════ BẢNG LƯƠNG THẬT ═══════════════════════════════════
+   🔴 26/09/2026 — LUẬT MỚI: *"Nếu bảng công là ngày công. Thì bảng lương cũng là ngày công"*,
+   chốt: cơ sở theo công thì ai cũng ăn LƯƠNG THÁNG (lương cb × công ngày ÷ công chuẩn), công
+   ngày lấy THẲNG từ lưới bảng công (ngày + tăng ca + bù), CÔNG ĐÊM là một dòng "Ca đêm" riêng
+   nhân giá riêng (`demGiaCong`). Thay cho luật cũ "ca đêm ra công qua giờ thô, chỉ cộng bù". */
+VHCC_Luong::dat_vp_cfg( $u_ad, array( 'demGiaCong' => 150000 ), '', '' );
 $b1 = VHCC_BangLuong::dung( $CHINH, '2026-08' );
-$d1 = null;
-foreach ( $b1['dong'] as $d ) { if ( 'BLT1' === $d['ma'] ) { $d1 = $d; } }
-t( '🔴 dựng cảnh: có dòng lương của BLT1', null !== $d1, $b1 );
+$chinh = function ( $b, $ma ) { foreach ( $b['dong'] as $d ) { if ( $ma === $d['ma'] && ! empty( $d['laChinh'] ) ) { return $d; } } return null; };
+$dem   = function ( $b, $ma ) { foreach ( $b['dong'] as $d ) { if ( $ma === $d['ma'] && ! empty( $d['laDem'] ) ) { return $d; } } return null; };
+
+/* 1. Người có lương cơ bản: công ngày = đúng hàng ☀ của lưới (ở đây chỉ 1 công bù), lương tháng. */
+$d1 = $chinh( $b1, 'BLT1' );
+t( '🔴 dựng cảnh: có dòng lương chính của BLT1', null !== $d1, $b1 );
 if ( $d1 ) {
-	/* Ca đêm 20:00->04:00 = 8 tiếng chấm thô, đã tự ra 1 công qua quy đổi bậc giờ bình thường
-	   (8h -> 1 công, mặc định VHCC_QuyCong). Cộng thêm đúng 1 công bù -> công thực = 1 (đêm, qua
-	   giờ thô) + 1 (bù, cộng thêm) = 2. */
-	teq( '🔴 công thực = 1 (giờ thô của ca đêm) + 1 (công bù cộng thêm) = 2',
-		2.0, (float) $d1['congThuc'], $d1 );
+	teq( '🔴 dòng chính tính lương tháng', 'thang', $d1['cheDo'], $d1 );
+	teq( '🔴 công ngày = đúng con số hàng ☀ của lưới (1 công bù), KHÔNG lẫn công đêm', 1.0, (float) $d1['congThuc'], $d1 );
+	teq( '   lương = 9.000.000 × 1 ÷ 26', round( 9000000 / 26, 2 ), (float) $d1['luongChinh'], $d1 );
+}
+$n1 = $dem( $b1, 'BLT1' );
+t( '🔴 có dòng Ca đêm RIÊNG cho BLT1', null !== $n1, $b1 );
+if ( $n1 ) {
+	teq( '   số công đêm = đúng hàng 🌙 của lưới', 1.0, (float) $n1['congThuc'], $n1 );
+	teq( '🔴 tiền đêm = số công đêm × giá 1 công đêm (giá riêng)', 150000.0, (float) $n1['luongChinh'], $n1 );
+	t( '   dòng đêm không mang lại khoản cộng/trừ, BHXH', 0.0 === (float) $n1['tongCong'] && 0.0 === (float) $n1['bhxh'] );
 }
 
-/* 2. Người TÍNH THEO GIỜ (không lương cơ bản): công bù KHÔNG được cộng vào đâu cả — "công" không
-      có mặt trong công thức giờ × đơn giá của người này. */
-$d2 = null;
-foreach ( $b1['dong'] as $d ) { if ( 'BLT2' === $d['ma'] ) { $d2 = $d; } }
-t( '🔴 dựng cảnh: có dòng lương của BLT2 (theo giờ)', null !== $d2, $b1 );
+/* 2. Người CHƯA khai lương cơ bản: vẫn là lương tháng (không lùi về giờ × đơn giá), tiền để
+      trống cho tới khi khai, và số vẫn là CÔNG. */
+$d2 = $chinh( $b1, 'BLT2' );
+t( '🔴 dựng cảnh: có dòng lương chính của BLT2', null !== $d2, $b1 );
 if ( $d2 ) {
-	teq( '🔴 người theo giờ: lương chính = 8h × đơn giá, KHÔNG cộng gì thêm cho công bù',
-		160000.0, (float) $d2['luongChinh'], $d2 );
-	teq( '   giờ vẫn đúng 8 tiếng', 8.0, (float) $d2['gio'], $d2 );
+	teq( '🔴 chưa khai lương cơ bản vẫn tính theo CÔNG, không lùi về giờ', 'thang', $d2['cheDo'], $d2 );
+	teq( '   số công ngày đúng lưới', 1.0, (float) $d2['congThuc'], $d2 );
+	t( '   tiền để trống (chưa khai lương cơ bản), không bịa số', null === $d2['luongChinh'] && null === $d2['luongCb'], $d2 );
 }
 
-/* 3. Cơ sở tính THEO GIỜ (ngoài khối Văn phòng): dù có cùng cấu hình, nhánh cộng bù không chạy —
+/* 3. Chưa khai giá công đêm -> dòng đêm chưa ra tiền, không tự lấy giá ngày. */
+VHCC_Luong::dat_vp_cfg( $u_ad, array( 'demGiaCong' => 0 ), '', '' );
+$n1b = $dem( VHCC_BangLuong::dung( $CHINH, '2026-08' ), 'BLT1' );
+t( '🔴 chưa khai giá công đêm -> dòng đêm chưa ra tiền', $n1b && null === $n1b['luongChinh'], $n1b );
+
+/* 4. Tệp xuất: cột "Số công thực" của cơ sở theo công là SỐ CÔNG (không phải giờ). */
+VHCC_Luong::dat_vp_cfg( $u_ad, array( 'demGiaCong' => 150000 ), '', '' );
+$x = VHCC_BangLuong::to_xlsx( $CHINH, '2026-08' );
+t( 'dựng được tệp .xlsx', ! empty( $x['ok'] ), $x );
+
+/* 5. Cơ sở tính THEO GIỜ (ngoài khối Văn phòng): dù có cùng cấu hình, nhánh cộng bù không chạy —
       không có "công" nào ở cơ sở này để mà cộng vào. */
 $wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'BLT3', 'ho_ten' => 'Người Cửa Hàng',
 	'cua_hang' => $GIO_CS, 'luong_co_ban' => 9000000, 'vai_tro' => 'Nhân viên' ) );
