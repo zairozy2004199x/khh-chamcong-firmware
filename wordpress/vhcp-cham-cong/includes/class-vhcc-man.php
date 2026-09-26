@@ -956,6 +956,7 @@ class VHCC_Man {
 						-1, PREG_SPLIT_NO_EMPTY );
 				}
 				$cfg['ktChuNhatNghi'] = ! empty( $_POST['ktChuNhatNghi'] );
+				$cfg['tuDongRa'] = ! empty( $_POST['tuDongRa'] ) ? 1 : 0;
 				$cs_thu = isset( $_POST['coso_thu'] ) ? wp_unslash( $_POST['coso_thu'] ) : '';
 				$th_thu = isset( $_POST['thang_thu'] ) ? wp_unslash( $_POST['thang_thu'] ) : '';
 				if ( 'thu' === $v ) {
@@ -1072,8 +1073,13 @@ class VHCC_Man {
 		echo '<tr><th></th><td><em>Ngưỡng này KHÔNG áp cho ca thiếu cặp giờ: quên chấm ra thì không '
 			. 'cách nào biết ca dài bao lâu, cắt ngầm là trừ tiền một người vì cái máy lỗi.</em></td></tr>'
 			. VHCC_Admin::o( 'demCong', 'Công của một ca đêm', (string) $c['demCong'] )
-			. VHCC_Admin::o( 'demCongBu', 'Công nghỉ bù sau ca đêm', (string) $c['demCongBu'] )
-			. VHCC_Admin::o( 'tangCaCong', 'Công của một ca tăng ca', (string) $c['tangCaCong'] )
+			. VHCC_Admin::o( 'demCongBu', 'Công nghỉ bù sau ca đêm', (string) $c['demCongBu'] );
+		echo '<tr><th>Tự động gán giờ ra</th><td><label><input type="checkbox" name="tuDongRa" '
+			. 'value="1"' . ( $c['tuDongRa'] ? ' checked' : '' ) . ' /> Quên bấm giờ ra thì tự lấp '
+			. 'giờ ra MẶC ĐỊNH (ca ngày lấy "Ca ngày đến", ca đêm lấy "Ca đêm đến") khi tới mốc trễ '
+			. 'nhất định — kèm cảnh báo trên bảng công để soi lại. Không đè lên giờ ra THẬT đã có, '
+			. 'kể cả tăng ca muộn.</label></td></tr>';
+		echo VHCC_Admin::o( 'tangCaCong', 'Công của một ca tăng ca', (string) $c['tangCaCong'] )
 			. VHCC_Admin::o( 'ktThu7Tu', 'Kế toán — thứ Bảy từ', $c['ktThu7Tu'] )
 			. VHCC_Admin::o( 'ktThu7Den', 'Kế toán — thứ Bảy đến', $c['ktThu7Den'] )
 			. VHCC_Admin::o( 'ktThu7Min', 'Kế toán — thứ Bảy đủ bao nhiêu tiếng = 1 công', (string) $c['ktThu7Min'] )

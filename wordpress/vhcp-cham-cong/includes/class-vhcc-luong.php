@@ -806,6 +806,11 @@ class VHCC_Luong {
 			'demTu' => '21:00', 'demDen' => '06:00',
 			'demCong' => 1, 'demCongBu' => 1, 'demBuKhiDaLam' => 1, 'tangCaCong' => 0.5,
 			'ngayCongThang' => 0,
+			/* 🔴 26/09/2026 — Anh Thắng: nhân viên hay quên bấm giờ RA; muốn hệ thống tự lấp một
+			   giờ ra MẶC ĐỊNH khi tới mốc trễ mà vẫn chưa thấy (xem `VHCC_TuDongRa::quet()`).
+			   Bật/tắt riêng cho từng khối — mặc định BẬT, tắt được ở màn Cấu hình nếu chưa muốn
+			   dùng thử. */
+			'tuDongRa' => 1,
 		);
 		$luu = self::cai_dat( 'VP_CONG_CFG', array() );
 		if ( is_array( $luu ) ) {
@@ -1615,7 +1620,7 @@ class VHCC_Luong {
 		$cho_phep = array( 'ngayTu', 'ngayDen', 'ngayMin', 'ngayMax', 'duoiMin', 'gioChuan',
 			'bacNua', 'bacMot', 'bacRuoi', 'demToiThieuGio', 'nuaTuGio', 'graceRaPhut',
 			'ktThu7Tu', 'ktThu7Den', 'ktThu7Min', 'ktVaiTro', 'ktMaNV', 'ktChuNhatNghi',
-			'demTu', 'demDen', 'demCong', 'demCongBu', 'demBuKhiDaLam', 'tangCaCong' );
+			'demTu', 'demDen', 'demCong', 'demCongBu', 'demBuKhiDaLam', 'tangCaCong', 'tuDongRa' );
 		$o = self::vp_cfg();
 		foreach ( $cho_phep as $k ) {
 			if ( array_key_exists( $k, (array) $cfg_moi ) ) { $o[ $k ] = $cfg_moi[ $k ]; }

@@ -21690,7 +21690,11 @@ t( 'hàng "Chấm công bù" có mở ra thật (kẻo mọi phép dưới đo t
 t( '🔴 ô giờ KHÔNG còn là type="time" nữa',
 	strpos( $h_24, 'type="time"' ) === false, null );
 t( 'mà là ô gõ với bàn phím số', strpos( $h_24, 'inputmode="numeric"' ) !== false, null );
-t( 'có gợi ý mẫu 24 giờ ngay trong ô', strpos( $h_24, 'placeholder="13:37"' ) !== false, null );
+/* 🔴 26/09/2026 — hai ô Vào/Ra mang HAI ví dụ KHÁC NHAU (không còn cùng "13:37" — cùng một chữ mẫu
+   ở cả hai ô khiến người xem tưởng đó là số ĐÃ CÓ trên một ngày đang trống hẳn). */
+t( 'có gợi ý mẫu 24 giờ ở ô Giờ vào', strpos( $h_24, 'placeholder="20:00"' ) !== false, null );
+t( 'và một ví dụ KHÁC ở ô Giờ ra (không trùng ô Vào)',
+	strpos( $h_24, 'placeholder="04:00"' ) !== false, null );
 /* Nhãn phải nói ra là 24h — người gõ nhìn nhãn trước khi nhìn ô. */
 t( '🔴 nhãn nói rõ (24h)', strpos( $h_24, 'Giờ vào <span class="mo" style="font-weight:400">(24h)</span>' ) !== false,
 	null );

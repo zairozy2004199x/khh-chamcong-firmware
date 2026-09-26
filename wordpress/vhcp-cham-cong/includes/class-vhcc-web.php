@@ -7493,9 +7493,10 @@ class VHCC_Web {
 	 *    (`VHCC_Bu::ghi()`/`sua()` — POST gửi tay cũng phải qua). Thiếu lớp thứ hai là gõ nhầm
 	 *    thành mất trắng một giờ công mà màn hình vẫn báo Đã lưu.
 	 */
-	private static function o_gio_24( $id, $ten, $gia_tri ) {
+	private static function o_gio_24( $id, $ten, $gia_tri, $vi_du = '13:37' ) {
 		$h = '<input id="' . esc_attr( $id ) . '" name="' . esc_attr( $ten ) . '" type="text"'
-			. ' data-gio24="1" inputmode="numeric" autocomplete="off" maxlength="8" placeholder="13:37"'
+			. ' data-gio24="1" inputmode="numeric" autocomplete="off" maxlength="8"'
+			. ' placeholder="' . esc_attr( $vi_du ) . '"'
 			. ' pattern="([01]?[0-9]|2[0-3])[:.hH ]?[0-5][0-9]([:.hH ]?[0-5][0-9])?"'
 			. ' title="Giờ theo kiểu 24 giờ: 08:30 · 13:37 · 22:05. Gõ liền cũng được: 0830, 1337."'
 			. ' style="width:92px;text-align:center;font-variant-numeric:tabular-nums"'
@@ -7582,12 +7583,19 @@ class VHCC_Web {
 		$id  = 'iv_' . preg_replace( '/[^A-Za-z0-9]+/', '_', ( $co_gio ? 'sg' : 'bu' ) . '_' . $khoa );
 		$gv  = $co_gio ? self::gio_o( $vao_cu ) : '';
 		$gr  = $co_gio ? self::gio_o( $ra_cu ) : '';
+		/* 🔴 26/09/2026 — HAI Ô KHÁC CHỮ MẪU, KHÔNG ĐƯỢC TRÙNG NHAU.
+		   Anh Thắng: mở một ngày TRỐNG HẲN ở màn Bù, thấy CẢ HAI ô "Giờ vào" và "Giờ ra" cùng hiện
+		   "13:37" (chữ mẫu xám, không phải giá trị thật — hai ô đang trống) — mà đúng con số ấy
+		   từng là giờ ra thật bị kẹt trong một hàng lỗi trước đó, nên tưởng hệ thống lại tự điền
+		   sai lần nữa. Chữ mẫu giống hệt ở cả hai ô là gốc của hiểu lầm; cho mỗi ô một ví dụ khác
+		   nhau (hình dạng một ca đêm điển hình) để nhìn qua là biết ngay đó chỉ là gợi ý cách gõ,
+		   không phải số đã có. */
 		$h   = '<div><label for="' . esc_attr( $id . '_v' ) . '">Giờ vào <span class="mo"'
 			. ' style="font-weight:400">(24h)</span></label>'
-			. self::o_gio_24( $id . '_v', $tv, $gv ) . '</div>';
+			. self::o_gio_24( $id . '_v', $tv, $gv, '20:00' ) . '</div>';
 		$h  .= '<div><label for="' . esc_attr( $id . '_r' ) . '">Giờ ra <span class="mo"'
 			. ' style="font-weight:400">(24h)</span></label>'
-			. self::o_gio_24( $id . '_r', $tr, $gr ) . '</div>';
+			. self::o_gio_24( $id . '_r', $tr, $gr, '04:00' ) . '</div>';
 		if ( $co_gio ) {
 			$h .= '<input type="hidden" name="sg_cu' . esc_attr( $o ) . '" value="'
 				. esc_attr( $gv . '|' . $gr ) . '">';
