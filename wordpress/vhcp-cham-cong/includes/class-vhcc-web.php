@@ -9555,7 +9555,8 @@ class VHCC_Web {
 			. '<span class="k hong">? = có giờ vào mà THIẾU giờ ra</span>'
 			. '<br>Người <b>có ca đêm</b> trong tháng hiện <b>2 hàng</b>: <b>☀ Ca ngày</b> (công ngày + '
 			. 'tăng ca + bù — dòng xanh nhỏ <b>bù …</b> là công bù của đêm trước) và <b>🌙 Ca đêm</b> '
-			. '(công đêm). Mỗi hàng có tổng riêng ở cột TỔNG; dòng <b>cả 2 ca</b> là tổng cộng. '
+			. '(công đêm). Mỗi hàng có tổng riêng ở cột TỔNG — <b>KHÔNG cộng chung</b> hai tổng ấy: '
+			. 'lương ca ngày và lương ca đêm tính theo hai công thức khác nhau. '
 			. 'Ở hàng đêm, <b>🌙</b> một mình = đêm đó CÓ làm, công nằm ở ô hôm sau.'
 			. '<br>Người chỉ làm ca ngày vẫn một hàng; dòng nhỏ <b>🌙</b> trong ô (nếu có) là phần '
 			. 'ca đêm của ngày đó. <b>🌙</b> một mình = đêm đó CÓ làm · <b>🌙 kèm số</b> = công '
@@ -9700,10 +9701,17 @@ class VHCC_Web {
 				. self::so_vp( $k_ngay ) . ' · tăng ca ' . self::so_vp( $k_tc ) . ' · công bù ' . self::so_vp( $k_bu ) )
 				. '">' . implode( ' · ', $tach ) . '</div>' : '' )
 			. '</td></tr>';
+		/* ⚠️ 26/09/2026 — KHÔNG HIỆN "CẢ 2 CA" NỮA. Anh Thắng: *"lương ca ngày riêng, ca đêm
+		   riêng, nên không cộng chung nhé, tổng riêng"* — hai ca trả lương theo hai công thức
+		   khác nhau, cộng chung thành một số rồi bày ra là mời người đọc tưởng đó là một khoản
+		   lương duy nhất. `$ca_hai`/`$khop` VẪN GIỮ để đối chiếu ngầm với `tong` của engine (bắt
+		   lỗi lệch số nếu có) — chỉ bỏ MỖI việc IN nó ra màn hình. */
 		echo '<tr class="hang-dem"><td class="ten-dem"><span class="ca-nhan">🌙 Ca đêm</span></td>' . $h_dem
 			. '<td class="tong"><b>' . self::so_vp( $t_dem ) . '</b>'
-			. '<div class="tach-cong" title="Ca ngày + ca đêm">cả 2 ca <b>' . self::so_vp( $ca_hai ) . '</b></div>'
-			. ( $khop ? '' : '<div class="chu-hong">≠ ' . self::so_vp( $e['tong'] ) . '</div>' )
+			. ( $khop ? '' : '<div class="chu-hong" title="' . esc_attr( 'Tổng ca ngày (' . self::so_vp( $t_ngay )
+				. ') + tổng ca đêm (' . self::so_vp( $t_dem ) . ') = ' . self::so_vp( $ca_hai )
+				. ', khác tổng của phép tính — đừng dùng số nào cả, báo lại để tra.' )
+				. '">≠ ' . self::so_vp( $e['tong'] ) . '</div>' )
 			. '</td></tr>';
 		return $khop;
 	}

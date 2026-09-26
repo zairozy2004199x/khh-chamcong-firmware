@@ -8920,19 +8920,21 @@ t( 'ngày được tính công đêm thì mặt trăng kèm SỐ',
 t( '🔴 ô TỔNG có dòng tách công', strpos( $h_vp, '<div class="tach-cong"' ) !== false, $h_vp );
 t( 'tách ra phần công NGÀY', preg_match( '~class="tach-cong"[^>]*>ngày <b>~u', $h_vp ) === 1, $h_vp );
 /* 26/09/2026 — anh Thắng: *"anh chỉ cần biết ca đêm bao công, ca ngày bao công"* / *"tổng cũng
-   chẳng rõ ràng"*. Người có ca đêm nay HAI hàng, mỗi hàng một tổng; hàng 🌙 có thêm "cả 2 ca". */
+   chẳng rõ ràng"*. Người có ca đêm nay HAI hàng, mỗi hàng một tổng RIÊNG.
+   ⚠️ SAU ĐÓ anh chốt tiếp: *"lương ca ngày riêng, ca đêm riêng, nên không cộng chung nhé, tổng
+   riêng"* — hai ca trả lương theo hai công thức khác nhau, KHÔNG được bày ra một dòng "cả 2 ca"
+   cộng gộp hai tổng ấy lại (dễ khiến người đọc tưởng đó là một khoản lương duy nhất). */
 $hai_vpb = vp_hang_cua( $h_vp, 'Người VPB' );
 t( '🔴 người có ca đêm: có hàng ☀ Ca ngày và hàng 🌙 Ca đêm riêng',
 	strpos( $hai_vpb, '☀ Ca ngày' ) !== false && strpos( $hai_vpb, '<tr class="hang-dem">' ) !== false
 	&& strpos( $hai_vpb, '🌙 Ca đêm' ) !== false, $hai_vpb );
-t( '🔴 hàng 🌙 có tổng công đêm riêng, kèm tổng cả 2 ca',
-	1 === preg_match( '~<tr class="hang-dem">.*<td class="tong"><b>[0-9.]+</b><div class="tach-cong"[^>]*>cả 2 ca <b>[0-9.]+</b>~su', $hai_vpb ),
-	$hai_vpb );
+t( '🔴 KHÔNG còn dòng "cả 2 ca" cộng gộp hai tổng lại',
+	strpos( $hai_vpb, 'cả 2 ca' ) === false, $hai_vpb );
 if ( preg_match( '~^(.*?)</tr><tr class="hang-dem">(.*)$~s', $hai_vpb, $m_hai )
 	&& preg_match( '~<td class="tong"><b>([0-9.]+)</b>~', $m_hai[1], $m_t1 )
-	&& preg_match( '~<td class="tong"><b>([0-9.]+)</b><div class="tach-cong"[^>]*>cả 2 ca <b>([0-9.]+)</b>~u', $m_hai[2], $m_t2 ) ) {
-	t( '🔴 tổng ca ngày + tổng ca đêm = cả 2 ca',
-		abs( (float) $m_t1[1] + (float) $m_t2[1] - (float) $m_t2[2] ) < 0.005, array( $m_t1[1], $m_t2[1], $m_t2[2] ) );
+	&& preg_match( '~<td class="tong"><b>([0-9.]+)</b>~', $m_hai[2], $m_t2 ) ) {
+	t( '🔴 hàng ☀ Ca ngày có tổng RIÊNG (không lẫn công đêm)', '' !== $m_t1[1], $m_t1 );
+	t( '🔴 hàng 🌙 Ca đêm có tổng RIÊNG', '' !== $m_t2[1], $m_t2 );
 	t( '   hàng ☀ Ca ngày KHÔNG chứa công đêm (không có ô 🌙 số)',
 		0 === preg_match( '~<div class="mdem">🌙[0-9]~u', $m_hai[1] ), $m_hai[1] );
 } else {
