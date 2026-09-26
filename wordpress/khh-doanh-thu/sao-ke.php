@@ -502,30 +502,64 @@ function khh_dt_doc_sao_ke( $duong_dan, $ten_file = '' ) {
 }
 
 /** Ghi vào kho, không cộng dồn khi nạp lại cùng một file (khoá theo mã giao dịch). */
+/**
+ * 🔴 26/09/2026 anh Thắng — "Khong lưu đươc" (bảng nhận mặt gõ mã xong bấm Lưu và gán lại, tải
+ * lại thì ô lại trống). Cột `nhan` (0.72.0) chỉ THỰC SỰ có trên site khi `khh_dt_nang_cap()` đã
+ * chạy dbDelta của ĐÚNG lượt nâng cấp này — hook `init` ưu tiên 5, chờ MỘT LƯỢT TẢI TRANG. Site
+ * cài qua cache trang / proxy có thể phục một trang từ bộ nhớ đệm TRƯỚC KHI hook ấy kịp chạy trên
+ * tiến trình PHP thật, hoặc `khh_dt_version` bị object-cache giữ giá trị cũ một nhịp.
+ *
+ * `$wpdb->query()`/`get_results()` KHÔNG NÉM NGOẠI LỆ khi SQL hỏng (thiếu cột) — chỉ âm thầm trả
+ * false/rỗng và ghi `$wpdb->last_error`, không ai đọc. Thiếu cột `nhan` thì CẢ CÂU INSERT hỏng
+ * (không phải chỉ mất mỗi ô nhan) — nạp sao kê coi như không ghi được dòng nào, và
+ * `khh_dt_gan_lai_sao_ke()` bên dưới coi như quét ĐƯỢC 0 dòng — cả hai đều báo "thành công" bình
+ * thường ở REST vì không ai kiểm tra việc SQL có thật sự chạy được.
+ *
+ * Tự vá NGAY LÚC DÙNG (không đợi hook `init` kịp) — kiểm cột có thật trong bảng, thiếu thì gọi
+ * lại `khh_dt_tao_bang_sk()` một lần rồi mới ghi/đọc, tự chữa lấy thay vì phụ thuộc đúng thời
+ * điểm của một hook khác đã chạy hay chưa.
+ */
+function khh_dt_bang_sk_co_cot( $cot ) {
+	global $wpdb;
+	static $nho = array();
+	$bang = khh_dt_bang_sk();
+	$khoa = $bang . '|' . $cot;
+	if ( isset( $nho[ $khoa ] ) ) {
+		return $nho[ $khoa ];
+	}
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$co = (bool) $wpdb->get_var( $wpdb->prepare( 'SHOW COLUMNS FROM ' . $bang . ' LIKE %s', $cot ) );
+	if ( ! $co ) {
+		khh_dt_tao_bang_sk();
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+		$co = (bool) $wpdb->get_var( $wpdb->prepare( 'SHOW COLUMNS FROM ' . $bang . ' LIKE %s', $cot ) );
+	}
+	$nho[ $khoa ] = $co;
+	return $co;
+}
+
 function khh_dt_ghi_sao_ke( $ds ) {
 	global $wpdb;
-	$bang = khh_dt_bang_sk();
-	$luc  = current_time( 'mysql' );
-	$n    = 0;
+	$bang    = khh_dt_bang_sk();
+	$luc     = current_time( 'mysql' );
+	$co_nhan = khh_dt_bang_sk_co_cot( 'nhan' );
+	$n       = 0;
 	foreach ( (array) $ds as $r ) {
+		$cot  = 'ma_gd,ngay,gio,ngay_tinh,so_tien,noi_dung,tai_khoan,cua_hang' . ( $co_nhan ? ',nhan' : '' ) . ',nap_luc';
+		$gt   = '%s,%s,%d,%s,%f,%s,%s,%s' . ( $co_nhan ? ',%s' : '' ) . ',%s';
+		$dbao = 'ngay=VALUES(ngay), gio=VALUES(gio), ngay_tinh=VALUES(ngay_tinh),
+				 so_tien=VALUES(so_tien), noi_dung=VALUES(noi_dung), tai_khoan=VALUES(tai_khoan),
+				 cua_hang=VALUES(cua_hang)' . ( $co_nhan ? ', nhan=VALUES(nhan)' : '' ) . ', nap_luc=VALUES(nap_luc)';
+		$args = array( $r['ma_gd'], $r['ngay'], $r['gio'], $r['ngay_tinh'], $r['so_tien'], $r['noi_dung'], $r['tai_khoan'], $r['cua_hang'] );
+		if ( $co_nhan ) {
+			$args[] = isset( $r['nhan'] ) ? (string) $r['nhan'] : '';
+		}
+		$args[] = $luc;
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
 		$wpdb->query(
 			$wpdb->prepare(
-				"INSERT INTO $bang (ma_gd,ngay,gio,ngay_tinh,so_tien,noi_dung,tai_khoan,cua_hang,nhan,nap_luc)
-				 VALUES (%s,%s,%d,%s,%f,%s,%s,%s,%s,%s)
-				 ON DUPLICATE KEY UPDATE ngay=VALUES(ngay), gio=VALUES(gio), ngay_tinh=VALUES(ngay_tinh),
-				 so_tien=VALUES(so_tien), noi_dung=VALUES(noi_dung), tai_khoan=VALUES(tai_khoan),
-				 cua_hang=VALUES(cua_hang), nhan=VALUES(nhan), nap_luc=VALUES(nap_luc)",
-				$r['ma_gd'],
-				$r['ngay'],
-				$r['gio'],
-				$r['ngay_tinh'],
-				$r['so_tien'],
-				$r['noi_dung'],
-				$r['tai_khoan'],
-				$r['cua_hang'],
-				isset( $r['nhan'] ) ? (string) $r['nhan'] : '',
-				$luc
+				"INSERT INTO $bang ($cot) VALUES ($gt) ON DUPLICATE KEY UPDATE $dbao",
+				$args
 			)
 		);
 		$n++;
@@ -546,12 +580,14 @@ function khh_dt_ghi_sao_ke( $ds ) {
  *    lần gán lại đầu tiên, dù nhãn gốc vẫn đúng nguyên. */
 function khh_dt_gan_lai_sao_ke() {
 	global $wpdb;
-	$bang = khh_dt_bang_sk();
+	$bang    = khh_dt_bang_sk();
+	$co_nhan = khh_dt_bang_sk_co_cot( 'nhan' );
+	$cot     = 'id, ngay, gio, noi_dung, tai_khoan, cua_hang, ngay_tinh' . ( $co_nhan ? ', nhan' : '' );
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
-	$ds = (array) $wpdb->get_results( "SELECT id, ngay, gio, noi_dung, tai_khoan, cua_hang, ngay_tinh, nhan FROM $bang", ARRAY_A );
+	$ds = (array) $wpdb->get_results( "SELECT $cot FROM $bang", ARRAY_A );
 	$doi = 0;
 	foreach ( $ds as $r ) {
-		$nhan = trim( (string) ( isset( $r['nhan'] ) ? $r['nhan'] : '' ) );
+		$nhan = $co_nhan ? trim( (string) ( isset( $r['nhan'] ) ? $r['nhan'] : '' ) ) : '';
 		$ch   = '' !== $nhan ? khh_dt_ten_co_so_gan( $nhan ) : '';
 		if ( '' === $ch ) {
 			$ch = khh_dt_doan_co_so( $r['noi_dung'], $r['tai_khoan'] );

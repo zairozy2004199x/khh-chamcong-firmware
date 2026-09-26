@@ -102,6 +102,16 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.73.0 =
+* Sửa "Khong lưu đươc": gõ mã nộp tiền ở bảng nhận mặt (Cấu hình → Sao kê), bấm "Lưu và gán lại"
+  xong tải lại thì ô lại trống — anh Thắng 26/09/2026. Gốc: cột `nhan` (thêm ở 1.72.0) chỉ có
+  thật trên site sau khi máy chủ chạy xong lượt nâng cấp bảng; site chưa kịp chạy (hoặc chạy chưa
+  xong) thì câu SQL ghi/đọc sao kê tham chiếu một cột chưa tồn tại — MySQL âm thầm làm hỏng CẢ
+  CÂU (không phải chỉ mất mỗi ô nhan), khiến cả việc nạp sao kê lẫn "gán lại" coi như không ghi/
+  đọc được dòng nào, dù màn hình vẫn báo "thành công" bình thường. Nay tự kiểm cột có thật trước
+  khi dùng, thiếu thì tự nâng cấp bảng ngay lúc đó, và vẫn ghi/đọc được (giảm về hành vi cũ) ngay
+  cả khi việc tự nâng cấp không kịp — không còn câu SQL nào âm thầm vỡ vì một cột chưa tồn tại.
+
 = 1.72.0 =
 * Sao kê ngân hàng: nhãn cơ sở NGƯỜI ĐÃ XÁC NHẬN bên nguồn (Sao Kê Ngân Hàng K&H) giờ được LƯU LẠI
   và dùng lại đúng thứ tự ưu tiên mỗi khi "gán lại" — anh Thắng 26/09/2026: *"chưa thấy sao kê"* /
