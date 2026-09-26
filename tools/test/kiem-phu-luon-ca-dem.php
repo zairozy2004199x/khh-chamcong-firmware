@@ -110,15 +110,26 @@ $h3 = $goi_bu( array( 'ccs' => $CHINH, 'ngay' => '2026-09-20', 'ma_nv' => 'PLD2'
 t( '🔴 cơ sở CHÍNH (không phải phụ): bù không kèm bu_cd vẫn ghi vào ca chính như cũ',
 	null !== $hang( $CHINH, '2026-09-20', 'PLD2', '' ) && null === $hang( $CHINH, '2026-09-20', 'PLD2', 'CD' ), $h3 );
 
-/* 3b. Màn "Chấm công bù": giờ PLD1/PLD2 đã có dữ liệu trong tháng 09 (từ mục 1 và 3) nên xuất
-      hiện trong lưới — mở hàng bù của một NGÀY KHÁC còn trống để soi đúng ô tích/thông báo.
-      Cơ sở PHỤ đã ghép KHÔNG còn hiện ô tích "Đây là ca đêm" nữa — tự động, và nói rõ trên màn.
-      Cơ sở CHÍNH thì vẫn giữ ô tích như cũ (một cơ sở chính occasionally có tăng ca đêm thật). */
+/* 3b. Màn "Chấm công bù", mở qua `ccs=$PHU`: giờ PLD1/PLD2 đã có dữ liệu trong tháng 09 (từ mục
+      1 và 3) nên xuất hiện trong lưới — mở hàng bù của một NGÀY KHÁC còn trống để soi đúng ô
+      tích/thông báo.
+      ⚠️ 26/09/2026 — SAU BẢN "GHÉP LẠI THÀNH 1 BẢNG": Admin có quyền xem CẢ HAI cơ sở nên
+      `ccs=$PHU` nay bị `the_bang_cham()` đổi thẳng sang lưới CỦA CƠ SỞ CHÍNH (xem khối redirect
+      trong `class-vhcc-web.php`) — không còn lưới riêng-cơ-sở-phụ để mà hỏi "ô tích ẩn hay hiện"
+      nữa. Lưới CHÍNH vẽ ca đêm NGAY TRONG CÙNG Ô (không còn hậu tố `-CD` làm một pseudo-hàng
+      riêng), nên địa chỉ ô sửa cũng đổi theo: `gma` giờ là MÃ TRẦN (`PLD1`), không phải
+      `PLD1-CD`. Và vì `hang_sua()` nhận `$cs` = cơ sở CHÍNH (đã đổi), ô tích "Đây là ca đêm" hiện
+      lại NHƯ CƠ SỞ CHÍNH — tự động luôn-là-ca-đêm chỉ còn áp dụng cho người KHÔNG có quyền xem cơ
+      sở chính (vẫn kẹt ở lưới riêng cũ, xem bài thử `test-cham-cong.php` — mục "Ghép bảng công"
+      đã kiểm đúng nhánh đó với một tài khoản Cửa hàng trưởng bị giới hạn quyền). */
 $h0_phu = $goi_ve( array( 'man' => 'cham', 'ccs' => $PHU, 'cth' => '2026-09',
-	'gnd' => '2026-09-25', 'gma' => 'PLD1-CD' ) );
-t( '🔴 dựng cảnh: hàng bù mở ra (cơ sở phụ)', strpos( $h0_phu, 'id="suaday"' ) !== false, substr( $h0_phu, 0, 400 ) );
-t( '🔴 cơ sở PHỤ: KHÔNG còn ô tích "Đây là ca đêm"', strpos( $h0_phu, 'name="bu_cd"' ) === false, $h0_phu );
-t( '   nói rõ cơ sở này luôn là ca đêm, tự động ghi', strpos( $h0_phu, 'Cơ sở này luôn là ca đêm' ) !== false, $h0_phu );
+	'gnd' => '2026-09-25', 'gma' => 'PLD1' ) );
+t( '🔴 dựng cảnh: hàng bù mở ra (mở qua cơ sở phụ, nhưng đã hiện thẳng lưới cơ sở chính)',
+	strpos( $h0_phu, 'id="suaday"' ) !== false, substr( $h0_phu, 0, 400 ) );
+t( '   nói rõ đang hiện thẳng bảng của cơ sở chính (không còn hai bảng rời nhau)',
+	strpos( $h0_phu, 'đang hiện thẳng bảng của' ) !== false, $h0_phu );
+t( '🔴 Admin có quyền xem cả hai -> vẫn còn ô tích "Đây là ca đêm" (nay là lưới cơ sở CHÍNH)',
+	strpos( $h0_phu, 'name="bu_cd"' ) !== false, $h0_phu );
 
 $h0_chinh = $goi_ve( array( 'man' => 'cham', 'ccs' => $CHINH, 'cth' => '2026-09',
 	'gnd' => '2026-09-25', 'gma' => 'PLD2' ) );
@@ -282,35 +293,31 @@ $h15 = $hang( $CHINH, '2026-09-16', 'PLD2', '' );
 t( '🔴 cơ sở CHÍNH chấm giữa ngày: vẫn mở hàng ca ngày (hậu tố rỗng) như cũ',
 	$h15 && VHCC_DB::giay( '09:45:00' ) === (int) $h15['gio_vao_giay'], $h15 );
 
-/* ═══════════════════════════════ PHẦN D — ẨN "CÔNG BÙ" KHỎI BẢNG CỦA CHÍNH CƠ SỞ PHỤ ═══════════════════════════════
+/* ═══════════════════════════════ PHẦN D — KHÔNG TỰ Ý ẨN "CÔNG BÙ" Ở TẦNG TÍNH TOÁN ═══════════════════════════════
  *
- * 26/09/2026 — anh Thắng xem đúng màn Bảng công của SETUP_VP (không phải KH-HCM):
- * *"anh setup ngày 25 chứ có setup ngày 26 đâu"* / *"tự nhiên lồi 1 công đêm ngày 26 ra"* /
- * *"setup không liên quan công bù"*. Dùng lại đúng ca đêm PLD1 đã bù ở mục 1 (20:00→04:00 ngày
- * 20/09 tại $PHU) — ca ấy tự sinh công đêm ngày 20 và công bù ngày 21. */
+ * 26/09/2026 — anh Thắng: *"không tự ý tùy tiện bảo không liên quan thì hiện"* / *"không hiện
+ * lăng nhằng như này"* — bản vá trước (ẩn công bù ngay trong `vp_bang_cong_va_luong_voi()`) bị
+ * gỡ lại: `vp_tinh_nguoi()`/`vp_bang_cong_va_luong_voi()` là TẦNG TÍNH TOÁN THUẦN, không được tự
+ * ý giấu số dựa trên "cơ sở nào đang hỏi" — con số phải LUÔN đúng và ĐẦY ĐỦ ở tầng này, dù xem
+ * từ cơ sở phụ hay cơ sở chính. Việc "khỏi phải mở hai bảng rời nhau để đối chiếu" chốt là
+ * *"mở SETUP_VP thì hiện thẳng lưới KH-HCM"* — xử lý ở TẦNG MÀN HÌNH (`class-vhcc-web.php`,
+ * xem `kiem-...` cho phần đó), không phải bằng cách giấu số ở đây. */
 
-/* 16. Xem THẲNG bảng của cơ sở PHỤ ($PHU) — công bù ngày 21 phải BIẾN MẤT (không còn dòng nào
-       cho ngày ấy, giống hệt một ngày chưa từng có gì — không phải hiện số 0 bất thường). */
+/* 16. Xem THẲNG bảng của cơ sở PHỤ ($PHU) — công bù ngày 21 (từ ca đêm PLD1 đã bù ở mục 1,
+       20:00→04:00 ngày 20/09) phải CÒN NGUYÊN, KHÔNG bị ẩn. */
 $vp_phu = VHCC_Luong::vp_bang_cong_va_luong( $PHU, '2026-09' );
-$co_ngay21_phu = false;
-foreach ( ( isset( $vp_phu['detail'] ) ? $vp_phu['detail'] : array() ) as $ct ) {
-	if ( 'PLD1' === $ct['ma'] && '2026-09-21' === $ct['ngay'] ) { $co_ngay21_phu = true; }
-}
-t( '🔴 xem bảng của SETUP_VP: ngày 21 (công bù) KHÔNG còn xuất hiện',
-	! $co_ngay21_phu, $vp_phu['detail'] );
 $e_phu_1 = null;
 foreach ( $vp_phu['rows'] as $r ) { if ( 'PLD1' === $r['ma'] ) { $e_phu_1 = $r; } }
-t( '   và tổng công bù của PLD1 trên bảng SETUP_VP = 0', $e_phu_1 && 0.0 === (float) $e_phu_1['congBu'], $e_phu_1 );
-t( '   công đêm ngày 20 vẫn còn nguyên (chỉ ẩn công bù, không đụng công đêm)',
-	$e_phu_1 && (float) $e_phu_1['congDem'] > 0, $e_phu_1 );
+t( '🔴 xem bảng của SETUP_VP: công bù ngày 21 VẪN HIỆN, không bị tự ý ẩn',
+	$e_phu_1 && (float) $e_phu_1['congBu'] > 0, $e_phu_1 );
 
-/* 17. Xem bảng của cơ sở CHÍNH ($CHINH, chùm gồm cả PHU) — công bù ngày 21 VẪN PHẢI CÒN, đây là
-       nơi nó thuộc về và cũng là nơi VHCC_BangLuong đọc để trả lương thật. */
+/* 17. Xem bảng của cơ sở CHÍNH ($CHINH, chùm gồm cả PHU) — công bù đúng bằng con số ở trên, hai
+       nơi phải KHỚP NHAU (cùng một tầng tính toán, không tách riêng theo cơ sở đang hỏi). */
 $vp_chinh = VHCC_Luong::vp_bang_cong_va_luong( $CHINH, '2026-09' );
 $e_chinh_1 = null;
 foreach ( $vp_chinh['rows'] as $r ) { if ( 'PLD1' === $r['ma'] ) { $e_chinh_1 = $r; } }
-t( '🔴 xem bảng của KH-HCM (chùm gồm SETUP_VP): công bù VẪN CÒN',
-	$e_chinh_1 && (float) $e_chinh_1['congBu'] > 0, $e_chinh_1 );
+teq( '🔴 xem bảng của KH-HCM: công bù KHỚP đúng con số bên SETUP_VP, không lệch nhau',
+	$e_phu_1 ? (float) $e_phu_1['congBu'] : null, $e_chinh_1 ? (float) $e_chinh_1['congBu'] : null );
 
 echo "\n";
 if ( $truot ) {

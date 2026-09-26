@@ -14495,15 +14495,37 @@ t( 'và kể ĐÍCH DANH hậu tố nào, bao nhiêu hàng',
 	preg_match( '~<code>-TT</code> \(1 hàng\)~u', $h_ghw ) === 1, $h_ghw );
 t( 'kèm câu chỉ đường: hậu tố lạ thì sửa mã trong tệp rồi nạp lại',
 	strpos( $h_ghw, 'nạp lại' ) !== false, $h_ghw );
-/* 🔴 Mở thẳng cơ sở PHỤ: vẫn xem được để soi, nhưng phải nói ngay là số ở đây ĐÃ tính vào bảng
-   kia — không thì có người lấy cả hai bảng rồi cộng lại, và trả gấp đôi. */
+/* 🔴 26/09/2026 — MỞ THẲNG CƠ SỞ PHỤ THÌ HIỆN LUÔN BẢNG CỦA CƠ SỞ CHÍNH, không còn "vẫn xem
+   được để soi" nữa. Anh Thắng: *"Ghép lại thành 1 bảng"* — hai bảng rời nhau (số công bù/công
+   đêm hiện lệch nhau tuỳ đang xem từ đâu) là nguồn gốc mọi lần hiểu lầm; sửa tận gốc là đừng để
+   có hai bảng. Còn quyền xem cơ sở CHÍNH thì `$cs` bị đổi thẳng ngay từ cửa vào
+   (`the_bang_cham()`), nên banner "đã được tính vào bảng kia" cũ (nằm sâu trong `ve_luoi_vp()`,
+   chỉ chạy khi `$cs` VẪN LÀ cơ sở phụ) không còn dịp chạy tới nữa — nó chỉ còn dành cho người
+   KHÔNG có quyền xem cơ sở chính (xem khối ngay dưới). */
 $_COOKIE[ VHCC_Web::COOKIE ] = VHCC_Auth::phat_token( 'Quản trị', 'Admin', $G_VP . ',' . $G_SU, 'GHAD' );
 $_GET = array( 'man' => 'vp', 'ccs' => $G_SU, 'cth' => '2026-07' );
 ob_start(); VHCC_Web::phuc_vu(); $h_ghp = ob_get_clean();
 $_GET = array(); $_COOKIE = array();
-t( '🔴 mở thẳng cơ sở phụ thì màn CẢNH BÁO là số đã tính vào bảng kia',
-	strpos( $h_ghp, 'đã được tính vào bảng kia' ) !== false, $h_ghp );
-t( 'và cho đường sang bảng chính', strpos( $h_ghp, 'Mở bảng ' . $G_VP ) !== false, $h_ghp );
+t( '🔴 mở thẳng cơ sở phụ: NÓI RA đang hiện thẳng bảng của cơ sở chính',
+	strpos( $h_ghp, 'đang hiện thẳng bảng của' ) !== false
+	&& strpos( $h_ghp, $G_VP ) !== false, $h_ghp );
+/* Lưới bên dưới phải tự xưng tên CƠ SỞ CHÍNH ("$G_VP đang tính THEO CÔNG"), không phải tên cơ
+   sở phụ vừa gõ trên URL — bằng chứng $cs đã đổi THẬT trước khi vẽ lưới, không phải chỉ thêm
+   một câu banner rồi vẫn vẽ nhầm bảng cũ. */
+t( 'và lưới hiện ra ĐÚNG là lưới của cơ sở chính, không phải lưới của cơ sở phụ',
+	strpos( $h_ghp, esc_html( $G_VP ) . '</b> đang tính' ) !== false, $h_ghp );
+
+/* ⚠️ Người CHỈ có quyền cơ sở phụ (không quản cơ sở chính) thì KHÔNG bị đổi — vẫn xem được
+   đúng bảng phụ để soi, và vẫn thấy đúng banner cũ "đã được tính vào bảng kia". */
+$_COOKIE[ VHCC_Web::COOKIE ] = VHCC_Auth::phat_token( 'Trưởng SETUP', 'Cửa hàng trưởng', $G_SU, 'GHSU' );
+$_GET = array( 'man' => 'vp', 'ccs' => $G_SU, 'cth' => '2026-07' );
+ob_start(); VHCC_Web::phuc_vu(); $h_ghp2 = ob_get_clean();
+$_GET = array(); $_COOKIE = array();
+t( '🔴 KHÔNG có quyền xem cơ sở chính: vẫn ở nguyên bảng phụ, KHÔNG bị đổi',
+	strpos( $h_ghp2, 'đang hiện thẳng bảng của' ) === false, $h_ghp2 );
+t( '   và vẫn thấy đúng banner cũ, kèm đường sang bảng chính',
+	strpos( $h_ghp2, 'đã được tính vào bảng kia' ) !== false
+	&& strpos( $h_ghp2, 'Mở bảng ' . $G_VP ) !== false, $h_ghp2 );
 
 /* ---- Khối khai trên tab CƠ SỞ (dời khỏi Cấu hình 02/09/2026), và lưu qua đúng cửa POST ---- */
 $tok_gh = VHCC_Auth::phat_token( 'Quản trị', 'Admin', $G_VP . ',' . $G_SU . ',TUTU_BT', 'GHAD' );

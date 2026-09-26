@@ -1346,22 +1346,6 @@ class VHCC_Luong {
 	 */
 	public static function vp_bang_cong_va_luong_voi( $coso, $tt, $cfg ) {
 
-		/* 🔴 26/09/2026 — XEM THẲNG CƠ SỞ PHỤ: ẨN "CÔNG BÙ" KHỎI BẢNG CỦA CHÍNH NÓ.
-		   Anh Thắng, xem đúng bảng SETUP_VP: *"anh setup ngày 25 chứ có setup ngày 26 đâu"* /
-		   *"tự nhiên lồi 1 công đêm ngày 26 ra"* / *"setup không liên quan công bù"*. Công bù là
-		   khoản đền cho NGÀY HÔM SAU của một ca đêm — về bản chất nó là chuyện của cơ sở CHÍNH
-		   (KH-HCM), không phải của SETUP; SETUP chỉ đứng đó vì `vp_tinh_nguoi()` là hàm THUẦN,
-		   không biết ai đang hỏi, cứ có ca đêm đạt chuẩn là tính bù, bất kể lượt gọi đến từ đâu.
-		   Xem thẳng bảng của SETUP_VP (chỉ nó, không kèm KH-HCM — `chum_cua('SETUP_VP')` chỉ trả
-		   về chính nó) thì khoản bù ấy không có gì để đứng cạnh — không hàng thật nào ở SETUP vào
-		   đúng ngày đó — nên hiện lên trơ trọi, đúng như anh thấy.
-		   ⚠️ CHỈ ẨN Ở BẢNG CỦA CHÍNH CƠ SỞ PHỤ. Xem từ bảng KH-HCM (`chum_cua()` gồm cả SETUP_VP)
-		      thì khoản bù VẪN PHẢI CÒN — đó là nơi nó thuộc về, và `VHCC_BangLuong::dung()` (bản
-		      lương thật) đọc đúng qua đường ấy. Chỉ đổi ĐỘ RA ở đây, không đụng gì tới
-		      `vp_tinh_nguoi()` — hàm ấy vẫn tính công bù y hệt cho MỌI lượt gọi, đúng vai trò
-		      "hàm thuần" của nó; lọc ra là việc của TẦNG NÀY, nơi biết cơ sở đang xem là ai. */
-		$la_phu = '' !== self::ghep_vao( $coso );
-
 		/* Gom theo NGƯỜI rồi theo NGÀY. Hàng chính -> 'chinh', hàng -CD -> 'dem'.
 		   ⚠️ Hàng -CT (công tối, hậu tố CŨ không còn ghi mới) cũng gom vào 'dem': bản gốc giữ nó
 		      để hàng lỡ tạo vẫn đọc được, bỏ đi là mất công của ngày đó. */
@@ -1420,27 +1404,6 @@ class VHCC_Luong {
 			   Xem chú thích ở `vp_cfg()` cho lý do hai khoá tách nhau. */
 			$la_kt = in_array( strtolower( $ma ), $cfg['ktMaTinh'], true );
 			$ngay_ds = self::vp_tinh_nguoi( $cfg, $la_kt, $theo_ngay );
-			/* Ẩn công bù khỏi bảng của chính cơ sở phụ — xem chú thích dài ở đầu hàm. Cùng điều
-			   kiện GIỮ/BỎ dòng mà `vp_tinh_nguoi()` tự dùng cho chính nó (dòng ~1266-1268 ở đó) —
-			   phải khớp nhau, không thì một ngày chỉ có công bù bị ẩn số nhưng vẫn còn "dính"
-			   trên lưới thành một ô trống bất thường, khác hẳn ô trống thật của ngày chưa từng
-			   có gì. */
-			if ( $la_phu ) {
-				foreach ( $ngay_ds as $ngay_bu => &$d_bu ) {
-					if ( ! ( $d_bu['congBu'] > 0 ) ) { continue; }
-					$d_bu['tong']     = round( $d_bu['tong'] - $d_bu['congBu'], 2 );
-					$d_bu['congBu']   = 0.0;
-					$d_bu['buTuNgay'] = '';
-					$thieu_ra_bu = ( ( '' !== $d_bu['vao'] ) !== ( '' !== $d_bu['ra'] ) )
-						|| ( ( '' !== $d_bu['h2vao'] ) !== ( '' !== $d_bu['h2ra'] ) );
-					if ( $d_bu['tong'] <= 0 && ! $d_bu['caLa'] && '' === $d_bu['demSangNgay']
-						&& ! $d_bu['demThieuGio'] && ! $thieu_ra_bu
-						&& ! ( $d_bu['ktCnNghi'] && $d_bu['phutNgay'] > 0 ) ) {
-						unset( $ngay_ds[ $ngay_bu ] );
-					}
-				}
-				unset( $d_bu );
-			}
 			$e = array( 'ma' => $ma, 'ten' => ( '' !== $ten[ $ma ] ? $ten[ $ma ] : $ma ), 'laKeToan' => $la_kt,
 				'congNgay' => 0.0, 'congTangCa' => 0.0, 'congDem' => 0.0, 'congBu' => 0.0, 'tong' => 0.0,
 				'soNgayCaLa' => 0, 'soNgayDemThieuGio' => 0, 'soNgayDemChuaDuCap' => 0 );

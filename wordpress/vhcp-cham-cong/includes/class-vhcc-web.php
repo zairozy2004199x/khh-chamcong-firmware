@@ -5699,6 +5699,34 @@ class VHCC_Web {
 		$ma_nv = isset( $_GET['cnv'] ) ? sanitize_text_field( wp_unslash( $_GET['cnv'] ) ) : '';
 
 		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 26/09/2026 — MỞ CƠ SỞ PHỤ ĐÃ GHÉP THÌ HIỆN THẲNG BẢNG CỦA CƠ SỞ CHÍNH.
+		 *
+		 * Anh Thắng, sau nhiều lượt sửa "công bù"/"công đêm" hiện lệch nhau giữa hai bảng
+		 * SETUP_VP và VP_KH-HCM: *"Ai có công setup ghép lại 2 hàng để dễ đối chiếu"* /
+		 * *"Ghép lại thành 1 bảng"* — chốt: mở SETUP_VP thì hiện thẳng lưới KH-HCM, không còn
+		 * lưới riêng của cơ sở phụ nữa. Gốc rễ mọi lần lệch số ở trên là hai bảng RỜI NHAU cùng
+		 * đọc một dữ liệu — sửa tận gốc là đừng để có hai bảng, không phải vá từng ô lệch một.
+		 *
+		 * ⚠️ CHỈ ĐỔI KHI CÒN QUYỀN XEM CƠ SỞ CHÍNH. Ai chỉ được giao đúng cơ sở phụ (không quản
+		 *    cơ sở chính) thì giữ nguyên bảng phụ như cũ — đổi thẳng sẽ mở dữ liệu của một cơ sở
+		 *    người đó chưa từng có quyền vào (xem `VHCC_NhanSu::co_quyen_coso()`).
+		 * ⚠️ CHỈ ĐỔI Ở ĐÂY — MỘT CHỖ, TRƯỚC MỌI THỨ KHÁC DÙNG `$cs`. Bảng liệt kê đơn giản, lưới
+		 *    cả tháng, khối In/Lương... của màn "Chấm công" đều đọc từ biến `$cs` này; đổi ngay
+		 *    từ cửa vào là mọi khối phía sau tự động ăn theo, không phải sửa từng khối một.
+		 * ⚠️ KHÔNG XOÁ "🔗 Bảng này đã gồm công của..." Ở LƯỚI CẢ THÁNG (dưới). Câu ấy vẫn còn ý
+		 *    nghĩa cho người KHÔNG có quyền xem cơ sở chính (nhánh trên không đổi `$cs` của họ). */
+		if ( '' !== $cs ) {
+			$cs_chinh_ghep = method_exists( 'VHCC_Luong', 'ghep_vao' ) ? VHCC_Luong::ghep_vao( $cs ) : '';
+			if ( '' !== $cs_chinh_ghep && VHCC_NhanSu::co_quyen_coso( $toi, $cs_chinh_ghep ) ) {
+				echo '<div class="bao canh" style="margin:0 0 10px">🔗 <b>' . esc_html( $cs )
+					. '</b> đã ghép vào bảng công của <b>' . esc_html( $cs_chinh_ghep ) . '</b> — '
+					. 'đang hiện thẳng bảng của <b>' . esc_html( $cs_chinh_ghep ) . '</b> để khỏi phải '
+					. 'đối chiếu hai bảng rời nhau.</div>';
+				$cs = $cs_chinh_ghep;
+			}
+		}
+
+		/* ═══════════════════════════════════════════════════════════════════════════════════
 		 * 🔴 CHƯA CHỌN GÌ THÌ XỔ SẴN BẢNG CÔNG CƠ SỞ MÌNH — ĐỪNG ĐỂ MÀN TRƠ.
 		 *
 		 * Anh Thắng 18/09/2026: *"Chỗ này, em xổ sẵn bảng công nhân viên chấm công, chứ để này
