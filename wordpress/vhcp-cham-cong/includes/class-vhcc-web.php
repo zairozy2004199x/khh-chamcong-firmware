@@ -4422,7 +4422,8 @@ class VHCC_Web {
 		}
 
 		self::the_tao_moi();
-		self::the_nap_csv( $ky, $tong );
+		/* 26/09/2026 — BỎ THẺ "Nạp hồ sơ nhân viên từ file .csv" khỏi màn này (anh Thắng: "bỏ này
+		   đi"). Lõi nạp (`VHCC_NapCsv`, việc `xem_csv`/`nap_csv`/`lui_csv`) vẫn giữ nguyên. */
 		self::the_tai_khoan( $ky, $la );
 		self::the_ho_so( $ky, $toi );
 		if ( $la ) { self::the_xoa_het( $ky, $tong ); }
@@ -13508,36 +13509,7 @@ class VHCC_Web {
 			. '">➕ Mở biểu mẫu tạo nhân sự mới</a></p>';
 		echo '<p class="mo">Có <b>ảnh thẻ</b> thì hệ tự <b>đẩy hồ sơ xuống máy chấm công</b> và lấy '
 			. 'luôn <b>mẫu đối chiếu khuôn mặt</b> cho chấm công online — không phải làm thêm bước '
-			. 'nào. Thêm <b>nhiều người một lúc</b> thì dùng thẻ <b>Nạp hồ sơ nhân viên từ file '
-			. '.csv</b> ngay bên dưới.</p>';
-		echo '</div>';
-	}
-
-	private static function the_nap_csv( $ky, $tong ) {
-		$lui = VHCC_NapCsv::co_lui();
-		echo '<div class="the"><h2>📥 Nạp hồ sơ nhân viên từ file .csv</h2>';
-		echo '<p class="mo">Google Sheets → <b>File → Tải xuống → Giá trị được phân tách bằng dấu phẩy '
-			. '(.csv)</b>. Lấy đủ mọi cột. Khớp theo <b>Mã NV</b> nên nạp lại là cập nhật, không nhân đôi. '
-			. 'Ô để trống trong file <b>không</b> xoá dữ liệu đang có. Hiện có <b>' . (int) $tong . '</b> hồ sơ.</p>';
-		echo '<form method="post" enctype="multipart/form-data">';
-		echo '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">' . self::o_loc();
-		echo '<div class="hang">';
-		echo '<div><label for="tep">File .csv</label><input id="tep" type="file" name="tep" '
-			. 'accept=".csv,.tsv,.txt" required></div>';
-		echo '<div><label for="cs">Chỉ nhận cơ sở</label>'
-			. '<input id="cs" name="coso" placeholder="trống = nhận hết" style="width:170px"></div>';
-		echo '<button name="viec" value="xem_csv">Xem trước</button>';
-		echo '<button class="chinh" name="viec" value="nap_csv">Nạp</button>';
-		echo '</div></form>';
-		echo '<p class="mo"><b>Luôn bấm Xem trước trước.</b> Bảng "sẽ đổi những ô này" cho thấy '
-			. 'từng ô <i>đang là</i> → <i>sẽ thành</i>, nên đọc sai cột là thấy ngay, trước khi ghi đè.</p>';
-		if ( ! empty( $lui['luc'] ) ) {
-			echo '<form method="post" style="margin-top:8px">'
-				. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">' . self::o_loc()
-				. '<button name="viec" value="lui_csv">↩ Hoàn tác lượt nạp lúc '
-				. esc_html( $lui['luc'] ) . '</button>'
-				. '<span class="mo"> — chỉ lùi được MỘT bước.</span></form>';
-		}
+			. 'nào.</p>';
 		echo '</div>';
 	}
 

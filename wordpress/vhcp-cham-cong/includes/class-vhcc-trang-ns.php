@@ -1687,10 +1687,10 @@ class VHCC_TrangNS {
 		self::the_vai( $toi );
 		/* Ngay SAU Bảng vai trò: khai vai cho bộ phận chỉ có nghĩa khi vai đã tồn tại, nên hai
 		   khối phải đứng cạnh nhau và đúng thứ tự đọc. */
-		/* Sơ đồ tổ chức đứng TRƯỚC hai khối khai theo bộ phận: sửa tên phòng xong mới khai vai
-		   và quyền cho nó — đúng thứ tự người ta làm. */
-		self::the_bo_chi_phi( $toi );
-		self::the_so_do( $toi );
+		/* 26/09/2026 — BỎ khối "Đẩy sang Vận hành chi phí — bó bộ phận" và khối "Sơ đồ tổ chức —
+		   mảng kinh doanh & phòng ban" (kèm bảng phòng ban Đổi tên/Gộp/Xoá) khỏi màn (anh Thắng:
+		   "Bỏ"). Chỉ bỏ MÀN HÌNH: bản đồ bộ phận đã khai, tên mảng/phòng ban và các việc
+		   `bp_*` ở máy chủ giữ nguyên, nên dữ liệu đang chạy không đổi. */
 		self::the_vai_bp( $toi );
 		self::the_gop_tay( $toi );
 		self::dong_trang();
@@ -2298,7 +2298,7 @@ class VHCC_TrangNS {
 			}
 		}
 		$cai = array(
-			'nhan_su' => array( 'Nhân sự', 'Hồ sơ, cơ sở, vai trò, sơ đồ tổ chức' ),
+			'nhan_su' => array( 'Nhân sự', 'Hồ sơ, cơ sở, vai trò' ),
 			'quyen'   => array( 'Quyền vào trang', 'Ai mở được trang nào' ),
 		);
 		echo '<div class="the" style="padding:0;overflow:hidden"><div class="tab-ns">';
@@ -3999,7 +3999,6 @@ class VHCC_TrangNS {
 			$bp_d = $hs_d ? VHCC_DayChiPhi::bo_phan_day( $hs_d ) : '';
 			$them = ( '' === $bp_d )
 				? ' ⚠️ Người này CHƯA bị bó bộ phận bên ấy — họ xem được sổ chi phí của mọi mảng.'
-					. ' Khai bản đồ ở khối «Đẩy sang Vận hành chi phí — bó bộ phận» bên dưới.'
 				: ' Bộ phận gửi sang: «' . $bp_d . '».';
 		}
 		return array( array( 'ok' => 'Đã đẩy ' . $ma . ' sang ' . $cot[ $k ]['ten'] . '.' . $them ) );
@@ -4420,118 +4419,6 @@ class VHCC_TrangNS {
 			: ( 'Đã bỏ khai vai cho bộ phận "' . $bp . '" — ô Vai trò của họ trở lại như cũ.' ) ) );
 	}
 
-	/* ══════════════════════════════════════════════════════════════════════════════════════════
-	 * ĐẨY SANG VẬN HÀNH CHI PHÍ — BÓ BỘ PHẬN CHO ĐÚNG
-	 * ══════════════════════════════════════════════════════════════════════════════════════════
-	 * Xem khối chú thích dài ở `VHCC_DayChiPhi::bo_phan_day()`. Tóm tắt: ô Chức vụ của hồ sơ
-	 * chấm công trước giờ được gửi thẳng sang cột Bộ phận bên chi phí mà không kiểm gì, và bên
-	 * ấy quy mọi tên lạ về "không bó bộ phận" — tức NHÌN THẤY SỔ CỦA MỌI MẢNG.
-	 *
-	 * 🔴 KHỐI NÀY KHÔNG PHẢI ĐỂ KHAI CHO ĐẸP. Nó là chỗ DUY NHẤT nói ra ai đang không bị bó —
-	 *    con số ấy trước bản này không hiện ở đâu, cả hai bên.
-	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
-	private static function the_bo_chi_phi( $toi ) {
-		if ( ! self::cot_chi_phi( $toi ) ) { return; }
-		$ds_bp = VHCC_DayChiPhi::ds_bo_phan_chi_phi();
-		if ( ! $ds_bp ) { return; }
-		$bd  = VHCC_DayChiPhi::ban_do();
-		$ho  = VHCC_DayChiPhi::da_day_ds();
-
-		/* Ai đang có tài khoản bên ấy mà không bó bộ phận. Đọc một lượt, tính trong bộ nhớ. */
-		$khong_bo = array();
-		foreach ( (array) $ho as $ma_h ) {
-			$ma_h = trim( (string) $ma_h );
-			if ( '' === $ma_h ) { continue; }
-			$hs_h = VHCC_NhanSu::ho_so( $ma_h );
-			if ( ! $hs_h ) { continue; }
-			if ( '' === VHCC_DayChiPhi::bo_phan_day( $hs_h ) ) { $khong_bo[] = $ma_h; }
-		}
-
-		echo '<div class="the"><details' . ( $khong_bo ? ' open' : '' ) . '>';
-		echo '<summary><b>Đẩy sang Vận hành chi phí — bó bộ phận</b> — '
-			. ( $khong_bo ? '<span class="chua-ma">' . count( $khong_bo ) . ' người chưa bị bó</span>'
-				: 'mọi người đều đã bó' ) . '</summary>';
-		echo '<p class="mo">App chi phí bó quyền theo <b>bộ phận của nó</b> (' 
-			. esc_html( implode( ' · ', $ds_bp ) ) . '). Tên nào nó không nhận ra thì nó hiểu là '
-			. '<b>không bó gì</b> — người ấy xem được sổ chi phí của <b>mọi mảng</b>.</p>';
-		echo '<p class="mo">⚠️ Đặt tên phòng ban theo mảng («KVC · Phòng Kế Toán») là sinh ra đúng '
-			. 'mấy cái tên bên kia không biết. Khai bản đồ dưới đây một lần thì mảng nào cũng gửi '
-			. 'sang đúng bộ phận, khỏi phụ thuộc ô Chức vụ gõ tay.</p>';
-
-		echo '<div class="cuon"><table class="stt"><thead><tr><th>Mảng (bên chấm công)</th>'
-			. '<th>Gửi sang bộ phận (bên chi phí)</th></tr></thead><tbody>';
-		foreach ( VHCC_NhanSu::ds_mang_tat_ca() as $m ) {
-			$dang = isset( $bd[ $m ] ) ? $bd[ $m ] : '';
-			echo '<tr><td><b>' . esc_html( VHCC_NhanSu::ten_mang( $m ) ) . '</b>'
-				. ( VHCC_NhanSu::ten_mang( $m ) !== $m
-					? ' <span class="mo"><code>' . esc_html( $m ) . '</code></span>' : '' ) . '</td>';
-			echo '<td><form method="post" class="hang" style="gap:6px;margin:0">';
-			echo '<input type="hidden" name="ky" value="' . esc_attr( self::ky() ) . '">';
-			echo '<input type="hidden" name="bd_mang" value="' . esc_attr( $m ) . '">';
-			echo '<select name="bd_bp" class="o-q-vai"><option value="">— chưa khai —</option>';
-			foreach ( $ds_bp as $b ) {
-				echo '<option value="' . esc_attr( $b ) . '"' . selected( $b, $dang, false ) . '>'
-					. esc_html( $b ) . '</option>';
-			}
-			echo '</select><button name="viec" value="bd_chi_phi">Lưu</button>';
-			echo '</form></td></tr>';
-		}
-		echo '</tbody></table></div>';
-
-		/* ══════════════════════════════════════════════════════════════════════════════════════
-		 * BẢNG THỨ HAI — PHÒNG BAN, KHÔNG PHẢI MẢNG
-		 * ══════════════════════════════════════════════════════════════════════════════════════
-		 * 🔴 BẢNG MẢNG Ở TRÊN KHÔNG ĐỦ, và thiếu bảng này là lý do chính khiến người ta không bị
-		 *    bó. Xem khối dài ở `VHCC_DayChiPhi::ban_do_bp()`: mảng là hạt to (*Khu Vui Chơi*),
-		 *    một mảng chứa cả Kế toán lẫn Kỹ thuật — ép chung một bộ phận chi phí là bó SAI.
-		 *    Phòng ban mới là hạt vừa, và nó là ô mà hệ nhân sự thật sự quyết.
-		 * ══════════════════════════════════════════════════════════════════════════════════════ */
-		$bd_bp  = VHCC_DayChiPhi::ban_do_bp();
-		$ds_pbn = VHCC_NhanSu::ds_bo_phan();
-		if ( $ds_pbn ) {
-			echo '<p class="mo" style="margin-top:14px"><b>Phòng ban → bộ phận chi phí.</b> '
-				. 'Hạt nhỏ hơn bảng mảng ở trên và <b>được tra trước</b> — anh Thắng 13/09/2026: '
-				. '<i>"quyết định bộ phận do nhân sự quyết định, bên chi phí chỉ biết bộ phận đó '
-				. 'có được quyền không thôi"</i>. Tên nào trùng sẵn một bộ phận bên kia thì khỏi '
-				. 'khai, nó tự khớp.</p>';
-			echo '<div class="cuon"><table class="stt"><thead><tr><th>Phòng ban (bên nhân sự)</th>'
-				. '<th>Gửi sang bộ phận (bên chi phí)</th></tr></thead><tbody>';
-			foreach ( $ds_pbn as $pbn ) {
-				$tu_khop = VHCC_DayChiPhi::bo_phan_hop_le( $pbn );
-				$dang_bp = isset( $bd_bp[ $pbn ] ) ? $bd_bp[ $pbn ] : '';
-				echo '<tr><td><b>' . esc_html( $pbn ) . '</b>'
-					. ( '' !== $tu_khop
-						? ' <span class="mo">✓ bên kia hiểu sẵn «' . esc_html( $tu_khop ) . '»</span>'
-						: '' ) . '</td>';
-				echo '<td><form method="post" class="hang" style="gap:6px;margin:0">';
-				echo '<input type="hidden" name="ky" value="' . esc_attr( self::ky() ) . '">';
-				echo '<input type="hidden" name="bdbp_ten" value="' . esc_attr( $pbn ) . '">';
-				echo '<select name="bdbp_bp" class="o-q-vai"><option value="">'
-					. ( '' !== $tu_khop ? '— tự khớp —' : '— chưa khai —' ) . '</option>';
-				foreach ( $ds_bp as $b ) {
-					echo '<option value="' . esc_attr( $b ) . '"' . selected( $b, $dang_bp, false ) . '>'
-						. esc_html( $b ) . '</option>';
-				}
-				echo '</select><button name="viec" value="bdbp_chi_phi">Lưu</button>';
-				echo '</form></td></tr>';
-			}
-			echo '</tbody></table></div>';
-		}
-
-		if ( $khong_bo ) {
-			echo '<div class="bao canh" style="margin-top:10px"><b>' . count( $khong_bo )
-				. ' người đang có tài khoản Vận hành chi phí mà KHÔNG bị bó bộ phận</b> — họ xem '
-				. 'được sổ chi phí của mọi mảng. Khai bản đồ ở trên cho mảng của họ, hoặc sửa ô '
-				. '<b>Chức vụ</b> trong hồ sơ thành đúng một tên bên kia hiểu.<br>'
-				. esc_html( implode( ', ', array_slice( $khong_bo, 0, 12 ) ) )
-				. ( count( $khong_bo ) > 12 ? '…' : '' ) . '</div>';
-		} else {
-			echo '<p class="mo" style="margin-top:10px">✓ Mọi người đang đẩy sang chi phí đều gửi '
-				. 'kèm một bộ phận bên ấy hiểu — không ai nhìn quá phần của mình.</p>';
-		}
-		echo '</details></div>';
-	}
-
 	private static function viec_bd_chi_phi( $toi ) {
 		$m  = isset( $_POST['bd_mang'] ) ? sanitize_text_field( wp_unslash( $_POST['bd_mang'] ) ) : '';
 		$b  = isset( $_POST['bd_bp'] ) ? sanitize_text_field( wp_unslash( $_POST['bd_bp'] ) ) : '';
@@ -4565,126 +4452,6 @@ class VHCC_TrangNS {
 			? 'Đã bỏ khai bản đồ cho phòng ban «' . $n . '».'
 			: 'Phòng ban «' . $n . '» nay gửi sang chi phí là bộ phận «' . $b . '».' )
 			. ( $so ? ' Đã cập nhật lại ' . $so . ' tài khoản bên ấy cho khớp.' : '' ) ) );
-	}
-
-	/* ══════════════════════════════════════════════════════════════════════════════════════════
-	 * SƠ ĐỒ TỔ CHỨC — sửa được ngay trên màn, không phải chờ một bản cập nhật
-	 * ══════════════════════════════════════════════════════════════════════════════════════════
-	 * Anh Thắng 13/09/2026: *"cơ cấu vai trò phòng ban nó đang sai"*.
-	 *
-	 * Và cái sai lớn nhất không phải mấy cái tên — là **không có chỗ nào sửa chúng**. Danh sách
-	 * phòng ban gieo một lần vào option rồi nằm đó; thấy sai thì phải nhắn cho người viết mã và
-	 * chờ, cho một việc lẽ ra là gõ lại một cái tên.
-	 *
-	 * ⚠️ ĐỔI TÊN MANG THEO CẢ BA SỔ bám vào cái tên ấy (người · vai bày lên đầu · luật quyền) —
-	 *    xem `VHCC_NhanSu::doi_ten_bo_phan()`. Riêng GỘP và XOÁ cần Admin: chúng xoá hẳn một
-	 *    phòng và kéo luật quyền của phòng ấy đi theo.
-	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
-	private static function the_so_do( $toi ) {
-		if ( ! VHCC_NhanSu::co_sua_ho_so( $toi ) ) { return; }
-		$ds    = VHCC_NhanSu::ds_bo_phan();
-		$dem   = VHCC_NhanSu::dem_khai_bo_phan();
-		$admin = VHCC_Vai::duoc( $toi, 'he_thong' );
-
-		echo '<div class="the"><details open><summary><b>Sơ đồ tổ chức — mảng kinh doanh &amp; '
-			. 'phòng ban</b> — ' . count( $ds ) . ' phòng</summary>';
-
-		/* ---- 1. MẢNG KINH DOANH ---- */
-		echo '<h3 style="margin:12px 0 4px;font-size:14px">Mảng kinh doanh</h3>';
-		/* 🔴 NÓI THẲNG VÌ SAO CHỈ ĐỔI ĐƯỢC TÊN HIỆN RA. Không nói thì người khai gõ tên dài vào,
-		   thấy màn hình đổi, và tin rằng giá trị lưu cũng đổi theo — rồi đi tìm nó ở chỗ khác. */
-		echo '<p class="mo">Đổi được <b>tên hiện ra</b>. Mã lưu bên dưới thì <b>giữ nguyên</b>: '
-			. 'lương, chi phí và dự án đều khớp đúng chuỗi ấy, đổi đi là lương cả mảng rơi về '
-			. '«Chưa xếp» mà không có gì báo.</p>';
-		echo '<div class="cuon"><table class="stt"><thead><tr><th>Mã lưu</th>'
-			. '<th>Tên hiện ra</th></tr></thead><tbody>';
-		$an_ds = VHCC_NhanSu::mang_an();
-		foreach ( VHCC_NhanSu::ds_mang_tat_ca() as $m ) {
-			$dang_an = in_array( $m, $an_ds, true );
-			echo '<tr' . ( $dang_an ? ' class="mang-an"' : '' ) . '><td><code>' . esc_html( $m ) . '</code>'
-				/* ⚠️ Lớp RIÊNG, không mượn `chip-t`. Lớp ấy nghĩa là "trùng tên", và bộ thử canh
-				   đúng chuỗi `class="chip-t"` để bắt cảnh báo trùng tên báo oan — mượn nó ở đây
-				   là làm hỏng một cái chốt ở chỗ khác. */
-				. ( $dang_an ? ' <span class="chip-an">đang ẩn</span>' : '' ) . '</td>';
-			echo '<td><form method="post" class="hang" style="gap:6px;margin:0">';
-			echo '<input type="hidden" name="ky" value="' . esc_attr( self::ky() ) . '">';
-			echo '<input type="hidden" name="mang_ma" value="' . esc_attr( $m ) . '">';
-			echo '<input type="text" name="mang_ten" value="' . esc_attr( VHCC_NhanSu::ten_mang( $m ) )
-				. '" style="min-width:230px">';
-			echo '<button name="viec" value="ten_mang">Lưu tên</button>';
-			/* 🔴 ẨN, KHÔNG XOÁ. Anh Thắng 13/09/2026: *"bỏ 2 cái dưới cùng cho anh"*. Bỏ hẳn một
-			   mảng khỏi `VHCC_Luong::BP_DS` là cơ sở nào đang xếp vào đó rơi về "Chưa xếp", tức
-			   mất công thức lương — im lặng. Ẩn thì nó biến khỏi mọi ô chọn, còn lương vẫn tra
-			   ra như cũ, và bấm một cái là hiện lại. */
-			echo '<button name="viec" value="' . ( $dang_an ? 'mang_hien' : 'mang_an' ) . '" title="'
-				. esc_attr( $dang_an
-					? 'Cho mảng này hiện lại ở các ô chọn'
-					: 'Giấu mảng này khỏi các ô chọn — lương và dữ liệu cũ KHÔNG đụng gì' ) . '">'
-				. ( $dang_an ? 'Hiện lại' : 'Ẩn' ) . '</button>';
-			echo '</form></td></tr>';
-		}
-		echo '</tbody></table></div>';
-
-		/* ---- 2. PHÒNG BAN, XẾP THEO MẢNG ---- */
-		echo '<h3 style="margin:16px 0 4px;font-size:14px">Phòng ban</h3>';
-		echo '<p class="mo">Đổi tên ở đây thì <b>người, vai bày lên đầu và luật quyền</b> của phòng '
-			. 'ấy đi theo — không rơi mất thứ nào. <b>Gộp</b> là nhập hai phòng làm một (người của '
-			. 'phòng bị gộp chuyển sang hết); <b>Xoá</b> chỉ làm được khi phòng không còn ai khai tay.</p>';
-		if ( ! $admin ) {
-			echo '<p class="mo">Vai hiện tại đổi tên và thêm được; <b>gộp</b> và <b>xoá</b> cần Admin.</p>';
-		}
-		/* 🔴 KHÔNG CÓ CỘT "THUỘC MẢNG". Anh Thắng 13/09/2026: *"Bỏ mảng luôn… anh tạo phòng ban
-		   theo mảng đó luôn cho gọn"* — tức là tên phòng tự nói nó thuộc mảng nào, khỏi cần thêm
-		   một ô xổ nữa cho mỗi hàng. Một cột 12 ô xổ chỉ để nhắc lại điều cái tên đã nói là công
-		   khai gấp đôi, và hai chỗ ấy lệch nhau lúc nào không ai biết. */
-		echo '<div class="cuon"><table class="stt"><thead><tr><th>Phòng ban</th>'
-			. '<th>Đổi tên</th><th>Gộp / Xoá</th></tr></thead><tbody>';
-		foreach ( $ds as $bp ) {
-			$so = isset( $dem[ $bp ] ) ? (int) $dem[ $bp ] : 0;
-			echo '<tr><td><b>' . esc_html( $bp ) . '</b>'
-				. ' <span class="sl-nho" title="Số người ĐANG KHAI TAY phòng này">' . $so . '</span></td>';
-			echo '<td><form method="post" class="hang" style="gap:6px;margin:0">';
-			echo '<input type="hidden" name="ky" value="' . esc_attr( self::ky() ) . '">';
-			echo '<input type="hidden" name="bp_cu" value="' . esc_attr( $bp ) . '">';
-			echo '<input type="text" name="bp_moi" value="' . esc_attr( $bp ) . '" style="min-width:190px">';
-			echo '<button name="viec" value="bp_doi_ten">Đổi tên</button>';
-			echo '</form></td>';
-			echo '<td>';
-			if ( $admin ) {
-				echo '<form method="post" class="hang" style="gap:6px;margin:0">';
-				echo '<input type="hidden" name="ky" value="' . esc_attr( self::ky() ) . '">';
-				echo '<input type="hidden" name="bp_cu" value="' . esc_attr( $bp ) . '">';
-				echo '<select name="bp_vao"><option value="">— gộp vào phòng —</option>';
-				foreach ( $ds as $d ) {
-					if ( $d === $bp ) { continue; }
-					echo '<option value="' . esc_attr( $d ) . '">' . esc_html( $d ) . '</option>';
-				}
-				echo '</select>';
-				echo '<button name="viec" value="bp_gop" title="Nhập phòng này vào phòng vừa chọn — '
-					. 'người, vai và luật quyền chuyển sang hết, rồi phòng này biến mất">Gộp</button>';
-				/* ⚠️ Nút Xoá KHÔNG hiện khi còn người — nút bấm vào chỉ nhận câu chối thì tệ hơn
-				   là không có nút, và câu chối ấy còn dạy sai: trông như hệ hỏng chứ không phải
-				   như một cái chốt. */
-				if ( ! $so && VHCC_NhanSu::BP_CO_SO !== $bp ) {
-					echo '<button class="nut xoa-hs" name="viec" value="bp_xoa" '
-						. 'title="Xoá hẳn phòng này khỏi sơ đồ">Xoá</button>';
-				} elseif ( $so ) {
-					echo '<span class="mo" style="font-size:11.5px">còn ' . $so . ' người — gộp, đừng xoá</span>';
-				}
-				echo '</form>';
-			} else {
-				echo '<span class="mo">—</span>';
-			}
-			echo '</td></tr>';
-		}
-		echo '</tbody></table></div>';
-		echo '<form method="post" class="hang" style="gap:6px;margin-top:10px">';
-		echo '<input type="hidden" name="ky" value="' . esc_attr( self::ky() ) . '">';
-		echo '<input type="text" name="bp_ten" placeholder="Tên phòng ban mới — đặt kèm mảng cho gọn, '
-			. 'ví dụ «MTĐ · Phòng Kỹ Thuật»" style="min-width:330px">';
-		echo '<button class="chinh" name="viec" value="bp_them">Thêm phòng ban</button>';
-		echo '</form>';
-		echo '</details></div>';
 	}
 
 	private static function viec_ten_mang( $toi ) {

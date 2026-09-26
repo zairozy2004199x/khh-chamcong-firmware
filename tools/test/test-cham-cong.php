@@ -6267,8 +6267,9 @@ t( 'và không khai được Admin', strpos( $h_w, 'value="khai_admin"' ) === fa
 
 $h_w = vhcc_web( '246813', array(), array( 'man' => 'ho_so' ) );
 t( 'Admin vào được', strpos( $h_w, 'Nguyễn Thu Hiền' ) !== false );
-t( 'có ô nạp file .csv ngay trên web', strpos( $h_w, 'name="tep"' ) !== false );
-t( 'có nút xem trước', strpos( $h_w, 'value="xem_csv"' ) !== false );
+/* 26/09/2026 — anh Thắng: "bỏ này đi" — thẻ nạp hồ sơ từ .csv đã rời màn Hồ sơ. */
+t( '🔴 KHÔNG còn thẻ nạp hồ sơ từ .csv', strpos( $h_w, 'value="xem_csv"' ) === false
+	&& strpos( $h_w, 'Nạp hồ sơ nhân viên từ file' ) === false );
 t( 'có nút xoá sạch hồ sơ', strpos( $h_w, 'value="xoa_het"' ) !== false );
 t( 'có nút khai tài khoản Admin', strpos( $h_w, 'value="khai_admin"' ) !== false );
 t( 'có nút nạp tài khoản đăng nhập từ hồ sơ', strpos( $h_w, 'value="nap_tk"' ) !== false );
@@ -6453,8 +6454,7 @@ $vt_tm  = strpos( $h_tm, '➕ Tạo nhân sự mới' );
 $vt_csv = strpos( $h_tm, 'NẠP HỒ SƠ NHÂN VIÊN TỪ FILE' );
 if ( false === $vt_csv ) { $vt_csv = strpos( $h_tm, 'file .csv' ); }
 $vt_tk  = strpos( $h_tm, 'Tài khoản đăng nhập' );
-t( '🔴 thẻ tạo mới đứng ĐẦU màn — trên thẻ nạp .csv',
-	false !== $vt_tm && false !== $vt_csv && $vt_tm < $vt_csv );
+t( '🔴 thẻ tạo mới có mặt trên màn', false !== $vt_tm );
 t( 'và trên thẻ Tài khoản đăng nhập', false !== $vt_tk && $vt_tm < $vt_tk );
 /* Vẫn CHỈ MỘT cửa: thẻ mới không được dựng thêm một biểu mẫu tạo thứ hai. */
 t( '🔴 thẻ mới chỉ là ĐƯỜNG VÀO, không phải biểu mẫu thứ hai',
@@ -6482,7 +6482,7 @@ t( 'và sua= rỗng (cũng là dấu + bị dập) cũng ra biểu mẫu', vhcc_
 $h_ds = vhcc_web( '246813', array(), array( 'man' => 'ho_so' ) );
 t( 'không có khoá sua thì vẫn là màn danh sách',
 	false === strpos( $h_ds, 'name="ma_nv" required' )
-	&& false !== strpos( $h_ds, 'Nạp hồ sơ nhân viên từ file' ) );
+	&& false !== strpos( $h_ds, '➕ Tạo nhân sự mới' ) );
 
 /* ===== THẺ 🔑 CHỈ HIỆN KHI CỔNG ĐANG ĐỌC SAI CHỖ (08/09/2026) =================================
    🔴 Anh Thắng: *"loại bỏ chỗ này"* — ảnh chụp đúng thẻ 🔑 Tài khoản đăng nhập.
@@ -6511,7 +6511,7 @@ t( 'cũng không còn nút "Khai Admin" (khai xong không đăng nhập được
 t( '🔴 vẫn nói rõ cho ai đăng nhập được thì làm ở đâu',
 	strpos( $h_tk1, 'Cho ai đăng nhập được' ) !== false, $h_tk1 );
 t( 'và thẻ tạo nhân sự vẫn đứng đầu màn', strpos( $h_tk1, '➕ Tạo nhân sự mới' ) !== false );
-t( 'bảng hồ sơ vẫn còn nguyên', strpos( $h_tk1, 'Nạp hồ sơ nhân viên từ file' ) !== false );
+t( 'bảng hồ sơ vẫn còn nguyên', strpos( $h_tk1, 'value="xoa_het"' ) !== false );
 
 update_option( 'vhcc_nguon_nguoidung', 'rieng' );
 $h_tk2 = vhcc_web( '246813', array(), array( 'man' => 'ho_so' ) );
@@ -11404,7 +11404,11 @@ t( 'tab Quyền vẫn giữ đúng tên cũ',
 	strpos( $tab_hq, '<h2>Ai vào được trang nào</h2>' ) !== false, $tab_hq );
 
 /* Khối nào đứng tab nào. */
-foreach ( array( 'Sơ đồ tổ chức', 'Bảng vai trò', 'Vai trò theo bộ phận' ) as $k_ns ) {
+/* 26/09/2026 — khối "Sơ đồ tổ chức" và "Đẩy sang Vận hành chi phí" đã BỎ khỏi màn (anh Thắng: "Bỏ"). */
+t( '🔴 KHÔNG còn khối Sơ đồ tổ chức ở cả hai tab',
+	strpos( $tab_h, 'Sơ đồ tổ chức —' ) === false && strpos( $tab_hq, 'Sơ đồ tổ chức —' ) === false );
+t( '🔴 KHÔNG còn khối Đẩy sang Vận hành chi phí', strpos( $tab_h, 'Đẩy sang Vận hành chi phí' ) === false );
+foreach ( array( 'Bảng vai trò', 'Vai trò theo bộ phận' ) as $k_ns ) {
 	t( 'khối "' . $k_ns . '" ở tab Nhân sự', strpos( $tab_h, $k_ns ) !== false, $k_ns );
 	t( '  và KHÔNG lặp lại ở tab Quyền', strpos( $tab_hq, $k_ns ) === false, $k_ns );
 }

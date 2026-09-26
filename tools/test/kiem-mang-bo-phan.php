@@ -1082,9 +1082,13 @@ t( '🔴 người khai tay mảng ĐANG ẨN vẫn lưu được, không bị ch
 /* 🔴 VÀ NGƯỜI ĐANG KHAI TAY MẢNG ẨN PHẢI CÒN THẤY Ô TÍCH CỦA HỌ. Bỏ nó khỏi hộp tích là một cú
    bấm Lưu xoá luôn mảng của họ — im lặng, vì trên màn chưa bao giờ có ô ấy để mà thấy nó mất. */
 $_COOKIE = array( VHCC_Web::COOKIE => VHCC_Auth::phat_token( 'Sếp', 'Admin', '', 'S_AD' ) );
-$_GET = array( 'nq' => 'M_PT' );
-ob_start(); VHCC_TrangNS::phuc_vu(); $h_pt = ob_get_clean();
-$_GET = array(); $_COOKIE = array();
+/* Soi thẳng ô MẢNG của hàng sửa (`o_mang_bp`) — trước 26/09/2026 phép thử soi cả trang nên vô
+   tình khớp chữ "Part time" trong khối Sơ đồ tổ chức (nay đã bỏ khỏi màn), dù người này không
+   hề có hàng nào trên bảng. */
+$m_omb = new ReflectionMethod( 'VHCC_TrangNS', 'o_mang_bp' );
+$m_omb->setAccessible( true );
+list( $h_pt ) = $m_omb->invoke( null, array( 'name' => 'Sếp', 'role' => 'Admin', 'ma_nv' => 'S_AD' ),
+	'M_PT', VHCC_NhanSu::ho_so( 'M_PT' ) );
 t( '🔴 hàng của người ấy VẪN có ô tích "Part time", dù mảng đang ẩn',
 	false !== strpos( $h_pt, 'value="Part time"' ), substr( $h_pt, 0, 200 ) );
 /* `checked` đứng NGAY SAU `value="..."` trong `ba_nut`/hộp tích — nhưng thứ tự thuộc tính là
