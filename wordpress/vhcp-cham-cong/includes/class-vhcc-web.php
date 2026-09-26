@@ -7744,17 +7744,28 @@ class VHCC_Web {
 						. 'ghép cũng đang có: ' . esc_html( implode( ' | ', $noi ) ) . '</div>';
 				}
 			}
-			/* 🔴 26/09/2026 — CHỈ MỘT CẶP Ô, LUÔN GHI VÀO HÀNG CA CHÍNH. Anh Thắng xoá hàng lỗi cũ
-			   của SETUP_VP để bù lại, gõ đúng 20:00 → 13:37 (hôm sau) vẫn bị chối "giờ ra phải
-			   muộn hơn giờ vào" — vì màn Bù (khác màn Sửa, không có `cac_o()` vẽ theo hàng thật)
-			   luôn nhắm vào hậu tố rỗng, nơi giờ vào/ra bắt buộc cùng một ngày. Cơ sở nào luôn là
-			   ca đêm (như SETUP_VP) thì không có cách nào bù được nếu ngày đó còn trống hẳn.
-			   Ô tích này cho người bù tự chọn ghi thẳng vào hàng `-CD` — xử lý ở `lam_viec()`
-			   (nhánh `'bu' === $viec`) và `VHCC_Bu::ghi()` (trải phẳng giờ ra qua nửa đêm). */
+			/* 🔴 26/09/2026 — CHỈ MỘT CẶP Ô, LUÔN GHI VÀO HÀNG CA CHÍNH... TRỪ CƠ SỞ LUÔN LÀ CA ĐÊM.
+			   Anh Thắng xoá hàng lỗi cũ của SETUP_VP để bù lại, gõ đúng 20:00 → 13:37 (hôm sau)
+			   vẫn bị chối "giờ ra phải muộn hơn giờ vào" — vì màn Bù (khác màn Sửa, không có
+			   `cac_o()` vẽ theo hàng thật) luôn nhắm vào hậu tố rỗng, nơi giờ vào/ra bắt buộc
+			   cùng một ngày. Cơ sở nào luôn là ca đêm (như SETUP_VP) thì không có cách nào bù
+			   được nếu ngày đó còn trống hẳn. Bản 4.90.0 thêm ô tích "Đây là ca đêm" cho người bù
+			   tự chọn.
+			   ⚠️ 26/09/2026 — BỎ Ô TÍCH CHO CƠ SỞ PHỤ ĐÃ GHÉP: *"Setup nó là ca đêm rồi mà vẫn
+			   phân ca chính, ca đêm à"*. Một cơ sở như SETUP_VP không bao giờ có ca chính thật,
+			   nên không có gì để hỏi — tự động luôn ghi vào `-CD` (xử lý ở `VHCC_Bu::ghi()` qua
+			   `ep_cd_neu_la_phu()`, không cần tin ô ẩn từ client). Cơ sở KHÔNG phải phụ (một cơ
+			   sở chính occasionally có tăng ca đêm thật) vẫn giữ ô tích như cũ. */
 			if ( ! $co_gio ) {
-				echo '<div style="flex:1 1 100%"><label style="font-weight:600">'
-					. '<input type="checkbox" name="bu_cd" value="1"> Đây là ca đêm (bù thẳng vào '
-					. 'hàng ca đêm, mã kèm -CD)</label></div>';
+				$la_phu = 0 !== strcasecmp( VHCC_Online::coso_luat( $cs ), VHCC_NhanSu::chuan_coso( $cs ) );
+				if ( $la_phu ) {
+					echo '<div class="mo" style="flex:1 1 100%">Cơ sở này luôn là ca đêm — lượt bù '
+						. 'sẽ tự ghi vào hàng ca đêm (-CD), không cần chọn.</div>';
+				} else {
+					echo '<div style="flex:1 1 100%"><label style="font-weight:600">'
+						. '<input type="checkbox" name="bu_cd" value="1"> Đây là ca đêm (bù thẳng vào '
+						. 'hàng ca đêm, mã kèm -CD)</label></div>';
+				}
 			}
 		}
 

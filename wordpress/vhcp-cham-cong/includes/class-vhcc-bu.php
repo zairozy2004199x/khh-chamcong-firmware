@@ -91,6 +91,44 @@ class VHCC_Bu {
 		return $goc;
 	}
 
+	/**
+	 * CƠ SỞ PHỤ ĐÃ GHÉP LUÔN LÀ CA ĐÊM — ÉP HẬU TỐ `-CD`, KHÔNG HỎI.
+	 *
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 26/09/2026: *"Setup nó là ca đêm rồi mà vẫn phân ca chính, ca đêm à"* / *"setup là
+	 * ca đêm, thì phân ra ca chính ca phụ chi nữa"* — kèm ảnh SETUP_VP mang CẢ HAI hàng "ca chính"
+	 * và "ca đêm (-CD)" cùng một cặp giờ 20:00→04:00, tức một ca đang được tính công HAI LẦN vì hệ
+	 * thống vẫn cho một hàng "ca chính" tồn tại ở một cơ sở không bao giờ có ca chính thật.
+	 *
+	 * 🔴 CHỈ GỌI Ở `ghi()` (BÙ) — KHÔNG GỌI Ở `sua()`. Trước bản này màn "Chấm công bù" phải bắt
+	 *    người dùng tự tích ô "Đây là ca đêm"; nay cơ sở phụ không còn gì để hỏi, ô tích đó ẩn hẳn
+	 *    (xem `class-vhcc-web.php::hang_sua()`), và `ghi()` tự định tuyến đúng chỗ dù màn hình có
+	 *    gửi lên hậu tố rỗng hay không — CHỈ `ghi()` mới tạo được hàng MỚI (xem `sua()`: nó luôn
+	 *    đè lên một hàng ĐÃ CÓ, `self::hang()` rỗng là chối thẳng), nên chỉ ở đó mới có "hàng ca
+	 *    chính mới" cần chặn.
+	 *
+	 * ⚠️ CHỈ ÉP KHI `$ma_nv` CHƯA MANG HẬU TỐ NÀO. Một lượt đã tự kèm `-CD`/`-TC`/... (từ ô tích cũ
+	 *    còn lưu trong URL, hoặc một nơi gọi khác đã biết rõ ca) thì giữ nguyên, không ép chồng.
+	 * ⚠️ KHÔNG ĐỤNG DỮ LIỆU CŨ. Hàng "ca chính" đã trót ghi trước bản vá này (như trong ảnh) vẫn
+	 *    nằm nguyên trong kho — `cac_o()` vẫn vẽ ra để anh THẤY và tự xoá tay; hàm này chỉ định
+	 *    tuyến lượt ghi MỚI, không tự xoá hay gộp gì cả.
+	 */
+	private static function ep_cd_neu_la_phu( $coso, $ma_nv ) {
+		list( $ma_goc, $ht ) = VHCC_Nhan::tach_hau_to( $ma_nv );
+		if ( '' !== $ht ) { return $ma_nv; }
+		$coso = VHCC_NhanSu::chuan_coso( $coso );
+		/* ⚠️ HỎI THẲNG `VHCC_Luong::ghep_vao()`, KHÔNG QUA `VHCC_Online::coso_luat()`. Lớp này vốn
+		   chỉ phụ thuộc `VHCC_Luong` (xem `tien_to_thang()` ở dưới) — thêm một lớp mới (`VHCC_Online`)
+		   là thêm một phụ thuộc mà bộ thử hẹp `kiem-cham-bu.php` (dựng lại `VHCC_Luong`/`VHCC_NhanSu`
+		   giả, không nạp cả cây plugin) không biết tới, và vỡ ngay ở `Class "VHCC_Online" not found`.
+		   `ghep_vao($coso)` (đã tự chuẩn hoá `$coso` bên trong) trả cơ sở CHÍNH nếu `$coso` là PHỤ đã
+		   ghép, rỗng nếu không — đúng phép so mà `coso_luat()` cũng dùng, chỉ là hỏi thẳng, ít một
+		   lớp trung gian. Gác bằng `method_exists()` để bộ thử hẹp (không khai hàm này trong bản giả)
+		   im lặng bỏ qua thay vì vỡ. */
+		if ( '' === $coso || ! method_exists( 'VHCC_Luong', 'ghep_vao' ) ) { return $ma_nv; }
+		return ( '' !== VHCC_Luong::ghep_vao( $coso ) ) ? $ma_goc . '-CD' : $ma_nv;
+	}
+
 	/* ═══════════════════════════════════════════════════════════════════════════════════════
 	 * HẾT NGÀY LÀ KHOÁ — cửa hàng trưởng chỉ sửa được giờ của CHÍNH HÔM NAY
 	 * ═══════════════════════════════════════════════════════════════════════════════════════
@@ -150,6 +188,7 @@ class VHCC_Bu {
 	public static function ghi( $u, $dat ) {
 		$coso  = VHCC_NhanSu::chuan_coso( isset( $dat['coso'] ) ? $dat['coso'] : '' );
 		$ma_nv = trim( (string) ( isset( $dat['ma_nv'] ) ? $dat['ma_nv'] : '' ) );
+		$ma_nv = self::ep_cd_neu_la_phu( $coso, $ma_nv );
 
 		$chan = self::vi_sao_khong_duoc( $u, $coso, $ma_nv );
 		if ( '' !== $chan ) { return array( 'ok' => false, 'error' => $chan ); }
@@ -322,6 +361,13 @@ class VHCC_Bu {
 	public static function sua( $u, $dat ) {
 		$coso  = VHCC_NhanSu::chuan_coso( isset( $dat['coso'] ) ? $dat['coso'] : '' );
 		$ma_nv = trim( (string) ( isset( $dat['ma_nv'] ) ? $dat['ma_nv'] : '' ) );
+		/* ⚠️ KHÔNG gọi `ep_cd_neu_la_phu()` ở đây — xem chú thích tại hàm đó.
+		   `sua()` CHỈ đè lên một hàng ĐÃ CÓ (`self::hang()` phía dưới trả rỗng là chối thẳng
+		   "chưa có dòng nào để sửa"), không bao giờ tự tạo hàng mới — nên không có "hàng ca
+		   chính mới" nào để chặn ở đây. Màn "Sửa giờ" tự vẽ đúng khoá `(coso~hauTo)` của TỪNG
+		   hàng đang có thật (`VHCC_Bu::cac_o()`), kể cả hàng ca chính cũ của một cơ sở phụ —
+		   ép hậu tố ở đây sẽ bắt lượt sửa hàng CHÍNH ấy đi tìm nhầm sang hàng `-CD`, và trả về
+		   đúng câu lỗi "chưa có dòng nào để sửa" dù trên màn hình đang thấy rõ số. */
 
 		/* 🔴 Gác quyền RIÊNG, gác TRƯỚC.
 		   `sua_gio` ở bậc Kế toán từ 18/09/2026 (anh Thắng: *"cửa hàng trưởng không được sửa

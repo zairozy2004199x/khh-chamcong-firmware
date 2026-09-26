@@ -1062,6 +1062,8 @@ class VHCC_Luong {
 					'congDem' => 0.0, 'congBu' => 0.0, 'tong' => 0.0, 'phutNgay' => 0, 'khung' => '',
 					'kt7' => false, 'ktCnNghi' => false, 'caLa' => false, 'demTuNgay' => '',
 					'demSangNgay' => '', 'demThieuGio' => false, 'demChuaDuCap' => false, 'gioDemThuc' => 0.0,
+					/* Ca đêm bấm ra thật muộn qua giờ ca ngày — phần dư được cộng thêm tăng ca. */
+					'veMuonQuaCaNgay' => false,
 					/* Ngày nhận công đêm mà công bù của nó rơi vào ngày này. '' = không có. */
 					'buTuNgay' => '',
 					/* Giờ THÔ của cả hai hàng. Không dùng để tính công — phép tính đã xong ở trên —
@@ -1175,6 +1177,34 @@ class VHCC_Luong {
 				   nghĩa "không dồn ngày" thay vì phải xoá field ở mọi nơi đọc nó). */
 				if ( ! $out[ $ngay ]['demThieuGio'] && ! $out[ $ngay ]['demChuaDuCap'] ) {
 					$out[ $ngay ]['congDem'] += (float) $cfg['demCong'];
+				}
+				/* 🔴 26/09/2026 — CA ĐÊM VỀ MUỘN QUA GIỜ CA NGÀY: CỘNG THÊM TĂNG CA, KHÔNG THAY
+				   THẾ CÔNG ĐÊM. Anh Thắng: *"vì khi chọn setup bấm 22h00 . sau đí qua ngày hôm sau
+				   không chấm để kết ca nó tự mặc định 04h00 là ngừng và tự nhập vào luôn, còn chấm
+				   đến 10h00 thì nó hiểu chốt 08h00 và 08h00 - 10h00 là công ca ngày và chuyển giờ
+				   đó vào bảng khhcm"* — SETUP vào 22:00 mà bấm ra thật tới 10:00 hôm sau: phần đêm
+				   vẫn 1 công đêm như trên, phần dư (từ `ngayTu` trở đi) thêm 1 khoản TĂNG CA — dùng
+				   ĐÚNG `tangCaCong` đã có (flat, không tính theo số giờ dư — đã hỏi và chốt qua
+				   AskUserQuestion, không phải "công ca ngày" theo tỷ lệ giờ như câu trên có thể
+				   khiến hiểu nhầm).
+				   ⚠️ CHỈ CỘNG KHI CA ĐÊM ĐÃ ĐƯỢC CÔNG NHẬN (không `demThieuGio`, không
+				   `demChuaDuCap`) — ca đêm còn đang bị soi (thiếu giờ/thiếu cặp) thì chưa vội cộng
+				   thêm gì lên trên nó.
+				   ⚠️ RANH GIỚI "CHẮC CHẮN ĐÃ SANG CA NGÀY" DÙNG ĐÚNG `ngayTu` (giờ bắt đầu ca ngày,
+				   đã có cấu hình sẵn, mặc định 08:30 — gần khớp con số 08:00 anh nói) thay vì bịa
+				   thêm một hằng số riêng — đổi cấu hình `ngayTu` là đổi luôn mốc này theo, giống
+				   mọi mốc khác trong hàm này. So trên trục TRẢI PHẲNG (+NGAY_GIAY) vì `$dem[1]` của
+				   một ca đêm luôn ở dạng đó (xem `h2raHomSau` ngay trên).
+				   ⚠️ KHÔNG đụng nhánh `'tangca'`/`'la'` ở trên — khối này chỉ chạy THÊM khi
+				   `'dem' === $ca['loai']`, không đổi cách `vp_ca_hang2()` phân loại ban đầu. */
+				if ( $du_cap && ! $out[ $ngay ]['demThieuGio'] ) {
+					$ra_flat = ( (int) $dem[1] >= VHCC_DB::NGAY_GIAY )
+						? (int) $dem[1] : (int) $dem[1] + VHCC_DB::NGAY_GIAY;
+					$ngay_tu_flat = VHCC_DB::giay( $cfg['ngayTu'] ) + VHCC_DB::NGAY_GIAY;
+					if ( $ra_flat > $ngay_tu_flat ) {
+						$out[ $ngay ]['congTangCa'] += (float) $cfg['tangCaCong'];
+						$out[ $ngay ]['veMuonQuaCaNgay'] = true;
+					}
 				}
 			}
 		}
