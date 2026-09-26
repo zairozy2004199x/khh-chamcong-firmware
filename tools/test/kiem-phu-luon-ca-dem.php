@@ -217,6 +217,71 @@ if ( isset( $r8['2026-09-09'] ) ) {
 		0.0, (float) $r8['2026-09-09']['congTangCa'] );
 }
 
+/* ═══════════════════════════════ PHẦN C — CHẤM TỰ ĐỘNG (MÁY/ĐIỆN THOẠI) GIỮA BAN NGÀY ═══════════════════════════════
+ *
+ * 26/09/2026 — anh Thắng chỉ ra dữ liệu THẬT vẫn lọt qua đường chấm TỰ ĐỘNG dù Phần A đã chặn
+ * đường bù tay: một lượt chấm 09:45→12:04 giữa ban ngày ở SETUP_VP (cơ sở PHỤ) vẫn bị
+ * `dinh_tuyen()`/`trai_phang()` cho rơi vào hàng ca ngày (hậu tố rỗng), vì hai hàm đó chỉ biết
+ * "trước demDen" và "sau ngayDen" là ca đêm — khoảng GIỮA (giờ hành chính bình thường) thì mặc
+ * định là ca ngày, đúng cho cơ sở CHÍNH nhưng SAI cho cơ sở PHỤ (không có ca ngày để mà rơi vào).
+ * *"bên setup nó luôn luôn là ca đêm, còn khhcm luôn luôn là ca ngày"*. */
+
+$cfg_c = VHCC_Luong::vp_cfg( $CHINH );
+
+/* 9. `dinh_tuyen()` trực tiếp: giờ 09:45 (giữa demDen 06:00 và ngayDen 17:00) ở cơ sở PHỤ ->
+      phải trả về định tuyến ca đêm CÙNG NGÀY, không còn `null` (ca ngày) nữa. */
+$t9 = VHCC_Online::dinh_tuyen( $PHU, '2026-09-15', VHCC_DB::giay( '09:45:00' ) );
+t( '🔴 dinh_tuyen(): giờ giữa ban ngày ở cơ sở PHỤ -> định tuyến ca đêm, không còn null',
+	is_array( $t9 ) && 'CD' === $t9['duoi'] && '2026-09-15' === $t9['ngay'], $t9 );
+
+/* 10. Cùng giờ, cùng khe, nhưng ở cơ sở CHÍNH -> vẫn null (ca ngày) như cũ, không đổi hành vi. */
+$t10 = VHCC_Online::dinh_tuyen( $CHINH, '2026-09-15', VHCC_DB::giay( '09:45:00' ) );
+t( '🔴 dinh_tuyen(): cùng giờ ở cơ sở CHÍNH -> vẫn null (ca ngày), KHÔNG bị đổi hành vi',
+	null === $t10, $t10 );
+
+/* 11. `trai_phang()` trực tiếp: cùng giờ 09:45 ở cơ sở PHỤ -> giữ nguyên trục (không trải +24h,
+       không còn null). Ở cơ sở CHÍNH thì vẫn null như cũ. */
+teq( '🔴 trai_phang(): cơ sở PHỤ -> giữ nguyên giây, không trải, không null',
+	VHCC_DB::giay( '09:45:00' ), VHCC_Online::trai_phang( VHCC_DB::giay( '09:45:00' ), $cfg_c, $PHU ) );
+t( '   cơ sở CHÍNH -> vẫn null như cũ',
+	null === VHCC_Online::trai_phang( VHCC_DB::giay( '09:45:00' ), $cfg_c, $CHINH ) );
+
+/* 12. TRỌN ĐƯỜNG GHI THẬT (nguồn 'may'), không có ca đêm nào đang mở hôm trước: một lượt chấm
+       VÀO lúc 09:45 ở cơ sở PHỤ, ngày TRỐNG hẳn -> phải mở đúng hàng `-CD` của CHÍNH ngày đó,
+       KHÔNG mở hàng hậu tố rỗng nào. Đây là đúng cảnh anh Thắng gặp. */
+VHCC_Nhan::ghi_gio( $PHU, '2026-09-16', 'PLD1', 'Người Setup', VHCC_DB::giay( '09:45:00' ), '', 'may' );
+$h12_cd = $hang( $PHU, '2026-09-16', 'PLD1', 'CD' );
+t( '🔴 lượt chấm MÁY 09:45 giữa ban ngày ở cơ sở PHỤ -> mở đúng hàng -CD',
+	$h12_cd && VHCC_DB::giay( '09:45:00' ) === (int) $h12_cd['gio_vao_giay'], $h12_cd );
+t( '   KHÔNG mở hàng ca ngày (hậu tố rỗng) nào',
+	null === $hang( $PHU, '2026-09-16', 'PLD1', '' ) );
+
+/* 13. Chấm tiếp giờ RA lúc 12:04 cùng ngày -> phải rơi ĐÚNG vào cùng hàng -CD vừa mở (giờ ra),
+       không mở thêm hàng nào khác — đi qua đúng cửa ghi dùng chung, không cần chỉnh gì thêm. */
+VHCC_Nhan::ghi_gio( $PHU, '2026-09-16', 'PLD1', 'Người Setup', VHCC_DB::giay( '12:04:00' ), '', 'may' );
+$h13_cd = $hang( $PHU, '2026-09-16', 'PLD1', 'CD' );
+t( '🔴 giờ ra 12:04 cùng ngày rơi đúng vào CÙNG hàng -CD (không mở hàng mới)',
+	$h13_cd && VHCC_DB::giay( '09:45:00' ) === (int) $h13_cd['gio_vao_giay']
+	&& VHCC_DB::giay( '12:04:00' ) === (int) $h13_cd['gio_ra_giay'], $h13_cd );
+
+/* 14. Tính công cả chùm cho ngày 16 -> KHÔNG còn công ngày giả nào ở cơ sở CHÍNH từ lượt chấm
+       giữa ngày này ở SETUP (đúng thứ anh Thắng báo: "có làm đâu" mà vẫn ra 1 công ngày). */
+$r14 = VHCC_Luong::vp_tinh_nguoi( $cfg_c, false, array(
+	'2026-09-16' => array( 'chinh' => null,
+		'dem' => array( VHCC_DB::giay( '09:45:00' ), VHCC_DB::giay( '12:04:00' ) ) ),
+) );
+if ( isset( $r14['2026-09-16'] ) ) {
+	teq( '🔴 lượt giữa ngày ở SETUP không sinh công ngày giả cho VP_KH-HCM',
+		0.0, (float) $r14['2026-09-16']['congNgay'] );
+}
+
+/* 15. Cơ sở CHÍNH chấm giữa ngày (09:45→12:04, một ca ngày ngắn thật) -> KHÔNG bị đổi hành vi,
+       vẫn mở đúng hàng hậu tố rỗng như trước bản vá. */
+VHCC_Nhan::ghi_gio( $CHINH, '2026-09-16', 'PLD2', 'Người VP', VHCC_DB::giay( '09:45:00' ), '', 'may' );
+$h15 = $hang( $CHINH, '2026-09-16', 'PLD2', '' );
+t( '🔴 cơ sở CHÍNH chấm giữa ngày: vẫn mở hàng ca ngày (hậu tố rỗng) như cũ',
+	$h15 && VHCC_DB::giay( '09:45:00' ) === (int) $h15['gio_vao_giay'], $h15 );
+
 echo "\n";
 if ( $truot ) {
 	echo 'TRƯỢT ' . count( $truot ) . ":\n";

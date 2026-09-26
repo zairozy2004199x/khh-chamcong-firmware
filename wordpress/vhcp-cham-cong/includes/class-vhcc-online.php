@@ -134,13 +134,25 @@ class VHCC_Online {
 	 *    bấm mà không có gì được ghi. Chú thích bên Code.gs ghi rõ đây là lỗi đã từng mắc.
 	 *
 	 * Trả null nghĩa là giờ đó thuộc ca ngày, không thuộc hàng 2.
+	 *
+	 * ⚠️ 26/09/2026 — PHẢI KHỚP ĐÚNG LUẬT VỚI `dinh_tuyen()`. Từ hôm nay `dinh_tuyen()` cũng định
+	 *    tuyến giờ giữa `demDen`/`ngayDen` vào hàng 2 cho cơ sở PHỤ đã ghép (SETUP luôn là ca đêm,
+	 *    không có ca ngày để loại) — nếu hàm này vẫn trả `null` cho đúng khoảng ấy thì nơi gọi
+	 *    (`tuyen_cho_ghi()`/`cham_cong()`) nhận định tuyến hợp lệ rồi NGAY SAU đó tự chối với câu
+	 *    "Giờ này không thuộc hàng tăng ca / ca đêm" — lượt chấm thật của cơ sở phụ giữa ban ngày
+	 *    sẽ bị từ chối hẳn, không còn lặng lẽ sai nhưng cũng không ghi được. Cần biết `$coso` để
+	 *    hỏi đúng câu `dinh_tuyen()` đã hỏi.
 	 */
-	public static function trai_phang( $giay, $cfg ) {
+	public static function trai_phang( $giay, $cfg, $coso = '' ) {
 		$ngay_den = VHCC_DB::giay( $cfg['ngayDen'] );
 		$dem_den  = VHCC_DB::giay( $cfg['demDen'] );
 		if ( null === $giay || null === $ngay_den || null === $dem_den ) { return null; }
 		if ( $giay >= $ngay_den ) { return $giay; }
 		if ( $giay < $dem_den ) { return $giay + VHCC_DB::NGAY_GIAY; }
+		/* CƠ SỞ PHỤ: đây là mốc VÀO của một ca đêm MỚI trong ngày (không có ca cũ để đóng, xem
+		   `dong_ca_dem_dang_mo()`), không phải mốc RA nối từ tối hôm trước — giữ nguyên trục,
+		   không trải +24h. */
+		if ( '' !== $coso && 0 !== strcasecmp( self::coso_luat( $coso ), $coso ) ) { return $giay; }
 		return null;
 	}
 
@@ -162,6 +174,30 @@ class VHCC_Online {
 
 		if ( $giay < $dem_den ) {
 			return array( 'ngay' => self::ngay_truoc( $ngay ), 'duoi' => self::DUOI_CD, 'dem' => true );
+		}
+		/* ═════════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 26/09/2026 — CƠ SỞ PHỤ ĐÃ GHÉP LUÔN LÀ CA ĐÊM, KỂ CẢ GIỜ GIỮA `demDen`/`ngayDen`.
+		 * ═════════════════════════════════════════════════════════════════════════════════════
+		 * Anh Thắng: *"bên setup nó luôn luôn là ca đêm, còn khhcm luôn luôn là ca ngày"* /
+		 * *"việc ca đêm chấm bên setup, việc ca ngày chấm bên khhcm thì liên quan gì"*.
+		 *
+		 * Trước dòng này, một cơ sở phụ (như SETUP_VP) chấm vào một giờ KHÔNG rơi vào hai nhánh
+		 * ở trên (VD 09:45, 11:18 — giữa `demDen` 06:00 và `ngayDen` 17:00) rơi tọt xuống `return
+		 * null` ở cuối hàm — nghĩa là "ghi vào hàng 1, ca ngày, ngày thô". Với cơ sở CHÍNH thì
+		 * đúng (một lượt chấm giữa trưa hiển nhiên là ca ngày); với cơ sở PHỤ đã ghép thì SAI —
+		 * cơ sở ấy không có khái niệm ca ngày để mà rơi vào, nên hàng ca ngày giả đó bị
+		 * `vp_bang_cong_va_luong_voi()` gộp thẳng vào rổ 'chinh' của cơ sở CHÍNH (không phân biệt
+		 * hàng hậu tố rỗng đến từ cơ sở nào trong chùm) — sinh ra công ngày ảo cho một lượt chấm
+		 * chưa từng là ca ngày.
+		 *
+		 * ⚠️ ĐẶT NHÁNH NÀY TRƯỚC NHÁNH ÂN HẠN/`ngayDen` NGAY DƯỚI — cơ sở phụ không có "ca ngày"
+		 *    của riêng nó nên không có gì để ân hạn; đặt sau sẽ vô tình cho cơ sở phụ hưởng luật
+		 *    ân hạn tan làm vốn chỉ có nghĩa với cơ sở CHÍNH.
+		 * ⚠️ CHỈ ĐỔI Ở ĐÂY — `dong_ca_dem_dang_mo()` (chạy TRƯỚC hàm này ở cả hai nơi gọi) vẫn lo
+		 *    đúng phần "lượt này là giờ RA của ca đêm hôm trước còn đang mở"; hàm này chỉ xử lý
+		 *    phần còn lại — "không có ca cũ để đóng thì đây là giờ VÀO của một ca đêm MỚI". */
+		if ( 0 !== strcasecmp( self::coso_luat( $coso ), $coso ) ) {
+			return array( 'ngay' => $ngay, 'duoi' => self::DUOI_CD, 'dem' => true );
 		}
 		/* Biên `ngayDen`: lượt ĐÚNG 17:00:00 là tan làm ca ngày -> so `>` chứ không `>=`. Và trong
 		   ân hạn sau đó, nếu hàng 1 chưa có giờ ra thì cũng là tan làm, KHÔNG phải mở hàng 2:
@@ -263,7 +299,7 @@ class VHCC_Online {
 
 		$t = self::dinh_tuyen( $coso, $ngay, $giay, $chinh_chua_ra );
 		if ( ! $t ) { return null; }
-		$giay_ghi = self::trai_phang( $giay, $cfg );
+		$giay_ghi = self::trai_phang( $giay, $cfg, $coso );
 		if ( null === $giay_ghi ) {
 			/* Giờ thuộc ca ngày mà lại định tuyến sang hàng 2 -> KHÔNG ghi bừa: ghi vào hàng 2
 			   là công ngày biến thành tăng ca. */
@@ -556,7 +592,7 @@ class VHCC_Online {
 		if ( $tuyen ) {
 			$ngay     = $tuyen['ngay'];
 			$ma_ghi   = $ma_nv . '-' . $tuyen['duoi'];
-			$giay_ghi = ! empty( $tuyen['doi_ra'] ) ? $giay + VHCC_DB::NGAY_GIAY : self::trai_phang( $giay, $cfg );
+			$giay_ghi = ! empty( $tuyen['doi_ra'] ) ? $giay + VHCC_DB::NGAY_GIAY : self::trai_phang( $giay, $cfg, $coso );
 			if ( null === $giay_ghi ) {
 				/* Giờ thuộc ca ngày mà lại định tuyến sang hàng 2 -> KHÔNG ghi bừa. Bên Code.gs
 				   chỗ này trả 'bo'; ghi bừa vào hàng 2 là công ngày biến thành tăng ca. */
