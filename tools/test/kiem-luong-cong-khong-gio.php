@@ -79,7 +79,7 @@ $web = function ( $get, $post = array() ) use ( $tok ) {
 	return $h;
 };
 $h = $web( array( 'man' => 'luong', 'lcs' => $CHINH, 'lth' => $TH ) );
-$i = strpos( $h, 'Nhập lương cả cơ sở' );
+$i = strpos( $h, '<a id="bangnhap"></a>' );
 t( 'dựng cảnh: có bảng nhập lương cả cơ sở', false !== $i, substr( $h, 0, 300 ) );
 $nhap = (string) substr( $h, (int) $i, (int) strpos( $h, '</form>', (int) $i ) - (int) $i );
 t( '🔴 bảng nhập KHÔNG có ô giờ việc phụ (b[..][dong])', false === strpos( $nhap, '[dong]' ), $nhap );

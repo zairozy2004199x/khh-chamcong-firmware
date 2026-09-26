@@ -1164,7 +1164,7 @@ class VHCC_Web {
 	      chọn máy xong bấm một nút bất kỳ là ô chọn nhảy về máy đầu tiên. */
 	const THAM_SO = array( 'cs', 'q', 'loc', 'sua', 'pin', 'man', 'ccs', 'cth', 'cbp', 'cbp_het',
 		'cng', 'cnv', 'ctk', 'cgh', 'le_sua', 'bh_sua',
-		'lcs', 'lth', 'ltu', 'lden', 'msoma', 'ncs', 'nma', 'nq', 'mloc' );
+		'lcs', 'lth', 'ltu', 'lden', 'msoma', 'ncs', 'nma', 'nq', 'mloc', 'lnv' );
 
 	/**
 	 * BAO NHIÊU BẢNG CÔNG DỰNG SẴN KHI BẤM MỘT BỘ PHẬN.
@@ -11614,8 +11614,48 @@ class VHCC_Web {
 		echo '<p class="mo">⚠️ Đơn giá gõ ở đây <b>áp xuyên suốt mọi tháng</b> cho riêng người ấy, '
 			. 'không phải chỉ tháng đang xem — sổ giá không có chiều tháng.</p>';
 
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 26/09/2026 — LỌC THEO TỪNG NHÂN VIÊN. Anh Thắng: *"cho bảng lọc theo từng nhân
+		 * viên"*. Cơ sở đông người thì bảng nhập dài cả chục màn hình — chọn một người là chỉ còn
+		 * dòng của người ấy.
+		 * ⚠️ LƯU CHỈ ĐỤNG NGƯỜI ĐANG HIỆN. Bộ xử lý `chot_luong_bang` chỉ ghi những mã có mặt
+		 *    trong biểu mẫu gửi lên (`b[mã]`), nên lọc một người rồi bấm Lưu không xoá gì của
+		 *    người khác.
+		 * ⚠️ `lnv` nằm trong `THAM_SO` và trong địa chỉ POST, để lưu xong vẫn đứng ở người ấy.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$lnv = isset( $_GET['lnv'] ) ? strtolower( sanitize_text_field( wp_unslash( $_GET['lnv'] ) ) ) : '';
+		$ds_nv = array();
+		foreach ( $ng as $ma_x => $khoi_x ) {
+			if ( null === $khoi_x['chinh'] ) { continue; }
+			$ds_nv[ strtolower( $ma_x ) ] = array( $ma_x, isset( $khoi_x['chinh']['ten'] ) ? (string) $khoi_x['chinh']['ten'] : $ma_x );
+		}
+		uasort( $ds_nv, function ( $a, $b ) { return strcmp( $a[1], $b[1] ); } );
+		if ( '' !== $lnv && ! isset( $ds_nv[ $lnv ] ) ) { $lnv = ''; }
+		echo '<form method="get" action="' . esc_url( self::url() ) . '#bangnhap" class="hang" style="gap:8px;margin:0 0 10px">';
+		if ( ! get_option( 'permalink_structure' ) ) { echo '<input type="hidden" name="vhcc_qt" value="1">'; }
+		echo '<input type="hidden" name="man" value="luong"><input type="hidden" name="lcs" value="' . esc_attr( $cs ) . '">'
+			. '<input type="hidden" name="lth" value="' . esc_attr( $th ) . '">';
+		echo '<div><label for="lnv">Lọc nhân viên</label><select id="lnv" name="lnv"><option value="">— tất cả ('
+			. count( $ds_nv ) . ' người) —</option>';
+		foreach ( $ds_nv as $k_x => $x ) {
+			echo '<option value="' . esc_attr( $k_x ) . '"' . selected( $lnv, $k_x, false ) . '>'
+				. esc_html( $x[1] . ' · ' . $x[0] ) . '</option>';
+		}
+		echo '</select></div><div style="align-self:flex-end"><button class="nut">Lọc</button>';
+		if ( '' !== $lnv ) {
+			echo ' <a class="nut" href="' . esc_url( add_query_arg( array( 'man' => 'luong', 'lcs' => $cs, 'lth' => $th ), self::url() ) . '#bangnhap' ) . '">Bỏ lọc</a>';
+		}
+		echo '</div></form>';
+		if ( '' !== $lnv ) {
+			foreach ( array_keys( $ng ) as $ma_x ) {
+				if ( strtolower( $ma_x ) !== $lnv ) { unset( $ng[ $ma_x ] ); }
+			}
+		}
+
 		echo '<form method="post" action="' . esc_url( add_query_arg(
-			array( 'man' => 'luong', 'lcs' => $cs, 'lth' => $th ), self::url() ) . '#bangnhap' ) . '">';
+			array( 'man' => 'luong', 'lcs' => $cs, 'lth' => $th, 'lnv' => '' !== $lnv ? $lnv : false ), self::url() ) . '#bangnhap' ) . '">';
+		/* Neo đứng NGAY TRONG biểu mẫu Lưu (không phải trên ô lọc) — lọc xong trang cuộn thẳng
+		   tới bảng, và mọi nơi soi "từ neo tới hết biểu mẫu" vẫn đọc đúng biểu mẫu Lưu. */
 		echo '<a id="bangnhap"></a>';
 		echo '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">';
 		echo '<input type="hidden" name="viec" value="chot_luong_bang">';
