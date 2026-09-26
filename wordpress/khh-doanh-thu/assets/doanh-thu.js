@@ -4640,8 +4640,12 @@
       fd.append('gio_cat', o.querySelector('#dtGioCat').value);
       api('sao-ke-ghep', { method: 'POST', body: fd }).then(function (kq) {
         nut.disabled = false; nut.textContent = 'Lưu và gán lại';
-        o.querySelector('#dtBankBao').textContent = 'Đã gán lại ' + nguyen(kq.da_gan_lai) + ' khoản. ' +
-          ((kq.chua_gan || []).length ? 'Còn ' + (kq.chua_gan || []).length + ' khoản chưa nhận ra cơ sở.' : 'Không còn khoản nào lạc.');
+        /* 🔴 26/09/2026: "không lưu được mã nộp tiền" — máy chủ giờ TỰ ĐẾM và báo rõ mã nào bị bỏ
+           vì trùng với cơ sở khác trong cùng lượt gửi (kq.canh_bao), thay vì báo "đã gán lại" chung
+           chung như không có chuyện gì rồi người dùng phải tự mò ô nào mất. */
+        o.querySelector('#dtBankBao').innerHTML = 'Đã gán lại ' + nguyen(kq.da_gan_lai) + ' khoản. ' +
+          ((kq.chua_gan || []).length ? 'Còn ' + (kq.chua_gan || []).length + ' khoản chưa nhận ra cơ sở.' : 'Không còn khoản nào lạc.') +
+          (kq.canh_bao ? '<br><b style="color:var(--xau)">⚠ ' + esc(kq.canh_bao) + '</b>' : '');
         taiQuanTri();
       }).catch(function (e) {
         nut.disabled = false; nut.textContent = 'Lưu và gán lại';

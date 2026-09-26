@@ -1960,6 +1960,7 @@ function khh_dt_rest_sk_keo( $req ) {
 }
 
 function khh_dt_rest_sk_ghep( $req ) {
+	global $wpdb;
 	$ds = $req->get_param( 'ghep' );
 	if ( is_string( $ds ) ) {
 		$ds = json_decode( $ds, true );
@@ -1967,15 +1968,58 @@ function khh_dt_rest_sk_ghep( $req ) {
 	if ( ! is_array( $ds ) ) {
 		return new WP_Error( 'khh_dt_sk', 'Không đọc được bảng nhận mặt gửi lên.', array( 'status' => 400 ) );
 	}
-	khh_dt_dat_ghep_bank( $ds );
+	$so_gui = 0;
+	foreach ( $ds as $v ) {
+		if ( is_array( $v ) ) { continue; }
+		foreach ( preg_split( '/[,;\n]+/', (string) $v ) as $m ) {
+			if ( '' !== trim( (string) $m ) ) { $so_gui++; }
+		}
+	}
+	$sach = khh_dt_dat_ghep_bank( $ds );
+	/* 🔴 26/09/2026 anh Thắng — "không lưu được mã nộp tiền": gõ mã cho một cơ sở, bấm Lưu và gán
+	   lại, tải lại thì ô lại trống — TRONG KHI CƠ SỞ KHÁC vẫn giữ đúng mã đã gõ trước đó. Không
+	   phải "cả câu vỡ" (đã vá ở 1.73.0, sẽ làm MẤT SẠCH mọi ô, không phải mất từng ô lẻ) — nên nếu
+	   còn tái diễn, phải LỘ RA NGAY Ở ĐÂY chứ không được để lặng thinh rồi bắt đoán lại từ đầu:
+	   đếm số mã GỬI LÊN so với số mã THỰC SỰ LƯU ĐƯỢC (`khh_dt_dat_ghep_bank()` âm thầm bỏ một mã
+	   nếu nó trùng với mã của một cơ sở KHÁC đã xử lý trước đó trong cùng lượt gửi — "một khoá chỉ
+	   thuộc về một cơ sở"), báo rõ THIẾU BAO NHIÊU và MÃ NÀO bị bỏ, thay vì báo "đã gán lại" chung
+	   chung như không có chuyện gì. */
+	$loi_trung = array();
+	if ( count( $sach ) < $so_gui ) {
+		$dem_khoa = array();
+		foreach ( $ds as $ten => $v ) {
+			if ( is_array( $v ) ) { continue; }
+			foreach ( preg_split( '/[,;\n]+/', (string) $v ) as $m ) {
+				$m = trim( (string) $m ); if ( '' === $m ) { continue; }
+				$k = khh_dt_khong_dau( $m );
+				$dem_khoa[ $k ][] = (string) $ten;
+			}
+		}
+		foreach ( $dem_khoa as $k => $ten_ds ) {
+			if ( count( $ten_ds ) > 1 ) {
+				$loi_trung[] = 'mã "' . $k . '" trùng ở ' . count( $ten_ds ) . ' cơ sở (' . implode( ', ', $ten_ds ) . ') — chỉ cơ sở đầu tiên được lưu';
+			}
+		}
+	}
 	$gio = $req->get_param( 'gio_cat' );
 	if ( null !== $gio && '' !== $gio ) {
 		$g = (int) $gio;
 		update_option( 'khh_dt_gio_cat', ( $g >= 0 && $g <= 23 ) ? $g : 12, false );
 	}
+	/* 🔴 `$wpdb->last_error` là property CHUNG, còn nguyên từ CÂU TRUY VẤN BẤT KỲ chạy trước đó
+	   trong cùng lượt tải trang (kể cả của WordPress lõi, không liên quan gì tới "gán lại") — dò
+	   nó mà không XOÁ TRẮNG ngay trước là bắt oan một lỗi cũ chẳng ăn nhập gì, báo "lỗi khi lưu"
+	   cho một lượt lưu thực ra trót lọt. Xoá trắng ĐÚNG TRƯỚC câu mình quan tâm rồi mới dò. */
+	$wpdb->last_error = '';
 	$doi = khh_dt_gan_lai_sao_ke();
+	if ( $wpdb->last_error ) {
+		return new WP_Error( 'khh_dt_sk', 'Đã lưu bảng nhận mặt, nhưng gán lại lỗi: ' . $wpdb->last_error, array( 'status' => 500 ) );
+	}
 	$ra  = khh_dt_rest_sk_xem();
 	$ra['da_gan_lai'] = $doi;
+	if ( $loi_trung ) {
+		$ra['canh_bao'] = implode( ' · ', $loi_trung );
+	}
 	return $ra;
 }
 

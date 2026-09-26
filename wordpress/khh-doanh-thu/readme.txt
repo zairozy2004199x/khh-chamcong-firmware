@@ -102,6 +102,16 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.74.0 =
+* Bảng nhận mặt (Cấu hình → Sao kê): gõ mã nộp tiền cho một cơ sở, cơ sở khác đã gõ TRƯỚC vẫn giữ
+  đúng, mà mã vừa gõ lại "không lưu được" — anh Thắng 26/09/2026. Gốc: một mã chỉ được thuộc về
+  ĐÚNG MỘT cơ sở (luật đúng, tránh đoán bừa khi hai cơ sở lỡ khai chung mã) — nhưng khi hai cơ sở
+  trong CÙNG một lượt gửi khai trùng mã, cơ sở gửi SAU bị bỏ mà máy chủ báo "đã gán lại" chung
+  chung như không có chuyện gì, không nói RÕ mã nào trùng, trùng ở đâu. Nay máy chủ tự đếm số mã
+  gửi lên so với số mã thực lưu được, phát hiện trùng thì báo ngay trên màn: mã gì, trùng ở những
+  cơ sở nào. Cũng nhân dịp sửa một chỗ dò lỗi CSDL đọc nhầm lỗi CŨ còn sót lại từ một câu truy vấn
+  không ăn nhập, khiến "gán lại" có thể báo lỗi giả dù thực ra đã lưu trót lọt.
+
 = 1.73.0 =
 * Sửa "Khong lưu đươc": gõ mã nộp tiền ở bảng nhận mặt (Cấu hình → Sao kê), bấm "Lưu và gán lại"
   xong tải lại thì ô lại trống — anh Thắng 26/09/2026. Gốc: cột `nhan` (thêm ở 1.72.0) chỉ có
