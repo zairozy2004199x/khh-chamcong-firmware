@@ -1078,6 +1078,15 @@
     nn.style.cssText = 'font-size:14px;padding:7px 16px' + (q('#bcNgay').value === homNay() ? ';' + dam : '');
   }
 
+  /* Nhắc lại NGÀY × CƠ SỞ ngay dưới hàng nút Lưu/Chốt/Đã nộp tiền — anh Thắng 26/09/2026:
+     "tránh nhân viên chọn nhầm". Gọi mỗi khi đổi ngày/cơ sở, không chỉ lúc mở màn. */
+  function veXacNhanNgay() {
+    var o = q('#bcXacNhanNgay');
+    if (!o) return;
+    var ngay = q('#bcNgay').value, ch = q('#bcCH').value;
+    o.innerHTML = ngay ? 'Chốt báo cáo ngày: <b>' + esc(ngayVN(ngay)) + '</b>' + (ch ? ' — ' + esc(ch) : '') : '';
+  }
+
   function dungNhap() {
     var o = q('#dtTabNhap');
     if (o.dataset.xong) { napBaoCao(); return; }
@@ -1120,6 +1129,17 @@
         '</div>' +
         '<label class="bc-o" style="margin-top:12px"><b>Ghi chú</b>' +
           '<textarea id="bc_ghi_chu" autocomplete="off" rows="2" placeholder="Sự cố, lý do huỷ bill, khách đoàn…"></textarea></label>' +
+        /* 🔴 Anh Thắng 26/09/2026: "Anh muốn nút ghi chú này là dạng ghi chú và kèm hỏi... dạng
+           trao đổi qua lại nếu chưa rõ thông tin giữa 2 bên" — sổ RIÊNG với ô Ghi chú ở trên (ô đó
+           vẫn là MỘT dòng ghi chú của báo cáo, xuất MISA/ảnh báo cáo như cũ), gửi ngay không cần
+           bấm "Lưu báo cáo". */
+        '<div class="bc-o" style="margin-top:10px"><b>Trao đổi</b>' +
+          '<div id="bcTraoDoi" class="bc-trao-doi"></div>' +
+          '<div style="display:flex;gap:6px;margin-top:6px">' +
+            '<input type="text" id="bcTraoDoiMoi" autocomplete="off" placeholder="Hỏi thêm / phản hồi cho rõ…" style="flex:1">' +
+            '<button class="vien" type="button" id="bcTraoDoiGui">Gửi</button>' +
+          '</div>' +
+        '</div>' +
         '<div id="bcLech" class="bc-lech"></div>' +
         '<div class="bc-nut">' +
           '<button class="nut chinh" type="button" id="bcLuu">Lưu báo cáo</button>' +
@@ -1135,6 +1155,11 @@
           '<button class="vien" type="button" id="bcGoKhoa" hidden>🔓 Gỡ khoá đã nộp</button>' +
           '<span class="day"></span><span id="bcTrangThai"></span>' +
         '</div>' +
+        /* 🔴 Anh Thắng 26/09/2026: "bổ sung thêm chữ nhỏ dưới nút Lưu và Chốt (Chốt báo cáo
+           ngày: ...) để tránh nhân viên chọn nhầm" — cùng đợt báo có nút bị khoá, nghi do
+           chọn lộn ngày lúc bấm "Đã nộp tiền"/"Lưu và chốt ngày". Nhắc lại rõ NGÀY × CƠ SỞ
+           ngay dưới hàng nút, để nhìn một cái là biết mình sắp chốt/khoá đúng ngày nào. */
+        '<div id="bcXacNhanNgay" class="chu-them" style="margin-top:2px"></div>' +
         '<div class="khh-dt-bao" id="bcBao" hidden></div>' +
       '</div>';
 
@@ -1154,6 +1179,8 @@
     q('#bcChiaSe').addEventListener('click', chiaSeBC);
     q('#bcDaNop').addEventListener('click', danNopTien);
     q('#bcGoKhoa').addEventListener('click', goKhoaDaNop);
+    q('#bcTraoDoiGui').addEventListener('click', guiTraoDoi);
+    q('#bcTraoDoiMoi').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); guiTraoDoi(); } });
     q('#bcViec').addEventListener('click', function (ev) {
       var b = ev.target.closest ? ev.target.closest('[data-sang-cb]') : null;
       if (!b) return;
@@ -1237,8 +1264,13 @@
     /* Màu viên theo trạng thái: đã chốt xanh · đã lưu (chưa chốt) vàng · chưa nộp quá hạn đỏ · còn lại xám. */
     var the = function (x) {
       var lop = x.trang_thai === 'da_chot' ? ' xong' : (x.trang_thai === 'da_luu' ? ' luu' : '') + (x.qua_han ? ' qua-han' : '');
-      return '<button class="vien' + lop + '" type="button" data-viec-ngay="' + esc(x.ngay) + '" data-viec-ch="' + esc(x.cua_hang) + '" title="' + esc(QT_NHAN[x.trang_thai] || x.trang_thai) + '">' +
-        esc(ngayVN(x.ngay).slice(0, 5)) + '<span>' + esc(QT_NHAN[x.trang_thai] || x.trang_thai) + '</span></button>';
+      /* 🔴 Anh Thắng 26/09/2026: "Hiện lịch sử chốt lúc mấy h" — hiện THẲNG giờ chốt trên viên,
+         không giấu trong tooltip (kế toán soát nhiều dòng một lượt, không rê chuột từng ô, cùng
+         lý do đã sửa cho ô "thực nộp" trước đó). Lấy từ sua_luc — cột này chỉ đổi khi có LƯU
+         (kèm hoặc không kèm chốt), nên với dòng đã chốt thì đó chính là lúc chốt xong gần nhất. */
+      var gio = ('da_chot' === x.trang_thai && x.sua_luc) ? ' · ' + String(x.sua_luc).slice(11, 16) : '';
+      return '<button class="vien' + lop + '" type="button" data-viec-ngay="' + esc(x.ngay) + '" data-viec-ch="' + esc(x.cua_hang) + '" title="' + esc((QT_NHAN[x.trang_thai] || x.trang_thai) + gio) + '">' +
+        esc(ngayVN(x.ngay).slice(0, 5)) + '<span>' + esc(QT_NHAN[x.trang_thai] || x.trang_thai) + esc(gio) + '</span></button>';
     };
     h += '<div class="chu-them">Bấm một ngày để mở đúng ngày ấy ở tab Nhập báo cáo. <b style="color:var(--tot)">Xanh</b> đã chốt · ' +
       '<b style="color:var(--canh)">vàng</b> đã lưu chưa chốt · <b style="color:var(--xau)">đỏ</b> chưa nộp, quá hạn.</div>' +
@@ -1306,10 +1338,26 @@
   function napBaoCao() {
     var ngay = q('#bcNgay').value, ch = q('#bcCH').value;
     S.nhapNgay = ngay; S.nhapCH = ch;
+    veXacNhanNgay();
     if (!ngay || !ch) return;
     q('#bcTrangThai').textContent = 'đang tải…';
     api('bao-cao-ngay?ngay=' + encodeURIComponent(ngay) + '&cua_hang=' + encodeURIComponent(ch))
       .then(function (r) {
+        /* 🔴 26/09/2026 anh Thắng — "nút này bị khóa không cho bấm", "lúc được lúc không": khối
+           tự sửa lại cơ sở (dropdown chưa khớp cơ sở mặc định của người xem) từng đứng CUỐI hàm,
+           SAU KHI đã lỡ set .hidden của các nút (bcTaiAnh/bcChiaSe/bcDaNop/bcGoKhoa) theo dữ liệu
+           của cơ sở CŨ (sắp bị thay) — rồi mới gọi lại napBaoCao() và return, bỏ dở nốt phần khoá
+           input/trạng thái của LƯỢT NÀY. Kết quả: nút hiện/ẩn theo cơ sở cũ, còn khoá/trạng thái
+           thì đứng yên từ lượt render trước đó — hai thứ lệch nhau, và lệch chỉ lộ ra tuỳ lúc có
+           tự sửa cơ sở hay không, đúng kiểu "lúc được lúc không". Kiểm và thoát NGAY ĐẦU HÀM, trước
+           khi đụng tới bất cứ .hidden/DOM nào của lượt render này. */
+        if (r.cua_toi && q('#bcCH').value !== r.cua_toi && !q('#bcCH').dataset.daChon) {
+          q('#bcCH').dataset.daChon = '1';
+          q('#bcCH').value = r.cua_toi;
+          S.nhapCH = r.cua_toi;
+          napBaoCao();
+          return;
+        }
         S.pos = r.pos;
         var p = r.pos;
         q('#bcPos').innerHTML = p
@@ -1378,20 +1426,20 @@
             q('#bc_' + k).value = v === '' || v === 0 ? '' : nguyen(v);
           });
         q('#bc_ghi_chu').value = b.ghi_chu || '';
-        if (r.cua_toi && q('#bcCH').value !== r.cua_toi && !q('#bcCH').dataset.daChon) {
-          q('#bcCH').dataset.daChon = '1';
-          q('#bcCH').value = r.cua_toi;
-          S.nhapCH = r.cua_toi;
-          napBaoCao();
-          return;
-        }
+        veTraoDoi(r.trao_doi || []);
         /* 🔴 26/09/2026: "Đã nộp tiền" khoá TOÀN BỘ form y hệt lúc hết quyền sửa (anh Thắng, trả lời
            câu hỏi làm rõ: "Khoá TOÀN BỘ form — như khi hết quyền sửa"). #bcGoKhoa PHẢI thoát khoá
            này — nó là lối DUY NHẤT mở lại, khoá luôn cả nó thì không ai bấm được nữa. */
         var khoa = !r.duoc_ghi || daNop;
         Array.prototype.forEach.call(q('#dtTabNhap').querySelectorAll('input,textarea,button'), function (e) {
-          if (e.id !== 'bcNgay' && e.id !== 'bcCH' && e.id !== 'bcGoKhoa') e.disabled = khoa;
+          /* 🔴 Trao đổi (hỏi/đáp) viết được NGAY CẢ KHI ngày đã khoá "Đã nộp tiền" — hỏi thêm sau
+             khi khoá vẫn là nhu cầu thật, khoá theo daNop KHÔNG áp cho hai ô này (chỉ áp cho vế
+             thiếu quyền ghi, xử lý riêng bên dưới). */
+          if (e.id !== 'bcNgay' && e.id !== 'bcCH' && e.id !== 'bcGoKhoa' && e.id !== 'bcTraoDoiMoi' && e.id !== 'bcTraoDoiGui') e.disabled = khoa;
         });
+        var khoaTraoDoi = !r.duoc_ghi;
+        q('#bcTraoDoiMoi').disabled = khoaTraoDoi;
+        q('#bcTraoDoiGui').disabled = khoaTraoDoi;
         q('#bcOCH').hidden = !!r.cua_toi;
         q('#bcTrangThai').textContent = daNop
           ? '💰 đã nộp tiền — bởi ' + b.da_nop_boi + (b.da_nop_luc ? ' · ' + String(b.da_nop_luc).slice(0, 16) : '') + ' — khoá sửa'
@@ -1770,7 +1818,11 @@
      VĨNH VIỄN, không tự mở lại được (đã hỏi rõ qua câu hỏi làm rõ). `confirm()` vì đây là hành
      động khó lùi lại tự tay — bấm nhầm là phải nhờ văn phòng/quản trị gỡ mới sửa tiếp được. */
   function danNopTien() {
-    if (!window.confirm('Đánh dấu ngày này ĐÃ NỘP TIỀN? Form sẽ khoá lại — muốn sửa nữa phải nhờ văn phòng hoặc quản trị gỡ khoá.')) return;
+    /* 🔴 26/09/2026: nêu THẲNG ngày × cơ sở trong câu hỏi xác nhận — anh Thắng báo có nút bị khoá,
+       nghi do bấm nhầm ngày. Bấm xong khoá vĩnh viễn, nên câu hỏi phải nói rõ đang khoá NGÀY NÀO
+       của CƠ SỞ NÀO, không phải "ngày này" chung chung dễ đọc lướt qua. */
+    if (!window.confirm('Đánh dấu ĐÃ NỘP TIỀN cho ngày ' + ngayVN(q('#bcNgay').value) + ' — ' + q('#bcCH').value +
+      '?\n\nForm sẽ khoá lại — muốn sửa nữa phải nhờ văn phòng hoặc quản trị gỡ khoá.')) return;
     var fd = new FormData();
     fd.append('ngay', q('#bcNgay').value);
     fd.append('cua_hang', q('#bcCH').value);
@@ -1799,6 +1851,43 @@
       taiViec();
     }).catch(function (e) {
       q('#bcGoKhoa').disabled = false;
+      baoBC(String(e.message || e), 'loi');
+    });
+  }
+
+  /* 🔴 Anh Thắng 26/09/2026: "Anh muốn nút ghi chú này là dạng ghi chú và kèm hỏi... dạng trao đổi
+     qua lại nếu chưa rõ thông tin giữa 2 bên" — sổ RIÊNG theo ngày × cơ sở, cả nhân viên cơ sở lẫn
+     văn phòng/kế toán viết được (cùng quyền ghi báo cáo ngày của đúng cơ sở đó), gửi ngay không
+     cần bấm "Lưu báo cáo" — hỏi/đáp thì phải tức thời, không đợi ai đó lưu cả form mới thấy. */
+  function veTraoDoi(ds) {
+    var o = q('#bcTraoDoi');
+    if (!o) return;
+    o.innerHTML = ds.length
+      ? ds.map(function (x) {
+          return '<div class="bc-trao-doi-o"><b>' + esc(x.nguoi || '?') + '</b>' +
+            (x.luc ? ' <span class="muted" style="font-size:11px">· ' + esc(String(x.luc).slice(0, 16)) + '</span>' : '') +
+            '<div>' + esc(x.noi_dung) + '</div></div>';
+        }).join('')
+      : '<div class="muted" style="font-size:12px">Chưa có trao đổi nào.</div>';
+    o.scrollTop = o.scrollHeight;
+  }
+
+  function guiTraoDoi() {
+    var o = q('#bcTraoDoiMoi'), nd = o.value.trim();
+    if (!nd) return;
+    var nut = q('#bcTraoDoiGui');
+    nut.disabled = true; o.disabled = true;
+    var fd = new FormData();
+    fd.append('ngay', q('#bcNgay').value);
+    fd.append('cua_hang', q('#bcCH').value);
+    fd.append('noi_dung', nd);
+    api('trao-doi', { method: 'POST', body: fd }).then(function (kq) {
+      nut.disabled = false; o.disabled = false;
+      o.value = '';
+      veTraoDoi(kq.trao_doi || []);
+      o.focus();
+    }).catch(function (e) {
+      nut.disabled = false; o.disabled = false;
       baoBC(String(e.message || e), 'loi');
     });
   }

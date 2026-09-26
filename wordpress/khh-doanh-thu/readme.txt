@@ -102,6 +102,30 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.76.0 =
+* **Trao đổi qua lại dưới ô Ghi chú** (tab Nhập báo cáo ngày) — anh Thắng 26/09/2026: *"Anh muốn
+  nút ghi chú này là dạng ghi chú và kèm hỏi, khi nhân viên nhập ghi chú, kế toán có thể phản hồi
+  nút đó (dạng trao đổi qua lại nếu chưa rõ thông tin giữa 2 bên)"*. Sổ MỚI, RIÊNG với ô "Ghi chú"
+  cũ (ô cũ giữ nguyên — vẫn một dòng chữ cho MISA/ảnh báo cáo/tóm tắt như trước), gửi ngay không
+  cần bấm "Lưu báo cáo", nhân viên cơ sở lẫn kế toán/văn phòng đều viết được, và viết được NGAY CẢ
+  KHI ngày đã khoá "Đã nộp tiền" (hỏi thêm sau khi khoá vẫn là nhu cầu thật).
+* **Chốt ngày: qua giờ hạn thì không chốt mới được nữa** — anh Thắng 26/09/2026: *"Cho lưu và chốt
+  nhiều lần, tới 8h sáng ngày hôm sau nó sẽ khóa, không cho chốt nữa"*. Lưu/chốt lại thoải mái,
+  không giới hạn số lần TRƯỚC giờ hạn chốt (mục Quy trình, chỉnh được, mặc định 10:00 sáng hôm
+  sau); qua giờ hạn mà ngày đó CHƯA từng chốt thì "Lưu và chốt ngày" bị máy chủ chối (không khoá cả
+  form, vẫn lưu số liệu bình thường được). Tiện thể vá luôn một chỗ hụt liên quan: trước bản này,
+  bấm "Lưu báo cáo" (sửa số, không bấm lại nút Chốt) sau khi ngày đã chốt sẽ âm thầm BỎ CHỐT ngày
+  đó — nay lưu lại không đụng tới cờ chốt nữa nếu không chủ động bấm Chốt.
+* Sửa nút "Lưu và chốt ngày" / "Đã nộp tiền" **lúc ẩn lúc hiện** — anh Thắng 26/09/2026 báo ba lần
+  ("nút này bị khóa không cho bấm", "nút hôm nay bấm không được", "chốt lúc hiện lúc ẩn"). Gốc:
+  khối tự sửa lại cơ sở (khi ô chọn chưa khớp cơ sở mặc định) đứng CUỐI hàm tải báo cáo, SAU KHI đã
+  lỡ ẩn/hiện vài nút theo dữ liệu của cơ sở CŨ — bỏ dở phần khoá input/trạng thái của lượt tải NÀY.
+  Chuyển khối ấy lên đầu hàm, trước mọi thay đổi giao diện của lượt tải.
+* Thêm chữ nhỏ **"Chốt báo cáo ngày: ..."** dưới hàng nút Lưu/Chốt, và câu hỏi xác nhận "Đã nộp
+  tiền" nêu rõ ngày × cơ sở — để tránh chọn nhầm ngày/cơ sở lúc bấm (cùng đợt báo lỗi ở trên).
+* Tab Cảnh báo: bảng theo cơ sở × ngày hiện thêm **giờ đã chốt** ngay trên ô trạng thái (trước chỉ
+  thấy trong tooltip) — anh Thắng 26/09/2026: *"Hiện lịch sử chốt lúc mấy h"*.
+
 = 1.75.1 =
 * Bớt nút "Hôm qua" cạnh ô ngày (tab Nhập báo cáo ngày) — anh Thắng 26/09/2026: *"lúc được, lúc
   không. chỉ hiện nút hôm nay thôi, với nút to lên tí"*. Ô ngày vốn đã mặc định hôm qua, đủ dùng;

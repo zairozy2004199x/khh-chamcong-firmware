@@ -256,6 +256,14 @@ body.khh-dt-body{margin:0;background:#f3f5f9}
 .khh-dt .bc-o textarea{font-family:var(--chu);font-size:13.5px}
 .khh-dt .bc-o input:disabled,.khh-dt .bc-o textarea:disabled{background:var(--card-2);color:var(--ink-3)}
 
+/* Trao đổi qua lại dưới ô Ghi chú — anh Thắng 26/09/2026 (xem khh_dt_bang_trao_doi() ở PHP). */
+.khh-dt .bc-trao-doi{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;
+  padding:8px 10px;border-radius:var(--bo-nho);border:1px solid var(--line-2);background:var(--card-2)}
+.khh-dt .bc-trao-doi-o{font-size:13px;line-height:1.4}
+.khh-dt .bc-trao-doi-o b{font-weight:600}
+.khh-dt .bc-trao-doi-o div{white-space:pre-wrap;word-break:break-word}
+.khh-dt .muted{color:var(--ink-3)}
+
 .khh-dt .bc-lech{display:flex;flex-direction:column;gap:6px;margin-top:16px}
 /* HỘP NỔI (phiếu nhập hàng, 25/09/2026): nền mờ phủ trang, hộp trắng ở giữa; điện thoại tràn cả màn. */
 .khh-dt-modal{position:fixed;inset:0;z-index:99999;background:rgba(17,24,39,.5);display:flex;align-items:flex-start;justify-content:center;

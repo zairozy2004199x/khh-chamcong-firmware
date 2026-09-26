@@ -71,6 +71,94 @@ function khh_dt_tao_bang_bc() {
 	);
 }
 
+/**
+ * TRAO ĐỔI QUA LẠI DƯỚI Ô GHI CHÚ — anh Thắng 26/09/2026: *"Anh muốn nút ghi chú này là dạng ghi
+ * chú và kèm hỏi, khi nhân viên nhập ghi chú, kế toán có thể phản hồi nút đó (dạng trao đổi qua
+ * lại nếu chưa rõ thông tin giữa 2 bên)"*.
+ *
+ * 🔴 TÁCH RIÊNG KHỎI `ghi_chu` (cột cũ trong bảng báo cáo), KHÔNG THAY THẾ. Cột `ghi_chu` đã đi
+ *    khắp nơi (xuất MISA, ảnh báo cáo, tóm tắt) như MỘT DÒNG CHỮ CUỐI CÙNG của báo cáo — biến nó
+ *    thành cả một luồng hội thoại là những chỗ ấy phải đọc lại đúng "ghi chú nào" giữa hàng chục
+ *    tin nhắn qua lại, dễ vỡ. Trao đổi là một sổ MỚI, RIÊNG theo ngày × cơ sở, cộng dồn theo thời
+ *    gian — không đụng gì tới cột `ghi_chu` cũ.
+ *
+ * Ai được viết: CÙNG QUYỀN với ghi báo cáo ngày của đúng cơ sở đó (`khh_dt_duoc_cua_hang()`) —
+ * nhân viên cơ sở lẫn văn phòng/kế toán (vai "duyệt", `khh_dt_co_so_ds()` rỗng = mọi cơ sở) đều
+ * viết được, đúng cảnh "trao đổi qua lại" hai bên. Viết được NGAY CẢ KHI ngày đã khoá "Đã nộp
+ * tiền" — hỏi thêm sau khi khoá vẫn là nhu cầu thật (VD: kế toán hỏi vì sao lệch sau khi đã khoá).
+ */
+function khh_dt_bang_trao_doi() {
+	global $wpdb;
+	return $wpdb->prefix . 'khh_dt_trao_doi';
+}
+
+function khh_dt_tao_bang_trao_doi() {
+	global $wpdb;
+	$bang    = khh_dt_bang_trao_doi();
+	$charset = $wpdb->get_charset_collate();
+	require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+	dbDelta(
+		"CREATE TABLE $bang (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			ngay date NOT NULL,
+			cua_hang varchar(190) NOT NULL DEFAULT '',
+			nguoi varchar(100) NOT NULL DEFAULT '',
+			nguoi_id bigint(20) unsigned NOT NULL DEFAULT 0,
+			noi_dung text NOT NULL,
+			luc datetime NOT NULL,
+			PRIMARY KEY  (id),
+			KEY ngay_ch (ngay,cua_hang(120))
+		) $charset;"
+	);
+}
+
+/**
+ * 🔴 26/09/2026: bài học từ "Không lưu được" bản 1.72.0 (cột `nhan` chưa kịp nâng cấp làm cả câu
+ * SQL vỡ âm thầm, xem `khh_dt_bang_sk_co_cot()` bên sao-ke.php) — bảng MỚI này cũng gặp đúng rủi
+ * ro y hệt lúc site vừa cài đè bản có bảng mới mà `khh_dt_nang_cap()` (hook init) chưa kịp chạy.
+ * Tự kiểm bảng có thật trước khi dùng, thiếu thì tự tạo ngay tại chỗ — không đợi đúng nhịp của
+ * một hook khác.
+ */
+function khh_dt_bang_trao_doi_co() {
+	global $wpdb;
+	static $co = null;
+	if ( null !== $co ) {
+		return $co;
+	}
+	$bang = khh_dt_bang_trao_doi();
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$co = (bool) $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $bang ) );
+	if ( ! $co ) {
+		khh_dt_tao_bang_trao_doi();
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+		$co = (bool) $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $bang ) );
+	}
+	return $co;
+}
+
+/** Toàn bộ trao đổi của một ngày × cơ sở, cũ trước mới sau. Giới hạn 200 tin — quá đủ cho một ngày. */
+function khh_dt_trao_doi_ds( $ngay, $cua_hang ) {
+	global $wpdb;
+	if ( ! khh_dt_bang_trao_doi_co() ) {
+		return array();
+	}
+	$bang = khh_dt_bang_trao_doi();
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$rows = $wpdb->get_results(
+		$wpdb->prepare( "SELECT nguoi, noi_dung, luc FROM $bang WHERE ngay = %s AND cua_hang = %s ORDER BY id ASC LIMIT 200", $ngay, $cua_hang ), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		ARRAY_A
+	);
+	$ra = array();
+	foreach ( (array) $rows as $r ) {
+		$ra[] = array(
+			'nguoi'     => (string) $r['nguoi'],
+			'noi_dung'  => (string) $r['noi_dung'],
+			'luc'       => (string) $r['luc'],
+		);
+	}
+	return $ra;
+}
+
 /* ------------------------------------------------------------------ *
  * Quyền: mỗi người phụ trách cơ sở nào
  * ------------------------------------------------------------------ */
@@ -821,6 +909,18 @@ function khh_dt_rest_bc() {
 			'permission_callback' => 'khh_dt_duoc_nap',
 		)
 	);
+	register_rest_route(
+		'khh-dt/v1',
+		'/trao-doi',
+		array(
+			'methods'             => 'POST',
+			'callback'            => 'khh_dt_rest_trao_doi_gui',
+			/* Cùng cửa với ghi báo cáo ngày — kiểm cơ sở NGAY TRONG hàm (khh_dt_duoc_cua_hang),
+			   giống hệt khh_dt_rest_bc_luu(), vì permission_callback ở đây chưa biết cơ sở nào
+			   (tham số nằm trong thân request, không phải route). */
+			'permission_callback' => 'khh_dt_duoc_ghi',
+		)
+	);
 }
 
 function khh_dt_rest_bc_lay( $req ) {
@@ -859,6 +959,46 @@ function khh_dt_rest_bc_lay( $req ) {
 		/* Sổ kho của ngày — bày CHỈ XEM ở tab Nhập để nhân viên gửi báo cáo hàng cùng báo cáo ngày (anh Thắng
 		   25/09/2026: "qua bên này chỉ hiện không sửa, sửa bên kho hàng"). Cùng số với tab Kho, không tính lại. */
 		'kho'      => function_exists( 'khh_dt_kho_bang_ngay' ) ? khh_dt_kho_bang_ngay( $ngay, $ch ) : array(),
+		/* 🔴 Trao đổi qua lại dưới ô Ghi chú — anh Thắng 26/09/2026: "kế toán có thể phản hồi",
+		   xem khối chú thích ở khh_dt_bang_trao_doi(). RIÊNG với cột ghi_chu, không lẫn vào nhau. */
+		'trao_doi' => khh_dt_trao_doi_ds( $ngay, $ch ),
+	);
+}
+
+/** Gửi một tin trao đổi mới cho đúng ngày × cơ sở — xem khối chú thích ở khh_dt_bang_trao_doi(). */
+function khh_dt_rest_trao_doi_gui( $req ) {
+	global $wpdb;
+	$ngay = preg_replace( '/[^0-9\-]/', '', (string) $req->get_param( 'ngay' ) );
+	$ch   = khh_dt_bc_ten_cua( $req->get_param( 'cua_hang' ) );
+	$nd   = trim( sanitize_textarea_field( (string) $req->get_param( 'noi_dung' ) ) );
+	if ( ! $ngay || ! $ch || '*' === $ch ) {
+		return new WP_Error( 'khh_dt_td', 'Thiếu ngày hoặc cơ sở.', array( 'status' => 400 ) );
+	}
+	if ( '' === $nd ) {
+		return new WP_Error( 'khh_dt_td', 'Chưa gõ gì để gửi.', array( 'status' => 400 ) );
+	}
+	if ( ! khh_dt_duoc_cua_hang( $ch ) ) {
+		return new WP_Error( 'khh_dt_td', 'Anh/chị không phụ trách cơ sở này.', array( 'status' => 403 ) );
+	}
+	khh_dt_bang_trao_doi_co();   // tự tạo bảng ngay nếu site chưa kịp nâng cấp — xem chú thích ở đó
+	$nd  = mb_substr( $nd, 0, 2000 );
+	$luc = current_time( 'mysql' );
+	$ky  = khh_dt_ten_ghi_so();
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery
+	$wpdb->insert(
+		khh_dt_bang_trao_doi(),
+		array(
+			'ngay'     => $ngay,
+			'cua_hang' => $ch,
+			'nguoi'    => $ky,
+			'nguoi_id' => get_current_user_id(),
+			'noi_dung' => $nd,
+			'luc'      => $luc,
+		)
+	);
+	return array(
+		'ok'       => true,
+		'trao_doi' => khh_dt_trao_doi_ds( $ngay, $ch ),
 	);
 }
 
@@ -877,7 +1017,49 @@ function khh_dt_rest_bc_luu( $req ) {
 	}
 
 	$bang = khh_dt_bang_bc();
-	$so   = function ( $k ) use ( $req ) {
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$cu = $wpdb->get_row(
+		$wpdb->prepare( "SELECT * FROM $bang WHERE ngay = %s AND cua_hang = %s", $ngay, $ch ), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		ARRAY_A
+	);
+
+	/* 🔴 26/09/2026 anh Thắng — nút "Đã nộp tiền": *"khi đã nộp thì khóa ô nhập lại"*. Màn hình đã
+	   khoá (`e.disabled`) khi `da_nop`, nhưng khoá màn không chặn được ai gọi thẳng REST — chặn LẠI
+	   Ở ĐÂY, không chỉ ở giao diện, mới thật sự "vĩnh viễn, muốn sửa phải nhờ ai có quyền cao hơn"
+	   (câu trả lời của anh Thắng khi được hỏi). Gỡ khoá đi đường riêng `khh_dt_rest_bc_go_khoa_da_nop()`. */
+	if ( $cu && (int) $cu['da_nop'] ) {
+		return new WP_Error(
+			'khh_dt_da_nop',
+			'Ngày này đã đánh dấu "Đã nộp tiền" (bởi ' . (string) $cu['da_nop_boi'] . ') — khoá sửa. ' .
+			'Nhờ văn phòng hoặc quản trị gỡ khoá trước khi sửa lại.',
+			array( 'status' => 403 )
+		);
+	}
+
+	/*
+	 * 🔴 26/09/2026 anh Thắng: *"Cho lưu và chốt nhiều lần, tới 8h sáng ngày hôm sau nó sẽ khóa,
+	 * không cho chốt nữa"*. Hai vế:
+	 *   - LƯU/CHỐT LẠI THOẢI MÁI, KHÔNG GIỚI HẠN SỐ LẦN trước hạn (đã vốn tự do — không đụng gì).
+	 *   - QUA HẠN CHỐT (`khh_dt_qt_han_ts()`, giờ chỉnh ở màn Quy trình, mặc định 10:00 sáng hôm
+	 *     sau) MÀ NGÀY NÀY CHƯA TỪNG CHỐT -> không cho CHỐT MỚI nữa (chặn "chốt trễ" sau khi văn
+	 *     phòng đã tổng hợp/nhắc việc quá giờ). Ngày ĐÃ chốt trước hạn rồi thì không đụng — sửa số
+	 *     sau đó (không tích lại nút Chốt) vẫn lưu bình thường, xem chỗ giữ `chot` ngay dưới.
+	 */
+	if ( $req->get_param( 'chot' ) && ! ( $cu && (int) $cu['chot'] ) && function_exists( 'khh_dt_qt_han_ts' ) ) {
+		$han_ts = khh_dt_qt_han_ts( $ngay );
+		if ( current_time( 'timestamp' ) > $han_ts ) {
+			$h = new DateTime( '@' . $han_ts );
+			$h->setTimezone( wp_timezone() );
+			return new WP_Error(
+				'khh_dt_qua_han_chot',
+				'Đã quá hạn chốt (' . $h->format( 'H:i d/m' ) . ') — không thể chốt ngày này nữa. ' .
+				'Vẫn lưu số liệu bình thường được, nhờ văn phòng xử lý nếu cần chốt trễ.',
+				array( 'status' => 403 )
+			);
+		}
+	}
+
+	$so = function ( $k ) use ( $req ) {
 		return khh_dt_so( (string) $req->get_param( $k ) );
 	};
 	$moi = array(
@@ -894,33 +1076,12 @@ function khh_dt_rest_bc_luu( $req ) {
 		'ghi_chu'       => sanitize_textarea_field( (string) $req->get_param( 'ghi_chu' ) ),
 		/* Số thực bán từng món, chỉ những dòng lệch máy (màn gửi). Không gửi -> '{}' = đã soát, khớp hết. */
 		'mon_thuc'      => wp_json_encode( (object) khh_dt_bc_mon_thuc_sach( $req->get_param( 'mon_thuc' ) ) ),
-		'chot'          => $req->get_param( 'chot' ) ? 1 : 0,
+		/* 🔴 GIỮ LẠI cờ chốt cũ nếu request này không tự xin chốt — trước 26/09/2026 chỗ này viết
+		   thẳng `$req->get_param('chot') ? 1 : 0`, nên bấm "Lưu báo cáo" (sửa số, không bấm lại nút
+		   Chốt) sau khi đã chốt sẽ ÂM THẦM BỎ CHỐT ngày đó. Không có đường REST nào "bỏ chốt" chủ
+		   động cả — chốt chỉ tắt khi đổi số thật cần re-save, không phải mục đích của ai. */
+		'chot'          => $req->get_param( 'chot' ) ? 1 : ( $cu ? (int) $cu['chot'] : 0 ),
 	);
-
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
-	$cu = $wpdb->get_row(
-		$wpdb->prepare( "SELECT * FROM $bang WHERE ngay = %s AND cua_hang = %s", $ngay, $ch ), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		ARRAY_A
-	);
-
-	/* 🔴 26/09/2026 anh Thắng — nút "Đã nộp tiền": *"khi đã nộp thì khóa ô nhập lại"*. Màn hình đã
-	   khoá (`e.disabled`) khi `da_nop`, nhưng khoá màn không chặn được ai gọi thẳng REST — chặn LẠI
-	   Ở ĐÂY, không chỉ ở giao diện, mới thật sự "vĩnh viễn, muốn sửa phải nhờ ai có quyền cao hơn"
-	   (câu trả lời của anh Thắng khi được hỏi). Gỡ khoá đi đường riêng `khh_dt_rest_bc_go_khoa_da_nop()`. */
-
-
-	/* 🔴 26/09/2026 anh Thắng — nút "Đã nộp tiền": *"khi đã nộp thì khóa ô nhập lại"*. Màn hình đã
-	   khoá (`e.disabled`) khi `da_nop`, nhưng khoá màn không chặn được ai gọi thẳng REST — chặn LẠI
-	   Ở ĐÂY, không chỉ ở giao diện, mới thật sự "vĩnh viễn, muốn sửa phải nhờ ai có quyền cao hơn"
-	   (câu trả lời của anh Thắng khi được hỏi). Gỡ khoá đi đường riêng `khh_dt_rest_bc_go_khoa_da_nop()`. */
-	if ( $cu && (int) $cu['da_nop'] ) {
-		return new WP_Error(
-			'khh_dt_da_nop',
-			'Ngày này đã đánh dấu "Đã nộp tiền" (bởi ' . (string) $cu['da_nop_boi'] . ') — khoá sửa. ' .
-			'Nhờ văn phòng hoặc quản trị gỡ khoá trước khi sửa lại.',
-			array( 'status' => 403 )
-		);
-	}
 
 	$ky = khh_dt_ten_ghi_so();
 	// Sửa sau khi đã chốt thì giữ lại bản cũ, đừng để mất dấu.
