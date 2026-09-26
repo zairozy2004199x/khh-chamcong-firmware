@@ -37,17 +37,26 @@ if ( ! function_exists( 'khh_dt_phien_nguoi' ) ) {
 	function khh_dt_phien_nguoi() { return isset( $GLOBALS['khh_dt_phien_nho'] ) ? $GLOBALS['khh_dt_phien_nho'] : null; }
 }
 
-/* Chỉ cần hai hàm quyền — nạp riêng để khỏi kéo cả plugin. */
+/* Chỉ cần các hàm quyền — nạp riêng để khỏi kéo cả plugin. */
 $src = file_get_contents( $goc . '/khh-doanh-thu.php' );
 preg_match( '~/\*\*\s*\n \* Ai được nạp file.*?\nfunction khh_dt_duoc_nap\(\) \{.*?\n\}~s', $src, $m ) || exit( "KHÔNG cắt được khh_dt_duoc_nap\n" );
 eval( '?>' . '<?php ' . $m[0] );
+preg_match( '~/\*\*\s*\n \* Ai được nhập báo cáo ngày\..*?\nfunction khh_dt_duoc_ghi\(\) \{.*?\n\}~s', $src, $mg ) || exit( "KHÔNG cắt được khh_dt_duoc_ghi\n" );
+eval( '?>' . '<?php ' . $mg[0] );
 $q = file_get_contents( $goc . '/quan-tri.php' );
 preg_match( '~function khh_dt_quyen_cua\(.*?\n\}~s', $q, $m2 ) || exit( "KHÔNG cắt được khh_dt_quyen_cua\n" );
 eval( '?>' . '<?php ' . $m2[0] );
+/* 🔴 26/09/2026: `khh_dt_duoc_nap()`/`khh_dt_duoc_ghi()` giờ gọi thẳng hàm QUẢN TRỊ THẬT (không
+   phải một bản stub tự chép — nhiều bài khác trong bộ thử tự khai một bản `khh_dt_duoc_quan_tri()`
+   proxy thẳng về VHCP_CO_QUYEN cho mục đích RIÊNG của bài ấy, nhưng bài NÀY đang thử ĐÚNG luật
+   quản trị nên phải lấy nguyên hàm thật, không thì "vá luật nhưng bài thử tự chế lại luật khác"
+   sẽ xanh giả). */
+preg_match( '~function khh_dt_duoc_quan_tri\(\) \{.*?\n\}~s', $q, $m3 ) || exit( "KHÔNG cắt được khh_dt_duoc_quan_tri\n" );
+eval( '?>' . '<?php ' . $m3[0] );
 
 $dat = 0; $hong = array();
 function phep( $t, $d ) { global $dat, $hong; if ( $d ) { $dat++; } else { $hong[] = $t; } }
-function reset_all() { $GLOBALS['CAN'] = array(); $GLOBALS['META'] = array(); $GLOBALS['VHCP_CO_QUYEN'] = false; $GLOBALS['VHCP_DANG_NHAP_WP'] = false; pin( null ); }
+function reset_all() { $GLOBALS['CAN'] = array(); $GLOBALS['META'] = array(); $GLOBALS['VHCP_CO_QUYEN'] = false; $GLOBALS['VHCP_QUYEN_THEO_CAP'] = array(); $GLOBALS['VHCP_DANG_NHAP_WP'] = false; pin( null ); }
 
 /* 1. Văn phòng đăng nhập WordPress, có edit_posts -> được. */
 reset_all(); $GLOBALS['VHCP_CO_QUYEN'] = true; $GLOBALS['VHCP_DANG_NHAP_WP'] = true;
@@ -91,5 +100,24 @@ phep( 'tài khoản WP thường vai duyệt thì được', true === khh_dt_duo
 $cfg = file_get_contents( $goc . '/khh-doanh-thu.php' );
 phep( '🔴 cờ duoc_nap trong cau-hinh ép về bool (true === …)', false !== strpos( $cfg, "'duoc_nap'  => true === khh_dt_duoc_nap()" ) );
 
+/* 7. 🔴 26/09/2026 anh Thắng — "bổ sung mấy quyền sửa cái này cho tài khoản quản trị": role
+      WordPress thật của quản trị trên site có `list_users` (vào được tab Quản trị: Sale vé/Bán
+      lẻ, Bóc tách vé, Phân quyền — toàn màn nhạy hơn hẳn nạp file/nhập báo cáo ngày) nhưng KHÔNG
+      có `edit_posts`. Quản trị phải là tầng quyền CAO NHẤT — không thể vào được phòng trong
+      (Quản trị) mà lại bị chặn ở cửa ngoài (nạp file / nhập báo cáo ngày). */
+reset_all(); $GLOBALS['VHCP_DANG_NHAP_WP'] = true;
+$GLOBALS['VHCP_QUYEN_THEO_CAP'] = array( 'edit_posts' => false, 'list_users' => true );
+phep( '🔴 quản trị (list_users) KHÔNG có edit_posts vẫn được NẠP file', true === khh_dt_duoc_nap() );
+phep( '🔴 quản trị (list_users) KHÔNG có edit_posts vẫn được GHI báo cáo ngày', true === khh_dt_duoc_ghi() );
+
+/* 8. Đối chứng: tắt CẢ HAI capability (không phải quản trị mở toang mọi thứ vô điều kiện) thì vẫn
+      chối y như trước bản vá — chứng minh phép 7 ở trên thật sự nhờ list_users, không phải một
+      lỗ hổng khác vô tình mở toang cho mọi tài khoản WordPress đã đăng nhập. */
+reset_all(); $GLOBALS['VHCP_DANG_NHAP_WP'] = true;
+$GLOBALS['VHCP_QUYEN_THEO_CAP'] = array( 'edit_posts' => false, 'list_users' => false );
+$r = khh_dt_duoc_nap();
+phep( 'đối chứng: cả hai capability đều tắt -> vẫn chối NẠP file như cũ', is_wp_error( $r ) );
+phep( 'đối chứng: cả hai capability đều tắt -> vẫn chối GHI báo cáo ngày như cũ', false === khh_dt_duoc_ghi() );
+
 if ( $hong ) { echo "\n✗ HỎNG " . count( $hong ) . " phép (đạt $dat):\n"; foreach ( $hong as $h ) { echo "   · 🔴 $h\n"; } exit( 1 ); }
-echo "\n✓ SẠCH — $dat phép: PIN duyệt nạp được, nhập thì không, và chối là có lý do.\n";
+echo "\n✓ SẠCH — $dat phép: PIN duyệt nạp/ghi được, nhập thì không, quản trị (list_users) được dù thiếu edit_posts, và chối là có lý do.\n";

@@ -3,7 +3,7 @@
  * Plugin Name:       K&H — Báo cáo doanh thu FABi
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Nạp file "Báo cáo bán hàng" xuất từ máy POS FABi (iPOS) và dựng báo cáo doanh thu theo ngày, cửa hàng, khung giờ, hình thức thanh toán, tại chỗ/mang về và món bán chạy. Có sẵn đường nối API FABi để bật khi iPOS cấp khoá.
- * Version:           1.69.3
+ * Version:           1.70.0
  * Requires at least: 5.8
  * Requires PHP:      7.2
  * Author:            K&H
@@ -26,7 +26,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'KHH_DT_VERSION', '1.69.3' );
+define( 'KHH_DT_VERSION', '1.70.0' );
 define( 'KHH_DT_FILE', __FILE__ );
 define( 'KHH_DT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KHH_DT_URL', plugin_dir_url( __FILE__ ) );
@@ -178,12 +178,14 @@ function khh_dt_nang_cap() {
  *    Chỉ mở cho `duyet` (người duyệt, tức văn phòng). `nhap` là nhân viên cửa hàng — không được
  *    nạp báo cáo của cả công ty.
  *
- * 🔴 TRẢ `WP_Error` CÓ LÝ DO, KHÔNG TRẢ `false`. `false` là WordPress in câu chung chung, người
- *    dùng không biết mình bị chối vì đâu và phải làm gì. permission_callback được phép trả
- *    WP_Error, và câu ấy sẽ hiện thẳng lên màn.
- */
+ * 🔴 26/09/2026: anh Thắng — tài khoản mang vai "quản trị" (cấp bằng `list_users`, xem
+ *    `khh_dt_duoc_quan_tri()`) trên site thật lại KHÔNG có `edit_posts` (role WordPress tự đặt
+ *    riêng cho "quản trị", không phải Administrator mặc định — thiếu đúng capability này), nên bị
+ *    chối ở đây dù đã vào được cả tab Quản trị (Sale vé/Bán lẻ, Bóc tách vé, Phân quyền — toàn
+ *    những màn CÒN NHẠY hơn việc nạp file). Quản trị phải là tầng quyền CAO NHẤT, bao trùm luôn
+ *    văn phòng — không thể vào được phòng trong mà lại bị chặn ở cửa ngoài. */
 function khh_dt_duoc_nap() {
-	if ( current_user_can( 'edit_posts' ) ) {
+	if ( current_user_can( 'edit_posts' ) || khh_dt_duoc_quan_tri() ) {
 		return true;
 	}
 	$vai = function_exists( 'khh_dt_quyen_cua' ) ? khh_dt_quyen_cua() : '';
@@ -210,9 +212,13 @@ function khh_dt_duoc_nap() {
  * Cửa hàng trưởng đẩy từ trang nhân sự sang chỉ là tài khoản thường (subscriber),
  * không có edit_posts — nên quyền nhập lấy theo meta khh_dt_quyen, giống cách app
  * Chi Phí cấp quyền.
+ *
+ * 🔴 26/09/2026: cùng lý do ở `khh_dt_duoc_nap()` — quản trị (`list_users`) là tầng quyền cao
+ *    nhất, không được để thiếu `edit_posts` là bị chối ngay ở đây trong khi vẫn vào được tab
+ *    Quản trị vốn nhạy hơn hẳn một dòng báo cáo ngày.
  */
 function khh_dt_duoc_ghi() {
-	if ( current_user_can( 'edit_posts' ) ) {
+	if ( current_user_can( 'edit_posts' ) || khh_dt_duoc_quan_tri() ) {
 		return true;
 	}
 	return in_array( khh_dt_quyen_cua(), array( 'nhap', 'duyet' ), true );

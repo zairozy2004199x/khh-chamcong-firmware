@@ -258,8 +258,18 @@ function vhcp_test_uu_tien( $hook, $ten_ham ) {
 	return null;
 }
 /* Mặc định KHÔNG có quyền: phần lớn phép thử canh đúng chuyện "người không đủ quyền bị chặn",
-   nên mặc định phải là chặn. Phép thử VẼ MÀN HÌNH bật cờ này lên để đi qua được chốt quyền. */
-function current_user_can( $c ) { return ! empty( $GLOBALS['VHCP_CO_QUYEN'] ); }
+   nên mặc định phải là chặn. Phép thử VẼ MÀN HÌNH bật cờ này lên để đi qua được chốt quyền.
+ *
+ * 🔴 26/09/2026: seam CŨ (`VHCP_CO_QUYEN`) gộp MỌI capability vào một cờ — không phân biệt được
+ *    'edit_posts' với 'list_users'. Bài `kiem-quyen-nap.php` cần đúng ca "có list_users (quản
+ *    trị) mà KHÔNG có edit_posts" (role WordPress thật của anh Thắng), cờ cũ không dựng được ca
+ *    này. Thêm `VHCP_QUYEN_THEO_CAP` — bản đồ capability -> có/không, tra TRƯỚC cờ cũ, có thì
+ *    dùng, không có (`isset` false) thì lùi về cờ cũ y như trước. Không bài nào đang chạy đặt
+ *    biến này nên hành vi mọi bài cũ giữ nguyên tuyệt đối. */
+function current_user_can( $c ) {
+	if ( isset( $GLOBALS['VHCP_QUYEN_THEO_CAP'][ $c ] ) ) { return (bool) $GLOBALS['VHCP_QUYEN_THEO_CAP'][ $c ]; }
+	return ! empty( $GLOBALS['VHCP_CO_QUYEN'] );
+}
 
 /* ---- Đủ để VẼ được màn hình wp-admin ----------------------------------------------------
    Có bộ này thì phép thử gọi thẳng hàm vẽ trang được, và mọi lỗi nghiêm trọng lúc vẽ (hằng

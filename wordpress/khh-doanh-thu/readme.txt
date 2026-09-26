@@ -102,6 +102,14 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.70.0 =
+* Quản trị (tài khoản mang capability `list_users`, không có `edit_posts`) giờ được cả **nạp file**
+  (POS/sao kê/MoMo) lẫn **nhập báo cáo ngày** — anh Thắng 26/09/2026: *"bổ sung mấy quyền sửa cái
+  này cho tài khoản quản trị"*. Trước bản này, role WordPress "quản trị" trên site (khác
+  Administrator mặc định, có `list_users` nhưng thiếu `edit_posts`) vào được cả tab Quản trị (Sale
+  vé/Bán lẻ, Bóc tách vé, Phân quyền — toàn màn nhạy hơn hẳn nạp file) mà lại bị chối ở cửa nạp
+  file/nhập báo cáo ngày. Quản trị nay là tầng quyền cao nhất, bao trùm luôn văn phòng.
+
 = 1.69.3 =
 * Bóc tách vé → khách vào: vé/combo **chưa khai** giờ tính **khách vào (POS)** THEO ĐÚNG GỢI Ý đã
   điền sẵn (combo "Trẻ em + Người lớn" → 2), không còn hạ về 1 khách/vé rồi đợi ai đó vào Quản trị
