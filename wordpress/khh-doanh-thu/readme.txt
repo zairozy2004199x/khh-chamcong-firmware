@@ -102,6 +102,16 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.69.0 =
+* **Chuyển khoản thực thu** — ô mới ở Nhập báo cáo ngày, bản sao của "Tiền mặt đếm trong két" nhưng
+  cho phía chuyển khoản (anh Thắng 26/09/2026: *"nhiều khi lệch ngược giữa chuyển khoản và tiền
+  mặt… kiểu nhân viên cho khách bấm vé chuyển khoản nhưng khách đưa tiền mặt, hoặc ngược lại, nên
+  cần nhân viên nhập số thực"*). Máy POS ghi hình thức thanh toán theo nút nhân viên bấm lúc bán,
+  không theo tiền thật cầm trên tay — bấm nhầm thì tiền mặt và chuyển khoản (POS) lệch NGƯỢC CHIỀU
+  nhau. Tab Đối soát có thêm cột **Lệch CK** riêng (không gộp vào cột Lệch có sẵn, vì gộp là hai
+  chiều lệch triệt tiêu nhau, đúng chỗ đang sai lại hiện ra "khớp"); cột này cũng được xét khi tô đỏ
+  cảnh báo một dòng.
+
 = 1.68.6 =
 * Kéo sao kê: nhận đúng cơ sở khi bảng sao kê đã có sẵn "Nhãn phân loại" viết gọn (anh Thắng
   26/09/2026: *"fabi chưa đẩy sao kê vào"* — plugin Sao Kê đã gắn đúng nhãn "TÀU GÒ VẤP" cho khoản

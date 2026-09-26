@@ -1089,6 +1089,10 @@
         '<div id="bcKho"></div>' +
         '<div class="bc-luoi" id="bcNhap">' +
           o_nhap('tien_mat_dem', 'Tiền mặt đếm trong két', 'cuối ca, đếm thật') +
+          /* 🔴 Anh Thắng 26/09/2026: "lệch ngược giữa chuyển khoản và tiền mặt" — nhân viên bấm nhầm
+             nút PTTT lúc bán (khách đưa tiền mặt nhưng bấm chuyển khoản, hoặc ngược lại), nên POS ghi
+             sai cả hai cột. Ô này là bản sao của "Tiền mặt đếm trong két" cho phía chuyển khoản. */
+          o_nhap('ck_thuc_thu', 'Chuyển khoản thực thu', 'nếu lệch với máy POS') +
           o_nhap('tien_nop', 'Tiền thực nộp về quỹ', 'số tiền bàn giao') +
           o_nhap('so_bill_huy', 'Số bill đã huỷ', 'đếm số bill') +
           o_nhap('tien_bill_huy', 'Tiền của bill đã huỷ', '') +
@@ -1331,7 +1335,7 @@
           doiTab('quantri');
           setTimeout(function () { var k = q('#dtNhomVe'); if (k) k.scrollIntoView({ behavior: 'smooth' }); }, 900);
         });
-        ['tien_mat_dem', 'tien_nop', 'so_bill_huy', 'tien_bill_huy', 'tong_chuyen', 'tong_khach', 've_giay']
+        ['tien_mat_dem', 'ck_thuc_thu', 'tien_nop', 'so_bill_huy', 'tien_bill_huy', 'tong_chuyen', 'tong_khach', 've_giay']
           .forEach(function (k) {
             var v = b[k] != null ? Math.round(b[k]) : '';
             q('#bc_' + k).value = v === '' || v === 0 ? '' : nguyen(v);
@@ -1372,7 +1376,7 @@
   function tinhLech() {
     var p = S.pos, o = q('#bcLech');
     if (!p) { o.innerHTML = ''; return; }
-    var dem = soNhap('tien_mat_dem'), nop = soNhap('tien_nop');
+    var dem = soNhap('tien_mat_dem'), ck = soNhap('ck_thuc_thu'), nop = soNhap('tien_nop');
     var khach = soNhap('tong_khach'), ve = Math.round(p.so_ve || 0);
     /* Có bóc tách vé thì so với KHÁCH theo máy; chưa có thì lùi về số vé như trước. */
     var may = p.khach_may != null ? Math.round(p.khach_may) : ve;
@@ -1384,6 +1388,7 @@
         (v > 0 ? '+' : '') + (dv === 'tien' ? tien(v) : nguyen(v)) + '</b></div>';
     }
     if (dem) dong('Đếm két so với tiền mặt POS', dem - Math.round(p.tien_mat), 'tien', Math.abs(dem - p.tien_mat) > 0);
+    if (ck) dong('Chuyển khoản thực thu so với máy POS', ck - Math.round(p.ck), 'tien', Math.abs(ck - p.ck) > 0);
     if (dem && nop) dong('Đếm được nhưng chưa nộp', dem - nop, 'tien', dem - nop > 0);
     if (khach && may) dong(nhanMay, khach - may, 'so', khach - may > 0);
     o.innerHTML = h || '<div class="bc-lech-o khop"><span>Nhập số vào để hệ thống tính lệch ngay</span><b></b></div>';
@@ -1524,10 +1529,11 @@
     var p = h.pos || {}, b = h.bao_cao || {};
     var mon = p.mon || [], thuc = b.mon_thuc || {};
     var so = function (v) { return v == null || v === '' ? 0 : Math.round(Number(v)); };
-    var khach = so(b.tong_khach), dem = so(b.tien_mat_dem), nop = so(b.tien_nop);
+    var khach = so(b.tong_khach), dem = so(b.tien_mat_dem), ck = so(b.ck_thuc_thu), nop = so(b.tien_nop);
     var may = p.khach_may != null ? Math.round(p.khach_may) : Math.round(p.so_ve || 0);
     var lech = [];
     if (dem) lech.push(['Đếm két − tiền mặt POS', (dem - Math.round(p.tien_mat || 0)), 'tien']);
+    if (ck) lech.push(['Chuyển khoản thực thu − chuyển khoản POS', (ck - Math.round(p.ck || 0)), 'tien']);
     if (dem && nop) lech.push(['Đếm được − đã nộp', dem - nop, 'tien']);
     if (khach && may) lech.push([p.khach_may != null ? 'Khách đếm − khách máy' : 'Khách đếm − vé bán', khach - may, 'so']);
     var lechMon = mon.filter(function (m) { return thuc[m.n] != null && Math.round(thuc[m.n]) !== Math.round(m.q); });
@@ -1541,7 +1547,7 @@
       'Doanh thu máy POS: ' + tien(p.doanh_thu) + ' · ' + nguyen(p.so_hd) + ' hoá đơn',
       'Sale vé ' + tien(p.tien_ve || 0) + ' · Bán lẻ ' + tien(p.tien_le || 0) + ' · Sale phụ ' + tien(p.tien_phu || 0),
       'Tiền mặt POS ' + tien(p.tien_mat) + ' · Chuyển khoản ' + tien(p.ck),
-      'Đếm két ' + tien(d.so(b.tien_mat_dem)) + ' · Nộp quỹ ' + tien(d.so(b.tien_nop)),
+      'Đếm két ' + tien(d.so(b.tien_mat_dem)) + ' · CK thực thu ' + tien(d.so(b.ck_thuc_thu)) + ' · Nộp quỹ ' + tien(d.so(b.tien_nop)),
       'Khách vào đếm ' + nguyen(d.so(b.tong_khach)) + (p.khach_may != null ? ' · máy ' + nguyen(p.khach_may) : ''),
       'Bill huỷ ' + nguyen(d.so(b.so_bill_huy)) + ' · ' + tien(d.so(b.tien_bill_huy)),
       'Hàng bán: ' + (d.lechMon.length ? d.lechMon.length + ' món lệch máy' : 'khớp máy'),
@@ -1593,8 +1599,8 @@
     y += 2 * 56 + 8; ke(y); y += 26;
     /* Cơ sở khai */
     var oKhai = [
-      ['Tiền mặt đếm két', tien(d.so(b.tien_mat_dem))], ['Thực nộp về quỹ', tien(d.so(b.tien_nop))], ['Bill huỷ', nguyen(d.so(b.so_bill_huy)) + ' · ' + tien(d.so(b.tien_bill_huy))], ['Lượt chạy', nguyen(d.so(b.tong_chuyen))],
-      ['Khách vào (đếm ở cửa)', nguyen(d.so(b.tong_khach))], ['Vé giấy đã soát', nguyen(d.so(b.ve_giay))],
+      ['Tiền mặt đếm két', tien(d.so(b.tien_mat_dem))], ['Chuyển khoản thực thu', tien(d.so(b.ck_thuc_thu))], ['Thực nộp về quỹ', tien(d.so(b.tien_nop))], ['Bill huỷ', nguyen(d.so(b.so_bill_huy)) + ' · ' + tien(d.so(b.tien_bill_huy))],
+      ['Lượt chạy', nguyen(d.so(b.tong_chuyen))], ['Khách vào (đếm ở cửa)', nguyen(d.so(b.tong_khach))], ['Vé giấy đã soát', nguyen(d.so(b.ve_giay))],
     ];
     chu('CƠ SỞ KHAI', 24, y, { dam: true, co: 12, mau: '#6b7280' }); y += 10;
     oKhai.forEach(function (o, i) {
@@ -1700,7 +1706,7 @@
     var fd = new FormData();
     fd.append('ngay', q('#bcNgay').value);
     fd.append('cua_hang', q('#bcCH').value);
-    ['tien_mat_dem', 'tien_nop', 'so_bill_huy', 'tien_bill_huy', 'tong_chuyen', 'tong_khach', 've_giay']
+    ['tien_mat_dem', 'ck_thuc_thu', 'tien_nop', 'so_bill_huy', 'tien_bill_huy', 'tong_chuyen', 'tong_khach', 've_giay']
       .forEach(function (k) { fd.append(k, String(soNhap(k))); });
     fd.append('ghi_chu', q('#bc_ghi_chu').value);
     fd.append('mon_thuc', JSON.stringify(docMonThuc()));
@@ -2856,7 +2862,7 @@
       '<div class="bang-cuon"><table><thead><tr>' +
         '<th>Ngày</th><th>Cơ sở</th><th>POS</th><th>Sale vé</th><th>Bán lẻ</th><th>Sale phụ</th><th>Tiền mặt POS</th>' +
         '<th>Ngân hàng nhận</th><th>Đang treo</th>' +
-        '<th>Đếm két</th><th>Lệch</th><th>Bill huỷ</th><th>Hàng bán</th><th>Khách − máy</th><th>Người nhập</th>' +
+        '<th>Đếm két</th><th>Lệch</th><th>Lệch CK</th><th>Bill huỷ</th><th>Hàng bán</th><th>Khách − máy</th><th>Người nhập</th>' +
       '</tr></thead><tbody>';
     var ptDS = catTrang('doi_soat', hien);
     ptDS.dong.forEach(function (x) {
@@ -2882,6 +2888,10 @@
         (x.co_bao_cao
           ? '<td class="s">' + tien(x.dem) + '</td>' +
             '<td class="s">' + (x.lech_tm ? (x.lech_tm > 0 ? '+' : '') + tien(x.lech_tm) : '0') + '</td>' +
+            /* 🔴 CỘT RIÊNG, KHÔNG GỘP VÀO "Lệch" — anh Thắng 26/09/2026: nhân viên bấm nhầm nút PTTT
+               lúc bán làm tiền mặt/chuyển khoản lệch NGƯỢC CHIỀU nhau; cộng chung một cột là +X và
+               −X triệt tiêu nhau, đúng chỗ đang sai lại hiện ra "khớp". */
+            '<td class="s" title="Chuyển khoản thực thu ' + esc(tien(x.ck_tt)) + '">' + (x.lech_ck ? (x.lech_ck > 0 ? '+' : '') + tien(x.lech_ck) : '0') + '</td>' +
             '<td class="s">' + (x.bill_huy ? nguyen(x.bill_huy) + ' · ' + tien(x.tien_huy) : '—') + '</td>' +
             /* Cơ sở chốt hàng bán: khớp máy, hay lệch món nào (kế toán xác nhận ở đây). */
             '<td class="s">' + (x.mon_lech
@@ -2892,7 +2902,7 @@
             '<td class="s">' + (x.khach && (x.khach_may != null ? x.khach_may : x.so_ve)
               ? nguyen(x.khach - Math.round(x.khach_may != null ? x.khach_may : x.so_ve)) : '—') + '</td>' +
             '<td>' + esc(x.nguoi || '') + (x.chot ? ' ✓' : '') + '</td>'
-          : '<td colspan="6" class="chua">chưa nhập báo cáo ngày</td>') +
+          : '<td colspan="7" class="chua">chưa nhập báo cáo ngày</td>') +
         '</tr>';
     });
     if (!hien.length) {
@@ -3625,7 +3635,7 @@
     /* Treo lâu mới là dấu hiệu, chứ không phải một ngày không có giao dịch. */
     var m = ((x.ngay_treo || 0) >= (nhac || 10) && (x.treo || 0) > ng.so_tien) ? x.treo : 0;
     if (x.co_bao_cao) {
-      m = Math.max(m, Math.abs(x.lech_tm || 0), Math.abs(x.chua_nop || 0), Math.abs(x.lech_nop || 0));
+      m = Math.max(m, Math.abs(x.lech_tm || 0), Math.abs(x.lech_ck || 0), Math.abs(x.chua_nop || 0), Math.abs(x.lech_nop || 0));
     }
     if (!m) return false;
     return m > ng.so_tien || (x.doanh_thu > 0 && m / x.doanh_thu * 100 > ng.phan_tram);

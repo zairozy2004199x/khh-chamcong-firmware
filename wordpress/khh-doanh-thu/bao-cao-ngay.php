@@ -11,9 +11,18 @@
  * thứ máy POS không thể biết:
  *
  *   - tiền mặt đếm được trong két cuối ca   -> lệch với tiền mặt POS
+ *   - chuyển khoản thực thu                 -> lệch với chuyển khoản POS (26/09/2026, xem dưới)
  *   - tiền thực nộp về quỹ                  -> phần thu rồi mà chưa nộp
  *   - số bill huỷ và tiền huỷ               -> chỗ cổ điển để rút tiền mặt
  *   - tổng lượt chạy / tổng khách vào       -> khách vào mà không có vé
+ *
+ * 🔴 26/09/2026: anh Thắng — *"nhiều khi lệch ngược giữa chuyển khoản và tiền mặt… nhân viên cho
+ *    khách bấm vé chuyển khoản nhưng khách đưa tiền mặt, hoặc ngược lại"*. Máy POS ghi hình thức
+ *    thanh toán theo NÚT nhân viên bấm lúc bán, không theo tiền THẬT SỰ cầm trên tay — bấm nhầm nút
+ *    thì "tiền mặt (POS)" và "chuyển khoản (POS)" đều sai, mà sai NGƯỢC CHIỀU nhau nên cộng chung
+ *    một cột "lệch" là che mất, không phải bù trừ. Bên tiền mặt đã có `tiền mặt đếm trong két` để
+ *    cơ sở tự sửa; `ck_thuc_thu` là ô tương ứng cho phía chuyển khoản, cùng đi qua đường khai bình
+ *    thường (`khh_dt_rest_bc_luu()`), không phải một luồng riêng.
  *
  * @package khh-doanh-thu
  */
@@ -38,6 +47,7 @@ function khh_dt_tao_bang_bc() {
 			ngay date NOT NULL,
 			cua_hang varchar(190) NOT NULL DEFAULT '',
 			tien_mat_dem double NOT NULL DEFAULT 0,
+			ck_thuc_thu double NOT NULL DEFAULT 0,
 			tien_nop double NOT NULL DEFAULT 0,
 			so_bill_huy int(11) NOT NULL DEFAULT 0,
 			tien_bill_huy double NOT NULL DEFAULT 0,
@@ -849,6 +859,7 @@ function khh_dt_rest_bc_luu( $req ) {
 		'ngay'          => $ngay,
 		'cua_hang'      => $ch,
 		'tien_mat_dem'  => $so( 'tien_mat_dem' ),
+		'ck_thuc_thu'   => $so( 'ck_thuc_thu' ),
 		'tien_nop'      => $so( 'tien_nop' ),
 		'so_bill_huy'   => (int) $so( 'so_bill_huy' ),
 		'tien_bill_huy' => $so( 'tien_bill_huy' ),
@@ -873,7 +884,7 @@ function khh_dt_rest_bc_luu( $req ) {
 	if ( $cu ) {
 		$lich_su = khh_dt_json( $cu['lich_su'], array() );
 		$khac    = false;
-		foreach ( array( 'tien_mat_dem', 'tien_nop', 'so_bill_huy', 'tien_bill_huy', 'tong_chuyen', 'tong_khach', 've_giay', 'ghi_chu', 'mon_thuc' ) as $k ) {
+		foreach ( array( 'tien_mat_dem', 'ck_thuc_thu', 'tien_nop', 'so_bill_huy', 'tien_bill_huy', 'tong_chuyen', 'tong_khach', 've_giay', 'ghi_chu', 'mon_thuc' ) as $k ) {
 			if ( (string) ( isset( $cu[ $k ] ) ? $cu[ $k ] : '' ) !== (string) $moi[ $k ] ) {
 				$khac = true;
 			}
@@ -927,7 +938,7 @@ function khh_dt_rest_doi_soat( $req ) {
 	$pos = khh_dt_bang();
 	$bc  = khh_dt_bang_bc();
 	$sql = "SELECT p.ngay, p.cua_hang, p.doanh_thu, p.so_hd, p.so_ve, p.pttt, p.mon,
-				b.tien_mat_dem, b.tien_nop, b.so_bill_huy, b.tien_bill_huy,
+				b.tien_mat_dem, b.ck_thuc_thu, b.tien_nop, b.so_bill_huy, b.tien_bill_huy,
 				b.tong_chuyen, b.tong_khach, b.ve_giay, b.ghi_chu, b.mon_thuc, b.nguoi, b.chot
 			FROM $pos p LEFT JOIN $bc b ON b.ngay = p.ngay AND b.cua_hang = p.cua_hang
 			WHERE 1=1";
@@ -1016,9 +1027,10 @@ function khh_dt_rest_doi_soat( $req ) {
 				$momo_pos += (float) $p['r'];
 			}
 		}
-		$co  = null !== $r['tien_mat_dem'];
-		$dem = (float) $r['tien_mat_dem'];
-		$nop = (float) $r['tien_nop'];                   // cơ sở KHAI đã nộp
+		$co   = null !== $r['tien_mat_dem'];
+		$dem  = (float) $r['tien_mat_dem'];
+		$ck_tt = (float) $r['ck_thuc_thu'];               // cơ sở KHAI chuyển khoản thực thu
+		$nop  = (float) $r['tien_nop'];                   // cơ sở KHAI đã nộp
 		$kb  = $r['ngay'] . '|' . $r['cua_hang'];
 		$co_bank = array_key_exists( $kb, $bank );
 		$b       = $co_bank ? $bank[ $kb ] : array();
@@ -1051,6 +1063,7 @@ function khh_dt_rest_doi_soat( $req ) {
 			'pos_momo'   => $momo_pos,
 			'co_bao_cao' => $co,
 			'dem'        => $dem,
+			'ck_tt'      => $ck_tt,
 			'nop'        => $nop,
 			'nop_bank'   => $nop_bk,
 			'co_bank'    => $co_bank,
@@ -1068,6 +1081,11 @@ function khh_dt_rest_doi_soat( $req ) {
 			/* Cơ sở khai một đằng, ngân hàng nhận một nẻo — chỉ tính khi CÓ CẢ HAI số. */
 			'lech_nop'   => ( $co_bank && $co && $nop > 0 ) ? $nop - $nop_bk : null,
 			'lech_tm'    => $co ? $dem - $tm : null,      // đếm được − POS ghi nhận
+			/* 🔴 Anh Thắng 26/09/2026: "lệch ngược giữa chuyển khoản và tiền mặt" — nhân viên bấm nhầm
+			   nút PTTT lúc bán, nên `pos_tm`/`pos_ck` sai NGƯỢC CHIỀU nhau. Phải là cột RIÊNG, không
+			   được cộng chung với `lech_tm`: một bên +X một bên −X cộng lại ra 0, che mất đúng chỗ
+			   đang sai. */
+			'lech_ck'    => $co ? $ck_tt - $ck : null,    // chuyển khoản thực thu − POS ghi nhận
 			'chua_nop'   => $co ? $dem - $nop_that : null, // đếm được − tiền ngân hàng thật sự nhận
 			'bill_huy'   => (int) $r['so_bill_huy'],
 			'tien_huy'   => (float) $r['tien_bill_huy'],

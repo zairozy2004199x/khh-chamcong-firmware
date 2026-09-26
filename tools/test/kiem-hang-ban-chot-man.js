@@ -58,7 +58,10 @@ t('luuBaoCao gửi mon_thuc', /fd\.append\('mon_thuc', JSON\.stringify\(docMonTh
 t('đối soát có ba cột tiền', /<th>Sale vé<\/th><th>Bán lẻ<\/th><th>Sale phụ<\/th>/.test(js));
 t('và cột Hàng bán', /<th>Hàng bán<\/th>/.test(js));
 t('🔴 ô Hàng bán phân biệt lệch / khớp máy / chưa soát', /món lệch<\/b>/.test(js) && /'khớp máy'/.test(js) && /chưa soát/.test(js));
-t('dòng chưa nhập báo cáo trải đủ 6 cột', /colspan="6" class="chua"/.test(js) && !/colspan="5" class="chua"/.test(js));
+/* 🔴 26/09/2026: thêm cột "Lệch CK" (chuyển khoản thực thu) — nhóm cột chỉ hiện khi ĐÃ nhập báo
+   cáo nay có 7 cột, không còn 6; dòng "chưa nhập" phải trải đúng số cột mới, không thì bảng lệch
+   khung ngay hàng kế tiếp. */
+t('dòng chưa nhập báo cáo trải đủ 7 cột', /colspan="7" class="chua"/.test(js) && !/colspan="6" class="chua"/.test(js));
 
 /* ---- tab Quản trị ---- */
 const nv = boc('veNhomVe');
@@ -99,7 +102,7 @@ t('tải ảnh đặt tên theo ngày và cơ sở', /'bao-cao-' \+ d\.ngay \+ '
     S, VND, (n) => VND.format(Math.round(n || 0)) + ' ₫', (n) => VND.format(Math.round(n || 0)), (s) => s.split('-').reverse().join('/'));
   const tom = F();
   t('tóm tắt có ngày + cơ sở', /BÁO CÁO NGÀY 24\/09\/2026 — TuTu Train - Aeon Tân Phú/.test(tom));
-  t('tóm tắt có ba ô tiền và đếm két / nộp', /Sale vé 3\.500\.000 ₫ · Bán lẻ 530\.000 ₫ · Sale phụ 680\.000 ₫/.test(tom) && /Đếm két 2\.000\.000 ₫ · Nộp quỹ 1\.500\.000 ₫/.test(tom));
+  t('tóm tắt có ba ô tiền và đếm két / CK thực thu / nộp', /Sale vé 3\.500\.000 ₫ · Bán lẻ 530\.000 ₫ · Sale phụ 680\.000 ₫/.test(tom) && /Đếm két 2\.000\.000 ₫ · CK thực thu 0 ₫ · Nộp quỹ 1\.500\.000 ₫/.test(tom));
   t('🔴 tóm tắt có lệch két (−100.000) và lệch khách (+5)', /Đếm két − tiền mặt POS: -100\.000 ₫/.test(tom) && /Khách đếm − khách máy: \+5/.test(tom));
   t('tóm tắt kể hàng bán lệch máy và trạng thái chốt', /Hàng bán: 1 món lệch máy/.test(tom) && /ĐÃ CHỐT · Thảo · 2026-09-24 21:05/.test(tom));
 }
