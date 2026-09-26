@@ -174,9 +174,50 @@ class VHCC_Tram {
 		add_rewrite_rule( '^' . self::slug() . '/?$', 'index.php?vhcc_tram=1', 'top' );
 		add_filter( 'query_vars', array( __CLASS__, 'query_vars' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_render' ) );
+		/* Ưu tiên 0: chạy TRƯỚC trang Nội bộ (ưu tiên mặc định 10) — xem `la_duong_noi_bo()`. */
+		add_action( 'template_redirect', array( __CLASS__, 'maybe_render_noi_bo' ), 0 );
 	}
 
 	public static function query_vars( $v ) { $v[] = 'vhcc_tram'; return $v; }
+
+	/* ═══════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 26/09/2026 — ĐỊA CHỈ /noi-bo/ CŨNG LÀ TRANG CHẤM CÔNG.
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng: *"Trang nội bộ hiện tại không dùng, anh muốn lấy link nội bộ làm link chấm công
+	 * để chạy song song 2 link"*. Hai địa chỉ, MỘT trang: `/cham-cong-online/` và `/noi-bo/` vẽ
+	 * cùng `render()`, cùng cổng lệnh `?viec=`, cùng phiên đăng nhập.
+	 *
+	 * ⚠️ KHÔNG ĐỤNG plugin Nội bộ: chỉ chặn trước nó ở `template_redirect` (ưu tiên 0), nên
+	 *    gỡ đoạn này là /noi-bo/ về lại bảng tin như cũ, dữ liệu bảng tin còn nguyên.
+	 * ⚠️ Nhận ra đường dẫn bằng CẢ biến truy vấn của trang Nội bộ (`vhnb`, khi plugin ấy bật) lẫn
+	 *    ĐƯỜNG DẪN THẬT (plugin ấy tắt thì không còn luật viết lại nào trỏ /noi-bo/ về đâu).
+	 */
+	public static function la_duong_noi_bo() {
+		if ( (int) get_query_var( 'vhnb' ) === 1 ) { return true; }
+		if ( isset( $_GET['vhnb'] ) && '1' === (string) $_GET['vhnb'] ) { return true; }
+		$slug = ( class_exists( 'VHNB_Trang' ) && method_exists( 'VHNB_Trang', 'slug' ) )
+			? VHNB_Trang::slug() : 'noi-bo';
+		$uri  = isset( $_SERVER['REQUEST_URI'] ) ? (string) $_SERVER['REQUEST_URI'] : '';
+		$duong = trim( (string) wp_parse_url( $uri, PHP_URL_PATH ), '/' );
+		$goc   = trim( (string) wp_parse_url( home_url( '/' ), PHP_URL_PATH ), '/' );
+		if ( '' !== $goc && 0 === strpos( $duong, $goc . '/' ) ) { $duong = substr( $duong, strlen( $goc ) + 1 ); }
+		return '' !== $slug && $duong === $slug;
+	}
+
+	public static function maybe_render_noi_bo() {
+		if ( ! self::la_duong_noi_bo() ) { return; }
+		/* Plugin Nội bộ tắt thì WordPress đã đánh dấu /noi-bo/ là 404 trước khi tới đây. */
+		global $wp_query;
+		if ( is_object( $wp_query ) && isset( $wp_query->is_404 ) ) { $wp_query->is_404 = false; }
+		status_header( 200 );
+		nocache_headers();
+		if ( isset( $_GET['viec'] ) ) {
+			self::cong( sanitize_text_field( wp_unslash( $_GET['viec'] ) ) );
+			exit;
+		}
+		self::render();
+		exit;
+	}
 
 	public static function maybe_render() {
 		$is = ( (int) get_query_var( 'vhcc_tram' ) === 1 );
