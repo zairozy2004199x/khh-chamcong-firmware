@@ -1394,10 +1394,16 @@ class VHCC_Web {
 		}
 
 		if ( 'bu' === $viec ) {
+			/* 🔴 26/09/2026 — Ô TÍCH "Đây là ca đêm" GHÉP HẬU TỐ NGAY Ở ĐÂY, TRƯỚC KHI VÀO
+			   `VHCC_Bu::ghi()`. Không cần sửa gì ở tầng ghi bên dưới để nhận diện "-CD": toàn bộ
+			   đường ghi (kể cả `VHCC_Nhan::ghi_gio()`) đã tách hậu tố từ CHÍNH chuỗi `$ma_nv` từ
+			   trước giờ (`VHCC_Nhan::tach_hau_to()`) — ghép hậu tố ở cửa vào là đủ. */
+			$ma_nv_bu = isset( $_POST['ma_nv'] ) ? (string) wp_unslash( $_POST['ma_nv'] ) : '';
+			if ( ! empty( $_POST['bu_cd'] ) ) { $ma_nv_bu .= '-CD'; }
 			$r = VHCC_Bu::ghi( $toi, array(
 				'coso'  => isset( $_POST['ccs'] ) ? wp_unslash( $_POST['ccs'] ) : '',
 				'ngay'  => isset( $_POST['ngay'] ) ? wp_unslash( $_POST['ngay'] ) : '',
-				'ma_nv' => isset( $_POST['ma_nv'] ) ? wp_unslash( $_POST['ma_nv'] ) : '',
+				'ma_nv' => $ma_nv_bu,
 				'vao'   => isset( $_POST['bu_vao'] ) ? wp_unslash( $_POST['bu_vao'] ) : '',
 				'ra'    => isset( $_POST['bu_ra'] ) ? wp_unslash( $_POST['bu_ra'] ) : '',
 				'ly_do' => isset( $_POST['ly_do'] ) ? wp_unslash( $_POST['ly_do'] ) : '',
@@ -7729,6 +7735,18 @@ class VHCC_Web {
 					echo '<div class="mo" style="flex:1 1 100%;font-size:11.5px">Ngày này ở cơ sở đã '
 						. 'ghép cũng đang có: ' . esc_html( implode( ' | ', $noi ) ) . '</div>';
 				}
+			}
+			/* 🔴 26/09/2026 — CHỈ MỘT CẶP Ô, LUÔN GHI VÀO HÀNG CA CHÍNH. Anh Thắng xoá hàng lỗi cũ
+			   của SETUP_VP để bù lại, gõ đúng 20:00 → 13:37 (hôm sau) vẫn bị chối "giờ ra phải
+			   muộn hơn giờ vào" — vì màn Bù (khác màn Sửa, không có `cac_o()` vẽ theo hàng thật)
+			   luôn nhắm vào hậu tố rỗng, nơi giờ vào/ra bắt buộc cùng một ngày. Cơ sở nào luôn là
+			   ca đêm (như SETUP_VP) thì không có cách nào bù được nếu ngày đó còn trống hẳn.
+			   Ô tích này cho người bù tự chọn ghi thẳng vào hàng `-CD` — xử lý ở `lam_viec()`
+			   (nhánh `'bu' === $viec`) và `VHCC_Bu::ghi()` (trải phẳng giờ ra qua nửa đêm). */
+			if ( ! $co_gio ) {
+				echo '<div style="flex:1 1 100%"><label style="font-weight:600">'
+					. '<input type="checkbox" name="bu_cd" value="1"> Đây là ca đêm (bù thẳng vào '
+					. 'hàng ca đêm, mã kèm -CD)</label></div>';
 			}
 		}
 

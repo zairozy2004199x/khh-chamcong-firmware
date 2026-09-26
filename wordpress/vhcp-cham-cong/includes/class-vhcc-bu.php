@@ -185,6 +185,17 @@ class VHCC_Bu {
 		if ( null === $vao && null === $ra ) {
 			return array( 'ok' => false, 'error' => 'Chưa nhập giờ nào để bù.' );
 		}
+		/* 🔴 HÀNG CA ĐÊM: GIỜ RA SAU NỬA ĐÊM KHÔNG PHẢI LÀ "SỚM HƠN GIỜ VÀO".
+		   Cùng luật với `VHCC_Bu::sua()` (xem chú thích ở đó) — ca đêm lưu giờ ra ở dạng TRẢI
+		   PHẲNG, nên gõ thẳng "13:37" (giờ ra thật, hôm sau) vào ô Giờ ra mà không trải trước là
+		   một con số nhỏ hơn giờ vào, và chốt dưới đây đá lượt bù ra oan — đúng lúc đang bù vào
+		   ĐÚNG hàng ca đêm (mã kèm -CD, xem ô tích trên màn Bù). Với hàng chính thì $ht giữ rỗng,
+		   không rơi vào nhánh này, và luật cũ vẫn nguyên. */
+		list( , $ht ) = VHCC_Nhan::tach_hau_to( $ma_nv );
+		if ( null !== $vao && null !== $ra && $ra <= $vao
+			&& in_array( $ht, array( 'CD', 'CT', 'TC' ), true ) ) {
+			$ra += VHCC_DB::NGAY_GIAY;
+		}
 		if ( null !== $vao && null !== $ra && $ra <= $vao ) {
 			return array( 'ok' => false,
 				'error' => 'Giờ ra phải muộn hơn giờ vào. Ca đêm thì bù vào hàng ca đêm (mã kèm -CD). '

@@ -8157,6 +8157,68 @@ $d_bu = VHCC_Bu::gio_hien_tai( $cs_cht, '2026-09-03', 'CHTG2' );
 teq( '🔴 bù giờ vào ô trống cũng ăn', '08:00', (string) $d_bu['vao'] );
 teq( 'và có giờ ra', '17:00', (string) $d_bu['ra'] );
 
+/* ---- (b-bis) 🔴 26/09/2026 — Ô TÍCH "Đây là ca đêm": BÙ NGÀY TRỐNG HẲN THẲNG VÀO HÀNG -CD.
+   Anh Thắng xoá hàng lỗi cũ của SETUP_VP để bù lại, gõ đúng 20:00 → 13:37 (hôm sau) qua màn Bù
+   vẫn bị chối "giờ ra phải muộn hơn giờ vào" — vì màn Bù trước đây chỉ có một cặp ô, luôn ghi
+   vào hậu tố rỗng (ca chính, giờ vào/ra phải cùng một ngày). Cơ sở nào luôn là ca đêm thì không
+   có cách nào bù được cho một ngày còn trống hẳn. */
+$_POST = array( 'viec' => 'bu', 'ky' => VHCC_Web::chu_ky( $tok_chtg ),
+	'ccs' => $cs_cht, 'ngay' => '2026-09-08', 'ma_nv' => 'CHTG2',
+	'bu_vao' => '20:00', 'bu_ra' => '13:37', 'bu_cd' => '1',
+	'ly_do' => 'xoá hàng lỗi cũ, nhập lại đúng ca đêm' );
+ob_start(); VHCC_Web::phuc_vu(); $h_bu_cd = ob_get_clean();
+$_POST = array();
+t( '🔴 tích "đây là ca đêm": bù được ca xuyên đêm, không còn bị chối', ! preg_match(
+	'/Giờ ra phải muộn hơn giờ vào/', $h_bu_cd ), $h_bu_cd );
+
+$h_cd = vhcc_hang( $cs_cht, '2026-09-08', 'CHTG2', 'CD' );
+t( '   hàng tạo ra đúng ở hậu tố -CD', null !== $h_cd, $h_cd );
+t( '   giờ ra đã trải phẳng (> giờ vào, > 24h)', $h_cd
+	&& (int) $h_cd['gio_ra_giay'] > (int) $h_cd['gio_vao_giay']
+	&& (int) $h_cd['gio_ra_giay'] > 86400, $h_cd );
+teq( '   giờ vào đúng 20:00', '20:00:00', $h_cd ? VHCC_DB::hhmmss( $h_cd['gio_vao_giay'] ) : '' );
+teq( '   giờ ra đúng 13:37 (trên trục phẳng)', '13:37:00',
+	$h_cd ? VHCC_DB::hhmmss( $h_cd['gio_ra_giay'] ) : '' );
+t( '   KHÔNG đẻ thêm hàng ca chính nào cho ngày đó',
+	null === vhcc_hang( $cs_cht, '2026-09-08', 'CHTG2' ) );
+
+/* Không tích ô: hành vi cũ giữ nguyên — giờ trong ngày vẫn ghi vào ca chính bình thường. */
+$_POST = array( 'viec' => 'bu', 'ky' => VHCC_Web::chu_ky( $tok_chtg ),
+	'ccs' => $cs_cht, 'ngay' => '2026-09-09', 'ma_nv' => 'CHTG2',
+	'bu_vao' => '08:00', 'bu_ra' => '17:00', 'ly_do' => 'không tích ca đêm, ca ngày bình thường' );
+ob_start(); VHCC_Web::phuc_vu(); ob_end_clean();
+$_POST = array();
+t( '🔴 không tích "đây là ca đêm": vẫn ghi vào ca chính như cũ',
+	null !== vhcc_hang( $cs_cht, '2026-09-09', 'CHTG2' )
+	&& null === vhcc_hang( $cs_cht, '2026-09-09', 'CHTG2', 'CD' ) );
+
+/* 🔴 KHÔNG TÍCH Ô mà giờ ra <= giờ vào -> VẪN PHẢI BỊ CHỐI, không được âm thầm trải phẳng.
+   Chốt "chỉ trải khi hậu tố là CD/CT/TC" phải thật sự CHẶN cho hàng ca chính — nếu ai lỡ bỏ điều
+   kiện hậu tố đi (áp trải phẳng cho MỌI lượt bù), một ca chính gõ nhầm ra sớm hơn vào sẽ lặng lẽ
+   được cộng thêm 24 giờ thay vì bị báo lỗi, và phép thử "không xuyên đêm" ở dưới không bắt được
+   chuyện này vì nó không đụng nhánh `$ra <= $vao`. */
+$_POST = array( 'viec' => 'bu', 'ky' => VHCC_Web::chu_ky( $tok_chtg ),
+	'ccs' => $cs_cht, 'ngay' => '2026-09-11', 'ma_nv' => 'CHTG2',
+	'bu_vao' => '20:00', 'bu_ra' => '13:37', 'ly_do' => 'quên tích ca đêm, giờ ra sớm hơn giờ vào' );
+ob_start(); VHCC_Web::phuc_vu(); $h_bu_khong_cd = ob_get_clean();
+$_POST = array();
+t( '🔴 không tích ô mà ra <= vào: vẫn bị chối, KHÔNG được lặng lẽ trải phẳng',
+	false !== strpos( $h_bu_khong_cd, 'Giờ ra phải muộn hơn giờ vào' ), $h_bu_khong_cd );
+t( '   và KHÔNG ghi gì vào bảng', null === vhcc_hang( $cs_cht, '2026-09-11', 'CHTG2' )
+	&& null === vhcc_hang( $cs_cht, '2026-09-11', 'CHTG2', 'CD' ) );
+
+/* Tích ô mà ca đêm KHÔNG xuyên đêm (cả hai đầu cùng tối, giờ ra vẫn > giờ vào không cần trải) ->
+   KHÔNG được cộng nhầm thêm 24 giờ. */
+$_POST = array( 'viec' => 'bu', 'ky' => VHCC_Web::chu_ky( $tok_chtg ),
+	'ccs' => $cs_cht, 'ngay' => '2026-09-10', 'ma_nv' => 'CHTG2',
+	'bu_vao' => '18:00', 'bu_ra' => '20:00', 'bu_cd' => '1', 'ly_do' => 'ca đêm ngắn, không xuyên đêm' );
+ob_start(); VHCC_Web::phuc_vu(); ob_end_clean();
+$_POST = array();
+$h_cd2 = vhcc_hang( $cs_cht, '2026-09-10', 'CHTG2', 'CD' );
+teq( '   ca đêm KHÔNG xuyên đêm: giờ ra giữ nguyên, không bị cộng nhầm 24h',
+	'20:00:00', $h_cd2 ? VHCC_DB::hhmmss( $h_cd2['gio_ra_giay'] ) : '', $h_cd2 );
+t( '   và không nằm trên trục phẳng (< 24h)', $h_cd2 && (int) $h_cd2['gio_ra_giay'] < 86400, $h_cd2 );
+
 /* ---- (c) ⚠️ MỞ CỬA KHÔNG ĐƯỢC KÉO THEO MỞ PHẠM VI. Ba chốt phải còn nguyên. ---- */
 $wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'XA1', 'ho_ten' => 'Người Cơ Sở Khác',
 	'cua_hang' => 'XA_BT', 'vai_tro' => 'Nhân viên' ) );
