@@ -80,7 +80,13 @@ t('⚠️ nhưng so thẳng `role===Admin` vẫn còn (cố ý, không phải s�
 t('nút có mặt trên màn', /id="btnNewDon"/.test(HTML));
 t('🔴 và gác theo vai LUẬT',
   /var vl=_vaiLuat\(\);/.test(SACH)
-    && /bn\.style\.display=\(vl==='Nhân viên'\|\|vl==='Quản lý'\|\|vl==='Admin'\)/.test(SACH), 'không thấy');
+    && /bn\.style\.display=\(vl==='Nhân viên'\|\|vl==='Quản lý'\|\|vl==='Admin'\|\|canDo\('taoDon'\)\)/.test(SACH), 'không thấy');
+/* 26/09/2026, anh Thắng: *"kế toán sao chưa có nút tạo đơn"* — ba vai gốc cũ khoá cứng, kế
+   toán không bao giờ qua được dù Cấu hình → Loại chi phí có tích vai kế toán nào. Thêm cửa
+   `canDo('taoDon')` (ma trận Phân quyền — xem `kiem-quyen-tao-don.php` phần máy chủ) để Admin
+   mở riêng cho một vai kế toán cụ thể, không đổi ba vai gốc cũ. */
+t('   không lùi hẳn về "mọi vai đều qua" — ba vai gốc cũ vẫn đứng nguyên vị trí, chỉ THÊM cửa',
+  /vl==='Nhân viên'\|\|vl==='Quản lý'\|\|vl==='Admin'\|\|canDo/.test(SACH), 'thứ tự bị đổi');
 
 /* ═══ 4. NHỮNG CHỐT ĐI KÈM — chị Mai Anh sẽ đụng ngay sau khi bấm được nút ══════ */
 [['ô Người lập khoá với nhân viên', "el('ndNguoiLap').readOnly=(_vaiLuat()==='Nhân viên')"],

@@ -3207,7 +3207,12 @@
     // chốt chi phí → kế toán duyệt → xuất MISA) mà không phải mượn tài khoản nhân viên.
     // Trước đây nút này ẩn với Admin nên muốn thử một đơn là phải đăng nhập bằng người khác.
     var vl=_vaiLuat();
-    var bn=el('btnNewDon'); if(bn) bn.style.display=(vl==='Nhân viên'||vl==='Quản lý'||vl==='Admin')?'inline-block':'none';
+    /* 🔴 + CANDO('taoDon') — anh Thắng 26/09/2026: *"kế toán sao chưa có nút tạo đơn"*. Ba vai
+       gốc cũ vẫn luôn bấm được (không đổi hành vi có sẵn); thêm cửa thứ hai qua ma trận phân
+       quyền để Admin mở riêng cho một vai kế toán cụ thể (VD: "Kế Toán Khu Vui Chơi") mà không
+       mở tràn cho mọi kế toán. `canDo()` tự trả `true` khi `BOOT.quyen` chưa nạp (đăng nhập
+       xong gọi lại `applyPerms()` lần hai, lúc ấy đã có bảng thật). */
+    var bn=el('btnNewDon'); if(bn) bn.style.display=(vl==='Nhân viên'||vl==='Quản lý'||vl==='Admin'||canDo('taoDon'))?'inline-block':'none';
     /* Đang đội lốt thì CHIP PHẢI NÓI RA. Chip im lặng là Admin quên mất mình đang giả lập,
        rồi kết luận sai về màn của chính mình — lỗi ấy không kêu tiếng nào. */
     el('userChip').innerHTML = GL_THAT

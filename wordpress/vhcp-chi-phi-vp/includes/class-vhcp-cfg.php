@@ -454,6 +454,16 @@ class VHCPVP_Cfg {
 			   Trước đây ai vào được loại nào khai CỨNG trong mã theo bộ phận. Giờ khai ở đây, đúng
 			   chỗ người ta đi tìm. Vẫn CỘNG THÊM với luật bộ phận cũ chứ không thay: đổi thẳng là
 			   nhân viên Kỹ thuật mất tab Dự án ngay lúc cài đè, trước khi kịp tích lại. */
+			/* 🔴 AI BẤM ĐƯỢC NÚT "＋ TẠO ĐƠN MỚI" — anh Thắng 26/09/2026, đơn chi phí Vận Hành:
+			   *"giờ check kế toán sao chưa có nút tạo đơn"*. Trước bản này nút gác cứng theo
+			   VAI GỐC (`Nhân viên`/`Quản lý`/`Admin`), kế toán không bao giờ bấm được, bất kể
+			   Cấu hình → Loại chi phí có tích vai kế toán nào cho loại nào. Nay thêm vào ma
+			   trận phân quyền để Admin tự chọn CHO TỪNG VAI CON — không mở tràn cho mọi kế
+			   toán chỉ vì một người cần. Mặc định giữ đúng hành vi cũ (Nhân viên · Quản lý);
+			   Admin luôn bấm được, không qua bảng này (xem `canDo()`). Máy chủ vốn không gác
+			   vai nào ở `createDon` (`VHCPVP_Api::required_roles()`), nên đây chỉ là màn hình —
+			   không cần đổi gì phía dưới. */
+			array( 'key' => 'taoDon',    'ten' => 'Tạo đơn mới (nút ＋ Tạo đơn mới)',   'def' => array( 'Quản lý' => 1, 'Nhân viên' => 1 ) ),
 			array( 'key' => 'donCoSo',   'ten' => 'Lên đơn Chi phí cơ sở (theo tuần)', 'def' => array( 'Quản lý' => 1, 'Kế toán cá nhân' => 1, 'Kế toán NCC' => 1, 'Nhân viên' => 1 ) ),
 			array( 'key' => 'donDuAn',   'ten' => 'Lên đơn Dự án (gian thi công)',     'def' => array( 'Quản lý' => 1, 'Kế toán cá nhân' => 1 ) ),
 			array( 'key' => 'kyTuDo',    'ten' => 'Chọn khoảng ngày tự do khi tạo đơn','def' => array( 'Quản lý' => 1, 'Kế toán cá nhân' => 1 ) ),
