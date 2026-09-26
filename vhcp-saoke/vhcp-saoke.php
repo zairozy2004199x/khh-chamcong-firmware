@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.58.0
+ * Version:           0.58.1
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -25,7 +25,7 @@ class SAOKE_App {
 	   thêm file"* — câu đầu tiên phải trả lời là "bản đang chạy có khối ấy chưa", mà trang thì
 	   không in số bản ở đâu cả, nên không ai đáp được ngoài cách đi mở wp-admin. Ghi ở đây, hiện
 	   ở góc cột trái. ⚠️ PHẢI BẰNG số ở header `Version:` phía trên — hai chỗ, một giá trị. */
-	const VER = '0.58.0';
+	const VER = '0.58.1';
 
 	/* 🔴 BỘ NHỚ ĐỆM TRONG MỘT LƯỢT cho bản đồ cửa hàng VietQR (option `saoke_vqr_ch`) — anh Thắng
 	   25/09/2026: Báo cáo tổng bên Ghế "không nối được tới máy chủ" khi chọn 01→25/09, còn 12→25 thì
@@ -3214,7 +3214,14 @@ class SAOKE_App {
 			foreach ( self::ds_coso_all() as $c ) { $tenByKey[ self::chuan_ch( $c['ten'] ) ] = $c['ten']; }
 			$maList = array();
 			foreach ( $cmMap as $k => $ma ) { $ma = trim( (string) $ma ); if ( '' !== $ma && isset( $tenByKey[ $k ] ) ) { $maToCoso[ mb_strtoupper( $ma ) ] = $tenByKey[ $k ]; $maList[] = preg_quote( $ma, '/' ); } }
-			if ( $maList ) { $maRe = '/(' . implode( '|', $maList ) . ')/i'; }
+			/* 🔴 RANH GIỚI HAI ĐẦU — cùng lỗi đã vá bên khh-doanh-thu (khh_dt_doan_co_so()): một mã
+			   nộp có thể nằm GỌN bên trong một mã khác dài hơn (KH705KVCMN0005 bên trong
+			   KH705KVCMN00050 chẳng hạn). Không có ranh giới thì `preg_match` khớp ĐÚNG MÃ NGẮN dù
+			   nội dung thật mang mã dài hơn — sai âm thầm, và alternation `|` còn tuỳ THỨ TỰ mã nào
+			   đứng trước trong mảng (đến từ thứ tự khai, không cố định) nên cùng một cặp mã có lúc
+			   khớp đúng có lúc khớp nhầm — đúng kiểu "lúc có lúc không" dù nội dung hai giao dịch
+			   gần như giống hệt nhau. */
+			if ( $maList ) { $maRe = '/(?<![A-Za-z0-9])(' . implode( '|', $maList ) . ')(?![A-Za-z0-9])/i'; }
 		}
 		$rows = array(); $tongVao = 0; $tongRa = 0; $tongVaoCong = 0; $tongVaoBank = 0; $congTheoNguon = array();
 		$gd = self::gd_all();
