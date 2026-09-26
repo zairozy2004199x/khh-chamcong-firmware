@@ -1046,12 +1046,17 @@ t( 'mọi nút tab đều gọi cùng một hàm',
 /* 5.23.0 (anh Thắng *"chuyển tab chưa mượt"*, chọn kiểu B): đổi tab về CHỖ CUỘN RIÊNG của tab
    đích — tab chưa mở lần nào thì về đầu trang như cũ, nên điều phép thử cũ canh vẫn giữ. */
 t( 'đổi tab thì về chỗ cuộn của tab đích (mặc định đầu trang)', strpos( $tram_js2, 'window.scrollTo' ) !== false
-	&& strpos( $tram_js2, 'var y = CUON_TAB[ten] || 0;' ) !== false );
+	&& strpos( $tram_js2, 'cuonToi(CUON_TAB[ten] || 0);' ) !== false );
 /* ⚠️ `scrollTo({behavior})` không có ở mọi máy — Safari cũ bỏ qua cả đối tượng tuỳ chọn. */
 t( 'có đường lùi khi trình duyệt không nhận đối tượng tuỳ chọn',
 	strpos( $tram_js2, 'catch(e){ window.scrollTo(0, y); }' ) !== false );
-t( 'kiểu B: tab cũ mờ đi rồi tab mới mờ vào + phóng nhẹ',
-	strpos( $tram_js2, "oCu.animate([{opacity:1},{opacity:0}]" ) !== false && strpos( $tram_js2, "{opacity:0, transform:'scale(.95)'}" ) !== false );
+t( 'kiểu E: tab cũ lướt đi, tab mới lướt vào đúng chiều tab, có nảy',
+	strpos( $tram_js2, "transform: 'translateX(' + (-35 * huong) + '%)'" ) !== false && strpos( $tram_js2, "easing: 'cubic-bezier(.34,1.45,.64,1)'" ) !== false );
+t( '🔴 kiểu E: máy yếu / tab dài thì bỏ nhoè', strpos( $tram_js2, 'navigator.hardwareConcurrency <= 4' ) !== false
+	&& strpos( $tram_js2, 'x.offsetHeight < window.innerHeight * 2.5' ) !== false );
+t( 'kiểu E: viên giọt nước dưới tab, đo lại khi thanh thành năm ô', strpos( $tram_vt, '<i id="tabGiot" class="tab-giot"' ) !== false
+	&& strpos( $tram_js2, "GIOT_O = null; datGiot(TAB, false);" ) !== false );
+t( 'nội dung lướt ngang không làm trang kéo ngang được', strpos( $tram_vt, '#mChinh{overflow-x:hidden;overflow-x:clip}' ) !== false );
 t( 'máy bật "giảm chuyển động" thì đổi tab ngay, không hiệu ứng',
 	strpos( $tram_js2, "matchMedia('(prefers-reduced-motion: reduce)')" ) !== false && strpos( $tram_js2, 'if(GIAM_CD || !oCu || !oCu.animate){ moTab(false); return; }' ) !== false );
 t( 'bấm tab khác khi đang mờ dở -> chốt lượt dở trước', strpos( $tram_js2, 'if(CHO_TAB){ var c = CHO_TAB;' ) !== false );

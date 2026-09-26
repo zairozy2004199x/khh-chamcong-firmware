@@ -302,10 +302,18 @@ video,canvas.xem{width:100%;border-radius:var(--bo-the);background:#000;display:
 #thanhTab.tab5 .tab-nut{font-size:10px;padding:9px 2px 8px}
 #thanhTab.tab5 .tab-nut span{font-size:17px}
 .tab-nut.dang{color:var(--nhan)}
-/* 🎞 CHUYỂN TAB KIỂU "MỜ CHUYỂN" (Material fade-through) — anh Thắng 26/09/2026: *"giao diện
-   chuyển tab chưa mượt"* → xem mẫu → *"Chọn B"*. Chạy bằng Web Animations trong `denTab()`, không
-   bằng `animation` CSS: CSS chỉ chạy được lúc HIỆN, còn mờ đi của tab cũ thì không làm được. */
-.tab-o{transform-origin:50% 0}
+/* 🎞 CHUYỂN TAB KIỂU "GIỌT NƯỚC" — anh Thắng 26/09/2026: *"giao diện chuyển tab chưa mượt"* → xem
+   mẫu → chọn B → *"B xấu quá"* → xem mẫu mạnh tay hơn → *"Thử E xem"*. Viên xanh dưới tab đang
+   chọn kéo giãn như giọt nước chảy sang tab mới rồi co lại; nội dung lướt ngang đúng chiều tab,
+   có nhoè và nảy nhẹ khi dừng. Chạy bằng Web Animations trong `denTab()` / `datGiot()`.
+   ⚠️ Máy yếu (≤ 4 nhân hoặc ≤ 3 GB RAM, bật tiết kiệm dữ liệu) hoặc tab quá dài thì BỎ NHOÈ —
+      nhoè là phần duy nhất tốn sức máy; trượt ngang thì card đồ hoạ làm, máy nào cũng nhẹ. */
+.tab-giot{position:absolute;left:0;top:5px;width:0;height:38px;border-radius:19px;z-index:0;pointer-events:none;
+	background:linear-gradient(135deg,var(--nhan),var(--nhan-dam));box-shadow:0 6px 16px -6px var(--nhan)}
+.tab-nut{position:relative;z-index:1}
+.tab-nut.dang{color:var(--the)}
+/* Nội dung lướt ngang không được đẩy trang rộng ra (điện thoại sẽ cho kéo ngang cả trang). */
+#mChinh{overflow-x:hidden;overflow-x:clip}
 /* Khung xám chờ — thay chữ "Đang tải…" ở những khối nằm thẳng trên tab. */
 .cho{display:flex;flex-direction:column;gap:10px;padding:4px 0}
 .cho i{display:block;height:14px;border-radius:7px;background:linear-gradient(90deg,var(--nen-2) 25%,var(--vien) 50%,var(--nen-2) 75%);background-size:200% 100%;animation:choChay 1.4s ease-in-out infinite}
@@ -1153,6 +1161,7 @@ details.nq-muc li{margin:0 0 4px}
      z-index 8 — THẤP HƠN `.mn` (9), để màn chụp ảnh và màn chọn cơ sở phủ kín nó. Bằng hoặc
      cao hơn thì lúc đứng chụp vẫn thấy thanh tab ló ra, bấm trúng là thoát giữa chừng. -->
 <nav id="thanhTab" class="an">
+	<i id="tabGiot" class="tab-giot" aria-hidden="true"></i>
 	<button class="tab-nut dang" data-tab="tChamCong"><span>📷</span>Chấm công</button>
 	<button class="tab-nut" data-tab="tCong"><span>📅</span>Công của tôi</button>
 	<button class="tab-nut an" id="nutCH" data-tab="tCuaHang"><span>🏪</span>Cửa hàng</button>
@@ -3055,6 +3064,37 @@ function bayTab(ten){
 	TAB_DS.forEach(function(x){ var o = el(x); if(o){ o.classList.toggle('an', x !== ten); } });
 }
 
+/* Nhoè chuyển động chỉ bật trên máy đủ khoẻ. */
+var NHOE_TAB = !GIAM_CD && !((navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4)
+	|| (navigator.deviceMemory && navigator.deviceMemory <= 3)
+	|| (navigator.connection && navigator.connection.saveData));
+var GIOT_O = null;   // chỗ viên giọt nước đang đứng: {x, w}
+
+function oTab(ten){
+	var ds = document.querySelectorAll('.tab-nut');
+	for(var i=0;i<ds.length;i++){ if(ds[i].getAttribute('data-tab') === ten){ return ds[i]; } }
+	return null;
+}
+/* Đặt viên giọt nước dưới tab `ten`. `chay` = có hiệu ứng kéo giãn từ chỗ cũ sang. */
+function datGiot(ten, chay){
+	var g = el('tabGiot'), b = oTab(ten);
+	if(!g || !b || !b.offsetWidth) return;
+	var x1 = b.offsetLeft + 3, w = b.offsetWidth - 6, h = Math.max(30, b.offsetHeight - 10);
+	var cu = GIOT_O;
+	GIOT_O = { x: x1, w: w };
+	g.style.left = x1 + 'px'; g.style.width = w + 'px'; g.style.height = h + 'px';
+	if(!chay || !cu || GIAM_CD || !g.animate || cu.x === x1) return;
+	/* Mép trước chạy trước, mép sau đuổi theo — giọt nước kéo giãn, thắt lại, rồi nảy về đúng cỡ. */
+	var trai = Math.min(cu.x, x1), rong = Math.abs(x1 - cu.x) + w;
+	g.animate([
+		{ left: cu.x + 'px', width: cu.w + 'px', height: h + 'px', top: '5px' },
+		{ left: trai + 'px', width: rong + 'px', height: (h - 10) + 'px', top: '10px', offset: .45 },
+		{ left: x1 + 'px', width: (w * 1.08) + 'px', height: (h - 2) + 'px', top: '6px', offset: .8 },
+		{ left: x1 + 'px', width: w + 'px', height: h + 'px', top: '5px' }
+	], { duration: 520, easing: 'cubic-bezier(.4,0,.2,1)' });
+}
+window.addEventListener('resize', function(){ GIOT_O = null; datGiot(TAB, false); });
+
 function denTab(ten){
 	if(!el(ten)) return;
 	if(CHO_TAB){ var c = CHO_TAB; CHO_TAB = null; try { c.a.cancel(); } catch(e){} c.xong(false); }
@@ -3062,15 +3102,8 @@ function denTab(ten){
 	CUON_TAB[cu] = window.pageYOffset || 0;
 	TAB = ten;
 	var ds = document.querySelectorAll('.tab-nut');
-	for(var i=0;i<ds.length;i++){
-		var la = ds[i].getAttribute('data-tab') === ten;
-		ds[i].classList.toggle('dang', la);
-		/* Biểu tượng tab nảy một cái khi bấm — mắt thấy ngay mình vừa chạm trúng ô nào. */
-		if(la && !GIAM_CD && ds[i].animate){
-			var ic = ds[i].querySelector('span');
-			if(ic){ ic.animate([{transform:'scale(1)'},{transform:'scale(1.3) translateY(-2px)'},{transform:'scale(1)'}], {duration:420, easing:'cubic-bezier(.3,1.4,.5,1)'}); }
-		}
-	}
+	for(var i=0;i<ds.length;i++){ ds[i].classList.toggle('dang', ds[i].getAttribute('data-tab') === ten); }
+	datGiot(ten, !cung);
 
 	if(ten === 'tCuaHang'){ napCuaHang(true); }
 	if(ten === 'tUng'){ napUng(); }
@@ -3080,20 +3113,28 @@ function denTab(ten){
 	if(cung){ CUON_TAB[ten] = 0; cuonToi(0); return; }
 
 	var o = el(ten), oCu = el(cu);
+	/* Chiều lướt theo thứ tự tab trên thanh: sang phải thì nội dung chạy sang trái, và ngược lại. */
+	var huong = TAB_DS.indexOf(ten) > TAB_DS.indexOf(cu) ? 1 : -1;
+	/* Tab dài quá hai màn hình rưỡi thì cũng bỏ nhoè — nhoè tính trên cả khối, khối càng dài càng nặng. */
+	var nhoe = function(x){ return NHOE_TAB && x.offsetHeight < window.innerHeight * 2.5; };
 	var moTab = function(chay){
 		bayTab(ten);
-		var y = CUON_TAB[ten] || 0;
-		cuonToi(y);
+		cuonToi(CUON_TAB[ten] || 0);
 		if(!chay || !o.animate) return;
-		/* Phóng từ giữa màn hình đang nhìn, không phải từ giữa cả tab dài. */
-		o.style.transformOrigin = '50% ' + Math.max(0, y + window.innerHeight / 2 - o.offsetTop) + 'px';
-		o.animate([{opacity:0, transform:'scale(.95)'},{opacity:1, transform:'scale(1)'}],
-			{duration:340, easing:'cubic-bezier(.2,.8,.2,1)'});
+		var nh = nhoe(o);
+		o.animate([
+			{ opacity: 0, transform: 'translateX(' + (45 * huong) + '%)', filter: nh ? 'blur(6px)' : 'none' },
+			{ opacity: 1, transform: 'translateX(0)', filter: nh ? 'blur(0px)' : 'none' }
+		], { duration: 460, easing: 'cubic-bezier(.34,1.45,.64,1)' });
 	};
 	if(GIAM_CD || !oCu || !oCu.animate){ moTab(false); return; }
-	/* Mờ tab cũ trước (0,13 giây) rồi mới đổi — trang đổi chỗ cuộn lúc tab cũ đã mờ hẳn, nên
-	   không còn cú giật lên đầu trang nào lọt vào mắt. */
-	var a = oCu.animate([{opacity:1},{opacity:0}], {duration:130, easing:'ease-in', fill:'forwards'});
+	/* Tab cũ lướt đi trước (0,18 giây) rồi mới đổi — trang đổi chỗ cuộn lúc tab cũ đã khuất hẳn,
+	   nên không còn cú giật lên đầu trang nào lọt vào mắt. */
+	var nc = nhoe(oCu);
+	var a = oCu.animate([
+		{ opacity: 1, transform: 'translateX(0)', filter: nc ? 'blur(0px)' : 'none' },
+		{ opacity: 0, transform: 'translateX(' + (-35 * huong) + '%)', filter: nc ? 'blur(6px)' : 'none' }
+	], { duration: 180, easing: 'ease-in', fill: 'forwards' });
 	var lan = { a: a, xong: function(chay){ try { a.cancel(); } catch(e){} moTab(chay); } };
 	CHO_TAB = lan;
 	a.onfinish = function(){ if(CHO_TAB !== lan) return; CHO_TAB = null; lan.xong(true); };
@@ -4606,6 +4647,7 @@ function doCuaHang(){
 		/* Năm ô thì thu chữ — xem khối CSS `#thanhTab.tab5`. Gắn ở ĐÂY, cùng một dòng lệnh với
 		   lượt mở nút, để không bao giờ có trạng thái "năm ô mà chưa thu chữ". */
 		el('thanhTab').classList.add('tab5');
+		GIOT_O = null; datGiot(TAB, false);   // năm ô thì mỗi ô hẹp lại — viên phải đo lại
 	}).catch(function(){});
 }
 
