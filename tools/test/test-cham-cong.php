@@ -1423,8 +1423,8 @@ $r = VHCC_Luong::bang_cong_va_luong( 'VP_HCM', '2026-09' );
 teq( 'tăng ca: 0.5 công cùng ngày', 0.5, $r['vp']['rows'][0]['congTangCa'] );
 teq( 'tổng ngày đó = 1 công ngày + 0.5 tăng ca', 1.5, $r['vp']['rows'][0]['tong'] );
 
-/* CA ĐÊM: hàng 2 ngày D cho công vào NGÀY D+1, cộng công BÙ. Đây là lý do phải tính theo THÁNG
-   chứ không từng ngày rời. */
+/* CA ĐÊM: hàng 2 ngày D cho công NGAY TẠI NGÀY D (ngày vào — 26/09/2026), cộng công BÙ vào D+1.
+   Đây là lý do phải tính theo THÁNG chứ không từng ngày rời: công bù vẫn tràn sang ngày kế tiếp. */
 vhcc_dung_bang();
 vhcc_bo_phan( 'VP_HCM', 'Văn phòng' );
 $wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'V4', 'luong_co_ban' => 13000000 ) );
@@ -1437,49 +1437,49 @@ teq( 'cộng 1 công bù (nghỉ bù)', 1.0, $v4['congBu'] );
 teq( 'tổng 2 công', 2.0, $v4['tong'] );
 $ngay_dem = array();
 foreach ( $r['vp']['detail'] as $d ) { if ( $d['congDem'] > 0 ) { $ngay_dem[] = $d['ngay']; } }
-teq( 'công đêm ghi cho NGÀY HÔM SAU', array( '2026-09-11' ), $ngay_dem );
+teq( 'công đêm ghi NGAY TẠI NGÀY VÀO', array( '2026-09-10' ), $ngay_dem );
 
-/* 🔴 CÔNG BÙ RƠI VÀO NGÀY SAU NỮA, không chồng lên ngày nhận công đêm.
+/* 🔴 CÔNG BÙ RƠI VÀO NGÀY HÔM SAU CỦA NGÀY NHẬN CÔNG ĐÊM, không chồng lên ngày đó.
    Anh Thắng 27/08/2026, chỉ vào một ô 3.5 công: *"1 công bù là bù cho ngày hôm sau nhé em"*.
-   Dòng thời gian: ca đêm 10/09 → công đêm vào 11/09 → NGHỈ BÙ ngày 12/09. Gán công bù vào
-   chính ngày 11 là nói rằng hôm ấy vừa nhận công đêm vừa nghỉ bù — mà ngày 11 người ta còn có
-   thể đi làm ca ngày nữa, và ô ra 1.5 + 1 + 1 = 3.5 công cho một ngày, con số không tả đúng
-   bất cứ chuyện gì đã xảy ra. */
+   Dòng thời gian (26/09/2026 — công đêm nay tính ở ngày vào): ca đêm 10/09 → công đêm NGAY 10/09
+   → NGHỈ BÙ ngày 11/09. Gán công bù vào chính ngày 10 là nói rằng hôm ấy vừa nhận công đêm vừa
+   nghỉ bù — mà ngày 10 người ta còn có thể đi làm ca ngày nữa, và ô ra 1.5 + 1 + 1 = 3.5 công cho
+   một ngày, con số không tả đúng bất cứ chuyện gì đã xảy ra. */
 $ngay_bu = array();
 foreach ( $r['vp']['detail'] as $d ) { if ( $d['congBu'] > 0 ) { $ngay_bu[] = $d['ngay']; } }
-teq( '🔴 công bù ghi cho ngày SAU ngày nhận công đêm', array( '2026-09-12' ), $ngay_bu );
+teq( '🔴 công bù ghi cho ngày SAU ngày nhận công đêm', array( '2026-09-11' ), $ngay_bu );
 t( '🔴 ngày nhận công đêm KHÔNG còn ôm luôn công bù',
-	! in_array( '2026-09-11', $ngay_bu, true ), $ngay_bu );
+	! in_array( '2026-09-10', $ngay_bu, true ), $ngay_bu );
 /* Và ngày được bù phải nói ra nó bù từ đâu — một ngày tự nhiên có thêm công mà không nói từ
    đâu ra là con số không kiểm được. Cùng lối với `demTuNgay`. */
 $bu_tu = '';
 foreach ( $r['vp']['detail'] as $d ) {
-	if ( '2026-09-12' === $d['ngay'] ) { $bu_tu = (string) $d['buTuNgay']; }
+	if ( '2026-09-11' === $d['ngay'] ) { $bu_tu = (string) $d['buTuNgay']; }
 }
-teq( 'ngày được bù giữ dấu vết bù từ ngày nào', '2026-09-11', $bu_tu );
+teq( 'ngày được bù giữ dấu vết bù từ ngày nào', '2026-09-10', $bu_tu );
 
 /* 🔴 `demBuKhiDaLam` XÉT NGÀY ĐƯỢC BÙ, không phải ngày có công đêm.
    Ô cấu hình ấy trả lời câu *"hôm được nghỉ bù mà VẪN đi làm thì có còn được công bù không"* —
    nên phải nhìn vào đúng ngày ấy. Nhìn nhầm sang ngày có công đêm là trả lời một câu khác hẳn.
-   Cảnh: đêm 10/09 → công đêm 11/09 → bù 12/09. Cho người ấy đi làm ca ngày ĐÚNG NGÀY 12,
-   rồi tắt `demBuKhiDaLam`: công bù phải MẤT. Nếu mã nhìn nhầm sang ngày 11 (ngày ấy không có
-   ca ngày) thì nó vẫn bù — và phép thử đỏ. */
-vhcc_cham( 'VP_HCM', '2026-09-12', 'V4', '', '08:30:00', '17:00:00' );
+   Cảnh (26/09/2026 — công đêm nay tính ở ngày vào): đêm 10/09 → công đêm 10/09 → bù 11/09. Cho
+   người ấy đi làm ca ngày ĐÚNG NGÀY 11, rồi tắt `demBuKhiDaLam`: công bù phải MẤT. Nếu mã nhìn
+   nhầm sang ngày 10 (ngày ấy không có ca ngày) thì nó vẫn bù — và phép thử đỏ. */
+vhcc_cham( 'VP_HCM', '2026-09-11', 'V4', '', '08:30:00', '17:00:00' );
 VHCC_Luong::dat_vp_cfg( array( 'role' => 'Admin' ), array( 'demBuKhiDaLam' => 0 ), '', '' );
 $r_bu0 = VHCC_Luong::bang_cong_va_luong( 'VP_HCM', '2026-09' );
 $bu0 = 0.0;
 foreach ( $r_bu0['vp']['detail'] as $d ) {
-	if ( '2026-09-12' === $d['ngay'] ) { $bu0 += (float) $d['congBu']; }
+	if ( '2026-09-11' === $d['ngay'] ) { $bu0 += (float) $d['congBu']; }
 }
 teq( '🔴 tắt "vẫn bù khi đã đi làm" + ngày ĐƯỢC BÙ có đi làm -> KHÔNG bù', 0.0, $bu0 );
 VHCC_Luong::dat_vp_cfg( array( 'role' => 'Admin' ), array( 'demBuKhiDaLam' => 1 ), '', '' );
 $r_bu1 = VHCC_Luong::bang_cong_va_luong( 'VP_HCM', '2026-09' );
 $bu1 = 0.0;
 foreach ( $r_bu1['vp']['detail'] as $d ) {
-	if ( '2026-09-12' === $d['ngay'] ) { $bu1 += (float) $d['congBu']; }
+	if ( '2026-09-11' === $d['ngay'] ) { $bu1 += (float) $d['congBu']; }
 }
 teq( 'bật lại thì vẫn bù dù hôm ấy có đi làm', 1.0, $bu1 );
-$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ngay='2026-09-12'" );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ngay='2026-09-11'" );
 
 /* 🔴 HAI ĐÊM LIỀN NHAU -> HAI LẦN BÙ, mỗi lần một ngày.
    ⚠️ Phép thử này KHÔNG phân biệt được `+=` với `=` trong mã, và nói thẳng ra ở đây: với luật
@@ -1493,13 +1493,16 @@ foreach ( $r_2d['vp']['detail'] as $d ) { $tong_bu += (float) $d['congBu']; }
 teq( '🔴 ba đêm (10 · 14 · 15) -> ba lần bù, cộng dồn không đè', 3.0, $tong_bu );
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' )
 	. " WHERE ngay>='2026-09-14' AND ngay<='2026-09-16'" );
-/* GIỮ lại dòng ngày bắt đầu ca đêm dù nó 0 công — không thì trên bảng chỉ thấy ngày 11 tự nhiên
-   có 2 công mà KHÔNG BIẾT TỪ ĐÂU RA. Không soi được là không kiểm được lương. */
-$co_dong_10 = false;
-foreach ( $r['vp']['detail'] as $d ) {
-	if ( '2026-09-10' === $d['ngay'] && '2026-09-11' === $d['demSangNgay'] ) { $co_dong_10 = true; }
-}
-t( 'giữ dòng ngày bắt đầu ca đêm để soi được công từ đâu ra', $co_dong_10 );
+/* 🔴 26/09/2026 — KHÔNG CÒN CẦN "demSangNgay" ĐỂ GIỮ DÒNG NGÀY BẮT ĐẦU CA ĐÊM.
+   Trước đây công đêm dồn sang ngày 11 nên ngày 10 (0 công) phải được đánh dấu riêng
+   (`demSangNgay`) mới khỏi biến mất khỏi bảng. Nay công đêm nằm NGAY TẠI ngày 10, nên ngày đó
+   tự nhiên có `tong > 0` và tự giữ được dòng — không cần cơ chế đánh dấu nào nữa.
+   `demSangNgay`/`demTuNgay` không còn gì để gán (xem `vp_tinh_nguoi()`), nên phải luôn rỗng. */
+$dong_10 = null;
+foreach ( $r['vp']['detail'] as $d ) { if ( '2026-09-10' === $d['ngay'] ) { $dong_10 = $d; } }
+t( 'ngày bắt đầu ca đêm tự giữ được dòng vì tự nó đã có công đêm',
+	$dong_10 && 1.0 === (float) $dong_10['congDem'], $dong_10 );
+t( 'demSangNgay không còn được gán cho ngày nào nữa', $dong_10 && '' === $dong_10['demSangNgay'], $dong_10 );
 
 /* NGƯỠNG GIỜ TỐI THIỂU ca đêm. demToiThieuGio = 0 nghĩa là KHÔNG xét, để bật ngưỡng không âm
    thầm cắt công của ai. */
@@ -1595,14 +1598,27 @@ foreach ( $r['vp']['detail'] as $d ) { if ( 'KT1' === $d['ma'] && '2026-09-06' =
 t( 'kế toán chủ nhật: 0 công ngày', $cn && 0.0 === $cn['congNgay'], $cn ? $cn['congNgay'] : 'không có dòng' );
 t( 'nhưng GIỮ dòng và giữ số phút để soi được là có đi làm', $cn && $cn['phutNgay'] > 0 && $cn['ktCnNghi'] );
 
-/* Ca đêm ngày CUỐI THÁNG đẩy công sang ngày 1 tháng sau -> không được cộng vào tháng này. */
+/* 🔴 26/09/2026 — CA ĐÊM NGÀY CUỐI THÁNG: CÔNG ĐÊM NAY Ở NGUYÊN THÁNG CÓ NGÀY VÀO.
+   Trước đây công đêm dồn sang ngày 1 tháng sau nên bị loại khỏi tháng này (0.0). Đảo chiều theo
+   đúng ý anh Thắng (công tính theo ngày VÀO): ca đêm bắt đầu 30/9 nay cho công NGAY TẠI 30/9,
+   nên PHẢI được cộng vào tháng 9 — chỉ CÔNG BÙ của nó (rơi vào 01/10) mới còn tràn sang tháng
+   sau. Đã phá thử: nếu ai lỡ tay đưa cả công bù vào phép so `rows[0]['congDem']` thì phép thử
+   dưới đây vẫn tách riêng được `congBu` để canh đúng chiều tràn tháng còn lại. */
 vhcc_dung_bang();
 vhcc_bo_phan( 'VP_HCM', 'Văn phòng' );
 vhcc_cham_dem( 'VP_HCM', '2026-09-30', 'V0', '22:00:00', '01:30:00' );
 $r = VHCC_Luong::bang_cong_va_luong( 'VP_HCM', '2026-09' );
-teq( 'ca đêm ngày 30/9: công của nó thuộc 01/10, KHÔNG cộng vào tháng 9', 0.0,
+teq( 'ca đêm ngày 30/9: công đêm NAY tính ngay trong tháng 9', 1.0,
 	$r['vp']['rows'][0]['congDem'] );
-t( 'nhưng vẫn thấy dòng ngày 30/9 để biết có ca đêm', count( $r['vp']['detail'] ) > 0 );
+/* ⚠️ CÔNG BÙ (01/10) KHÔNG hiện ở CẢ HAI tháng khi tra bằng `doc_thang()` — đây là giới hạn có
+   từ trước, không phải lỗi mới: `doc_thang()` chỉ đọc hàng có CỘT `ngay` NẰM TRONG đúng tháng
+   đang tra (`WHERE ngay LIKE '$tt-%'`), mà hàng ca đêm này mang `ngay='2026-09-30'` — tra tháng 9
+   thì `vp_tinh_nguoi()` tính ra công bù ở 01/10 rồi bị lọc khỏi tháng 9; tra tháng 10 thì hàng
+   thô còn chẳng được đọc lên (nó không "thuộc" tháng 10 theo cột `ngay`). Công đêm trước đây
+   cũng từng vô hình y vậy trước khi đổi mốc neo — không phải điều bản vá này sinh ra, nên không
+   sửa ở đây. */
+t( 'nhưng công bù của nó (01/10) KHÔNG được cộng vào tháng 9',
+	0.0 === (float) $r['vp']['rows'][0]['congBu'], $r['vp']['rows'][0] );
 
 /* Phần giao với khung: khung vắt qua nửa đêm (21:00–06:00) phải cộng một ngày vào mốc cuối, không
    thì phần giao luôn ra 0 và công đêm mất sạch. */
@@ -8536,7 +8552,8 @@ t( '   giờ ra nằm trên trục phẳng (> 24h) nên đứng SAU giờ vào',
 t( '🔴 KHÔNG đẻ ra hàng thường "vào 04:02" ở ngày 07',
 	null === vhcc_hang( $GH_PHU, '2026-09-07', 'VPG1' ) && null === vhcc_hang( $GH_PHU, '2026-09-07', 'VPG1', 'CD' ) );
 
-/* Engine Văn phòng đọc bảng ghép: đêm 06 cho MỘT công đêm vào ngày 07, và không còn "chưa đủ cặp". */
+/* Engine Văn phòng đọc bảng ghép (26/09/2026: công đêm tính ngay ở ngày vào): đêm 06 cho MỘT
+   công đêm NGAY TẠI 06, công bù mới rơi vào 07, và không còn "chưa đủ cặp". */
 $bl_gh = VHCC_Luong::vp_bang_cong_va_luong( $GH_CHINH, '2026-09' );
 $d06 = null; $d07 = null;
 foreach ( (array) $bl_gh['detail'] as $ct ) {
@@ -8545,10 +8562,10 @@ foreach ( (array) $bl_gh['detail'] as $ct ) {
 	if ( '2026-09-07' === $ct['ngay'] ) { $d07 = $ct; }
 }
 t( 'engine thấy đêm 06 đủ cặp', $d06 && empty( $d06['demChuaDuCap'] ), $d06 );
-teq( '🔴 đêm 06 cho 1 CÔNG ĐÊM vào ngày 07', 1.0, $d07 ? (float) $d07['congDem'] : -1.0 );
-/* ⚠️ Nhãn "đến từ cơ sở phụ" nằm ở NGÀY CÓ HÀNG (06 — nơi lượt bấm nằm), không nằm ở ngày nhận
-   công (07). Hai chuyện khác nhau: lượt bấm là bằng chứng của đêm 06, công là thứ dồn sang hôm
-   sau. Bản đầu của phép thử này hỏi ngày 07 và đỏ oan — suýt đi "sửa" một chỗ đang đúng. */
+teq( '🔴 đêm 06 cho 1 CÔNG ĐÊM ngay tại ngày 06', 1.0, $d06 ? (float) $d06['congDem'] : -1.0 );
+teq( '   và 1 CÔNG BÙ rơi vào ngày 07', 1.0, $d07 ? (float) $d07['congBu'] : -1.0 );
+/* Nhãn "đến từ cơ sở phụ" nằm ở NGÀY CÓ HÀNG (06 — nơi lượt bấm nằm) — không đổi theo mốc neo
+   của công đêm, vì `tu_dau[]` khoá theo `ngay` gốc của hàng thô, không theo ngày nhận công. */
 teq( '   và đêm 06 được đánh dấu là đến từ cơ sở phụ', $GH_PHU, $d06 ? (string) $d06['tuCoSo'] : '' );
 
 /* ⚠️ CHIỀU NGƯỢC: cơ sở phụ ghép vào một cơ sở KHÔNG PHẢI Văn phòng thì KHÔNG được định tuyến
@@ -8962,8 +8979,11 @@ t( 'và chú thích nói rõ thiếu bao nhiêu so với mức tối thiểu',
 VHCC_Luong::dat_vp_cfg( $u_ad_cfg, array( 'demToiThieuGio' => 0 ), '', '' );
 teq( 'trả lại cấu hình chung, kẻo mấy phép thử lương phía dưới đọc một bộ số khác',
 	0.0, (float) VHCC_Luong::vp_cfg()['demToiThieuGio'] );
-t( 'và chú thích nói ca đêm cho công sang ngày nào',
-	strpos( $h_vp, 'cho công vào ngày' ) !== false, $h_vp );
+/* 🔴 26/09/2026 — bỏ phép thử "chú thích nói ca đêm cho công sang ngày nào": công đêm không còn
+   dồn sang ngày khác nữa (xem `vp_tinh_nguoi()`), nên `demSangNgay` không bao giờ được gán và
+   câu chú thích "cho công vào ngày ..." ở `class-vhcc-web.php::chu_dem_vp()` không còn dịp hiện
+   ra — vẫn để nguyên nhánh `if ('' !== $d['demSangNgay'])` ở đó (vô hại, chỉ không còn chạy tới),
+   không xoá code hiển thị chỉ để một phép thử này khỏi phải sửa. */
 
 /* Phần chú giải: mỗi màu phải có một câu giải thích, kẻo người đọc chỉ thấy "ô này khác màu". */
 foreach ( array( 'có tăng ca', 'có công đêm', 'kế toán chấm chủ nhật', 'có giờ nhưng KHÔNG ra công' ) as $k_vp ) {

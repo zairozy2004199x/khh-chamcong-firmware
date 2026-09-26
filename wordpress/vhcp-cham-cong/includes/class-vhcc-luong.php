@@ -1042,9 +1042,10 @@ class VHCC_Luong {
 	/**
 	 * Công CẢ THÁNG của MỘT người. Hàm THUẦN — không đọc bảng nào.
 	 *
-	 * ⚠️ PHẢI tính theo THÁNG, không tính từng ngày rời: ca đêm ở hàng 2 ngày D cho công vào NGÀY
-	 *    D+1, nên một ngày có thể nhận công từ ngày HÔM TRƯỚC. Tính từng ngày độc lập là không bao
-	 *    giờ ra đúng.
+	 * ⚠️ PHẢI tính theo THÁNG, không tính từng ngày rời: ca đêm ở hàng 2 ngày D cho CÔNG ĐÊM ngay
+	 *    tại NGÀY D (ngày vào — 26/09/2026, xem chú thích ở khối "công bù" dưới đây), nhưng CÔNG
+	 *    BÙ của nó vẫn rơi vào NGÀY D+1 (hôm sau), nên một ngày có thể nhận công từ ngày HÔM
+	 *    TRƯỚC. Tính từng ngày độc lập là không bao giờ ra đúng.
 	 *
 	 * `$theo_ngay` = array( 'yyyy-MM-dd' => array( 'chinh' => [vao,ra], 'dem' => [vao,ra] ) ) — giây.
 	 */
@@ -1110,7 +1111,8 @@ class VHCC_Luong {
 			$out[ $ngay ]['congNgay'] = $ktcn ? 0.0
 				: self::vp_cong_ngay_tu_phut( $out[ $ngay ]['phutNgay'], $min, $cfg );
 
-			/* ----- HÀNG 2: tăng ca (cùng ngày) hoặc ca đêm (dồn sang NGÀY HÔM SAU) ----- */
+			/* ----- HÀNG 2: tăng ca (cùng ngày) hoặc ca đêm (công đêm tính NGAY ngày này — công bù
+			   của nó mới dồn sang ngày hôm sau, xem khối "CÔNG BÙ" bên dưới) ----- */
 			$dem = isset( $h['dem'] ) ? $h['dem'] : null;
 			if ( $dem ) {
 				/* 🔴 NHỚ LUÔN "GIỜ RA THUỘC NGÀY HÔM SAU" — anh Thắng 25/09/2026: *"đối với set nó
@@ -1157,15 +1159,17 @@ class VHCC_Luong {
 				$out[ $ngay ]['demChuaDuCap'] = ! $du_cap;
 				$out[ $ngay ]['demThieuGio']  = ( $toi_thieu > 0 && $du_cap
 					&& $out[ $ngay ]['gioDemThuc'] < $toi_thieu );
+				/* 🔴 26/09/2026 — CÔNG ĐÊM TÍNH VÀO NGÀY VÀO, KHÔNG CÒN DỒN SANG NGÀY RA.
+				   Anh Thắng: tự sửa tay hàng công SETUP_VP, thấy ca bắt đầu 20:00 ngày 25 mà công
+				   lại hiện ở ngày 26 (ngày ra) — muốn công hiện NGAY ở ngày vào, khớp với lưới
+				   bảng công đang nhìn. Đảo ngược đúng quyết định đã chốt 23/09 ("setup đợi ngày
+				   ra"): quyết định ấy là về CHỖ GHI (routing hậu tố `-CD`) và vẫn giữ nguyên —
+				   không đụng gì ở `VHCC_Online`; đây chỉ đổi CHỖ TÍNH công của cùng một hàng.
+				   Ghi thẳng vào `$ngay`, không còn nhảy sang `$sau` nữa — `demTuNgay`/
+				   `demSangNgay` không còn gì để gán (giữ nguyên trong `$o()`, mặc định rỗng: đúng
+				   nghĩa "không dồn ngày" thay vì phải xoá field ở mọi nơi đọc nó). */
 				if ( ! $out[ $ngay ]['demThieuGio'] && ! $out[ $ngay ]['demChuaDuCap'] ) {
-					$sau = self::ngay_sau( $ngay );
-					$o( $sau );
-					$out[ $sau ]['congDem']  += (float) $cfg['demCong'];
-					$out[ $sau ]['demTuNgay'] = $ngay;
-					/* GIỮ ngày bắt đầu ca đêm dù nó 0 công. Xoá đi thì trên bảng chỉ thấy ngày hôm
-					   sau tự nhiên có 2 công mà KHÔNG BIẾT TỪ ĐÂU RA — không soi được là không
-					   kiểm được lương. */
-					$out[ $ngay ]['demSangNgay'] = $sau;
+					$out[ $ngay ]['congDem'] += (float) $cfg['demCong'];
 				}
 			}
 		}
@@ -1175,11 +1179,11 @@ class VHCC_Luong {
 		   em"*.
 
 		   Bản trước gán công bù vào CHÍNH ngày có công đêm. Nhìn dòng thời gian thì thấy ngay là
-		   sai: ca đêm 08/08 cho công đêm vào 09/08; ngày 09 người ấy VẪN đi làm ca ngày 1.5 công
-		   — vậy hôm ấy có nghỉ bù đâu mà cộng công nghỉ bù. Ô ra 1.5 + 1 + 1 = 3.5 công cho một
-		   ngày, con số không tả đúng bất cứ chuyện gì đã xảy ra.
+		   sai: ca đêm 08/08 cho công đêm vào 08/08 (ngày vào — 26/09/2026); ngày 09 người ấy VẪN
+		   đi làm ca ngày 1.5 công — vậy hôm ấy có nghỉ bù đâu mà cộng công nghỉ bù. Ô ra 1.5 + 1 +
+		   1 = 3.5 công cho một ngày, con số không tả đúng bất cứ chuyện gì đã xảy ra.
 		   Nghỉ bù là ngày người ta ĐƯỢC NGHỈ sau khi thức trắng một đêm — tức ngày KẾ TIẾP ngày
-		   nhận công đêm.
+		   nhận công đêm (09/08, đúng ngày ra của ca ấy).
 
 		   ⚠️ `demBuKhiDaLam` xét NGÀY ĐƯỢC BÙ, không phải ngày có công đêm. Ô ấy trả lời câu
 		      *"hôm được nghỉ bù mà vẫn đi làm thì có còn được công bù không"* — nên phải nhìn

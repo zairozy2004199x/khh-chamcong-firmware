@@ -398,8 +398,10 @@ class VHCC_Online {
 			foreach ( (array) $b['detail'] as $d ) {
 				if ( strtoupper( trim( (string) $d['ma'] ) ) !== $ma ) { continue; }
 				$ngay_d = (string) $d['ngay'];
-				/* Ca đêm ngày cuối tháng đẩy công sang ngày 1 tháng sau — nhận vào lưới tháng
-				   này là cộng nhầm công của tháng sau.
+				/* Công bù của ca đêm cuối tháng rơi vào ngày 1 tháng sau (xem `vp_tinh_nguoi()` —
+				   26/09/2026: công ĐÊM giờ tính ngay ở ngày vào, nhưng CÔNG BÙ của nó vẫn là hôm
+				   sau nên vẫn tràn tháng được) — nhận vào lưới tháng này là cộng nhầm công của
+				   tháng sau.
 				   ⚠️ TẦNG GÁC THỨ HAI, CỐ Ý. `vp_bang_cong_va_luong()` đã lọc sẵn (nó `continue`
 				      trên ngày ngoài tháng TRƯỚC khi dựng `detail`), nên bỏ dòng này đi hôm nay
 				      bộ thử vẫn xanh — đã phá thử để biết. Giữ vì nó rẻ và vì lưới ở đây đánh
