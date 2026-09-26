@@ -495,6 +495,8 @@ class VHCC_Tram {
 			$tt['chuongDem'] = VHCC_Chuong::dem( $u );
 			/* ☀ Lời chào ngày mới — ngày sinh (chỉ tháng-ngày) + số ngày đi làm liên tiếp. */
 			$tt['chao'] = VHCC_Online::du_lieu_chao( isset( $u['ma_nv'] ) ? (string) $u['ma_nv'] : '' );
+			/* 🎒 Nhập môn người mới + nội quy công ty. */
+			$tt['nhapMon'] = VHCC_NhapMon::trang_thai( $u );
 			self::ra( $tt );
 		}
 
@@ -829,6 +831,20 @@ class VHCC_Tram {
 				isset( $b['moi'] ) ? $b['moi'] : '',
 				isset( $b['lai'] ) ? $b['lai'] : ''
 			) );
+		}
+
+		/* 📜 Đồng ý nội quy — ghi lúc, IP, thiết bị (như ký nhận nội quy). */
+		if ( 'noi_quy_dong_y' === $viec ) {
+			$b = self::than();
+			self::ra( VHCC_NhapMon::dong_y( $u, isset( $b['ban'] ) ? (string) $b['ban'] : '',
+				isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '',
+				isset( $_SERVER['HTTP_USER_AGENT'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_USER_AGENT'] ) ) : '' ) );
+		}
+
+		/* Việc nhân viên tự tích trên bảng nhập môn (đã cài app) / ẩn bảng khi xong. */
+		if ( 'nhap_mon_tich' === $viec ) {
+			$b = self::than();
+			self::ra( VHCC_NhapMon::tich( $u, isset( $b['k'] ) ? (string) $b['k'] : '', ! empty( $b['co'] ) ) );
 		}
 
 		if ( 'ung' === $viec ) {

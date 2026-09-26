@@ -554,6 +554,56 @@ a{color:var(--nhan)}
 .lc-kieu button{font:inherit;font-size:13px;font-weight:600;border:1px solid var(--vien-dam);background:var(--the);color:var(--chu);border-radius:999px;padding:6px 12px;cursor:pointer}
 .lc-kieu button.dang{background:var(--nhan);border-color:var(--nhan);color:#fff}
 @media (prefers-reduced-motion: reduce){.lc-qua,.lc-go i,.lc-b.chay .lc-bong{animation:none!important;opacity:1!important;transform:none!important}}
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🎒 NHẬP MÔN NGƯỜI MỚI + 📜 NỘI QUY — anh Thắng 26/09/2026: *"Với nhân viên mới, tài khoản lần
+ *    đầu kích hoạt sẽ hiện phía dưới về Nội Quy Công Ty, và 1 số hướng dẫn khác"* → xem mẫu →
+ *    *"làm theo mẫu này luôn đi em"*. Dữ liệu do `VHCC_NhapMon::trang_thai()` (lượt `toi`).
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+.nm{display:flex;flex-direction:column;gap:var(--d3);margin:0 0 var(--d3)}
+.nm-bd{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.nm-bd b{font-size:15px;color:var(--chu-dam)}
+.nm-bd span{font-size:12px;color:var(--chu-mo);font-variant-numeric:tabular-nums}
+.nm-thanh{height:7px;border-radius:99px;background:var(--vien);overflow:hidden;margin:8px 0 4px}
+.nm-thanh i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--nhan),var(--nhan-dam));transition:width .6s cubic-bezier(.2,.8,.2,1)}
+.nm-viec{list-style:none;margin:0;padding:0}
+.nm-viec li{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-top:1px dashed var(--vien-dam)}
+.nm-viec li:first-child{border-top:0}
+.nm-o{flex:none;width:24px;height:24px;border-radius:50%;border:2px solid var(--vien-dam);display:grid;place-items:center;font-size:13px;line-height:1;color:var(--the);background:transparent;padding:0;margin:0;box-shadow:none;min-height:0}
+button.nm-o{cursor:pointer}
+.nm-viec li.xong .nm-o{background:var(--luc);border-color:var(--luc)}
+.nm-t{flex:1;min-width:0;font-size:13.5px;line-height:1.4}
+.nm-t b{display:block;font-weight:700;color:var(--chu)}
+.nm-viec li.xong .nm-t b{text-decoration:line-through;color:var(--chu-mo)}
+.nm-t small{color:var(--chu-mo);font-size:12px}
+.nm-nut{display:inline-block;font:inherit;font-size:12.5px;font-weight:600;border:1px solid var(--vien-dam);background:var(--the);color:var(--nhan);border-radius:99px;padding:5px 12px;margin:6px 0 0;cursor:pointer;width:auto;box-shadow:none;min-height:0;text-decoration:none}
+.nm-xong{background:var(--luc-nhat);border:1px solid var(--luc);border-radius:var(--bo-the);padding:var(--d4);text-align:center}
+.nm-xong b{display:block;font-size:17px;margin:4px 0;color:var(--chu-dam)}
+.nm-xong span{font-size:13px;color:var(--chu-mo)}
+.nm-xong .nm-nut{color:var(--chu-mo)}
+.nm-hd{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;padding:0 0 4px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.nm-hd::-webkit-scrollbar{display:none}
+.nm-th{flex:0 0 84%;scroll-snap-align:start;background:var(--the);border:1px solid var(--vien);border-radius:var(--bo-the);padding:var(--d3)}
+.nm-so{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:9px;background:var(--nhan-nhat);color:var(--nhan);font-weight:800;font-size:13px}
+.nm-th h4{margin:8px 0 4px;font-size:14.5px;color:var(--chu-dam)}
+.nm-th ol{margin:0;padding-left:18px;font-size:13px;line-height:1.5}
+.nm-nhac{display:flex;gap:10px;align-items:center;background:var(--vang-nhat);border:1px solid var(--vien-dam);border-radius:var(--bo-the);padding:var(--d3);font-size:13px}
+.nm-nhac span{flex:1}
+.nm-nhac .nm-nut{margin:0}
+.nq-dau{background:linear-gradient(145deg,var(--nhan),var(--nhan-dam));color:var(--the);border-radius:var(--bo-the);padding:var(--d4);margin:0 0 var(--d3)}
+.nq-dau b{display:block;font-size:17px;line-height:1.3}
+.nq-dau span{font-size:12.5px;opacity:.9}
+details.nq-muc{padding:0 var(--d3);margin:0 0 8px}
+details.nq-muc summary{cursor:pointer;list-style:none;padding:12px 0;font-weight:700;font-size:14px;display:flex;justify-content:space-between;gap:8px;color:var(--chu-dam)}
+details.nq-muc summary::-webkit-details-marker{display:none}
+details.nq-muc summary::after{content:"＋";color:var(--chu-mo)}
+details.nq-muc[open] summary::after{content:"－"}
+details.nq-muc ul{margin:0 0 12px;padding-left:18px;font-size:13.5px;line-height:1.5;color:var(--chu)}
+details.nq-muc li{margin:0 0 4px}
+.nq-cam{display:flex;gap:10px;align-items:flex-start;font-size:13.5px;line-height:1.4;color:var(--chu);margin:0 0 12px;cursor:pointer}
+.nq-cam input{flex:none;width:20px;height:20px;margin:1px 0 0;accent-color:var(--nhan)}
+#btNqDongY{background:var(--luc);color:var(--the)}
+#btNqDongY:disabled{opacity:.45}
+@media (prefers-reduced-motion: reduce){.nm-thanh i{transition:none!important}}
 </style>
 </head>
 <body>
@@ -792,6 +842,9 @@ a{color:var(--nhan)}
 	<div id="tChamCong" class="tab-o">
 	<!-- ☀ Lời chào ngày mới (xem khối CSS `.lc`) — vẽ bởi `veLoiChao()` sau khi có hồ sơ. -->
 	<div id="loiChao" class="lc an" aria-live="polite"></div>
+	<!-- 🎒 Nhập môn người mới — bảng "Bắt đầu cùng K&H", hướng dẫn nhanh, dòng nhắc nội quy bản mới.
+	     Vẽ bởi `veNhapMon()` từ `TOI.nhapMon`. -->
+	<div id="nhapMon" class="nm an"></div>
 
 	<!-- ============ THẺ CHẤM CÔNG ============
 	     Gộp đồng hồ + trạng thái + nút vào MỘT thẻ. Trước đây là hai thẻ rời: đồng hồ ở trên,
@@ -953,6 +1006,14 @@ a{color:var(--nhan)}
 				<span class="ct an" id="oVaiToi">Vai: <b id="vaiToi">—</b></span>
 			</div>
 		</div>
+	</div>
+
+	<div class="the">
+		<div class="hang" style="align-items:center;margin:0 0 8px">
+			<label style="margin:0;flex:1">Nội quy công ty</label>
+			<span id="nqToiTt" class="ct" style="margin:0">—</span>
+		</div>
+		<button id="btMoNqToi" class="phu" style="width:100%">📜 Đọc nội quy</button>
 	</div>
 
 	<div class="the">
@@ -1190,6 +1251,23 @@ a{color:var(--nhan)}
 
 	<p></p>
 	<button id="btDongPhieu" class="phu to">Đóng</button>
+</div></div>
+
+<!-- ============ MÀN NỘI QUY CÔNG TY ============
+     Từng mục gập / mở; cuối trang tích cam kết rồi bấm Đồng ý — máy chủ ghi bản, giờ, IP, thiết
+     bị (`VHCC_NhapMon::dong_y`). Đã đồng ý bản hiện hành thì chỉ còn đọc lại. -->
+<div id="mNoiQuy" class="mn an"><div class="bao">
+	<div class="nq-dau"><b id="nqTen">Nội quy công ty</b><span id="nqBan">—</span></div>
+	<div id="nqMuc"></div>
+	<div class="the">
+		<div id="nqKy">
+			<label class="nq-cam" for="nqCam"><input id="nqCam" type="checkbox"> Tôi đã đọc, hiểu và cam kết thực hiện đúng Nội quy công ty.</label>
+			<button id="btNqDongY" class="chinh" disabled>Đồng ý nội quy</button>
+		</div>
+		<div id="baoNq"></div>
+	</div>
+	<p></p>
+	<button id="btDongNq" class="phu to">Đóng</button>
 </div></div>
 
 <!-- ============ MÀN NHÂN SỰ (danh sách người của cơ sở) ============
@@ -2292,6 +2370,7 @@ function napToi(){
 		else { el('oVaiToi').classList.add('an'); }
 		veHomNay(j);
 		veLoiChao(j);
+		veNhapMon(j.nhapMon);
 		if(!THANG){ var tn = thangNay(); if(tn) veThang(tn); }
 	}).catch(function(e){
 		/* het_phien tự đá về màn đăng nhập rồi, không báo thêm. Còn lại thì PHẢI nói ra: màn
@@ -2491,6 +2570,130 @@ Array.prototype.forEach.call(document.querySelectorAll('#kieuChao button'), func
 		if(TOI){ veLoiChao(TOI); }
 	});
 });
+
+/* ---------------------------------------------------------------- 🎒 nhập môn + 📜 nội quy
+   Mọi trạng thái do máy chủ tính (`VHCC_NhapMon::trang_thai`) — trạm chỉ vẽ. Tích xong một
+   việc thì hỏi lại `toi` để máy chủ nói thật cả bảng, không tự cộng số ở đây. */
+var NM = null;
+var NM_HD = [
+	['Chấm công', ['Đứng tại cơ sở, bật vị trí.', 'Bấm <b>Chấm vào</b>, chụp mặt.', 'Hết ca bấm <b>Chấm ra</b>.']],
+	['Xin nghỉ · đi trễ', ['Tab <b>Ứng dụng</b> → Xin nghỉ / Gửi đơn đi trễ.', 'Chọn ngày, ghi lý do.', 'Chờ quản lý duyệt — có chuông báo.']],
+	['Xem phiếu lương', ['Tab <b>Ứng dụng</b> → Phiếu lương.', 'Chọn tháng đã công bố.', 'Bấm <b>In / Lưu PDF</b> để lưu.']],
+	['Cần giúp?', ['Hỏi cửa hàng trưởng của bạn.', 'Quên PIN: bấm <b>Quên PIN?</b> ở màn đăng nhập.']]
+];
+function nmGio(s){
+	var m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(String(s || ''));
+	return m ? m[4] + ':' + m[5] + ' · ' + m[3] + '/' + m[2] + '/' + m[1] : String(s || '');
+}
+function nmNgay(s){
+	var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || ''));
+	return m ? m[3] + '/' + m[2] + '/' + m[1] : '';
+}
+function nmDaCai(){
+	try { return !!((window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone); }
+	catch(e){ return false; }
+}
+function veNhapMon(nm){
+	NM = nm || null;
+	var o = el('nhapMon'); if(!o) return;
+	veNqToi();
+	if(!nm || (!nm.hien && !nm.nhacLai)){ o.classList.add('an'); o.innerHTML = ''; return; }
+	var h = '', ten = TOI && TOI.hoTen ? String(TOI.hoTen).trim().split(/\s+/).pop() : 'Bạn';
+	if(nm.hien){
+		var ds = nm.viec || [], xong = +nm.xong || 0, tong = +nm.tong || ds.length || 1;
+		if(xong < tong){
+			h += '<div class="the" style="margin:0"><div class="nm-bd"><b>Bắt đầu cùng K&amp;H</b><span>' + xong + '/' + tong + ' xong</span></div>'
+				+ '<div class="nm-thanh"><i style="width:' + Math.round(xong / tong * 100) + '%"></i></div><ul class="nm-viec">';
+			ds.forEach(function(v){
+				var nut = v.tuTich ? '<button type="button" class="nm-o" data-nm="tich" data-k="' + esc(v.k) + '" aria-label="' + (v.xong ? 'Bỏ tích' : 'Tích') + ': ' + esc(v.ten) + '">' + (v.xong ? '✓' : '') + '</button>'
+					: '<span class="nm-o" aria-hidden="true">' + (v.xong ? '✓' : '') + '</span>';
+				var them = '';
+				if(!v.xong && v.k === 'nq'){ them = '<br><button type="button" class="nm-nut" data-nm="nq">Mở Nội quy →</button>'; }
+				if(!v.xong && v.k === 'pin'){ them = '<br><button type="button" class="nm-nut" data-nm="pin">Đổi PIN ngay →</button>'; }
+				if(!v.xong && v.k === 'hd' && v.link){ them = '<br><a class="nm-nut" href="' + esc(v.link) + '" target="_blank" rel="noopener">Mở bộ hồ sơ →</a>'; }
+				h += '<li class="' + (v.xong ? 'xong' : '') + '">' + nut + '<div class="nm-t"><b>' + esc(v.ten) + '</b><small>' + esc(v.mo || '') + '</small>' + them + '</div></li>';
+			});
+			h += '</ul></div>';
+		} else {
+			h += '<div class="nm-xong"><div>🎉</div><b>Hoàn thành nhập môn!</b><span>' + esc(ten) + ' đã sẵn sàng. Chúc bạn làm việc thật vui cùng K&amp;H.</span>'
+				+ '<br><button type="button" class="nm-nut" data-nm="an">Ẩn bảng này</button></div>';
+		}
+		h += '<div class="nm-bd"><b>Hướng dẫn nhanh</b><span>vuốt →</span></div><div class="nm-hd">';
+		NM_HD.forEach(function(t, i){
+			h += '<div class="nm-th"><span class="nm-so">' + (i + 1) + '</span><h4>' + esc(t[0]) + '</h4><ol><li>' + t[1].join('</li><li>') + '</li></ol></div>';
+		});
+		h += '</div>';
+	} else {
+		h = '<div class="nm-nhac"><span>📜 Nội quy công ty có bản mới <b>' + esc(nm.noiQuy.ban) + '</b> — mời bạn đọc &amp; đồng ý lại.</span>'
+			+ '<button type="button" class="nm-nut" data-nm="nq">Đọc</button></div>';
+	}
+	o.innerHTML = h;
+	o.classList.remove('an');
+	Array.prototype.forEach.call(o.querySelectorAll('[data-nm]'), function(b){
+		b.addEventListener('click', function(){ nmBam(b); });
+	});
+	/* Đang chạy như app đã cài (mở từ màn hình chính) thì chính máy biết việc "cài app" đã xong. */
+	if(nm.hien && nmDaCai()){
+		var cai = (nm.viec || []).filter(function(v){ return v.k === 'cai' && !v.xong; })[0];
+		if(cai && !NM_DA_GUI_CAI){ NM_DA_GUI_CAI = true; nmTich('cai', true); }
+	}
+}
+var NM_DA_GUI_CAI = false;
+function nmTich(k, co){
+	return goi('nhap_mon_tich', { token: token(), k: k, co: co ? 1 : 0 }).then(function(j){
+		if(j && j.ok){ return napToi(); }
+	}).catch(function(){});
+}
+function nmBam(b){
+	var viec = b.getAttribute('data-nm');
+	if(viec === 'nq'){ moNoiQuy(); return; }
+	if(viec === 'pin'){ denTab('tToi'); setTimeout(function(){ var x = el('pinCu'); if(x){ x.scrollIntoView({block:'center'}); x.focus(); } }, 60); return; }
+	if(viec === 'an'){ b.disabled = true; nmTich('an', true); return; }
+	if(viec === 'tich'){
+		var k = b.getAttribute('data-k'), v = (NM && NM.viec || []).filter(function(x){ return x.k === k; })[0];
+		b.disabled = true; nmTich(k, !(v && v.xong));
+	}
+}
+function veNqToi(){
+	var t = el('nqToiTt'); if(!t) return;
+	var q = NM && NM.noiQuy;
+	t.textContent = !q ? '—' : (q.dongY ? 'Bản ' + q.ban + ' · đã đồng ý ' + nmGio(q.dongY) : 'Bản ' + q.ban + ' · chưa đồng ý');
+}
+function moNoiQuy(){
+	var q = NM && NM.noiQuy;
+	if(!q){ return; }
+	el('nqTen').textContent = 'Nội quy ' + (q.cty || 'công ty');
+	el('nqBan').textContent = 'Bản ' + q.ban + (q.apDung ? ' · áp dụng từ ' + nmNgay(q.apDung) : '');
+	var h = '';
+	(q.muc || []).forEach(function(m, i){
+		h += '<details class="the nq-muc"' + (i === 0 ? ' open' : '') + '><summary>' + (i + 1) + '. ' + esc(m.tieu) + '</summary><ul>';
+		(m.dong || []).forEach(function(d){ h += '<li>' + esc(d) + '</li>'; });
+		h += '</ul></details>';
+	});
+	el('nqMuc').innerHTML = h;
+	el('nqCam').checked = false;
+	el('btNqDongY').disabled = true;
+	hien('nqKy', !q.dongY);
+	bao('baoNq', 'xanh', q.dongY ? '✔ Bạn đã đồng ý bản ' + q.ban + ' lúc ' + nmGio(q.dongY) + ' — đã ghi vào hồ sơ của bạn.' : '');
+	hien('mNoiQuy', true);
+	try { el('mNoiQuy').scrollTop = 0; } catch(e){}
+}
+el('nqCam').addEventListener('change', function(){ el('btNqDongY').disabled = !this.checked; });
+el('btNqDongY').addEventListener('click', function(){
+	var q = NM && NM.noiQuy, bt = this;
+	if(!q || !el('nqCam').checked){ return; }
+	bt.disabled = true;
+	bao('baoNq', '', 'Đang ghi…');
+	goi('noi_quy_dong_y', { token: token(), ban: q.ban }).then(function(j){
+		if(!j || !j.ok){ bao('baoNq', 'dong', (j && j.error) || 'Chưa ghi được.'); bt.disabled = false; return; }
+		q.dongY = j.luc;
+		hien('nqKy', false);
+		bao('baoNq', 'xanh', '✔ Đã đồng ý bản ' + j.ban + ' lúc ' + nmGio(j.luc) + ' — đã ghi vào hồ sơ của bạn.');
+		napToi();
+	}).catch(function(){ bao('baoNq', 'dong', 'Lỗi mạng — bấm lại.'); bt.disabled = false; });
+});
+el('btDongNq').addEventListener('click', function(){ hien('mNoiQuy', false); });
+el('btMoNqToi').addEventListener('click', function(){ moNoiQuy(); });
 
 function veHomNay(j){
 	var hn = (j && j.homNay) || {}, cs = [], k1;

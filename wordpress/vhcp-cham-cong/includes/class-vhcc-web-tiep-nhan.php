@@ -42,6 +42,7 @@ class VHCC_WebTiepNhan {
 		self::the_nhan( $ky, $toi, $ds_mau );
 		self::the_moi( $ky, $toi, $ds_mau );
 		self::the_da_nhan( $ky );
+		self::the_noi_quy( $ky );
 		self::the_mau( $ky, $ds_mau );
 		self::the_cty( $ky );
 		self::the_thu( $ky, $toi );
@@ -142,6 +143,7 @@ class VHCC_WebTiepNhan {
 		$ds = VHCC_TiepNhan::gan_day( 30 );
 		echo '<div class="the"><h3>📋 Đã tiếp nhận</h3>';
 		if ( ! $ds ) { echo '<p class="mo" style="margin:0">Chưa tiếp nhận ai qua màn này.</p></div>'; return; }
+		$nq_ban = VHCC_NhapMon::noi_quy()['ban'];
 		echo '<div class="cuon"><table class="b"><thead><tr><th>Lúc</th><th>Nhân viên</th><th>Chức vụ · cơ sở</th><th>Các bước</th><th></th></tr></thead><tbody>';
 		foreach ( $ds as $bg ) {
 			$loi = 0; $chip = array();
@@ -159,7 +161,8 @@ class VHCC_WebTiepNhan {
 			echo '<tr><td class="mo" style="font-size:11.5px">' . esc_html( (string) $bg['luc'] ) . '<br>' . esc_html( (string) $bg['boi'] ) . '</td>'
 				. '<td><b>' . esc_html( $bg['hd']['ho_ten'] ) . '</b><br><span class="mo">' . esc_html( $bg['ma'] ) . '</span></td>'
 				. '<td>' . esc_html( $bg['hd']['chuc_vu'] ) . '<br><span class="mo">' . esc_html( $bg['hd']['coso'] ) . '</span>'
-				. '<div style="font-size:11.5px">' . ( ! empty( $bg['nvKy'] ) ? '✍ NV đã ký HĐ ' . esc_html( $bg['nvKy']['luc'] ) : '✍ chờ nhân viên ký HĐ' ) . '</div></td>'
+				. '<div style="font-size:11.5px">' . ( ! empty( $bg['nvKy'] ) ? '✍ NV đã ký HĐ ' . esc_html( $bg['nvKy']['luc'] ) : '✍ chờ nhân viên ký HĐ' ) . '</div>'
+				. '<div style="font-size:11.5px">' . ( ( $dy = VHCC_NhapMon::da_dong_y_ban( $bg['ma'], $nq_ban ) ) ? '📜 đã đồng ý nội quy ' . esc_html( $dy['luc'] ) : '📜 chưa đồng ý nội quy bản ' . esc_html( $nq_ban ) ) . '</div></td>'
 				. '<td style="font-size:12px;line-height:1.6">' . implode( ' · ', $chip )
 				. ( $chi_tiet ? '<div style="color:var(--do);font-size:11.5px;white-space:normal">' . esc_html( implode( ' | ', $chi_tiet ) ) . '</div>' : '' ) . '</td>'
 				. '<td style="white-space:nowrap"><a class="nut" target="_blank" rel="noopener" href="' . esc_url( VHCC_TiepNhan::link_bo( $bg['ma'] ) ) . '">📄 Bộ hồ sơ</a>'
@@ -170,6 +173,42 @@ class VHCC_WebTiepNhan {
 				. '</td></tr>';
 		}
 		echo '</tbody></table></div></div>';
+	}
+
+	/**
+	 * 📜 NỘI QUY CÔNG TY — công ty tự soạn; nhân viên đọc & đồng ý trên app (bảng nhập môn / tab Tôi).
+	 * Đổi nội dung là LÊN BẢN → mọi người được nhắc đồng ý lại (trừ khi tích "giữ bản").
+	 */
+	private static function the_noi_quy( $ky ) {
+		$nq = VHCC_NhapMon::noi_quy();
+		$nhap = '' === (string) $nq['luc'];
+		echo '<div class="the"><details' . ( $nhap ? ' open' : '' ) . '><summary><b>📜 Nội quy công ty</b> <span class="mo">— bản ' . esc_html( $nq['ban'] )
+			. ( $nhap ? ' · BẢN NHÁP MINH HOẠ, công ty sửa thành nội quy thật rồi Lưu' : ' · lưu ' . esc_html( $nq['luc'] ) . ( '' !== (string) $nq['boi'] ? ' bởi ' . esc_html( $nq['boi'] ) : '' ) ) . '</span></summary>';
+		echo '<p class="mo">Mỗi mục bắt đầu bằng <b>## Tiêu đề</b>, mỗi dòng quy định bắt đầu bằng <b>- </b>. Nhân viên mới thấy nội quy ngay trên app ở bảng "Bắt đầu cùng K&amp;H", '
+			. 'đọc xong tích cam kết và bấm Đồng ý — hệ thống ghi bản, giờ, IP, thiết bị. Sửa nội dung là <b>lên bản mới</b> và mọi người được nhắc đồng ý lại; '
+			. 'chỉ sửa chính tả thì tích "Giữ nguyên bản".</p>';
+		echo '<form method="post" action="' . self::act() . '">' . self::an( $ky, 'tn_noi_quy' )
+			. '<textarea name="nq_chu" rows="16" style="width:100%;font-family:inherit">' . esc_textarea( VHCC_NhapMon::ra_chu( $nq ) ) . '</textarea>'
+			. '<div class="hang" style="gap:12px;flex-wrap:wrap;align-items:flex-end;margin-top:8px">'
+			. '<div><label>Áp dụng từ ngày</label><input type="date" name="nq_ngay" value="' . esc_attr( (string) $nq['apDung'] ) . '"></div>'
+			. '<label style="display:flex;gap:6px;align-items:center;margin:0 0 8px"><input type="checkbox" name="nq_giu" value="1"> Giữ nguyên bản (chỉ sửa chính tả)</label>'
+			. '<div><button class="chinh">Lưu nội quy</button></div></div></form>';
+		$ds = VHCC_NhapMon::ds_dong_y( 50 );
+		echo '<h3 style="margin:14px 0 6px">Ai đã đồng ý</h3>';
+		if ( ! $ds ) {
+			echo '<p class="mo" style="margin:0">Chưa ai đồng ý nội quy.</p>';
+		} else {
+			echo '<div class="cuon"><table class="b"><thead><tr><th>Lúc</th><th>Nhân viên</th><th>Bản</th><th>IP · thiết bị</th></tr></thead><tbody>';
+			foreach ( $ds as $x ) {
+				$hien_hanh = (string) $x['ban'] === (string) $nq['ban'];
+				echo '<tr><td style="white-space:nowrap">' . esc_html( $x['luc'] ) . '</td>'
+					. '<td><b>' . esc_html( $x['ten'] ) . '</b><br><span class="mo">' . esc_html( $x['ma'] ) . '</span></td>'
+					. '<td>' . esc_html( $x['ban'] ) . ( $hien_hanh ? ' ✔' : ' <span class="mo">(bản cũ)</span>' ) . '</td>'
+					. '<td class="mo" style="font-size:11.5px">' . esc_html( $x['ip'] ) . '<br>' . esc_html( substr( (string) $x['ua'], 0, 80 ) ) . '</td></tr>';
+			}
+			echo '</tbody></table></div>';
+		}
+		echo '</details></div>';
 	}
 
 	private static function the_mau( $ky, $ds_mau ) {
@@ -315,6 +354,14 @@ class VHCC_WebTiepNhan {
 		if ( 'tn_cty' === $viec ) {
 			$r = VHCC_TiepNhan::dat_cty( $toi, isset( $_POST['c'] ) ? array_map( 'sanitize_text_field', (array) wp_unslash( $_POST['c'] ) ) : array() );
 			return array( empty( $r['ok'] ) ? array( 'loi' => $r['error'] ) : array( 'xong' => 'Đã lưu thông tin công ty.' ) );
+		}
+		if ( 'tn_noi_quy' === $viec ) {
+			$r = VHCC_NhapMon::dat_noi_quy( $toi,
+				isset( $_POST['nq_chu'] ) ? sanitize_textarea_field( wp_unslash( $_POST['nq_chu'] ) ) : '',
+				isset( $_POST['nq_ngay'] ) ? sanitize_text_field( wp_unslash( $_POST['nq_ngay'] ) ) : '',
+				! empty( $_POST['nq_giu'] ) );
+			return array( empty( $r['ok'] ) ? array( 'loi' => $r['error'] )
+				: array( 'xong' => 'Đã lưu nội quy bản ' . $r['ban'] . ( $r['lenBan'] ? ' — nội dung đổi nên lên bản mới, mọi người sẽ được nhắc đọc & đồng ý lại trên app.' : '.' ) ) );
 		}
 		if ( 'tn_smtp' === $viec ) {
 			$r = VHCC_Thu::dat( $toi, isset( $_POST['s'] ) ? array_map( 'sanitize_text_field', (array) wp_unslash( $_POST['s'] ) ) : array() );

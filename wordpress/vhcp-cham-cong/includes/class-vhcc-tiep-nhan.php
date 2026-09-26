@@ -437,6 +437,15 @@ class VHCC_TiepNhan {
 		return hash_hmac( 'sha256', strtolower( (string) $ma ) . '|' . (string) $pin, wp_salt( 'auth' ) . '|vhcc-tn-pin' );
 	}
 
+	/** Nhân viên đã đổi PIN hệ thống cấp lúc tiếp nhận chưa (dùng cho bảng nhập môn). */
+	public static function pin_da_doi( $ma ) {
+		$bg = self::ban_ghi( $ma );
+		if ( ! $bg || empty( $bg['pinHash'] ) ) { return false; }
+		$hs = VHCC_NhanSu::ho_so( $bg['ma'] );
+		$pin = $hs ? (string) $hs['pin_dang_nhap'] : '';
+		return '' !== $pin && ! hash_equals( (string) $bg['pinHash'], self::bam_pin( $bg['ma'], $pin ) );
+	}
+
 	private static function ky( $ma ) {
 		return substr( hash_hmac( 'sha256', strtolower( trim( (string) $ma ) ) . '|nhan-viec', wp_salt( 'auth' ) . '|vhcc-tn' ), 0, 32 );
 	}
