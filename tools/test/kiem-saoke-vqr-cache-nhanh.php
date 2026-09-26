@@ -105,6 +105,6 @@ t( 'không có lớp VHG_VietQR (Ghế cũ) thì mọi đường đẩy im (ghe_
 echo "── 6. Vân tay bản ───────────────────────────────────────────────\n";
 preg_match( '/^ \* Version:\s+([0-9.]+)/m', $sk, $m1 ); preg_match( "/const VER = '([0-9.]+)';/", $sk, $m2 );
 t( 'header Version == const VER, từ 0.50.0 trở lên', isset( $m1[1], $m2[1] ) && $m1[1] === $m2[1] && version_compare( $m1[1], '0.50.0', '>=' ), array( $m1[1] ?? null, $m2[1] ?? null ) );
-t( 'can_pin 37 chỗ (0.51.0 taoCoSoGhe, 0.57.0 ganMayGhe; không mở cửa RPC nào không PIN)', 37 === substr_count( $sk, 'self::can_pin(' ) );
+t( 'can_pin 38 chỗ (0.51.0 taoCoSoGhe, 0.57.0 ganMayGhe, 0.59.0 tuGanNhanCoSo; không mở cửa RPC nào không PIN)', 38 === substr_count( $sk, 'self::can_pin(' ) );
 
 echo "\n"; if ( $TRUOT ) { echo '🔴 TRƯỢT: ' . count( $TRUOT ) . "\n"; exit( 1 ); } echo "✓ SẠCH — $DAT phép\n";

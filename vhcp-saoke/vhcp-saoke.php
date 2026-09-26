@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.58.1
+ * Version:           0.59.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -25,7 +25,7 @@ class SAOKE_App {
 	   thêm file"* — câu đầu tiên phải trả lời là "bản đang chạy có khối ấy chưa", mà trang thì
 	   không in số bản ở đâu cả, nên không ai đáp được ngoài cách đi mở wp-admin. Ghi ở đây, hiện
 	   ở góc cột trái. ⚠️ PHẢI BẰNG số ở header `Version:` phía trên — hai chỗ, một giá trị. */
-	const VER = '0.58.1';
+	const VER = '0.59.0';
 
 	/* 🔴 BỘ NHỚ ĐỆM TRONG MỘT LƯỢT cho bản đồ cửa hàng VietQR (option `saoke_vqr_ch`) — anh Thắng
 	   25/09/2026: Báo cáo tổng bên Ghế "không nối được tới máy chủ" khi chọn 01→25/09, còn 12→25 thì
@@ -455,11 +455,49 @@ class SAOKE_App {
 			'tien'     => (int) $d['tien'],
 			'luy_ke'   => is_null( $d['luy_ke'] ) ? null : (int) $d['luy_ke'],
 			'noi_dung' => (string) $d['noi_dung'],
+			/* 🔴 Anh Thắng 26/09/2026, "ngày cũ đâu": nhãn cơ sở CHỈ từng được ghi khi một người bấm
+			   tay dropdown (`rpc_setNhan()`) — dòng vừa vào sổ luôn `nhan=''`, dò tự động ở
+			   `rpc_getGiaoDich()` chỉ tính khi MỞ MÀN, không lưu, nên giao dịch ngày cũ (trước khi
+			   ai mở màn ấy ra bấm) coi như vĩnh viễn "chưa khai mã nộp tiền" dù mã đã khớp đúng. Dò
+			   VÀ LƯU LUÔN tại đây — nếu chưa khớp được cũng chỉ ra '' (giữ nguyên hành vi cũ), còn
+			   dò lại cho các dòng cũ thì dùng rpc_tuGanNhanCoSo() (nút "Tự dò nhãn cơ sở" ở app.html). */
+			'nhan'     => self::doan_coso_tu_noi_dung( (string) $d['noi_dung'] ),
 			'ma_gd'    => mb_substr( (string) $d['ma_gd'], 0, 60 ),
 			'nguon'    => $d['nguon'],
 			'tao_luc'  => current_time( 'mysql' ),
 		) );
 		return true;
+	}
+	/* ── Dò tự cơ sở theo mã nộp tiền trong nội dung — MỘT nơi dựng regex, dùng lại ở cả nạp giao
+	   dịch mới (luu_gd) lẫn dò lại hàng loạt (rpc_tuGanNhanCoSo) lẫn hiển thị (rpc_getGiaoDich),
+	   không để ba nơi tự chép ba bản có thể lệch nhau. Xem khối 🔴 RANH GIỚI HAI ĐẦU bên dưới. */
+	private static function coso_ma_re() {
+		$maToCoso = array(); $maRe = '';
+		if ( self::coso_co() ) {
+			/* Gộp CẢ HAI sổ mã: mã nộp đã tự mang hệ trong chuỗi (KH705MTD… / KH705KVC…) nên
+			   không lẫn được, và bỏ sót một sổ là giao dịch của hệ ấy mất nhãn tự động. */
+			$cmMap = self::coso_ma_map() + self::coso_ma_map_kvc(); $tenByKey = array();
+			foreach ( self::ds_coso_all() as $c ) { $tenByKey[ self::chuan_ch( $c['ten'] ) ] = $c['ten']; }
+			$maList = array();
+			foreach ( $cmMap as $k => $ma ) { $ma = trim( (string) $ma ); if ( '' !== $ma && isset( $tenByKey[ $k ] ) ) { $maToCoso[ mb_strtoupper( $ma ) ] = $tenByKey[ $k ]; $maList[] = preg_quote( $ma, '/' ); } }
+			/* 🔴 RANH GIỚI HAI ĐẦU — cùng lỗi đã vá bên khh-doanh-thu (khh_dt_doan_co_so()): một mã
+			   nộp có thể nằm GỌN bên trong một mã khác dài hơn (KH705KVCMN0005 bên trong
+			   KH705KVCMN00050 chẳng hạn). Không có ranh giới thì `preg_match` khớp ĐÚNG MÃ NGẮN dù
+			   nội dung thật mang mã dài hơn — sai âm thầm, và alternation `|` còn tuỳ THỨ TỰ mã nào
+			   đứng trước trong mảng (đến từ thứ tự khai, không cố định) nên cùng một cặp mã có lúc
+			   khớp đúng có lúc khớp nhầm — đúng kiểu "lúc có lúc không" dù nội dung hai giao dịch
+			   gần như giống hệt nhau. */
+			if ( $maList ) { $maRe = '/(?<![A-Za-z0-9])(' . implode( '|', $maList ) . ')(?![A-Za-z0-9])/i'; }
+		}
+		return array( $maToCoso, $maRe );
+	}
+	private static function doan_coso_tu_noi_dung( $noi_dung ) {
+		list( $maToCoso, $maRe ) = self::coso_ma_re();
+		if ( '' !== $maRe && preg_match( $maRe, (string) $noi_dung, $mm ) ) {
+			$ku = mb_strtoupper( $mm[1] );
+			if ( isset( $maToCoso[ $ku ] ) ) { return $maToCoso[ $ku ]; }
+		}
+		return '';
 	}
 
 	/* SePay gửi ngày "YYYY-MM-DD HH:MM:SS". Chuẩn hoá về MySQL datetime. */
@@ -2882,7 +2920,7 @@ class SAOKE_App {
 			'getCosoMaKvc', 'saveCosoMaKvc',
 			'napDsCuaHangVqr', 'getDsCuaHangVqr', 'xoaDsCuaHangVqr',
 			'getNopTienMat', 'ganMayTay',
-			'khoaPhien',
+			'khoaPhien', 'tuGanNhanCoSo',
 		);
 		if ( ! in_array( $fn, $map, true ) ) { return array( '__err' => 'Hàm không hợp lệ: ' . $fn ); }
 		try {
@@ -3006,6 +3044,30 @@ class SAOKE_App {
 		self::can_pin( $a ); global $wpdb;
 		$wpdb->update( self::tbl(), array( 'nhan' => sanitize_text_field( isset( $a[2] ) ? (string) $a[2] : '' ) ), array( 'sepay_id' => isset( $a[1] ) ? (string) $a[1] : '' ) );
 		return array( 'ok' => true );
+	}
+	/* ── DÒ LẠI HÀNG LOẠT cho các dòng cũ ─────────────────────────────────────────────────────
+	 * Anh Thắng 26/09/2026, "ngày cũ đâu": `luu_gd()` giờ dò và lưu `nhan` ngay lúc nạp, nhưng đó
+	 * chỉ cứu giao dịch nạp SAU khi vá. Giao dịch cũ (vd "TÀU TÂN AN" tháng 8-9, trước khi mã KVC
+	 * được khai hoặc trước bản vá này) đã nằm sẵn trong bảng với `nhan=''` — không ai tự động quét
+	 * lại. Nút "Tự dò nhãn cơ sở" ở app.html gọi RPC này: quét MỌI dòng CHƯA có nhãn, áp cùng một
+	 * quy tắc dò mã (`coso_ma_re()`, chung với lúc nạp mới), dòng nào dò được thì LƯU LUÔN — không
+	 * đụng tới dòng đã có nhãn (kể cả nhãn do người xác nhận tay), tuyệt không ghi đè quyết định
+	 * của người dùng.
+	 */
+	public static function rpc_tuGanNhanCoSo( $a ) {
+		self::can_pin( $a ); global $wpdb; $tbl = self::tbl();
+		list( $maToCoso, $maRe ) = self::coso_ma_re();
+		if ( '' === $maRe ) { return array( 'ok' => true, 'so' => 0 ); }
+		$rows = $wpdb->get_results( "SELECT sepay_id, noi_dung FROM $tbl WHERE nhan=''", ARRAY_A );
+		$so = 0;
+		foreach ( (array) $rows as $r ) {
+			if ( ! preg_match( $maRe, (string) $r['noi_dung'], $mm ) ) { continue; }
+			$ku = mb_strtoupper( $mm[1] );
+			if ( ! isset( $maToCoso[ $ku ] ) ) { continue; }
+			$wpdb->update( $tbl, array( 'nhan' => $maToCoso[ $ku ] ), array( 'sepay_id' => $r['sepay_id'] ) );
+			$so++;
+		}
+		return array( 'ok' => true, 'so' => $so );
 	}
 	public static function rpc_testWebhookSample( $a ) {
 		self::can_pin( $a );
@@ -3206,23 +3268,7 @@ class SAOKE_App {
 		$pn = self::pn_by_tk();
 		$locNguon = $gv( 'nguonTien' ); $tu = $gv( 'tuNgay' ); $den = $gv( 'denNgay' ); $tuKhoa = mb_strtolower( $gv( 'tuKhoa' ) );
 		// TỰ PHÂN LOẠI theo mã nộp của cơ sở: nội dung chứa mã nào -> nhãn tự = cơ sở đó.
-		$maToCoso = array(); $maRe = '';
-		if ( self::coso_co() ) {
-			/* Gộp CẢ HAI sổ mã: mã nộp đã tự mang hệ trong chuỗi (KH705MTD… / KH705KVC…) nên
-			   không lẫn được, và bỏ sót một sổ là giao dịch của hệ ấy mất nhãn tự động. */
-			$cmMap = self::coso_ma_map() + self::coso_ma_map_kvc(); $tenByKey = array();
-			foreach ( self::ds_coso_all() as $c ) { $tenByKey[ self::chuan_ch( $c['ten'] ) ] = $c['ten']; }
-			$maList = array();
-			foreach ( $cmMap as $k => $ma ) { $ma = trim( (string) $ma ); if ( '' !== $ma && isset( $tenByKey[ $k ] ) ) { $maToCoso[ mb_strtoupper( $ma ) ] = $tenByKey[ $k ]; $maList[] = preg_quote( $ma, '/' ); } }
-			/* 🔴 RANH GIỚI HAI ĐẦU — cùng lỗi đã vá bên khh-doanh-thu (khh_dt_doan_co_so()): một mã
-			   nộp có thể nằm GỌN bên trong một mã khác dài hơn (KH705KVCMN0005 bên trong
-			   KH705KVCMN00050 chẳng hạn). Không có ranh giới thì `preg_match` khớp ĐÚNG MÃ NGẮN dù
-			   nội dung thật mang mã dài hơn — sai âm thầm, và alternation `|` còn tuỳ THỨ TỰ mã nào
-			   đứng trước trong mảng (đến từ thứ tự khai, không cố định) nên cùng một cặp mã có lúc
-			   khớp đúng có lúc khớp nhầm — đúng kiểu "lúc có lúc không" dù nội dung hai giao dịch
-			   gần như giống hệt nhau. */
-			if ( $maList ) { $maRe = '/(?<![A-Za-z0-9])(' . implode( '|', $maList ) . ')(?![A-Za-z0-9])/i'; }
-		}
+		list( $maToCoso, $maRe ) = self::coso_ma_re();
 		$rows = array(); $tongVao = 0; $tongRa = 0; $tongVaoCong = 0; $tongVaoBank = 0; $congTheoNguon = array();
 		$gd = self::gd_all();
 		for ( $i = count( $gd ) - 1; $i >= 0; $i-- ) {

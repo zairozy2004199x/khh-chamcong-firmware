@@ -303,6 +303,7 @@
         <div class="fld"><label>Từ khóa nội dung</label><input type="text" id="fKw" placeholder="vd: luong, NCC..."></div>
         <div class="fld"><button onclick="taiSaoKe()">🔍 Lọc</button></div>
         <div class="fld"><button id="skLamMoi" class="gray" onclick="lamMoiSaoKe()" title="Đọc lại giao dịch mới nhất từ Sheet, xoá hết ô lọc">🔄 Làm mới</button></div>
+        <div class="fld"><button id="skTuDo" class="gray" onclick="skTuGanNhan()" title="Quét lại TOÀN BỘ giao dịch chưa có nhãn, dò mã nộp tiền của cơ sở trong nội dung rồi gán luôn — dùng cho các dòng cũ (trước khi mã cơ sở được khai, hoặc trước bản này) chưa từng được ai bấm gán tay">🅐 Tự dò nhãn cơ sở</button></div>
         <div class="fld" style="align-self:flex-end"><span id="skCapNhat" class="muted"></span></div>
       </div>
       <div class="hint" style="border-left:3px solid var(--doNhat)">
@@ -3016,6 +3017,22 @@ function skDoiTrang(delta){
 }
 function ganNhan(sepayId, nhan){
   google.script.run.withSuccessHandler(function(){ toast('Đã gắn nhãn'); }).withFailureHandler(function(e){ toast(e.message, true); }).setNhan(PIN, sepayId, nhan);
+}
+/* 26/09/2026 "ngày cũ đâu": nhãn cơ sở trước giờ CHỈ được lưu khi có người bấm tay từng dòng —
+   giao dịch cũ chưa ai bấm thì badge "🅐 tự" chỉ hiện lúc xem, không lưu, nên bên khh-doanh-thu
+   (đọc thẳng cột nhan) coi như chưa khai mã. Nút này gọi rpc_tuGanNhanCoSo(): quét MỌI dòng
+   nhan='' rồi lưu nhãn dò được — không đụng dòng đã có nhãn (kể cả nhãn tay). */
+function skTuGanNhan(){
+  var btn = document.getElementById('skTuDo'); if (btn) { btn.disabled = true; btn.textContent = 'Đang dò…'; }
+  google.script.run.withSuccessHandler(function(r){
+    if (btn) { btn.disabled = false; btn.textContent = '🅐 Tự dò nhãn cơ sở'; }
+    if (!r || !r.ok) { toast((r && r.error) || 'Lỗi', true); return; }
+    toast(r.so > 0 ? ('Đã gán nhãn cho ' + r.so + ' giao dịch cũ') : 'Không có giao dịch nào cần dò thêm');
+    if (r.so > 0) taiSaoKe();
+  }).withFailureHandler(function(e){
+    if (btn) { btn.disabled = false; btn.textContent = '🅐 Tự dò nhãn cơ sở'; }
+    toast(e.message, true);
+  }).tuGanNhanCoSo(PIN);
 }
 
 // ===== TÀI KHOẢN =====

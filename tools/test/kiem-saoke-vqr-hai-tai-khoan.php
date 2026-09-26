@@ -76,6 +76,6 @@ t( 'WP admin: lưu nhiều dòng vqr_tk[], mật khẩu trống giữ cũ, dòng
 t( 'WP admin: bảng có dòng trống để thêm tài khoản mới + ô Xoá', false !== strpos( $src, "'+ tài khoản mới'" ) && false !== strpos( $src, "name=\"vqr_tk[' . \$i . '][xoa]\"" ) );
 $app = file_get_contents( __DIR__ . '/../../vhcp-saoke/app.html' );
 t( 'app: ô chọn tài khoản chỉ ở tab Việt QR, gửi làm tham số thứ 5, vẽ lại từ d.taiKhoan giữ lựa chọn', false !== strpos( $app, "nguon === 'vietqr'\n          ? '<div class=\"fld\"><label>🏦 Tài khoản VietQR</label>" ) && false !== strpos( $app, ".getSaoKeCong(PIN, nguon, tu, den, tk, CG_LOCCS[nguon] || '', CG_LOCNGAY[nguon] || '');" ) /* 0.55.0: tham số 6 = cơ sở; 0.56.0: 7 = ngày */ && false !== strpos( $app, 'var oTk = cgEl(nguon,\'tk\'), dsTk = d.taiKhoan || [];' ) );
-t( 'guard: 37 hàm RPC qua can_pin (0.49.0 không thêm; 0.51.0 taoCoSoGhe; 0.57.0 ganMayGhe)', 37 === substr_count( $src, 'self::can_pin(' ) );
+t( 'guard: 38 hàm RPC qua can_pin (0.49.0 không thêm; 0.51.0 taoCoSoGhe; 0.57.0 ganMayGhe; 0.59.0 tuGanNhanCoSo)', 38 === substr_count( $src, 'self::can_pin(' ) );
 
 echo "\n"; if ( $TRUOT ) { echo '🔴 TRƯỢT: ' . count( $TRUOT ) . "\n"; exit( 1 ); } echo "✓ SẠCH — $DAT phép\n";
