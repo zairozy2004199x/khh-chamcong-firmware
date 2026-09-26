@@ -15575,7 +15575,11 @@ function vhcc_lich_web( $tok, $get = array(), $post = array() ) {
 $h_l = vhcc_lich_web( $tok_l, array( 'lcs' => $L_CS ) );
 t( '🔴 Cửa hàng trưởng vào được tab Lịch làm việc',
 	strpos( $h_l, 'Phân lịch làm việc' ) !== false, substr( $h_l, 0, 400 ) );
-t( 'và có tab ấy trên thanh màn', strpos( $h_l, '>Lịch làm việc<' ) !== false, $h_l );
+/* 26/09/2026 — Lịch làm việc gộp vào tab "Đơn từ & lịch làm việc" (anh Thắng: "bỏ thành 1 tab"). */
+t( 'và có tab gộp ấy trên thanh màn', strpos( $h_l, '>Đơn từ &amp; lịch làm việc<' ) !== false
+	|| strpos( $h_l, '>Đơn từ & lịch làm việc<' ) !== false, $h_l );
+t( '🔴 KHÔNG còn tab "Lịch làm việc" riêng', strpos( $h_l, '>Lịch làm việc<' ) === false );
+t( '   và cùng màn ấy có luôn khối Đơn từ', strpos( $h_l, '📨 Đơn từ' ) !== false );
 t( 'có khối xếp một ô lịch', strpos( $h_l, 'value="lich_xep"' ) !== false, $h_l );
 /* 🔴 NÓI RÕ LỊCH ≠ CHẤM CÔNG. Trộn hai thứ là trả tiền theo dự định. */
 t( 'nói rõ lịch là DỰ ĐỊNH, không ghi vào bảng chấm công',

@@ -1454,6 +1454,14 @@ class VHCC_Luong {
 			   chính" (hậu tố rỗng) CŨ của SETUP_VP — ghi từ trước 4.91.0 — trước đây rơi vào khe
 			   'chinh', ĐÈ LÊN lượt chấm ngày thật ở VP_KH-HCM cùng ngày (hai hàng chung một khe,
 			   hàng đọc sau thắng). Nay mọi hàng của cơ sở phụ vào khe 'dem', bất kể hậu tố. */
+			/* 🔴 26/09/2026 — HÀNG ĐÃ XOÁ TRẮNG GIỜ KHÔNG PHẢI LƯỢT CHẤM. Nút "Xoá công" đặt cả
+			   giờ vào lẫn giờ ra về rỗng nhưng GIỮ hàng làm dấu vết. Đọc nó như một ca đêm thì ra
+			   "🌙0 — thiếu một đầu giờ" kèm nhãn SETUP_VP ở một ngày không ai làm đêm — anh Thắng:
+			   *"có công đêm đâu mà hiện như này người khác hiểu lầm"*. */
+			if ( ( null === $r['gio_vao_giay'] || '' === $r['gio_vao_giay'] )
+				&& ( null === $r['gio_ra_giay'] || '' === $r['gio_ra_giay'] ) ) {
+				continue;
+			}
 			$la_phu_hang = ( 'chinh' === $khe && isset( $r['coso'] ) && '' !== self::ghep_vao( (string) $r['coso'] ) );
 			if ( $la_phu_hang ) {
 				$khe = 'dem';

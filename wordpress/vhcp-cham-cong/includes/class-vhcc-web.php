@@ -4270,6 +4270,8 @@ class VHCC_Web {
 		$ds_man = self::man_cua( $toi );
 		$man    = isset( $_GET['man'] ) ? sanitize_text_field( wp_unslash( $_GET['man'] ) ) : '';
 		if ( 'vp' === $man )    { $man = 'cham'; }
+		/* Lịch làm việc đã gộp vào tab Đơn từ (26/09/2026) — liên kết/biểu mẫu cũ vẫn tới đúng chỗ. */
+		if ( 'lich' === $man )  { $man = 'don_tu'; }
 		/* 🔴 BỎ BÍ DANH `luong -> cham`. Nó có từ hồi khối lương bị gộp vào màn Bảng công; nay
 		   `luong` LÀ một màn thật (`VHCC_WebLuong`), nên để nguyên bí danh là mọi liên kết
 		   `?man=luong` lặng lẽ rơi về màn Bảng công — màn vẫn vẽ ra nên không ai thấy hỏng, chỉ
@@ -4341,12 +4343,6 @@ class VHCC_Web {
 			return;
 		}
 
-		if ( 'lich' === $man ) {
-			VHCC_WebLich::man( $ky, $toi );
-			self::dong_trang();
-			return;
-		}
-
 		if ( 'ns_coso' === $man ) {
 			VHCC_WebNS::man( $ky, $toi );
 			self::dong_trang();
@@ -4377,8 +4373,20 @@ class VHCC_Web {
 			return;
 		}
 
+		/* 🔴 26/09/2026 — ĐƠN TỪ + LỊCH LÀM VIỆC LÀ MỘT TAB. Anh Thắng: *"Ghép lại, cái này thừa
+		   thì bỏ thành 1 tab thôi"*, chốt gộp đúng hai mục này. Trên là đơn chờ duyệt, dưới là
+		   xếp lịch / xin đổi lịch. Mỗi nửa tự gác bằng đúng cửa cũ của nó: người chỉ có
+		   `cham_online` (nhân viên xem ca của mình) vẫn thấy nửa lịch, không vấp lời chối của
+		   nửa đơn. Lối cũ `?man=lich` rẽ về đây (xem bí danh ở `trang_chinh()`). */
 		if ( 'don_tu' === $man ) {
-			VHCC_WebDonTu::man( $ky, $toi );
+			$co_don  = VHCC_WebDonTu::duoc_vao( $toi );
+			$co_lich = VHCC_Vai::duoc( $toi, 'cham_online' );
+			if ( $co_don || ! $co_lich ) { VHCC_WebDonTu::man( $ky, $toi ); }
+			if ( $co_lich ) {
+				echo '<div id="lichlam" style="margin-top:' . ( $co_don ? '18px' : '0' ) . '">';
+				VHCC_WebLich::man( $ky, $toi );
+				echo '</div>';
+			}
 			self::dong_trang();
 			return;
 		}
@@ -4627,14 +4635,15 @@ class VHCC_Web {
 		/* 🔴 ĐƠN TỪ RA TAB RIÊNG — anh Thắng 18/09/2026: *"Chuyển cái này ra 1 tab riêng (Đơn
 		   từ)"*. Hai cửa một tab (xem `VHCC_WebDonTu::duoc_vao()`): hai khối đơn gác `lich_lam`,
 		   hai khối tuần gác `cong_coso`, hỏi mỗi một cửa là nửa kia mất tab. */
-		if ( VHCC_WebDonTu::duoc_vao( $toi ) ) { $ds['don_tu'] = 'Đơn từ'; }
+		if ( VHCC_WebDonTu::duoc_vao( $toi ) || VHCC_Vai::duoc( $toi, 'cham_online' ) ) {
+			$ds['don_tu'] = 'Đơn từ & lịch làm việc';
+		}
 		/* 🔴 BHXH LÀ MỘT MÀN RIÊNG, KHÔNG PHẢI MỘT KHỐI TRONG CẤU HÌNH.
 		   Anh Thắng 19/09/2026: *"Tách nó ra dạng 1 tính năng đi, sau này nv sẽ yêu cầu có bhxh
 		   nên sẽ nhiều dữ liệu"*. Đúng: Cấu hình là chỗ khai MỘT LẦN RỒI THÔI, còn sổ này mỗi
 		   người một dòng và chỉ dài thêm — nhét một danh sách đang lớn vào giữa mấy công tắc là
 		   đẩy hết phần dưới xuống ngoài tầm mắt. */
 		if ( VHCC_Vai::duoc( $toi, VHCC_Bhxh::QUYEN ) ) { $ds['bhxh'] = 'BHXH'; }
-		if ( VHCC_Vai::duoc( $toi, 'cham_online' ) ) { $ds['lich']     = 'Lịch làm việc'; }
 		if ( VHCC_Vai::duoc( $toi, 'may' ) )        { $ds['may']      = 'Máy & Firmware'; }
 		/* 🔴 KHUÔN MẶT LÀ BẬC QUẢN LÝ / ADMIN (`ngoai_coso`) — anh Thắng 08/09/2026, khi em hỏi
 		   ai được duyệt: *"QUản lý và admin duyệt"*.
@@ -4690,7 +4699,7 @@ class VHCC_Web {
 		'lich_su'  => 'Ai đã động vào giờ công: giờ cũ, giờ mới, ai làm, vì sao',
 		'luong'    => 'Bảng lương một cơ sở một tháng, đúng mẫu nộp kế toán'
 						. ' — xuất .xlsx ngay tại màn',
-		'don_tu'   => 'Đi trễ · xin nghỉ · xin bù giờ · sửa bảng công tháng — chờ ai duyệt',
+		'don_tu'   => 'Đi trễ · xin nghỉ · xin bù giờ · sửa bảng công tháng · xếp ca, xin đổi lịch',
 		'bhxh'     => 'Ai đóng bảo hiểm, mỗi tháng trừ bao nhiêu — bảng lương tự trừ',
 	);
 
@@ -6360,7 +6369,7 @@ class VHCC_Web {
 			'url' => add_query_arg( array( 'man' => 'cham', 'cth' => $th_nay ), self::url() ) . '#bucong' );
 		$viec[] = array( 'q' => 'cham_online', 'bt' => self::bieu_man( 'lich' ), 'ten' => 'Lịch làm việc',
 			'chu' => 'Xem ca của mình, xin đổi lịch. Cửa hàng trưởng thì xếp ca cho cả cửa hàng.',
-			'url' => add_query_arg( array( 'man' => 'lich' ), self::url() ) );
+			'url' => add_query_arg( array( 'man' => 'don_tu' ), self::url() ) . '#lichlam' );
 		$viec[] = array( 'q' => 'nap_cong', 'bt' => self::bieu_man( 'du_lieu' ), 'ten' => 'Dữ liệu đầu vào',
 			'chu' => 'Đưa bảng công cũ từ Google Sheets vào. Có nút Xem trước, chưa ghi gì.',
 			'url' => add_query_arg( array( 'man' => 'du_lieu' ), self::url() ) );

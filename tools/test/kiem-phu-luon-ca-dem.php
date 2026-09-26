@@ -367,6 +367,20 @@ t( '   không bị coi là ca lạ, không tăng ca, không công ngày',
 teq( '   công bù hôm sau theo GIỜ RA 20:30 (chưa qua nửa đêm, trước mốc 1) -> 0.5',
 	0.5, ( $n11 = $ngay_e( '2026-09-11' ) ) ? (float) $n11['congBu'] : -1.0 );
 
+/* Hàng SETUP đã "Xoá công" (giờ vào lẫn giờ ra rỗng, hàng giữ làm dấu vết) KHÔNG phải ca đêm
+   thiếu giờ — *"có công đêm đâu mà hiện như này người khác hiểu lầm"*. */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $CHINH, 'ngay' => '2026-09-24', 'ma_nv' => 'PLE1',
+	'hau_to' => '', 'ho_ten' => 'Người Hai Bảng', 'gio_vao_giay' => VHCC_DB::giay( '08:55:00' ),
+	'gio_ra_giay' => VHCC_DB::giay( '21:35:00' ), 'nguon' => 'may' ) );
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $PHU, 'ngay' => '2026-09-24', 'ma_nv' => 'PLE1',
+	'hau_to' => 'CD', 'ho_ten' => 'Người Hai Bảng', 'gio_vao_giay' => null, 'gio_ra_giay' => null,
+	'nguon' => 'sua', 'chuan' => 'đã xoá công' ) );
+$d_x = $ngay_e( '2026-09-24' );
+t( '🔴 hàng đã xoá trắng giờ -> KHÔNG thành "ca đêm thiếu một đầu giờ"',
+	$d_x && empty( $d_x['demChuaDuCap'] ) && '' === $d_x['h2vao'] && '' === $d_x['h2ra'], $d_x );
+teq( '   và KHÔNG gắn nhãn cơ sở phụ vào hàng đêm', '', $d_x ? (string) $d_x['tuCoSoDem'] : 'x' );
+teq( '   công ngày ở cơ sở chính vẫn nguyên', true, $d_x && (float) $d_x['congNgay'] > 0 );
+
 echo "\n";
 if ( $truot ) {
 	echo 'TRƯỢT ' . count( $truot ) . ":\n";
