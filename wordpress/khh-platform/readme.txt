@@ -4,7 +4,7 @@ Tags: quan-ly-cong-viec, nhan-su, cham-cong, bang-luong, intranet
 Requires at least: 5.8
 Tested up to: 6.6
 Requires PHP: 7.2
-Stable tag: 1.20.1
+Stable tag: 1.22.0
 License: Proprietary
 
 Nền tảng quản trị nội bộ 16 ứng dụng chạy ngay trong WordPress: dự án & công việc, báo cáo dự án,
@@ -24,6 +24,21 @@ shortcode `[khh_platform]`. Dữ liệu lưu trong bảng riêng của WordPress
 3. Vào menu **Nền tảng K&H**.
 
 == Changelog ==
+
+= 1.22.0 =
+* **Khối Kế toán trên trang chủ**, chỉ vai Quản trị thấy: gom mấy ứng dụng kế toán chạy trong
+  WordPress (Ủy nhiệm chi & Công nợ, Báo cáo chi phí) vào một nhóm riêng, thay vì để lẫn giữa
+  các ứng dụng nhân sự mà ai cũng nhìn thấy.
+* Ứng dụng khai được `vai:` để giới hạn theo vai. Không khai thì ai cũng thấy — mọi ứng dụng
+  cũ giữ nguyên như trước.
+* Nhóm rỗng thì tự ẩn, khỏi bày một tiêu đề không có gì bên dưới.
+
+⚠️ SỐ NÀY LẼ RA LÀ 1.21.0. Đổi thành 1.22.0 vì một nhánh khác (`determined-cannon-3wmrml`,
+   luật ca / lịch ca / báo cáo ngày) cũng đã đánh 1.21.0 cho một việc khác hẳn — 875 dòng thêm,
+   230 dòng bớt so với nhánh này. Hai việc khác nhau mang cùng một số thì WordPress chỉ so
+   được CON SỐ: cài bản nào đè bản nào cũng mất việc của bên kia, và không có gì báo ngoài
+   dòng *"Bạn đang tải lên một phiên bản cũ của plugin hiện tại"*. Đúng ca đã xảy ra ngày
+   15/09/2026, mất hai vòng mới lần ra. `tools/test/kiem-so-ban-doc-nhat.php` bắt được lần này.
 
 = 1.20.1 =
 * Sửa **lệch giao diện** ở mọi hộp thoại có hai ô đứng cạnh nhau mà chỉ một ô có dòng nhắc:

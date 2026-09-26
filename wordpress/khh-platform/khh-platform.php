@@ -3,7 +3,7 @@
  * Plugin Name:       Nền tảng K&H
  * Plugin URI:        https://khh.vn/
  * Description:       Nền tảng quản trị nội bộ 16 ứng dụng: dự án & công việc, báo cáo dự án, đề xuất, quy trình, hồ sơ nhân sự, chấm công, bảng công, nghỉ phép, bảng lương (bảo hiểm + thuế TNCN), thông báo, tri thức, họp, trò chuyện, bảng tin, đặt tài nguyên.
- * Version:           1.20.1
+ * Version:           1.22.0
  * Requires at least: 5.8
  * Requires PHP:      7.2
  * Author:            K&H
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'KHH_VERSION', '1.20.1' );
+define( 'KHH_VERSION', '1.22.0' );
 define( 'KHH_FILE', __FILE__ );
 define( 'KHH_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KHH_URL', plugin_dir_url( __FILE__ ) );
@@ -532,8 +532,46 @@ function khh_rest_delete( $request ) {
 function khh_scripts() {
 	return array(
 		'core', 'charts', 'home', 'wework', 'baocao', 'request', 'workflow', 'hrm',
-		'attendance', 'leave', 'payroll', 'info', 'message', 'square', 'booking',
+		'attendance', 'leave', 'payroll', 'ketoan', 'info', 'message', 'square', 'booking',
 	);
+}
+
+/**
+ * Ứng dụng kế toán đang cài trên site này — nền tảng nhúng lại, không gọi vào ruột chúng.
+ *
+ * "Ủy nhiệm chi & Công nợ" và "Báo cáo chi phí" là plugin RIÊNG, có thể có hoặc không.
+ * Nhận diện bằng lớp PHP của chúng chứ KHÔNG đoán đường dẫn: người dùng đổi slug trong
+ * cài đặt của plugin kia thì nền tảng vẫn trỏ đúng, và site chưa cài thì không khai ứng
+ * dụng nào — khỏi bày một ô bấm vào ra 404.
+ *
+ * Muốn thêm một app kế toán nữa thì chỉ cần thêm một khối như dưới.
+ */
+function khh_ketoan_ung_dung() {
+	$ds = array();
+
+	if ( class_exists( 'KHUNC_App' ) && method_exists( 'KHUNC_App', 'app_url' ) ) {
+		$ds[] = array(
+			'id'   => 'unc',
+			'ten'  => 'Ủy nhiệm chi & Công nợ',
+			'mo'   => 'Khoản nào đã đi tiền, công nợ nhà cung cấp',
+			'url'  => esc_url_raw( KHUNC_App::app_url() ),
+			'mau'  => '#1D5B8F',
+			'icon' => 'unc',
+		);
+	}
+
+	if ( class_exists( 'KHBC_App' ) && method_exists( 'KHBC_App', 'app_url' ) ) {
+		$ds[] = array(
+			'id'   => 'chiphi',
+			'ten'  => 'Báo cáo chi phí',
+			'mo'   => 'Phân bổ chi phí ra File tổng báo cáo',
+			'url'  => esc_url_raw( KHBC_App::app_url( 'app' ) ),
+			'mau'  => '#1F6F5F',
+			'icon' => 'report',
+		);
+	}
+
+	return $ds;
 }
 
 function khh_api_config() {
@@ -545,6 +583,8 @@ function khh_api_config() {
 		'me'    => $user ? $user->display_name : '',
 		'title' => $user ? ( get_user_meta( $user->ID, 'khh_title', true ) ? get_user_meta( $user->ID, 'khh_title', true ) : ucfirst( implode( ', ', $user->roles ) ) ) : '',
 		'role'  => khh_user_role(),
+		/* Khối Kế toán — chỉ Chủ sở hữu và Quản trị thấy (khai `vai` ở assets/ketoan.js). */
+		'ketoan' => khh_ketoan_ung_dung(),
 		'login' => $user ? $user->user_login : '',
 		/* Hồ sơ nhân sự gắn với tài khoản này. Có mã thì hộp "Tài khoản của bạn" mở đúng
 		   hồ sơ ngay cả khi tên hiển thị bị gõ lệch; không có thì giao diện dò theo tên. */

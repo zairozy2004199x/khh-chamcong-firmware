@@ -3,7 +3,16 @@
 'use strict';
 var A=window.APP,esc=A.esc;
 var cat='all',q='',clockT=null;
-var CATS=[{k:'all',l:'Tất cả'},{k:'work',l:'Công việc+'},{k:'hrm',l:'Nhân sự+'},{k:'info',l:'Thông tin+'}];
+var CATS=[{k:'all',l:'Tất cả'},{k:'work',l:'Công việc+'},{k:'hrm',l:'Nhân sự+'},
+  {k:'ketoan',l:'Kế toán+'},{k:'info',l:'Thông tin+'}];
+
+/* Chỉ bày nhóm nào thật sự có ứng dụng người này được thấy — nhân viên thường
+   không còn thấy tab "Kế toán+" rỗng, và nhóm mới thêm sau cũng tự ẩn khi chưa
+   cài plugin tương ứng. */
+function catsCo(apps){
+  return CATS.filter(function(c){
+    if(c.k==='all')return true;
+    return apps.some(function(a){return a.cat===c.k})})}
 
 function greet(){
   var h=new Date().getHours();
@@ -17,7 +26,9 @@ function clockHtml(){
     '<div class="clock-d">'+esc(A.DOW[d.getDay()])+', '+A.fmtD(d)+'</div>'}
 
 function view(){
-  var apps=A.apps.filter(function(a){return a.id!=='home'});
+  var apps=A.apps.filter(function(a){return a.id!=='home'&&A.thayDuoc(a)});
+  var cats=catsCo(apps);
+  if(!cats.some(function(c){return c.k===cat}))cat='all';
   var nq=A.norm(q);
   var list=apps.filter(function(a){
     if(cat!=='all'&&a.cat!==cat)return false;
@@ -35,7 +46,7 @@ function view(){
       '<button class="ir" type="button" id="railTheme" style="color:#BFD4E8" aria-label="Đổi nền">'+A.icon('moon')+'</button>'+
     '</div>'+
     '<div class="lsearch"><input id="appSearch" type="search" placeholder="Tìm kiếm ứng dụng" value="'+esc(q)+'" aria-label="Tìm ứng dụng"></div>'+
-    '<div class="lcats">'+CATS.map(function(c){
+    '<div class="lcats">'+cats.map(function(c){
       return '<button class="lcat'+(c.k===cat?' on':'')+'" type="button" data-cat="'+c.k+'">'+esc(c.l)+'</button>'}).join('')+'</div>'+
     '<div class="apps">'+(list.length?list.map(function(a){
       return '<button class="app-t" type="button" data-go="'+a.id+'">'+

@@ -340,6 +340,14 @@ APP.needRole=function(k,msg){
   toast(msg||('Chỉ '+ROLES.admin+' hoặc '+ROLES.owner+' mới làm được việc này. Bạn đang là '+APP.roleLabel()+'.'),true);
   return false};
 
+/* Ứng dụng giới hạn theo vai: khai `vai:['owner','admin']` thì chỉ vai đó thấy và mở được.
+   Không khai `vai` thì ai cũng thấy — mọi ứng dụng cũ giữ nguyên như trước. */
+APP.thayDuoc=function(d){
+  if(!d)return false;
+  if(!d.vai||!d.vai.length)return true;
+  return d.vai.indexOf(APP.role())>=0};
+APP.appsThay=function(){return APP.apps.filter(APP.thayDuoc)};
+
 /* ---------- phạm vi quản lý theo bộ phận ----------
    Quản trị và Chủ sở hữu quản lý toàn công ty. Quản lý thì chỉ được thao tác
    lên người trong bộ phận của mình, cộng thêm những bộ phận mà họ được đặt làm
@@ -634,6 +642,7 @@ var IC={
   booking:'<rect x="3" y="5" width="14" height="12" rx="1.5"/><path d="M3 9h14M7 3.5v3M13 3.5v3"/><path d="M6.5 12.5h3.5M6.5 14.8h6"/>',
   camera:'<path d="M3.5 6.5h3l1-1.6h5l1 1.6h3a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1Z"/><circle cx="10" cy="11" r="2.8"/>',
   shield:'<path d="M10 3 4.5 5.2v4.3c0 3.4 2.3 6.5 5.5 7.5 3.2-1 5.5-4.1 5.5-7.5V5.2Z"/><path d="M7.6 10.2 9.4 12l3.2-3.4"/>',
+  unc:'<path d="M5 3.5h6.5l3.5 3.5v9.5H5Z"/><path d="M11.5 3.5v3.5H15"/><path d="M7.5 10.5h5M7.5 12.8h5M10 9.2v5"/>',
   report:'<path d="M3.5 16.5h13"/><rect x="5" y="9" width="2.6" height="5.5" rx=".8"/><rect x="9" y="5.5" width="2.6" height="9" rx=".8"/><rect x="13" y="11.5" width="2.6" height="3" rx=".8"/>'
 };
 APP.icon=function(n,cls){return '<svg class="'+(cls||'ic')+'" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'+(IC[n]||'')+'</svg>'};
@@ -642,6 +651,9 @@ APP.icon=function(n,cls){return '<svg class="'+(cls||'ic')+'" viewBox="0 0 20 20
 APP.register=function(def){APP.apps.push(def);APP.byId[def.id]=def};
 APP.go=function(id,arg){
   if(!APP.byId[id])return;
+  /* Chặn ở đây chứ không chỉ ẩn nút: id ứng dụng được nhớ trong localStorage, nên
+     người từng là quản trị rồi bị hạ vai vẫn mở lại đúng ứng dụng cũ nếu không kiểm. */
+  if(!APP.thayDuoc(APP.byId[id])){toast('Ứng dụng này chỉ dành cho '+ROLES.admin+'.',true);return}
   S.app=id;ls('kh.app',id);
   document.body.classList.remove('nav');
   var d=APP.byId[id];
@@ -673,9 +685,10 @@ APP.render=function(){
 
 function renderRail(){
   var h='<button class="logo" type="button" data-go="home" title="Trang chủ">KH</button>';
-  var cats=[['work','CÔNG VIỆC'],['hrm','NHÂN SỰ'],['info','THÔNG TIN']],last=null;
+  var cats=[['work','CÔNG VIỆC'],['hrm','NHÂN SỰ'],['ketoan','KẾ TOÁN'],['info','THÔNG TIN']],last=null;
   APP.apps.forEach(function(a){
     if(a.id==='home')return;
+    if(!APP.thayDuoc(a))return;
     if(a.cat!==last){h+='<span class="ir-sep"></span>';last=a.cat}
     var n=a.badge?a.badge():0;
     h+='<button class="ir'+(a.id===S.app?' on':'')+'" type="button" data-go="'+a.id+'" data-tip="'+esc(a.name)+'"'+
@@ -874,9 +887,9 @@ APP.toast=toast;APP.menu=menu;APP.ls=ls;APP.lsj=lsj;
 /* ---------- khởi động ---------- */
 APP.boot=function(){
   APP.apps.sort(function(a,b){
-    var o={platform:0,work:1,hrm:2,info:3};
+    var o={platform:0,work:1,hrm:2,ketoan:3,info:4};
     return (o[a.cat]||9)-(o[b.cat]||9)});
   APP.byId={};APP.apps.forEach(function(a){APP.byId[a.id]=a});
-  if(!APP.byId[S.app])S.app='home';
+  if(!APP.byId[S.app]||!APP.thayDuoc(APP.byId[S.app]))S.app='home';
   APP.render();connect();connectRoom()};
 })();
