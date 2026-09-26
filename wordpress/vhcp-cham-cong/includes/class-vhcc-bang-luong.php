@@ -333,7 +333,14 @@ class VHCC_BangLuong {
 			$khai_toi = isset( $tu_khai[ $kma ] ) ? $tu_khai[ $kma ] : array();
 			$vc_chon  = VHCC_ChotLuong::viec_chinh( $coso, $tt, $g['ma'], $so_khac );
 
-			if ( $khai_toi ) {
+			if ( $la_cs_cong ) {
+				/* 🔴 26/09/2026 — CƠ SỞ THEO CÔNG KHÔNG CÓ "GIỜ VIỆC KHÁC". Anh Thắng: *"Sinh thừa
+				   hàng, tính theo công, không có tính giờ"*. Lương là công × lương tháng, công
+				   đêm × giá công đêm — không có dòng việc phụ ăn giờ × đơn giá nào. Mấy dòng giờ
+				   đã lỡ lưu (bảng nhập cũ bày ô giờ, dòng Ca đêm lọt vào thành việc 1:00) KHÔNG
+				   được mọc thành dòng lương; bấm "Lưu cả bảng" lần tới là chúng bị xoá hẳn. */
+				$khac = array();
+			} elseif ( $khai_toi ) {
 				/* 🔴 CHỈ TỰ CHỌN VIỆC CHÍNH KHI BẢN KHAI PHỦ HẾT GIỜ CÔNG.
 				   Chưa ai chọn việc chính mà bản khai phủ trọn số giờ thì lấy việc NHIỀU GIỜ
 				   NHẤT — đúng câu *"chọn cái đầu tiên làm giờ chính"* của anh Thắng 16/09/2026,

@@ -2072,7 +2072,10 @@ class VHCC_Web {
 				 *    một dòng tên rỗng 0 giờ.
 				 * ═══════════════════════════════════════════════════════════════════════════ */
 				$dong_b = array();
-				if ( isset( $o_b['dong'] ) && is_array( $o_b['dong'] ) ) {
+				/* Cơ sở theo công không có dòng giờ việc khác (xem `the_bang_nhap_luong()`) — mảng
+				   rỗng ở đây còn dọn luôn mấy dòng giờ đã lỡ lưu từ bảng nhập cũ. */
+				if ( 'cong' !== VHCC_Luong::cach_tinh( $cs_b )
+					&& isset( $o_b['dong'] ) && is_array( $o_b['dong'] ) ) {
 					foreach ( $o_b['dong'] as $d_b ) {
 						if ( ! is_array( $d_b ) ) { continue; }
 						$v_d = isset( $d_b['viec'] ) ? sanitize_text_field( (string) $d_b['viec'] ) : '';
@@ -2206,6 +2209,8 @@ class VHCC_Web {
 			$viec_g = isset( $_POST['cl_viec'] ) ? (array) wp_unslash( $_POST['cl_viec'] ) : array();
 			$gio_g  = isset( $_POST['cl_gio'] ) ? (array) wp_unslash( $_POST['cl_gio'] ) : array();
 			$dong_g = array();
+			/* Cơ sở theo công: không có giờ việc khác (xem `khoi_chot_luong()`). */
+			if ( 'cong' === VHCC_Luong::cach_tinh( $cs_c ) ) { $viec_g = array(); }
 			foreach ( $viec_g as $i_g => $v_g ) {
 				$dong_g[] = array( 'viec' => sanitize_text_field( (string) $v_g ),
 					'gio' => isset( $gio_g[ $i_g ] ) ? sanitize_text_field( (string) $gio_g[ $i_g ] ) : '' );
@@ -10910,9 +10915,14 @@ class VHCC_Web {
 		echo '<input type="hidden" name="cl_ma" value="' . esc_attr( $ma ) . '">';
 		echo '<input type="hidden" name="cl_gio_cham" value="' . esc_attr( (string) $d['gioTong'] ) . '">';
 
+		/* 🔴 26/09/2026 — cơ sở theo công: không giờ tự tính, không "giờ ăn đơn giá khác". Anh
+		   Thắng: *"tính theo công, không có tính giờ"*. */
+		$la_cs_cong = ( 'cong' === VHCC_Luong::cach_tinh( $cs ) );
 		echo '<p style="margin:0 0 8px"><b>' . esc_html( $d['ten'] ) . '</b> · '
-			. esc_html( $ma ) . ' · chấm công <b>' . esc_html( number_format( (float) $d['gioTong'], 2, ',', '.' ) )
-			. ' giờ</b> trong tháng ' . esc_html( $th ) . '</p>';
+			. esc_html( $ma ) . ' · ' . ( $la_cs_cong
+				? '<b>' . esc_html( (string) ( isset( $d['congThuc'] ) ? (float) $d['congThuc'] : 0 ) ) . ' công</b>'
+				: 'chấm công <b>' . esc_html( number_format( (float) $d['gioTong'], 2, ',', '.' ) ) . ' giờ</b>' )
+			. ' trong tháng ' . esc_html( $th ) . '</p>';
 
 		/* ---- giờ ăn giá khác ---- */
 		/* ═══════════════════════════════════════════════════════════════════════════════════
@@ -10939,8 +10949,10 @@ class VHCC_Web {
 		$gio_chinh_ht = round( (float) $d['gioTong'] - $gio_khac_ht, 2 );
 
 		echo '<label style="margin:0 0 4px">Việc chính</label>';
-		echo '<p class="mo" style="margin:0 0 8px">Chọn một việc là xong — <b>cả phần giờ còn '
-			. 'lại</b> ăn theo giá của nó. Gõ thêm dòng giờ khác bên dưới thì phần này tự co lại.</p>';
+		if ( ! $la_cs_cong ) {
+			echo '<p class="mo" style="margin:0 0 8px">Chọn một việc là xong — <b>cả phần giờ còn '
+				. 'lại</b> ăn theo giá của nó. Gõ thêm dòng giờ khác bên dưới thì phần này tự co lại.</p>';
+		}
 		echo '<div class="hang" style="margin:0 0 10px;gap:8px"><div>';
 		if ( $ds_ten ) {
 			self::o_chon_viec( 'cl_chinh', $ds_ten, $vc_hien, $cs, $ma, '— chưa chọn —' );
@@ -10962,128 +10974,134 @@ class VHCC_Web {
 		 *    viết theo lưới, và ngay dưới nó ghi `= 203,50 × đơn giá` để phép nhân luôn nhìn
 		 *    thấy được. Giấu số nhân đi thì người ta tự quy đổi lấy, và họ sẽ quy đổi sai.
 		 * ═══════════════════════════════════════════════════════════════════════════════════ */
-		$phut_chinh_ht = (int) round( $gio_chinh_ht * 60 );
-		echo '</div><div><input data-clchinh="1"'
-			. ' data-clhm="' . ( VHCC_Cham::la_hm() ? '1' : '0' ) . '" value="'
-			. esc_attr( VHCC_Cham::gio_tp( $phut_chinh_ht ) )
-			. '" readonly style="width:110px;background:var(--nen-2)" title="Giờ chấm công trừ đi giờ '
-			. 'khác — không gõ tay được"></div>'
-			. '<div class="mo" style="align-self:center;font-size:12px">giờ tự tính'
-			. ( VHCC_Cham::la_hm()
-				? ( '<br><span data-clthap="1">' . esc_html( number_format( $gio_chinh_ht, 2, ',', '.' ) )
-					. '</span> × đơn giá' )
-				: '' )
-			. '</div></div>';
-
-		/* ═══════════════════════════════════════════════════════════════════════════════════
-		 * Ô "giờ tự tính" NHẢY NGAY KHI GÕ, không chờ bấm Lưu.
-		 *
-		 * Anh Thắng 18/09/2026: *"khi khai giờ đơn khác, nhập số vào, giờ đơn chính nhảy luôn
-		 * để xem"*. Trước bản này gõ MC = 5 mà ô trên vẫn đứng ở 9,00 cho tới lúc Lưu và tải
-		 * lại trang — nên người ta không biết mình vừa làm phần giờ chính còn mấy tiếng, và
-		 * cách duy nhất để biết là bấm Lưu rồi xem. Bấm Lưu để XEM là cách hỏng số liệu.
-		 *
-		 * ⚠️ CON SỐ Ở ĐÂY CHỈ ĐỂ NHÌN. Máy chủ vẫn tự tính lại phần còn lại lúc lưu
-		 *    (`VHCC_ChotLuong`), nên sửa đoạn dưới không đổi được một đồng lương nào.
-		 * ⚠️ TRỪ CẢ DÒNG ĐANG GÕ DỞ. Gõ "1" trong lúc định gõ "12" thì ô trên nhảy hai lần —
-		 *    đúng, vì nó phản chiếu đúng thứ đang có trong ô.
-		 * ⚠️ Nhận cả dấu phẩy lẫn dấu chấm: bàn phím điện thoại cho dấu nào thì người ta gõ dấu
-		 *    ấy, và chối một trong hai là ô trên đứng im mà không nói vì sao.
-		 * ═══════════════════════════════════════════════════════════════════════════════════ */
-		echo '<script>/*vhcc-clchinh*/(function(){"use strict";'
-			/* 🔴 ĐỌC ĐƯỢC CẢ `63:30`. Cả màn viết giờ:phút nên người ta sẽ gõ lối ấy vào ô
-			   này — máy chủ đã hiểu (`VHCC_ChotLuong::doc_gio`), mà ô "giờ tự tính" ở đây lại
-			   đọc bằng `parseFloat("63:30")` = 63 thì nó nhảy ra một con số khác hẳn con số
-			   sắp được lưu. Người ta tin cái đang nhìn, không tin cái chưa thấy. */
-			. 'function so(v){var t=String(v==null?"":v).replace(/\s/g,"").replace("H","h")'
-			. '.replace(",",".");'
-			. 'var m=t.match(/^(\\d{1,4})[:h](\\d{0,2})$/);'
-			. 'if(m){var ph=m[2]===""?0:parseInt(m[2],10);if(ph>59){return 0;}'
-			. 'return parseInt(m[1],10)+ph/60;}'
-			. 'var n=parseFloat(t);return isFinite(n)?n:0;}'
-			. 'function ve(n){var am=n<0;n=Math.abs(n);'
-			. 'var p=n.toFixed(2).split("."),d=p[0],r="",i;'
-			. 'for(i=0;i<d.length;i++){if(i>0&&(d.length-i)%3===0){r+=".";}r+=d.charAt(i);}'
-			. 'return (am?"-":"")+r+","+p[1];}'
-			/* ⚠️ GIỜ:PHÚT TÍNH TỪ PHÚT, không phải cắt phần thập phân. `203.5` giờ là 203:30;
-			   lấy ".5" làm phút thì ra 203:05. Làm tròn ra phút trước rồi mới chia, để 59,999
-			   phút không thành ":59" trong khi ô kia đã nhích lên một giờ. */
-			. 'function vehm(n){var am=n<0;var t=Math.round(Math.abs(n)*60);'
-			. 'var h=Math.floor(t/60),m=t%60;'
-			. 'return (am?"-":"")+h+":"+(m<10?"0":"")+m;}'
-			. 'function tinh(o){var h=o.closest?o.closest(".hs-in"):null;if(!h){return;}'
-			. 'var ra=h.querySelector(\'[data-clchinh]\');'
-			. 'var ct=h.querySelector(\'input[name="cl_gio_cham"]\');if(!ra||!ct){return;}'
-			. 'var ds=h.querySelectorAll(\'input[name^="cl_gio["]\'),k=0,i;'
-			. 'for(i=0;i<ds.length;i++){k+=so(ds[i].value);}'
-			. 'var con=so(ct.value)-k;'
-			/* Ô lớn theo lối đang bật; dòng nhỏ dưới nó LUÔN là thập phân — đó là số nhân. */
-			. 'var hm=ra.getAttribute("data-clhm")==="1";'
-			. 'ra.value=hm?vehm(con):ve(con);'
-			. 'var tp=h.querySelector(\'[data-clthap]\');if(tp){tp.textContent=ve(con);}'
-			/* Âm = gõ nhiều giờ khác hơn cả giờ chấm công. Máy chủ chối lượt lưu ấy, nhưng
-			   nói ra NGAY tại ô thì người ta sửa trước khi bấm, không phải sau. */
-			. 'ra.style.color=(con<-0.001)?"var(--do)":"";'
-			. 'ra.title=(con<-0.001)?"Giờ khác đang nhiều hơn cả giờ chấm công — xem lại":'
-			. '"Giờ chấm công trừ đi giờ khác — không gõ tay được";}'
-			. 'document.addEventListener("input",function(e){var o=e&&e.target;'
-			. 'if(!o||!o.name||o.name.indexOf("cl_gio[")!==0){return;}tinh(o);},true);'
-			. '})();</script>';
-
-		echo '<label style="margin:0 0 4px">Giờ ăn đơn giá khác</label>';
-		echo '<p class="mo" style="margin:0 0 8px">Chỉ gõ phần <b>khác</b> việc chính — phần còn '
-			. 'lại tự là giờ chính. Bỏ trống hết = cả tháng ăn giá chính. Gõ <b>63:30</b> '
-			. '(giờ:phút) hay <b>63,5</b> (số giờ) đều được — máy hiểu cả hai.</p>';
-		/* ═══════════════════════════════════════════════════════════════════════════════════
-		 * 🔴 TÊN VIỆC CHỌN SẴN TỪ SỔ ĐƠN GIÁ, KHÔNG GÕ TAY NỮA.
-		 *
-		 * Anh Thắng 16/09/2026: *"Tên việc giờ chọn sẵn từ đơn giá"*.
-		 *
-		 * Chữ gõ vào ô này KHÔNG phải một cái nhãn — nó là KHOÁ TRA đơn giá (xem
-		 * `VHCC_GiaGio::ten_khai_cho()`). Gõ thiếu một chữ là dòng giờ ấy tra không ra giá rồi
-		 * lặng lẽ thành 0đ, trong khi màn vẫn báo "đã lưu". Bày sẵn đúng những cái tên CÓ GIÁ
-		 * thì không còn chỗ để gõ lệch.
-		 *
-		 * ⚠️ DÒNG ĐÃ LƯU LUÔN CÓ MẶT TRONG DANH SÁCH, kể cả khi tên ấy không còn trong sổ đơn
-		 *    giá (khai từ trước rồi bị xoá, hay đổi tên bên bảng giá). Thiếu nó thì mở khối ra
-		 *    là ô chọn nhảy về "— chọn việc —", bấm Lưu một cái là MẤT dòng giờ ấy — mất một
-		 *    thứ người ta chưa hề đụng tới.
-		 *
-		 * ⚠️ CHƯA KHAI ĐƠN GIÁ NÀO THÌ QUAY VỀ Ô GÕ TAY. Một ô chọn rỗng là một khối chết: người
-		 *    ta mở ra, không chọn được gì, và không có câu nào nói vì sao. Gõ tay được thì ít
-		 *    nhất việc vẫn ghi lại được, và câu nhắc chỉ thẳng xuống bảng đơn giá.
-		 * ═══════════════════════════════════════════════════════════════════════════════════ */
-		/* Hiện mấy dòng đã có, cộng ba dòng trống để gõ thêm. */
-		/* Gợi ý trong ô trống viết đúng lối đang bật — đó là cái người ta sẽ gõ theo. */
-		$cho_gio = VHCC_Cham::la_hm() ? 'số giờ — 63:30' : 'số giờ — 63,5';
-		$n = max( 3, count( $gk ) + 2 );
-		for ( $i = 0; $i < $n; $i++ ) {
-			$v = isset( $gk[ $i ]['viec'] ) ? $gk[ $i ]['viec'] : '';
-			$g = isset( $gk[ $i ]['gio'] ) ? $gk[ $i ]['gio'] : '';
-			echo '<div class="hang" style="margin:0 0 5px;gap:8px"><div>';
-			if ( $ds_ten ) {
-				self::o_chon_viec( 'cl_viec[' . $i . ']', $ds_ten, $v, $cs, $ma );
-			} else {
-				echo '<input name="cl_viec[' . $i . ']" placeholder="tên việc (VD: MC)" '
-					. 'style="width:210px" value="' . esc_attr( $v ) . '">';
-			}
-			echo '</div>'
-				/* 🔴 VIẾT LẠI THEO ĐÚNG LỐI CẢ MÀN ĐANG DÙNG. Anh Thắng 19/09/2026, ảnh ô này
-				   đang có `63:00`: *"chỗ này đáng lẽ là nhập số giờ chứ, sao lại ,"*. Kho lưu
-				   số thập phân, nhưng ô NHẬP phải nói cùng thứ tiếng với ô đọc ngay cạnh nó —
-				   bày `63,5` giữa một màn toàn `63:30` là mời người ta gõ nhầm lối.
-				   Gõ lối nào cũng nhận: `VHCC_ChotLuong::doc_gio()`. */
-				. '<div><input name="cl_gio[' . $i . ']" placeholder="' . esc_attr( $cho_gio ) . '" '
-				. 'style="width:110px" value="'
-				. esc_attr( '' === $g ? '' : VHCC_ChotLuong::viet_gio( $g ) ) . '"></div>'
-				. '<div class="mo" style="align-self:center;font-size:12px">'
-				. ( $ds_ten ? '' : 'chưa khai đơn giá nào — gõ tay, rồi khai giá ở bảng dưới' )
+		if ( $la_cs_cong ) {
+			echo '</div></div>';
+			echo '<p class="mo" style="margin:0 0 8px">Cơ sở này tính <b>theo công</b> — không gõ '
+				. 'giờ. Ca đêm tính riêng = công đêm × giá 1 công đêm (cấu hình cơ sở).</p>';
+		} else {
+			$phut_chinh_ht = (int) round( $gio_chinh_ht * 60 );
+			echo '</div><div><input data-clchinh="1"'
+				. ' data-clhm="' . ( VHCC_Cham::la_hm() ? '1' : '0' ) . '" value="'
+				. esc_attr( VHCC_Cham::gio_tp( $phut_chinh_ht ) )
+				. '" readonly style="width:110px;background:var(--nen-2)" title="Giờ chấm công trừ đi giờ '
+				. 'khác — không gõ tay được"></div>'
+				. '<div class="mo" style="align-self:center;font-size:12px">giờ tự tính'
+				. ( VHCC_Cham::la_hm()
+					? ( '<br><span data-clthap="1">' . esc_html( number_format( $gio_chinh_ht, 2, ',', '.' ) )
+						. '</span> × đơn giá' )
+					: '' )
 				. '</div></div>';
-		}
-		if ( $ds_ten ) {
-			echo '<p class="mo" style="margin:2px 0 0;font-size:12px">Việc cần chưa có trong '
-				. 'danh sách? Khai đơn giá cho nó ở khối <b>Đơn giá giờ</b> ngay dưới bảng lương, '
-				. 'rồi quay lại — như vậy giờ và giá luôn đi cùng nhau.</p>';
+
+			/* ═══════════════════════════════════════════════════════════════════════════════════
+			 * Ô "giờ tự tính" NHẢY NGAY KHI GÕ, không chờ bấm Lưu.
+			 *
+			 * Anh Thắng 18/09/2026: *"khi khai giờ đơn khác, nhập số vào, giờ đơn chính nhảy luôn
+			 * để xem"*. Trước bản này gõ MC = 5 mà ô trên vẫn đứng ở 9,00 cho tới lúc Lưu và tải
+			 * lại trang — nên người ta không biết mình vừa làm phần giờ chính còn mấy tiếng, và
+			 * cách duy nhất để biết là bấm Lưu rồi xem. Bấm Lưu để XEM là cách hỏng số liệu.
+			 *
+			 * ⚠️ CON SỐ Ở ĐÂY CHỈ ĐỂ NHÌN. Máy chủ vẫn tự tính lại phần còn lại lúc lưu
+			 *    (`VHCC_ChotLuong`), nên sửa đoạn dưới không đổi được một đồng lương nào.
+			 * ⚠️ TRỪ CẢ DÒNG ĐANG GÕ DỞ. Gõ "1" trong lúc định gõ "12" thì ô trên nhảy hai lần —
+			 *    đúng, vì nó phản chiếu đúng thứ đang có trong ô.
+			 * ⚠️ Nhận cả dấu phẩy lẫn dấu chấm: bàn phím điện thoại cho dấu nào thì người ta gõ dấu
+			 *    ấy, và chối một trong hai là ô trên đứng im mà không nói vì sao.
+			 * ═══════════════════════════════════════════════════════════════════════════════════ */
+			echo '<script>/*vhcc-clchinh*/(function(){"use strict";'
+				/* 🔴 ĐỌC ĐƯỢC CẢ `63:30`. Cả màn viết giờ:phút nên người ta sẽ gõ lối ấy vào ô
+				   này — máy chủ đã hiểu (`VHCC_ChotLuong::doc_gio`), mà ô "giờ tự tính" ở đây lại
+				   đọc bằng `parseFloat("63:30")` = 63 thì nó nhảy ra một con số khác hẳn con số
+				   sắp được lưu. Người ta tin cái đang nhìn, không tin cái chưa thấy. */
+				. 'function so(v){var t=String(v==null?"":v).replace(/\s/g,"").replace("H","h")'
+				. '.replace(",",".");'
+				. 'var m=t.match(/^(\\d{1,4})[:h](\\d{0,2})$/);'
+				. 'if(m){var ph=m[2]===""?0:parseInt(m[2],10);if(ph>59){return 0;}'
+				. 'return parseInt(m[1],10)+ph/60;}'
+				. 'var n=parseFloat(t);return isFinite(n)?n:0;}'
+				. 'function ve(n){var am=n<0;n=Math.abs(n);'
+				. 'var p=n.toFixed(2).split("."),d=p[0],r="",i;'
+				. 'for(i=0;i<d.length;i++){if(i>0&&(d.length-i)%3===0){r+=".";}r+=d.charAt(i);}'
+				. 'return (am?"-":"")+r+","+p[1];}'
+				/* ⚠️ GIỜ:PHÚT TÍNH TỪ PHÚT, không phải cắt phần thập phân. `203.5` giờ là 203:30;
+				   lấy ".5" làm phút thì ra 203:05. Làm tròn ra phút trước rồi mới chia, để 59,999
+				   phút không thành ":59" trong khi ô kia đã nhích lên một giờ. */
+				. 'function vehm(n){var am=n<0;var t=Math.round(Math.abs(n)*60);'
+				. 'var h=Math.floor(t/60),m=t%60;'
+				. 'return (am?"-":"")+h+":"+(m<10?"0":"")+m;}'
+				. 'function tinh(o){var h=o.closest?o.closest(".hs-in"):null;if(!h){return;}'
+				. 'var ra=h.querySelector(\'[data-clchinh]\');'
+				. 'var ct=h.querySelector(\'input[name="cl_gio_cham"]\');if(!ra||!ct){return;}'
+				. 'var ds=h.querySelectorAll(\'input[name^="cl_gio["]\'),k=0,i;'
+				. 'for(i=0;i<ds.length;i++){k+=so(ds[i].value);}'
+				. 'var con=so(ct.value)-k;'
+				/* Ô lớn theo lối đang bật; dòng nhỏ dưới nó LUÔN là thập phân — đó là số nhân. */
+				. 'var hm=ra.getAttribute("data-clhm")==="1";'
+				. 'ra.value=hm?vehm(con):ve(con);'
+				. 'var tp=h.querySelector(\'[data-clthap]\');if(tp){tp.textContent=ve(con);}'
+				/* Âm = gõ nhiều giờ khác hơn cả giờ chấm công. Máy chủ chối lượt lưu ấy, nhưng
+				   nói ra NGAY tại ô thì người ta sửa trước khi bấm, không phải sau. */
+				. 'ra.style.color=(con<-0.001)?"var(--do)":"";'
+				. 'ra.title=(con<-0.001)?"Giờ khác đang nhiều hơn cả giờ chấm công — xem lại":'
+				. '"Giờ chấm công trừ đi giờ khác — không gõ tay được";}'
+				. 'document.addEventListener("input",function(e){var o=e&&e.target;'
+				. 'if(!o||!o.name||o.name.indexOf("cl_gio[")!==0){return;}tinh(o);},true);'
+				. '})();</script>';
+
+			echo '<label style="margin:0 0 4px">Giờ ăn đơn giá khác</label>';
+			echo '<p class="mo" style="margin:0 0 8px">Chỉ gõ phần <b>khác</b> việc chính — phần còn '
+				. 'lại tự là giờ chính. Bỏ trống hết = cả tháng ăn giá chính. Gõ <b>63:30</b> '
+				. '(giờ:phút) hay <b>63,5</b> (số giờ) đều được — máy hiểu cả hai.</p>';
+			/* ═══════════════════════════════════════════════════════════════════════════════════
+			 * 🔴 TÊN VIỆC CHỌN SẴN TỪ SỔ ĐƠN GIÁ, KHÔNG GÕ TAY NỮA.
+			 *
+			 * Anh Thắng 16/09/2026: *"Tên việc giờ chọn sẵn từ đơn giá"*.
+			 *
+			 * Chữ gõ vào ô này KHÔNG phải một cái nhãn — nó là KHOÁ TRA đơn giá (xem
+			 * `VHCC_GiaGio::ten_khai_cho()`). Gõ thiếu một chữ là dòng giờ ấy tra không ra giá rồi
+			 * lặng lẽ thành 0đ, trong khi màn vẫn báo "đã lưu". Bày sẵn đúng những cái tên CÓ GIÁ
+			 * thì không còn chỗ để gõ lệch.
+			 *
+			 * ⚠️ DÒNG ĐÃ LƯU LUÔN CÓ MẶT TRONG DANH SÁCH, kể cả khi tên ấy không còn trong sổ đơn
+			 *    giá (khai từ trước rồi bị xoá, hay đổi tên bên bảng giá). Thiếu nó thì mở khối ra
+			 *    là ô chọn nhảy về "— chọn việc —", bấm Lưu một cái là MẤT dòng giờ ấy — mất một
+			 *    thứ người ta chưa hề đụng tới.
+			 *
+			 * ⚠️ CHƯA KHAI ĐƠN GIÁ NÀO THÌ QUAY VỀ Ô GÕ TAY. Một ô chọn rỗng là một khối chết: người
+			 *    ta mở ra, không chọn được gì, và không có câu nào nói vì sao. Gõ tay được thì ít
+			 *    nhất việc vẫn ghi lại được, và câu nhắc chỉ thẳng xuống bảng đơn giá.
+			 * ═══════════════════════════════════════════════════════════════════════════════════ */
+			/* Hiện mấy dòng đã có, cộng ba dòng trống để gõ thêm. */
+			/* Gợi ý trong ô trống viết đúng lối đang bật — đó là cái người ta sẽ gõ theo. */
+			$cho_gio = VHCC_Cham::la_hm() ? 'số giờ — 63:30' : 'số giờ — 63,5';
+			$n = max( 3, count( $gk ) + 2 );
+			for ( $i = 0; $i < $n; $i++ ) {
+				$v = isset( $gk[ $i ]['viec'] ) ? $gk[ $i ]['viec'] : '';
+				$g = isset( $gk[ $i ]['gio'] ) ? $gk[ $i ]['gio'] : '';
+				echo '<div class="hang" style="margin:0 0 5px;gap:8px"><div>';
+				if ( $ds_ten ) {
+					self::o_chon_viec( 'cl_viec[' . $i . ']', $ds_ten, $v, $cs, $ma );
+				} else {
+					echo '<input name="cl_viec[' . $i . ']" placeholder="tên việc (VD: MC)" '
+						. 'style="width:210px" value="' . esc_attr( $v ) . '">';
+				}
+				echo '</div>'
+					/* 🔴 VIẾT LẠI THEO ĐÚNG LỐI CẢ MÀN ĐANG DÙNG. Anh Thắng 19/09/2026, ảnh ô này
+					   đang có `63:00`: *"chỗ này đáng lẽ là nhập số giờ chứ, sao lại ,"*. Kho lưu
+					   số thập phân, nhưng ô NHẬP phải nói cùng thứ tiếng với ô đọc ngay cạnh nó —
+					   bày `63,5` giữa một màn toàn `63:30` là mời người ta gõ nhầm lối.
+					   Gõ lối nào cũng nhận: `VHCC_ChotLuong::doc_gio()`. */
+					. '<div><input name="cl_gio[' . $i . ']" placeholder="' . esc_attr( $cho_gio ) . '" '
+					. 'style="width:110px" value="'
+					. esc_attr( '' === $g ? '' : VHCC_ChotLuong::viet_gio( $g ) ) . '"></div>'
+					. '<div class="mo" style="align-self:center;font-size:12px">'
+					. ( $ds_ten ? '' : 'chưa khai đơn giá nào — gõ tay, rồi khai giá ở bảng dưới' )
+					. '</div></div>';
+			}
+			if ( $ds_ten ) {
+				echo '<p class="mo" style="margin:2px 0 0;font-size:12px">Việc cần chưa có trong '
+					. 'danh sách? Khai đơn giá cho nó ở khối <b>Đơn giá giờ</b> ngay dưới bảng lương, '
+					. 'rồi quay lại — như vậy giờ và giá luôn đi cùng nhau.</p>';
+			}
 		}
 
 		/* ═══════════════════════════════════════════════════════════════════════════════════
@@ -11374,6 +11392,11 @@ class VHCC_Web {
 			else { $ng[ $ma ]['phu'][] = $d; }
 		}
 		if ( ! $ng ) { return; }
+		/* 🔴 26/09/2026 — CƠ SỞ THEO CÔNG: KHÔNG Ô GIỜ, KHÔNG DÒNG "＋ THÊM VIỆC". Anh Thắng:
+		   *"Sinh thừa hàng, tính theo công, không có tính giờ"*. Dòng Ca đêm (công đêm tự tính)
+		   từng lọt vào đây như một việc phụ ăn giờ — ô giờ hiện "1:00", bấm Lưu là nó thành một
+		   việc 1 giờ thật và mọc thêm một hàng lương. Nay dòng ấy chỉ để đọc. */
+		$la_cs_cong = ( 'cong' === VHCC_Luong::cach_tinh( $cs ) );
 
 		/* ─── MỨC THẤP NHẤT CỦA CƠ SỞ, để điền sẵn cho người chưa có giá ───────────────────
 		   Anh Thắng 16/09/2026: *"sang tháng nếu chưa khai giờ, hệ thống cứ set mức thấp nhất
@@ -11413,6 +11436,7 @@ class VHCC_Web {
 			$ds_x = $khoi_x['phu'];
 			if ( null !== $khoi_x['chinh'] ) { $ds_x[] = $khoi_x['chinh']; }
 			foreach ( $ds_x as $d_x ) {
+				if ( ! empty( $d_x['laDem'] ) ) { continue; }
 				$t_x = isset( $d_x['cv'] ) ? trim( (string) $d_x['cv'] ) : '';
 				if ( '' !== $t_x && ! in_array( $t_x, $ds_ten, true ) ) { $ds_ten[] = $t_x; }
 			}
@@ -11422,9 +11446,15 @@ class VHCC_Web {
 		echo '<p class="mo">Mỗi <b>việc</b> một dòng — người làm hai việc thì có hai dòng, ô tên '
 			. 'gộp lại. Giờ và đơn giá đã điền sẵn; sửa ô nào cần sửa rồi <b>Lưu cả bảng</b> một '
 			. 'lượt. Mấy khoản ít dùng (ăn lương tháng) nằm trong ô <b>Khác</b>.</p>';
-		echo '<p class="mo">⚠️ Ô <b>Giờ làm</b> của dòng chính <b>không gõ được</b>: nó là '
-			. '<b>giờ chấm công trừ đi giờ mấy việc phụ</b>, máy tự tính. Muốn dòng chính ít giờ '
-			. 'lại thì thêm giờ cho việc phụ.</p>';
+		if ( $la_cs_cong ) {
+			echo '<p class="mo">Cơ sở này tính <b>theo công</b>: số công lấy thẳng từ bảng công, '
+				. 'lương = lương cơ bản × công ÷ công chuẩn. <b>Ca đêm</b> tính riêng = công đêm × '
+				. 'giá 1 công đêm (khai ở cấu hình cơ sở) — không gõ giờ ở đây.</p>';
+		} else {
+			echo '<p class="mo">⚠️ Ô <b>Giờ làm</b> của dòng chính <b>không gõ được</b>: nó là '
+				. '<b>giờ chấm công trừ đi giờ mấy việc phụ</b>, máy tự tính. Muốn dòng chính ít giờ '
+				. 'lại thì thêm giờ cho việc phụ.</p>';
+		}
 		echo '<p class="mo">⚠️ Đơn giá gõ ở đây <b>áp xuyên suốt mọi tháng</b> cho riêng người ấy, '
 			. 'không phải chỉ tháng đang xem — sổ giá không có chiều tháng.</p>';
 
@@ -11437,18 +11467,29 @@ class VHCC_Web {
 		echo '<input type="hidden" name="cth" value="' . esc_attr( $th ) . '">';
 
 		echo '<div class="cuon"><table class="b"><thead><tr>'
-			. '<th>Nhân viên</th><th>Việc</th><th class="p">Giờ làm</th>'
+			. '<th>Nhân viên</th><th>Việc</th><th class="p">' . ( $la_cs_cong ? 'Công' : 'Giờ làm' ) . '</th>'
 			. '<th class="p">Đơn giá</th><th class="p">Thành tiền</th><th>Khác</th>'
 			. '</tr></thead><tbody>';
 
 		foreach ( $ng as $ma => $khoi ) {
 			$dc = $khoi['chinh'];
 			if ( null === $dc ) { continue; }
-			$gk    = VHCC_ChotLuong::cua( $cs, $th, $ma );
-			$so_phu = max( count( $khoi['phu'] ), count( (array) $gk ) );
-			/* Luôn chừa MỘT dòng trống để thêm việc mới — không có nó thì người ta phải sang
-			   khối từng-người mới thêm được việc thứ hai, tức vẫn bấm qua bấm lại. */
-			$so_dong = $so_phu + 1;
+			/* Dòng Ca đêm là công đêm TỰ TÍNH, không phải một việc phụ gõ giờ — tách ra. */
+			$d_dem = null;
+			foreach ( $khoi['phu'] as $i_x => $d_x ) {
+				if ( ! empty( $d_x['laDem'] ) ) { $d_dem = $d_x; unset( $khoi['phu'][ $i_x ] ); }
+			}
+			$khoi['phu'] = array_values( $khoi['phu'] );
+			if ( $la_cs_cong ) {
+				$so_dong = 0;
+			} else {
+				$gk    = VHCC_ChotLuong::cua( $cs, $th, $ma );
+				$so_phu = max( count( $khoi['phu'] ), count( (array) $gk ) );
+				/* Luôn chừa MỘT dòng trống để thêm việc mới — không có nó thì người ta phải sang
+				   khối từng-người mới thêm được việc thứ hai, tức vẫn bấm qua bấm lại. */
+				$so_dong = $so_phu + 1;
+			}
+			$so_hang = 1 + $so_dong + ( null !== $d_dem ? 1 : 0 );
 			$th_ng = VHCC_ChotLuong::thang_cua( $cs, $th, $ma );
 			/* 🔴 "ĂN LƯƠNG THÁNG" LẤY THEO QUYẾT ĐỊNH CỦA BỘ DỰNG BẢNG LƯƠNG (`cheDo`), KHÔNG
 			   CHỈ HỎI BẢN GHI THÁNG. Bộ dựng coi người có `luong_co_ban` trong HỒ SƠ là ăn
@@ -11472,7 +11513,7 @@ class VHCC_Web {
 
 			/* ---- dòng CHÍNH ---- */
 			echo '<tr>';
-			echo '<td rowspan="' . (int) ( 1 + $so_dong ) . '" class="o-nguoi">'
+			echo '<td rowspan="' . (int) $so_hang . '" class="o-nguoi">'
 				. esc_html( isset( $dc['ten'] ) ? $dc['ten'] : $ma )
 				. '<div class="mo" style="font-size:11px">' . esc_html( $ma ) . '</div></td>';
 			/* 🔴 TÊN VIỆC LẤY TỪ `$d['cv']`, KHÔNG PHẢI `viec_chinh()`.
@@ -11546,7 +11587,7 @@ class VHCC_Web {
 				? esc_html( number_format( $g_chinh * $gia_o, 0, ',', '.' ) )
 				: '<span class="mo">—</span>' ) . '</td>';
 
-			echo '<td rowspan="' . (int) ( 1 + $so_dong ) . '"><details' . ( $la_thang ? ' open' : '' )
+			echo '<td rowspan="' . (int) $so_hang . '"><details' . ( $la_thang ? ' open' : '' )
 				. '><summary class="mo">' . ( $la_thang ? '⚙ lương tháng' : '⚙' ) . '</summary>';
 			echo '<label style="margin-top:6px"><input type="checkbox" name="' . $o . '[thang]" value="1"'
 				. checked( $la_thang, true, false ) . '> Ăn lương tháng</label>';
@@ -11558,6 +11599,18 @@ class VHCC_Web {
 				. esc_attr( $cyc_o ) . '" style="width:70px"></div>';
 			echo '</div></details></td>';
 			echo '</tr>';
+
+			/* ---- dòng CA ĐÊM — chỉ đọc ---- */
+			if ( null !== $d_dem ) {
+				$c_dem = isset( $d_dem['congThuc'] ) ? (float) $d_dem['congThuc'] : 0.0;
+				$gia_d = isset( $d_dem['gia'] ) ? (float) $d_dem['gia'] : 0.0;
+				echo '<tr class="hang-dem"><td><span class="mo">↳ Ca đêm</span></td>'
+					. '<td class="p"><span class="mo">' . esc_html( (string) $c_dem ) . ' công đêm</span></td>'
+					. '<td class="p">' . ( $gia_d > 0 ? esc_html( number_format( $gia_d, 0, ',', '.' ) )
+						: '<span class="mo" title="Khai ở cấu hình cơ sở: Giá 1 công đêm">chưa khai giá</span>' ) . '</td>'
+					. '<td class="p">' . ( $gia_d > 0 ? esc_html( number_format( $c_dem * $gia_d, 0, ',', '.' ) )
+						: '<span class="mo">—</span>' ) . '</td></tr>';
+			}
 
 			/* ---- mấy dòng VIỆC PHỤ ---- */
 			for ( $i_d = 0; $i_d < $so_dong; $i_d++ ) {
