@@ -302,8 +302,19 @@ video,canvas.xem{width:100%;border-radius:var(--bo-the);background:#000;display:
 #thanhTab.tab5 .tab-nut{font-size:10px;padding:9px 2px 8px}
 #thanhTab.tab5 .tab-nut span{font-size:17px}
 .tab-nut.dang{color:var(--nhan)}
-.tab-o{animation:hienTab .18s ease-out}
-@keyframes hienTab{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+/* 🎞 CHUYỂN TAB KIỂU "MỜ CHUYỂN" (Material fade-through) — anh Thắng 26/09/2026: *"giao diện
+   chuyển tab chưa mượt"* → xem mẫu → *"Chọn B"*. Chạy bằng Web Animations trong `denTab()`, không
+   bằng `animation` CSS: CSS chỉ chạy được lúc HIỆN, còn mờ đi của tab cũ thì không làm được. */
+.tab-o{transform-origin:50% 0}
+/* Khung xám chờ — thay chữ "Đang tải…" ở những khối nằm thẳng trên tab. */
+.cho{display:flex;flex-direction:column;gap:10px;padding:4px 0}
+.cho i{display:block;height:14px;border-radius:7px;background:linear-gradient(90deg,var(--nen-2) 25%,var(--vien) 50%,var(--nen-2) 75%);background-size:200% 100%;animation:choChay 1.4s ease-in-out infinite}
+.cho i:nth-child(3n+2){width:78%}
+.cho i:nth-child(3n){width:55%}
+.cho.o3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.cho.o3 i{height:74px;width:auto;border-radius:var(--bo-o)}
+@keyframes choChay{from{background-position:100% 0}to{background-position:-100% 0}}
+@media (prefers-reduced-motion: reduce){.cho i{animation:none}}
 /* ══════════════════════════════════════════════════════════════════════════════════════════
  * LƯỚI ỨNG DỤNG — BA CỘT, Ô NHỎ, CHIA NHÓM
  *
@@ -990,7 +1001,7 @@ details.nq-muc li{margin:0 0 4px}
 	<div id="tUng" class="tab-o an">
 		<div class="the">
 			<label style="margin:0 0 10px">Ứng dụng của bạn</label>
-			<div id="oUng"><p class="trong">Đang tải…</p></div>
+			<div id="oUng"><div class="cho o3" aria-label="Đang tải"><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
 		</div>
 	</div><!-- /tUng -->
 
@@ -2263,7 +2274,7 @@ function dangXuat(imLang){
 	DA_NAP_UNG = false;
 	DA_NAP_HS = false;
 	var _h = el('oHoSo'); if(_h){ _h.innerHTML = '<p class="trong">Đang tải…</p>'; }
-	var _u = el('oUng'); if(_u){ _u.innerHTML = '<p class="trong">Đang tải…</p>'; }
+	var _u = el('oUng'); if(_u){ _u.innerHTML = khungCho(6, 'o3'); }
 	hien('mChinh',false); hien('mChup',false); hien('mChon',false); hien('thanhTab',false);
 	hien('mChuong',false); hien('oChuong',false);
 	hien('mVao',true);
@@ -2301,6 +2312,7 @@ function moManChinh(){
 	hien('thanhTab',true);
 	/* Mở ra là ở tab Chấm công — đó là lý do 9/10 lần người ta mở trang này. Giữ tab cũ
 	   thì ai vừa xem bảng tháng hôm qua, sáng nay mở lên lại thấy bảng tháng. */
+	CUON_TAB = {};   // phiên mới — không mang chỗ cuộn của người trước trên máy dùng chung
 	denTab('tChamCong');
 	dangGoi(true);
 	xinGps();
@@ -2648,7 +2660,7 @@ function nmTich(k, co){
 function nmBam(b){
 	var viec = b.getAttribute('data-nm');
 	if(viec === 'nq'){ moNoiQuy(); return; }
-	if(viec === 'pin'){ denTab('tToi'); setTimeout(function(){ var x = el('pinCu'); if(x){ x.scrollIntoView({block:'center'}); x.focus(); } }, 60); return; }
+	if(viec === 'pin'){ denTab('tToi'); setTimeout(function(){ var x = el('pinCu'); if(x){ x.scrollIntoView({block:'center'}); x.focus(); } }, 520); return; }
 	if(viec === 'an'){ b.disabled = true; nmTich('an', true); return; }
 	if(viec === 'tich'){
 		var k = b.getAttribute('data-k'), v = (NM && NM.viec || []).filter(function(x){ return x.k === k; })[0];
@@ -2787,7 +2799,7 @@ function veThang(ym){
 	/* Không cho đi tới tương lai — tháng sau chắc chắn trống, và một bảng trống làm người ta
 	   tưởng mất dữ liệu. */
 	el('btThangSau').disabled = ( thangNay() !== '' && ym >= thangNay() );
-	el('bangThang').innerHTML = '<p class="trong">Đang tải…</p>';
+	el('bangThang').innerHTML = khungCho(6);
 	el('tomTat').innerHTML = '';
 	goi('thang',{token:token(), thang:ym}).then(function(j){
 		if(!j || !j.ok){ el('bangThang').innerHTML = '<p class="trong">Không tải được.</p>'; return; }
@@ -3022,22 +3034,69 @@ function thoat(v){
    `toi()` đã nạp đủ cả ba tab lúc đăng nhập, và đồng hồ chạy bằng `setInterval` chứ không
    bằng vòng lặp gắn vào khối đang hiện — nên tab Chấm công ẩn đi rồi hiện lại vẫn đúng giờ. */
 var TAB = 'tChamCong';
+/* Chỗ đang cuộn của TỪNG tab. Quay lại tab cũ là về đúng chỗ vừa xem; tab chưa mở lần nào thì
+   về đầu trang (nên đang cuộn giữa bảng tháng mà sang tab Chấm công vẫn thấy nút chấm ngay). */
+var CUON_TAB = {};
+/* Lượt chuyển đang mờ dở — bấm tab khác khi tab cũ chưa mờ xong thì chốt ngay lượt dở rồi mới đi. */
+var CHO_TAB = null;
+var GIAM_CD = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+var TAB_DS = ['tChamCong','tCong','tCuaHang','tUng','tToi'];
+
+function cuonToi(y){
+	try { window.scrollTo({ top:y, behavior:'instant' }); } catch(e){ window.scrollTo(0, y); }
+}
+function khungCho(n, kieu){
+	var h = '<div class="cho' + (kieu ? ' ' + kieu : '') + '" aria-label="Đang tải">';
+	for(var i=0;i<(n||3);i++){ h += '<i></i>'; }
+	return h + '</div>';
+}
+/* Chỉ bày đúng một tab. Gọi thẳng khi không cần hiệu ứng. */
+function bayTab(ten){
+	TAB_DS.forEach(function(x){ var o = el(x); if(o){ o.classList.toggle('an', x !== ten); } });
+}
 
 function denTab(ten){
 	if(!el(ten)) return;
+	if(CHO_TAB){ var c = CHO_TAB; CHO_TAB = null; try { c.a.cancel(); } catch(e){} c.xong(false); }
+	var cu = TAB, cung = cu === ten;
+	CUON_TAB[cu] = window.pageYOffset || 0;
 	TAB = ten;
-	['tChamCong','tCong','tCuaHang','tUng','tToi'].forEach(function(x){
-		var o = el(x); if(o){ o.classList.toggle('an', x !== ten); }
-	});
 	var ds = document.querySelectorAll('.tab-nut');
-	for(var i=0;i<ds.length;i++){ ds[i].classList.toggle('dang', ds[i].getAttribute('data-tab') === ten); }
+	for(var i=0;i<ds.length;i++){
+		var la = ds[i].getAttribute('data-tab') === ten;
+		ds[i].classList.toggle('dang', la);
+		/* Biểu tượng tab nảy một cái khi bấm — mắt thấy ngay mình vừa chạm trúng ô nào. */
+		if(la && !GIAM_CD && ds[i].animate){
+			var ic = ds[i].querySelector('span');
+			if(ic){ ic.animate([{transform:'scale(1)'},{transform:'scale(1.3) translateY(-2px)'},{transform:'scale(1)'}], {duration:420, easing:'cubic-bezier(.3,1.4,.5,1)'}); }
+		}
+	}
 
-	if(ten === 'tCuaHang'){ napCuaHang(); }
+	if(ten === 'tCuaHang'){ napCuaHang(true); }
 	if(ten === 'tUng'){ napUng(); }
 	if(ten === 'tToi'){ napHoSo(); moManXin(); }
-	/* Về đầu trang khi đổi tab. Không có dòng này thì đang cuộn giữa bảng tháng mà bấm sang
-	   tab Chấm công là rơi vào khoảng trắng — nút chấm nằm trên đầu, khuất khỏi màn hình. */
-	try { window.scrollTo({ top:0, behavior:'instant' }); } catch(e){ window.scrollTo(0,0); }
+
+	/* Bấm lại đúng tab đang mở = về đầu tab ấy (thói quen của mọi app có thanh tab). */
+	if(cung){ CUON_TAB[ten] = 0; cuonToi(0); return; }
+
+	var o = el(ten), oCu = el(cu);
+	var moTab = function(chay){
+		bayTab(ten);
+		var y = CUON_TAB[ten] || 0;
+		cuonToi(y);
+		if(!chay || !o.animate) return;
+		/* Phóng từ giữa màn hình đang nhìn, không phải từ giữa cả tab dài. */
+		o.style.transformOrigin = '50% ' + Math.max(0, y + window.innerHeight / 2 - o.offsetTop) + 'px';
+		o.animate([{opacity:0, transform:'scale(.95)'},{opacity:1, transform:'scale(1)'}],
+			{duration:340, easing:'cubic-bezier(.2,.8,.2,1)'});
+	};
+	if(GIAM_CD || !oCu || !oCu.animate){ moTab(false); return; }
+	/* Mờ tab cũ trước (0,13 giây) rồi mới đổi — trang đổi chỗ cuộn lúc tab cũ đã mờ hẳn, nên
+	   không còn cú giật lên đầu trang nào lọt vào mắt. */
+	var a = oCu.animate([{opacity:1},{opacity:0}], {duration:130, easing:'ease-in', fill:'forwards'});
+	var lan = { a: a, xong: function(chay){ try { a.cancel(); } catch(e){} moTab(chay); } };
+	CHO_TAB = lan;
+	a.onfinish = function(){ if(CHO_TAB !== lan) return; CHO_TAB = null; lan.xong(true); };
 }
 
 (function(){
@@ -4550,15 +4609,17 @@ function doCuaHang(){
 	}).catch(function(){});
 }
 
-function napCuaHang(){
+/* `giu` = vào lại tab: bảng đã có thì để nguyên trong lúc hỏi số mới, không chớp khung chờ.
+   Đổi cơ sở / đổi tháng thì KHÔNG giữ — bảng cũ lúc ấy là số của chỗ khác, để lại là nói sai. */
+function napCuaHang(giu){
 	if(!CH){ return; }
-	veThangCH();
-	napDonCH();
+	veThangCH(giu);
+	napDonCH(giu);
 }
 
-function veThangCH(){
+function veThangCH(giu){
 	el('chNhanThang').textContent = 'Tháng ' + (CH_THANG || '—').replace(/^(\d{4})-(\d{2})$/, '$2/$1');
-	napCongCH();
+	napCongCH(giu);
 }
 
 function doiThangCH(b){
@@ -4571,13 +4632,15 @@ function doiThangCH(b){
 
 /* ── đơn từ ─────────────────────────────────────────────────────────────────────────────── */
 
-function napDonCH(){
-	el('bangDonCH').innerHTML = '<p class="trong">Đang tải…</p>';
+function napDonCH(giu){
+	if(!(giu && el('bangDonCH').getAttribute('data-co'))){ el('bangDonCH').innerHTML = khungCho(3); }
 	return goi('chdon', { token: token(), coSo: el('chCoSo').value }).then(function(j){
 		if(!j || !j.ok){
+			el('bangDonCH').removeAttribute('data-co');
 			el('bangDonCH').innerHTML = '<p class="trong">' + esc((j&&j.error)||'Không đọc được đơn.') + '</p>';
 			return;
 		}
+		el('bangDonCH').setAttribute('data-co', '1');
 		var ds = j.don || [];
 		if(!ds.length){
 			el('bangDonCH').innerHTML = '<p class="trong">Không có đơn nào chờ anh/chị. '
@@ -4637,7 +4700,7 @@ function quyetDon(khoa, dongY, nut){
 			}
 			/* Nạp lại cả hộp: đơn vừa quyết phải biến mất, và trong lúc mình bấm có thể có đơn
 			   mới nộp vào. Xoá đúng một thẻ trên màn thì hộp nói sai ngay lượt sau. */
-			napDonCH();
+			napDonCH(true);
 		}).catch(function(){
 			for(var i=0;i<ds.length;i++){ ds[i].disabled = false; }
 			window.alert('Mất mạng — đơn CHƯA được quyết. Thử lại.');
@@ -4646,14 +4709,16 @@ function quyetDon(khoa, dongY, nut){
 
 /* ── bảng công cơ sở ────────────────────────────────────────────────────────────────────── */
 
-function napCongCH(){
-	el('bangCongCH').innerHTML = '<p class="trong">Đang tải…</p>';
+function napCongCH(giu){
+	if(!(giu && el('bangCongCH').getAttribute('data-co'))){ el('bangCongCH').innerHTML = khungCho(5); }
 	return goi('chcong', { token: token(), coSo: el('chCoSo').value, thang: CH_THANG })
 		.then(function(j){
 			if(!j || !j.ok){
+				el('bangCongCH').removeAttribute('data-co');
 				el('bangCongCH').innerHTML = '<p class="trong">' + esc((j&&j.error)||'Không đọc được bảng công.') + '</p>';
 				return;
 			}
+			el('bangCongCH').setAttribute('data-co', '1');
 			var ds = j.dong || [];
 			if(!ds.length){
 				el('bangCongCH').innerHTML = '<p class="trong">Tháng này chưa có lượt chấm nào ở '

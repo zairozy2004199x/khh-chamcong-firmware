@@ -1043,10 +1043,18 @@ t( 'chừa chỗ cho thanh tab ở đáy', strpos( $tram_vt, 'padding-bottom' ) 
    thì người dùng không đoán được cái nào làm gì. */
 t( 'mọi nút tab đều gọi cùng một hàm',
 	preg_match( "/tab-nut[\s\S]{0,400}?denTab\(this\.getAttribute\('data-tab'\)\)/", $tram_js2 ) === 1 );
-t( 'đổi tab thì về đầu trang', strpos( $tram_js2, 'window.scrollTo' ) !== false );
+/* 5.23.0 (anh Thắng *"chuyển tab chưa mượt"*, chọn kiểu B): đổi tab về CHỖ CUỘN RIÊNG của tab
+   đích — tab chưa mở lần nào thì về đầu trang như cũ, nên điều phép thử cũ canh vẫn giữ. */
+t( 'đổi tab thì về chỗ cuộn của tab đích (mặc định đầu trang)', strpos( $tram_js2, 'window.scrollTo' ) !== false
+	&& strpos( $tram_js2, 'var y = CUON_TAB[ten] || 0;' ) !== false );
 /* ⚠️ `scrollTo({behavior})` không có ở mọi máy — Safari cũ bỏ qua cả đối tượng tuỳ chọn. */
 t( 'có đường lùi khi trình duyệt không nhận đối tượng tuỳ chọn',
-	strpos( $tram_js2, 'catch(e){ window.scrollTo(0,0); }' ) !== false );
+	strpos( $tram_js2, 'catch(e){ window.scrollTo(0, y); }' ) !== false );
+t( 'kiểu B: tab cũ mờ đi rồi tab mới mờ vào + phóng nhẹ',
+	strpos( $tram_js2, "oCu.animate([{opacity:1},{opacity:0}]" ) !== false && strpos( $tram_js2, "{opacity:0, transform:'scale(.95)'}" ) !== false );
+t( 'máy bật "giảm chuyển động" thì đổi tab ngay, không hiệu ứng',
+	strpos( $tram_js2, "matchMedia('(prefers-reduced-motion: reduce)')" ) !== false && strpos( $tram_js2, 'if(GIAM_CD || !oCu || !oCu.animate){ moTab(false); return; }' ) !== false );
+t( 'bấm tab khác khi đang mờ dở -> chốt lượt dở trước', strpos( $tram_js2, 'if(CHO_TAB){ var c = CHO_TAB;' ) !== false );
 t( 'đổi sang một tab không có thì im, không nổ',
 	preg_match( "/function denTab\(ten\)\{\s*if\(!el\(ten\)\) return;/", $tram_js2 ) === 1 );
 
