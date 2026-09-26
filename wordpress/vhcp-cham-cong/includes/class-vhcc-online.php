@@ -1142,4 +1142,32 @@ class VHCC_Online {
 		}
 		return $out;
 	}
+
+	/**
+	 * ☀ DỮ LIỆU LỜI CHÀO NGÀY MỚI (xem `veLoiChao()` trong `templates/tram.php`; ở đây chứ không ở `VHCC_Tram` vì trạm không đụng bảng chấm công trực tiếp).
+	 *
+	 * Anh Thắng 26/09/2026: *"gửi lời chào ngày mới (kiểu trẻ trung năng lượng)"*.
+	 *   · `ngaySinh` chỉ tháng-ngày ('09-26') — đủ để chúc sinh nhật, không lộ năm sinh.
+	 *   · `chuoi` = số ngày LIÊN TIẾP có lượt chấm vào, tính tới hôm nay (hôm nay chưa chấm thì
+	 *     tính tới hôm qua). Đọc 60 ngày gần nhất — chuỗi dài hơn vẫn hiện "60".
+	 */
+	public static function du_lieu_chao( $ma ) {
+		global $wpdb;
+		$ma = trim( (string) $ma );
+		$ra = array( 'ngaySinh' => '', 'chuoi' => 0 );
+		if ( '' === $ma ) { return $ra; }
+		$ns = (string) $wpdb->get_var( $wpdb->prepare( 'SELECT ngay_sinh FROM ' . VHCC_DB::t( 'nhan_vien' ) . ' WHERE ma_nv=%s', $ma ) );
+		if ( preg_match( '/^\d{4}-(\d{2}-\d{2})$/', $ns, $m ) ) { $ra['ngaySinh'] = $m[1]; }
+		$hn = (string) current_time( 'Y-m-d' );
+		$tu = gmdate( 'Y-m-d', strtotime( $hn . ' -60 days' ) );
+		$ds = (array) $wpdb->get_col( $wpdb->prepare( 'SELECT DISTINCT ngay FROM ' . VHCC_DB::t( 'cham_cong' )
+			. ' WHERE ma_nv=%s AND ngay>=%s AND ngay<=%s AND gio_vao_giay IS NOT NULL', $ma, $tu, $hn ) );
+		$co = array_flip( array_map( 'strval', $ds ) );
+		$d = isset( $co[ $hn ] ) ? $hn : gmdate( 'Y-m-d', strtotime( $hn . ' -1 day' ) );
+		$n = 0;
+		while ( isset( $co[ $d ] ) && $n < 61 ) { $n++; $d = gmdate( 'Y-m-d', strtotime( $d . ' -1 day' ) ); }
+		$ra['chuoi'] = $n;
+		return $ra;
+	}
+
 }

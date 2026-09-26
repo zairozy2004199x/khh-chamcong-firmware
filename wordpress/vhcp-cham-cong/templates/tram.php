@@ -2407,14 +2407,14 @@ function lcCauSo(kh, ma, d){
 	var hq = new Date(d.getTime() - 86400000), j = lcBam(lcNgay(hq) + '|' + kh.k + '|' + ma) % n;
 	return (i === j && n > 1) ? (i + 1) % n : i;
 }
-function lcKieu(){
+function lcKieu(d){
 	var k = 'tu'; try { k = localStorage.getItem('vhcc_kieu_chao') || 'tu'; } catch(e){}
 	if(k === 'a' || k === 'b' || k === 'c'){ return k; }
-	var ngay = Math.floor((Date.now() - new Date().getTimezoneOffset()*60000) / 86400000);
+	var ngay = Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000);
 	return ['a','b','c'][ngay % 3];
 }
-function lcGioLam(hn){
-	var tong = 0, bay = new Date(), phutBay = bay.getHours()*60 + bay.getMinutes(), k1;
+function lcGioLam(hn, bay){
+	var tong = 0, phutBay = bay.getHours()*60 + bay.getMinutes(), k1;
 	for(k1 in (hn || {})){
 		if(!Object.prototype.hasOwnProperty.call(hn, k1)) continue;
 		(hn[k1] || []).forEach(function(x){
@@ -2438,7 +2438,9 @@ function lcVaoSom(hn){
 function veLoiChao(j){
 	var o = el('loiChao'); if(!o) return;
 	if(!j || !j.hoTen){ o.classList.add('an'); return; }
-	var d = new Date(), phut = d.getHours()*60 + d.getMinutes(), kh = lcKhung(phut);
+	/* Giờ MÁY CHỦ như mọi chỗ khác của trạm (`gioMayChu`). Chưa có mốc thì lời chào mượn đồng hồ
+	   máy — nó chỉ chọn câu chào, không đóng dấu giờ công nào. */
+	var d = gioMayChu() || new Date(Date.now()), phut = d.getHours()*60 + d.getMinutes(), kh = lcKhung(phut);
 	var ten = String(j.hoTen).trim().split(/\s+/).pop();
 	var t = function(s){ return String(s).replace(/\{tên\}/g, ten); };
 	var ch = (j.chao || {}), mmdd = ('0' + (d.getMonth()+1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
@@ -2446,9 +2448,9 @@ function veLoiChao(j){
 	var chao = dip ? t(LC.dip[dip].chao) : kh.nhan + ', ' + ten + '!';
 	var cau  = dip ? t(LC.dip[dip].cau) : t(kh.cau[lcCauSo(kh, j.maNV || '', d)]);
 	var ngay = LC.thu[d.getDay()] + ', ' + ('0'+d.getDate()).slice(-2) + '/' + ('0'+(d.getMonth()+1)).slice(-2);
-	var som = lcVaoSom(j.homNay), chuoi = +(ch.chuoi || 0), gl = lcGioLam(j.homNay);
+	var som = lcVaoSom(j.homNay), chuoi = +(ch.chuoi || 0), gl = lcGioLam(j.homNay, d);
 	var nho = som ? 'Đã chấm vào lúc ' + som + ' — chiến tiếp thôi!' : 'Nhớ chấm vào khi bắt đầu ca nha!';
-	var kieu = lcKieu(), h = '';
+	var kieu = lcKieu(d), h = '';
 	o.className = 'lc k-' + kh.k;
 	if(kieu === 'a'){
 		h = '<div class="lc-a"><div class="lc-qua"></div><div class="lc-ngay">' + esc(ngay) + '</div>'
