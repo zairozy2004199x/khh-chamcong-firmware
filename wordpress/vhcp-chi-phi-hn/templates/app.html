@@ -7,15 +7,83 @@
 </head>
 <body>
   <!-- CỔNG ĐĂNG NHẬP PIN -->
-  <div id="gate" style="position:fixed;inset:0;background:#2545ff;z-index:3000;display:none;align-items:center;justify-content:center">
-    <div style="background:#fff;border-radius:16px;padding:28px 30px;width:min(360px,92vw);text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.35)">
-      <div style="font-size:34px">💵</div>
-      <h2 style="font-size:18px;color:#2545ff;margin:6px 0 4px">Vận Hành Chi Phí</h2>
-      <div style="font-size:12px;color:#64748b;margin-bottom:16px">Nhập mã PIN (4–8 số) để đăng nhập</div>
-      <input id="gatePin" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="••••" style="width:170px;text-align:center;font-size:26px;letter-spacing:10px;padding:10px" onkeydown="if(event.key==='Enter')doLogin()">
-      <div id="gateErr" style="color:#dc2626;font-size:12px;min-height:16px;margin:8px 0"></div>
-      <button class="btn b-p" onclick="doLogin()" style="width:170px">Đăng nhập</button>
-    </div>
+  <!-- Anh Thắng 26/09/2026 gửi mẫu OTP: ô số cuộn thành vòng xoay trong lúc máy chủ kiểm, đúng thì
+       dấu tích xanh, sai thì rung. ⚠️ KHÔNG TỰ GỬI KHI ĐỦ 4 SỐ như mẫu: PIN ở đây dài 4–8 số
+       (`VHCPHN_Auth::login`), tự gửi ở số thứ 4 là người PIN 5 số không bao giờ vào được. -->
+  <style>
+    #gate{position:fixed;inset:0;z-index:3000;display:none;align-items:center;justify-content:center;padding:16px;
+      background:radial-gradient(120% 70% at 50% -10%,#171b22,#07080a 62%);color:#f1f3f6;
+      font-family:"Plus Jakarta Sans",Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+    .pg-card{position:relative;overflow:hidden;width:100%;max-width:360px;padding:26px 20px 22px;border-radius:26px;text-align:center;
+      background:linear-gradient(180deg,#181a1f,#131519);border:1px solid rgba(255,255,255,.07);
+      box-shadow:0 40px 100px -24px rgba(0,0,0,.75),inset 0 1px 0 rgba(255,255,255,.04)}
+    .pg-head{transition:opacity .32s,transform .32s}.pg-head.out{opacity:0;transform:translateY(-6px)}
+    .pg-logo{font-size:30px;line-height:1}
+    .pg-title{margin:8px 0 0;font-size:19px;font-weight:600;letter-spacing:-.015em;color:#f1f3f6;transition:color .3s}
+    .pg-head.ok .pg-title{color:#3ddc97}
+    .pg-sub{margin:6px 0 0;font-size:13px;color:#8a9099}
+    .pg-stage{position:relative;height:210px;touch-action:manipulation}
+    .pg-ring{position:absolute;left:50%;top:50%;border-radius:50%;border:1px solid rgba(255,255,255,.09);opacity:0;pointer-events:none}
+    .pg-boxes{position:absolute;inset:0;transition:opacity .3s}
+    .pg-boxes.shake{animation:pgShake .46s cubic-bezier(.36,.07,.19,.97)}
+    @keyframes pgShake{15%{transform:translateX(-9px)}30%{transform:translateX(8px)}45%{transform:translateX(-6px)}60%{transform:translateX(5px)}75%{transform:translateX(-2px)}100%{transform:none}}
+    .pg-box{position:absolute;left:50%;top:50%;width:var(--B,50px);height:var(--B,50px);margin:calc(var(--B,50px)/-2) 0 0 calc(var(--B,50px)/-2);
+      display:grid;place-items:center;border-radius:13px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.10);
+      will-change:transform;transition:border-color .25s,background-color .25s,box-shadow .25s}
+    .pg-box>*{grid-area:1/1}
+    .pg-box.filled{border-color:rgba(255,255,255,.16);background:rgba(255,255,255,.05)}
+    .pg-box.active{border-color:rgba(255,255,255,.62);box-shadow:0 0 0 4px rgba(255,255,255,.04),0 0 18px rgba(255,255,255,.07)}
+    .pg-dot{width:11px;height:11px;border-radius:50%;background:#f1f3f6;opacity:0;transform:scale(.3);transition:opacity .2s,transform .2s}
+    .pg-box.filled .pg-dot{opacity:1;transform:none}
+    .pg-boxes.clearing .pg-dot{opacity:0;transform:translateY(-35%)}
+    .pg-caret{width:2px;height:22px;border-radius:1px;background:#f1f3f6;opacity:0}
+    .pg-stage.focused .pg-box.active .pg-caret{animation:pgBlink 1.05s linear infinite}
+    @keyframes pgBlink{0%,49%{opacity:1}50%,100%{opacity:0}}
+    .pg-boxes.ok .pg-box{border-color:#3ddc97;background:rgba(61,220,151,.13);box-shadow:0 0 18px -2px rgba(61,220,151,.40)}
+    .pg-boxes.ok .pg-dot{background:#dafbe9}
+    .pg-boxes.err .pg-box{border-color:#ff6b6b;background:rgba(255,107,107,.12)}
+    #gatePin{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);height:var(--B,50px);z-index:3;opacity:0;border:0;outline:none;
+      background:transparent;color:transparent;-webkit-text-fill-color:transparent;caret-color:transparent;font-size:16px;cursor:text}
+    #gateErr{position:absolute;left:0;right:0;top:calc(50% + var(--B,50px)/2 + 16px);margin:0;font-size:12.5px;color:#ff6b6b;min-height:16px}
+    .pg-seal{position:absolute;left:50%;top:50%;width:64px;height:64px;margin:-32px 0 0 -32px;z-index:2;opacity:0;transform:scale(.4);pointer-events:none}
+    .pg-seal.show{opacity:1;transform:scale(1);transition:opacity .25s,transform .55s cubic-bezier(.34,1.56,.64,1)}
+    .pg-seal-core{position:absolute;inset:0;display:grid;place-items:center;border-radius:18px;border:1.5px solid #3ddc97;
+      background:radial-gradient(circle at 50% 40%,rgba(61,220,151,.24),rgba(61,220,151,.06));box-shadow:0 0 30px -4px rgba(61,220,151,.40)}
+    .pg-check path{fill:none;stroke:#3ddc97;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:20;stroke-dashoffset:20}
+    .pg-seal.glow .pg-check path{stroke-dashoffset:0;transition:stroke-dashoffset .42s cubic-bezier(.65,0,.35,1) .22s}
+    .pg-ripple{position:absolute;inset:0;border-radius:18px;border:1px solid rgba(61,220,151,.55);opacity:0}
+    .pg-seal.glow .pg-ripple{animation:pgRipple 1.15s cubic-bezier(.2,.7,.2,1) var(--d) forwards}
+    @keyframes pgRipple{0%{opacity:.8;transform:scale(1)}100%{opacity:var(--o);transform:scale(var(--s))}}
+    .pg-btn{height:44px;min-width:170px;padding:0 32px;border:0;border-radius:999px;cursor:pointer;background:#3ddc97;color:#05170f;
+      font-family:inherit;font-size:14px;font-weight:700;box-shadow:0 8px 24px -6px rgba(61,220,151,.40);transition:transform .15s,opacity .25s}
+    .pg-btn:active{transform:scale(.97)}
+    .pg-btn:disabled{opacity:.35;cursor:default;box-shadow:none}
+    .pg-btn:focus-visible{outline:2px solid #3ddc97;outline-offset:3px}
+    .pg-hint{margin:12px 0 0;font-size:12px;color:#5f656e}
+    @media (prefers-reduced-motion:reduce){#gate *,#gate *::before,#gate *::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;transition-delay:0s!important}}
+  </style>
+  <div id="gate">
+    <main class="pg-card" aria-labelledby="gateTen">
+      <header class="pg-head" id="gateHead">
+        <div class="pg-logo" aria-hidden="true">💵</div>
+        <h2 class="pg-title" id="gateTen">Vận Hành Chi Phí</h2>
+        <p class="pg-sub" id="gateSub">Nhập mã PIN (4–8 số) để đăng nhập</p>
+      </header>
+      <div class="pg-stage" id="gateStage">
+        <div class="pg-ring" id="gateRing" aria-hidden="true"></div>
+        <div class="pg-boxes" id="gateBoxes" aria-hidden="true"></div>
+        <input id="gatePin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off" aria-label="Mã PIN" onkeydown="if(event.key==='Enter')doLogin()">
+        <div class="pg-seal" id="gateSeal" aria-hidden="true">
+          <div class="pg-ripple" style="--d:.05s;--s:1.4;--o:.5"></div>
+          <div class="pg-ripple" style="--d:.14s;--s:1.85;--o:.24"></div>
+          <div class="pg-ripple" style="--d:.23s;--s:2.35;--o:.11"></div>
+          <div class="pg-seal-core"><svg class="pg-check" viewBox="0 0 24 24" width="26" height="26"><path d="M6 12.5l4 4 8-9"/></svg></div>
+        </div>
+        <p id="gateErr" role="alert"></p>
+      </div>
+      <button type="button" class="pg-btn" id="gateBtn" onclick="doLogin()" disabled>Đăng nhập</button>
+      <p class="pg-hint" id="gateHint">Gõ PIN rồi bấm Đăng nhập hoặc Enter</p>
+    </main>
   </div>
 
   <div class="top">
@@ -3044,18 +3112,135 @@
   /* Phiên hết hạn / bị thu hồi thì dọn luôn token chết, khỏi hỏi lại máy chủ ở lần mở sau. */
   function _moCongPin(){
     try{localStorage.removeItem('vhcphn_token');}catch(e){}
-    el('gate').style.display='flex'; setTimeout(function(){el('gatePin').focus();},120);
+    PG.lai(); el('gate').style.display='flex'; setTimeout(function(){el('gatePin').focus();},120);
   }
+  /* Cổng PIN "vòng xoay" (mẫu anh Thắng 26/09/2026). Chỉ lo phần NHÌN — gọi máy chủ vẫn ở `doLogin()`. */
+  var PG=(function(){
+    var RM=false; try{RM=matchMedia('(prefers-reduced-motion: reduce)').matches;}catch(e){}
+    var A={c:0,a:0,s:0,rm:1,bs:1,ring:0}, P=[], R=60, hop=[], dang='nhap', gan=false;
+    function $(i){ return document.getElementById(i); }
+    function ngu(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
+    var E={io:function(t){return t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;}, o:function(t){return 1-Math.pow(1-t,3);},
+      i:function(t){return t*t*t;}, q:function(t){return t*t;}, s:function(t){return -(Math.cos(Math.PI*t)-1)/2;}};
+    function dung(k){
+      if(hop.length===k) return;
+      var bx=$('gateBoxes'); bx.innerHTML=''; hop=[];
+      for(var i=0;i<k;i++){ var b=document.createElement('div'); b.className='pg-box';
+        b.innerHTML='<span class="pg-dot"></span><span class="pg-caret"></span>'; bx.appendChild(b); hop.push(b); }
+      xep();
+    }
+    function xep(){
+      var st=$('gateStage'), k=hop.length, w=st.clientWidth||300;
+      var B=Math.min(50,Math.floor(w/(k+(k-1)*.24))), G=Math.round(B*.24), buoc=B+G;
+      st.style.setProperty('--B',B+'px');
+      R=Math.max(buoc, buoc/(2*Math.sin(Math.PI/k)));
+      P=hop.map(function(_,i){ var x=(i-(k-1)/2)*buoc; return {r0:Math.abs(x),t0:x<0?180:360,t1:180+(360/k)*i}; });
+      $('gatePin').style.width=(B*k+G*(k-1))+'px';
+      var rg=$('gateRing'); rg.style.width=rg.style.height=(R*2)+'px'; rg.style.margin=(-R)+'px 0 0 '+(-R)+'px';
+      st.style.height=Math.max(210,Math.round(R*2+B+40))+'px';
+      ve();
+    }
+    function ve(){
+      var rad=Math.PI/180;
+      for(var i=0;i<hop.length;i++){ var p=P[i], r=(p.r0+(R-p.r0)*A.c)*A.rm, th=(p.t0+(p.t1-p.t0)*A.c+A.a)*rad;
+        hop[i].style.transform='translate('+(Math.cos(th)*r).toFixed(2)+'px,'+(Math.sin(th)*r).toFixed(2)+'px) rotate('+A.s.toFixed(2)+'deg) scale('+A.bs.toFixed(3)+')';
+        hop[i].style.opacity=A.rm<.3?(A.rm/.3).toFixed(3):1; }
+      var rg=$('gateRing'); rg.style.opacity=(A.ring*Math.min(1,A.rm*1.5)).toFixed(3);
+      rg.style.transform='scale('+((.72+.28*A.ring)*A.rm).toFixed(3)+')';
+    }
+    function tw(den,ms,e){
+      var tu={}; for(var k in den) tu[k]=A[k];
+      return new Promise(function(xong){ var t0=performance.now();
+        (function b(now){ var p=Math.min(1,(now-t0)/ms), q=e(p); for(var k in den) A[k]=tu[k]+(den[k]-tu[k])*q; ve();
+          p<1?requestAnimationFrame(b):xong(); })(t0); });
+    }
+    function so(){
+      var inp=$('gatePin'), v=inp.value.length;
+      dung(Math.max(4,v));
+      for(var i=0;i<hop.length;i++){ hop[i].classList.toggle('filled',i<v); hop[i].classList.toggle('active',dang==='nhap'&&i===v); }
+      $('gateBtn').disabled=!(dang==='nhap'&&v>=4);
+    }
+    function moc(){
+      if(gan) return; gan=true;
+      var inp=$('gatePin'), st=$('gateStage');
+      inp.addEventListener('input',function(){
+        if(dang!=='nhap') return;
+        var v=inp.value.replace(/\D/g,'').slice(0,8); if(v!==inp.value) inp.value=v;
+        $('gateErr').textContent=''; so();
+      });
+      /* Dựng ô lúc cổng còn ẩn thì đo ra bề rộng 0 — đo lại khi ô thật sự hiện và nhận phím. */
+      inp.addEventListener('focus',function(){ st.classList.add('focused'); if(hop.length&&dang==='nhap') xep(); });
+      inp.addEventListener('blur',function(){ st.classList.remove('focused'); });
+      st.addEventListener('pointerdown',function(e){ if(dang==='nhap'&&e.target!==inp){ e.preventDefault(); inp.focus(); } });
+      addEventListener('resize',function(){ if(hop.length) xep(); });
+      var t=(window.VHCPHN_CFG&&window.VHCPHN_CFG.tenTrang)||''; if(t) $('gateTen').textContent=t;
+    }
+    /* Bắt đầu kiểm: cuộn thành vòng rồi xoay tới khi `ketQua` (Promise) xong. */
+    async function kiem(ketQua){
+      moc(); dang='kiem'; var inp=$('gatePin'); inp.disabled=true; inp.blur(); so();
+      var r=null; ketQua.then(function(x){ r=x; });
+      if(!RM){
+        await Promise.all([tw({c:1},720,E.io), tw({ring:1},520,E.o)]);
+        await tw({a:A.a+450,s:A.s+360},1100,E.io);
+        while(!r) await tw({a:A.a+360,s:A.s+360},900,E.s);
+      } else { while(!r) await ngu(60); }
+      return r;
+    }
+    async function dung_dung(ten){
+      $('gateBoxes').classList.add('ok');
+      await ngu(RM?200:380);
+      $('gateHead').classList.add('out'); $('gateBtn').style.opacity=0; $('gateHint').style.opacity=0;
+      if(!RM){ setTimeout(function(){ $('gateSeal').classList.add('show'); },520);
+        await tw({a:A.a+300,s:A.s+200,rm:0,bs:.45},820,E.q);
+      } else { $('gateSeal').classList.add('show'); }
+      $('gateBoxes').style.visibility='hidden'; $('gateSeal').classList.add('glow');
+      await ngu(300);
+      $('gateTen').textContent='Xin chào'+(ten?', '+ten:''); $('gateSub').textContent='Đăng nhập thành công';
+      $('gateHead').classList.add('ok'); $('gateHead').classList.remove('out');
+      await ngu(RM?300:900);
+    }
+    async function sai(loi){
+      var bx=$('gateBoxes'); bx.classList.add('err');
+      if(!RM){
+        var aT=Math.ceil(A.a/360)*360, sT=Math.round((A.s+(aT-A.a))/360)*360;
+        await Promise.all([tw({c:0,a:aT,s:sT},620,E.io), tw({ring:0},400,E.i)]);
+        A.a=0; A.s=0; ve();
+        $('gateErr').textContent=loi; bx.classList.add('shake'); await ngu(470); bx.classList.remove('shake');
+      } else { $('gateErr').textContent=loi; }
+      await ngu(320); bx.classList.add('clearing'); await ngu(200);
+      bx.classList.remove('clearing','err');
+      var inp=$('gatePin'); inp.value=''; dang='nhap'; inp.disabled=false; so(); inp.focus({preventScroll:true});
+    }
+    function lai(){
+      moc(); A={c:0,a:0,s:0,rm:1,bs:1,ring:0}; dang='nhap';
+      var inp=$('gatePin'); inp.value=''; inp.disabled=false;
+      $('gateBoxes').classList.remove('ok','err','clearing'); $('gateBoxes').style.visibility='';
+      $('gateSeal').classList.remove('show','glow'); $('gateHead').classList.remove('ok','out');
+      $('gateBtn').style.opacity=''; $('gateHint').style.opacity=''; $('gateErr').textContent='';
+      $('gateTen').textContent=(window.VHCPHN_CFG&&window.VHCPHN_CFG.tenTrang)||'Vận Hành Chi Phí';
+      $('gateSub').textContent='Nhập mã PIN (4–8 số) để đăng nhập';
+      hop=[]; so();
+    }
+    return {lai:lai, kiem:kiem, dung:dung_dung, sai:sai, dangKiem:function(){ return dang!=='nhap'; }};
+  })();
   function doLogin(){
+    if(PG.dangKiem()) return;
     var pin=(el('gatePin').value||'').trim();
     if(!/^\d{4,8}$/.test(pin)){ el('gateErr').textContent='PIN phải 4–8 số'; return; }
-    el('gateErr').textContent=''; loading(true);
-    google.script.run.withSuccessHandler(function(r){ loading(false);
-      if(r&&r.ok){ CURUSER=_dungUser(r); try{sessionStorage.setItem('vhcphn_user',JSON.stringify(CURUSER));}catch(e){} el('gate').style.display='none'; onLoggedIn(); }
-      else { el('gateErr').textContent=(r&&r.error)||'PIN không đúng'; el('gatePin').value=''; el('gatePin').focus(); }
-    }).withFailureHandler(function(e){loading(false);el('gateErr').textContent=e.message;}).login(pin);
+    el('gateErr').textContent='';
+    var ketQua=new Promise(function(xong){
+      google.script.run.withSuccessHandler(function(r){ xong({r:r}); })
+        .withFailureHandler(function(e){ xong({loi:(e&&e.message)||'Không gọi được máy chủ — thử lại'}); }).login(pin);
+    });
+    PG.kiem(ketQua).then(function(k){
+      var r=k.r;
+      if(r&&r.ok){
+        CURUSER=_dungUser(r); try{sessionStorage.setItem('vhcphn_user',JSON.stringify(CURUSER));}catch(e){}
+        PG.dung(CURUSER.name).then(function(){ el('gate').style.display='none'; onLoggedIn(); });
+      } else { PG.sai(k.loi||(r&&r.error)||'PIN không đúng'); }
+    });
   }
-  function logout(){ CURUSER=null; CUR=null; try{sessionStorage.removeItem('vhcphn_user');}catch(e){} el('main').style.display='none'; el('gatePin').value=''; el('gate').style.display='flex'; setTimeout(function(){el('gatePin').focus();},120); }
+  function logout(){ CURUSER=null; CUR=null; try{sessionStorage.removeItem('vhcphn_user');}catch(e){} el('main').style.display='none'; PG.lai(); el('gate').style.display='flex'; setTimeout(function(){el('gatePin').focus();},120); }
   // ---- Tự đổi mật khẩu (PIN) — chỉ cho người đăng nhập bằng PIN ----
   function openPinModal(){ if(!CURUSER||!CURUSER.name){ toast('warn','Chưa đăng nhập'); return; }
     el('pinOld').value=''; el('pinNew').value=''; el('pinNew2').value=''; el('pinErr').textContent='';
