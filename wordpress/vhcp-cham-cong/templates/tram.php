@@ -513,6 +513,47 @@ a{color:var(--nhan)}
 .vao-dau path{fill:none;stroke:var(--luc);stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:20;stroke-dashoffset:20}
 .vao-dau.hien path{stroke-dashoffset:0;transition:stroke-dashoffset .6s cubic-bezier(.65,0,.35,1) .3s}
 @media (prefers-reduced-motion: reduce){.vao-hop,.vao-hop i,.vao-dau,.vao-dau path,.vao-o{animation:none!important;transition:none!important}}
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * ☀ LỜI CHÀO NGÀY MỚI — anh Thắng 26/09/2026: *"gửi lời chào ngày mới (kiểu trẻ trung năng
+ *    lượng)"*, xem mẫu rồi chốt *"làm cả A, B, C luôn"*. Ba kiểu: A Nắng sớm · B Tin nhắn ·
+ *    C Chuỗi lửa. Mặc định TỰ ĐỔI kiểu theo ngày; mỗi người chọn được kiểu riêng ở tab Tôi.
+ *    Màu thẻ đi theo KHUNG GIỜ (hình ảnh, không phải bộ áo) nên được dán mã màu ở đây.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+.lc{margin:0 0 var(--d3)}
+.lc.k-sang{--g1:#FFB547;--g2:#FF7A59;--gchu:#3b1d00}
+.lc.k-trua{--g1:#39C6FF;--g2:#2F6BFF;--gchu:#ffffff}
+.lc.k-chieu{--g1:#FFA08F;--g2:#FF5E8A;--gchu:#ffffff}
+.lc.k-toi{--g1:#7A6BFF;--g2:#3B2F9E;--gchu:#ffffff}
+.lc.k-dem{--g1:#22335F;--g2:#0B1126;--gchu:#e8ecff}
+.lc-a{position:relative;border-radius:var(--bo-the);padding:var(--d4) var(--d4) 18px;background:linear-gradient(145deg,var(--g1),var(--g2));color:var(--gchu);overflow:hidden;display:flex;flex-direction:column;gap:6px}
+.lc-qua{position:absolute;right:-20px;top:-20px;width:104px;height:104px;border-radius:50%;background:radial-gradient(circle at 35% 35%,rgba(255,255,255,.95),rgba(255,255,255,.35) 60%,transparent 62%);animation:lcTroi 7s ease-in-out infinite;pointer-events:none}
+.lc.k-toi .lc-qua,.lc.k-dem .lc-qua{background:radial-gradient(circle at 60% 40%,transparent 38%,rgba(255,255,255,.9) 40%,rgba(255,255,255,.25) 62%,transparent 64%)}
+@keyframes lcTroi{0%,100%{transform:translateY(0)}50%{transform:translateY(9px)}}
+.lc-ngay{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.82}
+.lc-chao{font-size:22px;font-weight:800;line-height:1.2;max-width:86%}
+.lc-cau{font-size:14px;line-height:1.45;max-width:92%}
+.lc-nho{margin-top:4px;font-size:12px;font-weight:600;background:rgba(255,255,255,.22);border-radius:999px;padding:4px 10px;align-self:flex-start}
+.lc-b{display:flex;flex-direction:column;gap:7px}
+.lc-bd{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--chu-mo)}
+.lc-av{width:30px;height:30px;border-radius:50%;background:linear-gradient(145deg,var(--g1),var(--g2));display:grid;place-items:center;color:#fff;font-weight:800;font-size:10.5px}
+.lc-bong{align-self:flex-start;max-width:88%;background:var(--the);border:1px solid var(--vien-dam);border-radius:18px 18px 18px 6px;padding:8px 12px;font-size:14px;line-height:1.4}
+.lc-bong.lon{font-weight:700;font-size:16px}
+.lc-b.chay .lc-bong{opacity:0;transform:translateY(6px);animation:lcHien .6s cubic-bezier(.2,.8,.2,1) forwards}
+.lc-go{align-self:flex-start;display:flex;gap:4px;background:var(--the);border:1px solid var(--vien-dam);border-radius:18px;padding:10px 12px}
+.lc-go i{width:6px;height:6px;border-radius:50%;background:var(--chu-mo);animation:lcNhay 1.3s infinite}
+.lc-go i:nth-child(2){animation-delay:.15s}.lc-go i:nth-child(3){animation-delay:.3s}
+@keyframes lcNhay{0%,60%,100%{opacity:.25;transform:none}30%{opacity:1;transform:translateY(-3px)}}
+@keyframes lcHien{to{opacity:1;transform:none}}
+.lc-c{display:flex;flex-direction:column;gap:8px}
+.lc-hang{display:flex;gap:12px;align-items:center;background:var(--the);border:1px solid var(--vien);border-radius:var(--bo-the);padding:var(--d3)}
+.lc-vong{width:64px;height:64px;flex:none;border-radius:50%;display:grid;place-items:center}
+.lc-vong span{width:50px;height:50px;border-radius:50%;background:var(--the);display:grid;place-items:center;font-size:12px;font-weight:800;color:var(--chu);font-variant-numeric:tabular-nums;line-height:1.1;text-align:center}
+.lc-lua{align-self:flex-start;display:inline-flex;gap:6px;align-items:center;font-size:12.5px;font-weight:700;border-radius:999px;padding:5px 12px;background:linear-gradient(145deg,var(--g1),var(--g2));color:var(--gchu)}
+.lc-tin{font-size:12.5px;color:var(--chu-mo);border-left:3px solid var(--g2);padding-left:9px;line-height:1.4}
+.lc-kieu{display:flex;flex-wrap:wrap;gap:6px}
+.lc-kieu button{font:inherit;font-size:13px;font-weight:600;border:1px solid var(--vien-dam);background:var(--the);color:var(--chu);border-radius:999px;padding:6px 12px;cursor:pointer}
+.lc-kieu button.dang{background:var(--nhan);border-color:var(--nhan);color:#fff}
+@media (prefers-reduced-motion: reduce){.lc-qua,.lc-go i,.lc-b.chay .lc-bong{animation:none!important;opacity:1!important;transform:none!important}}
 </style>
 </head>
 <body>
@@ -749,6 +790,8 @@ a{color:var(--nhan)}
 	     đầu. Nhảy neo giải quyết được việc "bấm được dù đang cuộn tới đâu", nhưng không giải
 	     quyết được việc người ta phải cuộn qua bảng tháng 30 dòng để về lại nút chấm. -->
 	<div id="tChamCong" class="tab-o">
+	<!-- ☀ Lời chào ngày mới (xem khối CSS `.lc`) — vẽ bởi `veLoiChao()` sau khi có hồ sơ. -->
+	<div id="loiChao" class="lc an" aria-live="polite"></div>
 
 	<!-- ============ THẺ CHẤM CÔNG ============
 	     Gộp đồng hồ + trạng thái + nút vào MỘT thẻ. Trước đây là hai thẻ rời: đồng hồ ở trên,
@@ -909,6 +952,16 @@ a{color:var(--nhan)}
 				<span class="ct" id="moToi2">—</span>
 				<span class="ct an" id="oVaiToi">Vai: <b id="vaiToi">—</b></span>
 			</div>
+		</div>
+	</div>
+
+	<div class="the">
+		<label style="margin:0 0 8px">Kiểu lời chào</label>
+		<div class="lc-kieu" id="kieuChao">
+			<button type="button" data-kieu="tu">Tự đổi mỗi ngày</button>
+			<button type="button" data-kieu="a">Nắng sớm</button>
+			<button type="button" data-kieu="b">Tin nhắn</button>
+			<button type="button" data-kieu="c">Chuỗi lửa</button>
 		</div>
 	</div>
 
@@ -2238,6 +2291,7 @@ function napToi(){
 		if(j.vaiTen){ el('vaiToi').textContent = j.vaiTen; el('oVaiToi').classList.remove('an'); }
 		else { el('oVaiToi').classList.add('an'); }
 		veHomNay(j);
+		veLoiChao(j);
 		if(!THANG){ var tn = thangNay(); if(tn) veThang(tn); }
 	}).catch(function(e){
 		/* het_phien tự đá về màn đăng nhập rồi, không báo thêm. Còn lại thì PHẢI nói ra: màn
@@ -2303,6 +2357,139 @@ function veCoSo(j){
    mọi cơ sở. Duyệt theo `dsCoSo` là lượt đã chấm sáng nay ở một cơ sở vừa bị đặt cờ BIẾN MẤT
    khỏi bảng này — người ta tưởng mất giờ vào rồi bấm lại, mà lượt thứ hai ngay sau giờ vào là
    GIỜ RA. Bảng "Hôm nay" phải in đúng những gì máy chủ gửi về. */
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * ☀ LỜI CHÀO NGÀY MỚI — xem khối CSS `.lc`.
+ *   · Câu: mỗi khung giờ một kho; câu CỐ ĐỊNH theo (ngày · khung · mã NV) — mở lại trong cùng
+ *     khung vẫn đúng câu ấy, sang ngày mới đổi câu và không trùng câu hôm qua.
+ *   · Dịp (thắng câu thường): sinh nhật (ngày sinh trong hồ sơ, máy chủ gửi `chao.ngaySinh`),
+ *     thứ Hai, thứ Sáu, Chủ nhật.
+ *   · Kiểu: 'tu' (mặc định) đổi A → B → C theo ngày; chọn riêng ở tab Tôi, nhớ trên máy này.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+var LC = {
+	khung: [
+		{k:'sang',  tu:5*60,     nhan:'Chào buổi sáng', cau:[
+			'Nạp năng lượng xong chưa? Mình quẩy thôi!',
+			'Dậy rồi thì chiến thôi — hôm nay chắc chắn là một ngày xịn.',
+			'Cà phê vào, năng lượng lên! Chúc {tên} một ngày rực rỡ.',
+			'Nắng lên rồi, {tên} cũng lên mood nào!',
+			'Một ngày mới, một phiên bản xịn hơn của {tên}.']},
+		{k:'trua',  tu:11*60,    nhan:'Chào buổi trưa', cau:[
+			'Nửa ngày rồi! Ăn trưa thật no để chiều còn bùng nổ.',
+			'Giờ nghỉ trưa — sạc pin 100% nha {tên}.',
+			'Làm tốt lắm buổi sáng! Nghỉ ngơi xíu rồi mình đi tiếp.']},
+		{k:'chieu', tu:13*60+30, nhan:'Chiều vui nha', cau:[
+			'Chiều rồi, cố lên! Về đích đẹp là của mình.',
+			'Thêm chút nữa thôi, {tên} làm tốt lắm rồi!',
+			'Uống ngụm nước, vươn vai cái — hiệp hai bắt đầu!']},
+		{k:'toi',   tu:18*60,    nhan:'Buổi tối vui vẻ', cau:[
+			'Ca tối cũng phải thật chill nha {tên}.',
+			'Tối rồi mà vẫn cháy — nể {tên} ghê!',
+			'Khách đông cũng không sao, có {tên} là yên tâm.']},
+		{k:'dem',   tu:22*60,    nhan:'Chào chiến binh ca đêm', cau:[
+			'Ca đêm cực thật, nhưng {tên} còn ngầu hơn. Nhớ uống nước nha!',
+			'Thành phố ngủ rồi, {tên} vẫn chiến. Cảm ơn bạn nhiều!',
+			'Đêm dài nhưng mình có nhau. Giữ sức khoẻ nha {tên}!']}
+	],
+	dip: {
+		sn:  {chao:'Chúc mừng sinh nhật {tên}!', cau:'Cả nhà K&H chúc bạn tuổi mới rực rỡ, niềm vui nhân đôi!'},
+		t2:  {chao:'Thứ Hai không đáng sợ khi có {tên}!', cau:'Khởi động tuần mới thật cháy nào.'},
+		t6:  {chao:'Thứ Sáu rồi, {tên} ơi!', cau:'Chốt tuần thật đẹp rồi mình xả hơi.'},
+		cn:  {chao:'Chủ nhật vẫn đi làm — {tên} đúng là chiến binh!', cau:'Cảm ơn bạn đã có mặt hôm nay.'}
+	},
+	thu: ['Chủ nhật','Thứ Hai','Thứ Ba','Thứ Tư','Thứ Năm','Thứ Sáu','Thứ Bảy'],
+	daChay: {}
+};
+function lcBam(s){ var h = 2166136261; for(var i=0;i<s.length;i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h; }
+function lcNgay(d){ return d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate(); }
+function lcKhung(phut){ var k = LC.khung[4]; for(var i=0;i<LC.khung.length;i++){ if(phut >= LC.khung[i].tu){ k = LC.khung[i]; } } return phut < 5*60 ? LC.khung[4] : k; }
+function lcCauSo(kh, ma, d){
+	var n = kh.cau.length, i = lcBam(lcNgay(d) + '|' + kh.k + '|' + ma) % n;
+	var hq = new Date(d.getTime() - 86400000), j = lcBam(lcNgay(hq) + '|' + kh.k + '|' + ma) % n;
+	return (i === j && n > 1) ? (i + 1) % n : i;
+}
+function lcKieu(){
+	var k = 'tu'; try { k = localStorage.getItem('vhcc_kieu_chao') || 'tu'; } catch(e){}
+	if(k === 'a' || k === 'b' || k === 'c'){ return k; }
+	var ngay = Math.floor((Date.now() - new Date().getTimezoneOffset()*60000) / 86400000);
+	return ['a','b','c'][ngay % 3];
+}
+function lcGioLam(hn){
+	var tong = 0, bay = new Date(), phutBay = bay.getHours()*60 + bay.getMinutes(), k1;
+	for(k1 in (hn || {})){
+		if(!Object.prototype.hasOwnProperty.call(hn, k1)) continue;
+		(hn[k1] || []).forEach(function(x){
+			var v = /^(\d{1,2}):(\d{2})/.exec(x.vao || ''); if(!v) return;
+			var r = /^(\d{1,2}):(\d{2})/.exec(x.ra || ''), a = (+v[1])*60 + (+v[2]);
+			var b = r ? (+r[1])*60 + (+r[2]) : phutBay;
+			if(b < a){ b += 1440; }
+			tong += Math.max(0, b - a);
+		});
+	}
+	return tong;
+}
+function lcVaoSom(hn){
+	var som = '', k1;
+	for(k1 in (hn || {})){
+		if(!Object.prototype.hasOwnProperty.call(hn, k1)) continue;
+		(hn[k1] || []).forEach(function(x){ if(x.vao && (!som || x.vao < som)){ som = x.vao; } });
+	}
+	return som;
+}
+function veLoiChao(j){
+	var o = el('loiChao'); if(!o) return;
+	if(!j || !j.hoTen){ o.classList.add('an'); return; }
+	var d = new Date(), phut = d.getHours()*60 + d.getMinutes(), kh = lcKhung(phut);
+	var ten = String(j.hoTen).trim().split(/\s+/).pop();
+	var t = function(s){ return String(s).replace(/\{tên\}/g, ten); };
+	var ch = (j.chao || {}), mmdd = ('0' + (d.getMonth()+1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+	var dip = (ch.ngaySinh && ch.ngaySinh === mmdd) ? 'sn' : ({1:'t2', 5:'t6', 0:'cn'})[d.getDay()] || '';
+	var chao = dip ? t(LC.dip[dip].chao) : kh.nhan + ', ' + ten + '!';
+	var cau  = dip ? t(LC.dip[dip].cau) : t(kh.cau[lcCauSo(kh, j.maNV || '', d)]);
+	var ngay = LC.thu[d.getDay()] + ', ' + ('0'+d.getDate()).slice(-2) + '/' + ('0'+(d.getMonth()+1)).slice(-2);
+	var som = lcVaoSom(j.homNay), chuoi = +(ch.chuoi || 0), gl = lcGioLam(j.homNay);
+	var nho = som ? 'Đã chấm vào lúc ' + som + ' — chiến tiếp thôi!' : 'Nhớ chấm vào khi bắt đầu ca nha!';
+	var kieu = lcKieu(), h = '';
+	o.className = 'lc k-' + kh.k;
+	if(kieu === 'a'){
+		h = '<div class="lc-a"><div class="lc-qua"></div><div class="lc-ngay">' + esc(ngay) + '</div>'
+			+ '<div class="lc-chao">' + esc(chao) + '</div><div class="lc-cau">' + esc(cau) + '</div>'
+			+ '<div class="lc-nho">' + esc(nho) + '</div></div>';
+	} else if(kieu === 'b'){
+		var khoa = lcNgay(d) + kh.k, chay = !LC.daChay[khoa];
+		LC.daChay[khoa] = true;
+		h = '<div class="lc-b' + (chay ? ' chay' : '') + '"><div class="lc-bd"><span class="lc-av">K&amp;H</span>K&amp;H · ' + esc(ngay) + '</div>'
+			+ (chay ? '<div class="lc-go" id="lcGo"><i></i><i></i><i></i></div>' : '')
+			+ '<div class="lc-bong lon"' + (chay ? ' style="animation-delay:1.4s"' : '') + '>' + esc(chao) + '</div>'
+			+ '<div class="lc-bong"' + (chay ? ' style="animation-delay:2.4s"' : '') + '>' + esc(cau) + '</div>'
+			+ '<div class="lc-bong"' + (chay ? ' style="animation-delay:3.4s"' : '') + '>' + esc(nho) + '</div></div>';
+		if(chay){ setTimeout(function(){ var g = el('lcGo'); if(g){ g.remove(); } }, 1400); }
+	} else {
+		var pt = Math.min(100, Math.round(gl / 480 * 100));
+		var gio = Math.floor(gl/60) + ':' + ('0' + (gl%60)).slice(-2);
+		h = '<div class="lc-c"><div class="lc-hang"><div class="lc-vong" style="background:conic-gradient(var(--g2) ' + pt + '%,var(--vien) 0)">'
+			+ '<span>' + esc(gio) + '<br><small>/8:00</small></span></div>'
+			+ '<div><div class="lc-chao" style="font-size:17px;max-width:none;color:var(--chu)">' + esc(chao) + '</div>'
+			+ '<div class="lc-cau" style="font-size:13px;color:var(--chu-mo)">' + esc(cau) + '</div></div></div>'
+			+ (chuoi > 1 ? '<span class="lc-lua">🔥 <b>' + chuoi + '</b> ngày đi làm liên tiếp</span>' : '')
+			+ '<div class="lc-tin">' + esc(nho) + (chuoi > 1 ? ' Giữ phong độ để lên ' + (chuoi + 3) + ' ngày nha!' : '') + '</div></div>';
+	}
+	o.innerHTML = h;
+	o.classList.remove('an');
+	veKieuChao();
+}
+function veKieuChao(){
+	var k = 'tu'; try { k = localStorage.getItem('vhcc_kieu_chao') || 'tu'; } catch(e){}
+	var ds = document.querySelectorAll('#kieuChao button');
+	for(var i=0;i<ds.length;i++){ ds[i].classList.toggle('dang', ds[i].getAttribute('data-kieu') === k); }
+}
+Array.prototype.forEach.call(document.querySelectorAll('#kieuChao button'), function(b){
+	b.addEventListener('click', function(){
+		try { localStorage.setItem('vhcc_kieu_chao', b.getAttribute('data-kieu')); } catch(er){}
+		veKieuChao();
+		if(TOI){ veLoiChao(TOI); }
+	});
+});
+
 function veHomNay(j){
 	var hn = (j && j.homNay) || {}, cs = [], k1;
 	for(k1 in hn){ if(Object.prototype.hasOwnProperty.call(hn, k1)) cs.push(k1); }
