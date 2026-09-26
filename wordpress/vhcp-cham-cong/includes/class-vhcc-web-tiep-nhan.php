@@ -40,6 +40,7 @@ class VHCC_WebTiepNhan {
 		}
 		$ds_mau = VHCC_TiepNhan::ds_mau();
 		self::the_nhan( $ky, $toi, $ds_mau );
+		self::the_moi( $ky, $toi, $ds_mau );
 		self::the_da_nhan( $ky );
 		self::the_mau( $ky, $ds_mau );
 		self::the_cty( $ky );
@@ -85,6 +86,57 @@ class VHCC_WebTiepNhan {
 			. '<span class="mo">Tạo xong: mã NV + PIN hiện ngay, bộ hồ sơ gửi qua email (nếu có) và ứng dụng.</span></p></form></div>';
 	}
 
+	/**
+	 * 🔗 LINK MỜI ỨNG VIÊN TỰ ĐIỀN — anh Thắng 26/09/2026: *"Link để ứng viên tự điền thông tin"*.
+	 * Công ty chốt chức vụ/cơ sở/ngày vào/lương; ứng viên chỉ điền thông tin cá nhân.
+	 */
+	private static function the_moi( $ky, $toi, $ds_mau ) {
+		if ( ! $ds_mau ) { return; }
+		$ds = VHCC_TiepNhan::ds_moi();
+		echo '<div class="the"><details' . ( $ds ? ' open' : '' ) . '><summary><b>🔗 Link mời ứng viên tự điền</b> <span class="mo">— gửi link qua Zalo/SMS, ứng viên tự điền thông tin cá nhân</span></summary>';
+		echo '<form method="post" action="' . self::act() . '" style="margin-top:8px">' . self::an( $ky, 'tn_moi' ) . '<div class="hang" style="gap:10px;flex-wrap:wrap">';
+		echo '<div><label>Mẫu chức vụ *</label><select name="mv[mau]" required><option value="">— chọn —</option>';
+		foreach ( $ds_mau as $k => $m ) { echo '<option value="' . esc_attr( $k ) . '">' . esc_html( (string) $m['ten'] ) . '</option>'; }
+		echo '</select></div><div><label>Cơ sở *</label>';
+		VHCC_Web::o_chon_coso( 'mv[coso]', '', $toi, VHCC_Web::ds_coso_xem( $toi ), '— chọn —' );
+		echo '</div><div><label>Ngày vào làm</label><input type="date" name="mv[ngay_vao]" value="' . esc_attr( (string) current_time( 'Y-m-d' ) ) . '"></div>'
+			. '<div><label>Lương / đơn giá</label><input name="mv[luong_sua]" inputmode="numeric" placeholder="theo mẫu" style="width:140px"></div>'
+			. '<div><label>Lương đóng BH</label><input name="mv[luong_bh]" inputmode="numeric" placeholder="theo mẫu" style="width:140px"></div>'
+			. '<label style="align-self:flex-end;font-weight:400"><input type="checkbox" name="mv[tu_tao]" value="1" checked> Ứng viên gửi xong là tự tạo luôn</label>'
+			. '</div><p style="margin:8px 0 0"><button class="chinh">Tạo link mời</button> <span class="mo">Link dùng một lần, hết hạn sau '
+			. VHCC_TiepNhan::MOI_NGAY . ' ngày.</span></p></form>';
+		if ( $ds ) {
+			$ten_tt = array( 'cho' => '⏳ chờ ứng viên', 'da_dien' => '📝 đã điền — chờ duyệt', 'da_tao' => '✔ đã tạo', 'huy' => '✖ đã huỷ' );
+			echo '<div class="cuon" style="margin-top:10px"><table class="b"><thead><tr><th>Tạo lúc</th><th>Vị trí</th><th>Trạng thái</th><th>Link / ứng viên</th><th></th></tr></thead><tbody>';
+			foreach ( array_slice( $ds, 0, 30, true ) as $t => $x ) {
+				$du = (array) $x['du_lieu'];
+				echo '<tr><td class="mo" style="font-size:11.5px">' . esc_html( $x['luc'] . ' · ' . $x['boi'] ) . '</td>'
+					. '<td>' . esc_html( $x['ten_mau'] ) . '<br><span class="mo">' . esc_html( $x['coso'] ) . '</span></td>'
+					. '<td>' . esc_html( isset( $ten_tt[ $x['tt'] ] ) ? $ten_tt[ $x['tt'] ] : $x['tt'] )
+					. ( '' !== (string) $x['loi'] ? '<div style="color:var(--do);font-size:11.5px">' . esc_html( $x['loi'] ) . '</div>' : '' ) . '</td><td>';
+				if ( 'cho' === $x['tt'] ) {
+					echo '<input readonly value="' . esc_attr( VHCC_TiepNhan::link_moi( $t ) ) . '" style="width:260px">'
+						. '<div class="mo" style="font-size:11px">hết hạn ' . esc_html( $x['het'] ) . '</div>';
+				} elseif ( $du ) {
+					echo '<b>' . esc_html( $du['ho_ten'] ) . '</b><br><span class="mo">CCCD ' . esc_html( $du['cccd'] ) . ' · ' . esc_html( $du['sdt'] ) . '</span>'
+						. ( '' !== (string) $x['ma'] ? '<br>→ ' . esc_html( $x['ma'] ) : '' );
+				}
+				echo '</td><td style="white-space:nowrap">';
+				if ( 'da_dien' === $x['tt'] ) {
+					echo '<form method="post" action="' . self::act() . '" style="display:inline">' . self::an( $ky, 'tn_duyet_moi' )
+						. '<input type="hidden" name="tn_t" value="' . esc_attr( $t ) . '"><button class="chinh">✅ Duyệt &amp; tạo</button></form>';
+				}
+				if ( in_array( $x['tt'], array( 'cho', 'da_dien' ), true ) ) {
+					echo '<form method="post" action="' . self::act() . '" style="display:inline">' . self::an( $ky, 'tn_huy_moi' )
+						. '<input type="hidden" name="tn_t" value="' . esc_attr( $t ) . '"><button class="nut">Huỷ</button></form>';
+				}
+				echo '</td></tr>';
+			}
+			echo '</tbody></table></div>';
+		}
+		echo '</details></div>';
+	}
+
 	private static function the_da_nhan( $ky ) {
 		$ds = VHCC_TiepNhan::gan_day( 30 );
 		echo '<div class="the"><h3>📋 Đã tiếp nhận</h3>';
@@ -105,7 +157,8 @@ class VHCC_WebTiepNhan {
 			}
 			echo '<tr><td class="mo" style="font-size:11.5px">' . esc_html( (string) $bg['luc'] ) . '<br>' . esc_html( (string) $bg['boi'] ) . '</td>'
 				. '<td><b>' . esc_html( $bg['hd']['ho_ten'] ) . '</b><br><span class="mo">' . esc_html( $bg['ma'] ) . '</span></td>'
-				. '<td>' . esc_html( $bg['hd']['chuc_vu'] ) . '<br><span class="mo">' . esc_html( $bg['hd']['coso'] ) . '</span></td>'
+				. '<td>' . esc_html( $bg['hd']['chuc_vu'] ) . '<br><span class="mo">' . esc_html( $bg['hd']['coso'] ) . '</span>'
+				. '<div style="font-size:11.5px">' . ( ! empty( $bg['nvKy'] ) ? '✍ NV đã ký HĐ ' . esc_html( $bg['nvKy']['luc'] ) : '✍ chờ nhân viên ký HĐ' ) . '</div></td>'
 				. '<td style="font-size:12px;line-height:1.6">' . implode( ' · ', $chip )
 				. ( $chi_tiet ? '<div style="color:var(--do);font-size:11.5px;white-space:normal">' . esc_html( implode( ' | ', $chi_tiet ) ) . '</div>' : '' ) . '</td>'
 				. '<td style="white-space:nowrap"><a class="nut" target="_blank" rel="noopener" href="' . esc_url( VHCC_TiepNhan::link_bo( $bg['ma'] ) ) . '">📄 Bộ hồ sơ</a>'
@@ -232,6 +285,22 @@ class VHCC_WebTiepNhan {
 		if ( 'tn_cty' === $viec ) {
 			$r = VHCC_TiepNhan::dat_cty( $toi, isset( $_POST['c'] ) ? array_map( 'sanitize_text_field', (array) wp_unslash( $_POST['c'] ) ) : array() );
 			return array( empty( $r['ok'] ) ? array( 'loi' => $r['error'] ) : array( 'xong' => 'Đã lưu thông tin công ty.' ) );
+		}
+		if ( 'tn_moi' === $viec ) {
+			$d = isset( $_POST['mv'] ) ? array_map( 'sanitize_text_field', (array) wp_unslash( $_POST['mv'] ) ) : array();
+			$r = VHCC_TiepNhan::tao_moi( $toi, $d );
+			return array( empty( $r['ok'] ) ? array( 'loi' => $r['error'] )
+				: array( 'xong' => 'Đã tạo link mời — sao chép ở bảng "Link mời ứng viên" rồi gửi cho ứng viên: ' . $r['link'] ) );
+		}
+		if ( 'tn_duyet_moi' === $viec || 'tn_huy_moi' === $viec ) {
+			$t = isset( $_POST['tn_t'] ) ? sanitize_text_field( wp_unslash( $_POST['tn_t'] ) ) : '';
+			if ( 'tn_huy_moi' === $viec ) {
+				$r = VHCC_TiepNhan::huy_moi( $toi, $t );
+				return array( empty( $r['ok'] ) ? array( 'loi' => $r['error'] ) : array( 'xong' => 'Đã huỷ link mời.' ) );
+			}
+			$r = VHCC_TiepNhan::duyet_moi( $toi, $t );
+			if ( empty( $r['ok'] ) ) { return array( array( 'loi' => $r['error'] ) ); }
+			return array( array( 'xong' => 'Đã tiếp nhận ứng viên — mã NV ' . $r['ma'] . ' · PIN ' . $r['pin'] . '.' ) );
 		}
 		$ma = isset( $_POST['tn_ma'] ) ? sanitize_text_field( wp_unslash( $_POST['tn_ma'] ) ) : '';
 		if ( 'tn_gui' === $viec ) {

@@ -332,6 +332,10 @@ class VHCC_TiepNhan {
 				'stk' => $g( 'so_tai_khoan' ), 'ngan_hang' => $g( 'ngan_hang' ), 'cty' => self::cty(),
 			),
 			'buoc' => array( 'ho_so' => array( 'ok' => true, 'chu' => 'Mã ' . $ma . ' · PIN đã cấp · vai ' . $m['vai_tro'] . ' · ' . $coso ) ),
+			/* Công ty "ký" khi người có thẩm quyền duyệt tiếp nhận — ghi ai duyệt, lúc nào. Nhân viên
+			   ký sau qua bộ hồ sơ (`ky_hd()`). */
+			'ctyKy' => array( 'ten' => (string) self::cty()['dai_dien'], 'boi' => isset( $u['name'] ) ? (string) $u['name'] : '',
+				'luc' => current_time( 'mysql' ) ),
 		);
 		self::ghi_ban( $u, $bg );
 
@@ -478,15 +482,41 @@ class VHCC_TiepNhan {
 	}
 
 	public static function maybe_render() {
-		if ( empty( $_GET['vhcc_nhanviec'] ) ) { return; }
+		$uv = ! empty( $_GET['vhcc_ungvien'] );
+		if ( empty( $_GET['vhcc_nhanviec'] ) && ! $uv ) { return; }
 		nocache_headers();
 		status_header( 200 );
 		header( 'Content-Type: text/html; charset=utf-8' );
 		header( 'X-Robots-Tag: noindex, nofollow' );
-		echo self::trang_bo(
-			isset( $_GET['m'] ) ? sanitize_text_field( wp_unslash( $_GET['m'] ) ) : '',
-			isset( $_GET['k'] ) ? sanitize_text_field( wp_unslash( $_GET['k'] ) ) : '' );
+		echo self::phuc_vu_cong_khai( $_GET, $_POST, isset( $_SERVER['REMOTE_ADDR'] ) ? (string) $_SERVER['REMOTE_ADDR'] : '',
+			isset( $_SERVER['HTTP_USER_AGENT'] ) ? (string) $_SERVER['HTTP_USER_AGENT'] : '' );
 		exit;
+	}
+
+	/** Ruột của hai trang công khai (bộ hồ sơ + ký · ứng viên tự điền). Tách để bộ thử gọi được. */
+	public static function phuc_vu_cong_khai( $get, $post, $ip = '', $ua = '' ) {
+		$g = function ( $a, $k ) { return isset( $a[ $k ] ) && ! is_array( $a[ $k ] ) ? sanitize_text_field( wp_unslash( (string) $a[ $k ] ) ) : ''; };
+		if ( ! empty( $get['vhcc_ungvien'] ) ) {
+			$t = $g( $get, 't' );
+			if ( ! empty( $post['uv'] ) && is_array( $post['uv'] ) ) {
+				$d = array();
+				foreach ( $post['uv'] as $k => $v ) { if ( ! is_array( $v ) ) { $d[ sanitize_key( $k ) ] = sanitize_text_field( wp_unslash( (string) $v ) ); } }
+				$r = self::nop( $t, $d );
+				return self::trang_ung_vien( $t, empty( $r['ok'] ) ? $r['error'] : '', ! empty( $r['ok'] ) );
+			}
+			return self::trang_ung_vien( $t );
+		}
+		$m = $g( $get, 'm' ); $k = $g( $get, 'k' );
+		$bao = '';
+		if ( ! empty( $post['ky_hd'] ) ) {
+			$r = self::ky_hd( $m, $k, array(
+				'ten'     => $g( $post, 'ky_ten' ),
+				'dong_y'  => ! empty( $post['ky_dong_y'] ),
+				'anh'     => isset( $post['ky_anh'] ) && ! is_array( $post['ky_anh'] ) ? (string) wp_unslash( $post['ky_anh'] ) : '',
+			), $ip, $ua );
+			$bao = empty( $r['ok'] ) ? '✖ ' . $r['error'] : '✔ Đã ký hợp đồng điện tử. Bản xác nhận đã gửi về email (nếu có).';
+		}
+		return self::trang_bo( $m, $k, $bao );
 	}
 
 	private static function ngay_vn( $d ) {
@@ -497,7 +527,7 @@ class VHCC_TiepNhan {
 	private static function tien( $v ) { return number_format( (float) $v, 0, ',', '.' ) . ' đồng'; }
 
 	/** HTML bộ hồ sơ nhận việc: thư chào mừng + HĐ thử việc (nếu có) + HĐLĐ. Sai chữ ký → trang lỗi. */
-	public static function trang_bo( $ma, $k ) {
+	public static function trang_bo( $ma, $k, $bao = '' ) {
 		$dau = '<!doctype html><html lang="vi"><head><meta charset="utf-8">'
 			. '<meta name="viewport" content="width=device-width,initial-scale=1">'
 			. '<meta name="robots" content="noindex,nofollow"><title>Bộ hồ sơ nhận việc</title><style>'
@@ -509,7 +539,12 @@ class VHCC_TiepNhan {
 			. 'table{width:100%;border-collapse:collapse;margin:8px 0}td,th{border:1px solid #999;padding:6px 8px;text-align:left}'
 			. '.pin{font-size:26px;letter-spacing:6px;font-weight:700}.thanh{text-align:center;margin:0 0 12px}'
 			. '.thanh button{font-size:15px;padding:8px 16px}.ky{display:flex;justify-content:space-between;margin-top:30px;text-align:center}'
-			. '.ky div{width:45%}@media print{.thanh{display:none}body{padding:0}}'
+			. '.ky div{width:45%}.ky img{max-height:70px;max-width:100%}.xac{font-size:11.5px;color:#555}'
+			. '.bao{border:1px solid #bbb;background:#f6f6f6;padding:8px 10px;margin:0 0 12px;border-radius:6px}'
+			. '.kyf{border:2px solid #333;border-radius:8px;padding:12px;margin:16px 0}.kyf input[type=text]{width:100%;font-size:16px;padding:6px}'
+			. '#kv{border:1px dashed #999;width:100%;max-width:600px;height:160px;touch-action:none;background:#fff;display:block}'
+			. '.kyf button{font-size:16px;padding:8px 16px;margin-top:8px}'
+			. '@media print{.thanh,.kyf,.bao{display:none}body{padding:0}}'
 			. '</style></head><body><div class="to">';
 		$cuoi = '</div></body></html>';
 		$bg = self::ban_ghi( $ma );
@@ -523,7 +558,11 @@ class VHCC_TiepNhan {
 		$hien_pin = '' !== $pin && $con_ngay && hash_equals( (string) $bg['pinHash'], self::bam_pin( $bg['ma'], $pin ) );
 		$e = function ( $s ) { return esc_html( (string) $s ); };
 
-		$h = $dau . '<div class="thanh"><button onclick="window.print()">In / Lưu thành PDF</button></div>';
+		$h = $dau . ( '' !== $bao ? '<div class="bao">' . $e( $bao ) . '</div>' : '' )
+			. '<div class="thanh"><button onclick="window.print()">In / Lưu thành PDF</button></div>';
+		$nv_ky = isset( $bg['nvKy'] ) ? $bg['nvKy'] : null;
+		$cty_ky = isset( $bg['ctyKy'] ) ? $bg['ctyKy'] : null;
+		$ma_xt = strtoupper( implode( '-', str_split( substr( self::bam_hd( $bg ), 0, 16 ), 4 ) ) );
 
 		/* ---- 1. thư chào mừng ---- */
 		$h .= '<div class="trang"><div><b>' . $e( $cty['ten'] ) . '</b>' . ( '' !== $cty['dia_chi'] ? '<br>' . $e( $cty['dia_chi'] ) : '' ) . '</div>';
@@ -561,9 +600,16 @@ class VHCC_TiepNhan {
 			return self::tien( round( (float) $hd['luong'] * $pt / 100 ) ) . '/tháng'
 				. ( '' !== (string) $hd['cong_chuan'] ? ', tính theo số ngày công thực tế trên ' . $hd['cong_chuan'] . ' ngày công chuẩn' : ', tính theo ngày công thực tế' );
 		};
-		$ky = function ( $ten_b ) use ( $e, $cty ) {
-			return '<div class="ky"><div><b>NGƯỜI LAO ĐỘNG</b><br><i>(Ký, ghi rõ họ tên)</i><br><br><br><br>' . $e( $ten_b ) . '</div>'
-				. '<div><b>NGƯỜI SỬ DỤNG LAO ĐỘNG</b><br><i>(Ký tên, đóng dấu)</i><br><br><br><br>' . $e( $cty['dai_dien'] ) . '</div></div>';
+		$ky = function ( $ten_b ) use ( $e, $cty, $nv_ky, $cty_ky, $ma_xt ) {
+			$nv = $nv_ky
+				? ( '' !== (string) $nv_ky['anh'] ? '<img alt="chữ ký" src="' . esc_attr( $nv_ky['anh'] ) . '">' : '<br><br>' )
+					. '<div class="xac">✔ Đã ký điện tử ' . $e( $nv_ky['luc'] ) . '<br>mã xác thực ' . $e( $ma_xt ) . '</div>'
+				: '<br><br><br><br>';
+			$ct = $cty_ky
+				? '<br><br><div class="xac">✔ Đã ký điện tử khi duyệt tiếp nhận ' . $e( $cty_ky['luc'] ) . '</div>'
+				: '<br><br><br><br>';
+			return '<div class="ky"><div><b>NGƯỜI LAO ĐỘNG</b><br><i>(Ký, ghi rõ họ tên)</i>' . $nv . $e( $ten_b ) . '</div>'
+				. '<div><b>NGƯỜI SỬ DỤNG LAO ĐỘNG</b><br><i>(Ký tên, đóng dấu)</i>' . $ct . $e( $cty['dai_dien'] ) . '</div></div>';
 		};
 		$quoc_hieu = '<p class="qh">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM<br>Độc lập – Tự do – Hạnh phúc</p><p class="giua">———————</p>';
 
@@ -614,6 +660,247 @@ class VHCC_TiepNhan {
 		}
 		$h .= '<h2>Điều ' . ( '' !== $hd['dieu_them'] ? '10' : '9' ) . '. Điều khoản thi hành</h2><p>Những vấn đề không ghi trong hợp đồng thực hiện theo nội quy lao động, thỏa ước (nếu có) và pháp luật lao động. '
 			. 'Hợp đồng lập thành 02 bản có giá trị pháp lý như nhau, mỗi bên giữ 01 bản.</p>' . $ky( $hd['ho_ten'] ) . '</div>';
+
+		/* ---- 4. ký điện tử ---- */
+		if ( $nv_ky ) {
+			$h .= '<p class="xac">Hợp đồng đã được ký điện tử (Luật Giao dịch điện tử 2023): người lao động ký lúc ' . $e( $nv_ky['luc'] )
+				. ' · mã xác thực nội dung ' . $e( $ma_xt ) . '. Mã này đổi nếu nội dung hợp đồng bị sửa.</p>';
+		} else {
+			$h .= '<form method="post" class="kyf"><h2>✍ Ký hợp đồng điện tử</h2>'
+				. '<p>Ký một lần cho cả ' . ( $hd['tv'] > 0 ? 'Hợp đồng thử việc và ' : '' ) . 'Hợp đồng lao động ở trên. Chữ ký điện tử có giá trị như chữ ký tay theo Luật Giao dịch điện tử 2023.</p>'
+				. '<label>Gõ đúng họ tên của bạn: <input type="text" name="ky_ten" autocomplete="name" placeholder="' . esc_attr( $hd['ho_ten'] ) . '"></label>'
+				. '<p>Vẽ chữ ký (ngón tay hoặc chuột):</p><canvas id="kv" width="600" height="160"></canvas>'
+				. '<button type="button" id="kxoa">Vẽ lại</button><input type="hidden" name="ky_anh" id="kanh" value="">'
+				. '<p><label><input type="checkbox" name="ky_dong_y" value="1"> Tôi đã đọc kỹ và đồng ý toàn bộ nội dung hợp đồng.</label></p>'
+				. '<input type="hidden" name="ky_hd" value="1"><button type="submit">Ký hợp đồng</button></form>'
+				. '<script>(function(){var c=document.getElementById("kv"),o=document.getElementById("kanh");if(!c||!c.getContext){return;}'
+				. 'var x=c.getContext("2d"),v=false,co=false;x.lineWidth=2.5;x.lineCap="round";x.strokeStyle="#111";'
+				. 'function p(e){var r=c.getBoundingClientRect(),t=e.touches?e.touches[0]:e;return[(t.clientX-r.left)*c.width/r.width,(t.clientY-r.top)*c.height/r.height];}'
+				. 'function d(e){v=true;var q=p(e);x.beginPath();x.moveTo(q[0],q[1]);e.preventDefault();}'
+				. 'function m(e){if(!v){return;}var q=p(e);x.lineTo(q[0],q[1]);x.stroke();co=true;e.preventDefault();}'
+				. 'function u(){if(v&&co){o.value=c.toDataURL("image/png");}v=false;}'
+				. 'c.addEventListener("mousedown",d);c.addEventListener("mousemove",m);window.addEventListener("mouseup",u);'
+				. 'c.addEventListener("touchstart",d,{passive:false});c.addEventListener("touchmove",m,{passive:false});c.addEventListener("touchend",u);'
+				. 'document.getElementById("kxoa").onclick=function(){x.clearRect(0,0,c.width,c.height);o.value="";co=false;};})();</script>';
+		}
+		return $h . $cuoi;
+	}
+
+	/* ============================================================== ký điện tử */
+
+	/** Băm nội dung hợp đồng (bản chụp `hd` + mã) — mã xác thực in trên hợp đồng đã ký. */
+	public static function bam_hd( $bg ) {
+		return hash( 'sha256', wp_json_encode( $bg['hd'] ) . '|' . $bg['ma'] );
+	}
+
+	/**
+	 * NHÂN VIÊN KÝ HỢP ĐỒNG ĐIỆN TỬ qua bộ hồ sơ.
+	 *
+	 * 🔴 Ký MỘT LẦN, không sửa, không ký lại — chữ ký đã ghi là bằng chứng. Ghi kèm: tên gõ, ảnh
+	 *    chữ ký (nếu vẽ), giờ, IP, thiết bị, và mã băm nội dung lúc ký (`bam`) — nội dung đổi thì
+	 *    mã in trên hợp đồng không còn khớp bản đã ký.
+	 * ⚠️ Tên gõ phải khớp họ tên trên hợp đồng (bỏ dấu, không phân biệt hoa/thường, gộp khoảng
+	 *    trắng) — người ký phải biết mình đang ký cho ai.
+	 */
+	public static function ky_hd( $ma, $k, $dat, $ip = '', $ua = '' ) {
+		global $wpdb;
+		$bg = self::ban_ghi( $ma );
+		if ( ! $bg || '' === trim( (string) $ma ) || ! hash_equals( self::ky( $ma ), (string) $k ) ) {
+			return array( 'ok' => false, 'error' => 'Link không hợp lệ.' );
+		}
+		if ( ! empty( $bg['nvKy'] ) ) { return array( 'ok' => false, 'error' => 'Hợp đồng đã được ký lúc ' . $bg['nvKy']['luc'] . '.' ); }
+		$chuan = function ( $s ) { return preg_replace( '/\s+/', ' ', VHCC_Luong::bo_chu( (string) $s ) ); };
+		if ( '' === trim( (string) $dat['ten'] ) || $chuan( $dat['ten'] ) !== $chuan( $bg['hd']['ho_ten'] ) ) {
+			return array( 'ok' => false, 'error' => 'Họ tên gõ vào không khớp họ tên trên hợp đồng (' . $bg['hd']['ho_ten'] . ').' );
+		}
+		if ( empty( $dat['dong_y'] ) ) { return array( 'ok' => false, 'error' => 'Chưa tích "Tôi đã đọc kỹ và đồng ý".' ); }
+		$anh = (string) $dat['anh'];
+		if ( '' !== $anh && ( 0 !== strpos( $anh, 'data:image/png;base64,' ) || strlen( $anh ) > 400000
+			|| false === base64_decode( substr( $anh, 22 ), true ) ) ) {
+			$anh = '';
+		}
+		$bg['nvKy'] = array( 'ten' => trim( (string) $dat['ten'] ), 'anh' => $anh, 'luc' => current_time( 'mysql' ),
+			'ip' => substr( (string) $ip, 0, 64 ), 'ua' => substr( (string) $ua, 0, 250 ), 'bam' => self::bam_hd( $bg ) );
+		self::ghi_ban( array( 'name' => 'NV tự ký: ' . $bg['hd']['ho_ten'] ), $bg );
+
+		$email = (string) $wpdb->get_var( $wpdb->prepare( 'SELECT email FROM ' . VHCC_DB::t( 'nhan_vien' ) . ' WHERE ma_nv=%s', $bg['ma'] ) );
+		if ( '' !== trim( $email ) && is_email( $email ) ) {
+			$cty = VHCC_Pdf::ten_cong_ty();
+			wp_mail( $email, 'Xác nhận đã ký hợp đồng — ' . $cty, '<p>Chào ' . esc_html( $bg['hd']['ho_ten'] ) . ',</p>'
+				. '<p>Bạn đã ký điện tử hợp đồng số ' . esc_html( $bg['hd']['so'] ) . ' lúc ' . esc_html( $bg['nvKy']['luc'] ) . '.</p>'
+				. '<p><a href="' . esc_url( self::link_bo( $bg['ma'] ) ) . '">Xem lại và lưu bản hợp đồng đã ký (PDF)</a></p>'
+				. '<p>' . esc_html( $cty ) . '</p>', array( 'Content-Type: text/html; charset=UTF-8' ) );
+		}
+		return array( 'ok' => true, 'luc' => $bg['nvKy']['luc'] );
+	}
+
+	/* ============================================================== link ứng viên tự điền */
+
+	const O_MOI = 'TN_MOI';
+
+	/** Link mời còn hạn bao nhiêu ngày. */
+	const MOI_NGAY = 7;
+
+	public static function ds_moi() {
+		$d = VHCC_Luong::cai_dat( self::O_MOI, null );
+		$d = is_array( $d ) ? $d : array();
+		uasort( $d, function ( $a, $b ) { return strcmp( (string) $b['luc'], (string) $a['luc'] ); } );
+		return $d;
+	}
+
+	private static function ghi_moi( $u, $t, $x ) {
+		$d = VHCC_Luong::cai_dat( self::O_MOI, null );
+		$d = is_array( $d ) ? $d : array();
+		$d[ $t ] = $x;
+		VHCC_Luong::dat_cai_dat( self::O_MOI, $d, $u );
+	}
+
+	public static function link_moi( $t ) {
+		return add_query_arg( array( 'vhcc_ungvien' => '1', 't' => (string) $t ), home_url( '/' ) );
+	}
+
+	/**
+	 * Tạo LINK MỜI: công ty chốt sẵn chức vụ (mẫu), cơ sở, ngày vào, lương — ứng viên chỉ điền
+	 * thông tin cá nhân. `tu_tao` = ứng viên gửi xong là chạy tiếp nhận luôn, nhân danh người
+	 * tạo link; không tích thì chờ người tạo bấm Duyệt.
+	 */
+	public static function tao_moi( $u, $dat ) {
+		$chan = self::gac( $u );
+		if ( '' !== $chan ) { return array( 'ok' => false, 'error' => $chan ); }
+		$m = self::mau( isset( $dat['mau'] ) ? $dat['mau'] : '' );
+		if ( ! $m ) { return array( 'ok' => false, 'error' => 'Chưa chọn mẫu chức vụ.' ); }
+		$coso = VHCC_NhanSu::chuan_coso( isset( $dat['coso'] ) ? $dat['coso'] : '' );
+		if ( '' === $coso || ! VHCC_NhanSu::co_quyen_coso( $u, $coso ) ) {
+			return array( 'ok' => false, 'error' => 'Chưa chọn cơ sở, hoặc cơ sở ngoài phạm vi của anh/chị.' );
+		}
+		$t = bin2hex( random_bytes( 16 ) );
+		$x = array(
+			't' => $t, 'mau' => (string) $dat['mau'], 'ten_mau' => $m['ten'], 'coso' => $coso,
+			'ngay_vao' => isset( $dat['ngay_vao'] ) ? (string) $dat['ngay_vao'] : '',
+			'luong_sua' => isset( $dat['luong_sua'] ) ? (string) $dat['luong_sua'] : '',
+			'luong_bh' => isset( $dat['luong_bh'] ) ? (string) $dat['luong_bh'] : '',
+			'tu_tao' => empty( $dat['tu_tao'] ) ? 0 : 1, 'tt' => 'cho',
+			'luc' => current_time( 'mysql' ), 'het' => gmdate( 'Y-m-d H:i:s', strtotime( (string) current_time( 'mysql' ) ) + self::MOI_NGAY * 86400 ),
+			'boi' => isset( $u['name'] ) ? (string) $u['name'] : '',
+			/* Nhân danh ai khi tự tạo — chụp đúng mấy khoá phiên cần cho các chốt quyền. */
+			'u' => array( 'name' => isset( $u['name'] ) ? (string) $u['name'] : '', 'role' => isset( $u['role'] ) ? (string) $u['role'] : '',
+				'coso' => isset( $u['coso'] ) ? (string) $u['coso'] : '', 'ma_nv' => isset( $u['ma_nv'] ) ? (string) $u['ma_nv'] : '' ),
+			'du_lieu' => array(), 'ma' => '', 'loi' => '',
+		);
+		self::ghi_moi( $u, $t, $x );
+		return array( 'ok' => true, 't' => $t, 'link' => self::link_moi( $t ) );
+	}
+
+	private static function du_lieu_tao( $x ) {
+		$d = (array) $x['du_lieu'];
+		$d['mau'] = $x['mau']; $d['coso'] = $x['coso']; $d['ngay_vao'] = $x['ngay_vao']; $d['luong_bh'] = $x['luong_bh'];
+		$m = self::mau( $x['mau'] );
+		if ( '' !== trim( (string) $x['luong_sua'] ) && $m ) { $d[ 'gio' === $m['cach'] ? 'don_gia' : 'luong' ] = $x['luong_sua']; }
+		return $d;
+	}
+
+	/** Ứng viên gửi thông tin. */
+	public static function nop( $t, $dat ) {
+		$ds = self::ds_moi();
+		$x = isset( $ds[ (string) $t ] ) ? $ds[ (string) $t ] : null;
+		if ( ! $x || 'huy' === $x['tt'] ) { return array( 'ok' => false, 'error' => 'Link không hợp lệ hoặc đã bị huỷ.' ); }
+		if ( 'cho' !== $x['tt'] ) { return array( 'ok' => false, 'error' => 'Link này đã được dùng — thông tin đã gửi rồi.' ); }
+		if ( strtotime( (string) current_time( 'mysql' ) ) > strtotime( (string) $x['het'] ) ) {
+			return array( 'ok' => false, 'error' => 'Link đã hết hạn — xin liên hệ công ty để nhận link mới.' );
+		}
+		$g = function ( $k ) use ( $dat ) { return trim( (string) ( isset( $dat[ $k ] ) ? $dat[ $k ] : '' ) ); };
+		if ( '' === $g( 'ho_ten' ) ) { return array( 'ok' => false, 'error' => 'Thiếu họ tên.' ); }
+		$cccd = preg_replace( '/\D+/', '', $g( 'cccd' ) );
+		if ( ! preg_match( '/^\d{9,12}$/', $cccd ) ) { return array( 'ok' => false, 'error' => 'Số CCCD phải 9–12 chữ số.' ); }
+		if ( VHCC_NhanSu::ho_so_theo_cccd( $cccd ) ) {
+			return array( 'ok' => false, 'error' => 'Số CCCD này đã có hồ sơ ở công ty — xin liên hệ người phụ trách.' );
+		}
+		if ( '' === $g( 'sdt' ) ) { return array( 'ok' => false, 'error' => 'Thiếu số điện thoại.' ); }
+		if ( '' !== $g( 'email' ) && ! is_email( $g( 'email' ) ) ) { return array( 'ok' => false, 'error' => 'Email không đúng dạng.' ); }
+		$du = array();
+		foreach ( array( 'ho_ten', 'ngay_sinh', 'gioi_tinh', 'sdt', 'email', 'dia_chi', 'so_tai_khoan', 'ngan_hang' ) as $k ) { $du[ $k ] = $g( $k ); }
+		$du['cccd'] = $cccd;
+		$x['du_lieu'] = $du; $x['tt'] = 'da_dien'; $x['luc_nop'] = current_time( 'mysql' );
+		if ( ! empty( $x['tu_tao'] ) ) {
+			$r = self::tao( $x['u'], self::du_lieu_tao( $x ) );
+			if ( ! empty( $r['ok'] ) ) { $x['tt'] = 'da_tao'; $x['ma'] = $r['ma']; $x['loi'] = ''; }
+			else { $x['loi'] = $r['error']; }
+		}
+		self::ghi_moi( array( 'name' => 'Ứng viên: ' . $du['ho_ten'] ), $t, $x );
+		if ( '' !== (string) $x['u']['ma_nv'] ) {
+			VHCC_Chuong::bao( $x['u']['ma_nv'], 'Ứng viên ' . $du['ho_ten'] . ' đã điền thông tin (' . $x['ten_mau'] . ')'
+				. ( 'da_tao' === $x['tt'] ? ' — đã tự tạo mã ' . $x['ma'] . '.' : ' — chờ duyệt.' ), 'tn_moi_' . $t, '',
+				add_query_arg( array( 'man' => 'tiep_nhan' ), VHCC_Web::url() ) );
+		}
+		return array( 'ok' => true, 'tt' => $x['tt'], 'ma' => $x['ma'] );
+	}
+
+	/** Người tạo duyệt một link ứng viên đã điền (khi không tự tạo, hoặc tự tạo bị lỗi). */
+	public static function duyet_moi( $u, $t ) {
+		$ds = self::ds_moi();
+		$x = isset( $ds[ (string) $t ] ) ? $ds[ (string) $t ] : null;
+		if ( ! $x || 'da_dien' !== $x['tt'] ) { return array( 'ok' => false, 'error' => 'Link này không ở trạng thái chờ duyệt.' ); }
+		$r = self::tao( $u, self::du_lieu_tao( $x ) );
+		if ( empty( $r['ok'] ) ) {
+			$x['loi'] = $r['error']; self::ghi_moi( $u, $t, $x );
+			return $r;
+		}
+		$x['tt'] = 'da_tao'; $x['ma'] = $r['ma']; $x['loi'] = '';
+		self::ghi_moi( $u, $t, $x );
+		return $r;
+	}
+
+	public static function huy_moi( $u, $t ) {
+		$chan = self::gac( $u );
+		if ( '' !== $chan ) { return array( 'ok' => false, 'error' => $chan ); }
+		$ds = self::ds_moi();
+		if ( ! isset( $ds[ (string) $t ] ) ) { return array( 'ok' => false, 'error' => 'Không có link này.' ); }
+		$x = $ds[ (string) $t ];
+		if ( 'da_tao' === $x['tt'] ) { return array( 'ok' => false, 'error' => 'Đã tạo hồ sơ rồi — không huỷ được link.' ); }
+		$x['tt'] = 'huy';
+		self::ghi_moi( $u, $t, $x );
+		return array( 'ok' => true );
+	}
+
+	/** Trang công khai ứng viên điền thông tin. */
+	public static function trang_ung_vien( $t, $loi = '', $xong = false ) {
+		$cty = self::cty();
+		$dau = '<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+			. '<meta name="robots" content="noindex,nofollow"><title>Thông tin nhận việc</title><style>'
+			. 'body{font-family:Arial,Helvetica,sans-serif;background:#f4f4f4;color:#111;margin:0;padding:16px}'
+			. '.to{max-width:560px;margin:0 auto;background:#fff;border-radius:10px;padding:18px}h1{font-size:20px;margin:0 0 6px}'
+			. 'label{display:block;margin:10px 0 3px;font-weight:600;font-size:14px}input,select{width:100%;box-sizing:border-box;font-size:16px;padding:8px;border:1px solid #bbb;border-radius:6px}'
+			. 'button{margin-top:16px;width:100%;font-size:17px;padding:12px;border:0;border-radius:8px;background:#1a56db;color:#fff}'
+			. '.loi{background:#fde8e8;border:1px solid #f5b5b5;padding:8px 10px;border-radius:6px;margin:10px 0}'
+			. '.ok{background:#e6f4ea;border:1px solid #a8d5b5;padding:10px;border-radius:6px}.mo{color:#555;font-size:13px}'
+			. '</style></head><body><div class="to">';
+		$cuoi = '</div></body></html>';
+		$ds = self::ds_moi();
+		$x = isset( $ds[ (string) $t ] ) ? $ds[ (string) $t ] : null;
+		if ( $xong ) {
+			return $dau . '<h1>Cảm ơn bạn!</h1><div class="ok">Thông tin đã gửi tới ' . esc_html( $cty['ten'] ) . '. '
+				. 'Bạn sẽ nhận email (hoặc tin nhắn từ người phụ trách) kèm mã nhân viên, mật khẩu chấm công và hợp đồng để ký.</div>' . $cuoi;
+		}
+		if ( ! $x || 'huy' === $x['tt'] ) { return $dau . '<h1>Thông tin nhận việc</h1><div class="loi">Link không hợp lệ hoặc đã bị huỷ.</div>' . $cuoi; }
+		if ( 'cho' !== $x['tt'] ) { return $dau . '<h1>Thông tin nhận việc</h1><div class="ok">Link này đã được dùng — thông tin đã gửi rồi.</div>' . $cuoi; }
+		if ( strtotime( (string) current_time( 'mysql' ) ) > strtotime( (string) $x['het'] ) ) {
+			return $dau . '<h1>Thông tin nhận việc</h1><div class="loi">Link đã hết hạn — xin liên hệ công ty để nhận link mới.</div>' . $cuoi;
+		}
+		$h = $dau . '<h1>Thông tin nhận việc — ' . esc_html( $cty['ten'] ) . '</h1>'
+			. '<p class="mo">Vị trí: <b>' . esc_html( $x['ten_mau'] ) . '</b> · ' . esc_html( VHCC_NhanSu::ten_coso( $x['coso'] ) )
+			. ( '' !== $x['ngay_vao'] ? ' · bắt đầu ' . esc_html( self::ngay_vn( $x['ngay_vao'] ) ) : '' ) . '</p>'
+			. '<p class="mo">Điền đúng như trên CCCD — thông tin này dùng để lập hợp đồng lao động và đóng bảo hiểm.</p>'
+			. ( '' !== $loi ? '<div class="loi">' . esc_html( $loi ) . '</div>' : '' )
+			. '<form method="post">';
+		$o = function ( $k, $n, $kieu = 'text', $bat = false ) {
+			return '<label for="uv_' . $k . '">' . $n . ( $bat ? ' *' : '' ) . '</label><input id="uv_' . $k . '" name="uv[' . $k . ']" type="' . $kieu . '"'
+				. ( $bat ? ' required' : '' ) . ' value="' . ( isset( $_POST['uv'][ $k ] ) && ! is_array( $_POST['uv'][ $k ] ) ? esc_attr( sanitize_text_field( wp_unslash( (string) $_POST['uv'][ $k ] ) ) ) : '' ) . '">';
+		};
+		$h .= $o( 'ho_ten', 'Họ và tên', 'text', true ) . $o( 'cccd', 'Số CCCD', 'text', true ) . $o( 'ngay_sinh', 'Ngày sinh', 'date' )
+			. '<label for="uv_gt">Giới tính</label><select id="uv_gt" name="uv[gioi_tinh]"><option value="">—</option><option>Nam</option><option>Nữ</option></select>'
+			. $o( 'sdt', 'Số điện thoại', 'tel', true ) . $o( 'email', 'Email (nhận hợp đồng, mật khẩu)', 'email' ) . $o( 'dia_chi', 'Nơi cư trú' )
+			. $o( 'so_tai_khoan', 'Số tài khoản ngân hàng (nhận lương)' ) . $o( 'ngan_hang', 'Ngân hàng' )
+			. '<button type="submit">Gửi thông tin</button></form>';
 		return $h . $cuoi;
 	}
 
