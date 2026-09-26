@@ -44,7 +44,8 @@ $web = function ( $get, $post = array() ) use ( $tok ) {
 $h = $web( array( 'man' => 'ho_so' ) );
 t( '🔴 tab Hồ sơ có phần hồ sơ của chính nó (Tạo nhân sự mới)', false !== strpos( $h, '➕ Tạo nhân sự mới' ) );
 t( '   và bảng hồ sơ của nó', false !== strpos( $h, 'id="vhcc-bang"' ) );
-t( '🔴 có luôn các khối Quản lý nhân sự (Bảng vai trò)', false !== strpos( $h, 'Bảng vai trò' ), $h );
+t( '🔴 có luôn các khối Quản lý nhân sự (Vai trò theo bộ phận)', false !== strpos( $h, 'Vai trò theo bộ phận' ), $h );
+t( '🔴 KHÔNG còn khối Bảng vai trò (anh Thắng: "Bỏ này")', false === strpos( $h, 'Bảng vai trò</b>' ) );
 t( '   có thanh tab Nhân sự / Quyền vào trang', false !== strpos( $h, 'class="tab-ns"' ) );
 t( '🔴 KHÔNG còn bảng "Hồ sơ nhân sự" trùng của trang Quản lý nhân sự',
 	1 === substr_count( $h, 'Hồ sơ nhân sự</h2>' ), substr_count( $h, 'Hồ sơ nhân sự</h2>' ) );
@@ -58,7 +59,8 @@ $bang = (string) substr( $h, (int) strpos( $h, 'id="vhcc-bang"' ) );
 $bang = (string) substr( $bang, 0, (int) strpos( $bang, '</form>' ) );
 t( '   bảng hồ sơ của tab KHÔNG bị gắn dấu ấy', '' !== $bang && false === strpos( $bang, 'ns_nhung' ) );
 
-/* ── Gửi biểu mẫu nhúng: tới đúng trình xử lý của Quản lý nhân sự ── */
+/* ── Gửi biểu mẫu nhúng: tới đúng trình xử lý của Quản lý nhân sự (việc `them_vai` vẫn có ở máy
+      chủ dù màn khai đã bỏ — dùng nó để canh đường chuyển lượt gửi) ── */
 $h2 = $web( array( 'man' => 'ho_so' ),
 	array( 'ns_nhung' => '1', 'viec' => 'them_vai', 'vai_ten' => 'Kế Toán Gộp Thử', 'vai_goc' => VHCC_Vai::KE_TOAN ) );
 t( '🔴 bấm "Thêm vai" trong khối nhúng -> vai được tạo',
