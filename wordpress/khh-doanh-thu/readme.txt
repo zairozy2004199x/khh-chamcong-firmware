@@ -102,6 +102,16 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.72.0 =
+* Sao kê ngân hàng: nhãn cơ sở NGƯỜI ĐÃ XÁC NHẬN bên nguồn (Sao Kê Ngân Hàng K&H) giờ được LƯU LẠI
+  và dùng lại đúng thứ tự ưu tiên mỗi khi "gán lại" — anh Thắng 26/09/2026: *"chưa thấy sao kê"* /
+  *"chưa thấy chỗ đã nộp tiền"*. Trước bản này, nhãn nguồn chỉ được dùng THOÁNG QUA lúc kéo dữ
+  liệu về để suy cơ sở, không hề lưu; mỗi lần sửa "bảng nhận mặt" (mã ↔ cơ sở) ở Cấu hình, hệ
+  thống GÁN LẠI cơ sở cho MỌI dòng bằng cách đoán riêng từ nội dung + sổ mã của chính plugin này —
+  cơ sở nào chỉ khai mã bên Sao Kê Ngân Hàng (không khai lại ở Cấu hình của plugin này) là bị xoá
+  sạch cơ sở đã đúng ngay lần gán lại đầu tiên, lùi về "chưa khai mã nộp tiền" dù nội dung không
+  hề đổi. Nay nhãn nguồn được giữ lại và thử trước, chỉ khi không có mới đoán theo nội dung như cũ.
+
 = 1.71.0 =
 * Nút **"💰 Đã nộp tiền"** ở tab Nhập báo cáo ngày — anh Thắng 26/09/2026: *"Bổ sung nút đã nộp
   tiền (Khi đã nộp thì khóa ô nhập lại)"*. Bấm xong khoá TOÀN BỘ form của đúng ngày × cơ sở đó,

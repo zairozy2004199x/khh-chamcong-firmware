@@ -35,6 +35,16 @@ function khh_dt_bang_sk() {
 	return $wpdb->prefix . 'khh_dt_sao_ke';
 }
 
+/**
+ * 🔴 26/09/2026 anh Thắng — "ngày cũ đâu": nhãn NGƯỜI ĐÃ XÁC NHẬN bên nguồn (cột Nhãn phân loại
+ * của Sao Kê Ngân Hàng) chỉ từng được DÙNG THOÁNG QUA lúc kéo về (`khh_dt_keo_nguon()`) để suy
+ * `cua_hang`, không hề LƯU LẠI (cột `nhan` dưới đây). Mỗi lần sửa "bảng nhận mặt" (mã ↔ cơ sở) ở
+ * Cấu hình, `khh_dt_gan_lai_sao_ke()` chạy lại CHO MỌI DÒNG — mà nó chỉ biết đoán theo NỘI DUNG
+ * thô + sổ mã của CHÍNH plugin này (`khh_dt_doan_co_so()`), không còn nhãn gốc để dùng lại. Cơ sở
+ * nào chỉ khai mã bên Sao Kê (không khai lại ở đây) thì ngay lần "gán lại" đầu tiên là mất sạch
+ * `cua_hang` đã đúng, lùi về chưa khai mã nộp tiền dù nội dung xưa nay không đổi. Lưu nhãn ngay
+ * từ lúc kéo về để gán lại vẫn dùng lại được, không phải đoán mù từ đầu.
+ */
 function khh_dt_tao_bang_sk() {
 	global $wpdb;
 	$bang    = khh_dt_bang_sk();
@@ -51,6 +61,7 @@ function khh_dt_tao_bang_sk() {
 			noi_dung text NOT NULL,
 			tai_khoan varchar(60) NOT NULL DEFAULT '',
 			cua_hang varchar(190) NOT NULL DEFAULT '',
+			nhan varchar(190) NOT NULL DEFAULT '',
 			nap_luc datetime NULL,
 			PRIMARY KEY  (id),
 			UNIQUE KEY ma_gd (ma_gd),
@@ -500,11 +511,11 @@ function khh_dt_ghi_sao_ke( $ds ) {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
 		$wpdb->query(
 			$wpdb->prepare(
-				"INSERT INTO $bang (ma_gd,ngay,gio,ngay_tinh,so_tien,noi_dung,tai_khoan,cua_hang,nap_luc)
-				 VALUES (%s,%s,%d,%s,%f,%s,%s,%s,%s)
+				"INSERT INTO $bang (ma_gd,ngay,gio,ngay_tinh,so_tien,noi_dung,tai_khoan,cua_hang,nhan,nap_luc)
+				 VALUES (%s,%s,%d,%s,%f,%s,%s,%s,%s,%s)
 				 ON DUPLICATE KEY UPDATE ngay=VALUES(ngay), gio=VALUES(gio), ngay_tinh=VALUES(ngay_tinh),
 				 so_tien=VALUES(so_tien), noi_dung=VALUES(noi_dung), tai_khoan=VALUES(tai_khoan),
-				 cua_hang=VALUES(cua_hang), nap_luc=VALUES(nap_luc)",
+				 cua_hang=VALUES(cua_hang), nhan=VALUES(nhan), nap_luc=VALUES(nap_luc)",
 				$r['ma_gd'],
 				$r['ngay'],
 				$r['gio'],
@@ -513,6 +524,7 @@ function khh_dt_ghi_sao_ke( $ds ) {
 				$r['noi_dung'],
 				$r['tai_khoan'],
 				$r['cua_hang'],
+				isset( $r['nhan'] ) ? (string) $r['nhan'] : '',
 				$luc
 			)
 		);
@@ -526,15 +538,24 @@ function khh_dt_ghi_sao_ke( $ds ) {
  *
  * ⚠️ Không có hàm này thì khai thêm một khoá chỉ ăn cho những lần nạp SAU, còn mấy tháng sao kê
  *    đã nạp vẫn nằm im không cơ sở — và người khai tưởng mình vừa sửa xong.
- */
+ *
+ * 🔴 26/09/2026 anh Thắng — "ngày cũ đâu": PHẢI THỬ NHÃN GỐC TRƯỚC, giống hệt thứ tự ưu tiên ở
+ *    `khh_dt_keo_nguon()` (nhãn người đã xác nhận bên nguồn > đoán theo nội dung). Trước bản này
+ *    hàm chỉ đoán bằng `khh_dt_doan_co_so()` (nội dung thô + sổ mã CỦA RIÊNG plugin này) — cơ sở
+ *    nào chỉ khai mã bên Sao Kê Ngân Hàng (không khai lại ở đây) là bị xoá sạch `cua_hang` ngay
+ *    lần gán lại đầu tiên, dù nhãn gốc vẫn đúng nguyên. */
 function khh_dt_gan_lai_sao_ke() {
 	global $wpdb;
 	$bang = khh_dt_bang_sk();
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
-	$ds = (array) $wpdb->get_results( "SELECT id, ngay, gio, noi_dung, tai_khoan, cua_hang, ngay_tinh FROM $bang", ARRAY_A );
+	$ds = (array) $wpdb->get_results( "SELECT id, ngay, gio, noi_dung, tai_khoan, cua_hang, ngay_tinh, nhan FROM $bang", ARRAY_A );
 	$doi = 0;
 	foreach ( $ds as $r ) {
-		$ch = khh_dt_doan_co_so( $r['noi_dung'], $r['tai_khoan'] );
+		$nhan = trim( (string) ( isset( $r['nhan'] ) ? $r['nhan'] : '' ) );
+		$ch   = '' !== $nhan ? khh_dt_ten_co_so_gan( $nhan ) : '';
+		if ( '' === $ch ) {
+			$ch = khh_dt_doan_co_so( $r['noi_dung'], $r['tai_khoan'] );
+		}
 		$nt = khh_dt_ngay_quy( $r['ngay'], $r['gio'] );
 		if ( $ch === (string) $r['cua_hang'] && $nt === (string) $r['ngay_tinh'] ) {
 			continue;
@@ -1090,6 +1111,9 @@ function khh_dt_keo_nguon( $nguon, $tu_ngay = '' ) {
 			'noi_dung'  => $nd,
 			'tai_khoan' => $tk,
 			'cua_hang'  => $ch,
+			/* Lưu lại nhãn gốc — không chỉ dùng thoáng qua rồi bỏ — để khh_dt_gan_lai_sao_ke() còn
+			   dùng lại được lúc "gán lại" sau này, xem khối 🔴 ở đó. */
+			'nhan'      => $nhan,
 		);
 	}
 	$n = khh_dt_ghi_sao_ke( $mang );

@@ -51,7 +51,7 @@ function dung_bang_sk() {
 			ma_gd TEXT NOT NULL DEFAULT '' UNIQUE,
 			ngay TEXT NOT NULL, gio INTEGER NOT NULL DEFAULT 0, ngay_tinh TEXT NOT NULL,
 			so_tien REAL NOT NULL DEFAULT 0, noi_dung TEXT NOT NULL,
-			tai_khoan TEXT NOT NULL DEFAULT '', cua_hang TEXT NOT NULL DEFAULT '', nap_luc TEXT NULL )"
+			tai_khoan TEXT NOT NULL DEFAULT '', cua_hang TEXT NOT NULL DEFAULT '', nhan TEXT NOT NULL DEFAULT '', nap_luc TEXT NULL )"
 	);
 }
 
