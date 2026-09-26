@@ -275,9 +275,11 @@ _fn_vl = _hamOf(src, '_vaiLuat')
 la('🔴 con của Admin KHÔNG quy về Admin',
    "(g==='Admin') ? v :" in _fn_vl, _fn_vl)
 la('   và chính vai Admin thì vẫn là Admin', "if(v==='Admin') return 'Admin';" in _fn_vl, _fn_vl)
-# ⚠️ NÚT TẠO ĐƠN — đúng chỗ anh Thắng báo.
-la('🔴 nút Tạo đơn gác theo vai luật, không theo tên vai',
-   "var vl=_vaiLuat();" in src and "bn.style.display=(vl==='Nhân viên'||vl==='Quản lý'||vl==='Admin')" in src)
+# ⚠️ NÚT TẠO ĐƠN — đúng chỗ anh Thắng báo. 26/09/2026: "kế toán sao chưa có nút tạo đơn" —
+# thêm cửa canDo('taoDon') (ma trận Phân quyền) cạnh ba vai gốc cũ, không thay ba vai gốc đó.
+la('🔴 nút Tạo đơn gác theo vai luật, không theo tên vai — cộng thêm cửa canDo(\'taoDon\')',
+   "var vl=_vaiLuat();" in src
+   and "bn.style.display=(vl==='Nhân viên'||vl==='Quản lý'||vl==='Admin'||canDo('taoDon'))" in src)
 # ⚠️ KHÔNG CÒN CHỖ NÀO KHAI `var role=` từ tên vai rồi đem so với tên vai gốc.
 la('🔴 không còn chỗ nào lấy `role` thẳng từ CURUSER để so luật',
    "var role=(CURUSER&&CURUSER.role)||''" not in src)
