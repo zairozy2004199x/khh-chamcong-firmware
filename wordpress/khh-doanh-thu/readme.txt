@@ -102,6 +102,12 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.75.0 =
+* Tab Nhập báo cáo ngày: thêm hai nút **"Hôm qua" / "Hôm nay"** cạnh ô chọn ngày — anh Thắng
+  26/09/2026: *"nhân viên cứ chọn lộn ngày"*. Ô lịch gõ tay (spinner tháng/ngày/năm tách rời) dễ
+  bấm nhầm; hai nút chọn thẳng theo nhãn, và nút khớp với ngày đang xem được tô đậm để nhìn một
+  cái biết ngay mình đang xem ngày nào, không phải tự cộng trừ trong đầu rồi đoán.
+
 = 1.74.0 =
 * Bảng nhận mặt (Cấu hình → Sao kê): gõ mã nộp tiền cho một cơ sở, cơ sở khác đã gõ TRƯỚC vẫn giữ
   đúng, mà mã vừa gõ lại "không lưu được" — anh Thắng 26/09/2026. Gốc: một mã chỉ được thuộc về

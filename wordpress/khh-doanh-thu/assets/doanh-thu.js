@@ -1065,6 +1065,18 @@
      `toISOString()`, hàm ấy đổi sang UTC nên buổi tối ở Việt Nam sẽ ra ngày hôm trước. */
   function homNay() { return ymd(new Date()); }
 
+  /* Tô đậm đúng nút khớp với ngày đang chọn — để nhìn một cái biết ngay mình đang xem
+     "hôm qua" hay "hôm nay", không phải tự cộng trừ trong đầu rồi đoán. Đặt thẳng style
+     (không thêm class) vì .vien/.nut.chinh cùng đặt background/border, cộng cả hai lớp
+     lại là ai đứng sau trong CSS thắng, không chắc ra đúng màu muốn. */
+  function veNutNgay() {
+    var v = q('#bcNgay').value, nq = q('#bcNgayQua'), nn = q('#bcNgayNay');
+    if (!nq || !nn) return;
+    var dam = 'border-color:var(--app);color:var(--app);font-weight:600';
+    nq.style.cssText = 'margin-left:6px;font-size:12px;padding:3px 8px' + (v === homQua() ? ';' + dam : '');
+    nn.style.cssText = 'font-size:12px;padding:3px 8px' + (v === homNay() ? ';' + dam : '');
+  }
+
   function dungNhap() {
     var o = q('#dtTabNhap');
     if (o.dataset.xong) { napBaoCao(); return; }
@@ -1078,7 +1090,13 @@
            ngày là BỐN BƯỚC của ngày đang mở. Hệ theo dõi và nhắc — không tự điền số thay cơ sở. */
         '<div id="bcViec" class="bc-viec"></div>' +
         '<div class="loc" style="margin:14px 0 4px">' +
-          '<span class="o"><label for="bcNgay">Ngày</label><input type="date" id="bcNgay"></span>' +
+          '<span class="o"><label for="bcNgay">Ngày</label><input type="date" id="bcNgay">' +
+            /* 🔴 Anh Thắng 26/09/2026: "nhân viên cứ chọn lộn ngày" — ô lịch gõ tay dễ bấm nhầm
+               (tăng/giảm lộn tháng/ngày/năm). Hai nút chọn thẳng theo NHÃN, không phải mò lịch,
+               để bấm sai thì phải cố ý chứ không lỡ tay được nữa. */
+            '<button class="vien" type="button" id="bcNgayQua">Hôm qua</button>' +
+            '<button class="vien" type="button" id="bcNgayNay">Hôm nay</button>' +
+          '</span>' +
           '<span class="o" id="bcOCH"><label for="bcCH">Cơ sở</label><select id="bcCH">' +
             ds.map(function (c) { return '<option value="' + esc(c) + '">' + esc(c) + '</option>'; }).join('') +
           '</select></span>' +
@@ -1123,7 +1141,10 @@
     q('#bcNgay').value = S.nhapNgay || homQua();
     var sel = q('#bcCH');
     if (S.nhapCH) sel.value = S.nhapCH;
-    q('#bcNgay').addEventListener('change', napBaoCao);
+    q('#bcNgay').addEventListener('change', function () { veNutNgay(); napBaoCao(); });
+    q('#bcNgayQua').addEventListener('click', function () { q('#bcNgay').value = homQua(); veNutNgay(); napBaoCao(); });
+    q('#bcNgayNay').addEventListener('click', function () { q('#bcNgay').value = homNay(); veNutNgay(); napBaoCao(); });
+    veNutNgay();
     sel.addEventListener('change', napBaoCao);
     Array.prototype.forEach.call(o.querySelectorAll('.bc-luoi input'), function (i) {
       i.addEventListener('input', tinhLech);
