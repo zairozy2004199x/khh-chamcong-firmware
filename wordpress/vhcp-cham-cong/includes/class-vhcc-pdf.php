@@ -221,7 +221,10 @@ class VHCC_Pdf {
 					'thieu'  => $thieu_o,
 					'dem'    => (float) $d['congDem'],
 					'demHut' => ( ! empty( $d['demThieuGio'] ) || ! empty( $d['demChuaDuCap'] ) ),
+					/* 26/09/2026: ngày và đêm nay có thể đến từ HAI cơ sở khác nhau — giữ riêng,
+					   xem chú thích ở `VHCC_Luong::vp_bang_cong_va_luong_voi()`. */
 					'tuCoSo' => (string) $d['tuCoSo'],
+					'tuCoSoDem' => (string) $d['tuCoSoDem'],
 				);
 			}
 		}
@@ -252,7 +255,7 @@ class VHCC_Pdf {
 	 * @param string $tt      Tháng `YYYY-MM`.
 	 * @param array  $nguoi   [ ['ma','ten'], … ] theo đúng thứ tự muốn in.
 	 * @param array  $o       [mã][ngày `YYYY-MM-DD`] => số (công hoặc giờ).
-	 * @param array  $co      [mã][ngày] => ['thieu','dem','demHut','tuCoSo'] — có thể rỗng.
+	 * @param array  $co      [mã][ngày] => ['thieu','dem','demHut','tuCoSo','tuCoSoDem'] — có thể rỗng.
 	 * @param bool   $la_cong true = ô là số công · false = ô là số giờ.
 	 */
 	public static function luoi_in( $tt, $nguoi, $o, $co, $la_cong = true ) {
@@ -293,7 +296,10 @@ class VHCC_Pdf {
 				   `🌙 kèm số` = công đêm tính vào ngày này · `🌙0` = có làm mà không ra công. */
 				if ( ! empty( $c['dem'] ) )          { $them .= '<div class="nho">🌙' . self::esc( self::so_cong( $c['dem'] ) ) . '</div>'; }
 				elseif ( ! empty( $c['demHut'] ) )   { $them .= '<div class="nho thieu">🌙0</div>'; }
+				/* Ngày và đêm của cùng một ô có thể đến từ HAI cơ sở khác nhau — hai nhãn riêng,
+				   không gộp chung một chỗ (xem chú thích ở VHCC_Luong::vp_bang_cong_va_luong_voi()). */
 				if ( ! empty( $c['tuCoSo'] ) )       { $them .= '<div class="nho ghep">' . self::esc( (string) $c['tuCoSo'] ) . '</div>'; }
+				if ( ! empty( $c['tuCoSoDem'] ) )    { $them .= '<div class="nho ghep">🌙 ' . self::esc( (string) $c['tuCoSoDem'] ) . '</div>'; }
 				$out[] = '<td class="c' . ( $thieu ? ' o-thieu' : '' ) . '">'
 					. self::esc( $la_cong ? self::so_cong( $gia ) : self::so_cong( $gia ) . 'h' )
 					. ( $thieu ? '<span class="thieu"> ?</span>' : '' ) . $them . '</td>';

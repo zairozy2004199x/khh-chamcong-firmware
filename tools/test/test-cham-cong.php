@@ -8637,7 +8637,48 @@ teq( '   và 1.5 CÔNG BÙ rơi vào ngày 07 (giờ ra 04:02 qua mốc 2 04:00 
 	1.5, $d07 ? (float) $d07['congBu'] : -1.0 );
 /* Nhãn "đến từ cơ sở phụ" nằm ở NGÀY CÓ HÀNG (06 — nơi lượt bấm nằm) — không đổi theo mốc neo
    của công đêm, vì `tu_dau[]` khoá theo `ngay` gốc của hàng thô, không theo ngày nhận công. */
-teq( '   và đêm 06 được đánh dấu là đến từ cơ sở phụ', $GH_PHU, $d06 ? (string) $d06['tuCoSo'] : '' );
+/* 26/09/2026: nhãn nguồn nay TÁCH theo hàng — hàng ĐÊM mang `tuCoSoDem`, hàng NGÀY mang
+   `tuCoSo`. Đêm 06 là hàng -CD ở cơ sở phụ nên chỉ `tuCoSoDem` được ghi. */
+teq( '   và đêm 06 được đánh dấu là đến từ cơ sở phụ (nhãn của HÀNG ĐÊM)', $GH_PHU,
+	$d06 ? (string) $d06['tuCoSoDem'] : '' );
+teq( '   🔴 và KHÔNG gắn nhãn cơ sở phụ vào HÀNG NGÀY', '', $d06 ? (string) $d06['tuCoSo'] : 'x' );
+
+/* 🔴 26/09/2026 — CÙNG MỘT NGÀY: CHẤM NGÀY THẬT Ở CƠ SỞ CHÍNH + CA ĐÊM Ở CƠ SỞ PHỤ.
+   Anh Thắng: *"chấm vào bảng công KHHCM sao gọi là setup"* / *"rõ ràng anh chấm chọn khhcm, mặc
+   định 100% là công ngày, khi nào chọn setup thì mới suy diễn"*. Trước bản vá, hàng -CD của cơ
+   sở phụ đè nhãn lên cả ngày, nên ô CA NGÀY (lượt chấm thật ở cơ sở chính) mang nhãn cơ sở phụ. */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $GH_CHINH, 'ngay' => '2026-09-24',
+	'ma_nv' => 'VPG1', 'hau_to' => '', 'ho_ten' => 'Nguyễn Bá Tuấn',
+	'gio_vao_giay' => VHCC_DB::giay( '08:55:00' ), 'gio_ra_giay' => VHCC_DB::giay( '21:35:00' ), 'nguon' => 'may' ) );
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $GH_PHU, 'ngay' => '2026-09-24',
+	'ma_nv' => 'VPG1', 'hau_to' => 'CD', 'ho_ten' => 'Nguyễn Bá Tuấn',
+	'gio_vao_giay' => VHCC_DB::giay( '20:00:00' ),
+	'gio_ra_giay' => VHCC_DB::giay( '04:00:00' ) + VHCC_DB::NGAY_GIAY, 'nguon' => 'may' ) );
+$d24 = null;
+foreach ( (array) VHCC_Luong::vp_bang_cong_va_luong( $GH_CHINH, '2026-09' )['detail'] as $ct ) {
+	if ( 'VPG1' === $ct['ma'] && '2026-09-24' === $ct['ngay'] ) { $d24 = $ct; }
+}
+t( 'dựng cảnh: ngày 24 có CẢ công ngày lẫn công đêm',
+	$d24 && (float) $d24['congNgay'] > 0 && (float) $d24['congDem'] > 0, $d24 );
+teq( '🔴 lượt chấm ngày THẬT ở cơ sở chính -> hàng NGÀY KHÔNG mang nhãn cơ sở phụ', '',
+	$d24 ? (string) $d24['tuCoSo'] : 'x' );
+teq( '   hàng ĐÊM vẫn mang đúng nhãn cơ sở phụ', $GH_PHU, $d24 ? (string) $d24['tuCoSoDem'] : '' );
+/* Và trên lưới: ô ☀ ngày 24 không có nhãn cơ sở phụ, ô 🌙 ngày 24 có. */
+$h_gh24 = vhcc_web( '135791', array(), array( 'man' => 'cham', 'ccs' => $GH_CHINH, 'cth' => '2026-09' ) );
+$hai_gh = vp_hang_cua( $h_gh24, 'Nguyễn Bá Tuấn' );
+if ( preg_match( '~^(.*?)</tr><tr class="hang-dem">(.*)$~s', $hai_gh, $m_gh ) ) {
+	$o_ngay24 = preg_split( '~<td~', $m_gh[1] );
+	$o_dem24  = preg_split( '~<td~', $m_gh[2] );
+	/* [0] là phần trước ô đầu, [1] là ô tên, [2..] là ngày 1.. -> ngày 24 ở chỉ số 25. */
+	$c_ngay24 = isset( $o_ngay24[25] ) ? $o_ngay24[25] : '';
+	$c_dem24  = isset( $o_dem24[25] ) ? $o_dem24[25] : '';
+	t( 'dựng cảnh: tìm được ô ngày 24 của cả hai hàng', '' !== $c_ngay24 && '' !== $c_dem24,
+		array( $c_ngay24, $c_dem24 ) );
+	t( '🔴 ô ☀ ngày 24 KHÔNG có nhãn cơ sở phụ', strpos( $c_ngay24, 'class="mghep"' ) === false, $c_ngay24 );
+	t( '   ô 🌙 ngày 24 CÓ nhãn cơ sở phụ', strpos( $c_dem24, '>' . $GH_PHU . '</div>' ) !== false, $c_dem24 );
+} else {
+	t( 'dựng cảnh: lưới có hai hàng cho người có ca đêm', false, substr( $hai_gh, 0, 400 ) );
+}
 
 /* ⚠️ CHIỀU NGƯỢC: cơ sở phụ ghép vào một cơ sở KHÔNG PHẢI Văn phòng thì KHÔNG được định tuyến
    ca đêm. Bản vá nói "hỏi luật của cơ sở chính", không nói "cơ sở phụ nào cũng là Văn phòng". */

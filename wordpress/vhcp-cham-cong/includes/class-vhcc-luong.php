@@ -1396,7 +1396,24 @@ class VHCC_Luong {
 		      để hàng lỡ tạo vẫn đọc được, bỏ đi là mất công của ngày đó. */
 		$nguoi  = array();
 		$ten    = array();
-		$tu_dau = array();          // [mã][ngày] => mã cơ sở PHỤ mà ngày ấy đến từ đó
+		/* 🔴 26/09/2026 — TÁCH RIÊNG NGUỒN CỦA HÀNG NGÀY VÀ HÀNG ĐÊM, KHÔNG CÒN DÙNG CHUNG MỘT Ô.
+		   Anh Thắng, chỉ vào đúng cảnh này: ngày 24 có CẢ HAI — một lượt chấm THẬT ở VP_KH-HCM
+		   (08:55→21:35, ca chính) VÀ một ca đêm ở SETUP_VP (20:00→04:00) CÙNG rơi vào ngày 24 —
+		   nhãn "SETUP_VP" lại hiện lên ở Ô CA NGÀY: *"chấm vào bảng công KHHCM sao gọi là setup"*
+		   / *"với rõ ràng anh chấm chọn khhcm, mặc định 100% là công ngày"* / *"khi nào chọn setup
+		   thì mới suy diễn"*.
+		   Trước bản này, `$tu_dau[$ma][$ngay]` là MỘT ô DÙNG CHUNG cho cả hàng chính lẫn hàng 2:
+		   vòng lặp bên dưới ghi đè nó bất kể `$khe` là 'chinh' hay 'dem', nên một ngày có CẢ HAI
+		   hàng (như cảnh trên) sẽ bị hàng nào đọc SAU đè nhãn lên hàng kia — dù hàng NGÀY của
+		   ngày ấy là một lượt chấm THẬT tại chính cơ sở đang xem, KHÔNG hề "đến từ" đâu cả.
+		   Nay tách hẳn hai ô: `tuCoSo` (nhãn của HÀNG CHÍNH — chỉ ghi khi chính hàng NGÀY đến từ
+		   cơ sở khác) và `tuCoSoDem` (nhãn của HÀNG 2 — chỉ ghi khi chính hàng ĐÊM đến từ cơ sở
+		   khác). Một cơ sở phụ luôn-là-ca-đêm (như SETUP_VP) chỉ BAO GIỜ tạo hàng 'dem' (đã chặn
+		   ở `VHCC_Online`/`VHCC_Bu` từ 4.91.0/4.92.0), nên nó KHÔNG BAO GIỜ còn cách nào gắn nhãn
+		   vào `tuCoSo` (hàng ngày) được nữa — đúng luật anh chốt: "chọn khhcm thì mặc định 100%
+		   công ngày", cơ sở phụ chỉ len được vào phần "suy diễn" (hàng đêm) của nó mà thôi. */
+		$tu_dau_ngay = array();     // [mã][ngày] => mã cơ sở PHỤ mà HÀNG NGÀY của ngày ấy đến từ đó
+		$tu_dau_dem  = array();     // [mã][ngày] => mã cơ sở PHỤ mà HÀNG ĐÊM của ngày ấy đến từ đó
 		$bo_hau_to = array();       // [hậu tố] => số hàng bị bỏ vì engine này không nhận
 		foreach ( self::doc_thang( $coso, $tt ) as $r ) {
 			$ma = trim( (string) $r['ma_nv'] );
@@ -1434,10 +1451,14 @@ class VHCC_Luong {
 				(string) $r['anh_vao'], (string) $r['anh_ra'],
 				isset( $r['vt_vao'] ) ? (string) $r['vt_vao'] : '',
 				isset( $r['vt_ra'] ) ? (string) $r['vt_ra'] : '' );
-			/* Nhớ ngày này đến từ MÃ CƠ SỞ nào. Bảng ghép cộng công của nhiều mã lại; không giữ
-			   dấu vết thì con số đúng mà không ai soi lại được ca đêm nằm ở đâu. */
+			/* Nhớ ngày này đến từ MÃ CƠ SỞ nào — ĐÚNG HÀNG đang đọc ('chinh' hay 'dem'), không
+			   gộp chung. Bảng ghép cộng công của nhiều mã lại; không giữ dấu vết thì con số đúng
+			   mà không ai soi lại được ca đêm nằm ở đâu — nhưng giữ NHẦM HÀNG thì lại thành gắn
+			   nhãn một cơ sở vào đúng lượt chấm KHÔNG hề đến từ đó (xem chú thích dài ở khai báo
+			   `$tu_dau_ngay`/`$tu_dau_dem` phía trên). */
 			if ( isset( $r['coso'] ) && 0 !== strcasecmp( (string) $r['coso'], (string) $coso ) ) {
-				$tu_dau[ $ma ][ $r['ngay'] ] = VHCC_NhanSu::chuan_coso( $r['coso'] );
+				if ( 'chinh' === $khe ) { $tu_dau_ngay[ $ma ][ $r['ngay'] ] = VHCC_NhanSu::chuan_coso( $r['coso'] ); }
+				else { $tu_dau_dem[ $ma ][ $r['ngay'] ] = VHCC_NhanSu::chuan_coso( $r['coso'] ); }
 			}
 		}
 
@@ -1464,8 +1485,10 @@ class VHCC_Luong {
 				if ( $d['demThieuGio'] ) { $e['soNgayDemThieuGio']++; }
 				if ( $d['demChuaDuCap'] ) { $e['soNgayDemChuaDuCap']++; }
 				$chi_tiet[] = array_merge( array( 'ma' => $ma, 'ten' => $e['ten'],
-					/* '' = mã cơ sở chính. Chỉ ghi khi ngày ấy đến từ một cơ sở PHỤ. */
-					'tuCoSo' => isset( $tu_dau[ $ma ][ $ngay ] ) ? $tu_dau[ $ma ][ $ngay ] : '' ), $d );
+					/* '' = mã cơ sở chính. Chỉ ghi khi ĐÚNG HÀNG ấy (ngày/đêm) đến từ một cơ sở
+					   PHỤ — xem chú thích dài ở khai báo `$tu_dau_ngay`/`$tu_dau_dem` phía trên. */
+					'tuCoSo' => isset( $tu_dau_ngay[ $ma ][ $ngay ] ) ? $tu_dau_ngay[ $ma ][ $ngay ] : '',
+					'tuCoSoDem' => isset( $tu_dau_dem[ $ma ][ $ngay ] ) ? $tu_dau_dem[ $ma ][ $ngay ] : '' ), $d );
 			}
 			$e['tong'] = round( $e['congNgay'] + $e['congTangCa'] + $e['congDem'] + $e['congBu'], 2 );
 			$rows[] = $e;
@@ -1596,7 +1619,10 @@ class VHCC_Luong {
 		if ( ! empty( $d['demChuaDuCap'] ) )   { $vi[] = 'ca đêm thiếu một đầu giờ nên 0 công đêm'; }
 		if ( ! empty( $d['ktCnNghi'] ) )       { $vi[] = 'kế toán chấm chủ nhật'; }
 		if ( ! empty( $d['tuCoSo'] ) ) {
-			$vi[] = 'ngày này chấm ở ' . $d['tuCoSo'] . ' (cơ sở đã GHÉP vào bảng này — công ĐÃ nằm trong TỔNG)';
+			$vi[] = 'hàng ngày chấm ở ' . $d['tuCoSo'] . ' (cơ sở đã GHÉP vào bảng này — công ĐÃ nằm trong TỔNG)';
+		}
+		if ( ! empty( $d['tuCoSoDem'] ) ) {
+			$vi[] = 'hàng đêm chấm ở ' . $d['tuCoSoDem'] . ' (cơ sở đã GHÉP vào bảng này — công ĐÃ nằm trong TỔNG)';
 		}
 		return implode( ' · ', $vi );
 	}

@@ -9635,9 +9635,19 @@ class VHCC_Web {
 			$co_gio_ngay = ( '' !== $d['vao'] || '' !== $d['ra'] );
 			$thieu_ngay  = ( ( '' !== $d['vao'] ) !== ( '' !== $d['ra'] ) );
 			$co_dem      = self::ngay_co_dem_vp( $d );
+			/* 🔴 26/09/2026 — HAI NHÃN RIÊNG, KHÔNG DÙNG CHUNG MỘT Ô `tuCoSo` NỮA.
+			   Anh Thắng: *"chấm vào bảng công KHHCM sao gọi là setup ... rõ ràng anh chấm chọn
+			   khhcm, mặc định 100% là công ngày, khi nào chọn setup thì mới suy diễn"*. Hàng NGÀY
+			   và hàng ĐÊM của cùng một ngày có thể đến từ HAI cơ sở khác nhau (VD: ngày chấm thật
+			   ở VP_KH-HCM, đêm ở SETUP_VP) — gắn nhãn "SETUP_VP" lên Ô CA NGÀY là nói sai sự thật
+			   về lượt chấm ngày, dù con số vẫn đúng. `VHCC_Luong::vp_bang_cong_va_luong_voi()` nay
+			   trả riêng `tuCoSo` (nguồn của hàng NGÀY) và `tuCoSoDem` (nguồn của hàng ĐÊM). */
 			$nhan_cs     = empty( $d['tuCoSo'] ) ? '' : '<div class="mghep" title="' . esc_attr( 'Ngày này chấm ở '
 				. $d['tuCoSo'] . ' — cơ sở ấy đã GHÉP vào bảng này, nên công của nó ĐÃ nằm trong cột TỔNG.' )
 				. '">' . esc_html( $d['tuCoSo'] ) . '</div>';
+			$nhan_cs_dem = empty( $d['tuCoSoDem'] ) ? '' : '<div class="mghep" title="' . esc_attr( 'Đêm này chấm ở '
+				. $d['tuCoSoDem'] . ' — cơ sở ấy đã GHÉP vào bảng này, nên công của nó ĐÃ nằm trong cột TỔNG.' )
+				. '">' . esc_html( $d['tuCoSoDem'] ) . '</div>';
 			if ( ! $co_gio_ngay && $c_ngay < 0.005 ) {
 				$h_ngay .= '<td class="o' . $lop_dang . '>'
 					. self::o_sua( '·', $ngay_o, $ma, true, $duoc_sua, $duoc_bu ) . '</td>';
@@ -9649,9 +9659,12 @@ class VHCC_Web {
 				$so = ( $c_ngay >= 0.005 ? '<b>' . self::so_vp( $c_ngay ) . '</b>' : '<span class="chu-hong">0</span>' )
 					. ( $thieu_ngay ? '<span class="chu-hong"> ?</span>' : '' )
 					. ( (float) $d['congBu'] > 0.005 ? '<div class="mbu">bù ' . self::so_vp( $d['congBu'] ) . '</div>' : '' );
+				/* Nhãn `tuCoSo` NAY LUÔN ĐÚNG (chỉ gắn khi chính HÀNG NGÀY đến từ cơ sở khác), nên
+				   không còn cần ẩn đi khi có kèm hàng đêm ($co_dem) như trước — hai hàng có thể
+				   đến từ hai cơ sở khác nhau, mỗi nhãn nói đúng nguồn của đúng hàng nó gắn vào. */
 				$h_ngay .= '<td class="oc' . $lop . $lop_dang . ' title="' . esc_attr( self::chu_o_vp( $d, $e['ten'] ) ) . '">'
 					. self::o_sua( $so, $ngay_o, $ma, true, $duoc_sua, $duoc_bu )
-					. ( $co_dem ? '' : $nhan_cs ) . self::manh_cham( $d['anhVao'], $d['anhRa'] ) . '</td>';
+					. $nhan_cs . self::manh_cham( $d['anhVao'], $d['anhRa'] ) . '</td>';
 			}
 
 			/* 🌙 Hàng đêm. */
@@ -9677,7 +9690,7 @@ class VHCC_Web {
 				. esc_attr( self::chu_o_vp( $d, $e['ten'] ) . "\n────────────────\n🌙 CA ĐÊM\n"
 					. self::chu_dem_vp( $d, $e['ten'] ) ) . '">'
 				. self::o_sua( $so, $ngay_o, $ma, true, $duoc_sua, $duoc_bu )
-				. $nhan_cs . self::manh_cham( $d['anhH2Vao'], $d['anhH2Ra'], true ) . '</td>';
+				. $nhan_cs_dem . self::manh_cham( $d['anhH2Vao'], $d['anhH2Ra'], true ) . '</td>';
 		}
 		$t_ngay = round( $t_ngay, 2 );
 		$t_dem  = round( $t_dem, 2 );
