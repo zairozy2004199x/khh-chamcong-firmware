@@ -59,6 +59,9 @@ function khh_dt_tao_bang_bc() {
 			nguoi varchar(100) NOT NULL DEFAULT '',
 			nguoi_id bigint(20) unsigned NOT NULL DEFAULT 0,
 			chot tinyint(1) NOT NULL DEFAULT 0,
+			da_nop tinyint(1) NOT NULL DEFAULT 0,
+			da_nop_boi varchar(100) NOT NULL DEFAULT '',
+			da_nop_luc datetime NULL,
 			lich_su longtext NOT NULL,
 			sua_luc datetime NULL,
 			PRIMARY KEY  (id),
@@ -796,6 +799,28 @@ function khh_dt_rest_bc() {
 			'permission_callback' => 'khh_dt_duoc_xem',
 		)
 	);
+	register_rest_route(
+		'khh-dt/v1',
+		'/da-nop',
+		array(
+			'methods'             => 'POST',
+			'callback'            => 'khh_dt_rest_bc_da_nop',
+			'permission_callback' => 'khh_dt_duoc_ghi',
+		)
+	);
+	register_rest_route(
+		'khh-dt/v1',
+		'/go-khoa-da-nop',
+		array(
+			'methods'             => 'POST',
+			'callback'            => 'khh_dt_rest_bc_go_khoa_da_nop',
+			/* 🔴 Ai KHOÁ được thì cũng GỠ được là khoá vô nghĩa (tự khoá tự mở, không phải nhờ "ai
+			   có quyền cao hơn" như anh Thắng chốt). Gỡ khoá đi qua đúng tầng "văn phòng" đã có sẵn
+			   (`khh_dt_duoc_nap()`: edit_posts, hoặc quản trị, hoặc vai "duyệt") — cao hơn hẳn "nhap"
+			   là vai duy nhất được phép NHẤN nút Đã nộp tiền lúc đầu. */
+			'permission_callback' => 'khh_dt_duoc_nap',
+		)
+	);
 }
 
 function khh_dt_rest_bc_lay( $req ) {
@@ -878,6 +903,25 @@ function khh_dt_rest_bc_luu( $req ) {
 		ARRAY_A
 	);
 
+	/* 🔴 26/09/2026 anh Thắng — nút "Đã nộp tiền": *"khi đã nộp thì khóa ô nhập lại"*. Màn hình đã
+	   khoá (`e.disabled`) khi `da_nop`, nhưng khoá màn không chặn được ai gọi thẳng REST — chặn LẠI
+	   Ở ĐÂY, không chỉ ở giao diện, mới thật sự "vĩnh viễn, muốn sửa phải nhờ ai có quyền cao hơn"
+	   (câu trả lời của anh Thắng khi được hỏi). Gỡ khoá đi đường riêng `khh_dt_rest_bc_go_khoa_da_nop()`. */
+
+
+	/* 🔴 26/09/2026 anh Thắng — nút "Đã nộp tiền": *"khi đã nộp thì khóa ô nhập lại"*. Màn hình đã
+	   khoá (`e.disabled`) khi `da_nop`, nhưng khoá màn không chặn được ai gọi thẳng REST — chặn LẠI
+	   Ở ĐÂY, không chỉ ở giao diện, mới thật sự "vĩnh viễn, muốn sửa phải nhờ ai có quyền cao hơn"
+	   (câu trả lời của anh Thắng khi được hỏi). Gỡ khoá đi đường riêng `khh_dt_rest_bc_go_khoa_da_nop()`. */
+	if ( $cu && (int) $cu['da_nop'] ) {
+		return new WP_Error(
+			'khh_dt_da_nop',
+			'Ngày này đã đánh dấu "Đã nộp tiền" (bởi ' . (string) $cu['da_nop_boi'] . ') — khoá sửa. ' .
+			'Nhờ văn phòng hoặc quản trị gỡ khoá trước khi sửa lại.',
+			array( 'status' => 403 )
+		);
+	}
+
 	$ky = khh_dt_ten_ghi_so();
 	// Sửa sau khi đã chốt thì giữ lại bản cũ, đừng để mất dấu.
 	$lich_su = array();
@@ -920,6 +964,94 @@ function khh_dt_rest_bc_luu( $req ) {
 		'bao_cao' => $moi,
 		'sua_lan' => count( $lich_su ),
 	);
+}
+
+/**
+ * ĐÃ NỘP TIỀN — khoá báo cáo ngày này lại (anh Thắng 26/09/2026: *"Bổ sung nút đã nộp tiền (Khi
+ * đã nộp thì khóa ô nhập lại)"*). Trả lời câu hỏi làm rõ sau đó: khoá TOÀN BỘ form, vĩnh viễn,
+ * không tự mở lại được — chỉ `khh_dt_rest_bc_go_khoa_da_nop()` (tầng văn phòng/quản trị) mới gỡ.
+ *
+ * Phải LƯU báo cáo trước (có dòng trong bảng) mới đánh dấu được — đánh dấu một ngày chưa nhập gì
+ * là khoá một ô trống, không ai còn gõ số vào được nữa mà con số thật chưa hề tồn tại.
+ */
+function khh_dt_rest_bc_da_nop( $req ) {
+	global $wpdb;
+	$ngay = preg_replace( '/[^0-9\-]/', '', (string) $req->get_param( 'ngay' ) );
+	$ch   = khh_dt_bc_ten_cua( $req->get_param( 'cua_hang' ) );
+	if ( ! $ngay || ! $ch || '*' === $ch ) {
+		return new WP_Error( 'khh_dt_bc', 'Thiếu ngày hoặc cơ sở.', array( 'status' => 400 ) );
+	}
+	if ( ! khh_dt_duoc_cua_hang( $ch ) ) {
+		return new WP_Error( 'khh_dt_bc', 'Anh/chị không phụ trách cơ sở này.', array( 'status' => 403 ) );
+	}
+
+	$bang = khh_dt_bang_bc();
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$cu = $wpdb->get_row(
+		$wpdb->prepare( "SELECT id, da_nop FROM $bang WHERE ngay = %s AND cua_hang = %s", $ngay, $ch ), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		ARRAY_A
+	);
+	if ( ! $cu ) {
+		return new WP_Error( 'khh_dt_bc', 'Chưa có báo cáo ngày này — lưu báo cáo trước khi đánh dấu đã nộp tiền.', array( 'status' => 400 ) );
+	}
+	if ( (int) $cu['da_nop'] ) {
+		return new WP_Error( 'khh_dt_bc', 'Ngày này đã đánh dấu đã nộp tiền từ trước.', array( 'status' => 409 ) );
+	}
+
+	$boi = khh_dt_ten_ghi_so();
+	$luc = current_time( 'mysql' );
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery
+	$wpdb->update( $bang, array( 'da_nop' => 1, 'da_nop_boi' => $boi, 'da_nop_luc' => $luc ), array( 'id' => $cu['id'] ) );
+
+	return array( 'ok' => true, 'da_nop' => 1, 'da_nop_boi' => $boi, 'da_nop_luc' => $luc );
+}
+
+/** Gỡ khoá "Đã nộp tiền" — CHỈ tầng văn phòng/quản trị (permission_callback khh_dt_duoc_nap ở
+ *  khh_dt_rest_bc()), không phải người vừa khoá tự mở lại được. Ghi vào lich_su để còn tra ai gỡ,
+ *  lúc nào — cùng cơ chế nhật ký đã dùng cho mọi lần sửa báo cáo. */
+function khh_dt_rest_bc_go_khoa_da_nop( $req ) {
+	global $wpdb;
+	$ngay = preg_replace( '/[^0-9\-]/', '', (string) $req->get_param( 'ngay' ) );
+	$ch   = khh_dt_bc_ten_cua( $req->get_param( 'cua_hang' ) );
+	if ( ! $ngay || ! $ch || '*' === $ch ) {
+		return new WP_Error( 'khh_dt_bc', 'Thiếu ngày hoặc cơ sở.', array( 'status' => 400 ) );
+	}
+
+	$bang = khh_dt_bang_bc();
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$cu = $wpdb->get_row(
+		$wpdb->prepare( "SELECT id, lich_su, da_nop_boi, da_nop_luc FROM $bang WHERE ngay = %s AND cua_hang = %s", $ngay, $ch ), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		ARRAY_A
+	);
+	if ( ! $cu ) {
+		return new WP_Error( 'khh_dt_bc', 'Không thấy báo cáo ngày này.', array( 'status' => 400 ) );
+	}
+
+	$lich_su   = khh_dt_json( $cu['lich_su'], array() );
+	$lich_su[] = array(
+		'go_khoa_da_nop' => true,
+		'da_nop_boi_cu'  => (string) $cu['da_nop_boi'],
+		'da_nop_luc_cu'  => (string) $cu['da_nop_luc'],
+		'go_boi'         => khh_dt_ten_ghi_so(),
+		'go_luc'         => current_time( 'mysql' ),
+	);
+	if ( count( $lich_su ) > 20 ) {
+		$lich_su = array_slice( $lich_su, -20 );
+	}
+
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery
+	$wpdb->update(
+		$bang,
+		array(
+			'da_nop'     => 0,
+			'da_nop_boi' => '',
+			'da_nop_luc' => null,
+			'lich_su'    => wp_json_encode( $lich_su ),
+		),
+		array( 'id' => $cu['id'] )
+	);
+
+	return array( 'ok' => true, 'da_nop' => 0 );
 }
 
 /** Bảng đối soát: mỗi dòng một ngày × cơ sở, kèm mức lệch. */

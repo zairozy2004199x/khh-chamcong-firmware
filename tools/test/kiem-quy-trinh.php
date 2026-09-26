@@ -52,7 +52,8 @@ $wpdb->exec_raw( 'CREATE TABLE ' . khh_dt_bang_bc() . " ( id INTEGER PRIMARY KEY
 	ngay TEXT NOT NULL, cua_hang TEXT NOT NULL DEFAULT '', tien_mat_dem REAL DEFAULT 0, ck_thuc_thu REAL DEFAULT 0, tien_nop REAL DEFAULT 0,
 	so_bill_huy INTEGER DEFAULT 0, tien_bill_huy REAL DEFAULT 0, tong_chuyen INTEGER DEFAULT 0, tong_khach INTEGER DEFAULT 0,
 	ve_giay INTEGER DEFAULT 0, ghi_chu TEXT DEFAULT '', mon_thuc TEXT NULL, nguoi TEXT DEFAULT '', nguoi_id INTEGER DEFAULT 0,
-	chot INTEGER DEFAULT 0, lich_su TEXT DEFAULT '[]', sua_luc TEXT NULL, UNIQUE(ngay,cua_hang) )" );
+	chot INTEGER DEFAULT 0, da_nop INTEGER DEFAULT 0, da_nop_boi TEXT DEFAULT '', da_nop_luc TEXT NULL,
+	lich_su TEXT DEFAULT '[]', sua_luc TEXT NULL, UNIQUE(ngay,cua_hang) )" );
 $wpdb->exec_raw( 'CREATE TABLE ' . khh_dt_bang_kho() . " ( id INTEGER PRIMARY KEY AUTOINCREMENT,
 	ngay TEXT NOT NULL, co_so TEXT NOT NULL DEFAULT '', mat_hang TEXT NOT NULL DEFAULT '', nhap REAL DEFAULT 0,
 	ban_khai REAL NULL, combo_tay REAL DEFAULT 0, dem REAL NULL, dat_dau REAL NULL, huy REAL DEFAULT 0,

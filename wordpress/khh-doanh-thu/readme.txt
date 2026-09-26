@@ -102,6 +102,14 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.71.0 =
+* Nút **"💰 Đã nộp tiền"** ở tab Nhập báo cáo ngày — anh Thắng 26/09/2026: *"Bổ sung nút đã nộp
+  tiền (Khi đã nộp thì khóa ô nhập lại)"*. Bấm xong khoá TOÀN BỘ form của đúng ngày × cơ sở đó,
+  y hệt lúc hết quyền sửa — khoá VĨNH VIỄN, không tự mở lại được (kể cả gọi thẳng máy chủ, không
+  chỉ ô mờ trên màn). Chỉ tài khoản văn phòng (WordPress có quyền biên tập, quản trị, hoặc PIN
+  vai "duyệt") mới gỡ được bằng nút "🔓 Gỡ khoá đã nộp" — lần gỡ nào cũng ghi vào lịch sử sửa
+  (ai gỡ, lúc nào) để còn tra lại.
+
 = 1.70.0 =
 * Quản trị (tài khoản mang capability `list_users`, không có `edit_posts`) giờ được cả **nạp file**
   (POS/sao kê/MoMo) lẫn **nhập báo cáo ngày** — anh Thắng 26/09/2026: *"bổ sung mấy quyền sửa cái

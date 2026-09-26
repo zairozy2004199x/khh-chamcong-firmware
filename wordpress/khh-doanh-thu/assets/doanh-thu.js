@@ -1110,6 +1110,11 @@
              Hai nút chỉ hiện khi ngày này ĐÃ có báo cáo lưu (ảnh dựng từ số đã lưu, không từ ô đang gõ). */
           '<button class="vien" type="button" id="bcTaiAnh" hidden>Tải ảnh báo cáo</button>' +
           '<button class="vien" type="button" id="bcChiaSe" hidden>Chia sẻ lên Zalo</button>' +
+          /* 🔴 Anh Thắng 26/09/2026: "Bổ sung nút đã nộp tiền (Khi đã nộp thì khóa ô nhập lại)".
+             Khoá VĨNH VIỄN, không tự mở lại được — chỉ văn phòng/quản trị gỡ (bcGoKhoa, ẩn với
+             người thường). Chỉ hiện khi ngày này đã có báo cáo lưu và CHƯA đánh dấu. */
+          '<button class="nut" type="button" id="bcDaNop" hidden style="background:#0d9488">💰 Đã nộp tiền</button>' +
+          '<button class="vien" type="button" id="bcGoKhoa" hidden>🔓 Gỡ khoá đã nộp</button>' +
           '<span class="day"></span><span id="bcTrangThai"></span>' +
         '</div>' +
         '<div class="khh-dt-bao" id="bcBao" hidden></div>' +
@@ -1127,6 +1132,8 @@
     q('#bcChot').addEventListener('click', function () { luuBaoCao(1); });
     q('#bcTaiAnh').addEventListener('click', taiAnhBC);
     q('#bcChiaSe').addEventListener('click', chiaSeBC);
+    q('#bcDaNop').addEventListener('click', danNopTien);
+    q('#bcGoKhoa').addEventListener('click', goKhoaDaNop);
     q('#bcViec').addEventListener('click', function (ev) {
       var b = ev.target.closest ? ev.target.closest('[data-sang-cb]') : null;
       if (!b) return;
@@ -1325,9 +1332,16 @@
         veBuoc(r.quy_trinh);
         /* Có báo cáo đã lưu (có người nhập) thì mới có gì để tải ảnh / chia sẻ. */
         var daLuu = !!(b && b.nguoi);
+        var daNop = !!(b && b.da_nop);
         q('#bcTaiAnh').hidden = !daLuu;
         q('#bcChiaSe').hidden = !daLuu;
         q('#bcChiaSe').textContent = b && b.chot ? 'Chia sẻ lên Zalo' : 'Chia sẻ (chưa chốt)';
+        /* "Đã nộp tiền" chỉ hiện khi CÓ báo cáo để khoá và CHƯA khoá — đánh dấu một ngày trống là
+           khoá một ô chưa hề có số. "Gỡ khoá" chỉ hiện cho tầng văn phòng/quản trị (S.cf.duoc_nap
+           — cùng cửa với rpc_ ở máy chủ, xem khh_dt_rest_bc_go_khoa_da_nop), không phải ai khoá
+           cũng tự mở lại được. */
+        q('#bcDaNop').hidden = !(daLuu && !daNop && r.duoc_ghi);
+        q('#bcGoKhoa').hidden = !(daNop && S.cf && S.cf.duoc_nap);
         veHangBan(p, b);
         veKhoXem(r.kho || [], ngay, ch);
         var sang = q('#bcSangCauHinh');
@@ -1351,20 +1365,25 @@
           napBaoCao();
           return;
         }
-        var khoa = !r.duoc_ghi;
+        /* 🔴 26/09/2026: "Đã nộp tiền" khoá TOÀN BỘ form y hệt lúc hết quyền sửa (anh Thắng, trả lời
+           câu hỏi làm rõ: "Khoá TOÀN BỘ form — như khi hết quyền sửa"). #bcGoKhoa PHẢI thoát khoá
+           này — nó là lối DUY NHẤT mở lại, khoá luôn cả nó thì không ai bấm được nữa. */
+        var khoa = !r.duoc_ghi || daNop;
         Array.prototype.forEach.call(q('#dtTabNhap').querySelectorAll('input,textarea,button'), function (e) {
-          if (e.id !== 'bcNgay' && e.id !== 'bcCH') e.disabled = khoa;
+          if (e.id !== 'bcNgay' && e.id !== 'bcCH' && e.id !== 'bcGoKhoa') e.disabled = khoa;
         });
         q('#bcOCH').hidden = !!r.cua_toi;
-        q('#bcTrangThai').textContent = b.nguoi
-          ? (b.chot ? 'đã chốt' : 'đã lưu') + ' bởi ' + b.nguoi + (b.sua_luc ? ' · ' + String(b.sua_luc).slice(0, 16) : '')
-          : (khoa
-              /* Người PIN đẩy sang mà chưa được cấp vai: nói rõ VÌ SAO khoá và AI mở được, chứ
-                 không để họ ngồi trước một bảng ô mờ rồi gọi điện hỏi. */
-              ? (S.cf && S.cf.bang_pin && !S.cf.vai
-                  ? 'chỉ xem — chưa được cấp quyền nhập, nhờ quản trị cấp ở tab Quản trị'
-                  : 'chỉ xem')
-              : 'chưa nhập');
+        q('#bcTrangThai').textContent = daNop
+          ? '💰 đã nộp tiền — bởi ' + b.da_nop_boi + (b.da_nop_luc ? ' · ' + String(b.da_nop_luc).slice(0, 16) : '') + ' — khoá sửa'
+          : (b.nguoi
+              ? (b.chot ? 'đã chốt' : 'đã lưu') + ' bởi ' + b.nguoi + (b.sua_luc ? ' · ' + String(b.sua_luc).slice(0, 16) : '')
+              : (khoa
+                  /* Người PIN đẩy sang mà chưa được cấp vai: nói rõ VÌ SAO khoá và AI mở được, chứ
+                     không để họ ngồi trước một bảng ô mờ rồi gọi điện hỏi. */
+                  ? (S.cf && S.cf.bang_pin && !S.cf.vai
+                      ? 'chỉ xem — chưa được cấp quyền nhập, nhờ quản trị cấp ở tab Quản trị'
+                      : 'chỉ xem')
+                  : 'chưa nhập'));
         tinhLech();
       }).catch(function (e) {
         q('#bcTrangThai').textContent = '';
@@ -1723,6 +1742,43 @@
       taiViec();
     }).catch(function (e) {
       q('#bcLuu').disabled = false; q('#bcChot').disabled = false;
+      baoBC(String(e.message || e), 'loi');
+    });
+  }
+
+  /* 🔴 Anh Thắng 26/09/2026: "Bổ sung nút đã nộp tiền (Khi đã nộp thì khóa ô nhập lại)" — khoá
+     VĨNH VIỄN, không tự mở lại được (đã hỏi rõ qua câu hỏi làm rõ). `confirm()` vì đây là hành
+     động khó lùi lại tự tay — bấm nhầm là phải nhờ văn phòng/quản trị gỡ mới sửa tiếp được. */
+  function danNopTien() {
+    if (!window.confirm('Đánh dấu ngày này ĐÃ NỘP TIỀN? Form sẽ khoá lại — muốn sửa nữa phải nhờ văn phòng hoặc quản trị gỡ khoá.')) return;
+    var fd = new FormData();
+    fd.append('ngay', q('#bcNgay').value);
+    fd.append('cua_hang', q('#bcCH').value);
+    q('#bcDaNop').disabled = true;
+    api('da-nop', { method: 'POST', body: fd }).then(function () {
+      baoBC('Đã đánh dấu nộp tiền — form khoá lại.', 'xong');
+      napBaoCao();
+      taiViec();
+    }).catch(function (e) {
+      q('#bcDaNop').disabled = false;
+      baoBC(String(e.message || e), 'loi');
+    });
+  }
+
+  /* Gỡ khoá — máy chủ đã tự chặn ở permission_callback (khh_dt_duoc_nap: văn phòng/quản trị),
+     nút chỉ ẩn hiện cho gọn màn (S.cf.duoc_nap), không phải cửa bảo mật duy nhất. */
+  function goKhoaDaNop() {
+    if (!window.confirm('Gỡ khoá "Đã nộp tiền" cho ngày này? Ai đó sẽ sửa lại được báo cáo.')) return;
+    var fd = new FormData();
+    fd.append('ngay', q('#bcNgay').value);
+    fd.append('cua_hang', q('#bcCH').value);
+    q('#bcGoKhoa').disabled = true;
+    api('go-khoa-da-nop', { method: 'POST', body: fd }).then(function () {
+      baoBC('Đã gỡ khoá — sửa lại được rồi.', 'xong');
+      napBaoCao();
+      taiViec();
+    }).catch(function (e) {
+      q('#bcGoKhoa').disabled = false;
       baoBC(String(e.message || e), 'loi');
     });
   }
