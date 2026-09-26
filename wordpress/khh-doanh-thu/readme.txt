@@ -102,6 +102,14 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.68.6 =
+* Kéo sao kê: nhận đúng cơ sở khi bảng sao kê đã có sẵn "Nhãn phân loại" viết gọn (anh Thắng
+  26/09/2026: *"fabi chưa đẩy sao kê vào"* — plugin Sao Kê đã gắn đúng nhãn "TÀU GÒ VẤP" cho khoản
+  tiền, nhưng Đối soát vẫn không nhận). Hàm nối nhãn gọn với tên cơ sở đầy đủ bên POS trước đây chỉ
+  so CÒN NGUYÊN CHUỖI — "TÀU" không phải một mẩu con của "TuTu Train" nên không bao giờ khớp, dù
+  cùng một quán. Nay khớp lỏng theo từ chung khi so nguyên chuỗi hụt (cùng luật đã dùng ở màn gợi ý
+  ghép tên cho admin), nên nhãn gọn nào cũng nhận đúng cơ sở, không phải khai lại tay.
+
 = 1.68.5 =
 * Tab Đối soát: sửa lỗi sâu hơn đứng sau **"nó mờ như này xong từ f5"** (anh Thắng 26/09/2026) — bản 1.68.4 mới sửa được
   phần nổi (thanh lọc bị khoá lúc đang tải); phần chìm là khi một lượt tải LỖI (mất mạng giữa chừng, hosting cắt kết

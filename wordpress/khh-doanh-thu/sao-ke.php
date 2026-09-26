@@ -1108,7 +1108,20 @@ function khh_dt_keo_nguon( $nguon, $tu_ngay = '' ) {
  *
  * Khớp lỏng: nhãn của họ viết gọn, tên POS viết dài ("TuTu Train - Lotte Gò Vấp ( Dịch vụ K&H )").
  * Không khớp được thì trả rỗng để đường đoán theo mã chạy tiếp — chứ không gán bừa.
- */
+ *
+ * 🔴 26/09/2026: anh Thắng — Sao Kê đã nhận đúng cơ sở và gắn nhãn "TÀU GÒ VẤP" cho khoản tiền,
+ *    nhưng bên này (kéo vào Đối soát) vẫn không nhận: *"fabi chưa đẩy sao kê vào"*. Trước bản này,
+ *    hàm chỉ khớp CÒN NGUYÊN CHUỖI (substring) — mà "tàu" (tên gọi tắt quen miệng) không phải một
+ *    mẩu con của "tutu train" (tên máy POS), nên phép so trên KHÔNG BAO GIỜ khớp, dù người đọc
+ *    thấy rõ cùng một quán. Tiền vẫn về đúng sổ Sao Kê (đã gắn nhãn tay), chỉ riêng phép chuyển
+ *    nhãn ấy sang tên POS ở đây là mù.
+ *
+ *    ⚠️ NHÃN LÀ NGƯỜI ĐÃ XÁC NHẬN, KHÔNG PHẢI MÁY ĐOÁN. Khác với `khh_dt_doan_co_so()` (đoán cơ sở
+ *    từ NỘI DUNG chuyển khoản thô — chỗ đó đúng là phải thận trọng, "chỉ mách không tự gán"), một
+ *    `nhan` khác rỗng nghĩa là ai đó đã NGỒI CHỌN cơ sở này trong Sao Kê rồi — việc còn lại chỉ là
+ *    tìm ĐÚNG TÊN POS nào ứng với nhãn ấy, không phải phán đoán cơ sở từ đầu. Nên khớp lỏng theo
+ *    từ chung (`khh_dt_ghep_ten_gan()`, cùng ngưỡng 0,6 đã dùng cho màn gợi ý admin) là hợp lý ở
+ *    đây, dù sẽ quá liều nếu đem áp cho `khh_dt_doan_co_so()`. */
 function khh_dt_ten_co_so_gan( $nhan ) {
 	$n = khh_dt_khong_dau( $nhan );
 	if ( '' === $n ) {
@@ -1120,7 +1133,8 @@ function khh_dt_ten_co_so_gan( $nhan ) {
 			return $t;
 		}
 	}
-	return '';
+	$g = khh_dt_ghep_ten_gan( $nhan );
+	return $g['diem'] >= 0.6 ? $g['ten'] : '';
 }
 
 /**

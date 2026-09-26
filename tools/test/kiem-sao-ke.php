@@ -275,6 +275,22 @@ phep( 'ghép "VR SC Vivo Q7" vào VR FUN - SC Vivo Q7',
    gợi ý sai mà trông chắc chắn thì người ta bấm lưu cho nhanh, và tiền vào nhầm sổ. */
 phep( 'tên lạ hoàn toàn thì điểm thấp', khh_dt_ghep_ten_gan( 'CGV LANDMARK 81' )['diem'] < 0.6 );
 
+/* ============================================================ 5c-2. NHÃN THẬT → CƠ SỞ THẬT LÚC KÉO
+   🔴 Anh Thắng 26/09/2026: Sao Kê đã gắn nhãn đúng cơ sở cho khoản tiền, nhưng bên Đối soát vẫn
+   không nhận: *"fabi chưa đẩy sao kê vào"*. `khh_dt_ten_co_so_gan()` — hàm THẬT SỰ chạy lúc kéo
+   dữ liệu (`khh_dt_keo_nguon()`), KHÁC với `khh_dt_ghep_ten_gan()` chỉ dùng ở màn gợi ý admin —
+   trước bản này chỉ so CÒN NGUYÊN CHUỖI (substring): "tàu" không phải một mẩu con của "tutu train"
+   nên không bao giờ khớp, dù cùng một quán. Tiền vẫn nằm đúng trong Sao Kê (đã gắn nhãn tay), chỉ
+   riêng bước dịch nhãn sang tên POS ở ĐÂY là mù — hai bài kiểm ở trên (5c) không bắt được vì chúng
+   chỉ gọi `khh_dt_ghep_ten_gan()`, chưa từng gọi tới hàm thật sự chạy lúc kéo. */
+phep( '🔴 nhãn "TÀU GÒ VẤP" (Sao Kê đã gắn tay) kéo đúng vào TuTu Train - Lotte Gò Vấp',
+	'TuTu Train - Lotte Gò Vấp ( Dịch vụ K&H )' === khh_dt_ten_co_so_gan( 'TÀU GÒ VẤP' ) );
+phep( 'khớp còn nguyên chuỗi (tên gọn nằm trọn trong tên POS) vẫn chạy như cũ',
+	'TuTu Train - Aeon Tân Phú ( Dịch Vụ K&H )' === khh_dt_ten_co_so_gan( 'AEON TÂN PHÚ' ) );
+phep( '🔴 nhãn lạ hoàn toàn (không quán nào đủ giống) thì trả rỗng, không gán bừa',
+	'' === khh_dt_ten_co_so_gan( 'CGV LANDMARK 81' ) );
+phep( 'nhãn rỗng thì trả rỗng, không dò', '' === khh_dt_ten_co_so_gan( '' ) );
+
 /* ============================================================ 5d. DÒ CỘT CỦA SỔ THẬT
    Hai sổ thật trên site anh Thắng (16/09/2026):
      · wpt9_saoke_gd   — ID, SEPAY_ID, NGAY_GD, SO_TK, NGAN_HANG, LOAI(in), TIEN, LUY_KE,
