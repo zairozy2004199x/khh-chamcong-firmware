@@ -102,6 +102,11 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.69.2 =
+* Đối soát: số "thực nộp" (khi đếm két để trống mà đã khai Nộp quỹ) nay hiện THẲNG ra bảng, ngay
+  dưới ô Đếm két — anh Thắng 26/09/2026: *"chứ kế toán sao biết được"* khi số ấy trước đó chỉ nằm
+  trong chú thích rê chuột (title). Kế toán soát nhiều dòng một lượt, không rê chuột từng ô.
+
 = 1.69.1 =
 * Đối soát: đếm két để trống mà đã khai **Tiền thực nộp về quỹ** thì lấy số nộp quỹ làm số đã xác
   nhận cho "Phải nộp"/"Lệch" (anh Thắng 26/09/2026, ca Aeon Bình Tân 25/09: đếm két=0, nộp quỹ

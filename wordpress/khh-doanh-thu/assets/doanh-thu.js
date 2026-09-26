@@ -2888,10 +2888,12 @@
         (x.co_bao_cao
           /* 🔴 Anh Thắng 26/09/2026, ca Aeon Bình Tân: đếm két để trống (0) nhưng đã khai Nộp quỹ >
              0 kèm ghi chú — máy chủ lấy Nộp quỹ làm số đã xác nhận cho "Lệch"/"Phải nộp" (cờ
-             `dem_tu_nop`), CHỨ KHÔNG bịa lại số hiện ở cột Đếm két. Không chú thích thì kế toán
-             nhìn "Đếm két 0đ" mà "Lệch" lại không phải "0 − tiền mặt POS" — tưởng máy tính sai. */
+             `dem_tu_nop`), CHỨ KHÔNG bịa lại số hiện ở cột Đếm két. Số dòng dưới phải HIỆN THẲNG
+             ra bảng, không giấu trong title — anh Thắng 26/09/2026: *"chứ kế toán sao biết được"*,
+             một chữ nằm trong tooltip là phải rê chuột từng dòng mới thấy, không ai làm vậy khi
+             soát cả trăm dòng một lượt. */
           ? '<td class="s">' + tien(x.dem) +
-              (x.dem_tu_nop ? '<span class="nho" title="Đếm két để trống — Lệch/Phải nộp đang lấy theo Tiền thực nộp về quỹ (' + esc(tien(x.nop)) + ')">·nộp</span>' : '') + '</td>' +
+              (x.dem_tu_nop ? '<br><span class="nho">thực nộp ' + tien(x.nop) + '</span>' : '') + '</td>' +
             '<td class="s">' + (x.lech_tm ? (x.lech_tm > 0 ? '+' : '') + tien(x.lech_tm) : '0') + '</td>' +
             /* 🔴 CỘT RIÊNG, KHÔNG GỘP VÀO "Lệch" — anh Thắng 26/09/2026: nhân viên bấm nhầm nút PTTT
                lúc bán làm tiền mặt/chuyển khoản lệch NGƯỢC CHIỀU nhau; cộng chung một cột là +X và
