@@ -636,6 +636,57 @@ class VHCC_Nhan {
 			"SELECT * FROM $bang WHERE coso=%s AND ngay=%s AND ma_nv=%s AND hau_to=%s",
 			$coso, $ngay, $ma_goc, $hau_to ), ARRAY_A );
 
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 CHỐT CHẶN "TRÙNG GIỜ RA" — Ở CHÍNH CỬA GHI, KHÔNG PHỤ THUỘC ĐƯỜNG NÀO ĐI TỚI.
+		 *
+		 * Anh Thắng 25/09/2026: bảng công SETUP_VP tự mọc thêm một hàng `-CD` thừa bên cạnh hàng
+		 * ca chính, CẢ HAI cùng mang một giờ ra giống hệt nhau — *"nó sinh ra ca đêm phụ, mặc
+		 * định ca đêm vào là cái giờ đầu tiền, sau bấm checkout sẽ cái đang dang dở"*, tái diễn
+		 * hơn một lần.
+		 *
+		 * 🔴 THỬ ĐẦU (đã bỏ): "hàng đích trống thì tìm hàng KHÁC đang dang dở mà giờ vào đến
+		 *    trước lượt này, rồi đóng hàng đó" — phá hai phép thử canh đúng của `kiem-don-dem.php`
+		 *    (mục 2): cơ sở PHỤ bấm SAU `ngayDen` phải MỞ ca đêm mới, không được đóng ca hôm
+		 *    trước còn đang mở; cơ sở CHÍNH bấm giờ vào ca ngày không bao giờ được đóng hàng đêm.
+		 *    Muốn đúng cả hai chiều ấy thì phải chép lại nguyên cả `ngayDen`/`coso_luat` của
+		 *    `dong_ca_dem_dang_mo()` xuống đây — lại đúng thứ hai bản chép tay mà bản vá này đang
+		 *    xoá. Nên đổi hướng: không đoán "hàng nào đang mở", chỉ nhận ra "giờ RA này đã được
+		 *    ghi Ở ĐÂU RỒI".
+		 *
+		 * Luật thật: hàng đích ($coso,$ngay,$ma_goc,$hau_to) CHƯA TỪNG TỒN TẠI (sắp bị coi là mở
+		 * MỘT HÀNG MỚI với giờ vào = giờ của lượt này — nhánh `null === $vao` của
+		 * `quyet_dinh_gio()`), mà lại có ĐÚNG MỘT hàng KHÁC của cùng người, cùng cơ sở, ở $ngay
+		 * hoặc hôm trước, đã có sẵn GIỜ RA TRÙNG KHỚP với lượt này -> lượt này không phải một ca
+		 * mới, nó là một lượt TRÙNG của giờ ra vừa ghi (một cú bấm/gửi lặp) -> bỏ qua, không ghi.
+		 *
+		 * ⚠️ SO BẰNG MỐC TUYỆT ĐỐI (`strtotime($ngay) + $giay`), KHỚP TUYỆT ĐỐI, không nới biên
+		 *    độ: hàng có thể đã trải phẳng (+86400), hàng kia thì không, và ngày gốc của hai hàng
+		 *    có thể khác nhau một ngày — cộng đúng ngày của TỪNG hàng vào giây của nó thì quy về
+		 *    cùng một trục, so được trực tiếp. KHÔNG nới biên độ vài giây/phút: đúng lời anh Thắng
+		 *    "cùng một giờ ra GIỐNG HỆT NHAU" — nới biên độ là liều đoán hai ca sát giờ nhau thành
+		 *    một, còn khớp tuyệt đối thì chỉ bắt đúng trường hợp lượt bị gửi/định tuyến trùng.
+		 * ⚠️ CHỈ KHI KHỚP ĐÚNG MỘT HÀNG. Khớp từ hai hàng trở lên là thật sự mơ hồ — giữ nguyên
+		 *    hành vi cũ (mở hàng mới), không tự đoán chọn đại một hàng.
+		 * ⚠️ CHỈ TRA KHI HÀNG ĐÍCH CHƯA TỒN TẠI (`null === $cu`). Lượt rơi đúng vào một hàng đã
+		 *    có sẵn thì đi đúng đường cũ, không đổi hành vi nào đã đúng từ trước.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		if ( null === $cu ) {
+			$hom_qua  = gmdate( 'Y-m-d', strtotime( $ngay . ' -1 day' ) );
+			$ung_vien = $wpdb->get_results( $wpdb->prepare(
+				"SELECT * FROM $bang WHERE coso=%s AND ma_nv=%s AND ngay IN (%s,%s)
+					AND gio_ra_giay IS NOT NULL AND gio_ra_giay <> ''",
+				$coso, $ma_goc, $ngay, $hom_qua ), ARRAY_A );
+			$moc_luot = strtotime( $ngay ) + (int) $giay;
+			$khop     = array();
+			foreach ( (array) $ung_vien as $u_x ) {
+				$moc_ra = strtotime( $u_x['ngay'] ) + (int) $u_x['gio_ra_giay'];
+				if ( $moc_ra === $moc_luot ) { $khop[] = $u_x; }
+			}
+			if ( 1 === count( $khop ) ) {
+				return array( 'loai' => 'trung', 'anh' => 'khong-doi' );
+			}
+		}
+
 		$vao = ( $cu && null !== $cu['gio_vao_giay'] && '' !== $cu['gio_vao_giay'] ) ? (int) $cu['gio_vao_giay'] : null;
 		$ra  = ( $cu && null !== $cu['gio_ra_giay'] && '' !== $cu['gio_ra_giay'] ) ? (int) $cu['gio_ra_giay'] : null;
 

@@ -5105,18 +5105,20 @@ el('btHuyChon').addEventListener('click', function(){ hien('mChon',false); hien(
 
 function veManChon(){
 	bao('loiChon','',null);
+	/* 🔴 Anh Thắng 25/09/2026: *"Bấm check in hoặc out sẽ hỏi cơ sở luôn, cả vào và ra, không mặc
+	   định nữa"* — LUÔN dựng ô chọn thật, kể cả khi chỉ có đúng MỘT cơ sở. Trước đây chỉ một cơ
+	   sở thì màn này hiện một `<div>` tĩnh và lượt LƯU đọc thẳng `TOI.coSoMacDinh` (xem nhánh dự
+	   phòng ở `el('btLuu')`, không có `#oCS` để đọc) — tức lượt chấm công trôi qua mà không ai
+	   thật sự BẤM chọn cơ sở nào. Luôn có `<select>` thì nút LƯU luôn đọc từ đây, không còn
+	   nhánh nào tự điền im lặng. */
 	var cs = (TOI && TOI.dsCoSo) || [];
-	if(cs.length > 1){
-		var h = '<label for="oCS">Cơ sở đang có mặt</label><select id="oCS">';
-		for(var i=0;i<cs.length;i++){
-			h += '<option value="'+esc(cs[i])+'"'
-			   + (cs[i]===TOI.coSoMacDinh?' selected':'') + '>'+esc(cs[i])+'</option>';
-		}
-		el('oChonCS').innerHTML = h + '</select><p></p>';
-	} else {
-		el('oChonCS').innerHTML = '<label>Cơ sở</label><div class="vang" style="margin:0">'
-			+ esc(cs[0] || (TOI && TOI.coSoMacDinh) || '—') + '</div><p></p>';
+	if(!cs.length && TOI && TOI.coSoMacDinh){ cs = [TOI.coSoMacDinh]; }
+	var h = '<label for="oCS">Cơ sở đang có mặt</label><select id="oCS">';
+	for(var i=0;i<cs.length;i++){
+		h += '<option value="'+esc(cs[i])+'"'
+		   + (cs[i]===TOI.coSoMacDinh?' selected':'') + '>'+esc(cs[i])+'</option>';
 	}
+	el('oChonCS').innerHTML = h + '</select><p></p>';
 
 	var nv = (TOI && TOI.dsNhiemVu) || [];
 	if(nv.length){

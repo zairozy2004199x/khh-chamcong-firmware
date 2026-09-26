@@ -894,7 +894,7 @@ foreach ( $rf->getParameters() as $ts ) { $ten_ts[] = $ts->getName(); }
 t( 'hàm chấm công online KHÔNG nhận tham số giờ từ client',
 	count( preg_grep( '/gio|time|luc|ngay/i', $ten_ts ) ) === 0, implode( ', ', $ten_ts ) );
 vhcp_test_dat_gio( '2026-08-20 09:15:00' );
-$kq = VHCC_Online::cham_cong( $u_cs );
+$kq = VHCC_Online::cham_cong( $u_cs, '', null, 'TUTU_BT' );
 t( 'chấm công online ghi được', ! empty( $kq['ok'] ), isset( $kq['error'] ) ? $kq['error'] : '' );
 teq( 'giờ lấy từ máy chủ', '09:15:00', $kq['gio'] );
 teq( 'ghi vào cơ sở mặc định của tài khoản', 'TUTU_BT', $kq['coSo'] );
@@ -958,10 +958,18 @@ $co_phay = false;
 foreach ( $ds_2 as $x_cs ) { if ( false !== strpos( $x_cs, ',' ) ) { $co_phay = true; } }
 t( 'không cơ sở nào còn nguyên chuỗi ghép', ! $co_phay, implode( ' · ', $ds_2 ) );
 
-/* (c) Chấm công KHÔNG chọn cơ sở -> ghi vào cơ sở ĐẦU, không phải cả chuỗi. */
+/* (c) 🔴 25/09/2026 — KHÔNG CHỌN CƠ SỞ NAY BỊ CHỐI, KỂ CẢ THẺ GHÉP HAI CƠ SỞ.
+   Trước bản này, không chọn thì rơi về `$mac_dinh` (cắt ở dấu phẩy đầu của thẻ) — đúng test cũ
+   "ghi vào cơ sở ĐẦU của thẻ". Anh Thắng: *"không mặc định nữa"* — nay thiếu `coso_chon` là chối
+   thẳng, không tự chọn thay, dù thẻ chỉ ghép đúng một cách để "chọn thay" là lấy cơ sở đầu. */
 $kq = VHCC_Online::cham_cong( $u_ghep );
-t( 'chấm công với thẻ hai cơ sở: ghi được', ! empty( $kq['ok'] ), isset( $kq['error'] ) ? $kq['error'] : '' );
-teq( 'ghi vào cơ sở ĐẦU của thẻ, không phải chuỗi ghép', 'TUTU_BT', $kq['coSo'] );
+t( 'không chọn cơ sở thì bị chối, KỂ CẢ khi thẻ mang sẵn hai cơ sở — không tự lấy cơ sở đầu',
+	empty( $kq['ok'] ) && strpos( (string) $kq['error'], 'Chưa chọn cơ sở' ) !== false, $kq );
+/* Chọn tay đúng cơ sở đầu của thẻ thì vẫn ghi sạch tên đó, không phải cả chuỗi ghép. */
+$kq = VHCC_Online::cham_cong( $u_ghep, '', null, 'TUTU_BT' );
+t( 'chấm công với thẻ hai cơ sở, chọn tay cơ sở đầu: ghi được',
+	! empty( $kq['ok'] ), isset( $kq['error'] ) ? $kq['error'] : '' );
+teq( 'ghi đúng cơ sở đã chọn, không phải chuỗi ghép', 'TUTU_BT', $kq['coSo'] );
 
 /* (d) 🔴 CHỐT Ở CHÍNH BẢNG: không hàng chấm công nào được mang tên cơ sở có dấu phẩy.
        Đây là phép thử quan trọng nhất của mục — nó canh cái BẢNG, nên đường ghi nào mới mọc
@@ -1020,10 +1028,10 @@ t( 'hàng -TG là hàng riêng, không đè hàng chính',
 /* Bộ phận Văn phòng gần như chỉ chấm bằng điện thoại, nên đây là ca chính của chấm công online.
    Bỏ qua phần định tuyến này là sai lương đúng những người dùng nó nhiều nhất. */
 vhcp_test_dat_gio( '2026-09-01 08:30:00' );
-$kq = VHCC_Online::cham_cong( $u_vp );
+$kq = VHCC_Online::cham_cong( $u_vp, '', null, 'VP_HCM' );
 teq( 'văn phòng 08:30 -> hàng chính (ca ngày)', 'VP01', $kq['ma'] );
 vhcp_test_dat_gio( '2026-09-01 17:00:00' );
-$kq = VHCC_Online::cham_cong( $u_vp );
+$kq = VHCC_Online::cham_cong( $u_vp, '', null, 'VP_HCM' );
 /* Biên: lượt ĐÚNG 17:00:00 là TAN LÀM ca ngày, không phải mở hàng 2. Bên Code.gs so `>` chứ
    không `>=` đúng vì chuyện này. */
 teq( 'văn phòng đúng 17:00 -> vẫn hàng chính (tan làm, không mở hàng 2)', 'VP01', $kq['ma'] );
@@ -1036,7 +1044,7 @@ teq( 'hàng chính có đủ vào 08:30 và ra 17:00', '08:30:00|17:00:00',
    xanh. Người bấm lượt ĐẦU TIÊN của ngày đúng 17:00 thì đó là giờ VÀO ca ngày; `>=` đẩy họ sang
    hàng 2 và ngày đó hàng 1 rỗng -> mất trọn công ngày. */
 vhcp_test_dat_gio( '2026-09-05 17:00:00' );
-$kq = VHCC_Online::cham_cong( $u_vp );
+$kq = VHCC_Online::cham_cong( $u_vp, '', null, 'VP_HCM' );
 teq( 'lượt ĐẦU TIÊN của ngày đúng 17:00 -> hàng chính, không phải hàng 2', 'VP01', $kq['ma'] );
 t( 'và hàng chính ngày đó có giờ vào',
 	( $x = vhcc_hang( 'VP_HCM', '2026-09-05', 'VP01' ) ) && null !== $x['gio_vao_giay'] );
@@ -1045,22 +1053,22 @@ t( 'KHÔNG tạo hàng 2 nào cho ngày đó', vhcc_hang( 'VP_HCM', '2026-09-05'
 /* ÂN HẠN TAN LÀM: người tan làm bấm 17:05 mà hàng 1 CHƯA có giờ ra thì đó là tan làm, KHÔNG phải
    mở hàng 2. Không có chỗ này thì hàng 1 thiếu giờ ra -> MẤT TRỌN 1 CÔNG NGÀY. */
 vhcp_test_dat_gio( '2026-09-02 08:30:00' );
-VHCC_Online::cham_cong( $u_vp );
+VHCC_Online::cham_cong( $u_vp, '', null, 'VP_HCM' );
 vhcp_test_dat_gio( '2026-09-02 17:05:00' );
-$kq = VHCC_Online::cham_cong( $u_vp );
+$kq = VHCC_Online::cham_cong( $u_vp, '', null, 'VP_HCM' );
 teq( 'trong ân hạn mà hàng 1 chưa có giờ ra -> vẫn hàng chính (không mất công ngày)', 'VP01', $kq['ma'] );
 $h = vhcc_hang( 'VP_HCM', '2026-09-02', 'VP01' );
 teq( 'công ngày được chốt đủ vào-ra', '08:30:00|17:05:00',
 	VHCC_DB::hhmmss( $h['gio_vao_giay'] ) . '|' . VHCC_DB::hhmmss( $h['gio_ra_giay'] ) );
 /* Nhưng nếu hàng 1 ĐÃ đủ vào-ra rồi thì lượt 17:05 tiếp theo là tăng ca thật -> hàng 2. */
 vhcp_test_dat_gio( '2026-09-02 17:40:00' );
-$kq = VHCC_Online::cham_cong( $u_vp );
+$kq = VHCC_Online::cham_cong( $u_vp, '', null, 'VP_HCM' );
 teq( 'hàng 1 đã đủ vào-ra: lượt sau đó sang hàng 2 (tăng ca)', 'VP01-CD', $kq['ma'] );
 
 /* TĂNG CA 18:00 — mốc trải phẳng phải là ngayDen (17:00), KHÔNG phải demTu (21:00). Lấy mốc
    21:00 thì lượt 18:00 trả null và BỊ BỎ ÂM THẦM: nhân viên bấm mà không có gì được ghi. */
 vhcp_test_dat_gio( '2026-09-03 18:00:00' );
-$kq = VHCC_Online::cham_cong( $u_vp );
+$kq = VHCC_Online::cham_cong( $u_vp, '', null, 'VP_HCM' );
 t( 'tăng ca 18:00 KHÔNG bị bỏ âm thầm', ! empty( $kq['ok'] ), isset( $kq['error'] ) ? $kq['error'] : '' );
 teq( 'tăng ca 18:00 vào hàng 2', 'VP01-CD', $kq['ma'] );
 
@@ -1069,11 +1077,11 @@ teq( 'tăng ca 18:00 vào hàng 2', 'VP01-CD', $kq['ma'] );
    · trên trục phẳng 01:30 phải nằm SAU 22:00, không thì ca đêm bị ĐẢO thành 16 tiếng ban ngày
      và công đêm mất sạch. */
 vhcp_test_dat_gio( '2026-09-10 22:00:00' );
-$kq = VHCC_Online::cham_cong( $u_vp );
+$kq = VHCC_Online::cham_cong( $u_vp, '', null, 'VP_HCM' );
 teq( 'ca đêm 22:00 vào hàng 2 ngày 10', 'VP01-CD', $kq['ma'] );
 teq( 'và ghi vào ngày 2026-09-10', '2026-09-10', $kq['ngay'] );
 vhcp_test_dat_gio( '2026-09-11 01:30:00' );
-$kq = VHCC_Online::cham_cong( $u_vp );
+$kq = VHCC_Online::cham_cong( $u_vp, '', null, 'VP_HCM' );
 teq( 'lượt 01:30 hôm sau LÙI về khối ngày hôm trước', '2026-09-10', $kq['ngay'] );
 $h = vhcc_hang( 'VP_HCM', '2026-09-10', 'VP01', 'CD' );
 teq( 'ca đêm KHÔNG bị đảo: vào 22:00, ra 01:30', '22:00:00|01:30:00',
@@ -1086,14 +1094,14 @@ t( 'và giờ vào vẫn nằm trong ngày', (int) $h['gio_vao_giay'] < 86400, $
 /* Luật KHÔNG THU HẸP phải đúng cả trên trục đêm: lượt 23:00 nằm giữa 22:00 và 01:30 thì không
    được cắt ngắn ca đêm. */
 vhcp_test_dat_gio( '2026-09-10 23:00:00' );
-$kq = VHCC_Online::cham_cong( $u_vp );
+$kq = VHCC_Online::cham_cong( $u_vp, '', null, 'VP_HCM' );
 teq( 'lượt 23:00 nằm giữa -> nhánh giữa, không thu hẹp', 'giua', $kq['loai'] );
 $h = vhcc_hang( 'VP_HCM', '2026-09-10', 'VP01', 'CD' );
 teq( 'ca đêm vẫn nguyên 22:00 -> 01:30', '22:00:00|01:30:00',
 	VHCC_DB::hhmmss( $h['gio_vao_giay'] ) . '|' . VHCC_DB::hhmmss( $h['gio_ra_giay'] ) );
 /* Và lượt 21:30 (check-in sớm của ca đêm) tới SAU thì thành giờ vào mới, giờ ra 01:30 KHÔNG mất. */
 vhcp_test_dat_gio( '2026-09-10 21:30:00' );
-VHCC_Online::cham_cong( $u_vp );
+VHCC_Online::cham_cong( $u_vp, '', null, 'VP_HCM' );
 $h = vhcc_hang( 'VP_HCM', '2026-09-10', 'VP01', 'CD' );
 teq( 'check-in sớm 21:30 tới sau: thành giờ vào, KHÔNG mất giờ ra 01:30', '21:30:00|01:30:00',
 	VHCC_DB::hhmmss( $h['gio_vao_giay'] ) . '|' . VHCC_DB::hhmmss( $h['gio_ra_giay'] ) );
@@ -1101,18 +1109,18 @@ teq( 'check-in sớm 21:30 tới sau: thành giờ vào, KHÔNG mất giờ ra 0
 /* Cơ sở KHÔNG phải Văn phòng thì không định tuyến gì cả — lượt 22:00 vẫn vào hàng chính, y như
    đường cũ. Định tuyến lan sang cơ sở khác là đổi ngầm cách tính công của họ. */
 vhcp_test_dat_gio( '2026-09-15 22:00:00' );
-$kq = VHCC_Online::cham_cong( $u_cs );
+$kq = VHCC_Online::cham_cong( $u_cs, '', null, 'TUTU_BT' );
 teq( 'cơ sở không phải Văn phòng: 22:00 vẫn hàng chính', 'NV10', $kq['ma'] );
 teq( 'và không lùi ngày', '2026-09-15', $kq['ngay'] );
 
 /* ---- 12f. GPS ghi lại được, và không ghi rác ------------------------------------------- */
 vhcp_test_dat_gio( '2026-09-20 09:00:00' );
-VHCC_Online::cham_cong( $u_cs, '', array( 'lat' => 10.776, 'lng' => 106.7, 'acc' => 12.4 ) );
+VHCC_Online::cham_cong( $u_cs, '', array( 'lat' => 10.776, 'lng' => 106.7, 'acc' => 12.4 ), 'TUTU_BT' );
 $h = vhcc_hang( 'TUTU_BT', '2026-09-20', 'NV10' );
 t( 'GPS được ghi lại', strpos( (string) $h['ghi_chu'], 'GPS 10.776,106.7' ) === 0, $h['ghi_chu'] );
 t( 'GPS ghi cả độ chính xác', strpos( (string) $h['ghi_chu'], '±12m' ) !== false, $h['ghi_chu'] );
 vhcp_test_dat_gio( '2026-09-21 09:00:00' );
-VHCC_Online::cham_cong( $u_cs, '', array( 'lat' => 'rác', 'lng' => null ) );
+VHCC_Online::cham_cong( $u_cs, '', array( 'lat' => 'rác', 'lng' => null ), 'TUTU_BT' );
 $h = vhcc_hang( 'TUTU_BT', '2026-09-21', 'NV10' );
 teq( 'GPS rác thì để trống, không ghi rác vào bảng', '', $h['ghi_chu'] );
 
@@ -1127,21 +1135,21 @@ $h = vhcc_hang( 'TUTU_BT', '2026-09-25', 'NVMIX' );
 teq( 'lượt máy: nguồn may', 'may', $h['nguon'] );
 $wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'NVMIX', 'cua_hang' => 'TUTU_BT' ) );
 vhcp_test_dat_gio( '2026-09-25 17:30:00' );
-VHCC_Online::cham_cong( array( 'pin' => '3', 'ma_nv' => 'NVMIX', 'ho_ten' => 'D', 'coso' => 'TUTU_BT' ) );
+VHCC_Online::cham_cong( array( 'pin' => '3', 'ma_nv' => 'NVMIX', 'ho_ten' => 'D', 'coso' => 'TUTU_BT' ), '', null, 'TUTU_BT' );
 $h = vhcc_hang( 'TUTU_BT', '2026-09-25', 'NVMIX' );
 teq( 'thêm lượt online vào cùng ngày -> hàng thành hỗn hợp', 'hon-hop', $h['nguon'] );
 teq( 'và giờ ra được nới ra 17:30', '17:30:00', VHCC_DB::hhmmss( $h['gio_ra_giay'] ) );
 /* Lượt online THỨ HAI không được xoá dấu hỗn hợp về lại 'online' — dấu đó là thứ phép đối số
    hàng dùng để loại hàng có lẫn lượt máy ra khỏi phép so. */
 vhcp_test_dat_gio( '2026-09-25 18:00:00' );
-VHCC_Online::cham_cong( array( 'pin' => '3', 'ma_nv' => 'NVMIX', 'ho_ten' => 'D', 'coso' => 'TUTU_BT' ) );
+VHCC_Online::cham_cong( array( 'pin' => '3', 'ma_nv' => 'NVMIX', 'ho_ten' => 'D', 'coso' => 'TUTU_BT' ), '', null, 'TUTU_BT' );
 $h = vhcc_hang( 'TUTU_BT', '2026-09-25', 'NVMIX' );
 teq( 'lượt online thứ hai: vẫn là hỗn hợp, không tụt về online', 'hon-hop', $h['nguon'] );
 /* Ngược lại: hai lượt online liên tiếp trên hàng chỉ-online thì KHÔNG được thành hỗn hợp. */
 vhcp_test_dat_gio( '2026-09-26 08:00:00' );
-VHCC_Online::cham_cong( array( 'pin' => '3', 'ma_nv' => 'NVMIX', 'ho_ten' => 'D', 'coso' => 'TUTU_BT' ) );
+VHCC_Online::cham_cong( array( 'pin' => '3', 'ma_nv' => 'NVMIX', 'ho_ten' => 'D', 'coso' => 'TUTU_BT' ), '', null, 'TUTU_BT' );
 vhcp_test_dat_gio( '2026-09-26 17:00:00' );
-VHCC_Online::cham_cong( array( 'pin' => '3', 'ma_nv' => 'NVMIX', 'ho_ten' => 'D', 'coso' => 'TUTU_BT' ) );
+VHCC_Online::cham_cong( array( 'pin' => '3', 'ma_nv' => 'NVMIX', 'ho_ten' => 'D', 'coso' => 'TUTU_BT' ), '', null, 'TUTU_BT' );
 $h = vhcc_hang( 'TUTU_BT', '2026-09-26', 'NVMIX' );
 teq( 'hai lượt online liên tiếp: vẫn là online, không thành hỗn hợp', 'online', $h['nguon'] );
 
@@ -8556,6 +8564,60 @@ vhcp_test_dat_gio( '2026-09-07 04:02:00' );
 $kq = VHCC_Online::cham_cong( array( 'pin' => '4456', 'ma_nv' => 'KHG1', 'ho_ten' => 'Người Kho', 'coso' => $KH_CHINH ),
 	'', null, $KH_PHU );
 teq( '   lượt 04:02 ở đó là hàng thường, ngày hôm ấy', 'KHG1|2026-09-07', $kq['ma'] . '|' . $kq['ngay'] );
+
+/* ═════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 25/09/2026 — "TRÙNG GIỜ RA" SINH HÀNG `-CD` THỪA (`VHCC_Nhan::ghi_gio()`).
+ *
+ * Anh Thắng: bảng công SETUP_VP tự mọc thêm một hàng `-CD` thừa bên cạnh hàng ca chính, CẢ HAI
+ * cùng mang một giờ ra giống hệt nhau, và anh phải tự xoá tay hàng thừa mỗi lần bằng "Xoá công".
+ * Dựng lại đúng hình dạng: một hàng `-CD` đã ĐÓNG XONG (có vào, có ra) ở cơ sở phụ đã ghép, rồi
+ * MỘT LƯỢT KHÁC tới sau, giờ RÀ ĐÚNG BẰNG giờ ra đã ghi đó nhưng bị định tuyến (vì bất cứ lý do
+ * gì) sang một hàng đích còn trống — cửa ghi phải nhận ra đây là một lượt TRÙNG, không phải một
+ * ca mới, và bỏ qua, không đẻ hàng.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+$g_1337 = VHCC_DB::giay( '13:37:00' );
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array(
+	'coso' => $GH_PHU, 'ngay' => '2026-09-08', 'ma_nv' => 'VPG1', 'hau_to' => 'CD',
+	'ho_ten' => 'Nguyễn Bá Tuấn', 'gio_vao_giay' => VHCC_DB::giay( '19:51:00' ),
+	'gio_ra_giay' => VHCC_DB::NGAY_GIAY + $g_1337, 'nguon' => 'online', 'chuan' => '19:51 13:37' ) );
+t( 'dựng cảnh: hàng -CD ngày 08 đã đóng đủ cặp 19:51 → 13:37 (hôm sau)',
+	( $h0 = vhcc_hang( $GH_PHU, '2026-09-08', 'VPG1', 'CD' ) )
+	&& null !== $h0['gio_ra_giay'], isset( $h0 ) ? $h0 : null );
+
+/* Lượt KHÁC tới sau, cùng người, cùng cơ sở, đúng giờ 13:37 — nhưng gán NGÀY 09 (hôm sau nữa) và
+   NGUỒN 'may', mô phỏng một lượt bị định tuyến trật (đúng dạng "vì bất cứ lý do gì phía trên chưa
+   lường tới" mà bản vá nói tới) thay vì được nhận diện là giờ ra vừa ghi ở ngày 08. */
+$kq_trung = VHCC_Nhan::ghi_gio( $GH_PHU, '2026-09-09', 'VPG1', 'Nguyễn Bá Tuấn', $g_1337, '', 'may' );
+t( '🔴 lượt trùng giờ ra (đã ghi ở ngày hôm trước) KHÔNG mở hàng mới — trả "trung"',
+	is_array( $kq_trung ) && 'trung' === $kq_trung['loai'], $kq_trung );
+t( '   và KHÔNG mọc thêm hàng ca chính nào ở ngày 09',
+	null === vhcc_hang( $GH_PHU, '2026-09-09', 'VPG1' ) );
+$h_cd_08 = vhcc_hang( $GH_PHU, '2026-09-08', 'VPG1', 'CD' );
+t( '   hàng -CD ngày 08 vẫn y nguyên, không bị sửa',
+	$h_cd_08 && '19:51:00' === VHCC_DB::hhmmss( $h_cd_08['gio_vao_giay'] )
+	&& ( VHCC_DB::NGAY_GIAY + $g_1337 ) === (int) $h_cd_08['gio_ra_giay'], $h_cd_08 );
+
+/* Khớp NHIỀU HƠN MỘT hàng thì thật sự mơ hồ — không tự đoán, giữ hành vi cũ (mở hàng mới). Hai
+   hàng cùng ngày 08 (trong đúng cửa sổ {09, 08} mà cửa ghi soát), cùng người, cùng khớp giờ ra. */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array(
+	'coso' => $GH_PHU, 'ngay' => '2026-09-08', 'ma_nv' => 'VPG1_2', 'hau_to' => 'CD',
+	'ho_ten' => 'Người Trùng Hai', 'gio_vao_giay' => VHCC_DB::giay( '20:00:00' ),
+	'gio_ra_giay' => VHCC_DB::NGAY_GIAY + $g_1337, 'nguon' => 'online', 'chuan' => '20:00 13:37' ) );
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array(
+	'coso' => $GH_PHU, 'ngay' => '2026-09-08', 'ma_nv' => 'VPG1_2', 'hau_to' => 'TC',
+	'ho_ten' => 'Người Trùng Hai', 'gio_vao_giay' => VHCC_DB::giay( '08:00:00' ),
+	'gio_ra_giay' => VHCC_DB::NGAY_GIAY + $g_1337, 'nguon' => 'online', 'chuan' => '08:00 13:37' ) );
+$kq_mo_ho = VHCC_Nhan::ghi_gio( $GH_PHU, '2026-09-09', 'VPG1_2', 'Người Trùng Hai', $g_1337, '', 'may' );
+t( '🔴 khớp từ HAI hàng trở lên -> không tự đoán, vẫn mở hàng mới như cũ',
+	is_array( $kq_mo_ho ) && 'vao' === $kq_mo_ho['loai'], $kq_mo_ho );
+t( '   hàng mới thật sự được tạo ở ngày 09 khi mơ hồ',
+	null !== vhcc_hang( $GH_PHU, '2026-09-09', 'VPG1_2' ) );
+
+/* Không khớp hàng nào (giờ ra khác hẳn) thì đi đúng đường cũ, mở hàng mới bình thường. */
+$kq_moi = VHCC_Nhan::ghi_gio( $GH_PHU, '2026-09-12', 'VPG1', 'Nguyễn Bá Tuấn',
+	VHCC_DB::giay( '09:00:00' ), '', 'may' );
+t( 'không khớp hàng nào -> mở hàng mới bình thường, không bị chặn oan',
+	is_array( $kq_moi ) && 'vao' === $kq_moi['loai'], $kq_moi );
 
 /* ---- màn hình ---- */
 $h_ct = vhcc_web( '135791', array(), array( 'man' => 'cau_hinh', 'ccs' => $CFG_CS, 'cth' => '2026-07' ) );

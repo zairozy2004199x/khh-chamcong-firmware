@@ -185,6 +185,19 @@ la('RB2 · thu nhỏ về 720px', re.search(r'RONG_ANH\s*=\s*720', js) is not No
 la('RB3 · dựng màn chọn cơ sở sau khi chụp', 'veManChon()' in js)
 la('RB4 · có cờ chặn bấm lại', 'DANG_LUU' in js)
 
+# 🔴 25/09/2026 — "hỏi cơ sở luôn, cả vào và ra, không mặc định nữa": veManChon() phải LUÔN dựng
+# <select id="oCS"> thật, kể cả khi chỉ có đúng một cơ sở — không còn nhánh <div> tĩnh cũ (từng chỉ
+# vẽ ô xổ khi `cs.length > 1`, còn 1 cơ sở thì hiện chữ tĩnh và lượt LƯU tự điền TOI.coSoMacDinh
+# mà không ai bấm chọn gì).
+m_vmc = re.search(r'function veManChon\(\)\{(.*?)\n\}', js, re.S)
+la('veManChon() tìm thấy được để soi', m_vmc is not None)
+if m_vmc:
+    than_vmc = m_vmc.group(1)
+    la('   KHÔNG còn nhánh rẽ theo cs.length (không còn "1 cơ sở thì khỏi hỏi")',
+       re.search(r'cs\.length\s*[<>=!]', than_vmc) is None, than_vmc)
+    la('   luôn dựng <select id="oCS"> vô điều kiện',
+       'id="oCS">' in than_vmc or "id=\\\"oCS\\\">" in than_vmc)
+
 print('— không rò HTML —')
 # Tên cơ sở / họ tên đi thẳng vào innerHTML là một dấu nháy trong tên cũng vỡ bảng.
 la('có hàm thoát HTML', 'function esc(' in js)

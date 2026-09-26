@@ -190,19 +190,28 @@ t( 'hết hãm thì vào lại được', ! empty( VHCC_Tram::dang_nhap( '246810
 
 $u = VHCC_Tram::nguoi( $TOK_TRAM );
 
-$r = VHCC_Online::cham_cong( $u, '', null, '', '' );
+/* 🔴 25/09/2026 — Anh Thắng: *"Bấm check in hoặc out sẽ hỏi cơ sở luôn, cả vào và ra, không mặc
+   định nữa"*. Không còn nhánh nào rơi về cơ sở chính khi client không gửi `coso_chon` — kể cả
+   người chỉ có ĐÚNG MỘT cơ sở (NV001 chỉ có VIVO ở đoạn này). */
+$r0 = VHCC_Online::cham_cong( $u, '', null, '', '' );
+t( '🔴 không gửi cơ sở thì bị chối, KỂ CẢ khi chỉ có một cơ sở — không còn mặc định',
+	empty( $r0['ok'] ), $r0 );
+t( 'câu chối nói rõ phải chọn cơ sở trước khi lưu',
+	strpos( (string) $r0['error'], 'Chưa chọn cơ sở' ) !== false, $r0 );
+
+$r = VHCC_Online::cham_cong( $u, '', null, 'VIVO', '' );
 t( 'lượt đầu là GIỜ VÀO', ! empty( $r['ok'] ) && 'vao' === $r['loai'], $r );
 t( 'ghi vào đúng cơ sở mặc định', 'VIVO' === $r['coSo'], $r );
 
 /* Bấm hai lần trong CÙNG MỘT GIÂY là bấm nhầm, không phải tan làm — `quyet_dinh_gio` trả
    'trung' và không ghi gì. Đó là chốt chặn đúng, nên bài kiểm phải lùi giờ vào một tiếng rồi
    mới thử giờ ra, chứ không phải sửa chốt chặn cho vừa bài kiểm. */
-$r2 = VHCC_Online::cham_cong( $u, '', null, '', '' );
+$r2 = VHCC_Online::cham_cong( $u, '', null, 'VIVO', '' );
 t( 'bấm lại ngay trong cùng một giây thì KHÔNG ghi gì', ! empty( $r2['ok'] ) && 'trung' === $r2['loai'], $r2 );
 
 $wpdb->query( 'UPDATE ' . VHCC_DB::t( 'cham_cong' )
 	. " SET gio_vao_giay = gio_vao_giay - 3600 WHERE ma_nv='NV001' AND coso='VIVO'" );
-$r2 = VHCC_Online::cham_cong( $u, '', null, '', '' );
+$r2 = VHCC_Online::cham_cong( $u, '', null, 'VIVO', '' );
 t( 'lượt sau đó là GIỜ RA', ! empty( $r2['ok'] ) && 'ra' === $r2['loai'], $r2 );
 
 $hang = $wpdb->get_row( $wpdb->prepare(
@@ -221,7 +230,7 @@ t( 'ghi đúng cơ sở phụ đã chọn', 'GO_AN_LAC' === $r['coSo'], $r );
 
 /* 🔴 Gác 3: nhiệm vụ cũng đi lên từ điện thoại. Không kiểm thì ai cũng tự gán cho mình việc có
    đơn giá cao hơn. */
-$r = VHCC_Online::cham_cong( $u, '', null, '', 'Trực Ghế' );
+$r = VHCC_Online::cham_cong( $u, '', null, 'VIVO', 'Trực Ghế' );
 t( 'nhiệm vụ KHÔNG được khai trong hồ sơ thì bị chối', empty( $r['ok'] ), $r );
 t( 'câu chối chỉ đúng chỗ phải sửa (hồ sơ)', strpos( (string) $r['error'], 'hồ sơ' ) !== false, $r );
 
@@ -229,7 +238,7 @@ t( 'câu chối chỉ đúng chỗ phải sửa (hồ sơ)', strpos( (string) $r
    `anh_vao` (VARCHAR(190), nhét vào là MySQL cắt cụt và tấm ảnh mất luôn, im lặng). */
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) );
 $anh = 'data:image/jpeg;base64,' . base64_encode( str_repeat( 'A', 400 ) );
-$r = VHCC_Online::cham_cong( $u, $anh, array( 'lat' => 10.8, 'lng' => 106.7, 'acc' => 12 ), '', '' );
+$r = VHCC_Online::cham_cong( $u, $anh, array( 'lat' => 10.8, 'lng' => 106.7, 'acc' => 12 ), 'VIVO', '' );
 t( 'gửi ảnh dạng data-URL thì lưu được', ! empty( $r['ok'] ) && 0 === strpos( (string) $r['img'], 'ok:' ), $r );
 $hang = $wpdb->get_row( 'SELECT anh_vao, ghi_chu FROM ' . VHCC_DB::t( 'cham_cong' ) . ' LIMIT 1', ARRAY_A );
 t( 'cột ảnh giữ ĐƯỜNG DẪN, không giữ base64',
@@ -1055,7 +1064,7 @@ $wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array(
 $dn = VHCC_Tram::dang_nhap( '778811' );
 t( 'người vừa được thêm đăng nhập trạm được', ! empty( $dn['ok'] ), $dn );
 $u_moi = VHCC_Tram::nguoi( $dn['token'] );
-$r = VHCC_Online::cham_cong( $u_moi, '', null, '', '' );
+$r = VHCC_Online::cham_cong( $u_moi, '', null, 'VIVO', '' );
 t( 'KHÔNG chọn nhiệm vụ vẫn ghi được giờ — ô nhiệm vụ để trống không phải là lỗi',
 	! empty( $r['ok'] ) && 'vao' === $r['loai'], $r );
 $tt = VHCC_Online::thong_tin( $u_moi );

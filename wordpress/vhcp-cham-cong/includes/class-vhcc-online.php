@@ -176,6 +176,44 @@ class VHCC_Online {
 	}
 
 	/**
+	 * "SETUP ĐỢI NGÀY RA" — MỘT LUẬT DÙNG CHUNG cho `cham_cong()` (điện thoại) và
+	 * `tuyen_cho_ghi()` (máy / sheet / Nạp về).
+	 *
+	 * Cơ sở PHỤ đã ghép, lượt bấm trong ngày (tới hết `ngayDen`), mà HÔM TRƯỚC còn một hàng ca
+	 * đêm (`-CD`) ĐANG MỞ (có giờ vào, chưa có giờ ra) ở đúng cơ sở ấy -> lượt này là giờ RA của
+	 * hàng đó, không phải giờ VÀO của một ngày mới.
+	 *
+	 * 🔴 26/09/2026 — TỪNG VIẾT HAI LẦN ĐỘC LẬP. Một bản inline trong `cham_cong()`, một bản
+	 *    riêng trong `tuyen_cho_ghi()` — cùng một luật, hai chỗ chép tay, không có gì BUỘC hai
+	 *    bản phải giống nhau mãi. Anh Thắng báo bảng công SETUP_VP tự mọc thêm một hàng `-CD`
+	 *    thừa, trùng giờ ra với hàng ca chính — đúng dạng khi MỘT trong hai bản không nhận ra
+	 *    hàng ca đêm hôm trước còn đang mở, rơi xuống `dinh_tuyen()`'s mặc định và mở hàng mới.
+	 *    Gộp về đây, chỉ một chỗ để đọc, một chỗ để sửa — hai đường gọi cùng kết quả, mãi mãi.
+	 *
+	 * ⚠️ CHỈ CƠ SỞ PHỤ (`coso_luat($coso) !== $coso`), KHÔNG CHO CƠ SỞ CHÍNH. Ở cơ sở chính,
+	 *    người tăng ca tối qua quên bấm ra rồi sáng nay bấm vào ca ngày — đem lượt ấy đóng hàng
+	 *    đêm là ca ngày mất giờ vào và đêm qua thành 14 tiếng. Ở cơ sở setup không có ca ngày để
+	 *    mà nhầm.
+	 *
+	 * Trả `null` = không có hàng ca đêm nào đang mở để đóng — cứ định tuyến bình thường.
+	 * Trả `array('ngay','duoi','giay')` = hàng cần đóng (ngày của hàng đó, hậu tố `-CD`, giờ ra
+	 * ĐÃ TRẢI PHẲNG +86400, sẵn sàng ghi thẳng).
+	 */
+	public static function dong_ca_dem_dang_mo( $coso, $ngay, $giay, $ma_nv, $ngay_den ) {
+		if ( ! self::la_van_phong( $coso ) ) { return null; }
+		if ( null === $giay || null === $ngay_den || '' === $ma_nv || $giay > $ngay_den ) { return null; }
+		$cs_luat = self::coso_luat( $coso );
+		if ( 0 === strcasecmp( $cs_luat, $coso ) ) { return null; }
+		$hom_truoc = self::ngay_truoc( $ngay );
+		$mo = self::hang( $coso, $hom_truoc, $ma_nv, self::DUOI_CD );
+		if ( ! $mo || null === $mo['gio_vao_giay'] || '' === $mo['gio_vao_giay']
+			|| ( null !== $mo['gio_ra_giay'] && '' !== $mo['gio_ra_giay'] ) ) {
+			return null;
+		}
+		return array( 'ngay' => $hom_truoc, 'duoi' => self::DUOI_CD, 'giay' => $giay + VHCC_DB::NGAY_GIAY );
+	}
+
+	/**
 	 * ĐỊNH TUYẾN MỘT LƯỢT BẤM CHO ĐƯỜNG GHI TỰ ĐỘNG — máy chấm công, nạp .csv, Nạp về.
 	 *
 	 * ═════════════════════════════════════════════════════════════════════════════════════════
@@ -219,22 +257,9 @@ class VHCC_Online {
 			$chinh_chua_ra = ( $h && null !== $h['gio_vao_giay'] && null === $h['gio_ra_giay'] );
 		}
 
-		/* "Setup đợi ngày ra" — cùng luật với `cham_cong()`, xem khối chú thích dài ở đó.
-		   Cơ sở PHỤ đã ghép, lượt bấm trong ngày, mà hôm trước còn một hàng ca đêm ĐANG MỞ thì
-		   lượt này là giờ RA của hàng đó, không phải giờ vào của ngày mới.
-		   ⚠️ CHỈ CƠ SỞ PHỤ. Ở cơ sở chính, người tăng ca tối qua quên bấm ra rồi sáng nay bấm
-		      vào ca ngày — đem lượt ấy đóng hàng đêm là ca ngày mất giờ vào và đêm qua thành 14
-		      tiếng. Ở cơ sở setup không có ca ngày để mà nhầm. */
-		$cs_luat = self::coso_luat( $coso );
-		if ( 0 !== strcasecmp( $cs_luat, $coso ) && $giay <= $ngay_den ) {
-			$hom_truoc = self::ngay_truoc( $ngay );
-			$mo = self::hang( $coso, $hom_truoc, $ma_nv, self::DUOI_CD );
-			if ( $mo && null !== $mo['gio_vao_giay'] && '' !== $mo['gio_vao_giay']
-				&& ( null === $mo['gio_ra_giay'] || '' === $mo['gio_ra_giay'] ) ) {
-				return array( 'ngay' => $hom_truoc, 'duoi' => self::DUOI_CD,
-					'giay' => $giay + VHCC_DB::NGAY_GIAY );
-			}
-		}
+		/* "Setup đợi ngày ra" — luật dùng chung, xem `dong_ca_dem_dang_mo()`. */
+		$dong = self::dong_ca_dem_dang_mo( $coso, $ngay, $giay, $ma_nv, $ngay_den );
+		if ( null !== $dong ) { return $dong; }
 
 		$t = self::dinh_tuyen( $coso, $ngay, $giay, $chinh_chua_ra );
 		if ( ! $t ) { return null; }
@@ -429,41 +454,54 @@ class VHCC_Online {
 		   không có thật, và nó hiện luôn trong ô xổ cơ sở của màn quản trị. */
 		$the_coso = isset( $u['coso'] ) ? (string) $u['coso'] : '';
 		$mac_dinh = VHCC_NhanSu::chuan_coso( $the_coso );
-		$coso     = $mac_dinh;
+		$coso     = '';
+
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 KHÔNG CÒN TỰ ĐỘNG DÙNG `$mac_dinh` KHI CLIENT KHÔNG GỬI CƠ SỞ.
+		 *
+		 * Anh Thắng 25/09/2026: *"Bấm check in hoặc out sẽ hỏi cơ sở luôn, cả vào và ra, không
+		 * mặc định nữa"*. Trước dòng này, `$coso = $mac_dinh` rồi Gác 2 chỉ SO SÁNH khi client
+		 * có gửi `$coso_chon` — client không gửi (hoặc màn chọn bị bỏ qua) thì lượt vẫn êm ả ghi
+		 * thẳng vào cơ sở chính tĩnh trong thẻ phiên, không ai biết máy vừa tự chọn thay mình.
+		 * Từ nay THIẾU `$coso_chon` LÀ CHỐI, không phải là "cứ dùng mặc định".
+		 * ⚠️ Không đụng ba đường tự động (`VHCC_May`/`VHCC_NapCong`/`VHCC_Keo`) — chúng không đi
+		 *    qua hàm này, không có người bấm để mà hỏi. */
+		$chon = trim( preg_replace( '/^CS_/', '', (string) $coso_chon ) );
+		if ( '' === $chon ) {
+			if ( '' === $mac_dinh ) {
+				/* 🔴 08/09/2026 — CÂU NÀY TỪNG CHỈ SAI CHỖ. Nó nhắc ô *"Cơ sở chấm công online"*, mà ô
+				   ấy chỉ có ở màn PhanQuyen cũ; người vừa được lập hồ sơ qua biểu mẫu một cửa thì
+				   thứ còn thiếu là **lưới Cơ sở** trong hồ sơ. Anh Thắng: *"tại báo cáo lỗi không rõ
+				   ràng"* — người đọc câu chối phải đi thẳng được tới ô phải sửa, chứ không phải đi
+				   tìm một ô không tồn tại trên trang họ vừa dùng. */
+				return array( 'ok' => false, 'error' => 'Hồ sơ của ' . trim( (string) $u['ho_ten'] )
+					. ' (mã ' . $ma_nv . ') chưa tích cơ sở nào, nên lượt chấm không biết ghi vào đâu. '
+					. 'Nhờ quản lý mở hồ sơ người này và tích ít nhất một ô ở lưới "Cơ sở" rồi Lưu.' );
+			}
+			return array( 'ok' => false, 'error' => 'Chưa chọn cơ sở. Mở lại màn chấm công và chọn '
+				. 'đúng cơ sở đang có mặt trước khi bấm LƯU CHẤM CÔNG.' );
+		}
 
 		// Gác 2: cơ sở đi lên từ client -> đối chiếu với danh sách người đó thật sự có.
-		$chon = trim( preg_replace( '/^CS_/', '', (string) $coso_chon ) );
-		if ( '' !== $chon ) {
-			$duoc = self::ds_coso_cham_cua_nv( $ma_nv, $the_coso );
-			$ok   = false;
-			foreach ( $duoc as $x ) { if ( strtolower( $x ) === strtolower( $chon ) ) { $ok = true; $coso = $x; } }
-			if ( ! $ok ) {
-				/* 🔴 HAI LÝ DO KHÁC NHAU, HAI CÂU KHÁC NHAU. "Không có ở cơ sở đó" là câu đúng khi
-				   hồ sơ thật sự không tích cơ sở ấy. Nhưng người bị loại vì cờ "chỉ quản lý" thì
-				   hồ sơ CÓ tích — họ quản ở đó, họ vừa đứng ở đó, và câu "bạn không có ở cơ sở
-				   này" nghe như hệ thống hỏng. Nói đúng việc đang xảy ra và ai sửa được. */
-				if ( class_exists( 'VHCC_NhanSu' ) && method_exists( 'VHCC_NhanSu', 'la_chi_quan_ly' )
-					&& method_exists( 'VHCC_NhanSu', 'ho_so' ) ) {
-					$hs_q = VHCC_NhanSu::ho_so( $ma_nv );
-					if ( $hs_q && VHCC_NhanSu::la_chi_quan_ly( $hs_q, $chon ) ) {
-						return array( 'ok' => false, 'error' => 'Cơ sở "' . $chon . '" trong hồ sơ '
-							. 'của anh/chị đang đặt là CHỈ QUẢN LÝ — không chấm công ở đó. '
-							. 'Nếu nay có làm ở đây thật thì nhờ quản lý bỏ ô "chỉ QL" của cơ sở '
-							. 'này trong hồ sơ.' );
-					}
+		$duoc = self::ds_coso_cham_cua_nv( $ma_nv, $the_coso );
+		$ok   = false;
+		foreach ( $duoc as $x ) { if ( strtolower( $x ) === strtolower( $chon ) ) { $ok = true; $coso = $x; } }
+		if ( ! $ok ) {
+			/* 🔴 HAI LÝ DO KHÁC NHAU, HAI CÂU KHÁC NHAU. "Không có ở cơ sở đó" là câu đúng khi
+			   hồ sơ thật sự không tích cơ sở ấy. Nhưng người bị loại vì cờ "chỉ quản lý" thì
+			   hồ sơ CÓ tích — họ quản ở đó, họ vừa đứng ở đó, và câu "bạn không có ở cơ sở
+			   này" nghe như hệ thống hỏng. Nói đúng việc đang xảy ra và ai sửa được. */
+			if ( class_exists( 'VHCC_NhanSu' ) && method_exists( 'VHCC_NhanSu', 'la_chi_quan_ly' )
+				&& method_exists( 'VHCC_NhanSu', 'ho_so' ) ) {
+				$hs_q = VHCC_NhanSu::ho_so( $ma_nv );
+				if ( $hs_q && VHCC_NhanSu::la_chi_quan_ly( $hs_q, $chon ) ) {
+					return array( 'ok' => false, 'error' => 'Cơ sở "' . $chon . '" trong hồ sơ '
+						. 'của anh/chị đang đặt là CHỈ QUẢN LÝ — không chấm công ở đó. '
+						. 'Nếu nay có làm ở đây thật thì nhờ quản lý bỏ ô "chỉ QL" của cơ sở '
+						. 'này trong hồ sơ.' );
 				}
-				return array( 'ok' => false, 'error' => 'Bạn không có ở cơ sở "' . $chon . '". Chọn lại cơ sở.' );
 			}
-		}
-		if ( '' === $coso ) {
-			/* 🔴 08/09/2026 — CÂU NÀY TỪNG CHỈ SAI CHỖ. Nó nhắc ô *"Cơ sở chấm công online"*, mà ô
-			   ấy chỉ có ở màn PhanQuyen cũ; người vừa được lập hồ sơ qua biểu mẫu một cửa thì
-			   thứ còn thiếu là **lưới Cơ sở** trong hồ sơ. Anh Thắng: *"tại báo cáo lỗi không rõ
-			   ràng"* — người đọc câu chối phải đi thẳng được tới ô phải sửa, chứ không phải đi
-			   tìm một ô không tồn tại trên trang họ vừa dùng. */
-			return array( 'ok' => false, 'error' => 'Hồ sơ của ' . trim( (string) $u['ho_ten'] )
-				. ' (mã ' . $ma_nv . ') chưa tích cơ sở nào, nên lượt chấm không biết ghi vào đâu. '
-				. 'Nhờ quản lý mở hồ sơ người này và tích ít nhất một ô ở lưới "Cơ sở" rồi Lưu.' );
+			return array( 'ok' => false, 'error' => 'Bạn không có ở cơ sở "' . $chon . '". Chọn lại cơ sở.' );
 		}
 
 		// Gác 3: nhiệm vụ cũng đi lên từ client -> cũng đối chiếu với hồ sơ.
@@ -503,39 +541,11 @@ class VHCC_Online {
 			$h = self::hang( $coso, $ngay, $ma_nv, '' );
 			$chinh_chua_ra = ( $h && null !== $h['gio_vao_giay'] && null === $h['gio_ra_giay'] );
 		}
-		/* ═══════════════════════════════════════════════════════════════════════════════════
-		 * 🔴 "SETUP ĐỢI NGÀY RA" — cơ sở PHỤ đã ghép: lượt bấm HÔM SAU đóng ca đêm HÔM TRƯỚC.
-		 *
-		 * Anh Thắng 23/09/2026: *"công ngày thì ngày nào ra ngày đó, không liên quan; còn setup
-		 * nó sẽ đợi ngày ra, tức đợi đến ngày hôm sau (sau 1 ngày)"* — và trên màn sửa anh gõ
-		 * giờ ra `11:18` cho ca vào `19:51`: setup có thể về lúc gần trưa.
-		 *
-		 * `dinh_tuyen()` chỉ lùi ngày cho lượt TRƯỚC `demDen` (06:00). Lượt 11:18 rơi qua khe ấy:
-		 * không trước 06:00, không sau 17:00 -> hàng 1, giờ VÀO của ngày mới — ca đêm hôm trước
-		 * lại thiếu giờ ra, y như lỗi vừa sửa, chỉ muộn hơn vài tiếng.
-		 *
-		 * Luật: bấm vào cơ sở PHỤ, trong ngày (tới hết `ngayDen`), mà HÔM TRƯỚC người này có
-		 * hàng ca đêm ĐANG MỞ (có vào, chưa ra) ở đúng cơ sở ấy -> lượt này là giờ RA của hàng đó.
-		 *
-		 * ⚠️ CHỈ CHO CƠ SỞ PHỤ, KHÔNG CHO CƠ SỞ CHÍNH. Nhân viên văn phòng tăng ca tối qua quên
-		 *    bấm ra, sáng nay bấm 08:30 vào ca ngày — đem lượt ấy đóng hàng đêm là ca ngày mất giờ
-		 *    vào (mất trọn công ngày) và đêm qua thành 14 tiếng. Đúng lời anh: *"công ngày thì
-		 *    ngày nào ra ngày đó"*. Ở cơ sở phụ (setup) không có ca ngày để mà nhầm.
-		 * ⚠️ CHẶN Ở `ngayDen`: sau 17:00 hôm sau mà bấm thì đó là MỞ ca đêm mới (luật cũ), không
-		 *    phải đóng ca cũ — ca cũ vẫn đỏ để người ta đi bù, không tự nối hai đêm làm một.
-		 * ⚠️ Giờ ghi trải phẳng thẳng (+24h), không qua `trai_phang()`: hàm ấy trả null cho 11:18
-		 *    (giờ ca ngày) và lượt sẽ bị chối "không thuộc hàng ca đêm".
-		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		/* "Setup đợi ngày ra" — luật dùng chung, xem `dong_ca_dem_dang_mo()`. */
 		$tuyen = null;
-		$cs_luat = self::coso_luat( $coso );
-		if ( 0 !== strcasecmp( $cs_luat, $coso ) && self::la_van_phong( $coso )
-			&& null !== $giay && null !== $ngay_den && $giay <= $ngay_den ) {
-			$hom_truoc = self::ngay_truoc( $ngay );
-			$mo = self::hang( $coso, $hom_truoc, $ma_nv, self::DUOI_CD );
-			if ( $mo && null !== $mo['gio_vao_giay'] && '' !== $mo['gio_vao_giay']
-				&& ( null === $mo['gio_ra_giay'] || '' === $mo['gio_ra_giay'] ) ) {
-				$tuyen = array( 'ngay' => $hom_truoc, 'duoi' => self::DUOI_CD, 'dem' => true, 'doi_ra' => true );
-			}
+		$dong = self::dong_ca_dem_dang_mo( $coso, $ngay, $giay, $ma_nv, $ngay_den );
+		if ( null !== $dong ) {
+			$tuyen = array( 'ngay' => $dong['ngay'], 'duoi' => $dong['duoi'], 'dem' => true, 'doi_ra' => true );
 		}
 		if ( null === $tuyen ) { $tuyen = self::dinh_tuyen( $coso, $ngay, $giay, $chinh_chua_ra ); }
 
