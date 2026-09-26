@@ -1313,7 +1313,10 @@
               ? '<details class="chu-them" id="bcKhachCach"><summary style="cursor:pointer">Cách tính khách vào (POS): ' + nguyen(p.khach_may) + ' = ' +
                 p.khach_chi_tiet.map(function (c) { return nguyen(c.q) + '×' + c.k; }).join(' + ') + '</summary>' +
                 '<div style="margin-top:4px">' + p.khach_chi_tiet.map(function (c) {
-                  return esc(c.n) + ': <b>' + nguyen(c.q) + ' vé × ' + c.k + '</b>' + (c.tam ? ' <span style="color:var(--xau)">(chưa khai, tạm 1)</span>' : '');
+                  /* 🔴 26/09/2026: "k" giờ là GỢI Ý (có thể 2, 3…), không còn luôn luôn là 1 — chữ
+                   chú thích phải theo đúng số đang dùng, không được hardcode "tạm 1" khi thật ra
+                   đang tạm theo 2 hay 3, kẻo người đọc tưởng máy vẫn tính non như cũ. */
+                return esc(c.n) + ': <b>' + nguyen(c.q) + ' vé × ' + c.k + '</b>' + (c.tam ? ' <span style="color:var(--xau)">(chưa khai, tạm ' + c.k + ')</span>' : '');
                 }).join('<br>') + '</div></details>'
               : '')
           : '<div class="trong">Ngày này chưa có số liệu máy POS trong kho. Nạp file FABi cho ngày đó rồi quay lại.</div>';
@@ -5191,7 +5194,8 @@
       '<i>Trẻ em + Người lớn</i> là <b>2</b>, vé lẻ là <b>1</b>. <b>Khai theo tên vé, một lần cho mọi cửa hàng</b> (nút "Lưu cho tất cả"). ' +
       'Quán nào vé ấy tính khác thì chọn quán, sửa số rồi bấm <b>"Lưu riêng cho quán này"</b> — chỉ vé gõ khác số chung mới thành riêng, ' +
       'và số riêng đè số chung ở quán ấy. Máy tự ra <b>Khách vào (POS)</b> ở tab Nhập báo cáo để so với số nhân viên đếm ở cửa. ' +
-      'Vé <b>chưa khai</b> đang tạm tính 1 khách/vé và đã được <b>điền sẵn gợi ý</b> — sửa nếu cần rồi bấm Lưu. Ô để trống = không tính; ' +
+      'Vé <b>chưa khai</b> đang tạm tính THEO GỢI Ý hiện sẵn ở ô "Khách mỗi vé" (đúng số Khách vào (POS) đang dùng, không đợi Lưu) — ' +
+      'sửa nếu gợi ý sai rồi bấm Lưu để số này ghi cố định, khỏi tính lại mỗi lần. Ô để trống = không tính; ' +
       '<b>0</b> = vé không ứng với người (vé online đã gộp, vé bù…). Cột <b>Sale phụ mỗi vé</b>: tiền phụ của <b>riêng loại vé này</b> ' +
       '(combo này 20.000, combo kia 15.000) — để trống là theo số của nhóm món khai ở khối dưới; gõ 0 là vé này không có phụ.</div>' +
       oChonCS('vkCS', r);

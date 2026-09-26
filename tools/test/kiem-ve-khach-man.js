@@ -62,7 +62,12 @@ t('nhắc quán khác còn vé chưa khai (con_thieu) và bấm là sang quán �
 t('🔴 cột "Sale phụ mỗi vé (đ)" theo tên vé, ô data-vp, placeholder nêu số của nhóm', /<th>Sale phụ mỗi vé \(đ\)<\/th>/.test(ve) && /data-vp=/.test(ve) && /'nhóm: ' \+ nguyen\(x\.phu_nhom\)/.test(ve));
 t('Lưu gửi kèm phu (theo tên vé)', /fd\.append\('phu', JSON\.stringify\(bp\)\)/.test(ve));
 
-t('tab Nhập bày "Cách tính khách vào (POS)" từng vé × khách/vé (24/09/2026: "set xong lại sao nó không áp dụng")', /id="bcKhachCach"/.test(boc('napBaoCao')) && /p\.khach_chi_tiet\.map/.test(boc('napBaoCao')) && /chưa khai, tạm 1/.test(boc('napBaoCao')));
+t('tab Nhập bày "Cách tính khách vào (POS)" từng vé × khách/vé (24/09/2026: "set xong lại sao nó không áp dụng")', /id="bcKhachCach"/.test(boc('napBaoCao')) && /p\.khach_chi_tiet\.map/.test(boc('napBaoCao')));
+/* 🔴 26/09/2026: anh Thắng — "Điền sẵn thì phải áp dụng luôn chứ". "k" giờ là GỢI Ý thật (có thể
+   2, 3…), không còn luôn luôn là 1 — chữ chú thích phải đọc theo đúng c.k đang dùng, không được
+   hardcode "tạm 1" (số ấy đã từng đúng, giờ đã sai vì combo tạm theo gợi ý 2). */
+t('🔴 chữ chú thích "tạm X" đọc THEO c.k đang dùng, không hardcode "tạm 1"',
+  /\(chưa khai, tạm ' \+ c\.k \+ '\)/.test(boc('napBaoCao')) && !/chưa khai, tạm 1\)/.test(boc('napBaoCao')));
 
 if (hong.length) {
   console.log('\n✗ HỎNG ' + hong.length + ' phép (đạt ' + dat + '):');

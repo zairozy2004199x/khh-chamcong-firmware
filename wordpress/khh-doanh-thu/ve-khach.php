@@ -299,11 +299,18 @@ function khh_dt_ve_khach_goi_y( $ten, $nhom = '' ) {
 /**
  * Tính khách từ danh sách món của một ngày ([ {n, g, q, r} ... ]).
  *
- * 🔴 VÉ CHƯA KHAI THÌ TẠM TÍNH 1 KHÁCH MỘT VÉ, KHÔNG BỎ QUA. Anh Thắng 23/09/2026 nhìn Lotte Gò Vấp:
+ * 🔴 VÉ CHƯA KHAI THÌ TẠM TÍNH THEO GỢI Ý, KHÔNG BỎ QUA. Anh Thắng 23/09/2026 nhìn Lotte Gò Vấp:
  *    hai combo tên khác Aeon Tân Phú chưa được khai, máy chỉ cộng 12 + 2 = 14 rồi bày như số thật —
  *    *"bên khách lại lấy khách vào sai… phải 28 chứ"* (10 + 12 + 4 + 2). Bỏ qua một loại vé là số
- *    máy tụt xuống dưới cả số vé bán, vô lý ngay. Nay vé chưa khai góp 1 khách/vé và được KỂ TÊN
- *    kèm chữ "tạm tính"; khai 2 cho combo ở Quản trị là số nhảy lên đúng.
+ *    máy tụt xuống dưới cả số vé bán, vô lý ngay. Nay vé chưa khai góp theo GỢI Ý (`khh_dt_ve_khach_goi_y()`
+ *    — đếm chữ chỉ người trong tên, "TRẺ EM + NGƯỜI LỚN…" ra 2) và được KỂ TÊN kèm chữ "tạm tính".
+ *
+ * 🔴 26/09/2026: anh Thắng — màn Quản trị đã ĐIỀN SẴN đúng gợi ý ấy vào ô "khách/vé" cho người
+ *    duyệt xem trước khi Lưu: *"Điền sẵn thì phải áp dụng luôn chứ, chứ đợi quản lý vào điền à, vào
+ *    thì điền sẵn làm gì nữa"*. Trước bản này, "tạm tính" LUÔN LÀ 1 bất kể gợi ý đã tính ra bao
+ *    nhiêu — số hiện ở màn Nhập báo cáo (Quản trị) và số THẬT SỰ dùng để tính "Khách vào (POS)" là
+ *    HAI CON SỐ KHÁC NHAU cho tới khi ai đó bấm Lưu. Nay dùng THẲNG gợi ý làm số tạm, không đợi
+ *    xác nhận — combo "chưa khai" đã đúng ngay, chỉ còn khai tay khi gợi ý sai (hiếm, vé lạ tên).
  *
  * @return array khach (int|null — null khi không có vé nào, khai hay chưa), chac (phần từ vé đã
  *               khai), tam (phần tạm tính 1 khách/vé từ vé chưa khai), da_tach (số loại vé đã khai
@@ -336,8 +343,12 @@ function khh_dt_khach_may_tu_mon( $mon, $bang = null ) {
 		}
 		if ( $sl > 0 && khh_dt_ve_la_ve( $ten, isset( $m['g'] ) ? (string) $m['g'] : '' ) ) {
 			$chua[ $ten ] = ( isset( $chua[ $ten ] ) ? $chua[ $ten ] : 0 ) + $sl;
-			$tam         += $sl;
-			$chi[]        = array( 'n' => $ten, 'q' => (int) round( $sl ), 'k' => 1, 'tam' => true );
+			/* Chưa khai thì lấy THẲNG gợi ý làm số tạm — không hạ về 1 rồi bắt ai đó vào Quản trị
+			   bấm Lưu thì con số mới đúng, xem chú thích 26/09/2026 ở đầu hàm. */
+			$goi_y = khh_dt_ve_khach_goi_y( $ten, isset( $m['g'] ) ? (string) $m['g'] : '' );
+			$k_tam = null !== $goi_y ? $goi_y : 1;
+			$tam  += $sl * $k_tam;
+			$chi[] = array( 'n' => $ten, 'q' => (int) round( $sl ), 'k' => $k_tam, 'tam' => true );
 		}
 	}
 	$co = $n > 0 || $chua;

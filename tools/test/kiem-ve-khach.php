@@ -72,13 +72,16 @@ phep( 'chữ x trong tên thường ("Vé Xe điện", "Vé Xanh") không phải
 phep( '"VÉ GIA ĐÌNH: 2 NGƯỜI LỚN + 1 TRẺ EM" đếm được 2 cụm -> 2 (số đứng trước không đọc, quản trị sửa tay)', 2 === khh_dt_ve_khach_goi_y( 'VÉ GIA ĐÌNH: 2 NGƯỜI LỚN + 1 TRẺ EM' ) );
 phep( 'chữ "ve" nằm giữa từ khác không phải vé', null === khh_dt_ve_khach_goi_y( 'Cà phê Việt', 'ĐỒ UỐNG' ) );
 
-/* ── 2 + 3. chưa khai: tạm tính 1 khách/vé ── */
+/* ── 2 + 3. chưa khai: tạm tính THEO GỢI Ý (không còn cứng 1) ── */
 $k = khh_dt_khach_may( '2026-09-22', $CS );
-phep( '🔴 chưa khai vé nào -> tạm tính 1 khách/vé = 10+5+7+3 = 25, chắc 0, chưa đủ', 25 === $k['khach'] && 25 === $k['tam'] && 0 === $k['chac'] && 0 === $k['da_tach'] && false === $k['du'] );
+/* 🔴 26/09/2026: anh Thắng — "Điền sẵn thì phải áp dụng luôn chứ, chứ đợi quản lý vào điền à".
+   Combo "VÉ TRẺ EM + NGƯỜI LỚN" chưa khai giờ tạm theo gợi ý 2 (không phải cứng 1): 10×2 + 5×1 +
+   7×1 + 3×1 = 35, không còn 25 như trước bản này. */
+phep( '🔴 chưa khai vé nào -> tạm tính THEO GỢI Ý = 10×2+5×1+7×1+3×1 = 35, chắc 0, chưa đủ', 35 === $k['khach'] && 35 === $k['tam'] && 0 === $k['chac'] && 0 === $k['da_tach'] && false === $k['du'] );
 phep( '🔴 kể tên đủ 4 loại vé có bán mà chưa khai (không kể Nước suối)',
 	array( 'VÉ TRẺ EM + NGƯỜI LỚN', 'VÉ TUTU TRAIN: VÉ TRẺ EM', 'VÉ TUTU TRAIN: VÉ NGƯỜI LỚN', 'Vé Online' ) === array_keys( $k['chua_tach'] ) );
 $pos = khh_dt_so_pos( '2026-09-22', $CS );
-phep( 'so_pos: khach_may 25 kèm khach_tam 25 để màn ghi "tạm tính"', 25 === $pos['khach_may'] && 25 === $pos['khach_tam'] );
+phep( 'so_pos: khach_may 35 kèm khach_tam 35 để màn ghi "tạm tính"', 35 === $pos['khach_may'] && 35 === $pos['khach_tam'] );
 phep( 'so_pos: vẫn có so_ve như cũ', 25.0 === (float) $pos['so_ve'] );
 /* Ngày chỉ bán đồ uống, không có vé nào -> NULL (không phải 0). */
 ngay_ban( '2026-09-21', $CS, array( array( 'n' => 'Nước suối', 'g' => 'ĐỒ UỐNG', 'q' => 3, 'r' => 30000 ) ) );
@@ -101,8 +104,11 @@ ngay_ban( '2026-09-24', $BT, array(
 	array( 'n' => 'VÉ TUTU TRAIN: VÉ TRẺ EM',                     'g' => 'VÉ LẺ.',    'q' => 3,  'r' => 120000 ),
 ) );
 $k = khh_dt_khach_may( '2026-09-23', $GV );
-phep( '🔴 Gò Vấp: combo chưa khai tạm 1/vé -> 28, không phải 14', 28 === $k['khach'] && 14 === $k['tam'] );
-phep( 'chi tiết cách tính: từng vé kèm số vé, khách/vé, cờ tạm tính', 4 === count( $k['chi_tiet'] ) && 1 === count( array_filter( $k['chi_tiet'], function ( $c ) { return 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + THẠCH' === $c['n'] && 10 === $c['q'] && 1 === $c['k'] && true === $c['tam']; } ) ) && 1 === count( array_filter( $k['chi_tiet'], function ( $c ) { return 'VÉ TUTU TRAIN: VÉ TRẺ EM' === $c['n'] && 12 === $c['q'] && 1 === $c['k'] && false === $c['tam']; } ) ) );
+/* 🔴 26/09/2026: hai combo THẠCH/BIM BIM chưa khai giờ tạm theo gợi ý 2/vé (đếm "trẻ em"+"người
+   lớn" trong tên), không còn cứng 1/vé: chắc 12+2=14 (hai vé lẻ đã khai, không đổi) + tạm
+   10×2+4×2=28 = 42, không phải 28 (tạm cứng 1) hay 14 (bỏ qua hẳn combo, lỗi gốc 23/09). */
+phep( '🔴 Gò Vấp: combo chưa khai tạm THEO GỢI Ý (2/vé) -> 42, không phải 28 (tạm cứng 1) hay 14 (bỏ qua)', 42 === $k['khach'] && 28 === $k['tam'] && 14 === $k['chac'] );
+phep( 'chi tiết cách tính: từng vé kèm số vé, khách/vé (combo chưa khai = gợi ý 2, không phải 1), cờ tạm tính', 4 === count( $k['chi_tiet'] ) && 1 === count( array_filter( $k['chi_tiet'], function ( $c ) { return 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + THẠCH' === $c['n'] && 10 === $c['q'] && 2 === $c['k'] && true === $c['tam']; } ) ) && 1 === count( array_filter( $k['chi_tiet'], function ( $c ) { return 'VÉ TUTU TRAIN: VÉ TRẺ EM' === $c['n'] && 12 === $c['q'] && 1 === $c['k'] && false === $c['tam']; } ) ) );
 /* Khai chung (REST, cua_hang = '*') như nút "Lưu cho tất cả cửa hàng" bấm khi đang xem Gò Vấp. */
 $GLOBALS['VHCP_CO_QUYEN'] = true; $GLOBALS['VHCP_DANG_NHAP_WP'] = true;
 $r = khh_dt_rest_ve_khach_dat( new WP_REST_Request( array( 'cua_hang' => '*', 'xem_cua_hang' => $GV, 'bang' => wp_json_encode( array( 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + THẠCH' => 2, 'COMBO TUTU TRAIN: TRẺ EM + NGƯỜI LỚN + BIM BIM' => 2 ) ) ) ) );

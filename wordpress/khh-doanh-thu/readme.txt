@@ -102,6 +102,15 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.69.3 =
+* Bóc tách vé → khách vào: vé/combo **chưa khai** giờ tính **khách vào (POS)** THEO ĐÚNG GỢI Ý đã
+  điền sẵn (combo "Trẻ em + Người lớn" → 2), không còn hạ về 1 khách/vé rồi đợi ai đó vào Quản trị
+  bấm Lưu mới đúng số (anh Thắng 26/09/2026: *"Điền sẵn thì phải áp dụng luôn chứ, chứ đợi quản lý
+  vào điền à, vào thì điền sẵn làm gì nữa"*). Trước bản này, số hiện ở ô "Khách mỗi vé" (Quản trị)
+  và số THẬT SỰ dùng để tính Khách vào (POS) là hai con số khác nhau cho tới khi Lưu. Dòng chú
+  thích "cách tính" ở tab Nhập báo cáo cũng đổi theo — không còn ghi cứng "tạm 1" khi thực ra đang
+  tạm theo 2 hay 3.
+
 = 1.69.2 =
 * Đối soát: số "thực nộp" (khi đếm két để trống mà đã khai Nộp quỹ) nay hiện THẲNG ra bảng, ngay
   dưới ô Đếm két — anh Thắng 26/09/2026: *"chứ kế toán sao biết được"* khi số ấy trước đó chỉ nằm
