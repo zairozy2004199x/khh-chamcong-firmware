@@ -237,7 +237,7 @@ class VHCC_BangLuong {
 		 * Anh Thắng: *"công bù là tự cộng vào khhcm"*. Bảng lương này đọc thẳng giờ chấm THÔ (vòng
 		 * `foreach` ở trên, không phân biệt hậu tố — xem chú thích "GOM VỀ MỘT TỔNG MỖI NGƯỜI"), nên
 		 * chưa từng biết tới "công bù": khoản cộng thêm cho NGÀY HÔM SAU của một ca đêm đạt chuẩn
-		 * (`VHCC_Luong::vp_tinh_nguoi()`, cấu hình `demCongBu`) — khoản này KHÔNG có giờ chấm thật
+		 * (`VHCC_Luong::vp_tinh_nguoi()`, cấu hình `demBuMoc1..3`/`demBuSo1..3`) — khoản này KHÔNG có giờ chấm thật
 		 * nào đứng sau nó, nên từ trước tới giờ nó chỉ hiện trên màn Bảng công, chưa từng vào bảng
 		 * lương thật xuất ra cho kế toán.
 		 *

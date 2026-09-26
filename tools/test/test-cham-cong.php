@@ -1433,8 +1433,9 @@ vhcc_cham_dem( 'VP_HCM', '2026-09-10', 'V4', '22:00:00', '01:30:00' );
 $r = VHCC_Luong::bang_cong_va_luong( 'VP_HCM', '2026-09' );
 $v4 = $r['vp']['rows'][0];
 teq( 'ca đêm cho 1 công đêm', 1.0, $v4['congDem'] );
-teq( 'cộng 1 công bù (nghỉ bù)', 1.0, $v4['congBu'] );
-teq( 'tổng 2 công', 2.0, $v4['tong'] );
+/* 26/09/2026: giờ ra 01:30 <= mốc 1 mặc định 02:00 -> mức 1 (0.5 công bù), không còn 1 cố định. */
+teq( 'cộng 0.5 công bù (nghỉ bù, mức 1)', 0.5, $v4['congBu'] );
+teq( 'tổng 1.5 công', 1.5, $v4['tong'] );
 $ngay_dem = array();
 foreach ( $r['vp']['detail'] as $d ) { if ( $d['congDem'] > 0 ) { $ngay_dem[] = $d['ngay']; } }
 teq( 'công đêm ghi NGAY TẠI NGÀY VÀO', array( '2026-09-10' ), $ngay_dem );
@@ -1478,7 +1479,9 @@ $bu1 = 0.0;
 foreach ( $r_bu1['vp']['detail'] as $d ) {
 	if ( '2026-09-11' === $d['ngay'] ) { $bu1 += (float) $d['congBu']; }
 }
-teq( 'bật lại thì vẫn bù dù hôm ấy có đi làm', 1.0, $bu1 );
+/* 26/09/2026: ca đêm 22:00→01:30 -> giờ ra 01:30 <= mốc 1 mặc định 02:00 -> mức 1 (0.5), không
+   còn 1 cố định. */
+teq( 'bật lại thì vẫn bù dù hôm ấy có đi làm', 0.5, $bu1 );
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ngay='2026-09-11'" );
 
 /* 🔴 HAI ĐÊM LIỀN NHAU -> HAI LẦN BÙ, mỗi lần một ngày.
@@ -1490,7 +1493,10 @@ vhcc_cham_dem( 'VP_HCM', '2026-09-15', 'V4', '22:00:00', '01:30:00' );
 $r_2d = VHCC_Luong::bang_cong_va_luong( 'VP_HCM', '2026-09' );
 $tong_bu = 0.0;
 foreach ( $r_2d['vp']['detail'] as $d ) { $tong_bu += (float) $d['congBu']; }
-teq( '🔴 ba đêm (10 · 14 · 15) -> ba lần bù, cộng dồn không đè', 3.0, $tong_bu );
+/* 26/09/2026: cả ba ca đều ra 01:30 (<= mốc 1 mặc định 02:00) -> mỗi đêm 0.5 công bù (mức 1),
+   không còn 1 cố định — canh vẫn giữ nguyên: "ba lần bù, cộng dồn không đè" (0.5×3, không mất
+   lần nào, không phải một lần duy nhất bị ghi đè). */
+teq( '🔴 ba đêm (10 · 14 · 15) -> ba lần bù, cộng dồn không đè', 1.5, $tong_bu );
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' )
 	. " WHERE ngay>='2026-09-14' AND ngay<='2026-09-16'" );
 /* 🔴 26/09/2026 — KHÔNG CÒN CẦN "demSangNgay" ĐỂ GIỮ DÒNG NGÀY BẮT ĐẦU CA ĐÊM.
@@ -8625,7 +8631,10 @@ foreach ( (array) $bl_gh['detail'] as $ct ) {
 }
 t( 'engine thấy đêm 06 đủ cặp', $d06 && empty( $d06['demChuaDuCap'] ), $d06 );
 teq( '🔴 đêm 06 cho 1 CÔNG ĐÊM ngay tại ngày 06', 1.0, $d06 ? (float) $d06['congDem'] : -1.0 );
-teq( '   và 1 CÔNG BÙ rơi vào ngày 07', 1.0, $d07 ? (float) $d07['congBu'] : -1.0 );
+/* 26/09/2026: công bù nay theo bậc thang giờ ra (xem `VHCC_Luong::vp_muc_bu()`) — giờ ra 04:02
+   đứng SAU mốc 2 mặc định (04:00) nên rơi vào mức 3 (1.5), không còn là 1 cố định. */
+teq( '   và 1.5 CÔNG BÙ rơi vào ngày 07 (giờ ra 04:02 qua mốc 2 04:00 -> mức 3)',
+	1.5, $d07 ? (float) $d07['congBu'] : -1.0 );
 /* Nhãn "đến từ cơ sở phụ" nằm ở NGÀY CÓ HÀNG (06 — nơi lượt bấm nằm) — không đổi theo mốc neo
    của công đêm, vì `tu_dau[]` khoá theo `ngay` gốc của hàng thô, không theo ngày nhận công. */
 teq( '   và đêm 06 được đánh dấu là đến từ cơ sở phụ', $GH_PHU, $d06 ? (string) $d06['tuCoSo'] : '' );

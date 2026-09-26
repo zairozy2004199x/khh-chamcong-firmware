@@ -112,8 +112,10 @@ foreach ( (array) $bl['detail'] as $x ) {
 	if ( '2026-09-07' === $x['ngay'] ) { $d07 = $x; }
 }
 t( '🔴 sau khi dọn, đêm 06 ra đúng 1 CÔNG ĐÊM ngay tại ngày 06', $d06 && 1.0 === (float) $d06['congDem'], $d06 );
-t( '   và 1 CÔNG BÙ rơi vào ngày 07 (hôm sau)', $d07 && 1.0 === (float) $d07['congBu']
-	&& '2026-09-06' === (string) $d07['buTuNgay'], $d07 );
+/* 26/09/2026: giờ ra 11:18 (đã sửa ở dòng 62-63) trễ hơn cả ba mốc mặc định (02:00/04:00/08:00)
+   -> mức 3 (1.5 công bù), không còn 1 cố định — xem `VHCC_Luong::vp_muc_bu()`. */
+t( '   và 1.5 CÔNG BÙ rơi vào ngày 07 (hôm sau, giờ ra 11:18 qua cả mốc 3 -> mức 3)',
+	$d07 && 1.5 === (float) $d07['congBu'] && '2026-09-06' === (string) $d07['buTuNgay'], $d07 );
 /* Chạy lại: không còn gì để dọn, không đẻ thêm nhật ký. */
 $n_ky = count( $ky );
 $r2 = VHCC_DonDem::chay( $AD, $PHU, '2026-09', true );
@@ -147,7 +149,8 @@ $d12 = null; $d13 = null;
 foreach ( (array) $bl['detail'] as $x ) { if ( 'DD1' !== $x['ma'] ) { continue; } if ( '2026-09-12' === $x['ngay'] ) { $d12 = $x; } if ( '2026-09-13' === $x['ngay'] ) { $d13 = $x; } }
 t( '🔴 ca 19:51→11:18 KHÔNG bị coi là ca lạ', $d12 && empty( $d12['caLa'] ), $d12 );
 t( '🔴 và cho đúng 1 CÔNG ĐÊM ngay tại 12/09', $d12 && 1.0 === (float) $d12['congDem'], $d12 );
-t( '   và 1 CÔNG BÙ rơi vào 13/09', $d13 && 1.0 === (float) $d13['congBu'], $d13 );
+/* 26/09/2026: giờ ra 11:18 trễ hơn cả ba mốc mặc định -> mức 3 (1.5 công bù). */
+t( '   và 1.5 CÔNG BÙ rơi vào 13/09 (giờ ra 11:18 -> mức 3)', $d13 && 1.5 === (float) $d13['congBu'], $d13 );
 /* Chiều chặn: hôm sau bấm SAU giờ tan ca là MỞ ca mới, không đóng ca cũ. */
 VHCC_Online::cham_cong( $U1, '', null, $PHU, '', strtotime( '2026-09-15 19:51:00 UTC' ), 0 );
 $k = VHCC_Online::cham_cong( $U1, '', null, $PHU, '', strtotime( '2026-09-16 18:00:00 UTC' ), 0 );

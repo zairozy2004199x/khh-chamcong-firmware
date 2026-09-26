@@ -53,8 +53,9 @@ $wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'BLT2', 'ho_ten' => 
 VHCC_GiaGio::dat_coso( $u_ad, $CHINH, array( 'NV' => 20000 ) );
 VHCC_Luong::dat_cai_dat( 'VP_CONG_CFG', array( 'ngayCongThang' => 26 ), $u_ad );
 
-/* Ca đêm SETUP: vào 20:00, ra 04:00 hôm sau — đạt chuẩn công đêm + công bù (mặc định demCong=1,
-   demCongBu=1). Công đêm rơi vào ngày 05 (ngày VÀO); công bù rơi vào ngày 06 (hôm sau). */
+/* Ca đêm SETUP: vào 20:00, ra 04:00 hôm sau — đạt chuẩn công đêm + công bù (mặc định demCong=1;
+   giờ ra 04:00 đúng mốc 2 -> demBuSo2=1). Công đêm rơi vào ngày 05 (ngày VÀO); công bù rơi vào
+   ngày 06 (hôm sau). */
 $wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $PHU, 'ngay' => '2026-08-05',
 	'ma_nv' => 'BLT1', 'hau_to' => 'CD', 'ho_ten' => 'Người Lương Tháng',
 	'gio_vao_giay' => VHCC_DB::giay( '20:00:00' ), 'gio_ra_giay' => VHCC_DB::giay( '04:00:00' ) + VHCC_DB::NGAY_GIAY,

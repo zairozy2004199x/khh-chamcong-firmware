@@ -945,7 +945,8 @@ class VHCC_Man {
 				$cfg = array();
 				foreach ( array( 'ngayTu', 'ngayDen', 'ngayMin', 'duoiMin', 'gioChuan', 'bacNua',
 					'bacMot', 'bacRuoi', 'demToiThieuGio', 'nuaTuGio', 'graceRaPhut', 'ktThu7Tu',
-					'ktThu7Den', 'ktThu7Min', 'demTu', 'demDen', 'demCong', 'demCongBu',
+					'ktThu7Den', 'ktThu7Min', 'demTu', 'demDen', 'demCong',
+					'demBuMoc1', 'demBuSo1', 'demBuMoc2', 'demBuSo2', 'demBuMoc3', 'demBuSo3',
 					'tangCaCong' ) as $k ) {
 					if ( isset( $_POST[ $k ] ) && '' !== trim( (string) $_POST[ $k ] ) ) {
 						$cfg[ $k ] = wp_unslash( $_POST[ $k ] );
@@ -1072,8 +1073,17 @@ class VHCC_Man {
 			. VHCC_Admin::o( 'demToiThieuGio', 'Ca đêm tối thiểu (giờ, 0 = không xét)', (string) $c['demToiThieuGio'] );
 		echo '<tr><th></th><td><em>Ngưỡng này KHÔNG áp cho ca thiếu cặp giờ: quên chấm ra thì không '
 			. 'cách nào biết ca dài bao lâu, cắt ngầm là trừ tiền một người vì cái máy lỗi.</em></td></tr>'
-			. VHCC_Admin::o( 'demCong', 'Công của một ca đêm', (string) $c['demCong'] )
-			. VHCC_Admin::o( 'demCongBu', 'Công nghỉ bù sau ca đêm', (string) $c['demCongBu'] );
+			. VHCC_Admin::o( 'demCong', 'Công của một ca đêm', (string) $c['demCong'] );
+		echo '<tr><th></th><td><em>Công nghỉ bù sau ca đêm nay tính theo BẬC THANG giờ ra: ra '
+			. 'trước/đúng mốc 1 thì lấy mức 1; qua mốc 1 nhưng còn trước/đúng mốc 2 thì lấy mức 2; '
+			. 'còn lại (kể cả trễ hơn mốc 3) thì lấy mức 3 — ra trễ hơn mốc cuối vẫn được mức CAO '
+			. 'NHẤT, không rơi về 0.</em></td></tr>'
+			. VHCC_Admin::o( 'demBuMoc1', 'Công bù — ra trước/đúng giờ này thì lấy MỨC 1', $c['demBuMoc1'] )
+			. VHCC_Admin::o( 'demBuSo1', 'Công bù MỨC 1', (string) $c['demBuSo1'] )
+			. VHCC_Admin::o( 'demBuMoc2', 'Công bù — ra trước/đúng giờ này (và sau mốc 1) thì lấy MỨC 2', $c['demBuMoc2'] )
+			. VHCC_Admin::o( 'demBuSo2', 'Công bù MỨC 2', (string) $c['demBuSo2'] )
+			. VHCC_Admin::o( 'demBuMoc3', 'Công bù — ra trước/đúng giờ này (và sau mốc 2) thì lấy MỨC 3', $c['demBuMoc3'] )
+			. VHCC_Admin::o( 'demBuSo3', 'Công bù MỨC 3 (và mọi lượt ra trễ hơn)', (string) $c['demBuSo3'] );
 		echo '<tr><th>Tự động gán giờ ra</th><td><label><input type="checkbox" name="tuDongRa" '
 			. 'value="1"' . ( $c['tuDongRa'] ? ' checked' : '' ) . ' /> Quên bấm giờ ra thì tự lấp '
 			. 'giờ ra MẶC ĐỊNH (ca ngày lấy "Ca ngày đến", ca đêm lấy "Ca đêm đến") khi tới mốc trễ '

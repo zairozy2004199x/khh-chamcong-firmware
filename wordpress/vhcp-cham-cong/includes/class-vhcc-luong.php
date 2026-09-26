@@ -761,7 +761,20 @@ class VHCC_Luong {
 		'demToiThieuGio' => array( 'Ca đêm tối thiểu (giờ, 0 = không xét)', 'so',
 			'Ngưỡng này KHÔNG áp cho ca thiếu cặp giờ: quên chấm ra thì không cách nào biết ca dài bao lâu, cắt ngầm là trừ tiền một người vì cái máy lỗi.' ),
 		'demCong'    => array( 'Công của một ca đêm', 'so', '' ),
-		'demCongBu'  => array( 'Công nghỉ bù sau ca đêm', 'so', '' ),
+		/* 🔴 26/09/2026 — CÔNG BÙ THEO BẬC THANG GIỜ RA, KHÔNG CÒN MỘT SỐ CỐ ĐỊNH.
+		   Anh Thắng: *"chỉnh cho phép set công bù, ví dụ giờ ra trước 2h là + 0,5 công bù, trước
+		   4h là 1 công bù, trước 8h sáng là 1,5 công bù"* — ca đêm về càng muộn (càng gần sáng)
+		   thì càng cần nghỉ bù nhiều, không phải một số duy nhất cho mọi ca đêm.
+		   Ba mốc XẾP TĂNG DẦN theo giờ (xem `dat_vp_cfg()`): ra trước/đúng mốc 1 thì lấy công bù
+		   1; qua mốc 1 nhưng còn trước/đúng mốc 2 thì lấy công bù 2; còn lại (kể cả trễ hơn mốc 3)
+		   thì lấy công bù 3 — ra trễ hơn mốc cuối vẫn được mức CAO NHẤT, không rơi về 0. */
+		'demBuMoc1' => array( 'Công bù — ra trước/đúng giờ này thì lấy MỨC 1', 'gio', '' ),
+		'demBuSo1'  => array( 'Công bù MỨC 1', 'so', '' ),
+		'demBuMoc2' => array( 'Công bù — ra trước/đúng giờ này (và sau mốc 1) thì lấy MỨC 2', 'gio', '' ),
+		'demBuSo2'  => array( 'Công bù MỨC 2', 'so', '' ),
+		'demBuMoc3' => array( 'Công bù — ra trước/đúng giờ này (và sau mốc 2) thì lấy MỨC 3', 'gio',
+			'Ra TRỄ HƠN cả mốc này vẫn lấy MỨC 3 — mức cao nhất, không phải 0.' ),
+		'demBuSo3'  => array( 'Công bù MỨC 3 (và mọi lượt ra trễ hơn)', 'so', '' ),
 		'tangCaCong' => array( 'Công của một ca tăng ca', 'so', '' ),
 		'ktThu7Tu'   => array( 'Kế toán — thứ Bảy từ', 'gio', '' ),
 		'ktThu7Den'  => array( 'Kế toán — thứ Bảy đến', 'gio', '' ),
@@ -804,7 +817,12 @@ class VHCC_Luong {
 			'ktThu7Tu' => '08:30', 'ktThu7Den' => '12:00', 'ktThu7Min' => 3,
 			'ktVaiTro' => array(), 'ktMaNV' => array(), 'ktChuNhatNghi' => true,
 			'demTu' => '21:00', 'demDen' => '06:00',
-			'demCong' => 1, 'demCongBu' => 1, 'demBuKhiDaLam' => 1, 'tangCaCong' => 0.5,
+			'demCong' => 1, 'demBuKhiDaLam' => 1, 'tangCaCong' => 0.5,
+			/* Mặc định GIỮ NGUYÊN kết quả cho ca đêm điển hình 20:00→04:00 (mốc 2, đúng bằng
+			   `demCongBu=1` cũ trước bản 26/09/2026) — chỉ ca về SỚM hơn hoặc TRỄ hơn mới đổi số. */
+			'demBuMoc1' => '02:00', 'demBuSo1' => 0.5,
+			'demBuMoc2' => '04:00', 'demBuSo2' => 1,
+			'demBuMoc3' => '08:00', 'demBuSo3' => 1.5,
 			'ngayCongThang' => 0,
 			/* 🔴 26/09/2026 — Anh Thắng: nhân viên hay quên bấm giờ RA; muốn hệ thống tự lấp một
 			   giờ ra MẶC ĐỊNH khi tới mốc trễ mà vẫn chưa thấy (xem `VHCC_TuDongRa::quet()`).
@@ -1232,13 +1250,14 @@ class VHCC_Luong {
 
 		   ⚠️ `array_keys()` chụp danh sách TRƯỚC vòng lặp, nên ngày mới do `$o()` đẻ ra không bị
 		      lặp vào — không có chuyện bù đẻ ra bù thành dây chuyền. */
+		/* ═══════════════ CÔNG BÙ THEO BẬC THANG GIỜ RA — xem chú thích ở `VP_O['demBuMoc1']`. */
 		foreach ( array_keys( $out ) as $ngay ) {
 			if ( ! $out[ $ngay ]['congDem'] ) { continue; }
 			$bu = self::ngay_sau( $ngay );
 			$o( $bu );
 			$da_lam = ( $out[ $bu ]['congNgay'] > 0 || $out[ $bu ]['congTangCa'] > 0 );
 			if ( ! $da_lam || (int) $cfg['demBuKhiDaLam'] ) {
-				$out[ $bu ]['congBu'] += (float) $cfg['demCongBu'];
+				$out[ $bu ]['congBu'] += self::vp_muc_bu( $cfg, $out[ $ngay ]['h2ra'] );
 				/* GIỮ dấu vết bù từ đâu — cùng lối với `demTuNgay`. Một ngày tự nhiên có thêm
 				   công mà không nói từ đâu ra là con số không kiểm được. */
 				$out[ $bu ]['buTuNgay'] = $ngay;
@@ -1272,6 +1291,32 @@ class VHCC_Luong {
 		}
 		ksort( $out );
 		return $out;
+	}
+
+	/**
+	 * MỨC CÔNG BÙ theo giờ RA của ca đêm (bậc thang 3 mốc — xem `VP_O['demBuMoc1']`).
+	 *
+	 * Anh Thắng: *"chỉnh cho phép set công bù, ví dụ giờ ra trước 2h là + 0,5 công bù, trước 4h
+	 * là 1 công bù, trước 8h sáng là 1,5 công bù"*.
+	 *
+	 * @param array  $cfg  vp_cfg() đã áp cho cơ sở/khối.
+	 * @param string $h2ra giờ RA của ca đêm, dạng 'HH:MM' (đã trải phẳng về giờ tường thuật —
+	 *                     xem `$out[$ngay]['h2ra']` ở `vp_tinh_nguoi()`).
+	 */
+	private static function vp_muc_bu( $cfg, $h2ra ) {
+		$giay_ra = VHCC_DB::giay( (string) $h2ra );
+		$moc = array(
+			array( VHCC_DB::giay( $cfg['demBuMoc1'] ), (float) $cfg['demBuSo1'] ),
+			array( VHCC_DB::giay( $cfg['demBuMoc2'] ), (float) $cfg['demBuSo2'] ),
+		);
+		if ( null !== $giay_ra ) {
+			foreach ( $moc as $m ) {
+				if ( null !== $m[0] && $giay_ra <= $m[0] ) { return $m[1]; }
+			}
+		}
+		/* Không đọc được giờ ra, hoặc ra trễ hơn cả hai mốc đầu (kể cả trễ hơn mốc 3) -> MỨC 3,
+		   mức CAO NHẤT — ca đêm đã đạt chuẩn (`congDem` > 0) thì chắc chắn có bù, không rơi về 0. */
+		return (float) $cfg['demBuSo3'];
 	}
 
 	/** Giây -> phút, giữ null. */
@@ -1650,7 +1695,8 @@ class VHCC_Luong {
 		$cho_phep = array( 'ngayTu', 'ngayDen', 'ngayMin', 'ngayMax', 'duoiMin', 'gioChuan',
 			'bacNua', 'bacMot', 'bacRuoi', 'demToiThieuGio', 'nuaTuGio', 'graceRaPhut',
 			'ktThu7Tu', 'ktThu7Den', 'ktThu7Min', 'ktVaiTro', 'ktMaNV', 'ktChuNhatNghi',
-			'demTu', 'demDen', 'demCong', 'demCongBu', 'demBuKhiDaLam', 'tangCaCong', 'tuDongRa' );
+			'demTu', 'demDen', 'demCong', 'demBuMoc1', 'demBuSo1', 'demBuMoc2', 'demBuSo2',
+			'demBuMoc3', 'demBuSo3', 'demBuKhiDaLam', 'tangCaCong', 'tuDongRa' );
 		$o = self::vp_cfg();
 		foreach ( $cho_phep as $k ) {
 			if ( array_key_exists( $k, (array) $cfg_moi ) ) { $o[ $k ] = $cfg_moi[ $k ]; }
@@ -1660,9 +1706,22 @@ class VHCC_Luong {
 			return array( 'ok' => false, 'error' => 'Cách tính khi thiếu giờ phải là một trong: '
 				. implode( ' · ', $hop ) );
 		}
-		foreach ( array( 'ngayTu', 'ngayDen', 'demTu', 'demDen', 'ktThu7Tu', 'ktThu7Den' ) as $k ) {
+		foreach ( array( 'ngayTu', 'ngayDen', 'demTu', 'demDen', 'ktThu7Tu', 'ktThu7Den',
+			'demBuMoc1', 'demBuMoc2', 'demBuMoc3' ) as $k ) {
 			if ( null === VHCC_DB::giay( $o[ $k ] ) ) {
 				return array( 'ok' => false, 'error' => 'Giờ "' . $k . '" phải dạng HH:mm.' );
+			}
+		}
+		/* 🔴 BA MỐC PHẢI XẾP TĂNG DẦN — logic chọn mức ở `vp_muc_bu()` đi từ mốc 1 tới mốc 3 và
+		   dừng ở mốc ĐẦU TIÊN giờ ra còn nằm trong đó; mốc lộn xộn (VD mốc 2 sớm hơn mốc 1) làm
+		   mốc 2 không bao giờ với tới được — người ra sau mốc 1 một chút sẽ nhảy thẳng qua mốc 3. */
+		if ( VHCC_DB::giay( $o['demBuMoc1'] ) > VHCC_DB::giay( $o['demBuMoc2'] )
+			|| VHCC_DB::giay( $o['demBuMoc2'] ) > VHCC_DB::giay( $o['demBuMoc3'] ) ) {
+			return array( 'ok' => false, 'error' => 'Ba mốc công bù phải xếp TĂNG DẦN: mốc 1 ≤ mốc 2 ≤ mốc 3.' );
+		}
+		foreach ( array( 'demBuSo1', 'demBuSo2', 'demBuSo3' ) as $k ) {
+			if ( ! is_numeric( $o[ $k ] ) || (float) $o[ $k ] < 0 ) {
+				return array( 'ok' => false, 'error' => 'Công bù "' . $k . '" phải là số không âm.' );
 			}
 		}
 		$doi_chieu = ( '' !== $coso_thu && '' !== $thang_thu )
