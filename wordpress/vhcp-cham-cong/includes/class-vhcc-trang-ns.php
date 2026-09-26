@@ -1682,6 +1682,14 @@ class VHCC_TrangNS {
 		$ds_trang = VHCC_Cong::ds();
 		$cs   = isset( $_GET['ncs'] )  ? VHCC_NhanSu::chuan_coso( wp_unslash( $_GET['ncs'] ) ) : '';
 		$q    = isset( $_GET['nq'] )   ? sanitize_text_field( wp_unslash( $_GET['nq'] ) ) : '';
+		/* Nhúng trong tab Hồ sơ: cơ sở / ô tìm chọn ở bảng hồ sơ (`cs` / `q`) cũng là bộ lọc của
+		   tab này — xem `the_tab()`. */
+		if ( self::$nhung && '' === $cs && isset( $_GET['cs'] ) ) {
+			$cs = VHCC_NhanSu::chuan_coso( wp_unslash( $_GET['cs'] ) );
+		}
+		if ( self::$nhung && '' === $q && isset( $_GET['q'] ) ) {
+			$q = sanitize_text_field( wp_unslash( $_GET['q'] ) );
+		}
 		$vai  = isset( $_GET['nvai'] ) ? sanitize_text_field( wp_unslash( $_GET['nvai'] ) ) : '';
 		$mang = isset( $_GET['nmang'] ) ? sanitize_text_field( wp_unslash( $_GET['nmang'] ) ) : '';
 		$nbp  = isset( $_GET['nbp'] )  ? sanitize_text_field( wp_unslash( $_GET['nbp'] ) ) : '';
@@ -2329,6 +2337,22 @@ class VHCC_TrangNS {
 				$giu[ $k ] = sanitize_text_field( wp_unslash( $_GET[ $k ] ) );
 			}
 		}
+		/* 🔴 26/09/2026 — NHÚNG TRONG TAB HỒ SƠ: MỘT CƠ SỞ, MỘT Ô TÌM CHO CẢ HAI TAB. Anh Thắng:
+		   *"Lỗi chuyển tab … mất cơ sở lọc, phải chọn lại"*. Tab Nhân sự vẽ bảng hồ sơ của
+		   `VHCC_Web` — ô lọc ấy tên `cs` / `q`; tab Quyền là bảng của trang này — `ncs` / `nq`.
+		   Hai tên cho một ý thì đổi tab là rơi mất. Nên liên kết tab chở CẢ HAI tên, lấy giá trị
+		   của tab ĐANG ĐỨNG làm gốc (đó là ô người ta vừa chọn). */
+		if ( self::$nhung ) {
+			foreach ( array( 'ncs' => 'cs', 'nq' => 'q' ) as $k_ns => $k_web ) {
+				$v_ns  = isset( $_GET[ $k_ns ] ) ? sanitize_text_field( wp_unslash( $_GET[ $k_ns ] ) ) : '';
+				$v_web = isset( $_GET[ $k_web ] ) ? sanitize_text_field( wp_unslash( $_GET[ $k_web ] ) ) : '';
+				$v = 'quyen' === $tab
+					? ( '' !== $v_ns ? $v_ns : $v_web )
+					: ( isset( $_GET[ $k_web ] ) ? $v_web : $v_ns );
+				unset( $giu[ $k_ns ] );
+				if ( '' !== $v ) { $giu[ $k_ns ] = $v; $giu[ $k_web ] = $v; }
+			}
+		}
 		$cai = array(
 			'nhan_su' => array( 'Nhân sự', 'Hồ sơ, cơ sở, vai trò' ),
 			'quyen'   => array( 'Quyền vào trang', 'Ai mở được trang nào' ),
@@ -2559,7 +2583,7 @@ class VHCC_TrangNS {
 			}
 		}
 
-		self::o_tim( $toi, $cs, $q, $vai, $mang, $nbp );
+		self::o_tim( $toi, $cs, $q, $vai, $mang, $nbp, $tab );
 		self::dai_mang_bp( $dem_mb, $mang, $nbp );
 		self::dai_vai( $dem_v, $vai );
 
@@ -4118,7 +4142,7 @@ class VHCC_TrangNS {
 		echo '</div>';
 	}
 
-	private static function o_tim( $toi, $cs, $q, $vai, $mang = '', $nbp = '' ) {
+	private static function o_tim( $toi, $cs, $q, $vai, $mang = '', $nbp = '', $tab = 'nhan_su' ) {
 		/* 🔴 08/09/2026 — ĐÃ BỎ nút "➕ Thêm nhân sự" (và câu giải thích dài kèm nó).
 		   Anh Thắng: *"loại bỏ chỗ này tránh nhầm"*.
 		   Nút ấy chỉ là một ĐƯỜNG DẪN sang biểu mẫu ở màn *Hồ sơ & tài khoản*, nhưng đặt ở đây
@@ -4132,6 +4156,12 @@ class VHCC_TrangNS {
 		   theo, kẻo bấm Lọc là rơi về trang chủ. */
 		if ( ! get_option( 'permalink_structure' ) ) {
 			echo '<input type="hidden" name="vhcc_ns" value="1">';
+		}
+		/* 🔴 26/09/2026 — Ô LỌC PHẢI CHỞ TAB CỦA NÓ. Anh Thắng: *"bấm lọc là nó nhảy tab là mất
+		   cơ sở lọc, phải chọn lại"*. Gửi biểu mẫu GET là trình duyệt dựng lại địa chỉ CHỈ từ các
+		   ô trong form — `ntab=quyen` rơi mất, `than()` đọc không thấy nên rẽ về tab Nhân sự. */
+		if ( 'quyen' === $tab ) {
+			echo '<input type="hidden" name="ntab" value="quyen">';
 		}
 		echo '<div><label>Cơ sở</label><select name="ncs"><option value="">— tất cả —</option>';
 		foreach ( VHCC_NhanSu::ds_coso() as $c ) {
@@ -4163,7 +4193,8 @@ class VHCC_TrangNS {
 			. '<input type="text" name="nq" value="' . esc_attr( $q ) . '" placeholder="tên, mã NV, SĐT"></div>';
 		echo '<button class="chinh">Lọc</button>';
 		if ( '' !== $cs || '' !== $q || '' !== $vai || '' !== $mang || '' !== $nbp ) {
-			echo '<a class="nut" href="' . esc_url( self::url() ) . '">Bỏ lọc</a>';
+			$u_bo = 'quyen' === $tab ? add_query_arg( 'ntab', 'quyen', self::url() ) : self::url();
+			echo '<a class="nut" href="' . esc_url( $u_bo ) . '">Bỏ lọc</a>';
 		}
 		echo '</form>';
 	}

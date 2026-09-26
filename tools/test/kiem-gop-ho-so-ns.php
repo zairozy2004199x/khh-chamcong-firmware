@@ -80,6 +80,66 @@ $_COOKIE = array();
 t( 'trang riêng cũ vẫn vẽ được (cho ai giữ lượt gửi cũ)', false !== strpos( $h_rieng, 'Quản lý nhân sự' ) );
 t( '   và ở đó bảng Hồ sơ nhân sự của chính nó vẫn còn', false !== strpos( $h_rieng, 'Hồ sơ nhân sự</h2>' ) );
 
+/* ── 🔴 26/09/2026 — ĐỔI TAB / BẤM LỌC KHÔNG ĐƯỢC NHẢY TAB, KHÔNG ĐƯỢC MẤT CƠ SỞ ĐANG LỌC.
+      Anh Thắng: *"Lỗi chuyển tab, bấm lọc là nó nhảy tab là mất cơ sở lọc, phải chọn lại"*. ── */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'GKH', 'ho_ten' => 'Người Cơ Sở Khác',
+	'vai_tro' => 'Nhân viên', 'cua_hang' => 'CS_KHAC', 'trang_thai_lam_viec' => 'Đang làm' ) );
+/* Danh mục cơ sở của ô lọc tab Quyền đọc bảng máy / bộ phận — khai hai cơ sở vào đó. */
+$wpdb->insert( VHCC_DB::t( 'bo_phan_coso' ), array( 'coso' => 'CS_GOP', 'bo_phan' => 'Văn phòng' ) );
+$wpdb->insert( VHCC_DB::t( 'bo_phan_coso' ), array( 'coso' => 'CS_KHAC', 'bo_phan' => 'Văn phòng' ) );
+$CS = VHCC_NhanSu::chuan_coso( 'CS_GOP' );
+/* Ô lọc (form GET có select ncs) ở tab Quyền. */
+$form_loc = function ( $h ) {
+	$i = strpos( $h, 'name="ncs"' );
+	if ( false === $i ) { return ''; }
+	$dau = strrpos( substr( $h, 0, $i ), '<form' );
+	return (string) substr( $h, (int) $dau, (int) strpos( $h, '</form>', $i ) - (int) $dau );
+};
+$lien_ket_tab = function ( $h, $ntab ) {
+	preg_match_all( '~<a class="tab-ns-o[^"]*" href="([^"]*)"~', $h, $m );
+	foreach ( $m[1] as $u ) {
+		$u = html_entity_decode( $u );
+		$co = false !== strpos( $u, 'ntab=quyen' );
+		if ( ( 'quyen' === $ntab ) === $co ) { return $u; }
+	}
+	return '';
+};
+$chon = function ( $h, $ten, $gt ) {
+	$i = strpos( $h, 'name="' . $ten . '"' );
+	if ( false === $i ) { return false; }
+	$sel = (string) substr( $h, $i, (int) strpos( $h, '</select>', $i ) - $i );
+	return false !== strpos( $sel, 'value="' . $gt . '" selected=' );
+};
+
+$hq = $web( array( 'man' => 'ho_so', 'ntab' => 'quyen', 'ncs' => $CS ) );
+$f  = $form_loc( $hq );
+t( '🔴 ô Lọc ở tab Quyền chở ntab=quyen (bấm Lọc không nhảy về tab Nhân sự)',
+	false !== strpos( $f, 'name="ntab" value="quyen"' ), $f );
+t( '   và vẫn chở man=ho_so', false !== strpos( $f, 'name="man" value="ho_so"' ) );
+t( '   "Bỏ lọc" ở tab Quyền cũng ở lại tab Quyền',
+	(bool) preg_match( '~href="[^"]*ntab=quyen[^"]*">Bỏ lọc~', $f ), $f );
+$u = $lien_ket_tab( $hq, 'nhan_su' );
+t( '🔴 từ tab Quyền đang lọc CS_GOP -> liên kết sang tab Nhân sự chở cơ sở cho bảng hồ sơ (cs=)',
+	false !== strpos( $u, 'cs=' . $CS ) && false !== strpos( $u, 'ncs=' . $CS ), $u );
+
+$hn = $web( array( 'man' => 'ho_so', 'ncs' => $CS ) );
+t( '🔴 tab Nhân sự mở với ncs (từ tab Quyền) -> ô Cơ sở của bảng hồ sơ đã chọn sẵn CS_GOP',
+	$chon( $hn, 'cs', $CS ) );
+t( '   và bảng hồ sơ thật sự lọc (không có người cơ sở khác)', false === strpos( $hn, 'Người Cơ Sở Khác' ) );
+
+$hn = $web( array( 'man' => 'ho_so', 'cs' => $CS ) );
+$u  = $lien_ket_tab( $hn, 'quyen' );
+t( '🔴 từ tab Nhân sự đang lọc cs=CS_GOP -> liên kết sang tab Quyền chở ncs=CS_GOP',
+	false !== strpos( $u, 'ncs=' . $CS ), $u );
+$hq = $web( array( 'man' => 'ho_so', 'ntab' => 'quyen', 'cs' => $CS ) );
+t( '   tab Quyền mở với cs -> ô Cơ sở của nó chọn sẵn CS_GOP', $chon( $form_loc( $hq ), 'ncs', $CS ) );
+
+$hn = $web( array( 'man' => 'ho_so', 'cs' => '', 'ncs' => $CS ) );
+t( '   chọn "— mọi cơ sở —" ở bảng hồ sơ là chủ ý bỏ lọc, không bị ncs cũ kéo lại',
+	! $chon( $hn, 'cs', $CS ) && false !== strpos( $hn, 'Người Cơ Sở Khác' ) );
+$u = $lien_ket_tab( $hn, 'quyen' );
+t( '   và liên kết sang tab Quyền cũng không còn cơ sở', false === strpos( $u, $CS ), $u );
+
 echo "\n";
 if ( $truot ) {
 	echo 'TRƯỢT ' . count( $truot ) . ":\n";

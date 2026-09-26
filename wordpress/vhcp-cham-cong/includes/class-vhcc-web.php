@@ -13725,6 +13725,16 @@ class VHCC_Web {
 		if ( '' !== $xem_pin && ! VHCC_Vai::duoc( $toi, 'xem_pin' ) ) { $xem_pin = ''; }
 		$cs   = isset( $_GET['cs'] ) ? sanitize_text_field( wp_unslash( $_GET['cs'] ) ) : '';
 		$tim  = isset( $_GET['q'] ) ? sanitize_text_field( wp_unslash( $_GET['q'] ) ) : '';
+		/* 🔴 26/09/2026 — cơ sở / ô tìm chọn ở tab "Quyền vào trang" (khối nhúng của
+		   `VHCC_TrangNS`, tên `ncs` / `nq`) cũng là bộ lọc của bảng này, kẻo đổi tab là mất cơ sở
+		   đang lọc — anh Thắng: *"mất cơ sở lọc, phải chọn lại"*. Chỉ lấy khi ô của bảng này
+		   không có mặt trên địa chỉ: gửi form ở đây với "— mọi cơ sở —" là chủ ý bỏ lọc. */
+		if ( ! isset( $_GET['cs'] ) && isset( $_GET['ncs'] ) ) {
+			$cs = VHCC_NhanSu::chuan_coso( sanitize_text_field( wp_unslash( $_GET['ncs'] ) ) );
+		}
+		if ( ! isset( $_GET['q'] ) && isset( $_GET['nq'] ) ) {
+			$tim = sanitize_text_field( wp_unslash( $_GET['nq'] ) );
+		}
 
 		/* 🔴 "AI CÓ PIN, AI CHƯA" PHẢI NHÌN LƯỚT LÀ THẤY, VÀ LỌC RA ĐƯỢC.
 		   Anh Thắng: *"cần hiện để biết ai có pin chưa"*. Soi 240 dòng chữ xám nhỏ để tìm người
