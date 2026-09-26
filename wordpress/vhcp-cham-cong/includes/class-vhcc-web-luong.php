@@ -82,6 +82,33 @@ class VHCC_WebLuong {
 		echo '<div><label for="lth">Tháng</label>'
 			. '<input id="lth" name="lth" type="month" value="' . esc_attr( $th ) . '"></div>';
 		echo '<div style="align-self:flex-end"><button class="chinh">Xem</button></div>';
-		echo '</form></div>';
+		echo '</form>';
+		self::nut_tai_het( $th, $toi );
+		echo '</div>';
+	}
+
+	/**
+	 * 🔴 26/09/2026 — TẢI BẢNG LƯƠNG TOÀN BỘ CƠ SỞ TRONG MỘT FILE, MỘT CÚ BẤM.
+	 *
+	 * Anh Thắng: *"Kế toán thêm tính năng tải được toàn bộ tất cả cơ sở trong 1 file"*. Đường xuất
+	 * nhiều cơ sở đã có (`xuat=luong` + `cs=`, mỗi cơ sở một khối trong một tờ) nhưng phải chọn
+	 * một cơ sở trước rồi tích từng ô — hai mươi cơ sở là hai mươi lần tích. Nút này gửi thẳng
+	 * đủ danh sách.
+	 *
+	 * ⚠️ DANH SÁCH LÀ ĐÚNG PHẠM VI NGƯỜI BẤM, và đường xuất vẫn hỏi lại quyền từng
+	 *    cơ sở — không có đường nào đọc lương cơ sở ngoài tầm. Một cơ sở thì không bày nút.
+	 */
+	private static function nut_tai_het( $th, $toi ) {
+		/* Cùng danh sách với ô chọn cơ sở ngay bên cạnh (`ds_coso_xem`): kế toán/Admin là CẢ
+		   chuỗi, người khác là phạm vi hồ sơ của họ. */
+		$ds = array_values( array_filter( (array) VHCC_Web::ds_coso_xem( $toi ), function ( $c ) use ( $toi ) {
+			return '' !== (string) $c && VHCC_NhanSu::co_quyen_coso( $toi, (string) $c );
+		} ) );
+		if ( count( $ds ) < 2 ) { return; }
+		$url = add_query_arg( array( 'xuat' => 'luong', 'ccs' => $ds[0], 'cs' => implode( ',', $ds ),
+			'cth' => $th ), VHCC_Web::url() );
+		echo '<p style="margin:12px 0 0"><a class="nut" href="' . esc_url( $url ) . '">⬇ Tải bảng lương '
+			. '<b>tất cả ' . count( $ds ) . ' cơ sở</b> — tháng ' . esc_html( $th ) . ' (1 file .xlsx)</a> '
+			. '<span class="mo">mỗi cơ sở một khối có dòng cộng riêng, đúng khuôn file kế toán.</span></p>';
 	}
 }
