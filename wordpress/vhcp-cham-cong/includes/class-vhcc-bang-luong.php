@@ -282,6 +282,11 @@ class VHCC_BangLuong {
 			}
 		}
 		$gia_dem = ( $la_cs_cong && isset( $cfg['demGiaCong'] ) ) ? (float) $cfg['demGiaCong'] : 0.0;
+		/* Khoản giữ lại — đọc sổ MỘT lần cho cả bảng (xem `VHCC_GiuLuong`). */
+		$so_kh  = VHCC_GiuLuong::so_khoan();
+		$so_tra = VHCC_GiuLuong::so_tra();
+		$giu_k  = VHCC_GiuLuong::khoan_giu_thang( $tt, $so_kh );
+		$co_giu = ! empty( $so_kh );
 		$dong = array();
 		$vuot  = 0;
 		foreach ( $gom as $g ) {
@@ -439,7 +444,7 @@ class VHCC_BangLuong {
 					'gioTong' => $gio_tong,
 					'gioKhac' => $gio_khac,
 					/* Dòng giờ khác KHÔNG mang khoản tiền nào — xem chú thích ở dòng chính. */
-					'cong' => array(), 'tru' => array(), 'tongCong' => 0.0, 'tongTru' => 0.0,
+					'cong' => array(), 'tru' => array(), 'tongCong' => 0.0, 'tongTru' => 0.0, 'giu' => array(), 'traGiu' => array(), 'tichLuy' => array(),
 				);
 			};
 
@@ -518,10 +523,36 @@ class VHCC_BangLuong {
 			   MỘT LẦN. Rải ra mỗi dòng là trừ ba lần — và bảng vẫn có số nên không ai thấy. */
 			$kt = VHCC_ChotLuong::tien_cua( $coso, $tt, $g['ma'], $so_khac );
 			$tt_tien = VHCC_ChotLuong::tong_tien( $coso, $tt, $g['ma'], $so_khac );
+			/* 🔴 KHOẢN GIỮ LẠI, TRẢ SAU (`VHCC_GiuLuong`). Khoản quản lý đã tích "giữ lại" cho
+			   tháng này: số vẫn hiện (nhân viên biết mình được bao nhiêu) nhưng ĐI RA KHỎI tổng
+			   cộng của tháng — sang `giu`. Tiền đã giữ được TRẢ vào tháng này thì cộng vào đúng
+			   cột khoản ấy (`traGiu`). Chưa ai tích khoản nào thì cả nhánh đứng im. */
+			$giu_m = array(); $tra_m = array();
+			if ( $giu_k ) {
+				foreach ( $giu_k as $kk ) {
+					if ( ! empty( $kt['cong'][ $kk ] ) ) {
+						$giu_m[ $kk ] = (float) $kt['cong'][ $kk ];
+						unset( $kt['cong'][ $kk ] );
+					}
+				}
+			}
+			$tra_m = VHCC_GiuLuong::tra_trong_thang( $coso, $tt, $g['ma'], $so_tra );
+			foreach ( $tra_m as $kk => $v ) {
+				$kt['cong'][ $kk ] = round( ( isset( $kt['cong'][ $kk ] ) ? (float) $kt['cong'][ $kk ] : 0 ) + $v, 2 );
+			}
+			if ( $giu_m || $tra_m ) {
+				$c_t = 0.0;
+				foreach ( $kt['cong'] as $v ) { $c_t += (float) $v; }
+				$tt_tien['cong'] = round( $c_t, 2 );
+			}
 			$d_chinh['cong']     = $kt['cong'];
 			$d_chinh['tru']      = $kt['tru'];
 			$d_chinh['tongCong'] = $tt_tien['cong'];
 			$d_chinh['tongTru']  = $tt_tien['tru'];
+			$d_chinh['giu']      = $giu_m;
+			$d_chinh['traGiu']   = $tra_m;
+			$d_chinh['tichLuy']  = ( $co_giu || $tra_m )
+				? VHCC_GiuLuong::tich_luy( $coso, $g['ma'], $tt, $so_khac, $so_kh, $so_tra ) : array();
 			$dong[] = $d_chinh;
 			/* 🌙 DÒNG CA ĐÊM — cơ sở theo công, người có công đêm trong tháng. Giá riêng
 			   (`demGiaCong`), tiền riêng, tổng riêng; không cộng vào công của dòng ngày. Khoản
@@ -538,7 +569,7 @@ class VHCC_BangLuong {
 					'giaTu' => $gia_dem > 0 ? 'coso' : 'khong',
 					'luongChinh' => $gia_dem > 0 ? round( $cong_dem * $gia_dem, 2 ) : null,
 					'soNgay' => $so_ngay, 'gioTong' => $gio_tong, 'gioKhac' => 0.0,
-					'cong' => array(), 'tru' => array(), 'tongCong' => 0.0, 'tongTru' => 0.0,
+					'cong' => array(), 'tru' => array(), 'tongCong' => 0.0, 'tongTru' => 0.0, 'giu' => array(), 'traGiu' => array(), 'tichLuy' => array(),
 					'thieuGio' => 0, 'gioLe' => 0.0, 'phuTroiLe' => 0.0, 'leTheo' => array(),
 					'bhxh' => 0.0,
 				);
@@ -768,6 +799,7 @@ class VHCC_BangLuong {
 			if ( $x['thieuGio'] > 0 ) {
 				$ghi[] = $x['thieuGio'] . ' ngày thiếu giờ vào hoặc giờ ra, KHÔNG tính vào số giờ';
 			}
+			$ghi = array_merge( $ghi, VHCC_GiuLuong::ghi_chu( $x ) );
 
 			$dong = array();
 			$dong[] = $o( $x['stt'], VHCC_Xuat::STT );

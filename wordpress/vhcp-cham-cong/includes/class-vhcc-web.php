@@ -1307,6 +1307,8 @@ class VHCC_Web {
 		/* Giá 1 công đêm khai ngay dưới bảng lương cơ sở theo công — gác thật ở
 		   `VHCC_Luong::dat_vp_cfg()` / `dat_cfg_khoi()` (bậc Kế toán). */
 		'gia_cong_dem',
+		/* Khoản giữ lại, trả sau — gác thật ở `VHCC_GiuLuong`. */
+		'giu_khoan', 'giu_tra', 'giu_huy',
 		/* Ẩn một mã khỏi bảng công: việc của màn Bảng công, và người cần nó nhất là Cửa hàng
 		   trưởng — đúng người mà chốt dưới sẽ đá ra bằng một câu về màn Hồ sơ họ không đụng
 		   tới. Gác thật ở `VHCC_An::dat()` (cong_coso + đúng phạm vi cơ sở). */
@@ -2032,6 +2034,46 @@ class VHCC_Web {
 		 * ⚠️ GIỜ CHẤM ĐỌC LẠI TỪ MÁY CHỦ cho TỪNG người — cùng lý do với khối từng-người: ô trên
 		 *    màn chỉ để nhìn, tin nó là ai sửa HTML cũng gõ được 900 giờ.
 		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		/* 💰 Khoản giữ lại — gác thật ở `VHCC_GiuLuong` (bậc `luong` + đúng phạm vi cơ sở). */
+		if ( in_array( $viec, array( 'giu_khoan', 'giu_tra', 'giu_huy' ), true ) ) {
+			$cs_h = isset( $_POST['ccs'] ) ? VHCC_NhanSu::chuan_coso( wp_unslash( $_POST['ccs'] ) ) : '';
+			$th_h = isset( $_POST['cth'] ) ? sanitize_text_field( wp_unslash( $_POST['cth'] ) ) : '';
+			if ( 'giu_khoan' === $viec ) {
+				$bat = isset( $_POST['giu_k'] ) ? array_map( 'sanitize_text_field', (array) wp_unslash( $_POST['giu_k'] ) ) : array();
+				$r = VHCC_GiuLuong::dat_khoan( $toi, $bat, $th_h );
+				if ( empty( $r['ok'] ) ) { return array( array( 'loi' => $r['error'] ) ); }
+				return array( array( 'xong' => $r['doi']
+					? 'Đã đổi khoản giữ lại (áp từ tháng ' . $th_h . '): ' . implode( ', ', $r['doi'] ) . '.'
+					: 'Không có khoản nào đổi.' ) );
+			}
+			if ( 'giu_tra' === $viec ) {
+				$gt = isset( $_POST['gt'] ) ? (array) wp_unslash( $_POST['gt'] ) : array();
+				$gs = isset( $_POST['gs'] ) ? (array) wp_unslash( $_POST['gs'] ) : array();
+				$ds = array();
+				foreach ( $gt as $m => $ks ) {
+					foreach ( (array) $ks as $k => $x ) {
+						$ds[] = array( 'ma' => sanitize_text_field( (string) $m ), 'khoan' => sanitize_text_field( (string) $k ),
+							'tien' => isset( $gs[ $m ][ $k ] ) ? sanitize_text_field( (string) $gs[ $m ][ $k ] ) : '' );
+					}
+				}
+				if ( ! $ds ) { return array( array( 'loi' => 'Chưa tích ô nào để trả.' ) ); }
+				$r = VHCC_GiuLuong::tra( $toi, $cs_h, $th_h, $ds );
+				if ( empty( $r['ok'] ) ) { return array( array( 'loi' => $r['error'] ) ); }
+				$bao = array();
+				if ( $r['xong'] ) {
+					$bao[] = array( 'xong' => 'Đã trả ' . $r['xong'] . ' khoản, tổng ' . number_format( $r['tong'], 0, ',', '.' )
+						. 'đ vào lương tháng ' . $th_h . '.' );
+				}
+				foreach ( $r['hong'] as $h_x ) { $bao[] = array( 'loi' => $h_x ); }
+				return $bao;
+			}
+			$ids = isset( $_POST['gh'] ) ? array_map( 'sanitize_text_field', (array) wp_unslash( $_POST['gh'] ) ) : array();
+			if ( ! $ids ) { return array( array( 'loi' => 'Chưa tích lần trả nào để huỷ.' ) ); }
+			$r = VHCC_GiuLuong::huy( $toi, $cs_h, $ids );
+			if ( empty( $r['ok'] ) ) { return array( array( 'loi' => $r['error'] ) ); }
+			return array( array( 'xong' => 'Đã huỷ ' . $r['bo'] . ' lần trả — số ấy quay lại "còn giữ".' ) );
+		}
+
 		if ( 'gia_cong_dem' === $viec ) {
 			$cs_g = isset( $_POST['ccs'] ) ? VHCC_NhanSu::chuan_coso( wp_unslash( $_POST['ccs'] ) ) : '';
 			if ( '' === $cs_g || ! VHCC_NhanSu::co_quyen_coso( $toi, $cs_g ) ) {
@@ -12144,6 +12186,7 @@ class VHCC_Web {
 					   cần khai"*. Chính dòng ấy đã nhuộm đỏ và ô Tiền/h để gạch ngang. */
 					if ( 'nguoi' === $d['giaTu'] ) { $gc[] = 'giá khai riêng'; }
 					if ( $d['thieuGio'] > 0 ) { $gc[] = $d['thieuGio'] . ' lượt thiếu giờ'; }
+					$gc = array_merge( $gc, VHCC_GiuLuong::ghi_chu( $d ) );
 					echo '<td class="mo">' . esc_html( implode( ' · ', $gc ) );
 					if ( $la_c && $duoc_nhap ) {
 						echo ' <a class="mo-hs" href="' . esc_url( add_query_arg(
@@ -12364,6 +12407,129 @@ class VHCC_Web {
 		 *    phép "tên chỉ in MỘT lần" đỏ — đỏ ĐÚNG, vì lúc ấy khối đọc và khối gõ lẫn nhau.
 		 * ═══════════════════════════════════════════════════════════════════════════════════ */
 		if ( $duoc_nhap ) { self::the_bang_nhap_luong( $ky, $toi, $cs, $th, $b ); }
+		self::the_giu_lai( $ky, $toi, $cs, $th, $b );
+	}
+
+	/**
+	 * 💰 KHOẢN GIỮ LẠI, TRẢ SAU — luồng TÍCH CHỌN (xem `VHCC_GiuLuong`).
+	 *
+	 * Anh Thắng 26/09/2026: *"Tạo luồng tích chọn để sau quản lý quyết định, chứ giờ nói trước
+	 * cũng không chắc chắn"*. Nên KHÔNG chốt sẵn khoản nào, kỳ nào, trả hết hay một phần:
+	 *   1. Tích khoản nào giữ lại (áp từ tháng đang xem; bỏ tích thì từ tháng đang xem thôi giữ —
+	 *      tháng cũ không đổi).
+	 *   2. Bảng tích luỹ từng người: đã giữ · đã trả · còn giữ.
+	 *   3. Tích người/khoản cần trả, sửa số nếu trả một phần, bấm "Trả vào lương tháng này".
+	 *   4. Những lần đã trả vào tháng này — tích để huỷ.
+	 */
+	private static function the_giu_lai( $ky, $toi, $cs, $th, $b ) {
+		if ( ! VHCC_Vai::duoc( $toi, VHCC_GiuLuong::QUYEN ) ) { return; }
+		$so_k  = VHCC_GiuLuong::so_khoan();
+		$giu_t = VHCC_GiuLuong::khoan_giu_thang( $th, $so_k );
+		$act = esc_url( add_query_arg( array( 'man' => 'luong', 'lcs' => $cs, 'lth' => $th ), self::url() ) . '#giulai' );
+		$an = '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+			. '<input type="hidden" name="ccs" value="' . esc_attr( $cs ) . '">'
+			. '<input type="hidden" name="cth" value="' . esc_attr( $th ) . '">';
+		$tien = function ( $v ) { return esc_html( number_format( (float) $v, 0, ',', '.' ) ); };
+
+		echo '<div class="the"><a id="giulai"></a><details' . ( $so_k ? ' open' : '' ) . '>';
+		echo '<summary><b>💰 Khoản giữ lại — trả sau</b> <span class="mo">— '
+			. ( $giu_t ? 'tháng ' . esc_html( $th ) . ' đang giữ: ' . esc_html( implode( ', ',
+				array_map( function ( $k ) { return VHCC_ChotLuong::CONG[ $k ]; }, $giu_t ) ) )
+				: 'chưa giữ khoản nào' ) . '</span></summary>';
+		echo '<p class="mo">Khoản được tích: tháng nào kế toán vẫn gõ số như thường, nhân viên vẫn thấy '
+			. 'trên phiếu, nhưng <b>không cộng vào lương tháng ấy</b> — dồn lại. Tới kỳ quản lý chọn '
+			. '(giữa năm, cuối năm…) thì tích người cần trả ở bảng dưới, tiền vào lương đúng tháng '
+			. 'đang xem. Sổ giữ lâu dài, không tự xoá.</p>';
+
+		/* ---- 1. tích khoản ---- */
+		echo '<form method="post" action="' . $act . '" style="margin:0 0 12px">' . $an
+			. '<input type="hidden" name="viec" value="giu_khoan">';
+		echo '<div class="hang" style="gap:12px;flex-wrap:wrap">';
+		foreach ( VHCC_ChotLuong::CONG as $k => $ten ) {
+			$ls = array();
+			foreach ( ( isset( $so_k[ $k ] ) ? (array) $so_k[ $k ] : array() ) as $kh ) {
+				$ls[] = 'từ ' . $kh['tu'] . ( '' !== (string) $kh['den'] ? ' tới ' . $kh['den'] : '' );
+			}
+			echo '<label style="font-weight:400"><input type="checkbox" name="giu_k[]" value="' . esc_attr( $k ) . '"'
+				. ( in_array( $k, $giu_t, true ) ? ' checked' : '' ) . '> ' . esc_html( $ten )
+				. ( $ls ? ' <span class="mo" style="font-size:11px">(' . esc_html( implode( '; ', $ls ) ) . ')</span>' : '' )
+				. '</label>';
+		}
+		echo '</div><p style="margin:8px 0 0"><button class="chinh">Lưu — áp từ tháng ' . esc_html( $th ) . '</button> '
+			. '<span class="mo" style="font-size:12px">Bỏ tích = từ tháng ' . esc_html( $th )
+			. ' trả thẳng vào lương như cũ; các tháng trước vẫn giữ nguyên.</span></p></form>';
+
+		if ( ! VHCC_GiuLuong::co_tung_giu() ) { echo '</details></div>'; return; }
+
+		/* ---- 2 + 3. tích luỹ và trả ---- */
+		$co_dong = array(); $ten_ng = array();
+		foreach ( (array) $b['dong'] as $d ) {
+			if ( ! empty( $d['laChinh'] ) ) { $co_dong[ strtolower( $d['ma'] ) ] = 1; $ten_ng[ strtolower( $d['ma'] ) ] = $d['ten']; }
+		}
+		$hang = array();
+		foreach ( VHCC_GiuLuong::ma_co_so( $cs ) as $m ) {
+			$tl = VHCC_GiuLuong::tich_luy( $cs, $m, $th );
+			$tl_het = VHCC_GiuLuong::tich_luy( $cs, $m, '' );
+			if ( $tl ) { $hang[ $m ] = array( $tl, $tl_het ); }
+		}
+		echo '<h4 style="margin:10px 0 6px">Tích luỹ tới tháng ' . esc_html( $th ) . '</h4>';
+		if ( ! $hang ) {
+			echo '<p class="mo">Chưa ai có khoản nào được giữ.</p>';
+		} else {
+			echo '<form method="post" action="' . $act . '">' . $an . '<input type="hidden" name="viec" value="giu_tra">';
+			echo '<div class="cuon"><table class="b"><thead><tr><th>Nhân viên</th><th>Khoản</th>'
+				. '<th class="p">Đã giữ</th><th class="p">Đã trả</th><th class="p">Còn giữ</th>'
+				. '<th>Trả vào tháng ' . esc_html( $th ) . '</th></tr></thead><tbody>';
+			foreach ( $hang as $m => $x ) {
+				list( $tl, $tl_het ) = $x;
+				foreach ( $tl as $k => $v ) {
+					$con = min( $v['con'], isset( $tl_het[ $k ] ) ? $tl_het[ $k ]['con'] : 0 );
+					echo '<tr><td>' . esc_html( isset( $ten_ng[ $m ] ) ? $ten_ng[ $m ] : $m )
+						. ' <span class="mo" style="font-size:11px">' . esc_html( $m ) . '</span></td>'
+						. '<td>' . esc_html( VHCC_ChotLuong::CONG[ $k ] ) . '</td>'
+						. '<td class="p">' . $tien( $v['giu'] ) . '</td><td class="p">' . $tien( $v['tra'] ) . '</td>'
+						. '<td class="p"><b>' . $tien( $con ) . '</b></td><td>';
+					if ( $con <= 0 ) {
+						echo '<span class="mo">—</span>';
+					} elseif ( empty( $co_dong[ $m ] ) ) {
+						echo '<span class="mo" style="font-size:11.5px">tháng này không có dòng lương — chọn tháng có chấm công</span>';
+					} else {
+						echo '<label style="font-weight:400"><input type="checkbox" name="gt[' . esc_attr( $m ) . '][' . esc_attr( $k ) . ']" value="1"> trả</label> '
+							. '<input name="gs[' . esc_attr( $m ) . '][' . esc_attr( $k ) . ']" value="' . esc_attr( (string) (int) round( $con ) )
+							. '" inputmode="numeric" style="width:110px;text-align:right" title="Sửa số nếu chỉ trả một phần">';
+					}
+					echo '</td></tr>';
+				}
+			}
+			echo '</tbody></table></div>';
+			echo '<p style="margin:8px 0 0"><button class="chinh">Trả mấy ô đã tích vào lương tháng ' . esc_html( $th )
+				. '</button> <span class="mo" style="font-size:12px">Số trả cộng vào đúng cột khoản ấy của tháng '
+				. esc_html( $th ) . '. Sửa ô số nếu chỉ trả một phần.</span></p></form>';
+		}
+
+		/* ---- 4. lần trả trong tháng này ---- */
+		$tra_t = array();
+		foreach ( VHCC_GiuLuong::so_tra() as $k_cs => $ds_m ) {
+			if ( 0 !== strcasecmp( (string) $k_cs, VHCC_Luong::bo_chu( preg_replace( '/^CS_/i', '', $cs ) ) ) ) { continue; }
+			foreach ( (array) $ds_m as $m => $ds ) {
+				foreach ( (array) $ds as $t ) { if ( $th === (string) $t['thang'] ) { $t['ma'] = $m; $tra_t[] = $t; } }
+			}
+		}
+		if ( $tra_t ) {
+			echo '<h4 style="margin:14px 0 6px">Đã trả vào lương tháng ' . esc_html( $th ) . '</h4>';
+			echo '<form method="post" action="' . $act . '">' . $an . '<input type="hidden" name="viec" value="giu_huy">';
+			echo '<div class="cuon"><table class="b"><tbody>';
+			foreach ( $tra_t as $t ) {
+				echo '<tr><td><label style="font-weight:400"><input type="checkbox" name="gh[]" value="' . esc_attr( $t['id'] ) . '"> huỷ</label></td>'
+					. '<td>' . esc_html( isset( $ten_ng[ $t['ma'] ] ) ? $ten_ng[ $t['ma'] ] : $t['ma'] ) . '</td>'
+					. '<td>' . esc_html( isset( VHCC_ChotLuong::CONG[ $t['khoan'] ] ) ? VHCC_ChotLuong::CONG[ $t['khoan'] ] : $t['khoan'] ) . '</td>'
+					. '<td class="p">' . $tien( $t['tien'] ) . '</td>'
+					. '<td class="mo" style="font-size:11.5px">' . esc_html( $t['boi'] . ' · ' . $t['luc'] ) . '</td></tr>';
+			}
+			echo '</tbody></table></div>';
+			echo '<p style="margin:8px 0 0"><button class="nut">Huỷ mấy lần trả đã tích</button></p></form>';
+		}
+		echo '</details></div>';
 	}
 
 	private static function the_khoi_luong( $toi, $cs, $th ) {
