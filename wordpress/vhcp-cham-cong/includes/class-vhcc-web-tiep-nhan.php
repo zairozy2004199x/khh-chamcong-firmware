@@ -43,6 +43,7 @@ class VHCC_WebTiepNhan {
 		self::the_moi( $ky, $toi, $ds_mau );
 		self::the_da_nhan( $ky );
 		self::the_noi_quy( $ky );
+		self::the_thu_nm( $ky, $toi );
 		self::the_mau( $ky, $ds_mau );
 		self::the_cty( $ky );
 		self::the_thu( $ky, $toi );
@@ -183,7 +184,7 @@ class VHCC_WebTiepNhan {
 		$nq = VHCC_NhapMon::noi_quy();
 		$nhap = '' === (string) $nq['luc'];
 		echo '<div class="the"><details' . ( $nhap ? ' open' : '' ) . '><summary><b>📜 Nội quy công ty</b> <span class="mo">— bản ' . esc_html( $nq['ban'] )
-			. ( $nhap ? ' · BẢN NHÁP MINH HOẠ, công ty sửa thành nội quy thật rồi Lưu' : ' · lưu ' . esc_html( $nq['luc'] ) . ( '' !== (string) $nq['boi'] ? ' bởi ' . esc_html( $nq['boi'] ) : '' ) ) . '</span></summary>';
+			. ( $nhap ? ' · BẢN SOẠN SẴN CHO KHU VUI CHƠI — công ty đọc lại, sửa cho đúng thực tế rồi bấm Lưu' : ' · lưu ' . esc_html( $nq['luc'] ) . ( '' !== (string) $nq['boi'] ? ' bởi ' . esc_html( $nq['boi'] ) : '' ) ) . '</span></summary>';
 		echo '<p class="mo">Mỗi mục bắt đầu bằng <b>## Tiêu đề</b>, mỗi dòng quy định bắt đầu bằng <b>- </b>. Nhân viên mới thấy nội quy ngay trên app ở bảng "Bắt đầu cùng K&amp;H", '
 			. 'đọc xong tích cam kết và bấm Đồng ý — hệ thống ghi bản, giờ, IP, thiết bị. Sửa nội dung là <b>lên bản mới</b> và mọi người được nhắc đồng ý lại; '
 			. 'chỉ sửa chính tả thì tích "Giữ nguyên bản".</p>';
@@ -207,6 +208,32 @@ class VHCC_WebTiepNhan {
 					. '<td class="mo" style="font-size:11.5px">' . esc_html( $x['ip'] ) . '<br>' . esc_html( substr( (string) $x['ua'], 0, 80 ) ) . '</td></tr>';
 			}
 			echo '</tbody></table></div>';
+		}
+		echo '</details></div>';
+	}
+
+	/**
+	 * 🧪 CHẾ ĐỘ THỬ NHẬP MÔN — anh Thắng 26/09/2026: *"Bật tính năng thử các chức năng mới vừa làm
+	 * để test"*. Mã trong danh sách thấy bảng "Bắt đầu cùng K&H" như người mới; nút làm lại xoá
+	 * tiến độ của riêng mã thử để đi lại từ đầu.
+	 */
+	private static function the_thu_nm( $ky, $toi ) {
+		$ds = VHCC_NhapMon::ds_thu();
+		echo '<div class="the"><details' . ( $ds ? ' open' : '' ) . '><summary><b>🧪 Chế độ thử nhập môn</b> <span class="mo">— '
+			. ( $ds ? 'đang bật cho ' . esc_html( strtoupper( implode( ', ', $ds ) ) ) : 'đang tắt' ) . '</span></summary>';
+		echo '<p class="mo">Mã NV trong ô này mở app sẽ thấy bảng "Bắt đầu cùng K&amp;H", nội quy và hướng dẫn như nhân viên mới — để thử trước khi dùng thật. '
+			. 'Muốn thấy đủ 6 việc (có "đổi PIN" và "ký hợp đồng") thì tiếp nhận một nhân viên thử ở khối trên rồi đăng nhập bằng mã đó. Xoá trống ô rồi Lưu là tắt.</p>';
+		$goi_y = isset( $toi['ma_nv'] ) ? (string) $toi['ma_nv'] : '';
+		echo '<form method="post" action="' . self::act() . '" class="hang" style="gap:8px;flex-wrap:wrap;align-items:flex-end">' . self::an( $ky, 'tn_nm_thu' )
+			. '<div><label>Mã NV thử (cách nhau dấu phẩy)</label><input name="nm_thu" value="' . esc_attr( strtoupper( implode( ', ', $ds ) ) ) . '" placeholder="' . esc_attr( $goi_y ) . '" style="width:280px"></div>'
+			. '<div><button class="chinh">Lưu</button></div></form>';
+		if ( $ds ) {
+			echo '<div class="hang" style="gap:6px;flex-wrap:wrap;margin-top:10px">';
+			foreach ( $ds as $ma ) {
+				echo '<form method="post" action="' . self::act() . '" style="display:inline">' . self::an( $ky, 'tn_nm_lai' )
+					. '<input type="hidden" name="tn_ma" value="' . esc_attr( $ma ) . '"><button class="nut">↺ Làm lại từ đầu: ' . esc_html( strtoupper( $ma ) ) . '</button></form>';
+			}
+			echo '</div><p class="mo" style="margin:6px 0 0">Làm lại = xoá tích "cài app", cờ ẩn bảng và các lần đồng ý nội quy của riêng mã thử. Lượt chấm công, PIN, chữ ký hợp đồng thì không đụng.</p>';
 		}
 		echo '</details></div>';
 	}
@@ -362,6 +389,15 @@ class VHCC_WebTiepNhan {
 				! empty( $_POST['nq_giu'] ) );
 			return array( empty( $r['ok'] ) ? array( 'loi' => $r['error'] )
 				: array( 'xong' => 'Đã lưu nội quy bản ' . $r['ban'] . ( $r['lenBan'] ? ' — nội dung đổi nên lên bản mới, mọi người sẽ được nhắc đọc & đồng ý lại trên app.' : '.' ) ) );
+		}
+		if ( 'tn_nm_thu' === $viec ) {
+			$r = VHCC_NhapMon::dat_thu( $toi, isset( $_POST['nm_thu'] ) ? sanitize_text_field( wp_unslash( $_POST['nm_thu'] ) ) : '' );
+			return array( empty( $r['ok'] ) ? array( 'loi' => $r['error'] )
+				: array( 'xong' => $r['so'] ? 'Đã bật chế độ thử nhập môn cho ' . $r['so'] . ' mã — mở app (tải lại trang) bằng mã đó để xem.' : 'Đã tắt chế độ thử nhập môn.' ) );
+		}
+		if ( 'tn_nm_lai' === $viec ) {
+			$r = VHCC_NhapMon::lam_lai( $toi, isset( $_POST['tn_ma'] ) ? sanitize_text_field( wp_unslash( $_POST['tn_ma'] ) ) : '' );
+			return array( empty( $r['ok'] ) ? array( 'loi' => $r['error'] ) : array( 'xong' => 'Đã xoá tiến độ nhập môn của mã thử — tải lại app để đi lại từ đầu.' ) );
 		}
 		if ( 'tn_smtp' === $viec ) {
 			$r = VHCC_Thu::dat( $toi, isset( $_POST['s'] ) ? array_map( 'sanitize_text_field', (array) wp_unslash( $_POST['s'] ) ) : array() );

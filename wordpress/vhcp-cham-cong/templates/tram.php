@@ -576,6 +576,7 @@ button.nm-o{cursor:pointer}
 .nm-viec li.xong .nm-t b{text-decoration:line-through;color:var(--chu-mo)}
 .nm-t small{color:var(--chu-mo);font-size:12px}
 .nm-nut{display:inline-block;font:inherit;font-size:12.5px;font-weight:600;border:1px solid var(--vien-dam);background:var(--the);color:var(--nhan);border-radius:99px;padding:5px 12px;margin:6px 0 0;cursor:pointer;width:auto;box-shadow:none;min-height:0;text-decoration:none}
+.nm-bd .nm-thu{display:inline-block;font-size:11px;font-weight:700;color:var(--chu-mo);background:var(--vang-nhat);border:1px solid var(--vien-dam);border-radius:99px;padding:1px 8px;vertical-align:2px}
 .nm-xong{background:var(--luc-nhat);border:1px solid var(--luc);border-radius:var(--bo-the);padding:var(--d4);text-align:center}
 .nm-xong b{display:block;font-size:17px;margin:4px 0;color:var(--chu-dam)}
 .nm-xong span{font-size:13px;color:var(--chu-mo)}
@@ -2602,7 +2603,7 @@ function veNhapMon(nm){
 	if(nm.hien){
 		var ds = nm.viec || [], xong = +nm.xong || 0, tong = +nm.tong || ds.length || 1;
 		if(xong < tong){
-			h += '<div class="the" style="margin:0"><div class="nm-bd"><b>Bắt đầu cùng K&amp;H</b><span>' + xong + '/' + tong + ' xong</span></div>'
+			h += '<div class="the" style="margin:0"><div class="nm-bd"><b>Bắt đầu cùng K&amp;H' + (nm.thu ? ' <span class="nm-thu">🧪 thử</span>' : '') + '</b><span>' + xong + '/' + tong + ' xong</span></div>'
 				+ '<div class="nm-thanh"><i style="width:' + Math.round(xong / tong * 100) + '%"></i></div><ul class="nm-viec">';
 			ds.forEach(function(v){
 				var nut = v.tuTich ? '<button type="button" class="nm-o" data-nm="tich" data-k="' + esc(v.k) + '" aria-label="' + (v.xong ? 'Bỏ tích' : 'Tích') + ': ' + esc(v.ten) + '">' + (v.xong ? '✓' : '') + '</button>'

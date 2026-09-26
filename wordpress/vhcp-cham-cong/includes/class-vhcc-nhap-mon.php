@@ -29,6 +29,8 @@ class VHCC_NhapMon {
 	const O_NQ   = 'NOI_QUY';
 	const O_DY   = 'NOI_QUY_DONG_Y';
 	const O_TICH = 'NHAP_MON_TICH';
+	/** 🧪 Mã NV đang bật CHẾ ĐỘ THỬ: thấy bảng nhập môn như người mới, dù vào làm đã lâu. */
+	const O_THU  = 'NHAP_MON_THU';
 
 	/** Vào làm trong bấy nhiêu ngày thì còn là "người mới". */
 	const NGAY_MOI = 30;
@@ -36,33 +38,101 @@ class VHCC_NhapMon {
 	/** Soạn nội quy = việc nhân sự → bậc Kế toán (cùng cửa màn Tiếp nhận). */
 	const QUYEN = 'ho_so';
 
-	/** Bản nháp minh hoạ — công ty thay bằng nội quy thật. */
+	/**
+	 * NỘI QUY SOẠN SẴN CHO KHU VUI CHƠI — anh Thắng 26/09/2026: *"Soạn giúp anh nội quy thật cho khu
+	 * vui chơi"*. Theo BLLĐ 2019 (Điều 118: đủ nội dung bắt buộc) + NĐ 145/2020 (Điều 69). Công ty
+	 * đọc lại, sửa cho đúng thực tế (giờ mở cửa, quy trình riêng) rồi bấm Lưu ở màn Tiếp nhận.
+	 */
 	public static function mac_dinh() {
 		return array(
 			'ban' => '1.0', 'apDung' => '', 'luc' => '', 'boi' => '',
 			'muc' => array(
-				array( 'tieu' => 'Giờ giấc & chấm công', 'dong' => array(
-					'Có mặt trước giờ ca 5 phút, chấm vào khi bắt đầu, chấm ra khi kết thúc — tại đúng cơ sở.',
-					'Không chấm hộ, không nhờ người khác chấm — vi phạm xử lý kỷ luật.',
-					'Đi trễ, về sớm, quên chấm: gửi đơn trên app trong ngày.' ) ),
-				array( 'tieu' => 'Đồng phục & tác phong', 'dong' => array(
-					'Mặc đồng phục, đeo bảng tên trong suốt ca.',
-					'Niềm nở với khách; không dùng điện thoại việc riêng khi đang phục vụ.' ) ),
-				array( 'tieu' => 'An toàn khu vui chơi', 'dong' => array(
-					'Kiểm tra trò chơi đầu ca theo danh sách; thấy hỏng báo quản lý ngay, dừng vận hành.',
-					'Luôn để mắt tới trẻ em; biết vị trí bình chữa cháy và lối thoát hiểm.' ) ),
-				array( 'tieu' => 'Tài sản & tiền quỹ', 'dong' => array(
-					'Kiểm đếm quỹ đầu và cuối ca có chứng kiến; chênh lệch ghi biên bản.',
-					'Không mang tài sản công ty ra ngoài khi chưa được phép.' ) ),
-				array( 'tieu' => 'Bảo mật thông tin', 'dong' => array(
-					'Giữ kín PIN, không chia sẻ tài khoản.',
-					'Không đưa thông tin khách hàng, doanh thu ra ngoài.' ) ),
-				array( 'tieu' => 'Nghỉ phép & đơn từ', 'dong' => array(
-					'Xin nghỉ trước ít nhất 1 ngày qua app (trừ ốm đau đột xuất).',
-					'Đổi ca: gửi yêu cầu đổi lịch, chờ quản lý duyệt.' ) ),
-				array( 'tieu' => 'Lương, thưởng & kỷ luật', 'dong' => array(
-					'Lương trả hằng tháng; phiếu lương gửi qua app và email.',
-					'Kỷ luật theo mức: nhắc nhở → khiển trách → kéo dài thời hạn nâng lương → sa thải (Điều 124 BLLĐ 2019).' ) ),
+				array( 'tieu' => 'Phạm vi & nguyên tắc chung', 'dong' => array(
+					'Nội quy này áp dụng cho mọi người lao động làm việc tại các khu vui chơi và văn phòng của Công ty, kể cả người đang thử việc, học việc, làm bán thời gian.',
+					'Nội quy được xây dựng theo Bộ luật Lao động 2019 (Điều 118) và Nghị định 145/2020/NĐ-CP; điều gì nội quy chưa nói thì làm theo hợp đồng lao động và pháp luật.',
+					'Người lao động có trách nhiệm đọc, hiểu và thực hiện đúng nội quy; bấm "Đồng ý nội quy" trên ứng dụng có giá trị như ký nhận.',
+					'Khu vui chơi phục vụ trẻ em: an toàn của trẻ luôn được đặt trên doanh thu và trên tốc độ phục vụ.',
+				) ),
+				array( 'tieu' => 'Giờ làm việc, nghỉ ngơi & chấm công', 'dong' => array(
+					'Làm việc theo ca do cửa hàng trưởng xếp trên lịch làm việc; giờ làm bình thường không quá 8 giờ/ngày và 48 giờ/tuần.',
+					'Làm thêm giờ chỉ khi được quản lý yêu cầu hoặc đồng ý, người lao động tự nguyện; tổng giờ làm thêm không quá 40 giờ/tháng và 200 giờ/năm, được trả lương làm thêm theo luật.',
+					'Làm từ 6 giờ/ngày trở lên được nghỉ giữa giờ ít nhất 30 phút liên tục (ca đêm ít nhất 45 phút); giữa hai ca nghỉ ít nhất 12 giờ; mỗi tuần nghỉ ít nhất 24 giờ liên tục.',
+					'Có mặt trước giờ ca ít nhất 5 phút để thay đồng phục, nhận bàn giao. Chấm vào khi bắt đầu ca, chấm ra khi kết thúc ca, bằng ứng dụng tại đúng cơ sở mình làm (có chụp ảnh khuôn mặt).',
+					'Nghiêm cấm chấm công hộ, nhờ người khác chấm hộ, chấm khi không có mặt tại cơ sở.',
+					'Quên chấm: gửi "Xin bù giờ" trên ứng dụng ngay trong ngày. Đi trễ: gửi "Đơn đi trễ" trước giờ ca. Không tự ý rời vị trí hoặc về sớm khi chưa được quản lý đồng ý và chưa bàn giao.',
+				) ),
+				array( 'tieu' => 'Nghỉ phép, nghỉ lễ & đơn từ', 'dong' => array(
+					'Nghỉ lễ, Tết hưởng nguyên lương theo Điều 112 Bộ luật Lao động; ai phải làm vào ngày lễ được trả lương theo luật.',
+					'Đủ 12 tháng làm việc được nghỉ phép năm 12 ngày hưởng nguyên lương; cứ đủ 5 năm làm việc được thêm 1 ngày. Làm chưa đủ 12 tháng thì tính theo tỷ lệ số tháng làm việc.',
+					'Nghỉ việc riêng hưởng nguyên lương: bản thân kết hôn 3 ngày; con kết hôn 1 ngày; cha mẹ (hai bên), vợ hoặc chồng, con chết 3 ngày.',
+					'Xin nghỉ gửi đơn trên ứng dụng trước ít nhất 1 ngày (nghỉ từ 3 ngày trở lên: trước 7 ngày) và chờ quản lý duyệt. Ốm đau, việc gấp: báo ngay cho cửa hàng trưởng rồi bổ sung đơn.',
+					'Đổi ca với đồng nghiệp: gửi yêu cầu đổi lịch trên ứng dụng, chỉ có hiệu lực khi quản lý duyệt.',
+				) ),
+				array( 'tieu' => 'Đồng phục, tác phong & phục vụ khách', 'dong' => array(
+					'Mặc đồng phục sạch sẽ, đeo bảng tên, đi giày hoặc vớ theo quy định của khu; tóc gọn gàng, móng tay ngắn, không đeo trang sức sắc nhọn khi hướng dẫn trẻ chơi.',
+					'Chào khách, niềm nở, nói năng lịch sự; tuyệt đối không quát mắng, doạ nạt, xô kéo trẻ em.',
+					'Không dùng điện thoại vào việc riêng khi đang trực khu chơi hoặc phục vụ khách; không ăn uống, nằm ngồi trên thiết bị chơi.',
+					'Không hút thuốc (kể cả thuốc lá điện tử), không uống rượu bia, không làm việc khi đã uống rượu bia hoặc dùng chất kích thích.',
+					'Khách góp ý, khiếu nại: lắng nghe, xin lỗi vì sự bất tiện và báo cửa hàng trưởng xử lý; không tranh cãi với khách.',
+				) ),
+				array( 'tieu' => 'An toàn trẻ em & khu vui chơi', 'dong' => array(
+					'Đầu ca kiểm tra toàn bộ thiết bị theo danh sách kiểm tra: lưới, đệm, dây, ốc vít, cạnh sắc, nhà bóng, cầu trượt, nguồn điện. Chưa kiểm tra xong thì chưa mở khu.',
+					'Phát hiện thiết bị hư hỏng hoặc không an toàn: dừng ngay, rào chắn, treo biển tạm ngưng và báo quản lý; không tự ý sửa khi không được giao.',
+					'Luôn có người trực quan sát khu chơi; không để khu vực nào vắng người giám sát. Hướng dẫn trẻ chơi đúng độ tuổi, chiều cao, số người cho phép của từng trò.',
+					'Chỉ giao trẻ ra khỏi khu cho đúng người lớn đi cùng (đối chiếu vé, vòng tay hoặc thẻ). Trẻ lạc: báo ngay cho cửa hàng trưởng, phát thông báo, canh các lối ra, không để trẻ đi với người lạ.',
+					'Trẻ bị ngã, chấn thương: sơ cứu theo hướng dẫn, báo phụ huynh và quản lý, gọi cấp cứu 115 khi cần; ghi biên bản sự cố ngay trong ca.',
+					'Biết vị trí tủ sơ cứu, bình chữa cháy, lối thoát hiểm và giữ lối thoát hiểm luôn thông thoáng.',
+				) ),
+				array( 'tieu' => 'Vệ sinh, an toàn lao động & phòng cháy chữa cháy', 'dong' => array(
+					'Vệ sinh, khử khuẩn thiết bị, bóng, đồ chơi theo lịch; khu chơi, nhà vệ sinh, khu ăn uống luôn sạch, khô ráo.',
+					'Sử dụng đúng trang thiết bị bảo hộ được cấp; báo ngay khi thấy nguy cơ mất an toàn cho khách hoặc cho chính mình.',
+					'Tham gia đầy đủ các buổi huấn luyện an toàn, sơ cứu, phòng cháy chữa cháy do Công ty tổ chức.',
+					'Không tự ý câu mắc điện, dùng bếp, nến hoặc lửa trần trong khu; cuối ngày tắt thiết bị điện theo quy trình đóng cửa.',
+					'Khi có cháy hoặc sự cố khẩn cấp: ưu tiên sơ tán trẻ em và khách theo lối thoát hiểm, gọi 114, báo quản lý.',
+				) ),
+				array( 'tieu' => 'Tiền quỹ, vé & tài sản công ty', 'dong' => array(
+					'Thu tiền, bán vé, nạp thẻ đúng bảng giá và đúng chương trình khuyến mãi đang áp dụng; mọi giao dịch phải qua máy tính tiền hoặc phần mềm của Công ty.',
+					'Kiểm đếm quỹ đầu ca và cuối ca có người chứng kiến; chênh lệch ghi biên bản và báo quản lý ngay trong ca.',
+					'Không tự ý cho chơi miễn phí, giảm giá, cho nợ; không nhận tiền riêng, tiền chuyển khoản vào tài khoản cá nhân từ khách.',
+					'Giữ gìn thiết bị, đồ chơi, dụng cụ được giao; không mang tài sản của Công ty ra ngoài khi chưa được phép. Đồ khách để quên: ghi sổ và nộp cho quản lý.',
+				) ),
+				array( 'tieu' => 'Bảo mật thông tin & hình ảnh', 'dong' => array(
+					'Giữ kín PIN, mật khẩu; không cho người khác dùng tài khoản của mình.',
+					'Không tiết lộ ra ngoài doanh thu, giá vốn, danh sách khách hàng, số điện thoại khách, hợp đồng và các tài liệu nội bộ của Công ty.',
+					'Không chụp ảnh, quay phim trẻ em rồi đăng lên mạng xã hội cá nhân khi chưa có sự đồng ý của phụ huynh và của Công ty (Luật Trẻ em 2016 bảo vệ bí mật đời sống riêng tư của trẻ).',
+					'Không phát ngôn với báo chí, không đăng thông tin nội bộ, sự cố của khu lên mạng khi chưa được Giám đốc cho phép.',
+				) ),
+				array( 'tieu' => 'Phòng, chống quấy rối tình dục tại nơi làm việc', 'dong' => array(
+					'Nghiêm cấm mọi hành vi quấy rối tình dục bằng lời nói, cử chỉ, hình ảnh, tin nhắn hoặc đụng chạm, với đồng nghiệp, khách hàng và đặc biệt là trẻ em.',
+					'Chỉ tiếp xúc cơ thể với trẻ khi cần để bảo đảm an toàn hoặc hỗ trợ chơi, trong tầm nhìn của người khác; không đưa trẻ vào nơi khuất.',
+					'Người bị quấy rối hoặc chứng kiến hành vi quấy rối báo cho cửa hàng trưởng hoặc trực tiếp Giám đốc; Công ty giữ kín danh tính người báo và xử lý trong thời hạn quy định.',
+					'Quấy rối tình dục tại nơi làm việc là hành vi có thể bị xử lý kỷ luật sa thải.',
+				) ),
+				array( 'tieu' => 'Tạm thời chuyển làm công việc khác', 'dong' => array(
+					'Khi gặp khó khăn đột xuất (thiên tai, dịch bệnh, sự cố, nhu cầu kinh doanh), Công ty có thể tạm thời điều người lao động sang cơ sở hoặc công việc khác phù hợp sức khoẻ, giới tính.',
+					'Công ty báo trước ít nhất 3 ngày làm việc, nói rõ thời hạn; tổng thời gian tạm chuyển không quá 60 ngày làm việc cộng dồn trong 1 năm, quá thời hạn này phải được người lao động đồng ý bằng văn bản.',
+					'Tiền lương công việc mới không thấp hơn 85% lương công việc cũ và không thấp hơn lương tối thiểu vùng; được giữ nguyên lương cũ trong 30 ngày làm việc đầu.',
+				) ),
+				array( 'tieu' => 'Hành vi vi phạm & hình thức kỷ luật', 'dong' => array(
+					'Hình thức kỷ luật (Điều 124): khiển trách; kéo dài thời hạn nâng lương không quá 6 tháng; cách chức; sa thải.',
+					'Khiển trách: đi trễ, về sớm, quên chấm công không lý do từ 3 lần trong tháng; dùng điện thoại việc riêng khi trực khu; sai đồng phục, tác phong; bỏ vị trí khi chưa bàn giao.',
+					'Kéo dài thời hạn nâng lương: tái phạm khi đang bị khiển trách; không kiểm tra thiết bị đầu ca; để khu chơi vắng người giám sát; tự ý cho chơi miễn phí, giảm giá; chấm công hộ hoặc nhờ chấm hộ.',
+					'Cách chức (người giữ chức vụ quản lý): tái phạm khi đang bị kéo dài thời hạn nâng lương; để xảy ra sự cố an toàn nghiêm trọng do không tổ chức kiểm tra, giám sát.',
+					'Sa thải (Điều 125): trộm cắp, tham ô, đánh bạc, cố ý gây thương tích (kể cả đánh, bạo hành trẻ em), sử dụng ma tuý tại nơi làm việc; tiết lộ bí mật kinh doanh; quấy rối tình dục tại nơi làm việc; tái phạm khi chưa được xoá kỷ luật kéo dài thời hạn nâng lương hoặc cách chức; tự ý bỏ việc 5 ngày cộng dồn trong 30 ngày hoặc 20 ngày cộng dồn trong 365 ngày không có lý do chính đáng.',
+					'Công ty không phạt tiền, không cắt lương thay cho việc xử lý kỷ luật, không xử lý kỷ luật hành vi không có trong nội quy (Điều 127).',
+				) ),
+				array( 'tieu' => 'Trách nhiệm vật chất (bồi thường thiệt hại)', 'dong' => array(
+					'Làm hư hỏng, mất dụng cụ, thiết bị, tài sản hoặc gây thiệt hại khác cho Công ty thì phải bồi thường theo Điều 129 Bộ luật Lao động.',
+					'Thiệt hại do sơ suất, giá trị không quá 10 tháng lương tối thiểu vùng: bồi thường nhiều nhất 3 tháng tiền lương, trừ dần vào lương hằng tháng không quá 30% tiền lương thực nhận.',
+					'Thiệt hại do cố ý hoặc vượt mức trên, làm mất tiền quỹ, hàng hoá được giao quản lý: bồi thường theo giá trị thực tế, có xem xét lỗi, hoàn cảnh và mức độ thiệt hại.',
+					'Thiệt hại do thiên tai, hoả hoạn, sự kiện bất khả kháng mà đã làm đúng quy trình thì không phải bồi thường.',
+				) ),
+				array( 'tieu' => 'Thẩm quyền & trình tự xử lý kỷ luật', 'dong' => array(
+					'Người có thẩm quyền xử lý kỷ luật: Giám đốc Công ty hoặc người được Giám đốc uỷ quyền bằng văn bản.',
+					'Mọi vụ việc được lập biên bản; Công ty phải chứng minh lỗi, người lao động được trình bày, được nhờ người khác bào chữa; có sự tham gia của tổ chức đại diện người lao động nếu có.',
+					'Thời hiệu xử lý kỷ luật là 6 tháng kể từ ngày xảy ra vi phạm; 12 tháng đối với vi phạm liên quan tài chính, tài sản, tiết lộ bí mật kinh doanh.',
+					'Quyết định kỷ luật được lập thành văn bản và gửi cho người lao động; người lao động có quyền khiếu nại theo quy định của pháp luật.',
+				) ),
 			),
 		);
 	}
@@ -70,6 +140,13 @@ class VHCC_NhapMon {
 	public static function noi_quy() {
 		$d = VHCC_Luong::cai_dat( self::O_NQ, null );
 		return is_array( $d ) && ! empty( $d['muc'] ) ? array_merge( self::mac_dinh(), $d ) : self::mac_dinh();
+	}
+
+	/** Thời gian đọc ước lượng (~900 ký tự một phút, tối thiểu 2 phút). */
+	public static function phut_doc( $nq ) {
+		$n = 0;
+		foreach ( (array) $nq['muc'] as $m ) { foreach ( (array) $m['dong'] as $d ) { $n += function_exists( 'mb_strlen' ) ? mb_strlen( $d, 'UTF-8' ) : strlen( $d ); } }
+		return max( 2, (int) ceil( $n / 900 ) );
 	}
 
 	/** Nội quy ra chữ để sửa: "## Tiêu đề" rồi mỗi dòng "- nội dung". */
@@ -182,6 +259,46 @@ class VHCC_NhapMon {
 		return array( 'ok' => true );
 	}
 
+	/* ============================================================== 🧪 chế độ thử */
+
+	/** Anh Thắng 26/09/2026: *"Bật tính năng thử các chức năng mới vừa làm để test"*. */
+	public static function ds_thu() {
+		return array_values( array_filter( array_map( 'strval', self::so( self::O_THU ) ) ) );
+	}
+
+	/** Đặt danh sách mã thử (cách nhau bằng dấu phẩy / khoảng trắng / xuống dòng). Chỉ nhận mã có hồ sơ. */
+	public static function dat_thu( $u, $chu ) {
+		if ( ! VHCC_Vai::duoc( $u, self::QUYEN ) ) {
+			return array( 'ok' => false, 'error' => VHCC_Vai::loi( $u, self::QUYEN, 'Chế độ thử nhập môn' ) );
+		}
+		$ds = array(); $sai = array();
+		foreach ( preg_split( '/[\s,;]+/', (string) $chu, -1, PREG_SPLIT_NO_EMPTY ) as $ma ) {
+			if ( VHCC_NhanSu::ho_so( $ma ) || VHCC_NhanSu::ho_so( strtoupper( $ma ) ) ) { $ds[ strtolower( $ma ) ] = true; } else { $sai[] = $ma; }
+		}
+		if ( $sai ) { return array( 'ok' => false, 'error' => 'Không có hồ sơ mã: ' . implode( ', ', $sai ) . '.' ); }
+		VHCC_Luong::dat_cai_dat( self::O_THU, array_keys( $ds ), $u );
+		return array( 'ok' => true, 'so' => count( $ds ) );
+	}
+
+	/**
+	 * Làm lại từ đầu cho MỘT mã đang thử: xoá việc tự tích + các lần đồng ý nội quy của mã ấy.
+	 * ⚠️ Chỉ mã trong danh sách thử — lần đồng ý của nhân viên thật là bằng chứng, không cho xoá.
+	 */
+	public static function lam_lai( $u, $ma ) {
+		if ( ! VHCC_Vai::duoc( $u, self::QUYEN ) ) {
+			return array( 'ok' => false, 'error' => VHCC_Vai::loi( $u, self::QUYEN, 'Chế độ thử nhập môn' ) );
+		}
+		$k = strtolower( trim( (string) $ma ) );
+		if ( '' === $k || ! in_array( $k, self::ds_thu(), true ) ) {
+			return array( 'ok' => false, 'error' => 'Chỉ làm lại được cho mã đang bật chế độ thử.' );
+		}
+		foreach ( array( self::O_TICH, self::O_DY ) as $o ) {
+			$so = self::so( $o );
+			if ( isset( $so[ $k ] ) ) { unset( $so[ $k ] ); VHCC_Luong::dat_cai_dat( $o, $so, $u ); }
+		}
+		return array( 'ok' => true );
+	}
+
 	/* ============================================================== trạng thái cho trạm */
 
 	/**
@@ -193,7 +310,7 @@ class VHCC_NhapMon {
 		$ma = isset( $u['ma_nv'] ) ? trim( (string) $u['ma_nv'] ) : '';
 		$nq = self::noi_quy();
 		$dy = '' !== $ma ? self::da_dong_y_ban( $ma, $nq['ban'] ) : null;
-		$ra = array( 'hien' => false, 'moi' => false, 'xong' => 0, 'tong' => 0, 'viec' => array(),
+		$ra = array( 'hien' => false, 'moi' => false, 'thu' => false, 'xong' => 0, 'tong' => 0, 'viec' => array(),
 			'noiQuy' => array( 'ban' => $nq['ban'], 'apDung' => $nq['apDung'], 'muc' => $nq['muc'], 'dongY' => $dy ? $dy['luc'] : '',
 				'cty' => class_exists( 'VHCC_Pdf' ) ? VHCC_Pdf::ten_cong_ty() : '' ),
 			'nhacLai' => false );
@@ -203,12 +320,14 @@ class VHCC_NhapMon {
 		$vao = $hs && ! empty( $hs['ngay_vao_lam'] ) ? (string) $hs['ngay_vao_lam'] : ( $tn ? substr( (string) $tn['luc'], 0, 10 ) : '' );
 		$hn = (string) current_time( 'Y-m-d' );
 		$moi = '' !== $vao && ( strtotime( $hn ) - strtotime( $vao ) ) <= self::NGAY_MOI * 86400;
+		$ra['thu'] = in_array( strtolower( $ma ), self::ds_thu(), true );
+		if ( $ra['thu'] ) { $moi = true; }
 		$tich = self::so( self::O_TICH );
 		$tich = isset( $tich[ strtolower( $ma ) ] ) ? (array) $tich[ strtolower( $ma ) ] : array();
 
 		$viec = array();
 		$viec[] = array( 'k' => 'kich', 'ten' => 'Kích hoạt tài khoản', 'mo' => 'Đăng nhập lần đầu bằng PIN', 'xong' => true );
-		$viec[] = array( 'k' => 'nq', 'ten' => 'Đọc & cam kết Nội quy công ty', 'mo' => count( (array) $nq['muc'] ) . ' mục · khoảng 5 phút', 'xong' => (bool) $dy );
+		$viec[] = array( 'k' => 'nq', 'ten' => 'Đọc & cam kết Nội quy công ty', 'mo' => count( (array) $nq['muc'] ) . ' mục · khoảng ' . self::phut_doc( $nq ) . ' phút', 'xong' => (bool) $dy );
 		if ( $tn && method_exists( 'VHCC_TiepNhan', 'pin_da_doi' ) ) {
 			$viec[] = array( 'k' => 'pin', 'ten' => 'Đổi PIN của riêng bạn', 'mo' => 'Tab Tôi → Đổi mật khẩu', 'xong' => VHCC_TiepNhan::pin_da_doi( $ma ) );
 		}

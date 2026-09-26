@@ -35,7 +35,17 @@ $CU  = array( 'ma_nv' => 'CU1', 'name' => 'Trần Thị Cũ' );
 
 /* ── 1. Nội quy mặc định + chữ ↔ mục ── */
 $nq = VHCC_NhapMon::noi_quy();
-t( '   nội quy mặc định: bản 1.0, 7 mục, chưa lưu', '1.0' === $nq['ban'] && 7 === count( $nq['muc'] ) && '' === $nq['luc'], $nq );
+t( '   nội quy soạn sẵn: bản 1.0, 13 mục, chưa lưu', '1.0' === $nq['ban'] && 13 === count( $nq['muc'] ) && '' === $nq['luc'], $nq['ban'] );
+$tieu = array_map( function ( $m ) { return $m['tieu']; }, $nq['muc'] );
+/* BLLĐ 2019 Điều 118 khoản 2 — nội quy PHẢI có đủ các nội dung này. */
+foreach ( array( 'Giờ làm việc', 'Tạm thời chuyển', 'Trách nhiệm vật chất', 'quấy rối tình dục', 'Thẩm quyền', 'kỷ luật', 'Bảo mật', 'An toàn trẻ em', 'phòng cháy' ) as $can ) {
+	t( '🔴 nội quy soạn sẵn có mục "' . $can . '" (Điều 118)', (bool) array_filter( $tieu, function ( $x ) use ( $can ) { return false !== mb_stripos( $x, $can ); } ), $tieu );
+}
+$chu_nq = VHCC_NhapMon::ra_chu( $nq );
+t( '🔴 nói rõ không phạt tiền / cắt lương thay kỷ luật (Điều 127)', false !== strpos( $chu_nq, 'không phạt tiền, không cắt lương' ) );
+t( '   bồi thường trừ lương không quá 30%', false !== strpos( $chu_nq, 'không quá 30%' ) );
+t( '   đủ bốn hình thức kỷ luật Điều 124', false !== strpos( $chu_nq, 'khiển trách; kéo dài thời hạn nâng lương không quá 6 tháng; cách chức; sa thải' ) );
+t( '   thời gian đọc tính theo độ dài', VHCC_NhapMon::phut_doc( $nq ) >= 5 && 2 === VHCC_NhapMon::phut_doc( array( 'muc' => array( array( 'tieu' => 'a', 'dong' => array( 'ngắn' ) ) ) ) ) );
 t( '🔴 chữ ra rồi đọc lại đúng từng mục', VHCC_NhapMon::doc_chu( VHCC_NhapMon::ra_chu( $nq ) ) === $nq['muc'] );
 $d = VHCC_NhapMon::doc_chu( "dòng lạc đầu\n## A\n* một\n\n## Rỗng\n## B\n• hai\n- ba" );
 t( '   dòng trước tiêu đề vào "Quy định chung"; mục không có dòng bị bỏ',
@@ -47,7 +57,7 @@ t( '🔴 người mới vào 3 ngày -> thấy bảng', $tt['hien'] && $tt['moi'
 t( '   không qua Tiếp nhận thì không bày "đổi PIN" / "ký HĐ"', array( 'kich', 'nq', 'cai', 'cham' ) === khoa( $tt ), khoa( $tt ) );
 t( '   kích hoạt tự tích; còn lại chưa', 1 === $tt['xong'] && 4 === $tt['tong'], $tt );
 t( '   "cài app" là việc tự tích', ! empty( $tt['viec'][2]['tuTich'] ) && empty( $tt['viec'][1]['tuTich'] ) );
-t( '   gửi kèm nội quy để trạm vẽ', 7 === count( $tt['noiQuy']['muc'] ) && '' === $tt['noiQuy']['dongY'] );
+t( '   gửi kèm nội quy để trạm vẽ', 13 === count( $tt['noiQuy']['muc'] ) && '' === $tt['noiQuy']['dongY'] );
 $tc = VHCC_NhapMon::trang_thai( $CU );
 t( '🔴 người cũ không thấy bảng', ! $tc['hien'] && ! $tc['moi'], $tc );
 t( '🔴 bản nháp chưa lưu -> KHÔNG nhắc người cũ', ! $tc['nhacLai'], $tc );
@@ -98,8 +108,8 @@ $web = function ( $get, $post = array() ) use ( $tok ) {
 };
 $G = array( 'man' => 'tiep_nhan' );
 $h = $web( $G );
-t( '🔴 màn Tiếp nhận có thẻ "Nội quy công ty" + bản nháp nói rõ', false !== strpos( $h, '📜 Nội quy công ty' ) && false !== strpos( $h, 'BẢN NHÁP MINH HOẠ' ) );
-t( '   ô soạn chứa sẵn nội quy dạng chữ', false !== strpos( $h, esc_textarea( '## Giờ giấc & chấm công' ) ) );
+t( '🔴 màn Tiếp nhận có thẻ "Nội quy công ty" + bản nháp nói rõ', false !== strpos( $h, '📜 Nội quy công ty' ) && false !== strpos( $h, 'BẢN SOẠN SẴN CHO KHU VUI CHƠI' ) );
+t( '   ô soạn chứa sẵn nội quy dạng chữ', false !== strpos( $h, esc_textarea( '## Giờ làm việc, nghỉ ngơi & chấm công' ) ) );
 t( '🔴 bảng "Ai đã đồng ý" có NM1', false !== strpos( $h, 'Ai đã đồng ý' ) && false !== strpos( $h, 'NM1' ) && false !== strpos( $h, '1.2.3.4' ) );
 
 $web( $G, array( 'viec' => 'tn_noi_quy', 'nq_chu' => VHCC_NhapMon::ra_chu(), 'nq_ngay' => '2026-10-01' ) );
@@ -111,7 +121,7 @@ t( '🔴 nội quy đã lưu thật -> người cũ chưa đồng ý được nh
 $chu2 = VHCC_NhapMon::ra_chu() . "\n\n## Vệ sinh\n- Dọn khu vực trước khi giao ca.";
 $web( $G, array( 'viec' => 'tn_noi_quy', 'nq_chu' => $chu2, 'nq_ngay' => '' ) );
 $nq = VHCC_NhapMon::noi_quy();
-t( '🔴 đổi nội dung khi đã có người đồng ý -> LÊN BẢN 1.1', '1.1' === $nq['ban'] && 8 === count( $nq['muc'] ), $nq['ban'] );
+t( '🔴 đổi nội dung khi đã có người đồng ý -> LÊN BẢN 1.1', '1.1' === $nq['ban'] && 14 === count( $nq['muc'] ), $nq['ban'] );
 t( '   ngày áp dụng để trống thì giữ ngày cũ', '2026-10-01' === $nq['apDung'] );
 $tt = VHCC_NhapMon::trang_thai( $MOI );
 t( '🔴 người đã đồng ý bản cũ -> được nhắc đồng ý lại', ! $tt['hien'] && $tt['nhacLai'] && '' === $tt['noiQuy']['dongY'], $tt );
@@ -158,6 +168,33 @@ t( '   bảng "Đã tiếp nhận" nói trạng thái nội quy', false !== strp
 VHCC_NhapMon::dong_y( $TN, '1.2' );
 t( '   … và đổi khi đã đồng ý', false !== strpos( $web( $G ), '📜 đã đồng ý nội quy ' ) );
 
+/* ── 6b. 🧪 Chế độ thử ── */
+$tc = VHCC_NhapMon::trang_thai( $CU );
+t( '   dựng cảnh: người cũ không thấy bảng', ! $tc['hien'] && ! $tc['thu'] );
+$h = $web( $G );
+t( '🔴 màn Tiếp nhận có thẻ "Chế độ thử nhập môn", đang tắt', false !== strpos( $h, '🧪 Chế độ thử nhập môn' ) && false !== strpos( $h, '— đang tắt' ) );
+$web( $G, array( 'viec' => 'tn_nm_thu', 'nm_thu' => 'CU1, KHONGCO9' ) );
+t( '🔴 mã không có hồ sơ -> chối cả danh sách', array() === VHCC_NhapMon::ds_thu() );
+$web( $G, array( 'viec' => 'tn_nm_thu', 'nm_thu' => 'cu1, NMAD' ) );
+t( '🔴 bật thử cho CU1 + NMAD', array( 'cu1', 'nmad' ) === VHCC_NhapMon::ds_thu(), VHCC_NhapMon::ds_thu() );
+$tc = VHCC_NhapMon::trang_thai( $CU );
+t( '🔴 người cũ đang thử -> thấy bảng như người mới, có cờ thử', $tc['hien'] && $tc['moi'] && $tc['thu'], $tc );
+VHCC_NhapMon::dong_y( $CU, VHCC_NhapMon::noi_quy()['ban'] );
+VHCC_NhapMon::tich( $CU, 'cai', true );
+VHCC_NhapMon::tich( $CU, 'an', true );
+t( '   dựng cảnh: CU1 đã đồng ý, tích, ẩn', ! VHCC_NhapMon::trang_thai( $CU )['hien'] && null !== VHCC_NhapMon::dong_y_cua( 'CU1' ) );
+$h = $web( $G );
+t( '   có nút làm lại cho từng mã thử', false !== strpos( $h, '↺ Làm lại từ đầu: CU1' ) && false !== strpos( $h, 'đang bật cho CU1, NMAD' ) );
+$web( $G, array( 'viec' => 'tn_nm_lai', 'tn_ma' => 'CU1' ) );
+$tc = VHCC_NhapMon::trang_thai( $CU );
+t( '🔴 làm lại -> bảng hiện lại, nội quy + cài app về chưa xong', $tc['hien'] && null === VHCC_NhapMon::dong_y_cua( 'CU1' ) && ! $tc['viec'][2]['xong'], $tc['viec'] );
+$so_dy = count( VHCC_NhapMon::ds_dong_y( 999 ) );
+$r = VHCC_NhapMon::lam_lai( array( 'ma_nv' => 'NMAD', 'vai_tro' => 'Admin' ), 'NM1' );
+t( '🔴 KHÔNG làm lại được cho nhân viên thật (lần đồng ý là bằng chứng)', empty( $r['ok'] ) && $so_dy === count( VHCC_NhapMon::ds_dong_y( 999 ) ) && null !== VHCC_NhapMon::dong_y_cua( 'NM1' ), $r );
+t( '   nhân viên thường không bật được chế độ thử', empty( VHCC_NhapMon::dat_thu( $CU, 'CU1' )['ok'] ) );
+$web( $G, array( 'viec' => 'tn_nm_thu', 'nm_thu' => '' ) );
+t( '🔴 xoá trống -> tắt, người cũ hết thấy bảng', array() === VHCC_NhapMon::ds_thu() && ! VHCC_NhapMon::trang_thai( $CU )['hien'] );
+
 /* ── 7. Trạm ── */
 $tpl  = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/templates/tram.php' );
 $tram = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-tram.php' );
@@ -167,6 +204,7 @@ t( '   có màn Nội quy: ô cam kết + nút Đồng ý (khoá tới khi tích
 t( '🔴 tab Tôi mở lại được nội quy', false !== strpos( $tpl, 'id="btMoNqToi"' ) && false !== strpos( $tpl, "el('btMoNqToi').addEventListener('click'" ) );
 t( '   napToi vẽ bảng', false !== strpos( $tpl, 'veNhapMon(j.nhapMon);' ) );
 t( '   trạm gọi đúng hai việc', false !== strpos( $tpl, "goi('noi_quy_dong_y'" ) && false !== strpos( $tpl, "goi('nhap_mon_tich'" ) );
+t( '   trạm gắn nhãn 🧪 thử khi đang ở chế độ thử', false !== strpos( $tpl, "(nm.thu ? ' <span class=\"nm-thu\">🧪 thử</span>' : '')" ) );
 t( '   hướng dẫn nhanh 4 thẻ vuốt ngang', false !== strpos( $tpl, 'var NM_HD = [' ) && false !== strpos( $tpl, 'scroll-snap-type:x mandatory' ) );
 t( '🔴 máy chủ gửi `nhapMon` trong lượt `toi` + nhận hai việc', false !== strpos( $tram, "\$tt['nhapMon'] = VHCC_NhapMon::trang_thai( \$u );" )
 	&& false !== strpos( $tram, "'noi_quy_dong_y' === \$viec" ) && false !== strpos( $tram, "'nhap_mon_tich' === \$viec" ) );
